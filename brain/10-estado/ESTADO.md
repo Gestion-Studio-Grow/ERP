@@ -1,14 +1,14 @@
 ---
 tipo: estado
 generado: true
-generado_el: 2026-11-04 07:20 UTC
+generado_el: 2026-11-05 05:57 UTC
 tags: [brain/estado, fase-0]
 ---
 <!-- GENERADO por scripts/brain-sync.mjs — NO editar a mano -->
 
 # 🧠 Estado — la foto derivada del repo
 
-> ⏱️ **Foto tomada el 2026-11-04 07:20 UTC sobre `ee193f1`.**
+> ⏱️ **Foto tomada el 2026-11-05 05:57 UTC sobre `b0dc696`.**
 > No se escribe a mano: sale de `git` + `prisma/migrations/` + `docs/`, así que **al momento
 > de generarla no puede estar desactualizada** (es la causa de la lección **MP-12**). Pero una
 > vez commiteada envejece como cualquier archivo: **si la estás leyendo en GitHub o en el celular,
@@ -18,25 +18,27 @@ tags: [brain/estado, fase-0]
 
 | Campo | Valor |
 |---|---|
-| Rama actual | `HEAD` |
-| HEAD | `ee193f1` (2026-11-02) |
-| Árbol | limpio _(sin contar `brain/`)_ |
+| Rama actual | `claude/gsg-technology-options-i0wmqu` |
+| HEAD | `b0dc696` (2026-11-05) |
+| Árbol | **3 archivo(s) sin commitear** _(sin contar `brain/`)_ |
 | Tip de `main` | ee193f1 · 2026-11-02 · MIA: ampliar y eliminar imágenes del Estudio, el agente propone las piezas, y consultas con espera sin respuesta humana, orden por demora, respuesta por otro canal y cliente reutilizado |
+
+**Ramas locales (2, más reciente primero):** `claude/gsg-technology-options-i0wmqu` · `main`
 
 **Últimos commits**
 
-- ee193f1 · 2026-11-02 · MIA: ampliar y eliminar imágenes del Estudio, el agente propone las piezas, y consultas con espera sin respuesta humana, orden por demora, respuesta por otro canal y cliente reutilizado
-- 597cf94 · 2026-11-02 · MIA: el lote de deploy lista sólo la migración pendiente (las de Proyectos ya están aplicadas)
-- 395e959 · 2026-11-02 · MIA: consultas de potenciales clientes: formulario público, bandeja, acuse automático con plantillas, borrador del agente que aprueba una persona, y conversión en lead
-- 3d2f50f · 2026-11-02 · MIA: reglas de las consultas de potenciales clientes (clasificar, escalar, controlar borradores, brief con estados), probadas con 30 consultas
-- 891e9ad · 2026-11-02 · MIA: al eliminar una maqueta se van sus renglones del presupuesto en borrador; se frena si están en una cotización enviada o ya se contrataron
-- a38238d · 2026-11-02 · MIA: se pueden eliminar maquetas, con confirmación, desde la lista y desde el editor
-- f902e8f · 2026-11-02 · MIA: deshacer y exportar GLB en el armador; los agentes ven el stand; analista y revisor; tres alternativas comparables
-- 22a04cd · 2026-11-02 · MIA: editor de stands más claro: paleta por grupos, lista de piezas, mover de a 25 cm, controles de superposición y altura, pieza nueva en lugar libre y visor fijo
-- 8fe419a · 2026-11-02 · MIA: 11 piezas de activación de marca, más detalle en todas las piezas del armador 3D, y mensaje claro cuando Pollinations limita
-- 94afee2 · 2026-11-02 · MIA: un agente arma el primer borrador del stand desde el brief (opción nueva, la persona lo ajusta)
-- 4727046 · 2026-11-02 · MIA: las imágenes salen por Pollinations (el servicio de Azimut) cuando no hay servicio propio ni Cloudflare
-- f24848a · 2026-11-02 · Merge remote-tracking branch 'origin/main' into tenant/mia-producciones
+- b0dc696 · 2026-11-05 · docs(gobierno): política de modelos para todas las sesiones + advertencia del estado real del paquete S2 [sin-deploy]
+- 5b2849d · 2026-11-05 · fix(agenda): certificación del pase 05/11 — editar turno detrás de «Agenda interactiva» y reprogramar mira profesional y servicio
+- a907c7a · 2026-11-05 · Merge remote-tracking branch 'origin/claude/ch-venta-buscar-turnos' into claude/pase-agenda-ch
+- 70eb121 · 2026-11-05 · docs(agenda): relevo — comisiones T1 hecha, falta certificar [sin-deploy]
+- 163c75e · 2026-11-05 · docs(agenda): relevo — historia clínica con la auditoría estricta cerrada (d3a0f31) [sin-deploy]
+- d453789 · 2026-11-05 · docs(agenda): relevo de la sesión — publicado, ramas listas, en curso y pendientes [sin-deploy]
+- 1292dd5 · 2026-11-05 · test(agenda): e2e de Editar (servicio+hora → Guardar → Deshacer), WhatsApp del cajón y Pagos; verificado el wip de editar [sin-deploy]
+- 19b937c · 2026-11-04 · feat(ch): Vender — un campo para servicio o producto; un servicio abre «Turnos libres» por profesional (agenda-interaccion) [sin-deploy]
+- a33ce85 · 2026-11-04 · test(vender): turnos libres sin agenda:manage se ven sin tecla [sin-deploy]
+- ceb0f3c · 2026-11-04 · wip: trabajo a medias rescatado tras reinicio del contenedor (sin verificar) [sin-deploy]
+- ebac5d8 · 2026-11-04 · wip: trabajo a medias rescatado tras reinicio del contenedor (sin verificar) [sin-deploy]
+- a98c867 · 2026-11-04 · fix(agenda): pulido a 375 — chips deslizables, barra 2x2, pie opaco del alta, una sola planilla montada
 
 ## Migraciones (Prisma)
 
@@ -54,10 +56,10 @@ tags: [brain/estado, fase-0]
 
 | Fuente | Volumen |
 |---|---:|
-| Documentos en `docs/` | 392 |
-| Palabras en `docs/` | 706.285 |
-| ADRs | 87 |
-| Nodos en el grafo | 93 _(los 87 ADR + 6 enmiendas)_ |
+| Documentos en `docs/` | 398 |
+| Palabras en `docs/` | 712.447 |
+| ADRs | 88 |
+| Nodos en el grafo | 94 _(los 88 ADR + 6 enmiendas)_ |
 
 ## Superficies con front propio
 

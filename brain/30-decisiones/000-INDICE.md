@@ -7,7 +7,7 @@ tags: [brain/indice, brain/decisiones]
 
 # 🏛️ Decisiones — índice fino
 
-> 93 decisiones. Esto es el **mapa** (1 línea por ADR); el razonamiento completo vive
+> 94 decisiones. Esto es el **mapa** (1 línea por ADR); el razonamiento completo vive
 > en `docs/adr/ADR-NNN-*.md` y **no se resume** (ADR-008: el *porqué* es lo que evita rediscutir).
 > Para armar una lista de lectura acotada por tema: `npm run adr:context -- <keywords>`.
 
@@ -80,7 +80,7 @@ graph RL
   ADR071 --> ADR008
 ```
 
-_La flecha se lee **"depende de"**. Solo el núcleo fundacional; el grafo completo (93 nodos) se navega en Obsidian, filtrando por tag._
+_La flecha se lee **"depende de"**. Solo el núcleo fundacional; el grafo completo (94 nodos) se navega en Obsidian, filtrando por tag._
 
 **El mismo grafo, en texto:** cada nodo de arriba tiene su nota con las secciones *"Depende de"* y *"Lo que se cae si esto cambia"* — la misma información que las flechas, en listas de enlaces. Si no podés ver el diagrama, no te estás perdiendo nada.
 
@@ -90,8 +90,8 @@ _Solo los IDs: buscá el detalle en la lista completa de abajo (no se repite el 
 
 - **Producto** (25) — ADR-003, ADR-004, ADR-009, ADR-011, ADR-012, ADR-013, ADR-014, ADR-022, ADR-024, ADR-025, ADR-027, ADR-030, ADR-031, ADR-034, ADR-035, ADR-036, ADR-037, ADR-044, ADR-056, ADR-058, ADR-059, ADR-060, ADR-061, ADR-066, ADR-069
 - **Operaciones** (20) — ADR-016, ADR-026, ADR-032, ADR-033, ADR-038, ADR-039, ADR-040, ADR-045, ADR-046, ADR-047, ADR-048, ADR-049, ADR-050, ADR-051, ADR-052, ADR-053, ADR-063, ADR-068, ADR-070, ADR-071
+- **(sin clasificar)** (17) — ADR-072, ADR-073, ADR-074, ADR-075, ADR-076, ADR-077, ADR-078, ADR-079, ADR-080, ADR-089, ADR-098, ADR-099, ADR-100, ADR-101, ADR-102, ADR-103, ADR-104
 - **Arquitectura** (16) — ADR-001, ADR-002, ADR-005, ADR-006, ADR-010, ADR-020, ADR-022, ADR-054, ADR-055, ADR-057, ADR-058, ADR-060, ADR-061, ADR-063, ADR-064, ADR-065
-- **(sin clasificar)** (15) — ADR-072, ADR-073, ADR-074, ADR-075, ADR-076, ADR-077, ADR-078, ADR-079, ADR-080, ADR-089, ADR-098, ADR-099, ADR-100, ADR-101, ADR-102
 - **Plataforma** (11) — ADR-010, ADR-015, ADR-019, ADR-021, ADR-023, ADR-028, ADR-029, ADR-056, ADR-065, ADR-067, ADR-070
 - **Seguridad** (10) — ADR-015, ADR-017, ADR-018, ADR-041, ADR-042, ADR-043, ADR-062, ADR-066, ADR-067, ADR-068
 - **Datos** (9) — ADR-001, ADR-004, ADR-018, ADR-023, ADR-027, ADR-057, ADR-062, ADR-064, ADR-067
@@ -99,11 +99,8 @@ _Solo los IDs: buscá el detalle en la lista completa de abajo (no se repite el 
 - **Enmienda** (6) — AMD, AMD-001, AMD-003, AMD-004, AMD-005, AMD-007
 - **UX** (5) — ADR-009, ADR-042, ADR-043, ADR-059, ADR-069
 - **IA** (4) — ADR-006, ADR-008, ADR-034, ADR-071
-- **Dependencias** (1) — ADR-103
-- **Fiscal** (1) — ADR-103
-- **Bancos** (1) — ADR-103
 
-## Todas (93)
+## Todas (94)
 
 - **[ADR-001](ADR-001.md)** 🏛️ — Estrategia de Aislamiento Multi-Tenant _(19 dependientes)_ · [fuente ADR-001](../../docs/adr/ADR-001-multi-tenant-strategy.md)
 - **[ADR-002](ADR-002.md)** 🏛️ — Estructura Core / Business Capabilities / Blueprints / Plugins _(21 dependientes)_ · [fuente ADR-002](../../docs/adr/ADR-002-core-blueprints-plugins.md)
@@ -126,7 +123,7 @@ _Solo los IDs: buscá el detalle en la lista completa de abajo (no se repite el 
 - **[ADR-019](ADR-019.md)** — Onboarding / alta de tenant nuevo (provisioning) — script operado, no portal self-service _(6 dependientes)_ · [fuente ADR-019](../../docs/adr/ADR-019-onboarding-alta-tenant-provisioning.md)
 - **[ADR-020](ADR-020.md)** — Contrato de API pública del Core — qué comando/consulta expone cada Business Capability y dónde está su límite _(2 dependientes)_ · [fuente ADR-020](../../docs/adr/ADR-020-contrato-api-publica-core.md)
 - **[ADR-021](ADR-021.md)** — Consola de operación / super-admin — plano de plataforma separado, scope y secuencia _(3 dependientes)_ · [fuente ADR-021](../../docs/adr/ADR-021-consola-operacion-super-admin.md)
-- **[ADR-022](ADR-022.md)** — Plugin ARCA — facturación electrónica como primer Plugin del Core _(8 dependientes)_ · [fuente ADR-022](../../docs/adr/ADR-022-plugin-arca-facturacion-electronica.md)
+- **[ADR-022](ADR-022.md)** — Plugin ARCA — facturación electrónica como primer Plugin del Core _(7 dependientes)_ · [fuente ADR-022](../../docs/adr/ADR-022-plugin-arca-facturacion-electronica.md)
 - **[ADR-023](ADR-023.md)** — Check de performance multi-tenant y restricciones de free plan _(2 dependientes)_ · [fuente ADR-023](../../docs/adr/ADR-023-performance-multitenant.md)
 - **[ADR-024](ADR-024.md)** — Disparadores de facturación, toggle "facturar sí/no" y Plugin Mercado Pago _(3 dependientes)_ · [fuente ADR-024](../../docs/adr/ADR-024-disparadores-facturacion-toggle-mercadopago.md)
 - **[ADR-025](ADR-025.md)** — Ingesta de Mercado Pago + facturación automática masiva (producto monotributista) _(2 dependientes)_ · [fuente ADR-025](../../docs/adr/ADR-025-ingesta-mercadopago-facturacion-masiva.md)
@@ -192,6 +189,7 @@ _Solo los IDs: buscá el detalle en la lista completa de abajo (no se repite el 
 - **[ADR-101](ADR-101.md)** — Caja: un solo esperado. El cajón debe tener lo que dice el libro; el fondo tipeado es un conteo · [fuente ADR-101](../../docs/adr/ADR-101-caja-un-solo-esperado.md)
 - **[ADR-102](ADR-102.md)** — Variantes de producto (talle, color): cada variante es un producto; el «modelo» las agrupa · [fuente ADR-102](../../docs/adr/ADR-102-variantes-de-producto.md)
 - **[ADR-103](ADR-103.md)** — Tres dependencias para vender: `unpdf` (leer PDF), `pdf-lib` (armar PDF) y `qrcode` (QR de ARCA) · [fuente ADR-103](../../docs/adr/ADR-103-dependencias-lanzamiento.md)
+- **[ADR-104](ADR-104.md)** — Herramientas de Claude que GSG adopta (y las que no) · [fuente ADR-104](../../docs/adr/ADR-104-herramientas-claude-adoptadas.md)
 - **[AMD](AMD.md)** — Enmiendas a ADR 001-008 (paraguas) _(1 dependientes)_
 - **[AMD-001](AMD-001.md)** — Soft-delete (deleted_at)
 - **[AMD-003](AMD-003.md)** — Precio congelado + notas libres en el Turno _(1 dependientes)_
