@@ -137,7 +137,7 @@ export const PASOS_CERTIFICADO_PROPIO: readonly string[] = [
   "Entrá vos a arca.gob.ar con tu CUIT y tu clave fiscal nivel 3, y abrí «Administración de Certificados Digitales».",
   "«Agregar alias»: poné gsg-erp, subí el .csr y bajá el certificado (.crt) que te da ARCA.",
   "En «Administrador de Relaciones de Clave Fiscal» → «Nueva relación» → «Facturación Electrónica», elegí ese certificado.",
-  "Subí el .crt en Facturita. Listo: el certificado es tuyo y sirve sólo para facturar; lo podés revocar cuando quieras.",
+  "Subí el .crt en Factoque. Listo: el certificado es tuyo y sirve sólo para facturar; lo podés revocar cuando quieras.",
 ];
 
 // ---------------------------------------------------------------------------
@@ -202,7 +202,7 @@ export function mensajeActivacion(d: DatosAlta): string {
   const pv = d.sinPuntoVenta ? null : validarPuntoVenta(d.puntoVenta);
   const condicion = esCondicionIva(d.condicion) ? opcionCondicion(d.condicion).nombre : "a confirmar";
   return [
-    "¡Hola! Quiero activar mi Facturita gratis.",
+    "¡Hola! Quiero activar mi Factoque gratis.",
     `Nombre: ${d.nombre.trim()}`,
     `CUIT: ${cuit.ok ? cuit.formateado : d.cuit.trim()}`,
     `Condición frente al IVA: ${condicion}`,

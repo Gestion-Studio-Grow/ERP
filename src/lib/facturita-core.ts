@@ -125,6 +125,11 @@ export interface EmisionFacturita {
   nombreReceptor?: string;
   /** Domicilio del comprador (opcional; lo pide el PDF de una Factura A). */
   domicilioReceptor?: string;
+  /**
+   * Clave de ESTE intento de emisión (la genera la pantalla). El mismo pedido repetido —doble toque,
+   * reintento de red— devuelve la factura del primero en vez de pedir otro CAE.
+   */
+  claveEmision?: string;
 }
 
 export interface EmisionValidada {

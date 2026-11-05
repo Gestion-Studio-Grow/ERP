@@ -195,7 +195,7 @@ export default function AltaAsistente({ canal }: { canal: CanalGsg }) {
     // En el celular el botón está en la barra fija: el aviso se trae a la vista.
     requestAnimationFrame(() => aviso.current?.scrollIntoView({ block: "nearest" }));
   };
-  const linkMandar = linkCanal(canal, "Alta en Facturita", mensaje);
+  const linkMandar = linkCanal(canal, "Alta en Factoque", mensaje);
   const textoCopiar = copia === "ok" ? "Copiado" : "Copiar el resumen";
   const id = (campo: string) => `${uid}-${campo}`;
 
@@ -356,7 +356,7 @@ export default function AltaAsistente({ canal }: { canal: CanalGsg }) {
         {paso === 3 && (
           <div className="mt-6">
             <p className="text-[var(--fx-tenue)]">
-              Para que Facturita emita a tu nombre, creás vos tu certificado en ARCA. Nosotros no entramos a tu ARCA ni
+              Para que Factoque emita a tu nombre, creás vos tu certificado en ARCA. Nosotros no entramos a tu ARCA ni
               te pedimos la clave fiscal: queda con vos.
             </p>
             <ol className="mt-5 space-y-4">
