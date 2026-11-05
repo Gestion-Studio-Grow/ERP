@@ -17,3 +17,9 @@
 6. **Backoffice (catálogo).** «Compartir» por servicio y por profesional → panel: copiar link, WhatsApp con mensaje armado (`utm_medium=whatsapp`), link para la bio de Instagram (`utm_medium=bio`), vista previa con título y descripción OG. Grilla profesional × servicio (sólo las combinaciones que existen) con el mismo panel. Tarjeta «Reservas desde redes (30 días)».
 7. **Aislamiento.** `resolverPreeleccion(lista, query)` es pura sobre la lista que ya devuelve `getProfessionalsWithServices()` (prisma con scope de negocio); nunca toca la base. Tests con dos negocios: un slug de otro negocio no resuelve.
 8. **Partición.** Contrato `src/lib/link-reserva.ts` (orquestador) → Tarea A: público (reserva, OG, utm, `createAppointment`). Tarea B: backoffice (Compartir, grilla, conteo). Ninguna toca schema ni migraciones.
+
+## Resultado (05/11/2026)
+- Pasos para reservar: sin link 5 → servicio + profesional 3 (fecha, horario, datos); sólo servicio 4 (3 si lo hace una sola persona); sólo profesional 4.
+- Verificación: tests 29/29 (link-reserva 14, compartir-core 8, reserva-publica-notas y postgres), `tsc` 0, `npm run build` verde. QA en el navegador (base local): 10/10 casos públicos, incluido el aislamiento entre dos negocios; reserva real con la marca `[via:instagram/bio/peeling-quimico]` en la nota; imagen OG 1200×630.
+- `gate:visual:aa`: 11 defectos que ya estaban y no son de este frente (10 táctiles en la tienda de Magra `mg-eti-abrir`; desborde de «Agregar box» en `BoxesSection` a 412 px).
+- Pendiente: «Compartir» en la pestaña Servicios del diseño nuevo del catálogo (`CatalogoServiciosRenglon`); QA de copiar al portapapeles en el backoffice; una nota escrita a mano que empiece con `[via:` se cuenta como origen (riesgo bajo, sólo en el campo de notas del taller).
