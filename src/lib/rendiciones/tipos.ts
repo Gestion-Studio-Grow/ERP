@@ -17,7 +17,7 @@ export type FechaISO = string;
 
 /**
  * Con qué se pagó el gasto rendido. ÚNICA fuente de los valores: son los mismos que guarda la base
- * ("ProyectoRendicion"."medio", CHECK `ProyectoRendicion_medio_check` de `20261104120000_rendiciones`; un test lo controla).
+ * ("ProyectoRendicion"."medio", CHECK `ProyectoRendicion_medio_check` de `20261104121000_rendiciones`; un test lo controla).
  * - PROPIO: de su bolsillo, se le reintegra.
  * - ANTICIPO: con un anticipo; se cierra con la cuadratura del anticipo.
  */

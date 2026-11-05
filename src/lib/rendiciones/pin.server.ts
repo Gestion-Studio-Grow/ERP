@@ -70,7 +70,7 @@ export async function exigePin(u: UsuarioDelIngreso): Promise<boolean> {
 }
 
 /**
- * Hasta que la migración 20261104120000_rendiciones se aplique (Gate 2) la tabla no existe: entonces no se exige PIN y el
+ * Hasta que la migración 20261104121000_rendiciones se aplique (Gate 2) la tabla no existe: entonces no se exige PIN y el
  * ingreso sigue como hoy, en vez de romper el login de Comercial/Producción.
  */
 async function tablaDelPinLista(u: UsuarioDelIngreso): Promise<boolean> {

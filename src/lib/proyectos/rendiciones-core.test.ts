@@ -92,7 +92,7 @@ test("revisión: tampoco aprueba lo propio quien rindió y quedó sin ficha (mis
 });
 
 test("medio de pago: una sola fuente; el CHECK de la migración usa los mismos valores y exige el anticipo", () => {
-  const sql = readFileSync(new URL("../../../prisma/migrations/20261104120000_rendiciones/migration.sql", import.meta.url), "utf8");
+  const sql = readFileSync(new URL("../../../prisma/migrations/20261104121000_rendiciones/migration.sql", import.meta.url), "utf8");
   const check = sql.slice(sql.indexOf('"ProyectoRendicion_medio_check"'), sql.indexOf(";", sql.indexOf('"ProyectoRendicion_medio_check"')));
   const enCheck = [...check.matchAll(/"medio" = '([A-Z_]+)'/g)].map((m) => m[1]).sort();
   assert.deepEqual(enCheck, [...MEDIOS_PAGO].sort());

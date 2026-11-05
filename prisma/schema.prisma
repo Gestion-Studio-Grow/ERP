@@ -1556,7 +1556,7 @@ model CashMovement {
   proyectoGasto   ProyectoGasto? @relation(fields: [proyectoGastoId], references: [id], onDelete: SetNull)
   proyectoGastoId String?
   // Rendí (MIA): el egreso del pago de una liquidación (con sus reintegros) y el de la entrega de un anticipo.
-  // Misma regla: la clave del asiento es (tenant, origen, tipo). Las agrega `20261104120000_rendiciones` (SIN aplicar).
+  // Misma regla: la clave del asiento es (tenant, origen, tipo). Las agrega `20261104121000_rendiciones` (SIN aplicar).
   // Rendí: FKs compuestas (id, tenantId): el asiento no apunta a una liquidación ni a un anticipo de otro negocio.
   proyectoLiquidacion   ProyectoLiquidacion? @relation(fields: [proyectoLiquidacionId, tenantId], references: [id, tenantId], onDelete: Restrict)
   proyectoLiquidacionId String?
@@ -3901,7 +3901,7 @@ model ProyectoCambio {
 // RENDÍ (MIA, plan `docs/tenants/mia-producciones/PLAN-RENDI.md` §3): la rendición de UN gasto de proyecto que alguien
 // del equipo pagó de su bolsillo (PROPIO) o con un anticipo (ANTICIPO). Plata en centavos enteros; el gasto sigue en
 // Float pesos (deuda anotada). `estado` guarda el estado del motor (`src/lib/rendiciones/tipos.ts`), `eventos` la
-// bitácora. Un gasto, una rendición. FKs compuestas (id, tenantId). La agrega `20261104120000_rendiciones` (SIN aplicar).
+// bitácora. Un gasto, una rendición. FKs compuestas (id, tenantId). La agrega `20261104121000_rendiciones` (SIN aplicar).
 model ProyectoRendicion {
   id            String               @id @default(cuid())
   tenant        Tenant               @relation(fields: [tenantId], references: [id])

@@ -4,7 +4,7 @@
 // RENDÍ en MIA — cargar y revisar rendiciones (plan `docs/tenants/mia-producciones/PLAN-RENDI.md` §5.2).
 // El negocio y la persona salen SIEMPRE de la sesión, nunca del formulario. Regla de caja: rendir, aprobar y rechazar
 // NO asientan nada (la plata salió del bolsillo de la persona o de un anticipo ya asentado); el reintegro es la tanda 3.
-// Si la migración `20261104120000_rendiciones` no está aplicada, cada acción lo dice en criollo, sin un 500.
+// Si la migración `20261104121000_rendiciones` no está aplicada, cada acción lo dice en criollo, sin un 500.
 // ============================================================================
 
 import { createHash } from "node:crypto";

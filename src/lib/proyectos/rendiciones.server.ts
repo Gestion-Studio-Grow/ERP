@@ -1,6 +1,6 @@
 // ============================================================================
 // RENDÍ en MIA — lecturas para las pantallas. Siempre con el negocio y la persona de la sesión.
-// Sin la migración `20261104120000_rendiciones` aplicada devuelven `disponible: false` en vez de romper.
+// Sin la migración `20261104121000_rendiciones` aplicada devuelven `disponible: false` en vez de romper.
 // ============================================================================
 
 import "server-only";

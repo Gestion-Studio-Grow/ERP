@@ -113,7 +113,7 @@ export function datosTrasFallo(f: FilaPin, ahoraMs: number) {
 export const datosTrasExito = (ahoraMs: number) => ({ usadoEl: new Date(ahoraMs), intentos: 0, fallosEl: [] as Date[], bloqueadoHasta: null });
 
 /**
- * ¿La base todavía no tiene la tabla del PIN? (migración 20261104120000_rendiciones sin aplicar). Prisma la reporta como
+ * ¿La base todavía no tiene la tabla del PIN? (migración 20261104121000_rendiciones sin aplicar). Prisma la reporta como
  * P2021; una consulta cruda, como P2010 con el 42P01 de Postgres adentro.
  */
 export function esTablaInexistente(e: unknown): boolean {

@@ -1,4 +1,4 @@
-// RENDÍ contra una base migrada de verdad (Postgres local, con `20261104120000_rendiciones` aplicada sólo ahí).
+// RENDÍ contra una base migrada de verdad (Postgres local, con `20261104121000_rendiciones` aplicada sólo ahí).
 //
 // Las únicas impiden dos rendiciones del mismo gasto y dos asientos del mismo anticipo; el PIN es uno por usuario; y
 // con el rol de la app (RLS) el negocio B no ve las filas del negocio A en ninguna de las tres tablas nuevas.

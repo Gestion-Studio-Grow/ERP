@@ -24,7 +24,7 @@ export const ESTADO_RENDICION_LABEL: Record<EstadoRendicion, string> = {
 export type AccionDeRevision = "aprobar" | "devolver" | "rechazar";
 export const ACCIONES_DE_REVISION: readonly AccionDeRevision[] = ["aprobar", "devolver", "rechazar"];
 
-/** El mensaje cuando el código llegó antes que la migración `20261104120000_rendiciones`. */
+/** El mensaje cuando el código llegó antes que la migración `20261104121000_rendiciones`. */
 export const SIN_MIGRACION = "Las rendiciones todavía no están habilitadas en este negocio: falta actualizar la base. Avisale a Dirección.";
 
 /** P2021 (tabla inexistente) / P2022 (columna inexistente): la migración no está aplicada. */

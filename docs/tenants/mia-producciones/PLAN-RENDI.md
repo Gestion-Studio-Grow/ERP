@@ -22,7 +22,7 @@ proyecto donde participa; Dirección/Administración aprueba (nunca lo propio); 
 | PRODUCCION | sí | no | no | lo propio + `pagos: E` que ya tiene |
 | DISENO | no (provisional a confirmar) | no | no | nada |
 `PERMISOS_BASE` (`gestion-core.ts:636-642`) suma `rendiciones`; «rendir lo mío» no exige `pagos`: guarda `actorRinde(proyectoId)` = está en `ProyectoEquipo` (ver todos no alcanza para rendir).
-## 3. Modelo de datos (migración ADITIVA `prisma/migrations/20261104120000_rendiciones/`, SIN aplicar; el código tolera su ausencia)
+## 3. Modelo de datos (migración ADITIVA `prisma/migrations/20261104121000_rendiciones/`, SIN aplicar; el código tolera su ausencia)
 - `ProyectoRendicion`: `id, tenantId, proyectoId, gastoId @unique por tenant, personaId, medio ("PROPIO"|"ANTICIPO"), anticipoId?,
   montoCentavos Int, archivoId? → ProyectoArchivo (tipo nuevo COMPROBANTE), estado, eventos Json, aprobadoPor?, aprobadoEl?,
   liquidacionId?, reintegradoEl?, createdAt`. Claves: `@@unique([tenantId, gastoId])` (un gasto, una rendición) y
@@ -49,7 +49,7 @@ pagados con anticipo no asientan nada; `calcularCuadratura` da el sobrante (INGR
   `RESEND_API_KEY` corre en modo simulado). Alternativa costo cero: Dirección/Administración ven el código en «Equipo» y lo pasan por
   WhatsApp a mano (`wa.me`, sin API paga). Nada de SMS ni WhatsApp Business hasta la venta (DEMO→VENTA).
 ## 5. Tandas (1–2 constructores cada una, Opus; adversarial sólo plata/seguridad sobre el diff)
-1. **Motor + datos.** `src/lib/rendiciones/{tipos,dinero,aprobacion,rendicion}.ts` + tests portados; migración `20261104120000_rendiciones`
+1. **Motor + datos.** `src/lib/rendiciones/{tipos,dinero,aprobacion,rendicion}.ts` + tests portados; migración `20261104121000_rendiciones`
    escrita sin aplicar; `schema.prisma`; `gestion-core.ts` (módulo, matriz, `actorRinde`). Tests: aprobación (nadie lo propio; Comercial
    no aprueba), reducer (doble `aprobar` rechazado), cuadratura. Adversarial: tenant cruzado en claves únicas, RLS.
 2. **Cargar y aprobar.** `src/lib/proyectos/acciones-rendiciones.ts` (`rendirGasto` crea `ProyectoGasto` sin egreso + rendición + archivo,
@@ -61,7 +61,7 @@ pagados con anticipo no asientan nada; `calcularCuadratura` da el sobrante (INGR
 4. **PIN.** `pin-core.ts` + `pin.server.ts` + `login/pin/` (reusa `segundo-paso/`). Tests: vence, un solo uso, bloqueo a los 5, respuesta
    idéntica usuario inexistente, código de otro tenant no entra. Adversarial completo (fuerza bruta, enumeración, reuso, timing). Entrega 1–2 pueden ir en paralelo; 3 espera a 1.
 ## 6. Lo que se eleva al dueño
-- **Gate 2:** `prisma migrate deploy` de `20261104120000_rendiciones` en Neon (y si Vercel tiene `MIGRATE_DATABASE_URL`, el push a `main` la aplica solo).
+- **Gate 2:** `prisma migrate deploy` de `20261104121000_rendiciones` en Neon (y si Vercel tiene `MIGRATE_DATABASE_URL`, el push a `main` la aplica solo).
 - Canal del PIN: Resend (cuenta y `RESEND_FROM_EMAIL`, secreto lo pega el dueño) o código a mano por WhatsApp. Si DISENO rinde.
 - Confirmar con MIA: 5 min / 5 intentos; reintegro por liquidación (default) o directo por caja; quién entrega anticipos. Y corregir el
   encabezado del README MIA (`:3-5`, `:16`): dice «sin aplicar» cuando `lote-deploy.txt:46-54` dice aplicado el 02/11.
