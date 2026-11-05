@@ -19,6 +19,16 @@ import ComprobantesArca from "./ComprobantesArca";
 import CobrarConLink from "./CobrarConLink";
 import LinksDeCobro from "./LinksDeCobro";
 import { FranjaDeArca, datosDeArca } from "./EstadoArca";
+import { requireCapability } from "@/lib/authz";
+import { getCurrentTenantId } from "@/lib/tenant";
+import { AsistenteArca } from "@/components/fiscal/AsistenteArca";
+import { leerAsistente } from "@/lib/fiscal/asistente-arca.server";
+import {
+  cargarCertificadoArcaAction,
+  generarPedidoArcaAction,
+  pedirPaseArcaAction,
+  probarCertificadoArcaAction,
+} from "@/lib/fiscal/asistente-arca-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +42,7 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
   // Sin pestaña pedida, abre la lista si el negocio tiene comprobantes; si no tiene ninguno (CH,
   // con ARCA apagado), «Cobrar con link», como antes (`vistaDeFacturacion`, lista-core.ts).
   const linkPedido = sp.vista === "cobrar-con-link";
+  const arcaPedido = sp.vista === "arca";
   const [{ estado, filtros, lista, fallo }, { modo }, activos, nuevo, linksPedidos] = await Promise.all([
     getPanelDeFacturacion(linkPedido ? {} : sp),
     estadoCobros(),
@@ -39,7 +50,12 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
     disenoNuevo(),
     linkPedido ? getLinksDeCobro(sp) : null,
   ]);
-  const conLink = vistaDeFacturacion(sp, estado.hayComprobantes) === "cobrar-con-link";
+  // Asistente ARCA (pestaña «Conectar con ARCA»): sólo con el módulo arca activo. La guardia fina de
+  // sus actions vive en asistente-arca-actions.ts; acá se lee con el negocio de la sesión.
+  const arcaActivo = moduleGateAllows("arca", activos);
+  const conArca = arcaPedido && arcaActivo;
+  const asistente = conArca ? await leerAsistenteDelCliente(sp) : null;
+  const conLink = !conArca && vistaDeFacturacion(sp, estado.hayComprobantes) === "cobrar-con-link";
   const links = linksPedidos ?? (conLink ? await getLinksDeCobro(sp) : null);
   const listaDeLinks = links && <LinksDeCobro pagina={links.pagina} filtros={links.filtros} fallo={links.fallo} />;
   const hoy = todayInBusinessTz();
@@ -52,13 +68,14 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
       conRaya
       className="mb-5"
       pestanas={[
-        { href: "/admin/facturacion?vista=comprobantes", etiqueta: "Comprobantes", actual: !conLink },
+        { href: "/admin/facturacion?vista=comprobantes", etiqueta: "Comprobantes", actual: !conLink && !conArca },
         { href: "/admin/facturacion?vista=cobrar-con-link", etiqueta: "Cobrar con link", actual: conLink },
+        ...(arcaActivo ? [{ href: "/admin/facturacion?vista=arca", etiqueta: "Conectar con ARCA", actual: conArca }] : []),
       ]}
     />
   );
-  const comprobantes = <ComprobantesArca lista={lista} filtros={filtros} estado={estado} hoy={hoy} fallo={fallo} />;
-  const aviso = bancosActivo && !conLink && (
+  const comprobantes = asistente ? asistente : <ComprobantesArca lista={lista} filtros={filtros} estado={estado} hoy={hoy} fallo={fallo} />;
+  const aviso = bancosActivo && !conLink && !conArca && (
     <p className="mt-6 text-sm text-muted">
       Las ventas que entran al banco se facturan desde{" "}
       <Link href="/admin/facturacion/bancos" className="font-medium text-accent-ink underline underline-offset-4">
@@ -117,5 +134,27 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
       )}
       {aviso}
     </PageContainer>
+  );
+}
+
+const primero = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
+
+/** El asistente ARCA del negocio de la sesión (billing:manage; el módulo ya se chequeó). */
+async function leerAsistenteDelCliente(sp: Sp) {
+  await requireCapability("billing:manage");
+  const vista = await leerAsistente(await getCurrentTenantId());
+  if (!vista) return null;
+  return (
+    <AsistenteArca
+      vista={vista}
+      plano="cliente"
+      aviso={{ ok: primero(sp.ok)?.slice(0, 600), error: primero(sp.error)?.slice(0, 600) }}
+      acciones={{
+        generarPedido: generarPedidoArcaAction,
+        cargarCertificado: cargarCertificadoArcaAction,
+        probar: probarCertificadoArcaAction,
+        pedirPase: pedirPaseArcaAction,
+      }}
+    />
   );
 }

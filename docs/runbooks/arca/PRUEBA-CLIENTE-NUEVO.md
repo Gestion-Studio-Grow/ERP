@@ -55,39 +55,45 @@ En producción sólo lee: nunca emite. No depende de `ARCA_MODO`. El ticket se g
 
 En homologación el CUIT es el del cliente, pero el certificado sale de otro lado (WSASS) y **no sirve para producción**.
 
-**2.1 Clave y pedido de certificado (CSR).** Lo genera quien tenga la clave fiscal del cliente, en su compu. **La clave privada no
-se manda por WhatsApp ni por mail.**
-```bash
-openssl genrsa -out cliente.key 2048
-openssl req -new -key cliente.key -subj "/C=AR/O=RAZON SOCIAL/CN=gsg-erp/serialNumber=CUIT 20123456789" -out cliente.csr
-```
-(cambiar razón social y CUIT, sin guiones). Se guarda `cliente.key`: si se pierde, hay que empezar de nuevo.
+**2.1 Clave y pedido de certificado (CSR) — con el asistente.** Ya no se usa openssl ni se pega ninguna clave. El
+**asistente «Conectar con ARCA»** genera en el servidor la clave RSA 2048 y el pedido (`/C=AR/O=<razón social>/CN=gsg-erp/
+serialNumber=CUIT <cuit>`); la clave queda **cifrada** (FISCAL_MASTER_KEY) y pendiente hasta que llegue el certificado, y nadie
+la ve. Está en dos lugares, con los mismos 4 pasos:
+- **El cliente:** `/admin/facturacion?vista=arca` (pestaña «Conectar con ARCA»; persona con `billing:manage` y módulo `arca`).
+- **El operador:** `/operador/tenants/<id>?pestana=fiscal`, arriba de todo.
+
+Paso 1 muestra CUIT, punto de venta y condición IVA (el cliente sólo los ve; si falta algo, «pedile a GSG»). Paso 2 →
+**«Generar pedido de certificado»** → **«Bajar el archivo .csr»**. Generar otro pedido invalida el anterior.
+(Rodeo manual, si el asistente no anda: openssl como antes y el formulario «Paso 3 · Certificado de ARCA» de la ficha, donde
+🔒 **DUEÑO** pega cert + clave.)
 
 **2.2 Certificado de homologación.** Con la clave fiscal del cliente, en arca.gob.ar:
 1. «Administrador de Relaciones de Clave Fiscal» → Adherir servicio → ARCA → Servicios interactivos → **WSASS - Autogestión
    Certificados Homologación**. (Una vez sola.)
-2. Entrar a **WSASS** → «Nuevo certificado» → nombre `gsg-erp` → pegar el contenido de `cliente.csr` → Crear.
-   Copiar el certificado que aparece y guardarlo como `cliente-homo.crt`.
+2. Entrar a **WSASS** → «Nuevo certificado» → nombre `gsg-erp` → pegar el contenido del `.csr` del asistente → Crear.
+   Copiar el certificado que aparece.
 3. En WSASS → «Crear autorización a servicio» → elegir `gsg-erp`, servicio **wsfe** (Facturación Electrónica) → Crear.
 
-**2.3 Cargarlo en el ERP.** `/operador/tenants/<id>?pestana=fiscal`:
-1. **Paso 1** CUIT → «Guardar».
-2. **Paso 2** Punto de venta → en homologación vale cualquier número (por ejemplo 1); **usá el mismo que vas a crear en
-   producción** así no hay que cambiarlo.
-3. **Condición frente al IVA** → elegir → «Guardar la condición».
-4. **Paso 3** → pegar `cliente-homo.crt` en «Certificado» y `cliente.key` en «Clave privada» → «Cargar el certificado».
-   🔒 **DUEÑO** pega la clave. Arriba tiene que aparecer «credencial fiscal cargada (CUIT …)».
+**2.3 Datos y certificado en el ERP.** Los datos los carga el operador en `/operador/tenants/<id>?pestana=fiscal`:
+1. CUIT → «Guardar». Punto de venta → en homologación vale cualquier número (por ejemplo 1); **usá el mismo que vas a crear
+   en producción** así no hay que cambiarlo. Condición frente al IVA → «Guardar la condición».
+2. Asistente, **paso 3** → pegar el certificado de WSASS (o subir el `.crt`) → «Guardar el certificado». Lo puede hacer el
+   cliente o el operador: el sistema lo junta con la clave pendiente, exige que sea **del último pedido** y **del CUIT del
+   negocio** (que el cliente no puede cambiar), lo guarda cifrado y borra el pedido. Errores en criollo: «no es del último
+   pedido», «es de otro CUIT», «eso no parece un certificado».
 
-**2.4 Cómo sabés que homologación anda.** Mismo lugar → **«Verificar con ARCA»**. Bien es una línea verde así:
+**2.4 Cómo sabés que homologación anda.** Asistente, paso 3 → **«Probar con ARCA»** (en la ficha también sigue «Verificar con
+ARCA»; es la misma prueba). Bien es una línea verde así:
 > ARCA (homologación) reconoce el certificado y el punto de venta 1; último Factura C autorizada: N. Factura C de prueba n.º N+1 con CAE 7… (vence …). No quedó guardada en el negocio.
 
 Si el número sube cada vez que tocás, ARCA está autorizando. Con eso el certificado, el CUIT, el servicio wsfe y la letra quedan probados.
 
 ## 3. Producción: el certificado real y el punto de venta
 
-**3.1 Certificado de producción** (con la clave fiscal del cliente; se puede reusar `cliente.csr`):
-1. «Administración de Certificados Digitales» (adherirlo si no está) → Agregar alias `gsg-erp` → subir `cliente.csr` →
-   descargar el `.crt` → `cliente-prod.crt`.
+**3.1 Certificado de producción** (con la clave fiscal del cliente). El asistente queda en el paso 4 diciendo «el certificado
+cargado es de pruebas»: volver al **paso 2 → «Generar otro pedido»** (el pedido de homologación ya se usó) y bajar el `.csr`.
+1. «Administración de Certificados Digitales» (adherirlo si no está) → Agregar alias `gsg-erp` → subir ese `.csr` →
+   descargar el `.crt`.
 2. «Administrador de Relaciones de Clave Fiscal» → Nueva relación → Buscar → ARCA → WebServices → **Facturación
    Electrónica** → Representante: el computador fiscal `gsg-erp` → Confirmar.
 
@@ -95,8 +101,8 @@ Si el número sube cada vez que tocás, ARCA está autorizando. Con eso el certi
 paso 2.3) → sistema **«Factura Electrónica - Monotributo - Web Services»** (monotributo) o **«RECE para aplicativo y web
 services»** (inscripto) → domicilio → Aceptar. Un punto de venta de «Factura en línea» **no sirve** para el ERP.
 
-**3.3 Rotar el certificado en el ERP.** Paso 3 → pegar `cliente-prod.crt` + la misma `cliente.key` → «Rotar el certificado»
-(🔒 **DUEÑO**). Después **«Verificar con ARCA»** tiene que decir **«ARCA (producción) reconoce el certificado y el punto de venta
+**3.3 Rotar el certificado en el ERP.** Asistente, paso 3 → subir el `.crt` de producción → «Guardar el certificado» (reemplaza
+al de homologación; queda en AuditLog como `fiscal.credential.rotate`). Después **«Probar con ARCA»** tiene que decir **«ARCA (producción) reconoce el certificado y el punto de venta
 N; último … autorizada: 0»** y aclarar que no emitió nada. Si dice producción y 0, está listo.
 
 **3.4 Encender.**
@@ -104,8 +110,11 @@ N; último … autorizada: 0»** y aclarar que no emitió nada. Si dice producci
    (el resto) pasan a hablar con la homologación de ARCA con **su** certificado: el que no tenga uno deja de sacar CAE
    simulado y sus facturas quedan esperando. Antes de cambiarlo, mirar en `/operador` qué negocios tienen el módulo ARCA.
    Si alguno se usa para demos con CAE simulado, decidir antes (provisional a confirmar: dejarlos sin el módulo ARCA mientras dure la prueba).
-2. Ficha del cliente → tarjeta **«Pase a facturación real»**: todas las condiciones en verde → escribir el slug → confirmar.
-   🔒 **DUEÑO** (desde acá, cada comprobante tiene validez fiscal).
+2. Asistente, **paso 4**: muestra las seis condiciones del pase. El **cliente** puede **pedir** el pase escribiendo
+   `PRODUCCIÓN` (queda en AuditLog como `fiscal.pase-a-real.pedido`, uno solo; se habilita con CUIT, punto de venta, condición
+   IVA y certificado de producción en verde). **Lo aplica un operador** (decisión anotada en `src/lib/fiscal/asistente-arca.ts`):
+   el asistente de la ficha muestra «El negocio pidió pasar a producción el …» y la tarjeta **«Facturación real»**: todas las
+   condiciones en verde → escribir el slug → confirmar. 🔒 **DUEÑO** (desde acá, cada comprobante tiene validez fiscal).
 3. **Primera factura real:** que el cliente haga una venta chica real (o desde `/admin/facturacion`) a consumidor final. Revisar
    CAE, número 1 y el QR del PDF; se controla en ARCA → «Mis Comprobantes» → Emitidos (puede tardar un día).
 4. Si algo salió mal: no se borra. Se anula con nota de crédito desde la factura (`AnularFactura`).

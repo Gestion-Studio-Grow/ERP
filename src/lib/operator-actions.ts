@@ -28,6 +28,8 @@ import { leerSubdominio } from "@/lib/provisioning/slug";
 import { cargarCredencialTenant } from "@/lib/fiscal/tenant-cert";
 import { verificarCertificadoDelNegocio } from "@/lib/operador/verificar-arca.server";
 import { mensajeDeVerificacion } from "@/lib/fiscal/verificar-con-arca";
+import { cargarCertificadoDelPedido, generarPedidoDelNegocio } from "@/lib/fiscal/asistente-arca.server";
+import { TOPE_CERTIFICADO_BYTES } from "@/lib/fiscal/asistente-arca";
 import { CONDICIONES_DEL_EMISOR, interpretarCondicionIva } from "@/lib/fiscal/condicion-iva-emisor";
 import { interpretarCuitInput } from "@/lib/fiscal/cuit-input";
 import { operatorSetMustChange } from "@/lib/must-change-password";
@@ -423,6 +425,34 @@ export async function verificarCertificadoArca(formData: FormData) {
   revalidatePath(`/operador/tenants/${tenantId}`);
   const texto = mensajeDeVerificacion(r);
   redirect(vueltaAFiscal(tenantId, r.ok ? { ok: texto } : { error: texto }));
+}
+
+// --- Asistente ARCA: pedido de certificado y certificado del pedido ----------------
+// Los pasos 2 y 3 del asistente desde la ficha (los mismos que hace el cliente en
+// /admin/facturacion?vista=arca). La clave se genera en el servidor y queda cifrada y pendiente
+// (src/lib/fiscal/asistente-arca.server.ts); nunca la pega ni la ve nadie.
+export async function generarPedidoCertificadoArca(formData: FormData) {
+  const tenantId = String(formData.get("tenantId") || "").trim();
+  const { nombre: op } = await requireOperadorParaNegocio({ id: tenantId });
+  const r = await generarPedidoDelNegocio(tenantId, `operator:${op}`);
+  revalidatePath(`/operador/tenants/${tenantId}`);
+  redirect(vueltaAFiscal(tenantId, r.ok ? { ok: r.mensaje } : { error: r.motivo }));
+}
+
+export async function cargarCertificadoDelPedidoArca(formData: FormData) {
+  const tenantId = String(formData.get("tenantId") || "").trim();
+  const { nombre: op } = await requireOperadorParaNegocio({ id: tenantId });
+  const archivo = formData.get("certArchivo");
+  const texto = String(formData.get("certPem") || "").trim();
+  const conArchivo = archivo instanceof File && archivo.size > 0;
+  if ((conArchivo && archivo.size > TOPE_CERTIFICADO_BYTES) || texto.length > TOPE_CERTIFICADO_BYTES) {
+    redirect(vueltaAFiscal(tenantId, { error: "Eso es muy grande para ser un certificado." }));
+  }
+  if (!conArchivo && !texto) redirect(vueltaAFiscal(tenantId, { error: "Pegá el certificado o subí el archivo .crt." }));
+  const entrada = conArchivo ? new Uint8Array(await archivo.arrayBuffer()) : texto;
+  const r = await cargarCertificadoDelPedido(tenantId, entrada, `operator:${op}`);
+  revalidatePath(`/operador/tenants/${tenantId}`);
+  redirect(vueltaAFiscal(tenantId, r.ok ? { ok: r.mensaje } : { error: r.motivo }));
 }
 
 // --- Pase a facturación real y vuelta a pruebas (R2-F5) -----------------------

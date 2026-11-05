@@ -16,6 +16,8 @@ import {
   setTenantArcaCondicionIva,
   cargarCredencialFiscal,
   verificarCertificadoArca,
+  generarPedidoCertificadoArca,
+  cargarCertificadoDelPedidoArca,
 } from "@/lib/operator-actions";
 import {
   checklistApertura,
@@ -77,6 +79,8 @@ import {
 import { AppsOcultasCard, InterruptoresCard } from "./InterruptoresCard";
 import { leerAppsOcultasDe } from "@/lib/operador/apps-ocultas.server";
 import { PaseARealCard } from "./PaseARealCard";
+import { AsistenteArca } from "@/components/fiscal/AsistenteArca";
+import { leerAsistente } from "@/lib/fiscal/asistente-arca.server";
 import PlanDelNegocioCard from "./PlanDelNegocioCard";
 import { leerFichaDelPase } from "@/lib/operador/pase-a-real.server";
 import { mismoCuit } from "@/lib/multilocal/multilocal-core";
@@ -453,6 +457,12 @@ export default async function FichaDelNegocio({
   const soloLectura = paraEsteOperador.ok
     ? null
     : paraEsteOperador.motivo.replace(" No se hizo nada.", "");
+  // Asistente ARCA (los mismos 4 pasos que ve el cliente): reusa la ficha del pase ya leída. Sin la
+  // tabla de credenciales no se arma (el paso 3 lo explica abajo).
+  const asistenteArca =
+    credFiscal === "pendiente" || !fichaDelPase
+      ? null
+      : await leerAsistente(t.id, fichaDelPase).catch(() => null);
   const estadoApps = estadoDeApps(negocio!, flags, cat);
   const fijarSinTope = planFijarAsignacion(negocio!, flags, cat);
   // Fijar tampoco regala módulos de otro plan (GSG-19): mismo tope que la action.
@@ -686,6 +696,20 @@ export default async function FichaDelNegocio({
           a rechazar: corregí el CUIT o volvé a cargar el certificado del CUIT
           correcto.
         </Franja>
+      )}
+
+      {asistenteArca && (
+        <AsistenteArca
+          vista={asistenteArca}
+          plano="operador"
+          tenantId={t.id}
+          soloLectura={soloLectura}
+          acciones={{
+            generarPedido: generarPedidoCertificadoArca,
+            cargarCertificado: cargarCertificadoDelPedidoArca,
+            probar: verificarCertificadoArca,
+          }}
+        />
       )}
 
       <Bloque
