@@ -19,7 +19,6 @@ import ComprobantesArca from "./ComprobantesArca";
 import CobrarConLink from "./CobrarConLink";
 import LinksDeCobro from "./LinksDeCobro";
 import { FranjaDeArca, datosDeArca } from "./EstadoArca";
-import { requireCapability } from "@/lib/authz";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { AsistenteArca } from "@/components/fiscal/AsistenteArca";
 import { leerAsistente } from "@/lib/fiscal/asistente-arca.server";
@@ -141,9 +140,8 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
 
 const primero = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
 
-/** El asistente ARCA del negocio de la sesión (billing:manage; el módulo ya se chequeó). */
+/** El asistente ARCA del negocio de la sesión. `requireApp("facturacion")` de la página ya exige billing:manage; las actions lo vuelven a exigir. */
 async function leerAsistenteDelCliente(sp: Sp) {
-  await requireCapability("billing:manage");
   const vista = await leerAsistente(await getCurrentTenantId());
   if (!vista) return null;
   return (
