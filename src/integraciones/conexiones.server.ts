@@ -246,10 +246,21 @@ export async function crearConexion(
         // abrir la transacción (sin ella no se escribe nada); sellar es sólo memoria.
         sellados = sellar(conexionId);
         if (unaPorNegocio) {
-          await tx.integracionConexion.updateMany({
-            where: { tenantId, conector: conector.id, estado: { not: "desconectada" }, id: { not: conexionId } },
-            data: { estado: "desconectada" },
-          });
+          // Las reemplazadas no guardan secretos (sus credenciales se borran con sus DEK) ni retienen
+          // la cuenta externa: otra conexión (de este u otro negocio) puede volver a usarla.
+          const reemplazadas = (
+            await tx.integracionConexion.findMany({
+              where: { tenantId, conector: conector.id, id: { not: conexionId } },
+              select: { id: true },
+            })
+          ).map((r) => r.id);
+          if (reemplazadas.length > 0) {
+            await tx.integracionCredencial.deleteMany({ where: { tenantId, conexionId: { in: reemplazadas } } });
+            await tx.integracionConexion.updateMany({
+              where: { tenantId, id: { in: reemplazadas } },
+              data: { estado: "desconectada", rutaHash: null, cuentaExterna: null, tokenVersion: { increment: 1 } },
+            });
+          }
         }
         if (reconectada) {
           await tx.integracionConexion.updateMany({
@@ -378,18 +389,20 @@ export async function darDeBajaConexion(tenantId: string, conectorId: string): P
   return tenantTransaction(
     async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`integracion-conexion:${tenantId}:${conectorId}`}))`;
-      const activas = await tx.integracionConexion.findMany({
-        where: { tenantId, conector: conectorId, estado: { not: "desconectada" } },
-        select: { id: true },
+      // TODAS las del conector, también las ya bajadas: ningún secreto viejo sobrevive a la baja.
+      const todas = await tx.integracionConexion.findMany({
+        where: { tenantId, conector: conectorId },
+        select: { id: true, estado: true },
       });
-      const ids = activas.map((a) => a.id);
-      if (ids.length === 0) return 0;
+      if (todas.length === 0) return 0;
+      const ids = todas.map((a) => a.id);
       await tx.integracionCredencial.deleteMany({ where: { tenantId, conexionId: { in: ids } } });
+      // Sin cuenta externa: la misma cuenta se puede volver a conectar (acá o en otro negocio).
       await tx.integracionConexion.updateMany({
         where: { tenantId, id: { in: ids } },
-        data: { estado: "desconectada", rutaHash: null, tokenVersion: { increment: 1 } },
+        data: { estado: "desconectada", rutaHash: null, cuentaExterna: null, tokenVersion: { increment: 1 } },
       });
-      return ids.length;
+      return todas.filter((a) => a.estado !== "desconectada").length;
     },
     { tenantId },
   );
@@ -437,6 +450,7 @@ export async function reclamarRenovacion(tenantId: string, conexionId: string, v
  */
 export async function guardarRenovacion(
   tenantId: string,
+  conectorId: string,
   conexionId: string,
   version: number,
   valores: Record<string, { valor: string; expiraEn?: Date | null }>,
@@ -452,6 +466,8 @@ export async function guardarRenovacion(
   });
   return tenantTransaction(
     async (tx) => {
+      // El mismo candado que el alta y la baja: mismo orden de bloqueos, sin abrazo mortal.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`integracion-conexion:${tenantId}:${conectorId}`}))`;
       const vigente = await tx.integracionConexion.updateMany({
         where: { tenantId, id: conexionId, tokenVersion: version, estado: { not: "desconectada" } },
         data: { fallosSeguidos: 0, estado: "conectada" },

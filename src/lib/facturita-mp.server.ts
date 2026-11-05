@@ -155,7 +155,8 @@ export async function renovarMPSiHaceFalta(
     try {
       t = await refrescarTokenMP(cfg, refresh, deps.pedir ?? (fetch as unknown as PedirMP), ahora);
     } catch (e) {
-      if (e instanceof OAuthMPError && e.motivo === "rechazado") {
+      // Sólo un «no» de MP al refresh (400/401/403) pide reconectar; un 429 o un 5xx es pasajero.
+      if (e instanceof OAuthMPError && e.motivo === "rechazado" && [400, 401, 403].includes(e.estadoHttp ?? 0)) {
         await tenantTransaction(
           (tx) =>
             tx.integracionConexion.updateMany({
@@ -172,6 +173,7 @@ export async function renovarMPSiHaceFalta(
     if (t.cuentaMp !== cx.cuentaExterna) return "fallo";
     const ok = await guardarRenovacion(
       tenantId,
+      CONECTOR_MP,
       cx.conexionId,
       reclamada,
       { [CAMPO_TOKEN_MP]: { valor: t.accessToken, expiraEn: t.expiraEn }, [CAMPO_REFRESH_MP]: { valor: t.refreshToken } },
