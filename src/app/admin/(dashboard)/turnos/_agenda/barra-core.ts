@@ -11,8 +11,11 @@
 //   · Cobrar — la del paso que sigue (`pasoDelTurno`), sólo si ese paso cobra: un vivo que ya empezó
 //     abre la hoja «terminar»; un terminado que quedó debiendo, la hoja «cobrar».
 //   · WhatsApp — el saludo a `wa.me`; sin un celular válido no aparece.
+//   · Editar — `permisos.gestionar` (agenda:manage) y un turno vivo que no empezó (`puedeEditar`):
+//     abre la hoja «Editar» (servicio, día, hora, profesional) que monta la mesa.
 
 import { linkWhatsApp, mensajeSaludo } from "@/lib/turnos/mensajes-whatsapp";
+import { sePuedeEditar } from "@/lib/turnos/editar-turno";
 import { pasoDelTurno, yaEmpezo, type Paso, type Permisos, type TurnoDelDia } from "../agenda-core";
 
 export type ModoNoVino = "directo" | "hoja";
@@ -21,7 +24,13 @@ export type TeclasDeLaBarra = {
   noVino: ModoNoVino | null;
   cobrar: { que: "terminar" | "cobrar"; monto: number } | null;
   whatsapp: string | null;
+  editar: boolean;
 };
+
+/** ¿«Editar» (cajón y barra)? Agenda interactiva, agenda:manage, y un turno vivo que no empezó. */
+export function puedeEditar(t: Pick<TurnoDelDia, "estado" | "inicio">, p: Permisos, ahora: Date): boolean {
+  return !!p.interaccion && p.gestionar && sePuedeEditar(t, ahora);
+}
 
 /** ¿«No vino» se marca de un toque, o hay algo que decidir (la plata que ya pagó)? */
 export function modoNoVino(t: Pick<TurnoDelDia, "cobrado">): ModoNoVino {
@@ -42,6 +51,7 @@ export function teclasDeLaBarra(t: TurnoDelDia, p: Permisos, ahora: Date): Tecla
     noVino: vivo && p.terminar && yaEmpezo(t, ahora) ? modoNoVino(t) : null,
     cobrar: cobroDelPaso(pasoDelTurno(t, p, ahora)),
     whatsapp: linkWhatsApp(t.telefono, mensajeSaludo(t.clienta)),
+    editar: puedeEditar(t, p, ahora),
   };
 }
 
@@ -51,7 +61,7 @@ export function muestraTeclaDelPaso(paso: Paso, barra: TeclasDeLaBarra | null): 
 }
 
 export function hayBarra(b: TeclasDeLaBarra | null): b is TeclasDeLaBarra {
-  return !!b && (b.noVino !== null || b.cobrar !== null || b.whatsapp !== null);
+  return !!b && (b.noVino !== null || b.cobrar !== null || b.whatsapp !== null || b.editar);
 }
 
 // ── La barra sobre el turno de la GRILLA (PorProfesional): qué turno está elegido ──

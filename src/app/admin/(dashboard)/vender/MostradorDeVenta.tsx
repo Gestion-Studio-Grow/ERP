@@ -29,7 +29,8 @@ import type { ClienteElegido } from "@/lib/clientes/buscar-para-venta";
 import type { RepetirPedido } from "@/lib/clientes/fiado";
 import { TECLAS_BOUTIQUE, teclasDelMostrador, topeDeDescuento, topeDePrecioAMano } from "./reglas-venta";
 import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
-import { mostradorBoutiquePrendido } from "@/cambios/interruptores";
+import { agendaInteraccionPrendida, mostradorBoutiquePrendido } from "@/cambios/interruptores";
+import { serviciosDelBuscador } from "@/lib/turnos/turnos-libres.server";
 
 type Quien = Parameters<typeof terminalDelEquipo>[0] & { id: string; name: string; role: Role };
 
@@ -120,6 +121,12 @@ export default async function MostradorDeVenta({
   // renglón → `createOrder`). Sólo con el mostrador boutique y para quien puede tomar pedidos (la
   // misma capability que exige `createOrder`). Apagado, Vender queda igual que siempre.
   const pedidoDeWhatsApp = boutique && identidad.isRetail && roleHasCapability(user.role, "orders:manage");
+  // CAMPO ÚNICO DE SERVICIO O PRODUCTO (interruptor `agenda-interaccion`): en un negocio de servicios
+  // (CH), para quien ve la agenda. Un servicio abre «Turnos libres»; dar el turno pide `agenda:manage`
+  // (lo decide la acción). Apagado no se lee nada y el buscador es el de siempre.
+  const conBuscadorUnico =
+    !identidad.isRetail && !boutique && agendaInteraccionPrendida(interruptores) && roleHasCapability(user.role, "agenda:read");
+  const buscadorUnico = conBuscadorUnico ? { servicios: await serviciosDelBuscador(tenantId) } : null;
   const teclas = teclasDelMostrador(
     datos.rapidos,
     datos.products.map((p) => p.id),
@@ -182,6 +189,7 @@ export default async function MostradorDeVenta({
         sinVentasDelDia={quienCompra === "clienta"}
         clienteInicial={clienteInicial}
         envios={enviosDeSiempre}
+        buscadorUnico={buscadorUnico}
         {...(extras
           ? {
               boutique: {

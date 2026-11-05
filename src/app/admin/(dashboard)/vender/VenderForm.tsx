@@ -46,6 +46,7 @@ import { useFormStatus } from "react-dom";
 import Link from "next/link";
 import { buscarClienteParaVenta } from "@/lib/order-actions";
 import { BuscadorCombo, Input, Select, buttonClasses, cn, fmtMoneyARS } from "@/components/ui";
+import BuscadorUnico from "../pedidos/buscar-turnos/BuscadorUnico";
 import { Atajos } from "@/components/ui/Renglon";
 import { Kbd } from "@/components/ui/Kbd";
 import { Plata } from "@/components/ui/Plata";
@@ -622,6 +623,16 @@ function FormularioVender(props: PropsDeVender & { enNavegador: boolean }) {
         <form ref={formulario} action={submit} data-vender="formulario" className="grid gap-6">
           <input type="hidden" name="channel" value={isOrder ? "ONLINE" : "COUNTER"} />
           <div data-vender="elegir" className="@container min-w-0 space-y-4">
+            {props.buscadorUnico ? (
+              // Campo único (agenda-interaccion): un servicio abre «Turnos libres»; un producto, igual que abajo.
+              <BuscadorUnico
+                id="vender-buscar"
+                productos={opciones}
+                servicios={props.buscadorUnico.servicios}
+                onProducto={(id) => elegirRapido(id)}
+                abrirAlEnfocar={false}
+              />
+            ) : (
             <BuscadorCombo
               id="vender-buscar"
               ariaLabel={buscarQue}
@@ -633,6 +644,7 @@ function FormularioVender(props: PropsDeVender & { enNavegador: boolean }) {
               // encima de los más vendidos (un toque caía sobre otro corte).
               abrirAlEnfocar={false}
             />
+            )}
             {campoEtiqueta}
             {tomarPeso}
             {bloqueLector}
@@ -997,6 +1009,18 @@ function FormularioVender(props: PropsDeVender & { enNavegador: boolean }) {
             Pedido (retiro / envío)
           </button>
         </div>
+
+        {/* Campo único (agenda-interaccion): un servicio abre «Turnos libres»; un producto se suma
+            como desde una tecla. Apagado, no está y la pantalla es la de siempre. */}
+        {props.buscadorUnico && (
+          <BuscadorUnico
+            id="vender-buscar"
+            productos={opciones}
+            servicios={props.buscadorUnico.servicios}
+            onProducto={(id) => elegirRapido(id)}
+            abrirAlEnfocar={false}
+          />
+        )}
 
         {/* Los más vendidos: un toque y salta al peso. Sólo si ya hubo ventas. */}
         {botonesRapidos.length > 0 && (

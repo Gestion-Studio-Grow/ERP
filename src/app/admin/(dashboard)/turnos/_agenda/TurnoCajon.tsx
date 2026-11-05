@@ -31,11 +31,13 @@ import {
   type ResultadoAccion,
 } from "@/lib/actions";
 import { Cajon } from "@/components/ui/Cajon";
-import { Button, Input, Marca, Plata, Renglon, Seccion, atributosBoton, buttonClasses } from "@/components/ui";
-import { fmtTime } from "@/lib/datetime";
+import { Button, ButtonLink, Input, Marca, Plata, Renglon, Seccion, atributosBoton, buttonClasses } from "@/components/ui";
+import { fmtShortDate, fmtTime } from "@/lib/datetime";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
 import { AVISO_CONTACTO_OCULTO, contactoOculto } from "@/lib/clientes/telefono";
-import { ALIAS_SENIA_PROVISIONAL, mensajePedidoDeSenia } from "@/lib/turnos/mensajes-whatsapp";
+import { ALIAS_SENIA_PROVISIONAL, linkWhatsApp, mensajePedidoDeSenia, mensajeSaludo } from "@/lib/turnos/mensajes-whatsapp";
+import { puedeEditar } from "./barra-core";
+import { pagosDelTurno } from "./pagos-core";
 import { marcarSeniaPedida } from "@/lib/turnos/senia-actions";
 import { METODO_LABEL, type MetodoDePago } from "@/lib/turnos/cobros";
 import { ETIQUETA_DE_TARJETA } from "@/lib/turnos/cobro-con-producto";
@@ -270,6 +272,7 @@ export default function TurnoCajon({
   hrefFicha,
   onCerrar,
   onCerrarSinPrestar,
+  onEditar,
 }: {
   turno: TurnoDelDia | null;
   permisos: Permisos;
@@ -280,6 +283,8 @@ export default function TurnoCajon({
   onCerrar: () => void;
   /** Abre la hoja de cancelar / «no vino» (la tiene la mesa). */
   onCerrarSinPrestar: (accion: CierreSinPrestar) => void;
+  /** Agenda interactiva: abre la hoja «Editar» de la mesa. Sin él, no hay «Editar». */
+  onEditar?: (turnoId: string) => void;
 }) {
   const reloj = new Date(ahora);
   const { pendiente, correr } = useAccionSimple();
@@ -338,6 +343,37 @@ export default function TurnoCajon({
     // La seña de un Reservado ya la cobra «Llegó la seña» (que además confirma): no dos teclas.
     !llegoLaSenia;
 
+  // La tecla «Anular» de un cobro (la lista de siempre y, con la agenda interactiva, «Pagos»).
+  const teclaAnular = (cobroId: string | undefined, medio: string) =>
+    cobroId && anulables.has(cobroId) && anular ? (
+      <ConMotivo
+        etiqueta="Anular"
+        pregunta={`¿Anular el cobro de ${medio.toLowerCase()}?`}
+        verbo="Sí, anular"
+        placeholder="Por qué (cobré por el medio equivocado…)"
+        pideCodigo={anular === "con-autorizacion"}
+        hacer={async (motivo, codigo) => {
+          const r = await anularCobroTurno(
+            aFormData(
+              camposDeAnular({
+                cobroId,
+                turnoId: t.id,
+                motivo,
+                codigo,
+              }),
+            ),
+          );
+          if (r.ok && r.aviso) setAvisoAlAnular({ turnoId: t.id, texto: r.aviso });
+          return r;
+        }}
+      />
+    ) : undefined;
+  // Agenda interactiva: WhatsApp arriba de todo y «Editar»; la plata como «Pagos».
+  const interaccion = !!permisos.interaccion;
+  const saludo = interaccion ? linkWhatsApp(t.telefono, mensajeSaludo(t.clienta)) : null;
+  const editable = interaccion && !!onEditar && puedeEditar(t, permisos, reloj);
+  const pagos = interaccion ? pagosDelTurno(t) : null;
+
   return (
     <Cajon
       abierto
@@ -351,6 +387,39 @@ export default function TurnoCajon({
       descripcion={`${t.servicio} · ${minutosEntre(t.inicio, t.fin)}′ · ${t.profesional}${t.box ? ` · ${t.box}` : ""}`}
     >
       <div className="space-y-6">
+        {interaccion && (
+          <div className="flex flex-wrap items-center gap-2" data-parte="arriba-del-turno">
+            {saludo ? (
+              <ButtonLink
+                href={saludo}
+                target="_blank"
+                rel="noopener noreferrer"
+                size="sm"
+                className="min-h-11"
+                style={{ minHeight: "2.75rem" }}
+                aria-label={`WhatsApp a ${t.clienta} (se abre en otra pestaña)`}
+              >
+                WhatsApp
+              </ButtonLink>
+            ) : (
+              <span className="text-sm text-muted">Sin celular cargado</span>
+            )}
+            {editable && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="min-h-11"
+                style={{ minHeight: "2.75rem" }}
+                aria-haspopup="dialog"
+                aria-label={`Editar el turno de ${t.clienta}`}
+                onClick={() => onEditar?.(t.id)}
+              >
+                Editar
+              </Button>
+            )}
+          </div>
+        )}
         <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <Marca tipo={marca.tipo}>{marca.texto}</Marca>
           {t.avisadaEl && (
@@ -538,6 +607,70 @@ export default function TurnoCajon({
           </div>
         )}
 
+        {pagos && (
+          <Seccion titulo="Pagos" nota={pagos.renglones.length || undefined}>
+            {avisoDeComision && (
+              <p role="status" className="my-2 rounded-md bg-surface-sunken px-3 py-2 text-sm text-strong">
+                {avisoDeComision}
+              </p>
+            )}
+            {pagos.vacio ? (
+              <p className="py-3 text-sm text-muted">Todavía no pagó nada.</p>
+            ) : (
+              <ul aria-label="Pagos del turno">
+                {pagos.renglones.map((r) => (
+                  <li key={r.clave} data-anulado={r.anulado || undefined}>
+                    <Renglon
+                      folio={r.cuando ? `${fmtShortDate(r.cuando).slice(0, 5)} ${fmtTime(r.cuando)}` : "—"}
+                      titulo={r.anulado ? <s>{`${r.medio} · ${r.tipo}`}</s> : `${r.medio} · ${r.tipo}`}
+                      detalle={[r.anulado ? "Anulado" : null, r.quien ? `Cobró ${r.quien}` : null].filter(Boolean).join(" · ") || undefined}
+                      plata={
+                        r.anulado ? (
+                          <s>
+                            <Plata valor={r.monto} sinCentavos={Number.isInteger(r.monto)} />
+                          </s>
+                        ) : (
+                          <Plata valor={r.monto} sinCentavos={Number.isInteger(r.monto)} />
+                        )
+                      }
+                      tecla={r.anulado ? undefined : teclaAnular(r.clave, r.medio)}
+                    />
+                    {!r.anulado && anulables.has(r.clave) && anular === "directa" && (
+                      <div className="flex justify-end border-b border-line pb-2">
+                        <AutorizarAnulacion cobroId={r.clave} turnoId={t.id} />
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+            <Renglon
+              folio="Total"
+              titulo="Total pagado"
+              plata={<Plata valor={pagos.totalPagado} sinCentavos={Number.isInteger(pagos.totalPagado)} tono={pagos.totalPagado > 0 ? "cobrado" : undefined} />}
+            />
+            <Renglon folio="Precio" titulo="Precio del turno" plata={<Plata valor={pagos.precio} sinCentavos={Number.isInteger(pagos.precio)} />} />
+            {pagos.deBaja > 0 && (
+              <Renglon
+                folio="De baja"
+                titulo="Saldo dado de baja"
+                detalle="No se va a cobrar; no es plata que entró."
+                plata={<Plata valor={pagos.deBaja} sinCentavos={Number.isInteger(pagos.deBaja)} />}
+              />
+            )}
+            {pagos.falta > 0 ? (
+              <Renglon
+                folio="Falta"
+                titulo="Falta cobrar"
+                plata={<Plata valor={pagos.falta} sinCentavos={Number.isInteger(pagos.falta)} tono={t.cuentaACobrar ? "peligro" : undefined} />}
+              />
+            ) : (
+              <Renglon folio="Falta" titulo="Pagado ✓" plata="—" />
+            )}
+          </Seccion>
+        )}
+
+        {!pagos && (
         <Seccion titulo="La plata">
           {/* O-3: el folio dice qué es; el título, en criollo, de dónde sale. O-4: CH cobra en
               pesos sin centavos: «$14.000», como el botón y el WhatsApp (con centavos sólo si los hay). */}
@@ -585,8 +718,9 @@ export default function TurnoCajon({
             }
           />
         </Seccion>
+        )}
 
-        {t.cobros.length > 0 && (
+        {!pagos && t.cobros.length > 0 && (
           <Seccion titulo="Cobros" nota={t.cobros.length}>
             {avisoDeComision && (
               <p role="status" className="my-2 rounded-md bg-surface-sunken px-3 py-2 text-sm text-strong">
@@ -632,34 +766,7 @@ export default function TurnoCajon({
                           sinCentavos={Number.isInteger(c.amount)}
                         />
                       }
-                      tecla={
-                        clase === "cobro" &&
-                        c.id &&
-                        anulables.has(c.id) &&
-                        anular ? (
-                          <ConMotivo
-                            etiqueta="Anular"
-                            pregunta={`¿Anular el cobro de ${medio.toLowerCase()}?`}
-                            verbo="Sí, anular"
-                            placeholder="Por qué (cobré por el medio equivocado…)"
-                            pideCodigo={anular === "con-autorizacion"}
-                            hacer={async (motivo, codigo) => {
-                              const r = await anularCobroTurno(
-                                aFormData(
-                                  camposDeAnular({
-                                    cobroId: c.id!,
-                                    turnoId: t.id,
-                                    motivo,
-                                    codigo,
-                                  }),
-                                ),
-                              );
-                              if (r.ok && r.aviso) setAvisoAlAnular({ turnoId: t.id, texto: r.aviso });
-                              return r;
-                            }}
-                          />
-                        ) : undefined
-                      }
+                      tecla={clase === "cobro" ? teclaAnular(c.id, medio) : undefined}
                     />
                     {autoriza && (
                       <div className="flex justify-end border-b border-line pb-2">

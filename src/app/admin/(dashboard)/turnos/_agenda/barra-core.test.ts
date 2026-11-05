@@ -1,7 +1,7 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import type { Permisos, TurnoDelDia } from "../agenda-core";
-import { SIN_SELECCION, hayBarra, ladoDeLaBarra, modoNoVino, muestraTeclaDelPaso, seleccionDeLaBarra, teclasDeLaBarra, vistaDeLaBarra } from "./barra-core";
+import { SIN_SELECCION, hayBarra, ladoDeLaBarra, modoNoVino, muestraTeclaDelPaso, puedeEditar, seleccionDeLaBarra, teclasDeLaBarra, vistaDeLaBarra } from "./barra-core";
 import { pasoDelTurno } from "../agenda-core";
 
 const AHORA = new Date("2026-11-04T15:00:00.000Z");
@@ -38,6 +38,15 @@ const turno = (o: Partial<TurnoDelDia> = {}): TurnoDelDia => ({
 const TODO: Permisos = { interaccion: true, gestionar: true, cobrar: true, terminar: true, perdonar: true, anular: "directa" };
 
 describe("barra de un toque", () => {
+  test("Editar: prendido, agenda:manage y un turno vivo que no empezó", () => {
+    const futuro = turno({ inicio: FUTURO, fin: "2026-11-04T19:00:00.000Z" });
+    assert.equal(teclasDeLaBarra(futuro, TODO, AHORA)?.editar, true);
+    assert.equal(puedeEditar(futuro, { ...TODO, gestionar: false }, AHORA), false, "sin agenda:manage");
+    assert.equal(puedeEditar(futuro, { ...TODO, interaccion: false }, AHORA), false, "apagado");
+    assert.equal(puedeEditar(turno(), TODO, AHORA), false, "ya empezó");
+    assert.equal(puedeEditar({ ...futuro, estado: "COMPLETED" }, TODO, AHORA), false, "cerrado");
+  });
+
   test("apagado: no hay barra", () => {
     assert.equal(teclasDeLaBarra(turno(), { ...TODO, interaccion: false }, AHORA), null);
     assert.equal(teclasDeLaBarra(turno(), { ...TODO, interaccion: undefined }, AHORA), null);
@@ -91,7 +100,8 @@ describe("barra de un toque", () => {
   });
 
   test("sin teléfono válido: no hay WhatsApp; sin nada, no hay barra", () => {
-    const b = teclasDeLaBarra(turno({ telefono: "", inicio: FUTURO }), TODO, AHORA);
+    // Sin agenda:manage (si no, «Editar» sí aparece en un turno que viene).
+    const b = teclasDeLaBarra(turno({ telefono: "", inicio: FUTURO }), { ...TODO, gestionar: false }, AHORA);
     assert.equal(b?.whatsapp, null);
     assert.equal(hayBarra(b), false);
   });
