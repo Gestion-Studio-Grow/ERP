@@ -1,0 +1,201 @@
+// ============================================================================
+// FACTOQUE · «Conectá tu Mercado Pago» — la conexión OAuth por negocio.
+// ============================================================================
+//
+// Reusa la suite de integraciones, no duplica nada:
+//   · la conexión es una fila de IntegracionConexion (conector "mercadopago", cuentaExterna = el
+//     user_id de MP) creada con `crearConexion`: credenciales selladas AES-256-GCM con AAD
+//     tenantId|conexionId|campo, KEK `INTEGRACIONES_MASTER_KEY`, una sola activa por negocio, y
+//     la misma cuenta de MP en OTRO negocio choca en la base («cuenta_en_uso»);
+//   · el `access_token` queda donde ya lo busca el dispatch de cobros (pagos-dispatch.ts,
+//     `conexionDelNegocio` + `leerCredencial`): los cobros del negocio quedan listos para
+//     leerse/facturarse con el motor que ya existe (MP_PAYMENT, invoice-from-mp.ts). Esta tarea NO
+//     factura nada automático.
+//
+// Sin schema nuevo: todo entra en tablas que ya existen (migración 20260925120000_lanzamiento_base).
+
+import { tenantTransaction } from "@/lib/rls";
+import { logger } from "@/lib/logger";
+import {
+  ConexionError,
+  conexionDelNegocio,
+  crearConexion,
+  darDeBajaConexion,
+  guardarRenovacion,
+  leerCredencial,
+  reclamarRenovacion,
+  versionDeCredenciales,
+} from "@/integraciones/conexiones.server";
+import { claveMaestraDesdeEntorno } from "@/integraciones/secretos";
+import { CAMPO_SECRETO_WEBHOOK_MP, CAMPO_TOKEN_MP } from "@/plugins/mercadopago/conector";
+import {
+  OAuthMPError,
+  configOAuthMP,
+  hayQueRenovar,
+  refrescarTokenMP,
+  type ConfigOAuthMP,
+  type PedirMP,
+  type TokensMP,
+} from "@/plugins/mercadopago/oauth-mp";
+
+export const CONECTOR_MP = "mercadopago";
+export const CAMPO_REFRESH_MP = "refresh_token";
+
+type Env = Record<string, string | undefined>;
+
+/** ¿Se puede ofrecer «Conectar»? Hacen falta la app de MP de GSG y la llave de las credenciales. */
+export function conexionMPDisponible(env: Env = process.env): ConfigOAuthMP | null {
+  const cfg = configOAuthMP(env);
+  if (!cfg) return null;
+  try {
+    claveMaestraDesdeEntorno(env);
+  } catch {
+    return null;
+  }
+  return cfg;
+}
+
+export type EstadoMP =
+  | { conectado: false }
+  | { conectado: true; cuenta: string; desde: Date; problema: "ninguno" | "reconectar" };
+
+/** El estado para la pantalla. No abre ningún secreto (no necesita la KEK). */
+export async function estadoMPDelNegocio(tenantId: string): Promise<EstadoMP> {
+  const fila = await tenantTransaction(
+    (tx) =>
+      tx.integracionConexion.findFirst({
+        where: { tenantId, conector: CONECTOR_MP, estado: { in: ["conectada", "con_problemas", "requiere_reconectar"] } },
+        orderBy: { createdAt: "desc" },
+        select: { tenantId: true, cuentaExterna: true, estado: true, updatedAt: true },
+      }),
+    { tenantId },
+  );
+  if (!fila || fila.tenantId !== tenantId) return { conectado: false };
+  return {
+    conectado: true,
+    cuenta: fila.cuentaExterna ?? "",
+    desde: fila.updatedAt,
+    problema: fila.estado === "conectada" ? "ninguno" : "reconectar",
+  };
+}
+
+export type ResultadoGuardarMP = { ok: true } | { ok: false; motivo: "cuenta_en_uso" | "sin_clave" | "error" };
+
+/** Guarda lo que devolvió el canje del código: conexión + tokens sellados, y la auditoría. */
+export async function guardarConexionMP(
+  tenantId: string,
+  userId: string,
+  tokens: TokensMP,
+  cfg: ConfigOAuthMP,
+  env: Env = process.env,
+): Promise<ResultadoGuardarMP> {
+  try {
+    await crearConexion(
+      tenantId,
+      CONECTOR_MP,
+      {
+        cuentaExterna: tokens.cuentaMp,
+        etiqueta: `Mercado Pago · cuenta ${tokens.cuentaMp}`,
+        conectadaPor: `user:${userId}`,
+        credenciales: {
+          [CAMPO_TOKEN_MP]: tokens.accessToken,
+          [CAMPO_REFRESH_MP]: tokens.refreshToken,
+          // Con OAuth, MP firma los avisos con la clave de la app de GSG (la misma para todos los
+          // negocios); el conector la busca en la conexión, así que se guarda sellada acá.
+          [CAMPO_SECRETO_WEBHOOK_MP]: cfg.webhookSecret,
+        },
+        vencen: { [CAMPO_TOKEN_MP]: tokens.expiraEn },
+      },
+      { env },
+    );
+  } catch (e) {
+    if (e instanceof ConexionError && e.motivo === "cuenta_en_uso") return { ok: false, motivo: "cuenta_en_uso" };
+    if (e instanceof ConexionError && e.motivo === "sin_clave_maestra") return { ok: false, motivo: "sin_clave" };
+    logger.error("facturita", "no se pudo guardar la conexión de Mercado Pago", e, { tenantId });
+    return { ok: false, motivo: "error" };
+  }
+  await auditar(tenantId, userId, "facturita.mercadopago_conectado", { cuenta: tokens.cuentaMp });
+  return { ok: true };
+}
+
+/**
+ * Desconectar = borrar. Las credenciales se van de la base con sus DEK (no quedan ni selladas).
+ * MP no publica un endpoint para revocar el permiso desde la app: la pantalla le explica a la
+ * persona cómo sacarlo también del lado de Mercado Pago.
+ */
+export async function desconectarMP(tenantId: string, userId: string): Promise<number> {
+  const n = await darDeBajaConexion(tenantId, CONECTOR_MP);
+  if (n > 0) await auditar(tenantId, userId, "facturita.mercadopago_desconectado", { conexiones: n });
+  return n;
+}
+
+/**
+ * Renueva el access token si vence en menos de 15 días. Un solo renovador gana (`tokenVersion`);
+ * si MP rechaza el refresh, la conexión queda «requiere_reconectar» y la pantalla lo dice.
+ * Nunca lanza: lo peor es que siga con el token que tenía.
+ */
+export async function renovarMPSiHaceFalta(
+  tenantId: string,
+  deps: { env?: Env; pedir?: PedirMP; ahora?: Date } = {},
+): Promise<"no_hacia_falta" | "renovado" | "otro_renovo" | "fallo"> {
+  const env = deps.env ?? process.env;
+  const ahora = deps.ahora ?? new Date();
+  const cfg = conexionMPDisponible(env);
+  if (!cfg) return "no_hacia_falta";
+  try {
+    const cx = await conexionDelNegocio(tenantId, CONECTOR_MP);
+    if (!cx) return "no_hacia_falta";
+    const v = await versionDeCredenciales(tenantId, cx.conexionId, CAMPO_TOKEN_MP);
+    if (!v || !hayQueRenovar(v.expiraEn, ahora)) return "no_hacia_falta";
+    const refresh = await leerCredencial(tenantId, cx.conexionId, CAMPO_REFRESH_MP, { env });
+    if (!refresh) return "no_hacia_falta";
+    const reclamada = await reclamarRenovacion(tenantId, cx.conexionId, v.tokenVersion);
+    if (reclamada === null) return "otro_renovo";
+    let t: TokensMP;
+    try {
+      t = await refrescarTokenMP(cfg, refresh, deps.pedir ?? (fetch as unknown as PedirMP), ahora);
+    } catch (e) {
+      // Sólo un «no» de MP al refresh (400/401/403) pide reconectar; un 429 o un 5xx es pasajero.
+      if (e instanceof OAuthMPError && e.motivo === "rechazado" && [400, 401, 403].includes(e.estadoHttp ?? 0)) {
+        await tenantTransaction(
+          (tx) =>
+            tx.integracionConexion.updateMany({
+              where: { tenantId, id: cx.conexionId, tokenVersion: reclamada },
+              data: { estado: "requiere_reconectar", fallosSeguidos: { increment: 1 } },
+            }),
+          { tenantId },
+        );
+      }
+      logger.warn("facturita", "no se pudo renovar el token de Mercado Pago", { tenantId, motivo: e instanceof OAuthMPError ? e.motivo : "error" });
+      return "fallo";
+    }
+    // La cuenta tiene que ser la misma: un refresh nunca cambia de dueño la conexión.
+    if (t.cuentaMp !== cx.cuentaExterna) return "fallo";
+    const ok = await guardarRenovacion(
+      tenantId,
+      CONECTOR_MP,
+      cx.conexionId,
+      reclamada,
+      { [CAMPO_TOKEN_MP]: { valor: t.accessToken, expiraEn: t.expiraEn }, [CAMPO_REFRESH_MP]: { valor: t.refreshToken } },
+      { env },
+    );
+    return ok ? "renovado" : "otro_renovo";
+  } catch (e) {
+    logger.error("facturita", "renovación de Mercado Pago", e, { tenantId });
+    return "fallo";
+  }
+}
+
+async function auditar(tenantId: string, userId: string, action: string, changes: Record<string, string | number>): Promise<void> {
+  try {
+    await tenantTransaction(
+      (tx) =>
+        tx.auditLog.create({
+          data: { tenantId, actor: `user:${userId}`, action, entity: "IntegracionConexion", entityId: CONECTOR_MP, changes, channel: "admin" },
+        }),
+      { tenantId },
+    );
+  } catch (e) {
+    logger.error("facturita", "no se pudo auditar Mercado Pago", e, { tenantId, action });
+  }
+}

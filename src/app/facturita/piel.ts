@@ -246,7 +246,7 @@ export const PIEL_FACTURITA = `
 
 /* ── alta ───────────────────────────────────────────────────────────── */
 .fx .fx-progreso{margin:clamp(32px,4vw,48px) 0 0;font-size:var(--fx-cuerpo);font-weight:600;color:var(--fx-tinta)}
-.fx .fx-segmentos{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin-top:10px}
+.fx .fx-segmentos{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:6px;margin-top:10px}
 .fx .fx-segmentos span{height:6px;border-radius:999px;background:var(--fx-borde)}
 .fx .fx-segmentos span[data-lleno]{background:var(--fx-ambar)}
 .fx .fx-hoja-form{margin-top:24px;padding:clamp(24px,4vw,44px) clamp(18px,4vw,44px);border-radius:20px;background:var(--fx-papel);border:1px solid var(--fx-papel-2);box-shadow:inset 0 6px 0 var(--fx-ambar),0 2px 6px rgba(27,21,8,.05),0 28px 56px -36px rgba(27,21,8,.35)}
