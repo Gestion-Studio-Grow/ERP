@@ -195,6 +195,7 @@ describe("El armazón del club (Break Point) en el navegador", { timeout: 240_00
     tema: 'button[aria-label="Cambiar tema"]',
     cabecera: '[data-casa="cabecera"]',
     cintas: '[data-casa="cintas"]',
+    loseta: '[data-casa="cabecera"] [data-logo-parte="loseta"]',
   };
   type Caja = { x: number; y: number; abajo: number; ancho: number; alto: number };
   const cajas = async (page: Page): Promise<Record<keyof typeof PIEZAS, Caja | null>> =>
@@ -278,6 +279,9 @@ describe("El armazón del club (Break Point) en el navegador", { timeout: 240_00
     const centro = (b: { y: number; alto: number }) => b.y + b.alto / 2;
     for (const b of fila) assert.ok(Math.abs(centro(b) - centro(c.tema!)) < 6, "todo en el mismo renglón que la luna");
     assert.ok(c.tema!.x + c.tema!.ancho <= 390, "la luna entra en la pantalla");
+    // El logo entero y sin nada encima (QA 05/11: se achicaba a 4 px y la lupa del buscador lo tapaba).
+    assert.ok(c.loseta!.ancho >= 40, `la loseta del logo entera (${Math.round(c.loseta!.ancho)} px)`);
+    assert.ok(c.loseta!.x >= 0 && c.loseta!.x + c.loseta!.ancho <= c.buscar!.x, "el buscador empieza después del logo");
     assert.ok(c.cabecera!.abajo <= 120, `cintas + barra en ${Math.round(c.cabecera!.abajo)} px (≤ 120)`);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, "sin scroll de costado");
     // La ficha sigue diciendo quién opera (en su etiqueta) aunque se vea sólo la inicial.
