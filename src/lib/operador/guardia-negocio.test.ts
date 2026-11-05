@@ -397,6 +397,7 @@ test("TRINQUETE: todo endpoint con privilegio de operador tiene PRIMERO la guard
     "src/lib/operator-actions.ts#fijarAsignacionActual",
     "src/lib/operator-actions.ts#resetOwnerPassword",
     "src/lib/operator-actions.ts#resetOwnerPasswordDeTenant",
+    "src/lib/operator-actions.ts#setTenantArcaCondicionIva",
     "src/lib/operator-actions.ts#setTenantArcaCuit",
     "src/lib/operator-actions.ts#setTenantArcaPuntoVenta",
     "src/lib/operator-actions.ts#setTenantBranding",
@@ -404,6 +405,7 @@ test("TRINQUETE: todo endpoint con privilegio de operador tiene PRIMERO la guard
     "src/lib/operator-actions.ts#setTenantStatus",
     "src/lib/operator-actions.ts#setTenantSubdomain",
     "src/lib/operator-actions.ts#toggleTenantModule",
+    "src/lib/operator-actions.ts#verificarCertificadoArca",
     "src/lib/operator-provisioning-actions.ts#commitTenantAction",
     "src/lib/operator-provisioning-actions.ts#planTenantAction",
   ]);
