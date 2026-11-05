@@ -177,6 +177,14 @@ el negocio marcado real **no emite nada** y el envío queda detenido con el moti
    CAE, número 1 y el QR del PDF; se controla en ARCA → «Mis Comprobantes» → Emitidos (puede tardar un día).
 4. Si algo salió mal: no se borra. Se anula con nota de crédito desde la factura (`AnularFactura`).
 
+> **Comprobantes con CAE simulado («STUB…»).** Un negocio que probó en pruebas **sin** certificado tiene comprobantes
+> autorizados con CAE simulado y numeración propia. Apenas carga el certificado (homologación o real), el despacho **no firma
+> nada** y deja el envío detenido diciendo cuántos son en su punto de venta: ARCA numera desde 1 y chocarían. Antes del primer
+> envío firmado hay que limpiar los datos de prueba (guía de salida en vivo, punto 1.5; `src/lib/arca-dispatch.ts`, `crearClientePara`).
+> **Provisional a confirmar con el primer certificado real:** el certificado de producción se reconoce porque lo firma
+> «Computadores · AFIP» (`src/lib/fiscal/modo-del-negocio.ts`, `entornoDelEmisor`). Si el primero que llegue lo firma otro
+> nombre, el pase se niega mostrando el emisor (falla cerrada): anotar el emisor real y corregir la regla.
+
 ## 4. Si ARCA rechaza (lo que dice «Verificar con ARCA» y qué hacer)
 
 | Mensaje de ARCA (contiene) | Qué pasa | Qué hacer |

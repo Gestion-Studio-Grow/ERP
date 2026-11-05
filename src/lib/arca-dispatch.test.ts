@@ -2,12 +2,18 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import forge from "node-forge";
 
-import { crearClientePara, type LeerConfigFiscal } from "./arca-dispatch";
+import { crearClientePara as crearClienteParaReal, type LeerConfigFiscal } from "./arca-dispatch";
 import { StubAfipClient, SoapAfipClient, type CredencialEmisor } from "@/plugins/arca";
+
+// Sin DB: el conteo de comprobantes simulados (7.º seam) es 0 salvo que el test pase otro.
+type ArgsCliente = Parameters<typeof crearClienteParaReal>;
+const sinSimulados: NonNullable<ArgsCliente[6]> = async () => 0;
+const crearClientePara = (...a: ArgsCliente) =>
+  crearClienteParaReal(a[0], a[1], a[2], a[3], a[4], a[5], a[6] ?? sinSimulados);
 
 // Lector fake: no toca la DB. El seam es justamente para testear offline.
 const leerFijo =
-  (cfg: { cuit: number; homologacion: boolean; slug?: string } | null): LeerConfigFiscal =>
+  (cfg: Awaited<ReturnType<LeerConfigFiscal>>): LeerConfigFiscal =>
   async () =>
     cfg;
 
@@ -393,4 +399,66 @@ test("resolverModoDelNegocio: la misma regla que el despacho, para las pantallas
     throw new Error("no se pudo descifrar");
   });
   assert.ok("error" in roto && /descifrar/.test(roto.error));
+});
+
+test("pruebas sin certificado con CAE simulado: al pasar a homologación o real NO firma (choca la numeración)", async () => {
+  const { ConfiguracionFiscalError } = await import("@/lib/arca-reintentos");
+  const pedidos: Array<[string, number | null]> = [];
+  const contar = async (t: string, pv: number | null) => {
+    pedidos.push([t, pv]);
+    return t === "con-stub" ? 3 : 0;
+  };
+  const cert = credencialDeTest(20111111112);
+  // Homologación: el negocio cargó el certificado de pruebas.
+  const homo = crearClientePara(
+    leerFijo({ cuit: 20111111112, homologacion: true, puntoVenta: 2 }),
+    { ARCA_MODO: "homologacion" },
+    async () => cert,
+    async () => undefined,
+    async () => {},
+    async () => 0,
+    contar,
+  );
+  await assert.rejects(homo("con-stub"), (e: unknown) => {
+    assert.ok(e instanceof ConfiguracionFiscalError);
+    const m = (e as Error).message;
+    assert.match(m, /3 comprobantes autorizados con CAE simulado en el punto de venta 2/);
+    assert.match(m, /limpiar los datos de prueba/);
+    assert.match(m, /en homologación/);
+    return true;
+  });
+  assert.ok((await homo("limpio")) instanceof SoapAfipClient, "el negocio limpio firma normal");
+  assert.deepEqual(pedidos, [["con-stub", 2], ["limpio", 2]]);
+
+  // Real, sin punto de venta cargado: mira todos (null) y también frena.
+  const certProd = credencialDeTest(20111111112, "produccion");
+  const real = crearClientePara(
+    leerFijo({ cuit: 20111111112, homologacion: false, slug: "pepe" }),
+    { ARCA_MODO: "real", ARCA_REAL_TENANTS: "pepe" },
+    async () => certProd,
+    async () => undefined,
+    async () => {},
+    async () => 0,
+    contar,
+  );
+  await assert.rejects(real("con-stub"), /CAE simulado \(en algún punto de venta\)[\s\S]*en real/);
+  assert.equal(pedidos.at(-1)?.[1], null);
+});
+
+test("pruebas sin certificado (modo efectivo stub): ni cuenta los simulados — sigue simulando", async () => {
+  let contados = 0;
+  const cliente = await crearClientePara(
+    leerFijo({ cuit: 20111111112, homologacion: true }),
+    { ARCA_MODO: "real" },
+    async () => {
+      const { SinCertificadoError } = await import("./arca-dispatch");
+      throw new SinCertificadoError("sin certificado");
+    },
+    async () => undefined,
+    async () => {},
+    async () => 0,
+    async () => (contados++, 5),
+  )("con-stub");
+  assert.ok(cliente instanceof StubAfipClient);
+  assert.equal(contados, 0);
 });

@@ -16,6 +16,7 @@ import { todayInBusinessTz } from "@/lib/datetime";
 import { leerFiltros, totalesVacios, type FiltrosComprobantes, type PaginaDeComprobantes } from "@/lib/facturacion/lista-core";
 import { leerPaginaDeComprobantes } from "@/lib/facturacion/lista.server";
 import { TANDA_DE_ARCA, enviosASaltear } from "@/lib/facturacion/autorizar-en-tandas";
+import { modoEnPantalla } from "@/lib/facturacion/modo-en-pantalla";
 
 const FACTURACION_PATH = "/admin/facturacion";
 
@@ -52,6 +53,12 @@ export interface EstadoFiscal {
    * `emitirFacturaDePruebaGuardadaAction`; sin ella (CH incluida), el banco de pruebas de siempre.
    */
   facturaDePrueba: boolean;
+  /**
+   * null/ausente = el negocio factura en `modo`. Si no, el motivo en criollo de por qué NO factura
+   * (marcado real sin la segunda llave, sin certificado de producción, o el modo no se pudo leer);
+   * `modo` queda en "stub", nunca "real" (src/lib/facturacion/modo-en-pantalla.ts).
+   */
+  noFactura?: string | null;
 }
 
 /**
@@ -98,10 +105,11 @@ async function leerEstadoFiscal(tenantId: string): Promise<EstadoFiscal> {
     contarPendientes(tenantId),
     // Uno solo, por el índice (tenantId, status): no cuenta los miles de un comercio.
     prisma.invoice.findFirst({ where: { tenantId }, select: { id: true } }),
-    // El modo DE ESTE NEGOCIO (src/lib/fiscal/modo-del-negocio.ts); si no se puede leer, el global.
+    // El modo DE ESTE NEGOCIO (src/lib/fiscal/modo-del-negocio.ts). Si no factura o no se puede
+    // leer, se muestra eso (falla cerrada), nunca el modo global de la plataforma.
     resolverModoDelNegocio(tenantId).catch(() => null),
   ]);
-  const modo: ModoArca = delNegocio && "modo" in delNegocio ? delNegocio.modo : modoDesdeEnv();
+  const { modo, noFactura } = modoEnPantalla(delNegocio);
   return {
     modo,
     cuit: tenant?.arcaCuit ?? null,
@@ -109,7 +117,8 @@ async function leerEstadoFiscal(tenantId: string): Promise<EstadoFiscal> {
     homologacion: tenant?.arcaHomologacion ?? true,
     pendientes,
     hayComprobantes: alguno !== null,
-    facturaDePrueba: modo === "stub" && (tenant?.modules ?? []).includes("arca"),
+    facturaDePrueba: noFactura === null && modo === "stub" && (tenant?.modules ?? []).includes("arca"),
+    noFactura,
   };
 }
 

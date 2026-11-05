@@ -23,6 +23,7 @@ import {
   markInvoiceRejected,
   numeroUsadoPorOtraFactura,
   ultimoNumeroAutorizado,
+  contarAutorizadosSimulados,
   registerFiscalDocument,
   type InvoiceCreatedPayload,
 } from "@/lib/invoice-core";
@@ -61,6 +62,7 @@ import {
 } from "@/lib/arca-reintentos";
 import { leerTicketAcceso, guardarTicketAcceso, huellaDeCertificado } from "@/lib/fiscal/arca-ta-store";
 import { logger } from "@/lib/logger";
+import { LIMPIAR_DATOS_DE_PRUEBA } from "@/lib/operador/datos-de-prueba";
 import { fechaFiscalDelDia } from "@/lib/libros/fecha-fiscal";
 import {
   anotarFallaYSoltar,
@@ -84,6 +86,8 @@ export interface ConfigFiscalTenant {
   homologacion: boolean;
   /** Nombre corto del negocio: la segunda llave de real (`ARCA_REAL_TENANTS`). Sin dato: no habilitado. */
   slug?: string | null;
+  /** `Tenant.arcaPuntoVenta`. Sin dato: el chequeo de comprobantes simulados mira todos los puntos de venta. */
+  puntoVenta?: number | null;
 }
 
 /** Lee la config fiscal de un tenant. Seam inyectable (default: Prisma). */
@@ -104,7 +108,7 @@ const leerConfigFiscalPrisma: LeerConfigFiscal = async (tenantId) => {
     (tx) =>
       tx.tenant.findUnique({
         where: { id: tenantId },
-        select: { slug: true, arcaCuit: true, arcaHomologacion: true },
+        select: { slug: true, arcaCuit: true, arcaHomologacion: true, arcaPuntoVenta: true },
       }),
     { tenantId },
   );
@@ -115,6 +119,7 @@ const leerConfigFiscalPrisma: LeerConfigFiscal = async (tenantId) => {
     cuit: t.arcaCuit ? Number(normalizarCuit(t.arcaCuit)) : 0,
     homologacion: t.arcaHomologacion,
     slug: t.slug,
+    puntoVenta: t.arcaPuntoVenta,
   };
 };
 
@@ -339,6 +344,7 @@ export function crearClientePara(
   guardarTicket: (titularTenantId: string, ta: TicketAcceso, huella?: string) => Promise<void> = (t, ta, h) =>
     guardarTicketAcceso(t, ta, undefined, h),
   leerUltimoEmitido: (tenantId: string, puntoVenta: number, tipo: number) => Promise<number> = ultimoNumeroAutorizado,
+  contarSimulados: (tenantId: string, puntoVenta: number | null) => Promise<number> = contarAutorizadosSimulados,
 ): (tenantId: string) => Promise<AfipClient> {
   return async (tenantId) => {
     const cfg = await leer(tenantId);
@@ -381,6 +387,20 @@ export function crearClientePara(
     const modo = decision.modo;
     if (modo === "stub" || !firma) return clienteSimulado();
     exigirCuit();
+    // Falla cerrada: un negocio que en pruebas sin certificado sacó CAE simulado («STUB…») tiene
+    // numeración propia; ARCA numera desde 1 y el primer envío firmado chocaría con
+    // @@unique([tenantId, puntoVenta, tipoComprobante, numero]). No se firma nada hasta limpiarlos.
+    const puntoVenta = cfg?.puntoVenta ?? null;
+    const simulados = await contarSimulados(tenantId, puntoVenta);
+    if (simulados > 0) {
+      const donde = puntoVenta != null ? `en el punto de venta ${puntoVenta}` : "(en algún punto de venta)";
+      throw new ConfiguracionFiscalError(
+        `Este negocio tiene ${simulados === 1 ? "1 comprobante autorizado" : `${simulados} comprobantes autorizados`} ` +
+          `con CAE simulado ${donde}, de cuando probaba sin certificado. ARCA numera desde 1, así que el primer ` +
+          `envío firmado (${modo === "real" ? "en real" : "en homologación"}) chocaría con esa numeración. ` +
+          `No se manda nada: antes hay que ${LIMPIAR_DATOS_DE_PRUEBA}.`,
+      );
+    }
     const envDelNegocio = modo === techo ? env : { ...env, ARCA_MODO: modo };
 
     // El TA es del CERTIFICADO que firma (WSAA bloquea el 2.º login por certificado): se lee y se

@@ -33,6 +33,8 @@ import { cuitValido, normalizarCuit } from "@/lib/cuit";
 import { fmtCuit } from "@/components/ui/format";
 import { requiereOkDelDuenio } from "@/app/operador/(console)/tenants/[id]/apps-del-negocio";
 import type { ModoArcaPlataforma } from "./checklist-apertura";
+// La remisión a la guía de salida en vivo (punto 1.5): módulo hoja, la cita también el despacho a ARCA.
+import { LIMPIAR_DATOS_DE_PRUEBA } from "./datos-de-prueba";
 import {
   entornoDelEmisor,
   VARIABLE_HABILITADOS_REAL,
@@ -146,9 +148,6 @@ export const FICHA_CAMBIO_MIENTRAS_MIRABAS =
   "La ficha fiscal del negocio cambió mientras la mirabas (CUIT, punto de venta, condición de IVA, certificado o " +
   "delegación). No se hizo nada: revisala y volvé a confirmar.";
 
-/** Remite a la guía de salida en vivo (30-LANZAMIENTO/implementacion/07-salida-en-vivo.md, punto 1.5). */
-const LIMPIAR_DATOS_DE_PRUEBA =
-  "limpiar los datos de prueba (sólo movimientos, nunca productos, clientes ni servicios: guía de salida en vivo, punto 1.5)";
 
 export const MOTIVO_CANDADO_CH =
   "Es un cliente vivo en producción: su facturación sólo la cambia el dueño de GSG. No se hizo nada.";
