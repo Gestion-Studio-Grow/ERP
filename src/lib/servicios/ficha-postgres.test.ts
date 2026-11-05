@@ -55,7 +55,7 @@ async function como<R>(pedido: PedidoDePrueba, fn: () => Promise<R>): Promise<R>
   if (r.tipo !== "respuesta") throw new Error("sin respuesta");
   return r.valor;
 }
-const duenaA = (s: Sembrado): PedidoDePrueba => ({ negocio: s.base.a, usuario: s.base.a.duenia });
+const duenaA = (s: Sembrado) => ({ negocio: s.base.a, usuario: s.base.a.duenia });
 const duenaB = (s: Sembrado): PedidoDePrueba => ({ negocio: s.base.b, usuario: s.base.b.duenia });
 
 const fd = (campos: Record<string, string>) => {
@@ -65,12 +65,12 @@ const fd = (campos: Record<string, string>) => {
 };
 
 /** Da de alta un servicio con la acción real y se lo asigna a la profesional del negocio. */
-async function alta(s: Sembrado, pedido: PedidoDePrueba, negocio: Negocio, campos: Record<string, string>): Promise<string> {
+async function alta(s: Sembrado, pedido: PedidoDePrueba & { negocio: { id: string } }, negocio: Negocio, campos: Record<string, string>): Promise<string> {
   const { crearServicioConAviso } = await import("@/lib/catalog-actions");
   const r = await como(pedido, () => crearServicioConAviso(fd({ ficha: "1", durationMin: "60", ...campos })));
   assert.deepEqual(r, { ok: true });
   const duenio = await prismaComoDuenio(s.base);
-  const sv = await duenio.service.findFirstOrThrow({ where: { tenantId: pedido.negocio!.id, name: campos.name }, select: { id: true } });
+  const sv = await duenio.service.findFirstOrThrow({ where: { tenantId: pedido.negocio.id, name: campos.name }, select: { id: true } });
   await duenio.professional.update({ where: { id: negocio.pro }, data: { services: { connect: [{ id: sv.id }] } } });
   return sv.id;
 }
