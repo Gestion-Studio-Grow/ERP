@@ -191,3 +191,50 @@ export function usaVidrieraNueva(
   if (front === "adosmanos") return false;
   return nuevo && (identidad.isRetail || Boolean(front) || Boolean(identidad.brandId));
 }
+
+// ── El acento de la piel genérica ───────────────────────────────────────────
+//
+// La piel genérica toma el color del negocio y lo oscurece un 18 % (el `color-mix(… 82%, #000)`
+// que tenía la hoja) para que la tinta blanca de las teclas se lea. Se calcula ACÁ y no en el CSS
+// por dos razones: (1) se garantiza AA de verdad —si el color del negocio es claro, 82 % no
+// alcanza y se sigue oscureciendo hasta 4,5:1 contra el blanco—, y (2) el valor queda en hex: un
+// `color-mix` se computa como `color(srgb …)` y el gate «visual-aa» lo leía como transparente
+// (el «Ir a la carta» de la genérica daba 1,05:1 contra el papel).
+
+/** El verde del rubro cuando el negocio no trae color (el de siempre de la hoja). */
+export const ACENTO_GENERICO = "#2f5d50";
+
+function canales(hex: string): [number, number, number] | null {
+  const h = hex.trim().replace(/^#/, "");
+  const largo = /^[0-9a-f]{3}$/i.test(h) ? h.replace(/./g, (c) => c + c) : h;
+  if (!/^[0-9a-f]{6}$/i.test(largo)) return null;
+  return [0, 2, 4].map((i) => parseInt(largo.slice(i, i + 2), 16)) as [number, number, number];
+}
+
+function luminancia([r, g, b]: [number, number, number]): number {
+  const f = (c: number) => {
+    const s = c / 255;
+    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+}
+
+/** Contraste WCAG del blanco sobre ese color. */
+export function contrasteConBlanco(hex: string): number {
+  const c = canales(hex);
+  return c ? 1.05 / (luminancia(c) + 0.05) : 1;
+}
+
+/**
+ * El acento de la piel genérica, en hex: el color del negocio al 82 % hacia el negro y, si con eso
+ * el blanco no llega a 4,5:1, más oscuro hasta que llegue. Un color que no es hex usa el del rubro.
+ */
+export function acentoDeLaPielGenerica(colorDelNegocio: string | null | undefined): string {
+  const base = canales(colorDelNegocio ?? "") ?? (canales(ACENTO_GENERICO) as [number, number, number]);
+  const hex = (k: number) => "#" + base.map((c) => Math.round(c * k).toString(16).padStart(2, "0")).join("");
+  for (let k = 0.82; k > 0; k -= 0.02) {
+    const c = hex(k);
+    if (contrasteConBlanco(c) >= 4.5) return c;
+  }
+  return "#000000";
+}
