@@ -181,12 +181,38 @@ function operatorCookie(operatorSecret) {
 // ── Función in-page: mide contraste, touch targets y overflow. Se serializa y corre
 //    en el navegador (sin acceso a scope de Node). ────────────────────────────────
 export function auditInPage(toqueMin) {
+  // Chromium devuelve el color computado EN EL ESPACIO EN QUE SE ESCRIBIÓ: `oklch(…)` (la piel
+  // Renglón, public/diseno/renglon.css), `color(srgb …)` (un `color-mix(in srgb, …)`), `lab(…)`.
+  // Antes sólo se entendía `rgb()`: un texto en oklch se SALTEABA (no se medía) y un fondo en
+  // color-mix se tomaba por transparente (se medía contra el de atrás: «Ir a la carta» blanco
+  // sobre el papel, 1,05:1, cuando su fondo real es el acento). Lo que no es rgb() lo pasa a sRGB
+  // el propio navegador: se pinta un píxel en un canvas y se lee.
+  const lienzo = document.createElement("canvas");
+  lienzo.width = lienzo.height = 1;
+  const pincel = lienzo.getContext("2d", { willReadFrequently: true });
+  const yaLeidos = new Map();
   const parseColor = (str) => {
     if (!str) return null;
-    const m = str.match(/rgba?\(([^)]+)\)/i);
-    if (!m) return null;
-    const p = m[1].split(",").map((s) => parseFloat(s));
-    return { r: p[0], g: p[1], b: p[2], a: p[3] === undefined ? 1 : p[3] };
+    const m = str.match(/^rgba?\(([^)]+)\)$/i);
+    if (m) {
+      const p = m[1].split(/[\s,/]+/).filter(Boolean).map((s) => (s.endsWith("%") ? parseFloat(s) / 100 : parseFloat(s)));
+      return { r: p[0], g: p[1], b: p[2], a: p[3] === undefined ? 1 : p[3] };
+    }
+    if (str === "transparent") return { r: 0, g: 0, b: 0, a: 0 };
+    if (!pincel) return null;
+    if (yaLeidos.has(str)) return yaLeidos.get(str);
+    const CENTINELA = "#010203";
+    pincel.fillStyle = CENTINELA;
+    pincel.fillStyle = str; // un color que el canvas no entiende deja el centinela
+    let c = null;
+    if (pincel.fillStyle !== CENTINELA) {
+      pincel.clearRect(0, 0, 1, 1);
+      pincel.fillRect(0, 0, 1, 1);
+      const d = pincel.getImageData(0, 0, 1, 1).data;
+      c = { r: d[0], g: d[1], b: d[2], a: d[3] / 255 };
+    }
+    yaLeidos.set(str, c);
+    return c;
   };
   const over = (fg, bg) => ({
     r: fg.r * fg.a + bg.r * (1 - fg.a),
@@ -301,10 +327,25 @@ export function auditInPage(toqueMin) {
   const interactive = document.querySelectorAll(
     'button, select, [role="button"], [role="switch"], summary, input[type="button"], input[type="submit"], input[type="reset"]',
   );
+  // El blanco ESTIRADO: un enlace o botón cuyo `::after` es `position:absolute; inset:0` se toca en
+  // toda la caja de su bloque contenedor (el renglón de la tabla densa en el celular, renglon.css
+  // «El renglón entero es el blanco del dedo»). Se mide esa caja, no sólo la del texto.
+  const areaDeToque = (el) => {
+    const r = el.getBoundingClientRect();
+    const pa = getComputedStyle(el, "::after");
+    const estirado = pa.content && pa.content !== "none" && pa.position === "absolute" &&
+      ["top", "right", "bottom", "left"].every((k) => pa[k] === "0px");
+    if (!estirado) return r;
+    let cb = el;
+    while (cb && getComputedStyle(cb).position === "static") cb = cb.parentElement;
+    if (!cb) return r;
+    const c = cb.getBoundingClientRect();
+    return { width: Math.max(r.width, c.width), height: Math.max(r.height, c.height) };
+  };
   for (const el of interactive) {
     if (isHidden(el)) continue;
     if (el.closest('button:disabled, [aria-disabled="true"], [data-disabled="true"]')) continue;
-    const r = el.getBoundingClientRect();
+    const r = areaDeToque(el);
     const minSide = Math.min(r.width, r.height);
     if (minSide <= 0) continue;
     const rec = {

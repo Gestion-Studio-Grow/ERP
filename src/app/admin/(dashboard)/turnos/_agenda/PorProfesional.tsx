@@ -476,6 +476,8 @@ export default function PorProfesional({
   return (
     <div>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        {/* Sin turnos no hay nada que filtrar: «Todos 0» sobra (el día vacío es la grilla libre). */}
+        {turnos.length > 0 ? (
         <div data-ui="filtros" role="group" aria-label="Ver">
           {FILTROS_AGENDA.map((f) => {
             const n = f.id === "todos" ? turnos.length : conteo(f.id);
@@ -487,6 +489,9 @@ export default function PorProfesional({
             );
           })}
         </div>
+        ) : (
+          <span />
+        )}
         {!solo && (
         <Segmented
           name="ver-por"

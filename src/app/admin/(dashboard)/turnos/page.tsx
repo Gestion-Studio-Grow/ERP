@@ -97,7 +97,7 @@ export default async function TurnosCalendarPage({
       <AgendaRenglon
         quien={{ role: user.role, professionalId: user.professionalId }}
         fecha={dateParam}
-        vista={vista === "profesionales" ? "profesionales" : "lista"}
+        vista={vista === "profesionales" ? "profesionales" : vista === "lista" ? "lista" : undefined}
       />
     );
   }
