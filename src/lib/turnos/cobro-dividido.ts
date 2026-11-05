@@ -20,6 +20,7 @@
 //
 // Lo importa también la pantalla (DividirPago.tsx, LlegoLaSenia.tsx): sin Prisma ni `server-only`.
 
+import { esNotaDeCobroProfesional } from "./senia-profesional";
 import { centavosDe } from "@/lib/dinero/redondeo";
 import { fmtMoneyARS } from "@/components/ui/format";
 import { round2 } from "@/lib/round";
@@ -322,7 +323,9 @@ export function puedeDeshacerCierre(p: {
 
 /** ¿Se puede deshacer la seña recién cobrada? El cobro tiene que ser de «Llegó la seña» y reciente. */
 export function puedeDeshacerSenia(p: { note: string | null; cobradoEl: Date; ahora: Date }): { ok: true } | { ok: false; motivo: string } {
-  if (p.note !== NOTA_LLEGO_LA_SENIA && p.note !== NOTA_LLEGO_LA_SENIA_PROFESIONAL) return { ok: false, motivo: "Ese cobro no es una seña recién llegada: anulalo desde «La plata» con su motivo." };
+  // La seña cobrada a la cuenta de la profesional (Box «Nail Artist») también se deshace: no tuvo
+  // asiento, así que la anulación tampoco escribe reversa (`asentarReversaInTx`: sin asiento original).
+  if (p.note !== NOTA_LLEGO_LA_SENIA && p.note !== NOTA_LLEGO_LA_SENIA_PROFESIONAL && !esNotaDeCobroProfesional(p.note)) return { ok: false, motivo: "Ese cobro no es una seña recién llegada: anulalo desde «La plata» con su motivo." };
   if (p.ahora.getTime() - p.cobradoEl.getTime() > VENTANA_DESHACER_MS) return { ok: false, motivo: MENSAJE_VENTANA_VENCIDA };
   return { ok: true };
 }

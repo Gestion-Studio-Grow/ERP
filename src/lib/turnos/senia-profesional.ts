@@ -109,22 +109,100 @@ export function snapshotDeChanges(changes: unknown): SnapshotSeniaProfesional | 
 export function ultimoSnapshotPorTurno(
   filas: readonly { entityId: string | null; createdAt: Date | string; changes: unknown }[],
 ): Record<string, SnapshotSeniaProfesional> {
-  const ultima: Record<string, { iso: string; changes: unknown }> = {};
-  for (const f of filas) {
-    if (!f.entityId) continue;
-    const iso = new Date(f.createdAt).toISOString();
-    if (!ultima[f.entityId] || ultima[f.entityId].iso < iso) ultima[f.entityId] = { iso, changes: f.changes };
-  }
   const out: Record<string, SnapshotSeniaProfesional> = {};
-  for (const [id, u] of Object.entries(ultima)) {
+  for (const [id, u] of Object.entries(ultimaPedidaPorTurno(filas))) {
     const s = snapshotDeChanges(u.changes);
     if (s) out[id] = s;
   }
   return out;
 }
 
+/** La marca que deja la nota de un cobro dirigido a la profesional (la leen el «Deshacer» y los listados). */
+export const MARCA_NO_ENTRA_A_LA_CAJA = "no entra a la caja del negocio";
+/** El agregado de la nota (y la advertencia de la agenda) cuando el turno cambió de profesional. */
+export const AVISO_SENIA_REASIGNADA = "la seña se pidió a la cuenta de otra profesional, antes de cambiar el turno: verificala en esa cuenta";
+
 /** La nota del cobro de una seña a la profesional (§4): deja escrito que no entra a la caja. */
-export function notaDeCobroProfesional(s: { alias: string; titular: string | null }): string {
-  const quien = s.titular ? `${s.titular} (${s.alias})` : s.alias;
-  return `a ${quien} — no entra a la caja del negocio`;
+export function notaDeCobroProfesional(s: { alias: string | null; titular: string | null; reasignada?: boolean }): string {
+  const quien = s.alias ? (s.titular ? `${s.titular} (${s.alias})` : s.alias) : "la profesional del turno";
+  return `a ${quien} — ${MARCA_NO_ENTRA_A_LA_CAJA}${s.reasignada ? ` · ojo: ${AVISO_SENIA_REASIGNADA}` : ""}`;
+}
+
+/** ¿Esta nota es la de una seña cobrada a la cuenta de la profesional? */
+export function esNotaDeCobroProfesional(note: string | null | undefined): boolean {
+  return typeof note === "string" && note.startsWith("a ") && note.includes(` — ${MARCA_NO_ENTRA_A_LA_CAJA}`);
+}
+
+/**
+ * ¿A dónde fue la seña de este turno? Manda la ÚLTIMA fila `deposit_requested` (lo que la clienta
+ * vio al transferir): con snapshot → la profesional del snapshot (aunque el turno haya cambiado de
+ * profesional, o la marca o el interruptor se hayan apagado después); sin snapshot → el negocio
+ * (aunque el servicio se haya marcado después). Sólo SIN fila pedida decide la marca actual con el
+ * interruptor. Nunca: nota «no entra a la caja» con asiento, ni seña al negocio sin asiento.
+ */
+export type DestinoDeSenia =
+  | { a: "negocio" }
+  | { a: "profesional"; cuenta: { alias: string | null; titular: string | null; cuit: string | null }; reasignada: boolean; congelada: boolean };
+
+export function destinoDeLaSenia(input: {
+  /** `changes` de la última `deposit_requested` del turno; `null` = nunca se pidió. */
+  ultimaPedida: { changes: unknown } | null;
+  professionalIdDelTurno: string;
+  /** Sólo se mira si nunca se pidió: interruptor + marca actuales y la ficha de la profesional del turno. */
+  actual: { nailArtist: boolean; depositToProfessional: boolean | null | undefined; ficha: FichaDeCobro | null | undefined };
+}): DestinoDeSenia {
+  if (input.ultimaPedida) {
+    const snap = snapshotDeChanges(input.ultimaPedida.changes);
+    if (!snap) return { a: "negocio" };
+    return {
+      a: "profesional",
+      cuenta: { alias: snap.alias, titular: snap.titular, cuit: snap.cuit },
+      reasignada: snap.professionalId !== input.professionalIdDelTurno,
+      congelada: true,
+    };
+  }
+  const r = seniaDeLaProfesional({
+    nailArtist: input.actual.nailArtist,
+    depositToProfessional: input.actual.depositToProfessional,
+    appointment: { professionalId: input.professionalIdDelTurno },
+    profesional: input.actual.ficha,
+    monto: 0,
+  });
+  if (!r.aplica) return { a: "negocio" };
+  const cuenta = r.ok ? { alias: r.snapshot.alias, titular: r.snapshot.titular, cuit: r.snapshot.cuit } : { alias: null, titular: null, cuit: null };
+  return { a: "profesional", cuenta, reasignada: false, congelada: false };
+}
+
+/** Lo que la agenda muestra del destino (`null` = la seña va al negocio: el pedido de siempre). */
+export function cuentaDeSeniaEnAgenda(input: Parameters<typeof destinoDeLaSenia>[0]): {
+  cuenta: { alias: string; titular: string | null; cuit: string | null } | null;
+  reasignada?: boolean;
+} | null {
+  const d = destinoDeLaSenia(input);
+  if (d.a === "negocio") return null;
+  const cuenta = d.cuenta.alias ? { alias: d.cuenta.alias, titular: d.cuenta.titular, cuit: d.cuenta.cuit } : null;
+  return d.reasignada ? { cuenta, reasignada: true } : { cuenta };
+}
+
+/** De las filas `deposit_requested` (cualquier orden), la última de cada turno. */
+export function ultimaPedidaPorTurno(
+  filas: readonly { entityId: string | null; createdAt: Date | string; changes: unknown }[],
+): Record<string, { changes: unknown }> {
+  const ultima: Record<string, { iso: string; changes: unknown }> = {};
+  for (const f of filas) {
+    if (!f.entityId) continue;
+    const iso = new Date(f.createdAt).toISOString();
+    if (!ultima[f.entityId] || ultima[f.entityId].iso < iso) ultima[f.entityId] = { iso, changes: f.changes };
+  }
+  const out: Record<string, { changes: unknown }> = {};
+  for (const [id, u] of Object.entries(ultima)) out[id] = { changes: u.changes };
+  return out;
+}
+
+/** La seña dirigida a la profesional entra a SU cuenta: sólo por transferencia (el efectivo quedaría en el mostrador sin asiento). */
+export const SENIA_PROFESIONAL_SOLO_TRANSFERENCIA =
+  "Esta seña se pidió al alias de la profesional: registrala como transferencia. Si la clienta pagó en efectivo o por otro medio, coordinalo con la profesional (no entra a la caja del negocio).";
+
+export function medioDeSeniaProfesionalValido(method: string): boolean {
+  return method === "TRANSFERENCIA";
 }

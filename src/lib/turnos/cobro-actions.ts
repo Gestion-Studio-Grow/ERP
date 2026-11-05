@@ -27,7 +27,15 @@
 // `settleAppointmentPaymentGuarded` clasifica) o en la guarda de saldo: nunca cobra dos veces.
 
 import { ACCION_SENIA_PEDIDA } from "./senia-pedida";
-import { notaDeCobroProfesional, ultimoSnapshotPorTurno, type SnapshotSeniaProfesional } from "./senia-profesional";
+import {
+  destinoDeLaSenia,
+  medioDeSeniaProfesionalValido,
+  notaDeCobroProfesional,
+  SENIA_PROFESIONAL_SOLO_TRANSFERENCIA,
+  ultimaPedidaPorTurno,
+  type FichaDeCobro,
+} from "./senia-profesional";
+import { isColumnMissing } from "@/lib/prisma-errors";
 import { nailArtistDelNegocio } from "@/cambios/interruptores.server";
 import { unstable_rethrow } from "next/navigation";
 import { revalidatePath } from "next/cache";
@@ -90,15 +98,39 @@ import {
 export type ResultadoCobro = { ok: true; aviso?: string } | { ok: false; error: string };
 
 /** «Llegó la seña»: además, el cobro que se hizo (para el «Deshacer» de 10 s). */
-/** La cuenta congelada en la última `deposit_requested` del turno, si fue a la profesional. Con `tenantId`. */
-async function snapshotDeLaSeniaPedida(tenantId: string, appointmentId: string): Promise<SnapshotSeniaProfesional | null> {
+/**
+ * Lo que decide a dónde fue la seña (`destinoDeLaSenia`): la última `deposit_requested` del turno
+ * (AuditLog, sin columnas nuevas: se lee siempre) y, SÓLO si nunca se pidió y el interruptor está
+ * prendido, la marca del servicio y la ficha de la profesional. Con `tenantId`. Columna sin migrar
+ * → marca apagada (el camino de siempre).
+ */
+async function datosDelDestinoDeSenia(
+  tenantId: string,
+  appointmentId: string,
+  nailArtist: boolean,
+): Promise<{ ultimaPedida: { changes: unknown } | null; depositToProfessional: boolean; ficha: FichaDeCobro | null }> {
   const filas = await prisma.auditLog.findMany({
     where: { tenantId, entity: "Appointment", action: ACCION_SENIA_PEDIDA, entityId: appointmentId },
     select: { entityId: true, createdAt: true, changes: true },
   });
-  return ultimoSnapshotPorTurno(filas)[appointmentId] ?? null;
+  const ultimaPedida = ultimaPedidaPorTurno(filas)[appointmentId] ?? null;
+  if (ultimaPedida || !nailArtist) return { ultimaPedida, depositToProfessional: false, ficha: null };
+  try {
+    const t = await prisma.appointment.findFirst({
+      where: { id: appointmentId, tenantId },
+      select: {
+        service: { select: { depositToProfessional: true } },
+        professional: { select: { id: true, name: true, aliasCbu: true, titularCuenta: true, cuitTitular: true } },
+      },
+    });
+    return { ultimaPedida: null, depositToProfessional: t?.service.depositToProfessional === true, ficha: t?.professional ?? null };
+  } catch (err) {
+    if (isColumnMissing(err)) return { ultimaPedida: null, depositToProfessional: false, ficha: null };
+    throw err;
+  }
 }
 
+/** «Llegó la seña»: además, el cobro que se hizo (para el «Deshacer» de 10 s). */
 export type ResultadoDeSenia =
   | { ok: true; aviso?: string; cobroId: string | null; monto: number; confirmo: boolean; sePuedeDeshacer?: boolean }
   | { ok: false; error: string };
@@ -349,9 +381,9 @@ export async function cobrarSeniaYConfirmar(formData: FormData): Promise<Resulta
 
   type Hecho = { plan: PlanDeSenia; cobro: AplicarCobroResult | null; confirmo: boolean };
   const nailArtist = await nailArtistDelNegocio();
-  // Box «Nail Artist»: la seña pedida a la profesional dejó la cuenta CONGELADA en su fila; la nota
-  // del cobro la nombra (y que no entra a la caja). Sin snapshot, la nota de siempre.
-  const cuentaProfesional = nailArtist ? await snapshotDeLaSeniaPedida(tenantId, appointmentId) : null;
+  // Box «Nail Artist»: el destino de la seña lo fija lo que se le PIDIÓ a la clienta (snapshot de
+  // `deposit_requested`); sin pedido, la marca actual. La nota y el asiento salen del MISMO destino.
+  const datosDestino = await datosDelDestinoDeSenia(tenantId, appointmentId, nailArtist);
   const run = (withSchema: boolean) =>
     tenantTransaction<Hecho>(
       async (tx) => {
@@ -376,16 +408,22 @@ export async function cobrarSeniaYConfirmar(formData: FormData): Promise<Resulta
           puedeConfirmar: confirma,
         });
         if (plan.tipo === "rechazado") throw new RechazoDeDominio(plan.motivo);
+        const destino = destinoDeLaSenia({
+          ultimaPedida: datosDestino.ultimaPedida,
+          professionalIdDelTurno: a.professionalId,
+          actual: { nailArtist, depositToProfessional: datosDestino.depositToProfessional, ficha: datosDestino.ficha },
+        });
 
         let cobro: AplicarCobroResult | null = null;
         if (plan.tipo === "cobrar") {
+          if (destino.a === "profesional" && !medioDeSeniaProfesionalValido(method)) throw new RechazoDeDominio(SENIA_PROFESIONAL_SOLO_TRANSFERENCIA);
           cobro = await aplicarCobroTurnoInTx(tx, tenantId, {
             appointmentId,
             status: a.status,
             precio,
             monto: plan.monto,
             method,
-            note: cuentaProfesional ? notaDeCobroProfesional(cuentaProfesional) : notaLlegoLaSenia(user.role),
+            note: destino.a === "profesional" ? notaDeCobroProfesional({ ...destino.cuenta, reasignada: destino.reasignada }) : notaLlegoLaSenia(user.role),
             actor,
             detail: cobroTurnoDetail({ serviceName: a.service.name, clientName: a.client.name }),
             // Sin la columna migrada no hay clave que se escriba ni fila que leer (`withSchema`).
@@ -393,7 +431,7 @@ export async function cobrarSeniaYConfirmar(formData: FormData): Promise<Resulta
             withSchema,
             cerradoHasta,
             camino: "cobro",
-            nailArtist, // Box «Nail Artist»: sin asiento si el servicio cobra a la profesional
+            destino: destino.a, // Box «Nail Artist»: mismo destino que la nota (nunca nota «no entra» con asiento)
           });
         }
         const confirmar = (plan.tipo === "cobrar" && plan.confirmar) || plan.tipo === "solo-confirmar";

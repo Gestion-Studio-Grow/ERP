@@ -35,7 +35,7 @@ import { Button, ButtonLink, Input, Marca, Plata, Renglon, Seccion, atributosBot
 import { fmtShortDate, fmtTime } from "@/lib/datetime";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
 import { ALIAS_SENIA_PROVISIONAL, linkWhatsApp, mensajePedidoDeSenia, mensajePedidoDeSeniaProfesional, mensajeSaludo } from "@/lib/turnos/mensajes-whatsapp";
-import { SENIA_SIN_ALIAS } from "@/lib/turnos/senia-profesional";
+import { AVISO_SENIA_REASIGNADA, SENIA_SIN_ALIAS } from "@/lib/turnos/senia-profesional";
 import { puedeEditar } from "./barra-core";
 import { pagosDelTurno } from "./pagos-core";
 import { marcarSeniaPedida } from "@/lib/turnos/senia-actions";
@@ -501,6 +501,11 @@ export default function TurnoCajon({
                 {pedida ? ` Ya se la pedimos (${pedida.replace(/^seña pedida /, "")}).` : ""}
               </p>
               {aProfesional && !aProfesional.cuenta && <p className="text-sm text-muted">{SENIA_SIN_ALIAS}</p>}
+              {aProfesional?.reasignada && (
+                <p role="status" className="text-sm font-medium">
+                  Ojo: {AVISO_SENIA_REASIGNADA}.
+                </p>
+              )}
               {llegoLaSenia && (
                 <LlegoLaSenia
                   key={t.id}

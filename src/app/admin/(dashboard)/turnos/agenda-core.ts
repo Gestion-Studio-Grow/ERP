@@ -81,9 +81,10 @@ export type TurnoDelDia = {
   /**
    * Box «Nail Artist» (interruptor `nail-artist`): el servicio cobra a la profesional del turno. La
    * cuenta es la CONGELADA en la seña ya pedida o, si no se pidió, la de la ficha; `null` = ella no
-   * cargó alias (no se pide por transferencia). Ausente = camino de siempre.
+   * cargó alias (no se pide por transferencia). Ausente = camino de siempre. `reasignada`: la seña se
+   * pidió a la cuenta de OTRA profesional y el turno cambió después (se muestra esa cuenta + aviso).
    */
-  seniaAProfesional?: { cuenta: { alias: string; titular: string | null; cuit: string | null } | null };
+  seniaAProfesional?: { cuenta: { alias: string; titular: string | null; cuit: string | null } | null; reasignada?: boolean };
 };
 
 /** Lo mínimo que la agenda lee de un turno crudo (el loader de siempre, ya con sus cobros). */

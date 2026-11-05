@@ -3,6 +3,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
 import { instalarEnPool } from "@/lib/pg-begin-con-negocio";
 import { empaquetarBeginConNegocio, limitesDelPool } from "@/lib/db-pool";
+import { OMITIR_SIN_MIGRAR } from "@/lib/prisma-omitir-sin-migrar";
 
 // Cliente Prisma CRUDO (base). Conecta con el rol de DATABASE_URL tal cual
 // (hoy `neondb_owner`, que está EXENTO de RLS por ser dueño de las tablas).
@@ -21,7 +22,7 @@ import { empaquetarBeginConNegocio, limitesDelPool } from "@/lib/db-pool";
 // si cambia el armado (como ahora, con el BEGIN junto al negocio), la clave nueva hace que el
 // server de desarrollo que ya estaba andando arme el cliente nuevo en vez de seguir con el
 // viejo. En producción no se guarda: cada instancia arranca de cero.
-const CLAVE_DEL_CLIENTE = "prismaBase:v2-begin-con-negocio";
+const CLAVE_DEL_CLIENTE = "prismaBase:v3-omit-sin-migrar";
 const globalForPrisma = globalThis as unknown as Record<string, PrismaClient | undefined>;
 
 // Pool de conexiones ACOTADO (hardening $0, carril de confiabilidad). Cada
@@ -41,7 +42,7 @@ function crearCliente(): PrismaClient {
   const limites = limitesDelPool(process.env);
   // Apagado (el defecto, db-pool.ts): el adaptador arma su pool como siempre, con los mismos números.
   if (!empaquetarBeginConNegocio(process.env)) {
-    return new PrismaClient({
+    return conOmit({
       adapter: new PrismaPg({
         connectionString: process.env.DATABASE_URL,
         max: limites.conexiones,
@@ -57,7 +58,15 @@ function crearCliente(): PrismaClient {
     idleTimeoutMillis: limites.ociosaMs,
   });
   instalarEnPool(pool);
-  return new PrismaClient({ adapter: new PrismaPg(pool, { disposeExternalPool: true }) });
+  return conOmit({ adapter: new PrismaPg(pool, { disposeExternalPool: true }) });
+}
+
+// `omit` global (prisma-omitir-sin-migrar.ts): las columnas sin migrar sólo viajan si se nombran.
+// Se tipa como el cliente SIN omit a propósito: con el omit en el tipo, cada `PrismaClient` /
+// `TransactionClient` de la app cambiaría de tipo. Costo: un `include` que las lea compila y da
+// `undefined` (por eso la regla: sólo con `select` explícito).
+function conOmit(opciones: { adapter: PrismaPg }): PrismaClient {
+  return new PrismaClient({ ...opciones, omit: OMITIR_SIN_MIGRAR }) as unknown as PrismaClient;
 }
 
 export const basePrisma = globalForPrisma[CLAVE_DEL_CLIENTE] ?? crearCliente();

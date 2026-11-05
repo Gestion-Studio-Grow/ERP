@@ -13,6 +13,7 @@
 // «Ese turno ya no existe» y no escribe nada. La lectura filtra la auditoría por `tenantId`.
 
 import { prisma } from "@/lib/prisma";
+import { isColumnMissing } from "@/lib/prisma-errors";
 import { requireCapability } from "@/lib/authz";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { auditAdmin } from "@/lib/audit-core";
@@ -21,7 +22,7 @@ import type { ResultadoAccion } from "@/lib/actions";
 import { seniaDelServicio } from "./cobros";
 import { ACCION_SENIA_PEDIDA, ultimaSeniaPedida } from "./senia-pedida";
 import { nailArtistDelNegocio } from "@/cambios/interruptores.server";
-import { changesDelSnapshot, seniaDeLaProfesional, SENIA_SIN_ALIAS, ultimoSnapshotPorTurno, type SnapshotSeniaProfesional } from "./senia-profesional";
+import { changesDelSnapshot, seniaDeLaProfesional, SENIA_SIN_ALIAS, type SnapshotSeniaProfesional } from "./senia-profesional";
 
 /** Campos: `appointmentId`. Sólo un turno Reservado que pide seña. */
 export async function marcarSeniaPedida(fd: FormData): Promise<ResultadoAccion> {
@@ -58,14 +59,20 @@ async function seniaProfesionalDelTurno(
   monto: number,
 ): Promise<{ ok: true; snapshot: SnapshotSeniaProfesional } | { ok: false } | null> {
   if (!(await nailArtistDelNegocio())) return null;
-  const t = await prisma.appointment.findFirst({
-    where: { id: appointmentId, tenantId },
-    select: {
-      professionalId: true,
-      service: { select: { depositToProfessional: true } },
-      professional: { select: { id: true, name: true, aliasCbu: true, titularCuenta: true, cuitTitular: true } },
-    },
-  });
+  // Columna sin migrar (interruptor prendido antes de tiempo) → el camino de siempre, no un 500.
+  const t = await prisma.appointment
+    .findFirst({
+      where: { id: appointmentId, tenantId },
+      select: {
+        professionalId: true,
+        service: { select: { depositToProfessional: true } },
+        professional: { select: { id: true, name: true, aliasCbu: true, titularCuenta: true, cuitTitular: true } },
+      },
+    })
+    .catch((err: unknown) => {
+      if (isColumnMissing(err)) return null;
+      throw err;
+    });
   if (!t) return null;
   const r = seniaDeLaProfesional({
     nailArtist: true,
@@ -90,23 +97,6 @@ export async function changesDeSeniaPedida(
   if (r && !r.ok) return { ok: false, error: SENIA_SIN_ALIAS };
   if (r?.ok) return { ok: true, changes: { ...changesDelSnapshot(r.snapshot), canal }, cuenta: r.snapshot };
   return { ok: true, changes: { monto, canal }, cuenta: null };
-}
-
-/**
- * Turno → la cuenta CONGELADA de su última seña pedida a la profesional (sólo las que fueron a ella).
- * La leen «Llegó la seña» y el comprobante: un alias cambiado después no altera lo ya pedido.
- */
-export async function seniasAProfesional(ids: string[]): Promise<Record<string, SnapshotSeniaProfesional>> {
-  await requireCapability("agenda:read");
-  const unicos = [...new Set((Array.isArray(ids) ? ids : []).filter((x) => typeof x === "string" && x.length > 0 && x.length <= 64))].slice(0, 300);
-  if (unicos.length === 0 || isDemoSandbox()) return {};
-  if (!(await nailArtistDelNegocio())) return {};
-  const tenantId = await getCurrentTenantId();
-  const filas = await prisma.auditLog.findMany({
-    where: { tenantId, entity: "Appointment", action: ACCION_SENIA_PEDIDA, entityId: { in: unicos } },
-    select: { entityId: true, createdAt: true, changes: true },
-  });
-  return ultimoSnapshotPorTurno(filas);
 }
 
 /** Turno → ISO de la última vez que se pidió su seña (sólo los ids dados, hasta 300, del negocio). */

@@ -20,9 +20,12 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { puedeCobrarEsteTurno } from "@/lib/turnos/cobro-mostrador";
 import { fmtTime } from "@/lib/datetime";
-import { seniasAProfesional, seniasPedidas } from "@/lib/turnos/senia-actions";
+import { seniasPedidas } from "@/lib/turnos/senia-actions";
 import { nailArtistDelNegocio } from "@/cambios/interruptores.server";
-import { seniaDeLaProfesional } from "@/lib/turnos/senia-profesional";
+import { cuentaDeSeniaEnAgenda, ultimaPedidaPorTurno } from "@/lib/turnos/senia-profesional";
+import { ACCION_SENIA_PEDIDA } from "@/lib/turnos/senia-pedida";
+import { isColumnMissing } from "@/lib/prisma-errors";
+import { isDemoSandbox } from "@/lib/demo-flag";
 import { horariosDelDia } from "@/lib/turnos/horario-del-dia.server";
 import { turnoDelDia, type TurnoDelDia } from "./agenda-core";
 import { bloqueosDelDia, bloqueosPorHorario, type BloqueoDelDia } from "./grilla";
@@ -151,7 +154,9 @@ export async function extrasDeLaAgenda(
     reservados.length > 0 ? seniasPedidas(reservados).catch(() => ({})) : Promise.resolve({}),
     profesionales.length > 0 ? horariosDelDia(dia, profesionales).catch(() => null) : Promise.resolve(null),
     o.quienCobro ? nombresDeQuienCobro(cruda).catch(() => ({})) : Promise.resolve(undefined),
-    reservados.length > 0 ? cuentasDeSeniaProfesional(reservados).catch(() => ({})) : Promise.resolve({}),
+    reservados.length > 0
+      ? cuentasDeSeniaProfesional(cruda.appointments.filter((a) => a.status === "PENDING").map((a) => ({ id: a.id, professionalId: a.professionalId }))).catch(() => ({}))
+      : Promise.resolve({}),
   ]);
   return {
     seniasPedidas: senias,
@@ -162,31 +167,51 @@ export async function extrasDeLaAgenda(
 }
 
 /**
- * Box «Nail Artist»: de los Reservados dados, los de servicios marcados `depositToProfessional`, con la
- * cuenta de la seña. Manda la CONGELADA al pedirla (si es de la misma profesional del turno); si no, la
- * ficha de la profesional DEL TURNO. Interruptor apagado = `{}` sin tocar la base (ni la columna).
+ * Box «Nail Artist»: de los Reservados dados, la cuenta de la seña con la MISMA regla que el cobro
+ * (`destinoDeLaSenia`): manda la última seña pedida (su snapshot, aunque el turno haya cambiado de
+ * profesional —con aviso— o el interruptor se haya apagado); sin pedido, la marca y la ficha actuales
+ * (sólo con el interruptor prendido). Lee AuditLog siempre (sin columnas nuevas); la ficha, no.
  */
-async function cuentasDeSeniaProfesional(ids: string[]): Promise<Record<string, NonNullable<TurnoDelDia["seniaAProfesional"]>>> {
-  if (!(await nailArtistDelNegocio())) return {};
+async function cuentasDeSeniaProfesional(
+  turnos: readonly { id: string; professionalId: string }[],
+): Promise<Record<string, NonNullable<TurnoDelDia["seniaAProfesional"]>>> {
+  if (isDemoSandbox()) return {};
   const tenantId = await getCurrentTenantId();
-  const [filas, congeladas] = await Promise.all([
-    prisma.appointment.findMany({
-      where: { tenantId, id: { in: ids }, service: { depositToProfessional: true } },
-      select: { id: true, professionalId: true, professional: { select: { id: true, aliasCbu: true, titularCuenta: true, cuitTitular: true } } },
+  const ids = turnos.map((t) => t.id);
+  const [pedidas, nailArtist] = await Promise.all([
+    prisma.auditLog.findMany({
+      where: { tenantId, entity: "Appointment", action: ACCION_SENIA_PEDIDA, entityId: { in: ids } },
+      select: { entityId: true, createdAt: true, changes: true },
     }),
-    seniasAProfesional(ids),
+    nailArtistDelNegocio(),
   ]);
+  const ultima = ultimaPedidaPorTurno(pedidas);
+  const congelados = turnos.filter((t) => ultima[t.id]);
+  const sinPedido = ids.filter((id) => !ultima[id]);
+  const marcados = nailArtist && sinPedido.length > 0 ? await turnosMarcadosConFicha(tenantId, sinPedido) : [];
   const out: Record<string, NonNullable<TurnoDelDia["seniaAProfesional"]>> = {};
-  for (const f of filas) {
-    const c = congeladas[f.id];
-    if (c && c.professionalId === f.professionalId) {
-      out[f.id] = { cuenta: { alias: c.alias, titular: c.titular, cuit: c.cuit } };
-      continue;
-    }
-    const r = seniaDeLaProfesional({ nailArtist: true, depositToProfessional: true, appointment: f, profesional: f.professional, monto: 0 });
-    out[f.id] = { cuenta: r.aplica && r.ok ? { alias: r.snapshot.alias, titular: r.snapshot.titular, cuit: r.snapshot.cuit } : null };
+  for (const f of congelados) {
+    const c = cuentaDeSeniaEnAgenda({ ultimaPedida: ultima[f.id] ?? null, professionalIdDelTurno: f.professionalId, actual: { nailArtist: false, depositToProfessional: false, ficha: null } });
+    if (c) out[f.id] = c;
+  }
+  for (const f of marcados) {
+    const c = cuentaDeSeniaEnAgenda({ ultimaPedida: null, professionalIdDelTurno: f.professionalId, actual: { nailArtist: true, depositToProfessional: true, ficha: f.professional } });
+    if (c) out[f.id] = c;
   }
   return out;
+}
+
+/** Los turnos de servicios marcados, con la ficha de su profesional. Columna sin migrar → ninguno. */
+async function turnosMarcadosConFicha(tenantId: string, ids: string[]) {
+  try {
+    return await prisma.appointment.findMany({
+      where: { tenantId, id: { in: ids }, service: { depositToProfessional: true } },
+      select: { id: true, professionalId: true, professional: { select: { id: true, aliasCbu: true, titularCuenta: true, cuitTitular: true } } },
+    });
+  } catch (err) {
+    if (isColumnMissing(err)) return [];
+    throw err;
+  }
 }
 
 /** Actor de los cobros del día («user:<id>») → nombre. UNA consulta por día, con `tenantId`. */

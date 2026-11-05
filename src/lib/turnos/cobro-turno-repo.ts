@@ -80,6 +80,12 @@ export type AplicarCobroArgs = {
    * columna existe y la lectura no aborta la tx). Ausente/false = byte a byte como siempre.
    */
   nailArtist?: boolean;
+  /**
+   * El destino YA decidido por el llamador (la seña: `destinoDeLaSenia`, senia-profesional.ts, con el
+   * snapshot de `deposit_requested`). Si viene, manda sobre la marca actual y no se lee la columna.
+   * "profesional" = Collection sí, CashMovement no; "negocio" = el asiento de siempre.
+   */
+  destino?: "profesional" | "negocio";
 };
 
 export type CaminoDeCobro = "reserva" | "cobro" | "completar";
@@ -340,7 +346,10 @@ export async function aplicarCobroTurnoInTx(
 
   let caja: RecordCobroTurnoResult | null = null;
   if (args.withSchema) {
-    const profesionalCobra = args.nailArtist === true && (await servicioCobraLaProfesionalInTx(tx, tenantId, args.appointmentId));
+    const profesionalCobra =
+      args.destino !== undefined
+        ? args.destino === "profesional"
+        : args.nailArtist === true && (await servicioCobraLaProfesionalInTx(tx, tenantId, args.appointmentId));
     caja = await recordCobroTurnoInTx(tx, tenantId, {
       ...(profesionalCobra ? { profesionalCobra } : {}),
       collectionId: created.id,

@@ -59,7 +59,39 @@ export async function getCatalog() {
     prisma.serviceCategory.findMany({ orderBy: { order: "asc" } }),
     prisma.resource.findMany({ orderBy: { name: "asc" }, include: { services: true } }),
   ]);
-  return { boxes, services, professionals, products, categories, resources };
+  // Box «Nail Artist»: las columnas nuevas van con `omit` global (prisma-omitir-sin-migrar.ts); con
+  // el interruptor prendido se leen aparte, por nombre, y una base sin migrar da el catálogo de siempre.
+  const nail = await camposNailArtistDelCatalogo();
+  if (!nail) return { boxes, services, professionals, products, categories, resources };
+  return {
+    boxes,
+    services: services.map((sv) => ({ ...sv, depositToProfessional: nail.marcados.has(sv.id) })),
+    professionals: professionals.map((p) => ({ ...p, ...(nail.cuentas.get(p.id) ?? {}) })),
+    products,
+    categories,
+    resources,
+  };
+}
+
+async function camposNailArtistDelCatalogo(): Promise<{
+  marcados: Set<string>;
+  cuentas: Map<string, { aliasCbu: string | null; titularCuenta: string | null; cuitTitular: string | null }>;
+} | null> {
+  if (!(await nailArtistDelNegocio())) return null;
+  const tenantId = await getCurrentTenantId();
+  try {
+    const [marcados, cuentas] = await Promise.all([
+      prisma.service.findMany({ where: { tenantId, deletedAt: null, depositToProfessional: true }, select: { id: true } }),
+      prisma.professional.findMany({ where: { tenantId, deletedAt: null }, select: { id: true, aliasCbu: true, titularCuenta: true, cuitTitular: true } }),
+    ]);
+    return {
+      marcados: new Set(marcados.map((m) => m.id)),
+      cuentas: new Map(cuentas.map(({ id, ...c }) => [id, c])),
+    };
+  } catch (err) {
+    if (isColumnMissing(err)) return null;
+    throw err;
+  }
 }
 
 // --- Boxes ---

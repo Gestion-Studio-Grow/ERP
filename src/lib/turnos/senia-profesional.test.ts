@@ -3,6 +3,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   changesDelSnapshot,
+  cuentaDeSeniaEnAgenda,
+  destinoDeLaSenia,
+  esNotaDeCobroProfesional,
+  medioDeSeniaProfesionalValido,
   notaDeCobroProfesional,
   seniaDeLaProfesional,
   snapshotDeChanges,
@@ -111,4 +115,41 @@ test("ficha: edita el dueño o la propia profesional (sólo su fila); valida ali
   assert.equal(leerCuentaProfesional({ aliasCbu: "mica.nails", titularCuenta: "" }).ok, false, "con alias, el titular es obligatorio");
   assert.equal(leerCuentaProfesional({ aliasCbu: "0".repeat(22), titularCuenta: "Mica" }).ok, true, "CBU/CVU de 22");
   assert.equal(leerCuentaProfesional({ aliasCbu: "mica.nails", titularCuenta: "Mica", cuitTitular: "123" }).ok, false);
+});
+
+// Vuelta 1: el destino de la seña lo fija lo PEDIDO (snapshot), no la marca de hoy.
+test("destinoDeLaSenia: manda la última seña pedida; sin pedido, interruptor + marca actuales", () => {
+  const snap = changesDelSnapshot({ professionalId: "mica", alias: "mica.nails", titular: "Micaela", cuit: null, monto: 5000 });
+  const ficha = { id: "mica", aliasCbu: "mica.nails", titularCuenta: "Micaela" };
+  const apagado = { nailArtist: false, depositToProfessional: false, ficha: null };
+  // Pedida al negocio, después se marca el servicio → negocio (la clienta transfirió a CH).
+  assert.deepEqual(destinoDeLaSenia({ ultimaPedida: { changes: { monto: 5000, canal: "turno" } }, professionalIdDelTurno: "mica", actual: { nailArtist: true, depositToProfessional: true, ficha } }), { a: "negocio" });
+  // Pedida a la profesional, después se desmarca o se apaga el interruptor → profesional.
+  const d = destinoDeLaSenia({ ultimaPedida: { changes: snap }, professionalIdDelTurno: "mica", actual: apagado });
+  assert.equal(d.a, "profesional");
+  assert.equal(d.a === "profesional" && d.reasignada, false);
+  // Turno reasignado → la cuenta del snapshot, con aviso.
+  const r = destinoDeLaSenia({ ultimaPedida: { changes: snap }, professionalIdDelTurno: "sol", actual: apagado });
+  assert.equal(r.a === "profesional" && r.cuenta.alias, "mica.nails");
+  assert.equal(r.a === "profesional" && r.reasignada, true);
+  assert.deepEqual(cuentaDeSeniaEnAgenda({ ultimaPedida: { changes: snap }, professionalIdDelTurno: "sol", actual: apagado }), {
+    cuenta: { alias: "mica.nails", titular: "Micaela", cuit: null },
+    reasignada: true,
+  });
+  // Sin pedido: la marca actual (con interruptor), o el negocio.
+  assert.equal(destinoDeLaSenia({ ultimaPedida: null, professionalIdDelTurno: "mica", actual: { nailArtist: true, depositToProfessional: true, ficha } }).a, "profesional");
+  assert.equal(destinoDeLaSenia({ ultimaPedida: null, professionalIdDelTurno: "mica", actual: { nailArtist: false, depositToProfessional: true, ficha } }).a, "negocio");
+  assert.equal(cuentaDeSeniaEnAgenda({ ultimaPedida: null, professionalIdDelTurno: "mica", actual: apagado }), null);
+});
+
+test("nota dirigida: se reconoce (para el Deshacer), avisa la reasignación; sólo transferencia", () => {
+  const n = notaDeCobroProfesional({ alias: "mica.nails", titular: null, reasignada: true });
+  assert.match(n, /^a mica\.nails — no entra a la caja del negocio · ojo: /);
+  assert.equal(esNotaDeCobroProfesional(n), true);
+  assert.equal(esNotaDeCobroProfesional(notaDeCobroProfesional({ alias: null, titular: null })), true);
+  assert.equal(esNotaDeCobroProfesional("Llegó la seña (verificada por recepción)"), false);
+  assert.equal(esNotaDeCobroProfesional(null), false);
+  assert.equal(medioDeSeniaProfesionalValido("TRANSFERENCIA"), true);
+  assert.equal(medioDeSeniaProfesionalValido("EFECTIVO"), false);
+  assert.equal(medioDeSeniaProfesionalValido("MERCADOPAGO"), false);
 });
