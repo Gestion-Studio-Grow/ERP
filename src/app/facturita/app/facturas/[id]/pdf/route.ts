@@ -19,7 +19,7 @@ export async function GET(_pedido: Request, { params }: { params: Promise<{ id: 
     { tenantId },
   );
   if (tenant?.blueprintId !== "facturita") {
-    return new Response("Esta descarga es del producto Facturita.", {
+    return new Response("Esta descarga es del producto Factoque.", {
       status: 404,
       headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "private, no-store" },
     });

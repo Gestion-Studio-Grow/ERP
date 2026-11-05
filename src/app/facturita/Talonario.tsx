@@ -133,7 +133,7 @@ export default function Talonario() {
           <div className="fx-app-cabecera">
             <span className="fx-app-nombre">
               <Icono />
-              Facturita
+              Factoque
             </span>
             <span className="fx-rotulo">Ejemplo · sin validez fiscal</span>
           </div>

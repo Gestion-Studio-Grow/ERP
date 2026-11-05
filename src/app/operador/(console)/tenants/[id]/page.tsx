@@ -13,7 +13,11 @@ import {
   setTenantSubdomain,
   setTenantArcaCuit,
   setTenantArcaPuntoVenta,
+  setTenantArcaCondicionIva,
   cargarCredencialFiscal,
+  verificarCertificadoArca,
+  generarPedidoCertificadoArca,
+  cargarCertificadoDelPedidoArca,
 } from "@/lib/operator-actions";
 import {
   checklistApertura,
@@ -41,6 +45,7 @@ import {
   fmtCuit,
 } from "@/components/ui";
 import { modoDesdeEnv } from "@/plugins/arca";
+import { CONDICIONES_DEL_EMISOR } from "@/lib/fiscal/condicion-iva-emisor";
 import { isInvoicingEnabled } from "@/lib/fiscal";
 import { operatorReadMustChange } from "@/lib/must-change-password";
 import { mapaDeHostsVigente } from "@/lib/tenant";
@@ -74,6 +79,8 @@ import {
 import { AppsOcultasCard, InterruptoresCard } from "./InterruptoresCard";
 import { leerAppsOcultasDe } from "@/lib/operador/apps-ocultas.server";
 import { PaseARealCard } from "./PaseARealCard";
+import { AsistenteArca } from "@/components/fiscal/AsistenteArca";
+import { leerAsistente } from "@/lib/fiscal/asistente-arca.server";
 import PlanDelNegocioCard from "./PlanDelNegocioCard";
 import { leerFichaDelPase } from "@/lib/operador/pase-a-real.server";
 import { mismoCuit } from "@/lib/multilocal/multilocal-core";
@@ -278,6 +285,7 @@ export default async function FichaDelNegocio({
       arcaCuit: true,
       arcaPuntoVenta: true,
       arcaHomologacion: true,
+      arcaCondicionIva: true,
     },
   });
   if (!tenant) notFound();
@@ -449,6 +457,12 @@ export default async function FichaDelNegocio({
   const soloLectura = paraEsteOperador.ok
     ? null
     : paraEsteOperador.motivo.replace(" No se hizo nada.", "");
+  // Asistente ARCA (los mismos 4 pasos que ve el cliente): reusa la ficha del pase ya leída. Sin la
+  // tabla de credenciales no se arma (el paso 3 lo explica abajo).
+  const asistenteArca =
+    credFiscal === "pendiente" || !fichaDelPase
+      ? null
+      : await leerAsistente(t.id, fichaDelPase).catch(() => null);
   const estadoApps = estadoDeApps(negocio!, flags, cat);
   const fijarSinTope = planFijarAsignacion(negocio!, flags, cat);
   // Fijar tampoco regala módulos de otro plan (GSG-19): mismo tope que la action.
@@ -684,6 +698,20 @@ export default async function FichaDelNegocio({
         </Franja>
       )}
 
+      {asistenteArca && (
+        <AsistenteArca
+          vista={asistenteArca}
+          plano="operador"
+          tenantId={t.id}
+          soloLectura={soloLectura}
+          acciones={{
+            generarPedido: generarPedidoCertificadoArca,
+            cargarCertificado: cargarCertificadoDelPedidoArca,
+            probar: verificarCertificadoArca,
+          }}
+        />
+      )}
+
       <Bloque
         id="fiscal"
         titulo="De un vistazo"
@@ -823,6 +851,33 @@ export default async function FichaDelNegocio({
         </div>
       </div>
 
+      <Bloque titulo="Condición frente al IVA del emisor">
+        <form action={setTenantArcaCondicionIva} className="flex flex-wrap items-end gap-3 py-3">
+          <input type="hidden" name="tenantId" value={t.id} />
+          <Field
+            label="Condición"
+            htmlFor="ficha-condicion-iva"
+            hint="Define la letra (C monotributo y exento, A/B inscripto). Sin esto no sale ninguna factura."
+          >
+            <Select
+              id="ficha-condicion-iva"
+              name="arcaCondicionIva"
+              defaultValue={t.arcaCondicionIva ?? ""}
+            >
+              <option value="">Sin cargar</option>
+              {Object.entries(CONDICIONES_DEL_EMISOR).map(([id, nombre]) => (
+                <option key={id} value={id}>
+                  {nombre}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Button type="submit" variant="outline">
+            Guardar la condición
+          </Button>
+        </form>
+      </Bloque>
+
       <Bloque
         titulo="Paso 3 · Certificado de ARCA"
         nota="Se firma sólo si el CUIT del certificado es el del negocio · nunca se muestra ni se registra"
@@ -877,6 +932,19 @@ export default async function FichaDelNegocio({
                 {credLoaded ? "Rotar el certificado" : "Cargar el certificado"}
               </Button>
             </div>
+          </form>
+        )}
+        {credLoaded && (
+          <form action={verificarCertificadoArca} className="border-t border-border py-3">
+            <input type="hidden" name="tenantId" value={t.id} />
+            <p className="pb-2 text-sm text-muted-foreground">
+              Prueba el certificado en el ambiente de ARCA que lo emitió: pide el ticket, lee el
+              último comprobante del punto de venta y, sólo en homologación, saca un CAE de prueba
+              que no queda guardado en el negocio. En producción no emite nada.
+            </p>
+            <Button type="submit" variant="outline">
+              Verificar con ARCA
+            </Button>
           </form>
         )}
       </Bloque>
