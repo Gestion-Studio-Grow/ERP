@@ -229,6 +229,7 @@ model Tenant {
   tallerPagos               TallerPago[]
   tallerConfig              TallerConfig?
   tallerAvisosEnviados      TallerAvisoEnviado[]
+  userPermissionOverrides   UserPermissionOverride[]
   proyectos                 Proyecto[] // módulo proyectos
   proyectoCuotas            ProyectoCuota[]
   proyectoProveedorFichas   ProyectoProveedorFicha[]
@@ -261,7 +262,6 @@ model Tenant {
   proyectoStands            ProyectoStand[]
   consultas                 Consulta[]
   consultaMensajes          ConsultaMensaje[]
-  userPermissionOverrides   UserPermissionOverride[]
   proyectoConfig            ProyectoConfig?
   inmoPropiedades           InmoPropiedad[] // módulo inmobiliaria
   inmoFotos                 InmoFoto[]
