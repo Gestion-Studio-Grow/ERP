@@ -18,7 +18,6 @@ import {
 } from "@/app/operador/(console)/tenants/[id]/apps-del-negocio";
 import {
   ACCION_APAGAR,
-  ACCION_ENCENDER,
   CANAL_INTERRUPTOR,
   DISENO_NUEVO,
   ENTIDAD_INTERRUPTOR,
