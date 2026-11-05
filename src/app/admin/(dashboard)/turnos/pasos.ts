@@ -27,6 +27,8 @@ export type ExtraDelAlta = {
   hora?: string | null;
   /** «Atender ahora»: hoy, la franja de ahora y sólo las libres ahora. */
   ahora?: boolean;
+  /** El servicio ya elegido (Vender → «Turnos libres»); el alta lo lee como `servicioInicial`. */
+  servicio?: string | null;
 };
 
 const FORMATO_HORA = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -50,18 +52,19 @@ export function hrefNuevoTurno(fecha?: string | null, cliente?: string | null, e
   const hora = extra?.hora;
   if (esIdDeFicha(profesional)) href += `&profesional=${profesional}`;
   if (esHoraDePared(hora)) href += `&hora=${hora}`;
+  if (esIdDeFicha(extra?.servicio)) href += `&servicio=${extra.servicio}`;
   return href;
 }
 
 /**
  * Tocar un hueco de la agenda (celda vacía): «Dar turno» con la profesional, el día y la hora puestos
  * (`?profesional=<id>&hora=HH:MM`, lo lee `leerHuecoDelAlta`). EL ÚNICO armado de ese enlace: la
- * grilla (grilla.ts, `hrefNuevoTurnoEnHueco`) pasa por acá. Sin profesional (por box con dos que
+ * grilla (grilla.ts, `hrefNuevoTurnoEnHueco`) y Vender («Turnos libres», con `servicioId`) pasan por acá. Sin profesional (por box con dos que
  * atienden) va sólo la hora; un id o una hora rara no viajan; un día inválido no precarga nada.
  */
-export function hrefTurnoEnHueco(fecha: string, profesionalId: string | null, hora: string | null): string {
+export function hrefTurnoEnHueco(fecha: string, profesionalId: string | null, hora: string | null, servicioId?: string | null): string {
   if (!esFechaDeCalendario(fecha)) return hrefNuevoTurno(null);
-  return hrefNuevoTurno(fecha, null, { profesional: profesionalId, hora });
+  return hrefNuevoTurno(fecha, null, { profesional: profesionalId, hora, servicio: servicioId });
 }
 
 /** «Atender ahora» (la clienta está en el mostrador): hoy, la franja de ahora, sólo las libres. */
@@ -133,6 +136,9 @@ export function hrefDiaDeLaAgenda(dia: string, hoy: string, como: { vista?: stri
   const p = new URLSearchParams();
   if (dia !== hoy && esFechaDeCalendario(dia)) p.set("date", dia);
   if (como.vista === "profesionales") p.set("vista", "profesionales");
+  // «lista» viaja explícita: con la agenda como objeto (interruptor «Agenda interactiva»), sin vista
+  // se abre la grilla; sin el interruptor, sin vista es la lista de siempre (da igual que viaje).
+  if (como.vista === "lista") p.set("vista", "lista");
   if (como.por === "box") p.set("por", "box");
   const q = p.toString();
   return q ? `/admin/turnos?${q}` : "/admin/turnos";

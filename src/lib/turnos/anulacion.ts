@@ -127,6 +127,8 @@ export type CobroDelTurno = {
   method: string;
   note: string | null;
   createdAt: Date;
+  /** Quién lo registró (actor «user:<id>»); lo traduce a nombre la agenda, nunca cruza crudo. */
+  collectedBy?: string;
 };
 
 /**
@@ -663,12 +665,12 @@ export async function cobrosDetalladosPorTurno(
   try {
     const rows = await db.collection.findMany({
       where: { tenantId, originType: "APPOINTMENT", originId: { in: [...appointmentIds] } },
-      select: { id: true, originId: true, amount: true, method: true, note: true, createdAt: true },
+      select: { id: true, originId: true, amount: true, method: true, note: true, createdAt: true, collectedBy: true },
       orderBy: { createdAt: "asc" },
     });
     for (const r of rows) {
       const arr = map.get(r.originId) ?? [];
-      arr.push({ id: r.id, amount: round2(r.amount.toNumber()), method: r.method, note: r.note, createdAt: r.createdAt });
+      arr.push({ id: r.id, amount: round2(r.amount.toNumber()), method: r.method, note: r.note, createdAt: r.createdAt, collectedBy: r.collectedBy });
       map.set(r.originId, arr);
     }
   } catch (e) {

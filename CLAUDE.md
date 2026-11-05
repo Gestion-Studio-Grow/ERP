@@ -60,12 +60,19 @@ con «un agente = una tarea»).
 - Informes de agentes: **≤ 300 palabras**, formato fijo (qué, verificación n/n, archivo:línea, pendientes).
 - **Nada binario en Git** (mp4, png, pdf, ttf): Drive o almacenamiento de archivos.
 
-## Modelo
-Regla del dueño (27/10/2026): **se planifica en Fable y se ejecuta en Opus.**
-- **Fable:** análisis de mercado y de producto, diseño y planificación (los planes de reingeniería y sus tandas).
-- **Opus 5.5:** todo lo demás: sesiones, construcción, verificación y certificación (`/tanda`, workflow `tanda-gsg`).
-- **Fable en ejecución, sólo como escalamiento técnico:** cuando Opus agotó sus 2 vueltas de corrección y siguen fallas
-  alta/media, una única vuelta en Fable, con el motivo escrito en el informe.
+## Modelo (política completa: `Factory-GSG/10-GOBIERNO/gestion-de-modelos.md`, 04/11/2026)
+Criterio: **costo por tarea terminada con calidad corporativa**, no costo por token. La palanca es el contexto (94–97 %
+del gasto es relectura), no el modelo.
+- **Fable 5.1:** juicio denso y corto: estrategia, mercado, arquitectura, plan de tandas, red-team de decisiones, y el
+  escalamiento cuando Opus agotó 2 vueltas. Planifica y TERMINA: nunca orquesta una construcción.
+- **Opus 5.5 (esfuerzo alto):** construcción, integración, QA, operación y certificación. Plata, seguridad, ARCA,
+  multi-tenant y migraciones: siempre Opus alto, nunca un modelo menor.
+- **Lectura y búsqueda:** agente `gsg-investigador` (Opus). Lo nuevo que se lee cuesta 2,5× en Fable.
+- **Sonnet 5.5:** verificación visual, simplificación, extracción y resúmenes, con control posterior.
+- **Dentro de los productos** (Kudos, Fantasma, Testigo): Haiku o Sonnet 5.5 elegido con una evaluación de 20–50 casos.
+- **Medir al cerrar cada frente:** `node <factory>/entorno/tokens/medir-consumo.mjs <transcripts> --semana
+  --tope-semanal-usd <tope>` (tokens, US$ por modelo, % del tope) → al informe.
+- **Continuidad:** sesiones en la nube y push a su rama al cerrar cada tanda; nada vive sólo en un disco.
 
 ## Verificación y QA
 `npm run gates` · `npx tsc --noEmit` · `node --import tsx --test <archivos>` · `npm run build` al integrar.

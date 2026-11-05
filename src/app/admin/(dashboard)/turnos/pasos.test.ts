@@ -165,6 +165,7 @@ test("cambiar de día no pierde la vista ni el «Ver por: Box» (?por=box)", () 
   assert.equal(hrefDiaDeLaAgenda("2026-10-23", hoy), "/admin/turnos?date=2026-10-23");
   assert.equal(hrefDiaDeLaAgenda("2026-10-23", hoy, { vista: "profesionales", por: "box" }), "/admin/turnos?date=2026-10-23&vista=profesionales&por=box");
   assert.equal(hrefDiaDeLaAgenda(hoy, hoy, { por: "box" }), "/admin/turnos?por=box");
+  assert.equal(hrefDiaDeLaAgenda(hoy, hoy, { vista: "lista" }), "/admin/turnos?vista=lista");
   // Lo que no es «box» o «profesionales» no viaja; un día inválido es hoy.
   assert.equal(hrefDiaDeLaAgenda("2026-02-31", hoy, { vista: "x", por: "otra" }), "/admin/turnos");
 });

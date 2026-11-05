@@ -1,7 +1,7 @@
 "use client";
 
 // ============================================================================
-// LA BARRA DE UN TOQUE SOBRE EL TURNO — No vino · Cobrar · WhatsApp (AGENDA-INTERACCION.md §2.4).
+// LA BARRA DE UN TOQUE SOBRE EL TURNO — No vino · Cobrar · WhatsApp · Editar (AGENDA-INTERACCION.md §2.4).
 // ============================================================================
 //
 // Sólo con la agenda interactiva prendida (`permisos.interaccion`); qué tecla va y cómo actúa lo
@@ -10,6 +10,7 @@
 //     y el aviso con [Deshacer] 8 s que monta la mesa. Con plata → la hoja de siempre.
 //   · Cobrar → la hoja «terminar» (o «cobrar», si ya terminó) de la mesa: el medio es el 2.º toque.
 //   · WhatsApp → `wa.me` con el saludo, directo (sin abrir el cajón).
+//   · Editar → la hoja «Editar» de la mesa (`editarTurno`, editar-actions.ts).
 // Cada tecla mide ≥ 44 px y lleva palabra, no sólo ícono.
 
 import { useTransition } from "react";
@@ -32,7 +33,7 @@ const ALTO = { minHeight: "2.75rem" } as const;
  * sobre el turno sólo lo eligió.
  */
 export default function BarraDelTurno({ t, alAbrir }: { t: TurnoDelDia; alAbrir?: () => void }) {
-  const { permisos, reloj, hoja, cerrarSinPrestar, avisarCierre } = useMesa();
+  const { permisos, reloj, hoja, cerrarSinPrestar, avisarCierre, editar } = useMesa();
   const { showError } = useToast();
   const [pendiente, empezar] = useTransition();
   const barra = teclasDeLaBarra(t, permisos, reloj);
@@ -109,6 +110,20 @@ export default function BarraDelTurno({ t, alAbrir }: { t: TurnoDelDia; alAbrir?
         >
           WhatsApp
         </ButtonLink>
+      )}
+      {barra.editar && (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className={TECLA}
+          style={ALTO}
+          aria-label={`Editar: ${quien}`}
+          aria-haspopup="dialog"
+          onClick={() => editar(t.id)}
+        >
+          Editar
+        </Button>
       )}
       {alAbrir && (
         <Button type="button" variant="outline" size="sm" className={TECLA} style={ALTO} aria-label={`Abrir el turno: ${quien}`} onClick={alAbrir}>

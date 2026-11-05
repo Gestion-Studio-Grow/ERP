@@ -20,6 +20,8 @@ export async function leerDisenoNuevoCon(
     return disenoNuevoPrendido(await leer()) === true;
   } catch (error) {
     avisar?.(error);
-    return false;
+    // El diseño nuevo es una mejora incorporada (src/cambios/interruptores.ts): si la lectura
+    // falla, queda el diseño nuevo, que es el de todos.
+    return true;
   }
 }

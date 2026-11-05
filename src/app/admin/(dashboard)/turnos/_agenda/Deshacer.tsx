@@ -76,7 +76,7 @@ export default function AvisoDeshacerCierre({ turnoId, clienta, que, mensaje, du
 export type CambioParaDeshacer = {
   /** Cambia con cada cambio nuevo: un solo aviso vivo por vez (el nuevo reemplaza al anterior). */
   clave: string;
-  que: "mover" | "duracion";
+  que: "mover" | "duracion" | "editar";
   /** «Movido a 17:00 con Caro», con el enlace a WhatsApp si corresponde. */
   mensaje: ReactNode;
   /** Lo que dice el aviso de éxito al deshacer. */

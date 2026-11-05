@@ -87,7 +87,7 @@
   --fondo: #faf9f7; --hoja: #fff; --hundido: #f0eee9;
   --tinta: #1c1a17; --tinta-2: #5a554d; --tinta-3: #5a554d;
   --linea: #e2ded6; --linea-2: #bdb7ad;
-  --acento: color-mix(in srgb, var(--acento-negocio, #2f5d50) 82%, #000); --sobre-acento: #fff; --precio: #1c1a17;
+  --acento: var(--acento-negocio, #274c42); /* ya oscurecido y con AA: marcas.ts acentoDeLaPielGenerica */ --sobre-acento: #fff; --precio: #1c1a17;
   --peligro: #a51f1e; --ok: #1f6b45;
   --f-titulo: var(--font-hanken), system-ui, sans-serif;
   --f-texto: var(--font-hanken), system-ui, sans-serif;
@@ -249,7 +249,7 @@
 .renFoto { width: 64px; height: 64px; object-fit: cover; border-radius: 3px; background: var(--hundido); display: block; }
 .renIni { width: 64px; height: 64px; display: grid; place-items: center; border-radius: 3px; background: var(--hundido); font-family: var(--f-titulo); font-size: 22px; letter-spacing: .06em; color: var(--tinta-3); }
 .renTxt { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; }
-.renNom { display: inline-flex; align-items: center; min-height: 44px; padding: 0; border: 0; background: none; color: var(--tinta); font: inherit; font-weight: 600; font-size: 16px; text-align: left; cursor: pointer; text-decoration: none; }
+.renNom { display: inline-flex; align-items: center; min-height: 44px; min-width: 44px; padding: 0; border: 0; background: none; color: var(--tinta); font: inherit; font-weight: 600; font-size: 16px; text-align: left; cursor: pointer; text-decoration: none; }
 .renNom:hover { text-decoration: underline; text-underline-offset: 3px; }
 .renMeta { display: flex; flex-wrap: wrap; gap: 2px 10px; margin-top: -8px; font-size: 12.5px; color: var(--tinta-3); letter-spacing: .02em; }
 .renPrecio { font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; text-align: right; color: var(--precio); font-size: 17px; }

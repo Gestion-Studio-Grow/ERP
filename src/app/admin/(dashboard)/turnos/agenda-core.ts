@@ -30,7 +30,15 @@ import { precioADefinir } from "@/lib/servicios/ficha";
 
 export type EstadoDelTurno = "PENDING" | "CONFIRMED" | "COMPLETED" | "NO_SHOW" | "CANCELLED";
 
-export type CobroDelTurno = { id?: string; amount: number; method: string; note?: string | null; createdAt?: string };
+export type CobroDelTurno = {
+  id?: string;
+  amount: number;
+  method: string;
+  note?: string | null;
+  createdAt?: string;
+  /** Agenda interactiva: el nombre de quién lo cobró, si se sabe. */
+  quien?: string;
+};
 
 export type Veredicto = { ok: true } | { ok: false; motivo: string };
 
@@ -92,7 +100,7 @@ export type TurnoCrudo = {
   professional: { name: string };
   box: { name: string } | null;
   payment: { status?: string; amount?: number } | null;
-  collections?: readonly { id?: string; amount: number; method: string; note?: string | null; createdAt?: Date | string }[];
+  collections?: readonly { id?: string; amount: number; method: string; note?: string | null; createdAt?: Date | string; quien?: string }[];
 };
 
 const ESTADOS: readonly EstadoDelTurno[] = ["PENDING", "CONFIRMED", "COMPLETED", "NO_SHOW", "CANCELLED"];
@@ -110,6 +118,7 @@ export function turnoDelDia(a: TurnoCrudo, veredicto: Veredicto): TurnoDelDia {
     method: c.method,
     note: c.note ?? null,
     createdAt: c.createdAt ? iso(c.createdAt) : undefined,
+    ...(c.quien ? { quien: c.quien } : {}),
   }));
   const pagoLegado: PagoLegado =
     a.payment && a.payment.amount != null && a.payment.status ? { status: a.payment.status, amount: a.payment.amount } : null;

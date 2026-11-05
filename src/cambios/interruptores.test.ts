@@ -18,6 +18,7 @@ import {
   CANAL_INTERRUPTOR,
   ENTIDAD_INTERRUPTOR,
   INTERRUPTORES,
+  esIncorporado,
   MOSTRADOR_BOUTIQUE,
   esInterruptorId,
   interruptorPorId,
@@ -79,7 +80,8 @@ test("la consola lo prende y lo apaga: manda la última fila válida", () => {
 
 test("prenderlo no prende ningún otro interruptor", () => {
   const e = estadoDesdeFilas([fila({ action: ACCION_ENCENDER, createdAt: new Date("2026-10-22T10:00:00Z") })]);
-  for (const i of INTERRUPTORES) if (i.id !== MOSTRADOR_BOUTIQUE) assert.equal(e[i.id].encendido, false, i.id);
+  // Lo crítico queda apagado; las mejoras incorporadas están prendidas siempre.
+  for (const i of INTERRUPTORES) if (i.id !== MOSTRADOR_BOUTIQUE) assert.equal(e[i.id].encendido, esIncorporado(i.id), i.id);
 });
 
 test("una fila forjada desde la app del negocio (canal admin, actor sin operador) no lo prende", () => {

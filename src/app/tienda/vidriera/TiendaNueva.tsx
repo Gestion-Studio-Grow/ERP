@@ -21,7 +21,7 @@ import Vidriera, { type DatosVidriera, type SeccionVista } from "./Vidriera";
 import { ConsejoDePala } from "./ConsejoDePala";
 import { IconoWhatsApp } from "./Iconos";
 import VelaDiferida from "../shine/VelaDiferida";
-import { CONFIG, marcaDeLaVidriera, seccionDe, type ConfigDeMarca, type MarcaId } from "./marcas";
+import { acentoDeLaPielGenerica, CONFIG, marcaDeLaVidriera, seccionDe, type ConfigDeMarca, type MarcaId } from "./marcas";
 import type { VidrieraDelRubro } from "@/blueprints/retail/rubros";
 import type { OfertasDeLaVidriera } from "@/lib/supermercado/vidriera-ofertas";
 import type { ConfigEnvios } from "@/lib/envios/modelo";
@@ -227,7 +227,7 @@ export default function TiendaNueva(e: EntradaTienda) {
   };
 
   return (
-    <div style={marca === "generica" ? ({ "--acento-negocio": e.acento } as React.CSSProperties) : undefined}>
+    <div style={marca === "generica" ? ({ "--acento-negocio": acentoDeLaPielGenerica(e.acento) } as React.CSSProperties) : undefined}>
       <Vidriera
         {...datos}
         cabecera={<Cabecera {...ctx} />}
