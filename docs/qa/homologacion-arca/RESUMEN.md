@@ -5,7 +5,7 @@ real a 390 px, PORT 3243). Genera capturas, un PDF por caso (`AAAA-MM-DD_caso-N-
 
 **Modo: SIMULADO.** No hay certificado de homologación en el entorno (`ARCA_CERT_PEM`/`ARCA_KEY_PEM`,
 `src/plugins/arca/afip/signer.ts:72`; por negocio, `TenantFiscalCredential`, `prisma/schema.prisma:402`), el CUIT de
-prueba del código es inventado (`CUIT_DE_PRUEBA`, `src/plugins/arca/afip/prueba.ts:23`) y el proxy bloquea
+prueba del código es inventado (`CUIT_DE_PRUEBA`, `src/plugins/arca/afip/prueba.ts:24`) y el proxy bloquea
 `wsaahomo.afip.gov.ar` / `wswhomo.afip.gov.ar` (403). El modo se elige con `ARCA_MODO` (`src/plugins/arca/afip/factory.ts:64`).
 
 **Resultado: 8/8 pasan** + `contrato-arca.test.ts` 50/50 contra el simulador SOAP.
@@ -23,7 +23,7 @@ prueba del código es inventado (`CUIT_DE_PRUEBA`, `src/plugins/arca/afip/prueba
 
 ## Hallazgos (no bloquean)
 - Factoque «Mis facturas» a 390 px: la columna «Estado» queda fuera de la vista (tabla `min-w-[560px]`,
-  `src/app/facturita/app/facturas/page.tsx:37`).
+  `src/app/facturita/app/facturas/page.tsx:36`).
 - El motivo del rechazo muestra el código de ARCA adelante («10015: …»): `motivoLegible`
   (`src/lib/facturita-core.ts:308`) sólo saca rótulos que empiezan con letra.
 
