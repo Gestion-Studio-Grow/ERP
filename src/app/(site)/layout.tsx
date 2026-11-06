@@ -107,7 +107,7 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
                 </p>
               )}
               {!chNuevo && (
-                <Link href="/admin" style={{ display: "inline-block", marginTop: 8, color: "var(--text-on-accent)", opacity: 0.7, textDecoration: "underline", textUnderlineOffset: 4, fontSize: ".8125rem" }}>
+                <Link href="/admin" style={{ display: "inline-flex", alignItems: "center", minHeight: 44, marginTop: 4, color: "var(--text-on-accent)", opacity: 0.7, textDecoration: "underline", textUnderlineOffset: 4, fontSize: ".8125rem" }}>
                   Acceso administrador
                 </Link>
               )}

@@ -54,7 +54,7 @@ export default function Header({ hasNews, brandName, nuevo }: { hasNews?: boolea
       }}
     >
       <div style={{ maxWidth: 1152, margin: "0 auto", padding: "0 24px", height: 64, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <Link href="/#top" aria-label={`${label} — inicio`} style={{ display: "flex", alignItems: "baseline", gap: 8, textDecoration: "none" }}>
+        <Link href="/#top" aria-label={`${label} — inicio`} style={{ display: "flex", alignItems: "center", minHeight: 44, gap: 8, textDecoration: "none" }}>
           {/* 24px = "texto grande" WCAG 1.4.3 → umbral 3:1 (el acento del tenant sobre
               el hueso da 4.26:1, AA de texto grande sobrado) sin tocar el color de marca. */}
           <span className="ch-marca" style={{ fontFamily: "var(--font-display), Georgia, serif", fontSize: 24, color: "var(--accent)", lineHeight: 1 }}>{label}</span>
@@ -82,9 +82,9 @@ export default function Header({ hasNews, brandName, nuevo }: { hasNews?: boolea
           )}
           {/* Va a la CARTA COMPLETA, no al ancla de la vitrina: quien abre "Servicios"
               del menú casi siempre viene a mirar precios. */}
-          <Link href="/servicios" style={navLink} className="hidden sm:inline">Servicios</Link>
-          <Link href="/#equipo" style={navLink} className="hidden sm:inline">Equipo</Link>
-          <Link href="/#contacto" style={navLink} className="hidden sm:inline">Cómo llegar</Link>
+          <Link href="/servicios" style={navLink} className="hidden min-h-11 items-center sm:inline-flex">Servicios</Link>
+          <Link href="/#equipo" style={navLink} className="hidden min-h-11 items-center sm:inline-flex">Equipo</Link>
+          <Link href="/#contacto" style={navLink} className="hidden min-h-11 items-center sm:inline-flex">Cómo llegar</Link>
           <ReserveButton variant="nav" />
         </nav>
       </div>
