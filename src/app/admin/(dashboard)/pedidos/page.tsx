@@ -32,7 +32,8 @@ import { modoCobrosDesdeEnv } from "@/lib/mercadopago-cobros-dispatch";
 import { esLineaDeEnvio, leerCuponDelPedido, whereCuponDelPedido, type CuponDelPedido } from "@/lib/venta-reglas";
 import { getProfessionalsWithServices } from "@/lib/actions";
 import { canCurrentUser } from "@/lib/authz";
-import { alcanceDeAnulacion } from "@/lib/capabilities";
+import { enmascararTelefono, puedeVerContacto } from "@/lib/clientes/telefono";
+import { alcanceDeAnulacion, permisoEfectivo } from "@/lib/capabilities";
 import { requireApp } from "@/lib/require-app";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { getTenantIdentity } from "@/lib/identidad-rubro";
@@ -96,6 +97,9 @@ export default async function PedidosPage({ searchParams }: { searchParams?: Pro
   // La guardia de la app (rol, módulo pos): esconderla del menú no la protegería. getPosData
   // vuelve a pedir orders:read, como siempre.
   const user = await requireApp("pedidos");
+  // Casilla 5 (`clients:contact`): el teléfono del pedido sale enmascarado desde el servidor para quien
+  // no la tiene; con «•••• 1234» `waLinkClienta` no arma link, así que los botones de WhatsApp se apagan.
+  const telefonoDelPedido = (phone: string | null) => (puedeVerContacto(user) ? phone : (enmascararTelefono(phone) ?? null));
   // ¿Modelo nuevo? En los negocios con "Trabaja por apps" prendido el mostrador vive en
   // /admin/vender y esta pantalla es sólo la bandeja. En CH, y en todo negocio con el
   // interruptor apagado, la solapa de venta de arriba queda IGUAL que siempre hasta que el dueño
@@ -121,7 +125,7 @@ export default async function PedidosPage({ searchParams }: { searchParams?: Pro
   const boutique = comercio && mostradorBoutiquePrendido(interruptores);
   const palabras = palabrasDelNegocio(await getCurrentTenantSlug());
   // «Nuevo pedido de WhatsApp» (Magra T2 · 2B): con el mostrador boutique y para quien toma pedidos.
-  const pedidoDeWhatsApp = boutique && roleHasCapability(user.role, "orders:manage");
+  const pedidoDeWhatsApp = boutique && permisoEfectivo(user, "orders:manage");
   // UN SOLO MOSTRADOR: la venta de mostrador de esta pantalla es la MISMA que Vender
   // (MostradorDeVenta: vuelto, factura, cobro fijo a la vista; etiqueta y balanza sólo en un
   // comercio). En un comercio con «Diseño nuevo» se va a Vender entero. En CH (aprobado por el
@@ -158,7 +162,7 @@ export default async function PedidosPage({ searchParams }: { searchParams?: Pro
   // «Sumar un producto» desde el turno de CH: la venta arranca con su clienta cargada.
   const turnoDeLaVenta = typeof sp?.turno === "string" ? sp.turno : null;
   const clienteInicial =
-    turnoDeLaVenta && conMostradorUnico && !comercio && roleHasCapability(user.role, "orders:manage") ? await leerClientaDelTurno(turnoDeLaVenta) : null;
+    turnoDeLaVenta && conMostradorUnico && !comercio && permisoEfectivo(user, "orders:manage") ? await leerClientaDelTurno(turnoDeLaVenta) : null;
   const mostradorUnico = conMostradorUnico
     ? <MostradorDeVenta user={user} tenantId={await getCurrentTenantId()} conVendedor={!comercio} clienteInicial={clienteInicial} />
     : undefined;
@@ -257,11 +261,11 @@ export default async function PedidosPage({ searchParams }: { searchParams?: Pro
       simulacion,
       alcance,
     });
-    const verPlata = roleHasCapability(user.role, "reports:read");
+    const verPlata = permisoEfectivo(user, "reports:read");
     // El reloj sólo en comercio: los de la tienda esperando y los listos sin retirar (CH no tiene
     // tienda ni retiros, y su línea queda como estaba).
     const linea = lineaDelTablero(tablero.abiertos, verPlata, comercio ? { ahora: new Date(), hoy } : undefined);
-    const puedeTomar = modeloNuevo && roleHasCapability(user.role, "orders:manage");
+    const puedeTomar = modeloNuevo && permisoEfectivo(user, "orders:manage");
     const pagina = (
       <main data-ui="pagina" className="mx-auto w-full px-4 py-6">
         {/* En el celular el título va solo en su fila y «Tomar un pedido» baja debajo del estado: a
@@ -348,7 +352,7 @@ export default async function PedidosPage({ searchParams }: { searchParams?: Pro
             cerrados={tablero.cerrados}
             extras={tablero.extras}
             comercio={comercio}
-            puedeOperar={roleHasCapability(user.role, "orders:manage")}
+            puedeOperar={permisoEfectivo(user, "orders:manage")}
             anulacion={alcance ? { motivoObligatorio: alcance.motivoObligatorio, conCodigo: alcance.conCodigo } : null}
             simulacion={simulacion}
             tomarPedido={puedeTomar ? "/admin/vender?modo=pedido" : null}
@@ -495,7 +499,7 @@ export default async function PedidosPage({ searchParams }: { searchParams?: Pro
           const avisoWa =
             local && o.status === "READY"
               ? waLinkClienta(
-                  o.customerPhone,
+                  telefonoDelPedido(o.customerPhone),
                   avisoPedidoListo({
                     cliente: o.customerName,
                     code: o.code,
@@ -514,7 +518,7 @@ export default async function PedidosPage({ searchParams }: { searchParams?: Pro
           const recordatorio =
             local && o.fulfillment !== "DELIVERY" && listoDesdeAyer({ status: o.status, creado: o.createdAt.toISOString() }, hoy)
               ? waLinkClienta(
-                  o.customerPhone,
+                  telefonoDelPedido(o.customerPhone),
                   recordatorioDeRetiro({
                     cliente: o.customerName,
                     code: o.code,
@@ -560,7 +564,7 @@ export default async function PedidosPage({ searchParams }: { searchParams?: Pro
                   </div>
                   <p className="text-sm text-body mt-1">
                     {o.customerName}
-                    {o.customerPhone && <span className="text-faint"> · {o.customerPhone}</span>}
+                    {telefonoDelPedido(o.customerPhone) && <span className="text-faint"> · {telefonoDelPedido(o.customerPhone)}</span>}
                   </p>
                   {otrosDeLaClienta.has(o.id) && (
                     <p className="text-xs font-medium text-warning mt-0.5">{textoDeOtrosPedidos(otrosDeLaClienta.get(o.id) ?? [])}</p>
@@ -643,7 +647,7 @@ export default async function PedidosPage({ searchParams }: { searchParams?: Pro
                       whatsappEnviado={
                         enviado && local
                           ? waLinkClienta(
-                              o.customerPhone,
+                              telefonoDelPedido(o.customerPhone),
                               textoDelLinkDePago({ negocio: local.negocio, code: o.code, monto: enviado.monto, url: enviado.url }),
                             )
                           : null

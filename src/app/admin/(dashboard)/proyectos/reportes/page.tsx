@@ -1,5 +1,5 @@
 import { requireApp } from "@/lib/require-app";
-import { requireCapability } from "@/lib/authz";
+import { requireCapabilityFueraDeLaAgenda } from "@/lib/authz";
 import { reporteProyectos, veLaPlata } from "@/lib/proyectos/datos.server";
 import { etapaLabel, pesos, porcentaje, redondear } from "@/lib/proyectos/core";
 import { BarraProyectos, tarjeta } from "../_vista";
@@ -9,7 +9,7 @@ export const metadata = { title: "Rentabilidad de proyectos" };
 
 export default async function RentabilidadProyectos() {
   const user = await requireApp("proyectos");
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const filas = await reporteProyectos();
   const con = filas.filter((f) => f.t);
   const suma = (g: (f: (typeof con)[number]) => number) => redondear(con.reduce((s, f) => s + g(f), 0));

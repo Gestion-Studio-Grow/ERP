@@ -1,7 +1,8 @@
 import Link from "next/link";
+import { puedeVerContacto } from "@/lib/clientes/telefono";
 import { requireApp } from "@/lib/require-app";
 import { prisma } from "@/lib/prisma";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
 import {
   Bloque,
@@ -48,8 +49,9 @@ export default async function ParaContactarHoyPage() {
   // El botón del estado vacío lleva a "Por recuperar" sólo si esta persona la puede abrir: si no,
   // sería un callejón que termina en "App no disponible".
   const abreRecuperar = appPermitida(appPorId("clientas-por-recuperar"), apps);
-  const verPlata = roleHasCapability(user.role, "reports:read");
-  const puedeContactar = roleHasCapability(user.role, "clients:manage");
+  const verPlata = permisoEfectivo(user, "reports:read");
+  const puedeContactar = permisoEfectivo(user, "clients:manage");
+  const veContacto = puedeVerContacto(user);
 
   const filas: FilaContactoVista[] = bandeja.filas.flatMap((f) => {
     const texto = textoContacto(
@@ -67,7 +69,9 @@ export default async function ParaContactarHoyPage() {
       c.rubro,
     );
     // La bandeja ya excluye los teléfonos que no son celulares: esto es sólo para el tipo.
-    const wa = waLinkClienta(f.telefono, texto);
+    // Sin `clients:contact` (casilla 5 de la matriz) no hay a quién escribirle: la fila no viaja, y
+    // con ella tampoco el teléfono.
+    const wa = veContacto ? waLinkClienta(f.telefono, texto) : null;
     if (!wa) return [];
     const recuperar = f.motivo === "recuperar" || f.motivo === "pasada";
     return [

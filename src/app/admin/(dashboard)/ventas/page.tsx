@@ -4,7 +4,7 @@ import { terminalDelEquipo } from "@/lib/terminal/terminal.server";
 import { isInvoicingEnabled } from "@/lib/fiscal";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { prisma } from "@/lib/prisma";
-import { alcanceDeAnulacion, roleHasCapability } from "@/lib/capabilities";
+import { alcanceDeAnulacion, permisoEfectivo } from "@/lib/capabilities";
 import { businessWallTimeToUtc, fmtShortDate, fmtTime, todayInBusinessTz } from "@/lib/datetime";
 import { nextDayKey } from "@/lib/caja/cierre-diario";
 import { MEDIOS_DE_COBRO } from "@/lib/caja/medio-cobro";
@@ -87,9 +87,9 @@ export default async function VentasPage({
   const user = await requireApp("ventas-del-dia");
   const tenantId = await getCurrentTenantId();
   const hoy = todayInBusinessTz();
-  const verPlata = roleHasCapability(user.role, "reports:read");
+  const verPlata = permisoEfectivo(user, "reports:read");
   const alcance = alcanceDeAnulacion(user.role);
-  const puedeVender = roleHasCapability(user.role, "orders:manage");
+  const puedeVender = permisoEfectivo(user, "orders:manage");
   const pedido = await searchParams;
   const filtrosPedidos = leerFiltros(pedido, { hoy, otrosDias: verPlata });
   // Se llegó para anular una venta recién cobrada (desde la caja o Vender).

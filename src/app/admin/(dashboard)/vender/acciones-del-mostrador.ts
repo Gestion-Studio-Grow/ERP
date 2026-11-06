@@ -27,7 +27,7 @@ import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { motivoMostrable } from "@/lib/rechazo-de-dominio";
 import { esConflictoDeEscritura } from "@/lib/conflicto-de-escritura";
 import { logger } from "@/lib/logger";
@@ -55,7 +55,7 @@ export type EstadoTeclasFijadas = { ok: true; version: string; ids: string[] } |
 /** El dueño guarda las teclas fijadas de Vender (la lista entera, con la versión que leyó). */
 export async function fijarTeclasDelMostrador(entrada: unknown): Promise<EstadoTeclasFijadas> {
   const user = await requireCapability("orders:manage");
-  if (!roleHasCapability(user.role, "catalog:manage")) {
+  if (!permisoEfectivo(user, "catalog:manage")) {
     return { ok: false, error: "Las teclas fijas las elige el dueño del negocio." };
   }
   const o = (entrada ?? {}) as { ids?: unknown; version?: unknown };

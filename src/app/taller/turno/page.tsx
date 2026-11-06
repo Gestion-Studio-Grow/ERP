@@ -26,7 +26,7 @@ export default async function TurnoTaller({ searchParams }: { searchParams: Prom
   const [t, sp, profesionales, regla] = await Promise.all([
     cargarTaller(),
     searchParams,
-    getProfessionalsWithServices(),
+    getProfessionalsWithServices({ reservaOnline: true }),
     reglaVigenteParaLaClienta(),
   ]);
 

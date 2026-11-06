@@ -34,6 +34,7 @@ import { Cajon } from "@/components/ui/Cajon";
 import { Button, ButtonLink, Input, Marca, Plata, Renglon, Seccion, atributosBoton, buttonClasses } from "@/components/ui";
 import { fmtShortDate, fmtTime } from "@/lib/datetime";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
+import { AVISO_CONTACTO_OCULTO, contactoOculto } from "@/lib/clientes/telefono";
 import { ALIAS_SENIA_PROVISIONAL, linkWhatsApp, mensajePedidoDeSenia, mensajeSaludo } from "@/lib/turnos/mensajes-whatsapp";
 import { puedeEditar } from "./barra-core";
 import { pagosDelTurno } from "./pagos-core";
@@ -451,7 +452,9 @@ export default function TurnoCajon({
             detalle={
               wa
                 ? undefined
-                : "No es un celular válido: corregilo en su ficha para escribirle."
+                : contactoOculto(t.telefono)
+                  ? AVISO_CONTACTO_OCULTO
+                  : "No es un celular válido: corregilo en su ficha para escribirle."
             }
             tecla={
               hrefFicha ? (

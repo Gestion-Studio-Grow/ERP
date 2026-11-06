@@ -13,6 +13,7 @@ import Link from "next/link";
 import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
 import { puedeCerrarElDia } from "@/lib/caja/cierre-diario";
 import { getCurrentUser } from "@/lib/session";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { requireApp } from "@/lib/require-app";
 import { getNegocioApps } from "@/apps/contexto.server";
 import { appDelPanelCerrado } from "@/apps/visibles";
@@ -93,6 +94,8 @@ export default async function LibroCajaPage({
   const [libro, nuevo, { isRetail: esMostrador }, quienMira, negocio] = await Promise.all([getLibroCajaData(mes), disenoNuevo(), getCurrentTenantRubro(), getCurrentUser(), getNegocioApps(guardia.role)]);
   // Una productora cobra proyectos: ni turnos ni mostrador.
   const conProyectos = appDelPanelCerrado(negocio)?.id === "proyectos";
+  // Cargar un movimiento es la casilla 8 (`cash:manage`): sin ella el servidor lo rechaza; no se ofrece.
+  const puedeCargar = !!quienMira && permisoEfectivo(quienMira, "cash:manage");
   const { rows, summary, year, month, monthKey, posiblesDuplicados, cerradoHasta } = libro;
   const duplicados = new Set(posiblesDuplicados);
 
@@ -111,7 +114,7 @@ export default async function LibroCajaPage({
     cerradoHasta && isFrozenDay(enElMes, cerradoHasta) ? nextDayKey(cerradoHasta) : enElMes;
 
   // DISEÑO NUEVO («Renglón»): el libro por días. Mismos datos, mismos formularios.
-  if (nuevo) return <LibroRenglon d={libro} defaultDate={defaultDate} hoy={today} esMostrador={esMostrador} puedeCerrar={puedeCerrarElDia(quienMira?.role)} />;
+  if (nuevo) return <LibroRenglon d={libro} defaultDate={defaultDate} hoy={today} esMostrador={esMostrador} puedeCerrar={puedeCerrarElDia(quienMira?.role)} puedeCargar={puedeCargar} />;
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-8">
@@ -166,25 +169,27 @@ export default async function LibroCajaPage({
       <ResumenCard summary={summary} label={label} />
 
       {/* Alta de movimiento */}
-      <Card className="mt-6" id="agregar-movimiento">
-        <CardHeader>
-          <div>
-            <CardTitle>Agregar movimiento</CardTitle>
-            <CardDescription>
-              Una fila por cobro o por gasto, igual que en la planilla. Se guarda con la fecha que
-              pongas, no con la de hoy: podés cargar en diferido.{" "}
-              <strong className="font-medium text-body">
-                {conProyectos ? "Los cobros de proyectos entran solos" : esMostrador ? "Las ventas del mostrador entran solas" : "Los turnos cobrados desde Turnos y las ventas entran solos"}
-              </strong>
-              : acá se carga lo que no pasa por el sistema ({conProyectos ? "gastos, retiros, cobros sueltos" : "señas, gastos, retiros, cobros sueltos"}).
-            </CardDescription>
-          </div>
-        </CardHeader>
-        {/* `key` por mes: remonta el formulario al navegar, para que la fecha por
-            defecto se re-inicialice. Sin esto, llegar con la flecha y guardar
-            mandaba la fila al mes anterior y desaparecía de la pantalla. */}
-        <AddLibroEntryForm key={monthKey} defaultDate={defaultDate} viewMonth={monthKey} />
-      </Card>
+      {puedeCargar && (
+        <Card className="mt-6" id="agregar-movimiento">
+          <CardHeader>
+            <div>
+              <CardTitle>Agregar movimiento</CardTitle>
+              <CardDescription>
+                Una fila por cobro o por gasto, igual que en la planilla. Se guarda con la fecha que
+                pongas, no con la de hoy: podés cargar en diferido.{" "}
+                <strong className="font-medium text-body">
+                  {conProyectos ? "Los cobros de proyectos entran solos" : esMostrador ? "Las ventas del mostrador entran solas" : "Los turnos cobrados desde Turnos y las ventas entran solos"}
+                </strong>
+                : acá se carga lo que no pasa por el sistema ({conProyectos ? "gastos, retiros, cobros sueltos" : "señas, gastos, retiros, cobros sueltos"}).
+              </CardDescription>
+            </div>
+          </CardHeader>
+          {/* `key` por mes: remonta el formulario al navegar, para que la fecha por
+              defecto se re-inicialice. Sin esto, llegar con la flecha y guardar
+              mandaba la fila al mes anterior y desaparecía de la pantalla. */}
+          <AddLibroEntryForm key={monthKey} defaultDate={defaultDate} viewMonth={monthKey} />
+        </Card>
+      )}
 
       {/* Detalle del mes */}
       <section className="mt-6">
@@ -198,7 +203,7 @@ export default async function LibroCajaPage({
           <EmptyState
             title="Todavía no hay movimientos en este mes"
             description="Cargá el primero con el formulario de arriba, o cambiá de mes."
-            action={<IrACargarMovimiento />}
+            action={puedeCargar ? <IrACargarMovimiento /> : undefined}
           />
         ) : (
           /* TARJETA APILADA EN EL TELÉFONO, TABLA EN LA COMPUTADORA.

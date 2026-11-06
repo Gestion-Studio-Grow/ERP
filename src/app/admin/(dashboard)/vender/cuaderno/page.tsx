@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireApp } from "@/lib/require-app";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { getTenantIdentity } from "@/lib/identidad-rubro";
 import { prisma } from "@/lib/prisma";
@@ -34,7 +34,7 @@ export default async function CuadernoPage() {
   const user = await requireApp("vender");
   const [interruptores, identidad] = await Promise.all([interruptoresDelNegocio(), getTenantIdentity()]);
   if (!identidad.isRetail || !mostradorBoutiquePrendido(interruptores)) redirect("/admin/vender");
-  if (!roleHasCapability(user.role, "orders:manage") || VENTANA_DEL_CUADERNO[user.role] === null) redirect("/admin/vender");
+  if (!permisoEfectivo(user, "orders:manage") || VENTANA_DEL_CUADERNO[user.role] === null) redirect("/admin/vender");
 
   const tenantId = await getCurrentTenantId();
   const hoy = todayInBusinessTz();

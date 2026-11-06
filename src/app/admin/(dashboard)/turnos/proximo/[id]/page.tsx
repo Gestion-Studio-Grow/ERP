@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { requireApp } from "@/lib/require-app";
-import { requireCapability } from "@/lib/authz";
+import { filtroSoloLoSuyo, requireCapability } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { dateStrInBusinessTz, todayInBusinessTz } from "@/lib/datetime";
@@ -15,10 +15,11 @@ export const dynamic = "force-dynamic";
 // historial de la clienta: acá se lee una vez, al tocar el botón.
 export default async function ReservarElProximo({ params }: { params: Promise<{ id: string }> }) {
   await requireApp("agenda");
-  await requireCapability("agenda:manage");
+  const user = await requireCapability("agenda:manage");
   const { id } = await params;
   const tenantId = await getCurrentTenantId();
-  const turno = await prisma.appointment.findFirst({ where: { id, tenantId }, select: { clientId: true, startsAt: true, serviceId: true } });
+  // Una PROFESSIONAL con «editar turnos» prendido arranca sólo desde un turno SUYO (sólo lo suyo).
+  const turno = await prisma.appointment.findFirst({ where: { id, tenantId, ...filtroSoloLoSuyo(user) }, select: { clientId: true, startsAt: true, serviceId: true } });
   if (!turno) redirect("/admin/turnos/lista");
 
   const filas = await prisma.appointment.findMany({

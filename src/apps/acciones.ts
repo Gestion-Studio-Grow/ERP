@@ -16,7 +16,7 @@
 //
 // Client-safe: sólo datos y una función pura (la llama el layout, en el servidor).
 
-import { roleHasCapability, type Capability, type Role } from "@/lib/capabilities";
+import { permisoDe, type Capability, type Role, type UsuarioConPermisos } from "@/lib/capabilities";
 import { puedeCerrarElDia } from "@/lib/caja/cierre-diario";
 import { hrefNuevoTurno } from "@/app/admin/(dashboard)/turnos/pasos";
 import type { AppDescriptor, NombreIcono } from "./contract";
@@ -89,15 +89,15 @@ export const ACCIONES: readonly Accion[] = [
  */
 export function accionesParaPersona(
   visibles: readonly Pick<AppDescriptor, "id" | "nombre" | "ruta">[],
-  role: Role,
+  quien: Role | UsuarioConPermisos,
   rutas?: ReadonlySet<string>,
 ): (Accion & { nombreApp: string })[] {
   const porId = new Map(visibles.map((a) => [a.id, a]));
   return ACCIONES.flatMap((a) => {
     const app = porId.get(a.app);
     if (!app) return [];
-    if (a.capability && !roleHasCapability(role, a.capability)) return [];
-    if (a.soloRol && !a.soloRol(role)) return [];
+    if (a.capability && !permisoDe(quien, a.capability)) return [];
+    if (a.soloRol && !a.soloRol(typeof quien === "string" ? quien : quien.role)) return [];
     if (rutas && !rutas.has(app.ruta)) return [];
     return [{ ...a, nombreApp: app.nombre }];
   });
