@@ -178,7 +178,9 @@ test("restaurar el respaldo de ejemplo reproduce la caja al centavo; la recepci�
   // DIAS_CON_FOTO según la fecha en que corra la suite, y la poda las borra con razón (estado-repo.ts:106).
   const previa = await ejecutarAccion(duenia, () => leerFotoDelClub());
   assert.ok(previa.tipo === "respuesta" && previa.valor.ok);
-  const g = await ejecutarAccion(duenia, async () => guardarFotoDelClub(await formFoto(textoDelClub(444), previa.valor.foto?.version ?? 0)));
+  // La versión se saca ANTES del callback: TS no conserva el narrowing de `previa.valor` dentro de una clausura.
+  const versionPrevia = previa.valor.foto?.version ?? 0;
+  const g = await ejecutarAccion(duenia, async () => guardarFotoDelClub(await formFoto(textoDelClub(444), versionPrevia)));
   assert.ok(g.tipo === "respuesta" && g.valor.ok, JSON.stringify(g));
 
   const r = await ejecutarAccion(duenia, async () => restaurarRespaldoDelClub(await formRespaldo(EJEMPLO)));

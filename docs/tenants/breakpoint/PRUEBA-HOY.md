@@ -55,9 +55,9 @@ Para la prueba de hoy **no hace falta**: con la Parte B alcanza.
 
 ## Lo que todavía no está, para que no te sorprenda
 
-- **Los pedidos de la tienda no llegan al club del ERP.** «Pedidos de la tienda para retirar → Cargar pedido recibido
-  por mensaje» existe sólo en el club de antes (**breakpointpadel.gsgapp.com.ar/club**), no en `/admin/club`. Hasta
-  que se pase, un pedido de la tienda se cobra en el club como una venta del Buffet.
+- **Los pedidos de la tienda se cargan a mano en el club del ERP.** En `/admin/club`, solapa **Tienda**: se pega el
+  mensaje que mandó el cliente (con su código **T-XXXX**) y desde ahí se entrega cobrando, se pasa a la cuenta del
+  cliente, se avisa por WhatsApp que está listo o se cancela. No entran solos: alguien tiene que pegar el mensaje.
 - **El turnero no carga solo el turno en el ERP.** El jugador pide por Instagram y recepción lo da con **+ Turno**.
   La sincronización en vivo entre pestañas funciona sólo con el club de antes (`/turnero?demo=1` + `/club`).
 - **Faltan datos del club** (provisional, a confirmar): el WhatsApp, las tarifas, el catálogo de la tienda, cuántas
