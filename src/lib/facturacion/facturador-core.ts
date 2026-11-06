@@ -25,6 +25,7 @@ import {
   type EstadoLimite,
 } from "@/lib/facturita-core";
 import { montosFacturita } from "@/lib/facturita-montos";
+import { sumarAlCentavo } from "@/lib/dinero/redondeo";
 import type { CondicionIva } from "@/lib/fiscal";
 
 /** Lo que contesta el motor de emisión manual (src/lib/facturacion/emision-manual.server.ts). */
@@ -284,11 +285,11 @@ export function previa(b: Borrador, condicionEmisor: string | null): Previa | nu
   if (!(total > 0) || condicionEmisor === null) return null;
   const m = montosFacturita(condicionEmisor as CondicionIva, total, ALICUOTA_ARCA[b.alicuota]);
   if (!m.ok) return null;
-  const iva = m.iva.reduce((s, x) => s + x.importe, 0);
+  const iva = sumarAlCentavo(m.iva.map((x) => x.importe));
   return {
     letra: letraPrevista(condicionEmisor, b.comprador),
     neto: m.neto,
-    iva: Math.round(iva * 100) / 100,
+    iva,
     total: m.total,
     discrimina: condicionEmisor === "RESPONSABLE_INSCRIPTO",
   };
