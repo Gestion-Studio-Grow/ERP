@@ -24,6 +24,7 @@ import {
   vincularCobro,
 } from "@/lib/facturacion/cobros-facturados";
 import { facturarPagoMP } from "@/lib/invoice-from-mp";
+import { facturaDeCobroParaPagoMP, facturarCobrosDelTurno, type ResultadoPorCobro } from "@/lib/facturacion/factura-por-cobro";
 import type { PagoMP } from "@/plugins/mercadopago";
 
 // Códigos de catálogo ARCA (ver src/plugins/arca/domain/catalogos.ts).
@@ -55,6 +56,11 @@ export interface DepsFacturarTurno {
   leerCobrosDelTurno?: (appointmentId: string, tenantId: string) => Promise<CobrosDelTurno>;
   /** R1 · Factura anotando el cobro (`CobroFacturado`). Opcional: sin él, `createInvoice`. */
   facturarCobros?: typeof facturarCobros;
+  /**
+   * Opción B de CH (06/11/2026) · una factura por cada cobro del libro del turno. Opcional: sin él
+   * (tests viejos), el camino de antes (una factura por turno al completarlo).
+   */
+  facturarPorCobro?: (appointmentId: string, tenantId: string) => Promise<ResultadoPorCobro>;
 }
 
 /** Lo que el turno ya cobró por Mercado Pago y lo que MP ya facturó de él (R1). */
@@ -101,7 +107,16 @@ const DEPS: DepsFacturarTurno = {
   procesarEnviosDelNegocio,
   leerCobrosDelTurno: leerCobrosDelTurnoPrisma,
   facturarCobros,
+  facturarPorCobro: (appointmentId, tenantId) => facturarCobrosDelTurno(appointmentId, tenantId),
 };
+
+export interface OpcionesFacturarTurno {
+  /**
+   * Disparo después de UN cobro (seña, cobro parcial, saldo): sólo se facturan cobros del libro.
+   * Un turno sin libro no se factura por el precio (sin plata cobrada no hay factura).
+   */
+  soloCobros?: boolean;
+}
 
 /**
  * Crea la factura del turno y la despacha al plugin ARCA (tick del simulador).
@@ -115,6 +130,7 @@ export async function facturarAppointment(
   appointmentId: string,
   tenantId: string,
   deps: DepsFacturarTurno = DEPS,
+  opciones: OpcionesFacturarTurno = {},
 ): Promise<string | null> {
   const appointment = await deps.leerTurno(appointmentId, tenantId);
   if (!appointment) return null;
@@ -122,8 +138,21 @@ export async function facturarAppointment(
   // Idempotencia (hardening $0, sin migración): si el pago del turno ya tiene
   // comprobante, un webhook MP duplicado devuelve el MISMO comprobante sin crear
   // otra factura. La decisión pura está en `decidirFacturacion` (testeada).
+  // Con la opción B nunca se escribe `comprobanteNro`: esto sólo agarra turnos facturados antes.
   const decision = decidirFacturacion(appointment.payment);
   if (decision.accion === "reusar") return decision.comprobante;
+
+  // Opción B (CH, 06/11/2026): cada cobro del libro, su factura. Un turno ya facturado por el camino
+  // de antes (`legado`) sigue por abajo, donde `createInvoice` devuelve su misma factura.
+  if (deps.facturarPorCobro) {
+    const porCobro = await deps.facturarPorCobro(appointmentId, tenantId);
+    if (porCobro.modo === "por-cobro") {
+      if (porCobro.nuevas.length > 0) await deps.procesarEnviosDelNegocio(tenantId);
+      return porCobro.ultima;
+    }
+    if (porCobro.modo === "legado") return porCobro.factura;
+  }
+  if (opciones.soloCobros) return null;
 
   // R1 · UNA FACTURA POR COBRO: lo que Mercado Pago ya facturó por pagos de este turno (la
   // seña por link) no se vuelve a facturar al completarlo. Se factura el RESTO.
@@ -203,7 +232,11 @@ export async function facturarCobroMPDelTurno(
   appointmentId: string,
   tenantId: string,
   pago: PagoMP,
-  deps: { facturarPagoMP: typeof facturarPagoMP; vincularCobro: typeof vincularCobro } = { facturarPagoMP, vincularCobro },
+  deps: {
+    facturarPagoMP: typeof facturarPagoMP;
+    vincularCobro: typeof vincularCobro;
+    facturaDeCobroParaPagoMP?: typeof facturaDeCobroParaPagoMP;
+  } = { facturarPagoMP, vincularCobro, facturaDeCobroParaPagoMP },
 ): Promise<string | null> {
   if (pago.estado !== "approved" || !(pago.monto > 0)) return null;
   const delTurno = await tenantTransaction(
@@ -216,6 +249,11 @@ export async function facturarCobroMPDelTurno(
   );
   if (delTurno) {
     return deps.vincularCobro(tenantId, { clave: claveCobroMP(pago.id), importe: pago.monto, appointmentId }, delTurno.id);
+  }
+  // Opción B: la recepción ya anotó ese pago en el libro y su cobro ya tiene factura → se ata a ella.
+  const delCobro = await (deps.facturaDeCobroParaPagoMP ?? facturaDeCobroParaPagoMP)(tenantId, appointmentId, pago.monto);
+  if (delCobro) {
+    return deps.vincularCobro(tenantId, { clave: claveCobroMP(pago.id), importe: pago.monto, appointmentId }, delCobro);
   }
   return deps.facturarPagoMP(pago, tenantId, undefined, { appointmentId });
 }
