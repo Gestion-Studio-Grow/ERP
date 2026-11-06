@@ -78,7 +78,7 @@ export function movimientosPosterioresMP(raw: RawPagoMP): MovimientoPosteriorMP[
   const salida: MovimientoPosteriorMP[] = [];
   for (const r of raw.refunds ?? []) {
     if (r?.id === undefined || r.id === null || r.id === "") continue;
-    if (r.status && r.status !== "approved") continue;
+    if (r.status !== "approved") continue; // sin estado no se acredita: no se sabe si salió
     const importe = Number(r.amount) || 0;
     if (!(importe > 0)) continue;
     salida.push({ tipo: "devolucion", refundId: String(r.id), paymentId, importe });
