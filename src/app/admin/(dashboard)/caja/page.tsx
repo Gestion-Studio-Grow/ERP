@@ -3,6 +3,7 @@ import { requireApp } from "@/lib/require-app";
 import { getNegocioApps } from "@/apps/contexto.server";
 import { appDelPanelCerrado } from "@/apps/visibles";
 import { getCajaData } from "@/lib/caja-actions";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { getCierreDiarioData } from "@/lib/cierre-diario-actions";
 import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
 import { reglaALaVista } from "@/lib/caja/reglas-a-la-vista";
@@ -84,7 +85,9 @@ export default async function CajaPage() {
   // mismo pedido) y el día no lo espera a él.
   const [dia, caja, nuevo, slug, negocio] = await Promise.all([
     getCierreDiarioData(),
-    tieneCajonFisico().then((conCajon) => (conCajon ? getCajaData() : null)),
+    // El turno de cajero (abrir/cerrar/arqueo) es la casilla 8 (`cash:manage`): sin ella no se
+    // pide, así el loader no rebota la página entera y el resumen del día se sigue viendo.
+    tieneCajonFisico().then((conCajon) => (conCajon && permisoEfectivo(user, "cash:manage") ? getCajaData() : null)),
     // «Diseño nuevo»: la lectura de interruptores del layout, cacheada (no suma viajes).
     disenoNuevo(),
     getCurrentTenantSlug(),
@@ -94,10 +97,13 @@ export default async function CajaPage() {
   const cobrarVenta = dia.yaCerrado ? null : enlaceCobrarUnaVenta(slug, user.role);
   // Una productora cobra proyectos: ni turnos ni mostrador.
   const conProyectos = appDelPanelCerrado(negocio)?.id === "proyectos";
+  // Cargar un movimiento suelto es la casilla 8 (`cash:manage`); sin ella el servidor lo rechaza, así
+  // que ni se ofrece (QA vuelta 2).
+  const puedeCargar = permisoEfectivo(user, "cash:manage");
 
   // DISEÑO NUEVO («Renglón»): los mismos datos, ordenados para quien pasa el día acá.
   // La regla del arqueo, sólo donde hay cajón (el mostrador; CH no la ve): reglas-a-la-vista.ts.
-  if (nuevo) return <CajaRenglon dia={dia} caja={caja} regla={reglaALaVista("caja", caja !== null)} cobrarVenta={cobrarVenta} />;
+  if (nuevo) return <CajaRenglon dia={dia} caja={caja} regla={reglaALaVista("caja", caja !== null)} cobrarVenta={cobrarVenta} puedeCargar={puedeCargar} />;
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-8">
@@ -115,7 +121,7 @@ export default async function CajaPage() {
 
       <ResumenDelDia dia={dia} />
 
-      {!dia.yaCerrado && <MovimientoSuelto dia={dia.day} conProyectos={conProyectos} esMostrador={caja !== null} />}
+      {!dia.yaCerrado && puedeCargar && <MovimientoSuelto dia={dia.day} conProyectos={conProyectos} esMostrador={caja !== null} />}
 
       {caja && <TurnoDeCajero caja={caja} diaCerrado={dia.yaCerrado} />}
     </main>

@@ -34,6 +34,7 @@ export default function CelularPorProfesional({
   bloqueos,
   miProfesional,
   lista,
+  conVerLista = true,
 }: {
   turnos: TurnoDelDia[];
   profesionales: { id: string; nombre: string; box: string | null }[];
@@ -44,6 +45,8 @@ export default function CelularPorProfesional({
   miProfesional: string | null;
   /** La lista del día de siempre («Ver lista»). */
   lista: React.ReactNode;
+  /** Sin «Ver lista» cuando la pantalla ya tiene la pestaña «Lista» (la agenda como objeto). */
+  conVerLista?: boolean;
 }) {
   const { cambiarUrl } = useMesa();
   const params = useSearchParams();
@@ -116,9 +119,11 @@ export default function CelularPorProfesional({
             })}
           </div>
         )}
-        <button type="button" className={`${ENLACE} self-end`} onClick={() => cambiarUrl({ cel: "lista" })}>
-          Ver lista
-        </button>
+        {conVerLista && (
+          <button type="button" className={`${ENLACE} self-end`} onClick={() => cambiarUrl({ cel: "lista" })}>
+            Ver lista
+          </button>
+        )}
       </div>
       <PorProfesional turnos={turnos} profesionales={profesionales} ahora={ahora} dia={dia} bloqueos={bloqueos} soloProfesional={elegida} />
     </div>

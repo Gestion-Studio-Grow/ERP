@@ -14,8 +14,10 @@ import {
   manifestFacturita,
 } from "@/lib/facturita-pwa";
 import { resolveAccent } from "@/lib/branding";
+import { FACTOQUE_VERDE, dataUriFactoque, svgFactoque } from "@/lib/factoque-icono";
 
 const PUBLIC = path.join(process.cwd(), "public");
+const APP = path.join(process.cwd(), "src", "app");
 
 test("manifiesto: standalone, arranca en /facturita/app y no se sale de /facturita/", () => {
   const m = manifestFacturita();
@@ -27,17 +29,33 @@ test("manifiesto: standalone, arranca en /facturita/app y no se sale de /facturi
   assert.equal(m.lang, "es-AR");
 });
 
-test("manifiesto: íconos 192 y 512 (uno maskable), y los archivos existen en public/", () => {
+test("manifiesto: íconos 192 y 512 (uno maskable), y cada uno tiene su ruta generada", () => {
   const tamaños = ICONOS_FACTURITA.map((i) => i.sizes);
   assert.ok(tamaños.includes("192x192"));
   assert.ok(tamaños.includes("512x512"));
   assert.ok(ICONOS_FACTURITA.some((i) => i.purpose === "maskable"));
-  for (const i of ICONOS_FACTURITA) assert.ok(existsSync(path.join(PUBLIC, i.src)), i.src);
+  // Sin binarios en Git: cada ícono es una ruta que lo genera en el build desde el SVG de marca.
+  for (const i of ICONOS_FACTURITA) {
+    assert.ok(existsSync(path.join(APP, i.src, "route.ts")), i.src);
+    assert.ok(!existsSync(path.join(PUBLIC, i.src)), `${i.src} no debe quedar también en public/`);
+  }
   assert.ok(existsSync(path.join(PUBLIC, OFFLINE_FACTURITA_URL)));
 });
 
-test("el color de la barra es el ámbar de Facturita (no se desincroniza del preset)", () => {
-  assert.equal(THEME_COLOR_FACTURITA, resolveAccent("ambar", "light").accent);
+test("el color de la barra es el verde de Factoque (el mismo del ícono)", () => {
+  assert.equal(THEME_COLOR_FACTURITA, FACTOQUE_VERDE);
+  assert.equal(resolveAccent("monte", "light").accent.toLowerCase(), FACTOQUE_VERDE.toLowerCase());
+  assert.match(svgFactoque(), new RegExp(`fill="${FACTOQUE_VERDE}"`));
+});
+
+test("ícono: el maskable achica el dibujo para la zona segura y ambos son SVG válidos", () => {
+  const normal = svgFactoque();
+  const seguro = svgFactoque({ zonaSegura: true });
+  assert.match(normal, /^<svg [^>]*viewBox="0 0 1024 1024"/);
+  assert.match(normal, /scale\(0\.8\)/);
+  assert.match(normal, /translate\(60 110\)/); // el encuadre del SVG fuente
+  assert.match(seguro, /scale\(0\.62\)/);
+  assert.ok(dataUriFactoque().startsWith("data:image/svg+xml;base64,"));
 });
 
 test("service worker: alcance /facturita/, sólo precarga lo público y nunca guarda navegaciones", () => {

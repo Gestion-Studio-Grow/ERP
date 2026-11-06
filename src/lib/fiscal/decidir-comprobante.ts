@@ -68,6 +68,7 @@
  */
 
 import { validarCuit } from "./cuit";
+import { PARAMETROS_DEL_MOTOR } from "./parametros-del-motor";
 import {
   MONTO_MINIMO_FCE_MIPYME,
   UMBRAL_IDENTIFICACION_CONSUMIDOR_FINAL,
@@ -191,10 +192,11 @@ const PUEDE_SER_GRAN_EMPRESA: ReadonlySet<CondicionIvaReceptor> = new Set([
   "IVA_LIBERADO_LEY_19640",
 ]);
 
-/** Días que ARCA acepta entre la fecha del comprobante y el día del envío. */
-const VENTANA_DIAS: Readonly<Record<Concepto, number>> = { 1: 5, 2: 10, 3: 10 };
-/** Sin concepto se controla con la ventana más amplia: si ni esa alcanza, seguro que no. */
-const VENTANA_MAXIMA = Math.max(...Object.values(VENTANA_DIAS));
+/**
+ * Días que ARCA acepta entre la fecha del comprobante y el día del envío (parámetro del motor,
+ * provisional a confirmar: src/lib/fiscal/parametros-del-motor.ts). Se puede pasar otra por opciones.
+ */
+const VENTANA_DIAS: Readonly<Record<Concepto, number>> = PARAMETROS_DEL_MOTOR.ventanaDias;
 
 const NOMBRE_CONDICION: Readonly<Record<CondicionIvaReceptor, string>> = {
   RESPONSABLE_INSCRIPTO: "responsable inscripto",
@@ -295,6 +297,8 @@ export interface OpcionesDecision {
    * automática del extracto). Si es menor que el umbral legal, manda.
    */
   umbralIdentificacionDelNegocio?: number | null;
+  /** Ventana de fechas por concepto (días). Default: la del motor (PARAMETROS_DEL_MOTOR). */
+  ventanaDias?: Readonly<Record<Concepto, number>>;
   /**
    * Emisión sin una persona mirando (facturación automática del extracto): si
    * falta el período del servicio, no se completa con la fecha de la factura
@@ -835,8 +839,10 @@ export function decidirComprobante(
         norma: "RG 1575",
         mensaje:
           // Lo carga Soporte GSG (regimen-factura-a.ts: sólo cuenta la fila de un operador); el negocio no tiene dónde.
-          "Falta cargar qué Factura A te asignó ARCA (A común, A con leyenda o M). Consultalo en ARCA o con tu contador y pedile a Soporte GSG que lo cargue; " +
-          "hasta entonces, cada Factura A pasa por revisión.",
+          // Sin «;» ni «palabra:» al comienzo: el rechazo del motor se muestra tal cual (motivoLegible corta por ahí).
+          "Falta cargar qué Factura A te asignó ARCA (A común, A con leyenda o M), y sin ese dato esta Factura A no sale. " +
+          "Qué hacer: consultalo en ARCA (o preguntale a tu contador) y pedile a Soporte GSG que lo cargue. " +
+          "Cuando esté cargado, volvé a emitir la factura.",
       });
     }
   }
@@ -1121,7 +1127,9 @@ export function decidirComprobante(
 
   // 9. Ventana de fechas que acepta ARCA (manual de WSFEv1, CbteFch).
   if (envio) {
-    const ventana = concepto ? VENTANA_DIAS[concepto] : VENTANA_MAXIMA;
+    const ventanas = opciones.ventanaDias ?? VENTANA_DIAS;
+    // Sin concepto se controla con la ventana más amplia: si ni esa alcanza, seguro que no.
+    const ventana = concepto ? ventanas[concepto] : Math.max(...Object.values(ventanas));
     const cierre = concepto === 2 || concepto === 3 ? " y dejá el período del servicio con las fechas reales." : ".";
     if (Math.abs(diasEntre(envio, cbteFch)) > ventana) {
       agregar({

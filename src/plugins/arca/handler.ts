@@ -119,7 +119,7 @@ export async function procesarInvoiceCreated(
   let resultado: ResultadoCae | null = null;
   let ultimoConocido: UltimoAutorizado | undefined;
   if (ev.intentoArca) {
-    const comoSeDecidio = decidirDelEvento(ev, ev.fecha).comprobante;
+    const comoSeDecidio = decidirDelEvento(ev, ev.fecha, { reglasDelMotor: false }).comprobante;
     if (comoSeDecidio) {
       cliente = await deps.clientePara(ev.tenantId);
       const revision = await revisarIntento(

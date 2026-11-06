@@ -24,7 +24,7 @@ export default async function ReservaPage() {
   const propio = destinoPropio(await rubroDelTurno(), "reserva");
   if (propio) redirect(propio);
   const [professionals, slug, regla, nuevo] = await Promise.all([
-    getProfessionalsWithServices(),
+    getProfessionalsWithServices({ reservaOnline: true }),
     getCurrentTenantSlug(),
     reglaVigenteParaLaClienta(),
     // Página compartida (CH y Taller AGR): con el diseño nuevo de CH prendido sólo cambian escala y tokens

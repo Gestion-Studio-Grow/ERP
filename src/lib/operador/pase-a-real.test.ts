@@ -36,6 +36,7 @@ const LISTA: FichaFiscalDelPase = {
   },
   delegacion: null,
   modoArca: "real",
+  enListaReal: true,
   comprobantesDePrueba: { esperandoCae: 0, enviosAbiertos: 0, autorizados: 0, desde: null },
 };
 const SIN_COMPROBANTES = LISTA.comprobantesDePrueba;
@@ -52,6 +53,7 @@ const COMBINACIONES: [string, Partial<FichaFiscalDelPase>, RegExp][] = [
   ["sin certificado de producción ni delegación", { credencial: null }, /Falta el certificado de producción de ARCA/],
   ["sin condición frente al IVA", { arcaCondicionIva: null }, /Falta la condición del negocio frente al IVA\./],
   ["con la plataforma en pruebas", { modoArca: "homologacion" }, /La plataforma está en modo pruebas \(homologación\)/],
+  ["sin el negocio en ARCA_REAL_TENANTS", { enListaReal: false }, /\(«magra-canning»\) no está en ARCA_REAL_TENANTS/],
   [
     "con un comprobante de la etapa de pruebas esperando CAE",
     { comprobantesDePrueba: { ...SIN_COMPROBANTES, esperandoCae: 1, enviosAbiertos: 1 } },
@@ -59,7 +61,7 @@ const COMBINACIONES: [string, Partial<FichaFiscalDelPase>, RegExp][] = [
   ],
 ];
 
-test("de las 7 combinaciones de precondiciones sólo la completa pasa; las otras 6 se niegan con su motivo en castellano", () => {
+test("de las 8 combinaciones de precondiciones sólo la completa pasa; las otras 7 se niegan con su motivo en castellano", () => {
   assert.deepEqual(decidirPase(LISTA, pedir(LISTA), FACU), { tipo: "aplicar", accion: "pasar-a-real", homologacion: false });
   assert.ok(precondicionesDelPase(LISTA).every((p) => p.ok));
   let negadas = 0;
@@ -73,7 +75,7 @@ test("de las 7 combinaciones de precondiciones sólo la completa pasa; las otras
     assert.match(d.motivo, /No se hizo nada\.$/, nombre);
     negadas++;
   }
-  assert.equal(negadas, 6);
+  assert.equal(negadas, 7);
 });
 
 test("el certificado tiene que ser de producción y del mismo CUIT; una delegación, aunque figure verificada, no lo reemplaza", () => {

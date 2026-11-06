@@ -20,6 +20,7 @@ import { cambioDeVenta, aPesos, CHECKLIST_BASE, ESTADOS_ITEM, MONEDAS, RUBROS, T
 import { avisar, columnasOcultas, exigirEditar, usuariosDelEquipo, usuariosDeDireccion, usuariosDeLaPlata, proyectoVisible, puede, regenerarCuotas, registrarCambio, tiposDeCambio, type Actor } from "./gestion.server";
 import { tipoDeArchivoSubido, clavesARenombrar, fechaAntesDe, fotoDeVersion, itemDeClave, linkSeguro, monedasSinCambio, numeroDe, PERDIDO, precioAlCopiar, precioAlEnviar, servicioDeTipo } from "./ficha-core";
 import { marcaDeGastoProyecto } from "./marcas";
+import { GASTO_EN_RENDICION, SIN_COMPROBANTES, faltaLaMigracion } from "./rendiciones-core";
 import { archivoAdmitido, claveDeArchivo, claveEsDelProyecto, MINUTOS_SUBIDA, urlFirmada } from "./r2-core";
 import { borrarDeNube, configR2, tamanoEnNube } from "./r2.server";
 import type { ModuloGestion } from "./gestion-core";
@@ -885,6 +886,21 @@ export async function anularCobroFicha(formData: FormData): Promise<ResultadoFic
   return { ok: true };
 }
 
+/**
+ * ¿El gasto está en una rendición que no fue rechazada? Entonces sólo se anula rechazando la rendición (Rendiciones):
+ * anularlo por acá dejaría una rendición viva sobre un gasto anulado. Sin la migración de Rendí no hay rendiciones.
+ * Fuera de la transacción a propósito: si la tabla no existe, el error no aborta la transacción del anulado. No hay
+ * carrera: el gasto de una rendición nace con ella, y una rendición rechazada no vuelve atrás.
+ */
+async function gastoEnRendicionViva(tenantId: string, gastoId: string): Promise<boolean> {
+  try {
+    return (await prisma.proyectoRendicion.count({ where: { tenantId, gastoId, estado: { not: "rechazada" } } })) > 0;
+  } catch (e) {
+    if (faltaLaMigracion(e)) return false;
+    throw e;
+  }
+}
+
 /** Igual que el cobro: si ya se pagó, la plata vuelve al libro; si salió de una cuota, la cuota vuelve a pendiente. */
 export async function anularGastoFicha(formData: FormData): Promise<ResultadoFicha> {
   const tenantId = await getCurrentTenantId();
@@ -893,6 +909,7 @@ export async function anularGastoFicha(formData: FormData): Promise<ResultadoFic
   if (!g) return mal("Ese gasto no existe.");
   const a = await entrar("pagos", g.proyectoId);
   if (typeof a === "string") return mal(a);
+  if (await gastoEnRendicionViva(tenantId, id)) return mal(GASTO_EN_RENDICION);
   await tenantTransaction(async (tx) => {
     const r = await tx.proyectoGasto.updateMany({ where: { id, tenantId, anuladoEl: null }, data: { anuladoEl: new Date(), anuladoPor: a.nombre } });
     if (r.count === 0) return;
@@ -973,7 +990,7 @@ export async function subirArchivoFicha(d: { proyectoId: string; tipo: string; n
   if (d.datos ? !subido : !linkSeguro(url)) return mal(d.datos ? "El archivo es demasiado pesado o no es una imagen ni un PDF válido." : "Pegá un link que empiece con https://.");
   const itemId = d.itemId || null;
   if (itemId && !(await prisma.proyectoItem.findFirst({ where: { id: itemId, tenantId, presupuesto: { proyectoId } }, select: { id: true } }))) return mal("Ese ítem no es de este proyecto.");
-  const cuantos = await prisma.proyectoArchivo.count({ where: { tenantId, proyectoId, clave: null } });
+  const cuantos = await prisma.proyectoArchivo.count({ where: { tenantId, proyectoId, clave: null, tipo: { not: "COMPROBANTE" } } });
   if (cuantos >= MAX_ARCHIVOS) return mal(`Un proyecto guarda hasta ${MAX_ARCHIVOS} archivos. Sacá alguno que ya no uses.`);
   const nuevo = await prisma.proyectoArchivo.create({
     data: { tenantId, proyectoId, tipo, nombre, datos: d.datos || null, url: d.datos ? null : url, visibleCliente: !!d.visibleCliente && subido === "imagen", itemId, subidoPor: a.nombre },
@@ -1022,7 +1039,7 @@ export async function confirmarSubida(d: { proyectoId: string; clave: string; no
     return mal(problema ?? "Ese ítem no es de este proyecto.");
   }
   // La base guarda hasta MAX_ARCHIVOS imágenes achicadas; de ahí en más el archivo se guarda igual, sin miniatura.
-  const entraMiniatura = typeof d.miniatura === "string" && tipoDeArchivoSubido(d.miniatura, MAX_IMAGEN, MAX_PDF) === "imagen" && (await prisma.proyectoArchivo.count({ where: { tenantId, proyectoId, datos: { not: null } } })) < MAX_ARCHIVOS;
+  const entraMiniatura = typeof d.miniatura === "string" && tipoDeArchivoSubido(d.miniatura, MAX_IMAGEN, MAX_PDF) === "imagen" && (await prisma.proyectoArchivo.count({ where: { tenantId, proyectoId, datos: { not: null }, tipo: { not: "COMPROBANTE" } } })) < MAX_ARCHIVOS;
   const nuevo = await prisma.proyectoArchivo.create({
     data: { tenantId, proyectoId, tipo: TIPOS_ARCHIVO.includes(d.tipo) ? d.tipo : "OTRO", nombre, clave, tamanoBytes: tamano, datos: entraMiniatura ? d.miniatura : null, visibleCliente: !!d.visibleCliente && entraMiniatura, itemId, subidoPor: a.nombre },
     select: { id: true },
@@ -1035,7 +1052,7 @@ export async function adjuntosDeItem(d: { proyectoId: string; itemId: string }):
   const proyectoId = String(d.proyectoId ?? "");
   const a = await entrar(["ficha", "diseno"], proyectoId);
   if (typeof a === "string") return mal(a);
-  const filas = await prisma.proyectoArchivo.findMany({ where: { tenantId: a.tenantId, proyectoId, itemId: String(d.itemId ?? "") }, orderBy: { createdAt: "desc" }, select: { id: true, nombre: true, url: true } });
+  const filas = await prisma.proyectoArchivo.findMany({ where: { tenantId: a.tenantId, proyectoId, itemId: String(d.itemId ?? ""), ...SIN_COMPROBANTES }, orderBy: { createdAt: "desc" }, select: { id: true, nombre: true, url: true } });
   return { ok: true, archivos: filas.map((f) => ({ id: f.id, nombre: f.nombre, ruta: f.url ?? `${RAIZ}/${proyectoId}/archivo/${f.id}` })) };
 }
 
@@ -1046,7 +1063,7 @@ export async function vincularArchivo(formData: FormData): Promise<ResultadoFich
   const { tenantId } = a;
   const itemId = txt(formData.get("itemId"));
   if (itemId && !(await prisma.proyectoItem.findFirst({ where: { id: itemId, tenantId, presupuesto: { proyectoId } }, select: { id: true } }))) return mal("Ese ítem no es de este proyecto.");
-  await prisma.proyectoArchivo.updateMany({ where: { id: txt(formData.get("id")), proyectoId, tenantId }, data: { itemId: itemId || null } });
+  await prisma.proyectoArchivo.updateMany({ where: { id: txt(formData.get("id")), proyectoId, tenantId, ...SIN_COMPROBANTES }, data: { itemId: itemId || null } });
   refrescar(proyectoId);
   return { ok: true };
 }
@@ -1056,9 +1073,10 @@ export async function borrarArchivoFicha(formData: FormData): Promise<ResultadoF
   const a = await entrar(["ficha", "diseno"], proyectoId);
   if (typeof a === "string") return mal(a);
   const id = txt(formData.get("id"));
-  const f = await prisma.proyectoArchivo.findFirst({ where: { id, proyectoId, tenantId: a.tenantId }, select: { nombre: true, clave: true } });
+  // Un comprobante de Rendí no se borra desde la ficha: es la prueba de una rendición.
+  const f = await prisma.proyectoArchivo.findFirst({ where: { id, proyectoId, tenantId: a.tenantId, ...SIN_COMPROBANTES }, select: { nombre: true, clave: true } });
   if (!f) return mal("Ese archivo ya no existe.");
-  await prisma.proyectoArchivo.deleteMany({ where: { id, proyectoId, tenantId: a.tenantId } });
+  await prisma.proyectoArchivo.deleteMany({ where: { id, proyectoId, tenantId: a.tenantId, ...SIN_COMPROBANTES } });
   if (f.clave) await borrarDeNube(f.clave);
   await auditAdmin({ action: "proyecto.archivo.borrar", entity: "ProyectoArchivo", entityId: id, changes: { nombre: f.nombre } });
   refrescar(proyectoId);
@@ -1070,9 +1088,10 @@ export async function alternarVisibleFicha(formData: FormData): Promise<Resultad
   const a = await entrar(["ficha", "diseno"], proyectoId);
   if (typeof a === "string") return mal(a);
   const id = txt(formData.get("id"));
-  const f = await prisma.proyectoArchivo.findFirst({ where: { id, proyectoId, tenantId: a.tenantId }, select: { visibleCliente: true, datos: true } });
+  // Un comprobante de Rendí nunca va a la propuesta del cliente.
+  const f = await prisma.proyectoArchivo.findFirst({ where: { id, proyectoId, tenantId: a.tenantId, ...SIN_COMPROBANTES }, select: { visibleCliente: true, datos: true } });
   if (!f?.datos) return mal("Sólo una imagen guardada acá puede ir en la propuesta.");
-  await prisma.proyectoArchivo.updateMany({ where: { id, tenantId: a.tenantId }, data: { visibleCliente: !f.visibleCliente } });
+  await prisma.proyectoArchivo.updateMany({ where: { id, tenantId: a.tenantId, ...SIN_COMPROBANTES }, data: { visibleCliente: !f.visibleCliente } });
   refrescar(proyectoId);
   return { ok: true };
 }

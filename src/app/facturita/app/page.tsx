@@ -1,24 +1,34 @@
-// FACTURITA · Emitir — la pantalla principal del producto: la factura en tres
-// clics, con el tope de 5 gratis por mes y el gancho de upgrade a Comerciante.
+// FACTURITA · Emitir — la pantalla principal del producto: la factura en dos
+// toques desde «Mis productos» (o el formulario completo), con el tope de 5 gratis por mes y el gancho de upgrade a Comerciante.
 
 import { PageHeader } from "@/components/ui";
-import { datosEmisorFacturitaAction, estadoFacturitaAction } from "@/lib/facturita-actions";
+import { atajosFacturitaAction, datosEmisorFacturitaAction, datosParaFacturasAction, estadoFacturitaAction } from "@/lib/facturita-actions";
 import Link from "next/link";
-import { listaEnCriollo } from "@/lib/facturita-emisor";
-import EmitirForm from "./EmitirForm";
+import { formDesdeGuardado, listaEnCriollo } from "@/lib/facturita-emisor";
+import PantallaEmitir from "./PantallaEmitir";
+import { getCurrentTenantId } from "@/lib/tenant";
+import { leerRegimenFacturaA } from "@/lib/fiscal/regimen-factura-a.server";
 
 export const dynamic = "force-dynamic";
 
 export default async function FacturitaEmitirPage() {
-  const [limite, emisor] = await Promise.all([estadoFacturitaAction(), datosEmisorFacturitaAction()]);
+  const [limite, emisor, atajos, tenantId, guardados] = await Promise.all([
+    estadoFacturitaAction(),
+    datosEmisorFacturitaAction(),
+    atajosFacturitaAction(),
+    getCurrentTenantId(),
+    datosParaFacturasAction(),
+  ]);
+  const regimenFacturaA = emisor.condicionIva === "RESPONSABLE_INSCRIPTO" ? await leerRegimenFacturaA(tenantId) : null;
 
   return (
     <>
       <PageHeader
         title="Emitir una factura"
-        description={`Cargá qué vendiste, el total y a quién: la factura va a ARCA para su autorización. Este mes usaste ${limite.usadas} de ${limite.limite} gratis.`}
+        description={`Tocá un producto y emití, o cargá qué vendiste, el total y a quién: la factura va a ARCA para su autorización. Este mes usaste ${limite.usadas} de ${limite.limite} gratis.`}
       />
-      {limite.mensaje && (
+      {/* Con el tope agotado, lo explica la pantalla de emitir, arriba y con la salida (F4). */}
+      {limite.mensaje && limite.puedeEmitir && (
         <p
           role={limite.puedeEmitir ? undefined : "alert"}
           className={`mb-4 rounded-xl border px-4 py-3 text-sm ${
@@ -44,10 +54,16 @@ export default async function FacturitaEmitirPage() {
           . Podés emitir igual: ARCA no los pide.
         </p>
       )}
-      <EmitirForm
+      <PantallaEmitir
+        productos={atajos.productos}
+        ultima={atajos.ultima}
+        condicionEmisor={emisor.condicionIva}
         bloqueado={!limite.puedeEmitir}
-        inscripto={emisor.condicionIva === "RESPONSABLE_INSCRIPTO"}
         hoy={emisor.hoy}
+        ambito={`negocio:${tenantId}`}
+        motivoBloqueo={limite.puedeEmitir ? null : limite.mensaje}
+        datosEmisor={{ inicial: formDesdeGuardado(guardados), completos: emisor.faltantesPdf.length === 0 }}
+        regimenFacturaA={regimenFacturaA}
       />
     </>
   );

@@ -50,6 +50,9 @@ export const ACCENT_PRESETS = {
   // ACCENT_PRESET_IDS de operator-config.ts lo sume), no código: Magra sigue en oxblood en
   // este mapa hasta que el dueño lo cambie.
   oro: { light: "#7d5f1a", dark: "#c9a24a", onLight: "#ffffff", onDark: "#1a1708" },
+  // Factoque (05/11/2026, PROVISIONAL a confirmar): el verde del fondo del ícono del carpincho
+  // (src/lib/factoque-icono.ts). light #1f6f5c con blanco 6,0:1; dark #5cbfa3 con tinta 7,5:1.
+  monte: { light: "#1f6f5c", dark: "#5cbfa3", onLight: "#ffffff", onDark: "#06201a" },
 } satisfies Record<string, PresetTones>;
 
 /** Etiquetas criollas de los presets (selector de color del equipo, /admin/apariencia). */
@@ -62,6 +65,7 @@ export const ACCENT_PRESET_LABELS: Record<AccentPreset, string> = {
   ambar: "Ámbar",
   azul: "Azul",
   oro: "Oro",
+  monte: "Monte",
 };
 
 export type AccentPreset = keyof typeof ACCENT_PRESETS;

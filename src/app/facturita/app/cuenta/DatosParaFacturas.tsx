@@ -9,7 +9,19 @@ import { Button, Field, Input, Segmented } from "@/components/ui";
 import { guardarDatosParaFacturasAction, type ResultadoDatosEmisor } from "@/lib/facturita-actions";
 import type { DatosEmisorForm, TipoIibb } from "@/lib/facturita-emisor";
 
-export default function DatosParaFacturas({ inicial, completos }: { inicial: DatosEmisorForm; completos: boolean }) {
+export default function DatosParaFacturas({
+  inicial,
+  completos,
+  alGuardar,
+  enElResultado = false,
+}: {
+  inicial: DatosEmisorForm;
+  completos: boolean;
+  /** Avisa que quedaron guardados (la pantalla de emitir refresca y ofrece el PDF). */
+  alGuardar?: () => void;
+  /** Dentro del resultado de una factura (F3): el pedido de datos justo antes del PDF. */
+  enElResultado?: boolean;
+}) {
   const [form, setForm] = useState<DatosEmisorForm>(inicial);
   const [resultado, setResultado] = useState<ResultadoDatosEmisor | null>(null);
   const [guardando, startTransition] = useTransition();
@@ -22,15 +34,21 @@ export default function DatosParaFacturas({ inicial, completos }: { inicial: Dat
 
   return (
     <section
-      id="datos-para-facturas"
+      id={enElResultado ? undefined : "datos-para-facturas"}
       aria-labelledby="titulo-datos-facturas"
-      className="mb-6 scroll-mt-20 rounded-xl border border-line bg-surface-raised px-[22px] py-5 shadow-card"
+      className={
+        enElResultado
+          ? "rounded-lg border border-warning bg-surface px-4 py-4"
+          : "mb-6 scroll-mt-20 rounded-xl border border-line bg-surface-raised px-[22px] py-5 shadow-card"
+      }
     >
       <h2 id="titulo-datos-facturas" className="text-base font-semibold text-strong">
-        Datos para tus facturas
+        {enElResultado ? "Para descargar el PDF, completá tus datos" : "Datos para tus facturas"}
       </h2>
       <p className="mt-1 text-sm text-muted">
-        {completos
+        {enElResultado
+          ? "La factura ya está hecha. El PDF lleva impresos tu razón social y tu domicilio: cargalos una vez y sale."
+          : completos
           ? "Con esto sale el PDF de tus facturas. Si algo cambia, corregilo acá."
           : "ARCA no los pide para autorizar, pero sin ellos el PDF de la factura no sale. Están en tu constancia de inscripción de ARCA."}
       </p>
@@ -38,7 +56,11 @@ export default function DatosParaFacturas({ inicial, completos }: { inicial: Dat
         className="mt-4 flex flex-col gap-4"
         onSubmit={(e) => {
           e.preventDefault();
-          startTransition(async () => setResultado(await guardarDatosParaFacturasAction(form)));
+          startTransition(async () => {
+            const r = await guardarDatosParaFacturasAction(form);
+            setResultado(r);
+            if (r.ok) alGuardar?.();
+          });
         }}
         noValidate
       >

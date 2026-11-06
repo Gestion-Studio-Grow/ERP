@@ -15,6 +15,7 @@ import type { PrefillReserva } from "./BookingProvider";
 import { borrarReservaGuardada, guardarReserva } from "./reserva-guardada";
 import { faltaParaSeguir } from "./reserva-falta";
 import type { BookingData, BookingGroup, BookingProfessional, BookingService } from "./types";
+import { textoDelPrecio } from "@/lib/servicios/ficha";
 
 const STEP_LABELS = ["", "Servicio", "Profesional", "Día y hora", "Datos", "Confirmación"];
 
@@ -832,7 +833,7 @@ export default function BookingModal({
                   )}
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
                     <span style={{ color: "var(--text-muted)" }}>{svc.name}</span>
-                    <span>${basePrice.toLocaleString("es-AR")}</span>
+                    <span>{textoDelPrecio(svc.price, (n) => `$${n.toLocaleString("es-AR")}`, basePrice)}</span>
                   </div>
                   {couponApplied && (
                     <div style={{ display: "flex", justifyContent: "space-between", color: "var(--success)" }}>
@@ -842,7 +843,7 @@ export default function BookingModal({
                   )}
                   <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 600, marginTop: 4 }}>
                     <span>Total</span>
-                    <span>${finalPrice.toLocaleString("es-AR")}</span>
+                    <span>{textoDelPrecio(svc.price, (n) => `$${n.toLocaleString("es-AR")}`, finalPrice)}</span>
                   </div>
                   {svc.depositAmount != null && (
                     <p style={{ marginTop: 10, fontSize: 12.5, color: "var(--warning)", lineHeight: 1.5 }}>
@@ -1155,7 +1156,7 @@ function Step1({
               >
                 <span>{it.name}</span>
                 <span style={{ fontSize: 12, opacity: 0.75, textAlign: "right" }}>
-                  {it.durationMin} min · ${shownPrice.toLocaleString("es-AR")}
+                  {it.durationMin} min · {textoDelPrecio(it.price, (n) => `$${n.toLocaleString("es-AR")}`, shownPrice)}
                   {hasResidentPrice && !isResident && (
                     <span style={{ display: "block", opacity: 0.85 }}>
                       Vecino/a ${it.residentPrice!.toLocaleString("es-AR")}

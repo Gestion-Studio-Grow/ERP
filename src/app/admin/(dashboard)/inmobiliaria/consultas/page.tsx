@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireApp } from "@/lib/require-app";
 import { buttonClasses, cn, EmptyState, Field, Input, Select, Textarea } from "@/components/ui";
 import { fmtDateTimeAr } from "@/lib/datetime";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { configInmo, equipo, listaConsultas, listaPropiedades, negocioInmo, veLaPlata } from "@/lib/inmobiliaria/datos.server";
 import { origenDelSitio } from "@/lib/inmobiliaria/sitio.server";
@@ -56,7 +56,7 @@ export default async function Consultas({ searchParams }: { searchParams: Promis
         </p>
       </header>
 
-      <BarraInmo activa={`${RAIZ}/consultas`} conPlata={conPlata} esDuenio={roleHasCapability(user.role, "users:manage")} />
+      <BarraInmo activa={`${RAIZ}/consultas`} conPlata={conPlata} esDuenio={permisoEfectivo(user, "users:manage")} />
 
       <nav aria-label="Filtrar por estado" className="-mx-4 mb-4 flex gap-2 overflow-x-auto px-4 pb-1">
         <Link href={`${RAIZ}/consultas`} aria-current={!estado ? "page" : undefined} className={cn("flex h-11 shrink-0 items-center rounded-full border px-4 text-sm font-medium", !estado ? "border-transparent bg-accent text-on-accent" : "border-line text-strong")}>

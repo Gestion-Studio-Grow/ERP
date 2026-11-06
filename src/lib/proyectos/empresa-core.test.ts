@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { alertasDeDireccion, desviosDelEvento, extrasRecalculados, finDeSemana, leerExtras, lineasNuevas, margenSobreVenta, pasaFiltro, periodoValido, propuestasDeConciliacion, respuestaDeCarga, tasaDeConversion, totalLiquidacion } from "./empresa-core";
+import { alertasDeDireccion, conReintegros, desviosDelEvento, extrasRecalculados, finDeSemana, leerExtras, lineasNuevas, margenSobreVenta, pasaFiltro, periodoValido, propuestasDeConciliacion, reintegrosCuadran, respuestaDeCarga, tasaDeConversion, totalLiquidacion } from "./empresa-core";
 
 const item = (id: string, rubro: string, costo: number, costoReal: number | null = null) => ({ id, descripcion: id, rubro, cantidad: 1, costo, moneda: "ARS", costoReal, proveedor: null });
 
@@ -107,4 +107,25 @@ test("dos movimientos iguales no se proponen contra la misma cuota", () => {
   assert.equal(new Set([p.get("1")?.id, p.get("2")?.id]).size, 2);
   assert.equal(p.has("3"), false);
   assert.equal(propuestasDeConciliacion([m("1", -100)], [c("a")], {}).size, 0);
+});
+
+test("Rendí: los reintegros se rehacen desde la base, uno por gasto, y sobreviven a leerExtras", () => {
+  const previos = leerExtras([{ proyectoId: null, nombre: "Bono", monto: 100, manual: true }, { proyectoId: "p", nombre: "Reintegro · viejo", monto: 9, gastoId: "g0", reintegro: true }]);
+  assert.equal(previos[1].reintegro, true);
+  assert.equal(previos[1].gastoId, "g0");
+  const r = { gastoId: "g1", proyectoId: "p", descripcion: "Taxi", montoCentavos: 1250050 };
+  const extras = conReintegros(previos, [r, r]);
+  assert.deepEqual(extras.map((e) => e.nombre), ["Bono", "Reintegro · Taxi"], "el viejo se va, el repetido entra una vez");
+  assert.equal(totalLiquidacion(0, extras), 12600.5);
+  assert.deepEqual(leerExtras(JSON.parse(JSON.stringify(extras))), extras, "ida y vuelta por el JSON");
+  assert.equal(extrasRecalculados(extras, []).some((e) => e.reintegro), false, "recalcular los saca; los vuelve a poner el claim");
+});
+
+test("Rendí: el pago cuadra sólo si lo reclamado en la base es exactamente lo que suma el total", () => {
+  const ex = [{ proyectoId: null, nombre: "Bono", monto: 10, manual: true }, { proyectoId: "p", nombre: "R1", monto: 5.5, gastoId: "g1", reintegro: true as const }, { proyectoId: "p", nombre: "R2", monto: 7, gastoId: "g2", reintegro: true as const }];
+  assert.equal(reintegrosCuadran(ex, [{ gastoId: "g1", montoCentavos: 550 }, { gastoId: "g2", montoCentavos: 700 }]), true);
+  assert.equal(reintegrosCuadran(ex, [{ gastoId: "g1", montoCentavos: 550 }]), false, "falta reclamar uno del JSON");
+  assert.equal(reintegrosCuadran(ex, [{ gastoId: "g1", montoCentavos: 550 }, { gastoId: "g2", montoCentavos: 700 }, { gastoId: "g3", montoCentavos: 77700 }]), false, "reclamada fuera del JSON");
+  assert.equal(reintegrosCuadran(ex, [{ gastoId: "g1", montoCentavos: 550 }, { gastoId: "g2", montoCentavos: 701 }]), false, "la plata no coincide");
+  assert.equal(reintegrosCuadran([ex[0]], []), true);
 });

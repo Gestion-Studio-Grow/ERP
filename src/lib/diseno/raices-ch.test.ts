@@ -28,24 +28,11 @@ const fila = (interruptor: typeof DISENO_NUEVO, accion: "encender" | "apagar", a
   return { ...f, actor: actor ?? f.actor, id: `f${++id}`, createdAt: new Date(Date.UTC(2026, 8, 24, 12, id)) };
 };
 
-test("la decisión: sólo la última fila válida de la consola prende el diseño nuevo", async () => {
-  assert.equal(await leerDisenoNuevoCon(async () => todosApagados()), false);
-  assert.equal(await leerDisenoNuevoCon(async () => estadoDesdeFilas([fila(DISENO_NUEVO, "encender")])), true);
-  assert.equal(
-    await leerDisenoNuevoCon(async () => estadoDesdeFilas([fila(DISENO_NUEVO, "encender"), fila(DISENO_NUEVO, "apagar")])),
-    false,
-    "la última manda",
-  );
-  assert.equal(
-    await leerDisenoNuevoCon(async () => estadoDesdeFilas([fila(DISENO_NUEVO, "encender", "user:cecilia")])),
-    false,
-    "una fila que no es de la consola no cuenta",
-  );
-  assert.equal(
-    await leerDisenoNuevoCon(async () => estadoDesdeFilas([fila(INICIO_POR_APPS as typeof DISENO_NUEVO, "encender")])),
-    false,
-    "prender «Trabaja por apps» no prende el diseño",
-  );
+test("la decisión: el diseño nuevo está incorporado — ninguna fila lo apaga y una lectura fallida lo deja", async () => {
+  // Decisión del dueño (05/11/2026): las mejoras se publican con el pase a `main` (interruptores.ts).
+  assert.equal(await leerDisenoNuevoCon(async () => todosApagados()), true);
+  assert.equal(await leerDisenoNuevoCon(async () => estadoDesdeFilas([fila(DISENO_NUEVO, "encender"), fila(DISENO_NUEVO, "apagar")])), true, "una fila vieja de apagar no lo apaga");
+  assert.equal(await leerDisenoNuevoCon(async () => estadoDesdeFilas([fila(INICIO_POR_APPS as typeof DISENO_NUEVO, "apagar")])), true);
   let avisado: unknown = null;
   assert.equal(
     await leerDisenoNuevoCon(
@@ -54,8 +41,8 @@ test("la decisión: sólo la última fila válida de la consola prende el diseñ
       },
       (e) => (avisado = e),
     ),
-    false,
-    "si la lectura falla: el de siempre",
+    true,
+    "si la lectura falla: el diseño nuevo, que es el de todos",
   );
   assert.ok(avisado instanceof Error);
 });

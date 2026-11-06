@@ -6,6 +6,8 @@ import { proxy } from "@/proxy";
 
 test("el host de Facturita lleva su raíz a la vidriera; los demás no", () => {
   assert.equal(vidrieraDelHost("facturita-gsg.vercel.app"), "/facturita");
+  assert.equal(vidrieraDelHost("factoque.gsgapp.com.ar"), "/facturita");
+  assert.equal(vidrieraDelHost("FACTOQUE.gsgapp.com.ar:443"), "/facturita");
   assert.equal(vidrieraDelHost("Facturita-GSG.vercel.app:443"), "/facturita");
   assert.equal(vidrieraDelHost("facturita-gsg.vercel.app, proxy.interno"), "/facturita");
   assert.equal(vidrieraDelHost("chestetica-erp.vercel.app"), null);

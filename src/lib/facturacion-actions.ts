@@ -9,13 +9,14 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireCapability } from "@/lib/authz";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { contarPendientesDelNegocio, procesarEnviosDelNegocio, type DispatchResumen } from "@/lib/arca-dispatch";
+import { contarPendientesDelNegocio, procesarEnviosDelNegocio, resolverModoDelNegocio, type DispatchResumen } from "@/lib/arca-dispatch";
 import { modoDesdeEnv, type ModoArca } from "@/plugins/arca";
 import { logger } from "@/lib/logger";
 import { todayInBusinessTz } from "@/lib/datetime";
 import { leerFiltros, totalesVacios, type FiltrosComprobantes, type PaginaDeComprobantes } from "@/lib/facturacion/lista-core";
 import { leerPaginaDeComprobantes } from "@/lib/facturacion/lista.server";
 import { TANDA_DE_ARCA, enviosASaltear } from "@/lib/facturacion/autorizar-en-tandas";
+import { modoEnPantalla } from "@/lib/facturacion/modo-en-pantalla";
 
 const FACTURACION_PATH = "/admin/facturacion";
 
@@ -52,6 +53,12 @@ export interface EstadoFiscal {
    * `emitirFacturaDePruebaGuardadaAction`; sin ella (CH incluida), el banco de pruebas de siempre.
    */
   facturaDePrueba: boolean;
+  /**
+   * null/ausente = el negocio factura en `modo`. Si no, el motivo en criollo de por qué NO factura
+   * (marcado real sin la segunda llave, sin certificado de producción, o el modo no se pudo leer);
+   * `modo` queda en "stub", nunca "real" (src/lib/facturacion/modo-en-pantalla.ts).
+   */
+  noFactura?: string | null;
 }
 
 /**
@@ -86,7 +93,7 @@ function contarPendientes(tenantId: string): Promise<number> {
 
 /** El estado fiscal del negocio: config de ARCA y cuántos comprobantes esperan autorización. */
 async function leerEstadoFiscal(tenantId: string): Promise<EstadoFiscal> {
-  const [tenant, pendientes, alguno] = await Promise.all([
+  const [tenant, pendientes, alguno, delNegocio] = await Promise.all([
     // Config fiscal aislada: si faltan las columnas `arca*` (schema viejo), no debe
     // voltear la lectura de facturas — cae a `null` y el estado usa sus defaults.
     prisma.tenant
@@ -98,15 +105,20 @@ async function leerEstadoFiscal(tenantId: string): Promise<EstadoFiscal> {
     contarPendientes(tenantId),
     // Uno solo, por el índice (tenantId, status): no cuenta los miles de un comercio.
     prisma.invoice.findFirst({ where: { tenantId }, select: { id: true } }),
+    // El modo DE ESTE NEGOCIO (src/lib/fiscal/modo-del-negocio.ts). Si no factura o no se puede
+    // leer, se muestra eso (falla cerrada), nunca el modo global de la plataforma.
+    resolverModoDelNegocio(tenantId).catch(() => null),
   ]);
+  const { modo, noFactura } = modoEnPantalla(delNegocio);
   return {
-    modo: modoDesdeEnv(),
+    modo,
     cuit: tenant?.arcaCuit ?? null,
     puntoVenta: tenant?.arcaPuntoVenta ?? null,
     homologacion: tenant?.arcaHomologacion ?? true,
     pendientes,
     hayComprobantes: alguno !== null,
-    facturaDePrueba: modoDesdeEnv() === "stub" && (tenant?.modules ?? []).includes("arca"),
+    facturaDePrueba: noFactura === null && modo === "stub" && (tenant?.modules ?? []).includes("arca"),
+    noFactura,
   };
 }
 

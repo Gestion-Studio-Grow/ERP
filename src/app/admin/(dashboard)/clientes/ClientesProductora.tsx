@@ -3,7 +3,7 @@
 // proyectos, y sus cobros no están en los turnos: esa lista marcaba a todos «Nunca compró».
 
 import Link from "next/link";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { clientesConProyectos, veLaPlata } from "@/lib/proyectos/datos.server";
 import { pesos } from "@/lib/proyectos/core";
 import type { SessionUser } from "@/lib/session";
@@ -18,7 +18,7 @@ export default async function ClientesProductora({ user, q }: { user: SessionUse
     <main className="mx-auto w-full max-w-5xl px-4 py-5">
       <h1 className="text-2xl font-bold text-strong">Clientes</h1>
       <p className="mb-4 text-sm text-muted">{clientes.length === 1 ? "1 cliente" : `${clientes.length} clientes`}{q ? ` con «${q}»` : ""}</p>
-      {roleHasCapability(user.role, "clients:manage") && <NuevaFicha sinFicha={[]} />}
+      {permisoEfectivo(user, "clients:manage") && <NuevaFicha sinFicha={[]} />}
       <form method="get" className="my-4 flex gap-2">
         <input name="q" type="search" defaultValue={q} placeholder="Nombre, teléfono o correo" aria-label="Buscar cliente" className={campo} />
         <button type="submit" className="min-h-11 shrink-0 rounded-lg border border-line bg-surface-raised px-4 text-sm font-medium text-strong">Buscar</button>

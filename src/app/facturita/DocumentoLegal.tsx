@@ -3,7 +3,7 @@
 // presenta como definitivo.
 //
 // Rediseño 29/10/2026 (fronts/facturita/DISENO.md §5.4): documento sobre papel; la franja sigue
-// (es verdad, legales.ts), en gris cálido con filete ámbar en lugar del amarillo de advertencia.
+// (es verdad, legales.ts), en gris cálido con filete verde en lugar del amarillo de advertencia.
 
 import type { ReactNode } from "react";
 import VidrieraMarco from "./VidrieraMarco";

@@ -1,0 +1,93 @@
+# Copia diaria CIFRADA de la base de producción (Neon, Postgres 17).
+# Todos los días 03:17 hora Argentina (06:17 UTC) + a mano (workflow_dispatch).
+# pg_dump (formato custom, comprimido) → gpg --symmetric AES256 → artifact con retención de 30 días.
+# Secrets (Settings → Secrets and variables → Actions → Secrets):
+#   NEON_BACKUP_DATABASE_URL  URL de conexión DIRECTA (sin "-pooler") con un rol de sólo lectura si es posible.
+#   BACKUP_PASSPHRASE         Frase larga para cifrar; guardala fuera de GitHub (sin ella la copia no se abre).
+# Sin alguno de los dos, termina en verde con un aviso y no hace nada.
+# La URL nunca se imprime: no hay `set -x` y los errores de pg_dump se muestran con el host tapado.
+# Restauración: docs/runbooks/copia-y-monitor.md
+name: copia-diaria-base
+
+on:
+  schedule:
+    - cron: '17 6 * * *'   # 03:17 America/Argentina/Buenos_Aires
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: copia-diaria-base
+  cancel-in-progress: false
+
+jobs:
+  copia:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Verificar secrets
+        id: secrets
+        env:
+          NEON_BACKUP_DATABASE_URL: ${{ secrets.NEON_BACKUP_DATABASE_URL }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          faltan=""
+          [ -z "${NEON_BACKUP_DATABASE_URL:-}" ] && faltan="$faltan NEON_BACKUP_DATABASE_URL"
+          [ -z "${BACKUP_PASSPHRASE:-}" ] && faltan="$faltan BACKUP_PASSPHRASE"
+          if [ -n "$faltan" ]; then
+            echo "::warning::Copia diaria INACTIVA: falta(n) el/los secret(s):$faltan. Cargalos en Settings → Secrets and variables → Actions (ver docs/runbooks/copia-y-monitor.md)."
+            echo "listo=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "listo=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Instalar postgresql-client-17 (repo oficial PGDG)
+        if: steps.secrets.outputs.listo == 'true'
+        run: |
+          set -euo pipefail
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17 > /dev/null
+          /usr/lib/postgresql/17/bin/pg_dump --version
+
+      - name: pg_dump + cifrado AES256
+        if: steps.secrets.outputs.listo == 'true'
+        id: dump
+        env:
+          NEON_BACKUP_DATABASE_URL: ${{ secrets.NEON_BACKUP_DATABASE_URL }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          umask 077
+          fecha=$(TZ=America/Argentina/Buenos_Aires date '+%Y-%m-%d_%H%M')
+          dump="base-${fecha}.dump"
+          salida="base-${fecha}.dump.gpg"
+          if ! /usr/lib/postgresql/17/bin/pg_dump --format=custom --compress=9 --no-password \
+                --dbname="$NEON_BACKUP_DATABASE_URL" --file="$dump" 2> pg_dump.err; then
+            echo "::error::pg_dump falló (detalle con host tapado):"
+            sed -E 's#postgres(ql)?://[^ "]*#postgresql://***#g; s#ep-[A-Za-z0-9-]+#ep-***#g; s#password=[^ ]*#password=***#g' pg_dump.err
+            rm -f "$dump" pg_dump.err
+            exit 1
+          fi
+          rm -f pg_dump.err
+          printf '%s' "$BACKUP_PASSPHRASE" | gpg --batch --yes --quiet --pinentry-mode loopback \
+            --passphrase-fd 0 --symmetric --cipher-algo AES256 --output "$salida" "$dump"
+          shred -u "$dump" 2>/dev/null || rm -f "$dump"
+          echo "archivo=$salida" >> "$GITHUB_OUTPUT"
+          echo "nombre=copia-base-${fecha}" >> "$GITHUB_OUTPUT"
+          echo "::notice::Copia cifrada lista: $salida ($(du -h "$salida" | cut -f1))"
+
+      - name: Subir artifact (30 días)
+        if: steps.secrets.outputs.listo == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.dump.outputs.nombre }}
+          path: ${{ steps.dump.outputs.archivo }}
+          retention-days: 30
+          compression-level: 0
+          if-no-files-found: error

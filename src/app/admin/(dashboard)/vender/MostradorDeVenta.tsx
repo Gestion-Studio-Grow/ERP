@@ -52,7 +52,7 @@ export default async function MostradorDeVenta({
    */
   desdeLaFicha?: { cliente: ClienteElegido; repetir: RepetirPedido | null } | null;
   /** «Sumar un producto» desde un turno de CH: la clienta ya cargada en el bloque de siempre. */
-  clienteInicial?: { nombre: string; telefono: string } | null;
+  clienteInicial?: { nombre: string; telefono: string; clientId?: string } | null;
 }) {
   const hoy = todayInBusinessTz();
   const [datos, stockSnap, identidad, puedeCuentas, puedeFacturar, nuevo, rubro, terminal, interruptores] = await Promise.all([

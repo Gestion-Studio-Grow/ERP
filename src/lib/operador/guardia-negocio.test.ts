@@ -87,6 +87,12 @@ const OTRO_PLANO: Record<string, { guardias: Record<string, { negocio: boolean; 
       "panel del estudio contable (/contador): la sesión es de una usuaria del estudio, no de un operador; " +
       "exigirEstudio verifica cartera:manage y el módulo cartera, y el negocio sale de su sesión, no del pedido",
   },
+  "src/lib/fiscal/asistente-arca-actions.ts": {
+    guardias: { exigirAsistenteArca: { negocio: false, rechazo: false } },
+    motivo:
+      "asistente ARCA del cliente (/admin/facturacion?vista=arca): la sesión es de una persona del negocio; " +
+      "exigirAsistenteArca verifica billing:manage y el módulo arca, y el negocio sale de su sesión, no del pedido",
+  },
 };
 
 /**
@@ -354,6 +360,7 @@ test("el recorrido encuentra los endpoints con privilegio de operador en TODO sr
     // Refutador 26/09: la Factura A desde la ficha del negocio (su aislamiento: regimen-factura-a-postgres.test.ts).
     "src/app/operador/(console)/tenants/[id]/regimen-factura-a-actions.ts",
     "src/lib/cartera-actions.ts",
+    "src/lib/fiscal/asistente-arca-actions.ts",
     "src/lib/operador/interruptores-actions.ts",
     "src/lib/operador/plan-actions.ts",
     "src/lib/operador/red-locales-actions.ts",
@@ -383,6 +390,12 @@ test("TRINQUETE: todo endpoint con privilegio de operador tiene PRIMERO la guard
     "src/lib/cartera-actions.ts#emitirAutomaticasClienteAction",
     "src/lib/cartera-actions.ts#monitorCarteraAction",
     "src/lib/cartera-actions.ts#setEstadoCarteraAction",
+    "src/lib/fiscal/asistente-arca-actions.ts#cancelarContadorArcaAction",
+    "src/lib/fiscal/asistente-arca-actions.ts#cargarCertificadoArcaAction",
+    "src/lib/fiscal/asistente-arca-actions.ts#generarPedidoArcaAction",
+    "src/lib/fiscal/asistente-arca-actions.ts#pedirContadorArcaAction",
+    "src/lib/fiscal/asistente-arca-actions.ts#pedirPaseArcaAction",
+    "src/lib/fiscal/asistente-arca-actions.ts#probarCertificadoArcaAction",
     "src/lib/operador/interruptores-actions.ts#cambiarAppOculta",
     "src/lib/operador/interruptores-actions.ts#cambiarInterruptor",
     "src/lib/operador/plan-actions.ts#ajustarLimiteDelNegocio",
@@ -393,10 +406,13 @@ test("TRINQUETE: todo endpoint con privilegio de operador tiene PRIMERO la guard
     "src/lib/operador/red-locales-actions.ts#vincularLocalAction",
     "src/lib/operator-actions.ts#altaPersonaDeTenant",
     "src/lib/operator-actions.ts#cambiarFacturacionReal",
+    "src/lib/operator-actions.ts#cargarCertificadoDelPedidoArca",
     "src/lib/operator-actions.ts#cargarCredencialFiscal",
     "src/lib/operator-actions.ts#fijarAsignacionActual",
+    "src/lib/operator-actions.ts#generarPedidoCertificadoArca",
     "src/lib/operator-actions.ts#resetOwnerPassword",
     "src/lib/operator-actions.ts#resetOwnerPasswordDeTenant",
+    "src/lib/operator-actions.ts#setTenantArcaCondicionIva",
     "src/lib/operator-actions.ts#setTenantArcaCuit",
     "src/lib/operator-actions.ts#setTenantArcaPuntoVenta",
     "src/lib/operator-actions.ts#setTenantBranding",
@@ -404,6 +420,7 @@ test("TRINQUETE: todo endpoint con privilegio de operador tiene PRIMERO la guard
     "src/lib/operator-actions.ts#setTenantStatus",
     "src/lib/operator-actions.ts#setTenantSubdomain",
     "src/lib/operator-actions.ts#toggleTenantModule",
+    "src/lib/operator-actions.ts#verificarCertificadoArca",
     "src/lib/operator-provisioning-actions.ts#commitTenantAction",
     "src/lib/operator-provisioning-actions.ts#planTenantAction",
   ]);

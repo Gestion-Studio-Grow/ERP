@@ -8,9 +8,14 @@
  * evitan los tres riesgos que anota el manifiesto del backoffice (otro negocio en el mismo origen,
  * equipo compartido, bundle viejo contra actions nuevas). Ver public/facturita/sw.js.
  *
- * El manifiesto es de PRODUCTO (Facturita es una marca de GSG, igual para todos), no de negocio:
+ * Los íconos (mismas URLs de siempre) se generan en el build desde el SVG único de la marca:
+ * src/app/facturita/{icon.svg,icon-*.png,apple-touch-icon.png}/route.ts — nada binario en Git.
+ *
+ * El manifiesto es de PRODUCTO (Factoque es una marca de GSG, igual para todos), no de negocio:
  * por eso es estático y no depende del host (a diferencia del de /admin, MT-1).
  */
+
+import { FACTOQUE_CREMA, FACTOQUE_TRAZO, FACTOQUE_VERDE } from "./factoque-icono";
 
 /** Dónde vive la app instalada: todo Facturita (vidriera, alta y app). */
 export const SCOPE_FACTURITA = "/facturita/";
@@ -23,14 +28,13 @@ export const SW_FACTURITA_URL = "/facturita/sw.js";
 export const OFFLINE_FACTURITA_URL = "/facturita/sin-conexion.html";
 
 /**
- * Colores de la barra del sistema y de la pantalla de arranque. Salen del acento «ámbar» de
- * Facturita (src/lib/producto-identidad.ts → src/lib/branding.ts ACCENT_PRESETS.ambar) y del
- * lienzo de la piel Fable (globals.css `[data-skin="fable"] --surface`). El manifiesto no puede
- * leer variables CSS, por eso van como valor.
+ * Colores de la barra del sistema y de la pantalla de arranque: el verde y la crema de Factoque
+ * (src/lib/factoque-icono.ts; colores PROVISIONALES a confirmar por el dueño). El manifiesto no
+ * puede leer variables CSS, por eso van como valor. En oscuro, el trazo del carpincho.
  */
-export const THEME_COLOR_FACTURITA = "#9a6a1f"; // design-lint-ignore: el manifiesto no lee variables CSS; espeja ACCENT_PRESETS.ambar.light (lo vigila facturita-pwa.test.ts)
-export const THEME_COLOR_FACTURITA_OSCURO = "#15140f";
-export const FONDO_FACTURITA = "#f5f5f7";
+export const THEME_COLOR_FACTURITA = FACTOQUE_VERDE;
+export const THEME_COLOR_FACTURITA_OSCURO = FACTOQUE_TRAZO;
+export const FONDO_FACTURITA = FACTOQUE_CREMA;
 
 export type IconoFacturita = {
   src: string;
@@ -70,10 +74,10 @@ export function manifestFacturita(): ManifestFacturita {
   const icono192 = ICONOS_FACTURITA[0];
   return {
     id: START_URL_FACTURITA,
-    name: "Facturita — tus facturas de ARCA en el celu",
-    short_name: "Facturita",
+    name: "Factoque — tus facturas de ARCA en el celu",
+    short_name: "Factoque",
     description:
-      "Emití facturas electrónicas y mandalas a ARCA en tres toques. Gratis hasta 5 por mes, para monotributistas y comercios chicos.",
+      "Emití facturas electrónicas desde el celu, sin vueltas, y mandalas a ARCA. Gratis hasta 5 por mes, para monotributistas y comercios chicos.",
     lang: "es-AR",
     dir: "ltr",
     start_url: START_URL_FACTURITA,

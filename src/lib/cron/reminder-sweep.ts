@@ -31,6 +31,7 @@ import {
   type ReminderRunSummary,
 } from "@/lib/cron/reminder-batch";
 import { debeEstamparRecordatorio, motivoSinEnvio } from "@/lib/turnos/turno-abierto";
+import { notasDeRecordatorio } from "@/lib/servicios/ficha.server";
 
 const WIDE_WINDOW_MS = 72 * 60 * 60 * 1000;
 // LA VENTANA NO SE TOCA en este cambio, y es a propósito. Con el cron diario de vercel.json
@@ -94,14 +95,16 @@ export async function runReminderSweep(now = Date.now()): Promise<ReminderRunSum
       const dueAt = appt.startsAt.getTime() - appt.service.reminderHoursBefore * 60 * 60 * 1000;
       return now >= dueAt - TOLERANCE_MS && now <= dueAt + TOLERANCE_MS;
     });
-    outcomes.push(...(await enviarRecordatorios(due)));
+    // La aclaración de cada servicio («Vení bañada»), una lectura por negocio; sin la migración, ninguna.
+    const notas = due.length > 0 ? await notasDeRecordatorio(tenantId, due.map((a) => a.serviceId)).catch(() => new Map<string, string>()) : new Map<string, string>();
+    outcomes.push(...(await enviarRecordatorios(due, notas)));
   }
 
   return summarizeReminderRun(revisados, outcomes, negociosSinLeer);
 }
 
 /** Envía y marca cada turno que vence, en la transacción de SU negocio. */
-async function enviarRecordatorios(due: Awaited<ReturnType<typeof turnosDelNegocio>>): Promise<ReminderOutcome[]> {
+async function enviarRecordatorios(due: Awaited<ReturnType<typeof turnosDelNegocio>>, notas: ReadonlyMap<string, string> = new Map()): Promise<ReminderOutcome[]> {
   const outcomes: ReminderOutcome[] = [];
   for (const appt of due) {
     try {
@@ -119,6 +122,7 @@ async function enviarRecordatorios(due: Awaited<ReturnType<typeof turnosDelNegoc
             serviceName: appt.service.name,
             professionalName: appt.professional.name,
             startsAt: appt.startsAt,
+            aclaracion: notas.get(appt.serviceId) ?? null,
           });
           // "Avisada" sólo si ALGÚN canal dijo que mandó. Antes se estampaba siempre: con el
           // WhatsApp simulado (`sent:false` sin error) y sin RESEND_API_KEY, el turno quedaba

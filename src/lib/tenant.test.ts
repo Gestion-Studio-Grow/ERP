@@ -152,11 +152,15 @@ test("HOSTS_PUBLICADOS: el host del código resuelve sin la variable, y la varia
   // Exacto: un host parecido NO resuelve (no hay comodines).
   assert.equal(hostMapSubdomain("quebienoles-erp.vercel.app.evil.com", {}), null);
   assert.equal(hostMapSubdomain("x-quebienoles-erp.vercel.app", {}), null);
+  // Factoque (05/11/2026): el alias lleva al negocio «facturita» sin tocar la variable sensible.
+  assert.equal(hostMapSubdomain("factoque.gsgapp.com.ar", {}), "facturita");
+  assert.equal(hostMapSubdomain("FACTOQUE.gsgapp.com.ar:443", { TENANT_HOST_MAP: "magra-erp.vercel.app=magra" }), "facturita");
+  assert.equal(hostMapSubdomain("x.factoque.gsgapp.com.ar", {}), null);
 });
 
-test("HOSTS_PUBLICADOS: sólo hosts .vercel.app exactos y en minúscula (lo que compara normalizeHost)", () => {
+test("HOSTS_PUBLICADOS: sólo hosts exactos (.vercel.app o alias bajo gsgapp.com.ar) y en minúscula", () => {
   for (const [host, sub] of Object.entries(HOSTS_PUBLICADOS)) {
-    assert.match(host, /^[a-z0-9-]+\.vercel\.app$/, host);
+    assert.match(host, /^[a-z0-9-]+\.(vercel\.app|gsgapp\.com\.ar)$/, host);
     assert.match(sub, /^[a-z0-9-]+$/, sub);
   }
 });

@@ -1,5 +1,5 @@
 // FACTURITA · Marco de la vidriera pública (landing, alta, planes y legales): piel Fable en claro,
-// el acento ámbar del producto, el papel del talonario, la barra de arriba y el pie. Sin base ni
+// el acento verde de Factoque, el papel del talonario, la barra de arriba y el pie. Sin base ni
 // sesión (PD-1): todo sale de constantes, así las páginas pueden ser `force-static`.
 //
 // El CSS de la vidriera (`piel.ts`) se imprime ACÁ, en el servidor: si lo importara un componente
@@ -13,8 +13,8 @@ import { BOTON_CHICO, BOTON_PRINCIPAL } from "./estilos";
 import { PIEL_FACTURITA } from "./piel";
 import BarraFija from "./BarraFija";
 
-const claro = resolveAccent("ambar", "light");
-const oscuro = resolveAccent("ambar", "dark");
+const claro = resolveAccent("monte", "light");
+const oscuro = resolveAccent("monte", "dark");
 
 const ESTILO_ACENTO = {
   "--tenant-accent-light": claro.accent,
@@ -54,9 +54,9 @@ export default function VidrieraMarco({
         <div className="fx-caja fx-barra-fila">
           <Link href="/facturita" className="fx-marca">
             <Image src="/facturita/icon.svg" alt="" width={36} height={36} priority />
-            Facturita
+            Factoque
           </Link>
-          <nav aria-label="Facturita" className="fx-nav">
+          <nav aria-label="Factoque" className="fx-nav">
             <Link href="/facturita/planes" className="fx-nav-item">
               Planes
             </Link>
@@ -74,7 +74,7 @@ export default function VidrieraMarco({
       <main id="contenido">{children}</main>
       <footer className="fx-pie">
         <div className="fx-caja fx-pie-fila">
-          <p>Facturita emite comprobantes electrónicos con el servicio oficial de ARCA.</p>
+          <p>Factoque emite comprobantes electrónicos con el servicio oficial de ARCA.</p>
           <nav aria-label="Legales" className="flex gap-5">
             <Link href="/facturita/terminos">Términos</Link>
             <Link href="/facturita/privacidad">Privacidad</Link>

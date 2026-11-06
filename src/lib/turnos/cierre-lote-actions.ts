@@ -22,12 +22,12 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import { isDemoSandbox } from "@/lib/demo-flag";
 import { logger } from "@/lib/logger";
 import { completeAppointment, cerrarTurnoSinPrestar } from "@/lib/actions";
-import { puedeCobrarEsteTurno } from "./cobro-mostrador";
+import { veredictoDeCobroDe } from "./cobro-mostrador";
 import {
   CAMPO_DEL_LOTE,
   camposDeLaDecision,
   leerLote,
-  permisosDeRol,
+  permisosDe,
   planCierreEnLote,
   turnoParaCerrar,
   type ResultadoDeLinea,
@@ -53,10 +53,9 @@ export async function cerrarTurnosEnLote(fd: FormData): Promise<ResultadoDelLote
   for (const f of filas) {
     veredictos.set(
       f.id,
-      puedeCobrarEsteTurno({
-        rol: user.role,
-        professionalIdDelUsuario: user.professionalId,
-        professionalIdDelTurno: f.professionalId,
+      // Con la excepción de la matriz: «cargar cobranzas» apagada → ningún turno se cobra (A1).
+      veredictoDeCobroDe(user, {
+        professionalId: f.professionalId,
         nombreProfesional: f.professional.name,
         cobraEnMostrador: f.professional.cobraEnMostrador,
       }),
@@ -70,7 +69,7 @@ export async function cerrarTurnosEnLote(fd: FormData): Promise<ResultadoDelLote
     }),
     {
       ahora: new Date(),
-      permisos: permisosDeRol(user.role),
+      permisos: permisosDe(user),
       veredictos,
       profesionalPropio: user.role === "PROFESSIONAL" ? user.professionalId ?? "__no_professional__" : null,
     },

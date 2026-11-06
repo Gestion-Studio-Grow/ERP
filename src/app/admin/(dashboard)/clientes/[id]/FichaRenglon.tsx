@@ -19,11 +19,12 @@
 // Los datos son los de la ficha única (`cargarFichaCompleta`), con sus mismas reglas y guardias:
 // cambia CÓMO se ve, no QUÉ se consulta ni quién puede qué.
 
+import { enmascararContacto } from "@/lib/clientes/telefono";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Bloque, DosColumnas, PageContainer, PageHeader, Plata, Renglon, atributosBoton, buttonClasses } from "@/components/ui";
 import { dateStrInBusinessTz, fmtShortDate, fmtTime } from "@/lib/datetime";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import type { SessionUser } from "@/lib/session";
 import { appPermitida } from "@/apps/visibles";
 import { appPorId } from "@/apps/registro";
@@ -71,11 +72,13 @@ export default async function FichaRenglon({
 }) {
   const [f, negocio] = await Promise.all([cargarFichaCompleta(id), getNegocioApps(user.role)]);
   if (!f) notFound();
-  const { client, resumen, ev } = f;
+  const { client: crudo, resumen, ev } = f;
+  // Sin `clients:contact` (casilla 5 de la matriz) teléfono y mail salen enmascarados del servidor.
+  const client = enmascararContacto(crudo, user);
   const abreFiado = appPermitida(appPorId("cuentas-a-cobrar"), negocio);
-  const puedeDarTurno = appPermitida(appPorId("agenda"), negocio) && roleHasCapability(user.role, "agenda:manage");
-  const verPlata = roleHasCapability(user.role, "reports:read");
-  const puedeEditar = roleHasCapability(user.role, "clients:manage");
+  const puedeDarTurno = appPermitida(appPorId("agenda"), negocio) && permisoEfectivo(user, "agenda:manage");
+  const verPlata = permisoEfectivo(user, "reports:read");
+  const puedeEditar = permisoEfectivo(user, "clients:manage");
   const noQuiere = f.permiso?.accion === ACCION_BAJA;
   const contacto = contactoDeLaFicha({ telefono: client.phone, noQuiere, puedeEditar });
   // La misma suma que la ficha única (FichaUnica.tsx): saldo de turnos + fiado.

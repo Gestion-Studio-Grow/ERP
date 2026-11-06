@@ -71,7 +71,7 @@ Fecha: 2026-10-22. Sin deploy, sin migraciones, sin Neon, sin credenciales ARCA,
 | M | Stub mostraba «Autorizada» | `esDePrueba(modo, homologación)`: en stub u homologación, «Autorizada de prueba» + aviso de que no tiene validez fiscal; en Mi cuenta, «Simulado». | `facturas/page.tsx`, `cuenta/page.tsx` |
 | M | Fecha de «Mis facturas» un día antes | `fechaFiscalLegible` formatea AAAAMMDD como texto, sin `Date`. | `facturas/page.tsx` |
 | M | CUIT real en el placeholder y en tests | Placeholder genérico («11 números, con o sin guiones»; DNI «7 u 8 números»); tests con CUIT inventados (20-11111111-2, 30-11111111-8). | `EmitirForm.tsx`, `facturita-core.test.ts` |
-| M | `CUIT_GSG_DELEGACION` | Sigue `null` con su texto («te lo pasamos por WhatsApp»), como se pidió. | `facturita-onboarding.ts` |
+| M | `CUIT_GSG_DELEGACION` | Superado 05/11/2026 (decisión del dueño): sin delegación al CUIT de GSG; `PASOS_CERTIFICADO_PROPIO` (certificado del propio usuario, clave fiscal nivel 3). | `facturita-onboarding.ts` |
 
 **Verificación vuelta 2:** `tsc` verde; eslint 0; 56 tests puros de Facturita verdes; nuevo
 `src/lib/facturita-emision-postgres.test.ts` (4 casos, Server Action real contra base efímera con RLS

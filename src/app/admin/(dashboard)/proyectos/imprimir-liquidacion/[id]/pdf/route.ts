@@ -17,13 +17,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const a = await actorActual();
   const { id } = await params;
   const l = await liquidacionParaImprimir(a.tenantId, id);
-  const propia = l?.personaId === a.personaId && l?.estado === "PUBLICADA";
+  const propia = l?.personaId === a.personaId && !!l && l.estado !== "BORRADOR";
   if (!l || (!propia && !puede(a, "liquidaciones", "ver"))) return new NextResponse("No encontrado", { status: 404 });
   const negocio = await datosDelNegocio(a.tenantId);
   const bytes = await pdfDeLiquidacion({
     negocio: negocio.nombre,
     periodo: etiquetaMes(l.periodo),
-    estado: l.estado === "PUBLICADA" ? `Publicada el ${fechaCorta(l.publicadaEl)}` : "Borrador, sin publicar",
+    estado: l.estado === "PAGADA" ? `Pagada (publicada el ${fechaCorta(l.publicadaEl)})` : l.estado === "PUBLICADA" ? `Publicada el ${fechaCorta(l.publicadaEl)}` : "Borrador, sin publicar",
     persona: l.persona.nombre,
     puesto: l.persona.puesto,
     facturaA: l.facturaA,

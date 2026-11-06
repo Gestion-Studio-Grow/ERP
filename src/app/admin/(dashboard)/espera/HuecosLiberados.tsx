@@ -12,6 +12,7 @@ import { avisarHuecoPorWhatsApp, reservarHuecoLiberado } from "@/lib/waitlist-ac
 import { buttonClasses } from "@/components/ui";
 import { fmtCalendarDateLabel, fmtTime } from "@/lib/datetime";
 import { claseBotonWhatsApp } from "../clientes/boton-whatsapp";
+import { MASCARA } from "@/lib/clientes/telefono";
 
 export type AnotadoVista = {
   id: string;
@@ -51,7 +52,7 @@ function FilaAnotado({ hueco, a }: { hueco: HuecoVista; a: AnotadoVista }) {
             {fmtTime(avisado.el)}
           </p>
         )}
-        {!a.wa && <p className="text-xs text-warning">El teléfono cargado ({a.telefono}) no es un celular válido.</p>}
+        {!a.wa && !a.telefono.startsWith(MASCARA) && <p className="text-xs text-warning">El teléfono cargado ({a.telefono}) no es un celular válido.</p>}
         {mensaje && (
           <p role={mensaje.ok ? "status" : "alert"} className={mensaje.ok ? "text-xs text-success" : "text-xs text-danger"}>
             {mensaje.texto}

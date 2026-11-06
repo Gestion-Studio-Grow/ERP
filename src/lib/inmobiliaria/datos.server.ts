@@ -12,8 +12,8 @@ import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { requireCapability } from "@/lib/authz";
-import { roleHasCapability } from "@/lib/capabilities";
+import { requireCapability, requireCapabilityFueraDeLaAgenda } from "@/lib/authz";
+import { permisoEfectivo, permisoFueraDeLaAgenda } from "@/lib/capabilities";
 import type { SessionUser } from "@/lib/session";
 import { getLocation } from "@/lib/settings";
 import { todayInBusinessTz } from "@/lib/datetime";
@@ -397,7 +397,7 @@ export async function slugsPublicados(tenantId: string): Promise<{ slug: string;
 
 // ── Sesión ──────────────────────────────────────────────────────────────────
 
-export const veLaPlata = (u: SessionUser): boolean => roleHasCapability(u.role, "agenda:manage");
+export const veLaPlata = (u: SessionUser): boolean => permisoFueraDeLaAgenda(u, "agenda:manage");
 
 /** El agente ve sus consultas y las que todavía no tienen a nadie. */
 function consultasDeRol(u: SessionUser): Prisma.InmoConsultaWhereInput {
@@ -627,7 +627,7 @@ export async function tableroInmo() {
 
   return {
     conPlata,
-    esDuenio: roleHasCapability(user.role, "users:manage"),
+    esDuenio: permisoEfectivo(user, "users:manage"),
     hoy,
     consultas: consultas.map((c) => aConsulta(c, ahora)),
     visitas: visitas.map((c) => aConsulta(c, ahora)),
@@ -780,7 +780,7 @@ export interface FilaContrato {
 }
 
 export async function listaContratos(): Promise<FilaContrato[]> {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const hoy = hoyDia();
   const filas = await prisma.inmoContrato.findMany({
@@ -822,7 +822,7 @@ async function serieDe(tenantId: string, indice: string): Promise<PuntoIndice[]>
 }
 
 export async function contratoAdmin(id: string) {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const hoy = hoyDia();
   const c = await prisma.inmoContrato.findFirst({
@@ -878,7 +878,7 @@ export type ContratoAdmin = NonNullable<Awaited<ReturnType<typeof contratoAdmin>
 
 /** Propiedades que se pueden poner en un contrato (las que no están ya con uno vigente). */
 export async function propiedadesParaContrato(): Promise<{ id: string; nombre: string; propietarioId: string | null; precio: number | null }[]> {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const filas = await prisma.inmoPropiedad.findMany({
     where: { tenantId, contratos: { none: { estado: "VIGENTE" } }, estado: { not: "VENDIDA" } },
@@ -892,7 +892,7 @@ export async function propiedadesParaContrato(): Promise<{ id: string; nombre: s
 // ── Panel: índices ──────────────────────────────────────────────────────────
 
 export async function indicesCargados() {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   // Los últimos de cada índice y cuántos hay: el ICL es diario y taparía a los otros.
   return Promise.all(
@@ -977,7 +977,7 @@ export async function cobrosSinLiquidar(tenantId: string, propietarioId?: string
 
 /** Lo que hay para liquidar hoy, agrupado por propietario. La comisión es la de cada contrato. */
 export async function paraLiquidar(): Promise<ParaLiquidar[]> {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const [config, pendientes] = await Promise.all([configInmo(tenantId), cobrosSinLiquidar(tenantId)]);
   const porDuenio = new Map<string, { propietario: string; telefono: string; cobros: CobroPendiente[] }>();
@@ -1045,7 +1045,7 @@ function aLiquidacion(l: FilaLiquidacion): LiquidacionVista {
 }
 
 export async function listaLiquidaciones(): Promise<LiquidacionVista[]> {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const filas = await prisma.inmoLiquidacion.findMany({ where: { tenantId }, orderBy: { numero: "desc" }, take: 200, include: { propietario: { select: { name: true, phone: true } } } });
   return filas.map(aLiquidacion);
@@ -1186,7 +1186,7 @@ async function armarRecibo(tenantId: string, p: FilaRecibo, origen: string): Pro
 
 /** El recibo de un cobro, para el panel. */
 export async function reciboAdmin(pagoId: string, origen: string): Promise<ReciboDatos | null> {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   if (!/^[a-z0-9]{10,40}$/.test(pagoId)) return null;
   const p = await prisma.inmoPago.findFirst({ where: { id: pagoId, tenantId }, include: INCLUDE_RECIBO });

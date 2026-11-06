@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireApp } from "@/lib/require-app";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { getTenantIdentity } from "@/lib/identidad-rubro";
 import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
@@ -91,7 +91,7 @@ export default async function ArmarRepartoPage({ searchParams }: { searchParams:
               franja={franja.texto}
               dia={fmtCalendarDateLabel(datos.hoy)}
               negocio={datos.negocio}
-              puedeOperar={roleHasCapability(user.role, "orders:manage")}
+              puedeOperar={permisoEfectivo(user, "orders:manage")}
             />
           )}
         </>

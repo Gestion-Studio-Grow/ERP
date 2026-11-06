@@ -15,7 +15,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { requireCapability } from "@/lib/authz";
+import { requireCapability, requireCapabilityFueraDeLaAgenda } from "@/lib/authz";
 import { auditAdmin, auditPublic } from "@/lib/audit-core";
 import type { SessionUser } from "@/lib/session";
 import { createRateLimiter } from "@/lib/rate-limit";
@@ -469,7 +469,7 @@ async function personaOAlta(tx: Parameters<Parameters<typeof tenantTransaction>[
 }
 
 export async function crearContrato(formData: FormData): Promise<Resultado<{ id: string }>> {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const inicio = diaCampo(formData.get("inicio"));
   const fin = diaCampo(formData.get("fin"));
@@ -568,7 +568,7 @@ export async function crearContrato(formData: FormData): Promise<Resultado<{ id:
  * manda); si no, se calcula con el índice cargado. Queda el rastro en InmoAjuste.
  */
 export async function aplicarAjuste(formData: FormData): Promise<Resultado<{ nuevo: number }>> {
-  const user = await requireCapability("agenda:manage");
+  const user = await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const contratoId = txt(formData.get("contratoId"));
   const aMano = importe(formData.get("monto"));
@@ -637,7 +637,7 @@ export async function aplicarAjuste(formData: FormData): Promise<Resultado<{ nue
 
 /** Cierra el contrato: las cuotas futuras sin cobrar se anulan y la ficha vuelve a "pausada". */
 export async function cerrarContrato(formData: FormData): Promise<Resultado> {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const id = txt(formData.get("id"));
   const estado = txt(formData.get("estado")) === "RESCINDIDO" ? "RESCINDIDO" : "FINALIZADO";
@@ -657,7 +657,7 @@ export async function cerrarContrato(formData: FormData): Promise<Resultado> {
 // ── Cuotas y cobros ─────────────────────────────────────────────────────────
 
 export async function registrarCobro(formData: FormData): Promise<Resultado<{ saldo: number }>> {
-  const user = await requireCapability("agenda:manage");
+  const user = await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const cuotaId = txt(formData.get("cuotaId"));
   const monto = importe(formData.get("monto"));
@@ -699,7 +699,7 @@ export async function registrarCobro(formData: FormData): Promise<Resultado<{ sa
 }
 
 export async function anularCobro(formData: FormData): Promise<Resultado> {
-  const user = await requireCapability("agenda:manage");
+  const user = await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const id = txt(formData.get("id"));
   try {
@@ -727,7 +727,7 @@ export async function anularCobro(formData: FormData): Promise<Resultado> {
 
 /** Suma un concepto a la cuota (expensas, luz, ABL a cargo del inquilino). */
 export async function agregarExtra(formData: FormData): Promise<Resultado> {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const cuotaId = txt(formData.get("cuotaId"));
   const concepto = txt(formData.get("concepto")).slice(0, 60);
@@ -757,7 +757,7 @@ export async function agregarExtra(formData: FormData): Promise<Resultado> {
  * pidió o no sale ninguno. El `indice` solo se acepta por compatibilidad con pantallas viejas.
  */
 export async function quitarExtra(formData: FormData): Promise<Resultado> {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const cuotaId = txt(formData.get("cuotaId"));
   const concepto = txt(formData.get("concepto")).slice(0, 60);
@@ -791,7 +791,7 @@ export async function quitarExtra(formData: FormData): Promise<Resultado> {
  * lo mismo que "nunca se cargó" y el panel no la vuelve a sugerir. Cargar un monto la saca.
  */
 export async function cargarMora(formData: FormData): Promise<Resultado> {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const cuotaId = txt(formData.get("cuotaId"));
   const monto = importe(formData.get("monto"));
@@ -822,7 +822,7 @@ export async function cargarMora(formData: FormData): Promise<Resultado> {
  * Los gastos a su cargo llegan como pares gastoConcepto / gastoMonto.
  */
 export async function emitirLiquidacion(formData: FormData): Promise<Resultado<{ id: string }>> {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const propietarioId = txt(formData.get("propietarioId"));
   if (!(await personaDelNegocio(tenantId, propietarioId))) return { ok: false, error: "Ese propietario no existe." };
@@ -888,7 +888,7 @@ export async function emitirLiquidacion(formData: FormData): Promise<Resultado<{
 }
 
 export async function pagarLiquidacion(formData: FormData): Promise<Resultado> {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const id = txt(formData.get("id"));
   const medio = txt(formData.get("medio"));
@@ -902,7 +902,7 @@ export async function pagarLiquidacion(formData: FormData): Promise<Resultado> {
 
 /** Anula una liquidación que todavía no se pagó: sus cobros vuelven a quedar "sin liquidar". */
 export async function anularLiquidacion(formData: FormData): Promise<Resultado> {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const id = txt(formData.get("id"));
   const l = await prisma.inmoLiquidacion.findFirst({ where: { id, tenantId, estado: "EMITIDA" }, select: { id: true, detalle: true } });
@@ -952,7 +952,7 @@ async function guardarPuntos(tenantId: string, indice: string, puntos: readonly 
 
 /** Carga a mano un valor publicado. Para el IPC, la fecha es el mes (se guarda con día 1). */
 export async function cargarIndice(formData: FormData): Promise<Resultado> {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const indice = txt(formData.get("indice"));
   if (!esIndice(indice) || !usaSerie(indice)) return { ok: false, error: "Elegí el índice." };
@@ -978,7 +978,7 @@ async function pedir(url: string): Promise<unknown> {
  * carga igual y se avisa cuál falló.
  */
 export async function traerIndicesOficiales(): Promise<Resultado<{ icl: number; ipc: number; aviso: string }>> {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const hoy = hoyDia();
   const fallas: string[] = [];

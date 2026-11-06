@@ -23,6 +23,7 @@ import {
   markInvoiceRejected,
   numeroUsadoPorOtraFactura,
   ultimoNumeroAutorizado,
+  contarAutorizadosSimulados,
   registerFiscalDocument,
   type InvoiceCreatedPayload,
 } from "@/lib/invoice-core";
@@ -46,6 +47,13 @@ import {
 import { credencialParaTenant, CredencialFiscalAusenteError } from "@/lib/fiscal/tenant-cert";
 import { elegirFirmante, type DelegacionLeida } from "@/lib/fiscal/firmante";
 import {
+  habilitadosRealDesdeEnv,
+  modoDelNegocio,
+  type EntornoDeCertificado,
+  type ResultadoDelModo,
+} from "@/lib/fiscal/modo-del-negocio";
+import { entornoDeCertPem } from "@/lib/fiscal/entorno-del-certificado";
+import {
   ConfiguracionFiscalError,
   clasificarFalla,
   despuesDeLaFalla,
@@ -54,7 +62,9 @@ import {
 } from "@/lib/arca-reintentos";
 import { leerTicketAcceso, guardarTicketAcceso, huellaDeCertificado } from "@/lib/fiscal/arca-ta-store";
 import { logger } from "@/lib/logger";
+import { LIMPIAR_DATOS_DE_PRUEBA } from "@/lib/operador/datos-de-prueba";
 import { fechaFiscalDelDia } from "@/lib/libros/fecha-fiscal";
+import { umbralDelMotor } from "@/lib/fiscal/parametros-del-motor";
 import {
   anotarFallaYSoltar,
   anotarIntentoConReserva,
@@ -75,6 +85,10 @@ import {
 export interface ConfigFiscalTenant {
   cuit: number;
   homologacion: boolean;
+  /** Nombre corto del negocio: la segunda llave de real (`ARCA_REAL_TENANTS`). Sin dato: no habilitado. */
+  slug?: string | null;
+  /** `Tenant.arcaPuntoVenta`. Sin dato: el chequeo de comprobantes simulados mira todos los puntos de venta. */
+  puntoVenta?: number | null;
 }
 
 /** Lee la config fiscal de un tenant. Seam inyectable (default: Prisma). */
@@ -95,7 +109,7 @@ const leerConfigFiscalPrisma: LeerConfigFiscal = async (tenantId) => {
     (tx) =>
       tx.tenant.findUnique({
         where: { id: tenantId },
-        select: { arcaCuit: true, arcaHomologacion: true },
+        select: { slug: true, arcaCuit: true, arcaHomologacion: true, arcaPuntoVenta: true },
       }),
     { tenantId },
   );
@@ -105,8 +119,22 @@ const leerConfigFiscalPrisma: LeerConfigFiscal = async (tenantId) => {
   return {
     cuit: t.arcaCuit ? Number(normalizarCuit(t.arcaCuit)) : 0,
     homologacion: t.arcaHomologacion,
+    slug: t.slug,
+    puntoVenta: t.arcaPuntoVenta,
   };
 };
+
+/**
+ * El negocio no tiene certificado propio NI delegación cargada: no hay con qué firmar. Es un error de
+ * configuración (el envío se detiene) salvo para un negocio en pruebas, que sigue simulado
+ * (`modoDelNegocio`). Una delegación cargada pero rota NO es esto: ahí se falla cerrado.
+ */
+export class SinCertificadoError extends ConfiguracionFiscalError {
+  constructor(message: string) {
+    super(message);
+    this.name = "ConfiguracionFiscalError";
+  }
+}
 
 /**
  * Lo que firma el pedido de un negocio: la credencial y, si es una DELEGACIÓN (ADR-077 §6), el CUIT
@@ -189,12 +217,13 @@ export async function resolverFirmaParaTenant(tenantId: string, deps: DepsFirma 
   } catch (e) {
     if (!(e instanceof CredencialFiscalAusenteError)) throw e;
   }
+  const delegacion = await deps.leerDelegacion(tenantId);
   const decision = elegirFirmante({
     tieneCredencialPropia: false,
     cuitEmisor: await deps.leerCuit(tenantId),
-    delegacion: await deps.leerDelegacion(tenantId),
+    delegacion,
   });
-  if (!decision.ok) throw new ConfiguracionFiscalError(decision.motivo);
+  if (!decision.ok) throw delegacion ? new ConfiguracionFiscalError(decision.motivo) : new SinCertificadoError(decision.motivo);
   if (decision.firmante.tipo === "propio") throw new ConfiguracionFiscalError("Sin certificado propio cargado.");
   const { estudioTenantId, cuitRepresentante } = decision.firmante;
   // Un cliente dado de BAJA en la cartera del estudio ya no es suyo: no se firma con su
@@ -229,10 +258,64 @@ export async function resolverFirmaParaTenant(tenantId: string, deps: DepsFirma 
  * y el negocio decide por debajo: en `real`, un negocio marcado en homologación (`arcaHomologacion`,
  * default true) sigue en el ambiente de prueba de ARCA; `homologacion` pisa a todos (nadie emite
  * real); `stub` no habla con ARCA.
+ *
+ * OBSOLETO para el despacho: la regla vigente, con la segunda llave (`ARCA_REAL_TENANTS`), el
+ * certificado y la falla cerrada, es `modoDelNegocio` (src/lib/fiscal/modo-del-negocio.ts). Queda
+ * sólo como referencia del techo; no decide nada en producción.
  */
 export function modoEfectivoDelTenant(modoEntorno: ModoArca, homologacionDelTenant: boolean): ModoArca {
   if (modoEntorno === "real") return homologacionDelTenant ? "homologacion" : "real";
   return modoEntorno;
+}
+
+type ResolverCredencial = (tenantId: string) => Promise<CredencialEmisor | FirmaResuelta>;
+
+/** La firma del negocio, o null si no tiene NADA cargado (ni certificado ni delegación). */
+async function firmaOSinCertificado(resolver: ResolverCredencial, tenantId: string): Promise<FirmaResuelta | null> {
+  try {
+    const r = await resolver(tenantId);
+    return "certPem" in r ? { credencial: r } : r;
+  } catch (e) {
+    if (e instanceof SinCertificadoError || e instanceof CredencialFiscalAusenteError) return null;
+    throw e;
+  }
+}
+
+/** El entorno del certificado que firma. Un PEM que no se lee cuenta como «desconocido» (falla cerrada). */
+function entornoDeFirma(firma: FirmaResuelta): EntornoDeCertificado {
+  try {
+    return entornoDeCertPem(firma.credencial.certPem).entorno;
+  } catch {
+    return "desconocido";
+  }
+}
+
+/**
+ * El modo en que corre HOY un negocio (o por qué no puede facturar), con la misma regla que el
+ * despacho. Para las pantallas (banco de pruebas, facturación): no firma ni toca el TA.
+ */
+export async function resolverModoDelNegocio(
+  tenantId: string,
+  env: Record<string, string | undefined> = process.env,
+  leer: LeerConfigFiscal = leerConfigFiscalPrisma,
+  resolverCredencial: ResolverCredencial = (id) => resolverFirmaParaTenant(id),
+): Promise<ResultadoDelModo> {
+  const techo = modoDesdeEnv(env);
+  if (techo === "stub") return { modo: "stub" };
+  const cfg = await leer(tenantId);
+  let firma: FirmaResuelta | null;
+  try {
+    firma = await firmaOSinCertificado(resolverCredencial, tenantId);
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "No se pudo leer el certificado del negocio." };
+  }
+  return modoDelNegocio({
+    techo,
+    arcaHomologacion: cfg?.homologacion ?? true,
+    slug: cfg?.slug,
+    habilitadosReal: habilitadosRealDesdeEnv(env),
+    credencial: firma ? { entorno: entornoDeFirma(firma) } : null,
+  });
 }
 
 /**
@@ -256,43 +339,71 @@ export function modoEfectivoDelTenant(modoEntorno: ModoArca, homologacionDelTena
 export function crearClientePara(
   leer: LeerConfigFiscal = leerConfigFiscalPrisma,
   env: Record<string, string | undefined> = process.env,
-  resolverCredencial: (tenantId: string) => Promise<CredencialEmisor | FirmaResuelta> = (id) => resolverFirmaParaTenant(id),
+  resolverCredencial: ResolverCredencial = (id) => resolverFirmaParaTenant(id),
   leerTicket: (titularTenantId: string, huella?: string) => Promise<TicketAcceso | undefined> = (t, h) =>
     leerTicketAcceso(t, undefined, h),
   guardarTicket: (titularTenantId: string, ta: TicketAcceso, huella?: string) => Promise<void> = (t, ta, h) =>
     guardarTicketAcceso(t, ta, undefined, h),
   leerUltimoEmitido: (tenantId: string, puntoVenta: number, tipo: number) => Promise<number> = ultimoNumeroAutorizado,
+  contarSimulados: (tenantId: string, puntoVenta: number | null) => Promise<number> = contarAutorizadosSimulados,
 ): (tenantId: string) => Promise<AfipClient> {
   return async (tenantId) => {
     const cfg = await leer(tenantId);
-    if (modoDesdeEnv(env) !== "stub" && !cuitValido(cfg?.cuit ?? 0)) {
-      throw new ConfiguracionFiscalError(
-        `El tenant ${tenantId} no tiene un CUIT válido cargado (arcaCuit) y ARCA está en modo ` +
-          `${modoDesdeEnv(env)}. No se despacha: un comprobante emitido con un CUIT inventado no se ` +
-          `borra, se anula con nota de crédito. Cargá el CUIT del emisor — acción humana.`,
-      );
-    }
+    const techo = modoDesdeEnv(env);
+    const exigirCuit = () => {
+      if (!cuitValido(cfg?.cuit ?? 0)) {
+        throw new ConfiguracionFiscalError(
+          `El tenant ${tenantId} no tiene un CUIT válido cargado (arcaCuit) y ARCA está en modo ` +
+            `${techo}. No se despacha: un comprobante emitido con un CUIT inventado no se ` +
+            `borra, se anula con nota de crédito. Cargá el CUIT del emisor — acción humana.`,
+        );
+      }
+    };
     const config: EmisorConfig = cfg ?? { cuit: 0, homologacion: true };
-    // ADR-066 · el entorno es el TECHO y el negocio decide por debajo: con ARCA_MODO=real, un
-    // negocio todavía en homologación (`arcaHomologacion`, default true) corre exactamente como el
-    // modo homologación (endpoint de prueba forzado, sin el guard estricto de cert↔CUIT).
-    const modo = modoEfectivoDelTenant(modoDesdeEnv(env), config.homologacion);
-    const envDelNegocio = modo === modoDesdeEnv(env) ? env : { ...env, ARCA_MODO: modo };
-
     // En stub NO se firma ni se autentica → no se toca la credencial ni el TA. Sí sigue la
     // numeración guardada del negocio, como ARCA: sin eso cada factura de prueba pedía el 1.
-    if (modo !== "real" && modo !== "homologacion") {
-      return crearAfipClient(config, {
-        env,
+    const clienteSimulado = () =>
+      crearAfipClient(config, {
+        env: techo === "stub" ? env : { ...env, ARCA_MODO: "stub" },
         ultimoEmitido: (puntoVenta, tipo) => leerUltimoEmitido(tenantId, puntoVenta, tipo),
       });
-    }
+    if (techo === "stub") return clienteSimulado();
+    // Un negocio que no existe o que está marcado real necesita su CUIT antes de buscar con qué firmar.
+    if (!cfg || !cfg.homologacion) exigirCuit();
 
     // 🔒 ADR-066: la credencial se resuelve POR TENANT (cifrada en la DB), NUNCA de un env
-    // compartido. Sin credencial propia ni delegación verificada (ADR-077 §6) → lanza:
-    // fail-closed (el envío se detiene como error de configuración).
-    const resuelta = await resolverCredencial(tenantId);
-    const firma: FirmaResuelta = "certPem" in resuelta ? { credencial: resuelta } : resuelta;
+    // compartido. Sin credencial propia ni delegación verificada (ADR-077 §6) → `null` sólo si no
+    // hay NADA cargado (SinCertificadoError); cualquier otro problema se propaga (fail-closed).
+    const firma = await firmaOSinCertificado(resolverCredencial, tenantId);
+    // El modo es DE ESTE NEGOCIO (src/lib/fiscal/modo-del-negocio.ts): techo + su marca + la
+    // segunda llave + su certificado. No hay estado compartido: un negocio no le cambia el modo a otro.
+    const decision = modoDelNegocio({
+      techo,
+      arcaHomologacion: config.homologacion,
+      slug: cfg?.slug,
+      habilitadosReal: habilitadosRealDesdeEnv(env),
+      credencial: firma ? { entorno: entornoDeFirma(firma) } : null,
+    });
+    if ("error" in decision) throw new ConfiguracionFiscalError(decision.error);
+    const modo = decision.modo;
+    if (modo === "stub" || !firma) return clienteSimulado();
+    exigirCuit();
+    // Falla cerrada: un negocio que en pruebas sin certificado sacó CAE simulado («STUB…») tiene
+    // numeración propia; ARCA numera desde 1 y el primer envío firmado chocaría con
+    // @@unique([tenantId, puntoVenta, tipoComprobante, numero]). No se firma nada hasta limpiarlos.
+    const puntoVenta = cfg?.puntoVenta ?? null;
+    const simulados = await contarSimulados(tenantId, puntoVenta);
+    if (simulados > 0) {
+      const donde = puntoVenta != null ? `en el punto de venta ${puntoVenta}` : "(en algún punto de venta)";
+      throw new ConfiguracionFiscalError(
+        `Este negocio tiene ${simulados === 1 ? "1 comprobante autorizado" : `${simulados} comprobantes autorizados`} ` +
+          `con CAE simulado ${donde}, de cuando probaba sin certificado. ARCA numera desde 1, así que el primer ` +
+          `envío firmado (${modo === "real" ? "en real" : "en homologación"}) chocaría con esa numeración. ` +
+          `No se manda nada: antes hay que ${LIMPIAR_DATOS_DE_PRUEBA}.`,
+      );
+    }
+    const envDelNegocio = modo === techo ? env : { ...env, ARCA_MODO: modo };
+
     // El TA es del CERTIFICADO que firma (WSAA bloquea el 2.º login por certificado): se lee y se
     // guarda parado en quien lo tiene cargado (el estudio, si es una delegación) y por su huella.
     const titular = firma.titularTenantId ?? tenantId;
@@ -351,10 +462,15 @@ function aEventoPluginBase(p: InvoiceCreatedPayload): InvoiceCreatedEvent {
     iva: p.iva,
     total: p.total,
     ivaPorProducto: p.ivaPorProducto === true,
+    // PR5 · C4: sólo un valor conocido; un payload viejo o raro va sin dato (el umbral más exigente).
+    ...(p.medioDePago === "efectivo" || p.medioDePago === "otro" ? { medioDePago: p.medioDePago } : {}),
     servicioDesde: p.servicioDesde,
     servicioHasta: p.servicioHasta,
     vencimientoPago: p.vencimientoPago,
     intentoArca: p.intentoArca,
+    // PR3 · El umbral del motor lo resuelve el Core (el plugin no lee los parámetros fiscales). El
+    // payload todavía no guarda el medio de pago: sin dato, el más exigente (umbralDelMotor).
+    umbralIdentificacionDelMotor: umbralDelMotor(null),
     // Motor de facturación · nota de crédito: la clase y la factura que corrige (CbtesAsoc).
     ...(p.clase === "nota_credito" && p.asociado ? { clase: "nota_credito" as const, asociado: p.asociado } : {}),
   };
@@ -613,7 +729,12 @@ async function despacharUno(
           envio,
           token,
           motivoDelError(errAlRechazar),
-          despuesDeLaFalla("sistema", envio.attempts, opciones.politica ?? POLITICA_DE_REINTENTOS),
+          despuesDeLaFalla(
+            "sistema",
+            envio.attempts,
+            { creadoEn: envio.createdAt, ahora: new Date() },
+            opciones.politica ?? POLITICA_DE_REINTENTOS,
+          ),
         );
         logger.error("arca", "no se pudo guardar el rechazo de ARCA de un envío", errAlRechazar, { tenantId: envio.tenantId });
         resumen.fallidos++;
@@ -625,7 +746,7 @@ async function despacharUno(
       // el evento se reintenta. El reintento consulta antes de pedir otro CAE (ENG-020).
       // Si la falla es nuestra (`esErrorDelSistema`), además queda en el log y se avisa: la
       // pantalla no se la achaca a ARCA ni la vuelve a mandar en el mismo toque.
-      // Motor de facturación: con espera creciente; detenido al tope o si falta un dato fiscal;
+      // Motor de facturación: escalera 1/5/15/60 min; detenido al tope (4 intentos y 24 h) o si falta un dato fiscal;
       // con ARCA no disponible (interruptor abierto), se pospone sin contar y se corta la corrida.
       const clase = clasificarFalla(err);
       if (clase === "arca_no_disponible") {
@@ -638,6 +759,7 @@ async function despacharUno(
       const despues = despuesDeLaFalla(
         clase === "rechazo" ? "sistema" : clase,
         envio.attempts,
+        { creadoEn: envio.createdAt, ahora: new Date() },
         opciones.politica ?? POLITICA_DE_REINTENTOS,
       );
       await anotarFallaYSoltar(enSuNegocio, envio, token, motivoDelError(err), despues);

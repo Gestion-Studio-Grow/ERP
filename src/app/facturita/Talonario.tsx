@@ -32,12 +32,9 @@ export function limpiarTotal(v: string): string {
 }
 
 function Icono() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
-      <rect width="32" height="32" rx="8" fill="#9a6a1f" />
-      <path d="M11 9h11v3h-7.5v3.5H21v3h-6.5V23H11z" fill="#fff" />
-    </svg>
-  );
+  // El ícono de Factoque (el mismo SVG del favicon): un solo dibujo de marca en todo el producto.
+  // eslint-disable-next-line @next/next/no-img-element -- SVG chico y decorativo, sin optimizar
+  return <img src="/facturita/icon.svg" width={20} height={20} alt="" className="rounded-md" />;
 }
 
 export default function Talonario() {
@@ -133,7 +130,7 @@ export default function Talonario() {
           <div className="fx-app-cabecera">
             <span className="fx-app-nombre">
               <Icono />
-              Facturita
+              Factoque
             </span>
             <span className="fx-rotulo">Ejemplo · sin validez fiscal</span>
           </div>

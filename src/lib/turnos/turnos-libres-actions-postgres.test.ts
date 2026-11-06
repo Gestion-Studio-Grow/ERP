@@ -1,7 +1,7 @@
 /**
  * Vender · «Turnos libres» (`turnosLibresDelServicio`), EJECUTADO contra Postgres con RLS, con la
  * acción real y la sesión de cada negocio:
- *   · con el interruptor `agenda-interaccion` apagado contesta que no está prendido (no lee huecos);
+ *   · `agenda-interaccion` es una mejora incorporada (05/11/2026): contesta sin tocar la consola;
  *   · prendido, A ve los huecos de SUS dos profesionales que hacen el servicio (y no la que no lo hace);
  *   · los huecos de A no aparecen en B: B con el servicio de A contesta «ya no está», y con el suyo
  *     ve sólo a su profesional;
@@ -19,7 +19,7 @@ import { ENTIDAD_INTERRUPTOR, ACCION_ENCENDER, CANAL_INTERRUPTOR, PREFIJO_ACTOR_
 const laBase = baseEfimeraDelArchivo();
 const DIA = 86_400_000;
 
-test("Turnos libres: apagado no responde; prendido, A ve sus huecos y B no ve los de A", async (t) => {
+test("Turnos libres: incorporado responde sin consola; A ve sus huecos y B no ve los de A", async (t) => {
   const base = await laBase(t);
   if (!base) return;
   apuntarLaAppA(base);
@@ -55,10 +55,10 @@ test("Turnos libres: apagado no responde; prendido, A ve sus huecos y B no ve lo
   const comoA = (id: string) => ejecutarAccion({ negocio: base.a, usuario: base.a.recepcion }, () => turnosLibresDelServicio(id));
   const comoB = (id: string) => ejecutarAccion({ negocio: base.b, usuario: base.b.recepcion }, () => turnosLibresDelServicio(id));
 
-  // Apagado: no se lee nada.
-  const apagado = await comoA(a.peeling);
-  assert.equal(apagado.tipo, "respuesta");
-  assert.equal(apagado.tipo === "respuesta" && apagado.valor.ok, false);
+  // Incorporado: sin ninguna fila de la consola ya responde.
+  const sinConsola = await comoA(a.peeling);
+  assert.equal(sinConsola.tipo, "respuesta");
+  assert.equal(sinConsola.tipo === "respuesta" && sinConsola.valor.ok, true, JSON.stringify(sinConsola));
 
   await prender(base.a.id);
   await prender(base.b.id);

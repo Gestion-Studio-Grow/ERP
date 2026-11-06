@@ -101,13 +101,13 @@ const IDENTIDADES: Record<ProductoConMarca, ProductoIdentidad> = {
   },
   facturita: {
     producto: "facturita",
-    nombre: "Facturita",
+    nombre: "Factoque",
     monograma: "F",
-    acento: "ambar",
+    acento: "monte",
     tagline: "Emití tu factura en tres clics, con validez de ARCA.",
     home: "/facturita/app",
     login: {
-      eyebrow: "Facturita",
+      eyebrow: "Factoque",
       titulo: "Ingresá a facturar",
       subtitulo: "Tu emisor de facturas, simple y al día.",
     },
