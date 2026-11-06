@@ -161,7 +161,8 @@ function MenuDePersona({
       {/* Modo simple (src/lib/modo-simple.ts): lo cambia la propia persona y queda guardado. */}
       <form action={cambiarMiModoSimple}>
         <input type="hidden" name="allowed" value={modoSimple ? "false" : "true"} />
-        <button type="submit" data-parte="opcion" data-modo-simple={modoSimple ? "dejar" : "ver-menos"}>
+        {/* Se cierra al tocar: la pantalla se redibuja sin navegar y el menú tapaba la franja «Ver todo». */}
+        <button type="submit" data-parte="opcion" data-modo-simple={modoSimple ? "dejar" : "ver-menos"} onClick={cerrarDesplegable}>
           {modoSimple ? "Dejar el modo simple" : "Ver menos (modo simple)"}
         </button>
       </form>

@@ -9,7 +9,9 @@ export const dynamic = "force-dynamic";
 
 export function GET(request: NextRequest) {
   const destino = destinoSeguro(request.nextUrl.searchParams.get("volver"));
-  const res = NextResponse.redirect(new URL(destino, request.nextUrl.origin), 303);
+  // Location RELATIVA: el navegador la resuelve contra el host del pedido (el subdominio del negocio).
+  // Con `request.nextUrl.origin`, `next start` devolvía `localhost` y se perdía la sesión (QA 06/11).
+  const res = new NextResponse(null, { status: 303, headers: { Location: destino } });
   if (request.nextUrl.searchParams.get("simple") === "1") {
     res.cookies.delete(COOKIE_VER_TODO);
   } else {
