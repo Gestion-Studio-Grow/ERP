@@ -82,7 +82,9 @@ test("perfil fiscal incompleto: el silencio es sólo para quien nunca configuró
     const libro = await duenio.cashMovement.findMany({ where: { tenantId, collectionId: { in: ids } }, select: { type: true, method: true, amount: true } });
     return JSON.parse(JSON.stringify({ status: a.status, pago, cobros, libro }));
   };
-  const facturas = (id: string) => duenio.invoice.count({ where: { tenantId, appointmentId: id } });
+  // Opción B (CH, 06/11/2026): cada cobro del turno, su factura, atada por el libro de cobros facturados.
+  const facturas = (id: string) =>
+    duenio.invoice.count({ where: { tenantId, OR: [{ appointmentId: id }, { cobrosFacturados: { some: { appointmentId: id } } }] } });
   // El estado de CH: CUIT cargado, sin punto de venta, sin condición de IVA y sin credencial.
   const perfilIncompleto = { arcaCuit: "20111111112", arcaPuntoVenta: null, arcaCondicionIva: null, arcaHomologacion: true };
   const perfilCompleto = { arcaCuit: "20111111112", arcaPuntoVenta: 1, arcaCondicionIva: "MONOTRIBUTO", arcaHomologacion: true };
@@ -113,7 +115,8 @@ test("perfil fiscal incompleto: el silencio es sólo para quien nunca configuró
       await duenio.tenant.update({ where: { id: tenantId }, data: perfilCompleto });
       const bien = await turno();
       assert.deepEqual(await terminar(camino, bien), { ok: true });
-      assert.equal(await facturas(bien), 1, `${camino}: con el perfil completo, factura`);
+      // Opción B: un cobro → una factura (el cobro dividido son dos cobros, dos facturas).
+      assert.equal(await facturas(bien), camino === "terminarYCobrarDividido" ? 2 : 1, `${camino}: con el perfil completo, factura`);
 
       // 3 · PERFIL COMPLETO y OTRO error (la base corta el alta de la factura): sigue el aviso.
       await duenio.$executeRawUnsafe(`

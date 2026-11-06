@@ -119,6 +119,8 @@ function makeTx(
   const orden: string[] = [];
   const tx = {
     $queryRaw: async (_sql: TemplateStringsArray, ...valores: unknown[]) => {
+      // Opción B: la anulación pregunta si existe el libro de cobros facturados; el doble no lo tiene.
+      if (_sql.join("").includes("to_regclass")) return [{ tabla: null }];
       orden.push(`toma el turno ${String(valores[0])}`);
       return [{ id: String(valores[0]) }];
     },
