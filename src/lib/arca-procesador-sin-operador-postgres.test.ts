@@ -134,7 +134,11 @@ test("la ruta del cron sin OPERATOR_DATABASE_URL responde ok y despacha lo de lo
     new NextRequest("http://negocio-a.erp.test/api/cron/arca-outbox", { headers: { authorization: "Bearer secreto-de-prueba" } }),
   );
   assert.equal(rc.status, 200);
-  assert.deepEqual(await rc.json(), { ok: true, procesados: 2, autorizados: 2, rechazados: 0, fallidos: 0, descartados: 0 });
+  // PR5 · después de drenar, el cron reintenta las devoluciones de MP pendientes de cada negocio (sin operador).
+  assert.deepEqual(await rc.json(), {
+    ok: true, procesados: 2, autorizados: 2, rechazados: 0, fallidos: 0, descartados: 0,
+    devoluciones: { negocios: 2, emitidas: 0, siguenPendientes: 0, rechazadas: 0, errores: 0 },
+  });
   assert.equal(await p.estadoDe(deA), "AUTHORIZED");
   assert.equal(await p.estadoDe(deB), "AUTHORIZED");
 

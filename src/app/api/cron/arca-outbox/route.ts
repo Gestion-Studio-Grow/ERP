@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { authorizeCron } from "@/lib/cron-auth";
 import { isInvoicingEnabled } from "@/lib/fiscal";
 import { processArcaOutbox } from "@/lib/arca-dispatch";
+import { reintentarDevolucionesDeLosNegocios } from "@/lib/facturacion/devoluciones-mp";
 
 // Worker del outbox de ARCA (ADR-002 / ADR-022): drena los eventos `InvoiceCreated`
 // pendientes y los despacha al plugin (emisión del comprobante + registro del CAE, o
@@ -39,7 +40,15 @@ async function drenarOutbox(request: NextRequest) {
   }
 
   const resumen = await processArcaOutbox();
-  return NextResponse.json({ ok: true, ...resumen });
+  // PR5 · C2/esperar_cae: después de drenar (cuando aparecen los CAE), las devoluciones de MP que
+  // esperaban su factura o su CAE se vuelven a probar. Una falla no tapa el resumen de ARCA.
+  let devoluciones: Awaited<ReturnType<typeof reintentarDevolucionesDeLosNegocios>> | { error: string };
+  try {
+    devoluciones = await reintentarDevolucionesDeLosNegocios();
+  } catch (e) {
+    devoluciones = { error: e instanceof Error ? e.message : "falló" };
+  }
+  return NextResponse.json({ ok: true, ...resumen, devoluciones });
 }
 
 export async function GET(request: NextRequest) {
