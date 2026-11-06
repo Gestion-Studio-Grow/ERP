@@ -49,6 +49,9 @@ import { getCurrentTenantSlug } from "@/lib/tenant-site";
 import LibroDelDia from "./_agenda/LibroDelDia";
 import { RenglonDeManana } from "./_agenda/ParaManana";
 import OtroDia from "./_agenda/OtroDia";
+import ElDiaCorto from "./_agenda/ElDiaCorto";
+import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
+import { agendaInteraccionPrendida } from "@/cambios/interruptores";
 
 type Quien = { role: Role; professionalId?: string | null };
 
@@ -109,19 +112,27 @@ async function FranjaDeHuecos() {
 export default async function AgendaRenglon({
   quien,
   fecha,
-  vista,
+  vista: vistaPedida,
   alta,
 }: {
   quien: Quien;
   fecha: string | undefined;
-  vista: "lista" | "profesionales";
+  /** Sin vista pedida: con la agenda como objeto, la grilla; sin el interruptor, la lista. */
+  vista: "lista" | "profesionales" | undefined;
   /** «Dar un turno» abierto encima del libro (lista/page.tsx con ?nuevo=1): el cajón ya armado. */
   alta?: React.ReactNode;
 }) {
   const hoy = todayInBusinessTz();
   const dia = fecha && esFechaDeCalendario(fecha) ? fecha : hoy;
   const cobrarVenta = enlaceCobrarUnaVenta(await getCurrentTenantSlug(), quien.role);
+  // LA AGENDA COMO OBJETO (interruptor «Agenda interactiva», el mismo de la agenda de siempre): la
+  // grilla es la pantalla y se acciona tocándola. Fuera de la cabecera queda lo que ya está a mano en
+  // el armazón: «Dar un turno» (barra de abajo / F1), el buscador (lupa / Ctrl K) y «Cobrar una
+  // venta» (Caja). Apagado, todo como estaba. Si la lectura falla, apagado.
+  const objeto = agendaInteraccionPrendida(await interruptoresDelNegocio().catch(() => ({})));
+  const vista: "lista" | "profesionales" = vistaPedida ?? (objeto ? "profesionales" : "lista");
   const permisos: Permisos = {
+    interaccion: objeto,
     practica: await agendaPractica(),
     sumarProducto: cobrarVenta !== null,
     gestionar: roleHasCapability(quien.role, "agenda:manage"),
@@ -145,8 +156,8 @@ export default async function AgendaRenglon({
     permisos.terminar ? contarSinCerrarDeQuienMira().catch(() => null) : Promise.resolve(null),
   ]);
   // La marca «seña pedida» y el horario de trabajo: una lectura más por día, con tenantId (Tanda 2).
-  const extras = await extrasDeLaAgenda(cruda, dia);
-  const agenda = proyectarAgenda(cruda, quien, { seniasPedidas: extras.seniasPedidas });
+  const extras = await extrasDeLaAgenda(cruda, dia, { quienCobro: !!permisos.interaccion });
+  const agenda = proyectarAgenda(cruda, quien, { seniasPedidas: extras.seniasPedidas, quienCobro: extras.quienCobro });
   const ahora = new Date();
   const linea = lineaDeLaAgenda(agenda.turnos, ahora);
   // Los de hoy ya están en la agenda del día; el conteo suma los de los otros días. Si el conteo no
@@ -175,20 +186,26 @@ export default async function AgendaRenglon({
     />
   );
 
-  const pestanas = [
+  const pestanas = objeto
+    ? [
+        { href: hrefDia(dia, hoy, "profesionales"), etiqueta: "Agenda", actual: vista === "profesionales" },
+        { href: hrefDia(dia, hoy, "lista"), etiqueta: "Lista", actual: vista === "lista" },
+      ]
+    : [
     { href: hrefDia(dia, hoy, "lista"), etiqueta: "Día", actual: vista === "lista" },
     ...(agenda.profesionales.length > 1 || quien.role !== "PROFESSIONAL"
       ? [{ href: hrefDia(dia, hoy, "profesionales"), etiqueta: "Por profesional", actual: vista === "profesionales" }]
       : []),
     ...(permisos.gestionar ? [{ href: "/admin/turnos/lista", etiqueta: "Todos los turnos" }] : []),
-  ];
+      ];
 
   return (
     <PageContainer>
       <PageHeader
         title="Agenda"
         estado={[
-          <strong key="t">{linea.turnos === 1 ? "1 turno" : `${linea.turnos} turnos`}</strong>,
+          // Como objeto, el día vacío lo dice la grilla libre: «0 turnos» sobra.
+          objeto && linea.turnos === 0 ? null : <strong key="t">{linea.turnos === 1 ? "1 turno" : `${linea.turnos} turnos`}</strong>,
           linea.sinConfirmar > 0 ? `${linea.sinConfirmar} sin confirmar` : null,
           linea.porCobrar > 0 ? `${linea.porCobrar} por cobrar` : null,
           sinCerrar > 0 ? (
@@ -199,6 +216,9 @@ export default async function AgendaRenglon({
           linea.masCargada ? `${linea.masCargada.nombre.split(" ")[0]} con ${linea.masCargada.turnos}` : null,
         ]}
         actions={
+          objeto ? (
+            <ElDiaCorto dia={dia} hoy={hoy} vista={vista} />
+          ) : (
           <>
             {/* Las entradas fijas al alta nueva (cert CH T2, F-2/F-4). Con el alta ya abierta, no. */}
             {permisos.gestionar && !alta && <AtajosDelAlta fecha={dia} hoy={hoy} />}
@@ -211,6 +231,7 @@ export default async function AgendaRenglon({
             <BotonBuscar />
             <ElDia dia={dia} hoy={hoy} vista={vista} />
           </>
+          )
         }
       />
 
@@ -237,11 +258,19 @@ export default async function AgendaRenglon({
         vista={vista}
         profesionales={agenda.profesionales}
         bloqueos={extras.bloqueos}
+        miProfesional={quien.role === "PROFESSIONAL" ? (quien.professionalId ?? null) : null}
       />
 
       {manana && <RenglonDeManana dia={manana.dia} turnos={manana.turnos} />}
 
-      {permisos.gestionar && dia >= hoy && agenda.turnos.length > 0 && (
+      {objeto && vista === "lista" && permisos.gestionar && (
+        <p className="mt-6 text-sm">
+          <Link href="/admin/turnos/lista" className="inline-flex min-h-11 items-center font-medium text-accent-ink underline-offset-2 hover:underline">
+            Ver todos los turnos
+          </Link>
+        </p>
+      )}
+      {!objeto && permisos.gestionar && dia >= hoy && agenda.turnos.length > 0 && (
         <p className="mt-6 text-sm text-muted">
           ¿Llamó alguien para {dia === hoy ? "hoy" : "ese día"}?{" "}
           <Link href={hrefNuevoTurno(dia)} className="inline-flex min-h-11 items-center font-medium text-accent underline-offset-2 hover:underline">

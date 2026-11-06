@@ -1033,6 +1033,10 @@ async function reprogramarTurno(formData: FormData): Promise<void> {
         id: appointmentId,
         tenantId,
         status: { in: ["PENDING", "CONFIRMED"] },
+        // Profesional y servicio, tal como se leyeron: si otra recepcionista le cambió el servicio («Editar») o la
+        // profesional mientras tanto, «¿lo hace?» y los recursos se miraron con datos viejos (certificación del pase 05/11, F1).
+        professionalId: appointment.professionalId,
+        serviceId: appointment.serviceId,
         ...(conservarDuracion ? { startsAt: appointment.startsAt, endsAt: appointment.endsAt } : {}),
       },
     });

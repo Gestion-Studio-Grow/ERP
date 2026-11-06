@@ -1,5 +1,12 @@
 # Migraciones preparadas — Gate 2 (NO aplicadas)
 
+> ⚠️ **Estado real al 04/11/2026: 8 de estos archivos YA ESTÁN APLICADOS en Neon producción** (paquete S2, 01/11, como SQL
+> suelto: el historial de Prisma no lo registra). Aplicados: `CarniceriaRubro`, `N2_hub`, `N2_pagos`, `N2_retail`,
+> `N2_club_indice`, `N2_integraciones_ruteo`, `rls/0001`, `N2_hub_posterior`. **NO aplicados:** `N2_enums` (irreversible) y
+> `N2_modulo_mercadopago` (prende «Link de pago» en 11 negocios). **No corras el paquete entero.** Y como en `schema.prisma`
+> los modelos de S2 están comentados, **no corras `prisma migrate diff` ni `db push` contra producción**: propondría borrar 9
+> tablas (incluidos lotes y despieces de Magra). Detalle: `docs/runbooks/S2-ESTADO-2026-11-04.md`.
+
 Carpeta **fuera** de `prisma/migrations/` a propósito: `prisma migrate deploy` no la mira. Contiene
 cambios de schema **preparados pero no aplicados**, que tocan la DB de producción (Neon) y por tanto son
 **Gate 2** (lo único irreversible — ver `CLAUDE.md` → *Autorización y gates* / ADR-018). Aplicarlos es

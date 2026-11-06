@@ -37,6 +37,8 @@ export interface BuscadorComboProps {
    * cae sobre otra opción.
    */
   abrirAlEnfocar?: boolean;
+  /** Avisa lo que se va tipeando (Vender, campo único: decide si lo buscado es un servicio). */
+  onTexto?: (texto: string) => void;
 }
 
 const control =
@@ -54,6 +56,7 @@ export function BuscadorCombo({
   className,
   max = 8,
   abrirAlEnfocar = true,
+  onTexto,
 }: BuscadorComboProps) {
   const autoId = useId();
   const inputId = id ?? `buscador-${autoId}`;
@@ -105,6 +108,7 @@ export function BuscadorCombo({
         onBlur={() => setTimeout(() => setAbierto(false), 120)}
         onChange={(e) => {
           setTexto(e.target.value);
+          onTexto?.(e.target.value);
           setAbierto(true);
           setActivo(0);
           setRecorrio(false);

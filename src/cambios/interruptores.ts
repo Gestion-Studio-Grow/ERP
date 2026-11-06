@@ -54,6 +54,12 @@ export interface Interruptor {
    * cambia cómo se ve no le quita nada a nadie: no se frena por apps.
    */
   cambiaLasApps: boolean;
+  /**
+   * Una MEJORA que ya es parte del sistema (decisión del dueño, 05/11/2026): prendida siempre en
+   * todos los negocios, se publica con el pase a `main` y la consola no la ofrece. Los
+   * interruptores quedan para lo crítico (plata, accesos, la forma de trabajar de un rubro).
+   */
+  incorporado?: boolean;
 }
 
 /** El catálogo. El primero reemplaza a la variable de deploy APPS_INICIO (retirada). */
@@ -77,6 +83,7 @@ export const INTERRUPTORES = [
     alPrender: "No cambia qué apps ve cada persona ni sus datos: cambia cómo se ven el panel y, en CH, el sitio que ven las clientas.",
     enAuditoria: "el diseño nuevo",
     cambiaLasApps: false,
+    incorporado: true,
   },
   {
     // La practicidad de la agenda (plan de practicidad RAE, ítems T4 · T10 · T12 · E2 · E3 · E5 ·
@@ -90,6 +97,7 @@ export const INTERRUPTORES = [
     alPrender: "No cambia qué apps ve cada persona. Sí cambia cómo se trabaja y una regla: con la anticipación cargada, la clienta ya no cancela online fuera de plazo.",
     enAuditoria: "la agenda práctica",
     cambiaLasApps: false,
+    incorporado: true,
   },
   {
     // El mostrador boutique de Magra (reingeniería, Tanda 1 en adelante): el pie de cobro único con
@@ -144,6 +152,7 @@ export const INTERRUPTORES = [
       "El turno y los productos se cobran juntos desde el cajón del turno, en un solo cobro, y el Inicio muestra el día de hoy: turnos, lo cobrado por medio y las señas que faltan. Apagado, el producto se cobra aparte, como siempre.",
     enAuditoria: "la venta y agenda simples",
     cambiaLasApps: false,
+    incorporado: true,
   },
   {
     // Agenda más práctica e interactiva (docs/producto/venta-agenda/AGENDA-INTERACCION.md, T1–T3):
@@ -157,6 +166,7 @@ export const INTERRUPTORES = [
       "La agenda se maneja con menos toques: en el celular se ve el día de cada profesional y se toca un hueco para dar turno, y sobre cada turno hay teclas de un toque (no vino, cobrar, WhatsApp) con deshacer. Apagado, la agenda de siempre.",
     enAuditoria: "la agenda interactiva",
     cambiaLasApps: false,
+    incorporado: true,
   },
   {
     // Vouchers de La Alameda (CH Estética, docs/tenants/ch/VOUCHERS-OPENKEY.md): el voucher del
@@ -173,6 +183,14 @@ export const INTERRUPTORES = [
 ] as const satisfies readonly Interruptor[];
 
 export type InterruptorId = (typeof INTERRUPTORES)[number]["id"];
+
+/** ¿Es una mejora incorporada (siempre prendida, fuera de la consola)? PURA y client-safe. */
+export function esIncorporado(id: InterruptorId): boolean {
+  return (INTERRUPTORES.find((i) => i.id === id) as Interruptor | undefined)?.incorporado === true;
+}
+
+/** Lo que la consola ofrece prender y apagar: sólo lo crítico. */
+export const INTERRUPTORES_DE_LA_CONSOLA: readonly Interruptor[] = INTERRUPTORES.filter((i) => !(i as Interruptor).incorporado);
 
 export const INICIO_POR_APPS: InterruptorId = "inicio-por-apps";
 
@@ -198,7 +216,7 @@ export const VENTA_AGENDA_SIMPLE: InterruptorId = "venta-agenda-simple";
 export function ventaAgendaSimplePrendida(
   estado: Readonly<Partial<Record<InterruptorId, { encendido: boolean }>>>,
 ): boolean {
-  return estado[VENTA_AGENDA_SIMPLE]?.encendido === true;
+  return esIncorporado(VENTA_AGENDA_SIMPLE) || estado[VENTA_AGENDA_SIMPLE]?.encendido === true;
 }
 
 /** Agenda interactiva (docs/producto/venta-agenda/AGENDA-INTERACCION.md). */
@@ -208,7 +226,7 @@ export const AGENDA_INTERACCION: InterruptorId = "agenda-interaccion";
 export function agendaInteraccionPrendida(
   estado: Readonly<Partial<Record<InterruptorId, { encendido: boolean }>>>,
 ): boolean {
-  return estado[AGENDA_INTERACCION]?.encendido === true;
+  return esIncorporado(AGENDA_INTERACCION) || estado[AGENDA_INTERACCION]?.encendido === true;
 }
 
 /** Vouchers de La Alameda (CH Estética, src/lib/vouchers). */
