@@ -13,6 +13,7 @@
 // Sin base, sin red, sin React: se testea solo (mercadopago-clasificacion.test.ts).
 
 import type { PagoMP } from "@/plugins/mercadopago";
+import { centavosDe, redondearAlCentavo } from "@/lib/dinero/redondeo";
 
 export const MODOS_FACTURACION_MP = ["apagado", "proponer", "automatico"] as const;
 export type ModoFacturacionMP = (typeof MODOS_FACTURACION_MP)[number];
@@ -72,7 +73,7 @@ export function validarConfigFacturacionMP(crudo: unknown): ResultadoConfig {
   if (Object.keys(errores).length > 0) return { ok: false, errores };
   return {
     ok: true,
-    config: { modo: modo!, puntoVenta, concepto: concepto as ConceptoArca, importeMinimo: Math.round(importeMinimo * 100) / 100, palabrasExcluidas: palabras },
+    config: { modo: modo!, puntoVenta, concepto: concepto as ConceptoArca, importeMinimo: redondearAlCentavo(importeMinimo), palabrasExcluidas: palabras },
   };
 }
 
@@ -126,17 +127,17 @@ export function clasificarPagoMP(pago: PagoMP, ctx: ContextoClasificacion): Deci
   if (config.modo === "apagado") return { tipo: "nada", motivo: "apagado" };
   if (pago.estado !== "approved") return { tipo: "excluir", motivo: "no_aprobado" };
   if (pago.tipoOperacionMP !== "regular_payment") return { tipo: "excluir", motivo: "no_es_venta" };
-  const centavos = Math.round(Number(pago.monto) * 100);
+  const centavos = centavosDe(Number(pago.monto));
   if (!Number.isSafeInteger(centavos) || centavos <= 0) return { tipo: "excluir", motivo: "monto_invalido" };
   const cuit = ctx.cuitNegocio?.replace(/\D/g, "") ?? "";
   if (cuit.length === 11 && pago.pagadorDoc?.numero === cuit) return { tipo: "excluir", motivo: "cuenta_propia" };
-  if (centavos < Math.round(config.importeMinimo * 100)) return { tipo: "excluir", motivo: "bajo_minimo" };
+  if (centavos < centavosDe(config.importeMinimo)) return { tipo: "excluir", motivo: "bajo_minimo" };
   const descripcion = normalizar(pago.descripcion ?? "");
   if (config.palabrasExcluidas.some((p) => descripcion.includes(normalizar(p)))) return { tipo: "excluir", motivo: "palabra_excluida" };
   if (ctx.facturaDeLaReferencia) return { tipo: "enlazar", invoiceId: ctx.facturaDeLaReferencia };
 
   const importe = centavos / 100; // el BRUTO: la comisión de MP no se descuenta
   // Desde el umbral, sin documento del pagador no se puede emitir: en cualquier modo pide datos.
-  if (!pago.pagadorDoc && centavos >= Math.round(ctx.umbralIdentificacion * 100)) return { tipo: "pendiente_datos", importe };
+  if (!pago.pagadorDoc && centavos >= centavosDe(ctx.umbralIdentificacion)) return { tipo: "pendiente_datos", importe };
   return config.modo === "automatico" ? { tipo: "emitir", importe } : { tipo: "proponer", importe };
 }
