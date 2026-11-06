@@ -15,7 +15,6 @@ import { getActiveModuleIds, moduleGateAllows } from "@/lib/module-gating";
 import {
   kpisFacturacionAction,
   listarPropuestasAction,
-  type PropuestaVista,
 } from "@/lib/bancos-actions";
 import { getFacturacion } from "@/lib/facturacion-actions";
 import { Badge, PageContainer, PageHeader, SectionGroup, buttonClasses, fmtNumberAR } from "@/components/ui";
@@ -27,12 +26,13 @@ import EmitirFacturas from "./EmitirFacturas";
 import ColaRevision from "./ColaRevision";
 import RevisarEnCajon from "./RevisarEnCajon";
 import EmitirDeslizando from "./EmitirDeslizando";
+import PropuestaTresToques from "./PropuestaTresToques";
+import { accionesPropuestas } from "./propuestas-adaptador";
 import { estadoMercadoPagoAction } from "@/lib/mercadopago-actions";
 import { fmtDateTimeAr } from "@/lib/datetime";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import { Bloque, Franja, LineaDeEstado, Marca, Plata, Renglon, Rotulo, atributosBoton } from "@/components/ui";
 import { FranjaDeArca, datosDeArca } from "../EstadoArca";
-import { fechaAr } from "./helpers";
 
 export const dynamic = "force-dynamic";
 
@@ -57,18 +57,6 @@ function chipMapeo(estado: string, confianza: number | null) {
 
 /** Diseño nuevo: cuántas listas se ven sin desplegar (el resto, a un toque). */
 const LISTAS_A_LA_VISTA = 8;
-
-/** Diseño nuevo: una venta lista para facturar, como renglón (fecha, qué dice el banco, monto). */
-function RenglonDeLista({ p }: { p: PropuestaVista }) {
-  return (
-    <Renglon
-      folio={<span className="tabular-nums">{fechaAr(p.fecha).slice(0, 5)}</span>}
-      titulo={<span className="font-normal">{p.descripcion}</span>}
-      detalle={p.contraparte ?? undefined}
-      plata={<Plata valor={Math.abs(p.monto)} />}
-    />
-  );
-}
 
 export default async function FacturacionBancosPage() {
   // Guarda de rol de la página (las actions la repiten server-side por acción).
@@ -181,8 +169,9 @@ export default async function FacturacionBancosPage() {
               <p className="py-3 text-sm text-muted">No hay facturas listas para emitir. Subí un extracto o completá las ventas para revisar.</p>
             ) : (
               <>
+                {/* Cada una se puede emitir sola en tres toques; abajo, todas juntas deslizando. */}
                 {listas.slice(0, LISTAS_A_LA_VISTA).map((p) => (
-                  <RenglonDeLista key={p.id} p={p} />
+                  <PropuestaTresToques key={p.id} p={p} modoPrueba={estado.modo !== "real"} acciones={accionesPropuestas} />
                 ))}
                 {listas.length > LISTAS_A_LA_VISTA && (
                   <details className="group">
@@ -190,7 +179,7 @@ export default async function FacturacionBancosPage() {
                       Ver las otras {fmtNumberAR(listas.length - LISTAS_A_LA_VISTA)}
                     </summary>
                     {listas.slice(LISTAS_A_LA_VISTA).map((p) => (
-                      <RenglonDeLista key={p.id} p={p} />
+                      <PropuestaTresToques key={p.id} p={p} modoPrueba={estado.modo !== "real"} acciones={accionesPropuestas} />
                     ))}
                   </details>
                 )}
