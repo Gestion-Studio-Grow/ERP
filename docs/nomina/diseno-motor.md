@@ -91,6 +91,11 @@ usuario (autorización por cliente de cartera, con test de aislamiento cliente A
 7. Fase 1 sin tabla nueva (núcleo puro); el SQL llega en fase 2.
 8. `conceptoArca` en `null` hasta verificar la tabla oficial de conceptos del LSD (los sitios de ARCA no
    fueron accesibles desde la sesión).
+9. Horas extra: máximo 30 h por mes (dto. 484/00) se **rechaza** en vez de liquidarse; el tope anual de
+   200 h se controla con el acumulado en fase 2.
+10. Certificación adversarial (2026-11-06): rechazada en primera vuelta por una categoría heredada del
+    prototipo (`toString`) que daba neto `NaN`; corregida junto con tope de importe, afiliación booleana,
+    `−0`, novedades y fuentes explícitas en el snapshot. Tests de regresión en `motor-core.test.ts`.
 
 ## 8. Decisiones del dueño
 
