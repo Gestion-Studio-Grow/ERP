@@ -1,0 +1,93 @@
+# Monitor de caídas de producción (erp-ch).
+# Cada 5 minutos pide GET <PROD_URL>/api/health (src/app/api/health/route.ts) con 2 reintentos.
+#   - Si falla: abre el issue «🔴 Producción caída» o, si ya hay uno abierto, le agrega un comentario (no duplica).
+#   - Si vuelve y hay un issue abierto: comenta «resuelto» y lo cierra.
+# El dominio sale de la variable de repo PROD_URL (Settings → Secrets and variables → Actions → Variables);
+# sin variable usa el dominio documentado de CH Estética (docs/runbooks/deploy-staging-multitenant-piloto.md:39).
+# Runbook: docs/runbooks/copia-y-monitor.md
+# Nota: GitHub puede demorar los cron de 5 min en momentos de carga; es un monitor de mejor esfuerzo y gratis.
+name: monitor-caidas
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch: {}
+
+permissions:
+  issues: write
+
+concurrency:
+  group: monitor-caidas
+  cancel-in-progress: false
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      PROD_URL: ${{ vars.PROD_URL || 'https://chestetica-erp.vercel.app' }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      TITULO: '🔴 Producción caída'
+    steps:
+      - name: Chequear /api/health (1 intento + 2 reintentos)
+        id: chequeo
+        run: |
+          set -uo pipefail
+          url="${PROD_URL%/}/api/health"
+          codigo="000"
+          ok="false"
+          for intento in 1 2 3; do
+            codigo=$(curl -sS -o cuerpo.json -w '%{http_code}' --max-time 20 \
+              -H 'Cache-Control: no-cache' "$url" 2>/dev/null) || codigo="${codigo:-000}"
+            if [ "$codigo" = "200" ] && grep -q '"status":"ok"' cuerpo.json 2>/dev/null; then
+              ok="true"
+              break
+            fi
+            echo "Intento $intento: HTTP $codigo"
+            [ "$intento" -lt 3 ] && sleep 15
+          done
+          echo "ok=$ok" >> "$GITHUB_OUTPUT"
+          echo "codigo=$codigo" >> "$GITHUB_OUTPUT"
+          echo "hora=$(TZ=America/Argentina/Buenos_Aires date '+%Y-%m-%d %H:%M:%S') (hora Argentina)" >> "$GITHUB_OUTPUT"
+          echo "Resultado: ok=$ok HTTP $codigo"
+
+      - name: Buscar issue abierto
+        id: issue
+        run: |
+          set -euo pipefail
+          numero=$(gh issue list --state open --limit 100 --json number,title \
+            --jq "[.[] | select(.title == env.TITULO)][0].number // empty")
+          echo "numero=${numero}" >> "$GITHUB_OUTPUT"
+
+      - name: Reportar caída
+        if: steps.chequeo.outputs.ok != 'true'
+        env:
+          NUMERO: ${{ steps.issue.outputs.numero }}
+          CODIGO: ${{ steps.chequeo.outputs.codigo }}
+          HORA: ${{ steps.chequeo.outputs.hora }}
+        run: |
+          set -euo pipefail
+          cuerpo="Falla en \`/api/health\` de producción.
+          - Hora: ${HORA}
+          - Código HTTP: ${CODIGO} (000 = sin respuesta / timeout)
+          - Intentos: 3 (1 + 2 reintentos)
+          - Corrida: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          if [ -n "${NUMERO}" ]; then
+            gh issue comment "$NUMERO" --body "$cuerpo"
+          else
+            gh issue create --title "$TITULO" --body "$cuerpo
+
+          Qué hacer: docs/runbooks/copia-y-monitor.md (sección monitor)."
+          fi
+          echo "::error::Producción caída (HTTP ${CODIGO})"
+
+      - name: Cerrar si volvió
+        if: steps.chequeo.outputs.ok == 'true' && steps.issue.outputs.numero != ''
+        env:
+          NUMERO: ${{ steps.issue.outputs.numero }}
+          HORA: ${{ steps.chequeo.outputs.hora }}
+        run: |
+          set -euo pipefail
+          gh issue comment "$NUMERO" --body "✅ Resuelto: \`/api/health\` vuelve a responder 200 a las ${HORA}."
+          gh issue close "$NUMERO" --reason completed
