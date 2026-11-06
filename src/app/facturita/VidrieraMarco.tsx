@@ -1,5 +1,5 @@
 // FACTURITA · Marco de la vidriera pública (landing, alta, planes y legales): piel Fable en claro,
-// el acento ámbar del producto, el papel del talonario, la barra de arriba y el pie. Sin base ni
+// el acento verde de Factoque, el papel del talonario, la barra de arriba y el pie. Sin base ni
 // sesión (PD-1): todo sale de constantes, así las páginas pueden ser `force-static`.
 //
 // El CSS de la vidriera (`piel.ts`) se imprime ACÁ, en el servidor: si lo importara un componente
@@ -13,8 +13,8 @@ import { BOTON_CHICO, BOTON_PRINCIPAL } from "./estilos";
 import { PIEL_FACTURITA } from "./piel";
 import BarraFija from "./BarraFija";
 
-const claro = resolveAccent("ambar", "light");
-const oscuro = resolveAccent("ambar", "dark");
+const claro = resolveAccent("monte", "light");
+const oscuro = resolveAccent("monte", "dark");
 
 const ESTILO_ACENTO = {
   "--tenant-accent-light": claro.accent,
