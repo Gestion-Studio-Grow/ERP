@@ -27,7 +27,9 @@
 // también es una extensión nueva). Proveedores y comprobantes por número quedan para otra porción.
 
 import { requireUser } from "@/lib/authz";
-import { roleHasCapability } from "@/lib/capabilities";
+import { enmascararTelefono, puedeVerContacto } from "@/lib/clientes/telefono";
+import { criterioDeContacto, wherePorContacto } from "@/lib/clientes/busqueda-por-contacto";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { tenantTransaction } from "@/lib/rls";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
@@ -67,9 +69,12 @@ export async function buscarEnElNegocio(q: unknown): Promise<ResultadoDeBusqueda
     vender: appPermitida(appPorId("vender"), negocio),
     pedidos: appPermitida(appPorId("pedidos"), negocio),
     ventas: appPermitida(appPorId("ventas-del-dia"), negocio),
-    verPlata: roleHasCapability(user.role, "reports:read"),
+    verPlata: permisoEfectivo(user, "reports:read"),
   };
   const { texto, digitos, codigo } = busqueda;
+  const veContacto = puedeVerContacto(user);
+  // Por teléfono lo decide el helper único (casilla 5): sin `clients:contact`, sólo los últimos 4 completos.
+  const porTelefono = wherePorContacto(criterioDeContacto(texto, veContacto));
 
   try {
     const leidos = await tenantTransaction(async (tx) => {
@@ -79,15 +84,15 @@ export async function buscarEnElNegocio(q: unknown): Promise<ResultadoDeBusqueda
               where: {
                 OR: [
                   { name: { contains: texto, mode: "insensitive" } },
-                  { phone: { contains: texto } },
-                  ...(digitos && digitos.length >= 3 && digitos !== texto ? [{ phone: { contains: digitos } }] : []),
+                  ...porTelefono,
                 ],
               },
               orderBy: { name: "asc" },
               take: FILAS_A_LEER,
               select: { id: true, name: true, phone: true },
             })
-          ).map((c) => ({ id: c.id, nombre: c.name, telefono: c.phone }))
+            // Sin `clients:contact` (casilla 5 de la matriz) el teléfono sale enmascarado.
+          ).map((c) => ({ id: c.id, nombre: c.name, telefono: veContacto ? c.phone : enmascararTelefono(c.phone) }))
         : [];
 
       const productos: ProductoLeido[] =

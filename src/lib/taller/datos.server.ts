@@ -6,8 +6,10 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { requireCapability } from "@/lib/authz";
-import { roleHasCapability } from "@/lib/capabilities";
+import { requireCapability, requireCapabilityFueraDeLaAgenda } from "@/lib/authz";
+import { permisoFueraDeLaAgenda } from "@/lib/capabilities";
+import { enmascararTelefono, puedeVerContacto } from "@/lib/clientes/telefono";
+import { criterioDeContacto, wherePorContacto } from "@/lib/clientes/busqueda-por-contacto";
 import type { SessionUser } from "@/lib/session";
 import { getLocation } from "@/lib/settings";
 import { todayInBusinessTz } from "@/lib/datetime";
@@ -89,7 +91,7 @@ export async function datosDelNegocio(tenantId: string) {
 
 // ── Sesión ──────────────────────────────────────────────────────────────────
 
-export const veLaPlata = (u: SessionUser): boolean => roleHasCapability(u.role, "agenda:manage");
+export const veLaPlata = (u: SessionUser): boolean => permisoFueraDeLaAgenda(u, "agenda:manage");
 
 /** El mecánico ve sus órdenes y las que todavía no tienen mecánico. */
 function filtroDeRol(u: SessionUser) {
@@ -242,11 +244,13 @@ export async function vehiculoPorPatente(tenantId: string, patente: string) {
 // ── Vehículos y su historial ────────────────────────────────────────────────
 
 export async function listaVehiculos(q: string) {
-  await requireCapability("agenda:read");
+  const user = await requireCapability("agenda:read");
   const tenantId = await getCurrentTenantId();
   const texto = q.trim();
   const pat = texto.toUpperCase().replace(/[^A-Z0-9]/g, "");
-  return prisma.tallerVehiculo.findMany({
+  // Por teléfono de la clienta según la casilla 5 (helper único); el número sale enmascarado sin ella.
+  const veContacto = puedeVerContacto(user);
+  const filas = await prisma.tallerVehiculo.findMany({
     where: {
       tenantId,
       ...(texto
@@ -256,7 +260,7 @@ export async function listaVehiculos(q: string) {
               { modelo: { contains: texto, mode: "insensitive" as const } },
               { marca: { contains: texto, mode: "insensitive" as const } },
               { client: { name: { contains: texto, mode: "insensitive" as const } } },
-              { client: { phone: { contains: texto } } },
+              ...wherePorContacto(criterioDeContacto(texto, veContacto)).map((client) => ({ client })),
             ],
           }
         : {}),
@@ -268,6 +272,7 @@ export async function listaVehiculos(q: string) {
       _count: { select: { ordenes: true } },
     },
   });
+  return veContacto ? filas : filas.map((v) => ({ ...v, client: { ...v.client, phone: enmascararTelefono(v.client.phone) } }));
 }
 
 export async function historialVehiculo(id: string) {
@@ -307,7 +312,7 @@ export interface Aviso {
 }
 
 export async function bandejaDeAvisos() {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const hoy = new Date();
   const [vehiculos, entregadas, enviados] = await Promise.all([
@@ -394,7 +399,7 @@ export async function bandejaDeAvisos() {
 // ── Reportes ────────────────────────────────────────────────────────────────
 
 export async function reportesTaller() {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const desde = new Date();
   desde.setMonth(desde.getMonth() - 11, 1);

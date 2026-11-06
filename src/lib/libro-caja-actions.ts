@@ -21,6 +21,7 @@ import { revalidatePath } from "next/cache";
 import { auditAdmin } from "@/lib/audit-core";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
+import { motivoSinCaja } from "@/lib/caja/permiso-libro";
 import { tenantTransaction } from "@/lib/rls";
 import { isColumnMissing } from "@/lib/prisma-errors";
 import { businessWallTimeToUtc, todayInBusinessTz, dateStrInBusinessTz } from "@/lib/datetime";
@@ -271,6 +272,8 @@ export async function addLibroEntry(
   formData: FormData,
 ): Promise<LibroActionState> {
   const user = await requireCapability("orders:manage");
+  const sinCaja = motivoSinCaja(user);
+  if (sinCaja) return { ok: false, error: sinCaja };
   if (isDemoSandbox()) return DEMO_WRITE_BLOCKED;
   const tenantId = await getCurrentTenantId();
 
@@ -505,7 +508,9 @@ export async function deleteLibroEntry(
   _prev: LibroActionState,
   formData: FormData,
 ): Promise<LibroActionState> {
-  await requireCapability("orders:manage");
+  const user = await requireCapability("orders:manage");
+  const sinCaja = motivoSinCaja(user);
+  if (sinCaja) return { ok: false, error: sinCaja };
   if (isDemoSandbox()) return DEMO_WRITE_BLOCKED;
   const tenantId = await getCurrentTenantId();
   const id = String(formData.get("id") || "").trim();

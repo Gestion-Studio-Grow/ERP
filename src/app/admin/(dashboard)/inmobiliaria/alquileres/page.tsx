@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { requireApp } from "@/lib/require-app";
-import { requireCapability } from "@/lib/authz";
+import { requireCapabilityFueraDeLaAgenda } from "@/lib/authz";
 import { buttonClasses, cn, EmptyState } from "@/components/ui";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { listaContratos } from "@/lib/inmobiliaria/datos.server";
 import { diaCorto, ESTADO_CONTRATO_LABEL, INDICE_LABEL, pesos, type EstadoContrato, type IndiceAjuste } from "@/lib/inmobiliaria/core";
 import { BarraInmo, RAIZ, tarjeta, titulo } from "../_vista";
@@ -12,7 +12,7 @@ export const metadata = { title: "Inmobiliaria · Alquileres" };
 
 export default async function Alquileres() {
   const user = await requireApp("inmobiliaria");
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const contratos = await listaContratos();
   const vigentes = contratos.filter((c) => c.estado === "VIGENTE");
   const debe = vigentes.reduce((s, c) => s + c.debe, 0);
@@ -32,7 +32,7 @@ export default async function Alquileres() {
         </Link>
       </header>
 
-      <BarraInmo activa={`${RAIZ}/alquileres`} conPlata esDuenio={roleHasCapability(user.role, "users:manage")} />
+      <BarraInmo activa={`${RAIZ}/alquileres`} conPlata esDuenio={permisoEfectivo(user, "users:manage")} />
 
       {contratos.length === 0 ? (
         <EmptyState title="Todavía no hay contratos" description="Cargá el primero: propiedad, inquilino, fechas, alquiler y cómo se actualiza. Las cuotas se arman solas." />

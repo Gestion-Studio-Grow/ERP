@@ -23,7 +23,7 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import { auditAdmin } from "@/lib/audit-core";
 import { logger } from "@/lib/logger";
 import { requireAppAccion, AppNoDisponibleError } from "@/lib/require-app";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { verifyPassword } from "@/lib/auth-password";
 import { createRateLimiter } from "@/lib/rate-limit";
 import { dateStrInBusinessTz } from "@/lib/datetime";
@@ -265,7 +265,7 @@ export async function guardarConfigDeCaja(_prev: EstadoConfigCaja, formData: For
     throw e;
   }
   // La configuración la toca quien administra el catálogo (el dueño): cambia cómo se cobra.
-  if (!roleHasCapability(user.role, "catalog:manage")) return { ok: false, error: "La configuración de la caja la cambia el dueño del negocio." };
+  if (!permisoEfectivo(user, "catalog:manage")) return { ok: false, error: "La configuración de la caja la cambia el dueño del negocio." };
   const formato = formatoDelFormulario(formData);
   const problema = problemaDelFormato(formato);
   if (problema) return { ok: false, error: problema };

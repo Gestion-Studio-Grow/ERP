@@ -42,7 +42,7 @@ test("la misma clienta tiene el mismo número de compras en el listado viejo y e
   const ahora = new Date();
   const [viejo, nuevo] = await tenantTransaction(
     async (tx) => {
-      const pagina = await paginaDeFichasEn(tx, a, { q: "Clienta Unificada", pagina: 1, rubro: "mostrador", ahora });
+      const pagina = await paginaDeFichasEn(tx, a, { q: "Clienta Unificada", pagina: 1, rubro: "mostrador", veContacto: true, ahora });
       const fichas = await lecturas.leerFichasConActividad(tx, a, { desde: lecturas.desdeHistorial(ahora), rubro: "mostrador" });
       const evaluadas = lecturas.evaluarFichas(fichas, "mostrador", todayInBusinessTz(), ahora);
       return [

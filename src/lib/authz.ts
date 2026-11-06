@@ -10,7 +10,8 @@
 
 import { redirect } from "next/navigation";
 import { getCurrentUser, type SessionUser } from "@/lib/session";
-import { homeRoute, roleHasCapability, type Capability } from "@/lib/capabilities";
+import { homeRoute, motivoSoloLoSuyo, permisoEfectivo, permisoFueraDeLaAgenda, type Capability } from "@/lib/capabilities";
+import { RechazoDeDominio } from "@/lib/rechazo-de-dominio";
 
 // Exige una sesión válida. Sin usuario → al login. Devuelve el usuario ya
 // tipado (redirect() corta el flujo, así que el retorno nunca es null).
@@ -28,7 +29,21 @@ export async function requireUser(): Promise<SessionUser> {
 // scoping de PROFESSIONAL a su `professionalId`).
 export async function requireCapability(cap: Capability): Promise<SessionUser> {
   const user = await requireUser();
-  if (!roleHasCapability(user.role, cap)) {
+  // Rol + matriz de permisos por usuario (PLAN permisos §2): un solo resolvedor.
+  if (!permisoEfectivo(user, cap)) {
+    redirect(homeRoute(user.role));
+  }
+  return user;
+}
+
+/**
+ * `requireCapability` para los módulos que NO son la agenda de turnos (pádel, taller, inmobiliaria,
+ * proyectos…): ahí la excepción de agendar/editar que la matriz le prende a un PROFESSIONAL no vale,
+ * porque esos módulos no tienen el scoping «sólo lo suyo» (`permisoFueraDeLaAgenda`, certificación M3).
+ */
+export async function requireCapabilityFueraDeLaAgenda(cap: Capability): Promise<SessionUser> {
+  const user = await requireUser();
+  if (!permisoFueraDeLaAgenda(user, cap)) {
     redirect(homeRoute(user.role));
   }
   return user;
@@ -44,5 +59,41 @@ export async function requireCapability(cap: Capability): Promise<SessionUser> {
  */
 export async function canCurrentUser(cap: Capability): Promise<boolean> {
   const user = await getCurrentUser();
-  return user ? roleHasCapability(user.role, cap) : false;
+  return user ? permisoEfectivo(user, cap) : false;
+}
+
+/**
+ * Scoping «en su agenda» (PLAN permisos §5): un PROFESSIONAL toca sólo turnos de su
+ * `professionalId` (sin ficha vinculada, ninguno). TIRA `RechazoDeDominio`, así la action lo
+ * muestra con su motivo. Invariante dura: se llama también adentro de la transacción.
+ */
+export function soloLoSuyo(
+  user: Pick<SessionUser, "role" | "professionalId">,
+  professionalIdDelTurno: string | null | undefined,
+): void {
+  const motivo = motivoSoloLoSuyo(user, professionalIdDelTurno);
+  if (motivo) throw new RechazoDeDominio(motivo);
+}
+
+/**
+ * El mismo scoping como filtro de Prisma, para lecturas y `updateMany` por id: `{}` para quien no es
+ * PROFESSIONAL; para un PROFESSIONAL, sus turnos (sin ficha vinculada, un id imposible → nada).
+ */
+export function filtroSoloLoSuyo(
+  user: Pick<SessionUser, "role" | "professionalId">,
+): { professionalId?: string } {
+  if (user.role !== "PROFESSIONAL") return {};
+  return { professionalId: user.professionalId ?? "__sin_ficha_vinculada__" };
+}
+
+/**
+ * Exige AL MENOS UNA de las capacidades (p. ej. las fichas del alta sirven a quien agenda y a quien
+ * edita). Misma salida que `requireCapability` si no tiene ninguna.
+ */
+export async function requireAlgunaCapability(caps: readonly Capability[]): Promise<SessionUser> {
+  const user = await requireUser();
+  if (!caps.some((cap) => permisoEfectivo(user, cap))) {
+    redirect(homeRoute(user.role));
+  }
+  return user;
 }

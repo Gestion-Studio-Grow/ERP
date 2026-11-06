@@ -29,7 +29,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { requireCapability } from "@/lib/authz";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { isDemoSandbox } from "@/lib/demo-flag";
 import { tenantTransaction } from "@/lib/rls";
@@ -104,8 +104,8 @@ function texto(v: FormDataEntryValue | null): string {
 
 /** La regla de siempre de quién vende y cobra, más el interruptor. Fallar acá no escribe nada. */
 async function habilitado(user: Usuario): Promise<string | null> {
-  if (!roleHasCapability(user.role, "agenda:collect")) return NO_COBRA;
-  if (!roleHasCapability(user.role, "orders:manage")) return NO_VENDE;
+  if (!permisoEfectivo(user, "agenda:collect")) return NO_COBRA;
+  if (!permisoEfectivo(user, "orders:manage")) return NO_VENDE;
   if (!ventaAgendaSimplePrendida(await interruptoresDelNegocio())) return APAGADO;
   return null;
 }
