@@ -441,6 +441,8 @@ export type ResultadoRenovacion = "no_hacia_falta" | "renovado" | "otro_renovo" 
 const TOPE_RENOVACION_MS = 30_000;
 /** Cuánto espera el perdedor a que el ganador termine; después sigue con el token que hay. */
 const ESPERA_CANDADO_RENOVACION_MS = 15_000;
+/** Cuánto espera el renovador el candado de alta/baja: 15 + 10 (MP) + 5 queda dentro del tope. */
+const ESPERA_CANDADO_CONEXION_MS = 5_000;
 
 /**
  * Renovación OAuth en exclusión mutua. UN candado transaccional por negocio y conector
@@ -515,6 +517,7 @@ export async function renovarConexionOAuth(
         return { campo, sobre: cerrarSecreto(valor, { tenantId, conexionId, campo }, clave), ultimos4: ultimos4(valor), expiraEn: expiraEn ?? null };
       });
       // El mismo candado que el alta y la baja, y compare-and-set: si alguien tocó la conexión, gana él.
+      await tx.$executeRaw`SELECT set_config('lock_timeout', ${String(ESPERA_CANDADO_CONEXION_MS)}, true)`;
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`integracion-conexion:${tenantId}:${conectorId}`}))`;
       const vigente = await tx.integracionConexion.updateMany({
         where: { tenantId, id: conexionId, tokenVersion: p.versionVista, estado: { not: "desconectada" } },
