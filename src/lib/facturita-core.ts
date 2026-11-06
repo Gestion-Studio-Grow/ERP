@@ -320,7 +320,14 @@ export function esDePrueba(modo: string, homologacion: boolean): boolean {
 }
 
 export type EstadoEmision =
-  | { estado: "autorizada"; dePrueba: boolean; numero: string | null; cae: string | null }
+  | {
+      estado: "autorizada";
+      dePrueba: boolean;
+      numero: string | null;
+      cae: string | null;
+      /** La letra con la que salió (la decide el Core, no la pantalla). Opcional: lo viejo no la trae. */
+      letra?: "A" | "B" | "C" | null;
+    }
   | { estado: "pendiente"; motivo: "apagada" | "esperando"; /** Días que ARCA acepta la fecha de la factura: 5 productos, 10 servicios. */ ventanaDias: 5 | 10 }
   | { estado: "rechazada"; origen: "arca" | "sistema"; motivo: string };
 
