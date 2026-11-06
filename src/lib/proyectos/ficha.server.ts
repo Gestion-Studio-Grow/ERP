@@ -210,8 +210,9 @@ export async function datosSeguimiento(a: Actor, cab: Cabecera, vista: Vista) {
   return { checklist, tareas, cuotas, pagos };
 }
 
+// Los comprobantes de Rendí no van acá: se ven en «Rendiciones», con su permiso.
 export async function datosArchivos(a: Actor, cab: Cabecera) {
-  const filas = await prisma.proyectoArchivo.findMany({ where: { tenantId: a.tenantId, proyectoId: cab.proyecto.id }, orderBy: { createdAt: "desc" } });
+  const filas = await prisma.proyectoArchivo.findMany({ where: { tenantId: a.tenantId, proyectoId: cab.proyecto.id, tipo: { not: "COMPROBANTE" } }, orderBy: { createdAt: "desc" } });
   const items = cab.viva?.items ?? [];
   // La imagen viaja por su ruta, de a una: acá sólo su tamaño, para no meter 30 MB en la página.
   return {

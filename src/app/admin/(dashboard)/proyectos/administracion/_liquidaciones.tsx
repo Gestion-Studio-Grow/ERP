@@ -4,11 +4,12 @@ import { fechaCorta, pesos } from "@/lib/proyectos/core";
 import { claveMes } from "@/lib/proyectos/gestion-core";
 import { etiquetaMes, leerExtras, periodoValido, totalDeExtras } from "@/lib/proyectos/empresa-core";
 import { liquidacionesDelPeriodo } from "@/lib/proyectos/empresa.server";
-import { publicarBorradores } from "@/lib/proyectos/acciones-empresa";
+import { borrarLiquidacion, pagarLiquidacion, publicarBorradores } from "@/lib/proyectos/acciones-empresa";
 import { campo, etiqueta, tarjeta } from "../_vista";
 import { BotonDosPasos, EditarExtras, GenerarLiquidaciones } from "./_controles";
 
-export async function TabLiquidaciones({ tenantId, mes, edita }: { tenantId: string; mes?: string; edita: boolean }) {
+/** `paga`: Dirección o Administración (el servidor lo vuelve a decidir, y nadie se paga lo propio). */
+export async function TabLiquidaciones({ tenantId, mes, edita, paga = false }: { tenantId: string; mes?: string; edita: boolean; paga?: boolean }) {
   const periodo = mes && periodoValido(mes) ? mes : claveMes(new Date());
   const filas = await liquidacionesDelPeriodo(tenantId, periodo);
   const borradores = filas.filter((f) => f.estado === "BORRADOR").length;
@@ -63,17 +64,19 @@ export async function TabLiquidaciones({ tenantId, mes, edita }: { tenantId: str
                         <>
                           <span className="font-medium tabular-nums text-strong">{pesos(totalDeExtras(extras))}</span>
                           <ul className="text-xs text-muted">
-                            {extras.map((e, i) => <li key={i}>{e.nombre}{e.manual ? " (a mano)" : ""}: {pesos(e.monto)}</li>)}
+                            {extras.map((e, i) => <li key={i}>{e.nombre}{e.manual ? " (a mano)" : ""}{e.reintegro ? " (rendición)" : ""}: {pesos(e.monto)}</li>)}
                           </ul>
                         </>
                       )}
                     </td>
                     <td className="whitespace-nowrap py-2 pr-3 text-right font-semibold tabular-nums text-strong">{pesos(f.total)}</td>
-                    <td className="whitespace-nowrap py-2 pr-3">{f.estado === "PUBLICADA" ? `Publicada ${fechaCorta(f.publicadaEl)}` : "Borrador"}</td>
+                    <td className="whitespace-nowrap py-2 pr-3">{f.estado === "PAGADA" ? "Pagada" : f.estado === "PUBLICADA" ? `Publicada ${fechaCorta(f.publicadaEl)}` : "Borrador"}</td>
                     <td className="whitespace-nowrap py-2 pr-3">{f.vistaEl ? fechaCorta(f.vistaEl) : "—"}</td>
                     <td className="py-2">
                       <div className="flex flex-wrap items-start gap-1">
                         {edita && f.estado === "BORRADOR" && <EditarExtras id={f.id} persona={f.persona.nombre} base={f.base} manuales={extras.filter((e) => e.manual)} />}
+                        {edita && f.estado === "BORRADOR" && <BotonDosPasos accion={borrarLiquidacion} campos={{ id: f.id }} etiqueta="Borrar" pregunta="Las rendiciones que tenía quedan libres. ¿Borrar el borrador?" />}
+                        {paga && f.estado === "PUBLICADA" && <BotonDosPasos accion={pagarLiquidacion} campos={{ id: f.id, medio: "TRANSFERENCIA" }} etiqueta="Pagar liquidación" pregunta={`Sale ${pesos(f.total)} de caja por transferencia y las rendiciones quedan reintegradas. ¿Pagar?`} principal />}
                         <Link href={`/admin/proyectos/imprimir-liquidacion/${f.id}`} className={cn(buttonClasses("ghost", "md"), "min-h-11")}>PDF</Link>
                       </div>
                     </td>
