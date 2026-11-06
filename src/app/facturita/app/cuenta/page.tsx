@@ -7,6 +7,8 @@ import { getFacturacion } from "@/lib/facturacion-actions";
 import { datosParaFacturasAction, estadoFacturitaAction } from "@/lib/facturita-actions";
 import { faltantesEmisor, formDesdeGuardado } from "@/lib/facturita-emisor";
 import DatosParaFacturas from "./DatosParaFacturas";
+import MercadoPagoConexion from "./MercadoPagoConexion";
+import { sesionFacturita } from "@/lib/facturita-sesion.server";
 import Link from "next/link";
 import { ESTADO_PRECIOS, PLAN_SALTO, precioConPeriodo } from "@/lib/facturita-planes";
 
@@ -17,8 +19,15 @@ function cuitConGuiones(cuit: string | null): string {
   return `${cuit.slice(0, 2)}-${cuit.slice(2, 10)}-${cuit.slice(10)}`;
 }
 
-export default async function FacturitaCuentaPage() {
-  const [{ estado }, limite, guardados] = await Promise.all([getFacturacion(), estadoFacturitaAction(), datosParaFacturasAction()]);
+export default async function FacturitaCuentaPage({ searchParams }: { searchParams: Promise<{ mp?: string | string[] }> }) {
+  const [{ estado }, limite, guardados, { tenantId }, q] = await Promise.all([
+    getFacturacion(),
+    estadoFacturitaAction(),
+    datosParaFacturasAction(),
+    sesionFacturita(),
+    searchParams,
+  ]);
+  const avisoMp = typeof q.mp === "string" ? q.mp : undefined;
 
   return (
     <>
@@ -41,7 +50,7 @@ export default async function FacturitaCuentaPage() {
             {estado.modo === "stub" ? (
               <Badge tone="warning" dot>Simulado (de prueba, sin validez fiscal)</Badge>
             ) : estado.homologacion || estado.modo === "homologacion" ? (
-              <Badge tone="warning" dot>Homologación (pruebas oficiales)</Badge>
+              <Badge tone="warning" dot>Modo de prueba (sin validez fiscal)</Badge>
             ) : (
               <Badge tone="success" dot>En línea</Badge>
             )}
@@ -54,6 +63,8 @@ export default async function FacturitaCuentaPage() {
           </dd>
         </div>
       </dl>
+
+      <MercadoPagoConexion tenantId={tenantId} aviso={avisoMp} />
 
       <DatosParaFacturas inicial={formDesdeGuardado(guardados)} completos={faltantesEmisor(guardados).length === 0} />
 

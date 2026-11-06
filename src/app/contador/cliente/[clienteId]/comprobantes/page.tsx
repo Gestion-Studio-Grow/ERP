@@ -58,6 +58,7 @@ export default async function ComprobantesDelCliente({
       />
       <nav aria-label="Filtros" className="mb-4 flex flex-wrap gap-2">
         <ButtonLink href="/contador" variant="ghost" className="min-h-11">Volver a la cartera</ButtonLink>
+        <ButtonLink href={`/contador/cliente/${encodeURIComponent(cliente.id)}/emitir`} className="min-h-11">Emitir un comprobante</ButtonLink>
         {ESTADOS.map((e) => (
           <ButtonLink
             key={e.valor}

@@ -121,7 +121,11 @@ export function validarComprobante(comp: ComprobanteArca): ResultadoValidacion {
   // RG 5616: la condición del receptor es obligatoria y tiene que ser una que la letra admite.
   const letra = letraDelTipo(comp.tipo);
   if (comp.condicionIvaReceptorId == null) {
-    push('condicionIvaReceptorId', 'Falta la condición frente al IVA del receptor (RG 5616).');
+    push(
+      'condicionIvaReceptorId',
+      'Falta la condición frente al IVA del comprador (RG 5616), y ARCA no acepta el comprobante sin ella. ' +
+        'Cargala en su ficha (consumidor final, monotributista, responsable inscripto o exento) y volvé a emitir.',
+    );
   } else if (letra && !RECEPTORES_ADMITIDOS[letra.letra].has(comp.condicionIvaReceptorId)) {
     push(
       'condicionIvaReceptorId',

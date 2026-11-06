@@ -103,7 +103,7 @@ const IDENTIDADES: Record<ProductoConMarca, ProductoIdentidad> = {
     producto: "facturita",
     nombre: "Factoque",
     monograma: "F",
-    acento: "ambar",
+    acento: "monte",
     tagline: "Emití tu factura en tres clics, con validez de ARCA.",
     home: "/facturita/app",
     login: {

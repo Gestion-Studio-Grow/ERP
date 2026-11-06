@@ -25,7 +25,7 @@ export const dynamic = "force-static";
 // es estática y no puede leer el host del request: se usa el host público de Facturita, el mismo
 // que la manda a esta vidriera (src/lib/producto-host.ts).
 const HOST_PUBLICO = Object.keys(HOSTS_DE_PRODUCTO).find((h) => HOSTS_DE_PRODUCTO[h] === "/facturita");
-const OG_IMAGEN = HOST_PUBLICO ? `https://${HOST_PUBLICO}/facturita/og.webp` : "/facturita/og.webp";
+const OG_IMAGEN = HOST_PUBLICO ? `https://${HOST_PUBLICO}/facturita/og.png` : "/facturita/og.png";
 
 export const metadata: Metadata = {
   title: "Factoque — facturá desde el celu, sin vueltas. Gratis",
@@ -37,7 +37,7 @@ export const metadata: Metadata = {
     locale: "es_AR",
     type: "website",
     images: [
-      { url: OG_IMAGEN, width: 1200, height: 630, type: "image/webp", alt: "Factoque: facturá desde el celu, sin vueltas" },
+      { url: OG_IMAGEN, width: 1200, height: 630, type: "image/png", alt: "Factoque: facturá desde el celu, sin vueltas" },
     ],
   },
   twitter: { card: "summary_large_image" },

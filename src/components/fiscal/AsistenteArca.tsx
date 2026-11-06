@@ -39,6 +39,11 @@ const MARCA: Record<EstadoDePaso, { tipo: "hecho" | "atencion" | "pendiente"; te
 
 const fecha = (iso: string) => new Date(iso).toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" });
 
+/** Las condiciones del pase que dependen del negocio; el resto (modo de la plataforma, limpieza de la
+ * etapa de pruebas) las resuelve nuestro equipo y su detalle interno no se le muestra al cliente. */
+const PRECONDICIONES_DEL_NEGOCIO = new Set(["cuit", "puntoVenta", "condicionIva", "credencial"]);
+const DETALLE_DE_NUESTRO_EQUIPO = "Esto lo resuelve nuestro equipo cuando pedís el pase.";
+
 function Paso({ numero, titulo, estado, children }: { numero: number; titulo: string; estado: EstadoDePaso; children: React.ReactNode }) {
   const m = MARCA[estado];
   return (
@@ -111,7 +116,7 @@ export function AsistenteArca({ vista, plano, tenantId, acciones, soloLectura = 
           <p className="text-warning">
             {estado.faltanDatos.join(" ")}{" "}
             {plano === "cliente"
-              ? "Pedile a GSG que lo cargue (por WhatsApp o por mail): estos datos los carga GSG para que coincidan con ARCA."
+              ? "Pedíselo a nuestro equipo (por WhatsApp o por mail): estos datos los cargamos nosotros para que coincidan con ARCA."
               : "Cargalos en los pasos de más abajo (CUIT, punto de venta, condición frente al IVA)."}
           </p>
         )}
@@ -202,7 +207,7 @@ export function AsistenteArca({ vista, plano, tenantId, acciones, soloLectura = 
               {estado.certificado === "produccion"
                 ? "Hay un certificado de producción cargado."
                 : estado.certificado === "pruebas"
-                  ? "Hay un certificado de pruebas (homologación) cargado."
+                  ? "Hay un certificado de prueba cargado (modo de prueba)."
                   : "El certificado cargado tiene un problema: mirá el paso 4."}
             </p>
             {puedeTocar && (
@@ -230,14 +235,14 @@ export function AsistenteArca({ vista, plano, tenantId, acciones, soloLectura = 
               <Renglon
                 key={c.id}
                 titulo={c.titulo}
-                detalle={c.detalle}
+                detalle={plano === "cliente" && !c.ok && !PRECONDICIONES_DEL_NEGOCIO.has(c.id) ? DETALLE_DE_NUESTRO_EQUIPO : c.detalle}
                 tecla={<Marca tipo={c.ok ? "hecho" : "pendiente"}>{c.ok ? "Listo" : "Falta"}</Marca>}
               />
             ))}
             {entrada.pedidoDePase && (
               <Franja tono="atencion">
                 {plano === "cliente"
-                  ? `Pediste el pase el ${fecha(entrada.pedidoDePase.pedidoEn)}: GSG revisa las condiciones y te confirma.`
+                  ? `Pediste el pase el ${fecha(entrada.pedidoDePase.pedidoEn)}: nuestro equipo revisa las condiciones y te confirma.`
                   : `El negocio pidió pasar a producción el ${fecha(entrada.pedidoDePase.pedidoEn)} (${entrada.pedidoDePase.por}). Se confirma en «Facturación real», más abajo.`}
               </Franja>
             )}
@@ -255,7 +260,7 @@ export function AsistenteArca({ vista, plano, tenantId, acciones, soloLectura = 
                 <form action={acciones.pedirPase} className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
                   <Franja tono="atencion" className="sm:col-span-2">
                     En producción cada comprobante sale con CAE de ARCA y tiene validez fiscal: no se edita ni se borra, se
-                    anula con nota de crédito. GSG revisa las condiciones y confirma el pase.
+                    anula con nota de crédito. Nuestro equipo revisa las condiciones y confirma el pase.
                   </Franja>
                   <Field
                     label={`Para pedir el pase, escribí ${PALABRA_DEL_PASE}`}

@@ -23,16 +23,16 @@ interface Props {
 
 const MARCA = { pedido: "pendiente", "en-curso": "atencion", listo: "hecho" } as const;
 const RESUMEN =
-  "cursor-pointer rounded py-2.5 font-medium text-accent-ink underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2";
+  "cursor-pointer rounded py-3 font-medium text-accent-ink underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2";
 
 function Soporte({ soporte }: { soporte: string | null }) {
   return (
     <div className="space-y-2 rounded border border-line p-3">
-      <p className="font-semibold text-strong">Contactate con GSG</p>
+      <p className="font-semibold text-strong">Contactate con nuestro equipo</p>
       <p className="text-muted">Te guiamos por WhatsApp. El trámite en ARCA lo hacés vos: nunca te pedimos la clave fiscal.</p>
       {soporte ? (
         <ButtonLink href={soporte} target="_blank" rel="noopener noreferrer" variant="outline">
-          Escribirle a GSG por WhatsApp
+          Escribirnos por WhatsApp
         </ButtonLink>
       ) : (
         <p className="text-warning">El WhatsApp de soporte está provisional a confirmar: por ahora escribinos por mail.</p>
@@ -57,7 +57,7 @@ export function ObtenerAsistencia({ contador, contadores, avisoAlContador, sopor
                 Avisale por WhatsApp
               </ButtonLink>
             ) : (
-              <p className="w-full text-muted">Este estudio todavía no cargó su WhatsApp: el aviso le llega por GSG.</p>
+              <p className="w-full text-muted">Este estudio todavía no cargó su WhatsApp: el aviso le llega por nuestro equipo.</p>
             )}
             <form action={acciones.cancelar}>
               <Button type="submit" variant="outline">
@@ -98,7 +98,7 @@ export function ObtenerAsistencia({ contador, contadores, avisoAlContador, sopor
               <Button type="submit">Pedirle el certificado</Button>
             </form>
           ) : (
-            <p>Todavía no hay contadores disponibles: contactate con GSG.</p>
+            <p>Todavía no hay contadores disponibles: contactate con nuestro equipo.</p>
           )}
         </div>
         <Soporte soporte={soporte} />

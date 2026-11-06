@@ -38,6 +38,12 @@ export interface IngestaDeps {
   facturar: FacturarPagoMP;
   /** Tope de reintentos de un error transitorio antes de escalar a REVISAR. */
   maxIntentos?: number;
+  /**
+   * PR5 · C1 · Devoluciones y contracargo del pago (`pago.posteriores`): nota de crédito o caso. Corre
+   * ANTES de la idempotencia del pago, porque la devolución llega en un aviso posterior de un pago ya
+   * procesado. Idempotente por su cuenta (clave `mp:refund:<id>`, caso por pago).
+   */
+  aplicarPosteriores?: (pago: PagoMP, tenantId: string) => Promise<void>;
 }
 
 export interface ResumenIngesta {
@@ -64,6 +70,14 @@ export async function facturarPagoSiCorresponde(
   deps: IngestaDeps,
   resumen: ResumenIngesta,
 ): Promise<void> {
+  if (deps.aplicarPosteriores && pago.posteriores?.length) {
+    // Una falla acá no frena la factura del pago: el próximo aviso o la sincronización la reintentan.
+    try {
+      await deps.aplicarPosteriores(pago, deps.tenantId);
+    } catch (e) {
+      console.error("[mp] devoluciones/contracargo del pago", pago.id, e instanceof Error ? e.message : e);
+    }
+  }
   if (await deps.reconciliacion.yaProcesado(pago.id)) {
     resumen.saltados++;
     return;
