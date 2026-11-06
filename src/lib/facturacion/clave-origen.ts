@@ -3,8 +3,8 @@
 // ============================================================================
 //
 // Todo comprobante que nace de algo identificable lleva una clave de origen: lo que se factura UNA
-// sola vez. El árbitro es el libro `CobroFacturado` (índice único tenantId + clave, ya aplicado:
-// sin migración nueva) con la regla del contrato de estados v1:
+// sola vez. El árbitro es el libro `CobroFacturado` (índice único tenantId + clave, migración
+// 20261022150000, Gate 2) con la regla del contrato de estados v1:
 //   · nunca dos comprobantes VIVOS (no rechazados) para la misma clave;
 //   · si el comprobante de esa clave quedó RECHAZADO, la clave se puede volver a facturar.
 //
@@ -18,6 +18,11 @@
 // como `mp:<id>`. Para no reescribir datos ni abrir una ventana de doble factura, la forma que se
 // GUARDA de un pago de MP sigue siendo `mp:<id>` (`claveAlmacenada`); `mp:payment:<id>` es su nombre
 // canónico y las dos formas se leen igual (`leerClaveOrigen`). `claveCobroMP` es este caso.
+//
+// FRENO (Gate 2): el CHECK de la tabla (`CobroFacturado_clave_check`) sólo admite `mp|turno|banco`.
+// `mp:refund:` ya entra (empieza con `mp:`); `manual:` necesita ensancharlo (SQL preparado en
+// prisma/pending-gate2/cobro_facturado_clave_origen.sql, sin aplicar). Hasta entonces
+// `origenAdmitidoPorElLibro` dice que no y `facturarOrigen` los rechaza sin escribir.
 
 export type OrigenFacturable =
   | { tipo: "mp_payment"; id: string }
@@ -60,6 +65,11 @@ export function claveOrigen(o: OrigenFacturable): string {
 /** La forma con la que se guarda en `CobroFacturado` (un pago de MP, como `mp:<id>`: ver arriba). */
 export function claveAlmacenada(o: OrigenFacturable): string {
   return o.tipo === "mp_payment" ? `mp:${validarId(o)}` : claveOrigen(o);
+}
+
+/** Orígenes que el CHECK aplicado del libro admite hoy (ver FRENO arriba). */
+export function origenAdmitidoPorElLibro(o: OrigenFacturable): boolean {
+  return /^(mp|turno|banco):.+$/.test(claveAlmacenada(o));
 }
 
 /** Lee una clave en cualquiera de sus formas (canónica o la guardada); `null` si no es de ninguna. */

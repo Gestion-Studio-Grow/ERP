@@ -29,3 +29,11 @@ test("clave de origen: ids vacíos o mal formados no pasan (sin clave se pierde 
   assert.equal(leerClaveOrigen("manual:x"), null);
   assert.throws(() => normalizarParaElLibro("nada"), ClaveOrigenInvalidaError);
 });
+
+test("freno Gate 2: el CHECK aplicado del libro admite mp (pagos y devoluciones), turno y banco; manual todavía no", async () => {
+  const { origenAdmitidoPorElLibro } = await import("./clave-origen");
+  assert.equal(origenAdmitidoPorElLibro({ tipo: "mp_payment", id: "1" }), true);
+  assert.equal(origenAdmitidoPorElLibro({ tipo: "mp_refund", id: "1" }), true);
+  assert.equal(origenAdmitidoPorElLibro({ tipo: "turno", id: "t" }), true);
+  assert.equal(origenAdmitidoPorElLibro({ tipo: "manual", id: "0b8e7c2a-1f3d-4e5a-9b6c-7d8e9f0a1b2c" }), false);
+});

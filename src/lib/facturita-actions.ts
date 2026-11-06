@@ -12,14 +12,6 @@ import { requireCapability } from "@/lib/authz";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { tenantTransaction } from "@/lib/rls";
 import { createInvoiceInTx, crearNotaDeCreditoInTx } from "@/lib/invoice-core";
-import { vincularCobroInTx } from "@/lib/facturacion/cobros-facturados";
-import { claveAlmacenada } from "@/lib/facturacion/clave-origen";
-
-/** ¿La base tiene el libro de cobros facturados? (sin abortar la transacción si no está). */
-async function hayLibroDeCobros(tx: { $queryRaw<T>(q: TemplateStringsArray, ...v: unknown[]): Promise<T> }): Promise<boolean> {
-  const [fila] = await tx.$queryRaw<{ hay: boolean }[]>`SELECT to_regclass('"CobroFacturado"') IS NOT NULL AS hay`;
-  return fila?.hay === true;
-}
 import {
   getFiscalProfile,
   isInvoicingEnabled,
@@ -290,13 +282,6 @@ export async function emitirFacturitaAction(
           // 20261022140000_invoice_abono_descripcion (Gate 2), igual que la consola.
           ...(conDescripcion ? { descripcion: validacion.descripcion } : {}),
         });
-        // Clave de origen `manual:<clave>` en el libro de cobros facturados (índice único): la
-        // misma guarda del doble toque, ahora también a nivel base (contrato de estados v1).
-        // Tolera una base sin la migración 20261022150000_cobro_facturado (Gate 2): sin la tabla
-        // queda la guarda de siempre (candado + registro de la emisión, más abajo).
-        if (clave && (await hayLibroDeCobros(tx))) {
-          await vincularCobroInTx(tx, tenantId, { clave: claveAlmacenada({ tipo: "manual", id: clave }), importe: montos.total }, id);
-        }
         if (validacion.ficha) {
           await tx.auditLog.create({
             data: {

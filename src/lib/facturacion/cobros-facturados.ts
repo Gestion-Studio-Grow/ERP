@@ -22,7 +22,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { tenantTransaction } from "@/lib/rls";
 import { centavosDe } from "@/lib/dinero/redondeo";
 import { createInvoiceInTx, type CreateInvoiceInput, type InvoiceTx } from "@/lib/invoice-core";
-import { claveAlmacenada, type OrigenFacturable } from "@/lib/facturacion/clave-origen";
+import { claveAlmacenada, origenAdmitidoPorElLibro, type OrigenFacturable } from "@/lib/facturacion/clave-origen";
 
 // ─── Claves ─────────────────────────────────────────────────────────────────────
 
@@ -94,6 +94,19 @@ export async function cobrosYaFacturadosInTx(
 }
 
 /**
+ * Candado por (negocio, clave) hasta el fin de la transacción, en orden fijo (sin abrazos mortales).
+ * Sin él, dos transacciones leían «no hay factura viva» a la vez y la segunda pisaba la fila de la
+ * primera con su `updateMany`: dos facturas vivas por el mismo cobro (certificación PR1, C2). Con
+ * él, la segunda espera y su lectura siguiente (READ COMMITTED) ya ve la factura de la primera.
+ */
+async function tomarClaves(tx: InvoiceTx, tenantId: string, claves: readonly string[]): Promise<void> {
+  if (typeof (tx as { $executeRaw?: unknown }).$executeRaw !== "function") return; // dobles de test sin SQL
+  for (const clave of [...new Set(claves)].sort()) {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`cobro-facturado:${tenantId}:${clave}`}))`;
+  }
+}
+
+/**
  * Anota que `cobro` está cubierto por la factura `invoiceId` (que ya existe). Si el cobro ya
  * estaba anotado con una factura viva, no cambia nada y devuelve ESA factura; si estaba con una
  * rechazada, pasa a apuntar a ésta.
@@ -104,6 +117,7 @@ export async function vincularCobroInTx(
   cobro: CobroAFacturar,
   invoiceId: string,
 ): Promise<string> {
+  await tomarClaves(tx, tenantId, [cobro.clave]);
   const [vivo] = await cobrosYaFacturadosInTx(tx, tenantId, [cobro.clave]);
   if (vivo) return vivo.invoiceId;
   const actualizadas = await tx.cobroFacturado.updateMany({
@@ -130,6 +144,7 @@ export async function facturarCobrosInTx(
   cobros: readonly CobroAFacturar[],
 ): Promise<string> {
   if (cobros.length === 0) throw new Error("facturarCobros: sin cobros no hay factura.");
+  await tomarClaves(tx, input.tenantId, cobros.map((c) => c.clave));
   const [vivo] = await cobrosYaFacturadosInTx(tx, input.tenantId, cobros.map((c) => c.clave));
   if (vivo) return vivo.invoiceId;
   const invoiceId = await createInvoiceInTx(tx, input);
@@ -158,6 +173,9 @@ export async function facturarCobros(input: CreateInvoiceInput, cobros: readonly
  * dos comprobantes vivos por origen; si el de ese origen quedó rechazado, se puede volver a facturar.
  */
 export async function facturarOrigen(input: CreateInvoiceInput, origen: OrigenFacturable): Promise<string> {
+  if (!origenAdmitidoPorElLibro(origen)) {
+    throw new Error(`El origen ${origen.tipo} necesita la migración del libro de cobros (Gate 2): no se factura.`);
+  }
   return facturarCobros(input, [{ clave: claveAlmacenada(origen), importe: input.total }]);
 }
 
@@ -192,6 +210,6 @@ export async function facturadoDelTurnoInTx(
     orderBy: { createdAt: "desc" },
   });
   const vivas = filas.filter((f) => f.invoice.status !== "REJECTED");
-  const porMP = vivas.filter((f) => f.clave.startsWith("mp:")).reduce((a, f) => a + centavosDe(Number(f.importe)), 0);
+  const porMP = vivas.filter((f) => f.clave.startsWith("mp:") && !f.clave.startsWith("mp:refund:")).reduce((a, f) => a + centavosDe(Number(f.importe)), 0);
   return { facturadoPorMP: porMP / 100, ultimaFactura: vivas[0]?.invoiceId ?? null };
 }
