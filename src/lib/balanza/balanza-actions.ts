@@ -14,7 +14,7 @@ import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireAppAccion, AppNoDisponibleError } from "@/lib/require-app";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { auditAdmin } from "@/lib/audit-core";
 import { motivoDelRechazoDelAlta } from "@/lib/order-core";
 import { Prisma } from "@/generated/prisma/client";
@@ -29,7 +29,7 @@ const RUTAS = ["/admin/balanza", "/admin/vender", "/admin/pedidos", "/admin/caja
 async function dueno(): Promise<{ ok: true; userId: string } | { ok: false; error: string }> {
   try {
     const user = await requireAppAccion("balanza");
-    if (!roleHasCapability(user.role, "catalog:manage")) return { ok: false, error: "La balanza la configura el dueño del negocio." };
+    if (!permisoEfectivo(user, "catalog:manage")) return { ok: false, error: "La balanza la configura el dueño del negocio." };
     return { ok: true, userId: user.id };
   } catch (e) {
     if (e instanceof AppNoDisponibleError) return { ok: false, error: e.message };

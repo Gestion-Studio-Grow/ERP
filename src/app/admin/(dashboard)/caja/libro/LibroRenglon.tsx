@@ -165,12 +165,15 @@ export default function LibroRenglon({
   hoy,
   esMostrador,
   puedeCerrar,
+  puedeCargar = true,
 }: {
   d: Datos;
   defaultDate: string;
   hoy: string;
   esMostrador: boolean;
   puedeCerrar: boolean;
+  /** «Cargar un movimiento» exige `cash:manage` (casilla 8): sin ella no se ofrece. */
+  puedeCargar?: boolean;
 }) {
   const { rows, monthKey, posiblesDuplicados, cerradoHasta } = d;
   const duplicados = new Set(posiblesDuplicados);
@@ -210,7 +213,7 @@ export default function LibroRenglon({
             siguiente={siguiente <= mesActual ? { href: `${RUTA}?mes=${siguiente}`, texto: nombreMes(siguiente) } : null}
             volver={monthKey !== mesActual ? { href: RUTA, texto: "Este mes" } : null}
           />
-          <CargarMovimiento dia={defaultDate} mes={monthKey} esMostrador={esMostrador} />
+          {puedeCargar && <CargarMovimiento dia={defaultDate} mes={monthKey} esMostrador={esMostrador} />}
           {/* <a>: es un archivo (Link lo precargaría). */}
           <a href={`${RUTA}/export?mes=${monthKey}`} className={buttonClasses("ghost", "md")} {...atributosBoton("ghost", "md")}>
             Bajar el mes (CSV)

@@ -27,8 +27,8 @@ import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
 import { vouchersPrendidos } from "@/cambios/interruptores";
 import { RefrescoDeAgenda } from "./_agenda/RefrescoDeAgenda";
 import Link from "next/link";
-import { getAgendaDay, getMananaConfirmar } from "@/lib/actions";
-import { anulacionDeCobro, roleHasCapability, type Capability, type Role } from "@/lib/capabilities";
+import { getAgendaDay } from "@/lib/actions";
+import { permisoEfectivo, anulacionDeCobro, type Capability, type PermisoOverride, type Role } from "@/lib/capabilities";
 import { contarSinCerrarDeQuienMira } from "@/lib/turnos/sin-cerrar.server";
 import { todayInBusinessTz } from "@/lib/datetime";
 import { appPermitida } from "@/apps/visibles";
@@ -39,7 +39,7 @@ import { anotadosConHueco } from "@/lib/crm/huecos";
 import { EmptyState, Franja, PageContainer, PageHeader, Pestanas, atributosBoton, buttonClasses, chipLinkAtributos } from "@/components/ui";
 import { enInicioPorApps } from "../inicio/piloto";
 import { diaMas, fechaCorta, fechaLarga, lineaDeLaAgenda, nombreRelativo, type Permisos } from "./agenda-core";
-import { extrasDeLaAgenda, proyectarAgenda } from "./agenda.server";
+import { extrasDeLaAgenda, mananaParaConfirmar, proyectarAgenda } from "./agenda.server";
 import { esFechaDeCalendario, hrefDiaDeLaAgenda, hrefNuevoTurno, vacioDiaSinTurnos, vacioSinProfesionales } from "./pasos";
 import LinkAlDia from "./_agenda/LinkAlDia";
 import BotonBuscar from "../armazon/BotonBuscar";
@@ -53,7 +53,7 @@ import ElDiaCorto from "./_agenda/ElDiaCorto";
 import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
 import { agendaInteraccionPrendida } from "@/cambios/interruptores";
 
-type Quien = { role: Role; professionalId?: string | null };
+type Quien = { role: Role; professionalId?: string | null; overrides: ReadonlyArray<PermisoOverride> };
 
 // Dar de baja un saldo: sólo la dueña (D5).
 const PERDONAR: Capability = "agenda:forgive";
@@ -131,14 +131,15 @@ export default async function AgendaRenglon({
   // venta» (Caja). Apagado, todo como estaba. Si la lectura falla, apagado.
   const objeto = agendaInteraccionPrendida(await interruptoresDelNegocio().catch(() => ({})));
   const vista: "lista" | "profesionales" = vistaPedida ?? (objeto ? "profesionales" : "lista");
+  const conPermisos = { role: quien.role, overrides: quien.overrides ?? [] };
   const permisos: Permisos = {
     interaccion: objeto,
     practica: await agendaPractica(),
     sumarProducto: cobrarVenta !== null,
-    gestionar: roleHasCapability(quien.role, "agenda:manage"),
-    cobrar: roleHasCapability(quien.role, "agenda:collect"),
-    terminar: roleHasCapability(quien.role, "agenda:complete"),
-    perdonar: roleHasCapability(quien.role, PERDONAR),
+    gestionar: permisoEfectivo(conPermisos, "agenda:manage"),
+    cobrar: permisoEfectivo(conPermisos, "agenda:collect"),
+    terminar: permisoEfectivo(conPermisos, "agenda:complete"),
+    perdonar: permisoEfectivo(conPermisos, PERDONAR),
     anular: anulacionDeCobro(quien.role),
     // CH · vouchers de La Alameda (lectura de interruptores cacheada por pedido).
     vouchers: vouchersPrendidos(await interruptoresDelNegocio()) && roleHasCapability(quien.role, "agenda:collect"),
@@ -147,7 +148,7 @@ export default async function AgendaRenglon({
   const verManana = permisos.gestionar && dia === hoy;
   const [cruda, manana, piloto, negocio, pendientes] = await Promise.all([
     getAgendaDay(dia),
-    verManana ? getMananaConfirmar() : Promise.resolve(null),
+    verManana ? mananaParaConfirmar() : Promise.resolve(null),
     enInicioPorApps(),
     getNegocioApps(quien.role),
     // Sólo quien cierra turnos ve cuántos quedaron sin cerrar (y puede ir a cerrarlos). Un `count`,

@@ -9,7 +9,7 @@
 // la misma liquidación, y ésta vuelve a la pantalla desde la que se hizo.
 
 import { requireApp } from "@/lib/require-app";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { getCommissionsOverview, getTurnosEsperandoSaldo } from "@/lib/commission-actions";
 import { textoDeEsperaPorSaldo, totalALiquidar } from "@/lib/reports/comisiones";
 import { esEstetica } from "@/lib/palabras-del-negocio";
@@ -33,7 +33,7 @@ export default async function ComisionesPage({ searchParams }: { searchParams: P
   const user = await requireApp("comisiones");
   const [{ status }, overview, nuevo] = await Promise.all([searchParams, getCommissionsOverview(), disenoNuevo()]);
   const total = totalALiquidar(overview.pending);
-  const canSettle = roleHasCapability(user.role, "commissions:manage");
+  const canSettle = permisoEfectivo(user, "commissions:manage");
   const banner = status ? ESTADOS[status] : undefined;
   const aviso = banner && (
     <p

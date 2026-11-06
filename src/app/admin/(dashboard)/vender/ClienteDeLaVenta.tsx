@@ -24,13 +24,9 @@ import {
   traerClienteDeLaVenta,
   type ClienteElegido,
 } from "@/lib/clientes/buscar-para-venta";
-import {
-  MINIMO_PARA_BUSCAR,
-  leerDocumento,
-  type CampoDelCliente,
-  type ClienteEncontrado,
-  type DocumentoEscrito,
-} from "@/lib/clientes/buscar-para-venta-core";
+// Por valor sólo lo PURO: el core importa `Prisma` por valor y no puede entrar al bundle del browser.
+import { MINIMO_PARA_BUSCAR, leerDocumento, type DocumentoEscrito } from "@/lib/clientes/buscar-para-venta-puro";
+import type { CampoDelCliente, ClienteEncontrado } from "@/lib/clientes/buscar-para-venta-core";
 import { OPCIONES_CONDICION_IVA, OPCIONES_DOCUMENTO } from "@/lib/fiscal/ficha-fiscal";
 import { estadoFacturarAlCobrar, type DocumentoDeLaVenta } from "./factura-del-mostrador";
 

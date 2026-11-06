@@ -369,12 +369,15 @@ export default function CajaRenglon({
   caja,
   regla = null,
   cobrarVenta = null,
+  puedeCargar = true,
 }: {
   dia: Dia;
   caja: Turno | null;
   regla?: string | null;
   /** «Cobrar una venta», sólo en CH y para quien vende (cobrar-una-venta.ts). */
   cobrarVenta?: { href: string; etiqueta: string } | null;
+  /** «Cargar un movimiento» exige `cash:manage` (casilla 8): sin ella no se ofrece. */
+  puedeCargar?: boolean;
 }) {
   const deHoy = dia.movements.filter((m) => m.day === dia.day).length;
   return (
@@ -394,7 +397,7 @@ export default function CajaRenglon({
         </div>
         {!dia.yaCerrado && (
           <div className="flex flex-wrap gap-2">
-            <CargarMovimiento dia={dia.day} esMostrador={caja !== null} />
+            {puedeCargar && <CargarMovimiento dia={dia.day} esMostrador={caja !== null} />}
             {cobrarVenta && (
               <Link href={cobrarVenta.href} className={buttonClasses("outline", "md")} {...atributosBoton("outline", "md")}>
                 {cobrarVenta.etiqueta}

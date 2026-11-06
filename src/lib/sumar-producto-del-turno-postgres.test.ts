@@ -54,11 +54,11 @@ test("leerClientaDelTurno: del negocio y para quien vende; la venta queda en su 
     },
     select: { id: true, status: true, updatedAt: true },
   });
-  const ficha = await duenio.client.findUniqueOrThrow({ where: { id: a.clientes[0] }, select: { name: true, phone: true } });
+  const ficha = await duenio.client.findUniqueOrThrow({ where: { id: a.clientes[0] }, select: { id: true, name: true, phone: true } });
 
   const leida = await ejecutarAccion({ negocio: a, usuario: a.recepcion }, () => leerClientaDelTurno(turno.id));
   assert.equal(leida.tipo, "respuesta", JSON.stringify(leida));
-  assert.deepEqual((leida as { valor: unknown }).valor, { nombre: ficha.name, telefono: ficha.phone });
+  assert.deepEqual((leida as { valor: unknown }).valor, { nombre: ficha.name, telefono: ficha.phone, clientId: ficha.id });
   const ajena = await ejecutarAccion({ negocio: base.b, usuario: base.b.duenia }, () => leerClientaDelTurno(turno.id));
   assert.equal(ajena.tipo, "respuesta", JSON.stringify(ajena));
   assert.equal((ajena as { valor: unknown }).valor, null, "el turno de otro negocio no se lee");
