@@ -12,6 +12,7 @@ import ReserveButton from "./ReserveButton";
 import { categoriaVisible } from "./copy-ch";
 import { enumerar, nombreDePila, pesos } from "./equipo";
 import type { BookingGroup, BookingProfessional, BookingService } from "./types";
+import { textoDelPrecio } from "@/lib/servicios/ficha";
 
 type Servicio = Pick<BookingService, "id" | "name" | "durationMin" | "price" | "residentPrice">;
 
@@ -42,7 +43,7 @@ export function Renglon({
       </span>
       <span className="chf-dur">{s.durationMin} min</span>
       <span className="chf-plata">
-        {pesos(s.price)}
+        {textoDelPrecio(s.price, pesos)}
         {conVecina && s.residentPrice != null && s.residentPrice < s.price && <small>Vecinas {pesos(s.residentPrice)}</small>}
       </span>
       <ReserveButton clase="chf-btn-borde chf-btn-chico" prefill={{ serviceId: s.id }} etiqueta={`Reservar ${s.name}`}>

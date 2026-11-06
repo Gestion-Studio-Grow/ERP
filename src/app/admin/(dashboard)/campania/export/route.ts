@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireCapability } from "@/lib/authz";
 import { requireApp } from "@/lib/require-app";
+import { puedeVerContacto } from "@/lib/clientes/telefono";
 
 // ============================================================================
 // DESCARGA DE LOS ANOTADOS EN CSV.
@@ -39,7 +40,15 @@ const fechaAr = new Intl.DateTimeFormat("es-AR", {
 export async function GET() {
   // Guardia de la app (ADR-098): una app oculta no es una app protegida.
   await requireApp("campanias");
-  await requireCapability("clients:read");
+  const user = await requireCapability("clients:read");
+  // Es una planilla de teléfonos: además de ver clientes, pide ver sus datos de contacto
+  // (`clients:contact`, casilla 5 de la matriz de permisos). Sin eso, 403 y sin archivo.
+  if (!puedeVerContacto(user)) {
+    return new Response("No tenés permiso para ver los datos de contacto de las clientas.", {
+      status: 403,
+      headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" },
+    });
+  }
 
   const leads = await prisma.leadCampania.findMany({ orderBy: { createdAt: "asc" } });
 

@@ -9,6 +9,7 @@ import { DireccionSinNegocioError, getCurrentTenantId } from "@/lib/tenant";
 import { requestIp } from "@/lib/audit-core";
 import { adminLoginGuard } from "@/lib/rate-limit";
 import { abrirSesion, destinoTrasIngreso } from "@/lib/ingreso.server";
+import { MENSAJE_RECIEN } from "@/lib/rendiciones/pin-core";
 
 export async function login(formData: FormData) {
   const email = String(formData.get("email") || "").trim().toLowerCase();
@@ -52,6 +53,14 @@ export async function login(formData: FormData) {
   if (await exigeSegundoPaso(user)) {
     await darPase(user.id);
     redirect(`/admin/login/segundo-paso?next=${encodeURIComponent(next)}`);
+  }
+  // Comercial/Producción sin app de códigos: PIN por mail (Rendí §4). El código sale ya; la pantalla permite pedir otro.
+  const { exigePin, pedirPin } = await import("@/lib/rendiciones/pin.server");
+  if (await exigePin(user)) {
+    await darPase(user.id);
+    const { mensaje } = await pedirPin(tenantId, user);
+    const recien = mensaje === MENSAJE_RECIEN ? "&recien=1" : "";
+    redirect(`/admin/login/pin?next=${encodeURIComponent(next)}${recien}`);
   }
 
   await abrirSesion(user.id);

@@ -136,7 +136,7 @@ export async function liquidacionesDelPeriodo(tenantId: string, periodo: string)
 
 export async function misLiquidaciones(tenantId: string, personaId: string) {
   return prisma.proyectoLiquidacion.findMany({
-    where: { tenantId, personaId, estado: "PUBLICADA" },
+    where: { tenantId, personaId, estado: { in: ["PUBLICADA", "PAGADA"] } }, // Rendí: la pagada se sigue viendo
     orderBy: { periodo: "desc" },
     take: 60,
     select: { id: true, periodo: true, base: true, extras: true, total: true, facturaA: true, publicadaEl: true, vistaEl: true, persona: { select: { nombre: true, puesto: true } } },

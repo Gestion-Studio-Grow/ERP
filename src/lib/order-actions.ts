@@ -92,6 +92,8 @@ import { mostradorBoutiquePrendido } from "@/cambios/interruptores";
 import { getTenantIdentity } from "@/lib/identidad-rubro";
 import { round2 } from "@/lib/round";
 import { buscarFichaPorTelefono } from "@/lib/clientes/ficha-por-telefono";
+import { clientaDelTurnoPara, type ClientaDelTurno } from "@/lib/clientes/clienta-del-turno";
+import { telefonoDelFormulario } from "@/lib/clientes/telefono";
 import { leerConfigEnvios } from "@/lib/envios/config";
 import {
   cotizarEnvio,
@@ -155,14 +157,14 @@ const CERRADOS_EN_BANDEJA = 20;
  * La clienta de un turno, para cargarla en la venta («Sumar un producto»). Del negocio y para quien
  * puede vender. Sólo lee: la venta va por `createOrder`, como cualquier otra.
  */
-export async function leerClientaDelTurno(turnoId: string): Promise<{ nombre: string; telefono: string } | null> {
-  await requireCapability("orders:manage");
+export async function leerClientaDelTurno(turnoId: string): Promise<ClientaDelTurno | null> {
+  const user = await requireCapability("orders:manage");
   const tenantId = await getCurrentTenantId();
   const turno = await prisma.appointment.findFirst({
     where: { tenantId, id: turnoId },
-    select: { client: { select: { name: true, phone: true } } },
+    select: { client: { select: { id: true, name: true, phone: true } } },
   });
-  return turno ? { nombre: turno.client.name, telefono: turno.client.phone } : null;
+  return turno ? clientaDelTurnoPara(turno.client, user) : null;
 }
 
 /**
@@ -517,7 +519,8 @@ export async function createOrder(formData: FormData): Promise<OrderActionState>
         channel,
         fulfillment,
         customerName: String(formData.get("customerName") || "").trim() || "Mostrador",
-        customerPhone: String(formData.get("customerPhone") || "").trim(),
+        // Un teléfono enmascarado (quien vende no ve el contacto) no se graba: ata la ficha `clientId`.
+        customerPhone: telefonoDelFormulario(String(formData.get("customerPhone") || "")),
         address: String(formData.get("address") || "").trim() || null,
         notes: String(formData.get("notes") || "").trim() || null,
         // El horario de retiro o envío se lee en la ZONA DEL NEGOCIO (`horarioDelFormulario`):

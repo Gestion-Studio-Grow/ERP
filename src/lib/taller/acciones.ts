@@ -11,7 +11,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { requireCapability } from "@/lib/authz";
+import { requireCapability, requireCapabilityFueraDeLaAgenda } from "@/lib/authz";
 import { auditAdmin, auditPublic } from "@/lib/audit-core";
 import { anulacionDeCobro } from "@/lib/capabilities";
 import { autorizadoraDeLaAnulacion, codigoDeLaDuena, type ResultadoAutorizacion } from "@/lib/anulacion-autorizada";
@@ -186,7 +186,7 @@ export async function agregarFoto(ordenId: string, datos: string, momento: strin
 }
 
 export async function quitarFoto(formData: FormData) {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const id = txt(formData.get("id"));
   const foto = await prisma.tallerFoto.findFirst({ where: { id, tenantId }, select: { ordenId: true } });
@@ -242,7 +242,7 @@ export async function guardarTrabajo(formData: FormData) {
 // ── Presupuesto ─────────────────────────────────────────────────────────────
 
 export async function agregarItem(formData: FormData) {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const ordenId = txt(formData.get("ordenId"));
   const orden = await prisma.tallerOrden.findFirst({ where: { id: ordenId, tenantId, estado: { not: "ENTREGADO" } }, select: { id: true, _count: { select: { items: true } } } });
@@ -283,7 +283,7 @@ export async function agregarItem(formData: FormData) {
 }
 
 export async function quitarItem(formData: FormData) {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const id = txt(formData.get("id"));
   const item = await prisma.tallerItem.findFirst({ where: { id, tenantId }, select: { ordenId: true } });
@@ -294,7 +294,7 @@ export async function quitarItem(formData: FormData) {
 
 /** El taller anota la respuesta que el cliente dio de palabra o por WhatsApp. */
 export async function decidirItem(formData: FormData) {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const id = txt(formData.get("id"));
   const decision = txt(formData.get("decision"));
@@ -307,7 +307,7 @@ export async function decidirItem(formData: FormData) {
 
 /** Se llama al tocar "Enviar por WhatsApp": deja la orden esperando al cliente y fija la validez. */
 export async function marcarPresupuestoEnviado(ordenId: string): Promise<Resultado> {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const orden = await prisma.tallerOrden.findFirst({ where: { id: ordenId, tenantId }, select: { estado: true, _count: { select: { items: true } } } });
   if (!orden) return { ok: false, error: "Esa orden no existe." };
@@ -365,7 +365,7 @@ export async function responderPresupuesto(token: string, decisiones: Record<str
 // ── Cobros ──────────────────────────────────────────────────────────────────
 
 export async function registrarPago(formData: FormData) {
-  const user = await requireCapability("agenda:manage");
+  const user = await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const ordenId = txt(formData.get("ordenId"));
   const medio = txt(formData.get("medio")) as MedioPago;
@@ -412,7 +412,7 @@ const TEXTOS_DEL_CODIGO = {
  * saca para ESE cobro (`anulacionDeCobro`). El mecánico no llega: no tiene `agenda:manage`.
  */
 export async function anularPago(formData: FormData): Promise<Resultado> {
-  const user = await requireCapability("agenda:manage");
+  const user = await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const politica = anulacionDeCobro(user.role);
   if (!politica) return { ok: false, error: MENSAJE_SIN_ANULAR };
   const tenantId = await getCurrentTenantId();
@@ -466,7 +466,7 @@ export async function anularPago(formData: FormData): Promise<Resultado> {
  * la plata no se mueve hasta que recepción anula. El código no se guarda.
  */
 export async function autorizarAnulacionPago(formData: FormData): Promise<ResultadoAutorizacion> {
-  const user = await requireCapability("agenda:manage");
+  const user = await requireCapabilityFueraDeLaAgenda("agenda:manage");
   if (anulacionDeCobro(user.role) !== "directa") return { ok: false, error: "Autorizar una anulación lo hace la dueña." };
   const tenantId = await getCurrentTenantId();
   const id = txt(formData.get("id"));
@@ -488,7 +488,7 @@ export async function autorizarAnulacionPago(formData: FormData): Promise<Result
 // ── Entrega ─────────────────────────────────────────────────────────────────
 
 export async function entregar(formData: FormData): Promise<void> {
-  const user = await requireCapability("agenda:manage");
+  const user = await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const id = txt(formData.get("id"));
   const orden = await prisma.tallerOrden.findFirst({
@@ -539,7 +539,7 @@ export async function entregar(formData: FormData): Promise<void> {
 }
 
 export async function marcarResenaPedida(ordenId: string): Promise<void> {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   await prisma.tallerOrden.updateMany({ where: { id: ordenId, tenantId }, data: { resenaPedidaEl: new Date() } });
   refrescar(ordenId);
@@ -550,7 +550,7 @@ export async function marcarResenaPedida(ordenId: string): Promise<void> {
 const ETIQUETAS = ["particular", "flota", "empresa", "VIP"];
 
 export async function guardarVehiculo(formData: FormData) {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const id = txt(formData.get("id"));
   const v = await prisma.tallerVehiculo.findFirst({ where: { id, tenantId }, select: { clientId: true } });
@@ -585,7 +585,7 @@ export async function guardarVehiculo(formData: FormData) {
 // ── Avisos ──────────────────────────────────────────────────────────────────
 
 export async function marcarAvisoEnviado(clave: string): Promise<void> {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   if (typeof clave !== "string" || clave.length > 120) return;
   await prisma.tallerAvisoEnviado.upsert({

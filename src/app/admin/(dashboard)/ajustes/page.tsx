@@ -7,7 +7,7 @@ import { appPermitida } from "@/apps/visibles";
 import { appPorId } from "@/apps/registro";
 import { Bloque, DosColumnas, EmptyState, LineaDeEstado, PageHeader, Renglon, buttonClasses } from "@/components/ui";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
 import { getAdjustmentData } from "@/lib/inventario/ajustes-loader";
 import { fmtShortDate, dateStrInBusinessTz, todayInBusinessTz } from "@/lib/datetime";
@@ -114,7 +114,7 @@ export default async function AjustesPage({
                   motivos={motivos}
                   inicial={inicial}
                   topePesos={topeDeMermaPorCarga(user.role)}
-                  conCostos={roleHasCapability(user.role, "costs:read")}
+                  conCostos={permisoEfectivo(user, "costs:read")}
                 />
               )}
             </div>
@@ -194,7 +194,7 @@ export default async function AjustesPage({
           motivos={motivos}
           inicial={inicial}
           topePesos={topeDeMermaPorCarga(user.role)}
-          conCostos={roleHasCapability(user.role, "costs:read")}
+          conCostos={permisoEfectivo(user, "costs:read")}
         />
       )}
 

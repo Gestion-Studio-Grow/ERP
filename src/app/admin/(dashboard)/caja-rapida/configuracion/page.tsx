@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { requireApp } from "@/lib/require-app";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { prisma } from "@/lib/prisma";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { PageContainer, PageHeader, ButtonLink } from "@/components/ui";
 import { leerConfigCaja } from "@/lib/supermercado/config-repo";
 import ConfigCaja from "./ConfigCaja";
@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 // Sólo el dueño: cambia cómo se cobra.
 export default async function ConfiguracionCajaPage() {
   const user = await requireApp("caja-rapida");
-  if (!roleHasCapability(user.role, "catalog:manage")) redirect("/admin/caja-rapida");
+  if (!permisoEfectivo(user, "catalog:manage")) redirect("/admin/caja-rapida");
   const tenantId = await getCurrentTenantId();
   const [config, usuarios] = await Promise.all([
     leerConfigCaja(prisma, tenantId),

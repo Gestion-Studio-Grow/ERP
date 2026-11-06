@@ -15,6 +15,7 @@ import { requireCapability } from "@/lib/authz";
 import { auditAdmin } from "@/lib/audit-core";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { tenantTransaction } from "@/lib/rls";
+import { enmascararTelefono, puedeVerContacto, type QuienMira } from "./telefono";
 import {
   buscarClientesParaVentaEnTx,
   consultarPadron,
@@ -56,26 +57,32 @@ async function saldoDe(tenantId: string, clientId: string): Promise<number | nul
 
 /** Busca fichas del negocio por nombre, teléfono o CUIT/DNI (desde 3 caracteres, hasta 8). */
 export async function buscarClientesParaVenta(texto: string): Promise<ClienteEncontrado[]> {
-  await requireCapability("orders:manage");
+  const user = await requireCapability("orders:manage");
   if (!textoParaBuscar(texto).ok) return [];
   const tenantId = await getCurrentTenantId();
-  return tenantTransaction((tx) => buscarClientesParaVentaEnTx(tx, tenantId, String(texto ?? "")), { tenantId });
+  const filas = await tenantTransaction((tx) => buscarClientesParaVentaEnTx(tx, tenantId, String(texto ?? ""), puedeVerContacto(user)), { tenantId });
+  return filas.map((f) => conTelefonoSegun(f, user));
+}
+
+/** Sin `clients:contact` (casilla 5 de la matriz) el teléfono sale enmascarado del servidor. */
+function conTelefonoSegun<T extends { telefono: string | null }>(f: T, quien: QuienMira): T {
+  return puedeVerContacto(quien) ? f : { ...f, telefono: enmascararTelefono(f.telefono) ?? null };
 }
 
 /** Lo que el mostrador ve al elegir: datos para facturar, última dirección, saldo, últimos pedidos. */
 export async function traerClienteDeLaVenta(clientId: string): Promise<ClienteElegido | null> {
-  await requireCapability("orders:manage");
+  const user = await requireCapability("orders:manage");
   const tenantId = await getCurrentTenantId();
   const id = String(clientId ?? "").trim().slice(0, 64);
   if (!id) return null;
   const detalle = await tenantTransaction((tx) => detalleDelClienteEnTx(tx, tenantId, id), { tenantId });
   if (!detalle) return null;
-  return { ...detalle, saldo: await saldoDe(tenantId, detalle.id) };
+  return { ...conTelefonoSegun(detalle, user), saldo: await saldoDe(tenantId, detalle.id) };
 }
 
 /** Alta (sin `id`) o edición de los datos para facturar (con `id`) desde Vender. */
 export async function guardarClienteDeLaVenta(datos: DatosDelClienteDeLaVenta): Promise<ResultadoGuardarCliente> {
-  await requireCapability("orders:manage");
+  const user = await requireCapability("orders:manage");
   await requireCapability("clients:manage");
   const tenantId = await getCurrentTenantId();
 
@@ -103,7 +110,7 @@ export async function guardarClienteDeLaVenta(datos: DatosDelClienteDeLaVenta): 
     revalidatePath(`/admin/clientes/${r.g.id}`);
     revalidatePath("/admin/clientes");
   }
-  return { ok: true, creado: r.g.creado, cliente: { ...r.detalle, saldo: await saldoDe(tenantId, r.g.id) } };
+  return { ok: true, creado: r.g.creado, cliente: { ...conTelefonoSegun(r.detalle, user), saldo: await saldoDe(tenantId, r.g.id) } };
 }
 
 /**

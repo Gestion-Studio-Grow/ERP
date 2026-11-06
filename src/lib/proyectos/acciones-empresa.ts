@@ -14,9 +14,13 @@ import { transferenciaEnElLibroTx } from "@/lib/caja/transferencia-en-el-libro";
 import type { Prisma } from "@/generated/prisma/client";
 import { leerNumero, MEDIOS, metodoDeCaja, redondear, type MedioPago } from "./core";
 import { aPesos, extrasDelPeriodo, leerExtracto, MONEDAS } from "./gestion-core";
-import { actorActual, avisar, exigirEditar, regenerarCuotasDe, registrarCambio, tiposDeCambio } from "./gestion.server";
+import { actorActual, avisar, exigirEditar, puede, regenerarCuotasDe, registrarCambio, tiposDeCambio } from "./gestion.server";
 import { marcaDeGastoProyecto } from "./marcas";
-import { etiquetaMes, extrasRecalculados, leerExtras, lineasNuevas, periodoValido, totalLiquidacion, type ExtraGuardado } from "./empresa-core";
+import { actorDelMotor, faltaLaMigracion, rendicionDelMotor, SIN_MIGRACION } from "./rendiciones-core";
+import { puedeReintegrarRendicion } from "./gestion-core";
+import { aplicarAccion } from "@/lib/rendiciones/rendicion";
+import type { RolActor } from "@/lib/rendiciones/tipos";
+import { conReintegros, etiquetaMes, extrasRecalculados, leerExtras, lineasNuevas, periodoValido, reintegrosCuadran, totalLiquidacion, type ExtraGuardado } from "./empresa-core";
 import type { Resultado } from "./acciones";
 
 const ADMIN = "/admin/proyectos/administracion";
@@ -302,17 +306,47 @@ export async function bajaGastoFijo(formData: FormData): Promise<Resultado> {
 
 // ── Liquidaciones ───────────────────────────────────────────────────────────
 
-/** Base + plus de los eventos terminados en el mes. Lo publicado no se toca; lo cargado a mano en un borrador se conserva. */
+/** Rendí: lo que una liquidación puede reclamar. Sólo lo PROPIO, aprobado y que nadie reclamó ni reintegró todavía. */
+const RECLAMABLE = { medio: "PROPIO", estado: "aprobada", liquidacionId: null, reintegradoEl: null } as const;
+
+/** Las personas con reintegros por cobrar; `null` si la migración de Rendí no está aplicada (la liquidación sigue sin ellos). */
+async function personasConReintegros(tenantId: string): Promise<Set<string> | null> {
+  try {
+    const filas = await prisma.proyectoRendicion.findMany({ where: { tenantId, ...RECLAMABLE }, select: { personaId: true }, distinct: ["personaId"] });
+    return new Set(filas.map((f) => f.personaId));
+  } catch (e) {
+    if (faltaLaMigracion(e)) return null;
+    throw e;
+  }
+}
+
+/**
+ * Rendí: la liquidación reclama los reintegros de la persona (claim `updateMany where liquidacionId IS NULL AND
+ * reintegradoEl IS NULL AND estado = 'aprobada'`: un reintegro directo concurrente gana o pierde entero) y devuelve los
+ * extras rehechos desde la base. Primero libera los que ya tenía y los vuelve a reclamar: regenerar no duplica.
+ */
+async function reclamarReintegrosTx(tx: Prisma.TransactionClient, tenantId: string, liquidacionId: string, personaId: string, extras: readonly ExtraGuardado[]): Promise<ExtraGuardado[]> {
+  await tx.proyectoRendicion.updateMany({ where: { tenantId, liquidacionId, estado: "aprobada", reintegradoEl: null }, data: { liquidacionId: null } });
+  await tx.proyectoRendicion.updateMany({ where: { tenantId, personaId, ...RECLAMABLE }, data: { liquidacionId } });
+  const reclamadas = await tx.proyectoRendicion.findMany({ where: { tenantId, liquidacionId, estado: "aprobada" }, orderBy: { createdAt: "asc" }, select: { gastoId: true, proyectoId: true, montoCentavos: true, gasto: { select: { descripcion: true } } } });
+  return conReintegros(extras, reclamadas.map((r) => ({ gastoId: r.gastoId, proyectoId: r.proyectoId, montoCentavos: r.montoCentavos, descripcion: r.gasto.descripcion })));
+}
+
+/**
+ * Base + plus de los eventos terminados en el mes + reintegros de Rendí aprobados y sin reclamar. Lo publicado no se
+ * toca; lo cargado a mano en un borrador se conserva.
+ */
 export async function generarLiquidaciones(formData: FormData): Promise<Resultado<{ generadas: number; publicadas: number }>> {
   const a = await exigirEditar("liquidaciones");
   const periodo = txt(formData.get("periodo"));
   if (!periodoValido(periodo)) return { ok: false, error: "Elegí el mes." };
-  const [personas, actuales] = await Promise.all([
+  const [personas, actuales, conReintegro] = await Promise.all([
     prisma.proyectoPersona.findMany({
       where: { tenantId: a.tenantId, activa: true },
       select: { id: true, nombre: true, sueldoBase: true, facturaA: true, equipos: { where: { proyecto: { perdidoEl: null } }, select: { plus: true, proyecto: { select: { id: true, nombre: true, fechaEvento: true, fechaFin: true } } } } },
     }),
     prisma.proyectoLiquidacion.findMany({ where: { tenantId: a.tenantId, periodo }, select: { id: true, personaId: true, estado: true, extras: true, total: true } }),
+    personasConReintegros(a.tenantId),
   ]);
   const publicadas = actuales.filter((l) => l.estado !== "BORRADOR").length;
   let generadas = 0;
@@ -321,19 +355,21 @@ export async function generarLiquidaciones(formData: FormData): Promise<Resultad
       const previa = actuales.find((l) => l.personaId === p.id);
       if (previa && previa.estado !== "BORRADOR") continue;
       const delPeriodo = extrasDelPeriodo(p.equipos, periodo);
-      if (!previa && !(p.sueldoBase > 0) && delPeriodo.length === 0) continue;
-      const extras = extrasRecalculados(leerExtras(previa?.extras), delPeriodo);
+      if (!previa && !(p.sueldoBase > 0) && delPeriodo.length === 0 && !conReintegro?.has(p.id)) continue;
+      if (!previa) await tx.proyectoLiquidacion.createMany({ data: [{ tenantId: a.tenantId, personaId: p.id, periodo, base: p.sueldoBase, facturaA: p.facturaA }], skipDuplicates: true });
+      // Toma la fila y confirma que sigue en borrador: si alguien la publicó recién, queda como está; si la publican
+      // ahora, esperan a que esta transacción termine (el claim de reintegros y el total van juntos).
+      const tomada = await tx.proyectoLiquidacion.updateMany({ where: { tenantId: a.tenantId, personaId: p.id, periodo, estado: "BORRADOR" }, data: { facturaA: p.facturaA } });
+      if (tomada.count === 0) continue;
+      // Los extras se leen con la fila ya tomada: lo que otra edición guardó recién no se pisa con una lectura vieja.
+      const fila = await tx.proyectoLiquidacion.findFirstOrThrow({ where: { tenantId: a.tenantId, personaId: p.id, periodo }, select: { id: true, extras: true } });
+      const id = fila.id;
+      const sinReintegros = extrasRecalculados(leerExtras(fila.extras), delPeriodo);
+      const extras = conReintegro ? await reclamarReintegrosTx(tx, a.tenantId, id, p.id, sinReintegros) : [...sinReintegros, ...leerExtras(fila.extras).filter((e) => e.reintegro)];
       const total = totalLiquidacion(p.sueldoBase, extras);
-      const datos = { base: p.sueldoBase, extras: extras as unknown as Prisma.InputJsonValue, total, facturaA: p.facturaA };
-      if (previa) {
-        // Si alguien la publicó recién, este where la deja como está.
-        const r = await tx.proyectoLiquidacion.updateMany({ where: { id: previa.id, tenantId: a.tenantId, estado: "BORRADOR" }, data: datos });
-        if (r.count === 0) continue;
-      } else {
-        await tx.proyectoLiquidacion.createMany({ data: [{ tenantId: a.tenantId, personaId: p.id, periodo, ...datos }], skipDuplicates: true });
-      }
+      await tx.proyectoLiquidacion.updateMany({ where: { id, tenantId: a.tenantId, estado: "BORRADOR" }, data: { base: p.sueldoBase, extras: extras as unknown as Prisma.InputJsonValue, total, facturaA: p.facturaA } });
       generadas++;
-      await registrarCambio(tx, { tenantId: a.tenantId, entidad: "liquidacion", entidadId: previa?.id ?? p.id, campo: `total ${periodo} de ${p.nombre}`, antes: previa?.total, despues: total, autor: a.nombre });
+      await registrarCambio(tx, { tenantId: a.tenantId, entidad: "liquidacion", entidadId: id, campo: `total ${periodo} de ${p.nombre}`, antes: previa?.total, despues: total, autor: a.nombre });
     }
   });
   revalidatePath(ADMIN);
@@ -365,28 +401,130 @@ export async function publicarBorradores(formData: FormData): Promise<Resultado<
   return { ok: true, publicadas: borradores.length };
 }
 
-/** Reemplaza la base y los extras manuales. Los que salen de los eventos quedan como están. Un descuento va en negativo. */
+/**
+ * Rendí: pagar una liquidación publicada. PAGADA + un egreso por el total (clave única `proyectoLiquidacionId`: dos clics
+ * = un egreso) + las rendiciones que reclamó pasan a reintegradas. Dirección o Administración; nadie se paga lo propio.
+ */
+/** Aborta la transacción del pago: los reintegros reclamados no coinciden con los del total. */
+class Descuadre extends Error {}
+const DESCUADRE = "Los reintegros de esta liquidación no cuadran con su total: no se pagó nada. Avisá a Dirección para revisarla.";
+
+export async function pagarLiquidacion(formData: FormData): Promise<Resultado> {
+  const a = await actorActual();
+  const id = txt(formData.get("id"));
+  const medioPedido = txt(formData.get("medio")) || "TRANSFERENCIA";
+  if (!MEDIOS.includes(medioPedido as MedioPago)) return { ok: false, error: "Elegí cómo se pagó." };
+  const medio = medioPedido as MedioPago;
+  try {
+    const l = await prisma.proyectoLiquidacion.findFirst({ where: { id, tenantId: a.tenantId }, select: { id: true, periodo: true, total: true, estado: true, personaId: true, persona: { select: { nombre: true, userId: true } } } });
+    if (!l) return { ok: false, error: "Esa liquidación no existe." };
+    const actorId = actorDelMotor({ personaId: a.personaId, userId: a.user.id });
+    if (actorId === l.personaId || (!!l.persona.userId && l.persona.userId === a.user.id)) return { ok: false, error: "Nadie se paga lo propio: esta liquidación es tuya." };
+    if (!puedeReintegrarRendicion(a.rol, actorId, l.personaId) || !puede(a, "liquidaciones", "editar")) return { ok: false, error: "Sólo Dirección o Administración, con permiso para editar liquidaciones, las pagan." };
+    if (l.estado === "PAGADA") return { ok: false, error: "Esta liquidación ya está pagada." };
+    if (l.estado !== "PUBLICADA") return { ok: false, error: "Primero publicala: se paga lo que la persona ya vio." };
+    const ahora = new Date();
+    const hecho = await tenantTransaction(async (tx) => {
+      // El claim: dos clics o dos pestañas pagan una sola vez.
+      const r = await tx.proyectoLiquidacion.updateMany({ where: { id, tenantId: a.tenantId, estado: "PUBLICADA" }, data: { estado: "PAGADA", pagadaEl: ahora, pagadaPor: a.nombre } });
+      if (r.count === 0) return false;
+      // Con la fila tomada: lo reclamado en la base tiene que ser lo que suma el total. Si no cuadra, no se paga nada.
+      const fila = await tx.proyectoLiquidacion.findFirstOrThrow({ where: { id, tenantId: a.tenantId }, select: { extras: true } });
+      const incluidas = await tx.proyectoRendicion.findMany({ where: { tenantId: a.tenantId, liquidacionId: id, estado: "aprobada" }, select: { id: true, gastoId: true, personaId: true, medio: true, anticipoId: true, montoCentavos: true, estado: true, eventos: true } });
+      if (!reintegrosCuadran(leerExtras(fila.extras), incluidas)) throw new Descuadre();
+      if (l.total > 0) {
+        const session = await tx.cashSession.findFirst({ where: { tenantId: a.tenantId, status: "OPEN" }, select: { id: true } });
+        await tx.cashMovement.create({
+          data: {
+            tenantId: a.tenantId,
+            sessionId: session?.id ?? null,
+            type: "EGRESO",
+            method: metodoDeCaja(medio, await transferenciaEnElLibroTx(tx)),
+            amount: redondear(l.total),
+            reason: `Liquidación ${etiquetaMes(l.periodo)} · ${l.persona.nombre}${medio === "CHEQUE" ? " · Cheque" : ""}`,
+            proyectoLiquidacionId: id,
+            createdBy: marcaDeGastoProyecto(`liquidacion-${id}`),
+          },
+        });
+      }
+      for (const f of incluidas) {
+        const res = aplicarAccion(rendicionDelMotor(f), "reintegrar", { fecha: ahora.toISOString(), actorId, rolActor: a.rol as RolActor, comentario: `Con la liquidación de ${etiquetaMes(l.periodo)}` });
+        if (!res.ok) throw new Error(res.motivo);
+        await tx.proyectoRendicion.updateMany({ where: { id: f.id, tenantId: a.tenantId, liquidacionId: id, estado: "aprobada" }, data: { estado: "reintegrada", reintegradoEl: ahora, eventos: res.rendicion.eventos as unknown as Prisma.InputJsonValue } });
+      }
+      await registrarCambio(tx, { tenantId: a.tenantId, entidad: "liquidacion", entidadId: id, campo: `pago ${l.periodo} de ${l.persona.nombre}`, antes: "publicada", despues: `pagada · ${medio} · $ ${l.total}`, autor: a.nombre });
+      if (l.persona.userId) await avisar(tx, { tenantId: a.tenantId, destinatarios: [l.persona.userId], tipo: "liquidacion", texto: `Te pagamos la liquidación de ${etiquetaMes(l.periodo)}.`, enlace: `/admin/proyectos/mi-liquidacion?periodo=${l.periodo}` });
+      return true;
+    });
+    if (!hecho) return { ok: false, error: "Esta liquidación ya está pagada." };
+  } catch (e) {
+    if (e instanceof Descuadre) return { ok: false, error: DESCUADRE };
+    if (faltaLaMigracion(e)) return { ok: false, error: SIN_MIGRACION };
+    throw e;
+  }
+  await auditAdmin({ action: "proyecto.liquidacion.pagar", entity: "ProyectoLiquidacion", entityId: id, changes: { medio } });
+  revalidatePath(ADMIN);
+  revalidatePath("/admin/proyectos/mi-liquidacion");
+  return { ok: true };
+}
+
+/** Borrar un borrador: los reintegros que había reclamado quedan libres para otra liquidación o un reintegro directo. */
+export async function borrarLiquidacion(formData: FormData): Promise<Resultado> {
+  const a = await exigirEditar("liquidaciones");
+  const id = txt(formData.get("id"));
+  const hecho = await tenantTransaction(async (tx) => {
+    const l = await tx.proyectoLiquidacion.findFirst({ where: { id, tenantId: a.tenantId, estado: "BORRADOR" }, select: { periodo: true, total: true } });
+    if (!l) return false;
+    try {
+      await tx.$executeRaw`SAVEPOINT rendi_liberar`;
+      await tx.proyectoRendicion.updateMany({ where: { tenantId: a.tenantId, liquidacionId: id, reintegradoEl: null }, data: { liquidacionId: null } });
+    } catch (e) {
+      if (!faltaLaMigracion(e)) throw e;
+      await tx.$executeRaw`ROLLBACK TO SAVEPOINT rendi_liberar`;
+    }
+    const r = await tx.proyectoLiquidacion.deleteMany({ where: { id, tenantId: a.tenantId, estado: "BORRADOR" } });
+    if (r.count === 0) return false;
+    await registrarCambio(tx, { tenantId: a.tenantId, entidad: "liquidacion", entidadId: id, campo: `borrador ${l.periodo}`, antes: l.total, despues: "borrado", autor: a.nombre });
+    return true;
+  });
+  if (!hecho) return { ok: false, error: "Sólo se borra un borrador." };
+  revalidatePath(ADMIN);
+  return { ok: true };
+}
+
+/**
+ * Reemplaza la base y los extras manuales. Los que salen de los eventos y los reintegros de Rendí quedan como están: un
+ * reintegro sólo lo pone o lo saca generar, que lo reclama en la base. Un descuento va en negativo. Toma la fila en
+ * borrador antes de leer los extras (mismo candado que generar): una generación en paralelo espera o se ve entera.
+ */
 export async function editarExtrasLiquidacion(d: { id: string; base?: string; manuales: readonly { nombre: string; monto: string }[] }): Promise<Resultado> {
   const a = await exigirEditar("liquidaciones");
-  const l = await prisma.proyectoLiquidacion.findFirst({ where: { id: String(d.id ?? ""), tenantId: a.tenantId }, select: { id: true, periodo: true, base: true, extras: true, total: true, estado: true } });
-  if (!l) return { ok: false, error: "Esa liquidación no existe." };
-  if (l.estado !== "BORRADOR") return { ok: false, error: "Ya está publicada: no se puede cambiar." };
+  const id = String(d.id ?? "");
   const manuales: ExtraGuardado[] = (Array.isArray(d.manuales) ? d.manuales : [])
     .slice(0, 30)
     .map((m) => ({ proyectoId: null, nombre: String(m.nombre ?? "").trim().slice(0, 120), monto: redondear(leerNumero(String(m.monto ?? ""))), manual: true }))
     .filter((m) => m.nombre || m.monto !== 0);
   if (manuales.some((m) => !m.nombre)) return { ok: false, error: "Cada extra necesita un concepto." };
   if (manuales.some((m) => m.monto === 0)) return { ok: false, error: "Cada extra necesita un monto." };
-  const extras = [...leerExtras(l.extras).filter((e) => !e.manual), ...manuales];
-  const base = d.base === undefined ? l.base : redondear(leerNumero(String(d.base)));
-  if (base < 0) return { ok: false, error: "La base no puede ser negativa." };
-  const total = totalLiquidacion(base, extras);
-  if (total < 0) return { ok: false, error: "El total no puede quedar negativo." };
-  const r = await prisma.proyectoLiquidacion.updateMany({ where: { id: l.id, tenantId: a.tenantId, estado: "BORRADOR" }, data: { base, extras: extras as unknown as Prisma.InputJsonValue, total } });
-  if (r.count === 0) return { ok: false, error: "Ya está publicada: no se puede cambiar." };
-  await registrarCambio(prisma, { tenantId: a.tenantId, entidad: "liquidacion", entidadId: l.id, campo: `total ${l.periodo}`, antes: l.total, despues: total, autor: a.nombre });
-  revalidatePath(ADMIN);
-  return { ok: true };
+  const pedida = d.base === undefined ? null : redondear(leerNumero(String(d.base)));
+  if (pedida !== null && pedida < 0) return { ok: false, error: "La base no puede ser negativa." };
+  const r = await tenantTransaction(async (tx): Promise<Resultado> => {
+    const tomada = await tx.proyectoLiquidacion.updateMany({ where: { id, tenantId: a.tenantId, estado: "BORRADOR" }, data: { estado: "BORRADOR" } });
+    if (tomada.count === 0) {
+      const existe = await tx.proyectoLiquidacion.findFirst({ where: { id, tenantId: a.tenantId }, select: { id: true } });
+      return { ok: false, error: existe ? "Ya está publicada: no se puede cambiar." : "Esa liquidación no existe." };
+    }
+    const l = await tx.proyectoLiquidacion.findFirstOrThrow({ where: { id, tenantId: a.tenantId }, select: { periodo: true, base: true, extras: true, total: true } });
+    const extras = [...leerExtras(l.extras).filter((e) => !e.manual || e.reintegro), ...manuales];
+    const base = pedida ?? l.base;
+    const total = totalLiquidacion(base, extras);
+    if (total < 0) return { ok: false, error: "El total no puede quedar negativo." };
+    await tx.proyectoLiquidacion.updateMany({ where: { id, tenantId: a.tenantId, estado: "BORRADOR" }, data: { base, extras: extras as unknown as Prisma.InputJsonValue, total } });
+    await registrarCambio(tx, { tenantId: a.tenantId, entidad: "liquidacion", entidadId: id, campo: `total ${l.periodo}`, antes: l.total, despues: total, autor: a.nombre });
+    return { ok: true };
+  });
+  if (r.ok) revalidatePath(ADMIN);
+  return r;
 }
 
 /**
