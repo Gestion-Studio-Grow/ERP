@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { abrirSesion, destinoTrasIngreso } from "@/lib/ingreso.server";
 import { prisma } from "@/lib/prisma";
-import { comprobarCodigo, leerPaseActual, quitarPase } from "@/lib/proyectos/segundo-factor.server";
+import { comprobarCodigo, exigeSegundoPaso, leerPaseActual, quitarPase } from "@/lib/proyectos/segundo-factor.server";
 import { getCurrentTenantId } from "@/lib/tenant";
 
 export interface EstadoDelPaso {
@@ -18,6 +18,7 @@ export async function confirmarSegundoPaso(_previo: EstadoDelPaso, formData: For
   const tenantId = await getCurrentTenantId();
   const user = await prisma.user.findFirst({ where: { id: userId, tenantId, active: true, deletedAt: null }, select: { id: true, tenantId: true, email: true, role: true } });
   if (!user) redirect("/admin/login");
+  if (!(await exigeSegundoPaso(user))) redirect("/admin/login/pin");
 
   const resultado = await comprobarCodigo(user, String(formData.get("codigo") ?? "").slice(0, 40));
   if (!resultado.ok) return { error: resultado.error };

@@ -19,6 +19,7 @@ import SubmitButton from "@/components/SubmitButton";
 import { buttonClasses } from "@/components/ui";
 import { fmtCalendarDateLabel, fmtTime } from "@/lib/datetime";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
+import { AVISO_CONTACTO_OCULTO, contactoOculto } from "@/lib/clientes/telefono";
 import { claseBotonWhatsApp } from "../clientes/boton-whatsapp";
 import PasoVacio from "./PasoVacio";
 import { vacioManana } from "./pasos";
@@ -39,7 +40,8 @@ function FilaAConfirmar({ turno }: { turno: TurnoAConfirmar }) {
           {turno.servicio} · {turno.profesional}
         </p>
         {avisadaEl && <p className="text-xs text-success">avisada {fmtTime(avisadaEl)}</p>}
-        {!wa && (
+        {!wa && contactoOculto(turno.telefono) && <p className="text-xs text-muted">{AVISO_CONTACTO_OCULTO}</p>}
+        {!wa && !contactoOculto(turno.telefono) && (
           <p className="text-xs text-warning">
             El teléfono cargado ({turno.telefono}) no es un celular válido.{" "}
             {/* Lleva directo a su ficha, donde se corrige con "Editar datos". */}

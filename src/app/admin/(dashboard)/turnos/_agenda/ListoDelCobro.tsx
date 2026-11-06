@@ -36,7 +36,7 @@ export default function ListoDelCobro({ cobro, proximo, onCerrar }: { cobro: Cob
           ¿Le damos el próximo?
         </Link>
       )}
-      <Button type="button" variant="ghost" className="w-full" onClick={onCerrar}>
+      <Button type="button" size="lg" variant="ghost" className="w-full" onClick={onCerrar}>
         Listo
       </Button>
     </div>

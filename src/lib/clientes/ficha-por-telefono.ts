@@ -26,7 +26,7 @@
 // de acá `fichaParaTelefono`, `detalleFicha` y la precarga (`alCambiarTelefono`,
 // `alElegirFicha`).
 
-import { normalizarTelefono } from "./telefono";
+import { enmascararTelefono, normalizarTelefono, puedeVerContacto, type QuienMira } from "./telefono";
 import { esCuentaACobrar, estadoCobroTurno, type CobroTurno, type PagoLegado } from "@/lib/turnos/cobros";
 import { fmtShortDate } from "@/lib/datetime";
 
@@ -323,4 +323,13 @@ export function detalleFicha(f: FichaParaAlta): string {
   const clave = normalizarTelefono(f.telefono);
   const tel = clave && clave !== f.telefono.trim() ? `${f.telefono} · ${clave}` : f.telefono;
   return f.ultimaVisita ? `${tel} · última visita ${fmtShortDate(f.ultimaVisita.fecha)}` : tel;
+}
+
+/**
+ * Las fichas del alta con el teléfono enmascarado si quien mira no tiene `clients:contact` (casilla 5).
+ * Con el permiso, la MISMA lista. El alta igual encuentra a la clienta: el servidor ata la ficha por id.
+ */
+export function enmascararFichasParaAlta(fichas: FichaParaAlta[], quien: QuienMira): FichaParaAlta[] {
+  if (puedeVerContacto(quien)) return fichas;
+  return fichas.map((f) => ({ ...f, telefono: enmascararTelefono(f.telefono) }));
 }

@@ -13,7 +13,7 @@
 // «Ese turno ya no existe» y no escribe nada. La lectura filtra la auditoría por `tenantId`.
 
 import { prisma } from "@/lib/prisma";
-import { requireCapability } from "@/lib/authz";
+import { filtroSoloLoSuyo, requireCapability } from "@/lib/authz";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { auditAdmin } from "@/lib/audit-core";
 import { isDemoSandbox } from "@/lib/demo-flag";
@@ -23,13 +23,14 @@ import { ACCION_SENIA_PEDIDA, ultimaSeniaPedida } from "./senia-pedida";
 
 /** Campos: `appointmentId`. Sólo un turno Reservado que pide seña. */
 export async function marcarSeniaPedida(fd: FormData): Promise<ResultadoAccion> {
-  await requireCapability("agenda:manage");
+  const user = await requireCapability("agenda:manage");
   const appointmentId = String(fd.get("appointmentId") ?? "").trim();
   if (!appointmentId) return { ok: false, error: "Falta el turno." };
   if (isDemoSandbox()) return { ok: true };
   const tenantId = await getCurrentTenantId();
+  // Sólo lo suyo: un turno de otra profesional contesta como si no existiera.
   const turno = await prisma.appointment.findFirst({
-    where: { id: appointmentId, tenantId },
+    where: { id: appointmentId, tenantId, ...filtroSoloLoSuyo(user) },
     select: { id: true, status: true, priceAtBooking: true, service: { select: { price: true, depositAmount: true } } },
   });
   if (!turno) return { ok: false, error: "Ese turno ya no existe. Recargá la agenda." };

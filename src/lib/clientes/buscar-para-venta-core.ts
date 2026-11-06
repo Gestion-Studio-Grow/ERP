@@ -22,19 +22,22 @@
 // negocio, dentro de `tenantTransaction`. Lo puro (texto a buscar, CUIT, validación del alta) lo
 // alcanza también el componente de cliente.
 
-import type { Prisma } from "@/generated/prisma/client";
-import { validarCuit } from "@/lib/fiscal/cuit";
+import { Prisma } from "@/generated/prisma/client";
 import { DOC_TIPO } from "@/lib/fiscal/decidir-comprobante";
 import { cambiosDeFicha, validarFichaFiscal, type FichaFiscal } from "@/lib/fiscal/ficha-fiscal";
-import { normalizarTelefono } from "./telefono";
+import { criterioDeContacto, sqlPorContacto } from "./busqueda-por-contacto";
 import { crearFichaEnTx } from "./crear-ficha";
 import { isValidArgentinePhone } from "@/lib/contact-validation";
 import { redondearAlCentavo } from "@/lib/dinero/redondeo";
 
+// Lo PURO que también alcanza el componente de cliente vive en `buscar-para-venta-puro.ts` (sin Prisma: el core
+// importa `Prisma` por valor para el SQL y el bundle del browser no lo puede llevar). Se re-exporta para los llamadores de siempre.
+import { MINIMO_PARA_BUSCAR, revisarCuit, leerDocumento } from "./buscar-para-venta-puro";
+export { MINIMO_PARA_BUSCAR, revisarCuit, leerDocumento };
+export type { CuitDeLaVenta, DocumentoEscrito } from "./buscar-para-venta-puro";
+
 type Tx = Prisma.TransactionClient;
 
-/** Desde cuántos caracteres se busca. Con menos, cualquier letra trae medio negocio. */
-export const MINIMO_PARA_BUSCAR = 3;
 /** Cuántas fichas se muestran como máximo: más no se leen de un vistazo en el mostrador. */
 export const MAXIMO_RESULTADOS = 8;
 /** Cuántos pedidos anteriores se traen al elegir (chips «Repetir»). */
@@ -56,55 +59,6 @@ export function textoParaBuscar(crudo: string | null | undefined): TextoParaBusc
 }
 
 // ── El CUIT de la venta ─────────────────────────────────────────────────────────
-
-export type CuitDeLaVenta =
-  | { ok: true; cuit: string; formateado: string }
-  | { ok: false; motivo: string };
-
-/**
- * El CUIT que se carga en Vender, con el motivo en las palabras del mostrador (MG-016). La regla
- * es la única del repo (`validarCuit`, módulo 11); acá sólo cambia la frase del verificador. No
- * se sugiere «el dígito correcto»: si el error está en otro número, «corregir» el último fabrica
- * el CUIT de otra persona — por eso se pide mirar la constancia. PURA.
- */
-export function revisarCuit(valor: string | number | null | undefined): CuitDeLaVenta {
-  const r = validarCuit(valor, "CUIT");
-  if (r.ok) return { ok: true, cuit: r.cuit, formateado: r.formateado };
-  if (r.error === "DIGITO_VERIFICADOR") {
-    return { ok: false, motivo: "Ese CUIT no cierra: revisá el último número y los demás contra la constancia de ARCA." };
-  }
-  return { ok: false, motivo: r.motivo };
-}
-
-/** Qué documento es lo escrito en «CUIT/DNI». */
-export type DocumentoEscrito =
-  | { estado: "vacio" }
-  | { estado: "valido"; docTipo: number; docNro: string; texto: string }
-  | { estado: "invalido"; motivo: string };
-
-/**
- * Lee el campo único «CUIT/DNI»: 11 números son un CUIT (se valida el verificador), de 6 a 8 un
- * DNI. `docTipo` permite forzar CUIL (86) cuando el formulario lo eligió. PURA.
- */
-export function leerDocumento(crudo: string | null | undefined, docTipo?: number | null): DocumentoEscrito {
-  const texto = String(crudo ?? "").trim();
-  if (texto === "") return { estado: "vacio" };
-  if (!/^[\d\s.\-/]+$/.test(texto)) {
-    return { estado: "invalido", motivo: "El CUIT o DNI lleva sólo números (se puede escribir con guiones o puntos)." };
-  }
-  const d = texto.replace(/\D/g, "");
-  if (d.length === 11 || docTipo === DOC_TIPO.CUIT || docTipo === DOC_TIPO.CUIL) {
-    const c = revisarCuit(d);
-    if (!c.ok) return { estado: "invalido", motivo: docTipo === DOC_TIPO.CUIL ? c.motivo.replace(/\bCUIT\b/g, "CUIL") : c.motivo };
-    const tipo = docTipo === DOC_TIPO.CUIL ? DOC_TIPO.CUIL : DOC_TIPO.CUIT;
-    return { estado: "valido", docTipo: tipo, docNro: c.cuit, texto: `${tipo === DOC_TIPO.CUIL ? "CUIL" : "CUIT"} ${c.formateado}` };
-  }
-  if (d.length >= 6 && d.length <= 8 && Number(d) > 0) {
-    const dni = String(Number(d));
-    return { estado: "valido", docTipo: DOC_TIPO.DNI, docNro: dni, texto: `DNI ${Number(dni).toLocaleString("es-AR")}` };
-  }
-  return { estado: "invalido", motivo: "Un CUIT tiene 11 números y un DNI entre 6 y 8. Revisá lo que escribiste." };
-}
 
 // ── Buscar ──────────────────────────────────────────────────────────────────────
 
@@ -185,7 +139,13 @@ export function ordenarEncontrados(
  * tipeó («11 5555-1234»), así que un `contains` sobre el texto no lo encuentra. Mismo criterio
  * que crear-ficha.ts; el `tenantId` va a mano además de RLS.
  */
-export async function buscarClientesParaVentaEnTx(tx: Tx, tenantId: string, crudo: string): Promise<ClienteEncontrado[]> {
+export async function buscarClientesParaVentaEnTx(
+  tx: Tx,
+  tenantId: string,
+  crudo: string,
+  // Sin `clients:contact` (casilla 5): por teléfono sólo los últimos 4 completos, nunca un tramo del medio.
+  veContacto = true,
+): Promise<ClienteEncontrado[]> {
   const q = textoParaBuscar(crudo);
   if (!q.ok || !tenantId) return [];
   const { texto, digitos } = q;
@@ -214,23 +174,20 @@ export async function buscarClientesParaVentaEnTx(tx: Tx, tenantId: string, crud
     : [];
 
   let porTelefono: FilaEncontrada[] = [];
-  if (conDigitos) {
-    // Lo escrito puede venir con +54, 0 o 15: se compara también la clave normalizada.
-    const clave = normalizarTelefono(digitos);
-    const patrones = [...new Set([digitos, clave].filter((p) => p.length >= MINIMO_PARA_BUSCAR))].map((p) => `%${p}%`);
-    const ids = new Set<string>();
-    for (const patron of patrones) {
-      const filas = await tx.$queryRaw<{ id: string }[]>`
+  // Cómo se busca por teléfono lo decide el helper único (casilla 5): con permiso, dígitos y clave
+  // normalizada (+54, 0, 15); sin permiso, sólo los últimos 4 completos. Con menos de
+  // `MINIMO_PARA_BUSCAR` dígitos no se busca por teléfono (cualquier cifra traería medio negocio).
+  const criterio = criterioDeContacto(texto, veContacto);
+  if (criterio.modo === "ultimos4" || (criterio.modo === "completo" && conDigitos)) {
+    const ids = await tx.$queryRaw<{ id: string }[]>(Prisma.sql`
         SELECT "id" FROM "Client"
         WHERE "tenantId" = ${tenantId}
-          AND regexp_replace(COALESCE("phone", ''), '[^0-9]', '', 'g') LIKE ${patron}
+          AND ${sqlPorContacto(criterio)}
         ORDER BY "name" ASC, "id" ASC
-        LIMIT ${MAXIMO_RESULTADOS}`;
-      for (const f of filas) ids.add(f.id);
-    }
-    if (ids.size > 0) {
+        LIMIT ${MAXIMO_RESULTADOS}`);
+    if (ids.length > 0) {
       porTelefono = await tx.client.findMany({
-        where: { tenantId, id: { in: [...ids] } },
+        where: { tenantId, id: { in: ids.map((f) => f.id) } },
         select: SELECT_ENCONTRADO,
       });
     }

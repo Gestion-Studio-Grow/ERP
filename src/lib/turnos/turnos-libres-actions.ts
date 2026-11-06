@@ -13,7 +13,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/authz";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo, roleHasCapability } from "@/lib/capabilities";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { getAvailableSlotsRange } from "@/lib/actions";
 import { todayInBusinessTz } from "@/lib/datetime";
@@ -61,6 +61,6 @@ export async function turnosLibresDelServicio(servicioId: string): Promise<Turno
     servicio: { id: servicio.id, nombre: servicio.name },
     dias,
     profesionales,
-    puedeDarTurno: roleHasCapability(user.role, "agenda:manage"),
+    puedeDarTurno: permisoEfectivo(user, "agenda:manage"),
   };
 }
