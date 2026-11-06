@@ -39,6 +39,11 @@ const MARCA: Record<EstadoDePaso, { tipo: "hecho" | "atencion" | "pendiente"; te
 
 const fecha = (iso: string) => new Date(iso).toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" });
 
+/** Las condiciones del pase que dependen del negocio; el resto (modo de la plataforma, limpieza de la
+ * etapa de pruebas) las resuelve nuestro equipo y su detalle interno no se le muestra al cliente. */
+const PRECONDICIONES_DEL_NEGOCIO = new Set(["cuit", "puntoVenta", "condicionIva", "credencial"]);
+const DETALLE_DE_NUESTRO_EQUIPO = "Esto lo resuelve nuestro equipo cuando pedís el pase.";
+
 function Paso({ numero, titulo, estado, children }: { numero: number; titulo: string; estado: EstadoDePaso; children: React.ReactNode }) {
   const m = MARCA[estado];
   return (
@@ -230,7 +235,7 @@ export function AsistenteArca({ vista, plano, tenantId, acciones, soloLectura = 
               <Renglon
                 key={c.id}
                 titulo={c.titulo}
-                detalle={c.detalle}
+                detalle={plano === "cliente" && !c.ok && !PRECONDICIONES_DEL_NEGOCIO.has(c.id) ? DETALLE_DE_NUESTRO_EQUIPO : c.detalle}
                 tecla={<Marca tipo={c.ok ? "hecho" : "pendiente"}>{c.ok ? "Listo" : "Falta"}</Marca>}
               />
             ))}

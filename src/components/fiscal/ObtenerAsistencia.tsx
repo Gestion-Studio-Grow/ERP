@@ -23,7 +23,7 @@ interface Props {
 
 const MARCA = { pedido: "pendiente", "en-curso": "atencion", listo: "hecho" } as const;
 const RESUMEN =
-  "cursor-pointer rounded py-2.5 font-medium text-accent-ink underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2";
+  "cursor-pointer rounded py-3 font-medium text-accent-ink underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2";
 
 function Soporte({ soporte }: { soporte: string | null }) {
   return (
