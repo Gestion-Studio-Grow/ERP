@@ -96,17 +96,32 @@ export async function notaDeCreditoPorDevolucionInTx(
   }
 
   // C3 · tope por cobro: lo ya acreditado por devoluciones de ESTE pago + esta ≤ lo que el pago facturó.
-  const rechazar = async (motivo: string): Promise<ResultadoDevolucion> => {
-    await cerrarPendienteInTx(tx, tenantId, claveDevolucion, motivo);
+  // Certificación PR5 · todo rechazo deja rastro (`devolucion_rechazada`, una vez por devolución): la
+  // plata ya salió de MP y alguien tiene que verlo. La pendiente se CIERRA sólo si el rechazo es
+  // definitivo (tope, factura sin saldo); lo demás (datos del envío, configuración) se sigue probando.
+  const rechazar = async (motivo: string, definitivo: boolean): Promise<ResultadoDevolucion> => {
+    await registrarRechazoInTx(tx, tenantId, claveDevolucion, { refundId, paymentId, importe, motivo, definitivo });
+    if (definitivo) await cerrarPendienteInTx(tx, tenantId, claveDevolucion, motivo);
     return { estado: "rechazada", motivo };
   };
   const fila = await tx.cobroFacturado.findFirst({ where: { tenantId, clave: clavePago }, select: { importe: true } });
   const topeC = centavosDe(Number(fila?.importe ?? 0));
-  const yaC = await acreditadoDelPagoInTx(tx, tenantId, paymentId);
+  let yaC = await acreditadoDelPagoInTx(tx, tenantId, paymentId);
+  // Si la factura cubre SÓLO este cobro, cuentan también las notas vivas que no vinieron de una
+  // devolución (una NC manual de lo mismo): el tope nunca queda por debajo de lo ya anulado.
+  const cobrosDeLaFactura = await tx.cobroFacturado.count({ where: { tenantId, invoiceId: factura.invoiceId } });
+  if (cobrosDeLaFactura === 1) {
+    const notas = await tx.invoice.findMany({
+      where: { tenantId, comprobanteAsociadoId: factura.invoiceId, status: { in: ["PENDING", "AUTHORIZED"] } },
+      select: { total: true },
+    });
+    yaC = Math.max(yaC, notas.reduce((a, n) => a + centavosDe(Number(n.total)), 0));
+  }
   if (yaC + centavosDe(importe) > topeC) {
     return rechazar(
       `La devolución ${refundId} (${pesos(centavosDe(importe))}) supera lo que queda por acreditar del pago ${paymentId}: ` +
         `facturado ${pesos(topeC)}, ya acreditado ${pesos(yaC)}. Revisalo en Mercado Pago.`,
+      true,
     );
   }
 
@@ -119,7 +134,7 @@ export async function notaDeCreditoPorDevolucionInTx(
     fecha,
     fechaDeEnvio: fecha,
   });
-  if (!nota.ok) return rechazar(nota.error);
+  if (!nota.ok) return rechazar(nota.error, /ya está anulada entera|No se puede anular/.test(nota.error));
 
   await vincularCobroInTx(tx, tenantId, { clave: claveDevolucion, importe, appointmentId: null }, nota.invoiceId);
   await tx.auditLog.create({
@@ -133,6 +148,7 @@ export async function notaDeCreditoPorDevolucionInTx(
       changes: { refundId, paymentId, importe, notaId: nota.invoiceId, facturaId: factura.invoiceId },
     },
   });
+  await cerrarPendienteInTx(tx, tenantId, claveDevolucion, "nota emitida");
   return { estado: "nota_emitida", invoiceId: nota.invoiceId, yaExistia: false };
 }
 
@@ -142,6 +158,8 @@ export const ENTIDAD_DEVOLUCION_MP = "DevolucionMP";
 const ACCION_ACREDITADA = "devolucion_acreditada";
 const ACCION_PENDIENTE = "devolucion_pendiente";
 const ACCION_CERRADA = "devolucion_pendiente_cerrada";
+/** Rastro visible de una devolución que no se pudo acreditar (la plata salió de MP sin nota). */
+export const ACCION_RECHAZADA = "devolucion_rechazada";
 /** Una devolución pendiente se deja de reintentar después de esto (la mira una persona). */
 export const VENTANA_PENDIENTES_DIAS = 30;
 
@@ -182,6 +200,22 @@ async function anotarPendienteInTx(
   if (ya) return;
   await tx.auditLog.create({
     data: { tenantId, actor: "system", action: ACCION_PENDIENTE, entity: ENTIDAD_DEVOLUCION_MP, entityId: claveDevolucion, channel: "mercadopago", changes: d },
+  });
+}
+
+async function registrarRechazoInTx(
+  tx: InvoiceTx,
+  tenantId: string,
+  claveDevolucion: string,
+  d: { refundId: string; paymentId: string; importe: number; motivo: string; definitivo: boolean },
+): Promise<void> {
+  const ya = await tx.auditLog.findFirst({
+    where: { tenantId, entity: ENTIDAD_DEVOLUCION_MP, entityId: claveDevolucion, action: ACCION_RECHAZADA },
+    select: { id: true },
+  });
+  if (ya) return;
+  await tx.auditLog.create({
+    data: { tenantId, actor: "system", action: ACCION_RECHAZADA, entity: ENTIDAD_DEVOLUCION_MP, entityId: claveDevolucion, channel: "mercadopago", changes: d },
   });
 }
 
@@ -231,7 +265,12 @@ export async function reintentarDevolucionesPendientes(
       });
       const vivas = await cobrosYaFacturadosInTx(tx, tenantId, claves);
       const fuera = new Set([...cerradas.map((c) => c.entityId), ...vivas.map((v) => v.clave)]);
-      return filas.filter((f) => f.entityId && !fuera.has(f.entityId)).slice(0, limite);
+      const abiertas = filas.filter((f) => f.entityId && !fuera.has(f.entityId));
+      // Certificación PR5 · las que nunca van a tener factura (pago no facturable, con dueño) no tapan a
+      // las nuevas: cada corrida (cada 15 min) arranca en otro lugar de la lista y la recorre entera.
+      if (abiertas.length <= limite) return abiertas;
+      const inicio = (Math.floor((opciones.ahora ?? new Date()).getTime() / (15 * 60 * 1000)) * limite) % abiertas.length;
+      return [...abiertas.slice(inicio), ...abiertas.slice(0, inicio)].slice(0, limite);
     },
     { tenantId },
   );

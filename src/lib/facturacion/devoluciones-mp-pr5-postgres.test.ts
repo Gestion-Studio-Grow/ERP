@@ -76,6 +76,11 @@ test("C3 · tope por cobro: la devolución de un pago no pasa lo que ese pago fa
   const demas = await p.dev.notaDeCreditoPorDevolucion(a, { refundId: idUnico("r"), paymentId: pago, importe: 500 });
   assert.equal(demas.estado, "rechazada", "500 > 400 del pago, aunque la factura tenga 1000 de saldo");
   if (demas.estado === "rechazada") assert.match(demas.motivo, /facturado \$400,00, ya acreditado \$0,00/);
+  // Deja rastro: la plata salió de MP sin nota y alguien tiene que verlo.
+  const rastro = await p.duenio.auditLog.count({
+    where: { tenantId: a, entity: p.dev.ENTIDAD_DEVOLUCION_MP, action: p.dev.ACCION_RECHAZADA, changes: { path: ["paymentId"], equals: pago } },
+  });
+  assert.equal(rastro, 1);
 
   // Dos devoluciones DISTINTAS a la vez, 300 + 300 sobre 400: sale una sola.
   const [u, v] = await Promise.all([
@@ -163,4 +168,20 @@ test("C1 · contracargo por la ingesta: un caso, sin nota de crédito", async (t
   const r = await p.dev.aplicarMovimientosPosterioresMP(a, [{ tipo: "contracargo", paymentId: pago, importe: 800 }]);
   assert.deepEqual(r, { notas: 0, pendientes: 0, rechazadas: 0, casos: 1, errores: 0 });
   assert.equal((await p.notasDe(facturaId)).length, 0);
+});
+
+test("C3 · factura de un solo cobro: una NC manual previa cuenta en el tope", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const a = p.base.a.id;
+  const pago = idUnico("55");
+  const facturaId = await p.facturar(a, 1000, [p.cobros.claveCobroMP(pago)], pago);
+  await p.cae();
+  const { crearNotaDeCredito } = await import("@/lib/invoice-core");
+  const manual = await crearNotaDeCredito({ tenantId: a, facturaId, importe: 600, motivo: "devolución a mano", fecha: HOY });
+  assert.equal(manual.ok, true);
+  const r = await p.dev.notaDeCreditoPorDevolucion(a, { refundId: idUnico("r"), paymentId: pago, importe: 500 });
+  assert.equal(r.estado, "rechazada");
+  if (r.estado === "rechazada") assert.match(r.motivo, /ya acreditado \$600,00/);
+  assert.equal((await p.dev.notaDeCreditoPorDevolucion(a, { refundId: idUnico("r"), paymentId: pago, importe: 400 })).estado, "nota_emitida");
 });

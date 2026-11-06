@@ -38,7 +38,7 @@ function deps(over: Partial<IngestaDeps>, llamadas: string[]): IngestaDeps {
 }
 
 const pagoConRefund: PagoMP = {
-  id: "90", estado: "refunded", monto: 1000, externalReference: "", operacion: "venta",
+  id: "90", estado: "refunded", monto: 1000, externalReference: "", operacion: "pago",
   posteriores: [{ tipo: "devolucion", refundId: "r1", paymentId: "90", importe: 1000 }],
 } as PagoMP;
 
