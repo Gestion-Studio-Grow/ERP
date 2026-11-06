@@ -52,6 +52,7 @@ export interface RawPagoMP {
     email?: string | null;
     first_name?: string | null;
     last_name?: string | null;
+    identification?: { type?: string | null; number?: string | null } | null;
   } | null;
 }
 
@@ -254,6 +255,12 @@ export function normalizarPago(raw: RawPagoMP): PagoMP {
   }
   const nombre = nombreContraparte(raw.payer);
   if (nombre) pago.contraparteNombre = nombre;
+  if (typeof raw.operation_type === "string" && /^[a-z_]{1,40}$/.test(raw.operation_type)) pago.tipoOperacionMP = raw.operation_type;
+  const doc = raw.payer?.identification;
+  const numero = typeof doc?.number === "string" ? doc.number.replace(/\D/g, "") : "";
+  if (typeof doc?.type === "string" && /^[A-Za-z]{2,8}$/.test(doc.type) && /^\d{6,11}$/.test(numero)) {
+    pago.pagadorDoc = { tipo: doc.type.toUpperCase(), numero };
+  }
   // R1 · una transferencia NO es siempre «cuenta propia»: la seña de una clienta por
   // transferencia es plata de un tercero. Propia = fondeo de la cuenta, o el que paga es el mismo
   // que cobra. De un tercero = los dos ids están y son distintos. Sin datos, no se sabe.

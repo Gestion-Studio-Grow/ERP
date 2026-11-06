@@ -175,3 +175,38 @@ test("renovación: un 5xx o 429 de MP no pide reconectar (es pasajero)", async (
   const e = await s.mp.estadoMPDelNegocio(a.id);
   assert.ok(e.conectado && e.problema === "ninguno");
 });
+
+test("PR2: conectar activa el módulo; la configuración arranca apagada, se guarda por negocio y no cruza", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const { a, b } = s.base;
+  const cfg = s.mp.conexionMPDisponible(env)!;
+  await s.mp.desconectarMP(a.id, a.duenia.id);
+  await s.mp.desconectarMP(b.id, b.duenia.id);
+  await s.duenio.tenant.update({ where: { id: a.id }, data: { modules: { set: (await s.duenio.tenant.findUniqueOrThrow({ where: { id: a.id } })).modules.filter((m) => m !== "mercadopago") } } });
+
+  // Sin conexión: apagada y no se puede guardar.
+  assert.equal((await s.mp.configFacturacionMPDelNegocio(a.id)).modo, "apagado");
+  assert.deepEqual(await s.mp.guardarConfigFacturacionMP(a.id, a.duenia.id, { modo: "automatico" }), { ok: false, motivo: "sin_conexion" });
+
+  await s.mp.guardarConexionMP(a.id, a.duenia.id, tokens("777777", "c"), cfg, env);
+  await s.mp.guardarConexionMP(a.id, a.duenia.id, tokens("777777", "c2"), cfg, env); // reconectar no duplica el módulo
+  const modulos = (await s.duenio.tenant.findUniqueOrThrow({ where: { id: a.id } })).modules;
+  assert.equal(modulos.filter((m) => m === "mercadopago").length, 1);
+  assert.equal((await s.mp.configFacturacionMPDelNegocio(a.id)).modo, "apagado", "conectar no prende la facturación");
+
+  const r = await s.mp.guardarConfigFacturacionMP(a.id, a.duenia.id, { modo: "proponer", puntoVenta: 3, concepto: 1, importeMinimo: 500, palabrasExcluidas: ["propina"] });
+  assert.equal(r.ok, true);
+  assert.equal((await s.mp.configFacturacionMPDelNegocio(a.id)).modo, "proponer");
+  assert.equal((await s.mp.configFacturacionMPDelNegocio(b.id)).modo, "apagado", "B no ve la de A");
+  const inval = await s.mp.guardarConfigFacturacionMP(a.id, a.duenia.id, { modo: "a-full" });
+  assert.equal(inval.ok, false);
+  assert.equal((await s.mp.configFacturacionMPDelNegocio(a.id)).modo, "proponer", "lo inválido no pisa");
+  const audit = await s.duenio.auditLog.count({ where: { tenantId: a.id, action: "facturita.mercadopago_facturacion_config" } });
+  assert.equal(audit, 1);
+  // Reconectar la misma cuenta conserva la configuración; otra cuenta arranca apagada.
+  await s.mp.guardarConexionMP(a.id, a.duenia.id, tokens("777777", "c3"), cfg, env);
+  assert.equal((await s.mp.configFacturacionMPDelNegocio(a.id)).modo, "proponer");
+  await s.mp.guardarConexionMP(a.id, a.duenia.id, tokens("888888", "c4"), cfg, env);
+  assert.equal((await s.mp.configFacturacionMPDelNegocio(a.id)).modo, "apagado");
+});
