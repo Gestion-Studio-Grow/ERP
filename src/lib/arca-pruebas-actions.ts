@@ -20,7 +20,7 @@ import { logger } from "@/lib/logger";
 import { getFiscalProfile, PerfilFiscalIncompletoError } from "@/lib/fiscal";
 import { createInvoice } from "@/lib/invoice-core";
 import { redondearAlCentavo } from "@/lib/dinero/redondeo";
-import { procesarEnviosDelNegocio } from "@/lib/arca-dispatch";
+import { procesarEnviosDelNegocio, resolverModoDelNegocio } from "@/lib/arca-dispatch";
 import { fechaFiscalDelDia } from "@/lib/libros/fecha-fiscal";
 import {
   armarFacturaDePrueba,
@@ -100,7 +100,12 @@ async function datosFiscalesDelTenant(
 export async function emitirFacturaDePruebaAction(): Promise<ResultadoBancoPruebasArca> {
   await requireCapability("billing:manage");
   const tenantId = await getCurrentTenantId();
-  const modo = modoDesdeEnv();
+  // Se bloquea si ESTE NEGOCIO factura en real (o no puede facturar): techo + su marca +
+  // ARCA_REAL_TENANTS + su certificado (src/lib/fiscal/modo-del-negocio.ts). Si no, el banco sigue
+  // el techo de la plataforma: firma con el certificado de PRUEBA del entorno, no con el del negocio.
+  const delNegocio = await resolverModoDelNegocio(tenantId);
+  if ("error" in delNegocio) return { ok: false, modo: modoDesdeEnv(), error: delNegocio.error };
+  const modo: ModoArca = delNegocio.modo === "real" ? "real" : modoDesdeEnv();
 
   if (modo === "real") {
     return {
@@ -122,7 +127,11 @@ export async function emitirFacturaDePruebaAction(): Promise<ResultadoBancoPrueb
     // aislado del camino REAL (que resuelve la credencial cifrada por tenant, ADR-066).
     // Bloqueado en modo real arriba: acá solo corre stub (no firma) u homologación (cert
     // de test, endpoint forzado a homologación — sin registros fiscales reales).
-    const client = crearAfipClient({ cuit, homologacion: true }, { credencial: credencialDesdeEnv() });
+    const client = crearAfipClient(
+      { cuit, homologacion: true },
+      // Nunca el techo `real` acá (bloqueado arriba): stub u homologación forzada.
+      { credencial: credencialDesdeEnv(), env: { ...process.env, ARCA_MODO: modo } },
+    );
     const resultado = await emitirFacturaDePrueba(client, { puntoVenta });
 
     if (resultado.ok) {
@@ -176,14 +185,17 @@ const MODULO_ARCA = "arca";
  * motor que una venta, con la letra que decide el sistema, numeración correlativa y CAE simulado,
  * y queda guardada (lista, cartera del estudio, Libro IVA). Ver src/lib/factura-de-prueba.ts.
  *
- * Sólo en modo `stub`: en homologación y en real no emite nada por acá. Sólo para un negocio con
+ * Sólo con el NEGOCIO en modo `stub` (`resolverModoDelNegocio`): en homologación y en real no emite nada por acá. Sólo para un negocio con
  * la facturación electrónica ASIGNADA (módulo `arca`): el resto (CH incluida) sigue con el banco
  * de pruebas de siempre, que no guarda nada. `receptorRaw` viene del formulario y se valida.
  */
 export async function emitirFacturaDePruebaGuardadaAction(receptorRaw: unknown): Promise<ResultadoFacturaDePrueba> {
   await requireCapability("billing:manage");
   const tenantId = await getCurrentTenantId();
-  if (modoDesdeEnv() !== "stub") {
+  // Sigue el modo DEL NEGOCIO: con la plataforma en homologación, un negocio en pruebas sin
+  // certificado factura simulado (src/lib/fiscal/modo-del-negocio.ts), y esto también.
+  const delNegocio = await resolverModoDelNegocio(tenantId);
+  if (!("modo" in delNegocio) || delNegocio.modo !== "stub") {
     return { ok: false, error: "El comprobante de verificación sólo se emite mientras ARCA no está conectada." };
   }
   if (!esReceptorDePrueba(receptorRaw)) {

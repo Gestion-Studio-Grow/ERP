@@ -27,6 +27,7 @@ import { decidirComprobante } from "@/lib/fiscal/decidir-comprobante";
 import { normalizarFecha } from "@/lib/fiscal/vigencias";
 import { leerRegimenFacturaAEnTx } from "@/lib/fiscal/regimen-factura-a.server";
 import { montosDeLaNota, saldoPorAnular } from "@/lib/facturacion/nota-credito-core";
+import { serieDeNumeracion } from "@/lib/facturacion/serie-numeracion";
 import { emitirFacturaAutorizada, emitirFacturaRechazada } from "@/eventos/del-core";
 
 /** Cliente de transacción interactiva (mismo patrón que `LedgerTx` en stock/ledger.ts):
@@ -151,6 +152,11 @@ export interface InvoiceCreatedPayload
    * el comprobante ya autorizado en vez de pedir otro.
    */
   intentoArca?: { puntoVenta: number; tipo: number; numero: number };
+  /**
+   * Serie de numeración ante ARCA, `"<puntoVenta>:<CbteTipo>"` (serie-numeracion.ts). Sin la
+   * clave (envíos viejos, o tipo que no se pudo decidir) la toma lo trata como comodín.
+   */
+  serie?: string;
 }
 
 /** Input del comando `registerFiscalDocument` (lo llama el plugin con el CAE). */
@@ -467,6 +473,9 @@ async function encolarInvoiceCreated(
         }
       : {}),
   };
+  // Serie de numeración ante ARCA (PV + tipo): la toma serializa por serie (arca-reserva.ts).
+  const serie = serieDeNumeracion(payload);
+  if (serie) payload.serie = serie;
 
   await tx.outboxEvent.create({
     data: {
@@ -530,6 +539,27 @@ export async function ultimoNumeroAutorizado(tenantId: string, puntoVenta: numbe
     { tenantId },
   );
   return r._max.numero ?? 0;
+}
+
+/**
+ * Cuántos comprobantes AUTORIZADOS con CAE simulado («STUB…», src/plugins/arca/afip/stub.ts) tiene el
+ * negocio en ese punto de venta (o en todos, si no tiene uno cargado). Con la RLS del negocio y un
+ * `count` sobre el índice (tenantId, status). Lo usa el despacho para no mandar el primer envío
+ * firmado encima de una numeración simulada (chocaría con la de ARCA).
+ */
+export async function contarAutorizadosSimulados(tenantId: string, puntoVenta: number | null): Promise<number> {
+  return tenantTransaction(
+    (tx) =>
+      tx.invoice.count({
+        where: {
+          tenantId,
+          status: "AUTHORIZED",
+          cae: { startsWith: "STUB" },
+          ...(puntoVenta != null ? { puntoVenta } : {}),
+        },
+      }),
+    { tenantId },
+  );
 }
 
 export async function numeroUsadoPorOtraFactura(consulta: {
