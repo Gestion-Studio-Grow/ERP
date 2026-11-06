@@ -56,6 +56,8 @@ export type HuecoDeFicha =
       monto: number;
       /** `false` = quien mira cobra la seña pero no confirma el turno (la profesional: cert CH T2, F-1). */
       confirma?: boolean;
+      /** `false` = modo simple (src/lib/modo-simple.ts): el aviso queda, sin [Deshacer]. Sin el campo, con. */
+      conDeshacer?: boolean;
     }
   | {
       tipo: "cobrar-deuda";

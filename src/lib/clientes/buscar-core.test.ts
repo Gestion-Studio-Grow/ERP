@@ -161,6 +161,15 @@ test("cert F-1 · la profesional ve «Llegó la seña» de SU turno como «regis
   assert.ok(recepcion[1].items[0].huecos?.every((h) => !("confirma" in h)));
 });
 
+test("modo simple · «Llegó la seña» del buscador sale sin [Deshacer] (conDeshacer: false); fuera de simple, sin el campo", () => {
+  const simple = armarFichas(lecturaDeLaura(), { ...RECEPCION, modoSimple: true }, AHORA);
+  const huecos = simple.flatMap((g) => g.items.flatMap((i) => i.huecos ?? [])).filter((h) => h.tipo === "llego-la-senia");
+  assert.ok(huecos.length > 0);
+  assert.ok(huecos.every((h) => h.tipo === "llego-la-senia" && h.conDeshacer === false && !("confirma" in h)));
+  const completo = armarFichas(lecturaDeLaura(), RECEPCION, AHORA);
+  assert.ok(completo.flatMap((g) => g.items.flatMap((i) => i.huecos ?? [])).every((h) => !("conDeshacer" in h)));
+});
+
 test("una profesional (sin clients:read): sólo turnos, sin ficha ni WhatsApp", () => {
   const l = lecturaDeLaura();
   const grupos = armarFichas(l, PROFESIONAL, AHORA);

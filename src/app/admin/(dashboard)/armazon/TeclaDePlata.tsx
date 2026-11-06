@@ -8,7 +8,7 @@
 // de plata, le pide a quien la monta que lo dibuje (`dibujarHueco`). Acá se dibujan con las piezas de
 // la agenda, las mismas acciones del servidor (una transacción, idempotentes):
 //   · «Llegó la seña $5.000» → `LlegoLaSenia` (`cobrarSeniaYConfirmar`): cobra y confirma, con
-//     [Deshacer] unos segundos. «/» → «laura» → [Llegó la seña] = 2 toques (CH-022).
+//     [Deshacer] unos segundos (en modo simple, sin [Deshacer]: el hueco trae `conDeshacer: false`). «/» → «laura» → [Llegó la seña] = 2 toques (CH-022).
 //   · «Cobrar lo que debe ($9.000)» → `CobrarLoQueDebe` (`cobrarVariosTurnos`): un cobro por turno,
 //     cada uno imputado al suyo. Con esto, el enlace de respaldo a «Saldos a cobrar» ya no se ofrece.
 // Al terminar se cierra la paleta y se recarga la pantalla de atrás.
@@ -34,6 +34,7 @@ export default function TeclaDePlata({ hueco, cerrar }: { hueco: HuecoDeFicha; c
         clienta={hueco.clienta}
         monto={hueco.monto}
         confirma={hueco.confirma !== false}
+        conDeshacer={hueco.conDeshacer !== false}
         onListo={listo}
         className="w-full"
       />

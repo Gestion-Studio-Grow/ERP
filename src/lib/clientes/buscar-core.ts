@@ -47,6 +47,8 @@ export interface PermisosDelBuscador {
   darTurno: boolean;
   /** agenda:collect — los huecos de plata (además, el veredicto de cada turno). */
   cobrar: boolean;
+  /** Modo simple activo (src/lib/modo-simple.ts): «Llegó la seña» sin [Deshacer]. Esconde, no prohíbe. */
+  modoSimple?: boolean;
 }
 
 // ── Lo que lee el servidor ───────────────────────────────────────────────────
@@ -195,10 +197,10 @@ export const hrefSaldos = (desde: string | null) => (desde ? `/admin/turnos/list
 /**
  * «Llegó la seña» de quien cobra pero no confirma turnos (la profesional, sin `agenda:manage`): la
  * tecla registra la seña y dice que el turno lo confirma la recepción (cert CH T2, F-1). Sin el
- * campo, cobra y confirma como siempre.
+ * campo, cobra y confirma como siempre. En modo simple (`modoSimple`), además, sin [Deshacer].
  */
-function sinConfirmar(p: PermisosDelBuscador): { confirma?: false } {
-  return p.darTurno ? {} : { confirma: false };
+function variantesDeLaSenia(p: PermisosDelBuscador): { confirma?: false; conDeshacer?: false } {
+  return { ...(p.darTurno ? {} : { confirma: false as const }), ...(p.modoSimple ? { conDeshacer: false as const } : {}) };
 }
 
 function renglonDeTurno(t: TurnoLeido, l: LecturaDelBuscador, p: PermisosDelBuscador, ahora: Date): Comando {
@@ -207,7 +209,7 @@ function renglonDeTurno(t: TurnoLeido, l: LecturaDelBuscador, p: PermisosDelBusc
   const teclas: TeclaDeFicha[] = [{ id: "abrir-turno", etiqueta: "Abrir el turno", href: hrefTurno(t.id, dia) }];
   if (p.verClientas) teclas.push({ id: "ver-ficha", etiqueta: "Ver ficha", href: hrefFicha(t.clienteId) });
   const huecos: HuecoDeFicha[] =
-    senia > 0 && p.cobrar && t.cobrable ? [{ tipo: "llego-la-senia", turnoId: t.id, clienta: t.clienta, monto: senia, ...sinConfirmar(p) }] : [];
+    senia > 0 && p.cobrar && t.cobrable ? [{ tipo: "llego-la-senia", turnoId: t.id, clienta: t.clienta, monto: senia, ...variantesDeLaSenia(p) }] : [];
   const resumen = [`${cuandoEs(t.inicio, ahora)} · ${t.servicio} con ${t.profesional}`, estadoEnPalabras(t.estado)];
   if (senia > 0) resumen.push(`Seña de ${pesos(senia)} sin cobrar`);
   return {
@@ -248,7 +250,7 @@ function renglonDeClienta(c: ClientaLeida, l: LecturaDelBuscador, p: PermisosDel
 
   const huecos: HuecoDeFicha[] = [];
   if (deuda.monto > 0 && p.cobrar) huecos.push({ tipo: "cobrar-deuda", clienteId: c.id, clienta: c.nombre, monto: deuda.monto, turnoIds: deuda.turnoIds, cobros: deuda.cobros });
-  if (proximo && senia > 0 && p.cobrar && proximo.cobrable) huecos.push({ tipo: "llego-la-senia", turnoId: proximo.id, clienta: c.nombre, monto: senia, ...sinConfirmar(p) });
+  if (proximo && senia > 0 && p.cobrar && proximo.cobrable) huecos.push({ tipo: "llego-la-senia", turnoId: proximo.id, clienta: c.nombre, monto: senia, ...variantesDeLaSenia(p) });
 
   const segunda = [
     c.telefono.trim() || "Sin teléfono",

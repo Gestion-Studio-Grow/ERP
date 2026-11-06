@@ -21,7 +21,9 @@ import { lotesYDespieceListos } from "@/lib/carniceria/schema-probe";
 import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
 import { densityForProfile } from "@/lib/profile-density";
 import { navGroupingEnabled } from "@/modules";
-import { rutaPermitidaParaModulos } from "@/lib/admin-nav-items";
+import { menuDeModoSimple, rutaPermitidaParaModulos } from "@/lib/admin-nav-items";
+import { modoSimpleDeLaSesion } from "@/lib/modo-simple.server";
+import FranjaModoSimple from "./FranjaModoSimple";
 import { productoUsaTienda } from "@/lib/producto-identidad";
 import { getContextoApps, getNegocioApps } from "@/apps/contexto.server";
 import { actorActual } from "@/lib/proyectos/gestion.server";
@@ -284,7 +286,12 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   }
   // Con tienda (Comerciante), «Cierre del mes» entra a la barra detrás de «Cierre del día»; CH no cambia.
   const barra = conProyectosEnLaBarra(conCierreDelMesEnLaBarra(proyectarMenuDeHoy(visibles), visibles, productoUsaTienda(productoCtx.producto)), visibles);
-  const menu = esEstetica(slugDelNegocio) ? barraDeCH(barra, visibles, user.role) : barra;
+  const menuCompleto = esEstetica(slugDelNegocio) ? barraDeCH(barra, visibles, user.role) : barra;
+  // MODO SIMPLE (por persona, src/lib/modo-simple.ts): la barra se recorta a Hoy, Agenda, Clientes y
+  // Caja; «Ver todo» va en la franja de arriba del contenido. Sin la preferencia, nada cambia.
+  const simple = await modoSimpleDeLaSesion();
+  const menu = simple.activo ? menuDeModoSimple(menuCompleto) : menuCompleto;
+  const rutaActual = simple.prefiere ? ((await headers()).get("x-pathname") ?? "/admin") : "/admin";
   // DISEÑO NUEVO: la navegación del armazón nuevo (espacios, comandos de ⌘K, tecla del rubro), con
   // las MISMAS apps que ya decidió `appsVisibles`. Apagado no se arma ni viaja: CH recibe los mismos
   // props de siempre (armazon/armazon-ch.test.ts).
@@ -341,6 +348,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         // Letras de las pieles del panel (ronda 2: ya no cuelgan de la raíz de la app).
         FUENTES_PANEL,
         claseDeFuentes(estetica),
+        // Toque de 48 px, texto de 18 px, foco bien visible y texto secundario con más contraste (globals.css).
+        simple.activo && "modo-simple",
       )}
     >
       {/* Corrige el data-theme ANTES del primer paint (sistema/localStorage). Con «Trabaja por
@@ -363,7 +372,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
                 {children}
               </PanelDeCasa>
             ) : (
-              <AdminShell role={user.role} rolVisible={actor ? ROL_LABEL[actor.rol] : undefined} userName={user.name} brandName={brandName} monogram={monogram} logo={logo} letraDelNegocio={estetica !== null} menu={menu} apps={modoApps ? visibles : []} modoApps={modoApps} esMostrador={negocioApps.esMostrador} navGrouping={navGroupingEnabled()} activeProfile={activeProfile} showPublicSite={productoCtx.producto === "vertical"} {...(nav ? { nav } : {})} {...(pedidosNuevos ? { pedidosNuevos } : {})}>
+              <AdminShell role={user.role} rolVisible={actor ? ROL_LABEL[actor.rol] : undefined} userName={user.name} brandName={brandName} monogram={monogram} logo={logo} letraDelNegocio={estetica !== null} menu={menu} apps={modoApps ? visibles : []} modoApps={modoApps} esMostrador={negocioApps.esMostrador} navGrouping={navGroupingEnabled()} activeProfile={activeProfile} showPublicSite={productoCtx.producto === "vertical"} {...(nav ? { nav } : {})} {...(pedidosNuevos ? { pedidosNuevos } : {})} modoSimple={simple.prefiere}>
+                <FranjaModoSimple estado={simple} ruta={rutaActual} />
                 {/* Cómo se llama el retiro y qué ejemplo lleva la nota, según el rubro (una perfumería
                     entrega en un punto de encuentro, no en un local): sale del rubro ya leído arriba. */}
                 {barraFuera}

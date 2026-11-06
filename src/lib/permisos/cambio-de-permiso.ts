@@ -16,6 +16,7 @@ import {
   type PermisoOverride,
   type Role,
 } from "@/lib/capabilities";
+import { PREFIJO_UI, esPreferenciaUi, type PreferenciaUi } from "@/lib/modo-simple";
 
 const CASILLA_STOCK: readonly Capability[] = ["stock:receive", "stock:count", "stock:adjust"];
 
@@ -26,15 +27,18 @@ export type ObjetivoDelCambio = {
   overrides: ReadonlyArray<PermisoOverride>;
 };
 
+/** Lo que se graba en `UserPermissionOverride`: una capability de la matriz o una preferencia `ui:`. */
+export type ClaveDeLaMatriz = Capability | PreferenciaUi;
+
 export type PlanDelCambio = {
   /** Capabilities que toca (3 para la casilla de stock, 1 para las demás). */
-  caps: Capability[];
+  caps: ClaveDeLaMatriz[];
   /** Valor efectivo pedido. */
   allowed: boolean;
   /** Capabilities cuyo pedido coincide con el rol: se BORRA la fila (sin excepción). */
-  borrar: Capability[];
+  borrar: ClaveDeLaMatriz[];
   /** Capabilities cuyo pedido difiere del rol: se graba la excepción (upsert). */
-  grabar: Capability[];
+  grabar: ClaveDeLaMatriz[];
   /** Valor efectivo antes del cambio, por capability (para la auditoría). */
   antes: Record<string, boolean>;
 };
@@ -56,6 +60,20 @@ export function decidirCambioDePermiso(p: {
 }): DecisionDelCambio {
   const { objetivo } = p;
   if (!objetivo) return { ok: false, error: "Esa persona no existe en este negocio." };
+  // EXCEPCIÓN `ui:` (modo simple, src/lib/modo-simple.ts): una preferencia de pantalla, no un
+  // permiso. `permisoEfectivo` no la lee, así que puede cambiarla la propia persona («Ver menos») o
+  // quien tiene `users:manage` para cualquiera, socios incluidos. Sólo las preferencias conocidas:
+  // otra clave `ui:` se rechaza. Prendida se graba la fila; apagada se borra (el default es completo).
+  if (p.capability.startsWith(PREFIJO_UI)) {
+    if (!esPreferenciaUi(p.capability)) return { ok: false, error: "Esa preferencia no existe." };
+    if (p.allowed === null) return { ok: false, error: "Falta decir si se prende o se apaga." };
+    const clave = p.capability;
+    const antes = { [clave]: objetivo.overrides.some((o) => o.capability === clave && o.allowed === true) };
+    return {
+      ok: true,
+      plan: { caps: [clave], allowed: p.allowed, borrar: p.allowed ? [] : [clave], grabar: p.allowed ? [clave] : [], antes },
+    };
+  }
   if (objetivo.id === p.actorId) return { ok: false, error: "Nadie se cambia sus propios permisos." };
   if (objetivo.role === "OWNER") {
     return { ok: false, error: "A un socio no se le cambian casillas: tiene todo por su rol." };

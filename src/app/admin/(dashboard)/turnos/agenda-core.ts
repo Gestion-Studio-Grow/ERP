@@ -204,6 +204,11 @@ export type Permisos = {
    * dueña; la profesional, no (`anulacionDeCobro`). Lo calcula el servidor, y el servidor lo exige.
    */
   anular: AnulacionDeCobro | null;
+  /**
+   * Modo simple de quien mira (src/lib/modo-simple.ts, `recortarPermisosDeAgenda`): sin anular, dar
+   * de baja, deshacer ni cerrar en lote; en su lugar, «Corregir en modo completo». Sólo esconde.
+   */
+  modoSimple?: true;
 };
 
 export type Paso =

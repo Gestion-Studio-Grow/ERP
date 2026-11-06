@@ -50,6 +50,8 @@ import OtroDia from "./_agenda/OtroDia";
 import ElDiaCorto from "./_agenda/ElDiaCorto";
 import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
 import { agendaInteraccionPrendida } from "@/cambios/interruptores";
+import { modoSimpleDeLaSesion } from "@/lib/modo-simple.server";
+import { hrefModoCompleto, recortarPermisosDeAgenda } from "@/lib/modo-simple";
 
 type Quien = { role: Role; professionalId?: string | null; overrides: ReadonlyArray<PermisoOverride> };
 
@@ -130,7 +132,8 @@ export default async function AgendaRenglon({
   const objeto = agendaInteraccionPrendida(await interruptoresDelNegocio().catch(() => ({})));
   const vista: "lista" | "profesionales" = vistaPedida ?? (objeto ? "profesionales" : "lista");
   const conPermisos = { role: quien.role, overrides: quien.overrides ?? [] };
-  const permisos: Permisos = {
+  const simple = (await modoSimpleDeLaSesion()).activo;
+  const permisos: Permisos = recortarPermisosDeAgenda({
     interaccion: objeto,
     practica: await agendaPractica(),
     sumarProducto: cobrarVenta !== null,
@@ -139,7 +142,7 @@ export default async function AgendaRenglon({
     terminar: permisoEfectivo(conPermisos, "agenda:complete"),
     perdonar: permisoEfectivo(conPermisos, PERDONAR),
     anular: anulacionDeCobro(quien.role),
-  };
+  }, simple);
   // Mañana, sólo mirando HOY y para quien gestiona la agenda (como siempre).
   const verManana = permisos.gestionar && dia === hoy;
   const [cruda, manana, piloto, negocio, pendientes] = await Promise.all([
@@ -206,9 +209,17 @@ export default async function AgendaRenglon({
           linea.sinConfirmar > 0 ? `${linea.sinConfirmar} sin confirmar` : null,
           linea.porCobrar > 0 ? `${linea.porCobrar} por cobrar` : null,
           sinCerrar > 0 ? (
-            <Link key="sc" href="/admin/turnos/cerrar" {...chipLinkAtributos(false)} aria-label={`${sinCerrarTexto} turnos sin cerrar: cerrar lo pendiente`}>
-              Sin cerrar <span data-parte="conteo">{sinCerrarTexto}</span>
-            </Link>
+            // Cerrar en lote es de modo completo: en simple, el chip lleva ahí saliendo de simple (<a>:
+            // la ruta prende una cookie y no se precarga).
+            simple ? (
+              <a key="sc" href={hrefModoCompleto("/admin/turnos/cerrar")} {...chipLinkAtributos(false)} aria-label={`${sinCerrarTexto} turnos sin cerrar: corregir en modo completo`}>
+                Sin cerrar <span data-parte="conteo">{sinCerrarTexto}</span>
+              </a>
+            ) : (
+              <Link key="sc" href="/admin/turnos/cerrar" {...chipLinkAtributos(false)} aria-label={`${sinCerrarTexto} turnos sin cerrar: cerrar lo pendiente`}>
+                Sin cerrar <span data-parte="conteo">{sinCerrarTexto}</span>
+              </Link>
+            )
           ) : null,
           linea.masCargada ? `${linea.masCargada.nombre.split(" ")[0]} con ${linea.masCargada.turnos}` : null,
         ]}
