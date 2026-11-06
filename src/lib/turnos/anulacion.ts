@@ -48,7 +48,9 @@ import { estadoCobroTurno, type CobroTurno, type PagoLegado } from "./cobros";
 import { cashMethodFromPaymentMethod } from "@/lib/caja/cierre-diario";
 import type { CashMethod } from "@/lib/caja/cash-register";
 import { facturaDeLaVenta, mensajeFacturaViva, type FacturaDeLaVenta } from "@/lib/factura-viva";
-import { claveCobroDelLibro } from "@/lib/facturacion/clave-cobro-del-libro";
+import { claveCobroDelLibro, cobroDeLaClave } from "@/lib/facturacion/clave-cobro-del-libro";
+import { claveNotaDeCobroMP, coberturaMP, saldosMPSinPareja } from "@/lib/facturacion/cobertura-mp";
+import { centavosDe } from "@/lib/dinero/redondeo";
 
 export type AnulacionTx = Prisma.TransactionClient;
 
@@ -352,7 +354,7 @@ export type AnularCobroArgs = {
    */
   notaDeCredito?: (
     tx: AnulacionTx,
-    x: { tenantId: string; facturaId: string; motivo: string },
+    x: { tenantId: string; facturaId: string; motivo: string; importe?: number },
   ) => Promise<{ ok: true; invoiceId: string } | { ok: false; error: string }>;
 };
 
@@ -373,6 +375,44 @@ async function facturaDelCobroInTx(
     select: { invoiceId: true, invoice: { select: { status: true } } },
   });
   return fila ? { invoiceId: fila.invoiceId, status: fila.invoice.status } : null;
+}
+
+/**
+ * Opción B: un cobro con medio Mercado Pago SIN factura propia puede estar cubierto por la factura
+ * del pago de MP (`mp:<pago>`, la emite el aviso de MP): las partes de esas facturas que lo cubren,
+ * con el mismo reparto con que `facturarCobrosDelTurno` decidió no facturarlo (`cobertura-mp.ts`).
+ */
+async function coberturaMPDelCobroInTx(
+  tx: AnulacionTx,
+  tenantId: string,
+  appointmentId: string,
+  collectionId: string,
+  filas: readonly CobroDelTurno[],
+): Promise<{ invoiceId: string; centavos: number; status: string }[]> {
+  const tabla = await tx.$queryRaw<{ tabla?: string | null }[]>`SELECT to_regclass('"CobroFacturado"')::text AS tabla`;
+  if (!tabla[0]?.tabla) return [];
+  const facturadas = await tx.cobroFacturado.findMany({
+    where: { tenantId, appointmentId },
+    select: { clave: true, invoiceId: true, importe: true, createdAt: true, invoice: { select: { status: true, comprobanteAsociadoId: true } } },
+    orderBy: { createdAt: "desc" },
+  });
+  const filasFacturadas = facturadas.map((f) => ({
+    clave: f.clave,
+    invoiceId: f.invoiceId,
+    importe: Number(f.importe),
+    status: f.invoice.status,
+    createdAt: f.createdAt,
+    asociada: f.invoice.comprobanteAsociadoId,
+  }));
+  const anulados = new Set(filas.map((f) => cobroAnuladoPor(f.note)).filter((id): id is string => id != null));
+  const vivos = filas
+    .filter((f) => claseDeCobro(f.note) === "cobro" && centavosDe(f.amount) > 0 && !anulados.has(f.id))
+    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id))
+    .map((f) => ({ id: f.id, method: f.method, centavos: centavosDe(f.amount) }));
+  const conFila = new Set(filasFacturadas.map((f) => cobroDeLaClave(f.clave)).filter((id): id is string => id != null));
+  const partes = coberturaMP({ vivos, conFila, saldos: saldosMPSinPareja(filasFacturadas) }).get(collectionId) ?? [];
+  const estado = new Map(filasFacturadas.map((f) => [f.invoiceId, f.status]));
+  return partes.map((p) => ({ ...p, status: estado.get(p.invoiceId) ?? "PENDING" }));
 }
 
 export type ReversaLibro =
@@ -465,7 +505,19 @@ export async function anularCobroTurnoInTx(
   // Se lee después de tomar la fila del turno, que es la que escribe quien factura el cobro.
   const delCobro =
     facturaDelTurno === "sin-factura-viva" && !yaAnulada ? await facturaDelCobroInTx(tx, tenantId, args.collectionId) : null;
-  const estadoDelCobro = delCobro ? facturaDeLaVenta([{ status: delCobro.status }]) : "sin-factura-viva";
+  // Sin factura propia, un cobro de Mercado Pago puede estar cubierto por la factura del PAGO de MP
+  // (`mp:<pago>`): la nota de crédito va contra esa parte (certificación del PR #38).
+  const porMP =
+    facturaDelTurno === "sin-factura-viva" && !yaAnulada && !delCobro && original.method === "MERCADOPAGO"
+      ? await coberturaMPDelCobroInTx(tx, tenantId, args.appointmentId, args.collectionId, filas)
+      : [];
+  const estadoDelCobro = delCobro
+    ? facturaDeLaVenta([{ status: delCobro.status }])
+    : porMP.length > 0
+      ? porMP.every((p) => p.status === "AUTHORIZED")
+        ? "autorizada"
+        : facturaDeLaVenta(porMP.filter((p) => p.status !== "AUTHORIZED"))
+      : "sin-factura-viva";
   const conNota = estadoDelCobro === "autorizada" && Boolean(args.notaDeCredito);
   const plan = planAnulacion({
     note: original.note,
@@ -485,6 +537,24 @@ export async function anularCobroTurnoInTx(
     const nota = await args.notaDeCredito(tx, { tenantId, facturaId: delCobro.invoiceId, motivo: args.motivo });
     if (!nota.ok) throw new AnulacionRechazada("nota-de-credito", nota.error);
     notaDeCreditoId = nota.invoiceId;
+  }
+  if (conNota && porMP.length > 0 && args.notaDeCredito) {
+    for (const parte of porMP) {
+      const importe = parte.centavos / 100;
+      const nota = await args.notaDeCredito(tx, { tenantId, facturaId: parte.invoiceId, motivo: args.motivo, importe });
+      if (!nota.ok) throw new AnulacionRechazada("nota-de-credito", nota.error);
+      // Esa parte de la factura de MP ya no cubre a nadie: la nota queda anotada contra el cobro.
+      await tx.cobroFacturado.create({
+        data: {
+          tenantId,
+          clave: claveNotaDeCobroMP(args.collectionId, parte.invoiceId),
+          invoiceId: nota.invoiceId,
+          importe,
+          appointmentId: args.appointmentId,
+        },
+      });
+      notaDeCreditoId = nota.invoiceId;
+    }
   }
 
   const reversa = await tx.collection.create({

@@ -31,8 +31,9 @@ import { centavosDe } from "@/lib/dinero/redondeo";
 import { calcularImpuestos, getFiscalProfile } from "@/lib/fiscal";
 import { fechaFiscalDelDia } from "@/lib/libros/fecha-fiscal";
 import { createInvoiceInTx, crearNotaDeCreditoInTx, type CreateInvoiceInput, type InvoiceTx, type ResultadoNotaDeCredito } from "@/lib/invoice-core";
-import { claveCobroTurno, tomarClaves, vincularCobroInTx } from "@/lib/facturacion/cobros-facturados";
+import { claveCobroTurno, facturarCobrosInTx, tomarClaves, vincularCobroInTx, type CobroAFacturar } from "@/lib/facturacion/cobros-facturados";
 import { claveCobroDelLibro, cobroDeLaClave } from "@/lib/facturacion/clave-cobro-del-libro";
+import { esPagoMP, saldosMPSinPareja } from "@/lib/facturacion/cobertura-mp";
 import { MARCA_ANULACION, claseDeCobro, cobroAnuladoPor } from "@/lib/turnos/anulacion";
 
 // Códigos de catálogo ARCA (ver src/plugins/arca/domain/catalogos.ts).
@@ -96,22 +97,14 @@ export interface FilaFacturada {
   importe: number;
   status: string;
   createdAt: Date;
+  /** La factura que acredita, si ésta es una nota de crédito. */
+  asociada?: string | null;
 }
 
-/** Ids de las facturas de cobros del libro (`turno:cobro:*`), cualquier estado. */
-function facturasDeCobros(filas: readonly FilaFacturada[]): Set<string> {
-  return new Set(filas.filter((f) => cobroDeLaClave(f.clave) != null).map((f) => f.invoiceId));
-}
-
-const esPagoMP = (clave: string) => clave.startsWith("mp:") && !clave.startsWith("mp:refund:");
-
-/** Lo facturado por pagos de MP (vivos) que NO está atado a la factura de un cobro del libro. */
+/** Lo facturado por pagos de MP (vivos) que NO está atado a la factura de un cobro del libro ni
+ *  acreditado por la nota de crédito de un cobro anulado (`cobertura-mp.ts`). */
 export function mpSinPareja(filas: readonly FilaFacturada[]): number {
-  const deCobros = facturasDeCobros(filas);
-  const c = filas
-    .filter((f) => esPagoMP(f.clave) && f.status !== "REJECTED" && !deCobros.has(f.invoiceId))
-    .reduce((a, f) => a + centavosDe(f.importe), 0);
-  return c / 100;
+  return saldosMPSinPareja(filas).reduce((a, s) => a + s.centavos, 0) / 100;
 }
 
 /** Un medio del libro → el umbral de identificación del motor (PR5 · C4). */
@@ -146,7 +139,7 @@ async function leerEstadoInTx(tx: InvoiceTx, tenantId: string, appointmentId: st
     }),
     tx.cobroFacturado.findMany({
       where: { tenantId, appointmentId },
-      select: { clave: true, invoiceId: true, importe: true, createdAt: true, invoice: { select: { status: true } } },
+      select: { clave: true, invoiceId: true, importe: true, createdAt: true, invoice: { select: { status: true, comprobanteAsociadoId: true } } },
       orderBy: { createdAt: "desc" },
     }),
   ]);
@@ -156,6 +149,7 @@ async function leerEstadoInTx(tx: InvoiceTx, tenantId: string, appointmentId: st
     importe: Number(f.importe),
     status: f.invoice.status,
     createdAt: f.createdAt,
+    asociada: f.invoice.comprobanteAsociadoId,
   }));
   const turnoEntero = filasFacturadas.find((f) => f.clave === claveCobroTurno(appointmentId) && f.status !== "REJECTED");
   return {
@@ -168,6 +162,24 @@ async function leerEstadoInTx(tx: InvoiceTx, tenantId: string, appointmentId: st
 // ─── Escritura ──────────────────────────────────────────────────────────────────
 
 /**
+ * EL CANDADO COMÚN DEL TURNO: escribe la fila del turno (la misma escritura que `createInvoiceInTx`
+ * con origen APPOINTMENT; la anulación la toma FOR UPDATE). Todo lo que factura plata de este turno
+ * —la factura de un cobro del libro, el aviso de Mercado Pago de un pago del turno, la anulación—
+ * la toma ANTES de leer qué está facturado, y lee y factura en la MISMA transacción: el segundo
+ * espera al primero y, en READ COMMITTED, su lectura siguiente ya ve la factura del primero.
+ * Sin esto, el aviso de MP y la factura del cobro miraban a la vez «no hay factura» y salían dos
+ * (certificación del PR #38). Devuelve `false` si el turno no existe en este negocio.
+ */
+export async function bloquearTurnoInTx(tx: InvoiceTx, tenantId: string, appointmentId: string): Promise<boolean> {
+  if (typeof (tx as { $queryRaw?: unknown }).$queryRaw !== "function") return true; // dobles de test sin SQL
+  const turno = await tx.$queryRaw<{ id: string }[]>`
+    UPDATE "Appointment" SET "tenantId" = "tenantId"
+    WHERE id = ${appointmentId} AND "tenantId" = ${tenantId}
+    RETURNING id`;
+  return turno.length > 0;
+}
+
+/**
  * Factura UN cobro del libro dentro de la transacción del llamador. Devuelve la factura del cobro
  * (la nueva, o la que ya tenía), o `null` si el cobro ya no está (anulado o no es de este turno).
  */
@@ -178,16 +190,13 @@ export async function facturarCobroDelLibroInTx(
 ): Promise<string | null> {
   const { tenantId } = input;
   const clave = claveCobroDelLibro(cobro.collectionId);
+  // Candado común del turno PRIMERO (mismo orden en todos los caminos: sin abrazos mortales).
+  if (!(await bloquearTurnoInTx(tx, tenantId, cobro.appointmentId))) throw new Error("No se encontró el turno a facturar.");
   await tomarClaves(tx, tenantId, [clave]);
   const previa = await tx.cobroFacturado.findFirst({ where: { tenantId, clave }, select: { invoiceId: true } });
   if (previa) return previa.invoiceId;
 
-  // ENG-023: escribir la fila del turno (la anulación la toma FOR UPDATE) y RELEER el cobro.
-  const turno = await tx.$queryRaw<{ id: string }[]>`
-    UPDATE "Appointment" SET "tenantId" = "tenantId"
-    WHERE id = ${cobro.appointmentId} AND "tenantId" = ${tenantId}
-    RETURNING id`;
-  if (turno.length === 0) throw new Error("No se encontró el turno a facturar.");
+  // ENG-023: la fila del turno ya está escrita (la anulación la toma FOR UPDATE): RELEER el cobro.
   const [fila, reversa] = await Promise.all([
     tx.collection.findFirst({
       where: { tenantId, id: cobro.collectionId, originType: "APPOINTMENT", originId: cobro.appointmentId },
@@ -226,6 +235,13 @@ export interface DepsPorCobro {
 
 const DEPS: DepsPorCobro = { getFiscalProfile, fecha: fechaFiscalDelDia };
 
+function planDelEstado(estado: EstadoDelTurno): CobroPorFacturar[] {
+  const conFila = new Set(estado.facturadas.map((f) => cobroDeLaClave(f.clave)).filter((id): id is string => id != null));
+  return planFacturasPorCobro({ filas: estado.filas, conFila, mpSinPareja: mpSinPareja(estado.facturadas) });
+}
+
+const ultimaDeCobros = (estado: EstadoDelTurno) => estado.facturadas.find((f) => cobroDeLaClave(f.clave) != null)?.invoiceId ?? null;
+
 /** Una transacción del negocio, con un reintento si otro disparador ganó la carrera (P2002). */
 async function enElNegocio<T>(tenantId: string, f: (tx: InvoiceTx) => Promise<T>): Promise<T> {
   const correr = () => tenantTransaction(f, { tenantId });
@@ -252,40 +268,44 @@ export async function facturarCobrosDelTurno(
   if (estado.legado) return { modo: "legado", factura: estado.legado };
   if (estado.filas.length === 0) return { modo: "sin-libro" };
 
-  const conFila = new Set(
-    estado.facturadas.map((f) => cobroDeLaClave(f.clave)).filter((id): id is string => id != null),
-  );
-  const plan = planFacturasPorCobro({ filas: estado.filas, conFila, mpSinPareja: mpSinPareja(estado.facturadas) });
-  const ultimaPrevia = estado.facturadas.find((f) => cobroDeLaClave(f.clave) != null)?.invoiceId ?? null;
-  if (plan.length === 0) return { modo: "por-cobro", nuevas: [], ultima: ultimaPrevia };
+  // Primera mirada, sin candado: si no hay nada que facturar no se toma el turno ni el perfil fiscal.
+  if (planDelEstado(estado).length === 0) return { modo: "por-cobro", nuevas: [], ultima: ultimaDeCobros(estado) };
 
   const perfil = await deps.getFiscalProfile(tenantId);
-  const nuevas: string[] = [];
-  for (const cobro of plan) {
-    const { neto, iva, total } = calcularImpuestos(perfil.condicionIva, cobro.importe);
-    // El día del NEGOCIO (libros/fecha-fiscal.ts): el día en que entró la plata de ESE cobro.
-    const fecha = deps.fecha();
-    const comprobante: CreateInvoiceInput = {
-      tenantId,
-      concepto: CONCEPTO_SERVICIOS,
-      fecha,
-      emisor: { cuit: perfil.cuit, condicionIva: perfil.condicionIva, puntoVenta: perfil.puntoVenta },
-      // El modelo Client no captura CUIT/DNI todavía → Consumidor Final (ADR-024).
-      receptor: { docTipo: DOC_CONSUMIDOR_FINAL, docNro: 0, condicionIva: "CONSUMIDOR_FINAL" },
-      neto,
-      iva,
-      total,
-      medioDePago: medioDePago(cobro.method),
-      servicioDesde: fecha,
-      servicioHasta: fecha,
-      vencimientoPago: fecha,
-    };
-    const id = await enElNegocio(tenantId, (tx) =>
-      facturarCobroDelLibroInTx(tx, comprobante, { appointmentId, collectionId: cobro.collectionId }),
-    );
-    if (id && !nuevas.includes(id)) nuevas.push(id);
-  }
-  return { modo: "por-cobro", nuevas, ultima: nuevas.at(-1) ?? ultimaPrevia };
+  // Consultar y facturar en UNA transacción, bajo el candado del turno: el plan se RECALCULA con lo
+  // que hay después de tomar el candado (un aviso de MP pudo facturar la seña mientras tanto).
+  return enElNegocio(tenantId, async (tx): Promise<ResultadoPorCobro> => {
+    if (!(await bloquearTurnoInTx(tx, tenantId, appointmentId))) throw new Error("No se encontró el turno a facturar.");
+    const ahora = await leerEstadoInTx(tx, tenantId, appointmentId);
+    if (!ahora) return { modo: "sin-libro" };
+    if (ahora.legado) return { modo: "legado", factura: ahora.legado };
+    const planBajoCandado = planDelEstado(ahora);
+    const previa = ultimaDeCobros(ahora);
+    const nuevas: string[] = [];
+    for (const cobro of planBajoCandado) {
+      const { neto, iva, total } = calcularImpuestos(perfil.condicionIva, cobro.importe);
+      // El día del NEGOCIO (libros/fecha-fiscal.ts): el día en que entró la plata de ESE cobro.
+      const fecha = deps.fecha();
+      const comprobante: CreateInvoiceInput = {
+        tenantId,
+        concepto: CONCEPTO_SERVICIOS,
+        fecha,
+        emisor: { cuit: perfil.cuit, condicionIva: perfil.condicionIva, puntoVenta: perfil.puntoVenta },
+        // El modelo Client no captura CUIT/DNI todavía → Consumidor Final (ADR-024).
+        receptor: { docTipo: DOC_CONSUMIDOR_FINAL, docNro: 0, condicionIva: "CONSUMIDOR_FINAL" },
+        neto,
+        iva,
+        total,
+        medioDePago: medioDePago(cobro.method),
+        servicioDesde: fecha,
+        servicioHasta: fecha,
+        vencimientoPago: fecha,
+      };
+      const id = await facturarCobroDelLibroInTx(tx, comprobante, { appointmentId, collectionId: cobro.collectionId });
+      if (id && !nuevas.includes(id)) nuevas.push(id);
+    }
+    return { modo: "por-cobro", nuevas, ultima: nuevas.at(-1) ?? previa };
+  });
 }
 
 /**
@@ -294,31 +314,62 @@ export async function facturarCobrosDelTurno(
  * otra), o `null` si la plata de MP todavía no está facturada por un cobro del libro.
  */
 export async function facturaDeCobroParaPagoMP(tenantId: string, appointmentId: string, monto: number): Promise<string | null> {
-  return tenantTransaction(
-    async (tx) => {
-      if (!(await hayLibroDeCobrosInTx(tx))) return null;
-      const [facturadas, libro] = await Promise.all([
-        tx.cobroFacturado.findMany({
-          where: { tenantId, appointmentId },
-          select: { clave: true, invoiceId: true, importe: true, invoice: { select: { status: true } } },
-          orderBy: { createdAt: "desc" },
-        }),
-        tx.collection.findMany({
-          where: { tenantId, originType: "APPOINTMENT", originId: appointmentId, method: "MERCADOPAGO" },
-          select: { id: true },
-        }),
-      ]);
-      const cobrosMP = new Set(libro.map((c) => c.id));
-      const vivas = facturadas.filter((f) => f.invoice.status !== "REJECTED");
-      const deCobrosMP = vivas.filter((f) => cobrosMP.has(cobroDeLaClave(f.clave) ?? ""));
-      const ids = new Set(deCobrosMP.map((f) => f.invoiceId));
-      const facturadoPorCobros = deCobrosMP.reduce((a, f) => a + centavosDe(Number(f.importe)), 0);
-      const yaAtado = vivas.filter((f) => esPagoMP(f.clave) && ids.has(f.invoiceId)).reduce((a, f) => a + centavosDe(Number(f.importe)), 0);
-      if (facturadoPorCobros - yaAtado < centavosDe(monto)) return null;
-      return deCobrosMP[0]?.invoiceId ?? null;
-    },
-    { tenantId },
-  );
+  return tenantTransaction((tx) => facturaDeCobroParaPagoMPInTx(tx, tenantId, appointmentId, monto), { tenantId });
+}
+
+/** `facturaDeCobroParaPagoMP` dentro de la transacción del llamador (bajo el candado del turno). */
+export async function facturaDeCobroParaPagoMPInTx(
+  tx: InvoiceTx,
+  tenantId: string,
+  appointmentId: string,
+  monto: number,
+): Promise<string | null> {
+  if (!(await hayLibroDeCobrosInTx(tx))) return null;
+  const [facturadas, libro] = await Promise.all([
+    tx.cobroFacturado.findMany({
+      where: { tenantId, appointmentId },
+      select: { clave: true, invoiceId: true, importe: true, invoice: { select: { status: true } } },
+      orderBy: { createdAt: "desc" },
+    }),
+    tx.collection.findMany({
+      where: { tenantId, originType: "APPOINTMENT", originId: appointmentId, method: "MERCADOPAGO" },
+      select: { id: true },
+    }),
+  ]);
+  const cobrosMP = new Set(libro.map((c) => c.id));
+  const vivas = facturadas.filter((f) => f.invoice.status !== "REJECTED");
+  const deCobrosMP = vivas.filter((f) => cobrosMP.has(cobroDeLaClave(f.clave) ?? ""));
+  const ids = new Set(deCobrosMP.map((f) => f.invoiceId));
+  const facturadoPorCobros = deCobrosMP.reduce((a, f) => a + centavosDe(Number(f.importe)), 0);
+  const yaAtado = vivas.filter((f) => esPagoMP(f.clave) && ids.has(f.invoiceId)).reduce((a, f) => a + centavosDe(Number(f.importe)), 0);
+  if (facturadoPorCobros - yaAtado < centavosDe(monto)) return null;
+  return deCobrosMP[0]?.invoiceId ?? null;
+}
+
+/**
+ * El aviso de Mercado Pago de un pago de un turno, ya calculado su comprobante: decide y factura en
+ * UNA transacción, bajo el candado del turno (`bloquearTurnoInTx`), RELEYENDO adentro:
+ *   · si el turno ya tiene su factura del camino de antes, el pago se ata a ella;
+ *   · si la recepción ya anotó y facturó ese pago como cobro del libro, se ata a esa factura;
+ *   · si no, se factura el pago (`mp:<pago>`, idempotente por su clave).
+ * Así el aviso y la factura del cobro (`facturarCobrosDelTurno`) se ordenan: el segundo ve al primero.
+ */
+export async function facturarPagoMPDelTurno(
+  input: CreateInvoiceInput,
+  cobro: CobroAFacturar & { appointmentId: string },
+): Promise<string> {
+  const { tenantId } = input;
+  return enElNegocio(tenantId, async (tx) => {
+    await bloquearTurnoInTx(tx, tenantId, cobro.appointmentId);
+    const delTurno = await tx.invoice.findFirst({
+      where: { tenantId, appointmentId: cobro.appointmentId, status: { not: "REJECTED" } },
+      select: { id: true },
+    });
+    if (delTurno) return vincularCobroInTx(tx, tenantId, cobro, delTurno.id);
+    const delCobro = await facturaDeCobroParaPagoMPInTx(tx, tenantId, cobro.appointmentId, cobro.importe);
+    if (delCobro) return vincularCobroInTx(tx, tenantId, cobro, delCobro);
+    return facturarCobrosInTx(tx, input, [cobro]);
+  });
 }
 
 /**
@@ -328,11 +379,12 @@ export async function facturaDeCobroParaPagoMP(tenantId: string, appointmentId: 
  */
 export function notaDeCreditoDelCobroInTx(
   tx: InvoiceTx,
-  x: { tenantId: string; facturaId: string; motivo: string },
+  x: { tenantId: string; facturaId: string; motivo: string; importe?: number },
 ): Promise<ResultadoNotaDeCredito> {
   return crearNotaDeCreditoInTx(tx, {
     tenantId: x.tenantId,
     facturaId: x.facturaId,
+    ...(x.importe != null ? { importe: x.importe } : {}),
     motivo: `Anulación del cobro: ${x.motivo}`,
     fecha: fechaFiscalDelDia(),
   });
