@@ -12,14 +12,14 @@
 
 import { prisma } from "@/lib/prisma";
 import { requireCapability } from "@/lib/authz";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { whereProveedoresActivos } from "@/lib/suppliers/supplier";
 
 export async function getComprasData() {
   const user = await requireCapability("stock:receive");
   const tenantId = await getCurrentTenantId();
-  const conCostos = roleHasCapability(user.role, "costs:read");
+  const conCostos = permisoEfectivo(user, "costs:read");
   const [products, recent, proveedores] = await Promise.all([
     prisma.product.findMany({
       where: { tenantId, deletedAt: null, active: true },

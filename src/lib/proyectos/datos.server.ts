@@ -6,14 +6,17 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { requireCapability } from "@/lib/authz";
-import { roleHasCapability } from "@/lib/capabilities";
+import { requireCapability, requireCapabilityFueraDeLaAgenda } from "@/lib/authz";
+import { permisoFueraDeLaAgenda } from "@/lib/capabilities";
+import { enmascararContacto } from "@/lib/clientes/telefono";
+import { criterioDeContacto, wherePorContacto } from "@/lib/clientes/busqueda-por-contacto";
 import type { SessionUser } from "@/lib/session";
 import { getLocation } from "@/lib/settings";
 import { desvioPorRubro, redondear, resultadoReal, totales, ultimaEnviada } from "./core";
 import { costosVigentes, normalizarDiseno } from "./stand";
+import { SIN_COMPROBANTES } from "./rendiciones-core";
 
-export const veLaPlata = (u: SessionUser): boolean => roleHasCapability(u.role, "agenda:manage");
+export const veLaPlata = (u: SessionUser): boolean => permisoFueraDeLaAgenda(u, "agenda:manage");
 
 export async function configProyectos(tenantId: string) {
   const c = await prisma.proyectoConfig.findUnique({ where: { tenantId } });
@@ -76,7 +79,7 @@ export async function fichaProyecto(id: string) {
     include: {
       client: { select: { id: true, name: true, phone: true, email: true } },
       tareas: { orderBy: [{ hechaEl: { sort: "asc", nulls: "first" } }, { venceEl: { sort: "asc", nulls: "last" } }, { createdAt: "asc" }] },
-      archivos: { orderBy: { createdAt: "desc" } },
+      archivos: { where: SIN_COMPROBANTES, orderBy: { createdAt: "desc" } },
       stands: { orderBy: { createdAt: "asc" }, select: { id: true, nombre: true, updatedAt: true } },
       presupuestos: { orderBy: { version: "desc" }, include: { items: { orderBy: [{ posicion: "asc" }, { createdAt: "asc" }] } } },
       pagos: { orderBy: { createdAt: "desc" } },
@@ -142,7 +145,7 @@ export async function clientesDelNegocio() {
 }
 
 export async function reporteProyectos() {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const proyectos = await prisma.proyecto.findMany({
     where: { tenantId },
@@ -170,7 +173,7 @@ export async function reporteProyectos() {
 
 /** Los proveedores con lo gastado en proyectos, y lo que queda por pagar. */
 export async function proveedoresConGastos() {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const [proveedores, gastos] = await Promise.all([
     prisma.supplier.findMany({ where: { tenantId }, orderBy: [{ active: "desc" }, { name: "asc" }], take: 500, select: { id: true, name: true, taxId: true, phone: true, email: true, active: true } }),
@@ -198,17 +201,14 @@ export async function proveedoresConGastos() {
 
 /** Los clientes del negocio con sus proyectos: abiertos, total y lo que falta cobrar de lo aprobado. */
 export async function clientesConProyectos(q: string) {
-  await requireCapability("clients:read");
+  const user = await requireCapability("clients:read");
   const tenantId = await getCurrentTenantId();
+  // Por teléfono o mail según la casilla 5 (helper único): sin `clients:contact`, sólo nombre o últimos 4.
   const clientes = await prisma.client.findMany({
     where: {
       tenantId,
       ...(q && {
-        OR: [
-          { name: { contains: q, mode: "insensitive" as const } },
-          { phone: { contains: q } },
-          { email: { contains: q, mode: "insensitive" as const } },
-        ],
+        OR: [{ name: { contains: q, mode: "insensitive" as const } }, ...wherePorContacto(criterioDeContacto(q, user), { conMail: true })],
       }),
     },
     orderBy: { name: "asc" },
@@ -228,7 +228,7 @@ export async function clientesConProyectos(q: string) {
     },
   });
   return clientes.map(({ proyectos, ...c }) => ({
-    ...c,
+    ...enmascararContacto(c, user),
     total: proyectos.length,
     abiertos: proyectos.filter((p) => p.etapa !== "CIERRE").length,
     porCobrar: redondear(

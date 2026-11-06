@@ -28,6 +28,7 @@ import { confirmarTurno, marcarAvisada, type TurnoAConfirmar } from "@/lib/actio
 import { Button, Hoja, Marca, Renglon, type TipoMarca } from "@/components/ui";
 import { fmtTime } from "@/lib/datetime";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
+import { SIN_PERMISO_DE_CONTACTO, contactoOculto } from "@/lib/clientes/telefono";
 import { useToast } from "../../ToastProvider";
 import { fechaLarga, type TurnoDelDia } from "../agenda-core";
 import MoverTurno from "./MoverTurno";
@@ -352,7 +353,8 @@ export function ListaDeManana({
                     <Marca tipo="pendiente">Reservado</Marca>
                   )}
                   {avisadaEl && <span className="ml-2">avisada {fmtTime(avisadaEl)}</span>}
-                  {!wa && (
+                  {!wa && contactoOculto(t.telefono) && <>{" · "}{SIN_PERMISO_DE_CONTACTO}</>}
+                  {!wa && !contactoOculto(t.telefono) && (
                     <>
                       {" · "}
                       <Link href={`/admin/clientes/${encodeURIComponent(t.clientId)}`} className="font-medium text-warning underline">

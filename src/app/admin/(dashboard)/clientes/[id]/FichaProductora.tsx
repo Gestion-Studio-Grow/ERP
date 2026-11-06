@@ -2,11 +2,12 @@
 // trabajos: «última visita», «faltó sin avisar» o «cumpleaños» (FichaUnica) no le dicen nada, y sus cobros están en
 // los proyectos, así que ahí su «Gastó en el último año» daba $0.
 
+import { enmascararContacto } from "@/lib/clientes/telefono";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ButtonLink } from "@/components/ui";
 import { getClient } from "@/lib/actions";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { proyectosDelCliente, veLaPlata } from "@/lib/proyectos/datos.server";
 import { etapaLabel, pesos, redondear, SERVICIO_LABEL, type Servicio } from "@/lib/proyectos/core";
 import type { SessionUser } from "@/lib/session";
@@ -16,9 +17,11 @@ import { tarjeta } from "../../proyectos/_vista";
 import EditarClienteForm from "./EditarClienteForm";
 
 export default async function FichaProductora({ id, user }: { id: string; user: SessionUser }) {
-  const [client, proyectos] = await Promise.all([getClient(id), proyectosDelCliente(id)]);
-  if (!client) notFound();
-  const puedeEditar = roleHasCapability(user.role, "clients:manage");
+  const [crudo, proyectos] = await Promise.all([getClient(id), proyectosDelCliente(id)]);
+  if (!crudo) notFound();
+  // Sin `clients:contact` (casilla 5 de la matriz) teléfono y mail salen enmascarados del servidor.
+  const client = enmascararContacto(crudo, user);
+  const puedeEditar = permisoEfectivo(user, "clients:manage");
   const conPlata = veLaPlata(user);
   const contacto = contactoDeLaFicha({ telefono: client.phone, noQuiere: false, puedeEditar });
   const vendido = redondear(proyectos.reduce((s, p) => s + (p.t?.total ?? 0), 0));

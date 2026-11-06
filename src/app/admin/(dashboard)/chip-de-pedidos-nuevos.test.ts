@@ -147,7 +147,7 @@ test("la lectura es UN endpoint de sólo lectura: orders:read, tenant de la sesi
 
 test("el layout monta el chip sólo con el mostrador boutique y para quien ve pedidos; el armazón no dibuja nada sin él", () => {
   const layout = leer("./layout.tsx");
-  assert.match(layout, /const pedidosNuevos = mostradorBoutiquePrendido\(interruptores\) && roleHasCapability\(user\.role, "orders:read"\);/);
+  assert.match(layout, /const pedidosNuevos = mostradorBoutiquePrendido\(interruptores\) && permisoEfectivo\(user, "orders:read"\);/);
   assert.match(layout, /\{\.\.\.\(pedidosNuevos \? \{ pedidosNuevos \} : \{\}\)\}/);
   const shell = leer("./AdminShell.tsx");
   assert.match(shell, /return pedidosNuevos \? <PedidosNuevos>\{armazon\}<\/PedidosNuevos> : armazon;/);

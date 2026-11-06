@@ -81,7 +81,7 @@ async function contexto(): Promise<Contexto> {
   const [negocio, modoApps] = await Promise.all([getNegocioApps(user.role), enInicioPorApps()]);
   const visibles = appsVisibles(negocio);
   const menu = proyectarMenuDeHoy(visibles);
-  const nav = armarNavegacion({ visibles, menu, modoApps, esMostrador: negocio.esMostrador, role: user.role });
+  const nav = armarNavegacion({ visibles, menu, modoApps, esMostrador: negocio.esMostrador, role: user.role, overrides: user.overrides });
   const rutas = new Set(nav.espacios.flatMap((e) => e.apps.map((a) => a.ruta)));
   return {
     role: user.role,

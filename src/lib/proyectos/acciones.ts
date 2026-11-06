@@ -11,7 +11,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { requireCapability } from "@/lib/authz";
+import { requireCapabilityFueraDeLaAgenda } from "@/lib/authz";
 import { auditAdmin, auditPublic } from "@/lib/audit-core";
 import { transferenciaEnElLibroTx } from "@/lib/caja/transferencia-en-el-libro";
 import type { Prisma } from "@/generated/prisma/client";
@@ -128,7 +128,7 @@ export async function agregarArchivo(d: {
   if (d.datos ? !imagenValida(d.datos) : !urlValida(url)) {
     return { ok: false, error: d.datos ? "La imagen es demasiado pesada o no es válida." : "Pegá un link que empiece con https://." };
   }
-  const cuantos = await prisma.proyectoArchivo.count({ where: { tenantId, proyectoId: d.proyectoId, clave: null } });
+  const cuantos = await prisma.proyectoArchivo.count({ where: { tenantId, proyectoId: d.proyectoId, clave: null, tipo: { not: "COMPROBANTE" } } });
   if (cuantos >= MAX_ARCHIVOS) return { ok: false, error: `Un proyecto guarda hasta ${MAX_ARCHIVOS} archivos. Sacá alguno que ya no uses.` };
   const a = await prisma.proyectoArchivo.create({
     data: { tenantId, proyectoId: d.proyectoId, tipo, nombre, datos: d.datos || null, url: d.datos ? null : url, visibleCliente: !!d.visibleCliente && !!d.datos, subidoPor: user.name },
@@ -569,7 +569,7 @@ export async function computoAlPresupuesto(d: { standId: string }): Promise<Resu
 // ── Configuración ───────────────────────────────────────────────────────────
 
 export async function guardarConfig(formData: FormData) {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const costos: Partial<Record<ClaveCosto, number>> = {};
   for (const k of Object.keys(COSTO_LABEL) as ClaveCosto[]) {

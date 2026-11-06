@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireApp } from "@/lib/require-app";
-import { requireCapability } from "@/lib/authz";
+import { requireCapabilityFueraDeLaAgenda } from "@/lib/authz";
 import { buttonClasses, cn, Field, Input, Select } from "@/components/ui";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { configInmo, contratoAdmin, hoyDia } from "@/lib/inmobiliaria/datos.server";
 import { origenDelSitio } from "@/lib/inmobiliaria/sitio.server";
@@ -34,7 +34,7 @@ const importe = (v: number): string => v.toLocaleString("es-AR", { minimumFracti
 
 export default async function Contrato({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireApp("inmobiliaria");
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const { id } = await params;
   const tenantId = await getCurrentTenantId();
   const [c, config, origen] = await Promise.all([contratoAdmin(id), configInmo(tenantId), origenDelSitio()]);
@@ -64,7 +64,7 @@ export default async function Contrato({ params }: { params: Promise<{ id: strin
         </p>
       </header>
 
-      <BarraInmo activa={`${RAIZ}/alquileres`} conPlata esDuenio={roleHasCapability(user.role, "users:manage")} />
+      <BarraInmo activa={`${RAIZ}/alquileres`} conPlata esDuenio={permisoEfectivo(user, "users:manage")} />
 
       {c.debe > 0 && (
         <p className="mb-4 rounded-xl border border-line px-3 py-2 text-sm font-semibold text-strong" style={{ background: "var(--warning-soft)" }}>

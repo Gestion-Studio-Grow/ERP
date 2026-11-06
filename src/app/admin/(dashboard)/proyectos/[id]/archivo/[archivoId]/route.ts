@@ -6,6 +6,7 @@ import { requireApp } from "@/lib/require-app";
 import { actorActual, proyectoVisible, puede } from "@/lib/proyectos/gestion.server";
 import { cabeceraDeArchivo, comoSeEntrega, MINUTOS_BAJADA, urlFirmada } from "@/lib/proyectos/r2-core";
 import { configR2 } from "@/lib/proyectos/r2.server";
+import { SIN_COMPROBANTES } from "@/lib/proyectos/rendiciones-core";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +15,8 @@ export async function GET(pedido: Request, { params }: { params: Promise<{ id: s
   const a = await actorActual();
   const { id, archivoId } = await params;
   if (!(puede(a, "ficha", "ver") || puede(a, "diseno", "ver")) || !(await proyectoVisible(a, id))) return new NextResponse(null, { status: 404 });
-  const f = await prisma.proyectoArchivo.findFirst({ where: { id: archivoId, proyectoId: id, tenantId: a.tenantId }, select: { datos: true, clave: true, nombre: true } });
+  // Los comprobantes de Rendí no salen por acá: se ven sólo desde Rendiciones (quien rindió, Dirección o Administración).
+  const f = await prisma.proyectoArchivo.findFirst({ where: { id: archivoId, proyectoId: id, tenantId: a.tenantId, ...SIN_COMPROBANTES }, select: { datos: true, clave: true, nombre: true } });
   // El original está en la nube: un link que vence a los minutos, pedido después de controlar el permiso. ?mini=1 es la miniatura de la tabla.
   const c = configR2();
   if (c && f?.clave && !(f.datos && new URL(pedido.url).searchParams.has("mini"))) {
