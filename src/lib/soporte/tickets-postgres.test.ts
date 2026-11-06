@@ -33,7 +33,7 @@ test("tickets de soporte: alta desde el pedido, aislamiento por negocio, cambios
   const { pedirASoporteAction } = await import("@/app/contador/pedido-soporte-actions");
   const { ACCION_PEDIDO_SOPORTE, ENTIDAD_PEDIDO_SOPORTE } = await import("@/app/contador/pedido-soporte");
   const { cambiarTicket, fichaDeTicket, listarTickets, traerPedidosSinTicket } = await import("./tickets.server");
-  const { crearTicketEnTx } = await import("./alta.server");
+  const { crearTicketEnTx, crearTicketSinRomperElPedido, esTablaAusente } = await import("./alta.server");
   const { ticketDesdePedido, venceElPara, filtrosDesdeQuery } = await import("./tickets-core");
   base.alBorrar(() => operatorPrisma.$disconnect());
   const duenio = await prismaComoDuenio(base);
@@ -81,6 +81,11 @@ test("tickets de soporte: alta desde el pedido, aislamiento por negocio, cambios
     "parada en B no se puede escribir un ticket a nombre de A (WITH CHECK)",
   );
   assert.equal((await duenio.supportTicket.findUniqueOrThrow({ where: { id: tk.id } })).estado, "nuevo");
+  await assert.rejects(
+    duenio.supportTicketEvento.create({ data: { tenantId: base.b.id, ticketId: tk.id, tipo: "nota", actor: "operator:x" } }),
+    /foreign key|Foreign key|P2003/,
+    "ni siquiera sin RLS (dueño de la base) un evento de B puede colgar de un ticket de A: FK compuesta",
+  );
 
   // ── 3) La consola los lista (parada en cada negocio) y la ficha trae el historial ──
   const lista = await listarTickets(operatorPrisma, todos);
@@ -125,9 +130,53 @@ test("tickets de soporte: alta desde el pedido, aislamiento por negocio, cambios
   assert.deepEqual(await traerPedidosSinTicket(operatorPrisma, puede), { creados: 0 });
   assert.deepEqual(await traerPedidosSinTicket(operatorPrisma, () => false), { creados: 0 }, "un estudio que el operador no puede tocar se saltea");
 
+  // ── 6b) El SAVEPOINT del alta: sólo tolera «tabla inexistente»; el resto se relanza ──
+  // Se llama directo (sin pasar por hayTablaDeTickets del camino feliz) y, después del ROLLBACK
+  // TO SAVEPOINT, la MISMA transacción sigue usable: escribe una fila de AuditLog que queda.
+  const marca = (accion: string) => ({ tenantId: base.a.id, actor: "user:qa", action: accion, entity: "qa", entityId: "qa", channel: "admin" });
+  const errores: unknown[] = [];
+  const errorOriginal = console.error;
+  const warnOriginal = console.warn;
+  console.error = (...xs: unknown[]) => void errores.push(xs);
+  console.warn = (...xs: unknown[]) => void errores.push(xs);
+  t.after(() => {
+    console.error = errorOriginal;
+    console.warn = warnOriginal;
+  });
+  //   (a) Un error que NO es tabla ausente (una restricción): se relanza y tumba la transacción entera.
+  await duenio.$executeRawUnsafe(`ALTER TABLE "SupportTicket" ADD CONSTRAINT qa_sin_boom CHECK ("asunto" <> 'boom')`);
+  const boom = { ...datos("p-boom"), asunto: "boom" };
+  await assert.rejects(
+    tenantTransaction(async (tx) => {
+      await tx.auditLog.create({ data: marca("qa.antes-del-boom") });
+      return crearTicketSinRomperElPedido(tx, base.a.id, boom);
+    }, { tenantId: base.a.id }),
+    (e: unknown) => !esTablaAusente(e),
+    "una restricción violada no se traga",
+  );
+  assert.equal(await duenio.auditLog.count({ where: { tenantId: base.a.id, action: "qa.antes-del-boom" } }), 0, "relanzado: el pedido tampoco queda");
+  assert.equal(await duenio.supportTicket.count({ where: { tenantId: base.a.id, origenId: "p-boom" } }), 0);
+  const logBoom = JSON.stringify(errores.at(-1));
+  assert.match(logBoom, /"postgres":"23514"/, `se loguea el código: ${logBoom}`);
+  await duenio.$executeRawUnsafe(`ALTER TABLE "SupportTicket" DROP CONSTRAINT qa_sin_boom`);
+  //   (b) Tabla ausente DESPUÉS de hayTablaDeTickets (migración a medio aplicar: falta la de eventos):
+  //       se tolera, el ticket se deshace y la transacción sigue usable.
+  await duenio.$executeRawUnsafe(`DROP TABLE "SupportTicketEvento"`);
+  const tolerado = await tenantTransaction(async (tx) => {
+    const n = await crearTicketSinRomperElPedido(tx, base.a.id, datos("p-sin-eventos"));
+    await tx.auditLog.create({ data: marca("qa.despues-del-savepoint") });
+    return n;
+  }, { tenantId: base.a.id });
+  assert.equal(tolerado, null);
+  assert.equal(await duenio.auditLog.count({ where: { tenantId: base.a.id, action: "qa.despues-del-savepoint" } }), 1, "la transacción siguió usable");
+  assert.equal(await duenio.supportTicket.count({ where: { tenantId: base.a.id, origenId: "p-sin-eventos" } }), 0, "el ticket se deshizo entero");
+  assert.match(JSON.stringify(errores.at(-1)), /sin tabla de tickets/);
+  console.error = errorOriginal;
+  console.warn = warnOriginal;
+
   // ── 7) Sin la tabla (Gate 2): el pedido se guarda igual y la consola lo dice ──
   // Base efímera propia del test: se borran las tablas para simular la migración sin aplicar.
-  await duenio.$executeRawUnsafe(`DROP TABLE "SupportTicketEvento"`);
+  await duenio.$executeRawUnsafe(`DROP TABLE IF EXISTS "SupportTicketEvento"`);
   await duenio.$executeRawUnsafe(`DROP TABLE "SupportTicket"`);
   const sinTabla = await comoA(() => pedirASoporteAction({ cliente: base.b.id, tipo: "condicion_iva" }));
   assert.ok(sinTabla.tipo === "respuesta" && sinTabla.valor.ok, "el pedido no se rompe sin la tabla");

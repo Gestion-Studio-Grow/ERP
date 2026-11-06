@@ -1048,6 +1048,7 @@ model SupportTicket {
   updatedAt       DateTime              @updatedAt
   eventos         SupportTicketEvento[]
 
+  @@unique([tenantId, id]) // destino de la llave foránea compuesta de SupportTicketEvento
   @@unique([tenantId, numero])
   @@unique([tenantId, origenId])
   @@index([tenantId, estado, createdAt])
@@ -1059,7 +1060,7 @@ model SupportTicketEvento {
   id        String        @id @default(cuid())
   tenant    Tenant        @relation(fields: [tenantId], references: [id])
   tenantId  String
-  ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  ticket    SupportTicket @relation(fields: [tenantId, ticketId], references: [tenantId, id], onDelete: Cascade) // compuesta: nunca de un ticket de otro negocio
   ticketId  String
   tipo      String
   actor     String

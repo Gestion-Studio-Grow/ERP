@@ -74,7 +74,15 @@ export async function sugerirConIaAction(_previo: ResultadoTicket | null, fd: Fo
   return { ok: true, mensaje: "Listo: la sugerencia quedó como borrador. Revisala antes de usarla." };
 }
 
-/** Trae los pedidos de la cartera abiertos que todavía no tienen ticket (idempotente). */
+/**
+ * Trae los pedidos de la cartera abiertos que todavía no tienen ticket (idempotente).
+ *
+ * EXENTA de la guardia de entrada (certificación T1, hallazgo 5; registrada en EXENTAS de
+ * src/lib/operador/guardia-negocio.test.ts): no recibe un negocio del formulario, recorre TODOS
+ * los estudios. La guardia va ADENTRO, por negocio: `puedeTocar` (decidirOperadorParaNegocios)
+ * saltea el estudio que este operador no puede tocar (CH sólo el dueño). Medido en
+ * tickets-postgres.test.ts (puedeTocar=false → 0 creados).
+ */
 export async function traerPedidosAction(): Promise<ResultadoTicket> {
   const sesion = await requireSesionOperador();
   const r = await traerPedidosSinTicket(operatorPrisma, (slug) => decidirOperadorParaNegocios(sesion, [slug]).ok);

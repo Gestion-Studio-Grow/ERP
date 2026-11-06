@@ -15,7 +15,9 @@ const PESTANA = "inline-flex h-11 items-center rounded-md px-3 text-sm font-medi
 
 // CONSOLA DE SOPORTE GSG (T1): los tickets de todos los negocios, P1 y lo que vence antes arriba.
 // Filtros en la URL (`?estado=&prioridad=&tipo=`): un formulario GET, sin JS. Sin estado elegido se
-// ven los abiertos. Sólo con sesión de operador (la de Soporte GSG).
+// ven los abiertos. Sólo con sesión de operador (la de Soporte GSG). OJO: cualquier operador LEE los
+// tickets de TODOS los negocios (CH incluido); la guardia de CH frena sólo lo que se escribe
+// (decisión explícita, hallazgo 3: ver listarTickets y docs/producto/soporte/consola-soporte-t1.md).
 export default async function SoportePage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   await requireSesionOperador();
   const filtros = filtrosDesdeQuery(await searchParams);

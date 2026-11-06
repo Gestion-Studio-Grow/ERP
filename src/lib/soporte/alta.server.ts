@@ -12,11 +12,32 @@ import type { DatosTicketNuevo } from "./tickets-core";
 
 type Tx = Prisma.TransactionClient;
 
-/** P2021/42P01: la tabla todavía no existe (la migración no se aplicó). */
+/**
+ * El código del error tal como lo expone Prisma 7 con PrismaPg: el de Prisma («P2021», «P2010»…)
+ * y, si vino de Postgres, el SQLSTATE («42P01»), que el adaptador deja en `meta.code` o en
+ * `meta.driverAdapterError.cause.originalCode`. Sólo códigos: nunca el mensaje (puede traer datos).
+ */
+export function codigosDelError(e: unknown): { prisma?: string; postgres?: string } {
+  const x = e as {
+    code?: unknown;
+    meta?: { code?: unknown; driverAdapterError?: { cause?: { originalCode?: unknown; kind?: unknown } } };
+    cause?: { originalCode?: unknown; code?: unknown };
+  } | null;
+  const str = (v: unknown) => (typeof v === "string" && /^[A-Z0-9]{5}$/.test(v) ? v : undefined);
+  const prisma = typeof x?.code === "string" && /^P\d{4}$/.test(x.code) ? x.code : undefined;
+  const postgres =
+    str(x?.meta?.code) ??
+    str(x?.meta?.driverAdapterError?.cause?.originalCode) ??
+    str(x?.cause?.originalCode) ??
+    (prisma ? undefined : str(x?.code)) ??
+    (x?.meta?.driverAdapterError?.cause?.kind === "TableDoesNotExist" ? "42P01" : undefined);
+  return { prisma, postgres };
+}
+
+/** P2021 (Prisma) o 42P01 (Postgres): la tabla todavía no existe (la migración no se aplicó). */
 export function esTablaAusente(e: unknown): boolean {
-  const x = e as { code?: string; meta?: { code?: string } } | null;
-  const code = x?.code;
-  return code === "P2021" || code === "42P01" || x?.meta?.code === "42P01";
+  const { prisma, postgres } = codigosDelError(e);
+  return prisma === "P2021" || postgres === "42P01";
 }
 
 export async function hayTablaDeTickets(db: PrismaClient | Tx): Promise<boolean> {
@@ -52,7 +73,8 @@ export async function crearTicketEnTx(tx: Tx, tenantId: string, d: DatosTicketNu
       clienteTenantId: d.clienteTenantId,
       creadoPor: d.creadoPor,
       venceEl: d.venceEl,
-      eventos: { create: [{ tenantId, tipo: "creado", actor: d.creadoPor, datos: { canal: d.canal, prioridad: d.prioridad } }] },
+      // El tenantId del evento lo pone la llave compuesta (tenantId, ticketId): es el del ticket.
+      eventos: { create: [{ tipo: "creado", actor: d.creadoPor, datos: { canal: d.canal, prioridad: d.prioridad } }] },
     },
     select: { id: true },
   });
@@ -61,8 +83,10 @@ export async function crearTicketEnTx(tx: Tx, tenantId: string, d: DatosTicketNu
 
 /**
  * El alta desde «Pedir a Soporte GSG», en la MISMA transacción que la fila de AuditLog pero detrás
- * de un SAVEPOINT: si el ticket falla (tabla ausente o lo que sea), se deshace SÓLO el ticket y el
- * pedido queda guardado igual. El pedido es lo que manda; el ticket es la vista de Soporte.
+ * de un SAVEPOINT. Sólo se tolera la tabla ausente (Gate 2: la migración sin aplicar, o a medio
+ * aplicar): se vuelve al SAVEPOINT, se deshace SÓLO el ticket y el pedido queda guardado igual.
+ * Cualquier otro error (un bug, una restricción, la base caída) se vuelve al SAVEPOINT, se loguea
+ * con su código y se RELANZA: tragarlo escondería un ticket perdido detrás de un «pedido enviado».
  */
 export async function crearTicketSinRomperElPedido(tx: Tx, tenantId: string, d: DatosTicketNuevo): Promise<number | null> {
   await tx.$executeRawUnsafe("SAVEPOINT soporte_ticket");
@@ -72,10 +96,12 @@ export async function crearTicketSinRomperElPedido(tx: Tx, tenantId: string, d: 
     return r?.numero ?? null;
   } catch (e) {
     await tx.$executeRawUnsafe("ROLLBACK TO SAVEPOINT soporte_ticket");
-    if (!esTablaAusente(e)) {
-      console.error("[soporte.ticket] no se pudo crear el ticket del pedido", { tenantId, error: e instanceof Error ? e.name : "desconocido" });
+    const codigos = codigosDelError(e);
+    if (esTablaAusente(e)) {
+      console.warn("[soporte.ticket] sin tabla de tickets: el pedido queda sólo en AuditLog", { tenantId, ...codigos });
+      return null;
     }
-    return null;
+    console.error("[soporte.ticket] no se pudo crear el ticket del pedido", { tenantId, ...codigos, error: e instanceof Error ? e.name : "desconocido" });
+    throw e;
   }
 }
-

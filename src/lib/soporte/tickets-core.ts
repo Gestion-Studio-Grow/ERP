@@ -6,6 +6,7 @@
 // pantallas de /operador/soporte. La configuración (tipos, prioridades, tiempos, estados) vive en
 // config.ts; acá están las reglas que la aplican.
 
+import { redactarTextoLibre } from "@/eventos/esquema";
 import { esTipoPedido, TEXTO_PEDIDO, type PedidoValido } from "@/app/contador/pedido-soporte";
 import {
   AVISO_POR_VENCER,
@@ -224,9 +225,21 @@ export const ESQUEMA_SUGERENCIA = {
   },
 } as const;
 
-/** Lo mínimo que viaja a la IA: tipo, asunto y detalle. Sin CUIT ni ids. PURA. */
+/**
+ * Lo que el cliente escribió, listo para la IA: sin etiquetas <datos> y pasado por la MISMA
+ * redacción que el sobre de eventos (`redactarTextoLibre`, src/eventos/esquema.ts): emails →
+ * «[email]», y toda tirada de 6+ dígitos con cualquier separador (CUIT «20.12345678.9» o
+ * «20 12345678 9», DNI «30.123.456», teléfonos) → máscara. Acá la máscara se lleva también los 4
+ * últimos dígitos: a un tercero no le hace falta ninguno. Los importes y fechas quedan. Recorta a
+ * 500 caracteres por campo (alcanza para clasificar y sugerir). PURA.
+ */
+export function textoParaLaIa(s: string): string {
+  return redactarTextoLibre(s.replace(/<\/?datos>/gi, "")).replace(/\*{6}\d{0,4}/g, "[dato personal]");
+}
+
+/** Lo mínimo que viaja a la IA: tipo, asunto y detalle. Sin CUIT, DNI, emails, teléfonos ni ids. PURA. */
 export function datosParaLaIa(t: { tipo: TipoTicket; prioridad: Prioridad; asunto: string; detalle: string | null }): string {
-  const limpio = (s: string) => s.replace(/<\/?datos>/gi, "").replace(/\b\d{2}-?\d{8}-?\d\b/g, "[CUIT]");
+  const limpio = textoParaLaIa;
   return [
     "<datos>",
     `Tipo actual: ${TIPO[t.tipo].nombre}`,

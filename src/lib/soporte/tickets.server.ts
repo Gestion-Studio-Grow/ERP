@@ -122,7 +122,16 @@ function whereDeFiltros(tenantId: string, f: Filtros): Prisma.SupportTicketWhere
   };
 }
 
-/** Los tickets de todos los negocios que pasan los filtros, ordenados (P1 y lo que vence antes arriba). */
+/**
+ * Los tickets de todos los negocios que pasan los filtros, ordenados (P1 y lo que vence antes arriba).
+ *
+ * DECISIÓN EXPLÍCITA (certificación T1, hallazgo 3): todo operador con sesión LEE los tickets de
+ * TODOS los negocios, CH incluido (lista y ficha: asunto, detalle, historial). La guardia por negocio
+ * (CH sólo el dueño de GSG, guardia-negocio-core) se aplica a lo que ESCRIBE (actions.ts: cambiar,
+ * sugerir con IA, traer pedidos), no a la lectura: Soporte necesita ver la cola entera para
+ * priorizar. Si un negocio exige que ni la lectura salga del dueño, filtrar acá con la misma guardia.
+ * Doc: docs/producto/soporte/consola-soporte-t1.md.
+ */
 export async function listarTickets(db: PrismaClient, f: Filtros, limite = 100): Promise<{ sinTabla: true } | { tickets: TicketResumen[] }> {
   if (!(await hayTablaDeTickets(db))) return { sinTabla: true };
   const negocios = await db.tenant.findMany({ select: { id: true, name: true, slug: true } });

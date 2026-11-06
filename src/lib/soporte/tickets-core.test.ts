@@ -5,6 +5,7 @@ import { TIPOS_PEDIDO } from "@/app/contador/pedido-soporte";
 import { ESTADO, ESTADOS, PRIORIDAD, PRIORIDADES, TIPO, TIPOS_TICKET } from "./config";
 import {
   datosParaLaIa,
+  textoParaLaIa,
   ESQUEMA_SUGERENCIA,
   fechasPorEstado,
   filtrosDesdeQuery,
@@ -123,4 +124,28 @@ test("IA: viaja lo mínimo (sin CUIT, sin cierre de etiquetas) y la respuesta se
   assert.equal(leerSugerencia('{"tipo":"consulta","prioridad":"P1","respuesta":"  ","motivo":""}'), null);
   assert.equal(leerSugerencia("no es json"), null);
   assert.equal(tipoLeido("viejo-borrado"), "otro");
+});
+
+test("IA: la máscara tapa CUIT con cualquier separador, DNI, emails y teléfonos (sin dejar dígitos)", () => {
+  const casos = [
+    "20-12345678-9",
+    "20.12345678.9",
+    "20 12345678 9",
+    "20123456789",
+    "20/12345678/9",
+    "DNI 30.123.456",
+    "dni 30123456",
+    "llamame al 11 5566-7788",
+    "+54 9 11 5566 7788",
+  ];
+  for (const c of casos) {
+    const t = textoParaLaIa(`dato: ${c} gracias`);
+    assert.doesNotMatch(t, /\d{3}/, `«${c}» no debe dejar dígitos: ${t}`);
+    assert.match(t, /\[dato personal\]/);
+  }
+  assert.equal(textoParaLaIa("escribime a juana.perez@gmail.com"), "escribime a [email]");
+  assert.equal(textoParaLaIa("la factura de $ 125.000 del 28/10/2026"), "la factura de $ 125.000 del 28/10/2026", "importes y fechas quedan");
+  assert.equal(textoParaLaIa("pedido #1042"), "pedido #1042", "un número corto queda");
+  const txt = datosParaLaIa({ tipo: "corregir_cuit", prioridad: "P1", asunto: "CUIT 20.12345678.9", detalle: "mail ana@x.com, DNI 30 123 456" });
+  assert.doesNotMatch(txt, /12345678|ana@x\.com|30 123 456/);
 });
