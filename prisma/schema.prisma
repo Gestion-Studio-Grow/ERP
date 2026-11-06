@@ -3881,7 +3881,7 @@ model ProyectoCambio {
 }
 
 // ── Vouchers de CH Estética (La Alameda) y conciliación con OpenKey ─────────────
-// docs/tenants/ch/VOUCHERS-OPENKEY.md · src/lib/vouchers. Migración 20261105120000_vouchers (Gate 2:
+// docs/tenants/ch/VOUCHERS-OPENKEY.md · src/lib/vouchers. Migración 20261105122000_vouchers (Gate 2:
 // escrita, sin aplicar). Un voucher ES un cobro (Collection method VOUCHER, enum en
 // prisma/pending-gate2/CH_voucher_enum.sql) que liquida OpenKey: nunca entra al libro de caja.
 

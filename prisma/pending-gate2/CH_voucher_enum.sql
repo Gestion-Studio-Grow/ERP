@@ -6,7 +6,7 @@
 -- QUIÉN LA USA: src/lib/vouchers (cobro de un turno con voucher). Orden del dueño 05/11/2026: el
 -- voucher ES un cobro y un medio de pago, y se concilia con la LIQUIDACIÓN que paga OpenKey.
 -- Diseño: docs/tenants/ch/VOUCHERS-OPENKEY.md. Las TABLAS (VoucherLote, Voucher,
--- VoucherConciliacion) van aparte, en la migración aditiva prisma/migrations/20261105120000_vouchers.
+-- VoucherConciliacion) van aparte, en la migración aditiva prisma/migrations/20261105122000_vouchers.
 --
 -- 🔴 IRREVERSIBLE: Postgres no tiene `ALTER TYPE … DROP VALUE`. El nombre se fija ANTES de aplicar.
 --

@@ -8,7 +8,7 @@
 // nada se escribe), (3) tenantId del request, (4) el repo con su transacción. Cobrar con voucher
 // exige además `PaymentMethod.VOUCHER` en la base (cobrarConVoucher lo pregunta al probe). Un rechazo de dominio
 // vuelve como `{ ok:false, error }` con el mensaje tal cual; la tabla ausente (migración
-// 20261105120000_vouchers sin aplicar, Gate 2) vuelve como «falta un paso de base de datos», sin 500.
+// 20261105122000_vouchers sin aplicar, Gate 2) vuelve como «falta un paso de base de datos», sin 500.
 
 import { unstable_rethrow } from "next/navigation";
 import { revalidatePath } from "next/cache";

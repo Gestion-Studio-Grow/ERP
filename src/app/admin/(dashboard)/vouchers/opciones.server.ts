@@ -1,7 +1,7 @@
 // VOUCHERS · opciones de los filtros (lotes y vecinos con vouchers) y estado de la base.
 //
 // Una sola transacción por tenant (RLS + `tenantId` en cada consulta). La tabla ausente (migración
-// 20261105120000_vouchers sin aplicar, Gate 2) no es un 500: vuelve `faltaMigracion` y la pantalla
+// 20261105122000_vouchers sin aplicar, Gate 2) no es un 500: vuelve `faltaMigracion` y la pantalla
 // dice «falta un paso de base de datos». `server-only`: detrás está el valor `prisma`.
 
 import "server-only";

@@ -1,6 +1,6 @@
 /**
  * Cobro con voucher (CH · La Alameda), EJECUTADO contra Postgres con RLS (base efímera local: la
- * migración 20261105120000_vouchers la aplica `migrate deploy`; prisma/pending-gate2/CH_voucher_enum.sql
+ * migración 20261105122000_vouchers la aplica `migrate deploy`; prisma/pending-gate2/CH_voucher_enum.sql
  * se aplica acá, SÓLO en esta base, después del primer test):
  *
  *   · sin `PaymentMethod.VOUCHER` en la base → rechazo claro, nada escrito;
