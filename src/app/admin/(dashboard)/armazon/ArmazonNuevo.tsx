@@ -40,6 +40,7 @@ import { buscarEnElNegocio } from "@/lib/buscador/buscar-en-el-negocio";
 import { buscarClientasYTurnos } from "@/lib/clientes/buscar-actions";
 import ThemeToggle from "../ThemeToggle";
 import FormCerrarSesion from "../../FormCerrarSesion";
+import { cambiarMiModoSimple } from "@/lib/modo-simple-actions";
 import { ROLE_LABEL, type PropsDelArmazon } from "../AdminShell";
 import { dondeEstoy, espacioPedido, hrefDelEspacio, iniciales, tituloDePantalla, type EspacioDeNav } from "./armazon-core";
 import type { NavDelArmazon } from "./navegacion";
@@ -133,11 +134,14 @@ function MenuDePersona({
   userName,
   roleLabel,
   showPublicSite,
+  modoSimple,
 }: {
   id: string;
   userName: string;
   roleLabel: string;
   showPublicSite: boolean;
+  /** Lo guardado de la persona: el botón ofrece lo contrario. */
+  modoSimple: boolean;
 }) {
   return (
     <div id={id} popover="auto" data-ui="desplegable" data-tipo="persona" role="dialog" aria-label={`${userName}: tu cuenta`}>
@@ -154,6 +158,13 @@ function MenuDePersona({
           Ver el sitio público <Icono nombre="flecha" />
         </a>
       )}
+      {/* Modo simple (src/lib/modo-simple.ts): lo cambia la propia persona y queda guardado. */}
+      <form action={cambiarMiModoSimple}>
+        <input type="hidden" name="allowed" value={modoSimple ? "false" : "true"} />
+        <button type="submit" data-parte="opcion" data-modo-simple={modoSimple ? "dejar" : "ver-menos"}>
+          {modoSimple ? "Dejar el modo simple" : "Ver menos (modo simple)"}
+        </button>
+      </form>
       <FormCerrarSesion>
         <button type="submit" data-parte="opcion">
           Cerrar sesión
@@ -173,6 +184,7 @@ export default function ArmazonNuevo({
   activeProfile = null,
   showPublicSite = true,
   nav,
+  modoSimple = false,
 }: PropsDelArmazon & { nav: NavDelArmazon }) {
   const pathname = usePathname();
   const params = useSearchParams();
@@ -385,7 +397,7 @@ export default function ArmazonNuevo({
           <HojaDeEspacio key={e.id} id={idEspacio(e.id)} espacio={e} actual={appActual} />
         ))}
 
-      <MenuDePersona id={idPersona} userName={userName} roleLabel={roleLabel} showPublicSite={showPublicSite} />
+      <MenuDePersona id={idPersona} userName={userName} roleLabel={roleLabel} showPublicSite={showPublicSite} modoSimple={modoSimple} />
 
       <PaletaDeComandos
         abierta={paleta}

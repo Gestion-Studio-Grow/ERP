@@ -475,12 +475,17 @@ export type PropsDelArmazon = Parameters<typeof ArmazonDeSiempre>[0] & {
    * negocio sin el interruptor) no se monta nada: ni consulta ni un nodo de más.
    */
   pedidosNuevos?: boolean;
+  /**
+   * ¿La persona tiene guardado el modo simple? (src/lib/modo-simple.ts). El menú de la persona del
+   * armazón nuevo ofrece «Ver menos» o «Dejar el modo simple». Sin él, `false`.
+   */
+  modoSimple?: boolean;
 };
 
 /** El armazón del panel: el nuevo con el diseño nuevo prendido; si no, el de siempre. */
-export default function AdminShell({ nav, pedidosNuevos = false, ...props }: PropsDelArmazon) {
+export default function AdminShell({ nav, pedidosNuevos = false, modoSimple = false, ...props }: PropsDelArmazon) {
   const nuevo = useDiseno();
-  const armazon = nuevo && nav ? <ArmazonNuevo {...props} nav={nav} /> : <ArmazonDeSiempre {...props} />;
+  const armazon = nuevo && nav ? <ArmazonNuevo {...props} nav={nav} modoSimple={modoSimple} /> : <ArmazonDeSiempre {...props} />;
   return pedidosNuevos ? <PedidosNuevos>{armazon}</PedidosNuevos> : armazon;
 }
 

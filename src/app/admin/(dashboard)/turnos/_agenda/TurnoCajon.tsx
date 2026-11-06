@@ -72,6 +72,7 @@ import FijarPrecioDelTurno from "./FijarPrecioDelTurno";
 import TerminarTurno from "./TerminarTurno";
 import MoverTurno from "./MoverTurno";
 import LlegoLaSenia from "./LlegoLaSenia";
+import CorregirEnModoCompleto from "./CorregirEnModoCompleto";
 import AutorizarAnulacion from "./AutorizarAnulacion";
 import ListoDelCobro from "./ListoDelCobro";
 import type { CobroHecho } from "@/lib/turnos/cobro-del-cajon";
@@ -502,6 +503,7 @@ export default function TurnoCajon({
                   clienta={t.clienta}
                   monto={senia}
                   confirma={permisos.gestionar}
+                  conDeshacer={!permisos.modoSimple}
                   onListo={() => router.refresh()}
                 />
               )}
@@ -788,6 +790,16 @@ export default function TurnoCajon({
                 );
               })}
             </ul>
+          </Seccion>
+        )}
+
+        {/* Modo simple: anular, dar de baja y deshacer quedan en modo completo (recortarPermisosDeAgenda). */}
+        {permisos.modoSimple && (t.cobros.length > 0 || t.cuentaACobrar) && (
+          <Seccion titulo="¿Algo salió mal con la plata?">
+            <div className="flex flex-col items-start gap-2 pt-3">
+              <p className="text-base text-strong">Para anular un cobro o dar de baja un saldo, pasá al modo completo.</p>
+              <CorregirEnModoCompleto turnoId={t.id} />
+            </div>
           </Seccion>
         )}
 
