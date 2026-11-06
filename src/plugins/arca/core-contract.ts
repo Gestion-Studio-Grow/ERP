@@ -86,10 +86,12 @@ export interface InvoiceCreatedEvent {
    */
   intentoArca?: IntentoArca;
   /**
-   * PR3 · Cómo se cobró (elige el umbral de identificación del consumidor final del motor:
-   * src/lib/fiscal/parametros-del-motor.ts). Sin dato, el más exigente.
+   * PR3 · Umbral propio del motor para identificar al consumidor final, en pesos, YA resuelto por
+   * el Core con sus parámetros fiscales y el medio de pago (sin medio conocido, el más exigente).
+   * `null` o sin dato: sólo rige el umbral legal. El plugin no lee los parámetros del Core: lo
+   * recibe acá, como los montos (ADR-022, D4).
    */
-  medioDePago?: 'efectivo' | 'otro';
+  umbralIdentificacionDelMotor?: number | null;
 }
 
 /** ENG-020 · Número pedido a ARCA, anotado ANTES de mandar el pedido. */

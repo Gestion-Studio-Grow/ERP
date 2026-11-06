@@ -64,6 +64,7 @@ import { leerTicketAcceso, guardarTicketAcceso, huellaDeCertificado } from "@/li
 import { logger } from "@/lib/logger";
 import { LIMPIAR_DATOS_DE_PRUEBA } from "@/lib/operador/datos-de-prueba";
 import { fechaFiscalDelDia } from "@/lib/libros/fecha-fiscal";
+import { umbralDelMotor } from "@/lib/fiscal/parametros-del-motor";
 import {
   anotarFallaYSoltar,
   anotarIntentoConReserva,
@@ -465,6 +466,9 @@ function aEventoPluginBase(p: InvoiceCreatedPayload): InvoiceCreatedEvent {
     servicioHasta: p.servicioHasta,
     vencimientoPago: p.vencimientoPago,
     intentoArca: p.intentoArca,
+    // PR3 · El umbral del motor lo resuelve el Core (el plugin no lee los parámetros fiscales). El
+    // payload todavía no guarda el medio de pago: sin dato, el más exigente (umbralDelMotor).
+    umbralIdentificacionDelMotor: umbralDelMotor(null),
     // Motor de facturación · nota de crédito: la clase y la factura que corrige (CbtesAsoc).
     ...(p.clase === "nota_credito" && p.asociado ? { clase: "nota_credito" as const, asociado: p.asociado } : {}),
   };

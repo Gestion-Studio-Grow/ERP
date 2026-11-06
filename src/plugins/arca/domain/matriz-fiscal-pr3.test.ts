@@ -115,7 +115,11 @@ test("umbral del motor: parametrizado por medio; con la propuesta activa, CF sin
   assert.equal(decidir(500_000, 96, 30111222, "otro").estado, "lista", "con DNI sale");
 
   // Por defecto (sin la propuesta), una venta de MP de $500.000 a CF sin documento sale: el legal es $10.000.000.
-  assert.doesNotThrow(() => construirComprobante(ev(MONO, A_CF, { neto: 500_000, iva: [{ alicuotaId: AlicuotaIvaId.Cero, base: 500_000, importe: 0 }], total: 500_000, medioDePago: "otro" }), HOY));
+  assert.doesNotThrow(() => construirComprobante(ev(MONO, A_CF, { neto: 500_000, iva: [{ alicuotaId: AlicuotaIvaId.Cero, base: 500_000, importe: 0 }], total: 500_000, umbralIdentificacionDelMotor: umbralDelMotor("otro") }), HOY));
+  // El umbral llega resuelto por el Core en el evento (ADR-022, D4): con la propuesta activa, frena.
+  const conPropuesta = ev(MONO, A_CF, { neto: 500_000, iva: [{ alicuotaId: AlicuotaIvaId.Cero, base: 500_000, importe: 0 }], total: 500_000, umbralIdentificacionDelMotor: umbralDelMotor("otro", UMBRAL_PROPUESTO_PR3) });
+  assert.throws(() => construirComprobante(conPropuesta, HOY), ComprobanteSinDecisionError);
+  assert.equal(decidirDelEvento(conPropuesta, HOY, { reglasDelMotor: false }).estado, "lista", "reconocer lo ya autorizado no aplica el umbral");
   // El umbral del motor no frena la NC de algo ya facturado.
   const nc = decidirDelEvento(
     ev(MONO, A_CF, { clase: "nota_credito", asociado: { cbteTipo: 11, puntoVenta: 1, numero: 3, fecha: HOY } }),
