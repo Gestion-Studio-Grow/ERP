@@ -306,7 +306,9 @@ export default function TurnoCajon({
   const vivo = t.estado === "PENDING" || t.estado === "CONFIRMED";
   const cobraEste = permisos.cobrar && t.veredicto.ok;
   // E5: el próximo turno, con su ciclo y el mismo servicio, a mano en la ficha y en el aviso de terminado (U8).
-  const proximo = permisos.practica && permisos.gestionar ? `/admin/turnos/proximo/${t.id}` : null;
+  // Venta y agenda simples: el «¿Le damos el próximo?» del Listo ✓ sale en todas las vistas (también
+  // Calendario, que no lee `practica`). Apagado, como siempre.
+  const proximo = (permisos.practica || permisos.ventaSimple) && permisos.gestionar ? `/admin/turnos/proximo/${t.id}` : null;
   const cobradoEste = cobrado?.turnoId === t.id ? cobrado : null;
   // Quién anula (orden del dueño): la dueña, recepción con su código; la profesional, no.
   const anular = cobraEste ? permisos.anular : null;
