@@ -26,6 +26,8 @@ import { tenantTransaction } from "@/lib/rls";
 import { capFacturasMesDelNegocioEnTx } from "@/lib/limites-del-negocio-en-tx";
 import { requireCapability } from "@/lib/authz";
 import { getCurrentTenantId } from "@/lib/tenant";
+import { hechosDeLasFacturas } from "@/lib/facturacion/hechos-comprobantes.server";
+import { estadoEnBandeja, type EstadoEnBandeja } from "@/lib/facturacion/propuesta-mp";
 import {
   ClasificadorBancarioPorReglas,
   procesarExtracto,
@@ -98,11 +100,18 @@ export interface PropuestaVista {
   createdAt: string; // ISO
   /** De dónde salió: un extracto del banco o un cobro de Mercado Pago (comparten bandeja). */
   origen: "banco" | "mercadopago";
+  /**
+   * Estado que se muestra: el propio de la propuesta hasta «emitida»; desde ahí, el del comprobante
+   * (contrato de estados v1.1). Sólo lo llena `listarPropuestasAction`; el resto lo deja en null.
+   */
+  estadoEnBandeja: EstadoEnBandeja | null;
 }
 
 export interface FiltroPropuestas {
   estadoPropuesta?: EstadoPropuestaDb;
   importacionId?: string;
+  /** Cuántas como mucho (las más nuevas). Por defecto 500. */
+  limite?: number;
 }
 
 export interface DetalleImportacion extends ImportacionVista {
@@ -155,6 +164,7 @@ function aPropuestaVista(m: {
     invoiceId: m.invoiceId,
     createdAt: m.createdAt.toISOString(),
     origen: m.importacion?.origen === "mercadopago" ? "mercadopago" : "banco",
+    estadoEnBandeja: null,
   };
 }
 
@@ -364,10 +374,19 @@ export async function listarPropuestasAction(
       ...(filtro?.importacionId ? { importacionId: filtro.importacionId } : {}),
     },
     orderBy: [{ fecha: "desc" }, { createdAt: "desc" }],
-    take: 500,
+    take: Math.min(Math.max(1, Math.trunc(filtro?.limite ?? 500)), 500),
     include: { importacion: { select: { origen: true } } },
   });
-  return movimientos.map(aPropuestaVista);
+  const vistas = movimientos.map(aPropuestaVista);
+  // Desde «emitida» manda el contrato v1.1: se leen los hechos de esas facturas (mismo negocio).
+  // Hasta MAX_FACTURAS_POR_LECTURA: más allá no se consulta y se muestra «En cola» (nunca «Autorizada»).
+  const emitidas = vistas.filter((v) => v.estadoPropuesta === "emitida" && v.invoiceId).map((v) => v.invoiceId as string);
+  const hechos = await hechosDeLasFacturas(prisma, tenantId, emitidas);
+  const ahora = new Date();
+  return vistas.map((v) => ({
+    ...v,
+    estadoEnBandeja: estadoEnBandeja(v.estadoPropuesta, v.invoiceId ? (hechos.get(v.invoiceId) ?? null) : null, ahora),
+  }));
 }
 
 /** Detalle de una importación: metadata + mapeo + conteos + movimientos. */

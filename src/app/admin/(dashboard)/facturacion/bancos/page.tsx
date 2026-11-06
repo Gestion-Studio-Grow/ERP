@@ -28,6 +28,8 @@ import RevisarEnCajon from "./RevisarEnCajon";
 import EmitirDeslizando from "./EmitirDeslizando";
 import PropuestaTresToques from "./PropuestaTresToques";
 import { accionesPropuestas } from "./propuestas-adaptador";
+import { ROTULO_ESTADO } from "@/lib/facturacion/propuesta-mp";
+import type { EstadoComprobante } from "@/lib/facturacion/estado-comprobante";
 import { estadoMercadoPagoAction } from "@/lib/mercadopago-actions";
 import { fmtDateTimeAr } from "@/lib/datetime";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
@@ -57,6 +59,18 @@ function chipMapeo(estado: string, confianza: number | null) {
 
 /** Diseño nuevo: cuántas listas se ven sin desplegar (el resto, a un toque). */
 const LISTAS_A_LA_VISTA = 8;
+/** Últimas emitidas que se muestran con su estado del contrato v1.1. */
+const EMITIDAS_A_LA_VISTA = 10;
+
+const TONO_ESTADO: Record<EstadoComprobante, "success" | "warning" | "danger" | "neutral"> = {
+  AUTORIZADO: "success",
+  EN_COLA: "neutral",
+  EMITIENDO: "neutral",
+  FALLA_TRANSITORIA: "warning",
+  PENDIENTE_DATOS: "warning",
+  PENDIENTE_REVISION: "warning",
+  RECHAZADO: "danger",
+};
 
 export default async function FacturacionBancosPage() {
   // Guarda de rol de la página (las actions la repiten server-side por acción).
@@ -76,6 +90,7 @@ export default async function FacturacionBancosPage() {
       kpisFacturacionAction(),
       listarPropuestasAction({ estadoPropuesta: "revision" }),
       listarPropuestasAction({ estadoPropuesta: "auto" }),
+      listarPropuestasAction({ estadoPropuesta: "emitida", limite: EMITIDAS_A_LA_VISTA }),
       getFacturacion(), // mismo estado fiscal que la pantalla de Facturación (consistencia)
       estadoMercadoPagoAction(),
     ]);
@@ -103,7 +118,7 @@ export default async function FacturacionBancosPage() {
     }
     throw e;
   }
-  const [kpis, enRevision, listas, { estado }, estadoMP] = datos;
+  const [kpis, enRevision, listas, emitidas, { estado }, estadoMP] = datos;
 
   // % de confianza del mapeo por importación: lectura liviana del mapeoJson
   // (solo los 5 ids del KPI, tenantId explícito — ADR-018). No hay action de
@@ -189,6 +204,27 @@ export default async function FacturacionBancosPage() {
               </>
             )}
           </Bloque>
+          {emitidas.length > 0 && (
+            <Bloque titulo="Últimas emitidas" cuenta={fmtNumberAR(emitidas.length)} nota="El estado de cada comprobante en ARCA">
+              <ul className="divide-y divide-line">
+                {emitidas.map((p) =>
+                  p.estadoEnBandeja?.de === "comprobante" ? (
+                    <li key={p.id} className="flex min-h-11 flex-wrap items-center justify-between gap-2 py-2 text-sm">
+                      <span className="min-w-0 truncate">
+                        {p.descripcion} · <Plata valor={p.monto} />
+                      </span>
+                      <span className="flex items-center gap-2">
+                        {p.estadoEnBandeja.motivo && <span className="text-muted">{p.estadoEnBandeja.motivo}</span>}
+                        <Badge tone={TONO_ESTADO[p.estadoEnBandeja.estado]} dot>
+                          {ROTULO_ESTADO[p.estadoEnBandeja.estado]}
+                        </Badge>
+                      </span>
+                    </li>
+                  ) : null,
+                )}
+              </ul>
+            </Bloque>
+          )}
           <Bloque titulo="Traer movimientos" nota="El mismo extracto dos veces no duplica nada">
             <div className="grid gap-8 pt-4 lg:grid-cols-2">
               <div className="min-w-0">

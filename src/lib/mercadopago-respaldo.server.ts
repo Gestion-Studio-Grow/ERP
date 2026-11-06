@@ -24,6 +24,7 @@ import type { CriterioBusqueda, PaginaPagos } from "@/plugins/pagos";
 import { UMBRAL_IDENTIFICACION_DEFAULT } from "@/plugins/bancos/domain/reglas";
 import { CONECTOR_MP, configFacturacionMPDelNegocio, renovarMPSiHaceFalta } from "@/lib/facturita-mp.server";
 import { clasificarPagoMP, type ConfigFacturacionMP, type DecisionPagoMP } from "@/lib/mercadopago-clasificacion";
+import { armarPropuestaMP, type PropuestaMPArmada } from "@/lib/facturacion/propuesta-mp";
 
 /** Lo que el respaldo necesita del negocio para clasificar. */
 export interface NegocioParaClasificar {
@@ -124,8 +125,50 @@ export const DEPS_RESPALDO_MP: DepsRespaldoMP = {
     const umbral = t?.bancosUmbralIdentificacion != null ? Number(t.bancosUmbralIdentificacion) : UMBRAL_IDENTIFICACION_DEFAULT;
     return { cuit: t?.arcaCuit ?? null, umbralIdentificacion: umbral > 0 ? umbral : UMBRAL_IDENTIFICACION_DEFAULT };
   },
-  async procesar() {
-    // EN SECO: sin contrato de estados no se guarda ni se factura nada.
+  async procesar(_tenantId, pago, decision) {
+    // EN SECO: arma la propuesta como la guardaría (`guardarPropuestaMP`) y no escribe nada.
+    armarPropuestaMP(pago, decision, new Date());
   },
   ahora: () => new Date(),
 };
+
+/**
+ * Guarda la propuesta de un pago (idempotente por negocio + hash `mp:<id>`): el aviso y el respaldo del
+ * mismo pago terminan en UNA fila. Si ya existe NO la toca: una propuesta emitida o revisada por una
+ * persona no vuelve atrás por una relectura. Devuelve si la creó. Todavía no lo llama el respaldo (en seco).
+ */
+export async function guardarPropuestaMP(tenantId: string, p: PropuestaMPArmada): Promise<boolean> {
+  return tenantTransaction(
+    async (tx) => {
+      const nombre = `Mercado Pago (automático) ${p.fecha.slice(6, 8)}/${p.fecha.slice(4, 6)}/${p.fecha.slice(0, 4)}`;
+      let importacion = await tx.importacionBancaria.findFirst({ where: { tenantId, origen: "mercadopago", nombreArchivo: nombre }, select: { id: true } });
+      importacion ??= await tx.importacionBancaria.create({
+        data: { tenantId, nombreArchivo: nombre, origen: "mercadopago", archivo: Buffer.alloc(0), mapeoJson: { fuente: "mercadopago", confianza: 1 }, estado: "confirmada" },
+        select: { id: true },
+      });
+      const r = await tx.movimientoImportado.createMany({
+        data: [
+          {
+            tenantId,
+            importacionId: importacion.id,
+            hash: p.hash,
+            fecha: p.fecha,
+            monto: p.monto,
+            descripcion: p.descripcion,
+            contraparte: p.contraparte,
+            referencia: p.referencia,
+            clasificacion: p.estadoPropuesta === "no_facturable" ? "otro" : "venta",
+            estadoPropuesta: p.estadoPropuesta,
+            requiereIdentificacion: p.requiereIdentificacion,
+            motivoRevision: p.motivoRevision,
+            invoiceId: p.invoiceId,
+          },
+        ],
+        skipDuplicates: true, // ON CONFLICT (tenantId, hash) DO NOTHING: dos a la vez → una fila
+      });
+      if (r.count > 0) await tx.importacionBancaria.update({ where: { id: importacion.id }, data: { totalMovimientos: { increment: 1 } } });
+      return r.count > 0;
+    },
+    { tenantId },
+  );
+}
