@@ -113,15 +113,15 @@ export function validarPuntoVenta(crudo: string): ResultadoPuntoVenta {
 }
 
 // ---------------------------------------------------------------------------
-// Ayuda en criollo: punto de venta y delegación del servicio en ARCA
+// Ayuda en criollo: punto de venta y certificado propio en ARCA
 // ---------------------------------------------------------------------------
 
-/**
- * CUIT de GSG al que se delega el servicio de facturación. PROVISIONAL A CONFIRMAR POR EL DUEÑO:
- * mientras sea `null`, la pantalla dice que se lo pasamos por WhatsApp al activar, nunca un
- * número inventado (ADR-077 §6: el cliente autoriza `wsfe` al CUIT de GSG).
+/*
+ * DECISIÓN DEL DUEÑO (05/11/2026): GSG no hace trámites en ARCA por el usuario ni usa delegación a
+ * su CUIT. Cada negocio tiene su certificado propio: el usuario entra él mismo con su clave fiscal
+ * (que queda con él), lo crea con el pedido (.csr) que genera el sistema y lo asocia a «Facturación
+ * Electrónica». Base legal citada como A VALIDAR POR LEGALES: RG 5048/2021 art. 4.
  */
-export const CUIT_GSG_DELEGACION: string | null = null;
 
 export const PASOS_PUNTO_VENTA: readonly string[] = [
   "Entrá a arca.gob.ar con tu CUIT y tu clave fiscal.",
@@ -131,34 +131,40 @@ export const PASOS_PUNTO_VENTA: readonly string[] = [
   "Confirmá. Ese número es el que anotás acá.",
 ];
 
-export function pasosDelegacion(cuitGsg: string | null = CUIT_GSG_DELEGACION): string[] {
-  const representante = cuitGsg
-    ? `En «Representante» poné el CUIT de Gestión Studio Grow: ${formatearCuit(cuitGsg)}.`
-    : "En «Representante» poné el CUIT de Gestión Studio Grow (te lo pasamos por WhatsApp cuando te activamos).";
-  return [
-    "Entrá a arca.gob.ar con tu CUIT y tu clave fiscal.",
-    "Buscá el servicio «Administrador de Relaciones de Clave Fiscal» y entrá.",
-    "Tocá «Nueva relación» → «Buscar» → ARCA → «WebServices» → «Facturación Electrónica».",
-    representante,
-    "Confirmá. Listo: nos diste permiso sólo para emitir facturas a tu nombre, nada más. Lo podés sacar cuando quieras desde el mismo lugar.",
-  ];
-}
+/** El certificado propio, en criollo. El .csr lo genera el sistema cuando te activamos (nunca se pide la clave fiscal). */
+export const PASOS_CERTIFICADO_PROPIO: readonly string[] = [
+  "Cuando te activamos, el sistema te genera un archivo «pedido de certificado» (.csr). No lleva tu clave fiscal: la clave es tuya y no nos la das nunca.",
+  "Entrá vos a arca.gob.ar con tu CUIT y tu clave fiscal nivel 3, y abrí «Administración de Certificados Digitales».",
+  "«Agregar alias»: poné gsg-erp, subí el .csr y bajá el certificado (.crt) que te da ARCA.",
+  "En «Administrador de Relaciones de Clave Fiscal» → «Nueva relación» → «Facturación Electrónica», elegí ese certificado.",
+  "Subí el .crt en Factoque. Listo: el certificado es tuyo y sirve sólo para facturar; lo podés revocar cuando quieras.",
+];
 
 // ---------------------------------------------------------------------------
 // El alta completa → mensaje para activar
 // ---------------------------------------------------------------------------
 
+/**
+ * Primer paso del alta, OPCIONAL: «Conectá tu Mercado Pago». El alta no crea un negocio todavía
+ * (alta operada), así que el permiso OAuth real se da después, con un toque, desde «Mi cuenta»
+ * (/facturita/app/cuenta): acá sólo se anota si la persona lo quiere. "" = no contestó / saltó.
+ */
+export type MercadoPagoAlta = "" | "quiere" | "despues";
+
 export interface DatosAlta {
+  mercadoPago: MercadoPagoAlta;
   nombre: string;
   cuit: string;
   condicion: CondicionIva | "";
   /** Vacío + `sinPuntoVenta` = "todavía no lo creé" (se lo armamos juntos al activar). */
   puntoVenta: string;
   sinPuntoVenta: boolean;
+  /** «Ya hice el certificado en ARCA». Conserva el nombre viejo para no romper el PR #9. */
   delegacionHecha: boolean;
 }
 
 export const ALTA_VACIA: DatosAlta = {
+  mercadoPago: "",
   nombre: "",
   cuit: "",
   condicion: "",
@@ -192,6 +198,11 @@ export function validarAlta(d: DatosAlta): ErroresAlta {
   return e;
 }
 
+/** Lo que el resumen dice del paso de Mercado Pago. Nunca bloquea el alta. */
+export function resumenMercadoPago(m: MercadoPagoAlta): string {
+  return m === "quiere" ? "Lo conectás con un toque al activarte" : "Más adelante, si querés";
+}
+
 export function altaCompleta(d: DatosAlta): boolean {
   return Object.keys(validarAlta(d)).length === 0;
 }
@@ -205,11 +216,13 @@ export function mensajeActivacion(d: DatosAlta): string {
   const pv = d.sinPuntoVenta ? null : validarPuntoVenta(d.puntoVenta);
   const condicion = esCondicionIva(d.condicion) ? opcionCondicion(d.condicion).nombre : "a confirmar";
   return [
-    "¡Hola! Quiero activar mi Facturita gratis.",
+    "¡Hola! Quiero activar mi Factoque gratis.",
     `Nombre: ${d.nombre.trim()}`,
     `CUIT: ${cuit.ok ? cuit.formateado : d.cuit.trim()}`,
     `Condición frente al IVA: ${condicion}`,
     `Punto de venta: ${pv && pv.ok ? pv.numero : "todavía no lo creé"}`,
-    `Delegación en ARCA: ${d.delegacionHecha ? "ya la hice" : "me falta, ayudame"}`,
+    `Certificado en ARCA: ${d.delegacionHecha ? "ya lo hice" : "me falta, ayudame"}`,
+    // Sólo si dijo que sí: saltar el paso deja el mensaje como siempre.
+    ...(d.mercadoPago === "quiere" ? ["Mercado Pago: quiero conectarlo para facturar mis cobros"] : []),
   ].join("\n");
 }

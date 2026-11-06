@@ -10,9 +10,14 @@ import {
 } from "./arca-reintentos";
 import { ArcaNoDisponibleError, ArcaPasajeroError, ArcaRechazoError, ComprobanteInvalidoError } from "@/plugins/arca";
 
-test("la espera crece al doble por intento y se planta en el tope de una hora", () => {
-  const minutos = [1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => esperaAntesDelProximo(n) / 60);
-  assert.deepEqual(minutos, [1, 2, 4, 8, 16, 32, 60, 60, 60]);
+const HORA = 60 * 60 * 1000;
+const creadoEn = new Date("2026-11-06T12:00:00Z");
+const aLas = (horas: number) => ({ creadoEn, ahora: new Date(creadoEn.getTime() + horas * HORA) });
+
+test("escalera: 1, 5, 15 y 60 minutos, y después 60 fijos", () => {
+  const minutos = [1, 2, 3, 4, 5, 6].map((n) => esperaAntesDelProximo(n) / 60);
+  assert.deepEqual(minutos, [1, 5, 15, 60, 60, 60]);
+  assert.equal(POLITICA_DE_REINTENTOS.maxIntentos, 4);
 });
 
 test("clasifica: rechazo, pasajero, ARCA no disponible, configuración y sistema", () => {
@@ -29,21 +34,31 @@ test("clasifica: rechazo, pasajero, ARCA no disponible, configuración y sistema
 });
 
 test("un dato fiscal faltante detiene el envío de entrada: reintentar no lo arregla", () => {
-  assert.deepEqual(despuesDeLaFalla("configuracion", 0), { esperaSeg: null, detener: true });
+  assert.deepEqual(despuesDeLaFalla("configuracion", 0, aLas(0)), { esperaSeg: null, detener: true });
 });
 
-test("pasajero: espera creciente hasta el tope de intentos, y ahí se detiene", () => {
-  assert.deepEqual(despuesDeLaFalla("pasajero", 0), { esperaSeg: 60, detener: false });
-  assert.deepEqual(despuesDeLaFalla("pasajero", 3), { esperaSeg: 8 * 60, detener: false });
-  const max = POLITICA_DE_REINTENTOS.maxIntentos;
-  assert.deepEqual(despuesDeLaFalla("pasajero", max - 2), { esperaSeg: 60 * 60, detener: false });
-  assert.deepEqual(despuesDeLaFalla("pasajero", max - 1), { esperaSeg: null, detener: true });
-  assert.deepEqual(despuesDeLaFalla("sistema", max + 5), { esperaSeg: null, detener: true });
+test("pasajero: cada falla espera su peldaño (1/5/15/60/60 min)", () => {
+  const esperas = [0, 1, 2, 3, 4].map((previos) => despuesDeLaFalla("pasajero", previos, aLas(1)).esperaSeg! / 60);
+  assert.deepEqual(esperas, [1, 5, 15, 60, 60]);
+});
+
+test("a las 23 h no se detiene aunque lleve 30 intentos: la ventana de 24 h no pasó", () => {
+  assert.deepEqual(despuesDeLaFalla("pasajero", 29, aLas(23)), { esperaSeg: 60 * 60, detener: false });
+});
+
+test("a las 25 h con 3 intentos no se detiene: no recorrió la escalera", () => {
+  assert.deepEqual(despuesDeLaFalla("pasajero", 2, aLas(25)), { esperaSeg: 15 * 60, detener: false });
+});
+
+test("a las 25 h con 4 intentos se detiene (también por falla del sistema)", () => {
+  assert.deepEqual(despuesDeLaFalla("pasajero", 3, aLas(25)), { esperaSeg: null, detener: true });
+  assert.deepEqual(despuesDeLaFalla("sistema", 3, aLas(25)), { esperaSeg: null, detener: true });
+  assert.deepEqual(despuesDeLaFalla("pasajero", 3, aLas(24)), { esperaSeg: null, detener: true }, "justo en el borde");
 });
 
 test("la política se puede inyectar (tests y ajustes por entorno)", () => {
-  const corta = { esperaInicialSeg: 1, factor: 3, esperaTopeSeg: 5, maxIntentos: 3 };
-  assert.deepEqual(despuesDeLaFalla("pasajero", 0, corta), { esperaSeg: 1, detener: false });
-  assert.deepEqual(despuesDeLaFalla("pasajero", 1, corta), { esperaSeg: 3, detener: false });
-  assert.deepEqual(despuesDeLaFalla("pasajero", 2, corta), { esperaSeg: null, detener: true });
+  const corta = { escaleraSeg: [1, 3], maxIntentos: 3, ventanaSeg: 0 };
+  assert.deepEqual(despuesDeLaFalla("pasajero", 0, aLas(0), corta), { esperaSeg: 1, detener: false });
+  assert.deepEqual(despuesDeLaFalla("pasajero", 1, aLas(0), corta), { esperaSeg: 3, detener: false });
+  assert.deepEqual(despuesDeLaFalla("pasajero", 2, aLas(0), corta), { esperaSeg: null, detener: true });
 });

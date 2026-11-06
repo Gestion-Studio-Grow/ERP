@@ -22,7 +22,9 @@
 import { createContext, useContext, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { completeAppointment, confirmarTurno } from "@/lib/actions";
+import { completeAppointment, confirmarTurno, rescheduleAppointment } from "@/lib/actions";
+import { editarTurno } from "@/lib/turnos/editar-actions";
+import { mensajeMover } from "@/lib/turnos/mensajes-whatsapp";
 import { Button, Hoja, Marca, Plata, Renglon, hrefConParametros } from "@/components/ui";
 import { MenuMas } from "@/components/ui/MenuMas";
 import { dateStrInBusinessTz, fmtShortDate, fmtTime } from "@/lib/datetime";
@@ -49,10 +51,16 @@ import CancelarONoVino, { type CierreAbierto } from "./CancelarONoVino";
 import CobrarTurno from "./CobrarTurno";
 import TerminarTurno from "./TerminarTurno";
 import TurnoCajon from "./TurnoCajon";
-import AvisoDeshacerCierre from "./Deshacer";
+import AvisoDeshacerCierre, { AvisoDeshacerCambio, type CambioParaDeshacer } from "./Deshacer";
+import EditarTurno, { type EdicionHecha } from "./EditarTurno";
+import BarraDelTurno from "./BarraDelTurno";
+import { muestraTeclaDelPaso, teclasDeLaBarra } from "./barra-core";
 import { mensajeSinDevolver } from "@/lib/turnos/anulacion";
 
 type HojaAbierta = { turnoId: string; que: "cobrar" | "terminar" } | null;
+
+/** Lo recién cancelado / marcado «no vino», con su [Deshacer] (CH-026). */
+type CierreHecho = { turnoId: string; clienta: string; que: CierreSinPrestar; mensaje: string };
 
 type Mesa = {
   permisos: Permisos;
@@ -62,6 +70,10 @@ type Mesa = {
   hoja: (h: NonNullable<HojaAbierta>) => void;
   /** Abre la hoja de cancelar / «no vino» de un turno. */
   cerrarSinPrestar: (turnoId: string, accion: CierreSinPrestar) => void;
+  /** Un cierre hecho sin la hoja (la barra de un toque): deja el aviso con [Deshacer]. */
+  avisarCierre: (c: CierreHecho) => void;
+  /** Agenda interactiva: abre la hoja «Editar» del turno (servicio, día, hora, profesional). */
+  editar: (turnoId: string) => void;
   cambiarUrl: (cambios: Record<string, string | null>, modo?: "reemplazar" | "empujar") => void;
 };
 
@@ -133,11 +145,65 @@ export default function MesaDeTurnos({
   const cerrarSinPrestar = (turnoId: string, accion: CierreSinPrestar) => setCierre({ turnoId, accion });
   const cobraLaHoja = !!turnoDeLaHoja && permisos.cobrar && turnoDeLaHoja.veredicto.ok;
   // Lo recién cancelado / marcado «no vino», con su [Deshacer] (CH-026).
-  const [deshacer, setDeshacer] = useState<{ turnoId: string; clienta: string; que: CierreSinPrestar; mensaje: string } | null>(null);
-
+  const [deshacer, setDeshacer] = useState<CierreHecho | null>(null);
+  // Agenda interactiva: la hoja «Editar» y, al guardar, el aviso de 8 s con WhatsApp y [Deshacer].
+  const [editando, setEditando] = useState<string | null>(null);
+  const [cambio, setCambio] = useState<CambioParaDeshacer | null>(null);
+  const turnoEditando = permisos.interaccion && editando ? (turnos.find((t) => t.id === editando) ?? null) : null;
+  const alEditar = (e: EdicionHecha) => {
+    const t = e.turno;
+    const delCajon = !!abierto && abierto.id === t.id;
+    setEditando(null);
+    if (delCajon) cerrar();
+    const texto = `Listo: ${t.clienta} · ${e.servicio.nombre} ${fechaCorta(dateStrInBusinessTz(new Date(e.inicio)))} ${fmtTime(e.inicio)} con ${e.profesional.nombre}`;
+    const wa = waLinkClienta(
+      t.telefono,
+      mensajeMover({ clienta: t.clienta, servicios: e.servicio.nombre, inicio: e.inicio, profesional: e.profesional.nombre, inicioAnterior: t.inicio }),
+    );
+    setCambio({
+      clave: `editar-${t.id}-${e.servicio.id}-${e.profesional.id}-${e.inicio}`,
+      que: "editar",
+      mensaje: (
+        <span className="-my-2 flex min-w-0 items-center gap-2">
+          <span className="min-w-0 flex-1 truncate" title={texto}>
+            {texto}
+          </span>
+          {wa && (
+            <a
+              href={wa}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex min-h-11 shrink-0 items-center whitespace-nowrap rounded px-2 font-semibold underline underline-offset-2"
+            >
+              <span className="max-sm:sr-only">Avisar por&nbsp;</span>WhatsApp
+            </a>
+          )}
+        </span>
+      ),
+      listo: `Listo: ${t.clienta} volvió a ${t.servicio}, ${fmtTime(t.inicio)} con ${t.profesional}.`,
+      deshacer: async () => {
+        const fd = new FormData();
+        fd.set("appointmentId", t.id);
+        let r;
+        if (e.cambioServicio) {
+          // Vuelve EXACTO a lo de antes (precio congelado incluido): lo dice la auditoría del servidor.
+          fd.set("deshacer", "1");
+          r = await editarTurno(fd);
+        } else {
+          fd.set("startsAt", t.inicio);
+          fd.set("professionalId", t.profesionalId);
+          fd.set("conservarDuracion", "1");
+          r = await rescheduleAppointment(fd);
+        }
+        if (r.ok) router.refresh();
+        return r.ok ? null : r.error;
+      },
+    });
+    router.refresh();
+  };
 
   return (
-    <Contexto.Provider value={{ permisos, reloj, fichaDe, abrir, hoja: setHoja, cerrarSinPrestar, cambiarUrl }}>
+    <Contexto.Provider value={{ permisos, reloj, fichaDe, abrir, hoja: setHoja, cerrarSinPrestar, avisarCierre: setDeshacer, editar: setEditando, cambiarUrl }}>
       {children}
 
       <TurnoCajon
@@ -147,6 +213,7 @@ export default function MesaDeTurnos({
         hrefFicha={fichaDe}
         onCerrar={cerrar}
         onCerrarSinPrestar={(accion) => abierto && cerrarSinPrestar(abierto.id, accion)}
+        onEditar={permisos.interaccion ? setEditando : undefined}
       />
 
       <CancelarONoVino
@@ -173,10 +240,17 @@ export default function MesaDeTurnos({
           clienta={deshacer.clienta}
           que={deshacer.que === "no-vino" ? "no-vino" : "cancelacion"}
           mensaje={deshacer.mensaje}
+          // Agenda interactiva: 8 s (AGENDA-INTERACCION.md §2.8); apagada, los 10 s de siempre.
+          duracion={permisos.interaccion ? 8_000 : undefined}
           onTermina={() => setDeshacer(null)}
           onDeshecho={() => router.refresh()}
         />
       )}
+
+      {permisos.interaccion && (
+        <EditarTurno turno={turnoEditando} ahora={ahora} onCerrar={() => setEditando(null)} onListo={alEditar} />
+      )}
+      {permisos.interaccion && cambio && <AvisoDeshacerCambio key={cambio.clave} {...cambio} onTermina={() => setCambio(null)} />}
 
       <Hoja
         abierta={!!turnoDeLaHoja}
@@ -356,6 +430,8 @@ export function RenglonDelTurno({ t, conFecha = false }: { t: TurnoDelDia; conFe
   // abren la hoja con la consecuencia: nunca un toque suelto.
   const noVino = vivo && permisos.terminar && yaEmpezo(t, reloj);
   const cancela = vivo && permisos.gestionar;
+  // Agenda interactiva: la barra de un toque (No vino · Cobrar · WhatsApp). Apagada, `null`: igual que siempre.
+  const barra = teclasDeLaBarra(t, permisos, reloj);
   return (
     <Renglon
       as="li"
@@ -401,7 +477,8 @@ export function RenglonDelTurno({ t, conFecha = false }: { t: TurnoDelDia; conFe
       }
       tecla={
         <>
-          <TeclaDelTurno t={t} paso={paso} />
+          {barra && <BarraDelTurno t={t} />}
+          {muestraTeclaDelPaso(paso, barra) && <TeclaDelTurno t={t} paso={paso} />}
           <MenuMas etiqueta={`Más acciones del turno de ${t.clienta}`}>
             <button type="button" onClick={() => abrir(t.id)}>
               Abrir el turno

@@ -54,6 +54,12 @@ export interface Interruptor {
    * cambia cómo se ve no le quita nada a nadie: no se frena por apps.
    */
   cambiaLasApps: boolean;
+  /**
+   * Una MEJORA que ya es parte del sistema (decisión del dueño, 05/11/2026): prendida siempre en
+   * todos los negocios, se publica con el pase a `main` y la consola no la ofrece. Los
+   * interruptores quedan para lo crítico (plata, accesos, la forma de trabajar de un rubro).
+   */
+  incorporado?: boolean;
 }
 
 /** El catálogo. El primero reemplaza a la variable de deploy APPS_INICIO (retirada). */
@@ -77,6 +83,7 @@ export const INTERRUPTORES = [
     alPrender: "No cambia qué apps ve cada persona ni sus datos: cambia cómo se ven el panel y, en CH, el sitio que ven las clientas.",
     enAuditoria: "el diseño nuevo",
     cambiaLasApps: false,
+    incorporado: true,
   },
   {
     // La practicidad de la agenda (plan de practicidad RAE, ítems T4 · T10 · T12 · E2 · E3 · E5 ·
@@ -90,6 +97,7 @@ export const INTERRUPTORES = [
     alPrender: "No cambia qué apps ve cada persona. Sí cambia cómo se trabaja y una regla: con la anticipación cargada, la clienta ya no cancela online fuera de plazo.",
     enAuditoria: "la agenda práctica",
     cambiaLasApps: false,
+    incorporado: true,
   },
   {
     // El mostrador boutique de Magra (reingeniería, Tanda 1 en adelante): el pie de cobro único con
@@ -133,9 +141,44 @@ export const INTERRUPTORES = [
     enAuditoria: "el arqueo a ciegas",
     cambiaLasApps: false,
   },
+  {
+    // Venta y agenda simples (docs/producto/venta-agenda/PLAN.md, tandas T1–T4): el cobro del turno
+    // y los productos en un solo pie del cajón (un cobro), el resumen «Hoy» del dueño y, en tandas
+    // siguientes, la reserva en un flujo con seña. Va AL FINAL del array a propósito: Fantasma Agenda
+    // suma el suyo después de «agenda-practica» y así no chocan. Apagado, todo como siempre.
+    id: "venta-agenda-simple",
+    nombre: "Venta y agenda simples",
+    queCambia:
+      "El turno y los productos se cobran juntos desde el cajón del turno, en un solo cobro, y el Inicio muestra el día de hoy: turnos, lo cobrado por medio y las señas que faltan. Apagado, el producto se cobra aparte, como siempre.",
+    enAuditoria: "la venta y agenda simples",
+    cambiaLasApps: false,
+    incorporado: true,
+  },
+  {
+    // Agenda más práctica e interactiva (docs/producto/venta-agenda/AGENDA-INTERACCION.md, T1–T3):
+    // en el celular la grilla de una profesional con huecos tocables, la barra de un toque sobre el
+    // turno (no vino con deshacer, cobrar, WhatsApp), turnos cortos legibles y, en tandas
+    // siguientes, soltar para mover y estirar para cambiar la duración. Va AL FINAL del array, como
+    // «venta-agenda-simple». Apagado, la agenda de siempre, byte a byte.
+    id: "agenda-interaccion",
+    nombre: "Agenda interactiva",
+    queCambia:
+      "La agenda se maneja con menos toques: en el celular se ve el día de cada profesional y se toca un hueco para dar turno, y sobre cada turno hay teclas de un toque (no vino, cobrar, WhatsApp) con deshacer. Apagado, la agenda de siempre.",
+    enAuditoria: "la agenda interactiva",
+    cambiaLasApps: false,
+    incorporado: true,
+  },
 ] as const satisfies readonly Interruptor[];
 
 export type InterruptorId = (typeof INTERRUPTORES)[number]["id"];
+
+/** ¿Es una mejora incorporada (siempre prendida, fuera de la consola)? PURA y client-safe. */
+export function esIncorporado(id: InterruptorId): boolean {
+  return (INTERRUPTORES.find((i) => i.id === id) as Interruptor | undefined)?.incorporado === true;
+}
+
+/** Lo que la consola ofrece prender y apagar: sólo lo crítico. */
+export const INTERRUPTORES_DE_LA_CONSOLA: readonly Interruptor[] = INTERRUPTORES.filter((i) => !(i as Interruptor).incorporado);
 
 export const INICIO_POR_APPS: InterruptorId = "inicio-por-apps";
 
@@ -153,6 +196,26 @@ export const CUENTAS_CORRIENTES: InterruptorId = "cuentas-corrientes";
 
 /** Arqueo a ciegas al abrir la caja (N2 · M1-C3; lo lee `openCashSession`). */
 export const ARQUEO_CIEGO: InterruptorId = "arqueo-ciego";
+
+/** Venta y agenda simples (docs/producto/venta-agenda/PLAN.md): cobro único turno + productos y resumen «Hoy». */
+export const VENTA_AGENDA_SIMPLE: InterruptorId = "venta-agenda-simple";
+
+/** ¿El negocio tiene «Venta y agenda simples»? Un estado sin la entrada cuenta como apagado. PURA. */
+export function ventaAgendaSimplePrendida(
+  estado: Readonly<Partial<Record<InterruptorId, { encendido: boolean }>>>,
+): boolean {
+  return esIncorporado(VENTA_AGENDA_SIMPLE) || estado[VENTA_AGENDA_SIMPLE]?.encendido === true;
+}
+
+/** Agenda interactiva (docs/producto/venta-agenda/AGENDA-INTERACCION.md). */
+export const AGENDA_INTERACCION: InterruptorId = "agenda-interaccion";
+
+/** ¿El negocio tiene la agenda interactiva? Un estado sin la entrada cuenta como apagado. PURA. */
+export function agendaInteraccionPrendida(
+  estado: Readonly<Partial<Record<InterruptorId, { encendido: boolean }>>>,
+): boolean {
+  return esIncorporado(AGENDA_INTERACCION) || estado[AGENDA_INTERACCION]?.encendido === true;
+}
 
 /**
  * ¿Este negocio trabaja con el mostrador boutique? Recibe el estado que arma

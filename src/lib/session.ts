@@ -12,6 +12,8 @@ import { prisma } from "@/lib/prisma";
 import { getSessionCookieName, readSessionToken } from "@/lib/auth";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { isDemoSandbox, DEMO_SESSION_USER } from "@/lib/demo-sandbox";
+import type { PermisoOverride } from "@/lib/capabilities";
+import { leerOverridesTolerante } from "@/lib/permisos-overrides";
 
 export type SessionUser = {
   id: string;
@@ -20,6 +22,9 @@ export type SessionUser = {
   role: "OWNER" | "RECEPTION" | "PROFESSIONAL";
   professionalId: string | null;
   tenantId: string;
+  // Excepciones de la matriz de permisos (PLAN permisos §1). `[]` = rige el rol. Se resuelven con
+  // `permisoEfectivo(user, cap)`, nunca con roleHasCapability sobre el rol solo.
+  overrides: ReadonlyArray<PermisoOverride>;
 };
 
 // Envuelto en `cache()` de React: se dedupe por request, así los múltiples
@@ -37,7 +42,7 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
   // Lookup tenant-scoped (ADR-017 depende de ADR-015): el usuario tiene que
   // pertenecer al tenant resuelto, estar activo y no borrado.
   const tenantId = await getCurrentTenantId();
-  return prisma.user.findFirst({
+  const user = await prisma.user.findFirst({
     where: { id: userId, tenantId, active: true, deletedAt: null },
     select: {
       id: true,
@@ -48,4 +53,15 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
       tenantId: true,
     },
   });
+  if (!user) return null;
+
+  // Consulta aparte (no un `select` anidado) para que la tabla ausente (Gate 2) no tumbe el login:
+  // sólo P2021/P2022 → `[]`; otro error se relanza. El cambio rige en el próximo request.
+  const overrides = await leerOverridesTolerante(() =>
+    prisma.userPermissionOverride.findMany({
+      where: { userId: user.id, tenantId },
+      select: { capability: true, allowed: true },
+    }),
+  );
+  return { ...user, overrides };
 });

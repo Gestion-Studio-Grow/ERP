@@ -10,7 +10,7 @@
 
 import type { AppDescriptor, NombreIcono } from "@/apps/contract";
 import type { EspacioNavId } from "@/apps/espacios";
-import { roleHasCapability, type Role } from "@/lib/capabilities";
+import { permisoDe, type Role, type UsuarioConPermisos } from "@/lib/capabilities";
 import { hrefNuevoTurno } from "../turnos/pasos";
 
 export interface AccionDelRubro {
@@ -32,14 +32,15 @@ export interface AccionDelRubro {
 export function accionDelRubro(
   apps: readonly Pick<AppDescriptor, "id" | "ruta" | "icono">[],
   esMostrador: boolean,
-  role: Role,
+  quien: Role | UsuarioConPermisos,
 ): AccionDelRubro | null {
   if (esMostrador) {
     const vender = apps.find((a) => a.id === "vender");
     return vender ? { ruta: vender.ruta, icono: vender.icono, palabra: "Vender", atajo: "F1" } : null;
   }
   const agenda = apps.find((a) => a.id === "agenda");
-  if (!agenda || !roleHasCapability(role, "agenda:manage")) return null;
+  // Con la matriz (casilla 3 «editar turnos»): una PROFESSIONAL a la que se la prenden ve el botón.
+  if (!agenda || !permisoDe(quien, "agenda:manage")) return null;
   return { ruta: hrefNuevoTurno(), icono: agenda.icono, palabra: "Dar un turno", atajo: "F1" };
 }
 

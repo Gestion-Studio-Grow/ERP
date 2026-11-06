@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireApp } from "@/lib/require-app";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { personas, veLaPlata } from "@/lib/inmobiliaria/datos.server";
 import { BarraInmo, RAIZ, titulo } from "../../_vista";
 import { Ficha } from "../_ficha";
@@ -20,7 +20,7 @@ export default async function NuevaPropiedad() {
         <h1 className={titulo}>Cargar propiedad</h1>
         <p className="text-sm text-muted">Empezá por lo básico: nace como borrador y las fotos se suben en el paso siguiente.</p>
       </header>
-      <BarraInmo activa={`${RAIZ}/propiedades`} conPlata={veLaPlata(user)} esDuenio={roleHasCapability(user.role, "users:manage")} />
+      <BarraInmo activa={`${RAIZ}/propiedades`} conPlata={veLaPlata(user)} esDuenio={permisoEfectivo(user, "users:manage")} />
       <Ficha personas={gente} />
     </main>
   );

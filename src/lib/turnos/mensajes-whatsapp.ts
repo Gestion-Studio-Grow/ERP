@@ -28,6 +28,7 @@
 import { BUSINESS_TIMEZONE } from "@/lib/business-config";
 import { primerNombre } from "@/lib/crm/textos";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
+import { lineaDeAclaracion } from "@/lib/servicios/ficha";
 
 /**
  * El alias / CBU del negocio para que la clienta mande la seña. PROVISIONAL A CONFIRMAR: `null`
@@ -155,6 +156,8 @@ export type TurnoDelMensaje = {
   direccion?: string | null;
   /** El link a «Tu turno» (ahí lo ve, lo cancela o lo reprograma), si se pudo armar. */
   linkTurno?: string | null;
+  /** La aclaración del servicio para la clienta («Vení bañada»), en un párrafo aparte al final. */
+  aclaracion?: string | null;
 };
 
 /** La frase con el link a «Tu turno», o nada si no hay link. */
@@ -191,7 +194,7 @@ export function mensajeConfirmacion(t: TurnoDelMensaje & { senia?: SeniaDelMensa
     senia && `Recibimos tu seña de ${pesosEnTexto(senia.monto)}${medioEnTexto(senia.medio) ? ` ${medioEnTexto(senia.medio)}` : ""}, ¡gracias!`,
     fraseDelLink(t),
     CIERRE,
-  );
+  ) + lineaDeAclaracion(t.aclaracion);
 }
 
 /**
@@ -216,7 +219,7 @@ export function mensajePedidoDeSenia(t: TurnoDelMensaje & { monto: number; alias
   const pedido = alias
     ? `Para reservar te pedimos una seña de ${pesosEnTexto(t.monto)} al alias *${alias}*. Cuando la mandes, avisanos por acá con el comprobante.`
     : `Para reservar te pedimos una seña de ${pesosEnTexto(t.monto)}: te pasamos por acá los datos para transferir. Cuando la mandes, avisanos con el comprobante.`;
-  return frases(saludo(t.clienta), `Te anotamos ${queCuandoConQuien(t)}.`, pedido, fraseDelLink(t), "¡Gracias! 💚");
+  return frases(saludo(t.clienta), `Te anotamos ${queCuandoConQuien(t)}.`, pedido, fraseDelLink(t), "¡Gracias! 💚") + lineaDeAclaracion(t.aclaracion);
 }
 
 // ── 3. Mover (reprogramar) ────────────────────────────────────────────────────
@@ -314,14 +317,25 @@ export function mensajeRecordarSaldo(d: {
 
 // ── 7. Comprobante de un cobro ────────────────────────────────────────────────
 
-/** «¡Hola Laura! Recibimos $27.000 en efectivo por Piernas completas. ¡Gracias!» (+ saldo si queda). */
-export function mensajeCobro(d: { clienta: string; monto: number; medio?: string | null; servicio?: string | null; saldo?: number | null }): string {
+/**
+ * «¡Hola Laura! Recibimos $27.000 en efectivo por Piernas completas. ¡Gracias!» (+ saldo si queda).
+ * Con `cuando` (el momento del cobro), la fecha va en la frase: «… por *Piernas* el jueves 24 a las 16:00.»
+ */
+export function mensajeCobro(d: {
+  clienta: string;
+  monto: number;
+  medio?: string | null;
+  servicio?: string | null;
+  saldo?: number | null;
+  cuando?: string | Date | null;
+}): string {
   if (!hayPlata(d.monto)) return "";
   const medio = medioEnTexto(d.medio);
   const servicio = limpio(d.servicio);
+  const cuando = d.cuando ? cuandoEnTexto(d.cuando) : "";
   return frases(
     saludo(d.clienta),
-    `Recibimos ${pesosEnTexto(d.monto)}${medio ? ` ${medio}` : ""}${servicio ? ` por *${servicio}*` : ""}.`,
+    `Recibimos ${pesosEnTexto(d.monto)}${medio ? ` ${medio}` : ""}${servicio ? ` por *${servicio}*` : ""}${cuando ? ` ${cuando}` : ""}.`,
     hayPlata(d.saldo) && `Queda un saldo de ${pesosEnTexto(d.saldo)}.`,
     "¡Gracias! 💚",
   );

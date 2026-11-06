@@ -15,8 +15,14 @@
 // `server-only`: detrás de los loaders está el valor `prisma`.
 
 import "server-only";
-import { getAgendaDay } from "@/lib/actions";
+import { getAgendaDay, getMananaConfirmar } from "@/lib/actions";
+import { telefonosSegunQuienMira } from "@/lib/clientes/contacto.server";
+import { prisma } from "@/lib/prisma";
+import { getCurrentTenantId } from "@/lib/tenant";
 import { puedeCobrarEsteTurno } from "@/lib/turnos/cobro-mostrador";
+import { enmascararContacto } from "@/lib/clientes/telefono";
+import type { PermisoOverride } from "@/lib/capabilities";
+import type { Role } from "@/lib/capabilities";
 import { fmtTime } from "@/lib/datetime";
 import { seniasPedidas } from "@/lib/turnos/senia-actions";
 import { horariosDelDia } from "@/lib/turnos/horario-del-dia.server";
@@ -54,15 +60,20 @@ type TurnoDeLaBase = {
   professional: { name: string; cobraEnMostrador?: boolean | null };
   box: { name: string } | null;
   payment: { status?: string; amount?: number; method?: string } | null;
-  collections?: readonly { id?: string; amount: number; method: string; note?: string | null; createdAt?: Date }[];
+  collections?: readonly { id?: string; amount: number; method: string; note?: string | null; createdAt?: Date; collectedBy?: string }[];
 };
 
 /** Proyecta la agenda cruda a lo que se muestra, con el veredicto de cobro de quien mira. */
 export function proyectarAgenda(
   cruda: AgendaCruda,
-  quien: { role: string; professionalId?: string | null },
+  // `overrides` viaja con la sesión (matriz de permisos): decide si el teléfono sale enmascarado.
+  quien: { role: Role; professionalId?: string | null; overrides: ReadonlyArray<PermisoOverride> },
   /** Lo que se lee aparte (`extrasDeLaAgenda`): turno → cuándo se pidió la seña. */
-  extras?: { seniasPedidas?: Readonly<Record<string, string>> },
+  extras?: {
+    seniasPedidas?: Readonly<Record<string, string>>;
+    /** Agenda interactiva: actor del cobro («user:<id>») → nombre de quien cobró (sección «Pagos»). */
+    quienCobro?: Readonly<Record<string, string>>;
+  },
 ): AgendaDelDia {
   const leidos: readonly TurnoDeLaBase[] = cruda.appointments;
   const turnos = leidos
@@ -79,12 +90,20 @@ export function proyectarAgenda(
           reminderSentAt: a.reminderSentAt ?? null,
           professionalId: a.professionalId,
           serviceId: a.serviceId,
-          client: { name: a.client.name, phone: a.client.phone },
+          // Sin `clients:contact` (casilla 5) el teléfono sale enmascarado y el WhatsApp no se arma.
+          client: enmascararContacto({ name: a.client.name, phone: a.client.phone }, quien),
           service: { name: a.service.name, price: a.service.price, depositAmount: a.service.depositAmount },
           professional: { name: a.professional.name },
           box: a.box ? { name: a.box.name } : null,
           payment: a.payment ? { status: a.payment.status, amount: a.payment.amount } : null,
-          collections: a.collections,
+          // Con los nombres de quién cobró (agenda interactiva), cada cobro lleva `quien`; el actor
+          // crudo («user:<id>») no cruza al navegador.
+          collections: extras?.quienCobro
+            ? a.collections?.map(({ collectedBy, ...c }) => {
+                const quien = collectedBy ? extras.quienCobro?.[collectedBy] : undefined;
+                return quien ? { ...c, quien } : c;
+              })
+            : a.collections, // `turnoDelDia` copia campo por campo: el actor no pasa
         },
         puedeCobrarEsteTurno({
           rol: quien.role,
@@ -119,12 +138,42 @@ export function horario(t: Pick<TurnoDelDia, "inicio" | "fin">): string {
 export async function extrasDeLaAgenda(
   cruda: AgendaCruda,
   dia: string,
-): Promise<{ seniasPedidas: Record<string, string>; bloqueos: BloqueoDelDia[] }> {
+  /** `quienCobro`: agenda interactiva prendida → también los nombres de quién cobró (una lectura). */
+  o: { quienCobro?: boolean } = {},
+): Promise<{ seniasPedidas: Record<string, string>; bloqueos: BloqueoDelDia[]; quienCobro?: Record<string, string> }> {
   const reservados = cruda.appointments.filter((a) => a.status === "PENDING").map((a) => a.id);
   const profesionales = cruda.professionals.map((p) => p.id);
-  const [senias, horarios] = await Promise.all([
+  const [senias, horarios, quienCobro] = await Promise.all([
     reservados.length > 0 ? seniasPedidas(reservados).catch(() => ({})) : Promise.resolve({}),
     profesionales.length > 0 ? horariosDelDia(dia, profesionales).catch(() => null) : Promise.resolve(null),
+    o.quienCobro ? nombresDeQuienCobro(cruda).catch(() => ({})) : Promise.resolve(undefined),
   ]);
-  return { seniasPedidas: senias, bloqueos: [...bloqueosDelDia(cruda.blocksToday), ...bloqueosPorHorario(dia, profesionales, horarios)] };
+  return {
+    seniasPedidas: senias,
+    bloqueos: [...bloqueosDelDia(cruda.blocksToday), ...bloqueosPorHorario(dia, profesionales, horarios)],
+    ...(quienCobro ? { quienCobro } : {}),
+  };
+}
+
+/** Actor de los cobros del día («user:<id>») → nombre. UNA consulta por día, con `tenantId`. */
+async function nombresDeQuienCobro(cruda: AgendaCruda): Promise<Record<string, string>> {
+  const leidos: readonly TurnoDeLaBase[] = cruda.appointments;
+  const ids = new Set<string>();
+  for (const a of leidos) {
+    for (const c of a.collections ?? []) if (c.collectedBy?.startsWith("user:")) ids.add(c.collectedBy.slice(5));
+  }
+  if (ids.size === 0) return {};
+  const tenantId = await getCurrentTenantId();
+  const usuarios = await prisma.user.findMany({ where: { tenantId, id: { in: [...ids] } }, select: { id: true, name: true } });
+  return Object.fromEntries(usuarios.filter((u) => u.name).map((u) => [`user:${u.id}`, u.name as string]));
+}
+
+/**
+ * «Confirmar mañana» con el teléfono enmascarado para quien no tiene `clients:contact` (casilla 5 de
+ * la matriz): sin número no se arma el WhatsApp de confirmación, y el número no viaja al navegador.
+ * Todas las pantallas que muestran la lista la leen por acá, no directo de `getMananaConfirmar`.
+ */
+export async function mananaParaConfirmar(): Promise<Awaited<ReturnType<typeof getMananaConfirmar>>> {
+  const m = await getMananaConfirmar();
+  return { ...m, turnos: await telefonosSegunQuienMira(m.turnos) };
 }

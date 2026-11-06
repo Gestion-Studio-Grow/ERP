@@ -182,3 +182,75 @@ test("horario de trabajo: fuera de su horario no hay hueco; sin horario ese día
   // Sin lectura (null) no se marca nada: el alta valida igual.
   assert.deepEqual(bloqueosPorHorario(DIA, ["caro"], null), []);
 });
+
+// ── Agenda interactiva (AGENDA-INTERACCION.md T1): columna única, profesional por defecto, carriles con tope ──
+import {
+  carrilesConTope,
+  columnaUnica,
+  esTurnoCorto,
+  hayQueElegirProfesional,
+  lineaDelTurno,
+  profesionalElegida,
+  tituloDelTurno,
+  anchoDeLaColumna,
+} from "./grilla";
+
+test("profesional elegida: la del usuario PROFESSIONAL, si no ?pro=, si no la primera con turnos, si no la primera", () => {
+  const pros = [{ id: "caro" }, { id: "vero" }, { id: "lau" }];
+  const turnos = [
+    { profesionalId: "caro", estado: "CANCELLED" },
+    { profesionalId: "lau", estado: "CONFIRMED" },
+  ];
+  assert.equal(profesionalElegida({ profesionales: pros, turnos }), "lau");
+  assert.equal(profesionalElegida({ profesionales: pros, turnos, pedida: "vero" }), "vero");
+  assert.equal(profesionalElegida({ profesionales: pros, turnos, pedida: "otra" }), "lau");
+  assert.equal(profesionalElegida({ profesionales: pros, turnos: [] }), "caro");
+  // La PROFESSIONAL no elige: `?pro=` de otra no cambia nada.
+  assert.equal(profesionalElegida({ profesionales: pros, turnos, pedida: "vero", miProfesional: "caro" }), "caro");
+  assert.equal(profesionalElegida({ profesionales: [], turnos }), null);
+  assert.equal(hayQueElegirProfesional(pros, null), true);
+  assert.equal(hayQueElegirProfesional(pros, "caro"), false);
+  assert.equal(hayQueElegirProfesional([{ id: "caro" }], null), false);
+});
+
+test("columna única: la pedida, o la primera si no está; sin columnas, ninguna", () => {
+  const cols = columnasDeLaGrilla("profesional", PROFES);
+  assert.deepEqual(columnaUnica(cols, "vero").map((c) => c.clave), ["vero"]);
+  assert.deepEqual(columnaUnica(cols, "nadie").map((c) => c.clave), [cols[0].clave]);
+  assert.deepEqual(columnaUnica([], "vero"), []);
+  // La columna única sigue dando el hueco con su profesional cargada.
+  const [vero] = columnaUnica(cols, "vero");
+  const celda = estadoDeLaCelda({ dia: DIA, hoy: "2030-10-01", ahoraMin: 0, minuto: 11 * 60, columna: vero, ocupados: [], bloqueos: [], puedeDarTurno: true });
+  assert.equal(celda.tipo, "hueco");
+  if (celda.tipo === "hueco") assert.equal(celda.href, hrefNuevoTurnoEnHueco(DIA, "vero", 11 * 60));
+});
+
+test("carriles con tope: hasta N lado a lado; el resto en «+N» agrupado, sin taparse", () => {
+  const t = (id: string, de: string, a: string, estado = "CONFIRMED") => ({ id, inicio: iso(de), fin: iso(a), estado });
+  const tres = [t("a", "16:00", "17:00"), t("b", "16:00", "16:30"), t("c", "16:00", "16:30"), t("d", "16:15", "16:45"), t("e", "18:00", "18:30")];
+  const r = carrilesConTope(tres, 2);
+  // Mismo inicio: primero el que termina antes (b, c); el largo (a) y el de 16:15 (d) no entran.
+  assert.deepEqual(r.carriles.get("b"), { carril: 0, de: 2 });
+  assert.deepEqual(r.carriles.get("c"), { carril: 1, de: 2 });
+  assert.deepEqual(r.carriles.get("e"), { carril: 0, de: 1 });
+  assert.deepEqual([...r.ocultos].sort(), ["a", "d"]);
+  assert.deepEqual(r.desbordes, [{ desde: 16 * 60, ids: ["a", "d"] }]);
+  assert.equal(r.carrilesMax, 2);
+  assert.ok(r.choques.has("a"));
+  // Con lugar para todos, nada se oculta.
+  const todos = carrilesConTope(tres, 4);
+  assert.equal(todos.ocultos.size, 0);
+  assert.equal(todos.desbordes.length, 0);
+  assert.equal(todos.carrilesMax, 4);
+  assert.equal(carrilesConTope([], 2).carrilesMax, 0);
+  assert.equal(anchoDeLaColumna(1), "minmax(9.5rem, 1fr)");
+  assert.equal(anchoDeLaColumna(3), "minmax(27rem, 1fr)");
+});
+
+test("turno corto en una línea: «16:00 Ana · Peeling», el resto en el título", () => {
+  const corto = { inicio: iso("16:00"), fin: iso("16:30"), clienta: "Ana", servicio: "Peeling" };
+  assert.equal(esTurnoCorto(corto), true);
+  assert.equal(esTurnoCorto({ ...corto, fin: iso("17:00") }), false);
+  assert.equal(lineaDelTurno(corto), "16:00 Ana · Peeling");
+  assert.equal(tituloDelTurno(corto, ["Confirmado", null, false, "seña pedida"]), "16:00–16:30 · Ana · Peeling · Confirmado · seña pedida");
+});

@@ -9,7 +9,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { requireCapability } from "@/lib/authz";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { businessWallTimeToUtc } from "@/lib/datetime";
 import { sumarDias } from "@/lib/stock/merma-core";
@@ -22,7 +22,7 @@ export const MAX_FILAS = 200;
 export async function getMovimientos(f: FiltrosDeMovimientos) {
   const user = await requireCapability("stock:read");
   const tenantId = await getCurrentTenantId();
-  const conCostos = roleHasCapability(user.role, "costs:read");
+  const conCostos = permisoEfectivo(user, "costs:read");
 
   const createdAt =
     f.desde || f.hasta

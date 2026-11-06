@@ -1014,6 +1014,46 @@ test("tienda en el día real: el club pega el mensaje de WhatsApp del cliente y 
   assert.match(M.pedidoDesdeWhatsApp(e, "hola, ¿tienen paletas?", ahora(15, 6)).motivo, /No encontré productos/);
 });
 
+test("tienda publicada sin precios: el club pega el mensaje (Instagram), cobra con SU lista una sola vez y el stock baja una sola vez", () => {
+  // El celular del jugador: club en blanco con la tienda sin precios publicados.
+  const cel = M.crearClubReal(HOY);
+  cel.config.tiendaSinPrecios = true;
+  assert.ok(M.catalogoTienda(cel).every((p: any) => p.precio === null));
+  const { mensaje, pedido } = M.crearPedidoTienda(cel, { items: [{ productoId: "p1", cant: 1 }, { productoId: "p4", cant: 2 }], nombre: "Pedro Gómez", tel: "11 5555-1234" }, ahora(15));
+  assert.doesNotMatch(mensaje, /\$/, "sin precios de ejemplo en el mensaje");
+  // La compu del club: lo carga desde el mensaje (o reenviado con texto alrededor y el código en minúsculas).
+  const e = club();
+  const solo = M.pedidoDesdeWhatsApp(e, pedido.codigo, ahora(15, 1));
+  assert.equal(solo.ok, false);
+  assert.match(solo.motivo, /pegá el mensaje entero/);
+  const res = M.pedidoDesdeWhatsApp(e, `Reenviado:\n${mensaje.replace(pedido.codigo, pedido.codigo.toLowerCase())}\nGracias`, ahora(15, 5));
+  assert.ok(res.ok, res.motivo);
+  assert.equal(res.pedido.codigo, pedido.codigo);
+  assert.equal(res.pedido.nombre, "Pedro Gómez");
+  assert.deepEqual(res.pedido.items.map((i: any) => [i.productoId, i.cant]), [["p1", 1], ["p4", 2]]);
+  assert.equal(res.pedido.total, 12000 + 2 * 4500, "con los precios del club");
+  assert.match(e.log[0].texto, new RegExp(`Pedido de la tienda ${pedido.codigo} de Pedro Gómez`), "el registro lleva el código del cliente");
+  assert.match(M.pedidoDesdeWhatsApp(e, mensaje, ahora(15, 6)).motivo, /ya está cargado/);
+  assert.match(M.pedidoDesdeWhatsApp(e, pedido.codigo, ahora(15, 6)).motivo, /ya está cargado/, "el código solo, si ya está, lo dice");
+  assert.equal(M.pedidosPendientes(e).length, 1);
+  const stock1 = M.producto(e, "p1").stock, stock4 = M.producto(e, "p4").stock;
+  const antes = cajaIngresos(e);
+  assert.equal(M.entregarPedido(e, res.pedido.id, { medio: "efectivo" }, ahora(18)).total, 21000);
+  // Doble toque, otro medio, o volver a pegar el mensaje: no se cobra ni se descuenta otra vez.
+  assert.equal(M.entregarPedido(e, res.pedido.id, { medio: "efectivo" }, ahora(18, 1)).ok, false);
+  assert.equal(M.entregarPedido(e, res.pedido.id, { medio: "transferencia" }, ahora(18, 1)).ok, false);
+  assert.equal(M.cargarPedidoACuenta(e, res.pedido.id, "a", ahora(18, 1)).ok, false);
+  assert.match(M.pedidoDesdeWhatsApp(e, mensaje, ahora(18, 2)).motivo, /ya está cargado/);
+  assert.equal(cajaIngresos(e) - antes, 21000, "entra a la caja una sola vez");
+  assert.equal(M.producto(e, "p1").stock, stock1 - 1, "el tubo baja una sola vez");
+  assert.equal(M.producto(e, "p4").stock, stock4 - 2, "los overgrips bajan una sola vez");
+  assert.equal(M.pedidosPendientes(e).length, 0);
+  // El mensaje viejo, con precios, se sigue leyendo igual.
+  const conPrecio = M.crearPedidoTienda(M.crearClubReal(HOY), { items: [{ productoId: "p2", cant: 3 }], nombre: "Ana" }, ahora(16));
+  assert.match(conPrecio.mensaje, /3 × Agua 500 ml \$/);
+  assert.deepEqual(M.pedidoDesdeWhatsApp(e, conPrecio.mensaje, ahora(16, 1)).pedido.items.map((i: any) => [i.productoId, i.cant]), [["p2", 3]]);
+});
+
 test("Gate B2: un jugador en dos turnos seguidos — «cobrar todo» cobra exactamente lo que muestra", () => {
   const e = club();
   // Turno 1: Ana paga los cargos de Beto; se cierra la cancha y la mesa sigue.
@@ -1233,4 +1273,96 @@ test("la mesa que sigue no pierde su marca si el cierre se rechaza (Gate 20/10)"
   assert.equal(M.cerrarCargosDelTurno(e, r.id, { aCuenta: true }, ahora(13, 20)).ok, false);
   assert.equal(M.reserva(e, r.id).mesaSigue, true);
   assert.equal(M.mesasAbiertas(e).length, 1);
+});
+
+// ─── Certificación de pedidos de la tienda (dictamen sobre 1d30be5c: C08, C09, C10 y cantidades) ───
+const msjPedido = (lista: string, { nombre = "Pedro", codigo = "T-ABCD" } = {}) =>
+  `Hola Break Point Pádel, quiero encargar para retirar en el club: ${lista}. El precio me lo confirman en el club. Soy ${nombre} (11 5555-1234). Pedido ${codigo}.`;
+
+test("pedidos C10 (vuelta 2): un nombre «Pedido T-…» no le gana al código real del final del mensaje", () => {
+  const e = club();
+  const r = M.pedidoDesdeWhatsApp(e, msjPedido("1 × Agua 500 ml", { nombre: "Pedido T-ZZZZ", codigo: "T-ABCD" }), ahora(10));
+  assert.ok(r.ok, r.motivo);
+  assert.equal(r.pedido.codigo, "T-ABCD");
+});
+
+test("pedidos C08: el mismo producto en dos renglones se junta y el stock se mira con lo sumado", () => {
+  const e = club(); // Muñequera: stock 4, $6.000
+  const r = M.pedidoDesdeWhatsApp(e, msjPedido("2 × Muñequera · 3 × Muñequera"), ahora(10));
+  assert.equal(r.ok, false, "5 muñequeras con stock 4 no entran");
+  assert.match(r.motivo, /quedan 4/);
+  assert.equal(M.pedidosPendientes(e).length, 0);
+  const ok = M.pedidoDesdeWhatsApp(e, msjPedido("1 × Muñequera · 2 × Muñequera"), ahora(10, 1));
+  assert.ok(ok.ok, ok.motivo);
+  assert.deepEqual(ok.pedido.items.map((i: any) => [i.productoId, i.cant]), [["p5", 3]]);
+  const c0 = cajaIngresos(e);
+  assert.equal(M.entregarPedido(e, ok.pedido.id, { medio: "efectivo" }, ahora(11)).total, 18000);
+  assert.equal(cajaIngresos(e) - c0, 18000);
+  assert.equal(M.producto(e, "p5").stock, 1);
+});
+
+test("pedidos C08: un pedido viejo con renglones repetidos que no alcanzan no se entrega (ni se carga a cuenta)", () => {
+  const e = club();
+  const r = M.crearPedidoTienda(e, { items: [{ productoId: "p5", cant: 2 }], nombre: "Pedro" }, ahora(10));
+  r.pedido.items.push({ ...r.pedido.items[0], cant: 3 }); // como quedaba guardado antes del arreglo
+  const c0 = cajaIngresos(e), cuentas0 = e.cuentas.length;
+  assert.match(M.entregarPedido(e, r.pedido.id, { medio: "efectivo" }, ahora(11)).motivo, /quedan 4/);
+  assert.match(M.cargarPedidoACuenta(e, r.pedido.id, "d", ahora(11)).motivo, /quedan 4/);
+  assert.equal(cajaIngresos(e), c0);
+  assert.equal(M.producto(e, "p5").stock, 4);
+  assert.equal(e.cuentas.length, cuentas0);
+  assert.equal(r.pedido.estado, "pendiente");
+});
+
+test("pedidos C08: si un renglón falla al cargar, todo o nada (sin caja, sin stock, sin estado)", () => {
+  for (const via of ["entregar", "cuenta"]) {
+    const e = club();
+    const r = M.crearPedidoTienda(e, { items: [{ productoId: "p5", cant: 2 }, { productoId: "p2", cant: 1 }], nombre: "Pedro" }, ahora(10));
+    // Otra terminal vende el último Agua justo mientras se carga el pedido: la validación pasó, la carga falla.
+    const mu = M.producto(e, "p5");
+    Object.defineProperty(M.producto(e, "p2"), "stock", { get: () => (mu.stock < 4 ? 0 : 10), set: () => {}, configurable: true });
+    const c0 = cajaIngresos(e), cuentas0 = e.cuentas.length, log0 = e.log.length;
+    const res = via === "entregar"
+      ? M.entregarPedido(e, r.pedido.id, { medio: "efectivo" }, ahora(11))
+      : M.cargarPedidoACuenta(e, r.pedido.id, "d", ahora(11));
+    assert.equal(res.ok, false, via);
+    assert.match(res.motivo, /No se entregó nada/);
+    assert.equal(cajaIngresos(e), c0, via);
+    assert.equal(mu.stock, 4, `${via}: la muñequera vuelve al stock`);
+    assert.equal(e.cuentas.length, cuentas0, `${via}: no queda una cuenta a medias`);
+    assert.equal(e.log.length, log0);
+    assert.equal(r.pedido.estado, "pendiente");
+  }
+});
+
+test("pedidos C09: el mismo mensaje sin código pegado dos veces no queda dos veces para cobrar", () => {
+  const e = club();
+  const t = "Hola Break Point Pádel, quiero encargar para retirar en el club: 1 × Tubo de pelotas (3). Soy Pedro.";
+  assert.ok(M.pedidoDesdeWhatsApp(e, t, ahora(10)).ok);
+  assert.match(M.pedidoDesdeWhatsApp(e, t, ahora(10, 1)).motivo, /ya está cargado/);
+  assert.equal(M.pedidosPendientes(e).length, 1);
+  // Otro cliente con lo mismo, o el mismo con otra cosa, sí entra.
+  assert.ok(M.pedidoDesdeWhatsApp(e, t.replace("Pedro", "Ana"), ahora(10, 2)).ok);
+  assert.ok(M.pedidoDesdeWhatsApp(e, t.replace("1 ×", "2 ×"), ahora(10, 3)).ok);
+});
+
+test("pedidos C10: el código es el de «Pedido T-…», no uno metido en el nombre", () => {
+  const e = club();
+  const r = M.pedidoDesdeWhatsApp(e, msjPedido("1 × Agua 500 ml", { nombre: "T-ZZZZ", codigo: "T-ABCD" }), ahora(10));
+  assert.ok(r.ok, r.motivo);
+  assert.equal(r.pedido.codigo, "T-ABCD");
+});
+
+test("pedidos: cantidades negativas, cero o con decimales se rechazan con mensaje claro", () => {
+  const e = club();
+  for (const lista of ["-3 × Agua 500 ml", "2.5 × Agua 500 ml", "2,5 × Agua 500 ml", "0 × Agua 500 ml"]) {
+    const r = M.pedidoDesdeWhatsApp(e, msjPedido(lista), ahora(10));
+    assert.equal(r.ok, false, lista);
+    assert.match(r.motivo, /número entero mayor a cero/, lista);
+  }
+  for (const cant of [-1, 0, 1.5, Number.NaN]) {
+    assert.match(M.crearPedidoTienda(e, { items: [{ productoId: "p2", cant }], nombre: "Ana" }, ahora(10)).motivo, /número entero mayor a cero/, String(cant));
+  }
+  assert.equal(M.pedidosPendientes(e).length, 0);
+  assert.equal(M.producto(e, "p2").stock, 42);
 });

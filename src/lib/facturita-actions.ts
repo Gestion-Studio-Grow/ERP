@@ -11,13 +11,14 @@ import { revalidatePath } from "next/cache";
 import { requireCapability } from "@/lib/authz";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { tenantTransaction } from "@/lib/rls";
-import { createInvoiceInTx, crearNotaDeCreditoInTx } from "@/lib/invoice-core";
+import { crearNotaDeCreditoInTx } from "@/lib/invoice-core";
 import {
   getFiscalProfile,
   isInvoicingEnabled,
   PerfilFiscalIncompletoError,
 } from "@/lib/fiscal";
 import { procesarEnviosDelNegocio } from "@/lib/arca-dispatch";
+import { emitirComprobanteManual } from "@/lib/facturacion/emision-manual.server";
 import { contarFacturasDelMes, fechaFiscalDelDia } from "@/lib/bancos-glue";
 import { logger } from "@/lib/logger";
 import { modoDesdeEnv } from "@/plugins/arca";
@@ -26,19 +27,24 @@ import { ACCION_RECEPTOR_DEL_COMPROBANTE, ENTIDAD_RECEPTOR_DEL_COMPROBANTE } fro
 import {
   anulacionSegunCupo,
   errorDeNotaRechazada,
-  esDePrueba,
   estadoDeAnulacion,
   estadoLimite,
-  mensajeDeEmision,
   numeroDeComprobante,
   origenDelRechazo,
-  validarEmision,
-  ventanaDeFechaArca,
   type EmisionFacturita,
   type EstadoEmision,
   type EstadoLimite,
 } from "@/lib/facturita-core";
-import { montosFacturita } from "@/lib/facturita-montos";
+import {
+  ACCION_EMISION,
+  ENTIDAD_EMISION,
+  MAX_ATAJOS,
+  UNIDAD_SERVICIO,
+  atajoDesdeProducto,
+  atajoDesdeUltima,
+  validarAtajo,
+  type Atajo,
+} from "@/lib/facturita-atajos";
 import {
   faltantesEmisor,
   validarDatosEmisor,
@@ -163,156 +169,23 @@ export async function guardarDatosParaFacturasAction(form: DatosEmisorForm): Pro
 }
 
 export type ResultadoEmisionFacturita =
-  | { ok: true; invoiceId: string; limite: EstadoLimite; estado: EstadoEmision; mensaje: string }
+  | { ok: true; invoiceId: string; limite: EstadoLimite; estado: EstadoEmision; mensaje: string; repetida?: true }
   | { ok: false; error: string; invoiceId?: string; estado?: EstadoEmision };
 
 /**
- * Emite una factura manual: valida receptor, concepto y total, respeta el tope de 5 por mes, y crea
- * la factura por el motor del Core (la letra la decide el sistema con el emisor y el receptor).
- * Con documento, guarda en la MISMA transacción quién es el comprador (nombre, condición,
- * domicilio) para el PDF: Invoice no tiene esas columnas (ver ACCION_RECEPTOR_DEL_COMPROBANTE).
- * Devuelve el estado REAL de la factura: autorizada (con CAE, o de prueba), pendiente o rechazada
- * (por ARCA o frenada por el sistema), nunca un «emitida» genérico.
+ * Emite una factura manual de Factoque. La barrera es la del producto (capability + blueprint); la
+ * emisión es el motor compartido (`emitirComprobanteManual`, src/lib/facturacion/emision-manual.server.ts):
+ * el mismo que usan el panel de cualquier negocio y la consola del contador. El tope de 5 por mes
+ * lo aplica el motor porque el negocio es del plan Factoque.
  */
 export async function emitirFacturitaAction(
   datos: EmisionFacturita,
 ): Promise<ResultadoEmisionFacturita> {
-  const { tenantId, userId, homologacion } = await requireTenantFacturita();
-  const hoy = fechaHoy();
-
-  // La condición del emisor decide qué exige el comprador (la A lleva su domicilio). Sin perfil
-  // cargado, `null`: la emisión lo frena más abajo con su mensaje.
-  const condicionEmisor = await getFiscalProfile(tenantId)
-    .then((p) => p.condicionIva)
-    .catch((e: unknown) => {
-      if (e instanceof PerfilFiscalIncompletoError) return null;
-      throw e;
-    });
-  const validacion = validarEmision(datos, hoy, { condicionEmisor });
-  if (!validacion.ok) return { ok: false, error: validacion.error };
-
-  const limite = estadoLimite(await contarFacturasDelMes(tenantId));
-  if (!limite.puedeEmitir) {
-    return { ok: false, error: limite.mensaje ?? "Llegaste al límite de facturas del plan de este mes." };
-  }
-
-  try {
-    const perfil = await getFiscalProfile(tenantId);
-    // Inscripto: IVA declarado en el renglón con la alícuota elegida (ivaPorProducto). C: sin IVA.
-    const montos = montosFacturita(perfil.condicionIva, datos.total, validacion.alicuotaId);
-    if (!montos.ok) return { ok: false, error: montos.error };
-
-    // `descripcion` necesita la migración 20261022140000 (Gate 2). En una base sin ella (P2022) la
-    // factura se crea igual, sin la descripción (el PDF cae al concepto), en vez de no emitir.
-    const crear = (conDescripcion: boolean) => tenantTransaction(
-      async (tx) => {
-        const id = await createInvoiceInTx(tx, {
-          tenantId,
-          concepto: validacion.concepto,
-          fecha: hoy,
-          emisor: { cuit: perfil.cuit, condicionIva: perfil.condicionIva, puntoVenta: perfil.puntoVenta },
-          // RG 5616: la condición REAL del comprador (con CUIT la eligió la persona; sin CUIT, consumidor final).
-          receptor: validacion.receptor,
-          neto: montos.neto,
-          iva: montos.iva,
-          total: montos.total,
-          ...(montos.ivaPorProducto ? { ivaPorProducto: true } : {}),
-          ...(validacion.servicio
-            ? {
-                servicioDesde: validacion.servicio.desde,
-                servicioHasta: validacion.servicio.hasta,
-                vencimientoPago: validacion.servicio.vencimientoPago,
-              }
-            : {}),
-          // Lo que se vendió, para el PDF y la lista (no viaja a ARCA). Necesita la migración
-          // 20261022140000_invoice_abono_descripcion (Gate 2), igual que la consola.
-          ...(conDescripcion ? { descripcion: validacion.descripcion } : {}),
-        });
-        if (validacion.ficha) {
-          await tx.auditLog.create({
-            data: {
-              tenantId,
-              actor: `user:${userId}`,
-              action: ACCION_RECEPTOR_DEL_COMPROBANTE,
-              entity: ENTIDAD_RECEPTOR_DEL_COMPROBANTE,
-              entityId: id,
-              changes: {
-                nombre: validacion.ficha.nombre,
-                domicilio: validacion.ficha.domicilio,
-                condicionIva: validacion.receptor.condicionIva,
-              },
-              channel: "admin",
-            },
-          });
-        }
-        return id;
-      },
-      { tenantId },
-    );
-    const invoiceId = await crear(true).catch((e: unknown) => {
-      if (esMigracionPendiente(e)) return crear(false);
-      throw e;
-    });
-
-    // Despacho a ARCA (CAE) si la facturación está encendida (stub/homologación/real).
-    const encendida = isInvoicingEnabled();
-    if (encendida) {
-      await procesarEnviosDelNegocio(tenantId).catch((err) =>
-        logger.warn("facturita", "despacho ARCA diferido (lo toma el próximo ciclo)", {
-          tenantId,
-          err: err instanceof Error ? err.message : String(err),
-        }),
-      );
-    }
-
-    revalidatePath(PATH_APP);
-
-    // Cómo quedó de verdad: se lee la factura después del despacho.
-    const f = await tenantTransaction(
-      (tx) =>
-        tx.invoice.findFirst({
-          where: { id: invoiceId, tenantId },
-          select: { status: true, rechazoMotivo: true, cae: true, numero: true, puntoVenta: true },
-        }),
-      { tenantId },
-    );
-    const estado: EstadoEmision =
-      f?.status === "AUTHORIZED"
-        ? {
-            estado: "autorizada",
-            dePrueba: esDePrueba(modoDesdeEnv(), homologacion),
-            numero: numeroDeComprobante(f.puntoVenta, f.numero),
-            cae: f.cae,
-          }
-        : f?.status === "REJECTED"
-          ? { estado: "rechazada", origen: origenDelRechazo(f.rechazoMotivo), motivo: f.rechazoMotivo ?? "" }
-          : {
-              estado: "pendiente",
-              motivo: encendida ? "esperando" : "apagada",
-              ventanaDias: ventanaDeFechaArca(validacion.concepto),
-            };
-
-    if (estado.estado === "rechazada") {
-      return { ok: false, error: mensajeDeEmision(estado), invoiceId, estado };
-    }
-    return { ok: true, invoiceId, limite: estadoLimite(limite.usadas + 1), estado, mensaje: mensajeDeEmision(estado) };
-  } catch (err) {
-    logger.error("facturita", "emisión falló", err, { tenantId });
-    // Perfil fiscal sin cargar: reintentar no lo arregla, hay que cargar el dato.
-    // Decirlo tal cual en vez del "probá en unos minutos" genérico.
-    if (err instanceof PerfilFiscalIncompletoError) {
-      return {
-        ok: false,
-        error:
-          "Faltan los datos fiscales del negocio (CUIT y punto de venta). " +
-          "Cargá el alta fiscal antes de emitir: no se emite con datos provisorios.",
-      };
-    }
-    return {
-      ok: false,
-      error: "No se pudo emitir la factura. Probá de nuevo en unos minutos.",
-    };
-  }
+  const { tenantId, userId } = await requireTenantFacturita();
+  const r = await emitirComprobanteManual({ tenantId, actor: `user:${userId}`, revalidar: [PATH_APP] }, datos);
+  if (!r.ok) return r;
+  // Un negocio Factoque siempre tiene tope; el `?? ` sólo cubre el tipo.
+  return { ...r, limite: r.limite ?? estadoLimite(await contarFacturasDelMes(tenantId)) };
 }
 
 // ---------------------------------------------------------------------------
@@ -503,4 +376,109 @@ export async function anularFacturitaAction(facturaId: string, motivo: string): 
   }
   revalidatePath(`${PATH_APP}/facturas`);
   return { ok: true, mensaje };
+}
+
+// ---------------------------------------------------------------------------
+// Mis productos: lo que el negocio factura seguido, como botones de la pantalla de emitir
+// ---------------------------------------------------------------------------
+
+/** Los productos guardados (los más nuevos primero) y «Repetir la última», si se puede repetir. */
+export async function atajosFacturitaAction(): Promise<{ productos: Atajo[]; ultima: Atajo | null }> {
+  const { tenantId } = await requireTenantFacturita();
+  const { filas, registro } = await tenantTransaction(
+    async (tx) => ({
+      filas: await tx.product.findMany({
+        where: { tenantId, active: true, deletedAt: null, price: { gt: 0 } },
+        select: { id: true, name: true, price: true, unit: true },
+        orderBy: { createdAt: "desc" },
+        take: MAX_ATAJOS,
+      }),
+      registro: await tx.auditLog.findFirst({
+        where: { tenantId, entity: ENTIDAD_EMISION, action: ACCION_EMISION },
+        orderBy: { createdAt: "desc" },
+        select: { changes: true },
+      }),
+    }),
+    { tenantId },
+  );
+  return {
+    productos: filas.map(atajoDesdeProducto).filter((a): a is Atajo => a !== null),
+    ultima: atajoDesdeUltima(registro?.changes),
+  };
+}
+
+export type ResultadoAtajo = { ok: true; atajo: Atajo } | { ok: false; error: string };
+
+/** Guarda un producto (detalle + precio) del propio negocio. No controla stock ni se vende en otro canal. */
+export async function guardarAtajoFacturitaAction(form: {
+  detalle: unknown;
+  precio: unknown;
+  concepto?: unknown;
+}): Promise<ResultadoAtajo> {
+  const { tenantId, userId } = await requireTenantFacturita();
+  const v = validarAtajo(form);
+  if (!v.ok) return v;
+  const r = await tenantTransaction(
+    async (tx) => {
+      const cuantos = await tx.product.count({ where: { tenantId, active: true, deletedAt: null } });
+      if (cuantos >= MAX_ATAJOS) return null;
+      const p = await tx.product.create({
+        data: {
+          tenantId,
+          name: v.detalle,
+          price: v.precio,
+          unit: v.concepto === "servicios" ? UNIDAD_SERVICIO : "unidades",
+          trackStock: false,
+        },
+        select: { id: true, name: true, price: true, unit: true },
+      });
+      await tx.auditLog.create({
+        data: {
+          tenantId,
+          actor: `user:${userId}`,
+          action: "facturita.producto_guardado",
+          entity: "Product",
+          entityId: p.id,
+          changes: { detalle: v.detalle, precio: v.precio, concepto: v.concepto },
+          channel: "admin",
+        },
+      });
+      return p;
+    },
+    { tenantId },
+  );
+  if (!r) return { ok: false, error: `Ya tenés ${MAX_ATAJOS} productos: sacá uno para guardar otro.` };
+  revalidatePath(PATH_APP);
+  const atajo = atajoDesdeProducto(r);
+  return atajo ? { ok: true, atajo } : { ok: false, error: "No se pudo guardar el producto." };
+}
+
+/** Saca un producto de la lista (baja lógica): las facturas ya emitidas no cambian. */
+export async function quitarAtajoFacturitaAction(productoId: unknown): Promise<{ ok: boolean }> {
+  const { tenantId, userId } = await requireTenantFacturita();
+  if (typeof productoId !== "string" || !productoId) return { ok: false };
+  const n = await tenantTransaction(
+    async (tx) => {
+      const r = await tx.product.updateMany({
+        where: { id: productoId, tenantId, deletedAt: null },
+        data: { active: false, deletedAt: new Date() },
+      });
+      if (r.count === 1) {
+        await tx.auditLog.create({
+          data: {
+            tenantId,
+            actor: `user:${userId}`,
+            action: "facturita.producto_quitado",
+            entity: "Product",
+            entityId: productoId,
+            channel: "admin",
+          },
+        });
+      }
+      return r.count;
+    },
+    { tenantId },
+  );
+  if (n === 1) revalidatePath(PATH_APP);
+  return { ok: n === 1 };
 }

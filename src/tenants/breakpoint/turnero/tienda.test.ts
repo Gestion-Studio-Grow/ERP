@@ -55,9 +55,17 @@ test("tienda: sin nombre, vacío, producto que no es de la tienda o celular mal 
 });
 
 test("modo pedido: club en blanco (sin turnos de ejemplo), horarios y precios de referencia, tienda local", async () => {
-  // Sin catálogo en el link no hay tienda (nada de productos ni precios de ejemplo).
+  // Sin catálogo en el link (el sitio publicado hoy): la tienda está, con los productos SIN precio (nada de precios
+  // de ejemplo), y el pedido sale con su código y sin precios ni total (lo pone el club al entregar).
   const sinCat = L.crearLocalPedido();
-  assert.equal((await sinCat.api("/api/tienda/catalogo")).productos.length, 0);
+  const cat0 = (await sinCat.api("/api/tienda/catalogo")).productos;
+  assert.ok(cat0.length > 0 && cat0.every((x: any) => x.precio === null), "productos sin precio");
+  const r0 = await sinCat.api("/api/tienda/pedidos", { metodo: "POST", cuerpo: { items: [{ productoId: "p1", cant: 2 }], nombre: "Sol" } });
+  assert.equal(r0.ok, true);
+  assert.equal(r0.pedido.total, null);
+  assert.ok(r0.pedido.items.every((i: any) => !("precioUnit" in i)));
+  assert.match(r0.mensaje, new RegExp(`2 × Tubo de pelotas \\(3\\)\\. El precio me lo confirman en el club\\. Soy Sol\\. Pedido ${r0.pedido.codigo}\\.`));
+  assert.doesNotMatch(r0.mensaje, /\$/);
   sinCat.cerrar();
   // Con el link del club: sus tarifas y sólo sus productos, a sus precios.
   const t = L.crearLocalPedido({ tarifas: [{ nombre: "Valle", desde: 480, hasta: 1560, precioHora: 30000 }], catalogo: { p1: 13000, p4: 5000 } });
@@ -82,6 +90,9 @@ test("modo pedido: club en blanco (sin turnos de ejemplo), horarios y precios de
 test("tienda.mjs: link de WhatsApp con y sin número, y catálogo agrupado por categoría", () => {
   assert.equal(T.linkPedido("5491100000000", "Hola & chau"), "https://wa.me/5491100000000?text=Hola%20%26%20chau");
   assert.equal(T.linkPedido("", "x"), "https://wa.me/?text=x");
+  assert.equal(T.linkInstagram("breakpointpadel_"), "https://ig.me/m/breakpointpadel_");
+  assert.equal(T.precioTexto(null), "Precio en el club");
+  assert.equal(T.precioTexto(12000), "$12.000");
   const g = T.porCategoria([{ id: "a", categoria: "Pelotas" }, { id: "b", categoria: "Bebidas" }, { id: "c", categoria: "Pelotas" }]);
   assert.deepEqual(g.map(([c, ps]: [string, any[]]) => [c, ps.map((p) => p.id)]), [["Pelotas", ["a", "c"]], ["Bebidas", ["b"]]]);
 });

@@ -531,10 +531,12 @@ function vistaBuffet() {
   const q = ui.busca.buffet ?? "";
   const lista = q ? abiertas.filter((c) => c.titular.toLowerCase().includes(q.toLowerCase())) : abiertas;
   return `<div class="stack">
-    ${pedidos.length ? `<section class="card" aria-labelledby="t-pedidos">
-      <div class="card-head"><h2 id="t-pedidos">Pedidos de la tienda para retirar (${pedidos.length})</h2></div>
-      <div style="display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(280px,1fr))">${pedidos.map(tarjetaPedido).join("")}</div>
-    </section>` : ""}
+    <section class="card" aria-labelledby="t-pedidos">
+      <div class="card-head"><h2 id="t-pedidos">Pedidos de la tienda para retirar (${pedidos.length})</h2>
+        <div class="row"><button type="button" class="btn" data-a="pegarPedido">Cargar pedido recibido por mensaje</button></div></div>
+      ${pedidos.length ? `<div style="display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(280px,1fr))">${pedidos.map(tarjetaPedido).join("")}</div>`
+        : `<p class="small muted" style="margin:0">No hay pedidos para retirar. Los que el cliente manda desde la tienda por WhatsApp o Instagram (con su código T-…) se cargan con «Cargar pedido recibido por mensaje» y se cobran al entregarlos.</p>`}
+    </section>
     ${mesas.length ? `<section class="card" aria-labelledby="t-mesas">
       <div class="card-head"><h2 id="t-mesas">Mesas que siguen cargando · cancha cerrada (${mesas.length})</h2></div>
       <p class="small muted" style="margin:0 0 10px">La cancha ya se cobró y quedó libre para el turno siguiente. Lo que piden ahora se suma a la mesa y se cobra cuando se van.</p>
@@ -542,7 +544,7 @@ function vistaBuffet() {
     </section>` : ""}
     <section class="card" aria-labelledby="t-buffet">
       <div class="card-head"><h2 id="t-buffet" class="pantalla">Buffet · cuentas abiertas (${abiertas.length})</h2>
-        <div class="row"><button type="button" class="btn primary" data-a="abrirConsumo">Abrir cuenta</button><button type="button" class="btn accent" data-a="mostrador">Venta rápida</button><button type="button" class="btn" data-a="pegarPedido">Pedido de la tienda por WhatsApp</button></div></div>
+        <div class="row"><button type="button" class="btn primary" data-a="abrirConsumo">Abrir cuenta</button><button type="button" class="btn accent" data-a="mostrador">Venta rápida</button></div></div>
       <p class="small muted" style="margin:0 0 10px">Los cargos del buffet son una cuenta aparte de la cancha: quedan abiertos a nombre del cliente y se cobran cuando se va, o pasan a su cuenta corriente.</p>
       <div class="search" style="max-width:360px;margin-bottom:10px"><label class="sr" for="busca-buffet">Buscar cuenta</label><input id="busca-buffet" data-busca="buffet" placeholder="Buscar por nombre" value="${esc(q)}"></div>
       <div style="display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(260px,1fr))">${lista.map(tarjetaCuenta).join("") || `<p class="empty">No hay cuentas abiertas.</p>`}</div>
@@ -1394,7 +1396,6 @@ function resumenTurno(r, t, cl) {
   }).join("");
   return `<section class="seccion cuenta-turno" aria-labelledby="ct-t">
     <h3 id="ct-t">Cuenta del turno ${abierto ? "" : `<span class="chip">Cancha cerrada · la mesa sigue</span>`}</h3>
-    <dl class="kv num totales-turno" aria-label="Totales del turno"><dt>Cancha</dt><dd>${M.pesos(T.cancha)}</dd><dt>Cargos</dt><dd>${M.pesos(T.cargos)}</dd><dt class="tot">Falta cobrar</dt><dd class="tot">${M.pesos(T.pendiente)}</dd></dl>
     ${hayAlgo ? pickMedios(true, cl) : ""}
     <ul class="filas-jug">${filas}</ul>
     ${t.deOtraMesa.length ? `<p class="small muted" style="margin:0">No se cobra acá: ${t.deOtraMesa.map((x) => `los cargos de ${esc(x.titular)} (${M.pesos(x.saldo)}) los paga ${esc(x.paga)} en su mesa`).join(" · ")}.</p>` : ""}
@@ -1456,7 +1457,8 @@ function verReserva(id) {
             <p class="small muted" style="margin:0">Cerrar la cancha no cierra los cargos: cada jugador sigue cargando y se cobra cuando se va.</p>
           </div>
           <div class="seccion">
-            <h3>Cargos de los jugadores</h3>
+            <h3>Sumar cargo del buffet</h3>
+            ${t.ok ? `<dl class="kv num totales-turno" aria-label="Saldo del turno"><dt>Cancha</dt><dd>${M.pesos(t.totales.cancha)}</dd><dt>Cargos</dt><dd>${M.pesos(t.totales.cargos)}</dd><dt class="tot">Falta cobrar</dt><dd class="tot">${M.pesos(t.totales.pendiente)}</dd></dl>` : ""}
             <div class="players">${r.jugadores.map((j, i) => {
               const cta = cuentasJug[i];
               const jc = j.clienteId ? M.cliente(E, j.clienteId) : null;
@@ -1467,9 +1469,10 @@ function verReserva(id) {
             }).join("")}</div>
             ${r.estado !== "cancelada" && r.estado !== "suspendida" && r.estado !== "no_show" ? `${buscadorProductos("turno")}
               <div class="row"><label class="sr" for="cant-turno">Cantidad</label><input id="cant-turno" type="number" min="1" value="1" style="max-width:80px">
+                <button type="button" class="btn primary" data-a="consumo" data-v="${r.id}" data-m="cancha" title="Se carga en la cuenta de ${esc(r.jugadores[0]?.nombre ?? r.titular)}, que paga la cancha">Sumar a la cancha</button>
                 <button type="button" class="btn" data-a="consumo" data-v="${r.id}" data-m="cuenta">Sumar a su cuenta</button>
                 <button type="button" class="btn accent" data-a="consumo" data-v="${r.id}" data-m="cobrar">Cobrar ahora</button></div>
-              <p class="small muted" style="margin:0">«Cobrar ahora» usa el medio elegido arriba (${M.MEDIOS[ui.medio === "monedero" ? "efectivo" : ui.medio]}).</p>` : ""}
+              <p class="small muted" style="margin:0">«Sumar a la cancha» lo carga en la cuenta de ${esc(r.jugadores[0]?.nombre ?? r.titular)} (el titular del turno); «Sumar a su cuenta», en la del jugador elegido. «Cobrar ahora» usa el medio elegido arriba (${M.MEDIOS[ui.medio === "monedero" ? "efectivo" : ui.medio]}).</p>` : ""}
             ${abierto && r.jugadores.length < 4 ? `<div class="row"><label class="sr" for="nuevo-jug">Jugador</label><input id="nuevo-jug" data-busca="jug" value="${esc(ui.busca.jug ?? "")}" placeholder="Sumar jugador (nombre, o buscá su ficha)" autocomplete="off" style="flex:1"><button type="button" class="btn sm" data-a="sumarJugador" data-v="${r.id}">Sumar</button></div>
               ${(ui.busca.jug ?? "").trim().length >= 2 ? `<div class="sug">${M.buscarClientes(E, ui.busca.jug).filter((c) => !r.jugadores.some((j) => j.clienteId === c.id)).slice(0, 5).map((c) => `<button type="button" data-a="sumarJugadorFicha" data-v="${r.id}" data-c="${c.id}">${esc(c.nombre)} <span class="small muted">· ficha${c.cc.habilitada ? " · cuenta corriente" : ""}${c.monedero ? ` · créditos ${M.pesos(c.monedero)}` : ""}</span></button>`).join("")}</div>` : ""}` : ""}
           </div>
@@ -2254,9 +2257,9 @@ const acciones = {
   },
   confirmarPedidoCuenta: (b) => cerrarSiSale(M.cargarPedidoACuenta(E, b.dataset.v, b.dataset.c, AHORA), "El pedido quedó en su cuenta de cargos."),
   pegarPedido: () => abrir({
-    titulo: "Pedido de la tienda por WhatsApp",
-    sub: "Pegá el mensaje tal como llegó (empieza con «Hola Break Point, quiero encargar…»).",
-    cuerpo: `<label class="f">Mensaje<textarea id="pd-texto" rows="5"></textarea></label>`,
+    titulo: "Cargar pedido recibido por mensaje",
+    sub: "Pegá el mensaje entero, tal como llegó por WhatsApp o Instagram (empieza con «Hola Break Point Pádel, quiero encargar…» y termina con el código T-…). Se cobra con tus precios al entregarlo.",
+    cuerpo: `<label class="f">Mensaje del cliente<textarea id="pd-texto" rows="5"></textarea></label>`,
     pie: `<button type="button" class="btn" data-a="cerrar">Cancelar</button><button type="button" class="btn primary" data-a="cargarPedidoPegado">Cargar el pedido</button>`,
     alAbrir(d) { $("#pd-texto", d).focus(); },
   }),
@@ -2494,9 +2497,12 @@ const acciones = {
   consumo: (b) => {
     const pid = ui.producto.turno;
     if (!pid) return toast("Buscá y elegí un producto.", { error: true });
-    const res = M.consumoJugador(E, b.dataset.v, acciones._jugadorSel?.() ?? 0, pid, Number(val("#cant-turno")) || 1, { modo: b.dataset.m, medio: ultimoMedio() }, AHORA);
+    // «Sumar a la cancha»: va a la cuenta del titular del turno (jugador 0), la misma cuenta de cargos de siempre.
+    const aLaCancha = b.dataset.m === "cancha";
+    const jugadorIdx = aLaCancha ? 0 : acciones._jugadorSel?.() ?? 0;
+    const res = M.consumoJugador(E, b.dataset.v, jugadorIdx, pid, Number(val("#cant-turno")) || 1, { modo: aLaCancha ? "cuenta" : b.dataset.m, medio: ultimoMedio() }, AHORA);
     if (res.ok) { ui.producto.turno = null; ui.busca.turno = ""; }
-    hecho(res, b.dataset.m === "cobrar" ? "Cargado y cobrado." : "Sumado a su cuenta.");
+    hecho(res, b.dataset.m === "cobrar" ? "Cargado y cobrado." : aLaCancha ? "Sumado a la cancha." : "Sumado a su cuenta.");
   },
   sumarJugador: (b) => { const res = M.sumarJugador(E, b.dataset.v, val("#nuevo-jug")); if (res.ok) ui.busca.jug = ""; hecho(res, "Jugador sumado."); },
   sumarJugadorFicha: (b) => { const res = M.sumarJugador(E, b.dataset.v, null, b.dataset.c); if (res.ok) ui.busca.jug = ""; hecho(res, "Jugador sumado con su ficha."); },

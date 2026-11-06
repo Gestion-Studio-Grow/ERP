@@ -11,15 +11,18 @@ const MODO_UI = {
   real: { texto: "ARCA · CAE en línea", dot: "bg-success-fill", pulsa: true },
   homologacion: { texto: "ARCA · homologación (sin validez fiscal)", dot: "bg-warning-fill", pulsa: false },
   stub: { texto: "ARCA · sin conectar", dot: "bg-warning-fill", pulsa: false },
+  noFactura: { texto: "ARCA · este negocio no factura", dot: "bg-danger-fill", pulsa: false },
 } as const;
 
 export default function ArcaPill({ estado }: { estado: EstadoFiscal }) {
-  const ui = MODO_UI[estado.modo] ?? MODO_UI.stub;
+  const ui = estado.noFactura ? MODO_UI.noFactura : (MODO_UI[estado.modo] ?? MODO_UI.stub);
   return (
     <span
       className="inline-flex items-center gap-2 whitespace-nowrap rounded-full border border-line bg-surface-raised px-3 py-1 text-xs font-medium text-muted shadow-xs"
       title={
-        estado.cuit
+        estado.noFactura
+          ? estado.noFactura
+          : estado.cuit
           ? `CUIT ${fmtCuit(estado.cuit)} · punto de venta ${estado.puntoVenta ?? "—"}`
           : "Sin CUIT cargado todavía"
       }

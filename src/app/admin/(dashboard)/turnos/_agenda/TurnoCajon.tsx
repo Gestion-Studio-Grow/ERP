@@ -31,12 +31,16 @@ import {
   type ResultadoAccion,
 } from "@/lib/actions";
 import { Cajon } from "@/components/ui/Cajon";
-import { Button, Input, Marca, Plata, Renglon, Seccion, atributosBoton, buttonClasses } from "@/components/ui";
-import { fmtTime } from "@/lib/datetime";
+import { Button, ButtonLink, Input, Marca, Plata, Renglon, Seccion, atributosBoton, buttonClasses } from "@/components/ui";
+import { fmtShortDate, fmtTime } from "@/lib/datetime";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
-import { ALIAS_SENIA_PROVISIONAL, mensajePedidoDeSenia } from "@/lib/turnos/mensajes-whatsapp";
+import { AVISO_CONTACTO_OCULTO, contactoOculto } from "@/lib/clientes/telefono";
+import { ALIAS_SENIA_PROVISIONAL, linkWhatsApp, mensajePedidoDeSenia, mensajeSaludo } from "@/lib/turnos/mensajes-whatsapp";
+import { puedeEditar } from "./barra-core";
+import { pagosDelTurno } from "./pagos-core";
 import { marcarSeniaPedida } from "@/lib/turnos/senia-actions";
 import { METODO_LABEL, type MetodoDePago } from "@/lib/turnos/cobros";
+import { ETIQUETA_DE_TARJETA } from "@/lib/turnos/cobro-con-producto";
 import {
   claseDeCobro,
   cobrosAnulables,
@@ -64,10 +68,13 @@ import {
   leerResultado,
 } from "./campos";
 import CobrarTurno from "./CobrarTurno";
+import FijarPrecioDelTurno from "./FijarPrecioDelTurno";
 import TerminarTurno from "./TerminarTurno";
 import MoverTurno from "./MoverTurno";
 import LlegoLaSenia from "./LlegoLaSenia";
 import AutorizarAnulacion from "./AutorizarAnulacion";
+import ListoDelCobro from "./ListoDelCobro";
+import type { CobroHecho } from "@/lib/turnos/cobro-del-cajon";
 import { separarNota } from "@/lib/reserva-publica-notas";
 
 /**
@@ -266,6 +273,7 @@ export default function TurnoCajon({
   hrefFicha,
   onCerrar,
   onCerrarSinPrestar,
+  onEditar,
 }: {
   turno: TurnoDelDia | null;
   permisos: Permisos;
@@ -276,6 +284,8 @@ export default function TurnoCajon({
   onCerrar: () => void;
   /** Abre la hoja de cancelar / «no vino» (la tiene la mesa). */
   onCerrarSinPrestar: (accion: CierreSinPrestar) => void;
+  /** Agenda interactiva: abre la hoja «Editar» de la mesa. Sin él, no hay «Editar». */
+  onEditar?: (turnoId: string) => void;
 }) {
   const reloj = new Date(ahora);
   const { pendiente, correr } = useAccionSimple();
@@ -283,6 +293,8 @@ export default function TurnoCajon({
   // Acá arriba y no en el botón de anular: el cobro anulado deja de ofrecer el botón y el aviso se iría con él.
   // Con el turno al lado: el cajón es el mismo para todos los turnos, y el aviso es de uno.
   const [avisoAlAnular, setAvisoAlAnular] = useState<{ turnoId: string; texto: string } | null>(null);
+  // Venta y agenda simples: lo recién cobrado, para el «Listo ✓» (del turno abierto, no de otro).
+  const [cobrado, setCobrado] = useState<{ turnoId: string; cobro: CobroHecho; vino: boolean } | null>(null);
   const t = turno;
   if (!t) return null;
   const avisoDeComision = avisoAlAnular?.turnoId === t.id ? avisoAlAnular.texto : "";
@@ -293,7 +305,10 @@ export default function TurnoCajon({
   const vivo = t.estado === "PENDING" || t.estado === "CONFIRMED";
   const cobraEste = permisos.cobrar && t.veredicto.ok;
   // E5: el próximo turno, con su ciclo y el mismo servicio, a mano en la ficha y en el aviso de terminado (U8).
-  const proximo = permisos.practica && permisos.gestionar ? `/admin/turnos/proximo/${t.id}` : null;
+  // Venta y agenda simples: el «¿Le damos el próximo?» del Listo ✓ sale en todas las vistas (también
+  // Calendario, que no lee `practica`). Apagado, como siempre.
+  const proximo = (permisos.practica || permisos.ventaSimple) && permisos.gestionar ? `/admin/turnos/proximo/${t.id}` : null;
+  const cobradoEste = cobrado?.turnoId === t.id ? cobrado : null;
   // Quién anula (orden del dueño): la dueña, recepción con su código; la profesional, no.
   const anular = cobraEste ? permisos.anular : null;
   const anulables = new Set(
@@ -331,6 +346,37 @@ export default function TurnoCajon({
     // La seña de un Reservado ya la cobra «Llegó la seña» (que además confirma): no dos teclas.
     !llegoLaSenia;
 
+  // La tecla «Anular» de un cobro (la lista de siempre y, con la agenda interactiva, «Pagos»).
+  const teclaAnular = (cobroId: string | undefined, medio: string) =>
+    cobroId && anulables.has(cobroId) && anular ? (
+      <ConMotivo
+        etiqueta="Anular"
+        pregunta={`¿Anular el cobro de ${medio.toLowerCase()}?`}
+        verbo="Sí, anular"
+        placeholder="Por qué (cobré por el medio equivocado…)"
+        pideCodigo={anular === "con-autorizacion"}
+        hacer={async (motivo, codigo) => {
+          const r = await anularCobroTurno(
+            aFormData(
+              camposDeAnular({
+                cobroId,
+                turnoId: t.id,
+                motivo,
+                codigo,
+              }),
+            ),
+          );
+          if (r.ok && r.aviso) setAvisoAlAnular({ turnoId: t.id, texto: r.aviso });
+          return r;
+        }}
+      />
+    ) : undefined;
+  // Agenda interactiva: WhatsApp arriba de todo y «Editar»; la plata como «Pagos».
+  const interaccion = !!permisos.interaccion;
+  const saludo = interaccion ? linkWhatsApp(t.telefono, mensajeSaludo(t.clienta)) : null;
+  const editable = interaccion && !!onEditar && puedeEditar(t, permisos, reloj);
+  const pagos = interaccion ? pagosDelTurno(t) : null;
+
   return (
     <Cajon
       abierto
@@ -344,6 +390,39 @@ export default function TurnoCajon({
       descripcion={`${t.servicio} · ${minutosEntre(t.inicio, t.fin)}′ · ${t.profesional}${t.box ? ` · ${t.box}` : ""}`}
     >
       <div className="space-y-6">
+        {interaccion && (
+          <div className="flex flex-wrap items-center gap-2" data-parte="arriba-del-turno">
+            {saludo ? (
+              <ButtonLink
+                href={saludo}
+                target="_blank"
+                rel="noopener noreferrer"
+                size="sm"
+                className="min-h-11"
+                style={{ minHeight: "2.75rem" }}
+                aria-label={`WhatsApp a ${t.clienta} (se abre en otra pestaña)`}
+              >
+                WhatsApp
+              </ButtonLink>
+            ) : (
+              <span className="text-sm text-muted">Sin celular cargado</span>
+            )}
+            {editable && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="min-h-11"
+                style={{ minHeight: "2.75rem" }}
+                aria-haspopup="dialog"
+                aria-label={`Editar el turno de ${t.clienta}`}
+                onClick={() => onEditar?.(t.id)}
+              >
+                Editar
+              </Button>
+            )}
+          </div>
+        )}
         <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <Marca tipo={marca.tipo}>{marca.texto}</Marca>
           {t.avisadaEl && (
@@ -375,7 +454,9 @@ export default function TurnoCajon({
             detalle={
               wa
                 ? undefined
-                : "No es un celular válido: corregilo en su ficha para escribirle."
+                : contactoOculto(t.telefono)
+                  ? AVISO_CONTACTO_OCULTO
+                  : "No es un celular válido: corregilo en su ficha para escribirle."
             }
             tecla={
               hrefFicha ? (
@@ -460,10 +541,23 @@ export default function TurnoCajon({
           </Seccion>
         )}
 
-        {cierra && (
+        {cobradoEste && (
+          <ListoDelCobro cobro={cobradoEste.cobro} proximo={cobradoEste.vino ? null : proximo} onCerrar={onCerrar} />
+        )}
+
+        {t.precioADefinir && cobraEste && t.estado !== "NO_SHOW" && t.estado !== "CANCELLED" && !cobradoEste && (
+          <Seccion titulo="Precio a definir">
+            <div className="pt-3">
+              <FijarPrecioDelTurno key={t.id} turnoId={t.id} servicio={t.servicio} />
+            </div>
+          </Seccion>
+        )}
+
+        {cierra && !cobradoEste && (
           <Seccion titulo={t.estado === "PENDING" ? "Vino" : "Terminar"}>
             <div className="pt-3">
               <TerminarTurno
+                key={t.id}
                 turnoId={t.id}
                 clienta={t.clienta}
                 estado={t.estado}
@@ -471,6 +565,14 @@ export default function TurnoCajon({
                 puedeCobrar={cobraEste}
                 motivoSinCobro={t.veredicto.ok ? undefined : t.veredicto.motivo}
                 proximo={proximo}
+                conProductos={permisos.cobroConProducto}
+                {...(permisos.ventaSimple
+                  ? {
+                      alCobrar: (cobro: CobroHecho) => setCobrado({ turnoId: t.id, cobro, vino: t.estado === "PENDING" }),
+                      telefono: t.telefono,
+                      servicio: t.servicio,
+                    }
+                  : {})}
                 onListo={onCerrar}
               />
             </div>
@@ -498,7 +600,7 @@ export default function TurnoCajon({
           </p>
         )}
 
-        {proximo && t.estado === "COMPLETED" && (
+        {proximo && t.estado === "COMPLETED" && !cobradoEste && (
           <div className="pt-1">
             <Link href={proximo} className={buttonClasses("outline", "md", "w-full")} {...atributosBoton("outline", "md")}>
               Reservar el próximo
@@ -506,7 +608,8 @@ export default function TurnoCajon({
           </div>
         )}
 
-        {permisos.sumarProducto && turnoAdmiteProducto(t.estado) && (
+        {/* Venta y agenda simples: si «Terminar» ya suma productos al cobro, el enlace a Pedidos sobra. */}
+        {permisos.sumarProducto && turnoAdmiteProducto(t.estado) && !(permisos.cobroConProducto && cierra && cobraEste) && (
           <div className="pt-1">
             <Link href={hrefSumarProducto(t.id)} className={buttonClasses("outline", "md", "w-full")} {...atributosBoton("outline", "md")}>
               Sumar un producto
@@ -515,13 +618,77 @@ export default function TurnoCajon({
           </div>
         )}
 
+        {pagos && (
+          <Seccion titulo="Pagos" nota={pagos.renglones.length || undefined}>
+            {avisoDeComision && (
+              <p role="status" className="my-2 rounded-md bg-surface-sunken px-3 py-2 text-sm text-strong">
+                {avisoDeComision}
+              </p>
+            )}
+            {pagos.vacio ? (
+              <p className="py-3 text-sm text-muted">Todavía no pagó nada.</p>
+            ) : (
+              <ul aria-label="Pagos del turno">
+                {pagos.renglones.map((r) => (
+                  <li key={r.clave} data-anulado={r.anulado || undefined}>
+                    <Renglon
+                      folio={r.cuando ? `${fmtShortDate(r.cuando).slice(0, 5)} ${fmtTime(r.cuando)}` : "—"}
+                      titulo={r.anulado ? <s>{`${r.medio} · ${r.tipo}`}</s> : `${r.medio} · ${r.tipo}`}
+                      detalle={[r.anulado ? "Anulado" : null, r.quien ? `Cobró ${r.quien}` : null].filter(Boolean).join(" · ") || undefined}
+                      plata={
+                        r.anulado ? (
+                          <s>
+                            <Plata valor={r.monto} sinCentavos={Number.isInteger(r.monto)} />
+                          </s>
+                        ) : (
+                          <Plata valor={r.monto} sinCentavos={Number.isInteger(r.monto)} />
+                        )
+                      }
+                      tecla={r.anulado ? undefined : teclaAnular(r.clave, r.medio)}
+                    />
+                    {!r.anulado && anulables.has(r.clave) && anular === "directa" && (
+                      <div className="flex justify-end border-b border-line pb-2">
+                        <AutorizarAnulacion cobroId={r.clave} turnoId={t.id} />
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+            <Renglon
+              folio="Total"
+              titulo="Total pagado"
+              plata={<Plata valor={pagos.totalPagado} sinCentavos={Number.isInteger(pagos.totalPagado)} tono={pagos.totalPagado > 0 ? "cobrado" : undefined} />}
+            />
+            <Renglon folio="Precio" titulo="Precio del turno" plata={<Plata valor={pagos.precio} sinCentavos={Number.isInteger(pagos.precio)} />} />
+            {pagos.deBaja > 0 && (
+              <Renglon
+                folio="De baja"
+                titulo="Saldo dado de baja"
+                detalle="No se va a cobrar; no es plata que entró."
+                plata={<Plata valor={pagos.deBaja} sinCentavos={Number.isInteger(pagos.deBaja)} />}
+              />
+            )}
+            {pagos.falta > 0 ? (
+              <Renglon
+                folio="Falta"
+                titulo="Falta cobrar"
+                plata={<Plata valor={pagos.falta} sinCentavos={Number.isInteger(pagos.falta)} tono={t.cuentaACobrar ? "peligro" : undefined} />}
+              />
+            ) : (
+              <Renglon folio="Falta" titulo="Pagado ✓" plata="—" />
+            )}
+          </Seccion>
+        )}
+
+        {!pagos && (
         <Seccion titulo="La plata">
           {/* O-3: el folio dice qué es; el título, en criollo, de dónde sale. O-4: CH cobra en
               pesos sin centavos: «$14.000», como el botón y el WhatsApp (con centavos sólo si los hay). */}
           <Renglon
             folio="Precio"
-            titulo="Fijo desde la reserva"
-            plata={<Plata valor={t.precio} sinCentavos={Number.isInteger(t.precio)} />}
+            titulo={t.precioADefinir ? "A definir: se carga al cobrar" : "Fijo desde la reserva"}
+            plata={t.precioADefinir ? <span className="text-sm text-muted">A definir</span> : <Plata valor={t.precio} sinCentavos={Number.isInteger(t.precio)} />}
           />
           <Renglon
             folio="Entró"
@@ -562,8 +729,9 @@ export default function TurnoCajon({
             }
           />
         </Seccion>
+        )}
 
-        {t.cobros.length > 0 && (
+        {!pagos && t.cobros.length > 0 && (
           <Seccion titulo="Cobros" nota={t.cobros.length}>
             {avisoDeComision && (
               <p role="status" className="my-2 rounded-md bg-surface-sunken px-3 py-2 text-sm text-strong">
@@ -574,7 +742,7 @@ export default function TurnoCajon({
               {t.cobros.map((c, i) => {
                 const clase = claseDeCobro(c.note);
                 const medio =
-                  METODO_LABEL[c.method as MetodoDePago] ?? c.method;
+                  METODO_LABEL[c.method as MetodoDePago] ?? ETIQUETA_DE_TARJETA[c.method] ?? c.method;
                 // Debajo del renglón y no en su tecla: en el cajón de 480 px dos botones al lado
                 // del importe dejaban el medio en «E…».
                 const autoriza =
@@ -609,34 +777,7 @@ export default function TurnoCajon({
                           sinCentavos={Number.isInteger(c.amount)}
                         />
                       }
-                      tecla={
-                        clase === "cobro" &&
-                        c.id &&
-                        anulables.has(c.id) &&
-                        anular ? (
-                          <ConMotivo
-                            etiqueta="Anular"
-                            pregunta={`¿Anular el cobro de ${medio.toLowerCase()}?`}
-                            verbo="Sí, anular"
-                            placeholder="Por qué (cobré por el medio equivocado…)"
-                            pideCodigo={anular === "con-autorizacion"}
-                            hacer={async (motivo, codigo) => {
-                              const r = await anularCobroTurno(
-                                aFormData(
-                                  camposDeAnular({
-                                    cobroId: c.id!,
-                                    turnoId: t.id,
-                                    motivo,
-                                    codigo,
-                                  }),
-                                ),
-                              );
-                              if (r.ok && r.aviso) setAvisoAlAnular({ turnoId: t.id, texto: r.aviso });
-                              return r;
-                            }}
-                          />
-                        ) : undefined
-                      }
+                      tecla={clase === "cobro" ? teclaAnular(c.id, medio) : undefined}
                     />
                     {autoriza && (
                       <div className="flex justify-end border-b border-line pb-2">

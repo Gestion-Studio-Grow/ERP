@@ -160,6 +160,8 @@ export interface DatosConexion {
   etiqueta?: string | null;
   /** Quién la conectó (id de usuario o "cli"): va a `conectadaPor` y a `cargadaPor`. */
   conectadaPor?: string;
+  /** Vencimiento por campo (OAuth: el access token): va a `IntegracionCredencial.expiraEn`. */
+  vencen?: Record<string, Date>;
 }
 
 export interface DepsConexiones {
@@ -244,10 +246,21 @@ export async function crearConexion(
         // abrir la transacción (sin ella no se escribe nada); sellar es sólo memoria.
         sellados = sellar(conexionId);
         if (unaPorNegocio) {
-          await tx.integracionConexion.updateMany({
-            where: { tenantId, conector: conector.id, estado: { not: "desconectada" }, id: { not: conexionId } },
-            data: { estado: "desconectada" },
-          });
+          // Las reemplazadas no guardan secretos (sus credenciales se borran con sus DEK) ni retienen
+          // la cuenta externa: otra conexión (de este u otro negocio) puede volver a usarla.
+          const reemplazadas = (
+            await tx.integracionConexion.findMany({
+              where: { tenantId, conector: conector.id, id: { not: conexionId } },
+              select: { id: true },
+            })
+          ).map((r) => r.id);
+          if (reemplazadas.length > 0) {
+            await tx.integracionCredencial.deleteMany({ where: { tenantId, conexionId: { in: reemplazadas } } });
+            await tx.integracionConexion.updateMany({
+              where: { tenantId, id: { in: reemplazadas } },
+              data: { estado: "desconectada", rutaHash: null, cuentaExterna: null, tokenVersion: { increment: 1 } },
+            });
+          }
         }
         if (reconectada) {
           await tx.integracionConexion.updateMany({
@@ -285,6 +298,7 @@ export async function crearConexion(
             campo: s.campo,
             ...s.sobre,
             ultimos4: s.ultimos4,
+            expiraEn: datos.vencen?.[s.campo] ?? null,
             cargadaPor: quien,
           })),
         });
@@ -362,6 +376,164 @@ export async function leerCredencial(
   if (!fila) return null;
   const sobre: SobreSecreto = { kekId: fila.kekId, wrappedDek: fila.wrappedDek, sealed: fila.sealed };
   return abrirSecreto(sobre, { tenantId, conexionId, campo }, claveMaestra(deps.env ?? process.env));
+}
+
+/**
+ * Baja de la conexión activa de un conector en UN negocio: queda "desconectada" (la fila se
+ * conserva: IntegracionUso la referencia) y sus credenciales se BORRAN con sus DEK, así que el
+ * secreto deja de existir en la base. Sin ruta (`rutaHash` null) y con `tokenVersion` nuevo: un
+ * refresh en vuelo no la revive. Devuelve cuántas conexiones bajó (0 si no había ninguna).
+ */
+export async function darDeBajaConexion(tenantId: string, conectorId: string): Promise<number> {
+  exigirTenant(tenantId);
+  return tenantTransaction(
+    async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`integracion-conexion:${tenantId}:${conectorId}`}))`;
+      // TODAS las del conector, también las ya bajadas: ningún secreto viejo sobrevive a la baja.
+      const todas = await tx.integracionConexion.findMany({
+        where: { tenantId, conector: conectorId },
+        select: { id: true, estado: true },
+      });
+      if (todas.length === 0) return 0;
+      const ids = todas.map((a) => a.id);
+      await tx.integracionCredencial.deleteMany({ where: { tenantId, conexionId: { in: ids } } });
+      // Sin cuenta externa: la misma cuenta se puede volver a conectar (acá o en otro negocio).
+      await tx.integracionConexion.updateMany({
+        where: { tenantId, id: { in: ids } },
+        data: { estado: "desconectada", rutaHash: null, cuentaExterna: null, tokenVersion: { increment: 1 } },
+      });
+      return todas.filter((a) => a.estado !== "desconectada").length;
+    },
+    { tenantId },
+  );
+}
+
+/** La versión de las credenciales de una conexión (para renovar sin pisar) y el vencimiento de un campo. */
+export async function versionDeCredenciales(
+  tenantId: string,
+  conexionId: string,
+  campo: string,
+): Promise<{ tokenVersion: number; expiraEn: Date | null } | null> {
+  exigirTenant(tenantId);
+  return tenantTransaction(
+    async (tx) => {
+      const c = await tx.integracionConexion.findFirst({ where: { tenantId, id: conexionId }, select: { tokenVersion: true } });
+      if (!c) return null;
+      const cred = await tx.integracionCredencial.findFirst({ where: { tenantId, conexionId, campo }, select: { expiraEn: true } });
+      return { tokenVersion: c.tokenVersion, expiraEn: cred?.expiraEn ?? null };
+    },
+    { tenantId },
+  );
+}
+
+/** Lo que devuelve la función que le pide la renovación al proveedor (`renovarConexionOAuth`). */
+export type PedidoDeRenovacion =
+  /** El proveedor renovó: estas credenciales reemplazan a las vigentes. */
+  | { tipo: "renovado"; valores: Record<string, { valor: string; expiraEn?: Date | null }> }
+  /** El proveedor dijo que no al refresh: la persona tiene que volver a conectar. */
+  | { tipo: "rechazado" }
+  /** Falló sin culpa del permiso (red, 5xx, respuesta rara): no se toca nada. */
+  | { tipo: "fallo" };
+
+export type ResultadoRenovacion = "no_hacia_falta" | "renovado" | "otro_renovo" | "fallo";
+
+/** Tope de la transacción que sostiene el candado: el pedido al proveedor corta antes (10 s en MP). */
+const TOPE_RENOVACION_MS = 30_000;
+/** Cuánto espera el perdedor a que el ganador termine; después sigue con el token que hay. */
+const ESPERA_CANDADO_RENOVACION_MS = 15_000;
+/** Cuánto espera el renovador el candado de alta/baja: 15 + 10 (MP) + 5 queda dentro del tope. */
+const ESPERA_CANDADO_CONEXION_MS = 5_000;
+
+/**
+ * Renovación OAuth en exclusión mutua. UN candado transaccional por negocio y conector
+ * (`integracion-renovacion:…`, distinto del de alta/baja) cubre TODO el ciclo: releer → pedir al
+ * proveedor → guardar, en UNA sola conexión de la base. Gana un solo renovador; el que llega
+ * después espera al ganador, relee y, como la versión ya cambió, NO llama al proveedor
+ * («otro_renovo»): sigue con el token que dejó el ganador. Así nunca se manda dos veces el mismo
+ * refresh_token (si el proveedor lo rota, el segundo pedido lo rechazaría y la conexión quedaría
+ * «requiere_reconectar» sin motivo).
+ *
+ * `versionVista` es la que leyó el que llama antes del candado: si cambió, alguien renovó o
+ * reconectó en el medio. Al guardar se toma además el candado de alta/baja (siempre en este orden:
+ * renovación → conexión; el alta y la baja sólo toman el segundo, sin abrazo mortal) y se hace
+ * compare-and-set de `tokenVersion`: una reconexión o una baja en el medio ganan y lo renovado se
+ * descarta. Si `pedir` lanza, la transacción se deshace y el error sube.
+ */
+export async function renovarConexionOAuth(
+  tenantId: string,
+  conectorId: string,
+  conexionId: string,
+  p: {
+    versionVista: number;
+    campoVence: string;
+    campoRefresh: string;
+    hayQueRenovar: (expiraEn: Date | null) => boolean;
+    pedir: (refresh: string) => Promise<PedidoDeRenovacion>;
+  },
+  deps: DepsConexiones = {},
+): Promise<ResultadoRenovacion> {
+  exigirTenant(tenantId);
+  const clave = claveMaestra(deps.env ?? process.env);
+  return tenantTransaction(
+    async (tx): Promise<ResultadoRenovacion> => {
+      await tx.$executeRaw`SELECT set_config('lock_timeout', ${String(ESPERA_CANDADO_RENOVACION_MS)}, true)`;
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`integracion-renovacion:${tenantId}:${conectorId}`}))`;
+      // Releer con el candado tomado: lo que se leyó antes puede ser de un reclamo ajeno.
+      const c = await tx.integracionConexion.findFirst({
+        where: { tenantId, id: conexionId },
+        select: { tokenVersion: true, estado: true },
+      });
+      if (!c || c.estado === "desconectada") return "no_hacia_falta";
+      if (c.tokenVersion !== p.versionVista) return "otro_renovo";
+      const vence = await tx.integracionCredencial.findFirst({
+        where: { tenantId, conexionId, campo: p.campoVence },
+        select: { expiraEn: true },
+      });
+      if (!p.hayQueRenovar(vence?.expiraEn ?? null)) return "no_hacia_falta";
+      const fila = await tx.integracionCredencial.findFirst({
+        where: { tenantId, conexionId, campo: p.campoRefresh },
+        select: { kekId: true, wrappedDek: true, sealed: true },
+      });
+      if (!fila) return "no_hacia_falta";
+      const refresh = abrirSecreto(
+        { kekId: fila.kekId, wrappedDek: fila.wrappedDek, sealed: fila.sealed },
+        { tenantId, conexionId, campo: p.campoRefresh },
+        clave,
+      );
+
+      const r = await p.pedir(refresh);
+      if (r.tipo === "fallo") return "fallo";
+      if (r.tipo === "rechazado") {
+        await tx.integracionConexion.updateMany({
+          where: { tenantId, id: conexionId, tokenVersion: p.versionVista, estado: { not: "desconectada" } },
+          data: { estado: "requiere_reconectar", fallosSeguidos: { increment: 1 } },
+        });
+        return "fallo";
+      }
+      const sellados = Object.entries(r.valores).map(([campo, { valor, expiraEn }]) => {
+        if (!RE_CAMPO.test(campo) || typeof valor !== "string" || valor.trim() === "" || valor.length > LARGO_MAXIMO_SECRETO) {
+          throw new ConexionError("datos_invalidos", `La credencial "${campo.slice(0, 64)}" es inválida.`);
+        }
+        return { campo, sobre: cerrarSecreto(valor, { tenantId, conexionId, campo }, clave), ultimos4: ultimos4(valor), expiraEn: expiraEn ?? null };
+      });
+      // El mismo candado que el alta y la baja, y compare-and-set: si alguien tocó la conexión, gana él.
+      await tx.$executeRaw`SELECT set_config('lock_timeout', ${String(ESPERA_CANDADO_CONEXION_MS)}, true)`;
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`integracion-conexion:${tenantId}:${conectorId}`}))`;
+      const vigente = await tx.integracionConexion.updateMany({
+        where: { tenantId, id: conexionId, tokenVersion: p.versionVista, estado: { not: "desconectada" } },
+        data: { tokenVersion: { increment: 1 }, fallosSeguidos: 0, estado: "conectada" },
+      });
+      if (vigente.count !== 1) return "otro_renovo";
+      for (const s of sellados) {
+        await tx.integracionCredencial.updateMany({
+          where: { tenantId, conexionId, campo: s.campo },
+          data: { ...s.sobre, ultimos4: s.ultimos4, expiraEn: s.expiraEn, cargadaPor: "renovacion-oauth" },
+        });
+      }
+      return "renovado";
+    },
+    { tenantId, timeoutMs: TOPE_RENOVACION_MS },
+  );
 }
 
 // ── Resolución ───────────────────────────────────────────────────────────────

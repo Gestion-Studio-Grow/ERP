@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireApp } from "@/lib/require-app";
-import { requireCapability } from "@/lib/authz";
+import { requireCapabilityFueraDeLaAgenda } from "@/lib/authz";
 import { reciboAdmin } from "@/lib/inmobiliaria/datos.server";
 import { origenDelSitio } from "@/lib/inmobiliaria/sitio.server";
 import { marcaInmo } from "@/lib/inmobiliaria/marca";
@@ -20,7 +20,7 @@ export const metadata = { title: "Inmobiliaria · Recibo" };
 
 export default async function ReciboDeCobro({ params }: { params: Promise<{ pagoId: string }> }) {
   await requireApp("inmobiliaria");
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const { pagoId } = await params;
   const [origen, slug, tenantId] = await Promise.all([origenDelSitio(), getCurrentTenantSlug(), getCurrentTenantId()]);
   const d = await reciboAdmin(pagoId, origen);

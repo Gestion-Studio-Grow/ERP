@@ -27,7 +27,7 @@ import { revalidatePath } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 import { tenantTransaction } from "@/lib/rls";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { AppNoDisponibleError, requireAppAccion } from "@/lib/require-app";
 import { auditAdmin } from "@/lib/audit-core";
 import { logger } from "@/lib/logger";
@@ -56,7 +56,7 @@ export async function registrarDespiece(_prev: EstadoDespiece, formData: FormDat
   try {
     const user = await requireAppAccion("despiece");
     // La pieza sale del stock y los cortes entran con costo: es un ajuste de stock y fija costos.
-    if (!roleHasCapability(user.role, "stock:adjust") || !roleHasCapability(user.role, "costs:read")) {
+    if (!permisoEfectivo(user, "stock:adjust") || !permisoEfectivo(user, "costs:read")) {
       return { ok: false, error: "Tu usuario no puede registrar despieces. Pedíselo a la dueña o al dueño." };
     }
     const piezaId = String(formData.get("inputProductId") ?? "").trim();

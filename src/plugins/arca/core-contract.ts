@@ -85,6 +85,13 @@ export interface InvoiceCreatedEvent {
    * adopta (la respuesta se había perdido) y no se emite un segundo comprobante.
    */
   intentoArca?: IntentoArca;
+  /**
+   * PR3 · Umbral propio del motor para identificar al consumidor final, en pesos, YA resuelto por
+   * el Core con sus parámetros fiscales y el medio de pago (sin medio conocido, el más exigente).
+   * `null` o sin dato: sólo rige el umbral legal. El plugin no lee los parámetros del Core: lo
+   * recibe acá, como los montos (ADR-022, D4).
+   */
+  umbralIdentificacionDelMotor?: number | null;
 }
 
 /** ENG-020 · Número pedido a ARCA, anotado ANTES de mandar el pedido. */

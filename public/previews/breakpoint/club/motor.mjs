@@ -3838,11 +3838,16 @@ export function contactosCSV(lista) {
 
 // ───────────────────────── tienda (encargos por la web, se retiran y pagan en el club) ─────────────────────────
 
-/** Lo que se ve en la tienda: productos marcados para la tienda, activos y con stock. Sin costos ni códigos. */
+/**
+ * Lo que se ve en la tienda: productos marcados para la tienda, activos y con stock. Sin costos ni códigos.
+ * Con `config.tiendaSinPrecios` (sitio publicado sin el catálogo del club: nada de precios de ejemplo a un cliente
+ * real) el precio va en null: el club lo pone al entregar, con SU lista.
+ */
 export function catalogoTienda(estado) {
+  const sinPrecios = Boolean(estado.config?.tiendaSinPrecios);
   return estado.productos
     .filter((p) => p.tienda && p.activo !== false && !p.alquiler && !p.plato && (p.stock == null || p.stock > 0))
-    .map((p) => ({ id: p.id, nombre: p.nombre, categoria: p.categoria, precio: p.precio, pocas: p.stock != null && p.stock <= Math.max(2, p.minimo ?? 0) }));
+    .map((p) => ({ id: p.id, nombre: p.nombre, categoria: p.categoria, precio: sinPrecios ? null : p.precio, pocas: p.stock != null && p.stock <= Math.max(2, p.minimo ?? 0) }));
 }
 
 export function nuevoCodigoPedido(estado, azar = Math.random) {
@@ -3852,66 +3857,124 @@ export function nuevoCodigoPedido(estado, azar = Math.random) {
   return s;
 }
 
-const listaPedido = (items) => items.map((i) => `${i.cant} × ${i.nombre} ${pesos(i.cant * i.precioUnit)}`).join(" · ");
+const listaPedido = (items, conPrecios = true) => items.map((i) => `${i.cant} × ${i.nombre}${conPrecios ? ` ${pesos(i.cant * i.precioUnit)}` : ""}`).join(" · ");
 
 /**
  * El cliente encarga desde la web. No descuenta stock (se descuenta al entregar, que es cuando se cobra) y no
  * mueve caja: el pedido queda pendiente para que el club lo prepare. Devuelve el mensaje para WhatsApp.
  */
-export function crearPedidoTienda(estado, { items, nombre, tel = "", origen = "web" }, ahora) {
+export function crearPedidoTienda(estado, { items, nombre, tel = "", origen = "web", codigo = null }, ahora) {
   estado.pedidos ??= [];
   const quien = String(nombre ?? "").trim().slice(0, 60);
   if (!quien) return { ok: false, motivo: "Poné tu nombre para el pedido." };
+  // Un renglón por producto: «2 × Muñequera · 3 × Muñequera» queda como 5 × Muñequera, y el stock se mira con
+  // lo sumado (renglón por renglón dejaba pasar más de lo que hay).
   const lineas = [];
   for (const { productoId, cant } of items ?? []) {
     const p = producto(estado, productoId);
-    const n = Math.round(Number(cant));
+    const n = Number(cant);
     if (!p || !p.tienda || p.activo === false || p.alquiler || p.plato) return { ok: false, motivo: "Hay un producto que no está en la tienda." };
-    if (!(n > 0)) continue;
-    if (p.stock != null && p.stock < n) return { ok: false, motivo: `De ${p.nombre} quedan ${p.stock}.` };
-    lineas.push({ productoId: p.id, nombre: p.nombre, cant: n, precioUnit: p.precio });
+    if (!Number.isInteger(n) || n <= 0) return { ok: false, motivo: `La cantidad de ${p.nombre} tiene que ser un número entero mayor a cero.` };
+    const ya = lineas.find((l) => l.productoId === p.id);
+    if (ya) ya.cant += n;
+    else lineas.push({ productoId: p.id, nombre: p.nombre, cant: n, precioUnit: p.precio });
   }
   if (!lineas.length) return { ok: false, motivo: "El pedido está vacío." };
+  for (const l of lineas) {
+    const p = producto(estado, l.productoId);
+    if (p.stock != null && p.stock < l.cant) return { ok: false, motivo: `De ${p.nombre} quedan ${p.stock}.` };
+  }
   const total = lineas.reduce((s, i) => s + i.cant * i.precioUnit, 0);
-  const pedido = { id: nuevoId("pd"), codigo: nuevoCodigoPedido(estado), items: lineas, total, nombre: quien, tel: String(tel ?? "").trim().slice(0, 30), origen, estado: "pendiente", ...sello(ahora) };
+  const pedido = { id: nuevoId("pd"), codigo: codigo ?? nuevoCodigoPedido(estado), items: lineas, total, nombre: quien, tel: String(tel ?? "").trim().slice(0, 30), origen, estado: "pendiente", ...sello(ahora) };
   estado.pedidos.push(pedido);
   registrar(estado, `Pedido de la tienda ${pedido.codigo} de ${quien}: ${pesos(total)}.`, ahora);
-  return { ok: true, pedido, mensaje: mensajeWhatsApp("pedidoTienda", { lista: listaPedido(lineas), total: pesos(total), nombre: quien, tel: pedido.tel, codigo: pedido.codigo }) };
+  const conPrecios = !estado.config?.tiendaSinPrecios;
+  return { ok: true, pedido, mensaje: mensajeWhatsApp("pedidoTienda", { lista: listaPedido(lineas, conPrecios), total: conPrecios ? pesos(total) : null, nombre: quien, tel: pedido.tel, codigo: pedido.codigo }) };
 }
 
 /**
- * El club pega el mensaje de WhatsApp que mandó el cliente desde la tienda (con el celular del cliente no hay
- * conexión con la compu del club): se leen los productos, el nombre y el código, y queda como pedido pendiente.
+ * El club pega el mensaje que mandó el cliente desde la tienda, por WhatsApp o por Instagram (con el celular del
+ * cliente no hay conexión con la compu del club): se leen los productos, el nombre y el código, y queda como pedido
+ * pendiente. Los renglones pueden venir con precio («2 × Agua 500 ml $4.000») o sin él («2 × Agua 500 ml», sitio sin
+ * catálogo publicado): el precio es siempre el de la lista del club. El mismo código no se carga dos veces.
  */
 export function pedidoDesdeWhatsApp(estado, texto, ahora) {
   const t = String(texto ?? "");
+  // El código es el ÚLTIMO «Pedido T-…» (el mensaje real lo pone al final, después del nombre: un nombre como
+  // «Pedido T-ZZZZ» no le gana); uno suelto (p. ej. metido en el nombre) sólo vale si no hay ninguno con «Pedido».
+  const codigo = ([...t.matchAll(/\bPedido\s+(T-[A-Z0-9]{4})\b/gi)].at(-1) ?? t.match(/\b(T-[A-Z0-9]{4})\b/i))?.[1]?.toUpperCase() ?? null;
+  if (codigo && (estado.pedidos ?? []).some((x) => x.codigo === codigo)) return { ok: false, motivo: `El pedido ${codigo} ya está cargado.` };
+  if (codigo && codigoArchivado(estado, "pedidos", codigo)) return { ok: false, motivo: `El pedido ${codigo} ya se había cargado: está en los días archivados.` };
   const items = [];
-  for (const m of t.matchAll(/(\d+)\s*[×x]\s*([^$·\n]+?)\s*\$/g)) {
+  // La cantidad se lee entera con su signo y decimales («-3», «2.5»), para rechazarla en vez de leer 3 o 5.
+  for (const m of t.matchAll(/(-?\d+(?:[.,]\d+)?)\s*[×x]\s*([^$·\n]+?)\s*(?=\$|·|\.(?:\s|$)|\n|$)/g)) {
     const nombre = m[2].trim().toLowerCase();
     const p = estado.productos.find((x) => x.nombre.toLowerCase() === nombre);
     if (!p) return { ok: false, motivo: `No encuentro «${m[2].trim()}» en los productos de la tienda.` };
+    if (!/^\d+$/.test(m[1]) || !(Number(m[1]) > 0)) return { ok: false, motivo: `La cantidad de ${p.nombre} («${m[1]}») tiene que ser un número entero mayor a cero.` };
     items.push({ productoId: p.id, cant: Number(m[1]) });
   }
-  if (!items.length) return { ok: false, motivo: "No encontré productos en el mensaje: pegalo entero, como llegó." };
-  const quien = t.match(/Soy ([^(.\n]+?)\s*(?:\(([^)]*)\))?\.\s/);
-  const codigo = t.match(/Pedido (T-[A-Z0-9]{4})/)?.[1] ?? null;
-  if (codigo && (estado.pedidos ?? []).some((x) => x.codigo === codigo)) return { ok: false, motivo: `El pedido ${codigo} ya está cargado.` };
-  if (codigo && codigoArchivado(estado, "pedidos", codigo)) return { ok: false, motivo: `El pedido ${codigo} ya se había cargado: está en los días archivados.` };
-  const res = crearPedidoTienda(estado, { items, nombre: quien?.[1]?.trim() || "Cliente de WhatsApp", tel: quien?.[2] ?? "", origen: "whatsapp" }, ahora);
-  if (res.ok && codigo) res.pedido.codigo = codigo;
-  return res;
+  if (!items.length) {
+    return { ok: false, motivo: codigo
+      ? `Con el código ${codigo} solo no alcanza (ese pedido no llegó a esta compu): pegá el mensaje entero, como llegó.`
+      : "No encontré productos en el mensaje: pegalo entero, como llegó." };
+  }
+  const quien = t.match(/Soy ([^(.\n]+?)\s*(?:\(([^)]*)\))?\.(?:\s|$)/);
+  const nombre = quien?.[1]?.trim() || "Cliente por mensaje";
+  if (!codigo) {
+    // Sin código no hay con qué reconocer el mismo mensaje pegado dos veces: si ya hay uno igual pendiente, no se repite.
+    const igual = pedidosPendientes(estado).find((x) => x.nombre.toLowerCase() === nombre.toLowerCase().slice(0, 60) && firmaItems(x.items) === firmaItems(items));
+    if (igual) return { ok: false, motivo: `Ese pedido ya está cargado (${igual.codigo}, pendiente). Si es otro encargo igual, esperá a entregar el primero o pedile al cliente el mensaje con el código.` };
+  }
+  return crearPedidoTienda(estado, { items, nombre, tel: quien?.[2] ?? "", origen: "whatsapp", codigo }, ahora);
 }
 
 export const pedidosPendientes = (estado) => (estado.pedidos ?? []).filter((x) => x.estado === "pendiente");
 const pedido = (estado, id) => (estado.pedidos ?? []).find((x) => x.id === id);
 
+/** Cantidades por producto (sumando renglones repetidos). */
+function sumarPorProducto(items) {
+  const m = new Map();
+  for (const i of items) m.set(i.productoId, (m.get(i.productoId) ?? 0) + Number(i.cant));
+  return m;
+}
+const firmaItems = (items) => [...sumarPorProducto(items)].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([id, n]) => `${id}:${n}`).join("|");
+
+/** El stock se mira con lo sumado por producto (un pedido viejo puede traer el mismo producto en dos renglones). */
 function validarStockPedido(estado, pd) {
-  for (const i of pd.items) {
-    const p = producto(estado, i.productoId);
-    if (!p || p.activo === false) return { ok: false, motivo: `${i.nombre} ya no está a la venta.` };
-    if (p.stock != null && p.stock < i.cant) return { ok: false, motivo: `No alcanza el stock de ${p.nombre} (quedan ${p.stock}).` };
+  for (const [productoId, cant] of sumarPorProducto(pd.items)) {
+    const p = producto(estado, productoId);
+    const nombre = p?.nombre ?? pd.items.find((i) => i.productoId === productoId)?.nombre ?? "Un producto";
+    if (!p || p.activo === false) return { ok: false, motivo: `${nombre} ya no está a la venta.` };
+    if (!Number.isInteger(cant) || cant <= 0) return { ok: false, motivo: `La cantidad de ${p.nombre} no es válida.` };
+    if (p.stock != null && p.stock < cant) return { ok: false, motivo: `No alcanza el stock de ${p.nombre} (quedan ${p.stock}).` };
   }
   return { ok: true };
+}
+
+/**
+ * Carga todos los renglones del pedido en la cuenta, todo o nada: si uno falla se deshace lo cargado (stock,
+ * prestados, renglones de la cuenta, registro y la cuenta si se abrió para esto) y no se entrega nada sin cobrar.
+ */
+function cargarPedidoEnCuenta(estado, pd, cta, { nueva, logAntes }, ahora) {
+  const itemsAntes = cta.items.length;
+  const hechos = [];
+  const deshacer = () => {
+    for (const it of hechos) {
+      const p = producto(estado, it.productoId);
+      if (p?.stock != null) p.stock += it.cant;
+      if (p && it.alquiler) p.prestados = Math.max(0, (p.prestados ?? 0) - it.cant);
+    }
+    cta.items.length = itemsAntes;
+    if (nueva && estado.cuentas.includes(cta)) estado.cuentas.splice(estado.cuentas.indexOf(cta), 1);
+    estado.log.splice(0, estado.log.length, ...logAntes);
+  };
+  for (const i of pd.items) {
+    const r = cargarEnCuenta(estado, cta.id, i.productoId, i.cant, ahora);
+    if (!r.ok) { deshacer(); return { ok: false, motivo: `No se pudo cargar ${i.nombre}: ${r.motivo} No se entregó nada.` }; }
+    hechos.push(r.item);
+  }
+  return { ok: true, deshacer };
 }
 
 /** Se entrega y se cobra en el mostrador: descuenta stock y entra a la caja, al precio de hoy. */
@@ -3922,10 +3985,17 @@ export function entregarPedido(estado, pedidoId, { medio, auth = null }, ahora) 
   if (!MEDIOS_DE_CAJA.includes(medio)) return { ok: false, motivo: "Elegí cómo paga (efectivo, Mercado Pago, transferencia o tarjeta)." };
   const v = validarStockPedido(estado, pd);
   if (!v.ok) return v;
-  const { cuenta: cta } = abrirCuenta(estado, { titular: `Tienda ${pd.codigo} · ${pd.nombre}`, reservaId: `tienda-${pd.id}` }, ahora);
-  for (const i of pd.items) cargarEnCuenta(estado, cta.id, i.productoId, i.cant, ahora);
+  const logAntes = estado.log.slice();
+  const ab = abrirCuenta(estado, { titular: `Tienda ${pd.codigo} · ${pd.nombre}`, reservaId: `tienda-${pd.id}` }, ahora);
+  if (!ab.ok) return ab;
+  const cta = ab.cuenta;
+  const carga = cargarPedidoEnCuenta(estado, pd, cta, { nueva: !ab.reusada, logAntes }, ahora);
+  if (!carga.ok) return carga;
   const total = totalCuenta(cta);
-  pagarCuenta(estado, cta.id, { medio, monto: total }, ahora);
+  if (total > 0) {
+    const pg = pagarCuenta(estado, cta.id, { medio, monto: total }, ahora);
+    if (!pg.ok) { carga.deshacer(); return { ok: false, motivo: `${pg.motivo} No se entregó nada.` }; }
+  }
   cerrarCuenta(estado, cta.id, {}, ahora);
   pd.estado = "entregado";
   pd.cobrado = { medio, monto: total, ...sello(ahora) };
@@ -3941,8 +4011,12 @@ export function cargarPedidoACuenta(estado, pedidoId, clienteId, ahora) {
   if (!c) return { ok: false, motivo: "Elegí el cliente." };
   const v = validarStockPedido(estado, pd);
   if (!v.ok) return v;
-  const { cuenta: cta } = abrirCuenta(estado, { clienteId: c.id }, ahora);
-  for (const i of pd.items) cargarEnCuenta(estado, cta.id, i.productoId, i.cant, ahora);
+  const logAntes = estado.log.slice();
+  const ab = abrirCuenta(estado, { clienteId: c.id }, ahora);
+  if (!ab.ok) return ab;
+  const cta = ab.cuenta;
+  const carga = cargarPedidoEnCuenta(estado, pd, cta, { nueva: !ab.reusada, logAntes }, ahora);
+  if (!carga.ok) return carga;
   pd.estado = "a_cuenta";
   pd.cuentaId = cta.id;
   registrar(estado, `El pedido ${pd.codigo} quedó en la cuenta de ${c.nombre}.`, ahora);
@@ -4025,7 +4099,7 @@ export function mensajeWhatsApp(tipo, d) {
     case "aprobado":
       return `Aprobado: ${d.cliente} ${d.monto}. Código ${d.codigo}`;
     case "pedidoTienda":
-      return `Hola ${club}, quiero encargar para retirar en el club: ${d.lista}. Total ${d.total}. Soy ${d.nombre}${d.tel ? ` (${d.tel})` : ""}. Pedido ${d.codigo}.`;
+      return `Hola ${club}, quiero encargar para retirar en el club: ${d.lista}. ${d.total ? `Total ${d.total}` : "El precio me lo confirman en el club"}. Soy ${d.nombre}${d.tel ? ` (${d.tel})` : ""}. Pedido ${d.codigo}.`;
     case "pedidoListo":
       return `¡Hola ${d.nombre}! Tu pedido ${d.codigo} ya está listo para retirar en ${club}: ${d.lista}. Total ${d.total}, se paga al retirar. ¡Te esperamos!`;
     case "reposicion":

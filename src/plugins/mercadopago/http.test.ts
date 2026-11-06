@@ -302,3 +302,12 @@ test("FetchHttpTransport es un HttpTransport", () => {
   const t: HttpTransport = new FetchHttpTransport();
   assert.equal(typeof t.get, "function");
 });
+
+test("normalizarPago conserva el operation_type crudo y el documento del pagador (sólo con forma válida)", () => {
+  const p = normalizarPago({ id: 7, status: "approved", operation_type: "regular_payment", transaction_amount: 10, payer: { identification: { type: "dni", number: "30.111.222" } } });
+  assert.equal(p.tipoOperacionMP, "regular_payment");
+  assert.deepEqual(p.pagadorDoc, { tipo: "DNI", numero: "30111222" });
+  const raro = normalizarPago({ id: 8, operation_type: "Regular Payment; drop", payer: { identification: { type: "<x>", number: "12" } } });
+  assert.equal(raro.tipoOperacionMP, undefined);
+  assert.equal(raro.pagadorDoc, undefined);
+});

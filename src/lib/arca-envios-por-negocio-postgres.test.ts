@@ -43,6 +43,9 @@ async function preparar(t: import("node:test").TestContext) {
   const facturacion = await import("@/lib/facturacion-actions");
   await duenio.outboxEvent.updateMany({ where: { processedAt: null }, data: { processedAt: new Date() } });
 
+  // Origen único por corrida de `preparar`: el alta es idempotente por origen, y dos tests con el
+  // mismo `mp_eng012_1` recibirían la factura del anterior.
+  const corrida = Math.random().toString(36).slice(2, 8);
   let venta = 0;
   const facturar = (tenantId: string) =>
     invoiceCore.createInvoice({
@@ -56,7 +59,7 @@ async function preparar(t: import("node:test").TestContext) {
       total: 1210,
       ivaPorProducto: true, // ENG-024: IVA de cada producto; sin esto un inscripto no emite.
       vencimientoPago: HOY,
-      origin: { type: "MP_PAYMENT" as const, id: `mp_eng012_${++venta}` },
+      origin: { type: "MP_PAYMENT" as const, id: `mp_eng012_${corrida}_${++venta}` },
     });
   const enviosDe = (tenantId: string) =>
     duenio.outboxEvent.findMany({
@@ -131,5 +134,38 @@ test("ENG-012 · la acción de A no toma un envío de B aunque sea el único pen
   if (conIdDeB.tipo !== "respuesta") return;
   assert.deepEqual(conIdDeB.valor, r.valor);
   assert.deepEqual(await p.enviosDe(b.id), antes);
+  await p.duenio.outboxEvent.updateMany({ where: { processedAt: null }, data: { processedAt: new Date() } });
+});
+
+test("modo por negocio · con ARCA_MODO=homologacion, A en pruebas sin certificado factura simulado y B marcado real se detiene sin tocar a A", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const [a, b] = [p.base.a, p.base.b];
+  const antes = { ARCA_MODO: process.env.ARCA_MODO, ARCA_REAL_TENANTS: process.env.ARCA_REAL_TENANTS };
+  t.after(() => Object.assign(process.env, antes));
+  // Ninguno tiene certificado. A sigue en pruebas (default); B está marcado real y en la lista.
+  await p.duenio.tenant.update({ where: { id: a.id }, data: { arcaCuit: "20111111112", arcaHomologacion: true } });
+  await p.duenio.tenant.update({ where: { id: b.id }, data: { arcaCuit: "20111111112", arcaHomologacion: false } });
+  Object.assign(process.env, { ARCA_MODO: "homologacion", ARCA_REAL_TENANTS: b.slug });
+  const deA = await p.facturar(a.id);
+  const deB = await p.facturar(b.id);
+
+  const rb = await ejecutarAccion({ negocio: b, usuario: b.duenia }, () => p.facturacion.procesarFacturacionPendiente());
+  assert.equal(rb.tipo, "respuesta");
+  if (rb.tipo !== "respuesta") return;
+  assert.equal(rb.valor.autorizados, 0, "B marcado real con la plataforma en pruebas no emite nada");
+  assert.equal((await p.duenio.invoice.findUniqueOrThrow({ where: { id: deB } })).status, "PENDING");
+  // El abierto: los tests anteriores dejan los suyos cerrados.
+  const envioB = (await p.enviosDe(b.id)).find((e) => e.processedAt === null);
+  assert.match(envioB?.lastError ?? "", /plataforma está en pruebas/, "el motivo queda en el envío, en criollo");
+
+  const ra = await ejecutarAccion({ negocio: a, usuario: a.duenia }, () => p.facturacion.procesarFacturacionPendiente());
+  assert.equal(ra.tipo, "respuesta");
+  if (ra.tipo !== "respuesta") return;
+  assert.equal(ra.valor.autorizados, 1, "A, sin certificado y en pruebas, sigue con CAE simulado");
+  const facturaA = await p.duenio.invoice.findUniqueOrThrow({ where: { id: deA } });
+  assert.equal(facturaA.status, "AUTHORIZED");
+  assert.equal(process.env.ARCA_MODO, "homologacion", "el modo de uno no cambió el de la plataforma");
+  await p.duenio.tenant.update({ where: { id: b.id }, data: { arcaHomologacion: true } });
   await p.duenio.outboxEvent.updateMany({ where: { processedAt: null }, data: { processedAt: new Date() } });
 });

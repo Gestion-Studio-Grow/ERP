@@ -13,15 +13,17 @@
 //      motor comercial (no anuladas, dentro de la ventana de historial: `leerFichasConActividad`),
 //      el mismo del diseño nuevo, la ficha y «Recuperar» (QA vuelta 2: 35 acá y 33 allá).
 // La búsqueda es la misma regla que tenía el navegador (ClientsList): el nombre sin tildes ni
-// mayúsculas, el teléfono como está guardado o de corrido («1140007919» encuentra
-// «11 4000-7919»), y con 8 dígitos o más, el número local (encuentra «011 15 4000-7919»).
+// mayúsculas y el teléfono según la casilla 5 (`busqueda-por-contacto.ts`: con `clients:contact`, como
+// está guardado, de corrido o el número local; sin la casilla, sólo los últimos 4 dígitos completos).
 // Dentro de `tenantTransaction` (RLS) y con `"tenantId"` explícito.
 
 import { Prisma } from "@/generated/prisma/client";
 import { tenantTransaction } from "@/lib/rls";
 import { CON_TILDE, SIN_TILDE, escaparLike, textoComparable } from "@/lib/facturacion/lista-core";
 import type { ConsultaCruda } from "@/lib/facturacion/lista.server";
-import { normalizarTelefono } from "@/lib/clientes/telefono";
+import { getCurrentUser } from "@/lib/session";
+import { enmascararContacto, puedeVerContacto } from "@/lib/clientes/telefono";
+import { criterioDeContacto, sqlPorContacto } from "@/lib/clientes/busqueda-por-contacto";
 import type { Rubro } from "@/lib/crm/personas";
 import { desdeHistorial } from "@/lib/crm/lecturas";
 
@@ -33,33 +35,27 @@ export const FICHAS_POR_PAGINA = 50;
 export type FichaDeLista = { id: string; name: string; phone: string; actividad: number };
 export type PaginaDeFichas = { filas: FichaDeLista[]; total: number; coinciden: number; pagina: number; paginas: number; rubro: Rubro };
 
-function busqueda(q: string): Prisma.Sql {
+function busqueda(q: string, veContacto: boolean): Prisma.Sql {
   const t = q.trim();
   if (!t) return Prisma.sql`TRUE`;
   const nombre = `%${escaparLike(textoComparable(t))}%`;
-  const o: Prisma.Sql[] = [
-    Prisma.sql`translate(lower(c.name), ${CON_TILDE}, ${SIN_TILDE}) LIKE ${nombre}`,
-    Prisma.sql`c.phone LIKE ${`%${escaparLike(t)}%`}`,
-  ];
-  const tel = normalizarTelefono(t);
-  if (tel) {
-    const digitos = Prisma.sql`regexp_replace(c.phone, '\\D', '', 'g')`;
-    o.push(Prisma.sql`${digitos} LIKE ${`%${tel}%`}`);
-    if (tel.length >= 8) o.push(Prisma.sql`${digitos} LIKE ${`%${tel.slice(-8)}%`}`);
-  }
-  return Prisma.sql`(${Prisma.join(o, " OR ")})`;
+  return Prisma.sql`(translate(lower(c.name), ${CON_TILDE}, ${SIN_TILDE}) LIKE ${nombre} OR ${sqlPorContacto(criterioDeContacto(t, veContacto), Prisma.sql`c.phone`)})`;
 }
 
-/** Una página de fichas. `db` es la transacción del negocio (el test la envuelve para contar consultas). */
+/**
+ * Una página de fichas. `db` es la transacción del negocio (el test la envuelve para contar consultas).
+ * `veContacto`: si quien mira tiene `clients:contact` (decide cómo se busca por teléfono; obligatorio
+ * para que ningún llamador lo olvide).
+ */
 export async function paginaDeFichasEn(
   db: ConsultaCruda,
   tenantId: string,
-  p: { q: string; pagina: number; rubro: Rubro; ahora?: Date },
+  p: { q: string; pagina: number; rubro: Rubro; veContacto: boolean; ahora?: Date },
 ): Promise<PaginaDeFichas> {
   const rubro = p.rubro;
   const desde = desdeHistorial(p.ahora ?? new Date());
   const [cuenta] = await db.$queryRaw<{ total: number; coinciden: number }[]>(Prisma.sql`
-    SELECT count(*)::int AS total, (count(*) FILTER (WHERE ${busqueda(p.q)}))::int AS coinciden
+    SELECT count(*)::int AS total, (count(*) FILTER (WHERE ${busqueda(p.q, p.veContacto)}))::int AS coinciden
     FROM "Client" c
     WHERE c."tenantId" = ${tenantId}`);
   const total = cuenta?.total ?? 0;
@@ -84,7 +80,7 @@ export async function paginaDeFichasEn(
     WITH pagina AS (
       SELECT c.id, c.name, c.phone
       FROM "Client" c
-      WHERE c."tenantId" = ${tenantId} AND ${busqueda(p.q)}
+      WHERE c."tenantId" = ${tenantId} AND ${busqueda(p.q, p.veContacto)}
       ORDER BY c.name ASC, c.id ASC
       LIMIT ${FICHAS_POR_PAGINA} OFFSET ${(pagina - 1) * FICHAS_POR_PAGINA}
     )
@@ -95,7 +91,13 @@ export async function paginaDeFichasEn(
   return { filas, total, coinciden, pagina, paginas, rubro };
 }
 
-/** La página pedida, en la transacción del negocio (RLS). Sin chequeo de rol: lo hace quien llama. */
-export function leerPaginaDeFichas(tenantId: string, p: { q: string; pagina: number; rubro: Rubro }): Promise<PaginaDeFichas> {
-  return tenantTransaction((tx) => paginaDeFichasEn(tx, tenantId, p), { tenantId });
+/**
+ * La página pedida, en la transacción del negocio (RLS). El rol lo chequea quien llama; el teléfono
+ * sale enmascarado para quien no tiene `clients:contact` (casilla 5 de la matriz de permisos).
+ */
+export async function leerPaginaDeFichas(tenantId: string, p: { q: string; pagina: number; rubro: Rubro }): Promise<PaginaDeFichas> {
+  const quien = await getCurrentUser();
+  const veContacto = puedeVerContacto(quien);
+  const pagina = await tenantTransaction((tx) => paginaDeFichasEn(tx, tenantId, { ...p, veContacto }), { tenantId });
+  return veContacto ? pagina : { ...pagina, filas: pagina.filas.map((f) => enmascararContacto(f, quien)) };
 }

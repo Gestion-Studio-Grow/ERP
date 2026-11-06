@@ -1,6 +1,18 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { destinoDelArrastre, diasParaMover, huecosParaOfrecer, preguntaDeMover, sePuedeMover, veredictoDelDestino } from "./mover-core";
+import {
+  destinoDelArrastre,
+  destinoPorTeclado,
+  diasParaMover,
+  finEstirado,
+  huecosParaOfrecer,
+  preguntaDeMover,
+  rotuloDeDuracion,
+  sePuedeMover,
+  textoMovido,
+  veredictoDeDuracion,
+  veredictoDelDestino,
+} from "./mover-core";
 
 const iso = (dia: string, hhmm: string) => new Date(`${dia}T${hhmm}:00-03:00`).toISOString();
 const DIA = "2030-10-24"; // jueves
@@ -58,4 +70,70 @@ test("cert F-3 · el cajón no ofrece la hora que el turno ya tiene (con la mism
   // Con Lu, las 16:00 sí es un cambio: se ofrece.
   assert.deepEqual(huecosParaOfrecer(huecos, laura, "lu", ahora), [iso(DIA, "13:00"), iso(DIA, "16:00"), iso(DIA, "17:30")]);
   assert.deepEqual(huecosParaOfrecer([], laura, "caro", ahora), []);
+});
+
+// ── T2 · estirar, teclado, aviso ──
+
+const ana = { id: "a", inicio: iso(DIA, "16:00"), fin: iso(DIA, "17:00"), estado: "PENDING" };
+const marta = { id: "m", inicio: iso(DIA, "17:30"), fin: iso(DIA, "18:30"), estado: "CONFIRMED", clienta: "Marta" };
+const tope = iso(DIA, "21:00");
+
+test("estirar 15' sobre un hueco libre: entra; al mismo fin, no hace nada", () => {
+  assert.equal(finEstirado(ana.inicio, ana.fin, 1, tope), iso(DIA, "17:15"));
+  assert.equal(finEstirado(ana.inicio, ana.fin, -2, tope), iso(DIA, "16:30"));
+  assert.equal(finEstirado(ana.inicio, ana.fin, 0, tope), ana.fin);
+  assert.deepEqual(veredictoDeDuracion({ turno: ana, finNuevo: iso(DIA, "17:15"), vecinos: [marta], tope }), { tipo: "ok" });
+  assert.deepEqual(veredictoDeDuracion({ turno: ana, finNuevo: ana.fin, vecinos: [marta], tope }), { tipo: "igual" });
+});
+
+test("estirar sobre otro turno: «Se pisa con Marta a las 17:30» (con el margen del servidor también)", () => {
+  assert.deepEqual(veredictoDeDuracion({ turno: ana, finNuevo: iso(DIA, "17:45"), vecinos: [marta], tope }), { tipo: "no", motivo: "Se pisa con Marta a las 17:30." });
+  assert.deepEqual(veredictoDeDuracion({ turno: ana, finNuevo: iso(DIA, "17:30"), vecinos: [marta], tope, margenMin: 10 }), { tipo: "no", motivo: "Se pisa con Marta a las 17:30." });
+  assert.deepEqual(veredictoDeDuracion({ turno: ana, finNuevo: iso(DIA, "17:15"), vecinos: [marta], tope, margenMin: 10 }), { tipo: "ok" });
+  // Un cancelado no ocupa; el propio turno tampoco.
+  assert.deepEqual(veredictoDeDuracion({ turno: ana, finNuevo: iso(DIA, "18:00"), vecinos: [{ ...marta, estado: "CANCELLED" }, { ...ana, clienta: "Ana" }], tope }), { tipo: "ok" });
+});
+
+test("B-1 · un turno que ya empezó no se estira (el mismo criterio del servidor)", () => {
+  const motivo = "Ese turno ya empezó: no se le cambia la duración desde la agenda.";
+  assert.deepEqual(veredictoDeDuracion({ turno: ana, finNuevo: iso(DIA, "17:15"), vecinos: [], tope, ahora: new Date(iso(DIA, "16:05")) }), { tipo: "no", motivo });
+  assert.deepEqual(veredictoDeDuracion({ turno: ana, finNuevo: iso(DIA, "17:15"), vecinos: [], tope, ahora: new Date(iso(DIA, "15:55")) }), { tipo: "ok" });
+});
+
+test("la manija: nunca menos de 15', nunca después del tope, y redondea a pasos de 15' desde el inicio", () => {
+  assert.equal(finEstirado(ana.inicio, ana.fin, -10, tope), iso(DIA, "16:15"));
+  assert.equal(finEstirado(ana.inicio, ana.fin, 40, tope), iso(DIA, "21:00"));
+  assert.equal(finEstirado(ana.inicio, iso(DIA, "16:50"), 1, tope), iso(DIA, "17:00"), "un servicio de 50' pasa a 1 h, no a 65'");
+  assert.equal(finEstirado(ana.inicio, ana.fin, 3, null), iso(DIA, "17:45"));
+});
+
+test("mínimo 15', de a 15', tope del día y sólo turnos vivos", () => {
+  assert.deepEqual(veredictoDeDuracion({ turno: ana, finNuevo: iso(DIA, "16:00"), vecinos: [], tope }), { tipo: "no", motivo: "Lo mínimo es 15 minutos." });
+  assert.deepEqual(veredictoDeDuracion({ turno: ana, finNuevo: iso(DIA, "15:00"), vecinos: [], tope }), { tipo: "no", motivo: "Lo mínimo es 15 minutos." });
+  assert.deepEqual(veredictoDeDuracion({ turno: ana, finNuevo: iso(DIA, "17:10"), vecinos: [], tope }), { tipo: "no", motivo: "La duración va de a 15 minutos." });
+  assert.deepEqual(veredictoDeDuracion({ turno: ana, finNuevo: iso(DIA, "21:15"), vecinos: [], tope }), { tipo: "no", motivo: "No puede terminar después de las 21:00." });
+  assert.equal(veredictoDeDuracion({ turno: { ...ana, estado: "COMPLETED" }, finNuevo: iso(DIA, "17:15"), vecinos: [], tope }).tipo, "no");
+});
+
+test("teclado: ↑↓ de a media hora sin salirse del día; ←→ de columna sin salirse de la grilla", () => {
+  const base = { minuto: 16 * 60, columna: 1, columnas: 3, desde: 9 * 60, hasta: 21 * 60, duracionMin: 60, paso: 30 };
+  assert.deepEqual(destinoPorTeclado({ ...base, tecla: "ArrowDown" }), { minuto: 16 * 60 + 30, columna: 1 });
+  assert.deepEqual(destinoPorTeclado({ ...base, tecla: "ArrowUp" }), { minuto: 15 * 60 + 30, columna: 1 });
+  assert.deepEqual(destinoPorTeclado({ ...base, tecla: "ArrowLeft" }), { minuto: 16 * 60, columna: 0 });
+  assert.deepEqual(destinoPorTeclado({ ...base, tecla: "ArrowRight" }), { minuto: 16 * 60, columna: 2 });
+  assert.deepEqual(destinoPorTeclado({ ...base, columna: 0, tecla: "ArrowLeft" }), { minuto: 16 * 60, columna: 0 });
+  assert.deepEqual(destinoPorTeclado({ ...base, columna: 2, tecla: "ArrowRight" }), { minuto: 16 * 60, columna: 2 });
+  assert.deepEqual(destinoPorTeclado({ ...base, minuto: 9 * 60, tecla: "ArrowUp" }), { minuto: 9 * 60, columna: 1 });
+  assert.deepEqual(destinoPorTeclado({ ...base, minuto: 20 * 60, tecla: "ArrowDown" }), { minuto: 20 * 60, columna: 1 }, "un turno de 1 h no baja de las 20");
+});
+
+test("el aviso de 8 s: «Movido a 17:00 con Caro» (con la fecha si es otro día)", () => {
+  assert.equal(textoMovido({ profesionalId: "caro", profesional: "Caro", inicio: iso(DIA, "17:00") }, DIA), "Movido a 17:00 con Caro");
+  assert.match(textoMovido({ profesionalId: "caro", profesional: "Caro", inicio: iso("2030-10-25", "17:00") }, DIA), /^Movido a .+ 17:00 con Caro$/);
+});
+
+test("mientras se estira: «10:00–11:15 · 1 h 15'»", () => {
+  assert.equal(rotuloDeDuracion(iso(DIA, "10:00"), iso(DIA, "11:15")), "10:00–11:15 · 1 h 15'");
+  assert.equal(rotuloDeDuracion(iso(DIA, "10:00"), iso(DIA, "11:00")), "10:00–11:00 · 1 h");
+  assert.equal(rotuloDeDuracion(iso(DIA, "10:00"), iso(DIA, "10:45")), "10:00–10:45 · 45'");
 });

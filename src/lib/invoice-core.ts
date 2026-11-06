@@ -27,6 +27,7 @@ import { decidirComprobante } from "@/lib/fiscal/decidir-comprobante";
 import { normalizarFecha } from "@/lib/fiscal/vigencias";
 import { leerRegimenFacturaAEnTx } from "@/lib/fiscal/regimen-factura-a.server";
 import { montosDeLaNota, saldoPorAnular } from "@/lib/facturacion/nota-credito-core";
+import { serieDeNumeracion } from "@/lib/facturacion/serie-numeracion";
 import { emitirFacturaAutorizada, emitirFacturaRechazada } from "@/eventos/del-core";
 
 /** Cliente de transacción interactiva (mismo patrón que `LedgerTx` en stock/ledger.ts):
@@ -93,6 +94,11 @@ export interface CreateInvoiceInput {
    * Responsable Inscripto.
    */
   ivaPorProducto?: boolean;
+  /**
+   * PR5 · C4 · Cómo se cobró: elige el umbral de identificación del consumidor final del motor
+   * (`umbralDelMotor`). Mercado Pago, transferencia y tarjeta = "otro". Sin dato, el más exigente.
+   */
+  medioDePago?: "efectivo" | "otro";
   servicioDesde?: string;
   servicioHasta?: string;
   vencimientoPago?: string;
@@ -151,6 +157,11 @@ export interface InvoiceCreatedPayload
    * el comprobante ya autorizado en vez de pedir otro.
    */
   intentoArca?: { puntoVenta: number; tipo: number; numero: number };
+  /**
+   * Serie de numeración ante ARCA, `"<puntoVenta>:<CbteTipo>"` (serie-numeracion.ts). Sin la
+   * clave (envíos viejos, o tipo que no se pudo decidir) la toma lo trata como comodín.
+   */
+  serie?: string;
 }
 
 /** Input del comando `registerFiscalDocument` (lo llama el plugin con el CAE). */
@@ -452,6 +463,7 @@ async function encolarInvoiceCreated(
     iva: input.iva,
     total: input.total,
     ...(input.ivaPorProducto === true ? { ivaPorProducto: true } : {}),
+    ...(input.medioDePago === "efectivo" || input.medioDePago === "otro" ? { medioDePago: input.medioDePago } : {}),
     servicioDesde: input.servicioDesde,
     servicioHasta: input.servicioHasta,
     vencimientoPago: input.vencimientoPago,
@@ -467,6 +479,9 @@ async function encolarInvoiceCreated(
         }
       : {}),
   };
+  // Serie de numeración ante ARCA (PV + tipo): la toma serializa por serie (arca-reserva.ts).
+  const serie = serieDeNumeracion(payload);
+  if (serie) payload.serie = serie;
 
   await tx.outboxEvent.create({
     data: {
@@ -530,6 +545,27 @@ export async function ultimoNumeroAutorizado(tenantId: string, puntoVenta: numbe
     { tenantId },
   );
   return r._max.numero ?? 0;
+}
+
+/**
+ * Cuántos comprobantes AUTORIZADOS con CAE simulado («STUB…», src/plugins/arca/afip/stub.ts) tiene el
+ * negocio en ese punto de venta (o en todos, si no tiene uno cargado). Con la RLS del negocio y un
+ * `count` sobre el índice (tenantId, status). Lo usa el despacho para no mandar el primer envío
+ * firmado encima de una numeración simulada (chocaría con la de ARCA).
+ */
+export async function contarAutorizadosSimulados(tenantId: string, puntoVenta: number | null): Promise<number> {
+  return tenantTransaction(
+    (tx) =>
+      tx.invoice.count({
+        where: {
+          tenantId,
+          status: "AUTHORIZED",
+          cae: { startsWith: "STUB" },
+          ...(puntoVenta != null ? { puntoVenta } : {}),
+        },
+      }),
+    { tenantId },
+  );
 }
 
 export async function numeroUsadoPorOtraFactura(consulta: {
@@ -645,6 +681,7 @@ interface DatosEmitidos {
   iva: SubtotalIva[];
   total: number;
   ivaPorProducto?: boolean;
+  medioDePago?: string;
   servicioDesde?: string;
   servicioHasta?: string;
   vencimientoPago?: string;
@@ -795,6 +832,8 @@ export async function crearNotaDeCreditoInTx(tx: InvoiceTx, input: NotaDeCredito
     iva: montos.iva,
     total: montos.total,
     ...(emitida.ivaPorProducto === true ? { ivaPorProducto: true } : {}),
+    // La nota viaja con el mismo medio que la factura que anula (el mismo umbral del motor).
+    ...(emitida.medioDePago === "efectivo" || emitida.medioDePago === "otro" ? { medioDePago: emitida.medioDePago } : {}),
     ...(conServicio ? { servicioDesde: emitida.servicioDesde, servicioHasta: emitida.servicioHasta, vencimientoPago: vto } : {}),
     clase: "nota_credito",
     asociado: { invoiceId: input.facturaId, cbteTipo: f.tipoComprobante, puntoVenta: f.puntoVenta, numero: f.numero, fecha: f.fecha },

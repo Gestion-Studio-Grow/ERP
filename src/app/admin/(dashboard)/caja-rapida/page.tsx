@@ -4,7 +4,7 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
 import { todayInBusinessTz } from "@/lib/datetime";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { ButtonLink, PageContainer, PageHeader } from "@/components/ui";
 import { gondolasEnTx, productosDeCaja } from "@/lib/supermercado/caja-lectura";
 import { leerConfigCaja, leerPromociones } from "@/lib/supermercado/config-repo";
@@ -44,7 +44,7 @@ export default async function CajaRapidaPage() {
     void _p;
     return p;
   });
-  const esDuenio = roleHasCapability(user.role, "catalog:manage");
+  const esDuenio = permisoEfectivo(user, "catalog:manage");
   const anulaSolo = user.role === "OWNER" || config.encargados.includes(user.id);
 
   return (

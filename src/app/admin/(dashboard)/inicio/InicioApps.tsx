@@ -32,6 +32,11 @@ import { getNegocioApps } from "@/apps/contexto.server";
 import { appsVisibles } from "@/apps/visibles";
 import { llevaNumero } from "@/apps/kpis/index.server";
 import { EmptyState, PageContainer, PageHeader } from "@/components/ui";
+import { roleHasCapability } from "@/lib/capabilities";
+import { getCurrentTenantId } from "@/lib/tenant";
+import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
+import { ventaAgendaSimplePrendida } from "@/cambios/interruptores";
+import { HoySiCorresponde } from "./HoyDelNegocio";
 import BuscadorApps from "./BuscadorApps";
 import ParaAtenderHoy, { ParaAtenderHoyCargando } from "./ParaAtenderHoy";
 import Tile from "./Tile";
@@ -59,6 +64,9 @@ export default async function InicioApps() {
           </div>
         }
       />
+
+      {/* «Hoy» (venta-agenda-simple, T1): decide solo si corresponde. */}
+      <HoySiCorresponde role={user.role} />
 
       {conNumero.length > 0 && (
         <Suspense fallback={<ParaAtenderHoyCargando />}>

@@ -9,6 +9,7 @@
 import { useEffect, useEffectEvent, useMemo, useRef, useState, type ReactNode } from "react";
 import { createOrder, facturarVenta } from "@/lib/order-actions";
 import { AvisoError, Input, buttonClasses, cn, fmtMoneyARS, type OpcionBuscador } from "@/components/ui";
+import type { ServicioDelBuscador } from "../pedidos/buscar-turnos/buscar-turnos-core";
 import { useDiseno } from "@/lib/diseno/DisenoProvider";
 import { faltanteDeLinea, type PosStockInfo } from "@/lib/stock/pos-stock-rules";
 import { MEDIOS_DE_COBRO, leerMedioDeCobro, type MedioDeCobro } from "@/lib/caja/medio-cobro";
@@ -211,7 +212,7 @@ export type PropsDeVender = {
   /** El negocio no tiene Ventas del día (CH): lo que manda ahí, manda a Pedidos. Lo decide MostradorDeVenta. */
   sinVentasDelDia?: boolean;
   /** La clienta ya cargada («Sumar un producto» desde el turno). Un cobro sin confirmar en la pestaña gana. */
-  clienteInicial?: { nombre: string; telefono: string } | null;
+  clienteInicial?: { nombre: string; telefono: string; clientId?: string } | null;
   /** Tope del precio a mano de quien vende (null = sin tope). La misma regla que el servidor. */
   topePrecioAMano?: TopePrecioAMano | null;
   /** El negocio (su id): separa en el almacén de la pestaña el cobro sin confirmar de cada uno. */
@@ -244,6 +245,11 @@ export type PropsDeVender = {
    * zonas, el pedido con envío pide la zona (el servidor la exige). Sin esto, como siempre.
    */
   envios?: ConfigEnvios | null;
+  /**
+   * El campo único de servicio o producto (interruptor `agenda-interaccion`, sólo un negocio de
+   * servicios): un servicio abre «Turnos libres» debajo. Sin esto, el buscador de siempre.
+   */
+  buscadorUnico?: { servicios: ServicioDelBuscador[] } | null;
 };
 
 export const sinSuscripcion = () => () => {};

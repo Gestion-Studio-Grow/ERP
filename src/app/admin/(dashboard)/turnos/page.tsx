@@ -1,10 +1,10 @@
-import { getAgendaDay, getMananaConfirmar } from "@/lib/actions";
+import { getAgendaDay } from "@/lib/actions";
 import Link from "next/link";
 import CalendarGrid from "./CalendarGrid";
 import MananaConfirmar from "./MananaConfirmar";
 import { todayInBusinessTz, fmtCalendarDateLabel } from "@/lib/datetime";
 import { requireApp } from "@/lib/require-app";
-import { anulacionDeCobro, roleHasCapability } from "@/lib/capabilities";
+import { anulacionDeCobro, permisoEfectivo } from "@/lib/capabilities";
 import { buttonClasses } from "@/components/ui";
 import { appPermitida } from "@/apps/visibles";
 import { appPorId } from "@/apps/registro";
@@ -15,13 +15,15 @@ import { enInicioPorApps } from "../inicio/piloto";
 import { esFechaDeCalendario, vacioDiaSinTurnos, vacioSinProfesionales } from "./pasos";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import AgendaRenglon from "./AgendaRenglon";
-import { extrasDeLaAgenda, proyectarAgenda } from "./agenda.server";
+import { extrasDeLaAgenda, mananaParaConfirmar, proyectarAgenda } from "./agenda.server";
 import LinkAlDia from "./_agenda/LinkAlDia";
 import BotonBuscar from "../armazon/BotonBuscar";
 import AtajosDelAlta from "./_agenda/AtajosDelAlta";
 import { esteticaBackoffice } from "@/lib/estetica-backoffice";
 import { getCurrentTenantSlug } from "@/lib/tenant-site";
 import { enlaceCobrarUnaVenta } from "../pedidos/cobrar-una-venta";
+import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
+import { agendaInteraccionPrendida, ventaAgendaSimplePrendida } from "@/cambios/interruptores";
 
 // Muestra en un vistazo qué profesionales tienen novedad (franco/vacaciones)
 // ese día, para no tener que ir a buscarlo a Catálogo (ADR-011 G9).
@@ -83,9 +85,9 @@ export default async function TurnosCalendarPage({
   // scopea) pero sin las acciones de gestión (confirmar pago / cancelar), que
   // son de OWNER/RECEPTION. Sí puede cerrar sus turnos (completar / no-show).
   const user = await requireApp("agenda");
-  const canManage = roleHasCapability(user.role, "agenda:manage");
+  const canManage = permisoEfectivo(user, "agenda:manage");
   // El profesional cobra sus turnos aunque no pueda gestionarlos (decisión del dueño).
-  const canCollect = roleHasCapability(user.role, "agenda:collect");
+  const canCollect = permisoEfectivo(user, "agenda:collect");
 
   const [{ date: dateParam, vista }, nuevo] = await Promise.all([searchParams, disenoNuevo()]);
   // DISEÑO NUEVO («Renglón»): el libro del día (AgendaRenglon.tsx). Mismos datos, mismas acciones,
@@ -93,9 +95,9 @@ export default async function TurnosCalendarPage({
   if (nuevo) {
     return (
       <AgendaRenglon
-        quien={{ role: user.role, professionalId: user.professionalId }}
+        quien={user}
         fecha={dateParam}
-        vista={vista === "profesionales" ? "profesionales" : "lista"}
+        vista={vista === "profesionales" ? "profesionales" : vista === "lista" ? "lista" : undefined}
       />
     );
   }
@@ -105,29 +107,40 @@ export default async function TurnosCalendarPage({
   // de la recepción al final del día, y mañana es mañana de verdad (no "el día siguiente al
   // que se está mirando"). Al profesional no se le muestra: confirmar no es su tarea.
   const verManana = canManage && date === today;
-  const [cruda, manana, piloto, negocio, slug] = await Promise.all([
+  const [cruda, manana, piloto, negocio, slug, interruptores] = await Promise.all([
     getAgendaDay(date),
-    verManana ? getMananaConfirmar() : Promise.resolve(null),
+    verManana ? mananaParaConfirmar() : Promise.resolve(null),
     enInicioPorApps(),
     getNegocioApps(user.role),
     getCurrentTenantSlug(),
+    interruptoresDelNegocio(),
   ]);
   const { professionals, blocksToday } = cruda;
   // La planilla de la PC (Tanda 2 · 2-C): el día proyectado campo por campo (agenda.server.ts), con
   // el veredicto de cobro de quien mira, y lo que puede hacer (las mismas capacidades del servidor).
   // Tanda 2: la marca «seña pedida» y el horario de trabajo (una lectura más por día, con tenantId).
   const diaDeLaPlanilla = esFechaDeCalendario(date) ? date : today;
-  const extras = await extrasDeLaAgenda(cruda, diaDeLaPlanilla);
-  const proyectada = proyectarAgenda(cruda, { role: user.role, professionalId: user.professionalId }, { seniasPedidas: extras.seniasPedidas });
+  const extras = await extrasDeLaAgenda(cruda, diaDeLaPlanilla, { quienCobro: agendaInteraccionPrendida(interruptores) });
+  const proyectada = proyectarAgenda(cruda, user, {
+    seniasPedidas: extras.seniasPedidas,
+    quienCobro: extras.quienCobro,
+  });
   const planilla = {
     turnos: proyectada.turnos,
     profesionales: proyectada.profesionales,
     permisos: {
       gestionar: canManage,
       cobrar: canCollect,
-      terminar: roleHasCapability(user.role, "agenda:complete"),
+      terminar: permisoEfectivo(user, "agenda:complete"),
       sumarProducto: enlaceCobrarUnaVenta(slug, user.role) !== null,
-      perdonar: roleHasCapability(user.role, "agenda:forgive"),
+      // Venta y agenda simples: el servidor vuelve a mirar todo esto en `cobrarTurnoConProductos`.
+      cobroConProducto:
+        ventaAgendaSimplePrendida(interruptores) &&
+        permisoEfectivo(user, "orders:manage") &&
+        permisoEfectivo(user, "agenda:collect"),
+      ventaSimple: ventaAgendaSimplePrendida(interruptores),
+      interaccion: agendaInteraccionPrendida(interruptores),
+      perdonar: permisoEfectivo(user, "agenda:forgive"),
       anular: anulacionDeCobro(user.role),
     },
     ahora: new Date().toISOString(),
@@ -135,6 +148,7 @@ export default async function TurnosCalendarPage({
     bloqueos: extras.bloqueos,
     hrefFicha: appPermitida(appPorId("clientes"), negocio) ? "/admin/clientes/" : null,
     letraDelNegocio: esteticaBackoffice(slug) !== null,
+    miProfesional: user.role === "PROFESSIONAL" ? (user.professionalId ?? null) : null,
   };
 
   const cobrarVenta = enlaceCobrarUnaVenta(slug, user.role);

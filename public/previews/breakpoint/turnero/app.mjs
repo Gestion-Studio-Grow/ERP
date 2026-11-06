@@ -31,7 +31,9 @@ const MODO_PEDIDO = MODO_DEMO && (qs.get("modo") === "pedido" || AMBIENTE_REAL);
 /** Número del club para WhatsApp (?wa=): sólo dígitos, de 8 a 15. Si no sirve, WhatsApp abre sin destinatario. */
 const WA = (() => { const n = String(qs.get("wa") ?? PUBLICO.whatsapp ?? "").replace(/[\s+().-]/g, ""); return /^\d{8,15}$/.test(n) ? n : ""; })();
 // El club arma el link con SUS tarifas (?tar=desde-hasta-precio,…) y SU tienda (?cat=id:precio,…): el celular del
-// cliente no ve la compu del club. Sin ?cat= en modo pedido no hay tienda (nada de productos ni precios de ejemplo).
+// cliente no ve la compu del club. Sin ?cat= en modo pedido la tienda muestra los productos SIN precio (nada de precios
+// de ejemplo a un cliente real): el jugador encarga igual, manda el pedido con su código T-XXXX y el club cobra al
+// entregar con su lista (Hotfix 04/11: en el sitio publicado la tienda quedaba oculta y «#tienda» no hacía nada).
 const TARIFAS = (() => {
   const t = String(qs.get("tar") ?? PUBLICO.tarifas ?? "").split(",").map((x) => x.split("-").map(Number)).filter((x) => x.length === 3 && x.every((n) => Number.isFinite(n) && n >= 0));
   return t.length ? t.map(([desde, hasta, precioHora], i) => ({ nombre: i ? "Pico" : "Valle", desde, hasta, precioHora })) : null;
@@ -40,7 +42,6 @@ const CATALOGO = (() => {
   const c = String(qs.get("cat") ?? PUBLICO.catalogo ?? "").split(",").map((x) => x.split(":")).filter(([id, p]) => /^[\w-]{1,30}$/.test(id ?? "") && Number(p) > 0);
   return c.length ? Object.fromEntries(c.map(([id, p]) => [id, Math.round(Number(p))])) : null;
 })();
-const HAY_TIENDA = !MODO_PEDIDO || !!CATALOGO;
 // Sin las tarifas del club no se muestran precios (nada de precios de ejemplo a un cliente real).
 const SIN_PRECIOS = MODO_PEDIDO && !TARIFAS;
 const linkWa = (texto) => `https://wa.me/${WA}?text=${encodeURIComponent(texto)}`;
@@ -726,7 +727,7 @@ function prepararModoPedido() {
   const que = SIN_PRECIOS ? "Horarios de referencia" : "Horarios y precios de referencia";
   $("#cinta").textContent = `${que}: el club te confirma ${WA ? "por WhatsApp" : "por mensaje"}`;
   $("#subtitulo").textContent = `${que} · la disponibilidad te la confirma el club.`;
-  for (const el of [$("#btn-ingresar"), $("#usuario"), $("#mis-reservas"), $(".saltar"), $("#btn-google"), $("#btn-simular"), ...(HAY_TIENDA ? [] : [$("#btn-tienda")])]) if (el) el.hidden = true;
+  for (const el of [$("#btn-ingresar"), $("#usuario"), $("#mis-reservas"), $(".saltar"), $("#btn-google"), $("#btn-simular")]) if (el) el.hidden = true;
   $("#como-pasos").innerHTML = WA
     ? "<li><b>Elegí</b> el día, el horario y la duración.</li><li><b>Pedilo por WhatsApp</b> con tu nombre: el mensaje sale armado.</li><li><b>El club te confirma</b> y te pasa el alias para la seña.</li>"
     : "<li><b>Elegí</b> el día, el horario y la duración.</li><li><b>Mandalo por Instagram</b> con tu nombre: el pedido sale armado y lo pegás en el chat del club.</li><li><b>El club te confirma</b> y te pasa el alias para la seña.</li>";
@@ -772,11 +773,10 @@ function elegirCancha(id) {
 // ───────────── tienda (módulo aparte, carga diferida) ─────────────
 let arranque = null;
 async function abrirTienda() {
-  if (!HAY_TIENDA) return;
   await arranque;
   if (!S.config) return aviso("La tienda no está disponible en este momento.");
   const t = await import("./tienda.mjs");
-  t.abrirTienda({ api, wa: WA, alCerrar: () => { if (location.hash === "#tienda") history.replaceState(null, "", location.pathname + location.search); } });
+  t.abrirTienda({ api, wa: WA, ig: IG_CLUB, alCerrar: () => { if (location.hash === "#tienda") history.replaceState(null, "", location.pathname + location.search); } });
 }
 
 // ───────────── arranque ─────────────

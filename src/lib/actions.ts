@@ -19,8 +19,8 @@ import { auditAdmin, auditPublic } from "@/lib/audit-core";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { whereVentasCobradasConMedio } from "@/lib/order-anulacion";
 import { bookingTransaction, tenantTransaction } from "@/lib/rls";
-import { requireCapability } from "@/lib/authz";
-import { anulacionDeCobro, roleHasCapability, type AnulacionDeCobro } from "@/lib/capabilities";
+import { filtroSoloLoSuyo, requireAlgunaCapability, requireCapability, soloLoSuyo } from "@/lib/authz";
+import { anulacionDeCobro, motivoSoloLoSuyo, permisoEfectivo, type AnulacionDeCobro } from "@/lib/capabilities";
 import { autorizadoraDeLaAnulacion, codigoDeLaDuena, type ResultadoAutorizacion } from "@/lib/anulacion-autorizada";
 import { recordMovement } from "@/lib/stock/ledger";
 import { assertSlotAvailable, getWorkingWindow } from "@/lib/booking-core";
@@ -54,7 +54,7 @@ import {
   mensajeNoVino,
   type MetodoDePago,
 } from "@/lib/turnos/cobros";
-import { puedeCobrarEsteTurno } from "@/lib/turnos/cobro-mostrador";
+import { puedeCobrarEsteTurno, veredictoDeCobroDe } from "@/lib/turnos/cobro-mostrador";
 import { avisoDeEspera, motivoDeDevolucion, planSeniaAlCerrar, puedeCambiarOnline } from "@/lib/turnos/practica";
 import { politicaVigente } from "@/lib/turnos/practica.server";
 import { precioCongeladoDeReserva } from "@/lib/turnos/precio-reserva";
@@ -76,18 +76,23 @@ import {
 import { lastClosedDay } from "@/lib/caja/frontera-cierre";
 import { isFrozenDay, type DayKey } from "@/lib/caja/cierre-diario";
 import { isColumnMissing } from "@/lib/prisma-errors";
+import { getCurrentUser } from "@/lib/session";
+import { FUERA_DE_RESERVA_ONLINE, profesionalesFueraDeReservaOnline, sinLasDeFuera } from "@/lib/permisos/reserva-online";
 import {
   buscarFichaPorTelefono,
   entradaAuditoriaEmpate,
   resumirFichasParaAlta,
+  enmascararFichasParaAlta,
   type FichaEncontrada,
   type FichaParaAlta,
 } from "@/lib/clientes/ficha-por-telefono";
 import { diaSiguiente, rangoDelDia, textoRecordatorio } from "@/lib/turnos/turno-abierto";
+import { contactoOculto } from "@/lib/clientes/telefono";
 import { cancelarTurnoVivo, whereTurnosDeManana, whereTurnosDelDia } from "@/lib/crm/wheres";
 import { Prisma } from "@/generated/prisma/client";
 import { importeONaN } from "@/lib/dinero/leer";
 import { cuponDeLaReserva } from "@/lib/cupones/cupon-de-reserva";
+import { minutosEnAgendaDelServicio, notasDeRecordatorio } from "@/lib/servicios/ficha.server";
 import {
   isDemoSandbox,
   getDemoAgendaDay,
@@ -96,7 +101,15 @@ import {
   getDemoOwnerPanelData,
 } from "@/lib/demo-sandbox";
 
-export async function getProfessionalsWithServices() {
+// `reservaOnline: true` (sólo los caminos PÚBLICOS: /reserva, el turnero del taller) saca a las
+// profesionales con la casilla 1 apagada (PLAN permisos §3). La agenda interna y «Dar turno» no lo pasan.
+export async function getProfessionalsWithServices(opciones?: { reservaOnline?: boolean }) {
+  const lista = await profesionalesConServicios();
+  if (!opciones?.reservaOnline) return lista;
+  return sinLasDeFuera(lista, await profesionalesFueraDeReservaOnline(await getCurrentTenantId()));
+}
+
+async function profesionalesConServicios() {
   const args = {
     where: { active: true, deletedAt: null },
     include: { services: { where: { active: true, deletedAt: null } }, box: true },
@@ -138,6 +151,30 @@ export async function getAvailableSlots(
   return byDay[date] ?? [];
 }
 
+async function huecosVisiblesParaQuienPregunta(professionalId: string, excludeAppointmentId?: string): Promise<boolean> {
+  const tenantId = await getCurrentTenantId();
+  const fuera = await profesionalesFueraDeReservaOnline(tenantId);
+  if (!fuera.has(professionalId)) return true;
+  const user = await getCurrentUser();
+  if (user !== null && permisoEfectivo(user, "agenda:read")) return true;
+  // Reprogramar un turno ya tomado NO es una reserva nueva (certificación v3, baja): la clienta que ya
+  // tiene turno con la profesional ve sus huecos para moverlo, aunque la casilla 1 esté apagada. Quien
+  // pregunta tiene que tener un turno vivo de ESA profesional en ESTE negocio (poseer el id es la
+  // autorización, igual que cancelar); `rescheduleMyAppointment` tampoco mira la casilla.
+  if (!excludeAppointmentId) return false;
+  const propio = await prisma.appointment.findFirst({
+    where: { id: excludeAppointmentId, tenantId, professionalId, status: { in: ["PENDING", "CONFIRMED"] } },
+    select: { id: true },
+  });
+  return propio !== null;
+}
+
+/** Reservar online (público): rechaza a la profesional con la casilla 1 apagada. `null` = puede. */
+async function rechazoDeReservaOnline(professionalId: string): Promise<string | null> {
+  const fuera = await profesionalesFueraDeReservaOnline(await getCurrentTenantId());
+  return fuera.has(professionalId) ? FUERA_DE_RESERVA_ONLINE : null;
+}
+
 // Franjas libres de VARIOS días de una sola pasada (perf ADR-023 F-agenda).
 // El calendario del funnel de reserva precalienta 14 días de golpe: hacerlo con
 // `getAvailableSlots` por día disparaba ~7 queries × 14 = ~100 round-trips a Neon
@@ -154,6 +191,12 @@ export async function getAvailableSlotsRange(
   const result: Record<string, string[]> = {};
   const uniqueDates = [...new Set(dates)];
   if (uniqueDates.length === 0) return result;
+  // Casilla 1 (PLAN permisos §3): a una profesional fuera de la reserva online el público no le ve
+  // huecos. El equipo (con `agenda:read`) sí: la grilla y «Dar turno» usan este mismo motor.
+  if (!(await huecosVisiblesParaQuienPregunta(professionalId, excludeAppointmentId))) {
+    for (const date of uniqueDates) result[date] = [];
+    return result;
+  }
 
   // Datos compartidos por TODOS los días: no cambian de una fecha a otra, así que
   // se leen una sola vez (antes se re-leían por día). Los horarios del profesional
@@ -242,7 +285,8 @@ export async function getAvailableSlotsRange(
   // predicados que la versión por-día). El buffer de limpieza se aplica dentro.
   const computed = generateSlotsForDays({
     windows: [...windows].map(([date, w]) => ({ date, dayStart: w.dayStart, dayEnd: w.dayEnd })),
-    durationMin: service.durationMin,
+    // Lo que ocupa en la agenda (preparación/limpieza incluidas), no sólo lo que dura para la clienta.
+    durationMin: await minutosEnAgendaDelServicio(service.tenantId, service),
     stepMin: 30,
     bufferMin: BUFFER_MIN,
     busyAppointments: existing,
@@ -346,7 +390,8 @@ async function bookAppointment({
   if (soloFuturo && startsAt.getTime() < Date.now()) {
     throw new RechazoDeDominio("Ese horario ya pasó. Elegí otro horario.");
   }
-  const endsAt = new Date(startsAt.getTime() + service.durationMin * 60000);
+  // El turno bloquea lo que el servicio ocupa en la agenda (calendarMin ?? durationMin).
+  const endsAt = new Date(startsAt.getTime() + (await minutosEnAgendaDelServicio(tenantId, service)) * 60000);
   const boxId = professional.boxId;
 
   // El día del turno se deriva del instante en la zona del negocio, no del
@@ -512,6 +557,9 @@ export async function createAppointment(formData: FormData): Promise<ResultadoAc
 
   let appointmentId: string;
   try {
+    // Casilla 1: antes de crear la ficha, así un rechazo no deja una clienta suelta.
+    const fuera = await rechazoDeReservaOnline(professionalId);
+    if (fuera) return { ok: false, error: fuera };
     const ficha = await fichaDeReservaPublica({
       name: clientName,
       phone: clientPhone,
@@ -641,9 +689,11 @@ export const getPublicBookingData = cache(async () => {
       groups.push({ id: "otros", name: "Otros servicios", services: uncategorized });
     }
 
+    // Casilla 1 (PLAN permisos §3): la vidriera pública no ofrece a quien no toma turnos online.
+    const fuera = await profesionalesFueraDeReservaOnline(await getCurrentTenantId());
     return {
       groups,
-      professionals: professionals.map((p) => ({
+      professionals: sinLasDeFuera(professionals, fuera).map((p) => ({
         id: p.id,
         name: p.name,
         boxName: p.box?.name ?? null,
@@ -707,6 +757,8 @@ export async function createBookingFromModal(input: {
 
   // DEVUELVE el rechazo en vez de tirarlo (UAT 16/10, B7), igual que createAppointment.
   try {
+    const fuera = await rechazoDeReservaOnline(input.professionalId);
+    if (fuera) return { ok: false, error: fuera };
     const ficha = await fichaDeReservaPublica({
       name: clientName,
       phone: clientPhone,
@@ -784,8 +836,12 @@ export async function createManualAppointment(formData: FormData): Promise<Resul
   // Lo que sí sigue tirando: los errores de PROGRAMACIÓN. Un `throw` que no previmos tiene
   // que llegar al log del servidor, no convertirse en un cartelito. Por eso el catch de
   // abajo es por tipo, no un catch-all.
-  const user = await requireCapability("agenda:manage");
+  // Crear un turno es la casilla 2 de la matriz (`agenda:create`), no `agenda:manage` (editar).
+  const user = await requireCapability("agenda:create");
   const professionalId = String(formData.get("professionalId"));
+  // «En su agenda» (PLAN permisos §5): una profesional con la casilla prendida da turnos sólo a sí misma.
+  const ajeno = motivoSoloLoSuyo(user, professionalId);
+  if (ajeno) return { ok: false, error: ajeno };
   const serviceId = String(formData.get("serviceId"));
   const startsAtIso = String(formData.get("startsAt"));
   const clientName = String(formData.get("clientName"));
@@ -810,6 +866,10 @@ export async function createManualAppointment(formData: FormData): Promise<Resul
   // porcentaje) y medio. El server valida monto y medio; el saldo lo valida la tx.
   let cobroInicial: CobroInicial | null = null;
   if (formData.get("senaCobrar") === "on") {
+    // Cobrar la seña en el alta es cobrar (casilla 4): quien la tiene apagada da el turno, no la plata.
+    if (!permisoEfectivo(user, "agenda:collect")) {
+      return { ok: false, error: "No tenés habilitado cargar cobranzas: da el turno sin cobrar la seña." };
+    }
     const monto = importeONaN(formData.get("senaMonto"));
     const metodo = String(formData.get("senaMetodo") || "");
     if (!Number.isFinite(monto) || monto <= 0) return { ok: false, error: "El monto de la seña tiene que ser mayor a cero." };
@@ -836,7 +896,17 @@ export async function createManualAppointment(formData: FormData): Promise<Resul
   // Acá, a diferencia de la reserva pública, la ficha SÍ se actualiza con "cliente de la
   // zona": lo marca la recepción, con sesión y auditoría, como siempre.
   const tenantId = await getCurrentTenantId();
-  const encontrada = await buscarFichaPorTelefono(prisma, tenantId, clientPhone);
+  // Sin `clients:contact` (casilla 5) el alta recibe el teléfono enmascarado («•••• 4821»): no sirve
+  // para buscar ni para grabar. Ahí la ficha se ata por el id elegido de la lista (del negocio), y
+  // sin id no se da el turno: nunca se crea una ficha con la máscara como teléfono (QA vuelta 2).
+  let encontrada: { id: string; empate?: FichaEncontrada["empate"] } | null;
+  if (contactoOculto(clientPhone)) {
+    const elegida = String(formData.get("clientId") || "");
+    encontrada = elegida ? await prisma.client.findFirst({ where: { id: elegida, tenantId }, select: { id: true } }) : null;
+    if (!encontrada) return { ok: false, error: "Elegí a la clienta de la lista: no tenés permiso para ver su teléfono." };
+  } else {
+    encontrada = await buscarFichaPorTelefono(prisma, tenantId, clientPhone);
+  }
   let client = encontrada
     ? await prisma.client.findFirst({ where: { id: encontrada.id, tenantId } })
     : null;
@@ -908,10 +978,10 @@ export async function createManualAppointment(formData: FormData): Promise<Resul
 // tapaba con un texto en inglés y la recepción no sabía por qué no se movió el turno. El
 // redirect de la guardia (sin sesión o sin permiso) sigue su camino.
 export async function rescheduleAppointment(formData: FormData): Promise<ResultadoAccion> {
-  await requireCapability("agenda:manage");
+  const user = await requireCapability("agenda:manage");
   if (isDemoSandbox()) return { ok: true }; // modo demo: no persiste (docs/preventa/plan-acceso-sandbox-sin-password.md)
   try {
-    await reprogramarTurno(formData);
+    await reprogramarTurno(formData, user);
     return { ok: true };
   } catch (e) {
     unstable_rethrow(e);
@@ -930,7 +1000,10 @@ export async function rescheduleAppointment(formData: FormData): Promise<Resulta
 }
 
 /** El cuerpo de la reprogramación: TIRA los rechazos de dominio (los atrapa la action). */
-async function reprogramarTurno(formData: FormData): Promise<void> {
+async function reprogramarTurno(
+  formData: FormData,
+  user: Parameters<typeof soloLoSuyo>[0],
+): Promise<void> {
   const tenantId = await getCurrentTenantId();
   const appointmentId = String(formData.get("appointmentId"));
   const startsAtIso = String(formData.get("startsAt"));
@@ -955,6 +1028,9 @@ async function reprogramarTurno(formData: FormData): Promise<void> {
   }
 
   const targetProfessionalId = newProfessionalId || appointment.professionalId;
+  // «En su agenda» (PLAN permisos §5): ni mover un turno ajeno ni pasárselo a otra profesional.
+  soloLoSuyo(user, appointment.professionalId);
+  soloLoSuyo(user, targetProfessionalId);
   const professional = await prisma.professional.findFirst({
     where: { id: targetProfessionalId, tenantId },
     include: { box: true },
@@ -996,7 +1072,14 @@ async function reprogramarTurno(formData: FormData): Promise<void> {
   if (startsAt.getTime() <= Date.now()) {
     throw new RechazoDeDominio("Ese horario ya pasó. Elegí uno que venga.");
   }
-  const endsAt = new Date(startsAt.getTime() + appointment.service.durationMin * 60000);
+  // `conservarDuracion=1` (sólo la agenda interactiva: soltar, teclado y el Deshacer de mover): el turno
+  // se lleva la duración que tiene ahora (p. ej. estirado de 1 h a 1 h 30'), no la del servicio. Sin el
+  // campo, como siempre: la duración del servicio.
+  const conservarDuracion = String(formData.get("conservarDuracion") ?? "") === "1";
+  const duracionMs = conservarDuracion
+    ? appointment.endsAt.getTime() - appointment.startsAt.getTime()
+    : (await minutosEnAgendaDelServicio(tenantId, appointment.service)) * 60000;
+  const endsAt = new Date(startsAt.getTime() + duracionMs);
   const boxId = professional.boxId;
 
   // El profesional debe trabajar en ese horario (misma regla que el alta).
@@ -1019,8 +1102,19 @@ async function reprogramarTurno(formData: FormData): Promise<void> {
     // Dentro de la misma transacción (Serializable, del negocio): el turno sigue siendo de ESTE
     // negocio y sigue vivo. Si otra recepcionista lo canceló o lo cerró entre que se leyó arriba y
     // ahora, no se mueve un turno muerto (CH Tanda 2 · mover desde la grilla).
+    // Conservando la duración, además, el turno tiene que seguir durando lo que se leyó arriba: si otra
+    // recepcionista lo estiró recién, no se lo achica sin querer.
     const sigueVivo = await tx.appointment.count({
-      where: { id: appointmentId, tenantId, status: { in: ["PENDING", "CONFIRMED"] } },
+      where: {
+        id: appointmentId,
+        tenantId,
+        status: { in: ["PENDING", "CONFIRMED"] },
+        // Profesional y servicio, tal como se leyeron: si otra recepcionista le cambió el servicio («Editar») o la
+        // profesional mientras tanto, «¿lo hace?» y los recursos se miraron con datos viejos (certificación del pase 05/11, F1).
+        professionalId: appointment.professionalId,
+        serviceId: appointment.serviceId,
+        ...(conservarDuracion ? { startsAt: appointment.startsAt, endsAt: appointment.endsAt } : {}),
+      },
     });
     if (sigueVivo === 0) throw new RechazoDeDominio("Ese turno cambió recién. Recargá la agenda.");
 
@@ -1059,14 +1153,15 @@ const APPOINTMENTS_DEFAULT_RANGE_DAYS = 365;
 export async function getAppointments(rangeDays: number = APPOINTMENTS_DEFAULT_RANGE_DAYS) {
   // Devuelve los turnos sin scoping por profesional (historial de gestión, /admin/turnos/lista)
   // → gestión, no lectura de agenda propia.
-  await requireCapability("agenda:manage");
+  const user = await requireCapability("agenda:manage");
   // Endurecimiento defensivo: (1) filtro `tenantId` EXPLÍCITO además de RLS (enciende el índice
   // por tenant); (2) COTA DE RANGO — antes traía TODO el histórico con 5 joins por fila; ahora se
   // acota al último año + todo el futuro (parametrizable), que es lo que la pantalla realmente usa.
   const tenantId = await getCurrentTenantId();
   const since = new Date(Date.now() - Math.max(1, rangeDays) * 24 * 60 * 60 * 1000);
   const appointments = await prisma.appointment.findMany({
-    where: { tenantId, startsAt: { gte: since } },
+    // «En su agenda» (PLAN permisos §5): una profesional con la casilla 3 ve sólo sus turnos.
+    where: { tenantId, startsAt: { gte: since }, ...filtroSoloLoSuyo(user) },
     orderBy: { startsAt: "asc" },
     include: { client: true, professional: true, service: true, box: true, payment: true },
   });
@@ -1426,7 +1521,7 @@ export async function anularCobroTurno(formData: FormData): Promise<ResultadoAcc
   revalidatePath("/admin/comisiones");
   if (!comisionPagada) return { ok: true };
   // Nombre y monto de la liquidación sólo con `reports:read`: lo mismo que protege la pantalla de comisiones.
-  return { ok: true, aviso: roleHasCapability(user.role, "reports:read") ? avisoDeComisionYaPagada(comisionPagada) : AVISO_COMISION_PAGADA_SIN_DETALLE };
+  return { ok: true, aviso: permisoEfectivo(user, "reports:read") ? avisoDeComisionYaPagada(comisionPagada) : AVISO_COMISION_PAGADA_SIN_DETALLE };
 }
 
 /**
@@ -1471,7 +1566,7 @@ export async function autorizarAnulacionCobro(formData: FormData): Promise<Resul
  */
 export async function condonarSaldoTurno(formData: FormData): Promise<ResultadoAccion> {
   const user = await requireCapability("agenda:manage");
-  if (!roleHasCapability(user.role, "agenda:forgive")) {
+  if (!permisoEfectivo(user, "agenda:forgive")) {
     return { ok: false, error: "Dar de baja un saldo lo decide la dueña. Pasale el turno a ella." };
   }
   if (isDemoSandbox()) return { ok: true }; // modo demo: no persiste
@@ -1559,13 +1654,13 @@ export async function condonarSaldoTurno(formData: FormData): Promise<ResultadoA
 // Devuelve `ResultadoAccion` (reingeniería CH, B3): antes, si el turno ya no estaba reservado,
 // volvía en silencio y la pantalla decía que había confirmado algo que no.
 export async function confirmarTurno(formData: FormData): Promise<ResultadoAccion> {
-  await requireCapability("agenda:manage");
+  const user = await requireCapability("agenda:manage");
   if (isDemoSandbox()) return { ok: true }; // modo demo: no persiste
   const appointmentId = String(formData.get("appointmentId") || "");
   if (!appointmentId) return { ok: false, error: "Falta identificar el turno." };
   const tenantId = await getCurrentTenantId();
   const res = await prisma.appointment.updateMany({
-    where: { id: appointmentId, tenantId, status: "PENDING" },
+    where: { id: appointmentId, tenantId, status: "PENDING", ...filtroSoloLoSuyo(user) },
     data: { status: "CONFIRMED" },
   });
   // Ya no estaba reservado (otra persona lo confirmó, canceló o completó; o no es de este negocio).
@@ -1816,7 +1911,7 @@ export async function getOwnerPanelData(pedido: PeriodoPedido = DEFAULT_REPORT_R
 // lectura y el `updateMany` (milisegundos, dos personas sobre el mismo turno a la vez): la
 // cancelación no abre una transacción Serializable por eso; la bandeja y la hoja de la seña sí.
 export async function cancelAppointment(formData: FormData): Promise<ResultadoAccion> {
-  await requireCapability("agenda:manage");
+  const user = await requireCapability("agenda:manage");
   if (isDemoSandbox()) return { ok: true }; // modo demo: no persiste
   const appointmentId = String(formData.get("appointmentId") ?? "");
   if (!appointmentId) return { ok: false, error: "Falta identificar el turno." };
@@ -1833,6 +1928,9 @@ export async function cancelAppointment(formData: FormData): Promise<ResultadoAc
     },
   });
   if (!turno) return { ok: false, error: "Ese turno ya no existe. Recargá la agenda." };
+  // «En su agenda» (PLAN permisos §5): con la casilla 3 prendida, una profesional cancela sólo lo suyo.
+  const ajeno = motivoSoloLoSuyo(user, turno.professionalId);
+  if (ajeno) return { ok: false, error: ajeno };
   const cobros = (await cobrosDetalladosPorTurno(prisma, tenantId, [appointmentId])).get(appointmentId) ?? [];
   const { cobrado } = estadoCobroTurno({ precio: turno.priceAtBooking ?? turno.service.price, cobros, pagoLegado: turno.payment });
   if (cobrado > 0) {
@@ -2082,10 +2180,9 @@ export async function completeAppointment(formData: FormData): Promise<Resultado
   if (method && !dejarSaldoACobrar) {
     const delTurno = await leerProfesionalDelTurno(tenantId, appointmentId);
     if (!delTurno) return { ok: false, error: "Ese turno ya no existe. Recargá la agenda." };
-    veredictoDeCobro = puedeCobrarEsteTurno({
-      rol: user.role,
-      professionalIdDelUsuario: user.professionalId,
-      professionalIdDelTurno: delTurno.professionalId,
+    // Con «cargar cobranzas» apagada (matriz, casilla 4) no se cobra aunque llegue el medio (A1).
+    veredictoDeCobro = veredictoDeCobroDe(user, {
+      professionalId: delTurno.professionalId,
       nombreProfesional: delTurno.nombre,
       cobraEnMostrador: delTurno.cobraEnMostrador,
     });
@@ -2285,7 +2382,8 @@ export async function getClient(id: string) {
 const FICHAS_ALTA_RANGO_DIAS = 365;
 
 export async function getFichasParaAlta(): Promise<FichaParaAlta[]> {
-  await requireCapability("agenda:manage");
+  // Sirven al alta (casilla 2) y a la lista de gestión (casilla 3).
+  const user = await requireAlgunaCapability(["agenda:create", "agenda:manage"]);
   if (isDemoSandbox()) return [];
   const tenantId = await getCurrentTenantId();
   const desde = new Date(Date.now() - FICHAS_ALTA_RANGO_DIAS * 24 * 60 * 60 * 1000);
@@ -2318,7 +2416,8 @@ export async function getFichasParaAlta(): Promise<FichaParaAlta[]> {
     }),
   ]);
   const cobros = await cobrosDetalladosPorTurno(prisma, tenantId, completados.map((a) => a.id));
-  return resumirFichasParaAlta(
+  // Sin `clients:contact` (casilla 5) el teléfono sale enmascarado del SERVIDOR (QA vuelta 2).
+  return enmascararFichasParaAlta(resumirFichasParaAlta(
     clientes,
     completados.map((a) => ({
       clientId: a.clientId,
@@ -2330,7 +2429,7 @@ export async function getFichasParaAlta(): Promise<FichaParaAlta[]> {
       cobros: cobros.get(a.id) ?? [],
       pagoLegado: a.payment,
     })),
-  );
+  ), user);
 }
 
 // ── "Mañana: confirmar" (/admin/turnos) ──────────────────────────────────────
@@ -2357,7 +2456,7 @@ export type TurnoAConfirmar = {
 };
 
 export async function getMananaConfirmar(): Promise<{ dia: string; turnos: TurnoAConfirmar[] }> {
-  await requireCapability("agenda:manage");
+  const user = await requireCapability("agenda:manage");
   const dia = diaSiguiente(todayInBusinessTz());
   if (isDemoSandbox()) return { dia, turnos: [] };
   const tenantId = await getCurrentTenantId();
@@ -2365,7 +2464,7 @@ export async function getMananaConfirmar(): Promise<{ dia: string; turnos: Turno
   const [turnos, plantilla] = await Promise.all([
     prisma.appointment.findMany({
       // El MISMO `where` que el número de "Confirmar mañana" y la cobertura de Recordatorios.
-      where: whereTurnosDeManana(tenantId, desde, hasta),
+      where: { ...whereTurnosDeManana(tenantId, desde, hasta), ...filtroSoloLoSuyo(user) },
       orderBy: { startsAt: "asc" },
       select: {
         id: true,
@@ -2373,6 +2472,7 @@ export async function getMananaConfirmar(): Promise<{ dia: string; turnos: Turno
         status: true,
         reminderSentAt: true,
         clientId: true,
+        serviceId: true,
         client: { select: { name: true, phone: true } },
         service: { select: { name: true } },
         professional: { select: { name: true } },
@@ -2383,6 +2483,7 @@ export async function getMananaConfirmar(): Promise<{ dia: string; turnos: Turno
       select: { body: true },
     }),
   ]);
+  const notas = await notasDeRecordatorio(tenantId, turnos.map((t) => t.serviceId));
   return {
     dia,
     turnos: turnos.map((t) => ({
@@ -2399,6 +2500,7 @@ export async function getMananaConfirmar(): Promise<{ dia: string; turnos: Turno
         serviceName: t.service.name,
         professionalName: t.professional.name,
         startsAt: t.startsAt,
+        aclaracion: notas.get(t.serviceId) ?? null,
       }),
       avisadaEl: t.reminderSentAt ? t.reminderSentAt.toISOString() : null,
     })),
@@ -2415,14 +2517,14 @@ export async function getMananaConfirmar(): Promise<{ dia: string; turnos: Turno
  * "recibido".
  */
 export async function marcarAvisada(appointmentId: string): Promise<{ ok: true; avisadaEl: string } | { ok: false; error: string }> {
-  await requireCapability("agenda:manage");
+  const user = await requireCapability("agenda:manage");
   if (isDemoSandbox()) return { ok: true, avisadaEl: new Date().toISOString() };
   const id = String(appointmentId || "");
   if (!id) return { ok: false, error: "Falta el turno." };
   const tenantId = await getCurrentTenantId();
   const ahora = new Date();
   const res = await prisma.appointment.updateMany({
-    where: { id, tenantId, status: { in: ["PENDING", "CONFIRMED"] } },
+    where: { id, tenantId, status: { in: ["PENDING", "CONFIRMED"] }, ...filtroSoloLoSuyo(user) },
     data: { reminderSentAt: ahora },
   });
   if (res.count === 0) return { ok: false, error: "Ese turno ya no está reservado ni confirmado." };

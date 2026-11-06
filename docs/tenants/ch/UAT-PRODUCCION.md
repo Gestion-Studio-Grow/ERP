@@ -143,6 +143,25 @@ Hoy está **apagado en producción**. Se prueba completo en el recorrido local (
 Cancelar los turnos del UAT, anular sus cobros con el motivo «Corrección de carga» y anotar en «Resultado» la ficha
 que quedó a nombre de quien corrió el UAT (no se borra una ficha con historia). Nada de esto toca días ya cerrados.
 
+## UAT corto desde la tablet o el celular (entrega del 04/11/2026)
+
+Después de publicar «Venta y agenda simples» y de prender los tres interruptores en CH. Cada paso: OK / FALLA (con captura).
+
+| # | Paso | Esperado |
+|---|---|---|
+| U1 | Abrir la vidriera de CH | Su marca, sin desplazamiento horizontal. |
+| U2 | `/reserva`, elegir un servicio | Dice «Podés cancelar o reprogramar online hasta 24 h antes del turno…». |
+| U3 | Reservar un hueco libre de pasado mañana, con nombre y celular propios | Queda el turno y llega la confirmación. |
+| U4 | «Tu turno» → cancelar online | Cancela (falta más de 24 h). |
+| U5 | Reservar otro para hoy o mañana temprano (menos de 24 h) y probar cancelar online | Lo niega y ofrece WhatsApp. |
+| U6 | Panel → Agenda, con el diseño nuevo | La agenda nueva; «+ Nuevo turno» propone mañana. |
+| U7 | Abrir el turno de U5 → Terminar → «+ Producto» → elegir uno barato | El producto se suma dentro del cajón, sin salir a Pedidos. |
+| U8 | Efectivo, «Paga con» un billete mayor | Muestra el vuelto correcto. |
+| U9 | Cobrar con un doble toque rápido | Un solo cobro; «Listo ✓». |
+| U10 | Tecla de WhatsApp del comprobante | Abre WhatsApp con monto, medio y fecha. «¿Le damos el próximo?» abre el alta. |
+| U11 | Inicio de la dueña | Tarjeta «Hoy» con el cobro por medio. Caja: 1 movimiento; stock del producto −1. |
+| U12 | Limpieza | Anular el cobro («Corrección de carga»), cancelar los turnos del UAT y anotar acá la ficha usada. |
+
 ## Resultado
 
 **Recorrido local `npm run test:ch-uat` (18/10/2026, rama `claude/ch-nivel-bp`):** ver `docs/tenants/ch/NIVEL-BP.md` §1.

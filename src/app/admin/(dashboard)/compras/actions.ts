@@ -26,7 +26,7 @@ import { revalidatePath } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 import { auditAdmin } from "@/lib/audit-core";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { requireAppAccion } from "@/lib/require-app";
 import { getNegocioApps } from "@/apps/contexto.server";
 import { appPermitida } from "@/apps/visibles";
@@ -57,10 +57,10 @@ function fechaDelDia(dia: string): string {
 export async function recibirMercaderia(_prev: EstadoRecepcion, formData: FormData): Promise<EstadoRecepcion> {
   try {
     const user = await requireAppAccion("recibir-mercaderia");
-    if (!roleHasCapability(user.role, "stock:receive")) {
+    if (!permisoEfectivo(user, "stock:receive")) {
       return { ok: false, error: "Tu usuario no puede recibir mercadería. Pedíselo a la dueña o al dueño." };
     }
-    const conCostos = roleHasCapability(user.role, "costs:read");
+    const conCostos = permisoEfectivo(user, "costs:read");
     const tenantId = await getCurrentTenantId();
 
     const kind: StockPurchaseKind = String(formData.get("kind") || "COMPRA").trim() === "REPOSICION" ? "REPOSICION" : "COMPRA";

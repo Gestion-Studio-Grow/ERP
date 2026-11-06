@@ -207,7 +207,8 @@ const JS = `(()=>{const e=document.getElementById("hoy-dia");if(!e)return;try{co
 export function portada(publico = {}) {
   const wa = leerWhatsapp(publico.whatsapp);
   const tarifas = leerTarifas(publico.tarifas);
-  const hayTienda = Boolean(String(publico.catalogo ?? "").trim());
+  // La tienda se ofrece siempre: sin catálogo publicado muestra los productos sin precio y el pedido sale por mensaje
+  // (Hotfix 04/11: antes, sin catálogo, no había tienda en el sitio publicado).
   const ubicacion = String(publico.ubicacion ?? "").trim();
   const techadas = Array.isArray(publico.techadas) ? publico.techadas.map(Number).filter((x) => Number.isInteger(x) && x > 0) : [];
   // Sin WhatsApp publicado el pedido sale por mensaje al Instagram del club (el turnero lo copia y abre el chat).
@@ -295,13 +296,13 @@ export function portada(publico = {}) {
         <span class="etiqueta">Buffet</span>
         <h3 id="t-delicias">Delicias Break</h3>
         <p>El bodegón del club: antes o después del partido.</p>
-      </article>${hayTienda ? `
+      </article>
       <article class="tarjeta" aria-labelledby="t-tienda">
         <span class="etiqueta">Shop</span>
         <h3 id="t-tienda">Tienda del club</h3>
         <p>Pelotas, grips y más: encargalo y lo retirás en el club.</p>
         <a class="enlace" href="/turnero#tienda">Ver la tienda</a>
-      </article>` : ""}
+      </article>
     </div>
   </section>
 

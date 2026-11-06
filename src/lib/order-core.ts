@@ -645,7 +645,6 @@ export async function insertOrder(
   // Líneas, subtotal, envío, descuento (con el tope de quien vende) y total: `decidirAlta`.
   const alta = decidirAlta({ tenantId, input, products, opts });
 
-  const negativoPermitido = new Set(opts?.permitirNegativoPorProducto ?? []);
   // A cuenta la ficha es obligatoria: si la búsqueda FALLA (la base, la red) no se sabe si hay
   // ficha, y eso no es un rechazo de negocio ("no tiene ficha"): el error sigue de largo.
   const clientId = opts?.clientId?.trim()
@@ -671,92 +670,7 @@ export async function insertOrder(
     lineCount: alta.lines.length + alta.aMano.length + (alta.envio ? 1 : 0),
     findByKey: (key) => findOrderByIdempotencyKey(tenantId, key),
     runInsert: (writeKey) =>
-      tenantTransaction(async (tx) => {
-        // El tope de precio a mano y el cupón se deciden ACÁ, con lo que la base dice en esta
-        // misma transacción: si alguno rechaza, no se escribe nada.
-        await controlarPreciosAManoEnTx(tx, tenantId, alta.aMano, opts?.topePrecioAMano);
-        const conCupon = await aplicarCuponEnTx(tx, alta, new Date());
-        const datos: DatosDelAlta = { ...conCupon, clientId, writeKey };
-        const created = await crearOrdenEnTx(tx, datos);
-        // La regla del cupón (% o fijo), para poder pesar y ajustar el pedido sin inventarla.
-        await registrarCuponDelPedidoEnTx(tx, {
-          tenantId,
-          orderId: created.id,
-          cupon: datos.cuponDelPedido,
-          monto: datos.descuento,
-        });
-
-        // Descuento de stock al vender (POS/stock), SOLO para productos con `trackStock`.
-        // Pasa por el ledger (`recordMovement`): baja condicional atómica con la MISMA
-        // guarda anti-oversell (si el stock ya no alcanza porque otra venta se adelantó,
-        // afecta 0 filas y lanza, abortando toda la orden — nada de ventas parciales ni
-        // stock negativo) Y registra el StockMovement (VENTA) en la misma transacción.
-        // Corre DENTRO de la tx de la orden: o se vende, se descuenta y se asienta, o nada.
-        // Las líneas con precio a mano no están en `lines`: no tienen producto que descontar.
-        //
-        // Única excepción a la guarda: las líneas que el llamador marcó explícitamente en
-        // `permitirNegativoPorProducto` (MAG-4, el corte por kg vendido en mostrador). Ésas
-        // descuentan aunque el stock quede en negativo, con su VENTA normal en el ledger.
-        for (const l of stockDecrementLines(alta.lines)) {
-          await recordMovement(tx, {
-            tenantId,
-            productId: l.productId,
-            type: "VENTA",
-            qty: l.quantity,
-            orderId: created.id,
-            createdBy: "system",
-            label: l.name,
-            allowNegative: negativoPermitido.has(l.productId),
-            // Del cuaderno: el movimiento cae en su día; el motivo explica por qué su saldo es el
-            // de la hora de carga (`balanceAfter`).
-            ...(datos.occurredAt ? { at: datos.occurredAt, reason: "Venta del cuaderno (se cargó después de vender)" } : {}),
-          });
-        }
-
-        // A cuenta: la deuda del cliente nace en la MISMA transacción que la venta (2D pasó
-        // `createReceivable` a recibir el `tx` para esto). Si falla, no queda la venta sin deuda.
-        if (datos.aCuenta && datos.clientId) {
-          await createReceivable(tx, tenantId, {
-            clientId: datos.clientId,
-            amount: datos.total,
-            concept: `Venta #${created.code}`,
-            orderId: created.id,
-            createdBy: datos.aCuenta.createdBy,
-          });
-        }
-
-        // Las promos que se aplicaron, para el ticket y la auditoría (misma transacción).
-        await registrarPromocionesDeLaVentaEnTx(tx, { tenantId, orderId: created.id, promos: datos.promos });
-
-        // PAGO MIXTO: cada medio es un cobro de la venta con su asiento en el libro. Los asientos
-        // tienen que sumar EXACTO el total que quedó adentro de la transacción (con el cupón ya
-        // aplicado): si no, la venta no se graba y la caja pide revisar los pagos.
-        if (datos.pagosMixtos) {
-          const problema = validarPagosContraElTotal(datos.pagosMixtos, datos.total);
-          if (problema) throw new RechazoDeDominio(problema);
-          await imputarPagosMixtosEnTx(tx, tenantId, {
-            orderId: created.id,
-            orderCode: created.code,
-            asientos: datos.pagosMixtos,
-            actor: datos.imputarCajaActor!,
-          });
-        }
-
-        // Con pago mixto el libro ya quedó escrito medio por medio: el asiento único de la venta
-        // (`imputarVentaEnTx`) sumaría el total entero otra vez en el medio principal.
-        const cashSale = datos.pagosMixtos ? undefined : await imputarVentaEnTx(tx, datos, created);
-        // P2 · eventos de dominio, en ESTA transacción (src/eventos/del-core.ts): si fallan, no hay venta.
-        await emitirPedidoCreado(tx, { tenantId, pedidoId: created.id, codigo: created.code, channel: input.channel, fulfillment: input.fulfillment, total: datos.total, lineas: datos.lines, aMano: datos.aMano, clienteId: datos.clientId, claveIdempotencia: clave, ocurridoEn: datos.occurredAt });
-        if (!datos.aCuenta && input.paid) await emitirPedidoCobrado(tx, { tenantId, pedidoId: created.id, codigo: created.code, monto: datos.total, medio: input.paymentMethod, actor: datos.imputarCajaActor, cobradoEn: datos.occurredAt });
-        return {
-          id: created.id,
-          code: created.code,
-          cashSale,
-          total: datos.total,
-          descuento: datos.descuento,
-          cupon: datos.cuponAplicado ?? null,
-        };
-      }, { tenantId }),
+      tenantTransaction((tx) => insertarOrdenEnTx(tx, { tenantId, alta, opts, clientId, writeKey, clave }), { tenantId }),
   });
   // Reintento con una clave ya grabada: no se grabó nada; se devuelve la grabada JUNTO con lo
   // que pidió este envío, para que el llamador vea si es lo mismo.
@@ -767,6 +681,114 @@ export async function insertOrder(
     clientId,
     ...(alta.envio ? { envio: alta.envio } : {}),
   };
+}
+
+/** Lo que el alta ya decidió afuera de la transacción, para `insertarOrdenEnTx`. */
+export type AltaParaLaTx = {
+  tenantId: string;
+  alta: AltaDecidida;
+  opts?: InsertOrderOpts;
+  clientId: string | null;
+  /** La clave que se ESCRIBE (null si la columna no está migrada). */
+  writeKey: string | null;
+  /** La clave pedida (va al evento de dominio). */
+  clave: string | null;
+};
+
+/**
+ * El cuerpo de la transacción del alta (orden + stock + deuda + promos + caja + eventos), con el
+ * `tx` del llamador. `insertOrder` lo corre en su propia `tenantTransaction`; el cobro del turno
+ * con productos (turnos/cobro-con-producto.ts) lo corre en la MISMA transacción que el cobro del
+ * turno, para que las dos patas sean todo-o-nada. No decide nada nuevo: es el mismo cuerpo.
+ */
+export async function insertarOrdenEnTx(tx: Prisma.TransactionClient, p: AltaParaLaTx) {
+  const { tenantId, alta, opts, clientId, writeKey, clave } = p;
+  const input = alta.input;
+  const negativoPermitido = new Set(opts?.permitirNegativoPorProducto ?? []);
+    // El tope de precio a mano y el cupón se deciden ACÁ, con lo que la base dice en esta
+    // misma transacción: si alguno rechaza, no se escribe nada.
+    await controlarPreciosAManoEnTx(tx, tenantId, alta.aMano, opts?.topePrecioAMano);
+    const conCupon = await aplicarCuponEnTx(tx, alta, new Date());
+    const datos: DatosDelAlta = { ...conCupon, clientId, writeKey };
+    const created = await crearOrdenEnTx(tx, datos);
+    // La regla del cupón (% o fijo), para poder pesar y ajustar el pedido sin inventarla.
+    await registrarCuponDelPedidoEnTx(tx, {
+      tenantId,
+      orderId: created.id,
+      cupon: datos.cuponDelPedido,
+      monto: datos.descuento,
+    });
+
+    // Descuento de stock al vender (POS/stock), SOLO para productos con `trackStock`.
+    // Pasa por el ledger (`recordMovement`): baja condicional atómica con la MISMA
+    // guarda anti-oversell (si el stock ya no alcanza porque otra venta se adelantó,
+    // afecta 0 filas y lanza, abortando toda la orden — nada de ventas parciales ni
+    // stock negativo) Y registra el StockMovement (VENTA) en la misma transacción.
+    // Corre DENTRO de la tx de la orden: o se vende, se descuenta y se asienta, o nada.
+    // Las líneas con precio a mano no están en `lines`: no tienen producto que descontar.
+    //
+    // Única excepción a la guarda: las líneas que el llamador marcó explícitamente en
+    // `permitirNegativoPorProducto` (MAG-4, el corte por kg vendido en mostrador). Ésas
+    // descuentan aunque el stock quede en negativo, con su VENTA normal en el ledger.
+    for (const l of stockDecrementLines(alta.lines)) {
+      await recordMovement(tx, {
+        tenantId,
+        productId: l.productId,
+        type: "VENTA",
+        qty: l.quantity,
+        orderId: created.id,
+        createdBy: "system",
+        label: l.name,
+        allowNegative: negativoPermitido.has(l.productId),
+        // Del cuaderno: el movimiento cae en su día; el motivo explica por qué su saldo es el
+        // de la hora de carga (`balanceAfter`).
+        ...(datos.occurredAt ? { at: datos.occurredAt, reason: "Venta del cuaderno (se cargó después de vender)" } : {}),
+      });
+    }
+
+    // A cuenta: la deuda del cliente nace en la MISMA transacción que la venta (2D pasó
+    // `createReceivable` a recibir el `tx` para esto). Si falla, no queda la venta sin deuda.
+    if (datos.aCuenta && datos.clientId) {
+      await createReceivable(tx, tenantId, {
+        clientId: datos.clientId,
+        amount: datos.total,
+        concept: `Venta #${created.code}`,
+        orderId: created.id,
+        createdBy: datos.aCuenta.createdBy,
+      });
+    }
+
+    // Las promos que se aplicaron, para el ticket y la auditoría (misma transacción).
+    await registrarPromocionesDeLaVentaEnTx(tx, { tenantId, orderId: created.id, promos: datos.promos });
+
+    // PAGO MIXTO: cada medio es un cobro de la venta con su asiento en el libro. Los asientos
+    // tienen que sumar EXACTO el total que quedó adentro de la transacción (con el cupón ya
+    // aplicado): si no, la venta no se graba y la caja pide revisar los pagos.
+    if (datos.pagosMixtos) {
+      const problema = validarPagosContraElTotal(datos.pagosMixtos, datos.total);
+      if (problema) throw new RechazoDeDominio(problema);
+      await imputarPagosMixtosEnTx(tx, tenantId, {
+        orderId: created.id,
+        orderCode: created.code,
+        asientos: datos.pagosMixtos,
+        actor: datos.imputarCajaActor!,
+      });
+    }
+
+    // Con pago mixto el libro ya quedó escrito medio por medio: el asiento único de la venta
+    // (`imputarVentaEnTx`) sumaría el total entero otra vez en el medio principal.
+    const cashSale = datos.pagosMixtos ? undefined : await imputarVentaEnTx(tx, datos, created);
+    // P2 · eventos de dominio, en ESTA transacción (src/eventos/del-core.ts): si fallan, no hay venta.
+    await emitirPedidoCreado(tx, { tenantId, pedidoId: created.id, codigo: created.code, channel: input.channel, fulfillment: input.fulfillment, total: datos.total, lineas: datos.lines, aMano: datos.aMano, clienteId: datos.clientId, claveIdempotencia: clave, ocurridoEn: datos.occurredAt });
+    if (!datos.aCuenta && input.paid) await emitirPedidoCobrado(tx, { tenantId, pedidoId: created.id, codigo: created.code, monto: datos.total, medio: input.paymentMethod, actor: datos.imputarCajaActor, cobradoEn: datos.occurredAt });
+    return {
+      id: created.id,
+      code: created.code,
+      cashSale,
+      total: datos.total,
+      descuento: datos.descuento,
+      cupon: datos.cuponAplicado ?? null,
+    };
 }
 
 /**

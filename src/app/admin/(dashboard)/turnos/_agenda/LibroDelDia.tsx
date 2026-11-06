@@ -29,6 +29,8 @@ import { fmtTime } from "@/lib/datetime";
 import { FILTROS_AGENDA, entraEnFiltro, leerFiltroAgenda, lugarDeLaRaya, type Permisos, type TurnoDelDia } from "../agenda-core";
 import MesaDeTurnos, { RenglonDelTurno, useMesa } from "./MesaDeTurnos";
 import PorProfesional from "./PorProfesional";
+import CelularPorProfesional from "./CelularPorProfesional";
+import { useEsPC } from "../CalendarGrid";
 import type { BloqueoDelDia } from "../grilla";
 
 /** ↑/↓ o j/k recorren los botones `[data-abrir]` de la lista (Enter abre el cajón). */
@@ -60,6 +62,9 @@ function ElDia({
   profesionales,
   bloqueos,
   ahora,
+  objeto,
+  miProfesional,
+  pista,
 }: {
   turnos: TurnoDelDia[];
   dia: string;
@@ -69,12 +74,53 @@ function ElDia({
   profesionales: { id: string; nombre: string; box: string | null }[];
   bloqueos: BloqueoDelDia[];
   ahora: string;
+  objeto: boolean;
+  miProfesional: string | null;
+  pista: boolean;
 }) {
   const { reloj, cambiarUrl } = useMesa();
   const params = useSearchParams();
   const filtro = leerFiltroAgenda(params.get("ver"));
   const lista = useRef<HTMLOListElement>(null);
   useRecorrerTurnos(lista);
+  const esPC = useEsPC();
+
+  // LA AGENDA COMO OBJETO (interruptor «Agenda interactiva»): la grilla ES la pantalla. Un hueco se
+  // toca y da el turno ahí (con la hora y la profesional puestas); un turno se toca y abre su cajón
+  // (cobrar, terminar, mover, cancelar). Sin tarjeta de «no hay turnos»: el día vacío es la grilla
+  // libre. En el celular, una profesional por vez (chips); en la PC, todas en columnas. Tras hidratar
+  // se monta sólo la que va (como CalendarGrid con el mismo interruptor).
+  if (objeto && vista === "profesionales") {
+    if (profesionales.length === 0) return <>{vacio}</>;
+    return (
+      <>
+        {pista && (
+          <p className="mb-3 text-sm text-muted">
+            Tocá un horario libre para dar turno, o un turno para atenderlo.
+          </p>
+        )}
+        {esPC !== true && (
+          <div className="lg:hidden">
+            <CelularPorProfesional
+              turnos={turnos}
+              profesionales={profesionales}
+              ahora={ahora}
+              dia={dia}
+              bloqueos={bloqueos}
+              miProfesional={miProfesional}
+              lista={vacio}
+              conVerLista={false}
+            />
+          </div>
+        )}
+        {esPC !== false && (
+          <div className="hidden lg:block">
+            <PorProfesional turnos={turnos} profesionales={profesionales} ahora={ahora} dia={dia} bloqueos={bloqueos} />
+          </div>
+        )}
+      </>
+    );
+  }
 
   if (vista === "profesionales") {
     if (turnos.length === 0 && profesionales.length === 0) return <>{vacio}</>;
@@ -145,6 +191,7 @@ export default function LibroDelDia({
   vista = "lista",
   profesionales = [],
   bloqueos = [],
+  miProfesional = null,
 }: {
   turnos: TurnoDelDia[];
   permisos: Permisos;
@@ -161,11 +208,26 @@ export default function LibroDelDia({
   profesionales?: { id: string; nombre: string; box: string | null }[];
   /** Francos y ausencias del día, con horario (sus celdas no se ofrecen como hueco). */
   bloqueos?: BloqueoDelDia[];
+  /** El id de la profesional si quien mira es PROFESSIONAL (en el celular no elige: ve la suya). */
+  miProfesional?: string | null;
 }) {
+  const objeto = !!permisos.interaccion;
   return (
     <div data-agenda="libro">
       <MesaDeTurnos turnos={turnos} permisos={permisos} ahora={ahora} hrefFicha={hrefFicha}>
-        <ElDia turnos={turnos} dia={dia} esHoy={esHoy} vacio={vacio} vista={vista} profesionales={profesionales} bloqueos={bloqueos} ahora={ahora} />
+        <ElDia
+          turnos={turnos}
+          dia={dia}
+          esHoy={esHoy}
+          vacio={vacio}
+          vista={vista}
+          profesionales={profesionales}
+          bloqueos={bloqueos}
+          ahora={ahora}
+          objeto={objeto}
+          miProfesional={miProfesional}
+          pista={objeto && permisos.gestionar}
+        />
       </MesaDeTurnos>
     </div>
   );

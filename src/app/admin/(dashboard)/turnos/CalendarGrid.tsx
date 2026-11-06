@@ -33,6 +33,7 @@ import type { BloqueoDelDia } from "./grilla";
 import MesaDeTurnos, { RenglonDelTurno } from "./_agenda/MesaDeTurnos";
 import { lugarDeLaRaya } from "./agenda-core";
 import PorProfesional from "./_agenda/PorProfesional";
+import CelularPorProfesional from "./_agenda/CelularPorProfesional";
 
 type Professional = { id: string; name: string; box: { name: string } | null };
 /** Lo que la planilla de la PC necesita: la agenda del día ya proyectada en el servidor. */
@@ -49,6 +50,8 @@ export type PlanillaDelDia = {
   hrefFicha: string | null;
   /** La letra de cuerpo del negocio en vez de la de la piel (CH: Hanken). */
   letraDelNegocio: boolean;
+  /** Si quien mira es PROFESSIONAL, su id (la grilla del celular no le ofrece elegir otra). */
+  miProfesional?: string | null;
 };
 
 // La piel «Renglón» se viste bajo `data-diseno` y lee el modo oscuro del MISMO elemento: se copia el
@@ -65,6 +68,23 @@ function useTemaDeLaRaiz(ref: React.RefObject<HTMLElement | null>): "light" | "d
     return () => obs.disconnect();
   }, [ref]);
   return tema;
+}
+
+/**
+ * ¿Pantalla de PC (desde lg)? `null` hasta hidratar: el servidor y el primer render montan las dos
+ * planillas (cada una escondida por CSS donde no va, como siempre: sin parpadeo); después se
+ * desmonta la que no se ve. Sigue los cambios de ancho (girar la tablet).
+ */
+export function useEsPC(): boolean | null {
+  const [esPC, setEsPC] = useState<boolean | null>(null);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 64rem)");
+    const leer = () => setEsPC(mq.matches);
+    leer();
+    mq.addEventListener("change", leer);
+    return () => mq.removeEventListener("change", leer);
+  }, []);
+  return esPC;
 }
 
 /** El día en el celular: un renglón por turno, en orden, con la raya de «ahora» si es hoy. */
@@ -112,6 +132,12 @@ export default function CalendarGrid({
 }) {
   const piel = useRef<HTMLDivElement>(null);
   const tema = useTemaDeLaRaiz(piel);
+  const esPC = useEsPC();
+  // Rendimiento (sólo con la agenda interactiva, que monta una planilla también en el celular):
+  // tras hidratar, se monta sólo la que corresponde al ancho. Apagado, todo queda como siempre.
+  const conInteraccion = planilla.permisos.interaccion;
+  const montarCelular = !conInteraccion || esPC !== true;
+  const montarPC = !conInteraccion || esPC !== false;
 
   if (professionals.length === 0) {
     return sinProfesionales ? (
@@ -137,13 +163,34 @@ export default function CalendarGrid({
           también en el celular, como hoja desde abajo. */}
       <div ref={piel} data-diseno={PIEL_RENGLON} data-theme={tema} data-pantalla="agenda-planilla" style={estilo} className="text-body lg:bg-surface">
         <MesaDeTurnos turnos={planilla.turnos} permisos={planilla.permisos} ahora={planilla.ahora} hrefFicha={planilla.hrefFicha}>
-          <div className="lg:hidden">
-            <ListaDelCelular
-              planilla={planilla}
-              vacio={diaVacio ? <PasoVacio paso={diaVacio} /> : <p className="text-sm text-muted">No hay turnos ese día.</p>}
-            />
-          </div>
-          <div className="hidden lg:block">
+          {montarCelular && (
+            <div className="lg:hidden">
+            {conInteraccion ? (
+              // Agenda interactiva: la grilla de UNA profesional con chips; «Ver lista» = la de siempre.
+              <CelularPorProfesional
+                turnos={planilla.turnos}
+                profesionales={planilla.profesionales}
+                ahora={planilla.ahora}
+                dia={planilla.dia}
+                bloqueos={planilla.bloqueos}
+                miProfesional={planilla.miProfesional ?? null}
+                lista={
+                  <ListaDelCelular
+                    planilla={planilla}
+                    vacio={diaVacio ? <PasoVacio paso={diaVacio} /> : <p className="text-sm text-muted">No hay turnos ese día.</p>}
+                  />
+                }
+              />
+            ) : (
+              <ListaDelCelular
+                planilla={planilla}
+                vacio={diaVacio ? <PasoVacio paso={diaVacio} /> : <p className="text-sm text-muted">No hay turnos ese día.</p>}
+              />
+            )}
+            </div>
+          )}
+          {montarPC && (
+            <div className="hidden lg:block">
             <PorProfesional
               turnos={planilla.turnos}
               profesionales={planilla.profesionales}
@@ -156,7 +203,8 @@ export default function CalendarGrid({
                 <PasoVacio paso={diaVacio} />
               </div>
             )}
-          </div>
+            </div>
+          )}
         </MesaDeTurnos>
       </div>
     </div>

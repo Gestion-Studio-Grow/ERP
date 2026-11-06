@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireApp } from "@/lib/require-app";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { hoyEstaCerrado } from "@/lib/caja/frontera-cierre";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { getTenantIdentity } from "@/lib/identidad-rubro";
 import { getProfessionalsWithServices } from "@/lib/actions";
 import { PageContainer, PageHeader, buttonClasses } from "@/components/ui";
@@ -94,7 +94,7 @@ export default async function VenderPage({ searchParams }: { searchParams: Promi
   // pedidos no cobra: ni se pregunta.
   const [mostrador, conTarjeta] = await Promise.all([
     boutique ? cargarMostradorBoutique({ user, tenantId, interruptores, cliente, repetir }) : null,
-    boutique && roleHasCapability(user.role, "orders:manage") ? tarjetaHabilitada() : false,
+    boutique && permisoEfectivo(user, "orders:manage") ? tarjetaHabilitada() : false,
   ]);
   // MOSTRADOR BOUTIQUE (Magra, tanda 2 · 2D): con la caja cerrada, la tarjeta «Abrí la caja: ayer
   // quedaron $X» arriba de todo, para abrirla sin salir de Vender (MG-057). Apagado, nada cambia.
@@ -116,12 +116,12 @@ export default async function VenderPage({ searchParams }: { searchParams: Promi
       <ProtocoloSinSenal negocioId={tenantId} conTarjeta={conTarjeta} />
     </div>
   ) : null;
-  const cuaderno = roleHasCapability(user.role, "orders:manage") && VENTANA_DEL_CUADERNO[user.role] !== null ? RUTA_DEL_CUADERNO : null;
+  const cuaderno = permisoEfectivo(user, "orders:manage") && VENTANA_DEL_CUADERNO[user.role] !== null ? RUTA_DEL_CUADERNO : null;
   // Los servicios se cobran creando un turno (ver MostradorTabs): sólo en un negocio de
   // servicios y sólo para quien puede dar turnos. En un comercio no hay solapa de Servicios.
   const conServicios = !identidad.isRetail;
   const professionals =
-    conServicios && roleHasCapability(user.role, "agenda:manage") ? await getProfessionalsWithServices() : [];
+    conServicios && permisoEfectivo(user, "agenda:manage") ? await getProfessionalsWithServices() : [];
   // El formulario es el MISMO que el mostrador de Pedidos de un comercio (MostradorDeVenta).
   const formProductos = (conVendedor: boolean) =>
     mostrador ? (

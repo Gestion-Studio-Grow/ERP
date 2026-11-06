@@ -104,7 +104,8 @@ console.log("\n▶ portada");
   const p = vigilar(await ctx.newPage(), "portada");
   const r = await p.goto(`${BASE}/`);
   check(r.status() === 200 && r.headers()["x-content-type-options"] === "nosniff", "la portada la sirve el manejador del ERP (nosniff)");
-  check(await p.locator('a[href="/turnero"]').count() === 1 && await p.locator('a[href="/club"]').count() === 0, "front público: «Reservá tu cancha» (/turnero) y sin acceso a la gestión del club (el back)");
+  // La portada de «la cancha desde arriba» (29/10) lleva «Reservá» en el encabezado y en la portada, más anclas por franja y cancha.
+check(await p.locator('a[href="/turnero"]').count() >= 1 && await p.locator('a[href^="/club"]').count() === 0, "front público: «Reservá tu cancha» (/turnero) y sin acceso a la gestión del club (el back)");
   check(!/demo/i.test(await p.textContent("body")), "la portada del club no dice «demo» (ambiente real)");
   check(await p.getAttribute('meta[name="generator"]', "content") === "Gestión Studio Grow", "sello GSG en meta generator");
   await p.setViewportSize({ width: 390, height: 844 });
@@ -112,7 +113,7 @@ console.log("\n▶ portada");
   await p.screenshot({ path: `${SALIDA}/publicado-portada-390.png` });
   await axe(`${BASE}/`, "portada");
   await p.setViewportSize({ width: 1280, height: 860 });
-  await p.click('a[href="/turnero"]');
+  await p.locator('a[href="/turnero"]').first().click();
   await p.waitForSelector("body[data-estado=listo]", { timeout: 10000 }).catch(() => {});
   check(await p.locator(".slot").count() > 0, "desde la portada, «Reservá tu cancha» abre el turnero");
   check(await p.getAttribute("body", "data-modo") === "pedido" && /Pedido por (WhatsApp|mensaje)/.test(await p.textContent("#en-vivo")), "el turnero del sitio es el real: pedido por WhatsApp o, sin número publicado, por mensaje (la demo, con ?demo=1)");
@@ -321,7 +322,8 @@ console.log("\n▶ tienda (demo) con el club en otra pestaña");
   await t.waitForSelector("#tienda-listo:not([hidden])", { timeout: 6000 }).catch(() => {});
   const codigo = (await t.textContent("#tienda-codigo").catch(() => "")) ?? "";
   const href = (await t.getAttribute("#tienda-wa", "href").catch(() => "")) ?? "";
-  check(/^T-[A-Z2-9]{4}$/.test(codigo) && href.startsWith("https://wa.me/?text=") && decodeURIComponent(href).includes(codigo), `pedido ${codigo}: el link de WhatsApp lleva el código`);
+  // Sin WhatsApp del club, el pedido va por su Instagram (copiado y a la vista con el código), nunca un wa.me pelado.
+  check(/^T-[A-Z2-9]{4}$/.test(codigo) && href === "https://ig.me/m/breakpointpadel_" && (await t.inputValue("#tienda-texto").catch(() => "")).includes(codigo), `pedido ${codigo}: va por Instagram con el código a la vista`);
   await t.screenshot({ path: `${SALIDA}/tienda-390.png` });
   // El club lo recibe por el bus (evento "pedido" del canal staff). Se activa solo cuando conectado.mjs lo escucha.
   const clubOye = /addEventListener\(\s*["']pedido["']/.test(readFileSync(path.join(RAIZ, "public/previews/breakpoint/club/conectado.mjs"), "utf8"));
@@ -333,7 +335,7 @@ console.log("\n▶ tienda (demo) con el club en otra pestaña");
   // Portada → tienda.
   const pt = vigilar(await ctx.newPage(), "portada-tienda");
   await pt.goto(`${BASE}/`);
-  check(await pt.locator('a[href="/turnero#tienda"]').count() === 0, "sin tienda publicada por el club, la portada no ofrece tienda");
+  check(await pt.locator('a[href="/turnero#tienda"]').count() === 1, "la portada ofrece la tienda (sin catálogo publicado, sin precios)");
   await pt.close();
   await t.close();
   // Peso: el turnero publicado lleva todo su JS inline (app + local + núcleo + motor + tienda).

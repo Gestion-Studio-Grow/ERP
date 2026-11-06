@@ -20,7 +20,8 @@
 // `server-only`: importa `operatorPrisma` y el descifrado del certificado.
 
 import "server-only";
-import forge from "node-forge";
+import { habilitadosRealDesdeEnv, slugHabilitadoReal } from "@/lib/fiscal/modo-del-negocio";
+import { entornoDeCertPem as entornoDeCertPemPuro } from "@/lib/fiscal/entorno-del-certificado";
 import { operatorPrisma } from "@/lib/operator-db";
 import {
   credencialParaTenant,
@@ -35,7 +36,6 @@ import type { ModoArcaPlataforma } from "./checklist-apertura";
 import {
   cambiosParaAuditoria,
   decidirPase,
-  entornoDelEmisor,
   FICHA_CAMBIO_MIENTRAS_MIRABAS,
   type AccionDePase,
   type ComprobantesDePrueba,
@@ -167,20 +167,15 @@ function motivoSinSecretos(e: unknown): string {
   return "no se pudo descifrar ni leer. Revisá que la clave maestra de la plataforma sea la misma con la que se cargó.";
 }
 
-function textoDelCampo(campo: unknown): string | null {
-  const v = (campo as { value?: unknown } | null | undefined)?.value;
-  return typeof v === "string" && v.trim() !== "" ? v.trim() : null;
+/** Abre el certificado con la guardia de siempre y devuelve SÓLO quién lo firmó. */
+export function entornoDeCertPem(certPem: string): Pick<CredencialDelPase, "entorno" | "emisor"> {
+  return entornoDeCertPemPuro(certPem);
 }
 
-/** Abre el certificado con la guardia de siempre y devuelve SÓLO quién lo firmó. */
 async function entornoDelCertificado(tenantId: string): Promise<Pick<CredencialDelPase, "entorno" | "emisor" | "error">> {
   try {
     const { certPem } = await credencialParaTenant(tenantId);
-    const issuer = forge.pki.certificateFromPem(certPem).issuer;
-    const cn = textoDelCampo(issuer.getField("CN"));
-    const o = textoDelCampo(issuer.getField("O"));
-    const emisor = [cn, o].filter((x): x is string => !!x).join(" · ") || null;
-    return { entorno: entornoDelEmisor({ cn, o }), emisor, error: null };
+    return { ...entornoDeCertPem(certPem), error: null };
   } catch (e) {
     return { entorno: "desconocido", emisor: null, error: motivoSinSecretos(e) };
   }
@@ -199,6 +194,7 @@ function fichaDesde(
         : null,
     delegacion: filas.delegacion,
     modoArca,
+    enListaReal: slugHabilitadoReal(filas.tenant.slug, habilitadosRealDesdeEnv(process.env)),
     comprobantesDePrueba: filas.comprobantes,
   };
 }

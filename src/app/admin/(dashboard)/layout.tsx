@@ -13,7 +13,7 @@ import { vocabularioDelNegocio } from "@/lib/vocabulario-negocio";
 import DemoBanner from "./DemoBanner";
 import { requireUser } from "@/lib/authz";
 import { mustChangePasswordFor } from "@/lib/must-change-password";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { getProductoContexto } from "@/lib/producto";
 import { panelInstalable } from "@/lib/terminal/manifest-core";
 import { getActiveProfile } from "@/lib/profile-gating";
@@ -140,10 +140,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // crear un loop de redirects: solo se redirige si el usuario puede entrar a esa casa
   // (Contador → cartera:manage; Facturita → billing:manage). El ERP vertical y Comerciante
   // viven en /admin → no se tocan.
-  if (productoCtx.producto === "contador" && roleHasCapability(user.role, "cartera:manage")) {
+  if (productoCtx.producto === "contador" && permisoEfectivo(user, "cartera:manage")) {
     redirect("/contador");
   }
-  if (productoCtx.producto === "facturita" && roleHasCapability(user.role, "billing:manage")) {
+  if (productoCtx.producto === "facturita" && permisoEfectivo(user, "billing:manage")) {
     redirect("/facturita/app");
   }
 
@@ -284,18 +284,18 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   }
   // Con tienda (Comerciante), «Cierre del mes» entra a la barra detrás de «Cierre del día»; CH no cambia.
   const barra = conProyectosEnLaBarra(conCierreDelMesEnLaBarra(proyectarMenuDeHoy(visibles), visibles, productoUsaTienda(productoCtx.producto)), visibles);
-  const menu = esEstetica(slugDelNegocio) ? barraDeCH(barra, visibles) : barra;
+  const menu = esEstetica(slugDelNegocio) ? barraDeCH(barra, visibles, user.role) : barra;
   // DISEÑO NUEVO: la navegación del armazón nuevo (espacios, comandos de ⌘K, tecla del rubro), con
   // las MISMAS apps que ya decidió `appsVisibles`. Apagado no se arma ni viaja: CH recibe los mismos
   // props de siempre (armazon/armazon-ch.test.ts).
   const nav = nuevo
-    ? armarNavegacion({ visibles, menu, modoApps, esMostrador: negocioApps.esMostrador, role: user.role })
+    ? armarNavegacion({ visibles, menu, modoApps, esMostrador: negocioApps.esMostrador, role: user.role, overrides: user.overrides })
     : undefined;
 
   // CHIP DE PEDIDOS NUEVOS (Magra 1I, MG-054): sólo con el mostrador boutique prendido y para quien
   // puede ver pedidos (orders:read, la misma guarda que la consulta del chip). CH y todo negocio con
   // el interruptor apagado: no se monta, no consulta y el HTML de la cabecera queda como estaba.
-  const pedidosNuevos = mostradorBoutiquePrendido(interruptores) && roleHasCapability(user.role, "orders:read");
+  const pedidosNuevos = mostradorBoutiquePrendido(interruptores) && permisoEfectivo(user, "orders:read");
 
   // DENSIDAD por perfil (ADR-059 D4): el MISMO design system en dos densidades. Comercio
   // (lite) → `data-density="lite"` (espacioso, --density 1.32); Empresa (enterprise) y motor

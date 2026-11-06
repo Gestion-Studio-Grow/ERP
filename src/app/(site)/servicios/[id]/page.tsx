@@ -23,6 +23,9 @@ import JsonLd from "@/components/seo/JsonLd";
 import { canonicalDe, pedidoPublico } from "@/lib/seo/base";
 import { servicioLd } from "@/lib/seo/jsonld";
 import { fichasDeHueco, fotoChicaDe, ilustracionDeFamilia, iniciales, enumerar, nombreDePila, pesos } from "../../_ch/equipo";
+import { FICHA_VACIA, MODALIDAD_ETIQUETA, TIPO_ETIQUETA, rutaDeFotoDeServicio, textoDelPrecio } from "@/lib/servicios/ficha";
+import { fichasDeServicios } from "@/lib/servicios/ficha.server";
+import { getCurrentTenantId } from "@/lib/tenant";
 
 export const dynamic = "force-dynamic";
 
@@ -42,8 +45,8 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   if (!hallado) return {};
   const { s } = hallado;
   return metadataCH({
-    titulo: `${s.name} · ${pesos(s.price)} — ${await nombreDelNegocioCH()}`,
-    descripcion: `${s.durationMin} min · ${pesos(s.price)}. Reservá online.`,
+    titulo: `${s.name} · ${textoDelPrecio(s.price, pesos)} — ${await nombreDelNegocioCH()}`,
+    descripcion: `${s.durationMin} min · ${textoDelPrecio(s.price, pesos)}. Reservá online.`,
   });
 }
 
@@ -57,12 +60,16 @@ export default async function FichaServicio({ params }: { params: Promise<{ id: 
   const regla = await reglaVigenteParaLaClienta().catch(() => null);
   const quienes = professionals.filter((p) => p.serviceIds.includes(s.id));
   const fichas = fichasDeHueco(professionals, groups, [], s.id);
+  // Ficha completa y fotos del servicio (sin la migración: la ficha vacía y sin fotos, como antes).
+  const extra = await fichasDeServicios(await getCurrentTenantId(), [s.id]).catch(() => null);
+  const ficha = extra?.fichas.get(s.id) ?? FICHA_VACIA;
+  const fotos = extra?.fotos.get(s.id) ?? [];
   const dias = nextBusinessDays(2);
   const vecina = s.residentPrice != null && s.residentPrice < s.price ? s.residentPrice : null;
   const { origen, ruta } = await pedidoPublico();
   const ld = origen
     ? servicioLd(
-        { nombre: s.name, url: canonicalDe(origen, ruta), precio: s.price, duracionMin: s.durationMin },
+        { nombre: s.name, url: canonicalDe(origen, ruta), precio: s.price > 0 ? s.price : null, duracionMin: s.durationMin },
         { nombre: await nombreDelNegocioCH(), url: origen, tipo: "HealthAndBeautyBusiness" },
       )
     : null;
@@ -86,7 +93,7 @@ export default async function FichaServicio({ params }: { params: Promise<{ id: 
             </div>
             <div>
               <dt>Precio</dt>
-              <dd>{pesos(s.price)}</dd>
+              <dd>{textoDelPrecio(s.price, pesos)}</dd>
             </div>
             {vecina != null && (
               <div>
@@ -97,7 +104,19 @@ export default async function FichaServicio({ params }: { params: Promise<{ id: 
             {s.depositAmount != null && (
               <div>
                 <dt>Seña</dt>
-                <dd>{pesos(s.depositAmount)}</dd>
+                <dd>{ficha.depositPercent != null ? `${ficha.depositPercent}\u00a0%` : pesos(s.depositAmount)}</dd>
+              </div>
+            )}
+            {ficha.modality !== "PRESENCIAL" && (
+              <div>
+                <dt>Modalidad</dt>
+                <dd>{MODALIDAD_ETIQUETA[ficha.modality]}</dd>
+              </div>
+            )}
+            {ficha.kind !== "REGULAR" && (
+              <div>
+                <dt>Tipo</dt>
+                <dd>{TIPO_ETIQUETA[ficha.kind]}</dd>
               </div>
             )}
           </dl>
@@ -124,7 +143,7 @@ export default async function FichaServicio({ params }: { params: Promise<{ id: 
             <ReserveButton clase="chf-btn" prefill={{ serviceId: s.id }}>
               Reservar este tratamiento
             </ReserveButton>
-            <Compartir titulo={`${s.name} · ${pesos(s.price)}`} />
+            <Compartir titulo={`${s.name} · ${textoDelPrecio(s.price, pesos)}`} />
           </div>
           {fichas.length > 0 && (
             <div className="chf-ficha-hueco">
@@ -132,13 +151,31 @@ export default async function FichaServicio({ params }: { params: Promise<{ id: 
             </div>
           )}
         </div>
-        <div className="chf-ficha-ilu" aria-hidden>
-          {/* Ilustración de marca de la familia: placeholder hasta tener fotos propias del tratamiento. */}
-          {/* eslint-disable-next-line @next/next/no-img-element -- SVG propio */}
-          <img src={ilustracionDeFamilia(familia)} alt="" width={1200} height={900} loading="lazy" decoding="async" />
-        </div>
+        {fotos.length > 0 ? (
+          <div className="chf-ficha-ilu">
+            {/* Fotos propias del tratamiento (hasta 4), servidas por /servicios/foto/[id]. */}
+            {/* eslint-disable-next-line @next/next/no-img-element -- JPEG/WebP ya achicado al subir */}
+            <img src={rutaDeFotoDeServicio(fotos[0])} alt={`${s.name}: foto 1`} width={1200} height={900} decoding="async" style={{ objectFit: "cover" }} />
+            {fotos.length > 1 && (
+              <ul style={{ display: "grid", gridTemplateColumns: `repeat(${fotos.length - 1}, minmax(0, 1fr))`, gap: 8, margin: "8px 0 0", padding: 0, listStyle: "none" }}>
+                {fotos.slice(1).map((f, i) => (
+                  <li key={f}>
+                    {/* eslint-disable-next-line @next/next/no-img-element -- JPEG/WebP ya achicado al subir */}
+                    <img src={rutaDeFotoDeServicio(f)} alt={`${s.name}: foto ${i + 2}`} width={400} height={300} loading="lazy" decoding="async" style={{ width: "100%", height: "auto", aspectRatio: "4 / 3", objectFit: "cover" }} />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        ) : (
+          <div className="chf-ficha-ilu" aria-hidden>
+            {/* Ilustración de marca de la familia: hasta que el servicio tenga fotos propias. */}
+            {/* eslint-disable-next-line @next/next/no-img-element -- SVG propio */}
+            <img src={ilustracionDeFamilia(familia)} alt="" width={1200} height={900} loading="lazy" decoding="async" />
+          </div>
+        )}
       </article>
-      <BarraReservar texto={`Reservar · ${pesos(s.price)}`} prefill={{ serviceId: s.id }} />
+      <BarraReservar texto={s.price > 0 ? `Reservar · ${pesos(s.price)}` : "Reservar"} prefill={{ serviceId: s.id }} />
     </div>
   );
 }

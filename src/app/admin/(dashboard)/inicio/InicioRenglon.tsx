@@ -20,6 +20,7 @@
 //
 // La guardia es la del Inicio de siempre (dashboard:read): lo que se ve sale de `appsVisibles`.
 
+import { HoySiCorresponde } from "./HoyDelNegocio";
 import { Suspense } from "react";
 import Link from "next/link";
 import { cookies } from "next/headers";
@@ -80,7 +81,7 @@ async function contexto(): Promise<Contexto> {
   const [negocio, modoApps] = await Promise.all([getNegocioApps(user.role), enInicioPorApps()]);
   const visibles = appsVisibles(negocio);
   const menu = proyectarMenuDeHoy(visibles);
-  const nav = armarNavegacion({ visibles, menu, modoApps, esMostrador: negocio.esMostrador, role: user.role });
+  const nav = armarNavegacion({ visibles, menu, modoApps, esMostrador: negocio.esMostrador, role: user.role, overrides: user.overrides });
   const rutas = new Set(nav.espacios.flatMap((e) => e.apps.map((a) => a.ruta)));
   return {
     role: user.role,
@@ -131,6 +132,7 @@ export default async function InicioRenglon({ espacio }: { espacio: string | nul
       </header>
       <DosColumnas>
         <div className="min-w-0">
+          <HoySiCorresponde role={ctx.role} />
           <Suspense fallback={null}>
             <ParaArrancar ctx={ctx} />
           </Suspense>

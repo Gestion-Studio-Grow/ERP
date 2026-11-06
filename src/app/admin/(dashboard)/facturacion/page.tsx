@@ -16,9 +16,22 @@ import { requireApp } from "@/lib/require-app";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import { LineaDeEstado, Marca, Pestanas } from "@/components/ui";
 import ComprobantesArca from "./ComprobantesArca";
+import EmitirDelPanel from "./EmitirDelPanel";
+import { datosDelFacturador, tieneFacturacionElectronica } from "@/lib/facturacion/emision-manual.server";
 import CobrarConLink from "./CobrarConLink";
 import LinksDeCobro from "./LinksDeCobro";
 import { FranjaDeArca, datosDeArca } from "./EstadoArca";
+import { getCurrentTenantId } from "@/lib/tenant";
+import { AsistenteArca } from "@/components/fiscal/AsistenteArca";
+import { leerAsistente } from "@/lib/fiscal/asistente-arca.server";
+import {
+  cargarCertificadoArcaAction,
+  generarPedidoArcaAction,
+  pedirPaseArcaAction,
+  pedirContadorArcaAction,
+  cancelarContadorArcaAction,
+  probarCertificadoArcaAction,
+} from "@/lib/fiscal/asistente-arca-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +45,8 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
   // Sin pestaña pedida, abre la lista si el negocio tiene comprobantes; si no tiene ninguno (CH,
   // con ARCA apagado), «Cobrar con link», como antes (`vistaDeFacturacion`, lista-core.ts).
   const linkPedido = sp.vista === "cobrar-con-link";
+  const arcaPedido = sp.vista === "arca";
+  const emitirPedido = sp.vista === "emitir";
   const [{ estado, filtros, lista, fallo }, { modo }, activos, nuevo, linksPedidos] = await Promise.all([
     getPanelDeFacturacion(linkPedido ? {} : sp),
     estadoCobros(),
@@ -39,7 +54,19 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
     disenoNuevo(),
     linkPedido ? getLinksDeCobro(sp) : null,
   ]);
-  const conLink = vistaDeFacturacion(sp, estado.hayComprobantes) === "cobrar-con-link";
+  // Asistente ARCA (pestaña «Conectar con ARCA»): sólo con el módulo arca activo. La guardia fina de
+  // sus actions vive en asistente-arca-actions.ts; acá se lee con el negocio de la sesión.
+  const arcaActivo = moduleGateAllows("arca", activos);
+  const conArca = arcaPedido && arcaActivo;
+  // «Emitir» (el facturador guiado común): sólo con la facturación electrónica asignada.
+  // La regla explícita (módulo `arca` en la lista del negocio), la misma que vuelve a exigir la acción.
+  const negocioId = arcaActivo ? await getCurrentTenantId() : null;
+  const emiteAMano = negocioId ? await tieneFacturacionElectronica(negocioId) : false;
+  const conEmitir = emitirPedido && emiteAMano;
+  const tenantId = conEmitir ? negocioId : null;
+  const facturador = tenantId ? await datosDelFacturador(tenantId) : null;
+  const asistente = conArca ? await leerAsistenteDelCliente(sp) : null;
+  const conLink = !conArca && !conEmitir && vistaDeFacturacion(sp, estado.hayComprobantes) === "cobrar-con-link";
   const links = linksPedidos ?? (conLink ? await getLinksDeCobro(sp) : null);
   const listaDeLinks = links && <LinksDeCobro pagina={links.pagina} filtros={links.filtros} fallo={links.fallo} />;
   const hoy = todayInBusinessTz();
@@ -52,13 +79,21 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
       conRaya
       className="mb-5"
       pestanas={[
-        { href: "/admin/facturacion?vista=comprobantes", etiqueta: "Comprobantes", actual: !conLink },
+        { href: "/admin/facturacion?vista=comprobantes", etiqueta: "Comprobantes", actual: !conLink && !conArca && !conEmitir },
+        ...(emiteAMano ? [{ href: "/admin/facturacion?vista=emitir", etiqueta: "Emitir factura", actual: conEmitir }] : []),
         { href: "/admin/facturacion?vista=cobrar-con-link", etiqueta: "Cobrar con link", actual: conLink },
+        ...(arcaActivo ? [{ href: "/admin/facturacion?vista=arca", etiqueta: "Conectar con ARCA", actual: conArca }] : []),
       ]}
     />
   );
-  const comprobantes = <ComprobantesArca lista={lista} filtros={filtros} estado={estado} hoy={hoy} fallo={fallo} />;
-  const aviso = bancosActivo && !conLink && (
+  const comprobantes = tenantId && facturador ? (
+    <EmitirDelPanel tenantId={tenantId} condicionEmisor={facturador.condicionEmisor} hoy={facturador.hoy} regimenFacturaA={facturador.regimenFacturaA} />
+  ) : asistente ? (
+    asistente
+  ) : (
+    <ComprobantesArca lista={lista} filtros={filtros} estado={estado} hoy={hoy} fallo={fallo} />
+  );
+  const aviso = bancosActivo && !conLink && !conArca && !conEmitir && (
     <p className="mt-6 text-sm text-muted">
       Las ventas que entran al banco se facturan desde{" "}
       <Link href="/admin/facturacion/bancos" className="font-medium text-accent-ink underline underline-offset-4">
@@ -117,5 +152,28 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
       )}
       {aviso}
     </PageContainer>
+  );
+}
+
+const primero = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
+
+/** El asistente ARCA del negocio de la sesión. `requireApp("facturacion")` de la página ya exige billing:manage; las actions lo vuelven a exigir. */
+async function leerAsistenteDelCliente(sp: Sp) {
+  const vista = await leerAsistente(await getCurrentTenantId());
+  if (!vista) return null;
+  return (
+    <AsistenteArca
+      vista={vista}
+      plano="cliente"
+      aviso={{ ok: primero(sp.ok)?.slice(0, 600), error: primero(sp.error)?.slice(0, 600) }}
+      acciones={{
+        generarPedido: generarPedidoArcaAction,
+        cargarCertificado: cargarCertificadoArcaAction,
+        probar: probarCertificadoArcaAction,
+        pedirPase: pedirPaseArcaAction,
+        pedirAsistencia: pedirContadorArcaAction,
+        cancelarAsistencia: cancelarContadorArcaAction,
+      }}
+    />
   );
 }
