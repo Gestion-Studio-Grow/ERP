@@ -178,3 +178,49 @@ test("30 días de ausencia: neto no negativo y presentismo perdido", () => {
   assert.equal(importes(r).PRESENTISMO, 0);
   assert.ok(r.totales.neto >= 0);
 });
+
+test("certificación · categorías heredadas del prototipo se rechazan (nunca neto NaN)", () => {
+  const base = CASOS[0].entrada;
+  for (const categoria of ["toString", "constructor", "__proto__", "valueOf", "hasOwnProperty"]) {
+    for (const basicoConvenido of [undefined, 2_000_000]) {
+      assert.throws(
+        () => liquidarReciboComercio({ ...base, empleado: { ...base.empleado, categoria: categoria as never, basicoConvenido } }),
+        /Categoría desconocida/,
+      );
+    }
+  }
+});
+
+test("certificación · importes fuera de rango y horas extra sobre el máximo legal", () => {
+  const base = CASOS[0].entrada;
+  assert.throws(() => liquidarReciboComercio({ ...base, empleado: { ...base.empleado, basicoConvenido: 1e20 } }), /Básico convenido/);
+  assert.throws(
+    () => liquidarReciboComercio({ ...base, novedades: { ausenciasInjustificadas: 0, horasExtra50: 200, horasExtra100: 200 } }),
+    /Horas extra/,
+  );
+  assert.throws(
+    () => liquidarReciboComercio({ ...base, novedades: { ausenciasInjustificadas: 0, horasExtra50: 20, horasExtra100: 10.5 } }),
+    /484\/00/,
+  );
+  // 30 h justas se aceptan.
+  liquidarReciboComercio({ ...base, novedades: { ausenciasInjustificadas: 0, horasExtra50: 20, horasExtra100: 10 } });
+});
+
+test("certificación · afiliación no booleana se rechaza y −0 no llega al snapshot", () => {
+  const base = CASOS[0].entrada;
+  assert.throws(
+    () => liquidarReciboComercio({ ...base, empleado: { ...base.empleado, afiliadoSindical: "false" as never } }),
+    /Afiliación sindical/,
+  );
+  const r = liquidarReciboComercio({ ...base, empleador: { alicuotaContribucion: 18, art: { variable: 2, fija: -0 }, seguroVidaObligatorio: 300 } });
+  assert.ok(r.lineas.every((l) => !Object.is(l.importe, -0)));
+});
+
+test("certificación · snapshot con novedades explícitas, fuentes y sumas no rem. con prefijo; advierte prorrateo pendiente", () => {
+  const r = liquidarReciboComercio(CASOS[3].entrada);
+  assert.deepEqual(r.novedades, { ausenciasInjustificadas: 2, horasExtra50: 0, horasExtra100: 0, antiguedadAnios: 2, afiliadoSindical: true });
+  assert.equal(r.parametros["nr.NR_SUMA_FIJA"], 120_000);
+  assert.equal(typeof r.parametros.escalaFuente, "string");
+  assert.equal(typeof r.parametros.leyFuente, "string");
+  assert.ok(r.advertencias.some((a) => a.includes("prorrateo")));
+});

@@ -12,6 +12,7 @@
  * el F.931 cuadre con el recibo.
  */
 import {
+  admiteCentavos,
   centavosDe,
   porcentajeDe,
   proporcionAlCentavo,
@@ -64,6 +65,10 @@ export interface EntradaReciboComercio {
 }
 
 const ALICUOTAS_814 = [18, 20.4];
+/** Ningún importe de un recibo de sueldo llega a $10.000 millones; arriba de eso es un error de carga. */
+const IMPORTE_MAXIMO = 10_000_000_000;
+/** Dto. 484/00: máximo 30 horas extra por mes (y 200 por año, que se controla con el acumulado en fase 2). */
+const HORAS_EXTRA_MAXIMAS_MES = 30;
 
 function exigirEnteroEnRango(valor: number, min: number, max: number, que: string): void {
   if (!Number.isInteger(valor) || valor < min || valor > max) {
@@ -72,8 +77,14 @@ function exigirEnteroEnRango(valor: number, min: number, max: number, que: strin
 }
 
 function exigirImporte(valor: number, que: string): void {
-  if (!Number.isFinite(valor) || valor < 0 || centavosDe(valor) / 100 !== valor) {
-    throw new RangeError(`${que} inválido: ${valor} (importe no negativo con hasta dos decimales).`);
+  if (
+    !Number.isFinite(valor) ||
+    valor < 0 ||
+    valor > IMPORTE_MAXIMO ||
+    !admiteCentavos(valor) ||
+    centavosDe(valor) / 100 !== valor
+  ) {
+    throw new RangeError(`${que} inválido: ${valor} (importe entre 0 y ${IMPORTE_MAXIMO} con hasta dos decimales).`);
   }
 }
 
@@ -86,7 +97,7 @@ function exigirPorcentaje(valor: number, que: string): void {
 
 /** Horas con hasta dos decimales, en centésimos de hora enteros. */
 function centesimosDeHora(horas: number, que: string): number {
-  if (!Number.isFinite(horas) || horas < 0 || horas > 200) {
+  if (!Number.isFinite(horas) || horas < 0 || horas > HORAS_EXTRA_MAXIMAS_MES) {
     throw new RangeError(`${que} inválidas: ${horas}.`);
   }
   const centesimos = Math.round(horas * 100);
@@ -110,7 +121,7 @@ function linea(
     base: extra.base ?? null,
     porcentaje: extra.porcentaje ?? null,
     cantidad: extra.cantidad ?? null,
-    importe,
+    importe: importe === 0 ? 0 : importe, // nunca −0 en el snapshot
     conceptoArca: null,
   };
 }
@@ -124,13 +135,22 @@ export function liquidarReciboComercio(entrada: EntradaReciboComercio): Recibo {
   const advertencias: string[] = [];
 
   // ── Validación de entrada ───────────────────────────────────────────────────────────────
-  if (!(empleado.categoria in escala.basicos)) {
+  // hasOwn y no `in`: «toString», «constructor», etc. vienen del prototipo y darían plata inválida.
+  if (typeof empleado.categoria !== "string" || !Object.hasOwn(escala.basicos, empleado.categoria)) {
     throw new RangeError(`Categoría desconocida en ${escala.id}: «${empleado.categoria}».`);
   }
   exigirEnteroEnRango(empleado.antiguedadAnios, 0, 60, "Antigüedad");
+  if (typeof empleado.afiliadoSindical !== "boolean") {
+    throw new RangeError(`Afiliación sindical inválida: ${String(empleado.afiliadoSindical)} (true o false).`);
+  }
   exigirEnteroEnRango(novedades.ausenciasInjustificadas, 0, reglas.diasMes, "Días de ausencia");
   const he50 = centesimosDeHora(novedades.horasExtra50, "Horas extra al 50 %");
   const he100 = centesimosDeHora(novedades.horasExtra100, "Horas extra al 100 %");
+  if (he50 + he100 > HORAS_EXTRA_MAXIMAS_MES * 100) {
+    throw new RangeError(
+      `Horas extra inválidas: ${novedades.horasExtra50} + ${novedades.horasExtra100} superan las ${HORAS_EXTRA_MAXIMAS_MES} h mensuales del dto. 484/00.`,
+    );
+  }
   if (!ALICUOTAS_814.includes(empleador.alicuotaContribucion)) {
     throw new RangeError(`Alícuota de contribución inválida: ${empleador.alicuotaContribucion} (18 o 20,4).`);
   }
@@ -234,6 +254,11 @@ export function liquidarReciboComercio(entrada: EntradaReciboComercio): Recibo {
   for (const suma of escala.sumasNoRemunerativas) {
     lineas.push(linea("N", suma.codigo, suma.descripcion, suma.importe));
   }
+  if (novedades.ausenciasInjustificadas > 0 && escala.sumasNoRemunerativas.length > 0) {
+    advertencias.push(
+      "Sumas no remunerativas liquidadas enteras pese a las ausencias: el prorrateo está pendiente de definir con el contador.",
+    );
+  }
 
   // ── Bases ───────────────────────────────────────────────────────────────────────────────
   const remunerativo = sumarAlCentavo(lineas.filter((l) => l.tipo === "R").map((l) => l.importe));
@@ -271,7 +296,10 @@ export function liquidarReciboComercio(entrada: EntradaReciboComercio): Recibo {
   const aportes = sumarAlCentavo(lineas.filter((l) => l.tipo === "A").map((l) => l.importe));
   const contribuciones = sumarAlCentavo(lineas.filter((l) => l.tipo === "C").map((l) => l.importe));
   const neto = (centavosDe(remunerativo) + centavosDe(noRemunerativo) - centavosDe(aportes)) / 100;
-  if (neto < 0) throw new RangeError(`Neto negativo (${neto}): revisar novedades.`);
+  for (const l of lineas) {
+    if (!Number.isFinite(l.importe)) throw new RangeError(`Importe inválido en ${l.codigo}: ${l.importe}.`);
+  }
+  if (!Number.isFinite(neto) || neto < 0) throw new RangeError(`Neto inválido (${neto}): revisar novedades.`);
 
   return {
     periodo,
@@ -279,11 +307,19 @@ export function liquidarReciboComercio(entrada: EntradaReciboComercio): Recibo {
     convenio: CONVENIO_COMERCIO,
     versionReglas: reglas.version,
     versionParametros: `${escala.id}+${ley.id}`,
+    novedades: {
+      ausenciasInjustificadas: novedades.ausenciasInjustificadas,
+      horasExtra50: novedades.horasExtra50,
+      horasExtra100: novedades.horasExtra100,
+      antiguedadAnios: empleado.antiguedadAnios,
+      afiliadoSindical: empleado.afiliadoSindical,
+    },
     parametros: {
       categoria: empleado.categoria,
       basicoEscala,
       basicoLiquidado: basico,
-      ...Object.fromEntries(escala.sumasNoRemunerativas.map((s) => [s.codigo, s.importe])),
+      // Prefijo «nr.» para que el código de una suma nunca pise otra clave del snapshot.
+      ...Object.fromEntries(escala.sumasNoRemunerativas.map((s) => [`nr.${s.codigo}`, s.importe])),
       antiguedadPorAnio: reglas.antiguedadPorAnio,
       presentismo: reglas.presentismo,
       diasMes: reglas.diasMes,
@@ -300,7 +336,9 @@ export function liquidarReciboComercio(entrada: EntradaReciboComercio): Recibo {
       artFija: empleador.art?.fija ?? "sin configurar",
       seguroVidaObligatorio: empleador.seguroVidaObligatorio ?? "sin configurar",
       escalaProvisional: escala.provisional,
+      escalaFuente: escala.fuente,
       leyProvisional: ley.provisional,
+      leyFuente: ley.fuente,
     },
     lineas,
     totales: { remunerativo, noRemunerativo, baseAportes, aportes, neto, contribuciones },

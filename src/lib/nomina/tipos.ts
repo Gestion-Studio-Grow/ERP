@@ -61,6 +61,14 @@ export interface Recibo {
    * guardado tiene que permitir auditar y reimprimir el recibo años después sin depender del código.
    */
   parametros: Record<string, number | string | boolean>;
+  /** Novedades y datos del legajo con que se liquidó, explícitos (no sólo como cantidades de las líneas). */
+  novedades: {
+    ausenciasInjustificadas: number;
+    horasExtra50: number;
+    horasExtra100: number;
+    antiguedadAnios: number;
+    afiliadoSindical: boolean;
+  };
   lineas: LineaRecibo[];
   totales: TotalesRecibo;
   /** Advertencias para quien revisa (datos provisionales, valores de ejemplo, etc.). */
