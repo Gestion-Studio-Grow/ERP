@@ -22,10 +22,15 @@ import { Prisma } from "@/generated/prisma/client";
 import { tenantTransaction } from "@/lib/rls";
 import { centavosDe } from "@/lib/dinero/redondeo";
 import { createInvoiceInTx, type CreateInvoiceInput, type InvoiceTx } from "@/lib/invoice-core";
+import { claveAlmacenada, type OrigenFacturable } from "@/lib/facturacion/clave-origen";
 
 // ─── Claves ─────────────────────────────────────────────────────────────────────
 
-/** Un pago de Mercado Pago (aviso, sincronización o el link de un turno). */
+/**
+ * Un pago de Mercado Pago (aviso, sincronización o el link de un turno). Es el caso `mp_payment` de
+ * la clave de origen genérica (`clave-origen.ts`): `mp:payment:<id>` se guarda como `mp:<id>`.
+ * Sin validar acá: el extracto del banco la arma con su referencia tal cual.
+ */
 export const claveCobroMP = (paymentId: string) => `mp:${paymentId}`;
 /** Lo que un turno facturó al completarse: el resto de sus cobros. */
 export const claveCobroTurno = (appointmentId: string) => `turno:${appointmentId}`;
@@ -145,6 +150,15 @@ export async function facturarCobros(input: CreateInvoiceInput, cobros: readonly
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") return correr();
     throw e;
   }
+}
+
+/**
+ * Clave de origen genérica: factura `input` UNA sola vez por `origen` (`mp:payment:<id>`,
+ * `mp:refund:<id>`, `manual:<uuid>`…). Mismo árbitro que los cobros (índice único del libro): nunca
+ * dos comprobantes vivos por origen; si el de ese origen quedó rechazado, se puede volver a facturar.
+ */
+export async function facturarOrigen(input: CreateInvoiceInput, origen: OrigenFacturable): Promise<string> {
+  return facturarCobros(input, [{ clave: claveAlmacenada(origen), importe: input.total }]);
 }
 
 /** `vincularCobroInTx` en su propia transacción (mismo reintento ante la carrera). */
