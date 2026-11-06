@@ -6,14 +6,16 @@ import { atajosFacturitaAction, datosEmisorFacturitaAction, estadoFacturitaActio
 import Link from "next/link";
 import { listaEnCriollo } from "@/lib/facturita-emisor";
 import PantallaEmitir from "./PantallaEmitir";
+import { getCurrentTenantId } from "@/lib/tenant";
 
 export const dynamic = "force-dynamic";
 
 export default async function FacturitaEmitirPage() {
-  const [limite, emisor, atajos] = await Promise.all([
+  const [limite, emisor, atajos, tenantId] = await Promise.all([
     estadoFacturitaAction(),
     datosEmisorFacturitaAction(),
     atajosFacturitaAction(),
+    getCurrentTenantId(),
   ]);
 
   return (
@@ -54,6 +56,8 @@ export default async function FacturitaEmitirPage() {
         condicionEmisor={emisor.condicionIva}
         bloqueado={!limite.puedeEmitir}
         hoy={emisor.hoy}
+        ambito={`negocio:${tenantId}`}
+        motivoBloqueo={limite.puedeEmitir ? null : limite.mensaje}
       />
     </>
   );
