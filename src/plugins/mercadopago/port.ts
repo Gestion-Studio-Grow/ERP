@@ -26,6 +26,10 @@ export type PagoMP = PagoNormalizado & {
    * transferencia); sin dato = no se sabe. Lo arma `normalizarPago` (http.ts).
    */
   cuentaPropia?: boolean;
+  /** El `operation_type` CRUDO de MP ("regular_payment", "money_transfer"…): la facturación automática sólo toma "regular_payment". */
+  tipoOperacionMP?: string;
+  /** Documento del pagador (`payer.identification`), si MP lo trae: "DNI"/"CUIT"/"CUIL" + número sólo dígitos. */
+  pagadorDoc?: { tipo: string; numero: string };
 };
 
 export type { CriterioBusqueda, PaginaPagos } from "@/plugins/pagos";

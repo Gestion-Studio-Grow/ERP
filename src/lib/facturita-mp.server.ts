@@ -29,6 +29,12 @@ import {
 import { claveMaestraDesdeEntorno } from "@/integraciones/secretos";
 import { CAMPO_SECRETO_WEBHOOK_MP, CAMPO_TOKEN_MP } from "@/plugins/mercadopago/conector";
 import {
+  CONFIG_FACTURACION_MP_APAGADA,
+  configDeLaConexion,
+  validarConfigFacturacionMP,
+  type ConfigFacturacionMP,
+} from "@/lib/mercadopago-clasificacion";
+import {
   OAuthMPError,
   configOAuthMP,
   hayQueRenovar,
@@ -114,6 +120,7 @@ export async function guardarConexionMP(
     logger.error("facturita", "no se pudo guardar la conexión de Mercado Pago", e, { tenantId });
     return { ok: false, motivo: "error" };
   }
+  await activarModuloMP(tenantId);
   await auditar(tenantId, userId, "facturita.mercadopago_conectado", { cuenta: tokens.cuentaMp });
   return { ok: true };
 }
@@ -184,6 +191,87 @@ export async function renovarMPSiHaceFalta(
     logger.error("facturita", "renovación de Mercado Pago", e, { tenantId });
     return "fallo";
   }
+}
+
+/**
+ * Conectar es el permiso del negocio: suma el módulo «mercadopago» (si no lo tenía) para que los
+ * avisos de esa conexión no se rechacen por `conMercadoPagoActivo`. Idempotente, dentro del negocio.
+ * Desconectar NO lo saca: sin conexión no llega ningún aviso, y el historial sigue visible.
+ */
+async function activarModuloMP(tenantId: string): Promise<void> {
+  try {
+    await tenantTransaction(
+      async (tx) => {
+        const t = await tx.tenant.findUnique({ where: { id: tenantId }, select: { modules: true } });
+        if (!t || t.modules.includes(CONECTOR_MP)) return;
+        await tx.tenant.update({ where: { id: tenantId }, data: { modules: { push: CONECTOR_MP } } });
+      },
+      { tenantId },
+    );
+  } catch (e) {
+    logger.error("facturita", "no se pudo activar el módulo de Mercado Pago", e, { tenantId });
+  }
+}
+
+// ── Configuración de la facturación de lo que entra por MP (PR2) ─────────────
+
+/** La configuración del negocio (de su conexión activa). Sin conexión o rara → apagada. */
+export async function configFacturacionMPDelNegocio(tenantId: string): Promise<ConfigFacturacionMP> {
+  const fila = await tenantTransaction(
+    (tx) =>
+      tx.integracionConexion.findFirst({
+        where: { tenantId, conector: CONECTOR_MP, estado: { in: ["conectada", "con_problemas", "requiere_reconectar"] } },
+        orderBy: { createdAt: "desc" },
+        select: { tenantId: true, config: true },
+      }),
+    { tenantId },
+  );
+  return fila && fila.tenantId === tenantId ? configDeLaConexion(fila.config) : CONFIG_FACTURACION_MP_APAGADA;
+}
+
+export type ResultadoConfigMP =
+  | { ok: true; config: ConfigFacturacionMP }
+  | { ok: false; motivo: "sin_conexion" }
+  | { ok: false; motivo: "invalida"; errores: Partial<Record<keyof ConfigFacturacionMP, string>> };
+
+/**
+ * Guarda la configuración en la conexión activa del negocio (JSON no secreto, sin migración).
+ * Conserva el resto de `config`. Auditada con el antes y el después.
+ */
+export async function guardarConfigFacturacionMP(tenantId: string, userId: string, crudo: unknown): Promise<ResultadoConfigMP> {
+  const v = validarConfigFacturacionMP(crudo);
+  if (!v.ok) return { ok: false, motivo: "invalida", errores: v.errores };
+  const r = await tenantTransaction(
+    async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`integracion-conexion:${tenantId}:${CONECTOR_MP}`}))`;
+      const fila = await tx.integracionConexion.findFirst({
+        where: { tenantId, conector: CONECTOR_MP, estado: { in: ["conectada", "con_problemas", "requiere_reconectar"] } },
+        orderBy: { createdAt: "desc" },
+        select: { id: true, tenantId: true, config: true },
+      });
+      if (!fila || fila.tenantId !== tenantId) return null;
+      const antes = configDeLaConexion(fila.config);
+      const resto = fila.config && typeof fila.config === "object" && !Array.isArray(fila.config) ? (fila.config as Record<string, unknown>) : {};
+      await tx.integracionConexion.updateMany({
+        where: { tenantId, id: fila.id },
+        data: { config: { ...resto, facturacion: { ...v.config } } as object },
+      });
+      await tx.auditLog.create({
+        data: {
+          tenantId,
+          actor: `user:${userId}`,
+          action: "facturita.mercadopago_facturacion_config",
+          entity: "IntegracionConexion",
+          entityId: fila.id,
+          changes: { antes: { ...antes }, despues: { ...v.config } } as object,
+          channel: "admin",
+        },
+      });
+      return v.config;
+    },
+    { tenantId },
+  );
+  return r ? { ok: true, config: r } : { ok: false, motivo: "sin_conexion" };
 }
 
 async function auditar(tenantId: string, userId: string, action: string, changes: Record<string, string | number>): Promise<void> {

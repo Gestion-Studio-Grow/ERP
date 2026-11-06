@@ -96,6 +96,8 @@ export interface PropuestaVista {
   descripcionServicio: string | null;
   invoiceId: string | null;
   createdAt: string; // ISO
+  /** De dónde salió: un extracto del banco o un cobro de Mercado Pago (comparten bandeja). */
+  origen: "banco" | "mercadopago";
 }
 
 export interface FiltroPropuestas {
@@ -132,6 +134,7 @@ function aPropuestaVista(m: {
   descripcionServicio: string | null;
   invoiceId: string | null;
   createdAt: Date;
+  importacion?: { origen: string } | null;
 }): PropuestaVista {
   return {
     id: m.id,
@@ -151,6 +154,7 @@ function aPropuestaVista(m: {
     descripcionServicio: m.descripcionServicio,
     invoiceId: m.invoiceId,
     createdAt: m.createdAt.toISOString(),
+    origen: m.importacion?.origen === "mercadopago" ? "mercadopago" : "banco",
   };
 }
 
@@ -361,6 +365,7 @@ export async function listarPropuestasAction(
     },
     orderBy: [{ fecha: "desc" }, { createdAt: "desc" }],
     take: 500,
+    include: { importacion: { select: { origen: true } } },
   });
   return movimientos.map(aPropuestaVista);
 }
