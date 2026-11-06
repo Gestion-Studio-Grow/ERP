@@ -61,4 +61,7 @@
 # (aplicada por el build de producción del merge anterior del lote: sale de la lista) 20261104121000_rendiciones
 #
 # 2026-11-05 · LOTE GATE 2 (2/4, docs/runbooks/GATE2-LOTE-2026-11-05.md): Contabilidad ola 1. Aditiva: 6 tablas con RLS, 4 funciones de trigger (SECURITY DEFINER, search_path fijo). No toca tablas existentes.
-20261104122000_contabilidad_ola1
+# (aplicada por el build de producción del merge anterior del lote: sale de la lista) 20261104122000_contabilidad_ola1
+#
+# 2026-11-05 · LOTE GATE 2 (3/4, docs/runbooks/GATE2-LOTE-2026-11-05.md): Servicio completo (CH). Aditiva: 2 enums nuevos, 2 tablas con RLS. No toca tablas existentes.
+20261104123000_servicio_completo
