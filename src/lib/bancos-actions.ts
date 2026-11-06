@@ -374,7 +374,7 @@ export async function listarPropuestasAction(
       ...(filtro?.importacionId ? { importacionId: filtro.importacionId } : {}),
     },
     orderBy: [{ fecha: "desc" }, { createdAt: "desc" }],
-    take: Math.min(Math.max(1, Math.trunc(filtro?.limite ?? 500)), 500),
+    take: Number.isFinite(filtro?.limite) ? Math.min(Math.max(1, Math.trunc(filtro!.limite!)), 500) : 500,
     include: { importacion: { select: { origen: true } } },
   });
   const vistas = movimientos.map(aPropuestaVista);

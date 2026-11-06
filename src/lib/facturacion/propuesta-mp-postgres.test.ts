@@ -53,8 +53,9 @@ test("mismo mp:payment:<id> dos veces → una propuesta, una factura y el estado
   // Una segunda pasada de la bandeja tampoco duplica.
   await emitirPropuestas(n.id, "auto");
   assert.equal(await duenio.invoice.count({ where: { tenantId: n.id } }), antes + 1, "una sola factura para el pago");
-  const libro = await duenio.cobroFacturado.findMany({ where: { tenantId: n.id, clave: { in: [`mp:${id}`, `banco:mp:${id}`] } }, select: { clave: true } });
-  assert.deepEqual(libro.map((c) => c.clave), [`mp:${id}`]);
+  const libro = await duenio.cobroFacturado.findMany({ where: { tenantId: n.id, clave: { in: [`mp:${id}`, `banco:mp:${id}`] } }, select: { clave: true, invoiceId: true } });
+  assert.ok(libro.some((c) => c.clave === `mp:${id}`), "la clave del pago está en el libro");
+  assert.equal(new Set(libro.map((c) => c.invoiceId)).size, 1, "todas las claves del cobro apuntan a la MISMA factura");
 
   // Con la factura atada, la bandeja muestra el estado del contrato.
   const mov = await duenio.movimientoImportado.findFirstOrThrow({ where: { tenantId: n.id, hash: `mp:${id}` }, select: { estadoPropuesta: true, invoiceId: true } });

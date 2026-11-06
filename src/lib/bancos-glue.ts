@@ -736,10 +736,11 @@ export async function emitirPropuestas(
         // ESA clave: así el índice único del libro arbitra contra la emisión automática del mismo
         // pago (aviso o respaldo). Con `banco:mp:<id>` las dos podían pasar a la vez.
         const claveBanco = pagoDeLaPropuesta(mov.hash) ? mov.hash : claveCobroBanco(mov.hash);
-        const [yaFacturado] = await cobrosYaFacturados(tenantId, [
-          claveBanco,
-          ...(mov.referencia ? [claveCobroMP(mov.referencia)] : []),
-        ]);
+        // Todas las claves de este cobro, y la factura las TOMA a todas (candado + índice único):
+        // la del pago de MP (`mp:<referencia>`) y la `banco:<hash>` que la bandeja escribía antes
+        // para una propuesta de MP. Así ni un extracto CSV de MP ni una fila vieja abren otra factura.
+        const clavesDelCobro = [...new Set([claveBanco, claveCobroBanco(mov.hash), ...(mov.referencia ? [claveCobroMP(mov.referencia)] : [])])];
+        const [yaFacturado] = await cobrosYaFacturados(tenantId, clavesDelCobro);
         if (yaFacturado) {
           await vincularCobro(tenantId, { clave: claveBanco, importe: montoTotal }, yaFacturado.invoiceId);
           await tenantTransaction(
@@ -770,7 +771,7 @@ export async function emitirPropuestas(
           neto,
           iva,
           total,
-        }, [{ clave: claveBanco, importe: total }]);
+        }, clavesDelCobro.map((clave) => ({ clave, importe: total })));
         await tenantTransaction(
           (tx) =>
             tx.movimientoImportado.updateMany({
