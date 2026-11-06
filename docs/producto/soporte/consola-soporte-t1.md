@@ -29,4 +29,8 @@ en ningún lado (Gate 2): sin la tabla, el pedido de la contadora sigue quedando
   de RLS.
 - **A la IA viaja lo mínimo** (`datosParaLaIa`): tipo, asunto y detalle pasados por
   `redactarTextoLibre` (la redacción del sobre de eventos). Se tapan los CUIT con cualquier
-  separador, los DNI, los teléfonos y los emails. La IA sólo deja un borrador y nunca responde sola.
+  separador, los DNI, los teléfonos y los emails. Los importes quedan sólo si llevan «$» o forma
+  de plata con decimales; un número largo sin «$» (p. ej. «125000») se tapa como si fuera un dato
+  personal (lado seguro). «<» y «>» viajan escapados a «‹ ›», así el texto del cliente no puede
+  abrir ni cerrar el bloque `<datos>`, y cada campo se recorta a 500 caracteres después de redactar.
+  La IA sólo deja un borrador y nunca responde sola.

@@ -226,15 +226,37 @@ export const ESQUEMA_SUGERENCIA = {
 } as const;
 
 /**
- * Lo que el cliente escribió, listo para la IA: sin etiquetas <datos> y pasado por la MISMA
- * redacción que el sobre de eventos (`redactarTextoLibre`, src/eventos/esquema.ts): emails →
- * «[email]», y toda tirada de 6+ dígitos con cualquier separador (CUIT «20.12345678.9» o
- * «20 12345678 9», DNI «30.123.456», teléfonos) → máscara. Acá la máscara se lleva también los 4
- * últimos dígitos: a un tercero no le hace falta ninguno. Los importes y fechas quedan. Recorta a
- * 500 caracteres por campo (alcanza para clasificar y sugerir). PURA.
+ * Lo que el cliente escribió, listo para la IA, pasado por la MISMA redacción que el sobre de
+ * eventos (`redactarTextoLibre`, src/eventos/esquema.ts): emails → «[email]», y toda tirada de 6+
+ * dígitos con cualquier separador (CUIT «20.12345678.9» o «20 12345678 9», DNI «30.123.456»,
+ * teléfonos) → máscara. Acá la máscara se lleva también los 4 últimos dígitos: a un tercero no le
+ * hace falta ninguno. Los importes con «$» y las fechas quedan; un número largo sin «$» se tapa
+ * (lado seguro).
+ *
+ * Etiquetas: «<» y «>» se ESCAPAN a «‹ ›» en vez de borrar la etiqueta. Borrar de una pasada no
+ * alcanza: «</da<datos>tos>» quedaba «</datos>» y cerraba el bloque. Sin «<» ni «>» no hay
+ * etiqueta posible, anidada o no.
+ *
+ * Recorta a LARGO_PARA_LA_IA caracteres por campo DESPUÉS de reemplazar la máscara: «[dato
+ * personal]» es más largo que «******7788» y antes el campo podía pasar de 500. PURA.
  */
 export function textoParaLaIa(s: string): string {
-  return redactarTextoLibre(s.replace(/<\/?datos>/gi, "")).replace(/\*{6}\d{0,4}/g, "[dato personal]");
+  const redactado = redactarTextoLibre(s)
+    .replace(/\*{6}\d{0,4}/g, "[dato personal]")
+    .replace(/</g, "‹")
+    .replace(/>/g, "›");
+  return recortarParaLaIa(redactado);
+}
+
+export const LARGO_PARA_LA_IA = 500;
+
+/** Corta a LARGO_PARA_LA_IA sin partir un par sustituto ni dejar un «[dato pers…» a medias. PURA. */
+function recortarParaLaIa(t: string): string {
+  if (t.length <= LARGO_PARA_LA_IA) return t;
+  const c = t.charCodeAt(LARGO_PARA_LA_IA - 1);
+  const cortado = t.slice(0, c >= 0xd800 && c <= 0xdbff ? LARGO_PARA_LA_IA - 1 : LARGO_PARA_LA_IA);
+  const abre = cortado.lastIndexOf("[");
+  return abre >= 0 && cortado.indexOf("]", abre) < 0 ? cortado.slice(0, abre) : cortado;
 }
 
 /** Lo mínimo que viaja a la IA: tipo, asunto y detalle. Sin CUIT, DNI, emails, teléfonos ni ids. PURA. */

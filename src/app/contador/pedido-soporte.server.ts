@@ -57,8 +57,9 @@ export async function pedidosDelEstudio(
  * uno). Devuelve si ya estaba.
  *
  * Consola de soporte T1: el pedido nuevo además abre un ticket (src/lib/soporte), en la misma
- * transacción pero detrás de un SAVEPOINT: si la tabla de tickets todavía no existe (Gate 2) o el
- * ticket falla, el pedido queda guardado en AuditLog igual que antes.
+ * transacción pero detrás de un SAVEPOINT: SÓLO si falta la tabla de tickets (Gate 2) el pedido
+ * queda guardado en AuditLog igual que antes. Cualquier otra falla del ticket se propaga y la
+ * transacción entera vuelve atrás: no queda pedido sin ticket (src/lib/soporte/alta.server.ts).
  */
 export async function guardarPedidoSoporte(p: {
   estudioTenantId: string;
