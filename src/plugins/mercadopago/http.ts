@@ -25,6 +25,7 @@ import {
   MercadoPagoClient,
   MercadoPagoConfig,
   PaginaPagos,
+  MovimientoPosteriorMP,
   PagoMP,
   TipoOperacionMP,
 } from "./port";
@@ -52,16 +53,13 @@ export interface RawPagoMP {
     email?: string | null;
     first_name?: string | null;
     last_name?: string | null;
+    identification?: { type?: string | null; number?: string | null } | null;
   } | null;
   /** Devoluciones del pago (cada parcial con su id). PR3: cada una es una nota de crédito. */
   refunds?: Array<{ id?: number | string | null; amount?: number | null; date_created?: string | null; status?: string | null }> | null;
 }
 
-/** Lo que el motor hace después de cobrado: una nota de crédito por devolución, o un caso por contracargo. */
-export type MovimientoPosteriorMP =
-  // Sin fecha: la nota de crédito lleva el día en que se emite (la de la devolución puede estar fuera de la ventana de ARCA).
-  | { tipo: "devolucion"; refundId: string; paymentId: string; importe: number }
-  | { tipo: "contracargo"; paymentId: string; importe: number };
+export type { MovimientoPosteriorMP };
 
 /**
  * PR3 · Lee del pago crudo de MP sus devoluciones (aprobadas, total o parciales) y si es un
@@ -285,6 +283,14 @@ export function normalizarPago(raw: RawPagoMP): PagoMP {
   }
   const nombre = nombreContraparte(raw.payer);
   if (nombre) pago.contraparteNombre = nombre;
+  if (typeof raw.operation_type === "string" && /^[a-z_]{1,40}$/.test(raw.operation_type)) pago.tipoOperacionMP = raw.operation_type;
+  const doc = raw.payer?.identification;
+  const numero = typeof doc?.number === "string" ? doc.number.replace(/\D/g, "") : "";
+  if (typeof doc?.type === "string" && /^[A-Za-z]{2,8}$/.test(doc.type) && /^\d{6,11}$/.test(numero)) {
+    pago.pagadorDoc = { tipo: doc.type.toUpperCase(), numero };
+  }
+  const posteriores = movimientosPosterioresMP(raw);
+  if (posteriores.length > 0) pago.posteriores = posteriores;
   // R1 · una transferencia NO es siempre «cuenta propia»: la seña de una clienta por
   // transferencia es plata de un tercero. Propia = fondeo de la cuenta, o el que paga es el mismo
   // que cobra. De un tercero = los dos ids están y son distintos. Sin datos, no se sabe.

@@ -3,7 +3,7 @@
 // ============================================================================
 // La capa del CONTADOR sobre el facturador común (no una copia): lo que necesita quien emite para
 // muchos clientes, todo el día.
-//  · Atajos de teclado: Ctrl+Enter avanza o emite; Alt+1/2/3 salta al paso (los da el motor con
+//  · Atajos de teclado: Ctrl+Enter emite o pasa a la próxima; Alt+1 abre el comprador y Alt+2 va al monto (los da el motor con
 //    `atajosDeTeclado`, que sólo prende esta pantalla).
 //  · Emisión en serie: cuenta lo emitido en la sesión y deja la próxima lista con un toque (o Ctrl+Enter).
 //  · Emisión por lote: varias a consumidor final de una vez (LoteDelEstudio).
@@ -98,8 +98,8 @@ export default function FacturadorDelEstudio({
         <div className="hidden rounded-lg border border-line px-4 py-3 text-muted lg:block">
           <p className="m-0 mb-1 font-medium text-strong">Atajos</p>
           <ul className="m-0 list-none space-y-1 p-0">
-            <li><kbd className="font-mono">Ctrl</kbd> + <kbd className="font-mono">Enter</kbd> · seguir, emitir y la próxima</li>
-            <li><kbd className="font-mono">Alt</kbd> + <kbd className="font-mono">1</kbd>/<kbd className="font-mono">2</kbd>/<kbd className="font-mono">3</kbd> · ir al paso</li>
+            <li><kbd className="font-mono">Ctrl</kbd> + <kbd className="font-mono">Enter</kbd> · emitir y la próxima</li>
+            <li><kbd className="font-mono">Alt</kbd> + <kbd className="font-mono">1</kbd> · comprador · <kbd className="font-mono">Alt</kbd> + <kbd className="font-mono">2</kbd> · monto</li>
           </ul>
         </div>
         <p className="text-muted">

@@ -84,7 +84,8 @@ test("devolución parcial y después el resto: NC C asociadas, idempotentes por 
   // Una devolución que supera el saldo: rechazada con el saldo en criollo.
   const demas = await p.dev.notaDeCreditoPorDevolucion(a, { refundId: "r2", paymentId: pago, importe: 800, fecha: HOY });
   assert.equal(demas.estado, "rechazada");
-  if (demas.estado === "rechazada") assert.match(demas.motivo, /queda \$700,00 por anular/);
+  // PR5 · C3: el tope por cobro corta antes que el saldo de la factura (acá coinciden: un solo cobro).
+  if (demas.estado === "rechazada") assert.match(demas.motivo, /facturado \$1\.000,00, ya acreditado \$300,00/);
 
   // El resto, pedido dos veces a la vez con el mismo id: UNA nota.
   const [u, v] = await Promise.all([

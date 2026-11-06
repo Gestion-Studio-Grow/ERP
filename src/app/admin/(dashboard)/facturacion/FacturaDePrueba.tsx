@@ -61,7 +61,7 @@ export default function FacturaDePrueba() {
             ))}
           </select>
         </label>
-        <Button type="button" variant="outline" onClick={emitir} disabled={emitiendo} estado={emitiendo ? "cargando" : undefined}>
+        <Button type="button" variant="outline" className="h-auto! min-h-11 whitespace-normal! py-2 text-center" onClick={emitir} disabled={emitiendo} estado={emitiendo ? "cargando" : undefined}>
           {emitiendo ? "Emitiendo…" : "Emitir un comprobante de verificación (sin validez fiscal)"}
         </Button>
       </div>

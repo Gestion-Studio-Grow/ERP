@@ -15,7 +15,8 @@ import { useMemo, useRef, useState, useTransition } from "react";
 import { Badge, Button, Field, Segmented, Select, fmtMoneyARS } from "@/components/ui";
 import { OPCIONES_ALICUOTA, OPCIONES_CONCEPTO, type AlicuotaFacturita, type ConceptoFacturita } from "@/lib/facturita-core";
 import { nuevaClaveEmision } from "@/lib/facturita-atajos";
-import { lineasDelLote, MAX_LINEAS_DEL_LOTE, type ResultadoEmisionManual } from "@/lib/facturacion/facturador-core";
+import { CONSUMIDOR_FINAL, letraPrevista, lineasDelLote, MAX_LINEAS_DEL_LOTE, type ResultadoEmisionManual } from "@/lib/facturacion/facturador-core";
+import { sinJerga } from "@/lib/facturacion/estados-ux";
 import { emitirParaClienteAction } from "@/lib/facturacion/emitir-manual-actions";
 
 type Salida = { texto: string; ok: boolean };
@@ -47,6 +48,8 @@ export default function LoteDelEstudio({
   const firma = (n: number, pedido: unknown) => `${n}:${JSON.stringify(pedido)}`;
   const porEmitir = listas.filter((l) => !salidas[firma(l.n, l.pedido)]?.ok);
   const suma = porEmitir.reduce((s, l) => s + (l.total ?? 0), 0);
+  // Todo el lote va a consumidor final: la letra es la misma para todas (la decide el sistema).
+  const letra = letraPrevista(condicionEmisor, CONSUMIDOR_FINAL);
 
   const emitir = () =>
     startTransition(async () => {
@@ -125,25 +128,44 @@ export default function LoteDelEstudio({
       </Field>
 
       {lineas.length > 0 && (
-        <ol aria-label="Lo que va a salir" className="m-0 flex list-none flex-col gap-1 p-0 text-sm">
-          {lineas.map((l) => {
-            const s = l.pedido ? salidas[firma(l.n, l.pedido)] : undefined;
-            return (
-              <li key={l.n} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md bg-surface-sunken px-3 py-2">
-                <span className="tabular-nums text-muted">{l.n}</span>
-                <span className="min-w-0 flex-1 text-strong [overflow-wrap:anywhere]">{l.descripcion || "—"}</span>
-                {l.total != null && <span className="tabular-nums text-strong">{fmtMoneyARS(l.total)}</span>}
-                {l.error ? (
-                  <span className="basis-full text-danger">{l.error}</span>
-                ) : s ? (
-                  <Badge tone={s.ok ? "success" : "danger"} dot>
-                    {s.texto}
-                  </Badge>
-                ) : null}
-              </li>
-            );
-          })}
-        </ol>
+        <div className="overflow-x-auto rounded-lg border border-line">
+          <table className="w-full text-sm" aria-label="Revisá antes de emitir">
+            <caption className="sr-only">Cada línea con su letra y lo que hay que corregir</caption>
+            <thead className="bg-surface-sunken text-left text-xs text-muted">
+              <tr>
+                <th scope="col" className="px-3 py-2 font-medium">#</th>
+                <th scope="col" className="px-3 py-2 font-medium">Detalle</th>
+                <th scope="col" className="px-3 py-2 font-medium">Letra</th>
+                <th scope="col" className="px-3 py-2 text-right font-medium">Total</th>
+                <th scope="col" className="px-3 py-2 font-medium">Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lineas.map((l) => {
+                const s = l.pedido ? salidas[firma(l.n, l.pedido)] : undefined;
+                return (
+                  <tr key={l.n} data-testid="lote-fila" data-ok={l.error ? "no" : "si"} className="border-t border-line align-top">
+                    <td className="px-3 py-2 tabular-nums text-muted">{l.n}</td>
+                    <td className="min-w-40 px-3 py-2 text-strong [overflow-wrap:anywhere]">{l.descripcion || "—"}</td>
+                    <td className="px-3 py-2 font-semibold text-strong">{l.error ? "—" : letra ?? "—"}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-strong">{l.total != null ? fmtMoneyARS(l.total) : "—"}</td>
+                    <td className="min-w-40 px-3 py-2">
+                      {l.error ? (
+                        <span className="text-danger">{sinJerga(l.error)}</span>
+                      ) : s ? (
+                        <Badge tone={s.ok ? "success" : "danger"} dot>
+                          {s.ok ? s.texto : sinJerga(s.texto)}
+                        </Badge>
+                      ) : (
+                        <span className="text-success">Lista</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
@@ -151,7 +173,7 @@ export default function LoteDelEstudio({
           {pendiente
             ? "Emitiendo…"
             : porEmitir.length > 0
-              ? `Emitir ${porEmitir.length === 1 ? "1 factura" : `${porEmitir.length} facturas`} · ${fmtMoneyARS(suma)}`
+              ? `${porEmitir.length === 1 ? "Emitir la correcta" : `Emitir las ${porEmitir.length} correctas`} · ${fmtMoneyARS(suma)}`
               : "Emitir"}
         </Button>
         <p className="m-0 text-sm text-muted" aria-live="polite">

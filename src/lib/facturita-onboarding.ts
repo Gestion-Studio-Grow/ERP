@@ -144,7 +144,15 @@ export const PASOS_CERTIFICADO_PROPIO: readonly string[] = [
 // El alta completa → mensaje para activar
 // ---------------------------------------------------------------------------
 
+/**
+ * Primer paso del alta, OPCIONAL: «Conectá tu Mercado Pago». El alta no crea un negocio todavía
+ * (alta operada), así que el permiso OAuth real se da después, con un toque, desde «Mi cuenta»
+ * (/facturita/app/cuenta): acá sólo se anota si la persona lo quiere. "" = no contestó / saltó.
+ */
+export type MercadoPagoAlta = "" | "quiere" | "despues";
+
 export interface DatosAlta {
+  mercadoPago: MercadoPagoAlta;
   nombre: string;
   cuit: string;
   condicion: CondicionIva | "";
@@ -156,6 +164,7 @@ export interface DatosAlta {
 }
 
 export const ALTA_VACIA: DatosAlta = {
+  mercadoPago: "",
   nombre: "",
   cuit: "",
   condicion: "",
@@ -189,6 +198,11 @@ export function validarAlta(d: DatosAlta): ErroresAlta {
   return e;
 }
 
+/** Lo que el resumen dice del paso de Mercado Pago. Nunca bloquea el alta. */
+export function resumenMercadoPago(m: MercadoPagoAlta): string {
+  return m === "quiere" ? "Lo conectás con un toque al activarte" : "Más adelante, si querés";
+}
+
 export function altaCompleta(d: DatosAlta): boolean {
   return Object.keys(validarAlta(d)).length === 0;
 }
@@ -208,5 +222,7 @@ export function mensajeActivacion(d: DatosAlta): string {
     `Condición frente al IVA: ${condicion}`,
     `Punto de venta: ${pv && pv.ok ? pv.numero : "todavía no lo creé"}`,
     `Certificado en ARCA: ${d.delegacionHecha ? "ya lo hice" : "me falta, ayudame"}`,
+    // Sólo si dijo que sí: saltar el paso deja el mensaje como siempre.
+    ...(d.mercadoPago === "quiere" ? ["Mercado Pago: quiero conectarlo para facturar mis cobros"] : []),
   ].join("\n");
 }

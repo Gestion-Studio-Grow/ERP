@@ -1,5 +1,5 @@
 // Emitir a mano para UN cliente de la cartera, desde la consola del estudio. El facturador es el
-// común (a quién · qué · confirmar, src/components/facturacion/EmitirComprobante.tsx); lo propio del
+// común (una sola pantalla, src/components/facturacion/EmitirComprobante.tsx); lo propio del
 // contador va en la capa `FacturadorDelEstudio`: atajos de teclado, emisión en serie y el salto al
 // lote del mes. El acceso (sesión, módulo y cliente ACTIVO de su cartera) lo decide
 // `accesoAClienteDeCartera`; la acción lo vuelve a exigir.

@@ -27,6 +27,7 @@ import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
 import { capFacturasMesDelNegocioEnTx } from "@/lib/limites-del-negocio-en-tx";
 import { runInTenantContext } from "@/lib/tenant-context";
+import { pagoDeLaPropuesta } from "@/lib/facturacion/propuesta-mp";
 import { claveCobroBanco, claveCobroMP, cobrosYaFacturados, facturarCobros, vincularCobro } from "@/lib/facturacion/cobros-facturados";
 import { calcularImpuestos, getFiscalProfile, isInvoicingEnabled } from "@/lib/fiscal";
 import { procesarEnviosDelNegocio, type DispatchResumen } from "@/lib/arca-dispatch";
@@ -731,11 +732,15 @@ export async function emitirPropuestas(
         // camino? Se reconoce por SU clave (`banco:<hash>`) o por la referencia del pago de
         // Mercado Pago (`mp:<referencia>`), no sólo por el total. Si sí, el movimiento queda
         // atado a esa factura y no se emite otra.
-        const claveBanco = claveCobroBanco(mov.hash);
-        const [yaFacturado] = await cobrosYaFacturados(tenantId, [
-          claveBanco,
-          ...(mov.referencia ? [claveCobroMP(mov.referencia)] : []),
-        ]);
+        // Una propuesta de Mercado Pago (hash = clave guardada del pago, `mp:<id>`) se factura con
+        // ESA clave: así el índice único del libro arbitra contra la emisión automática del mismo
+        // pago (aviso o respaldo). Con `banco:mp:<id>` las dos podían pasar a la vez.
+        const claveBanco = pagoDeLaPropuesta(mov.hash) ? mov.hash : claveCobroBanco(mov.hash);
+        // Todas las claves de este cobro, y la factura las TOMA a todas (candado + índice único):
+        // la del pago de MP (`mp:<referencia>`) y la `banco:<hash>` que la bandeja escribía antes
+        // para una propuesta de MP. Así ni un extracto CSV de MP ni una fila vieja abren otra factura.
+        const clavesDelCobro = [...new Set([claveBanco, claveCobroBanco(mov.hash), ...(mov.referencia ? [claveCobroMP(mov.referencia)] : [])])];
+        const [yaFacturado] = await cobrosYaFacturados(tenantId, clavesDelCobro);
         if (yaFacturado) {
           await vincularCobro(tenantId, { clave: claveBanco, importe: montoTotal }, yaFacturado.invoiceId);
           await tenantTransaction(
@@ -766,7 +771,9 @@ export async function emitirPropuestas(
           neto,
           iva,
           total,
-        }, [{ clave: claveBanco, importe: total }]);
+          // PR5 · C4: lo que entra por el banco o por Mercado Pago no es efectivo.
+          medioDePago: "otro",
+        }, clavesDelCobro.map((clave) => ({ clave, importe: total })));
         await tenantTransaction(
           (tx) =>
             tx.movimientoImportado.updateMany({

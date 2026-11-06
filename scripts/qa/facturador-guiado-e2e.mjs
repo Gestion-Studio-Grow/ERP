@@ -1,11 +1,11 @@
 // ============================================================================
-// QA DE PUNTA A PUNTA · Facturador guiado (a quién · qué · confirmar) en las tres pantallas
+// QA DE PUNTA A PUNTA · Facturador en UNA pantalla (monto · qué · comprador plegado) en las tres pantallas
 // ============================================================================
 // En un navegador real, a 1366 y 390 px, contra una base efímera con RLS (src/test/base-efimera.ts)
 // y ARCA simulado (stub, nada sale a la red):
-//   · Panel de un negocio inscripto (A): Factura B a consumidor final en dos pasos (qué → confirmar)
-//     con neto e IVA a la vista; Factura A a un responsable inscripto (CUIT, condición, domicilio);
-//     un total que exige identificar al comprador muestra el error con «Corregir el comprador».
+//   · Panel de un negocio inscripto (A): Factura B a consumidor final en una pantalla (monto → qué →
+//     Emitir) con la previa de una línea; Factura A a un responsable inscripto (CUIT, condición,
+//     domicilio); un total que exige identificar al comprador despliega el comprador y dice «Corregir».
 //   · Consola del contador (estudio B, cliente A): «Emitir» desde la cartera, la factura con el
 //     teclado (Ctrl+Enter) y la nota de crédito desde los comprobantes del cliente.
 //   · Factoque (B pasa a plan Factoque, monotributista): Factura C a consumidor final y la nota de
@@ -162,6 +162,31 @@ async function paso(ctxInfo, nombre, page, errores, fn) {
 
 const conTexto = (page, texto, timeout = 30_000) => page.getByText(texto, { exact: false }).first().waitFor({ timeout });
 
+// Selectores estables de la pantalla única (data-testid de EmitirComprobante.tsx).
+const monto = (page) => page.getByTestId("emitir-monto");
+const queHiciste = (page) => page.getByTestId("emitir-concepto");
+const botonEmitir = (page) => page.getByTestId("emitir-boton");
+const exito = (page, timeout = 30_000) => page.getByTestId("exito").first().waitFor({ timeout });
+
+async function letraEs(page, letra) {
+  const l = await page.getByTestId("emitir-letra").getAttribute("data-letra");
+  if (l !== letra) throw new Error(`la previa dice Factura ${l}, no ${letra}`);
+}
+
+async function abrirMasDetalles(page) {
+  const d = page.locator("details", { has: page.getByText("Más detalles", { exact: true }) });
+  if (!(await d.evaluate((el) => el.open))) await page.getByText("Más detalles", { exact: true }).click();
+}
+
+async function compradorConCuit(page, abrir = true) {
+  if (abrir) await page.getByRole("button", { name: "Poner DNI o CUIT" }).click();
+  await page.getByLabel("CUIT", { exact: true }).check();
+  await page.getByLabel("Número").fill(CUIT_RI);
+  await page.getByLabel("Nombre o razón social").fill("Distribuidora Sur SA");
+  await page.getByLabel("¿Cómo está inscripto?").selectOption("RESPONSABLE_INSCRIPTO");
+  await page.getByLabel("Domicilio").fill("Av. Siempreviva 742, CABA");
+}
+
 // ── Panel de un negocio inscripto ─────────────────────────────────────────────────────────
 async function recorrerPanel(ctx, origin, vp) {
   const { page, errores } = await nuevaPagina(ctx);
@@ -169,61 +194,54 @@ async function recorrerPanel(ctx, origin, vp) {
   await page.goto(`${origin}/admin/facturacion?vista=emitir`);
 
   await paso(c, "panel · B a consumidor final", page, errores, async () => {
-    await conTexto(page, "¿Qué vendiste?");
-    await page.getByLabel("Detalle").fill("Torta de chocolate");
-    await page.getByLabel("Total").fill("12.100");
-    await page.getByRole("button", { name: /^Revisar/ }).click();
-    await conTexto(page, "Revisá y emití la Factura B");
-    const neto = await page.getByText("$10.000,00", { exact: false }).count();
-    if (!neto) throw new Error("no muestra el neto de $ 10.000");
-    await page.getByRole("button", { name: /Emitir Factura B por/ }).click();
-    await conTexto(page, "Autorizada de prueba");
+    await conTexto(page, "¿Cuánto cobraste?");
+    await monto(page).fill("12.100");
+    await queHiciste(page).fill("Torta de chocolate");
+    await letraEs(page, "B");
+    await conTexto(page, "IVA $2.100");
+    await botonEmitir(page).click();
+    await exito(page);
+    await conTexto(page, "Modo de prueba");
     await resultadoArriba(page, "B", "/admin/facturacion/comprobante/");
-    return "importe → confirmar; arriba: letra, número, CAE y WhatsApp; el PDF, dicho";
+    return "una pantalla: monto → qué → Emitir; arriba: número grande, CAE chico y WhatsApp; el PDF, dicho";
   });
 
   await paso(c, "panel · A a responsable inscripto", page, errores, async () => {
-    await page.getByRole("button", { name: "Emitir otra" }).click();
-    await page.getByRole("button", { name: "Cambiar" }).click();
-    await page.getByRole("button", { name: /Otro, con CUIT/ }).click();
-    await page.getByLabel("Número").fill(CUIT_RI);
-    await page.getByLabel("Nombre o razón social").fill("Distribuidora Sur SA");
-    await page.getByLabel("¿Cómo está inscripto?").selectOption("RESPONSABLE_INSCRIPTO");
-    await page.getByLabel("Domicilio").fill("Av. Siempreviva 742, CABA");
-    await page.getByRole("button", { name: "Seguir" }).click();
-    await page.getByLabel("Detalle").fill("Cajas de alfajores");
-    await page.getByLabel("Total").fill("121.000");
-    await page.getByRole("button", { name: /^Revisar/ }).click();
-    await conTexto(page, "Revisá y emití la Factura A");
-    await page.getByRole("button", { name: /Emitir Factura A por/ }).click();
-    await conTexto(page, "Autorizada de prueba");
-    return "a quién → qué → confirmar";
+    await page.getByRole("button", { name: "Facturar otra" }).click();
+    await monto(page).fill("121.000");
+    await queHiciste(page).fill("Cajas de alfajores");
+    await compradorConCuit(page);
+    await letraEs(page, "A");
+    await botonEmitir(page).click();
+    await exito(page);
+    return "comprador desplegado con CUIT → la letra la pone el sistema (A)";
   });
 
   await paso(c, "panel · servicios con las fechas del mes", page, errores, async () => {
-    await page.getByRole("button", { name: "Emitir otra" }).click();
+    await page.getByRole("button", { name: "Facturar otra" }).click();
+    await abrirMasDetalles(page);
     await page.getByLabel("Servicios", { exact: true }).check();
     const desde = await page.getByLabel("Desde").inputValue();
     if (!/^\d{4}-\d{2}-01$/.test(desde)) throw new Error(`«Desde» arranca en «${desde}», no el 1.º del mes`);
     if (!(await page.getByLabel("Te lo pagan hasta el").inputValue())) throw new Error("vencimiento vacío");
     await conTexto(page, "Falta el detalle");
-    await page.getByLabel("Total").fill("30.250");
-    await page.getByLabel("Detalle").fill("Clases de pastelería de noviembre");
-    await page.getByRole("button", { name: /^Revisar/ }).click();
-    await page.getByRole("button", { name: /Emitir Factura B por/ }).click();
-    await conTexto(page, "Autorizada de prueba");
-    return "F1: mes en curso y vencimiento precargados; el faltante, dicho al lado del botón";
+    await monto(page).fill("30.250");
+    await queHiciste(page).fill("Clases de pastelería de noviembre");
+    await botonEmitir(page).click();
+    await exito(page);
+    return "F1: mes en curso y vencimiento precargados en «Más detalles»; el faltante, dicho al lado del botón";
   });
 
   await paso(c, "panel · error con la acción que lo resuelve", page, errores, async () => {
-    await page.getByRole("button", { name: "Emitir otra" }).click();
-    await page.getByLabel("Detalle").fill("Equipo completo");
-    await page.getByLabel("Total").fill("99.000.000");
-    await page.getByRole("button", { name: /^Revisar/ }).click();
+    await page.getByRole("button", { name: "Facturar otra" }).click();
+    await monto(page).fill("99.000.000");
+    await queHiciste(page).fill("Equipo completo");
+    await page.getByTestId("error-titulo").waitFor();
     await conTexto(page, "exige identificar al comprador");
-    await page.getByRole("button", { name: "Corregir el comprador" }).click();
-    await conTexto(page, "¿A quién le facturás?");
-    return "RG 5700 antes de emitir → paso 1";
+    if (await page.getByText(/\bRG \d/).count()) throw new Error("muestra «RG …»");
+    await page.getByLabel("Número").waitFor();
+    await page.getByRole("button", { name: "Corregir", exact: true }).click();
+    return "el umbral despliega el comprador solo, en criollo y sin «RG …»";
   });
   await page.close();
 }
@@ -235,37 +253,30 @@ async function recorrerContador(ctx, origin, vp, clienteId) {
   await paso(c, "contador · emitir con el teclado", page, errores, async () => {
     await page.goto(`${origin}/contador/cliente/${clienteId}/comprobantes`);
     await page.getByRole("link", { name: "Emitir un comprobante" }).click();
-    await conTexto(page, "¿Qué vendiste?");
-    await page.getByLabel("Detalle").fill("Honorarios de octubre");
-    await page.getByLabel("Total").fill("50.000");
+    await conTexto(page, "¿Cuánto cobraste?");
+    await monto(page).fill("50.000");
+    await queHiciste(page).fill("Honorarios de octubre");
     await page.keyboard.press("Control+Enter");
-    await conTexto(page, "Revisá y emití");
-    await page.keyboard.press("Control+Enter");
-    await conTexto(page, "Autorizada de prueba");
+    await exito(page);
     const n = await page.locator('aside[aria-label="En esta sesión"] .text-xl').textContent();
     if (n?.trim() !== "1") throw new Error(`el contador de la sesión dice ${n}`);
-    return "Ctrl+Enter dos veces; la sesión cuenta 1";
+    return "Ctrl+Enter emite; la sesión cuenta 1";
   });
   await paso(c, "contador · la misma, a otro comprador", page, errores, async () => {
     await page.getByRole("button", { name: "La misma, a otro comprador" }).click();
-    await conTexto(page, "¿A quién le facturás?");
-    await page.getByRole("button", { name: /Otro, con CUIT/ }).click();
-    await page.getByLabel("Número").fill(CUIT_RI);
-    await page.getByLabel("Nombre o razón social").fill("Distribuidora Sur SA");
-    await page.getByLabel("¿Cómo está inscripto?").selectOption("RESPONSABLE_INSCRIPTO");
-    await page.getByLabel("Domicilio").fill("Av. Siempreviva 742, CABA");
-    await page.getByRole("button", { name: "Seguir" }).click();
-    if ((await page.getByLabel("Detalle").inputValue()) !== "Honorarios de octubre") throw new Error("no conservó el detalle");
-    await page.getByRole("button", { name: /^Revisar/ }).click();
-    await page.getByRole("button", { name: /Emitir Factura A por/ }).click();
-    await conTexto(page, "Autorizada de prueba");
+    await compradorConCuit(page, false);
+    if ((await queHiciste(page).inputValue()) !== "Honorarios de octubre") throw new Error("no conservó el detalle");
+    await letraEs(page, "A");
+    await botonEmitir(page).click();
+    await exito(page);
     return "cambio de receptor: queda lo vendido, sale A";
   });
   await paso(c, "contador · lote de varias", page, errores, async () => {
     await page.getByLabel("Varias de una vez", { exact: true }).check();
     await page.getByLabel("Las facturas").fill("Torta grande; 18.000\nDocena de medialunas\t6000\nSin total");
     await conTexto(page, "Una línea tiene algo para corregir");
-    await page.getByRole("button", { name: /^Emitir 2 facturas/ }).click();
+    if ((await page.getByTestId("lote-fila").count()) !== 3) throw new Error("la revisión no muestra las 3 filas");
+    await page.getByRole("button", { name: /^Emitir las 2 correctas/ }).click();
     await conTexto(page, "Listo: salieron las 2 que estaban bien", 60_000);
     const n = await page.locator('aside[aria-label="En esta sesión"] .text-xl').textContent();
     if (n?.trim() !== "4") throw new Error(`la sesión cuenta ${n}, no 4`);
@@ -288,13 +299,12 @@ async function recorrerFactoque(ctx, origin, vp) {
   const c = { vp };
   await paso(c, "factoque · C a consumidor final", page, errores, async () => {
     await page.goto(`${origin}/facturita/app`);
-    await conTexto(page, "¿Qué vendiste?");
-    await page.getByLabel("Detalle").fill(`Clase de cerámica ${vp}`);
-    await page.getByLabel("Total").fill("8.000");
-    await page.getByRole("button", { name: /^Revisar/ }).click();
-    await conTexto(page, "Revisá y emití la Factura C");
-    await page.getByRole("button", { name: /Emitir Factura C por/ }).click();
-    await conTexto(page, "Autorizada de prueba");
+    await conTexto(page, "¿Cuánto cobraste?");
+    await monto(page).fill("8.000");
+    await queHiciste(page).fill(`Clase de cerámica ${vp}`);
+    await letraEs(page, "C");
+    await botonEmitir(page).click();
+    await exito(page);
     if (vp === "1366") {
       // F3: la cuenta no tiene razón social ni domicilio: el PDF los pide en el resultado.
       await conTexto(page, "Para descargar el PDF, completá tus datos");
@@ -310,13 +320,13 @@ async function recorrerFactoque(ctx, origin, vp) {
     return vp === "1366" ? "F3: pide razón social y domicilio en el resultado y los guarda; F2 arriba" : "F2: resultado arriba con letra, número, CAE y WhatsApp";
   });
   await paso(c, "factoque · servicios", page, errores, async () => {
-    await page.getByRole("button", { name: "Emitir otra" }).click();
+    await page.getByRole("button", { name: "Facturar otra" }).click();
+    await abrirMasDetalles(page);
     await page.getByLabel("Servicios", { exact: true }).check();
-    await page.getByLabel("Total").fill("9.500");
-    await page.getByLabel("Detalle").fill("Taller de octubre");
-    await page.getByRole("button", { name: /^Revisar/ }).click();
-    await page.getByRole("button", { name: /Emitir Factura C por/ }).click();
-    await conTexto(page, "Autorizada de prueba");
+    await monto(page).fill("9.500");
+    await queHiciste(page).fill("Taller de octubre");
+    await botonEmitir(page).click();
+    await exito(page);
     return "F1: sin tocar las fechas, sale";
   });
   await paso(c, "factoque · nota de crédito", page, errores, async () => {
@@ -332,11 +342,10 @@ async function recorrerFactoque(ctx, origin, vp) {
       for (let i = 0; i < 6; i++) {
         await page.goto(`${origin}/facturita/app`);
         if (await page.getByText("Llegaste al tope de facturas gratis de este mes").count()) break;
-        await page.getByLabel("Total").fill("1.000");
-        await page.getByLabel("Detalle").fill(`Venta ${i}`);
-        await page.getByRole("button", { name: /^Revisar/ }).click();
-        await page.getByRole("button", { name: /Emitir Factura C por/ }).click();
-        await conTexto(page, "Autorizada de prueba");
+        await monto(page).fill("1.000");
+        await queHiciste(page).fill(`Venta ${i}`);
+        await botonEmitir(page).click();
+        await exito(page);
       }
       await conTexto(page, "Llegaste al tope de facturas gratis de este mes", 5_000);
       await conTexto(page, "Las que ya emitiste siguen valiendo");
@@ -352,37 +361,34 @@ async function recorrerSinRegimenA(ctx, origin, vp) {
   const { page, errores } = await nuevaPagina(ctx);
   await paso({ vp }, "factoque · Factura A sin régimen cargado", page, errores, async () => {
     await page.goto(`${origin}/facturita/app`);
-    await page.getByRole("button", { name: "Cambiar", exact: true }).click();
-    await page.getByRole("button", { name: /Otro, con CUIT/ }).click();
-    await page.getByLabel("Número").fill(CUIT_RI);
-    await page.getByLabel("Nombre o razón social").fill("Distribuidora Sur SA");
-    await page.getByLabel("¿Cómo está inscripto?").selectOption("RESPONSABLE_INSCRIPTO");
-    await page.getByLabel("Domicilio").fill("Av. Siempreviva 742, CABA");
-    await page.getByRole("button", { name: "Seguir" }).click();
-    await page.getByLabel("Total").fill("10.000");
-    await page.getByLabel("Detalle").fill("Cajas");
-    await page.getByRole("button", { name: /^Revisar/ }).click();
-    await conTexto(page, "todavía no está cargado qué Factura A te asignó ARCA");
-    if (await page.getByRole("button", { name: /Emitir Factura A por/ }).isEnabled()) throw new Error("deja emitir la A");
-    await page.getByRole("button", { name: "Facturar a consumidor final" }).click();
-    await conTexto(page, "¿Qué vendiste?");
-    return "avisa antes de emitir y ofrece consumidor final";
+    await monto(page).fill("10.000");
+    await queHiciste(page).fill("Cajas");
+    await compradorConCuit(page);
+    await conTexto(page, "Para hacer Factura A falta saber qué te asignó ARCA");
+    if (await botonEmitir(page).isEnabled()) throw new Error("deja emitir la A");
+    await page.getByRole("link", { name: "Avisar a mi contador" }).waitFor();
+    await page.getByRole("button", { name: "Hacer Factura B" }).click();
+    await letraEs(page, "B");
+    return "avisa antes de emitir; ofrece Factura B y avisar al contador";
   });
   await page.close();
 }
 
 /** F2: el resultado arriba con letra y número, CAE, PDF que descarga y WhatsApp con el texto. */
 async function resultadoArriba(page, letra, prefijoPdf) {
-  await page.getByText(new RegExp(`^Factura ${letra} \\d{4,5}-\\d{8}$`)).first().waitFor({ timeout: 15_000 });
-  await conTexto(page, "CAE");
-  const caja = await page.getByText(/^Factura [ABC] \d/).first().boundingBox();
+  const numero = page.getByTestId("exito-numero").first();
+  await numero.waitFor({ timeout: 15_000 });
+  const texto = (await numero.textContent()) ?? "";
+  if (!new RegExp(`Factura ${letra} \\d{4,5}-\\d{8}`).test(texto)) throw new Error(`el número grande dice «${texto}»`);
+  await page.getByTestId("exito-cae").first().waitFor();
+  const caja = await numero.boundingBox();
   if (!caja || caja.y > 900) throw new Error(`el resultado no está arriba (y=${caja?.y})`);
-  const wa = await page.getByRole("link", { name: "Mandar por WhatsApp" }).getAttribute("href");
+  const wa = await page.getByTestId("exito-whatsapp").getAttribute("href");
   if (!wa?.startsWith("https://wa.me/?text=") || !decodeURIComponent(wa).includes(`Factura ${letra}`)) throw new Error(`WhatsApp: ${wa}`);
   // ARCA simulado: CAE «STUB…», el PDF no sale (comprobante-pdf.ts) y la pantalla lo dice en vez de
   // ofrecer una descarga que termina en 409.
-  await conTexto(page, "El PDF sale con el CAE real de ARCA");
-  if (await page.getByRole("link", { name: "Descargar el PDF" }).count()) throw new Error("ofrece un PDF que no sale");
+  await conTexto(page, "El PDF sale cuando la factura tiene el CAE real de ARCA");
+  if (await page.getByTestId("exito-pdf").count()) throw new Error("ofrece un PDF que no sale");
   void prefijoPdf;
 }
 
