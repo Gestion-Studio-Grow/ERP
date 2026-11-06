@@ -59,6 +59,8 @@ export interface EnvioTomado {
   tenantId: string;
   payload: unknown;
   attempts: number;
+  /** Cuándo se creó el envío: arranca la ventana de reintentos (arca-reintentos.ts). */
+  createdAt: Date;
 }
 
 /** El estado de una corrida: su token y lo que ya tomó (para no tomar dos veces lo mismo). */
@@ -165,7 +167,7 @@ export async function tomarSiguienteEnvio(
             AND (x."payload"->'reserva') IS NOT NULL
             AND (x."payload"->'reserva'->>'hasta')::timestamptz > now()
         )
-      RETURNING e."id", e."tenantId", e."payload", e."attempts"`;
+      RETURNING e."id", e."tenantId", e."payload", e."attempts", e."createdAt"`;
     const envio = tomados[0];
     if (!envio) return null;
     corrida.anotar(envio);
