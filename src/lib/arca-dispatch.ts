@@ -723,7 +723,12 @@ async function despacharUno(
           envio,
           token,
           motivoDelError(errAlRechazar),
-          despuesDeLaFalla("sistema", envio.attempts, opciones.politica ?? POLITICA_DE_REINTENTOS),
+          despuesDeLaFalla(
+            "sistema",
+            envio.attempts,
+            { creadoEn: envio.createdAt, ahora: new Date() },
+            opciones.politica ?? POLITICA_DE_REINTENTOS,
+          ),
         );
         logger.error("arca", "no se pudo guardar el rechazo de ARCA de un envío", errAlRechazar, { tenantId: envio.tenantId });
         resumen.fallidos++;
@@ -735,7 +740,7 @@ async function despacharUno(
       // el evento se reintenta. El reintento consulta antes de pedir otro CAE (ENG-020).
       // Si la falla es nuestra (`esErrorDelSistema`), además queda en el log y se avisa: la
       // pantalla no se la achaca a ARCA ni la vuelve a mandar en el mismo toque.
-      // Motor de facturación: con espera creciente; detenido al tope o si falta un dato fiscal;
+      // Motor de facturación: escalera 1/5/15/60 min; detenido al tope (4 intentos y 24 h) o si falta un dato fiscal;
       // con ARCA no disponible (interruptor abierto), se pospone sin contar y se corta la corrida.
       const clase = clasificarFalla(err);
       if (clase === "arca_no_disponible") {
@@ -748,6 +753,7 @@ async function despacharUno(
       const despues = despuesDeLaFalla(
         clase === "rechazo" ? "sistema" : clase,
         envio.attempts,
+        { creadoEn: envio.createdAt, ahora: new Date() },
         opciones.politica ?? POLITICA_DE_REINTENTOS,
       );
       await anotarFallaYSoltar(enSuNegocio, envio, token, motivoDelError(err), despues);
