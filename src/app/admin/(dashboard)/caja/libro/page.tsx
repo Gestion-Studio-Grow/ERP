@@ -133,7 +133,7 @@ export default async function LibroCajaPage({
                 la Caja, que ya no es "el arqueo del mostrador" sino la pantalla del día: la
                 tienen los tres rubros, así que no lleva gate. */}
             {puedeCerrarElDia(quienMira?.role) && !isFrozenDay(today, cerradoHasta) && (
-              <Link href="/admin/caja/cierre" className="text-sm text-muted underline underline-offset-4 hover:text-strong">
+              <Link href="/admin/caja/cierre" className="inline-flex min-h-11 items-center text-sm text-muted underline underline-offset-4 hover:text-strong">
                 Cerrar el día →
               </Link>
             )}

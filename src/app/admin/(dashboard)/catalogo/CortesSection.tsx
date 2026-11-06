@@ -284,7 +284,7 @@ function VentaFields({
       {/* Control de stock por producto: hidden "off" + checkbox "on" (un checkbox destildado
           no viaja). Sin esto, vender no descontaba stock: las compras sumaban y las ventas no
           restaban. Se decide acá, por producto, y no con un default global (ver ProductsSection). */}
-      <label className="flex items-center gap-2 text-sm min-h-9">
+      <label className="flex items-center gap-2 text-sm min-h-11">
         <input type="hidden" name="trackStock" value="off" />
         <input
           id={`${idPrefix}-trackStock`}
