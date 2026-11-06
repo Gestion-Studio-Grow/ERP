@@ -14,6 +14,7 @@ import { BotonCarpeta, ControlEtapa } from "./_cliente";
 import { Numero, PestanaFicha, PestanaHistorial, PestanaResumen, PestanaSeguimiento } from "./_pestanas-datos";
 import { ArmadorYPiezas, PestanaArchivos } from "./_pestanas-diseno-archivos";
 import { PestanaCotizacion, PestanaFinanzas } from "./_pestanas-plata";
+import { PestanaRendiciones } from "./_rendiciones";
 
 export const dynamic = "force-dynamic";
 // Proponer con IA y Generar imagen esperan al proveedor desde esta pantalla.
@@ -44,6 +45,7 @@ export default async function FichaProyecto({ params, searchParams }: { params: 
     { id: "cotizacion", label: "Cotización", ve: vista.cotizaciones },
     { id: "diseno", label: "Diseño", ve: puede(a, "diseno", "ver") },
     { id: "finanzas", label: "Finanzas", ve: vista.pagos },
+    { id: "rendiciones", label: "Rendiciones", ve: puede(a, "rendiciones", "ver") },
     { id: "seguimiento", label: "Seguimiento", ve: verFicha },
     { id: "chat", label: "Chat", ve: true },
     { id: "archivos", label: "Archivos", ve: verFicha || puede(a, "diseno", "ver") },
@@ -114,6 +116,7 @@ export default async function FichaProyecto({ params, searchParams }: { params: 
         </div>
       )}
       {tab === "finanzas" && <PestanaFinanzas a={a} cab={cab} vista={vista} filtro={q.filtro} />}
+      {tab === "rendiciones" && <PestanaRendiciones a={a} proyectoId={p.id} />}
       {tab === "seguimiento" && <PestanaSeguimiento a={a} cab={cab} vista={vista} />}
       {tab === "chat" && <ChatProyecto proyectoId={p.id} />}
       {tab === "archivos" && <PestanaArchivos a={a} cab={cab} tipo={q.tipo} />}

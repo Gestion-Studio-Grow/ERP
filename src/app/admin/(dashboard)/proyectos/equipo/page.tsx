@@ -11,6 +11,8 @@ import { exigirVer, puede, type Actor } from "@/lib/proyectos/gestion.server";
 import { personasDelEquipo, registroDeCambios } from "@/lib/proyectos/gestion-lecturas.server";
 import { plataEn } from "@/lib/proyectos/gestion-core";
 import { tarjeta } from "../_vista";
+import { puedeGenerarPinDe } from "@/lib/rendiciones/pin-core";
+import { CodigoParaPasar } from "./CodigoParaPasar";
 import { FormPersona } from "./FormPersona";
 
 export const dynamic = "force-dynamic";
@@ -66,6 +68,9 @@ async function Personas({ a }: { a: Actor }) {
                     <input type="hidden" name="id" value={p.id} />
                     <button type="submit" className={buttonClasses("ghost", "md")}>Reiniciar dos pasos (perdió el teléfono)</button>
                   </form>
+                )}
+                {p.userId && p.activa && p.userId !== a.user.id && !conFactor.has(p.userId) && puedeGenerarPinDe(a.rol, p.rol) && (
+                  <CodigoParaPasar personaId={p.id} nombre={p.nombre} />
                 )}
                 {p.sueldoBase !== null && <p className="text-sm text-strong">Sueldo {plataEn(p.sueldoBase, "ARS")}</p>}
                 {p.facturaA && <p className="break-words text-sm text-muted">Factura a {p.facturaA}</p>}
