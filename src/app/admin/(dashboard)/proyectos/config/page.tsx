@@ -1,5 +1,5 @@
 import { requireApp } from "@/lib/require-app";
-import { requireCapability } from "@/lib/authz";
+import { requireCapabilityFueraDeLaAgenda } from "@/lib/authz";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { buttonClasses } from "@/components/ui";
 import SubmitButton from "@/components/SubmitButton";
@@ -13,7 +13,7 @@ export const metadata = { title: "Configuración de proyectos" };
 
 export default async function ConfigProyectos() {
   const user = await requireApp("proyectos");
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const c = await configProyectos(await getCurrentTenantId());
 
   return (

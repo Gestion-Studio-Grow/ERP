@@ -22,6 +22,8 @@ type ReminderPayload = {
   serviceName: string;
   professionalName: string;
   startsAt: Date;
+  /** La aclaración del servicio para la clienta, si tiene (ficha completa). */
+  aclaracion?: string | null;
 };
 
 // El texto (plantilla + hora) sale de `textoRecordatorio` (turno-abierto.ts), puro y probado.

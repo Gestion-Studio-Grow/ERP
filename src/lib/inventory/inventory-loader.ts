@@ -18,7 +18,7 @@ import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { SELECT_INGRESOS, costosVigentesDe } from "@/lib/stock/costo";
 import {
   computeStockValuation,
@@ -80,7 +80,7 @@ export async function leerCostosVigentes(
 export async function getInventoryValuation(): Promise<StockValuation & { conCostos: boolean }> {
   const user = await requireCapability("stock:read");
   const tenantId = await getCurrentTenantId();
-  const conCostos = roleHasCapability(user.role, "costs:read");
+  const conCostos = permisoEfectivo(user, "costs:read");
 
   const base = { id: true, name: true, unit: true, stock: true, lowStockAt: true, trackStock: true } as const;
   if (!conCostos) {

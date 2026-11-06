@@ -18,7 +18,7 @@
 // con email, teléfono y comisión al navegador de la recepción).
 
 import { unstable_rethrow } from "next/navigation";
-import { requireCapability } from "@/lib/authz";
+import { filtroSoloLoSuyo, requireCapability } from "@/lib/authz";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { isDemoSandbox } from "@/lib/demo-flag";
 import { prisma } from "@/lib/prisma";
@@ -43,15 +43,17 @@ export type HuecosParaMover =
 const TOPE_DE_DIAS = 14;
 
 export async function huecosParaMover(turnoId: string, dias: string[], profesionalId?: string | null): Promise<HuecosParaMover> {
-  await requireCapability("agenda:manage");
+  const user = await requireCapability("agenda:manage");
   if (isDemoSandbox()) return { ok: false, error: "En la demo los turnos no se mueven de verdad." };
+  // Sólo lo suyo: una PROFESSIONAL lee SUS turnos y busca huecos sólo en su agenda.
+  const suyo = filtroSoloLoSuyo(user);
   const pedidos = [...new Set(Array.isArray(dias) ? dias : [])].filter(esFechaDeCalendario).slice(0, TOPE_DE_DIAS);
   if (typeof turnoId !== "string" || !turnoId || pedidos.length === 0) return { ok: false, error: "Faltan datos para buscar horarios." };
 
   try {
     const tenantId = await getCurrentTenantId();
     const turno = await prisma.appointment.findFirst({
-      where: { id: turnoId, tenantId },
+      where: { id: turnoId, tenantId, ...suyo },
       select: { id: true, status: true, serviceId: true, service: { select: { name: true } } },
     });
     if (!turno) return { ok: false, error: "Ese turno ya no existe. Recargá la agenda." };
@@ -67,6 +69,7 @@ export async function huecosParaMover(turnoId: string, dias: string[], profesion
         deletedAt: null,
         box: { is: { active: true, deletedAt: null } },
         services: { some: { id: turno.serviceId } },
+        ...(suyo.professionalId ? { id: suyo.professionalId } : {}),
       },
       select: { id: true, name: true, box: { select: { name: true } } },
       orderBy: { name: "asc" },

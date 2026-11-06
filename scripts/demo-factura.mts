@@ -21,6 +21,7 @@ import {
 } from "../src/plugins/arca/domain/catalogos";
 import type { InvoiceCreatedEvent } from "../src/plugins/arca/core-contract";
 import { fechaFiscalDelDia } from "../src/lib/libros/fecha-fiscal";
+import { umbralDelMotor } from "../src/lib/fiscal/parametros-del-motor";
 
 const money = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS" });
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -53,6 +54,8 @@ const evento: InvoiceCreatedEvent = {
   neto,
   iva: [{ alicuotaId: AlicuotaIvaId.VeintiUno, base: neto, importe: iva }],
   total: totalVenta,
+  // PR3 · El umbral del motor lo resuelve el Core (acá, el script); sin medio de pago, el más exigente.
+  umbralIdentificacionDelMotor: umbralDelMotor(null),
 };
 
 async function main() {

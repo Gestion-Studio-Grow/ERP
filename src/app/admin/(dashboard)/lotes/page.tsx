@@ -1,6 +1,6 @@
 import { requireUser } from "@/lib/authz";
 import { requireApp } from "@/lib/require-app";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { prisma } from "@/lib/prisma";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { todayInBusinessTz } from "@/lib/datetime";
@@ -53,7 +53,7 @@ export default async function LotesPage() {
     );
   }
   const user = await requireApp("lotes-y-vencimientos");
-  const conCostos = roleHasCapability(user.role, "costs:read");
+  const conCostos = permisoEfectivo(user, "costs:read");
   const tenantId = await getCurrentTenantId();
   const hoy = todayInBusinessTz();
   const [batches, products, suppliers] = await Promise.all([
@@ -90,7 +90,7 @@ export default async function LotesPage() {
     const summary = summarizeBatches(batches, hoy);
     const riesgo = conCostos ? plataEnRiesgo(batches, hoy) : null;
     const kg = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 1 }).format(summary.totalKg);
-    const puedeCargar = roleHasCapability(user.role, "stock:receive");
+    const puedeCargar = permisoEfectivo(user, "stock:receive");
     return (
       <PageContainer>
         <PageHeader
@@ -146,7 +146,7 @@ export default async function LotesPage() {
         products={products}
         suppliers={suppliers}
         conCostos={conCostos}
-        puedeCargar={roleHasCapability(user.role, "stock:receive")}
+        puedeCargar={permisoEfectivo(user, "stock:receive")}
       />
     </main>
   );

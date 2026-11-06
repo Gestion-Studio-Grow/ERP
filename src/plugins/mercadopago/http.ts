@@ -53,6 +53,37 @@ export interface RawPagoMP {
     first_name?: string | null;
     last_name?: string | null;
   } | null;
+  /** Devoluciones del pago (cada parcial con su id). PR3: cada una es una nota de crédito. */
+  refunds?: Array<{ id?: number | string | null; amount?: number | null; date_created?: string | null; status?: string | null }> | null;
+}
+
+/** Lo que el motor hace después de cobrado: una nota de crédito por devolución, o un caso por contracargo. */
+export type MovimientoPosteriorMP =
+  // Sin fecha: la nota de crédito lleva el día en que se emite (la de la devolución puede estar fuera de la ventana de ARCA).
+  | { tipo: "devolucion"; refundId: string; paymentId: string; importe: number }
+  | { tipo: "contracargo"; paymentId: string; importe: number };
+
+/**
+ * PR3 · Lee del pago crudo de MP sus devoluciones (aprobadas, total o parciales) y si es un
+ * contracargo. El contracargo NO genera devoluciones acá (se abre un caso, sin nota de crédito).
+ * Pura: sin id de pago o sin importe, no devuelve nada.
+ */
+export function movimientosPosterioresMP(raw: RawPagoMP): MovimientoPosteriorMP[] {
+  if (raw.id === undefined || raw.id === null || raw.id === "") return [];
+  const paymentId = String(raw.id);
+  if (raw.status === "charged_back") {
+    const importe = Number(raw.transaction_amount) || 0;
+    return importe > 0 ? [{ tipo: "contracargo", paymentId, importe }] : [];
+  }
+  const salida: MovimientoPosteriorMP[] = [];
+  for (const r of raw.refunds ?? []) {
+    if (r?.id === undefined || r.id === null || r.id === "") continue;
+    if (r.status !== "approved") continue; // sin estado no se acredita: no se sabe si salió
+    const importe = Number(r.amount) || 0;
+    if (!(importe > 0)) continue;
+    salida.push({ tipo: "devolucion", refundId: String(r.id), paymentId, importe });
+  }
+  return salida;
 }
 
 /** Respuesta de `/v1/payments/search` (paginada). */

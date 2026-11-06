@@ -75,14 +75,14 @@ async function chequeoDeTeclas(p, ambito, nombres) {
 }
 const MEDIOS = /^(Efectivo|Transferencia|Mercado Pago|Débito|Crédito|\+ Producto|Terminar|Cobrar)|Cobrar \$|cobra|Sumar un producto/;
 
-async function crearTurno(db, e, { nombre, k }) {
+async function crearTurno(db, e, { nombre, k, precio = 20000, sinCelular = false, min = null }) {
   const tenantId = e.base.a.id;
-  const client = await db.client.create({ data: { tenantId, name: nombre, phone: `11 4000 ${String(1000 + k)}` } });
+  const client = await db.client.create({ data: { tenantId, name: nombre, phone: sinCelular ? "" : `11 4000 ${String(1000 + k)}` } });
   const serv = e.semilla.servicios.limpieza;
   const prof = e.semilla.profesionales.marina;
   const profFila = await db.professional.findUniqueOrThrow({ where: { id: prof } });
   // Hoy (hora de Buenos Aires), ya empezado, cada uno en su hora para no pisarse.
-  const startsAt = new Date(medianoche + (10 + k * 55) * 60_000);
+  const startsAt = new Date(medianoche + (min ?? 10 + k * 55) * 60_000);
   const a = await db.appointment.create({
     data: {
       tenantId,
@@ -93,23 +93,23 @@ async function crearTurno(db, e, { nombre, k }) {
       startsAt,
       endsAt: new Date(startsAt.getTime() + 50 * 60_000),
       status: "CONFIRMED",
-      priceAtBooking: 20000,
+      priceAtBooking: precio,
     },
   });
   return { id: a.id, nombre, clientId: client.id };
 }
-async function prender(db, e) {
+async function prender(db, e, id = "venta-agenda-simple") {
   await db.auditLog.create({
-    data: { tenantId: e.base.a.id, entity: ENTIDAD_INTERRUPTOR, entityId: "venta-agenda-simple", action: ACCION_ENCENDER, channel: CANAL_INTERRUPTOR, actor: PREFIJO_ACTOR_OPERADOR + "e2e" },
+    data: { tenantId: e.base.a.id, entity: ENTIDAD_INTERRUPTOR, entityId: id, action: ACCION_ENCENDER, channel: CANAL_INTERRUPTOR, actor: PREFIJO_ACTOR_OPERADOR + "e2e" },
   });
 }
 const cobrosDe = (db, turno) => db.collection.findMany({ where: { appointmentId: turno.id }, select: { amount: true, method: true, orderId: true } });
 const ordenesDe = (db, turno) => db.order.findMany({ where: { clientId: turno.clientId }, include: { items: true } });
 
 /** Abre la agenda de hoy y el cajón del turno. */
-async function abrirCajon(s, e, turno, foto) {
+async function abrirCajon(s, e, turno, foto, ruta = "/admin/turnos") {
   const { p } = s;
-  await p.goto(`${e.url}/admin/turnos`);
+  await p.goto(`${e.url}${ruta}`);
   await p.waitForLoadState("networkidle").catch(() => {});
   s.pantallas.push("Agenda");
   await toque(s, p.getByRole("button", { name: new RegExp(`${turno.nombre}.*abrir el turno`) }), "turno");
@@ -117,6 +117,190 @@ async function abrirCajon(s, e, turno, foto) {
   s.pantallas.push("Cajón del turno");
   await p.waitForTimeout(400);
   if (foto) await foto("cajon");
+}
+
+/** Fecha corta del texto de WhatsApp (sólo se verifica que haya día/mes o «hoy»). */
+const decodificar = (href) => { try { return decodeURIComponent(new URL(href).searchParams.get("text") ?? ""); } catch { return ""; } };
+const tel = (db, id) => db.collection.findMany({ where: { appointmentId: id }, select: { amount: true, method: true } });
+
+/** T2 con el interruptor APAGADO: cajón de siempre, sin «Paga con» ni «Listo ✓». */
+async function t2Apagado(db, e, s, V, mk, f) {
+  const { p } = s;
+  const t = await mk({ nombre: `Tania Apagada ${V}`, precio: 27000 });
+  await abrirCajon(s, e, t, f);
+  const cj = p.getByRole("dialog").first();
+  ok(`T2-OFF1.${V}`, (await cj.getByText(/con cuánto paga/i).count()) === 0 && (await cj.getByRole("button", { name: "Exacto" }).count()) === 0, "T2 apagado: el cajón NO trae «Paga con» (Exacto/billetes/Otro)");
+  await toque(s, cj.getByRole("button", { name: /^Efectivo/ }), "medio Efectivo (cobra y termina)");
+  const aviso = await espera(p.getByText(/Terminado y cobrado: Tania/), 20000);
+  await p.waitForTimeout(800);
+  ok(`T2-OFF2.${V}`, aviso && (await p.getByText(/Listo ✓/).count()) === 0 && (await p.getByRole("link", { name: /comprobante por WhatsApp/ }).count()) === 0, "T2 apagado: cobra con 1 toque, sale el aviso de siempre y NO aparece «Listo ✓» ni comprobante");
+  ok(`T2-OFF3.${V}`, (await p.getByRole("dialog").count()) === 0, "T2 apagado: el cajón se cierra solo, como en la T1");
+  const c = await cobrosDe(db, t);
+  ok(`T2-OFF4.${V}`, c.length === 1 && Number(c[0].amount) === 27000, `T2 apagado: base = ${c.length} cobro de $${c[0]?.amount}`);
+  await f("t2-apagado-despues");
+  toques.push({ v: V, rec: "T2 ANTES (apagado)", toques: s.n.length, pantallas: s.pantallas.length, det: s.n.join(" › ") });
+}
+
+/** T2 con el interruptor PRENDIDO. */
+async function t2Prendido(db, e, w, h, V, mk, dirV, prodId) {
+  const tenantId = e.base.a.id;
+  let nf = 100;
+  const nuevaSesion = async (et, o = {}) => ({ ...(await pagina(e, [w, h], { etiqueta: et, ...o })), ...nuevoRecorrido() });
+  const shot = (p) => async (n) => p.screenshot({ path: `${dirV}/t2-${String(++nf).slice(1)}-${n}.png` });
+  // ── a · $27.000: «Paga con», vuelto, faltante, billete que NO cobra ──
+  {
+    const t = await mk({ nombre: `Paula Vuelto ${V}`, precio: 27000 });
+    const s = await nuevaSesion(`T2a-${V}`);
+    const { p } = s;
+    const f = shot(p);
+    await abrirCajon(s, e, t, f);
+    const cj = p.getByRole("dialog").first();
+    ok(`T2-1.${V}`, await espera(cj.getByText(/con cuánto paga/i)), "T2 prendido: el cajón de un turno con saldo muestra «Paga con» (¿con cuánto paga?)");
+    const ex = cj.getByRole("button", { name: "Exacto" });
+    const billetes = await cj.locator('[data-ui="vuelto-en-efectivo"] button').allInnerTexts();
+    const bill = billetes.filter((x) => x !== "Exacto");
+    ok(`T2-2.${V}`, (await ex.count()) === 1 && bill.length >= 2 && bill.every((x) => /^\$/.test(x)) && (await cj.getByLabel("Con cuánto paga").count()) === 1, `T2: «Exacto», billetes (${bill.join(", ")}) y «Otro»`);
+    const teclas = await chequeoDeTeclas(p, cj.locator('[data-ui="vuelto-en-efectivo"]'), /./);
+    const chicas = teclas.filter((x) => x.h < 44);
+    ok(`T2-3.${V}`, teclas.length >= 3 && chicas.length === 0, `T2: teclas de «Paga con» ≥ 44 px (${teclas.map((x) => `${x.t}:${x.h}`).join(", ")})`);
+    const otro = cj.getByLabel("Con cuánto paga");
+    const oh = await otro.evaluate((el) => Math.round(el.getBoundingClientRect().height));
+    ok(`T2-3b.${V}`, oh >= 44, `T2: el campo «Otro» mide ${oh} px de alto (≥ 44)`);
+    await otro.fill("30000");
+    const linea = cj.locator('[data-ui="vuelto-en-efectivo"] p[aria-live]');
+    await p.waitForTimeout(200);
+    const tv = (await linea.innerText()).replace(/\s+/g, " ");
+    ok(`T2-4.${V}`, /vuelto \$\s?3\.000/.test(tv), `T2: con $30.000 sobre $27.000 dice «${tv}»`);
+    await f("vuelto-30000");
+    await otro.fill("20000");
+    await p.waitForTimeout(200);
+    const tf = (await linea.innerText()).replace(/\s+/g, " ");
+    ok(`T2-5.${V}`, /te faltan \$\s?7\.000/.test(tf), `T2: con $20.000 dice «${tf}»`);
+    await f("falta-20000");
+    // Billete: sólo muestra, no cobra
+    const bTecla = cj.locator('[data-ui="vuelto-en-efectivo"]').getByRole("button", { name: bill[bill.length - 1] });
+    await toque(s, bTecla, `billete ${bill[bill.length - 1]}`);
+    await p.waitForTimeout(1200);
+    const sinCobro = (await cobrosDe(db, t)).length;
+    ok(`T2-6.${V}`, sinCobro === 0 && (await p.getByRole("dialog").count()) === 1, `T2: tocar un billete NO cobra (cobros en la base: ${sinCobro}) y el cajón sigue abierto`);
+    const sinDes = await sinDesborde(p);
+    ok(`T2-E1.${V}`, sinDes.sw <= sinDes.iw, `T2: cajón con «Paga con» sin scroll horizontal (${sinDes.sw} ≤ ${sinDes.iw})`);
+    // 30.000 y cobrar con Efectivo: 1 toque
+    await otro.fill("30000");
+    const tEf = cj.getByRole("button", { name: /^Efectivo/ });
+    s.n.push("(Otro $30.000: tipeo, no cuenta como toque de cobro)");
+    const antes = s.n.length;
+    await toque(s, tEf, "medio Efectivo (cobra)");
+    const listo = await espera(p.getByRole("heading", { name: /Listo ✓/ }), 20000);
+    ok(`T2-7.${V}`, listo, "T2: un toque en Efectivo cobra y aparece «Listo ✓»");
+    await p.waitForTimeout(500);
+    await f("listo");
+    const ld = p.locator('[data-ui="listo-del-cobro"]');
+    const ltxt = (await ld.innerText().catch(() => "")).replace(/\s+/g, " ");
+    ok(`T2-8.${V}`, /27\.000/.test(ltxt) && /vuelto \$\s?3\.000/.test(ltxt), `T2: «Listo ✓» dice «${ltxt.slice(0, 140)}»`);
+    const wa = p.getByRole("link", { name: "Mandar comprobante por WhatsApp" });
+    const href = (await wa.getAttribute("href").catch(() => null)) ?? "";
+    const txt = decodificar(href);
+    ok(`T2-9.${V}`, /^https:\/\/wa\.me\/\d+/.test(href) && /27\.000/.test(txt) && /efectivo/i.test(txt) && /\d|hoy/i.test(txt.replace(/27\.000/g, "")), `T2: WhatsApp href=${href.slice(0, 60)}… texto=«${txt.replace(/\n/g, " ")}»`);
+    const prox = p.getByRole("link", { name: "¿Le damos el próximo?" });
+    const ph = (await prox.getAttribute("href").catch(() => null)) ?? "";
+    ok(`T2-10.${V}`, ph === `/admin/turnos/proximo/${t.id}`, `T2: «¿Le damos el próximo?» → ${ph}`);
+    const lt = await chequeoDeTeclas(p, ld.first(), /./);
+    ok(`T2-E2.${V}`, lt.length >= 3 && lt.every((x) => x.h >= 44), `T2: teclas de «Listo ✓» ≥ 44 px (${lt.map((x) => `${x.t}:${x.h}`).join(", ")})`);
+    const d2 = await sinDesborde(p);
+    ok(`T2-E3.${V}`, d2.sw <= d2.iw, `T2: «Listo ✓» sin scroll horizontal (${d2.sw} ≤ ${d2.iw})`);
+    const c = await cobrosDe(db, t);
+    ok(`T2-11.${V}`, c.length === 1 && Number(c[0].amount) === 27000 && c[0].method === "EFECTIVO", `T2: base = ${c.length} cobro de $${c[0]?.amount} ${c[0]?.method} (el vuelto no cambia el cobro)`);
+    // Layout shift del cajón al aparecer Listo
+    toques.push({ v: V, rec: "T2 DESPUÉS (prendido, efectivo con vuelto)", toques: s.n.length - 1, pantallas: 2, det: s.n.filter((x) => !x.startsWith("(")).join(" › ") + " [+1 si manda el comprobante, +1 si va al próximo]" });
+    // «Listo» cierra
+    await toque(s, p.getByRole("button", { name: "Listo", exact: true }), "Listo");
+    await p.waitForTimeout(700);
+    ok(`T2-12.${V}`, (await p.getByRole("dialog").count()) === 0, "T2: «Listo» cierra el cajón");
+    await s.ctx.close();
+  }
+  // ── b · sin celular ──
+  {
+    const t = await mk({ nombre: `Silvia SinCel ${V}`, precio: 27000, sinCelular: true });
+    const s = await nuevaSesion(`T2b-${V}`);
+    const { p } = s;
+    await abrirCajon(s, e, t, null);
+    const cj = p.getByRole("dialog").first();
+    await toque(s, cj.getByRole("button", { name: /^Efectivo/ }), "medio Efectivo");
+    const listo = await espera(p.getByRole("heading", { name: /Listo ✓/ }), 20000);
+    await p.waitForTimeout(400);
+    ok(`T2-13.${V}`, listo && (await p.getByRole("link", { name: /comprobante por WhatsApp/ }).count()) === 0, "T2: clienta sin celular → «Listo ✓» sin tecla de WhatsApp");
+    // «próximo» en la LISTA de turnos (ahí el cajón recibe `practica`)
+    const t5 = await mk({ nombre: `Lola Lista ${V}`, precio: 27000 });
+    const s5 = await nuevaSesion(`T2e-${V}`);
+    try {
+      await s5.p.goto(`${e.url}/admin/turnos/lista`);
+      await s5.p.waitForLoadState("networkidle").catch(() => {});
+      await s5.p.getByRole("button", { name: new RegExp(`${t5.nombre}.*abrir el turno`) }).first().click({ timeout: 8000 });
+      const cj5 = s5.p.getByRole("dialog").first();
+      await cj5.getByRole("button", { name: /^Efectivo/ }).click({ timeout: 8000 });
+      await espera(s5.p.getByRole("heading", { name: /Listo ✓/ }), 20000);
+      const h5 = (await s5.p.getByRole("link", { name: "¿Le damos el próximo?" }).getAttribute("href", { timeout: 3000 }).catch(() => null)) ?? "";
+      ok(`T2-10b.${V}`, h5 === `/admin/turnos/proximo/${t5.id}`, `T2: en la LISTA de turnos «¿Le damos el próximo?» → ${h5 || "(no aparece)"}`);
+    } catch (err) {
+      ok(`T2-10b.${V}`, false, `T2: la lista no pudo probarse: ${String(err.message).split("\n")[0]}`);
+    }
+    await s5.ctx.close();
+    await shot(p)("sin-celular");
+    await s.ctx.close();
+  }
+  // ── c · con productos ──
+  {
+    const t = await mk({ nombre: `Pilar Producto ${V}`, precio: 27000 });
+    const s = await nuevaSesion(`T2c-${V}`);
+    const { p } = s;
+    await abrirCajon(s, e, t, null);
+    const cj = p.getByRole("dialog").first();
+    await cj.getByRole("button", { name: "+ Producto" }).click();
+    await cj.getByRole("textbox", { name: "Buscar un producto" }).fill("sérum");
+    await cj.getByRole("list", { name: "Productos del negocio" }).getByRole("button", { name: /Sérum/ }).first().click();
+    await cj.getByText("Total a cobrar").waitFor();
+    ok(`T2-14.${V}`, await espera(cj.getByText(/con cuánto paga/i)), "T2 con productos: «Paga con» también está en el cobro con productos");
+    await cj.getByRole("button", { name: "Exacto" }).first().click();
+    const tp = (await cj.locator('[data-ui="vuelto-en-efectivo"] p[aria-live]').innerText()).replace(/\s+/g, " ");
+    await shot(p)("productos-paga-con");
+    await cj.getByLabel("Con cuánto paga").fill("50000");
+    await p.waitForTimeout(200);
+    const tp2 = (await cj.locator('[data-ui="vuelto-en-efectivo"] p[aria-live]').innerText()).replace(/\s+/g, " ");
+    ok(`T2-15.${V}`, /justo/i.test(tp) && /vuelto \$\s?5\.000/.test(tp2), `T2 con productos: Exacto «${tp}»; $50.000 «${tp2}» (total $45.000)`);
+    await cj.getByRole("button", { name: /^Efectivo/ }).first().click();
+    const listo = await espera(p.getByRole("heading", { name: /Listo ✓/ }), 20000);
+    await p.waitForTimeout(500);
+    const cobros = await cobrosDe(db, t);
+    const ords = await ordenesDe(db, t);
+    const sumaBase = cobros.filter((c) => !c.orderId).reduce((a, x) => a + Number(x.amount), 0) + ords.reduce((a, o) => a + Number(o.total), 0);
+    const href = (await p.getByRole("link", { name: "Mandar comprobante por WhatsApp" }).getAttribute("href").catch(() => null)) ?? "";
+    const txt = decodificar(href);
+    const montoTxt = "$" + sumaBase.toLocaleString("es-AR");
+    ok(`T2-16.${V}`, listo && sumaBase === 45000 && txt.includes(montoTxt), `T2 con productos: el servidor cobró $${sumaBase} (${cobros.length} cobros, ${ords.length} orden) y el comprobante dice «${txt.replace(/\n/g, " ").slice(0, 90)}»`);
+    const ltxt = (await p.locator('[data-ui="listo-del-cobro"]').innerText().catch(() => "")).replace(/\s+/g, " ");
+    ok(`T2-17.${V}`, /vuelto \$\s?5\.000/.test(ltxt), `T2 con productos: «Listo ✓» dice «${ltxt.slice(0, 120)}»`);
+    await shot(p)("productos-listo");
+    await s.ctx.close();
+  }
+  // ── d · reduced-motion ──
+  {
+    const t = await mk({ nombre: `Rita Quieta ${V}`, precio: 27000 });
+    const s = await nuevaSesion(`T2d-${V}`, { reducido: true });
+    const { p } = s;
+    await abrirCajon(s, e, t, null);
+    const cj = p.getByRole("dialog").first();
+    const mm = await p.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches);
+    await cj.getByRole("button", { name: "Exacto" }).click();
+    await cj.getByRole("button", { name: /^Efectivo/ }).click();
+    const listo = await espera(p.getByRole("heading", { name: /Listo ✓/ }), 20000);
+    await p.waitForTimeout(500);
+    const vis = await p.getByRole("link", { name: "Mandar comprobante por WhatsApp" }).isVisible();
+    const d = await sinDesborde(p);
+    ok(`T2-RM.${V}`, mm && listo && vis && d.sw <= d.iw, `T2 reduced-motion: «Listo ✓» completo y usable (media=${mm}, tecla WhatsApp visible=${vis}, desborde ${d.sw}/${d.iw})`);
+    await shot(p)("reduced-motion");
+    await s.ctx.close();
+  }
 }
 
 for (const [w, h] of [[1366, 768], [375, 812]]) {
@@ -171,6 +355,16 @@ for (const [w, h] of [[1366, 768], [375, 812]]) {
       const d = await sinDesborde(p);
       ok(`E0.${V}`, d.sw <= d.iw, `apagado: Inicio sin scroll horizontal (${d.sw} ≤ ${d.iw})`);
       await f("inicio-apagado");
+      await s.ctx.close();
+    }
+
+    // ───────── T2 · APAGADO (agenda-practica prendida para tener «próximo» en ambas pasadas) ─────────
+    await prender(db, e, "agenda-practica");
+    let kk = 0;
+    const mk = (o) => crearTurno(db, e, { k: 20 + kk, min: 12 + 7 * kk++, ...o });
+    {
+      const s = { ...(await pagina(e, [w, h], { etiqueta: `T2off-${V}` })), ...nuevoRecorrido() };
+      await t2Apagado(db, e, s, V, mk, foto(s.p));
       await s.ctx.close();
     }
 
@@ -292,6 +486,7 @@ for (const [w, h] of [[1366, 768], [375, 812]]) {
       ok(`E5.${V}`, mm && enCaja && recorte.bottom <= recorte.vh + 1, `reduced-motion: cajón completo y usable (media=${mm}, teclas visibles=${enCaja}, cajón ${recorte.top}–${recorte.bottom} de ${recorte.vh})`);
       await foto(s3.p)("reduced-motion");
       await s3.ctx.close();
+      await t2Prendido(db, e, w, h, V, mk, dirV, prod.id);
     }
   } catch (err) {
     console.log(String(err?.stack ?? err).split("\n").slice(0, 6).join("\n"));

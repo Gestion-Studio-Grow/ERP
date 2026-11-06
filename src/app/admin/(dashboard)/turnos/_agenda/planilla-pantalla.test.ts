@@ -89,6 +89,9 @@ export async function cambiarDuracionDelTurno(fd) {
 const SENIA_FALSA = `
 export async function marcarSeniaPedida(fd) { (window.__enviado ??= []).push({ accion: "senia-pedida", ...Object.fromEntries(fd.entries()) }); return { ok: true }; }
 export async function seniasPedidas() { return {}; }`;
+// «Precio a definir» (ficha completa del servicio): fijar el precio del turno antes de cobrar.
+const PRECIO_FALSO = `
+export async function fijarPrecioDelTurno(fd) { (window.__enviado ??= []).push({ accion: "fijar-precio", ...Object.fromEntries(fd.entries()) }); return { ok: true, precio: Number(fd.get("monto")) }; }`;
 const NAVEGACION_FALSA = `
 import { useSyncExternalStore } from "react";
 const avisos = new Set();
@@ -236,6 +239,7 @@ describe("La planilla del día en el navegador", { timeout: 240_000 }, () => {
       "@/lib/turnos/mover-actions": MOVER_FALSO,
       "@/lib/turnos/cobro-actions": COBRO_FALSO,
       "@/lib/turnos/senia-actions": SENIA_FALSA,
+      "@/lib/servicios/precio-a-definir-actions": PRECIO_FALSO,
       "@/lib/turnos/duracion-actions": DURACION_FALSA,
       "@/lib/turnos/editar-actions": EDITAR_FALSO,
       "@/lib/turnos/cobro-con-producto-actions": CON_PRODUCTO_FALSO,
@@ -256,7 +260,7 @@ describe("La planilla del día en el navegador", { timeout: 240_000 }, () => {
         {
           name: "falsos",
           setup(b) {
-            b.onResolve({ filter: /^(@\/lib\/actions|@\/lib\/turnos\/(mover|cobro|senia|cobro-con-producto|duracion|editar)-actions|next\/navigation|next\/link)$/ }, (a) => ({ path: a.path, namespace: "falso" }));
+            b.onResolve({ filter: /^(@\/lib\/actions|@\/lib\/turnos\/(mover|cobro|senia|cobro-con-producto|duracion|editar)-actions|@\/lib\/servicios\/precio-a-definir-actions|next\/navigation|next\/link)$/ }, (a) => ({ path: a.path, namespace: "falso" }));
             b.onLoad({ filter: /.*/, namespace: "falso" }, (a) => ({ contents: falsos[a.path], loader: "js", resolveDir: RAIZ }));
           },
         },

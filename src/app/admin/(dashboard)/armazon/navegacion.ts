@@ -26,7 +26,7 @@ import {
 } from "@/apps/espacios";
 import { appDeRuta } from "@/apps/rutas";
 import { accionesParaPersona } from "@/apps/acciones";
-import type { Role } from "@/lib/capabilities";
+import type { Role, UsuarioConPermisos } from "@/lib/capabilities";
 import type { Comando } from "@/components/ui/comandos-core";
 import { accionDelRubro, puestoDe, type AccionDelRubro, type AppDeNav, type EspacioDeNav } from "./armazon-core";
 
@@ -114,13 +114,13 @@ export function espaciosDelMenu(menu: readonly ItemMenuDeHoy[], esMostrador: boo
 export function comandosDe(
   espacios: readonly EspacioDeNav[],
   visibles: readonly AppDescriptor[],
-  role: Role,
+  quien: Role | UsuarioConPermisos,
   menu: readonly ItemMenuDeHoy[] | null,
 ): Comando[] {
   // CH (con barra de siempre): sólo acciones de sus pantallas.
   const rutas = menu ? new Set(menu.map((m) => m.href)) : undefined;
   const nombreEspacio = new Map(espacios.flatMap((e) => e.apps.map((a) => [a.ruta, e.nombre] as const)));
-  const acciones: Comando[] = accionesParaPersona(visibles, role, rutas).map((a) => ({
+  const acciones: Comando[] = accionesParaPersona(visibles, quien, rutas).map((a) => ({
     id: `accion-${a.id}`,
     grupo: "acciones",
     nombre: a.verbo,
@@ -147,24 +147,28 @@ export function armarNavegacion({
   modoApps,
   esMostrador,
   role,
+  overrides,
 }: {
   visibles: readonly AppDescriptor[];
   menu: readonly ItemMenuDeHoy[];
   modoApps: boolean;
   esMostrador: boolean;
   role: Role;
+  /** Las excepciones de la matriz de quien mira: los botones deciden con `permisoEfectivo`. */
+  overrides?: UsuarioConPermisos["overrides"];
 }): NavDelArmazon {
+  const quien: UsuarioConPermisos = { role, overrides: overrides ?? [] };
   const espacios = modoApps ? espaciosDeApps(visibles, esMostrador) : espaciosDelMenu(menu, esMostrador);
   // La tecla del rubro, sólo si su pantalla está en la navegación de esta persona (en CH, en su barra).
   const rutas = new Set(espacios.flatMap((e) => e.apps.map((a) => a.ruta)));
   const rubro = accionDelRubro(
     visibles.filter((a) => rutas.has(a.ruta)),
     esMostrador,
-    role,
+    quien,
   );
   return {
     espacios,
-    comandos: comandosDe(espacios, visibles, role, modoApps ? null : menu),
+    comandos: comandosDe(espacios, visibles, quien, modoApps ? null : menu),
     rubro,
     conInicio: puestoDe(role, esMostrador, visibles.filter((a) => rutas.has(a.ruta))) === null,
   };
