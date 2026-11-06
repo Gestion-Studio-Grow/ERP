@@ -85,6 +85,11 @@ export interface InvoiceCreatedEvent {
    * adopta (la respuesta se había perdido) y no se emite un segundo comprobante.
    */
   intentoArca?: IntentoArca;
+  /**
+   * PR3 · Cómo se cobró (elige el umbral de identificación del consumidor final del motor:
+   * src/lib/fiscal/parametros-del-motor.ts). Sin dato, el más exigente.
+   */
+  medioDePago?: 'efectivo' | 'otro';
 }
 
 /** ENG-020 · Número pedido a ARCA, anotado ANTES de mandar el pedido. */
