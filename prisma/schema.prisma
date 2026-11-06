@@ -230,6 +230,8 @@ model Tenant {
   tallerConfig              TallerConfig?
   tallerAvisosEnviados      TallerAvisoEnviado[]
   userPermissionOverrides   UserPermissionOverride[]
+  supportTickets            SupportTicket[] // consola de soporte GSG (T1)
+  supportTicketEventos      SupportTicketEvento[]
   proyectos                 Proyecto[] // módulo proyectos
   proyectoCuotas            ProyectoCuota[]
   proyectoProveedorFichas   ProyectoProveedorFicha[]
@@ -1015,6 +1017,57 @@ model AuditLog {
 
   @@index([entity, entityId])
   @@index([tenantId, createdAt])
+}
+
+// Consola de soporte GSG (T1): un pedido a Soporte GSG con número, prioridad, estado e historial.
+// `tenantId` = el negocio que pidió (RLS del negocio, como AuditLog). Tipo, prioridad, estado y canal
+// son TEXTO validado por src/lib/soporte/config.ts (no enums): sumar un valor no pide migración.
+// `origenId` = la fila de AuditLog del pedido que lo creó (idempotencia: un pedido, un ticket).
+// La tabla puede no existir todavía (Gate 2): el código tolera su ausencia (P2021).
+model SupportTicket {
+  id              String                @id @default(cuid())
+  tenant          Tenant                @relation(fields: [tenantId], references: [id])
+  tenantId        String
+  numero          Int
+  tipo            String
+  prioridad       String
+  estado          String                @default("nuevo")
+  asunto          String
+  detalle         String?
+  canal           String
+  origenId        String?
+  clienteTenantId String?
+  creadoPor       String
+  asignadoA       String?
+  respuesta       String?
+  borradorIa      Json?
+  venceEl         DateTime?
+  respondidoEl    DateTime?
+  resueltoEl      DateTime?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  eventos         SupportTicketEvento[]
+
+  @@unique([tenantId, numero])
+  @@unique([tenantId, origenId])
+  @@index([tenantId, estado, createdAt])
+}
+
+// Historial de un ticket: nada se edita, cada cambio es una fila (alta, estado, prioridad, nota
+// interna, respuesta, borrador de la IA, asignación).
+model SupportTicketEvento {
+  id        String        @id @default(cuid())
+  tenant    Tenant        @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  ticketId  String
+  tipo      String
+  actor     String
+  texto     String?
+  datos     Json?
+  createdAt DateTime      @default(now())
+
+  @@index([tenantId, ticketId, createdAt])
 }
 
 // Bloqueo de agenda por profesional (ADR-011 G9): franco, vacaciones, o novedad

@@ -3,6 +3,8 @@
 // sólo escribe y lee SUS filas; del cliente no se toca nada.
 
 import { tenantTransaction } from "@/lib/rls";
+import { crearTicketSinRomperElPedido } from "@/lib/soporte/alta.server";
+import { ticketDesdePedido } from "@/lib/soporte/tickets-core";
 import {
   ACCION_PEDIDO_RESUELTO,
   ACCION_PEDIDO_SOPORTE,
@@ -53,6 +55,10 @@ export async function pedidosDelEstudio(
  * Deja el pedido. Idempotente: con un pedido ABIERTO del mismo tipo para el mismo cliente no se
  * crea otro (candado por estudio+cliente+tipo dentro de la transacción: dos clics simultáneos dejan
  * uno). Devuelve si ya estaba.
+ *
+ * Consola de soporte T1: el pedido nuevo además abre un ticket (src/lib/soporte), en la misma
+ * transacción pero detrás de un SAVEPOINT: si la tabla de tickets todavía no existe (Gate 2) o el
+ * ticket falla, el pedido queda guardado en AuditLog igual que antes.
  */
 export async function guardarPedidoSoporte(p: {
   estudioTenantId: string;
@@ -68,7 +74,7 @@ export async function guardarPedidoSoporte(p: {
       if (abiertos.some((a) => a.clienteTenantId === p.clienteTenantId && a.tipo === p.pedido.tipo)) {
         return { yaEstaba: true };
       }
-      await tx.auditLog.create({
+      const fila = await tx.auditLog.create({
         data: {
           tenantId: p.estudioTenantId,
           actor: p.actor,
@@ -78,7 +84,13 @@ export async function guardarPedidoSoporte(p: {
           channel: "admin",
           changes: { tipo: p.pedido.tipo, cuit: p.pedido.cuit, nota: p.pedido.nota, alias: p.alias },
         },
+        select: { id: true },
       });
+      const ticket = ticketDesdePedido(
+        { pedidoId: fila.id, actor: p.actor, clienteTenantId: p.clienteTenantId, alias: p.alias, pedido: p.pedido },
+        new Date(),
+      );
+      await crearTicketSinRomperElPedido(tx, p.estudioTenantId, ticket);
       return { yaEstaba: false };
     },
     { tenantId: p.estudioTenantId },
