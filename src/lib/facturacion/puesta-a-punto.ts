@@ -148,7 +148,7 @@ export function estadoDePuesta(e: EntradaPuesta): PuestaAPunto {
           ? `Este mes ya facturaste el máximo de tu plan (${limite}).`
           : `Este mes llevás ${usadas} de ${limite}.`,
     accion: lleno && e.planes ? { etiqueta: "Ver planes", href: e.planes } : null,
-    barra: { usadas, limite, porcentaje: limite ? Math.min(100, Math.round((usadas / limite) * 100)) : 0 },
+    barra: { usadas, limite, porcentaje: limite ? Math.min(100, Math.round((usadas / limite) * 100) /* no-es-plata: porcentaje de comprobantes usados */) : 0 },
   };
 
   const pasos = [datos, pv, conexion, facturaA, topes];

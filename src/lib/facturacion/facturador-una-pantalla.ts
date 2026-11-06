@@ -1,3 +1,4 @@
+import { centavosDe } from "@/lib/dinero/redondeo";
 // ============================================================================
 // FACTURADOR EN UNA PANTALLA — lo poco que suma la pantalla única sobre facturador-core
 // ============================================================================
@@ -20,7 +21,7 @@ export interface ServicioParaFacturar {
 /** 12100 → «12.100»; 12100.5 → «12.100,50»: como lo escribiría la persona (lo lee `totalDelTexto`). */
 export function montoComoTexto(n: number): string {
   const entero = Math.trunc(n);
-  const centavos = Math.round((n - entero) * 100);
+  const centavos = centavosDe(n) - entero * 100;
   const miles = entero.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
   return centavos > 0 ? `${miles},${String(centavos).padStart(2, "0")}` : miles;
 }
