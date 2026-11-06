@@ -97,6 +97,7 @@ describe("Cuenta y buffet (ola 1) en el navegador", { timeout: 180_000 }, () => 
   let css = "";
   let piel = "";
   let pielCuenta = "";
+  let hojaRenglon = "";
   let sinNavegador = "";
 
   before(async () => {
@@ -130,6 +131,8 @@ describe("Cuenta y buffet (ola 1) en el navegador", { timeout: 180_000 }, () => 
     css = await cssDeLaApp();
     piel = readFileSync(join(RAIZ, "src", "app", "admin", "(dashboard)", "club", "piel", "buffet.css"), "utf8");
     pielCuenta = readFileSync(join(RAIZ, "src", "app", "admin", "(dashboard)", "club", "piel", "cuenta.css"), "utf8");
+    // La fuente de la piel no se sirve en el banco: queda la de respaldo (Arial), que mide parecido.
+    hojaRenglon = readFileSync(join(RAIZ, "public", "diseno", "renglon.css"), "utf8").replace(/url\("\/diseno\/[^"]*"\)/g, "local(Arial)");
     browser = await playwright.chromium.launch({ executablePath: chrome });
   });
 
@@ -138,15 +141,16 @@ describe("Cuenta y buffet (ola 1) en el navegador", { timeout: 180_000 }, () => 
   });
 
   /** `conPiel`: la raíz con la estética de Break Point (como la pone el layout del backoffice) y la piel del buffet. */
-  async function montar(viewport = { width: 1024, height: 768 }, conPiel = false): Promise<{ page: Page; errores: string[] }> {
+  async function montar(viewport = { width: 1024, height: 768 }, conPiel = false, renglon = false): Promise<{ page: Page; errores: string[] }> {
     const page = await browser!.newPage({ viewport, locale: "es-AR" });
     const errores: string[] = [];
     page.on("pageerror", (e) => errores.push(e.message));
     page.on("console", (m) => {
       if (m.type() === "error") errores.push(m.text());
     });
-    const raiz = conPiel ? ' data-skin="fable" data-estetica="breakpoint"' : "";
-    const html = `<!doctype html><html lang="es"${raiz}><head><style>${css}${conPiel ? piel + pielCuenta : ""}</style><script>${CONTADOR}</script></head><body class="bg-surface text-body"><main id="root" class="p-4"></main></body></html>`;
+    // `renglon`: el diseño nuevo («Renglón», ya incorporado en todos los negocios): su atributo en la MISMA raíz y su hoja.
+    const raiz = (conPiel ? ' data-skin="fable" data-estetica="breakpoint"' : "") + (renglon ? ' data-diseno="renglon"' : "");
+    const html = `<!doctype html><html lang="es"${raiz}><head><style>${css}${renglon ? hojaRenglon : ""}${conPiel ? piel + pielCuenta : ""}</style><script>${CONTADOR}</script></head><body class="bg-surface text-body"><main id="root" class="p-4"></main></body></html>`;
     await page.route(ORIGEN, (r) => r.fulfill({ contentType: "text/html; charset=utf-8", body: html }));
     await page.goto(ORIGEN);
     await page.addScriptTag({ content: bundle });
@@ -171,7 +175,7 @@ describe("Cuenta y buffet (ola 1) en el navegador", { timeout: 180_000 }, () => 
   test("cuenta: sumar un jugador (nombre y ficha), cobrar una parte de la cancha y cerrarla a cuenta corriente", async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);
     const { page, errores } = await montar();
-    await page.getByRole("button", { name: /^Lucas Fernández, Cancha/ }).click();
+    await page.getByRole("button", { name: /^Lucas Fernández, Cancha 1, de 20:30/ }).click();
     const cuenta = page.getByRole("region", { name: "Lucas Fernández", exact: true });
     await cuenta.waitFor();
 
@@ -288,7 +292,7 @@ describe("Cuenta y buffet (ola 1) en el navegador", { timeout: 180_000 }, () => 
     if (sinNavegador) return t.skip(sinNavegador);
     if (!css) return t.skip("no se pudo compilar el CSS de la app");
     const { page, errores } = await montar({ width: 390, height: 844 });
-    await page.getByRole("button", { name: /^Lucas Fernández, Cancha/ }).click();
+    await page.getByRole("button", { name: /^Lucas Fernández, Cancha 1, de 20:30/ }).click();
     await page.getByRole("region", { name: "Lucas Fernández", exact: true }).getByLabel("Nombre, o buscá su ficha").fill("Ma");
     const chicos = () =>
       page.evaluate(() =>
@@ -315,10 +319,10 @@ describe("Cuenta y buffet (ola 1) en el navegador", { timeout: 180_000 }, () => 
     await page.close();
   });
 
-  test("piel de Break Point: tarjetas resumidas con «Cargar / cobrar» (− / + y «+ Plato» con el teclado), AA y 44 px a 390 px", async (t) => {
+  for (const renglon of [false, true]) test(`piel de Break Point: tarjetas resumidas con «Cargar / cobrar» (− / + y «+ Plato» con el teclado), AA y 44 px a 390 px${renglon ? " · con el diseño nuevo" : ""}`, async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);
     if (!css) return t.skip("no se pudo compilar el CSS de la app");
-    const { page, errores } = await montar({ width: 390, height: 844 }, true);
+    const { page, errores } = await montar({ width: 390, height: 844 }, true, renglon);
     await irASolapa(page, "Buffet");
     const martin = page.getByRole("article", { name: "Martín Ríos" });
     await martin.waitFor();
@@ -352,9 +356,11 @@ describe("Cuenta y buffet (ola 1) en el navegador", { timeout: 180_000 }, () => 
     // En texto: tsx le agrega `__name` a las funciones con nombre y en el navegador no existe.
     const medidas: { raya: string; tenue: number; boton: number } = await page.evaluate(`(() => {
       const rgb = (c) => {
-        const m = c.match(/color\\(srgb ([\\d.]+) ([\\d.]+) ([\\d.]+)/);
-        if (m) return [m[1], m[2], m[3]].map((x) => Number(x) * 255);
-        return (c.match(/[\\d.]+/g) || []).slice(0, 3).map(Number);
+        // Cualquier formato (oklch del diseño nuevo incluido): el navegador lo pinta y se lee el píxel.
+        const k = document.createElement("canvas").getContext("2d", { willReadFrequently: true });
+        k.fillStyle = c;
+        k.fillRect(0, 0, 1, 1);
+        return [...k.getImageData(0, 0, 1, 1).data].slice(0, 3);
       };
       const lum = (c) => c.map((v) => v / 255).map((v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)).reduce((s, v, i) => s + v * [0.2126, 0.7152, 0.0722][i], 0);
       const ratio = (a, b) => {
@@ -395,11 +401,11 @@ describe("Cuenta y buffet (ola 1) en el navegador", { timeout: 180_000 }, () => 
     await page.close();
   });
 
-  test("cobro entre 4: «Dividir entre 4» sin nombres, cada fila con su medio de un toque y créditos + el resto (piel, AA, 44 px a 390 px)", async (t) => {
+  for (const renglon of [false, true]) test(`cobro entre 4: «Dividir entre 4» sin nombres, cada fila con su medio de un toque y créditos + el resto (piel, AA, 44 px a 390 px)${renglon ? " · con el diseño nuevo" : ""}`, async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);
     if (!css) return t.skip("no se pudo compilar el CSS de la app");
-    const { page, errores } = await montar({ width: 390, height: 844 }, true);
-    await page.getByRole("button", { name: /^Lucas Fernández, Cancha/ }).click();
+    const { page, errores } = await montar({ width: 390, height: 844 }, true, renglon);
+    await page.getByRole("button", { name: /^Lucas Fernández, Cancha 1, de 20:30/ }).click();
     const cuenta = page.getByRole("region", { name: "Lucas Fernández", exact: true });
     await cuenta.waitFor();
     const jugadores = cuenta.getByRole("list", { name: "Jugadores del turno" });
@@ -441,9 +447,11 @@ describe("Cuenta y buffet (ola 1) en el navegador", { timeout: 180_000 }, () => 
     // Piel de Break Point: la fila paga en verde, AA; los medios, AA; 44 px y sin scroll de costado.
     const medidas: { pago: number; medio: number; raya: string } = await page.evaluate(`(() => {
       const rgb = (c) => {
-        const m = c.match(/color\\(srgb ([\\d.]+) ([\\d.]+) ([\\d.]+)/);
-        if (m) return [m[1], m[2], m[3]].map((x) => Number(x) * 255);
-        return (c.match(/[\\d.]+/g) || []).slice(0, 3).map(Number);
+        // Cualquier formato (oklch del diseño nuevo incluido): el navegador lo pinta y se lee el píxel.
+        const k = document.createElement("canvas").getContext("2d", { willReadFrequently: true });
+        k.fillStyle = c;
+        k.fillRect(0, 0, 1, 1);
+        return [...k.getImageData(0, 0, 1, 1).data].slice(0, 3);
       };
       const lum = (c) => c.map((v) => v / 255).map((v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)).reduce((s, v, i) => s + v * [0.2126, 0.7152, 0.0722][i], 0);
       const ratio = (a, b) => {
