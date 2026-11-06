@@ -12,7 +12,7 @@
     },
     {
       "path": "/api/cron/arca-outbox",
-      "schedule": "0 6 * * *"
+      "schedule": "*/15 * * * *"
     }
   ]
 }
