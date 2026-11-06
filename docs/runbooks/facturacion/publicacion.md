@@ -81,11 +81,11 @@ Las pega **siempre el dueño**, nunca el agente (SEC-1, ADR-041). Acá van sólo
 ```
 facturita-gsg.vercel.app=facturita
 ```
-Abrí el valor vigente, agregale `;facturita-gsg.vercel.app=facturita` al final si no está, y guardá. No lo
+Abrí el valor vigente, agregale `;facturita-gsg.vercel.app=facturita` al final si no está (`factoque.gsgapp.com.ar` ya va en el código: `HOSTS_PUBLICADOS`, `src/lib/tenant.ts`), y guardá. No lo
 reescribas de memoria: perderías los hosts de los otros negocios (MT-6). La raíz `/` de ese host ya abre
 la vidriera por código (`src/lib/producto-host.ts`); el mapa resuelve el negocio para el resto de las rutas.
 
-- [ ] Vercel → `erp-ch` → Settings → Domains: confirmá que `facturita-gsg.vercel.app` esté asignado al
+- [ ] Vercel → `erp-ch` → Settings → Domains: confirmá el comodín `*.gsgapp.com.ar` (cubre `factoque.gsgapp.com.ar`, el link de venta de Factoque, 05/11/2026; verificado el 05/11) y confirmá que `facturita-gsg.vercel.app` esté asignado al
   proyecto (runbook [golive-suite-3-productos.md §7](../golive-suite-3-productos.md)).
 
 ### 4. Merge: «deployá» (dueño)
@@ -99,7 +99,7 @@ la vidriera por código (`src/lib/producto-host.ts`); el mapa resuelve el negoci
 ### 5. Verificación (orquestador o dueño)
 - [ ] El workflow `release` → job `smoke` corre solo cuando Vercel termina. A mano:
   `npm run release:smoke -- https://facturita-gsg.vercel.app --commit <sha>`.
-- [ ] `https://facturita-gsg.vercel.app/` muestra la vidriera de Facturita (no la home de otro negocio).
+- [ ] `https://factoque.gsgapp.com.ar/` y `https://facturita-gsg.vercel.app/` muestran la vidriera de Factoque (no la home de otro negocio).
 - [ ] `/facturita/app` sin sesión → login. `/facturita/manifest.webmanifest` → 200.
 - [ ] En el celular: «Instalar» aparece (Android) y la app abre en `/facturita/app`.
 - [ ] `/api/ready` → `arca.estado` en `ok` o `apagado` (no `critico`). `/api/health` → `arca.cronProtegido: true` y `arca.facturacion: true`.

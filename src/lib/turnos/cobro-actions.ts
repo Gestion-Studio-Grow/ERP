@@ -30,8 +30,8 @@ import { unstable_rethrow } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
-import { requireCapability } from "@/lib/authz";
-import { anulacionDeCobro, roleHasCapability } from "@/lib/capabilities";
+import { requireCapability, soloLoSuyo } from "@/lib/authz";
+import { anulacionDeCobro, permisoEfectivo } from "@/lib/capabilities";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { isDemoSandbox } from "@/lib/demo-flag";
 import { tenantTransaction } from "@/lib/rls";
@@ -116,13 +116,6 @@ function veredictoDe(user: Usuario, f: FilaDeTurno) {
   });
 }
 
-/** Una profesional toca sólo lo suyo: invariante dura, también adentro de la transacción. */
-function soloLoSuyo(user: Usuario, professionalId: string) {
-  if (user.role === "PROFESSIONAL" && professionalId !== user.professionalId) {
-    throw new RechazoDeDominio("Ese turno es de otra profesional: sólo podés tocar los tuyos.");
-  }
-}
-
 /** Plata que entró de verdad (sin condonaciones), con la MISMA cuenta que la agenda y la bandeja. */
 function cobradoReal(precio: number, cobros: readonly { amount: number; method: string; note: string | null }[], pagoLegado: { status: string; amount: number } | null) {
   return cobros.length > 0 ? desglosarCobros(cobros).cobrado : estadoCobroTurno({ precio, cobros, pagoLegado }).cobrado;
@@ -196,7 +189,7 @@ const includeParaTerminar = {
  */
 export async function terminarYCobrarDividido(formData: FormData): Promise<ResultadoCobro> {
   const user = await requireCapability("agenda:complete");
-  if (!roleHasCapability(user.role, "agenda:collect")) return { ok: false, error: NO_COBRA };
+  if (!permisoEfectivo(user, "agenda:collect")) return { ok: false, error: NO_COBRA };
   if (isDemoSandbox()) return { ok: true }; // modo demo: no persiste
   const appointmentId = texto(formData.get("appointmentId"));
   if (!appointmentId) return { ok: false, error: "Falta identificar el turno." };
@@ -315,7 +308,7 @@ export async function cobrarSeniaYConfirmar(formData: FormData): Promise<Resulta
   // también la profesional que cobra sus turnos (cert CH T2, F-1). Confirmar es `agenda:manage`
   // (`confirmarTurno`): sin eso se registra la seña y el turno sigue Reservado, y el aviso lo dice.
   const user = await requireCapability("agenda:collect");
-  const confirma = roleHasCapability(user.role, "agenda:manage");
+  const confirma = permisoEfectivo(user, "agenda:manage");
   if (isDemoSandbox()) return { ok: true, cobroId: null, monto: 0, confirmo: true }; // modo demo: no persiste
   const appointmentId = texto(formData.get("appointmentId"));
   if (!appointmentId) return { ok: false, error: "Falta identificar el turno." };
@@ -457,7 +450,7 @@ export async function cobrarSeniaYConfirmar(formData: FormData): Promise<Resulta
 export async function cobrarVariosTurnos(formData: FormData): Promise<ResultadoCobro> {
   const user = await requireCapability("agenda:collect");
   const terminarId = texto(formData.get("terminar")) || null;
-  if (terminarId && !roleHasCapability(user.role, "agenda:complete")) return { ok: false, error: "Terminar un turno lo hace quien atiende o la recepción." };
+  if (terminarId && !permisoEfectivo(user, "agenda:complete")) return { ok: false, error: "Terminar un turno lo hace quien atiende o la recepción." };
   if (isDemoSandbox()) return { ok: true }; // modo demo: no persiste
   const methodRaw = texto(formData.get("method"));
   if (!esMetodoDePago(methodRaw)) return { ok: false, error: "Elegí el medio de pago: Mercado Pago, efectivo o transferencia." };

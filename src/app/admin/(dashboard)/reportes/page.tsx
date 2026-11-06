@@ -6,7 +6,7 @@ import { kpisDelPeriodo } from "@/lib/report-ingresos";
 import { getCommissionsOverview, settleCommissions } from "@/lib/commission-actions";
 import ComisionesConCobroAnulado from "../comisiones/ComisionesConCobroAnulado";
 import { requireUser } from "@/lib/authz";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { getActiveProfile } from "@/lib/profile-gating";
 import { getMarginReport } from "@/lib/reports/margin-loader";
 import { fmtShortDate, todayInBusinessTz } from "@/lib/datetime";
@@ -157,7 +157,7 @@ export default async function ReportesPage({
   const noShowTone = k.estados.tasaNoShow > 0.1 ? "danger" : "neutral";
   // Solo el OWNER puede liquidar (marcar pagado); los demás con reports:read
   // ven los montos pero no el botón.
-  const canSettle = roleHasCapability(user.role, "commissions:manage");
+  const canSettle = permisoEfectivo(user, "commissions:manage");
   const banner = status ? STATUS_MESSAGES[status] : undefined;
   const tira = armarTira(
     data.porDia.map((f) => ({ dia: f.label, total: f.total, cantidad: f.cantidad })),

@@ -8,6 +8,9 @@ import "server-only";
 
 import { prisma } from "@/lib/prisma";
 import { getCurrentTenantId } from "@/lib/tenant";
+import { getCurrentUser } from "@/lib/session";
+import { enmascararTelefono, puedeVerContacto } from "@/lib/clientes/telefono";
+import { criterioDeContacto, wherePorContacto } from "@/lib/clientes/busqueda-por-contacto";
 import { resolveLocation } from "@/lib/settings";
 import { businessWallTimeToUtc, dateStrInBusinessTz, todayInBusinessTz } from "@/lib/datetime";
 import { createRateLimiter } from "@/lib/rate-limit";
@@ -605,10 +608,13 @@ export const PAGINA_ALUMNOS = 40;
 export async function alumnos(q = "", cursor?: string, tamanio = 60) {
   const tenantId = await getCurrentTenantId();
   const texto = q.trim().slice(0, 60);
+  // Por teléfono según la casilla 5 (helper único); sin `clients:contact` el número sale enmascarado.
+  const quien = await getCurrentUser();
+  const veContacto = puedeVerContacto(quien);
   const filas = await prisma.padelAlumno.findMany({
     where: {
       tenantId,
-      ...(texto ? { client: { OR: [{ name: { contains: texto, mode: "insensitive" as const } }, { phone: { contains: texto.replace(/\D/g, "") || texto } }] } } : {}),
+      ...(texto ? { client: { OR: [{ name: { contains: texto, mode: "insensitive" as const } }, ...wherePorContacto(criterioDeContacto(texto, veContacto))] } } : {}),
     },
     orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
     take: Math.min(100, Math.max(1, tamanio)),
@@ -629,7 +635,7 @@ export async function alumnos(q = "", cursor?: string, tamanio = 60) {
     token: a.token,
     nivel: a.nivel,
     nombre: a.client.name,
-    telefono: a.client.phone,
+    telefono: veContacto ? a.client.phone : enmascararTelefono(a.client.phone),
     dadas: a._count.clases,
     ultima: a.clases[0]?.empiezaEn ?? null,
     debe: debe.get(a.id)?.total ?? 0,

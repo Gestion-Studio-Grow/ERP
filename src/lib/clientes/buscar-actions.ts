@@ -36,7 +36,9 @@ import { Prisma } from "@/generated/prisma/client";
 import { tenantTransaction } from "@/lib/rls";
 import { normalizarBusqueda } from "@/modules/nav-search";
 import { requireCapability } from "@/lib/authz";
-import { roleHasCapability } from "@/lib/capabilities";
+import { enmascararTelefono, puedeVerContacto } from "@/lib/clientes/telefono";
+import { criterioDeContacto, sqlPorContacto, wherePorContacto } from "@/lib/clientes/busqueda-por-contacto";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { isDemoSandbox } from "@/lib/demo-flag";
 import { isColumnMissing } from "@/lib/prisma-errors";
@@ -95,20 +97,17 @@ async function fichasQueCoinciden(
   tenantId: string,
   b: { texto: string; digitos?: string | null },
   limite: number,
+  veContacto: boolean,
 ): Promise<{ id: string; name: string; phone: string | null }[]> {
   const nombre = `%${escaparLike(normalizarBusqueda(b.texto))}%`;
-  const telefono = `%${escaparLike(b.texto)}%`;
-  const digitos = b.digitos && b.digitos.length >= 3 && b.digitos !== b.texto ? `%${escaparLike(b.digitos)}%` : null;
+  // Por teléfono lo decide el helper único (casilla 5): sin `clients:contact`, sólo los últimos 4.
+  const porTelefono = sqlPorContacto(criterioDeContacto(b.texto, veContacto));
   return tenantTransaction(
     (tx) =>
       tx.$queryRaw<{ id: string; name: string; phone: string | null }[]>(Prisma.sql`
         SELECT "id", "name", "phone" FROM "Client"
         WHERE "tenantId" = ${tenantId}
-          AND (
-            lower(${NOMBRE_SIN_TILDES}) LIKE ${nombre}
-            OR "phone" LIKE ${telefono}
-            ${digitos ? Prisma.sql`OR "phone" LIKE ${digitos}` : Prisma.empty}
-          )
+          AND (lower(${NOMBRE_SIN_TILDES}) LIKE ${nombre} OR ${porTelefono})
         ORDER BY "name" ASC
         LIMIT ${limite}`),
     { tenantId },
@@ -127,32 +126,32 @@ export async function buscarClientasYTurnos(q: unknown): Promise<ResultadoDelBus
   if (isDemoSandbox()) return { ok: true, grupos: [] };
   const tenantId = await getCurrentTenantId();
   const permisos: PermisosDelBuscador = {
-    verClientas: roleHasCapability(user.role, "clients:read"),
-    darTurno: roleHasCapability(user.role, "agenda:manage"),
-    cobrar: roleHasCapability(user.role, "agenda:collect"),
+    verClientas: permisoEfectivo(user, "clients:read"),
+    darTurno: permisoEfectivo(user, "agenda:manage"),
+    cobrar: permisoEfectivo(user, "agenda:collect"),
   };
   const soloDe = user.role === "PROFESSIONAL" ? (user.professionalId ?? "__no_professional__") : null;
   const { texto, digitos } = busqueda;
   const ahora = new Date();
-  const porNombreOTelefono = [
-    { name: { contains: texto, mode: "insensitive" as const } },
-    { phone: { contains: texto } },
-    ...(digitos && digitos.length >= 3 && digitos !== texto ? [{ phone: { contains: digitos } }] : []),
-  ];
+  // Sin `clients:contact` (casilla 5): por teléfono sólo los últimos 4 completos, nunca un tramo.
+  const veContacto = puedeVerContacto(user);
+  const porNombreOTelefono = [{ name: { contains: texto, mode: "insensitive" as const } }, ...wherePorContacto(criterioDeContacto(texto, veContacto))];
 
   try {
     let clientas: ClientaLeida[] = [];
     if (permisos.verClientas) {
-      const filas = await fichasQueCoinciden(tenantId, { texto, digitos }, FILAS_A_LEER);
+      const filas = await fichasQueCoinciden(tenantId, { texto, digitos }, FILAS_A_LEER, veContacto);
+      // Se ordena con el número entero (la búsqueda por teléfono lo necesita) y recién después se
+      // enmascara para quien no tiene `clients:contact` (casilla 5): el número no sale del servidor.
       clientas = ordenarClientas(
         filas.map((c) => ({ id: c.id, nombre: c.name, telefono: c.phone ?? "" })),
         busqueda,
-      );
+      ).map((c) => (veContacto ? c : { ...c, telefono: enmascararTelefono(c.telefono) }));
     }
     const ids = clientas.map((c) => c.id);
     // La profesional: SUS turnos cuya clienta coincide, también sin tildes (la consulta de siempre,
     // más los ids que trae la comparación sin tildes).
-    const idsSinTilde = permisos.verClientas ? [] : (await fichasQueCoinciden(tenantId, { texto, digitos }, IDS_PARA_LA_PROFESIONAL)).map((c) => c.id);
+    const idsSinTilde = permisos.verClientas ? [] : (await fichasQueCoinciden(tenantId, { texto, digitos }, IDS_PARA_LA_PROFESIONAL, veContacto)).map((c) => c.id);
 
     // Los turnos que vienen: de las clientas encontradas; la profesional (sin clientas), los SUYOS
     // cuya clienta coincide.

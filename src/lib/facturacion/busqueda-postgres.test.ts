@@ -117,11 +117,11 @@ test("la lista de clientes de siempre cuenta compras (no anuladas) en un comerci
   const { tenantTransaction } = await deLaApp();
   const { paginaDeFichasEn } = await import("@/lib/clientes/lista-fichas.server");
   const A = base.a.id;
-  const comercio = await tenantTransaction((tx) => paginaDeFichasEn(tx, A, { q: "monica perez", pagina: 1, rubro: "mostrador" }), { tenantId: A });
+  const comercio = await tenantTransaction((tx) => paginaDeFichasEn(tx, A, { q: "monica perez", pagina: 1, rubro: "mostrador", veContacto: true }), { tenantId: A });
   assert.deepEqual(comercio.filas.map((f) => [f.id, f.actividad]), [["cli_monica_a", 1]], "una compra; la anulada no cuenta");
   assert.equal(comercio.rubro, "mostrador");
-  const turnos = await tenantTransaction((tx) => paginaDeFichasEn(tx, A, { q: "monica perez", pagina: 1, rubro: "servicios" }), { tenantId: A });
+  const turnos = await tenantTransaction((tx) => paginaDeFichasEn(tx, A, { q: "monica perez", pagina: 1, rubro: "servicios", veContacto: true }), { tenantId: A });
   assert.deepEqual(turnos.filas.map((f) => [f.id, f.actividad]), [["cli_monica_a", 0]], "sin turnos: 0 turnos, como siempre");
-  const cruzado = await tenantTransaction((tx) => paginaDeFichasEn(tx, base.b.id, { q: "monica", pagina: 1, rubro: "mostrador" }), { tenantId: A });
+  const cruzado = await tenantTransaction((tx) => paginaDeFichasEn(tx, base.b.id, { q: "monica", pagina: 1, rubro: "mostrador", veContacto: true }), { tenantId: A });
   assert.equal(cruzado.coinciden, 0, "con la sesión de A, las fichas de B no existen");
 });

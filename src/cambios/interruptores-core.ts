@@ -39,6 +39,7 @@ import {
   esInterruptorId,
   INICIO_POR_APPS,
   INTERRUPTORES,
+  esIncorporado,
   interruptorPorId,
   operadorDeActor,
   PREFIJO_ACTOR_OPERADOR,
@@ -65,10 +66,13 @@ export interface EstadoInterruptor {
 
 export type EstadoInterruptores = Record<InterruptorId, EstadoInterruptor>;
 
-/** Todo apagado: el estado de un negocio que nunca se tocó, o si la lectura falla. */
+/**
+ * El estado de un negocio que nunca se tocó, o si la lectura falla: lo crítico, apagado; las
+ * mejoras incorporadas, prendidas (ya son parte del sistema).
+ */
 export function todosApagados(): EstadoInterruptores {
   return Object.fromEntries(
-    INTERRUPTORES.map((i) => [i.id, { encendido: false, quien: null, cuando: null }]),
+    INTERRUPTORES.map((i) => [i.id, { encendido: esIncorporado(i.id), quien: null, cuando: null }]),
   ) as EstadoInterruptores;
 }
 
@@ -84,7 +88,8 @@ export function estadoDesdeFilas(filas: readonly FilaLeida[]): EstadoInterruptor
   const vistos = new Set<string>();
   for (const f of validas) {
     const id = f.entityId as InterruptorId;
-    if (vistos.has(id)) continue;
+    // Una fila vieja de la consola no apaga una mejora incorporada.
+    if (esIncorporado(id) || vistos.has(id)) continue;
     vistos.add(id);
     estado[id] = { encendido: f.action === ACCION_ENCENDER, quien: operadorDeActor(f.actor), cuando: f.createdAt };
   }
@@ -246,6 +251,10 @@ export function motivoPerdidasQueNoCoinciden(n: number): string {
   );
 }
 
+/** Lo que se contesta si alguien intenta tocar una mejora incorporada (un formulario viejo abierto). */
+export const MOTIVO_INCORPORADO =
+  "Esta mejora ya es parte del sistema: está prendida en todos los negocios y no se apaga desde la consola.";
+
 export function decidirCambioDeInterruptor(pedido: PedidoDeInterruptor, ctx: ContextoFresco): DecisionDeInterruptor {
   const { interruptor, accion, visto, modulosVistos } = pedido;
   if (
@@ -256,6 +265,7 @@ export function decidirCambioDeInterruptor(pedido: PedidoDeInterruptor, ctx: Con
   ) {
     return { ok: false, motivo: PEDIDO_INCOMPLETO };
   }
+  if (esIncorporado(interruptor)) return { ok: false, motivo: MOTIVO_INCORPORADO };
 
   // El candado de CH va primero: ni siquiera se le cuenta a otro operador si hay algo que cambiar.
   if (requiereOkDelDuenio(ctx.slug)) {

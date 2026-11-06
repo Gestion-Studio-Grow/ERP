@@ -98,6 +98,8 @@ export async function facturarPagoMP(
     neto,
     iva,
     total,
+    // PR5 · C4: un cobro por Mercado Pago no es efectivo.
+    medioDePago: "otro" as const,
     // A-6 — IDEMPOTENCIA por pago: la clave es el `payment_id` del gateway. Un webhook MP
     // duplicado (MP reintenta las notificaciones) vuelve a llamar acá con el mismo `pago.id` →
     // `createInvoice` encuentra la factura ya creada (o el @@unique la frena) y devuelve la

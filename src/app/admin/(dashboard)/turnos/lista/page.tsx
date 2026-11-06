@@ -3,6 +3,7 @@ import AppointmentRow from "../AppointmentRow";
 import AppointmentsHistoryList from "./AppointmentsHistoryList";
 import Link from "next/link";
 import { requireCapability } from "@/lib/authz";
+import { enmascararContacto, type QuienMira } from "@/lib/clientes/telefono";
 import { requireApp } from "@/lib/require-app";
 import { cargarFaltazosPorFicha } from "@/lib/crm/cargas.server";
 import { enInicioPorApps } from "../../inicio/piloto";
@@ -16,8 +17,9 @@ import { fechaPropuestaDelAlta } from "@/lib/turnos/practica";
 import AgendaRenglon from "../AgendaRenglon";
 import { enlaceCobrarUnaVenta } from "../../pedidos/cobrar-una-venta";
 import DarTurnoCajon from "../_agenda/DarTurnoCajon";
+import { profesionalesParaDarTurno } from "../_agenda/alta-core";
 import { buttonClasses } from "@/components/ui";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { contarSinCerrarDeQuienMira } from "@/lib/turnos/sin-cerrar.server";
 import { RUTA_CERRAR_PENDIENTE } from "../../inicio/bandeja-core";
 import { diaCorto, textoSinCerrar, ventanaDeLista } from "./lista-core";
@@ -64,7 +66,7 @@ export const statusLabel: Record<string, string> = {
 // lo cargado son los últimos 90 días (`ventanaDeLista`) con «Ver más atrás» (?desde=), no 365.
 type TurnoDelLoader = Awaited<ReturnType<typeof getAppointments>>[number];
 
-function proyectarTurno(a: TurnoDelLoader) {
+function proyectarTurno(a: TurnoDelLoader, quien: QuienMira) {
   return {
     id: a.id,
     startsAt: a.startsAt,
@@ -73,7 +75,8 @@ function proyectarTurno(a: TurnoDelLoader) {
     serviceId: a.serviceId,
     priceAtBooking: a.priceAtBooking,
     notes: a.notes,
-    client: { name: a.client.name, phone: a.client.phone },
+    // Sin `clients:contact` (casilla 5 de la matriz) el teléfono sale enmascarado.
+    client: enmascararContacto({ name: a.client.name, phone: a.client.phone }, quien),
     professional: { name: a.professional.name, cobraEnMostrador: a.professional.cobraEnMostrador },
     service: { name: a.service.name, price: a.service.price, depositAmount: a.service.depositAmount },
     box: { name: a.box.name },
@@ -118,7 +121,7 @@ export default async function TurnosListaPage({
   const viewer = { role: user.role, professionalId: user.professionalId };
   // B2: lo que la fila puede ofrecer, con los MISMOS permisos que pide el servidor. La lista exige
   // `agenda:manage`; cobrar es `agenda:collect` (y por turno, `puedeCobrarEsteTurno` con `viewer`).
-  const permisos = { gestionar: true, cobrar: roleHasCapability(user.role, "agenda:collect") };
+  const permisos = { gestionar: true, cobrar: permisoEfectivo(user, "agenda:collect") };
   // "Dar un turno" desde un estado vacío de la agenda llega con ?nuevo=1&fecha=… (pasos.ts): el
   // alta se abre sola y con el día puesto. Sin eso, la lista es la de siempre.
   const sp = await searchParams;
@@ -146,12 +149,12 @@ export default async function TurnosListaPage({
     ]);
     const agenda = (
       <AgendaRenglon
-        quien={{ role: user.role, professionalId: user.professionalId }}
+        quien={user}
         fecha={nuevo.fecha || undefined}
         vista="lista"
         alta={
           <DarTurnoCajon
-            profesionales={profesionales}
+            profesionales={profesionalesParaDarTurno(profesionales, viewer)}
             fichas={fichasAlta}
             faltazos={faltazosAlta}
             hoy={hoy}
@@ -186,7 +189,7 @@ export default async function TurnosListaPage({
   ]);
   // Único punto donde se lee el resultado crudo del loader: de acá para abajo se trabaja
   // siempre con `turnos`, que es lo que el navegador va a recibir.
-  const turnos = appointments.map(proyectarTurno);
+  const turnos = appointments.map((a) => proyectarTurno(a, user));
   // La sección "Reservados" se PARTE en dos (regla pura `seccionDeLista`, con test):
   //   · pasados sin cerrar: Reservados Y Confirmados con la hora ya pasada. Ya no se dibujan acá
   //     como tarjetas: son un renglón «N pasados sin cerrar → [Cerrar lo pendiente]» que lleva a

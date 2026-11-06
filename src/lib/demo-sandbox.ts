@@ -45,6 +45,7 @@ export const DEMO_SESSION_USER: SessionUser = {
   role: "OWNER",
   professionalId: null,
   tenantId: DEMO_TENANT_ID,
+  overrides: [],
 };
 
 // Respuesta uniforme para toda escritura bloqueada en modo demo (mismo shape

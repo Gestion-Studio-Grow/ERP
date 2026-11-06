@@ -69,13 +69,13 @@ export default function SumarProductos({
             <li key={r.producto.id} className="flex items-center justify-between gap-2 text-sm">
               <span className="min-w-0 flex-1 truncate text-body">{r.producto.name}</span>
               <span className="flex items-center gap-1">
-                <Button type="button" variant="outline" size="sm" disabled={disabled} aria-label={`Uno menos de ${r.producto.name}`} onClick={() => cambiar(r.producto.id, -1)}>
+                <Button type="button" variant="outline" size="md" disabled={disabled} aria-label={`Uno menos de ${r.producto.name}`} onClick={() => cambiar(r.producto.id, -1)}>
                   −
                 </Button>
                 <span className="w-6 text-center tabular-nums" aria-label={`Cantidad de ${r.producto.name}`}>
                   {r.qty}
                 </span>
-                <Button type="button" variant="outline" size="sm" disabled={disabled} aria-label={`Uno más de ${r.producto.name}`} onClick={() => cambiar(r.producto.id, 1)}>
+                <Button type="button" variant="outline" size="md" disabled={disabled} aria-label={`Uno más de ${r.producto.name}`} onClick={() => cambiar(r.producto.id, 1)}>
                   +
                 </Button>
               </span>
@@ -86,7 +86,7 @@ export default function SumarProductos({
       )}
 
       {!abierto ? (
-        <Button type="button" variant="outline" size="md" className="w-full" disabled={disabled} onClick={abrir}>
+        <Button type="button" variant="outline" size="lg" className="w-full" disabled={disabled} onClick={abrir}>
           + Producto
         </Button>
       ) : (

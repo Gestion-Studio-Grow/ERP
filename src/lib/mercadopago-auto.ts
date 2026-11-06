@@ -44,6 +44,7 @@ import {
   type EstadoPropuestaDb,
 } from "@/lib/bancos-glue";
 import { UMBRAL_IDENTIFICACION_DEFAULT } from "@/plugins/bancos";
+import { aplicarMovimientosPosterioresMP } from "@/lib/facturacion/devoluciones-mp";
 
 // ---------------------------------------------------------------------------
 // Mapeos plugin ↔ DB
@@ -305,6 +306,10 @@ export async function crearEntornoReal(tenantId: string): Promise<EntornoIngesta
       const invoiceId = await facturarPagoMP(pago, tid);
       if (invoiceId) facturasMes = (facturasMes ?? 0) + 1;
       return invoiceId;
+    },
+    // PR5 · C1: devolución → nota de crédito (o pendiente hasta la factura / el CAE); contracargo → caso sin NC.
+    aplicarPosteriores: async (pago, tid) => {
+      await aplicarMovimientosPosterioresMP(tid, pago.posteriores ?? []);
     },
   };
   return { deps, reconciliacion };

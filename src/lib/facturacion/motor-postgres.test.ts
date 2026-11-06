@@ -220,7 +220,8 @@ test("tope de intentos: al máximo el envío se detiene; el cron no lo toma; «R
   if (!p) return;
   const a = p.base.a.id;
   const sim = simDe(a);
-  const politica = { esperaInicialSeg: 60, factor: 2, esperaTopeSeg: 3600, maxIntentos: 2 };
+  // Ventana 0: el tope lo decide sólo la cantidad de intentos (la ventana de 24 h la prueba arca-reintentos.test.ts).
+  const politica = { escaleraSeg: [60, 300], maxIntentos: 2, ventanaSeg: 0 };
   const id = await p.facturaC(a, 55);
   sim.fallarProximo("FECAESolicitar", { error: 501, mensaje: "Error interno" });
   sim.fallarProximo("FECAESolicitar", { error: 501, mensaje: "Error interno" });

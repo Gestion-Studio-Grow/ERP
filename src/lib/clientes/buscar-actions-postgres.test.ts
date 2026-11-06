@@ -103,7 +103,10 @@ test("contra Postgres (app_rls + RLS): el buscador «/» sólo encuentra lo del 
   assert.equal(deMarta?.huecos, undefined);
 
   // ── Una profesional: sólo SUS turnos que vienen, sin clientas, teléfonos ni plata ──
-  const deVero = await buscar(base.a, profesional, "5566");
+  // Sin `clients:contact` busca por los últimos 4 completos («1234» de Marta), no por un tramo del
+  // medio: «5566» ya no le trae nada (QA vuelta 2 de la matriz).
+  assert.deepEqual(await buscar(base.a, profesional, "5566"), { ok: true, grupos: [] });
+  const deVero = await buscar(base.a, profesional, "1234");
   assert.deepEqual(deVero.grupos.map((g) => g.grupo), ["turnos"]);
   assert.deepEqual(ids(deVero, "turnos"), [`turno-${proximoMarta}`], "el de Laura es de Caro: no lo ve");
   assert.doesNotMatch(JSON.stringify(deVero), /wa\.me|\/admin\/clientes\/|Debe/);

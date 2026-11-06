@@ -12,6 +12,11 @@ import { Prisma } from "@/generated/prisma/client";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
 import { auditAdmin } from "@/lib/audit-core";
+import { tenantTransaction } from "@/lib/rls";
+import { isDemoSandbox, DEMO_WRITE_BLOCKED } from "@/lib/demo-sandbox";
+import { decidirCambioDePermiso, leerAllowed } from "@/lib/permisos/cambio-de-permiso";
+import { esTablaAusente } from "@/lib/permisos-overrides";
+import { grabarCambioDePermisoEnTx } from "@/lib/permisos/grabar-permiso";
 import { hashPassword } from "@/lib/auth-password";
 import { getNegocioApps } from "@/apps/contexto.server";
 import { MIN_PASSWORD_LENGTH, validarAltaDeUsuario } from "@/app/admin/(dashboard)/usuarios/alta-usuario";
@@ -188,3 +193,58 @@ export async function resetUserPassword(formData: FormData) {
   revalidatePath(USERS_PATH);
   backWith("ok_password_reset");
 }
+
+// ─── Matriz de permisos por usuario (docs/producto/permisos/PLAN.md §8) ─────────────────────────
+//
+// Prende o apaga UNA casilla de una persona. Sólo `users:manage` (socio). La regla (no a sí mismo,
+// no a otro socio, sólo las capabilities de la matriz, profesional sin ficha) es pura y probada:
+// `permisos/cambio-de-permiso.ts`. Acá: mismo negocio, escritura en una transacción por tenant y
+// auditoría por casilla. Devuelve un resultado (la matriz es un componente de cliente, sin banner).
+// El cambio rige en el próximo request de la persona afectada (la sesión se cachea por request).
+
+export type ResultadoPermiso = { ok: true; allowed: boolean; excepcion: boolean } | { ok: false; error: string };
+
+export async function setUserPermission(formData: FormData): Promise<ResultadoPermiso> {
+  const actor = await requireCapability("users:manage");
+  if (isDemoSandbox()) return DEMO_WRITE_BLOCKED;
+  const tenantId = await getCurrentTenantId();
+  const userId = String(formData.get("userId") || "");
+  const capability = String(formData.get("capability") || "");
+  const allowed = leerAllowed(formData.get("allowed"));
+
+  // El id viene del navegador: se busca con el negocio escrito a mano además de RLS (riesgo 5).
+  let objetivo: { id: string; role: "OWNER" | "RECEPTION" | "PROFESSIONAL"; professionalId: string | null; overrides: { capability: string; allowed: boolean }[] } | null;
+  try {
+    const fila = await prisma.user.findFirst({
+      where: { id: userId, tenantId, deletedAt: null },
+      select: { id: true, role: true, professionalId: true, permissionOverrides: { select: { capability: true, allowed: true } } },
+    });
+    objetivo = fila ? { id: fila.id, role: fila.role, professionalId: fila.professionalId, overrides: fila.permissionOverrides } : null;
+  } catch (e) {
+    if (esTablaAusente(e)) return { ok: false, error: SIN_TABLA_DE_PERMISOS };
+    throw e;
+  }
+
+  const d = decidirCambioDePermiso({ actorId: actor.id, objetivo, capability, allowed });
+  if (!d.ok) return d;
+  const { plan } = d;
+
+  try {
+    await tenantTransaction((tx) => grabarCambioDePermisoEnTx(tx, { tenantId, userId, plan }));
+  } catch (e) {
+    if (esTablaAusente(e)) return { ok: false, error: SIN_TABLA_DE_PERMISOS };
+    throw e;
+  }
+
+  await auditAdmin({
+    action: "permission_set",
+    entity: "User",
+    entityId: userId,
+    changes: { capability, caps: plan.caps, antes: plan.antes, despues: plan.allowed, porRol: plan.grabar.length === 0 },
+  });
+  revalidatePath(USERS_PATH);
+  return { ok: true, allowed: plan.allowed, excepcion: plan.grabar.length > 0 };
+}
+
+const SIN_TABLA_DE_PERMISOS =
+  "Los permisos por persona todavía no están habilitados en este negocio: por ahora rige lo de cada rol.";

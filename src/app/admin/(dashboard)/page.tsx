@@ -8,7 +8,7 @@ import { getDashboardData, getRetailDashboardData } from "@/lib/actions";
 import Link from "next/link";
 import { fmtTime, fmtDateTimeAr, todayInBusinessTz } from "@/lib/datetime";
 import { requireCapability, requireUser } from "@/lib/authz";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { getActiveProfile } from "@/lib/profile-gating";
 import { getActiveModuleIds } from "@/lib/module-gating";
 import { dashboardMode } from "@/lib/dashboard-mode";
@@ -306,7 +306,7 @@ async function InicioVertical() {
   const user = await requireCapability("dashboard:read");
   // Ingresos = dato financiero: solo quien puede ver reportes (OWNER). La
   // recepción ve el resto del dashboard sin la cifra de facturación.
-  const canSeeRevenue = roleHasCapability(user.role, "reports:read");
+  const canSeeRevenue = permisoEfectivo(user, "reports:read");
 
   // QUIÉN DECIDE SI ESTE LOCAL VE MOSTRADOR O AGENDA.
   //
@@ -327,7 +327,7 @@ async function InicioVertical() {
     return (
       <RetailHome
         canSeeRevenue={canSeeRevenue}
-        canSeeStock={roleHasCapability(user.role, "catalog:read")}
+        canSeeStock={permisoEfectivo(user, "catalog:read")}
         itemNoun={rubro.rubro?.wording.itemNoun ?? "producto"}
       />
     );
@@ -363,7 +363,7 @@ async function InicioVertical() {
             (`?nuevo=1`), no a la lista con el formulario viejo: «+ Dar turno» y «Atender ahora»
             (CH-019, la clienta en el mostrador). Home analítico (Empresa): la acción cede el
             protagonismo a los indicadores → con borde (ADR-059 D8). Sólo quien da turnos. */}
-        {roleHasCapability(user.role, "agenda:manage") && (
+        {permisoEfectivo(user, "agenda:manage") && (
           <div className="flex flex-wrap items-center justify-end gap-2">
             <AtajosDelAlta hoy={todayInBusinessTz()} principal={analytical ? "ninguna" : "dar-turno"} />
           </div>
@@ -479,7 +479,7 @@ async function InicioComerciante() {
   // Solo quien puede facturar (OWNER) carga estado fiscal + KPIs: las actions exigen
   // `billing:manage` y su redirect, estando ya en /admin, haría loop. Una recepción de
   // Comerciante (borde raro) ve un Inicio simple, sin las cifras de facturación.
-  const canBill = roleHasCapability(user.role, "billing:manage");
+  const canBill = permisoEfectivo(user, "billing:manage");
 
   let estado: EstadoFiscal | null = null;
   let kpis: KpisFacturacionBancaria | null = null;

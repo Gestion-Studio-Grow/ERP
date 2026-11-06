@@ -19,6 +19,7 @@
 // manda), porque es la otra cara del mismo turno abierto: el que hay que confirmar mañana.
 
 import { businessWallTimeToUtc, dateStrInBusinessTz, fmtDateTime } from "@/lib/datetime";
+import { lineaDeAclaracion } from "@/lib/servicios/ficha";
 
 type TurnoConHora = { status: string; startsAt: Date | string };
 
@@ -122,6 +123,8 @@ export type DatosRecordatorio = {
   serviceName: string;
   professionalName: string;
   startsAt: Date | string;
+  /** La aclaración del servicio («Vení bañada»): se suma al final, aparte de la plantilla. */
+  aclaracion?: string | null;
 };
 
 /** Reemplaza `{{clave}}` por su valor; una clave que no existe queda vacía. */
@@ -141,5 +144,5 @@ export function textoRecordatorio(plantilla: string | null | undefined, datos: D
     serviceName: datos.serviceName,
     professionalName: datos.professionalName,
     startsAt: fmtDateTime(datos.startsAt),
-  });
+  }) + lineaDeAclaracion(datos.aclaracion);
 }

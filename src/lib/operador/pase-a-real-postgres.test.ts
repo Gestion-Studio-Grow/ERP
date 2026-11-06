@@ -64,9 +64,11 @@ test("pase a real contra Postgres: condiciones, vuelta, concurrencia, huella, CH
     OPERADOR_DUENIO: "tomas",
     OPERADORES: `facu=${await valorDeClave("clave-de-facu", new Uint8Array(16).fill(9))}`,
     ARCA_MODO: "real",
+    // Segunda llave de real (src/lib/fiscal/modo-del-negocio.ts): los dos negocios habilitados.
+    ARCA_REAL_TENANTS: `${base.a.slug},${base.b.slug}`,
   });
   t.after(() => {
-    for (const k of ["FISCAL_MASTER_KEY", "OPERATOR_SECRET", "AUTH_SECRET", "OPERADOR_DUENIO", "OPERADORES", "ARCA_MODO"]) {
+    for (const k of ["FISCAL_MASTER_KEY", "OPERATOR_SECRET", "AUTH_SECRET", "OPERADOR_DUENIO", "OPERADORES", "ARCA_MODO", "ARCA_REAL_TENANTS"]) {
       if (antes[k] === undefined) delete process.env[k];
       else process.env[k] = antes[k];
     }
@@ -98,6 +100,7 @@ test("pase a real contra Postgres: condiciones, vuelta, concurrencia, huella, CH
     });
     await cargar(tenantId, produccion);
     process.env.ARCA_MODO = "real";
+    process.env.ARCA_REAL_TENANTS = `${A.slug},${B.slug},beauty-spa,qa-pase-comprobantes`;
   }
   async function huella(tenantId: string): Promise<string> {
     const f = await leerFichaDelPase(tenantId, modoDesdeEnv());
@@ -163,6 +166,13 @@ test("pase a real contra Postgres: condiciones, vuelta, concurrencia, huella, CH
           process.env.ARCA_MODO = "homologacion";
         },
         motivo: /La plataforma está en modo pruebas \(homologación\)/,
+      },
+      {
+        nombre: "fuera de ARCA_REAL_TENANTS",
+        romper: async () => {
+          process.env.ARCA_REAL_TENANTS = B.slug;
+        },
+        motivo: /no está en ARCA_REAL_TENANTS/,
       },
     ];
     for (const c of casos) {

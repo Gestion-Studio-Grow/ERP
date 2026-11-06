@@ -45,6 +45,7 @@ import {
   fmtCuit,
 } from "@/components/ui";
 import { modoDesdeEnv } from "@/plugins/arca";
+import { resolverModoDelNegocio } from "@/lib/arca-dispatch";
 import { CONDICIONES_DEL_EMISOR } from "@/lib/fiscal/condicion-iva-emisor";
 import { isInvoicingEnabled } from "@/lib/fiscal";
 import { operatorReadMustChange } from "@/lib/must-change-password";
@@ -54,7 +55,7 @@ import {
   MOTIVO_OK_DEL_DUENIO_RED,
 } from "@/lib/multilocal/multilocal-core";
 import { catalogo } from "@/modules/catalog";
-import { appOcultablePorId, INTERRUPTORES, interruptorPorId } from "@/cambios/interruptores";
+import { appOcultablePorId, INTERRUPTORES_DE_LA_CONSOLA, interruptorPorId } from "@/cambios/interruptores";
 import { todosApagados } from "@/cambios/interruptores-core";
 import { operadorDuenio } from "@/lib/operator-auth";
 import { ResetOwnerPasswordCard } from "./ResetOwnerPasswordCard";
@@ -402,6 +403,10 @@ export default async function FichaDelNegocio({
 
   // Estado fiscal derivado.
   const modoArca = modoDesdeEnv();
+  // El modo en que factura ESTE negocio (src/lib/fiscal/modo-del-negocio.ts), o qué le falta.
+  const modoDeEsteNegocio = await resolverModoDelNegocio(t.id).catch(() => ({
+    error: "No se pudo leer el modo de ARCA de este negocio.",
+  }));
   const credLoaded =
     credFiscal && credFiscal !== "pendiente" ? credFiscal : null;
   const cuitOk = !!t.arcaCuit;
@@ -784,6 +789,24 @@ export default async function FichaDelNegocio({
           plata={
             <span className="text-[14px] text-strong">
               {MODO_ARCA_LABEL[modoArca]}
+            </span>
+          }
+        />
+        <Renglon
+          folio={
+            <Marca tipo={"error" in modoDeEsteNegocio ? "atencion" : "hecho"}>
+              Negocio
+            </Marca>
+          }
+          titulo="Modo de ARCA de este negocio"
+          detalle={
+            "error" in modoDeEsteNegocio
+              ? modoDeEsteNegocio.error
+              : "Real sólo con la plataforma en real, el negocio en ARCA_REAL_TENANTS, el pase a real y el certificado de producción."
+          }
+          plata={
+            <span className="text-[14px] text-strong">
+              {"error" in modoDeEsteNegocio ? "no factura" : MODO_ARCA_LABEL[modoDeEsteNegocio.modo]}
             </span>
           }
         />
@@ -1175,7 +1198,7 @@ export default async function FichaDelNegocio({
       )}
       <p className="py-2 text-[13px] text-muted">
         En la Auditoría del negocio figura como{" "}
-        {INTERRUPTORES.map((i) => `«GSG activó ${i.enAuditoria}»`).join(" o ")},
+        {INTERRUPTORES_DE_LA_CONSOLA.map((i) => `«GSG activó ${i.enAuditoria}»`).join(" o ")},
         sin el nombre del operador; los cambios de módulos, con el antes y el
         después.
       </p>

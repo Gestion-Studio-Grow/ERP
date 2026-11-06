@@ -26,7 +26,7 @@ import { revalidatePath } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 import { tenantTransaction } from "@/lib/rls";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { AppNoDisponibleError, requireAppAccion } from "@/lib/require-app";
 import { auditAdmin } from "@/lib/audit-core";
 import { logger } from "@/lib/logger";
@@ -69,10 +69,10 @@ export async function crearLote(_prev: EstadoLote, formData: FormData): Promise<
   let codigo: string | null = null;
   try {
     const user = await requireAppAccion("lotes-y-vencimientos");
-    if (!roleHasCapability(user.role, "stock:receive")) {
+    if (!permisoEfectivo(user, "stock:receive")) {
       return { ok: false, error: "Tu usuario no puede cargar lotes. Pedíselo a la dueña o al dueño." };
     }
-    const conCostos = roleHasCapability(user.role, "costs:read");
+    const conCostos = permisoEfectivo(user, "costs:read");
 
     codigo = String(formData.get("code") ?? "").trim().slice(0, CODIGO_MAX) || null;
     const productId = String(formData.get("productId") ?? "").trim();
@@ -115,7 +115,7 @@ export async function crearLote(_prev: EstadoLote, formData: FormData): Promise<
 export async function cambiarEstadoDelLote(_prev: EstadoLote, formData: FormData): Promise<EstadoLote> {
   try {
     const user = await requireAppAccion("lotes-y-vencimientos");
-    if (!roleHasCapability(user.role, "stock:receive")) {
+    if (!permisoEfectivo(user, "stock:receive")) {
       return { ok: false, error: "Tu usuario no puede cambiar lotes. Pedíselo a la dueña o al dueño." };
     }
     const id = String(formData.get("id") ?? "").trim();

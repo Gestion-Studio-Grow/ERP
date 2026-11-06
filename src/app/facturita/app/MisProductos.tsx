@@ -47,8 +47,11 @@ export default function MisProductos({
   condicionEmisor,
   bloqueado,
   onEditar,
+  onEmitida,
   acciones,
 }: {
+  /** Con esto, la factura que salió se muestra ARRIBA de la pantalla (la capa), no acá abajo. */
+  onEmitida?: (r: Extract<ResultadoEmisionFacturita, { ok: true }>, total: number) => void;
   acciones: AccionesMisProductos;
   productos: Atajo[];
   ultima: Atajo | null;
@@ -91,7 +94,10 @@ export default function MisProductos({
     setEstado(tocar(estado, { tipo: "emitir" }));
     try {
       const r = await acciones.emitir(emisionDesdeAtajo(atajo, clave));
-      setResultado(r);
+      if (r.ok && onEmitida) {
+        setResultado(null);
+        onEmitida(r, atajo.precio);
+      } else setResultado(r);
       // Sin factura conocida (error antes o durante la grabación) queda listo para reintentar con la
       // MISMA clave: si la factura llegó a grabarse, el servidor devuelve esa y no pide otro CAE.
       setEstado(r.ok || r.invoiceId ? { paso: "eligiendo" } : { paso: "confirmando", atajo, clave });

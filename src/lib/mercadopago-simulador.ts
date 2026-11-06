@@ -31,6 +31,7 @@ import {
   type CondicionIva,
   type FiscalProfile,
 } from "@/lib/fiscal";
+import { umbralDelMotor } from "@/lib/fiscal/parametros-del-motor";
 
 export interface FacturaSimulada {
   paymentId: string;
@@ -92,6 +93,8 @@ export function crearFacturarConArcaStub(
       neto,
       iva,
       total,
+      // PR3 · Umbral del motor resuelto por el Core; sin medio de pago cargado, el más exigente.
+      umbralIdentificacionDelMotor: umbralDelMotor(null),
     };
     try {
       const res = await afip.solicitarCae(construirComprobante(ev));

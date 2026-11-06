@@ -21,7 +21,10 @@ export default async function MiLiquidacion({ searchParams }: { searchParams: Pr
   const extras = elegida ? leerExtras(elegida.extras) : [];
   return (
     <main className="mx-auto w-full max-w-4xl px-4 py-5">
-      <h1 className="mb-4 text-2xl font-bold text-strong">Mi liquidación</h1>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-2xl font-bold text-strong">Mi liquidación</h1>
+        <Link href="/admin/proyectos/mi-liquidacion/rendiciones" prefetch={false} className={cn(buttonClasses("outline", "md"), "min-h-11")}>Mis rendiciones</Link>
+      </div>
       {!a.personaId ? (
         <p className={cn(tarjeta, "text-sm text-muted")}>Tu usuario no está vinculado a una persona del equipo, así que no hay liquidaciones para mostrar. Pedile a Dirección que te vincule en Equipo y permisos.</p>
       ) : !elegida ? (

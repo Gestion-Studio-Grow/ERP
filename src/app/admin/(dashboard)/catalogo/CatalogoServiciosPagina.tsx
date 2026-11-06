@@ -96,6 +96,7 @@ export default function CatalogoServiciosPagina({ sp, datos }: { sp: Sp; datos: 
           quienesLaHacen={quienesLaHacen}
           editar={editar}
           agregar={agregar}
+          fichaDisponible={datos.fichaDisponible}
         />
       )}
       {parte === "boxes" && <BoxesRenglon boxes={boxes} profesionalesPorBox={profesionalesPorBox} editar={editar} agregar={agregar} />}

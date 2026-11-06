@@ -75,7 +75,7 @@ function useTemaDeLaRaiz(ref: React.RefObject<HTMLElement | null>): "light" | "d
  * planillas (cada una escondida por CSS donde no va, como siempre: sin parpadeo); después se
  * desmonta la que no se ve. Sigue los cambios de ancho (girar la tablet).
  */
-function useEsPC(): boolean | null {
+export function useEsPC(): boolean | null {
   const [esPC, setEsPC] = useState<boolean | null>(null);
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 64rem)");

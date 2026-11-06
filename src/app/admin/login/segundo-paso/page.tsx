@@ -14,7 +14,7 @@ import { esteticaBackoffice } from "@/lib/estetica-backoffice";
 import { claseDeFuentes } from "@/lib/estetica-backoffice-fuentes";
 import { prisma } from "@/lib/prisma";
 import { aBase32 } from "@/lib/proyectos/segundo-factor-core";
-import { datosDeActivacion, leerPaseActual } from "@/lib/proyectos/segundo-factor.server";
+import { datosDeActivacion, exigeSegundoPaso, leerPaseActual } from "@/lib/proyectos/segundo-factor.server";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { getCurrentTenantSlug } from "@/lib/tenant-site";
 import { FormularioSegundoPaso } from "./_formulario";
@@ -30,6 +30,8 @@ export default async function SegundoPaso({ searchParams }: { searchParams: Prom
   if (!user) redirect("/admin/login");
 
   const { next } = await searchParams;
+  // Con el pase de un ingreso con PIN no se activa una app de códigos: sería entrar sólo con la clave.
+  if (!(await exigeSegundoPaso(user))) redirect(`/admin/login/pin?next=${encodeURIComponent(next ?? "/admin")}`);
   const [brand, slug, factor] = await Promise.all([
     getTenantBrand(),
     getCurrentTenantSlug(),

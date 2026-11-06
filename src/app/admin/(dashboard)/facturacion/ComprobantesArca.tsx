@@ -35,7 +35,6 @@ import { Tabla } from "@/components/ui/Tabla";
 import { Button, Marca, Plata } from "@/components/ui";
 import { useToast } from "../ToastProvider";
 import { fechaDeComprobante, numeroDeComprobante } from "./EstadoArca";
-import FacturaDePrueba from "./FacturaDePrueba";
 
 const BASE = "/admin/facturacion";
 const CAMPO = "mt-1 min-h-11 w-full rounded-md border border-line bg-surface px-3 text-base text-strong sm:text-sm";
@@ -172,10 +171,14 @@ export default function ComprobantesArca({
           </Button>
         )}
       </div>
+      {/* La factura de prueba vive en la puesta a punto (paso «Conexión con ARCA»). */}
       {estado.facturaDePrueba && (
-        <div className="mb-3">
-          <FacturaDePrueba />
-        </div>
+        <p className="mb-3 text-sm text-muted">
+          ¿Querés ver cómo sale una factura?{" "}
+          <Link href={`${BASE}?vista=arca#paso-conexion`} className={ENLACE}>
+            Hacé una de prueba en la puesta a punto
+          </Link>
+        </p>
       )}
 
       {/* Los totales del filtro entero; lo que necesita atención, con un toque para verlo. */}

@@ -28,6 +28,7 @@ import { huecosParaMover, type ProfesionalParaMover } from "@/lib/turnos/mover-a
 import { Button, Chip, Hoja } from "@/components/ui";
 import { dateStrInBusinessTz, fmtTime } from "@/lib/datetime";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
+import { SIN_PERMISO_DE_CONTACTO, contactoOculto } from "@/lib/clientes/telefono";
 import { useToast } from "../../ToastProvider";
 import { esRedireccionDeNext } from "../errores";
 import { fechaCorta, type TurnoDelDia } from "../agenda-core";
@@ -141,7 +142,13 @@ function TeclasDeMover({
           </Button>
         )}
       </div>
-      {!tieneCelular && <p className="text-xs text-muted">No tiene un celular válido para avisarle: corregilo en su ficha.</p>}
+      {!tieneCelular && (
+        <p className="text-xs text-muted">
+          {contactoOculto(turno.telefono)
+            ? `${SIN_PERMISO_DE_CONTACTO}: se mueve sin avisarle por WhatsApp.`
+            : "No tiene un celular válido para avisarle: corregilo en su ficha."}
+        </p>
+      )}
     </div>
   );
 }

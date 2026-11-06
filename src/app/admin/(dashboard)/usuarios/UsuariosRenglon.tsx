@@ -7,6 +7,7 @@
 // es una tecla a la vista en cada renglón.
 
 import { createUser, setUserActive, resetUserPassword } from "@/lib/user-actions";
+import type { ReactNode } from "react";
 import SubmitButton from "@/components/SubmitButton";
 import { Bloque, DosColumnas, Field, Franja, Input, PageHeader, Renglon, buttonClasses } from "@/components/ui";
 import { cn } from "@/components/ui/cn";
@@ -32,12 +33,15 @@ export default function UsuariosRenglon({
   esMostrador,
   banner,
   fichas,
+  matriz,
 }: {
   users: Usuario[];
   roles: OpcionDeRol[];
   esMostrador: boolean;
   banner?: { text: string; ok: boolean };
   fichas: readonly { id: string; nombre: string; usuarioId: string | null }[];
+  /** «Qué puede hacer cada persona» (MatrizDePermisos), ya armada por la página; `null` sin `users:manage`. */
+  matriz?: ReactNode;
 }) {
   const activos = users.filter((u) => u.active);
   const bajas = users.length - activos.length;
@@ -221,6 +225,12 @@ export default function UsuariosRenglon({
             </tbody>
           </table>
         </Bloque>
+
+        {matriz && (
+          <Bloque id="permisos-por-persona" titulo="Qué puede hacer cada persona" nota="El rol da lo de arriba; acá, las excepciones de cada uno">
+            {matriz}
+          </Bloque>
+        )}
       </div>
     </main>
   );

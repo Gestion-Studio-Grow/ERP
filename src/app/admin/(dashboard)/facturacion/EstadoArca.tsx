@@ -14,14 +14,14 @@ import type { EstadoFiscal } from "@/lib/facturacion-actions";
 
 const MODO: Record<EstadoFiscal["modo"], string> = {
   stub: "ARCA todavía sin conectar",
-  homologacion: "ARCA en homologación (sin validez fiscal)",
+  homologacion: "ARCA en modo de prueba (sin validez fiscal)",
   real: "ARCA en producción",
 };
 
 /** Los datos del emisor para la línea de estado. */
 export function datosDeArca(estado: EstadoFiscal): React.ReactNode[] {
   return [
-    <strong key="m">{MODO[estado.modo] ?? MODO.stub}</strong>,
+    <strong key="m">{estado.noFactura ? "Este negocio no factura ante ARCA" : (MODO[estado.modo] ?? MODO.stub)}</strong>,
     estado.cuit ? `CUIT ${fmtCuit(estado.cuit)}` : "sin CUIT del emisor cargado",
     estado.puntoVenta ? `punto de venta ${estado.puntoVenta}` : "sin punto de venta",
   ];
@@ -29,13 +29,20 @@ export function datosDeArca(estado: EstadoFiscal): React.ReactNode[] {
 
 /** La franja de prueba: sólo cuando lo que se emite NO es una factura de verdad. */
 export function FranjaDeArca({ estado, className }: { estado: EstadoFiscal; className?: string }) {
+  if (estado.noFactura) {
+    return (
+      <Franja tono="peligro" className={className}>
+        Este negocio no está facturando: no se manda nada a ARCA. {estado.noFactura}
+      </Franja>
+    );
+  }
   if (estado.modo === "real") return null;
   return (
     <Franja tono="atencion" className={className}>
       {estado.modo === "homologacion"
-        ? "ARCA está conectada en homologación, su ambiente de verificación: el CAE que devuelve no tiene validez fiscal. Ningún comprobante de acá es una factura válida."
+        ? "Estás en modo de prueba: el CAE que devuelve ARCA no tiene validez fiscal. Ningún comprobante de acá es una factura válida."
         : "Todavía no hay conexión con ARCA: el CAE no lo otorga ARCA. Ningún comprobante de acá es una factura válida."}{" "}
-      Para facturar con validez fiscal hace falta el certificado de producción: lo activa Gestión Studio Grow.
+      Para facturar en serio, terminá la conexión con ARCA en la puesta a punto.
     </Franja>
   );
 }

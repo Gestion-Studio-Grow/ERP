@@ -360,3 +360,29 @@ test("con dos Ana, la mención por nombre de pila no le avisa a ninguna", () => 
   assert.deepEqual(mencionados("@Ana mirá", p), []);
   assert.deepEqual(mencionados("@AnaPérez y @tomás", p), ["1", "3"]);
 });
+
+test("Rendí: matriz de rendiciones (plan MIA §2)", async () => {
+  const { puedeRendir, puedeAprobarRendicion, puedeReintegrarRendicion, permisoDe, MODULOS } = await import("./gestion-core");
+  assert.ok(MODULOS.some((m) => m.id === "rendiciones"));
+  // Comercial rinde (estando en el equipo) y no aprueba.
+  assert.equal(puedeRendir("COMERCIAL", true), true);
+  assert.equal(puedeAprobarRendicion("COMERCIAL", "c1", "c2"), false);
+  assert.equal(puedeReintegrarRendicion("COMERCIAL", "c1", "c2"), false);
+  // Ver todos los proyectos no alcanza: hay que estar en el equipo.
+  assert.equal(puedeRendir("COMERCIAL", false), false);
+  assert.equal(puedeRendir("DIRECCION", false), false);
+  // Diseño no rinde (provisional a confirmar) ni ve rendiciones.
+  assert.equal(puedeRendir("DISENO", true), false);
+  assert.deepEqual(permisoDe("DISENO", "rendiciones", []), { ver: false, editar: false });
+  assert.equal(puedeRendir("SIN_FICHA", true), false);
+  // Producción rinde, no aprueba.
+  assert.equal(puedeRendir("PRODUCCION", true), true);
+  assert.equal(puedeAprobarRendicion("PRODUCCION", "p1", "c2"), false);
+  // Dirección y Administración aprueban lo ajeno, nunca lo propio.
+  assert.equal(puedeAprobarRendicion("DIRECCION", "d1", "c2"), true);
+  assert.equal(puedeAprobarRendicion("DIRECCION", "d1", "d1"), false);
+  assert.equal(puedeAprobarRendicion("ADMINISTRACION", "a1", "a1"), false);
+  assert.equal(puedeReintegrarRendicion("ADMINISTRACION", "a1", "c2"), true);
+  assert.deepEqual(permisoDe("ADMINISTRACION", "rendiciones", []), { ver: true, editar: true });
+  assert.deepEqual(permisoDe("COMERCIAL", "rendiciones", []), { ver: true, editar: false });
+});

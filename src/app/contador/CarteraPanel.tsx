@@ -118,6 +118,15 @@ function LoQueFalta({
           />
         )}
         <Renglon
+          titulo="Emitir un comprobante"
+          detalle="Una factura a mano para este cliente, en tres pasos. Con teclado: Ctrl+Enter."
+          tecla={
+            <a href={`/contador/cliente/${encodeURIComponent(fila.clienteTenantId)}/emitir`} className={buttonClasses("outline", "sm")} data-ui="button" data-variant="outline" data-size="sm">
+              Emitir
+            </a>
+          }
+        />
+        <Renglon
           titulo="Comprobantes emitidos"
           detalle="Qué autorizó ARCA, qué espera y qué rechazó, con qué hacer en cada caso."
           tecla={
