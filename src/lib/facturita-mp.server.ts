@@ -21,9 +21,7 @@ import {
   conexionDelNegocio,
   crearConexion,
   darDeBajaConexion,
-  guardarRenovacion,
-  leerCredencial,
-  reclamarRenovacion,
+  renovarConexionOAuth,
   versionDeCredenciales,
 } from "@/integraciones/conexiones.server";
 import { claveMaestraDesdeEntorno } from "@/integraciones/secretos";
@@ -137,7 +135,7 @@ export async function desconectarMP(tenantId: string, userId: string): Promise<n
 }
 
 /**
- * Renueva el access token si vence en menos de 15 días. Un solo renovador gana (`tokenVersion`);
+ * Renueva el access token si vence en menos de 15 días. Un solo renovador gana (candado + `tokenVersion`);
  * si MP rechaza el refresh, la conexión queda «requiere_reconectar» y la pantalla lo dice.
  * Nunca lanza: lo peor es que siga con el token que tenía.
  */
@@ -154,39 +152,38 @@ export async function renovarMPSiHaceFalta(
     if (!cx) return "no_hacia_falta";
     const v = await versionDeCredenciales(tenantId, cx.conexionId, CAMPO_TOKEN_MP);
     if (!v || !hayQueRenovar(v.expiraEn, ahora)) return "no_hacia_falta";
-    const refresh = await leerCredencial(tenantId, cx.conexionId, CAMPO_REFRESH_MP, { env });
-    if (!refresh) return "no_hacia_falta";
-    const reclamada = await reclamarRenovacion(tenantId, cx.conexionId, v.tokenVersion);
-    if (reclamada === null) return "otro_renovo";
-    let t: TokensMP;
-    try {
-      t = await refrescarTokenMP(cfg, refresh, deps.pedir ?? (fetch as unknown as PedirMP), ahora);
-    } catch (e) {
-      // Sólo un «no» de MP al refresh (400/401/403) pide reconectar; un 429 o un 5xx es pasajero.
-      if (e instanceof OAuthMPError && e.motivo === "rechazado" && [400, 401, 403].includes(e.estadoHttp ?? 0)) {
-        await tenantTransaction(
-          (tx) =>
-            tx.integracionConexion.updateMany({
-              where: { tenantId, id: cx.conexionId, tokenVersion: reclamada },
-              data: { estado: "requiere_reconectar", fallosSeguidos: { increment: 1 } },
-            }),
-          { tenantId },
-        );
-      }
-      logger.warn("facturita", "no se pudo renovar el token de Mercado Pago", { tenantId, motivo: e instanceof OAuthMPError ? e.motivo : "error" });
-      return "fallo";
-    }
-    // La cuenta tiene que ser la misma: un refresh nunca cambia de dueño la conexión.
-    if (t.cuentaMp !== cx.cuentaExterna) return "fallo";
-    const ok = await guardarRenovacion(
+    // El candado de `renovarConexionOAuth` cubre releer → pedir a MP → guardar: el que pierde
+    // espera, relee y NO le manda a MP el mismo refresh_token (sigue con el token del ganador).
+    const pedir = deps.pedir ?? (fetch as unknown as PedirMP);
+    return await renovarConexionOAuth(
       tenantId,
       CONECTOR_MP,
       cx.conexionId,
-      reclamada,
-      { [CAMPO_TOKEN_MP]: { valor: t.accessToken, expiraEn: t.expiraEn }, [CAMPO_REFRESH_MP]: { valor: t.refreshToken } },
+      {
+        versionVista: v.tokenVersion,
+        campoVence: CAMPO_TOKEN_MP,
+        campoRefresh: CAMPO_REFRESH_MP,
+        hayQueRenovar: (expiraEn) => hayQueRenovar(expiraEn, ahora),
+        pedir: async (refresh) => {
+          let t: TokensMP;
+          try {
+            t = await refrescarTokenMP(cfg, refresh, pedir, ahora);
+          } catch (e) {
+            logger.warn("facturita", "no se pudo renovar el token de Mercado Pago", { tenantId, motivo: e instanceof OAuthMPError ? e.motivo : "error" });
+            // Sólo un «no» de MP al refresh (400/401/403) pide reconectar; un 429 o un 5xx es pasajero.
+            const rechazo = e instanceof OAuthMPError && e.motivo === "rechazado" && [400, 401, 403].includes(e.estadoHttp ?? 0);
+            return { tipo: rechazo ? "rechazado" : "fallo" };
+          }
+          // La cuenta tiene que ser la misma: un refresh nunca cambia de dueño la conexión.
+          if (t.cuentaMp !== cx.cuentaExterna) return { tipo: "fallo" };
+          return {
+            tipo: "renovado",
+            valores: { [CAMPO_TOKEN_MP]: { valor: t.accessToken, expiraEn: t.expiraEn }, [CAMPO_REFRESH_MP]: { valor: t.refreshToken } },
+          };
+        },
+      },
       { env },
     );
-    return ok ? "renovado" : "otro_renovo";
   } catch (e) {
     logger.error("facturita", "renovación de Mercado Pago", e, { tenantId });
     return "fallo";
