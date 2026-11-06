@@ -50,7 +50,7 @@ export default async function FacturitaCuentaPage({ searchParams }: { searchPara
             {estado.modo === "stub" ? (
               <Badge tone="warning" dot>Simulado (de prueba, sin validez fiscal)</Badge>
             ) : estado.homologacion || estado.modo === "homologacion" ? (
-              <Badge tone="warning" dot>Homologación (pruebas oficiales)</Badge>
+              <Badge tone="warning" dot>Modo de prueba (sin validez fiscal)</Badge>
             ) : (
               <Badge tone="success" dot>En línea</Badge>
             )}

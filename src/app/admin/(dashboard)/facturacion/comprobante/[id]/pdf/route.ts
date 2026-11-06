@@ -12,5 +12,10 @@ export async function GET(_pedido: Request, { params }: { params: Promise<{ id: 
   await requireApp("facturacion");
   await requireCapability("billing:manage");
   const { id } = await params;
-  return respuestaPdfDeComprobante(id, await getCurrentTenantId(), "Facturación");
+  return respuestaPdfDeComprobante(id, await getCurrentTenantId(), {
+    texto: "Facturación",
+    href: "/admin/facturacion?vista=comprobantes",
+    // Sin razón social o domicilio, la página del 409 lleva adonde se cargan (no un texto plano sin salida).
+    completarEmisor: { texto: "Completar los datos del negocio", href: "/admin/facturacion/bancos/configuracion" },
+  });
 }
