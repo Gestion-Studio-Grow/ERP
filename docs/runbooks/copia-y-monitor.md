@@ -4,7 +4,7 @@ Dos workflows de GitHub Actions, gratis, sin tocar Vercel ni Neon desde el códi
 
 | Workflow | Cuándo | Qué hace |
 |---|---|---|
-| `.github/workflows/monitor-caidas.yml` | cada 5 min + a mano | GET `<PROD_URL>/api/health` (3 intentos). Si falla abre el issue «🔴 Producción caída» (o comenta en el abierto); cuando vuelve comenta «resuelto» y lo cierra. |
+| `.github/workflows/monitor-caidas.yml` | cada hora + a mano | GET `<PROD_URL>/api/health` (3 intentos). Si falla abre el issue «🔴 Producción caída» (o comenta en el abierto); cuando vuelve comenta «resuelto» y lo cierra. |
 | `.github/workflows/copia-diaria-base.yml` | 03:17 hora Argentina + a mano | `pg_dump` 17 (formato custom, comprimido) → `gpg` AES256 → artifact `copia-base-<fecha>` por 30 días. |
 
 ## Lo que tiene que cargar el dueño (una sola vez)
@@ -49,5 +49,5 @@ Participating) en la cuenta del dueño.
 2. Si no responde: Vercel → proyecto `erp-ch` → último deploy y logs. Volver al deploy anterior es la salida rápida.
 3. El issue se cierra solo cuando el chequeo vuelve a dar 200.
 
-Notas: el cron de 5 min de GitHub puede atrasarse en horas de carga (monitor de mejor esfuerzo). Las copias
+Notas: el cron horario de GitHub (horario para no pasar los 2.000 min/mes gratis; el aviso fino lo da UptimeRobot) puede atrasarse en horas de carga (monitor de mejor esfuerzo). Las copias
 viven en GitHub 30 días; para algo más largo, bajar una por mes a Drive (sigue cifrada).
