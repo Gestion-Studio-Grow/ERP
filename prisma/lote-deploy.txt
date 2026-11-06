@@ -56,3 +56,20 @@
 # foráneas a Tenant y Proyecto; no toca columnas ni datos existentes. Sin respaldo: decisión del dueño del 02/11 («no existen datos reales
 # en la base»); como es sólo CREATE, la vuelta atrás es borrar las dos tablas.
 # (aplicada en Neon el 02/11 por el build de Vercel: sale de la lista) 20261102120000_consultas
+#
+# 2026-11-05 · LOTE GATE 2 (1/4, docs/runbooks/GATE2-LOTE-2026-11-05.md): MIA Rendí. Aditiva: 3 tablas con RLS, 2 columnas nullable + 2 únicos en CashMovement, 2 nullable en ProyectoLiquidacion.
+# (aplicada por el build de producción del merge anterior del lote: sale de la lista) 20261104121000_rendiciones
+#
+# 2026-11-05 · LOTE GATE 2 (2/4, docs/runbooks/GATE2-LOTE-2026-11-05.md): Contabilidad ola 1. Aditiva: 6 tablas con RLS, 4 funciones de trigger (SECURITY DEFINER, search_path fijo). No toca tablas existentes.
+# (aplicada por el build de producción del merge anterior del lote: sale de la lista) 20261104122000_contabilidad_ola1
+#
+# 2026-11-05 · LOTE GATE 2 (3/4, docs/runbooks/GATE2-LOTE-2026-11-05.md): Servicio completo (CH). Aditiva: 2 enums nuevos, 2 tablas con RLS. No toca tablas existentes.
+# (aplicada por el build de producción del merge anterior del lote: sale de la lista) 20261104123000_servicio_completo
+#
+# 2026-11-05 · LOTE GATE 2 (4/4, docs/runbooks/GATE2-LOTE-2026-11-05.md): Matriz de permisos. Aditiva: 1 tabla con RLS. No toca tablas existentes.
+# (aplicada por el build de producción del merge anterior del lote: sale de la lista) 20261105121000_user_permission_override
+#
+# 2026-11-05 · LOTE GATE 2 (5/5 con migración, docs/runbooks/GATE2-LOTE-2026-11-05.md): Vouchers de CH. Aditiva: 3 tablas con RLS
+# (VoucherLote, Voucher, VoucherConciliacion). El valor de enum PaymentMethod.VOUCHER NO va acá: es
+# prisma/pending-gate2/CH_voucher_enum.sql, irreversible, aparte y a mano (Gate 2).
+20261105122000_vouchers
