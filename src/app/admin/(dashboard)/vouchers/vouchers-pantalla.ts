@@ -7,6 +7,7 @@
 // pantalla (page.tsx), el route handler del CSV y los formularios de importación la comparten.
 // Diseño: docs/tenants/ch/VOUCHERS-OPENKEY.md.
 
+import { redondearAlCentavo } from "@/lib/dinero/redondeo";
 import type { ResultadoConciliacion, ResultadoLiquidacion } from "@/lib/vouchers/voucher-core";
 
 export const ESTADOS_ERP = ["DISPONIBLE", "USADO", "ANULADO"] as const;
@@ -133,7 +134,7 @@ export function resumirListado(
     if (faltaLaBaja(f)) r.faltanBaja++;
     if (sinLiquidar(f)) r.sinLiquidar++;
   }
-  r.cubierto = Math.round(r.cubierto * 100) / 100;
+  r.cubierto = redondearAlCentavo(r.cubierto);
   return r;
 }
 

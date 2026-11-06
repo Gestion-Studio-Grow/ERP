@@ -70,6 +70,14 @@ test("faltaLaBaja y resumirListado", () => {
   assert.deepEqual(resumirListado(filas), { total: 3, usados: 2, cubierto: 1500.5, faltanBaja: 1, sinLiquidar: 1 });
 });
 
+test("resumirListado redondea el cubierto con la regla de la plata: medio centavo hacia arriba", () => {
+  const base = { estadoOpenKey: null, bajaOpenKeyEn: null, liquidadoEn: null, estado: "USADO" };
+  // Antes (Math.round(x*100)/100) 1,005 daba 1,00 porque 1,005*100 = 100,4999…; el módulo da 1,01.
+  assert.equal(resumirListado([{ ...base, valorCubierto: 1.005 }]).cubierto, 1.01);
+  assert.equal(resumirListado([{ ...base, valorCubierto: 2.135 }]).cubierto, 2.14);
+  assert.equal(resumirListado([{ ...base, valorCubierto: 0.1 }, { ...base, valorCubierto: 0.2 }]).cubierto, 0.3);
+});
+
 test("lineasDeLaFoto: todo en orden dice que coincide", () => {
   const l = lineasDeLaFoto({ filas: 2, actualizados: 2, creados: [], anuladosPorOpenKey: [], conciliacion: CONC_VACIA, erroresDeLectura: [] });
   assert.equal(l.length, 2);

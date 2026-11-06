@@ -192,6 +192,18 @@ test("csvDelReporte · BOM, `;`, CRLF, fechas y montos argentinos", () => {
   assert.equal(fila, "V-001;L1;'=Ana;05/11/2026;04/11/2026;9000,50;USADO;Sin verificar;;10/11/2026;9000,50;LIQ-1");
 });
 
+test("csvDelReporte · montos con el módulo de plata: medio centavo arriba, lo que no es importe sale vacío", () => {
+  const fila = (valorCubierto: number, montoLiquidado: number | null) =>
+    csvDelReporte([
+      {
+        numero: "V-002", lote: "L1", cliente: "Ana", turno: null, usadoEn: null, valorCubierto, estado: "USADO",
+        estadoOpenKey: null, bajaOpenKeyEn: null, liquidadoEn: null, montoLiquidado, liquidacionRef: null,
+      },
+    ]).slice(1).split("\r\n")[1];
+  assert.equal(fila(1.005, 2.135), "V-002;L1;Ana;;;1,01;USADO;Sin verificar;;;2,14;");
+  assert.equal(fila(Number.NaN, null), "V-002;L1;Ana;;;;USADO;Sin verificar;;;;");
+});
+
 test("VOUCHER no tiene columna en el libro y el cierre lo cuenta aparte (anulaciones restan)", async () => {
   const { cashMethodFromPaymentMethod, vouchersDelCierre } = await import("@/lib/caja/cierre-diario");
   const { cobroTurnoEligibility } = await import("@/lib/caja/cobro-turno");

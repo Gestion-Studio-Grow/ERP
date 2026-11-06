@@ -15,6 +15,7 @@
 // Persistencia: voucher-repo.ts · Server Actions: voucher-actions.ts.
 
 import { round2 } from "@/lib/round";
+import { admiteCentavos, textoAlCentavo } from "@/lib/dinero/redondeo";
 
 export const ESTADOS_VOUCHER = ["DISPONIBLE", "USADO", "ANULADO"] as const;
 export type EstadoVoucher = (typeof ESTADOS_VOUCHER)[number];
@@ -473,7 +474,8 @@ function fechaAr(dia: string | null): string {
 }
 
 function montoAr(n: number | null): string {
-  return n == null ? "" : round2(n).toFixed(2).replace(".", ",");
+  // Mismo texto que antes, con la regla de la plata; lo que no es un importe (NaN, ±∞, ≥ 13 cifras) sale vacío.
+  return n == null || !admiteCentavos(n) ? "" : textoAlCentavo(n).replace(".", ",");
 }
 
 /** CSV con BOM y `;` (abre bien en el Excel argentino), mismas columnas que la pantalla. */
