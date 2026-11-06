@@ -94,6 +94,11 @@ export interface CreateInvoiceInput {
    * Responsable Inscripto.
    */
   ivaPorProducto?: boolean;
+  /**
+   * PR5 · C4 · Cómo se cobró: elige el umbral de identificación del consumidor final del motor
+   * (`umbralDelMotor`). Mercado Pago, transferencia y tarjeta = "otro". Sin dato, el más exigente.
+   */
+  medioDePago?: "efectivo" | "otro";
   servicioDesde?: string;
   servicioHasta?: string;
   vencimientoPago?: string;
@@ -458,6 +463,7 @@ async function encolarInvoiceCreated(
     iva: input.iva,
     total: input.total,
     ...(input.ivaPorProducto === true ? { ivaPorProducto: true } : {}),
+    ...(input.medioDePago === "efectivo" || input.medioDePago === "otro" ? { medioDePago: input.medioDePago } : {}),
     servicioDesde: input.servicioDesde,
     servicioHasta: input.servicioHasta,
     vencimientoPago: input.vencimientoPago,
@@ -675,6 +681,7 @@ interface DatosEmitidos {
   iva: SubtotalIva[];
   total: number;
   ivaPorProducto?: boolean;
+  medioDePago?: string;
   servicioDesde?: string;
   servicioHasta?: string;
   vencimientoPago?: string;
@@ -825,6 +832,8 @@ export async function crearNotaDeCreditoInTx(tx: InvoiceTx, input: NotaDeCredito
     iva: montos.iva,
     total: montos.total,
     ...(emitida.ivaPorProducto === true ? { ivaPorProducto: true } : {}),
+    // La nota viaja con el mismo medio que la factura que anula (el mismo umbral del motor).
+    ...(emitida.medioDePago === "efectivo" || emitida.medioDePago === "otro" ? { medioDePago: emitida.medioDePago } : {}),
     ...(conServicio ? { servicioDesde: emitida.servicioDesde, servicioHasta: emitida.servicioHasta, vencimientoPago: vto } : {}),
     clase: "nota_credito",
     asociado: { invoiceId: input.facturaId, cbteTipo: f.tipoComprobante, puntoVenta: f.puntoVenta, numero: f.numero, fecha: f.fecha },

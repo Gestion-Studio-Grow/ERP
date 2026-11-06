@@ -30,7 +30,19 @@ export type PagoMP = PagoNormalizado & {
   tipoOperacionMP?: string;
   /** Documento del pagador (`payer.identification`), si MP lo trae: "DNI"/"CUIT"/"CUIL" + número sólo dígitos. */
   pagadorDoc?: { tipo: string; numero: string };
+  /**
+   * PR5 · Lo que pasó DESPUÉS del cobro: devoluciones aprobadas (cada parcial con su id) o el
+   * contracargo. Lo arma `normalizarPago` con `movimientosPosterioresMP`; la ingesta lo aplica
+   * aunque el pago ya esté procesado (nota de crédito o caso, nunca otra factura).
+   */
+  posteriores?: MovimientoPosteriorMP[];
 };
+
+/** Lo que el motor hace después de cobrado: una nota de crédito por devolución, o un caso por contracargo. */
+export type MovimientoPosteriorMP =
+  // Sin fecha: la nota de crédito lleva el día en que se emite (la de la devolución puede estar fuera de la ventana de ARCA).
+  | { tipo: "devolucion"; refundId: string; paymentId: string; importe: number }
+  | { tipo: "contracargo"; paymentId: string; importe: number };
 
 export type { CriterioBusqueda, PaginaPagos } from "@/plugins/pagos";
 

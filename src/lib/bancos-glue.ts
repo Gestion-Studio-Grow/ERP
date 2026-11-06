@@ -771,6 +771,8 @@ export async function emitirPropuestas(
           neto,
           iva,
           total,
+          // PR5 · C4: lo que entra por el banco o por Mercado Pago no es efectivo.
+          medioDePago: "otro",
         }, clavesDelCobro.map((clave) => ({ clave, importe: total })));
         await tenantTransaction(
           (tx) =>

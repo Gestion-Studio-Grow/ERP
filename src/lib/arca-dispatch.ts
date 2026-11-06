@@ -461,6 +461,8 @@ function aEventoPluginBase(p: InvoiceCreatedPayload): InvoiceCreatedEvent {
     iva: p.iva,
     total: p.total,
     ivaPorProducto: p.ivaPorProducto === true,
+    // PR5 · C4: sólo un valor conocido; un payload viejo o raro va sin dato (el umbral más exigente).
+    ...(p.medioDePago === "efectivo" || p.medioDePago === "otro" ? { medioDePago: p.medioDePago } : {}),
     servicioDesde: p.servicioDesde,
     servicioHasta: p.servicioHasta,
     vencimientoPago: p.vencimientoPago,
