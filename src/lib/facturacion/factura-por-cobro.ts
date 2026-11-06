@@ -33,7 +33,7 @@ import { fechaFiscalDelDia } from "@/lib/libros/fecha-fiscal";
 import { createInvoiceInTx, crearNotaDeCreditoInTx, type CreateInvoiceInput, type InvoiceTx, type ResultadoNotaDeCredito } from "@/lib/invoice-core";
 import { claveCobroTurno, facturarCobrosInTx, tomarClaves, vincularCobroInTx, type CobroAFacturar } from "@/lib/facturacion/cobros-facturados";
 import { claveCobroDelLibro, cobroDeLaClave } from "@/lib/facturacion/clave-cobro-del-libro";
-import { esPagoMP, saldosMPSinPareja } from "@/lib/facturacion/cobertura-mp";
+import { coberturaMP, esPagoMP, facturadoPropioPorCobro, saldosMPSinPareja } from "@/lib/facturacion/cobertura-mp";
 import { MARCA_ANULACION, claseDeCobro, cobroAnuladoPor } from "@/lib/turnos/anulacion";
 
 // Códigos de catálogo ARCA (ver src/plugins/arca/domain/catalogos.ts).
@@ -70,21 +70,24 @@ export function planFacturasPorCobro(x: {
   filas: readonly FilaDelLibro[];
   conFila: ReadonlySet<string>;
   mpSinPareja: number;
+  /** Lo que factura la factura propia de cada cobro con fila (centavos, `facturadoPropioPorCobro`):
+   *  un cobro de MP con fila consume de `mpSinPareja` su monto menos eso (ver `coberturaMP`). */
+  propias?: ReadonlyMap<string, number>;
 }): CobroPorFacturar[] {
   const anulados = new Set(x.filas.map((f) => cobroAnuladoPor(f.note)).filter((id): id is string => id != null));
   const vivos = x.filas
     .filter((f) => claseDeCobro(f.note) === "cobro" && centavosDe(f.amount) > 0 && !anulados.has(f.id))
     .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id));
-  let presupuestoMP = Math.max(0, centavosDe(x.mpSinPareja));
+  const cubierto = coberturaMP({
+    vivos: vivos.map((f) => ({ id: f.id, method: f.method, centavos: centavosDe(f.amount) })),
+    conFila: x.conFila,
+    saldos: [{ invoiceId: "mp", centavos: Math.max(0, centavosDe(x.mpSinPareja)) }],
+    propias: x.propias,
+  });
   const plan: CobroPorFacturar[] = [];
   for (const f of vivos) {
     if (x.conFila.has(f.id)) continue;
-    let centavos = centavosDe(f.amount);
-    if (f.method === "MERCADOPAGO") {
-      const cubierto = Math.min(presupuestoMP, centavos);
-      presupuestoMP -= cubierto;
-      centavos -= cubierto;
-    }
+    const centavos = centavosDe(f.amount) - (cubierto.get(f.id) ?? []).reduce((a, p) => a + p.centavos, 0);
     if (centavos > 0) plan.push({ collectionId: f.id, importe: centavos / 100, method: f.method });
   }
   return plan;
@@ -237,7 +240,12 @@ const DEPS: DepsPorCobro = { getFiscalProfile, fecha: fechaFiscalDelDia };
 
 function planDelEstado(estado: EstadoDelTurno): CobroPorFacturar[] {
   const conFila = new Set(estado.facturadas.map((f) => cobroDeLaClave(f.clave)).filter((id): id is string => id != null));
-  return planFacturasPorCobro({ filas: estado.filas, conFila, mpSinPareja: mpSinPareja(estado.facturadas) });
+  return planFacturasPorCobro({
+    filas: estado.filas,
+    conFila,
+    mpSinPareja: mpSinPareja(estado.facturadas),
+    propias: facturadoPropioPorCobro(estado.facturadas),
+  });
 }
 
 const ultimaDeCobros = (estado: EstadoDelTurno) => estado.facturadas.find((f) => cobroDeLaClave(f.clave) != null)?.invoiceId ?? null;

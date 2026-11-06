@@ -49,7 +49,7 @@ import { cashMethodFromPaymentMethod } from "@/lib/caja/cierre-diario";
 import type { CashMethod } from "@/lib/caja/cash-register";
 import { facturaDeLaVenta, mensajeFacturaViva, type FacturaDeLaVenta } from "@/lib/factura-viva";
 import { claveCobroDelLibro, cobroDeLaClave } from "@/lib/facturacion/clave-cobro-del-libro";
-import { claveNotaDeCobroMP, coberturaMP, saldosMPSinPareja } from "@/lib/facturacion/cobertura-mp";
+import { claveNotaDeCobroMP, coberturaMP, facturadoPropioPorCobro, saldosMPSinPareja } from "@/lib/facturacion/cobertura-mp";
 import { centavosDe } from "@/lib/dinero/redondeo";
 
 export type AnulacionTx = Prisma.TransactionClient;
@@ -378,8 +378,9 @@ async function facturaDelCobroInTx(
 }
 
 /**
- * Opción B: un cobro con medio Mercado Pago SIN factura propia puede estar cubierto por la factura
- * del pago de MP (`mp:<pago>`, la emite el aviso de MP): las partes de esas facturas que lo cubren,
+ * Opción B: un cobro con medio Mercado Pago puede estar cubierto (entero, o en parte junto a su
+ * factura propia) por la factura del pago de MP (`mp:<pago>`, la emite el aviso de MP): las partes
+ * de esas facturas que lo cubren,
  * con el mismo reparto con que `facturarCobrosDelTurno` decidió no facturarlo (`cobertura-mp.ts`).
  */
 async function coberturaMPDelCobroInTx(
@@ -410,7 +411,8 @@ async function coberturaMPDelCobroInTx(
     .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id))
     .map((f) => ({ id: f.id, method: f.method, centavos: centavosDe(f.amount) }));
   const conFila = new Set(filasFacturadas.map((f) => cobroDeLaClave(f.clave)).filter((id): id is string => id != null));
-  const partes = coberturaMP({ vivos, conFila, saldos: saldosMPSinPareja(filasFacturadas) }).get(collectionId) ?? [];
+  const partes =
+    coberturaMP({ vivos, conFila, saldos: saldosMPSinPareja(filasFacturadas), propias: facturadoPropioPorCobro(filasFacturadas) }).get(collectionId) ?? [];
   const estado = new Map(filasFacturadas.map((f) => [f.invoiceId, f.status]));
   return partes.map((p) => ({ ...p, status: estado.get(p.invoiceId) ?? "PENDING" }));
 }
@@ -505,19 +507,22 @@ export async function anularCobroTurnoInTx(
   // Se lee después de tomar la fila del turno, que es la que escribe quien factura el cobro.
   const delCobro =
     facturaDelTurno === "sin-factura-viva" && !yaAnulada ? await facturaDelCobroInTx(tx, tenantId, args.collectionId) : null;
-  // Sin factura propia, un cobro de Mercado Pago puede estar cubierto por la factura del PAGO de MP
-  // (`mp:<pago>`): la nota de crédito va contra esa parte (certificación del PR #38).
+  // Un cobro de Mercado Pago puede estar cubierto por la factura del PAGO de MP (`mp:<pago>`),
+  // entero o en parte junto a su factura propia: la nota de crédito va también contra esa parte
+  // (certificación y re-certificación del PR #38). Si no, esa parte quedaba facturada de más.
   const porMP =
-    facturaDelTurno === "sin-factura-viva" && !yaAnulada && !delCobro && original.method === "MERCADOPAGO"
+    facturaDelTurno === "sin-factura-viva" && !yaAnulada && original.method === "MERCADOPAGO"
       ? await coberturaMPDelCobroInTx(tx, tenantId, args.appointmentId, args.collectionId, filas)
       : [];
-  const estadoDelCobro = delCobro
-    ? facturaDeLaVenta([{ status: delCobro.status }])
-    : porMP.length > 0
-      ? porMP.every((p) => p.status === "AUTHORIZED")
+  // Todas las facturas vivas que cubren este cobro: autorizadas todas → nota de crédito; alguna en
+  // camino (o en un estado desconocido) → se espera; ninguna viva → se anula sin nota.
+  const vivasDelCobro = [...(delCobro ? [{ status: delCobro.status }] : []), ...porMP].filter((f) => f.status !== "REJECTED");
+  const estadoDelCobro =
+    vivasDelCobro.length === 0
+      ? "sin-factura-viva"
+      : vivasDelCobro.every((f) => f.status === "AUTHORIZED")
         ? "autorizada"
-        : facturaDeLaVenta(porMP.filter((p) => p.status !== "AUTHORIZED"))
-      : "sin-factura-viva";
+        : facturaDeLaVenta(vivasDelCobro.filter((f) => f.status !== "AUTHORIZED"));
   const conNota = estadoDelCobro === "autorizada" && Boolean(args.notaDeCredito);
   const plan = planAnulacion({
     note: original.note,
@@ -533,7 +538,7 @@ export async function anularCobroTurnoInTx(
   }
   // La nota de crédito va en ESTA transacción: si no sale, no se anula nada (ni libro ni Payment).
   let notaDeCreditoId: string | null = null;
-  if (conNota && delCobro && args.notaDeCredito) {
+  if (conNota && delCobro && delCobro.status === "AUTHORIZED" && args.notaDeCredito) {
     const nota = await args.notaDeCredito(tx, { tenantId, facturaId: delCobro.invoiceId, motivo: args.motivo });
     if (!nota.ok) throw new AnulacionRechazada("nota-de-credito", nota.error);
     notaDeCreditoId = nota.invoiceId;

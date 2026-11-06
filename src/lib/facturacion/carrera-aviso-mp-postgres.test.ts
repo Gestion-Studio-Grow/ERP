@@ -305,3 +305,75 @@ test("anular un cobro de MP cubierto por la factura del pago (mp:<pago>): nota d
   await runInTenantContext(p.n.id, () => fpc.facturarCobrosDelTurno(turno.id, p.n.id));
   assert.deepEqual((await delTurno()).map((f) => Number(f.total)).sort(), [10000, 5000].sort());
 });
+
+// ── Re-certificación (BAJA, doble factura): turno SIN cobros anotados. Completar el turno lee lo
+//    facturado por MP bajo el candado común del turno: si el aviso de MP factura la seña a la vez,
+//    uno espera al otro y el resto sale por precio − seña, no por el precio entero. ──
+test("ADV · Promise.all: aviso de MP y completar un turno sin cobros anotados, 8 turnos → seña + resto = precio", async (t) => {
+  const p = await preparar(t, "a");
+  if (!p) return;
+  let mal = 0;
+  for (let i = 0; i < 8; i++) {
+    const turno = await p.crearTurno();
+    const senia = p.pagoMP(`mp-sin-libro-${randomUUID().slice(0, 6)}`, 5000, turno.id);
+    await Promise.all([p.avisoDeMP(senia), p.completar(turno.id)]);
+    const fs = await p.duenio.invoice.findMany({
+      where: { tenantId: p.n.id, status: { not: "REJECTED" }, comprobanteAsociadoId: null, cobrosFacturados: { some: { appointmentId: turno.id } } },
+      select: { total: true },
+    });
+    if (Math.round(total(fs)) !== 15000) mal++;
+  }
+  assert.equal(mal, 0, `${mal}/8 turnos facturados por más (o menos) que el precio`);
+});
+
+// ── Re-certificación (MEDIA-ALTA, subfacturación): pago de MP de $1.000 y cobro de MP de $1.500 →
+//    factura propia por $500; la parte de $1.000 queda consumida (otro cobro de MP se factura) y,
+//    al anular el de $1.500, la nota de crédito va contra su factura Y contra esa parte. ──
+test("cobro MP cubierto en parte por mp:<pago>: el siguiente cobro MP se factura; anular el primero acredita las dos partes", async (t) => {
+  const p = await preparar(t, "b");
+  if (!p) return;
+  const fpc = await import("@/lib/facturacion/factura-por-cobro");
+  const { anularCobroTurnoInTx } = await import("@/lib/turnos/anulacion");
+  const { tenantTransaction } = await import("@/lib/rls");
+  const turno = await p.crearTurno();
+  await p.avisoDeMP(p.pagoMP(`mp-parcial-${randomUUID().slice(0, 6)}`, 1000, turno.id));
+  await p.cobrarEnElLibro(turno.id, 1500, "MERCADOPAGO");
+  await runInTenantContext(p.n.id, () => fpc.facturarCobrosDelTurno(turno.id, p.n.id));
+  await p.cobrarEnElLibro(turno.id, 1000, "MERCADOPAGO");
+  await runInTenantContext(p.n.id, () => fpc.facturarCobrosDelTurno(turno.id, p.n.id));
+  const vivas = (asociada: boolean) =>
+    p.duenio.invoice.findMany({
+      where: { tenantId: p.n.id, status: { not: "REJECTED" }, comprobanteAsociadoId: asociada ? { not: null } : null, cobrosFacturados: { some: { appointmentId: turno.id } } },
+      select: { total: true },
+    });
+  assert.equal(total(await vivas(false)), 2500, "cobrado $2.500 → facturado $2.500 (antes: $1.500)");
+  const { procesarEnviosDelNegocio } = await import("@/lib/arca-dispatch");
+  await runInTenantContext(p.n.id, () => procesarEnviosDelNegocio(p.n.id));
+  const [a] = await p.duenio.collection.findMany({ where: { tenantId: p.n.id, originId: turno.id }, orderBy: { createdAt: "asc" }, select: { id: true } });
+  const r = await runInTenantContext(p.n.id, () =>
+    tenantTransaction(
+      (tx) =>
+        anularCobroTurnoInTx(tx, p.n.id, {
+          collectionId: a.id,
+          appointmentId: turno.id,
+          precio: 15000,
+          motivo: "Se anotó mal",
+          actor: `user:${p.n.duenia.id}`,
+          diaCerradoHasta: null,
+          esDiaCerrado: () => false,
+          diaDe: () => HOY,
+          withSchema: false,
+          notaDeCredito: fpc.notaDeCreditoDelCobroInTx,
+        }),
+      { tenantId: p.n.id },
+    ),
+  );
+  assert.ok(r.applied);
+  const notas = await p.duenio.invoice.findMany({
+    where: { tenantId: p.n.id, status: { not: "REJECTED" }, comprobanteAsociadoId: { not: null }, comprobanteAsociado: { cobrosFacturados: { some: { appointmentId: turno.id } } } },
+    select: { total: true },
+  });
+  assert.deepEqual(notas.map((n) => Number(n.total)).sort((x, y) => x - y), [500, 1000], "NC de la factura propia y de la parte del pago");
+  await runInTenantContext(p.n.id, () => fpc.facturarCobrosDelTurno(turno.id, p.n.id));
+  assert.equal(total(await vivas(false)) - total(notas), 1000, "queda facturado lo cobrado en pie ($1.000)");
+});

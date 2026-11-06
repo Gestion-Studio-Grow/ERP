@@ -8,7 +8,8 @@
 // La regla es UNA, la misma en los dos lados: lo facturado por pagos de MP del turno que no está
 // atado a la factura de un cobro del libro («sin pareja») cubre, en orden de llegada, los cobros
 // vivos con medio Mercado Pago que no tienen factura propia; las facturas de MP se consumen en el
-// orden en que se anotaron.
+// orden en que se anotaron. Un cobro de MP que SÍ tiene factura propia ya consumió (primero) lo que
+// la factura de MP le cubrió al planificar la suya: su monto menos su factura propia.
 //
 // Cuando se anula un cobro cubierto así, la nota de crédito de esa parte queda anotada en
 // `CobroFacturado` con la clave `turno:nc-mp:<cobro>:<factura de MP>` (empieza con `turno:` para
@@ -55,6 +56,20 @@ export function saldosMPSinPareja(filas: readonly FilaDeCobroFacturado[]): { inv
   return [...saldo].map(([invoiceId, centavos]) => ({ invoiceId, centavos })).filter((s) => s.centavos > 0);
 }
 
+/**
+ * Lo que la factura PROPIA de cada cobro del libro le factura (centavos, por cobro): el importe de
+ * su fila `turno:cobro:<cobro>`, en cualquier estado. Con esto se sabe cuánto de ese cobro cubrió
+ * una factura de MP cuando se le planificó la suya (su monto menos su factura propia).
+ */
+export function facturadoPropioPorCobro(filas: readonly FilaDeCobroFacturado[]): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const f of filas) {
+    const id = cobroDeLaClave(f.clave);
+    if (id != null) out.set(id, (out.get(id) ?? 0) + centavosDe(f.importe));
+  }
+  return out;
+}
+
 /** Un cobro vivo del libro (no anulado, positivo), en orden de llegada. */
 export interface CobroVivo {
   id: string;
@@ -63,20 +78,39 @@ export interface CobroVivo {
 }
 
 /**
- * Qué partes de qué facturas de MP cubren a CADA cobro vivo con medio Mercado Pago sin factura
- * propia (`conFila`). Es el mismo reparto que `planFacturasPorCobro`.
+ * Cuánto de un cobro vivo cubre lo facturado por MP sin pareja (centavos):
+ *   · sin factura propia y con medio Mercado Pago: todo lo que alcance (lo que sobra se factura);
+ *   · CON factura propia y medio Mercado Pago: lo que la factura de MP le cubrió cuando se le
+ *     planificó la suya = su monto menos su factura propia (`propias`). Esa parte YA está
+ *     consumida: si no se descontara, la factura de MP la «liberaría» y cubriría a otro cobro, que
+ *     quedaría sin factura (subfacturación, re-certificación del PR #38). Sin `propias` (llamador
+ *     viejo) se toma la factura propia como entera: no consume.
+ */
+function consumoMP(c: CobroVivo, conFila: ReadonlySet<string>, propias?: ReadonlyMap<string, number>): number | "resto" {
+  if (c.method !== "MERCADOPAGO") return 0;
+  if (!conFila.has(c.id)) return "resto";
+  const propia = propias?.get(c.id);
+  return propia == null ? 0 : Math.max(0, c.centavos - propia);
+}
+
+/**
+ * El reparto ÚNICO de lo facturado por MP sin pareja entre los cobros vivos (centavos): qué partes
+ * de qué facturas de MP cubren a cada cobro con medio Mercado Pago. Primero los cobros que ya
+ * tienen factura propia (su consumo es un hecho: se fijó al facturarlos; la anulación de ese cobro
+ * acredita esa parte además de su factura) y después, en orden de llegada, los que no la tienen.
+ * Lo usan `planFacturasPorCobro` (qué se factura) y la anulación (qué se acredita): la misma cuenta.
  */
 export function coberturaMP(x: {
   vivos: readonly CobroVivo[];
   conFila: ReadonlySet<string>;
   saldos: readonly { invoiceId: string; centavos: number }[];
+  propias?: ReadonlyMap<string, number>;
 }): Map<string, { invoiceId: string; centavos: number }[]> {
   const saldos = x.saldos.map((s) => ({ ...s }));
   const out = new Map<string, { invoiceId: string; centavos: number }[]>();
   let k = 0;
-  for (const c of x.vivos) {
-    if (x.conFila.has(c.id) || c.method !== "MERCADOPAGO") continue;
-    let falta = c.centavos;
+  const tomar = (c: CobroVivo, pide: number) => {
+    let falta = pide;
     const partes: { invoiceId: string; centavos: number }[] = [];
     while (falta > 0 && k < saldos.length) {
       const s = saldos[k];
@@ -87,6 +121,11 @@ export function coberturaMP(x: {
       if (s.centavos === 0) k++;
     }
     if (partes.length > 0) out.set(c.id, partes);
+  };
+  for (const c of x.vivos) {
+    const pide = consumoMP(c, x.conFila, x.propias);
+    if (pide !== "resto" && pide > 0) tomar(c, pide);
   }
+  for (const c of x.vivos) if (consumoMP(c, x.conFila, x.propias) === "resto") tomar(c, c.centavos);
   return out;
 }
