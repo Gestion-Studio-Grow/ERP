@@ -112,6 +112,8 @@ test("las acciones de turnos, cobros y catálogo leen cada campo de plata con el
       }
     }
   }
-  assert.ok(lecturas >= 7, `se revisaron ${lecturas} lecturas`);
+  // 6 desde la ficha completa del servicio: el alta y la edición comparten la lectura del precio
+  // (`leerServicioDelFormulario`, catalog-actions.ts).
+  assert.ok(lecturas >= 6, `se revisaron ${lecturas} lecturas`);
   assert.deepEqual(conNumber, []);
 });

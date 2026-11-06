@@ -375,6 +375,7 @@ export default function AltaDeTurno({
           cobrada: decision.cobro !== null,
           direccion: r.direccion,
           linkTurno: r.linkTurno,
+          aclaracion: r.aclaracion,
           alias,
         });
         setListo({

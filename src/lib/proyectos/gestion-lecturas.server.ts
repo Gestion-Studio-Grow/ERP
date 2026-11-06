@@ -17,6 +17,7 @@ import { filtroDeProyectos, puede, tiposDeCambio, type Actor } from "./gestion.s
 import { claveDia, diasDelRango, enlaceSeguro, laminasPublicas, mediodia, paginacion, tokenDeCalendario, usuarioDelToken, versionesVivas, type EntradaCalendario, type TipoCalendario } from "./gestion-lecturas-core";
 import { redondear } from "./core";
 import type { ModuloGestion, RolGestion } from "./gestion-core";
+import { SIN_COMPROBANTES } from "./rendiciones-core";
 
 const DIA = 86_400_000;
 
@@ -449,7 +450,7 @@ export async function buscarEnGestion(a: Actor, texto: string) {
       : [],
     permite("archivos")
       ? prisma.proyectoArchivo.findMany({
-          where: { tenantId, nombre: contiene, proyecto: visibles },
+          where: { tenantId, nombre: contiene, proyecto: visibles, tipo: { not: "COMPROBANTE" } },
           orderBy: { createdAt: "desc" },
           take: 20,
           select: { id: true, nombre: true, tipo: true, proyectoId: true, proyecto: { select: { nombre: true } } },
@@ -485,7 +486,7 @@ async function imagenesDeLaminas(tenantId: string, proyectoId: string, laminas: 
   if (refs.length === 0) return new Map();
   const de = (tipo: string) => refs.filter((r) => r.tipo === tipo).map((r) => r.id);
   const [archivos, versiones] = await Promise.all([
-    prisma.proyectoArchivo.findMany({ where: { tenantId, proyectoId, id: { in: de("archivo") } }, select: { id: true, datos: true } }),
+    prisma.proyectoArchivo.findMany({ where: { tenantId, proyectoId, id: { in: de("archivo") }, ...SIN_COMPROBANTES }, select: { id: true, datos: true } }),
     prisma.proyectoEntregableVersion.findMany({ where: { tenantId, id: { in: de("version") }, entregable: { proyectoId } }, select: { id: true, datos: true } }),
   ]);
   const porId = new Map([...archivos, ...versiones].map((x) => [x.id, x.datos]));

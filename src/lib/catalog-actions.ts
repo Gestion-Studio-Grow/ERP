@@ -19,6 +19,8 @@ import { emitirProductosActualizados } from "@/eventos/del-core";
 import { importeONaN } from "@/lib/dinero/leer";
 import { codigoDelFormulario, esChoqueDeUnico, mensajeCodigoOcupado } from "@/lib/catalogo/codigo-producto";
 import { RechazoDeDominio, rechazoDeDominio } from "@/lib/rechazo-de-dominio";
+import { esFotoDeServicioValida, FICHA_VACIA, leerFicha, MAX_FOTOS_SERVICIO } from "@/lib/servicios/ficha";
+import { fichaDisponible, fichasDeServicios, guardarFichaEnTx } from "@/lib/servicios/ficha.server";
 import {
   clearCommissionOverride,
   setCommissionOverride,
@@ -58,7 +60,10 @@ export async function getCatalog() {
     prisma.serviceCategory.findMany({ orderBy: { order: "asc" } }),
     prisma.resource.findMany({ orderBy: { name: "asc" }, include: { services: true } }),
   ]);
-  return { boxes, services, professionals, products, categories, resources };
+  // La ficha completa y las fotos se leen aparte (tolerante a la migración sin aplicar).
+  const extra = await fichasDeServicios(await getCurrentTenantId(), services.map((s) => s.id));
+  const conFicha = services.map((s) => ({ ...s, ficha: extra.fichas.get(s.id) ?? FICHA_VACIA, fotos: extra.fotos.get(s.id) ?? [] }));
+  return { boxes, services: conFicha, professionals, products, categories, resources, fichaDisponible: extra.disponible };
 }
 
 // --- Boxes ---
@@ -141,7 +146,7 @@ function parseResidentPrice(formData: FormData, price: number): number | null {
   const value = importeONaN(formData.get("residentPrice"));
   if (!Number.isFinite(value) || value <= 0) return null;
   if (value >= price) {
-    throw new Error("El precio vecino tiene que ser menor al precio general — es un beneficio, no un recargo.");
+    throw new RechazoDeDominio("El precio vecino tiene que ser menor al precio general — es un beneficio, no un recargo.");
   }
   return value;
 }
@@ -154,33 +159,58 @@ function parseDepositAmount(formData: FormData, price: number): number | null {
   const value = importeONaN(formData.get("depositAmount"));
   if (!Number.isFinite(value) || value <= 0) return null;
   if (value >= price) {
-    throw new Error("La seña tiene que ser menor al precio del servicio.");
+    throw new RechazoDeDominio("La seña tiene que ser menor al precio del servicio.");
   }
   return value;
 }
 
-export async function createService(formData: FormData) {
-  await requireCapability("catalog:manage");
+// La ficha completa (precio a definir, tiempo en la agenda, seña en %, modalidad, tipo y aclaración
+// del recordatorio) viaja sólo si el formulario la mostró (`ficha=1`), y el formulario la muestra sólo
+// si la migración 20261104123000_servicio_completo está aplicada. Sin ella, el alta y la edición
+// son exactamente las de siempre.
+async function leerServicioDelFormulario(formData: FormData, tenantId: string) {
   const name = String(formData.get("name") || "").trim();
   const description = String(formData.get("description") || "").trim();
   const durationMin = Number(formData.get("durationMin"));
-  const price = importeONaN(formData.get("price"));
   const categoryId = String(formData.get("categoryId") || "") || null;
-  if (!name || !durationMin || !price) return;
-  const residentPrice = parseResidentPrice(formData, price);
-  const depositAmount = parseDepositAmount(formData, price);
-  await prisma.service.create({
-    data: {
-      tenantId: await getCurrentTenantId(),
-      name,
-      description: description || null,
-      durationMin,
-      price,
-      residentPrice,
-      depositAmount,
-      categoryId,
+  const conFicha = formData.get("ficha") === "1" && (await fichaDisponible(tenantId));
+  const aDefinir = conFicha && (formData.get("priceToDefine") === "on" || formData.get("priceToDefine") === "1");
+  const price = aDefinir ? 0 : importeONaN(formData.get("price"));
+  if (!name || !Number.isInteger(durationMin) || durationMin <= 0) return null;
+  if (!aDefinir && !price) return null;
+  const residentPrice = aDefinir ? null : parseResidentPrice(formData, price);
+  const porcentaje = conFicha && formData.get("depositKind") === "porcentaje";
+  const depositAmount = aDefinir || porcentaje ? null : parseDepositAmount(formData, price);
+  if (!conFicha) return { name, description, durationMin, categoryId, price, residentPrice, depositAmount, ficha: null };
+  const leida = leerFicha(formData, { precio: price, depositAmount, durationMin });
+  if (!leida.ok) throw new RechazoDeDominio(leida.error);
+  return { name, description, durationMin, categoryId, price: leida.precio, residentPrice, depositAmount: leida.depositAmount, ficha: leida.ficha };
+}
+
+export async function createService(formData: FormData) {
+  await requireCapability("catalog:manage");
+  const tenantId = await getCurrentTenantId();
+  const s = await leerServicioDelFormulario(formData, tenantId);
+  if (!s) return;
+  await tenantTransaction(
+    async (tx) => {
+      const creado = await tx.service.create({
+        data: {
+          tenantId,
+          name: s.name,
+          description: s.description || null,
+          durationMin: s.durationMin,
+          price: s.price,
+          residentPrice: s.residentPrice,
+          depositAmount: s.depositAmount,
+          categoryId: s.categoryId,
+        },
+        select: { id: true },
+      });
+      if (s.ficha) await guardarFichaEnTx(tx, tenantId, creado.id, s.ficha);
     },
-  });
+    { tenantId },
+  );
   revalidatePath(CATALOG_PATH);
   revalidatePath("/");
 }
@@ -195,36 +225,109 @@ export async function toggleServiceActive(formData: FormData) {
 
 export async function updateService(formData: FormData) {
   await requireCapability("catalog:manage");
+  const tenantId = await getCurrentTenantId();
   const id = String(formData.get("id"));
-  const name = String(formData.get("name") || "").trim();
-  const description = String(formData.get("description") || "").trim();
-  const durationMin = Number(formData.get("durationMin"));
-  const price = importeONaN(formData.get("price"));
-  const categoryId = String(formData.get("categoryId") || "") || null;
-  if (!name || !durationMin || !price) return;
-  const residentPrice = parseResidentPrice(formData, price);
-  const depositAmount = parseDepositAmount(formData, price);
+  const s = await leerServicioDelFormulario(formData, tenantId);
+  if (!s) return;
   // Capturar el precio anterior para auditar el cambio (dispute: "ese precio no
   // lo cambié yo", ADR-009 §4).
-  const before = await prisma.service.findUnique({ where: { id }, select: { price: true, residentPrice: true, depositAmount: true, name: true } });
-  await prisma.service.update({
-    where: { id },
-    data: { name, description: description || null, durationMin, price, residentPrice, depositAmount, categoryId },
-  });
+  const before = await prisma.service.findFirst({ where: { id, tenantId }, select: { price: true, residentPrice: true, depositAmount: true, name: true } });
+  if (!before) throw new RechazoDeDominio("Ese servicio ya no existe.");
+  await tenantTransaction(
+    async (tx) => {
+      await tx.service.update({
+        where: { id },
+        data: {
+          name: s.name,
+          description: s.description || null,
+          durationMin: s.durationMin,
+          price: s.price,
+          residentPrice: s.residentPrice,
+          depositAmount: s.depositAmount,
+          categoryId: s.categoryId,
+        },
+      });
+      if (s.ficha) await guardarFichaEnTx(tx, tenantId, id, s.ficha);
+    },
+    { tenantId },
+  );
   await auditAdmin({
     action: "update",
     entity: "Service",
     entityId: id,
     changes: {
-      name,
-      price: { from: before?.price, to: price },
-      residentPrice: { from: before?.residentPrice, to: residentPrice },
-      depositAmount: { from: before?.depositAmount, to: depositAmount },
-      durationMin,
+      name: s.name,
+      price: { from: before.price, to: s.price },
+      residentPrice: { from: before.residentPrice, to: s.residentPrice },
+      depositAmount: { from: before.depositAmount, to: s.depositAmount },
+      durationMin: s.durationMin,
+      ...(s.ficha ? { ficha: { ...s.ficha } } : {}),
     },
   });
   revalidatePath(CATALOG_PATH);
   revalidatePath("/");
+}
+
+// Las mismas `createService` / `updateService`, pero DEVUELVEN el rechazo («El tiempo en la agenda no
+// puede ser menor…») en vez de lanzarlo: en producción Next reemplaza el mensaje de un error lanzado.
+export type ResultadoDeServicio = { ok: true } | { ok: false; error: string };
+const NO_SE_GUARDO_SERVICIO = "No se pudo guardar el servicio. Probá de nuevo; si sigue, avisale a quien administra el sistema.";
+
+export async function crearServicioConAviso(formData: FormData): Promise<ResultadoDeServicio> {
+  try {
+    await createService(formData);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: rechazoDeDominio(e, NO_SE_GUARDO_SERVICIO, "catalogo.servicio.alta") };
+  }
+}
+
+export async function guardarServicioConAviso(formData: FormData): Promise<ResultadoDeServicio> {
+  try {
+    await updateService(formData);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: rechazoDeDominio(e, NO_SE_GUARDO_SERVICIO, "catalogo.servicio.edicion") };
+  }
+}
+
+// --- Fotos del servicio (hasta 4; mismo patrón que las fotos de una propiedad) ---
+
+export type ResultadoDeFoto = { ok: true } | { ok: false; error: string };
+
+export async function agregarFotoServicio(serviceId: string, datos: string): Promise<ResultadoDeFoto> {
+  await requireCapability("catalog:manage");
+  if (typeof serviceId !== "string" || !serviceId) return { ok: false, error: "Ese servicio no existe." };
+  if (!esFotoDeServicioValida(datos)) return { ok: false, error: "La foto es muy pesada o no es una imagen." };
+  const tenantId = await getCurrentTenantId();
+  if (!(await fichaDisponible(tenantId))) return { ok: false, error: "Las fotos todavía no están habilitadas." };
+  const r = await tenantTransaction(
+    async (tx): Promise<ResultadoDeFoto> => {
+      const sv = await tx.service.findFirst({ where: { id: serviceId, tenantId, deletedAt: null }, select: { id: true } });
+      if (!sv) return { ok: false, error: "Ese servicio no existe." };
+      const fotos = await tx.serviceFoto.findMany({ where: { tenantId, serviceId }, select: { posicion: true }, orderBy: { posicion: "desc" } });
+      if (fotos.length >= MAX_FOTOS_SERVICIO) return { ok: false, error: `Hasta ${MAX_FOTOS_SERVICIO} fotos por servicio.` };
+      await tx.serviceFoto.create({ data: { tenantId, serviceId, url: datos, posicion: (fotos[0]?.posicion ?? -1) + 1 } });
+      return { ok: true };
+    },
+    { tenantId },
+  );
+  if (r.ok) {
+    revalidatePath(CATALOG_PATH);
+    revalidatePath("/");
+  }
+  return r;
+}
+
+export async function quitarFotoServicio(fotoId: string): Promise<ResultadoDeFoto> {
+  await requireCapability("catalog:manage");
+  const tenantId = await getCurrentTenantId();
+  if (typeof fotoId !== "string" || !fotoId) return { ok: false, error: "Esa foto ya no está." };
+  if (!(await fichaDisponible(tenantId))) return { ok: false, error: "Esa foto ya no está." };
+  await prisma.serviceFoto.deleteMany({ where: { id: fotoId, tenantId } });
+  revalidatePath(CATALOG_PATH);
+  revalidatePath("/");
+  return { ok: true };
 }
 
 export async function deleteService(formData: FormData) {

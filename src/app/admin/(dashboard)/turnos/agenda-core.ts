@@ -26,6 +26,7 @@ import type { CierreSinPrestar, DestinoDeLaSenia } from "@/lib/turnos/practica";
 import type { TipoMarca } from "@/components/ui/Marca";
 import { dateStrInBusinessTz, fmtShortDate, fmtTime } from "@/lib/datetime";
 import type { AnulacionDeCobro } from "@/lib/capabilities";
+import { precioADefinir } from "@/lib/servicios/ficha";
 
 export type EstadoDelTurno = "PENDING" | "CONFIRMED" | "COMPLETED" | "NO_SHOW" | "CANCELLED";
 
@@ -60,6 +61,8 @@ export type TurnoDelDia = {
   notas: string | null;
   /** Precio congelado al reservar (o el del servicio si el turno es anterior a eso). */
   precio: number;
+  /** Servicio con «Precio a definir» y el turno todavía sin precio: el cobro pide el monto a mano. */
+  precioADefinir?: boolean;
   /** Plata que entró de verdad (sin las condonaciones). */
   cobrado: number;
   /** Saldo dado de baja (no es plata que entró). */
@@ -137,6 +140,7 @@ export function turnoDelDia(a: TurnoCrudo, veredicto: Veredicto): TurnoDelDia {
     box: a.box?.name ?? "",
     notas: a.notes,
     precio,
+    precioADefinir: precioADefinir(a.service.price, a.priceAtBooking),
     // Con cobros propios, lo que entró es el desglose (una condonación no es plata); sin cobros,
     // manda el pago viejo, como en la fila de siempre.
     cobrado: cobros.length > 0 ? desglose.cobrado : plata.cobrado,

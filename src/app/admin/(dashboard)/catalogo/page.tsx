@@ -204,7 +204,7 @@ export default async function CatalogoPage({ searchParams }: { searchParams: Pro
   }
 
   // --- Rubro SERVICIOS (spa) y demás: layout histórico, sin cambios ---
-  const [{ boxes, services, professionals, products, categories, resources }, coupons, conDisenoNuevo] = await Promise.all([
+  const [{ boxes, services, professionals, products, categories, resources, fichaDisponible }, coupons, conDisenoNuevo] = await Promise.all([
     getCatalog(),
     getCoupons(),
     disenoNuevo(),
@@ -216,7 +216,7 @@ export default async function CatalogoPage({ searchParams }: { searchParams: Pro
     return (
       <CatalogoServiciosPagina
         sp={await searchParams}
-        datos={{ boxes, services, professionals, products, categories, resources, coupons }}
+        datos={{ boxes, services, professionals, products, categories, resources, coupons, fichaDisponible }}
       />
     );
   }
@@ -231,6 +231,7 @@ export default async function CatalogoPage({ searchParams }: { searchParams: Pro
       <div className="space-y-10">
         <BoxesSection boxes={boxes} />
         <ServicesSection
+          fichaDisponible={fichaDisponible}
           services={services}
           products={products}
           categories={categories}

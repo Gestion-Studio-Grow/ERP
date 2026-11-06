@@ -68,6 +68,7 @@ import {
   leerResultado,
 } from "./campos";
 import CobrarTurno from "./CobrarTurno";
+import FijarPrecioDelTurno from "./FijarPrecioDelTurno";
 import TerminarTurno from "./TerminarTurno";
 import MoverTurno from "./MoverTurno";
 import LlegoLaSenia from "./LlegoLaSenia";
@@ -542,6 +543,14 @@ export default function TurnoCajon({
           <ListoDelCobro cobro={cobradoEste.cobro} proximo={cobradoEste.vino ? null : proximo} onCerrar={onCerrar} />
         )}
 
+        {t.precioADefinir && cobraEste && t.estado !== "NO_SHOW" && t.estado !== "CANCELLED" && !cobradoEste && (
+          <Seccion titulo="Precio a definir">
+            <div className="pt-3">
+              <FijarPrecioDelTurno key={t.id} turnoId={t.id} servicio={t.servicio} />
+            </div>
+          </Seccion>
+        )}
+
         {cierra && !cobradoEste && (
           <Seccion titulo={t.estado === "PENDING" ? "Vino" : "Terminar"}>
             <div className="pt-3">
@@ -676,8 +685,8 @@ export default function TurnoCajon({
               pesos sin centavos: «$14.000», como el botón y el WhatsApp (con centavos sólo si los hay). */}
           <Renglon
             folio="Precio"
-            titulo="Fijo desde la reserva"
-            plata={<Plata valor={t.precio} sinCentavos={Number.isInteger(t.precio)} />}
+            titulo={t.precioADefinir ? "A definir: se carga al cobrar" : "Fijo desde la reserva"}
+            plata={t.precioADefinir ? <span className="text-sm text-muted">A definir</span> : <Plata valor={t.precio} sinCentavos={Number.isInteger(t.precio)} />}
           />
           <Renglon
             folio="Entró"

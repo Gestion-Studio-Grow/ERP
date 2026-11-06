@@ -25,6 +25,7 @@ import type { BookingData } from "@/app/(site)/_ch/types";
 import { cambiosDeFicha, validarFichaFiscal } from "@/lib/fiscal/ficha-fiscal";
 import { politicaVigente } from "@/lib/turnos/practica.server";
 import { mensajeFueraDePlazo, puedeCambiarOnline } from "@/lib/turnos/practica";
+import { minutosEnAgendaDelServicio } from "@/lib/servicios/ficha.server";
 
 // Es un endpoint PÚBLICO ("use server" + lo llama la página del turno, sin sesión): quien
 // tenga el link del turno lo puede invocar. Por eso NO trae la ficha de la clienta —notas,
@@ -176,7 +177,7 @@ async function reprogramarMiTurno(formData: FormData): Promise<void> {
   if (Number.isNaN(startsAt.getTime()) || startsAt.getTime() < Date.now()) {
     throw new RechazoDeDominio("Elegí un horario futuro.");
   }
-  const endsAt = new Date(startsAt.getTime() + appointment.service.durationMin * 60000);
+  const endsAt = new Date(startsAt.getTime() + (await minutosEnAgendaDelServicio(appointment.tenantId, appointment.service)) * 60000);
 
   const { professional } = appointment;
   if (!professional.active || professional.deletedAt) {

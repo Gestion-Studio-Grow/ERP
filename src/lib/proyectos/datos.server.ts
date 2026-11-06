@@ -14,6 +14,7 @@ import type { SessionUser } from "@/lib/session";
 import { getLocation } from "@/lib/settings";
 import { desvioPorRubro, redondear, resultadoReal, totales, ultimaEnviada } from "./core";
 import { costosVigentes, normalizarDiseno } from "./stand";
+import { SIN_COMPROBANTES } from "./rendiciones-core";
 
 export const veLaPlata = (u: SessionUser): boolean => permisoFueraDeLaAgenda(u, "agenda:manage");
 
@@ -78,7 +79,7 @@ export async function fichaProyecto(id: string) {
     include: {
       client: { select: { id: true, name: true, phone: true, email: true } },
       tareas: { orderBy: [{ hechaEl: { sort: "asc", nulls: "first" } }, { venceEl: { sort: "asc", nulls: "last" } }, { createdAt: "asc" }] },
-      archivos: { orderBy: { createdAt: "desc" } },
+      archivos: { where: SIN_COMPROBANTES, orderBy: { createdAt: "desc" } },
       stands: { orderBy: { createdAt: "asc" }, select: { id: true, nombre: true, updatedAt: true } },
       presupuestos: { orderBy: { version: "desc" }, include: { items: { orderBy: [{ posicion: "asc" }, { createdAt: "asc" }] } } },
       pagos: { orderBy: { createdAt: "desc" } },
