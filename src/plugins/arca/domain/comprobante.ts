@@ -85,7 +85,15 @@ const NATURALEZA: Readonly<Record<number, Naturaleza>> = {
  * fechas que acepta ARCA. Pura: no mira el reloj. Las fechas del servicio salen de acá: si
  * faltan, no se inventan (exigirPeriodoDeServicio).
  */
-export function decidirDelEvento(ev: InvoiceCreatedEvent, fechaDeEnvio: string): Decision {
+export function decidirDelEvento(
+  ev: InvoiceCreatedEvent,
+  fechaDeEnvio: string,
+  opciones: { reglasDelMotor?: boolean } = {},
+): Decision {
+  // PR3 · El umbral propio del motor (más estricto que el legal) sólo corre en facturas nuevas: no
+  // frena la nota de crédito de algo ya facturado, ni el reconocimiento de un número que ARCA ya
+  // autorizó (ese se reconoce como se decidió, `reglasDelMotor: false`).
+  const umbralDelMotorAplica = opciones.reglasDelMotor !== false && (ev.clase ?? 'factura') === 'factura';
   return decidirComprobante(
     {
       condicionIva: ev.emisor.condicionIva,
@@ -120,7 +128,10 @@ export function decidirDelEvento(ev: InvoiceCreatedEvent, fechaDeEnvio: string):
     },
     // El despacho emite sin una persona mirando: un período de servicio que falta NO se
     // completa con la fecha de la factura (sería un período falso), va a revisión.
-    { exigirPeriodoDeServicio: true },
+    {
+      exigirPeriodoDeServicio: true,
+      umbralIdentificacionDelNegocio: umbralDelMotorAplica ? (ev.umbralIdentificacionDelMotor ?? null) : null,
+    },
   );
 }
 

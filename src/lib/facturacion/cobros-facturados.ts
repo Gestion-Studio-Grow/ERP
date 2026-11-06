@@ -99,7 +99,7 @@ export async function cobrosYaFacturadosInTx(
  * primera con su `updateMany`: dos facturas vivas por el mismo cobro (certificación PR1, C2). Con
  * él, la segunda espera y su lectura siguiente (READ COMMITTED) ya ve la factura de la primera.
  */
-async function tomarClaves(tx: InvoiceTx, tenantId: string, claves: readonly string[]): Promise<void> {
+export async function tomarClaves(tx: InvoiceTx, tenantId: string, claves: readonly string[]): Promise<void> {
   if (typeof (tx as { $executeRaw?: unknown }).$executeRaw !== "function") return; // dobles de test sin SQL
   for (const clave of [...new Set(claves)].sort()) {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`cobro-facturado:${tenantId}:${clave}`}))`;
