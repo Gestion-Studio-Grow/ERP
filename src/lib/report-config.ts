@@ -18,4 +18,5 @@ export const METODO_LABEL: Record<string, string> = {
   TRANSFERENCIA: "Transferencia",
   DEBITO: "Débito",
   CREDITO: "Crédito",
+  VOUCHER: "Voucher",
 };
