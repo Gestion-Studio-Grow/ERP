@@ -50,7 +50,6 @@ import LibroDelDia from "./_agenda/LibroDelDia";
 import { RenglonDeManana } from "./_agenda/ParaManana";
 import OtroDia from "./_agenda/OtroDia";
 import ElDiaCorto from "./_agenda/ElDiaCorto";
-import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
 import { agendaInteraccionPrendida } from "@/cambios/interruptores";
 
 type Quien = { role: Role; professionalId?: string | null; overrides: ReadonlyArray<PermisoOverride> };
@@ -142,7 +141,7 @@ export default async function AgendaRenglon({
     perdonar: permisoEfectivo(conPermisos, PERDONAR),
     anular: anulacionDeCobro(quien.role),
     // CH · vouchers de La Alameda (lectura de interruptores cacheada por pedido).
-    vouchers: vouchersPrendidos(await interruptoresDelNegocio()) && roleHasCapability(quien.role, "agenda:collect"),
+    vouchers: vouchersPrendidos(await interruptoresDelNegocio()) && permisoEfectivo(conPermisos, "agenda:collect"),
   };
   // Mañana, sólo mirando HOY y para quien gestiona la agenda (como siempre).
   const verManana = permisos.gestionar && dia === hoy;
