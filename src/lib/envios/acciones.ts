@@ -16,7 +16,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { tenantTransaction } from "@/lib/rls";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireAppAccion, AppNoDisponibleError } from "@/lib/require-app";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { motivoMostrable } from "@/lib/rechazo-de-dominio";
 import { esConflictoDeEscritura } from "@/lib/conflicto-de-escritura";
 import { logger } from "@/lib/logger";
@@ -32,7 +32,7 @@ export type EstadoEnvios = { ok: true; version: string; mensaje: string } | { ok
 async function dueno(): Promise<{ ok: true; userId: string } | { ok: false; error: string }> {
   try {
     const user = await requireAppAccion("datos-del-negocio");
-    if (!roleHasCapability(user.role, "location:manage")) return { ok: false, error: "Los envíos los configura el dueño del negocio." };
+    if (!permisoEfectivo(user, "location:manage")) return { ok: false, error: "Los envíos los configura el dueño del negocio." };
     return { ok: true, userId: user.id };
   } catch (e) {
     if (e instanceof AppNoDisponibleError) return { ok: false, error: e.message };

@@ -14,7 +14,6 @@ import {
   type Motivo,
   type Naturaleza,
 } from '@/lib/fiscal/decidir-comprobante';
-import { umbralDelMotor } from '@/lib/fiscal/parametros-del-motor';
 import {
   AlicuotaIvaId,
   CondicionIvaReceptorId,
@@ -131,7 +130,7 @@ export function decidirDelEvento(
     // completa con la fecha de la factura (sería un período falso), va a revisión.
     {
       exigirPeriodoDeServicio: true,
-      umbralIdentificacionDelNegocio: umbralDelMotorAplica ? umbralDelMotor(ev.medioDePago) : null,
+      umbralIdentificacionDelNegocio: umbralDelMotorAplica ? (ev.umbralIdentificacionDelMotor ?? null) : null,
     },
   );
 }

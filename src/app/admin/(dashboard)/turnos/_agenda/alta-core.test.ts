@@ -95,7 +95,7 @@ describe("lo que viaja es lo que lee createManualAppointment", () => {
   };
 
   test("con cobro y de la zona: todos los campos, con los nombres de siempre", () => {
-    const c = camposDelAlta({ ...base, cobro: { monto: 5000, metodo: "TRANSFERENCIA" } });
+    const c = camposDelAlta({ ...base, clienteId: "c1", cobro: { monto: 5000, metodo: "TRANSFERENCIA" } });
     const lee = camposQueLee("createManualAppointment");
     for (const [k] of c) assert.ok(lee.has(k), `createManualAppointment no lee ${k}`);
     assert.deepEqual(new Set(c.map(([k]) => k)), lee);

@@ -8,6 +8,7 @@ import { canCurrentUser } from "@/lib/authz";
 import { claseBotonWhatsApp } from "../boton-whatsapp";
 import { contactoDeLaFicha } from "../contacto-ficha";
 import { requireApp } from "@/lib/require-app";
+import { enmascararContacto } from "@/lib/clientes/telefono";
 import EditarClienteForm from "./EditarClienteForm";
 import FichaProductora from "./FichaProductora";
 import FichaUnica from "./FichaUnica";
@@ -15,7 +16,7 @@ import { enInicioPorApps } from "../../inicio/piloto";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import FichaRenglon from "./FichaRenglon";
 import { hrefNuevoTurno } from "../../turnos/pasos";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { appDelPanelCerrado, appPermitida } from "@/apps/visibles";
 import { appPorId } from "@/apps/registro";
 import { getNegocioApps } from "@/apps/contexto.server";
@@ -54,8 +55,10 @@ export default async function ClienteDetailPage({
   // En el Inicio por apps, la ficha única (próximo turno, lo que debe, faltazos, pedidos, fiado,
   // cumpleaños y permiso de mensajes). CH, fuera del piloto, sigue con la ficha de siempre.
   if (await enInicioPorApps()) return <FichaUnica id={id} user={user} conMostrador={conMostrador} />;
-  const client = await getClient(id);
-  if (!client) notFound();
+  const crudo = await getClient(id);
+  if (!crudo) notFound();
+  // Sin `clients:contact` (casilla 5 de la matriz) teléfono y mail salen enmascarados del servidor.
+  const client = enmascararContacto(crudo, user);
 
   // `clients:manage` está otorgada a RECEPTION y hasta acá no la consumía nadie. Esto es
   // sólo para no mostrar un botón que no va a funcionar; la guarda de verdad está en
@@ -65,7 +68,7 @@ export default async function ClienteDetailPage({
   // alta de la Lista con ella elegida (?cliente=, `leerClienteDelAlta`). Sólo si el negocio tiene
   // Agenda y quien mira gestiona turnos: no se ofrece una tecla que lleva a una pantalla vedada.
   const puedeDarTurno =
-    roleHasCapability(user.role, "agenda:manage") && appPermitida(appPorId("agenda"), await getNegocioApps(user.role));
+    permisoEfectivo(user, "agenda:manage") && appPermitida(appPorId("agenda"), await getNegocioApps(user.role));
 
   // Link directo al chat (549 + teléfono normalizado). Si lo cargado no es un celular, no se abre
   // WhatsApp a un número que no es el de ella: la ficha lo DICE y dice dónde corregirlo, en vez
@@ -125,7 +128,7 @@ export default async function ClienteDetailPage({
           nombre={client.name}
           telefono={client.phone}
           noQuiere={false}
-          verPlata={roleHasCapability(user.role, "reports:read")}
+          verPlata={permisoEfectivo(user, "reports:read")}
         />
       )}
 

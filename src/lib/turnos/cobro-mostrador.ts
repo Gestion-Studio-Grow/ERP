@@ -19,7 +19,9 @@
 // Quien lo lee es una recepcionista con la clienta enfrente, y necesita saber qué hacer
 // ahora mismo —pasarle el cobro a ella—, no que la pantalla le diga que no puede.
 
-export type RolQueCobra = "OWNER" | "RECEPTION" | "PROFESSIONAL" | (string & {});
+import { permisoEfectivo, type UsuarioConPermisos } from "@/lib/capabilities";
+
+export type RolQueCobra ="OWNER" | "RECEPTION" | "PROFESSIONAL" | (string & {});
 
 export type IntentoDeCobro = {
   rol: RolQueCobra;
@@ -59,6 +61,28 @@ export function puedeCobrarEsteTurno(i: IntentoDeCobro): Veredicto {
     };
   }
   return { ok: true };
+}
+
+/**
+ * El veredicto completo para un usuario de sesión: primero «cargar cobranzas» (casilla 4 de la matriz,
+ * `permisoEfectivo(user, "agenda:collect")`), después la regla de ESTE turno. Es lo que miran los
+ * caminos que cobran colgados de `agenda:complete` (terminar y cobrar, cierre en lote): sin esto, la
+ * casilla apagada no impedía cobrar (certificación A1).
+ */
+export const NO_CARGA_COBRANZAS = "No tenés habilitado cargar cobranzas: terminá el turno dejando el saldo a cobrar.";
+
+export function veredictoDeCobroDe(
+  user: UsuarioConPermisos & { professionalId?: string | null },
+  turno: { professionalId: string; nombreProfesional?: string | null; cobraEnMostrador?: boolean | null },
+): Veredicto {
+  if (!permisoEfectivo(user, "agenda:collect")) return { ok: false, motivo: NO_CARGA_COBRANZAS };
+  return puedeCobrarEsteTurno({
+    rol: user.role,
+    professionalIdDelUsuario: user.professionalId,
+    professionalIdDelTurno: turno.professionalId,
+    nombreProfesional: turno.nombreProfesional,
+    cobraEnMostrador: turno.cobraEnMostrador,
+  });
 }
 
 /** ¿Se le puede ofrecer el bloque de cobro a esta profesional desde el mostrador? */

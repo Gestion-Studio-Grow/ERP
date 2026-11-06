@@ -31,6 +31,7 @@ import { isFrozenDay, frozenDayMessage, notaFaltanteDelArqueo, NO_SE_ABRE_CON_EL
 import { dateStrInBusinessTz } from "@/lib/datetime";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { tenantTransaction } from "@/lib/rls";
 import { emitirCajaAbierta, emitirCajaTurnoCerrada } from "@/eventos/del-core";
 import { Prisma } from "@/generated/prisma/client";
@@ -167,9 +168,10 @@ export async function tarjetaHabilitada(): Promise<boolean> {
 // --- Loader de la pantalla de caja ---
 //
 // Devuelve la sesión ABIERTA del tenant (si hay) con sus movimientos, más las
-// últimas sesiones cerradas para el histórico. Guard de lectura por `orders:read`.
+// últimas sesiones cerradas para el histórico. Guard: `cash:manage` (casilla 8 de la matriz de
+// permisos): trae el esperado del arqueo, que es de quien habilita la caja, no de quien vende.
 export async function getCajaData() {
-  await requireCapability("orders:read");
+  await requireCapability("cash:manage");
   if (isDemoSandbox()) return { ...getDemoCajaData(), esperadoEnElCajon: null, aperturaACiegas: false };
   const tenantId = await getCurrentTenantId();
   const [open, recentClosed] = await Promise.all([
@@ -222,7 +224,8 @@ export async function openCashSession(
   _prev: CajaActionState,
   formData: FormData,
 ): Promise<CajaActionState> {
-  const user = await requireCapability("orders:manage");
+  // Abrir/cerrar/arquear la caja es la casilla 8 (`cash:manage`); vender sigue en `orders:manage`.
+  const user = await requireCapability("cash:manage");
   if (isDemoSandbox()) return DEMO_WRITE_BLOCKED;
   const tenantId = await getCurrentTenantId();
   const openingFloat = parseAmount(formData.get("openingFloat"));
@@ -403,7 +406,10 @@ export type AperturaSugerida = {
 };
 
 export async function getAperturaEnVender(): Promise<AperturaSugerida | null> {
-  await requireCapability("orders:manage");
+  const user = await requireCapability("orders:manage");
+  // La tarjeta abre la caja (casilla 8): quien vende sin `cash:manage` sigue vendiendo, sin la
+  // tarjeta. NO redirige: la pantalla de vender no puede caerse por esto (PLAN permisos §11.3).
+  if (!permisoEfectivo(user, "cash:manage")) return null;
   if (isDemoSandbox()) return null;
   const tenantId = await getCurrentTenantId();
   const hoy = dateStrInBusinessTz(new Date());
@@ -454,7 +460,8 @@ export async function closeCashSession(
   _prev: CajaActionState,
   formData: FormData,
 ): Promise<CajaActionState> {
-  const user = await requireCapability("orders:manage");
+  // Abrir/cerrar/arquear la caja es la casilla 8 (`cash:manage`); vender sigue en `orders:manage`.
+  const user = await requireCapability("cash:manage");
   if (isDemoSandbox()) return DEMO_WRITE_BLOCKED;
   const tenantId = await getCurrentTenantId();
   const counted = parseAmount(formData.get("counted"));

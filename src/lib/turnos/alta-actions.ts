@@ -32,6 +32,7 @@ import { urlDelSitio } from "@/lib/crm/cargas.server";
 import { isDemoSandbox } from "@/lib/demo-flag";
 import { franjaDeAhora } from "@/app/admin/(dashboard)/turnos/_agenda/alta-core";
 import { ACCION_SENIA_PEDIDA } from "./senia-pedida";
+import { minutosEnAgendaDelServicio, notasDeRecordatorio } from "@/lib/servicios/ficha.server";
 
 export type ResultadoDarTurno =
   | {
@@ -44,6 +45,8 @@ export type ResultadoDarTurno =
       linkTurno: string | null;
       /** ¿Quedó la marca «seña pedida»? */
       seniaPedida: boolean;
+      /** La aclaración del servicio para la clienta («Vení bañada»), si tiene. */
+      aclaracion?: string | null;
     }
   | { ok: false; error: string };
 
@@ -52,7 +55,9 @@ export type ResultadoDarTurno =
  * «Pedírsela por WhatsApp», deja la marca `deposit_requested` en la auditoría del turno.
  */
 export async function darTurno(fd: FormData, opciones: { pedirSenia?: boolean; monto?: number } = {}): Promise<ResultadoDarTurno> {
-  await requireCapability("agenda:manage");
+  // Dar un turno es la casilla 2 (`agenda:create`); `createManualAppointment` además limita a la
+  // profesional a su propia agenda.
+  await requireCapability("agenda:create");
   const r = await createManualAppointment(fd);
   if (!r.ok) return r;
   if (isDemoSandbox()) return { ok: true, id: null, direccion: null, linkTurno: null, seniaPedida: false };
@@ -85,7 +90,9 @@ export async function darTurno(fd: FormData, opciones: { pedirSenia?: boolean; m
 
   const direccion = [ajustes?.addressLine?.trim(), ajustes?.city?.trim()].filter(Boolean).join(", ") || null;
   const sitio = turno ? await urlDelSitio() : null;
-  return { ok: true, id: turno?.id ?? null, direccion, linkTurno: sitio && turno ? `${sitio}/reserva/turno/${turno.id}` : null, seniaPedida };
+  const serviceId = String(fd.get("serviceId") ?? "");
+  const aclaracion = serviceId ? ((await notasDeRecordatorio(tenantId, [serviceId])).get(serviceId) ?? null) : null;
+  return { ok: true, id: turno?.id ?? null, direccion, linkTurno: sitio && turno ? `${sitio}/reserva/turno/${turno.id}` : null, seniaPedida, aclaracion };
 }
 
 export type LibresAhora = {
@@ -100,7 +107,8 @@ export type LibresAhora = {
  * (su horario de hoy la cubre y no choca con turnos, bloqueos ni recursos).
  */
 export async function libresAhora(servicioId: string): Promise<LibresAhora> {
-  await requireCapability("agenda:manage");
+  // «Atender ahora» es para dar un turno: casilla 2.
+  await requireCapability("agenda:create");
   const tenantId = await getCurrentTenantId();
   const inicio = new Date(franjaDeAhora(new Date()));
   const vacio: LibresAhora = { inicio: inicio.toISOString(), profesionales: [] };
@@ -119,7 +127,7 @@ export async function libresAhora(servicioId: string): Promise<LibresAhora> {
     },
   });
   if (!servicio) return vacio;
-  const fin = new Date(inicio.getTime() + servicio.durationMin * 60_000);
+  const fin = new Date(inicio.getTime() + (await minutosEnAgendaDelServicio(tenantId, servicio)) * 60_000);
   const dia = dateStrInBusinessTz(inicio);
 
   const libres: string[] = [];

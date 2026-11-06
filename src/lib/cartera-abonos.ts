@@ -242,7 +242,8 @@ class ErrorDeLaRegla extends Error {}
 /**
  * Emite UNA regla en el cliente, en su transacción: si ya hay una factura de (regla, mes) que no
  * fue rechazada, nada; si no, respeta el límite del plan y crea (o reabre la rechazada) con el
- * origen ABONO. La guarda final es el índice único: dos lotes a la vez → P2002 → «ya emitida».
+ * origen ABONO. Dos lotes a la vez del mismo cliente esperan un candado por cliente: el segundo
+ * ve la factura del primero → «ya emitida». La guarda final sigue siendo el índice único (P2002).
  */
 async function emitirUna(
   regla: ReglaAbono,
@@ -259,6 +260,11 @@ async function emitirUna(
   try {
     return await tenantTransaction(
       async (tx): Promise<ResultadoUna> => {
+        // Dos lotes a la vez del mismo cliente se SERIALIZAN acá (se suelta al confirmar). Sin el
+        // candado, el perdedor leía «no hay factura», el ganador confirmaba, y createInvoiceInTx
+        // (otra sentencia, otra foto en READ COMMITTED) le devolvía la del ganador: «emitida» dos
+        // veces para una sola factura. Por cliente y no por regla: también cuida el cupo del plan.
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`lote-abonos:${tenantId}`}))`;
         const existente = await tx.invoice.findFirst({ where: { tenantId, abonoClave: clave }, select: { status: true } });
         if (existente && existente.status !== "REJECTED") return "ya_emitida";
         const cap = await capFacturasMesDelNegocioEnTx(tx, tenantId, capColumna);

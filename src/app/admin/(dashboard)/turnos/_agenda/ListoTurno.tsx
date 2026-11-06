@@ -12,12 +12,14 @@
 
 import { useEffect, useRef } from "react";
 import { Button, atributosBoton, buttonClasses } from "@/components/ui";
+import { AVISO_CONTACTO_OCULTO } from "@/lib/clientes/telefono";
 
 export default function ListoTurno({
   resumen,
   estado,
   tecla,
   wa,
+  contactoOculto = false,
   onOtro,
   onVerAgenda,
 }: {
@@ -29,6 +31,8 @@ export default function ListoTurno({
   tecla: string;
   /** El link `wa.me`, o `null` si el teléfono no es un celular. */
   wa: string | null;
+  /** El teléfono llegó enmascarado (sin `clients:contact`): no es un celular mal cargado. */
+  contactoOculto?: boolean;
   onOtro: () => void;
   onVerAgenda: () => void;
 }) {
@@ -48,6 +52,8 @@ export default function ListoTurno({
         <a href={wa} target="_blank" rel="noopener noreferrer" className={buttonClasses("solid", "lg", "w-full")} {...atributosBoton("solid", "lg")}>
           {tecla}
         </a>
+      ) : contactoOculto ? (
+        <p className="text-sm text-muted">{AVISO_CONTACTO_OCULTO}</p>
       ) : (
         <p className="text-sm text-muted">El teléfono cargado no es un celular: no se puede abrir WhatsApp. Corregilo en su ficha.</p>
       )}

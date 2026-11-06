@@ -5,6 +5,7 @@ import { updateClient } from "@/lib/client-actions";
 import { useToast } from "../../ToastProvider";
 import { esRedireccionDeNext } from "../../turnos/errores";
 import { Field, Input, Textarea, buttonClasses } from "@/components/ui";
+import { MASCARA } from "@/lib/clientes/telefono";
 
 // La ficha del cliente era de sólo lectura: un teléfono mal tipeado no se corregía nunca y
 // la única vía para "arreglarlo" era reservarle otro turno con el número bien, que crea una
@@ -26,6 +27,9 @@ export default function EditarClienteForm({ cliente }: { cliente: ClienteEditabl
   const [editando, setEditando] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const { showError, showSuccess } = useToast();
+  // Sin permiso para ver el contacto (casilla 5 de la matriz) el teléfono llega enmascarado: se
+  // muestra de sólo lectura y `updateClient` igual conserva lo guardado, no lo que vuelva acá.
+  const contactoOculto = cliente.phone.startsWith(MASCARA);
 
   if (!editando) {
     return (
@@ -77,7 +81,7 @@ export default function EditarClienteForm({ cliente }: { cliente: ClienteEditabl
           label="Teléfono"
           htmlFor="cli-phone"
           required
-          hint="Es el número al que sale el recordatorio del turno."
+          hint={contactoOculto ? "No tenés permiso para ver ni cambiar el contacto." : "Es el número al que sale el recordatorio del turno."}
         >
           <Input
             id="cli-phone"
@@ -85,13 +89,21 @@ export default function EditarClienteForm({ cliente }: { cliente: ClienteEditabl
             type="tel"
             inputMode="tel"
             defaultValue={cliente.phone}
-            required
+            required={!contactoOculto}
+            readOnly={contactoOculto}
             autoComplete="off"
           />
         </Field>
 
         <Field label="Email" htmlFor="cli-email" hint="Opcional.">
-          <Input id="cli-email" name="email" type="email" defaultValue={cliente.email ?? ""} autoComplete="off" />
+          <Input
+            id="cli-email"
+            name="email"
+            type={contactoOculto ? "text" : "email"}
+            defaultValue={cliente.email ?? ""}
+            readOnly={contactoOculto}
+            autoComplete="off"
+          />
         </Field>
 
         <Field label="Fecha de nacimiento" htmlFor="cli-birth" hint="Opcional.">
