@@ -20,7 +20,7 @@ export default async function ImprimirLiquidacion({ params }: { params: Promise<
   const esMia = l.personaId === a.personaId;
   const administra = puede(a, "liquidaciones", "ver");
   // Un borrador todavía no existe para la persona. Para los demás, la misma respuesta que si no existiera.
-  if (!administra && !(esMia && l.estado === "PUBLICADA")) notFound();
+  if (!administra && !(esMia && l.estado !== "BORRADOR")) notFound();
   const negocio = await datosDelNegocio(a.tenantId);
   const extras = leerExtras(l.extras);
   const volver = esMia && !administra ? `/admin/proyectos/mi-liquidacion?periodo=${l.periodo}` : `/admin/proyectos/administracion?tab=liquidaciones&mes=${l.periodo}`;
@@ -45,7 +45,7 @@ export default async function ImprimirLiquidacion({ params }: { params: Promise<
           </div>
           <div className="text-right">
             <p className="font-semibold first-letter:uppercase">{etiquetaMes(l.periodo)}</p>
-            <p className="text-muted">{l.estado === "PUBLICADA" ? `Publicada el ${fechaCorta(l.publicadaEl)}` : "Borrador, sin publicar"}</p>
+            <p className="text-muted">{l.estado === "PAGADA" ? `Pagada (publicada el ${fechaCorta(l.publicadaEl)})` : l.estado === "PUBLICADA" ? `Publicada el ${fechaCorta(l.publicadaEl)}` : "Borrador, sin publicar"}</p>
           </div>
         </header>
         <dl className="mb-4 grid gap-1">

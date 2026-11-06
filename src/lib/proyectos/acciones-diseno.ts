@@ -37,6 +37,7 @@ import { charlarConAgente, generarImagen, iaConectada, proponerIdeaDelProyecto, 
 import { borrarDeNube } from "./r2.server";
 import type { PiezaPropuesta } from "./ia-piezas-core";
 import { ENFOQUES_STAND, metricasStand, type MetricasStand } from "./ia-stand-core";
+import { SIN_COMPROBANTES } from "./rendiciones-core";
 
 const RAIZ = "/admin/proyectos";
 const MAX_ARCHIVOS = 30;
@@ -265,7 +266,7 @@ async function imagenDelProyecto(tenantId: string, proyectoId: string, ref: stri
   const r = leerRef(ref);
   if (!r) return false;
   if (r.tipo === "url") return true;
-  if (r.tipo === "archivo") return !!(await prisma.proyectoArchivo.findFirst({ where: { id: r.id, tenantId, proyectoId, datos: { startsWith: "data:image/" } }, select: { id: true } }));
+  if (r.tipo === "archivo") return !!(await prisma.proyectoArchivo.findFirst({ where: { id: r.id, tenantId, proyectoId, datos: { startsWith: "data:image/" }, ...SIN_COMPROBANTES }, select: { id: true } }));
   return !!(await prisma.proyectoEntregableVersion.findFirst({ where: { id: r.id, tenantId, entregable: { proyectoId }, datos: { not: null } }, select: { id: true } }));
 }
 
@@ -291,7 +292,7 @@ export async function eliminarImagenDelProyecto(d: { proyectoId: string; ref: st
   if (!(await proyectoVisible(a, d.proyectoId))) return { ok: false, error: SIN_PROYECTO };
   const r = leerRef(d.ref);
   if (!r || r.tipo !== "archivo") return { ok: false, error: "Esa imagen no se puede eliminar desde acá." };
-  const f = await prisma.proyectoArchivo.findFirst({ where: { id: r.id, tenantId: a.tenantId, proyectoId: d.proyectoId, datos: { startsWith: "data:image/" } }, select: { id: true, nombre: true, clave: true, visibleCliente: true } });
+  const f = await prisma.proyectoArchivo.findFirst({ where: { id: r.id, tenantId: a.tenantId, proyectoId: d.proyectoId, datos: { startsWith: "data:image/" }, ...SIN_COMPROBANTES }, select: { id: true, nombre: true, clave: true, visibleCliente: true } });
   if (!f) return { ok: false, error: "Esa imagen ya no existe." };
   if (f.visibleCliente) return { ok: false, error: "El cliente ve esta imagen en la propuesta. Sacala de la propuesta antes de eliminarla." };
   const presentaciones = await prisma.proyectoPresentacion.findMany({ where: { tenantId: a.tenantId, proyectoId: d.proyectoId }, select: { nombre: true, laminas: true } });
@@ -301,7 +302,7 @@ export async function eliminarImagenDelProyecto(d: { proyectoId: string; ref: st
   const elegidas = normalizarImagenes(idea?.imagenes);
   const estabaElegida = elegidas.includes(d.ref);
   await prisma.$transaction([
-    prisma.proyectoArchivo.deleteMany({ where: { id: f.id, tenantId: a.tenantId, proyectoId: d.proyectoId } }),
+    prisma.proyectoArchivo.deleteMany({ where: { id: f.id, tenantId: a.tenantId, proyectoId: d.proyectoId, ...SIN_COMPROBANTES } }),
     ...(estabaElegida ? [prisma.proyectoIdea.update({ where: { proyectoId: d.proyectoId }, data: { imagenes: elegidas.filter((x) => x !== d.ref) as unknown as Prisma.InputJsonValue } })] : []),
   ]);
   if (f.clave) await borrarDeNube(f.clave);
@@ -333,7 +334,7 @@ export async function quitarMoodboard(d: { proyectoId: string; link: string }): 
 // ── Estudio ─────────────────────────────────────────────────────────────────
 
 async function guardarDelEstudio(a: Awaited<ReturnType<typeof exigirEditar>>, proyectoId: string, nombre: string, datos: string): Promise<Resultado<{ ref: string }>> {
-  if ((await prisma.proyectoArchivo.count({ where: { tenantId: a.tenantId, proyectoId, clave: null } })) >= MAX_ARCHIVOS) return { ok: false, error: `Un proyecto guarda hasta ${MAX_ARCHIVOS} archivos. Sacá alguno que ya no uses.` };
+  if ((await prisma.proyectoArchivo.count({ where: { tenantId: a.tenantId, proyectoId, clave: null, ...SIN_COMPROBANTES } })) >= MAX_ARCHIVOS) return { ok: false, error: `Un proyecto guarda hasta ${MAX_ARCHIVOS} archivos. Sacá alguno que ya no uses.` };
   const creado = await prisma.proyectoArchivo.create({ data: { tenantId: a.tenantId, proyectoId, tipo: "RENDER", nombre: `${ETIQUETA_ESTUDIO}${nombre}`.slice(0, 120), datos, subidoPor: a.nombre }, select: { id: true } });
   refrescar(proyectoId);
   return { ok: true, ref: `archivo:${creado.id}` };
@@ -445,7 +446,7 @@ export async function enviarMensajeChat(d: { proyectoId: string | null; canal: s
   const cuerpo = texto(d.texto, 4000);
   const crudo = texto(d.adjuntoUrl, 2000);
   const archivoId = String(d.archivoId ?? "");
-  const archivo = archivoId && proyectoId ? await prisma.proyectoArchivo.findFirst({ where: { id: archivoId, tenantId: a.tenantId, proyectoId, OR: [{ datos: { not: null } }, { clave: { not: null } }] }, select: { id: true, nombre: true } }) : null;
+  const archivo = archivoId && proyectoId ? await prisma.proyectoArchivo.findFirst({ where: { id: archivoId, tenantId: a.tenantId, proyectoId, OR: [{ datos: { not: null } }, { clave: { not: null } }], ...SIN_COMPROBANTES }, select: { id: true, nombre: true } }) : null;
   if (archivoId && !archivo) return { ok: false, error: "Ese archivo ya no está en el proyecto." };
   const adjuntoUrl = archivo ? `/admin/proyectos/${proyectoId}/archivo/${archivo.id}` : crudo ? linkSeguro(crudo) : null;
   if (crudo && !adjuntoUrl) return { ok: false, error: "El adjunto tiene que ser un link que empiece con https://." };
