@@ -29,6 +29,7 @@ import { leerRegimenFacturaAEnTx } from "@/lib/fiscal/regimen-factura-a.server";
 import { montosDeLaNota, saldoPorAnular } from "@/lib/facturacion/nota-credito-core";
 import { serieDeNumeracion } from "@/lib/facturacion/serie-numeracion";
 import { emitirFacturaAutorizada, emitirFacturaRechazada } from "@/eventos/del-core";
+import { caeEsSimulado, exigirNoSimuladoEnProduccion } from "@/lib/fiscal/guarda-simulado";
 
 /** Cliente de transacción interactiva (mismo patrón que `LedgerTx` en stock/ledger.ts):
  *  `createInvoiceInTx` corre DENTRO de una tx ya abierta por el llamador → componible y
@@ -507,6 +508,9 @@ export async function registerFiscalDocument(
   input: RegisterFiscalDocumentInput,
   envioId: string,
 ): Promise<boolean> {
+  // ENG-123 · última barrera: un CAE simulado («STUB…») nunca se guarda como real en producción con
+  // la facturación encendida. Lanza antes de abrir la transacción: no se escribe nada.
+  if (caeEsSimulado(input.cae)) exigirNoSimuladoEnProduccion({ tenantId: input.tenantId, donde: "registerFiscalDocument" });
   return escribirSiElEnvioSigueAbierto(input.tenantId, envioId, async (tx) => {
     const r = await tx.invoice.updateMany({
       where: { id: input.invoiceId, tenantId: input.tenantId, status: "PENDING" },
