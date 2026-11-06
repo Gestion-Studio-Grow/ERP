@@ -5,6 +5,8 @@
 // (c) la agenda en simple esconde anular / dar de baja / deshacer, nunca agrega.
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { ALL_CAPABILITIES, permisoEfectivo, type Role } from "@/lib/capabilities";
 import { decidirCambioDePermiso } from "@/lib/permisos/cambio-de-permiso";
 import { ALL_ITEMS, menuDeModoSimple, RUTAS_DEL_MODO_SIMPLE } from "@/lib/admin-nav-items";
@@ -135,4 +137,28 @@ test("(c) nunca agrega: quien no anula ni perdona sigue sin poder", () => {
   const r = recortarPermisosDeAgenda(recepcion, true);
   assert.equal(r.perdonar, false);
   assert.equal(r.anular, null);
+});
+
+test("CSS · en el diseño nuevo, el toque de 48 px les gana a las alturas de renglon.css (QA 06/11)", () => {
+  const raiz = path.resolve(import.meta.dirname, "../..");
+  const globals = readFileSync(path.join(raiz, "src/app/globals.css"), "utf8");
+  const renglon = readFileSync(path.join(raiz, "public/diseno/renglon.css"), "utf8");
+  // Lo que renglon.css acorta con selectores de atributo (por eso ganaba): la barra y los botones.
+  assert.match(renglon, /\[data-diseno="renglon"\] \[data-ui="cabecera"\] \[data-parte="espacio"\] \{[^}]*min-height: 2\.25rem/);
+  assert.match(renglon, /\[data-diseno="renglon"\] :is\(\[data-ui="button"\][^{]*\{[^}]*min-height: var\(--alto\)/);
+  const regla = globals.match(/\[data-diseno="renglon"\]\.modo-simple :is\(([^)]*\([^)]*\)[^)]*)\) \{\s*min-height: 3rem;/);
+  assert.ok(regla, "falta la regla [data-diseno=renglon].modo-simple con min-height: 3rem");
+  for (const sel of ['[data-ui="button"]', "button", '[data-parte="espacio"]', '[data-parte="negocio"]', "nav a", "[data-modo-simple]", '[data-ui="indice"] a', ".min-h-11"]) {
+    assert.ok(regla[1].includes(sel), sel);
+  }
+});
+
+test("agenda · las teclas con alto inline siguen a --tap-min (48 px en simple), no a un 44 fijo (QA 06/11)", () => {
+  const raiz = path.resolve(import.meta.dirname, "../..");
+  for (const f of ["BarraDelTurno.tsx", "TurnoCajon.tsx"]) {
+    const src = readFileSync(path.join(raiz, "src/app/admin/(dashboard)/turnos/_agenda", f), "utf8");
+    assert.doesNotMatch(src, /minHeight: "2\.75rem"/, f);
+  }
+  const barra = readFileSync(path.join(raiz, "src/app/admin/(dashboard)/turnos/_agenda/BarraDelTurno.tsx"), "utf8");
+  assert.match(barra, /ALTO_DE_TECLA = "max\(2\.75rem, var\(--tap-min, 2\.75rem\)\)"/);
 });

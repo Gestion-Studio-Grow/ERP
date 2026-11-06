@@ -73,6 +73,7 @@ import TerminarTurno from "./TerminarTurno";
 import MoverTurno from "./MoverTurno";
 import LlegoLaSenia from "./LlegoLaSenia";
 import CorregirEnModoCompleto from "./CorregirEnModoCompleto";
+import { ALTO_DE_TECLA } from "./BarraDelTurno";
 import AutorizarAnulacion from "./AutorizarAnulacion";
 import ListoDelCobro from "./ListoDelCobro";
 import type { CobroHecho } from "@/lib/turnos/cobro-del-cajon";
@@ -400,7 +401,7 @@ export default function TurnoCajon({
                 rel="noopener noreferrer"
                 size="sm"
                 className="min-h-11"
-                style={{ minHeight: "2.75rem" }}
+                style={{ minHeight: ALTO_DE_TECLA }}
                 aria-label={`WhatsApp a ${t.clienta} (se abre en otra pestaña)`}
               >
                 WhatsApp
@@ -414,7 +415,7 @@ export default function TurnoCajon({
                 variant="outline"
                 size="sm"
                 className="min-h-11"
-                style={{ minHeight: "2.75rem" }}
+                style={{ minHeight: ALTO_DE_TECLA }}
                 aria-haspopup="dialog"
                 aria-label={`Editar el turno de ${t.clienta}`}
                 onClick={() => onEditar?.(t.id)}

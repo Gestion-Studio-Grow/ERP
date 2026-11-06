@@ -1581,6 +1581,18 @@ summary:focus-visible {
 .modo-simple :is(button, [data-ui="button"], [role="button"]) { min-width: 3rem; }
 .modo-simple nav a, .modo-simple [data-modo-simple] { min-height: 3rem; }
 .modo-simple input:is([type="checkbox"], [type="radio"]) { width: 1.5rem; height: 1.5rem; }
+/* Diseño nuevo («Renglón», public/diseno/renglon.css): fija sus alturas con selectores de atributo (0,2,0 a 0,3,0) y
+   se carga DESPUÉS de este archivo, así que les ganaba a las reglas de arriba (QA clic por clic: barra de 36 px y
+   botones de 44). Con la raíz `[data-diseno].modo-simple` y el `:is` (0,1,1) quedan en 0,3,1: 48 px igual. */
+[data-diseno="renglon"].modo-simple :is(button, [data-ui="button"], [role="button"], select, input:not([type="checkbox"], [type="radio"], [type="hidden"]), [data-parte="opcion"], [data-ui="chip"], nav a, [data-modo-simple], [data-parte="negocio"], [data-parte="espacio"], [data-parte="buscar"], [data-parte="persona"], [data-ui="indice"] a, .min-h-11) {
+  min-height: 3rem;
+}
+/* `.min-h-11` es el toque de 44 px de las pantallas (utilidad de Tailwind): en simple, 48. Las pestañas de la segunda
+   fila de la cabecera van al 100 % de su fila (0,4,1 en renglon.css): se agranda la fila. */
+[data-diseno="renglon"].modo-simple [data-ui="cabecera"] [data-parte="fila-2"] { height: 3rem; }
+[data-diseno="renglon"].modo-simple [data-ui="cabecera"] [data-parte="fila-2"] [data-ui="pestanas"] > :is(a, button) {
+  min-height: 3rem;
+}
 .modo-simple :focus-visible {
   outline: 3px solid var(--accent-ink, var(--accent));
   outline-offset: 2px;
