@@ -618,6 +618,7 @@ export const MODULOS = [
   { id: "direccion", label: "Tablero y reportes de Dirección" },
   { id: "equipo", label: "Equipo, roles y permisos" },
   { id: "ia", label: "Estudio IA y agentes" },
+  { id: "rendiciones", label: "Rendiciones de gastos" },
 ] as const;
 export type ModuloGestion = (typeof MODULOS)[number]["id"];
 
@@ -634,12 +635,33 @@ const E: Permiso = { ver: true, editar: true };
 const N: Permiso = { ver: false, editar: false };
 
 export const PERMISOS_BASE: Record<Exclude<RolGestion, "DIRECCION">, Record<ModuloGestion, Permiso>> = {
-  PRODUCCION: { pipeline: E, ficha: E, costos: E, proveedores: E, cotizaciones: E, diseno: E, pagos: E, empresa: N, liquidaciones: N, direccion: N, equipo: N, ia: E },
-  DISENO: { pipeline: V, ficha: V, costos: N, proveedores: N, cotizaciones: V, diseno: E, pagos: N, empresa: N, liquidaciones: N, direccion: N, equipo: N, ia: E },
-  ADMINISTRACION: { pipeline: V, ficha: V, costos: V, proveedores: E, cotizaciones: V, diseno: N, pagos: E, empresa: E, liquidaciones: E, direccion: N, equipo: N, ia: N },
-  COMERCIAL: { pipeline: E, ficha: V, costos: N, proveedores: N, cotizaciones: E, diseno: E, pagos: N, empresa: N, liquidaciones: N, direccion: N, equipo: N, ia: E },
-  SIN_FICHA: { pipeline: N, ficha: N, costos: N, proveedores: N, cotizaciones: N, diseno: N, pagos: N, empresa: N, liquidaciones: N, direccion: N, equipo: N, ia: N },
+  PRODUCCION: { pipeline: E, ficha: E, costos: E, proveedores: E, cotizaciones: E, diseno: E, pagos: E, empresa: N, liquidaciones: N, direccion: N, equipo: N, ia: E, rendiciones: V },
+  DISENO: { pipeline: V, ficha: V, costos: N, proveedores: N, cotizaciones: V, diseno: E, pagos: N, empresa: N, liquidaciones: N, direccion: N, equipo: N, ia: E, rendiciones: N },
+  ADMINISTRACION: { pipeline: V, ficha: V, costos: V, proveedores: E, cotizaciones: V, diseno: N, pagos: E, empresa: E, liquidaciones: E, direccion: N, equipo: N, ia: N, rendiciones: E },
+  COMERCIAL: { pipeline: E, ficha: V, costos: N, proveedores: N, cotizaciones: E, diseno: E, pagos: N, empresa: N, liquidaciones: N, direccion: N, equipo: N, ia: E, rendiciones: V },
+  SIN_FICHA: { pipeline: N, ficha: N, costos: N, proveedores: N, cotizaciones: N, diseno: N, pagos: N, empresa: N, liquidaciones: N, direccion: N, equipo: N, ia: N, rendiciones: N },
 };
+
+/**
+ * Rendí (plan MIA §2). El permiso `rendiciones` del módulo es el piso de lo que se ve: `V` = sólo lo propio,
+ * `E` = todo y aprobar/reintegrar. Las acciones finas no dependen de `pagos`: van por estas funciones puras.
+ * DISENO no rinde (provisional a confirmar).
+ */
+const ROLES_QUE_RINDEN: readonly RolGestion[] = ["DIRECCION", "ADMINISTRACION", "COMERCIAL", "PRODUCCION"];
+const ROLES_QUE_APRUEBAN_RENDICIONES: readonly RolGestion[] = ["DIRECCION", "ADMINISTRACION"];
+
+/** Rendir lo mío: un rol que rinde y que está en el `ProyectoEquipo` del proyecto (ver todos no alcanza). PURA. */
+export function puedeRendir(rol: RolGestion, estaEnEquipo: boolean): boolean {
+  return estaEnEquipo && ROLES_QUE_RINDEN.includes(rol);
+}
+
+/** Aprobar, devolver o rechazar una rendición: Dirección o Administración, nunca la propia. PURA. */
+export function puedeAprobarRendicion(rol: RolGestion, actorId: string, rindeId: string): boolean {
+  return ROLES_QUE_APRUEBAN_RENDICIONES.includes(rol) && actorId !== rindeId;
+}
+
+/** Pagar o reintegrar: los mismos que aprueban (Administración por caja y liquidación), nunca lo propio. PURA. */
+export const puedeReintegrarRendicion = puedeAprobarRendicion;
 
 /** Qué módulo abre cada app de eventos: con uno alcanza. */
 const MODULOS_DE_LA_APP: Readonly<Record<string, readonly ModuloGestion[]>> = {
@@ -723,6 +745,7 @@ export const TIPOS_AVISO = [
   { id: "liquidacion", label: "Mi liquidación publicada" },
   { id: "etapa", label: "Cambios de etapa de mis proyectos" },
   { id: "consulta", label: "Llegan consultas de potenciales clientes" },
+  { id: "rendicion", label: "Rendiciones de gastos para revisar o revisadas" },
 ] as const;
 
 /** `@Ana` en un mensaje: los nombres mencionados que coinciden con alguien del equipo. */

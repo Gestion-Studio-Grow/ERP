@@ -1,6 +1,7 @@
 import Image from "next/image";
 import ReserveButton from "./ReserveButton";
 import Reveal from "./Reveal";
+import { textoDelPrecio } from "@/lib/servicios/ficha";
 
 // ============================================================================
 // VITRINA DE TRATAMIENTOS — los tres más elegidos, de un vistazo.
@@ -151,7 +152,7 @@ function Tarjeta({ s, ilustracion }: { s: FeaturedService; ilustracion: string }
               color: "var(--text-strong)",
             }}
           >
-            {pesos(s.price)}
+            {textoDelPrecio(s.price, pesos)}
           </span>
           {s.residentPrice != null && (
             <span style={{ ...versalitas, display: "block", marginTop: 4, fontSize: ".625rem", color: "var(--accent)", letterSpacing: ".18em" }}>

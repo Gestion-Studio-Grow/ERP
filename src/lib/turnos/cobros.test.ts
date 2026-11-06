@@ -103,6 +103,22 @@ test("la seña nunca supera el precio del servicio", () => {
   assert.equal(seniaDelServicio({ depositAmount: 50000, precio: 20000 }), 20000);
 });
 
+test("seña en porcentaje: round(precio × % / 100) al centavo, y gana sobre el monto fijo", () => {
+  assert.equal(seniaDelServicio({ depositAmount: 5000, precio: 20000, depositPercent: 30 }), 6000);
+  assert.equal(seniaDelServicio({ depositAmount: null, precio: 12345.67, depositPercent: 15 }), 1851.85);
+  assert.equal(seniaDelServicio({ depositAmount: null, precio: 999, depositPercent: 33 }), 329.67);
+  // Sobre el precio del turno (vecina): el % va sobre ése, no sobre el general.
+  assert.equal(seniaDelServicio({ depositAmount: 6000, precio: 15000, depositPercent: 30 }), 4500);
+});
+
+test("porcentaje 0/null/NaN cae al monto fijo; más de 100 se acota al precio", () => {
+  for (const pct of [0, null, undefined, Number.NaN]) {
+    assert.equal(seniaDelServicio({ depositAmount: 5000, precio: 20000, depositPercent: pct }), 5000);
+  }
+  assert.equal(seniaDelServicio({ depositAmount: null, precio: 20000, depositPercent: 150 }), 20000);
+  assert.equal(seniaDelServicio({ depositAmount: null, precio: 0, depositPercent: 50 }), 0);
+});
+
 // ── Qué cobrar ahora ────────────────────────────────────────────────────────
 
 test("turno reservado, con seña definida y nada cobrado → se sugiere la seña", () => {

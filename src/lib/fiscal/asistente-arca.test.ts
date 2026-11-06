@@ -28,6 +28,7 @@ const FICHA: FichaFiscalDelPase = {
   credencial: null,
   delegacion: null,
   modoArca: "real",
+  enListaReal: true,
   comprobantesDePrueba: { esperandoCae: 0, enviosAbiertos: 0, autorizados: 0, desde: null },
 };
 const CRED = (entorno: "produccion" | "homologacion", certCuit = CUIT) => ({

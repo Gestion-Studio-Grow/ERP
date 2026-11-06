@@ -1,7 +1,8 @@
 import { getPaginaDeClientes } from "@/lib/actions";
+import { enmascararTelefono, puedeVerContacto } from "@/lib/clientes/telefono";
 import { requireApp } from "@/lib/require-app";
 import { prisma } from "@/lib/prisma";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { PageHeader } from "@/components/ui";
 import type { SessionUser } from "@/lib/session";
 import { contextoCrm, cargarCompradoresSinFicha } from "@/lib/crm/cargas.server";
@@ -62,7 +63,7 @@ export default async function ClientesPage({
   const [pagina, negocio] = await Promise.all([getPaginaDeClientes({ q: p.q, pagina: p.pagina, rubro }), getNegocioApps(user.role)]);
   // Sin clientes, el siguiente paso es dar el primer turno: sólo si puede abrir la agenda y darlo.
   const vacio = vacioDeClientes({
-    puedeDarTurno: appPermitida(appPorId("agenda"), negocio) && roleHasCapability(user.role, "agenda:manage"),
+    puedeDarTurno: appPermitida(appPorId("agenda"), negocio) && permisoEfectivo(user, "agenda:manage"),
   });
 
   return (
@@ -93,7 +94,7 @@ async function ClientesTabla({
   pielPropia?: boolean;
 }) {
   const c = await contextoCrm();
-  const puedeCrear = roleHasCapability(user.role, "clients:manage");
+  const puedeCrear = permisoEfectivo(user, "clients:manage");
   // «Deben» sólo donde hay turnos (la deuda es de turnos ya prestados); un mostrador no la lee.
   const conDeudas = c.rubro === "servicios";
   const [fichas, primeras, sinFicha, negocio, atajos, deudas, slug] = await Promise.all([
@@ -120,7 +121,14 @@ async function ClientesTabla({
     debe: deudas.get(persona.id) ?? 0,
   }));
   const p = leerParametrosLista(sp);
-  const pagina = paginaDeClientes(todas, p, c.hoy);
+  // Se busca con el número entero y recién la página que viaja sale enmascarada para quien no tiene
+  // `clients:contact` (casilla 5 de la matriz). «Compraron sin ficha» (son sólo un teléfono) no se
+  // ofrece: crear la ficha desde ahí precargaría el número enmascarado.
+  const veContacto = puedeVerContacto(user);
+  const paginaCruda = paginaDeClientes(todas, p, c.hoy);
+  const pagina = veContacto
+    ? paginaCruda
+    : { ...paginaCruda, filas: paginaCruda.filas.map((f) => ({ ...f, telefono: enmascararTelefono(f.telefono) })) };
   const visita = c.rubro === "servicios" ? "visita" : "compra";
   const conTurnos = appPermitida(appPorId("agenda"), negocio);
 
@@ -134,11 +142,11 @@ async function ClientesTabla({
         actions={conTurnos ? <BotonBuscar /> : undefined}
       />
       <EnlacesClientes role={user.role} actual="clientes" className="mb-4 flex flex-wrap gap-2 max-sm:hidden" />
-      {puedeCrear && <NuevaFicha compacta sinFicha={sinFicha.map((x) => ({ ...x, ultimo: x.ultimo.toISOString() }))} />}
+      {puedeCrear && <NuevaFicha compacta sinFicha={veContacto ? sinFicha.map((x) => ({ ...x, ultimo: x.ultimo.toISOString() })) : []} />}
       <ClientesRenglon
         atajos={atajos.filter((a) => a.id !== "clientes").map(({ etiqueta, href }) => ({ etiqueta, href }))}
         puedeCrear={puedeCrear}
-        sinFicha={sinFicha.length}
+        sinFicha={veContacto ? sinFicha.length : 0}
         filas={pagina.filas}
         coinciden={pagina.coinciden}
         total={todas.length}

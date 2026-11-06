@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireApp } from "@/lib/require-app";
 import { buttonClasses, cn } from "@/components/ui";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { personas, propiedadAdmin } from "@/lib/inmobiliaria/datos.server";
 import { alternarDestacada, cambiarEstadoPropiedad, hacerPortada, quitarFotoPropiedad } from "@/lib/inmobiliaria/acciones";
 import { ACCION_ESTADO, ESTADOS_EN_LA_WEB, estadosSiguientes } from "@/lib/inmobiliaria/core";
@@ -35,7 +35,7 @@ export default async function FichaDePropiedad({ params }: { params: Promise<{ i
         <h1 className={titulo}>{p.tituloSugerido}</h1>
       </header>
 
-      <BarraInmo activa={`${RAIZ}/propiedades`} conPlata={p.conPlata} esDuenio={roleHasCapability(user.role, "users:manage")} />
+      <BarraInmo activa={`${RAIZ}/propiedades`} conPlata={p.conPlata} esDuenio={permisoEfectivo(user, "users:manage")} />
 
       <section className={cn(tarjeta, "mb-4 grid grid-cols-1 gap-3")} aria-label="Estado y publicación">
         <div className="flex flex-wrap items-center justify-between gap-2">

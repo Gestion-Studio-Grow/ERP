@@ -24,7 +24,7 @@ import { prisma } from "@/lib/prisma";
 import { esConflictoDeEscritura } from "@/lib/conflicto-de-escritura";
 import { tenantTransaction } from "@/lib/rls";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { requireCapability } from "@/lib/authz";
+import { requireCapabilityFueraDeLaAgenda } from "@/lib/authz";
 import { auditAdmin } from "@/lib/audit-core";
 import { PLANTILLAS_DEFAULT } from "./core";
 import { plantillasConBienvenida, plantillasConCambio, validarCampoConfig, type TramoSemanal } from "./config-campos";
@@ -55,7 +55,7 @@ export async function guardarCampoConfig(
 }
 
 async function guardarCampo(clave: string, valor: unknown): Promise<Resultado<{ valor: number | string | null | TramoSemanal[] }>> {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const r = validarCampoConfig(clave, valor);
   if (!r.ok) return { ok: false, error: r.error };

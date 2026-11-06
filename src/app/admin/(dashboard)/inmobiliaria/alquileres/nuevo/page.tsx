@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { requireApp } from "@/lib/require-app";
-import { requireCapability } from "@/lib/authz";
+import { requireCapabilityFueraDeLaAgenda } from "@/lib/authz";
 import { cn, Field, Input, Select, Textarea } from "@/components/ui";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { configInmo, hoyDia, personas, propiedadesParaContrato } from "@/lib/inmobiliaria/datos.server";
 import { crearContrato } from "@/lib/inmobiliaria/acciones";
@@ -15,7 +15,7 @@ export const metadata = { title: "Inmobiliaria · Nuevo contrato" };
 
 export default async function NuevoContrato() {
   const user = await requireApp("inmobiliaria");
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const [config, gente, fichas] = await Promise.all([configInmo(tenantId), personas(), propiedadesParaContrato()]);
   const inicio = `${sumarMesesADia(hoyDia(), 1).slice(0, 7)}-01`;
@@ -35,7 +35,7 @@ export default async function NuevoContrato() {
         <h1 className={titulo}>Nuevo contrato</h1>
         <p className="text-sm text-muted">Al guardar se arman todas las cuotas y la propiedad sale del sitio.</p>
       </header>
-      <BarraInmo activa={`${RAIZ}/alquileres`} conPlata esDuenio={roleHasCapability(user.role, "users:manage")} />
+      <BarraInmo activa={`${RAIZ}/alquileres`} conPlata esDuenio={permisoEfectivo(user, "users:manage")} />
 
       <FormAccion accion={crearContrato} irA={`${RAIZ}/alquileres/{id}`} className="grid grid-cols-1 gap-4">
         <section className={cn(tarjeta, "grid grid-cols-1 gap-3")} aria-label="Propiedad">

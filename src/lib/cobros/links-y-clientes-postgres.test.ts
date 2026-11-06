@@ -123,7 +123,11 @@ test("links de cobro y lista de clientes a escala: aislamiento, totales reales, 
   await sembrar(base);
   const { tenantTransaction } = await import("@/lib/rls");
   const { paginaDeLinksEn, leerPaginaDeLinks } = await import("./links.server");
-  const { paginaDeFichasEn, leerPaginaDeFichas } = await import("@/lib/clientes/lista-fichas.server");
+  const { paginaDeFichasEn } = await import("@/lib/clientes/lista-fichas.server");
+  // `leerPaginaDeFichas` lee la sesión (máscara del teléfono, matriz de permisos): fuera de un request se usa la
+  // misma lectura en la transacción del negocio, con el contacto visible (dueño).
+  const leerPaginaDeFichas = (t: string, p: { q: string; pagina: number; rubro: "servicios" }) =>
+    tenantTransaction((tx) => paginaDeFichasEn(tx, t, { ...p, veContacto: true }), { tenantId: t });
   const { leerFichasConActividad, evaluarFichas, desdeHistorial } = await import("@/lib/crm/lecturas");
   const { buscarFichaPorTelefono } = await import("@/lib/clientes/ficha-por-telefono");
   const A = base.a.id;
@@ -177,7 +181,7 @@ test("links de cobro y lista de clientes a escala: aislamiento, totales reales, 
   assert.equal(fichasB.total, 6);
   assert.equal((await leerPaginaDeFichas(A, { q: "Bravo", pagina: 1, rubro: "servicios" })).coinciden, 0, "A no encuentra fichas de B");
   assert.equal((await leerPaginaDeFichas(A, { q: "1199990001", pagina: 1, rubro: "servicios" })).coinciden, 0, "ni por su teléfono");
-  const fichaCruzada = await tenantTransaction((tx) => paginaDeFichasEn(tx, B, { q: "", pagina: 1, rubro: "servicios" }), { tenantId: A });
+  const fichaCruzada = await tenantTransaction((tx) => paginaDeFichasEn(tx, B, { q: "", pagina: 1, rubro: "servicios", veContacto: true }), { tenantId: A });
   assert.equal(fichaCruzada.total, 0, "con la sesión de A, las fichas de B no existen");
   for (const q of ["maria perez", "ÑANDÚ", "1140007919", "+54 9 11 4000-7919", "15 4000"]) {
     const r = await leerPaginaDeFichas(A, { q, pagina: 1, rubro: "servicios" });
@@ -228,7 +232,7 @@ test("links de cobro y lista de clientes a escala: aislamiento, totales reales, 
     ["clientes: buscar teléfono «+54 9 11 4000-7919»", { q: "+54 9 11 4000-7919", pagina: 1 }],
   ];
   for (const [nombre, p] of casosFichas) {
-    await medir(nombre, async (db) => (await paginaDeFichasEn(db as never, A, { ...p, rubro: "servicios" })).coinciden, 2);
+    await medir(nombre, async (db) => (await paginaDeFichasEn(db as never, A, { ...p, rubro: "servicios", veContacto: true })).coinciden, 2);
   }
 
   // El motor comercial (lista con situación y piloto) lee TODAS las fichas con sus pedidos y

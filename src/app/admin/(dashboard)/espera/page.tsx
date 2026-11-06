@@ -5,6 +5,7 @@ import {
   markWaitlistNotified,
   cancelWaitlistEntry,
 } from "@/lib/waitlist-actions";
+import { enmascararEmail, enmascararTelefono, puedeVerContacto } from "@/lib/clientes/telefono";
 import { dateStrInBusinessTz, fmtCalendarDateLabel, fmtShortDate, fmtTime, nextBusinessDays } from "@/lib/datetime";
 import { EmptyState, Input, Select, buttonClasses } from "@/components/ui";
 import { requireApp } from "@/lib/require-app";
@@ -22,7 +23,7 @@ export const dynamic = "force-dynamic";
 
 // Los huecos liberados, listos para la pantalla: el texto de WhatsApp de cada anotado armado en
 // el servidor (con el nombre del negocio) y las fechas en ISO.
-async function huecosParaMostrar(): Promise<HuecoVista[]> {
+async function huecosParaMostrar(veContacto: boolean): Promise<HuecoVista[]> {
   const [huecos, negocio] = await Promise.all([cargarHuecosLiberados(), nombreDelNegocio()]);
   return huecos.map((h) => {
     const dia = dateStrInBusinessTz(h.startsAt);
@@ -37,9 +38,9 @@ async function huecosParaMostrar(): Promise<HuecoVista[]> {
       anotados: h.anotados.map((a) => ({
         id: a.id,
         nombre: a.clientName,
-        telefono: a.clientPhone,
+        telefono: veContacto ? a.clientPhone : enmascararTelefono(a.clientPhone),
         preferencia: a.preferenceNote,
-        wa: waLinkClienta(
+        wa: !veContacto ? null : waLinkClienta(
           a.clientPhone,
           textoHuecoLiberado({ nombre: a.clientName, negocio, servicio: h.servicio, profesional: h.profesional, cuando }),
         ),
@@ -51,13 +52,19 @@ async function huecosParaMostrar(): Promise<HuecoVista[]> {
 
 export default async function EsperaPage() {
   // La guardia es la app (rol, módulo y rubro); getWaitlist además pide waitlist:manage.
-  await requireApp("lista-de-espera");
-  const [entries, { services, professionals }, huecos] = await Promise.all([
+  const user = await requireApp("lista-de-espera");
+  // Sin `clients:contact` (casilla 5 de la matriz) teléfono y mail de quien espera salen enmascarados
+  // del servidor, y el aviso del hueco liberado no arma WhatsApp.
+  const veContacto = puedeVerContacto(user);
+  const [crudas, { services, professionals }, huecos] = await Promise.all([
     getWaitlist(),
     getWaitlistFormData(),
     // Inicio por apps: los huecos que dejó una cancelación. CH, fuera del piloto, sin cambios.
-    enInicioPorApps().then((piloto) => (piloto ? huecosParaMostrar() : [])),
+    enInicioPorApps().then((piloto) => (piloto ? huecosParaMostrar(veContacto) : [])),
   ]);
+  const entries = veContacto
+    ? crudas
+    : crudas.map((e) => ({ ...e, clientPhone: enmascararTelefono(e.clientPhone), clientEmail: enmascararEmail(e.clientEmail) }));
   const dates = nextBusinessDays(30);
 
   // DISEÑO NUEVO («Renglón»): la lista primero, como libro (una persona por renglón, «Marcar

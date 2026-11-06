@@ -33,7 +33,7 @@ import { cache } from "react";
 import { revalidatePath } from "next/cache";
 import { basePrisma } from "@/lib/prisma-base";
 import { tenantTransaction, trasladoTransaction } from "@/lib/rls";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { CIERRE_DIARIO_ACTION, CIERRE_DIARIO_ENTITY, lastClosedDayTx } from "@/lib/caja/frontera-cierre";
 import { businessWallTimeToUtc, todayInBusinessTz } from "@/lib/datetime";
 import type { DayKey } from "@/lib/caja/cierre-diario";
@@ -358,7 +358,7 @@ export async function stockDeLaRedAction(): Promise<ResultadoStock> {
   const app = await appNoDisponible("stock-por-local");
   if (app) return app;
   try {
-    const recorrido = roleHasCapability(casa.user.role, "multilocal:manage")
+    const recorrido = permisoEfectivo(casa.user, "multilocal:manage")
       ? await pasadaDeLaCasa(casa.casaId, todayInBusinessTz()).then((r) => ({
           leidos: r.leidos.map(({ local, dato }) => ({ local, dato: dato.stock })),
           fallidos: r.fallidos,
