@@ -46,8 +46,9 @@ export const VISTAS_DE_NEGOCIOS = [
 function seccionActual(ruta: string): Seccion["id"] | null {
   if (ruta === "/operador" || ruta.startsWith("/operador/tenants")) return "negocios";
   if (ruta.startsWith("/operador/alta")) return "alta";
-  // Los pedidos de los estudios: altas nuevas (solicitudes) y pedidos sobre un cliente (pedidos-cartera).
-  if (ruta.startsWith("/operador/solicitudes") || ruta.startsWith("/operador/pedidos-cartera")) return "pedidos";
+  // Los pedidos de los estudios: altas nuevas (solicitudes), pedidos sobre un cliente (pedidos-cartera)
+  // y los tickets de la consola de soporte (soporte).
+  if (ruta.startsWith("/operador/solicitudes") || ruta.startsWith("/operador/pedidos-cartera") || ruta.startsWith("/operador/soporte")) return "pedidos";
   if (ruta.startsWith("/operador/cockpit")) return "tablero";
   if (ruta.startsWith("/operador/direccion")) return "direccion";
   if (ruta.startsWith("/operador/diseno")) return "diseno";
