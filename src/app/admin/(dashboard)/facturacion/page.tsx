@@ -16,7 +16,7 @@ import { requireApp } from "@/lib/require-app";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import { LineaDeEstado, Marca, Pestanas } from "@/components/ui";
 import ComprobantesArca from "./ComprobantesArca";
-import EmitirComprobante from "./EmitirComprobante";
+import EmitirDelPanel from "./EmitirDelPanel";
 import { datosDelFacturador, tieneFacturacionElectronica } from "@/lib/facturacion/emision-manual.server";
 import CobrarConLink from "./CobrarConLink";
 import LinksDeCobro from "./LinksDeCobro";
@@ -80,14 +80,14 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
       className="mb-5"
       pestanas={[
         { href: "/admin/facturacion?vista=comprobantes", etiqueta: "Comprobantes", actual: !conLink && !conArca && !conEmitir },
-        ...(emiteAMano ? [{ href: "/admin/facturacion?vista=emitir", etiqueta: "Emitir", actual: conEmitir }] : []),
+        ...(emiteAMano ? [{ href: "/admin/facturacion?vista=emitir", etiqueta: "Emitir factura", actual: conEmitir }] : []),
         { href: "/admin/facturacion?vista=cobrar-con-link", etiqueta: "Cobrar con link", actual: conLink },
         ...(arcaActivo ? [{ href: "/admin/facturacion?vista=arca", etiqueta: "Conectar con ARCA", actual: conArca }] : []),
       ]}
     />
   );
   const comprobantes = tenantId && facturador ? (
-    <EmitirComprobante tenantId={tenantId} condicionEmisor={facturador.condicionEmisor} hoy={facturador.hoy} />
+    <EmitirDelPanel tenantId={tenantId} condicionEmisor={facturador.condicionEmisor} hoy={facturador.hoy} regimenFacturaA={facturador.regimenFacturaA} />
   ) : asistente ? (
     asistente
   ) : (

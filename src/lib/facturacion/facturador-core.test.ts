@@ -1,6 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  avisoDeFacturaA,
+  enlaceDeWhatsApp,
+  faltantesEnQue,
+  fechasDeServicioPorDefecto,
+  mensajeDeWhatsApp,
+  lineasDelLote,
   borradorVacio,
   explicarError,
   faltaEnComprador,
@@ -106,7 +112,7 @@ test("la vista previa: el inscripto discrimina el IVA, la C no", () => {
 
 test("servicios: sin las tres fechas no se confirma", () => {
   const b = { ...borradorVacio(), concepto: "servicios" as const, descripcion: "Clase", total: "8000" };
-  assert.match(faltaEnQue(b) ?? "", /tres fechas/);
+  assert.match(faltaEnQue(b) ?? "", /«Desde».*«Hasta».*te lo pagan/);
   assert.equal(faltaEnQue({ ...b, desde: "2026-11-01", hasta: "2026-11-05", vencimiento: "2026-11-10" }), null);
   assert.match(faltaEnQue({ ...b, desde: "2026-11-05", hasta: "2026-11-01", vencimiento: "2026-11-10" }) ?? "", /antes de empezar/);
 });
@@ -136,4 +142,51 @@ test("los últimos compradores: sin repetir, hasta 5, y una lista rota no rompe"
   assert.deepEqual(leerRecientes("{no es json"), []);
   assert.deepEqual(leerRecientes(JSON.stringify([{ tipo: "identificado", docTipo: 1, docNro: "x", nombre: "y" }])), []);
   assert.deepEqual(sumarReciente(l, { tipo: "consumidor-final" }), l);
+});
+
+test("F1 · servicios: el mes en curso y el vencimiento a 10 días, también al cruzar de mes y de año", () => {
+  assert.deepEqual(fechasDeServicioPorDefecto("20261106"), { desde: "2026-11-01", hasta: "2026-11-30", vencimiento: "2026-11-16" });
+  assert.deepEqual(fechasDeServicioPorDefecto("20261225"), { desde: "2026-12-01", hasta: "2026-12-31", vencimiento: "2027-01-04" });
+  assert.deepEqual(fechasDeServicioPorDefecto("20280220"), { desde: "2028-02-01", hasta: "2028-02-29", vencimiento: "2028-03-01" });
+  const b = { ...borradorVacio(), concepto: "servicios" as const, descripcion: "Clase", total: "8000", ...fechasDeServicioPorDefecto("20261106") };
+  assert.equal(faltaEnQue(b), null);
+});
+
+test("F1 · cada faltante por separado, para decirlo al lado del botón", () => {
+  const b = { ...borradorVacio(), concepto: "servicios" as const };
+  assert.deepEqual(faltantesEnQue(b).length, 5);
+  assert.equal(faltaEnQue({ ...b, descripcion: "Clase", total: "1", desde: "2026-11-01", hasta: "2026-11-30" }), "Falta hasta cuándo te lo pagan.");
+});
+
+test("Factura A sin la clase cargada: se avisa antes de emitir, con qué hacer", () => {
+  assert.match(avisoDeFacturaA("A", null) ?? "", /Soporte GSG/);
+  assert.match(avisoDeFacturaA("A", "M") ?? "", /sitio de ARCA/);
+  assert.equal(avisoDeFacturaA("A", "A"), null);
+  assert.equal(avisoDeFacturaA("B", null), null);
+  assert.equal(avisoDeFacturaA("A", undefined), null);
+});
+
+test("F2 · WhatsApp: letra, número, total y CAE en el texto", () => {
+  const t = mensajeDeWhatsApp({ letra: "B", numero: "0001-00000023", total: 12100, cae: "123", dePrueba: false, formatear: (n) => `$ ${n}` });
+  assert.equal(t, "Hola, te paso la Factura B N.º 0001-00000023 por $ 12100. CAE 123. ¡Gracias!");
+  assert.ok(enlaceDeWhatsApp(t).startsWith("https://wa.me/?text=Hola%2C"));
+});
+
+test("lote del contador: una por línea, con «;» o tabulador, cada una con la validación del servidor", () => {
+  const ls = lineasDelLote("Clase de octubre; 8.000\n\nAbono\t12000,50\nSin total\n; 500", {
+    hoy: "20261106",
+    condicionEmisor: "MONOTRIBUTO",
+    concepto: "servicios",
+    alicuota: "21",
+  });
+  assert.equal(ls.length, 4);
+  assert.equal(ls[0].error, null);
+  assert.equal(ls[0].pedido?.servicioDesde, "2026-11-01");
+  assert.equal(ls[1].total, 12000.5);
+  assert.match(ls[2].error ?? "", /total/);
+  assert.match(ls[3].error ?? "", /detalle/);
+  const muchas = lineasDelLote(Array.from({ length: 32 }, (_, i) => `x${i};1`).join("\n"), {
+    hoy: "20261106", condicionEmisor: "MONOTRIBUTO", concepto: "productos", alicuota: "21",
+  });
+  assert.equal(muchas.filter((l) => l.error).length, 2);
 });

@@ -1,0 +1,27 @@
+QA · Facturador guiado · 2026-11-06T01:50:03.008Z
+Pasos: 25 · bien: 25 · mal: 0
+OK  1366 panel · B a consumidor final · importe → confirmar; arriba: letra, número, CAE y WhatsApp; el PDF, dicho
+OK  1366 panel · A a responsable inscripto · a quién → qué → confirmar
+OK  1366 panel · servicios con las fechas del mes · F1: mes en curso y vencimiento precargados; el faltante, dicho al lado del botón
+OK  1366 panel · error con la acción que lo resuelve · RG 5700 antes de emitir → paso 1
+OK  1366 contador · emitir con el teclado · Ctrl+Enter dos veces; la sesión cuenta 1
+OK  1366 contador · la misma, a otro comprador · cambio de receptor: queda lo vendido, sale A
+OK  1366 contador · lote de varias · 2 de 3 líneas salen; la que tiene error se señala
+OK  1366 contador · nota de crédito · desde los comprobantes del cliente
+OK  390  panel · B a consumidor final · importe → confirmar; arriba: letra, número, CAE y WhatsApp; el PDF, dicho
+OK  390  panel · A a responsable inscripto · a quién → qué → confirmar
+OK  390  panel · servicios con las fechas del mes · F1: mes en curso y vencimiento precargados; el faltante, dicho al lado del botón
+OK  390  panel · error con la acción que lo resuelve · RG 5700 antes de emitir → paso 1
+OK  390  contador · emitir con el teclado · Ctrl+Enter dos veces; la sesión cuenta 1
+OK  390  contador · la misma, a otro comprador · cambio de receptor: queda lo vendido, sale A
+OK  390  contador · lote de varias · 2 de 3 líneas salen; la que tiene error se señala
+OK  390  contador · nota de crédito · desde los comprobantes del cliente
+OK  1366 factoque · Factura A sin régimen cargado · avisa antes de emitir y ofrece consumidor final
+OK  390  factoque · Factura A sin régimen cargado · avisa antes de emitir y ofrece consumidor final
+OK  1366 factoque · C a consumidor final · F3: pide razón social y domicilio en el resultado y los guarda; F2 arriba
+OK  1366 factoque · servicios · F1: sin tocar las fechas, sale
+OK  1366 factoque · nota de crédito · desde «Mis facturas»
+OK  390  factoque · C a consumidor final · F2: resultado arriba con letra, número, CAE y WhatsApp
+OK  390  factoque · servicios · F1: sin tocar las fechas, sale
+OK  390  factoque · nota de crédito · desde «Mis facturas»
+OK  390  factoque · tope del mes · F4: título, qué pasa y «Ver los planes»

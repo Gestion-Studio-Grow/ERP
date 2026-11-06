@@ -6,35 +6,65 @@
 //  · Atajos de teclado: Ctrl+Enter avanza o emite; Alt+1/2/3 salta al paso (los da el motor con
 //    `atajosDeTeclado`, que sólo prende esta pantalla).
 //  · Emisión en serie: cuenta lo emitido en la sesión y deja la próxima lista con un toque (o Ctrl+Enter).
+//  · Emisión por lote: varias a consumidor final de una vez (LoteDelEstudio).
+//  · Cambio de receptor: «La misma, a otro comprador» en el resultado.
 //  · El salto al lote del mes (las facturas recurrentes de toda la cartera) y a los comprobantes.
 // ============================================================================
 
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import FacturadorGuiado from "@/components/facturacion/FacturadorGuiado";
+import EmitirComprobante from "@/components/facturacion/EmitirComprobante";
 import { emitirParaClienteAction } from "@/lib/facturacion/emitir-manual-actions";
 import type { EmisionFacturita } from "@/lib/facturita-core";
+import { Segmented } from "@/components/ui";
+import LoteDelEstudio from "./LoteDelEstudio";
 
 export default function FacturadorDelEstudio({
   clienteId,
   alias,
   condicionEmisor,
   hoy,
+  regimenFacturaA,
 }: {
   clienteId: string;
   alias: string;
   condicionEmisor: string | null;
   hoy: string;
+  regimenFacturaA: "A" | "A_CON_LEYENDA" | "M" | null;
 }) {
   const router = useRouter();
   const [emitidas, setEmitidas] = useState(0);
+  const [modo, setModo] = useState<"una" | "lote">("una");
   const base = `/contador/cliente/${encodeURIComponent(clienteId)}`;
   const emitir = (datos: EmisionFacturita) => emitirParaClienteAction(clienteId, datos);
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,42rem)_minmax(0,1fr)]">
-      <FacturadorGuiado
+      <div className="flex min-w-0 flex-col gap-5">
+      <Segmented
+        name="modo-emision"
+        leyenda="Cómo emitís"
+        opciones={[
+          { valor: "una", etiqueta: "Una factura" },
+          { valor: "lote", etiqueta: "Varias de una vez" },
+        ]}
+        value={modo}
+        onChange={(e) => setModo((e.target as unknown as HTMLInputElement).value as "una" | "lote")}
+        lleno
+      />
+      {modo === "lote" ? (
+        <LoteDelEstudio
+          clienteId={clienteId}
+          condicionEmisor={condicionEmisor}
+          hoy={hoy}
+          alEmitir={(n) => {
+            setEmitidas((v) => v + n);
+            router.refresh();
+          }}
+        />
+      ) : (
+      <EmitirComprobante
         emitir={emitir}
         condicionEmisor={condicionEmisor}
         hoy={hoy}
@@ -42,6 +72,8 @@ export default function FacturadorDelEstudio({
         rutas={{ datosFiscales: `/contador/cliente/${encodeURIComponent(clienteId)}/comprobantes`, comprobantes: `${base}/comprobantes` }}
         enlaceDelComprobante={() => `${base}/comprobantes`}
         atajosDeTeclado
+        cambiarReceptor
+        regimenFacturaA={regimenFacturaA}
         alEmitir={(r) => {
           if (!r.repetida) setEmitidas((n) => n + 1);
           router.refresh();
@@ -49,13 +81,15 @@ export default function FacturadorDelEstudio({
         despues={
           <p className="text-sm text-muted">
             ¿Son las mensuales de siempre? Cargalas una vez como abono y salen solas en el{" "}
-            <Link href="/contador/lote" className="font-medium text-accent-ink underline underline-offset-4">
+            <Link href="/contador/lote" className="inline-flex min-h-11 items-center font-medium text-accent-ink underline underline-offset-4">
               lote del mes
             </Link>
             .
           </p>
         }
       />
+      )}
+      </div>
       <aside aria-label="En esta sesión" className="flex flex-col gap-3 text-sm">
         <p className="rounded-lg border border-line bg-surface-raised px-4 py-3" aria-live="polite">
           <span className="block text-muted">Emitidas para {alias} en esta sesión</span>
@@ -70,7 +104,7 @@ export default function FacturadorDelEstudio({
         </div>
         <p className="text-muted">
           Para facturar el mes de toda la cartera de una vez, usá el{" "}
-          <Link href="/contador/lote" className="font-medium text-accent-ink underline underline-offset-4">lote del mes</Link>.
+          <Link href="/contador/lote" className="inline-flex min-h-11 items-center font-medium text-accent-ink underline underline-offset-4">lote del mes</Link>.
         </p>
       </aside>
     </div>

@@ -1,7 +1,7 @@
 "use client";
 
 // ============================================================================
-// FACTURADOR GUIADO — emitir un comprobante en tres pasos: a quién · qué · confirmar
+// EMITIR COMPROBANTE — el facturador común en tres pasos: a quién · qué · confirmar
 // ============================================================================
 //
 // El MISMO componente para el panel de cualquier negocio, la consola del contador y Factoque. Cada
@@ -9,8 +9,8 @@
 // propio de cada una (los atajos y la emisión en serie del contador, «Mis productos» de Factoque)
 // va por fuera, como capa, o por las props `atajosDeTeclado` / `despues`.
 //
-// Por defecto arranca en «Qué» con el consumidor final elegido: lo de todos los días son dos pasos
-// (qué y confirmar). Antes de emitir muestra qué comprobante sale, el neto, el IVA y el total, con la
+// Por defecto arranca en «Qué» con el consumidor final elegido y el importe primero: lo de todos
+// los días son tres toques (importe → cliente, ya en consumidor final → emitir). Antes de emitir muestra qué comprobante sale, el neto, el IVA y el total, con la
 // MISMA validación y la MISMA cuenta del servidor (facturador-core). Si algo falla, lo dice en
 // criollo y ofrece la acción que lo resuelve. Los últimos compradores y detalles se recuerdan en el
 // dispositivo (nunca en el servidor), por negocio.
@@ -35,6 +35,10 @@ import { nuevaClaveEmision } from "@/lib/facturita-atajos";
 import {
   CONSUMIDOR_FINAL,
   PASOS,
+  avisoDeFacturaA,
+  enlaceDeWhatsApp,
+  fechasDeServicioPorDefecto,
+  mensajeDeWhatsApp,
   borradorVacio,
   explicarError,
   faltaEnComprador,
@@ -105,7 +109,7 @@ function leerItems(crudo: string | null): ItemReciente[] {
   }
 }
 
-export interface FacturadorGuiadoProps {
+export interface EmitirComprobanteProps {
   /** La acción de emitir de ESTA pantalla (cada una con su barrera en el servidor). */
   emitir: (datos: EmisionFacturita) => Promise<ResultadoEmisionManual>;
   /** Condición del EMISOR frente al IVA; `null` = sin perfil fiscal (no se emite). */
@@ -115,8 +119,23 @@ export interface FacturadorGuiadoProps {
   /** Para recordar los últimos compradores por negocio (p. ej. el id del negocio que emite). */
   ambito: string;
   rutas: RutasDeAyuda;
-  /** Con el tope del plan agotado (Factoque) o sin facturación: no deja emitir. */
-  bloqueado?: { motivo: string } | null;
+  /**
+   * Con el tope del plan agotado (Factoque) o sin facturación: no deja emitir. Se explica arriba,
+   * con un título, qué pasa y la acción que lo destraba (p. ej. «Ver los planes»).
+   */
+  bloqueado?: { titulo?: string; motivo: string; accion?: { href: string; etiqueta: string } | null } | null;
+  /**
+   * La clase de Factura A del emisor inscripto (la carga Soporte GSG). `null` = sin cargar: la A se
+   * avisa y no se emite (ARCA la rechaza). Sin la prop, la pantalla no lo sabe y no avisa.
+   */
+  regimenFacturaA?: "A" | "A_CON_LEYENDA" | "M" | null;
+  /**
+   * El PDF del comprobante en el resultado. `faltanDatos`: lo que se le pide a la persona ANTES de
+   * descargarlo (p. ej. su razón social y domicilio en Factoque), en vez de un PDF que no sale.
+   */
+  pdf?: { href: (invoiceId: string) => string; faltanDatos?: React.ReactNode | null } | null;
+  /** «Misma factura a otro comprador» en el resultado (la consola del contador). */
+  cambiarReceptor?: boolean;
   /** Un borrador precargado (un producto de Factoque que pide más datos). */
   inicial?: Partial<Borrador> | null;
   /** Atajos de teclado (la consola del contador): Ctrl+Enter avanza o emite; Alt+1/2/3 va al paso. */
@@ -129,21 +148,27 @@ export interface FacturadorGuiadoProps {
   alEmitir?: (r: Extract<ResultadoEmisionManual, { ok: true }>) => void;
 }
 
-export default function FacturadorGuiado({
+export default function EmitirComprobante({
   emitir,
   condicionEmisor,
   hoy,
   ambito,
   rutas,
   bloqueado = null,
+  regimenFacturaA,
+  pdf = null,
+  cambiarReceptor = false,
   inicial = null,
   atajosDeTeclado = false,
   enlaceDelComprobante,
   despues,
   alEmitir,
-}: FacturadorGuiadoProps) {
+}: EmitirComprobanteProps) {
   const id = useId();
-  const [b, setB] = useState<Borrador>(() => ({ ...borradorVacio(), ...inicial }));
+  const [b, setB] = useState<Borrador>(() => {
+    const base = { ...borradorVacio(), ...inicial };
+    return conceptoConFechasDeServicio(base.concepto) && !base.desde ? { ...base, ...fechasDeServicioPorDefecto(hoy) } : base;
+  });
   // Lo de todos los días: consumidor final ya elegido, se arranca por «Qué».
   const [paso, setPaso] = useState<Paso>(2);
   const [resultado, setResultado] = useState<ResultadoEmisionManual | null>(null);
@@ -172,6 +197,7 @@ export default function FacturadorGuiado({
         ? explicarError(validacion.error, rutas)
         : null;
   const nombreComprobante = vista?.letra ? `Factura ${vista.letra}` : "Factura";
+  const avisoA = avisoDeFacturaA(vista?.letra, regimenFacturaA);
 
   const irA = useCallback((p: Paso) => {
     setPaso(p);
@@ -180,7 +206,15 @@ export default function FacturadorGuiado({
   }, []);
 
   const cambiar = (parcial: Partial<Borrador>) => {
-    setB((v) => ({ ...v, ...parcial }));
+    setB((v) => {
+      const nuevo = { ...v, ...parcial };
+      // F1: al pasar a servicios, las fechas arrancan con el mes en curso y el pago a 10 días (a la
+      // vista para corregirlas), no vacías con el botón apagado sin explicación.
+      if (conceptoConFechasDeServicio(nuevo.concepto) && !nuevo.desde && !nuevo.hasta && !nuevo.vencimiento) {
+        return { ...nuevo, ...fechasDeServicioPorDefecto(hoy) };
+      }
+      return nuevo;
+    });
     if (resultado && !resultado.ok) setResultado(null);
   };
   const cambiarComprador = (parcial: Partial<Identificado>) =>
@@ -193,7 +227,7 @@ export default function FacturadorGuiado({
     });
 
   const enviar = useCallback(() => {
-    if (pendiente || bloqueado || !validacion?.ok) return;
+    if (pendiente || bloqueado || avisoA || !validacion?.ok) return;
     setResultado(null);
     // La misma clave sólo para el MISMO pedido: si la persona cambió algo, es otra factura.
     const firma = JSON.stringify(pedido);
@@ -216,16 +250,28 @@ export default function FacturadorGuiado({
         guardar(kItems, [item, ...items.filter((x) => x.descripcion !== item.descripcion)].slice(0, 5));
         alEmitir?.(r);
       }
-      requestAnimationFrame(() => document.getElementById(`${id}-resultado`)?.focus());
+      // Con la factura hecha, el resultado (arriba) a la vista; un error se anuncia en su lugar (role=alert).
+      if (r.ok) requestAnimationFrame(() => {
+        const el = document.getElementById(`${id}-resultado`);
+        el?.focus({ preventScroll: true });
+        el?.scrollIntoView({ block: "start" });
+      });
     });
-  }, [pendiente, bloqueado, validacion, pedido, emitir, recientes, b, items, kCompradores, kItems, alEmitir, id]);
+  }, [pendiente, bloqueado, avisoA, validacion, pedido, emitir, recientes, b, items, kCompradores, kItems, alEmitir, id]);
+
+  /** «Misma factura a otro comprador»: queda lo vendido, se vuelve a «A quién». */
+  const aOtroComprador = () => {
+    setB((v) => ({ ...v, comprador: CONSUMIDOR_FINAL }));
+    clave.current = null;
+    irA(1);
+  };
 
   /** «Emitir otra»: de nuevo a «Qué»; con `mismoComprador`, el comprador queda. */
   const otra = (mismoComprador: boolean) => {
     setB((v) => ({ ...borradorVacio(), comprador: mismoComprador ? v.comprador : CONSUMIDOR_FINAL, alicuota: v.alicuota }));
     clave.current = null;
     irA(2);
-    requestAnimationFrame(() => document.getElementById(`${id}-detalle`)?.focus());
+    requestAnimationFrame(() => document.getElementById(`${id}-total`)?.focus());
   };
 
   const avanzar = useCallback(() => {
@@ -256,10 +302,52 @@ export default function FacturadorGuiado({
   }, [atajosDeTeclado, avanzar, irA, resultado]);
   const errorDelServidor = resultado && !resultado.ok ? explicarError(resultado.error, rutas) : null;
   const comprador = b.comprador;
+  const encabezado = (
+    <h2 id={`${id}-titulo`} ref={titulo} tabIndex={-1} className="text-base font-semibold text-strong focus:outline-none">
+      {resultado?.ok ? "Listo" : paso === 1 ? "¿A quién le facturás?" : paso === 2 ? "¿Qué vendiste?" : `Revisá y emití la ${nombreComprobante}`}
+    </h2>
+  );
 
   return (
     <section aria-labelledby={`${id}-titulo`} className="flex min-w-0 flex-col gap-4">
+      {/* El título va arriba con el resultado; mientras se carga, debajo de los pasos y del comprador. */}
+      {resultado?.ok && encabezado}
+      {/* ───────────── Resultado (arriba: es lo primero que se ve) ───────────── */}
+      <div id={`${id}-resultado`} tabIndex={-1} aria-live="polite" className="scroll-mt-20 focus:outline-none">
+        {resultado?.ok && (
+          <ResultadoDeEmision
+            r={resultado}
+            total={vista?.total ?? null}
+            pdf={pdf}
+            enlaceDelComprobante={enlaceDelComprobante}
+          >
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={() => otra(false)} disabled={!!bloqueado}>
+                Emitir otra
+              </Button>
+              {comprador.tipo === "identificado" && (
+                <Button variant="outline" onClick={() => otra(true)} disabled={!!bloqueado}>
+                  Otra a {comprador.nombre.trim().split(/\s+/).slice(0, 3).join(" ")}
+                </Button>
+              )}
+              {cambiarReceptor && (
+                <Button variant="outline" onClick={aOtroComprador} disabled={!!bloqueado}>
+                  La misma, a otro comprador
+                </Button>
+              )}
+            </div>
+            {atajosDeTeclado && (
+              <p className="text-xs text-muted">
+                <Kbd>Ctrl</Kbd> + <Kbd>Enter</Kbd> para la próxima.
+              </p>
+            )}
+            {despues}
+          </ResultadoDeEmision>
+        )}
+      </div>
+
       {/* Los tres pasos: se puede volver a uno anterior tocándolo. */}
+      {!resultado?.ok && (
       <ol aria-label="Pasos para emitir" className="m-0 flex list-none gap-1 p-0">
         {PASOS.map((p) => {
           const actual = p.paso === paso && !resultado?.ok;
@@ -282,11 +370,18 @@ export default function FacturadorGuiado({
           );
         })}
       </ol>
+      )}
 
       {bloqueado && (
-        <p role="alert" className="rounded-lg border border-warning bg-warning-soft px-3 py-2 text-sm font-medium text-strong">
-          {bloqueado.motivo}
-        </p>
+        <div role="alert" className="flex flex-col gap-2 rounded-lg border border-warning bg-warning-soft px-4 py-3 text-sm text-strong">
+          {bloqueado.titulo && <p className="m-0 text-base font-semibold">{bloqueado.titulo}</p>}
+          <p className="m-0">{bloqueado.motivo}</p>
+          {bloqueado.accion && (
+            <Link href={bloqueado.accion.href} className={`${buttonClasses("solid")} self-start`}>
+              {bloqueado.accion.etiqueta}
+            </Link>
+          )}
+        </div>
       )}
 
       {/* El comprador elegido, siempre a la vista fuera del paso 1: cambiarlo es un toque. */}
@@ -300,9 +395,8 @@ export default function FacturadorGuiado({
         </p>
       )}
 
-      <h2 id={`${id}-titulo`} ref={titulo} tabIndex={-1} className="text-base font-semibold text-strong focus:outline-none">
-        {resultado?.ok ? "Listo" : paso === 1 ? "¿A quién le facturás?" : paso === 2 ? "¿Qué vendiste?" : `Revisá y emití la ${nombreComprobante}`}
-      </h2>
+
+      {!resultado?.ok && encabezado}
 
       {/* ───────────── Paso 1 · A quién ───────────── */}
       {paso === 1 && !resultado?.ok && (
@@ -448,15 +542,6 @@ export default function FacturadorGuiado({
               ))}
             </div>
           )}
-          <Field label="Detalle" htmlFor={`${id}-detalle`} hint="Contalo simple: va en la factura." required>
-            <Input
-              id={`${id}-detalle`}
-              maxLength={200}
-              value={b.descripcion}
-              placeholder={OPCIONES_CONCEPTO.find((o) => o.id === b.concepto)?.ejemplo}
-              onChange={(e) => cambiar({ descripcion: e.target.value })}
-            />
-          </Field>
           <div className={inscripto ? "grid gap-4 sm:grid-cols-2" : ""}>
             <Field label="Total" htmlFor={`${id}-total`} hint={inscripto ? "En pesos, con el IVA incluido." : "En pesos."} required>
               <Input
@@ -485,6 +570,15 @@ export default function FacturadorGuiado({
               </Field>
             )}
           </div>
+          <Field label="Detalle" htmlFor={`${id}-detalle`} hint="Contalo simple: va en la factura." required>
+            <Input
+              id={`${id}-detalle`}
+              maxLength={200}
+              value={b.descripcion}
+              placeholder={OPCIONES_CONCEPTO.find((o) => o.id === b.concepto)?.ejemplo}
+              onChange={(e) => cambiar({ descripcion: e.target.value })}
+            />
+          </Field>
           {conceptoConFechasDeServicio(b.concepto) && (
             <fieldset className="grid gap-4 rounded-lg border border-line p-4 sm:grid-cols-3">
               <legend className="px-1 text-sm font-medium text-strong">Fechas que pide ARCA para un servicio</legend>
@@ -539,11 +633,20 @@ export default function FacturadorGuiado({
           <p className="text-xs text-muted">
             La letra la confirma el sistema con tus datos y los del comprador. Al emitir, va a ARCA para su autorización.
           </p>
-          {errorPrevio && <ErrorConAccion error={errorPrevio} irA={irA} reintentar={enviar} />}
+          {avisoA && (
+            <div role="alert" className="flex flex-col gap-2 rounded-lg border border-warning bg-warning-soft px-3 py-3 text-sm text-strong sm:flex-row sm:items-center">
+              <p className="m-0 flex-1">{avisoA}</p>
+              <Button variant="outline" size="sm" onClick={() => { cambiar({ comprador: CONSUMIDOR_FINAL }); irA(2); }}>
+                Facturar a consumidor final
+              </Button>
+            </div>
+          )}
+          {!avisoA && errorPrevio && <ErrorConAccion error={errorPrevio} irA={irA} reintentar={enviar} />}
+          {errorDelServidor && <ErrorConAccion error={errorDelServidor} irA={irA} reintentar={enviar} />}
           <Pie falta={null} atajos={atajosDeTeclado}>
             <Button
               onClick={enviar}
-              disabled={pendiente || !!bloqueado || !validacion?.ok}
+              disabled={pendiente || !!bloqueado || !!avisoA || !validacion?.ok}
               estado={pendiente ? "cargando" : undefined}
               className="w-full sm:w-auto"
             >
@@ -553,48 +656,6 @@ export default function FacturadorGuiado({
         </div>
       )}
 
-      {/* ───────────── Resultado ───────────── */}
-      <div id={`${id}-resultado`} tabIndex={-1} aria-live="polite" className="focus:outline-none">
-        {errorDelServidor && <ErrorConAccion error={errorDelServidor} irA={irA} reintentar={enviar} />}
-        {resultado?.ok && (
-          <div className="flex flex-col gap-3 rounded-lg border border-line bg-surface-raised p-4">
-            <div className="flex flex-wrap items-center gap-2">
-              {resultado.estado.estado === "autorizada" ? (
-                resultado.estado.dePrueba ? (
-                  <Badge tone="warning" dot>Autorizada de prueba</Badge>
-                ) : (
-                  <Badge tone="success" dot>Autorizada por ARCA</Badge>
-                )
-              ) : (
-                <Badge tone="neutral" dot>Pendiente</Badge>
-              )}
-              <span className="text-sm text-body">{resultado.mensaje}</span>
-            </div>
-            {resultado.limite?.mensaje && <span className="text-sm text-muted">{resultado.limite.mensaje}</span>}
-            <div className="flex flex-wrap gap-2">
-              <Button onClick={() => otra(false)} disabled={!!bloqueado}>
-                Emitir otra
-              </Button>
-              {comprador.tipo === "identificado" && (
-                <Button variant="outline" onClick={() => otra(true)} disabled={!!bloqueado}>
-                  Otra a {comprador.nombre.trim().split(/\s+/).slice(0, 3).join(" ")}
-                </Button>
-              )}
-              {enlaceDelComprobante && (
-                <Link href={enlaceDelComprobante(resultado.invoiceId)} className={buttonClasses("ghost")}>
-                  Ver el comprobante
-                </Link>
-              )}
-            </div>
-            {atajosDeTeclado && (
-              <p className="text-xs text-muted">
-                <Kbd>Ctrl</Kbd> + <Kbd>Enter</Kbd> para la próxima.
-              </p>
-            )}
-            {despues}
-          </div>
-        )}
-      </div>
     </section>
   );
 }
@@ -638,6 +699,96 @@ function ErrorConAccion({ error, irA, reintentar }: { error: ErrorExplicado; irA
           {a.etiqueta}
         </Link>
       )}
+    </div>
+  );
+}
+
+/**
+ * F2 · El resultado, arriba: qué salió (letra y número), el CAE, el PDF y mandarlo por WhatsApp.
+ * Si al PDF le faltan datos del emisor, se piden ACÁ (no un aviso 409 sin salida).
+ */
+export function ResultadoDeEmision({
+  r,
+  total,
+  pdf,
+  enlaceDelComprobante,
+  children,
+}: {
+  r: Extract<ResultadoEmisionManual, { ok: true }>;
+  total: number | null;
+  pdf: EmitirComprobanteProps["pdf"];
+  enlaceDelComprobante?: (invoiceId: string) => string;
+  children?: React.ReactNode;
+}) {
+  const e = r.estado;
+  const autorizada = e.estado === "autorizada" ? e : null;
+  // El PDF lleva el CAE de ARCA (14 números). El simulador autoriza con «STUB…»: ahí no sale, y se dice.
+  const conPdf = !!autorizada && /^\d{14}$/.test(autorizada.cae ?? "");
+  const titulo = autorizada
+    ? `Factura${autorizada.letra ? ` ${autorizada.letra}` : ""}${autorizada.numero ? ` ${autorizada.numero}` : ""}`
+    : "Factura guardada";
+  const whatsapp = autorizada
+    ? enlaceDeWhatsApp(
+        mensajeDeWhatsApp({ letra: autorizada.letra, numero: autorizada.numero, total, cae: autorizada.cae, dePrueba: autorizada.dePrueba, formatear: fmtMoneyARS }),
+      )
+    : null;
+  return (
+    <div className="flex flex-col gap-3 rounded-lg border border-line bg-surface-raised p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        {autorizada ? (
+          autorizada.dePrueba ? (
+            <Badge tone="warning" dot>Autorizada de prueba</Badge>
+          ) : (
+            <Badge tone="success" dot>Autorizada por ARCA</Badge>
+          )
+        ) : (
+          <Badge tone="neutral" dot>Pendiente</Badge>
+        )}
+      </div>
+      <p className="m-0 text-xl font-bold tabular-nums text-strong [overflow-wrap:anywhere]">{titulo}</p>
+      <dl className="m-0 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+        {total != null && (
+          <>
+            <dt className="text-muted">Total</dt>
+            <dd className="m-0 tabular-nums text-strong">{fmtMoneyARS(total)}</dd>
+          </>
+        )}
+        {autorizada?.cae && (
+          <>
+            <dt className="text-muted">CAE</dt>
+            <dd className="m-0 font-mono tabular-nums text-strong [overflow-wrap:anywhere]">{autorizada.cae}</dd>
+          </>
+        )}
+      </dl>
+      <p className="m-0 text-sm text-body">{r.mensaje}</p>
+      {r.limite?.mensaje && <p className="m-0 text-sm text-muted">{r.limite.mensaje}</p>}
+      {autorizada && pdf && !conPdf && (
+        <p className="m-0 text-sm text-muted">El PDF sale con el CAE real de ARCA: esta la autorizó el simulador de prueba.</p>
+      )}
+      {autorizada && pdf?.faltanDatos ? (
+        pdf.faltanDatos
+      ) : (
+        (autorizada && (pdf || whatsapp)) || enlaceDelComprobante ? (
+          <div className="flex flex-wrap gap-2">
+            {conPdf && pdf && (
+              <a href={pdf.href(r.invoiceId)} className={buttonClasses("outline")} download>
+                Descargar el PDF
+              </a>
+            )}
+            {whatsapp && (
+              <a href={whatsapp} target="_blank" rel="noopener noreferrer" className={buttonClasses("outline")}>
+                Mandar por WhatsApp
+              </a>
+            )}
+            {enlaceDelComprobante && (
+              <Link href={enlaceDelComprobante(r.invoiceId)} className={buttonClasses("ghost")}>
+                Ver el comprobante
+              </Link>
+            )}
+          </div>
+        ) : null
+      )}
+      {children}
     </div>
   );
 }

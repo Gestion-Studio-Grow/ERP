@@ -1,5 +1,5 @@
 // Emitir a mano para UN cliente de la cartera, desde la consola del estudio. El facturador es el
-// común (a quién · qué · confirmar, src/components/facturacion/FacturadorGuiado.tsx); lo propio del
+// común (a quién · qué · confirmar, src/components/facturacion/EmitirComprobante.tsx); lo propio del
 // contador va en la capa `FacturadorDelEstudio`: atajos de teclado, emisión en serie y el salto al
 // lote del mes. El acceso (sesión, módulo y cliente ACTIVO de su cartera) lo decide
 // `accesoAClienteDeCartera`; la acción lo vuelve a exigir.
@@ -26,7 +26,7 @@ export default async function EmitirParaCliente({ params }: { params: Promise<{ 
     );
   }
   const cliente = acceso.cliente;
-  const { condicionEmisor, hoy } = await datosDelFacturador(cliente.id);
+  const { condicionEmisor, hoy, regimenFacturaA } = await datosDelFacturador(cliente.id);
   const base = `/contador/cliente/${encodeURIComponent(cliente.id)}`;
 
   return (
@@ -39,7 +39,7 @@ export default async function EmitirParaCliente({ params }: { params: Promise<{ 
         <ButtonLink href="/contador" variant="ghost" className="min-h-11">Volver a la cartera</ButtonLink>
         <ButtonLink href={`${base}/comprobantes`} variant="outline" className="min-h-11">Ver sus comprobantes</ButtonLink>
       </nav>
-      <FacturadorDelEstudio clienteId={cliente.id} alias={cliente.alias} condicionEmisor={condicionEmisor} hoy={hoy} />
+      <FacturadorDelEstudio clienteId={cliente.id} alias={cliente.alias} condicionEmisor={condicionEmisor} hoy={hoy} regimenFacturaA={regimenFacturaA} />
     </PageContainer>
   );
 }

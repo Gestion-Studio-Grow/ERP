@@ -2,7 +2,7 @@
 // FACTURADOR GUIADO — la lógica pura de la emisión en tres pasos (a quién · qué · confirmar)
 // ============================================================================
 //
-// La usa el componente común `FacturadorGuiado` (src/components/facturacion/), que montan el panel
+// La usa el componente común `EmitirComprobante` (src/components/facturacion/), que montan el panel
 // de cualquier negocio, la consola del contador y Factoque. Sin red ni base: arma el pedido que
 // valida `validarEmision` (facturita-core) y contesta lo que la pantalla muestra ANTES de emitir
 // (qué comprobante sale, el neto y el IVA) y DESPUÉS, si algo falla (qué pasó, en criollo, y qué
@@ -16,6 +16,7 @@ import { cuitValido, normalizarCuit } from "@/lib/cuit";
 import {
   ALICUOTA_ARCA,
   conceptoConFechasDeServicio,
+  validarEmision,
   type AlicuotaFacturita,
   type ConceptoFacturita,
   type CondicionReceptorConCuit,
@@ -82,7 +83,8 @@ export function borradorVacio(): Borrador {
     descripcion: "",
     total: "",
     alicuota: "21",
-    // Vacías a propósito: un período precargado que nadie miró sería un dato falso en la factura.
+    // Vacías en el borrador: se precargan (mes en curso, vencimiento a 10 días) cuando la persona
+    // elige «Servicios», con las fechas a la vista para corregirlas (`fechasDeServicioPorDefecto`).
     desde: "",
     hasta: "",
     vencimiento: "",
@@ -128,16 +130,96 @@ export function pideDomicilio(c: Comprador, condicionEmisor: string | null): boo
   );
 }
 
-/** Lo que falta del paso «Qué»; `null` = listo para confirmar. */
-export function faltaEnQue(b: Borrador): string | null {
-  if (!b.descripcion.trim()) return "Contá qué vendiste: va como detalle en la factura.";
-  const total = totalDelTexto(b.total);
-  if (!(total > 0)) return "Escribí el total, en pesos.";
-  if (conceptoConFechasDeServicio(b.concepto) && (!b.desde || !b.hasta || !b.vencimiento)) {
-    return "Con servicios, ARCA pide las tres fechas: desde, hasta y hasta cuándo te lo pagan.";
+/**
+ * Las fechas de un servicio por defecto: el mes en curso (del 1 al último día) y que te lo pagan
+ * a 10 días. `hoy` en AAAAMMDD; devuelve AAAA-MM-DD (lo que usa el campo de fecha). PURA.
+ */
+export function fechasDeServicioPorDefecto(hoy: string): Pick<Borrador, "desde" | "hasta" | "vencimiento"> {
+  const anio = Number(hoy.slice(0, 4));
+  const mes = Number(hoy.slice(4, 6));
+  const dia = Number(hoy.slice(6, 8));
+  const dd = (n: number) => String(n).padStart(2, "0");
+  // Date.UTC sólo para la aritmética del calendario (sin zona horaria de por medio).
+  const ultimo = new Date(Date.UTC(anio, mes, 0)).getUTCDate();
+  const vto = new Date(Date.UTC(anio, mes - 1, dia + 10));
+  return {
+    desde: `${anio}-${dd(mes)}-01`,
+    hasta: `${anio}-${dd(mes)}-${dd(ultimo)}`,
+    vencimiento: `${vto.getUTCFullYear()}-${dd(vto.getUTCMonth() + 1)}-${dd(vto.getUTCDate())}`,
+  };
+}
+
+/** Cada cosa que falta del paso «Qué», en criollo y por separado (van al lado del botón). */
+export function faltantesEnQue(b: Borrador): string[] {
+  const f: string[] = [];
+  if (!b.descripcion.trim()) f.push("el detalle (qué vendiste)");
+  if (!(totalDelTexto(b.total) > 0)) f.push("el total, en pesos");
+  if (conceptoConFechasDeServicio(b.concepto)) {
+    if (!b.desde) f.push("la fecha «Desde» del servicio");
+    if (!b.hasta) f.push("la fecha «Hasta» del servicio");
+    if (!b.vencimiento) f.push("hasta cuándo te lo pagan");
   }
-  if (b.desde && b.hasta && b.hasta < b.desde) return "El servicio no puede terminar antes de empezar.";
+  return f;
+}
+
+/** Lo que falta del paso «Qué», en una frase; `null` = listo para confirmar. */
+export function faltaEnQue(b: Borrador): string | null {
+  const f = faltantesEnQue(b);
+  if (f.length > 0) return `Falta ${listaEnCriolloCorta(f)}.`;
+  if (b.desde && b.hasta && b.hasta < b.desde) return "El servicio no puede terminar antes de empezar: revisá «Desde» y «Hasta».";
   return null;
+}
+
+/** «a», «a y b», «a, b y c». */
+function listaEnCriolloCorta(xs: readonly string[]): string {
+  return xs.length <= 1 ? (xs[0] ?? "") : `${xs.slice(0, -1).join(", ")} y ${xs[xs.length - 1]}`;
+}
+
+/**
+ * Factura A de un inscripto sin la clase de Factura A cargada: el Core la manda a revisión y ARCA
+ * la rechaza (decidir-comprobante.ts, REGIMEN_A_A_CONFIRMAR). Se avisa ANTES de emitir, con qué
+ * hacer. `regimen` = lo cargado por Soporte GSG; `undefined` = la pantalla no lo sabe (no avisa).
+ */
+export function avisoDeFacturaA(
+  letra: "A" | "B" | "C" | null | undefined,
+  regimen: "A" | "A_CON_LEYENDA" | "M" | null | undefined,
+): string | null {
+  if (letra !== "A" || regimen === undefined || regimen === "A") return null;
+  if (regimen === null) {
+    return (
+      "A este comprador le corresponde Factura A, y todavía no está cargado qué Factura A te asignó ARCA " +
+      "(A común, A con leyenda o M). Si la emitís así, ARCA la rechaza. Fijate en ARCA o preguntale a tu contador " +
+      "y pedile a Soporte GSG que lo cargue: es un minuto. Mientras tanto, a consumidor final podés facturar igual."
+    );
+  }
+  return (
+    "ARCA te asignó Factura A " + (regimen === "M" ? "M" : "con leyenda") + ", y el sistema todavía no la emite. " +
+    "Emitila desde el sitio de ARCA; a consumidor final podés facturar acá igual."
+  );
+}
+
+/** El texto para mandarle la factura al cliente por WhatsApp (el PDF se adjunta aparte). PURA. */
+export function mensajeDeWhatsApp(x: {
+  letra?: "A" | "B" | "C" | null;
+  numero: string | null;
+  total: number | null;
+  cae: string | null;
+  dePrueba: boolean;
+  formatear: (n: number) => string;
+}): string {
+  const nombre = `Factura${x.letra ? ` ${x.letra}` : ""}${x.numero ? ` N.º ${x.numero}` : ""}`;
+  const partes = [
+    `Hola, te paso la ${nombre}${x.total != null ? ` por ${x.formatear(x.total)}` : ""}.`,
+    x.cae ? `CAE ${x.cae}.` : null,
+    x.dePrueba ? "(Es de prueba: no tiene validez fiscal.)" : null,
+    "¡Gracias!",
+  ];
+  return partes.filter(Boolean).join(" ");
+}
+
+/** El enlace de WhatsApp con el texto ya escrito (la persona elige a quién). PURA. */
+export function enlaceDeWhatsApp(texto: string): string {
+  return `https://wa.me/?text=${encodeURIComponent(texto)}`;
 }
 
 /** El pedido que va al servidor (el mismo de siempre: `EmisionFacturita`). */
@@ -326,4 +408,52 @@ export function leerRecientes(crudo: string | null): Identificado[] {
   } catch {
     return [];
   }
+}
+
+// ---------------------------------------------------------------------------
+// El lote de la consola del contador: varias facturas a consumidor final, una por línea
+// ---------------------------------------------------------------------------
+
+export const MAX_LINEAS_DEL_LOTE = 30;
+
+export interface LineaDelLote {
+  /** Número de línea (1, 2…), para decir dónde está el error. */
+  n: number;
+  descripcion: string;
+  total: number | null;
+  /** `null` = lista para emitir. */
+  error: string | null;
+  pedido: EmisionFacturita | null;
+}
+
+/**
+ * «Detalle ; total» por línea (también con tabulador, lo que sale de pegar dos columnas de una
+ * planilla). Cada línea pasa por la MISMA validación que el servidor. Mismo concepto y alícuota para
+ * todo el lote. Las líneas vacías no cuentan; de más de `MAX_LINEAS_DEL_LOTE`, sólo error. PURA.
+ */
+export function lineasDelLote(
+  texto: string,
+  x: { hoy: string; condicionEmisor: string | null; concepto: ConceptoFacturita; alicuota: AlicuotaFacturita },
+): LineaDelLote[] {
+  const crudas = texto
+    .split(/\r?\n/)
+    .map((l, i) => ({ n: i + 1, l: l.trim() }))
+    .filter((l) => l.l);
+  const fechas = conceptoConFechasDeServicio(x.concepto) ? fechasDeServicioPorDefecto(x.hoy) : null;
+  return crudas.map(({ n, l }, i) => {
+    if (i >= MAX_LINEAS_DEL_LOTE) {
+      return { n, descripcion: l, total: null, error: `Van hasta ${MAX_LINEAS_DEL_LOTE} por lote: emití estas en el próximo.`, pedido: null };
+    }
+    const partes = l.split(/\t|;/);
+    const totalTexto = partes.length > 1 ? (partes.pop() ?? "") : "";
+    const descripcion = partes.join(" ").trim();
+    const total = totalDelTexto(totalTexto);
+    if (!(total > 0)) return { n, descripcion, total: null, error: "Falta el total al final, después de un «;».", pedido: null };
+    const b: Borrador = { ...borradorVacio(), concepto: x.concepto, alicuota: x.alicuota, descripcion, total: totalTexto, ...(fechas ?? {}) };
+    const falta = faltaEnQue(b);
+    if (falta) return { n, descripcion, total, error: falta, pedido: null };
+    const pedido = pedidoDelBorrador(b, x.condicionEmisor);
+    const v = validarEmision(pedido, x.hoy, { condicionEmisor: x.condicionEmisor });
+    return v.ok ? { n, descripcion, total, error: null, pedido } : { n, descripcion, total, error: v.error, pedido: null };
+  });
 }

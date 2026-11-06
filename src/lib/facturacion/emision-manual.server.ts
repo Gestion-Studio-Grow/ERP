@@ -23,6 +23,9 @@ import { getFiscalProfile, isInvoicingEnabled, PerfilFiscalIncompletoError } fro
 import { procesarEnviosDelNegocio } from "@/lib/arca-dispatch";
 import { contarFacturasDelMes, fechaFiscalDelDia, filtrosFacturacionMes } from "@/lib/bancos-glue";
 import { logger } from "@/lib/logger";
+import { letraDelTipo } from "@/lib/factura-de-prueba";
+import { leerRegimenFacturaA } from "@/lib/fiscal/regimen-factura-a.server";
+import type { RegimenFacturaA } from "@/lib/fiscal/decidir-comprobante";
 import { modoDesdeEnv } from "@/plugins/arca";
 import { ACCION_RECEPTOR_DEL_COMPROBANTE, ENTIDAD_RECEPTOR_DEL_COMPROBANTE } from "@/lib/comprobante-pdf-datos";
 import {
@@ -264,7 +267,7 @@ async function emitir(ctx: ContextoEmisionManual, datos: EmisionFacturita): Prom
         (tx) =>
           tx.invoice.findFirst({
             where: { id: invoiceId, tenantId },
-            select: { status: true, rechazoMotivo: true, cae: true, numero: true, puntoVenta: true },
+            select: { status: true, rechazoMotivo: true, cae: true, numero: true, puntoVenta: true, tipoComprobante: true },
           }),
         { tenantId },
       );
@@ -275,6 +278,7 @@ async function emitir(ctx: ContextoEmisionManual, datos: EmisionFacturita): Prom
               dePrueba: esDePrueba(modoDesdeEnv(), homologacion),
               numero: numeroDeComprobante(f.puntoVenta, f.numero),
               cae: f.cae,
+              letra: letraDelTipo(f.tipoComprobante),
             }
           : f?.status === "REJECTED"
             ? { estado: "rechazada", origen: origenDelRechazo(f.rechazoMotivo), motivo: f.rechazoMotivo ?? "" }
@@ -317,14 +321,19 @@ async function emitir(ctx: ContextoEmisionManual, datos: EmisionFacturita): Prom
  * si se pide la alícuota) y la fecha fiscal de hoy. Sin perfil fiscal, `condicionEmisor: null`: el
  * facturador lo dice con la salida a los datos fiscales.
  */
-export async function datosDelFacturador(tenantId: string): Promise<{ condicionEmisor: string | null; hoy: string }> {
+export async function datosDelFacturador(
+  tenantId: string,
+): Promise<{ condicionEmisor: string | null; hoy: string; regimenFacturaA: RegimenFacturaA | null }> {
   const condicionEmisor = await getFiscalProfile(tenantId)
     .then((p) => p.condicionIva as string)
     .catch((e: unknown) => {
       if (e instanceof PerfilFiscalIncompletoError) return null;
       throw e;
     });
-  return { condicionEmisor, hoy: fechaFiscalDelDia(new Date()) };
+  // Sólo el inscripto emite A: sin la clase cargada, ARCA rechaza la A (decidir-comprobante.ts,
+  // REGIMEN_A_A_CONFIRMAR). La pantalla lo avisa ANTES de emitir.
+  const regimenFacturaA = condicionEmisor === "RESPONSABLE_INSCRIPTO" ? await leerRegimenFacturaA(tenantId) : null;
+  return { condicionEmisor, hoy: fechaFiscalDelDia(new Date()), regimenFacturaA };
 }
 
 /**
