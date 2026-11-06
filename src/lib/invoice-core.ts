@@ -532,6 +532,27 @@ export async function ultimoNumeroAutorizado(tenantId: string, puntoVenta: numbe
   return r._max.numero ?? 0;
 }
 
+/**
+ * Cuántos comprobantes AUTORIZADOS con CAE simulado («STUB…», src/plugins/arca/afip/stub.ts) tiene el
+ * negocio en ese punto de venta (o en todos, si no tiene uno cargado). Con la RLS del negocio y un
+ * `count` sobre el índice (tenantId, status). Lo usa el despacho para no mandar el primer envío
+ * firmado encima de una numeración simulada (chocaría con la de ARCA).
+ */
+export async function contarAutorizadosSimulados(tenantId: string, puntoVenta: number | null): Promise<number> {
+  return tenantTransaction(
+    (tx) =>
+      tx.invoice.count({
+        where: {
+          tenantId,
+          status: "AUTHORIZED",
+          cae: { startsWith: "STUB" },
+          ...(puntoVenta != null ? { puntoVenta } : {}),
+        },
+      }),
+    { tenantId },
+  );
+}
+
 export async function numeroUsadoPorOtraFactura(consulta: {
   tenantId: string;
   invoiceId: string;
