@@ -31,6 +31,7 @@
 
 import { round2 } from "@/lib/round";
 import { computeSettlement, validateNewCollection, type SettlementStatus } from "@/lib/settlement/collection";
+import { seniaPorPorcentaje } from "@/lib/servicios/ficha";
 
 export type EstadoTurno = "PENDING" | "CONFIRMED" | "CANCELLED" | "COMPLETED" | "NO_SHOW";
 
@@ -70,10 +71,16 @@ export function estadoCobroTurno(input: {
   return { precio: s.totalCharged, cobrado: s.collected, saldo: s.balance, estado: s.status };
 }
 
-// La seña que corresponde a un servicio: el `depositAmount` fijo del catálogo, acotado al
-// precio (una seña no puede superar lo que cuesta el servicio). Null/0/negativo → sin seña.
-// PROVISIONAL A CONFIRMAR con la dueña: monto fijo (asumido) vs. porcentaje.
-export function seniaDelServicio(input: { depositAmount: number | null | undefined; precio: number }): number {
+// La seña que corresponde a un servicio, acotada al precio (una seña no puede superar lo que cuesta
+// el servicio). Dos formas, como las carga la dueña en el catálogo (ficha completa, 04/11):
+//   · `depositPercent` (1-100): round(precio × % / 100), al centavo, sobre el precio del TURNO
+//     (si es el de vecina, el % va sobre ése);
+//   · si no, el `depositAmount` fijo. Null/0/negativo → sin seña.
+// Con porcentaje, el catálogo también guarda `depositAmount` ya calculado sobre el precio general:
+// quien no tenga a mano el porcentaje cobra eso, que es lo mismo salvo con precio de vecina.
+export function seniaDelServicio(input: { depositAmount: number | null | undefined; precio: number; depositPercent?: number | null }): number {
+  const pct = input.depositPercent;
+  if (pct != null && Number.isFinite(pct) && pct > 0) return seniaPorPorcentaje(Math.max(0, input.precio), Math.min(100, pct));
   const dep = input.depositAmount;
   if (dep == null || !Number.isFinite(dep) || dep <= 0) return 0;
   return round2(Math.min(dep, Math.max(0, input.precio)));

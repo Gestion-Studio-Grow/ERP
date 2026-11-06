@@ -2,15 +2,17 @@
 
 import { useState } from "react";
 import {
-  createService,
+  crearServicioConAviso,
+  guardarServicioConAviso,
   toggleServiceActive,
-  updateService,
   deleteService,
   setServiceProducts,
   setServiceResources,
 } from "@/lib/catalog-actions";
 import { useToast } from "../ToastProvider";
-import { Input, Select, Textarea, buttonClasses } from "@/components/ui";
+import { Field, Input, Seccion, Select, Textarea, buttonClasses } from "@/components/ui";
+import { CamposDeLaFicha, FotosDelServicio } from "./FichaServicioCampos";
+import { MODALIDAD_ETIQUETA, TIPO_ETIQUETA, precioADefinir, type FichaDelServicio } from "@/lib/servicios/ficha";
 
 type Product = { id: string; name: string; unit: string; active: boolean };
 type ServiceProductLink = { productId: string; quantity: number; product: Product };
@@ -30,7 +32,37 @@ type Service = {
   category: Category | null;
   products: ServiceProductLink[];
   resources: ServiceResourceLink[];
+  ficha?: FichaDelServicio;
+  fotos?: string[];
 };
+
+const pesosAR = (n: number) => `$${n.toLocaleString("es-AR")}`;
+
+/** Precio, seña y lo nuevo de la ficha, en chips. «A definir» si el precio se fija al cobrar. */
+function ResumenDelPrecio({ service }: { service: Service }) {
+  const f = service.ficha;
+  return (
+    <>
+      {precioADefinir(service.price) ? "A definir" : pesosAR(service.price)}
+      {service.residentPrice != null && (
+        <span className="ml-1.5 rounded-full bg-accent-soft text-accent px-2 py-0.5 text-xs font-medium whitespace-nowrap">
+          Vecino {pesosAR(service.residentPrice)}
+        </span>
+      )}
+      {service.depositAmount != null && (
+        <span className="ml-1.5 rounded-full bg-warning-soft text-warning px-2 py-0.5 text-xs font-medium whitespace-nowrap">
+          Seña {f?.depositPercent != null ? `${f.depositPercent}\u00a0%` : pesosAR(service.depositAmount)}
+        </span>
+      )}
+      {f && f.modality !== "PRESENCIAL" && (
+        <span className="ml-1.5 rounded-full bg-surface-sunken px-2 py-0.5 text-xs text-body whitespace-nowrap">{MODALIDAD_ETIQUETA[f.modality]}</span>
+      )}
+      {f && f.kind !== "REGULAR" && (
+        <span className="ml-1.5 rounded-full bg-surface-sunken px-2 py-0.5 text-xs text-body whitespace-nowrap">{TIPO_ETIQUETA[f.kind]}</span>
+      )}
+    </>
+  );
+}
 
 function InsumosEditor({ service, products }: { service: Service; products: Product[] }) {
   return (
@@ -147,16 +179,64 @@ function RecursosEditor({ service, resources }: { service: Service; resources: R
   );
 }
 
+/** Qué es · Precio y seña · Tiempo · Cómo se presta · Recordatorio · Imágenes (sin los botones). */
+function FormularioDeServicio({
+  prefijo: p,
+  service,
+  categories,
+  fichaDisponible,
+}: {
+  prefijo: string;
+  service: Service | null;
+  categories: Category[];
+  fichaDisponible: boolean;
+}) {
+  return (
+    <>
+      <Seccion titulo="Qué es">
+        <div className="mt-3 flex flex-col gap-3">
+          <Field label="Nombre" htmlFor={`${p}-nombre`} required>
+            <Input id={`${p}-nombre`} name="name" defaultValue={service?.name ?? ""} required placeholder="Ej.: Limpieza facial profunda" />
+          </Field>
+          <Field label="Categoría" htmlFor={`${p}-categoria`}>
+            <Select id={`${p}-categoria`} name="categoryId" defaultValue={service?.categoryId ?? ""}>
+              <option value="">Sin categoría</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Descripción para la web" htmlFor={`${p}-descripcion`}>
+            <Textarea
+              id={`${p}-descripcion`}
+              name="description"
+              rows={3}
+              defaultValue={service?.description ?? ""}
+              placeholder="Qué incluye, beneficios, para quién es…"
+            />
+          </Field>
+        </div>
+      </Seccion>
+      <CamposDeLaFicha prefijo={p} servicio={service} disponible={fichaDisponible} />
+      <FotosDelServicio servicio={service} disponible={fichaDisponible} />
+    </>
+  );
+}
+
 function ServiceRow({
   service,
   products,
   categories,
   resources,
+  fichaDisponible,
 }: {
   service: Service;
   products: Product[];
   categories: Category[];
   resources: Resource[];
+  fichaDisponible: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [editingInsumos, setEditingInsumos] = useState(false);
@@ -164,98 +244,28 @@ function ServiceRow({
   const { showError, showSuccess } = useToast();
 
   if (editing) {
+    const p = `srv-viejo-${service.id}`;
     return (
       <tr className="block sm:table-row border-b border-line bg-surface-sunken">
         <td colSpan={6} className="block sm:table-cell p-0">
           <form
             action={async (fd) => {
-              try {
-                await updateService(fd);
-                setEditing(false);
-              } catch (err) {
-                showError(err instanceof Error ? err.message : "No se pudo guardar el servicio.");
-              }
+              const r = await guardarServicioConAviso(fd);
+              if (!r.ok) return showError(r.error);
+              setEditing(false);
             }}
-            className="grid grid-cols-1 sm:grid-cols-[1fr_110px_110px_auto] items-start gap-2 px-4 py-2.5"
+            className="flex max-w-2xl flex-col gap-6 px-4 py-4"
           >
             <input type="hidden" name="id" value={service.id} />
-            <div className="grid grid-cols-1 sm:col-span-4 sm:grid-cols-[1fr_110px_110px_auto] gap-2">
-              <input
-                name="name"
-                defaultValue={service.name}
-                required
-                className="rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent"
-              />
-              <input
-                name="durationMin"
-                type="number"
-                min={5}
-                step={5}
-                defaultValue={service.durationMin}
-                required
-                className="rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent"
-              />
-              <input
-                name="price"
-                type="number"
-                min={0}
-                step={1}
-                defaultValue={service.price}
-                required
-                className="rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent"
-              />
-              <div className="flex gap-4 sm:gap-3 justify-start sm:justify-end whitespace-nowrap py-1 sm:py-0">
-                <button type="submit" className="text-sm font-medium max-sm:min-h-11 max-sm:min-w-11">
-                  Guardar
-                </button>
-                <button type="button" onClick={() => setEditing(false)} className="text-sm text-muted max-sm:min-h-11 max-sm:min-w-11">
-                  Cancelar
-                </button>
-              </div>
+            <FormularioDeServicio prefijo={p} service={service} categories={categories} fichaDisponible={fichaDisponible} />
+            <div className="flex gap-3">
+              <button type="submit" className={buttonClasses("solid", "md")}>
+                Guardar
+              </button>
+              <button type="button" onClick={() => setEditing(false)} className={buttonClasses("ghost", "md")}>
+                Cancelar
+              </button>
             </div>
-            <label className="sm:col-span-4 flex items-center gap-2 text-xs text-muted">
-              Precio local / de la zona (opcional — dejalo vacío si este servicio no tiene diferencial):
-              <input
-                name="residentPrice"
-                type="number"
-                min={0}
-                step={1}
-                defaultValue={service.residentPrice ?? ""}
-                placeholder="Sin diferencial"
-                className="w-32 rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent"
-              />
-            </label>
-            <label className="sm:col-span-4 flex items-center gap-2 text-xs text-muted">
-              Seña obligatoria (opcional — dejalo vacío si no exige seña):
-              <input
-                name="depositAmount"
-                type="number"
-                min={0}
-                step={1}
-                defaultValue={service.depositAmount ?? ""}
-                placeholder="Sin seña"
-                className="w-32 rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent"
-              />
-            </label>
-            <select
-              name="categoryId"
-              defaultValue={service.categoryId ?? ""}
-              className="sm:col-span-4 rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent max-sm:min-h-11"
-            >
-              <option value="">Sin categoría</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-            <textarea
-              name="description"
-              defaultValue={service.description ?? ""}
-              placeholder="Descripción para la web: qué incluye, beneficios, para quién es…"
-              rows={3}
-              className="sm:col-span-4 rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent"
-            />
           </form>
         </td>
       </tr>
@@ -284,30 +294,15 @@ function ServiceRow({
           )}
         </td>
         <td className="block sm:table-cell px-0 sm:px-4 py-1 sm:py-2.5 text-sm text-body">
-          {service.durationMin} min · ${service.price.toLocaleString("es-AR")}
-          {service.residentPrice != null && (
-            <span className="ml-1.5 rounded-full bg-accent-soft text-accent px-2 py-0.5 text-xs font-medium whitespace-nowrap">
-              Vecino ${service.residentPrice.toLocaleString("es-AR")}
-            </span>
-          )}
-          {service.depositAmount != null && (
-            <span className="ml-1.5 rounded-full bg-warning-soft text-warning px-2 py-0.5 text-xs font-medium whitespace-nowrap">
-              Seña ${service.depositAmount.toLocaleString("es-AR")}
-            </span>
-          )}
+          {service.durationMin} min
+          {service.ficha?.calendarMin != null && <span className="text-muted"> (agenda {service.ficha.calendarMin})</span>}
+          <span className="sm:hidden">
+            {" · "}
+            <ResumenDelPrecio service={service} />
+          </span>
         </td>
         <td className="hidden sm:table-cell px-4 py-2.5 text-sm text-body">
-          ${service.price.toLocaleString("es-AR")}
-          {service.residentPrice != null && (
-            <span className="ml-1.5 rounded-full bg-accent-soft text-accent px-2 py-0.5 text-xs font-medium whitespace-nowrap">
-              Vecino ${service.residentPrice.toLocaleString("es-AR")}
-            </span>
-          )}
-          {service.depositAmount != null && (
-            <span className="ml-1.5 rounded-full bg-warning-soft text-warning px-2 py-0.5 text-xs font-medium whitespace-nowrap">
-              Seña ${service.depositAmount.toLocaleString("es-AR")}
-            </span>
-          )}
+          <ResumenDelPrecio service={service} />
         </td>
         <td className="block sm:table-cell px-0 sm:px-4 py-1.5 sm:py-2.5">
           <form action={toggleServiceActive}>
@@ -416,7 +411,9 @@ export default function ServicesSection({
   products,
   categories,
   resources,
+  fichaDisponible = false,
 }: {
+  fichaDisponible?: boolean;
   services: Service[];
   products: Product[];
   categories: Category[];
@@ -460,6 +457,7 @@ export default function ServicesSection({
                 products={products}
                 categories={categories}
                 resources={resources}
+                fichaDisponible={fichaDisponible}
               />
             ))}
           </CategoryGroup>
@@ -473,6 +471,7 @@ export default function ServicesSection({
                 products={products}
                 categories={categories}
                 resources={resources}
+                fichaDisponible={fichaDisponible}
               />
             ))}
           </CategoryGroup>
@@ -486,75 +485,17 @@ export default function ServicesSection({
 
       <form
         action={async (fd) => {
-          try {
-            await createService(fd);
-          } catch (err) {
-            showError(err instanceof Error ? err.message : "No se pudo crear el servicio.");
-          }
+          const r = await crearServicioConAviso(fd);
+          if (!r.ok) showError(r.error);
         }}
-        className="grid grid-cols-2 sm:grid-cols-4 gap-2"
+        className="flex max-w-2xl flex-col gap-6 rounded-lg border border-line p-4"
       >
-        <Input
-          name="name"
-          required
-          placeholder="Nombre del servicio"
-          className="col-span-2"
-        />
-        <Input
-          name="durationMin"
-          type="number"
-          min={5}
-          step={5}
-          required
-          placeholder="Minutos"
-        />
-        <Input
-          name="price"
-          type="number"
-          min={0}
-          step={1}
-          required
-          placeholder="Precio $"
-        />
-        <Input
-          name="residentPrice"
-          type="number"
-          min={0}
-          step={1}
-          placeholder="Precio local (opcional)"
-        />
-        <Input
-          name="depositAmount"
-          type="number"
-          min={0}
-          step={1}
-          placeholder="Seña obligatoria (opcional)"
-        />
-        <Select
-          name="categoryId"
-          defaultValue=""
-          className="col-span-2 sm:col-span-4"
-        >
-          <option value="">Sin categoría</option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </Select>
-        <Textarea
-          name="description"
-          placeholder="Descripción para la web (opcional): qué incluye, beneficios, para quién es…"
-          rows={2}
-          className="col-span-2 sm:col-span-4"
-        />
-        <button
-          type="submit"
-          className={buttonClasses("solid", "md", "col-span-2 sm:col-span-4")}
-        >
+        <h3 className="text-base font-medium text-strong">Agregar un servicio</h3>
+        <FormularioDeServicio prefijo="srv-viejo-nuevo" service={null} categories={categories} fichaDisponible={fichaDisponible} />
+        <button type="submit" className={buttonClasses("solid", "md", "self-start")}>
           Agregar servicio
         </button>
-        <p className="col-span-2 text-xs text-muted sm:col-span-4">
+        <p className="text-xs text-muted">
           Después asignale quién lo hace, en «Asignación de servicios», más abajo. Sin eso no aparece en «Dar turno».
         </p>
       </form>

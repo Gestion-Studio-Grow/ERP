@@ -68,6 +68,7 @@ import {
 } from "./campos";
 import CobrarTurno from "./CobrarTurno";
 import CobrarConVoucher from "./CobrarConVoucher";
+import FijarPrecioDelTurno from "./FijarPrecioDelTurno";
 import TerminarTurno from "./TerminarTurno";
 import MoverTurno from "./MoverTurno";
 import LlegoLaSenia from "./LlegoLaSenia";
@@ -540,9 +541,17 @@ export default function TurnoCajon({
           <ListoDelCobro cobro={cobradoEste.cobro} proximo={cobradoEste.vino ? null : proximo} onCerrar={onCerrar} />
         )}
 
+        {t.precioADefinir && cobraEste && t.estado !== "NO_SHOW" && t.estado !== "CANCELLED" && !cobradoEste && (
+          <Seccion titulo="Precio a definir">
+            <div className="pt-3">
+              <FijarPrecioDelTurno key={t.id} turnoId={t.id} servicio={t.servicio} />
+            </div>
+          </Seccion>
+        )}
+
         {/* CH · voucher de La Alameda: antes de Terminar/Cobrar, porque lo que no cubre se cobra
             después con los medios de siempre. Sin el interruptor no se monta (cajón igual que antes). */}
-        {permisos.vouchers && cobraEste && t.saldo > 0 && t.estado !== "NO_SHOW" && t.estado !== "CANCELLED" && !cobradoEste && (
+        {permisos.vouchers && cobraEste && !t.precioADefinir && t.saldo > 0 && t.estado !== "NO_SHOW" && t.estado !== "CANCELLED" && !cobradoEste && (
           <Seccion titulo="Voucher de La Alameda">
             <div className="pt-3">
               <CobrarConVoucher key={t.id} turnoId={t.id} clienta={t.clienta} saldo={t.saldo} onListo={() => router.refresh()} />
@@ -686,8 +695,8 @@ export default function TurnoCajon({
               pesos sin centavos: «$14.000», como el botón y el WhatsApp (con centavos sólo si los hay). */}
           <Renglon
             folio="Precio"
-            titulo="Fijo desde la reserva"
-            plata={<Plata valor={t.precio} sinCentavos={Number.isInteger(t.precio)} />}
+            titulo={t.precioADefinir ? "A definir: se carga al cobrar" : "Fijo desde la reserva"}
+            plata={t.precioADefinir ? <span className="text-sm text-muted">A definir</span> : <Plata valor={t.precio} sinCentavos={Number.isInteger(t.precio)} />}
           />
           <Renglon
             folio="Entró"

@@ -20,7 +20,7 @@ import {
   createBox,
   createBoxBlock,
   createResource,
-  createService,
+  crearServicioConAviso,
   deleteBox,
   deleteBoxBlock,
   deleteResource,
@@ -30,13 +30,15 @@ import {
   toggleBoxActive,
   toggleServiceActive,
   updateBox,
+  guardarServicioConAviso,
   updateResource,
-  updateService,
 } from "@/lib/catalog-actions";
 import { createCoupon, deleteCoupon, toggleCouponActive } from "@/lib/coupon-actions";
 import { fmtShortDate } from "@/lib/datetime";
 import { cuponAgotado } from "@/lib/venta-reglas";
 import { useToast } from "../ToastProvider";
+import { CamposDeLaFicha, FotosDelServicio } from "./FichaServicioCampos";
+import { MODALIDAD_ETIQUETA, TIPO_ETIQUETA, precioADefinir, type FichaDelServicio } from "@/lib/servicios/ficha";
 
 // --- Formas de los datos (las que ya devuelven getCatalog y getCoupons) ---------------------------
 
@@ -56,6 +58,10 @@ export type ServicioDelCatalogo = {
   category: Categoria | null;
   products: { productId: string; quantity: number }[];
   resources: { resourceId: string; units: number }[];
+  /** Ficha completa (src/lib/servicios); sin la migración, la vacía. */
+  ficha?: FichaDelServicio;
+  /** Ids de las fotos (se piden a /servicios/foto/[id]). */
+  fotos?: string[];
 };
 type Bloqueo = { id: string; startsAt: Date; endsAt: Date; reason: string };
 type Box = { id: string; name: string; active: boolean; blocks: Bloqueo[] };
@@ -116,7 +122,12 @@ function useGuardar(alTerminar: () => void, ok: string) {
   const { showError, showSuccess } = useToast();
   return async (accion: (fd: FormData) => Promise<unknown>, fd: FormData) => {
     try {
-      await accion(fd);
+      // Las acciones «ConAviso» DEVUELVEN el rechazo ({ ok: false, error }) en vez de lanzarlo.
+      const r = (await accion(fd)) as { ok?: boolean; error?: string } | undefined;
+      if (r && r.ok === false) {
+        showError(r.error ?? "No se pudo guardar.");
+        return;
+      }
       showSuccess(ok);
       alTerminar();
     } catch (err) {
@@ -151,6 +162,7 @@ export function ServiciosRenglon({
   quienesLaHacen,
   editar,
   agregar,
+  fichaDisponible = false,
 }: {
   servicios: ServicioDelCatalogo[];
   categorias: Categoria[];
@@ -160,6 +172,8 @@ export function ServiciosRenglon({
   quienesLaHacen: Record<string, number>;
   editar: string | null;
   agregar: boolean;
+  /** ¿Está aplicada la migración de la ficha completa? Sin ella, el formulario de siempre. */
+  fichaDisponible?: boolean;
 }) {
   const { href, cerrar } = useCajon();
   const { correr, pendiente } = useAccion();
@@ -193,7 +207,15 @@ export function ServiciosRenglon({
               const quienes = quienesLaHacen[s.id] ?? 0;
               const detalle = [
                 s.residentPrice != null ? `vecino ${pesos(s.residentPrice)}` : null,
-                s.depositAmount != null ? `seña ${pesos(s.depositAmount)}` : null,
+                s.depositAmount != null
+                  ? s.ficha?.depositPercent != null
+                    ? `seña ${s.ficha.depositPercent}\u00a0%`
+                    : `seña ${pesos(s.depositAmount)}`
+                  : null,
+                s.ficha && s.ficha.calendarMin != null ? `agenda ${s.ficha.calendarMin}\u00a0min` : null,
+                s.ficha && s.ficha.modality !== "PRESENCIAL" ? MODALIDAD_ETIQUETA[s.ficha.modality].toLowerCase() : null,
+                s.ficha && s.ficha.kind !== "REGULAR" ? TIPO_ETIQUETA[s.ficha.kind].toLowerCase() : null,
+                s.fotos && s.fotos.length > 0 ? plural(s.fotos.length, "foto", "fotos") : null,
                 s.products.length > 0 ? plural(s.products.length, "insumo", "insumos") : null,
               ].filter(Boolean);
               return (
@@ -218,7 +240,7 @@ export function ServiciosRenglon({
                       )}
                     </>
                   }
-                  plata={<Plata valor={s.price} sinCentavos />}
+                  plata={precioADefinir(s.price) ? <span className="text-sm text-muted">A definir</span> : <Plata valor={s.price} sinCentavos />}
                   tecla={
                     <span className="flex items-center gap-1">
                       <Link href={href({ editar: s.id, agregar: null })} scroll={false} className={buttonClasses("outline", "sm")}>
@@ -241,17 +263,17 @@ export function ServiciosRenglon({
         </Bloque>
       ))}
 
-      <Cajon abierto={editando !== null} onCerrar={cerrar} titulo={editando?.name ?? ""} descripcion={editando ? `${editando.durationMin} min · ${pesos(editando.price)}` : undefined}>
+      <Cajon abierto={editando !== null} onCerrar={cerrar} titulo={editando?.name ?? ""} descripcion={editando ? `${editando.durationMin} min · ${precioADefinir(editando.price) ? "precio a definir" : pesos(editando.price)}` : undefined}>
         {editando && (
           <div key={editando.id} className="flex flex-col gap-8">
-            <FormularioServicio servicio={editando} categorias={categorias} alTerminar={cerrar} />
+            <FormularioServicio servicio={editando} categorias={categorias} alTerminar={cerrar} fichaDisponible={fichaDisponible} />
             <InsumosDelServicio servicio={editando} insumos={insumos} />
             <EquiposDelServicio servicio={editando} equipos={equipos} />
           </div>
         )}
       </Cajon>
       <Cajon abierto={agregar && editando === null} onCerrar={cerrar} titulo="Agregar un servicio">
-        {agregar && <FormularioServicio servicio={null} categorias={categorias} alTerminar={cerrar} />}
+        {agregar && <FormularioServicio servicio={null} categorias={categorias} alTerminar={cerrar} fichaDisponible={fichaDisponible} />}
       </Cajon>
     </div>
   );
@@ -261,46 +283,40 @@ function FormularioServicio({
   servicio: s,
   categorias,
   alTerminar,
+  fichaDisponible,
 }: {
   servicio: ServicioDelCatalogo | null;
   categorias: Categoria[];
   alTerminar: () => void;
+  fichaDisponible: boolean;
 }) {
   const guardar = useGuardar(alTerminar, s ? "Servicio guardado." : "Servicio agregado.");
   const p = s ? `srv-${s.id}` : "srv-nuevo";
   return (
-    <form action={(fd) => guardar(s ? updateService : createService, fd)} className="flex flex-col gap-4">
+    <form action={(fd) => guardar(s ? guardarServicioConAviso : crearServicioConAviso, fd)} className="flex flex-col gap-6">
       {s && <input type="hidden" name="id" value={s.id} />}
-      <Field label="Nombre" htmlFor={`${p}-nombre`} required>
-        <Input id={`${p}-nombre`} name="name" defaultValue={s?.name ?? ""} required placeholder="Ej.: Limpieza facial profunda" />
-      </Field>
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Duración (min)" htmlFor={`${p}-duracion`} required>
-          <Input id={`${p}-duracion`} name="durationMin" type="number" inputMode="numeric" min={5} step={5} defaultValue={s?.durationMin ?? 60} required />
-        </Field>
-        <Field label="Precio ($)" htmlFor={`${p}-precio`} required>
-          <Input id={`${p}-precio`} name="price" type="number" inputMode="numeric" min={0} step={1} defaultValue={s?.price ?? ""} required />
-        </Field>
-        <Field label="Precio vecino ($)" htmlFor={`${p}-vecino`} hint="Vacío si no tiene">
-          <Input id={`${p}-vecino`} name="residentPrice" type="number" inputMode="numeric" min={0} step={1} defaultValue={s?.residentPrice ?? ""} />
-        </Field>
-        <Field label="Seña ($)" htmlFor={`${p}-sena`} hint="Vacío si no pide">
-          <Input id={`${p}-sena`} name="depositAmount" type="number" inputMode="numeric" min={0} step={1} defaultValue={s?.depositAmount ?? ""} />
-        </Field>
-      </div>
-      <Field label="Categoría" htmlFor={`${p}-categoria`}>
-        <Select id={`${p}-categoria`} name="categoryId" defaultValue={s?.categoryId ?? ""}>
-          <option value="">Sin categoría</option>
-          {categorias.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </Select>
-      </Field>
-      <Field label="Qué incluye (se ve en la web)" htmlFor={`${p}-descripcion`}>
-        <Textarea id={`${p}-descripcion`} name="description" rows={3} defaultValue={s?.description ?? ""} />
-      </Field>
+      <Seccion titulo="Qué es">
+        <div className="mt-3 flex flex-col gap-3">
+          <Field label="Nombre" htmlFor={`${p}-nombre`} required>
+            <Input id={`${p}-nombre`} name="name" defaultValue={s?.name ?? ""} required placeholder="Ej.: Limpieza facial profunda" />
+          </Field>
+          <Field label="Categoría" htmlFor={`${p}-categoria`}>
+            <Select id={`${p}-categoria`} name="categoryId" defaultValue={s?.categoryId ?? ""}>
+              <option value="">Sin categoría</option>
+              {categorias.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Qué incluye (se ve en la web)" htmlFor={`${p}-descripcion`}>
+            <Textarea id={`${p}-descripcion`} name="description" rows={3} defaultValue={s?.description ?? ""} />
+          </Field>
+        </div>
+      </Seccion>
+      <CamposDeLaFicha prefijo={p} servicio={s} disponible={fichaDisponible} />
+      <FotosDelServicio servicio={s} disponible={fichaDisponible} />
       <button type="submit" className={buttonClasses("solid", "md", "self-start")}>
         {s ? "Guardar cambios" : "Agregar servicio"}
       </button>
