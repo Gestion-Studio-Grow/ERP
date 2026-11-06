@@ -87,7 +87,8 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
     <Pestanas
       etiqueta="Vistas de Facturación"
       conRaya
-      className="mb-5"
+      // A 390 px las 4 vistas no entran: se acomodan en dos renglones en vez de esconder «Puesta a punto».
+      className="mb-5 flex-wrap sm:flex-nowrap"
       pestanas={[
         { href: "/admin/facturacion?vista=comprobantes", etiqueta: "Comprobantes", actual: !conLink && !conArca && !conEmitir },
         ...(emiteAMano ? [{ href: "/admin/facturacion?vista=emitir", etiqueta: "Emitir factura", actual: conEmitir }] : []),
