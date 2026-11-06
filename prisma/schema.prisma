@@ -269,6 +269,12 @@ model Tenant {
   voucherLotes              VoucherLote[]
   vouchers                  Voucher[]
   voucherConciliaciones     VoucherConciliacion[]
+  cuentasContables          CuentaContable[] // contabilidad (ola 1)
+  ejercicios                Ejercicio[]
+  asientos                  Asiento[]
+  asientoLineas             AsientoLinea[]
+  obligacionesFiscales      ObligacionFiscal[]
+  vencimientosFiscales      VencimientoFiscal[]
   proyectoConfig            ProyectoConfig?
   inmoPropiedades           InmoPropiedad[] // módulo inmobiliaria
   inmoFotos                 InmoFoto[]
@@ -4050,4 +4056,129 @@ model VoucherConciliacion {
   createdAt DateTime @default(now())
 
   @@index([tenantId, fecha])
+}
+
+// ============================================================================
+// CONTABILIDAD · ola 1 (docs/producto/contabilidad/PLAN.md §5) — migración 20261104122000_contabilidad_ola1
+// ============================================================================
+// Montos en CENTAVOS BigInt. Las relaciones internas son COMPUESTAS con `tenantId`
+// (`[xId, tenantId] → [id, tenantId]`): la base no deja que una línea de A apunte a una cuenta de B,
+// aunque la FK se chequee sin RLS. En SQL además: CHECK por línea (sólo debe o sólo haber, > 0) y
+// trigger diferido que rechaza un asiento CONFIRMADO descuadrado o la edición de uno confirmado.
+
+model CuentaContable {
+  id         String           @id @default(cuid())
+  tenant     Tenant           @relation(fields: [tenantId], references: [id])
+  tenantId   String
+  codigo     String // jerárquico: 1 · 1.1 · 1.1.1 · 1.1.1.01
+  nombre     String
+  tipo       String // ACTIVO · PASIVO · PATRIMONIO_NETO · RESULTADO_POSITIVO · RESULTADO_NEGATIVO
+  naturaleza String // DEUDORA · ACREEDORA (las regularizadoras, la opuesta a su rubro)
+  padre      CuentaContable?  @relation("CuentaPadre", fields: [padreId, tenantId], references: [id, tenantId])
+  padreId    String?
+  hijas      CuentaContable[] @relation("CuentaPadre")
+  imputable  Boolean          @default(true)
+  activa     Boolean          @default(true)
+  lineas     AsientoLinea[]
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  @@unique([tenantId, codigo])
+  @@unique([id, tenantId])
+  @@index([tenantId, padreId])
+}
+
+model Ejercicio {
+  id          String    @id @default(cuid())
+  tenant      Tenant    @relation(fields: [tenantId], references: [id])
+  tenantId    String
+  fechaInicio DateTime  @db.Date
+  fechaCierre DateTime  @db.Date // el cierre comercial no siempre es 31/12
+  estado      String    @default("ABIERTO") // ABIERTO · CERRADO
+  asientos    Asiento[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([id, tenantId])
+  @@index([tenantId, fechaInicio])
+}
+
+model Asiento {
+  id             String         @id @default(cuid())
+  tenant         Tenant         @relation(fields: [tenantId], references: [id])
+  tenantId       String
+  ejercicio      Ejercicio      @relation(fields: [ejercicioId, tenantId], references: [id, tenantId])
+  ejercicioId    String
+  numero         Int? // se asigna AL CONFIRMAR: correlativo sin saltos por ejercicio
+  fecha          DateTime       @db.Date
+  descripcion    String
+  origenTipo     String? // MANUAL · FACTURA · COBRO · PAGO · APERTURA · CIERRE · REFUNDICION · AJUSTE
+  origenId       String?
+  anula          Asiento?       @relation("ContraAsiento", fields: [anulaAsientoId, tenantId], references: [id, tenantId])
+  anulaAsientoId String?
+  anuladoPor     Asiento[]      @relation("ContraAsiento")
+  estado         String         @default("BORRADOR") // BORRADOR · CONFIRMADO
+  lineas         AsientoLinea[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@unique([tenantId, ejercicioId, numero])
+  @@unique([id, tenantId])
+  @@index([tenantId, fecha])
+}
+
+model AsientoLinea {
+  id        String         @id @default(cuid())
+  tenant    Tenant         @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  asiento   Asiento        @relation(fields: [asientoId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  asientoId String
+  cuenta    CuentaContable @relation(fields: [cuentaId, tenantId], references: [id, tenantId])
+  cuentaId  String
+  debe      BigInt         @default(0) // centavos
+  haber     BigInt         @default(0) // centavos
+  detalle   String?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@index([tenantId, asientoId])
+  @@index([tenantId, cuentaId])
+}
+
+model ObligacionFiscal {
+  id           String              @id @default(cuid())
+  tenant       Tenant              @relation(fields: [tenantId], references: [id])
+  tenantId     String
+  codigo       String // IVA_MENSUAL · IIBB_LOCAL · CM03 · CM05 · GANANCIAS_ANTICIPO · F931 · AUTONOMOS…
+  nombre       String              @default("")
+  organismo    String
+  jurisdiccion String?
+  periodicidad String // MENSUAL · ANUAL · SEMESTRAL · ANTICIPO
+  accion       String              @default("AMBAS") // PRESENTACION · PAGO · AMBAS
+  activa       Boolean             @default(true)
+  vencimientos VencimientoFiscal[]
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  @@unique([tenantId, codigo])
+  @@unique([id, tenantId])
+}
+
+model VencimientoFiscal {
+  id                String           @id @default(cuid())
+  tenant            Tenant           @relation(fields: [tenantId], references: [id])
+  tenantId          String
+  obligacion        ObligacionFiscal @relation(fields: [obligacionId, tenantId], references: [id, tenantId])
+  obligacionId      String
+  periodo           String // YYYY-MM o YYYY
+  cuota             Int              @default(0) // 0 = vencimiento único; anticipos 1..n (no nullable: el único no admite NULLs repetidos)
+  fechaVencimiento  DateTime         @db.Date
+  fechaPresentacion DateTime?        @db.Date
+  fechaPago         DateTime?        @db.Date
+  estado            String           @default("PENDIENTE") // PENDIENTE · EN_CURSO · PRESENTADO · PAGADO · SIN_SALDO · NO_CORRESPONDE · VERIFICADO («vencido» se calcula)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@unique([tenantId, obligacionId, periodo, cuota])
+  @@index([tenantId, fechaVencimiento])
 }
