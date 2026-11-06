@@ -12,7 +12,7 @@
 
 import { unstable_rethrow } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireCapability } from "@/lib/authz";
+import { requireCapability, soloLoSuyo } from "@/lib/authz";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { isDemoSandbox } from "@/lib/demo-flag";
 import { rechazoDeDominio } from "@/lib/rechazo-de-dominio";
@@ -102,7 +102,14 @@ export async function aplicarVoucherAlTurno(formData: FormData): Promise<Resulta
       cobraEnMostrador: fila.professional.cobraEnMostrador,
     });
     if (!veredicto.ok) return { ok: false, error: veredicto.motivo };
-    const valor = await cobrarConVoucher(tenantId, { numero, appointmentId, monto, actor: `user:${user.id}` });
+    const valor = await cobrarConVoucher(tenantId, {
+      numero,
+      appointmentId,
+      monto,
+      actor: `user:${user.id}`,
+      // Se repite ADENTRO de la transacción, como cobro-actions.ts: el turno pudo cambiar de manos.
+      autorizarTurno: (professionalIdDelTurno) => soloLoSuyo(user, professionalIdDelTurno),
+    });
     revalidar();
     return { ok: true, valor };
   } catch (e) {
@@ -182,7 +189,9 @@ async function contenidoDelCsv(formData: FormData): Promise<string | { error: st
 export async function importarLiquidacion(
   formData: FormData,
 ): Promise<ResultadoVoucher<ResultadoImportacionLiquidacion & { erroresDeLectura: { linea: number; motivo: string }[] }>> {
-  const user = await requireCapability("clients:manage");
+  // Escribe montos (lo que OpenKey pagó por cada voucher): no alcanza con `clients:manage`. Es el
+  // permiso de la plata de la caja (`cash:manage`, abrir/cerrar/arquear: caja-actions.ts).
+  const user = await requireCapability("cash:manage");
   if (await apagado()) return APAGADO;
   if (isDemoSandbox()) return { ok: false, error: MODO_DEMO };
   const contenido = await contenidoDelCsv(formData);

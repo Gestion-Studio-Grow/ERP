@@ -320,13 +320,18 @@ test("la foto de OpenKey y su liquidación concilian y dejan su VoucherConciliac
   assert.equal((await duenio.voucherConciliacion.findUniqueOrThrow({ where: { id: r.conciliacionId }, select: { tenantId: true } })).tenantId, s.base.a.id);
   await rechaza(cobrar(s, libre, await s.a.turno(juli)), "baja-openkey");
 
-  const liq = leerCsvLiquidacion(`numero;monto;fecha;referencia\n${usado};13000;05/11/2026;LIQ-1\n${libre};14000;05/11/2026;LIQ-1\n`);
+  const liq = leerCsvLiquidacion(`numero;monto;fecha;referencia\n${usado};13000;05/11/2026;LIQ-1\n${libre};14000;05/11/2026;LIQ-1\n${aAnular};14000;05/11/2026;LIQ-1\n`);
   const l = await importarLiquidacionOpenKey(s.base.a.id, { filas: liq.filas, origen: "MANUAL", actor: "u" });
-  assert.equal(l.marcados, 2);
+  // Sólo el USADO queda marcado: el DISPONIBLE y el ANULADO que OpenKey dice haber pagado son
+  // discrepancias de la conciliación, no vouchers liquidados.
+  assert.equal(l.marcados, 1);
   assert.deepEqual(l.conciliacion.montoDistinto, [{ numero: usado, cobrado: 14000, liquidado: 13000 }]);
-  assert.deepEqual(l.conciliacion.liquidadoSinCobro, [libre]);
+  assert.deepEqual(l.conciliacion.liquidadoSinCobro, [libre, aAnular].sort());
   const v = await duenio.voucher.findFirstOrThrow({ where: { numero: usado }, select: { montoLiquidado: true, liquidacionRef: true, liquidadoEn: true } });
   assert.deepEqual([v.montoLiquidado?.toNumber(), v.liquidacionRef, Boolean(v.liquidadoEn)], [13000, "LIQ-1", true]);
+  const sinMarca = await duenio.voucher.findMany({ where: { numero: { in: [libre, aAnular] } }, select: { estado: true, liquidadoEn: true, montoLiquidado: true } });
+  assert.equal(sinMarca.length, 2);
+  for (const x of sinMarca) assert.deepEqual([x.estado === "USADO", x.liquidadoEn, x.montoLiquidado], [false, null, null], "DISPONIBLE/ANULADO no se marcan liquidados");
 });
 
 test("cobro con voucher que OpenKey ya liquidó: la anulación se rechaza con su motivo y el voucher sigue USADO", async (t) => {
@@ -385,6 +390,8 @@ test("liquidación con una fecha imposible: esa fila se rechaza con su renglón 
   const gabi = await s.a.cliente("Gabi");
   const malo = await s.a.voucher(gabi);
   const bueno = await s.a.voucher(gabi);
+  // Sólo un voucher USADO queda liquidado: el «bueno» se cobra antes.
+  await cobrar(s, bueno, await s.a.turno(gabi));
   const { importarLiquidacionOpenKey } = await repo();
   const l = await importarLiquidacionOpenKey(s.base.a.id, {
     filas: [
@@ -429,6 +436,63 @@ test("la Server Action: apagada rechaza sin escribir; prendida cobra con la rece
   const prendida = await como();
   assert.equal(prendida?.ok, true, JSON.stringify(prendida));
   assert.deepEqual(await cobrosVoucher(s, turno), [14000]);
+});
+
+test("cobro con voucher: el chequeo de que el turno es de quien cobra se repite ADENTRO de la tx; si tira, nada se escribe", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const duenio = await prismaComoDuenio(s.base);
+  const nati = await s.a.cliente("Nati");
+  const turno = await s.a.turno(nati);
+  const numero = await s.a.voucher(nati);
+  const { professionalId } = await duenio.appointment.findUniqueOrThrow({ where: { id: turno }, select: { professionalId: true } });
+  const { cobrarConVoucher } = await repo();
+  const vistos: string[] = [];
+  await assert.rejects(
+    cobrarConVoucher(s.base.a.id, {
+      numero,
+      appointmentId: turno,
+      actor: "user:test",
+      autorizarTurno: (p) => {
+        vistos.push(p);
+        throw new Error("no es tuyo");
+      },
+    }),
+    /no es tuyo/,
+  );
+  assert.ok(vistos.length >= 1 && vistos.every((p) => p === professionalId), "recibe el profesional leído en la tx");
+  assert.deepEqual(await estado(s, numero), { estado: "DISPONIBLE", turno: null, cobro: null, valor: null });
+  assert.deepEqual(await cobrosVoucher(s, turno), []);
+});
+
+test("comisión: cobro de 14.000 con 4.000 de voucher → la liquidación paga sobre 10.000 (regla del dueño)", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const duenio = await prismaComoDuenio(s.base);
+  const tenantId = s.base.a.id;
+  const ines = await s.a.cliente("Inés");
+  const turno = await s.a.turno(ines, { status: "COMPLETED" });
+  const numero = await s.a.voucher(ines);
+  await cobrar(s, numero, turno, { monto: 4000 });
+  // El resto, en efectivo: la fila y el Payment como los deja el cobro de siempre (Σ = 14.000).
+  await duenio.collection.create({
+    data: { tenantId, originType: "APPOINTMENT", originId: turno, appointmentId: turno, amount: 10000, method: "EFECTIVO", collectedBy: "user:test" },
+  });
+  await duenio.payment.update({ where: { appointmentId: turno }, data: { amount: 14000 } });
+  const { professionalId } = await duenio.appointment.findUniqueOrThrow({ where: { id: turno }, select: { professionalId: true } });
+  await duenio.professional.update({ where: { id: professionalId }, data: { commissionPercent: 40 } });
+
+  const { leerComisionesPendientes } = await import("@/lib/reports/comisiones-lectura");
+  const pendientes = (await leerComisionesPendientes(duenio as never, tenantId)).filter((c) => c.professionalId === professionalId);
+  assert.deepEqual(pendientes.map((c) => [c.ingresos, c.amount, c.appointmentCount]), [[10000, 4000, 1]]);
+
+  const { settleCommissions } = await import("@/lib/commission-actions");
+  const f = new FormData();
+  f.set("professionalId", professionalId);
+  f.set("method", "EFECTIVO");
+  await ejecutarAccion({ negocio: s.base.a, usuario: s.base.a.duenia }, () => settleCommissions(f));
+  const payout = await duenio.commissionPayout.findFirstOrThrow({ where: { tenantId, professionalId }, select: { amount: true, appointmentCount: true } });
+  assert.deepEqual([payout.amount, payout.appointmentCount], [4000, 1], "40 % de 10.000, no de 14.000");
 });
 
 // Va al final: cierra la caja de HOY del negocio A (congela el día).

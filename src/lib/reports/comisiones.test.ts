@@ -86,3 +86,21 @@ test("R6 · cuenta los turnos con saldo que dejarían comisión: saldado o sin c
   assert.equal(contarTurnosEsperandoSaldo([turno({ id: "a", ...conSenia }), turno({ id: "b", ...sinCobrar }), turno({ id: "c", ...saldado })], sinPct), 2);
   assert.equal(contarTurnosEsperandoSaldo([turno({ id: "a", ...conSenia, pctGeneral: 0 })], sinPct), 0, "sin comisión no hay nada que esperar");
 });
+
+test("lo pendiente descuenta lo pagado con voucher: cobro 10.000 con 4.000 de voucher → base 6.000", () => {
+  const p = comisionesPendientes(
+    [
+      turno({
+        id: "v1",
+        payment: { status: "APPROVED", amount: 10000 },
+        cobros: [
+          { amount: 4000, method: "VOUCHER" },
+          { amount: 6000, method: "EFECTIVO" },
+        ],
+      }),
+    ],
+    overridesPorProfesional([]),
+  );
+  // 40 % de 6.000, no de 10.000.
+  assert.deepEqual(p.map((c) => [c.professionalId, c.amount, c.ingresos, c.appointmentCount]), [["ana", 2400, 6000, 1]]);
+});

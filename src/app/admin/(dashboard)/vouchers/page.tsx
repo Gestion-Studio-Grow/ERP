@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireApp } from "@/lib/require-app";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo, roleHasCapability } from "@/lib/capabilities";
 import { todayInBusinessTz } from "@/lib/datetime";
 import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
 import { vouchersPrendidos } from "@/cambios/interruptores";
@@ -64,6 +64,8 @@ export default async function VouchersPage({ searchParams }: { searchParams: Pro
   const filas = listado.ok ? listado.valor : [];
   const resumen = resumirListado(filas);
   const puedeCargar = roleHasCapability(user.role, "clients:manage");
+  // La liquidación escribe montos (lo que pagó OpenKey): el permiso de la plata de la caja, como su action.
+  const puedeLiquidar = permisoEfectivo(user, "cash:manage");
   const query = queryDeFiltros(filtros);
 
   return (
@@ -124,6 +126,10 @@ export default async function VouchersPage({ searchParams }: { searchParams: Pro
           <Herramienta titulo="Importar la foto de OpenKey" id="importar-foto">
             <ImportarCsv tipo="foto" />
           </Herramienta>
+        </div>
+      )}
+      {puedeLiquidar && (
+        <div className="mt-6 space-y-6">
           <Herramienta titulo="Importar la liquidación de OpenKey" id="importar-liquidacion">
             <ImportarCsv tipo="liquidacion" />
           </Herramienta>

@@ -75,6 +75,11 @@ export type CobrarConVoucherArgs = {
   actor: string; // "user:<id>"
   /** Menor que el saldo, si el voucher no cubre todo; sin esto, el saldo entero. */
   monto?: number | null;
+  /**
+   * Guarda de autorización sobre ESTE turno, repetida ADENTRO de la transacción con el profesional
+   * leído en la tx (la action pasa `soloLoSuyo`, como cobro-actions.ts). Tira para rechazar.
+   */
+  autorizarTurno?: (professionalIdDelTurno: string) => void;
 };
 
 export type CobrarConVoucherInTxArgs = CobrarConVoucherArgs & {
@@ -114,6 +119,7 @@ export async function cobrarConVoucherInTx(
     select: {
       id: true,
       clientId: true,
+      professionalId: true,
       status: true,
       priceAtBooking: true,
       service: { select: { price: true, name: true } },
@@ -121,6 +127,8 @@ export async function cobrarConVoucherInTx(
     },
   });
   if (!turno) throw new VoucherRechazado("turno-no-existe", TURNO_NO_EXISTE);
+  // Invariante dura: el turno es de quien cobra, leído en ESTA tx (no basta el chequeo previo de la action).
+  args.autorizarTurno?.(turno.professionalId);
   const precio = turno.priceAtBooking ?? turno.service.price;
 
   const yaTiene = await tx.voucher.findFirst({ where: { tenantId, appointmentId: turno.id }, select: { id: true } });
@@ -435,7 +443,7 @@ export type ResultadoImportacionLiquidacion = {
 
 /**
  * Importa la liquidación de OpenKey: marca `liquidadoEn`/`montoLiquidado`/`liquidacionRef` en cada
- * voucher del negocio que nombra (la última liquidación manda) y concilia contra los cobros con
+ * voucher USADO del negocio que nombra (la última liquidación manda; DISPONIBLE o ANULADO no se marcan) y concilia contra los cobros con
  * voucher. La conciliación se calcula con el estado de ANTES de marcar (quién ya estaba liquidado).
  */
 export async function importarLiquidacionOpenKey(tenantId: string, args: ImportarLiquidacionArgs): Promise<ResultadoImportacionLiquidacion> {
@@ -474,9 +482,12 @@ export async function importarLiquidacionOpenKey(tenantId: string, args: Importa
         const id = porNumero.get(f.numero);
         if (!id) continue;
         const liquidadoEn = f.fecha ? businessWallTimeToUtc(f.fecha, "12:00") : ahora;
+        // Sólo un voucher USADO (con su cobro) queda liquidado. Uno DISPONIBLE o ANULADO que OpenKey
+        // dice haber pagado es una discrepancia (`liquidadoSinCobro` de la conciliación), no una marca:
+        // marcarlo lo dejaría «liquidado» sin cobro y trabaría su uso o su anulación futura.
         marcados += (
           await tx.voucher.updateMany({
-            where: { id, tenantId },
+            where: { id, tenantId, estado: "USADO" },
             data: { liquidadoEn, montoLiquidado: f.monto, liquidacionRef: f.referencia },
           })
         ).count;
