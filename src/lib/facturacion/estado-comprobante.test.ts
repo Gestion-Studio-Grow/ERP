@@ -31,3 +31,14 @@ test("un autorizado es final aunque el envío diga otra cosa", () => {
   const r = estadoDelComprobante(h({ status: "AUTHORIZED", cae: "1", envio: envio({ attempts: 8, muertoEn: antes }) }), ahora);
   assert.deepEqual([r.estado, r.final, r.reintentaEn], ["AUTORIZADO", true, null]);
 });
+
+test("v1.1: el tope por defecto es el de la política de reintentos (fuente única)", async () => {
+  const { POLITICA_DE_REINTENTOS } = await import("@/lib/arca-reintentos");
+  const { VERSION_CONTRATO_ESTADOS } = await import("./estado-comprobante");
+  assert.equal(VERSION_CONTRATO_ESTADOS, 1.1);
+  assert.equal(POLITICA_DE_REINTENTOS.maxIntentos, 4);
+  const tope = POLITICA_DE_REINTENTOS.maxIntentos;
+  // Agotado (≥ tope, pasadas las 24 h) → revisión; detenido antes del tope → falta un dato.
+  assert.equal(estadoDelComprobante(h({ envio: envio({ attempts: tope, muertoEn: antes }) }), ahora).estado, "PENDIENTE_REVISION");
+  assert.equal(estadoDelComprobante(h({ envio: envio({ attempts: tope - 1, muertoEn: antes }) }), ahora).estado, "PENDIENTE_DATOS");
+});

@@ -1,5 +1,7 @@
 // ============================================================================
-// CONTRATO DE ESTADOS DEL COMPROBANTE — congelado (v1, 06/11/2026). PURO.
+// CONTRATO DE ESTADOS DEL COMPROBANTE — congelado (v1.1, 06/11/2026). PURO.
+// v1.1 (autorizada por la orquestadora): el tope de intentos por defecto sale de la política de
+// reintentos (fuente única, arca-reintentos.ts: 4 intentos y 24 h), ya no un 8 fijo.
 // ============================================================================
 //
 // Lo que cualquier pantalla o integración (emisión manual, facturación de cobros de Mercado Pago,
@@ -30,13 +32,14 @@
 //   · `reintentaEn` sólo viene en FALLA_TRANSITORIA (y en EN_COLA cuando está esperando su hora).
 
 import { origenDelRechazo, motivoLegible as sinRotulos } from "@/lib/facturita-core";
+import { POLITICA_DE_REINTENTOS } from "@/lib/arca-reintentos";
 
 /** El motivo sin rótulos técnicos ni el código de ARCA adelante («10015: …» → «…»). */
 function motivoLegible(m: string | null): string {
   return sinRotulos((m ?? "").replace(/^\s*\d+\s*:\s*/, ""));
 }
 
-export const VERSION_CONTRATO_ESTADOS = 1 as const;
+export const VERSION_CONTRATO_ESTADOS = 1.1 as const;
 
 export type EstadoComprobante =
   | "EN_COLA"
@@ -74,7 +77,7 @@ export interface VistaDelEstado {
 }
 
 /** Intentos con los que el motor se rinde (POLITICA_DE_REINTENTOS.maxIntentos, arca-reintentos.ts). */
-export function estadoDelComprobante(h: HechosDelComprobante, ahora: Date, maxIntentos = 8): VistaDelEstado {
+export function estadoDelComprobante(h: HechosDelComprobante, ahora: Date, maxIntentos = POLITICA_DE_REINTENTOS.maxIntentos): VistaDelEstado {
   if (h.status === "AUTHORIZED") return { estado: "AUTORIZADO", motivo: null, reintentaEn: null, final: true };
   if (h.status === "REJECTED") {
     const motivo = motivoLegible(h.rechazoMotivo);
