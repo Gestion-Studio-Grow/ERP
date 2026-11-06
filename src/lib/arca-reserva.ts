@@ -8,12 +8,14 @@
  *   · `FOR UPDATE SKIP LOCKED` elige la fila sin esperar a otro despacho que la esté tomando, y el
  *     `UPDATE … WHERE <reserva libre>` es la garantía: si otro la reservó y confirmó primero,
  *     Postgres vuelve a evaluar la condición sobre la fila nueva y este despacho no la toma.
- *   · UN envío en vuelo por negocio: ARCA numera "último autorizado + 1" por punto de venta y
- *     tipo; si dos envíos del mismo negocio van a la vez, piden el mismo número. La toma pasa por
- *     un candado de Postgres por negocio (`pg_try_advisory_xact_lock`, se suelta al confirmar) y
- *     en una sentencia POSTERIOR del mismo bloque verifica que ningún otro envío del negocio tenga
- *     la reserva vigente. Como la reserva se confirma antes de soltar el candado, el siguiente que
- *     obtiene el candado ya la ve.
+ *   · UN envío en vuelo por SERIE (punto de venta + tipo, `payload.serie`, serie-numeracion.ts):
+ *     ARCA numera "último autorizado + 1" por punto de venta y tipo; si dos envíos de la misma
+ *     serie van a la vez, piden el mismo número. La toma pasa por un candado de Postgres por
+ *     negocio (`pg_try_advisory_xact_lock`, se suelta al confirmar: sólo serializa la sentencia
+ *     de toma) y en una sentencia POSTERIOR del mismo bloque verifica que ningún otro envío de la
+ *     misma serie tenga la reserva vigente. Como la reserva se confirma antes de soltar el
+ *     candado, el siguiente que obtiene el candado ya la ve. Un envío SIN serie (encolado antes
+ *     de que existiera) es comodín: choca con cualquier envío de su negocio.
  *   · La reserva vive en el `payload` (`reserva: { token, hasta }`), sin migración. Vence sola a
  *     los `RESERVA_DEL_ENVIO_SEGUNDOS`: si el proceso muere, el envío vuelve a estar disponible y el
  *     que lo retome consulta el número anotado antes de pedir otro (ENG-020). Anotar el número
@@ -151,6 +153,18 @@ export async function tomarSiguienteEnvio(
             AND ((o."payload"->'reserva') IS NULL OR (o."payload"->'reserva'->>'hasta')::timestamptz <= now())
             AND o."muertoEn" IS NULL
             AND (${corrida.ignorarEspera}::boolean OR o."proximoIntentoEn" IS NULL OR o."proximoIntentoEn" <= now())
+            -- Se elige el más viejo de una serie LIBRE: uno de una serie en vuelo no tapa a otra.
+            AND NOT EXISTS (
+              SELECT 1 FROM "OutboxEvent" AS v
+              WHERE v."tenantId" = o."tenantId"
+                AND v."type" = ${OUTBOX_INVOICE_CREATED}
+                AND v."processedAt" IS NULL
+                AND v."id" <> o."id"
+                AND (v."payload"->'reserva') IS NOT NULL
+                AND (v."payload"->'reserva'->>'hasta')::timestamptz > now()
+                AND (v."payload"->>'serie' IS NULL OR o."payload"->>'serie' IS NULL
+                     OR v."payload"->>'serie' = o."payload"->>'serie')
+            )
           ORDER BY o."createdAt", o."id"
           LIMIT 1
           FOR UPDATE SKIP LOCKED
@@ -166,6 +180,9 @@ export async function tomarSiguienteEnvio(
             AND x."id" <> e."id"
             AND (x."payload"->'reserva') IS NOT NULL
             AND (x."payload"->'reserva'->>'hasta')::timestamptz > now()
+            -- Misma serie (PV + tipo). Sin serie (encolado antes de la serie): comodín, choca con todos.
+            AND (x."payload"->>'serie' IS NULL OR e."payload"->>'serie' IS NULL
+                 OR x."payload"->>'serie' = e."payload"->>'serie')
         )
       RETURNING e."id", e."tenantId", e."payload", e."attempts", e."createdAt"`;
     const envio = tomados[0];

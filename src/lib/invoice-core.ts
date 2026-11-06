@@ -27,6 +27,7 @@ import { decidirComprobante } from "@/lib/fiscal/decidir-comprobante";
 import { normalizarFecha } from "@/lib/fiscal/vigencias";
 import { leerRegimenFacturaAEnTx } from "@/lib/fiscal/regimen-factura-a.server";
 import { montosDeLaNota, saldoPorAnular } from "@/lib/facturacion/nota-credito-core";
+import { serieDeNumeracion } from "@/lib/facturacion/serie-numeracion";
 import { emitirFacturaAutorizada, emitirFacturaRechazada } from "@/eventos/del-core";
 
 /** Cliente de transacción interactiva (mismo patrón que `LedgerTx` en stock/ledger.ts):
@@ -151,6 +152,11 @@ export interface InvoiceCreatedPayload
    * el comprobante ya autorizado en vez de pedir otro.
    */
   intentoArca?: { puntoVenta: number; tipo: number; numero: number };
+  /**
+   * Serie de numeración ante ARCA, `"<puntoVenta>:<CbteTipo>"` (serie-numeracion.ts). Sin la
+   * clave (envíos viejos, o tipo que no se pudo decidir) la toma lo trata como comodín.
+   */
+  serie?: string;
 }
 
 /** Input del comando `registerFiscalDocument` (lo llama el plugin con el CAE). */
@@ -467,6 +473,9 @@ async function encolarInvoiceCreated(
         }
       : {}),
   };
+  // Serie de numeración ante ARCA (PV + tipo): la toma serializa por serie (arca-reserva.ts).
+  const serie = serieDeNumeracion(payload);
+  if (serie) payload.serie = serie;
 
   await tx.outboxEvent.create({
     data: {
