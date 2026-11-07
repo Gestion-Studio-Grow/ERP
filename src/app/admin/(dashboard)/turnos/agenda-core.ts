@@ -532,7 +532,8 @@ export function minutosEntre(inicio: string, fin: string): number {
 /**
  * Los avisos de la seña por Mercado Pago que siguen pidiendo una persona, en criollo. Cada uno se
  * apaga solo cuando el turno a la vista ya lo resolvió:
- *   · parcial → mientras falte seña y el turno siga vivo;
+ *   · parcial → mientras falte seña y el turno siga vivo; con el turno cancelado o sin venir, mientras
+ *     la plata parcial siga en caja (no se apaga por cancelar: esa plata entró y hay que resolverla);
  *   · devuelta sin anular → mientras ese cobro siga en pie (nadie lo anuló a mano);
  *   · no registrada → mientras no haya un cobro de ese pago.
  */
@@ -544,6 +545,8 @@ export function textosAvisoMP(t: Pick<TurnoDelDia, "estado" | "senia" | "cobrado
   for (const a of t.avisosMP) {
     if (a.tipo === "parcial") {
       if (vivo && faltanteDeSenia(t.senia, t.cobrado) > 0) textos.push(`Seña parcial por Mercado Pago: pagó ${pesos(a.pagado)} de ${pesos(a.senia)}`);
+      else if ((t.estado === "CANCELLED" || t.estado === "NO_SHOW") && t.cobrado > 0)
+        textos.push(`Seña parcial por Mercado Pago (${pesos(a.pagado)}): el turno ${t.estado === "CANCELLED" ? "se canceló" : "quedó sin venir"} y esa plata sigue en caja: revisala`);
     } else if (a.tipo === "devuelta-sin-anular") {
       const sigue = a.cobroId === null || t.cobros.some((c) => c.id === a.cobroId && !anulados.has(a.cobroId as string));
       if (sigue) textos.push("Mercado Pago devolvió la seña pero el cobro sigue en caja: revisalo");

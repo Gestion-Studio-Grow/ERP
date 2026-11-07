@@ -163,15 +163,18 @@ export function horario(t: Pick<TurnoDelDia, "inicio" | "fin">): string {
 export async function extrasDeLaAgenda(
   cruda: AgendaCruda,
   dia: string,
-  /** `quienCobro`: agenda interactiva prendida → también los nombres de quién cobró (una lectura). */
-  o: { quienCobro?: boolean } = {},
+  /**
+   * `quienCobro`: agenda interactiva prendida → también los nombres de quién cobró (una lectura).
+   * `seniaObligatoria`: la regla prendida para el negocio → recién ahí se leen los avisos de MP.
+   */
+  o: { quienCobro?: boolean; seniaObligatoria?: boolean } = {},
 ): Promise<{ seniasPedidas: Record<string, string>; avisosMP: Record<string, AvisoMP[]>; bloqueos: BloqueoDelDia[]; quienCobro?: Record<string, string> }> {
   const reservados = cruda.appointments.filter((a) => a.status === "PENDING").map((a) => a.id);
   const profesionales = cruda.professionals.map((p) => p.id);
   const todos = cruda.appointments.map((a) => a.id);
   const [senias, avisosMP, horarios, quienCobro] = await Promise.all([
     reservados.length > 0 ? seniasPedidas(reservados).catch(() => ({})) : Promise.resolve({}),
-    todos.length > 0 && !isDemoSandbox() ? avisosMPDelDia(todos).catch(() => ({})) : Promise.resolve({}),
+    todos.length > 0 && o.seniaObligatoria && !isDemoSandbox() ? avisosMPDelDia(todos).catch(() => ({})) : Promise.resolve({}),
     profesionales.length > 0 ? horariosDelDia(dia, profesionales).catch(() => null) : Promise.resolve(null),
     o.quienCobro ? nombresDeQuienCobro(cruda).catch(() => ({})) : Promise.resolve(undefined),
   ]);
@@ -183,10 +186,10 @@ export async function extrasDeLaAgenda(
   };
 }
 
-/** Los avisos de la seña por MP de los turnos del día: UNA consulta, con `tenantId`. */
+/** Los avisos de la seña por MP de los turnos del día (sólo con la regla prendida): con `tenantId`. */
 async function avisosMPDelDia(ids: string[]): Promise<Record<string, AvisoMP[]>> {
   const tenantId = await getCurrentTenantId();
-  return leerAvisosMP(prisma as unknown as LectorAvisosMP, tenantId, ids);
+  return leerAvisosMP(prisma as unknown as LectorAvisosMP, tenantId, ids, { reglaPrendida: true });
 }
 
 /** Actor de los cobros del día («user:<id>») → nombre. UNA consulta por día, con `tenantId`. */

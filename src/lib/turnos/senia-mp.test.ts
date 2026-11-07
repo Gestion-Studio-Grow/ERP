@@ -423,8 +423,8 @@ test("obs 1: un fallo de la seña NO bloquea la factura: se avisa al Core y se f
   assert.equal(r2.facturado, true);
 });
 
-test("obs 1: reembolso de turno con la regla apagada (o con fallo) contesta como antes: «estado refunded»", async () => {
-  for (const senia of [async () => ({ accion: "apagada" }), async () => null, async () => { throw new Error("boom"); }]) {
+test("obs 1: reembolso de turno con la regla apagada contesta como antes: «estado refunded»", async () => {
+  for (const senia of [async () => ({ accion: "apagada" }), async () => null]) {
     const h = handlerCon(pago({ estado: "refunded" }));
     const r = await procesarNotificacionPago({ type: "payment", paymentId: "9001", tenantId: "A" }, { ...h.deps, senia, alFallarSenia: () => {} });
     assert.deepEqual(r, { procesado: true, facturado: false, invoiceId: null, motivo: "estado refunded" });
@@ -436,10 +436,44 @@ test("obs 1: reembolso de turno con la regla apagada (o con fallo) contesta como
 
 test("obs 1: avisarSeniaMPFallida deja la fila senia_mp_no_registrada del negocio y nunca tira", async () => {
   const b = base();
-  await avisarSeniaMPFallida("t1", "A", pago(), new Error("boom"), { transaccion: async (fn) => fn(b.tx) });
+  await avisarSeniaMPFallida("t1", "A", pago(), new Error("boom"), { transaccion: async (fn) => fn(b.tx), reglaPrendidaEnTx: async () => true });
   const fila = b.db.audit.at(-1)!;
   assert.equal(fila.action, "senia_mp_no_registrada");
   assert.equal(fila.tenantId, "A");
   assert.equal(fila.entityId, "t1");
-  await avisarSeniaMPFallida("t1", "A", pago(), "x", { transaccion: async () => { throw new Error("db caída"); } });
+  await avisarSeniaMPFallida("t1", "A", pago(), "x", { transaccion: async () => { throw new Error("db caída"); }, reglaPrendidaEnTx: async () => true });
+});
+
+// ── Certificación de a9683e42 ────────────────────────────────────────────────
+
+test("H1: refunded con la seña fallando (40001 agotado) → el error SUBE (webhook 500, MP reintenta) y no se traga", async () => {
+  // Reproducción de la certificación: antes contestaba procesado:true (200) y el aviso quedaba escondido.
+  for (const p of [pago({ estado: "refunded" })]) {
+    const h = handlerCon(p);
+    const avisos: string[] = [];
+    await assert.rejects(
+      procesarNotificacionPago(
+        { type: "payment", paymentId: "9001", tenantId: "A" },
+        {
+          ...h.deps,
+          senia: async () => { throw Object.assign(new Error("could not serialize access"), { code: "40001" }); },
+          alFallarSenia: () => { avisos.push("tragado"); },
+        },
+      ),
+      /could not serialize access/,
+    );
+    assert.deepEqual(avisos, [], "en una devolución el error no se avisa-y-traga: sube");
+    assert.deepEqual(h.llamadas, [], "no factura");
+  }
+});
+
+test("H2: avisarSeniaMPFallida no deja fila si la regla está apagada o no se pudo leer (y nunca tira)", async () => {
+  const b = base();
+  const antes = b.db.audit.length;
+  await avisarSeniaMPFallida("t1", "A", pago(), new Error("boom"), { transaccion: async (fn) => fn(b.tx), reglaPrendidaEnTx: async () => false });
+  await avisarSeniaMPFallida("t1", "A", pago(), new Error("boom"), {
+    transaccion: async (fn) => fn(b.tx),
+    reglaPrendidaEnTx: async () => { throw new Error("no se pudo leer el interruptor"); },
+  });
+  assert.equal(b.db.audit.length, antes);
 });

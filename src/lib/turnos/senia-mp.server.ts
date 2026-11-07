@@ -94,29 +94,36 @@ export async function aplicarPagoMPDelTurno(
 }
 
 /**
- * La seña falló con un error inesperado (el handler sigue y factura igual): queda en el log y una
- * fila `senia_mp_no_registrada` que la agenda muestra. Nunca tira: un fallo acá tampoco bloquea nada.
+ * La seña del pago APROBADO falló con un error inesperado (el handler sigue y factura igual): queda
+ * en el log y, SÓLO si se sabe que la regla está prendida (se relee en la misma tx del aviso), una
+ * fila `senia_mp_no_registrada` que la agenda muestra. Si la regla está apagada o no se pudo leer,
+ * no hay fila: con la regla apagada el cobro se carga como siempre y un aviso invitaría a cargarlo
+ * dos veces. Nunca tira: un fallo acá tampoco bloquea nada.
  */
 export async function avisarSeniaMPFallida(
   appointmentId: string,
   tenantId: string,
   pago: PagoMP,
   error: unknown,
-  deps: Pick<DepsServidorSeniaMP, "transaccion"> = DEPS_SERVIDOR,
+  deps: Pick<DepsServidorSeniaMP, "transaccion" | "reglaPrendidaEnTx"> = DEPS_SERVIDOR,
 ): Promise<void> {
   const motivo = error instanceof Error ? error.message : String(error);
   logger.error("caja", "la seña por Mercado Pago falló; el aviso siguió sin ella", { tenantId, appointmentId, pagoId: pago.id, motivo });
   try {
-    await deps.transaccion(
-      (tx) =>
-        auditarAvisoMPEnTx(tx, {
+    const avisado = await deps.transaccion(
+      async (tx) => {
+        if (!(await deps.reglaPrendidaEnTx(tx, tenantId))) return false;
+        await auditarAvisoMPEnTx(tx, {
           tenantId,
           appointmentId,
           action: ACCION_SENIA_MP_NO_REGISTRADA,
           changes: { pagoMP: { id: pago.id, estado: pago.estado, monto: pago.monto }, motivo: `error inesperado: ${motivo}` },
-        }),
+        });
+        return true;
+      },
       { tenantId },
     );
+    if (!avisado) logger.warn("caja", "seña por Mercado Pago fallida con la regla apagada: sin aviso en la agenda", { tenantId, appointmentId });
   } catch (e) {
     logger.error("caja", "no se pudo dejar el aviso de la seña fallida", { tenantId, appointmentId, motivo: e instanceof Error ? e.message : String(e) });
   }

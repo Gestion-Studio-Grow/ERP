@@ -45,13 +45,17 @@ export interface MpHandlerDeps {
    */
   senia?: SeniaPorPago;
   /**
-   * Aviso del Core cuando `senia` tira (log + AuditLog). La seña NUNCA bloquea la facturación ni
-   * cambia la respuesta de siempre: el error se traga acá.
+   * Aviso del Core cuando `senia` tira en el camino del pago APROBADO (log + AuditLog): ahí la seña
+   * nunca bloquea la facturación y el error se traga. En una devolución/contracargo (`refunded`) el
+   * error SUBE: el webhook contesta 500 y MP reintenta (la plata devuelta no puede quedar en caja).
    */
   alFallarSenia?: SeniaFallida;
 }
 
-/** La seña, envuelta: un fallo queda avisado y nunca sube. Devuelve lo que contestó el Core (o null). */
+/**
+ * La seña del pago APROBADO, envuelta: un fallo queda avisado y nunca sube (no bloquea la factura).
+ * Sólo para ese camino: la devolución llama a `deps.senia` sin envolver.
+ */
 async function seniaSegura(deps: MpHandlerDeps, appointmentId: string, tenantId: string, pago: Parameters<SeniaPorPago>[2]): Promise<unknown> {
   if (!deps.senia) return null;
   try {
@@ -90,8 +94,10 @@ export async function procesarNotificacionPago(
   if (pago.estado === "refunded" && deps.senia) {
     const duenoDevuelto = duenoDelCobro(pago.externalReference);
     if (duenoDevuelto?.tipo === "turno") {
-      const r = await seniaSegura(deps, duenoDevuelto.id, notif.tenantId, pago);
-      // Regla apagada (o fallo): cae a la respuesta de siempre («estado refunded»).
+      // SIN envolver: si la anulación falla (p. ej. 40001 que agotó los reintentos) el error sube,
+      // el webhook contesta 500 y MP reintenta. Tragarlo dejaría la seña devuelta en caja.
+      const r = await deps.senia(duenoDevuelto.id, notif.tenantId, pago);
+      // Regla apagada: cae a la respuesta de siempre («estado refunded»).
       if (seniaActiva(r)) return { procesado: true, facturado: false, invoiceId: null, motivo: "seña devuelta" };
     }
   }

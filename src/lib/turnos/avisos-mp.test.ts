@@ -29,9 +29,11 @@ function lector() {
   return { db, wheres };
 }
 
+const ON = { reglaPrendida: true };
+
 test("consulta: una sola, con tenantId, sólo las tres acciones de aviso y sólo los turnos dados", async () => {
   const { db, wheres } = lector();
-  const r = await leerAvisosMP(db, "A", ["t1", "t2", "t1", ""]);
+  const r = await leerAvisosMP(db, "A", ["t1", "t2", "t1", ""], ON);
   assert.equal(wheres.length, 1);
   assert.deepEqual(wheres[0], {
     tenantId: "A",
@@ -45,10 +47,10 @@ test("consulta: una sola, con tenantId, sólo las tres acciones de aviso y sólo
 
 test("consulta: aislamiento — B ve lo suyo y no lo de A; sin turnos o sin negocio, ni una consulta", async () => {
   const { db, wheres } = lector();
-  const b = await leerAvisosMP(db, "B", ["t1"]);
+  const b = await leerAvisosMP(db, "B", ["t1"], ON);
   assert.deepEqual(b.t1, [{ tipo: "devuelta-sin-anular", cobroId: "cB" }]);
-  assert.deepEqual(await leerAvisosMP(db, "A", []), {});
-  assert.deepEqual(await leerAvisosMP(db, "", ["t1"]), {});
+  assert.deepEqual(await leerAvisosMP(db, "A", [], ON), {});
+  assert.deepEqual(await leerAvisosMP(db, "", ["t1"], ON), {});
   assert.equal(wheres.length, 1);
 });
 
@@ -87,4 +89,33 @@ test("textos en criollo, y cada uno se apaga cuando el turno ya lo resolvió", (
   assert.deepEqual(resuelto, []);
   assert.deepEqual(textosAvisoMP({ ...base, avisosMP: undefined }), []);
   assert.match(textosAvisoMP({ ...base, avisosMP: [{ tipo: "no-registrada", pagoId: null, monto: null, cajaCerrada: false }] })[0], /no se pudo registrar: registrala a mano/);
+});
+
+// ── Certificación de a9683e42 ────────────────────────────────────────────────
+
+test("H2: con la regla de seña obligatoria apagada la agenda no lee (ni muestra) avisos de MP", async () => {
+  const { db, wheres } = lector();
+  assert.deepEqual(await leerAvisosMP(db, "A", ["t1", "t2"], { reglaPrendida: false }), {});
+  assert.equal(wheres.length, 0);
+});
+
+test("baja: más de 300 turnos en el día → bloques de 300, todos con tenantId; no se corta ninguno", async () => {
+  const ids = Array.from({ length: 650 }, (_, i) => `x${i}`);
+  ids[649] = "t1"; // el aviso está en el último bloque
+  const { db, wheres } = lector();
+  const r = await leerAvisosMP(db, "A", ids, ON);
+  assert.equal(wheres.length, 3);
+  const pedidos = (wheres as { tenantId: string; entityId: { in: string[] } }[]).flatMap((w) => (assert.equal(w.tenantId, "A"), w.entityId.in));
+  assert.equal(pedidos.length, 650);
+  assert.deepEqual(r.t1.map((a) => a.tipo), ["parcial", "no-registrada"]);
+});
+
+test("baja: la seña parcial NO se apaga al cancelar el turno (la plata parcial sigue en caja)", () => {
+  const avisosMP = [{ tipo: "parcial" as const, pagado: 2000, senia: 5000 }];
+  const cancelado = textosAvisoMP({ ...base, estado: "CANCELLED", avisosMP });
+  assert.equal(cancelado.length, 1);
+  assert.match(cancelado[0], /^Seña parcial por Mercado Pago \(\$\s?2\.000\): el turno se canceló y esa plata sigue en caja: revisala$/);
+  assert.match(textosAvisoMP({ ...base, estado: "NO_SHOW", avisosMP })[0], /quedó sin venir/);
+  // Si la plata ya se devolvió (cobro anulado → cobrado 0), se apaga.
+  assert.deepEqual(textosAvisoMP({ ...base, estado: "CANCELLED", cobrado: 0, avisosMP }), []);
 });

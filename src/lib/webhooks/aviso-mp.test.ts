@@ -234,3 +234,22 @@ test("el cobro del pedido NO depende de isInvoicingEnabled(): con la facturació
     if (prev !== undefined) process.env.ARCA_INVOICING_ENABLED = prev;
   }
 });
+
+test("H1 (cert. a9683e42): devolución de una seña que falla al anularse → 500 y MP reintenta (no 200 escondido)", async () => {
+  const { manejarNotificacionMP } = await import("@/lib/mercadopago-dispatch");
+  const p = armar(
+    {
+      manejar: (n, opts) =>
+        manejarNotificacionMP(n, { ...opts, senia: async () => { throw Object.assign(new Error("could not serialize access"), { code: "40001" }); } }),
+    },
+    { estado: "refunded", externalReference: "gsg:magra:turno:apt_1" },
+  );
+  const r = await atender(aviso(), p.deps);
+  assert.equal(r.status, 500);
+  // La misma devolución con la seña anulada bien → 200.
+  const ok = armar(
+    { manejar: (n, opts) => manejarNotificacionMP(n, { ...opts, senia: async () => ({ accion: "devuelto", volvioAReservado: true }) }) },
+    { estado: "refunded", externalReference: "gsg:magra:turno:apt_1" },
+  );
+  assert.equal((await atender(aviso(), ok.deps)).status, 200);
+});
