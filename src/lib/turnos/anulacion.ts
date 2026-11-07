@@ -543,8 +543,9 @@ export async function anularCobroTurnoInTx(
     throw new AnulacionRechazada(plan.motivo);
   }
   // ORDEN: toda validación que puede rechazar la anulación corre ANTES de la nota de crédito.
-  // La nota se autoriza ante ARCA y eso no se deshace con un rollback: no puede salir una nota
-  // para una anulación que después se rechaza (merge de #23 vouchers con #38 opción B).
+  // La nota queda PENDING en la cola de esta misma transacción: si la anulación se rechaza después,
+  // el rollback la deshace junto con todo lo demás. Validar antes evita igual crear (y enumerar)
+  // una nota que se va a descartar (merge de #23 vouchers con #38 opción B).
   //
   // CH · cobro con voucher (src/lib/vouchers): el voucher vuelve a DISPONIBLE en esta misma tx,
   // sólo si OpenKey todavía no lo dio de baja NI lo liquidó. Con la baja o la liquidación hecha,
