@@ -1,0 +1,362 @@
+// ============================================================================
+// TEST-GATE — seña por Mercado Pago confirma el turno (interruptor «sena-obligatoria»)
+// ============================================================================
+//
+//  1. Pago aprobado que cubre la seña → cobro registrado + Reservado → Confirmado, auditoría «Mercado Pago».
+//  2. Monto menor a la seña → cobro parcial, NO confirma, fila de aviso.
+//  3. Pendiente / rechazado → nada cambia (ni una escritura).
+//  4. Devolución total / contracargo → anula el cobro y vuelve a Reservado; parcial → ajusta al neto.
+//  + Idempotencia por id de pago (el aviso dos veces no duplica plata) y aislamiento por negocio.
+//  + El handler del plugin llama a la seña antes de facturar y con `refunded`.
+//
+// Sin DB: un doble en memoria del `tx` (varios negocios en la misma «base») y dobles del cobro y la
+// anulación con el mismo contrato (`aplicarCobroTurnoInTx` / `anularCobroTurnoInTx`). Estilo node:test.
+
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import type { PagoMP } from "@/plugins/mercadopago";
+import { procesarNotificacionPago } from "@/plugins/mercadopago/handler";
+import { AnulacionRechazada, notaDeAnulacion } from "./anulacion";
+import {
+  ACTOR_MP,
+  ACCION_SENIA_PARCIAL_MP,
+  ACCION_SENIA_MP_DEVUELTA_SIN_ANULAR,
+  aplicarPagoMPDelTurnoEnTx,
+  netoDelPagoMP,
+  notaSeniaMP,
+  planSeniaMP,
+  type DepsSeniaMPTx,
+} from "./senia-mp";
+
+type Cobro = { id: string; tenantId: string; originId: string; amount: number; note: string | null; key: string | null; method: string };
+type Audit = { id: string; tenantId: string; entity: string; entityId: string; action: string; actor: string; channel: string; createdAt: Date; changes?: unknown };
+type Turno = { id: string; tenantId: string; status: string; startsAt: Date; priceAtBooking: number | null; service: { name: string; price: number; depositAmount: number | null } };
+
+function coincide(fila: Record<string, unknown>, where: Record<string, unknown>): boolean {
+  return Object.entries(where).every(([k, v]) => {
+    const x = fila[k];
+    if (v && typeof v === "object" && !(v instanceof Date)) {
+      const o = v as { in?: unknown[]; startsWith?: string };
+      if (o.in) return o.in.includes(x);
+      if (o.startsWith !== undefined) return typeof x === "string" && x.startsWith(o.startsWith);
+    }
+    return x === v;
+  });
+}
+
+let seq = 0;
+function base() {
+  const db = { turnos: [] as Turno[], cobros: [] as Cobro[], audit: [] as Audit[], escrituras: 0 };
+  const prender = (tenantId: string) =>
+    db.audit.push({
+      id: `i${++seq}`,
+      tenantId,
+      entity: "Interruptor",
+      entityId: "sena-obligatoria",
+      action: "interruptor.encender",
+      actor: "operator:gsg",
+      channel: "operador",
+      createdAt: new Date("2026-11-01T10:00:00Z"),
+    });
+  const tx = {
+    auditLog: {
+      findMany: async ({ where }: { where: Record<string, unknown> }) => db.audit.filter((a) => coincide(a, where)).slice(-1),
+      findFirst: async ({ where }: { where: Record<string, unknown> }) => db.audit.filter((a) => coincide(a, where)).at(-1) ?? null,
+      create: async ({ data }: { data: Omit<Audit, "id" | "createdAt"> }) => (db.escrituras++, db.audit.push({ ...data, id: `a${++seq}`, createdAt: new Date() }), {}),
+    },
+    appointment: {
+      findFirst: async ({ where }: { where: { id: string; tenantId: string } }) => {
+        const t = db.turnos.find((x) => x.id === where.id && x.tenantId === where.tenantId);
+        return t ? { ...t, client: { name: "Ana" }, payment: null } : null;
+      },
+      updateMany: async ({ where, data }: { where: Record<string, unknown>; data: { status: string } }) => {
+        const ts = db.turnos.filter((t) => coincide(t, where));
+        for (const t of ts) t.status = data.status;
+        db.escrituras += ts.length;
+        return { count: ts.length };
+      },
+    },
+    collection: {
+      findMany: async ({ where }: { where: { tenantId: string; originId: string | { in: string[] } } }) =>
+        db.cobros
+          .filter((c) => c.tenantId === where.tenantId && (typeof where.originId === "string" ? c.originId === where.originId : where.originId.in.includes(c.originId)))
+          .map((c) => ({ ...c, createdAt: new Date(), collectedBy: ACTOR_MP, amount: { toNumber: () => c.amount } })),
+    },
+  };
+  // Dobles con el contrato de los escritores reales: clave única por negocio, anulación con su marca.
+  const aplicarCobro = (async (_tx: unknown, tenantId: string, a: { appointmentId: string; monto: number; note: string; idempotencyKey: string | null; withSchema: boolean; method: string }) => {
+    if (a.withSchema && a.idempotencyKey) {
+      const prev = db.cobros.find((c) => c.tenantId === tenantId && c.key === a.idempotencyKey);
+      if (prev) return { applied: false, reason: "duplicate", collectionId: prev.id };
+    }
+    const id = `c${++seq}`;
+    db.cobros.push({ id, tenantId, originId: a.appointmentId, amount: a.monto, note: a.note, key: a.withSchema ? a.idempotencyKey : null, method: a.method });
+    db.escrituras++;
+    return { applied: true, collectionId: id, monto: a.monto, estado: { cobrado: a.monto, saldo: 0 }, payment: { id: "p", amount: a.monto }, caja: null };
+  }) as unknown as DepsSeniaMPTx["aplicarCobro"];
+  let rechazarAnulacion: AnulacionRechazada | null = null;
+  const anularCobro = (async (_tx: unknown, tenantId: string, a: { collectionId: string; appointmentId: string; motivo: string }) => {
+    if (rechazarAnulacion) throw rechazarAnulacion;
+    const o = db.cobros.find((c) => c.id === a.collectionId && c.tenantId === tenantId)!;
+    const id = `c${++seq}`;
+    db.cobros.push({ id, tenantId, originId: a.appointmentId, amount: -o.amount, note: notaDeAnulacion(o.id, a.motivo), key: null, method: o.method });
+    db.escrituras++;
+    return { applied: true, reversaId: id, monto: o.amount, cobradoDespues: 0, saldoDespues: 0, libro: { asentada: false, reason: "sin-migrar" } };
+  }) as unknown as DepsSeniaMPTx["anularCobro"];
+  const deps = (withSchema = true): DepsSeniaMPTx => ({ aplicarCobro, anularCobro, ahora: new Date("2026-11-07T12:00:00Z"), cerradoHasta: null, withSchema });
+  const turno = (id: string, tenantId: string, extra: Partial<Turno> = {}) =>
+    db.turnos.push({ id, tenantId, status: "PENDING", startsAt: new Date("2099-01-01T15:00:00Z"), priceAtBooking: 20000, service: { name: "Limpieza", price: 20000, depositAmount: 5000 }, ...extra });
+  return {
+    db,
+    tx: tx as never,
+    deps,
+    prender,
+    turno,
+    rechazarAnulacionCon: (e: AnulacionRechazada) => (rechazarAnulacion = e),
+  };
+}
+
+const pago = (p: Partial<PagoMP> = {}): PagoMP => ({ id: "9001", estado: "approved", monto: 5000, externalReference: "t1", ...p }) as PagoMP;
+
+// ── Lo puro ──────────────────────────────────────────────────────────────────
+
+test("neto del pago: aprobado = monto − devoluciones; refunded = 0; pendiente/rechazado = null", () => {
+  assert.equal(netoDelPagoMP(pago()), 5000);
+  assert.equal(netoDelPagoMP(pago({ posteriores: [{ tipo: "devolucion", refundId: "r", paymentId: "9001", importe: 2000 }] })), 3000);
+  assert.equal(netoDelPagoMP(pago({ estado: "refunded" })), 0);
+  for (const estado of ["pending", "rejected", "in_process", "cancelled"] as const) assert.equal(netoDelPagoMP(pago({ estado })), null);
+  assert.equal(netoDelPagoMP(pago({ monto: 0 })), null);
+});
+
+test("plan: un cobro de ese pago anulado a mano NO se vuelve a registrar por un reenvío", () => {
+  assert.deepEqual(planSeniaMP({ neto: 5000, estado: "approved", vigente: null, huboCobro: true }).tipo, "nada");
+  assert.deepEqual(planSeniaMP({ neto: 5000, estado: "approved", vigente: { id: "c", amount: 5000 }, huboCobro: true }), { tipo: "nada", motivo: "ya registrado" });
+});
+
+// ── 1. Aprobado que cubre la seña ────────────────────────────────────────────
+
+test("1. aprobado que cubre la seña: registra el cobro y confirma, con auditoría «Mercado Pago»", async () => {
+  const b = base();
+  b.prender("A");
+  b.turno("t1", "A");
+  const r = await aplicarPagoMPDelTurnoEnTx(b.tx, "A", "t1", pago(), b.deps());
+  assert.equal(r.accion, "confirmado");
+  assert.equal(b.db.turnos[0].status, "CONFIRMED");
+  assert.equal(b.db.cobros.length, 1);
+  assert.equal(b.db.cobros[0].note, notaSeniaMP("9001"));
+  assert.equal(b.db.cobros[0].method, "MERCADOPAGO");
+  const confirm = b.db.audit.find((a) => a.action === "confirm");
+  assert.ok(confirm);
+  assert.equal(confirm.actor, "Mercado Pago");
+  assert.equal(confirm.tenantId, "A");
+  assert.equal(confirm.channel, "webhook");
+});
+
+test("1b. interruptor apagado: no registra ni confirma (el aviso sólo factura, como siempre)", async () => {
+  const b = base();
+  b.turno("t1", "A");
+  const r = await aplicarPagoMPDelTurnoEnTx(b.tx, "A", "t1", pago(), b.deps());
+  assert.equal(r.accion, "apagada");
+  assert.equal(b.db.escrituras, 0);
+  assert.equal(b.db.turnos[0].status, "PENDING");
+});
+
+test("1c. turno ya Confirmado: registra la seña y no toca el estado", async () => {
+  const b = base();
+  b.prender("A");
+  b.turno("t1", "A", { status: "CONFIRMED" });
+  const r = await aplicarPagoMPDelTurnoEnTx(b.tx, "A", "t1", pago(), b.deps());
+  assert.equal(r.accion, "registrado");
+  assert.equal(b.db.audit.filter((a) => a.action === "confirm").length, 0);
+});
+
+// ── 2. Monto menor ───────────────────────────────────────────────────────────
+
+test("2. monto menor a la seña: queda la seña parcial y el aviso; NO confirma", async () => {
+  const b = base();
+  b.prender("A");
+  b.turno("t1", "A");
+  const r = await aplicarPagoMPDelTurnoEnTx(b.tx, "A", "t1", pago({ monto: 3000 }), b.deps());
+  assert.equal(r.accion, "senia-parcial");
+  assert.equal(r.accion === "senia-parcial" && r.falta, 2000);
+  assert.equal(b.db.turnos[0].status, "PENDING");
+  assert.equal(b.db.cobros.length, 1);
+  assert.ok(b.db.audit.some((a) => a.action === ACCION_SENIA_PARCIAL_MP && a.actor === ACTOR_MP));
+});
+
+// ── 3. Pendiente / rechazado ─────────────────────────────────────────────────
+
+test("3. pendiente o rechazado: nada cambia, ni una lectura del turno", async () => {
+  const b = base();
+  b.prender("A");
+  b.turno("t1", "A");
+  for (const estado of ["pending", "rejected", "in_process", "cancelled"] as const) {
+    const r = await aplicarPagoMPDelTurnoEnTx(b.tx, "A", "t1", pago({ estado }), b.deps());
+    assert.equal(r.accion, "sin-cambios");
+  }
+  assert.equal(b.db.escrituras, 0);
+  assert.equal(b.db.turnos[0].status, "PENDING");
+});
+
+// ── 4. Devolución / contracargo ──────────────────────────────────────────────
+
+test("4. devolución total o contracargo (refunded): anula el cobro y el turno vuelve a Reservado", async () => {
+  const b = base();
+  b.prender("A");
+  b.turno("t1", "A");
+  await aplicarPagoMPDelTurnoEnTx(b.tx, "A", "t1", pago(), b.deps());
+  assert.equal(b.db.turnos[0].status, "CONFIRMED");
+  const r = await aplicarPagoMPDelTurnoEnTx(b.tx, "A", "t1", pago({ estado: "refunded" }), b.deps());
+  assert.deepEqual(r, { accion: "devuelto", volvioAReservado: true });
+  assert.equal(b.db.turnos[0].status, "PENDING");
+  assert.equal(b.db.cobros.reduce((n, c) => n + c.amount, 0), 0);
+  const vuelta = b.db.audit.find((a) => a.action === "unconfirm_falta_senia");
+  assert.equal(vuelta?.actor, ACTOR_MP);
+  // El reenvío del mismo aviso de devolución no anula dos veces ni re-registra.
+  const n = b.db.escrituras;
+  const otra = await aplicarPagoMPDelTurnoEnTx(b.tx, "A", "t1", pago({ estado: "refunded" }), b.deps());
+  assert.equal(otra.accion, "sin-cambios");
+  assert.equal(b.db.escrituras, n);
+  // Y un aviso viejo «approved» que llega tarde tampoco revive el cobro anulado.
+  const tarde = await aplicarPagoMPDelTurnoEnTx(b.tx, "A", "t1", pago(), b.deps());
+  assert.equal(tarde.accion, "sin-cambios");
+  assert.equal(b.db.escrituras, n);
+});
+
+test("4b. devolución parcial (sigue approved con posteriores): ajusta al neto y, si no alcanza, vuelve a Reservado", async () => {
+  const b = base();
+  b.prender("A");
+  b.turno("t1", "A");
+  await aplicarPagoMPDelTurnoEnTx(b.tx, "A", "t1", pago(), b.deps());
+  const parcial = pago({ posteriores: [{ tipo: "devolucion", refundId: "r1", paymentId: "9001", importe: 2000 }] });
+  const r = await aplicarPagoMPDelTurnoEnTx(b.tx, "A", "t1", parcial, b.deps());
+  assert.equal(r.accion, "ajustado");
+  assert.equal(b.db.cobros.reduce((n, c) => n + c.amount, 0), 3000);
+  assert.equal(b.db.turnos[0].status, "PENDING");
+  // Reenvío del mismo aviso: idempotente.
+  const n = b.db.escrituras;
+  assert.equal((await aplicarPagoMPDelTurnoEnTx(b.tx, "A", "t1", parcial, b.deps())).accion, "ya-registrado");
+  assert.equal(b.db.escrituras, n);
+});
+
+test("4c. devolución con el cobro no anulable (facturado): aviso y el turno igual vuelve a Reservado", async () => {
+  const b = base();
+  b.prender("A");
+  b.turno("t1", "A");
+  await aplicarPagoMPDelTurnoEnTx(b.tx, "A", "t1", pago(), b.deps());
+  b.rechazarAnulacionCon(new AnulacionRechazada("facturado"));
+  const r = await aplicarPagoMPDelTurnoEnTx(b.tx, "A", "t1", pago({ estado: "refunded" }), b.deps());
+  assert.deepEqual(r, { accion: "devuelto", volvioAReservado: true });
+  assert.equal(b.db.turnos[0].status, "PENDING");
+  assert.ok(b.db.audit.some((a) => a.action === ACCION_SENIA_MP_DEVUELTA_SIN_ANULAR));
+});
+
+test("4d. la excepción de la dueña («confirm_sin_senia») se respeta al devolverse la seña sin poder anular", async () => {
+  const b = base();
+  b.prender("A");
+  b.turno("t1", "A");
+  await aplicarPagoMPDelTurnoEnTx(b.tx, "A", "t1", pago(), b.deps());
+  b.db.audit.push({ id: "x", tenantId: "A", entity: "Appointment", entityId: "t1", action: "confirm_sin_senia", actor: "user:dueña", channel: "admin", createdAt: new Date() });
+  b.rechazarAnulacionCon(new AnulacionRechazada("dia-cerrado"));
+  const r = await aplicarPagoMPDelTurnoEnTx(b.tx, "A", "t1", pago({ estado: "refunded" }), b.deps());
+  assert.deepEqual(r, { accion: "devuelto", volvioAReservado: false });
+  assert.equal(b.db.turnos[0].status, "CONFIRMED");
+});
+
+// ── Idempotencia ─────────────────────────────────────────────────────────────
+
+for (const withSchema of [true, false]) {
+  test(`idempotencia: el mismo aviso aprobado dos veces no duplica la plata (columna de clave ${withSchema ? "migrada" : "SIN migrar"})`, async () => {
+    const b = base();
+    b.prender("A");
+    b.turno("t1", "A");
+    await aplicarPagoMPDelTurnoEnTx(b.tx, "A", "t1", pago(), b.deps(withSchema));
+    const n = b.db.escrituras;
+    const r = await aplicarPagoMPDelTurnoEnTx(b.tx, "A", "t1", pago(), b.deps(withSchema));
+    assert.equal(r.accion, "ya-registrado");
+    assert.equal(b.db.cobros.length, 1);
+    assert.equal(b.db.escrituras, n);
+    assert.equal(b.db.audit.filter((a) => a.action === "confirm").length, 1);
+  });
+}
+
+test("idempotencia: un segundo pago distinto de la misma clienta es otro cobro", async () => {
+  const b = base();
+  b.prender("A");
+  b.turno("t1", "A");
+  await aplicarPagoMPDelTurnoEnTx(b.tx, "A", "t1", pago({ monto: 3000 }), b.deps());
+  const r = await aplicarPagoMPDelTurnoEnTx(b.tx, "A", "t1", pago({ id: "9002", monto: 2000 }), b.deps());
+  assert.equal(r.accion, "confirmado");
+  assert.equal(b.db.cobros.length, 2);
+});
+
+// ── Aislamiento por negocio ──────────────────────────────────────────────────
+
+test("aislamiento: el aviso del negocio B no ve ni toca el turno del negocio A (mismo id)", async () => {
+  const b = base();
+  b.prender("A");
+  b.prender("B");
+  b.turno("t1", "A");
+  const r = await aplicarPagoMPDelTurnoEnTx(b.tx, "B", "t1", pago(), b.deps());
+  assert.equal(r.accion, "sin-turno");
+  assert.equal(b.db.turnos[0].status, "PENDING");
+  assert.equal(b.db.cobros.length, 0);
+});
+
+test("aislamiento: el interruptor prendido en A no prende la regla en B", async () => {
+  const b = base();
+  b.prender("A");
+  b.turno("t1", "B");
+  const r = await aplicarPagoMPDelTurnoEnTx(b.tx, "B", "t1", pago(), b.deps());
+  assert.equal(r.accion, "apagada");
+  assert.equal(b.db.escrituras, 0);
+});
+
+test("aislamiento: el cobro de A con la misma clave no hace «duplicado» al cobro de B", async () => {
+  const b = base();
+  b.prender("A");
+  b.prender("B");
+  b.turno("t1", "A");
+  b.turno("t1", "B");
+  await aplicarPagoMPDelTurnoEnTx(b.tx, "A", "t1", pago(), b.deps());
+  const r = await aplicarPagoMPDelTurnoEnTx(b.tx, "B", "t1", pago(), b.deps());
+  assert.equal(r.accion, "confirmado");
+  assert.deepEqual(b.db.cobros.map((c) => c.tenantId).sort(), ["A", "B"]);
+  assert.ok(b.db.audit.filter((a) => a.action === "confirm").every((a) => b.db.turnos.some((t) => t.tenantId === a.tenantId)));
+});
+
+// ── El handler del plugin ────────────────────────────────────────────────────
+
+function handlerCon(p: PagoMP) {
+  const llamadas: string[] = [];
+  const deps = {
+    clientePara: () => ({ getPayment: async () => p }) as never,
+    facturar: async () => (llamadas.push("facturar"), "inv"),
+    senia: async (id: string, t: string, pg: PagoMP) => (llamadas.push(`senia:${t}:${id}:${pg.estado}`), null),
+    cobrarPedido: async () => (llamadas.push("pedido"), { cobrado: true as const, code: 1, total: 1 }),
+  };
+  return { deps, llamadas };
+}
+
+test("handler: aprobado de un turno → seña ANTES de facturar", async () => {
+  const { deps, llamadas } = handlerCon(pago());
+  await procesarNotificacionPago({ type: "payment", paymentId: "9001", tenantId: "A" }, deps);
+  assert.deepEqual(llamadas, ["senia:A:t1:approved", "facturar"]);
+});
+
+test("handler: refunded de un turno → seña (anula), sin facturar; pendiente/rechazado → nada", async () => {
+  const r = handlerCon(pago({ estado: "refunded" }));
+  await procesarNotificacionPago({ type: "payment", paymentId: "9001", tenantId: "A" }, r.deps);
+  assert.deepEqual(r.llamadas, ["senia:A:t1:refunded"]);
+  for (const estado of ["pending", "rejected"] as const) {
+    const h = handlerCon(pago({ estado }));
+    await procesarNotificacionPago({ type: "payment", paymentId: "9001", tenantId: "A" }, h.deps);
+    assert.deepEqual(h.llamadas, []);
+  }
+});
+
+test("handler: el pago de un PEDIDO no pasa por la seña", async () => {
+  const { deps, llamadas } = handlerCon(pago({ externalReference: "pedido:o1" }));
+  await procesarNotificacionPago({ type: "payment", paymentId: "9001", tenantId: "A" }, deps);
+  assert.deepEqual(llamadas, ["pedido"]);
+});

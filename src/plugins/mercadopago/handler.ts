@@ -21,6 +21,7 @@ import {
   duenoDelCobro,
   type CobrarPedidoPorPago,
   type FacturarPorPago,
+  type SeniaPorPago,
   type NotificacionPagoMP,
   type ResultadoCobroPedido,
 } from "./core-contract";
@@ -36,6 +37,11 @@ export interface MpHandlerDeps {
    * fuera un turno (el motivo lo dice).
    */
   cobrarPedido?: CobrarPedidoPorPago;
+  /**
+   * Comando del Core para la seña de un TURNO (seña obligatoria). Se llama con el pago aprobado
+   * (antes de facturar) y con el pago devuelto/contracargado (`refunded`). Opcional.
+   */
+  senia?: SeniaPorPago;
 }
 
 export interface ResultadoNotificacion {
@@ -57,6 +63,15 @@ export async function procesarNotificacionPago(
 
   const cliente = await deps.clientePara(notif.tenantId);
   const pago = await cliente.getPayment(notif.paymentId);
+
+  // Devolución total o contracargo de la seña de un turno: el Core anula ese cobro (no se factura).
+  if (pago.estado === "refunded" && deps.senia) {
+    const duenoDevuelto = duenoDelCobro(pago.externalReference);
+    if (duenoDevuelto?.tipo === "turno") {
+      await deps.senia(duenoDevuelto.id, notif.tenantId, pago);
+      return { procesado: true, facturado: false, invoiceId: null, motivo: "seña devuelta" };
+    }
+  }
 
   if (pago.estado !== "approved") {
     // Pago no acreditado (pendiente/rechazado): no se factura. Idempotente:
@@ -92,6 +107,9 @@ export async function procesarNotificacionPago(
       pedido,
     };
   }
+
+  // La seña del turno (seña obligatoria): se registra y confirma ANTES de facturar.
+  if (deps.senia) await deps.senia(dueno.id, notif.tenantId, pago);
 
   // R1 · se pasa el pago: el Core factura ESTE cobro (una factura por cobro), no el turno entero.
   const invoiceId = await deps.facturar(dueno.id, notif.tenantId, pago);

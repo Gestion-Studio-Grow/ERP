@@ -30,6 +30,13 @@ export type FacturarPorPago = (
   pago?: PagoMP,
 ) => Promise<string | null>;
 
+/**
+ * Comando del Core para la SEÑA de un turno pagada por MP (interruptor «sena-obligatoria»): con el
+ * pago aprobado registra el cobro y confirma el turno si alcanza; con el pago devuelto o
+ * contracargado (`refunded`) anula ese cobro. Idempotente por id de pago. Apagado, no hace nada.
+ */
+export type SeniaPorPago = (appointmentId: string, tenantId: string, pago: PagoMP) => Promise<unknown>;
+
 // ── El link de pago de un PEDIDO ─────────────────────────────────────────────
 //
 // El link que se genera desde la bandeja lleva como `external_reference` el pedido, con un

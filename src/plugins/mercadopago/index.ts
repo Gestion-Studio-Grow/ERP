@@ -11,6 +11,7 @@ export {
 export type {
   NotificacionPagoMP,
   FacturarPorPago,
+  SeniaPorPago,
   CobrarPedidoPorPago,
   ResultadoCobroPedido,
 } from "./core-contract";

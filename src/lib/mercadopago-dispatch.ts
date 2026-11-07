@@ -33,10 +33,12 @@ import {
   type ResultadoNotificacion,
   type PagoMP,
   type CobrarPedidoPorPago,
+  type SeniaPorPago,
 } from "@/plugins/mercadopago";
 import { verificarFirmaMP } from "@/plugins/mercadopago/signature";
 import type { GatewayPagos } from "@/plugins/pagos";
 import { facturarAppointment, facturarCobroMPDelTurno } from "@/lib/invoice-from-appointment";
+import { aplicarPagoMPDelTurno } from "@/lib/turnos/senia-mp.server";
 import { gatewayCobrosDeConexion, gatewayCobrosPara, gatewayLegadoDelDespliegue, modoLegadoMP } from "@/lib/pagos-dispatch";
 import { CLAVE_MERCADOPAGO } from "@/plugins/mercadopago/gateway";
 import { normalizarFailClosed, type EntradaCruda } from "@/integraciones/contrato";
@@ -127,6 +129,8 @@ export type OpcionesNotificacion = {
   /** ¿Se factura? Default: `isInvoicingEnabled()`. El cobro del pedido no lo mira. */
   facturacion?: boolean;
   cobrarPedido?: CobrarPedidoPorPago;
+  /** La seña de un turno (seña obligatoria): registra, confirma o anula. Default: `aplicarPagoMPDelTurno`. */
+  senia?: SeniaPorPago;
 };
 
 function gatewayConPago(base: () => Promise<GatewayPagos>, pago: PagoMP): GatewayPagos {
@@ -157,6 +161,8 @@ export async function manejarNotificacionMP(
           pagoMP ? facturarCobroMPDelTurno(appointmentId, tenantId, pagoMP) : facturarAppointment(appointmentId, tenantId)
       : async () => null,
     cobrarPedido: opts.cobrarPedido ?? cobrarPedidoDelWebhook,
+    // La seña del turno NO depende de la facturación: con el interruptor apagado no hace nada.
+    senia: opts.senia ?? aplicarPagoMPDelTurno,
   });
 
   // Venta directa (sin turno): entra al pipeline unificado banco + Mercado Pago.

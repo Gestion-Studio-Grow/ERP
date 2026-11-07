@@ -226,7 +226,7 @@ test("el cobro del pedido NO depende de isInvoicingEnabled(): con la facturació
     // Y un turno con la facturación apagada no factura (facturar es otra decisión).
     const t = await manejarNotificacionMP(
       { type: "payment", paymentId: "77", tenantId: magra.id },
-      { pago: { id: "77", estado: "approved", monto: 1, externalReference: "apt_1" } as PagoMP, cobrarPedido: async () => { facturas++; return { cobrado: false, motivo: "x", detalle: "" }; } },
+      { pago: { id: "77", estado: "approved", monto: 1, externalReference: "apt_1" } as PagoMP, senia: async () => null, cobrarPedido: async () => { facturas++; return { cobrado: false, motivo: "x", detalle: "" }; } },
     );
     assert.equal(t.facturado, false);
     assert.equal(facturas, 0);
