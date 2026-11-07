@@ -51,6 +51,8 @@ enum PaymentMethod {
   // D-C01 (28/10/2026): Débito y Crédito separados; el cierre de caja los suma en "Tarjeta".
   DEBITO // N2-enum-encendido: M1 (Gate 2 nivel 2 · prisma/pending-gate2/N2_enums.sql). El cliente lo conoce; la base, sólo con el paquete. Se escribe sólo con sePuedeEscribirValorEnum en true (tarjetaHabilitada)
   CREDITO // N2-enum-encendido: M1 (N2_enums.sql). Igual que DEBITO
+  // CH (05/11/2026, orden del dueño): el voucher de La Alameda es un medio de pago; lo liquida OpenKey.
+  VOUCHER // CH-enum-encendido: prisma/pending-gate2/CH_voucher_enum.sql (Gate 2, irreversible). El cliente lo conoce; la base, sólo con ese archivo. Se escribe sólo con sePuedeEscribirValorEnum("PaymentMethod","VOUCHER") en true y el interruptor «vouchers» (src/lib/vouchers). NUNCA va al libro de caja: es a cobrar a OpenKey
 }
 
 enum PaymentStatus {
@@ -265,6 +267,9 @@ model Tenant {
   proyectoStands            ProyectoStand[]
   consultas                 Consulta[]
   consultaMensajes          ConsultaMensaje[]
+  voucherLotes              VoucherLote[]
+  vouchers                  Voucher[]
+  voucherConciliaciones     VoucherConciliacion[]
   cuentasContables          CuentaContable[] // contabilidad (ola 1)
   ejercicios                Ejercicio[]
   asientos                  Asiento[]
@@ -831,6 +836,7 @@ model Client {
   inmoContratosInquilino   InmoContrato[]      @relation("InmoInquilino")
   inmoContratosPropietario InmoContrato[]      @relation("InmoLocador")
   inmoLiquidaciones        InmoLiquidacion[]
+  vouchers                 Voucher[]
   // Módulo padel-clases: el alumno del profe (su link estable) y sus clases.
   padelAlumno              PadelAlumno?
   padelClases              PadelClase[]
@@ -884,6 +890,7 @@ model Appointment {
   review             Review?
   collections        Collection[] // D9 — cobros (parciales/total) imputados a este turno
   invoices           Invoice[] // D10 — facturas cuyo origen es este turno
+  voucher            Voucher? // CH: el voucher de La Alameda que cubrió el saldo (src/lib/vouchers)
   reminderSentAt     DateTime?
   // Liquidación de comisiones (BACKLOG "Alta prioridad"). La comisión de un turno
   // se devenga cuando está COMPLETED con pago APPROVED; queda "pendiente de pago"
@@ -1943,6 +1950,8 @@ model Collection {
   // Puente cobro de turno → libro de caja: el asiento VENTA que ESTE cobro produjo
   // (src/lib/caja/cobro-turno.ts). Rastro débil, a lo sumo un asiento por tipo.
   cashMovements CashMovement[]
+  // CH: el voucher que este cobro (method VOUCHER) consumió (src/lib/vouchers).
+  voucher       Voucher?
 
   @@unique([tenantId, idempotencyKey]) // NULLs no colisionan (Postgres)
   @@index([tenantId, originType, originId]) // "todos los cobros de este origen" → para saldar
@@ -4067,6 +4076,72 @@ model ProyectoCambio {
 
   @@index([tenantId, proyectoId, createdAt])
   @@index([tenantId, createdAt])
+}
+
+// ── Vouchers de CH Estética (La Alameda) y conciliación con OpenKey ─────────────
+// docs/tenants/ch/VOUCHERS-OPENKEY.md · src/lib/vouchers. Migración 20261105122000_vouchers (Gate 2:
+// escrita, sin aplicar). Un voucher ES un cobro (Collection method VOUCHER, enum en
+// prisma/pending-gate2/CH_voucher_enum.sql) que liquida OpenKey: nunca entra al libro de caja.
+
+model VoucherLote {
+  id        String    @id @default(cuid())
+  tenant    Tenant    @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  numero    String
+  fecha     DateTime  @default(now())
+  cantidad  Int       @default(0)
+  vouchers  Voucher[]
+  createdAt DateTime  @default(now())
+
+  @@unique([tenantId, numero])
+}
+
+model Voucher {
+  id             String       @id @default(cuid())
+  tenant         Tenant       @relation(fields: [tenantId], references: [id])
+  tenantId       String
+  numero         String
+  lote           VoucherLote  @relation(fields: [loteId], references: [id])
+  loteId         String
+  client         Client       @relation(fields: [clientId], references: [id])
+  clientId       String
+  estado         String       @default("DISPONIBLE") // DISPONIBLE · USADO · ANULADO (CHECK en la base)
+  appointment    Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  appointmentId  String?      @unique
+  // El cobro (Collection, method VOUCHER) que lo consumió. Único: un cobro = un voucher.
+  collection     Collection?  @relation(fields: [collectionId], references: [id], onDelete: SetNull)
+  collectionId   String?      @unique
+  valorCubierto  Decimal?     @db.Decimal(14, 2)
+  usadoEn        DateTime?
+  usadoPor       String?
+  estadoOpenKey  String? // null = sin verificar · DISPONIBLE · BAJA (CHECK en la base)
+  fotoOpenKeyEn  DateTime?
+  bajaOpenKeyEn  DateTime?
+  anuladoMotivo  String?
+  // Liquidación de OpenKey (lo que La Alameda/OpenKey le paga a CH por este voucher).
+  liquidadoEn    DateTime?
+  montoLiquidado Decimal?     @db.Decimal(14, 2)
+  liquidacionRef String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([tenantId, numero])
+  @@index([tenantId, estado])
+  @@index([tenantId, loteId])
+  @@index([tenantId, clientId])
+}
+
+model VoucherConciliacion {
+  id        String   @id @default(cuid())
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  fecha     DateTime @default(now())
+  origen    String // MANUAL · RPA (CHECK en la base)
+  resumen   Json
+  creadoPor String?
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, fecha])
 }
 
 // ============================================================================

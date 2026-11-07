@@ -218,7 +218,7 @@ export const ESPACIOS_NAV: readonly EspacioNav[] = [
     id: "caja",
     nombre: "Caja",
     objetivo: "Que la plata cierre: el día, el mes, el banco",
-    apps: ["caja-del-dia", "cierre-del-dia", "libro-de-caja", "cierre-del-mes", "conciliacion", "costo-de-cobrar"],
+    apps: ["caja-del-dia", "cierre-del-dia", "libro-de-caja", "cierre-del-mes", "conciliacion", "costo-de-cobrar", "vouchers"],
   },
   {
     id: "locales",

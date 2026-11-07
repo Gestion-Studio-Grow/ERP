@@ -39,6 +39,8 @@ import {
   type EstadoCobroTurno,
   type MetodoDePago,
   type MotivoCobroRechazado,
+  MEDIO_VOUCHER,
+  PREFIJO_CLAVE_VOUCHER,
   type MotivoNoCompletable,
 } from "./cobros";
 // `desglosarCobros` y `claseDeCobro` son lo ÚNICO que distingue plata que entró de un saldo
@@ -61,7 +63,8 @@ export type AplicarCobroArgs = {
   status: string; // estado del turno (ya cargado por el llamador)
   precio: number; // priceAtBooking ?? service.price
   monto: number;
-  method: MetodoDePago;
+  /** `VOUCHER` sólo desde src/lib/vouchers, con la clave `voucher:<voucherId>`. */
+  method: MetodoDePago | typeof MEDIO_VOUCHER;
   note?: string | null;
   actor: string; // "user:<id>"
   detail: string; // detalle del asiento en el libro ("Turno · servicio — clienta")
@@ -219,6 +222,13 @@ export async function aplicarCobroTurnoInTx(
       "Cobro de turno: la nota no puede empezar con una marca reservada (ANULACION:/CONDONACION:). " +
         "Esas marcas las escribe la anulación, no el cobro.",
     );
+  }
+
+  // VOUCHER no es un medio de formulario: sólo lo escribe el cobro con voucher, que consume el
+  // voucher en la misma tx y firma la clave `voucher:<voucherId>`. Un VOUCHER suelto sería un
+  // cobro «a cobrar a OpenKey» sin voucher detrás.
+  if (args.method === MEDIO_VOUCHER && !args.idempotencyKey?.startsWith(PREFIJO_CLAVE_VOUCHER)) {
+    throw new Error("Cobro de turno: el medio VOUCHER sólo lo escribe el cobro con voucher (src/lib/vouchers).");
   }
 
   // Capa 2 de idempotencia: mismo formulario enviado dos veces → el primero ya quedó.

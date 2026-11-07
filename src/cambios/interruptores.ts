@@ -168,6 +168,18 @@ export const INTERRUPTORES = [
     cambiaLasApps: false,
     incorporado: true,
   },
+  {
+    // Vouchers de La Alameda (CH Estética, docs/tenants/ch/VOUCHERS-OPENKEY.md): el voucher del
+    // vecino cubre el saldo del turno (baja el precio como un cupón, la caja no se entera) y la
+    // foto de OpenKey se concilia contra lo usado. Va AL FINAL del array. Apagado, toda acción de
+    // src/lib/vouchers rechaza y nada cambia.
+    id: "vouchers",
+    nombre: "Vouchers",
+    queCambia:
+      "El turno se puede cubrir con un voucher del vecino (La Alameda): se carga el número, baja lo que falta cobrar y queda el reporte para conciliar con OpenKey. Apagado, no hay vouchers.",
+    enAuditoria: "los vouchers",
+    cambiaLasApps: false,
+  },
 ] as const satisfies readonly Interruptor[];
 
 export type InterruptorId = (typeof INTERRUPTORES)[number]["id"];
@@ -215,6 +227,16 @@ export function agendaInteraccionPrendida(
   estado: Readonly<Partial<Record<InterruptorId, { encendido: boolean }>>>,
 ): boolean {
   return esIncorporado(AGENDA_INTERACCION) || estado[AGENDA_INTERACCION]?.encendido === true;
+}
+
+/** Vouchers de La Alameda (CH Estética, src/lib/vouchers). */
+export const VOUCHERS: InterruptorId = "vouchers";
+
+/** ¿El negocio trabaja con vouchers? Un estado sin la entrada cuenta como apagado. PURA. */
+export function vouchersPrendidos(
+  estado: Readonly<Partial<Record<InterruptorId, { encendido: boolean }>>>,
+): boolean {
+  return estado[VOUCHERS]?.encendido === true;
 }
 
 /**

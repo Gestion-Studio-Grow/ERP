@@ -64,6 +64,8 @@ import {
   type DayKey,
   type DeclaredAmounts,
   type HechosDelCierre,
+  vouchersDelCierre,
+  type VouchersDelCierre,
 } from "@/lib/caja/cierre-diario";
 import {
   lastClosedDay,
@@ -170,6 +172,12 @@ export type CierreDiarioData = {
   conteoDelTurno: { contado: number; quien: string; cerradoEl: Date; vigente: boolean } | null;
   /** Lo que suele explicar una diferencia (M1-C6). `null` en un día cerrado o en la demo. */
   hechos: HechosDelCierre | null;
+  /**
+   * CH · vouchers del período (cobros `PaymentMethod.VOUCHER`): renglón propio «Voucher», a cobrar a
+   * OpenKey. NO está en `preview` (el libro no lo ve) ni se suma al efectivo o al esperado. `null` o
+   * ausente = el negocio no tiene el valor del enum o no hubo vouchers.
+   */
+  vouchersACobrar?: VouchersDelCierre | null;
   /** Reabrir el día (M1-C7): sólo para la dueña o el dueño en un día cerrado. `null` = no se ofrece. */
   reabrir: { puede: true } | { puede: false; porque: string } | null;
 };
@@ -244,6 +252,26 @@ function tarjetaSeMovioEn(c: CierreDiario): boolean {
  * el paquete se asientan en `MP` (`esAjusteDeTransferencia`). Un groupBy por tipo: no crece con
  * el histórico más que el de la apertura.
  */
+/**
+ * CH · los cobros con voucher del período (a cobrar a OpenKey). Sólo si la base y el cliente conocen
+ * `PaymentMethod.VOUCHER` (prisma/pending-gate2/CH_voucher_enum.sql): sin el valor, filtrar por él
+ * rompería la consulta. Si algo falla, `null`: el cierre del cajón no depende de este renglón.
+ */
+async function vouchersDelPeriodo(tenantId: string, start: Date, end: Date): Promise<VouchersDelCierre | null> {
+  try {
+    const { sePuedeEscribirValorEnum } = await import("@/lib/schema-probe");
+    if (!(await sePuedeEscribirValorEnum("PaymentMethod", "VOUCHER"))) return null;
+    const filas = await prisma.collection.findMany({
+      where: { tenantId, method: "VOUCHER", createdAt: { gte: start, lt: end } },
+      select: { amount: true },
+    });
+    const r = vouchersDelCierre(filas.map((f) => ({ amount: f.amount.toNumber() })));
+    return r.cantidad === 0 && r.anulados.cantidad === 0 ? null : r;
+  } catch {
+    return null;
+  }
+}
+
 async function transferenciaGuardadaEnMp(db: Pick<Prisma.TransactionClient, "cashMovement">, tenantId: string, start: Date): Promise<number> {
   const grupos = await db.cashMovement.groupBy({
     by: ["type"],
@@ -498,6 +526,7 @@ async function leerCierreDiario(
       esperadoEfectivo: preview.porColumna.EFECTIVO.expected,
     }),
     hechos,
+    vouchersACobrar: await vouchersDelPeriodo(tenantId, start, end),
     reabrir: null,
   };
 }
