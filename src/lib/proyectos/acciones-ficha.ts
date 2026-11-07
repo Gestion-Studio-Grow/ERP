@@ -21,6 +21,7 @@ import { avisar, columnasOcultas, exigirEditar, usuariosDelEquipo, usuariosDeDir
 import { tipoDeArchivoSubido, clavesARenombrar, fechaAntesDe, fotoDeVersion, itemDeClave, linkSeguro, monedasSinCambio, numeroDe, PERDIDO, precioAlCopiar, precioAlEnviar, servicioDeTipo } from "./ficha-core";
 import { marcaDeGastoProyecto } from "./marcas";
 import { GASTO_EN_RENDICION, SIN_COMPROBANTES, faltaLaMigracion } from "./rendiciones-core";
+import { ventaDelProyecto } from "./precio-capas.server";
 import { archivoAdmitido, claveDeArchivo, claveEsDelProyecto, MINUTOS_SUBIDA, urlFirmada } from "./r2-core";
 import { borrarDeNube, configR2, tamanoEnNube } from "./r2.server";
 import type { ModuloGestion } from "./gestion-core";
@@ -209,6 +210,10 @@ export async function guardarDatos(formData: FormData): Promise<ResultadoFicha> 
   if (textoEstimado && estimado === null) return mal("El presupuesto estimado no se entiende.");
   const previo = await prisma.proyecto.findFirst({ where: { id, tenantId }, select: { anticipoClientePct: true, fechaEvento: true, moneda: true, clientId: true, nombre: true, tipoEvento: true, evento: true, ciudad: true, lugar: true, invitados: true, presupuestoEstimado: true, responsable: true, contactoNombre: true, contactoEmail: true, client: { select: { name: true } } } });
   if (!previo) return mal("Ese proyecto no existe.");
+  // MIA T1: sin fecha exacta, el texto libre («a confirmar», «primeros días de diciembre»). Con fecha exacta, no hace falta.
+  // Vive en ProyectoVenta: sin la migración, el campo no se muestra y no se guarda (el resto sigue igual).
+  const venta = await ventaDelProyecto(tenantId, id);
+  const fechaEventoTexto = fechaEvento ? null : txt(formData.get("fechaEventoTexto")).replace(/\s+/g, " ").slice(0, 120) || null;
   const clientId = txt(formData.get("clientId")) || previo.clientId;
   const clienteNuevo = clientId === previo.clientId ? null : await prisma.client.findFirst({ where: { id: clientId, tenantId }, select: { name: true } });
   if (clientId !== previo.clientId) {
@@ -260,6 +265,10 @@ export async function guardarDatos(formData: FormData): Promise<ResultadoFicha> 
       ["Contacto", previo.contactoNombre, txt(formData.get("contactoNombre")).slice(0, 120) || null],
       ["Mail de contacto", previo.contactoEmail, txt(formData.get("contactoEmail")).slice(0, 160) || null],
     ];
+    if (venta.disponible && formData.has("fechaEventoTexto") && fechaEventoTexto !== venta.fechaEventoTexto) {
+      await tx.proyectoVenta.upsert({ where: { proyectoId_tenantId: { proyectoId: id, tenantId } }, create: { tenantId, proyectoId: id, fechaEventoTexto }, update: { fechaEventoTexto } });
+      datosNuevos.push(["Fecha del evento (a confirmar)", venta.fechaEventoTexto, fechaEventoTexto]);
+    }
     for (const [campo, antes, despues] of datosNuevos) await registrarCambio(tx, { tenantId, proyectoId: id, entidad: "Proyecto", entidadId: id, campo, antes, despues, autor: a.nombre });
     await registrarCambio(tx, { tenantId, proyectoId: id, entidad: "Proyecto", entidadId: id, campo: "Anticipo del cliente %", antes: previo.anticipoClientePct, despues: anticipo, autor: a.nombre });
     await registrarCambio(tx, { tenantId, proyectoId: id, entidad: "Proyecto", entidadId: id, campo: "Moneda de venta", antes: previo.moneda, despues: moneda, autor: a.nombre });

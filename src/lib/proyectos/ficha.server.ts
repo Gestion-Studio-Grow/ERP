@@ -13,6 +13,7 @@ import { configProyectos, datosDelNegocio } from "./datos.server";
 import { desvioPorRubro, fechaCorta, fechaParaInput, redondear, resultadoReal, totales } from "./core";
 import { cambioDeVenta, costoSinProveedor, enMonedaDeVenta, ventaEn } from "./gestion-core";
 import { cambioVisible, columnaDe, filaDeFicha, iniciales, monedasSinCambio, planillaDeVenta } from "./ficha-core";
+import { formulaDelNegocio, ventaDelProyecto } from "./precio-capas.server";
 
 export interface TarjetaProyecto {
   id: string;
@@ -117,7 +118,15 @@ export async function cabeceraFicha(a: Actor, id: string) {
     },
   });
   if (!proyecto) return null;
-  const [viva, config, tc, negocio] = await Promise.all([versionViva(a.tenantId, id), configProyectos(a.tenantId), tiposDeCambio(a.tenantId), datosDelNegocio(a.tenantId)]);
+  const [viva, config, tc, negocio, venta, formula] = await Promise.all([
+    versionViva(a.tenantId, id),
+    configProyectos(a.tenantId),
+    tiposDeCambio(a.tenantId),
+    datosDelNegocio(a.tenantId),
+    // MIA T1: productor, comercial, precio final y fecha «a confirmar». Sin la migración, vacíos y la ficha queda como hoy.
+    ventaDelProyecto(a.tenantId, id),
+    formulaDelNegocio(a.tenantId),
+  ]);
   const items = (viva?.items ?? []).map(aItemFicha);
   return {
     proyecto,
@@ -125,6 +134,8 @@ export async function cabeceraFicha(a: Actor, id: string) {
     config,
     tc,
     negocio,
+    venta,
+    formula,
     codigo: codigoProyecto(proyecto.numero, proyecto.createdAt),
     totales: totalesFicha(items, tc, config.margenPct),
     sinProveedor: costoSinProveedor(items, tc),
