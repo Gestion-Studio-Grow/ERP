@@ -4927,8 +4927,11 @@ function pedidoDesdeWhatsApp(estado, texto, ahora) {
   if (codigo && (estado.pedidos ?? []).some((x) => x.codigo === codigo)) return { ok: false, motivo: `El pedido ${codigo} ya está cargado.` };
   if (codigo && codigoArchivado(estado, "pedidos", codigo)) return { ok: false, motivo: `El pedido ${codigo} ya se había cargado: está en los días archivados.` };
   const items = [];
+  // Los renglones se leen SIN los códigos: «T-PY2X» en minúsculas («t-py2x») se leía como «2 × …» y el pedido no
+  // entraba (1 de cada 40 códigos, los que traen una X detrás de un número). CI de main, 07/11.
+  const renglones = t.replace(/\bT-[A-Z0-9]{4}\b/gi, " ");
   // La cantidad se lee entera con su signo y decimales («-3», «2.5»), para rechazarla en vez de leer 3 o 5.
-  for (const m of t.matchAll(/(-?\d+(?:[.,]\d+)?)\s*[×x]\s*([^$·\n]+?)\s*(?=\$|·|\.(?:\s|$)|\n|$)/g)) {
+  for (const m of renglones.matchAll(/(-?\d+(?:[.,]\d+)?)\s*[×x]\s*([^$·\n]+?)\s*(?=\$|·|\.(?:\s|$)|\n|$)/g)) {
     const nombre = m[2].trim().toLowerCase();
     const p = estado.productos.find((x) => x.nombre.toLowerCase() === nombre);
     if (!p) return { ok: false, motivo: `No encuentro «${m[2].trim()}» en los productos de la tienda.` };
