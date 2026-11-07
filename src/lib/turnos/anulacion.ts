@@ -194,7 +194,9 @@ export type MotivoAnulacionRechazada =
   | "facturado" // ENG-023: el turno tiene factura autorizada y todavía no hay nota de crédito
   | "factura-en-camino" // ENG-023: su factura espera la respuesta de ARCA; el CAE puede llegar después
   | "dia-cerrado" // el día del asiento ya está cerrado: la corrección va con fecha de hoy
-  | "nota-de-credito"; // opción B: el cobro tiene su factura autorizada y la nota de crédito no se pudo emitir
+  | "nota-de-credito" // opción B: el cobro tiene su factura autorizada y la nota de crédito no se pudo emitir
+  | "voucher-con-baja" // CH: cobro con voucher ya dado de baja en OpenKey: no vuelve a DISPONIBLE
+  | "voucher-liquidado"; // CH: OpenKey ya pagó ese voucher: liberarlo dejaría plata sin cobro vivo
 
 export type PlanAnulacion =
   | { ok: true; monto: number }
@@ -299,6 +301,10 @@ export function mensajeAnulacionRechazada(motivo: MotivoAnulacionRechazada): str
       return "Ese cobro tiene su factura autorizada por ARCA y la nota de crédito que la anula no se pudo emitir. No se anuló nada.";
     case "dia-cerrado":
       return "Ese cobro es de un día ya cerrado y un día contado no se toca. La corrección va con fecha de hoy: cargala en el libro de caja como INGRESO/EGRESO, con el motivo.";
+    case "voucher-con-baja":
+      return "Ese cobro es con un voucher que ya se dio de baja en OpenKey: no se anula desde acá. Resolvelo con La Alameda y anotalo.";
+    case "voucher-liquidado":
+      return "Ese cobro es con un voucher que OpenKey ya liquidó: no se anula desde acá. Se resuelve con La Alameda y se anota.";
   }
 }
 
@@ -536,6 +542,37 @@ export async function anularCobroTurnoInTx(
     if (plan.motivo === "ya-anulado" && yaAnulada) return { applied: false, reason: "duplicate", reversaId: yaAnulada.id };
     throw new AnulacionRechazada(plan.motivo);
   }
+  // ORDEN: toda validación que puede rechazar la anulación corre ANTES de la nota de crédito.
+  // La nota se autoriza ante ARCA y eso no se deshace con un rollback: no puede salir una nota
+  // para una anulación que después se rechaza (merge de #23 vouchers con #38 opción B).
+  //
+  // CH · cobro con voucher (src/lib/vouchers): el voucher vuelve a DISPONIBLE en esta misma tx,
+  // sólo si OpenKey todavía no lo dio de baja NI lo liquidó. Con la baja o la liquidación hecha,
+  // la anulación no corre: liberarlo dejaría plata de OpenKey sin cobro vivo que la explique.
+  const voucher =
+    original.method === "VOUCHER"
+      ? await tx.voucher.findFirst({
+          where: { tenantId, collectionId: args.collectionId },
+          select: { id: true, bajaOpenKeyEn: true, liquidadoEn: true },
+        })
+      : null;
+  if (voucher?.liquidadoEn) throw new AnulacionRechazada("voucher-liquidado");
+  if (voucher?.bajaOpenKeyEn) throw new AnulacionRechazada("voucher-con-baja");
+  // La liberación condicionada también va antes de la nota: si la baja o la liquidación de
+  // OpenKey entró en paralelo, se rechaza acá, sin nota; y si sale, la fila del voucher queda
+  // tomada hasta el final de la tx (si la nota falla, el rollback la devuelve a USADO).
+  if (voucher) {
+    const liberado = await tx.voucher.updateMany({
+      where: { id: voucher.id, tenantId, estado: "USADO", collectionId: args.collectionId, bajaOpenKeyEn: null, liquidadoEn: null },
+      data: { estado: "DISPONIBLE", appointmentId: null, collectionId: null, valorCubierto: null, usadoEn: null, usadoPor: null },
+    });
+    // Cambió entre la lectura y acá (la foto o la liquidación de OpenKey entró en paralelo): no se anula.
+    if (liberado.count !== 1) {
+      const actual = await tx.voucher.findFirst({ where: { id: voucher.id, tenantId }, select: { liquidadoEn: true } });
+      throw new AnulacionRechazada(actual?.liquidadoEn ? "voucher-liquidado" : "voucher-con-baja");
+    }
+  }
+
   // La nota de crédito va en ESTA transacción: si no sale, no se anula nada (ni libro ni Payment).
   let notaDeCreditoId: string | null = null;
   if (conNota && delCobro && delCobro.status === "AUTHORIZED" && args.notaDeCredito) {

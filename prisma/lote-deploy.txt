@@ -67,4 +67,13 @@
 # (aplicada por el build de producción del merge anterior del lote: sale de la lista) 20261104123000_servicio_completo
 #
 # 2026-11-05 · LOTE GATE 2 (4/4, docs/runbooks/GATE2-LOTE-2026-11-05.md): Matriz de permisos. Aditiva: 1 tabla con RLS. No toca tablas existentes.
-20261105121000_user_permission_override
+# (aplicada por el build de producción del merge anterior del lote: sale de la lista) 20261105121000_user_permission_override
+#
+# 2026-11-05 · LOTE GATE 2 (5/5 con migración, docs/runbooks/GATE2-LOTE-2026-11-05.md): Vouchers de CH. Aditiva: 3 tablas con RLS
+# (VoucherLote, Voucher, VoucherConciliacion). El valor de enum PaymentMethod.VOUCHER NO va acá: es
+# prisma/pending-gate2/CH_voucher_enum.sql, irreversible, aparte y a mano (Gate 2).
+# (aplicada por el build de producción del merge de #23 el 2026-11-07: sale de la lista.)
+#
+# 2026-11-07 · PR #36 consola de soporte T1. Aditiva: tabla "SupportTicket" con RLS adentro. No toca
+# tablas existentes.
+20261106120000_support_ticket

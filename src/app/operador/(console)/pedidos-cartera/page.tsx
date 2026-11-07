@@ -32,6 +32,9 @@ export default async function PedidosCarteraPage() {
           <Link href="/operador/pedidos-cartera" aria-current="page" className="inline-flex h-11 items-center rounded-md px-3 text-sm font-medium text-strong underline-offset-4 hover:underline aria-[current=page]:bg-surface-2">
             Pedidos sobre un cliente
           </Link>
+          <Link href="/operador/soporte" className="inline-flex h-11 items-center rounded-md px-3 text-sm font-medium text-strong underline-offset-4 hover:underline aria-[current=page]:bg-surface-2">
+            Tickets de soporte
+          </Link>
         </nav>
       </header>
       {pedidos.length === 0 ? (

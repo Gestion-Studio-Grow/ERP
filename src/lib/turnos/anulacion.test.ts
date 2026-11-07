@@ -628,3 +628,77 @@ test("condonar exige agenda:manage: perdonar plata lo decide el negocio, no quie
       "algo que no se hizo.",
   );
 });
+
+// Merge #23 (vouchers) + #38 (opción B): toda validación que puede rechazar la anulación corre
+// ANTES de la nota de crédito. La nota se autoriza ante ARCA y un rollback no la deshace: una
+// anulación rechazada por la regla de vouchers no puede dejar una nota emitida.
+for (const caso of [
+  { voucher: { bajaOpenKeyEn: new Date("2026-09-11"), liquidadoEn: null }, motivo: "voucher-con-baja", libera: 1 },
+  { voucher: { bajaOpenKeyEn: null, liquidadoEn: new Date("2026-09-12") }, motivo: "voucher-liquidado", libera: 1 },
+  // La baja entra en paralelo entre la lectura y la liberación condicionada: también sin nota.
+  { voucher: { bajaOpenKeyEn: null, liquidadoEn: null }, motivo: "voucher-con-baja", libera: 0 },
+] as const) {
+  test(`cobro con voucher y factura autorizada: rechazo «${caso.motivo}» (libera ${caso.libera}) sin emitir nota de crédito`, async () => {
+    const base = makeTx({
+      cobros: [{ id: "col-1", amount: 18000, method: "VOUCHER" }],
+      movs: [{ collectionId: "col-1", type: "VENTA", amount: 18000, occurredAt: D("2026-09-10") }],
+      payment: { amount: 18000, method: "VOUCHER" },
+    });
+    const raw = (base.tx as unknown as { $queryRaw: (s: TemplateStringsArray, ...v: unknown[]) => Promise<unknown> }).$queryRaw;
+    const tx = Object.assign(Object.create(null), base.tx, {
+      // El libro de cobros facturados existe y el cobro tiene su factura propia AUTORIZADA.
+      $queryRaw: async (s: TemplateStringsArray, ...v: unknown[]) =>
+        s.join("").includes("to_regclass") ? [{ tabla: "CobroFacturado" }] : raw(s, ...v),
+      cobroFacturado: {
+        findFirst: async () => ({ invoiceId: "inv-1", invoice: { status: "AUTHORIZED" } }),
+        findMany: async () => [],
+        create: async () => ({}),
+      },
+      voucher: {
+        findFirst: async () => ({ id: "v-1", ...caso.voucher }),
+        updateMany: async () => ({ count: caso.libera }),
+      },
+    }) as AnulacionTx;
+    const notas: string[] = [];
+    await assert.rejects(
+      () =>
+        anularCobroTurnoInTx(
+          tx,
+          TENANT,
+          argsAnular({
+            notaDeCredito: async (_tx, x) => (notas.push(x.facturaId), { ok: true, invoiceId: "nc-1" }),
+          }),
+        ),
+      (e: unknown) => e instanceof AnulacionRechazada && e.motivo === caso.motivo,
+    );
+    assert.deepEqual(notas, [], "ninguna nota de crédito ante ARCA");
+    assert.equal(base.collections.length, 1, "ninguna contrapartida");
+    assert.equal(base.movements.length, 1, "ningún egreso");
+    assert.equal(base.payments[0].amount, 18000, "el turno sigue cobrado");
+  });
+}
+
+test("cobro con voucher libre y factura autorizada: se anula y la nota de crédito sale después de liberar el voucher", async () => {
+  const base = makeTx({
+    cobros: [{ id: "col-1", amount: 18000, method: "VOUCHER" }],
+    payment: { amount: 18000, method: "VOUCHER" },
+  });
+  const raw = (base.tx as unknown as { $queryRaw: (s: TemplateStringsArray, ...v: unknown[]) => Promise<unknown> }).$queryRaw;
+  const pasos: string[] = [];
+  const tx = Object.assign(Object.create(null), base.tx, {
+    $queryRaw: async (s: TemplateStringsArray, ...v: unknown[]) =>
+      s.join("").includes("to_regclass") ? [{ tabla: "CobroFacturado" }] : raw(s, ...v),
+    cobroFacturado: { findFirst: async () => ({ invoiceId: "inv-1", invoice: { status: "AUTHORIZED" } }) },
+    voucher: {
+      findFirst: async () => ({ id: "v-1", bajaOpenKeyEn: null, liquidadoEn: null }),
+      updateMany: async () => (pasos.push("libera el voucher"), { count: 1 }),
+    },
+  }) as AnulacionTx;
+  const r = await anularCobroTurnoInTx(
+    tx,
+    TENANT,
+    argsAnular({ notaDeCredito: async () => (pasos.push("emite la nota"), { ok: true, invoiceId: "nc-1" }) }),
+  );
+  assert.equal(r.applied && r.notaDeCreditoId, "nc-1");
+  assert.deepEqual(pasos, ["libera el voucher", "emite la nota"]);
+});

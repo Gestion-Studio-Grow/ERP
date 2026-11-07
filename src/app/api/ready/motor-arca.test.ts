@@ -79,7 +79,7 @@ test("la respuesta nunca trae ids de negocio", () => {
 
 test("health: config sin secretos (sólo si existe el del cron)", () => {
   const c = configMotorArca({ ...ON, CRON_SECRET: "super-secreto" });
-  assert.deepEqual(c, { facturacion: true, modo: "homologacion", cronProtegido: true });
+  assert.deepEqual(c, { facturacion: true, modo: "homologacion", cronProtegido: true, simuladoEnProduccion: false });
   assert.ok(!JSON.stringify(c).includes("super-secreto"));
   assert.equal(configMotorArca({ CRON_SECRET: "  " }).cronProtegido, false);
 });
@@ -162,4 +162,12 @@ test("cache: requests simultáneos comparten una sola medición en curso", async
   await Promise.all(pedidos);
   assert.equal(medidas, 2); // dos negocios, un solo recorrido para los tres requests
   olvidarCacheMotorArca();
+});
+
+test("health (ENG-123): reporta ARCA simulado en producción con la facturación encendida", () => {
+  const prod = { VERCEL_ENV: "production", ARCA_INVOICING_ENABLED: "true" };
+  assert.equal(configMotorArca(prod).simuladoEnProduccion, true);
+  assert.equal(configMotorArca({ ...prod, ARCA_MODO: "real" }).simuladoEnProduccion, false);
+  assert.equal(configMotorArca({ ...prod, VERCEL_ENV: "preview" }).simuladoEnProduccion, false);
+  assert.equal(configMotorArca({ VERCEL_ENV: "production" }).simuladoEnProduccion, false);
 });
