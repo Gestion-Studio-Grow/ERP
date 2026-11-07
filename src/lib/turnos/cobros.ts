@@ -30,6 +30,7 @@
 // `Decimal(14,2)` y la conversión vive en el borde del repositorio (cobro-turno-repo.ts).
 
 import { round2 } from "@/lib/round";
+import { centavosDe } from "@/lib/dinero/redondeo";
 import { computeSettlement, validateNewCollection, type SettlementStatus } from "@/lib/settlement/collection";
 import { seniaPorPorcentaje } from "@/lib/servicios/ficha";
 
@@ -84,6 +85,18 @@ export function seniaDelServicio(input: { depositAmount: number | null | undefin
   const dep = input.depositAmount;
   if (dep == null || !Number.isFinite(dep) || dep <= 0) return 0;
   return round2(Math.min(dep, Math.max(0, input.precio)));
+}
+
+/**
+ * La seña que FALTA: la seña del servicio menos la plata que entró y sigue en pie, al centavo. LA
+ * regla única: la usan `seniaQueFalta` (cobro-dividido.ts, «Llegó la seña»), la guarda de la seña
+ * obligatoria (sena-obligatoria.ts) y la pantalla con el interruptor prendido. `cobrado` es
+ * `cobradoRealDelTurno` (anulacion.ts). PURA.
+ */
+export function faltanteDeSenia(senia: number, cobrado: number): number {
+  if (!(Number.isFinite(senia) && senia > 0)) return 0;
+  const c = Number.isFinite(cobrado) ? Math.max(0, cobrado) : 0;
+  return Math.max(0, centavosDe(senia) - centavosDe(c)) / 100;
 }
 
 export type CobroSugerido = { tipo: "senia" | "saldo"; monto: number };

@@ -101,6 +101,7 @@ export default async function FichaRenglon({
         inicio: a.startsAt,
         creado: a.createdAt,
         senia: seniaDelServicio({ depositAmount: a.service.depositAmount, precio: a.precio }),
+        precio: a.precio,
         cobros: a.cobros,
         pagoLegado: a.payment,
         horas: senaObligatoria.horas,

@@ -7,13 +7,13 @@
 // datos dentro de la transacción y decide con `decidirConfirmacionConSenia`, que vive acá para que
 // la pantalla y los tests usen la MISMA regla. Apagado: la regla dice siempre que sí (lo de siempre).
 //
-// QUÉ CUENTA COMO SEÑA VIGENTE: un cobro de verdad del turno (monto > 0, no contrapartida ni
-// condonación) que NO tiene su anulación (`cobrosAnulables`, anulacion.ts), o el pago viejo
-// aprobado (`Payment`, antes de los cobros parciales). No se exige la clave `senia:<turno>`: sin la
-// columna `idempotencyKey` migrada la seña se graba sin clave (cobro-turno-repo.ts, `withSchema`), y
-// la que entra por «Registrar cobro» lleva el uuid del formulario. Lo que importa es que la plata
-// esté y siga en pie; es la misma condición con la que la agenda deja de pedir la seña
-// (`cobroSugerido`: «nada cobrado todavía»).
+// CUÁNDO ALCANZA LA SEÑA: cuando la plata que entró y sigue en pie (`cobradoRealDelTurno`: cobros −
+// anulaciones, sin condonaciones; sin cobros, el pago viejo) cubre la seña del servicio, al centavo
+// (`faltanteDeSenia`, cobros.ts). Es LA MISMA función que usa «Llegó la seña» (`seniaQueFalta`,
+// cobro-dividido.ts) y la pantalla con el interruptor prendido: una seña parcial no alcanza y un cobro
+// anulado no cuenta. No se exige la clave `senia:<turno>`: sin la columna `idempotencyKey` migrada la
+// seña se graba sin clave (cobro-turno-repo.ts, `withSchema`) y la que entra por «Registrar cobro»
+// lleva el uuid del formulario.
 //
 // «PENDIENTE DE SEÑA» no es un estado ni una columna: se deriva. Vence en
 //   min(creado + H horas, inicio − 2 h)
@@ -24,14 +24,24 @@
 // Client-safe: sin Prisma ni nada de servidor.
 
 import { fmtShortDate, fmtTime, dateStrInBusinessTz } from "@/lib/datetime";
-import { cobrosAnulables, type FilaDeCobro } from "./anulacion";
-import type { PagoLegado } from "./cobros";
+import { cobradoRealDelTurno, type FilaDeCobro } from "./anulacion";
+import { faltanteDeSenia, type PagoLegado } from "./cobros";
 
 export type VeredictoSenia = { ok: true } | { ok: false; motivo: string };
 
 /** Lo que contesta el servidor cuando se intenta confirmar sin la seña. */
 export const MENSAJE_FALTA_SENIA =
-  "Este turno pide seña y todavía no entró: no se puede confirmar. Registrá la seña con «Llegó la seña» (cobra y confirma) o pedile a la dueña que lo confirme sin seña.";
+  "Este turno pide seña y todavía no entró entera: no se puede confirmar. Registrá la seña con «Llegó la seña» (cobra y confirma) o pedile a la dueña que lo confirme sin seña.";
+
+/** Lo que contesta la edición si el cambio de servicio o precio deja a un Confirmado sin su seña. */
+export const MENSAJE_EDITAR_SIN_SENIA =
+  "Con ese cambio el turno pide una seña que no entró, y está confirmado: cobrá la seña primero o pedile a la dueña que lo confirme sin seña.";
+
+/** Las acciones de auditoría que deciden si un Confirmado lo es por la excepción de la dueña. */
+export const ACCION_CONFIRMAR = "confirm";
+export const ACCION_CONFIRMAR_SIN_SENIA = "confirm_sin_senia";
+export const ACCION_VOLVIO_A_RESERVADO = "unconfirm_falta_senia";
+export const ACCIONES_DE_CONFIRMACION = [ACCION_CONFIRMAR, ACCION_CONFIRMAR_SIN_SENIA, ACCION_VOLVIO_A_RESERVADO] as const;
 
 /** Mínimo de caracteres del motivo de «Confirmar sin seña» (queda en la auditoría). */
 export const MOTIVO_MINIMO_SIN_SENIA = 10;
@@ -39,31 +49,29 @@ export const MOTIVO_MINIMO_SIN_SENIA = 10;
 /** Horas antes del inicio en que una seña pendiente vence, aunque H dé más tarde. */
 export const HORAS_ANTES_DEL_INICIO = 2;
 
-/** ¿El turno tiene plata vigente que cuente como seña? PURA. */
-export function hayCobroDeSeniaVigente(
-  cobros: readonly (FilaDeCobro & { id?: string })[],
-  pagoLegado?: PagoLegado,
-): boolean {
-  if (cobrosAnulables(cobros).length > 0) return true;
-  return !!pagoLegado && pagoLegado.status === "APPROVED" && pagoLegado.amount > 0;
+type CobroLeido = FilaDeCobro & { id?: string; method?: string };
+
+/** La seña que le falta a ESTE turno para poder confirmarse (0 = alcanza). PURA. */
+export function seniaQueFaltaParaConfirmar(e: { senia: number; precio: number; cobros: readonly CobroLeido[]; pagoLegado?: PagoLegado }): number {
+  return faltanteDeSenia(e.senia, cobradoRealDelTurno(e.precio, e.cobros, e.pagoLegado));
 }
 
 /**
  * ¿Se puede escribir CONFIRMED? La ÚNICA regla, para todos los caminos. PURA.
  *   · interruptor apagado → sí (comportamiento de siempre);
  *   · el servicio no pide seña (≤ 0) → sí;
- *   · hay un cobro vigente (no anulado) → sí;
+ *   · lo cobrado vigente cubre la seña → sí;
  *   · si no → no, con el motivo para la pantalla.
  */
 export function decidirConfirmacionConSenia(e: {
   prendida: boolean;
   senia: number;
-  cobros: readonly (FilaDeCobro & { id?: string })[];
+  precio: number;
+  cobros: readonly CobroLeido[];
   pagoLegado?: PagoLegado;
 }): VeredictoSenia {
   if (!e.prendida) return { ok: true };
-  if (!(Number.isFinite(e.senia) && e.senia > 0)) return { ok: true };
-  if (hayCobroDeSeniaVigente(e.cobros, e.pagoLegado)) return { ok: true };
+  if (seniaQueFaltaParaConfirmar(e) <= 0) return { ok: true };
   return { ok: false, motivo: MENSAJE_FALTA_SENIA };
 }
 
@@ -134,13 +142,14 @@ export function marcaDeSeniaDelTurno(p: {
   inicio: Date | string;
   creado: Date | string | null | undefined;
   senia: number;
-  cobros: readonly (FilaDeCobro & { id?: string })[];
+  precio: number;
+  cobros: readonly CobroLeido[];
   pagoLegado?: PagoLegado;
   horas: number | null;
   ahora: Date;
 }): MarcaDeSenia | null {
   if (!p.prendida || p.status !== "PENDING") return null;
   if (new Date(p.inicio).getTime() <= p.ahora.getTime()) return null;
-  if (decidirConfirmacionConSenia({ prendida: true, senia: p.senia, cobros: p.cobros, pagoLegado: p.pagoLegado }).ok) return null;
+  if (seniaQueFaltaParaConfirmar(p) <= 0) return null;
   return marcaDeSeniaPendiente(vencimientoDeLaSenia({ creado: p.creado, inicio: p.inicio, horas: p.horas }), p.ahora);
 }

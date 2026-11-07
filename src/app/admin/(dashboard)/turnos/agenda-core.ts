@@ -20,8 +20,8 @@
 //
 // No decide nada de plata: sólo la LEE con las funciones de src/lib/turnos. Nada de Prisma.
 
-import { estadoCobroTurno, cobroSugerido, esCuentaACobrar, seniaDelServicio, type PagoLegado } from "@/lib/turnos/cobros";
-import { desglosarCobros } from "@/lib/turnos/anulacion";
+import { estadoCobroTurno, cobroSugerido, esCuentaACobrar, faltanteDeSenia, seniaDelServicio, type PagoLegado } from "@/lib/turnos/cobros";
+import { cobradoRealDelTurno, desglosarCobros } from "@/lib/turnos/anulacion";
 import { marcaDeSeniaPendiente } from "@/lib/turnos/sena-obligatoria-core";
 import type { CierreSinPrestar, DestinoDeLaSenia } from "@/lib/turnos/practica";
 import type { TipoMarca } from "@/components/ui/Marca";
@@ -149,7 +149,7 @@ export function turnoDelDia(a: TurnoCrudo, veredicto: Veredicto): TurnoDelDia {
     precioADefinir: precioADefinir(a.service.price, a.priceAtBooking),
     // Con cobros propios, lo que entró es el desglose (una condonación no es plata); sin cobros,
     // manda el pago viejo, como en la fila de siempre.
-    cobrado: cobros.length > 0 ? desglose.cobrado : plata.cobrado,
+    cobrado: cobradoRealDelTurno(precio, cobros, pagoLegado),
     condonado: desglose.condonado,
     saldo: plata.saldo,
     senia: seniaDelServicio({ depositAmount: a.service.depositAmount, precio }),
@@ -169,6 +169,16 @@ export function turnoDelDia(a: TurnoCrudo, veredicto: Veredicto): TurnoDelDia {
 export function seniaQueFalta(t: Pick<TurnoDelDia, "estado" | "inicio" | "sugerido">, ahora: Date): number {
   if (t.estado !== "PENDING" || yaEmpezo(t, ahora)) return 0;
   return t.sugerido.tipo === "senia" && t.sugerido.monto > 0 ? t.sugerido.monto : 0;
+}
+
+/**
+ * Seña obligatoria (interruptor prendido): la seña que le falta a un Reservado que todavía no empezó
+ * para poder confirmarse. LA MISMA regla que la guarda del servidor y «Llegó la seña»
+ * (`faltanteDeSenia` sobre `cobradoRealDelTurno`): una seña parcial todavía falta. 0 si no corresponde.
+ */
+export function seniaParaConfirmar(t: Pick<TurnoDelDia, "estado" | "inicio" | "senia" | "cobrado">, ahora: Date): number {
+  if (t.estado !== "PENDING" || yaEmpezo(t, ahora)) return 0;
+  return faltanteDeSenia(t.senia, t.cobrado);
 }
 
 /**
@@ -364,7 +374,7 @@ export function marcaDelTurno(t: TurnoDelDia, ahora: Date): MarcaDelTurno {
     case "PENDING": {
       if (ya) return { tipo: "atencion", texto: "Reservado, ya pasó la hora" };
       // Seña obligatoria: «Pendiente de seña · vence …» / «Seña vencida» mientras la seña falte.
-      if (t.seniaVence && seniaQueFalta(t, ahora) > 0) {
+      if (t.seniaVence && seniaParaConfirmar(t, ahora) > 0) {
         const m = marcaDeSeniaPendiente(t.seniaVence, ahora);
         return { tipo: m.tipo === "vencida" ? "atencion" : "pendiente", texto: m.texto };
       }

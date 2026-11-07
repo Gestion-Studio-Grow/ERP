@@ -169,6 +169,21 @@ export function desglosarCobros(rows: readonly FilaDeCobro[]): DesgloseCobros {
 }
 
 /**
+ * La plata del turno que entró y sigue en pie: con cobros propios, Σ cobros − anulaciones (sin las
+ * condonaciones, que no son plata); sin cobros, el pago viejo (`Payment`). Es lo que la agenda
+ * llama «cobrado» y lo que mide la seña (`faltanteDeSenia`). Una sola definición. PURA.
+ */
+export function cobradoRealDelTurno(
+  precio: number,
+  cobros: readonly (FilaDeCobro & { method?: string })[],
+  pagoLegado?: PagoLegado,
+): number {
+  return cobros.length > 0
+    ? desglosarCobros(cobros).cobrado
+    : estadoCobroTurno({ precio, cobros: [], pagoLegado }).cobrado;
+}
+
+/**
  * Cobros que todavía se pueden anular: los que son cobros de verdad y no tienen ya su
  * contrapartida. Es la MISMA regla que aplica el servidor (`planAnulacion`), para que el
  * botón no aparezca cuando la acción va a rechazar.

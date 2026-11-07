@@ -28,6 +28,7 @@ import { seniasPedidas } from "@/lib/turnos/senia-actions";
 import { horariosDelDia } from "@/lib/turnos/horario-del-dia.server";
 import { turnoDelDia, type TurnoDelDia } from "./agenda-core";
 import { vencimientoDeLaSenia } from "@/lib/turnos/sena-obligatoria-core";
+import { faltanteDeSenia } from "@/lib/turnos/cobros";
 import { bloqueosDelDia, bloqueosPorHorario, type BloqueoDelDia } from "./grilla";
 
 type AgendaCruda = Awaited<ReturnType<typeof getAgendaDay>>;
@@ -124,7 +125,7 @@ export function proyectarAgenda(
     // Seña obligatoria: un Reservado con la seña sin cobrar lleva cuándo vence (la marca la arma la
     // pantalla con su reloj, `marcaDelTurno`). Sin el interruptor, el turno sale como siempre.
     .map((t) =>
-      extras?.seniaObligatoria && t.estado === "PENDING" && t.sugerido.tipo === "senia" && t.sugerido.monto > 0
+      extras?.seniaObligatoria && t.estado === "PENDING" && faltanteDeSenia(t.senia, t.cobrado) > 0
         ? {
             ...t,
             seniaVence: vencimientoDeLaSenia({ creado: creadoDe.get(t.id), inicio: t.inicio, horas: extras.seniaObligatoria.horas }).toISOString(),

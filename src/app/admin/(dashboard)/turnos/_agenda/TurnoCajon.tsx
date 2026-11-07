@@ -56,6 +56,7 @@ import {
   minutosEntre,
   pasoDelTurno,
   seniaQueFalta,
+  seniaParaConfirmar,
   textoSeniaPedida,
   yaEmpezo,
   type CierreSinPrestar,
@@ -329,7 +330,7 @@ export default function TurnoCajon({
   // Seña obligatoria (interruptor): un Reservado con la seña sin cobrar no se confirma desde «Qué
   // falta» (el servidor lo rechazaría). La excepción «Confirmar sin seña» va a «Otras acciones», sólo
   // para quien la tiene (la dueña), con motivo. Apagado, todo como siempre.
-  const senaExigida = !!permisos.senaObligatoria && paso.tipo === "confirmar" && seniaQueFalta(t, reloj) > 0;
+  const senaExigida = !!permisos.senaObligatoria && paso.tipo === "confirmar" && seniaParaConfirmar(t, reloj) > 0;
   const sinSenia = senaExigida && !!permisos.confirmarSinSenia;
   const hayOtras = cancela || perdona || noVino || sinSenia;
   // La tecla que cierra el turno (terminar, o el «vino» de un Reservado pasado) ya cobra el saldo.
@@ -337,7 +338,9 @@ export default function TurnoCajon({
   // Cobrar (un parcial, la seña, el saldo) cuando falta plata y el turno lo acepta, y no es ya la
   // tecla que cierra el turno.
   // Un Reservado que viene, con la seña sin cobrar: «Llegó la seña» es la tecla (cobra y confirma).
-  const senia = seniaQueFalta(t, reloj);
+  // Con la seña obligatoria prendida manda la regla del servidor (una seña parcial todavía falta);
+  // apagado, la de siempre.
+  const senia = permisos.senaObligatoria ? seniaParaConfirmar(t, reloj) : seniaQueFalta(t, reloj);
   const llegoLaSenia = senia > 0 && cobraEste;
   const pedida = textoSeniaPedida(t, reloj);
   const pedidoPorWa =
