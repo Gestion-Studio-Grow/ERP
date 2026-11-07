@@ -166,7 +166,20 @@ async function preparar(t: import("node:test").TestContext, cual: "a" | "b") {
     });
   const cobro = (clave: string) =>
     duenio.cobroFacturado.findUnique({ where: { tenantId_clave: { tenantId: n.id, clave } }, select: { invoiceId: true, importe: true } });
-  return { n, duenio, crearTurno, cobrarEnElLibro, pagoMP, avisoDeMP, completar, sincronizar, extracto, facturas, cobro };
+  /** Opción B (CH, 06/11/2026): las facturas de los cobros del libro del turno, por medio. */
+  const deCobrosDelLibro = async (turnoId: string) => {
+    const filas = await duenio.cobroFacturado.findMany({
+      where: { tenantId: n.id, appointmentId: turnoId, clave: { startsWith: "turno:cobro:" } },
+      select: { clave: true, invoiceId: true, importe: true },
+    });
+    const medios = await duenio.collection.findMany({ where: { tenantId: n.id, originId: turnoId }, select: { id: true, method: true } });
+    return filas.map((f) => ({
+      invoiceId: f.invoiceId,
+      importe: Number(f.importe),
+      method: medios.find((m) => f.clave === `turno:cobro:${m.id}`)?.method,
+    }));
+  };
+  return { n, duenio, crearTurno, cobrarEnElLibro, pagoMP, avisoDeMP, completar, sincronizar, extracto, facturas, cobro, deCobrosDelLibro };
 }
 
 const total = (fs: { total: unknown }[]) => fs.reduce((a, f) => a + Number(f.total), 0);
@@ -193,13 +206,14 @@ test("R1 · seña por MP, completar el turno, sincronizar y extracto: una factur
   await p.cobrarEnElLibro(turno.id, 5000, "MERCADOPAGO");
   await p.cobrarEnElLibro(turno.id, 10000, "EFECTIVO");
 
-  // 2. Completar el turno: factura el RESTO ($10.000), no los $15.000 otra vez.
+  // 2. Completar el turno: factura el cobro en efectivo ($10.000); la seña por MP ya la facturó el aviso.
   const facturaTurno = await p.completar(turno.id);
   fs = await p.facturas();
   assert.equal(fs.length, 2);
   const delTurno = fs.find((f) => f.id === facturaTurno);
   assert.equal(Number(delTurno?.total), 10000);
-  assert.equal(delTurno?.appointmentId, turno.id);
+  // Opción B: la factura del cobro se ata al turno por el libro de cobros, no por `Invoice.appointmentId`.
+  assert.equal(delTurno?.appointmentId, null);
   assert.equal(total(fs), 15000, "lo facturado es lo cobrado: la seña sumada una sola vez");
   // Completar dos veces no factura de más.
   assert.equal(await p.completar(turno.id), facturaTurno);
@@ -219,7 +233,7 @@ test("R1 · seña por MP, completar el turno, sincronizar y extracto: una factur
 
   // El libro de cobros facturados: cada cobro, una factura.
   assert.equal((await p.cobro(`mp:${senia.id}`))?.invoiceId, facturaSenia);
-  assert.equal((await p.cobro(`turno:${turno.id}`))?.invoiceId, facturaTurno);
+  assert.deepEqual(await p.deCobrosDelLibro(turno.id), [{ invoiceId: facturaTurno, importe: 10000, method: "EFECTIVO" }]);
   assert.equal((await p.cobro(`banco:${hashes[0]}`))?.invoiceId, facturaSenia, "la acreditación quedó atada a la factura de la seña");
   const suelto = await p.cobro(`banco:${hashes[1]}`);
   assert.ok(suelto && suelto.invoiceId !== facturaSenia && suelto.invoiceId !== facturaTurno);
@@ -230,30 +244,35 @@ test("R1 · seña por MP, completar el turno, sincronizar y extracto: una factur
   assert.equal((await p.facturas()).length, 3);
 });
 
-test("R1 · completar ANTES del aviso de MP: el turno factura todo lo cobrado y el aviso tardío no emite otra", async (t) => {
+test("R1 · completar ANTES del aviso de MP: cada cobro del libro su factura y el aviso tardío no emite otra", async (t) => {
   const p = await preparar(t, "b");
   if (!p) return;
   const turno = await p.crearTurno();
   const senia = p.pagoMP(`mp-tarde-${randomUUID().slice(0, 6)}`, 5000, turno.id);
   await p.cobrarEnElLibro(turno.id, 5000, "MERCADOPAGO");
   await p.cobrarEnElLibro(turno.id, 10000, "EFECTIVO");
-  const facturaTurno = await p.completar(turno.id);
+  await p.completar(turno.id);
   let fs = await p.facturas();
-  assert.equal(fs.length, 1);
-  assert.equal(Number(fs[0].total), 15000);
+  // Opción B: la seña anotada en el libro y el saldo, una factura cada uno.
+  assert.deepEqual(fs.map((f) => Number(f.total)).sort((a, b) => a - b), [5000, 10000]);
+  const facturaSenia = (await p.deCobrosDelLibro(turno.id)).find((c) => c.method === "MERCADOPAGO")?.invoiceId;
+  assert.ok(facturaSenia);
 
-  // El aviso llega tarde: la seña ya está adentro de la factura del turno.
+  // El aviso llega tarde: la seña ya tiene su factura (la de su cobro en el libro).
   const r = await p.avisoDeMP(senia);
-  assert.equal(r.invoiceId, facturaTurno);
+  assert.equal(r.invoiceId, facturaSenia);
   fs = await p.facturas();
-  assert.equal(fs.length, 1, "no hay una segunda factura por la seña");
-  assert.equal((await p.cobro(`mp:${senia.id}`))?.invoiceId, facturaTurno);
+  assert.equal(fs.length, 2, "no hay una tercera factura por la seña");
+  assert.equal((await p.cobro(`mp:${senia.id}`))?.invoiceId, facturaSenia);
+  // Completar de nuevo tampoco: el pago de MP atado a la factura del cobro no cuenta dos veces.
+  await p.completar(turno.id);
+  assert.equal((await p.facturas()).length, 2);
 
   // Y el extracto la reconoce por la referencia del pago.
   const { resultado } = await p.extracto([{ monto: 5000, referencia: senia.id }]);
   assert.equal(resultado.yaFacturadas, 1);
   assert.equal(resultado.emitidas, 0);
-  assert.equal((await p.facturas()).length, 1);
+  assert.equal((await p.facturas()).length, 2);
 });
 
 test("R1 · seña por MP que la recepción NO anotó en el libro: completar factura sólo lo cobrado en el mostrador", async (t) => {

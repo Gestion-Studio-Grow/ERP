@@ -15,6 +15,7 @@ import type { PagoMP } from "@/plugins/mercadopago";
 import { fechaFiscalDelDia } from "@/lib/libros/fecha-fiscal";
 import { tenantTransaction } from "@/lib/rls";
 import { claveCobroMP, facturarCobros, vincularCobro } from "@/lib/facturacion/cobros-facturados";
+import { facturarPagoMPDelTurno } from "@/lib/facturacion/factura-por-cobro";
 
 // Códigos de catálogo ARCA (ver src/plugins/arca/domain/catalogos.ts).
 const CONCEPTO_PRODUCTOS = 1; // venta de productos/servicios sueltos, sin fechas de servicio
@@ -37,6 +38,12 @@ export interface DepsFacturarPagoMP {
    */
   facturaDelExtracto?: (tenantId: string, paymentId: string) => Promise<string | null>;
   vincularCobro?: typeof vincularCobro;
+  /**
+   * Pago de un TURNO: decide (factura del turno, factura del cobro del libro o factura propia) y
+   * factura en una transacción bajo el candado del turno (`factura-por-cobro.ts`). Opcional: sin él,
+   * `facturarCobros`.
+   */
+  facturarPagoDelTurno?: typeof facturarPagoMPDelTurno;
 }
 
 /** El extracto ya facturó un crédito con la referencia de este pago (y la factura sigue viva). */
@@ -62,6 +69,7 @@ const DEPS: DepsFacturarPagoMP = {
   facturarCobros,
   facturaDelExtracto: facturaDelExtractoPrisma,
   vincularCobro,
+  facturarPagoDelTurno: facturarPagoMPDelTurno,
 };
 
 /**
@@ -109,7 +117,13 @@ export async function facturarPagoMP(
   };
   // R1 · UNA FACTURA POR COBRO: la clave `mp:<pago>` con índice único. Si otro disparador ya lo
   // facturó (el extracto, un aviso duplicado), devuelve esa factura.
-  const invoiceId = deps.facturarCobros ? await deps.facturarCobros(comprobante, [cobro]) : await deps.createInvoice(comprobante);
+  const turno = cobro.appointmentId;
+  const invoiceId =
+    turno && deps.facturarPagoDelTurno
+      ? await deps.facturarPagoDelTurno(comprobante, { ...cobro, appointmentId: turno })
+      : deps.facturarCobros
+        ? await deps.facturarCobros(comprobante, [cobro])
+        : await deps.createInvoice(comprobante);
 
   await deps.procesarEnviosDelNegocio(tenantId);
   return invoiceId;

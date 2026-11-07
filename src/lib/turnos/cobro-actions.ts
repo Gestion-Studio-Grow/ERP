@@ -46,6 +46,8 @@ import { recordMovement } from "@/lib/stock/ledger";
 import { isInvoicingEnabled } from "@/lib/fiscal";
 import { resultadoDeFacturaFallida } from "./factura-fallida.server";
 import { facturarAppointment } from "@/lib/invoice-from-appointment";
+import { notaDeCreditoDelCobroInTx } from "@/lib/facturacion/factura-por-cobro";
+import { facturarDespuesDelCobro } from "@/lib/turnos/factura-del-cobro.server";
 import { avisoDeFacturaDelTurno, type ResultadoFacturaDelTurno } from "./aviso-factura";
 import { lastClosedDay } from "@/lib/caja/frontera-cierre";
 import { isFrozenDay, type DayKey } from "@/lib/caja/cierre-diario";
@@ -282,6 +284,8 @@ export async function terminarYCobrarDividido(formData: FormData): Promise<Resul
       saldoACobrar: 0,
       ...(desdeReservado ? { vino: true } : {}),
       libroCaja: cobros.map((c) => rastroLibroCaja({ outcome: settled.outcome, value: c })),
+      // Opción B: «No facturar» vale también para lo que se cobre después (factura-del-cobro.server.ts).
+      facturar,
     },
   });
 
@@ -434,7 +438,16 @@ export async function cobrarSeniaYConfirmar(formData: FormData): Promise<Resulta
         : "La seña ya estaba cobrada: quedó confirmado.";
     return { ok: true, cobroId: null, monto: 0, confirmo, aviso };
   }
-  return { ok: true, cobroId: cobrado.collectionId, monto: cobrado.monto, confirmo, sePuedeDeshacer: anulacionDeCobro(user.role) === "directa" };
+  // Opción B (CH, 06/11/2026): la seña se factura al cobrarla.
+  const avisoFactura = await facturarDespuesDelCobro(appointmentId, tenantId);
+  return {
+    ok: true,
+    cobroId: cobrado.collectionId,
+    monto: cobrado.monto,
+    confirmo,
+    sePuedeDeshacer: anulacionDeCobro(user.role) === "directa",
+    ...(avisoFactura ? { aviso: avisoFactura } : {}),
+  };
 }
 
 // ── 3. DEUDA VIEJA ───────────────────────────────────────────────────────────
@@ -576,6 +589,12 @@ export async function cobrarVariosTurnos(formData: FormData): Promise<ResultadoC
       changes: { saldoACobrar: 0, conDeudaDeAntes: true, ...(settled.value.desdeReservado ? { vino: true } : {}) },
     });
     if (isInvoicingEnabled()) aviso = avisoDeFacturaDelTurno(await facturarConResultado(terminarId, tenantId));
+  }
+  // Opción B (CH, 06/11/2026): la deuda de antes que se cobró ahora, cada cobro con su factura.
+  for (const { id, r } of settled.value.cobros) {
+    if (!r.applied || id === terminarId) continue;
+    const delCobro = await facturarDespuesDelCobro(id, tenantId);
+    aviso ??= delCobro;
   }
   revalidarCaja();
   return aviso ? { ok: true, aviso } : { ok: true };
@@ -725,6 +744,7 @@ async function deshacerSenia(user: Usuario, tenantId: string, appointmentId: str
           esDiaCerrado: (dia, hasta) => isFrozenDay(dia as DayKey, hasta as DayKey),
           diaDe: dateStrInBusinessTz,
           withSchema,
+          notaDeCredito: notaDeCreditoDelCobroInTx,
         });
         let volvioAReservado = false;
         if (confirmo && a.status === "CONFIRMED") {
