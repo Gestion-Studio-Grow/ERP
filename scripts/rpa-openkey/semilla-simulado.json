@@ -1,0 +1,10 @@
+{
+  "nota": "Vouchers FICTICIOS del OpenKey simulado. Estados: Disponible | Usado | Anulado.",
+  "vouchers": [
+    { "numero": "AL-0001", "estado": "Disponible" },
+    { "numero": "AL-0002", "estado": "Disponible" },
+    { "numero": "AL-0003", "estado": "Usado" },
+    { "numero": "AL-0004", "estado": "Disponible" },
+    { "numero": "AL-0005", "estado": "Disponible" }
+  ]
+}
