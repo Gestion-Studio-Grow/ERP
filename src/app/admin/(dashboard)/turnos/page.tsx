@@ -125,6 +125,7 @@ export default async function TurnosCalendarPage({
   const extras = await extrasDeLaAgenda(cruda, diaDeLaPlanilla, { quienCobro: agendaInteraccionPrendida(interruptores) });
   const proyectada = proyectarAgenda(cruda, user, {
     seniasPedidas: extras.seniasPedidas,
+    avisosMP: extras.avisosMP,
     quienCobro: extras.quienCobro,
     seniaObligatoria: senaObligatoria.prendida ? { horas: senaObligatoria.horas } : undefined,
   });

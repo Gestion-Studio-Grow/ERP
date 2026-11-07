@@ -160,6 +160,7 @@ export default async function AgendaRenglon({
   const extras = await extrasDeLaAgenda(cruda, dia, { quienCobro: !!permisos.interaccion });
   const agenda = proyectarAgenda(cruda, quien, {
     seniasPedidas: extras.seniasPedidas,
+    avisosMP: extras.avisosMP,
     quienCobro: extras.quienCobro,
     seniaObligatoria: senaObligatoria.prendida ? { horas: senaObligatoria.horas } : undefined,
   });

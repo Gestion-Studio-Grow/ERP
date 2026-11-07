@@ -39,6 +39,7 @@ import {
   pasoDelTurno,
   pesos,
   textoSeniaPedida,
+  textosAvisoMP,
   verboDelPaso,
   yaEmpezo,
   type CierreSinPrestar,
@@ -423,6 +424,7 @@ export function RenglonDelTurno({ t, conFecha = false }: { t: TurnoDelDia; conFe
   const paso = pasoDelTurno(t, permisos, reloj);
   const marca = marcaDelTurno(t, reloj);
   const pedida = textoSeniaPedida(t, reloj);
+  const avisosMP = textosAvisoMP(t);
   const resuelto = estaResuelto(t);
   const wa = waLinkClienta(t.telefono);
   const vivo = t.estado === "PENDING" || t.estado === "CONFIRMED";
@@ -466,6 +468,14 @@ export function RenglonDelTurno({ t, conFecha = false }: { t: TurnoDelDia; conFe
             {marca.texto}
           </Marca>
           {pedida && <span className="ml-2">{pedida}</span>}
+          {/* La seña por Mercado Pago pide una persona: la marca corta acá, el detalle en el cajón. */}
+          {avisosMP.length > 0 && (
+            <span data-aviso-mp title={avisosMP.join(" · ")} className="ml-2">
+              <Marca tipo="atencion" className="align-baseline">
+                Mercado Pago: revisar la seña<span className="sr-only">. {avisosMP.join(". ")}</span>
+              </Marca>
+            </span>
+          )}
         </>
       }
       plata={

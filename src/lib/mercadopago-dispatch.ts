@@ -38,7 +38,7 @@ import {
 import { verificarFirmaMP } from "@/plugins/mercadopago/signature";
 import type { GatewayPagos } from "@/plugins/pagos";
 import { facturarAppointment, facturarCobroMPDelTurno } from "@/lib/invoice-from-appointment";
-import { aplicarPagoMPDelTurno } from "@/lib/turnos/senia-mp.server";
+import { aplicarPagoMPDelTurno, avisarSeniaMPFallida } from "@/lib/turnos/senia-mp.server";
 import { gatewayCobrosDeConexion, gatewayCobrosPara, gatewayLegadoDelDespliegue, modoLegadoMP } from "@/lib/pagos-dispatch";
 import { CLAVE_MERCADOPAGO } from "@/plugins/mercadopago/gateway";
 import { normalizarFailClosed, type EntradaCruda } from "@/integraciones/contrato";
@@ -162,7 +162,8 @@ export async function manejarNotificacionMP(
       : async () => null,
     cobrarPedido: opts.cobrarPedido ?? cobrarPedidoDelWebhook,
     // La seña del turno NO depende de la facturación: con el interruptor apagado no hace nada.
-    senia: opts.senia ?? aplicarPagoMPDelTurno,
+    senia: opts.senia ?? ((id, t, p) => aplicarPagoMPDelTurno(id, t, p)),
+    alFallarSenia: avisarSeniaMPFallida,
   });
 
   // Venta directa (sin turno): entra al pipeline unificado banco + Mercado Pago.

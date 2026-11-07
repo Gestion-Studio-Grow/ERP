@@ -31,7 +31,7 @@ import {
   type ResultadoAccion,
 } from "@/lib/actions";
 import { Cajon } from "@/components/ui/Cajon";
-import { Button, ButtonLink, Input, Marca, Plata, Renglon, Seccion, atributosBoton, buttonClasses } from "@/components/ui";
+import { Button, ButtonLink, Franja, Input, Marca, Plata, Renglon, Seccion, atributosBoton, buttonClasses } from "@/components/ui";
 import { fmtShortDate, fmtTime } from "@/lib/datetime";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
 import { AVISO_CONTACTO_OCULTO, contactoOculto } from "@/lib/clientes/telefono";
@@ -58,6 +58,7 @@ import {
   seniaQueFalta,
   seniaParaConfirmar,
   textoSeniaPedida,
+  textosAvisoMP,
   yaEmpezo,
   type CierreSinPrestar,
   type Permisos,
@@ -343,6 +344,8 @@ export default function TurnoCajon({
   const senia = permisos.senaObligatoria ? seniaParaConfirmar(t, reloj) : seniaQueFalta(t, reloj);
   const llegoLaSenia = senia > 0 && cobraEste;
   const pedida = textoSeniaPedida(t, reloj);
+  // Lo que el aviso de Mercado Pago de la seña no pudo resolver solo: se lee arriba, en criollo.
+  const avisosMP = textosAvisoMP(t);
   const pedidoPorWa =
     senia > 0 && permisos.gestionar
       ? waLinkClienta(
@@ -445,6 +448,15 @@ export default function TurnoCajon({
           )}
           {pedida && <span className="text-sm text-muted">{pedida}</span>}
         </p>
+        {avisosMP.length > 0 && (
+          <div data-aviso-mp className="flex flex-col gap-2">
+            {avisosMP.map((texto) => (
+              <Franja key={texto} tono="atencion">
+                {texto}
+              </Franja>
+            ))}
+          </div>
+        )}
 
         <Seccion titulo="La clienta">
           <Renglon

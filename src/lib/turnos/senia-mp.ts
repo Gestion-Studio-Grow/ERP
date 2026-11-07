@@ -37,21 +37,18 @@ import { AnulacionRechazada, anularCobroTurnoInTx, claseDeCobro, cobroAnuladoPor
 import { CobroTurnoRechazado, aplicarCobroTurnoInTx } from "./cobro-turno-repo";
 import { seniaDelServicio } from "./cobros";
 import { ACCION_CONFIRMAR, ACCION_VOLVIO_A_RESERVADO, seniaQueFaltaParaConfirmar } from "./sena-obligatoria-core";
+import { ACCION_SENIA_MP_DEVUELTA_SIN_ANULAR, ACCION_SENIA_MP_NO_REGISTRADA, ACCION_SENIA_PARCIAL_MP, notaSeniaMP } from "./avisos-mp";
 import { confirmadoPorExcepcion, exigirSeniaParaConfirmar, senaObligatoriaEnTx, volverAReservadoSiFaltaLaSenia } from "./sena-obligatoria";
 
 /** Quién firma en la auditoría y en el cobro lo que hace el aviso de MP. */
 export const ACTOR_MP = "Mercado Pago";
 export const ACCION_SENIA_MP = "collect_payment";
-export const ACCION_SENIA_PARCIAL_MP = "senia_parcial_mp";
-export const ACCION_SENIA_MP_NO_REGISTRADA = "senia_mp_no_registrada";
-export const ACCION_SENIA_MP_DEVUELTA_SIN_ANULAR = "senia_mp_devuelta_sin_anular";
+// Las acciones de aviso viven en avisos-mp.ts (puro: la agenda las lee y las muestra).
+export { ACCION_SENIA_PARCIAL_MP, ACCION_SENIA_MP_NO_REGISTRADA, ACCION_SENIA_MP_DEVUELTA_SIN_ANULAR };
 
-const PREFIJO_NOTA = "Seña por Mercado Pago · pago ";
-
-/** La nota del cobro de ESTE pago: es la capa de idempotencia que no depende de la migración. */
-export function notaSeniaMP(paymentId: string): string {
-  return `${PREFIJO_NOTA}${paymentId}`;
-}
+// La nota del cobro de ESTE pago (capa de idempotencia sin migración) vive en avisos-mp.ts: la
+// agenda la usa para saber si un aviso «no registrada» ya se resolvió a mano.
+export { notaSeniaMP };
 
 /** La clave de idempotencia del cobro (con la columna migrada). El neto de un ajuste lleva sus centavos. */
 export function claveSeniaMP(paymentId: string, netoAjustado?: number): string {

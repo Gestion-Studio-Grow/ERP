@@ -21,7 +21,9 @@ import {
   duenoDelCobro,
   type CobrarPedidoPorPago,
   type FacturarPorPago,
+  seniaActiva,
   type SeniaPorPago,
+  type SeniaFallida,
   type NotificacionPagoMP,
   type ResultadoCobroPedido,
 } from "./core-contract";
@@ -42,6 +44,26 @@ export interface MpHandlerDeps {
    * (antes de facturar) y con el pago devuelto/contracargado (`refunded`). Opcional.
    */
   senia?: SeniaPorPago;
+  /**
+   * Aviso del Core cuando `senia` tira (log + AuditLog). La seña NUNCA bloquea la facturación ni
+   * cambia la respuesta de siempre: el error se traga acá.
+   */
+  alFallarSenia?: SeniaFallida;
+}
+
+/** La seña, envuelta: un fallo queda avisado y nunca sube. Devuelve lo que contestó el Core (o null). */
+async function seniaSegura(deps: MpHandlerDeps, appointmentId: string, tenantId: string, pago: Parameters<SeniaPorPago>[2]): Promise<unknown> {
+  if (!deps.senia) return null;
+  try {
+    return await deps.senia(appointmentId, tenantId, pago);
+  } catch (e) {
+    try {
+      await deps.alFallarSenia?.(appointmentId, tenantId, pago, e);
+    } catch {
+      // El aviso del fallo tampoco puede bloquear: el Core ya lo loguea por su lado.
+    }
+    return null;
+  }
 }
 
 export interface ResultadoNotificacion {
@@ -68,8 +90,9 @@ export async function procesarNotificacionPago(
   if (pago.estado === "refunded" && deps.senia) {
     const duenoDevuelto = duenoDelCobro(pago.externalReference);
     if (duenoDevuelto?.tipo === "turno") {
-      await deps.senia(duenoDevuelto.id, notif.tenantId, pago);
-      return { procesado: true, facturado: false, invoiceId: null, motivo: "seña devuelta" };
+      const r = await seniaSegura(deps, duenoDevuelto.id, notif.tenantId, pago);
+      // Regla apagada (o fallo): cae a la respuesta de siempre («estado refunded»).
+      if (seniaActiva(r)) return { procesado: true, facturado: false, invoiceId: null, motivo: "seña devuelta" };
     }
   }
 
@@ -109,7 +132,8 @@ export async function procesarNotificacionPago(
   }
 
   // La seña del turno (seña obligatoria): se registra y confirma ANTES de facturar.
-  if (deps.senia) await deps.senia(dueno.id, notif.tenantId, pago);
+  // Envuelta: un fallo de la seña nunca bloquea la factura (queda log + AuditLog).
+  await seniaSegura(deps, dueno.id, notif.tenantId, pago);
 
   // R1 · se pasa el pago: el Core factura ESTE cobro (una factura por cobro), no el turno entero.
   const invoiceId = await deps.facturar(dueno.id, notif.tenantId, pago);

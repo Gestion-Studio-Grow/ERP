@@ -21,7 +21,8 @@
 // No decide nada de plata: sólo la LEE con las funciones de src/lib/turnos. Nada de Prisma.
 
 import { estadoCobroTurno, cobroSugerido, esCuentaACobrar, faltanteDeSenia, seniaDelServicio, type PagoLegado } from "@/lib/turnos/cobros";
-import { cobradoRealDelTurno, desglosarCobros } from "@/lib/turnos/anulacion";
+import { cobradoRealDelTurno, cobroAnuladoPor, desglosarCobros } from "@/lib/turnos/anulacion";
+import { notaSeniaMP, type AvisoMP } from "@/lib/turnos/avisos-mp";
 import { marcaDeSeniaPendiente } from "@/lib/turnos/sena-obligatoria-core";
 import type { CierreSinPrestar, DestinoDeLaSenia } from "@/lib/turnos/practica";
 import type { TipoMarca } from "@/components/ui/Marca";
@@ -87,6 +88,11 @@ export type TurnoDelDia = {
    * Reservado (`vencimientoDeLaSenia`). Sólo con el interruptor prendido; ausente, la marca de siempre.
    */
   seniaVence?: string | null;
+  /**
+   * Lo que el aviso de Mercado Pago de la seña no pudo resolver solo (`avisosMP`: AuditLog, por
+   * `tenantId`): seña parcial, devuelta sin anular, no registrada. El texto lo arma `textosAvisoMP`.
+   */
+  avisosMP?: AvisoMP[];
 };
 
 /** Lo mínimo que la agenda lee de un turno crudo (el loader de siempre, ya con sus cobros). */
@@ -521,4 +527,36 @@ export function nombreRelativo(dia: string, hoy: string): "Hoy" | "Mañana" | "A
 /** Duración en minutos entre dos ISO (redondeada). */
 export function minutosEntre(inicio: string, fin: string): number {
   return Math.max(0, Math.round((new Date(fin).getTime() - new Date(inicio).getTime()) / 60000));
+}
+
+/**
+ * Los avisos de la seña por Mercado Pago que siguen pidiendo una persona, en criollo. Cada uno se
+ * apaga solo cuando el turno a la vista ya lo resolvió:
+ *   · parcial → mientras falte seña y el turno siga vivo;
+ *   · devuelta sin anular → mientras ese cobro siga en pie (nadie lo anuló a mano);
+ *   · no registrada → mientras no haya un cobro de ese pago.
+ */
+export function textosAvisoMP(t: Pick<TurnoDelDia, "estado" | "senia" | "cobrado" | "cobros" | "avisosMP">): string[] {
+  if (!t.avisosMP?.length) return [];
+  const anulados = new Set(t.cobros.map((c) => cobroAnuladoPor(c.note)).filter((x): x is string => Boolean(x)));
+  const vivo = t.estado === "PENDING" || t.estado === "CONFIRMED";
+  const textos: string[] = [];
+  for (const a of t.avisosMP) {
+    if (a.tipo === "parcial") {
+      if (vivo && faltanteDeSenia(t.senia, t.cobrado) > 0) textos.push(`Seña parcial por Mercado Pago: pagó ${pesos(a.pagado)} de ${pesos(a.senia)}`);
+    } else if (a.tipo === "devuelta-sin-anular") {
+      const sigue = a.cobroId === null || t.cobros.some((c) => c.id === a.cobroId && !anulados.has(a.cobroId as string));
+      if (sigue) textos.push("Mercado Pago devolvió la seña pero el cobro sigue en caja: revisalo");
+    } else {
+      const nota = a.pagoId ? notaSeniaMP(a.pagoId) : null;
+      if (nota && t.cobros.some((c) => c.note === nota)) continue;
+      const monto = a.monto !== null && a.monto > 0 ? ` (${pesos(a.monto)})` : "";
+      textos.push(
+        a.cajaCerrada
+          ? `Entró la seña por Mercado Pago${monto} pero la caja estaba cerrada: registrala a mano`
+          : `Entró la seña por Mercado Pago${monto} pero no se pudo registrar: registrala a mano`,
+      );
+    }
+  }
+  return textos;
 }

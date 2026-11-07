@@ -25,6 +25,9 @@ import type { PermisoOverride } from "@/lib/capabilities";
 import type { Role } from "@/lib/capabilities";
 import { fmtTime } from "@/lib/datetime";
 import { seniasPedidas } from "@/lib/turnos/senia-actions";
+import { leerAvisosMP, type LectorAvisosMP } from "@/lib/turnos/avisos-mp.server";
+import type { AvisoMP } from "@/lib/turnos/avisos-mp";
+import { isDemoSandbox } from "@/lib/demo-flag";
 import { horariosDelDia } from "@/lib/turnos/horario-del-dia.server";
 import { turnoDelDia, type TurnoDelDia } from "./agenda-core";
 import { vencimientoDeLaSenia } from "@/lib/turnos/sena-obligatoria-core";
@@ -79,6 +82,8 @@ export function proyectarAgenda(
     quienCobro?: Readonly<Record<string, string>>;
     /** Seña obligatoria PRENDIDA (`seniaObligatoriaDelNegocio`): las horas H. Ausente = apagada. */
     seniaObligatoria?: { horas: number | null };
+    /** Turno → los avisos de la seña por Mercado Pago (`extrasDeLaAgenda`). */
+    avisosMP?: Readonly<Record<string, AvisoMP[]>>;
   },
 ): AgendaDelDia {
   const creadoDe = new Map(cruda.appointments.map((a) => [a.id, (a as TurnoDeLaBase).createdAt ?? null]));
@@ -122,6 +127,7 @@ export function proyectarAgenda(
       ),
     )
     .map((t) => (extras?.seniasPedidas?.[t.id] ? { ...t, seniaPedidaEl: extras.seniasPedidas[t.id] } : t))
+    .map((t) => (extras?.avisosMP?.[t.id]?.length ? { ...t, avisosMP: extras.avisosMP[t.id] } : t))
     // Seña obligatoria: un Reservado con la seña sin cobrar lleva cuándo vence (la marca la arma la
     // pantalla con su reloj, `marcaDelTurno`). Sin el interruptor, el turno sale como siempre.
     .map((t) =>
@@ -148,6 +154,8 @@ export function horario(t: Pick<TurnoDelDia, "inicio" | "fin">): string {
 /**
  * Lo que la agenda lee ADEMÁS del loader del día (Tanda 2), en paralelo y una vez por día:
  *   · la marca «seña pedida» de los Reservados del día (`seniasPedidas`: AuditLog, por `tenantId`);
+ *   · los avisos de la seña por Mercado Pago de los turnos del día (`leerAvisosMP`: AuditLog, por
+ *     `tenantId`): seña parcial, devuelta sin anular, no registrada;
  *   · el horario de trabajo de las profesionales (`horariosDelDia`: WorkingHours, por `tenantId`),
  *     como bloqueos de la grilla junto con las ausencias.
  * Si una de las dos falla, la agenda se dibuja igual sin eso (no se cae por una marca).
@@ -157,19 +165,28 @@ export async function extrasDeLaAgenda(
   dia: string,
   /** `quienCobro`: agenda interactiva prendida → también los nombres de quién cobró (una lectura). */
   o: { quienCobro?: boolean } = {},
-): Promise<{ seniasPedidas: Record<string, string>; bloqueos: BloqueoDelDia[]; quienCobro?: Record<string, string> }> {
+): Promise<{ seniasPedidas: Record<string, string>; avisosMP: Record<string, AvisoMP[]>; bloqueos: BloqueoDelDia[]; quienCobro?: Record<string, string> }> {
   const reservados = cruda.appointments.filter((a) => a.status === "PENDING").map((a) => a.id);
   const profesionales = cruda.professionals.map((p) => p.id);
-  const [senias, horarios, quienCobro] = await Promise.all([
+  const todos = cruda.appointments.map((a) => a.id);
+  const [senias, avisosMP, horarios, quienCobro] = await Promise.all([
     reservados.length > 0 ? seniasPedidas(reservados).catch(() => ({})) : Promise.resolve({}),
+    todos.length > 0 && !isDemoSandbox() ? avisosMPDelDia(todos).catch(() => ({})) : Promise.resolve({}),
     profesionales.length > 0 ? horariosDelDia(dia, profesionales).catch(() => null) : Promise.resolve(null),
     o.quienCobro ? nombresDeQuienCobro(cruda).catch(() => ({})) : Promise.resolve(undefined),
   ]);
   return {
     seniasPedidas: senias,
+    avisosMP,
     bloqueos: [...bloqueosDelDia(cruda.blocksToday), ...bloqueosPorHorario(dia, profesionales, horarios)],
     ...(quienCobro ? { quienCobro } : {}),
   };
+}
+
+/** Los avisos de la seña por MP de los turnos del día: UNA consulta, con `tenantId`. */
+async function avisosMPDelDia(ids: string[]): Promise<Record<string, AvisoMP[]>> {
+  const tenantId = await getCurrentTenantId();
+  return leerAvisosMP(prisma as unknown as LectorAvisosMP, tenantId, ids);
 }
 
 /** Actor de los cobros del día («user:<id>») → nombre. UNA consulta por día, con `tenantId`. */

@@ -43,7 +43,7 @@ import { cambiarDuracionDelTurno } from "@/lib/turnos/duracion-actions";
 import { rescheduleAppointment } from "@/lib/actions";
 import { BUFFER_MIN } from "@/lib/business-config";
 import { esRedireccionDeNext } from "../errores";
-import { FILTROS_AGENDA, entraEnFiltro, leerFiltroAgenda, marcaDelTurno, textoSeniaPedida, type TurnoDelDia } from "../agenda-core";
+import { FILTROS_AGENDA, entraEnFiltro, leerFiltroAgenda, marcaDelTurno, textoSeniaPedida, textosAvisoMP, type TurnoDelDia } from "../agenda-core";
 import {
   LEYENDA_DE_LA_GRILLA,
   PASO_MIN,
@@ -637,6 +637,8 @@ export default function PorProfesional({
               const { carril, de } = carriles.get(t.id) ?? { carril: 0, de: 1 };
               const marca = marcaDelTurno(t, reloj);
               const pedida = textoSeniaPedida(t, reloj);
+              // La seña por Mercado Pago pide una persona: se lee en el title y el aria-label; el detalle, en el cajón.
+              const avisoMP = textosAvisoMP(t).length > 0 ? "Mercado Pago: revisar la seña" : null;
               const movible = permisos.gestionar && sePuedeMover(t);
               const atenuado = filtro !== "todos" && !entraEnFiltro(t, filtro, reloj);
               const choca = choques.has(t.id);
@@ -745,8 +747,8 @@ export default function PorProfesional({
                       : undefined
                   }
                   aria-keyshortcuts={estirable ? "M Shift+ArrowUp Shift+ArrowDown" : undefined}
-                  title={interaccion ? tituloDelTurno(t, [verPor === "box" && t.profesional, marca.texto, pedida, choca && "se pisa con otro turno"]) : undefined}
-                  aria-label={`${fmtTime(t.inicio)}, ${t.clienta}, ${t.servicio}, ${marca.texto}${pedida ? `, ${pedida}` : ""}${choca ? ", se pisa con otro turno" : ""}: abrir el turno`}
+                  title={interaccion ? tituloDelTurno(t, [verPor === "box" && t.profesional, marca.texto, pedida, avisoMP, choca && "se pisa con otro turno"]) : undefined}
+                  aria-label={`${fmtTime(t.inicio)}, ${t.clienta}, ${t.servicio}, ${marca.texto}${pedida ? `, ${pedida}` : ""}${avisoMP ? `, ${avisoMP}` : ""}${choca ? ", se pisa con otro turno" : ""}: abrir el turno`}
                   className={`${envuelto ? "h-full w-full" : "z-[1] self-stretch"} flex min-w-0 flex-col items-start gap-0.5 overflow-hidden rounded border border-line-strong bg-surface-raised px-2 py-1 text-left hover:bg-surface-sunken focus-visible:outline-2 focus-visible:outline-focus ${
                     movible ? "lg:cursor-grab" : ""
                   } ${atenuado ? "opacity-40" : ""} ${arrastrando === t.id ? "opacity-60" : ""}${estirable ? " select-none [-webkit-touch-callout:none]" : ""}`}
@@ -772,6 +774,7 @@ export default function PorProfesional({
                       <span className="min-w-0 flex-1 truncate text-xs text-muted">
                         · {verPor === "box" ? `${t.servicio} · ${t.profesional}` : t.servicio}
                         {pedida ? " · seña pedida" : ""}
+                        {avisoMP ? " · revisar seña MP" : ""}
                       </span>
                     )}
                   </span>
@@ -780,6 +783,7 @@ export default function PorProfesional({
                     <span className="w-full truncate text-xs text-muted">
                       {verPor === "box" ? `${t.servicio} · ${t.profesional}` : t.servicio}
                       {pedida ? " · seña pedida" : ""}
+                      {avisoMP ? " · revisar seña MP" : ""}
                     </span>
                   )}
                   {!enUnaLinea && alto > 1 && !choca && <Marca tipo={marca.tipo}>{marca.texto}</Marca>}

@@ -16,6 +16,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { PagoMP } from "@/plugins/mercadopago";
 import { procesarNotificacionPago } from "@/plugins/mercadopago/handler";
+import { aplicarPagoMPDelTurno, avisarSeniaMPFallida, type DepsServidorSeniaMP } from "./senia-mp.server";
 import { AnulacionRechazada, notaDeAnulacion } from "./anulacion";
 import {
   ACTOR_MP,
@@ -359,4 +360,86 @@ test("handler: el pago de un PEDIDO no pasa por la seña", async () => {
   const { deps, llamadas } = handlerCon(pago({ externalReference: "pedido:o1" }));
   await procesarNotificacionPago({ type: "payment", paymentId: "9001", tenantId: "A" }, deps);
   assert.deepEqual(llamadas, ["pedido"]);
+});
+
+// ── Observaciones de la certificación de 60e587ce ───────────────────────────
+
+function servidorCon(prendida: boolean, b = base()) {
+  if (prendida) b.prender("A");
+  b.turno("t1", "A");
+  const log: string[] = [];
+  let dentro: string | null = null;
+  const deps: DepsServidorSeniaMP = {
+    transaccion: async (fn, opts) => {
+      const nivel = opts.isolationLevel ?? "default";
+      log.push(`tx:${opts.tenantId}:${nivel}`);
+      dentro = nivel;
+      try {
+        return await fn(b.tx);
+      } finally {
+        dentro = null;
+      }
+    },
+    cerradoHastaEnTx: async (_tx, t) => (log.push(`cierre:${t}:dentro-de-${dentro}`), null),
+    reglaPrendidaEnTx: async (_tx, t) => (log.push(`regla:${t}`), prendida),
+    enTx: { aplicarCobro: b.deps().aplicarCobro, anularCobro: b.deps().anularCobro },
+    ahora: () => new Date("2026-11-07T12:00:00Z"),
+  };
+  return { b, deps, log };
+}
+
+test("obs 1: regla apagada → se mira la regla primero; ni cierre de caja ni tx Serializable", async () => {
+  const { b, deps, log } = servidorCon(false);
+  const r = await aplicarPagoMPDelTurno("t1", "A", pago(), deps);
+  assert.deepEqual(r, { accion: "apagada" });
+  assert.deepEqual(log, ["tx:A:default", "regla:A"]);
+  assert.equal(b.db.escrituras, 0);
+});
+
+test("obs 2: regla prendida → el cierre de caja se lee DENTRO de la tx Serializable", async () => {
+  const { b, deps, log } = servidorCon(true);
+  const r = await aplicarPagoMPDelTurno("t1", "A", pago(), deps);
+  assert.equal(r.accion, "confirmado");
+  assert.deepEqual(log, ["tx:A:default", "regla:A", "tx:A:Serializable", "cierre:A:dentro-de-Serializable"]);
+  assert.equal(b.db.turnos[0].status, "CONFIRMED");
+});
+
+test("obs 1: un fallo de la seña NO bloquea la factura: se avisa al Core y se factura igual", async () => {
+  const { deps, llamadas } = handlerCon(pago());
+  const fallos: string[] = [];
+  const r = await procesarNotificacionPago(
+    { type: "payment", paymentId: "9001", tenantId: "A" },
+    { ...deps, senia: async () => { throw new Error("boom"); }, alFallarSenia: async (id, t, _p, e) => { fallos.push(`${t}:${id}:${(e as Error).message}`); } },
+  );
+  assert.deepEqual(llamadas, ["facturar"]);
+  assert.deepEqual(fallos, ["A:t1:boom"]);
+  assert.equal(r.facturado, true);
+  // Aunque el aviso del fallo también tire, la factura sale.
+  const h = handlerCon(pago());
+  const r2 = await procesarNotificacionPago(
+    { type: "payment", paymentId: "9001", tenantId: "A" },
+    { ...h.deps, senia: async () => { throw new Error("boom"); }, alFallarSenia: () => { throw new Error("otro"); } },
+  );
+  assert.equal(r2.facturado, true);
+});
+
+test("obs 1: reembolso de turno con la regla apagada (o con fallo) contesta como antes: «estado refunded»", async () => {
+  for (const senia of [async () => ({ accion: "apagada" }), async () => null, async () => { throw new Error("boom"); }]) {
+    const h = handlerCon(pago({ estado: "refunded" }));
+    const r = await procesarNotificacionPago({ type: "payment", paymentId: "9001", tenantId: "A" }, { ...h.deps, senia, alFallarSenia: () => {} });
+    assert.deepEqual(r, { procesado: true, facturado: false, invoiceId: null, motivo: "estado refunded" });
+  }
+  const h = handlerCon(pago({ estado: "refunded" }));
+  const r = await procesarNotificacionPago({ type: "payment", paymentId: "9001", tenantId: "A" }, { ...h.deps, senia: async () => ({ accion: "devuelto", volvioAReservado: true }) });
+  assert.equal(r.motivo, "seña devuelta");
+});
+
+test("obs 1: avisarSeniaMPFallida deja la fila senia_mp_no_registrada del negocio y nunca tira", async () => {
+  const b = base();
+  await avisarSeniaMPFallida("t1", "A", pago(), new Error("boom"), { transaccion: async (fn) => fn(b.tx) });
+  const fila = b.db.audit.at(-1)!;
+  assert.equal(fila.action, "senia_mp_no_registrada");
+  assert.equal(fila.tenantId, "A");
+  assert.equal(fila.entityId, "t1");
+  await avisarSeniaMPFallida("t1", "A", pago(), "x", { transaccion: async () => { throw new Error("db caída"); } });
 });

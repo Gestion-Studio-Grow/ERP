@@ -37,6 +37,19 @@ export type FacturarPorPago = (
  */
 export type SeniaPorPago = (appointmentId: string, tenantId: string, pago: PagoMP) => Promise<unknown>;
 
+/** Aviso del Core cuando la seña tiró un error inesperado (log + auditoría). No debe tirar. */
+export type SeniaFallida = (appointmentId: string, tenantId: string, pago: PagoMP, error: unknown) => Promise<void> | void;
+
+/**
+ * ¿La seña hizo su trabajo? Con la regla apagada el Core contesta `{ accion: "apagada" }` (o nada):
+ * entonces el handler responde exactamente como antes de existir la seña obligatoria.
+ */
+export function seniaActiva(r: unknown): boolean {
+  if (!r || typeof r !== "object") return false;
+  const accion = (r as { accion?: unknown }).accion;
+  return typeof accion === "string" && accion !== "apagada";
+}
+
 // ── El link de pago de un PEDIDO ─────────────────────────────────────────────
 //
 // El link que se genera desde la bandeja lleva como `external_reference` el pedido, con un
