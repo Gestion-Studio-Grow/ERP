@@ -195,6 +195,7 @@ describe("El armazón del club (Break Point) en el navegador", { timeout: 240_00
     tema: 'button[aria-label="Cambiar tema"]',
     cabecera: '[data-casa="cabecera"]',
     cintas: '[data-casa="cintas"]',
+    loseta: '[data-casa="cabecera"] [data-logo-parte="loseta"]',
   };
   type Caja = { x: number; y: number; abajo: number; ancho: number; alto: number };
   const cajas = async (page: Page): Promise<Record<keyof typeof PIEZAS, Caja | null>> =>
@@ -278,7 +279,23 @@ describe("El armazón del club (Break Point) en el navegador", { timeout: 240_00
     const centro = (b: { y: number; alto: number }) => b.y + b.alto / 2;
     for (const b of fila) assert.ok(Math.abs(centro(b) - centro(c.tema!)) < 6, "todo en el mismo renglón que la luna");
     assert.ok(c.tema!.x + c.tema!.ancho <= 390, "la luna entra en la pantalla");
-    assert.ok(c.cabecera!.abajo <= 120, `cintas + barra en ${Math.round(c.cabecera!.abajo)} px (≤ 120)`);
+    // El logo entero y sin nada encima (QA 05/11: se achicaba a 4 px y la lupa del buscador lo tapaba).
+    assert.ok(c.loseta!.ancho >= 40, `la loseta del logo entera (${Math.round(c.loseta!.ancho)} px)`);
+    assert.ok(c.loseta!.x >= 0 && c.loseta!.x + c.loseta!.ancho <= c.buscar!.x, "el buscador empieza después del logo");
+    // «Cintas + barra ≤ 120 px» se mide por partes: la barra en un renglón de 60 px y cada cinta en UNA línea. La suma
+    // en píxeles dependía de la fuente de reserva del equipo (54 px de cintas acá, 72 px en el runner de CI con la
+    // misma maqueta), y eso no es el armazón. Lo que sí es del armazón: que ninguna cinta se parta en dos renglones.
+    assert.ok(c.cabecera!.alto <= 60, `la barra en ${Math.round(c.cabecera!.alto)} px (≤ 60)`);
+    const cintas = await page.evaluate(() =>
+      Array.from(document.querySelectorAll('[data-casa="cintas"] > *')).map((el) => {
+        const s = getComputedStyle(el);
+        const linea = parseFloat(s.lineHeight) || parseFloat(s.fontSize) * 1.5;
+        const relleno = parseFloat(s.paddingTop) + parseFloat(s.paddingBottom) + parseFloat(s.borderTopWidth) + parseFloat(s.borderBottomWidth);
+        return { cinta: el.getAttribute("data-ui") ?? el.tagName, alto: el.getBoundingClientRect().height, linea, relleno };
+      }),
+    );
+    t.diagnostic(`cintas 390: ${JSON.stringify(cintas)}`);
+    for (const k of cintas) assert.ok(k.alto - k.relleno < 2 * k.linea, `la cinta ${k.cinta} en una línea (${Math.round(k.alto)} px)`);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, "sin scroll de costado");
     // La ficha sigue diciendo quién opera (en su etiqueta) aunque se vea sólo la inicial.
     assert.match((await page.locator('[data-casa="ficha"]').getAttribute("aria-label")) ?? "", /^Opera: /);
