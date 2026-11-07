@@ -20,6 +20,8 @@
 //
 // La guardia es la del Inicio de siempre (dashboard:read): lo que se ve sale de `appsVisibles`.
 
+import { modoSimpleDeLaSesion } from "@/lib/modo-simple.server";
+import { menuDeModoSimple } from "@/lib/admin-nav-items";
 import { HoySiCorresponde } from "./HoyDelNegocio";
 import { Suspense } from "react";
 import Link from "next/link";
@@ -80,7 +82,9 @@ async function contexto(): Promise<Contexto> {
   const user = await requireCapability("dashboard:read");
   const [negocio, modoApps] = await Promise.all([getNegocioApps(user.role), enInicioPorApps()]);
   const visibles = appsVisibles(negocio);
-  const menu = proyectarMenuDeHoy(visibles);
+  // Modo simple: el Inicio («Hoy») ofrece las mismas pantallas que la barra recortada.
+  const deHoy = proyectarMenuDeHoy(visibles);
+  const menu = (await modoSimpleDeLaSesion()).activo ? menuDeModoSimple(deHoy) : deHoy;
   const nav = armarNavegacion({ visibles, menu, modoApps, esMostrador: negocio.esMostrador, role: user.role, overrides: user.overrides });
   const rutas = new Set(nav.espacios.flatMap((e) => e.apps.map((a) => a.ruta)));
   return {

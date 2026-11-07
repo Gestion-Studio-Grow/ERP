@@ -25,8 +25,10 @@ import { hayBarra, teclasDeLaBarra } from "./barra-core";
 
 const TECLA = "min-h-11";
 // La piel «Renglón» baja las teclas `sm` a 36 px en la PC (renglon.css, `--alto`); las de la barra
-// se tocan también con el dedo en una tablet ancha: 44 px siempre (inline, gana a la piel).
-const ALTO = { minHeight: "2.75rem" } as const;
+// se tocan también con el dedo en una tablet ancha: 44 px siempre (inline, gana a la piel). En modo
+// simple, `--tap-min` vale 48 px (globals.css) y manda: el inline les ganaba a las reglas del modo.
+export const ALTO_DE_TECLA = "max(2.75rem, var(--tap-min, 2.75rem))";
+const ALTO = { minHeight: ALTO_DE_TECLA } as const;
 
 /**
  * `alAbrir`: en la grilla táctil, la barra suma «Abrir» (el cajón del turno), porque el primer toque

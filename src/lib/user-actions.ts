@@ -17,6 +17,7 @@ import { isDemoSandbox, DEMO_WRITE_BLOCKED } from "@/lib/demo-sandbox";
 import { decidirCambioDePermiso, leerAllowed } from "@/lib/permisos/cambio-de-permiso";
 import { esTablaAusente } from "@/lib/permisos-overrides";
 import { grabarCambioDePermisoEnTx } from "@/lib/permisos/grabar-permiso";
+import { esPreferenciaUi } from "@/lib/modo-simple";
 import { hashPassword } from "@/lib/auth-password";
 import { getNegocioApps } from "@/apps/contexto.server";
 import { MIN_PASSWORD_LENGTH, validarAltaDeUsuario } from "@/app/admin/(dashboard)/usuarios/alta-usuario";
@@ -237,7 +238,8 @@ export async function setUserPermission(formData: FormData): Promise<ResultadoPe
   }
 
   await auditAdmin({
-    action: "permission_set",
+    // Una preferencia `ui:` (modo simple) no es un permiso: se audita con su propio nombre.
+    action: esPreferenciaUi(capability) ? "ui_preference_set" : "permission_set",
     entity: "User",
     entityId: userId,
     changes: { capability, caps: plan.caps, antes: plan.antes, despues: plan.allowed, porRol: plan.grabar.length === 0 },

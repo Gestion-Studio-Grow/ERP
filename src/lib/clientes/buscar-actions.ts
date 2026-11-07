@@ -40,6 +40,7 @@ import { enmascararTelefono, puedeVerContacto } from "@/lib/clientes/telefono";
 import { criterioDeContacto, sqlPorContacto, wherePorContacto } from "@/lib/clientes/busqueda-por-contacto";
 import { permisoEfectivo } from "@/lib/capabilities";
 import { getCurrentTenantId } from "@/lib/tenant";
+import { modoSimpleDeLaSesion } from "@/lib/modo-simple.server";
 import { isDemoSandbox } from "@/lib/demo-flag";
 import { isColumnMissing } from "@/lib/prisma-errors";
 import { logger } from "@/lib/logger";
@@ -129,6 +130,8 @@ export async function buscarClientasYTurnos(q: unknown): Promise<ResultadoDelBus
     verClientas: permisoEfectivo(user, "clients:read"),
     darTurno: permisoEfectivo(user, "agenda:manage"),
     cobrar: permisoEfectivo(user, "agenda:collect"),
+    // Modo simple (src/lib/modo-simple.ts): «Llegó la seña» sin [Deshacer], como en la agenda.
+    modoSimple: (await modoSimpleDeLaSesion()).activo,
   };
   const soloDe = user.role === "PROFESSIONAL" ? (user.professionalId ?? "__no_professional__") : null;
   const { texto, digitos } = busqueda;

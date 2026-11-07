@@ -25,7 +25,9 @@ export type CierreParaDeshacer = { turnoId: string; clienta: string; que: "cance
 
 const DURACION_DESHACER_MS = 10_000;
 
-export default function AvisoDeshacerCierre({ turnoId, clienta, que, mensaje, duracion = DURACION_DESHACER_MS, onTermina, onDeshecho }: CierreParaDeshacer & {
+export default function AvisoDeshacerCierre({ turnoId, clienta, que, mensaje, duracion = DURACION_DESHACER_MS, conDeshacer = true, onTermina, onDeshecho }: CierreParaDeshacer & {
+  /** Modo simple: el aviso de lo hecho queda, sin [Deshacer] (deshacer un cierre es de modo completo). */
+  conDeshacer?: boolean;
   /** El texto del aviso (el de la hoja, con lo que pasó con la seña); sin él, el de siempre. */
   mensaje?: string;
   /** Cuánto queda vivo [Deshacer]; con la agenda interactiva, 8 s (AGENDA-INTERACCION.md §2.8). */
@@ -59,7 +61,7 @@ export default function AvisoDeshacerCierre({ turnoId, clienta, que, mensaje, du
       <Aviso
         mensaje={mensaje ?? (que === "cancelacion" ? `Cancelado: ${clienta}.` : `Marcado: ${clienta} no vino.`)}
         duracion={duracion}
-        onDeshacer={pendiente ? undefined : deshacer}
+        onDeshacer={pendiente || !conDeshacer ? undefined : deshacer}
         onTermina={onTermina}
       />
     </div>
