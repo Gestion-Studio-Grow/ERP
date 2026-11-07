@@ -76,4 +76,4 @@
 #
 # 2026-11-07 · PR #36 consola de soporte T1. Aditiva: tabla "SupportTicket" con RLS adentro. No toca
 # tablas existentes.
-20261106120000_support_ticket
+# (aplicada por el build de producción del merge de #36 el 2026-11-07: sale de la lista) 20261106120000_support_ticket

@@ -48,6 +48,9 @@ import { estadoCobroTurno, type CobroTurno, type PagoLegado } from "./cobros";
 import { cashMethodFromPaymentMethod } from "@/lib/caja/cierre-diario";
 import type { CashMethod } from "@/lib/caja/cash-register";
 import { facturaDeLaVenta, mensajeFacturaViva, type FacturaDeLaVenta } from "@/lib/factura-viva";
+import { claveCobroDelLibro, cobroDeLaClave } from "@/lib/facturacion/clave-cobro-del-libro";
+import { claveNotaDeCobroMP, coberturaMP, facturadoPropioPorCobro, saldosMPSinPareja } from "@/lib/facturacion/cobertura-mp";
+import { centavosDe } from "@/lib/dinero/redondeo";
 
 export type AnulacionTx = Prisma.TransactionClient;
 
@@ -191,6 +194,7 @@ export type MotivoAnulacionRechazada =
   | "facturado" // ENG-023: el turno tiene factura autorizada y todavía no hay nota de crédito
   | "factura-en-camino" // ENG-023: su factura espera la respuesta de ARCA; el CAE puede llegar después
   | "dia-cerrado" // el día del asiento ya está cerrado: la corrección va con fecha de hoy
+  | "nota-de-credito" // opción B: el cobro tiene su factura autorizada y la nota de crédito no se pudo emitir
   | "voucher-con-baja" // CH: cobro con voucher ya dado de baja en OpenKey: no vuelve a DISPONIBLE
   | "voucher-liquidado"; // CH: OpenKey ya pagó ese voucher: liberarlo dejaría plata sin cobro vivo
 
@@ -293,6 +297,8 @@ export function mensajeAnulacionRechazada(motivo: MotivoAnulacionRechazada): str
       return mensajeFacturaViva("autorizada", "turno");
     case "factura-en-camino":
       return mensajeFacturaViva("en-camino", "turno");
+    case "nota-de-credito":
+      return "Ese cobro tiene su factura autorizada por ARCA y la nota de crédito que la anula no se pudo emitir. No se anuló nada.";
     case "dia-cerrado":
       return "Ese cobro es de un día ya cerrado y un día contado no se toca. La corrección va con fecha de hoy: cargala en el libro de caja como INGRESO/EGRESO, con el motivo.";
     case "voucher-con-baja":
@@ -313,8 +319,8 @@ export function mensajeCondonacionRechazada(motivo: MotivoCondonacionRechazada):
 
 export class AnulacionRechazada extends Error {
   readonly motivo: MotivoAnulacionRechazada;
-  constructor(motivo: MotivoAnulacionRechazada) {
-    super(mensajeAnulacionRechazada(motivo));
+  constructor(motivo: MotivoAnulacionRechazada, detalle?: string) {
+    super(detalle ? `${mensajeAnulacionRechazada(motivo)} ${detalle}` : mensajeAnulacionRechazada(motivo));
     this.name = "AnulacionRechazada";
     this.motivo = motivo;
   }
@@ -345,7 +351,77 @@ export type AnularCobroArgs = {
   diaDe: (d: Date) => string;
   /** true = escribir `idempotencyKey` y tocar el libro (columnas migradas). */
   withSchema: boolean;
+  /**
+   * Opción B de CH (una factura por cobro): emite la nota de crédito de la factura AUTORIZADA de
+   * este cobro, en esta misma transacción. La inyecta el servidor
+   * (`facturacion/factura-por-cobro.ts`, `notaDeCreditoDelCobroInTx`): este módulo lo importan
+   * pantallas y no puede traer el Core de facturación. Sin ella, un cobro con factura autorizada no
+   * se anula (como antes: «facturado»).
+   */
+  notaDeCredito?: (
+    tx: AnulacionTx,
+    x: { tenantId: string; facturaId: string; motivo: string; importe?: number },
+  ) => Promise<{ ok: true; invoiceId: string } | { ok: false; error: string }>;
 };
+
+/**
+ * La factura propia de ESTE cobro (opción B: `CobroFacturado` con `turno:cobro:<id>`), si la tabla
+ * existe. Se pregunta antes por la tabla (`to_regclass`): una consulta a una tabla sin migrar
+ * abortaría la transacción entera de la anulación (Gate 2: el código tolera la ausencia).
+ */
+async function facturaDelCobroInTx(
+  tx: AnulacionTx,
+  tenantId: string,
+  collectionId: string,
+): Promise<{ invoiceId: string; status: string } | null> {
+  const tabla = await tx.$queryRaw<{ tabla?: string | null }[]>`SELECT to_regclass('"CobroFacturado"')::text AS tabla`;
+  if (!tabla[0]?.tabla) return null;
+  const fila = await tx.cobroFacturado.findFirst({
+    where: { tenantId, clave: claveCobroDelLibro(collectionId) },
+    select: { invoiceId: true, invoice: { select: { status: true } } },
+  });
+  return fila ? { invoiceId: fila.invoiceId, status: fila.invoice.status } : null;
+}
+
+/**
+ * Opción B: un cobro con medio Mercado Pago puede estar cubierto (entero, o en parte junto a su
+ * factura propia) por la factura del pago de MP (`mp:<pago>`, la emite el aviso de MP): las partes
+ * de esas facturas que lo cubren,
+ * con el mismo reparto con que `facturarCobrosDelTurno` decidió no facturarlo (`cobertura-mp.ts`).
+ */
+async function coberturaMPDelCobroInTx(
+  tx: AnulacionTx,
+  tenantId: string,
+  appointmentId: string,
+  collectionId: string,
+  filas: readonly CobroDelTurno[],
+): Promise<{ invoiceId: string; centavos: number; status: string }[]> {
+  const tabla = await tx.$queryRaw<{ tabla?: string | null }[]>`SELECT to_regclass('"CobroFacturado"')::text AS tabla`;
+  if (!tabla[0]?.tabla) return [];
+  const facturadas = await tx.cobroFacturado.findMany({
+    where: { tenantId, appointmentId },
+    select: { clave: true, invoiceId: true, importe: true, createdAt: true, invoice: { select: { status: true, comprobanteAsociadoId: true } } },
+    orderBy: { createdAt: "desc" },
+  });
+  const filasFacturadas = facturadas.map((f) => ({
+    clave: f.clave,
+    invoiceId: f.invoiceId,
+    importe: Number(f.importe),
+    status: f.invoice.status,
+    createdAt: f.createdAt,
+    asociada: f.invoice.comprobanteAsociadoId,
+  }));
+  const anulados = new Set(filas.map((f) => cobroAnuladoPor(f.note)).filter((id): id is string => id != null));
+  const vivos = filas
+    .filter((f) => claseDeCobro(f.note) === "cobro" && centavosDe(f.amount) > 0 && !anulados.has(f.id))
+    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id))
+    .map((f) => ({ id: f.id, method: f.method, centavos: centavosDe(f.amount) }));
+  const conFila = new Set(filasFacturadas.map((f) => cobroDeLaClave(f.clave)).filter((id): id is string => id != null));
+  const partes =
+    coberturaMP({ vivos, conFila, saldos: saldosMPSinPareja(filasFacturadas), propias: facturadoPropioPorCobro(filasFacturadas) }).get(collectionId) ?? [];
+  const estado = new Map(filasFacturadas.map((f) => [f.invoiceId, f.status]));
+  return partes.map((p) => ({ ...p, status: estado.get(p.invoiceId) ?? "PENDING" }));
+}
 
 export type ReversaLibro =
   | { asentada: true; movementId: string }
@@ -359,6 +435,8 @@ export type AnularCobroResult =
       cobradoDespues: number;
       saldoDespues: number;
       libro: ReversaLibro;
+      /** Opción B: la nota de crédito que canceló la factura de este cobro, si la tenía. */
+      notaDeCreditoId?: string | null;
     }
   | { applied: false; reason: "duplicate"; reversaId: string };
 
@@ -424,24 +502,51 @@ export async function anularCobroTurnoInTx(
   }
 
   const diaContable = args.diaDe(asientoOriginal?.occurredAt ?? original.createdAt);
+  // ENG-023: la factura del turno, por su enlace (`Invoice.appointmentId`) y dentro del negocio.
+  const facturaDelTurno = facturaDeLaVenta(
+    await tx.invoice.findMany({
+      where: { tenantId, appointmentId: args.appointmentId },
+      select: { status: true },
+    }),
+  );
+  // Opción B: la factura de ESTE cobro (las de los otros cobros del turno no frenan esta anulación).
+  // Se lee después de tomar la fila del turno, que es la que escribe quien factura el cobro.
+  const delCobro =
+    facturaDelTurno === "sin-factura-viva" && !yaAnulada ? await facturaDelCobroInTx(tx, tenantId, args.collectionId) : null;
+  // Un cobro de Mercado Pago puede estar cubierto por la factura del PAGO de MP (`mp:<pago>`),
+  // entero o en parte junto a su factura propia: la nota de crédito va también contra esa parte
+  // (certificación y re-certificación del PR #38). Si no, esa parte quedaba facturada de más.
+  const porMP =
+    facturaDelTurno === "sin-factura-viva" && !yaAnulada && original.method === "MERCADOPAGO"
+      ? await coberturaMPDelCobroInTx(tx, tenantId, args.appointmentId, args.collectionId, filas)
+      : [];
+  // Todas las facturas vivas que cubren este cobro: autorizadas todas → nota de crédito; alguna en
+  // camino (o en un estado desconocido) → se espera; ninguna viva → se anula sin nota.
+  const vivasDelCobro = [...(delCobro ? [{ status: delCobro.status }] : []), ...porMP].filter((f) => f.status !== "REJECTED");
+  const estadoDelCobro =
+    vivasDelCobro.length === 0
+      ? "sin-factura-viva"
+      : vivasDelCobro.every((f) => f.status === "AUTHORIZED")
+        ? "autorizada"
+        : facturaDeLaVenta(vivasDelCobro.filter((f) => f.status !== "AUTHORIZED"));
+  const conNota = estadoDelCobro === "autorizada" && Boolean(args.notaDeCredito);
   const plan = planAnulacion({
     note: original.note,
     amount: montoOriginal,
     yaAnulado: Boolean(yaAnulada),
     diaCerrado: Boolean(args.diaCerradoHasta && args.esDiaCerrado(diaContable, args.diaCerradoHasta)),
-    // ENG-023: la factura del turno, por su enlace (`Invoice.appointmentId`) y dentro del negocio.
-    factura: facturaDeLaVenta(
-      await tx.invoice.findMany({
-        where: { tenantId, appointmentId: args.appointmentId },
-        select: { status: true },
-      }),
-    ),
+    // Autorizada con nota de crédito: se anula y la nota cancela la factura ante ARCA (abajo).
+    factura: facturaDelTurno !== "sin-factura-viva" ? facturaDelTurno : conNota ? "sin-factura-viva" : estadoDelCobro,
   });
   if (!plan.ok) {
     if (plan.motivo === "ya-anulado" && yaAnulada) return { applied: false, reason: "duplicate", reversaId: yaAnulada.id };
     throw new AnulacionRechazada(plan.motivo);
   }
-
+  // ORDEN: toda validación que puede rechazar la anulación corre ANTES de la nota de crédito.
+  // La nota queda PENDING en la cola de esta misma transacción: si la anulación se rechaza después,
+  // el rollback la deshace junto con todo lo demás. Validar antes evita igual crear (y enumerar)
+  // una nota que se va a descartar (merge de #23 vouchers con #38 opción B).
+  //
   // CH · cobro con voucher (src/lib/vouchers): el voucher vuelve a DISPONIBLE en esta misma tx,
   // sólo si OpenKey todavía no lo dio de baja NI lo liquidó. Con la baja o la liquidación hecha,
   // la anulación no corre: liberarlo dejaría plata de OpenKey sin cobro vivo que la explique.
@@ -454,6 +559,46 @@ export async function anularCobroTurnoInTx(
       : null;
   if (voucher?.liquidadoEn) throw new AnulacionRechazada("voucher-liquidado");
   if (voucher?.bajaOpenKeyEn) throw new AnulacionRechazada("voucher-con-baja");
+  // La liberación condicionada también va antes de la nota: si la baja o la liquidación de
+  // OpenKey entró en paralelo, se rechaza acá, sin nota; y si sale, la fila del voucher queda
+  // tomada hasta el final de la tx (si la nota falla, el rollback la devuelve a USADO).
+  if (voucher) {
+    const liberado = await tx.voucher.updateMany({
+      where: { id: voucher.id, tenantId, estado: "USADO", collectionId: args.collectionId, bajaOpenKeyEn: null, liquidadoEn: null },
+      data: { estado: "DISPONIBLE", appointmentId: null, collectionId: null, valorCubierto: null, usadoEn: null, usadoPor: null },
+    });
+    // Cambió entre la lectura y acá (la foto o la liquidación de OpenKey entró en paralelo): no se anula.
+    if (liberado.count !== 1) {
+      const actual = await tx.voucher.findFirst({ where: { id: voucher.id, tenantId }, select: { liquidadoEn: true } });
+      throw new AnulacionRechazada(actual?.liquidadoEn ? "voucher-liquidado" : "voucher-con-baja");
+    }
+  }
+
+  // La nota de crédito va en ESTA transacción: si no sale, no se anula nada (ni libro ni Payment).
+  let notaDeCreditoId: string | null = null;
+  if (conNota && delCobro && delCobro.status === "AUTHORIZED" && args.notaDeCredito) {
+    const nota = await args.notaDeCredito(tx, { tenantId, facturaId: delCobro.invoiceId, motivo: args.motivo });
+    if (!nota.ok) throw new AnulacionRechazada("nota-de-credito", nota.error);
+    notaDeCreditoId = nota.invoiceId;
+  }
+  if (conNota && porMP.length > 0 && args.notaDeCredito) {
+    for (const parte of porMP) {
+      const importe = parte.centavos / 100;
+      const nota = await args.notaDeCredito(tx, { tenantId, facturaId: parte.invoiceId, motivo: args.motivo, importe });
+      if (!nota.ok) throw new AnulacionRechazada("nota-de-credito", nota.error);
+      // Esa parte de la factura de MP ya no cubre a nadie: la nota queda anotada contra el cobro.
+      await tx.cobroFacturado.create({
+        data: {
+          tenantId,
+          clave: claveNotaDeCobroMP(args.collectionId, parte.invoiceId),
+          invoiceId: nota.invoiceId,
+          importe,
+          appointmentId: args.appointmentId,
+        },
+      });
+      notaDeCreditoId = nota.invoiceId;
+    }
+  }
 
   const reversa = await tx.collection.create({
     data: {
@@ -471,18 +616,6 @@ export async function anularCobroTurnoInTx(
     },
     select: { id: true },
   });
-
-  if (voucher) {
-    const liberado = await tx.voucher.updateMany({
-      where: { id: voucher.id, tenantId, estado: "USADO", collectionId: args.collectionId, bajaOpenKeyEn: null, liquidadoEn: null },
-      data: { estado: "DISPONIBLE", appointmentId: null, collectionId: null, valorCubierto: null, usadoEn: null, usadoPor: null },
-    });
-    // Cambió entre la lectura y acá (la foto o la liquidación de OpenKey entró en paralelo): no se anula.
-    if (liberado.count !== 1) {
-      const actual = await tx.voucher.findFirst({ where: { id: voucher.id, tenantId }, select: { liquidadoEn: true } });
-      throw new AnulacionRechazada(actual?.liquidadoEn ? "voucher-liquidado" : "voucher-con-baja");
-    }
-  }
 
   // `Payment` sigue siendo el AGREGADO de los cobros del turno: si no baja acá, Reportes, la
   // ficha de la clienta y las comisiones seguirían contando plata que se dio de baja.
@@ -512,7 +645,15 @@ export async function anularCobroTurnoInTx(
     cobros: [...filas.map((f) => ({ amount: f.amount, method: f.method })), { amount: -montoOriginal, method: original.method }],
   });
 
-  return { applied: true, reversaId: reversa.id, monto: montoOriginal, cobradoDespues, saldoDespues: estado.saldo, libro };
+  return {
+    applied: true,
+    reversaId: reversa.id,
+    monto: montoOriginal,
+    cobradoDespues,
+    saldoDespues: estado.saldo,
+    libro,
+    ...(notaDeCreditoId ? { notaDeCreditoId } : {}),
+  };
 }
 
 /**

@@ -12,14 +12,18 @@ export type ResultadoFacturaDelTurno =
 
 const DONDE = "Quedó en Facturación → Comprobantes ARCA: avisale a quien lleva la facturación.";
 
-/** El aviso para recepción, o `null` si no hay nada que decir (salió bien o sigue en camino). */
-export function avisoDeFacturaDelTurno(r: ResultadoFacturaDelTurno): string | null {
+/**
+ * El aviso para recepción, o `null` si no hay nada que decir (salió bien o sigue en camino).
+ * `momento`: al terminar el turno, o al registrar un cobro (opción B: cada cobro, su factura).
+ */
+export function avisoDeFacturaDelTurno(r: ResultadoFacturaDelTurno, momento: "terminar" | "cobro" = "terminar"): string | null {
+  const hecho = momento === "cobro" ? "El cobro quedó registrado" : "El turno quedó terminado";
   if (r.tipo === "fallo") {
-    return `El turno quedó terminado, pero la factura no se pudo emitir. ${DONDE}`;
+    return `${hecho}, pero la factura no se pudo emitir. ${DONDE}`;
   }
   if (r.tipo === "emitida" && r.status === "REJECTED") {
     const motivo = r.rechazoMotivo?.trim();
-    return `El turno quedó terminado, pero ARCA rechazó la factura${motivo ? ` (${motivo})` : ""}. ${DONDE}`;
+    return `${hecho}, pero ARCA rechazó la factura${motivo ? ` (${motivo})` : ""}. ${DONDE}`;
   }
   // PENDING: ARCA no contestó todavía o fue un corte pasajero; el despacho la reintenta solo.
   return null;

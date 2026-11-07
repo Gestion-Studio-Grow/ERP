@@ -402,6 +402,9 @@ export async function cobrarTurnoConProductos(formData: FormData): Promise<Resul
       saldoCobrado: hecho.cobro ? [{ amount: hecho.saldo, method }] : [],
       conProductos: { orderId: hecho.orden.id, orderCode: hecho.orden.code, total: hecho.orden.total },
       saldoACobrar: 0,
+      // Lo que se eligió al terminar (igual que el camino sin productos): «No facturar» vale también
+      // para el saldo que entre después (`factura-del-cobro.server.ts`, `eligioNoFacturar`).
+      facturar,
       ...(hecho.desdeReservado ? { vino: true } : {}),
       libroCaja: hecho.cobro ? [rastroLibroCaja({ outcome: settled.outcome, value: hecho.cobro })] : [],
     },
