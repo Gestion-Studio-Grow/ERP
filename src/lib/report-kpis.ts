@@ -25,7 +25,8 @@ export type KpiAppointmentStatus =
 
 // DEBITO/CREDITO (N2 · M1-C1, D-C01): existen en `PaymentMethod` desde que M1 encendió los valores en el
 // schema; en la base, sólo con N2_enums.sql. El mix de medios los cuenta separados, como dos medios más.
-export type KpiPaymentMethod = "MERCADOPAGO" | "EFECTIVO" | "TRANSFERENCIA" | "DEBITO" | "CREDITO";
+// VOUCHER (CH, 05/11/2026): el voucher de La Alameda, cobro a liquidar por OpenKey (src/lib/vouchers).
+export type KpiPaymentMethod = "MERCADOPAGO" | "EFECTIVO" | "TRANSFERENCIA" | "DEBITO" | "CREDITO" | "VOUCHER";
 
 // Forma mínima de turno que necesitan los KPIs. La Server Action mapea las filas
 // de Prisma a esto (con `select` acotado), así el cálculo no depende del shape del

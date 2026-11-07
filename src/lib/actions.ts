@@ -29,6 +29,8 @@ import { validateBookingContact } from "@/lib/contact-validation";
 import { isInvoicingEnabled } from "@/lib/fiscal";
 import { resultadoDeFacturaFallida } from "@/lib/turnos/factura-fallida.server";
 import { facturarAppointment } from "@/lib/invoice-from-appointment";
+import { notaDeCreditoDelCobroInTx } from "@/lib/facturacion/factura-por-cobro";
+import { facturarDespuesDelCobro } from "@/lib/turnos/factura-del-cobro.server";
 import { avisoDeFacturaDelTurno, type ResultadoFacturaDelTurno } from "@/lib/turnos/aviso-factura";
 import { computeDeepKpis, type KpiAppointment } from "@/lib/report-kpis";
 import { logger } from "@/lib/logger";
@@ -966,11 +968,14 @@ export async function createManualAppointment(formData: FormData): Promise<Resul
     },
   });
 
+  // Opción B (CH, 06/11/2026): la seña se factura al cobrarla.
+  const aviso = cobro?.applied ? await facturarDespuesDelCobro(appointment.id, tenantId) : null;
+
   revalidatePath("/admin");
   revalidatePath("/admin/turnos");
   revalidatePath("/admin/turnos/lista");
   revalidatePath("/admin/caja/libro");
-  return { ok: true };
+  return aviso ? { ok: true, aviso } : { ok: true };
 }
 
 // Reprograma un turno existente a otra fecha/hora (y opcionalmente otro
@@ -1373,13 +1378,16 @@ export async function registrarCobroTurno(formData: FormData): Promise<Resultado
     },
   });
 
+  // Opción B (CH, 06/11/2026): cada cobro (parcial o el saldo de un turno ya terminado), su factura.
+  const aviso = await facturarDespuesDelCobro(appointmentId, tenantId);
+
   revalidatePath("/admin");
   revalidatePath("/admin/turnos");
   revalidatePath("/admin/turnos/lista");
   revalidatePath("/admin/reportes");
   revalidatePath("/admin/caja");
   revalidatePath("/admin/caja/libro");
-  return { ok: true };
+  return aviso ? { ok: true, aviso } : { ok: true };
 }
 
 // ── Corrección de cobros: anular y condonar (src/lib/turnos/anulacion.ts) ──
@@ -1454,6 +1462,7 @@ export async function anularCobroTurno(formData: FormData): Promise<ResultadoAcc
           esDiaCerrado: (dia, hasta) => isFrozenDay(dia as DayKey, hasta as DayKey),
           diaDe: dateStrInBusinessTz,
           withSchema,
+          notaDeCredito: notaDeCreditoDelCobroInTx,
         });
         // Seña obligatoria: un Confirmado al que la anulación le dejó la seña corta vuelve a
         // Reservado, en esta misma tx y auditado (salvo la excepción de la dueña). Apagado, nada.
@@ -2150,6 +2159,7 @@ export async function cerrarTurnoSinPrestar(formData: FormData): Promise<Resulta
               esDiaCerrado: (dia, hasta) => isFrozenDay(dia as DayKey, hasta as DayKey),
               diaDe: dateStrInBusinessTz,
               withSchema,
+              notaDeCredito: notaDeCreditoDelCobroInTx,
             });
             if (r.applied) devuelto += r.monto;
           }
@@ -2343,6 +2353,8 @@ export async function completeAppointment(formData: FormData): Promise<Resultado
       // «Vino» sobre un Reservado: se completó sin pasar por Confirmado (queda escrito).
       ...(settled.value.desdeReservado ? { vino: true } : {}),
       libroCaja: cobro ? rastroLibroCaja({ outcome: settled.outcome, value: cobro }) : null,
+      // Opción B: «No facturar» vale también para el saldo que se cobre después (factura-del-cobro.server.ts).
+      facturar,
     },
   });
 

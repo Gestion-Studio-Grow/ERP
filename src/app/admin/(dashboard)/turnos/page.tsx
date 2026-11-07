@@ -1,4 +1,6 @@
 import { getAgendaDay } from "@/lib/actions";
+import { modoSimpleDeLaSesion } from "@/lib/modo-simple.server";
+import { recortarPermisosDeAgenda } from "@/lib/modo-simple";
 import Link from "next/link";
 import CalendarGrid from "./CalendarGrid";
 import MananaConfirmar from "./MananaConfirmar";
@@ -24,7 +26,7 @@ import { esteticaBackoffice } from "@/lib/estetica-backoffice";
 import { getCurrentTenantSlug } from "@/lib/tenant-site";
 import { enlaceCobrarUnaVenta } from "../pedidos/cobrar-una-venta";
 import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
-import { agendaInteraccionPrendida, ventaAgendaSimplePrendida } from "@/cambios/interruptores";
+import { agendaInteraccionPrendida, ventaAgendaSimplePrendida, vouchersPrendidos } from "@/cambios/interruptores";
 
 // Muestra en un vistazo qué profesionales tienen novedad (franco/vacaciones)
 // ese día, para no tener que ir a buscarlo a Catálogo (ADR-011 G9).
@@ -132,7 +134,7 @@ export default async function TurnosCalendarPage({
   const planilla = {
     turnos: proyectada.turnos,
     profesionales: proyectada.profesionales,
-    permisos: {
+    permisos: recortarPermisosDeAgenda({
       gestionar: canManage,
       cobrar: canCollect,
       terminar: permisoEfectivo(user, "agenda:complete"),
@@ -144,11 +146,13 @@ export default async function TurnosCalendarPage({
         permisoEfectivo(user, "agenda:collect"),
       ventaSimple: ventaAgendaSimplePrendida(interruptores),
       interaccion: agendaInteraccionPrendida(interruptores),
+      // CH · vouchers de La Alameda: el servidor vuelve a mirar todo en `aplicarVoucherAlTurno`.
+      vouchers: vouchersPrendidos(interruptores) && canCollect,
       perdonar: permisoEfectivo(user, "agenda:forgive"),
       anular: anulacionDeCobro(user.role),
       senaObligatoria: senaObligatoria.prendida,
       confirmarSinSenia: senaObligatoria.prendida && permisoEfectivo(user, "agenda:confirmar-sin-senia"),
-    },
+    }, (await modoSimpleDeLaSesion()).activo),
     ahora: new Date().toISOString(),
     dia: diaDeLaPlanilla,
     bloqueos: extras.bloqueos,

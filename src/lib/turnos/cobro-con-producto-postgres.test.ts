@@ -162,6 +162,14 @@ test("A prendido · turno + crema en una tx: 1 cobro, 1 orden, stock −1, dos a
     libroVenta: [6000],
     ventasDeStock: [-1],
   });
+  // «No facturar» queda en la auditoría del cierre: el saldo que entre después tampoco se factura.
+  const { eligioNoFacturar } = await import("./factura-del-cobro.server");
+  const cierre = await (await prismaComoDuenio(s.base)).auditLog.findFirst({
+    where: { tenantId: s.base.a.id, entity: "Appointment", entityId: turno, action: "complete" },
+    orderBy: { createdAt: "desc" },
+    select: { changes: true },
+  });
+  assert.equal(eligioNoFacturar(cierre?.changes ?? null), true);
 });
 
 test("stock que no alcanza · nada escrito (ni cobro, ni orden, ni stock, ni turno)", async (t) => {

@@ -100,8 +100,14 @@ async function preparar(t: import("node:test").TestContext) {
     return { turno: turno.id, cobros: ids };
   }
 
+  // Opción B (CH, 06/11/2026): la factura de un cobro se ata al turno por `CobroFacturado`, no por
+  // `Invoice.appointmentId` (que sigue siendo la del camino de antes). Se cuentan las dos.
   const cuentas = async (appointmentId: string) => ({
-    facturas: await duenio.invoice.findMany({ where: { tenantId: a.id, appointmentId }, select: { status: true, total: true } }),
+    facturas: await duenio.invoice.findMany({
+      where: { tenantId: a.id, OR: [{ appointmentId }, { cobrosFacturados: { some: { appointmentId } } }] },
+      select: { status: true, total: true },
+      orderBy: { createdAt: "asc" },
+    }),
     envios: await duenio.outboxEvent.count({ where: { tenantId: a.id } }),
   });
   return { base, duenio, turnoCobrado, cuentas };
@@ -146,7 +152,6 @@ test("anulación del cobro primero: la facturación del turno espera el bloqueo 
   if (!p) return;
   const { base } = p;
   const { facturarAppointment } = await import("@/lib/invoice-from-appointment");
-  const { CobroDelTurnoCambioError } = await import("@/lib/invoice-core");
   const { turno, cobros } = await p.turnoCobrado([18000], 13);
   const enviosAntes = (await p.cuentas(turno)).envios;
 
@@ -157,7 +162,9 @@ test("anulación del cobro primero: la facturación del turno espera el bloqueo 
   const anulada = await anulacion;
   assert.equal(anulada.applied, true, "la anulación terminó");
 
-  await assert.rejects(facturacion, (e: unknown) => e instanceof CobroDelTurnoCambioError && /anulado/.test(e.message));
+  // Opción B: la factura del cobro relee el cobro con la fila del turno tomada, ve la contrapartida
+  // y no factura (antes: CobroDelTurnoCambioError de la factura única del turno).
+  assert.equal(await facturacion, null, "sin factura: el cobro está anulado");
   const tras = await p.cuentas(turno);
   assert.deepEqual(tras.facturas, [], "el turno con el cobro devuelto quedó sin factura");
   assert.equal(tras.envios, enviosAntes, "ningún envío a ARCA");
@@ -168,7 +175,6 @@ test("se anula una parte del cobro mientras se factura: no sale la factura por e
   if (!p) return;
   const { base } = p;
   const { facturarAppointment } = await import("@/lib/invoice-from-appointment");
-  const { CobroDelTurnoCambioError } = await import("@/lib/invoice-core");
   const { turno, cobros } = await p.turnoCobrado([5000, 13000], 15);
 
   const { anulacion, soltar } = await anulacionSostenida(p, turno, cobros[0]);
@@ -176,12 +182,13 @@ test("se anula una parte del cobro mientras se factura: no sale la factura por e
   assert.equal(await sigueEsperando(facturacion), true, "la facturación tiene que esperar a la anulación");
   soltar();
   await anulacion;
-  await assert.rejects(facturacion, (e: unknown) => e instanceof CobroDelTurnoCambioError && /cambió/.test(e.message));
-  assert.deepEqual((await p.cuentas(turno)).facturas, [], "ninguna factura por $18.000");
+  // Opción B: el cobro anulado ($5.000) no se factura; el que sigue en pie ($13.000), sí, con su factura.
+  assert.ok(await facturacion, "salió la factura del cobro que sigue en pie");
+  assert.deepEqual((await p.cuentas(turno)).facturas.map((f) => Number(f.total)), [13000], "ninguna factura por $18.000 ni por $5.000");
 
-  // Sin carrera, la facturación lee el cobro de ahora: $13.000.
+  // Volver a facturar no emite otra: cada cobro, una factura.
   const id = await runInTenantContext(base.a.id, () => facturarAppointment(turno, base.a.id));
-  assert.ok(id, "se facturó");
+  assert.ok(id, "devuelve la factura del turno");
   const facturas = (await p.cuentas(turno)).facturas.map((f) => Number(f.total));
   assert.deepEqual(facturas, [13000], "una factura, por lo que quedó cobrado");
 });

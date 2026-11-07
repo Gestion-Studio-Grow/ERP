@@ -284,6 +284,12 @@ export function claveCobroTurno(tipo: "senia" | "saldo", appointmentId: string):
 }
 
 export const METODOS_DE_PAGO = ["EFECTIVO", "MERCADOPAGO", "TRANSFERENCIA"] as const;
+
+// CH · el voucher de La Alameda (src/lib/vouchers). NO está en `METODOS_DE_PAGO` a propósito: no se
+// elige en ningún formulario de cobro; lo escribe sólo el cobro con voucher, con la clave
+// `voucher:<voucherId>` (aplicarCobroTurnoInTx rechaza un VOUCHER sin esa clave). Nunca va al libro.
+export const MEDIO_VOUCHER = "VOUCHER" as const;
+export const PREFIJO_CLAVE_VOUCHER = "voucher:";
 export type MetodoDePago = (typeof METODOS_DE_PAGO)[number];
 
 export function esMetodoDePago(raw: string | null | undefined): raw is MetodoDePago {

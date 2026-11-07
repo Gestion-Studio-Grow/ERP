@@ -243,6 +243,7 @@ export default function MesaDeTurnos({
           mensaje={deshacer.mensaje}
           // Agenda interactiva: 8 s (AGENDA-INTERACCION.md §2.8); apagada, los 10 s de siempre.
           duracion={permisos.interaccion ? 8_000 : undefined}
+          conDeshacer={!permisos.modoSimple}
           onTermina={() => setDeshacer(null)}
           onDeshecho={() => router.refresh()}
         />

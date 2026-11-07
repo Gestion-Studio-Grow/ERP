@@ -57,6 +57,8 @@ export const POLITICA_DE_REINTENTOS: PoliticaDeReintentos = Object.freeze({
 /** Errores de configuración fiscal del negocio (por nombre: evita cargar node-forge acá). */
 const ERRORES_DE_CONFIGURACION = new Set([
   "ConfiguracionFiscalError",
+  // ENG-123: ARCA simulado en producción con la facturación encendida (fiscal/guarda-simulado.ts).
+  "ArcaSimuladoEnProduccionError",
   "CredencialFiscalAusenteError",
   "CuitTenantAusenteError",
   "CredencialCuitMismatchError",

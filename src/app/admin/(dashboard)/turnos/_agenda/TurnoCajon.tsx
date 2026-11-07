@@ -72,10 +72,13 @@ import {
   leerResultado,
 } from "./campos";
 import CobrarTurno from "./CobrarTurno";
+import CobrarConVoucher from "./CobrarConVoucher";
 import FijarPrecioDelTurno from "./FijarPrecioDelTurno";
 import TerminarTurno from "./TerminarTurno";
 import MoverTurno from "./MoverTurno";
 import LlegoLaSenia from "./LlegoLaSenia";
+import CorregirEnModoCompleto from "./CorregirEnModoCompleto";
+import { ALTO_DE_TECLA } from "./BarraDelTurno";
 import AutorizarAnulacion from "./AutorizarAnulacion";
 import ListoDelCobro from "./ListoDelCobro";
 import type { CobroHecho } from "@/lib/turnos/cobro-del-cajon";
@@ -415,7 +418,7 @@ export default function TurnoCajon({
                 rel="noopener noreferrer"
                 size="sm"
                 className="min-h-11"
-                style={{ minHeight: "2.75rem" }}
+                style={{ minHeight: ALTO_DE_TECLA }}
                 aria-label={`WhatsApp a ${t.clienta} (se abre en otra pestaña)`}
               >
                 WhatsApp
@@ -429,7 +432,7 @@ export default function TurnoCajon({
                 variant="outline"
                 size="sm"
                 className="min-h-11"
-                style={{ minHeight: "2.75rem" }}
+                style={{ minHeight: ALTO_DE_TECLA }}
                 aria-haspopup="dialog"
                 aria-label={`Editar el turno de ${t.clienta}`}
                 onClick={() => onEditar?.(t.id)}
@@ -527,6 +530,7 @@ export default function TurnoCajon({
                   clienta={t.clienta}
                   monto={senia}
                   confirma={permisos.gestionar}
+                  conDeshacer={!permisos.modoSimple}
                   onListo={() => router.refresh()}
                 />
               )}
@@ -587,6 +591,16 @@ export default function TurnoCajon({
           </Seccion>
         )}
 
+        {/* CH · voucher de La Alameda: antes de Terminar/Cobrar, porque lo que no cubre se cobra
+            después con los medios de siempre. Sin el interruptor no se monta (cajón igual que antes). */}
+        {permisos.vouchers && cobraEste && !t.precioADefinir && t.saldo > 0 && t.estado !== "NO_SHOW" && t.estado !== "CANCELLED" && !cobradoEste && (
+          <Seccion titulo="Voucher de La Alameda">
+            <div className="pt-3">
+              <CobrarConVoucher key={t.id} turnoId={t.id} clienta={t.clienta} saldo={t.saldo} onListo={() => router.refresh()} />
+            </div>
+          </Seccion>
+        )}
+
         {cierra && !cobradoEste && (
           <Seccion titulo={t.estado === "PENDING" ? "Vino" : "Terminar"}>
             <div className="pt-3">
@@ -619,6 +633,8 @@ export default function TurnoCajon({
           >
             <div className="pt-3">
               <CobrarTurno
+                // Con vouchers, el voucher baja el saldo: el monto propuesto se rearma con el nuevo.
+                key={permisos.vouchers ? `${t.id}:${t.saldo}` : undefined}
                 turnoId={t.id}
                 clienta={t.clienta}
                 sugerido={t.sugerido}
@@ -822,6 +838,16 @@ export default function TurnoCajon({
                 );
               })}
             </ul>
+          </Seccion>
+        )}
+
+        {/* Modo simple: anular, dar de baja y deshacer quedan en modo completo (recortarPermisosDeAgenda). */}
+        {permisos.modoSimple && (t.cobros.length > 0 || t.cuentaACobrar) && (
+          <Seccion titulo="¿Algo salió mal con la plata?">
+            <div className="flex flex-col items-start gap-2 pt-3">
+              <p className="text-base text-strong">Para anular un cobro o dar de baja un saldo, pasá al modo completo.</p>
+              <CorregirEnModoCompleto turnoId={t.id} />
+            </div>
           </Seccion>
         )}
 
