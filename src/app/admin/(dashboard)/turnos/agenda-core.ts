@@ -22,6 +22,7 @@
 
 import { estadoCobroTurno, cobroSugerido, esCuentaACobrar, seniaDelServicio, type PagoLegado } from "@/lib/turnos/cobros";
 import { desglosarCobros } from "@/lib/turnos/anulacion";
+import { marcaDeSeniaPendiente } from "@/lib/turnos/sena-obligatoria-core";
 import type { CierreSinPrestar, DestinoDeLaSenia } from "@/lib/turnos/practica";
 import type { TipoMarca } from "@/components/ui/Marca";
 import { dateStrInBusinessTz, fmtShortDate, fmtTime } from "@/lib/datetime";
@@ -81,6 +82,11 @@ export type TurnoDelDia = {
    * migración). Ausente o null: no se pidió (o la agenda no la leyó).
    */
   seniaPedidaEl?: string | null;
+  /**
+   * Seña obligatoria (interruptor «sena-obligatoria»): ISO de cuándo vence la seña pendiente de un
+   * Reservado (`vencimientoDeLaSenia`). Sólo con el interruptor prendido; ausente, la marca de siempre.
+   */
+  seniaVence?: string | null;
 };
 
 /** Lo mínimo que la agenda lee de un turno crudo (el loader de siempre, ya con sus cobros). */
@@ -188,6 +194,10 @@ export type Permisos = {
   ventaSimple?: boolean;
   /** Agenda interactiva prendida (AGENDA-INTERACCION.md): grilla por profesional en el celular, barra de un toque. */
   interaccion?: boolean;
+  /** Interruptor «sena-obligatoria»: un Reservado con seña sin cobrar no se confirma desde «Qué falta». */
+  senaObligatoria?: boolean;
+  /** agenda:confirmar-sin-senia (sólo la dueña) con la seña obligatoria prendida: «Confirmar sin seña» en «Otras acciones». */
+  confirmarSinSenia?: boolean;
   /** agenda:manage — confirmar, cancelar, reprogramar, dar de baja un saldo. */
   gestionar: boolean;
   /** agenda:collect — cobrar (además, el veredicto de cada turno). */
@@ -351,8 +361,15 @@ export function marcaDelTurno(t: TurnoDelDia, ahora: Date): MarcaDelTurno {
   const ya = yaEmpezo(t, ahora);
   const termino = new Date(t.fin).getTime() <= ahora.getTime();
   switch (t.estado) {
-    case "PENDING":
-      return ya ? { tipo: "atencion", texto: "Reservado, ya pasó la hora" } : { tipo: "pendiente", texto: "Reservado, sin confirmar" };
+    case "PENDING": {
+      if (ya) return { tipo: "atencion", texto: "Reservado, ya pasó la hora" };
+      // Seña obligatoria: «Pendiente de seña · vence …» / «Seña vencida» mientras la seña falte.
+      if (t.seniaVence && seniaQueFalta(t, ahora) > 0) {
+        const m = marcaDeSeniaPendiente(t.seniaVence, ahora);
+        return { tipo: m.tipo === "vencida" ? "atencion" : "pendiente", texto: m.texto };
+      }
+      return { tipo: "pendiente", texto: "Reservado, sin confirmar" };
+    }
     case "CONFIRMED":
       if (!ya) return { tipo: "hecho", texto: "Confirmado" };
       return termino ? { tipo: "atencion", texto: "Sin cerrar" } : { tipo: "medias", texto: "En su horario" };

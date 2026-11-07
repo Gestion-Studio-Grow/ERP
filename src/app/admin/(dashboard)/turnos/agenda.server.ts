@@ -27,6 +27,7 @@ import { fmtTime } from "@/lib/datetime";
 import { seniasPedidas } from "@/lib/turnos/senia-actions";
 import { horariosDelDia } from "@/lib/turnos/horario-del-dia.server";
 import { turnoDelDia, type TurnoDelDia } from "./agenda-core";
+import { vencimientoDeLaSenia } from "@/lib/turnos/sena-obligatoria-core";
 import { bloqueosDelDia, bloqueosPorHorario, type BloqueoDelDia } from "./grilla";
 
 type AgendaCruda = Awaited<ReturnType<typeof getAgendaDay>>;
@@ -52,6 +53,8 @@ type TurnoDeLaBase = {
   status: string;
   notes: string | null;
   priceAtBooking: number | null;
+  /** Cuándo se dio el turno (vencimiento de la seña obligatoria). La agenda de muestra no lo trae. */
+  createdAt?: Date;
   reminderSentAt?: Date | null;
   professionalId: string;
   serviceId: string;
@@ -73,8 +76,11 @@ export function proyectarAgenda(
     seniasPedidas?: Readonly<Record<string, string>>;
     /** Agenda interactiva: actor del cobro («user:<id>») → nombre de quien cobró (sección «Pagos»). */
     quienCobro?: Readonly<Record<string, string>>;
+    /** Seña obligatoria PRENDIDA (`seniaObligatoriaDelNegocio`): las horas H. Ausente = apagada. */
+    seniaObligatoria?: { horas: number | null };
   },
 ): AgendaDelDia {
+  const creadoDe = new Map(cruda.appointments.map((a) => [a.id, (a as TurnoDeLaBase).createdAt ?? null]));
   const leidos: readonly TurnoDeLaBase[] = cruda.appointments;
   const turnos = leidos
     .map((a) =>
@@ -115,6 +121,16 @@ export function proyectarAgenda(
       ),
     )
     .map((t) => (extras?.seniasPedidas?.[t.id] ? { ...t, seniaPedidaEl: extras.seniasPedidas[t.id] } : t))
+    // Seña obligatoria: un Reservado con la seña sin cobrar lleva cuándo vence (la marca la arma la
+    // pantalla con su reloj, `marcaDelTurno`). Sin el interruptor, el turno sale como siempre.
+    .map((t) =>
+      extras?.seniaObligatoria && t.estado === "PENDING" && t.sugerido.tipo === "senia" && t.sugerido.monto > 0
+        ? {
+            ...t,
+            seniaVence: vencimientoDeLaSenia({ creado: creadoDe.get(t.id), inicio: t.inicio, horas: extras.seniaObligatoria.horas }).toISOString(),
+          }
+        : t,
+    )
     .sort((x, y) => new Date(x.inicio).getTime() - new Date(y.inicio).getTime());
   return {
     turnos,

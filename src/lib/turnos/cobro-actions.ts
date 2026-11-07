@@ -38,6 +38,7 @@ import { tenantTransaction } from "@/lib/rls";
 import { auditAdmin } from "@/lib/audit-core";
 import { logger } from "@/lib/logger";
 import { RechazoDeDominio, rechazoDeDominio } from "@/lib/rechazo-de-dominio";
+import { exigirSeniaParaConfirmar } from "./sena-obligatoria";
 import { importeONaN } from "@/lib/dinero/leer";
 import { centavosDe } from "@/lib/dinero/redondeo";
 import { dateStrInBusinessTz } from "@/lib/datetime";
@@ -377,6 +378,9 @@ export async function cobrarSeniaYConfirmar(formData: FormData): Promise<Resulta
             data: { status: "CONFIRMED" },
           });
           if (count === 0) throw new RechazoDeDominio(CAMBIO_RECIEN);
+          // La guarda de la seña obligatoria, la misma de todo camino a CONFIRMED: con el cobro de
+          // recién (o la seña que ya estaba) vigente, pasa; sin plata en pie, vuelve todo atrás.
+          await exigirSeniaParaConfirmar(tx, { tenantId, appointmentId });
         }
         return { plan, cobro, confirmo: confirmar };
       },

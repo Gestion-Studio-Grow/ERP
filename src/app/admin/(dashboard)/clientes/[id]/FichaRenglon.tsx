@@ -42,6 +42,9 @@ import PermisoMensajes from "./PermisoMensajes";
 import MostradorDeLaFicha from "./MostradorDeLaFicha";
 import { comoVieneMostrador, detalleSinDeuda, estadoDeLaFicha, notaDelRitmo, pedidoSinCobrar, teclaPrincipal } from "./ficha-core";
 import { separarNota } from "@/lib/reserva-publica-notas";
+import { seniaObligatoriaDelNegocio } from "@/lib/turnos/sena-obligatoria.server";
+import { marcaDeSeniaDelTurno } from "@/lib/turnos/sena-obligatoria-core";
+import { seniaDelServicio } from "@/lib/turnos/cobros";
 
 const ESTADO_TURNO: Record<string, string> = {
   PENDING: "Reservado",
@@ -70,7 +73,7 @@ export default async function FichaRenglon({
   /** Mostrador boutique (Magra, 2D): lo que debe, «Recordarle», «Venderle» y «Repetir» arriba. */
   conMostrador?: boolean;
 }) {
-  const [f, negocio] = await Promise.all([cargarFichaCompleta(id), getNegocioApps(user.role)]);
+  const [f, negocio, senaObligatoria] = await Promise.all([cargarFichaCompleta(id), getNegocioApps(user.role), seniaObligatoriaDelNegocio()]);
   if (!f) notFound();
   const { client: crudo, resumen, ev } = f;
   // Sin `clients:contact` (casilla 5 de la matriz) teléfono y mail salen enmascarados del servidor.
@@ -87,6 +90,24 @@ export default async function FichaRenglon({
   const diasCumple = f.cumple ? diasHastaCumple(f.cumple, f.hoy) : null;
   const proximo = resumen.proximoTurno;
   const pedidosSinCobrar = f.pedidos.filter(pedidoSinCobrar).length;
+  // Seña obligatoria: «Pendiente de seña · vence …» / «Seña vencida» en los Reservados que la deben.
+  const ahora = new Date();
+  const marcaSenia = new Map(
+    f.turnos.map((a) => [
+      a.id,
+      marcaDeSeniaDelTurno({
+        prendida: senaObligatoria.prendida,
+        status: a.status,
+        inicio: a.startsAt,
+        creado: a.createdAt,
+        senia: seniaDelServicio({ depositAmount: a.service.depositAmount, precio: a.precio }),
+        cobros: a.cobros,
+        pagoLegado: a.payment,
+        horas: senaObligatoria.horas,
+        ahora,
+      })?.texto ?? null,
+    ]),
+  );
 
   const datos = estadoDeLaFicha({
     servicios,
@@ -280,6 +301,7 @@ export default async function FichaRenglon({
                       detalle={
                         <>
                           {a.professional.name} · {ESTADO_TURNO[a.status] ?? a.status}
+                          {marcaSenia.get(a.id) ? ` · ${marcaSenia.get(a.id)}` : ""}
                           {a.review ? ` · la calificó con ${a.review.rating} de 5` : ""}
                           {separarNota(a.notes).delCliente && <span className="mt-1 block whitespace-pre-line text-muted">Del cliente: {separarNota(a.notes).delCliente}</span>}
                           {separarNota(a.notes).delEquipo && <span className="mt-1 block whitespace-pre-line text-body">Nota del equipo: {separarNota(a.notes).delEquipo}</span>}

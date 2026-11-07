@@ -71,6 +71,12 @@ export async function cobrarSeniaYConfirmar(fd) { anotar("senia", fd); return { 
 export async function cobrarVariosTurnos(fd) { anotar("cobrar-varios", fd); return { ok: true }; }
 export async function deudaViejaDelTurno() { return []; }
 export async function deshacerCierre(fd) { anotar("deshacer", fd); return { ok: true }; }`;
+// Seña obligatoria: «Confirmar sin seña» (la dueña); el cajón la importa aunque el interruptor esté apagado.
+const SIN_SENIA_FALSO = `
+export async function confirmarSinSenia(appointmentId, motivo) {
+  (window.__enviado ??= []).push({ accion: "sin-senia", appointmentId, motivo });
+  return { ok: true };
+}`;
 // Venta y agenda simples (T1): el cajón la importa aunque el interruptor esté apagado.
 const CON_PRODUCTO_FALSO = `
 export async function productosParaElTurno() { return { ok: true, productos: [], conTarjeta: false }; }
@@ -239,6 +245,7 @@ describe("La planilla del día en el navegador", { timeout: 240_000 }, () => {
       "@/lib/turnos/mover-actions": MOVER_FALSO,
       "@/lib/turnos/cobro-actions": COBRO_FALSO,
       "@/lib/turnos/senia-actions": SENIA_FALSA,
+      "@/lib/turnos/sena-obligatoria-actions": SIN_SENIA_FALSO,
       "@/lib/servicios/precio-a-definir-actions": PRECIO_FALSO,
       "@/lib/turnos/duracion-actions": DURACION_FALSA,
       "@/lib/turnos/editar-actions": EDITAR_FALSO,
@@ -260,7 +267,7 @@ describe("La planilla del día en el navegador", { timeout: 240_000 }, () => {
         {
           name: "falsos",
           setup(b) {
-            b.onResolve({ filter: /^(@\/lib\/actions|@\/lib\/turnos\/(mover|cobro|senia|cobro-con-producto|duracion|editar)-actions|@\/lib\/servicios\/precio-a-definir-actions|next\/navigation|next\/link)$/ }, (a) => ({ path: a.path, namespace: "falso" }));
+            b.onResolve({ filter: /^(@\/lib\/actions|@\/lib\/turnos\/(mover|cobro|senia|sena-obligatoria|cobro-con-producto|duracion|editar)-actions|@\/lib\/servicios\/precio-a-definir-actions|next\/navigation|next\/link)$/ }, (a) => ({ path: a.path, namespace: "falso" }));
             b.onLoad({ filter: /.*/, namespace: "falso" }, (a) => ({ contents: falsos[a.path], loader: "js", resolveDir: RAIZ }));
           },
         },

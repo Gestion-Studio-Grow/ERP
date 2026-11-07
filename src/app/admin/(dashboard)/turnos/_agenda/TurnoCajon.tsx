@@ -39,6 +39,8 @@ import { ALIAS_SENIA_PROVISIONAL, linkWhatsApp, mensajePedidoDeSenia, mensajeSal
 import { puedeEditar } from "./barra-core";
 import { pagosDelTurno } from "./pagos-core";
 import { marcarSeniaPedida } from "@/lib/turnos/senia-actions";
+import { confirmarSinSenia } from "@/lib/turnos/sena-obligatoria-actions";
+import { MOTIVO_MINIMO_SIN_SENIA } from "@/lib/turnos/sena-obligatoria-core";
 import { METODO_LABEL, type MetodoDePago } from "@/lib/turnos/cobros";
 import { ETIQUETA_DE_TARJETA } from "@/lib/turnos/cobro-con-producto";
 import {
@@ -123,6 +125,7 @@ function ConMotivo({
   placeholder,
   peligro = true,
   pideCodigo = false,
+  minimo = MOTIVO_MIN,
   hacer,
 }: {
   etiqueta: string;
@@ -130,6 +133,8 @@ function ConMotivo({
   verbo: string;
   placeholder: string;
   peligro?: boolean;
+  /** Letras mínimas del motivo (el servidor exige lo mismo). Por defecto, el de anular un cobro. */
+  minimo?: number;
   /** Recepción: además del motivo, el código que la dueña sacó para este cobro. */
   pideCodigo?: boolean;
   hacer: (motivo: string, codigo: string) => Promise<ResultadoAccion>;
@@ -151,7 +156,7 @@ function ConMotivo({
       </Button>
     );
   }
-  const corto = motivo.trim().length < MOTIVO_MIN;
+  const corto = motivo.trim().length < minimo;
   const faltaCodigo = pideCodigo && !codigo.trim();
   return (
     <div
@@ -227,7 +232,7 @@ function ConMotivo({
       </div>
       {corto && (
         <p className="text-xs text-muted">
-          Escribí el motivo (al menos {MOTIVO_MIN} letras): es lo que explica la
+          Escribí el motivo (al menos {minimo} letras): es lo que explica la
           caja dentro de seis meses.
         </p>
       )}
@@ -321,7 +326,12 @@ export default function TurnoCajon({
   const noVino = vivo && yaEmpezo(t, reloj) && permisos.terminar;
   const cancela = permisos.gestionar && vivo;
   const perdona = permisos.perdonar && t.cuentaACobrar;
-  const hayOtras = cancela || perdona || noVino;
+  // Seña obligatoria (interruptor): un Reservado con la seña sin cobrar no se confirma desde «Qué
+  // falta» (el servidor lo rechazaría). La excepción «Confirmar sin seña» va a «Otras acciones», sólo
+  // para quien la tiene (la dueña), con motivo. Apagado, todo como siempre.
+  const senaExigida = !!permisos.senaObligatoria && paso.tipo === "confirmar" && seniaQueFalta(t, reloj) > 0;
+  const sinSenia = senaExigida && !!permisos.confirmarSinSenia;
+  const hayOtras = cancela || perdona || noVino || sinSenia;
   // La tecla que cierra el turno (terminar, o el «vino» de un Reservado pasado) ya cobra el saldo.
   const cierra = cierraElTurno(paso);
   // Cobrar (un parcial, la seña, el saldo) cuando falta plata y el turno lo acepta, y no es ya la
@@ -510,7 +520,16 @@ export default function TurnoCajon({
           </Seccion>
         )}
 
-        {paso.tipo === "confirmar" && (
+        {senaExigida && (
+          <Seccion titulo="Qué falta">
+            <p className="pt-3 text-sm text-muted">
+              Pide seña: se confirma cuando entra (con «Llegó la seña», que cobra y confirma).
+              {t.seniaVence ? ` ${marcaDelTurno(t, reloj).texto}.` : ""}
+            </p>
+          </Seccion>
+        )}
+
+        {paso.tipo === "confirmar" && !senaExigida && (
           <Seccion titulo="Qué falta">
             <div className="space-y-2 pt-3">
               <p className="text-sm text-muted">
@@ -807,6 +826,21 @@ export default function TurnoCajon({
                 >
                   No vino
                 </Button>
+              )}
+              {sinSenia && (
+                <ConMotivo
+                  etiqueta="Confirmar sin seña"
+                  pregunta="¿Confirmar sin la seña? Queda en la auditoría con tu nombre y el motivo."
+                  verbo="Sí, confirmar"
+                  placeholder="Por qué (clienta de años, pagó en persona…)"
+                  peligro={false}
+                  minimo={MOTIVO_MINIMO_SIN_SENIA}
+                  hacer={async (motivo) => {
+                    const r = await confirmarSinSenia(t.id, motivo);
+                    if (r.ok) router.refresh();
+                    return r;
+                  }}
+                />
               )}
               {perdona && (
                 <ConMotivo

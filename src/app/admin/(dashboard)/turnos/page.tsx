@@ -15,6 +15,7 @@ import { enInicioPorApps } from "../inicio/piloto";
 import { esFechaDeCalendario, vacioDiaSinTurnos, vacioSinProfesionales } from "./pasos";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import AgendaRenglon from "./AgendaRenglon";
+import { seniaObligatoriaDelNegocio } from "@/lib/turnos/sena-obligatoria.server";
 import { extrasDeLaAgenda, mananaParaConfirmar, proyectarAgenda } from "./agenda.server";
 import LinkAlDia from "./_agenda/LinkAlDia";
 import BotonBuscar from "../armazon/BotonBuscar";
@@ -107,13 +108,14 @@ export default async function TurnosCalendarPage({
   // de la recepción al final del día, y mañana es mañana de verdad (no "el día siguiente al
   // que se está mirando"). Al profesional no se le muestra: confirmar no es su tarea.
   const verManana = canManage && date === today;
-  const [cruda, manana, piloto, negocio, slug, interruptores] = await Promise.all([
+  const [cruda, manana, piloto, negocio, slug, interruptores, senaObligatoria] = await Promise.all([
     getAgendaDay(date),
     verManana ? mananaParaConfirmar() : Promise.resolve(null),
     enInicioPorApps(),
     getNegocioApps(user.role),
     getCurrentTenantSlug(),
     interruptoresDelNegocio(),
+    seniaObligatoriaDelNegocio(),
   ]);
   const { professionals, blocksToday } = cruda;
   // La planilla de la PC (Tanda 2 · 2-C): el día proyectado campo por campo (agenda.server.ts), con
@@ -124,6 +126,7 @@ export default async function TurnosCalendarPage({
   const proyectada = proyectarAgenda(cruda, user, {
     seniasPedidas: extras.seniasPedidas,
     quienCobro: extras.quienCobro,
+    seniaObligatoria: senaObligatoria.prendida ? { horas: senaObligatoria.horas } : undefined,
   });
   const planilla = {
     turnos: proyectada.turnos,
@@ -142,6 +145,8 @@ export default async function TurnosCalendarPage({
       interaccion: agendaInteraccionPrendida(interruptores),
       perdonar: permisoEfectivo(user, "agenda:forgive"),
       anular: anulacionDeCobro(user.role),
+      senaObligatoria: senaObligatoria.prendida,
+      confirmarSinSenia: senaObligatoria.prendida && permisoEfectivo(user, "agenda:confirmar-sin-senia"),
     },
     ahora: new Date().toISOString(),
     dia: diaDeLaPlanilla,

@@ -33,6 +33,7 @@ import { avisoDeFacturaDelTurno, type ResultadoFacturaDelTurno } from "@/lib/tur
 import { computeDeepKpis, type KpiAppointment } from "@/lib/report-kpis";
 import { logger } from "@/lib/logger";
 import { RechazoDeDominio, motivoMostrable, rechazoDeDominio } from "@/lib/rechazo-de-dominio";
+import { exigirSeniaParaConfirmar } from "@/lib/turnos/sena-obligatoria";
 import { mensajeParaLaClienta } from "@/lib/reserva-publica-mensaje";
 import { notaDeReservaPublica } from "@/lib/reserva-publica-notas";
 import { cobroTurnoDetail, settleAppointmentPaymentGuarded, type SettleOutcome } from "@/lib/caja/cobro-turno";
@@ -470,6 +471,9 @@ async function bookAppointment({
         camino: "reserva",
       });
     }
+    // Nace Confirmado: la guarda de la seña obligatoria, después del cobro y en la misma tx (la
+    // seña cobrada en el acto cuenta; «Ya confirmó» sin seña, con el interruptor prendido, no).
+    if (status === "CONFIRMED") await exigirSeniaParaConfirmar(tx, { tenantId, appointmentId: appointment.id });
     return { appointment, cobro };
   });
 
@@ -1648,8 +1652,10 @@ export async function condonarSaldoTurno(formData: FormData): Promise<ResultadoA
 }
 
 // Reservado → Confirmado (la clienta confirmó que viene). Sin plata: la seña se cobró al
-// reservar (o se registra aparte). No exige seña — la recepción decide; la fila muestra
-// "sin seña" para que se vea.
+// reservar (o se registra aparte). Con el interruptor «sena-obligatoria» apagado no exige seña
+// — la recepción decide; la fila muestra "sin seña" para que se vea. Prendido, la guarda
+// `exigirSeniaParaConfirmar` (turnos/sena-obligatoria.ts) rechaza adentro de la transacción si el
+// servicio pide seña y no hay un cobro vigente; la excepción es `confirmarSinSenia` (la dueña).
 //
 // Devuelve `ResultadoAccion` (reingeniería CH, B3): antes, si el turno ya no estaba reservado,
 // volvía en silencio y la pantalla decía que había confirmado algo que no.
@@ -1659,12 +1665,27 @@ export async function confirmarTurno(formData: FormData): Promise<ResultadoAccio
   const appointmentId = String(formData.get("appointmentId") || "");
   if (!appointmentId) return { ok: false, error: "Falta identificar el turno." };
   const tenantId = await getCurrentTenantId();
-  const res = await prisma.appointment.updateMany({
-    where: { id: appointmentId, tenantId, status: "PENDING", ...filtroSoloLoSuyo(user) },
-    data: { status: "CONFIRMED" },
-  });
-  // Ya no estaba reservado (otra persona lo confirmó, canceló o completó; o no es de este negocio).
-  if (res.count === 0) return { ok: false, error: "Ese turno cambió recién. Recargá la agenda." };
+  // Escribir y DESPUÉS la guarda de la seña, en la misma transacción: si rechaza, vuelve atrás.
+  // Serializable: una anulación de la seña que entre a la vez no deja un Confirmado sin seña.
+  try {
+    await tenantTransaction(
+      async (tx) => {
+        const res = await tx.appointment.updateMany({
+          where: { id: appointmentId, tenantId, status: "PENDING", ...filtroSoloLoSuyo(user) },
+          data: { status: "CONFIRMED" },
+        });
+        // Ya no estaba reservado (otra persona lo confirmó, canceló o completó; o no es de este negocio).
+        if (res.count === 0) throw new RechazoDeDominio("Ese turno cambió recién. Recargá la agenda.");
+        await exigirSeniaParaConfirmar(tx, { tenantId, appointmentId });
+      },
+      { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+  } catch (e) {
+    unstable_rethrow(e);
+    const motivo = motivoMostrable(e);
+    if (motivo !== null) return { ok: false, error: motivo };
+    throw e;
+  }
   await auditAdmin({ action: "confirm", entity: "Appointment", entityId: appointmentId, changes: { status: "CONFIRMED" } });
   revalidatePath("/admin");
   revalidatePath("/admin/turnos");
