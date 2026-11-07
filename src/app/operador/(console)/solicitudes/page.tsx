@@ -41,6 +41,9 @@ export default async function SolicitudesPage({ searchParams }: { searchParams: 
           <Link href="/operador/pedidos-cartera" className="inline-flex h-11 items-center rounded-md px-3 text-sm font-medium text-strong underline-offset-4 hover:underline aria-[current=page]:bg-surface-2">
             Pedidos sobre un cliente{pedidosSobreClientes ? ` (${pedidosSobreClientes} sin resolver)` : ""}
           </Link>
+          <Link href="/operador/soporte" className="inline-flex h-11 items-center rounded-md px-3 text-sm font-medium text-strong underline-offset-4 hover:underline aria-[current=page]:bg-surface-2">
+            Tickets de soporte
+          </Link>
         </nav>
         {pedidosSobreClientes ? (
           <Franja tono="atencion">

@@ -18,6 +18,7 @@
 import { sePuedeLiquidar } from "@/lib/comision-liquidable";
 import { calcularLiquidacion, resolvePct, type TurnoParaComision } from "@/lib/comision-liquidacion";
 import { round2 } from "@/lib/round";
+import { baseDeComision } from "@/lib/comisiones/base";
 
 /**
  * Los turnos con comisión pendiente: realizados, cobrados y sin liquidar. El MISMO `where` que
@@ -78,7 +79,8 @@ export function comisionesPendientes(
       porProfesional.set(t.professionalId, g);
     }
     // La base es lo COBRADO, no el precio de lista (decisión vigente, comision-liquidable.ts).
-    g.turnos.push({ id: t.id, serviceId: t.serviceId, base: t.payment.amount, startsAt: t.startsAt });
+    // Menos lo pagado con voucher (regla del dueño, comisiones/base.ts): la MISMA base que la liquidación.
+    g.turnos.push({ id: t.id, serviceId: t.serviceId, base: baseDeComision(t.payment.amount, t.cobros), startsAt: t.startsAt });
   }
   const out: ComisionPendiente[] = [];
   for (const [professionalId, g] of porProfesional) {

@@ -64,6 +64,11 @@ const RAIZ = process.cwd();
 const EXENTAS: Record<string, string> = {
   "src/lib/operator-actions.ts#operatorLogout": "sólo borra la cookie del operador",
   "src/lib/operator-actions.ts#resetAllOwnerPasswords": "deshabilitada: no toca ningún negocio y devuelve el motivo",
+  // Consola de soporte T1: recorre TODOS los estudios (no recibe un negocio del formulario) y aplica la
+  // misma decisión de la guardia POR NEGOCIO adentro (decidirOperadorParaNegocios con el slug leído de
+  // la base: CH sólo el dueño). Medido en src/lib/soporte/tickets-postgres.test.ts (puedeTocar=false).
+  "src/app/operador/(console)/soporte/actions.ts#traerPedidosAction":
+    "traer pedidos sin ticket: sin negocio de entrada; la guardia por negocio va adentro (traerPedidosSinTicket)",
 };
 
 /**
@@ -357,6 +362,7 @@ test("el recorrido encuentra los endpoints con privilegio de operador en TODO sr
   assert.deepEqual(REVISADOS.map((r) => r.archivo).sort(), [
     "src/app/operador/(console)/pedidos-cartera/actions.ts",
     "src/app/operador/(console)/solicitudes/actions.ts",
+    "src/app/operador/(console)/soporte/actions.ts",
     // Refutador 26/09: la Factura A desde la ficha del negocio (su aislamiento: regimen-factura-a-postgres.test.ts).
     "src/app/operador/(console)/tenants/[id]/regimen-factura-a-actions.ts",
     "src/lib/cartera-actions.ts",
@@ -385,6 +391,8 @@ test("TRINQUETE: todo endpoint con privilegio de operador tiene PRIMERO la guard
     "src/app/operador/(console)/pedidos-cartera/actions.ts#resolverPedidoDeCarteraAction",
     "src/app/operador/(console)/solicitudes/actions.ts#configurarSolicitudAction",
     "src/app/operador/(console)/solicitudes/actions.ts#descartarSolicitudAction",
+    "src/app/operador/(console)/soporte/actions.ts#cambiarTicketAction",
+    "src/app/operador/(console)/soporte/actions.ts#sugerirConIaAction",
     "src/app/operador/(console)/tenants/[id]/regimen-factura-a-actions.ts#corregirRegimenFacturaAAction",
     "src/lib/cartera-actions.ts#altaClienteCarteraAction",
     "src/lib/cartera-actions.ts#emitirAutomaticasClienteAction",

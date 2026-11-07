@@ -1,0 +1,102 @@
+# RPA de bajas de vouchers en OpenKey · CH Estética (Tanda 2). Diseño: docs/tenants/ch/VOUCHERS-OPENKEY.md § RPA.
+# ============================================================================
+# Hoy corre SÓLO a mano (workflow_dispatch) y por defecto contra el OpenKey SIMULADO
+# (scripts/rpa-openkey/openkey-simulado.mjs), con datos ficticios. No toca prod, Neon ni el OpenKey real.
+# Modo «real»: exige los secrets OPENKEY_URL / OPENKEY_USUARIO / OPENKEY_CLAVE (los pega el dueño; nunca se
+# imprimen) y la autorización ESCRITA de CH para automatizar su cuenta [A VALIDAR]. Sin eso, no se usa.
+# ============================================================================
+name: rpa-openkey
+
+on:
+  workflow_dispatch:
+    inputs:
+      modo:
+        description: "Contra qué OpenKey corre"
+        type: choice
+        options: [simulado, real]
+        default: simulado
+      entrada:
+        description: "CSV exportado de /admin/vouchers (ruta en el repo). En real: fuente del CSV [A VALIDAR]"
+        type: string
+        default: scripts/rpa-openkey/reporte-ejemplo.csv
+  # Al cierre del día, ~23:30 ART (= 02:30 UTC).
+  # Se prende con autorización escrita de CH y acceso a OpenKey. Hasta entonces, queda COMENTADO.
+  # schedule:
+  #   - cron: "30 2 * * *"
+
+permissions:
+  contents: read
+
+# Nunca dos corridas a la vez (además de la idempotencia del RPA): sin bajas cruzadas.
+concurrency:
+  group: rpa-openkey
+  cancel-in-progress: false
+
+jobs:
+  rpa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      issues: write # sólo para el aviso de falla (con el GITHUB_TOKEN del run; sin tokens nuevos)
+    env:
+      MODO: ${{ inputs.modo || 'simulado' }}
+      ENTRADA: ${{ inputs.entrada || 'scripts/rpa-openkey/reporte-ejemplo.csv' }}
+      SALIDA: rpa-openkey-resultado.csv
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+
+      - name: Levantar el OpenKey simulado
+        if: env.MODO != 'real'
+        run: |
+          node scripts/rpa-openkey/openkey-simulado.mjs --puerto 4010 --semilla scripts/rpa-openkey/semilla-simulado.json > simulado.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf -o /dev/null http://127.0.0.1:4010/login && exit 0; sleep 1; done
+          echo "::error::El OpenKey simulado no levantó"; cat simulado.log; exit 1
+
+      - name: Correr el RPA (simulado)
+        if: env.MODO != 'real'
+        env:
+          OPENKEY_URL: http://127.0.0.1:4010
+          OPENKEY_USUARIO: simulado
+          OPENKEY_CLAVE: simulado
+        run: node scripts/rpa-openkey/rpa.mjs --entrada "$ENTRADA" --salida "$SALIDA"
+
+      - name: Correr el RPA (real)
+        if: env.MODO == 'real'
+        env:
+          OPENKEY_URL: ${{ secrets.OPENKEY_URL }}
+          OPENKEY_USUARIO: ${{ secrets.OPENKEY_USUARIO }}
+          OPENKEY_CLAVE: ${{ secrets.OPENKEY_CLAVE }}
+          RPA_PERMITIR_REAL: "1"
+        run: |
+          if [ -z "$OPENKEY_URL" ] || [ -z "$OPENKEY_USUARIO" ] || [ -z "$OPENKEY_CLAVE" ]; then
+            echo "::error::Modo real: faltan los secrets OPENKEY_URL / OPENKEY_USUARIO / OPENKEY_CLAVE."
+            exit 2
+          fi
+          node scripts/rpa-openkey/rpa.mjs --entrada "$ENTRADA" --salida "$SALIDA"
+
+      - name: Subir el CSV de resultado
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rpa-openkey-resultado
+          path: ${{ env.SALIDA }}
+          if-no-files-found: warn
+          retention-days: 14
+
+      # Aviso al dueño si falla. Apagado hasta prender el modo real: se activa con la variable del repo
+      # RPA_AVISO_ISSUE=1. Usa el GITHUB_TOKEN del propio run (permiso issues: write de arriba).
+      - name: Aviso de falla (issue)
+        if: failure() && env.MODO == 'real' && vars.RPA_AVISO_ISSUE == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue create --repo "$GITHUB_REPOSITORY" \
+            --title "RPA OpenKey: corrida con fallas ($(date -u +%F))" \
+            --body "La corrida ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID} terminó con fallas. El CSV de resultado está en los artifacts; las filas FALLA / NO_ENCONTRADO / ANULADO se revisan a mano."

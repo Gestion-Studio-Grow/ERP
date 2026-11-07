@@ -188,6 +188,8 @@ export type Permisos = {
   ventaSimple?: boolean;
   /** Agenda interactiva prendida (AGENDA-INTERACCION.md): grilla por profesional en el celular, barra de un toque. */
   interaccion?: boolean;
+  /** CH · interruptor «vouchers» + agenda:collect: el cajón ofrece cobrar con un voucher de La Alameda. */
+  vouchers?: boolean;
   /** agenda:manage — confirmar, cancelar, reprogramar, dar de baja un saldo. */
   gestionar: boolean;
   /** agenda:collect — cobrar (además, el veredicto de cada turno). */
@@ -204,6 +206,11 @@ export type Permisos = {
    * dueña; la profesional, no (`anulacionDeCobro`). Lo calcula el servidor, y el servidor lo exige.
    */
   anular: AnulacionDeCobro | null;
+  /**
+   * Modo simple de quien mira (src/lib/modo-simple.ts, `recortarPermisosDeAgenda`): sin anular, dar
+   * de baja, deshacer ni cerrar en lote; en su lugar, «Corregir en modo completo». Sólo esconde.
+   */
+  modoSimple?: true;
 };
 
 export type Paso =

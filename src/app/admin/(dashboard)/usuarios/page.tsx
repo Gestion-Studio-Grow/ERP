@@ -12,6 +12,8 @@ import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import UsuariosRenglon from "./UsuariosRenglon";
 import { canCurrentUser } from "@/lib/authz";
 import MatrizDePermisos from "./MatrizDePermisos";
+import ModoSimplePorPersona from "./ModoSimplePorPersona";
+import { prefiereModoSimple } from "@/lib/modo-simple";
 import { armarMatriz } from "./matriz-core";
 import { cargarDatosDeLaMatriz } from "./matriz.server";
 
@@ -76,7 +78,16 @@ export default async function UsuariosPage({
       user.id,
       esMostrador,
     );
-    matriz = <MatrizDePermisos matriz={tabla} conTabla={datos.conTabla} />;
+    // Modo simple por persona (src/lib/modo-simple.ts): la misma tabla, la clave `ui:modo-simple`.
+    const personasSimple = users
+      .filter((u) => u.active && !u.deletedAt)
+      .map((u) => ({ id: u.id, name: u.name, rol: etiquetaDeRol(u.role, esMostrador, conProyectos), simple: prefiereModoSimple({ overrides: datos.overrides.get(u.id) ?? [] }) }));
+    matriz = (
+      <>
+        <MatrizDePermisos matriz={tabla} conTabla={datos.conTabla} />
+        <ModoSimplePorPersona personas={personasSimple} conTabla={datos.conTabla} />
+      </>
+    );
   }
 
   // Diseño nuevo («Renglón»): las mismas acciones y los mismos campos. Apagado, igual que siempre.
