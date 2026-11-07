@@ -23,7 +23,7 @@ import { esteticaBackoffice } from "@/lib/estetica-backoffice";
 import { getCurrentTenantSlug } from "@/lib/tenant-site";
 import { enlaceCobrarUnaVenta } from "../pedidos/cobrar-una-venta";
 import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
-import { agendaInteraccionPrendida, ventaAgendaSimplePrendida } from "@/cambios/interruptores";
+import { agendaInteraccionPrendida, ventaAgendaSimplePrendida, vouchersPrendidos } from "@/cambios/interruptores";
 
 // Muestra en un vistazo qué profesionales tienen novedad (franco/vacaciones)
 // ese día, para no tener que ir a buscarlo a Catálogo (ADR-011 G9).
@@ -140,6 +140,8 @@ export default async function TurnosCalendarPage({
         permisoEfectivo(user, "agenda:collect"),
       ventaSimple: ventaAgendaSimplePrendida(interruptores),
       interaccion: agendaInteraccionPrendida(interruptores),
+      // CH · vouchers de La Alameda: el servidor vuelve a mirar todo en `aplicarVoucherAlTurno`.
+      vouchers: vouchersPrendidos(interruptores) && canCollect,
       perdonar: permisoEfectivo(user, "agenda:forgive"),
       anular: anulacionDeCobro(user.role),
     },
