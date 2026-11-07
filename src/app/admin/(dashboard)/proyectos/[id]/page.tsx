@@ -39,7 +39,7 @@ export default async function FichaProyecto({ params, searchParams }: { params: 
   const verMargen = !vista.ocultas.has("margen");
   const fechas = [p.fechaEvento && fechaCorta(p.fechaEvento), p.fechaFin && p.fechaFin.getTime() !== p.fechaEvento?.getTime() && fechaCorta(p.fechaFin)].filter(Boolean).join(" al ");
   // MIA T1: sin fecha exacta, lo que se sabe («a confirmar», «primeros días de diciembre»).
-  const cuando = fechas || (cab.venta.fechaEventoTexto ? `Fecha a confirmar: ${cab.venta.fechaEventoTexto}` : "");
+  const cuando = fechas || (cab.formula.vigente && cab.venta.fechaEventoTexto ? `Fecha a confirmar: ${cab.venta.fechaEventoTexto}` : "");
 
   const verFicha = puede(a, "ficha", "ver");
   const pestanas = [

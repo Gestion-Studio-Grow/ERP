@@ -78,7 +78,7 @@ export async function PestanaResumen({ a, cab, vista }: { a: Actor; cab: Cabecer
                 <label className={etiqueta}>Lugar<input name="lugar" maxLength={120} defaultValue={p.lugar ?? ""} className={campo} /></label>
                 <label className={etiqueta}>Armado<input type="date" name="fechaArmado" defaultValue={fechaParaInput(p.fechaArmado)} className={campo} /></label>
                 <label className={etiqueta}>Inicio del evento<input type="date" name="fechaEvento" defaultValue={fechaParaInput(p.fechaEvento)} className={campo} /></label>
-                {cab.venta.disponible && (
+                {cab.venta.disponible && !!cab.formula.vigente && (
                   <label className={etiqueta}>
                     Sin fecha exacta: cuándo es
                     <input name="fechaEventoTexto" maxLength={120} placeholder="a confirmar · primeros días de diciembre" defaultValue={cab.venta.fechaEventoTexto ?? ""} aria-describedby="ayuda-fecha-texto" className={campo} />

@@ -21,7 +21,8 @@ import { avisar, columnasOcultas, exigirEditar, usuariosDelEquipo, usuariosDeDir
 import { tipoDeArchivoSubido, clavesARenombrar, fechaAntesDe, fotoDeVersion, itemDeClave, linkSeguro, monedasSinCambio, numeroDe, PERDIDO, precioAlCopiar, precioAlEnviar, servicioDeTipo } from "./ficha-core";
 import { marcaDeGastoProyecto } from "./marcas";
 import { GASTO_EN_RENDICION, SIN_COMPROBANTES, faltaLaMigracion } from "./rendiciones-core";
-import { ventaDelProyecto } from "./precio-capas.server";
+import { formulaDelNegocio, ventaDelProyecto } from "./precio-capas.server";
+import { ultimoNumeroConCandado } from "./numero-proyecto.server";
 import { archivoAdmitido, claveDeArchivo, claveEsDelProyecto, MINUTOS_SUBIDA, urlFirmada } from "./r2-core";
 import { borrarDeNube, configR2, tamanoEnNube } from "./r2.server";
 import type { ModuloGestion } from "./gestion-core";
@@ -108,11 +109,12 @@ export async function crearLead(formData: FormData): Promise<ResultadoFicha<{ id
           ? (await tx.client.findFirst({ where: { id: clienteId, tenantId }, select: { id: true } }))?.id
           : (await tx.client.create({ data: { tenantId, name: clienteNuevo, phone: telefono || `sin-tel-${randomBytes(4).toString("hex")}` } })).id;
         if (!clientId) throw new Error("CLIENTE");
-        const ultimo = await tx.proyecto.findFirst({ where: { tenantId }, orderBy: { numero: "desc" }, select: { numero: true } });
+        // Mismo candado corto que el importador: espera, como mucho, una tanda suya (numero-proyecto.server.ts).
+        const ultimo = await ultimoNumeroConCandado(tx, tenantId);
         const p = await tx.proyecto.create({
           data: {
             tenantId,
-            numero: (ultimo?.numero ?? 0) + 1,
+            numero: ultimo + 1,
             clientId,
             nombre,
             servicio: servicioDeTipo(tipoEvento),
@@ -212,7 +214,8 @@ export async function guardarDatos(formData: FormData): Promise<ResultadoFicha> 
   if (!previo) return mal("Ese proyecto no existe.");
   // MIA T1: sin fecha exacta, el texto libre («a confirmar», «primeros días de diciembre»). Con fecha exacta, no hace falta.
   // Vive en ProyectoVenta: sin la migración, el campo no se muestra y no se guarda (el resto sigue igual).
-  const venta = await ventaDelProyecto(tenantId, id);
+  // Sólo en los negocios con la fórmula por capas vigente (migration.sql:4): sin fórmula, no se escribe en ProyectoVenta.
+  const [venta, formula] = await Promise.all([ventaDelProyecto(tenantId, id), formulaDelNegocio(tenantId)]);
   const fechaEventoTexto = fechaEvento ? null : txt(formData.get("fechaEventoTexto")).replace(/\s+/g, " ").slice(0, 120) || null;
   const clientId = txt(formData.get("clientId")) || previo.clientId;
   const clienteNuevo = clientId === previo.clientId ? null : await prisma.client.findFirst({ where: { id: clientId, tenantId }, select: { name: true } });
@@ -265,7 +268,7 @@ export async function guardarDatos(formData: FormData): Promise<ResultadoFicha> 
       ["Contacto", previo.contactoNombre, txt(formData.get("contactoNombre")).slice(0, 120) || null],
       ["Mail de contacto", previo.contactoEmail, txt(formData.get("contactoEmail")).slice(0, 160) || null],
     ];
-    if (venta.disponible && formData.has("fechaEventoTexto") && fechaEventoTexto !== venta.fechaEventoTexto) {
+    if (venta.disponible && formula.vigente && formData.has("fechaEventoTexto") && fechaEventoTexto !== venta.fechaEventoTexto) {
       await tx.proyectoVenta.upsert({ where: { proyectoId_tenantId: { proyectoId: id, tenantId } }, create: { tenantId, proyectoId: id, fechaEventoTexto }, update: { fechaEventoTexto } });
       datosNuevos.push(["Fecha del evento (a confirmar)", venta.fechaEventoTexto, fechaEventoTexto]);
     }

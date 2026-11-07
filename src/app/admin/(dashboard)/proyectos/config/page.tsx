@@ -74,9 +74,11 @@ export default async function ConfigProyectos() {
             <div><SubmitButton className={buttonClasses("solid", "md")}>Guardar la fórmula</SubmitButton></div>
           </FormAccion>
         )}
-        <p className="mt-3 text-sm">
-          <Link href="/admin/proyectos/importar" className="inline-flex min-h-11 items-center underline">Importar la planilla de status (CSV)</Link>
-        </p>
+        {formula.vigente && (
+          <p className="mt-3 text-sm">
+            <Link href="/admin/proyectos/importar" className="inline-flex min-h-11 items-center underline">Importar la planilla de status (CSV)</Link>
+          </p>
+        )}
       </section>
     </main>
   );
