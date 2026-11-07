@@ -37,8 +37,12 @@ export type FacturarPorPago = (
  */
 export type SeniaPorPago = (appointmentId: string, tenantId: string, pago: PagoMP) => Promise<unknown>;
 
-/** Aviso del Core cuando la seña tiró un error inesperado (log + auditoría). No debe tirar. */
-export type SeniaFallida = (appointmentId: string, tenantId: string, pago: PagoMP, error: unknown) => Promise<void> | void;
+/**
+ * Aviso del Core cuando la seña tiró un error inesperado (log + auditoría). No debe tirar. En el pago
+ * APROBADO puede contestar `"reintentar"` (p. ej. no se pudo leer el interruptor): el handler deja
+ * subir el error original (webhook 500, MP reintenta) en vez de seguir sin la seña.
+ */
+export type SeniaFallida = (appointmentId: string, tenantId: string, pago: PagoMP, error: unknown) => Promise<void | "reintentar"> | void | "reintentar";
 
 /**
  * ¿La seña hizo su trabajo? Con la regla apagada el Core contesta `{ accion: "apagada" }` (o nada):

@@ -16,7 +16,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { PagoMP } from "@/plugins/mercadopago";
 import { procesarNotificacionPago } from "@/plugins/mercadopago/handler";
-import { aplicarPagoMPDelTurno, avisarSeniaMPFallida, type DepsServidorSeniaMP } from "./senia-mp.server";
+import { InterruptorIlegible, aplicarPagoMPDelTurno, avisarSeniaMPFallida, type DepsServidorSeniaMP } from "./senia-mp.server";
 import { AnulacionRechazada, notaDeAnulacion } from "./anulacion";
 import {
   ACTOR_MP,
@@ -37,8 +37,9 @@ function coincide(fila: Record<string, unknown>, where: Record<string, unknown>)
   return Object.entries(where).every(([k, v]) => {
     const x = fila[k];
     if (v && typeof v === "object" && !(v instanceof Date)) {
-      const o = v as { in?: unknown[]; startsWith?: string };
+      const o = v as { in?: unknown[]; startsWith?: string; path?: string[]; equals?: unknown };
       if (o.in) return o.in.includes(x);
+      if (o.path) return o.path.reduce<unknown>((acc, k2) => (acc && typeof acc === "object" ? (acc as Record<string, unknown>)[k2] : undefined), x) === o.equals;
       if (o.startsWith !== undefined) return typeof x === "string" && x.startsWith(o.startsWith);
     }
     return x === v;
@@ -250,6 +251,9 @@ test("4c. devolución con el cobro no anulable (facturado): aviso y el turno igu
   assert.deepEqual(r, { accion: "devuelto", volvioAReservado: true });
   assert.equal(b.db.turnos[0].status, "PENDING");
   assert.ok(b.db.audit.some((a) => a.action === ACCION_SENIA_MP_DEVUELTA_SIN_ANULAR));
+  // O3: MP reenvía el mismo aviso → no se duplica la fila de ese pago.
+  await aplicarPagoMPDelTurnoEnTx(b.tx, "A", "t1", pago({ estado: "refunded" }), b.deps());
+  assert.equal(b.db.audit.filter((a) => a.action === ACCION_SENIA_MP_DEVUELTA_SIN_ANULAR).length, 1);
 });
 
 test("4d. la excepción de la dueña («confirm_sin_senia») se respeta al devolverse la seña sin poder anular", async () => {
@@ -462,7 +466,7 @@ test("H1: refunded con la seña fallando (40001 agotado) → el error SUBE (webh
       ),
       /could not serialize access/,
     );
-    assert.deepEqual(avisos, [], "en una devolución el error no se avisa-y-traga: sube");
+    assert.deepEqual(avisos, ["tragado"], "en una devolución se avisa y el error sube igual");
     assert.deepEqual(h.llamadas, [], "no factura");
   }
 });
@@ -476,4 +480,77 @@ test("H2: avisarSeniaMPFallida no deja fila si la regla está apagada o no se pu
     reglaPrendidaEnTx: async () => { throw new Error("no se pudo leer el interruptor"); },
   });
   assert.equal(b.db.audit.length, antes);
+});
+
+// ── Certificación de ae7879fd ────────────────────────────────────────────────
+
+const ilegible = async () => {
+  throw new Error("no se pudo leer el interruptor");
+};
+const devueltasSinAnular = (b: ReturnType<typeof base>) => b.db.audit.filter((a) => a.action === ACCION_SENIA_MP_DEVUELTA_SIN_ANULAR);
+
+test("O1: refunded que falla → el handler avisa al Core ANTES de relanzar; un aviso que tira no tapa el error", async () => {
+  let orden: string[] = [];
+  for (const alFallar of [() => { orden.push("aviso"); }, () => { orden.push("aviso"); throw new Error("otro"); }]) {
+    orden = [];
+    const h = handlerCon(pago({ estado: "refunded" }));
+    await assert.rejects(
+      procesarNotificacionPago({ type: "payment", paymentId: "9001", tenantId: "A" }, { ...h.deps, senia: async () => { orden.push("senia"); throw new Error("40001"); }, alFallarSenia: alFallar }),
+      /40001/,
+    );
+    assert.deepEqual(orden, ["senia", "aviso"]);
+    assert.deepEqual(h.llamadas, []);
+  }
+});
+
+test("O1/O3: avisarSeniaMPFallida de un refunded deja UNA fila senia_mp_devuelta_sin_anular por pago (regla prendida o ilegible)", async () => {
+  const b = base();
+  const tx = async <T,>(fn: (t: never) => Promise<T>) => fn(b.tx as never);
+  for (let i = 0; i < 3; i++) {
+    assert.equal(await avisarSeniaMPFallida("t1", "A", pago({ estado: "refunded" }), new Error("40001"), { transaccion: tx, reglaPrendidaEnTx: async () => true }), undefined);
+  }
+  assert.equal(devueltasSinAnular(b).length, 1);
+  const fila = devueltasSinAnular(b)[0];
+  assert.deepEqual([fila.tenantId, fila.entityId], ["A", "t1"]);
+  // Regla ilegible: igual avisa (otro turno), y sin duplicar en los reintentos.
+  await avisarSeniaMPFallida("t2", "A", pago({ estado: "refunded" }), new Error("x"), { transaccion: tx, reglaPrendidaEnTx: ilegible });
+  await avisarSeniaMPFallida("t2", "A", pago({ estado: "refunded" }), new Error("x"), { transaccion: tx, reglaPrendidaEnTx: ilegible });
+  assert.equal(devueltasSinAnular(b).length, 2);
+  // Otro pago del mismo turno sí suma su fila.
+  await avisarSeniaMPFallida("t1", "A", pago({ id: "9002", estado: "refunded" }), new Error("x"), { transaccion: tx, reglaPrendidaEnTx: async () => true });
+  assert.equal(devueltasSinAnular(b).length, 3);
+  // Regla apagada: nada.
+  await avisarSeniaMPFallida("t3", "A", pago({ estado: "refunded" }), new Error("x"), { transaccion: tx, reglaPrendidaEnTx: async () => false });
+  assert.equal(devueltasSinAnular(b).length, 3);
+  // La base caída: no tira.
+  await avisarSeniaMPFallida("t4", "A", pago({ estado: "refunded" }), new Error("x"), { transaccion: async () => { throw new Error("db caída"); }, reglaPrendidaEnTx: async () => true });
+});
+
+test("O2: approved con el interruptor ilegible → la seña tira InterruptorIlegible y el aviso contesta «reintentar» (sin fila)", async () => {
+  const { b, deps } = servidorCon(true);
+  await assert.rejects(aplicarPagoMPDelTurno("t1", "A", pago(), { ...deps, reglaPrendidaEnTx: ilegible }), InterruptorIlegible);
+  const antes = b.db.audit.length;
+  const tx = deps.transaccion;
+  assert.equal(await avisarSeniaMPFallida("t1", "A", pago(), new Error("boom"), { transaccion: tx, reglaPrendidaEnTx: ilegible }), "reintentar");
+  // Se pudo releer y está prendida, pero la seña falló por no poder leerlo: también se reintenta.
+  assert.equal(await avisarSeniaMPFallida("t1", "A", pago(), new InterruptorIlegible(new Error("x")), { transaccion: tx, reglaPrendidaEnTx: async () => true }), "reintentar");
+  assert.equal(b.db.audit.length, antes);
+  // Regla apagada y leída: como antes (sin fila, sin reintento).
+  assert.equal(await avisarSeniaMPFallida("t1", "A", pago(), new Error("boom"), { transaccion: tx, reglaPrendidaEnTx: async () => false }), undefined);
+  // Regla prendida, error común: fila y sin reintento.
+  assert.equal(await avisarSeniaMPFallida("t1", "A", pago(), new Error("boom"), { transaccion: tx, reglaPrendidaEnTx: async () => true }), undefined);
+  assert.equal(b.db.audit.at(-1)!.action, "senia_mp_no_registrada");
+});
+
+test("O2: handler — approved con aviso «reintentar» → el error sube (500) y no factura; regla apagada leída sigue igual", async () => {
+  const h = handlerCon(pago());
+  await assert.rejects(
+    procesarNotificacionPago({ type: "payment", paymentId: "9001", tenantId: "A" }, { ...h.deps, senia: async () => { throw new Error("interruptor"); }, alFallarSenia: async () => "reintentar" as const }),
+    /interruptor/,
+  );
+  assert.deepEqual(h.llamadas, []);
+  const h2 = handlerCon(pago());
+  const r = await procesarNotificacionPago({ type: "payment", paymentId: "9001", tenantId: "A" }, { ...h2.deps, senia: async () => ({ accion: "apagada" }) });
+  assert.equal(r.facturado, true);
+  assert.deepEqual(h2.llamadas, ["facturar"]);
 });

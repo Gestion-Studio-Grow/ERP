@@ -146,6 +146,23 @@ export async function auditarAvisoMPEnTx(
 }
 
 /**
+ * Como `auditarAvisoMPEnTx`, pero una sola fila por pago: si ya hay una con esa acción para ese turno y
+ * ese pago de MP (`changes.pagoMP.id`), no agrega otra. MP reenvía el mismo aviso varias veces.
+ */
+export async function auditarAvisoMPUnaVezEnTx(
+  tx: Pick<Tx, "auditLog">,
+  e: { tenantId: string; appointmentId: string; action: string; pagoId: string; changes: Record<string, unknown> },
+): Promise<boolean> {
+  const ya = await tx.auditLog.findFirst({
+    where: { tenantId: e.tenantId, entity: "Appointment", entityId: e.appointmentId, action: e.action, changes: { path: ["pagoMP", "id"], equals: e.pagoId } },
+    select: { id: true },
+  });
+  if (ya) return false;
+  await auditarAvisoMPEnTx(tx, e);
+  return true;
+}
+
+/**
  * El aviso de un pago de MP de un turno, dentro de la tx del negocio. Ver el encabezado.
  * Tira `SeniaMPRechazada` sólo si algo falla DESPUÉS de escribir (el ajuste de una devolución parcial).
  */
@@ -278,7 +295,7 @@ export async function aplicarPagoMPDelTurnoEnTx(
         // en pie, así que el turno igual vuelve a Reservado si el neto no cubre la seña, y queda el
         // aviso para que la dueña regularice el cobro.
         const motivo = mensajeAnulacionRechazada(e.motivo);
-        await auditarAvisoMPEnTx(tx, { tenantId, appointmentId, action: ACCION_SENIA_MP_DEVUELTA_SIN_ANULAR, changes: { pagoMP, motivo, cobroId: plan.anular } });
+        await auditarAvisoMPUnaVezEnTx(tx, { tenantId, appointmentId, action: ACCION_SENIA_MP_DEVUELTA_SIN_ANULAR, pagoId: pago.id, changes: { pagoMP, motivo, cobroId: plan.anular } });
         const volvio = neto < senia ? await forzarReservado(tx, { tenantId, appointmentId, porque: `${porque}; el cobro no se pudo anular: ${motivo}`, ahora: deps.ahora, falta: round2(senia - neto) }) : false;
         return { accion: "devuelto", volvioAReservado: volvio };
       }

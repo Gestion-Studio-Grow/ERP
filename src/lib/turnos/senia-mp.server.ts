@@ -22,11 +22,13 @@ import { settleAppointmentPaymentGuarded } from "@/lib/caja/cobro-turno";
 import type { PagoMP } from "@/plugins/mercadopago";
 import { senaObligatoriaEnTx } from "./sena-obligatoria";
 import {
+  ACCION_SENIA_MP_DEVUELTA_SIN_ANULAR,
   ACCION_SENIA_MP_NO_REGISTRADA,
   DEPS_SENIA_MP,
   SeniaMPRechazada,
   aplicarPagoMPDelTurnoEnTx,
   auditarAvisoMPEnTx,
+  auditarAvisoMPUnaVezEnTx,
   netoDelPagoMP,
   type DepsSeniaMPTx,
   type ResultadoSeniaMP,
@@ -51,6 +53,14 @@ const DEPS_SERVIDOR: DepsServidorSeniaMP = {
   ahora: () => new Date(),
 };
 
+/** No se pudo leer el interruptor de la seña obligatoria: no se sabe si la regla está prendida. */
+export class InterruptorIlegible extends Error {
+  constructor(cause: unknown) {
+    super(`no se pudo leer el interruptor de la seña obligatoria: ${cause instanceof Error ? cause.message : String(cause)}`, { cause });
+    this.name = "InterruptorIlegible";
+  }
+}
+
 export async function aplicarPagoMPDelTurno(
   appointmentId: string,
   tenantId: string,
@@ -60,7 +70,13 @@ export async function aplicarPagoMPDelTurno(
   // Pendiente / rechazado / en proceso: ni una consulta.
   if (netoDelPagoMP(pago) === null) return { accion: "sin-cambios", motivo: `estado ${pago.estado}` };
   // Regla apagada: el comportamiento de siempre, sin cierre de caja ni tx Serializable.
-  if (!(await deps.transaccion((tx) => deps.reglaPrendidaEnTx(tx, tenantId), { tenantId }))) return { accion: "apagada" };
+  let prendida: boolean;
+  try {
+    prendida = await deps.transaccion((tx) => deps.reglaPrendidaEnTx(tx, tenantId), { tenantId });
+  } catch (e) {
+    throw new InterruptorIlegible(e);
+  }
+  if (!prendida) return { accion: "apagada" };
   const run = (withSchema: boolean) =>
     deps.transaccion(
       async (tx) => {
@@ -94,11 +110,17 @@ export async function aplicarPagoMPDelTurno(
 }
 
 /**
- * La seña del pago APROBADO falló con un error inesperado (el handler sigue y factura igual): queda
- * en el log y, SÓLO si se sabe que la regla está prendida (se relee en la misma tx del aviso), una
- * fila `senia_mp_no_registrada` que la agenda muestra. Si la regla está apagada o no se pudo leer,
- * no hay fila: con la regla apagada el cobro se carga como siempre y un aviso invitaría a cargarlo
- * dos veces. Nunca tira: un fallo acá tampoco bloquea nada.
+ * La seña del turno tiró un error inesperado. Queda en el log y, según el pago:
+ *
+ *  · APROBADO (el handler sigue y factura): una fila `senia_mp_no_registrada` SÓLO si se sabe que la
+ *    regla está prendida (con la regla apagada el cobro se carga como siempre y un aviso invitaría a
+ *    cargarlo dos veces). Si el interruptor no se pudo leer (ni en la seña ni acá), contesta
+ *    `"reintentar"`: el handler deja subir el error (500) y MP reintenta, en vez de un 200 mudo.
+ *  · DEVUELTO (`refunded`, el handler relanza el error igual): una fila `senia_mp_devuelta_sin_anular`
+ *    si la regla está prendida o no se pudo leer, una sola por pago (MP reintenta y reenvía), para
+ *    que un error persistente se vea en la agenda aunque MP deje de reintentar.
+ *
+ * La regla se lee en su propia tx y el aviso va en otra (la del error ya se deshizo). Nunca tira.
  */
 export async function avisarSeniaMPFallida(
   appointmentId: string,
@@ -106,24 +128,42 @@ export async function avisarSeniaMPFallida(
   pago: PagoMP,
   error: unknown,
   deps: Pick<DepsServidorSeniaMP, "transaccion" | "reglaPrendidaEnTx"> = DEPS_SERVIDOR,
-): Promise<void> {
+): Promise<void | "reintentar"> {
   const motivo = error instanceof Error ? error.message : String(error);
-  logger.error("caja", "la seña por Mercado Pago falló; el aviso siguió sin ella", { tenantId, appointmentId, pagoId: pago.id, motivo });
+  const devuelto = pago.estado === "refunded";
+  const queFallo = devuelto ? "la anulación de la seña devuelta por Mercado Pago falló" : "la seña por Mercado Pago falló; el aviso siguió sin ella";
+  logger.error("caja", queFallo, { tenantId, appointmentId, pagoId: pago.id, motivo });
+  let regla: boolean | null;
   try {
-    const avisado = await deps.transaccion(
+    regla = await deps.transaccion((tx) => deps.reglaPrendidaEnTx(tx, tenantId), { tenantId });
+  } catch (e) {
+    regla = null;
+    logger.error("caja", "no se pudo leer el interruptor de la seña obligatoria", { tenantId, appointmentId, motivo: e instanceof Error ? e.message : String(e) });
+  }
+  if (regla === false) {
+    logger.warn("caja", "seña por Mercado Pago fallida con la regla apagada: sin aviso en la agenda", { tenantId, appointmentId });
+    return;
+  }
+  if (!devuelto && (regla === null || error instanceof InterruptorIlegible)) return "reintentar";
+  const pagoMP = { id: pago.id, estado: pago.estado, monto: pago.monto };
+  try {
+    await deps.transaccion(
       async (tx) => {
-        if (!(await deps.reglaPrendidaEnTx(tx, tenantId))) return false;
-        await auditarAvisoMPEnTx(tx, {
+        if (!devuelto) {
+          await auditarAvisoMPEnTx(tx, { tenantId, appointmentId, action: ACCION_SENIA_MP_NO_REGISTRADA, changes: { pagoMP, motivo: `error inesperado: ${motivo}` } });
+          return;
+        }
+        const sinLeer = regla === null ? { reglaSinLeer: true } : {};
+        await auditarAvisoMPUnaVezEnTx(tx, {
           tenantId,
           appointmentId,
-          action: ACCION_SENIA_MP_NO_REGISTRADA,
-          changes: { pagoMP: { id: pago.id, estado: pago.estado, monto: pago.monto }, motivo: `error inesperado: ${motivo}` },
+          action: ACCION_SENIA_MP_DEVUELTA_SIN_ANULAR,
+          pagoId: pago.id,
+          changes: { pagoMP, motivo: `la anulación falló: ${motivo}`, ...sinLeer },
         });
-        return true;
       },
       { tenantId },
     );
-    if (!avisado) logger.warn("caja", "seña por Mercado Pago fallida con la regla apagada: sin aviso en la agenda", { tenantId, appointmentId });
   } catch (e) {
     logger.error("caja", "no se pudo dejar el aviso de la seña fallida", { tenantId, appointmentId, motivo: e instanceof Error ? e.message : String(e) });
   }
