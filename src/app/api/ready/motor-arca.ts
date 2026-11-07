@@ -12,6 +12,8 @@
 //
 // PURA: el "ahora" y el entorno entran por parámetro. Se testea sin DB ni reloj.
 
+import { arcaSimuladoEnProduccion } from "@/lib/fiscal/guarda-simulado";
+
 /** Lo que se mide de UN negocio (todo agregado, sin filas). */
 export interface HechosNegocio {
   /** Envíos a ARCA abiertos (sin cerrar y sin rendirse). */
@@ -180,10 +182,13 @@ export function configMotorArca(env: Record<string, string | undefined>): {
   facturacion: boolean;
   modo: ModoArca;
   cronProtegido: boolean;
+  /** ENG-123: producción + facturación encendida + ARCA simulado (no emite: falla cerrado). */
+  simuladoEnProduccion: boolean;
 } {
   return {
     facturacion: facturacionEncendida(env),
     modo: modoArcaDesdeEnv(env),
+    simuladoEnProduccion: arcaSimuladoEnProduccion(env),
     // Sólo SI existe el secreto del cron, nunca su valor ni su largo. Sin él, el cron responde 503
     // (fail-closed, src/lib/cron-auth.ts) y la facturación automática no sale.
     cronProtegido: (env.CRON_SECRET ?? "").trim() !== "",
