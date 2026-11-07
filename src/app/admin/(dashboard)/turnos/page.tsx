@@ -1,4 +1,6 @@
 import { getAgendaDay } from "@/lib/actions";
+import { modoSimpleDeLaSesion } from "@/lib/modo-simple.server";
+import { recortarPermisosDeAgenda } from "@/lib/modo-simple";
 import Link from "next/link";
 import CalendarGrid from "./CalendarGrid";
 import MananaConfirmar from "./MananaConfirmar";
@@ -128,7 +130,7 @@ export default async function TurnosCalendarPage({
   const planilla = {
     turnos: proyectada.turnos,
     profesionales: proyectada.profesionales,
-    permisos: {
+    permisos: recortarPermisosDeAgenda({
       gestionar: canManage,
       cobrar: canCollect,
       terminar: permisoEfectivo(user, "agenda:complete"),
@@ -144,7 +146,7 @@ export default async function TurnosCalendarPage({
       vouchers: vouchersPrendidos(interruptores) && canCollect,
       perdonar: permisoEfectivo(user, "agenda:forgive"),
       anular: anulacionDeCobro(user.role),
-    },
+    }, (await modoSimpleDeLaSesion()).activo),
     ahora: new Date().toISOString(),
     dia: diaDeLaPlanilla,
     bloqueos: extras.bloqueos,

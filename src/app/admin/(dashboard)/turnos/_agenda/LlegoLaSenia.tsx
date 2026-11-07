@@ -38,6 +38,7 @@ export default function LlegoLaSenia({
   monto,
   medioInicial = MEDIO_DE_LA_SENIA,
   confirma = true,
+  conDeshacer = true,
   onListo,
   className,
 }: {
@@ -48,6 +49,8 @@ export default function LlegoLaSenia({
   medioInicial?: MetodoDePago;
   /** ¿Quien toca confirma el turno? (`agenda:manage`). Sin eso, sólo registra la seña. */
   confirma?: boolean;
+  /** Modo simple: el aviso queda, sin [Deshacer] (deshacer un cobro es de modo completo). */
+  conDeshacer?: boolean;
   onListo?: () => void;
   className?: string;
 }) {
@@ -109,7 +112,7 @@ export default function LlegoLaSenia({
             : `Seña de ${pesosDelCobro(hecho.monto)} por ${METODO_LABEL[hecho.medio].toLowerCase()} registrada. El turno de ${clienta} lo confirma la recepción.`
         }
         duracion={DURACION_DESHACER_MS}
-        onDeshacer={pendiente || !hecho.sePuedeDeshacer ? undefined : () => deshacer(hecho.cobroId, hecho.confirmo)}
+        onDeshacer={pendiente || !conDeshacer || !hecho.sePuedeDeshacer ? undefined : () => deshacer(hecho.cobroId, hecho.confirmo)}
         onTermina={() => {
           setHecho(null);
           onListo?.();

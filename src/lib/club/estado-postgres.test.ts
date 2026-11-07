@@ -157,7 +157,7 @@ test("restaurar el respaldo de ejemplo reproduce la caja al centavo; la recepciÃ
   const p = await preparar(t);
   if (!p) return;
   const { base, duenio } = p;
-  const { revisarRespaldoDelClub, restaurarRespaldoDelClub, leerFotoDelClub } = await import("@/app/admin/(dashboard)/club/estado-actions");
+  const { revisarRespaldoDelClub, restaurarRespaldoDelClub, leerFotoDelClub, guardarFotoDelClub } = await import("@/app/admin/(dashboard)/club/estado-actions");
   const ejemplo = leerSobre(EJEMPLO);
   assert.ok(ejemplo.ok);
   const esperado = resumenDelRespaldo(ejemplo.estado);
@@ -173,6 +173,15 @@ test("restaurar el respaldo de ejemplo reproduce la caja al centavo; la recepciÃ
   assert.ok(rev.tipo === "respuesta" && rev.valor.ok);
   assert.deepEqual(rev.valor.resumen, esperado);
   assert.equal(await duenio.auditLog.count({ where: { tenantId: base.a.id, entity: ENTIDAD_CLUB_ESTADO } }), filasAntes, "revisar no escribe");
+
+  // Una foto de HOY antes de restaurar: las de los tests anteriores (14-16/10) quedan fuera de la ventana de
+  // DIAS_CON_FOTO segÃºn la fecha en que corra la suite, y la poda las borra con razÃ³n (estado-repo.ts:106).
+  const previa = await ejecutarAccion(duenia, () => leerFotoDelClub());
+  assert.ok(previa.tipo === "respuesta" && previa.valor.ok);
+  // La versiÃ³n se saca ANTES del callback: TS no conserva el narrowing de `previa.valor` dentro de una clausura.
+  const versionPrevia = previa.valor.foto?.version ?? 0;
+  const g = await ejecutarAccion(duenia, async () => guardarFotoDelClub(await formFoto(textoDelClub(444), versionPrevia)));
+  assert.ok(g.tipo === "respuesta" && g.valor.ok, JSON.stringify(g));
 
   const r = await ejecutarAccion(duenia, async () => restaurarRespaldoDelClub(await formRespaldo(EJEMPLO)));
   assert.ok(r.tipo === "respuesta" && r.valor.ok, JSON.stringify(r));
