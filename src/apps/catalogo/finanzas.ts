@@ -186,6 +186,22 @@ export const APPS_FINANZAS = [
     menuDeHoy: { etiqueta: "Cuentas a cobrar", orden: 260, moduloDeHoy: null },
   },
   {
+    // CH · vouchers de La Alameda (docs/tenants/ch/VOUCHERS-OPENKEY.md). Atrás del interruptor
+    // «vouchers» del negocio, que el registro no sabe leer: por eso NO se ofrece en el Inicio, la
+    // barra ni el buscador (`enLanzador: false`) y se llega desde el cierre del día con el
+    // interruptor prendido. Apagado, la página da 404. La capability es la de `listarVouchers`.
+    id: "vouchers",
+    nombre: "Vouchers de La Alameda",
+    descripcion: "Los vouchers cobrados, su baja en OpenKey y lo que falta liquidar.",
+    icono: "caja",
+    ruta: "/admin/vouchers",
+    espacio: "finanzas",
+    capability: "clients:read",
+    modulo: null,
+    estado: "lista",
+    enLanzador: false,
+  },
+  {
     id: "libro-iva",
     nombre: "Libro IVA",
     descripcion: "El IVA de ventas y compras del mes, para el contador.",

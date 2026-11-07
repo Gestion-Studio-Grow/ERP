@@ -68,6 +68,7 @@ import {
   leerResultado,
 } from "./campos";
 import CobrarTurno from "./CobrarTurno";
+import CobrarConVoucher from "./CobrarConVoucher";
 import FijarPrecioDelTurno from "./FijarPrecioDelTurno";
 import TerminarTurno from "./TerminarTurno";
 import MoverTurno from "./MoverTurno";
@@ -556,6 +557,16 @@ export default function TurnoCajon({
           </Seccion>
         )}
 
+        {/* CH · voucher de La Alameda: antes de Terminar/Cobrar, porque lo que no cubre se cobra
+            después con los medios de siempre. Sin el interruptor no se monta (cajón igual que antes). */}
+        {permisos.vouchers && cobraEste && !t.precioADefinir && t.saldo > 0 && t.estado !== "NO_SHOW" && t.estado !== "CANCELLED" && !cobradoEste && (
+          <Seccion titulo="Voucher de La Alameda">
+            <div className="pt-3">
+              <CobrarConVoucher key={t.id} turnoId={t.id} clienta={t.clienta} saldo={t.saldo} onListo={() => router.refresh()} />
+            </div>
+          </Seccion>
+        )}
+
         {cierra && !cobradoEste && (
           <Seccion titulo={t.estado === "PENDING" ? "Vino" : "Terminar"}>
             <div className="pt-3">
@@ -588,6 +599,8 @@ export default function TurnoCajon({
           >
             <div className="pt-3">
               <CobrarTurno
+                // Con vouchers, el voucher baja el saldo: el monto propuesto se rearma con el nuevo.
+                key={permisos.vouchers ? `${t.id}:${t.saldo}` : undefined}
                 turnoId={t.id}
                 clienta={t.clienta}
                 sugerido={t.sugerido}

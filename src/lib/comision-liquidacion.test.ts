@@ -304,14 +304,15 @@ test("la fórmula de la comisión ya no está escrita a mano en ninguna de las d
   assert.match(liq, /leerComisionesPendientes\(prisma, tenantId\)/, "el listado sale de la misma lectura que el botón");
 });
 
-test("la base de la comisión es lo COBRADO, nunca el precio de lista", () => {
+test("la base de la comisión es lo COBRADO menos lo pagado con voucher, nunca el precio de lista", () => {
   // Decisión vigente (ver `comision-liquidable.ts`): se liquida sobre lo efectivamente
   // cobrado. Si alguien alimentara la base con `service.price`, la profesional cobraría
-  // comisión sobre plata que no entró.
+  // comisión sobre plata que no entró. Y lo cubierto por voucher no comisiona (regla del
+  // dueño, comisiones/base.ts): las dos puntas pasan por `baseDeComision(payment.amount, …)`.
   const src = leer("./commission-actions.ts");
-  const bases = [...(src.match(/base: [^,\n]+/g) ?? []), ...(leer("./reports/comisiones.ts").match(/base: [^,\n]+/g) ?? [])];
+  const bases = [...(src.match(/base: [^\n]+/g) ?? []), ...(leer("./reports/comisiones.ts").match(/base: [^\n]+/g) ?? [])];
   assert.ok(bases.length >= 2, "las dos puntas arman los turnos para el cálculo");
-  for (const b of bases) assert.match(b, /payment\.amount/, `base tomada de otro lado: ${b}`);
+  for (const b of bases) assert.match(b, /base: baseDeComision\(\w+\.payment\.amount, /, `base tomada de otro lado: ${b}`);
 });
 
 test("el egreso de una liquidación NO se borra desde el libro de caja", () => {

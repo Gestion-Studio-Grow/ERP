@@ -51,6 +51,7 @@ import { transferenciaEnElLibroTx } from "@/lib/caja/transferencia-en-el-libro";
 import { diaContableDelEgreso } from "@/lib/stock/purchase-egreso";
 import { leerComisionesPendientes, leerTurnosEsperandoSaldo } from "@/lib/reports/comisiones-lectura";
 import { leerComisionesConCobroAnulado, type ComisionConCobroAnulado } from "@/lib/reports/comision-ya-pagada";
+import { baseDeComision } from "@/lib/comisiones/base";
 import {
   vueltaDeLiquidacion,
   whereTurnosConComisionPendiente,
@@ -190,8 +191,10 @@ export async function settleCommissions(formData: FormData) {
       // Misma guarda que el listado de pendientes: sin esto, la pantalla mostraría un
       // total y la liquidación escribiría otro.
       if (!sePuedeLiquidar({ precio: a.priceAtBooking ?? a.service.price, cobros: a.collections.map((c) => ({ amount: c.amount.toNumber(), method: c.method })), pagoLegado: a.payment })) continue;
-      // La base es lo COBRADO (`payment.amount`), no el precio de lista.
-      liquidables.push({ id: a.id, serviceId: a.serviceId, base: a.payment.amount, startsAt: a.startsAt });
+      // La base es lo COBRADO (`payment.amount`) MENOS lo pagado con voucher (regla del dueño,
+      // comisiones/base.ts), no el precio de lista. Los cobros ya vienen en esta misma consulta.
+      const cobros = a.collections.map((c) => ({ amount: c.amount.toNumber(), method: c.method }));
+      liquidables.push({ id: a.id, serviceId: a.serviceId, base: baseDeComision(a.payment.amount, cobros), startsAt: a.startsAt });
     }
 
     // MISMA función que el listado de pendientes: la fórmula dejó de estar duplicada a mano

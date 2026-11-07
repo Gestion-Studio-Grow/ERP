@@ -23,6 +23,8 @@
 // cerrar de hace meses también cuenta (CH-044).
 
 import { agendaPractica } from "@/lib/turnos/practica.server";
+import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
+import { vouchersPrendidos } from "@/cambios/interruptores";
 import { RefrescoDeAgenda } from "./_agenda/RefrescoDeAgenda";
 import Link from "next/link";
 import { getAgendaDay } from "@/lib/actions";
@@ -48,7 +50,6 @@ import LibroDelDia from "./_agenda/LibroDelDia";
 import { RenglonDeManana } from "./_agenda/ParaManana";
 import OtroDia from "./_agenda/OtroDia";
 import ElDiaCorto from "./_agenda/ElDiaCorto";
-import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
 import { agendaInteraccionPrendida } from "@/cambios/interruptores";
 import { modoSimpleDeLaSesion } from "@/lib/modo-simple.server";
 import { hrefModoCompleto, recortarPermisosDeAgenda } from "@/lib/modo-simple";
@@ -142,6 +143,8 @@ export default async function AgendaRenglon({
     terminar: permisoEfectivo(conPermisos, "agenda:complete"),
     perdonar: permisoEfectivo(conPermisos, PERDONAR),
     anular: anulacionDeCobro(quien.role),
+    // CH · vouchers de La Alameda (lectura de interruptores cacheada por pedido).
+    vouchers: vouchersPrendidos(await interruptoresDelNegocio()) && permisoEfectivo(conPermisos, "agenda:collect"),
   }, simple);
   // Mañana, sólo mirando HOY y para quien gestiona la agenda (como siempre).
   const verManana = permisos.gestionar && dia === hoy;

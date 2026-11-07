@@ -18,6 +18,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { tenantTransaction } from "@/lib/rls";
 import { idsDeLosNegocios } from "@/lib/cron/negocios";
 import { cuitValido, normalizarCuit } from "@/lib/cuit";
+import { exigirNoSimuladoEnProduccion } from "@/lib/fiscal/guarda-simulado";
 import {
   cerrarEnvioDeFacturaNoPendiente,
   markInvoiceRejected,
@@ -362,11 +363,14 @@ export function crearClientePara(
     const config: EmisorConfig = cfg ?? { cuit: 0, homologacion: true };
     // En stub NO se firma ni se autentica → no se toca la credencial ni el TA. Sí sigue la
     // numeración guardada del negocio, como ARCA: sin eso cada factura de prueba pedía el 1.
-    const clienteSimulado = () =>
-      crearAfipClient(config, {
+    const clienteSimulado = () => {
+      // ENG-123: en producción con la facturación encendida el simulado no se arma (CAE falso).
+      exigirNoSimuladoEnProduccion({ tenantId, donde: "crearClientePara" }, env);
+      return crearAfipClient(config, {
         env: techo === "stub" ? env : { ...env, ARCA_MODO: "stub" },
         ultimoEmitido: (puntoVenta, tipo) => leerUltimoEmitido(tenantId, puntoVenta, tipo),
       });
+    };
     if (techo === "stub") return clienteSimulado();
     // Un negocio que no existe o que está marcado real necesita su CUIT antes de buscar con qué firmar.
     if (!cfg || !cfg.homologacion) exigirCuit();
