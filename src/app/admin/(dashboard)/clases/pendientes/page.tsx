@@ -36,13 +36,15 @@ const titulo = "mb-2 text-sm font-bold uppercase tracking-wide text-strong";
 // el total: el profe lo revisa una vez.
 export default async function ClasesBandeja({ searchParams }: { searchParams: Promise<{ ver?: string }> }) {
   const user = await requireApp("padel-clases");
-  // El PROFESSIONAL no ve montos ni revisa comprobantes (eso exige agenda:manage): sin la sección
-  // Comprobantes ni precios (certificación del arreglo UAT 11/2026, QA del alumno).
+  // El PROFESSIONAL no ve montos ni actúa (todo exige agenda:manage): sin Comprobantes, Sin avisar
+  // (el WhatsApp lleva el precio), avisos de comprobante (llevan el monto), precios ni botones
+  // (certificación del arreglo UAT 11/2026, vueltas 4 y 5).
   const conPlata = veLaPlataDelDia(user);
-  const secciones = conPlata ? SECCIONES : SECCIONES.filter((s) => s.id !== "comprobantes");
+  const secciones = conPlata ? SECCIONES : SECCIONES.filter((s) => s.id !== "comprobantes" && s.id !== "sinAvisar");
   const verRaw = (await searchParams).ver;
   const ver: Seccion | null = secciones.some((s) => s.id === verRaw) ? (verRaw as Seccion) : null;
-  const [b, numero] = await Promise.all([bandeja(), badgePendientes()]);
+  const [completa, numero] = await Promise.all([bandeja(), badgePendientes()]);
+  const b = conPlata ? completa : sinPlataBandeja(completa);
   const mostrar = (s: Seccion) => ver === null || ver === s;
 
   const grupos = new Map<string, { ids: string[]; nombre: string; total: number; comprobante: string | null; enviadoEl: Date | null; clases: { empiezaEn: Date; precio: number; caida: boolean }[] }>();
@@ -96,12 +98,12 @@ export default async function ClasesBandeja({ searchParams }: { searchParams: Pr
                         <span className="capitalize">{diaHumano(c.empiezaEn)}</span>
                         {" · "}
                         {c.tipo === "GRUPAL" ? `grupal (${c.personas})` : "individual"}
-                        {conPlata && c.precio > 0 && <> · <Plata valor={c.precio} sinCentavos /></>}
+                        {c.precio > 0 && <> · <Plata valor={c.precio} sinCentavos /></>}
                         {c.dadas > 0 ? ` · ya tomó ${c.dadas}` : " · alumno nuevo"}
                       </>
                     }
                   >
-                    <AccionesClase c={c} conProxima={false} />
+                    {conPlata && <AccionesClase c={c} conProxima={false} />}
                   </TarjetaClase>
                 </li>
               ))}
@@ -162,7 +164,7 @@ export default async function ClasesBandeja({ searchParams }: { searchParams: Pr
         <section aria-labelledby="t-avisos">
           <div className="mb-2 flex items-center justify-between gap-2">
             <h2 id="t-avisos" className="text-sm font-bold uppercase tracking-wide text-strong">Avisos de los últimos días</h2>
-            {b.avisos.some((a) => !a.leidoEl) && <MarcarLeidos />}
+            {conPlata && b.avisos.some((a) => !a.leidoEl) && <MarcarLeidos />}
           </div>
           {b.avisos.length === 0 ? (
             <p className="text-sm text-muted">No pasó nada en los últimos días.</p>
@@ -181,4 +183,20 @@ export default async function ClasesBandeja({ searchParams }: { searchParams: Pr
       )}
     </main>
   );
+}
+
+/**
+ * La bandeja del PROFESSIONAL: sin comprobantes ni Sin avisar, sin los avisos de comprobante (el
+ * texto lleva el monto de la parte) y con los pedidos sin precio, en el servidor.
+ */
+function sinPlataBandeja(b: Awaited<ReturnType<typeof bandeja>>): Awaited<ReturnType<typeof bandeja>> {
+  const avisos = b.avisos.filter((a) => a.tipo !== "comprobante");
+  return {
+    ...b,
+    pedidos: b.pedidos.map((c) => ({ ...c, precio: 0, comprobante: null, integrantes: [] })),
+    comprobantes: [],
+    sinAvisar: [],
+    avisos,
+    contadores: { ...b.contadores, avisos: avisos.filter((a) => !a.leidoEl).length },
+  };
 }

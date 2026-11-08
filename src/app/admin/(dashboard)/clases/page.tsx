@@ -92,7 +92,7 @@ async function ContenidoHoy({ conPlata }: { conPlata: boolean }) {
             {primerNombre(c.nombre)} espera respuesta: <span className="tabular-nums">{horaHumana(c.empiezaEn)}</span>
             <span className="font-normal text-body"> · {faltaPara(c.empiezaEn, ahora)}</span>
           </p>
-          <AccionesClase c={aAcciones(c)} conProxima={false} otras={otrasDeHoy} />
+          {conPlata && <AccionesClase c={aAcciones(c)} conProxima={false} otras={otrasDeHoy} />}
         </section>
       ))}
 
@@ -112,7 +112,7 @@ async function ContenidoHoy({ conPlata }: { conPlata: boolean }) {
                   </span>
                   <span className="font-semibold">{c.nombre}</span>
                 </p>
-                <AccionesSinCerrar c={aAcciones(c)} />
+                {conPlata && <AccionesSinCerrar c={aAcciones(c)} />}
               </li>
             ))}
           </ul>
@@ -126,13 +126,13 @@ async function ContenidoHoy({ conPlata }: { conPlata: boolean }) {
             <h2 className="text-sm font-bold uppercase tracking-wide text-strong">
               <span aria-hidden>⏳ </span>Esperan tu respuesta ({pedidos.length})
             </h2>
-            {pedidos.length > 1 && <ConfirmarTodos pedidos={pedidos.map((c) => ({ id: c.id, cuando: cuandoPedido(c) }))} />}
+            {conPlata && pedidos.length > 1 && <ConfirmarTodos pedidos={pedidos.map((c) => ({ id: c.id, cuando: cuandoPedido(c) }))} />}
           </div>
           <ul className="grid gap-2">
             {otrosPedidos.map((c) => (
               <li key={c.id}>
-                <TarjetaClase estado={c.estado} hora={cuandoPedido(c)} nombre={c.nombre} detalle={detalleClase(c)} qa="pedido">
-                  <AccionesClase c={aAcciones(c)} conProxima={false} />
+                <TarjetaClase estado={c.estado} hora={cuandoPedido(c)} nombre={c.nombre} detalle={detalleClase(c, conPlata)} qa="pedido">
+                  {conPlata && <AccionesClase c={aAcciones(c)} conProxima={false} />}
                 </TarjetaClase>
               </li>
             ))}
@@ -143,8 +143,8 @@ async function ContenidoHoy({ conPlata }: { conPlata: boolean }) {
       {proxima ? (
         <section className="mb-5" aria-label="Próxima clase" data-qa="proxima">
           <h2 className={titulo}>Próxima clase</h2>
-          <TarjetaClase destacada estado={proxima.estado} pago={proxima.pagoEstado} hora={horaHumana(proxima.empiezaEn)} nombre={proxima.nombre} detalle={detalleProxima(proxima)}>
-            <AccionesClase c={aAcciones(proxima)} otras={otrasDeHoy} />
+          <TarjetaClase destacada estado={proxima.estado} pago={conPlata ? proxima.pagoEstado : undefined} hora={horaHumana(proxima.empiezaEn)} nombre={proxima.nombre} detalle={detalleProxima(proxima, conPlata)}>
+            {conPlata && <AccionesClase c={aAcciones(proxima)} otras={otrasDeHoy} />}
           </TarjetaClase>
         </section>
       ) : (
@@ -162,7 +162,7 @@ async function ContenidoHoy({ conPlata }: { conPlata: boolean }) {
             <h2 className="text-sm font-bold uppercase tracking-wide text-strong">El resto de hoy</h2>
             {(vivasHoy.length > 0 || huecos.length > 0) && <BotonSuspender fecha={fecha} etiquetaDia="hoy" clases={otrasDeHoy} />}
           </div>
-          <LineaDelDia fecha={fecha} clases={resto} huecos={huecos} otras={otrasDeHoy} qa="clase-hoy" />
+          <LineaDelDia fecha={fecha} clases={resto} huecos={huecos} otras={otrasDeHoy} qa="clase-hoy" conPlata={conPlata} />
         </section>
       )}
 
@@ -170,11 +170,11 @@ async function ContenidoHoy({ conPlata }: { conPlata: boolean }) {
         <section className="mb-5" aria-label="Mañana" data-qa="manana">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-sm font-bold uppercase tracking-wide text-strong">Mañana ({deManana.length})</h2>
-            <RecordarTodos clases={aRecordar.map((c) => ({ id: c.id, cuando: `mañana ${horaHumana(c.empiezaEn)}` }))} />
+            {conPlata && <RecordarTodos clases={aRecordar.map((c) => ({ id: c.id, cuando: `mañana ${horaHumana(c.empiezaEn)}` }))} />}
           </div>
           <ul className="grid gap-2">
             {deManana.map((c) => (
-              <FilaClase key={c.id} c={c} otras={otrasDeManana} recordada={recordadas.includes(c.id)} qa="clase-manana" />
+              <FilaClase key={c.id} c={c} otras={otrasDeManana} recordada={recordadas.includes(c.id)} qa="clase-manana" conPlata={conPlata} />
             ))}
           </ul>
         </section>
@@ -207,12 +207,12 @@ async function ContenidoHoy({ conPlata }: { conPlata: boolean }) {
   );
 }
 
-function detalleProxima(c: Awaited<ReturnType<typeof hoy>>["deHoy"][number]): string {
+function detalleProxima(c: Awaited<ReturnType<typeof hoy>>["deHoy"][number], conPlata: boolean): string {
   return [
     c.club ? `En ${c.club}` : null,
     c.tipo === "GRUPAL" ? `Con amigos · ${c.personas}` : "Individual",
     c.serieId ? "fija semanal" : null,
-    c.precio > 0 ? plataTexto(c.precio) : null,
+    conPlata && c.precio > 0 ? plataTexto(c.precio) : null,
     c.dadas > 0 ? `${nClases(c.dadas)} con vos` : "alumno nuevo",
   ]
     .filter(Boolean)

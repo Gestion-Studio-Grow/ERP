@@ -133,7 +133,7 @@ export default async function ClasesSemana({ searchParams }: { searchParams: Pro
                 ) : !hayAlgo ? (
                   <p className="text-sm text-muted">{pasado ? "No hubo clases." : "Sin horarios libres."}</p>
                 ) : (
-                  <LineaDelDia fecha={d.fecha} clases={d.clases} huecos={d.huecos} bloqueos={d.bloqueos} qa="clase-semana" />
+                  <LineaDelDia fecha={d.fecha} clases={d.clases} huecos={d.huecos} bloqueos={d.bloqueos} qa="clase-semana" conPlata={conPlata} />
                 )}
               </section>
             );
