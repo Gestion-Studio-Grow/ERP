@@ -7,7 +7,7 @@ import SubmitButton from "@/components/SubmitButton";
 import { Input, Select, Field, buttonClasses } from "@/components/ui";
 import { fmtDateTime } from "@/lib/datetime";
 import { etiquetaDeRol, rolSinPantallas, rolesParaAlta } from "./roles";
-import { appDelPanelCerrado } from "@/apps/visibles";
+import { appDelPanelCerrado, capacidadConApp } from "@/apps/visibles";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import UsuariosRenglon from "./UsuariosRenglon";
 import { canCurrentUser } from "@/lib/authz";
@@ -85,13 +85,13 @@ export default async function UsuariosPage({
     matriz = (
       <>
         <MatrizDePermisos matriz={tabla} conTabla={datos.conTabla} />
-        <ModoSimplePorPersona personas={personasSimple} conTabla={datos.conTabla} />
+        <ModoSimplePorPersona personas={personasSimple} conTabla={datos.conTabla} sinAgenda={esMostrador} />
       </>
     );
   }
 
   // Diseño nuevo («Renglón»): las mismas acciones y los mismos campos. Apagado, igual que siempre.
-  if (nuevo) return <UsuariosRenglon users={users} roles={roles} esMostrador={esMostrador} banner={banner} fichas={fichas} matriz={matriz} />;
+  if (nuevo) return <UsuariosRenglon users={users} roles={roles} esMostrador={esMostrador} banner={banner} fichas={fichas} matriz={matriz} alcanza={esMostrador ? (rol, cap) => capacidadConApp(cap, rol, negocio) : undefined} />;
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-8">

@@ -30,7 +30,7 @@ import { Icono } from "./Icono";
 import { Kbd } from "./Kbd";
 import { atributosBoton, buttonClasses } from "./Button";
 import { buscarComandos, resaltar, type Comando, type GrupoDeFichas, type HuecoDeFicha } from "./comandos-core";
-import { LARGO_MINIMO, type GrupoDeRegistros } from "@/lib/buscador/registros-core";
+import { LARGO_MINIMO, alcanzaParaBuscar, type GrupoDeRegistros } from "@/lib/buscador/registros-core";
 import type { ResultadoDeBusqueda } from "@/lib/buscador/buscar-en-el-negocio";
 
 export type BuscarRegistros = (q: string) => Promise<ResultadoDeBusqueda>;
@@ -178,13 +178,16 @@ function Contenido({
     if (demora.current) clearTimeout(demora.current);
     const esta = ++vuelta.current;
     const q = valor.trim();
-    if (q.length < LARGO_MINIMO) {
+    if (!alcanzaParaBuscar(q)) {
       setRegistros({ fase: "quieto", grupos: [] });
       setFichas({ fase: "quieto", grupos: [] });
       return;
     }
+    // Un solo número («3») busca el pedido; las fichas siguen pidiendo dos letras.
+    const conFichas = !!buscarFichas && q.length >= LARGO_MINIMO;
+    if (!conFichas) setFichas({ fase: "quieto", grupos: [] });
     if (buscarRegistros) setRegistros((r) => ({ fase: "buscando", grupos: r.grupos }));
-    if (buscarFichas) setFichas((r) => ({ fase: "buscando", grupos: r.grupos }));
+    if (conFichas) setFichas((r) => ({ fase: "buscando", grupos: r.grupos }));
     demora.current = setTimeout(() => {
       buscarRegistros?.(q)
         .then((res) => {
@@ -195,7 +198,7 @@ function Contenido({
           if (esta !== vuelta.current) return;
           setRegistros({ fase: "error", grupos: [], mensaje: "No pudimos buscar clientes, productos ni pedidos. Revisá la conexión y probá de nuevo." });
         });
-      buscarFichas?.(q)
+      if (conFichas) buscarFichas?.(q)
         .then((res) => {
           if (esta !== vuelta.current) return;
           setFichas(res.ok ? { fase: "quieto", grupos: res.grupos } : { fase: "error", grupos: [], mensaje: res.mensaje });

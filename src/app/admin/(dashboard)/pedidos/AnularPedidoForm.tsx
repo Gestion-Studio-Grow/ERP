@@ -148,7 +148,7 @@ export default function AnularPedidoForm({
         maxLength={MOTIVO_MAX}
         aria-required={motivoObligatorio || undefined}
         aria-invalid={error ? true : undefined}
-        placeholder="Ej.: se pesó mal, eran 1,310 kg"
+        placeholder="Ej.: se cargó mal, era otro producto"
         className="h-11 rounded-md border border-line-strong bg-surface-raised px-3 text-sm text-strong placeholder:text-faint focus:border-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
       />
       {conCodigo && conPlata && (

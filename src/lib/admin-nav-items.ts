@@ -261,18 +261,28 @@ export function rutaPermitidaParaModulos(path: string, modules: readonly string[
 // MODO SIMPLE (Tanda 1, CH): la barra de una tarea por pantalla.
 // ============================================================================
 //
-// Hoy, Agenda, Clientes y Caja, en ese orden, y sólo los que la persona YA ve (es un recorte de su
+// Hoy, Agenda, Clientes y Caja (en un comercio sin Agenda: Hoy, Pedidos, Vender, Caja y Clientes), en ese orden, y sólo los que la persona YA ve (es un recorte de su
 // barra: nunca agrega una pantalla que el rol no le da). «Ver todo» no es un ítem: lo pone el layout
 // en una franja fija arriba del contenido (FranjaModoSimple), siempre visible. ESCONDER NO ES
 // PROHIBIR: las demás rutas siguen abriendo por su URL con su guarda de siempre. PURA.
 // Decisión: Factory-GSG/00-ESTADO/MODO-SIMPLE-DECISION.md §1–§3.
 export const RUTAS_DEL_MODO_SIMPLE = ["/admin", "/admin/turnos", "/admin/clientes", "/admin/caja"] as const;
 
+/**
+ * El modo simple de un comercio (sin Agenda en su barra): Hoy, Pedidos, Vender, Caja y Clientes. UAT
+ * retail 07-08/11 (callejón C3/C5): con la lista de CH una cajera perdía Pedidos y Vender y su Inicio
+ * decía «Nada pide atención» con pedidos de la tienda esperando. CH tiene Agenda: no cambia.
+ */
+export const RUTAS_DEL_MODO_SIMPLE_SIN_AGENDA = ["/admin", "/admin/pedidos", "/admin/vender", "/admin/caja", "/admin/clientes"] as const;
+
 /** Rótulo de mostrador del Inicio en modo simple. */
 export const ROTULO_HOY = "Hoy";
 
 export function menuDeModoSimple<T extends { href: string; label: string }>(menu: readonly T[]): T[] {
-  return RUTAS_DEL_MODO_SIMPLE.flatMap((href) =>
+  const rutas: readonly string[] = menu.some((i) => i.href === "/admin/turnos") || !menu.some((i) => i.href === "/admin/pedidos")
+    ? RUTAS_DEL_MODO_SIMPLE
+    : RUTAS_DEL_MODO_SIMPLE_SIN_AGENDA;
+  return rutas.flatMap((href) =>
     menu.filter((i) => i.href === href).map((i) => (href === "/admin" ? { ...i, label: ROTULO_HOY } : i)),
   );
 }

@@ -147,7 +147,7 @@ export default async function CatalogoPage({ searchParams }: { searchParams: Pro
             ]}
           />
           <div className="mt-10">
-            <PlanillaCortes />
+            <PlanillaCortes vocabulario={vocabularioDelRubro(rubro.rubro)} />
           </div>
         </main>
       );
@@ -196,7 +196,7 @@ export default async function CatalogoPage({ searchParams }: { searchParams: Pro
         </div>
         <div className="space-y-10">
           {/* Planilla (bajar/subir en Excel): sólo acá, en la rama retail. CH no la ve. */}
-          <PlanillaCortes />
+          <PlanillaCortes vocabulario={vocabularioDelRubro(rubro.rubro)} />
           <CortesSection cortes={cortes} catalogHeading={heading} conCostos={conCostos} vocabulario={vocabularioDelRubro(rubro.rubro)} />
         </div>
       </main>

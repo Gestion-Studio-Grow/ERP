@@ -116,15 +116,31 @@ export async function buscarEnElNegocio(q: unknown): Promise<ResultadoDeBusqueda
           : [];
 
       let pedidos: PedidoLeido[] = [];
-      if ((permisos.pedidos || permisos.ventas) && codigo !== null) {
-        const filas = await tx.order.findMany({
-          where: { OR: rangosDeCodigo(codigo).map((r) => ({ code: r })) },
+      // Por número (con o sin #), por el nombre de quien pidió o por su teléfono (UAT retail 07-08/11:
+      // «3», un nombre o un teléfono daban 0). El teléfono sólo con `clients:contact`, como en Clientes,
+      // y con 6 cifras o más: la base guarda el teléfono con formato, así que se trae por las últimas 4
+      // y se confirma acá con todas las cifras.
+      const porTelefonoDelPedido = veContacto && digitos !== null && digitos.length >= 6 ? digitos : null;
+      const condiciones = [
+        ...(codigo !== null ? rangosDeCodigo(codigo).map((r) => ({ code: r })) : []),
+        ...(digitos === null ? [{ customerName: { contains: texto, mode: "insensitive" as const } }] : []),
+        ...(porTelefonoDelPedido ? [{ customerPhone: { endsWith: porTelefonoDelPedido.slice(-4) } }] : []),
+      ];
+      if ((permisos.pedidos || permisos.ventas) && condiciones.length > 0) {
+        const leidas = await tx.order.findMany({
+          where: { OR: condiciones },
           // El exacto y los más nuevos: el orden fino lo pone `armarRegistros`.
           orderBy: { code: "desc" },
           take: FILAS_A_LEER,
-          select: { id: true, code: true, customerName: true, status: true, total: true, createdAt: true },
+          select: { id: true, code: true, customerName: true, customerPhone: true, status: true, total: true, createdAt: true },
         });
-        const exacto = filas.some((f) => f.code === codigo)
+        const filas = leidas.filter(
+          (f) =>
+            (codigo !== null && String(f.code).startsWith(String(codigo))) ||
+            digitos === null ||
+            (porTelefonoDelPedido !== null && f.customerPhone.replace(/\D/g, "").includes(porTelefonoDelPedido)),
+        );
+        const exacto = codigo === null || filas.some((f) => f.code === codigo)
           ? []
           : await tx.order.findMany({ where: { code: codigo }, take: 1, select: { id: true, code: true, customerName: true, status: true, total: true, createdAt: true } });
         const todas = [...exacto, ...filas];

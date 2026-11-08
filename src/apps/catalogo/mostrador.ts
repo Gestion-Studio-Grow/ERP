@@ -52,6 +52,7 @@ export const APPS_MOSTRADOR = [
     // rubro de mostrador ya deja afuera a CH, también por URL.
     modulo: "pos",
     rubro: "mostrador",
+    soloSiPesa: true,
     estado: "lista",
     palabras: ["balanza", "etiqueta", "plu", "lector", "codigo de barras", "peso", "cable", "usb"],
     menuDeHoy: { etiqueta: "Balanza y lector", orden: 145 },

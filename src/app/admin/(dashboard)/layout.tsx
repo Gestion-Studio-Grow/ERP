@@ -22,6 +22,8 @@ import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
 import { densityForProfile } from "@/lib/profile-density";
 import { navGroupingEnabled } from "@/modules";
 import { menuDeModoSimple, rutaPermitidaParaModulos } from "@/lib/admin-nav-items";
+// En un comercio «Recepción» se dice «Mostrador», como en Usuarios (UAT retail 07-08/11).
+import { etiquetaDeRol } from "./usuarios/roles";
 import { modoSimpleDeLaSesion } from "@/lib/modo-simple.server";
 import FranjaModoSimple from "./FranjaModoSimple";
 import { productoUsaTienda } from "@/lib/producto-identidad";
@@ -31,7 +33,7 @@ import { appDeGestionVisible, appEnLaBarra, ROL_LABEL } from "@/lib/proyectos/ge
 import { prisma } from "@/lib/prisma";
 import { BarraGestion } from "./proyectos/_barra";
 import { appDeRuta } from "@/apps/rutas";
-import { appCasa, appDelPanelCerrado, appsDeLaCasa, appsVisibles, barraDeCH, conCierreDelMesEnLaBarra, conProyectosEnLaBarra, proyectarMenuDeHoy, rutaDeLaCasa, rutaFueraDelPanel } from "@/apps/visibles";
+import { appCasa, appDelPanelCerrado, appsDeLaCasa, appsVisibles, barraDeCH, conCierreDelMesEnLaBarra, conProyectosEnLaBarra, conVenderEnLaBarra, proyectarMenuDeHoy, rutaDeLaCasa, rutaFueraDelPanel } from "@/apps/visibles";
 import { esteticaBackoffice } from "@/lib/estetica-backoffice";
 import { esEstetica } from "@/lib/palabras-del-negocio";
 import { claseDeFuentes } from "@/lib/estetica-backoffice-fuentes";
@@ -285,7 +287,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     }
   }
   // Con tienda (Comerciante), «Cierre del mes» entra a la barra detrás de «Cierre del día»; CH no cambia.
-  const barra = conProyectosEnLaBarra(conCierreDelMesEnLaBarra(proyectarMenuDeHoy(visibles), visibles, productoUsaTienda(productoCtx.producto)), visibles);
+  const barra = conVenderEnLaBarra(conProyectosEnLaBarra(conCierreDelMesEnLaBarra(proyectarMenuDeHoy(visibles), visibles, productoUsaTienda(productoCtx.producto)), visibles), visibles);
   const menuCompleto = esEstetica(slugDelNegocio) ? barraDeCH(barra, visibles, user.role) : barra;
   // MODO SIMPLE (por persona, src/lib/modo-simple.ts): la barra se recorta a Hoy, Agenda, Clientes y
   // Caja; «Ver todo» va en la franja de arriba del contenido. Sin la preferencia, nada cambia.
@@ -372,7 +374,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
                 {children}
               </PanelDeCasa>
             ) : (
-              <AdminShell role={user.role} rolVisible={actor ? ROL_LABEL[actor.rol] : undefined} userName={user.name} brandName={brandName} monogram={monogram} logo={logo} letraDelNegocio={estetica !== null} menu={menu} apps={modoApps ? visibles : []} modoApps={modoApps} esMostrador={negocioApps.esMostrador} navGrouping={navGroupingEnabled()} activeProfile={activeProfile} showPublicSite={productoCtx.producto === "vertical"} {...(nav ? { nav } : {})} {...(pedidosNuevos ? { pedidosNuevos } : {})} modoSimple={simple.prefiere}>
+              <AdminShell role={user.role} rolVisible={actor ? ROL_LABEL[actor.rol] : negocioApps.esMostrador ? etiquetaDeRol(user.role, true) : undefined} userName={user.name} brandName={brandName} monogram={monogram} logo={logo} letraDelNegocio={estetica !== null} menu={menu} apps={modoApps ? visibles : []} modoApps={modoApps} esMostrador={negocioApps.esMostrador} navGrouping={navGroupingEnabled()} activeProfile={activeProfile} showPublicSite={productoCtx.producto === "vertical"} {...(nav ? { nav } : {})} {...(pedidosNuevos ? { pedidosNuevos } : {})} modoSimple={simple.prefiere}>
                 <FranjaModoSimple estado={simple} ruta={rutaActual} />
                 {/* Cómo se llama el retiro y qué ejemplo lleva la nota, según el rubro (una perfumería
                     entrega en un punto de encuentro, no en un local): sale del rubro ya leído arriba. */}

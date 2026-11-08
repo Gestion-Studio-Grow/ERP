@@ -924,6 +924,7 @@ async function chatDelPedido(tenantId: string, orderId: string, negocio: string)
         fulfillment: true,
         address: true,
         customerName: true,
+        notes: true,
         items: { select: { productId: true, name: true, saleUnit: true, quantity: true, lineTotal: true }, orderBy: { id: "asc" } },
       },
     }),
@@ -944,6 +945,7 @@ async function chatDelPedido(tenantId: string, orderId: string, negocio: string)
       total: o.total,
       fulfillment: o.fulfillment,
       address: o.address,
+      nota: o.notes,
     }),
   );
 }
@@ -1355,7 +1357,10 @@ async function anularVentaCore(
 
   // El mensaje DICE lo que se movió. Una anulación que sólo contesta "listo" obliga a ir a
   // mirar el libro y el stock para saber si hizo algo.
-  const partes: string[] = [`Venta #${resultado.code} anulada.`];
+  // Sin plata que volver (ni del libro ni de la cuenta corriente) era un pedido sin cobrar, no una venta
+  // (UAT retail 07-08/11: «Venta #8 anulada» por un pedido de la tienda).
+  const eraPedido = resultado.montoRevertido === 0 && !cuenta.anulada;
+  const partes: string[] = [eraPedido ? `Pedido #${resultado.code} anulado.` : `Venta #${resultado.code} anulada.`];
   if (resultado.montoRevertido > 0) {
     partes.push(`Se devolvieron ${fmtMoneyARS(resultado.montoRevertido)} en el libro de caja.`);
   }

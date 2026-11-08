@@ -20,6 +20,7 @@ import "dotenv/config";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { getBlueprint } from "../src/blueprints";
+import { resolveRubroId } from "../src/blueprints/retail/rubros";
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);
@@ -75,6 +76,18 @@ async function main() {
       `ABORTADO: ${before.appointment} Appointment(s) en ${slug}. No se purga sobre reservas reales; ` +
         "revisar a mano.",
     );
+  }
+  // Un comercio no tiene agenda: un usuario Profesional activo quedaría encerrado en «Agenda no está
+  // disponible», sin menú (UAT retail 07-08/11, A Dos Manos C4). Se frena antes de convertir: primero
+  // se lo pasa a Mostrador (RECEPTION) o se lo da de baja desde Usuarios.
+  if (resolveRubroId({ blueprintId: to }) !== null) {
+    const profesionales = await prisma.user.count({ where: { tenantId, role: "PROFESSIONAL", active: true, deletedAt: null } });
+    if (profesionales > 0) {
+      throw new Error(
+        `ABORTADO: ${profesionales} usuario(s) Profesional activo(s) en ${slug}. Un comercio no tiene agenda y ` +
+          "quedarían sin pantallas: pasalos a Mostrador o dalos de baja en Usuarios, y volvé a correr.",
+      );
+    }
   }
   if (!apply) {
     console.log("\n[dry-run] No se escribió nada. Reejecutá con --apply para aplicar.");

@@ -24,7 +24,7 @@ import { logger } from "@/lib/logger";
 import type { Role } from "@/lib/capabilities";
 import { getActiveProfile } from "@/lib/profile-gating";
 import { lotesYDespieceListos } from "@/lib/carniceria/schema-probe";
-import { resolveRubroId } from "@/blueprints/retail/rubros";
+import { resolveRubroId, rubroVendePorPeso } from "@/blueprints/retail/rubros";
 import { catalogo } from "@/modules/catalog";
 import { moduleRegistryEnabled } from "@/modules/flags";
 import { appsOcultasDelNegocio, enInicioPorAppsDelNegocio } from "@/cambios/interruptores.server";
@@ -90,6 +90,8 @@ export const getNegocioApps = cache(async (role: Role): Promise<NegocioApps> => 
     // El mismo criterio que la barra (getCurrentTenantRubro): blueprint retail conocido o,
     // si no hay, el mapa por slug (los locales de MAGRA se llaman magra-<localidad>).
     esMostrador: t ? resolveRubroId({ slug: t.slug, blueprintId: t.blueprintId }) != null : false,
+    // Balanza y lector sólo donde se pesa: una tienda de pádel o de velas no (UAT retail 07-08/11).
+    vendePorPeso: t ? rubroVendePorPeso(resolveRubroId({ slug: t.slug, blueprintId: t.blueprintId })) : true,
     carniceriaLista,
     // Las apps que GSG ocultó en este negocio. Nunca en un negocio con candado del dueño (CH): aunque
     // hubiera una fila, su menú queda como siempre (paridad-menu.test.ts). Sin la fila del negocio,

@@ -194,6 +194,8 @@ export function mensajeWhatsAppDelPedido(p: {
   total: number;
   fulfillment: "PICKUP" | "DELIVERY" | string;
   address: string | null;
+  /** La nota del pedido: lleva los talles («Talles: …, talle 40 (x1).») y lo que escribió quien pidió. */
+  nota?: string | null;
 }): string {
   const renglones: string[] = [`¡Hola ${p.negocio}! Te escribo por mi pedido #${p.code} de la tienda:`];
   for (const l of p.lineas) {
@@ -210,6 +212,9 @@ export function mensajeWhatsAppDelPedido(p: {
       ? `Entrega: envío a domicilio${p.address ? ` (${p.address})` : ""}`
       : "Entrega: retiro en el local",
   );
+  // Sin la nota el local recibía «1 u · Zapatillas …» sin el talle (UAT retail 07-08/11, A Dos Manos).
+  const nota = p.nota?.trim();
+  if (nota) renglones.push(`Nota: ${nota}`);
   renglones.push(`A nombre de: ${p.cliente}`);
   return renglones.join("\n");
 }
