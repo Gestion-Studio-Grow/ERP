@@ -99,7 +99,10 @@ export async function proxy(request: NextRequest) {
   // los layouts/páginas de /admin no reciben el pathname por props, y el gating por-URL
   // del producto Comerciante (layout del dashboard) lo necesita para mapear ruta → módulo.
   // Ver `NextResponse.next({ request: { headers } })` (proxy de Next 16).
+  // El `x-pathname` que mande el cliente se descarta siempre: lo único que llega al server es el de acá. Todo camino
+  // que deja seguir la request usa `pass()` o reenvía `requestHeaders` (certificación GSG-SEG-002, cert 3).
   const requestHeaders = new Headers(request.headers);
+  requestHeaders.delete("x-pathname");
   requestHeaders.set("x-pathname", pathname);
   const pass = () => NextResponse.next({ request: { headers: requestHeaders } });
 
@@ -159,7 +162,7 @@ export async function proxy(request: NextRequest) {
     // navegador la línea de OPERADORES (no lee ni escribe nada del servidor: la clave no sale de la
     // pantalla). Por ruta exacta: nada debajo de ellas queda público.
     if (pathname === "/operador/login" || pathname === "/operador/login/ingresar" || pathname === "/operador/clave") {
-      return NextResponse.next();
+      return pass();
     }
     const opToken = request.cookies.get(getOperatorCookieName())?.value;
     if (!(await readOperatorToken(opToken))) {
@@ -167,7 +170,7 @@ export async function proxy(request: NextRequest) {
       loginUrl.searchParams.set("next", pathname);
       return NextResponse.redirect(loginUrl);
     }
-    return NextResponse.next();
+    return pass();
   }
 
   // --- Modo SANDBOX de preventa (docs/preventa/plan-acceso-sandbox-sin-password.md).
@@ -180,7 +183,7 @@ export async function proxy(request: NextRequest) {
 
   // Lo que hay debajo (segundo paso, Google) pasa antes de que exista la sesión; cada ruta controla su propio pase.
   if (pathname === "/admin/login" || pathname.startsWith("/admin/login/")) {
-    return NextResponse.next();
+    return pass();
   }
 
   // A partir de acá vive el PORTÓN DE TENANT (/admin y /contador). Hasta que el
@@ -230,7 +233,18 @@ export const config = {
   // pasarlos por el middleware sólo agrega latencia a cada imagen. `/api` entra al
   // matcher pero el portón lo deja pasar (webhooks y cron no tienen navegador donde
   // tipear una clave); las rutas de tenant que ya tenían portón siguen igual.
+  //
+  // Las superficies sensibles pasan SIEMPRE, aunque la ruta termine en una extensión de la lista (`/admin/x.txt` caía
+  // en una página dinámica sin portón: certificación GSG-SEG-002, cert 3). Next corre el proxy si cualquier entrada
+  // del matcher coincide.
   matcher: [
+    "/admin/:path*",
+    "/operador/:path*",
+    "/contador/:path*",
+    "/facturita/:path*",
+    "/api/:path*",
+    "/club-crudo/:path*",
+    "/previews/:path*",
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif|ico|txt|xml|woff|woff2)$).*)",
   ],
 };
