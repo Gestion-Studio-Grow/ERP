@@ -13,7 +13,7 @@ import { useRouter } from "next/navigation";
 import { guardarCampoConfig } from "@/lib/padel/acciones-config";
 import { buttonClasses, cn } from "@/components/ui";
 import { tarjeta } from "../_vista";
-import { CampoAuto, ChipsAuto } from "../config/_campo";
+import { CampoAuto, ChipsAuto, DatoSoloDelDuenio } from "../config/_campo";
 import { CompartirLink, CopiarLink, copiar } from "../config/_compartir";
 import { EditorHorarios } from "../config/horarios/EditorHorarios";
 import { DURACIONES } from "../config/reglas/opciones";
@@ -27,6 +27,8 @@ type Datos = {
   whatsappProfe: string;
   aliasCbu: string;
   titularCuenta: string;
+  /** La cuenta de cobro la cambia sólo el dueño (UAT 11/2026); los demás la ven. */
+  cuentaEditable: boolean;
   precioIndividual: number;
   duracionMin: number;
   semana: Semana;
@@ -78,8 +80,14 @@ export function Asistente({ datos }: { datos: Datos }) {
             <p className="text-sm text-muted">Paso 1 de 3. Se guarda solo.</p>
           </div>
           <CampoAuto clave="whatsappProfe" etiqueta="Tu celular (WhatsApp)" inicial={datos.whatsappProfe} formato="celular" tipo="tel" inputMode="tel" placeholder="11 5555-1234" ayuda="Con código de área." qa="b-whatsapp" />
-          <CampoAuto clave="aliasCbu" etiqueta="Tu alias o CBU" inicial={datos.aliasCbu} placeholder="matias.padel" maxLength={60} qa="b-alias" />
-          <CampoAuto clave="titularCuenta" etiqueta="Titular de la cuenta (si querés)" inicial={datos.titularCuenta} maxLength={80} qa="b-titular" />
+          {datos.cuentaEditable ? (
+            <>
+              <CampoAuto clave="aliasCbu" etiqueta="Tu alias o CBU" inicial={datos.aliasCbu} placeholder="matias.padel" maxLength={60} qa="b-alias" />
+              <CampoAuto clave="titularCuenta" etiqueta="Titular de la cuenta (si querés)" inicial={datos.titularCuenta} maxLength={80} qa="b-titular" />
+            </>
+          ) : (
+            <DatoSoloDelDuenio etiqueta="Alias o CBU" valor={datos.aliasCbu} qa="b-alias-fijo" />
+          )}
           <button type="button" className={grande()} onClick={() => setPaso(1)} data-qa="b-siguiente-1">
             Siguiente
           </button>

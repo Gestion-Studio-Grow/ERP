@@ -40,13 +40,14 @@ export default async function ClasesBandeja({ searchParams }: { searchParams: Pr
   const [b, numero] = await Promise.all([bandeja(), badgePendientes()]);
   const mostrar = (s: Seccion) => ver === null || ver === s;
 
-  const grupos = new Map<string, { ids: string[]; nombre: string; total: number; comprobante: string | null; enviadoEl: Date | null; clases: { empiezaEn: Date; precio: number }[] }>();
+  const grupos = new Map<string, { ids: string[]; nombre: string; total: number; comprobante: string | null; enviadoEl: Date | null; clases: { empiezaEn: Date; precio: number; caida: boolean }[] }>();
   for (const c of b.comprobantes) {
     const clave = `${c.token}|${c.enviadoEl?.getTime() ?? c.id}`;
     const g = grupos.get(clave) ?? { ids: [], nombre: c.nombre, total: 0, comprobante: c.comprobante, enviadoEl: c.enviadoEl, clases: [] };
     g.ids.push(c.id);
     g.total += c.precio;
-    g.clases.push({ empiezaEn: c.empiezaEn, precio: c.precio });
+    // UAT 11/2026 (C2): el alumno canceló con el comprobante mandado. Se revisa igual (`revisionEnClaseCaida`).
+    g.clases.push({ empiezaEn: c.empiezaEn, precio: c.precio, caida: c.estado === "CANCELADA" || c.estado === "RECHAZADA" });
     grupos.set(clave, g);
   }
   const nada = b.pedidos.length === 0 && b.comprobantes.length === 0 && b.contadores.avisos === 0 && b.sinAvisar.length === 0;
@@ -123,9 +124,15 @@ export default async function ClasesBandeja({ searchParams }: { searchParams: Pr
                       <span key={i} className="capitalize">
                         {i > 0 && ", "}
                         {diaHumano(c.empiezaEn)} {horaHumana(c.empiezaEn)}
+                        {c.caida && <span className="font-semibold normal-case text-strong"> (cancelada)</span>}
                       </span>
                     ))}
                   </p>
+                  {g.clases.some((c) => c.caida) && (
+                    <p className="rounded-lg bg-surface-sunken p-3 text-sm text-strong" data-qa="comprobante-clase-caida">
+                      {g.clases.every((c) => c.caida) ? "La clase se canceló" : "Una de las clases se canceló"} y el comprobante quedó mandado. Si la plata entró, «Está bien» se la deja a favor para otra clase o para devolvérsela; si no es válido, se descarta y no se cobra.
+                    </p>
+                  )}
                   {g.comprobante && (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={g.comprobante} alt={`Comprobante que mandó ${g.nombre}`} className="max-h-96 w-full rounded-lg border border-line bg-surface-sunken object-contain" />

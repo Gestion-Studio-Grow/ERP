@@ -7,7 +7,8 @@
 // `guardarCampoConfig(clave, valor)`: el profe sale del campo y queda guardado, sin un «Guardar»
 // al pie. La clave viene de la pantalla, así que pasa por la LISTA BLANCA de config-campos.ts
 // (nunca se escribe una clave arbitraria) y cada una con su validación. Como el resto de las
-// acciones del profe: `agenda:manage`, todo acotado por `tenantId` y rastro en la auditoría.
+// acciones del profe: `agenda:manage` (la cuenta de cobro, sólo OWNER: `puedeCambiarAjuste`), todo
+// acotado por `tenantId` y rastro en la auditoría.
 //
 // Un campo simple es un `upsert` de UNA columna de PadelConfig (dos campos distintos a la vez no se
 // pisan). Los horarios: borrar y volver a crear las franjas semanales en una transacción.
@@ -27,7 +28,7 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapabilityFueraDeLaAgenda } from "@/lib/authz";
 import { auditAdmin } from "@/lib/audit-core";
 import { PLANTILLAS_DEFAULT } from "./core";
-import { plantillasConBienvenida, plantillasConCambio, validarCampoConfig, type TramoSemanal } from "./config-campos";
+import { SOLO_EL_DUENIO_COBRO, plantillasConBienvenida, plantillasConCambio, puedeCambiarAjuste, validarCampoConfig, type TramoSemanal } from "./config-campos";
 import { refrescar, type Resultado } from "./acciones-compartido";
 
 /**
@@ -55,7 +56,8 @@ export async function guardarCampoConfig(
 }
 
 async function guardarCampo(clave: string, valor: unknown): Promise<Resultado<{ valor: number | string | null | TramoSemanal[] }>> {
-  await requireCapabilityFueraDeLaAgenda("agenda:manage");
+  const user = await requireCapabilityFueraDeLaAgenda("agenda:manage");
+  if (!puedeCambiarAjuste(user.role, clave)) return { ok: false, error: SOLO_EL_DUENIO_COBRO };
   const tenantId = await getCurrentTenantId();
   const r = validarCampoConfig(clave, valor);
   if (!r.ok) return { ok: false, error: r.error };
