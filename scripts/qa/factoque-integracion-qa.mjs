@@ -19,6 +19,7 @@ import { chromium } from "playwright";
 import { spawn } from "node:child_process";
 import { createWriteStream, existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import http from "node:http";
+import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { crearBaseEfimera, prismaComoDuenio, CLAVE_DE_PRUEBA } from "../../src/test/base-efimera.ts";
@@ -31,6 +32,7 @@ const AUTH_SECRET = "qa-factoque-integracion-auth-secret-0123456789";
 const CLAVE_OPERADOR = "qa-clave-operador-factoque";
 const VP = { width: 390, height: 844 };
 const DEV = process.env.QA_MODO === "dev";
+const LLAVE_QA = randomBytes(32).toString("base64");
 const pasos = [];
 const log = (m) => process.stdout.write(`[qa-factoque] ${m}\n`);
 
@@ -55,6 +57,8 @@ async function levantar(base, arcaEncendida) {
     OPERATOR_DATABASE_URL: base.urlDuenio,
     MIGRATE_DATABASE_URL: base.urlDuenio,
     RLS_ENFORCEMENT: "on",
+    // Llave de cifrado DESCARTABLE, sólo para esta base efímera: el asistente cifra la clave privada del pedido.
+    FISCAL_MASTER_KEY: LLAVE_QA,
     APP_BASE_DOMAIN: "localhost",
     AUTH_SECRET,
     OPERATOR_SECRET: `${AUTH_SECRET}-operador`,
@@ -221,7 +225,25 @@ async function main() {
         await page.waitForLoadState("networkidle");
         const destino = new URL(page.url()).pathname + new URL(page.url()).search;
         if (destino === "/facturita/app") throw new Error(`«${await link.textContent().catch(() => "")}» (${href}) rebota a /facturita/app: no llega al asistente de ARCA · tarjeta «${txt.slice(0, 120)}»`);
-        return `tarjeta: «${txt.slice(0, 160)}» · enlace ${href} → ${destino}`;
+        if (new URL(page.url()).pathname !== "/facturita/app/arca") throw new Error(`«${href}» lleva a ${destino}, no a /facturita/app/arca`);
+        await conTexto(page, "Generar el pedido de certificado");
+        return `tarjeta: «${txt.slice(0, 160)}» · enlace ${href} → ${destino} · asistente a la vista`;
+      });
+      await paso("b2 asistente: generar el pedido vuelve a Factoque", page, errores, async () => {
+        await page.getByRole("button", { name: /Generar el pedido de certificado/ }).click();
+        await page.waitForURL((u) => u.searchParams.has("ok") || u.searchParams.has("error"), { timeout: 60_000 });
+        const u = new URL(page.url());
+        if (u.pathname !== "/facturita/app/arca") throw new Error(`después del paso quedó en ${u.pathname}, no en /facturita/app/arca`);
+        const aviso = u.searchParams.get("ok") ?? `ERROR: ${u.searchParams.get("error")}`;
+        await conTexto(page, "Generar otro pedido");
+        const pedidos = await duenio.auditLog.count({ where: { tenantId: T, action: "fiscal.csr.generado" } });
+        return `vuelve a ${u.pathname} · «${aviso.slice(0, 140)}» · pedidos en la base: ${pedidos}`;
+      });
+      await paso("b3 asistente → Volver a Mi cuenta", page, errores, async () => {
+        await page.getByRole("link", { name: /Volver a Mi cuenta/ }).click();
+        await page.waitForURL((u) => u.pathname === "/facturita/app/cuenta", { timeout: 30_000 });
+        const sec = page.locator("section[aria-labelledby='conectar-arca']");
+        return `de vuelta en Mi cuenta · tarjeta «${(await textoVisible(sec)).slice(0, 140)}»`;
       });
       await paso("c emitir con ARCA apagado queda Pendiente", page, errores, async () => {
         const exito = await emitirUna(page, origin, "Clase con ARCA apagado");
