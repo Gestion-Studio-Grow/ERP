@@ -17,7 +17,7 @@ publicar PR»), siempre igual y auditada en el PR.
 |---|---|---|
 | 1 · precondiciones | quien etiquetó tiene write o más (y figura en `PUBLICAR_QUIENES` si está cargada); PR abierto, no borrador, no fork, mergeable, 0 commits atrás de main; el último deploy de producción está READY (ni en curso ni en ERROR) y `/api/health` responde | frena |
 | 2 · CI igual que main | espera que terminen `gates.yml` y `release.yml` del commit del PR y compara **job por job** contra la última corrida de main. Un rojo que main también tiene (p. ej. la deuda de lint) no frena; un rojo nuevo, un job que falta o un job salteado que en main corre, sí | frena |
-| 3 · cambios | frena si el PR toca `.github/`, `scripts/publicar/`, `scripts/release/`, el build de Vercel, las vallas, `vercel.json` o los `scripts` de `package.json`; si modifica/borra/renombra una migración existente; si una migración nueva **no es aditiva** (DROP, ALTER TYPE/enum, DELETE, TRUNCATE, RENAME, cambio de tipo, SET NOT NULL, RLS apagado, REVOKE, roles, CREATE OR REPLACE, SQL dinámico u ofuscado); si una migración nueva no está en `prisma/lote-deploy.txt`; o si hay migraciones y Vercel Production no tiene `MIGRATE_DATABASE_URL` | frena |
+| 3 · cambios | frena si el PR toca `.github/`, `scripts/publicar/`, `scripts/release/`, el build de Vercel, las vallas, `vercel.json` o los `scripts` de `package.json`; si modifica/borra/renombra una migración existente; si una migración nueva **o cualquiera de las que nombra `prisma/lote-deploy.txt`** (el build aplica el lote) **no es aditiva**: DROP, ALTER TYPE/enum, DELETE, TRUNCATE, MERGE, upsert, RENAME, cambio de tipo, SET NOT NULL, UPDATE que pisa columnas existentes, RLS apagado o prendido sobre una tabla existente, políticas/triggers/reglas sobre tablas existentes, GRANT/REVOKE, roles, search_path, CALL, ALTER de funciones/vistas/secuencias, CREATE OR REPLACE, SQL dinámico u ofuscado; si una migración nueva no está en el lote; o si hay migraciones y Vercel Production no tiene `MIGRATE_DATABASE_URL` | frena |
 | 4 · respaldo | crea en Neon la rama `respaldo-pre-pr-<n>-<AAAAMMDD-hhmmss>` (UTC) desde la rama de producción | frena |
 | 5 · merge | vuelve a chequear que el PR siga etiquetado, sin commits nuevos y que main no se haya movido; mergea **el sha exacto** que pasó el CI (merge commit `Merge PR #n: …`) | frena |
 | 6 · Vercel | espera el deploy de producción del commit de merge hasta READY; después `/api/health` tiene que servir ese commit y `/api/ready` dar 200 | frena y avisa que el merge ya está en main |
@@ -70,7 +70,7 @@ Si falta un secreto, el workflow frena en el paso 1 y comenta cuál.
 
 - **No reemplaza la revisión del PR.** Verifica las reglas de publicación, no que el código sea bueno. Un PR que
   borra tests de la app y deja el CI verde se publica: la revisión del código sigue siendo de quien etiqueta.
-- **El detector de migraciones es conservador, no un parser de Postgres.** Ante la duda frena (p. ej. un `DROP`
+- **El detector de migraciones es conservador, no un parser de Postgres.** No puede saber qué hace una función que ya existe en la base si una migración la llama dentro de un SELECT (CALL sí frena). Ante la duda frena (p. ej. un `DROP`
   dentro de un string de un `COMMENT`, o un `CREATE OR REPLACE` de una función nueva). Lo que frena ahí es
   owner-level: lo publica el dueño a mano o con orden explícita. El SQL dinámico (`EXECUTE`) sólo pasa en el
   idioma de RLS por tenant de los módulos (ENABLE RLS + DROP POLICY IF EXISTS + CREATE POLICY `tenant_isolation`
@@ -92,4 +92,4 @@ Si falta un secreto, el workflow frena en el paso 1 y comenta cuál.
 `npm run test:publicar` (o `node --test scripts/publicar/*.test.mjs`): detector de migraciones (incluye
 calibración contra el historial real de `prisma/migrations`), comparación de CI por job, clasificación de
 archivos y un recorrido completo del script contra un GitHub/Vercel/Neon falsos (camino feliz, simulación y
-cada freno). Corren en el CI dentro de `release.yml` (job «tren»).
+cada freno, incluidos los intentos de evasión de la certificación adversarial). Corren en el CI dentro de `release.yml` (job «tren»).

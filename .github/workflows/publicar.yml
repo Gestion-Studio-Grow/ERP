@@ -71,7 +71,6 @@ jobs:
       PROD_URL: ${{ vars.PROD_URL }}
       NEON_BRANCH_ID: ${{ vars.NEON_BRANCH_ID }}
       VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
-      PUBLICAR_INFORME: ${{ runner.temp }}/publicar-informe.md
     steps:
       # Checkout de MAIN (el sha del evento pull_request_target), sin credenciales persistidas.
       - uses: actions/checkout@v4

@@ -87,7 +87,12 @@ function servidor(e) {
       if (p === `${R}/actions/runs/10/jobs`) return json({ jobs: e.jobsPr });
       if (p === `${R}/actions/runs/20/jobs`) return json({ jobs: e.jobsMain });
       if (p === `${R}/pulls/5/files`) return json(url.searchParams.get("page") === "1" ? e.archivos : []);
-      if (p === `${R}/contents/prisma/migrations`) return json([{ type: "dir", name: "20261108120000_vieja" }]);
+      if (p === `${R}/contents/prisma/migrations`) {
+        const dirs = [{ type: "dir", name: "20261108120000_vieja" }];
+        if (url.searchParams.get("ref") === HEAD) dirs.push({ type: "dir", name: "20261109120000_nueva" }, ...(e.dirsExtraHead ?? []));
+        return json(dirs);
+      }
+      if (p === `${R}/contents/prisma/migrations/20261108120000_vieja/migration.sql`) return raw(e.sqlVieja ?? "CREATE TABLE \"V\" (\"id\" TEXT);");
       if (p === `${R}/contents/prisma/migrations/20261109120000_nueva/migration.sql`) return raw(e.sql);
       if (p === `${R}/contents/prisma/lote-deploy.txt`) return raw(e.lote);
       if (p === `${R}/pulls/5/merge` && req.method === "PUT") {
@@ -216,6 +221,10 @@ for (const [nombre, cambios, pasoEsperado] of [
   ["migración con enum", { sql: `ALTER TYPE "Estado" ADD VALUE 'X';` }, "cambios"],
   ["migración fuera del lote", { lote: "# vacío\n" }, "cambios"],
   ["sin MIGRATE_DATABASE_URL en Vercel", { envVercel: [] }, "cambios"],
+  ["el lote nombra una migración vieja de main que no es aditiva", { archivos: [{ filename: "src/x.ts", status: "modified" }], lote: "20261108120000_vieja\n", sqlVieja: 'ALTER TABLE "Client" DROP COLUMN "x";' }, "cambios"],
+  ["el lote nombra una carpeta que no existe", { lote: "20261109120000_nueva\n../../etc\n" }, "cambios"],
+  ["UPDATE que pisa una columna existente", { sql: `UPDATE "Client" SET "email" = NULL;` }, "cambios"],
+  ["toca prisma.config.ts", { archivos: [{ filename: "prisma.config.ts", status: "modified" }] }, "cambios"],
   ["toca un workflow", { archivos: [{ filename: ".github/workflows/gates.yml", status: "modified" }] }, "cambios"],
   ["edita una migración existente", { archivos: [{ filename: "prisma/migrations/20261108120000_vieja/migration.sql", status: "modified" }] }, "cambios"],
   ["rama atrás de main", { behind: 2 }, "precondiciones"],

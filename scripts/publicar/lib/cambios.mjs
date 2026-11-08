@@ -20,6 +20,8 @@ export const RUTAS_SENSIBLES = [
   { exacta: "prisma/rls/check-rls-live.mjs", motivo: "corre en el build con la cadena de migración" },
   { exacta: "vercel.json", motivo: "comando de build y crons de producción" },
   { exacta: "prisma/migrations/migration_lock.toml", motivo: "proveedor de migraciones" },
+  { exacta: "prisma.config.ts", motivo: "dónde lee Prisma el schema y las migraciones" },
+  { exacta: "tsconfig.json", motivo: "qué revisa la valla de tipos (tsc)" },
 ];
 
 export function rutaSensible(ruta) {
@@ -29,6 +31,9 @@ export function rutaSensible(ruta) {
   }
   return null;
 }
+
+/** Nombres que vienen del PR, para un comentario: sin backticks (rompen el formato) ni menciones. */
+const s = (t) => String(t).replace(/`/g, "'").replace(/@/g, "@\u200b");
 
 const RE_MIGRACION = /^prisma\/migrations\/([^/]+)\/migration\.sql$/;
 
@@ -51,7 +56,7 @@ export function clasificarArchivos(archivos, migracionesEnMain = []) {
     const rutas = [a.filename, a.previous_filename].filter(Boolean);
     for (const r of rutas) {
       const motivo = rutaSensible(r);
-      if (motivo) bloqueos.push(`\`${r}\` (${a.status}): ${motivo}. Este PR lo publica el dueño a mano.`);
+      if (motivo) bloqueos.push(`\`${s(r)}\` (${s(a.status)}): ${motivo}. Este PR lo publica el dueño a mano.`);
     }
     if (rutas.includes("prisma/schema.prisma")) tocaSchema = true;
     if (rutas.includes("package.json")) tocaPackageJson = true;
@@ -63,24 +68,24 @@ export function clasificarArchivos(archivos, migracionesEnMain = []) {
     if (a.status === "added" && m && !a.previous_filename) {
       const carpeta = m[1];
       if (migracionesEnMain.includes(carpeta)) {
-        bloqueos.push(`\`${a.filename}\`: la carpeta \`${carpeta}\` ya existe en main.`);
+        bloqueos.push(`\`${s(a.filename)}\`: la carpeta \`${s(carpeta)}\` ya existe en main.`);
         continue;
       }
       nuevas.push(carpeta);
       if (!/^\d{14}_[A-Za-z0-9_]+$/.test(carpeta))
-        avisos.push(`\`${carpeta}\`: el nombre no sigue el formato \`AAAAMMDDhhmmss_nombre\`.`);
+        avisos.push(`\`${s(carpeta)}\`: el nombre no sigue el formato \`AAAAMMDDhhmmss_nombre\`.`);
       else if (ultimaEnMain && carpeta <= ultimaEnMain)
-        avisos.push(`\`${carpeta}\` es anterior a la última de main (\`${ultimaEnMain}\`): se aplica igual, pero fuera de orden.`);
+        avisos.push(`\`${s(carpeta)}\` es anterior a la última de main (\`${ultimaEnMain}\`): se aplica igual, pero fuera de orden.`);
       continue;
     }
     if (a.status === "added") {
-      avisos.push(`\`${a.filename}\`: archivo nuevo en prisma/migrations que no es un migration.sql (Prisma lo ignora).`);
+      avisos.push(`\`${s(a.filename)}\`: archivo nuevo en prisma/migrations que no es un migration.sql (Prisma lo ignora).`);
       continue;
     }
     // Modificar, borrar o renombrar una migración que ya existe: lo aplicado en producción y lo
     // que dice el repo dejan de coincidir. Nunca se publica solo.
     bloqueos.push(
-      `\`${a.previous_filename ?? a.filename}\`${a.previous_filename ? ` → \`${a.filename}\`` : ""} (${a.status}): cambia una migración existente. Lo aplicado en producción no se reescribe.`,
+      `\`${s(a.previous_filename ?? a.filename)}\`${a.previous_filename ? ` → \`${s(a.filename)}\`` : ""} (${s(a.status)}): cambia una migración existente. Lo aplicado en producción no se reescribe.`,
     );
   }
   return { bloqueos, avisos, nuevas: [...new Set(nuevas)].sort(), tocaSchema, tocaPackageJson };

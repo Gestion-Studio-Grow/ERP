@@ -135,7 +135,7 @@ export function limpiarComentarios(sql) {
  * (mismo largo). Sirve para ubicar sentencias reales: un `; CREATE TABLE` adentro de un string no
  * es una sentencia. Los cuerpos $tag$ son código y se recorren igual.
  */
-export function enmascararStrings(texto) {
+export function enmascararStrings(texto, { cuerpos = true } = {}) {
   const out = [];
   let i = 0;
   const n = texto.length;
@@ -169,7 +169,8 @@ export function enmascararStrings(texto) {
       if (m) {
         const fin = texto.indexOf(m[0], i + m[0].length);
         if (fin >= 0) {
-          out.push(m[0], enmascararStrings(texto.slice(i + m[0].length, fin)), m[0]);
+          const cuerpo = texto.slice(i + m[0].length, fin);
+          out.push(m[0], cuerpos ? enmascararStrings(cuerpo) : cuerpo.replace(/[^\n]/g, " "), m[0]);
           i = fin + m[0].length;
           continue;
         }
@@ -197,12 +198,16 @@ export function normalizarIdent(raw) {
   return raw.toLowerCase();
 }
 
-/** Tablas que la migración crea (CREATE TABLE al principio de una sentencia). */
+/**
+ * Tablas que la migración crea con certeza: `CREATE TABLE` (sin IF NOT EXISTS, que sobre una tabla
+ * existente no hace nada) al principio de una sentencia de NIVEL SUPERIOR. Uno dentro de un DO o una
+ * función puede no ejecutarse nunca (rama IF falsa), así que no cuenta.
+ */
 export function tablasCreadas(texto) {
   const set = new Set();
-  const re = new RegExp(String.raw`(?:^|;)\s*CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?${RE_TABLA}`, "gi");
+  const re = new RegExp(String.raw`(?:^|;)\s*CREATE\s+TABLE\s+${RE_TABLA}`, "gi");
   let m;
-  const mascara = enmascararStrings(texto);
+  const mascara = enmascararStrings(texto, { cuerpos: false });
   while ((m = re.exec(mascara))) set.add(normalizarIdent(m[1]));
   return set;
 }
@@ -219,6 +224,15 @@ function arreglosDeLoop(texto) {
     const previo = mapa.get(v);
     if (nombres.some((x) => x === null) || previo === null) mapa.set(v, null);
     else mapa.set(v, [...(previo ?? []), ...nombres]);
+  }
+  // Si la variable se asigna por otro lado (t := 'Client', t = …, SELECT … INTO t, FOR t IN SELECT,
+  // DECLARE t text DEFAULT …), el FOREACH no alcanza para saber a qué tabla apunta: no se resuelve.
+  for (const v of mapa.keys()) {
+    const asigna = new RegExp(
+      String.raw`\b${v}\s*(?::=|=)|\bINTO\s+(?:STRICT\s+)?(?:[A-Za-z_][A-Za-z0-9_]*\s*,\s*)*${v}\b|\bFOR\s+${v}\s+IN\b|\b${v}\b[^;]*?\bDEFAULT\b`,
+      "i",
+    );
+    if (asigna.test(texto)) mapa.set(v, null);
   }
   return mapa;
 }
@@ -400,6 +414,36 @@ const BLOQUEOS = [
   },
   { regla: "ALTER POLICY", re: /\bALTER\s+POLICY\b/gi, motivo: "cambia una política de aislamiento existente" },
   {
+    regla: "SEARCH_PATH",
+    re: /\bSET\s+(?:LOCAL\s+|SESSION\s+)?SEARCH_PATH\b|\bSET_CONFIG\s*\(/gi,
+    motivo: "cambia a qué esquema apuntan los nombres",
+  },
+  { regla: "GRANT", re: /\bGRANT\b/gi, motivo: "otorga permisos (cambiar permisos es owner-level)" },
+  { regla: "MERGE", re: /\bMERGE\s+INTO\b/gi, motivo: "MERGE puede actualizar o borrar filas existentes" },
+  { regla: "UPSERT", re: /\bDO\s+UPDATE\b/gi, motivo: "ON CONFLICT DO UPDATE pisa filas existentes" },
+  {
+    regla: "ALTER DE OBJETO EXISTENTE",
+    re: /\bALTER\s+(?:FUNCTION|PROCEDURE|ROUTINE|VIEW|MATERIALIZED\s+VIEW|TRIGGER|EXTENSION|DOMAIN|SCHEMA|DATABASE|TABLESPACE|PUBLICATION|SUBSCRIPTION|EVENT\s+TRIGGER|AGGREGATE|OPERATOR|LARGE\s+OBJECT|FOREIGN|SERVER|INDEX|STATISTICS|COLLATION|CONVERSION|TEXT\s+SEARCH|LANGUAGE|GROUP)\b/gi,
+    motivo: "cambia un objeto que ya existe",
+  },
+  { regla: "CALL", re: /\bCALL\b/gi, motivo: "ejecuta un procedimiento que ya existe: no se puede leer qué hace" },
+  {
+    regla: "TABLA MOVIDA / SIN LOG",
+    re: /\bSET\s+(?:SCHEMA|UNLOGGED|LOGGED|TABLESPACE)\b|\bDETACH\s+PARTITION\b/gi,
+    motivo: "mueve una tabla o cambia cómo se guarda",
+  },
+  { regla: "SECUENCIAS", re: /\bALTER\s+SEQUENCE\b|\bSETVAL\s*\(/gi, motivo: "toca una secuencia en uso (ids repetidos)" },
+  {
+    regla: "TRIGGER/REGLA APAGADO",
+    re: /\b(?:DISABLE|ENABLE\s+(?:REPLICA|ALWAYS))\s+(?:TRIGGER|RULE)\b/gi,
+    motivo: "apaga o cambia un control de la base",
+  },
+  {
+    regla: "RULE",
+    re: /\bCREATE\s+(?:OR\s+REPLACE\s+)?RULE\b/gi,
+    motivo: "una regla puede reescribir o descartar escrituras",
+  },
+  {
     regla: "CREATE OR REPLACE",
     re: /\bCREATE\s+OR\s+REPLACE\b/gi,
     motivo: "reemplaza una función/vista que puede existir (cambia comportamiento vigente)",
@@ -417,16 +461,87 @@ const BLOQUEOS = [
 ];
 
 const AVISOS = [
-  {
-    regla: "UPDATE",
-    re: new RegExp(String.raw`\bUPDATE\s+(?:ONLY\s+)?${RE_TABLA}\s+(?:AS\s+${RE_IDENT}\s+)?SET\b`, "gi"),
-    motivo: "modifica filas existentes (backfill)",
-  },
   { regla: "INSERT", re: /\bINSERT\s+INTO\b/gi, motivo: "inserta datos" },
+  { regla: "EXTENSIÓN", re: /\bCREATE\s+EXTENSION\b/gi, motivo: "instala una extensión de Postgres" },
   { regla: "SECURITY DEFINER", re: /\bSECURITY\s+DEFINER\b/gi, motivo: "función que corre con permisos del dueño" },
-  { regla: "GRANT", re: /\bGRANT\b/gi, motivo: "otorga permisos" },
   { regla: "OWNER TO", re: /\bOWNER\s+TO\b/gi, motivo: "cambia el dueño de un objeto" },
 ];
+
+
+/** Columnas que la migración agrega con certeza (ADD COLUMN sin IF NOT EXISTS, a nivel superior). */
+function columnasAgregadas(texto) {
+  const mapa = new Map();
+  const sup = enmascararStrings(texto, { cuerpos: false });
+  const re = new RegExp(String.raw`(?:^|;)\s*ALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:ONLY\s+)?${RE_TABLA}([^;]*)`, "gi");
+  let m;
+  while ((m = re.exec(sup))) {
+    const t = normalizarIdent(m[1]);
+    const reAdd = new RegExp(String.raw`\bADD\s+(?:COLUMN\s+)?(?!CONSTRAINT\b|PRIMARY\b|UNIQUE\b|CHECK\b|FOREIGN\b|EXCLUDE\b|IF\b)(${RE_IDENT})`, "gi");
+    for (const a of m[2].matchAll(reAdd)) {
+      if (!mapa.has(t)) mapa.set(t, new Set());
+      mapa.get(t).add(normalizarIdent(a[1]));
+    }
+  }
+  return mapa;
+}
+
+/**
+ * Cada `UPDATE T SET …`: si sólo escribe columnas que la misma migración agrega (o T es nueva) es
+ * un backfill (aviso); si escribe una columna que ya existía, PISA DATOS (bloqueo).
+ */
+function revisarUpdates(texto, creadas, agregadas, hallazgo, bloqueos, avisos) {
+  const mascara = enmascararStrings(texto); // strings vacíos: las comas de adentro no confunden
+  const re = new RegExp(
+    String.raw`\bUPDATE\s+(?:ONLY\s+)?${RE_TABLA}(?:\s+(?:AS\s+)?(?!SET\b)${RE_IDENT})?\s+SET\s+`,
+    "gi",
+  );
+  for (const m of mascara.matchAll(re)) {
+    const t = normalizarIdent(m[1]);
+    let i = m.index + m[0].length;
+    let prof = 0;
+    let item = "";
+    const items = [];
+    for (; i < mascara.length; i++) {
+      const c = mascara[i];
+      if (c === "(") prof++;
+      if (c === ")") prof--;
+      if (prof === 0 && (c === "," || c === ";")) {
+        items.push(item);
+        item = "";
+        if (c === ";") break;
+        continue;
+      }
+      if (prof === 0 && /\s(?:WHERE|FROM|RETURNING)\b/i.test(mascara.slice(i, i + 11))) {
+        items.push(item);
+        break;
+      }
+      item += c;
+    }
+    if (item && i >= mascara.length) items.push(item);
+    const cols = [];
+    let legible = items.length > 0;
+    for (const it of items) {
+      const lado = it.split("=")[0].trim().replace(/^\(|\)$/g, "");
+      for (const c of lado.split(",")) {
+        const mc = new RegExp(String.raw`^\s*(${RE_IDENT})`).exec(c);
+        if (mc) cols.push(normalizarIdent(mc[1]));
+        else legible = false;
+      }
+    }
+    const nuevas = agregadas.get(t) ?? new Set();
+    const pisa = cols.filter((c) => !nuevas.has(c));
+    if (creadas.has(t)) hallazgo(avisos, "UPDATE", "carga datos en una tabla nueva", m.index, m[0].length);
+    else if (!legible || pisa.length)
+      hallazgo(
+        bloqueos,
+        "UPDATE DE DATOS EXISTENTES",
+        legible ? `escribe columnas que ya existían (${pisa.join(", ")}): pisa datos` : "no se pudo leer qué columnas escribe",
+        m.index,
+        m[0].length,
+      );
+    else hallazgo(avisos, "UPDATE", `backfill de columna(s) nueva(s): ${cols.join(", ")}`, m.index, m[0].length);
+  }
+}
 
 /** @typedef {{ regla: string, motivo: string, linea: number, fragmento: string }} Hallazgo */
 
@@ -459,7 +574,7 @@ export function analizarSql(sql) {
       regla,
       motivo,
       linea: linea(texto, idx),
-      fragmento: texto.slice(idx, idx + Math.max(largo, 60)).replace(/\s+/g, " ").trim(),
+      fragmento: texto.slice(idx, idx + Math.max(largo, 60)).replace(/\s+/g, " ").replace(/`/g, "'").replace(/@/g, "@\u200b").trim(),
     });
 
   for (const r of BLOQUEOS) for (const m of texto.matchAll(r.re)) hallazgo(bloqueos, r.regla, r.motivo, m.index, m[0].length);
@@ -478,6 +593,8 @@ export function analizarSql(sql) {
     const t = tablaDe(m[1]);
     if (t === null || t === "%I" || !creadas.has(t))
       hallazgo(bloqueos, "POLÍTICA EN TABLA EXISTENTE", "agrega una política de acceso a una tabla que no crea esta migración", m.index, m[0].length);
+    else
+      hallazgo(avisos, "POLÍTICA DISTINTA", "política sobre tabla nueva que no es la de aislamiento por tenant (revisar que no abra datos)", m.index, m[0].length);
   }
   // Restricciones, índices únicos y triggers sobre tablas existentes: aditivos, pero pueden fallar
   // con los datos de producción (y el build frena a mitad) o cambiar qué escrituras se aceptan.
@@ -492,11 +609,13 @@ export function analizarSql(sql) {
   const reTrig = new RegExp(String.raw`\bCREATE\s+(?:CONSTRAINT\s+)?TRIGGER\b[^;]*?\bON\s+${RE_TABLA}`, "gi");
   for (const m of texto.matchAll(reTrig))
     if (!creadas.has(normalizarIdent(m[1])))
-      hallazgo(avisos, "TRIGGER EN TABLA EXISTENTE", "cambia qué pasa al escribir en una tabla en uso", m.index, m[0].length);
+      hallazgo(bloqueos, "TRIGGER EN TABLA EXISTENTE", "cambia qué pasa al escribir en una tabla en uso (puede descartar o reescribir filas)", m.index, m[0].length);
   const reNN = new RegExp(String.raw`\bALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:ONLY\s+)?${RE_TABLA}\s+ADD\s+(?:COLUMN\s+)?(?:IF\s+NOT\s+EXISTS\s+)?${RE_IDENT}[^,;]*?\bNOT\s+NULL\b[^,;]*`, "gi");
   for (const m of texto.matchAll(reNN))
     if (!creadas.has(normalizarIdent(m[1])) && !/\bDEFAULT\b/i.test(m[0]))
       hallazgo(avisos, "NOT NULL SIN DEFAULT", "falla si la tabla tiene filas", m.index, m[0].length);
+
+  revisarUpdates(texto, creadas, columnasAgregadas(texto), hallazgo, bloqueos, avisos);
 
   bloqueos.sort((a, b) => a.linea - b.linea);
   avisos.sort((a, b) => a.linea - b.linea);

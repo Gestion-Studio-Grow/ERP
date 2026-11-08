@@ -61,6 +61,9 @@ function frenar(motivo) {
   anotar(`\n**Frenado en «${PASO}»:** ${motivo}`);
   process.exit(1);
 }
+/** Texto que viene del PR (nombres de archivo, SQL) para un comentario: sin backticks ni menciones. */
+const limpiar = (t) => String(t).replace(/`/g, "'").replace(/@/g, "@\u200b");
+
 function salida(clave, valor) {
   if (env.GITHUB_OUTPUT) appendFileSync(env.GITHUB_OUTPUT, `${clave}=${valor}\n`);
 }
@@ -208,6 +211,11 @@ const pasos = {
     anotar(`- Producción: ${prod.motivo}.`);
     const s = await salud();
     if (s.status !== 200 || s.json?.status !== "ok") frenar(`producción no responde sana: ${PROD_URL}/api/health → HTTP ${s.status}.`);
+    // Producción tiene que estar sirviendo el último deploy READY: si no, el anterior quedó a medias
+    // (READY pero sin llegar al dominio) y eso es un rojo vigente.
+    const shaListo = prod.deploy?.meta?.githubCommitSha;
+    if (shaListo && s.json.commit !== shaListo)
+      frenar(`producción sirve ${String(s.json.commit).slice(0, 7)} y el último deploy READY es ${shaListo.slice(0, 7)}: hay un rojo vigente, se para.`);
     anotar(`- ${PROD_URL}/api/health OK (commit ${String(s.json.commit).slice(0, 7)}).`);
   },
 
@@ -290,15 +298,23 @@ const pasos = {
     if (c.tocaSchema && c.nuevas.length === 0)
       avisos.push("cambia `prisma/schema.prisma` sin migración nueva (si cambia el modelo de datos, falta la migración).");
 
-    for (const m of c.nuevas) {
-      const sql = await ghCrudo(`prisma/migrations/${m}/migration.sql`, sha);
-      const r = analizarSql(sql);
-      anotar(`- Migración nueva \`${m}\`: ${r.bloqueos.length ? "**NO ADITIVA**" : "aditiva"}${r.rlsNuevas.length ? ` (RLS por tenant en ${r.rlsNuevas.length} tabla(s) nueva(s))` : ""}.`);
-      for (const b of r.bloqueos) bloqueos.push(`\`${m}\` línea ${b.linea} — ${b.regla}: ${b.motivo}. \`${b.fragmento}\``);
-      for (const a of r.avisos) avisos.push(`\`${m}\` línea ${a.linea} — ${a.regla}: ${a.motivo}.`);
+    // Se revisan las migraciones NUEVAS y TODAS las que nombra prisma/lote-deploy.txt: el build de
+    // producción aplica lo que diga el lote, aunque la migración haya entrado a main antes.
+    const lote = leerLote(await ghCrudo("prisma/lote-deploy.txt", sha));
+    const { json: dirHead } = await gh(`/contents/prisma/migrations?ref=${sha}`);
+    const enHead = new Set((dirHead ?? []).filter((e) => e.type === "dir").map((e) => e.name));
+    for (const m of [...new Set([...c.nuevas, ...lote])]) {
+      const origen = c.nuevas.includes(m) ? "nueva" : "del lote";
+      if (!/^[A-Za-z0-9_-]+$/.test(m) || !enHead.has(m)) {
+        bloqueos.push(`\`prisma/lote-deploy.txt\` nombra \`${limpiar(m)}\`, que no es una carpeta de prisma/migrations: el build frenaría.`);
+        continue;
+      }
+      const r = analizarSql(await ghCrudo(`prisma/migrations/${m}/migration.sql`, sha));
+      anotar(`- Migración ${origen} \`${m}\`: ${r.bloqueos.length ? "**NO ADITIVA**" : "aditiva"}${r.rlsNuevas.length ? ` (RLS por tenant en ${r.rlsNuevas.length} tabla(s) nueva(s))` : ""}.`);
+      for (const x of r.bloqueos) bloqueos.push(`\`${m}\` línea ${x.linea} — ${x.regla}: ${x.motivo}. \`${x.fragmento}\``);
+      for (const x of r.avisos) avisos.push(`\`${m}\` línea ${x.linea} — ${x.regla}: ${x.motivo}.`);
     }
     if (c.nuevas.length) {
-      const lote = leerLote(await ghCrudo("prisma/lote-deploy.txt", sha));
       const fuera = c.nuevas.filter((m) => !lote.includes(m));
       if (fuera.length)
         bloqueos.push(
@@ -312,7 +328,7 @@ const pasos = {
         bloqueos.push(
           "hay migraciones nuevas y Vercel Production no tiene `MIGRATE_DATABASE_URL`: el build frenaría con la base atrasada.",
         );
-    } else anotar("- Sin migraciones nuevas.");
+    } else anotar("- Sin migraciones nuevas en el PR.");
 
     for (const a of avisos) anotar(`- Aviso: ${a}`);
     if (bloqueos.length)

@@ -74,6 +74,8 @@ export function puedePublicar(permiso, usuario, permitidos) {
   if (lista.length > 0 && !lista.includes(String(usuario).toLowerCase()))
     return { ok: false, motivo: `${usuario} no está en PUBLICAR_QUIENES` };
   const rol = permiso?.role_name ?? permiso?.permission;
-  if (!["admin", "maintain", "write"].includes(rol)) return { ok: false, motivo: `${usuario} tiene permiso «${rol ?? "ninguno"}» en el repo (hace falta write o más)` };
+  // role_name puede ser un rol a medida; `permission` (legado) dice admin/write/read/none.
+  const alcanza = ["admin", "maintain", "write"].includes(rol) || ["admin", "write"].includes(permiso?.permission);
+  if (!alcanza) return { ok: false, motivo: `${usuario} tiene permiso «${rol ?? "ninguno"}» en el repo (hace falta write o más)` };
   return { ok: true, motivo: `${usuario} (${rol})` };
 }

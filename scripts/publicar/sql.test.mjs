@@ -201,3 +201,64 @@ test("historial real: aditivas pasan, no aditivas frenan", { skip: !existsSync(D
     assert.ok(reglas(readFileSync(`${DIR}${m}/migration.sql`, "utf8")).includes(regla), m);
   }
 });
+
+// ── Intentos de evasión hallados en la certificación adversarial ───────────
+test("CREATE TABLE IF NOT EXISTS de una tabla existente no habilita el idioma RLS sobre ella", () => {
+  const sql = `CREATE TABLE IF NOT EXISTS "Client" ("id" TEXT);${RLS_SUELTO("Client")}`;
+  assert.ok(bloquea(sql));
+  assert.ok(bloquea(`CREATE TABLE IF NOT EXISTS "Client" ("id" TEXT);\n${RLS_LOOP(["Client"])}`));
+});
+
+test("CREATE TABLE dentro de un DO que nunca corre no cuenta como tabla nueva", () => {
+  const sql = `DO $$ BEGIN IF false THEN NULL; CREATE TABLE "Client" ("id" TEXT); END IF; END $$;\n${RLS_LOOP(["Client"])}`;
+  assert.ok(bloquea(sql));
+});
+
+test("variable del loop reasignada (:=, =, INTO, FOR IN SELECT, DEFAULT) → no se resuelve, frena", () => {
+  const base = `CREATE TABLE "N" ("id" TEXT);\n`;
+  const loop = RLS_LOOP(["N"]);
+  for (const truco of [
+    loop.replace("  LOOP\n", "  LOOP\n    t := 'Client';\n"),
+    loop.replace("  LOOP\n", "  LOOP\n    t = 'Client';\n"),
+    loop.replace("  LOOP\n", "  LOOP\n    SELECT 'Client' INTO t;\n"),
+    `${loop}\nDO $$ DECLARE t text DEFAULT 'Client'; BEGIN EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t); END $$;`,
+    `${loop}\nDO $$ DECLARE t text; BEGIN FOR t IN SELECT 'Client' LOOP EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t); END LOOP; END $$;`,
+  ])
+    assert.ok(bloquea(base + truco), truco);
+});
+
+test("UPDATE: backfill de columna nueva (aviso) vs pisar una existente (frena)", () => {
+  const prisma = `ALTER TABLE "InmoPago" ADD COLUMN "numero" INTEGER,\nADD COLUMN "serie" TEXT;\n`;
+  assert.deepEqual(analizarSql(prisma + `UPDATE "InmoPago" SET "numero" = 1, "serie" = 'A' WHERE "numero" IS NULL;`).bloqueos, []);
+  assert.deepEqual(reglas(prisma + `UPDATE "InmoPago" SET "numero" = 1, "monto" = 0;`), ["UPDATE DE DATOS EXISTENTES"]);
+  assert.deepEqual(reglas(`UPDATE "Client" c SET "email" = NULL;`), ["UPDATE DE DATOS EXISTENTES"]);
+  assert.deepEqual(reglas(`ALTER TABLE "Client" ADD COLUMN IF NOT EXISTS "email" TEXT;\nUPDATE "Client" SET "email" = NULL;`), ["UPDATE DE DATOS EXISTENTES"]);
+  assert.deepEqual(reglas(`DO $$ BEGIN UPDATE "Client" SET "email" = NULL; END $$;`), ["UPDATE DE DATOS EXISTENTES"]);
+  assert.deepEqual(reglas(`UPDATE "Client" SET ("a", "b") = (SELECT 1, 2);`), ["UPDATE DE DATOS EXISTENTES"]);
+});
+
+test("otros cambios no aditivos frenan: CALL, SET SCHEMA, UNLOGGED, secuencias, triggers apagados, RULE, trigger en tabla existente, search_path", () => {
+  assert.deepEqual(reglas(`CALL limpiar_todo();`), ["CALL"]);
+  assert.deepEqual(reglas(`ALTER TABLE "Client" SET SCHEMA archivo;`), ["TABLA MOVIDA / SIN LOG"]);
+  assert.deepEqual(reglas(`ALTER TABLE "Client" SET UNLOGGED;`), ["TABLA MOVIDA / SIN LOG"]);
+  assert.deepEqual(reglas(`SELECT setval('"Order_id_seq"', 1);`), ["SECUENCIAS"]);
+  assert.deepEqual(reglas(`ALTER TABLE "Invoice" DISABLE TRIGGER ALL;`), ["TRIGGER/REGLA APAGADO"]);
+  assert.deepEqual(reglas(`CREATE RULE r AS ON INSERT TO "Order" DO INSTEAD NOTHING;`), ["RULE"]);
+  assert.deepEqual(reglas(`SET search_path TO otro;`), ["SEARCH_PATH"]);
+  assert.ok(reglas(`CREATE FUNCTION f() RETURNS trigger AS $$ BEGIN RETURN NULL; END $$ LANGUAGE plpgsql;
+CREATE TRIGGER t BEFORE INSERT ON "Order" FOR EACH ROW EXECUTE FUNCTION f();`).includes("TRIGGER EN TABLA EXISTENTE"));
+});
+
+test("permisos, upserts, MERGE y ALTER de objetos existentes frenan", () => {
+  assert.deepEqual(reglas(`GRANT SELECT ON "Client" TO PUBLIC;`), ["GRANT"]);
+  assert.deepEqual(reglas(`MERGE INTO "Client" c USING x ON true WHEN MATCHED THEN DELETE;`), ["MERGE"]);
+  assert.deepEqual(reglas(`INSERT INTO "Client" ("id","email") VALUES ('1', NULL) ON CONFLICT ("id") DO UPDATE SET "email" = NULL;`), ["UPSERT"]);
+  assert.deepEqual(reglas(`ALTER FUNCTION f() SECURITY DEFINER;`), ["ALTER DE OBJETO EXISTENTE"]);
+  assert.deepEqual(reglas(`ALTER VIEW v OWNER TO x;`), ["ALTER DE OBJETO EXISTENTE"]);
+});
+
+test("política no canónica sobre tabla nueva: no frena pero avisa", () => {
+  const r = analizarSql(`CREATE TABLE "N" ("id" TEXT);\nCREATE POLICY abierta ON "N" USING (true);`);
+  assert.deepEqual(r.bloqueos, []);
+  assert.ok(r.avisos.some((a) => a.regla === "POLÍTICA DISTINTA"));
+});
