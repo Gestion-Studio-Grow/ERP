@@ -52,7 +52,7 @@ const PASOS = [
 const PREGUNTAS = [
   {
     p: "¿Es gratis de verdad?",
-    r: `Sí. Hasta ${LIMITE_FACTURAS_FACTURITA} facturas por mes no pagás nada y no te pedimos tarjeta. Si un mes necesitás más, te avisamos antes y vos decidís si pasás a Comerciante.`,
+    r: `Sí. Hasta ${LIMITE_FACTURAS_FACTURITA} facturas por mes no pagás nada y no te pedimos tarjeta. Si un mes necesitás más, te avisamos antes y vos decidís si pasás a ${PLAN_SALTO.nombre}.`,
   },
   {
     p: "¿Qué necesito para empezar?",
@@ -68,7 +68,7 @@ const PREGUNTAS = [
   },
   {
     p: "¿Puedo cobrar con Mercado Pago o subir el extracto del banco?",
-    r: "Eso es de Comerciante: ahí las facturas se arman solas con lo que te entra al banco y a Mercado Pago. Pasás en el mismo lugar, sin perder nada de lo que ya emitiste.",
+    r: "Eso es Comerciante, otro producto de Gestión Studio Grow: ahí las facturas se arman solas con lo que te entra al banco y a Mercado Pago. Hoy no se contrata desde Factoque; si lo necesitás, escribinos.",
   },
 ];
 
@@ -176,7 +176,7 @@ export default function FacturitaLanding() {
             Arrancás <em>gratis.</em> Crecés sin mudarte.
           </h2>
           <p className="fx-bajada">
-            Cuando necesites más, pasás a Comerciante en el mismo lugar: tus facturas y tus datos quedan donde estaban.
+            Cuando necesites más, pasás a Plus o a Pro en la misma app: tus facturas y tus datos quedan donde estaban.
           </p>
           <div className="fx-precios">
             <article aria-labelledby="plan-gratis" className="fx-hoja-plan fx-aparece">
@@ -213,7 +213,7 @@ export default function FacturitaLanding() {
             </article>
           </div>
           <p className="fx-bajada" style={{ marginTop: 28 }}>
-            Precios de referencia (lista del 11/07/2026, en revisión). Te lo confirmamos antes de cobrarte un peso.{" "}
+            Precios de referencia, en revisión. Te lo confirmamos antes de cobrarte un peso.{" "}
             {ACLARACION_IVA}.{" "}
             <Link href="/facturita/planes" className="fx-enlace">
               Ver todos los planes

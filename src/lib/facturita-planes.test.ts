@@ -30,7 +30,6 @@ test("lista de Comerciante de ADR-078, en orden creciente", () => {
     PLANES_COMERCIANTE.map((p) => p.precioMensual),
     [14_900, 39_900, 89_900, 149_900],
   );
-  assert.equal(PLAN_SALTO.id, "solo");
   for (let i = 1; i < PLANES_COMERCIANTE.length; i++) {
     assert.ok(PLANES_COMERCIANTE[i].facturasPorMes > PLANES_COMERCIANTE[i - 1].facturasPorMes);
   }

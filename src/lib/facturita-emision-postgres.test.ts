@@ -301,5 +301,5 @@ test("PDF de Facturita: sin datos del emisor, aviso que lleva a Mi cuenta; con d
   assert.ok(ultima, "hay una autorizada con saldo");
   const sinCupo = await enNegocio(() => anularFacturitaAction(ultima.id, "me equivoqué"));
   assert.equal(sinCupo.ok, false);
-  assert.ok(!sinCupo.ok && /Comerciante/.test(sinCupo.error) && /ARCA/.test(sinCupo.error));
+  assert.ok(!sinCupo.ok && /plan con más facturas/.test(sinCupo.error) && /ARCA/.test(sinCupo.error));
 });

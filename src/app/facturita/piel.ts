@@ -244,6 +244,7 @@ export const PIEL_FACTURITA = `
 .fx .fx-planes-4{display:grid;gap:clamp(16px,2vw,24px);margin-top:clamp(32px,3vw,48px)}
 @media (min-width:768px){.fx .fx-planes-4{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (min-width:1280px){.fx .fx-planes-4{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media (min-width:1280px){.fx .fx-planes-4.fx-planes-2{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .fx .fx-planes-4 .fx-hoja-plan{padding:28px 24px}
 .fx .fx-planes-4 .fx-lista{font-size:1rem}
 

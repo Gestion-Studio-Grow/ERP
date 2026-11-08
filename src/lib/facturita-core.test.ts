@@ -38,7 +38,7 @@ test("tope: con 5 usadas bloquea y ofrece el upgrade", () => {
   const e = estadoLimite(5);
   assert.equal(e.puedeEmitir, false);
   assert.match(e.mensaje ?? "", /tope/i);
-  assert.match(e.mensaje ?? "", /Comerciante/);
+  assert.match(e.mensaje ?? "", /Factoque Plus/);
 });
 
 test("emisión: sin descripción no pasa", () => {
@@ -204,9 +204,10 @@ test("mensaje: dice el estado real (de prueba, autorizada con CAE, pendiente o a
   assert.match(mensajeDeEmision({ estado: "pendiente", motivo: "apagada", ventanaDias: 10 }), /todavía no está activa/);
 });
 
-test("el aviso del tope no promete «sin límite»: nombra el tope del plan Solo", () => {
+test("el aviso del tope no promete «sin límite»: nombra el plan siguiente y su tope", () => {
   const m = estadoLimite(LIMITE_FACTURAS_FACTURITA).mensaje ?? "";
   assert.doesNotMatch(m, /sin límite/i);
+  assert.match(m, new RegExp(PLAN_SALTO.nombre));
   assert.match(m, new RegExp(String(PLAN_SALTO.facturasPorMes)));
 });
 
@@ -286,7 +287,7 @@ test("anulación: la nota ocupa cupo; sin lugar no se anula y se dice qué hacer
   if (!lleno.ok) {
     assert.match(lleno.error, /cuenta como uno de los 5/);
     assert.match(lleno.error, /ARCA/);
-    assert.match(lleno.error, /Comerciante/);
+    assert.match(lleno.error, /plan con más facturas/);
   }
 });
 
