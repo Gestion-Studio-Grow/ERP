@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { requireApp } from "@/lib/require-app";
 import { buttonClasses, cn, Plata } from "@/components/ui";
 import { badgePendientes, ficha } from "@/lib/padel/datos.server";
-import { veLaPlataDelDia } from "@/lib/padel/plata-guardia";
+import { gestionaClases, veLaPlataDelDia } from "@/lib/padel/plata-guardia";
 import { MEDIO_LABEL, PAGO_LABEL, diaHumano, horaHumana, linkWhatsApp, textoSerie, type EstadoClase, type EstadoPago, type MedioPago } from "@/lib/padel/core";
 import { ChipEstado, tarjeta } from "../../_vista";
 import { Cabecera } from "../../_cabecera";
@@ -29,6 +29,8 @@ export default async function FichaAlumno({ params }: { params: Promise<{ id: st
   // El PROFESSIONAL no ve montos ni cobra, ni ve acciones que exigen agenda:manage (certificación
   // vueltas 3 y 4 del arreglo UAT 11/2026).
   const conPlata = veLaPlataDelDia(user);
+  // Agendar y guardar las notas exigen agenda:manage: sin él, las notas se leen y no se editan.
+  const gestiona = gestionaClases(user);
   const { id } = await params;
   if (!/^[A-Za-z0-9_-]{1,40}$/.test(id)) notFound();
   const [a, numero] = await Promise.all([ficha(id), badgePendientes()]);
@@ -55,9 +57,11 @@ export default async function FichaAlumno({ params }: { params: Promise<{ id: st
           ) : (
             <span className="flex h-12 items-center justify-center rounded-xl border border-dashed border-line px-2 text-center text-sm text-muted">Sin celular</span>
           )}
-          <Link href={`/admin/clases/agendar?alumno=${encodeURIComponent(a.id)}`} className={cn(buttonClasses("solid", "lg"), "h-12 w-full justify-center")} data-qa="agendar-alumno">
-            Agendar
-          </Link>
+          {gestiona && (
+            <Link href={`/admin/clases/agendar?alumno=${encodeURIComponent(a.id)}`} className={cn(buttonClasses("solid", "lg"), "h-12 w-full justify-center")} data-qa="agendar-alumno">
+              Agendar
+            </Link>
+          )}
           {conPlata && (
             <>
               <div className="col-span-2 sm:col-span-1">
@@ -175,10 +179,19 @@ export default async function FichaAlumno({ params }: { params: Promise<{ id: st
         )}
       </section>
 
-      <section className={seccion} aria-labelledby="t-notas">
-        <h2 id="t-notas" className={titulo}>Notas</h2>
-        <NotasAlumno alumnoId={a.id} nombre={a.nombre} notas={a.notas} />
-      </section>
+      {gestiona ? (
+        <section className={seccion} aria-labelledby="t-notas">
+          <h2 id="t-notas" className={titulo}>Notas</h2>
+          <NotasAlumno alumnoId={a.id} nombre={a.nombre} notas={a.notas} />
+        </section>
+      ) : (
+        a.notas.trim() && (
+          <section className={seccion} aria-labelledby="t-notas">
+            <h2 id="t-notas" className={titulo}>Notas</h2>
+            <p className="whitespace-pre-line text-sm text-strong" data-qa="notas-solo-lectura">{a.notas}</p>
+          </section>
+        )
+      )}
 
       {conPlata && <RegenerarLink alumnoId={a.id} nombre={a.nombre} />}
     </main>

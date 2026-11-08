@@ -1,6 +1,6 @@
 import { badgePendientes } from "@/lib/padel/datos.server";
 import { getCurrentUser } from "@/lib/session";
-import { veLaPlata } from "@/lib/padel/plata-guardia";
+import { gestionaClases, veLaPlata } from "@/lib/padel/plata-guardia";
 import { marcarAvisado } from "@/lib/padel/acciones";
 import { BarraInferior } from "./_barra-inferior";
 import { ColaAvisos } from "./_aviso";
@@ -34,7 +34,7 @@ export default async function ClasesLayout({ children }: { children: React.React
         {children}
         <p className="pb-6 pt-2 text-center text-xs text-muted">Con tecnología de Gestión Studio Grow</p>
       </ColaAvisos>
-      <BarraInferior pendientes={pendientes} conPlata={user ? veLaPlata(user) : false} />
+      <BarraInferior pendientes={pendientes} conPlata={user ? veLaPlata(user) : false} conAgendar={user ? gestionaClases(user) : false} />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireApp } from "@/lib/require-app";
-import { veLaPlataDelDia } from "@/lib/padel/plata-guardia";
+import { gestionaClases, veLaPlataDelDia } from "@/lib/padel/plata-guardia";
 import { chipLinkAtributos, EmptyState } from "@/components/ui";
 import { alumnosPagina, badgePendientes, deudores } from "@/lib/padel/datos.server";
 import { Cabecera } from "../_cabecera";
@@ -45,7 +45,7 @@ export default async function ClasesAlumnos({ searchParams }: { searchParams: Pr
           <input id="buscar-alumno" name="q" type="search" defaultValue={q} placeholder="Buscar por nombre o celular" className={campo} data-qa="buscar-alumno" />
           {ver === "deben" && <input type="hidden" name="ver" value="deben" />}
         </form>
-        <NuevoAlumno />
+        {gestionaClases(user) && <NuevoAlumno />}
       </div>
 
       <nav aria-label="Qué alumnos ver" className="mb-4 flex gap-2">

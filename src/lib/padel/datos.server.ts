@@ -9,6 +9,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { getCurrentUser } from "@/lib/session";
+import { veLaPlataDelDia } from "./plata-guardia";
 import { enmascararTelefono, puedeVerContacto } from "@/lib/clientes/telefono";
 import { criterioDeContacto, wherePorContacto } from "@/lib/clientes/busqueda-por-contacto";
 import { resolveLocation } from "@/lib/settings";
@@ -452,7 +453,7 @@ export async function hoy(ahora = new Date()) {
   const [filas, pendientes, cobradoHoy, config, negocio, sinCerrar, pedidos, fr, recordados] = await Promise.all([
     // SIN_RESPUESTA también (O-3): si el alumno vino igual, el profe la da y la cobra desde acá.
     clasesDe(tenantId, { empiezaEn: { gte: inicio, lt: finManana }, estado: { in: ["PEDIDA", "CONFIRMADA", "DADA", "AUSENTE", "SIN_RESPUESTA"] } }),
-    contarPendientes(tenantId),
+    cuentaComprobantes().then((con) => contarPendientes(tenantId, con)),
     // Lo que entró hoy: lo pagado (y lo que después quedó a favor: la plata igual entró). Lo pagado
     // con saldo a favor NO suma: esa plata ya se contó el día que entró.
     prisma.padelClase.findMany({
@@ -503,20 +504,31 @@ export async function hoy(ahora = new Date()) {
 /** Los avisos que esperan que el profe los lea (suman al número de la campana). */
 export const AVISOS_QUE_ESPERAN = ["cancelacion", "respuesta", "link-pedido", "cambio", "cambio-pedido", "no-voy", "mensaje"] as const;
 
-/** Lo que espera al profe: pedidos sin confirmar, comprobantes por revisar y avisos sin leer. */
-export async function contarPendientes(tenantId: string): Promise<number> {
+/**
+ * Lo que espera al profe: pedidos sin confirmar, comprobantes por revisar y avisos sin leer. Sin
+ * `conComprobantes` (quien no ve la plata del día, `veLaPlataDelDia`: el PROFESSIONAL) los
+ * comprobantes no suman: su Bandeja no los muestra (pendientes/page.tsx → sinPlataBandeja).
+ */
+export async function contarPendientes(tenantId: string, conComprobantes: boolean): Promise<number> {
   const ahora = new Date();
   const [pedidos, comprobantes, avisos] = await Promise.all([
     prisma.padelClase.count({ where: { tenantId, estado: "PEDIDA", empiezaEn: { gt: ahora } } }),
-    prisma.padelClase.count({ where: { tenantId, pagoEstado: "EN_REVISION" } }),
+    conComprobantes ? prisma.padelClase.count({ where: { tenantId, pagoEstado: "EN_REVISION" } }) : 0,
     prisma.padelAviso.count({ where: { tenantId, destino: "PROFE", leidoEl: null, tipo: { in: [...AVISOS_QUE_ESPERAN] } } }),
   ]);
   return pedidos + comprobantes + avisos;
 }
 
-/** El número del badge, para la barra del panel. */
+/** ¿Los comprobantes suman a la campana de ESTE usuario? Sin usuario, no (lo más cerrado). */
+async function cuentaComprobantes(): Promise<boolean> {
+  const user = await getCurrentUser();
+  return user ? veLaPlataDelDia(user) : false;
+}
+
+/** El número del badge, para la barra del panel (sin comprobantes para quien no los ve). */
 export async function badgePendientes(): Promise<number> {
-  return contarPendientes(await getCurrentTenantId());
+  const [tenantId, conComprobantes] = await Promise.all([getCurrentTenantId(), cuentaComprobantes()]);
+  return contarPendientes(tenantId, conComprobantes);
 }
 
 export async function pendientes() {
