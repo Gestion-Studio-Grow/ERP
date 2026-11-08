@@ -20,8 +20,10 @@
 //
 // No decide nada de plata: sólo la LEE con las funciones de src/lib/turnos. Nada de Prisma.
 
-import { estadoCobroTurno, cobroSugerido, esCuentaACobrar, seniaDelServicio, type PagoLegado } from "@/lib/turnos/cobros";
-import { desglosarCobros } from "@/lib/turnos/anulacion";
+import { estadoCobroTurno, cobroSugerido, esCuentaACobrar, faltanteDeSenia, seniaDelServicio, type PagoLegado } from "@/lib/turnos/cobros";
+import { cobradoRealDelTurno, cobroAnuladoPor, desglosarCobros } from "@/lib/turnos/anulacion";
+import { notaSeniaMP, type AvisoMP } from "@/lib/turnos/avisos-mp";
+import { marcaDeSeniaPendiente } from "@/lib/turnos/sena-obligatoria-core";
 import type { CierreSinPrestar, DestinoDeLaSenia } from "@/lib/turnos/practica";
 import type { TipoMarca } from "@/components/ui/Marca";
 import { dateStrInBusinessTz, fmtShortDate, fmtTime } from "@/lib/datetime";
@@ -81,6 +83,16 @@ export type TurnoDelDia = {
    * migración). Ausente o null: no se pidió (o la agenda no la leyó).
    */
   seniaPedidaEl?: string | null;
+  /**
+   * Seña obligatoria (interruptor «sena-obligatoria»): ISO de cuándo vence la seña pendiente de un
+   * Reservado (`vencimientoDeLaSenia`). Sólo con el interruptor prendido; ausente, la marca de siempre.
+   */
+  seniaVence?: string | null;
+  /**
+   * Lo que el aviso de Mercado Pago de la seña no pudo resolver solo (`avisosMP`: AuditLog, por
+   * `tenantId`): seña parcial, devuelta sin anular, no registrada. El texto lo arma `textosAvisoMP`.
+   */
+  avisosMP?: AvisoMP[];
 };
 
 /** Lo mínimo que la agenda lee de un turno crudo (el loader de siempre, ya con sus cobros). */
@@ -143,7 +155,7 @@ export function turnoDelDia(a: TurnoCrudo, veredicto: Veredicto): TurnoDelDia {
     precioADefinir: precioADefinir(a.service.price, a.priceAtBooking),
     // Con cobros propios, lo que entró es el desglose (una condonación no es plata); sin cobros,
     // manda el pago viejo, como en la fila de siempre.
-    cobrado: cobros.length > 0 ? desglose.cobrado : plata.cobrado,
+    cobrado: cobradoRealDelTurno(precio, cobros, pagoLegado),
     condonado: desglose.condonado,
     saldo: plata.saldo,
     senia: seniaDelServicio({ depositAmount: a.service.depositAmount, precio }),
@@ -163,6 +175,16 @@ export function turnoDelDia(a: TurnoCrudo, veredicto: Veredicto): TurnoDelDia {
 export function seniaQueFalta(t: Pick<TurnoDelDia, "estado" | "inicio" | "sugerido">, ahora: Date): number {
   if (t.estado !== "PENDING" || yaEmpezo(t, ahora)) return 0;
   return t.sugerido.tipo === "senia" && t.sugerido.monto > 0 ? t.sugerido.monto : 0;
+}
+
+/**
+ * Seña obligatoria (interruptor prendido): la seña que le falta a un Reservado que todavía no empezó
+ * para poder confirmarse. LA MISMA regla que la guarda del servidor y «Llegó la seña»
+ * (`faltanteDeSenia` sobre `cobradoRealDelTurno`): una seña parcial todavía falta. 0 si no corresponde.
+ */
+export function seniaParaConfirmar(t: Pick<TurnoDelDia, "estado" | "inicio" | "senia" | "cobrado">, ahora: Date): number {
+  if (t.estado !== "PENDING" || yaEmpezo(t, ahora)) return 0;
+  return faltanteDeSenia(t.senia, t.cobrado);
 }
 
 /**
@@ -188,6 +210,10 @@ export type Permisos = {
   ventaSimple?: boolean;
   /** Agenda interactiva prendida (AGENDA-INTERACCION.md): grilla por profesional en el celular, barra de un toque. */
   interaccion?: boolean;
+  /** Interruptor «sena-obligatoria»: un Reservado con seña sin cobrar no se confirma desde «Qué falta». */
+  senaObligatoria?: boolean;
+  /** agenda:confirmar-sin-senia (sólo la dueña) con la seña obligatoria prendida: «Confirmar sin seña» en «Otras acciones». */
+  confirmarSinSenia?: boolean;
   /** CH · interruptor «vouchers» + agenda:collect: el cajón ofrece cobrar con un voucher de La Alameda. */
   vouchers?: boolean;
   /** agenda:manage — confirmar, cancelar, reprogramar, dar de baja un saldo. */
@@ -358,8 +384,15 @@ export function marcaDelTurno(t: TurnoDelDia, ahora: Date): MarcaDelTurno {
   const ya = yaEmpezo(t, ahora);
   const termino = new Date(t.fin).getTime() <= ahora.getTime();
   switch (t.estado) {
-    case "PENDING":
-      return ya ? { tipo: "atencion", texto: "Reservado, ya pasó la hora" } : { tipo: "pendiente", texto: "Reservado, sin confirmar" };
+    case "PENDING": {
+      if (ya) return { tipo: "atencion", texto: "Reservado, ya pasó la hora" };
+      // Seña obligatoria: «Pendiente de seña · vence …» / «Seña vencida» mientras la seña falte.
+      if (t.seniaVence && seniaParaConfirmar(t, ahora) > 0) {
+        const m = marcaDeSeniaPendiente(t.seniaVence, ahora);
+        return { tipo: m.tipo === "vencida" ? "atencion" : "pendiente", texto: m.texto };
+      }
+      return { tipo: "pendiente", texto: "Reservado, sin confirmar" };
+    }
     case "CONFIRMED":
       if (!ya) return { tipo: "hecho", texto: "Confirmado" };
       return termino ? { tipo: "atencion", texto: "Sin cerrar" } : { tipo: "medias", texto: "En su horario" };
@@ -501,4 +534,39 @@ export function nombreRelativo(dia: string, hoy: string): "Hoy" | "Mañana" | "A
 /** Duración en minutos entre dos ISO (redondeada). */
 export function minutosEntre(inicio: string, fin: string): number {
   return Math.max(0, Math.round((new Date(fin).getTime() - new Date(inicio).getTime()) / 60000));
+}
+
+/**
+ * Los avisos de la seña por Mercado Pago que siguen pidiendo una persona, en criollo. Cada uno se
+ * apaga solo cuando el turno a la vista ya lo resolvió:
+ *   · parcial → mientras falte seña y el turno siga vivo; con el turno cancelado o sin venir, mientras
+ *     la plata parcial siga en caja (no se apaga por cancelar: esa plata entró y hay que resolverla);
+ *   · devuelta sin anular → mientras ese cobro siga en pie (nadie lo anuló a mano);
+ *   · no registrada → mientras no haya un cobro de ese pago.
+ */
+export function textosAvisoMP(t: Pick<TurnoDelDia, "estado" | "senia" | "cobrado" | "cobros" | "avisosMP">): string[] {
+  if (!t.avisosMP?.length) return [];
+  const anulados = new Set(t.cobros.map((c) => cobroAnuladoPor(c.note)).filter((x): x is string => Boolean(x)));
+  const vivo = t.estado === "PENDING" || t.estado === "CONFIRMED";
+  const textos: string[] = [];
+  for (const a of t.avisosMP) {
+    if (a.tipo === "parcial") {
+      if (vivo && faltanteDeSenia(t.senia, t.cobrado) > 0) textos.push(`Seña parcial por Mercado Pago: pagó ${pesos(a.pagado)} de ${pesos(a.senia)}`);
+      else if ((t.estado === "CANCELLED" || t.estado === "NO_SHOW") && t.cobrado > 0)
+        textos.push(`Seña parcial por Mercado Pago (${pesos(a.pagado)}): el turno ${t.estado === "CANCELLED" ? "se canceló" : "quedó sin venir"} y esa plata sigue en caja: revisala`);
+    } else if (a.tipo === "devuelta-sin-anular") {
+      const sigue = a.cobroId === null || t.cobros.some((c) => c.id === a.cobroId && !anulados.has(a.cobroId as string));
+      if (sigue) textos.push("Mercado Pago devolvió la seña pero el cobro sigue en caja: revisalo");
+    } else {
+      const nota = a.pagoId ? notaSeniaMP(a.pagoId) : null;
+      if (nota && t.cobros.some((c) => c.note === nota)) continue;
+      const monto = a.monto !== null && a.monto > 0 ? ` (${pesos(a.monto)})` : "";
+      textos.push(
+        a.cajaCerrada
+          ? `Entró la seña por Mercado Pago${monto} pero la caja estaba cerrada: registrala a mano`
+          : `Entró la seña por Mercado Pago${monto} pero no se pudo registrar: registrala a mano`,
+      );
+    }
+  }
+  return textos;
 }

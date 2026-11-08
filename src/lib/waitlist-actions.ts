@@ -15,6 +15,7 @@ import { dateStrInBusinessTz } from "@/lib/datetime";
 import { buscarFichaPorTelefono, entradaAuditoriaEmpate, type EmpateFichas } from "@/lib/clientes/ficha-por-telefono";
 import { unstable_rethrow } from "next/navigation";
 import { RechazoDeDominio, rechazoDeDominio } from "@/lib/rechazo-de-dominio";
+import { estadoInicialSinCobro } from "@/lib/turnos/sena-obligatoria";
 import { whereEsperando } from "@/lib/crm/wheres";
 import type { ResultadoAccion } from "@/lib/actions";
 import { minutosEnAgendaDelServicio } from "@/lib/servicios/ficha.server";
@@ -292,6 +293,11 @@ export async function bookFromWaitlist(formData: FormData) {
     // y sobreescribirla con `false` le sacaría el beneficio a quien ya lo tenía.
     const { priceAtBooking, isResidentBooking } = precioCongeladoDeReserva(service, client.isResident);
 
+    // Nace Confirmado, como siempre, salvo que el negocio exija la seña (interruptor
+    // «sena-obligatoria») y el servicio la pida: ahí nace Reservado, «Pendiente de seña», en vez de
+    // rechazarle el turno al anotado. Misma regla que la guarda (`estadoInicialSinCobro`).
+    const status = await estadoInicialSinCobro(tx, { tenantId, depositAmount: service.depositAmount, precio: priceAtBooking });
+
     const appt = await tx.appointment.create({
       data: {
         tenantId,
@@ -301,7 +307,7 @@ export async function bookFromWaitlist(formData: FormData) {
         boxId,
         startsAt,
         endsAt,
-        status: "CONFIRMED",
+        status,
         priceAtBooking,
         isResidentBooking,
       },
@@ -336,6 +342,7 @@ export async function bookFromWaitlist(formData: FormData) {
       startsAt: appointment.startsAt,
       priceAtBooking: appointment.priceAtBooking,
       isResidentBooking: appointment.isResidentBooking,
+      status: appointment.status,
     },
   });
 

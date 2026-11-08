@@ -38,6 +38,7 @@ import { tenantTransaction } from "@/lib/rls";
 import { auditAdmin } from "@/lib/audit-core";
 import { logger } from "@/lib/logger";
 import { RechazoDeDominio, rechazoDeDominio } from "@/lib/rechazo-de-dominio";
+import { exigirSeniaParaConfirmar, volverAReservadoSiFaltaLaSenia } from "./sena-obligatoria";
 import { importeONaN } from "@/lib/dinero/leer";
 import { centavosDe } from "@/lib/dinero/redondeo";
 import { dateStrInBusinessTz } from "@/lib/datetime";
@@ -64,7 +65,7 @@ import {
 } from "./cobro-turno-repo";
 import { esMetodoDePago, estadoCobroTurno, puedeCompletarse, type MetodoDePago } from "./cobros";
 import { puedeCobrarEsteTurno } from "./cobro-mostrador";
-import { AnulacionRechazada, anularCobroTurnoInTx, cobrosDetalladosPorTurno, desglosarCobros, MENSAJE_NO_DESHACE, MENSAJE_SIN_ANULAR, type AnularCobroResult } from "./anulacion";
+import { AnulacionRechazada, anularCobroTurnoInTx, cobradoRealDelTurno, cobrosDetalladosPorTurno, MENSAJE_NO_DESHACE, MENSAJE_SIN_ANULAR, type AnularCobroResult } from "./anulacion";
 import { plataDeLaFila, type FilaDeTurno } from "./cierre-lote";
 import { leerFilasDeTurnos } from "./sin-cerrar.server";
 import {
@@ -119,9 +120,8 @@ function veredictoDe(user: Usuario, f: FilaDeTurno) {
 }
 
 /** Plata que entró de verdad (sin condonaciones), con la MISMA cuenta que la agenda y la bandeja. */
-function cobradoReal(precio: number, cobros: readonly { amount: number; method: string; note: string | null }[], pagoLegado: { status: string; amount: number } | null) {
-  return cobros.length > 0 ? desglosarCobros(cobros).cobrado : estadoCobroTurno({ precio, cobros, pagoLegado }).cobrado;
-}
+// La misma definición que la agenda y la guarda de la seña (`cobradoRealDelTurno`, anulacion.ts).
+const cobradoReal = cobradoRealDelTurno;
 
 /** Consumo de insumos al terminar el turno (ledger), igual que `completeAppointment`. */
 async function consumirInsumos(
@@ -381,6 +381,9 @@ export async function cobrarSeniaYConfirmar(formData: FormData): Promise<Resulta
             data: { status: "CONFIRMED" },
           });
           if (count === 0) throw new RechazoDeDominio(CAMBIO_RECIEN);
+          // La guarda de la seña obligatoria, la misma de todo camino a CONFIRMED: con el cobro de
+          // recién (o la seña que ya estaba) vigente, pasa; sin plata en pie, vuelve todo atrás.
+          await exigirSeniaParaConfirmar(tx, { tenantId, appointmentId });
         }
         return { plan, cobro, confirmo: confirmar };
       },
@@ -751,6 +754,11 @@ async function deshacerSenia(user: Usuario, tenantId: string, appointmentId: str
           const { count } = await tx.appointment.updateMany({ where: { id: appointmentId, tenantId, status: "CONFIRMED" }, data: { status: "PENDING" } });
           if (count === 0) throw new RechazoDeDominio(CAMBIO_RECIEN);
           volvioAReservado = true;
+        }
+        // Seña obligatoria: aunque aquel toque no haya confirmado, un Confirmado sin la seña entera
+        // vuelve a Reservado (misma tx, auditado; la excepción de la dueña se respeta).
+        if (!volvioAReservado && anulacion.applied) {
+          volvioAReservado = await volverAReservadoSiFaltaLaSenia(tx, { tenantId, appointmentId, actor, porque: "Se deshizo la seña." });
         }
         return { anulacion, volvioAReservado };
       },

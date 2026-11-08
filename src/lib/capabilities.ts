@@ -39,6 +39,10 @@ export type Capability =
   // cobrar no habilita deshacer. Orden del dueño (31/10/2026): «no se anulan cobros, pero solamente
   // recepcion con autorizacion de caro». Cómo anula cada rol: `anulacionDeCobro`, más abajo.
   | "agenda:void"
+  // Confirmar un turno SIN la seña cuando el negocio la exige (interruptor «sena-obligatoria»): la
+  // excepción, con motivo auditado (`confirmarSinSenia`). Sólo OWNER por defecto; no está en la matriz
+  // por usuario, así que ningún override se la da a otro rol.
+  | "agenda:confirmar-sin-senia"
   | "clients:read"
   | "clients:manage"
   // Ver teléfono y mail de los clientes (casilla 5). Sin ella el servidor los enmascara.
@@ -135,6 +139,7 @@ const DEL_DUENIO: Record<Exclude<Capability, keyof typeof NO_SON_DEL_DUENIO>, tr
   "agenda:collect": true,
   "agenda:forgive": true,
   "agenda:void": true,
+  "agenda:confirmar-sin-senia": true,
   "clients:read": true,
   "clients:manage": true,
   "clients:contact": true,

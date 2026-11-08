@@ -39,6 +39,7 @@ import { anotadosConHueco } from "@/lib/crm/huecos";
 import { EmptyState, Franja, PageContainer, PageHeader, Pestanas, atributosBoton, buttonClasses, chipLinkAtributos } from "@/components/ui";
 import { enInicioPorApps } from "../inicio/piloto";
 import { diaMas, fechaCorta, fechaLarga, lineaDeLaAgenda, nombreRelativo, type Permisos } from "./agenda-core";
+import { seniaObligatoriaDelNegocio } from "@/lib/turnos/sena-obligatoria.server";
 import { extrasDeLaAgenda, mananaParaConfirmar, proyectarAgenda } from "./agenda.server";
 import { esFechaDeCalendario, hrefDiaDeLaAgenda, hrefNuevoTurno, vacioDiaSinTurnos, vacioSinProfesionales } from "./pasos";
 import LinkAlDia from "./_agenda/LinkAlDia";
@@ -133,6 +134,7 @@ export default async function AgendaRenglon({
   const objeto = agendaInteraccionPrendida(await interruptoresDelNegocio().catch(() => ({})));
   const vista: "lista" | "profesionales" = vistaPedida ?? (objeto ? "profesionales" : "lista");
   const conPermisos = { role: quien.role, overrides: quien.overrides ?? [] };
+  const senaObligatoria = await seniaObligatoriaDelNegocio();
   const simple = (await modoSimpleDeLaSesion()).activo;
   const permisos: Permisos = recortarPermisosDeAgenda({
     interaccion: objeto,
@@ -143,6 +145,8 @@ export default async function AgendaRenglon({
     terminar: permisoEfectivo(conPermisos, "agenda:complete"),
     perdonar: permisoEfectivo(conPermisos, PERDONAR),
     anular: anulacionDeCobro(quien.role),
+    senaObligatoria: senaObligatoria.prendida,
+    confirmarSinSenia: senaObligatoria.prendida && permisoEfectivo(conPermisos, "agenda:confirmar-sin-senia"),
     // CH · vouchers de La Alameda (lectura de interruptores cacheada por pedido).
     vouchers: vouchersPrendidos(await interruptoresDelNegocio()) && permisoEfectivo(conPermisos, "agenda:collect"),
   }, simple);
@@ -159,8 +163,13 @@ export default async function AgendaRenglon({
     permisos.terminar ? contarSinCerrarDeQuienMira().catch(() => null) : Promise.resolve(null),
   ]);
   // La marca «seña pedida» y el horario de trabajo: una lectura más por día, con tenantId (Tanda 2).
-  const extras = await extrasDeLaAgenda(cruda, dia, { quienCobro: !!permisos.interaccion });
-  const agenda = proyectarAgenda(cruda, quien, { seniasPedidas: extras.seniasPedidas, quienCobro: extras.quienCobro });
+  const extras = await extrasDeLaAgenda(cruda, dia, { quienCobro: !!permisos.interaccion, seniaObligatoria: senaObligatoria.prendida });
+  const agenda = proyectarAgenda(cruda, quien, {
+    seniasPedidas: extras.seniasPedidas,
+    avisosMP: extras.avisosMP,
+    quienCobro: extras.quienCobro,
+    seniaObligatoria: senaObligatoria.prendida ? { horas: senaObligatoria.horas } : undefined,
+  });
   const ahora = new Date();
   const linea = lineaDeLaAgenda(agenda.turnos, ahora);
   // Los de hoy ya están en la agenda del día; el conteo suma los de los otros días. Si el conteo no
