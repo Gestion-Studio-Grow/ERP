@@ -34,6 +34,20 @@ export const CAMPOS_CONFIG = [
 ] as const;
 export type CampoConfig = (typeof CAMPOS_CONFIG)[number];
 
+/**
+ * Dónde entra la plata (UAT 11/2026, Recepción): el alias/CBU, el titular, el celular del profe (a
+ * dónde le mandan los comprobantes) y los textos de WhatsApp (pueden llevar otro alias escrito) los
+ * cambia SÓLO el dueño. Recepción gestiona precio y horarios con `agenda:manage`, pero con eso podía
+ * desviar los cobros. Regla pura; la aplica `guardarCampoConfig`.
+ */
+export const CAMPOS_DE_COBRO: readonly CampoConfig[] = ["aliasCbu", "titularCuenta", "whatsappProfe"];
+
+export const SOLO_EL_DUENIO_COBRO = "Sólo el dueño del negocio cambia la cuenta, el celular y los textos que reciben los alumnos.";
+
+/** ¿Este rol puede cambiar este ajuste? Todo lo de `agenda:manage`, salvo lo de cobro y los textos: sólo OWNER. */
+export const puedeCambiarAjuste = (rol: string, clave: unknown): boolean =>
+  rol === "OWNER" || !((CAMPOS_DE_COBRO as readonly unknown[]).includes(clave) || (typeof clave === "string" && clave.startsWith("plantilla.")));
+
 export type ClaveConfig = CampoConfig | `plantilla.${ClavePlantilla}` | "horarios" | "bienvenidaVista";
 
 /**

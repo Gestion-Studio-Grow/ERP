@@ -11,7 +11,7 @@ export const metadata = { title: "Clases · Bienvenida", manifest: "/clases/app.
 // un Hoy vacío. Quién la manda acá: la página Hoy, con `necesitaBienvenida` (./necesita.ts). Esta
 // página no redirige a ningún lado: se puede abrir siempre (por ejemplo, para rehacer el arranque).
 export default async function ClasesBienvenida() {
-  await requireApp("padel-clases");
+  const user = await requireApp("padel-clases");
   const [{ config, franjas, negocio }, turnero] = await Promise.all([configCompleta(), linkDelTurnero()]);
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-5">
@@ -25,6 +25,7 @@ export default async function ClasesBienvenida() {
           whatsappProfe: config.whatsappProfe,
           aliasCbu: config.aliasCbu,
           titularCuenta: config.titularCuenta,
+          cuentaEditable: user.role === "OWNER",
           precioIndividual: config.precioIndividual,
           duracionMin: config.duracionMin,
           semana: semanaDesde(franjas),

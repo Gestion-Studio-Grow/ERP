@@ -39,3 +39,9 @@ export function aFila(a: {
 
 /** Los niveles que el profe toca como chips (texto libre en la base, `PadelAlumno.nivel`). */
 export const NIVELES = ["Inicial", "Intermedio", "Avanzado"] as const;
+
+/**
+ * La fila sin plata, para quien no la ve (`veLaPlataDelDia`: el PROFESSIONAL). Se anula en el
+ * servidor, antes de mandarla a la pantalla (certificación del arreglo UAT 11/2026).
+ */
+export const sinPlata = (f: FilaAlumno): FilaAlumno => ({ ...f, debe: 0, clasesQueDebe: 0, enRevision: 0, aFavor: 0 });

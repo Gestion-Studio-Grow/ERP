@@ -41,14 +41,17 @@ export function aAcciones(c: ClasePanel): ClaseAcciones {
 export const delDia = (clases: readonly ClasePanel[]): ClaseDelDia[] =>
   clases.map((c) => ({ id: c.id, nombre: c.nombre, empiezaEn: c.empiezaEn, terminaEn: c.terminaEn, estado: c.estado }));
 
-/** «Individual · $25.000 · Pagada» (lo que se lee en la fila, sin abrirla). */
-export function detalleClase(c: Pick<ClasePanel, "tipo" | "personas" | "precio" | "pagoEstado" | "estado" | "dadas"> & Partial<Pick<ClasePanel, "club" | "serieId">>): string {
+/**
+ * «Individual · $25.000 · Pagada» (lo que se lee en la fila, sin abrirla). Sin `conPlata` (el
+ * PROFESSIONAL, `veLaPlataDelDia`), sin precio ni estado del pago.
+ */
+export function detalleClase(c: Pick<ClasePanel, "tipo" | "personas" | "precio" | "pagoEstado" | "estado" | "dadas"> & Partial<Pick<ClasePanel, "club" | "serieId">>, conPlata = true): string {
   return [
     c.club ? `En ${c.club}` : null,
     c.tipo === "GRUPAL" ? `Con amigos · ${c.personas}` : "Individual",
     c.serieId ? "fija semanal" : null,
-    c.precio > 0 ? plataTexto(c.precio) : null,
-    ["CONFIRMADA", "DADA"].includes(c.estado) ? PAGO_LABEL[c.pagoEstado as EstadoPago] : null,
+    conPlata && c.precio > 0 ? plataTexto(c.precio) : null,
+    conPlata && ["CONFIRMADA", "DADA"].includes(c.estado) ? PAGO_LABEL[c.pagoEstado as EstadoPago] : null,
     c.dadas === 0 ? "alumno nuevo" : null,
   ]
     .filter(Boolean)
@@ -57,8 +60,11 @@ export function detalleClase(c: Pick<ClasePanel, "tipo" | "personas" | "precio" 
 
 export const filaClase = "rounded-2xl border border-line border-l-4 bg-surface-raised";
 
-/** Una clase plegada: hora · nombre · estado; al tocarla, sus acciones. */
-export function FilaClase({ c, otras, recordada = false, qa }: { c: ClasePanel; otras: readonly ClaseDelDia[]; recordada?: boolean; qa: string }) {
+/**
+ * Una clase plegada: hora · nombre · estado; al tocarla, sus acciones. Sin `conPlata` (el
+ * PROFESSIONAL) no hay acciones (todas exigen agenda:manage) ni plata: la clase no viaja al cliente.
+ */
+export function FilaClase({ c, otras, recordada = false, qa, conPlata = true }: { c: ClasePanel; otras: readonly ClaseDelDia[]; recordada?: boolean; qa: string; conPlata?: boolean }) {
   return (
     <li className={filaClase} style={{ borderLeftColor: tonoEstado(c.estado) }} data-qa={qa}>
       <details className="group">
@@ -69,11 +75,11 @@ export function FilaClase({ c, otras, recordada = false, qa }: { c: ClasePanel; 
             {c.club && <span className="truncate text-sm text-muted" data-qa="club-clase">{c.club}</span>}
             {recordada && <span className="text-xs font-semibold text-muted" data-qa="recordado">✓ recordado</span>}
           </span>
-          <ChipEstado estado={c.estado} pago={c.pagoEstado} />
+          <ChipEstado estado={c.estado} pago={conPlata ? c.pagoEstado : undefined} />
         </summary>
         <div className="grid gap-3 px-4 pb-4">
-          <p className="text-sm text-muted">{detalleClase(c)}</p>
-          <AccionesClase c={aAcciones(c)} otras={otras} />
+          <p className="text-sm text-muted">{detalleClase(c, conPlata)}</p>
+          {conPlata && <AccionesClase c={aAcciones(c)} otras={otras} />}
         </div>
       </details>
     </li>
@@ -88,6 +94,7 @@ export function LineaDelDia({
   recordadas = [],
   otras: otrasDadas,
   qa = "clase-dia",
+  conPlata = true,
 }: {
   fecha: string;
   clases: readonly ClasePanel[];
@@ -97,13 +104,15 @@ export function LineaDelDia({
   /** Todas las clases del día (si `clases` es sólo una parte, como «El resto de hoy»). */
   otras?: readonly ClaseDelDia[];
   qa?: string;
+  /** false para el PROFESSIONAL: ver `FilaClase`. */
+  conPlata?: boolean;
 }) {
   const items = lineaDelDia({ fecha, clases, huecos, bloqueos });
   const otras = otrasDadas ?? delDia(clases);
   return (
     <ul className="grid gap-2">
       {items.map((it) => {
-        if (it.tipo === "clase") return <FilaClase key={it.clave} c={it.clase} otras={otras} recordada={recordadas.includes(it.clase.id)} qa={qa} />;
+        if (it.tipo === "clase") return <FilaClase key={it.clave} c={it.clase} otras={otras} recordada={recordadas.includes(it.clase.id)} qa={qa} conPlata={conPlata} />;
         if (it.tipo === "hueco")
           return (
             <li key={it.clave}>

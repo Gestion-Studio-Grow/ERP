@@ -3,7 +3,7 @@ import { cn } from "@/components/ui";
 import { badgePendientes, configCompleta } from "@/lib/padel/datos.server";
 import { tarjeta } from "../../_vista";
 import { EncabezadoAjuste } from "../_encabezado";
-import { CampoAuto } from "../_campo";
+import { CampoAuto, DatoSoloDelDuenio } from "../_campo";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Clases · Cobro", manifest: "/clases/app.webmanifest" };
@@ -11,26 +11,41 @@ export const metadata = { title: "Clases · Cobro", manifest: "/clases/app.webma
 // Ajustes → Cobro (E2): el alias y el titular que ve el alumno para transferirte, y tu celular
 // (el botón «Escribirle» del turnero y del link del alumno). Se guarda solo, campo por campo.
 // Mercado Pago llega más adelante (Tanda 6, post-venta): no se muestra hasta que exista.
+// La cuenta (alias, titular) y el celular los cambia SÓLO el dueño (UAT 11/2026): Recepción la ve, no la edita.
 export default async function AjustesCobro() {
-  await requireApp("padel-clases");
+  const user = await requireApp("padel-clases");
+  const esDuenio = user.role === "OWNER";
   const [{ config }, numero] = await Promise.all([configCompleta(), badgePendientes()]);
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-5">
       <EncabezadoAjuste titulo="Cobro" detalle="Lo que ve el alumno para pagarte. Se guarda solo." pendientes={numero} />
       <section className={cn(tarjeta, "grid gap-4")} aria-label="Datos para cobrar">
-        <CampoAuto clave="aliasCbu" etiqueta="Alias o CBU" inicial={config.aliasCbu} placeholder="matias.padel" maxLength={60} ayuda="Lo copian con un toque desde su link." qa="alias" />
-        <CampoAuto clave="titularCuenta" etiqueta="Titular de la cuenta" inicial={config.titularCuenta} placeholder="Como figura en el banco" maxLength={80} ayuda="Para que el alumno vea que transfiere a la persona correcta." qa="titular" />
-        <CampoAuto
-          clave="whatsappProfe"
-          etiqueta="Tu celular (WhatsApp)"
-          inicial={config.whatsappProfe}
-          formato="celular"
-          tipo="tel"
-          inputMode="tel"
-          placeholder="11 5555-1234"
-          ayuda="Con código de área. Es el botón «Escribirle» que ven tus alumnos."
-          qa="whatsapp-profe"
-        />
+        {esDuenio ? (
+          <>
+            <CampoAuto clave="aliasCbu" etiqueta="Alias o CBU" inicial={config.aliasCbu} placeholder="matias.padel" maxLength={60} ayuda="Lo copian con un toque desde su link." qa="alias" />
+            <CampoAuto clave="titularCuenta" etiqueta="Titular de la cuenta" inicial={config.titularCuenta} placeholder="Como figura en el banco" maxLength={80} ayuda="Para que el alumno vea que transfiere a la persona correcta." qa="titular" />
+          </>
+        ) : (
+          <>
+            <DatoSoloDelDuenio etiqueta="Alias o CBU" valor={config.aliasCbu} qa="alias-fijo" />
+            <DatoSoloDelDuenio etiqueta="Titular de la cuenta" valor={config.titularCuenta} qa="titular-fijo" />
+          </>
+        )}
+        {esDuenio ? (
+          <CampoAuto
+            clave="whatsappProfe"
+            etiqueta="Tu celular (WhatsApp)"
+            inicial={config.whatsappProfe}
+            formato="celular"
+            tipo="tel"
+            inputMode="tel"
+            placeholder="11 5555-1234"
+            ayuda="Con código de área. Es el botón «Escribirle» que ven tus alumnos."
+            qa="whatsapp-profe"
+          />
+        ) : (
+          <DatoSoloDelDuenio etiqueta="Celular del profe (WhatsApp)" valor={config.whatsappProfe} qa="whatsapp-fijo" />
+        )}
       </section>
     </main>
   );

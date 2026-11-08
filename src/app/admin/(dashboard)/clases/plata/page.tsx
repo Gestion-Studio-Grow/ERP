@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { requireApp } from "@/lib/require-app";
+import { veLaPlata } from "@/lib/padel/plata-guardia";
 import { buttonClasses, chipLinkAtributos, cn, EmptyState, Plata } from "@/components/ui";
 import { badgePendientes, plata } from "@/lib/padel/datos.server";
 import { tarjeta } from "../_vista";
@@ -16,7 +18,9 @@ export const metadata = { title: "Clases · Plata", manifest: "/clases/app.webma
 // ordenado por monto con «Cobrar todo» y «Recordarle», y quién tiene plata a favor.
 // «Te deben» es TODO lo que se debe (no sólo del período): la deuda no vence con el mes.
 export default async function ClasesPlata({ searchParams }: { searchParams: Promise<{ periodo?: string }> }) {
-  await requireApp("padel-clases");
+  // La misma regla que `requirePlataDeClases`, escrita acá para que la guardia de páginas vea el requireApp.
+  const user = await requireApp("padel-clases");
+  if (!veLaPlata(user)) redirect("/admin/clases");
   const periodo = periodoDe((await searchParams).periodo);
   const [p, numero] = await Promise.all([plata(periodo), badgePendientes()]);
   const devolver = await paraDevolver(p.aFavor);
