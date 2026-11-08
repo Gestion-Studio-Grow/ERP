@@ -16,7 +16,7 @@ const ANTES = {
   button:
     '<button type="button" class="inline-flex items-center justify-center gap-2 font-medium whitespace-nowrap rounded-md transition-colors duration-150 select-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:opacity-50 disabled:cursor-not-allowed bg-accent text-on-accent hover:bg-accent-hover active:translate-y-px shadow-xs disabled:opacity-100 disabled:bg-surface-sunken disabled:text-faint disabled:shadow-none h-12 px-6 text-sm tracking-wide">Cobrar</button>',
   danger:
-    '<button type="button" class="inline-flex items-center justify-center gap-2 font-medium whitespace-nowrap rounded-md transition-colors duration-150 select-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:opacity-50 disabled:cursor-not-allowed bg-danger text-on-accent hover:opacity-90 active:translate-y-px shadow-xs h-11 sm:h-10 px-3.5 text-sm">Eliminar</button>',
+    '<button type="button" class="inline-flex items-center justify-center gap-2 font-medium whitespace-nowrap rounded-md transition-colors duration-150 select-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:opacity-50 disabled:cursor-not-allowed bg-danger text-on-accent hover:opacity-90 active:translate-y-px shadow-xs h-11 sm:pointer-fine:h-10 px-3.5 text-sm">Eliminar</button>',
   badge:
     '<span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium leading-5 tracking-wide tabular-nums bg-success-soft text-success"><span class="size-1.5 rounded-full bg-current opacity-70" aria-hidden="true"></span>Cobrado</span>',
   input:
