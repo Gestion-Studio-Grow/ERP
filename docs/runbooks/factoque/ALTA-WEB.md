@@ -47,18 +47,26 @@ eso, el paso 4 cae en una dirección que no abre.
 Pedir: 20/h por IP, 3/h por mail, 3/h por CUIT. Confirmar y clave: 20/h por IP. Por instancia de Vercel: frena
 al insistente, no a una red de máquinas (deuda: un almacén compartido cuando haya venta, ADR-030).
 
-## Decisión pendiente del dueño (certificación adversarial, 08/11)
+## CUIT sin verificar (aprobado por el dueño, 08/11: «Está ok la validación de la alta web»)
 
-**CUIT ajeno.** Nada prueba que quien pide el alta sea el titular del CUIT: un tercero con su propio mail
-puede ocupar el CUIT de otro, y el titular real recibe «no pudimos». No puede facturar a su nombre (el
-certificado de ARCA sólo lo saca el titular con su clave fiscal), pero sí le bloquea el alta.
-Hoy el mail «no pudimos» le dice al titular que escriba con su constancia y se resuelve a mano.
-Propuesta para decidir: el CUIT queda «sin verificar» hasta conectar ARCA; un CUIT sin verificar no bloquea
-otra alta y las altas sin verificar vencen a los N días. Toca la regla «un CUIT, un negocio» y probablemente
-una columna (Gate 2): por eso no se hizo.
+Nada en el alta web prueba que quien la pide sea el titular del CUIT. La prueba es conectar ARCA: el
+certificado sólo lo saca el titular con su clave fiscal. Sin columna nueva:
 
-**Residual aceptado (a confirmar):** quien controla una casilla puede saber si un CUIT ya está en GSG
-(mail con enlace vs. «no pudimos»). La pantalla no lo revela.
+- **Verificado** = el negocio tiene `TenantFiscalCredential` con `certCuit` igual a su CUIT.
+- **Alta web** = el negocio tiene la auditoría `factoque.alta` con actor `web:`. Los dados de alta por GSG
+  (consola o script) no la tienen y **siempre** ocupan su CUIT: los revisó una persona.
+- Un alta web **sin verificar no bloquea**. Si el titular real pide el alta con ese CUIT, recibe un mail con
+  enlace para reclamarlo (la pantalla dice lo mismo de siempre). Pueden convivir varias altas sin verificar
+  con el mismo CUIT; ninguna le reserva el punto de venta a las otras.
+- **Gana el primero que conecta ARCA.** `guardarRegistroCredencial` (`src/lib/fiscal/tenant-cert.ts`) se pone en
+  fila por el CUIT y le niega el certificado a un alta web si otro negocio ya lo verificó, aun conectando a la
+  vez. El asistente «Conectar con ARCA» muestra: «Ese CUIT ya está conectado con ARCA en otro negocio…».
+- **Vence a los 15 días** (provisional a confirmar, `VENCE_ALTA_SIN_VERIFICAR_MS`): el alta sin verificar deja
+  de ocupar el CUIT. No se borra nada; si después conecta ARCA, verifica igual (sólo puede el titular).
+- El **mismo mail** no duplica negocio: retoma el suyo (enlace de clave nuevo si nunca entró).
+
+**Residual aceptado:** quien controla una casilla puede saber si un CUIT ya está en GSG (mail con enlace,
+de reclamo o «no pudimos»). La pantalla no lo revela.
 
 ## QA local
 
