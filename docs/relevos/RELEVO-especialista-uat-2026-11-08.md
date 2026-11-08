@@ -10,9 +10,10 @@ Rama: `claude/especialista-uat-2026-11` (sin PR). Orquestadora vigente: session_
   - beauty-spa: `docs/tenants/ch/UAT-2026-11.md` (42/42 nav, 72/72 matriz, 38 OK, 3 fallas, 1 callejón blando). Le pedí a la
     orquestadora que lo lea desde la rama; si no puede, mandárselo en texto.
 
-## En curso (agentes QA en segundo plano)
-- shinevelas → `docs/tenants/shinevelas/UAT-2026-11.md` (puerto 3303, copia propia en el scratchpad).
-- adosmanos → `docs/tenants/adosmanos/UAT-2026-11.md` (puerto 3304).
+  - adosmanos: `docs/tenants/adosmanos/UAT-2026-11.md` (44 OK, 11 fallas, 4 callejones). Texto enviado.
+  - shinevelas: `docs/tenants/shinevelas/UAT-2026-11.md` (42 OK, 7 fallas, 6 callejones). Texto enviado.
+- Hallazgo transversal (magra, adosmanos, shinevelas): navegación retail — Inicio con Agenda, Vender/Ventas fuera del
+  menú y del buscador, modo simple pensado para agenda, permisos de Usuarios ≠ los que rigen. Una tanda los cierra.
 
 ## Falta
 1. breakpoint, matiasconsoli y mia (si aplica): mismo brief que adosmanos, cambiando tenant, puerto y base.
