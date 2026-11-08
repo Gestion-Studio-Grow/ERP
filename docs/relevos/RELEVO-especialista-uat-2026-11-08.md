@@ -26,3 +26,10 @@ Rama: `claude/especialista-uat-2026-11` (sin PR). Orquestadora vigente: session_
   node_modules). La copia `scratchpad/erp-uat` no se borró (`rm -rf` bloqueado).
 - Decisiones del dueño que salieron de la UAT: cierre del día de Recepción en CH (cierre-diario.ts:714) y comprobante a la
   clienta (ventaSimple apagado en CH).
+
+## Cierre de la tanda breakpoint · matiasconsoli · mia (08/11)
+- breakpoint: `docs/tenants/breakpoint/UAT-2026-11.md` (26 OK, 6 fallas, 2 callejones). Semilla vacía («Primera vez»), sin respaldo real.
+- matiasconsoli: `docs/tenants/matiasconsoli/UAT-2026-11.md` (34 OK, 5 fallas, 4 callejones).
+- mia-producciones: `docs/tenants/mia-producciones/UAT-2026-11.md` (57 OK, 8 fallas, 2 callejones).
+- Los tres enviados a la orquestadora (resumen + texto completo para Drive).
+- Quedan en el Postgres local (127.0.0.1:5433) las bases `uat_bp`, `uat_mc`, `uat_mia` y un rol vacío `neondb_owner`: DROP bloqueado por norma, a decidir por el dueño. Nada contra Neon.
