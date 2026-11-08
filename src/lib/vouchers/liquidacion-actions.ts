@@ -23,11 +23,13 @@ import { leerImporte } from "@/lib/dinero/leer";
 import { MENSAJES_VOUCHER } from "./voucher-core";
 import { esMedioAdministracion } from "./liquidacion-core";
 import {
+  confirmarAcreditacionMp,
   conciliarLiquidacionSemanal,
   darDeBajaImpago,
   descartarLiquidacion as descartarRepo,
   generarLiquidacionSemanal,
   registrarPagoACuenta,
+  type AcreditacionConfirmada,
   type LiquidacionGenerada,
   type PagoACuentaRegistrado,
   type ResultadoConciliacionSemanal,
@@ -67,6 +69,9 @@ async function preparar(): Promise<{ actor: string; tenantId: string } | { ok: f
 function revalidar(liquidacionId?: string) {
   revalidatePath("/admin/vouchers");
   if (liquidacionId) revalidatePath(`/admin/vouchers/liquidacion/${liquidacionId}`);
+  // El pago de la administración entra al libro de caja: el cierre y el libro cambian.
+  revalidatePath("/admin/caja/cierre");
+  revalidatePath("/admin/caja/libro");
 }
 
 /** Genera la liquidación de la semana que terminó el domingo `hasta` (YYYY-MM-DD). */
@@ -182,5 +187,24 @@ export async function bajaDeImpago(formData: FormData): Promise<ResultadoLiquida
     return { ok: true, valor };
   } catch (e) {
     return comoError(e, "vouchers.liquidacion.baja-impago");
+  }
+}
+
+/**
+ * Confirma que la plata de un pago de la administración entró en Mercado Pago (la cuenta bancaria del
+ * negocio). Campos: `pagoId`, `liquidacionId` (opcional, para refrescar su pantalla) y `movimientoId`
+ * (opcional: el movimiento de MP elegido; sin él se engancha el único posible o queda a mano).
+ */
+export async function confirmarAcreditacion(formData: FormData): Promise<ResultadoLiquidacionAccion<AcreditacionConfirmada>> {
+  const ctx = await preparar();
+  if ("ok" in ctx) return ctx;
+  const pagoId = texto(formData.get("pagoId"));
+  if (!pagoId) return { ok: false, error: "Falta identificar el pago." };
+  try {
+    const valor = await confirmarAcreditacionMp(ctx.tenantId, { pagoId, movimientoId: texto(formData.get("movimientoId")) || null, actor: ctx.actor });
+    revalidar(texto(formData.get("liquidacionId")) || undefined);
+    return { ok: true, valor };
+  } catch (e) {
+    return comoError(e, "vouchers.pago.acreditar");
   }
 }

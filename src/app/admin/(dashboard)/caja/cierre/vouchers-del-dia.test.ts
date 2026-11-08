@@ -43,3 +43,16 @@ test("el cierre del diseño nuevo pinta el renglón con el total, aparte de lo q
   assert.ok(ETIQUETA_VOUCHERS_A_COBRAR.includes("administración"));
   assert.ok(!/OpenKey/.test(ETIQUETA_VOUCHERS_A_COBRAR));
 });
+
+test("el cierre señala los pagos de la administración en su medio, y las pantallas de vouchers ofrecen confirmar la acreditación", () => {
+  const cierre = readFileSync(new URL("./CierreRenglon.tsx", import.meta.url), "utf8");
+  assert.match(cierre, /pagosDeLaAdministracion\(d\.movements\)/);
+  assert.match(cierre, /<PagosDeLaAdministracion d=\{d\} \/>/);
+  const forms = readFileSync(new URL("../../vouchers/LiquidacionFormularios.tsx", import.meta.url), "utf8");
+  assert.match(forms, /Confirmar acreditación en Mercado Pago/);
+  assert.match(forms, /confirmarAcreditacion\(fd\)/);
+  const lista = readFileSync(new URL("../../vouchers/page.tsx", import.meta.url), "utf8");
+  assert.match(lista, /cuenta\.pendientesDeAcreditacion\.map/);
+  const detalle = readFileSync(new URL("../../vouchers/liquidacion/[id]/page.tsx", import.meta.url), "utf8");
+  assert.match(detalle, /<AcreditacionDelPago pagoId=\{l\.pago\.id\}/);
+});

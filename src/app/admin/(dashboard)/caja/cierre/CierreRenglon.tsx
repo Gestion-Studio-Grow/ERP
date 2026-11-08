@@ -34,7 +34,7 @@ import { palabrasDelNegocio, type PalabrasDelNegocio } from "@/lib/palabras-del-
 import { getCurrentTenantSlug } from "@/lib/tenant-site";
 import { diferenciaDelComprobante, textoDelComprobante, type MedioDelComprobante } from "./comprobante";
 import { leerMediosDelComprobante } from "./comprobante.server";
-import { renglonDeVouchers } from "./vouchers-del-dia";
+import { ETIQUETA_PAGOS_ADMINISTRACION, pagosDeLaAdministracion, renglonDeVouchers } from "./vouchers-del-dia";
 
 type Datos = Awaited<ReturnType<typeof getCierreDiarioData>>;
 
@@ -277,6 +277,30 @@ function VouchersDelDia({ d }: { d: Datos }) {
   );
 }
 
+/** CH · vouchers: el pago de la administración, ya sumado en su medio (Mercado Pago se concilia al acreditarse). */
+function PagosDeLaAdministracion({ d }: { d: Datos }) {
+  const p = pagosDeLaAdministracion(d.movements);
+  if (!p) return null;
+  return (
+    <section aria-labelledby="pagos-administracion" className="mt-6" data-testid="cierre-pagos-administracion">
+      <div className="flex items-baseline justify-between gap-3 border-b border-line-strong pb-2">
+        <h2 id="pagos-administracion" className="text-[15px] font-semibold text-strong">
+          {ETIQUETA_PAGOS_ADMINISTRACION}
+        </h2>
+        <span className="text-[13px] text-muted">Ya sumados en «Entró»</span>
+      </div>
+      {p.porMedio.map((x) => (
+        <LineaDeCuenta
+          key={x.medio}
+          concepto={CASH_METHOD_LABEL[x.medio]}
+          detalle={`${x.cantidad} ${x.cantidad === 1 ? "pago" : "pagos"}${x.medio === "MP" ? " · se concilia en Vouchers cuando se acredita en Mercado Pago" : ""}`}
+          importe={<Plata valor={x.monto} />}
+        />
+      ))}
+    </section>
+  );
+}
+
 function TurnosSinCerrar({ d }: { d: Datos }) {
   const turnos = d.turnosSinCerrar ?? [];
   if (turnos.length === 0) return null;
@@ -367,6 +391,7 @@ export default async function CierreRenglon({ d, regla = null }: { d: Datos; reg
           <aside className="min-w-0" aria-label="De dónde sale lo que debería haber">
             <ComoSeLlega d={d} />
             <VouchersDelDia d={d} />
+            <PagosDeLaAdministracion d={d} />
           </aside>
         </DosColumnas>
       )}

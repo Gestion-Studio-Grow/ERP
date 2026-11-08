@@ -26,7 +26,7 @@ import {
 } from "./vouchers-pantalla";
 import { CargarLote } from "./CargarLote";
 import { ImportarCsv } from "./ImportarCsv";
-import { GenerarLiquidacion, PagoACuenta } from "./LiquidacionFormularios";
+import { AcreditacionDelPago, GenerarLiquidacion, PagoACuenta } from "./LiquidacionFormularios";
 import { leerCuentaDeLaAdministracion, type CuentaDeLaAdministracion } from "@/lib/vouchers/liquidacion-repo";
 import { fechaArgentina, pesosDeCentavos, ultimaSemanaCerrada } from "@/lib/vouchers/liquidacion-core";
 import { motivoDeBaja } from "@/lib/vouchers/voucher-core";
@@ -250,6 +250,26 @@ async function LiquidacionDelLunes() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {cuenta.pendientesDeAcreditacion.length > 0 && (
+        <section aria-labelledby="acreditacion-titulo" className="space-y-3" data-testid="pendientes-acreditacion">
+          <h3 id="acreditacion-titulo" className="text-base font-semibold text-strong">
+            Pagos pendientes de acreditación en Mercado Pago ({cuenta.pendientesDeAcreditacion.length})
+          </h3>
+          <p className="text-xs text-muted">Ya entraron a la caja en la columna Mercado Pago. Se concilian cuando la plata aparece en la cuenta de Mercado Pago.</p>
+          <ul className="divide-y divide-line text-sm">
+            {cuenta.pendientesDeAcreditacion.map((p) => (
+              <li key={p.id} className="space-y-2 py-3">
+                <p>
+                  <span className="tabular-nums text-muted">{fechaArgentina(p.fecha)}</span> · {p.concepto} ·{" "}
+                  <Plata valor={p.monto} sinCentavos={Number.isInteger(p.monto)} />
+                </p>
+                <AcreditacionDelPago pagoId={p.id} liquidacionId={p.liquidacionId ?? undefined} estado={p.acreditacion} />
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       <Herramienta titulo="Anotar un pago a cuenta de la administración" id="pago-a-cuenta">

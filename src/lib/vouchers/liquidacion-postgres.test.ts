@@ -226,7 +226,19 @@ test("punta a punta: cobro con voucher → saldo de la administración → liqui
   const p2 = await registrarPagoACuenta(A, { clave, monto: 4000, fecha: "2026-11-03", medio: "EFECTIVO", actor: "user:test" });
   assert.deepEqual([p1.duplicado, p2.duplicado, p2.pagoId], [false, true, p1.pagoId]);
   assert.equal((await saldo(A)) - saldoAntes, 0);
-  assert.equal(await duenio.cashMovement.count({ where: { tenantId: A } }), libroAntes, "nada de esto toca el libro de caja");
+  // Regla del dueño (08/11): cada pago entra a la caja UNA vez, en su medio (MP = la cuenta bancaria).
+  const ingresos = await duenio.cashMovement.findMany({
+    where: { tenantId: A, createdBy: { startsWith: "cuenta-corriente:voucher-pago:" } },
+    select: { type: true, method: true, amount: true, createdBy: true },
+  });
+  assert.equal(await duenio.cashMovement.count({ where: { tenantId: A } }), libroAntes + 2, "sólo los dos pagos entran al libro");
+  assert.deepEqual(
+    ingresos.map((m) => [m.type, m.method, m.amount, m.createdBy]).sort(),
+    [
+      ["INGRESO", "MP", 14000, `cuenta-corriente:voucher-pago:${(await duenio.voucherPagoAdministracion.findFirstOrThrow({ where: { liquidacionId: g.liquidacionId } })).id}`],
+      ["INGRESO", "EFECTIVO", 4000, `cuenta-corriente:voucher-pago:${p1.pagoId}`],
+    ].sort(),
+  );
 });
 
 test("doble conciliación a la vez: una sola pasa y hay un solo pago", async (t) => {
@@ -861,4 +873,228 @@ test("invariante: para cualquier secuencia, saldo = usados − pagos − bajas (
     // Todo saldado (pagado o dado de baja): no queda nada que reclamar.
     assert.ok(vs.every((v) => v.liquidadoEn != null), `${nombre}: quedó algo pendiente`);
   }
+});
+
+// ── El pago entra a la caja y se concilia al acreditarse en Mercado Pago (regla del dueño, 08/11) ──
+
+const MARCA_PAGO = "cuenta-corriente:voucher-pago:";
+
+/** Un movimiento acreditado de MP en el extracto (pipeline de mercadopago-auto.ts). */
+async function movimientoMp(s: Sembrado, tenantId: string, monto: number, fecha: string, descripcion = "Transferencia recibida") {
+  const duenio = await prismaComoDuenio(s.base);
+  const imp = await duenio.importacionBancaria.create({
+    data: { tenantId, nombreArchivo: `mp-${n++}`, origen: "mercadopago", archivo: Buffer.from(""), mapeoJson: {} },
+  });
+  return (
+    await duenio.movimientoImportado.create({
+      data: {
+        tenantId,
+        importacionId: imp.id,
+        hash: `mp:${n++}`,
+        fecha: fecha.replace(/-/g, ""),
+        monto,
+        descripcion,
+        clasificacion: "transferencia_propia",
+        estadoPropuesta: "no_facturable",
+      },
+    })
+  ).id;
+}
+
+async function liquidacionConciliable(s: Sembrado, nombre: string) {
+  await sinPendientes(s);
+  await voucherCobrado(s, nombre);
+  const { generarLiquidacionSemanal } = await liq();
+  const sem = await semanaNueva();
+  return generarLiquidacionSemanal(s.base.a.id, { hasta: sem.hasta, hoy: sem.hoy, actor: "user:test" });
+}
+
+test("doble registro del pago (en serie y a la vez): un solo pago y un solo ingreso de caja", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const duenio = await prismaComoDuenio(s.base);
+  const A = s.base.a.id;
+  const { registrarPagoACuenta, conciliarLiquidacionSemanal } = await liq();
+  const clave = "dobl-0000-1111-2222-333333333333";
+  const pagar = () => registrarPagoACuenta(A, { clave, monto: 2500, fecha: "2026-11-03", medio: "TRANSFERENCIA", actor: "user:test" });
+  const rs = await Promise.all([pagar(), pagar(), pagar()]);
+  assert.equal(new Set(rs.map((r) => r.pagoId)).size, 1);
+  assert.equal(rs.filter((r) => !r.duplicado).length, 1);
+  assert.equal((await pagar()).duplicado, true);
+  const pagoId = rs[0].pagoId;
+  const ingresos = await duenio.cashMovement.findMany({ where: { tenantId: A, createdBy: `${MARCA_PAGO}${pagoId}` } });
+  assert.deepEqual(ingresos.map((m) => [m.type, m.method, m.amount]), [["INGRESO", "MP", 2500]]);
+
+  // La conciliación de la misma liquidación tres veces a la vez: un pago, un ingreso.
+  const g = await liquidacionConciliable(s, "Dora");
+  const una = () => conciliarLiquidacionSemanal(A, { liquidacionId: g.liquidacionId, pagado: 15000, fecha: "2026-11-02", medio: "TRANSFERENCIA", aceptarDiferencia: true, actor: "user:test" });
+  const cs = await Promise.allSettled([una(), una(), una()]);
+  assert.equal(cs.filter((r) => r.status === "fulfilled").length, 1);
+  const pago = await duenio.voucherPagoAdministracion.findFirstOrThrow({ where: { liquidacionId: g.liquidacionId } });
+  const delPago = await duenio.cashMovement.findMany({ where: { tenantId: A, createdBy: `${MARCA_PAGO}${pago.id}` } });
+  // Todo lo pagado entra a la caja (14.000 aceptados + 1.000 de sobrante, que queda a favor de la administración).
+  assert.deepEqual(delPago.map((m) => [m.type, m.method, m.amount]), [["INGRESO", "MP", 15000]]);
+});
+
+test("con la caja de hoy cerrada el pago no se registra y no queda nada a medias", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const duenio = await prismaComoDuenio(s.base);
+  const B = s.base.b.id;
+  const { todayInBusinessTz } = await import("@/lib/datetime");
+  const { CIERRE_DIARIO_ACTION, CIERRE_DIARIO_ENTITY } = await import("@/lib/caja/frontera-cierre");
+  const cierre = await duenio.auditLog.create({
+    data: { tenantId: B, actor: "user:test", action: CIERRE_DIARIO_ACTION, entity: CIERRE_DIARIO_ENTITY, entityId: todayInBusinessTz(), channel: "admin", changes: {} },
+  });
+  const pagosAntes = await duenio.voucherPagoAdministracion.count({ where: { tenantId: B } });
+  const libroAntes = await duenio.cashMovement.count({ where: { tenantId: B } });
+  try {
+    const { registrarPagoACuenta } = await liq();
+    await rechaza(
+      registrarPagoACuenta(B, { clave: "cerr-0000-1111-2222-333333333333", monto: 1000, fecha: todayInBusinessTz(), medio: "TRANSFERENCIA", actor: "user:test" }),
+      /ya está cerrada/,
+    );
+    assert.equal(await duenio.voucherPagoAdministracion.count({ where: { tenantId: B } }), pagosAntes);
+    assert.equal(await duenio.cashMovement.count({ where: { tenantId: B } }), libroAntes);
+  } finally {
+    await duenio.auditLog.delete({ where: { id: cierre.id } });
+  }
+});
+
+test("acreditación: pendiente → se engancha al movimiento de MP → idempotente; efectivo no aplica; otro negocio no la ve", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const duenio = await prismaComoDuenio(s.base);
+  const A = s.base.a.id;
+  const B = s.base.b.id;
+  const { conciliarLiquidacionSemanal, confirmarAcreditacionMp, leerLiquidacion, leerCuentaDeLaAdministracion, registrarPagoACuenta } = await liq();
+  const g = await liquidacionConciliable(s, "Eli");
+  await conciliarLiquidacionSemanal(A, { liquidacionId: g.liquidacionId, pagado: 14000, fecha: "2026-11-02", medio: "TRANSFERENCIA", referencia: "TRF-7731", actor: "user:test" });
+  const antes = await leerLiquidacion(A, g.liquidacionId);
+  assert.equal(antes?.pago?.acreditacion.estado, "pendiente");
+  const pagoId = antes!.pago!.id;
+  assert.ok((await leerCuentaDeLaAdministracion(A)).pendientesDeAcreditacion.some((p) => p.id === pagoId));
+
+  // El extracto de MP trae dos de 14.000 en la ventana; la referencia desempata. Uno de B no cuenta.
+  await movimientoMp(s, A, 14000, "2026-11-03", "Transferencia de Adm. La Alameda");
+  const elBueno = await movimientoMp(s, A, 14000, "2026-11-04", "Transf. TRF-7731 Adm. La Alameda");
+  await movimientoMp(s, B, 14000, "2026-11-03", "TRF-7731");
+  const conCandidato = await leerLiquidacion(A, g.liquidacionId);
+  assert.deepEqual(conCandidato?.pago?.acreditacion.estado === "pendiente" && conCandidato.pago.acreditacion.candidato?.id, elBueno);
+
+  // Otro negocio no confirma el pago de A.
+  await rechaza(confirmarAcreditacionMp(B, { pagoId, actor: "user:test" }), /no existe/);
+
+  const c1 = await confirmarAcreditacionMp(A, { pagoId, actor: "user:test" });
+  assert.deepEqual([c1.duplicado, c1.via, c1.movimientoId], [false, "mp", elBueno]);
+  const c2 = await confirmarAcreditacionMp(A, { pagoId, actor: "user:test" });
+  assert.deepEqual([c2.duplicado, c2.movimientoId], [true, elBueno]);
+  const despues = await leerLiquidacion(A, g.liquidacionId);
+  assert.equal(despues?.pago?.acreditacion.estado, "acreditado");
+  assert.ok(!(await leerCuentaDeLaAdministracion(A)).pendientesDeAcreditacion.some((p) => p.id === pagoId));
+  // La acreditación no mueve plata: el libro sigue con UN ingreso del pago.
+  assert.equal(await duenio.cashMovement.count({ where: { tenantId: A, createdBy: `${MARCA_PAGO}${pagoId}` } }), 1);
+
+  // Sin movimiento en MP: se confirma a mano. En efectivo: no hay nada que acreditar.
+  const sinMp = await registrarPagoACuenta(A, { clave: "mano-0000-1111-2222-333333333333", monto: 777, fecha: "2026-11-05", medio: "TRANSFERENCIA", actor: "user:test" });
+  const manual = await confirmarAcreditacionMp(A, { pagoId: sinMp.pagoId, actor: "user:test" });
+  assert.deepEqual([manual.via, manual.movimientoId], ["manual", null]);
+  const efectivo = await registrarPagoACuenta(A, { clave: "efec-0000-1111-2222-333333333333", monto: 500, fecha: "2026-11-05", medio: "EFECTIVO", actor: "user:test" });
+  await rechaza(confirmarAcreditacionMp(A, { pagoId: efectivo.pagoId, actor: "user:test" }), /efectivo/);
+  // Un pago sin su ingreso de caja no se acredita (invariante: no se concilia plata que la caja no registró).
+  await duenio.cashMovement.deleteMany({ where: { tenantId: A, createdBy: `${MARCA_PAGO}${sinMp.pagoId}` } });
+  const huerfano = await registrarPagoACuenta(A, { clave: "huer-0000-1111-2222-333333333333", monto: 778, fecha: "2026-11-05", medio: "CHEQUE", actor: "user:test" });
+  await duenio.cashMovement.deleteMany({ where: { tenantId: A, createdBy: `${MARCA_PAGO}${huerfano.pagoId}` } });
+  await rechaza(confirmarAcreditacionMp(A, { pagoId: huerfano.pagoId, actor: "user:test" }), /no tiene su ingreso en la caja/);
+});
+
+test("concurrencia: el pago contra la confirmación de su acreditación, dos confirmaciones y dos pagos por el mismo movimiento de MP", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const duenio = await prismaComoDuenio(s.base);
+  const A = s.base.a.id;
+  const { conciliarLiquidacionSemanal, confirmarAcreditacionMp, registrarPagoACuenta } = await liq();
+  const { VoucherRechazado } = await import("./voucher-repo");
+
+  // 1) Pago vs confirmación: quien confirma apenas ve el pago ya ve su ingreso (nacen juntos o no nacen).
+  const g = await liquidacionConciliable(s, "Fio");
+  let confirmada: Awaited<ReturnType<typeof confirmarAcreditacionMp>> | null = null;
+  const errores: string[] = [];
+  const confirmador = (async () => {
+    for (let i = 0; i < 400 && !confirmada; i++) {
+      const p = await duenio.voucherPagoAdministracion.findFirst({ where: { liquidacionId: g.liquidacionId }, select: { id: true } });
+      if (!p) {
+        await new Promise((r) => setTimeout(r, 5));
+        continue;
+      }
+      try {
+        confirmada = await confirmarAcreditacionMp(A, { pagoId: p.id, actor: "user:test" });
+      } catch (e) {
+        errores.push(String(e));
+        if (!(e instanceof VoucherRechazado && e.motivo === "cambio-recien")) break;
+      }
+    }
+  })();
+  await Promise.all([
+    conciliarLiquidacionSemanal(A, { liquidacionId: g.liquidacionId, pagado: 14000, fecha: "2026-11-02", medio: "TRANSFERENCIA", actor: "user:test" }),
+    confirmador,
+  ]);
+  assert.deepEqual(errores.filter((e) => !/cambió|modificó/.test(e)), []);
+  assert.ok(confirmada, "la confirmación llegó a pasar");
+  const pago = await duenio.voucherPagoAdministracion.findFirstOrThrow({ where: { liquidacionId: g.liquidacionId } });
+  assert.equal(await duenio.cashMovement.count({ where: { tenantId: A, createdBy: `${MARCA_PAGO}${pago.id}` } }), 1);
+
+  // 2) Tres confirmaciones a la vez del mismo pago: un solo rastro.
+  const otro = await registrarPagoACuenta(A, { clave: "conc-0000-1111-2222-333333333333", monto: 3210, fecha: "2026-11-06", medio: "TRANSFERENCIA", actor: "user:test" });
+  const tres = await Promise.allSettled([1, 2, 3].map(() => confirmarAcreditacionMp(A, { pagoId: otro.pagoId, actor: "user:test" })));
+  const ok = tres.filter((r): r is PromiseFulfilledResult<Awaited<ReturnType<typeof confirmarAcreditacionMp>>> => r.status === "fulfilled");
+  assert.equal(ok.filter((r) => !r.value.duplicado).length, 1);
+  for (const r of tres) if (r.status === "rejected") assert.match(String(r.reason), /modificó/);
+  const { ACCION_ACREDITADO_MP } = await import("./acreditacion-core");
+  assert.equal(await duenio.auditLog.count({ where: { tenantId: A, action: ACCION_ACREDITADO_MP, entityId: otro.pagoId } }), 1);
+
+  // 3) Dos pagos del mismo monto y UN movimiento de MP: queda enganchado a uno solo.
+  const p1 = await registrarPagoACuenta(A, { clave: "mism-0000-1111-2222-33333333333a", monto: 4321, fecha: "2026-11-06", medio: "TRANSFERENCIA", actor: "user:test" });
+  const p2 = await registrarPagoACuenta(A, { clave: "mism-0000-1111-2222-33333333333b", monto: 4321, fecha: "2026-11-06", medio: "TRANSFERENCIA", actor: "user:test" });
+  const unico = await movimientoMp(s, A, 4321, "2026-11-07");
+  const dos = await Promise.allSettled([p1, p2].map((p) => confirmarAcreditacionMp(A, { pagoId: p.pagoId, actor: "user:test" })));
+  const hechos = dos.filter((r) => r.status === "fulfilled").map((r) => (r as PromiseFulfilledResult<Awaited<ReturnType<typeof confirmarAcreditacionMp>>>).value);
+  assert.ok(hechos.length >= 1);
+  assert.equal(hechos.filter((h) => h.movimientoId === unico).length, 1, "el movimiento de MP no se engancha a dos pagos");
+});
+
+test("cierre del día: el pago de la administración está en su medio (Mercado Pago o Efectivo) y el renglón lo señala", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const duenio = await prismaComoDuenio(s.base);
+  const B = s.base.b.id;
+  const { registrarPagoACuenta } = await liq();
+  const { todayInBusinessTz, dateStrInBusinessTz } = await import("@/lib/datetime");
+  const { buildCierreDiario } = await import("@/lib/caja/cierre-diario");
+  const { clasificarOrigen } = await import("@/lib/caja/libro-caja");
+  const { pagosDeLaAdministracion } = await import("@/app/admin/(dashboard)/caja/cierre/vouchers-del-dia");
+  const hoy = todayInBusinessTz();
+  await registrarPagoACuenta(B, { clave: "cier-0000-1111-2222-33333333333a", monto: 14000, fecha: hoy, medio: "TRANSFERENCIA", actor: "user:test" });
+  await registrarPagoACuenta(B, { clave: "cier-0000-1111-2222-33333333333b", monto: 2000, fecha: hoy, medio: "EFECTIVO", actor: "user:test" });
+  const filas = await duenio.cashMovement.findMany({ where: { tenantId: B } });
+  const movements = filas
+    .filter((r) => dateStrInBusinessTz(r.occurredAt) === hoy)
+    .map((r) => ({
+      id: r.id,
+      occurredAt: r.occurredAt,
+      type: r.type,
+      method: r.method,
+      amount: r.amount,
+      detail: r.reason ?? "",
+      referencia: clasificarOrigen({ type: r.type, createdBy: r.createdBy }).referencia,
+    }));
+  const c = buildCierreDiario({ day: hoy, previous: [], movements, declared: { EFECTIVO: null, MP: null, TARJETA: null } });
+  assert.equal(c.porMedio.MP.ingresos, 14000);
+  assert.equal(c.porMedio.EFECTIVO.ingresos, 2000);
+  const r = pagosDeLaAdministracion(movements);
+  assert.deepEqual(r?.porMedio.sort((a, b) => a.medio.localeCompare(b.medio)), [
+    { medio: "EFECTIVO", monto: 2000, cantidad: 1 },
+    { medio: "MP", monto: 14000, cantidad: 1 },
+  ]);
+  assert.ok(movements.every((m) => /^Vouchers: pago a cuenta de la administración/.test(m.detail)));
 });

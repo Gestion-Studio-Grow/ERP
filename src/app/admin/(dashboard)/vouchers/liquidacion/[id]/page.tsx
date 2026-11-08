@@ -10,7 +10,7 @@ import { vouchersPrendidos } from "@/cambios/interruptores";
 import { leerLiquidacion } from "@/lib/vouchers/liquidacion-repo";
 import { ETIQUETA_MEDIO_ADMINISTRACION, ETIQUETA_RESULTADO, esMedioAdministracion, fechaArgentina } from "@/lib/vouchers/liquidacion-core";
 import { AvisoError, Marca, PageHeader, Plata, buttonClasses, atributosBoton } from "@/components/ui";
-import { ConciliarLiquidacion, DarDeBajaImpago, DescartarLiquidacion, Imprimir } from "../../LiquidacionFormularios";
+import { AcreditacionDelPago, ConciliarLiquidacion, DarDeBajaImpago, DescartarLiquidacion, Imprimir } from "../../LiquidacionFormularios";
 
 export const dynamic = "force-dynamic";
 
@@ -123,6 +123,14 @@ export default async function LiquidacionPage({ params }: { params: Promise<{ id
               {l.pagoReferencia && ` · ${l.pagoReferencia}`}
             </dd>
           </div>
+          {l.pago && (
+            <div className="sm:col-span-2 print:hidden">
+              <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Conciliación con Mercado Pago</dt>
+              <dd className="mt-1">
+                <AcreditacionDelPago pagoId={l.pago.id} liquidacionId={l.id} estado={l.pago.acreditacion} />
+              </dd>
+            </div>
+          )}
           <div>
             <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Diferencia (pagado − aceptado)</dt>
             <dd className="text-strong" data-testid="diferencia-liquidacion">

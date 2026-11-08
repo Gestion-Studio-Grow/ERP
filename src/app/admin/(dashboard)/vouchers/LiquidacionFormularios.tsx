@@ -9,7 +9,8 @@
 import { useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Input, Select } from "@/components/ui";
-import { bajaDeImpago, conciliarLiquidacion, descartarLiquidacion, generarLiquidacion, pagoACuenta } from "@/lib/vouchers/liquidacion-actions";
+import { bajaDeImpago, conciliarLiquidacion, confirmarAcreditacion, descartarLiquidacion, generarLiquidacion, pagoACuenta } from "@/lib/vouchers/liquidacion-actions";
+import type { EstadoAcreditacion } from "@/lib/vouchers/acreditacion-core";
 import { ETIQUETA_MEDIO_ADMINISTRACION, MEDIOS_DE_PAGO_ADMINISTRACION } from "@/lib/vouchers/liquidacion-core";
 import { textoAlCentavo } from "@/lib/dinero/redondeo";
 
@@ -378,5 +379,60 @@ export function DarDeBajaImpago({ numero }: { numero: string }) {
       </div>
       <MensajeError id={`${id}-error`} texto={error} />
     </form>
+  );
+}
+
+const diaDeMp = (f: string) => `${f.slice(6, 8)}/${f.slice(4, 6)}/${f.slice(0, 4)}`;
+
+/**
+ * La conciliación del pago con Mercado Pago (la cuenta bancaria del negocio): «pendiente de
+ * acreditación» hasta que alguien confirma que la plata entró. Si el extracto de MP ya trae el
+ * movimiento (monto + fecha + referencia), se muestra y el botón lo engancha.
+ */
+export function AcreditacionDelPago({ pagoId, liquidacionId, estado }: { pagoId: string; liquidacionId?: string; estado: EstadoAcreditacion }) {
+  const id = useId();
+  const router = useRouter();
+  const [error, setError] = useState("");
+  const [pendiente, empezar] = useTransition();
+  if (estado.estado === "no-aplica") return <span className="text-sm text-muted">En efectivo: entró al cajón.</span>;
+  if (estado.estado === "acreditado") {
+    return (
+      <span className="text-sm text-strong" data-testid="acreditado-mp">
+        Acreditado en Mercado Pago{estado.via === "mp" ? " (enganchado al movimiento de MP)" : " (confirmado a mano)"}
+      </span>
+    );
+  }
+  const confirmar = () => {
+    if (pendiente) return;
+    const fd = new FormData();
+    fd.set("pagoId", pagoId);
+    if (liquidacionId) fd.set("liquidacionId", liquidacionId);
+    if (estado.candidato) fd.set("movimientoId", estado.candidato.id);
+    setError("");
+    empezar(async () => {
+      try {
+        const r = await confirmarAcreditacion(fd);
+        if (!r.ok) return setError(r.error);
+        router.refresh();
+      } catch {
+        setError(FALLO);
+      }
+    });
+  };
+  return (
+    <div className="space-y-2" data-testid="pendiente-acreditacion">
+      <p className="text-sm text-body">
+        <strong className="font-semibold">Pendiente de acreditación en Mercado Pago.</strong>{" "}
+        {estado.candidato
+          ? `En Mercado Pago hay un movimiento por el mismo monto el ${diaDeMp(estado.candidato.fecha)}: ${estado.candidato.descripcion}.`
+          : estado.candidatos > 1
+            ? `En Mercado Pago hay ${estado.candidatos} movimientos por el mismo monto: revisá que la plata entró y confirmá.`
+            : "Todavía no aparece en el extracto de Mercado Pago. Confirmalo cuando veas la plata en la app."}
+      </p>
+      <Button type="button" variant="outline" disabled={pendiente} estado={pendiente ? "cargando" : undefined} onClick={confirmar} aria-describedby={error ? `${id}-error` : undefined}>
+        Confirmar acreditación en Mercado Pago
+      </Button>
+      <MensajeError id={`${id}-error`} texto={error} />
+    </div>
   );
 }

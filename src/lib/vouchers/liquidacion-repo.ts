@@ -50,6 +50,21 @@ import { businessWallTimeToUtc, dateStrInBusinessTz, todayInBusinessTz } from "@
 import { textoAlCentavo } from "@/lib/dinero/redondeo";
 import { VoucherRechazado } from "./voucher-repo";
 import { PREFIJO_BAJA_IMPAGO } from "./voucher-core";
+import { decidirAsiento } from "@/lib/settlement/asiento-libro";
+import { lastClosedDayTx } from "@/lib/caja/frontera-cierre";
+import {
+  ACCION_ACREDITADO_MP,
+  candidatosDeAcreditacion,
+  detalleDelIngreso,
+  eleccionDeAcreditacion,
+  esperaAcreditacion,
+  leerAcreditacion,
+  marcaDelPagoEnCaja,
+  medioDeCajaDelPago,
+  ventanaDeAcreditacion,
+  type EstadoAcreditacion,
+  type MovimientoMp,
+} from "./acreditacion-core";
 import {
   cuentaCorriente,
   esDiaReal,
@@ -272,6 +287,52 @@ export async function descartarLiquidacion(tenantId: string, args: { liquidacion
   ).catch(sinConflictoCrudo);
 }
 
+// ── El pago de la administración en el libro de caja ────────────────────────
+
+/**
+ * El INGRESO de caja de un pago de la administración, dentro de la transacción (Serializable) que
+ * crea el pago: todo o nada. Mismo patrón que el cobro de un fiado (`aplicarConAsientoInTx`,
+ * settlement/collection-repo.ts): `decidirAsiento` traduce el medio (Mercado Pago = la cuenta
+ * bancaria del negocio → `MP`; efectivo → `EFECTIVO`) y rechaza si la caja de hoy ya está cerrada;
+ * la fila lleva la marca `cuenta-corriente:voucher-pago:<pagoId>` y se engancha al turno abierto.
+ * Idempotencia: el pago tiene su clave única (`liq:<id>` o `cuenta:<clave>`) y el ingreso nace en la
+ * misma transacción, así que hay a lo sumo uno por pago; la búsqueda por la marca es el cinturón.
+ */
+async function ingresoDelPagoEnCaja(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  p: { pagoId: string; monto: number; medio: MedioPagoAdministracion; detalle: string },
+): Promise<string> {
+  const ahora = new Date();
+  const d = decidirAsiento({
+    origen: "RECEIVABLE",
+    medio: medioDeCajaDelPago(p.medio),
+    monto: p.monto,
+    detalle: p.detalle,
+    hoy: dateStrInBusinessTz(ahora),
+    cerradoHasta: await lastClosedDayTx(tx, tenantId),
+  });
+  if (!d.ok) throw new VoucherRechazado("dato-invalido", d.error);
+  const marca = marcaDelPagoEnCaja(p.pagoId);
+  const ya = await tx.cashMovement.findFirst({ where: { tenantId, createdBy: marca }, select: { id: true } });
+  if (ya) return ya.id;
+  const turno = await tx.cashSession.findFirst({ where: { tenantId, status: "OPEN" }, select: { id: true } });
+  const mov = await tx.cashMovement.create({
+    data: {
+      tenantId,
+      sessionId: turno?.id ?? null,
+      type: d.asiento.type,
+      method: d.asiento.method,
+      amount: p.monto,
+      reason: d.asiento.reason,
+      occurredAt: ahora,
+      createdBy: marca,
+    },
+    select: { id: true },
+  });
+  return mov.id;
+}
+
 // ── Conciliar contra el pago de la administración ───────────────────────────
 
 export type ConciliarArgs = {
@@ -310,7 +371,10 @@ export async function conciliarLiquidacionSemanal(tenantId: string, args: Concil
   try {
     return await tenantTransaction(
       async (tx) => {
-        const liq = await tx.voucherLiquidacion.findFirst({ where: { id: args.liquidacionId, tenantId }, select: { id: true, estado: true } });
+        const liq = await tx.voucherLiquidacion.findFirst({
+          where: { id: args.liquidacionId, tenantId },
+          select: { id: true, estado: true, desde: true, hasta: true },
+        });
         if (!liq) throw new VoucherRechazado("dato-invalido", NO_EXISTE);
         if (liq.estado !== "ABIERTA") throw new VoucherRechazado("dato-invalido", YA_CONCILIADA);
         const vouchers = await tx.voucher.findMany({
@@ -375,7 +439,7 @@ export async function conciliarLiquidacionSemanal(tenantId: string, args: Concil
           if (r.count !== plan.impagos.length) throw new VoucherRechazado("cambio-recien", CAMBIO_RECIEN);
         }
         if (plan.pagadoCentavos > 0) {
-          await tx.voucherPagoAdministracion.create({
+          const pago = await tx.voucherPagoAdministracion.create({
             data: {
               tenantId,
               clave: `liq:${liq.id}`,
@@ -386,6 +450,14 @@ export async function conciliarLiquidacionSemanal(tenantId: string, args: Concil
               liquidacionId: liq.id,
               creadoPor: args.actor,
             },
+            select: { id: true },
+          });
+          // El pago entra a la caja (todo lo pagado, sobrante incluido: es plata que entró).
+          await ingresoDelPagoEnCaja(tx, tenantId, {
+            pagoId: pago.id,
+            monto: pagado,
+            medio: args.medio,
+            detalle: detalleDelIngreso({ liquidacion: liq, referencia, medio: args.medio }),
           });
         }
         await tx.auditLog.create({
@@ -584,6 +656,13 @@ export async function registrarPagoACuenta(tenantId: string, args: PagoACuentaAr
           },
           select: { id: true },
         });
+        // El pago entra a la caja entero (lo que sobra queda a favor de la administración, sin imputar).
+        await ingresoDelPagoEnCaja(tx, tenantId, {
+          pagoId: pago.id,
+          monto,
+          medio: args.medio,
+          detalle: detalleDelIngreso({ referencia: args.referencia ?? null, medio: args.medio }),
+        });
         // Imputación: los impagos pendientes (rechazados en una liquidación conciliada, sin baja).
         const conciliados = await tx.voucher.findMany({
           where: { ...impagoPendiente(tenantId), liquidacionSemanal: { estado: "CONCILIADA" } },
@@ -692,6 +771,158 @@ export async function registrarPagoACuenta(tenantId: string, args: PagoACuentaAr
   }
 }
 
+// ── Acreditación en Mercado Pago ────────────────────────────────────────────
+
+/** Los movimientos de MP enganchados a algún pago (para no engancharlos dos veces) y la acreditación de cada pago. */
+async function acreditacionesDelNegocio(tx: Prisma.TransactionClient, tenantId: string) {
+  const filas = await tx.auditLog.findMany({
+    where: { tenantId, action: ACCION_ACREDITADO_MP, entity: "VoucherPagoAdministracion" },
+    select: { entityId: true, changes: true, createdAt: true },
+  });
+  const porPago = new Map<string, { via: "mp" | "manual"; movimientoId: string | null; dia: string }>();
+  const usados = new Map<string, string>(); // movimientoId → pagoId
+  for (const f of filas) {
+    if (!f.entityId) continue;
+    const a = leerAcreditacion(f.changes);
+    porPago.set(f.entityId, { via: a.via, movimientoId: a.movimientoId, dia: dateStrInBusinessTz(f.createdAt) });
+    if (a.movimientoId) usados.set(a.movimientoId, f.entityId);
+  }
+  return { porPago, usados };
+}
+
+/** Los movimientos acreditados de Mercado Pago (pipeline del extracto) por ese monto y en la ventana del pago. */
+async function movimientosMpDelPago(tx: Prisma.TransactionClient, tenantId: string, pago: { fecha: string; monto: Prisma.Decimal }): Promise<MovimientoMp[]> {
+  const v = ventanaDeAcreditacion(pago.fecha);
+  if (!v) return [];
+  const filas = await tx.movimientoImportado.findMany({
+    where: { tenantId, monto: pago.monto, fecha: { gte: v.desde, lte: v.hasta }, importacion: { origen: "mercadopago" } },
+    select: { id: true, fecha: true, monto: true, descripcion: true, referencia: true, contraparte: true },
+    take: 50,
+  });
+  return filas.map((m) => ({
+    id: m.id,
+    fecha: m.fecha,
+    montoCentavos: centavosDeDecimal(m.monto),
+    descripcion: m.descripcion,
+    referencia: m.referencia,
+    contraparte: m.contraparte,
+  }));
+}
+
+export type ConfirmarAcreditacionArgs = {
+  pagoId: string;
+  /** El movimiento de MP que eligió la persona (opcional: sin él, se engancha el único posible). */
+  movimientoId?: string | null;
+  actor: string;
+};
+
+export type AcreditacionConfirmada = {
+  pagoId: string;
+  duplicado: boolean;
+  via: "mp" | "manual";
+  movimientoId: string | null;
+};
+
+/**
+ * Confirma que la plata de un pago de la administración entró en Mercado Pago: la conciliación del
+ * pago pasa de «pendiente de acreditación» a «acreditado». Engancha el movimiento de MP del extracto
+ * por monto + fecha + referencia; si no hay uno solo, queda confirmado a mano por quien lo vio.
+ *
+ * Invariantes: el pago existe, no es en efectivo y TIENE su ingreso de caja por el mismo monto en la
+ * columna Mercado Pago (no se acredita plata que la caja no registró). Idempotente: confirmar dos
+ * veces contesta `duplicado`. Serializable: dos confirmaciones a la vez (o dos pagos que pelean por
+ * el mismo movimiento de MP) no dejan dos rastros ni un movimiento enganchado a dos pagos.
+ */
+export async function confirmarAcreditacionMp(tenantId: string, args: ConfirmarAcreditacionArgs): Promise<AcreditacionConfirmada> {
+  const pagoId = args.pagoId.trim();
+  if (!pagoId) throw new VoucherRechazado("dato-invalido", "Falta identificar el pago.");
+  return tenantTransaction(
+    async (tx) => {
+      const pago = await tx.voucherPagoAdministracion.findFirst({
+        where: { id: pagoId, tenantId },
+        select: { id: true, fecha: true, monto: true, medio: true, referencia: true, liquidacionId: true },
+      });
+      if (!pago) throw new VoucherRechazado("dato-invalido", "Ese pago no existe. Recargá la pantalla.");
+      if (!esperaAcreditacion(pago.medio)) {
+        throw new VoucherRechazado("dato-invalido", "Ese pago fue en efectivo: entró al cajón y no hay acreditación que confirmar.");
+      }
+      const { porPago, usados } = await acreditacionesDelNegocio(tx, tenantId);
+      const ya = porPago.get(pago.id);
+      if (ya) return { pagoId: pago.id, duplicado: true, via: ya.via, movimientoId: ya.movimientoId };
+      const ingreso = await tx.cashMovement.findFirst({
+        where: { tenantId, createdBy: marcaDelPagoEnCaja(pago.id) },
+        select: { id: true, amount: true, method: true, type: true },
+      });
+      const montoCentavos = centavosDeDecimal(pago.monto);
+      if (!ingreso || ingreso.type !== "INGRESO" || ingreso.method !== "MP" || sumaCentavos([ingreso.amount]) !== montoCentavos) {
+        throw new VoucherRechazado(
+          "dato-invalido",
+          "Ese pago no tiene su ingreso en la caja por Mercado Pago, así que no se puede acreditar. Avisá: hay que revisarlo antes de conciliar.",
+        );
+      }
+      const candidatos = candidatosDeAcreditacion(
+        { fecha: pago.fecha, montoCentavos, referencia: pago.referencia },
+        await movimientosMpDelPago(tx, tenantId, pago),
+        new Set(usados.keys()),
+      );
+      const e = eleccionDeAcreditacion(candidatos, args.movimientoId);
+      if (!e.ok) throw new VoucherRechazado("dato-invalido", e.error);
+      const movimientoId = e.via === "mp" ? e.movimientoId : null;
+      await tx.auditLog.create({
+        data: {
+          tenantId,
+          actor: args.actor,
+          action: ACCION_ACREDITADO_MP,
+          entity: "VoucherPagoAdministracion",
+          entityId: pago.id,
+          channel: "admin",
+          changes: {
+            pagoId: pago.id,
+            via: e.via,
+            movimientoId,
+            motivo: e.via === "manual" ? e.motivo : null,
+            monto: pesosDeCentavos(montoCentavos),
+            fecha: pago.fecha,
+            liquidacionId: pago.liquidacionId,
+            cashMovementId: ingreso.id,
+          },
+        },
+      });
+      return { pagoId: pago.id, duplicado: false, via: e.via, movimientoId };
+    },
+    { tenantId, isolationLevel: SERIALIZABLE },
+  ).catch(sinConflictoCrudo);
+}
+
+/** Estado de acreditación de cada pago (para las pantallas). Los pendientes traen su candidato de MP, si hay uno. */
+async function estadosDeAcreditacion(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  pagos: readonly { id: string; fecha: string; monto: Prisma.Decimal; medio: string; referencia: string | null }[],
+): Promise<Map<string, EstadoAcreditacion>> {
+  const out = new Map<string, EstadoAcreditacion>();
+  if (pagos.length === 0) return out;
+  const { porPago, usados } = await acreditacionesDelNegocio(tx, tenantId);
+  for (const p of pagos) {
+    if (!esperaAcreditacion(p.medio)) {
+      out.set(p.id, { estado: "no-aplica" });
+      continue;
+    }
+    const a = porPago.get(p.id);
+    if (a) {
+      out.set(p.id, { estado: "acreditado", ...a });
+      continue;
+    }
+    const candidatos = candidatosDeAcreditacion(
+      { fecha: p.fecha, montoCentavos: centavosDeDecimal(p.monto), referencia: p.referencia },
+      await movimientosMpDelPago(tx, tenantId, p),
+      new Set(usados.keys()),
+    );
+    out.set(p.id, { estado: "pendiente", candidatos: candidatos.length, candidato: candidatos.length === 1 ? candidatos[0] : null });
+  }
+  return out;
+}
+
 // ── Lecturas ────────────────────────────────────────────────────────────────
 
 export type FilaLiquidacion = {
@@ -717,6 +948,19 @@ export type CuentaDeLaAdministracion = {
   impagos: { cantidad: number; total: number };
   /** Impagos dados de baja (la administración los desconoce): su crédito compensa el débito. */
   bajas: { cantidad: number; total: number };
+  /** Pagos que entraron a la caja por Mercado Pago y esperan que se confirme la acreditación (el más viejo primero). */
+  pendientesDeAcreditacion: PagoConAcreditacion[];
+};
+
+export type PagoConAcreditacion = {
+  id: string;
+  fecha: string;
+  monto: number;
+  medio: string;
+  referencia: string | null;
+  liquidacionId: string | null;
+  concepto: string;
+  acreditacion: EstadoAcreditacion;
 };
 
 const TOPE_MOVIMIENTOS = 200;
@@ -810,6 +1054,21 @@ export async function leerCuentaDeLaAdministracion(tenantId: string): Promise<Cu
         }),
       ];
       const { movimientos, resumen } = cuentaCorriente(movs);
+      const estados = await estadosDeAcreditacion(tx, tenantId, pagos);
+      const conceptoDe = new Map(movs.filter((m) => m.ref.startsWith("p:")).map((m) => [m.ref.slice(2), m.concepto]));
+      const pendientesDeAcreditacion: PagoConAcreditacion[] = pagos
+        .filter((p) => estados.get(p.id)?.estado === "pendiente")
+        .sort((a, b) => a.fecha.localeCompare(b.fecha) || a.id.localeCompare(b.id))
+        .map((p) => ({
+          id: p.id,
+          fecha: p.fecha,
+          monto: p.monto.toNumber(),
+          medio: p.medio,
+          referencia: p.referencia,
+          liquidacionId: p.liquidacionId,
+          concepto: conceptoDe.get(p.id) ?? "Pago de la administración",
+          acreditacion: estados.get(p.id) as EstadoAcreditacion,
+        }));
       const sinLiq = usados.filter((v) => !v.liquidacionSemanalId);
       const imp = usados.filter((v) => v.resultadoLiquidacion === "IMPAGO" && v.liquidadoEn == null);
       const total = (xs: typeof usados) => pesosDeCentavos(sumaCentavos(xs.map((v) => (v.valorCubierto ? v.valorCubierto.toNumber() : 0))));
@@ -821,6 +1080,7 @@ export async function leerCuentaDeLaAdministracion(tenantId: string): Promise<Cu
         sinLiquidar: { cantidad: sinLiq.length, total: total(sinLiq) },
         impagos: { cantidad: imp.length, total: debe(imp) },
         bajas: { cantidad: bajas.length, total: debe(bajas) },
+        pendientesDeAcreditacion,
       };
     },
     { tenantId },
@@ -832,6 +1092,8 @@ export type DetalleDeLiquidacion = FilaLiquidacion & {
   pagoMedio: string | null;
   pagoReferencia: string | null;
   conciliadoEn: string | null;
+  /** El pago de esta liquidación (si pagó algo) y si ya se acreditó en Mercado Pago. */
+  pago: { id: string; monto: number; medio: string; acreditacion: EstadoAcreditacion } | null;
   /** `baja`: «pendiente» = impago que se puede dar de baja; «dada» = ya dado de baja (`estadoDeBaja`). */
   renglones: (RenglonDelReporte & { id: string; baja: "pendiente" | "dada" | null })[];
 };
@@ -842,6 +1104,11 @@ export async function leerLiquidacion(tenantId: string, liquidacionId: string): 
       const l = await tx.voucherLiquidacion.findFirst({ where: { id: liquidacionId, tenantId } });
       if (!l) return null;
       const negocio = await tx.tenant.findFirst({ where: { id: tenantId }, select: { name: true } });
+      const pagoDeLaLiq = await tx.voucherPagoAdministracion.findFirst({
+        where: { tenantId, liquidacionId: l.id },
+        select: { id: true, fecha: true, monto: true, medio: true, referencia: true },
+      });
+      const acreditacion = pagoDeLaLiq ? (await estadosDeAcreditacion(tx, tenantId, [pagoDeLaLiq])).get(pagoDeLaLiq.id) : undefined;
       // Los impagos de esta liquidación que después pasaron a otra siguen en su reporte, como IMPAGO.
       const rastro = await tx.auditLog.findMany({
         where: { tenantId, action: ACCION_RELIQUIDAR, entity: "VoucherLiquidacion", entityId: l.id },
@@ -885,6 +1152,10 @@ export async function leerLiquidacion(tenantId: string, liquidacionId: string): 
         pagoMedio: l.pagoMedio,
         pagoReferencia: l.pagoReferencia,
         conciliadoEn: l.conciliadoEn ? dateStrInBusinessTz(l.conciliadoEn) : null,
+        pago:
+          pagoDeLaLiq && acreditacion
+            ? { id: pagoDeLaLiq.id, monto: pagoDeLaLiq.monto.toNumber(), medio: pagoDeLaLiq.medio, acreditacion }
+            : null,
         renglones: vouchers.map((v) => ({
           id: v.id,
           numero: v.numero,

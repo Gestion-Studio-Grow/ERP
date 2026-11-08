@@ -8,6 +8,7 @@
 // está apagado: `vouchersDelPeriodo` devuelve null y la pantalla no cambia).
 
 import type { ColumnaDelCierre, VouchersDelCierre } from "@/lib/caja/cierre-diario";
+import type { CashMethod } from "@/lib/caja/cash-register";
 
 export const ETIQUETA_VOUCHERS_A_COBRAR = "A cobrar a la administración (vouchers)";
 
@@ -43,4 +44,32 @@ export function renglonDeVouchers(
 
 function centavos(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+// ── Pagos de la administración (regla del dueño del 08/11) ──────────────────
+//
+// Cuando la administración paga, el pago entra al libro como cobro de cuenta corriente con la
+// referencia `voucher-pago:<id>` (src/lib/vouchers/acreditacion-core.ts), en su medio: Mercado Pago
+// (la cuenta bancaria del negocio) o Efectivo. YA está sumado en «Entró» de esa columna; este renglón
+// sólo lo señala, para que quien cuenta MP sepa que puede no haberse acreditado todavía.
+
+export const ETIQUETA_PAGOS_ADMINISTRACION = "Pagos de la administración (vouchers)";
+
+export interface PagosDeLaAdministracion {
+  cantidad: number;
+  porMedio: { medio: CashMethod; monto: number; cantidad: number }[];
+}
+
+export function pagosDeLaAdministracion(
+  movimientos: readonly { type: string; method: CashMethod; amount: number | null; referencia?: string | null }[],
+): PagosDeLaAdministracion | null {
+  const porMedio = new Map<CashMethod, { monto: number; cantidad: number }>();
+  for (const m of movimientos) {
+    if (m.type !== "INGRESO" || !m.amount || !String(m.referencia ?? "").startsWith("voucher-pago:")) continue;
+    const x = porMedio.get(m.method) ?? { monto: 0, cantidad: 0 };
+    porMedio.set(m.method, { monto: centavos(x.monto + m.amount), cantidad: x.cantidad + 1 });
+  }
+  if (porMedio.size === 0) return null;
+  const lista = [...porMedio].map(([medio, x]) => ({ medio, ...x }));
+  return { cantidad: lista.reduce((s, x) => s + x.cantidad, 0), porMedio: lista };
 }

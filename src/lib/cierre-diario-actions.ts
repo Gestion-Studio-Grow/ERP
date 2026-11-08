@@ -137,6 +137,8 @@ export type CierreDiarioData = {
     origin: "manual" | "pos" | "turno";
     /** Para decir de dónde salió una fila del sistema (`rotuloDeOrigen`). */
     origenContable?: OrigenContable;
+    /** La referencia de la fila del sistema (`clasificarOrigen`): p. ej. `voucher-pago:<id>` del pago de la administración. */
+    referencia?: string;
   }[];
   yaCerrado: boolean;
   enElFuturo: boolean;
@@ -509,7 +511,9 @@ async function leerCierreDiario(
       amount: r.amount,
       detail: r.reason ?? "",
       origin: libroOrigin({ type: r.type as CashMovementType, orderId: r.orderId, createdBy: r.createdBy }),
-      origenContable: clasificarOrigen({ type: r.type as CashMovementType, createdBy: r.createdBy, orderId: r.orderId, collectionId: r.collectionId }).origen,
+      ...(({ origen, referencia }) => ({ origenContable: origen, referencia }))(
+        clasificarOrigen({ type: r.type as CashMovementType, createdBy: r.createdBy, orderId: r.orderId, collectionId: r.collectionId }),
+      ),
     })),
     yaCerrado: false,
     enElFuturo: compareDayKeys(day, today) > 0,
