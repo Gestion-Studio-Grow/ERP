@@ -100,7 +100,7 @@ test("el negocio dueño recibe su página con tipo, caché privada y cabeceras d
 test("Break Point no se deja embeber en otro sitio (D38); WPE queda como estaba (freeze)", async () => {
   const { leer } = lectorEspia();
   for (const ruta of [undefined, ["turnero"], ["club"]]) {
-    const r = await responderSitioEstatico("breakpoint", ruta, leer);
+    const r = await responderSitioEstatico("breakpoint", ruta, leer, { conSesion: async () => true });
     assert.equal(r.status, 200);
     assert.equal(r.headers.get("x-frame-options"), "SAMEORIGIN");
     assert.equal(r.headers.get("content-security-policy"), "frame-ancestors 'self'");
@@ -320,7 +320,7 @@ test("Break Point: cada archivo registrado existe, es una página completa y no 
 test("Break Point: el manejador sirve portada, turnero y club sólo al negocio breakpoint", async () => {
   for (const [segmentos, archivo] of [[[], "index.html"], [["turnero"], "turnero.html"], [["club"], "club.html"]] as const) {
     const { pedidos, leer } = lectorEspia();
-    const r = await responderSitioEstatico("breakpoint", [...segmentos], leer);
+    const r = await responderSitioEstatico("breakpoint", [...segmentos], leer, { conSesion: async () => true });
     assert.equal(r.status, 200);
     assert.match(r.headers.get("content-type") ?? "", /^text\/html/);
     assert.deepEqual(pedidos, [`src/tenants/breakpoint/sitio/${archivo}`]);
@@ -329,4 +329,26 @@ test("Break Point: el manejador sirve portada, turnero y club sólo al negocio b
   assert.equal((await responderSitioEstatico("circuito-wpe", ["club"], leer)).status, 404);
   assert.equal((await responderSitioEstatico("breakpoint", ["club.html"], leer)).status, 404);
   assert.deepEqual(pedidos, []);
+});
+
+// SEGURIDAD (08/11/2026): /club (la gestión del club, con caja, cuentas corrientes y PIN) se servía a cualquiera.
+test("SEGURIDAD: /club sin sesión del panel no sirve la app: puerta 401 sin caché, sin leer el archivo", async () => {
+  for (const conSesion of [undefined, async () => false]) {
+    const { pedidos, leer } = lectorEspia();
+    const r = await responderSitioEstatico("breakpoint", ["club"], leer, conSesion ? { conSesion } : {});
+    assert.equal(r.status, 401);
+    assert.equal(r.headers.get("cache-control"), "no-store");
+    assert.equal(r.headers.get("x-frame-options"), "DENY");
+    const html = await r.text();
+    assert.doesNotMatch(html, /bp-ambiente|motor|usuarios/);
+    assert.match(html, /\/admin\/login\?next=%2Fadmin%2Fclub/);
+    assert.deepEqual(pedidos, [], "no se leyó club.html");
+  }
+  // Con sesión: la app, sin caché (al salir del panel la copia del navegador no vuelve a mostrarla).
+  const { leer } = lectorEspia();
+  const ok = await responderSitioEstatico("breakpoint", ["club"], leer, { conSesion: async () => true });
+  assert.equal(ok.status, 200);
+  assert.equal(ok.headers.get("cache-control"), "private, no-store");
+  // La portada y el turnero (públicos, para los jugadores) siguen sin sesión.
+  for (const segs of [[], ["turnero"]]) assert.equal((await responderSitioEstatico("breakpoint", segs, lectorEspia().leer)).status, 200);
 });
