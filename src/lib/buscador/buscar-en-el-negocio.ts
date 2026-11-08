@@ -137,7 +137,8 @@ export async function buscarEnElNegocio(q: unknown): Promise<ResultadoDeBusqueda
         const filas = leidas.filter(
           (f) =>
             (codigo !== null && String(f.code).startsWith(String(codigo))) ||
-            digitos === null ||
+            // `contains` no escapa los comodines de LIKE («%» traería todo): se confirma acá, letra por letra.
+            (digitos === null && f.customerName.toLowerCase().includes(texto.toLowerCase())) ||
             (porTelefonoDelPedido !== null && f.customerPhone.replace(/\D/g, "").includes(porTelefonoDelPedido)),
         );
         const exacto = codigo === null || filas.some((f) => f.code === codigo)
