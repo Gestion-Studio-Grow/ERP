@@ -534,6 +534,82 @@ const PALABRAS_EXPR = new Set(["and", "or", "not", "is", "null", "true", "false"
 const PALABRAS_TIPO = new Set(["precision", "varying", "with", "without", "time", "zone"]);
 const PRED_TENANT = ['"tenantId"', "=", "current_setting", "(", "'app.current_tenant_id'", ",", "true", ")"];
 
+// ── Molde RLS de los módulos (bloque DO) ────────────────────────────────────
+// Plantilla literal de las migraciones históricas (lanzamiento_base, modulo_taller, modulo_inmobiliaria,
+// modulo_padel_clases, modulo_proyectos, profeturnos_clubes_serie_grupal; lead_campania en su forma de
+// una sola tabla). Se compara token a token (sólo cambian espacios y comentarios): cualquier otra
+// diferencia en el cuerpo frena. `__tablas__` = lista literal de 'Nombres' creados más arriba en la
+// misma migración; `__T__` = el nombre de UNA tabla creada más arriba (el mismo en las tres sentencias).
+const MOLDE_RLS_LOOP = `
+DECLARE
+  t text;
+BEGIN
+  FOREACH t IN ARRAY ARRAY[ __tablas__ ]
+  LOOP
+    EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
+    EXECUTE format('DROP POLICY IF EXISTS tenant_isolation ON %I', t);
+    EXECUTE format(
+      'CREATE POLICY tenant_isolation ON %I '
+      || 'USING ("tenantId" = current_setting(''app.current_tenant_id'', true)) '
+      || 'WITH CHECK ("tenantId" = current_setting(''app.current_tenant_id'', true))',
+      t
+    );
+  END LOOP;
+END`;
+const MOLDE_RLS_UNA = `
+BEGIN
+  EXECUTE 'ALTER TABLE "__T__" ENABLE ROW LEVEL SECURITY';
+  EXECUTE 'DROP POLICY IF EXISTS tenant_isolation ON "__T__"';
+  EXECUTE 'CREATE POLICY tenant_isolation ON "__T__" '
+       || 'USING ("tenantId" = current_setting(''app.current_tenant_id'', true)) '
+       || 'WITH CHECK ("tenantId" = current_setting(''app.current_tenant_id'', true))';
+END`;
+const MOLDES_RLS = [MOLDE_RLS_LOOP, MOLDE_RLS_UNA].map((m) => tokenizar(m).tokens);
+const NOMBRE_SIMPLE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+/**
+ * Cuerpo de un DO contra los moldes RLS. Devuelve las tablas (todas creadas más arriba) o null si
+ * el cuerpo no es EXACTAMENTE uno de los moldes; `ajenas` junta nombres que no crea la migración.
+ */
+function moldeRls(cuerpo, creadas, ajenas) {
+  for (const molde of MOLDES_RLS) {
+    const tablas = [];
+    let una = null;
+    let j = 0;
+    let ok = true;
+    const nombre = (n) => {
+      if (!NOMBRE_SIMPLE.test(n)) return false;
+      if (!creadas.has(n)) ajenas.push(n);
+      tablas.push(n);
+      return true;
+    };
+    for (const m of molde) {
+      const t = cuerpo[j];
+      if (m.k === "w" && m.low === "__tablas__") {
+        // 'A', 'B', … (al menos una; strings simples, sin prefijo ni escapes)
+        do {
+          const x = cuerpo[j];
+          if (!x || x.k !== "s" || x.unicode || !/^'[^']*'$/.test(x.raw) || !nombre(x.raw.slice(1, -1))) { ok = false; break; }
+          j++;
+        } while (esP(cuerpo[j], ",") && j++);
+        if (!ok) break;
+        continue;
+      }
+      if (!t || t.k !== m.k || t.unicode) { ok = false; break; }
+      if (m.k === "s" && m.raw.includes('"__T__"')) {
+        const [antes, despues] = m.raw.split('"__T__"');
+        const n = t.raw.startsWith(antes + '"') && t.raw.endsWith('"' + despues) ? t.raw.slice(antes.length + 1, t.raw.length - despues.length - 1) : null;
+        if (n === null || (una !== null && n !== una) || (una === null && !nombre(n))) { ok = false; break; }
+        una = n;
+      } else if ((m.k === "w" ? t.low !== m.low : t.raw !== m.raw)) { ok = false; break; }
+      j++;
+    }
+    if (ok && j === cuerpo.length) return tablas;
+    ajenas.length = 0;
+  }
+  return null;
+}
+
 class NoPermitida extends Error {
   /** @param {string} regla @param {string} motivo @param {any} [tok] */
   constructor(regla, motivo, tok) {
@@ -547,9 +623,11 @@ const GENERICA = "no es una de las formas aditivas que se publican solas";
 /**
  * Lee la sentencia `s` (tokens de nivel superior, sin `;`) contra la gramática permitida.
  * Devuelve { rls: tabla | null } si calza entera; si no, tira NoPermitida (con el motivo concreto
- * si lo hay). `creadas` = tablas creadas por sentencias ANTERIORES de la misma migración.
+ * si lo hay). `creadas` = tablas creadas por sentencias ANTERIORES de la misma migración;
+ * `colsNuevas` = tabla existente → columnas que esta migración le agregó nullable y sin DEFAULT
+ * (en las filas que ya existen valen NULL: una FK que las incluye no las toca).
  */
-function sentenciaPermitida(s, creadas) {
+function sentenciaPermitida(s, creadas, colsNuevas = new Map()) {
   let i = 0;
   const cur = () => s[i];
   const no = (motivo = GENERICA, regla = REVISION) => { throw new NoPermitida(regla, motivo, s[i] ?? s[s.length - 1]); };
@@ -676,8 +754,38 @@ function sentenciaPermitida(s, creadas) {
     else if (comeW("check")) chequeo();
     else no();
   };
-  const columna = (nueva) => {
+  // Restricción sobre una tabla EXISTENTE: sólo las dos que no mueven ni exponen datos.
+  //   ADD CONSTRAINT n FOREIGN KEY (cols) REFERENCES t (cols) [ON DELETE|UPDATE RESTRICT|CASCADE|SET NULL|NO ACTION]… [NOT VALID]
+  //     con al menos una columna agregada vacía (nullable, sin DEFAULT) por esta migración: las filas
+  //     que ya existen tienen NULL ahí y la FK (MATCH SIMPLE) no las toca ni rechaza sus escrituras.
+  //   ADD CONSTRAINT n UNIQUE (cols)
+  const restriccionExistente = (t) => {
+    const existente = (m) => no(m, "RESTRICCIÓN EN TABLA EXISTENTE");
+    if (!comeW("constraint")) existente("restricción sin nombre sobre una tabla que no crea esta migración");
     ident();
+    if (comeW("unique")) { columnas(); return; }
+    if (!comeW("foreign")) existente("restricción sobre una tabla que no crea esta migración: sólo se publican solas FOREIGN KEY y UNIQUE");
+    pideW("key");
+    const desde = i;
+    columnas();
+    const propias = [];
+    for (let j = desde + 1; j < i - 1; j += 2) propias.push(identDe(s[j]));
+    if (!propias.some((c) => colsNuevas.get(t)?.has(c)))
+      existente("FK sobre columnas que ya tienen datos: puede rechazar escrituras o borrar en cascada filas existentes");
+    pideW("references");
+    tabla();
+    columnas();
+    while (comeW("on")) {
+      pideW("delete", "update");
+      if (comeW("cascade", "restrict")) continue;
+      if (comeW("no")) { pideW("action"); continue; }
+      pideW("set");
+      pideW("null");
+    }
+    if (comeW("not")) pideW("valid");
+  };
+  const columna = (nueva) => {
+    const nombreCol = ident();
     tipo();
     let conDefault = false;
     let obligatoria = false;
@@ -696,6 +804,7 @@ function sentenciaPermitida(s, creadas) {
     }
     if (!nueva && obligatoria && !conDefault)
       no("agrega una columna obligatoria sin valor por defecto a una tabla existente (falla si tiene filas)", "NOT NULL SIN DEFAULT");
+    return { nombre: nombreCol, vacia: !obligatoria && !conDefault };
   };
   /** Corre `f` sobre el tramo s[a, b) como si fuera la sentencia entera. */
   const tramo = (a, b, f) => {
@@ -740,7 +849,7 @@ function sentenciaPermitida(s, creadas) {
       pideW("on");
       comeW("only");
       const t = tabla();
-      if (unico && !creadas.has(t)) no("índice único sobre una tabla que ya existe: falla con duplicados y cambia qué escrituras se aceptan", "ÚNICO EN TABLA EXISTENTE");
+      const existente = !creadas.has(t);
       if (comeW("using")) pideW("btree", "hash", "gin", "gist", "brin", "spgist");
       pideP("(");
       do {
@@ -754,7 +863,11 @@ function sentenciaPermitida(s, creadas) {
       } while (comeP(","));
       pideP(")");
       if (comeW("include")) columnas();
-      if (comeW("nulls")) { comeW("not"); pideW("distinct"); }
+      if (comeW("nulls")) {
+        if (unico && existente) no("NULLS NOT DISTINCT en un índice único sobre una tabla que ya existe", "ÚNICO EN TABLA EXISTENTE");
+        comeW("not");
+        pideW("distinct");
+      }
       if (comeW("where")) expresion(s.length);
       fin();
       return {};
@@ -812,14 +925,18 @@ function sentenciaPermitida(s, creadas) {
       tramo(a, b, () => {
         if (comeW("add")) {
           if (veoW("constraint", "primary", "unique", "foreign", "check", "exclude")) {
-            if (!nueva)
-              no("restricción sobre una tabla que no crea esta migración: puede fallar con datos existentes o rechazar escrituras", "RESTRICCIÓN EN TABLA EXISTENTE");
-            restriccion();
+            if (nueva) { restriccion(); return; }
+            restriccionExistente(t);
             return;
           }
           comeW("column");
-          if (comeW("if")) { pideW("not"); pideW("exists"); }
-          columna(nueva);
+          const siNoExiste = comeW("if") && (pideW("not"), pideW("exists"), true);
+          const c = columna(nueva);
+          // Con IF NOT EXISTS la columna puede existir ya (con datos): no cuenta como vacía.
+          if (!nueva && c.vacia && !siNoExiste) {
+            if (!colsNuevas.has(t)) colsNuevas.set(t, new Set());
+            colsNuevas.get(t).add(c.nombre);
+          }
           return;
         }
         if (veoW("enable", "force") && esW(s[i + 1], "row")) {
@@ -852,7 +969,16 @@ function sentenciaPermitida(s, creadas) {
   }
   if (veoW("insert", "update", "delete", "copy", "merge", "with", "truncate"))
     no("lee o escribe datos (aunque la tabla sea nueva)", "ESCRIBE DATOS");
-  if (veoW("do")) no("bloque de código (DO): no se puede asegurar qué ejecuta", "BLOQUE DO");
+  if (comeW("do")) {
+    const d = s[i];
+    if (!d || d.k !== "d" || d.tag !== "$$" || i + 1 !== s.length) no("bloque de código (DO): no se puede asegurar qué ejecuta", "BLOQUE DO");
+    const ajenas = [];
+    const tablas = moldeRls(d.dentro, creadas, ajenas);
+    if (tablas && ajenas.length)
+      no(`el molde RLS prende RLS sobre tablas que no crea esta migración: ${ajenas.join(", ")}`, "RLS EN TABLA EXISTENTE");
+    if (!tablas) no("bloque de código (DO) que no es exactamente el molde RLS de los módulos", "BLOQUE DO");
+    return { rls: tablas };
+  }
   return no();
 }
 
@@ -876,11 +1002,12 @@ export function analizarSql(sql) {
     txt.slice(0, 80).replace(/\s+/g, " ").replace(/`/g, "'").replace(/@/g, "@​").trim();
   const creadas = new Set();
   const rlsNuevas = new Set();
+  const colsNuevas = new Map();
   for (const s of sentencias(tk.tokens)) {
     try {
-      const r = sentenciaPermitida(s, creadas);
+      const r = sentenciaPermitida(s, creadas, colsNuevas);
       if (r.crea) creadas.add(r.crea);
-      if (r.rls) rlsNuevas.add(r.rls);
+      for (const t of [].concat(r.rls ?? [])) rlsNuevas.add(t);
     } catch (e) {
       if (!(e instanceof NoPermitida)) throw e;
       const desde = s[0].pos;

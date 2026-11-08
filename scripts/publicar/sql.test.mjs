@@ -123,9 +123,7 @@ test("CREATE TRIGGER y CREATE RULE frenan siempre (también sobre tablas nuevas)
 test("restricciones, únicos, SET DEFAULT y políticas sobre tablas EXISTENTES frenan", () => {
   frenaCon(`ALTER TABLE "Venta" ADD CONSTRAINT c CHECK ("x" > 0) NOT VALID;`, "RESTRICCIÓN EN TABLA EXISTENTE");
   frenaCon(`ALTER TABLE "Venta" ADD CONSTRAINT f FOREIGN KEY ("a") REFERENCES "T"("id") NOT VALID;`, "RESTRICCIÓN EN TABLA EXISTENTE");
-  frenaCon(`ALTER TABLE "Venta" ADD CONSTRAINT u UNIQUE ("a");`, "RESTRICCIÓN EN TABLA EXISTENTE");
   frenaCon(`ALTER TABLE "Venta" ADD COLUMN "n" TEXT REFERENCES "N"("id");`, "RESTRICCIÓN EN TABLA EXISTENTE");
-  frenaCon(`CREATE UNIQUE INDEX "u" ON "Client"("n");`, "ÚNICO EN TABLA EXISTENTE");
   frenaCon(`ALTER TABLE "Usuario" ALTER COLUMN "rol" SET DEFAULT 'ADMIN';`, "DEFAULT CAMBIADO");
   frenaCon(`ALTER TABLE "Venta" ALTER COLUMN "tenantId" SET DEFAULT 't1';`, "DEFAULT EN tenantId");
   frenaCon(RLS_SUELTO("Client"), "RLS EN TABLA EXISTENTE");
@@ -134,6 +132,38 @@ test("restricciones, únicos, SET DEFAULT y políticas sobre tablas EXISTENTES f
   frenaCon(`CREATE POLICY "p"ON"Venta" USING (true);`, "POLÍTICA EN TABLA EXISTENTE");
   // una FK que se agrega ANTES de crear la tabla no cuenta como tabla nueva
   frenaCon(`ALTER TABLE "N" ADD CONSTRAINT f FOREIGN KEY ("a") REFERENCES "X"("id");\nCREATE TABLE "N" ("a" TEXT);`, "RESTRICCIÓN EN TABLA EXISTENTE");
+});
+
+test("FK y UNIQUE sobre tablas existentes: pasan sólo en la forma permitida", () => {
+  const COL = `ALTER TABLE "Venta" ADD COLUMN "pagoId" TEXT;\n`;
+  const FK = `ALTER TABLE "Venta" ADD CONSTRAINT "Venta_pagoId_fkey" FOREIGN KEY ("pagoId") REFERENCES "Pago"("id")`;
+  pasa(COL + FK + ";");
+  pasa(COL + FK + " ON DELETE SET NULL ON UPDATE CASCADE;");
+  pasa(COL + FK + " ON DELETE RESTRICT ON UPDATE NO ACTION NOT VALID;");
+  pasa(`ALTER TABLE "Venta" ADD COLUMN "pagoId" TEXT, ADD CONSTRAINT f FOREIGN KEY ("pagoId", "tenantId") REFERENCES "Pago"("id", "tenantId") ON DELETE CASCADE;`);
+  pasa(`ALTER TABLE "Venta" ADD CONSTRAINT "Venta_a_key" UNIQUE ("tenantId", "a");`);
+  pasa(`CREATE UNIQUE INDEX "u" ON "Client"("tenantId", "n");`);
+  pasa(`CREATE UNIQUE INDEX "u" ON "Client"("n") WHERE "n" IS NOT NULL;`);
+  // FK con cuerpo raro → frena
+  const raro = (cola) => assert.ok(bloquea(COL + FK + cola), cola);
+  for (const cola of [" MATCH FULL;", " DEFERRABLE INITIALLY DEFERRED;", " ON DELETE SET DEFAULT;", " ON DELETE SET NULL (\"pagoId\");",
+    " NOT VALID ON DELETE CASCADE;", " ON DELETE CASCADE, ALTER COLUMN \"x\" TYPE int;", " NOT DEFERRABLE;", ", INHERIT \"Otra\";"]) raro(cola);
+  assert.ok(bloquea(COL + `ALTER TABLE "Venta" ADD CONSTRAINT f FOREIGN KEY ("pagoId") REFERENCES otro."Pago"("id");`));
+  assert.ok(bloquea(COL + `ALTER TABLE "Venta" ADD CONSTRAINT f FOREIGN KEY ("pagoId") REFERENCES "Pago";`));
+  assert.ok(bloquea(COL + `ALTER TABLE "Venta" ADD FOREIGN KEY ("pagoId") REFERENCES "Pago"("id");`));
+  // FK sólo sobre columnas que ya tienen datos, o sobre una columna nueva con default / IF NOT EXISTS → frena
+  frenaCon(FK.replace(/"pagoId"\)/, '"tenantId")') + ";", "RESTRICCIÓN EN TABLA EXISTENTE");
+  frenaCon(`ALTER TABLE "Venta" ADD COLUMN "pagoId" TEXT DEFAULT 'p1';\n${FK};`, "RESTRICCIÓN EN TABLA EXISTENTE");
+  frenaCon(`ALTER TABLE "Venta" ADD COLUMN IF NOT EXISTS "pagoId" TEXT;\n${FK};`, "RESTRICCIÓN EN TABLA EXISTENTE");
+  frenaCon(`ALTER TABLE "Otra" ADD COLUMN "pagoId" TEXT;\n${FK};`, "RESTRICCIÓN EN TABLA EXISTENTE");
+  // UNIQUE raro, CHECK, PK, EXCLUDE sobre existente → frena
+  assert.ok(bloquea(`ALTER TABLE "Venta" ADD CONSTRAINT u UNIQUE NULLS NOT DISTINCT ("a");`));
+  assert.ok(bloquea(`ALTER TABLE "Venta" ADD CONSTRAINT u UNIQUE ("a") DEFERRABLE;`));
+  assert.ok(bloquea(`ALTER TABLE "Venta" ADD UNIQUE ("a");`));
+  frenaCon(`CREATE UNIQUE INDEX "u" ON "Client"("n") NULLS NOT DISTINCT;`, "ÚNICO EN TABLA EXISTENTE");
+  frenaCon(`ALTER TABLE "Venta" ADD CONSTRAINT p PRIMARY KEY ("a");`, "RESTRICCIÓN EN TABLA EXISTENTE");
+  frenaCon(`ALTER TABLE "Venta" ADD CONSTRAINT c CHECK (borrar("a"));`, "RESTRICCIÓN EN TABLA EXISTENTE");
+  frenaCon(`ALTER TABLE "Venta" ADD CONSTRAINT c CHECK ("a" > 0);`, "RESTRICCIÓN EN TABLA EXISTENTE");
 });
 
 test("políticas sobre tablas nuevas: sólo la de aislamiento por tenant", () => {
@@ -152,10 +182,38 @@ test("políticas sobre tablas nuevas: sólo la de aislamiento por tenant", () =>
   assert.ok(bloquea(`DO $$ BEGIN IF false THEN NULL; CREATE TABLE "Client" ("id" TEXT); END IF; END $$;\n${RLS_SUELTO("Client")}`));
 });
 
-test("DO frena siempre, aunque sea el loop RLS sobre tablas nuevas", () => {
+test("DO: pasa sólo el molde RLS exacto sobre tablas creadas en la misma migración", () => {
   const N = `CREATE TABLE "PadelClub" ("id" TEXT);\nCREATE TABLE "PadelSerie" ("id" TEXT);\n`;
-  frenaCon(N + RLS_LOOP(["PadelClub", "PadelSerie"]), "BLOQUE DO");
+  const r = analizarSql(N + RLS_LOOP(["PadelClub", "PadelSerie"]));
+  assert.deepEqual(r.bloqueos, []);
+  assert.deepEqual(r.rlsNuevas, ["PadelClub", "PadelSerie"]);
+  const una = `DO $$\nBEGIN\n  EXECUTE 'ALTER TABLE "PadelClub" ENABLE ROW LEVEL SECURITY';\n  EXECUTE 'DROP POLICY IF EXISTS tenant_isolation ON "PadelClub"';\n  EXECUTE 'CREATE POLICY tenant_isolation ON "PadelClub" '\n    || 'USING ("tenantId" = current_setting(''app.current_tenant_id'', true)) '\n    || 'WITH CHECK ("tenantId" = current_setting(''app.current_tenant_id'', true))';\nEND $$;`;
+  pasa(N + una);
+  // tabla existente en el array / tabla creada DESPUÉS del DO
+  frenaCon(N + RLS_LOOP(["PadelClub", "Tenant"]), "RLS EN TABLA EXISTENTE");
   frenaCon(N + RLS_LOOP(["PadelClub", "Tenant"]), "SQL DINÁMICO");
+  frenaCon(RLS_LOOP(["PadelClub"]) + N, "RLS EN TABLA EXISTENTE");
+  frenaCon(N + una.replace(/"PadelClub"';\n  EXECUTE 'CREATE/, `"Tenant"';\n  EXECUTE 'CREATE`), "BLOQUE DO");
+  frenaCon(N + una.replaceAll("PadelClub", "Tenant"), "RLS EN TABLA EXISTENTE");
+  // sentencia extra, policy distinta, FORCE agregado, NO FORCE, otro tag, LANGUAGE, array vacío/expresión
+  const loop = RLS_LOOP(["PadelClub"]);
+  for (const [nombre, sql] of Object.entries({
+    extra: loop.replace("END LOOP;", "END LOOP;\n  PERFORM borrar();"),
+    "extra en el loop": loop.replace("LOOP\n", "LOOP\n    EXECUTE format('ALTER TABLE %I NO FORCE ROW LEVEL SECURITY', t);\n"),
+    "USING (true)": loop.replace(`'USING ("tenantId" = current_setting(''app.current_tenant_id'', true)) '`, `'USING (true) '`),
+    "WITH CHECK (true)": loop.replace(`'WITH CHECK ("tenantId" = current_setting(''app.current_tenant_id'', true))'`, `'WITH CHECK (true)'`),
+    "otra variable de tenant": loop.replaceAll("app.current_tenant_id", "app.tenant"),
+    "FOR SELECT": loop.replace("tenant_isolation ON %I '", "tenant_isolation ON %I FOR SELECT '"),
+    "ENABLE → DISABLE": loop.replace("ENABLE ROW", "DISABLE ROW"),
+    "otro tag": loop.replace("DO $$", "DO $x$").replace("END $$", "END $x$"),
+    LANGUAGE: loop.replace("DO $$", "DO LANGUAGE plpgsql $$"),
+    "array vacío": loop.replace("ARRAY['PadelClub']", "ARRAY[]::text[]"),
+    "array con expresión": loop.replace("ARRAY['PadelClub']", "ARRAY['PadelClub' || '']"),
+    "array con escape": loop.replace("ARRAY['PadelClub']", "ARRAY[E'PadelClub']"),
+    "nombre con comillas": loop.replace("'PadelClub'", `'Padel"Club'`),
+    "variable distinta": loop.replace("FOREACH t IN", "FOREACH u IN"),
+    "punto y coma de más": loop.replace("END $$", "END; $$"),
+  })) assert.ok(bloquea(N + sql), nombre);
   frenaCon(`DO $$ BEGIN END $$;`, "BLOQUE DO");
   frenaCon(`DO $$ BEGIN EXECUTE 'DROP TABLE "A"'; END $$;`, "DROP");
   frenaCon(`DO $$ BEGIN EXECUTE 'DR' || 'OP TABLE "A"'; END $$;`, "SQL DINÁMICO");
@@ -336,18 +394,33 @@ test("historial real: aditivas pasan, lo demás frena", { skip: !existsSync(DIR)
     "20261102120000_consultas",
     "20261105121000_user_permission_override",
     "20261030120000_m1_enums_caja", // ALTER TYPE … ADD VALUE IF NOT EXISTS
+    // molde RLS en DO (loop y tabla suelta)
+    "20260815120000_lead_campania",
+    "20261008120000_modulo_taller",
+    "20261013120000_modulo_inmobiliaria",
+    "20261015120000_modulo_padel_clases",
+    "20261101120000_modulo_proyectos",
+    "20261108120000_profeturnos_clubes_serie_grupal",
+    // FK sobre columna nueva vacía y UNIQUE sobre tablas existentes
+    "20260702180447_add_tenant_nullable",
+    "20260705120000_control_plane_tenant",
+    "20260705150002_fiscal_invoice_align",
+    "20260907120000_add_cash_movement_payment_id",
+    "20261009120000_taller_caja",
+    "20261101140000_proyecto_entregables",
+    "20261104121000_rendiciones",
   ];
   const frenan = {
     "20260708120000_invoice_money_decimal": "CAMBIO DE TIPO",
     "20260710120000_invoice_origin_idempotency_unique": "DROP",
-    "20261008120000_modulo_taller": "BLOQUE DO",
-    "20261013120000_modulo_inmobiliaria": "BLOQUE DO",
-    "20261108120000_profeturnos_clubes_serie_grupal": "RESTRICCIÓN EN TABLA EXISTENTE",
-    "20260815120000_lead_campania": "BLOQUE DO",
     "20261013180000_inmobiliaria_ajustes": "ESCRIBE DATOS",
-    "20261101140000_proyecto_entregables": "ÚNICO EN TABLA EXISTENTE",
+    "20260925120000_lanzamiento_base": "RESTRICCIÓN EN TABLA EXISTENTE", // CHECK sobre tablas existentes
     "20261104123000_servicio_completo": "FUNCIÓN NO RECONOCIDA",
     "20261104122000_contabilidad_ola1": "TRIGGER",
+    "20260702215616_tenant_not_null_indexed": "SET NOT NULL",
+    "20260906120000_add_cash_method_libro_caja": "ESCRIBE DATOS",
+    "20260925150000_comprobante_autorizado_inmutable": "TRIGGER",
+    "20261013210000_inmobiliaria_recibos": "ESCRIBE DATOS",
   };
   const hay = new Set(readdirSync(DIR));
   for (const m of pasan) {
@@ -359,4 +432,7 @@ test("historial real: aditivas pasan, lo demás frena", { skip: !existsSync(DIR)
     if (!hay.has(m)) continue;
     assert.ok(reglas(readFileSync(`${DIR}${m}/migration.sql`, "utf8")).includes(regla), m);
   }
+  // Frenan EXACTAMENTE éstas (10 de 70 al 08/11/2026); una nueva que frene se mira y se agrega acá.
+  const frenanHoy = [...hay].filter((m) => existsSync(`${DIR}${m}/migration.sql`) && bloquea(readFileSync(`${DIR}${m}/migration.sql`, "utf8")));
+  assert.deepEqual(frenanHoy.filter((m) => m <= "20261108120000").sort(), Object.keys(frenan).sort());
 });
