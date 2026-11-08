@@ -29,8 +29,10 @@ import {
   darDeBajaImpago,
   descartarLiquidacion as descartarRepo,
   generarLiquidacionSemanal,
+  rechazarChequeDeLaAdministracion,
   registrarPagoACuenta,
   type AcreditacionConfirmada,
+  type ChequeRechazado,
   type LiquidacionGenerada,
   type PagoACuentaRegistrado,
   type ResultadoConciliacionSemanal,
@@ -213,5 +215,25 @@ export async function confirmarAcreditacion(formData: FormData): Promise<Resulta
     return { ok: true, valor };
   } catch (e) {
     return comoError(e, "vouchers.pago.acreditar");
+  }
+}
+
+/**
+ * El banco rechazó un cheque de la administración: el pago vuelve a deuda en la cuenta y, si ya se
+ * había depositado, la caja lleva el contramovimiento por Mercado Pago. Campos: `pagoId`, `motivo`
+ * (obligatorio, queda en el AuditLog) y `liquidacionId` (opcional, para refrescar su pantalla).
+ * Mismo permiso que conciliar (`cash:manage`).
+ */
+export async function rechazarCheque(formData: FormData): Promise<ResultadoLiquidacionAccion<ChequeRechazado>> {
+  const ctx = await preparar();
+  if ("ok" in ctx) return ctx;
+  const pagoId = texto(formData.get("pagoId"));
+  if (!pagoId) return { ok: false, error: "Falta identificar el pago." };
+  try {
+    const valor = await rechazarChequeDeLaAdministracion(ctx.tenantId, { pagoId, motivo: texto(formData.get("motivo")), actor: ctx.actor });
+    revalidar(texto(formData.get("liquidacionId")) || undefined);
+    return { ok: true, valor };
+  } catch (e) {
+    return comoError(e, "vouchers.pago.cheque-rechazado");
   }
 }

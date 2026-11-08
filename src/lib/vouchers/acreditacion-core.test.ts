@@ -148,3 +148,15 @@ test("cierre del día: los pagos de la administración, por su medio, sin sumar 
   });
   assert.equal(pagosDeLaAdministracion([{ type: "VENTA", method: "MP", amount: 1 }]), null);
 });
+
+test("cheque rechazado: motivo obligatorio y marca de caja distinta de la del ingreso", async () => {
+  const c = await import("./acreditacion-core");
+  assert.deepEqual(c.leerMotivoDeRechazo("  Sin   fondos "), { ok: true, motivo: "Sin fondos" });
+  assert.equal(c.leerMotivoDeRechazo("no").ok, false);
+  assert.equal(c.leerMotivoDeRechazo(null).ok, false);
+  assert.equal(c.leerMotivoDeRechazo("x".repeat(201)).ok, false);
+  const marca = c.marcaDelRechazoEnCaja("p1");
+  assert.equal(marca, "cuenta-corriente:voucher-pago-rechazo:p1");
+  assert.notEqual(marca, c.marcaDelPagoEnCaja("p1"));
+  assert.equal(c.pagoDelIngreso(marca), null, "el contramovimiento no se lee como el ingreso de un pago");
+});

@@ -275,6 +275,26 @@ async function LiquidacionDelLunes() {
         </section>
       )}
 
+      {cuenta.chequesDepositados.length > 0 && (
+        <Herramienta titulo={`Cheques depositados (${cuenta.chequesDepositados.length})`} id="cheques-depositados">
+          <p className="pt-3 text-xs text-muted">
+            Si el banco rechaza un cheque ya depositado, marcalo acá: el pago vuelve a la deuda de la administración y la caja de hoy registra la salida por
+            Mercado Pago.
+          </p>
+          <ul className="divide-y divide-line text-sm" data-testid="cheques-depositados">
+            {cuenta.chequesDepositados.map((p) => (
+              <li key={p.id} className="space-y-2 py-3">
+                <p>
+                  <span className="tabular-nums text-muted">{fechaArgentina(p.fecha)}</span> · {p.concepto} ·{" "}
+                  <Plata valor={p.monto} sinCentavos={Number.isInteger(p.monto)} />
+                </p>
+                <AcreditacionDelPago pagoId={p.id} liquidacionId={p.liquidacionId ?? undefined} estado={p.acreditacion} />
+              </li>
+            ))}
+          </ul>
+        </Herramienta>
+      )}
+
       <Herramienta titulo="Anotar un pago a cuenta de la administración" id="pago-a-cuenta">
         <p className="pt-3 text-xs text-muted">Para un pago por adelantado (un lote prepago) o lo que la administración pague después de una diferencia. El pago de cada lunes se anota al conciliar su liquidación.</p>
         <PagoACuenta hoy={hoy} />

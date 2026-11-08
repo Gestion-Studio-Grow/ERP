@@ -31,6 +31,34 @@ export const ACCION_ACREDITADO_MP = "voucher.pago.acreditado-mp";
 
 const PREFIJO_PAGO = "voucher-pago:";
 
+/**
+ * Rastro (AuditLog) de un cheque de la administración que el banco rechazó: entity
+ * `VoucherPagoAdministracion`. El pago vuelve a deuda en la cuenta (débito «Cheque rechazado») y, si
+ * ya se había depositado, la caja lleva un contramovimiento (EGRESO por Mercado Pago).
+ */
+export const ACCION_CHEQUE_RECHAZADO = "voucher.pago.cheque-rechazado";
+
+/** Prefijo distinto del ingreso (`voucher-pago-rechazo:` no empieza con `voucher-pago:`): `pagoDelIngreso` no lo confunde. */
+const PREFIJO_RECHAZO = "voucher-pago-rechazo:";
+
+/** La marca del contramovimiento de caja de un cheque rechazado después del depósito (`CashMovement.createdBy`). */
+export function marcaDelRechazoEnCaja(pagoId: string): string {
+  return cuentaCorrienteMarker(`${PREFIJO_RECHAZO}${pagoId}`);
+}
+
+export const MOTIVO_MINIMO_RECHAZO = 5;
+export const MOTIVO_MAXIMO_RECHAZO = 200;
+
+/** El motivo del rechazo del cheque, normalizado, o el error para mostrar. PURA. */
+export function leerMotivoDeRechazo(raw: unknown): { ok: true; motivo: string } | { ok: false; error: string } {
+  const motivo = String(raw ?? "").trim().replace(/\s+/g, " ");
+  if (motivo.length < MOTIVO_MINIMO_RECHAZO) {
+    return { ok: false, error: "Escribí por qué rebotó el cheque (al menos 5 letras): queda en el registro." };
+  }
+  if (motivo.length > MOTIVO_MAXIMO_RECHAZO) return { ok: false, error: "El motivo es muy largo (hasta 200 letras)." };
+  return { ok: true, motivo };
+}
+
 /** La marca del ingreso de caja de un pago de la administración (`CashMovement.createdBy`). */
 export function marcaDelPagoEnCaja(pagoId: string): string {
   return cuentaCorrienteMarker(`${PREFIJO_PAGO}${pagoId}`);
@@ -193,7 +221,8 @@ export function eleccionDeAcreditacion(candidatos: readonly MovimientoMp[], eleg
 export type EstadoAcreditacion =
   | { estado: "no-aplica" }
   | { estado: "pendiente"; destino: "MP" | "A_DEPOSITAR"; candidatos: number; candidato: MovimientoMp | null }
-  | { estado: "acreditado"; via: "mp" | "manual"; movimientoId: string | null; dia: string };
+  | { estado: "acreditado"; via: "mp" | "manual"; movimientoId: string | null; dia: string; cheque: boolean }
+  | { estado: "rechazado"; depositado: boolean; motivo: string; dia: string };
 
 /** Lo que guarda el AuditLog de la acreditación, leído sin confiar en su forma. PURA. */
 export function leerAcreditacion(changes: unknown): { via: "mp" | "manual"; movimientoId: string | null; pagoId: string | null } {

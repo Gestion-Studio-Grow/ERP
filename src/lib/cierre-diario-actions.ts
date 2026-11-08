@@ -279,11 +279,14 @@ async function vouchersDelPeriodo(tenantId: string, start: Date, end: Date): Pro
   }
 }
 
-/** Cheques de la administración sin depositar. Tolera que la tabla de vouchers no exista todavía (Gate 2). */
-async function chequesDeLaAdministracion(tenantId: string): Promise<{ cantidad: number; monto: number } | null> {
+/**
+ * Cheques de la administración sin depositar al cierre de `day` (el de un día pasado no muestra los
+ * recibidos después). Tolera que la tabla de vouchers no exista todavía (Gate 2).
+ */
+async function chequesDeLaAdministracion(tenantId: string, day: string): Promise<{ cantidad: number; monto: number } | null> {
   try {
     const { chequesADepositar } = await import("@/lib/vouchers/liquidacion-repo");
-    return await chequesADepositar(tenantId);
+    return await chequesADepositar(tenantId, day);
   } catch {
     return null;
   }
@@ -546,7 +549,7 @@ async function leerCierreDiario(
     }),
     hechos,
     vouchersACobrar: await vouchersDelPeriodo(tenantId, start, end),
-    chequesADepositar: await chequesDeLaAdministracion(tenantId),
+    chequesADepositar: await chequesDeLaAdministracion(tenantId, day),
     reabrir: null,
   };
 }

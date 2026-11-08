@@ -33,8 +33,11 @@
 //     crédito por lo NO imputado (valor − imputado): lo pagado a cuenta no se compensa dos veces.
 //   Sin columnas nuevas: «impago pendiente» = IMPAGO con `liquidadoEn` nulo.
 //
+//   CHEQUE RECHAZADO (cash:manage, motivo, AuditLog `voucher.pago.cheque-rechazado`): el pago vuelve a
+//     deuda con un débito por su monto; si ya se había depositado, contramovimiento EGRESO por MP.
+//
 // Invariante de la cuenta: saldo = Σ vouchers usados − Σ pagos (liquidaciones y a cuenta) − Σ bajas
-// (lo no imputado de cada una); cada voucher se reclama, entre todas sus liquidaciones y pagos a
+// (lo no imputado de cada una) + Σ cheques rechazados; cada voucher se reclama, entre todas sus liquidaciones y pagos a
 // cuenta, como mucho por su valor.
 //
 // Un voucher tomado por una liquidación no se puede anular desde el turno (turnos/anulacion.ts
@@ -47,13 +50,16 @@ import { tenantTransaction } from "@/lib/rls";
 import { isUniqueViolation } from "@/lib/prisma-errors";
 import { esConflictoDeEscritura } from "@/lib/conflicto-de-escritura";
 import { businessWallTimeToUtc, dateStrInBusinessTz, todayInBusinessTz } from "@/lib/datetime";
-import { textoAlCentavo } from "@/lib/dinero/redondeo";
+import { centavosDe, textoAlCentavo } from "@/lib/dinero/redondeo";
 import { VoucherRechazado } from "./voucher-repo";
 import { PREFIJO_BAJA_IMPAGO } from "./voucher-core";
 import { decidirAsiento } from "@/lib/settlement/asiento-libro";
 import { lastClosedDayTx } from "@/lib/caja/frontera-cierre";
 import {
   ACCION_ACREDITADO_MP,
+  ACCION_CHEQUE_RECHAZADO,
+  leerMotivoDeRechazo,
+  marcaDelRechazoEnCaja,
   candidatosDeAcreditacion,
   detalleDelIngreso,
   eleccionDeAcreditacion,
@@ -857,7 +863,8 @@ async function movimientosMpDelPago(
 
 /** El ingreso de caja de cada pago (por su marca), para saber a dónde fue un OTRO y si un cheque ya se depositó. */
 async function ingresosDeLosPagos(tx: Prisma.TransactionClient, tenantId: string, pagoIds: readonly string[]) {
-  const out = new Map<string, { id: string; amount: Prisma.Decimal; method: string; type: string }>();
+  // `CashMovement.amount` es Float (number): se compara al centavo con `centavosDe` donde se usa.
+  const out = new Map<string, { id: string; amount: number; method: string; type: string }>();
   if (pagoIds.length === 0) return out;
   const filas = await tx.cashMovement.findMany({
     where: { tenantId, createdBy: { in: pagoIds.map(marcaDelPagoEnCaja) } },
@@ -869,6 +876,32 @@ async function ingresosDeLosPagos(tx: Prisma.TransactionClient, tenantId: string
   }
   return out;
 }
+
+/**
+ * Toma la fila del pago FOR UPDATE: el depósito de un cheque y su rechazo pasan de a uno por pago
+ * (el segundo espera y relee). Serializable además es el árbitro de lo que se leyó.
+ */
+async function tomarPago(tx: Prisma.TransactionClient, tenantId: string, pagoId: string): Promise<void> {
+  await tx.$queryRaw`SELECT "id" FROM "VoucherPagoAdministracion" WHERE "id" = ${pagoId} AND "tenantId" = ${tenantId} FOR UPDATE`;
+}
+
+/** Los cheques rechazados del negocio (o sólo los de esos pagos): pagoId → rastro del rechazo. */
+async function rechazosDeCheques(tx: Prisma.TransactionClient, tenantId: string, pagoIds?: readonly string[]) {
+  const filas = await tx.auditLog.findMany({
+    where: { tenantId, action: ACCION_CHEQUE_RECHAZADO, entity: "VoucherPagoAdministracion", ...(pagoIds ? { entityId: { in: [...pagoIds] } } : {}) },
+    select: { entityId: true, changes: true, createdAt: true },
+    orderBy: { createdAt: "asc" },
+  });
+  const out = new Map<string, { motivo: string; depositado: boolean; dia: string }>();
+  for (const f of filas) {
+    if (!f.entityId || out.has(f.entityId)) continue;
+    const c = (f.changes && typeof f.changes === "object" ? f.changes : {}) as Record<string, unknown>;
+    out.set(f.entityId, { motivo: typeof c.motivo === "string" ? c.motivo : "", depositado: c.depositado === true, dia: dateStrInBusinessTz(f.createdAt) });
+  }
+  return out;
+}
+
+const CHEQUE_YA_RECHAZADO = "Ese cheque se marcó rechazado: no se deposita. Si la administración lo reemplaza, anotá el pago nuevo a cuenta.";
 
 export type ConfirmarAcreditacionArgs = {
   pagoId: string;
@@ -903,11 +936,13 @@ export async function confirmarAcreditacionMp(tenantId: string, args: ConfirmarA
   if (!pagoId) throw new VoucherRechazado("dato-invalido", "Falta identificar el pago.");
   return tenantTransaction(
     async (tx) => {
+      await tomarPago(tx, tenantId, pagoId);
       const pago = await tx.voucherPagoAdministracion.findFirst({
         where: { id: pagoId, tenantId },
         select: { id: true, fecha: true, monto: true, medio: true, referencia: true, liquidacionId: true, liquidacion: { select: { desde: true, hasta: true } } },
       });
       if (!pago) throw new VoucherRechazado("dato-invalido", "Ese pago no existe. Recargá la pantalla.");
+      if ((await rechazosDeCheques(tx, tenantId, [pago.id])).has(pago.id)) throw new VoucherRechazado("dato-invalido", CHEQUE_YA_RECHAZADO);
       const ingresoPrevio = (await ingresosDeLosPagos(tx, tenantId, [pago.id])).get(pago.id) ?? null;
       const destino = destinoDelPago(pago.medio, ingresoPrevio?.method);
       if (destino === "CAJON") {
@@ -934,7 +969,7 @@ export async function confirmarAcreditacionMp(tenantId: string, args: ConfirmarA
       // El ingreso: el de MP que nació con el pago, o (cheque) el del depósito, que nace ahora.
       let ingresoId: string;
       if (ingresoPrevio) {
-        if (ingresoPrevio.type !== "INGRESO" || ingresoPrevio.method !== "MP" || sumaCentavos([ingresoPrevio.amount]) !== montoCentavos) throw sinIngreso();
+        if (ingresoPrevio.type !== "INGRESO" || ingresoPrevio.method !== "MP" || centavosDe(ingresoPrevio.amount) !== montoCentavos) throw sinIngreso();
         ingresoId = ingresoPrevio.id;
       } else if (destino === "A_DEPOSITAR") {
         ingresoId = await ingresoDelPagoEnCaja(tx, tenantId, {
@@ -984,6 +1019,116 @@ export async function confirmarAcreditacionMp(tenantId: string, args: ConfirmarA
   ).catch(sinConflictoCrudo);
 }
 
+export type RechazarChequeArgs = { pagoId: string; motivo: string; actor: string };
+
+export type ChequeRechazado = {
+  pagoId: string;
+  duplicado: boolean;
+  /** ¿Ya se había depositado? Entonces la caja lleva el contramovimiento por Mercado Pago. */
+  depositado: boolean;
+  /** El EGRESO de caja que revierte el depósito (null si no se había depositado). */
+  contramovimientoId: string | null;
+};
+
+/**
+ * El banco rechazó un cheque de la administración. El pago vuelve a deuda: la cuenta suma un débito
+ * «Cheque rechazado» por su monto (el crédito del pago queda, con su rastro; el saldo vuelve a lo que
+ * era antes de recibirlo). En la caja: si el cheque seguía en valores a depositar, nada (nunca entró
+ * a una columna) y deja de figurar a depositar; si ya se había depositado, un EGRESO por Mercado Pago
+ * por el mismo monto (marca `cuenta-corriente:voucher-pago-rechazo:<pagoId>`), que se rechaza si la
+ * caja de hoy está cerrada. Los vouchers que ese pago había saldado no se tocan: la deuda vive en la
+ * cuenta y la salda el próximo pago (a cuenta o de liquidación).
+ *
+ * Idempotente: el segundo rechazo contesta `duplicado` sin escribir. Contra un depósito a la vez:
+ * los dos toman la fila del pago FOR UPDATE y corren Serializable; si gana el depósito, el rechazo ve
+ * el ingreso y lo revierte; si gana el rechazo, el depósito se rechaza. Motivo obligatorio (AuditLog).
+ */
+export async function rechazarChequeDeLaAdministracion(tenantId: string, args: RechazarChequeArgs): Promise<ChequeRechazado> {
+  const pagoId = args.pagoId.trim();
+  if (!pagoId) throw new VoucherRechazado("dato-invalido", "Falta identificar el pago.");
+  const m = leerMotivoDeRechazo(args.motivo);
+  if (!m.ok) throw new VoucherRechazado("dato-invalido", m.error);
+  return tenantTransaction(
+    async (tx) => {
+      await tomarPago(tx, tenantId, pagoId);
+      const pago = await tx.voucherPagoAdministracion.findFirst({
+        where: { id: pagoId, tenantId },
+        select: { id: true, fecha: true, monto: true, medio: true, referencia: true, liquidacionId: true },
+      });
+      if (!pago) throw new VoucherRechazado("dato-invalido", "Ese pago no existe. Recargá la pantalla.");
+      if (pago.medio !== "CHEQUE") throw new VoucherRechazado("dato-invalido", "Sólo un pago con cheque se marca rechazado.");
+      const ya = (await rechazosDeCheques(tx, tenantId, [pago.id])).get(pago.id);
+      if (ya) {
+        const contra = await tx.cashMovement.findFirst({ where: { tenantId, createdBy: marcaDelRechazoEnCaja(pago.id) }, select: { id: true } });
+        return { pagoId: pago.id, duplicado: true, depositado: ya.depositado, contramovimientoId: contra?.id ?? null };
+      }
+      const montoCentavos = centavosDeDecimal(pago.monto);
+      const ingreso = (await ingresosDeLosPagos(tx, tenantId, [pago.id])).get(pago.id) ?? null;
+      let contramovimientoId: string | null = null;
+      if (ingreso) {
+        // El depósito entró como INGRESO por MP por el monto del cheque: se revierte por lo mismo.
+        if (ingreso.type !== "INGRESO" || ingreso.method !== "MP" || centavosDe(ingreso.amount) !== montoCentavos) {
+          throw new VoucherRechazado("dato-invalido", "El depósito de ese cheque no coincide con su monto en la caja. Avisá: hay que revisarlo antes de marcarlo rechazado.");
+        }
+        const ahora = new Date();
+        const ref = pago.referencia?.trim() ? ` · ${pago.referencia.trim()}` : "";
+        const d = decidirAsiento({
+          origen: "PAYABLE",
+          medio: "MERCADOPAGO",
+          monto: pesosDeCentavos(montoCentavos),
+          detalle: `Vouchers: cheque de la administración rechazado${ref} · ${m.motivo}`,
+          hoy: dateStrInBusinessTz(ahora),
+          cerradoHasta: await lastClosedDayTx(tx, tenantId),
+        });
+        if (!d.ok) throw new VoucherRechazado("dato-invalido", d.error);
+        const marca = marcaDelRechazoEnCaja(pago.id);
+        const previo = await tx.cashMovement.findFirst({ where: { tenantId, createdBy: marca }, select: { id: true } });
+        if (previo) {
+          contramovimientoId = previo.id;
+        } else {
+          const turno = await tx.cashSession.findFirst({ where: { tenantId, status: "OPEN" }, select: { id: true } });
+          const mov = await tx.cashMovement.create({
+            data: {
+              tenantId,
+              sessionId: turno?.id ?? null,
+              type: d.asiento.type,
+              method: d.asiento.method,
+              amount: d.asiento.amount,
+              reason: d.asiento.reason,
+              occurredAt: ahora,
+              createdBy: marca,
+            },
+            select: { id: true },
+          });
+          contramovimientoId = mov.id;
+        }
+      }
+      await tx.auditLog.create({
+        data: {
+          tenantId,
+          actor: args.actor,
+          action: ACCION_CHEQUE_RECHAZADO,
+          entity: "VoucherPagoAdministracion",
+          entityId: pago.id,
+          channel: "admin",
+          changes: {
+            pagoId: pago.id,
+            motivo: m.motivo,
+            monto: pesosDeCentavos(montoCentavos),
+            fecha: pago.fecha,
+            liquidacionId: pago.liquidacionId,
+            depositado: ingreso != null,
+            ingresoId: ingreso?.id ?? null,
+            contramovimientoId,
+          },
+        },
+      });
+      return { pagoId: pago.id, duplicado: false, depositado: ingreso != null, contramovimientoId };
+    },
+    { tenantId, isolationLevel: SERIALIZABLE },
+  ).catch(sinConflictoCrudo);
+}
+
 /** Estado de acreditación de cada pago (para las pantallas). Los pendientes traen su candidato de MP, si hay uno. */
 async function estadosDeAcreditacion(
   tx: Prisma.TransactionClient,
@@ -994,15 +1139,22 @@ async function estadosDeAcreditacion(
   if (pagos.length === 0) return out;
   const { porPago, usados } = await acreditacionesDelNegocio(tx, tenantId);
   const ingresos = await ingresosDeLosPagos(tx, tenantId, pagos.filter((p) => p.medio === "OTRO").map((p) => p.id));
+  const cheques = pagos.filter((p) => p.medio === "CHEQUE").map((p) => p.id);
+  const rechazos = cheques.length > 0 ? await rechazosDeCheques(tx, tenantId, cheques) : new Map<string, { motivo: string; depositado: boolean; dia: string }>();
   for (const p of pagos) {
     const destino = destinoDelPago(p.medio, ingresos.get(p.id)?.method);
     if (!destino || !esperaAcreditacion(destino)) {
       out.set(p.id, { estado: "no-aplica" });
       continue;
     }
+    const r = rechazos.get(p.id);
+    if (r) {
+      out.set(p.id, { estado: "rechazado", ...r });
+      continue;
+    }
     const a = porPago.get(p.id);
     if (a) {
-      out.set(p.id, { estado: "acreditado", ...a });
+      out.set(p.id, { estado: "acreditado", ...a, cheque: destino === "A_DEPOSITAR" });
       continue;
     }
     const candidatos = candidatosDeAcreditacion(
@@ -1021,19 +1173,32 @@ async function estadosDeAcreditacion(
 }
 
 /**
- * Los cheques de la administración en «valores a depositar»: pagos con medio CHEQUE cuyo depósito no
- * se confirmó (sin ingreso de caja). No están en ninguna columna del libro: el cierre del día los
- * muestra aparte. `null` si no hay ninguno.
+ * Los cheques de la administración en «valores a depositar» al cierre del día `dia` (por defecto,
+ * hoy): pagos con medio CHEQUE recibidos hasta ese día, sin depósito (ingreso de caja) ni rechazo
+ * anotados antes de que termine. No están en ninguna columna del libro: el cierre del día los muestra
+ * aparte. Cuenta y suma en SQL (sin tope de filas). `null` si no hay ninguno.
  */
-export async function chequesADepositar(tenantId: string): Promise<{ cantidad: number; monto: number } | null> {
+export async function chequesADepositar(tenantId: string, dia?: string): Promise<{ cantidad: number; monto: number } | null> {
+  const hasta = dia && esDiaReal(dia) ? dia : todayInBusinessTz();
+  const finDelDia = businessWallTimeToUtc(sumarDias(hasta, 1), "00:00");
+  const prefijoIngreso = marcaDelPagoEnCaja("");
   return tenantTransaction(
     async (tx) => {
-      const cheques = await tx.voucherPagoAdministracion.findMany({ where: { tenantId, medio: "CHEQUE" }, select: { id: true, monto: true }, take: 500 });
-      if (cheques.length === 0) return null;
-      const depositados = await ingresosDeLosPagos(tx, tenantId, cheques.map((c) => c.id));
-      const pendientes = cheques.filter((c) => !depositados.has(c.id));
-      if (pendientes.length === 0) return null;
-      return { cantidad: pendientes.length, monto: pesosDeCentavos(sumaCentavos(pendientes.map((c) => c.monto.toNumber()))) };
+      const [fila] = await tx.$queryRaw<{ cantidad: number; monto: string | null }[]>`
+        SELECT COUNT(*)::int AS "cantidad", SUM(p."monto")::text AS "monto"
+        FROM "VoucherPagoAdministracion" p
+        WHERE p."tenantId" = ${tenantId} AND p."medio" = 'CHEQUE' AND p."fecha" <= ${hasta}
+          AND NOT EXISTS (
+            SELECT 1 FROM "CashMovement" m
+            WHERE m."tenantId" = p."tenantId" AND m."createdBy" = ${prefijoIngreso} || p."id" AND m."occurredAt" < ${finDelDia}
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM "AuditLog" a
+            WHERE a."tenantId" = p."tenantId" AND a."action" = ${ACCION_CHEQUE_RECHAZADO} AND a."entity" = 'VoucherPagoAdministracion'
+              AND a."entityId" = p."id" AND a."createdAt" < ${finDelDia}
+          )`;
+      if (!fila || fila.cantidad === 0) return null;
+      return { cantidad: fila.cantidad, monto: pesosDeCentavos(centavosDe(Number(fila.monto ?? 0))) };
     },
     { tenantId },
   );
@@ -1066,6 +1231,8 @@ export type CuentaDeLaAdministracion = {
   bajas: { cantidad: number; total: number };
   /** Pagos que entraron a la caja por Mercado Pago y esperan que se confirme la acreditación (el más viejo primero). */
   pendientesDeAcreditacion: PagoConAcreditacion[];
+  /** Cheques ya depositados y no rechazados (los más nuevos primero, hasta 20): se pueden marcar rechazados. */
+  chequesDepositados: PagoConAcreditacion[];
 };
 
 export type PagoConAcreditacion = {
@@ -1139,6 +1306,7 @@ export async function leerCuentaDeLaAdministracion(tenantId: string): Promise<Cu
         tx.voucherLiquidacion.findMany({ where: { tenantId }, orderBy: { hasta: "desc" }, take: 60 }),
       ]);
       const liqPorId = new Map(liquidaciones.map((l) => [l.id, l]));
+      const rechazos = await rechazosDeCheques(tx, tenantId);
       const esBaja = (v: (typeof usados)[number]) =>
         v.resultadoLiquidacion === "IMPAGO" && v.liquidadoEn != null && (v.liquidacionRef?.startsWith(PREFIJO_BAJA) ?? false);
       const bajas = usados.filter(esBaja);
@@ -1168,23 +1336,45 @@ export async function leerCuentaDeLaAdministracion(tenantId: string): Promise<Cu
             ref: `p:${p.id}`,
           };
         }),
+        // Un cheque rechazado vuelve a deuda: débito por su monto (el crédito del pago queda con su rastro).
+        ...pagos
+          .filter((p) => p.medio === "CHEQUE" && rechazos.has(p.id))
+          .map((p) => {
+            const r = rechazos.get(p.id)!;
+            return {
+              fecha: r.dia,
+              tipo: "DEBITO" as const,
+              concepto: `Cheque rechazado${p.referencia ? ` · ${p.referencia}` : ""}${r.motivo ? ` · ${r.motivo}` : ""}`,
+              centavos: sumaCentavos([p.monto.toNumber()]),
+              ref: `r:${p.id}`,
+            };
+          }),
       ];
       const { movimientos, resumen } = cuentaCorriente(movs);
       const estados = await estadosDeAcreditacion(tx, tenantId, pagos);
       const conceptoDe = new Map(movs.filter((m) => m.ref.startsWith("p:")).map((m) => [m.ref.slice(2), m.concepto]));
+      const conAcreditacion = (p: (typeof pagos)[number]): PagoConAcreditacion => ({
+        id: p.id,
+        fecha: p.fecha,
+        monto: p.monto.toNumber(),
+        medio: p.medio,
+        referencia: p.referencia,
+        liquidacionId: p.liquidacionId,
+        concepto: conceptoDe.get(p.id) ?? "Pago de la administración",
+        acreditacion: estados.get(p.id) as EstadoAcreditacion,
+      });
+      const chequesDepositados = pagos
+        .filter((p) => {
+          const e = estados.get(p.id);
+          return e?.estado === "acreditado" && e.cheque;
+        })
+        .sort((a, b) => b.fecha.localeCompare(a.fecha) || b.id.localeCompare(a.id))
+        .slice(0, 20)
+        .map(conAcreditacion);
       const pendientesDeAcreditacion: PagoConAcreditacion[] = pagos
         .filter((p) => estados.get(p.id)?.estado === "pendiente")
         .sort((a, b) => a.fecha.localeCompare(b.fecha) || a.id.localeCompare(b.id))
-        .map((p) => ({
-          id: p.id,
-          fecha: p.fecha,
-          monto: p.monto.toNumber(),
-          medio: p.medio,
-          referencia: p.referencia,
-          liquidacionId: p.liquidacionId,
-          concepto: conceptoDe.get(p.id) ?? "Pago de la administración",
-          acreditacion: estados.get(p.id) as EstadoAcreditacion,
-        }));
+        .map(conAcreditacion);
       const sinLiq = usados.filter((v) => !v.liquidacionSemanalId);
       const imp = usados.filter((v) => v.resultadoLiquidacion === "IMPAGO" && v.liquidadoEn == null);
       const total = (xs: typeof usados) => pesosDeCentavos(sumaCentavos(xs.map((v) => (v.valorCubierto ? v.valorCubierto.toNumber() : 0))));
@@ -1197,6 +1387,7 @@ export async function leerCuentaDeLaAdministracion(tenantId: string): Promise<Cu
         impagos: { cantidad: imp.length, total: debe(imp) },
         bajas: { cantidad: bajas.length, total: debe(bajas) },
         pendientesDeAcreditacion,
+        chequesDepositados,
       };
     },
     { tenantId },

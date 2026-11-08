@@ -9,7 +9,7 @@
 import { useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Input, Select } from "@/components/ui";
-import { bajaDeImpago, conciliarLiquidacion, confirmarAcreditacion, descartarLiquidacion, generarLiquidacion, pagoACuenta } from "@/lib/vouchers/liquidacion-actions";
+import { bajaDeImpago, conciliarLiquidacion, confirmarAcreditacion, descartarLiquidacion, generarLiquidacion, pagoACuenta, rechazarCheque } from "@/lib/vouchers/liquidacion-actions";
 import type { EstadoAcreditacion } from "@/lib/vouchers/acreditacion-core";
 import { ETIQUETA_MEDIO_ADMINISTRACION, MEDIOS_DE_PAGO_ADMINISTRACION } from "@/lib/vouchers/liquidacion-core";
 import { textoAlCentavo } from "@/lib/dinero/redondeo";
@@ -401,6 +401,81 @@ export function DarDeBajaImpago({ numero }: { numero: string }) {
 }
 
 const diaDeMp = (f: string) => `${f.slice(6, 8)}/${f.slice(4, 6)}/${f.slice(0, 4)}`;
+const diaArgentino = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}`;
+
+/** Motivo mínimo: el mismo tope que `leerMotivoDeRechazo` (acreditacion-core.ts), para avisar antes de ir al servidor. */
+export const MOTIVO_MINIMO_RECHAZO = 5;
+
+/**
+ * «Cheque rechazado»: el banco rebotó el cheque de la administración. El pago vuelve a deuda en la
+ * cuenta; si ya se había depositado, la caja de hoy lleva la salida por Mercado Pago. Motivo
+ * obligatorio (queda en el registro) y confirmación en dos pasos. La acción exige `cash:manage`.
+ */
+export function RechazarCheque({ pagoId, liquidacionId, depositado }: { pagoId: string; liquidacionId?: string; depositado: boolean }) {
+  const id = useId();
+  const router = useRouter();
+  const [abierto, setAbierto] = useState(false);
+  const [motivo, setMotivo] = useState("");
+  const [error, setError] = useState("");
+  const [pendiente, empezar] = useTransition();
+  const enviar = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (pendiente) return;
+    if (motivo.trim().length < MOTIVO_MINIMO_RECHAZO) return setError("Escribí por qué rebotó el cheque (al menos 5 letras): queda en el registro.");
+    const fd = new FormData();
+    fd.set("pagoId", pagoId);
+    fd.set("motivo", motivo);
+    if (liquidacionId) fd.set("liquidacionId", liquidacionId);
+    setError("");
+    empezar(async () => {
+      try {
+        const r = await rechazarCheque(fd);
+        if (!r.ok) return setError(r.error);
+        setAbierto(false);
+        router.refresh();
+      } catch {
+        setError(FALLO);
+      }
+    });
+  };
+  if (!abierto) {
+    return (
+      <Button type="button" variant="ghost" size="sm" onClick={() => setAbierto(true)}>
+        Cheque rechazado
+      </Button>
+    );
+  }
+  return (
+    <form onSubmit={enviar} className="flex max-w-md flex-col gap-2" aria-busy={pendiente || undefined} data-testid="rechazar-cheque">
+      <label htmlFor={`${id}-motivo`} className={ROTULO}>
+        Por qué rebotó el cheque
+      </label>
+      <Input
+        id={`${id}-motivo`}
+        value={motivo}
+        onChange={(e) => setMotivo(e.target.value)}
+        required
+        minLength={MOTIVO_MINIMO_RECHAZO}
+        maxLength={200}
+        aria-describedby={`${id}-ayuda ${id}-error`}
+      />
+      <p id={`${id}-ayuda`} className="text-xs text-muted">
+        {depositado
+          ? "El pago vuelve a la deuda de la administración y la caja de hoy registra la salida por Mercado Pago. No se deshace."
+          : "El pago vuelve a la deuda de la administración y el cheque sale de valores a depositar. La caja no se toca. No se deshace."}
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <Button type="submit" variant="outline" size="sm" disabled={pendiente} estado={pendiente ? "cargando" : undefined}>
+          Sí, marcarlo rechazado
+        </Button>
+        <Button type="button" variant="ghost" size="sm" disabled={pendiente} onClick={() => (setAbierto(false), setError(""))}>
+          No
+        </Button>
+      </div>
+      <MensajeError id={`${id}-error`} texto={error} />
+    </form>
+  );
+}
 
 /**
  * La conciliación del pago con Mercado Pago (la cuenta bancaria del negocio): «pendiente de
@@ -413,14 +488,28 @@ export function AcreditacionDelPago({ pagoId, liquidacionId, estado }: { pagoId:
   const [error, setError] = useState("");
   const [pendiente, empezar] = useTransition();
   if (estado.estado === "no-aplica") return <span className="text-sm text-muted">Entró al cajón (efectivo).</span>;
-  const cheque = estado.destino === "A_DEPOSITAR";
-  if (estado.estado === "acreditado") {
+  if (estado.estado === "rechazado") {
     return (
-      <span className="text-sm text-strong" data-testid="acreditado-mp">
-        Acreditado en Mercado Pago{estado.via === "mp" ? " (enganchado al movimiento de MP)" : " (confirmado a mano)"}
+      <span className="text-sm text-strong" data-testid="cheque-rechazado">
+        Cheque rechazado el {diaArgentino(estado.dia)}
+        {estado.motivo ? ` (${estado.motivo})` : ""}: volvió a la deuda de la administración
+        {estado.depositado ? " y la caja registró la salida por Mercado Pago." : "."}
       </span>
     );
   }
+  if (estado.estado === "acreditado") {
+    return (
+      <div className="space-y-2">
+        <p className="text-sm text-strong" data-testid="acreditado-mp">
+          {estado.cheque ? "Cheque depositado en Mercado Pago" : "Acreditado en Mercado Pago"}
+          {estado.via === "mp" ? " (enganchado al movimiento de MP)" : " (confirmado a mano)"}
+        </p>
+        {estado.cheque && <RechazarCheque pagoId={pagoId} liquidacionId={liquidacionId} depositado />}
+      </div>
+    );
+  }
+  // Recién acá `estado` es «pendiente» y trae su destino.
+  const cheque = estado.destino === "A_DEPOSITAR";
   const confirmar = () => {
     if (pendiente) return;
     const fd = new FormData();
@@ -452,9 +541,12 @@ export function AcreditacionDelPago({ pagoId, liquidacionId, estado }: { pagoId:
               ? "Confirmá el depósito cuando la plata del cheque esté en Mercado Pago: recién ahí entra a la columna Mercado Pago de la caja de hoy."
               : "Todavía no aparece en el extracto de Mercado Pago. Confirmalo cuando veas la plata en la app."}
       </p>
-      <Button type="button" variant="outline" disabled={pendiente} estado={pendiente ? "cargando" : undefined} onClick={confirmar} aria-describedby={error ? `${id}-error` : undefined}>
-        {cheque ? "Confirmar depósito del cheque" : "Confirmar acreditación en Mercado Pago"}
-      </Button>
+      <div className="flex flex-wrap items-start gap-2">
+        <Button type="button" variant="outline" disabled={pendiente} estado={pendiente ? "cargando" : undefined} onClick={confirmar} aria-describedby={error ? `${id}-error` : undefined}>
+          {cheque ? "Confirmar depósito del cheque" : "Confirmar acreditación en Mercado Pago"}
+        </Button>
+        {cheque && <RechazarCheque pagoId={pagoId} liquidacionId={liquidacionId} depositado={false} />}
+      </div>
       <MensajeError id={`${id}-error`} texto={error} />
     </div>
   );

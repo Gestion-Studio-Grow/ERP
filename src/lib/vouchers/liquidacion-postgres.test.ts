@@ -1119,6 +1119,8 @@ async function invariantesDeAcreditacion(s: Sembrado): Promise<string[]> {
   const pagos = await d.voucherPagoAdministracion.findMany({ where: { tenantId: A } });
   const ingresos = await d.cashMovement.findMany({ where: { tenantId: A, createdBy: { startsWith: MARCA_PAGO } } });
   const acr = await d.auditLog.findMany({ where: { tenantId: A, action: ACCION_ACREDITADO_MP } });
+  const { ACCION_CHEQUE_RECHAZADO, marcaDelRechazoEnCaja } = await import("./acreditacion-core");
+  const rechazos = await d.auditLog.findMany({ where: { tenantId: A, action: ACCION_CHEQUE_RECHAZADO } });
   const acreditados = new Set(acr.map((a) => a.entityId));
   if (acreditados.size !== acr.length) out.push("un pago acreditado dos veces");
   for (const p of pagos) {
@@ -1131,6 +1133,20 @@ async function invariantesDeAcreditacion(s: Sembrado): Promise<string[]> {
     if (p.medio === "TRANSFERENCIA" && m && m.method !== "MP") out.push(`pago ${p.id} por transferencia fuera de MP`);
     if (p.medio === "CHEQUE" && !acreditados.has(p.id) && m) out.push(`cheque ${p.id} sin depositar ya en la caja`);
     if (p.medio === "CHEQUE" && acreditados.has(p.id) && m?.method !== "MP") out.push(`cheque ${p.id} depositado sin ingreso en MP`);
+    // Cheque rechazado: un solo rastro; depositado → un EGRESO por MP por su monto (la caja neta da 0); sin depositar → nada en la caja.
+    const rech = rechazos.filter((r) => r.entityId === p.id);
+    if (rech.length > 1) out.push(`cheque ${p.id} rechazado ${rech.length} veces`);
+    if (rech.length > 0 && p.medio !== "CHEQUE") out.push(`pago ${p.id} (${p.medio}) marcado como cheque rechazado`);
+    const contras = await d.cashMovement.findMany({ where: { tenantId: A, createdBy: marcaDelRechazoEnCaja(p.id) } });
+    if (contras.length > 1) out.push(`cheque ${p.id} con ${contras.length} contramovimientos`);
+    if (rech.length === 0 && contras.length > 0) out.push(`cheque ${p.id} con contramovimiento sin rechazo`);
+    if (rech.length === 1) {
+      if (m && (contras.length !== 1 || contras[0].type !== "EGRESO" || contras[0].method !== "MP" || Number(contras[0].amount) !== p.monto.toNumber())) {
+        out.push(`cheque ${p.id} depositado y rechazado sin su contramovimiento`);
+      }
+      if (!m && contras.length > 0) out.push(`cheque ${p.id} sin depositar con contramovimiento`);
+      if (!m && acreditados.has(p.id)) out.push(`cheque ${p.id} acreditado sin ingreso`);
+    }
   }
   const porMov = new Map<string, number>();
   for (const a of acr) {
@@ -1296,4 +1312,123 @@ test("otro: obliga a elegir cajón o Mercado Pago; sin elegir no escribe nada", 
   const pago = await d.voucherPagoAdministracion.findFirstOrThrow({ where: { liquidacionId: g.liquidacionId } });
   assert.equal(await metodo(pago.id), "MP");
   assert.deepEqual(await invariantesDeAcreditacion(s), []);
+});
+
+// ── Cert 6: cheque rechazado y cheques a depositar al cierre de un día ──────
+
+test("cheque rechazado ANTES de depositar: vuelve a deuda, la caja no se toca, sale de valores a depositar y ya no se deposita", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const A = s.base.a.id;
+  const d = await prismaComoDuenio(s.base);
+  const L = await liq();
+  const hoy = await hoyDelNegocio();
+  const saldoAntes = await saldo(A);
+  const aDepositarAntes = (await L.chequesADepositar(A))?.cantidad ?? 0;
+  const ch = await L.registrarPagoACuenta(A, { clave: claveC5("rch1"), monto: 3210.55, fecha: hoy, medio: "CHEQUE", referencia: "Ch 0101", actor: "user:test" });
+  assert.equal(saldoAntes - (await saldo(A)), 321055);
+  assert.equal((await L.chequesADepositar(A))?.cantidad, aDepositarAntes + 1);
+  await rechaza(L.rechazarChequeDeLaAdministracion(A, { pagoId: ch.pagoId, motivo: "  no ", actor: "user:test" }), /al menos 5 letras/);
+  await rechaza(L.rechazarChequeDeLaAdministracion(s.base.b.id, { pagoId: ch.pagoId, motivo: "Sin fondos", actor: "user:test" }), /no existe/);
+  const tr = await L.registrarPagoACuenta(A, { clave: claveC5("rch1t"), monto: 10, fecha: hoy, medio: "TRANSFERENCIA", actor: "user:test" });
+  await rechaza(L.rechazarChequeDeLaAdministracion(A, { pagoId: tr.pagoId, motivo: "Sin fondos", actor: "user:test" }), /Sólo un pago con cheque/);
+  const libroAntes = await d.cashMovement.count({ where: { tenantId: A } });
+  const r = await L.rechazarChequeDeLaAdministracion(A, { pagoId: ch.pagoId, motivo: "Sin   fondos", actor: "user:test" });
+  assert.deepEqual([r.duplicado, r.depositado, r.contramovimientoId], [false, false, null]);
+  assert.equal(await d.cashMovement.count({ where: { tenantId: A } }), libroAntes, "sin depositar: la caja no se toca");
+  assert.equal(await saldo(A), saldoAntes - 1000, "vuelve a deuda (sólo queda la transferencia de $10)");
+  assert.equal((await L.chequesADepositar(A))?.cantidad ?? 0, aDepositarAntes, "sale de valores a depositar");
+  const cuenta = await L.leerCuentaDeLaAdministracion(A);
+  assert.ok(!cuenta.pendientesDeAcreditacion.some((p) => p.id === ch.pagoId));
+  const debito = cuenta.movimientos.find((m) => m.ref === `r:${ch.pagoId}`);
+  assert.equal(debito?.tipo, "DEBITO");
+  assert.equal(debito?.centavos, 321055);
+  assert.match(debito?.concepto ?? "", /Cheque rechazado · Ch 0101 · Sin fondos/);
+  const audit = await d.auditLog.findMany({ where: { tenantId: A, action: "voucher.pago.cheque-rechazado", entityId: ch.pagoId } });
+  assert.equal(audit.length, 1);
+  assert.equal((audit[0].changes as { motivo?: string }).motivo, "Sin fondos");
+  assert.equal((await L.rechazarChequeDeLaAdministracion(A, { pagoId: ch.pagoId, motivo: "otra vez", actor: "user:test" })).duplicado, true);
+  await movimientoMp(s, A, 3210.55, hoy, "Depósito de cheque 0101");
+  await rechaza(L.confirmarAcreditacionMp(A, { pagoId: ch.pagoId, actor: "user:test" }), /rechazado/);
+  assert.equal(await d.cashMovement.count({ where: { tenantId: A, createdBy: `${MARCA_PAGO}${ch.pagoId}` } }), 0);
+  assert.deepEqual(await invariantesDeAcreditacion(s), []);
+});
+
+test("cheque rechazado DESPUÉS de depositar (×3 a la vez): un contramovimiento EGRESO por MP, la caja neta da 0 y el saldo vuelve", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const A = s.base.a.id;
+  const d = await prismaComoDuenio(s.base);
+  const L = await liq();
+  const hoy = await hoyDelNegocio();
+  const saldoAntes = await saldo(A);
+  const ch = await L.registrarPagoACuenta(A, { clave: claveC5("rch2"), monto: 7777.77, fecha: hoy, medio: "CHEQUE", referencia: "Ch 0202", actor: "user:test" });
+  await L.confirmarAcreditacionMp(A, { pagoId: ch.pagoId, actor: "user:test" });
+  const depositados = (await L.leerCuentaDeLaAdministracion(A)).chequesDepositados;
+  const fila = depositados.find((p) => p.id === ch.pagoId);
+  assert.ok(fila && fila.acreditacion.estado === "acreditado" && fila.acreditacion.cheque, "el depositado se ofrece para marcarlo rechazado");
+  const rs = await Promise.allSettled([1, 2, 3].map(() => L.rechazarChequeDeLaAdministracion(A, { pagoId: ch.pagoId, motivo: "Firma no coincide", actor: "user:test" })));
+  const oks = rs.filter((r): r is PromiseFulfilledResult<Awaited<ReturnType<typeof L.rechazarChequeDeLaAdministracion>>> => r.status === "fulfilled");
+  assert.equal(oks.filter((r) => !r.value.duplicado).length, 1);
+  assert.ok(oks.every((r) => r.value.depositado));
+  const contras = await d.cashMovement.findMany({ where: { tenantId: A, createdBy: `cuenta-corriente:voucher-pago-rechazo:${ch.pagoId}` } });
+  assert.deepEqual(contras.map((m) => [m.type, m.method, Number(m.amount)]), [["EGRESO", "MP", 7777.77]]);
+  assert.match(contras[0].reason ?? "", /cheque de la administración rechazado · Ch 0202 · Firma no coincide/);
+  const ingresos = await d.cashMovement.findMany({ where: { tenantId: A, createdBy: `${MARCA_PAGO}${ch.pagoId}` } });
+  assert.equal(ingresos.length, 1, "el ingreso del depósito queda (con su rastro); lo neutraliza el contramovimiento");
+  assert.equal(await saldo(A), saldoAntes, "el pago volvió a deuda");
+  const cuenta = await L.leerCuentaDeLaAdministracion(A);
+  assert.ok(!cuenta.chequesDepositados.some((p) => p.id === ch.pagoId));
+  assert.deepEqual(await invariantesDeAcreditacion(s), []);
+});
+
+test("cheque rechazado contra su depósito a la vez (8 vueltas): o se deposita y se revierte, o no se deposita; nunca a medias", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const A = s.base.a.id;
+  const d = await prismaComoDuenio(s.base);
+  const L = await liq();
+  const hoy = await hoyDelNegocio();
+  for (let i = 0; i < 8; i++) {
+    const saldoAntes = await saldo(A);
+    const ch = await L.registrarPagoACuenta(A, { clave: claveC5(`rch3${i}`), monto: 1000 + i + 0.25, fecha: hoy, medio: "CHEQUE", actor: "user:test" });
+    const depositar = (): Promise<unknown> => L.confirmarAcreditacionMp(A, { pagoId: ch.pagoId, actor: "user:test" });
+    const rechazar = (): Promise<unknown> => L.rechazarChequeDeLaAdministracion(A, { pagoId: ch.pagoId, motivo: "Sin fondos", actor: "user:test" });
+    // Se alterna quién sale primero.
+    const [dep, rech] = i % 2 ? await Promise.allSettled([depositar(), rechazar()]) : (await Promise.allSettled([rechazar(), depositar()])).reverse();
+    assert.equal(rech.status, "fulfilled", `vuelta ${i}: el rechazo siempre entra (${rech.status === "rejected" ? String((rech.reason as Error).message) : ""})`);
+    if (dep.status === "rejected") assert.match(String((dep.reason as Error).message), /rechazado/, `vuelta ${i}`);
+    const ingresos = await d.cashMovement.findMany({ where: { tenantId: A, createdBy: `${MARCA_PAGO}${ch.pagoId}` } });
+    const contras = await d.cashMovement.findMany({ where: { tenantId: A, createdBy: `cuenta-corriente:voucher-pago-rechazo:${ch.pagoId}` } });
+    assert.equal(ingresos.length, dep.status === "fulfilled" ? 1 : 0, `vuelta ${i}: ingresos`);
+    assert.equal(contras.length, ingresos.length, `vuelta ${i}: cada depósito con su contramovimiento`);
+    const neto = ingresos.reduce((a, m) => a + Math.round(m.amount * 100), 0) - contras.reduce((a, m) => a + Math.round(m.amount * 100), 0);
+    assert.equal(neto, 0, `vuelta ${i}: la caja neta da 0`);
+    assert.equal(await saldo(A), saldoAntes, `vuelta ${i}: el saldo vuelve`);
+  }
+  assert.deepEqual(await invariantesDeAcreditacion(s), []);
+});
+
+test("cheques a depositar al cierre de un día pasado: no cuenta los recibidos después y sí los depositados después", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const A = s.base.a.id;
+  const L = await liq();
+  const { sumarDias } = await import("./liquidacion-core");
+  const hoy = await hoyDelNegocio();
+  const ayer = sumarDias(hoy, -1);
+  const deAyer = async () => (await L.chequesADepositar(A, ayer))?.cantidad ?? 0;
+  const deHoy = async () => (await L.chequesADepositar(A, hoy))?.cantidad ?? 0;
+  const [ayer0, hoy0] = [await deAyer(), await deHoy()];
+  await L.registrarPagoACuenta(A, { clave: claveC5("rch4a"), monto: 500.5, fecha: hoy, medio: "CHEQUE", actor: "user:test" });
+  assert.equal(await deAyer(), ayer0, "el cierre de ayer no muestra el cheque recibido hoy");
+  assert.equal(await deHoy(), hoy0 + 1);
+  const viejo = await L.registrarPagoACuenta(A, { clave: claveC5("rch4b"), monto: 600.6, fecha: ayer, medio: "CHEQUE", actor: "user:test" });
+  assert.equal(await deAyer(), ayer0 + 1);
+  const montoAyer = (await L.chequesADepositar(A, ayer))?.monto ?? 0;
+  await L.confirmarAcreditacionMp(A, { pagoId: viejo.pagoId, actor: "user:test" });
+  assert.equal(await deAyer(), ayer0 + 1, "depositado hoy: al cierre de ayer seguía a depositar");
+  assert.equal((await L.chequesADepositar(A, ayer))?.monto, montoAyer);
+  assert.equal(await deHoy(), hoy0 + 1, "hoy ya no está a depositar");
+  assert.equal(await L.chequesADepositar(A, "no-es-un-dia").then((r) => r?.cantidad ?? 0), hoy0 + 1, "un día inválido cae en hoy");
 });
