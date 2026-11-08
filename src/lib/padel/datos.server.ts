@@ -25,10 +25,13 @@ import {
   diaCorto,
   esDeuda,
   esEnRevision,
+  esPagable,
   estadoEnPantalla,
   franjasLibres,
   huecosDelDia,
   masCercanas,
+  parteDeIntegrante,
+  redondear,
   saldoAFavor,
   semanaDesdeLunes,
   sumarDias,
@@ -289,8 +292,53 @@ const FILTRO_SALDO = { OR: [{ pagoEstado: "ACREDITADO" }, { pagoEstado: "PAGADO"
 
 /** El saldo a favor de un alumno, derivado de sus clases (no es una columna: no se desincroniza). */
 export async function saldoDelAlumno(tenantId: string, alumnoId: string): Promise<number> {
-  const filas = await prisma.padelClase.findMany({ where: { tenantId, alumnoId, ...FILTRO_SALDO }, select: { estado: true, pagoEstado: true, pagoMedio: true, precio: true } });
-  return saldoAFavor(filas.map((f) => ({ ...f, precio: Number(f.precio) })));
+  const [filas, partes] = await Promise.all([
+    prisma.padelClase.findMany({ where: { tenantId, alumnoId, ...FILTRO_SALDO }, select: { estado: true, pagoEstado: true, pagoMedio: true, precio: true } }),
+    partesConSaldo(tenantId, [alumnoId]),
+  ]);
+  return saldoAFavor([...filas.map((f) => ({ ...f, precio: Number(f.precio) })), ...partes]);
+}
+
+// ── E7 · Las partes de integrante (grupal) que cuentan para la deuda y el saldo de un alumno ──
+//
+// Sólo las de un integrante VINCULADO a un alumno (`alumnoId`); cada parte se mira como una clase
+// con el estado de la clase y su pago (parteDeIntegrante): misma regla que el resto.
+
+/** Las partes acreditadas (o pagadas con saldo) de los alumnos: entran en su saldo a favor. */
+async function partesConSaldo(tenantId: string, alumnoIds?: string[]) {
+  const filas = await prisma.padelIntegrante.findMany({
+    where: { tenantId, alumnoId: alumnoIds ? { in: alumnoIds } : { not: null }, ...FILTRO_SALDO },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, alumnoId: true, pagoEstado: true, pagoMedio: true, monto: true, clase: { select: { estado: true } } },
+  });
+  return filas.map((i) => ({ id: i.id, alumnoId: i.alumnoId as string, estado: i.clase.estado, pagoEstado: i.pagoEstado, pagoMedio: i.pagoMedio, precio: Number(i.monto) }));
+}
+
+/** Lo que entró por partes de integrante desde `desde` (como la caja: lo pagado y lo después acreditado). */
+async function cobrosDeIntegrantes(tenantId: string, desde: Date, hasta?: Date) {
+  const filas = await prisma.padelIntegrante.findMany({
+    where: {
+      tenantId, pagoEstado: { in: ["PAGADO", "ACREDITADO"] }, pagoValidadoEl: { gte: desde, ...(hasta ? { lt: hasta } : {}) },
+      OR: [{ pagoMedio: null }, { pagoMedio: { not: "SALDO_A_FAVOR" } }],
+    },
+    select: { monto: true, pagoMedio: true },
+  });
+  return filas.map((i) => ({ precio: i.monto, pagoMedio: i.pagoMedio }));
+}
+
+/** Las partes que se le pueden cobrar o están por revisar (deuda, en revisión, o confirmada por pagar). */
+async function partesPorCobrar(tenantId: string, alumnoIds?: string[]) {
+  const filas = await prisma.padelIntegrante.findMany({
+    where: {
+      tenantId, alumnoId: alumnoIds ? { in: alumnoIds } : { not: null }, monto: { gt: 0 }, pagoEstado: { in: ["PENDIENTE", "EN_REVISION"] },
+      clase: { tenantId, OR: [{ estado: { in: ["DADA", "CONFIRMADA"] } }, { estado: "AUSENTE", motivoCancel: MOTIVO_AUSENTE_SE_COBRA }] },
+    },
+    select: {
+      id: true, alumnoId: true, pagoEstado: true, pagoMedio: true, monto: true, pagoNota: true, comprobanteEnviadoEl: true,
+      clase: { select: { id: true, estado: true, motivoCancel: true, empiezaEn: true, terminaEn: true, tipo: true, personas: true, client: { select: { name: true } } } },
+    },
+  });
+  return filas.map((i) => ({ ...parteDeIntegrante(i.clase, { ...i, monto: Number(i.monto) }), id: i.id, alumnoId: i.alumnoId as string, clase: i.clase, pagoNota: i.pagoNota, comprobanteEnviadoEl: i.comprobanteEnviadoEl }));
 }
 
 // ── Panel del profe ─────────────────────────────────────────────────────────
@@ -325,6 +373,21 @@ export type ClasePanel = {
   club: string | null;
   /** E8 · La clase fija semanal de la que salió, o null. */
   serieId: string | null;
+  /** E7 · Los integrantes de la grupal (además del titular), cada uno con su parte y su pago. */
+  integrantes: IntegrantePanel[];
+};
+
+export type IntegrantePanel = {
+  id: string;
+  nombre: string;
+  telefono: string | null;
+  alumnoId: string | null;
+  monto: number;
+  pagoEstado: EstadoPago;
+  pagoMedio: string | null;
+  pagoNota: string | null;
+  /** La foto del comprobante, sólo mientras está por revisar. */
+  comprobante: string | null;
 };
 
 type FilaClase = Awaited<ReturnType<typeof clasesDe>>[number];
@@ -351,6 +414,11 @@ function aPanel(c: FilaClase): ClasePanel {
     dadas: c.alumno._count.clases,
     club: c.club?.nombre ?? null,
     serieId: c.serieId,
+    integrantes: c.integrantes.map((i) => ({
+      id: i.id, nombre: i.nombre, telefono: i.telefono, alumnoId: i.alumnoId, monto: Number(i.monto),
+      pagoEstado: i.pagoEstado as EstadoPago, pagoMedio: i.pagoMedio, pagoNota: i.pagoNota,
+      comprobante: i.pagoEstado === "EN_REVISION" ? i.comprobante : null,
+    })),
   };
 }
 
@@ -362,6 +430,11 @@ function clasesDe(tenantId: string, where: Record<string, unknown>) {
       id: true, empiezaEn: true, terminaEn: true, tipo: true, personas: true, estado: true, origen: true, precio: true,
       pagoEstado: true, pagoMedio: true, motivoCancel: true, comprobanteEnviadoEl: true, comprobante: true, ...conAlumno,
       serieId: true, club: { select: { nombre: true } },
+      integrantes: {
+        where: { tenantId },
+        orderBy: { createdAt: "asc" },
+        select: { id: true, nombre: true, telefono: true, alumnoId: true, monto: true, pagoEstado: true, pagoMedio: true, pagoNota: true, comprobante: true },
+      },
     },
   });
 }
@@ -389,7 +462,7 @@ export async function hoy(ahora = new Date()) {
         OR: [{ pagoMedio: null }, { pagoMedio: { not: "SALDO_A_FAVOR" } }],
       },
       select: { precio: true, pagoMedio: true },
-    }),
+    }).then(async (cs) => [...cs, ...(await cobrosDeIntegrantes(tenantId, inicio))]),
     configPadel(tenantId),
     datosDelNegocio(tenantId),
     // F10/M-044: «Ayer quedaron sin cerrar»: confirmadas que terminaron antes de hoy (últimos 7 días).
@@ -617,9 +690,16 @@ async function deudaPorAlumno(tenantId: string, alumnoIds?: string[]) {
   const debe = new Map<string, { total: number; cantidad: number }>();
   for (const d of [...dadas, ...ausentes]) {
     const prev = debe.get(d.alumnoId) ?? { total: 0, cantidad: 0 };
-    debe.set(d.alumnoId, { total: prev.total + Number(d._sum.precio ?? 0), cantidad: prev.cantidad + d._count._all });
+    debe.set(d.alumnoId, { total: redondear(prev.total + Number(d._sum.precio ?? 0)), cantidad: prev.cantidad + d._count._all });
   }
   const enRevision = new Map(revision.map((d) => [d.alumnoId, Number(d._sum.precio ?? 0)]));
+  // E7 · Más sus partes como integrante de una grupal (misma regla: esDeuda / esEnRevision).
+  for (const p of await partesPorCobrar(tenantId, alumnoIds)) {
+    if (esDeuda(p)) {
+      const prev = debe.get(p.alumnoId) ?? { total: 0, cantidad: 0 };
+      debe.set(p.alumnoId, { total: redondear(prev.total + p.precio), cantidad: prev.cantidad + 1 });
+    } else if (esEnRevision(p)) enRevision.set(p.alumnoId, redondear((enRevision.get(p.alumnoId) ?? 0) + p.precio));
+  }
   return { debe, enRevision };
 }
 
@@ -632,6 +712,8 @@ async function saldosPorAlumno(tenantId: string, alumnoIds?: string[]) {
   });
   const saldoPor = new Map<string, { estado: string; pagoEstado: string; pagoMedio: string | null; precio: number; id: string }[]>();
   for (const c of conSaldo) saldoPor.set(c.alumnoId, [...(saldoPor.get(c.alumnoId) ?? []), { ...c, precio: Number(c.precio) }]);
+  // E7 · Lo acreditado de sus partes como integrante (el id es el del integrante: devolverSaldo lo reconoce).
+  for (const p of await partesConSaldo(tenantId, alumnoIds)) saldoPor.set(p.alumnoId, [...(saldoPor.get(p.alumnoId) ?? []), p]);
   return (id: string) => {
     const clases = saldoPor.get(id) ?? [];
     const saldo = saldoAFavor(clases);
@@ -771,6 +853,10 @@ export async function ficha(alumnoId: string, ahora = new Date()) {
   const num = <T extends { precio: unknown }>(c: T) => ({ ...c, precio: Number(c.precio) });
   const deudas = pendientesDePago.map(num).filter(esDeuda);
   const enRevision = pendientesDePago.map(num).filter(esEnRevision);
+  // E7 · Sus partes como integrante de grupales de otros titulares.
+  const partes = await partesPorCobrar(tenantId, [a.id]);
+  const partesDeudas = partes.filter(esDeuda);
+  const partesEnRevision = partes.filter(esEnRevision);
   return {
     id: a.id,
     token: a.token,
@@ -783,8 +869,9 @@ export async function ficha(alumnoId: string, ahora = new Date()) {
     proximas: proximas.map(num),
     ultimas: ultimas.map(num),
     deudas,
-    debe: totalDeuda(deudas),
-    enRevision: totalEnRevision(enRevision),
+    partesDeudas: partesDeudas.map((p) => ({ id: p.id, claseId: p.clase.id, empiezaEn: p.clase.empiezaEn, titular: p.clase.client.name, monto: p.precio })),
+    debe: redondear(totalDeuda(deudas) + totalDeuda(partesDeudas)),
+    enRevision: redondear(totalEnRevision(enRevision) + totalEnRevision(partesEnRevision)),
     ...aFavorDe(a.id),
     series: series.map((x) => ({
       id: x.id, diaSemana: x.diaSemana, hora: x.hora, activa: x.activa, club: x.club?.nombre ?? null,
@@ -834,10 +921,11 @@ export async function plata(periodo: PeriodoPlata = "mes") {
       // saldo a favor no suma (ya se contó). Lo devuelto en mano salió: no suma.
       where: { tenantId, pagoEstado: { in: ["PAGADO", "ACREDITADO"] }, pagoValidadoEl: { gte: desde, lt: hasta }, OR: [{ pagoMedio: null }, { pagoMedio: { not: "SALDO_A_FAVOR" } }] },
       select: { precio: true, pagoMedio: true },
-    }),
+    }).then(async (cs) => [...cs, ...(await cobrosDeIntegrantes(tenantId, desde, hasta))]),
     prisma.padelClase.count({ where: { tenantId, estado: "DADA", empiezaEn: { gte: desde, lt: hasta } } }),
     deudoresDe(tenantId),
-    prisma.padelClase.findMany({ where: { tenantId, ...FILTRO_SALDO }, select: { alumnoId: true, estado: true, pagoEstado: true, pagoMedio: true, precio: true } }),
+    prisma.padelClase.findMany({ where: { tenantId, ...FILTRO_SALDO }, select: { alumnoId: true, estado: true, pagoEstado: true, pagoMedio: true, precio: true } })
+      .then(async (cs) => [...cs, ...(await partesConSaldo(tenantId))]),
   ]);
   const porMedio: Record<string, number> = {};
   for (const c of cobros) porMedio[c.pagoMedio ?? "TRANSFERENCIA"] = (porMedio[c.pagoMedio ?? "TRANSFERENCIA"] ?? 0) + Number(c.precio);
@@ -910,10 +998,39 @@ export async function alumnoPublico(token: string) {
       select: SELECT_CLASE_ALUMNO,
     }),
     prisma.padelClase.findMany({ where: { ...delAlumno, terminaEn: { lte: ahora } }, orderBy: { empiezaEn: "desc" }, take: 10, select: SELECT_CLASE_ALUMNO }),
-    prisma.padelClase.findMany({ where: { ...delAlumno, ...FILTRO_SALDO }, select: { estado: true, pagoEstado: true, pagoMedio: true, precio: true } }),
+    prisma.padelClase.findMany({ where: { ...delAlumno, ...FILTRO_SALDO }, select: { estado: true, pagoEstado: true, pagoMedio: true, precio: true } })
+      .then(async (cs) => [...cs, ...(await partesConSaldo(tenantId, [alumno.id]))]),
     configPadel(tenantId),
     datosDelNegocio(tenantId),
   ]);
+  // E7 · Las grupales de otro titular donde este alumno es integrante: lo que viene y lo que tiene
+  // por pagar (su parte). Puede mandar el comprobante de SU parte.
+  const filasPartes = await prisma.padelIntegrante.findMany({
+    where: {
+      tenantId, alumnoId: alumno.id,
+      OR: [
+        { clase: { tenantId, terminaEn: { gt: ahora }, estado: { in: ["PEDIDA", "CONFIRMADA"] } } },
+        { pagoEstado: { in: ["PENDIENTE", "EN_REVISION"] }, clase: { tenantId, OR: [{ estado: "DADA" }, { estado: "AUSENTE", motivoCancel: MOTIVO_AUSENTE_SE_COBRA }] } },
+      ],
+    },
+    orderBy: { createdAt: "desc" },
+    take: 20,
+    select: {
+      id: true, monto: true, pagoEstado: true, pagoMedio: true, pagoNota: true,
+      clase: { select: { id: true, estado: true, motivoCancel: true, empiezaEn: true, client: { select: { name: true } }, club: { select: { nombre: true } } } },
+    },
+  });
+  const partes = filasPartes
+    .map((i) => {
+      const parte = parteDeIntegrante(i.clase, { ...i, monto: Number(i.monto) });
+      return {
+        id: i.id, claseId: i.clase.id, empiezaEn: i.clase.empiezaEn, titular: i.clase.client.name, club: i.clase.club?.nombre ?? null,
+        estado: estadoEnPantalla(i.clase.estado as EstadoClase, i.clase.empiezaEn, ahora), monto: Number(i.monto),
+        pagoEstado: i.pagoEstado as EstadoPago, pagoNota: i.pagoEstado === "PENDIENTE" ? i.pagoNota : null,
+        deuda: esDeuda(parte), enRevision: esEnRevision(parte), pagable: esPagable(parte), parte,
+      };
+    })
+    .sort((a, b) => +a.empiezaEn - +b.empiezaEn);
   const porId = new Map<string, (typeof futuras)[number]>();
   for (const c of [...futuras, ...pagables, ...pasadas]) porId.set(c.id, c);
   const clases = [...porId.values()]
@@ -921,7 +1038,12 @@ export async function alumnoPublico(token: string) {
     .sort((a, b) => +b.empiezaEn - +a.empiezaEn);
   const saldoAFavorAlumno = saldoAFavor(saldo.map((f) => ({ ...f, precio: Number(f.precio) })));
   return {
-    alumno: { ...alumno, clases, dadas: alumno._count.clases, debe: totalDeuda(clases), enRevision: totalEnRevision(clases), saldoAFavor: saldoAFavorAlumno },
+    alumno: {
+      ...alumno, clases, dadas: alumno._count.clases, saldoAFavor: saldoAFavorAlumno,
+      debe: redondear(totalDeuda(clases) + totalDeuda(partes.map((p) => p.parte))),
+      enRevision: redondear(totalEnRevision(clases) + totalEnRevision(partes.map((p) => p.parte))),
+      partes: partes.map((p) => ({ id: p.id, claseId: p.claseId, empiezaEn: p.empiezaEn, titular: p.titular, club: p.club, estado: p.estado, monto: p.monto, pagoEstado: p.pagoEstado, pagoNota: p.pagoNota, deuda: p.deuda, enRevision: p.enRevision, pagable: p.pagable })),
+    },
     config,
     negocio,
   };

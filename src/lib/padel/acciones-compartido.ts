@@ -232,7 +232,17 @@ export async function saldoEnTx(tx: Tx, tenantId: string, alumnoId: string, excl
     },
     select: { estado: true, pagoEstado: true, pagoMedio: true, precio: true },
   });
-  return saldoAFavor(filas.map((f) => ({ ...f, precio: Number(f.precio) })));
+  // E7 · Lo que quedó a favor del alumno como INTEGRANTE de una grupal (su parte pagada de una clase
+  // que se canceló) también es saldo suyo. Su parte nunca se paga con saldo, pero si algún día se
+  // paga, se descuenta con la misma regla.
+  const partes = await tx.padelIntegrante.findMany({
+    where: { tenantId, alumnoId, OR: [{ pagoEstado: "ACREDITADO" }, { pagoEstado: "PAGADO", pagoMedio: "SALDO_A_FAVOR" }] },
+    select: { pagoEstado: true, pagoMedio: true, monto: true, clase: { select: { estado: true } } },
+  });
+  return saldoAFavor([
+    ...filas.map((f) => ({ ...f, precio: Number(f.precio) })),
+    ...partes.map((i) => ({ estado: i.clase.estado, pagoEstado: i.pagoEstado, pagoMedio: i.pagoMedio, precio: Number(i.monto) })),
+  ]);
 }
 
 /** Si el saldo cubre la clase entera, nace (o queda) pagada con «Saldo a favor». Un saldo parcial no se aplica. */

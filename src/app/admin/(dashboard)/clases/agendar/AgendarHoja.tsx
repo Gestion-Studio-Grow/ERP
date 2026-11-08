@@ -16,12 +16,14 @@ import { useRouter } from "next/navigation";
 import { BuscadorCombo, Chip, Segmented, buttonClasses, cn } from "@/components/ui";
 import { agendarClase, horasLibres } from "@/lib/padel/acciones";
 import { dateStrInBusinessTz } from "@/lib/datetime";
-import { horaHumana, precioDe, semanasDeSerie, textoSerie } from "@/lib/padel/core";
+import { horaHumana, montoPorPersona, personasConIntegrantes, precioDelTitular, semanasDeSerie, textoSerie } from "@/lib/padel/core";
 import { dayOfWeekForDate } from "@/lib/datetime";
 import { diasDeCinta } from "../_agenda-core";
 import { CintaDias, ChipsHoras } from "../_cinta-dias";
 import { ErrorAccion, HojaPanel, Pie, Rotulo, chip48, grande, useAccion } from "../_hojas/comun";
 import { botonAgendar, textoResumen } from "./resumen";
+import { EditorIntegrantes, integrantesParaEnviar, type IntegranteForm } from "./Integrantes";
+import { plataTexto } from "../_plata";
 
 type Alumno = { id: string; nombre: string; telefono: string };
 
@@ -63,6 +65,8 @@ export default function AgendarHoja({
   const [repetir, setRepetir] = useState(false);
   const [tipo, setTipo] = useState<"INDIVIDUAL" | "GRUPAL">("INDIVIDUAL");
   const [personas, setPersonas] = useState(2);
+  const [integrantes, setIntegrantes] = useState<IntegranteForm[]>([]);
+  const [avisosIntegrantes, setAvisosIntegrantes] = useState<{ nombre: string; monto: number; wa: string | null }[]>([]);
   const [vuelta, setVuelta] = useState(0);
   const idQuien = useId();
   const idNombre = useId();
@@ -96,11 +100,14 @@ export default function AgendarHoja({
   const elegido = alumnoId ? todos.find((a) => a.id === alumnoId) ?? frecuentes.find((a) => a.id === alumnoId) ?? null : null;
   const nombreResumen = nuevo ? nuevo.nombre : elegido?.nombre ?? null;
   const hayAlumno = nuevo ? nuevo.nombre.trim().length >= 2 && nuevo.telefono.replace(/\D/g, "").length >= 8 : Boolean(elegido);
-  const precio = precioDe(precios, tipo, tipo === "GRUPAL" ? personas : 1);
+  // E7 · Con integrantes, el titular paga su parte y cada integrante la suya (precio por persona).
+  const conIntegrantes = tipo === "GRUPAL" ? integrantes.length : 0;
+  const personasClase = tipo !== "GRUPAL" ? 1 : conIntegrantes ? personasConIntegrantes(conIntegrantes) : personas;
+  const precio = precioDelTitular(precios, tipo, personasClase, conIntegrantes);
   const hhmm = hora ? horaHumana(new Date(hora)) : null;
   const nombreClub = clubId ? clubes.find((c) => c.id === clubId)?.nombre ?? null : null;
-  const base = textoResumen({ alumno: nombreResumen, fecha, hora: hhmm, tipo, personas, precio, hoy });
-  const resumen = base ? [base, nombreClub, repetir ? "todas las semanas" : null].filter(Boolean).join(" · ") : base;
+  const base = textoResumen({ alumno: nombreResumen, fecha, hora: hhmm, tipo, personas: personasClase, precio, hoy });
+  const resumen = base ? [base, conIntegrantes && precio > 0 ? "c/u" : null, nombreClub, repetir && !conIntegrantes ? "todas las semanas" : null].filter(Boolean).join(" · ") : base;
   const semanas = semanasDeSerie(diasAdelante);
   const boton = botonAgendar({ alumno: hayAlumno, hora: Boolean(hora), pendiente });
   const opciones = useMemo(() => todos.map((a) => ({ id: a.id, etiqueta: a.nombre, detalle: a.telefono })), [todos]);
@@ -111,6 +118,7 @@ export default function AgendarHoja({
     setNuevo(todos.length === 0 ? { nombre: "", telefono: "" } : null);
     setHora(null);
     setTipo("INDIVIDUAL");
+    setIntegrantes([]);
     setRepetir(false);
     setError(null);
   };
@@ -122,9 +130,10 @@ export default function AgendarHoja({
     fd.set("fecha", dateStrInBusinessTz(new Date(hora)));
     fd.set("hora", horaHumana(new Date(hora)));
     fd.set("tipo", tipo);
-    if (tipo === "GRUPAL") fd.set("personas", String(personas));
+    if (tipo === "GRUPAL") fd.set("personas", String(personasClase));
+    if (conIntegrantes) fd.set("integrantes", integrantesParaEnviar(integrantes));
     if (clubId) fd.set("clubId", clubId);
-    if (repetir) fd.set("repetir", "1");
+    if (repetir && !conIntegrantes) fd.set("repetir", "1");
     if (nuevo) {
       fd.set("nombre", nuevo.nombre);
       fd.set("telefono", nuevo.telefono);
@@ -144,6 +153,7 @@ export default function AgendarHoja({
         : "";
       const texto = `Agendada: ${r.cuando}${fija}${r.linkNuevo ? " · va con su link nuevo" : ""}`;
       setHecho({ texto: `${nombre.split(/\s+/)[0]} · ${r.cuando}${fija}`, fecha: dateStrInBusinessTz(new Date(hora)) });
+      setAvisosIntegrantes(r.integrantes ?? []);
       limpiar();
       setAbierta(false);
       mostrar({ texto, nombre, wa: r.wa, enviado: r.enviado, avisoId: r.avisoId ?? null });
@@ -166,6 +176,21 @@ export default function AgendarHoja({
             <p className="rounded-2xl bg-success-soft px-4 py-3 font-semibold text-strong" data-qa="agendada">
               ✓ Agendada: {hecho.texto}
             </p>
+            {avisosIntegrantes.length > 0 && (
+              <ul className="grid gap-2" data-qa="avisos-integrantes">
+                {avisosIntegrantes.map((i, n) => (
+                  <li key={`${i.nombre}-${n}`}>
+                    {i.wa ? (
+                      <a href={i.wa} target="_blank" rel="noopener noreferrer" className={cn(buttonClasses("outline", "lg"), "h-12 w-full justify-center")}>
+                        Avisarle a {i.nombre.split(/\s+/)[0]} · su parte {plataTexto(i.monto)}
+                      </a>
+                    ) : (
+                      <p className="text-sm text-muted">{i.nombre.split(/\s+/)[0]} no tiene celular: su parte ({plataTexto(i.monto)}) se la cobrás en la clase.</p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
             <button type="button" onClick={() => setAbierta(true)} className={grande()} data-qa="agendar-otra">
               Agendar otra
             </button>
@@ -297,7 +322,13 @@ export default function AgendarHoja({
           />
           {tipo === "GRUPAL" && (
             <>
-              <Rotulo id={idPers}>¿Cuántos son?</Rotulo>
+              <Rotulo>¿Quiénes vienen?</Rotulo>
+              <EditorIntegrantes todos={todos} excluir={nuevo ? null : alumnoId} lista={integrantes} onCambiar={setIntegrantes} montoPorPersona={montoPorPersona(precios)} />
+            </>
+          )}
+          {tipo === "GRUPAL" && !conIntegrantes && (
+            <>
+              <Rotulo id={idPers}>¿O sólo cuántos son? (paga todo el titular)</Rotulo>
               <div role="group" aria-labelledby={idPers} className="flex gap-2">
                 {[2, 3, 4].map((n) => (
                   <Chip key={n} prendido={personas === n} onClick={() => setPersonas(n)} className={chip48}>
@@ -309,7 +340,7 @@ export default function AgendarHoja({
           )}
 
           <label htmlFor={idRepetir} className="mt-4 flex min-h-12 cursor-pointer items-start gap-3 rounded-xl border border-line bg-surface-raised px-3 py-3" data-qa="repetir">
-            <input id={idRepetir} type="checkbox" checked={repetir} onChange={(e) => setRepetir(e.target.checked)} className="mt-0.5 size-5 shrink-0 accent-[var(--accent)]" />
+            <input id={idRepetir} type="checkbox" checked={repetir && !conIntegrantes} disabled={conIntegrantes > 0} onChange={(e) => setRepetir(e.target.checked)} className="mt-0.5 size-5 shrink-0 accent-[var(--accent)]" />
             <span className="grid gap-0.5">
               <span className="font-semibold text-strong">Repetir todas las semanas</span>
               <span className="text-sm text-muted">

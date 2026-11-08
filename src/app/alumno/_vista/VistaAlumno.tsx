@@ -19,6 +19,7 @@ import { antetitulo, botonBorde, caja, tituloCaja } from "@/app/clases/_estilos"
 import { IconoCruz, IconoFlecha, IconoPunto, IconoReloj, IconoTilde } from "@/app/clases/_iconos";
 import { chipEstado, enCuanto, etiquetaPago, explicacionTerminal, lineaDeCuenta, plazoCancelar, terminalVisible, urlMaps, type ClaseVista, type IconoEstado, type Tono } from "./estado";
 import { Pagar, type ItemPago } from "./Pagar";
+import { PagarParte } from "./PagarParte";
 import { AvisoCancelada, Cancelar, FueraDeTermino } from "./Cancelar";
 import { CambiarHorario, Repetir } from "./CambiarHorario";
 import { Contacto } from "./Contacto";
@@ -71,7 +72,9 @@ export async function VistaAlumno({ datos, token }: { datos: Datos; token: strin
     .filter((c) => esPagable(c) || esEnRevision(c))
     .sort((a, b) => +a.empiezaEn - +b.empiezaEn)
     .map((c) => ({ id: c.id, cuando: cuando(c.empiezaEn), precio: c.precio, deuda: esDeuda(c), enRevision: esEnRevision(c), nota: c.pagoEstado === "PENDIENTE" ? (c.pagoNota ?? null) : null }));
-  const cuenta = lineaDeCuenta({ debe: alumno.debe, clasesQueDebe: deudas.length, saldoAFavor: alumno.saldoAFavor });
+  // E7 · Sus partes como integrante de una grupal de otro titular (la deuda ya las suma).
+  const partes = alumno.partes;
+  const cuenta = lineaDeCuenta({ debe: alumno.debe, clasesQueDebe: deudas.length + partes.filter((p) => p.deuda).length, saldoAFavor: alumno.saldoAFavor });
 
   // Las horas libres sólo se leen si hay alguna clase que todavía se puede cambiar.
   const plazos = new Map(vivas.map((c) => [c.id, plazoCancelar(c, ahora, config.anticipacionMin)]));
@@ -129,6 +132,33 @@ export async function VistaAlumno({ datos, token }: { datos: Datos; token: strin
             </div>
           )}
         </section>
+
+        {partes.length > 0 && (
+          <section aria-labelledby="con-amigos" className={caja} data-qa="partes-grupal">
+            <h2 id="con-amigos" className={antetitulo}>
+              Clases con amigos
+            </h2>
+            <ul className="mt-2 grid gap-4">
+              {partes.map((p) => (
+                <li key={p.id} className="grid gap-2">
+                  <p className="text-base">
+                    {cuando(p.empiezaEn)} · con {p.titular.split(" ")[0]}
+                    {p.club ? ` · ${p.club}` : ""}
+                    <span className="block text-sm text-[var(--padel-suave)]">
+                      Tu parte <strong className="tabular-nums text-[var(--padel-texto)]">{pesos(p.monto)}</strong> ·{" "}
+                      {p.pagoEstado === "PAGADO" ? "pagada" : p.enRevision ? "comprobante por revisar" : p.pagoEstado === "ACREDITADO" ? "quedó a favor tuyo" : p.deuda ? "la debés" : "sin pagar"}
+                    </span>
+                    {p.pagoNota && <span role="alert" className="block text-sm font-semibold text-[var(--padel-peligro)]">{p.pagoNota}</span>}
+                  </p>
+                  {(p.pagable || p.enRevision) && (
+                    <PagarParte token={token} integranteId={p.id} monto={p.monto} enRevision={p.enRevision} profe={profe} />
+                  )}
+                </li>
+              ))}
+            </ul>
+            {config.aliasCbu && <p className="mt-2 text-sm text-[var(--padel-suave)]">Alias para transferir: <strong className="select-all">{config.aliasCbu}</strong></p>}
+          </section>
+        )}
 
         <section aria-labelledby="tu-proxima" className={caja}>
           <h2 id="tu-proxima" className={antetitulo}>

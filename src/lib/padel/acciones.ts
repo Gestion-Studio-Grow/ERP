@@ -61,7 +61,11 @@ import {
   conLinkVigente,
   pesos,
   plantillaDeCancelacion,
-  precioDe,
+  precioDelTitular,
+  parteDeIntegrante,
+  personasConIntegrantes,
+  integrantesValidos,
+  montoPorPersona,
   proponerMovidas,
   proximaSemana,
   puedeCobrarProfe,
@@ -82,6 +86,8 @@ import {
 } from "./core";
 import { AVISOS_QUE_ESPERAN, configPadel, franjas as franjasDe, libresCercanos, libresDelDia, libresEnRango } from "./datos.server";
 import { generarClasesDeSerie, horizonteDesde } from "./series.server";
+import { devolverParteIntegrante } from "./acciones-grupal";
+import { cerrarIntegrantesEnTx, contarIntegrantesEnTx, crearIntegrantesEnTx, esIntegranteRepetido, moverIntegrantesEnTx, waParaIntegrante } from "./grupal.server";
 import {
   ErrorNegocio,
   RAIZ,
@@ -159,7 +165,7 @@ type OpcionesTransicion = {
   seCobra?: boolean;
 };
 
-type ResultadoTransicion = Resultado<ConAviso & { aFavor?: number; comprobanteNoAplica?: boolean; linkNuevo?: boolean; claseId: string; nombre: string; cambioDe?: string }>;
+type ResultadoTransicion = Resultado<ConAviso & { aFavor?: number; aFavorIntegrantes?: number; comprobanteNoAplica?: boolean; linkNuevo?: boolean; claseId: string; nombre: string; cambioDe?: string }>;
 
 /**
  * El corazón de confirmar, rechazar, dar, ausente y cancelar (un toque). Devuelve el WhatsApp listo
@@ -186,8 +192,7 @@ async function transicionar(id: string, evento: EventoClase, op: OpcionesTransic
       nuevo === "CANCELADA" ? { canceladaEl: ahora, motivoCancel: motivoTexto ?? "La canceló el profe" } :
       // «No vino»: si se cobra queda escrito en motivoCancel (provisional hasta la columna seCobra de T4).
       nuevo === "AUSENTE" && op.seCobra !== undefined ? { motivoCancel: op.seCobra ? MOTIVO_AUSENTE_SE_COBRA : MOTIVO_AUSENTE_NO_SE_COBRA } : {};
-    // Al confirmar se congela el precio vigente: si después cambia la lista, esta clase no se discute.
-    const precio = nuevo === "CONFIRMADA" ? { precio: precioDe(config, esTipoClase(clase.tipo) ? clase.tipo : "INDIVIDUAL", clase.personas) } : {};
+    const tipoClase: TipoClase = esTipoClase(clase.tipo) ? clase.tipo : "INDIVIDUAL";
     // Cancelada o rechazada: si estaba pagada, la plata queda a favor (pagoAlCancelar). «No vino → no
     // se cobra» sobre una ya pagada, lo mismo (O-3 de la CERT T2+T3, pagoAlNoVino).
     const pago =
@@ -201,27 +206,41 @@ async function transicionar(id: string, evento: EventoClase, op: OpcionesTransic
         throw new ErrorNegocio("En ese horario ya quedó otra clase.");
       }
       const cambio = nuevo === "CONFIRMADA" ? await confirmarCambio(tx, tenantId, clase, ahora) : null;
+      // Al confirmar se congela el precio vigente: si después cambia la lista, esta clase no se discute.
+      // E7: con integrantes (también los que vinieron de la clase vieja de un cambio), el titular
+      // paga su parte (precio por persona) y `personas` = 1 + integrantes.
+      const nInt = nuevo === "CONFIRMADA" ? await contarIntegrantesEnTx(tx, tenantId, id) : 0;
+      const precio: { precio?: number; personas?: number } = nuevo === "CONFIRMADA"
+        ? { precio: precioDelTitular(config, tipoClase, clase.personas, nInt), ...(nInt > 0 ? { personas: personasConIntegrantes(nInt) } : {}) }
+        : {};
       const conSaldo =
         nuevo === "CONFIRMADA" && clase.pagoEstado === "PENDIENTE" && !cambio?.pagoDeLaVieja
-          ? pagoConSaldo(await saldoEnTx(tx, tenantId, clase.alumnoId, id), Number("precio" in precio ? precio.precio : clase.precio))
+          ? pagoConSaldo(await saldoEnTx(tx, tenantId, clase.alumnoId, id), Number(precio.precio ?? clase.precio))
           : null;
       const n = await tx.padelClase.updateMany({
         where: { tenantId, id, estado: clase.estado, pagoEstado: clase.pagoEstado },
         data: { estado: nuevo, ...sello, ...precio, ...(pago ?? {}), ...(conSaldo ?? {}), ...(cambio?.pagoDeLaVieja ?? {}) },
       });
       if (n.count === 0) throw new ErrorNegocio("Esa clase ya cambió. Actualizá la pantalla.");
+      // E7 · Lo pagado por cada integrante sigue la misma regla que el titular (queda a favor suyo).
+      const integrantesAFavor =
+        nuevo === "CANCELADA" || nuevo === "RECHAZADA" ? await cerrarIntegrantesEnTx(tx, tenantId, [id], { tipo: "cancelar" }) :
+        nuevo === "AUSENTE" && op.seCobra !== undefined ? await cerrarIntegrantesEnTx(tx, tenantId, [id], { tipo: "noVino", seCobra: op.seCobra }) :
+        [];
       const link = ["CONFIRMADA", "DADA", "AUSENTE"].includes(nuevo)
         ? await reconocerAlumno(tx, tenantId, alumno, { excluir: id })
         : { token: alumno.token, regenerado: false };
-      return { conSaldo: Boolean(conSaldo), cambioDe: cambio?.empiezaEn ?? null, ...link };
+      return { conSaldo: Boolean(conSaldo), cambioDe: cambio?.empiezaEn ?? null, precio, integrantesAFavor, ...link };
     });
+    const precio = r.precio;
+    const aFavorIntegrantes = redondear(r.integrantesAFavor.reduce((s, i) => s + i.monto, 0));
     const tokenViejo = alumno.token;
     alumno.token = r.token;
     await prisma.padelAviso.updateMany({ where: { tenantId, claseId: id, destino: "PROFE", leidoEl: null }, data: { leidoEl: ahora } });
     const cambioPago = r.conSaldo ? "SALDO_A_FAVOR" : comprobanteNoAplica ? "COMPROBANTE_NO_APLICA" : pago?.pagoEstado;
     await auditAdmin({
       action: `padel.${evento}`, entity: "PadelClase", entityId: id,
-      changes: { de: clase.estado, a: nuevo, ...(cambioPago ? { pago: cambioPago } : {}), ...(op.motivo ? { motivo: op.motivo } : {}), ...(op.seCobra !== undefined ? { seCobra: op.seCobra } : {}), ...(r.cambioDe ? { cancelaLaDe: r.cambioDe.toISOString() } : {}) },
+      changes: { de: clase.estado, a: nuevo, ...(cambioPago ? { pago: cambioPago } : {}), ...(op.motivo ? { motivo: op.motivo } : {}), ...(op.seCobra !== undefined ? { seCobra: op.seCobra } : {}), ...(r.cambioDe ? { cancelaLaDe: r.cambioDe.toISOString() } : {}), ...(r.integrantesAFavor.length ? { integrantesAFavor: r.integrantesAFavor.map((i) => ({ id: i.id, monto: i.monto })) } : {}) },
     });
     const acreditada = pago?.pagoEstado === "ACREDITADO";
     // Con motivo: lluvia o club cerrado → «Se suspende por…»; el resto, «No puedo…».
@@ -239,7 +258,7 @@ async function transicionar(id: string, evento: EventoClase, op: OpcionesTransic
     const aviso = m
       ? await avisarAlAlumno({
           tenantId, config, clave: m.clave, tipo: m.tipo, alumno,
-          clase: { ...clase, ...("precio" in precio ? precio : {}) },
+          clase: { ...clase, precio: precio.precio ?? clase.precio },
           vars: conMotivo?.motivo ? { motivo: conMotivo.motivo } : undefined,
           extra: extras.join(" ") || undefined,
         })
@@ -248,6 +267,7 @@ async function transicionar(id: string, evento: EventoClase, op: OpcionesTransic
     return {
       ok: true as const, ...aviso, claseId: id, nombre: alumno.nombre,
       ...(acreditada ? { aFavor: Number(clase.precio) } : {}),
+      ...(aFavorIntegrantes > 0 ? { aFavorIntegrantes } : {}),
       ...(comprobanteNoAplica ? { comprobanteNoAplica: true } : {}),
       ...(r.regenerado ? { linkNuevo: true } : {}),
       ...(r.cambioDe ? { cambioDe: r.cambioDe.toISOString() } : {}),
@@ -307,6 +327,8 @@ async function confirmarCambio(
     },
   });
   if (n.count === 0) throw new ErrorNegocio("La clase de antes cambió recién. Actualizá la pantalla.");
+  // E7 · Los integrantes de la grupal pasan a la nueva con su pago (nadie pierde lo que pagó).
+  await moverIntegrantesEnTx(tx, tenantId, vieja.id, clase.id);
   return {
     empiezaEn: vieja.empiezaEn,
     pagoDeLaVieja: viajaRevision ? { pagoEstado: "EN_REVISION", pagoMedio: vieja.pagoMedio, comprobante: vieja.comprobante, comprobanteEnviadoEl: vieja.comprobanteEnviadoEl } : null,
@@ -371,10 +393,12 @@ export async function cancelarSerieDesde(claseId: string, motivo?: MotivoCancel 
         if (n.count === 0) throw new ErrorNegocio("Una de esas clases cambió recién. Actualizá la pantalla.");
         if (pago?.pagoEstado === "ACREDITADO") aFavor += Number(f.precio);
       }
-      return { serie, ids: futuras.map((f) => f.id), aFavor };
+      // E7 · Lo pagado por los integrantes de esas clases queda a favor de cada uno.
+      const integrantesAFavor = await cerrarIntegrantesEnTx(tx, tenantId, futuras.map((f) => f.id), { tipo: "cancelar" });
+      return { serie, ids: futuras.map((f) => f.id), aFavor: redondear(aFavor), integrantesAFavor };
     });
     if (r.ids.length) await prisma.padelAviso.updateMany({ where: { tenantId, claseId: { in: r.ids }, destino: "PROFE", leidoEl: null }, data: { leidoEl: ahora } });
-    await auditAdmin({ action: "padel.serie.cortar", entity: "PadelSerie", entityId: serieId, changes: { desde: clase.id, canceladas: r.ids.length, ...(r.aFavor ? { aFavor: r.aFavor } : {}), ...(motivo ? { motivo } : {}) } });
+    await auditAdmin({ action: "padel.serie.cortar", entity: "PadelSerie", entityId: serieId, changes: { desde: clase.id, canceladas: r.ids.length, ...(r.aFavor ? { aFavor: r.aFavor } : {}), ...(r.integrantesAFavor.length ? { integrantesAFavor: r.integrantesAFavor.map((i) => ({ id: i.id, monto: i.monto })) } : {}), ...(motivo ? { motivo } : {}) } });
     const conMotivo = motivo ? plantillaDeCancelacion(motivo) : null;
     const extras = [
       `Y dejo sin efecto la clase fija (${textoSerie(r.serie).toLowerCase()}): ${r.ids.length === 1 ? "se canceló ésta" : `se cancelaron ésta y ${r.ids.length - 1} más`}.`,
@@ -509,15 +533,34 @@ export async function cobrarTodo(alumnoId: string, medio: MedioCobro): Promise<R
         select: { id: true, estado: true, pagoEstado: true, pagoMedio: true, precio: true, motivoCancel: true },
       });
       const deudas = candidatas.filter((c) => esDeuda({ ...c, precio: Number(c.precio) }));
-      if (!deudas.length) throw new ErrorNegocio("No te debe nada.");
-      const n = await tx.padelClase.updateMany({
-        where: { tenantId, alumnoId: a.id, id: { in: deudas.map((c) => c.id) }, pagoEstado: { notIn: ["PAGADO", "ACREDITADO", "DEVUELTO", "EN_REVISION"] } },
-        data: { pagoEstado: "PAGADO", pagoMedio: medio, pagoValidadoEl: new Date() },
-      });
-      if (n.count !== deudas.length) throw new ErrorNegocio("Algo cambió recién. Actualizá la pantalla.");
-      return { token: a.token, cantidad: deudas.length, total: redondear(deudas.reduce((s, c) => s + Number(c.precio), 0)) };
+      // E7 · Sus partes como integrante de una grupal (vinculado): misma regla de deuda.
+      const partes = (await tx.padelIntegrante.findMany({
+        where: {
+          tenantId, alumnoId: a.id, monto: { gt: 0 }, pagoEstado: { notIn: ["PAGADO", "ACREDITADO", "DEVUELTO", "EN_REVISION"] },
+          clase: { tenantId, OR: [{ estado: "DADA" }, { estado: "AUSENTE", motivoCancel: MOTIVO_AUSENTE_SE_COBRA }] },
+        },
+        select: { id: true, pagoEstado: true, pagoMedio: true, monto: true, clase: { select: { estado: true, motivoCancel: true } } },
+      })).filter((i) => esDeuda(parteDeIntegrante(i.clase, { ...i, monto: Number(i.monto) })));
+      if (!deudas.length && !partes.length) throw new ErrorNegocio("No te debe nada.");
+      const ahora = new Date();
+      if (deudas.length) {
+        const n = await tx.padelClase.updateMany({
+          where: { tenantId, alumnoId: a.id, id: { in: deudas.map((c) => c.id) }, pagoEstado: { notIn: ["PAGADO", "ACREDITADO", "DEVUELTO", "EN_REVISION"] } },
+          data: { pagoEstado: "PAGADO", pagoMedio: medio, pagoValidadoEl: ahora },
+        });
+        if (n.count !== deudas.length) throw new ErrorNegocio("Algo cambió recién. Actualizá la pantalla.");
+      }
+      if (partes.length) {
+        const n = await tx.padelIntegrante.updateMany({
+          where: { tenantId, alumnoId: a.id, id: { in: partes.map((i) => i.id) }, pagoEstado: { notIn: ["PAGADO", "ACREDITADO", "DEVUELTO", "EN_REVISION"] } },
+          data: { pagoEstado: "PAGADO", pagoMedio: medio, pagoValidadoEl: ahora },
+        });
+        if (n.count !== partes.length) throw new ErrorNegocio("Algo cambió recién. Actualizá la pantalla.");
+      }
+      const total = redondear(deudas.reduce((s, c) => s + Number(c.precio), 0) + partes.reduce((s, i) => s + Number(i.monto), 0));
+      return { token: a.token, cantidad: deudas.length + partes.length, total, partes: partes.length };
     }, { tenantId });
-    await auditAdmin({ action: "padel.pago.cobrarTodo", entity: "PadelAlumno", entityId: String(alumnoId), changes: { medio, clases: r.cantidad, total: r.total } });
+    await auditAdmin({ action: "padel.pago.cobrarTodo", entity: "PadelAlumno", entityId: String(alumnoId), changes: { medio, clases: r.cantidad - r.partes, ...(r.partes ? { partesDeIntegrante: r.partes } : {}), total: r.total } });
     refrescar(r.token);
     return { ok: true as const, cantidad: r.cantidad, total: r.total };
   });
@@ -837,7 +880,15 @@ export async function recordarDeuda(alumnoId: string): Promise<Resultado<ConAvis
       select: { estado: true, pagoEstado: true, pagoMedio: true, precio: true, motivoCancel: true, empiezaEn: true },
     }),
   ]);
-  const d = detalleDeuda(clases.map((c) => ({ ...c, precio: Number(c.precio) })));
+  // E7 · Más sus partes como integrante de una grupal (con la misma regla de deuda).
+  const partes = await prisma.padelIntegrante.findMany({
+    where: { tenantId, alumnoId: a.id, monto: { gt: 0 }, clase: { tenantId, OR: [{ estado: "DADA" }, { estado: "AUSENTE", motivoCancel: MOTIVO_AUSENTE_SE_COBRA }] } },
+    select: { pagoEstado: true, pagoMedio: true, monto: true, clase: { select: { estado: true, motivoCancel: true, empiezaEn: true } } },
+  });
+  const d = detalleDeuda([
+    ...clases.map((c) => ({ ...c, precio: Number(c.precio) })),
+    ...partes.map((i) => ({ ...parteDeIntegrante(i.clase, { ...i, monto: Number(i.monto) }), empiezaEn: i.clase.empiezaEn })),
+  ]);
   if (d.cantidad === 0) return { ok: false, error: "No te debe nada." };
   const aviso = await avisarAlAlumno({
     tenantId, config, clave: "recordatorioDeuda", tipo: "recordatorio-deuda", clase: null,
@@ -877,7 +928,11 @@ export async function editarClase(
       if (!esTipoClase(c.tipo)) throw new ErrorNegocio("Elegí individual o con amigos.");
       tipo = c.tipo;
     }
-    if (c.personas !== undefined || c.tipo !== undefined) personas = tipo === "GRUPAL" ? Math.min(4, Math.max(2, Math.trunc(Number(c.personas ?? personas)) || 2)) : 1;
+    // E7 · Con integrantes cargados, las personas las dan ellos (se agregan o se quitan de a uno).
+    const nInt = await prisma.padelIntegrante.count({ where: { tenantId, claseId: clase.id } });
+    if (nInt > 0 && tipo !== "GRUPAL") throw new ErrorNegocio("Esa clase tiene integrantes: quitalos antes de pasarla a individual.");
+    if (nInt > 0) personas = personasConIntegrantes(nInt);
+    else if (c.personas !== undefined || c.tipo !== undefined) personas = tipo === "GRUPAL" ? Math.min(4, Math.max(2, Math.trunc(Number(c.personas ?? personas)) || 2)) : 1;
     if (tipo !== clase.tipo) data.tipo = tipo;
     if (personas !== clase.personas) data.personas = personas;
     let precioNuevo: number | null = null;
@@ -886,7 +941,7 @@ export async function editarClase(
       if (l.estado !== "ok" || !Number.isFinite(l.valor) || l.valor < 0 || l.valor > 10_000_000) throw new ErrorNegocio("Poné un precio válido.");
       precioNuevo = redondear(l.valor);
     } else if (data.tipo !== undefined || data.personas !== undefined) {
-      precioNuevo = precioDe(config, tipo, personas);
+      precioNuevo = precioDelTitular(config, tipo, personas, nInt);
     }
     if (precioNuevo !== null && precioNuevo !== Number(clase.precio)) {
       if (["PAGADO", "ACREDITADO", "DEVUELTO"].includes(clase.pagoEstado)) throw new ErrorNegocio("Esa clase ya está pagada: el precio no se cambia.");
@@ -959,15 +1014,23 @@ export async function agendarProxima(id: string): Promise<Resultado<ConAviso & {
       if (await choqueEn(tx, tenantId, empiezaEn, terminaEn)) throw new ErrorNegocio(`El ${diaHumano(empiezaEn)} a las ${horaHumana(empiezaEn)} ya está ocupado.`);
       // Antes de crear la clase (que ya cuenta como «agendada por el profe»): ¿había que renovar el link?
       const link = await reconocerAlumno(tx, tenantId, alumno);
-      const precio = precioDe(config, esTipoClase(clase.tipo) ? clase.tipo : "INDIVIDUAL", clase.personas);
+      // E7 · Los mismos integrantes de la grupal, cada uno con su parte por cobrar (nada del pago viaja).
+      const tipo: TipoClase = esTipoClase(clase.tipo) ? clase.tipo : "INDIVIDUAL";
+      const deAntes = tipo === "GRUPAL"
+        ? await tx.padelIntegrante.findMany({ where: { tenantId, claseId: clase.id }, orderBy: { createdAt: "asc" }, select: { alumnoId: true, nombre: true, telefono: true } })
+        : [];
+      const precio = precioDelTitular(config, tipo, clase.personas, deAntes.length);
       const conSaldo = pagoConSaldo(await saldoEnTx(tx, tenantId, clase.alumnoId), precio);
       const nueva = await tx.padelClase.create({
         data: {
-          tenantId, alumnoId: clase.alumnoId, clientId: clase.clientId, empiezaEn, terminaEn, tipo: clase.tipo, personas: clase.personas,
+          tenantId, alumnoId: clase.alumnoId, clientId: clase.clientId, empiezaEn, terminaEn, tipo: clase.tipo, personas: deAntes.length ? personasConIntegrantes(deAntes.length) : clase.personas,
           estado: "CONFIRMADA", confirmadaEl: new Date(), origen: "PROFE", repiteDe: clase.id, precio, clubId: clase.clubId, ...(conSaldo ?? {}),
         },
         select: { id: true, empiezaEn: true, precio: true, pagoMedio: true },
       });
+      for (const i of deAntes) {
+        await tx.padelIntegrante.create({ data: { tenantId, claseId: nueva.id, alumnoId: i.alumnoId, nombre: i.nombre, telefono: i.telefono, monto: montoPorPersona(config) } });
+      }
       return { nueva, link };
     });
     await auditAdmin({ action: "padel.agendarProxima", entity: "PadelClase", entityId: nueva.id, changes: { repiteDe: clase.id, ...(link.regenerado ? { linkNuevo: true } : {}) } });
@@ -987,14 +1050,18 @@ export async function agendarProxima(id: string): Promise<Resultado<ConAviso & {
  * Alta directa del profe (le pidieron la clase en la cancha): alumno existente o nuevo. Si el alumno
  * ya existía y el profe todavía no lo había reconocido, su link se regenera (O-1).
  */
-export async function agendarClase(fd: FormData): Promise<Resultado<ConAviso & { cuando: string; linkNuevo?: boolean; fija?: { creadas: number; salteadas: string[] } }>> {
+export async function agendarClase(fd: FormData): Promise<Resultado<ConAviso & { cuando: string; linkNuevo?: boolean; fija?: { creadas: number; salteadas: string[] }; integrantes?: { nombre: string; monto: number; wa: string | null }[] }>> {
   await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const fecha = String(fd.get("fecha") ?? "");
   const horaTxt = String(fd.get("hora") ?? "");
   if (!fechaValida(fecha) || !horaValida(horaTxt)) return { ok: false, error: "Elegí día y hora." };
   const tipo: TipoClase = esTipoClase(fd.get("tipo")) ? (fd.get("tipo") as TipoClase) : "INDIVIDUAL";
-  const personas = tipo === "GRUPAL" ? Math.min(4, Math.max(2, Number(fd.get("personas")) || 2)) : 1;
+  // E7 · En una grupal, los integrantes (además del titular): cada uno paga su parte.
+  const integ = integrantesValidos(fd.get("integrantes"));
+  if (!integ.ok) return { ok: false, error: integ.error };
+  const integrantes = tipo === "GRUPAL" ? integ.lista : [];
+  const personas = tipo !== "GRUPAL" ? 1 : integrantes.length ? personasConIntegrantes(integrantes.length) : Math.min(4, Math.max(2, Number(fd.get("personas")) || 2));
   const alumnoId = String(fd.get("alumnoId") ?? "");
   const nombre = nombreValido(fd.get("nombre"));
   const telefono = telefonoAlumno(String(fd.get("telefono") ?? ""));
@@ -1003,6 +1070,9 @@ export async function agendarClase(fd: FormData): Promise<Resultado<ConAviso & {
   const clubId = String(fd.get("clubId") ?? "").trim() || null;
   // E8 · «Repetir todas las semanas»: nace una clase fija (PadelSerie) con sus próximas semanas.
   const repetir = fd.get("repetir") === "1";
+  // Provisional a confirmar: la clase fija con integrantes queda para después (las semanas que siguen
+  // nacerían sin ellos y el titular pagaría el total). Por ahora, una u otra.
+  if (repetir && integrantes.length) return { ok: false, error: "La clase fija todavía no lleva integrantes: agendala sin repetir, o sin integrantes." };
 
   const [config, fr] = await Promise.all([configPadel(tenantId), franjasDe(tenantId)]);
   const empiezaEn = businessWallTimeToUtc(fecha, horaTxt);
@@ -1018,7 +1088,7 @@ export async function agendarClase(fd: FormData): Promise<Resultado<ConAviso & {
         : await alumnoPorTelefono(tx, tenantId, telefono, nombre!);
       if (!alumno) throw new ErrorNegocio("No encontramos ese alumno.");
       const link = await reconocerAlumno(tx, tenantId, alumno, { recienCreado: "recienCreado" in alumno ? Boolean(alumno.recienCreado) : false });
-      const precio = precioDe(config, tipo, personas);
+      const precio = precioDelTitular(config, tipo, personas, integrantes.length);
       const conSaldo = pagoConSaldo(await saldoEnTx(tx, tenantId, alumno.id), precio);
       const serie = repetir
         ? await tx.padelSerie.create({
@@ -1031,8 +1101,11 @@ export async function agendarClase(fd: FormData): Promise<Resultado<ConAviso & {
           tenantId, alumnoId: alumno.id, clientId: alumno.clientId, empiezaEn, terminaEn, tipo, personas,
           estado: "CONFIRMADA", confirmadaEl: new Date(), origen: "PROFE", precio, clubId, serieId: serie?.id ?? null, ...(conSaldo ?? {}),
         },
-        select: { id: true, empiezaEn: true, precio: true, pagoMedio: true },
+        select: { id: true, empiezaEn: true, precio: true, pagoMedio: true, club: { select: { nombre: true } } },
       });
+      const creados = integrantes.length
+        ? await crearIntegrantesEnTx(tx, tenantId, { claseId: clase.id, titularId: alumno.id, entradas: integrantes, monto: montoPorPersona(config) })
+        : [];
       // Las semanas que siguen (la primera ya está): salta las que chocan o caen en un bloqueo.
       const fija = serie
         ? await generarClasesDeSerie(tx, {
@@ -1041,11 +1114,11 @@ export async function agendarClase(fd: FormData): Promise<Resultado<ConAviso & {
           })
         : null;
       const cliente = await tx.client.findFirst({ where: { tenantId, id: alumno.clientId }, select: { name: true, phone: true } });
-      return { clase, serieId: serie?.id ?? null, fija, tokenViejo: alumno.token, regenerado: link.regenerado, alumno: { id: alumno.id, token: link.token, nombre: cliente?.name ?? "", telefono: cliente?.phone ?? "" } };
+      return { clase, creados, serieId: serie?.id ?? null, fija, tokenViejo: alumno.token, regenerado: link.regenerado, alumno: { id: alumno.id, token: link.token, nombre: cliente?.name ?? "", telefono: cliente?.phone ?? "" } };
     });
     await auditAdmin({
       action: "padel.agendar", entity: "PadelClase", entityId: r.clase.id,
-      ...(r.regenerado || r.serieId || clubId ? { changes: { ...(r.regenerado ? { linkNuevo: true } : {}), ...(clubId ? { clubId } : {}), ...(r.serieId ? { serieId: r.serieId, creadas: 1 + (r.fija?.creadas.length ?? 0), salteadas: r.fija?.salteadas.length ?? 0 } : {}) } } : {}),
+      ...(r.regenerado || r.serieId || clubId || r.creados.length ? { changes: { ...(r.regenerado ? { linkNuevo: true } : {}), ...(clubId ? { clubId } : {}), ...(r.creados.length ? { integrantes: r.creados.map((i) => i.id), montoPorPersona: montoPorPersona(config) } : {}), ...(r.serieId ? { serieId: r.serieId, creadas: 1 + (r.fija?.creadas.length ?? 0), salteadas: r.fija?.salteadas.length ?? 0 } : {}) } } : {}),
     });
     const salteadas = (r.fija?.salteadas ?? []).map((x) => `${diaHumano(x.empiezaEn)} (${x.motivo === "bloqueado" ? "día bloqueado" : "ya tenés otra clase"})`);
     const extras = [
@@ -1053,12 +1126,22 @@ export async function agendarClase(fd: FormData): Promise<Resultado<ConAviso & {
       r.serieId ? `Te la dejo fija: ${textoSerie({ diaSemana: dayOfWeekForDate(fecha), hora: horaTxt }).toLowerCase()}.` : "",
     ].filter(Boolean);
     const aviso = await avisarAlAlumno({ tenantId, config, clave: "proxima", tipo: "proxima", clase: r.clase, alumno: r.alumno, extra: extras.join(" ") || undefined });
-    refrescar(r.alumno.token, r.tokenViejo);
+    // E7 · Un WhatsApp por integrante con SU monto (la pantalla los ofrece de a uno).
+    const monto = montoPorPersona(config);
+    const avisosIntegrantes = await Promise.all(
+      r.creados.map(async (i) => ({
+        nombre: i.nombre, monto,
+        wa: await waParaIntegrante(tenantId, { integrante: { ...i, monto }, titular: r.alumno.nombre, empiezaEn, alias: config.aliasCbu, club: r.clase.club?.nombre ?? null }),
+      })),
+    );
+    refrescar(r.alumno.token, r.tokenViejo, ...r.creados.map((i) => i.token ?? undefined));
     return {
       ok: true, ...aviso, cuando: `${diaHumano(empiezaEn)} ${horaHumana(empiezaEn)}`, ...(r.regenerado ? { linkNuevo: true } : {}),
+      ...(avisosIntegrantes.length ? { integrantes: avisosIntegrantes } : {}),
       ...(r.fija ? { fija: { creadas: 1 + r.fija.creadas.length, salteadas } } : {}),
     };
   } catch (e) {
+    if (esIntegranteRepetido(e)) return { ok: false, error: "Hay un integrante repetido." };
     const r = respuestaDeError(e);
     if (r) return r;
     throw e;
@@ -1120,6 +1203,12 @@ export async function recordatorio(id: string): Promise<Resultado<ConAviso>> {
  * ACREDITADO → DEVUELTO, y sale del saldo. No deja el saldo en negativo (si parte ya se usó, no corre).
  */
 export async function devolverSaldo(claseId: string): Promise<Resultado<{ aFavor: number }>> {
+  // E7 · El saldo puede venir de la parte de un integrante (Plata y la ficha mandan ese id).
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
+  const tenantIdIntegrante = await getCurrentTenantId();
+  if (typeof claseId === "string" && claseId.length <= 40 && (await prisma.padelIntegrante.findFirst({ where: { tenantId: tenantIdIntegrante, id: claseId }, select: { id: true } }))) {
+    return devolverParteIntegrante(claseId);
+  }
   try {
     const { tenantId, clase } = await claseDelProfe(claseId);
     const nuevo = transicionPago(clase.pagoEstado, clase.estado, "devolver", "profe");

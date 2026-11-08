@@ -33,6 +33,7 @@ export function aAcciones(c: ClasePanel): ClaseAcciones {
     motivoCancel: c.motivoCancel,
     serieId: c.serieId,
     club: c.club,
+    integrantes: c.integrantes,
   };
 }
 

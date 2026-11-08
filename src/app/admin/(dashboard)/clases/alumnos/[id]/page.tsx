@@ -107,10 +107,10 @@ export default async function FichaAlumno({ params }: { params: Promise<{ id: st
         {a.debe > 0 ? (
           <>
             <p className="text-base font-semibold text-danger" data-qa="ficha-debe">
-              Debe <Plata valor={a.debe} sinCentavos tono="peligro" /> · {a.deudas.length} clase{a.deudas.length === 1 ? "" : "s"}
+              Debe <Plata valor={a.debe} sinCentavos tono="peligro" /> · {a.deudas.length + a.partesDeudas.length} clase{a.deudas.length + a.partesDeudas.length === 1 ? "" : "s"}
             </p>
             <div className="grid gap-2 sm:grid-cols-2">
-              <CobrarTodo alumnoId={a.id} nombre={a.nombre} total={a.debe} cantidad={a.deudas.length} />
+              <CobrarTodo alumnoId={a.id} nombre={a.nombre} total={a.debe} cantidad={a.deudas.length + a.partesDeudas.length} />
               <Recordarle alumnoId={a.id} nombre={a.nombre} />
             </div>
           </>

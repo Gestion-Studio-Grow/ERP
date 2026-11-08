@@ -39,6 +39,7 @@ import { HojaEditar } from "./_hojas/HojaEditar";
 import { HojaMover } from "./_hojas/HojaMover";
 import { HojaNoVino } from "./_hojas/HojaNoVino";
 import { HojaSuspender } from "./_hojas/HojaSuspender";
+import { IntegrantesClase } from "./_integrantes";
 import type { ClaseDelDia } from "./_hojas/proponer";
 import { yaTermino, type ClaseAcciones } from "./_hojas/tipos";
 
@@ -160,11 +161,13 @@ export function AccionesClase({
         </div>
       )}
 
+      <IntegrantesClase c={c} />
+
       {fila3.length > 0 && (
         <div className={cn("grid gap-2", fila3.length === 3 ? "grid-cols-3" : fila3.length === 2 ? "grid-cols-2" : "grid-cols-1")}>
           {fila3.includes("cobrar") && (
             <button type="button" disabled={pendiente} className={grande("outline")} onClick={() => setHoja("cobrar")} data-qa="cobre">
-              Cobré <span aria-hidden>▾</span>
+              {c.integrantes?.length ? `Cobré a ${c.nombre.split(/\s+/)[0]}` : "Cobré"} <span aria-hidden>▾</span>
             </button>
           )}
           {fila3.includes("mover") && (

@@ -791,3 +791,136 @@ export function textoSerie(s: { diaSemana: number; hora: string }): string {
 
 /** El corte al cancelar «esta y las que siguen»: el día anterior a esa clase (la serie termina ahí). */
 export const corteDeSerie = (fechaDeLaClase: string): string => sumarDias(fechaDeLaClase, -1);
+
+// ════════════════════════════════════════════════════════════════════════════
+// E7 — Grupal con integrantes: cada uno paga SU parte.
+// ════════════════════════════════════════════════════════════════════════════
+//
+// En una GRUPAL el alumno de la clase es el TITULAR: paga su parte con los campos de pago de la
+// clase (`precio` = lo que paga él). Cada integrante extra es un PadelIntegrante con `monto` = el
+// precio por persona y su propio estado de pago. `personas` = 1 + integrantes.
+// Una grupal SIN integrantes cargados (las de antes) sigue como siempre: el titular paga el total
+// (precioDe). Lo de un integrante cuenta como deuda o saldo con la MISMA regla que una clase
+// (esDeuda, saldoAFavor): su parte se mira como una clase con el estado de la clase y su pago.
+
+/** Hasta 3 integrantes además del titular (canchas de 4). */
+export const MAX_INTEGRANTES = 3;
+
+export interface IntegranteConPago {
+  pagoEstado: string;
+  pagoMedio?: string | null;
+  monto: number;
+}
+
+/**
+ * Lo que paga el titular de la clase. Con integrantes cargados: el precio grupal POR PERSONA (cada
+ * integrante paga lo mismo en su fila). Sin integrantes: lo de siempre (precioDe, el total).
+ */
+export function precioDelTitular(config: { precioIndividual: number; precioGrupal: number }, tipo: TipoClase, personas: number, integrantes: number): number {
+  return tipo === "GRUPAL" && integrantes > 0 ? redondear(config.precioGrupal) : precioDe(config, tipo, personas);
+}
+
+/** Lo que paga cada integrante: el precio grupal por persona. */
+export const montoPorPersona = (config: { precioGrupal: number }): number => redondear(Math.max(0, Number(config.precioGrupal) || 0));
+
+/** `personas` de una grupal con integrantes: el titular más ellos (2 a 4). */
+export const personasConIntegrantes = (integrantes: number): number => Math.min(MAX_INTEGRANTES + 1, 1 + Math.max(0, Math.trunc(integrantes)));
+
+/** La parte de un integrante mirada como una clase: el estado de la clase, su pago y su monto. */
+export function parteDeIntegrante(clase: { estado: string; motivoCancel?: string | null }, i: IntegranteConPago): ClaseConPago {
+  return { estado: clase.estado, motivoCancel: clase.motivoCancel ?? null, pagoEstado: i.pagoEstado, pagoMedio: i.pagoMedio ?? null, precio: Number(i.monto) };
+}
+
+/**
+ * ¿La clase está pagada? Sólo si el titular Y todos los integrantes pagaron. Una sin integrantes,
+ * como siempre (el pago de la clase).
+ */
+export function clasePagada(titular: { pagoEstado: string }, integrantes: readonly { pagoEstado: string }[]): boolean {
+  return titular.pagoEstado === "PAGADO" && integrantes.every((i) => i.pagoEstado === "PAGADO");
+}
+
+/** El resumen del cobro de la clase: cuántos pagaron de cuántos y la plata (pagado / total). */
+export function cobroDeLaClase(
+  titular: { pagoEstado: string; precio: number },
+  integrantes: readonly IntegranteConPago[],
+): { pagaron: number; personas: number; cobrado: number; total: number; pagada: boolean } {
+  const partes = [{ pagoEstado: titular.pagoEstado, monto: Number(titular.precio) }, ...integrantes.map((i) => ({ pagoEstado: i.pagoEstado, monto: Number(i.monto) }))];
+  const pagas = partes.filter((p) => p.pagoEstado === "PAGADO");
+  return {
+    pagaron: pagas.length,
+    personas: partes.length,
+    cobrado: redondear(pagas.reduce((s, p) => s + p.monto, 0)),
+    total: redondear(partes.reduce((s, p) => s + p.monto, 0)),
+    pagada: clasePagada(titular, integrantes),
+  };
+}
+
+/** Un integrante se quita sólo si no pagó ni mandó comprobante (lo que entró no se pierde). */
+export const puedeQuitarIntegrante = (i: { pagoEstado: string }): boolean => i.pagoEstado === "PENDIENTE";
+
+/** Un integrante como lo manda la pantalla: un alumno existente, o nombre (y celular, opcional). */
+export type IntegranteEntrada = { alumnoId: string } | { nombre: string; telefono: string };
+
+/**
+ * Valida la lista de integrantes que manda la pantalla (JSON): hasta 3, sin repetir alumno ni
+ * celular. Un alumno nuevo necesita nombre; el celular es opcional (sin celular no se le avisa).
+ */
+export function integrantesValidos(raw: unknown): { ok: true; lista: IntegranteEntrada[] } | { ok: false; error: string } {
+  let datos: unknown = raw;
+  if (typeof raw === "string") {
+    if (!raw.trim()) return { ok: true, lista: [] };
+    try {
+      datos = JSON.parse(raw);
+    } catch {
+      return { ok: false, error: "No se entendió la lista de integrantes." };
+    }
+  }
+  if (datos == null) return { ok: true, lista: [] };
+  if (!Array.isArray(datos)) return { ok: false, error: "No se entendió la lista de integrantes." };
+  if (datos.length > MAX_INTEGRANTES) return { ok: false, error: `Como mucho ${MAX_INTEGRANTES} además del titular.` };
+  const lista: IntegranteEntrada[] = [];
+  const vistos = new Set<string>();
+  for (const x of datos as unknown[]) {
+    const o = (x ?? {}) as Record<string, unknown>;
+    const alumnoId = typeof o.alumnoId === "string" ? o.alumnoId.trim() : "";
+    if (alumnoId) {
+      if (!/^[A-Za-z0-9_-]{1,40}$/.test(alumnoId)) return { ok: false, error: "Ese integrante no es válido." };
+      if (vistos.has(`a:${alumnoId}`)) return { ok: false, error: "Hay un integrante repetido." };
+      vistos.add(`a:${alumnoId}`);
+      lista.push({ alumnoId });
+      continue;
+    }
+    const nombre = nombreValido(o.nombre);
+    if (!nombre) return { ok: false, error: "Poné el nombre de cada integrante." };
+    const crudo = String(o.telefono ?? "").trim();
+    const telefono = crudo ? telefonoAlumno(crudo) : "";
+    if (crudo && !telefono) return { ok: false, error: `El celular de ${nombre} no es válido.` };
+    if (telefono) {
+      if (vistos.has(`t:${telefono}`)) return { ok: false, error: "Hay un celular repetido." };
+      vistos.add(`t:${telefono}`);
+    }
+    lista.push({ nombre, telefono });
+  }
+  return { ok: true, lista };
+}
+
+/**
+ * El pago de un integrante cuando la clase se cancela, se rechaza o «no vino → no se cobra»: la
+ * MISMA regla que el titular (pagoAlCancelar / pagoAlNoVino). Pagado → ACREDITADO (a favor del
+ * integrante); con comprobante por revisar o sin pagar, igual.
+ */
+export function pagoDeIntegranteAlCerrar(
+  i: { pagoEstado: string; pagoMedio?: string | null },
+  como: { tipo: "cancelar" } | { tipo: "noVino"; seCobra: boolean },
+): ReturnType<typeof pagoAlNoVino> {
+  return como.tipo === "cancelar" ? pagoAlCancelar(i) : pagoAlNoVino(i, como.seCobra);
+}
+
+/** El WhatsApp a un integrante con SU monto (sin link: el integrante sin alumno no tiene uno). */
+export function textoParaIntegrante(p: { nombre: string; titular: string; empiezaEn: Date; monto: number; alias?: string | null; club?: string | null; link?: string | null }): string {
+  const primero = p.nombre.split(" ")[0];
+  const donde = p.club ? ` en ${p.club}` : "";
+  const cuanto = p.monto > 0 ? ` Tu parte es ${pesos(p.monto)}${p.alias ? ` (alias ${p.alias})` : ""}.` : "";
+  const link = p.link ? ` Para mandar el comprobante: ${p.link}` : "";
+  return `¡Hola ${primero}! Quedó la clase con ${p.titular.split(" ")[0]} el ${diaHumano(p.empiezaEn)} a las ${horaHumana(p.empiezaEn)}${donde}.${cuanto}${link}`;
+}
