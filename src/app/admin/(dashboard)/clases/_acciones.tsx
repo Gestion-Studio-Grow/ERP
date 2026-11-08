@@ -125,6 +125,11 @@ export function AccionesClase({
 
       {c.pagoEstado === "EN_REVISION" && (
         <div className="grid gap-2 rounded-xl border border-line bg-warning-soft p-2">
+          {["CANCELADA", "RECHAZADA"].includes(c.estado) && (
+            <p className="text-sm text-strong" data-qa="comprobante-clase-caida">
+              La clase se canceló pero mandó el comprobante. Si está bien, le queda a favor (o se lo devolvés).
+            </p>
+          )}
           {c.comprobante && (
             <button type="button" className="min-h-12 text-left text-sm font-semibold text-strong underline" onClick={() => setVerComprobante((v) => !v)} aria-expanded={verComprobante} data-qa="ver-comprobante">
               {verComprobante ? "Ocultar comprobante" : "Ver comprobante"}

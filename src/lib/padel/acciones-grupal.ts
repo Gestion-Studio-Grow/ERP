@@ -28,10 +28,12 @@ import {
   parteDeIntegrante,
   personasConIntegrantes,
   pesos,
+  precioAlQuedarSolo,
   precioDe,
   puedeCobrarProfe,
   puedeQuitarIntegrante,
   redondear,
+  revisionEnClaseCaida,
   transicionPago,
   type IntegranteEntrada,
   type MedioCobro,
@@ -39,7 +41,7 @@ import {
 } from "./core";
 import { configPadel } from "./datos.server";
 import { ErrorNegocio, conErrorNegocio, refrescar, saldoEnTx, type Resultado } from "./acciones-compartido";
-import { bloquearClaseDeIntegranteEnTx, crearIntegrantesEnTx, esIntegranteRepetido, waParaIntegrante } from "./grupal.server";
+import { CLASE_CAIDA, bloquearClaseDeIntegranteEnTx, crearIntegrantesEnTx, esIntegranteRepetido, waParaIntegrante } from "./grupal.server";
 
 const idValido = (x: unknown): x is string => typeof x === "string" && /^[A-Za-z0-9_-]{1,40}$/.test(x);
 
@@ -111,26 +113,31 @@ export async function quitarIntegrante(integranteId: string): Promise<Resultado>
   return conErrorNegocio(async () => {
     const config = await configPadel(tenantId);
     const r = await tenantTransaction(async (tx) => {
-      const i = await tx.padelIntegrante.findFirst({ where: { tenantId, id: integranteId }, select: SELECT_INTEGRANTE });
-      if (!i) throw new ErrorNegocio("No encontramos ese integrante.");
+      // Clase bloqueada (FOR UPDATE) ANTES de leer o borrar la parte: el mismo orden clase →
+      // integrante que la cancelación, sin deadlock. Una clase caída no es error: quitar a quien no
+      // pagó no mueve plata (y su precio no se toca, ver precioAlQuedarSolo).
+      const claseId = await bloquearClaseDeIntegranteEnTx(tx, tenantId, integranteId, { paraEscribirClase: true, aceptarCaida: true });
+      const i = await tx.padelIntegrante.findFirst({ where: { tenantId, id: integranteId, claseId }, select: SELECT_INTEGRANTE });
+      if (!i) throw new ErrorNegocio("Ese integrante cambió recién. Actualizá la pantalla.");
       if (!puedeQuitarIntegrante(i)) throw new ErrorNegocio(`${i.nombre.split(" ")[0]} ya pagó o mandó el comprobante: no se quita.`);
+      const clase = await tx.padelClase.findFirst({ where: { tenantId, id: claseId }, select: { estado: true, pagoEstado: true, precio: true } });
+      if (!clase) throw new ErrorNegocio("No encontramos esa clase.");
+      const partes = await tx.padelIntegrante.findMany({ where: { tenantId, claseId }, select: { monto: true } });
       const n = await tx.padelIntegrante.deleteMany({ where: { tenantId, id: i.id, pagoEstado: "PENDIENTE" } });
       if (n.count === 0) throw new ErrorNegocio("Ese integrante cambió recién. Actualizá la pantalla.");
-      const quedan = await tx.padelIntegrante.count({ where: { tenantId, claseId: i.claseId } });
-      // Se fue el último y el titular no pagó: vuelve a INDIVIDUAL con el precio individual (juega
-      // solo con el profe; no paga la parte por persona de una grupal de uno). Si ya pagó o mandó el
-      // comprobante, su precio no se toca: la diferencia queda como está (la arregla el profe).
+      const quedan = partes.length - 1;
+      // Se fue el último: si la clase todavía no se dio y el titular no pagó, vuelve a INDIVIDUAL al
+      // precio individual, tope lo que pagaba el grupo entero (una suba de lista no le cae).
       const solo = quedan === 0
-        ? await tx.padelClase.updateMany({
-            where: { tenantId, id: i.claseId, pagoEstado: "PENDIENTE" },
-            data: { tipo: "INDIVIDUAL", personas: 1, precio: precioDe(config, "INDIVIDUAL", 1) },
-          })
-        : { count: 0 };
-      if (solo.count === 0) await tx.padelClase.updateMany({ where: { tenantId, id: i.claseId }, data: { personas: personasConIntegrantes(quedan) } });
-      return i;
+        ? precioAlQuedarSolo({ ...clase, precio: Number(clase.precio) }, precioDe(config, "INDIVIDUAL", 1), partes.map((p) => Number(p.monto)))
+        : null;
+      const data = solo !== null ? { tipo: "INDIVIDUAL" as const, personas: 1, precio: solo } : { personas: personasConIntegrantes(quedan) };
+      const m = await tx.padelClase.updateMany({ where: { tenantId, id: claseId, estado: clase.estado, pagoEstado: clase.pagoEstado }, data });
+      if (m.count === 0) throw new ErrorNegocio("Esa clase cambió recién. Actualizá la pantalla.");
+      return { i, solo };
     }, { tenantId });
-    await auditAdmin({ action: "padel.integrante.quitar", entity: "PadelIntegrante", entityId: r.id, changes: { claseId: r.claseId, nombre: r.nombre } });
-    refrescar(r.clase.alumno.token, r.alumno?.token);
+    await auditAdmin({ action: "padel.integrante.quitar", entity: "PadelIntegrante", entityId: r.i.id, changes: { claseId: r.i.claseId, nombre: r.i.nombre, ...(r.solo !== null ? { individual: r.solo } : {}) } });
+    refrescar(r.i.clase.alumno.token, r.i.alumno?.token);
     return { ok: true as const };
   });
 }
@@ -175,11 +182,15 @@ export async function revisarComprobanteIntegrante(integranteId: string, evento:
   return conErrorNegocio(async () => {
     const nota = evento === "noValido" && motivo ? MOTIVO_COMPROBANTE_LABEL[motivo] : null;
     const r = await tenantTransaction(async (tx) => {
-      // Clase bloqueada y viva ANTES de leer la parte: una cancelación a la vez no la deja PAGADO.
-      const claseId = await bloquearClaseDeIntegranteEnTx(tx, tenantId, integranteId);
+      // Clase bloqueada ANTES de leer la parte: una cancelación a la vez no la deja PAGADO. Si la
+      // clase ya se cayó, el comprobante que quedó mandado igual se revisa (revisionEnClaseCaida):
+      // «Está bien» → a favor; «No es válido» → pendiente. No queda trabado.
+      const claseId = await bloquearClaseDeIntegranteEnTx(tx, tenantId, integranteId, { aceptarCaida: true });
       const i = await tx.padelIntegrante.findFirst({ where: { tenantId, id: integranteId, claseId }, select: SELECT_INTEGRANTE });
       if (!i) throw new ErrorNegocio("Ese integrante cambió recién. Actualizá la pantalla.");
-      const nuevo = transicionPago(i.pagoEstado, i.clase.estado, evento, "profe")
+      const caida = (CLASE_CAIDA as readonly string[]).includes(i.clase.estado);
+      if (caida && i.pagoEstado !== "EN_REVISION") throw new ErrorNegocio("Esa clase se canceló: esa parte ya no se cobra. Si había pagado, le queda a favor.");
+      const nuevo = caida ? revisionEnClaseCaida(i.pagoEstado, i.clase.estado, evento) : transicionPago(i.pagoEstado, i.clase.estado, evento, "profe")
         // M-045: la AUSENTE que se cobra igual también se valida.
         ?? (i.clase.estado === "AUSENTE" && i.clase.motivoCancel === MOTIVO_AUSENTE_SE_COBRA ? transicionPago(i.pagoEstado, "DADA", evento, "profe") : null);
       if (!nuevo) throw new ErrorNegocio("Ese cobro ya cambió. Actualizá la pantalla.");
@@ -192,7 +203,9 @@ export async function revisarComprobanteIntegrante(integranteId: string, evento:
     }, { tenantId });
     await auditAdmin({ action: `padel.integrante.${evento}`, entity: "PadelIntegrante", entityId: r.id, changes: { claseId: r.claseId, de: r.pagoEstado, a: r.nuevo, ...(nota ? { nota } : {}) } });
     const primero = r.nombre.split(" ")[0];
-    const texto = evento === "validar"
+    const texto = r.nuevo === "ACREDITADO"
+      ? `¡Hola ${primero}! Recibí tu pago de ${pesos(Number(r.monto))}. Como la clase se canceló, te queda a favor (o te lo devuelvo).`
+      : evento === "validar"
       ? `¡Hola ${primero}! Recibí tu pago de ${pesos(Number(r.monto))}. ¡Gracias!`
       : `¡Hola ${primero}! No pude validar el comprobante (${nota}). ¿Me mandás otro?`;
     refrescar(r.clase.alumno.token, r.alumno?.token);

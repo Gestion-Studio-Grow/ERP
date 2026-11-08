@@ -75,6 +75,7 @@ import {
   textoAlternativas,
   textoSerie,
   transicionClase,
+  revisionEnClaseCaida,
   transicionPago,
   type ClavePlantilla,
   type EventoClase,
@@ -969,18 +970,22 @@ async function cambiarPago(id: string, evento: Exclude<EventoPago, "subir">, not
     const { tenantId, clase, config, alumno } = await claseDelProfe(id);
     const nuevo = transicionPago(clase.pagoEstado, clase.estado, evento, "profe")
       // M-045: la AUSENTE que se cobra igual también se valida o se cobra.
-      ?? (clase.estado === "AUSENTE" && clase.motivoCancel === MOTIVO_AUSENTE_SE_COBRA ? transicionPago(clase.pagoEstado, "DADA", evento, "profe") : null);
+      ?? (clase.estado === "AUSENTE" && clase.motivoCancel === MOTIVO_AUSENTE_SE_COBRA ? transicionPago(clase.pagoEstado, "DADA", evento, "profe") : null)
+      // El comprobante que quedó mandado en una clase que se cayó: a favor, o vuelve a pendiente.
+      ?? revisionEnClaseCaida(clase.pagoEstado, clase.estado, evento);
     if (!nuevo) throw new ErrorNegocio("Ese cobro ya cambió. Actualizá la pantalla.");
     const ahora = new Date();
     const data =
       evento === "efectivo" ? { pagoEstado: nuevo, pagoMedio: "EFECTIVO", pagoValidadoEl: ahora } :
       evento === "validar" ? { pagoEstado: nuevo, pagoValidadoEl: ahora } :
       { pagoEstado: nuevo, pagoNota: (nota ?? "").slice(0, 200) || "No se pudo validar el comprobante" };
-    const n = await prisma.padelClase.updateMany({ where: { tenantId, id, pagoEstado: clase.pagoEstado }, data });
+    // Condicionado también al estado leído: una cancelación en el medio no deja PAGADO una cancelada.
+    const n = await prisma.padelClase.updateMany({ where: { tenantId, id, estado: clase.estado, pagoEstado: clase.pagoEstado }, data });
     if (n.count === 0) throw new ErrorNegocio("Ese cobro ya cambió. Actualizá la pantalla.");
     await prisma.padelAviso.updateMany({ where: { tenantId, claseId: id, destino: "PROFE", tipo: "comprobante", leidoEl: null }, data: { leidoEl: ahora } });
     await auditAdmin({ action: `padel.pago.${evento}`, entity: "PadelClase", entityId: id, changes: { de: clase.pagoEstado, a: nuevo, ...(evento === "noValido" && nota ? { nota } : {}) } });
     const aviso =
+      nuevo === "ACREDITADO" ? SIN_AVISO :
       evento === "validar" ? await avisarAlAlumno({ tenantId, config, clave: "pagoOk", tipo: "pago-ok", clase, alumno }) :
       evento === "noValido" ? await avisarAlAlumno({ tenantId, config, clave: "pagoNo", tipo: "pago-no", clase, alumno, extra: nota }) :
       SIN_AVISO;

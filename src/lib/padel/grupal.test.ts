@@ -16,7 +16,9 @@ import {
   pagoDeIntegranteAlCerrar,
   parteDeIntegrante,
   personasConIntegrantes,
+  precioAlQuedarSolo,
   precioDe,
+  revisionEnClaseCaida,
   precioDelTitular,
   puedeCobrarProfe,
   puedeQuitarIntegrante,
@@ -142,4 +144,25 @@ test("B2: un pedido vencido (o sin confirmar) nunca ofrece «Pagar»", () => {
   assert.equal(puedeSubirComprobante({ estado, pagoEstado: "PENDIENTE", precio: 25_000 }), false);
   assert.equal(esPagable({ estado: "PEDIDA", pagoEstado: "PENDIENTE", precio: 25_000 }), false);
   assert.equal(puedeSubirComprobante({ estado: "PEDIDA", pagoEstado: "PENDIENTE", precio: 25_000 }), false);
+});
+
+test("quitar el último integrante: individual con tope en lo que pagaba el grupo; dada o pagada, no se toca", () => {
+  const conf = { estado: "CONFIRMADA", pagoEstado: "PENDIENTE", precio: 12_000 };
+  // La lista subió a 40.000 después de confirmar: el titular paga lo que pagaba el grupo (24.000).
+  assert.equal(precioAlQuedarSolo(conf, 40_000, [12_000]), 24_000);
+  // La individual es más barata que el grupo: la individual.
+  assert.equal(precioAlQuedarSolo(conf, 20_000, [12_000]), 20_000);
+  assert.equal(precioAlQuedarSolo({ ...conf, estado: "PEDIDA" }, 25_000, [12_000]), 24_000);
+  for (const estado of ["DADA", "AUSENTE", "CANCELADA", "RECHAZADA", "SIN_RESPUESTA"]) assert.equal(precioAlQuedarSolo({ ...conf, estado }, 40_000, [12_000]), null, estado);
+  for (const pagoEstado of ["PAGADO", "EN_REVISION", "ACREDITADO"]) assert.equal(precioAlQuedarSolo({ ...conf, pagoEstado }, 40_000, [12_000]), null, pagoEstado);
+});
+
+test("comprobante mandado en una clase caída: está bien → a favor; no es válido → pendiente; nada más corre", () => {
+  for (const estado of ["CANCELADA", "RECHAZADA"]) {
+    assert.equal(revisionEnClaseCaida("EN_REVISION", estado, "validar"), "ACREDITADO");
+    assert.equal(revisionEnClaseCaida("EN_REVISION", estado, "noValido"), "PENDIENTE");
+    assert.equal(revisionEnClaseCaida("EN_REVISION", estado, "efectivo"), null);
+    assert.equal(revisionEnClaseCaida("PENDIENTE", estado, "validar"), null);
+  }
+  assert.equal(revisionEnClaseCaida("EN_REVISION", "CONFIRMADA", "validar"), null);
 });

@@ -95,6 +95,11 @@ function FilaIntegrante({ i, clase }: { i: IntegranteAcciones; clase: ClaseAccio
 
       {i.pagoEstado === "EN_REVISION" && (
         <div className="grid gap-2 rounded-lg bg-warning-soft p-2">
+          {["CANCELADA", "RECHAZADA"].includes(clase.estado) && (
+            <p className="text-sm text-strong" data-qa="comprobante-integrante-clase-caida">
+              La clase se canceló pero {primero(i.nombre)} mandó el comprobante. Si está bien, le queda a favor (o se lo devolvés).
+            </p>
+          )}
           {i.comprobante && (
             <button type="button" className="min-h-12 text-left text-sm font-semibold text-strong underline" aria-expanded={modo === "ver"} onClick={() => setModo(modo === "ver" ? null : "ver")}>
               {modo === "ver" ? "Ocultar comprobante" : "Ver comprobante"}

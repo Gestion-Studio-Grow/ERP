@@ -98,20 +98,35 @@ export async function cerrarIntegrantesEnTx(
 export const CLASE_CAIDA = ["CANCELADA", "RECHAZADA"] as const;
 
 /**
- * Antes de escribir el pago de un integrante: bloquea la fila de SU clase (FOR SHARE) para que una
- * cancelación concurrente espere a que este pago termine (y lo vea y lo acredite), o —si la
+ * Antes de escribir el pago de un integrante (o de quitarlo): bloquea la fila de SU clase para que
+ * una cancelación concurrente espere a que esto termine (y lo vea y lo acredite), o —si la
  * cancelación llegó primero— se la vea ya CANCELADA. Siempre clase → integrante, el mismo orden que
- * las cancelaciones (sin deadlocks). Si la clase se cayó, error de negocio. Devuelve el claseId
+ * las cancelaciones (sin deadlocks): se llama ANTES de leer o tocar la parte. Devuelve el claseId
  * bloqueado; después de esto, leer el integrante de nuevo (la lectura sale fresca).
+ *   · `paraEscribirClase`: FOR UPDATE (quitar reescribe la clase; con FOR SHARE dos «Quitar» a la
+ *     vez se trabarían al querer escribirla los dos).
+ *   · `aceptarCaida`: una clase CANCELADA/RECHAZADA no es error. Sólo para revisar un comprobante que
+ *     quedó mandado (va a saldo a favor o vuelve a pendiente) y para quitar a quien no pagó. Cobrar y
+ *     subir el comprobante siguen rechazando.
  */
-export async function bloquearClaseDeIntegranteEnTx(tx: Tx, tenantId: string, integranteId: string): Promise<string> {
-  const filas = await tx.$queryRaw<{ id: string; estado: string }[]>`
-    SELECT c.id, c.estado FROM "PadelClase" c JOIN "PadelIntegrante" i ON i."claseId" = c.id
-    WHERE i.id = ${integranteId} AND i."tenantId" = ${tenantId} AND c."tenantId" = ${tenantId}
-    FOR SHARE OF c`;
+export async function bloquearClaseDeIntegranteEnTx(
+  tx: Tx,
+  tenantId: string,
+  integranteId: string,
+  op: { paraEscribirClase?: boolean; aceptarCaida?: boolean } = {},
+): Promise<string> {
+  const filas = op.paraEscribirClase
+    ? await tx.$queryRaw<{ id: string; estado: string }[]>`
+        SELECT c.id, c.estado FROM "PadelClase" c JOIN "PadelIntegrante" i ON i."claseId" = c.id
+        WHERE i.id = ${integranteId} AND i."tenantId" = ${tenantId} AND c."tenantId" = ${tenantId}
+        FOR UPDATE OF c`
+    : await tx.$queryRaw<{ id: string; estado: string }[]>`
+        SELECT c.id, c.estado FROM "PadelClase" c JOIN "PadelIntegrante" i ON i."claseId" = c.id
+        WHERE i.id = ${integranteId} AND i."tenantId" = ${tenantId} AND c."tenantId" = ${tenantId}
+        FOR SHARE OF c`;
   const c = filas[0];
   if (!c) throw new ErrorNegocio("No encontramos ese integrante.");
-  if ((CLASE_CAIDA as readonly string[]).includes(c.estado)) throw new ErrorNegocio("Esa clase se canceló: esa parte ya no se cobra. Si había pagado, le queda a favor.");
+  if (!op.aceptarCaida && (CLASE_CAIDA as readonly string[]).includes(c.estado)) throw new ErrorNegocio("Esa clase se canceló: esa parte ya no se cobra. Si había pagado, le queda a favor.");
   return c.id;
 }
 

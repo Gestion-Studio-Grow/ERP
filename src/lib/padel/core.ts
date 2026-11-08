@@ -146,6 +146,17 @@ export function transicionPago(pago: string, estadoClase: string, evento: Evento
   }
 }
 
+/**
+ * El comprobante que quedó mandado (EN_REVISION) cuando la clase se cayó (CANCELADA / RECHAZADA): el
+ * profe igual lo revisa, para que no quede trabado. «Está bien» → ACREDITADO (la plata entró y la
+ * clase no va: queda a favor, devolvible con «Le devolví»); «No es válido» → PENDIENTE con la nota.
+ * Es la única revisión de pago que corre en una clase caída; cobrar y subir siguen sin correr.
+ */
+export function revisionEnClaseCaida(pago: string, estadoClase: string, evento: EventoPago): EstadoPago | null {
+  if (pago !== "EN_REVISION" || (estadoClase !== "CANCELADA" && estadoClase !== "RECHAZADA")) return null;
+  return evento === "validar" ? "ACREDITADO" : evento === "noValido" ? "PENDIENTE" : null;
+}
+
 // ── Plata: una sola regla de deuda y el saldo a favor ──────────────────────
 //
 // La usan el panel del profe y el link del alumno: los dos ven el MISMO número.
@@ -853,6 +864,23 @@ export function cobroDeLaClase(
     total: redondear(partes.reduce((s, p) => s + p.monto, 0)),
     pagada: clasePagada(titular, integrantes),
   };
+}
+
+/**
+ * Se quitó el último integrante de una clase que todavía no se dio (PEDIDA o CONFIRMADA) y el titular
+ * no pagó ni mandó comprobante: vuelve a INDIVIDUAL al precio individual, pero NUNCA más caro que lo
+ * que ya correspondía pagar al grupo entero (su parte + las de los integrantes). Así una suba de la
+ * lista después de confirmar no le cae al titular. En cualquier otro caso, null: precio y tipo no se
+ * tocan (una DADA ya se dio así; lo pagado no se reprecia).
+ */
+export function precioAlQuedarSolo(
+  clase: { estado: string; pagoEstado: string; precio: number },
+  precioIndividual: number,
+  montosIntegrantes: readonly number[],
+): number | null {
+  if (!["PEDIDA", "CONFIRMADA"].includes(clase.estado) || clase.pagoEstado !== "PENDIENTE") return null;
+  const grupo = Number(clase.precio) + montosIntegrantes.reduce((s, m) => s + Number(m), 0);
+  return redondear(Math.max(0, Math.min(Number(precioIndividual), grupo)));
 }
 
 /** Un integrante se quita sólo si no pagó ni mandó comprobante (lo que entró no se pierde). */
