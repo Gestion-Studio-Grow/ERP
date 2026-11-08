@@ -11,6 +11,8 @@
 // Capturas y resumen en docs/qa/factoque-integracion/ (fuera del git). Necesita `npm run build`.
 //
 // Uso: node --import tsx scripts/qa/factoque-integracion-qa.mjs      (PORT=3252 por defecto)
+//      QA_MODO=dev …  usa `next dev` (sin build): sirve cuando el entorno no llega a las fuentes de
+//      Google y `next build` no puede terminar; next/font cae a la fuente de respaldo.
 // ============================================================================
 
 import { chromium } from "playwright";
@@ -28,6 +30,7 @@ const OUT = path.join(RAIZ, "docs/qa/factoque-integracion");
 const AUTH_SECRET = "qa-factoque-integracion-auth-secret-0123456789";
 const CLAVE_OPERADOR = "qa-clave-operador-factoque";
 const VP = { width: 390, height: 844 };
+const DEV = process.env.QA_MODO === "dev";
 const pasos = [];
 const log = (m) => process.stdout.write(`[qa-factoque] ${m}\n`);
 
@@ -38,7 +41,7 @@ function pedir(host, ruta) {
       ok(res.statusCode);
     });
     req.on("error", () => ok(null));
-    req.setTimeout(4000, () => {
+    req.setTimeout(DEV ? 120_000 : 4000, () => {
       req.destroy();
       ok(null);
     });
@@ -57,25 +60,25 @@ async function levantar(base, arcaEncendida) {
     OPERATOR_SECRET: `${AUTH_SECRET}-operador`,
     OPERATOR_PASSWORD: CLAVE_OPERADOR,
     ARCA_INVOICING_ENABLED: arcaEncendida ? "true" : "false",
-    NODE_ENV: "production",
+    NODE_ENV: DEV ? "development" : "production",
     PORT: String(PORT),
   };
   for (const v of ["FORCE_TENANT_SLUG", "TENANT_HOST_MAP", "DEMO_MODE_ENABLED", "MP_MODO", "ARCA_MODO", "OPERADORES", "OPERADOR_DUENIO"]) delete env[v];
   const salida = createWriteStream(path.join(OUT, `servidor-${arcaEncendida ? "on" : "off"}.txt`));
-  const app = spawn(process.execPath, [path.join(RAIZ, "node_modules/next/dist/bin/next"), "start", "-p", String(PORT)], {
+  const app = spawn(process.execPath, [path.join(RAIZ, "node_modules/next/dist/bin/next"), DEV ? "dev" : "start", "-p", String(PORT)], {
     cwd: RAIZ,
     env,
     stdio: ["ignore", "pipe", "pipe"],
   });
   app.stdout.pipe(salida);
   app.stderr.pipe(salida);
-  const hasta = Date.now() + 60_000;
+  const hasta = Date.now() + (DEV ? 240_000 : 60_000);
   while (Date.now() < hasta) {
     if ((await pedir(base.b.subdominio + ".localhost", "/admin/login")) === 200) return app;
     await new Promise((r) => setTimeout(r, 500));
   }
   app.kill("SIGTERM");
-  throw new Error("next start no respondió en 60 s");
+  throw new Error(`next ${DEV ? "dev" : "start"} no respondió a tiempo`);
 }
 
 async function bajar(app) {
@@ -105,7 +108,7 @@ async function nuevaPagina(ctx) {
   const page = await ctx.newPage();
   const errores = [];
   page.on("console", (m) => {
-    if (m.type() === "error" && !/favicon|Failed to load resource.*404/.test(m.text())) errores.push(m.text().slice(0, 200));
+    if (m.type() === "error" && !/favicon|Failed to load resource.*404|\[HMR\]|webpack-hmr|_next\/webpack|font|DeprecationWarning/i.test(m.text())) errores.push(m.text().slice(0, 200));
   });
   page.on("pageerror", (e) => errores.push(String(e).slice(0, 200)));
   return { page, errores };
@@ -217,6 +220,7 @@ async function main() {
         await link.click();
         await page.waitForLoadState("networkidle");
         const destino = new URL(page.url()).pathname + new URL(page.url()).search;
+        if (destino === "/facturita/app") throw new Error(`«${await link.textContent().catch(() => "")}» (${href}) rebota a /facturita/app: no llega al asistente de ARCA · tarjeta «${txt.slice(0, 120)}»`);
         return `tarjeta: «${txt.slice(0, 160)}» · enlace ${href} → ${destino}`;
       });
       await paso("c emitir con ARCA apagado queda Pendiente", page, errores, async () => {
@@ -235,15 +239,13 @@ async function main() {
     app = null;
 
     // ── 2) Facturación ENCENDIDA (stub) ───────────────────────────────────────
-    // La pendiente del arranque apagado se saca para que el cupo arranque limpio en 0.
-    await duenio.invoiceItem.deleteMany({ where: { invoice: { tenantId: T } } }).catch(() => {});
-    await duenio.invoice.deleteMany({ where: { tenantId: T } });
+    // La pendiente del arranque apagado sigue contando: es 1 de las 5 del mes.
     app = await levantar(base, true);
     {
       const ctx = await entrar(browser, origin, base.b.duenia.email);
       const { page, errores } = await nuevaPagina(ctx);
       await paso("d1 emitir 5 de 5 en Gratis", page, errores, async () => {
-        for (let i = 1; i <= 5; i++) {
+        for (let i = (await delMes()) + 1; i <= 5; i++) {
           const exito = await emitirUna(page, origin, `Sesión ${i}`);
           if (!(await exito.count())) throw new Error(`la ${i}.ª falló: ${await textoVisible(page.getByTestId("error-titulo").first())}`);
         }
@@ -287,7 +289,7 @@ async function main() {
         await p.goto(`${apex}/operador/login`);
         await p.getByLabel("Clave").fill(CLAVE_OPERADOR);
         await Promise.all([p.waitForURL((u) => !u.pathname.startsWith("/operador/login"), { timeout: 30_000 }), p.getByRole("button", { name: "Ingresar a la consola" }).click()]);
-        await p.goto(`${apex}/operador/tenants/${T}`);
+        await p.goto(`${apex}/operador/tenants/${T}?pestana=plan`);
         await p.locator("#factoque-plan").waitFor({ timeout: 30_000 });
         const plus = await p.locator("#factoque-plan option").evaluateAll((os) => os.find((o) => /Plus/.test(o.textContent ?? ""))?.value);
         await p.selectOption("#factoque-plan", plus);
