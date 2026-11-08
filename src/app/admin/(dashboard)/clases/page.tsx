@@ -154,7 +154,7 @@ async function ContenidoHoy({ conPlata, gestiona }: { conPlata: boolean; gestion
         <div className="mb-5">
           <EmptyState
             title="No tenés más clases por hoy"
-            description={huecos.length ? "Tocá un horario libre para agendar, o compartí tu turnero para que te pidan." : "Compartí tu turnero: cuando alguien pida, aparece acá para confirmarlo con un toque."}
+            description={!gestiona ? "Cuando alguien pida clase, aparece acá." : huecos.length ? "Tocá un horario libre para agendar, o compartí tu turnero para que te pidan." : "Compartí tu turnero: cuando alguien pida, aparece acá para confirmarlo con un toque."}
           />
         </div>
       )}
