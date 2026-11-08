@@ -126,8 +126,8 @@ export async function guardarRegistroCredencial(
 }
 
 /**
- * Anota que ARCA aceptó el certificado del negocio (el ingreso al WSAA salió bien): eso es lo que
- * VERIFICA el CUIT de un alta web. Si el negocio vino del alta web, se pone en fila por el CUIT y se
+ * Anota que ARCA aceptó el certificado del negocio (el ingreso al WSAA salió bien). En PRODUCCIÓN
+ * eso es lo que VERIFICA el CUIT de un alta web. Si el negocio vino del alta web, se pone en fila por el CUIT y se
  * niega si otro negocio ya lo verificó: de dos altas del mismo CUIT, verifica una sola.
  */
 export async function registrarPruebaArcaOk(
@@ -142,7 +142,8 @@ export async function registrarPruebaArcaOk(
       where: { tenantId, action: "factoque.alta", actor: { startsWith: "web:" } },
       select: { id: true },
     });
-    if (web) {
+    // Sólo la prueba de producción verifica (tenedores-del-cuit.server.ts): una de homologación se anota sin fila.
+    if (web && entorno === "produccion") {
       const t = await tx.tenant.findUnique({ where: { id: tenantId }, select: { arcaCuit: true } });
       if (t?.arcaCuit) {
         await bloquearCuit(tx, t.arcaCuit);

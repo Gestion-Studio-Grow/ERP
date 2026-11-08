@@ -197,9 +197,16 @@ test("CUIT sin verificar: el titular real lo reclama y gana el PRIMERO que conec
   assert.match(mails[2].cuerpo, /reclamarlo/, "un certificado cargado sin prueba de ARCA no verifica");
   mails.splice(2, 1);
 
-  // Los dos cargan certificado y ARCA les acepta el ingreso a la vez: verifica uno solo.
+  // Una prueba en homologación no verifica (no está probado que ARCA ate el certificado de prueba al CUIT).
+  await registrarPruebaArcaOk(a.id, "test", "homologacion", p.app);
+  p.pasar(60 * 60 * 1000); // límite de 3 pedidos por hora por CUIT
+  await web.pedirAlta(deps, pedido({ email: "otro-reclamo-2@ficticio.test" }), "6.6.6.8");
+  assert.match(mails[2].cuerpo, /reclamarlo/, "homologación no verifica");
+  mails.splice(2, 1);
+
+  // Los dos cargan certificado y ARCA (producción) les acepta el ingreso a la vez: verifica uno solo.
   await guardarRegistroCredencial(b.id, REG(CUIT), "test", p.app);
-  const rs = await Promise.allSettled([a, b].map((n) => registrarPruebaArcaOk(n.id, "test", "homologacion", p.app)));
+  const rs = await Promise.allSettled([a, b].map((n) => registrarPruebaArcaOk(n.id, "test", "produccion", p.app)));
   assert.equal(rs.filter((x) => x.status === "fulfilled").length, 1, "gana uno");
   const perdio = rs.find((x) => x.status === "rejected") as PromiseRejectedResult;
   assert.ok(perdio.reason instanceof CuitVerificadoEnOtroNegocioError);
@@ -209,7 +216,7 @@ test("CUIT sin verificar: el titular real lo reclama y gana el PRIMERO que conec
   await assert.rejects(guardarRegistroCredencial(perdedor.id, REG(CUIT), "test", p.app), CuitVerificadoEnOtroNegocioError);
   assert.equal((await guardarRegistroCredencial(ganador.id, REG(CUIT), "test", p.app)).yaExistia, true);
   // Al rotar, la prueba vieja no cuenta hasta probar de nuevo: el CUIT queda reclamable hasta entonces.
-  await registrarPruebaArcaOk(ganador.id, "test", "homologacion", p.app);
+  await registrarPruebaArcaOk(ganador.id, "test", "produccion", p.app);
 
   // Ya verificado: un tercero recibe «no pudimos» (sin enlace) y no se crea nada.
   p.pasar(60 * 60 * 1000); // cuarto pedido con este CUIT: se espera la hora del límite por CUIT

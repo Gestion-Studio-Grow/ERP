@@ -32,12 +32,20 @@ export async function tenedoresDelCuit(tx: Tx, cuit: string, excluir?: string): 
         select: { id: true, email: true, lastLoginAt: true },
       }),
     ]);
-    // VERIFICADO = ARCA aceptó el certificado: un ingreso al WSAA que salió bien DESPUÉS de la última
+    // VERIFICADO = ARCA aceptó el certificado de PRODUCCIÓN: un ingreso al WSAA que salió bien DESPUÉS de la última
     // carga. Un certificado cargado no alcanza: cualquiera puede armar uno con el CUIT de otro firmado
     // por su propia CA (certificación adversarial 08/11); ARCA sólo acepta los que emitió al titular.
     const prueba = credencial
       ? await tx.auditLog.findFirst({
-          where: { tenantId: n.id, action: ACCION_PRUEBA_OK, createdAt: { gte: credencial.updatedAt } },
+          where: {
+            tenantId: n.id,
+            action: ACCION_PRUEBA_OK,
+            createdAt: { gte: credencial.updatedAt },
+            // Sólo PRODUCCIÓN: ahí ARCA además reconoce el punto de venta de ese CUIT. Con homologación
+            // no está probado que el certificado de prueba sólo salga para el CUIT de quien entra
+            // (certificación 08/11): no verifica.
+            changes: { path: ["entorno"], equals: "produccion" },
+          },
           select: { id: true },
         })
       : null;
