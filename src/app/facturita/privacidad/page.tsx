@@ -33,7 +33,7 @@ export default function PrivacidadPage() {
           parrafos: [
             "Los tuyos: nombre, email y contraseña para entrar a tu cuenta, teléfono si nos escribís, CUIT, condición frente al IVA y punto de venta.",
             "Los de tus facturas: el comprador (CUIT, CUIL o DNI, o consumidor final sin identificar), la descripción, los importes, la fecha, el número y el CAE que da ARCA.",
-            "Si usás tu propio certificado digital, el certificado y su clave privada, guardados cifrados.",
+            "Tu certificado digital de ARCA y su clave privada, guardados cifrados.",
             "No guardamos tu clave fiscal: no la necesitamos. Tampoco usamos cookies de publicidad ni de medición: sólo la necesaria para mantener abierta tu sesión.",
           ],
         },

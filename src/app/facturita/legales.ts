@@ -4,7 +4,8 @@
 // ningún dato de GSG. Plan de salida 11/2026 §1 #14: publicados sin franja de borrador y sin noindex.
 
 export const RESPONSABLE = {
-  razonSocial: "[Razón social de Gestión Studio Grow — provisional a confirmar]",
+  /** Orden del dueño (08/11/2026): nombre comercial y titular. CUIT y domicilio, a confirmar. */
+  razonSocial: "Gestión Studio Grow (nombre comercial), titular Maximiliano Ezequiel Lloveras",
   cuit: "[CUIT — provisional a confirmar]",
   domicilio: "[Domicilio legal — provisional a confirmar]",
   email: "[Email de contacto para datos personales — provisional a confirmar]",
@@ -22,8 +23,6 @@ export const PENDIENTES = {
   plazoConservacionFiscal: "[plazo de conservación — provisional a confirmar]",
   /** Anticipación con la que se avisan cambios de los términos. */
   avisoCambios: "[plazo de aviso — provisional a confirmar]",
-  /** Canal para entregar un certificado propio (incluye la clave privada). */
-  canalCertificado: "[canal seguro para entregar el certificado — provisional a confirmar]",
 } as const;
 
 export const SITIO_AAIP = "https://www.argentina.gob.ar/aaip";

@@ -6,7 +6,7 @@
 //   1) facturación APAGADA: a) /facturita/terminos y /facturita/privacidad; b) Mi cuenta →
 //      «Conectar con ARCA»; c) emitir queda Pendiente y dice adónde ir.
 //   2) facturación ENCENDIDA (stub): d) 5/5 usadas, anular: sale y queda 5/5; e) /facturita/planes
-//      con Gratis 5 · Plus 40 $8.900 · Pro 159 $15.000; f) operador: «Cambiar plan» a Plus y el
+//      con Gratis 5 · Plus 40 $9.000 · Pro 159 $15.000; f) operador: «Cambiar plan» a Plus y el
 //      negocio vuelve a emitir con tope 40.
 // Capturas y resumen en docs/qa/factoque-integracion/ (fuera del git). Necesita `npm run build`.
 //
@@ -275,10 +275,10 @@ async function main() {
       await paso("e /facturita/planes", page, errores, async () => {
         await page.goto(`${origin}/facturita/planes`);
         const txt = await textoVisible(page.locator("main").first().or(page.locator("body")).first());
-        const esperado = [/Gratis/, /\b5\b/, /Plus/, /\b40\b/, /8\.900/, /Pro/, /\b159\b/, /15\.000/];
+        const esperado = [/Gratis/, /\b5\b/, /Plus/, /\b40\b/, /9\.000/, /Pro/, /\b159\b/, /15\.000/];
         const faltan = esperado.filter((r) => !r.test(txt)).map(String);
         if (faltan.length) throw new Error(`faltan ${faltan.join(", ")}: «${txt.slice(0, 300)}»`);
-        return "Gratis 5 · Plus 40 $8.900 · Pro 159 $15.000 visibles";
+        return "Gratis 5 · Plus 40 $9.000 · Pro 159 $15.000 visibles";
       });
 
       // f) Operador: cambiar plan a Plus.

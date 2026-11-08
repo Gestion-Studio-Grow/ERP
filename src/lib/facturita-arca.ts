@@ -38,7 +38,7 @@ export function estadoConexionArca(ficha: FichaFiscalDelPase | null): EstadoCone
     return {
       etiqueta: "Falta terminar",
       detalle:
-        "Pediste facturar en real y falta un paso (tu certificado de producción o nuestra habilitación). " +
+        "Pediste facturar en real y falta un paso (tu certificado de producción o que habilitemos el pase). " +
         "Mientras tanto, las facturas quedan pendientes y salen apenas esté todo.",
       tono: "warning",
       accion: "Ver qué falta",
@@ -64,7 +64,7 @@ export function estadoConexionArca(ficha: FichaFiscalDelPase | null): EstadoCone
     etiqueta: "Sin conectar",
     detalle: ficha.credencial
       ? "Todavía facturás en modo simulado, sin validez fiscal. Terminá la conexión para emitir de verdad."
-      : "Para emitir a tu nombre, cargá tu certificado de ARCA: son 4 pasos y te guiamos en cada uno. Nunca te pedimos tu clave fiscal.",
+      : "Para emitir a tu nombre, cargá tu propio certificado de ARCA: lo sacás vos con tu clave fiscal, en 4 pasos que te guiamos. Nunca te pedimos tu clave fiscal. Si necesitás ayuda, encontrás a los contadores que usan nuestro sistema.",
     tono: "warning",
     accion: "Conectar con ARCA",
   };

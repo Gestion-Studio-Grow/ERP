@@ -60,7 +60,7 @@ const PREGUNTAS = [
   },
   {
     p: "¿Les tengo que dar mi clave fiscal?",
-    r: "No, nunca. Desde ARCA nos das permiso sólo para emitir facturas a tu nombre (se llama «delegar el servicio»). Lo podés sacar cuando quieras, y tu clave queda con vos.",
+    r: "No, nunca. Factoque emite con tu propio certificado de ARCA, que sacás vos con tu clave fiscal: te guiamos en 4 pasos y, si necesitás ayuda, encontrás a los contadores que usan nuestro sistema. Lo podés revocar cuando quieras, y tu clave queda con vos.",
   },
   {
     p: "¿Sirve si soy responsable inscripto?",

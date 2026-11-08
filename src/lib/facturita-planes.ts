@@ -73,7 +73,7 @@ export const PLAN_FACTOQUE_PLUS: Plan = {
   id: "factoque-plus",
   producto: "facturita",
   nombre: "Factoque Plus",
-  precioMensual: 8_900,
+  precioMensual: 9_000,
   para: "Monotributistas con clientela fija.",
   facturasPorMes: 40,
   incluye: ["Todo lo de Factoque Gratis", "40 facturas por mes, autorizadas por ARCA", "La misma app: no se migra nada"],
