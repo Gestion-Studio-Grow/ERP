@@ -177,6 +177,13 @@ export default async function LoginPage({
               >
                 Demasiados intentos fallidos. Esperá unos minutos y volvé a probar.
               </p>
+            ) : error === "vencida" ? (
+              <p
+                role="status"
+                className="mb-5 rounded-md border border-line bg-surface-sunken px-3 py-2.5 text-sm text-strong"
+              >
+                Tu sesión venció: cada ingreso dura 8 horas. Volvé a entrar.
+              </p>
             ) : error === "google" ? (
               <p
                 role="alert"
@@ -193,7 +200,7 @@ export default async function LoginPage({
               </p>
             ) : null}
 
-            <FormularioDeSiempre next={next ?? "/admin"} conError={Boolean(error)} />
+            <FormularioDeSiempre next={next ?? "/admin"} conError={Boolean(error) && error !== "vencida"} />
             {conGoogle && (
               <a href={`/admin/login/google?next=${encodeURIComponent(next ?? "/admin")}`} className={`${buttonClasses("outline", "lg", "w-full")} mt-3`}>
                 Ingresar con Google

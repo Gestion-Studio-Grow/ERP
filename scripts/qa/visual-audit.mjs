@@ -169,9 +169,12 @@ function leerRegistro() {
   return JSON.parse(r.stdout);
 }
 
+// Formato v2 de src/lib/auth.ts (emisión y vencimiento firmados, 8 h).
 function adminCookie(userId, authSecret) {
-  const sig = createHmac("sha256", authSecret).update(userId).digest("hex");
-  return `${userId}.${sig}`;
+  const ahora = Date.now();
+  const payload = `v2|${userId}|${ahora}|${ahora + 8 * 60 * 60 * 1000}`;
+  const sig = createHmac("sha256", authSecret).update(`gsg-sesion-v2|${payload}`).digest("hex");
+  return `${payload}.${sig}`;
 }
 function operatorCookie(operatorSecret) {
   const sig = createHmac("sha256", operatorSecret).update("operator").digest("hex");

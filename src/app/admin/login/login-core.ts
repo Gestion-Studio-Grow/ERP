@@ -6,7 +6,8 @@
 
 import { LOGIN_RULE, type RateLimitRule } from "@/lib/rate-limit";
 
-export type AvisoDeIngreso = { titulo: string; detalle: string };
+/** `informativo`: no es un error de lo tipeado (la sesión venció): sin rojo ni campo marcado. */
+export type AvisoDeIngreso = { titulo: string; detalle: string; informativo?: true };
 
 const minutos = (regla: RateLimitRule) =>
   Math.max(1, Math.round(regla.windowMs / 60_000));
@@ -26,6 +27,13 @@ export function avisoDeIngreso(
     return {
       titulo: "No pudimos ingresar con Google.",
       detalle: "Tu mail de Google tiene que estar dado de alta en este panel. Probá de nuevo o ingresá con tu clave.",
+    };
+  }
+  if (error === "vencida") {
+    return {
+      titulo: "Tu sesión venció.",
+      detalle: "Por seguridad, cada ingreso dura 8 horas. Volvé a entrar con tu email y tu contraseña.",
+      informativo: true,
     };
   }
   if (error === "throttled") {

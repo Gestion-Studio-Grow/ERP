@@ -35,6 +35,18 @@ export function esApexDelDominio(host: string | null | undefined, base = process
   return !!b && !!h && (h === b || h === `www.${b}`);
 }
 
+/** ¿La ruta es del club crudo de Break Point? Normalizada (mayúsculas, %xx, barras dobles) para no esquivarla. PURA. */
+export function esClubCrudo(pathname: string): boolean {
+  let p = pathname;
+  try {
+    p = decodeURIComponent(pathname);
+  } catch {
+    // %xx roto: se mira la ruta tal cual llegó.
+  }
+  p = p.toLowerCase().replace(/\/{2,}/g, "/");
+  return p === "/previews/breakpoint/club" || p.startsWith("/previews/breakpoint/club/");
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const bloqueado = previewBloqueado(pathname);
@@ -75,6 +87,14 @@ export async function proxy(request: NextRequest) {
       if (pathname !== "/") gateUrl.searchParams.set("next", pathname);
       return NextResponse.redirect(gateUrl);
     }
+  }
+
+  // --- El club de Break Point de antes del ERP, en crudo (public/previews/breakpoint/club): es la misma app que
+  // /club y se servía a cualquiera, en cualquier host (también en el de Break Point, donde comparte el guardado del
+  // navegador con la jornada). Sin una sesión vigente del panel, 404. El chequeo fino (negocio y permiso) lo hace el
+  // manejador de /club (src/app/sitio-estatico); estos archivos son sólo el código fuente, sin datos.
+  if (esClubCrudo(pathname) && !(await readSessionToken(request.cookies.get(getSessionCookieName())?.value))) {
+    return new NextResponse("No encontrado", { status: 404, headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" } });
   }
 
   // --- Plano de OPERADOR (control-plane, ADR-021) — portón separado del de tenant.
@@ -133,6 +153,9 @@ export async function proxy(request: NextRequest) {
   if (!(await readSessionToken(token))) {
     const loginUrl = new URL("/admin/login", request.url);
     loginUrl.searchParams.set("next", pathname);
+    // Había cookie pero ya no vale (venció a las 8 h, o es del formato viejo pasada la transición):
+    // el login lo dice, en vez de un «email o contraseña incorrectos» que nadie tipeó.
+    if (token) loginUrl.searchParams.set("error", "vencida");
     return NextResponse.redirect(loginUrl);
   }
 

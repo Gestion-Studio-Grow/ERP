@@ -5,7 +5,12 @@ import { CARPETA_BUSCATUFOTO, reescrituraDeBuscatufoto } from "./src/lib/sitio-b
 const nextConfig: NextConfig = {
   // Lo fija scripts/vercel-build.mjs en un preview que apunta a la base de producción: se inlinea
   // en el build y el proxy responde 503 a todo (ver src/proxy.ts). Vacío en cualquier otro caso.
-  env: { GSG_PREVIEW_BLOQUEADO: process.env.GSG_PREVIEW_BLOQUEADO ?? "" },
+  // GSG_COMPILADO_EN: el momento del build (ms). Marca el fin de la transición de las sesiones sin vencimiento
+  // (src/lib/auth.ts, `finDeLaTransicion`): las cookies viejas valen hasta 9 h después del build, nunca más.
+  env: {
+    GSG_PREVIEW_BLOQUEADO: process.env.GSG_PREVIEW_BLOQUEADO ?? "",
+    GSG_COMPILADO_EN: process.env.GSG_COMPILADO_EN ?? String(Date.now()),
+  },
   // Sitios estáticos por negocio (hoy Circuito WPE en wpe.*): `/` y sus adjuntos van al manejador
   // que resuelve el negocio del host y falla cerrado. Reglas y porqué: src/lib/sitio-estatico.ts.
   // buscatufoto (producto de GSG, app sin servidor) en su host propio: TODO va a su manejador, que sólo
