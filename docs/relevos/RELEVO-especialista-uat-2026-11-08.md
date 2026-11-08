@@ -1,6 +1,6 @@
 # Relevo · especialista UAT (08/11/2026)
 
-Rama: `claude/especialista-uat-2026-11` (sin PR). Orquestadora: session_01BtqRUHVZpvZrjVcuFXR5pm.
+Rama: `claude/especialista-uat-2026-11` (sin PR). Orquestadora vigente: session_01BtqRUHSdU8Bac9T68QiKkX (la saliente era session_01BtqRUHVZpvZrjVcuFXR5pm). Texto de magra y de CH ya enviado para Drive.
 
 ## Hecho
 - T1 Factoque y T2 checklist del profe: enviados a la orquestadora. Checklist en
