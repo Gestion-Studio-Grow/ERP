@@ -19,8 +19,8 @@ import {
 } from "@/lib/fiscal";
 import { procesarEnviosDelNegocio } from "@/lib/arca-dispatch";
 import { emitirComprobanteManual } from "@/lib/facturacion/emision-manual.server";
-import { leerPlanFactoque } from "@/lib/facturacion/plan-factoque.server";
-import { contarFacturasDelMes, fechaFiscalDelDia } from "@/lib/bancos-glue";
+import { leerPlanFactoque, planFactoqueEnTx } from "@/lib/facturacion/plan-factoque.server";
+import { contarFacturasDelMes, fechaFiscalDelDia, filtrosFacturacionMes } from "@/lib/bancos-glue";
 import { logger } from "@/lib/logger";
 import { modoDesdeEnv } from "@/plugins/arca";
 import { ambienteDelComprobante } from "@/lib/comprobante-pdf";
@@ -323,6 +323,13 @@ export async function anularFacturitaAction(facturaId: string, motivo: string): 
   try {
     r = await tenantTransaction(
       async (tx) => {
+        // El cupo, recontado con el candado de la emisión (el mismo `facturita-cupo:`): una
+        // anulación y una emisión simultáneas no se llevan las dos el último lugar (certificación T2).
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`facturita-cupo:${tenantId}`}))`;
+        const plan = await planFactoqueEnTx(tx, tenantId, fechaHoy());
+        const usadas = await tx.invoice.count({ where: { tenantId, ...filtrosFacturacionMes().cupo } });
+        const conLugar = anulacionSegunCupo(estadoLimite(usadas, plan?.cupo));
+        if (!conLugar.ok) return conLugar;
         const nota = await crearNotaDeCreditoInTx(tx, { tenantId, facturaId, motivo: porque, fecha: fechaHoy() });
         if (!nota.ok) return nota;
         const ficha = await tx.auditLog.findFirst({

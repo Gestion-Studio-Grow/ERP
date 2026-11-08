@@ -127,6 +127,11 @@ export async function setTenantPlan(formData: FormData) {
   const tenantId = String(formData.get("tenantId") || "");
   const plan = String(formData.get("plan") || "").trim() || null;
   const { nombre: op } = await requireOperadorParaNegocio({ id: tenantId });
+  // Los planes de Factoque se cambian SÓLO por `cambiarPlanFactoque` (candado del cupo y vigencia):
+  // por acá quedarían sin vencimiento (certificación T2).
+  if (plan && /^factoque-/i.test(plan)) {
+    redirect(`/operador/tenants/${tenantId}?error=${encodeURIComponent("Los planes de Factoque se cambian en «Plan de Factoque».")}`);
+  }
   await actualizarTenantAuditado(op, tenantId, "tenant.plan", { plan });
   redirect(`/operador/tenants/${tenantId}?ok=plan`);
 }
