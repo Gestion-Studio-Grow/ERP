@@ -77,6 +77,8 @@ const YA_CONCILIADA = "Esa liquidación ya se concilió: no se concilia dos vece
 
 /** Rastro en el AuditLog de la liquidación vieja cuando sus impagos pasan a otra. */
 const ACCION_RELIQUIDAR = "voucher.liquidacion.reliquidar-impagos";
+/** Rastro en el AuditLog de una liquidación ABIERTA cuando un pago a cuenta salda parte de sus impagos. */
+const ACCION_DESCUENTO_A_CUENTA = "voucher.liquidacion.descuento-a-cuenta";
 /** Prefijo de `liquidacionRef` de un impago dado de baja. */
 const PREFIJO_BAJA = PREFIJO_BAJA_IMPAGO;
 /** Prefijo de `liquidacionRef` de un impago saldado con un pago a cuenta. */
@@ -301,7 +303,6 @@ export async function conciliarLiquidacionSemanal(tenantId: string, args: Concil
           where: { tenantId, liquidacionSemanalId: liq.id },
           select: { id: true, numero: true, valorCubierto: true, montoLiquidado: true },
         });
-        const valorEntero = new Map(vouchers.map((x) => [x.id, x.valorCubierto ? x.valorCubierto.toNumber() : 0]));
         const p = planDeConciliacion({
           // Lo que se reclama de cada uno: lo que falta (un impago saldado en parte a cuenta, el resto).
           vouchers: vouchers.map((x) => ({ id: x.id, numero: x.numero, valorCubierto: pesosDeCentavos(pendienteDe(x)) })),
@@ -346,8 +347,9 @@ export async function conciliarLiquidacionSemanal(tenantId: string, args: Concil
         for (const v of plan.pagados) {
           const r = await tx.voucher.updateMany({
             where: { id: v.id, tenantId, liquidacionSemanalId: liq.id, estado: "USADO" },
-            // `montoLiquidado` = lo cobrado del voucher en total (lo imputado a cuenta + esta liquidación).
-            data: { resultadoLiquidacion: "PAGADO", liquidadoEn, montoLiquidado: valorEntero.get(v.id) ?? v.valorCubierto, liquidacionRef: ref },
+            // `montoLiquidado` = lo cobrado en ESTA liquidación (lo que se le reclamó: el valor menos lo
+            // imputado antes a cuenta, que ya figura como crédito por su pago). El CSV no muestra de más.
+            data: { resultadoLiquidacion: "PAGADO", liquidadoEn, montoLiquidado: v.valorCubierto, liquidacionRef: ref },
           });
           if (r.count !== 1) throw new VoucherRechazado("cambio-recien", CAMBIO_RECIEN);
         }
@@ -484,6 +486,38 @@ export async function darDeBajaImpago(tenantId: string, args: BajaDeImpagoArgs):
 
 // ── Pago a cuenta (pre-pago o saldo de una diferencia) ──────────────────────
 
+/**
+ * Impagos que una liquidación ABIERTA re-tomó (sin baja ni saldo), con la liquidación de la que
+ * vinieron (el rastro de la re-toma). Uno nuevo de la semana no es impago: no entra.
+ */
+async function impagosEnLiquidacionAbierta(tx: Prisma.TransactionClient, tenantId: string) {
+  const abiertas = await tx.voucherLiquidacion.findMany({ where: { tenantId, estado: "ABIERTA" }, select: { id: true } });
+  const out: {
+    id: string;
+    numero: string;
+    valorCubierto: Prisma.Decimal | null;
+    montoLiquidado: Prisma.Decimal | null;
+    usadoEn: Date | null;
+    abierta: { liquidacionId: string; origen: string };
+  }[] = [];
+  for (const l of abiertas) {
+    const retomas = await tx.auditLog.findMany({
+      where: { tenantId, action: ACCION_RELIQUIDAR, entity: "VoucherLiquidacion", changes: { path: ["hacia"], equals: l.id } },
+      select: { entityId: true, changes: true },
+    });
+    const origen = new Map<string, string>();
+    for (const r of retomas) if (r.entityId) for (const id of idsDelRastro(r.changes)) origen.set(id, r.entityId);
+    if (origen.size === 0) continue;
+    const vs = await tx.voucher.findMany({
+      where: { tenantId, estado: "USADO", liquidadoEn: null, liquidacionSemanalId: l.id, id: { in: [...origen.keys()] } },
+      select: { id: true, numero: true, valorCubierto: true, montoLiquidado: true, usadoEn: true },
+    });
+    for (const v of vs) out.push({ ...v, abierta: { liquidacionId: l.id, origen: origen.get(v.id) as string } });
+  }
+  return out;
+}
+
+
 export type PagoACuentaArgs = {
   /** Idempotencia: la del formulario (un uuid por apertura). */
   clave: string;
@@ -537,11 +571,19 @@ export async function registrarPagoACuenta(tenantId: string, args: PagoACuentaAr
           select: { id: true },
         });
         // Imputación: los impagos pendientes (rechazados en una liquidación conciliada, sin baja).
-        const pendientes = await tx.voucher.findMany({
+        const conciliados = await tx.voucher.findMany({
           where: { ...impagoPendiente(tenantId), liquidacionSemanal: { estado: "CONCILIADA" } },
-          orderBy: [{ usadoEn: "asc" }, { numero: "asc" }],
-          select: { id: true, numero: true, valorCubierto: true, montoLiquidado: true },
+          select: { id: true, numero: true, valorCubierto: true, montoLiquidado: true, usadoEn: true },
         });
+        // FIFO: también los impagos que una liquidación ABIERTA re-tomó. Esa liquidación descuenta lo
+        // imputado (reclama valor − imputado); si lo salda entero, sale de ella. Por número no: se
+        // imputa sólo a impagos que no estén en una liquidación abierta.
+        const porNumero = (args.numeros ?? []).some((x) => x.replace(/\s+/g, "").length > 0);
+        const enAbierta = porNumero ? [] : await impagosEnLiquidacionAbierta(tx, tenantId);
+        const pendientes: ((typeof conciliados)[number] & { abierta?: { liquidacionId: string; origen: string } })[] = [
+          ...conciliados,
+          ...enAbierta,
+        ].sort((a, b) => (a.usadoEn?.getTime() ?? Infinity) - (b.usadoEn?.getTime() ?? Infinity) || a.numero.localeCompare(b.numero));
         const plan = planDeImputacion({
           pendientes: pendientes.map((v) => ({
             id: v.id,
@@ -561,18 +603,52 @@ export async function registrarPagoACuenta(tenantId: string, args: PagoACuentaAr
         const porId = new Map(pendientes.map((v) => [v.id, v]));
         const liquidadoEn = businessWallTimeToUtc(args.fecha, "12:00");
         const ref = `${PREFIJO_A_CUENTA}${args.referencia?.trim() ? ` · ${args.referencia.trim()}` : ""} (${pago.id})`;
+        const descontado = new Map<string, { centavos: number; descuentos: Record<string, number>; saldados: string[]; numeros: string[] }>();
         for (const imp of plan.imputaciones) {
           const v = porId.get(imp.id)!;
           const imputado = pesosDeCentavos(centavosDeDecimal(v.montoLiquidado) + imp.centavos);
+          const saldado = { resultadoLiquidacion: "PAGADO", liquidadoEn, montoLiquidado: imputado, liquidacionRef: ref } as const;
           // Condicionado a lo que se leyó (sigue pendiente, mismo imputado): otro pago, una baja o una
           // re-liquidación a la vez lo cambian y este pago se rechaza entero (Serializable además).
-          const r = await tx.voucher.updateMany({
-            where: { ...impagoPendiente(tenantId), id: v.id, montoLiquidado: v.montoLiquidado },
-            data: imp.completo
-              ? { resultadoLiquidacion: "PAGADO", liquidadoEn, montoLiquidado: imputado, liquidacionRef: ref }
-              : { montoLiquidado: imputado },
+          const r = v.abierta
+            ? await tx.voucher.updateMany({
+                where: { tenantId, id: v.id, estado: "USADO", liquidadoEn: null, liquidacionSemanalId: v.abierta.liquidacionId, montoLiquidado: v.montoLiquidado },
+                // Saldado entero: vuelve a la liquidación que lo rechazó, como cualquier impago saldado a cuenta.
+                data: imp.completo ? { ...saldado, liquidacionSemanalId: v.abierta.origen } : { montoLiquidado: imputado },
+              })
+            : await tx.voucher.updateMany({
+                where: { ...impagoPendiente(tenantId), id: v.id, montoLiquidado: v.montoLiquidado },
+                data: imp.completo ? saldado : { montoLiquidado: imputado },
+              });
+          if (r.count !== 1) throw new VoucherRechazado("cambio-recien", CAMBIO_RECIEN);
+          if (v.abierta) {
+            const d = descontado.get(v.abierta.liquidacionId) ?? { centavos: 0, descuentos: {}, saldados: [], numeros: [] };
+            d.centavos += imp.centavos;
+            d.descuentos[v.id] = imp.centavos;
+            d.numeros.push(v.numero);
+            if (imp.completo) d.saldados.push(v.id);
+            descontado.set(v.abierta.liquidacionId, d);
+          }
+        }
+        // La liquidación abierta reclama lo que falta. El `updateMany` condicionado a ABIERTA es el
+        // árbitro contra una conciliación o un descarte a la vez (los dos toman esa misma fila).
+        for (const [liquidacionId, d] of descontado) {
+          const r = await tx.voucherLiquidacion.updateMany({
+            where: { id: liquidacionId, tenantId, estado: "ABIERTA" },
+            data: { total: { decrement: pesosDeCentavos(d.centavos) }, cantidad: { decrement: d.saldados.length } },
           });
           if (r.count !== 1) throw new VoucherRechazado("cambio-recien", CAMBIO_RECIEN);
+          await tx.auditLog.create({
+            data: {
+              tenantId,
+              actor: args.actor,
+              action: ACCION_DESCUENTO_A_CUENTA,
+              entity: "VoucherLiquidacion",
+              entityId: liquidacionId,
+              channel: "admin",
+              changes: { pago: pago.id, descontado: pesosDeCentavos(d.centavos), descuentos: d.descuentos, saldados: d.saldados, numeros: d.numeros },
+            },
+          });
         }
         const imputados = plan.imputaciones.map((i) => ({ numero: i.numero, monto: pesosDeCentavos(i.centavos), saldado: i.completo }));
         const sinImputar = pesosDeCentavos(plan.restoCentavos);
@@ -763,7 +839,14 @@ export async function leerLiquidacion(tenantId: string, liquidacionId: string): 
         select: { changes: true },
       });
       const descuentos = ((generada?.changes as { descuentos?: Record<string, unknown> } | null)?.descuentos ?? {}) as Record<string, unknown>;
-      const descuentoDe = (id: string): number => (typeof descuentos[id] === "number" ? (descuentos[id] as number) : 0);
+      // Y lo que un pago a cuenta imputó mientras estaba ABIERTA: tampoco se le reclamó.
+      const aCuenta = await tx.auditLog.findMany({
+        where: { tenantId, action: ACCION_DESCUENTO_A_CUENTA, entity: "VoucherLiquidacion", entityId: l.id },
+        select: { changes: true },
+      });
+      const masDescuentos = aCuenta.map((r) => ((r.changes as { descuentos?: Record<string, unknown> } | null)?.descuentos ?? {}) as Record<string, unknown>);
+      const centavosEn = (d: Record<string, unknown>, id: string): number => (typeof d[id] === "number" ? (d[id] as number) : 0);
+      const descuentoDe = (id: string): number => [descuentos, ...masDescuentos].reduce((acc, d) => acc + centavosEn(d, id), 0);
       const vouchers = await tx.voucher.findMany({
         where: { tenantId, OR: [{ liquidacionSemanalId: l.id }, ...(idsIdos.length ? [{ id: { in: idsIdos } }] : [])] },
         orderBy: [{ usadoEn: "asc" }, { numero: "asc" }],

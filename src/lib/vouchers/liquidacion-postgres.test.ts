@@ -102,6 +102,8 @@ async function sinPendientes(s: Sembrado) {
   await duenio.voucher.updateMany({ where: { tenantId: s.base.a.id, estado: "USADO", liquidacionSemanalId: null, liquidadoEn: null }, data: { liquidadoEn: new Date() } });
   // Los impagos de tests anteriores volverían en la próxima liquidación: se los saca igual.
   await duenio.voucher.updateMany({ where: { tenantId: s.base.a.id, resultadoLiquidacion: "IMPAGO", liquidadoEn: null }, data: { liquidadoEn: new Date() } });
+  // Y los que quedaron en liquidaciones ABIERTAS de tests anteriores (el pago a cuenta FIFO los toma).
+  await duenio.voucher.updateMany({ where: { tenantId: s.base.a.id, liquidadoEn: null, liquidacionSemanal: { estado: "ABIERTA" } }, data: { liquidadoEn: new Date() } });
 }
 
 async function voucherCobrado(s: Sembrado, nombre: string, monto?: number) {
@@ -710,13 +712,66 @@ test("pago a cuenta en parte: la baja compensa sólo lo no imputado; la re-liqui
   await L.conciliarLiquidacionSemanal(A, { liquidacionId: g.liquidacionId, pagado: 9000, fecha: "2026-11-02", medio: "TRANSFERENCIA", actor: "user:test" });
   assert.equal(await saldo(A), saldo1);
   const x = await duenio.voucher.findUniqueOrThrow({ where: { id: w.voucherId } });
-  assert.deepEqual([x.resultadoLiquidacion, x.montoLiquidado?.toNumber()], ["PAGADO", 14000]);
+  // `montoLiquidado` = lo cobrado en esa liquidación (los 5.000 a cuenta ya son crédito por su pago).
+  assert.deepEqual([x.resultadoLiquidacion, x.montoLiquidado?.toNumber()], ["PAGADO", 9000]);
   // Un número que no es un impago pendiente: el pago entero se rechaza y no queda nada a medias.
   await rechaza(
     L.registrarPagoACuenta(A, { clave: "parcial-3-cuenta", monto: 100, fecha: "2026-11-02", medio: "EFECTIVO", numeros: [w.numero], actor: "user:test" }),
     /no están impagos/,
   );
   assert.equal(await duenio.voucherPagoAdministracion.count({ where: { tenantId: A, clave: "cuenta:parcial-3-cuenta" } }), 0);
+});
+
+test("pago a cuenta FIFO con el impago en una liquidación ABIERTA: se imputa y la liquidación reclama valor − imputado", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  await sinPendientes(s);
+  const A = s.base.a.id;
+  const L = await liq();
+  const duenio = await prismaComoDuenio(s.base);
+  const F = { fecha: "2026-11-02", medio: "TRANSFERENCIA" as const, actor: "user:test" };
+  const saldo0 = await saldo(A);
+  const u0 = await voucherCobrado(s, "Abierta1");
+  const w = await voucherCobrado(s, "Abierta2");
+  const sem0 = await semanaNueva();
+  const g0 = await L.generarLiquidacionSemanal(A, { hasta: sem0.hasta, hoy: sem0.hoy, actor: "user:test" });
+  await L.conciliarLiquidacionSemanal(A, { ...F, liquidacionId: g0.liquidacionId, pagado: 0, rechazados: [u0.numero, w.numero] });
+  const u = { ...u0, liquidacionId: g0.liquidacionId };
+  const sem = await semanaNueva();
+  const g = await L.generarLiquidacionSemanal(A, { hasta: sem.hasta, hoy: sem.hoy, actor: "user:test" });
+  assert.deepEqual([g.cantidad, g.total], [2, 28000]);
+  // 14.000 saldan entero al primero (sale de la liquidación) y 3.000,50 van a cuenta del segundo.
+  const r = await L.registrarPagoACuenta(A, { clave: "abierta-fifo-1", monto: 17000.5, fecha: F.fecha, medio: "EFECTIVO", actor: "user:test" });
+  assert.deepEqual([r.imputados.map((i) => [i.numero, i.monto, i.saldado]), r.sinImputar], [[[u.numero, 14000, true], [w.numero, 3000.5, false]], 0]);
+  const det = await L.leerLiquidacion(A, g.liquidacionId);
+  assert.deepEqual([det?.cantidad, det?.total, det?.renglones.map((x) => [x.numero, x.valor])], [1, 10999.5, [[w.numero, 10999.5]]]);
+  const xu = await duenio.voucher.findUniqueOrThrow({ where: { id: u.voucherId } });
+  assert.deepEqual([xu.resultadoLiquidacion, xu.liquidacionSemanalId, xu.montoLiquidado?.toNumber()], ["PAGADO", u.liquidacionId, 14000]);
+  assert.equal(await saldo(A), saldo0 + 1_099_950);
+  // Por número sigue sin imputar a un voucher de una liquidación abierta.
+  await rechaza(L.registrarPagoACuenta(A, { clave: "abierta-fifo-2", monto: 1, fecha: F.fecha, medio: "EFECTIVO", numeros: [w.numero], actor: "user:test" }), /liquidación abierta/);
+  // La conciliación pide lo que falta y graba lo cobrado en ella.
+  await rechaza(L.conciliarLiquidacionSemanal(A, { ...F, liquidacionId: g.liquidacionId, pagado: 14000 }), /sobran/);
+  await L.conciliarLiquidacionSemanal(A, { ...F, liquidacionId: g.liquidacionId, pagado: 10999.5 });
+  assert.equal(await saldo(A), saldo0);
+  const xw = await duenio.voucher.findUniqueOrThrow({ where: { id: w.voucherId } });
+  assert.deepEqual([xw.resultadoLiquidacion, xw.montoLiquidado?.toNumber()], ["PAGADO", 10999.5]);
+
+  // Descartar la abierta tras una imputación parcial: el impago vuelve a su liquidación con lo imputado.
+  await sinPendientes(s);
+  const saldo1 = await saldo(A);
+  const z = await impagoConciliado(s, "Abierta3");
+  const sem2 = await semanaNueva();
+  const g2 = await L.generarLiquidacionSemanal(A, { hasta: sem2.hasta, hoy: sem2.hoy, actor: "user:test" });
+  await L.registrarPagoACuenta(A, { clave: "abierta-fifo-3", monto: 4000, fecha: F.fecha, medio: "EFECTIVO", actor: "user:test" });
+  await L.descartarLiquidacion(A, { liquidacionId: g2.liquidacionId, actor: "user:test" });
+  const xz = await duenio.voucher.findUniqueOrThrow({ where: { id: z.voucherId } });
+  assert.deepEqual([xz.resultadoLiquidacion, xz.liquidacionSemanalId, xz.montoLiquidado?.toNumber()], ["IMPAGO", z.liquidacionId, 4000]);
+  const sem3 = await semanaNueva();
+  const g3 = await L.generarLiquidacionSemanal(A, { hasta: sem3.hasta, hoy: sem3.hoy, actor: "user:test" });
+  assert.equal(g3.total, 10000);
+  await L.conciliarLiquidacionSemanal(A, { ...F, liquidacionId: g3.liquidacionId, pagado: 10000 });
+  assert.equal(await saldo(A), saldo1);
 });
 
 test("invariante: para cualquier secuencia, saldo = usados − pagos − bajas (no imputado) y ningún voucher se cobra dos veces", async (t) => {
