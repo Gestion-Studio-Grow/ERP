@@ -45,6 +45,7 @@
 import { Prisma } from "@/generated/prisma/client";
 import { tenantTransaction } from "@/lib/rls";
 import { isUniqueViolation } from "@/lib/prisma-errors";
+import { esConflictoDeEscritura } from "@/lib/conflicto-de-escritura";
 import { businessWallTimeToUtc, dateStrInBusinessTz, todayInBusinessTz } from "@/lib/datetime";
 import { textoAlCentavo } from "@/lib/dinero/redondeo";
 import { VoucherRechazado } from "./voucher-repo";
@@ -72,6 +73,17 @@ const SERIALIZABLE = Prisma.TransactionIsolationLevel.Serializable;
 
 const YA_LIQUIDADA = "Esa semana ya tiene su liquidación: abrila desde la lista en vez de generarla de nuevo.";
 const CAMBIO_RECIEN = "Los vouchers cambiaron recién (otra liquidación o una anulación). Recargá y probá de nuevo.";
+const LIQUIDACION_CAMBIO_RECIEN = "Alguien modificó la liquidación recién; recargá y reintentá.";
+
+/**
+ * Con contención alta `tenantTransaction` agota los reintentos y deja salir el conflicto de
+ * Serializable (P2034 / 40001 / 40P01) crudo. No es un error de negocio: se traduce a
+ * `cambio-recien` para que la pantalla muestre un mensaje claro y no un 500 (cert 4, C4-3).
+ */
+function sinConflictoCrudo(e: unknown): never {
+  if (esConflictoDeEscritura(e)) throw new VoucherRechazado("cambio-recien", LIQUIDACION_CAMBIO_RECIEN);
+  throw e;
+}
 const NO_EXISTE = "Esa liquidación ya no existe. Recargá la pantalla.";
 const YA_CONCILIADA = "Esa liquidación ya se concilió: no se concilia dos veces. Si falta plata, anotá un pago a cuenta.";
 
@@ -200,7 +212,7 @@ export async function generarLiquidacionSemanal(tenantId: string, args: GenerarL
     if (isUniqueViolation(e, "hasta")) throw new VoucherRechazado("dato-invalido", YA_LIQUIDADA);
     // Otra liquidación tomó el mismo voucher en paralelo (Serializable lo frena como conflicto).
     if (isUniqueViolation(e)) throw new VoucherRechazado("cambio-recien", CAMBIO_RECIEN);
-    throw e;
+    sinConflictoCrudo(e);
   }
 }
 
@@ -255,7 +267,7 @@ export async function descartarLiquidacion(tenantId: string, args: { liquidacion
       return { liberados };
     },
     { tenantId, isolationLevel: SERIALIZABLE },
-  );
+  ).catch(sinConflictoCrudo);
 }
 
 // ── Conciliar contra el pago de la administración ───────────────────────────
@@ -407,7 +419,7 @@ export async function conciliarLiquidacionSemanal(tenantId: string, args: Concil
   } catch (e) {
     // La clave `liq:<id>` (o `liquidacionId` único) chocó: otra conciliación ganó.
     if (isUniqueViolation(e)) throw new VoucherRechazado("dato-invalido", YA_CONCILIADA);
-    throw e;
+    sinConflictoCrudo(e);
   }
 }
 
@@ -481,7 +493,7 @@ export async function darDeBajaImpago(tenantId: string, args: BajaDeImpagoArgs):
       return { voucherId: v.id, numero: v.numero, duplicado: false };
     },
     { tenantId, isolationLevel: SERIALIZABLE },
-  );
+  ).catch(sinConflictoCrudo);
 }
 
 // ── Pago a cuenta (pre-pago o saldo de una diferencia) ──────────────────────
@@ -674,7 +686,7 @@ export async function registrarPagoACuenta(tenantId: string, args: PagoACuentaAr
       });
       if (ya) return { pagoId: ya.id, duplicado: true, imputados: [], sinImputar: 0 };
     }
-    throw e;
+    sinConflictoCrudo(e);
   }
 }
 
