@@ -169,10 +169,22 @@ test("FK y UNIQUE sobre tablas existentes: pasan sólo en la forma permitida", (
   frenaCon(`ALTER TABLE "Venta" ADD COLUMN "x" serial;\nALTER TABLE "Venta" ADD CONSTRAINT f FOREIGN KEY ("x") REFERENCES "Cliente"("numero") ON DELETE CASCADE NOT VALID;`, "RESTRICCIÓN EN TABLA EXISTENTE");
   frenaCon(`ALTER TABLE "Venta" ADD COLUMN "x" bigserial;\nALTER TABLE "Venta" ADD CONSTRAINT f FOREIGN KEY ("x") REFERENCES "Cliente"("numero");`, "RESTRICCIÓN EN TABLA EXISTENTE");
   frenaCon(`ALTER TABLE "Venta" ADD COLUMN "x" serial;\nCREATE UNIQUE INDEX u ON "Venta" ("x");`, "ÚNICO EN TABLA EXISTENTE");
-  // cert3: ON DELETE CASCADE / SET NULL / SET DEFAULT sobre tabla existente → frena aunque la columna sea nueva y vacía
-  for (const cola of [" ON DELETE CASCADE;", " ON DELETE SET NULL;", " ON DELETE SET NULL ON UPDATE CASCADE;", " ON UPDATE CASCADE ON DELETE CASCADE;",
-    " ON DELETE SET DEFAULT;", " ON UPDATE SET NULL;", " ON UPDATE SET DEFAULT;", " ON DELETE CASCADE NOT VALID;"])
+  // cert3: ON DELETE CASCADE / SET DEFAULT sobre tabla existente → frena aunque la columna sea nueva y vacía
+  for (const cola of [" ON DELETE CASCADE;", " ON UPDATE CASCADE ON DELETE CASCADE;", " ON DELETE SET DEFAULT;", " ON UPDATE SET NULL;",
+    " ON UPDATE SET DEFAULT;", " ON DELETE CASCADE NOT VALID;", " ON DELETE SET NULL ON DELETE CASCADE;", " ON DELETE SET NULL (\"pagoId\");"])
     assert.ok(bloquea(COL + FK + cola), cola);
+  // ON DELETE SET NULL pasa sólo si TODAS las columnas de la FK son nuevas y vacías (anula sólo la columna nueva)
+  pasa(COL + FK + " ON DELETE SET NULL;");
+  pasa(COL + FK + " ON DELETE SET NULL ON UPDATE CASCADE;");
+  pasa(COL + FK + " ON UPDATE CASCADE ON DELETE SET NULL NOT VALID;");
+  pasa(`ALTER TABLE "Venta" ADD COLUMN "a" TEXT, ADD COLUMN "b" UUID;\nALTER TABLE "Venta" ADD CONSTRAINT f FOREIGN KEY ("a","b") REFERENCES "Pago"("id","x") ON DELETE SET NULL;`);
+  // SET NULL con una columna existente en la FK → anularía un dato previo → frena
+  frenaCon(COL + `ALTER TABLE "Venta" ADD CONSTRAINT f FOREIGN KEY ("pagoId","tenantId") REFERENCES "Pago"("id","tenantId") ON DELETE SET NULL;`, "RESTRICCIÓN EN TABLA EXISTENTE");
+  frenaCon(COL + `ALTER TABLE "Venta" ADD CONSTRAINT f FOREIGN KEY ("tenantId","pagoId") REFERENCES "Pago"("tenantId","id") ON DELETE SET NULL ON UPDATE CASCADE;`, "RESTRICCIÓN EN TABLA EXISTENTE");
+  // SET NULL con columna nueva con DEFAULT (o mezclada con una vacía) → frena
+  frenaCon(`ALTER TABLE "Venta" ADD COLUMN "pagoId" TEXT DEFAULT 'p1';\n${FK} ON DELETE SET NULL;`, "RESTRICCIÓN EN TABLA EXISTENTE");
+  frenaCon(`ALTER TABLE "Venta" ADD COLUMN "a" TEXT, ADD COLUMN "b" TEXT DEFAULT 'x';\nALTER TABLE "Venta" ADD CONSTRAINT f FOREIGN KEY ("a","b") REFERENCES "Pago"("id","x") ON DELETE SET NULL;`, "RESTRICCIÓN EN TABLA EXISTENTE");
+  frenaCon(`ALTER TABLE "Venta" ADD COLUMN "pagoId" serial;\n${FK} ON DELETE SET NULL;`, "RESTRICCIÓN EN TABLA EXISTENTE");
   frenaCon(COL + FK + " ON DELETE CASCADE;", "RESTRICCIÓN EN TABLA EXISTENTE");
   frenaCon(`ALTER TABLE "Venta" ADD COLUMN "x" text;\nALTER TABLE "Venta" ADD CONSTRAINT f FOREIGN KEY ("x","clienteId") REFERENCES "Cliente"("id","tenantId") ON DELETE SET NULL;`, "RESTRICCIÓN EN TABLA EXISTENTE");
   frenaCon(`CREATE TABLE "Nueva" ("id" text PRIMARY KEY, "tenantId" text NOT NULL);\nALTER TABLE "Venta" ADD COLUMN "x" text;\nALTER TABLE "Venta" ADD CONSTRAINT f FOREIGN KEY ("x") REFERENCES "Nueva"("id") ON DELETE CASCADE;`, "RESTRICCIÓN EN TABLA EXISTENTE");
@@ -438,6 +450,19 @@ test("historial real: aditivas pasan, lo demás frena", { skip: !existsSync(DIR)
     // FK sobre columna nueva vacía (ON DELETE RESTRICT) sobre tablas existentes
     "20260705120000_control_plane_tenant",
     "20261101140000_proyecto_entregables",
+    // FK con ON DELETE SET NULL cuyas columnas son todas nuevas y vacías (default de Prisma en relaciones opcionales)
+    "20260702180447_add_tenant_nullable",
+    "20260702221903_add_service_category",
+    "20260704130000_add_commission_payouts",
+    "20260708230000_add_supplier_master",
+    "20260708230200_add_invoice_origin",
+    "20260907120000_add_cash_movement_payment_id",
+    "20260907180000_add_appointment_partial_collections",
+    "20261009120000_taller_caja",
+    "20261101120000_modulo_proyectos",
+    "20261101130000_proyecto_gastos",
+    "20261101150000_proyecto_gestion_eventos",
+    "20261108120000_profeturnos_clubes_serie_grupal",
   ];
   const frenan = {
     "20260708120000_invoice_money_decimal": "CAMBIO DE TIPO",
@@ -450,19 +475,6 @@ test("historial real: aditivas pasan, lo demás frena", { skip: !existsSync(DIR)
     "20260906120000_add_cash_method_libro_caja": "ESCRIBE DATOS",
     "20260925150000_comprobante_autorizado_inmutable": "TRIGGER",
     "20261013210000_inmobiliaria_recibos": "ESCRIBE DATOS",
-    // cert3: FK con ON DELETE SET NULL / CASCADE sobre tabla existente (default de Prisma en relaciones opcionales)
-    "20260702180447_add_tenant_nullable": "RESTRICCIÓN EN TABLA EXISTENTE",
-    "20260702221903_add_service_category": "RESTRICCIÓN EN TABLA EXISTENTE",
-    "20260704130000_add_commission_payouts": "RESTRICCIÓN EN TABLA EXISTENTE",
-    "20260708230000_add_supplier_master": "RESTRICCIÓN EN TABLA EXISTENTE",
-    "20260708230200_add_invoice_origin": "RESTRICCIÓN EN TABLA EXISTENTE",
-    "20260907120000_add_cash_movement_payment_id": "RESTRICCIÓN EN TABLA EXISTENTE",
-    "20260907180000_add_appointment_partial_collections": "RESTRICCIÓN EN TABLA EXISTENTE",
-    "20261009120000_taller_caja": "RESTRICCIÓN EN TABLA EXISTENTE",
-    "20261101120000_modulo_proyectos": "RESTRICCIÓN EN TABLA EXISTENTE",
-    "20261101130000_proyecto_gastos": "RESTRICCIÓN EN TABLA EXISTENTE",
-    "20261101150000_proyecto_gestion_eventos": "RESTRICCIÓN EN TABLA EXISTENTE",
-    "20261108120000_profeturnos_clubes_serie_grupal": "RESTRICCIÓN EN TABLA EXISTENTE",
     // cert3: UNIQUE sobre columnas que ya tenían datos
     "20260705150002_fiscal_invoice_align": "ÚNICO EN TABLA EXISTENTE",
     "20260712120000_sprint_entregable_concurrency_guards": "ÚNICO EN TABLA EXISTENTE",
@@ -478,7 +490,7 @@ test("historial real: aditivas pasan, lo demás frena", { skip: !existsSync(DIR)
     if (!hay.has(m)) continue;
     assert.ok(reglas(readFileSync(`${DIR}${m}/migration.sql`, "utf8")).includes(regla), m);
   }
-  // Frenan EXACTAMENTE éstas (25 de 69 al 08/11/2026); una nueva que frene se mira y se agrega acá.
+  // Frenan EXACTAMENTE éstas (13 de 69 al 08/11/2026); una nueva que frene se mira y se agrega acá.
   const frenanHoy = [...hay].filter((m) => existsSync(`${DIR}${m}/migration.sql`) && bloquea(readFileSync(`${DIR}${m}/migration.sql`, "utf8")));
   assert.deepEqual(frenanHoy.filter((m) => m < "20261109").sort(), Object.keys(frenan).sort());
 });

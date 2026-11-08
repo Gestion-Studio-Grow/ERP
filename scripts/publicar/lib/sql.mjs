@@ -771,13 +771,16 @@ function sentenciaPermitida(s, creadas, colsNuevas = new Map(), enums = new Set(
   // incluyendo al menos una columna agregada vacía por esta migración (nullable, sin DEFAULT, tipo de
   // la lista blanca TIPO_VACIO): en las filas que ya existen vale NULL, así que ni la FK (MATCH SIMPLE)
   // las toca ni el UNIQUE puede chocar con duplicados existentes.
-  //   ADD CONSTRAINT n FOREIGN KEY (cols) REFERENCES t (cols) [ON DELETE RESTRICT|NO ACTION] [ON UPDATE RESTRICT|NO ACTION|CASCADE] [NOT VALID]
-  //     (ON DELETE CASCADE / SET NULL / SET DEFAULT sobre una tabla con datos → revisión del dueño)
+  //   ADD CONSTRAINT n FOREIGN KEY (cols) REFERENCES t (cols) [ON DELETE RESTRICT|NO ACTION|SET NULL*] [ON UPDATE RESTRICT|NO ACTION|CASCADE] [NOT VALID]
+  //     * ON DELETE SET NULL sólo si TODAS las columnas de la FK son agregadas vacías por esta migración:
+  //       sólo anula esa columna nueva en la fila que referencia (no borra filas ni pisa datos previos).
+  //       Si la FK incluye una columna existente, SET NULL anularía un dato previo → revisión del dueño.
+  //     (ON DELETE CASCADE / SET DEFAULT sobre una tabla con datos → revisión del dueño)
   //   ADD CONSTRAINT n UNIQUE (cols)
-  const propiasNuevas = (t, desde) => {
+  const propiasNuevas = (t, desde, todas = false) => {
     const propias = [];
     for (let j = desde + 1; j < i - 1; j += 2) propias.push(identDe(s[j]));
-    return propias.some((c) => colsNuevas.get(t)?.has(c));
+    return propias[todas ? "every" : "some"]((c) => colsNuevas.get(t)?.has(c));
   };
   const restriccionExistente = (t) => {
     const existente = (m) => no(m, "RESTRICCIÓN EN TABLA EXISTENTE");
@@ -796,6 +799,7 @@ function sentenciaPermitida(s, creadas, colsNuevas = new Map(), enums = new Set(
     columnas();
     if (!propiasNuevas(t, desde))
       existente("FK sobre columnas que ya tienen datos: puede rechazar escrituras o borrar en cascada filas existentes");
+    const todasNuevas = propiasNuevas(t, desde, true);
     pideW("references");
     tabla();
     columnas();
@@ -807,8 +811,12 @@ function sentenciaPermitida(s, creadas, colsNuevas = new Map(), enums = new Set(
       if (comeW("restrict")) continue;
       if (comeW("no")) { pideW("action"); continue; }
       if (!borrado && comeW("cascade")) continue;
+      // ON DELETE SET NULL sin lista de columnas: sólo si todas las de la FK son nuevas y vacías.
+      if (borrado && todasNuevas && veoW("set") && esW(s[i + 1], "null") && !esP(s[i + 2], "(")) { i += 2; continue; }
       if (veoW("cascade", "set"))
-        existente("FK con ON DELETE CASCADE / SET NULL / SET DEFAULT sobre una tabla que ya tiene datos");
+        existente(todasNuevas
+          ? "FK con ON DELETE CASCADE / SET DEFAULT sobre una tabla que ya tiene datos"
+          : "FK con ON DELETE CASCADE / SET NULL / SET DEFAULT que incluye columnas con datos previos");
       no();
     }
     if (comeW("not")) pideW("valid");
