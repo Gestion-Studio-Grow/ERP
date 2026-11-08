@@ -26,7 +26,8 @@ const titulo = "mb-2 text-sm font-bold uppercase tracking-wide text-strong";
 // su pago y las notas. Todo de ESTE negocio: un id de otro negocio da «No encontramos» (404).
 export default async function FichaAlumno({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireApp("padel-clases");
-  // El PROFESSIONAL no ve montos ni cobra (certificación vuelta 3 del arreglo UAT 11/2026).
+  // El PROFESSIONAL no ve montos ni cobra, ni ve acciones que exigen agenda:manage (certificación
+  // vueltas 3 y 4 del arreglo UAT 11/2026).
   const conPlata = veLaPlataDelDia(user);
   const { id } = await params;
   if (!/^[A-Za-z0-9_-]{1,40}$/.test(id)) notFound();
@@ -57,12 +58,16 @@ export default async function FichaAlumno({ params }: { params: Promise<{ id: st
           <Link href={`/admin/clases/agendar?alumno=${encodeURIComponent(a.id)}`} className={cn(buttonClasses("solid", "lg"), "h-12 w-full justify-center")} data-qa="agendar-alumno">
             Agendar
           </Link>
-          <div className="col-span-2 sm:col-span-1">
-            <MandarLink alumnoId={a.id} nombre={a.nombre} />
-          </div>
-          <div className="col-span-2 sm:col-span-1">
-            <EditarAlumno alumnoId={a.id} nombre={a.nombre} telefono={a.telefono} nivel={a.nivel} />
-          </div>
+          {conPlata && (
+            <>
+              <div className="col-span-2 sm:col-span-1">
+                <MandarLink alumnoId={a.id} nombre={a.nombre} />
+              </div>
+              <div className="col-span-2 sm:col-span-1">
+                <EditarAlumno alumnoId={a.id} nombre={a.nombre} telefono={a.telefono} nivel={a.nivel} />
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -175,7 +180,7 @@ export default async function FichaAlumno({ params }: { params: Promise<{ id: st
         <NotasAlumno alumnoId={a.id} nombre={a.nombre} notas={a.notas} />
       </section>
 
-      <RegenerarLink alumnoId={a.id} nombre={a.nombre} />
+      {conPlata && <RegenerarLink alumnoId={a.id} nombre={a.nombre} />}
     </main>
   );
 }
