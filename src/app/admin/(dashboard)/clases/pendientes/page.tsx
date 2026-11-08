@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireApp } from "@/lib/require-app";
 import { chipLinkAtributos, cn, EmptyState, Plata } from "@/components/ui";
 import { badgePendientes, bandeja } from "@/lib/padel/datos.server";
+import { veLaPlataDelDia } from "@/lib/padel/plata-guardia";
 import { diaHumano, horaHumana } from "@/lib/padel/core";
 import { TarjetaClase } from "../_vista";
 import { Cabecera } from "../_cabecera";
@@ -34,14 +35,18 @@ const titulo = "mb-2 text-sm font-bold uppercase tracking-wide text-strong";
 // Un comprobante para varias clases (mismo alumno, misma foto, mismo momento) es una tarjeta con
 // el total: el profe lo revisa una vez.
 export default async function ClasesBandeja({ searchParams }: { searchParams: Promise<{ ver?: string }> }) {
-  await requireApp("padel-clases");
+  const user = await requireApp("padel-clases");
+  // El PROFESSIONAL no ve montos ni revisa comprobantes (eso exige agenda:manage): sin la sección
+  // Comprobantes ni precios (certificación del arreglo UAT 11/2026, QA del alumno).
+  const conPlata = veLaPlataDelDia(user);
+  const secciones = conPlata ? SECCIONES : SECCIONES.filter((s) => s.id !== "comprobantes");
   const verRaw = (await searchParams).ver;
-  const ver: Seccion | null = SECCIONES.some((s) => s.id === verRaw) ? (verRaw as Seccion) : null;
+  const ver: Seccion | null = secciones.some((s) => s.id === verRaw) ? (verRaw as Seccion) : null;
   const [b, numero] = await Promise.all([bandeja(), badgePendientes()]);
   const mostrar = (s: Seccion) => ver === null || ver === s;
 
   const grupos = new Map<string, { ids: string[]; nombre: string; total: number; comprobante: string | null; enviadoEl: Date | null; clases: { empiezaEn: Date; precio: number; caida: boolean }[] }>();
-  for (const c of b.comprobantes) {
+  for (const c of conPlata ? b.comprobantes : []) {
     const clave = `${c.token}|${c.enviadoEl?.getTime() ?? c.id}`;
     const g = grupos.get(clave) ?? { ids: [], nombre: c.nombre, total: 0, comprobante: c.comprobante, enviadoEl: c.enviadoEl, clases: [] };
     g.ids.push(c.id);
@@ -50,14 +55,14 @@ export default async function ClasesBandeja({ searchParams }: { searchParams: Pr
     g.clases.push({ empiezaEn: c.empiezaEn, precio: c.precio, caida: c.estado === "CANCELADA" || c.estado === "RECHAZADA" });
     grupos.set(clave, g);
   }
-  const nada = b.pedidos.length === 0 && b.comprobantes.length === 0 && b.contadores.avisos === 0 && b.sinAvisar.length === 0;
+  const nada = b.pedidos.length === 0 && grupos.size === 0 && b.contadores.avisos === 0 && b.sinAvisar.length === 0;
 
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-5">
       <Cabecera titulo="Bandeja" detalle="Lo que espera tu respuesta. Cada cosa se resuelve con un toque." pendientes={numero} actual="pendientes" />
 
       <nav aria-label="Qué ver de la bandeja" className="-mx-4 mb-4 flex gap-2 overflow-x-auto px-4 pb-1">
-        {SECCIONES.map((s) => (
+        {secciones.map((s) => (
           <Link
             key={s.id}
             href={ver === s.id ? "/admin/clases/pendientes" : `/admin/clases/pendientes?ver=${s.id}`}
@@ -82,7 +87,7 @@ export default async function ClasesBandeja({ searchParams }: { searchParams: Pr
                 <li key={c.id}>
                   <TarjetaClase
                     estado={c.estado}
-                    pago={c.pagoEstado}
+                    pago={conPlata ? c.pagoEstado : undefined}
                     hora={horaHumana(c.empiezaEn)}
                     nombre={c.nombre}
                     qa="pedido"
@@ -91,7 +96,7 @@ export default async function ClasesBandeja({ searchParams }: { searchParams: Pr
                         <span className="capitalize">{diaHumano(c.empiezaEn)}</span>
                         {" · "}
                         {c.tipo === "GRUPAL" ? `grupal (${c.personas})` : "individual"}
-                        {c.precio > 0 && <> · <Plata valor={c.precio} sinCentavos /></>}
+                        {conPlata && c.precio > 0 && <> · <Plata valor={c.precio} sinCentavos /></>}
                         {c.dadas > 0 ? ` · ya tomó ${c.dadas}` : " · alumno nuevo"}
                       </>
                     }
