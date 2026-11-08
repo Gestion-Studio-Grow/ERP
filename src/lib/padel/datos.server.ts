@@ -15,11 +15,13 @@ import { resolveLocation } from "@/lib/settings";
 import { businessWallTimeToUtc, dateStrInBusinessTz, todayInBusinessTz } from "@/lib/datetime";
 import { createRateLimiter } from "@/lib/rate-limit";
 import { bienvenidaVista } from "./config-campos";
+import { completarSeries } from "./series.server";
 import {
   CLAVES_PLANTILLA,
   ESTADOS_QUE_OCUPAN,
   MOTIVO_AUSENTE_SE_COBRA,
   PLANTILLAS_DEFAULT,
+  clubDeHora,
   diaCorto,
   esDeuda,
   esEnRevision,
@@ -111,7 +113,30 @@ export async function franjas(tenantId: string): Promise<Franja[]> {
     desde: f.desde,
     hasta: f.hasta,
     tipo: f.tipo === "NO" ? "NO" : "DA",
+    clubId: f.clubId,
   }));
+}
+
+export type ClubPadel = { id: string; nombre: string; direccion: string | null; mapsUrl: string | null; activo: boolean };
+
+/** Lo que necesita la generación perezosa de clases fijas (series.server.ts). */
+const cargarParaSeries = (tenantId: string) => async () => {
+  const [config, fr] = await Promise.all([configPadel(tenantId), franjas(tenantId)]);
+  return { config, franjas: fr };
+};
+
+/** Los clubes del profe (E4). `todos`: también los desactivados (para Ajustes y lo ya agendado). */
+export async function clubesDe(tenantId: string, todos = false): Promise<ClubPadel[]> {
+  return prisma.padelClub.findMany({
+    where: { tenantId, ...(todos ? {} : { activo: true }) },
+    orderBy: [{ activo: "desc" }, { orden: "asc" }, { nombre: "asc" }],
+    select: { id: true, nombre: true, direccion: true, mapsUrl: true, activo: true },
+  });
+}
+
+/** Los clubes del negocio actual (pantallas del panel). */
+export async function clubes(todos = false): Promise<ClubPadel[]> {
+  return clubesDe(await getCurrentTenantId(), todos);
 }
 
 const sumarDiasCalendario = (fecha: string, n: number): string =>
@@ -129,6 +154,8 @@ export interface DiaConLugar {
   fecha: string;
   etiqueta: string;
   horas: string[];
+  /** E4 · El club de cada hora (iso → nombre), sólo las horas que caen en una franja con club. */
+  clubes?: Record<string, string>;
 }
 
 /**
@@ -136,7 +163,8 @@ export interface DiaConLugar {
  * lectura de clases para todo el rango; el armado de franjas es puro (core.ts).
  */
 export async function agendaPublica(tenantId: string, ahora = new Date()): Promise<DiaConLugar[]> {
-  const [config, fr] = await Promise.all([configPadel(tenantId), franjas(tenantId)]);
+  const [config, fr, listaClubes] = await Promise.all([configPadel(tenantId), franjas(tenantId), clubesDe(tenantId, true)]);
+  const nombreClub = new Map(listaClubes.map((c) => [c.id, c.nombre]));
   const hoy = todayInBusinessTz();
   const ultimo = sumarDiasCalendario(hoy, config.diasAdelante);
   const ocupadas = await ocupadasEntre(tenantId, businessWallTimeToUtc(hoy, "00:00"), businessWallTimeToUtc(ultimo, "23:59"));
@@ -145,7 +173,14 @@ export async function agendaPublica(tenantId: string, ahora = new Date()): Promi
   for (let i = 0; i < config.diasAdelante; i++) {
     const fecha = sumarDiasCalendario(hoy, i);
     const horas = franjasLibres({ fecha, franjas: fr, ocupadas: intervalos, duracionMin: config.duracionMin, anticipacionMin: config.anticipacionMin, ahora });
-    if (horas.length > 0) dias.push({ fecha, etiqueta: i === 0 ? "Hoy" : i === 1 ? "Mañana" : diaCorto(fecha), horas });
+    if (horas.length === 0) continue;
+    const clubes: Record<string, string> = {};
+    for (const iso of horas) {
+      const id = nombreClub.size ? clubDeHora(fecha, fr, new Date(iso)) : null;
+      const nombre = id ? nombreClub.get(id) : undefined;
+      if (nombre) clubes[iso] = nombre;
+    }
+    dias.push({ fecha, etiqueta: i === 0 ? "Hoy" : i === 1 ? "Mañana" : diaCorto(fecha), horas, ...(Object.keys(clubes).length ? { clubes } : {}) });
   }
   return dias;
 }
@@ -168,7 +203,7 @@ export async function libresDelDia(
     .map((o) => ({ startsAt: o.empiezaEn, endsAt: o.terminaEn }));
   const anticipacionMin = opts.anticipacionMin ?? config.anticipacionMin;
   const duracionMin = opts.duracionMin ?? config.duracionMin;
-  return { config, libres: franjasLibres({ fecha, franjas: fr, ocupadas, duracionMin, anticipacionMin, ahora }) };
+  return { config, franjas: fr, libres: franjasLibres({ fecha, franjas: fr, ocupadas, duracionMin, anticipacionMin, ahora }) };
 }
 
 /**
@@ -286,6 +321,10 @@ export type ClasePanel = {
   nombre: string;
   telefono: string;
   dadas: number;
+  /** E4 · El club (nombre), o null si la clase no tiene. */
+  club: string | null;
+  /** E8 · La clase fija semanal de la que salió, o null. */
+  serieId: string | null;
 };
 
 type FilaClase = Awaited<ReturnType<typeof clasesDe>>[number];
@@ -310,6 +349,8 @@ function aPanel(c: FilaClase): ClasePanel {
     nombre: c.client.name,
     telefono: c.client.phone,
     dadas: c.alumno._count.clases,
+    club: c.club?.nombre ?? null,
+    serieId: c.serieId,
   };
 }
 
@@ -320,6 +361,7 @@ function clasesDe(tenantId: string, where: Record<string, unknown>) {
     select: {
       id: true, empiezaEn: true, terminaEn: true, tipo: true, personas: true, estado: true, origen: true, precio: true,
       pagoEstado: true, pagoMedio: true, motivoCancel: true, comprobanteEnviadoEl: true, comprobante: true, ...conAlumno,
+      serieId: true, club: { select: { nombre: true } },
     },
   });
 }
@@ -332,6 +374,7 @@ export async function hoy(ahora = new Date()) {
   const inicio = businessWallTimeToUtc(fecha, "00:00");
   const finManana = businessWallTimeToUtc(sumarDiasCalendario(fecha, 2), "00:00");
   await vencerPedidos(tenantId, ahora);
+  await completarSeries(tenantId, cargarParaSeries(tenantId), ahora);
   const [filas, pendientes, cobradoHoy, config, negocio, sinCerrar, pedidos, fr, recordados] = await Promise.all([
     // SIN_RESPUESTA también (O-3): si el alumno vino igual, el profe la da y la cobra desde acá.
     clasesDe(tenantId, { empiezaEn: { gte: inicio, lt: finManana }, estado: { in: ["PEDIDA", "CONFIRMADA", "DADA", "AUSENTE", "SIN_RESPUESTA"] } }),
@@ -498,6 +541,7 @@ export async function semanaDelProfe(desde: string, ahora = new Date()) {
   const fin = sumarDias(lunes, 7);
   const ini = businessWallTimeToUtc(lunes, "00:00");
   const finUtc = businessWallTimeToUtc(fin, "00:00");
+  await completarSeries(tenantId, cargarParaSeries(tenantId), ahora);
   const [filas, fr, config, bloqueos, cobros] = await Promise.all([
     clasesDe(tenantId, { empiezaEn: { gte: ini, lt: finUtc }, estado: { in: ["PEDIDA", "CONFIRMADA", "DADA", "AUSENTE", "SIN_RESPUESTA"] } }),
     franjas(tenantId),
@@ -689,6 +733,14 @@ export async function alumnosParaBuscar(tope = 2000) {
   return filas.map((a) => ({ id: a.id, nombre: a.client.name, telefono: a.client.phone }));
 }
 
+/** B1 · El alumno que viene de su ficha (`agendar?alumno=`), aunque no entre en el buscador. */
+export async function alumnoParaAgendar(alumnoId: string): Promise<{ id: string; nombre: string; telefono: string } | null> {
+  if (!/^[A-Za-z0-9_-]{1,40}$/.test(alumnoId)) return null;
+  const tenantId = await getCurrentTenantId();
+  const a = await prisma.padelAlumno.findFirst({ where: { tenantId, id: alumnoId }, select: { id: true, client: { select: { name: true, phone: true } } } });
+  return a ? { id: a.id, nombre: a.client.name, telefono: a.client.phone } : null;
+}
+
 /** La ficha del alumno: datos, próximas, últimas 10 con su pago, deuda, en revisión y saldo a favor. */
 export async function ficha(alumnoId: string, ahora = new Date()) {
   const tenantId = await getCurrentTenantId();
@@ -698,8 +750,8 @@ export async function ficha(alumnoId: string, ahora = new Date()) {
   });
   if (!a) return null;
   const delAlumno = { tenantId, alumnoId: a.id };
-  const sel = { id: true, empiezaEn: true, terminaEn: true, tipo: true, personas: true, estado: true, precio: true, pagoEstado: true, pagoMedio: true, motivoCancel: true, pagoNota: true } as const;
-  const [proximas, ultimas, pendientesDePago, aFavorDe] = await Promise.all([
+  const sel = { id: true, empiezaEn: true, terminaEn: true, tipo: true, personas: true, estado: true, precio: true, pagoEstado: true, pagoMedio: true, motivoCancel: true, pagoNota: true, club: { select: { nombre: true } } } as const;
+  const [proximas, ultimas, pendientesDePago, aFavorDe, series] = await Promise.all([
     prisma.padelClase.findMany({ where: { ...delAlumno, estado: { in: ["PEDIDA", "CONFIRMADA"] }, terminaEn: { gt: ahora } }, orderBy: { empiezaEn: "asc" }, take: 20, select: sel }),
     prisma.padelClase.findMany({ where: { ...delAlumno, empiezaEn: { lte: ahora } }, orderBy: { empiezaEn: "desc" }, take: 10, select: sel }),
     prisma.padelClase.findMany({
@@ -708,6 +760,13 @@ export async function ficha(alumnoId: string, ahora = new Date()) {
       select: sel,
     }),
     saldosPorAlumno(tenantId, [a.id]),
+    // E8 · Sus clases fijas: las activas primero, después las que terminaron (las últimas 5).
+    prisma.padelSerie.findMany({
+      where: delAlumno,
+      orderBy: [{ activa: "desc" }, { createdAt: "desc" }],
+      take: 10,
+      select: { id: true, diaSemana: true, hora: true, desde: true, hasta: true, activa: true, club: { select: { nombre: true } } },
+    }),
   ]);
   const num = <T extends { precio: unknown }>(c: T) => ({ ...c, precio: Number(c.precio) });
   const deudas = pendientesDePago.map(num).filter(esDeuda);
@@ -727,6 +786,10 @@ export async function ficha(alumnoId: string, ahora = new Date()) {
     debe: totalDeuda(deudas),
     enRevision: totalEnRevision(enRevision),
     ...aFavorDe(a.id),
+    series: series.map((x) => ({
+      id: x.id, diaSemana: x.diaSemana, hora: x.hora, activa: x.activa, club: x.club?.nombre ?? null,
+      desde: x.desde.toISOString().slice(0, 10), hasta: x.hasta ? x.hasta.toISOString().slice(0, 10) : null,
+    })),
   };
 }
 
@@ -797,12 +860,12 @@ export async function plata(periodo: PeriodoPlata = "mes") {
 
 export async function configCompleta() {
   const tenantId = await getCurrentTenantId();
-  const [config, fr, negocio] = await Promise.all([configPadel(tenantId), franjas(tenantId), datosDelNegocio(tenantId)]);
+  const [config, fr, negocio, listaClubes] = await Promise.all([configPadel(tenantId), franjas(tenantId), datosDelNegocio(tenantId), clubesDe(tenantId, true)]);
   const bloqueos = await prisma.padelDisponibilidad.findMany({
     where: { tenantId, fecha: { gte: new Date(`${todayInBusinessTz()}T00:00:00.000Z`) } },
     orderBy: { fecha: "asc" },
   });
-  return { config, franjas: fr.filter((f) => f.fecha === null), bloqueos, negocio };
+  return { config, franjas: fr.filter((f) => f.fecha === null), bloqueos, negocio, clubes: listaClubes };
 }
 
 // ── Link del alumno (sin login): la llave es el token ──────────────────────

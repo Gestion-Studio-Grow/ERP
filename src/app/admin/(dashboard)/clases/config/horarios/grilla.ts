@@ -9,7 +9,8 @@
 
 import { errorDeTramo, type TramoSemanal } from "@/lib/padel/config-campos";
 
-export type Tramo = { desde: string; hasta: string };
+/** `clubId`: en qué club da ese tramo (E4, opcional). */
+export type Tramo = { desde: string; hasta: string; clubId?: string | null };
 /** Índice = diaSemana (0 = domingo … 6 = sábado). */
 export type Semana = Tramo[][];
 
@@ -38,11 +39,11 @@ export const semanaVacia = (): Semana => Array.from({ length: 7 }, () => []);
 const ordenar = (t: Tramo[]) => [...t].sort((a, b) => a.desde.localeCompare(b.desde) || a.hasta.localeCompare(b.hasta));
 
 /** Las franjas semanales que da clases (sin las excepciones de un día) → la grilla. */
-export function semanaDesde(franjas: readonly { diaSemana: number | null; desde: string; hasta: string; fecha?: string | null; tipo?: string }[]): Semana {
+export function semanaDesde(franjas: readonly { diaSemana: number | null; desde: string; hasta: string; fecha?: string | null; tipo?: string; clubId?: string | null }[]): Semana {
   const s = semanaVacia();
   for (const f of franjas) {
     if (f.fecha || f.diaSemana === null || f.diaSemana < 0 || f.diaSemana > 6 || (f.tipo && f.tipo !== "DA")) continue;
-    s[f.diaSemana].push({ desde: f.desde, hasta: f.hasta });
+    s[f.diaSemana].push({ desde: f.desde, hasta: f.hasta, ...(f.clubId ? { clubId: f.clubId } : {}) });
   }
   return s.map(ordenar);
 }
@@ -68,6 +69,11 @@ export function cambiarTramo(s: Semana, dia: number, i: number, campo: "desde" |
   return conDia(s, dia, s[dia].map((t, k) => (k === i ? { ...t, [campo]: valor } : t)));
 }
 
+/** E4 · En qué club da ese tramo (null = sin club). */
+export function cambiarClub(s: Semana, dia: number, i: number, clubId: string | null): Semana {
+  return conDia(s, dia, s[dia].map((t, k) => (k === i ? { desde: t.desde, hasta: t.hasta, ...(clubId ? { clubId } : {}) } : t)));
+}
+
 export const quitarTramo = (s: Semana, dia: number, i: number): Semana => conDia(s, dia, s[dia].filter((_, k) => k !== i));
 
 /** «Copiar a…»: los tramos de `origen` pasan a cada día de `destinos` (pisan lo que tenían). */
@@ -84,7 +90,7 @@ export function erroresDe(s: Semana): (string | null)[][] {
 export const hayErrores = (s: Semana): boolean => erroresDe(s).some((d) => d.some(Boolean));
 
 export function aTramos(s: Semana): TramoSemanal[] {
-  return s.flatMap((tramos, diaSemana) => ordenar(tramos).map((t) => ({ diaSemana, desde: t.desde, hasta: t.hasta })));
+  return s.flatMap((tramos, diaSemana) => ordenar(tramos).map((t) => ({ diaSemana, desde: t.desde, hasta: t.hasta, ...(t.clubId ? { clubId: t.clubId } : {}) })));
 }
 
 export const iguales = (a: Semana, b: Semana): boolean => JSON.stringify(aTramos(a)) === JSON.stringify(aTramos(b));

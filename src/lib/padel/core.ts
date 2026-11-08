@@ -287,7 +287,15 @@ export interface Franja {
   hasta: string;
   /** DA = da clases · NO = bloqueo (lluvia, viaje, torneo). */
   tipo: "DA" | "NO";
+  /**
+   * E4 · En qué club (opcional). En una franja DA, el club donde da esas horas; en un bloqueo NO,
+   * sólo bloquea las franjas de ese club (nulo = bloquea todo el día, como antes).
+   */
+  clubId?: string | null;
 }
+
+/** Una ventana del día, con el club de la franja de la que sale (nulo = sin club). */
+export type Ventana = Interval & { clubId: string | null };
 
 const HORA = /^([01]\d|2[0-3]):[0-5]\d$/;
 export const horaValida = (h: string): boolean => HORA.test(h);
@@ -298,17 +306,20 @@ export const fechaValida = (f: string): boolean => /^\d{4}-\d{2}-\d{2}$/.test(f)
  * Las franjas semanales del día + las franjas extra de esa fecha; los bloqueos de esa fecha
  * restan (se tratan como ocupados).
  */
-export function ventanasDelDia(fecha: string, franjas: readonly Franja[]): { ventanas: Interval[]; bloqueos: Interval[] } {
+export function ventanasDelDia(fecha: string, franjas: readonly Franja[]): { ventanas: Ventana[]; bloqueos: Ventana[] } {
   const dia = dayOfWeekForDate(fecha);
-  const aIntervalo = (f: Franja): Interval | null => {
+  const aIntervalo = (f: Franja): Ventana | null => {
     if (!horaValida(f.desde) || !horaValida(f.hasta) || f.hasta <= f.desde) return null;
-    return { startsAt: businessWallTimeToUtc(fecha, f.desde), endsAt: businessWallTimeToUtc(fecha, f.hasta) };
+    return { startsAt: businessWallTimeToUtc(fecha, f.desde), endsAt: businessWallTimeToUtc(fecha, f.hasta), clubId: f.clubId ?? null };
   };
   const delDia = franjas.filter((f) => (f.fecha ? f.fecha === fecha : f.diaSemana === dia));
-  const ventanas = delDia.filter((f) => f.tipo === "DA").map(aIntervalo).filter((x): x is Interval => !!x);
-  const bloqueos = delDia.filter((f) => f.tipo === "NO").map(aIntervalo).filter((x): x is Interval => !!x);
+  const ventanas = delDia.filter((f) => f.tipo === "DA").map(aIntervalo).filter((x): x is Ventana => !!x);
+  const bloqueos = delDia.filter((f) => f.tipo === "NO").map(aIntervalo).filter((x): x is Ventana => !!x);
   return { ventanas, bloqueos };
 }
+
+/** ¿Este bloqueo frena una ventana (o una clase) de `clubId`? Sin club, frena todo. */
+const bloqueaA = (b: { clubId: string | null }, clubId: string | null): boolean => !b.clubId || b.clubId === clubId;
 
 /**
  * Los inicios libres (ISO) de ese día: dentro de las ventanas, de a una clase por vez, sin
@@ -324,9 +335,10 @@ export function franjasLibres(p: {
 }): string[] {
   const { ventanas, bloqueos } = ventanasDelDia(p.fecha, p.franjas);
   const limite = p.ahora.getTime() + Math.max(0, p.anticipacionMin) * 60_000;
-  const busy = [...p.ocupadas, ...bloqueos];
   const out = new Set<string>();
   for (const v of ventanas) {
+    // Un bloqueo de un club sólo frena las franjas de ese club (E4); uno sin club, todas.
+    const busy = [...p.ocupadas, ...bloqueos.filter((b) => bloqueaA(b, v.clubId))];
     for (const iso of generateSlots({ dayStart: v.startsAt, dayEnd: v.endsAt, durationMin: p.duracionMin, stepMin: p.duracionMin, busy })) {
       if (new Date(iso).getTime() >= limite) out.add(iso);
     }
@@ -337,6 +349,25 @@ export function franjasLibres(p: {
 /** ¿Ese horario está dentro de lo que el profe ofrece y libre? (re-chequeo del servidor). */
 export function horarioDisponible(p: Parameters<typeof franjasLibres>[0] & { empiezaEn: Date }): boolean {
   return franjasLibres(p).includes(p.empiezaEn.toISOString());
+}
+
+/**
+ * E4 · El club de la franja donde cae esa hora (la clase lo hereda), o null si la franja no tiene
+ * club o la hora está fuera de la grilla. Si dos franjas la cubren, gana la primera con club.
+ */
+export function clubDeHora(fecha: string, franjas: readonly Franja[], empiezaEn: Date): string | null {
+  const t = empiezaEn.getTime();
+  const v = ventanasDelDia(fecha, franjas).ventanas.find((x) => x.clubId && x.startsAt.getTime() <= t && t < x.endsAt.getTime());
+  return v?.clubId ?? null;
+}
+
+/**
+ * E8 · ¿Esa clase cae en un día bloqueado (lluvia, viaje, torneo)? Cuenta el bloqueo sin club y el
+ * del mismo club de la clase.
+ */
+export function caeEnBloqueo(fecha: string, franjas: readonly Franja[], empiezaEn: Date, terminaEn: Date, clubId: string | null = null): boolean {
+  const bloqueos = ventanasDelDia(fecha, franjas).bloqueos.filter((b) => bloqueaA(b, clubId));
+  return hasOverlap(empiezaEn, terminaEn, bloqueos);
 }
 
 /** ¿Choca con alguna clase viva? Bordes estrictos: 10:00–11:00 y 11:00–12:00 no chocan. */
@@ -679,3 +710,84 @@ export function armarIcs(p: { uid: string; empiezaEn: Date; terminaEn: Date; tit
   ];
   return lineas.join("\r\n") + "\r\n";
 }
+
+// ── E4 · Clubes en los mensajes ─────────────────────────────────────────────
+
+/**
+ * La plantilla con el club. Si el profe ya puso `{club}` en su texto, va donde él lo puso. Si no lo
+ * puso (los de fábrica y los que editó antes de los clubes) y la clase tiene club, se agrega
+ * « en {club}» después de la primera `{hora}`. Sin club, el texto queda exactamente como antes.
+ */
+export function plantillaConClub(plantilla: string, hayClub: boolean): string {
+  if (!hayClub || plantilla.includes("{club}") || !plantilla.includes("{hora}")) return plantilla;
+  return plantilla.replace("{hora}", "{hora} en {club}");
+}
+
+/** Nombre de un club: 2 a 60 caracteres, sin caracteres de control. */
+export function nombreDeClub(raw: unknown): string | null {
+  const t = String(raw ?? "").replace(/[\u0000-\u001F\u007F]/g, " ").replace(/\s+/g, " ").trim();
+  return t.length >= 2 && t.length <= 60 ? t : null;
+}
+
+/** Link de Google Maps (u otro https): vacío = sin link; cualquier otra cosa no se guarda. */
+export function linkDeMapsValido(raw: unknown): { ok: true; url: string | null } | { ok: false } {
+  const t = String(raw ?? "").trim();
+  if (!t) return { ok: true, url: null };
+  if (t.length > 500) return { ok: false };
+  try {
+    const u = new URL(t);
+    return u.protocol === "https:" ? { ok: true, url: u.toString() } : { ok: false };
+  } catch {
+    return { ok: false };
+  }
+}
+
+// ── E8 · Clase fija semanal ─────────────────────────────────────────────────
+
+/** Cuántas semanas se generan de una serie: lo que muestra el turnero (redondeado), mínimo 4. */
+export const semanasDeSerie = (diasAdelante: number): number => Math.max(4, Math.ceil(Math.max(0, diasAdelante) / 7));
+
+/**
+ * Las fechas («YYYY-MM-DD») de una clase fija semanal: `desde` y cada 7 días, sin pasar `hasta`
+ * (el corte de la serie, inclusive) ni `horizonte` (inclusive), y no antes de `piso`. Días de
+ * calendario: la hora de pared se arma después con `businessWallTimeToUtc` (Argentina no tiene
+ * horario de verano, pero así no depende de eso).
+ */
+export function fechasDeSerie(p: { desde: string; horizonte: string; hasta?: string | null; piso?: string | null; max?: number }): string[] {
+  if (!fechaValida(p.desde) || !fechaValida(p.horizonte)) return [];
+  const tope = p.hasta && fechaValida(p.hasta) && p.hasta < p.horizonte ? p.hasta : p.horizonte;
+  const max = p.max ?? 60;
+  const out: string[] = [];
+  for (let f = p.desde, i = 0; f <= tope && i < 520 && out.length < max; f = sumarDias(f, 7), i++) {
+    if (!p.piso || f >= p.piso) out.push(f);
+  }
+  return out;
+}
+
+/**
+ * Las clases de una serie que faltan generar: las fechas de la serie posteriores a la última que ya
+ * existe (con cualquier estado: una cancelada NO se vuelve a crear) y que no tienen ya una clase a
+ * esa misma hora. Idempotente: con las que se crearon, la segunda pasada no devuelve nada.
+ */
+export function clasesQueFaltan(p: {
+  serie: { desde: string; hora: string; hasta?: string | null };
+  existentes: readonly Date[];
+  horizonte: string;
+  piso: string;
+}): Date[] {
+  if (!horaValida(p.serie.hora)) return [];
+  const ya = new Set(p.existentes.map((d) => d.getTime()));
+  const ultima = p.existentes.reduce((m, d) => Math.max(m, d.getTime()), Number.NEGATIVE_INFINITY);
+  return fechasDeSerie({ desde: p.serie.desde, horizonte: p.horizonte, hasta: p.serie.hasta, piso: p.piso })
+    .map((f) => businessWallTimeToUtc(f, p.serie.hora))
+    .filter((d) => !ya.has(d.getTime()) && d.getTime() > ultima);
+}
+
+/** «Todos los martes a las 18:00» (para la ficha y el aviso). */
+export function textoSerie(s: { diaSemana: number; hora: string }): string {
+  const dias = ["domingos", "lunes", "martes", "miércoles", "jueves", "viernes", "sábados"];
+  return `Todos los ${dias[s.diaSemana] ?? "días"} a las ${s.hora}`;
+}
+
+/** El corte al cancelar «esta y las que siguen»: el día anterior a esa clase (la serie termina ahí). */
+export const corteDeSerie = (fechaDeLaClase: string): string => sumarDias(fechaDeLaClase, -1);

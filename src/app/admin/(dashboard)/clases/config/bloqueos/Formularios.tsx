@@ -11,7 +11,7 @@ import { agregarBloqueo, quitarBloqueo } from "@/lib/padel/acciones";
 import { useToast } from "../../../ToastProvider";
 import { campo, rotulo } from "../_estilos";
 
-export function FormBloqueo() {
+export function FormBloqueo({ clubes = [] }: { clubes?: { id: string; nombre: string }[] }) {
   const router = useRouter();
   const { showSuccess } = useToast();
   const [pendiente, start] = useTransition();
@@ -43,6 +43,17 @@ export function FormBloqueo() {
           <input id="bl-hasta" name="hasta" type="time" step={1800} className={campo} />
         </div>
       </div>
+      {clubes.length > 0 && (
+        <div>
+          <label htmlFor="bl-club" className={rotulo}>¿En qué club?</label>
+          <select id="bl-club" name="clubId" className={campo} defaultValue="" data-qa="bloqueo-club">
+            <option value="">En todos (no doy clases)</option>
+            {clubes.map((c) => (
+              <option key={c.id} value={c.id}>Sólo en {c.nombre}</option>
+            ))}
+          </select>
+        </div>
+      )}
       {error && <p id="bl-error" role="alert" className="rounded-lg bg-danger-soft px-3 py-2 text-sm font-semibold text-danger">{error}</p>}
       <button type="submit" disabled={pendiente} className={cn(buttonClasses("solid", "lg"), "h-12 w-full justify-center")} data-qa="bloquear">
         {pendiente ? "Bloqueando…" : "Bloquear"}

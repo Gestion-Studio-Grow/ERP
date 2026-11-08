@@ -16,7 +16,8 @@ import { useRouter } from "next/navigation";
 import { BuscadorCombo, Chip, Segmented, buttonClasses, cn } from "@/components/ui";
 import { agendarClase, horasLibres } from "@/lib/padel/acciones";
 import { dateStrInBusinessTz } from "@/lib/datetime";
-import { horaHumana, precioDe } from "@/lib/padel/core";
+import { horaHumana, precioDe, semanasDeSerie, textoSerie } from "@/lib/padel/core";
+import { dayOfWeekForDate } from "@/lib/datetime";
 import { diasDeCinta } from "../_agenda-core";
 import { CintaDias, ChipsHoras } from "../_cinta-dias";
 import { ErrorAccion, HojaPanel, Pie, Rotulo, chip48, grande, useAccion } from "../_hojas/comun";
@@ -33,12 +34,18 @@ export default function AgendarHoja({
   todos,
   precios,
   inicial,
+  clubes = [],
+  diasAdelante = 14,
 }: {
   hoy: string;
   frecuentes: Alumno[];
   todos: Alumno[];
   precios: { precioIndividual: number; precioGrupal: number };
-  inicial: { fecha: string; hora: string | null; libres: string[]; alumnoId: string | null };
+  inicial: { fecha: string; hora: string | null; libres: string[]; clubDe?: Record<string, string>; alumnoId: string | null };
+  /** E4 · Los clubes activos. Sin clubes, la hoja es la de siempre. */
+  clubes?: { id: string; nombre: string }[];
+  /** E8 · Lo que muestra el turnero: de ahí salen cuántas semanas se agendan de una clase fija. */
+  diasAdelante?: number;
 }) {
   const router = useRouter();
   const { pendiente, error, setError, ejecutar, mostrar } = useAccion("");
@@ -51,6 +58,9 @@ export default function AgendarHoja({
   const [libres, setLibres] = useState<string[]>(inicial.libres);
   const [cargando, setCargando] = useState(false);
   const [hora, setHora] = useState<string | null>(inicial.hora);
+  const [clubDe, setClubDe] = useState<Record<string, string>>(inicial.clubDe ?? {});
+  const [clubId, setClubId] = useState<string | null>(inicial.hora ? inicial.clubDe?.[inicial.hora] ?? null : null);
+  const [repetir, setRepetir] = useState(false);
   const [tipo, setTipo] = useState<"INDIVIDUAL" | "GRUPAL">("INDIVIDUAL");
   const [personas, setPersonas] = useState(2);
   const [vuelta, setVuelta] = useState(0);
@@ -58,13 +68,24 @@ export default function AgendarHoja({
   const idNombre = useId();
   const idTel = useId();
   const idPers = useId();
+  const idClub = useId();
+  const idRepetir = useId();
+  const elegirHora = (iso: string | null) => {
+    setHora(iso);
+    // La franja con club trae su club elegido (se puede cambiar); fuera de la grilla queda el que estaba.
+    if (iso && clubDe[iso]) setClubId(clubDe[iso]);
+  };
 
   // Las horas libres del día elegido (la del día de entrada ya vino del servidor).
   useEffect(() => {
     if (fecha === inicial.fecha && vuelta === 0) return;
     let vigente = true;
     horasLibres(fecha)
-      .then((r) => vigente && setLibres(r.ok ? r.libres : []))
+      .then((r) => {
+        if (!vigente) return;
+        setLibres(r.ok ? r.libres : []);
+        setClubDe(r.ok ? r.clubDe ?? {} : {});
+      })
       .catch(() => vigente && setLibres([]))
       .finally(() => vigente && setCargando(false));
     return () => {
@@ -77,7 +98,10 @@ export default function AgendarHoja({
   const hayAlumno = nuevo ? nuevo.nombre.trim().length >= 2 && nuevo.telefono.replace(/\D/g, "").length >= 8 : Boolean(elegido);
   const precio = precioDe(precios, tipo, tipo === "GRUPAL" ? personas : 1);
   const hhmm = hora ? horaHumana(new Date(hora)) : null;
-  const resumen = textoResumen({ alumno: nombreResumen, fecha, hora: hhmm, tipo, personas, precio, hoy });
+  const nombreClub = clubId ? clubes.find((c) => c.id === clubId)?.nombre ?? null : null;
+  const base = textoResumen({ alumno: nombreResumen, fecha, hora: hhmm, tipo, personas, precio, hoy });
+  const resumen = base ? [base, nombreClub, repetir ? "todas las semanas" : null].filter(Boolean).join(" · ") : base;
+  const semanas = semanasDeSerie(diasAdelante);
   const boton = botonAgendar({ alumno: hayAlumno, hora: Boolean(hora), pendiente });
   const opciones = useMemo(() => todos.map((a) => ({ id: a.id, etiqueta: a.nombre, detalle: a.telefono })), [todos]);
   const enFrecuentes = alumnoId ? frecuentes.some((f) => f.id === alumnoId) : false;
@@ -87,6 +111,7 @@ export default function AgendarHoja({
     setNuevo(todos.length === 0 ? { nombre: "", telefono: "" } : null);
     setHora(null);
     setTipo("INDIVIDUAL");
+    setRepetir(false);
     setError(null);
   };
 
@@ -98,6 +123,8 @@ export default function AgendarHoja({
     fd.set("hora", horaHumana(new Date(hora)));
     fd.set("tipo", tipo);
     if (tipo === "GRUPAL") fd.set("personas", String(personas));
+    if (clubId) fd.set("clubId", clubId);
+    if (repetir) fd.set("repetir", "1");
     if (nuevo) {
       fd.set("nombre", nuevo.nombre);
       fd.set("telefono", nuevo.telefono);
@@ -112,8 +139,11 @@ export default function AgendarHoja({
         setVuelta((v) => v + 1);
         return r.error;
       }
-      const texto = `Agendada: ${r.cuando}${r.linkNuevo ? " · va con su link nuevo" : ""}`;
-      setHecho({ texto: `${nombre.split(/\s+/)[0]} · ${r.cuando}`, fecha: dateStrInBusinessTz(new Date(hora)) });
+      const fija = r.fija
+        ? ` · fija: ${r.fija.creadas} clase${r.fija.creadas === 1 ? "" : "s"}${r.fija.salteadas.length ? ` (salteé ${r.fija.salteadas.join(", ")})` : ""}`
+        : "";
+      const texto = `Agendada: ${r.cuando}${fija}${r.linkNuevo ? " · va con su link nuevo" : ""}`;
+      setHecho({ texto: `${nombre.split(/\s+/)[0]} · ${r.cuando}${fija}`, fecha: dateStrInBusinessTz(new Date(hora)) });
       limpiar();
       setAbierta(false);
       mostrar({ texto, nombre, wa: r.wa, enviado: r.enviado, avisoId: r.avisoId ?? null });
@@ -235,7 +265,23 @@ export default function AgendarHoja({
               setCargando(true);
             }}
           />
-          <ChipsHoras fecha={fecha} libres={libres} elegida={hora} onElegir={setHora} cargando={cargando} otraHora vacio="Ese día no tenés huecos. Podés poner otra hora." />
+          <ChipsHoras fecha={fecha} libres={libres} elegida={hora} onElegir={elegirHora} cargando={cargando} otraHora vacio="Ese día no tenés huecos. Podés poner otra hora." />
+
+          {clubes.length > 0 && (
+            <>
+              <Rotulo id={idClub}>¿En qué club?</Rotulo>
+              <div role="group" aria-labelledby={idClub} className="flex flex-wrap gap-2" data-qa="club-agendar">
+                <Chip prendido={clubId === null} onClick={() => setClubId(null)} className={chip48}>
+                  Sin club
+                </Chip>
+                {clubes.map((c) => (
+                  <Chip key={c.id} prendido={clubId === c.id} onClick={() => setClubId(c.id)} className={chip48}>
+                    {c.nombre}
+                  </Chip>
+                ))}
+              </div>
+            </>
+          )}
 
           <Rotulo>¿Cómo es?</Rotulo>
           <Segmented
@@ -261,6 +307,18 @@ export default function AgendarHoja({
               </div>
             </>
           )}
+
+          <label htmlFor={idRepetir} className="mt-4 flex min-h-12 cursor-pointer items-start gap-3 rounded-xl border border-line bg-surface-raised px-3 py-3" data-qa="repetir">
+            <input id={idRepetir} type="checkbox" checked={repetir} onChange={(e) => setRepetir(e.target.checked)} className="mt-0.5 size-5 shrink-0 accent-[var(--accent)]" />
+            <span className="grid gap-0.5">
+              <span className="font-semibold text-strong">Repetir todas las semanas</span>
+              <span className="text-sm text-muted">
+                {hora
+                  ? `${textoSerie({ diaSemana: dayOfWeekForDate(dateStrInBusinessTz(new Date(hora))), hora: horaHumana(new Date(hora)) })}: te agendo las próximas ${semanas} semanas y las siguientes van apareciendo solas.`
+                  : `Clase fija: te agendo las próximas ${semanas} semanas y las siguientes van apareciendo solas.`}
+              </span>
+            </span>
+          </label>
           <ErrorAccion texto={error} className="mt-3" />
         </HojaPanel>
       )}

@@ -15,6 +15,10 @@ export interface ClaseAcciones {
   tipo?: string;
   personas?: number;
   motivoCancel?: string | null;
+  /** E8 · De qué clase fija semanal salió (para «Cancelar esta y las que siguen»). */
+  serieId?: string | null;
+  /** E4 · El club (nombre). */
+  club?: string | null;
 }
 
 /** Duración en minutos (60 si no se sabe). */

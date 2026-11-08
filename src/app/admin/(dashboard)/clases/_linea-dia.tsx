@@ -31,6 +31,8 @@ export function aAcciones(c: ClasePanel): ClaseAcciones {
     tipo: c.tipo,
     personas: c.personas,
     motivoCancel: c.motivoCancel,
+    serieId: c.serieId,
+    club: c.club,
   };
 }
 
@@ -39,9 +41,11 @@ export const delDia = (clases: readonly ClasePanel[]): ClaseDelDia[] =>
   clases.map((c) => ({ id: c.id, nombre: c.nombre, empiezaEn: c.empiezaEn, terminaEn: c.terminaEn, estado: c.estado }));
 
 /** «Individual · $25.000 · Pagada» (lo que se lee en la fila, sin abrirla). */
-export function detalleClase(c: Pick<ClasePanel, "tipo" | "personas" | "precio" | "pagoEstado" | "estado" | "dadas">): string {
+export function detalleClase(c: Pick<ClasePanel, "tipo" | "personas" | "precio" | "pagoEstado" | "estado" | "dadas"> & Partial<Pick<ClasePanel, "club" | "serieId">>): string {
   return [
+    c.club ? `En ${c.club}` : null,
     c.tipo === "GRUPAL" ? `Con amigos · ${c.personas}` : "Individual",
+    c.serieId ? "fija semanal" : null,
     c.precio > 0 ? plataTexto(c.precio) : null,
     ["CONFIRMADA", "DADA"].includes(c.estado) ? PAGO_LABEL[c.pagoEstado as EstadoPago] : null,
     c.dadas === 0 ? "alumno nuevo" : null,
@@ -61,6 +65,7 @@ export function FilaClase({ c, otras, recordada = false, qa }: { c: ClasePanel; 
           <span className="flex min-w-0 items-baseline gap-2">
             <span className="text-lg font-bold tabular-nums text-strong">{horaHumana(new Date(c.empiezaEn))}</span>
             <span className="truncate font-semibold text-strong">{c.nombre}</span>
+            {c.club && <span className="truncate text-sm text-muted" data-qa="club-clase">{c.club}</span>}
             {recordada && <span className="text-xs font-semibold text-muted" data-qa="recordado">✓ recordado</span>}
           </span>
           <ChipEstado estado={c.estado} pago={c.pagoEstado} />

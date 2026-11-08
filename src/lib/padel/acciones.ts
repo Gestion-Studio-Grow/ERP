@@ -30,7 +30,7 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapabilityFueraDeLaAgenda } from "@/lib/authz";
 import { auditAdmin } from "@/lib/audit-core";
 import { leerImporte } from "@/lib/dinero/leer";
-import { businessWallTimeToUtc, todayInBusinessTz } from "@/lib/datetime";
+import { businessWallTimeToUtc, dateStrInBusinessTz, dayOfWeekForDate, todayInBusinessTz } from "@/lib/datetime";
 import {
   ESTADOS_QUE_OCUPAN,
   MOTIVO_AUSENTE_NO_SE_COBRA,
@@ -38,6 +38,8 @@ import {
   MOTIVO_CANCEL_LABEL,
   MOTIVO_COMPROBANTE_LABEL,
   armarMensaje,
+  clubDeHora,
+  corteDeSerie,
   detalleDeuda,
   diaHumano,
   diasEntre,
@@ -67,6 +69,7 @@ import {
   sumarDias,
   telefonoAlumno,
   textoAlternativas,
+  textoSerie,
   transicionClase,
   transicionPago,
   type ClavePlantilla,
@@ -77,7 +80,8 @@ import {
   type MotivoComprobante,
   type TipoClase,
 } from "./core";
-import { AVISOS_QUE_ESPERAN, configPadel, libresCercanos, libresDelDia, libresEnRango } from "./datos.server";
+import { AVISOS_QUE_ESPERAN, configPadel, franjas as franjasDe, libresCercanos, libresDelDia, libresEnRango } from "./datos.server";
+import { generarClasesDeSerie, horizonteDesde } from "./series.server";
 import {
   ErrorNegocio,
   RAIZ,
@@ -114,7 +118,7 @@ async function claseDelProfe(id: string) {
     where: { tenantId, id: String(id ?? "") },
     select: {
       id: true, estado: true, pagoEstado: true, pagoMedio: true, empiezaEn: true, terminaEn: true, tipo: true, personas: true, precio: true, alumnoId: true, clientId: true,
-      motivoCancel: true, repiteDe: true,
+      motivoCancel: true, repiteDe: true, clubId: true, serieId: true,
       alumno: { select: { id: true, token: true } },
       client: { select: { name: true, phone: true } },
     },
@@ -332,6 +336,61 @@ export async function cancelarConMotivo(claseId: string, motivo: MotivoCancel, a
 }
 
 /**
+ * E8 · Cancelar «esta y las que siguen» de una clase fija semanal. En UNA transacción: la serie se
+ * corta el día anterior a esta clase (`hasta`) y queda inactiva (no se genera nada más), y se
+ * cancelan esta y las futuras PEDIDA/CONFIRMADA de la serie. Las que estaban pagadas quedan a favor
+ * (pagoAlCancelar, como cancelarConMotivo); las demás, sin tocar el pago. Un solo WhatsApp.
+ */
+export async function cancelarSerieDesde(claseId: string, motivo?: MotivoCancel | null): Promise<ResultadoTransicion & { canceladas?: number }> {
+  if (motivo != null && !esMotivoCancel(motivo)) return { ok: false, error: "Elegí el motivo." };
+  return conErrorNegocio(async () => {
+    const { tenantId, clase, config, alumno } = await claseDelProfe(claseId);
+    if (!clase.serieId) throw new ErrorNegocio("Esa clase no es fija: cancelala sola.");
+    if (!ACTIVAS.includes(clase.estado)) throw new ErrorNegocio("Esa clase ya cambió. Actualizá la pantalla.");
+    const serieId = clase.serieId;
+    const ahora = new Date();
+    const motivoTexto = motivo ? MOTIVO_CANCEL_LABEL[motivo] : "El profe dejó de lado la clase fija";
+    const r = await bookingTransaction(async (tx) => {
+      const serie = await tx.padelSerie.findFirst({ where: { tenantId, id: serieId }, select: { id: true, diaSemana: true, hora: true } });
+      if (!serie) throw new ErrorNegocio("No encontramos esa clase fija.");
+      await tx.padelSerie.updateMany({
+        where: { tenantId, id: serieId },
+        data: { hasta: new Date(`${corteDeSerie(dateStrInBusinessTz(clase.empiezaEn))}T00:00:00.000Z`), activa: false, canceladaEl: ahora },
+      });
+      const futuras = await tx.padelClase.findMany({
+        where: { tenantId, serieId, estado: { in: ACTIVAS }, empiezaEn: { gte: clase.empiezaEn } },
+        select: { id: true, estado: true, pagoEstado: true, pagoMedio: true, precio: true },
+      });
+      let aFavor = 0;
+      for (const f of futuras) {
+        const pago = pagoAlCancelar(f);
+        const n = await tx.padelClase.updateMany({
+          where: { tenantId, id: f.id, estado: f.estado, pagoEstado: f.pagoEstado },
+          data: { estado: "CANCELADA", canceladaEl: ahora, motivoCancel: motivoTexto, ...(pago ?? {}) },
+        });
+        if (n.count === 0) throw new ErrorNegocio("Una de esas clases cambió recién. Actualizá la pantalla.");
+        if (pago?.pagoEstado === "ACREDITADO") aFavor += Number(f.precio);
+      }
+      return { serie, ids: futuras.map((f) => f.id), aFavor };
+    });
+    if (r.ids.length) await prisma.padelAviso.updateMany({ where: { tenantId, claseId: { in: r.ids }, destino: "PROFE", leidoEl: null }, data: { leidoEl: ahora } });
+    await auditAdmin({ action: "padel.serie.cortar", entity: "PadelSerie", entityId: serieId, changes: { desde: clase.id, canceladas: r.ids.length, ...(r.aFavor ? { aFavor: r.aFavor } : {}), ...(motivo ? { motivo } : {}) } });
+    const conMotivo = motivo ? plantillaDeCancelacion(motivo) : null;
+    const extras = [
+      `Y dejo sin efecto la clase fija (${textoSerie(r.serie).toLowerCase()}): ${r.ids.length === 1 ? "se canceló ésta" : `se cancelaron ésta y ${r.ids.length - 1} más`}.`,
+      r.aFavor > 0 ? `Lo que pagaste (${pesos(r.aFavor)}) te queda a favor para la próxima.` : "",
+    ].filter(Boolean);
+    const aviso = await avisarAlAlumno({
+      tenantId, config, clave: conMotivo?.clave ?? "rechazada", tipo: "cancelada", alumno, clase,
+      vars: conMotivo?.motivo ? { motivo: conMotivo.motivo } : undefined,
+      extra: extras.join(" "),
+    });
+    refrescar(alumno.token);
+    return { ok: true as const, ...aviso, claseId: clase.id, nombre: alumno.nombre, canceladas: r.ids.length, ...(r.aFavor > 0 ? { aFavor: r.aFavor } : {}) };
+  });
+}
+
+/**
  * «Mover» (F2, M-032/M-033): la misma clase a otra hora, en una transacción. Conserva estado, pago,
  * precio y tipo; la franja vieja queda libre. Un solo WhatsApp: «Te pasé la clase del … al …». La
  * movida queda registrada en el aviso al alumno (tipo «movida») y en la auditoría. El profe puede
@@ -371,7 +430,7 @@ export async function moverHorario(claseId: string, nuevaHoraIso: string): Promi
  * anticipación mínima. `excluirClaseId`: la clase que se está moviendo (su propio horario cuenta
  * como libre y la duración es la suya).
  */
-export async function horasLibres(fecha: string, excluirClaseId?: string): Promise<Resultado<{ libres: string[] }>> {
+export async function horasLibres(fecha: string, excluirClaseId?: string): Promise<Resultado<{ libres: string[]; clubDe?: Record<string, string> }>> {
   await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   if (!fechaValida(fecha)) return { ok: false, error: "Elegí el día." };
@@ -381,8 +440,14 @@ export async function horasLibres(fecha: string, excluirClaseId?: string): Promi
     if (!c) return { ok: false, error: "No encontramos esa clase." };
     duracionMin = Math.round((c.terminaEn.getTime() - c.empiezaEn.getTime()) / 60_000);
   }
-  const { libres } = await libresDelDia(tenantId, fecha, new Date(), excluirClaseId, { anticipacionMin: 0, duracionMin });
-  return { ok: true, libres };
+  const { libres, franjas } = await libresDelDia(tenantId, fecha, new Date(), excluirClaseId, { anticipacionMin: 0, duracionMin });
+  // E4 · El club de cada hora libre (iso → clubId), para que Agendar lo traiga elegido.
+  const clubDe: Record<string, string> = {};
+  for (const iso of libres) {
+    const id = clubDeHora(fecha, franjas, new Date(iso));
+    if (id) clubDe[iso] = id;
+  }
+  return { ok: true, libres, ...(Object.keys(clubDe).length ? { clubDe } : {}) };
 }
 
 /**
@@ -899,7 +964,7 @@ export async function agendarProxima(id: string): Promise<Resultado<ConAviso & {
       const nueva = await tx.padelClase.create({
         data: {
           tenantId, alumnoId: clase.alumnoId, clientId: clase.clientId, empiezaEn, terminaEn, tipo: clase.tipo, personas: clase.personas,
-          estado: "CONFIRMADA", confirmadaEl: new Date(), origen: "PROFE", repiteDe: clase.id, precio, ...(conSaldo ?? {}),
+          estado: "CONFIRMADA", confirmadaEl: new Date(), origen: "PROFE", repiteDe: clase.id, precio, clubId: clase.clubId, ...(conSaldo ?? {}),
         },
         select: { id: true, empiezaEn: true, precio: true, pagoMedio: true },
       });
@@ -922,7 +987,7 @@ export async function agendarProxima(id: string): Promise<Resultado<ConAviso & {
  * Alta directa del profe (le pidieron la clase en la cancha): alumno existente o nuevo. Si el alumno
  * ya existía y el profe todavía no lo había reconocido, su link se regenera (O-1).
  */
-export async function agendarClase(fd: FormData): Promise<Resultado<ConAviso & { cuando: string; linkNuevo?: boolean }>> {
+export async function agendarClase(fd: FormData): Promise<Resultado<ConAviso & { cuando: string; linkNuevo?: boolean; fija?: { creadas: number; salteadas: string[] } }>> {
   await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const fecha = String(fd.get("fecha") ?? "");
@@ -934,13 +999,20 @@ export async function agendarClase(fd: FormData): Promise<Resultado<ConAviso & {
   const nombre = nombreValido(fd.get("nombre"));
   const telefono = telefonoAlumno(String(fd.get("telefono") ?? ""));
   if (!alumnoId && (!nombre || !telefono)) return { ok: false, error: "Elegí un alumno, o poné nombre y celular de uno nuevo." };
+  // E4 · Club (opcional): la pantalla manda el de la franja ya elegido; vacío = sin club.
+  const clubId = String(fd.get("clubId") ?? "").trim() || null;
+  // E8 · «Repetir todas las semanas»: nace una clase fija (PadelSerie) con sus próximas semanas.
+  const repetir = fd.get("repetir") === "1";
 
-  const config = await configPadel(tenantId);
+  const [config, fr] = await Promise.all([configPadel(tenantId), franjasDe(tenantId)]);
   const empiezaEn = businessWallTimeToUtc(fecha, horaTxt);
   const terminaEn = new Date(empiezaEn.getTime() + config.duracionMin * 60_000);
   try {
     const r = await bookingTransaction(async (tx) => {
       if (await choqueEn(tx, tenantId, empiezaEn, terminaEn)) throw new ErrorNegocio("Ese horario ya tiene una clase.");
+      if (clubId && !(await tx.padelClub.findFirst({ where: { tenantId, id: clubId, activo: true }, select: { id: true } }))) {
+        throw new ErrorNegocio("Ese club ya no está. Actualizá la pantalla.");
+      }
       const alumno = alumnoId
         ? await tx.padelAlumno.findFirst({ where: { tenantId, id: alumnoId }, select: { id: true, token: true, clientId: true } })
         : await alumnoPorTelefono(tx, tenantId, telefono, nombre!);
@@ -948,20 +1020,44 @@ export async function agendarClase(fd: FormData): Promise<Resultado<ConAviso & {
       const link = await reconocerAlumno(tx, tenantId, alumno, { recienCreado: "recienCreado" in alumno ? Boolean(alumno.recienCreado) : false });
       const precio = precioDe(config, tipo, personas);
       const conSaldo = pagoConSaldo(await saldoEnTx(tx, tenantId, alumno.id), precio);
+      const serie = repetir
+        ? await tx.padelSerie.create({
+            data: { tenantId, alumnoId: alumno.id, clubId, diaSemana: dayOfWeekForDate(fecha), hora: horaTxt, tipo, personas, desde: new Date(`${fecha}T00:00:00.000Z`) },
+            select: { id: true },
+          })
+        : null;
       const clase = await tx.padelClase.create({
         data: {
           tenantId, alumnoId: alumno.id, clientId: alumno.clientId, empiezaEn, terminaEn, tipo, personas,
-          estado: "CONFIRMADA", confirmadaEl: new Date(), origen: "PROFE", precio, ...(conSaldo ?? {}),
+          estado: "CONFIRMADA", confirmadaEl: new Date(), origen: "PROFE", precio, clubId, serieId: serie?.id ?? null, ...(conSaldo ?? {}),
         },
         select: { id: true, empiezaEn: true, precio: true, pagoMedio: true },
       });
+      // Las semanas que siguen (la primera ya está): salta las que chocan o caen en un bloqueo.
+      const fija = serie
+        ? await generarClasesDeSerie(tx, {
+            tenantId, config, franjas: fr, horizonte: horizonteDesde(fecha, config.diasAdelante), noAntesDe: empiezaEn,
+            serie: { id: serie.id, alumnoId: alumno.id, clientId: alumno.clientId, clubId, hora: horaTxt, tipo, personas, desde: fecha, hasta: null },
+          })
+        : null;
       const cliente = await tx.client.findFirst({ where: { tenantId, id: alumno.clientId }, select: { name: true, phone: true } });
-      return { clase, tokenViejo: alumno.token, regenerado: link.regenerado, alumno: { id: alumno.id, token: link.token, nombre: cliente?.name ?? "", telefono: cliente?.phone ?? "" } };
+      return { clase, serieId: serie?.id ?? null, fija, tokenViejo: alumno.token, regenerado: link.regenerado, alumno: { id: alumno.id, token: link.token, nombre: cliente?.name ?? "", telefono: cliente?.phone ?? "" } };
     });
-    await auditAdmin({ action: "padel.agendar", entity: "PadelClase", entityId: r.clase.id, ...(r.regenerado ? { changes: { linkNuevo: true } } : {}) });
-    const aviso = await avisarAlAlumno({ tenantId, config, clave: "proxima", tipo: "proxima", clase: r.clase, alumno: r.alumno, extra: r.clase.pagoMedio === "SALDO_A_FAVOR" ? YA_PAGADA_CON_SALDO : undefined });
+    await auditAdmin({
+      action: "padel.agendar", entity: "PadelClase", entityId: r.clase.id,
+      ...(r.regenerado || r.serieId || clubId ? { changes: { ...(r.regenerado ? { linkNuevo: true } : {}), ...(clubId ? { clubId } : {}), ...(r.serieId ? { serieId: r.serieId, creadas: 1 + (r.fija?.creadas.length ?? 0), salteadas: r.fija?.salteadas.length ?? 0 } : {}) } } : {}),
+    });
+    const salteadas = (r.fija?.salteadas ?? []).map((x) => `${diaHumano(x.empiezaEn)} (${x.motivo === "bloqueado" ? "día bloqueado" : "ya tenés otra clase"})`);
+    const extras = [
+      r.clase.pagoMedio === "SALDO_A_FAVOR" ? YA_PAGADA_CON_SALDO : "",
+      r.serieId ? `Te la dejo fija: ${textoSerie({ diaSemana: dayOfWeekForDate(fecha), hora: horaTxt }).toLowerCase()}.` : "",
+    ].filter(Boolean);
+    const aviso = await avisarAlAlumno({ tenantId, config, clave: "proxima", tipo: "proxima", clase: r.clase, alumno: r.alumno, extra: extras.join(" ") || undefined });
     refrescar(r.alumno.token, r.tokenViejo);
-    return { ok: true, ...aviso, cuando: `${diaHumano(empiezaEn)} ${horaHumana(empiezaEn)}`, ...(r.regenerado ? { linkNuevo: true } : {}) };
+    return {
+      ok: true, ...aviso, cuando: `${diaHumano(empiezaEn)} ${horaHumana(empiezaEn)}`, ...(r.regenerado ? { linkNuevo: true } : {}),
+      ...(r.fija ? { fija: { creadas: 1 + r.fija.creadas.length, salteadas } } : {}),
+    };
   } catch (e) {
     const r = respuestaDeError(e);
     if (r) return r;
@@ -1097,8 +1193,11 @@ export async function agregarBloqueo(fd: FormData): Promise<Resultado> {
   const desde = String(fd.get("desde") ?? "") || "00:00";
   const hasta = String(fd.get("hasta") ?? "") || "23:59";
   if (!fechaValida(fecha) || !horaValida(desde) || !horaValida(hasta) || hasta <= desde) return { ok: false, error: "Elegí el día (y si querés, desde y hasta qué hora)." };
-  await prisma.padelDisponibilidad.create({ data: { tenantId, fecha: new Date(`${fecha}T00:00:00.000Z`), desde, hasta, tipo: "NO" } });
-  await auditAdmin({ action: "padel.bloqueo", entity: "PadelDisponibilidad", changes: { fecha, desde, hasta } });
+  // E4 · Bloquear sólo un club (vacío = todo el día, en todos). Tiene que ser de este negocio.
+  const clubId = String(fd.get("clubId") ?? "") || null;
+  if (clubId && !(await prisma.padelClub.findFirst({ where: { tenantId, id: clubId }, select: { id: true } }))) return { ok: false, error: "Ese club ya no está. Actualizá la pantalla." };
+  await prisma.padelDisponibilidad.create({ data: { tenantId, fecha: new Date(`${fecha}T00:00:00.000Z`), desde, hasta, tipo: "NO", clubId } });
+  await auditAdmin({ action: "padel.bloqueo", entity: "PadelDisponibilidad", changes: { fecha, desde, hasta, ...(clubId ? { clubId } : {}) } });
   refrescar();
   return { ok: true };
 }

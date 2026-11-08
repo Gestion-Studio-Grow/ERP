@@ -27,7 +27,7 @@ import { requestIp } from "@/lib/audit-core";
 import { createRateLimiter } from "@/lib/rate-limit";
 import { tenantTransaction } from "@/lib/rls";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { ESTADOS_QUE_OCUPAN, armarMensaje, diaHumano, horaHumana, pesos, plantillaConfirmada, saldoAFavor, saldoCubre, tokenValido, type ClavePlantilla } from "./core";
+import { ESTADOS_QUE_OCUPAN, armarMensaje, diaHumano, horaHumana, pesos, plantillaConClub, plantillaConfirmada, saldoAFavor, saldoCubre, tokenValido, type ClavePlantilla } from "./core";
 import type { ConfigPadel } from "./datos.server";
 import { notificadorActual } from "./notificador";
 import { regenerarAlReconocer } from "./sesion-alumno";
@@ -296,6 +296,11 @@ export async function avisarAlAlumno(p: {
 }): Promise<ConAviso & { avisoId: string }> {
   const base = await origen();
   const precio = p.clase ? Number(p.clase.precio) : 0;
+  // E4 · El club de la clase (si tiene) va en el texto: `{club}` donde el profe lo puso, o « en <club>»
+  // después de la hora (plantillaConClub). Sin club, el mensaje es el de siempre.
+  const club = p.clase
+    ? (await prisma.padelClase.findFirst({ where: { tenantId: p.tenantId, id: p.clase.id }, select: { club: { select: { nombre: true } } } }))?.club?.nombre ?? ""
+    : "";
   const vars: Record<string, string> = {
     nombre: p.alumno.nombre.split(" ")[0],
     dia: p.clase ? diaHumano(p.clase.empiezaEn) : "",
@@ -305,12 +310,15 @@ export async function avisarAlAlumno(p: {
     alias: p.config.aliasCbu || "(te lo paso por acá)",
     link: `${base}/alumno/${p.alumno.token}`,
     turnero: `${base}/clases`,
+    club,
     ...(p.vars ?? {}),
   };
-  const plantilla =
+  const plantilla = plantillaConClub(
     p.clave === "confirmada"
       ? plantillaConfirmada(p.config.plantillas.confirmada, { hayPrecio: precio > 0, hayAlias: Boolean(p.config.aliasCbu) })
-      : p.config.plantillas[p.clave];
+      : p.config.plantillas[p.clave],
+    Boolean(club),
+  );
   const texto = [armarMensaje(plantilla, vars), p.extra].filter(Boolean).join(" ");
   const meta = META_DE[p.clave];
   const r = await notificadorActual().enviar({

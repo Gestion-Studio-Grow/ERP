@@ -8,6 +8,8 @@ export const VARIABLES: readonly { clave: string; rotulo: string }[] = [
   { clave: "nombre", rotulo: "Nombre" },
   { clave: "dia", rotulo: "Día" },
   { clave: "hora", rotulo: "Hora" },
+  // E4 · Si no lo ponés, va solo después de la hora cuando la clase tiene club.
+  { clave: "club", rotulo: "Club" },
   { clave: "precio", rotulo: "Precio" },
   { clave: "alias", rotulo: "Alias" },
   { clave: "link", rotulo: "Link" },
@@ -19,6 +21,7 @@ export function datosDeEjemplo(p: { alias: string; profe: string; origen: string
     nombre: "Juan",
     dia: "jueves 23/10",
     hora: "18:00",
+    club: "Club Norte",
     precio: "$ 25.000",
     alias: p.alias || "tu.alias",
     link: `${p.origen}/alumno/…`,

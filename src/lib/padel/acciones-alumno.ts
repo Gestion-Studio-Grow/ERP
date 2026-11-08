@@ -27,6 +27,7 @@ import { createRateLimiter } from "@/lib/rate-limit";
 import { dateStrInBusinessTz } from "@/lib/datetime";
 import {
   armarMensaje,
+  clubDeHora,
   comprobanteValido,
   diaHumano,
   esTipoClase,
@@ -132,10 +133,12 @@ export async function pedirClase(
   if (Number.isNaN(empiezaEn.getTime())) return { ok: false, error: "Elegí un horario." };
 
   const fecha = dateStrInBusinessTz(empiezaEn);
-  const { config, libres } = await libresDelDia(tenantId, fecha);
+  const { config, libres, franjas } = await libresDelDia(tenantId, fecha);
   if (!libres.includes(empiezaEn.toISOString())) {
     return { ok: false, error: "Ese horario se acaba de ocupar. Elegí otro.", alternativas: await libresCercanos(tenantId, empiezaEn, { n: 2 }) };
   }
+  // E4 · Si la franja es de un club, la clase lo hereda.
+  const clubId = clubDeHora(fecha, franjas, empiezaEn);
   // El freno de 3 por celular cuenta DESPUÉS de ver que la hora está libre (O-10 de la CERT T2+T3):
   // un alumno al que «se le ocupó» tres veces seguidas no queda frenado 10 minutos. El de IP, arriba,
   // sigue contando todo.
@@ -152,7 +155,7 @@ export async function pedirClase(
         throw new ErrorNegocio(`Ya tenés ${pendientes} clase${pendientes > 1 ? "s" : ""} esperando que el profe confirme. Cuando te conteste, pedí la próxima.`);
       }
       const clase = await tx.padelClase.create({
-        data: { tenantId, alumnoId: alumno.id, clientId: alumno.clientId, empiezaEn, terminaEn, tipo, personas, origen: "TURNERO", precio: precioDe(config, tipo, personas) },
+        data: { tenantId, alumnoId: alumno.id, clientId: alumno.clientId, empiezaEn, terminaEn, tipo, personas, origen: "TURNERO", precio: precioDe(config, tipo, personas), clubId },
         select: { id: true },
       });
       // ¿Este dispositivo es el dueño del link? Si no lo es y el profe todavía no reconoció al alumno,
@@ -347,7 +350,8 @@ export async function reservarDesdeLink(
   }
 
   const fecha = dateStrInBusinessTz(empiezaEn);
-  const { config, libres } = await libresDelDia(tenantId, fecha);
+  const { config, libres, franjas } = await libresDelDia(tenantId, fecha);
+  const clubId = clubDeHora(fecha, franjas, empiezaEn);
   if (!libres.includes(empiezaEn.toISOString())) {
     // Las tres franjas libres más cercanas a la que quería, ese día o el siguiente.
     return { ok: false, error: "Ese horario ya no está libre.", alternativas: await libresCercanos(tenantId, empiezaEn) };
@@ -369,7 +373,7 @@ export async function reservarDesdeLink(
         data: {
           tenantId, alumnoId: alumno.id, clientId: alumno.clientId, empiezaEn, terminaEn, tipo, personas: base.personas,
           estado: confirmada ? "CONFIRMADA" : "PEDIDA", confirmadaEl: confirmada ? new Date() : null,
-          origen: "ALUMNO_LINK", repiteDe: repiteDe ?? null, precio, ...(conSaldo ?? {}),
+          origen: "ALUMNO_LINK", repiteDe: repiteDe ?? null, precio, clubId, ...(conSaldo ?? {}),
         },
         select: { id: true, pagoMedio: true },
       });
@@ -506,7 +510,9 @@ export async function cambiarHorarioDesdeLink(
   if (nueva.getTime() === clase.empiezaEn.getTime()) return { ok: false, error: "Tu clase ya es a esa hora." };
   const duracionMs = clase.terminaEn.getTime() - clase.empiezaEn.getTime();
   const duracionMin = Math.round(duracionMs / 60_000);
-  const { libres } = await libresDelDia(tenantId, dateStrInBusinessTz(nueva), ahora, clase.id, { duracionMin });
+  const { libres, franjas } = await libresDelDia(tenantId, dateStrInBusinessTz(nueva), ahora, clase.id, { duracionMin });
+  // E4 · Si la hora nueva es de una franja con club, va a ese club; si no, queda el que tenía.
+  const clubNuevo = clubDeHora(dateStrInBusinessTz(nueva), franjas, nueva);
   if (!libres.includes(nueva.toISOString())) {
     return { ok: false, error: "Ese horario ya no está libre.", alternativas: await libresCercanos(tenantId, nueva, { excluir: clase.id, duracionMin }) };
   }
@@ -521,7 +527,7 @@ export async function cambiarHorarioDesdeLink(
         if (await choqueEn(tx, tenantId, nueva, terminaEn, clase.id)) throw new ErrorNegocio("Ese horario se acaba de ocupar. Elegí otro.");
         const n = await tx.padelClase.updateMany({
           where: { tenantId, id: clase.id, alumnoId: alumno.id, estado: clase.estado, empiezaEn: clase.empiezaEn },
-          data: { empiezaEn: nueva, terminaEn },
+          data: { empiezaEn: nueva, terminaEn, ...(clubNuevo ? { clubId: clubNuevo } : {}) },
         });
         if (n.count === 0) throw new ErrorNegocio("Esa clase ya cambió. Actualizá la pantalla.");
       });
@@ -539,7 +545,7 @@ export async function cambiarHorarioDesdeLink(
       return tx.padelClase.create({
         data: {
           tenantId, alumnoId: alumno.id, clientId: clase.clientId, empiezaEn: nueva, terminaEn, tipo: clase.tipo, personas: clase.personas,
-          estado: "PEDIDA", origen: "ALUMNO_LINK", repiteDe: clase.id, precio: clase.precio,
+          estado: "PEDIDA", origen: "ALUMNO_LINK", repiteDe: clase.id, precio: clase.precio, ...(clubNuevo ? { clubId: clubNuevo } : {}),
         },
         select: { id: true },
       });

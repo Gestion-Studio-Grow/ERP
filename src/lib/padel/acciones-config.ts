@@ -94,9 +94,19 @@ async function guardarCampo(clave: string, valor: unknown): Promise<Resultado<{ 
     return { ok: true, valor: v.texto ?? PLANTILLAS_DEFAULT[v.clave] };
   }
 
+  // E4 · Un club de otro negocio (o inventado) no entra: se valida contra los clubes de ÉSTE.
+  const pedidos = [...new Set(v.tramos.map((t) => t.clubId).filter((x): x is string => Boolean(x)))];
+  if (pedidos.length) {
+    const propios = await prisma.padelClub.count({ where: { tenantId, id: { in: pedidos } } });
+    if (propios !== pedidos.length) return { ok: false, error: "Uno de los clubes ya no está. Actualizá la pantalla." };
+  }
   await tenantTransaction(async (tx) => {
     await tx.padelDisponibilidad.deleteMany({ where: { tenantId, fecha: null } });
-    if (v.tramos.length) await tx.padelDisponibilidad.createMany({ data: v.tramos.map((t) => ({ tenantId, ...t, tipo: "DA" })) });
+    if (v.tramos.length) {
+      await tx.padelDisponibilidad.createMany({
+        data: v.tramos.map((t) => ({ tenantId, diaSemana: t.diaSemana, desde: t.desde, hasta: t.hasta, clubId: t.clubId ?? null, tipo: "DA" })),
+      });
+    }
   }, { tenantId });
   await auditAdmin({ action: "padel.horarios", entity: "PadelDisponibilidad", changes: { tramos: v.tramos.length } });
   refrescar();
