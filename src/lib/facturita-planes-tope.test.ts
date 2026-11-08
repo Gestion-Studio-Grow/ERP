@@ -18,9 +18,9 @@ import {
 
 const HOY = "20261108";
 
-test("escalera de Factoque: 5 / 40 / 159, $0 / $5.900 / $9.900, provisionales", () => {
+test("escalera de Factoque: 5 / 40 / 159, $0 / $8.900 / $15.000, provisionales", () => {
   assert.deepEqual(PLANES_FACTOQUE.map((p) => p.facturasPorMes), [5, 40, 159]);
-  assert.deepEqual(PLANES_FACTOQUE.map((p) => p.precioMensual), [0, 5_900, 9_900]);
+  assert.deepEqual(PLANES_FACTOQUE.map((p) => p.precioMensual), [0, 8_900, 15_000]);
   assert.deepEqual(PLANES_FACTOQUE.map((p) => p.id), ["facturita", "factoque-plus", "factoque-pro"]);
   assert.equal(PLAN_SALTO.id, "factoque-plus");
   assert.equal(LO_QUE_SIGUE.producto, "comerciante");
