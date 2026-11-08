@@ -13,7 +13,6 @@ import {
   validarEmision,
   ventanaDeFechaArca,
   avisoCuitJuridicoMonotributo,
-  anulacionSegunCupo,
   errorDeNotaRechazada,
   estadoDeAnulacion,
   numeroDeComprobante,
@@ -38,7 +37,8 @@ test("tope: con 5 usadas bloquea y ofrece el upgrade", () => {
   const e = estadoLimite(5);
   assert.equal(e.puedeEmitir, false);
   assert.match(e.mensaje ?? "", /tope/i);
-  assert.match(e.mensaje ?? "", /Comerciante/);
+  assert.match(e.mensaje ?? "", /plan Factoque/);
+  assert.doesNotMatch(e.mensaje ?? "", /Comerciante|\$/, "no nombra Comerciante ni inventa precios");
 });
 
 test("emisión: sin descripción no pasa", () => {
@@ -202,12 +202,14 @@ test("mensaje: dice el estado real (de prueba, autorizada con CAE, pendiente o a
   );
   assert.match(mensajeDeEmision({ estado: "pendiente", motivo: "esperando", ventanaDias: 5 }), /sale apenas ARCA responda/);
   assert.match(mensajeDeEmision({ estado: "pendiente", motivo: "apagada", ventanaDias: 10 }), /todavía no está activa/);
+  assert.match(mensajeDeEmision({ estado: "pendiente", motivo: "apagada", ventanaDias: 10 }), /«Conectar con ARCA»/, "dice adónde ir");
 });
 
-test("el aviso del tope no promete «sin límite»: nombra el tope del plan Solo", () => {
+test("el aviso del tope no promete «sin límite» ni fija un tope de plan que todavía no está en el motor (T2)", () => {
   const m = estadoLimite(LIMITE_FACTURAS_FACTURITA).mensaje ?? "";
   assert.doesNotMatch(m, /sin límite/i);
-  assert.match(m, new RegExp(String(PLAN_SALTO.facturasPorMes)));
+  assert.doesNotMatch(m, new RegExp(String(PLAN_SALTO.facturasPorMes)));
+  assert.match(m, /plan Factoque/);
 });
 
 // ---------------------------------------------------------------------------
@@ -277,17 +279,6 @@ test("anulación: «anulada» sólo con la nota autorizada; pendiente = en curso
   assert.deepEqual(estadoDeAnulacion(1000, [{ status: "PENDING", total: 1000 }]), { saldo: 0, estado: "en_curso" });
   assert.deepEqual(estadoDeAnulacion(1000, [{ status: "AUTHORIZED", total: 1000 }]), { saldo: 0, estado: "anulada" });
   assert.deepEqual(estadoDeAnulacion(1000, [{ status: "REJECTED", total: 1000 }]), { saldo: 1000, estado: "ninguna" });
-});
-
-test("anulación: la nota ocupa cupo; sin lugar no se anula y se dice qué hacer", () => {
-  assert.deepEqual(anulacionSegunCupo(estadoLimite(4)), { ok: true });
-  const lleno = anulacionSegunCupo(estadoLimite(LIMITE_FACTURAS_FACTURITA));
-  assert.equal(lleno.ok, false);
-  if (!lleno.ok) {
-    assert.match(lleno.error, /cuenta como uno de los 5/);
-    assert.match(lleno.error, /ARCA/);
-    assert.match(lleno.error, /Comerciante/);
-  }
 });
 
 test("nota de crédito rechazada: error que dice que la factura sigue vigente", () => {

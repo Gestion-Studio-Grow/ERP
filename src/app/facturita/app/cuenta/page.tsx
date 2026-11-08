@@ -1,6 +1,6 @@
 // FACTURITA · Mi cuenta — los datos fiscales del emisor, el estado de ARCA y
-// el gancho de upgrade: cuando el negocio crece, Comerciante es activar más
-// módulos en el MISMO espacio, sin migrar nada (ADR-076).
+// la tarjeta «Conectar con ARCA» (Plan de salida 11/2026 §1 #6) y el gancho de upgrade: cuando el
+// negocio crece, Comerciante es activar más módulos en el MISMO espacio, sin migrar nada (ADR-076).
 
 import { PageHeader, Badge } from "@/components/ui";
 import { getFacturacion } from "@/lib/facturacion-actions";
@@ -11,6 +11,10 @@ import MercadoPagoConexion from "./MercadoPagoConexion";
 import { sesionFacturita } from "@/lib/facturita-sesion.server";
 import Link from "next/link";
 import { ESTADO_PRECIOS, PLAN_SALTO, precioConPeriodo } from "@/lib/facturita-planes";
+import { LINK_CONECTAR_ARCA } from "@/lib/facturita-core";
+import { estadoConexionArca } from "@/lib/facturita-arca";
+import { leerFichaDelPase } from "@/lib/operador/pase-a-real.server";
+import { modoDesdeEnv } from "@/plugins/arca";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +32,8 @@ export default async function FacturitaCuentaPage({ searchParams }: { searchPara
     searchParams,
   ]);
   const avisoMp = typeof q.mp === "string" ? q.mp : undefined;
+  // La ficha del pase se lee con el tenantId de la SESIÓN (nunca de la URL): sólo el propio negocio.
+  const arca = estadoConexionArca(await leerFichaDelPase(tenantId, modoDesdeEnv()).catch(() => null));
 
   return (
     <>
@@ -63,6 +69,20 @@ export default async function FacturitaCuentaPage({ searchParams }: { searchPara
           </dd>
         </div>
       </dl>
+
+      <section aria-labelledby="conectar-arca" className="mb-6 rounded-xl border border-line bg-surface-raised px-[22px] py-5 shadow-card">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 id="conectar-arca" className="text-sm font-semibold text-strong">Conectar con ARCA</h2>
+          <Badge tone={arca.tono} dot>{arca.etiqueta}</Badge>
+        </div>
+        <p className="mt-1 text-sm text-muted">{arca.detalle}</p>
+        <Link
+          href={LINK_CONECTAR_ARCA}
+          className="mt-3 inline-flex min-h-11 items-center font-semibold text-strong underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        >
+          {arca.accion}
+        </Link>
+      </section>
 
       <MercadoPagoConexion tenantId={tenantId} aviso={avisoMp} />
 
