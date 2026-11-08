@@ -3,6 +3,7 @@ import { getSessionCookieName, readSessionToken } from "@/lib/auth";
 import { getOperatorCookieName, readOperatorToken } from "@/lib/operator-auth";
 import { isDemoSandbox } from "@/lib/demo-flag";
 import { vidrieraDelHost } from "@/lib/producto-host";
+import { PREFIJO_CLUB_CRUDO } from "@/lib/club-crudo";
 import {
   GATE_PATH,
   extraPublicPaths,
@@ -35,8 +36,11 @@ export function esApexDelDominio(host: string | null | undefined, base = process
   return !!b && !!h && (h === b || h === `www.${b}`);
 }
 
-/** ¿La ruta es del club crudo de Break Point? Normalizada (mayúsculas, %xx, barras dobles) para no esquivarla. PURA. */
-export function esClubCrudo(pathname: string): boolean {
+/**
+ * Si la ruta es del club crudo de Break Point, lo que queda debajo de la carpeta (`""` para la carpeta misma);
+ * si no, `null`. Normalizada (mayúsculas, %xx, barras dobles e invertidas, . y ..) para no esquivarla. PURA.
+ */
+export function rutaDelClubCrudo(pathname: string): string | null {
   let p = pathname;
   try {
     p = decodeURIComponent(pathname);
@@ -53,8 +57,14 @@ export function esClubCrudo(pathname: string): boolean {
   p = `/${segs.join("/")}`;
   // El motor puro (reglas de canchas y precios, sin pantalla ni datos) queda público: lo importa el turnero crudo
   // de los jugadores (public/previews/breakpoint/turnero/local.mjs) y ya viaja dentro de /turnero.
-  if (p === "/previews/breakpoint/club/motor.mjs") return false;
-  return p === "/previews/breakpoint/club" || p.startsWith("/previews/breakpoint/club/");
+  if (p === "/previews/breakpoint/club/motor.mjs") return null;
+  if (p === "/previews/breakpoint/club") return "";
+  return p.startsWith("/previews/breakpoint/club/") ? p.slice("/previews/breakpoint/club/".length) : null;
+}
+
+/** ¿La ruta es del club crudo de Break Point? Ver `rutaDelClubCrudo`. PURA. */
+export function esClubCrudo(pathname: string): boolean {
+  return rutaDelClubCrudo(pathname) !== null;
 }
 
 export async function proxy(request: NextRequest) {
@@ -101,10 +111,16 @@ export async function proxy(request: NextRequest) {
 
   // --- El club de Break Point de antes del ERP, en crudo (public/previews/breakpoint/club): es la misma app que
   // /club y se servía a cualquiera, en cualquier host (también en el de Break Point, donde comparte el guardado del
-  // navegador con la jornada). Sin una sesión vigente del panel, 404. El chequeo fino (negocio y permiso) lo hace el
-  // manejador de /club (src/app/sitio-estatico); estos archivos son sólo el código fuente, sin datos.
-  if (esClubCrudo(pathname) && !(await readSessionToken(request.cookies.get(getSessionCookieName())?.value))) {
-    return new NextResponse("No encontrado", { status: 404, headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" } });
+  // navegador con la jornada). Sin una sesión vigente del panel, 404 acá. Con sesión, NUNCA se sirve el archivo
+  // público directo: se reescribe al manejador (src/app/club-crudo), que exige un usuario activo DEL NEGOCIO
+  // breakpoint con el permiso del club, el mismo criterio que /club (src/lib/sitio-estatico.ts). Antes alcanzaba un
+  // token válido de cualquier negocio (certificación GSG-SEG-002).
+  const restoDelClub = rutaDelClubCrudo(pathname);
+  if (restoDelClub !== null) {
+    if (!(await readSessionToken(request.cookies.get(getSessionCookieName())?.value))) {
+      return new NextResponse("No encontrado", { status: 404, headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" } });
+    }
+    return NextResponse.rewrite(new URL(`${PREFIJO_CLUB_CRUDO}/${restoDelClub}`, request.url), { request: { headers: requestHeaders } });
   }
 
   // --- Plano de OPERADOR (control-plane, ADR-021) — portón separado del de tenant.

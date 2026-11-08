@@ -9,15 +9,13 @@ Código: `src/lib/auth.ts`. Tests: `src/lib/auth-sesion.test.ts`.
 Lo nuevo: si alguien copia la cookie, deja de servir a las 8 h. Cuando vence, el login dice «Tu sesión venció»
 (`?error=vencida`), no «contraseña incorrecta».
 
-**Transición (los tokens viejos).** Un token del formato viejo vale hasta `finDeLaTransicion()`:
-el momento del build de producción (`GSG_COMPILADO_EN`, lo inlinea `next.config.ts`) + 9 h, y nunca después del
-15/12/2026 06:00 (`TOPE_DE_LA_TRANSICION`). Como desde el deploy ya no se emiten tokens viejos y cada cookie vieja
-vence sola a las 8 h de su ingreso, nadie que esté trabajando al publicar queda afuera: sigue hasta el fin de su
-turno de 8 h como siempre y el próximo ingreso ya es v2. Pasada la ventana, un token viejo (vigente o copiado) no abre
-nada. Sin marca de build (dev, tests) el formato viejo se rechaza.
+**Transición (los tokens viejos).** Un token del formato viejo vale sólo antes de `FIN_DE_LA_TRANSICION`
+(src/lib/auth.ts): una fecha FIJA del código, 09/11/2026 12:00 Argentina (provisional, a confirmar; ~1 día después de
+publicar). No depende del build: un redeploy no reabre la ventana. Como desde el deploy ya no se emiten tokens viejos y
+cada cookie vieja vence sola a las 8 h de su ingreso, quien esté trabajando al publicar sigue hasta el fin de su turno.
+Desde esa fecha, un token viejo (vigente o copiado) no abre nada, en ningún deploy; `legadoHasta` sólo puede acortarla.
 
-Bordes: si se publica después del 15/12, o se promueve un build de más de 9 h, quien esté adentro vuelve a entrar
-una vez (ve «Tu sesión venció»). Cada redeploy reabre la ventana 9 h sólo para tokens viejos que ya existían.
+Borde: si se publica después de esa fecha, quien esté adentro vuelve a entrar una vez (ve «Tu sesión venció»).
 
 **Pendiente (ENG-013, Gate 2).** Revocar en el servidor al cerrar sesión o cambiar la contraseña: pide una columna
 en `User` (versión de sesión). Hoy el logout borra la cookie y el token sigue valiendo hasta su vencimiento (≤ 8 h).

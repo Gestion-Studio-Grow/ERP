@@ -17,12 +17,10 @@
 // de dominio: ninguna firma del formato viejo sirve para el nuevo, ni al revés.
 //
 // TRANSICIÓN (sin dejar afuera a nadie de golpe): un token del formato viejo se sigue aceptando
-// hasta `finDeLaTransicion()` = el momento del build de producción + 9 h (la cookie vieja vence sola
-// en el navegador a las 8 h de su ingreso, y desde el deploy ya no se emiten), con un tope fijo
-// (`TOPE_DE_LA_TRANSICION`). Quien está trabajando al publicar sigue hasta que su cookie vence
-// como siempre; después, todos entran con el formato nuevo. Pasado ese momento, un token viejo
-// (vigente o copiado) no abre nada. Sin la marca de build (desarrollo, tests) no hay transición:
-// el formato viejo se rechaza (falla cerrado). Detalle: docs/seguridad/sesion-con-vencimiento.md.
+// sólo antes de `FIN_DE_LA_TRANSICION`, una fecha FIJA del código (no la hora del build: un redeploy no
+// reabre la ventana). Quien está trabajando al publicar sigue hasta que su cookie vence como siempre;
+// desde esa fecha un token viejo (vigente o copiado) no abre nada, en ningún deploy.
+// Detalle: docs/seguridad/sesion-con-vencimiento.md.
 // Pendiente (no en este cambio): revocar al cerrar sesión o al cambiar la contraseña, que pide una
 // columna en User (Gate 2).
 
@@ -86,21 +84,16 @@ const FIRMA_V2 = "gsg-sesion-v2|";
 /** Ids de usuario que se firman: los de Prisma (cuid) y los de prueba. Nunca `|` ni `.`. */
 const USER_ID_VALIDO = /^[A-Za-z0-9_-]{1,64}$/;
 const PAYLOAD_V2 = /^v2\|([A-Za-z0-9_-]{1,64})\|(\d{13})\|(\d{13})$/;
-/** Margen sobre la vida de la cookie vieja (8 h) para la transición después del build. */
-const MARGEN_TRANSICION_MS = 9 * 60 * 60 * 1000;
-/** Tope fijo de la transición: pasada esta fecha ningún token viejo vale, se haya publicado cuando se haya publicado. */
-export const TOPE_DE_LA_TRANSICION = Date.UTC(2026, 11, 15, 9, 0, 0); // 15/12/2026 06:00 (Argentina)
-
 /**
- * Hasta cuándo se acepta el formato viejo (`userId.firma`), en ms. Es la marca del build
- * (`GSG_COMPILADO_EN`, la inlinea next.config.ts) + 9 h, nunca después del tope. Sin la marca
- * (desarrollo, tests): 0, o sea, el formato viejo no vale.
+ * Fin FIJO de la transición de las sesiones sin vencimiento (formato viejo `userId.firma`): ~1 día después de
+ * publicar el formato v2 (PROVISIONAL, a confirmar: 09/11/2026 12:00 Argentina). Es una constante del código, no
+ * la hora del build: un redeploy no reabre la ventana. Antes de esta fecha el token viejo vale; desde ella, nunca.
  */
-export function finDeLaTransicion(compiladoEn: string | undefined = process.env.GSG_COMPILADO_EN): number {
-  // `process.env.GSG_COMPILADO_EN` escrito así, literal: es lo que Next reemplaza al compilar (también en edge).
-  const compilado = Number(compiladoEn);
-  if (!Number.isFinite(compilado) || compilado <= 0) return 0;
-  return Math.min(compilado + MARGEN_TRANSICION_MS, TOPE_DE_LA_TRANSICION);
+export const FIN_DE_LA_TRANSICION = Date.parse("2026-11-09T12:00:00-03:00");
+
+/** Hasta cuándo se acepta el formato viejo (ms): la fecha fija `FIN_DE_LA_TRANSICION`, igual en todo deploy. */
+export function finDeLaTransicion(): number {
+  return FIN_DE_LA_TRANSICION;
 }
 
 export async function createSessionToken(userId: string, emitido: number = Date.now()): Promise<string> {
@@ -113,7 +106,7 @@ export async function createSessionToken(userId: string, emitido: number = Date.
 export type OpcionesDeLectura = {
   /** El reloj (ms). Por defecto, ahora. */
   ahora?: number;
-  /** Hasta cuándo vale el formato viejo (ms). Por defecto, `finDeLaTransicion()`. */
+  /** Hasta cuándo vale el formato viejo (ms), sólo para acortarla: nunca pasa de `FIN_DE_LA_TRANSICION`. */
   legadoHasta?: number;
 };
 
@@ -146,7 +139,7 @@ export async function readSessionToken(
   }
 
   // Formato viejo (`userId.firma`, sin fecha): sólo durante la transición, y sólo con forma de id.
-  const legadoHasta = opciones.legadoHasta ?? finDeLaTransicion();
+  const legadoHasta = Math.min(opciones.legadoHasta ?? FIN_DE_LA_TRANSICION, FIN_DE_LA_TRANSICION);
   if (ahora >= legadoHasta) return null;
   if (!USER_ID_VALIDO.test(payload)) return null;
   if (!timingSafeStringEqual(signature, await sign(payload))) return null;
