@@ -51,10 +51,23 @@ const SONDEO = Number(env.PUBLICAR_SONDEO_MS) > 0 ? Number(env.PUBLICAR_SONDEO_M
 
 const dormir = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// ── Identificadores de cuentas: nunca al log ni al comentario ───────────────
+// Los ids de proyecto de Neon y Vercel no son claves, pero dicen a qué cuenta pegarle: se enmascaran
+// en el log de Actions (::add-mask::) y se tachan de todo lo que va al informe (que es el comentario).
+const OCULTOS = ["NEON_PROJECT_ID", "VERCEL_PROJECT_ID"].map((k) => (env[k] ?? "").trim()).filter((v) => v.length >= 3);
+if (env.GITHUB_ACTIONS === "true") for (const v of OCULTOS) console.log(`::add-mask::${v}`);
+/** Tacha los ids de cuenta (y su forma codificada en URLs) de un texto. */
+function ocultar(texto, valores = OCULTOS) {
+  let t = String(texto);
+  for (const v of valores) for (const forma of new Set([v, encodeURIComponent(v)])) t = t.split(forma).join("***");
+  return t;
+}
+
 // ── Informe ─────────────────────────────────────────────────────────────────
 function anotar(linea = "") {
-  appendFileSync(INFORME, `${linea}\n`);
-  console.log(linea);
+  const t = ocultar(linea);
+  appendFileSync(INFORME, `${t}\n`);
+  console.log(t);
 }
 /** @returns {never} */
 function frenar(motivo) {
@@ -386,26 +399,33 @@ const pasos = {
     const { json: ref } = await gh(`/git/ref/heads/${encodeURIComponent(RAMA)}`);
     if (ref.object.sha !== baseSha) frenar(`\`${RAMA}\` se movió durante la publicación: hay que actualizar la rama y volver a etiquetar.`);
 
+    // El merge se hace como COMPARE-AND-SWAP sobre la rama, no con PUT /pulls/{n}/merge (esa API
+    // mergea sobre el main que haya en ese momento: si main se movía entre la verificación de arriba
+    // y el merge, se publicaba una combinación que nadie revisó).
+    //   1. Se arma el commit de merge con padres EXACTOS [base verificada, head verificado]. Como la
+    //      precondición exige la rama al día (behind_by = 0), el árbol del merge es el del head.
+    //   2. Se mueve `main` con force:false: GitHub sólo acepta si es fast-forward desde el main
+    //      ACTUAL. Si main se movió a un commit que no está en este merge → 422 y main queda intacto.
     const titulo = tituloMerge(PR, pr.title);
-    const r = await pedir(`${GH}/pulls/${PR}/merge`, {
-      token: env.PUBLICAR_GH_TOKEN,
-      method: "PUT",
-      headers: ghHeaders,
-      body: {
-        sha,
-        merge_method: "merge",
-        commit_title: titulo,
-        commit_message: `Publicado por publicar.yml (${env.GITHUB_SERVER_URL}/${REPO}/actions/runs/${env.GITHUB_RUN_ID}).\nRespaldo Neon: ${env.RESPALDO || "—"}.`,
-      },
-    }).catch((e) => frenar(`GitHub rechazó el merge: ${e.message}`));
-    if (!r.json?.merged) frenar(`GitHub no mergeó: ${r.json?.message ?? "sin detalle"}.`);
-    const mergeSha = r.json.sha;
+    const escribir = (ruta, method, body) =>
+      pedir(`${GH}${ruta}`, { token: env.PUBLICAR_GH_TOKEN, method, headers: ghHeaders, body });
+    const { json: cabeza } = await gh(`/git/commits/${sha}`);
+    const arbol = cabeza?.tree?.sha;
+    if (!arbol) frenar(`no se pudo leer el árbol del commit ${sha.slice(0, 7)}.`);
+    const { json: nuevo } = await escribir("/git/commits", "POST", {
+      message: `${titulo}\n\nPublicado por publicar.yml (${env.GITHUB_SERVER_URL}/${REPO}/actions/runs/${env.GITHUB_RUN_ID}).\nRespaldo Neon: ${env.RESPALDO || "—"}.`,
+      tree: arbol,
+      parents: [baseSha, sha],
+    }).catch((e) => frenar(`GitHub no creó el commit de merge: ${e.message}. No se mergeó nada.`));
+    const mergeSha = nuevo?.sha;
+    if (!mergeSha) frenar("GitHub no devolvió el commit de merge. No se mergeó nada.");
+    await escribir(`/git/refs/heads/${encodeURIComponent(RAMA)}`, "PATCH", { sha: mergeSha, force: false }).catch((e) =>
+      frenar(
+        `\`${RAMA}\` se movió entre la verificación y el merge (o GitHub rechazó mover la rama): ${e.message}. **No se mergeó nada**; actualizá la rama y volvé a etiquetar.`,
+      ),
+    );
     salida("merge_sha", mergeSha);
-    const { json: commit } = await gh(`/commits/${mergeSha}`);
-    const padres = (commit.parents ?? []).map((p) => p.sha);
-    if (padres.length !== 2 || padres[0] !== baseSha || padres[1] !== sha)
-      frenar(`el commit de merge ${mergeSha.slice(0, 7)} no tiene los padres esperados (${padres.map((p) => p.slice(0, 7)).join(", ")}). Revisar main a mano.`);
-    anotar(`- Mergeado: ${mergeSha.slice(0, 7)} en \`${RAMA}\`.`);
+    anotar(`- Mergeado: ${mergeSha.slice(0, 7)} en \`${RAMA}\` (padres ${baseSha.slice(0, 7)} + ${sha.slice(0, 7)}).`);
   },
 
   async vercel() {
@@ -453,7 +473,7 @@ const pasos = {
     else titulo = "FRENADO: no se publicó";
     const cuerpo = `## publicar.yml — ${titulo}\n\n${cuerpoInforme}\n\n<sub>Para reintentar: corregir lo indicado y volver a poner la etiqueta \`${ETIQUETA}\`.</sub>`;
     if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, cuerpo);
-    await gh(`/issues/${PR}/comments`, { method: "POST", body: { body: cuerpo.slice(0, 65000) } });
+    await gh(`/issues/${PR}/comments`, { method: "POST", body: { body: ocultar(cuerpo).slice(0, 65000) } });
     await gh(`/issues/${PR}/labels/${encodeURIComponent(ETIQUETA)}`, { method: "DELETE", permitir: [404] }).catch((e) =>
       console.log(`no se pudo quitar la etiqueta: ${e.message}`),
     );

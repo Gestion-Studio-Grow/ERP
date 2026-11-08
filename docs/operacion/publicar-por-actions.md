@@ -17,9 +17,9 @@ publicar PR»), siempre igual y auditada en el PR.
 |---|---|---|
 | 1 · precondiciones | quien etiquetó tiene write o más (y figura en `PUBLICAR_QUIENES` si está cargada); PR abierto, no borrador, no fork, mergeable, 0 commits atrás de main; el último deploy de producción está READY (ni en curso ni en ERROR) y `/api/health` responde | frena |
 | 2 · CI igual que main | espera que terminen `gates.yml` y `release.yml` del commit del PR y compara **job por job** contra la última corrida de main. Un rojo que main también tiene (p. ej. la deuda de lint) no frena; un rojo nuevo, un job que falta o un job salteado que en main corre, sí | frena |
-| 3 · cambios | frena si el PR toca `.github/`, `scripts/publicar/`, `scripts/release/`, el build de Vercel, las vallas, `vercel.json` o los `scripts` de `package.json`; si modifica/borra/renombra una migración existente; si una migración nueva **o cualquiera de las que nombra `prisma/lote-deploy.txt`** (el build aplica el lote) **no es aditiva**: DROP, ALTER TYPE/enum, DELETE, TRUNCATE, MERGE, upsert, RENAME, cambio de tipo, SET NOT NULL, UPDATE que pisa columnas existentes, RLS apagado o prendido sobre una tabla existente, políticas/triggers/reglas sobre tablas existentes, GRANT/REVOKE, roles, search_path, CALL, ALTER de funciones/vistas/secuencias, CREATE OR REPLACE, SQL dinámico u ofuscado; si una migración nueva no está en el lote; o si hay migraciones y Vercel Production no tiene `MIGRATE_DATABASE_URL` | frena |
+| 3 · cambios | frena si el PR toca `.github/`, `scripts/publicar/`, `scripts/release/`, el build de Vercel, las vallas, `vercel.json` o los `scripts` de `package.json`; si modifica/borra/renombra una migración existente; si una migración nueva **o cualquiera de las que nombra `prisma/lote-deploy.txt`** (el build aplica el lote) **no es aditiva**: DROP, ALTER TYPE/enum, DELETE, TRUNCATE, MERGE, upsert, RENAME, cambio de tipo, SET NOT NULL, UPDATE que pisa columnas existentes, RLS apagado o prendido sobre una tabla existente, políticas/triggers/reglas sobre tablas existentes, GRANT/REVOKE, roles, search_path, CALL, ALTER de funciones/vistas/secuencias, CREATE OR REPLACE, SQL dinámico u ofuscado. Además rige una **lista permitida**: el SQL se tokeniza (comentarios, strings, `"identificadores"`, `$$…$$`; así `UPDATE"Venta"SET…` se lee igual que con espacios) y cada sentencia tiene que ser CREATE TABLE, CREATE TYPE … AS ENUM, CREATE INDEX, ALTER TABLE … ADD COLUMN (nullable o con DEFAULT si la tabla existe) / ADD CONSTRAINT / SET DEFAULT (nunca sobre `tenantId`), el idioma RLS por tenant sobre tablas nuevas, políticas/triggers/INSERT sólo sobre tablas nuevas o un UPDATE de backfill de columnas nuevas, sin llamar funciones fuera de una lista corta del sistema; todo lo demás (SELECT f(), LOCK, INHERIT, OWNER, VALIDATE, CREATE FUNCTION, EVENT TRIGGER, otro esquema…) frena; si una migración nueva no está en el lote; o si hay migraciones y Vercel Production no tiene `MIGRATE_DATABASE_URL` | frena |
 | 4 · respaldo | crea en Neon la rama `respaldo-pre-pr-<n>-<AAAAMMDD-hhmmss>` (UTC) desde la rama de producción | frena |
-| 5 · merge | vuelve a chequear que el PR siga etiquetado, sin commits nuevos y que main no se haya movido; mergea **el sha exacto** que pasó el CI (merge commit `Merge PR #n: …`) | frena |
+| 5 · merge | vuelve a chequear que el PR siga etiquetado, sin commits nuevos y que main no se haya movido; arma el commit de merge `Merge PR #n: …` con padres **exactos** (main verificado + el sha que pasó el CI) y mueve `main` con `force:false` (compare-and-swap): si main se movió en el medio, GitHub lo rechaza y **no se mergea nada** | frena |
 | 6 · Vercel | espera el deploy de producción del commit de merge hasta READY; después `/api/health` tiene que servir ese commit y `/api/ready` dar 200 | frena y avisa que el merge ya está en main |
 | 7 · comentar | comenta el resultado en el PR (siempre) y quita la etiqueta | — |
 
@@ -39,9 +39,22 @@ y comenta «SIMULACIÓN OK». El diseño pide una semana así antes de pasar a `
 
 ## Qué tiene que cargar el dueño (una vez)
 
-GitHub → repo `erp` → **Settings → Secrets and variables → Actions**.
+**Primero, el environment `produccion`** (los secretos van ahí, **no** a nivel repo):
 
-**Secrets** (pestaña *Secrets*):
+1. GitHub → repo `erp` → **Settings → Environments → New environment** → nombre `produccion`.
+2. **Deployment branches and tags** → *Selected branches and tags* → agregar la regla `main` (sólo `main`).
+   El workflow usa `pull_request_target`, que corre en el contexto de main: pasa la regla. Cualquier job
+   lanzado desde otra rama (por ejemplo un workflow nuevo que alguien agregue en un PR) no puede usar el
+   environment ni leer sus secretos.
+3. **No** poner *Required reviewers* ni *Wait timer*: la aprobación del dueño es la etiqueta (si se ponen,
+   cada publicación queda esperando un clic).
+4. Si los secretos ya estaban cargados a nivel repo (*Settings → Secrets and variables → Actions → Repository
+   secrets*), **borrarlos de ahí** después de cargarlos en el environment: a nivel repo los puede leer
+   cualquier workflow de cualquier rama.
+
+Además el workflow sólo arranca para PR **contra main** (`branches: [main]`).
+
+**Secrets del environment `produccion`** (Settings → Environments → `produccion` → *Environment secrets*):
 
 | Secreto | Qué es | De dónde sale |
 |---|---|---|
@@ -49,9 +62,9 @@ GitHub → repo `erp` → **Settings → Secrets and variables → Actions**.
 | `NEON_PROJECT_ID` | id del proyecto de producción (`xxx-xxx-12345678`) | Neon → Project settings → General |
 | `VERCEL_TOKEN` | token de Vercel con acceso de lectura al proyecto `erp-ch` (deploys y nombres de variables) | Vercel → Account Settings → Tokens (scope: el team del proyecto) |
 | `VERCEL_PROJECT_ID` | id del proyecto `erp-ch` (`prj_…`) | Vercel → proyecto → Settings → General |
-| `PUBLICAR_GH_TOKEN` | token de GitHub que mergea. Fine-grained PAT del dueño, sólo repo `erp`, permisos *Contents: Read and write* y *Pull requests: Read and write*. Hace falta (no alcanza el `GITHUB_TOKEN`): un merge hecho con `GITHUB_TOKEN` no dispara el CI de main y la protección de rama puede rechazarlo | GitHub → Settings → Developer settings → Fine-grained tokens |
+| `PUBLICAR_GH_TOKEN` | token de GitHub que mergea. Fine-grained PAT del dueño, sólo repo `erp`, permisos *Contents: Read and write* y *Pull requests: Read and write*. Hace falta (no alcanza el `GITHUB_TOKEN`): un merge hecho con `GITHUB_TOKEN` no dispara el CI de main. El merge mueve `main` directo (ver paso 5): si algún día se protege `main`, el dueño del token tiene que poder saltear la protección (*bypass*) | GitHub → Settings → Developer settings → Fine-grained tokens |
 
-**Variables** (pestaña *Variables*):
+**Variables** (pueden quedar a nivel repo, pestaña *Variables*, o en el environment; no son secretas):
 
 | Variable | Valor | Obligatoria |
 |---|---|---|
@@ -81,9 +94,10 @@ Si falta un secreto, el workflow frena en el paso 1 y comenta cuál.
   seguidos, el del medio se cancela antes de empezar (el comentario «en cola» lo advierte): volver a etiquetarlo.
 - **Respaldos de Neon:** el workflow crea ramas y **no las borra** (borrar es owner-level). El plan free de
   Neon tiene un tope de ramas por proyecto: cuando se llega, el paso 4 frena y el dueño borra las viejas.
-- **Ventana de carrera:** entre el chequeo «main no se movió» y el merge pasan segundos; si alguien empuja a
-  main justo ahí, el commit de merge lo incluye. El paso 5 verifica después que los padres del merge sean
-  exactamente (main chequeado, commit del PR) y, si no, frena y lo dice.
+- **Sin ventana de carrera en el merge:** `main` se mueve sólo si sigue donde se verificó (fast-forward al
+  commit de merge con padres exactos). Si alguien empuja a main en el medio, el paso 5 frena sin tocar main.
+- **Ids de cuentas:** `NEON_PROJECT_ID` y `VERCEL_PROJECT_ID` se enmascaran en el log (`::add-mask::`) y se
+  tachan (`***`) de todo lo que va al comentario del PR, incluidos los mensajes de error de las APIs.
 - **«Sin errores nuevos» en Vercel** se mide con READY + `/api/health` sirviendo el commit + `/api/ready` 200.
   No lee los logs de runtime.
 

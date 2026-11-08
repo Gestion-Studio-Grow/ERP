@@ -148,14 +148,18 @@ DO $$ DECLARE t text; BEGIN FOREACH t IN ARRAY ARRAY['Client'] LOOP NULL; END LO
   assert.ok(bloquea(sql));
 });
 
-test("avisos (no frenan): UPDATE de backfill, índice único y NOT NULL sin default en tabla existente", () => {
+test("avisos (no frenan): UPDATE de backfill e índice único en tabla existente", () => {
   const r = analizarSql(`ALTER TABLE "Client" ADD COLUMN "n" INTEGER;
 UPDATE "Client" SET "n" = 0;
-CREATE UNIQUE INDEX "u" ON "Client"("n");
-ALTER TABLE "Order" ADD COLUMN "z" TEXT NOT NULL;`);
+CREATE UNIQUE INDEX "u" ON "Client"("n");`);
   assert.deepEqual(r.bloqueos, []);
   const a = r.avisos.map((x) => x.regla).sort();
-  assert.deepEqual(a, ["NOT NULL SIN DEFAULT", "UPDATE", "ÚNICO EN TABLA EXISTENTE"]);
+  assert.deepEqual(a, ["UPDATE", "ÚNICO EN TABLA EXISTENTE"]);
+});
+
+test("lista permitida: columna obligatoria sin default en tabla existente frena (en tabla nueva no)", () => {
+  assert.deepEqual(reglas(`ALTER TABLE "Order" ADD COLUMN "z" TEXT NOT NULL;`), ["NOT NULL SIN DEFAULT"]);
+  assert.deepEqual(reglas(`CREATE TABLE "N" ("id" TEXT);\nALTER TABLE "N" ADD COLUMN "z" TEXT NOT NULL;`), []);
 });
 
 test("limpiarComentarios conserva largo y líneas", () => {
@@ -252,7 +256,7 @@ CREATE TRIGGER t BEFORE INSERT ON "Order" FOR EACH ROW EXECUTE FUNCTION f();`).i
 test("permisos, upserts, MERGE y ALTER de objetos existentes frenan", () => {
   assert.deepEqual(reglas(`GRANT SELECT ON "Client" TO PUBLIC;`), ["GRANT"]);
   assert.deepEqual(reglas(`MERGE INTO "Client" c USING x ON true WHEN MATCHED THEN DELETE;`), ["MERGE"]);
-  assert.deepEqual(reglas(`INSERT INTO "Client" ("id","email") VALUES ('1', NULL) ON CONFLICT ("id") DO UPDATE SET "email" = NULL;`), ["UPSERT"]);
+  assert.deepEqual(reglas(`INSERT INTO "Client" ("id","email") VALUES ('1', NULL) ON CONFLICT ("id") DO UPDATE SET "email" = NULL;`), ["INSERT EN TABLA EXISTENTE", "UPSERT"]);
   assert.deepEqual(reglas(`ALTER FUNCTION f() SECURITY DEFINER;`), ["ALTER DE OBJETO EXISTENTE"]);
   assert.deepEqual(reglas(`ALTER VIEW v OWNER TO x;`), ["ALTER DE OBJETO EXISTENTE"]);
 });
@@ -261,4 +265,47 @@ test("política no canónica sobre tabla nueva: no frena pero avisa", () => {
   const r = analizarSql(`CREATE TABLE "N" ("id" TEXT);\nCREATE POLICY abierta ON "N" USING (true);`);
   assert.deepEqual(r.bloqueos, []);
   assert.ok(r.avisos.some((a) => a.regla === "POLÍTICA DISTINTA"));
+});
+
+// ── Certificación adversarial sobre 02ac61dc: evasión sin espacios y lista permitida ─────────
+test("sin espacios junto a identificadores entre comillas: igual se lee (tokenizado)", () => {
+  assert.deepEqual(reglas(`UPDATE "Venta"SET "monto" = 0;`), ["UPDATE DE DATOS EXISTENTES"]);
+  assert.deepEqual(reglas(`UPDATE"Venta" SET "monto" = 0;`), ["UPDATE DE DATOS EXISTENTES"]);
+  assert.deepEqual(reglas(`UPDATE "Venta" SET"monto"=0;`), ["UPDATE DE DATOS EXISTENTES"]);
+  assert.deepEqual(reglas(`WITH x AS (UPDATE"Venta"SET monto = 0 RETURNING 1) SELECT 1;`), ["UPDATE DE DATOS EXISTENTES"]);
+  assert.deepEqual(reglas(`ALTER TABLE "Venta" ALTER COLUMN "monto"TYPE text;`), ["CAMBIO DE TIPO"]);
+  assert.deepEqual(reglas(`CREATE POLICY "p"ON"Venta" USING (true);`), ["POLÍTICA EN TABLA EXISTENTE"]);
+  const trig = `CREATE FUNCTION g() RETURNS trigger LANGUAGE plpgsql AS $$BEGIN RETURN NULL; END$$;\n`;
+  assert.ok(reglas(trig + `CREATE TRIGGER t BEFORE INSERT ON"Venta" FOR EACH ROW EXECUTE FUNCTION g();`).includes("TRIGGER EN TABLA EXISTENTE"));
+  assert.ok(bloquea(trig + `CREATE TRIGGER t BEFORE INSERT ON public."Venta" FOR EACH ROW EXECUTE FUNCTION g();`));
+  assert.ok(bloquea(`ALTER TABLE "Nueva" ADD COLUMN "monto" int; UPDATE "Venta" SET "monto2"=1, "monto"=0;`));
+});
+
+test("lista permitida: default de tenantId, event trigger y lo que no es aditivo conocido frenan", () => {
+  assert.deepEqual(reglas(`ALTER TABLE "Venta" ALTER COLUMN "tenantId" SET DEFAULT 't1';`), ["DEFAULT EN tenantId"]);
+  assert.deepEqual(reglas(`ALTER TABLE "Venta" ALTER "tenantId"SET DEFAULT 't1';`), ["DEFAULT EN tenantId"]);
+  assert.ok(reglas(`CREATE EVENT TRIGGER et ON ddl_command_start EXECUTE FUNCTION f();`).includes("EVENT TRIGGER"));
+  for (const sql of [
+    `SELECT borrar_todo();`,
+    `LOCK TABLE "Venta" IN ACCESS EXCLUSIVE MODE;`,
+    `ALTER TABLE "Venta" INHERIT "Otra";`,
+    `ALTER TABLE "Venta" OWNER TO x;`,
+    `ALTER TABLE "Venta" VALIDATE CONSTRAINT c;`,
+    `CREATE TABLE otro."Venta" (id int); ALTER TABLE otro ENABLE ROW LEVEL SECURITY;`,
+    `CREATE FUNCTION f() RETURNS int LANGUAGE sql AS $$ SELECT 1 $$;`,
+    `SELECT 1 /* a /* b */ DROP TABLE x; -- */`,
+  ])
+    assert.ok(bloquea(sql), sql);
+  assert.deepEqual(reglas(`INSERT INTO "Venta" (id) VALUES ('a') ON CONFLICT DO NOTHING;`), ["INSERT EN TABLA EXISTENTE"]);
+  assert.deepEqual(reglas(`CREATE TABLE "N" ("id" TEXT); INSERT INTO "N" ("id") VALUES ('a');`), []);
+});
+
+test("lista permitida: funciones que ya existen en la base no se llaman desde un cambio permitido", () => {
+  assert.deepEqual(reglas(`ALTER TABLE "Venta" ADD COLUMN "x" INT DEFAULT borrar_todo();`), ["FUNCIÓN NO RECONOCIDA"]);
+  assert.deepEqual(reglas(`CREATE INDEX "i" ON "Venta" (borrar_todo("x"));`), ["FUNCIÓN NO RECONOCIDA"]);
+  assert.deepEqual(reglas(`ALTER TABLE "Venta" ADD COLUMN "n" INT;\nUPDATE "Venta" SET "n" = otro.f();`), ["FUNCIÓN NO RECONOCIDA"]);
+  assert.deepEqual(
+    reglas(`ALTER TABLE "Venta" ADD COLUMN "id2" TEXT NOT NULL DEFAULT gen_random_uuid(), ADD COLUMN "m" DECIMAL(12,2);`),
+    [],
+  );
 });

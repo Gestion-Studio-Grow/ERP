@@ -12,6 +12,8 @@ const SCRIPT = new URL("./publicar.mjs", import.meta.url).pathname;
 const HEAD = "h".repeat(40);
 const BASE = "b".repeat(40);
 const MERGE = "m".repeat(40);
+const NP = "np-cuenta-secreta";
+const VP = "prj_cuenta_secreta";
 
 const SQL_OK = `CREATE TABLE "Nueva" ("id" TEXT, "tenantId" TEXT);
 ALTER TABLE "Nueva" ENABLE ROW LEVEL SECURITY;
@@ -95,11 +97,21 @@ function servidor(e) {
       if (p === `${R}/contents/prisma/migrations/20261108120000_vieja/migration.sql`) return raw(e.sqlVieja ?? "CREATE TABLE \"V\" (\"id\" TEXT);");
       if (p === `${R}/contents/prisma/migrations/20261109120000_nueva/migration.sql`) return raw(e.sql);
       if (p === `${R}/contents/prisma/lote-deploy.txt`) return raw(e.lote);
-      if (p === `${R}/pulls/5/merge` && req.method === "PUT") {
+      if (p === `${R}/git/commits/${HEAD}` && req.method === "GET") return json({ sha: HEAD, tree: { sha: "arbol-head" } });
+      if (p === `${R}/git/commits` && req.method === "POST") {
+        e.commitMerge = JSON.parse(cuerpo);
+        return json({ sha: MERGE }, 201);
+      }
+      if (p === `${R}/git/refs/heads/main` && req.method === "PATCH") {
+        // main se movió entre la verificación y el merge: no es fast-forward → 422.
+        if (e.mainSeMueve) return json({ message: "Update is not a fast forward" }, 422);
         e.mergeBody = JSON.parse(cuerpo);
+        return json({ object: { sha: MERGE } });
+      }
+      if (p === `${R}/pulls/5/merge`) {
+        e.mergeConApiDePr = true;
         return json({ merged: true, sha: MERGE });
       }
-      if (p === `${R}/commits/${MERGE}`) return json({ parents: [{ sha: BASE }, { sha: HEAD }] });
       if (p === `${R}/issues/5/comments`) {
         e.comentario = JSON.parse(cuerpo).body;
         return json({}, 201);
@@ -110,15 +122,15 @@ function servidor(e) {
         if (e.mergeBody) ds.push({ uid: "dpl_new", state: e.deployMerge, created: 9, meta: { githubCommitSha: MERGE } });
         return json({ deployments: ds });
       }
-      if (p === "/vercel/v9/projects/prj/env") return json({ envs: e.envVercel });
-      if (p === "/neon/projects/np/branches" && req.method === "GET") return json({ branches: [{ id: "br-main", default: true }] });
-      if (p === "/neon/projects/np/branches" && req.method === "POST") {
+      if (p === `/vercel/v9/projects/${VP}/env`) return e.vercelEnvFalla ? json({ message: `project ${VP} not found` }, 404) : json({ envs: e.envVercel });
+      if (p === `/neon/projects/${NP}/branches` && req.method === "GET") return json({ branches: [{ id: "br-main", default: true }] });
+      if (p === `/neon/projects/${NP}/branches` && req.method === "POST") {
         e.respaldo = JSON.parse(cuerpo).branch;
         return json({ branch: { id: "br-resp", name: e.respaldo.name }, operations: [{ id: "op1" }] }, 201);
       }
-      if (p === "/neon/projects/np/operations/op1") return json({ operation: { status: "finished" } });
-      if (p === "/neon/projects/np/branches/br-resp") return json({ branch: { id: "br-resp", name: e.respaldo?.name } });
-      if (p === "/neon/projects/np/branches/br-main") return json({ branch: { id: "br-main" } });
+      if (p === `/neon/projects/${NP}/operations/op1`) return json({ operation: { status: "finished" } });
+      if (p === `/neon/projects/${NP}/branches/br-resp`) return json({ branch: { id: "br-resp", name: e.respaldo?.name } });
+      if (p === `/neon/projects/${NP}/branches/br-main`) return json({ branch: { id: "br-main" } });
       if (p === "/prod/api/health") return json({ status: "ok", commit: e.mergeBody ? MERGE : BASE });
       if (p === "/prod/api/ready") return json({ status: "ready" });
       json({ message: `ruta no simulada ${req.method} ${p}` }, 404);
@@ -156,9 +168,9 @@ async function recorrer(e, modo = "real") {
     GH_TOKEN: "t",
     PUBLICAR_GH_TOKEN: "t2",
     NEON_API_KEY: "k",
-    NEON_PROJECT_ID: "np",
+    NEON_PROJECT_ID: NP,
     VERCEL_TOKEN: "v",
-    VERCEL_PROJECT_ID: "prj",
+    VERCEL_PROJECT_ID: VP,
     PUBLICAR_MODO: modo,
     CI_WORKFLOWS: "gates.yml",
     PUBLICAR_SONDEO_MS: "10",
@@ -192,11 +204,16 @@ test("camino feliz (modo real): respaldo, merge del sha exacto, deploy READY, co
   assert.equal(r.frenoEn, null, r.informe);
   assert.match(e.respaldo.name, /^respaldo-pre-pr-5-\d{8}-\d{6}$/);
   assert.equal(e.respaldo.parent_id, "br-main");
-  assert.equal(e.mergeBody.sha, HEAD);
-  assert.equal(e.mergeBody.commit_title, "Merge PR #5: Módulo nuevo");
+  // Merge = commit con padres EXACTOS (base verificada + head verificado) y main movido con
+  // force:false (compare-and-swap), nunca la API de merge del PR.
+  assert.deepEqual(e.commitMerge.parents, [BASE, HEAD]);
+  assert.equal(e.commitMerge.tree, "arbol-head");
+  assert.match(e.commitMerge.message, /^Merge PR #5: Módulo nuevo\n/);
+  assert.deepEqual(e.mergeBody, { sha: MERGE, force: false });
+  assert.equal(e.mergeConApiDePr, undefined);
   assert.match(e.comentario, /PUBLICADO en producción/);
   // El respaldo se crea ANTES del merge.
-  assert.ok(e.llamadas.indexOf("POST /neon/projects/np/branches") < e.llamadas.indexOf("PUT /gh/repos/gsg/erp/pulls/5/merge"));
+  assert.ok(e.llamadas.indexOf(`POST /neon/projects/${NP}/branches`) < e.llamadas.indexOf("PATCH /gh/repos/gsg/erp/git/refs/heads/main"));
 });
 
 test("simulación: revisa todo pero NO crea respaldo ni mergea", async () => {
@@ -248,4 +265,22 @@ test("deploy de Vercel en ERROR después del merge → FRENADO y lo dice", async
   assert.equal(r.frenoEn, "vercel");
   assert.match(e.comentario, /FRENADO/);
   assert.match(e.comentario, /El merge ya está en main/);
+});
+
+test("main se mueve entre la verificación y el merge → la rama no se toca y frena", async () => {
+  const e = escenario({ mainSeMueve: true });
+  const r = await recorrer(e);
+  assert.equal(r.frenoEn, "merge", r.informe);
+  assert.equal(e.mergeBody, undefined, "main no debía moverse");
+  assert.equal(e.mergeConApiDePr, undefined);
+  assert.match(e.comentario, /No se mergeó nada/);
+});
+
+test("los ids de proyecto de Neon/Vercel no salen en el comentario aunque un error los traiga", async () => {
+  const e = escenario({ vercelEnvFalla: true });
+  const r = await recorrer(e);
+  assert.equal(r.frenoEn, "cambios", r.informe);
+  assert.ok(!e.comentario.includes(VP), e.comentario);
+  assert.ok(!e.comentario.includes(NP), e.comentario);
+  assert.match(e.comentario, /\*\*\*/);
 });
