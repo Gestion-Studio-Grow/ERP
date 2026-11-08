@@ -3,21 +3,31 @@
 // ============================================================================
 //
 // Regla del dueño (Factory-GSG CLAUDE.md, «la orquestadora gestiona las cuentas»): se publica
-// sola sólo una migración aditiva. Las irreversibles (DROP, enum, borrado de datos, renombres)
-// son owner-level: el workflow FRENA y el dueño decide.
+// sola sólo una migración aditiva. Lo demás es owner-level: el workflow FRENA con
+// «REQUIERE REVISIÓN DEL DUEÑO» y el dueño decide.
 //
-// CÓMO LEE EL SQL. No es un parser de Postgres: es un lector conservador.
-//   1. Saca los comentarios (`--` y `/* */` anidados) respetando strings ('…', E'…'),
-//      identificadores ("…") y cuerpos $tag$…$tag$. El texto que queda tiene EL MISMO LARGO que
-//      el original (los comentarios se pisan con espacios y se conservan los saltos de línea),
-//      así cada hallazgo se informa con su número de línea real.
-//   2. NO saca los strings: `EXECUTE 'DROP TABLE x'` ejecuta lo que hay adentro del string,
-//      así que un DROP dentro de un string también frena. Un falso positivo frena (y el dueño
-//      mira); un falso negativo publica algo irreversible. Se elige siempre lo primero.
-//   3. El SQL dinámico (`EXECUTE …`) frena, salvo UN idioma reconocido letra por letra: el bloque
-//      de RLS por tenant que usan los módulos del ERP (ENABLE RLS + DROP POLICY IF EXISTS +
-//      CREATE POLICY tenant_isolation) y SÓLO sobre tablas que la misma migración crea.
-//   4. Si algo no se puede leer (un string o comentario sin cerrar), frena.
+// CRITERIO: FALLA CERRADA ESTRICTA. No se busca «lo peligroso»: se reconoce, sentencia por
+// sentencia, una gramática corta de formas aditivas. Cualquier sentencia que no calce entera, frena.
+//   · CREATE TABLE T (…) de una tabla nueva (columnas, PK/UNIQUE/FK/CHECK; defaults constantes).
+//   · ALTER TABLE T ADD [COLUMN] c tipo [NULL | NOT NULL] [DEFAULT constante] — NOT NULL sólo con
+//     DEFAULT si la tabla ya existe; REFERENCES/UNIQUE/CHECK en línea, sólo sobre tablas nuevas.
+//   · CREATE [UNIQUE] INDEX [CONCURRENTLY] [IF NOT EXISTS] … ON T [USING método] ("col" [ASC|DESC]
+//     [NULLS FIRST|LAST], …) [INCLUDE (…)] [WHERE predicado simple]. Sin expresiones. UNIQUE sólo
+//     sobre tablas nuevas.
+//   · ALTER TABLE T ADD [CONSTRAINT c] FOREIGN KEY / UNIQUE / PRIMARY KEY / CHECK — sólo si T la crea
+//     esta misma migración (más arriba).
+//   · CREATE TYPE T AS ENUM ('…') · ALTER TYPE T ADD VALUE [IF NOT EXISTS] '…' [BEFORE|AFTER '…'].
+//   · RLS sobre tablas nuevas: ALTER TABLE T ENABLE|FORCE ROW LEVEL SECURITY;
+//     DROP POLICY IF EXISTS p ON T (no-op: la tabla es nueva); CREATE POLICY p ON T
+//     USING ("tenantId" = current_setting('app.current_tenant_id', true)) [WITH CHECK (lo mismo)].
+//   · Constante = literal ('…', número, true/false/null), CURRENT_TIMESTAMP, now(),
+//     gen_random_uuid(), ARRAY[…] de constantes, con casts `::tipo`. Ninguna otra función.
+// Todo lo demás frena: INSERT/UPDATE/DELETE/COPY/MERGE, DO, triggers, reglas, funciones, vistas,
+// COMMENT, SET, GRANT, SET DEFAULT, CHECK/FK/UNIQUE sobre tablas existentes, etc.
+//
+// CÓMO LEE EL SQL. No es un parser de Postgres: es un lector conservador. Se tokeniza (comentarios
+// `--` y `/* */` anidados, strings '…' / E'…', "identificadores", cuerpos $tag$…$tag$) y se parte
+// por `;` de nivel superior. Si algo no se puede leer (un string o comentario sin cerrar), frena.
 
 const IDENT_CHAR = /[A-Za-z0-9_$\u0080-\uffff]/;
 
@@ -350,182 +360,6 @@ export function normalizarIdent(raw) {
 }
 
 
-/** `FOREACH t IN ARRAY ARRAY['A', 'B']` → { t: ['A','B'] } (null si algún elemento no es un literal simple). */
-function arreglosDeLoop(texto) {
-  const mapa = new Map();
-  const re = /\bFOREACH\s+([A-Za-z_][A-Za-z0-9_]*)\s+IN\s+ARRAY\s+ARRAY\s*\[([^\]]*)\]/gi;
-  let m;
-  while ((m = re.exec(texto))) {
-    const v = m[1].toLowerCase();
-    const elems = m[2].split(",").map((s) => s.trim());
-    const nombres = elems.map((e) => (/^'[A-Za-z_][A-Za-z0-9_]*'$/.test(e) ? e.slice(1, -1) : null));
-    const previo = mapa.get(v);
-    if (nombres.some((x) => x === null) || previo === null) mapa.set(v, null);
-    else mapa.set(v, [...(previo ?? []), ...nombres]);
-  }
-  // Si la variable se asigna por otro lado (t := 'Client', t = …, SELECT … INTO t, FOR t IN SELECT,
-  // DECLARE t text DEFAULT …), el FOREACH no alcanza para saber a qué tabla apunta: no se resuelve.
-  for (const v of mapa.keys()) {
-    const asigna = new RegExp(
-      String.raw`\b${v}\s*(?::=|=)|\bINTO\s+(?:STRICT\s+)?(?:[A-Za-z_][A-Za-z0-9_]*\s*,\s*)*${v}\b|\bFOR\s+${v}\s+IN\b|\b${v}\b[^;]*?\bDEFAULT\b`,
-      "i",
-    );
-    if (asigna.test(texto)) mapa.set(v, null);
-  }
-  return mapa;
-}
-
-/**
- * Lee `EXECUTE [format(] '…' [|| '…']* [, var)] ;` desde `pos` (justo después de EXECUTE).
- * Devuelve null si la forma no es exactamente ésa.
- */
-function leerExecute(texto, pos) {
-  let i = pos;
-  const ws = () => {
-    while (i < texto.length && /\s/.test(texto[i])) i++;
-  };
-  ws();
-  let conFormat = false;
-  const mf = /^format\s*\(/i.exec(texto.slice(i, i + 40));
-  if (mf) {
-    conFormat = true;
-    i += mf[0].length;
-    ws();
-  }
-  const partes = [];
-  for (;;) {
-    if (texto[i] !== "'") return null;
-    // E'…' no se admite acá (texto[i-1] sería E): el literal tiene que ser estándar.
-    if (/[Ee]/.test(texto[i - 1] ?? "")) return null;
-    let j = i + 1;
-    let s = "";
-    for (;;) {
-      if (j >= texto.length) return null;
-      if (texto[j] === "'") {
-        if (texto[j + 1] === "'") {
-          s += "'";
-          j += 2;
-          continue;
-        }
-        break;
-      }
-      s += texto[j];
-      j++;
-    }
-    partes.push(s);
-    i = j + 1;
-    ws();
-    if (texto[i] === "|" && texto[i + 1] === "|") {
-      i += 2;
-      ws();
-      continue;
-    }
-    break;
-  }
-  let variable = null;
-  if (conFormat) {
-    if (texto[i] !== ",") return null;
-    i++;
-    ws();
-    const mv = /^[A-Za-z_][A-Za-z0-9_]*/.exec(texto.slice(i));
-    if (!mv) return null;
-    variable = mv[0].toLowerCase();
-    i += mv[0].length;
-    ws();
-    if (texto[i] !== ")") return null;
-    i++;
-    ws();
-  }
-  if (texto[i] !== ";") return null;
-  return { sql: partes.join(""), conFormat, variable, fin: i + 1 };
-}
-
-const PRED_TENANT = String.raw`\(\s*"tenantId"\s*=\s*current_setting\s*\(\s*'app\.current_tenant_id'\s*,\s*true\s*\)\s*\)`;
-const RE_TABLA_NC = String.raw`(?:(?:"public"|public)\s*\.\s*)?${RE_IDENT}`;
-const T_DIN = String.raw`(%I|${RE_TABLA_NC})`; // %I o una tabla con nombre
-
-/** Clasifica el SQL de un EXECUTE contra las formas permitidas del idioma RLS. */
-function formaRls(sql) {
-  const s = sql.trim();
-  let m;
-  if ((m = new RegExp(String.raw`^ALTER\s+TABLE\s+${T_DIN}\s+(ENABLE|FORCE)\s+ROW\s+LEVEL\s+SECURITY$`, "i").exec(s)))
-    return { tipo: "rls", tabla: m[1] };
-  if ((m = new RegExp(String.raw`^DROP\s+POLICY\s+IF\s+EXISTS\s+(${RE_IDENT})\s+ON\s+${T_DIN}$`, "i").exec(s)))
-    return { tipo: "drop", politica: normalizarIdent(m[1]), tabla: m[2] };
-  if (
-    (m = new RegExp(
-      String.raw`^CREATE\s+POLICY\s+(${RE_IDENT})\s+ON\s+${T_DIN}\s+USING\s*${PRED_TENANT}\s*WITH\s+CHECK\s*${PRED_TENANT}$`,
-      "i",
-    ).exec(s))
-  )
-    return { tipo: "create", politica: normalizarIdent(m[1]), tabla: m[2] };
-  return null;
-}
-
-/** Quita el prefijo public. y normaliza; "%I" queda como está. */
-function tablaDe(raw) {
-  if (raw === "%I") return "%I";
-  const m = new RegExp(String.raw`^${RE_TABLA}$`, "i").exec(raw.trim());
-  return m ? normalizarIdent(m[1]) : null;
-}
-
-/**
- * Busca los EXECUTE del idioma RLS sobre tablas nuevas y devuelve los rangos a neutralizar.
- * Un DROP POLICY sólo se acepta si la misma política se recrea (CREATE POLICY) en la misma tabla.
- */
-function idiomaRls(texto, creadas) {
-  const loops = arreglosDeLoop(texto);
-  const re = /\bEXECUTE\b(?!\s+(?:FUNCTION|PROCEDURE)\b)/gi;
-  const candidatos = [];
-  let m;
-  while ((m = re.exec(texto))) {
-    const ex = leerExecute(texto, m.index + m[0].length);
-    if (!ex) continue;
-    const forma = formaRls(ex.sql);
-    if (!forma) continue;
-    const t = tablaDe(forma.tabla);
-    if (t === null) continue;
-    let tablas;
-    if (ex.conFormat) {
-      // Con format(): un solo %I, ningún otro especificador, y el argumento es la variable de un
-      // FOREACH sobre literales.
-      if (t !== "%I") continue;
-      if ((ex.sql.match(/%/g) ?? []).length !== 1) continue;
-      const lista = loops.get(ex.variable);
-      if (!lista || lista.length === 0) continue;
-      tablas = lista;
-    } else {
-      if (t === "%I" || ex.sql.includes("%")) continue;
-      tablas = [t];
-    }
-    if (!tablas.every((x) => creadas.has(x))) continue;
-    candidatos.push({ ...forma, tablas, desde: m.index, hasta: ex.fin });
-  }
-  // La misma forma escrita como sentencias sueltas (sin EXECUTE): sólo con nombre de tabla
-  // literal, al principio de una sentencia (después de `;`, del inicio, o de BEGIN/THEN/LOOP/ELSE).
-  const reSuelta = /(?:^|;|\bBEGIN\b|\bTHEN\b|\bLOOP\b|\bELSE\b)(\s*)((?:DROP\s+POLICY|CREATE\s+POLICY)\b[^;]*);/gi;
-  const mascara = enmascararStrings(texto);
-  while ((m = reSuelta.exec(mascara))) {
-    const real = texto.slice(m.index + m[0].length - m[2].length - 1, m.index + m[0].length - 1);
-    const forma = formaRls(real);
-    reSuelta.lastIndex = m.index + m[0].length - 1; // el `;` puede abrir la próxima
-    if (!forma) continue;
-    const t = tablaDe(forma.tabla);
-    if (t === null || t === "%I" || !creadas.has(t)) continue;
-    const desde = m.index + m[0].length - m[2].length - 1;
-    candidatos.push({ ...forma, tablas: [t], desde, hasta: m.index + m[0].length });
-  }
-  const recreadas = new Set();
-  for (const c of candidatos) if (c.tipo === "create") for (const t of c.tablas) recreadas.add(`${c.politica}@${t}`);
-  const aceptados = candidatos.filter(
-    (c) => c.tipo !== "drop" || c.tablas.every((t) => recreadas.has(`${c.politica}@${t}`)),
-  );
-  return aceptados;
-}
-
-// ── Reglas ──────────────────────────────────────────────────────────────────
-// `bloqueo`: no es aditiva (o no se puede asegurar que lo sea) → el workflow frena.
-// `aviso`: es aditiva pero conviene que se lea en el comentario del PR.
 const BLOQUEOS = [
   { regla: "DROP", re: /\bDROP\b/gi, motivo: "borra un objeto (tabla, columna, índice, restricción, default…)" },
   { regla: "TRUNCATE", re: /\bTRUNCATE\b/gi, motivo: "borra datos" },
@@ -608,14 +442,21 @@ const BLOQUEOS = [
   },
 ];
 
-const AVISOS = [
-  { regla: "INSERT", re: /\bINSERT\s+INTO\b/gi, motivo: "inserta datos" },
+
+// ── Motivos concretos ───────────────────────────────────────────────────────
+// Sólo dan el NOMBRE del problema en el comentario del PR. NO deciden qué pasa: decide la gramática
+// de `sentenciaPermitida` (falla cerrada). Corren sobre el texto canónico de cada sentencia que NO
+// es una forma permitida (incluido lo que hay dentro de strings y cuerpos $$: `EXECUTE 'DROP …'`).
+const REGLAS = [
+  ...BLOQUEOS,
+  { regla: "ESCRIBE DATOS", re: /\bINSERT\s+INTO\b|(?<!\b(?:ON|BEFORE|AFTER|OR|FOR|DO|OF|INSTEAD|GRANT|REVOKE)\s)\bUPDATE\s+(?:ONLY\s+)?(?:"|[A-Za-z_])(?!\w*\s+(?:CASCADE|RESTRICT|NO|SET)\b)/gi, motivo: "escribe datos" },
+  { regla: "TRIGGER", re: /\bCREATE\s+(?:CONSTRAINT\s+)?TRIGGER\b/gi, motivo: "un trigger corre código en cada escritura (aunque la tabla sea nueva)" },
   { regla: "EXTENSIÓN", re: /\bCREATE\s+EXTENSION\b/gi, motivo: "instala una extensión de Postgres" },
   { regla: "SECURITY DEFINER", re: /\bSECURITY\s+DEFINER\b/gi, motivo: "función que corre con permisos del dueño" },
   { regla: "OWNER TO", re: /\bOWNER\s+TO\b/gi, motivo: "cambia el dueño de un objeto" },
 ];
 
-
+const REVISION = "REQUIERE REVISIÓN DEL DUEÑO";
 
 // ── Lectura por sentencias (sobre tokens) ───────────────────────────────────
 const esP = (t, v) => !!t && t.k === "p" && t.raw === v;
@@ -638,16 +479,6 @@ function leerTabla(ts, i) {
   const b = identDe(ts[i + 2]);
   if (b === null || esP(ts[i + 3], ".")) return null;
   return { nombre: b, fin: i + 3 };
-}
-
-/** Índice del paréntesis/corchete que cierra el que abre en ts[i] (-1 si no cierra). */
-function cierre(ts, i) {
-  let prof = 0;
-  for (let j = i; j < ts.length; j++) {
-    if (esP(ts[j], "(") || esP(ts[j], "[")) prof++;
-    else if (esP(ts[j], ")") || esP(ts[j], "]")) if (--prof === 0) return j;
-  }
-  return -1;
 }
 
 /** Parte ts[a, b) por las comas de nivel 0 → [[desde, hasta], …]. */
@@ -675,414 +506,393 @@ function sentencias(ts) {
   return out.filter((s) => s.length);
 }
 
-/** Tablas que la migración crea con certeza: `CREATE TABLE T (…)` de nivel superior, sin IF NOT EXISTS. */
-function creadasDe(ts) {
+/**
+ * Tablas que la migración crea con certeza: `CREATE TABLE T (…)` de nivel superior, sin IF NOT
+ * EXISTS y en el esquema public. Uno dentro de un DO o una función puede no ejecutarse nunca.
+ */
+export function tablasCreadas(texto) {
+  const r = tokenizar(texto);
   const set = new Set();
-  for (const s of sentencias(ts)) {
-    if (!esW(s[0], "create") || !esW(s[1], "table") || esW(s[2], "if")) continue;
+  if (r.error) return set;
+  for (const s of sentencias(r.tokens)) {
+    if (!esW(s[0], "create") || !esW(s[1], "table")) continue;
     const t = leerTabla(s, 2);
     if (t && esP(s[t.fin], "(")) set.add(t.nombre);
   }
   return set;
 }
 
-/**
- * Tablas que la migración crea con certeza. Uno dentro de un DO o una función puede no ejecutarse
- * nunca (rama IF falsa), así que no cuenta; tampoco `IF NOT EXISTS` ni otro esquema.
- */
-export function tablasCreadas(texto) {
-  const r = tokenizar(texto);
-  return r.error ? new Set() : creadasDe(r.tokens);
-}
+// ── Gramática permitida ─────────────────────────────────────────────────────
+// Únicas funciones que se pueden llamar: las de default. Una función que ya existe en la base
+// (o un operador que la envuelve) puede hacer cualquier cosa.
+const FUNCIONES_OK = new Set(["now", "gen_random_uuid"]);
+// Operadores de comparación/aritmética de los tipos del sistema (CHECK y WHERE de índice parcial).
+const OPERADORES_OK = new Set(["=", "<>", "!=", "<", ">", "<=", ">=", "+", "-", "*", "/", "%", "||", "~", "~*", "!~", "!~*"]);
+// Palabras que pueden aparecer en un CHECK o un WHERE de índice (las columnas van "entre comillas").
+const PALABRAS_EXPR = new Set(["and", "or", "not", "is", "null", "true", "false", "in", "between", "like", "ilike", "distinct", "from", "current_timestamp"]);
+// Palabras que siguen al nombre base de un tipo (DOUBLE PRECISION, TIMESTAMP(3) WITH TIME ZONE…).
+const PALABRAS_TIPO = new Set(["precision", "varying", "with", "without", "time", "zone"]);
+const PRED_TENANT = ['"tenantId"', "=", "current_setting", "(", "'app.current_tenant_id'", ",", "true", ")"];
 
-/** Columnas que la migración agrega con certeza (ADD COLUMN sin IF NOT EXISTS, a nivel superior). */
-function agregadasDe(ts) {
-  const mapa = new Map();
-  for (const s of sentencias(ts)) {
-    if (!esW(s[0], "alter") || !esW(s[1], "table")) continue;
-    let i = 2;
-    if (esW(s[i], "if") && esW(s[i + 1], "exists")) i += 2;
-    if (esW(s[i], "only")) i++;
-    const t = leerTabla(s, i);
-    if (!t) continue;
-    for (const [a] of partirComas(s, t.fin, s.length)) {
-      if (!esW(s[a], "add")) continue;
-      let j = a + 1;
-      if (esW(s[j], "constraint", "primary", "unique", "check", "foreign", "exclude", "if")) continue;
-      if (esW(s[j], "column")) j++;
-      if (esW(s[j], "if")) continue;
-      const col = identDe(s[j]);
-      if (col === null) continue;
-      if (!mapa.has(t.nombre)) mapa.set(t.nombre, new Set());
-      mapa.get(t.nombre).add(col);
-    }
+class NoPermitida extends Error {
+  /** @param {string} regla @param {string} motivo @param {any} [tok] */
+  constructor(regla, motivo, tok) {
+    super(motivo);
+    this.regla = regla;
+    this.tok = tok;
   }
-  return mapa;
 }
-
-/** Recorre los tokens, entrando a los cuerpos $tag$. */
-function recorrer(ts, f) {
-  ts.forEach((t, k) => {
-    f(ts, k);
-    if (t.k === "d") recorrer(t.dentro, f);
-  });
-}
-
-// `ON UPDATE CASCADE`, `BEFORE UPDATE`, `INSERT OR UPDATE`, `FOR UPDATE`, `DO UPDATE` (otra regla)…
-const ANTES_DE_UPDATE_NO_SENTENCIA = new Set(["on", "before", "after", "or", "for", "do", "of", "grant", "revoke", "instead"]);
+const GENERICA = "no es una de las formas aditivas que se publican solas";
 
 /**
- * Cada `UPDATE T SET …` (también dentro de DO/funciones y CTE): si sólo escribe columnas que la
- * misma migración agrega (o T es nueva) es un backfill (aviso); si escribe una columna que ya
- * existía, PISA DATOS (bloqueo). Si no se puede leer, frena.
+ * Lee la sentencia `s` (tokens de nivel superior, sin `;`) contra la gramática permitida.
+ * Devuelve { rls: tabla | null } si calza entera; si no, tira NoPermitida (con el motivo concreto
+ * si lo hay). `creadas` = tablas creadas por sentencias ANTERIORES de la misma migración.
  */
-function revisarUpdates(tokens, creadas, agregadas, hallazgo, bloqueos, avisos) {
-  recorrer(tokens, (ts, k) => {
-    const u = ts[k];
-    if (!esW(u, "update")) return;
-    const prev = ts[k - 1];
-    if (esP(prev, ",") || (prev && prev.k === "w" && ANTES_DE_UPDATE_NO_SENTENCIA.has(prev.low))) return;
-    const ilegible = () =>
-      hallazgo(bloqueos, "UPDATE DE DATOS EXISTENTES", "no se pudo leer qué tabla o columnas escribe", u.pos, u.raw.length);
-    let j = k + 1;
-    if (esW(ts[j], "only")) j++;
-    const t = leerTabla(ts, j);
-    if (!t) return ilegible();
-    j = t.fin;
-    if (esP(ts[j], "*") || (ts[j] && ts[j].raw === "*")) j++;
-    if (!esW(ts[j], "set")) {
-      if (esW(ts[j], "as")) j++;
-      if (identDe(ts[j]) !== null && !esW(ts[j], "set")) j++;
-    }
-    if (!esW(ts[j], "set")) return ilegible();
-    j++;
-    const items = [];
-    let prof = 0;
-    let desde = j;
-    for (; j <= ts.length; j++) {
-      const x = ts[j];
-      if (!x) { items.push([desde, j]); break; }
-      if (esP(x, "(") || esP(x, "[")) prof++;
-      else if (esP(x, ")") || esP(x, "]")) { if (--prof < 0) { items.push([desde, j]); break; } }
-      else if (prof === 0 && (esP(x, ";") || esW(x, "from", "where", "returning"))) { items.push([desde, j]); break; }
-      else if (prof === 0 && esP(x, ",")) { items.push([desde, j]); desde = j + 1; }
-    }
-    const cols = [];
-    let legible = items.length > 0;
-    for (const [a, b] of items) {
-      if (a >= b) { legible = false; continue; }
-      if (esP(ts[a], "(")) {
-        const c = cierre(ts, a);
-        if (c < 0 || c >= b) { legible = false; continue; }
-        for (const [x, y] of partirComas(ts, a + 1, c)) {
-          const col = x < y ? identDe(ts[x]) : null;
-          if (col === null) legible = false;
-          else cols.push(col);
-        }
-      } else {
-        const col = identDe(ts[a]);
-        if (col === null) legible = false;
-        else cols.push(col);
-      }
-    }
-    const nuevas = agregadas.get(t.nombre) ?? new Set();
-    const pisa = cols.filter((c) => !nuevas.has(c));
-    const largo = ts[j - 1] ? ts[j - 1].pos + ts[j - 1].raw.length - u.pos : u.raw.length;
-    if (creadas.has(t.nombre)) hallazgo(avisos, "UPDATE", "carga datos en una tabla nueva", u.pos, largo);
-    else if (!legible || pisa.length)
-      hallazgo(
-        bloqueos,
-        "UPDATE DE DATOS EXISTENTES",
-        legible ? `escribe columnas que ya existían (${pisa.join(", ")}): pisa datos` : "no se pudo leer qué columnas escribe",
-        u.pos,
-        largo,
-      );
-    else hallazgo(avisos, "UPDATE", `backfill de columna(s) nueva(s): ${cols.join(", ")}`, u.pos, largo);
-  });
-}
-
-// ── Lista permitida ─────────────────────────────────────────────────────────
-// Además de las reglas de arriba (que dan el motivo concreto), cada sentencia de nivel superior
-// tiene que ser de una forma conocida como aditiva. Lo que no está acá FRENA, aunque ninguna regla
-// lo haya nombrado (LOCK, SELECT f(), INHERIT, ATTACH, CREATE FUNCTION, EVENT TRIGGER, otro
-// esquema, …). Permitido:
-//   CREATE TABLE T (…) · CREATE TYPE T AS ENUM ('…') · CREATE [UNIQUE] INDEX … ON T (…)
-//   ALTER TABLE T ADD COLUMN (nullable o con DEFAULT) / ADD CONSTRAINT / ALTER COLUMN c SET DEFAULT
-//     (no sobre tenantId) / ENABLE|FORCE RLS (sólo tabla nueva)
-//   CREATE POLICY y CREATE TRIGGER sólo sobre tablas nuevas · INSERT sólo en tablas nuevas
-//   UPDATE de backfill (lo juzga revisarUpdates) · DO con el idioma RLS reconocido y nada más
-//   COMMENT ON …
-// Y en todas: las funciones que se llaman tienen que ser de una lista corta de funciones del sistema
-// (una función que ya existe en la base puede hacer cualquier cosa).
-
-const LLAMADAS_OK = new Set([
-  // tipos con modificador y palabras clave que van seguidas de "("
-  "varchar", "character", "char", "decimal", "numeric", "timestamp", "timestamptz", "time", "timetz", "interval",
-  "bit", "varbit", "varying", "float", "precision",
-  "check", "unique", "key", "exists", "in", "any", "all", "some", "array", "include", "with", "as", "cast",
-  "values", "and", "or", "not", "on", "using", "set", "default", "where", "then", "else", "when", "case",
-  "between", "like", "ilike", "is", "null", "filter", "over", "by", "distinct", "row", "identity", "select",
-  "btree", "gin", "gist", "hash", "brin", "spgist", "returning", "from", "join", "conflict",
-  // funciones del sistema sin efectos
-  "now", "gen_random_uuid", "uuid_generate_v4", "lower", "upper", "length", "char_length", "btrim", "trim",
-  "ltrim", "rtrim", "substring", "substr", "concat", "replace", "split_part", "round", "floor", "ceil", "abs",
-  "to_char", "date_trunc", "extract", "current_setting", "coalesce", "nullif", "greatest", "least", "count",
-  "max", "min", "sum", "avg", "row_number", "string_agg", "array_agg", "jsonb_build_object", "json_build_object",
-  "to_jsonb", "md5", "left", "right", "position", "lpad", "rpad", "array_length", "cardinality",
-]);
-
-/** Primera llamada a función no reconocida en ts[a, b) (o null). */
-function llamadaDesconocida(ts, a, b) {
-  for (let j = a; j < b; j++) {
-    const t = ts[j];
-    if (!(t.k === "w" || t.k === "q") || !esP(ts[j + 1], "(")) continue;
-    if (esW(ts[j - 1], "references") || (esP(ts[j - 1], ".") && esW(ts[j - 3], "references"))) continue;
-    const calificada = esP(ts[j - 1], ".");
-    if (calificada && !esW(ts[j - 2], "pg_catalog")) return t;
-    if (t.k === "w" && LLAMADAS_OK.has(t.low)) continue;
-    return t;
-  }
-  return null;
-}
-
-const DECLARABLES = new Set(["text", "varchar", "name"]);
-const PLPGSQL_OK = new Set(["begin", "end", "foreach", "in", "array", "loop"]);
-
-/** Cuerpo de un DO (ya sin el idioma RLS): sólo DECLARE v text; BEGIN FOREACH … LOOP END LOOP; END. */
-function cuerpoDoPermitido(ts) {
-  const vars = new Set();
+function sentenciaPermitida(s, creadas) {
   let i = 0;
-  if (esW(ts[0], "declare")) {
-    i = 1;
-    while (i < ts.length && !esW(ts[i], "begin")) {
-      const v = ts[i].k === "w" ? ts[i].low : null;
-      if (!v || !esW(ts[i + 1], ...DECLARABLES) || !esP(ts[i + 2], ";")) return false;
-      vars.add(v);
-      i += 3;
-    }
-  }
-  if (!esW(ts[i], "begin")) return false;
-  for (; i < ts.length; i++) {
-    const t = ts[i];
-    if (t.k === "w" && (PLPGSQL_OK.has(t.low) || vars.has(t.low))) continue;
-    if (t.k === "s" && !t.unicode && t.raw[0] === "'") continue;
-    if (t.k === "p" && "[],;".includes(t.raw)) continue;
-    return false;
-  }
-  return true;
-}
-
-/**
- * ¿La sentencia `s` (tokens de nivel superior, sin el `;`) es de una forma permitida?
- * Los motivos concretos (NOT NULL sin default, función no reconocida) se agregan vía ctx.bloquear.
- */
-function sentenciaPermitida(s, ctx) {
-  const w = (k, ...v) => esW(s[k], ...v);
-  const llamadas = (a, b) => {
-    const t = llamadaDesconocida(s, a, b);
-    if (t) ctx.bloquear("FUNCIÓN NO RECONOCIDA", `llama a \`${t.raw}\`: una función que ya existe en la base puede hacer cualquier cosa`, t);
-  };
-  if (w(0, "create") && w(1, "table")) {
-    const i = w(2, "if") && w(3, "not") && w(4, "exists") ? 5 : 2;
-    const t = leerTabla(s, i);
-    if (!t || !esP(s[t.fin], "(") || cierre(s, t.fin) !== s.length - 1) return false;
-    llamadas(t.fin, s.length);
-    return true;
-  }
-  if (w(0, "create") && w(1, "type")) {
-    const t = leerTabla(s, 2);
-    if (!t || !esW(s[t.fin], "as") || !esW(s[t.fin + 1], "enum") || !esP(s[t.fin + 2], "(")) return false;
-    const c = cierre(s, t.fin + 2);
-    if (c !== s.length - 1) return false;
-    return s.slice(t.fin + 3, c).every((x) => (x.k === "s" && !x.unicode && x.raw[0] === "'") || esP(x, ","));
-  }
-  if (w(0, "create") && (w(1, "index") || (w(1, "unique") && w(2, "index")))) {
-    let i = w(1, "unique") ? 3 : 2;
-    if (w(i, "concurrently")) i++;
-    if (w(i, "if") && w(i + 1, "not") && w(i + 2, "exists")) i += 3;
-    if (!w(i, "on")) {
-      if (identDe(s[i]) === null) return false;
-      i++;
-    }
-    if (!w(i, "on")) return false;
+  const cur = () => s[i];
+  const no = (motivo = GENERICA, regla = REVISION) => { throw new NoPermitida(regla, motivo, s[i] ?? s[s.length - 1]); };
+  const veoW = (...v) => esW(s[i], ...v);
+  const comeW = (...v) => (esW(s[i], ...v) ? (i++, true) : false);
+  const pideW = (...v) => { if (!comeW(...v)) no(); };
+  const comeP = (v) => (esP(s[i], v) ? (i++, true) : false);
+  const pideP = (v) => { if (!comeP(v)) no(); };
+  const fin = () => { if (i !== s.length) no(); };
+  const ident = () => {
+    const n = identDe(s[i]);
+    if (n === null) no();
     i++;
-    if (w(i, "only")) i++;
+    return n;
+  };
+  const tabla = () => {
     const t = leerTabla(s, i);
-    if (!t || s.slice(t.fin).some((x) => esW(x, "tablespace"))) return false;
-    llamadas(t.fin, s.length);
-    return true;
-  }
-  if (w(0, "alter") && w(1, "table")) {
-    let i = 2;
-    if (w(i, "if") && w(i + 1, "exists")) i += 2;
-    if (w(i, "only")) i++;
-    const t = leerTabla(s, i);
-    if (!t || t.fin >= s.length) return false;
-    const nueva = ctx.creadas.has(t.nombre);
-    return partirComas(s, t.fin, s.length).every(([a, b]) => {
-      if (a >= b) return false;
-      if (w(a, "add")) {
-        let j = a + 1;
-        if (w(j, "constraint", "primary", "unique", "check", "foreign", "exclude")) {
-          llamadas(j, b);
-          return true;
+    if (!t) no("tabla de otro esquema o nombre ilegible");
+    i = t.fin;
+    return t.nombre;
+  };
+  const numero = () => { if (!s[i] || s[i].k !== "n") no(); i++; };
+  const columnas = () => {
+    pideP("(");
+    do ident(); while (comeP(","));
+    pideP(")");
+  };
+  const llamada = (t) => {
+    if (t && (t.k === "w" || t.k === "q") && esP(s[i + 1], "("))
+      no(`llama a \`${t.raw}\`: sólo se permiten now(), gen_random_uuid() y CURRENT_TIMESTAMP`, "FUNCIÓN NO RECONOCIDA");
+  };
+  const tipo = () => {
+    if (s[i]?.k !== "w" && !(s[i]?.k === "q" && !s[i].unicode)) no();
+    i++;
+    if (comeP(".")) ident();
+    const mods = () => { if (comeP("(")) { numero(); while (comeP(",")) numero(); pideP(")"); } };
+    mods();
+    while (veoW(...PALABRAS_TIPO)) { i++; mods(); }
+    while (comeP("[")) { if (s[i]?.k === "n") i++; pideP("]"); }
+  };
+  const constante = () => {
+    if (comeP("(")) { constante(); pideP(")"); }
+    else {
+      if (s[i]?.k === "o" && (s[i].raw === "-" || s[i].raw === "+") && s[i + 1]?.k === "n") i++;
+      const t = s[i];
+      if (t && t.k === "s" && !t.unicode) i++;
+      else if (t && t.k === "n") i++;
+      else if (esW(t, "true", "false", "null")) i++;
+      else if (esW(t, "current_timestamp")) { i++; if (comeP("(")) { numero(); pideP(")"); } }
+      else if (t && t.k === "w" && FUNCIONES_OK.has(t.low) && esP(s[i + 1], "(") && esP(s[i + 2], ")")) i += 3;
+      else if (esW(t, "array") && esP(s[i + 1], "[")) {
+        i += 2;
+        if (!comeP("]")) { do constante(); while (comeP(",")); pideP("]"); }
+      } else {
+        llamada(t);
+        no("el DEFAULT no es una constante");
+      }
+    }
+    while (comeP("::")) tipo();
+  };
+  /** CHECK (…) / WHERE: columnas "entre comillas", literales, operadores del sistema; sin funciones. */
+  const expresion = (hasta) => {
+    for (; i < hasta; i++) {
+      const t = s[i];
+      if (t.k === "q" && !t.unicode) { llamada(t); continue; }
+      const agrupa = t.k === "w" && ["in", "and", "or", "not"].includes(t.low); // `IN (…)`, `AND (…)`
+      if (t.k === "w" && PALABRAS_EXPR.has(t.low) && (agrupa || !esP(s[i + 1], "("))) continue;
+      if (t.k === "w" && FUNCIONES_OK.has(t.low) && esP(s[i + 1], "(") && esP(s[i + 2], ")")) { i += 2; continue; }
+      if (t.k === "w") { llamada(t); no(`\`${t.raw}\` no es una columna "entre comillas" ni una palabra permitida en una condición`); }
+      if (t.k === "s" && !t.unicode) continue;
+      if (t.k === "n") continue;
+      if (t.k === "p" && ["(", ")", ","].includes(t.raw)) continue;
+      if (t.k === "p" && t.raw === "::") { i++; tipo(); i--; continue; }
+      if (t.k === "o" && OPERADORES_OK.has(t.raw)) continue;
+      no(`\`${t.raw}\` no está permitido en una condición`);
+    }
+  };
+  const parentesis = () => {
+    if (!esP(s[i], "(")) no();
+    let prof = 0;
+    for (let j = i; j < s.length; j++) {
+      if (esP(s[j], "(") || esP(s[j], "[")) prof++;
+      else if (esP(s[j], ")") || esP(s[j], "]")) if (--prof === 0) return j;
+    }
+    return no();
+  };
+  const chequeo = () => {
+    const c = parentesis();
+    i++;
+    expresion(c);
+    i = c + 1;
+  };
+  const diferible = () => {
+    for (;;) {
+      if (comeW("deferrable")) continue;
+      if (veoW("not") && esW(s[i + 1], "deferrable")) { i += 2; continue; }
+      if (comeW("initially")) { pideW("deferred", "immediate"); continue; }
+      return;
+    }
+  };
+  const referencias = () => {
+    tabla();
+    if (esP(s[i], "(")) columnas();
+    if (comeW("match")) pideW("full", "simple");
+    while (comeW("on")) {
+      pideW("delete", "update");
+      if (comeW("cascade", "restrict")) continue;
+      if (comeW("no")) { pideW("action"); continue; }
+      pideW("set");
+      pideW("null", "default");
+      if (esP(s[i], "(")) columnas();
+    }
+    diferible();
+  };
+  // Restricción de tabla (sólo tablas nuevas): PK / UNIQUE / FK / CHECK.
+  const restriccion = () => {
+    if (comeW("constraint")) ident();
+    if (comeW("primary")) { pideW("key"); columnas(); diferible(); }
+    else if (comeW("unique")) {
+      if (comeW("nulls")) { comeW("not"); pideW("distinct"); }
+      columnas();
+      diferible();
+    } else if (comeW("foreign")) { pideW("key"); columnas(); pideW("references"); referencias(); }
+    else if (comeW("check")) chequeo();
+    else no();
+  };
+  const columna = (nueva) => {
+    ident();
+    tipo();
+    let conDefault = false;
+    let obligatoria = false;
+    while (i < s.length) {
+      if (comeW("constraint")) ident();
+      if (veoW("not") && esW(s[i + 1], "null")) { i += 2; obligatoria = true; }
+      else if (comeW("null")) { /* nullable */ }
+      else if (comeW("default")) { constante(); conDefault = true; }
+      else if (!nueva)
+        no("restricción, clave o columna generada en una columna nueva de una tabla existente", "RESTRICCIÓN EN TABLA EXISTENTE");
+      else if (comeW("primary")) pideW("key");
+      else if (comeW("unique")) { /* tabla nueva */ }
+      else if (comeW("references")) referencias();
+      else if (comeW("check")) chequeo();
+      else no();
+    }
+    if (!nueva && obligatoria && !conDefault)
+      no("agrega una columna obligatoria sin valor por defecto a una tabla existente (falla si tiene filas)", "NOT NULL SIN DEFAULT");
+  };
+  /** Corre `f` sobre el tramo s[a, b) como si fuera la sentencia entera. */
+  const tramo = (a, b, f) => {
+    const s0 = s;
+    s = s0.slice(0, b);
+    i = a;
+    try { f(); fin(); } finally { s = s0; }
+  };
+
+  // ── formas de nivel superior ──
+  if (comeW("create")) {
+    if (comeW("table")) {
+      if (veoW("if")) no("CREATE TABLE IF NOT EXISTS: la tabla puede existir");
+      const t = tabla();
+      const c = parentesis();
+      if (c !== s.length - 1) no("CREATE TABLE con opciones después de las columnas");
+      if (creadas.has(t)) no();
+      for (const [a, b] of partirComas(s, i + 1, c)) {
+        if (a >= b) no();
+        tramo(a, b, () => (esW(s[a], "constraint", "primary", "unique", "foreign", "check") ? restriccion() : columna(true)));
+      }
+      return { crea: t };
+    }
+    if (comeW("type")) {
+      ident();
+      pideW("as");
+      pideW("enum");
+      pideP("(");
+      if (!comeP(")")) {
+        do { if (s[i]?.k !== "s" || s[i].unicode) no(); i++; } while (comeP(","));
+        pideP(")");
+      }
+      fin();
+      return {};
+    }
+    if (veoW("unique", "index")) {
+      const unico = comeW("unique");
+      pideW("index");
+      comeW("concurrently");
+      if (comeW("if")) { pideW("not"); pideW("exists"); }
+      if (!veoW("on")) ident();
+      pideW("on");
+      comeW("only");
+      const t = tabla();
+      if (unico && !creadas.has(t)) no("índice único sobre una tabla que ya existe: falla con duplicados y cambia qué escrituras se aceptan", "ÚNICO EN TABLA EXISTENTE");
+      if (comeW("using")) pideW("btree", "hash", "gin", "gist", "brin", "spgist");
+      pideP("(");
+      do {
+        if (s[i]?.k !== "q" || s[i].unicode) {
+          llamada(s[i]);
+          no("el índice sólo puede listar columnas \"entre comillas\" (sin expresiones ni clases de operadores)");
         }
-        if (w(j, "column")) j++;
-        if (w(j, "if") && w(j + 1, "not") && w(j + 2, "exists")) j += 3;
-        if (identDe(s[j]) === null) return false;
-        const resto = s.slice(j + 1, b);
-        const conDefault = resto.some((x) => esW(x, "default"));
-        const obligatoria = resto.some((x, k) => (esW(x, "not") && esW(resto[k + 1], "null")) || esW(x, "primary"));
-        if (!nueva && obligatoria && !conDefault)
-          ctx.bloquear("NOT NULL SIN DEFAULT", "agrega una columna obligatoria sin valor por defecto a una tabla existente (falla si tiene filas)", s[a]);
-        llamadas(j + 1, b);
-        return true;
-      }
-      if (w(a, "enable", "force") && w(a + 1, "row") && w(a + 2, "level") && w(a + 3, "security") && b === a + 4) return nueva;
-      if (w(a, "alter")) {
-        let j = a + 1;
-        if (w(j, "column")) j++;
-        const col = identDe(s[j]);
-        if (col === null || !w(j + 1, "set") || !w(j + 2, "default") || col.toLowerCase() === "tenantid") return false;
-        if (!nueva) ctx.avisar("DEFAULT CAMBIADO", "cambia el valor por defecto de una columna existente", s[a]);
-        llamadas(j + 3, b);
-        return true;
-      }
-      return false;
-    });
+        i++;
+        comeW("asc", "desc");
+        if (comeW("nulls")) pideW("first", "last");
+      } while (comeP(","));
+      pideP(")");
+      if (comeW("include")) columnas();
+      if (comeW("nulls")) { comeW("not"); pideW("distinct"); }
+      if (comeW("where")) expresion(s.length);
+      fin();
+      return {};
+    }
+    if (comeW("policy")) {
+      ident();
+      pideW("on");
+      const t = tabla();
+      if (!creadas.has(t)) no("agrega una política de acceso a una tabla que no crea esta migración", "POLÍTICA EN TABLA EXISTENTE");
+      if (comeW("as")) pideW("permissive");
+      if (comeW("for")) pideW("all");
+      const predicado = () => {
+        let abiertos = 0;
+        while (comeP("(")) abiertos++;
+        if (!abiertos) no();
+        const politica = () => no("la política no es la de aislamiento por tenant (\"tenantId\" = current_setting('app.current_tenant_id', true))", "POLÍTICA DISTINTA");
+        for (const raw of PRED_TENANT) {
+          if (!s[i] || (s[i].k === "w" ? s[i].low : s[i].raw) !== raw || s[i].unicode) politica();
+          i++;
+        }
+        if (comeP("::")) pideW("text");
+        for (; abiertos > 0; abiertos--) if (!comeP(")")) politica();
+      };
+      pideW("using");
+      predicado();
+      if (comeW("with")) { pideW("check"); predicado(); }
+      fin();
+      return { rls: t };
+    }
+    if (veoW("trigger") || (veoW("constraint") && esW(s[i + 1], "trigger")))
+      no("un trigger corre código en cada escritura (aunque la tabla sea nueva)", "TRIGGER");
+    if (veoW("rule") || (veoW("or") && esW(s[i + 1], "replace")))
+      no(veoW("rule") ? "una regla puede reescribir o descartar escrituras" : "reemplaza una función/vista que puede existir", veoW("rule") ? "RULE" : "CREATE OR REPLACE");
+    no();
   }
-  if (w(0, "create") && w(1, "policy")) {
-    if (identDe(s[2]) === null || !w(3, "on")) return false;
-    const t = leerTabla(s, 4);
-    if (!t || !ctx.creadas.has(t.nombre)) return false;
-    llamadas(t.fin, s.length);
-    return true;
+  if (comeW("alter")) {
+    if (comeW("type")) {
+      ident();
+      pideW("add");
+      pideW("value");
+      if (comeW("if")) { pideW("not"); pideW("exists"); }
+      if (s[i]?.k !== "s" || s[i].unicode) no();
+      i++;
+      if (comeW("before", "after")) { if (s[i]?.k !== "s" || s[i].unicode) no(); i++; }
+      fin();
+      return {};
+    }
+    pideW("table");
+    comeW("only");
+    const t = tabla();
+    const nueva = creadas.has(t);
+    if (i >= s.length) no();
+    for (const [a, b] of partirComas(s, i, s.length)) {
+      if (a >= b) no();
+      tramo(a, b, () => {
+        if (comeW("add")) {
+          if (veoW("constraint", "primary", "unique", "foreign", "check", "exclude")) {
+            if (!nueva)
+              no("restricción sobre una tabla que no crea esta migración: puede fallar con datos existentes o rechazar escrituras", "RESTRICCIÓN EN TABLA EXISTENTE");
+            restriccion();
+            return;
+          }
+          comeW("column");
+          if (comeW("if")) { pideW("not"); pideW("exists"); }
+          columna(nueva);
+          return;
+        }
+        if (veoW("enable", "force") && esW(s[i + 1], "row")) {
+          if (!nueva) no("prende RLS sobre una tabla que no crea esta migración (Gate 2 del dueño)", "RLS EN TABLA EXISTENTE");
+          i++;
+          pideW("row");
+          pideW("level");
+          pideW("security");
+          return;
+        }
+        if (comeW("alter")) {
+          comeW("column");
+          ident();
+          if (veoW("set") && esW(s[i + 1], "default")) no("cambia el valor por defecto de una columna existente", "DEFAULT CAMBIADO");
+        }
+        no();
+      });
+    }
+    return {};
   }
-  if (w(0, "create") && (w(1, "trigger") || (w(1, "constraint") && w(2, "trigger")))) {
-    const on = s.findIndex((x, k) => k > 2 && esW(x, "on"));
-    const t = on > 0 ? leerTabla(s, on + 1) : null;
-    return !!t && ctx.creadas.has(t.nombre);
+  if (comeW("drop")) {
+    // Sólo el no-op del molde RLS: DROP POLICY IF EXISTS p ON <tabla creada más arriba>.
+    if (!(comeW("policy") && comeW("if") && comeW("exists"))) no("borra un objeto", "DROP");
+    ident();
+    pideW("on");
+    const t = tabla();
+    if (!creadas.has(t)) no("borra una política de una tabla que no crea esta migración", "DROP");
+    fin();
+    return {};
   }
-  if (w(0, "insert") && w(1, "into")) {
-    const t = leerTabla(s, 2);
-    if (!t) return false;
-    if (!ctx.creadas.has(t.nombre))
-      ctx.bloquear("INSERT EN TABLA EXISTENTE", "inserta filas en una tabla en uso (usuarios, permisos o datos de un negocio)", s[0]);
-    llamadas(t.fin, s.length);
-    return true;
-  }
-  if (w(0, "update")) {
-    llamadas(1, s.length);
-    return true; // qué columnas pisa lo decide revisarUpdates (si no lo puede leer, frena)
-  }
-  if (w(0, "comment") && w(1, "on")) return !s.some((x) => x.k === "d") && llamadaDesconocida(s, 2, s.length) === null;
-  if (w(0, "do")) {
-    let j = 1;
-    if (w(j, "language") && w(j + 1, "plpgsql")) j += 2;
-    const d = s[j];
-    if (!d || d.k !== "d") return false;
-    j++;
-    if (w(j, "language") && w(j + 1, "plpgsql")) j += 2;
-    return j === s.length && cuerpoDoPermitido(d.dentro);
-  }
-  return false;
+  if (veoW("insert", "update", "delete", "copy", "merge", "with", "truncate"))
+    no("lee o escribe datos (aunque la tabla sea nueva)", "ESCRIBE DATOS");
+  if (veoW("do")) no("bloque de código (DO): no se puede asegurar qué ejecuta", "BLOQUE DO");
+  return no();
 }
 
 /** @typedef {{ regla: string, motivo: string, linea: number, fragmento: string }} Hallazgo */
 
-const MOTIVO_NO_PERMITIDA =
-  "no es una de las formas aditivas que se publican solas (crear tabla/tipo/índice, agregar columna o restricción, RLS por tenant en tabla nueva)";
-
 /**
  * Analiza el SQL de UNA migración.
+ * @param {string} sql
  * @returns {{ bloqueos: Hallazgo[], avisos: Hallazgo[], rlsNuevas: string[] }}
- *   Hallazgo = { regla, motivo, linea, fragmento }
+ *   `avisos` queda por compatibilidad: con el criterio de falla cerrada no hay «pasa con aviso».
  */
 export function analizarSql(sql) {
+  /** @type {Hallazgo[]} */
   const bloqueos = [];
-  const avisos = [];
-  const ilegible = (error) => {
-    bloqueos.push({ regla: "ILEGIBLE", motivo: `no se pudo leer el SQL: ${error}`, linea: 0, fragmento: "" });
-    return { bloqueos, avisos, rlsNuevas: [] };
-  };
-  // Texto canónico: un separador entre tokens, sin comentarios, mismas líneas.
-  const can = canonizar(sql);
-  if (can.error) return ilegible(can.error);
-  let texto = can.texto;
-  const creadas = tablasCreadas(texto);
-
-  // Neutraliza el idioma RLS reconocido (se pisa con espacios, mismo largo).
-  const rls = idiomaRls(texto, creadas);
+  const tk = tokenizar(sql);
+  if (tk.error || !tk.tokens) {
+    bloqueos.push({ regla: "ILEGIBLE", motivo: `no se pudo leer el SQL: ${tk.error} — ${REVISION}`, linea: 0, fragmento: "" });
+    return { bloqueos, avisos: [], rlsNuevas: [] };
+  }
+  const fragmento = (/** @type {string} */ txt) =>
+    txt.slice(0, 80).replace(/\s+/g, " ").replace(/`/g, "'").replace(/@/g, "@​").trim();
+  const creadas = new Set();
   const rlsNuevas = new Set();
-  for (const r of rls.sort((a, b) => b.desde - a.desde)) {
-    texto = texto.slice(0, r.desde) + texto.slice(r.desde, r.hasta).replace(/[^\n]/g, " ") + texto.slice(r.hasta);
-    for (const t of r.tablas) rlsNuevas.add(t);
-  }
-  const tk = tokenizar(texto);
-  if (tk.error) return ilegible(tk.error);
-
-  const hallazgo = (lista, regla, motivo, idx, largo) =>
-    lista.push({
-      regla,
-      motivo,
-      linea: linea(texto, idx),
-      fragmento: texto.slice(idx, idx + Math.max(largo, 60)).replace(/\s+/g, " ").replace(/`/g, "'").replace(/@/g, "@​").trim(),
-      _pos: idx,
-    });
-
-  for (const r of BLOQUEOS) for (const m of texto.matchAll(r.re)) hallazgo(bloqueos, r.regla, r.motivo, m.index, m[0].length);
-  for (const r of AVISOS) for (const m of texto.matchAll(r.re)) hallazgo(avisos, r.regla, r.motivo, m.index, m[0].length);
-
-  // Prender RLS o crear políticas sobre una tabla que YA existe: es Gate 2 del dueño (con RLS y
-  // sin política, el rol de la app deja de ver la tabla; una política permisiva nueva la abre).
-  const reRls = new RegExp(String.raw`\bALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:ONLY\s+)?${T_DIN}\s+(?:ENABLE|FORCE)\s+ROW\s+LEVEL\s+SECURITY\b`, "gi");
-  for (const m of texto.matchAll(reRls)) {
-    const t = tablaDe(m[1]);
-    if (t === null || t === "%I" || !creadas.has(t))
-      hallazgo(bloqueos, "RLS EN TABLA EXISTENTE", "prende RLS sobre una tabla que no crea esta migración (Gate 2 del dueño)", m.index, m[0].length);
-  }
-  const rePol = new RegExp(String.raw`\bCREATE\s+POLICY\s+${RE_IDENT}\s+ON\s+${T_DIN}`, "gi");
-  for (const m of texto.matchAll(rePol)) {
-    const t = tablaDe(m[1]);
-    if (t === null || t === "%I" || !creadas.has(t))
-      hallazgo(bloqueos, "POLÍTICA EN TABLA EXISTENTE", "agrega una política de acceso a una tabla que no crea esta migración", m.index, m[0].length);
-    else
-      hallazgo(avisos, "POLÍTICA DISTINTA", "política sobre tabla nueva que no es la de aislamiento por tenant (revisar que no abra datos)", m.index, m[0].length);
-  }
-  // Restricciones, índices únicos y triggers sobre tablas existentes: aditivos, pero pueden fallar
-  // con los datos de producción (y el build frena a mitad) o cambiar qué escrituras se aceptan.
-  const reCons = new RegExp(String.raw`\bALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:ONLY\s+)?${RE_TABLA}\s+ADD\s+CONSTRAINT\b`, "gi");
-  for (const m of texto.matchAll(reCons))
-    if (!creadas.has(normalizarIdent(m[1])))
-      hallazgo(avisos, "RESTRICCIÓN EN TABLA EXISTENTE", "puede fallar con datos existentes o rechazar escrituras", m.index, m[0].length);
-  const reUniq = new RegExp(String.raw`\bCREATE\s+UNIQUE\s+INDEX\s+(?:CONCURRENTLY\s+)?(?:IF\s+NOT\s+EXISTS\s+)?(?:${RE_IDENT}\s+)?ON\s+(?:ONLY\s+)?${RE_TABLA}`, "gi");
-  for (const m of texto.matchAll(reUniq))
-    if (!creadas.has(normalizarIdent(m[1])))
-      hallazgo(avisos, "ÚNICO EN TABLA EXISTENTE", "falla si hoy hay duplicados", m.index, m[0].length);
-  const reTrig = new RegExp(String.raw`\bCREATE\s+(?:CONSTRAINT\s+)?TRIGGER\b[^;]*?\bON\s+${RE_TABLA}`, "gi");
-  for (const m of texto.matchAll(reTrig))
-    if (!creadas.has(normalizarIdent(m[1])))
-      hallazgo(bloqueos, "TRIGGER EN TABLA EXISTENTE", "cambia qué pasa al escribir en una tabla en uso (puede descartar o reescribir filas)", m.index, m[0].length);
-
-  revisarUpdates(tk.tokens, creadas, agregadasDe(tk.tokens), hallazgo, bloqueos, avisos);
-
-  // Lista permitida: cada sentencia de nivel superior tiene que ser de una forma aditiva conocida.
-  // Si no lo es y ninguna regla dio ya un motivo concreto para esa sentencia, frena igual.
-  const ctx = {
-    creadas,
-    bloquear: (regla, motivo, t) => hallazgo(bloqueos, regla, motivo, t.pos, t.raw.length),
-    avisar: (regla, motivo, t) => hallazgo(avisos, regla, motivo, t.pos, t.raw.length),
-  };
   for (const s of sentencias(tk.tokens)) {
-    if (sentenciaPermitida(s, ctx)) continue;
-    const desde = s[0].pos;
-    const ultimo = s[s.length - 1];
-    const hasta = ultimo.pos + ultimo.raw.length;
-    if (!bloqueos.some((b) => b._pos >= desde && b._pos < hasta))
-      hallazgo(bloqueos, "SENTENCIA NO PERMITIDA", MOTIVO_NO_PERMITIDA, desde, Math.min(hasta - desde, 80));
+    try {
+      const r = sentenciaPermitida(s, creadas);
+      if (r.crea) creadas.add(r.crea);
+      if (r.rls) rlsNuevas.add(r.rls);
+    } catch (e) {
+      if (!(e instanceof NoPermitida)) throw e;
+      const desde = s[0].pos;
+      const ultimo = s[s.length - 1];
+      const texto = canonico(s, 0);
+      const base = { linea: linea(sql, desde), fragmento: fragmento(sql.slice(desde, ultimo.pos + ultimo.raw.length)) };
+      const reglas = new Map();
+      if (e.regla !== REVISION) reglas.set(e.regla, e.message);
+      for (const r of REGLAS) if (!reglas.has(r.regla) && texto.match(r.re)) reglas.set(r.regla, r.motivo);
+      if (!reglas.size) reglas.set(REVISION, e.message);
+      for (const [regla, motivo] of reglas) bloqueos.push({ regla, motivo: `${motivo} — ${REVISION}`, ...base });
+    }
   }
-
-  const limpiar = (l) =>
-    l.sort((a, b) => a.linea - b.linea || a._pos - b._pos).map(({ _pos, ...h }) => h);
-  return { bloqueos: limpiar(bloqueos), avisos: limpiar(avisos), rlsNuevas: [...rlsNuevas] };
+  return { bloqueos, avisos: [], rlsNuevas: [...rlsNuevas] };
 }

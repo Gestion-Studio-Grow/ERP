@@ -17,7 +17,7 @@ publicar PR»), siempre igual y auditada en el PR.
 |---|---|---|
 | 1 · precondiciones | quien etiquetó tiene write o más (y figura en `PUBLICAR_QUIENES` si está cargada); PR abierto, no borrador, no fork, mergeable, 0 commits atrás de main; el último deploy de producción está READY (ni en curso ni en ERROR) y `/api/health` responde | frena |
 | 2 · CI igual que main | espera que terminen `gates.yml` y `release.yml` del commit del PR y compara **job por job** contra la última corrida de main. Un rojo que main también tiene (p. ej. la deuda de lint) no frena; un rojo nuevo, un job que falta o un job salteado que en main corre, sí | frena |
-| 3 · cambios | frena si el PR toca `.github/`, `scripts/publicar/`, `scripts/release/`, el build de Vercel, las vallas, `vercel.json` o los `scripts` de `package.json`; si modifica/borra/renombra una migración existente; si una migración nueva **o cualquiera de las que nombra `prisma/lote-deploy.txt`** (el build aplica el lote) **no es aditiva**: DROP, ALTER TYPE/enum, DELETE, TRUNCATE, MERGE, upsert, RENAME, cambio de tipo, SET NOT NULL, UPDATE que pisa columnas existentes, RLS apagado o prendido sobre una tabla existente, políticas/triggers/reglas sobre tablas existentes, GRANT/REVOKE, roles, search_path, CALL, ALTER de funciones/vistas/secuencias, CREATE OR REPLACE, SQL dinámico u ofuscado. Además rige una **lista permitida**: el SQL se tokeniza (comentarios, strings, `"identificadores"`, `$$…$$`; así `UPDATE"Venta"SET…` se lee igual que con espacios) y cada sentencia tiene que ser CREATE TABLE, CREATE TYPE … AS ENUM, CREATE INDEX, ALTER TABLE … ADD COLUMN (nullable o con DEFAULT si la tabla existe) / ADD CONSTRAINT / SET DEFAULT (nunca sobre `tenantId`), el idioma RLS por tenant sobre tablas nuevas, políticas/triggers/INSERT sólo sobre tablas nuevas o un UPDATE de backfill de columnas nuevas, sin llamar funciones fuera de una lista corta del sistema; todo lo demás (SELECT f(), LOCK, INHERIT, OWNER, VALIDATE, CREATE FUNCTION, EVENT TRIGGER, otro esquema…) frena; si una migración nueva no está en el lote; o si hay migraciones y Vercel Production no tiene `MIGRATE_DATABASE_URL` | frena |
+| 3 · cambios | frena si el PR toca `.github/`, `scripts/publicar/`, `scripts/release/`, el build de Vercel, las vallas, `vercel.json` o los `scripts` de `package.json`; si modifica/borra/renombra una migración existente; si una migración nueva **o cualquiera de las que nombra `prisma/lote-deploy.txt`** (el build aplica el lote) no es una de las formas aditivas de la **lista cerrada** (ver «Detector de migraciones» abajo): todo lo demás frena con «REQUIERE REVISIÓN DEL DUEÑO»; si una migración nueva no está en el lote; o si hay migraciones y Vercel Production no tiene `MIGRATE_DATABASE_URL` | frena |
 | 4 · respaldo | crea en Neon la rama `respaldo-pre-pr-<n>-<AAAAMMDD-hhmmss>` (UTC) desde la rama de producción | frena |
 | 5 · merge | vuelve a chequear que el PR siga etiquetado, sin commits nuevos y que main no se haya movido; arma el commit de merge `Merge PR #n: …` con padres **exactos** (main verificado + el sha que pasó el CI) y mueve `main` con `force:false` (compare-and-swap): si main se movió en el medio, GitHub lo rechaza y **no se mergea nada** | frena |
 | 6 · Vercel | espera el deploy de producción del commit de merge hasta READY; después `/api/health` tiene que servir ese commit y `/api/ready` dar 200 | frena y avisa que el merge ya está en main |
@@ -83,11 +83,35 @@ Si falta un secreto, el workflow frena en el paso 1 y comenta cuál.
 
 - **No reemplaza la revisión del PR.** Verifica las reglas de publicación, no que el código sea bueno. Un PR que
   borra tests de la app y deja el CI verde se publica: la revisión del código sigue siendo de quien etiqueta.
-- **El detector de migraciones es conservador, no un parser de Postgres.** No puede saber qué hace una función que ya existe en la base si una migración la llama dentro de un SELECT (CALL sí frena). Ante la duda frena (p. ej. un `DROP`
-  dentro de un string de un `COMMENT`, o un `CREATE OR REPLACE` de una función nueva). Lo que frena ahí es
-  owner-level: lo publica el dueño a mano o con orden explícita. El SQL dinámico (`EXECUTE`) sólo pasa en el
-  idioma de RLS por tenant de los módulos (ENABLE RLS + DROP POLICY IF EXISTS + CREATE POLICY `tenant_isolation`
-  con el predicado de `app.current_tenant_id`) y **sólo sobre tablas que la misma migración crea**.
+- **El detector de migraciones es de falla cerrada estricta** (`scripts/publicar/lib/sql.mjs`). Tokeniza el SQL
+  (comentarios anidados, strings `'…'`/`E'…'`, `"identificadores"`, `$$…$$`), lo parte por `;` y cada sentencia
+  tiene que calzar ENTERA en una de estas formas; si no, frena con «REQUIERE REVISIÓN DEL DUEÑO» (y el nombre del
+  problema cuando se lo reconoce: DROP, ESCRIBE DATOS, TRIGGER, BLOQUE DO, FUNCIÓN NO RECONOCIDA…). No hay
+  «pasa con aviso».
+  - `CREATE TABLE T (…)` de una tabla nueva (sin IF NOT EXISTS, sin opciones después de las columnas).
+  - `ALTER TABLE T ADD [COLUMN] c tipo [NULL | NOT NULL] [DEFAULT constante]`; en tabla existente, NOT NULL sólo
+    con DEFAULT y sin REFERENCES/UNIQUE/CHECK/GENERATED en línea.
+  - `CREATE INDEX [CONCURRENTLY] [IF NOT EXISTS] … ON T [USING método] ("col" [ASC|DESC], …) [INCLUDE] [WHERE
+    simple]`: sólo columnas entre comillas (sin expresiones ni clases de operadores). `UNIQUE` sólo en tablas nuevas.
+  - `ADD CONSTRAINT` FOREIGN KEY / UNIQUE / PRIMARY KEY / CHECK sólo sobre tablas que crea la misma migración
+    (más arriba en el archivo).
+  - `CREATE TYPE … AS ENUM ('…')` y `ALTER TYPE … ADD VALUE [IF NOT EXISTS] '…' [BEFORE|AFTER '…']`.
+  - RLS sobre tablas nuevas: `ENABLE`/`FORCE ROW LEVEL SECURITY`, `DROP POLICY IF EXISTS p ON T` (no-op: la
+    tabla es nueva) y `CREATE POLICY p ON T USING ("tenantId" = current_setting('app.current_tenant_id', true))
+    [WITH CHECK (lo mismo)]`, letra por letra.
+  - Constante = literal, `true`/`false`/`null`, `CURRENT_TIMESTAMP`, `now()`, `gen_random_uuid()`, `ARRAY[…]`,
+    con casts `::tipo`. **Ninguna otra función** en ningún lado (ni `lower()`, ni `char_length()` en un CHECK).
+
+  Frena siempre: INSERT/UPDATE/DELETE/COPY/MERGE (también sobre tablas nuevas), `DO` (incluido el loop RLS con
+  `EXECUTE format(…)`), CREATE TRIGGER, CREATE RULE, funciones, vistas, COMMENT, SET, GRANT/REVOKE, `SET DEFAULT`
+  sobre columnas existentes, CHECK/FK/UNIQUE (con o sin NOT VALID) sobre tablas existentes, otro esquema.
+  Lo que frena es owner-level: lo publica el dueño a mano o con orden explícita.
+- **Migraciones históricas que con este criterio frenarían** (se aplicaron antes; no se tocan): 32 de 70 en
+  `prisma/migrations` — los módulos con el loop RLS en `DO` (taller, inmobiliaria, pádel, proyectos, profeturnos,
+  lead_campania, lanzamiento_base), las que agregan FK/UNIQUE a tablas existentes (Prisma al sumar una relación a
+  un modelo viejo), los backfills con UPDATE, los triggers de contabilidad y comprobantes, y `servicio_completo`
+  (`char_length` en un CHECK). Para que un módulo nuevo se publique solo: RLS con el molde suelto (no `DO`), y
+  las FK hacia tablas viejas declaradas desde la tabla nueva.
 - **El build de Vercel corre todo el código de la app con las variables de producción.** El workflow frena los
   cambios al build y a las vallas, pero cualquier código de la app se ejecuta en `next build`.
 - **Cola de GitHub:** sólo queda una corrida esperando por grupo de concurrencia. Si se etiquetan tres PR

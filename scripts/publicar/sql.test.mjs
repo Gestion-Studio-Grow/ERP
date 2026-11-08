@@ -6,7 +6,10 @@ import { analizarSql, limpiarComentarios } from "./lib/sql.mjs";
 
 const reglas = (sql) => [...new Set(analizarSql(sql).bloqueos.map((b) => b.regla))].sort();
 const bloquea = (sql) => analizarSql(sql).bloqueos.length > 0;
+const frenaCon = (sql, regla) => assert.ok(reglas(sql).includes(regla), `${regla} ∉ ${reglas(sql)} — ${sql}`);
+const pasa = (sql) => assert.deepEqual(analizarSql(sql).bloqueos, [], sql);
 
+const PRED = `("tenantId" = current_setting('app.current_tenant_id', true))`;
 const RLS_LOOP = (tablas) => `
 DO $$
 DECLARE
@@ -29,137 +32,195 @@ const RLS_SUELTO = (t) => `
 ALTER TABLE "${t}" ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation ON "${t}";
 CREATE POLICY tenant_isolation ON "${t}"
-  USING ("tenantId" = current_setting('app.current_tenant_id', true))
-  WITH CHECK ("tenantId" = current_setting('app.current_tenant_id', true));`;
+  USING ${PRED}
+  WITH CHECK ${PRED};`;
 
-test("aditiva típica de Prisma: tabla nueva, índice, FK, columna con default → pasa", () => {
+// ── Lo que pasa solo ────────────────────────────────────────────────────────
+test("aditiva típica de Prisma: tabla nueva, índice, FK sobre la tabla nueva, columna con default → pasa", () => {
   const sql = `-- CreateTable
-CREATE TABLE "Nueva" ("id" TEXT NOT NULL, "tenantId" TEXT NOT NULL, CONSTRAINT "Nueva_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "Nueva" ("id" TEXT NOT NULL, "tenantId" TEXT NOT NULL, "creado" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "tags" TEXT[] DEFAULT ARRAY[]::TEXT[], "monto" DECIMAL(12,2), "estado" "Estado" NOT NULL DEFAULT 'A', "n" INTEGER DEFAULT -1,
+  CONSTRAINT "Nueva_pkey" PRIMARY KEY ("id"));
 CREATE INDEX "Nueva_tenantId_idx" ON "Nueva"("tenantId");
+CREATE UNIQUE INDEX "Nueva_n_key" ON "Nueva"("tenantId", "n" DESC);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "Client_x_idx" ON "Client" USING GIN ("tags") WHERE "tags" IS NOT NULL;
 ALTER TABLE "Nueva" ADD CONSTRAINT "Nueva_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "Client" ADD COLUMN "extra" BOOLEAN NOT NULL DEFAULT false;
-CREATE TYPE "Estado" AS ENUM ('A', 'B');`;
+ALTER TABLE "Nueva" ADD CONSTRAINT "Nueva_n_check" CHECK ("n" IS NULL OR ("n" >= 0 AND "estado" IN ('A', 'B')));
+ALTER TABLE "Client" ADD COLUMN "extra" BOOLEAN NOT NULL DEFAULT false, ADD COLUMN "nota" TEXT, ADD COLUMN "uid" TEXT DEFAULT gen_random_uuid();
+CREATE TYPE "Estado2" AS ENUM ('A', 'B');
+ALTER TYPE "Estado" ADD VALUE IF NOT EXISTS 'C' AFTER 'B';`;
   const r = analizarSql(sql);
   assert.deepEqual(r.bloqueos, []);
-  assert.equal(r.avisos.length, 0, JSON.stringify(r.avisos));
+  assert.deepEqual(r.avisos, []);
 });
 
-test("las reglas del dueño frenan: DROP, ALTER TYPE (enum), DELETE, RENAME", () => {
+test("RLS por tenant sobre tabla nueva (molde suelto) → pasa y se informa", () => {
+  const r = analizarSql(`CREATE TABLE "Voucher" ("id" TEXT, "tenantId" TEXT);${RLS_SUELTO("Voucher")}\nALTER TABLE "Voucher" FORCE ROW LEVEL SECURITY;`);
+  assert.deepEqual(r.bloqueos, []);
+  assert.deepEqual(r.rlsNuevas, ["Voucher"]);
+});
+
+test("cert2: los controles legítimos siguen pasando (enum nuevo, RLS ok, DEFAULT literal)", () => {
+  pasa(`CREATE TYPE "E" AS ENUM ('a','b');`);
+  pasa(`CREATE TABLE "N" (id int, "tenantId" text);\nALTER TABLE "N" ENABLE ROW LEVEL SECURITY;\nALTER TABLE "N" FORCE ROW LEVEL SECURITY;\nCREATE POLICY p ON "N" USING ${PRED} WITH CHECK ${PRED};`);
+  pasa(`ALTER TABLE "Venta" ADD COLUMN "x" text DEFAULT 'a';`);
+});
+
+// ── Reglas del dueño ────────────────────────────────────────────────────────
+test("las reglas del dueño frenan: DROP, enum cambiado, DELETE, RENAME", () => {
   assert.deepEqual(reglas(`ALTER TABLE "A" DROP COLUMN "x";`), ["DROP"]);
   assert.deepEqual(reglas(`DROP TABLE "A";`), ["DROP"]);
-  assert.deepEqual(reglas(`ALTER TYPE "Estado" ADD VALUE 'C';`), ["ALTER TYPE"]);
-  assert.deepEqual(reglas(`DELETE FROM "A" WHERE true;`), ["DELETE"]);
-  assert.deepEqual(reglas(`ALTER TABLE "A" RENAME COLUMN "x" TO "y";`), ["RENAME"]);
-  assert.deepEqual(reglas(`ALTER TABLE "A" RENAME TO "B";`), ["RENAME"]);
-  assert.deepEqual(reglas(`alter table "A" drop constraint "c";`), ["DROP"], "minúsculas");
+  frenaCon(`ALTER TYPE "Estado" RENAME VALUE 'A' TO 'B';`, "ALTER TYPE");
+  frenaCon(`DELETE FROM "A" WHERE true;`, "DELETE");
+  frenaCon(`ALTER TABLE "A" RENAME COLUMN "x" TO "y";`, "RENAME");
+  frenaCon(`ALTER TABLE "A" RENAME TO "B";`, "RENAME");
+  frenaCon(`alter table "A" drop constraint "c";`, "DROP");
 });
 
 test("otras no aditivas frenan: TRUNCATE, cambio de tipo, SET NOT NULL, RLS apagado, REVOKE, roles", () => {
-  assert.deepEqual(reglas(`TRUNCATE "A";`), ["TRUNCATE"]);
-  assert.deepEqual(reglas(`ALTER TABLE "A" ALTER COLUMN "x" TYPE DECIMAL(12,2);`), ["CAMBIO DE TIPO"]);
-  assert.deepEqual(reglas(`ALTER TABLE "A" ALTER "x" SET DATA TYPE TEXT;`), ["CAMBIO DE TIPO"]);
-  assert.deepEqual(reglas(`ALTER TABLE "A" ALTER COLUMN "x" SET NOT NULL;`), ["SET NOT NULL"]);
-  assert.deepEqual(reglas(`ALTER TABLE "A" DISABLE ROW LEVEL SECURITY;`), ["RLS APAGADO"]);
-  assert.deepEqual(reglas(`ALTER TABLE "A" NO FORCE ROW LEVEL SECURITY;`), ["RLS APAGADO"]);
-  assert.deepEqual(reglas(`REVOKE ALL ON "A" FROM app_rls;`), ["REVOKE"]);
-  assert.deepEqual(reglas(`ALTER ROLE app_rls WITH PASSWORD 'x';`), ["ROLES"]);
-  assert.deepEqual(reglas(`SET ROLE neondb_owner;`), ["CAMBIO DE ROL"]);
-  assert.deepEqual(reglas(`CREATE OR REPLACE FUNCTION f() RETURNS int AS $$ SELECT 1 $$ LANGUAGE sql;`), ["CREATE OR REPLACE"]);
+  frenaCon(`TRUNCATE "A";`, "TRUNCATE");
+  frenaCon(`ALTER TABLE "A" ALTER COLUMN "x" TYPE DECIMAL(12,2);`, "CAMBIO DE TIPO");
+  frenaCon(`ALTER TABLE "A" ALTER "x" SET DATA TYPE TEXT;`, "CAMBIO DE TIPO");
+  frenaCon(`ALTER TABLE "A" ALTER COLUMN "x" SET NOT NULL;`, "SET NOT NULL");
+  frenaCon(`ALTER TABLE "A" DISABLE ROW LEVEL SECURITY;`, "RLS APAGADO");
+  frenaCon(`ALTER TABLE "A" NO FORCE ROW LEVEL SECURITY;`, "RLS APAGADO");
+  frenaCon(`REVOKE ALL ON "A" FROM app_rls;`, "REVOKE");
+  frenaCon(`ALTER ROLE app_rls WITH PASSWORD 'x';`, "ROLES");
+  frenaCon(`SET ROLE neondb_owner;`, "CAMBIO DE ROL");
+  frenaCon(`CREATE OR REPLACE FUNCTION f() RETURNS int AS $$ SELECT 1 $$ LANGUAGE sql;`, "CREATE OR REPLACE");
 });
 
-test("ON DELETE / ON UPDATE de una FK y triggers BEFORE DELETE no son borrado de datos", () => {
-  const sql = `CREATE TABLE "B" ("id" TEXT);
-ALTER TABLE "B" ADD CONSTRAINT "f" FOREIGN KEY ("id") REFERENCES "A"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-CREATE TRIGGER "t" BEFORE INSERT OR UPDATE OR DELETE ON "B" FOR EACH ROW EXECUTE FUNCTION g();`;
-  assert.deepEqual(analizarSql(sql).bloqueos, []);
+test("cada freno dice REQUIERE REVISIÓN DEL DUEÑO y trae la línea real", () => {
+  const r = analizarSql(`-- uno\nCREATE TABLE "A" ("id" TEXT);\n\nDROP TABLE "B";`);
+  assert.equal(r.bloqueos[0].linea, 4);
+  assert.match(r.bloqueos[0].motivo, /REQUIERE REVISIÓN DEL DUEÑO/);
+  assert.deepEqual(reglas(`LOCK TABLE "Venta";`), ["REQUIERE REVISIÓN DEL DUEÑO"]);
 });
 
-test("comentarios no frenan, pero un DROP escondido después de un string con -- adentro sí", () => {
+// ── Falla cerrada: lo que antes pasaba (con o sin aviso) y ahora frena ─────
+test("INSERT/UPDATE/DELETE/COPY frenan siempre, también sobre tablas nuevas", () => {
+  const N = `CREATE TABLE "N" ("id" TEXT, "tenantId" TEXT);\n`;
+  frenaCon(N + `INSERT INTO "N" ("id") VALUES ('a');`, "ESCRIBE DATOS");
+  frenaCon(`INSERT INTO "Venta" (id) VALUES ('a') ON CONFLICT DO NOTHING;`, "ESCRIBE DATOS");
+  frenaCon(`ALTER TABLE "InmoPago" ADD COLUMN "numero" INTEGER;\nUPDATE "InmoPago" SET "numero" = 1 WHERE "numero" IS NULL;`, "ESCRIBE DATOS");
+  frenaCon(N + `UPDATE "N" SET "id" = 'x';`, "ESCRIBE DATOS");
+  frenaCon(`UPDATE"Venta"SET "monto" = 0;`, "ESCRIBE DATOS");
+  frenaCon(`WITH x AS (UPDATE"Venta"SET monto = 0 RETURNING 1) SELECT 1;`, "ESCRIBE DATOS");
+  frenaCon(N + `DELETE FROM "N";`, "DELETE");
+  frenaCon(`COPY "Venta" TO STDOUT;`, "ESCRIBE DATOS");
+  frenaCon(`MERGE INTO "Client" c USING x ON true WHEN MATCHED THEN DELETE;`, "MERGE");
+});
+
+test("CREATE TRIGGER y CREATE RULE frenan siempre (también sobre tablas nuevas)", () => {
+  const N = `CREATE TABLE "B" ("id" TEXT);\n`;
+  frenaCon(N + `CREATE TRIGGER "t" BEFORE INSERT OR UPDATE OR DELETE ON "B" FOR EACH ROW EXECUTE FUNCTION g();`, "TRIGGER");
+  frenaCon(N + `CREATE CONSTRAINT TRIGGER "t" AFTER INSERT ON "B" FOR EACH ROW EXECUTE FUNCTION g();`, "TRIGGER");
+  frenaCon(`CREATE TRIGGER t BEFORE INSERT ON"Venta" FOR EACH ROW EXECUTE FUNCTION g();`, "TRIGGER");
+  frenaCon(`CREATE RULE r AS ON INSERT TO "Order" DO INSTEAD NOTHING;`, "RULE");
+  frenaCon(N + `CREATE RULE r AS ON INSERT TO "B" DO INSTEAD NOTHING;`, "RULE");
+});
+
+test("restricciones, únicos, SET DEFAULT y políticas sobre tablas EXISTENTES frenan", () => {
+  frenaCon(`ALTER TABLE "Venta" ADD CONSTRAINT c CHECK ("x" > 0) NOT VALID;`, "RESTRICCIÓN EN TABLA EXISTENTE");
+  frenaCon(`ALTER TABLE "Venta" ADD CONSTRAINT f FOREIGN KEY ("a") REFERENCES "T"("id") NOT VALID;`, "RESTRICCIÓN EN TABLA EXISTENTE");
+  frenaCon(`ALTER TABLE "Venta" ADD CONSTRAINT u UNIQUE ("a");`, "RESTRICCIÓN EN TABLA EXISTENTE");
+  frenaCon(`ALTER TABLE "Venta" ADD COLUMN "n" TEXT REFERENCES "N"("id");`, "RESTRICCIÓN EN TABLA EXISTENTE");
+  frenaCon(`CREATE UNIQUE INDEX "u" ON "Client"("n");`, "ÚNICO EN TABLA EXISTENTE");
+  frenaCon(`ALTER TABLE "Usuario" ALTER COLUMN "rol" SET DEFAULT 'ADMIN';`, "DEFAULT CAMBIADO");
+  frenaCon(`ALTER TABLE "Venta" ALTER COLUMN "tenantId" SET DEFAULT 't1';`, "DEFAULT EN tenantId");
+  frenaCon(RLS_SUELTO("Client"), "RLS EN TABLA EXISTENTE");
+  frenaCon(RLS_SUELTO("Client"), "DROP");
+  frenaCon(RLS_SUELTO("Client"), "POLÍTICA EN TABLA EXISTENTE");
+  frenaCon(`CREATE POLICY "p"ON"Venta" USING (true);`, "POLÍTICA EN TABLA EXISTENTE");
+  // una FK que se agrega ANTES de crear la tabla no cuenta como tabla nueva
+  frenaCon(`ALTER TABLE "N" ADD CONSTRAINT f FOREIGN KEY ("a") REFERENCES "X"("id");\nCREATE TABLE "N" ("a" TEXT);`, "RESTRICCIÓN EN TABLA EXISTENTE");
+});
+
+test("políticas sobre tablas nuevas: sólo la de aislamiento por tenant", () => {
+  const N = `CREATE TABLE "N" ("id" TEXT, "tenantId" TEXT);\n`;
+  frenaCon(N + `CREATE POLICY abierta ON "N" USING (true);`, "POLÍTICA DISTINTA");
+  frenaCon(N + `CREATE POLICY p ON "N" USING ("tenantId" = current_setting('app.current_tenant_id', true) OR true);`, "POLÍTICA DISTINTA");
+  frenaCon(N + `CREATE POLICY p ON "N" USING (borrar());`, "POLÍTICA DISTINTA");
+  assert.ok(bloquea(N + `CREATE POLICY p ON "N" TO public USING ${PRED};`));
+  assert.ok(bloquea(N + `CREATE POLICY p ON "N" AS RESTRICTIVE FOR SELECT USING ${PRED};`));
+  frenaCon(N + `DROP POLICY IF EXISTS tenant_isolation ON "N";\nCREATE POLICY tenant_isolation ON "N" USING (true) WITH CHECK (true);`, "POLÍTICA DISTINTA");
+  // mayúsculas de identificador importan ("tenant" ≠ "Tenant")
+  assert.ok(bloquea(`CREATE TABLE "tenant" ("id" TEXT);\n${RLS_SUELTO("Tenant")}`));
+  // CREATE TABLE IF NOT EXISTS / dentro de un string / dentro de un DO no cuentan como tabla nueva
+  assert.ok(bloquea(`CREATE TABLE IF NOT EXISTS "Client" ("id" TEXT);${RLS_SUELTO("Client")}`));
+  assert.ok(bloquea(`SELECT 'x; CREATE TABLE "Client"';\n${RLS_SUELTO("Client")}`));
+  assert.ok(bloquea(`DO $$ BEGIN IF false THEN NULL; CREATE TABLE "Client" ("id" TEXT); END IF; END $$;\n${RLS_SUELTO("Client")}`));
+});
+
+test("DO frena siempre, aunque sea el loop RLS sobre tablas nuevas", () => {
+  const N = `CREATE TABLE "PadelClub" ("id" TEXT);\nCREATE TABLE "PadelSerie" ("id" TEXT);\n`;
+  frenaCon(N + RLS_LOOP(["PadelClub", "PadelSerie"]), "BLOQUE DO");
+  frenaCon(N + RLS_LOOP(["PadelClub", "Tenant"]), "SQL DINÁMICO");
+  frenaCon(`DO $$ BEGIN END $$;`, "BLOQUE DO");
+  frenaCon(`DO $$ BEGIN EXECUTE 'DROP TABLE "A"'; END $$;`, "DROP");
+  frenaCon(`DO $$ BEGIN EXECUTE 'DR' || 'OP TABLE "A"'; END $$;`, "SQL DINÁMICO");
+  frenaCon(`DO $$ BEGIN EXECUTE chr(68)||'ROP TABLE x'; END $$;`, "SQL OFUSCADO / FUERA DE BANDA");
+  frenaCon(`DO $$ BEGIN UPDATE "Client" SET "email" = NULL; END $$;`, "ESCRIBE DATOS");
+});
+
+test("funciones: sólo now(), gen_random_uuid() y CURRENT_TIMESTAMP", () => {
+  frenaCon(`ALTER TABLE "Venta" ADD COLUMN "x" INT DEFAULT borrar_todo();`, "FUNCIÓN NO RECONOCIDA");
+  frenaCon(`ALTER TABLE "Venta" ADD COLUMN "x" TEXT DEFAULT lower('A');`, "FUNCIÓN NO RECONOCIDA");
+  frenaCon(`ALTER TABLE "Venta" ADD COLUMN "x" TIMESTAMP DEFAULT clock_timestamp();`, "FUNCIÓN NO RECONOCIDA");
+  frenaCon(`ALTER TABLE "Venta" ADD COLUMN x int DEFAULT pg_catalog.pg_sleep(1000);`, "REQUIERE REVISIÓN DEL DUEÑO");
+  frenaCon(`CREATE INDEX "i" ON "Venta" (borrar_todo("x"));`, "FUNCIÓN NO RECONOCIDA");
+  frenaCon(`CREATE INDEX "i" ON "Venta" ("x") WHERE borrar("x");`, "FUNCIÓN NO RECONOCIDA");
+  frenaCon(`CREATE TABLE "N" ("x" TEXT CHECK (char_length("x") < 5));`, "FUNCIÓN NO RECONOCIDA");
+  pasa(`ALTER TABLE "Venta" ADD COLUMN "id2" TEXT NOT NULL DEFAULT gen_random_uuid(), ADD COLUMN "t" TIMESTAMP(3) DEFAULT now(), ADD COLUMN "m" DECIMAL(12,2);`);
+});
+
+test("columna obligatoria sin default en tabla existente frena (en tabla nueva no)", () => {
+  frenaCon(`ALTER TABLE "Order" ADD COLUMN "z" TEXT NOT NULL;`, "NOT NULL SIN DEFAULT");
+  pasa(`CREATE TABLE "N" ("id" TEXT);\nALTER TABLE "N" ADD COLUMN "z" TEXT NOT NULL;`);
+});
+
+test("lo que no es una forma conocida frena", () => {
+  for (const sql of [
+    `SELECT borrar_todo();`,
+    `LOCK TABLE "Venta" IN ACCESS EXCLUSIVE MODE;`,
+    `ALTER TABLE "Venta" INHERIT "Otra";`,
+    `ALTER TABLE "Venta" OWNER TO x;`,
+    `ALTER TABLE "Venta" VALIDATE CONSTRAINT c;`,
+    `CREATE TABLE otro."Venta" (id int); ALTER TABLE otro ENABLE ROW LEVEL SECURITY;`,
+    `CREATE FUNCTION f() RETURNS int LANGUAGE sql AS $$ SELECT 1 $$;`,
+    `SELECT 1 /* a /* b */ DROP TABLE x; -- */`,
+    `COMMENT ON TABLE "Venta" IS 'x';`,
+    `CREATE EXTENSION pg_trgm;`,
+    `CALL limpiar_todo();`,
+    `ALTER TABLE "Client" SET SCHEMA archivo;`,
+    `SELECT setval('"Order_id_seq"', 1);`,
+    `ALTER TABLE "Invoice" DISABLE TRIGGER ALL;`,
+    `SET search_path TO otro;`,
+    `GRANT SELECT ON "Client" TO PUBLIC;`,
+    `ALTER FUNCTION f() SECURITY DEFINER;`,
+    `CREATE EVENT TRIGGER et ON ddl_command_start EXECUTE FUNCTION f();`,
+    `CREATE TABLE "N" ("a" INT GENERATED ALWAYS AS (1) STORED);`,
+    `CREATE TABLE "N" ("a" INT) INHERITS ("Venta");`,
+    `CREATE INDEX i ON "Venta" ("a" text_pattern_ops);`,
+    `CREATE INDEX i ON "Venta" ("a") WHERE "a" IN (SELECT 1);`,
+  ])
+    assert.ok(bloquea(sql), sql);
+});
+
+test("comentarios no frenan; lo escondido tras strings/identificadores con -- sí", () => {
   assert.equal(bloquea(`-- acá antes se hacía DROP TABLE\n/* DROP /* anidado */ COLUMN */\nCREATE TABLE "A" ("id" TEXT);`), false);
   assert.equal(bloquea(`SELECT '--'; DROP TABLE "A";`), true);
   assert.equal(bloquea(`SELECT 'it''s -- not a comment'; DROP TABLE "A";`), true);
   assert.equal(bloquea(`SELECT E'\\' -- '; DROP TABLE "A";`), true, "E-string con \\'");
   assert.equal(bloquea(`SELECT "col--x" FROM t; DROP TABLE "A";`), true, "-- dentro de un identificador");
   assert.equal(bloquea(`SELECT $x$ -- $x$; DROP TABLE "A";`), true, "-- dentro de $x$");
-});
-
-test("un DROP dentro de un string ejecutado (EXECUTE) frena", () => {
-  assert.ok(reglas(`DO $$ BEGIN EXECUTE 'DROP TABLE "A"'; END $$;`).includes("DROP"));
-  // Concatenado para esquivar la palabra: igual frena por SQL dinámico.
-  assert.ok(reglas(`DO $$ BEGIN EXECUTE 'DR' || 'OP TABLE "A"'; END $$;`).includes("SQL DINÁMICO"));
-  assert.ok(reglas(`DO $$ BEGIN EXECUTE format('%s TABLE "A"', 'DR'||'OP'); END $$;`).includes("SQL DINÁMICO"));
-  assert.ok(reglas(`DO $$ BEGIN EXECUTE chr(68)||'ROP TABLE x'; END $$;`).includes("SQL OFUSCADO / FUERA DE BANDA"));
-  assert.ok(reglas(`SELECT U&'\\0044ROP';`).includes("SQL OFUSCADO / FUERA DE BANDA"));
+  frenaCon(`SELECT U&'\\0044ROP';`, "SQL OFUSCADO / FUERA DE BANDA");
 });
 
 test("SQL ilegible (string o comentario sin cerrar) frena", () => {
   assert.deepEqual(reglas(`CREATE TABLE "A" ('x);`), ["ILEGIBLE"]);
   assert.deepEqual(reglas(`/* sin cerrar`), ["ILEGIBLE"]);
   assert.deepEqual(reglas(`DO $$ BEGIN`), ["ILEGIBLE"]);
-});
-
-test("idioma RLS en loop sobre tablas NUEVAS → pasa (y se informa)", () => {
-  const sql = `CREATE TABLE "PadelClub" ("id" TEXT);\nCREATE TABLE "PadelSerie" ("id" TEXT);\n${RLS_LOOP(["PadelClub", "PadelSerie"])}`;
-  const r = analizarSql(sql);
-  assert.deepEqual(r.bloqueos, []);
-  assert.deepEqual(r.rlsNuevas.sort(), ["PadelClub", "PadelSerie"]);
-});
-
-test("idioma RLS en loop que incluye una tabla EXISTENTE → frena", () => {
-  const sql = `CREATE TABLE "PadelClub" ("id" TEXT);\n${RLS_LOOP(["PadelClub", "Tenant"])}`;
-  assert.ok(bloquea(sql));
-  assert.ok(reglas(sql).includes("SQL DINÁMICO"));
-});
-
-test("idioma RLS: mayúsculas de identificador importan (\"tenant\" ≠ \"Tenant\")", () => {
-  const sql = `CREATE TABLE "tenant" ("id" TEXT);\n${RLS_SUELTO("Tenant")}`;
-  assert.ok(bloquea(sql));
-});
-
-test("idioma RLS suelto sobre tabla nueva → pasa; sobre tabla existente → frena", () => {
-  assert.deepEqual(analizarSql(`CREATE TABLE "Voucher" ("id" TEXT);${RLS_SUELTO("Voucher")}`).bloqueos, []);
-  const r = reglas(RLS_SUELTO("Client"));
-  assert.ok(r.includes("DROP"));
-  assert.ok(r.includes("RLS EN TABLA EXISTENTE"));
-  assert.ok(r.includes("POLÍTICA EN TABLA EXISTENTE"));
-});
-
-test("DROP POLICY sin recrear la política → frena aunque la tabla sea nueva", () => {
-  const sql = `CREATE TABLE "N" ("id" TEXT);\nDROP POLICY IF EXISTS tenant_isolation ON "N";`;
-  assert.deepEqual(reglas(sql), ["DROP"]);
-});
-
-test("política con predicado distinto al del tenant (p. ej. USING (true)) → no es el idioma, frena", () => {
-  const sql = `CREATE TABLE "N" ("id" TEXT);
-DROP POLICY IF EXISTS tenant_isolation ON "N";
-CREATE POLICY tenant_isolation ON "N" USING (true) WITH CHECK (true);`;
-  assert.ok(reglas(sql).includes("DROP"));
-});
-
-test("CREATE TABLE dentro de un string no cuenta como tabla nueva", () => {
-  const sql = `SELECT 'x; CREATE TABLE "Client"';\n${RLS_SUELTO("Client")}`;
-  assert.ok(bloquea(sql));
-});
-
-test("loop RLS con un FOREACH extra que reutiliza la variable con una tabla existente → frena", () => {
-  const sql = `CREATE TABLE "N" ("id" TEXT);
-${RLS_LOOP(["N"])}
-DO $$ DECLARE t text; BEGIN FOREACH t IN ARRAY ARRAY['Client'] LOOP NULL; END LOOP; END $$;`;
-  assert.ok(bloquea(sql));
-});
-
-test("avisos (no frenan): UPDATE de backfill e índice único en tabla existente", () => {
-  const r = analizarSql(`ALTER TABLE "Client" ADD COLUMN "n" INTEGER;
-UPDATE "Client" SET "n" = 0;
-CREATE UNIQUE INDEX "u" ON "Client"("n");`);
-  assert.deepEqual(r.bloqueos, []);
-  const a = r.avisos.map((x) => x.regla).sort();
-  assert.deepEqual(a, ["UPDATE", "ÚNICO EN TABLA EXISTENTE"]);
-});
-
-test("lista permitida: columna obligatoria sin default en tabla existente frena (en tabla nueva no)", () => {
-  assert.deepEqual(reglas(`ALTER TABLE "Order" ADD COLUMN "z" TEXT NOT NULL;`), ["NOT NULL SIN DEFAULT"]);
-  assert.deepEqual(reglas(`CREATE TABLE "N" ("id" TEXT);\nALTER TABLE "N" ADD COLUMN "z" TEXT NOT NULL;`), []);
 });
 
 test("limpiarComentarios conserva largo y líneas", () => {
@@ -172,27 +233,121 @@ test("limpiarComentarios conserva largo y líneas", () => {
   assert.ok(!texto.includes("x"));
 });
 
-test("los hallazgos traen la línea real", () => {
-  const r = analizarSql(`-- uno\nCREATE TABLE "A" ("id" TEXT);\n\nDROP TABLE "B";`);
-  assert.equal(r.bloqueos[0].linea, 4);
-});
+// ── Certificación adversarial 2 (sobre 9eaf86f7): todos los ataques frenan ─────
+const N2 = `CREATE TABLE "N" (id int, "tenantId" text);\n`;
+const ATAQUES_CERT2 = {
+  "anidado /* /* */ */ esconde": `SELECT 1; /* a /* b */ c */ LOCK TABLE "Venta";`,
+  "anidado mal cerrado": `/* /* */ LOCK TABLE "Venta";`,
+  "dollar tag": `COMMENT ON TABLE "N" IS $x$ ; LOCK TABLE "Venta"; $x$;`,
+  "dollar tag anidado": `DO $a$ BEGIN PERFORM $b$ x $b$; END $a$;`,
+  "E string escape": N2 + `COMMENT ON TABLE "N" IS E'\\' ; LOCK TABLE "Venta"; --';`,
+  "E string escape 2": N2 + `COMMENT ON TABLE "N" IS E'a\\\\'; LOCK TABLE "Venta";`,
+  "string con ;": N2 + `COMMENT ON TABLE "N" IS 'a; DROP TABLE x'; LOCK TABLE "Venta";`,
+  "U& ident": `ALTER TABLE U&"\\0056enta" ADD COLUMN x int;`,
+  "U& string": N2 + `INSERT INTO "N" VALUES (U&'\\0041');`,
+  "unicode nbsp": `CREATE TABLE "N" (id int); LOCK TABLE "Venta";`,
+  "multi por línea": N2 + `CREATE INDEX i ON "N"(id); LOCK TABLE "Venta"; CREATE INDEX j ON "N"(id);`,
+  "BEGIN/COMMIT": `BEGIN; CREATE TABLE "N" (id int); COMMIT;`,
+  "SET ROLE": `SET ROLE postgres;`,
+  "SET row_security": `SET row_security = off;`,
+  "RESET ROLE": `RESET ROLE;`,
+  "CREATE OR REPLACE FUNCTION": `CREATE OR REPLACE FUNCTION f() RETURNS int LANGUAGE sql AS $$ SELECT 1 $$;`,
+  "CREATE FUNCTION": `CREATE FUNCTION f() RETURNS int LANGUAGE sql AS $$ SELECT 1 $$;`,
+  "CREATE OR REPLACE VIEW": `CREATE OR REPLACE VIEW v AS SELECT * FROM "Venta";`,
+  "CREATE VIEW (bypassa RLS)": `CREATE VIEW v AS SELECT * FROM "Venta";`,
+  "CREATE MATERIALIZED VIEW": `CREATE MATERIALIZED VIEW v AS SELECT * FROM "Venta";`,
+  "CREATE TABLE AS": `CREATE TABLE "Copia" AS SELECT * FROM "Venta";`,
+  "SELECT INTO": `SELECT * INTO "Copia" FROM "Venta";`,
+  GRANT: `GRANT ALL ON "Venta" TO public;`,
+  REVOKE: `REVOKE ALL ON "Venta" FROM app;`,
+  "DISABLE RLS": `ALTER TABLE "Venta" DISABLE ROW LEVEL SECURITY;`,
+  "NO FORCE RLS": `ALTER TABLE "Venta" NO FORCE ROW LEVEL SECURITY;`,
+  "NO FORCE comentado": `ALTER TABLE "Venta" NO/**/FORCE ROW LEVEL SECURITY;`,
+  "ALTER POLICY": `ALTER POLICY p ON "Venta" USING (true);`,
+  "ALTER POLICY comentario": `ALTER/* */POLICY p ON "Venta" USING (true);`,
+  COPY: `COPY "Venta" FROM PROGRAM 'curl x';`,
+  "DO $$ PERFORM": `DO $$ BEGIN PERFORM borrar(); END $$;`,
+  "DO $$ vacío": `DO $$ BEGIN END $$;`,
+  "DO LANGUAGE plpythonu": `DO LANGUAGE plpython3u $$ import os $$;`,
+  "INDEX esconde LOCK (sin ;)": N2 + `CREATE INDEX i ON "N" (id) WHERE true LOCK TABLE "Venta";`,
+  "INDEX USING func": N2 + `CREATE INDEX i ON "Venta" (borrar(id));`,
+  "INDEX operador": `CREATE INDEX i ON "Venta" ((id === 1));`,
+  "ADD COLUMN esconde": `ALTER TABLE "Venta" ADD COLUMN x int, INHERIT "Otra";`,
+  "ADD COLUMN default func": `ALTER TABLE "Venta" ADD COLUMN x int DEFAULT borrar();`,
+  "ADD COLUMN generated func": `ALTER TABLE "Venta" ADD COLUMN x int GENERATED ALWAYS AS (borrar(id)) STORED;`,
+  "ADD CONSTRAINT CHECK false NOT VALID": `ALTER TABLE "Venta" ADD CONSTRAINT c CHECK (false) NOT VALID;`,
+  "ADD FK cascade": N2 + `ALTER TABLE "Venta" ADD CONSTRAINT fk FOREIGN KEY ("tenantId") REFERENCES "N"(id) ON DELETE CASCADE NOT VALID;`,
+  "SET DEFAULT rol existente": `ALTER TABLE "Usuario" ALTER COLUMN "rol" SET DEFAULT 'ADMIN';`,
+  "SET DEFAULT tenantid quoted lower": `ALTER TABLE "Venta" ALTER COLUMN "tenantid" SET DEFAULT 'x';`,
+  "SET DEFAULT tenant via U&": `ALTER TABLE "Venta" ALTER COLUMN U&"tenant\\0049d" SET DEFAULT 'x';`,
+  "TRIGGER tabla nueva func existente + INSERT": N2 + `CREATE TRIGGER t AFTER INSERT ON "N" FOR EACH ROW EXECUTE FUNCTION borrar_todo();\nINSERT INTO "N" VALUES (1, 'a');`,
+  "TRIGGER tabla nueva EXECUTE PROCEDURE": N2 + `CREATE TRIGGER t AFTER INSERT ON "N" FOR EACH STATEMENT EXECUTE PROCEDURE public.borrar_todo();`,
+  "POLICY tabla nueva func": N2 + `CREATE POLICY p ON "N" USING (borrar());`,
+  "INSERT SELECT de otra tabla": N2 + `INSERT INTO "N" SELECT id, "tenantId" FROM "Venta";`,
+  "INSERT con funcion notation": N2 + `INSERT INTO "N" SELECT v.borrar_todo, 'a' FROM "Venta" v;`,
+  "INSERT CTE DELETE": N2 + `INSERT INTO "N" WITH d AS (DELETE FROM "Venta" RETURNING id) SELECT id, 'a' FROM d;`,
+  "INSERT CTE UPDATE": N2 + `INSERT INTO "N" WITH d AS (UPDATE "Venta" SET monto=0 RETURNING id) SELECT id, 'a' FROM d;`,
+  "UPDATE nueva con subq update": N2 + `UPDATE "N" SET id = (SELECT 1 FROM (UPDATE "Venta" SET monto = 0 RETURNING 1) x);`,
+  "COMMENT ON con func": `COMMENT ON TABLE "Venta" IS borrar();`,
+  "CREATE TYPE composite": `CREATE TYPE "E" AS (a int);`,
+  "CREATE SCHEMA": `CREATE SCHEMA x;`,
+  "CREATE TABLE otro schema shadow": `CREATE TABLE "$user"."Venta" (id int);`,
+  LOAD: `LOAD 'x';`,
+  NOTIFY: `NOTIFY x;`,
+  CLUSTER: `CLUSTER "Venta";`,
+  VACUUM: `VACUUM FULL "Venta";`,
+  "ENABLE RULE": `ALTER TABLE "Venta" ENABLE RULE r;`,
+  "REPLICA IDENTITY": `ALTER TABLE "Venta" REPLICA IDENTITY NOTHING;`,
+  "ALTER COLUMN SET STORAGE": `ALTER TABLE "Venta" ALTER COLUMN x SET STORAGE PLAIN;`,
+  "RLS idioma suelto + merge": N2 + `ALTER TABLE "N" ENABLE ROW LEVEL SECURITY;\nCREATE POLICY p ON "N" USING ${PRED} WITH CHECK ${PRED};\nLOCK TABLE "Venta";`,
+  "CREATE POLICY en string, EXECUTE fake": N2 + `COMMENT ON TABLE "N" IS 'BEGIN CREATE POLICY p ON "N" USING ${PRED.replace(/'/g, "''")} WITH CHECK ${PRED.replace(/'/g, "''")};'; LOCK TABLE "Venta";`,
+  "quoted ident THEN + policy": N2 + `CREATE INDEX "THEN" ON "N"(id) WHERE id > 0 CREATE POLICY p ON "N" USING ${PRED} WITH CHECK ${PRED};\nLOCK TABLE "Venta";`,
+  "EXECUTE dentro string": N2 + `COMMENT ON TABLE "N" IS 'EXECUTE ';  LOCK TABLE "Venta";`,
+  "DO idioma + extra": N2 + `DO $$ BEGIN EXECUTE 'ALTER TABLE "N" ENABLE ROW LEVEL SECURITY'; PERFORM borrar(); END $$;`,
+  "DO idioma format": N2 + `DO $$ DECLARE t text; BEGIN FOREACH t IN ARRAY ARRAY['N'] LOOP EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t); END LOOP; END $$;`,
+  "DO idioma format var tabla existente": N2 + `DO $$ DECLARE t text; BEGIN FOREACH t IN ARRAY ARRAY['Venta'] LOOP EXECUTE format('ALTER TABLE %I NO FORCE ROW LEVEL SECURITY', t); END LOOP; END $$;`,
+  "pg_catalog call": `ALTER TABLE "Venta" ADD COLUMN x int DEFAULT pg_catalog.pg_sleep(1000);`,
+  "TRUNCATE ident case": `trUncAte "Venta";`,
+  "ALTER TABLE SET ACCESS METHOD": `ALTER TABLE "Venta" SET ACCESS METHOD heap;`,
+  "SECURITY LABEL": `SECURITY LABEL ON TABLE "Venta" IS 'x';`,
+  "DECLARE CURSOR": `DECLARE c CURSOR FOR SELECT 1;`,
+  "PREPARE/EXECUTE": `PREPARE p AS DELETE FROM "Venta"; EXECUTE p;`,
+  // ataques3: exfiltración entre negocios
+  "exfil INSERT SELECT reasigna tenant": `CREATE TABLE "Espejo" (id text, "tenantId" text);\nINSERT INTO "Espejo" SELECT id, 'tenant-atacante' FROM "Cliente";`,
+  "exfil backfill string_agg": `ALTER TABLE "Venta" ADD COLUMN "nota2" text;\nUPDATE "Venta" SET "nota2" = (SELECT string_agg("email", ',') FROM "Usuario");`,
+};
+for (const [nombre, sql] of Object.entries(ATAQUES_CERT2))
+  test(`cert2 frena: ${nombre}`, () => {
+    const r = analizarSql(sql);
+    assert.ok(r.bloqueos.length > 0, sql);
+    assert.deepEqual(r.avisos, []);
+    for (const b of r.bloqueos) assert.match(b.motivo, /REQUIERE REVISIÓN DEL DUEÑO/);
+  });
 
-// Calibración contra el historial real del repo: las migraciones aditivas recientes pasan y las
-// que de verdad no eran aditivas frenan.
+// ── Calibración contra el historial real del repo ──────────────────────────
+// Con la falla cerrada, varias migraciones históricas (que se aplicaron a mano o con revisión)
+// hoy FRENARÍAN: no se tocan, se documentan acá y en docs/operacion/publicar-por-actions.md.
 const DIR = new URL("../../prisma/migrations/", import.meta.url).pathname;
-test("historial real: aditivas pasan, no aditivas frenan", { skip: !existsSync(DIR) }, () => {
+test("historial real: aditivas pasan, lo demás frena", { skip: !existsSync(DIR) }, () => {
   const pasan = [
-    "20261008120000_modulo_taller",
-    "20261013120000_modulo_inmobiliaria",
+    "20260701054003_init",
     "20261105122000_vouchers",
     "20261106120000_support_ticket",
-    "20261108120000_profeturnos_clubes_serie_grupal",
-    "20260815120000_lead_campania",
+    "20261102120000_consultas",
+    "20261105121000_user_permission_override",
+    "20261030120000_m1_enums_caja", // ALTER TYPE … ADD VALUE IF NOT EXISTS
   ];
   const frenan = {
-    "20261030120000_m1_enums_caja": "ALTER TYPE",
     "20260708120000_invoice_money_decimal": "CAMBIO DE TIPO",
     "20260710120000_invoice_origin_idempotency_unique": "DROP",
+    "20261008120000_modulo_taller": "BLOQUE DO",
+    "20261013120000_modulo_inmobiliaria": "BLOQUE DO",
+    "20261108120000_profeturnos_clubes_serie_grupal": "RESTRICCIÓN EN TABLA EXISTENTE",
+    "20260815120000_lead_campania": "BLOQUE DO",
+    "20261013180000_inmobiliaria_ajustes": "ESCRIBE DATOS",
+    "20261101140000_proyecto_entregables": "ÚNICO EN TABLA EXISTENTE",
+    "20261104123000_servicio_completo": "FUNCIÓN NO RECONOCIDA",
+    "20261104122000_contabilidad_ola1": "TRIGGER",
   };
   const hay = new Set(readdirSync(DIR));
   for (const m of pasan) {
@@ -204,108 +359,4 @@ test("historial real: aditivas pasan, no aditivas frenan", { skip: !existsSync(D
     if (!hay.has(m)) continue;
     assert.ok(reglas(readFileSync(`${DIR}${m}/migration.sql`, "utf8")).includes(regla), m);
   }
-});
-
-// ── Intentos de evasión hallados en la certificación adversarial ───────────
-test("CREATE TABLE IF NOT EXISTS de una tabla existente no habilita el idioma RLS sobre ella", () => {
-  const sql = `CREATE TABLE IF NOT EXISTS "Client" ("id" TEXT);${RLS_SUELTO("Client")}`;
-  assert.ok(bloquea(sql));
-  assert.ok(bloquea(`CREATE TABLE IF NOT EXISTS "Client" ("id" TEXT);\n${RLS_LOOP(["Client"])}`));
-});
-
-test("CREATE TABLE dentro de un DO que nunca corre no cuenta como tabla nueva", () => {
-  const sql = `DO $$ BEGIN IF false THEN NULL; CREATE TABLE "Client" ("id" TEXT); END IF; END $$;\n${RLS_LOOP(["Client"])}`;
-  assert.ok(bloquea(sql));
-});
-
-test("variable del loop reasignada (:=, =, INTO, FOR IN SELECT, DEFAULT) → no se resuelve, frena", () => {
-  const base = `CREATE TABLE "N" ("id" TEXT);\n`;
-  const loop = RLS_LOOP(["N"]);
-  for (const truco of [
-    loop.replace("  LOOP\n", "  LOOP\n    t := 'Client';\n"),
-    loop.replace("  LOOP\n", "  LOOP\n    t = 'Client';\n"),
-    loop.replace("  LOOP\n", "  LOOP\n    SELECT 'Client' INTO t;\n"),
-    `${loop}\nDO $$ DECLARE t text DEFAULT 'Client'; BEGIN EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t); END $$;`,
-    `${loop}\nDO $$ DECLARE t text; BEGIN FOR t IN SELECT 'Client' LOOP EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t); END LOOP; END $$;`,
-  ])
-    assert.ok(bloquea(base + truco), truco);
-});
-
-test("UPDATE: backfill de columna nueva (aviso) vs pisar una existente (frena)", () => {
-  const prisma = `ALTER TABLE "InmoPago" ADD COLUMN "numero" INTEGER,\nADD COLUMN "serie" TEXT;\n`;
-  assert.deepEqual(analizarSql(prisma + `UPDATE "InmoPago" SET "numero" = 1, "serie" = 'A' WHERE "numero" IS NULL;`).bloqueos, []);
-  assert.deepEqual(reglas(prisma + `UPDATE "InmoPago" SET "numero" = 1, "monto" = 0;`), ["UPDATE DE DATOS EXISTENTES"]);
-  assert.deepEqual(reglas(`UPDATE "Client" c SET "email" = NULL;`), ["UPDATE DE DATOS EXISTENTES"]);
-  assert.deepEqual(reglas(`ALTER TABLE "Client" ADD COLUMN IF NOT EXISTS "email" TEXT;\nUPDATE "Client" SET "email" = NULL;`), ["UPDATE DE DATOS EXISTENTES"]);
-  assert.deepEqual(reglas(`DO $$ BEGIN UPDATE "Client" SET "email" = NULL; END $$;`), ["UPDATE DE DATOS EXISTENTES"]);
-  assert.deepEqual(reglas(`UPDATE "Client" SET ("a", "b") = (SELECT 1, 2);`), ["UPDATE DE DATOS EXISTENTES"]);
-});
-
-test("otros cambios no aditivos frenan: CALL, SET SCHEMA, UNLOGGED, secuencias, triggers apagados, RULE, trigger en tabla existente, search_path", () => {
-  assert.deepEqual(reglas(`CALL limpiar_todo();`), ["CALL"]);
-  assert.deepEqual(reglas(`ALTER TABLE "Client" SET SCHEMA archivo;`), ["TABLA MOVIDA / SIN LOG"]);
-  assert.deepEqual(reglas(`ALTER TABLE "Client" SET UNLOGGED;`), ["TABLA MOVIDA / SIN LOG"]);
-  assert.deepEqual(reglas(`SELECT setval('"Order_id_seq"', 1);`), ["SECUENCIAS"]);
-  assert.deepEqual(reglas(`ALTER TABLE "Invoice" DISABLE TRIGGER ALL;`), ["TRIGGER/REGLA APAGADO"]);
-  assert.deepEqual(reglas(`CREATE RULE r AS ON INSERT TO "Order" DO INSTEAD NOTHING;`), ["RULE"]);
-  assert.deepEqual(reglas(`SET search_path TO otro;`), ["SEARCH_PATH"]);
-  assert.ok(reglas(`CREATE FUNCTION f() RETURNS trigger AS $$ BEGIN RETURN NULL; END $$ LANGUAGE plpgsql;
-CREATE TRIGGER t BEFORE INSERT ON "Order" FOR EACH ROW EXECUTE FUNCTION f();`).includes("TRIGGER EN TABLA EXISTENTE"));
-});
-
-test("permisos, upserts, MERGE y ALTER de objetos existentes frenan", () => {
-  assert.deepEqual(reglas(`GRANT SELECT ON "Client" TO PUBLIC;`), ["GRANT"]);
-  assert.deepEqual(reglas(`MERGE INTO "Client" c USING x ON true WHEN MATCHED THEN DELETE;`), ["MERGE"]);
-  assert.deepEqual(reglas(`INSERT INTO "Client" ("id","email") VALUES ('1', NULL) ON CONFLICT ("id") DO UPDATE SET "email" = NULL;`), ["INSERT EN TABLA EXISTENTE", "UPSERT"]);
-  assert.deepEqual(reglas(`ALTER FUNCTION f() SECURITY DEFINER;`), ["ALTER DE OBJETO EXISTENTE"]);
-  assert.deepEqual(reglas(`ALTER VIEW v OWNER TO x;`), ["ALTER DE OBJETO EXISTENTE"]);
-});
-
-test("política no canónica sobre tabla nueva: no frena pero avisa", () => {
-  const r = analizarSql(`CREATE TABLE "N" ("id" TEXT);\nCREATE POLICY abierta ON "N" USING (true);`);
-  assert.deepEqual(r.bloqueos, []);
-  assert.ok(r.avisos.some((a) => a.regla === "POLÍTICA DISTINTA"));
-});
-
-// ── Certificación adversarial sobre 02ac61dc: evasión sin espacios y lista permitida ─────────
-test("sin espacios junto a identificadores entre comillas: igual se lee (tokenizado)", () => {
-  assert.deepEqual(reglas(`UPDATE "Venta"SET "monto" = 0;`), ["UPDATE DE DATOS EXISTENTES"]);
-  assert.deepEqual(reglas(`UPDATE"Venta" SET "monto" = 0;`), ["UPDATE DE DATOS EXISTENTES"]);
-  assert.deepEqual(reglas(`UPDATE "Venta" SET"monto"=0;`), ["UPDATE DE DATOS EXISTENTES"]);
-  assert.deepEqual(reglas(`WITH x AS (UPDATE"Venta"SET monto = 0 RETURNING 1) SELECT 1;`), ["UPDATE DE DATOS EXISTENTES"]);
-  assert.deepEqual(reglas(`ALTER TABLE "Venta" ALTER COLUMN "monto"TYPE text;`), ["CAMBIO DE TIPO"]);
-  assert.deepEqual(reglas(`CREATE POLICY "p"ON"Venta" USING (true);`), ["POLÍTICA EN TABLA EXISTENTE"]);
-  const trig = `CREATE FUNCTION g() RETURNS trigger LANGUAGE plpgsql AS $$BEGIN RETURN NULL; END$$;\n`;
-  assert.ok(reglas(trig + `CREATE TRIGGER t BEFORE INSERT ON"Venta" FOR EACH ROW EXECUTE FUNCTION g();`).includes("TRIGGER EN TABLA EXISTENTE"));
-  assert.ok(bloquea(trig + `CREATE TRIGGER t BEFORE INSERT ON public."Venta" FOR EACH ROW EXECUTE FUNCTION g();`));
-  assert.ok(bloquea(`ALTER TABLE "Nueva" ADD COLUMN "monto" int; UPDATE "Venta" SET "monto2"=1, "monto"=0;`));
-});
-
-test("lista permitida: default de tenantId, event trigger y lo que no es aditivo conocido frenan", () => {
-  assert.deepEqual(reglas(`ALTER TABLE "Venta" ALTER COLUMN "tenantId" SET DEFAULT 't1';`), ["DEFAULT EN tenantId"]);
-  assert.deepEqual(reglas(`ALTER TABLE "Venta" ALTER "tenantId"SET DEFAULT 't1';`), ["DEFAULT EN tenantId"]);
-  assert.ok(reglas(`CREATE EVENT TRIGGER et ON ddl_command_start EXECUTE FUNCTION f();`).includes("EVENT TRIGGER"));
-  for (const sql of [
-    `SELECT borrar_todo();`,
-    `LOCK TABLE "Venta" IN ACCESS EXCLUSIVE MODE;`,
-    `ALTER TABLE "Venta" INHERIT "Otra";`,
-    `ALTER TABLE "Venta" OWNER TO x;`,
-    `ALTER TABLE "Venta" VALIDATE CONSTRAINT c;`,
-    `CREATE TABLE otro."Venta" (id int); ALTER TABLE otro ENABLE ROW LEVEL SECURITY;`,
-    `CREATE FUNCTION f() RETURNS int LANGUAGE sql AS $$ SELECT 1 $$;`,
-    `SELECT 1 /* a /* b */ DROP TABLE x; -- */`,
-  ])
-    assert.ok(bloquea(sql), sql);
-  assert.deepEqual(reglas(`INSERT INTO "Venta" (id) VALUES ('a') ON CONFLICT DO NOTHING;`), ["INSERT EN TABLA EXISTENTE"]);
-  assert.deepEqual(reglas(`CREATE TABLE "N" ("id" TEXT); INSERT INTO "N" ("id") VALUES ('a');`), []);
-});
-
-test("lista permitida: funciones que ya existen en la base no se llaman desde un cambio permitido", () => {
-  assert.deepEqual(reglas(`ALTER TABLE "Venta" ADD COLUMN "x" INT DEFAULT borrar_todo();`), ["FUNCIÓN NO RECONOCIDA"]);
-  assert.deepEqual(reglas(`CREATE INDEX "i" ON "Venta" (borrar_todo("x"));`), ["FUNCIÓN NO RECONOCIDA"]);
-  assert.deepEqual(reglas(`ALTER TABLE "Venta" ADD COLUMN "n" INT;\nUPDATE "Venta" SET "n" = otro.f();`), ["FUNCIÓN NO RECONOCIDA"]);
-  assert.deepEqual(
-    reglas(`ALTER TABLE "Venta" ADD COLUMN "id2" TEXT NOT NULL DEFAULT gen_random_uuid(), ADD COLUMN "m" DECIMAL(12,2);`),
-    [],
-  );
 });
