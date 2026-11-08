@@ -296,6 +296,9 @@ model Tenant {
   padelAlumnos              PadelAlumno[]
   padelClases               PadelClase[]
   padelAvisos               PadelAviso[]
+  padelClubes               PadelClub[]
+  padelSeries               PadelSerie[]
+  padelIntegrantes          PadelIntegrante[]
   invoices                  Invoice[]
   outboxEvents              OutboxEvent[]
   orders                    Order[]
@@ -1700,14 +1703,14 @@ model CashMovement {
   // Puente TALLER → libro de caja: el cobro de una orden de trabajo (src/lib/taller/caja.ts).
   // Misma idea que `collectionId`: es la clave del asiento, con su árbitro
   // `@@unique(tenantId, tallerPagoId, type)` — una VENTA por cobro y, si se anula, un EGRESO.
-  tallerPago      TallerPago?    @relation(fields: [tallerPagoId], references: [id], onDelete: SetNull)
-  tallerPagoId    String?
+  tallerPago            TallerPago?          @relation(fields: [tallerPagoId], references: [id], onDelete: SetNull)
+  tallerPagoId          String?
   // Cobro de un proyecto (módulo proyectos): misma regla que el taller.
-  proyectoPago    ProyectoPago?  @relation(fields: [proyectoPagoId], references: [id], onDelete: SetNull)
-  proyectoPagoId  String?
+  proyectoPago          ProyectoPago?        @relation(fields: [proyectoPagoId], references: [id], onDelete: SetNull)
+  proyectoPagoId        String?
   // El pago de un gasto de proyecto (y su reversa): la misma idea que `proyectoPagoId`, del otro lado.
-  proyectoGasto   ProyectoGasto? @relation(fields: [proyectoGastoId], references: [id], onDelete: SetNull)
-  proyectoGastoId String?
+  proyectoGasto         ProyectoGasto?       @relation(fields: [proyectoGastoId], references: [id], onDelete: SetNull)
+  proyectoGastoId       String?
   // Rendí (MIA): el egreso del pago de una liquidación (con sus reintegros) y el de la entrega de un anticipo.
   // Misma regla: la clave del asiento es (tenant, origen, tipo). Las agrega `20261104121000_rendiciones` (SIN aplicar).
   // Rendí: FKs compuestas (id, tenantId): el asiento no apunta a una liquidación ni a un anticipo de otro negocio.
@@ -3149,15 +3152,18 @@ model PadelConfig {
 // Franja semanal (diaSemana 0..6) o excepción de un día (fecha). tipo DA = da clases;
 // NO = bloqueo (lluvia, viaje): pisa a las franjas semanales de ese día.
 model PadelDisponibilidad {
-  id        String    @id @default(cuid())
-  tenant    Tenant    @relation(fields: [tenantId], references: [id])
+  id        String     @id @default(cuid())
+  tenant    Tenant     @relation(fields: [tenantId], references: [id])
   tenantId  String
   diaSemana Int?
-  fecha     DateTime? @db.Date
+  fecha     DateTime?  @db.Date
   desde     String // "08:00"
   hasta     String // "12:00"
-  tipo      String    @default("DA") // DA · NO
-  createdAt DateTime  @default(now())
+  tipo      String     @default("DA") // DA · NO
+  // En qué club da esa franja (E4). Nulo = sin club cargado (lo de antes de los clubes).
+  club      PadelClub? @relation(fields: [clubId], references: [id], onDelete: SetNull)
+  clubId    String?
+  createdAt DateTime   @default(now())
 
   @@index([tenantId, diaSemana])
   @@index([tenantId, fecha])
@@ -3166,40 +3172,42 @@ model PadelDisponibilidad {
 // El alumno = un Client del negocio + su link estable (token) para ver sus clases,
 // repetir la de la semana que viene y mandar el comprobante sin login.
 model PadelAlumno {
-  id           String       @id @default(cuid())
-  tenant       Tenant       @relation(fields: [tenantId], references: [id])
+  id           String            @id @default(cuid())
+  tenant       Tenant            @relation(fields: [tenantId], references: [id])
   tenantId     String
-  client       Client       @relation(fields: [clientId], references: [id])
-  clientId     String       @unique
-  token        String       @unique
-  nivel        String       @default("")
+  client       Client            @relation(fields: [clientId], references: [id])
+  clientId     String            @unique
+  token        String            @unique
+  nivel        String            @default("")
   notas        String?
-  recibeAvisos Boolean      @default(true)
+  recibeAvisos Boolean           @default(true)
   clases       PadelClase[]
   avisos       PadelAviso[]
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  series       PadelSerie[]
+  integranteEn PadelIntegrante[]
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
 
   @@index([tenantId])
 }
 
 model PadelClase {
-  id                   String       @id @default(cuid())
-  tenant               Tenant       @relation(fields: [tenantId], references: [id])
+  id                   String            @id @default(cuid())
+  tenant               Tenant            @relation(fields: [tenantId], references: [id])
   tenantId             String
-  alumno               PadelAlumno  @relation(fields: [alumnoId], references: [id])
+  alumno               PadelAlumno       @relation(fields: [alumnoId], references: [id])
   alumnoId             String
-  client               Client       @relation(fields: [clientId], references: [id])
+  client               Client            @relation(fields: [clientId], references: [id])
   clientId             String
   empiezaEn            DateTime
   terminaEn            DateTime
-  tipo                 String       @default("INDIVIDUAL") // INDIVIDUAL · GRUPAL
-  personas             Int          @default(1)
-  estado               String       @default("PEDIDA") // PEDIDA · CONFIRMADA · DADA · AUSENTE · RECHAZADA · CANCELADA
-  origen               String       @default("TURNERO") // TURNERO · ALUMNO_LINK · PROFE
+  tipo                 String            @default("INDIVIDUAL") // INDIVIDUAL · GRUPAL
+  personas             Int               @default(1)
+  estado               String            @default("PEDIDA") // PEDIDA · CONFIRMADA · DADA · AUSENTE · RECHAZADA · CANCELADA
+  origen               String            @default("TURNERO") // TURNERO · ALUMNO_LINK · PROFE
   repiteDe             String? // id de la clase de la que salió ("la semana que viene")
-  precio               Decimal      @default(0) @db.Decimal(14, 2)
-  pagoEstado           String       @default("PENDIENTE") // PENDIENTE · EN_REVISION · PAGADO
+  precio               Decimal           @default(0) @db.Decimal(14, 2)
+  pagoEstado           String            @default("PENDIENTE") // PENDIENTE · EN_REVISION · PAGADO
   pagoMedio            String? // EFECTIVO · TRANSFERENCIA · MERCADO_PAGO
   // JPEG achicado en el teléfono del alumno (lado mayor 1024 px) como data URL: no hay
   // almacenamiento de archivos y así no cuesta nada (mismo criterio que TallerFoto).
@@ -3212,12 +3220,94 @@ model PadelClase {
   dadaEl               DateTime?
   canceladaEl          DateTime?
   motivoCancel         String?
+  // E4: en qué club. E8: de qué clase fija semanal salió. Nulos = como antes.
+  club                 PadelClub?        @relation(fields: [clubId], references: [id], onDelete: SetNull)
+  clubId               String?
+  serie                PadelSerie?       @relation(fields: [serieId], references: [id], onDelete: SetNull)
+  serieId              String?
+  // E7: en una GRUPAL, el alumno de la clase es el titular (paga su parte en los campos de pago
+  // de arriba) y cada integrante extra paga la suya en PadelIntegrante.
+  integrantes          PadelIntegrante[]
   avisos               PadelAviso[]
-  createdAt            DateTime     @default(now())
-  updatedAt            DateTime     @updatedAt
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
 
   @@index([tenantId, empiezaEn])
   @@index([tenantId, estado])
+  @@index([tenantId, alumnoId])
+  @@index([tenantId, pagoEstado])
+  @@index([tenantId, serieId])
+}
+
+// E4 · Los clubes donde da clases el profe (nombre y cómo llegar). Se desactiva, no se borra.
+model PadelClub {
+  id               String                @id @default(cuid())
+  tenant           Tenant                @relation(fields: [tenantId], references: [id])
+  tenantId         String
+  nombre           String
+  direccion        String?
+  mapsUrl          String?
+  activo           Boolean               @default(true)
+  orden            Int                   @default(0)
+  clases           PadelClase[]
+  disponibilidades PadelDisponibilidad[]
+  series           PadelSerie[]
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  @@unique([tenantId, nombre])
+  @@index([tenantId, activo])
+}
+
+// E8 · Clase fija semanal: el mismo alumno, el mismo día y hora, en el mismo club. Las clases
+// se generan como PadelClase (serieId) para las próximas semanas; cortar la serie pone `hasta`.
+model PadelSerie {
+  id          String       @id @default(cuid())
+  tenant      Tenant       @relation(fields: [tenantId], references: [id])
+  tenantId    String
+  alumno      PadelAlumno  @relation(fields: [alumnoId], references: [id])
+  alumnoId    String
+  club        PadelClub?   @relation(fields: [clubId], references: [id], onDelete: SetNull)
+  clubId      String?
+  diaSemana   Int // 0 = domingo … 6 = sábado (hora de Argentina)
+  hora        String // "18:00"
+  tipo        String       @default("INDIVIDUAL")
+  personas    Int          @default(1)
+  desde       DateTime     @db.Date
+  hasta       DateTime?    @db.Date // nulo = sin fin
+  activa      Boolean      @default(true)
+  canceladaEl DateTime?
+  clases      PadelClase[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([tenantId, activa])
+  @@index([tenantId, alumnoId])
+}
+
+// E7 · Integrante de una clase GRUPAL (además del titular): cada uno paga su parte.
+model PadelIntegrante {
+  id                   String       @id @default(cuid())
+  tenant               Tenant       @relation(fields: [tenantId], references: [id])
+  tenantId             String
+  clase                PadelClase   @relation(fields: [claseId], references: [id], onDelete: Cascade)
+  claseId              String
+  alumno               PadelAlumno? @relation(fields: [alumnoId], references: [id], onDelete: SetNull)
+  alumnoId             String?
+  nombre               String
+  telefono             String?
+  monto                Decimal      @default(0) @db.Decimal(14, 2)
+  pagoEstado           String       @default("PENDIENTE") // PENDIENTE · EN_REVISION · PAGADO
+  pagoMedio            String?
+  comprobante          String?
+  comprobanteEnviadoEl DateTime?
+  pagoValidadoEl       DateTime?
+  pagoNota             String?
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+
+  @@unique([claseId, alumnoId])
+  @@index([tenantId, claseId])
   @@index([tenantId, alumnoId])
   @@index([tenantId, pagoEstado])
 }
@@ -3547,18 +3637,18 @@ model ProyectoPago {
 // Lo que realmente se paga o se debe por un trabajo. `neto` es lo que se compara contra el costo presupuestado,
 // que también va sin IVA; a la caja sale `neto + iva`. Sin `pagadoEl` queda por pagar. Anular no borra.
 model ProyectoGasto {
-  id          String         @id @default(cuid())
-  tenant      Tenant         @relation(fields: [tenantId], references: [id])
+  id          String              @id @default(cuid())
+  tenant      Tenant              @relation(fields: [tenantId], references: [id])
   tenantId    String
-  proyecto    Proyecto       @relation(fields: [proyectoId], references: [id])
+  proyecto    Proyecto            @relation(fields: [proyectoId], references: [id])
   proyectoId  String
-  supplier    Supplier?      @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  supplier    Supplier?           @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   supplierId  String?
-  rubro       String         @default("General")
+  rubro       String              @default("General")
   descripcion String
   neto        Float
-  iva         Float          @default(0)
-  fecha       DateTime       @default(now())
+  iva         Float               @default(0)
+  fecha       DateTime            @default(now())
   comprobante String?
   pagadoEl    DateTime?
   medio       String?
@@ -3568,7 +3658,7 @@ model ProyectoGasto {
   cargadoPor  String?
   asientos    CashMovement[]
   rendiciones ProyectoRendicion[]
-  createdAt   DateTime       @default(now())
+  createdAt   DateTime            @default(now())
 
   @@unique([id, tenantId]) // Rendí: destino de FKs compuestas (id, tenantId)
   @@index([tenantId, proyectoId])
@@ -3576,22 +3666,22 @@ model ProyectoGasto {
 }
 
 model ProyectoArchivo {
-  id             String   @id @default(cuid())
-  tenant         Tenant   @relation(fields: [tenantId], references: [id])
+  id             String              @id @default(cuid())
+  tenant         Tenant              @relation(fields: [tenantId], references: [id])
   tenantId       String
-  proyecto       Proyecto @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
+  proyecto       Proyecto            @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
   proyectoId     String
-  tipo           String   @default("RENDER") // RENDER · DISENO · PLANO · REFERENCIA · COMPROBANTE (Rendí) · OTRO
+  tipo           String              @default("RENDER") // RENDER · DISENO · PLANO · REFERENCIA · COMPROBANTE (Rendí) · OTRO
   nombre         String
   datos          String? // imagen achicada (data URL), como las fotos del taller
   url            String? // lo pesado (PDF, CAD, video) queda en su nube: acá sólo el link
   clave          String? // dónde está el original en Cloudflare R2; `datos` queda como imagen achicada
   tamanoBytes    Int?
-  visibleCliente Boolean  @default(false)
+  visibleCliente Boolean             @default(false)
   itemId         String?
   subidoPor      String?
   rendiciones    ProyectoRendicion[]
-  createdAt      DateTime @default(now())
+  createdAt      DateTime            @default(now())
 
   @@unique([id, tenantId]) // Rendí: destino de FKs compuestas (id, tenantId)
   @@index([tenantId, proyectoId])
@@ -3973,29 +4063,30 @@ model ProyectoTipoCambio {
 }
 
 model ProyectoLiquidacion {
-  id          String          @id @default(cuid())
-  tenant      Tenant          @relation(fields: [tenantId], references: [id])
+  id          String              @id @default(cuid())
+  tenant      Tenant              @relation(fields: [tenantId], references: [id])
   tenantId    String
-  persona     ProyectoPersona @relation(fields: [personaId], references: [id], onDelete: Cascade)
+  persona     ProyectoPersona     @relation(fields: [personaId], references: [id], onDelete: Cascade)
   personaId   String
   periodo     String // AAAA-MM
-  base        Float           @default(0)
+  base        Float               @default(0)
   extras      Json?
-  total       Float           @default(0)
-  facturaA    String          @default("")
-  estado      String          @default("BORRADOR") // BORRADOR · PUBLICADA · PAGADA (Rendí)
+  total       Float               @default(0)
+  facturaA    String              @default("")
+  estado      String              @default("BORRADOR") // BORRADOR · PUBLICADA · PAGADA (Rendí)
   publicadaEl DateTime?
   vistaEl     DateTime?
   pagadaEl    DateTime?
   pagadaPor   String?
   asientos    CashMovement[]
   rendiciones ProyectoRendicion[]
-  createdAt   DateTime        @default(now())
+  createdAt   DateTime            @default(now())
 
   @@unique([tenantId, personaId, periodo])
   @@unique([id, tenantId]) // Rendí: destino de FKs compuestas (id, tenantId)
   @@index([tenantId, periodo])
 }
+
 // RENDÍ (MIA, plan `docs/tenants/mia-producciones/PLAN-RENDI.md` §3): la rendición de UN gasto de proyecto que alguien
 // del equipo pagó de su bolsillo (PROPIO) o con un anticipo (ANTICIPO). Plata en centavos enteros; el gasto sigue en
 // Float pesos (deuda anotada). `estado` guarda el estado del motor (`src/lib/rendiciones/tipos.ts`), `eventos` la
@@ -4036,21 +4127,21 @@ model ProyectoRendicion {
 // Plata que la productora le adelanta a alguien del equipo para gastos. El egreso se asienta al entregarlo
 // (`CashMovement.proyectoAnticipoId`); los gastos pagados con él no asientan nada.
 model ProyectoAnticipo {
-  id               String              @id @default(cuid())
-  tenant           Tenant              @relation(fields: [tenantId], references: [id])
-  tenantId         String
-  persona          ProyectoPersona     @relation(fields: [personaId, tenantId], references: [id, tenantId])
-  personaId        String
-  proyecto         Proyecto?           @relation(fields: [proyectoId, tenantId], references: [id, tenantId], onDelete: Restrict)
-  proyectoId       String?
-  montoCentavos    Int
-  entregadoEl      DateTime            @default(now())
-  devueltoCentavos    Int              @default(0)
-  reintegradoCentavos Int              @default(0) // faltante ya reintegrado (gastó más que el anticipo)
-  estado           String              @default("ENTREGADO") // ENTREGADO · RENDIDO · CERRADO
-  rendiciones      ProyectoRendicion[]
-  asientos         CashMovement[]
-  createdAt        DateTime            @default(now())
+  id                  String              @id @default(cuid())
+  tenant              Tenant              @relation(fields: [tenantId], references: [id])
+  tenantId            String
+  persona             ProyectoPersona     @relation(fields: [personaId, tenantId], references: [id, tenantId])
+  personaId           String
+  proyecto            Proyecto?           @relation(fields: [proyectoId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  proyectoId          String?
+  montoCentavos       Int
+  entregadoEl         DateTime            @default(now())
+  devueltoCentavos    Int                 @default(0)
+  reintegradoCentavos Int                 @default(0) // faltante ya reintegrado (gastó más que el anticipo)
+  estado              String              @default("ENTREGADO") // ENTREGADO · RENDIDO · CERRADO
+  rendiciones         ProyectoRendicion[]
+  asientos            CashMovement[]
+  createdAt           DateTime            @default(now())
 
   @@unique([id, tenantId]) // destino de FKs compuestas (id, tenantId)
   @@index([tenantId, personaId])
@@ -4060,18 +4151,18 @@ model ProyectoAnticipo {
 // otro pisa `hash`/`venceEl`/`usadoEl`/`intentos`, pero NO `fallosEl` ni `bloqueadoHasta`
 // (si no, pedir códigos nuevos sería la forma de esquivar el bloqueo). `hash` = HMAC-SHA256, nunca el código.
 model ProyectoPinIngreso {
-  id              String     @id @default(cuid())
-  tenant          Tenant     @relation(fields: [tenantId], references: [id])
-  tenantId        String
-  userId          String
-  hash            String
-  venceEl         DateTime
-  usadoEl         DateTime?
-  intentos        Int        @default(0) // contra el código vivo
-  fallosEl        DateTime[] @default([]) // horas de los últimos fallos (ventana deslizante), sobrevive al código nuevo
-  bloqueadoHasta  DateTime?
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
+  id             String     @id @default(cuid())
+  tenant         Tenant     @relation(fields: [tenantId], references: [id])
+  tenantId       String
+  userId         String
+  hash           String
+  venceEl        DateTime
+  usadoEl        DateTime?
+  intentos       Int        @default(0) // contra el código vivo
+  fallosEl       DateTime[] @default([]) // horas de los últimos fallos (ventana deslizante), sobrevive al código nuevo
+  bloqueadoHasta DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
 
   @@unique([tenantId, userId])
 }
