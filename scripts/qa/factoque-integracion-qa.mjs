@@ -108,7 +108,7 @@ async function nuevaPagina(ctx) {
   const page = await ctx.newPage();
   const errores = [];
   page.on("console", (m) => {
-    if (m.type() === "error" && !/favicon|Failed to load resource.*404|\[HMR\]|webpack-hmr|_next\/webpack|font|DeprecationWarning/i.test(m.text())) errores.push(m.text().slice(0, 200));
+    if (m.type() === "error" && !/favicon|Failed to load resource.*404|\[HMR\]|webpack-hmr|_next\/webpack|font|DeprecationWarning/i.test(m.text())) errores.push(`${m.text().slice(0, 900)} @${page.url()}`);
   });
   page.on("pageerror", (e) => errores.push(String(e).slice(0, 200)));
   return { page, errores };
@@ -272,6 +272,23 @@ async function main() {
         if (!m || m[1] !== "5" || m[2] !== "5") throw new Error(`después de anular: «${m?.[0] ?? desc.slice(0, 120)}»`);
         return `nota de crédito creada (1) · facturas que cuentan: ${await delMes()} · pantalla «${m[0]}»`;
       });
+      await paso("g portada → Botón de arrepentimiento (sin cuenta)", page, errores, async () => {
+        const pub = await browser.newContext({ viewport: VP });
+        const p = await pub.newPage();
+        await p.goto(`${apex}/facturita`);
+        await p.getByRole("navigation", { name: "Legales" }).getByRole("link", { name: "Botón de arrepentimiento" }).click();
+        await p.waitForURL(/\/facturita\/arrepentimiento/);
+        await p.getByLabel("Tu email").fill("ana@yoga.com");
+        await p.getByLabel("Tu CUIT").fill("20-22222222-3");
+        await p.getByRole("button", { name: "Me arrepiento" }).click();
+        const hecho = p.getByTestId("tramite-hecho");
+        await hecho.waitFor({ timeout: 30_000 });
+        const numero = await textoVisible(p.getByTestId("tramite-numero"));
+        const fila = await duenio.auditLog.findFirst({ where: { tenantId: T, action: "factoque.arrepentimiento" }, select: { channel: true } });
+        await pub.close();
+        if (!fila) throw new Error(`sin fila en AuditLog · «${numero}»`);
+        return `«${numero}» · AuditLog del negocio (canal ${fila.channel}) · el plan no se toca sin sesión`;
+      });
       await paso("e /facturita/planes", page, errores, async () => {
         await page.goto(`${origin}/facturita/planes`);
         const txt = await textoVisible(page.locator("main").first().or(page.locator("body")).first());
@@ -312,6 +329,25 @@ async function main() {
         await page.goto(`${origin}/facturita/app/cuenta`);
         const cuenta = await textoVisible(page.locator("main"));
         return `«${m[0]}» · 6.ª emitida (base: ${await delMes()}) · Mi cuenta nombra Plus: ${/Plus/.test(cuenta) ? "sí" : "NO"}`;
+      });
+      await paso("h Mi cuenta → Darme de baja: Plus vuelve a Gratis en el acto", page, errores, async () => {
+        await page.goto(`${origin}/facturita/app/cuenta`);
+        await page.getByRole("navigation", { name: "Arrepentimiento y baja" }).getByRole("link", { name: "Darme de baja" }).click();
+        await page.waitForURL(/\/facturita\/app\/cuenta\/tramite/);
+        await page.getByLabel("¿Por qué? (opcional)").fill("cierro el local");
+        await page.getByRole("button", { name: "Darme de baja" }).click();
+        const hecho = page.getByTestId("tramite-hecho");
+        await hecho.waitFor({ timeout: 30_000 });
+        const txt = await textoVisible(hecho);
+        const fila = await duenio.tenant.findUnique({ where: { id: T }, select: { plan: true } });
+        if (fila?.plan !== null) throw new Error(`Tenant.plan=${fila?.plan} · «${txt}»`);
+        const audit = await duenio.auditLog.count({ where: { tenantId: T, action: "factoque.baja" } });
+        const aviso = await hecho.getByRole("link").first().getAttribute("href");
+        await page.goto(`${origin}/facturita/app`);
+        const desc = await textoVisible(page.locator("main"));
+        const m = desc.match(/usaste (\d+) de (\d+)[^.]*/);
+        if (!m || m[2] !== "5") throw new Error(`después de la baja: «${m?.[0] ?? desc.slice(0, 120)}»`);
+        return `«${txt.slice(0, 170)}» · Tenant.plan=null · factoque.baja=${audit} · aviso ${String(aviso).slice(0, 30)}… · emitir: «${m[0]}»`;
       });
       await ctx.close();
     }

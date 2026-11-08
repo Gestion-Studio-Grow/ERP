@@ -75,9 +75,12 @@ export default function VidrieraMarco({
       <footer className="fx-pie">
         <div className="fx-caja fx-pie-fila">
           <p>Factoque emite comprobantes electrónicos con el servicio oficial de ARCA.</p>
-          <nav aria-label="Legales" className="flex gap-5">
+          <nav aria-label="Legales" className="flex flex-wrap gap-x-5 gap-y-2">
             <Link href="/facturita/terminos">Términos</Link>
             <Link href="/facturita/privacidad">Privacidad</Link>
+            {/* Res. SCI 424/2020 y Res. 316/2018: en todas las pantallas de la vidriera, sin cuenta. */}
+            <Link href="/facturita/arrepentimiento">Botón de arrepentimiento</Link>
+            <Link href="/facturita/baja">Darme de baja</Link>
           </nav>
           <p>Un producto de Gestión Studio Grow</p>
         </div>

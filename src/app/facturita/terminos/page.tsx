@@ -93,8 +93,8 @@ export default function TerminosPage() {
           titulo: "Planes pagos: arrepentimiento y baja",
           parrafos: [
             "Además del plan gratuito, Factoque tiene planes pagos (Plus y Pro). Si pasás a uno, antes de contratar te vamos a mostrar el precio final en pesos con IVA incluido, qué incluye, cada cuánto se cobra y con qué medio de pago.",
-            "Cuando contrates un plan pago a distancia, vas a tener 10 días corridos para arrepentirte, sin costo y sin dar explicaciones (art. 34 de la Ley 24.240 y art. 1110 del Código Civil y Comercial). Para eso, en la portada vas a tener un «Botón de arrepentimiento» que no te pide registrarte, y te vamos a mandar un código de tu pedido dentro de las 24 horas (Res. SCI 424/2020). [Botón de arrepentimiento — a implementar antes de habilitar planes pagos.]",
-            "También vas a poder dar de baja el plan pago cuando quieras, por el mismo medio con el que lo contrataste, sin costo y con un «Botón de baja» visible; te mandamos la constancia de la baja dentro de las 72 horas (art. 10 ter de la Ley 24.240 y Res. 316/2018). [Botón de baja — a implementar antes de habilitar planes pagos.]",
+            "Cuando contrates un plan pago a distancia, vas a tener 10 días corridos para arrepentirte, sin costo y sin dar explicaciones (art. 34 de la Ley 24.240 y art. 1110 del Código Civil y Comercial). Para eso tenés el «Botón de arrepentimiento», que no te pide registrarte: te da un número de trámite en el momento y te mandamos la constancia dentro de las 24 horas (Res. SCI 424/2020). Está abajo de todo en cada página de Factoque y en «Mi cuenta».",
+            "También podés dar de baja el plan pago cuando quieras, sin costo, con el «Botón de baja»: te da un número de trámite y te mandamos la constancia dentro de las 72 horas (art. 10 ter de la Ley 24.240 y Res. 316/2018). Está abajo de todo en cada página de Factoque («Darme de baja») y en «Mi cuenta», donde la baja del plan pago es inmediata.",
           ],
         },
         {
