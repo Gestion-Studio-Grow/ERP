@@ -47,10 +47,19 @@ export type Busqueda =
   | { ok: false; mensaje: string };
 
 /** Valida la entrada en el borde. Los mensajes hablan de letras, nunca de tipos ni de campos. */
+/**
+ * ¿Alcanza lo tipeado para ir a buscar? Dos letras o más, o un solo número: «3» es el pedido #3
+ * (UAT retail 07-08/11: el cartel sugería «el número del pedido» y «3» sin # daba 0 resultados).
+ */
+export function alcanzaParaBuscar(texto: string): boolean {
+  const t = texto.trim();
+  return t.length >= LARGO_MINIMO || /^\d$/.test(t);
+}
+
 export function leerBusqueda(entrada: unknown): Busqueda {
   if (typeof entrada !== "string") return { ok: false, mensaje: "Escribí qué querés buscar." };
   const texto = entrada.replace(/\s+/g, " ").trim();
-  if (texto.length < LARGO_MINIMO) return { ok: false, mensaje: "Escribí al menos 2 letras o números." };
+  if (!alcanzaParaBuscar(texto)) return { ok: false, mensaje: "Escribí al menos 2 letras o números." };
   if (texto.length > LARGO_MAXIMO) return { ok: false, mensaje: "Probá con menos palabras: hasta 60 letras." };
   const esNumero = /^#?\s*\d[\d\s.-]*$/.test(texto);
   const digitos = esNumero ? texto.replace(/\D/g, "") : null;
@@ -210,7 +219,6 @@ function productosParaCobrar(filas: readonly ProductoLeido[], b: Extract<Busqued
 }
 
 function pedidos(filas: readonly PedidoLeido[], b: Extract<Busqueda, { ok: true }>, permisos: PermisosDeBusqueda): RegistroEncontrado[] {
-  if (b.codigo === null) return [];
   const codigo = b.codigo;
   const destino = (p: PedidoLeido): string | null => {
     if (p.abierto && permisos.pedidos) return `/admin/pedidos?pedido=${encodeURIComponent(p.id)}`;
@@ -220,7 +228,9 @@ function pedidos(filas: readonly PedidoLeido[], b: Extract<Busqueda, { ok: true 
     return null;
   };
   const conDestino = filas.filter((p) => destino(p) !== null);
-  const rango = (p: PedidoLeido) => (p.codigo === codigo ? 0 : 1);
+  // Por número: el exacto primero. Por nombre o teléfono de quien pidió (el servidor ya filtró): todos
+  // iguales, del más nuevo al más viejo.
+  const rango = (p: PedidoLeido) => (codigo === null ? 1 : p.codigo === codigo ? 0 : 1);
   return porRango(conDestino, rango, (x, y) => y.codigo - x.codigo).map((p) => {
     const estado = p.anulado ? "Anulado" : p.abierto ? "Abierto" : "Entregado";
     const partes = [estado, p.cliente.trim() || null, permisos.verPlata ? fmtMoneyARS(p.total) : null];

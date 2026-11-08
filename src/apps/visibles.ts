@@ -109,6 +109,8 @@ export interface NegocioApps {
   perfil: Perfil | null;
   /** ¿Local de mostrador? (`resolveRubroId(tenant) != null`, el mismo dato que la barra). */
   esMostrador: boolean;
+  /** ¿El rubro vende por peso? (`rubroVendePorPeso`). Ausente = sí, como hasta hoy. */
+  vendePorPeso?: boolean;
   /** ¿Lotes y despiece listos: migración cárnica aplicada y rubro de perecederos? (`lotesYDespieceListos`). */
   carniceriaLista: boolean;
   /**
@@ -176,6 +178,7 @@ function moduloPermite(app: AppDescriptor, n: NegocioApps): boolean {
 }
 
 function rubroPermite(app: AppDescriptor, n: NegocioApps): boolean {
+  if (app.soloSiPesa && n.vendePorPeso === false) return false;
   switch (app.rubro) {
     case undefined:
       return true;
@@ -240,6 +243,23 @@ export function motivoNoDisponible(app: AppDescriptor, n: NegocioApps): MotivoNo
 /** ¿Puede abrirla? Es la regla de `requireApp`. */
 export function appPermitida(app: AppDescriptor, n: NegocioApps): boolean {
   return motivoNoDisponible(app, n) === null;
+}
+
+/**
+ * ¿Este rol, en este negocio, abre alguna app de esa capacidad? La tabla de Usuarios dice «Sí» sólo si
+ * es así (UAT retail 07-08/11, C3/C4: prometía «Recibir mercadería, contar y cargar mermas» al Mostrador y
+ * Stock, Mermas y Recibir le daban «no disponible»). Una capacidad sin app propia en el registro (anular,
+ * contacto, caja…) no se juzga acá: `true`. PURA.
+ */
+export function capacidadConApp(
+  cap: string,
+  role: Role,
+  n: NegocioApps,
+  apps: readonly AppDescriptor[] = REGISTRO_APPS,
+): boolean {
+  const deLaCapacidad = apps.filter((a) => a.capability === cap || a.capabilityEnMostrador === cap);
+  if (deLaCapacidad.length === 0) return true;
+  return deLaCapacidad.some((a) => appPermitida(a, { ...n, role }));
 }
 
 /**
@@ -373,6 +393,40 @@ export function conCierreDelMesEnLaBarra(
   return salida;
 }
 
+/**
+ * Vender y Ventas del día en la barra de un comercio (UAT retail 07-08/11, callejón C2): sin esto se
+ * llegaba a Vender sólo por Pedidos → «Cobrar en el mostrador» y a Ventas del día (donde se anula) sólo
+ * tipeando la URL; el buscador tampoco las encontraba porque arma su lista desde la barra. Vender va
+ * delante de Pedidos y Ventas del día detrás, en el grupo de Pedidos, y SÓLO si la app ya es visible
+ * para esa persona. Las dos son `moduloDuro` (`pos`): CH (beauty-spa, sin asignación) no las recibe y su
+ * barra queda idéntica; no entran a `menuDeHoy`, que ata la barra al menú viejo (paridad-menu.test.ts). PURA.
+ */
+export function conVenderEnLaBarra(menu: readonly ItemMenuDeHoy[], visibles: readonly AppDescriptor[]): ItemMenuDeHoy[] {
+  const item = (app: AppDescriptor, grupo: NavGroupId | undefined): ItemMenuDeHoy => {
+    const it: ItemMenuDeHoy = { href: app.ruta, label: app.nombre, icon: app.icono };
+    if (app.palabras) it.alias = app.palabras;
+    if (grupo) it.grupo = grupo;
+    return it;
+  };
+  const nueva = (id: string) => {
+    const app = visibles.find((a) => a.id === id);
+    return app && !menu.some((i) => i.href === app.ruta) ? app : undefined;
+  };
+  const vender = nueva("vender");
+  const ventas = nueva("ventas-del-dia");
+  if (!vender && !ventas) return [...menu];
+  const salida = [...menu];
+  const i = salida.findIndex((m) => m.href === "/admin/pedidos");
+  const grupo = i >= 0 ? salida[i].grupo : undefined;
+  if (i < 0) {
+    for (const app of [vender, ventas]) if (app) salida.push(item(app, grupoDeHoy(app.ruta)));
+    return salida;
+  }
+  if (ventas) salida.splice(i + 1, 0, item(ventas, grupo));
+  if (vender) salida.splice(i, 0, item(vender, grupo));
+  return salida;
+}
+
 /** Lo que sale de la barra de CH: Campañas no la usa y Recordatorios todavía es simulado. */
 const FUERA_DE_LA_BARRA_DE_CH = new Set(["/admin/campania", "/admin/recordatorios"]);
 
@@ -453,6 +507,16 @@ export function explicarNoDisponible(
       aQuien: "Volvé a tu inicio y buscala desde ahí.",
     };
   }
+  // Un Profesional heredado en un comercio (p. ej. tras convertir servicios → tienda) no tiene ninguna
+  // pantalla: su casa es la Agenda y acá no hay (por rubro o por módulo). Se dice qué pasa y cómo salir
+  // (UAT retail 07-08/11, C4/C6).
+  if (motivo !== null && n.role === "PROFESSIONAL" && n.esMostrador && app.rubro === "servicios") {
+    return {
+      titulo: "Tu usuario no tiene pantallas en este negocio",
+      porque: "Tu usuario es Profesional, un rol para negocios con turnos, y este negocio no tiene agenda.",
+      aQuien: "Pedile a la dueña o al dueño que, en Usuarios, te pase a Mostrador. Mientras tanto, cerrá la sesión.",
+    };
+  }
   const titulo = `${app.nombre} no está disponible`;
   const pedido = n.role === "OWNER" ? A_GSG : A_LA_DUENIA;
   switch (motivo) {
@@ -479,6 +543,9 @@ export function explicarNoDisponible(
     case "oculta":
       return { titulo, porque: "En tu negocio esta app está oculta: no la usan.", aQuien: pedido };
     case "rubro": {
+      if (app.soloSiPesa && n.esMostrador) {
+        return { titulo, porque: "Esta app es para negocios que venden por peso, y el tuyo vende por unidad.", aQuien: pedido };
+      }
       const porque =
         app.rubro === "servicios"
           ? "Esta app es para negocios que trabajan con turnos."

@@ -16,6 +16,9 @@ import { fmtTime, dateStrInBusinessTz, todayInBusinessTz } from "@/lib/datetime"
 import { leerHoyDelNegocio } from "@/lib/hoy-del-negocio/lector";
 import { pesosDelHoy, type TarjetaHoy } from "@/lib/hoy-del-negocio/hoy-core";
 import { AvisoError } from "@/components/ui/AvisoError";
+import { getNegocioApps } from "@/apps/contexto.server";
+import { motivoNoDisponible } from "@/apps/visibles";
+import { appPorId } from "@/apps/registro";
 
 const TITULO_ID = "hoy-del-negocio";
 const TOPE_DE_SENIAS = 5;
@@ -127,7 +130,11 @@ export function HoyDelNegocioCargando() {
   );
 }
 
-export default async function HoyDelNegocio({ tenantId }: { tenantId: string }) {
+/**
+ * `conAgenda` = el negocio tiene Agenda (aunque esta persona no la abra). Una tienda no (UAT retail
+ * 07-08/11, callejón C1): ni Turnos, ni Señas pendientes, ni «Ir a la Agenda»; la salida es Ventas del día.
+ */
+export default async function HoyDelNegocio({ tenantId, conAgenda = true }: { tenantId: string; conAgenda?: boolean }) {
   const hoy = todayInBusinessTz();
   const t = await leerHoyDelNegocio(tenantId, hoy);
   return (
@@ -135,32 +142,42 @@ export default async function HoyDelNegocio({ tenantId }: { tenantId: string }) 
       <h2 id={TITULO_ID} className="mb-sm text-lg font-semibold tracking-tight text-strong">
         Hoy
       </h2>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Bloque titulo="Turnos">
-          <Turnos t={t.turnos} />
-        </Bloque>
+      <div className={`grid grid-cols-1 gap-3 sm:grid-cols-2 ${conAgenda ? "lg:grid-cols-4" : ""}`}>
+        {conAgenda && (
+          <Bloque titulo="Turnos">
+            <Turnos t={t.turnos} />
+          </Bloque>
+        )}
         <Bloque titulo="Cobrado hoy">
           <Cobrado c={t.cobrado} />
         </Bloque>
         <Bloque titulo="Ventas de productos">
           <Ventas v={t.ventas} />
         </Bloque>
-        <Bloque titulo="Señas pendientes">
-          <Senias s={t.senias} hoy={hoy} />
-        </Bloque>
+        {conAgenda && (
+          <Bloque titulo="Señas pendientes">
+            <Senias s={t.senias} hoy={hoy} />
+          </Bloque>
+        )}
       </div>
       {t.sinLeer.length > 0 && (
         <AvisoError
           tono="aviso"
           className="mt-3"
           titulo={`No se pudo leer ${t.sinLeer.join(", ")}`}
-          comoSeguir="Lo demás está al día. Volvé al Inicio en un rato o mirá la Agenda y el Cierre del día."
+          comoSeguir={`Lo demás está al día. Volvé al Inicio en un rato o mirá ${conAgenda ? "la Agenda" : "Ventas del día"} y el Cierre del día.`}
         />
       )}
       <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-        <Link href="/admin/turnos" className={ENLACE}>
-          Ir a la Agenda
-        </Link>
+        {conAgenda ? (
+          <Link href="/admin/turnos" className={ENLACE}>
+            Ir a la Agenda
+          </Link>
+        ) : (
+          <Link href="/admin/ventas" className={ENLACE}>
+            Ir a Ventas del día
+          </Link>
+        )}
         <Link href="/admin/caja/cierre" className={ENLACE}>
           Ir a Caja · Cierre del día
         </Link>
@@ -177,10 +194,14 @@ export default async function HoyDelNegocio({ tenantId }: { tenantId: string }) 
 export async function HoySiCorresponde({ role }: { role: Role }) {
   if (!roleHasCapability(role, "reports:read")) return null;
   if (!ventaAgendaSimplePrendida(await interruptoresDelNegocio())) return null;
-  const tenantId = await getCurrentTenantId();
+  const [tenantId, negocio] = await Promise.all([getCurrentTenantId(), getNegocioApps(role)]);
+  // Sólo un comercio (mostrador) se queda sin el bloque de agenda, y sólo si no tiene la app: CH (servicios)
+  // queda siempre como estaba. «Rol» no cuenta: el negocio tiene Agenda aunque esta persona no la abra.
+  const motivo = negocio.esMostrador ? motivoNoDisponible(appPorId("agenda"), negocio) : null;
+  const conAgenda = motivo === null || motivo === "rol";
   return (
     <Suspense fallback={<HoyDelNegocioCargando />}>
-      <HoyDelNegocio tenantId={tenantId} />
+      <HoyDelNegocio tenantId={tenantId} conAgenda={conAgenda} />
     </Suspense>
   );
 }

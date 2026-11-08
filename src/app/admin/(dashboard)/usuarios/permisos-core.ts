@@ -59,20 +59,35 @@ function celda(role: Role, cap: Capability): Celda {
   return { puede: true };
 }
 
-/** Las filas y columnas para este negocio: los roles que se pueden dar de alta acá. */
-export function tablaDePermisos(esMostrador: boolean): TablaDePermisos {
+/**
+ * ¿Ese rol abre en ESTE negocio alguna pantalla de esa capacidad? (`capacidadConApp`, la arma la página
+ * con el negocio). Sin ella, la tabla habla sólo del rol, como siempre.
+ */
+export type AlcanzaEnElNegocio = (role: Role, cap: Capability) => boolean;
+
+/**
+ * Las filas y columnas para este negocio: los roles que se pueden dar de alta acá. Con `alcanza`, un «Sí»
+ * que el negocio no puede cumplir (no tiene la pantalla, o ese rol no la abre acá) pasa a «No», y una fila
+ * que nadie puede hacer acá no se muestra (UAT retail 07-08/11: no prometer apps que el negocio no tiene).
+ */
+export function tablaDePermisos(esMostrador: boolean, alcanza?: AlcanzaEnElNegocio): TablaDePermisos {
   const roles = rolesParaAlta(esMostrador).map((o) => ({ valor: o.valor, nombre: etiquetaDeRol(o.valor, esMostrador) }));
-  const filas = TAREAS.filter((t) => !t.rubro || (t.rubro === "mostrador") === esMostrador).map((t) => ({
-    texto: t.texto,
-    capacidad: t.capacidad,
-    celdas: roles.map((r) => celda(r.valor, t.capacidad)),
-  }));
+  const filas = TAREAS.filter((t) => !t.rubro || (t.rubro === "mostrador") === esMostrador)
+    .map((t) => ({
+      texto: t.texto,
+      capacidad: t.capacidad,
+      celdas: roles.map((r) => {
+        const c = celda(r.valor, t.capacidad);
+        return c.puede && alcanza && !alcanza(r.valor, t.capacidad) ? { puede: false } : c;
+      }),
+    }))
+    .filter((f) => !alcanza || roles.some((r) => alcanza(r.valor, f.capacidad)));
   return { roles, filas };
 }
 
 /** Una línea por rol para el alta («Mostrador: vende, cobra, anula lo de hoy…»), derivada de la tabla. */
-export function resumenDelRol(role: Role, esMostrador: boolean): string {
-  const t = tablaDePermisos(esMostrador);
+export function resumenDelRol(role: Role, esMostrador: boolean, alcanza?: AlcanzaEnElNegocio): string {
+  const t = tablaDePermisos(esMostrador, alcanza);
   const i = t.roles.findIndex((r) => r.valor === role);
   if (i === -1) return "";
   const si = t.filas.filter((f) => f.celdas[i].puede);

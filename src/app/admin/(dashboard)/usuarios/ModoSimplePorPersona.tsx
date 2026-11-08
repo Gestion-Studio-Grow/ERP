@@ -12,7 +12,8 @@ import { PREFERENCIA_MODO_SIMPLE } from "@/lib/modo-simple";
 
 export type PersonaModoSimple = { id: string; name: string; rol: string; simple: boolean };
 
-export default function ModoSimplePorPersona({ personas, conTabla }: { personas: PersonaModoSimple[]; conTabla: boolean }) {
+/** `sinAgenda`: un comercio (sin Agenda), donde el modo simple deja Pedidos y Vender (admin-nav-items.ts). */
+export default function ModoSimplePorPersona({ personas, conTabla, sinAgenda = false }: { personas: PersonaModoSimple[]; conTabla: boolean; sinAgenda?: boolean }) {
   const router = useRouter();
   const [pendiente, startTransition] = useTransition();
   const [aviso, setAviso] = useState<{ ok: boolean; texto: string } | null>(null);
@@ -39,7 +40,7 @@ export default function ModoSimplePorPersona({ personas, conTabla }: { personas:
     <section aria-labelledby="modo-simple-titulo" className="mt-8">
       <h3 id="modo-simple-titulo" className="text-lg font-semibold text-strong">Modo simple</h3>
       <p className="mb-3 text-sm text-muted">
-        Menos botones: Hoy, Agenda, Clientes y Caja. No quita permisos; cada uno vuelve con «Ver todo».
+        Menos botones: {sinAgenda ? "Hoy, Pedidos, Vender, Caja y Clientes" : "Hoy, Agenda, Clientes y Caja"}. No quita permisos; cada uno vuelve con «Ver todo».
       </p>
       {!conTabla && <p className="mb-3 text-sm text-muted">Todavía no se puede guardar en este negocio: por ahora todos ven el panel completo.</p>}
       <ul className="divide-y divide-line">

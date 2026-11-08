@@ -54,6 +54,17 @@ export function iconoDeEspacioNav(id: EspacioNavId, esMostrador: boolean): Nombr
   return ICONOS[id];
 }
 
+/**
+ * La descripción de una app dicha con las palabras de un comercio: en una tienda no hay turnos (UAT
+ * retail 07-08/11, Shine: «La ficha de cada cliente: turnos, pedidos…»). En CH, la del registro.
+ */
+const DESCRIPCION_EN_MOSTRADOR: Readonly<Record<string, string>> = {
+  clientes: "La ficha de cada cliente: lo que compró, sus pedidos, lo que debe y si quiere mensajes.",
+};
+export function descripcionDe(id: string, descripcion: string | undefined, esMostrador: boolean): string | undefined {
+  return (esMostrador && DESCRIPCION_EN_MOSTRADOR[id]) || descripcion;
+}
+
 function agrupar(
   entradas: readonly { espacio: EspacioNavId; orden: number; app: AppDeNav }[],
   esMostrador: boolean,
@@ -85,7 +96,7 @@ export function espaciosDeApps(visibles: readonly AppDescriptor[], esMostrador: 
     if (app.enLanzador === false) return [];
     const espacio = espacioNavDeApp(app);
     if (!espacio) return [];
-    const nav: AppDeNav = { id: app.id, nombre: app.nombre, ruta: app.ruta, icono: app.icono, descripcion: app.descripcion };
+    const nav: AppDeNav = { id: app.id, nombre: app.nombre, ruta: app.ruta, icono: app.icono, descripcion: descripcionDe(app.id, app.descripcion, esMostrador) };
     if (app.exacta) nav.exacta = true;
     return [{ espacio, orden: ordenDentroDelEspacioNav(espacio, app.id), app: nav }];
   });
@@ -103,7 +114,7 @@ export function espaciosDelMenu(menu: readonly ItemMenuDeHoy[], esMostrador: boo
     const app = appDeRuta(item.href);
     const espacio: EspacioNavId | null = app ? espacioNavDeApp(app) : "administracion";
     if (!espacio) return [];
-    const nav: AppDeNav = { id: app?.id ?? item.href, nombre: item.label, ruta: item.href, icono: item.icon, descripcion: item.descripcion ?? app?.descripcion };
+    const nav: AppDeNav = { id: app?.id ?? item.href, nombre: item.label, ruta: item.href, icono: item.icon, descripcion: item.descripcion ?? descripcionDe(app?.id ?? item.href, app?.descripcion, esMostrador) };
     if (item.exact) nav.exacta = true;
     return [{ espacio, orden: app ? ordenDentroDelEspacioNav(espacio, app.id) : Number.POSITIVE_INFINITY, app: nav, i }];
   });

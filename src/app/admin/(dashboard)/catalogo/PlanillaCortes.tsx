@@ -16,7 +16,14 @@ import { aplicarPlanilla, previsualizarPlanilla } from "@/lib/catalogo/planilla-
 const precio = (n: number | null) => (n == null ? "sin precio" : fmtMoneyARS(n));
 const porForma = (s: "UNIT" | "WEIGHT") => (s === "WEIGHT" ? "/kg" : "/u");
 
-export default function PlanillaCortes() {
+/** Las palabras del rubro (vocabulario.ts). Sin ellas, las de la carnicería, como siempre. */
+type Palabras = { uno: string; varios: string; carniceria: boolean };
+const DE_CARNICERIA: Palabras = { uno: "corte", varios: "cortes", carniceria: true };
+
+export default function PlanillaCortes({ vocabulario = DE_CARNICERIA }: { vocabulario?: Palabras }) {
+  // En una tienda (velas, pádel) no hay «cortes»: UAT retail 07-08/11.
+  const uno = vocabulario.carniceria ? "corte" : vocabulario.uno;
+  const varios = vocabulario.carniceria ? "cortes" : vocabulario.varios;
   const inputRef = useRef<HTMLInputElement>(null);
   const [texto, setTexto] = useState<string | null>(null);
   const [archivo, setArchivo] = useState<string>("");
@@ -54,7 +61,7 @@ export default function PlanillaCortes() {
         limpiar();
         setMensaje({
           tono: "success",
-          texto: `Listo: ${r.altas} corte${r.altas === 1 ? "" : "s"} nuevo${r.altas === 1 ? "" : "s"} y ${r.cambios} cambio${r.cambios === 1 ? "" : "s"} guardados.`,
+          texto: `Listo: ${r.altas} ${r.altas === 1 ? uno : varios} nuevo${r.altas === 1 ? "" : "s"} y ${r.cambios} cambio${r.cambios === 1 ? "" : "s"} guardados.`,
         });
       } else {
         // Si el servidor armó un plan distinto (el catálogo cambió), se muestra ése: es el
@@ -70,10 +77,10 @@ export default function PlanillaCortes() {
   return (
     <section aria-labelledby="planilla-titulo" className="rounded-lg border border-line bg-surface-raised p-4 sm:p-5">
       <h2 id="planilla-titulo" className="text-base font-semibold text-strong">
-        Planilla de cortes y precios
+        Planilla de {varios} y precios
       </h2>
       <p className="mt-1 text-sm text-muted">
-        Bajá la planilla, cambiá precios o sumá cortes en Excel, y subila. Antes de guardar te
+        Bajá la planilla, cambiá precios o sumá {varios} en Excel, y subila. Antes de guardar te
         mostramos qué cambia. El stock no se carga desde acá: se carga con un recuento en Ajustes.
       </p>
 
@@ -141,9 +148,9 @@ export default function PlanillaCortes() {
 
           {plan.altas.length > 0 && (
             <div>
-              <h3 className="text-sm font-semibold text-strong">Cortes nuevos</h3>
+              <h3 className="text-sm font-semibold text-strong first-letter:uppercase">{varios} nuevos</h3>
               <p className="text-xs text-muted">
-                No están en el catálogo con ese nombre. Si alguno es un corte que renombraste, se va a crear
+                No están en el catálogo con ese nombre. Si alguno es {vocabulario.carniceria ? "un corte" : `un ${uno}`} que renombraste, se va a crear
                 otro: corregí el nombre en la planilla.
               </p>
               <ul className="mt-2 divide-y divide-line rounded-md border border-line">

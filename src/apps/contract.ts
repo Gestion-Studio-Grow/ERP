@@ -180,6 +180,8 @@ export interface AppDescriptor {
    */
   panelCerrado?: { blueprint: string; apps: readonly string[] };
   rubro?: RubroApp;
+  /** Sólo en un rubro que vende por peso (Balanza y lector): una tienda de pádel o de velas no pesa. */
+  soloSiPesa?: true;
   /**
    * Pantalla de la edición por perfiles (Comercio/Empresa). Presente = sólo se ofrece con
    * el motor de perfiles encendido y un perfil igual o mayor (hoy ENTERPRISE_NAV_ITEMS se

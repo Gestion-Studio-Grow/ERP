@@ -36,9 +36,9 @@ import MostradorBoutique from "./boutique/MostradorBoutique";
 async function EstadoDelMostrador({ role, mostrador, tenantId }: { role: Role; mostrador: boolean; tenantId: string }) {
   const [caja, vender] = await Promise.all([cargarKpi("caja-del-dia", role), cargarKpi("vender", role)]);
   const datos: React.ReactNode[] = [];
+  // Con hoy ya cerrado no se abre la caja: no se ofrece. Sin el número de la caja no se sabe: se pregunta igual.
+  const diaCerrado = (caja?.estado !== "ok" || caja.valor === "Cerrada") && (await hoyEstaCerrado(tenantId).catch(() => false));
   if (caja?.estado === "ok") {
-    // Con hoy ya cerrado no se abre la caja: no se ofrece.
-    const diaCerrado = caja.valor === "Cerrada" && (await hoyEstaCerrado(tenantId).catch(() => false));
     datos.push(
       diaCerrado ? (
         <span key="caja">
@@ -60,8 +60,9 @@ async function EstadoDelMostrador({ role, mostrador, tenantId }: { role: Role; m
     );
   }
   if (vender?.estado === "ok") datos.push(`${vender.valor} ${vender.detalle ?? ""}`.trim());
-  // La regla del día cerrado, sólo en un mostrador (reglas-a-la-vista.ts).
-  datos.push(reglaALaVista("vender", mostrador));
+  // La regla del día cerrado, sólo en un mostrador (reglas-a-la-vista.ts) y sólo con el día cerrado: con el
+  // día abierto (aunque el turno esté cerrado) la venta cobrada sí entra (UAT retail 07-08/11).
+  datos.push(reglaALaVista("vender", mostrador && diaCerrado));
   return <LineaDeEstado datos={datos} className="mb-4" />;
 }
 

@@ -116,7 +116,7 @@ export default function AnularDelPedido({
           maxLength={MOTIVO_MAX}
           aria-required={motivoObligatorio || undefined}
           aria-invalid={error && !(conCodigo && conPlata) ? true : undefined}
-          placeholder="Ej.: se pesó mal, eran 1,310 kg"
+          placeholder="Ej.: se cargó mal, era otro producto"
           onChange={(e) => {
             setMotivo(e.target.value);
             setError(null);

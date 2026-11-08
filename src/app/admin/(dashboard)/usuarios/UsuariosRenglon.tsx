@@ -14,7 +14,7 @@ import { cn } from "@/components/ui/cn";
 import { fmtDateTime } from "@/lib/datetime";
 import type { Role } from "@/lib/capabilities";
 import { etiquetaDeRol, rolSinPantallas, type OpcionDeRol } from "./roles";
-import { resumenDelRol, tablaDePermisos } from "./permisos-core";
+import { resumenDelRol, tablaDePermisos, type AlcanzaEnElNegocio } from "./permisos-core";
 import VincularFicha from "./VincularFicha";
 
 type Usuario = {
@@ -34,6 +34,7 @@ export default function UsuariosRenglon({
   banner,
   fichas,
   matriz,
+  alcanza,
 }: {
   users: Usuario[];
   roles: OpcionDeRol[];
@@ -42,11 +43,13 @@ export default function UsuariosRenglon({
   fichas: readonly { id: string; nombre: string; usuarioId: string | null }[];
   /** «Qué puede hacer cada persona» (MatrizDePermisos), ya armada por la página; `null` sin `users:manage`. */
   matriz?: ReactNode;
+  /** Qué rol abre qué en ESTE negocio (`capacidadConApp`): la tabla no promete pantallas que no hay. */
+  alcanza?: AlcanzaEnElNegocio;
 }) {
   const activos = users.filter((u) => u.active);
   const bajas = users.length - activos.length;
   const nunca = activos.filter((u) => !u.lastLoginAt).length;
-  const tabla = tablaDePermisos(esMostrador);
+  const tabla = tablaDePermisos(esMostrador, alcanza);
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
@@ -168,7 +171,7 @@ export default function UsuariosRenglon({
                       <input type="radio" name="role" value={r.valor} required defaultChecked={r.valor === "RECEPTION"} className="mt-0.5 size-5 shrink-0 accent-accent" />
                       <span className="min-w-0">
                         <span className="block font-medium text-strong">{etiquetaDeRol(r.valor, esMostrador)}</span>
-                        <span className="block text-[13px] text-muted first-letter:uppercase">{resumenDelRol(r.valor, esMostrador)}</span>
+                        <span className="block text-[13px] text-muted first-letter:uppercase">{resumenDelRol(r.valor, esMostrador, alcanza)}</span>
                       </span>
                     </label>
                   ))}

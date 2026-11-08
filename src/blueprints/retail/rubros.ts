@@ -625,6 +625,15 @@ export function getRetailRubro(id: string): RetailRubro | null {
  * y Despiece (carniceria/schema-probe.ts), para que las dos cosas salgan del MISMO dato del
  * blueprint. Rubro desconocido o ausente (un negocio de servicios) → false. PURA.
  */
+/**
+ * ¿El rubro vende por peso (módulo `venta-peso`)? Decide si Balanza y lector se ofrece: una tienda de
+ * pádel o de velas no pesa (UAT retail 07-08/11). Rubro desconocido → `true`, como hasta hoy. PURA.
+ */
+export function rubroVendePorPeso(rubroId: string | null | undefined): boolean {
+  const rubro = rubroId ? getRetailRubro(rubroId) : null;
+  return rubro ? rubro.modules.includes("venta-peso") : true;
+}
+
 export function rubroConPerecederos(rubroId: string | null | undefined): boolean {
   return rubroId ? getRetailRubro(rubroId)?.perecederos === true : false;
 }

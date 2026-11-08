@@ -283,7 +283,7 @@ function cartaDe(marca: MarcaId, copy: StorefrontCopy | null, wording: RetailWor
 
 // ── Cabecera: la marca, las secciones, WhatsApp ─────────────────────────────
 
-function Cabecera({ marca, e, local, whatsapp }: Ctx) {
+function Cabecera({ marca, e, local, whatsapp, copy }: Ctx) {
   const nav =
     marca === "magra"
       ? [
@@ -295,8 +295,9 @@ function Cabecera({ marca, e, local, whatsapp }: Ctx) {
       : marca === "shinevelas"
         ? [
             ["#carta", "Colección"],
-            ["#regalos", "Regalos"],
-            ["#ritual", "Ritual"],
+            // Sólo si la sección está (UAT 07-08/11: el copy de Shine ya no las trae y el clic no llevaba a nada).
+            ...(copy?.giftSets ? [["#regalos", "Regalos"]] : []),
+            ...(copy?.ritual ? [["#ritual", "Ritual"]] : []),
             ["#contacto", "Contacto"],
           ]
         : marca === "adosmanos"
