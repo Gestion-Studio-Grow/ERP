@@ -180,6 +180,11 @@ export type CierreDiarioData = {
    * ausente = el negocio no tiene el valor del enum o no hubo vouchers.
    */
   vouchersACobrar?: VouchersDelCierre | null;
+  /**
+   * CH · cheques de la administración en «valores a depositar»: NO están en ninguna columna del libro
+   * hasta que se confirma el depósito (entonces entran a Mercado Pago). `null` o ausente = no hay.
+   */
+  chequesADepositar?: { cantidad: number; monto: number } | null;
   /** Reabrir el día (M1-C7): sólo para la dueña o el dueño en un día cerrado. `null` = no se ofrece. */
   reabrir: { puede: true } | { puede: false; porque: string } | null;
 };
@@ -269,6 +274,16 @@ async function vouchersDelPeriodo(tenantId: string, start: Date, end: Date): Pro
     });
     const r = vouchersDelCierre(filas.map((f) => ({ amount: f.amount.toNumber() })));
     return r.cantidad === 0 && r.anulados.cantidad === 0 ? null : r;
+  } catch {
+    return null;
+  }
+}
+
+/** Cheques de la administración sin depositar. Tolera que la tabla de vouchers no exista todavía (Gate 2). */
+async function chequesDeLaAdministracion(tenantId: string): Promise<{ cantidad: number; monto: number } | null> {
+  try {
+    const { chequesADepositar } = await import("@/lib/vouchers/liquidacion-repo");
+    return await chequesADepositar(tenantId);
   } catch {
     return null;
   }
@@ -531,6 +546,7 @@ async function leerCierreDiario(
     }),
     hechos,
     vouchersACobrar: await vouchersDelPeriodo(tenantId, start, end),
+    chequesADepositar: await chequesDeLaAdministracion(tenantId),
     reabrir: null,
   };
 }

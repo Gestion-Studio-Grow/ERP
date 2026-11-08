@@ -34,7 +34,7 @@ import { palabrasDelNegocio, type PalabrasDelNegocio } from "@/lib/palabras-del-
 import { getCurrentTenantSlug } from "@/lib/tenant-site";
 import { diferenciaDelComprobante, textoDelComprobante, type MedioDelComprobante } from "./comprobante";
 import { leerMediosDelComprobante } from "./comprobante.server";
-import { ETIQUETA_PAGOS_ADMINISTRACION, pagosDeLaAdministracion, renglonDeVouchers } from "./vouchers-del-dia";
+import { ETIQUETA_CHEQUES_A_DEPOSITAR, ETIQUETA_PAGOS_ADMINISTRACION, pagosDeLaAdministracion, renglonDeVouchers } from "./vouchers-del-dia";
 
 type Datos = Awaited<ReturnType<typeof getCierreDiarioData>>;
 
@@ -280,16 +280,17 @@ function VouchersDelDia({ d }: { d: Datos }) {
 /** CH · vouchers: el pago de la administración, ya sumado en su medio (Mercado Pago se concilia al acreditarse). */
 function PagosDeLaAdministracion({ d }: { d: Datos }) {
   const p = pagosDeLaAdministracion(d.movements);
-  if (!p) return null;
+  const cheques = d.chequesADepositar ?? null;
+  if (!p && !cheques) return null;
   return (
     <section aria-labelledby="pagos-administracion" className="mt-6" data-testid="cierre-pagos-administracion">
       <div className="flex items-baseline justify-between gap-3 border-b border-line-strong pb-2">
         <h2 id="pagos-administracion" className="text-[15px] font-semibold text-strong">
           {ETIQUETA_PAGOS_ADMINISTRACION}
         </h2>
-        <span className="text-[13px] text-muted">Ya sumados en «Entró»</span>
+        <span className="text-[13px] text-muted">{p ? "Ya sumados en «Entró»" : "Fuera de la caja"}</span>
       </div>
-      {p.porMedio.map((x) => (
+      {(p?.porMedio ?? []).map((x) => (
         <LineaDeCuenta
           key={x.medio}
           concepto={CASH_METHOD_LABEL[x.medio]}
@@ -297,6 +298,13 @@ function PagosDeLaAdministracion({ d }: { d: Datos }) {
           importe={<Plata valor={x.monto} />}
         />
       ))}
+      {cheques && (
+        <LineaDeCuenta
+          concepto={ETIQUETA_CHEQUES_A_DEPOSITAR}
+          detalle={`${cheques.cantidad} ${cheques.cantidad === 1 ? "cheque" : "cheques"} · no está en ninguna columna: entra a Mercado Pago cuando confirmás el depósito en Vouchers`}
+          importe={<Plata valor={cheques.monto} />}
+        />
+      )}
     </section>
   );
 }

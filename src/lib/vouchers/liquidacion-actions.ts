@@ -22,6 +22,7 @@ import { vouchersPrendidos } from "@/cambios/interruptores";
 import { leerImporte } from "@/lib/dinero/leer";
 import { MENSAJES_VOUCHER } from "./voucher-core";
 import { esMedioAdministracion } from "./liquidacion-core";
+import { esColumnaDeOtro, OTRO_SIN_COLUMNA } from "./acreditacion-core";
 import {
   confirmarAcreditacionMp,
   conciliarLiquidacionSemanal,
@@ -117,6 +118,8 @@ export async function conciliarLiquidacion(formData: FormData): Promise<Resultad
   if (pagado == null || pagado < 0) return { ok: false, error: "Escribí cuánto pagó la administración (puede ser 0)." };
   const medio = texto(formData.get("medio"));
   if (!esMedioAdministracion(medio)) return { ok: false, error: "Elegí cómo pagó la administración." };
+  const otroA = texto(formData.get("otroA"));
+  if (medio === "OTRO" && pagado > 0 && !esColumnaDeOtro(otroA)) return { ok: false, error: OTRO_SIN_COLUMNA };
   const rechazados = texto(formData.get("rechazados"))
     .split(/[\s,;]+/)
     .filter(Boolean);
@@ -126,6 +129,7 @@ export async function conciliarLiquidacion(formData: FormData): Promise<Resultad
       pagado,
       fecha: texto(formData.get("fecha")),
       medio,
+      otroA: esColumnaDeOtro(otroA) ? otroA : null,
       referencia: texto(formData.get("referencia")) || null,
       rechazados,
       aceptarDiferencia: texto(formData.get("aceptarDiferencia")) === "si",
@@ -151,12 +155,15 @@ export async function pagoACuenta(formData: FormData): Promise<ResultadoLiquidac
   if (monto == null || monto <= 0) return { ok: false, error: "Escribí el monto que pagó la administración." };
   const medio = texto(formData.get("medio"));
   if (!esMedioAdministracion(medio)) return { ok: false, error: "Elegí cómo pagó la administración." };
+  const otroA = texto(formData.get("otroA"));
+  if (medio === "OTRO" && !esColumnaDeOtro(otroA)) return { ok: false, error: OTRO_SIN_COLUMNA };
   try {
     const valor = await registrarPagoACuenta(ctx.tenantId, {
       clave: texto(formData.get("clave")),
       monto,
       fecha: texto(formData.get("fecha")),
       medio,
+      otroA: esColumnaDeOtro(otroA) ? otroA : null,
       referencia: texto(formData.get("referencia")) || null,
       nota: texto(formData.get("nota")) || null,
       numeros: texto(formData.get("vouchers"))

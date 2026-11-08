@@ -309,12 +309,13 @@ export function csvDelReporteDelLunes(input: {
 export const MEDIOS_DE_PAGO_ADMINISTRACION = ["TRANSFERENCIA", "EFECTIVO", "CHEQUE", "OTRO"] as const;
 export type MedioPagoAdministracion = (typeof MEDIOS_DE_PAGO_ADMINISTRACION)[number];
 export const ETIQUETA_MEDIO_ADMINISTRACION: Record<MedioPagoAdministracion, string> = {
-  // Regla del dueño (08/11): lo que no es efectivo entra a la caja por Mercado Pago, la cuenta
-  // bancaria del negocio, y se concilia cuando la plata se acredita ahí (acreditacion-core.ts).
-  TRANSFERENCIA: "Transferencia a Mercado Pago",
+  // Regla del dueño (08/11, corregida en cert 5): transferencia o Mercado Pago entran por la columna
+  // MP y se concilian al acreditarse; el cheque queda en «valores a depositar» hasta el depósito;
+  // «otro» obliga a elegir cajón o Mercado Pago (acreditacion-core.ts, `destinoDelPago`).
+  TRANSFERENCIA: "Transferencia o Mercado Pago",
   EFECTIVO: "Efectivo (al cajón)",
-  CHEQUE: "Cheque (se acredita en Mercado Pago)",
-  OTRO: "Otro (se acredita en Mercado Pago)",
+  CHEQUE: "Cheque (valores a depositar)",
+  OTRO: "Otro (elegí si entró al cajón o a Mercado Pago)",
 };
 export function esMedioAdministracion(v: unknown): v is MedioPagoAdministracion {
   return typeof v === "string" && (MEDIOS_DE_PAGO_ADMINISTRACION as readonly string[]).includes(v);

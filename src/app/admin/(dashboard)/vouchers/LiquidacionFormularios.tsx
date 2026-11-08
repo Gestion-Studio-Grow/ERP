@@ -26,20 +26,38 @@ function MensajeError({ id, texto }: { id: string; texto: string }) {
   );
 }
 
+/** El medio del pago. Con «otro», obliga a elegir si la plata entró al cajón o a Mercado Pago. */
 function Medio({ id }: { id: string }) {
+  const [medio, setMedio] = useState("TRANSFERENCIA");
   return (
-    <div>
-      <label htmlFor={id} className={ROTULO}>
-        Cómo pagó
-      </label>
-      <Select id={id} name="medio" defaultValue="TRANSFERENCIA">
-        {MEDIOS_DE_PAGO_ADMINISTRACION.map((m) => (
-          <option key={m} value={m}>
-            {ETIQUETA_MEDIO_ADMINISTRACION[m]}
-          </option>
-        ))}
-      </Select>
-    </div>
+    <>
+      <div>
+        <label htmlFor={id} className={ROTULO}>
+          Cómo pagó
+        </label>
+        <Select id={id} name="medio" value={medio} onChange={(e) => setMedio(e.target.value)}>
+          {MEDIOS_DE_PAGO_ADMINISTRACION.map((m) => (
+            <option key={m} value={m}>
+              {ETIQUETA_MEDIO_ADMINISTRACION[m]}
+            </option>
+          ))}
+        </Select>
+      </div>
+      {medio === "OTRO" && (
+        <div>
+          <label htmlFor={`${id}-otro`} className={ROTULO}>
+            Dónde entró la plata
+          </label>
+          <Select id={`${id}-otro`} name="otroA" defaultValue="" required>
+            <option value="" disabled>
+              Elegí…
+            </option>
+            <option value="EFECTIVO">Al cajón (efectivo)</option>
+            <option value="MP">A Mercado Pago</option>
+          </Select>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -394,7 +412,8 @@ export function AcreditacionDelPago({ pagoId, liquidacionId, estado }: { pagoId:
   const router = useRouter();
   const [error, setError] = useState("");
   const [pendiente, empezar] = useTransition();
-  if (estado.estado === "no-aplica") return <span className="text-sm text-muted">En efectivo: entró al cajón.</span>;
+  if (estado.estado === "no-aplica") return <span className="text-sm text-muted">Entró al cajón (efectivo).</span>;
+  const cheque = estado.destino === "A_DEPOSITAR";
   if (estado.estado === "acreditado") {
     return (
       <span className="text-sm text-strong" data-testid="acreditado-mp">
@@ -422,15 +441,19 @@ export function AcreditacionDelPago({ pagoId, liquidacionId, estado }: { pagoId:
   return (
     <div className="space-y-2" data-testid="pendiente-acreditacion">
       <p className="text-sm text-body">
-        <strong className="font-semibold">Pendiente de acreditación en Mercado Pago.</strong>{" "}
+        <strong className="font-semibold">
+          {cheque ? "Cheque en valores a depositar: no entró a ninguna columna de la caja." : "Pendiente de acreditación en Mercado Pago."}
+        </strong>{" "}
         {estado.candidato
           ? `En Mercado Pago hay un movimiento por el mismo monto el ${diaDeMp(estado.candidato.fecha)}: ${estado.candidato.descripcion}.`
           : estado.candidatos > 1
             ? `En Mercado Pago hay ${estado.candidatos} movimientos por el mismo monto: revisá que la plata entró y confirmá.`
-            : "Todavía no aparece en el extracto de Mercado Pago. Confirmalo cuando veas la plata en la app."}
+            : cheque
+              ? "Confirmá el depósito cuando la plata del cheque esté en Mercado Pago: recién ahí entra a la columna Mercado Pago de la caja de hoy."
+              : "Todavía no aparece en el extracto de Mercado Pago. Confirmalo cuando veas la plata en la app."}
       </p>
       <Button type="button" variant="outline" disabled={pendiente} estado={pendiente ? "cargando" : undefined} onClick={confirmar} aria-describedby={error ? `${id}-error` : undefined}>
-        Confirmar acreditación en Mercado Pago
+        {cheque ? "Confirmar depósito del cheque" : "Confirmar acreditación en Mercado Pago"}
       </Button>
       <MensajeError id={`${id}-error`} texto={error} />
     </div>

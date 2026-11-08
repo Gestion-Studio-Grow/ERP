@@ -10,13 +10,17 @@
 //     para cobrar un fiado (`decidirAsiento` + marca `cuenta-corriente:` de settlement/asiento-libro.ts).
 //     La marca es `cuenta-corriente:voucher-pago:<pagoId>`: el libro lo clasifica como «Cobro de
 //     cuenta corriente» y no deja borrarlo a mano (`motivoParaNoBorrar`).
-//   · El medio: Mercado Pago es la cuenta bancaria del negocio. Todo lo que no es efectivo
-//     (transferencia, cheque, otro) entra a la columna Mercado Pago (`MERCADOPAGO` → `MP`) y queda
-//     «pendiente de acreditación» hasta que se confirma que la plata entró en MP. El efectivo entra al
-//     cajón y no espera acreditación.
+//   · El medio decide a dónde va la plata (corrección del 08/11, cert 5): EFECTIVO → el cajón (no
+//     espera acreditación); TRANSFERENCIA (transferencia o Mercado Pago) → columna Mercado Pago
+//     (`MERCADOPAGO` → `MP`), «pendiente de acreditación»; CHEQUE → «valores a depositar»: NO entra a
+//     ninguna columna hasta que se confirma el depósito, y recién ahí entra a Mercado Pago; OTRO →
+//     obliga a elegir si entró al cajón o a Mercado Pago (la elección queda en el método del ingreso).
 //   · La confirmación engancha el movimiento de MP que ya trae el ERP (`MovimientoImportado` de una
-//     importación con origen `mercadopago`, mercadopago-auto.ts) por monto + fecha + referencia. Si no
-//     hay uno (o hay varios y ninguno se distingue por la referencia), la persona confirma a mano.
+//     importación con origen `mercadopago`) por monto + fecha + referencia, SÓLO si ese movimiento no
+//     está descartado (copia de una re-importación), no está facturado (`emitida` o con `invoiceId`) y
+//     no está enganchado a otro pago. Al engancharlo pasa a `no_facturable` en la misma transacción
+//     (sale de la facturación automática: es plata de vouchers, no una venta). Si no hay uno (o hay
+//     varios y ninguno se distingue por la referencia), la persona confirma a mano.
 //   · El sobrante del pago queda a favor de la administración, como hasta ahora: no se toca acá.
 
 import { cuentaCorrienteMarker, CUENTA_CORRIENTE_ACTOR_PREFIX } from "@/lib/settlement/asiento-libro";
@@ -39,19 +43,58 @@ export function pagoDelIngreso(createdBy: string | null | undefined): string | n
   return s.startsWith(p) && s.length > p.length ? s.slice(p.length) : null;
 }
 
-/** El medio del cobro (vocabulario `PaymentMethod`) con el que el pago entra al libro de caja. */
-export function medioDeCajaDelPago(medio: MedioPagoAdministracion | string): "EFECTIVO" | "MERCADOPAGO" {
-  return medio === "EFECTIVO" ? "EFECTIVO" : "MERCADOPAGO";
+/**
+ * A dónde va la plata de un pago: el cajón, la columna Mercado Pago (espera acreditación) o «valores a
+ * depositar» (un cheque: fuera de toda columna hasta que se confirma el depósito).
+ */
+export type DestinoDelPago = "CAJON" | "MP" | "A_DEPOSITAR";
+
+/** Dónde dice la persona que entró un pago de medio «otro» (o, leído, el método de su ingreso de caja). */
+export type ColumnaDeOtro = "EFECTIVO" | "MP";
+
+export function esColumnaDeOtro(v: unknown): v is ColumnaDeOtro {
+  return v === "EFECTIVO" || v === "MP";
 }
 
-/** ¿Este pago espera que se confirme su acreditación en Mercado Pago? (todo menos el efectivo). */
-export function esperaAcreditacion(medio: MedioPagoAdministracion | string): boolean {
-  return medioDeCajaDelPago(medio) === "MERCADOPAGO";
+export const OTRO_SIN_COLUMNA = "Con «otro» medio, elegí si la plata entró al cajón (efectivo) o a Mercado Pago.";
+
+/**
+ * El destino de un pago según su medio. `otroA` sólo cuenta para OTRO: sin elegirlo, `null` (no se
+ * adivina). Para leer un OTRO ya registrado, `otroA` es el método de su ingreso de caja. PURA.
+ */
+export function destinoDelPago(medio: MedioPagoAdministracion | string, otroA?: string | null): DestinoDelPago | null {
+  switch (medio) {
+    case "EFECTIVO":
+      return "CAJON";
+    case "TRANSFERENCIA":
+      return "MP";
+    case "CHEQUE":
+      return "A_DEPOSITAR";
+    case "OTRO":
+      return otroA === "EFECTIVO" ? "CAJON" : otroA === "MP" ? "MP" : null;
+    default:
+      return null;
+  }
+}
+
+/**
+ * El medio (vocabulario `PaymentMethod`) con el que el pago entra HOY al libro de caja, o `null` si no
+ * entra todavía (cheque: entra a Mercado Pago recién cuando se confirma el depósito). PURA.
+ */
+export function medioDeCajaDelDestino(destino: DestinoDelPago): "EFECTIVO" | "MERCADOPAGO" | null {
+  return destino === "CAJON" ? "EFECTIVO" : destino === "MP" ? "MERCADOPAGO" : null;
+}
+
+/** ¿Este destino espera una confirmación? (Mercado Pago: la acreditación; cheque: el depósito). */
+export function esperaAcreditacion(destino: DestinoDelPago | null): boolean {
+  return destino === "MP" || destino === "A_DEPOSITAR";
 }
 
 /** Ventana del movimiento de MP: desde el día anterior al pago (fecha mal tipeada) hasta 10 días después. */
 export const DIAS_ANTES = 1;
 export const DIAS_PARA_ACREDITAR = 10;
+/** Un cheque se deposita después de recibido (al día: hasta 30 días + el clearing): ventana más larga. */
+export const DIAS_PARA_DEPOSITAR_CHEQUE = 45;
 
 /** Un movimiento acreditado de Mercado Pago (`MovimientoImportado`, fecha AAAAMMDD). */
 export type MovimientoMp = {
@@ -62,16 +105,40 @@ export type MovimientoMp = {
   descripcion: string;
   referencia: string | null;
   contraparte: string | null;
+  /** `EstadoPropuestaMovimiento`. Ausente = ya filtrado por la consulta. */
+  estadoPropuesta?: string;
+  invoiceId?: string | null;
+  motivoRevision?: string | null;
 };
 
-export type PagoParaAcreditar = { fecha: string; montoCentavos: number; referencia: string | null };
+/**
+ * Estados del movimiento de MP que se pueden enganchar: ni `descartado` (copia de una re-importación:
+ * la plata ya está en otro movimiento) ni `emitida` (ya se facturó como venta).
+ */
+export const ESTADOS_ENGANCHABLES = ["auto", "revision", "no_facturable"] as const;
+
+/** La marca que deja en `motivoRevision` el movimiento de MP enganchado a un pago. */
+export const MARCA_ENGANCHE = "(voucher-pago:";
+export function motivoDelEnganche(pagoId: string): string {
+  return `Vouchers: acreditación del pago de la administración ${MARCA_ENGANCHE}${pagoId}).`;
+}
+
+/** ¿Este movimiento de MP puede ser la acreditación de un pago? PURA. */
+export function esEnganchable(m: Pick<MovimientoMp, "estadoPropuesta" | "invoiceId" | "motivoRevision">): boolean {
+  if (m.estadoPropuesta !== undefined && !(ESTADOS_ENGANCHABLES as readonly string[]).includes(m.estadoPropuesta)) return false;
+  if (m.invoiceId) return false;
+  return !String(m.motivoRevision ?? "").includes(MARCA_ENGANCHE);
+}
+
+export type PagoParaAcreditar = { fecha: string; montoCentavos: number; referencia: string | null; destino?: DestinoDelPago | null };
 
 const aAAAAMMDD = (dia: string) => dia.replace(/-/g, "");
 
 /** La ventana de fechas (AAAAMMDD, inclusiva) en la que se busca el movimiento de MP de un pago. */
-export function ventanaDeAcreditacion(fechaPago: string): { desde: string; hasta: string } | null {
+export function ventanaDeAcreditacion(fechaPago: string, destino?: DestinoDelPago | null): { desde: string; hasta: string } | null {
   if (!esDiaReal(fechaPago)) return null;
-  return { desde: aAAAAMMDD(sumarDias(fechaPago, -DIAS_ANTES)), hasta: aAAAAMMDD(sumarDias(fechaPago, DIAS_PARA_ACREDITAR)) };
+  const dias = destino === "A_DEPOSITAR" ? DIAS_PARA_DEPOSITAR_CHEQUE : DIAS_PARA_ACREDITAR;
+  return { desde: aAAAAMMDD(sumarDias(fechaPago, -DIAS_ANTES)), hasta: aAAAAMMDD(sumarDias(fechaPago, dias)) };
 }
 
 const normal = (s: string | null | undefined) =>
@@ -83,14 +150,15 @@ const normal = (s: string | null | undefined) =>
 
 /**
  * Los movimientos de MP que pueden ser la acreditación de este pago: mismo monto al centavo, dentro
- * de la ventana y no enganchados ya a otro pago (`usados`). Si el pago tiene referencia y alguno la
+ * de la ventana, enganchables (`esEnganchable`: ni descartados ni facturados) y no enganchados ya a
+ * otro pago (`usados`). Si el pago tiene referencia y alguno la
  * menciona (en la referencia, la descripción o la contraparte), quedan sólo esos. Por fecha. PURA.
  */
 export function candidatosDeAcreditacion(pago: PagoParaAcreditar, movimientos: readonly MovimientoMp[], usados: ReadonlySet<string>): MovimientoMp[] {
-  const v = ventanaDeAcreditacion(pago.fecha);
+  const v = ventanaDeAcreditacion(pago.fecha, pago.destino);
   if (!v || pago.montoCentavos <= 0) return [];
   const posibles = movimientos
-    .filter((m) => !usados.has(m.id) && m.montoCentavos === pago.montoCentavos && m.fecha >= v.desde && m.fecha <= v.hasta)
+    .filter((m) => !usados.has(m.id) && esEnganchable(m) && m.montoCentavos === pago.montoCentavos && m.fecha >= v.desde && m.fecha <= v.hasta)
     .sort((a, b) => a.fecha.localeCompare(b.fecha) || a.id.localeCompare(b.id));
   const ref = normal(pago.referencia);
   if (ref.length >= 3) {
@@ -124,7 +192,7 @@ export function eleccionDeAcreditacion(candidatos: readonly MovimientoMp[], eleg
 /** Estado de acreditación de un pago, para la pantalla. */
 export type EstadoAcreditacion =
   | { estado: "no-aplica" }
-  | { estado: "pendiente"; candidatos: number; candidato: MovimientoMp | null }
+  | { estado: "pendiente"; destino: "MP" | "A_DEPOSITAR"; candidatos: number; candidato: MovimientoMp | null }
   | { estado: "acreditado"; via: "mp" | "manual"; movimientoId: string | null; dia: string };
 
 /** Lo que guarda el AuditLog de la acreditación, leído sin confiar en su forma. PURA. */
@@ -135,11 +203,12 @@ export function leerAcreditacion(changes: unknown): { via: "mp" | "manual"; movi
 }
 
 /** El detalle del ingreso en el libro de caja. PURA. */
-export function detalleDelIngreso(p: { liquidacion?: { desde: string; hasta: string } | null; referencia: string | null; medio: string }): string {
+export function detalleDelIngreso(p: { liquidacion?: { desde: string; hasta: string } | null; referencia: string | null; destino: DestinoDelPago }): string {
   const fecha = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}`;
   const que = p.liquidacion
     ? `Vouchers: pago de la administración, liquidación del ${fecha(p.liquidacion.desde)} al ${fecha(p.liquidacion.hasta)}`
     : "Vouchers: pago a cuenta de la administración";
   const ref = p.referencia?.trim() ? ` · ${p.referencia.trim()}` : "";
-  return `${que}${ref}${esperaAcreditacion(p.medio) ? " · a acreditar en Mercado Pago" : ""}`;
+  const cola = p.destino === "MP" ? " · a acreditar en Mercado Pago" : p.destino === "A_DEPOSITAR" ? " · cheque depositado en Mercado Pago" : "";
+  return `${que}${ref}${cola}`;
 }

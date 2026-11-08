@@ -257,7 +257,10 @@ async function LiquidacionDelLunes() {
           <h3 id="acreditacion-titulo" className="text-base font-semibold text-strong">
             Pagos pendientes de acreditación en Mercado Pago ({cuenta.pendientesDeAcreditacion.length})
           </h3>
-          <p className="text-xs text-muted">Ya entraron a la caja en la columna Mercado Pago. Se concilian cuando la plata aparece en la cuenta de Mercado Pago.</p>
+          <p className="text-xs text-muted">
+            Las transferencias ya entraron a la caja en la columna Mercado Pago y se concilian cuando la plata aparece en la cuenta. Los cheques
+            quedan en valores a depositar (fuera de la caja) hasta que confirmás el depósito.
+          </p>
           <ul className="divide-y divide-line text-sm">
             {cuenta.pendientesDeAcreditacion.map((p) => (
               <li key={p.id} className="space-y-2 py-3">

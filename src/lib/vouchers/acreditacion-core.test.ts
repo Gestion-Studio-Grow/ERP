@@ -3,12 +3,15 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   candidatosDeAcreditacion,
+  destinoDelPago,
   detalleDelIngreso,
   eleccionDeAcreditacion,
+  esEnganchable,
   esperaAcreditacion,
   leerAcreditacion,
   marcaDelPagoEnCaja,
-  medioDeCajaDelPago,
+  medioDeCajaDelDestino,
+  motivoDelEnganche,
   pagoDelIngreso,
   ventanaDeAcreditacion,
   type MovimientoMp,
@@ -27,15 +30,24 @@ const mov = (id: string, fecha: string, montoCentavos: number, extra: Partial<Mo
   ...extra,
 });
 
-test("medio: todo lo que no es efectivo entra por Mercado Pago (la cuenta bancaria) y espera acreditación", () => {
-  assert.equal(medioDeCajaDelPago("EFECTIVO"), "EFECTIVO");
-  for (const m of ["TRANSFERENCIA", "CHEQUE", "OTRO"]) {
-    assert.equal(medioDeCajaDelPago(m), "MERCADOPAGO");
-    assert.equal(esperaAcreditacion(m), true);
-  }
-  assert.equal(esperaAcreditacion("EFECTIVO"), false);
+test("medio → destino: efectivo al cajón; transferencia/MP a la columna MP; cheque a depositar; otro obliga a elegir", () => {
+  assert.equal(destinoDelPago("EFECTIVO"), "CAJON");
+  assert.equal(destinoDelPago("TRANSFERENCIA"), "MP");
+  assert.equal(destinoDelPago("CHEQUE"), "A_DEPOSITAR");
+  assert.equal(destinoDelPago("OTRO"), null, "otro sin elegir no se adivina");
+  assert.equal(destinoDelPago("OTRO", "EFECTIVO"), "CAJON");
+  assert.equal(destinoDelPago("OTRO", "MP"), "MP");
+  assert.equal(destinoDelPago("OTRO", "TARJETA"), null);
+  assert.equal(destinoDelPago("BITCOIN"), null);
+  assert.equal(medioDeCajaDelDestino("CAJON"), "EFECTIVO");
+  assert.equal(medioDeCajaDelDestino("MP"), "MERCADOPAGO");
+  assert.equal(medioDeCajaDelDestino("A_DEPOSITAR"), null, "el cheque no entra a ninguna columna hasta el depósito");
+  assert.equal(esperaAcreditacion("CAJON"), false);
+  assert.equal(esperaAcreditacion("MP"), true);
+  assert.equal(esperaAcreditacion("A_DEPOSITAR"), true);
+  assert.equal(esperaAcreditacion(null), false);
   // El mismo patrón que el cobro de un fiado: INGRESO en la columna MP; con la caja de hoy cerrada, no.
-  const d = decidirAsiento({ origen: "RECEIVABLE", medio: medioDeCajaDelPago("TRANSFERENCIA"), monto: 14000, detalle: "x", hoy: "2026-11-09", cerradoHasta: "2026-11-08" });
+  const d = decidirAsiento({ origen: "RECEIVABLE", medio: medioDeCajaDelDestino("MP"), monto: 14000, detalle: "x", hoy: "2026-11-09", cerradoHasta: "2026-11-08" });
   assert.deepEqual(d.ok && [d.asiento.type, d.asiento.method], ["INGRESO", "MP"]);
   const cerrado = decidirAsiento({ origen: "RECEIVABLE", medio: "MERCADOPAGO", monto: 14000, detalle: "x", hoy: "2026-11-09", cerradoHasta: "2026-11-09" });
   assert.equal(cerrado.ok, false);
@@ -53,6 +65,8 @@ test("marca del ingreso: el libro lo ve como cobro de cuenta corriente, con el p
 
 test("ventana: del día anterior al pago a 10 días después, en AAAAMMDD", () => {
   assert.deepEqual(ventanaDeAcreditacion("2026-11-02"), { desde: "20261101", hasta: "20261112" });
+  // Un cheque se deposita después: ventana de 45 días.
+  assert.deepEqual(ventanaDeAcreditacion("2026-11-02", "A_DEPOSITAR"), { desde: "20261101", hasta: "20261217" });
   assert.equal(ventanaDeAcreditacion("2026-02-30"), null);
 });
 
@@ -74,6 +88,24 @@ test("candidatos: mismo monto al centavo, en la ventana, no usados; la referenci
   assert.deepEqual(candidatosDeAcreditacion({ ...pago, montoCentavos: 0 }, movs, new Set()), []);
 });
 
+test("candidatos (cert 5): nunca un movimiento descartado, facturado o ya enganchado a otro pago", () => {
+  const pago = { fecha: "2026-11-02", montoCentavos: 246_802, referencia: null };
+  const movs = [
+    mov("real", "20261102", 246_802, { estadoPropuesta: "no_facturable" }),
+    mov("copia", "20261102", 246_802, { estadoPropuesta: "descartado" }), // C5-6: copia de re-importación
+    mov("vendido", "20261102", 246_802, { estadoPropuesta: "emitida", invoiceId: "inv1" }), // C5-1
+    mov("conFactura", "20261102", 246_802, { estadoPropuesta: "auto", invoiceId: "inv2" }),
+    mov("deOtro", "20261102", 246_802, { estadoPropuesta: "no_facturable", motivoRevision: motivoDelEnganche("pagoX") }),
+    mov("auto", "20261103", 246_802, { estadoPropuesta: "auto" }),
+    mov("revision", "20261103", 246_802, { estadoPropuesta: "revision" }),
+  ];
+  assert.deepEqual(candidatosDeAcreditacion(pago, movs, new Set()).map((m) => m.id), ["real", "auto", "revision"]);
+  assert.equal(esEnganchable({ estadoPropuesta: "descartado" }), false);
+  assert.equal(esEnganchable({ estadoPropuesta: "emitida" }), false);
+  assert.equal(esEnganchable({ estadoPropuesta: "auto", invoiceId: null, motivoRevision: "Marcado a mano" }), true);
+  assert.equal(esEnganchable({ motivoRevision: motivoDelEnganche("p1") }), false);
+});
+
 test("elección: uno solo se engancha; ninguno o varios, a mano; uno elegido tiene que ser candidato", () => {
   const a = mov("a", "20261103", 100);
   const b = mov("b", "20261104", 100);
@@ -92,10 +124,11 @@ test("leerAcreditacion no confía en la forma del AuditLog", () => {
 
 test("detalle del ingreso: liquidación o pago a cuenta, referencia y si se acredita en MP", () => {
   assert.equal(
-    detalleDelIngreso({ liquidacion: { desde: "2026-10-26", hasta: "2026-11-01" }, referencia: "TRF 1", medio: "TRANSFERENCIA" }),
+    detalleDelIngreso({ liquidacion: { desde: "2026-10-26", hasta: "2026-11-01" }, referencia: "TRF 1", destino: "MP" }),
     "Vouchers: pago de la administración, liquidación del 26/10/2026 al 01/11/2026 · TRF 1 · a acreditar en Mercado Pago",
   );
-  assert.equal(detalleDelIngreso({ referencia: null, medio: "EFECTIVO" }), "Vouchers: pago a cuenta de la administración");
+  assert.equal(detalleDelIngreso({ referencia: null, destino: "CAJON" }), "Vouchers: pago a cuenta de la administración");
+  assert.equal(detalleDelIngreso({ referencia: "Ch 123", destino: "A_DEPOSITAR" }), "Vouchers: pago a cuenta de la administración · Ch 123 · cheque depositado en Mercado Pago");
 });
 
 test("cierre del día: los pagos de la administración, por su medio, sin sumar dos veces", () => {

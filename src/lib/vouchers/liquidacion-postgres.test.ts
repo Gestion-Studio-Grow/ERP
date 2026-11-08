@@ -880,7 +880,7 @@ test("invariante: para cualquier secuencia, saldo = usados − pagos − bajas (
 const MARCA_PAGO = "cuenta-corriente:voucher-pago:";
 
 /** Un movimiento acreditado de MP en el extracto (pipeline de mercadopago-auto.ts). */
-async function movimientoMp(s: Sembrado, tenantId: string, monto: number, fecha: string, descripcion = "Transferencia recibida") {
+async function movimientoMp(s: Sembrado, tenantId: string, monto: number, fecha: string, descripcion = "Transferencia recibida", extra: Record<string, unknown> = {}) {
   const duenio = await prismaComoDuenio(s.base);
   const imp = await duenio.importacionBancaria.create({
     data: { tenantId, nombreArchivo: `mp-${n++}`, origen: "mercadopago", archivo: Buffer.from(""), mapeoJson: {} },
@@ -896,6 +896,7 @@ async function movimientoMp(s: Sembrado, tenantId: string, monto: number, fecha:
         descripcion,
         clasificacion: "transferencia_propia",
         estadoPropuesta: "no_facturable",
+        ...extra,
       },
     })
   ).id;
@@ -1003,7 +1004,7 @@ test("acreditación: pendiente → se engancha al movimiento de MP → idempoten
   await rechaza(confirmarAcreditacionMp(A, { pagoId: efectivo.pagoId, actor: "user:test" }), /efectivo/);
   // Un pago sin su ingreso de caja no se acredita (invariante: no se concilia plata que la caja no registró).
   await duenio.cashMovement.deleteMany({ where: { tenantId: A, createdBy: `${MARCA_PAGO}${sinMp.pagoId}` } });
-  const huerfano = await registrarPagoACuenta(A, { clave: "huer-0000-1111-2222-333333333333", monto: 778, fecha: "2026-11-05", medio: "CHEQUE", actor: "user:test" });
+  const huerfano = await registrarPagoACuenta(A, { clave: "huer-0000-1111-2222-333333333333", monto: 778, fecha: "2026-11-05", medio: "OTRO", otroA: "MP", actor: "user:test" });
   await duenio.cashMovement.deleteMany({ where: { tenantId: A, createdBy: `${MARCA_PAGO}${huerfano.pagoId}` } });
   await rechaza(confirmarAcreditacionMp(A, { pagoId: huerfano.pagoId, actor: "user:test" }), /no tiene su ingreso en la caja/);
 });
@@ -1097,4 +1098,202 @@ test("cierre del día: el pago de la administración está en su medio (Mercado 
     { medio: "MP", monto: 14000, cantidad: 1 },
   ]);
   assert.ok(movements.every((m) => /^Vouchers: pago a cuenta de la administración/.test(m.detail)));
+});
+
+// ── Cert 5: qué movimiento de MP se engancha y a dónde va cada medio ──────────
+
+const hoyDelNegocio = async () => (await import("@/lib/datetime")).todayInBusinessTz();
+let claveN = 0;
+const claveC5 = (p: string) => `${p}-c5-${String(claveN++).padStart(4, "0")}-1111-2222-3333`;
+
+/**
+ * Invariantes de caja y acreditación del negocio A: cada pago tiene a lo sumo un ingreso, por su monto
+ * y en la columna de su destino (cheque: ninguno hasta el depósito); un pago se acredita una vez; un
+ * movimiento de MP se engancha a un solo pago y queda fuera de la facturación (no_facturable + marca).
+ */
+async function invariantesDeAcreditacion(s: Sembrado): Promise<string[]> {
+  const d = await prismaComoDuenio(s.base);
+  const A = s.base.a.id;
+  const { ACCION_ACREDITADO_MP, MARCA_ENGANCHE } = await import("./acreditacion-core");
+  const out: string[] = [];
+  const pagos = await d.voucherPagoAdministracion.findMany({ where: { tenantId: A } });
+  const ingresos = await d.cashMovement.findMany({ where: { tenantId: A, createdBy: { startsWith: MARCA_PAGO } } });
+  const acr = await d.auditLog.findMany({ where: { tenantId: A, action: ACCION_ACREDITADO_MP } });
+  const acreditados = new Set(acr.map((a) => a.entityId));
+  if (acreditados.size !== acr.length) out.push("un pago acreditado dos veces");
+  for (const p of pagos) {
+    const ms = ingresos.filter((m) => m.createdBy === `${MARCA_PAGO}${p.id}`);
+    if (ms.length > 1) out.push(`pago ${p.id} con ${ms.length} ingresos`);
+    const m = ms[0];
+    if (m && (m.type !== "INGRESO" || Number(m.amount) !== p.monto.toNumber())) out.push(`pago ${p.id}: ingreso ${m.type} ${m.amount}`);
+    // (Sin ingreso: un test anterior lo borró a propósito para probar el rechazo; acá se mira el que hay.)
+    if (p.medio === "EFECTIVO" && m && m.method !== "EFECTIVO") out.push(`pago ${p.id} en efectivo fuera del cajón`);
+    if (p.medio === "TRANSFERENCIA" && m && m.method !== "MP") out.push(`pago ${p.id} por transferencia fuera de MP`);
+    if (p.medio === "CHEQUE" && !acreditados.has(p.id) && m) out.push(`cheque ${p.id} sin depositar ya en la caja`);
+    if (p.medio === "CHEQUE" && acreditados.has(p.id) && m?.method !== "MP") out.push(`cheque ${p.id} depositado sin ingreso en MP`);
+  }
+  const porMov = new Map<string, number>();
+  for (const a of acr) {
+    const mov = (a.changes as { movimientoId?: string | null } | null)?.movimientoId;
+    if (mov) porMov.set(mov, (porMov.get(mov) ?? 0) + 1);
+  }
+  for (const [mov, c] of porMov) {
+    if (c > 1) out.push(`movimiento ${mov} enganchado a ${c} pagos`);
+    const m = await d.movimientoImportado.findFirst({ where: { id: mov } });
+    if (m?.estadoPropuesta !== "no_facturable" || !String(m.motivoRevision ?? "").includes(MARCA_ENGANCHE)) out.push(`movimiento ${mov} enganchado sigue en ${m?.estadoPropuesta}`);
+    if (m?.invoiceId) out.push(`movimiento ${mov} enganchado tiene factura`);
+  }
+  return out;
+}
+
+test("C5-6 · la copia DESCARTADA de una re-importación no acredita un segundo pago", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const A = s.base.a.id;
+  const d = await prismaComoDuenio(s.base);
+  const { registrarPagoACuenta, confirmarAcreditacionMp } = await liq();
+  const hoy = await hoyDelNegocio();
+  const p1 = await registrarPagoACuenta(A, { clave: claveC5("c56a"), monto: 2468.02, fecha: hoy, medio: "TRANSFERENCIA", actor: "user:test" });
+  const p2 = await registrarPagoACuenta(A, { clave: claveC5("c56b"), monto: 2468.02, fecha: hoy, medio: "TRANSFERENCIA", actor: "user:test" });
+  const real = await movimientoMp(s, A, 2468.02, hoy);
+  const copia = await movimientoMp(s, A, 2468.02, hoy, "Transferencia recibida", { estadoPropuesta: "descartado", motivoRevision: "duplicado de una corrida anterior" });
+  const r1 = await confirmarAcreditacionMp(A, { pagoId: p1.pagoId, movimientoId: real, actor: "user:test" });
+  assert.equal(r1.movimientoId, real);
+  // Elegir la copia a mano tampoco pasa.
+  await rechaza(confirmarAcreditacionMp(A, { pagoId: p2.pagoId, movimientoId: copia, actor: "user:test" }), /no corresponde/);
+  const r2 = await confirmarAcreditacionMp(A, { pagoId: p2.pagoId, actor: "user:test" });
+  assert.deepEqual([r2.via, r2.movimientoId], ["manual", null], "sin otra plata en MP, el segundo pago queda a confirmar a mano, no con la copia");
+  assert.equal((await d.movimientoImportado.findFirstOrThrow({ where: { id: copia } })).estadoPropuesta, "descartado");
+  assert.deepEqual(await invariantesDeAcreditacion(s), []);
+});
+
+test("C5-1 · nunca se engancha un movimiento facturado; uno «auto» o «revision» sale de la facturación automática", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const A = s.base.a.id;
+  const d = await prismaComoDuenio(s.base);
+  const { registrarPagoACuenta, confirmarAcreditacionMp } = await liq();
+  const hoy = await hoyDelNegocio();
+  const p1 = await registrarPagoACuenta(A, { clave: claveC5("c51a"), monto: 7777.77, fecha: hoy, medio: "TRANSFERENCIA", actor: "user:test" });
+  const vendido = await movimientoMp(s, A, 7777.77, hoy, "Venta", { clasificacion: "venta", estadoPropuesta: "emitida", invoiceId: "inv-falsa" });
+  const conFactura = await movimientoMp(s, A, 7777.77, hoy, "Venta", { clasificacion: "venta", estadoPropuesta: "auto", invoiceId: "inv-falsa-2" });
+  await rechaza(confirmarAcreditacionMp(A, { pagoId: p1.pagoId, movimientoId: vendido, actor: "user:test" }), /no corresponde/);
+  await rechaza(confirmarAcreditacionMp(A, { pagoId: p1.pagoId, movimientoId: conFactura, actor: "user:test" }), /no corresponde/);
+  const r1 = await confirmarAcreditacionMp(A, { pagoId: p1.pagoId, actor: "user:test" });
+  assert.deepEqual([r1.via, r1.movimientoId], ["manual", null]);
+  const v = await d.movimientoImportado.findFirstOrThrow({ where: { id: vendido } });
+  assert.deepEqual([v.estadoPropuesta, v.invoiceId], ["emitida", "inv-falsa"], "el facturado no se toca");
+
+  for (const estado of ["auto", "revision"] as const) {
+    const monto = estado === "auto" ? 5555.55 : 5555.56;
+    const p = await registrarPagoACuenta(A, { clave: claveC5(`c51${estado}`), monto, fecha: hoy, medio: "TRANSFERENCIA", actor: "user:test" });
+    const mov = await movimientoMp(s, A, monto, hoy, "Transferencia", { clasificacion: "venta", estadoPropuesta: estado });
+    const r = await confirmarAcreditacionMp(A, { pagoId: p.pagoId, actor: "user:test" });
+    assert.equal(r.movimientoId, mov);
+    const m = await d.movimientoImportado.findFirstOrThrow({ where: { id: mov } });
+    assert.equal(m.estadoPropuesta, "no_facturable", `«${estado}» enganchado tiene que salir de la facturación automática`);
+    assert.match(m.motivoRevision ?? "", new RegExp(p.pagoId));
+    // La facturación automática (claim auto→emitida) ya no lo toma.
+    const claim = await d.movimientoImportado.updateMany({ where: { id: mov, tenantId: A, estadoPropuesta: "auto" }, data: { estadoPropuesta: "emitida" } });
+    assert.equal(claim.count, 0);
+  }
+  assert.deepEqual(await invariantesDeAcreditacion(s), []);
+});
+
+test("C5 concurrencia · dos acreditaciones eligen el MISMO movimiento a la vez; y contra la facturación automática", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const A = s.base.a.id;
+  const d = await prismaComoDuenio(s.base);
+  const { registrarPagoACuenta, confirmarAcreditacionMp } = await liq();
+  const hoy = await hoyDelNegocio();
+  for (let i = 0; i < 4; i++) {
+    const monto = 3131 + i / 100;
+    const p1 = await registrarPagoACuenta(A, { clave: claveC5("cc1"), monto, fecha: hoy, medio: "TRANSFERENCIA", actor: "user:test" });
+    const p2 = await registrarPagoACuenta(A, { clave: claveC5("cc2"), monto, fecha: hoy, medio: "TRANSFERENCIA", actor: "user:test" });
+    const mov = await movimientoMp(s, A, monto, hoy, "Transferencia", { clasificacion: "venta", estadoPropuesta: "auto" });
+    const rs = await Promise.allSettled([p1, p2].map((p) => confirmarAcreditacionMp(A, { pagoId: p.pagoId, movimientoId: mov, actor: "user:test" })));
+    const ok = rs.filter((r) => r.status === "fulfilled");
+    assert.equal(ok.length, 1, `vuelta ${i}: una sola acreditación toma el movimiento`);
+    for (const r of rs) if (r.status === "rejected") assert.match(String(r.reason), /cambió|modificó|no corresponde/);
+  }
+  // Contra el claim de la facturación automática (auto→emitida): gana uno, nunca los dos.
+  for (let i = 0; i < 4; i++) {
+    const monto = 4141 + i / 100;
+    const p = await registrarPagoACuenta(A, { clave: claveC5("cf"), monto, fecha: hoy, medio: "TRANSFERENCIA", actor: "user:test" });
+    const mov = await movimientoMp(s, A, monto, hoy, "Transferencia", { clasificacion: "venta", estadoPropuesta: "auto" });
+    const [conf, claim] = await Promise.allSettled([
+      confirmarAcreditacionMp(A, { pagoId: p.pagoId, movimientoId: mov, actor: "user:test" }),
+      d.movimientoImportado.updateMany({ where: { id: mov, tenantId: A, estadoPropuesta: "auto" }, data: { estadoPropuesta: "emitida" } }),
+    ]);
+    const facturado = claim.status === "fulfilled" && claim.value.count === 1;
+    const enganchado = conf.status === "fulfilled" && conf.value.movimientoId === mov;
+    assert.ok(!(facturado && enganchado), `vuelta ${i}: facturado Y enganchado`);
+    assert.ok(facturado || enganchado, `vuelta ${i}: ninguno ganó`);
+  }
+  assert.deepEqual(await invariantesDeAcreditacion(s), []);
+});
+
+test("cheque: valores a depositar (fuera de la caja) hasta confirmar el depósito; ahí entra a MP una sola vez", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const A = s.base.a.id;
+  const d = await prismaComoDuenio(s.base);
+  const { registrarPagoACuenta, confirmarAcreditacionMp, leerCuentaDeLaAdministracion, chequesADepositar } = await liq();
+  const hoy = await hoyDelNegocio();
+  const saldoAntes = await saldo(A);
+  const ch = await registrarPagoACuenta(A, { clave: claveC5("cheq"), monto: 9090.9, fecha: hoy, medio: "CHEQUE", referencia: "Ch 0042", actor: "user:test" });
+  assert.equal(await d.cashMovement.count({ where: { tenantId: A, createdBy: `${MARCA_PAGO}${ch.pagoId}` } }), 0, "el cheque no entra a ninguna columna");
+  assert.equal(saldoAntes - (await saldo(A)), 909090, "el pago sí baja la deuda de la administración (centavos)");
+  const pend = (await leerCuentaDeLaAdministracion(A)).pendientesDeAcreditacion.find((p) => p.id === ch.pagoId);
+  assert.equal(pend?.acreditacion.estado === "pendiente" && pend.acreditacion.destino, "A_DEPOSITAR");
+  const antes = await chequesADepositar(A);
+  assert.ok(antes && antes.cantidad >= 1 && antes.monto >= 9090.9);
+  // El depósito: tres confirmaciones a la vez → un solo ingreso en MP, un solo rastro.
+  const mov = await movimientoMp(s, A, 9090.9, hoy, "Depósito de cheque 0042");
+  const saldoPrevio = await saldo(A);
+  const rs = await Promise.allSettled([1, 2, 3].map(() => confirmarAcreditacionMp(A, { pagoId: ch.pagoId, actor: "user:test" })));
+  assert.ok(rs.some((r) => r.status === "fulfilled" && !r.value.duplicado && r.value.movimientoId === mov));
+  const ingresos = await d.cashMovement.findMany({ where: { tenantId: A, createdBy: `${MARCA_PAGO}${ch.pagoId}` } });
+  assert.deepEqual(ingresos.map((m) => [m.type, m.method, Number(m.amount)]), [["INGRESO", "MP", 9090.9]]);
+  assert.match(ingresos[0].reason ?? "", /cheque depositado/);
+  assert.equal(await saldo(A), saldoPrevio, "el depósito no vuelve a tocar la cuenta de la administración");
+  assert.equal((await confirmarAcreditacionMp(A, { pagoId: ch.pagoId, actor: "user:test" })).duplicado, true);
+  const despues = await chequesADepositar(A);
+  assert.equal((despues?.cantidad ?? 0), antes.cantidad - 1);
+  assert.deepEqual(await invariantesDeAcreditacion(s), []);
+});
+
+test("otro: obliga a elegir cajón o Mercado Pago; sin elegir no escribe nada", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const A = s.base.a.id;
+  const d = await prismaComoDuenio(s.base);
+  const { registrarPagoACuenta, confirmarAcreditacionMp, leerCuentaDeLaAdministracion, conciliarLiquidacionSemanal } = await liq();
+  const hoy = await hoyDelNegocio();
+  const pagosAntes = await d.voucherPagoAdministracion.count({ where: { tenantId: A } });
+  const libroAntes = await d.cashMovement.count({ where: { tenantId: A } });
+  await rechaza(registrarPagoACuenta(A, { clave: claveC5("otro"), monto: 600, fecha: hoy, medio: "OTRO", actor: "user:test" }), /elegí si la plata entró/);
+  const g = await liquidacionConciliable(s, "Olga");
+  await rechaza(
+    conciliarLiquidacionSemanal(A, { liquidacionId: g.liquidacionId, pagado: 14000, fecha: hoy, medio: "OTRO", actor: "user:test" }),
+    /elegí si la plata entró/,
+  );
+  assert.equal(await d.voucherPagoAdministracion.count({ where: { tenantId: A } }), pagosAntes);
+  assert.equal(await d.cashMovement.count({ where: { tenantId: A } }), libroAntes);
+
+  const alCajon = await registrarPagoACuenta(A, { clave: claveC5("otroE"), monto: 601, fecha: hoy, medio: "OTRO", otroA: "EFECTIVO", actor: "user:test" });
+  const aMp = await registrarPagoACuenta(A, { clave: claveC5("otroM"), monto: 602, fecha: hoy, medio: "OTRO", otroA: "MP", actor: "user:test" });
+  const metodo = async (pagoId: string) => (await d.cashMovement.findFirstOrThrow({ where: { tenantId: A, createdBy: `${MARCA_PAGO}${pagoId}` } })).method;
+  assert.equal(await metodo(alCajon.pagoId), "EFECTIVO");
+  assert.equal(await metodo(aMp.pagoId), "MP");
+  const pendientes = (await leerCuentaDeLaAdministracion(A)).pendientesDeAcreditacion.map((p) => p.id);
+  assert.ok(!pendientes.includes(alCajon.pagoId) && pendientes.includes(aMp.pagoId));
+  await rechaza(confirmarAcreditacionMp(A, { pagoId: alCajon.pagoId, actor: "user:test" }), /efectivo/);
+  assert.equal((await confirmarAcreditacionMp(A, { pagoId: aMp.pagoId, actor: "user:test" })).via, "manual");
+  // La conciliación con «otro» a Mercado Pago entra a MP.
+  await conciliarLiquidacionSemanal(A, { liquidacionId: g.liquidacionId, pagado: 14000, fecha: hoy, medio: "OTRO", otroA: "MP", actor: "user:test" });
+  const pago = await d.voucherPagoAdministracion.findFirstOrThrow({ where: { liquidacionId: g.liquidacionId } });
+  assert.equal(await metodo(pago.id), "MP");
+  assert.deepEqual(await invariantesDeAcreditacion(s), []);
 });

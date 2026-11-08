@@ -51,9 +51,11 @@ function centavos(n: number): number {
 // Cuando la administración paga, el pago entra al libro como cobro de cuenta corriente con la
 // referencia `voucher-pago:<id>` (src/lib/vouchers/acreditacion-core.ts), en su medio: Mercado Pago
 // (la cuenta bancaria del negocio) o Efectivo. YA está sumado en «Entró» de esa columna; este renglón
-// sólo lo señala, para que quien cuenta MP sepa que puede no haberse acreditado todavía.
+// sólo lo señala, para que quien cuenta MP sepa que puede no haberse acreditado todavía. Un cheque
+// NO entra al libro hasta que se confirma el depósito: queda en «valores a depositar», aparte.
 
 export const ETIQUETA_PAGOS_ADMINISTRACION = "Pagos de la administración (vouchers)";
+export const ETIQUETA_CHEQUES_A_DEPOSITAR = "Cheques en valores a depositar";
 
 export interface PagosDeLaAdministracion {
   cantidad: number;
