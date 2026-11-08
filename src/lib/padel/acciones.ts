@@ -87,7 +87,7 @@ import {
 import { AVISOS_QUE_ESPERAN, configPadel, franjas as franjasDe, libresCercanos, libresDelDia, libresEnRango } from "./datos.server";
 import { generarClasesDeSerie, horizonteDesde } from "./series.server";
 import { devolverParteIntegrante } from "./acciones-grupal";
-import { cerrarIntegrantesEnTx, contarIntegrantesEnTx, crearIntegrantesEnTx, esIntegranteRepetido, moverIntegrantesEnTx, waParaIntegrante } from "./grupal.server";
+import { bloquearClasesDeAlumnoIntegranteEnTx, cerrarIntegrantesEnTx, contarIntegrantesEnTx, crearIntegrantesEnTx, esIntegranteRepetido, moverIntegrantesEnTx, waParaIntegrante } from "./grupal.server";
 import {
   ErrorNegocio,
   RAIZ,
@@ -533,7 +533,9 @@ export async function cobrarTodo(alumnoId: string, medio: MedioCobro): Promise<R
         select: { id: true, estado: true, pagoEstado: true, pagoMedio: true, precio: true, motivoCancel: true },
       });
       const deudas = candidatas.filter((c) => esDeuda({ ...c, precio: Number(c.precio) }));
-      // E7 · Sus partes como integrante de una grupal (vinculado): misma regla de deuda.
+      // E7 · Sus partes como integrante de una grupal (vinculado): misma regla de deuda. Las clases
+      // van bloqueadas antes de leerlas: una cancelación a la vez no se cruza con este cobro.
+      await bloquearClasesDeAlumnoIntegranteEnTx(tx, tenantId, a.id);
       const partes = (await tx.padelIntegrante.findMany({
         where: {
           tenantId, alumnoId: a.id, monto: { gt: 0 }, pagoEstado: { notIn: ["PAGADO", "ACREDITADO", "DEVUELTO", "EN_REVISION"] },

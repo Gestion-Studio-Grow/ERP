@@ -49,7 +49,7 @@ import {
 } from "./core";
 import { configPadel, datosDelNegocio, libresCercanos, libresDelDia } from "./datos.server";
 import { notificadorActual } from "./notificador";
-import { cerrarIntegrantesEnTx } from "./grupal.server";
+import { bloquearClaseDeIntegranteEnTx, cerrarIntegrantesEnTx } from "./grupal.server";
 import { conPisoDeTiempo, decidirPedidoDeLink, politicaDeToken } from "./sesion-alumno";
 import { escribirTokenCookie, leerTokenCookie } from "./sesion-alumno.server";
 import {
@@ -460,8 +460,10 @@ export async function subirComprobanteIntegrante(token: string | null, integrant
   const { tenantId, alumno } = d;
   return conErrorNegocio(async () => {
     const i = await tenantTransaction(async (tx) => {
+      // Clase bloqueada y viva antes de leer la parte (misma carrera que «Cobré» contra cancelar).
+      const claseId = await bloquearClaseDeIntegranteEnTx(tx, tenantId, integranteId);
       const i = await tx.padelIntegrante.findFirst({
-        where: { tenantId, id: integranteId, alumnoId: alumno.id },
+        where: { tenantId, id: integranteId, alumnoId: alumno.id, claseId },
         select: { id: true, pagoEstado: true, pagoMedio: true, monto: true, clase: { select: { id: true, estado: true, motivoCancel: true, empiezaEn: true, client: { select: { name: true } } } } },
       });
       if (!i) throw new ErrorNegocio("No encontramos esa clase.");

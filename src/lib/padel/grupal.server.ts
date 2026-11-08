@@ -75,6 +75,10 @@ export async function cerrarIntegrantesEnTx(
   como: Parameters<typeof pagoDeIntegranteAlCerrar>[1],
 ): Promise<IntegranteAFavor[]> {
   if (!claseIds.length) return [];
+  // Candado de las partes ANTES de leerlas: una escritura de pago concurrente («Cobré», validar, el
+  // comprobante) o terminó y acá se ve (ReadCommitted) o aborta esta transacción (Serializable →
+  // 40001 → reintento con la lectura fresca). Sin esto, Cobré podía dejar PAGADO en una cancelada.
+  await tx.$queryRaw`SELECT id FROM "PadelIntegrante" WHERE "tenantId" = ${tenantId} AND "claseId" = ANY(${[...claseIds]}::text[]) FOR UPDATE`;
   const filas = await tx.padelIntegrante.findMany({
     where: { tenantId, claseId: { in: [...claseIds] } },
     select: { id: true, alumnoId: true, nombre: true, telefono: true, monto: true, pagoEstado: true, pagoMedio: true },
@@ -88,6 +92,35 @@ export async function cerrarIntegrantesEnTx(
     if (pago.pagoEstado === "ACREDITADO") aFavor.push({ id: i.id, alumnoId: i.alumnoId, nombre: i.nombre, telefono: i.telefono, monto: Number(i.monto) });
   }
   return aFavor;
+}
+
+/** Estados en los que la parte de un integrante ya no se cobra ni se valida: la clase se cayó. */
+export const CLASE_CAIDA = ["CANCELADA", "RECHAZADA"] as const;
+
+/**
+ * Antes de escribir el pago de un integrante: bloquea la fila de SU clase (FOR SHARE) para que una
+ * cancelación concurrente espere a que este pago termine (y lo vea y lo acredite), o —si la
+ * cancelación llegó primero— se la vea ya CANCELADA. Siempre clase → integrante, el mismo orden que
+ * las cancelaciones (sin deadlocks). Si la clase se cayó, error de negocio. Devuelve el claseId
+ * bloqueado; después de esto, leer el integrante de nuevo (la lectura sale fresca).
+ */
+export async function bloquearClaseDeIntegranteEnTx(tx: Tx, tenantId: string, integranteId: string): Promise<string> {
+  const filas = await tx.$queryRaw<{ id: string; estado: string }[]>`
+    SELECT c.id, c.estado FROM "PadelClase" c JOIN "PadelIntegrante" i ON i."claseId" = c.id
+    WHERE i.id = ${integranteId} AND i."tenantId" = ${tenantId} AND c."tenantId" = ${tenantId}
+    FOR SHARE OF c`;
+  const c = filas[0];
+  if (!c) throw new ErrorNegocio("No encontramos ese integrante.");
+  if ((CLASE_CAIDA as readonly string[]).includes(c.estado)) throw new ErrorNegocio("Esa clase se canceló: esa parte ya no se cobra. Si había pagado, le queda a favor.");
+  return c.id;
+}
+
+/** Lo mismo para «Cobrar todo» de un alumno: bloquea las clases donde él es integrante. */
+export async function bloquearClasesDeAlumnoIntegranteEnTx(tx: Tx, tenantId: string, alumnoId: string): Promise<void> {
+  await tx.$queryRaw`
+    SELECT c.id FROM "PadelClase" c JOIN "PadelIntegrante" i ON i."claseId" = c.id
+    WHERE i."alumnoId" = ${alumnoId} AND i."tenantId" = ${tenantId} AND c."tenantId" = ${tenantId}
+    FOR SHARE OF c`;
 }
 
 /** Los integrantes de una clase pasan a otra (el alumno cambió el horario): conservan su pago. */
