@@ -119,8 +119,8 @@ test("límites: cuentan cada pedido, frenan por cualquiera de las claves y se li
   for (let i = 0; i < 3; i++) assert.ok(l.pasa([`alta-ip:1.1.1.${i}`, "alta-mail:a@b.co", `alta-cuit:${i}`]));
   assert.equal(l.pasa(["alta-ip:9.9.9.9", "alta-mail:a@b.co", "alta-cuit:x"]), false, "el mail ya pidió 3");
   // Frenado no cuenta: la IP nueva sigue con su cupo entero.
-  for (let i = 0; i < 5; i++) assert.ok(l.pasa(["alta-ip:9.9.9.9", `alta-mail:${i}@b.co`, `alta-cuit:y${i}`]));
-  assert.equal(l.pasa(["alta-ip:9.9.9.9", "alta-mail:z@b.co", "alta-cuit:z"]), false, "la IP ya pidió 5");
+  for (let i = 0; i < 20; i++) assert.ok(l.pasa(["alta-ip:9.9.9.9", `alta-mail:${i}@b.co`, `alta-cuit:y${i}`]));
+  assert.equal(l.pasa(["alta-ip:9.9.9.9", "alta-mail:z@b.co", "alta-cuit:z"]), false, "la IP ya pidió 20");
   ahora += 60 * 60 * 1000;
   assert.ok(l.pasa(["alta-ip:9.9.9.9", "alta-mail:a@b.co", "alta-cuit:x"]), "pasada la hora, vuelve a pasar");
   assert.throws(() => l.pasa(["otra:1"]), /sin regla/);
@@ -132,6 +132,6 @@ test("textos: la respuesta no dice nada de lo que existe; los mails no llevan cl
   assert.match(m.cuerpo, /https:\/\/x\/y\?t=abc/);
   assert.match(m.cuerpo, /una sola vez/);
   const s = mailSinAlta();
-  assert.doesNotMatch(s.cuerpo, /CUIT/);
+  assert.doesNotMatch(s.cuerpo, /ya (existe|tiene)/i);
   assert.doesNotMatch(m.cuerpo + s.cuerpo, /contraseña:/i);
 });

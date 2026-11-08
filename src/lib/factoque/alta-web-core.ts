@@ -202,9 +202,12 @@ export function crearLimites(reglas: Record<string, { max: number; windowMs: num
 }
 
 const HORA = 60 * 60 * 1000;
-/** Pedir el alta: 5 por hora por IP, 3 por hora por mail, 3 por hora por CUIT. */
+/**
+ * Pedir el alta: 20 por hora por IP (la oficina de un contador o un 4G compartido dan de alta a
+ * varios), 3 por hora por mail y 3 por hora por CUIT (el freno fino contra el abuso).
+ */
 export const REGLAS_DEL_ALTA = {
-  "alta-ip": { max: 5, windowMs: HORA },
+  "alta-ip": { max: 20, windowMs: HORA },
   "alta-mail": { max: 3, windowMs: HORA },
   "alta-cuit": { max: 3, windowMs: HORA },
   /** Confirmar y elegir la clave: 20 por hora por IP (abrir el enlace dos veces no es abuso). */
@@ -243,8 +246,8 @@ export function mailSinAlta(): { asunto: string; cuerpo: string } {
       "¡Hola!",
       "",
       "Recibimos un pedido de alta en Factoque con este mail, pero no lo pudimos hacer con esos datos.",
-      "Si ya tenés una cuenta, entrá desde la dirección de tu negocio. Si creés que es un error, respondé",
-      "este mail o escribinos por WhatsApp y lo vemos.",
+      "Si ya tenés una cuenta, entrá desde la dirección de tu negocio. Si el CUIT es tuyo y vos no lo diste",
+      "de alta, respondé este mail o escribinos por WhatsApp: lo revisamos con tu constancia de inscripción.",
       "",
       "Si no fuiste vos, ignorá este mail.",
       "",
