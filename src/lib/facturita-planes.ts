@@ -12,7 +12,7 @@
 
 import { LIMITE_FACTURAS_FACTURITA, type CupoDelPlan } from "@/lib/facturita-core";
 
-/** Leyenda que acompaña SIEMPRE a cualquier precio en pantalla. */
+/** Leyenda que acompaña SIEMPRE a los precios de la escalera Comerciante (los de Factoque son finales). */
 export const ESTADO_PRECIOS = "Precios provisionales, a confirmar por el dueño";
 
 /** De dónde sale la lista (para el pie de la tabla y para quien audite). */
@@ -66,7 +66,7 @@ export const PLAN_FACTURITA: Plan = {
 /**
  * Planes pagos de Factoque (PLAN-SALIDA-2026-11 §2): la MISMA app y la misma pantalla; lo único que
  * cambia es el tope. Escalera por cantidad de facturas, nunca por usuario (ADR-078 principio 2).
- * Precios provisionales a confirmar (`ESTADO_PRECIOS`). Las notas de crédito siguen la regla del
+ * Precios FINALES del dueño (08/11/2026), por mes, IVA incluido: no llevan `ESTADO_PRECIOS`. Las notas de crédito siguen la regla del
  * cupo del motor (`filtrosFacturacionMes().cupo`), igual en todos los planes.
  */
 export const PLAN_FACTOQUE_PLUS: Plan = {

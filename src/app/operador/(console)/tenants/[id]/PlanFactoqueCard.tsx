@@ -5,7 +5,7 @@
 
 import { Bloque, Button, Field, Input, Select } from "@/components/ui";
 import { cambiarPlanFactoque } from "@/lib/operator-actions";
-import { ESTADO_PRECIOS, PLANES_FACTOQUE, precioConPeriodo } from "@/lib/facturita-planes";
+import { PLANES_FACTOQUE, precioConPeriodo } from "@/lib/facturita-planes";
 import type { PlanFactoqueDelNegocio } from "@/lib/facturacion/plan-factoque.server";
 
 function fechaCorta(iso: string): string {
@@ -61,7 +61,7 @@ export default function PlanFactoqueCard({
       <p className="border-t border-line py-2 text-[13px] text-muted">
         Para la venta por transferencia: cuando llega el pago, elegí el plan y hasta qué día está pago
         (inclusive). Al vencer vuelve solo a Gratis; si bajás de plan no se borra ninguna factura, sólo
-        se frena la siguiente del mes. {ESTADO_PRECIOS}.
+        se frena la siguiente del mes. Precios finales por mes, IVA incluido.
       </p>
     </Bloque>
   );
