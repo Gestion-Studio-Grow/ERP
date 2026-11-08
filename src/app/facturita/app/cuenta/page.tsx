@@ -56,6 +56,15 @@ export default async function FacturitaCuentaPage({ searchParams }: { searchPara
   return (
     <>
       <PageHeader title="Mi cuenta" description="Tus datos fiscales y el estado del servicio." />
+      {/* Res. SCI 424/2020 y Res. 316/2018: a la vista y sin más pasos que contratar. */}
+      <nav aria-label="Arrepentimiento y baja" className="-mt-2 mb-4 flex flex-wrap gap-x-5 gap-y-2 text-sm">
+        <Link href="/facturita/app/cuenta/tramite?tipo=arrepentimiento" className="inline-flex min-h-11 items-center font-medium text-strong underline underline-offset-4">
+          Botón de arrepentimiento
+        </Link>
+        <Link href="/facturita/app/cuenta/tramite?tipo=baja" className="inline-flex min-h-11 items-center font-medium text-strong underline underline-offset-4">
+          Darme de baja
+        </Link>
+      </nav>
 
       <dl className="mb-6 divide-y divide-line-soft rounded-xl border border-line bg-surface-raised shadow-card">
         <div className="flex items-center justify-between gap-4 px-[22px] py-[13px] text-sm">
@@ -153,16 +162,6 @@ export default async function FacturitaCuentaPage({ searchParams }: { searchPara
           </p>
         )}
       </section>
-
-      {/* Res. SCI 424/2020 y Res. 316/2018: a la vista y sin más pasos que contratar. */}
-      <nav aria-label="Arrepentimiento y baja" className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-sm">
-        <Link href="/facturita/app/cuenta/tramite?tipo=arrepentimiento" className="inline-flex min-h-11 items-center font-medium text-strong underline underline-offset-4">
-          Botón de arrepentimiento
-        </Link>
-        <Link href="/facturita/app/cuenta/tramite?tipo=baja" className="inline-flex min-h-11 items-center font-medium text-strong underline underline-offset-4">
-          Darme de baja
-        </Link>
-      </nav>
     </>
   );
 }

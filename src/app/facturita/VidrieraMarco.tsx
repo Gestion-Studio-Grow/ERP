@@ -50,6 +50,16 @@ export default function VidrieraMarco({
       <a href="#contenido" className="fx-saltar">
         Saltar al contenido
       </a>
+      {/* Res. SCI 424/2020: el botón de arrepentimiento en la PRIMERA pantalla, a la vista y sin cuenta
+          (también en el pie). Arriba de la barra, en una línea chica: no tapa el alta. */}
+      <nav aria-label="Arrepentimiento y baja" className="fx-caja fx-chico" style={{ display: "flex", justifyContent: "flex-end", flexWrap: "wrap", columnGap: 16, paddingBlock: 4 }}>
+        <Link href="/facturita/arrepentimiento" className="fx-enlace">
+          Botón de arrepentimiento
+        </Link>
+        <Link href="/facturita/baja" className="fx-enlace">
+          Darme de baja
+        </Link>
+      </nav>
       <header className="fx-barra">
         <div className="fx-caja fx-barra-fila">
           <Link href="/facturita" className="fx-marca">

@@ -11,7 +11,8 @@ import { after } from "next/server";
 import { sesionFacturita } from "@/lib/facturita-sesion.server";
 import { registrarTramite, registrarTramitePublico } from "@/lib/factoque-tramites.server";
 import { createRateLimiter } from "@/lib/rate-limit";
-import { avisoParaGsg, esTipoTramite, leerFormularioTramite, mensajeDelTramite, NOMBRE_TRAMITE, numeroDeTramite, type Efecto } from "@/lib/factoque-tramites";
+import { enviarMailInterno, mailConectado } from "@/lib/notifications";
+import { avisoParaGsg, constanciaPorMail, esTipoTramite, leerFormularioTramite, mensajeDelTramite, NOMBRE_TRAMITE, numeroDeTramite, type Efecto } from "@/lib/factoque-tramites";
 import { fechaFiscalDelDia } from "@/lib/bancos-glue";
 import { logger } from "@/lib/logger";
 import { canalGsg, linkCanal } from "@/app/facturita/contacto";
@@ -44,12 +45,17 @@ async function tramitar(formData: FormData, conSesion: boolean): Promise<Resulta
       return { ok: false, error: "Tu sesión venció. Entrá de nuevo a Factoque, o usá el botón de la portada, que no pide cuenta." };
     }
   }
+  // Pasado el tope por CUIT NO se traba al dueño de ese CUIT (Res. 424: sin trabas): se responde igual,
+  // con número, pero no se escribe otra fila ni sale otro mail (ya hay 3 del día). El de IP sí frena:
+  // traba sólo a quien manda la ráfaga.
+  let repetido = false;
   if (!sesion) {
     const ip = await ipDelPedido();
-    const claveCuit = `${tipo}:${lectura.datos.cuit}`;
-    if (porIp.blocked(ip) || porCuit.blocked(claveCuit)) return { ok: false, error: DEMASIADOS };
+    if (porIp.blocked(ip)) return { ok: false, error: DEMASIADOS };
     porIp.fail(ip);
-    porCuit.fail(claveCuit);
+    const claveCuit = `${tipo}:${lectura.datos.cuit}`;
+    repetido = porCuit.blocked(claveCuit);
+    if (!repetido) porCuit.fail(claveCuit);
   }
   try {
     const dia = fechaFiscalDelDia(new Date());
@@ -60,7 +66,7 @@ async function tramitar(formData: FormData, conSesion: boolean): Promise<Resulta
       // Se registra DESPUÉS de responder: misma respuesta y mismo tiempo sea o no cliente.
       const numero = numeroDeTramite(tipo, dia);
       const datos = lectura.datos;
-      after(async () => {
+      if (!repetido) after(async () => {
         try {
           await registrarTramitePublico(tipo, numero, datos);
         } catch (e) {
@@ -69,12 +75,28 @@ async function tramitar(formData: FormData, conSesion: boolean): Promise<Resulta
       });
       r = { numero, efecto: "registrado" };
     }
+    // La constancia, en el acto y fuera de la respuesta (no demora ni delata nada). Sin Resend no sale
+    // y el mensaje dice el plazo de la norma: GSG la manda a mano.
+    const conMail = mailConectado();
+    if (conMail && !repetido) {
+      const { numero, efecto } = r;
+      const datos = lectura.datos;
+      const cuando = new Date().toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" });
+      after(async () => {
+        const c = constanciaPorMail(tipo, numero, datos, efecto, cuando);
+        try {
+          await enviarMailInterno({ tenantId: sesion?.tenantId ?? "factoque-publico", para: datos.email, asunto: c.asunto, cuerpo: c.cuerpo });
+        } catch (e) {
+          logger.error("factoque", "no salió la constancia del trámite", e, { tipo, numero });
+        }
+      });
+    }
     const canal = canalGsg();
     if (sesion) revalidatePath("/facturita/app", "layout");
     return {
       ok: true,
       numero: r.numero,
-      mensaje: mensajeDelTramite(tipo, r.efecto),
+      mensaje: mensajeDelTramite(tipo, r.efecto, conMail),
       avisoHref: linkCanal(canal, `Factoque · ${NOMBRE_TRAMITE[tipo]} ${r.numero}`, avisoParaGsg(tipo, r.numero, lectura.datos, r.efecto)),
       canal: canal.tipo,
     };

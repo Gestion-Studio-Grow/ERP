@@ -115,7 +115,7 @@ async function nuevaPagina(ctx) {
   const page = await ctx.newPage();
   const errores = [];
   page.on("console", (m) => {
-    if (m.type() === "error" && !/favicon|Failed to load resource.*404|\[HMR\]|webpack-hmr|_next\/webpack|font|DeprecationWarning/i.test(m.text())) errores.push(`${m.text().slice(0, 900)} @${page.url()}`);
+    if (m.type() === "error" && !/favicon|Failed to load resource.*404|\[HMR\]|webpack-hmr|_next\/webpack|font|DeprecationWarning/i.test(m.text())) errores.push(`${m.text().slice(0, 8000)} @${page.url()}`);
   });
   page.on("pageerror", (e) => errores.push(String(e).slice(0, 200)));
   return { page, errores };
@@ -301,6 +301,10 @@ async function main() {
         const pub = await browser.newContext({ viewport: VP, ...COMO_EN_AR });
         const p = await pub.newPage();
         await p.goto(`${apex}/facturita`);
+        // Res. 424: también en la PRIMERA pantalla, arriba (sin scroll).
+        const arriba = p.getByRole("navigation", { name: "Arrepentimiento y baja" }).getByRole("link", { name: "Botón de arrepentimiento" });
+        const caja = await arriba.boundingBox();
+        if (!caja || caja.y > VP.height) throw new Error(`el botón de arrepentimiento no está en la primera pantalla (${JSON.stringify(caja)})`);
         await p.getByRole("navigation", { name: "Legales" }).getByRole("link", { name: "Botón de arrepentimiento" }).click();
         await p.waitForURL(/\/facturita\/arrepentimiento/);
         await p.getByLabel("Tu email").fill("ana@yoga.com");

@@ -1,7 +1,7 @@
 // Botón de arrepentimiento y Botón de baja de Factoque: el núcleo puro (src/lib/factoque-tramites.ts).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { avisoParaGsg, esTipoTramite, leerFormularioTramite, mensajeDelTramite, numeroDeTramite } from "@/lib/factoque-tramites";
+import { avisoParaGsg, constanciaPorMail, esTipoTramite, leerFormularioTramite, mensajeDelTramite, numeroDeTramite } from "@/lib/factoque-tramites";
 
 test("número de trámite: tipo, día y 5 caracteres que se dictan sin confundir", () => {
   assert.match(numeroDeTramite("arrepentimiento", "2026-11-08"), /^ARR-20261108-[A-HJ-NP-Z2-9]{5}$/);
@@ -43,4 +43,15 @@ test("aviso a GSG: trámite, CUIT, email, motivo y estado", () => {
   assert.match(t, /CUIT: 20111111112/);
   assert.match(t, /Motivo: \(no lo dijo\)/);
   assert.match(t, /ya está en Gratis/);
+});
+
+test("constancia por mail: número, fecha, CUIT y qué pasó; con mail conectado el mensaje lo dice", () => {
+  const c = constanciaPorMail("arrepentimiento", "ARR-20261108-AB2CD", { email: "a@b.com", cuit: "20111111112", motivo: "" }, "plan_a_gratis", "8/11/2026, 10:00:00");
+  assert.equal(c.asunto, "Factoque · Botón de arrepentimiento · trámite ARR-20261108-AB2CD");
+  assert.match(c.cuerpo, /Número de trámite: ARR-20261108-AB2CD/);
+  assert.match(c.cuerpo, /Fecha: 8\/11\/2026/);
+  assert.match(c.cuerpo, /volviste a Factoque Gratis/);
+  assert.doesNotMatch(c.cuerpo, /dentro de las 24 horas/);
+  assert.match(mensajeDelTramite("baja", "registrado", true), /constancia a tu mail/);
+  assert.match(mensajeDelTramite("baja", "registrado", false), /72 horas/);
 });

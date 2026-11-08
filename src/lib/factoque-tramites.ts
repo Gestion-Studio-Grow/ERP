@@ -65,8 +65,11 @@ export function leerFormularioTramite(email: unknown, cuit: unknown, motivo: unk
 /** Qué pasó con el plan, para decírselo a la persona. */
 export type Efecto = "plan_a_gratis" | "ya_era_gratis" | "registrado";
 
-/** El mensaje que ve la persona al terminar (el número de trámite va aparte, como título). */
-export function mensajeDelTramite(tipo: TipoTramite, efecto: Efecto): string {
+/**
+ * El mensaje que ve la persona al terminar (el número de trámite va aparte, como título). Con el mail
+ * conectado la constancia sale en el acto; sin él, GSG la manda dentro del plazo de la norma.
+ */
+export function mensajeDelTramite(tipo: TipoTramite, efecto: Efecto, mailEnElActo = false): string {
   const que =
     efecto === "plan_a_gratis"
       ? tipo === "arrepentimiento"
@@ -79,6 +82,7 @@ export function mensajeDelTramite(tipo: TipoTramite, efecto: Efecto): string {
         : tipo === "arrepentimiento"
           ? "Recibimos tu pedido de arrepentimiento: lo procesamos sin costo y te devolvemos lo que pagaste por el mismo medio."
           : "Recibimos tu pedido de baja: lo procesamos sin costo.";
+  if (mailEnElActo) return `${que} Te mandamos la constancia a tu mail, con este número.`;
   const plazo = tipo === "arrepentimiento" ? "dentro de las 24 horas" : "dentro de las 72 horas";
   return `${que} Te mandamos la constancia por mail ${plazo}.`;
 }
@@ -92,4 +96,34 @@ export function avisoParaGsg(tipo: TipoTramite, numero: string, d: DatosTramite,
     `Motivo: ${d.motivo || "(no lo dijo)"}`,
     `Estado: ${efecto === "plan_a_gratis" ? "plan pago cancelado, ya está en Gratis" : efecto === "ya_era_gratis" ? "ya estaba en Gratis" : "para procesar"}`,
   ].join("\n");
+}
+
+/**
+ * La constancia por mail (Res. SCI 424/2020: código de identificación; Res. 316/2018: constancia de la
+ * baja). Texto plano; la manda `enviarMailInterno` (Resend) cuando el mail está conectado.
+ */
+export function constanciaPorMail(
+  tipo: TipoTramite,
+  numero: string,
+  d: DatosTramite,
+  efecto: Efecto,
+  cuando: string,
+): { asunto: string; cuerpo: string } {
+  return {
+    asunto: `Factoque · ${NOMBRE_TRAMITE[tipo]} · trámite ${numero}`,
+    cuerpo: [
+      `Recibimos tu pedido de ${tipo === "arrepentimiento" ? "arrepentimiento" : "baja"} de Factoque.`,
+      "",
+      `Número de trámite: ${numero}`,
+      `Fecha: ${cuando}`,
+      `CUIT: ${d.cuit}`,
+      `Motivo: ${d.motivo || "(no lo indicaste)"}`,
+      "",
+      mensajeDelTramite(tipo, efecto, true).replace(" Te mandamos la constancia a tu mail, con este número.", ""),
+      "",
+      "Guardá este mail: es tu constancia. Si no hiciste este pedido, respondé este mail y lo anulamos.",
+      "",
+      "Gestión Studio Grow · Factoque",
+    ].join("\n"),
+  };
 }
