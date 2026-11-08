@@ -776,7 +776,7 @@ export function ResultadoDeEmision({
         </p>
       )}
       <div className="flex flex-col gap-1">
-        <p data-testid="exito-numero" className="m-0 text-2xl font-bold tabular-nums text-strong [overflow-wrap:anywhere] sm:text-3xl">
+        <p data-testid="exito-numero" className="m-0 text-xl font-bold tabular-nums text-strong [overflow-wrap:anywhere] min-[400px]:text-2xl sm:text-3xl">
           {ok && <span aria-hidden="true" className="text-success">✓ </span>}
           {estado.titulo}
         </p>
