@@ -532,6 +532,10 @@ const OPERADORES_OK = new Set(["=", "<>", "!=", "<", ">", "<=", ">=", "+", "-", 
 const PALABRAS_EXPR = new Set(["and", "or", "not", "is", "null", "true", "false", "in", "between", "like", "ilike", "distinct", "from", "current_timestamp"]);
 // Palabras que siguen al nombre base de un tipo (DOUBLE PRECISION, TIMESTAMP(3) WITH TIME ZONE…).
 const PALABRAS_TIPO = new Set(["precision", "varying", "with", "without", "time", "zone"]);
+// Tipos con los que una columna agregada nullable y sin DEFAULT queda en NULL en todas las filas que
+// ya existen (lista blanca; serial*, identity, dominios, arrays, etc. se rellenan o no se sabe → no vacía).
+const TIPO_VACIO = /^(?:text|uuid|jsonb|integer|int|int4|bigint|int8|boolean|bool|timestamptz|(?:varchar|character varying) \( N \)|(?:numeric|decimal)(?: \( N(?: , N)? \))?|timestamp(?: \( N \))?(?: (?:with|without) time zone)?)$/;
+const SERIALES = new Set(["serial", "serial2", "serial4", "serial8", "smallserial", "bigserial"]);
 const PRED_TENANT = ['"tenantId"', "=", "current_setting", "(", "'app.current_tenant_id'", ",", "true", ")"];
 
 // ── Molde RLS de los módulos (bloque DO) ────────────────────────────────────
@@ -625,9 +629,10 @@ const GENERICA = "no es una de las formas aditivas que se publican solas";
  * Devuelve { rls: tabla | null } si calza entera; si no, tira NoPermitida (con el motivo concreto
  * si lo hay). `creadas` = tablas creadas por sentencias ANTERIORES de la misma migración;
  * `colsNuevas` = tabla existente → columnas que esta migración le agregó nullable y sin DEFAULT
- * (en las filas que ya existen valen NULL: una FK que las incluye no las toca).
+ * (en las filas que ya existen valen NULL: una FK que las incluye no las toca); `enums` = tipos
+ * enum creados por sentencias anteriores de la misma migración.
  */
-function sentenciaPermitida(s, creadas, colsNuevas = new Map()) {
+function sentenciaPermitida(s, creadas, colsNuevas = new Map(), enums = new Set()) {
   let i = 0;
   const cur = () => s[i];
   const no = (motivo = GENERICA, regla = REVISION) => { throw new NoPermitida(regla, motivo, s[i] ?? s[s.length - 1]); };
@@ -659,14 +664,22 @@ function sentenciaPermitida(s, creadas, colsNuevas = new Map()) {
     if (t && (t.k === "w" || t.k === "q") && esP(s[i + 1], "("))
       no(`llama a \`${t.raw}\`: sólo se permiten now(), gen_random_uuid() y CURRENT_TIMESTAMP`, "FUNCIÓN NO RECONOCIDA");
   };
+  /** Lee un tipo; devuelve true si está en la lista blanca de «columna agregada vacía». */
   const tipo = () => {
     if (s[i]?.k !== "w" && !(s[i]?.k === "q" && !s[i].unicode)) no();
+    const desde = i;
     i++;
     if (comeP(".")) ident();
     const mods = () => { if (comeP("(")) { numero(); while (comeP(",")) numero(); pideP(")"); } };
     mods();
     while (veoW(...PALABRAS_TIPO)) { i++; mods(); }
     while (comeP("[")) { if (s[i]?.k === "n") i++; pideP("]"); }
+    // Postgres trata `serial`/"serial"… sin esquema como serial aunque haya un tipo con ese nombre.
+    if (i === desde + 1 && SERIALES.has(identDe(s[desde]) ?? "")) return false;
+    if (i === desde + 1 && s[desde].k === "q") return enums.has(identDe(s[desde]));
+    if (s.slice(desde, i).some((t) => t.unicode || (t.k !== "w" && t.k !== "n" && t.k !== "p"))) return false;
+    return TIPO_VACIO.test(s.slice(desde, i).map((t) => (t.k === "w" ? t.low : t.k === "n" ? "N" : t.raw)).join(" "))
+      || (i === desde + 1 && enums.has(s[desde].low));
   };
   const constante = () => {
     if (comeP("(")) { constante(); pideP(")"); }
@@ -754,39 +767,55 @@ function sentenciaPermitida(s, creadas, colsNuevas = new Map()) {
     else if (comeW("check")) chequeo();
     else no();
   };
-  // Restricción sobre una tabla EXISTENTE: sólo las dos que no mueven ni exponen datos.
-  //   ADD CONSTRAINT n FOREIGN KEY (cols) REFERENCES t (cols) [ON DELETE|UPDATE RESTRICT|CASCADE|SET NULL|NO ACTION]… [NOT VALID]
-  //     con al menos una columna agregada vacía (nullable, sin DEFAULT) por esta migración: las filas
-  //     que ya existen tienen NULL ahí y la FK (MATCH SIMPLE) no las toca ni rechaza sus escrituras.
+  // Restricción sobre una TABLA EXISTENTE: sólo las dos que no mueven ni exponen datos, y siempre
+  // incluyendo al menos una columna agregada vacía por esta migración (nullable, sin DEFAULT, tipo de
+  // la lista blanca TIPO_VACIO): en las filas que ya existen vale NULL, así que ni la FK (MATCH SIMPLE)
+  // las toca ni el UNIQUE puede chocar con duplicados existentes.
+  //   ADD CONSTRAINT n FOREIGN KEY (cols) REFERENCES t (cols) [ON DELETE RESTRICT|NO ACTION] [ON UPDATE RESTRICT|NO ACTION|CASCADE] [NOT VALID]
+  //     (ON DELETE CASCADE / SET NULL / SET DEFAULT sobre una tabla con datos → revisión del dueño)
   //   ADD CONSTRAINT n UNIQUE (cols)
+  const propiasNuevas = (t, desde) => {
+    const propias = [];
+    for (let j = desde + 1; j < i - 1; j += 2) propias.push(identDe(s[j]));
+    return propias.some((c) => colsNuevas.get(t)?.has(c));
+  };
   const restriccionExistente = (t) => {
     const existente = (m) => no(m, "RESTRICCIÓN EN TABLA EXISTENTE");
     if (!comeW("constraint")) existente("restricción sin nombre sobre una tabla que no crea esta migración");
     ident();
-    if (comeW("unique")) { columnas(); return; }
+    if (comeW("unique")) {
+      const desde = i;
+      columnas();
+      if (!propiasNuevas(t, desde))
+        no("UNIQUE sobre columnas que ya tienen datos: rompe el deploy si hay duplicados y cruza tenants", "ÚNICO EN TABLA EXISTENTE");
+      return;
+    }
     if (!comeW("foreign")) existente("restricción sobre una tabla que no crea esta migración: sólo se publican solas FOREIGN KEY y UNIQUE");
     pideW("key");
     const desde = i;
     columnas();
-    const propias = [];
-    for (let j = desde + 1; j < i - 1; j += 2) propias.push(identDe(s[j]));
-    if (!propias.some((c) => colsNuevas.get(t)?.has(c)))
+    if (!propiasNuevas(t, desde))
       existente("FK sobre columnas que ya tienen datos: puede rechazar escrituras o borrar en cascada filas existentes");
     pideW("references");
     tabla();
     columnas();
     while (comeW("on")) {
-      pideW("delete", "update");
-      if (comeW("cascade", "restrict")) continue;
+      // ON UPDATE CASCADE (el default de Prisma) sólo reescribe la clave en filas que ya apuntan al
+      // padre, y las existentes tienen NULL en la columna nueva; ON DELETE sólo RESTRICT / NO ACTION.
+      const borrado = comeW("delete");
+      if (!borrado) pideW("update");
+      if (comeW("restrict")) continue;
       if (comeW("no")) { pideW("action"); continue; }
-      pideW("set");
-      pideW("null");
+      if (!borrado && comeW("cascade")) continue;
+      if (veoW("cascade", "set"))
+        existente("FK con ON DELETE CASCADE / SET NULL / SET DEFAULT sobre una tabla que ya tiene datos");
+      no();
     }
     if (comeW("not")) pideW("valid");
   };
   const columna = (nueva) => {
     const nombreCol = ident();
-    tipo();
+    const tipoVacio = tipo();
     let conDefault = false;
     let obligatoria = false;
     while (i < s.length) {
@@ -804,7 +833,7 @@ function sentenciaPermitida(s, creadas, colsNuevas = new Map()) {
     }
     if (!nueva && obligatoria && !conDefault)
       no("agrega una columna obligatoria sin valor por defecto a una tabla existente (falla si tiene filas)", "NOT NULL SIN DEFAULT");
-    return { nombre: nombreCol, vacia: !obligatoria && !conDefault };
+    return { nombre: nombreCol, vacia: tipoVacio && !obligatoria && !conDefault };
   };
   /** Corre `f` sobre el tramo s[a, b) como si fuera la sentencia entera. */
   const tramo = (a, b, f) => {
@@ -829,7 +858,7 @@ function sentenciaPermitida(s, creadas, colsNuevas = new Map()) {
       return { crea: t };
     }
     if (comeW("type")) {
-      ident();
+      const e = ident();
       pideW("as");
       pideW("enum");
       pideP("(");
@@ -838,7 +867,7 @@ function sentenciaPermitida(s, creadas, colsNuevas = new Map()) {
         pideP(")");
       }
       fin();
-      return {};
+      return { enum: e };
     }
     if (veoW("unique", "index")) {
       const unico = comeW("unique");
@@ -852,16 +881,20 @@ function sentenciaPermitida(s, creadas, colsNuevas = new Map()) {
       const existente = !creadas.has(t);
       if (comeW("using")) pideW("btree", "hash", "gin", "gist", "brin", "spgist");
       pideP("(");
+      let conNueva = false;
       do {
         if (s[i]?.k !== "q" || s[i].unicode) {
           llamada(s[i]);
           no("el índice sólo puede listar columnas \"entre comillas\" (sin expresiones ni clases de operadores)");
         }
+        if (colsNuevas.get(t)?.has(identDe(s[i]))) conNueva = true;
         i++;
         comeW("asc", "desc");
         if (comeW("nulls")) pideW("first", "last");
       } while (comeP(","));
       pideP(")");
+      if (unico && existente && !conNueva)
+        no("índice único sobre columnas que ya tienen datos: rompe el deploy si hay duplicados y cruza tenants", "ÚNICO EN TABLA EXISTENTE");
       if (comeW("include")) columnas();
       if (comeW("nulls")) {
         if (unico && existente) no("NULLS NOT DISTINCT en un índice único sobre una tabla que ya existe", "ÚNICO EN TABLA EXISTENTE");
@@ -1003,10 +1036,12 @@ export function analizarSql(sql) {
   const creadas = new Set();
   const rlsNuevas = new Set();
   const colsNuevas = new Map();
+  const enums = new Set();
   for (const s of sentencias(tk.tokens)) {
     try {
-      const r = sentenciaPermitida(s, creadas, colsNuevas);
+      const r = sentenciaPermitida(s, creadas, colsNuevas, enums);
       if (r.crea) creadas.add(r.crea);
+      if (r.enum) enums.add(r.enum);
       for (const t of [].concat(r.rls ?? [])) rlsNuevas.add(t);
     } catch (e) {
       if (!(e instanceof NoPermitida)) throw e;

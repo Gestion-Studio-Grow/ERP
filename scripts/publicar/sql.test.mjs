@@ -138,12 +138,16 @@ test("FK y UNIQUE sobre tablas existentes: pasan sólo en la forma permitida", (
   const COL = `ALTER TABLE "Venta" ADD COLUMN "pagoId" TEXT;\n`;
   const FK = `ALTER TABLE "Venta" ADD CONSTRAINT "Venta_pagoId_fkey" FOREIGN KEY ("pagoId") REFERENCES "Pago"("id")`;
   pasa(COL + FK + ";");
-  pasa(COL + FK + " ON DELETE SET NULL ON UPDATE CASCADE;");
+  pasa(COL + FK + " ON DELETE RESTRICT ON UPDATE CASCADE;");
   pasa(COL + FK + " ON DELETE RESTRICT ON UPDATE NO ACTION NOT VALID;");
-  pasa(`ALTER TABLE "Venta" ADD COLUMN "pagoId" TEXT, ADD CONSTRAINT f FOREIGN KEY ("pagoId", "tenantId") REFERENCES "Pago"("id", "tenantId") ON DELETE CASCADE;`);
-  pasa(`ALTER TABLE "Venta" ADD CONSTRAINT "Venta_a_key" UNIQUE ("tenantId", "a");`);
-  pasa(`CREATE UNIQUE INDEX "u" ON "Client"("tenantId", "n");`);
-  pasa(`CREATE UNIQUE INDEX "u" ON "Client"("n") WHERE "n" IS NOT NULL;`);
+  pasa(`ALTER TABLE "Venta" ADD COLUMN "pagoId" TEXT, ADD CONSTRAINT f FOREIGN KEY ("pagoId", "tenantId") REFERENCES "Pago"("id", "tenantId") ON DELETE NO ACTION;`);
+  pasa(COL + `ALTER TABLE "Venta" ADD CONSTRAINT "Venta_a_key" UNIQUE ("tenantId", "pagoId");`);
+  pasa(`ALTER TABLE "Client" ADD COLUMN "n" VARCHAR(20);\nCREATE UNIQUE INDEX "u" ON "Client"("tenantId", "n");`);
+  pasa(`ALTER TABLE "Client" ADD COLUMN "n" NUMERIC(12,2);\nCREATE UNIQUE INDEX "u" ON "Client"("n") WHERE "n" IS NOT NULL;`);
+  // tipos de la lista blanca y enum creado en la misma migración → columna vacía
+  for (const tipo of ["INTEGER", "BIGINT", "BOOLEAN", "TIMESTAMP(3)", "TIMESTAMPTZ", "TIMESTAMP(3) WITH TIME ZONE", "UUID", "JSONB", "character varying(40)", "DECIMAL(10,2)"])
+    pasa(`ALTER TABLE "Venta" ADD COLUMN "pagoId" ${tipo};\n${FK};`);
+  pasa(`CREATE TYPE "Est" AS ENUM ('A');\nALTER TABLE "Venta" ADD COLUMN "pagoId" "Est";\n${FK};`);
   // FK con cuerpo raro → frena
   const raro = (cola) => assert.ok(bloquea(COL + FK + cola), cola);
   for (const cola of [" MATCH FULL;", " DEFERRABLE INITIALLY DEFERRED;", " ON DELETE SET DEFAULT;", " ON DELETE SET NULL (\"pagoId\");",
@@ -156,6 +160,38 @@ test("FK y UNIQUE sobre tablas existentes: pasan sólo en la forma permitida", (
   frenaCon(`ALTER TABLE "Venta" ADD COLUMN "pagoId" TEXT DEFAULT 'p1';\n${FK};`, "RESTRICCIÓN EN TABLA EXISTENTE");
   frenaCon(`ALTER TABLE "Venta" ADD COLUMN IF NOT EXISTS "pagoId" TEXT;\n${FK};`, "RESTRICCIÓN EN TABLA EXISTENTE");
   frenaCon(`ALTER TABLE "Otra" ADD COLUMN "pagoId" TEXT;\n${FK};`, "RESTRICCIÓN EN TABLA EXISTENTE");
+  // cert3: tipos que se rellenan solos (serial, identity…) o fuera de la lista blanca no cuentan como vacía
+  for (const tipo of ["serial", "bigserial", "smallserial", "serial4", "serial8", "serial2", '"serial"', '"bigserial"', "INT[]", "TEXT[]",
+    "public.text", '"text"', '"Est"', "citext", "dominio", "money", "pg_catalog.int4", "INTEGER GENERATED ALWAYS AS IDENTITY",
+    "TEXT GENERATED ALWAYS AS ('x') STORED", "TEXT COLLATE \"C\""])
+    assert.ok(bloquea(`ALTER TABLE "Venta" ADD COLUMN "pagoId" ${tipo};\n${FK};`), tipo);
+  frenaCon(`CREATE TYPE serial AS ENUM ('A');\nALTER TABLE "Venta" ADD COLUMN "pagoId" serial;\n${FK};`, "RESTRICCIÓN EN TABLA EXISTENTE");
+  frenaCon(`ALTER TABLE "Venta" ADD COLUMN "x" serial;\nALTER TABLE "Venta" ADD CONSTRAINT f FOREIGN KEY ("x") REFERENCES "Cliente"("numero") ON DELETE CASCADE NOT VALID;`, "RESTRICCIÓN EN TABLA EXISTENTE");
+  frenaCon(`ALTER TABLE "Venta" ADD COLUMN "x" bigserial;\nALTER TABLE "Venta" ADD CONSTRAINT f FOREIGN KEY ("x") REFERENCES "Cliente"("numero");`, "RESTRICCIÓN EN TABLA EXISTENTE");
+  frenaCon(`ALTER TABLE "Venta" ADD COLUMN "x" serial;\nCREATE UNIQUE INDEX u ON "Venta" ("x");`, "ÚNICO EN TABLA EXISTENTE");
+  // cert3: ON DELETE CASCADE / SET NULL / SET DEFAULT sobre tabla existente → frena aunque la columna sea nueva y vacía
+  for (const cola of [" ON DELETE CASCADE;", " ON DELETE SET NULL;", " ON DELETE SET NULL ON UPDATE CASCADE;", " ON UPDATE CASCADE ON DELETE CASCADE;",
+    " ON DELETE SET DEFAULT;", " ON UPDATE SET NULL;", " ON UPDATE SET DEFAULT;", " ON DELETE CASCADE NOT VALID;"])
+    assert.ok(bloquea(COL + FK + cola), cola);
+  frenaCon(COL + FK + " ON DELETE CASCADE;", "RESTRICCIÓN EN TABLA EXISTENTE");
+  frenaCon(`ALTER TABLE "Venta" ADD COLUMN "x" text;\nALTER TABLE "Venta" ADD CONSTRAINT f FOREIGN KEY ("x","clienteId") REFERENCES "Cliente"("id","tenantId") ON DELETE SET NULL;`, "RESTRICCIÓN EN TABLA EXISTENTE");
+  frenaCon(`CREATE TABLE "Nueva" ("id" text PRIMARY KEY, "tenantId" text NOT NULL);\nALTER TABLE "Venta" ADD COLUMN "x" text;\nALTER TABLE "Venta" ADD CONSTRAINT f FOREIGN KEY ("x") REFERENCES "Nueva"("id") ON DELETE CASCADE;`, "RESTRICCIÓN EN TABLA EXISTENTE");
+  // en una tabla NUEVA el CASCADE sigue pasando
+  pasa(`CREATE TABLE "N" ("id" TEXT, "v" TEXT, CONSTRAINT f FOREIGN KEY ("v") REFERENCES "Venta"("id") ON DELETE CASCADE);`);
+  // cert3: UNIQUE / UNIQUE INDEX sobre columnas existentes sin columna nueva vacía → frena
+  for (const sql of [
+    `ALTER TABLE "Cliente" ADD CONSTRAINT u UNIQUE ("email");`,
+    `ALTER TABLE "Venta" ADD CONSTRAINT u UNIQUE ("tenantId");`,
+    `CREATE UNIQUE INDEX u ON "Venta" ("tenantId");`,
+    `CREATE UNIQUE INDEX u ON "Venta" ("tenantId") WHERE "total" > 0;`,
+    `CREATE UNIQUE INDEX CONCURRENTLY u ON "Venta" ("tenantId");`,
+    `CREATE UNIQUE INDEX u ON "Venta" ("tenantId") INCLUDE ("x");`,
+    `ALTER TABLE "Venta" ADD COLUMN "x" TEXT DEFAULT 'a';\nCREATE UNIQUE INDEX u ON "Venta" ("tenantId", "x");`,
+    `ALTER TABLE "Venta" ADD COLUMN IF NOT EXISTS "x" TEXT;\nALTER TABLE "Venta" ADD CONSTRAINT u UNIQUE ("tenantId", "x");`,
+    `ALTER TABLE "Otra" ADD COLUMN "x" TEXT;\nCREATE UNIQUE INDEX u ON "Venta" ("tenantId", "x");`,
+  ]) frenaCon(sql, "ÚNICO EN TABLA EXISTENTE");
+  // índice NO único sobre existente sigue pasando
+  pasa(`CREATE INDEX i ON "Venta" ("tenantId");`);
   // UNIQUE raro, CHECK, PK, EXCLUDE sobre existente → frena
   assert.ok(bloquea(`ALTER TABLE "Venta" ADD CONSTRAINT u UNIQUE NULLS NOT DISTINCT ("a");`));
   assert.ok(bloquea(`ALTER TABLE "Venta" ADD CONSTRAINT u UNIQUE ("a") DEFERRABLE;`));
@@ -399,16 +435,9 @@ test("historial real: aditivas pasan, lo demás frena", { skip: !existsSync(DIR)
     "20261008120000_modulo_taller",
     "20261013120000_modulo_inmobiliaria",
     "20261015120000_modulo_padel_clases",
-    "20261101120000_modulo_proyectos",
-    "20261108120000_profeturnos_clubes_serie_grupal",
-    // FK sobre columna nueva vacía y UNIQUE sobre tablas existentes
-    "20260702180447_add_tenant_nullable",
+    // FK sobre columna nueva vacía (ON DELETE RESTRICT) sobre tablas existentes
     "20260705120000_control_plane_tenant",
-    "20260705150002_fiscal_invoice_align",
-    "20260907120000_add_cash_movement_payment_id",
-    "20261009120000_taller_caja",
     "20261101140000_proyecto_entregables",
-    "20261104121000_rendiciones",
   ];
   const frenan = {
     "20260708120000_invoice_money_decimal": "CAMBIO DE TIPO",
@@ -421,6 +450,23 @@ test("historial real: aditivas pasan, lo demás frena", { skip: !existsSync(DIR)
     "20260906120000_add_cash_method_libro_caja": "ESCRIBE DATOS",
     "20260925150000_comprobante_autorizado_inmutable": "TRIGGER",
     "20261013210000_inmobiliaria_recibos": "ESCRIBE DATOS",
+    // cert3: FK con ON DELETE SET NULL / CASCADE sobre tabla existente (default de Prisma en relaciones opcionales)
+    "20260702180447_add_tenant_nullable": "RESTRICCIÓN EN TABLA EXISTENTE",
+    "20260702221903_add_service_category": "RESTRICCIÓN EN TABLA EXISTENTE",
+    "20260704130000_add_commission_payouts": "RESTRICCIÓN EN TABLA EXISTENTE",
+    "20260708230000_add_supplier_master": "RESTRICCIÓN EN TABLA EXISTENTE",
+    "20260708230200_add_invoice_origin": "RESTRICCIÓN EN TABLA EXISTENTE",
+    "20260907120000_add_cash_movement_payment_id": "RESTRICCIÓN EN TABLA EXISTENTE",
+    "20260907180000_add_appointment_partial_collections": "RESTRICCIÓN EN TABLA EXISTENTE",
+    "20261009120000_taller_caja": "RESTRICCIÓN EN TABLA EXISTENTE",
+    "20261101120000_modulo_proyectos": "RESTRICCIÓN EN TABLA EXISTENTE",
+    "20261101130000_proyecto_gastos": "RESTRICCIÓN EN TABLA EXISTENTE",
+    "20261101150000_proyecto_gestion_eventos": "RESTRICCIÓN EN TABLA EXISTENTE",
+    "20261108120000_profeturnos_clubes_serie_grupal": "RESTRICCIÓN EN TABLA EXISTENTE",
+    // cert3: UNIQUE sobre columnas que ya tenían datos
+    "20260705150002_fiscal_invoice_align": "ÚNICO EN TABLA EXISTENTE",
+    "20260712120000_sprint_entregable_concurrency_guards": "ÚNICO EN TABLA EXISTENTE",
+    "20261104121000_rendiciones": "ÚNICO EN TABLA EXISTENTE",
   };
   const hay = new Set(readdirSync(DIR));
   for (const m of pasan) {
@@ -432,7 +478,7 @@ test("historial real: aditivas pasan, lo demás frena", { skip: !existsSync(DIR)
     if (!hay.has(m)) continue;
     assert.ok(reglas(readFileSync(`${DIR}${m}/migration.sql`, "utf8")).includes(regla), m);
   }
-  // Frenan EXACTAMENTE éstas (10 de 70 al 08/11/2026); una nueva que frene se mira y se agrega acá.
+  // Frenan EXACTAMENTE éstas (25 de 69 al 08/11/2026); una nueva que frene se mira y se agrega acá.
   const frenanHoy = [...hay].filter((m) => existsSync(`${DIR}${m}/migration.sql`) && bloquea(readFileSync(`${DIR}${m}/migration.sql`, "utf8")));
-  assert.deepEqual(frenanHoy.filter((m) => m <= "20261108120000").sort(), Object.keys(frenan).sort());
+  assert.deepEqual(frenanHoy.filter((m) => m < "20261109").sort(), Object.keys(frenan).sort());
 });
