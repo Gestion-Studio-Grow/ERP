@@ -284,9 +284,21 @@ export function teclaDelCierreSegunRol(pendientes: Pendiente[], puedeCerrar: boo
   return pendientes.map((p) => (p.tecla.texto === "Cerrar el día" ? { ...p, tecla: { ...p.tecla, texto: "Ver el cierre" } } : p));
 }
 
-/** «Cerrar el primer día» no es un paso de quien no cierra el día. PURA. */
-export function pasosSegunRol(pasos: PasoParaArrancar[], puedeCerrar: boolean): PasoParaArrancar[] {
-  return puedeCerrar ? pasos : pasos.filter((p) => p.id !== "cierre");
+/**
+ * «Cerrar el primer día» no es un paso de quien no cierra el día, ni «Abrir la caja» de quien no tiene la casilla 8
+ * (`cash:manage`, rol o matriz): la tecla lo mandaba a una pantalla que se lo niega. PURA.
+ */
+export function pasosSegunRol(pasos: PasoParaArrancar[], puedeCerrar: boolean, puedeAbrirCaja: boolean): PasoParaArrancar[] {
+  return pasos.filter((p) => (puedeCerrar || p.id !== "cierre") && (puedeAbrirCaja || p.id !== "caja" || p.hecho));
+}
+
+/**
+ * La tecla del aviso de caja cerrada del Inicio de mostrador de siempre (page.tsx, `AvisoCajaCerrada`): con el día
+ * cerrado lleva al cierre; si no, a abrir la caja, sólo para quien puede abrirla (`cash:manage`). PURA.
+ */
+export function teclaDeCajaCerrada(diaCerrado: boolean, puedeAbrirCaja: boolean): { texto: string; href: string } | null {
+  if (diaCerrado) return { texto: "Ver el cierre →", href: "/admin/caja/cierre" };
+  return puedeAbrirCaja ? { texto: "Abrir caja →", href: "/admin/caja" } : null;
 }
 
 export function pendientesDeLaBandeja(
@@ -392,7 +404,14 @@ export interface AvisoDeCaja {
  * app Caja a la vista: sin ella no hay resultado) sube un renglón con «Abrir la caja». No cuenta
  * como pendiente: a las 22 una caja cerrada es lo normal (finanzas.server.ts, `cajaDelDia`). PURA.
  */
-export function avisoDeCaja(caja: ResultadoKpi | null | undefined, ruta: string | undefined, diaCerrado = false): AvisoDeCaja | null {
+export function avisoDeCaja(
+  caja: ResultadoKpi | null | undefined,
+  ruta: string | undefined,
+  diaCerrado: boolean,
+  /** `permisoEfectivo(user, "cash:manage")`: sin la casilla 8 la tecla era un callejón (el servidor la rechaza). */
+  puedeAbrirCaja: boolean,
+): AvisoDeCaja | null {
+  if (!puedeAbrirCaja) return null;
   if (!ruta || caja?.estado !== "ok" || caja.valor !== "Cerrada") return null;
   // Con hoy ya cerrado no se abre la caja: mandar a abrirla era un callejón (UAT caja 31/10, 10.9).
   if (diaCerrado) {

@@ -251,7 +251,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // CO-MARCA (29/10/2026): TODOS los negocios llevan su logo arriba — el de su estética, su logo real o el tipográfico
   // «provisional a confirmar» (LogoDelNegocio) — y GSG firma al pie (FirmaGSG, en el shell).
   const logo = <LogoDelNegocio estetica={estetica} nombre={brandName} slug={slugDelNegocio} monograma={monogram} />;
-  const negocioApps = await getNegocioApps(user.role);
+  const negocioApps = await getNegocioApps(user.role, user.overrides);
   const visiblesDelNegocio = appsVisibles(negocioApps);
   // PANEL DE CASA: un negocio cuyo backoffice es UNA app (Break Point → el club) no ve el menú del ERP. Cualquier
   // otra pantalla de /admin (el Inicio incluido) rebota a su casa; quedan Usuarios y «Salir». Sin módulo con
