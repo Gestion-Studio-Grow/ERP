@@ -12,7 +12,6 @@ import { sesionFacturita } from "@/lib/facturita-sesion.server";
 import Link from "next/link";
 import {
   ALIAS_TRANSFERENCIA_GSG,
-  ESTADO_PRECIOS,
   PLANES_FACTOQUE,
   PLAN_FACTURITA,
   precioConPeriodo,
@@ -99,8 +98,8 @@ export default async function FacturitaCuentaPage({ searchParams }: { searchPara
             <p className="mt-1 text-sm text-muted">
               Con <strong className="font-semibold text-strong">{siguiente.nombre}</strong> facturás hasta{" "}
               {siguiente.facturasPorMes} por mes, en esta misma app: no perdés nada de lo que ya emitiste.{" "}
-              <strong className="font-semibold tabular-nums text-strong">{precioConPeriodo(siguiente.precioMensual)}</strong>{" "}
-              ({ESTADO_PRECIOS.toLowerCase()}).
+              <strong className="font-semibold tabular-nums text-strong">{precioConPeriodo(siguiente.precioMensual)}</strong>, IVA
+              incluido.
             </p>
             <p className="mt-2 text-sm text-muted">
               Transferí {precioTexto(siguiente.precioMensual)} al alias de Gestión Studio Grow:{" "}

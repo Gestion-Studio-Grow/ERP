@@ -18,13 +18,14 @@ import {
 
 const HOY = "20261108";
 
-test("escalera de Factoque: 5 / 40 / 159, $0 / $8.900 / $15.000, provisionales", () => {
+test("escalera de Factoque: 5 / 40 / 159, $0 / $8.900 / $15.000, finales (sin leyenda provisional)", () => {
   assert.deepEqual(PLANES_FACTOQUE.map((p) => p.facturasPorMes), [5, 40, 159]);
   assert.deepEqual(PLANES_FACTOQUE.map((p) => p.precioMensual), [0, 8_900, 15_000]);
   assert.deepEqual(PLANES_FACTOQUE.map((p) => p.id), ["facturita", "factoque-plus", "factoque-pro"]);
   assert.equal(PLAN_SALTO.id, "factoque-plus");
   assert.equal(LO_QUE_SIGUE.producto, "comerciante");
-  assert.match(ESTADO_PRECIOS, /provisional/i);
+  assert.match(ESTADO_PRECIOS, /provisional/i); // sigue para Comerciante
+  for (const p of PLANES_FACTOQUE) assert.doesNotMatch(`${p.nota ?? ""} ${p.incluye.join(" ")}`, /provisional|a confirmar/i);
 });
 
 test("el cupo por defecto del núcleo es el de Gratis de la fuente de planes", () => {

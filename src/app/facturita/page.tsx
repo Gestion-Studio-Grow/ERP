@@ -213,7 +213,6 @@ export default function FacturitaLanding() {
             </article>
           </div>
           <p className="fx-bajada" style={{ marginTop: 28 }}>
-            Precios de referencia, en revisión. Te lo confirmamos antes de cobrarte un peso.{" "}
             {ACLARACION_IVA}.{" "}
             <Link href="/facturita/planes" className="fx-enlace">
               Ver todos los planes

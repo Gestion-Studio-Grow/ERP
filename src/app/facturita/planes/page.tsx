@@ -3,7 +3,8 @@
 // (única fuente: la misma que usa el tope de la emisión).
 //
 // Rediseño 29/10/2026 (fronts/facturita/DISENO.md §5.2): cada plan es una hoja del talonario.
-// La leyenda interna `ESTADO_PRECIOS` («…a confirmar por el dueño») sigue existiendo en la
+// Los precios de Factoque (Gratis/Plus/Pro) son finales (dueño, 08/11/2026). La leyenda interna
+// `ESTADO_PRECIOS` («…a confirmar por el dueño») queda sólo para Comerciante: sigue existiendo en la
 // constante, en su test y en la app logueada, pero la vidriera pública ya no la imprime: dice la
 // frase pública de abajo (PRECIOS_DE_REFERENCIA), que es igual de honesta y no habla del dueño.
 
@@ -33,7 +34,7 @@ export const metadata: Metadata = {
 
 /** Lo que la vidriera dice en lugar de la leyenda interna mientras los precios no estén confirmados. */
 const PRECIOS_DE_REFERENCIA =
-  "Factoque es gratis. Plus y Pro tienen precios de referencia que confirmamos antes de cobrarte.";
+  "Factoque es gratis. Plus y Pro son precios finales por mes, IVA incluido.";
 
 /**
  * «Pasar a Plus/Pro»: todavía no hay cobro online (PLAN-SALIDA §2). Se paga por transferencia a GSG
@@ -152,7 +153,7 @@ export default function FacturitaPlanesPage() {
         <p className="fx-bajada" data-qa="lo-que-sigue">
           Cuando quieras que lo que te entra al banco o a Mercado Pago se facture solo, y que tu contador mire todo,
           eso es Comerciante: otro producto de Gestión Studio Grow, desde {precioTexto(LO_QUE_SIGUE.precioMensual)} por
-          mes. Hoy no se contrata desde Factoque.
+          mes (precio de referencia, a confirmar). Hoy no se contrata desde Factoque.
         </p>
         <p className="fx-chico" style={{ margin: "28px 0 0" }}>
           {ACLARACION_IVA}.
