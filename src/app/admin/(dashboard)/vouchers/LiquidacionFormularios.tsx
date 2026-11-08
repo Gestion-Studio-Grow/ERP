@@ -140,6 +140,12 @@ export function ConciliarLiquidacion({ liquidacionId, total, hoy }: { liquidacio
         </p>
       </div>
       <div className="sm:col-span-2">
+        <label htmlFor={`${id}-dif`} className="flex min-h-11 items-center gap-2 text-sm text-strong">
+          <input id={`${id}-dif`} name="aceptarDiferencia" type="checkbox" value="si" className="size-4" />
+          Si el pago no cuadra, conciliar igual y dejar la diferencia anotada
+        </label>
+      </div>
+      <div className="sm:col-span-2">
         <Button type="submit" disabled={pendiente} estado={pendiente ? "cargando" : undefined} className="w-full sm:w-auto">
           Conciliar con el pago
         </Button>

@@ -28,6 +28,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { tenantTransaction } from "@/lib/rls";
 import { isUniqueViolation } from "@/lib/prisma-errors";
 import { businessWallTimeToUtc, dateStrInBusinessTz, todayInBusinessTz } from "@/lib/datetime";
+import { textoAlCentavo } from "@/lib/dinero/redondeo";
 import { VoucherRechazado } from "./voucher-repo";
 import {
   cuentaCorriente,
@@ -167,6 +168,11 @@ export type ConciliarArgs = {
   referencia?: string | null;
   /** Números que la administración NO pagó. */
   rechazados?: readonly string[];
+  /**
+   * Si el pago no cuadra con lo aceptado, hay que confirmarlo a sabiendas: un monto mal tipeado no
+   * puede conciliar en silencio. Sin esto, una diferencia ≠ 0 se rechaza diciendo cuánto es.
+   */
+  aceptarDiferencia?: boolean;
   actor: string;
 };
 
@@ -209,6 +215,12 @@ export async function conciliarLiquidacionSemanal(tenantId: string, args: Concil
         const { plan } = p;
         const pagado = pesosDeCentavos(plan.pagadoCentavos);
         const diferencia = pesosDeCentavos(plan.diferenciaCentavos);
+        if (plan.diferenciaCentavos !== 0 && !args.aceptarDiferencia) {
+          throw new VoucherRechazado(
+            "dato-invalido",
+            `El pago no cuadra con lo aceptado: ${plan.diferenciaCentavos > 0 ? "sobran" : "faltan"} $ ${textoAlCentavo(Math.abs(diferencia)).replace(".", ",")}. Revisá el monto, marcá los vouchers que la administración no pagó, o confirmá que la diferencia queda anotada.`,
+          );
+        }
         // El árbitro de la doble conciliación: sólo UNA transacción pasa de ABIERTA a CONCILIADA.
         const ahora = new Date();
         const pasada = await tx.voucherLiquidacion.updateMany({

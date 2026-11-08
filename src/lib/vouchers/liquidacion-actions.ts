@@ -121,6 +121,7 @@ export async function conciliarLiquidacion(formData: FormData): Promise<Resultad
       medio,
       referencia: texto(formData.get("referencia")) || null,
       rechazados,
+      aceptarDiferencia: texto(formData.get("aceptarDiferencia")) === "si",
       actor: ctx.actor,
     });
     revalidar(liquidacionId);

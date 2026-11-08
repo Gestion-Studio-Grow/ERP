@@ -325,7 +325,13 @@ test("pagó de menos sin decir cuál: la diferencia queda anotada y el saldo la 
   const { generarLiquidacionSemanal, conciliarLiquidacionSemanal, leerLiquidacion } = await liq();
   const sem = await semanaNueva();
   const g = await generarLiquidacionSemanal(A, { hasta: sem.hasta, hoy: sem.hoy, actor: "user:test" });
-  const c = await conciliarLiquidacionSemanal(A, { liquidacionId: g.liquidacionId, pagado: 13999.99, fecha: "2026-11-02", medio: "TRANSFERENCIA", actor: "user:test" });
+  // Sin confirmar la diferencia: rechazo diciendo cuánto falta, y nada cambia.
+  await rechaza(
+    conciliarLiquidacionSemanal(A, { liquidacionId: g.liquidacionId, pagado: 13999.99, fecha: "2026-11-02", medio: "TRANSFERENCIA", actor: "user:test" }),
+    /faltan \$ 0,01/,
+  );
+  assert.equal((await leerLiquidacion(A, g.liquidacionId))?.estado, "ABIERTA");
+  const c = await conciliarLiquidacionSemanal(A, { liquidacionId: g.liquidacionId, pagado: 13999.99, fecha: "2026-11-02", medio: "TRANSFERENCIA", aceptarDiferencia: true, actor: "user:test" });
   assert.equal(c.diferencia, -0.01);
   assert.equal((await saldo(A)) - antes, 1);
   assert.equal((await leerLiquidacion(A, g.liquidacionId))?.diferencia, -0.01);
