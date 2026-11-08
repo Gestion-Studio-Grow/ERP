@@ -7,10 +7,10 @@ import { proxy, esClubCrudo } from "@/proxy";
 import { createSessionToken, getSessionCookieName, VIGENCIA_SESION_MS } from "./auth";
 
 test("esClubCrudo: atrapa variantes de mayúsculas, %xx y barras dobles; no toca el turnero", () => {
-  for (const p of ["/previews/breakpoint/club/index.html", "/previews/breakpoint/club", "/Previews/BreakPoint/Club/app.mjs", "/previews/breakpoint/%63lub/motor.mjs", "/previews//breakpoint//club/x"]) {
+  for (const p of ["/previews/breakpoint/club/index.html", "/previews/breakpoint/club", "/Previews/BreakPoint/Club/app.mjs", "/previews/breakpoint/%63lub/app.mjs", "/previews//breakpoint//club/x", "/previews/breakpoint/turnero/..%2fclub/app.mjs", "/previews/breakpoint/./club/studio.mjs", "/previews\\breakpoint\\club\\index.html"]) {
     assert.equal(esClubCrudo(p), true, p);
   }
-  for (const p of ["/previews/breakpoint/turnero/index.html", "/previews/breakpoint/clubes", "/club", "/tienda/%E0"]) {
+  for (const p of ["/previews/breakpoint/turnero/index.html", "/previews/breakpoint/clubes", "/club", "/tienda/%E0", "/previews/breakpoint/club/motor.mjs"]) {
     assert.equal(esClubCrudo(p), false, p);
   }
 });

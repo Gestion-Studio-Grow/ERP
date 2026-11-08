@@ -43,7 +43,17 @@ export function esClubCrudo(pathname: string): boolean {
   } catch {
     // %xx roto: se mira la ruta tal cual llegó.
   }
-  p = p.toLowerCase().replace(/\/{2,}/g, "/");
+  // Barras invertidas, dobles y segmentos . / .. resueltos: `/previews/breakpoint/turnero/..%2fclub/app.mjs` también cuenta.
+  const segs: string[] = [];
+  for (const s of p.toLowerCase().replace(/\\/g, "/").split("/")) {
+    if (s === "" || s === ".") continue;
+    if (s === "..") segs.pop();
+    else segs.push(s);
+  }
+  p = `/${segs.join("/")}`;
+  // El motor puro (reglas de canchas y precios, sin pantalla ni datos) queda público: lo importa el turnero crudo
+  // de los jugadores (public/previews/breakpoint/turnero/local.mjs) y ya viaja dentro de /turnero.
+  if (p === "/previews/breakpoint/club/motor.mjs") return false;
   return p === "/previews/breakpoint/club" || p.startsWith("/previews/breakpoint/club/");
 }
 
