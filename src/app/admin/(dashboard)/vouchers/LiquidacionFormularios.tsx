@@ -11,6 +11,7 @@ import { useRouter } from "next/navigation";
 import { Button, Input, Select } from "@/components/ui";
 import { conciliarLiquidacion, descartarLiquidacion, generarLiquidacion, pagoACuenta } from "@/lib/vouchers/liquidacion-actions";
 import { ETIQUETA_MEDIO_ADMINISTRACION, MEDIOS_DE_PAGO_ADMINISTRACION } from "@/lib/vouchers/liquidacion-core";
+import { textoAlCentavo } from "@/lib/dinero/redondeo";
 
 const ROTULO = "mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted";
 const FALLO = "No se pudo y no quedó nada a medias. Probá de nuevo; si sigue, avisá.";
@@ -200,7 +201,10 @@ export function DescartarLiquidacion({ liquidacionId }: { liquidacionId: string 
   );
 }
 
-/** Pago a cuenta de la administración: pre-pago de un lote o lo que pague después de una diferencia. */
+/**
+ * Pago a cuenta de la administración: lo que pague de vouchers no pagados (se imputa a esos vouchers,
+ * que dejan de reclamarse), de una diferencia o por adelantado (queda a favor).
+ */
 export function PagoACuenta({ hoy }: { hoy: string }) {
   const id = useId();
   const router = useRouter();
@@ -220,7 +224,21 @@ export function PagoACuenta({ hoy }: { hoy: string }) {
       try {
         const r = await pagoACuenta(fd);
         if (!r.ok) return setError(r.error);
-        setListo(r.valor.duplicado ? "Ese pago ya estaba anotado." : "Pago anotado en la cuenta de la administración.");
+        const v = r.valor;
+        const saldados = v.imputados.filter((x) => x.saldado).map((x) => x.numero);
+        const enParte = v.imputados.filter((x) => !x.saldado).map((x) => x.numero);
+        setListo(
+          v.duplicado
+            ? "Ese pago ya estaba anotado."
+            : [
+                "Pago anotado en la cuenta de la administración.",
+                saldados.length ? `Saldó ${saldados.join(", ")}: ya no vuelven a liquidarse.` : "",
+                enParte.length ? `Pagó una parte de ${enParte.join(", ")}: la próxima liquidación reclama sólo lo que falta.` : "",
+                v.sinImputar > 0 ? `Quedan $ ${textoAlCentavo(v.sinImputar).replace(".", ",")} a favor de la administración.` : "",
+              ]
+                .filter(Boolean)
+                .join(" "),
+        );
         setClave(crypto.randomUUID());
         form.reset();
         router.refresh();
@@ -249,6 +267,21 @@ export function PagoACuenta({ hoy }: { hoy: string }) {
           Referencia (opcional)
         </label>
         <Input id={`${id}-ref`} name="referencia" autoComplete="off" maxLength={120} />
+      </div>
+      <div className="sm:col-span-2">
+        <label htmlFor={`${id}-vouchers`} className={ROTULO}>
+          Vouchers no pagados que salda (opcional)
+        </label>
+        <textarea
+          id={`${id}-vouchers`}
+          name="vouchers"
+          rows={2}
+          aria-describedby={`${id}-ayuda-vouchers`}
+          className="block w-full rounded-md border border-line bg-surface px-3 py-2 font-mono text-sm text-strong focus-visible:outline-2 focus-visible:outline-offset-2"
+        />
+        <p id={`${id}-ayuda-vouchers`} className="mt-1 text-xs text-muted">
+          Los números, separados por coma o uno por renglón. Si no ponés ninguno, el pago salda los no pagados más viejos primero. Lo que sobre queda a favor de la administración.
+        </p>
       </div>
       <div className="sm:col-span-2">
         <Button type="submit" disabled={pendiente} estado={pendiente ? "cargando" : undefined} className="w-full sm:w-auto">

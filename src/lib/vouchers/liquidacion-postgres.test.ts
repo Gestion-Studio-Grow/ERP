@@ -636,3 +636,174 @@ test("la baja como Server Action: con el permiso de conciliar (cash:manage, tamb
   const audit = await duenio.auditLog.findMany({ where: { tenantId: A, action: "voucher.liquidacion.baja-impago", entityId: v.voucherId }, select: { actor: true } });
   assert.deepEqual(audit, [{ actor: `user:${s.base.a.recepcion.id}` }]);
 });
+
+// ── Pago a cuenta imputado a impagos: ningún voucher se cobra dos veces (cert 2, ATQ1/ATQ1b) ──
+
+test("ATQ1 · un impago saldado con un pago a cuenta no vuelve a liquidarse (sin doble cobro)", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  await sinPendientes(s);
+  const duenio = await prismaComoDuenio(s.base);
+  const A = s.base.a.id;
+  const saldo0 = await saldo(A);
+  const v = await impagoConciliado(s, "Atq1");
+  assert.equal(await saldo(A), saldo0 + 1_400_000);
+  const { registrarPagoACuenta, generarLiquidacionSemanal } = await liq();
+  const p = await registrarPagoACuenta(A, { clave: "atq1-0000-cuenta", monto: 14000, fecha: "2026-11-02", medio: "TRANSFERENCIA", actor: "user:test" });
+  assert.deepEqual([p.imputados, p.sinImputar], [[{ numero: v.numero, monto: 14000, saldado: true }], 0]);
+  assert.equal(await saldo(A), saldo0, "pagado a cuenta: saldo cuadra");
+  const x = await duenio.voucher.findUniqueOrThrow({ where: { id: v.voucherId } });
+  assert.deepEqual([x.resultadoLiquidacion, x.montoLiquidado?.toNumber(), Boolean(x.liquidadoEn), x.liquidacionRef?.startsWith("Pago a cuenta")], ["PAGADO", 14000, true, true]);
+  const sem = await semanaNueva();
+  await rechaza(generarLiquidacionSemanal(A, { hasta: sem.hasta, hoy: sem.hoy, actor: "user:test" }), /nada que liquidar/);
+  assert.equal(await saldo(A), saldo0);
+});
+
+test("ATQ1b · un impago ya saldado a cuenta no se da de baja (no hay segundo crédito)", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  await sinPendientes(s);
+  const A = s.base.a.id;
+  const saldo0 = await saldo(A);
+  const v = await impagoConciliado(s, "Atq1b");
+  const { registrarPagoACuenta, darDeBajaImpago, leerCuentaDeLaAdministracion } = await liq();
+  await registrarPagoACuenta(A, { clave: "atq1b-000-cuenta", monto: 14000, fecha: "2026-11-02", medio: "TRANSFERENCIA", actor: "user:test" });
+  await rechaza(darDeBajaImpago(A, { numero: v.numero, motivo: "Ya lo pagaron a cuenta", actor: "user:test" }), /ya se saldó con un pago a cuenta/);
+  assert.equal(await saldo(A), saldo0);
+  const cuenta = await leerCuentaDeLaAdministracion(A);
+  assert.equal(cuenta.movimientos.filter((m) => m.ref === `b:${v.voucherId}`).length, 0);
+});
+
+test("pago a cuenta en parte: la baja compensa sólo lo no imputado; la re-liquidación reclama sólo lo que falta", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  await sinPendientes(s);
+  const duenio = await prismaComoDuenio(s.base);
+  const A = s.base.a.id;
+  const L = await liq();
+  // Baja después de un pago parcial.
+  const saldo0 = await saldo(A);
+  const v = await impagoConciliado(s, "Parcial1");
+  await L.registrarPagoACuenta(A, { clave: "parcial-1-cuenta", monto: 6000, fecha: "2026-11-02", medio: "EFECTIVO", actor: "user:test" });
+  assert.equal(await saldo(A), saldo0 + 800_000);
+  assert.equal((await L.leerCuentaDeLaAdministracion(A)).impagos.total, 8000);
+  await L.darDeBajaImpago(A, { numero: v.numero, motivo: "La administración desconoce el resto", actor: "user:test" });
+  assert.equal(await saldo(A), saldo0, "la baja compensa 8.000, no 14.000");
+  const { listarVouchersDe } = await import("./voucher-repo");
+  const { csvDelReporte } = await import("./voucher-core");
+  const [fila] = await listarVouchersDe(A, { numero: v.numero });
+  assert.match(csvDelReporte([fila]).split("\r\n")[1], /;Dado de baja: La administración desconoce el resto;6000,00;Baja del /);
+  // Re-liquidación de un impago saldado en parte: el reporte y el total piden 9.000.
+  await sinPendientes(s);
+  const saldo1 = await saldo(A);
+  const w = await impagoConciliado(s, "Parcial2");
+  await L.registrarPagoACuenta(A, { clave: "parcial-2-cuenta", monto: 5000, fecha: "2026-11-02", medio: "EFECTIVO", numeros: [w.numero], actor: "user:test" });
+  const sem = await semanaNueva();
+  const g = await L.generarLiquidacionSemanal(A, { hasta: sem.hasta, hoy: sem.hoy, actor: "user:test" });
+  assert.deepEqual([g.cantidad, g.total], [1, 9000]);
+  const det = await L.leerLiquidacion(A, g.liquidacionId);
+  assert.deepEqual(det?.renglones.map((r) => [r.numero, r.valor]), [[w.numero, 9000]]);
+  await rechaza(
+    L.conciliarLiquidacionSemanal(A, { liquidacionId: g.liquidacionId, pagado: 14000, fecha: "2026-11-02", medio: "TRANSFERENCIA", actor: "user:test" }),
+    /sobran \$ 5000,00/,
+  );
+  await L.conciliarLiquidacionSemanal(A, { liquidacionId: g.liquidacionId, pagado: 9000, fecha: "2026-11-02", medio: "TRANSFERENCIA", actor: "user:test" });
+  assert.equal(await saldo(A), saldo1);
+  const x = await duenio.voucher.findUniqueOrThrow({ where: { id: w.voucherId } });
+  assert.deepEqual([x.resultadoLiquidacion, x.montoLiquidado?.toNumber()], ["PAGADO", 14000]);
+  // Un número que no es un impago pendiente: el pago entero se rechaza y no queda nada a medias.
+  await rechaza(
+    L.registrarPagoACuenta(A, { clave: "parcial-3-cuenta", monto: 100, fecha: "2026-11-02", medio: "EFECTIVO", numeros: [w.numero], actor: "user:test" }),
+    /no están impagos/,
+  );
+  assert.equal(await duenio.voucherPagoAdministracion.count({ where: { tenantId: A, clave: "cuenta:parcial-3-cuenta" } }), 0);
+});
+
+test("invariante: para cualquier secuencia, saldo = usados − pagos − bajas (no imputado) y ningún voucher se cobra dos veces", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const duenio = await prismaComoDuenio(s.base);
+  const A = s.base.a.id;
+  const L = await liq();
+  const F = { fecha: "2026-11-02", medio: "TRANSFERENCIA" as const, actor: "user:test" };
+  let k = 0;
+  type Ctx = { usados: { numero: string; voucherId: string }[]; pagos: number; liquidar: () => Promise<{ liquidacionId: string; total: number; cantidad: number }> };
+  const pasos: Record<string, (c: Ctx) => Promise<void>> = {
+    // Rechaza el primero y paga justo lo aceptado; un pago a cuenta FIFO lo salda; re-liquidar: nada.
+    "liquidar → rechazo → a cuenta → re-liquidar": async (c) => {
+      const g = await c.liquidar();
+      await L.conciliarLiquidacionSemanal(A, { ...F, liquidacionId: g.liquidacionId, pagado: g.total - 14000, rechazados: [c.usados[0].numero] });
+      c.pagos += g.total - 14000;
+      await L.registrarPagoACuenta(A, { ...F, clave: `inv-${k++}-cuenta`, monto: 14000 });
+      c.pagos += 14000;
+      await rechaza(c.liquidar(), /nada que liquidar/);
+    },
+    // Rechaza todos; a cuenta parcial por número; re-liquidar, descartar, re-liquidar y pagar lo reclamado.
+    "rechazo total → a cuenta parcial → re-liquidar → descartar → re-liquidar → pagar": async (c) => {
+      const g = await c.liquidar();
+      await L.conciliarLiquidacionSemanal(A, { ...F, liquidacionId: g.liquidacionId, pagado: 0, rechazados: c.usados.map((u) => u.numero) });
+      await L.registrarPagoACuenta(A, { ...F, clave: `inv-${k++}-cuenta`, monto: 5000, numeros: [c.usados[1].numero] });
+      c.pagos += 5000;
+      const g2 = await c.liquidar();
+      assert.equal(g2.total, g.total - 5000);
+      await L.descartarLiquidacion(A, { liquidacionId: g2.liquidacionId, actor: "user:test" });
+      const g3 = await c.liquidar();
+      assert.equal(g3.total, g.total - 5000);
+      await L.conciliarLiquidacionSemanal(A, { ...F, liquidacionId: g3.liquidacionId, pagado: g3.total });
+      c.pagos += g3.total;
+    },
+    // Diferencia que se salda con un pago a cuenta (no hay impagos: queda sin imputar).
+    "conciliar con diferencia → a cuenta": async (c) => {
+      const g = await c.liquidar();
+      await L.conciliarLiquidacionSemanal(A, { ...F, liquidacionId: g.liquidacionId, pagado: g.total - 8000, aceptarDiferencia: true });
+      c.pagos += g.total - 8000;
+      const p = await L.registrarPagoACuenta(A, { ...F, clave: `inv-${k++}-cuenta`, monto: 8000 });
+      assert.deepEqual([p.imputados.length, p.sinImputar], [0, 8000]);
+      c.pagos += 8000;
+    },
+    // Rechazo de dos; re-liquidar y rechazar uno otra vez; a cuenta en parte; baja de lo que queda.
+    "rechazo → re-liquidar → rechazo → a cuenta parcial → baja": async (c) => {
+      const g = await c.liquidar();
+      await L.conciliarLiquidacionSemanal(A, { ...F, liquidacionId: g.liquidacionId, pagado: 14000, rechazados: [c.usados[0].numero, c.usados[1].numero] });
+      c.pagos += 14000;
+      const g2 = await c.liquidar();
+      assert.equal(g2.cantidad, 2);
+      await L.conciliarLiquidacionSemanal(A, { ...F, liquidacionId: g2.liquidacionId, pagado: 14000, rechazados: [c.usados[0].numero] });
+      c.pagos += 14000;
+      const p = await L.registrarPagoACuenta(A, { ...F, clave: `inv-${k++}-cuenta`, monto: 4000 });
+      assert.deepEqual(p.imputados, [{ numero: c.usados[0].numero, monto: 4000, saldado: false }]);
+      c.pagos += 4000;
+      await L.darDeBajaImpago(A, { numero: c.usados[0].numero, motivo: "No reconocen el resto", actor: "user:test" });
+      await rechaza(c.liquidar(), /nada que liquidar/);
+    },
+  };
+  for (const [nombre, correr] of Object.entries(pasos)) {
+    await sinPendientes(s);
+    const saldo0 = await saldo(A);
+    const usados: Ctx["usados"] = [];
+    for (let i = 0; i < 3; i++) usados.push(await voucherCobrado(s, `Inv${k}-${i}`));
+    const c: Ctx = {
+      usados,
+      pagos: 0,
+      liquidar: async () => {
+        const sem = await semanaNueva();
+        return L.generarLiquidacionSemanal(A, { hasta: sem.hasta, hoy: sem.hoy, actor: "user:test" });
+      },
+    };
+    await correr(c);
+    const vs = await duenio.voucher.findMany({
+      where: { id: { in: usados.map((u) => u.voucherId) } },
+      select: { valorCubierto: true, montoLiquidado: true, liquidacionRef: true, liquidadoEn: true, resultadoLiquidacion: true },
+    });
+    const cent = (d: { toNumber(): number } | null) => Math.round((d?.toNumber() ?? 0) * 100);
+    const usadosC = vs.reduce((a, v) => a + cent(v.valorCubierto), 0);
+    const bajasC = vs.filter((v) => v.liquidacionRef?.startsWith("Baja: ")).reduce((a, v) => a + cent(v.valorCubierto) - cent(v.montoLiquidado), 0);
+    assert.equal((await saldo(A)) - saldo0, usadosC - Math.round(c.pagos * 100) - bajasC, nombre);
+    // La administración pagó exactamente lo que se le reclamó: si algo se reclamara dos veces, sobraría.
+    assert.equal((await saldo(A)) - saldo0, 0, `${nombre}: saldo final`);
+    // Ningún voucher se cobra dos veces: lo cobrado de cada uno nunca pasa su valor.
+    for (const v of vs) assert.ok(cent(v.montoLiquidado) <= cent(v.valorCubierto), `${nombre}: cobrado de más`);
+    // Todo saldado (pagado o dado de baja): no queda nada que reclamar.
+    assert.ok(vs.every((v) => v.liquidadoEn != null), `${nombre}: quedó algo pendiente`);
+  }
+});

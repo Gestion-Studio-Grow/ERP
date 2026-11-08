@@ -29,6 +29,7 @@ import { ImportarCsv } from "./ImportarCsv";
 import { GenerarLiquidacion, PagoACuenta } from "./LiquidacionFormularios";
 import { leerCuentaDeLaAdministracion, type CuentaDeLaAdministracion } from "@/lib/vouchers/liquidacion-repo";
 import { fechaArgentina, pesosDeCentavos, ultimaSemanaCerrada } from "@/lib/vouchers/liquidacion-core";
+import { motivoDeBaja } from "@/lib/vouchers/voucher-core";
 import { isPrismaError } from "@/lib/prisma-errors";
 
 export const dynamic = "force-dynamic";
@@ -430,7 +431,9 @@ function TablaDeVouchers({ filas }: { filas: FilaVoucher[] }) {
               <td className={TD}>{etiquetaOpenKey(f.estadoOpenKey)}</td>
               <td className={`${TD} tabular-nums`}>{faltaLaBaja(f) ? <Marca tipo="atencion">Falta la baja</Marca> : fechaCorta(f.bajaOpenKeyEn)}</td>
               <td className={`${TD} tabular-nums`}>
-                {f.liquidadoEn ? (
+                {motivoDeBaja(f) != null ? (
+                  <Marca tipo="anulado">Dado de baja: {motivoDeBaja(f)}</Marca>
+                ) : f.liquidadoEn ? (
                   <>
                     {fechaCorta(f.liquidadoEn)}
                     {f.montoLiquidado != null && (

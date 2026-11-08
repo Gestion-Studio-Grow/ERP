@@ -239,3 +239,16 @@ test("aplicarCobroTurnoInTx rechaza un VOUCHER suelto (sin la clave voucher:<id>
     /sólo lo escribe el cobro con voucher/,
   );
 });
+
+test("csvDelReporte · un impago dado de baja dice «Dado de baja: motivo», nunca «Liquidado 0,00»", () => {
+  const fila = (montoLiquidado: number | null) =>
+    csvDelReporte([
+      {
+        numero: "V-003", lote: "L1", cliente: "Ana", turno: null, usadoEn: "2026-11-04", valorCubierto: 14000, estado: "USADO",
+        estadoOpenKey: null, bajaOpenKeyEn: null, liquidadoEn: "2026-11-12", montoLiquidado, liquidacionRef: "Baja: La administración lo desconoce",
+      },
+    ]).slice(1).split("\r\n")[1];
+  assert.equal(fila(0), "V-003;L1;Ana;;04/11/2026;14000,00;USADO;Sin verificar;;Dado de baja: La administración lo desconoce;;Baja del 12/11/2026");
+  // Si antes se le imputó parte de un pago a cuenta, se ve lo cobrado.
+  assert.equal(fila(5000), "V-003;L1;Ana;;04/11/2026;14000,00;USADO;Sin verificar;;Dado de baja: La administración lo desconoce;5000,00;Baja del 12/11/2026");
+});

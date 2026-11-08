@@ -136,6 +136,49 @@ export const MENSAJES_CONCILIACION: Record<MotivoConciliacionInvalida, string> =
   "voucher-ajeno": "Marcaste como no pagado un voucher que no está en esta liquidación",
 };
 
+// ── Imputación de un pago a cuenta a vouchers impagos ───────────────────────
+
+/** Un impago todavía pendiente: `imputadoCentavos` es lo que ya saldaron pagos a cuenta anteriores. */
+export type ImpagoPendiente = { id: string; numero: string; valorCentavos: number; imputadoCentavos: number };
+export type Imputacion = { id: string; numero: string; centavos: number; /** El voucher queda saldado del todo. */ completo: boolean };
+
+/** Lo que la administración todavía debe de un voucher (su valor menos lo ya imputado). */
+export function pendienteCentavos(v: { valorCentavos: number; imputadoCentavos: number }): number {
+  return Math.max(0, v.valorCentavos - v.imputadoCentavos);
+}
+
+/**
+ * Reparte un pago a cuenta entre impagos concretos: en el orden de `numeros` si vienen (todos tienen
+ * que ser impagos pendientes), si no FIFO en el orden de `pendientes` (por fecha de uso). Cada voucher
+ * recibe como mucho lo que debe: un voucher nunca se cobra dos veces. Lo que sobra queda a favor de
+ * la administración en la cuenta (sin imputar). PURA.
+ */
+export function planDeImputacion(input: {
+  pendientes: readonly ImpagoPendiente[];
+  montoCentavos: number;
+  numeros?: readonly string[];
+}): { ok: true; imputaciones: Imputacion[]; restoCentavos: number } | { ok: false; ajenos: string[] } {
+  let orden: readonly ImpagoPendiente[] = input.pendientes;
+  const pedidos = [...new Set((input.numeros ?? []).map((n) => n.replace(/\s+/g, "").toUpperCase()).filter(Boolean))];
+  if (pedidos.length) {
+    const porNumero = new Map(input.pendientes.map((v) => [v.numero.toUpperCase(), v]));
+    const ajenos = pedidos.filter((n) => !porNumero.has(n));
+    if (ajenos.length) return { ok: false, ajenos };
+    orden = pedidos.map((n) => porNumero.get(n) as ImpagoPendiente);
+  }
+  let resto = Math.max(0, Math.trunc(input.montoCentavos));
+  const imputaciones: Imputacion[] = [];
+  for (const v of orden) {
+    if (resto <= 0) break;
+    const debe = pendienteCentavos(v);
+    if (debe <= 0) continue;
+    const c = Math.min(resto, debe);
+    imputaciones.push({ id: v.id, numero: v.numero, centavos: c, completo: c === debe });
+    resto -= c;
+  }
+  return { ok: true, imputaciones, restoCentavos: resto };
+}
+
 export function sumaCentavos(importes: readonly number[]): number {
   let c = 0;
   for (const i of importes) c += centavosDe(i);

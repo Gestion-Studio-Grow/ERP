@@ -21,12 +21,21 @@
 //     PAGADO (con `liquidadoEn`, `montoLiquidado`, `liquidacionRef`) o IMPAGO.
 //   DESCARTAR una ABIERTA (mal generada): libera sus vouchers y la borra. Una conciliada no. Los
 //     impagos que había re-tomado vuelven a su liquidación de origen como IMPAGO.
+//   PAGO A CUENTA (idempotente por la clave del formulario): crédito de la cuenta por su monto
+//     entero, que se IMPUTA a impagos concretos (los números que diga el formulario o, si no dice,
+//     FIFO por fecha de uso). Lo imputado se acumula en `montoLiquidado` del impago; cuando lo cubre
+//     entero, el voucher pasa a PAGADO con `liquidadoEn` y `liquidacionRef: "Pago a cuenta …"` y ya
+//     no se re-liquida. Una re-liquidación reclama sólo lo que falta (valor − imputado). Lo que sobra
+//     del pago queda a favor de la administración, sin imputar.
 //   BAJA de un IMPAGO (la administración lo desconoce para siempre; cash:manage, con motivo y
-//     AuditLog): queda IMPAGO con `liquidadoEn` (fecha de la baja), `montoLiquidado: 0` y
-//     `liquidacionRef: "Baja: <motivo>"`; ya no se re-liquida y en la cuenta suma un crédito que
-//     compensa su débito. Sin columnas nuevas: «impago pendiente» = IMPAGO con `liquidadoEn` nulo.
-//   PAGO A CUENTA: crédito suelto (pre-pago, o lo que la administración pague después de una
-//     diferencia), idempotente por la clave del formulario.
+//     AuditLog): queda IMPAGO con `liquidadoEn` (fecha de la baja), `montoLiquidado` = lo imputado
+//     hasta ahí y `liquidacionRef: "Baja: <motivo>"`; ya no se re-liquida y en la cuenta suma un
+//     crédito por lo NO imputado (valor − imputado): lo pagado a cuenta no se compensa dos veces.
+//   Sin columnas nuevas: «impago pendiente» = IMPAGO con `liquidadoEn` nulo.
+//
+// Invariante de la cuenta: saldo = Σ vouchers usados − Σ pagos (liquidaciones y a cuenta) − Σ bajas
+// (lo no imputado de cada una); cada voucher se reclama, entre todas sus liquidaciones y pagos a
+// cuenta, como mucho por su valor.
 //
 // Un voucher tomado por una liquidación no se puede anular desde el turno (turnos/anulacion.ts
 // exige `liquidacionSemanalId: null`; la base lo refuerza con un CHECK). Nada de esto toca el libro
@@ -39,9 +48,11 @@ import { isUniqueViolation } from "@/lib/prisma-errors";
 import { businessWallTimeToUtc, dateStrInBusinessTz, todayInBusinessTz } from "@/lib/datetime";
 import { textoAlCentavo } from "@/lib/dinero/redondeo";
 import { VoucherRechazado } from "./voucher-repo";
+import { PREFIJO_BAJA_IMPAGO } from "./voucher-core";
 import {
   cuentaCorriente,
   esDiaReal,
+  planDeImputacion,
   MENSAJES_CONCILIACION,
   MENSAJES_SEMANA,
   pesosDeCentavos,
@@ -67,7 +78,18 @@ const YA_CONCILIADA = "Esa liquidación ya se concilió: no se concilia dos vece
 /** Rastro en el AuditLog de la liquidación vieja cuando sus impagos pasan a otra. */
 const ACCION_RELIQUIDAR = "voucher.liquidacion.reliquidar-impagos";
 /** Prefijo de `liquidacionRef` de un impago dado de baja. */
-const PREFIJO_BAJA = "Baja: ";
+const PREFIJO_BAJA = PREFIJO_BAJA_IMPAGO;
+/** Prefijo de `liquidacionRef` de un impago saldado con un pago a cuenta. */
+const PREFIJO_A_CUENTA = "Pago a cuenta";
+
+const centavosDeDecimal = (d: Prisma.Decimal | null | undefined): number => (d ? sumaCentavos([d.toNumber()]) : 0);
+/**
+ * Lo que la administración todavía debe de un voucher: su valor menos lo ya imputado por pagos a
+ * cuenta. Sólo un impago pendiente (`liquidadoEn` nulo) tiene imputado; uno nuevo tiene
+ * `montoLiquidado` nulo.
+ */
+const pendienteDe = (v: { valorCubierto: Prisma.Decimal | null; montoLiquidado: Prisma.Decimal | null }): number =>
+  Math.max(0, centavosDeDecimal(v.valorCubierto) - centavosDeDecimal(v.montoLiquidado));
 
 /** Impago que todavía es deuda viva de la administración (no se dio de baja): vuelve a liquidarse. */
 const impagoPendiente = (tenantId: string): Prisma.VoucherWhereInput => ({
@@ -105,11 +127,11 @@ export async function generarLiquidacionSemanal(tenantId: string, args: GenerarL
           liquidadoEn: null,
           usadoEn: { lt: corte },
         };
-        const nuevos = await tx.voucher.findMany({ where: elegibles, select: { id: true, valorCubierto: true } });
+        const nuevos = await tx.voucher.findMany({ where: elegibles, select: { id: true, valorCubierto: true, montoLiquidado: true } });
         // Los rechazados en liquidaciones ya conciliadas: la administración los sigue debiendo.
         const impagos = await tx.voucher.findMany({
           where: { ...impagoPendiente(tenantId), usadoEn: { lt: corte }, liquidacionSemanal: { estado: "CONCILIADA" } },
-          select: { id: true, numero: true, valorCubierto: true, liquidacionSemanalId: true },
+          select: { id: true, numero: true, valorCubierto: true, montoLiquidado: true, liquidacionSemanalId: true },
         });
         const vouchers = [...nuevos, ...impagos];
         if (vouchers.length === 0) {
@@ -149,8 +171,13 @@ export async function generarLiquidacionSemanal(tenantId: string, args: GenerarL
             },
           });
         }
-        const totalCentavos = sumaCentavos(vouchers.map((x) => (x.valorCubierto ? x.valorCubierto.toNumber() : 0)));
+        // Cada voucher se reclama por lo que falta: un impago saldado en parte a cuenta, por el resto.
+        const totalCentavos = vouchers.reduce((acc, x) => acc + pendienteDe(x), 0);
         const total = pesosDeCentavos(totalCentavos);
+        // Lo ya imputado a cuenta de cada re-liquidado: el reporte de esta liquidación lo descuenta.
+        const descuentos = Object.fromEntries(
+          impagos.filter((x) => centavosDeDecimal(x.montoLiquidado) > 0).map((x) => [x.id, centavosDeDecimal(x.montoLiquidado)]),
+        );
         await tx.voucherLiquidacion.updateMany({ where: { id: liq.id, tenantId }, data: { cantidad: vouchers.length, total } });
         await tx.auditLog.create({
           data: {
@@ -160,7 +187,7 @@ export async function generarLiquidacionSemanal(tenantId: string, args: GenerarL
             entity: "VoucherLiquidacion",
             entityId: liq.id,
             channel: "admin",
-            changes: { desde: semana.desde, hasta: semana.hasta, cantidad: vouchers.length, total, reliquidados: impagos.map((x) => x.numero) },
+            changes: { desde: semana.desde, hasta: semana.hasta, cantidad: vouchers.length, total, reliquidados: impagos.map((x) => x.numero), descuentos },
           },
         });
         return { liquidacionId: liq.id, semana, cantidad: vouchers.length, total };
@@ -272,10 +299,12 @@ export async function conciliarLiquidacionSemanal(tenantId: string, args: Concil
         if (liq.estado !== "ABIERTA") throw new VoucherRechazado("dato-invalido", YA_CONCILIADA);
         const vouchers = await tx.voucher.findMany({
           where: { tenantId, liquidacionSemanalId: liq.id },
-          select: { id: true, numero: true, valorCubierto: true },
+          select: { id: true, numero: true, valorCubierto: true, montoLiquidado: true },
         });
+        const valorEntero = new Map(vouchers.map((x) => [x.id, x.valorCubierto ? x.valorCubierto.toNumber() : 0]));
         const p = planDeConciliacion({
-          vouchers: vouchers.map((x) => ({ id: x.id, numero: x.numero, valorCubierto: x.valorCubierto ? x.valorCubierto.toNumber() : 0 })),
+          // Lo que se reclama de cada uno: lo que falta (un impago saldado en parte a cuenta, el resto).
+          vouchers: vouchers.map((x) => ({ id: x.id, numero: x.numero, valorCubierto: pesosDeCentavos(pendienteDe(x)) })),
           pagado: args.pagado,
           rechazados: args.rechazados ?? [],
         });
@@ -317,7 +346,8 @@ export async function conciliarLiquidacionSemanal(tenantId: string, args: Concil
         for (const v of plan.pagados) {
           const r = await tx.voucher.updateMany({
             where: { id: v.id, tenantId, liquidacionSemanalId: liq.id, estado: "USADO" },
-            data: { resultadoLiquidacion: "PAGADO", liquidadoEn, montoLiquidado: v.valorCubierto, liquidacionRef: ref },
+            // `montoLiquidado` = lo cobrado del voucher en total (lo imputado a cuenta + esta liquidación).
+            data: { resultadoLiquidacion: "PAGADO", liquidadoEn, montoLiquidado: valorEntero.get(v.id) ?? v.valorCubierto, liquidacionRef: ref },
           });
           if (r.count !== 1) throw new VoucherRechazado("cambio-recien", CAMBIO_RECIEN);
         }
@@ -398,9 +428,21 @@ export async function darDeBajaImpago(tenantId: string, args: BajaDeImpagoArgs):
     async (tx) => {
       const v = await tx.voucher.findFirst({
         where: { tenantId, numero },
-        select: { id: true, numero: true, valorCubierto: true, resultadoLiquidacion: true, liquidadoEn: true, liquidacionRef: true, liquidacionSemanalId: true },
+        select: {
+          id: true,
+          numero: true,
+          valorCubierto: true,
+          montoLiquidado: true,
+          resultadoLiquidacion: true,
+          liquidadoEn: true,
+          liquidacionRef: true,
+          liquidacionSemanalId: true,
+        },
       });
       if (!v) throw new VoucherRechazado("dato-invalido", "No hay un voucher con ese número.");
+      if (v.resultadoLiquidacion === "PAGADO" && v.liquidacionRef?.startsWith(PREFIJO_A_CUENTA)) {
+        throw new VoucherRechazado("dato-invalido", "Ese voucher ya se saldó con un pago a cuenta: no hay nada que dar de baja.");
+      }
       if (v.resultadoLiquidacion === "IMPAGO" && v.liquidadoEn && v.liquidacionRef?.startsWith(PREFIJO_BAJA)) {
         return { voucherId: v.id, numero: v.numero, duplicado: true };
       }
@@ -411,8 +453,9 @@ export async function darDeBajaImpago(tenantId: string, args: BajaDeImpagoArgs):
         );
       }
       const r = await tx.voucher.updateMany({
-        where: { ...impagoPendiente(tenantId), id: v.id, liquidacionSemanalId: v.liquidacionSemanalId },
-        data: { liquidadoEn: new Date(), montoLiquidado: 0, liquidacionRef: `${PREFIJO_BAJA}${motivo}` },
+        // `montoLiquidado` queda con lo imputado a cuenta: la baja compensa sólo lo que falta.
+        where: { ...impagoPendiente(tenantId), id: v.id, liquidacionSemanalId: v.liquidacionSemanalId, montoLiquidado: v.montoLiquidado },
+        data: { liquidadoEn: new Date(), liquidacionRef: `${PREFIJO_BAJA}${motivo}` },
       });
       if (r.count !== 1) throw new VoucherRechazado("cambio-recien", CAMBIO_RECIEN);
       await tx.auditLog.create({
@@ -428,6 +471,8 @@ export async function darDeBajaImpago(tenantId: string, args: BajaDeImpagoArgs):
             motivo,
             liquidacionId: v.liquidacionSemanalId,
             valor: v.valorCubierto ? v.valorCubierto.toNumber() : 0,
+            imputadoACuenta: pesosDeCentavos(centavosDeDecimal(v.montoLiquidado)),
+            compensa: pesosDeCentavos(pendienteDe(v)),
           },
         },
       });
@@ -447,10 +492,24 @@ export type PagoACuentaArgs = {
   medio: MedioPagoAdministracion;
   referencia?: string | null;
   nota?: string | null;
+  /**
+   * Los impagos que salda este pago, en orden. Vacío o ausente: FIFO por fecha de uso entre los
+   * impagos pendientes. Lo que sobra queda a favor de la administración, sin imputar.
+   */
+  numeros?: readonly string[];
   actor: string;
 };
 
-export async function registrarPagoACuenta(tenantId: string, args: PagoACuentaArgs): Promise<{ pagoId: string; duplicado: boolean }> {
+export type PagoACuentaRegistrado = {
+  pagoId: string;
+  duplicado: boolean;
+  /** Vouchers a los que se imputó (vacío si es duplicado). */
+  imputados: { numero: string; monto: number; saldado: boolean }[];
+  /** Lo que quedó sin imputar, a favor de la administración. */
+  sinImputar: number;
+};
+
+export async function registrarPagoACuenta(tenantId: string, args: PagoACuentaArgs): Promise<PagoACuentaRegistrado> {
   const clave = args.clave.trim();
   if (!/^[A-Za-z0-9-]{8,64}$/.test(clave)) throw new VoucherRechazado("dato-invalido", "Falta la clave del formulario. Recargá la pantalla.");
   if (!esDiaReal(args.fecha)) throw new VoucherRechazado("dato-invalido", "La fecha del pago no es válida.");
@@ -463,7 +522,7 @@ export async function registrarPagoACuenta(tenantId: string, args: PagoACuentaAr
     return await tenantTransaction(
       async (tx) => {
         const ya = await tx.voucherPagoAdministracion.findFirst({ where: { tenantId, clave: claveDb }, select: { id: true } });
-        if (ya) return { pagoId: ya.id, duplicado: true };
+        if (ya) return { pagoId: ya.id, duplicado: true, imputados: [], sinImputar: 0 };
         const pago = await tx.voucherPagoAdministracion.create({
           data: {
             tenantId,
@@ -477,6 +536,46 @@ export async function registrarPagoACuenta(tenantId: string, args: PagoACuentaAr
           },
           select: { id: true },
         });
+        // Imputación: los impagos pendientes (rechazados en una liquidación conciliada, sin baja).
+        const pendientes = await tx.voucher.findMany({
+          where: { ...impagoPendiente(tenantId), liquidacionSemanal: { estado: "CONCILIADA" } },
+          orderBy: [{ usadoEn: "asc" }, { numero: "asc" }],
+          select: { id: true, numero: true, valorCubierto: true, montoLiquidado: true },
+        });
+        const plan = planDeImputacion({
+          pendientes: pendientes.map((v) => ({
+            id: v.id,
+            numero: v.numero,
+            valorCentavos: centavosDeDecimal(v.valorCubierto),
+            imputadoCentavos: centavosDeDecimal(v.montoLiquidado),
+          })),
+          montoCentavos: p.plan.pagadoCentavos,
+          numeros: args.numeros,
+        });
+        if (!plan.ok) {
+          throw new VoucherRechazado(
+            "dato-invalido",
+            `Estos vouchers no están impagos (o ya se dieron de baja o están en una liquidación abierta): ${plan.ajenos.join(", ")}.`,
+          );
+        }
+        const porId = new Map(pendientes.map((v) => [v.id, v]));
+        const liquidadoEn = businessWallTimeToUtc(args.fecha, "12:00");
+        const ref = `${PREFIJO_A_CUENTA}${args.referencia?.trim() ? ` · ${args.referencia.trim()}` : ""} (${pago.id})`;
+        for (const imp of plan.imputaciones) {
+          const v = porId.get(imp.id)!;
+          const imputado = pesosDeCentavos(centavosDeDecimal(v.montoLiquidado) + imp.centavos);
+          // Condicionado a lo que se leyó (sigue pendiente, mismo imputado): otro pago, una baja o una
+          // re-liquidación a la vez lo cambian y este pago se rechaza entero (Serializable además).
+          const r = await tx.voucher.updateMany({
+            where: { ...impagoPendiente(tenantId), id: v.id, montoLiquidado: v.montoLiquidado },
+            data: imp.completo
+              ? { resultadoLiquidacion: "PAGADO", liquidadoEn, montoLiquidado: imputado, liquidacionRef: ref }
+              : { montoLiquidado: imputado },
+          });
+          if (r.count !== 1) throw new VoucherRechazado("cambio-recien", CAMBIO_RECIEN);
+        }
+        const imputados = plan.imputaciones.map((i) => ({ numero: i.numero, monto: pesosDeCentavos(i.centavos), saldado: i.completo }));
+        const sinImputar = pesosDeCentavos(plan.restoCentavos);
         await tx.auditLog.create({
           data: {
             tenantId,
@@ -485,10 +584,10 @@ export async function registrarPagoACuenta(tenantId: string, args: PagoACuentaAr
             entity: "VoucherPagoAdministracion",
             entityId: pago.id,
             channel: "admin",
-            changes: { monto, fecha: args.fecha, medio: args.medio },
+            changes: { monto, fecha: args.fecha, medio: args.medio, imputados, sinImputar },
           },
         });
-        return { pagoId: pago.id, duplicado: false };
+        return { pagoId: pago.id, duplicado: false, imputados, sinImputar };
       },
       { tenantId, isolationLevel: SERIALIZABLE },
     );
@@ -497,7 +596,7 @@ export async function registrarPagoACuenta(tenantId: string, args: PagoACuentaAr
       const ya = await tenantTransaction((tx) => tx.voucherPagoAdministracion.findFirst({ where: { tenantId, clave: claveDb }, select: { id: true } }), {
         tenantId,
       });
-      if (ya) return { pagoId: ya.id, duplicado: true };
+      if (ya) return { pagoId: ya.id, duplicado: true, imputados: [], sinImputar: 0 };
     }
     throw e;
   }
@@ -579,6 +678,7 @@ export async function leerCuentaDeLaAdministracion(tenantId: string): Promise<Cu
             resultadoLiquidacion: true,
             liquidadoEn: true,
             liquidacionRef: true,
+            montoLiquidado: true,
             client: { select: { name: true } },
           },
         }),
@@ -604,7 +704,8 @@ export async function leerCuentaDeLaAdministracion(tenantId: string): Promise<Cu
           fecha: dateStrInBusinessTz(v.liquidadoEn as Date),
           tipo: "CREDITO" as const,
           concepto: `Baja del voucher ${v.numero} · ${(v.liquidacionRef ?? "").slice(PREFIJO_BAJA.length)}`,
-          centavos: sumaCentavos([v.valorCubierto ? v.valorCubierto.toNumber() : 0]),
+          // Sólo lo no imputado: lo que se pagó a cuenta de este voucher ya es crédito por el pago.
+          centavos: pendienteDe(v),
           ref: `b:${v.id}`,
         })),
         ...pagos.map((p) => {
@@ -622,13 +723,14 @@ export async function leerCuentaDeLaAdministracion(tenantId: string): Promise<Cu
       const sinLiq = usados.filter((v) => !v.liquidacionSemanalId);
       const imp = usados.filter((v) => v.resultadoLiquidacion === "IMPAGO" && v.liquidadoEn == null);
       const total = (xs: typeof usados) => pesosDeCentavos(sumaCentavos(xs.map((v) => (v.valorCubierto ? v.valorCubierto.toNumber() : 0))));
+      const debe = (xs: typeof usados) => pesosDeCentavos(xs.reduce((acc, v) => acc + pendienteDe(v), 0));
       return {
         resumen,
         movimientos: movimientos.slice(-TOPE_MOVIMIENTOS).reverse(),
         liquidaciones: liquidaciones.map(aFila),
         sinLiquidar: { cantidad: sinLiq.length, total: total(sinLiq) },
-        impagos: { cantidad: imp.length, total: total(imp) },
-        bajas: { cantidad: bajas.length, total: total(bajas) },
+        impagos: { cantidad: imp.length, total: debe(imp) },
+        bajas: { cantidad: bajas.length, total: debe(bajas) },
       };
     },
     { tenantId },
@@ -655,6 +757,13 @@ export async function leerLiquidacion(tenantId: string, liquidacionId: string): 
         select: { changes: true },
       });
       const idsIdos = [...new Set(rastro.flatMap((r) => idsDelRastro(r.changes)))];
+      // Lo que ya estaba imputado a cuenta de cada re-liquidado cuando se generó: no se le reclamó.
+      const generada = await tx.auditLog.findFirst({
+        where: { tenantId, action: "voucher.liquidacion.generar", entity: "VoucherLiquidacion", entityId: l.id },
+        select: { changes: true },
+      });
+      const descuentos = ((generada?.changes as { descuentos?: Record<string, unknown> } | null)?.descuentos ?? {}) as Record<string, unknown>;
+      const descuentoDe = (id: string): number => (typeof descuentos[id] === "number" ? (descuentos[id] as number) : 0);
       const vouchers = await tx.voucher.findMany({
         where: { tenantId, OR: [{ liquidacionSemanalId: l.id }, ...(idsIdos.length ? [{ id: { in: idsIdos } }] : [])] },
         orderBy: [{ usadoEn: "asc" }, { numero: "asc" }],
@@ -681,7 +790,7 @@ export async function leerLiquidacion(tenantId: string, liquidacionId: string): 
           vecino: v.client.name,
           fecha: v.usadoEn ? dateStrInBusinessTz(v.usadoEn) : null,
           servicio: v.appointment?.service.name ?? null,
-          valor: v.valorCubierto ? v.valorCubierto.toNumber() : 0,
+          valor: pesosDeCentavos(Math.max(0, centavosDeDecimal(v.valorCubierto) - descuentoDe(v.id))),
           resultado:
             v.liquidacionSemanalId !== l.id
               ? "IMPAGO"

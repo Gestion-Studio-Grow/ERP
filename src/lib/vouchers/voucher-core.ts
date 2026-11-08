@@ -481,10 +481,20 @@ function montoAr(n: number | null): string {
   return n == null || !admiteCentavos(n) ? "" : textoAlCentavo(n).replace(".", ",");
 }
 
+/** Prefijo de `liquidacionRef` de un impago que la administración desconoce (baja con motivo). */
+export const PREFIJO_BAJA_IMPAGO = "Baja: ";
+
+/** El motivo si el voucher es un impago dado de baja; si no, null. */
+export function motivoDeBaja(f: { liquidadoEn: unknown; liquidacionRef: string | null }): string | null {
+  return f.liquidadoEn && f.liquidacionRef?.startsWith(PREFIJO_BAJA_IMPAGO) ? f.liquidacionRef.slice(PREFIJO_BAJA_IMPAGO.length) : null;
+}
+
 /** CSV con BOM y `;` (abre bien en el Excel argentino), mismas columnas que la pantalla. */
 export function csvDelReporte(filas: readonly FilaReporteVoucher[]): string {
   const lineas = [COLUMNAS_REPORTE.map(celdaCsv).join(";")];
   for (const f of filas) {
+    // Una baja no es una liquidación: dice «Dado de baja: motivo», nunca «Liquidado 0,00».
+    const baja = motivoDeBaja(f);
     lineas.push(
       [
         f.numero,
@@ -496,9 +506,9 @@ export function csvDelReporte(filas: readonly FilaReporteVoucher[]): string {
         f.estado,
         f.estadoOpenKey ?? "Sin verificar",
         fechaAr(f.bajaOpenKeyEn),
-        fechaAr(f.liquidadoEn),
-        montoAr(f.montoLiquidado),
-        f.liquidacionRef ?? "",
+        baja != null ? `Dado de baja: ${baja}` : fechaAr(f.liquidadoEn),
+        baja != null ? (f.montoLiquidado ? montoAr(f.montoLiquidado) : "") : montoAr(f.montoLiquidado),
+        baja != null ? `Baja del ${fechaAr(f.liquidadoEn)}` : (f.liquidacionRef ?? ""),
       ]
         .map(celdaCsv)
         .join(";"),

@@ -5,6 +5,7 @@ import {
   cuentaCorriente,
   diaDeLaSemana,
   planDeConciliacion,
+  planDeImputacion,
   sumaCentavos,
   sumarDias,
   ultimaSemanaCerrada,
@@ -106,4 +107,38 @@ test("planilla del lunes: BOM, `;`, total al pie, fórmulas neutralizadas y el p
   assert.ok(lineas.includes("Cantidad de vouchers;2"));
   assert.ok(lineas.includes("Pagado por la administración;14000,00"));
   assert.ok(lineas.includes("Fecha del pago;09/11/2026"));
+});
+
+test("planDeImputacion · FIFO, por número, en parte, y lo que sobra queda sin imputar", () => {
+  const pendientes = [
+    { id: "a", numero: "V-1", valorCentavos: 1_400_000, imputadoCentavos: 0 },
+    { id: "b", numero: "V-2", valorCentavos: 1_400_000, imputadoCentavos: 400_000 },
+    { id: "c", numero: "V-3", valorCentavos: 900_000, imputadoCentavos: 0 },
+  ];
+  // FIFO: salda V-1 entero, V-2 por lo que falta (10.000) y deja V-3 en parte.
+  const fifo = planDeImputacion({ pendientes, montoCentavos: 2_500_000 });
+  assert.deepEqual(fifo, {
+    ok: true,
+    imputaciones: [
+      { id: "a", numero: "V-1", centavos: 1_400_000, completo: true },
+      { id: "b", numero: "V-2", centavos: 1_000_000, completo: true },
+      { id: "c", numero: "V-3", centavos: 100_000, completo: false },
+    ],
+    restoCentavos: 0,
+  });
+  // Por número (con espacios y minúsculas), en el orden pedido; lo que sobra no se imputa a otros.
+  const pedidos = planDeImputacion({ pendientes, montoCentavos: 1_000_000, numeros: [" v-3 ", "V-3"] });
+  assert.deepEqual(pedidos, { ok: true, imputaciones: [{ id: "c", numero: "V-3", centavos: 900_000, completo: true }], restoCentavos: 100_000 });
+  // Un número que no es un impago pendiente: no se imputa nada.
+  assert.deepEqual(planDeImputacion({ pendientes, montoCentavos: 100, numeros: ["V-9", "V-1"] }), { ok: false, ajenos: ["V-9"] });
+  // Sin impagos: todo queda a favor.
+  assert.deepEqual(planDeImputacion({ pendientes: [], montoCentavos: 5000 }), { ok: true, imputaciones: [], restoCentavos: 5000 });
+  // Nunca se imputa más que el valor de un voucher, aunque el pago sobre.
+  const mucho = planDeImputacion({ pendientes, montoCentavos: 99_000_000 });
+  assert.ok(mucho.ok);
+  for (const i of mucho.imputaciones) {
+    const p = pendientes.find((x) => x.id === i.id)!;
+    assert.ok(i.centavos + p.imputadoCentavos <= p.valorCentavos);
+  }
+  assert.equal(mucho.restoCentavos, 99_000_000 - 1_400_000 - 1_000_000 - 900_000);
 });

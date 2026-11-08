@@ -29,6 +29,7 @@ import {
   generarLiquidacionSemanal,
   registrarPagoACuenta,
   type LiquidacionGenerada,
+  type PagoACuentaRegistrado,
   type ResultadoConciliacionSemanal,
 } from "./liquidacion-repo";
 
@@ -132,8 +133,12 @@ export async function conciliarLiquidacion(formData: FormData): Promise<Resultad
   }
 }
 
-/** Pago a cuenta de la administración (pre-pago, o lo que pague después de una diferencia). */
-export async function pagoACuenta(formData: FormData): Promise<ResultadoLiquidacionAccion<{ pagoId: string; duplicado: boolean }>> {
+/**
+ * Pago a cuenta de la administración (lo que pague de impagos, de una diferencia o por adelantado).
+ * Se imputa a los impagos de `vouchers` (números, opcional) o FIFO por fecha; lo que sobra queda a
+ * favor de la administración.
+ */
+export async function pagoACuenta(formData: FormData): Promise<ResultadoLiquidacionAccion<PagoACuentaRegistrado>> {
   const ctx = await preparar();
   if ("ok" in ctx) return ctx;
   const montoRaw = texto(formData.get("monto"));
@@ -149,6 +154,9 @@ export async function pagoACuenta(formData: FormData): Promise<ResultadoLiquidac
       medio,
       referencia: texto(formData.get("referencia")) || null,
       nota: texto(formData.get("nota")) || null,
+      numeros: texto(formData.get("vouchers"))
+        .split(/[\s,;]+/)
+        .filter(Boolean),
       actor: ctx.actor,
     });
     revalidar();
