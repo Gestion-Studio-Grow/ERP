@@ -125,7 +125,7 @@ export default async function FacturitaCuentaPage({ searchParams }: { searchPara
             <p className="mt-2 text-sm text-muted">
               Transferí {precioTexto(siguiente.precioMensual)} al alias de Gestión Studio Grow:{" "}
               <strong className="font-semibold text-strong">{ALIAS_TRANSFERENCIA_GSG}</strong>. Mandanos el comprobante y lo
-              activamos en el día.
+              activamos apenas lo vemos.
             </p>
             <p className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-sm">
               <a

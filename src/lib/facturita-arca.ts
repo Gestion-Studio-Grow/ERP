@@ -38,7 +38,7 @@ export function estadoConexionArca(ficha: FichaFiscalDelPase | null): EstadoCone
     return {
       etiqueta: "Falta terminar",
       detalle:
-        "Pediste facturar en real y falta un paso (tu certificado de producción o que habilitemos el pase). " +
+        "Pediste facturar en real y falta un paso (tu certificado de producción o que lo habilitemos nosotros). " +
         "Mientras tanto, las facturas quedan pendientes y salen apenas esté todo.",
       tono: "warning",
       accion: "Ver qué falta",
@@ -55,7 +55,7 @@ export function estadoConexionArca(ficha: FichaFiscalDelPase | null): EstadoCone
   if (r.modo === "homologacion") {
     return {
       etiqueta: "En pruebas",
-      detalle: "Tu certificado está cargado y probás contra ARCA. Estas facturas no tienen validez fiscal: cuando quieras, pedí el pase a real.",
+      detalle: "Tu certificado está cargado y probás contra ARCA. Estas facturas no tienen validez fiscal: cuando quieras, pedinos pasar a facturar en real.",
       tono: "warning",
       accion: "Seguir con la conexión",
     };

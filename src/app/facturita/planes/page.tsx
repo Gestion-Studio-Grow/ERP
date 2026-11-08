@@ -47,7 +47,7 @@ function Pasar({ plan, canal }: { plan: Plan; canal: CanalGsg }) {
     <div style={{ marginTop: "auto", paddingTop: 24 }}>
       <p className="fx-chico" style={{ margin: "0 0 10px" }} data-qa="alias-transferencia">
         Transferí {precioTexto(plan.precioMensual)} al alias de Gestión Studio Grow: <strong>{ALIAS_TRANSFERENCIA_GSG}</strong>. Mandanos
-        el comprobante y lo activamos en el día.
+        el comprobante y lo activamos apenas lo vemos.
       </p>
       <a href={linkCanal(canal, `Pasar a ${plan.nombre}`, texto)} target="_blank" rel="noopener noreferrer" className={BOTON_SECUNDARIO} style={{ width: "100%" }} data-qa="pasar-plan">
         Pasar a {plan.nombre.replace("Factoque ", "")}
