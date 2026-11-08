@@ -64,6 +64,9 @@ export interface DependenciasDelAlta {
 /** Un dato que no se puede completar sin pisar algo. Mensaje en criollo, sin stack. */
 export class RechazoDelAlta extends Error {}
 
+/** Alta web: el CUIT ya es de otro negocio (un CUIT, un negocio). La web no lo dice en pantalla. */
+export class CuitYaRegistrado extends RechazoDelAlta {}
+
 type Tx = Parameters<Parameters<PrismaClient["$transaction"]>[0]>[0];
 
 // La MISMA llave que `bloquearCuit` de src/lib/operator-actions.ts (no se puede importar: ese archivo
@@ -74,6 +77,7 @@ async function bloquearCuit(tx: Tx, cuit: string): Promise<void> {
 
 interface Escrito {
   tenantId: string;
+  titularId: string;
   subdominio: string;
   negocioCreado: boolean;
   completado: string[];
@@ -81,8 +85,23 @@ interface Escrito {
   obligaACambiar: boolean;
 }
 
-async function escribirEnUnaTransaccion(prisma: PrismaClient, d: DatosDelAlta, clave: string, habiaArchivo: boolean): Promise<Escrito> {
+async function escribirEnUnaTransaccion(
+  prisma: PrismaClient,
+  d: DatosDelAlta,
+  clave: string,
+  habiaArchivo: boolean,
+  web = false,
+): Promise<Escrito> {
   return prisma.$transaction(async (tx) => {
+    if (web) {
+      // ALTA WEB: sólo negocios NUEVOS. El candado del CUIT va ANTES de crear nada: dos
+      // confirmaciones con el mismo CUIT se ponen en fila y la segunda ve el negocio de la primera.
+      await bloquearCuit(tx, d.cuit);
+      const conEseCuit = await tx.tenant.findFirst({ where: { arcaCuit: d.cuit }, select: { id: true } });
+      if (conEseCuit) throw new CuitYaRegistrado("Ese CUIT ya tiene un negocio en Factoque.");
+      const mismoSlug = await tx.tenant.findFirst({ where: { OR: [{ slug: d.slug }, { subdomain: d.slug }] }, select: { id: true } });
+      if (mismoSlug) throw new RechazoDelAlta(`La dirección "${d.slug}" ya está tomada.`);
+    }
     const previo = await tx.tenant.findUnique({ where: { slug: d.slug }, select: { id: true, blueprintId: true } });
     if (previo && previo.blueprintId !== BLUEPRINT_FACTOQUE) {
       throw new RechazoDelAlta(
@@ -184,10 +203,12 @@ async function escribirEnUnaTransaccion(prisma: PrismaClient, d: DatosDelAlta, c
     }
     if (fabrica.ownerCreated) completado.push("titular");
 
-    const entrega = claveAEntregar({ titularCreado: fabrica.ownerCreated, habiaArchivo });
+    // Web: la clave generada no se entrega a nadie (no sale de la memoria); el titular elige la suya
+    // con el enlace de un solo uso. No es una «provisoria» que obligue a cambiar.
+    const entrega = web ? "ninguna" : claveAEntregar({ titularCreado: fabrica.ownerCreated, habiaArchivo });
     const obligaACambiar = entrega === "ninguna" ? false : (await operatorSetMustChange(tx, titular.id, true)).persisted;
 
-    const actor = `operator:${d.operador}`;
+    const actor = web ? `web:${d.operador}` : `operator:${d.operador}`;
     for (const a of auditar) {
       await tx.auditLog.create({ data: { tenantId, actor, action: a.action, entity: "Tenant", entityId: tenantId, changes: a.changes as object } });
     }
@@ -204,13 +225,13 @@ async function escribirEnUnaTransaccion(prisma: PrismaClient, d: DatosDelAlta, c
           completado,
           titular: d.email,
           titularCreado: fabrica.ownerCreated,
-          claveProvisoria: entrega,
+          claveProvisoria: web ? "la elige el titular" : entrega,
           obligaACambiar,
         },
       },
     });
 
-    return { tenantId, subdominio, negocioCreado: fabrica.tenantCreated, completado, entrega, obligaACambiar };
+    return { tenantId, titularId: titular.id, subdominio, negocioCreado: fabrica.tenantCreated, completado, entrega, obligaACambiar };
   });
 }
 
@@ -258,6 +279,22 @@ export async function altaNegocioFactoque(prisma: PrismaClient, d: DatosDelAlta,
     }
   }
   return { ...base, clave: estado };
+}
+
+/**
+ * ALTA WEB (/facturita/alta): la misma escritura, en una transacción, pero sólo para un negocio
+ * NUEVO (CUIT libre y slug libre, ver `escribirEnUnaTransaccion`). La contraseña sorteada nunca se
+ * guarda ni se manda: el titular elige la suya con el enlace de un solo uso (alta-web.server.ts).
+ * Tira `CuitYaRegistrado` si el CUIT ya tiene negocio y `RechazoDelAlta` si algo no se puede.
+ */
+export async function altaNegocioFactoqueWeb(
+  prisma: PrismaClient,
+  d: DatosDelAlta,
+  dominio?: string,
+): Promise<{ tenantId: string; titularId: string; subdominio: string; url: string }> {
+  const w = await escribirEnUnaTransaccion(prisma, d, generateStrongPassword(), false, true);
+  if (!w.negocioCreado) throw new RechazoDelAlta("El negocio no se creó.");
+  return { tenantId: w.tenantId, titularId: w.titularId, subdominio: w.subdominio, url: urlDelNegocio(w.subdominio, dominio) };
 }
 
 /** El CLI sin el cableado: devuelve el código de salida. `escribir` es lo único que imprime. */
