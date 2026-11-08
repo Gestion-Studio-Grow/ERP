@@ -6,9 +6,12 @@
 //    (el plan pago vuelve a Gratis) sin pedir más pasos (Res. 316/2018).
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
+import { after } from "next/server";
 import { sesionFacturita } from "@/lib/facturita-sesion.server";
-import { registrarTramite } from "@/lib/factoque-tramites.server";
-import { avisoParaGsg, esTipoTramite, leerFormularioTramite, mensajeDelTramite, NOMBRE_TRAMITE } from "@/lib/factoque-tramites";
+import { registrarTramite, registrarTramitePublico } from "@/lib/factoque-tramites.server";
+import { createRateLimiter } from "@/lib/rate-limit";
+import { avisoParaGsg, esTipoTramite, leerFormularioTramite, mensajeDelTramite, NOMBRE_TRAMITE, numeroDeTramite, type Efecto } from "@/lib/factoque-tramites";
 import { fechaFiscalDelDia } from "@/lib/bancos-glue";
 import { logger } from "@/lib/logger";
 import { canalGsg, linkCanal } from "@/app/facturita/contacto";
@@ -16,6 +19,17 @@ import { canalGsg, linkCanal } from "@/app/facturita/contacto";
 export type ResultadoTramite =
   | { ok: true; numero: string; mensaje: string; avisoHref: string; canal: "whatsapp" | "mail" }
   | { ok: false; error: string; campo?: "email" | "cuit" | "motivo" };
+
+// Contra el spam en el AuditLog del negocio (certificación de los trámites, hallazgo 2): por IP y por
+// CUIT. En memoria de cada instancia, como el del login: alcanza para frenar la ráfaga; no es contable.
+const porIp = createRateLimiter({ max: 10, windowMs: 60 * 60 * 1000 });
+const porCuit = createRateLimiter({ max: 3, windowMs: 24 * 60 * 60 * 1000 });
+const DEMASIADOS = "Ya recibimos varios pedidos desde acá. Si es urgente, escribinos directamente y lo resolvemos.";
+
+async function ipDelPedido(): Promise<string> {
+  const h = await headers();
+  return h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || "desconocida";
+}
 
 async function tramitar(formData: FormData, conSesion: boolean): Promise<ResultadoTramite> {
   const tipo = formData.get("tipo");
@@ -30,8 +44,31 @@ async function tramitar(formData: FormData, conSesion: boolean): Promise<Resulta
       return { ok: false, error: "Tu sesión venció. Entrá de nuevo a Factoque, o usá el botón de la portada, que no pide cuenta." };
     }
   }
+  if (!sesion) {
+    const ip = await ipDelPedido();
+    const claveCuit = `${tipo}:${lectura.datos.cuit}`;
+    if (porIp.blocked(ip) || porCuit.blocked(claveCuit)) return { ok: false, error: DEMASIADOS };
+    porIp.fail(ip);
+    porCuit.fail(claveCuit);
+  }
   try {
-    const r = await registrarTramite(tipo, lectura.datos, sesion, fechaFiscalDelDia(new Date()));
+    const dia = fechaFiscalDelDia(new Date());
+    let r: { numero: string; efecto: Efecto };
+    if (sesion) {
+      r = await registrarTramite(tipo, lectura.datos, sesion, dia);
+    } else {
+      // Se registra DESPUÉS de responder: misma respuesta y mismo tiempo sea o no cliente.
+      const numero = numeroDeTramite(tipo, dia);
+      const datos = lectura.datos;
+      after(async () => {
+        try {
+          await registrarTramitePublico(tipo, numero, datos);
+        } catch (e) {
+          logger.error("factoque", "no se pudo registrar el trámite público", e, { tipo, numero });
+        }
+      });
+      r = { numero, efecto: "registrado" };
+    }
     const canal = canalGsg();
     if (sesion) revalidatePath("/facturita/app", "layout");
     return {

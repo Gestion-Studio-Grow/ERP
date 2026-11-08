@@ -3,10 +3,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { avisoParaGsg, esTipoTramite, leerFormularioTramite, mensajeDelTramite, numeroDeTramite } from "@/lib/factoque-tramites";
 
-test("número de trámite: tipo, día y 4 caracteres que se dictan sin confundir", () => {
-  assert.match(numeroDeTramite("arrepentimiento", "2026-11-08"), /^ARR-20261108-[A-HJ-NP-Z2-9]{4}$/);
-  assert.match(numeroDeTramite("baja", "2026-11-08"), /^BAJ-20261108-[A-HJ-NP-Z2-9]{4}$/);
-  assert.equal(numeroDeTramite("baja", "2026-11-08", () => 0.9999), "BAJ-20261108-9999");
+test("número de trámite: tipo, día y 5 caracteres que se dictan sin confundir", () => {
+  assert.match(numeroDeTramite("arrepentimiento", "2026-11-08"), /^ARR-20261108-[A-HJ-NP-Z2-9]{5}$/);
+  assert.match(numeroDeTramite("baja", "2026-11-08"), /^BAJ-20261108-[A-HJ-NP-Z2-9]{5}$/);
+  assert.equal(numeroDeTramite("baja", "2026-11-08", (n) => n - 1), "BAJ-20261108-99999");
 });
 
 test("formulario: email y CUIT obligatorios; motivo opcional y acotado", () => {

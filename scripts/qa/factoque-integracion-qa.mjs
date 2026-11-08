@@ -32,6 +32,9 @@ const AUTH_SECRET = "qa-factoque-integracion-auth-secret-0123456789";
 const CLAVE_OPERADOR = "qa-clave-operador-factoque";
 const VP = { width: 390, height: 844 };
 const DEV = process.env.QA_MODO === "dev";
+// El navegador como el de un usuario real (hora y formato de Argentina). Con QA_TZ=UTC se ve la
+// diferencia de hidratación de /facturita/app de noche (servidor en hora AR, navegador en UTC).
+const COMO_EN_AR = { timezoneId: process.env.QA_TZ ?? "America/Argentina/Buenos_Aires", locale: "es-AR" };
 const LLAVE_QA = randomBytes(32).toString("base64");
 const pasos = [];
 const log = (m) => process.stdout.write(`[qa-factoque] ${m}\n`);
@@ -149,7 +152,7 @@ const queHiciste = (page) => page.getByTestId("emitir-concepto");
 const botonEmitir = (page) => page.getByTestId("emitir-boton");
 
 async function entrar(browser, origin, email) {
-  const ctx = await browser.newContext({ viewport: VP });
+  const ctx = await browser.newContext({ viewport: VP, ...COMO_EN_AR });
   const page = await ctx.newPage();
   await page.goto(`${origin}/admin/login`);
   await page.fill('input[name="email"]', email);
@@ -192,7 +195,7 @@ async function main() {
     // ── 1) Facturación APAGADA ────────────────────────────────────────────────
     app = await levantar(base, false);
     {
-      const ctx = await browser.newContext({ viewport: VP });
+      const ctx = await browser.newContext({ viewport: VP, ...COMO_EN_AR });
       const { page, errores } = await nuevaPagina(ctx);
       for (const [ruta, titulo] of [
         ["/facturita/terminos", /términos/i],
@@ -295,7 +298,7 @@ async function main() {
         return `nota de crédito creada (1) · facturas que cuentan: ${await delMes()} · pantalla «${m[0]}»`;
       });
       await paso("g portada → Botón de arrepentimiento (sin cuenta)", page, errores, async () => {
-        const pub = await browser.newContext({ viewport: VP });
+        const pub = await browser.newContext({ viewport: VP, ...COMO_EN_AR });
         const p = await pub.newPage();
         await p.goto(`${apex}/facturita`);
         await p.getByRole("navigation", { name: "Legales" }).getByRole("link", { name: "Botón de arrepentimiento" }).click();
@@ -306,7 +309,12 @@ async function main() {
         const hecho = p.getByTestId("tramite-hecho");
         await hecho.waitFor({ timeout: 30_000 });
         const numero = await textoVisible(p.getByTestId("tramite-numero"));
-        const fila = await duenio.auditLog.findFirst({ where: { tenantId: T, action: "factoque.arrepentimiento" }, select: { channel: true } });
+        // El registro público corre con after() (después de responder): se espera hasta 10 s.
+        let fila = null;
+        for (let i = 0; i < 20 && !fila; i++) {
+          fila = await duenio.auditLog.findFirst({ where: { tenantId: T, action: "factoque.arrepentimiento" }, select: { channel: true } });
+          if (!fila) await new Promise((r) => setTimeout(r, 500));
+        }
         await pub.close();
         if (!fila) throw new Error(`sin fila en AuditLog · «${numero}»`);
         return `«${numero}» · AuditLog del negocio (canal ${fila.channel}) · el plan no se toca sin sesión`;
@@ -321,7 +329,7 @@ async function main() {
       });
 
       // f) Operador: cambiar plan a Plus.
-      const ctxOp = await browser.newContext({ viewport: { width: 1366, height: 900 } });
+      const ctxOp = await browser.newContext({ viewport: { width: 1366, height: 900 }, ...COMO_EN_AR });
       const op = await nuevaPagina(ctxOp);
       await paso("f1 operador: Cambiar plan → Plus", op.page, op.errores, async () => {
         const p = op.page;

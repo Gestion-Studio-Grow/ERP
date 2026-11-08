@@ -11,6 +11,7 @@
 //    existente (WhatsApp de GSG o su casilla, src/app/facturita/contacto.ts).
 // ============================================================================
 
+import { randomInt } from "node:crypto";
 import { cuitValido, normalizarCuit } from "@/lib/cuit";
 
 export type TipoTramite = "arrepentimiento" | "baja";
@@ -29,10 +30,13 @@ export const NOMBRE_TRAMITE: Record<TipoTramite, string> = {
 const PREFIJO: Record<TipoTramite, string> = { arrepentimiento: "ARR", baja: "BAJ" };
 const LETRAS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // sin 0/O ni 1/I: se dicta por teléfono
 
-/** «ARR-20261108-7KQ2»: tipo, día (AR) y 4 caracteres al azar. */
-export function numeroDeTramite(tipo: TipoTramite, diaAr: string, azar: () => number = Math.random): string {
+/**
+ * «ARR-20261108-7KQ2M»: tipo, día (AR) y 5 caracteres al azar criptográfico (32^5 ≈ 33 millones por
+ * día y tipo: una repetición es despreciable; el número identifica el pedido, no autoriza nada).
+ */
+export function numeroDeTramite(tipo: TipoTramite, diaAr: string, azar: (n: number) => number = randomInt): string {
   let cola = "";
-  for (let i = 0; i < 4; i++) cola += LETRAS[Math.floor(azar() * LETRAS.length) % LETRAS.length];
+  for (let i = 0; i < 5; i++) cola += LETRAS[azar(LETRAS.length) % LETRAS.length];
   return `${PREFIJO[tipo]}-${diaAr.replace(/-/g, "")}-${cola}`;
 }
 

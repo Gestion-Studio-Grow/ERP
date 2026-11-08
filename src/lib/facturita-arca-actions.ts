@@ -9,6 +9,7 @@
 //
 // Figura en OTRO_PLANO de src/lib/operador/guardia-negocio.test.ts con esta guardia.
 
+import { getActiveModuleIds, moduleGateAllows } from "@/lib/module-gating";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireCapability } from "@/lib/authz";
@@ -37,6 +38,8 @@ async function exigirArcaFactoque(): Promise<{ tenantId: string; actor: string }
     { tenantId },
   );
   if (tenant?.blueprintId !== "facturita") redirect("/admin");
+  // Igual que la guardia de /admin: con el gating por módulos encendido, sin `arca` no hay asistente.
+  if (!moduleGateAllows("arca", await getActiveModuleIds())) redirect(VISTA);
   return { tenantId, actor: `user:${user.id}` };
 }
 

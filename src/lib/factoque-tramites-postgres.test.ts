@@ -17,7 +17,7 @@ test("trámites de Factoque: baja con sesión vuelve a Gratis; arrepentimiento p
   if (!base) return;
   apuntarLaAppA(base);
   prepararAccionesDeServidor();
-  const { registrarTramite } = await import("@/lib/factoque-tramites.server");
+  const { registrarTramite, registrarTramitePublico } = await import("@/lib/factoque-tramites.server");
   const { leerPlanFactoque } = await import("@/lib/facturacion/plan-factoque.server");
   const duenio = await prismaComoDuenio(base);
   const B = base.b.id;
@@ -27,10 +27,8 @@ test("trámites de Factoque: baja con sesión vuelve a Gratis; arrepentimiento p
   const filas = (action: string) => duenio.auditLog.findMany({ where: { tenantId: B, action }, orderBy: { createdAt: "asc" } });
 
   // Público (sin sesión) con el CUIT de B: registra en B y NO toca el plan.
-  const pub = await registrarTramite("arrepentimiento", datos, null, hoy);
-  assert.equal(pub.efecto, "registrado");
-  assert.equal(pub.tenantId, B);
-  assert.match(pub.numero, /^ARR-20261108-/);
+  const pub = { numero: "ARR-20261108-TEST1" };
+  assert.equal(await registrarTramitePublico("arrepentimiento", pub.numero, datos), B);
   assert.equal((await duenio.tenant.findUniqueOrThrow({ where: { id: B } })).plan, "factoque-plus", "sin sesión no se cambia el plan de nadie");
   const arr = await filas("factoque.arrepentimiento");
   assert.equal(arr.length, 1);
@@ -55,9 +53,7 @@ test("trámites de Factoque: baja con sesión vuelve a Gratis; arrepentimiento p
 
   // CUIT de nadie: número igual, ninguna fila.
   const antes = await duenio.auditLog.count();
-  const nadie = await registrarTramite("baja", { ...datos, cuit: "20222222223" }, null, hoy);
-  assert.equal(nadie.tenantId, null);
-  assert.match(nadie.numero, /^BAJ-/);
+  assert.equal(await registrarTramitePublico("baja", "BAJ-20261108-TEST2", { ...datos, cuit: "20222222223" }), null);
   assert.equal(await duenio.auditLog.count(), antes);
 
   // Aislamiento: nada de esto quedó en A.
