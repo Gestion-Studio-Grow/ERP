@@ -987,6 +987,8 @@ async function cambiarPago(id: string, evento: Exclude<EventoPago, "subir">, not
     const aviso =
       nuevo === "ACREDITADO" ? SIN_AVISO :
       evento === "validar" ? await avisarAlAlumno({ tenantId, config, clave: "pagoOk", tipo: "pago-ok", clase, alumno }) :
+      // En una clase caída no puede mandar otro: el «¿me mandás otro?» no corresponde.
+      evento === "noValido" && (clase.estado === "CANCELADA" || clase.estado === "RECHAZADA") ? SIN_AVISO :
       evento === "noValido" ? await avisarAlAlumno({ tenantId, config, clave: "pagoNo", tipo: "pago-no", clase, alumno, extra: nota }) :
       SIN_AVISO;
     refrescar(alumno.token);

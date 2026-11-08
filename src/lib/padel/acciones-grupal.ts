@@ -207,6 +207,9 @@ export async function revisarComprobanteIntegrante(integranteId: string, evento:
       ? `¡Hola ${primero}! Recibí tu pago de ${pesos(Number(r.monto))}. Como la clase se canceló, te queda a favor (o te lo devuelvo).`
       : evento === "validar"
       ? `¡Hola ${primero}! Recibí tu pago de ${pesos(Number(r.monto))}. ¡Gracias!`
+      : (CLASE_CAIDA as readonly string[]).includes(r.clase.estado)
+      // Clase caída: no puede mandar otro (y no debe nada): no se le pide uno nuevo.
+      ? `¡Hola ${primero}! No pude validar el comprobante (${nota}). Como la clase se canceló, no tenés nada pendiente; si me transferiste, escribime y lo vemos.`
       : `¡Hola ${primero}! No pude validar el comprobante (${nota}). ¿Me mandás otro?`;
     refrescar(r.clase.alumno.token, r.alumno?.token);
     return { ok: true as const, wa: linkWhatsApp(r.telefono, texto) };
