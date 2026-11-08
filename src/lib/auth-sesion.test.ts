@@ -11,8 +11,6 @@ import { NextRequest } from "next/server";
 import {
   authSecret,
   createSessionToken,
-  FIN_DE_LA_TRANSICION,
-  finDeLaTransicion,
   getSessionCookieName,
   readSessionToken,
   VIGENCIA_SESION_MS,
@@ -68,59 +66,13 @@ test("ATAQUE: la firma del formato viejo no sirve para el nuevo (prefijo de domi
   const payload = `v2|${UID}|${ahora}|${ahora + VIGENCIA_SESION_MS}`;
   const forjado = `${payload}.${createHmac("sha256", authSecret()).update(payload).digest("hex")}`;
   assert.equal(await readSessionToken(forjado), null);
-  assert.equal(await readSessionToken(forjado, { legadoHasta: ahora + HORA }), null);
 });
 
-/** Corre `fn` con el reloj del proceso fijo en `ms` (el proxy lee `Date.now()`). */
-async function conReloj<T>(ms: number, fn: () => Promise<T>): Promise<T> {
-  const real = Date.now;
-  Date.now = () => ms;
-  try {
-    return await fn();
-  } finally {
-    Date.now = real;
-  }
-}
-
-test("TRANSICIÓN: el token viejo vale sólo antes de la fecha fija, y nunca desde ella", async () => {
+test("SIN TRANSICIÓN (orden del dueño, 08/11): el token viejo de cualquiera no abre nada, hoy y siempre", async () => {
   const viejo = tokenViejo(UID);
-  const antes = FIN_DE_LA_TRANSICION - HORA;
-  // Durante la transición (quien estaba trabajando al publicar sigue).
-  assert.equal(await readSessionToken(viejo, { ahora: antes }), UID);
-  // Desde la fecha fija, el mismo token (vigente o copiado) ya no abre nada.
-  assert.equal(await readSessionToken(viejo, { ahora: FIN_DE_LA_TRANSICION }), null);
-  assert.equal(await readSessionToken(viejo, { ahora: FIN_DE_LA_TRANSICION + 30 * 24 * HORA }), null);
-  // `legadoHasta` sólo la acorta.
-  assert.equal(await readSessionToken(viejo, { ahora: antes, legadoHasta: antes }), null);
-});
-
-test("ATAQUE: ningún deploy ni opción reabre la ventana del token viejo pasada la fecha fija", async () => {
-  const viejo = tokenViejo(UID);
-  const despues = FIN_DE_LA_TRANSICION + HORA;
-  // Antes, `GSG_COMPILADO_EN` (la hora del build) movía el fin: un deploy reabría 9 h. Ya no se lee.
-  const previo = process.env.GSG_COMPILADO_EN;
-  process.env.GSG_COMPILADO_EN = String(despues);
-  try {
-    assert.equal(finDeLaTransicion(), FIN_DE_LA_TRANSICION);
-    assert.equal(await readSessionToken(viejo, { ahora: despues }), null);
-  } finally {
-    if (previo === undefined) delete process.env.GSG_COMPILADO_EN;
-    else process.env.GSG_COMPILADO_EN = previo;
-  }
-  // Ni un `legadoHasta` más largo la estira.
-  assert.equal(await readSessionToken(viejo, { ahora: despues, legadoHasta: Infinity }), null);
-});
-
-test("TRANSICIÓN: la fecha fija es el 09/11/2026 12:00 de Argentina (provisional)", () => {
-  assert.equal(FIN_DE_LA_TRANSICION, Date.UTC(2026, 10, 9, 15, 0, 0));
-  assert.equal(finDeLaTransicion(), FIN_DE_LA_TRANSICION);
-});
-
-test("ATAQUE: en la transición, un payload viejo que no es un id (con | o vacío) no vale", async () => {
-  const ahora = FIN_DE_LA_TRANSICION - HORA; // dentro de la ventana: lo rechaza la forma, no la fecha
-  for (const raro of ["op|d|duenio|1700000000000", "a b", "x/../y"]) {
-    assert.equal(await readSessionToken(tokenViejo(raro), { ahora, legadoHasta: ahora + HORA }), null, raro);
-  }
+  assert.equal(await readSessionToken(viejo), null);
+  assert.equal(await readSessionToken(viejo, { ahora: Date.UTC(2026, 10, 8, 12) }), null);
+  assert.equal(await readSessionToken(viejo, { ahora: 0 }), null);
 });
 
 test("no se firma un id con separadores", async () => {
@@ -149,23 +101,27 @@ test("PROXY: sin cookie, al login sin aviso de vencimiento; con token vigente, p
   assert.equal(ok.status, 200);
 });
 
-test("PROXY: el token viejo (sin vencimiento) pasa antes de la fecha fija y no desde ella", async () => {
-  const pedir = () => {
-    const req = new NextRequest("https://app.test/admin");
-    req.cookies.set(getSessionCookieName(), tokenViejo(UID));
-    return proxy(req);
-  };
-  assert.equal((await conReloj(FIN_DE_LA_TRANSICION - HORA, pedir)).status, 200);
-  const res = await conReloj(FIN_DE_LA_TRANSICION, pedir);
+test("PROXY: el token viejo con firma válida no pasa: va a canjearse (GET) o al login (POST)", async () => {
+  const get = new NextRequest("https://app.test/admin/caja");
+  get.cookies.set(getSessionCookieName(), tokenViejo(UID));
+  const res = await proxy(get);
   assert.equal(res.status, 307);
-  assert.equal(new URL(res.headers.get("location")!).searchParams.get("error"), "vencida");
+  const destino = new URL(res.headers.get("location")!);
+  assert.equal(destino.pathname, "/admin/login/renovar");
+  assert.equal(destino.searchParams.get("next"), "/admin/caja");
+  const post = new NextRequest("https://app.test/admin/caja", { method: "POST" });
+  post.cookies.set(getSessionCookieName(), tokenViejo(UID));
+  const r2 = await proxy(post);
+  assert.equal(new URL(r2.headers.get("location")!).pathname, "/admin/login");
+  // Firma mala: directo al login, sin pasar por el canje.
+  const mala = new NextRequest("https://app.test/admin");
+  mala.cookies.set(getSessionCookieName(), `${UID}.${"0".repeat(64)}`);
+  const r3 = await proxy(mala);
+  assert.equal(new URL(r3.headers.get("location")!).pathname, "/admin/login");
+  assert.equal(new URL(r3.headers.get("location")!).searchParams.get("error"), "vencida");
 });
 
-test("ATAQUE: con `ahora` o `legadoHasta` NaN la sesión falla cerrada (v1 y v2)", async () => {
-  const viejo = tokenViejo(UID);
-  const antes = FIN_DE_LA_TRANSICION - HORA;
-  assert.equal(await readSessionToken(viejo, { ahora: NaN }), null);
-  assert.equal(await readSessionToken(viejo, { ahora: antes, legadoHasta: NaN }), null);
-  assert.equal(await readSessionToken(viejo, { ahora: NaN, legadoHasta: NaN }), null);
+test("ATAQUE: con `ahora` NaN la sesión falla cerrada (v1 y v2)", async () => {
+  assert.equal(await readSessionToken(tokenViejo(UID), { ahora: NaN }), null);
   assert.equal(await readSessionToken(await createSessionToken(UID), { ahora: NaN }), null);
 });

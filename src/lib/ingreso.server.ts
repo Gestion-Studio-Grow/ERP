@@ -16,8 +16,13 @@ export async function abrirSesion(userId: string): Promise<void> {
     data: { lastLoginAt: new Date() },
   });
 
+  await ponerCookieDeSesion(await createSessionToken(userId));
+}
+
+/** Escribe la cookie de sesión con un token ya emitido (lo usa también el canje del token viejo, sin tocar lastLoginAt). */
+export async function ponerCookieDeSesion(token: string): Promise<void> {
   const cookieStore = await cookies();
-  cookieStore.set(getSessionCookieName(), await createSessionToken(userId), {
+  cookieStore.set(getSessionCookieName(), token, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
