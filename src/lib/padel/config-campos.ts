@@ -34,6 +34,20 @@ export const CAMPOS_CONFIG = [
 ] as const;
 export type CampoConfig = (typeof CAMPOS_CONFIG)[number];
 
+/**
+ * Dónde entra la plata (UAT 11/2026, Recepción): el alias/CBU, el titular, el celular del profe (a
+ * dónde le mandan los comprobantes) y los textos de WhatsApp (pueden llevar otro alias escrito) los
+ * cambia SÓLO el dueño. Recepción gestiona precio y horarios con `agenda:manage`, pero con eso podía
+ * desviar los cobros. Regla pura; la aplica `guardarCampoConfig`.
+ */
+export const CAMPOS_DE_COBRO: readonly CampoConfig[] = ["aliasCbu", "titularCuenta", "whatsappProfe"];
+
+export const SOLO_EL_DUENIO_COBRO = "Sólo el dueño del negocio cambia la cuenta, el celular y los textos que reciben los alumnos.";
+
+/** ¿Este rol puede cambiar este ajuste? Todo lo de `agenda:manage`, salvo lo de cobro y los textos: sólo OWNER. */
+export const puedeCambiarAjuste = (rol: string, clave: unknown): boolean =>
+  rol === "OWNER" || !((CAMPOS_DE_COBRO as readonly unknown[]).includes(clave) || (typeof clave === "string" && clave.startsWith("plantilla.")));
+
 export type ClaveConfig = CampoConfig | `plantilla.${ClavePlantilla}` | "horarios" | "bienvenidaVista";
 
 /**
@@ -49,7 +63,7 @@ export const bienvenidaVista = (guardadas: unknown): boolean =>
   Boolean(guardadas && typeof guardadas === "object" && !Array.isArray(guardadas) && (guardadas as Record<string, unknown>)[MARCA_BIENVENIDA] === "1");
 
 /** Un tramo semanal: 0 = domingo … 6 = sábado, «08:00»–«12:00». */
-export type TramoSemanal = { diaSemana: number; desde: string; hasta: string };
+export type TramoSemanal = { diaSemana: number; desde: string; hasta: string; clubId?: string | null };
 
 export type CampoValidado =
   | { tipo: "campo"; campo: CampoConfig; valor: number | string | null }
@@ -122,7 +136,10 @@ export function validarTramos(raw: unknown): { ok: true; tramos: TramoSemanal[] 
     if (delDia.length >= TRAMOS_POR_DIA) return { ok: false, error: `Como mucho ${TRAMOS_POR_DIA} horarios por día.` };
     const e = errorDeTramo({ desde, hasta }, delDia);
     if (e) return { ok: false, error: `${DIA_NOMBRE[diaSemana]} ${desde}–${hasta}: ${e.toLowerCase()}.` };
-    tramos.push({ diaSemana, desde, hasta });
+    // E4 · El club del tramo (opcional). Acá sólo la forma; que sea de este negocio lo mira la acción.
+    const club = o.clubId == null || o.clubId === "" ? null : String(o.clubId);
+    if (club !== null && !/^[A-Za-z0-9_-]{1,40}$/.test(club)) return { ok: false, error: "No entendimos los horarios. Actualizá la pantalla." };
+    tramos.push({ diaSemana, desde, hasta, ...(club ? { clubId: club } : {}) });
   }
   return { ok: true, tramos: tramos.sort((a, b) => a.diaSemana - b.diaSemana || a.desde.localeCompare(b.desde)) };
 }

@@ -77,3 +77,9 @@
 # 2026-11-07 · PR #36 consola de soporte T1. Aditiva: tabla "SupportTicket" con RLS adentro. No toca
 # tablas existentes.
 # (aplicada por el build de producción del merge de #36 el 2026-11-07: sale de la lista) 20261106120000_support_ticket
+#
+# 2026-11-08 · ProfeTurnos (padel-clases): clubes (E4), clase fija semanal (E8) y grupal con
+# integrantes y cobro por persona (E7). Aditiva: tablas "PadelClub", "PadelSerie", "PadelIntegrante"
+# con RLS adentro y tres columnas nulables ("PadelDisponibilidad"."clubId", "PadelClase"."clubId",
+# "PadelClase"."serieId"). Orden del dueño del 08/11; respaldo de Neon antes del merge.
+20261108120000_profeturnos_clubes_serie_grupal

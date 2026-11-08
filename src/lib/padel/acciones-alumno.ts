@@ -27,6 +27,7 @@ import { createRateLimiter } from "@/lib/rate-limit";
 import { dateStrInBusinessTz } from "@/lib/datetime";
 import {
   armarMensaje,
+  clubDeHora,
   comprobanteValido,
   diaHumano,
   esTipoClase,
@@ -34,6 +35,7 @@ import {
   linkWhatsApp,
   nombreValido,
   pagoAlCancelar,
+  parteDeIntegrante,
   pesos,
   precioDe,
   puedeCancelarAlumno,
@@ -47,6 +49,7 @@ import {
 } from "./core";
 import { configPadel, datosDelNegocio, libresCercanos, libresDelDia } from "./datos.server";
 import { notificadorActual } from "./notificador";
+import { bloquearClaseDeIntegranteEnTx, cerrarIntegrantesEnTx } from "./grupal.server";
 import { conPisoDeTiempo, decidirPedidoDeLink, politicaDeToken } from "./sesion-alumno";
 import { escribirTokenCookie, leerTokenCookie } from "./sesion-alumno.server";
 import {
@@ -132,10 +135,12 @@ export async function pedirClase(
   if (Number.isNaN(empiezaEn.getTime())) return { ok: false, error: "Elegí un horario." };
 
   const fecha = dateStrInBusinessTz(empiezaEn);
-  const { config, libres } = await libresDelDia(tenantId, fecha);
+  const { config, libres, franjas } = await libresDelDia(tenantId, fecha);
   if (!libres.includes(empiezaEn.toISOString())) {
     return { ok: false, error: "Ese horario se acaba de ocupar. Elegí otro.", alternativas: await libresCercanos(tenantId, empiezaEn, { n: 2 }) };
   }
+  // E4 · Si la franja es de un club, la clase lo hereda.
+  const clubId = clubDeHora(fecha, franjas, empiezaEn);
   // El freno de 3 por celular cuenta DESPUÉS de ver que la hora está libre (O-10 de la CERT T2+T3):
   // un alumno al que «se le ocupó» tres veces seguidas no queda frenado 10 minutos. El de IP, arriba,
   // sigue contando todo.
@@ -152,7 +157,7 @@ export async function pedirClase(
         throw new ErrorNegocio(`Ya tenés ${pendientes} clase${pendientes > 1 ? "s" : ""} esperando que el profe confirme. Cuando te conteste, pedí la próxima.`);
       }
       const clase = await tx.padelClase.create({
-        data: { tenantId, alumnoId: alumno.id, clientId: alumno.clientId, empiezaEn, terminaEn, tipo, personas, origen: "TURNERO", precio: precioDe(config, tipo, personas) },
+        data: { tenantId, alumnoId: alumno.id, clientId: alumno.clientId, empiezaEn, terminaEn, tipo, personas, origen: "TURNERO", precio: precioDe(config, tipo, personas), clubId },
         select: { id: true },
       });
       // ¿Este dispositivo es el dueño del link? Si no lo es y el profe todavía no reconoció al alumno,
@@ -347,7 +352,8 @@ export async function reservarDesdeLink(
   }
 
   const fecha = dateStrInBusinessTz(empiezaEn);
-  const { config, libres } = await libresDelDia(tenantId, fecha);
+  const { config, libres, franjas } = await libresDelDia(tenantId, fecha);
+  const clubId = clubDeHora(fecha, franjas, empiezaEn);
   if (!libres.includes(empiezaEn.toISOString())) {
     // Las tres franjas libres más cercanas a la que quería, ese día o el siguiente.
     return { ok: false, error: "Ese horario ya no está libre.", alternativas: await libresCercanos(tenantId, empiezaEn) };
@@ -369,7 +375,7 @@ export async function reservarDesdeLink(
         data: {
           tenantId, alumnoId: alumno.id, clientId: alumno.clientId, empiezaEn, terminaEn, tipo, personas: base.personas,
           estado: confirmada ? "CONFIRMADA" : "PEDIDA", confirmadaEl: confirmada ? new Date() : null,
-          origen: "ALUMNO_LINK", repiteDe: repiteDe ?? null, precio, ...(conSaldo ?? {}),
+          origen: "ALUMNO_LINK", repiteDe: repiteDe ?? null, precio, clubId, ...(conSaldo ?? {}),
         },
         select: { id: true, pagoMedio: true },
       });
@@ -439,6 +445,45 @@ export async function subirComprobanteVarias(token: string | null, claseIds: str
   });
 }
 
+/**
+ * E7 · Un integrante de una grupal (vinculado a su alumno) manda el comprobante de SU parte desde su
+ * link. Sólo de una parte suya y pagable (misma regla que una clase: puedeSubirComprobante); queda
+ * «por revisar» y el profe lo valida en la clase.
+ */
+export async function subirComprobanteIntegrante(token: string | null, integranteId: string, dataUrl: string): Promise<Resultado<{ monto: number }>> {
+  if (!comprobanteValido(dataUrl)) return { ok: false, error: "La imagen es muy pesada o no es una foto. Probá con una captura de pantalla." };
+  if (typeof integranteId !== "string" || !/^[A-Za-z0-9_-]{1,40}$/.test(integranteId)) return { ok: false, error: "No encontramos esa clase." };
+  const tenantIdFreno = await getCurrentTenantId();
+  if (await frenadoPorIp("comprobante", tenantIdFreno)) return { ok: false, error: FRENADO };
+  const d = await alumnoDelLink(token);
+  if (!d) return { ok: false, error: LINK_INVALIDO };
+  const { tenantId, alumno } = d;
+  return conErrorNegocio(async () => {
+    const i = await tenantTransaction(async (tx) => {
+      // Clase bloqueada y viva antes de leer la parte (misma carrera que «Cobré» contra cancelar).
+      const claseId = await bloquearClaseDeIntegranteEnTx(tx, tenantId, integranteId);
+      const i = await tx.padelIntegrante.findFirst({
+        where: { tenantId, id: integranteId, alumnoId: alumno.id, claseId },
+        select: { id: true, pagoEstado: true, pagoMedio: true, monto: true, clase: { select: { id: true, estado: true, motivoCancel: true, empiezaEn: true, client: { select: { name: true } } } } },
+      });
+      if (!i) throw new ErrorNegocio("No encontramos esa clase.");
+      if (!puedeSubirComprobante(parteDeIntegrante(i.clase, { ...i, monto: Number(i.monto) }))) {
+        throw new ErrorNegocio(i.pagoEstado === "PAGADO" ? "Tu parte ya está pagada." : "Tu parte todavía no se puede pagar.");
+      }
+      const n = await tx.padelIntegrante.updateMany({
+        where: { tenantId, id: i.id, alumnoId: alumno.id, pagoEstado: { in: ["PENDIENTE", "EN_REVISION"] } },
+        data: { pagoEstado: "EN_REVISION", pagoMedio: "TRANSFERENCIA", comprobante: dataUrl, comprobanteEnviadoEl: new Date(), pagoNota: null },
+      });
+      if (n.count === 0) throw new ErrorNegocio("Tu parte cambió recién. Actualizá la pantalla.");
+      return i;
+    }, { tenantId });
+    await avisarAlProfe(tenantId, "comprobante", `${alumno.client.name} mandó el comprobante de su parte (${pesos(Number(i.monto))}) de la clase de ${i.clase.client.name} del ${diaHumano(i.clase.empiezaEn)}.`, i.clase.id, alumno.id);
+    await auditPublic({ action: "padel.integrante.comprobante", entity: "PadelIntegrante", entityId: i.id, clientPhone: alumno.client.phone });
+    refrescar(alumno.token);
+    return { ok: true as const, monto: Number(i.monto) };
+  });
+}
+
 /** El alumno cancela desde su link (sólo con la anticipación que fijó el profe). */
 export async function cancelarDesdeLink(token: string | null, claseId: string): Promise<Resultado> {
   // El mismo freno por IP que el resto de las acciones del link (O-11 de la CERT T2+T3).
@@ -455,12 +500,22 @@ export async function cancelarDesdeLink(token: string | null, claseId: string): 
   if (!puedeCancelarAlumno(clase.estado, clase.empiezaEn, new Date(), config.anticipacionMin)) {
     return { ok: false, error: "Ya no se puede cancelar desde acá. Escribile al profe." };
   }
-  // Si estaba pagada, la plata queda a favor (no se pierde).
-  const n = await prisma.padelClase.updateMany({
-    where: { tenantId, id: clase.id, estado: clase.estado, pagoEstado: clase.pagoEstado },
-    data: { estado: "CANCELADA", canceladaEl: new Date(), motivoCancel: "La canceló el alumno", ...(pagoAlCancelar(clase) ?? {}) },
-  });
-  if (n.count === 0) return { ok: false, error: "Esa clase ya cambió. Actualizá la pantalla." };
+  // Si estaba pagada, la plata queda a favor (no se pierde). E7: lo pagado por cada integrante de la
+  // grupal, también (a favor de cada uno), en la MISMA transacción.
+  try {
+    await tenantTransaction(async (tx) => {
+      const n = await tx.padelClase.updateMany({
+        where: { tenantId, id: clase.id, estado: clase.estado, pagoEstado: clase.pagoEstado },
+        data: { estado: "CANCELADA", canceladaEl: new Date(), motivoCancel: "La canceló el alumno", ...(pagoAlCancelar(clase) ?? {}) },
+      });
+      if (n.count === 0) throw new ErrorNegocio("Esa clase ya cambió. Actualizá la pantalla.");
+      await cerrarIntegrantesEnTx(tx, tenantId, [clase.id], { tipo: "cancelar" });
+    }, { tenantId });
+  } catch (e) {
+    const r = respuestaDeError(e);
+    if (r) return r;
+    throw e;
+  }
   await avisarAlProfe(tenantId, "cancelacion", `${alumno.client.name} canceló la clase del ${diaHumano(clase.empiezaEn)} a las ${horaHumana(clase.empiezaEn)}. Ese horario quedó libre.`, clase.id, alumno.id);
   await auditPublic({ action: "padel.cancelarAlumno", entity: "PadelClase", entityId: clase.id, clientPhone: alumno.client.phone });
   refrescar(alumno.token);
@@ -506,7 +561,9 @@ export async function cambiarHorarioDesdeLink(
   if (nueva.getTime() === clase.empiezaEn.getTime()) return { ok: false, error: "Tu clase ya es a esa hora." };
   const duracionMs = clase.terminaEn.getTime() - clase.empiezaEn.getTime();
   const duracionMin = Math.round(duracionMs / 60_000);
-  const { libres } = await libresDelDia(tenantId, dateStrInBusinessTz(nueva), ahora, clase.id, { duracionMin });
+  const { libres, franjas } = await libresDelDia(tenantId, dateStrInBusinessTz(nueva), ahora, clase.id, { duracionMin });
+  // E4 · Si la hora nueva es de una franja con club, va a ese club; si no, queda el que tenía.
+  const clubNuevo = clubDeHora(dateStrInBusinessTz(nueva), franjas, nueva);
   if (!libres.includes(nueva.toISOString())) {
     return { ok: false, error: "Ese horario ya no está libre.", alternativas: await libresCercanos(tenantId, nueva, { excluir: clase.id, duracionMin }) };
   }
@@ -521,7 +578,7 @@ export async function cambiarHorarioDesdeLink(
         if (await choqueEn(tx, tenantId, nueva, terminaEn, clase.id)) throw new ErrorNegocio("Ese horario se acaba de ocupar. Elegí otro.");
         const n = await tx.padelClase.updateMany({
           where: { tenantId, id: clase.id, alumnoId: alumno.id, estado: clase.estado, empiezaEn: clase.empiezaEn },
-          data: { empiezaEn: nueva, terminaEn },
+          data: { empiezaEn: nueva, terminaEn, ...(clubNuevo ? { clubId: clubNuevo } : {}) },
         });
         if (n.count === 0) throw new ErrorNegocio("Esa clase ya cambió. Actualizá la pantalla.");
       });
@@ -539,7 +596,7 @@ export async function cambiarHorarioDesdeLink(
       return tx.padelClase.create({
         data: {
           tenantId, alumnoId: alumno.id, clientId: clase.clientId, empiezaEn: nueva, terminaEn, tipo: clase.tipo, personas: clase.personas,
-          estado: "PEDIDA", origen: "ALUMNO_LINK", repiteDe: clase.id, precio: clase.precio,
+          estado: "PEDIDA", origen: "ALUMNO_LINK", repiteDe: clase.id, precio: clase.precio, ...(clubNuevo ? { clubId: clubNuevo } : {}),
         },
         select: { id: true },
       });

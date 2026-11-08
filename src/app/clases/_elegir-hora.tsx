@@ -40,7 +40,10 @@ export function ElegirHora({
   /** Para los id de los títulos (dos selectores en la misma pantalla no chocan). */
   prefijo: string;
 }) {
-  const horas = dias.find((d) => d.fecha === fecha)?.horas ?? [];
+  const delDia = dias.find((d) => d.fecha === fecha);
+  const horas = delDia?.horas ?? [];
+  // E4 · Si la franja es de un club, la hora lo dice (y la clase lo hereda). Sin clubes, como siempre.
+  const clubDe = delDia?.clubes ?? {};
   return (
     <div className="grid grid-cols-1 gap-6">
       <div>
@@ -102,12 +105,24 @@ export function ElegirHora({
           )}
         </h3>
         <div role="group" aria-labelledby={`${prefijo}-hora`} className="grid grid-cols-[repeat(auto-fill,minmax(5.5rem,1fr))] gap-2">
-          {horas.map((h) => (
-            <button key={h} type="button" aria-pressed={h === hora} data-qa="hora" data-hora={h} onClick={() => onHora(h)} className={chip(h === hora)}>
-              {h === hora && <Pelota className="pz-aparece size-3.5 shrink-0" costura="var(--padel-cancha)" />}
-              {horaCorta(h)}
-            </button>
-          ))}
+          {horas.map((h) =>
+            clubDe[h] ? (
+              <button key={h} type="button" aria-pressed={h === hora} data-qa="hora" data-hora={h} onClick={() => onHora(h)} className={cn(chip(h === hora), "flex-col gap-0 py-1.5")}>
+                <span className="inline-flex items-center gap-1.5">
+                  {h === hora && <Pelota className="pz-aparece size-3.5 shrink-0" costura="var(--padel-cancha)" />}
+                  {horaCorta(h)}
+                </span>
+                <span className="max-w-full truncate text-[0.75rem] font-medium leading-tight" data-qa="hora-club">
+                  {clubDe[h]}
+                </span>
+              </button>
+            ) : (
+              <button key={h} type="button" aria-pressed={h === hora} data-qa="hora" data-hora={h} onClick={() => onHora(h)} className={chip(h === hora)}>
+                {h === hora && <Pelota className="pz-aparece size-3.5 shrink-0" costura="var(--padel-cancha)" />}
+                {horaCorta(h)}
+              </button>
+            ),
+          )}
         </div>
       </div>
     </div>

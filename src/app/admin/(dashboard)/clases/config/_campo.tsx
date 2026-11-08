@@ -122,6 +122,20 @@ export function CampoAuto({
   );
 }
 
+/**
+ * La cuenta de cobro vista por quien no es el dueño (UAT 11/2026): se lee, no se edita. El servidor
+ * igual la rechaza (`puedeCambiarAjuste`); esto es para no ofrecer un campo que no se guarda.
+ */
+export function DatoSoloDelDuenio({ etiqueta, valor, qa }: { etiqueta: string; valor: string; qa?: string }) {
+  return (
+    <div data-qa={qa}>
+      <p className={rotulo}>{etiqueta}</p>
+      <p className="min-h-12 content-center break-words text-base text-strong">{valor || <span className="text-muted">Sin cargar</span>}</p>
+      <p className="mt-1 text-sm text-muted">Sólo el dueño del negocio lo cambia.</p>
+    </div>
+  );
+}
+
 export type OpcionChip = { valor: number; rotulo: string };
 
 /** Una elección en chips que se guarda con el toque (duración, anticipación, días, pedidos). */

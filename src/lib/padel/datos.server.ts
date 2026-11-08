@@ -15,18 +15,24 @@ import { resolveLocation } from "@/lib/settings";
 import { businessWallTimeToUtc, dateStrInBusinessTz, todayInBusinessTz } from "@/lib/datetime";
 import { createRateLimiter } from "@/lib/rate-limit";
 import { bienvenidaVista } from "./config-campos";
+import { completarSeries } from "./series.server";
 import {
   CLAVES_PLANTILLA,
   ESTADOS_QUE_OCUPAN,
   MOTIVO_AUSENTE_SE_COBRA,
   PLANTILLAS_DEFAULT,
+  clubDeHora,
   diaCorto,
   esDeuda,
   esEnRevision,
+  esPagable,
   estadoEnPantalla,
   franjasLibres,
   huecosDelDia,
   masCercanas,
+  parteDeIntegrante,
+  proximaDelDia,
+  redondear,
   saldoAFavor,
   semanaDesdeLunes,
   sumarDias,
@@ -111,7 +117,30 @@ export async function franjas(tenantId: string): Promise<Franja[]> {
     desde: f.desde,
     hasta: f.hasta,
     tipo: f.tipo === "NO" ? "NO" : "DA",
+    clubId: f.clubId,
   }));
+}
+
+export type ClubPadel = { id: string; nombre: string; direccion: string | null; mapsUrl: string | null; activo: boolean };
+
+/** Lo que necesita la generación perezosa de clases fijas (series.server.ts). */
+const cargarParaSeries = (tenantId: string) => async () => {
+  const [config, fr] = await Promise.all([configPadel(tenantId), franjas(tenantId)]);
+  return { config, franjas: fr };
+};
+
+/** Los clubes del profe (E4). `todos`: también los desactivados (para Ajustes y lo ya agendado). */
+export async function clubesDe(tenantId: string, todos = false): Promise<ClubPadel[]> {
+  return prisma.padelClub.findMany({
+    where: { tenantId, ...(todos ? {} : { activo: true }) },
+    orderBy: [{ activo: "desc" }, { orden: "asc" }, { nombre: "asc" }],
+    select: { id: true, nombre: true, direccion: true, mapsUrl: true, activo: true },
+  });
+}
+
+/** Los clubes del negocio actual (pantallas del panel). */
+export async function clubes(todos = false): Promise<ClubPadel[]> {
+  return clubesDe(await getCurrentTenantId(), todos);
 }
 
 const sumarDiasCalendario = (fecha: string, n: number): string =>
@@ -129,6 +158,8 @@ export interface DiaConLugar {
   fecha: string;
   etiqueta: string;
   horas: string[];
+  /** E4 · El club de cada hora (iso → nombre), sólo las horas que caen en una franja con club. */
+  clubes?: Record<string, string>;
 }
 
 /**
@@ -136,7 +167,8 @@ export interface DiaConLugar {
  * lectura de clases para todo el rango; el armado de franjas es puro (core.ts).
  */
 export async function agendaPublica(tenantId: string, ahora = new Date()): Promise<DiaConLugar[]> {
-  const [config, fr] = await Promise.all([configPadel(tenantId), franjas(tenantId)]);
+  const [config, fr, listaClubes] = await Promise.all([configPadel(tenantId), franjas(tenantId), clubesDe(tenantId, true)]);
+  const nombreClub = new Map(listaClubes.map((c) => [c.id, c.nombre]));
   const hoy = todayInBusinessTz();
   const ultimo = sumarDiasCalendario(hoy, config.diasAdelante);
   const ocupadas = await ocupadasEntre(tenantId, businessWallTimeToUtc(hoy, "00:00"), businessWallTimeToUtc(ultimo, "23:59"));
@@ -145,7 +177,14 @@ export async function agendaPublica(tenantId: string, ahora = new Date()): Promi
   for (let i = 0; i < config.diasAdelante; i++) {
     const fecha = sumarDiasCalendario(hoy, i);
     const horas = franjasLibres({ fecha, franjas: fr, ocupadas: intervalos, duracionMin: config.duracionMin, anticipacionMin: config.anticipacionMin, ahora });
-    if (horas.length > 0) dias.push({ fecha, etiqueta: i === 0 ? "Hoy" : i === 1 ? "Mañana" : diaCorto(fecha), horas });
+    if (horas.length === 0) continue;
+    const clubes: Record<string, string> = {};
+    for (const iso of horas) {
+      const id = nombreClub.size ? clubDeHora(fecha, fr, new Date(iso)) : null;
+      const nombre = id ? nombreClub.get(id) : undefined;
+      if (nombre) clubes[iso] = nombre;
+    }
+    dias.push({ fecha, etiqueta: i === 0 ? "Hoy" : i === 1 ? "Mañana" : diaCorto(fecha), horas, ...(Object.keys(clubes).length ? { clubes } : {}) });
   }
   return dias;
 }
@@ -168,7 +207,7 @@ export async function libresDelDia(
     .map((o) => ({ startsAt: o.empiezaEn, endsAt: o.terminaEn }));
   const anticipacionMin = opts.anticipacionMin ?? config.anticipacionMin;
   const duracionMin = opts.duracionMin ?? config.duracionMin;
-  return { config, libres: franjasLibres({ fecha, franjas: fr, ocupadas, duracionMin, anticipacionMin, ahora }) };
+  return { config, franjas: fr, libres: franjasLibres({ fecha, franjas: fr, ocupadas, duracionMin, anticipacionMin, ahora }) };
 }
 
 /**
@@ -254,8 +293,53 @@ const FILTRO_SALDO = { OR: [{ pagoEstado: "ACREDITADO" }, { pagoEstado: "PAGADO"
 
 /** El saldo a favor de un alumno, derivado de sus clases (no es una columna: no se desincroniza). */
 export async function saldoDelAlumno(tenantId: string, alumnoId: string): Promise<number> {
-  const filas = await prisma.padelClase.findMany({ where: { tenantId, alumnoId, ...FILTRO_SALDO }, select: { estado: true, pagoEstado: true, pagoMedio: true, precio: true } });
-  return saldoAFavor(filas.map((f) => ({ ...f, precio: Number(f.precio) })));
+  const [filas, partes] = await Promise.all([
+    prisma.padelClase.findMany({ where: { tenantId, alumnoId, ...FILTRO_SALDO }, select: { estado: true, pagoEstado: true, pagoMedio: true, precio: true } }),
+    partesConSaldo(tenantId, [alumnoId]),
+  ]);
+  return saldoAFavor([...filas.map((f) => ({ ...f, precio: Number(f.precio) })), ...partes]);
+}
+
+// ── E7 · Las partes de integrante (grupal) que cuentan para la deuda y el saldo de un alumno ──
+//
+// Sólo las de un integrante VINCULADO a un alumno (`alumnoId`); cada parte se mira como una clase
+// con el estado de la clase y su pago (parteDeIntegrante): misma regla que el resto.
+
+/** Las partes acreditadas (o pagadas con saldo) de los alumnos: entran en su saldo a favor. */
+async function partesConSaldo(tenantId: string, alumnoIds?: string[]) {
+  const filas = await prisma.padelIntegrante.findMany({
+    where: { tenantId, alumnoId: alumnoIds ? { in: alumnoIds } : { not: null }, ...FILTRO_SALDO },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, alumnoId: true, pagoEstado: true, pagoMedio: true, monto: true, clase: { select: { estado: true } } },
+  });
+  return filas.map((i) => ({ id: i.id, alumnoId: i.alumnoId as string, estado: i.clase.estado, pagoEstado: i.pagoEstado, pagoMedio: i.pagoMedio, precio: Number(i.monto) }));
+}
+
+/** Lo que entró por partes de integrante desde `desde` (como la caja: lo pagado y lo después acreditado). */
+async function cobrosDeIntegrantes(tenantId: string, desde: Date, hasta?: Date) {
+  const filas = await prisma.padelIntegrante.findMany({
+    where: {
+      tenantId, pagoEstado: { in: ["PAGADO", "ACREDITADO"] }, pagoValidadoEl: { gte: desde, ...(hasta ? { lt: hasta } : {}) },
+      OR: [{ pagoMedio: null }, { pagoMedio: { not: "SALDO_A_FAVOR" } }],
+    },
+    select: { monto: true, pagoMedio: true },
+  });
+  return filas.map((i) => ({ precio: i.monto, pagoMedio: i.pagoMedio }));
+}
+
+/** Las partes que se le pueden cobrar o están por revisar (deuda, en revisión, o confirmada por pagar). */
+async function partesPorCobrar(tenantId: string, alumnoIds?: string[]) {
+  const filas = await prisma.padelIntegrante.findMany({
+    where: {
+      tenantId, alumnoId: alumnoIds ? { in: alumnoIds } : { not: null }, monto: { gt: 0 }, pagoEstado: { in: ["PENDIENTE", "EN_REVISION"] },
+      clase: { tenantId, OR: [{ estado: { in: ["DADA", "CONFIRMADA"] } }, { estado: "AUSENTE", motivoCancel: MOTIVO_AUSENTE_SE_COBRA }] },
+    },
+    select: {
+      id: true, alumnoId: true, pagoEstado: true, pagoMedio: true, monto: true, pagoNota: true, comprobanteEnviadoEl: true,
+      clase: { select: { id: true, estado: true, motivoCancel: true, empiezaEn: true, terminaEn: true, tipo: true, personas: true, client: { select: { name: true } } } },
+    },
+  });
+  return filas.map((i) => ({ ...parteDeIntegrante(i.clase, { ...i, monto: Number(i.monto) }), id: i.id, alumnoId: i.alumnoId as string, clase: i.clase, pagoNota: i.pagoNota, comprobanteEnviadoEl: i.comprobanteEnviadoEl }));
 }
 
 // ── Panel del profe ─────────────────────────────────────────────────────────
@@ -286,6 +370,25 @@ export type ClasePanel = {
   nombre: string;
   telefono: string;
   dadas: number;
+  /** E4 · El club (nombre), o null si la clase no tiene. */
+  club: string | null;
+  /** E8 · La clase fija semanal de la que salió, o null. */
+  serieId: string | null;
+  /** E7 · Los integrantes de la grupal (además del titular), cada uno con su parte y su pago. */
+  integrantes: IntegrantePanel[];
+};
+
+export type IntegrantePanel = {
+  id: string;
+  nombre: string;
+  telefono: string | null;
+  alumnoId: string | null;
+  monto: number;
+  pagoEstado: EstadoPago;
+  pagoMedio: string | null;
+  pagoNota: string | null;
+  /** La foto del comprobante, sólo mientras está por revisar. */
+  comprobante: string | null;
 };
 
 type FilaClase = Awaited<ReturnType<typeof clasesDe>>[number];
@@ -310,6 +413,13 @@ function aPanel(c: FilaClase): ClasePanel {
     nombre: c.client.name,
     telefono: c.client.phone,
     dadas: c.alumno._count.clases,
+    club: c.club?.nombre ?? null,
+    serieId: c.serieId,
+    integrantes: c.integrantes.map((i) => ({
+      id: i.id, nombre: i.nombre, telefono: i.telefono, alumnoId: i.alumnoId, monto: Number(i.monto),
+      pagoEstado: i.pagoEstado as EstadoPago, pagoMedio: i.pagoMedio, pagoNota: i.pagoNota,
+      comprobante: i.pagoEstado === "EN_REVISION" ? i.comprobante : null,
+    })),
   };
 }
 
@@ -320,6 +430,12 @@ function clasesDe(tenantId: string, where: Record<string, unknown>) {
     select: {
       id: true, empiezaEn: true, terminaEn: true, tipo: true, personas: true, estado: true, origen: true, precio: true,
       pagoEstado: true, pagoMedio: true, motivoCancel: true, comprobanteEnviadoEl: true, comprobante: true, ...conAlumno,
+      serieId: true, club: { select: { nombre: true } },
+      integrantes: {
+        where: { tenantId },
+        orderBy: { createdAt: "asc" },
+        select: { id: true, nombre: true, telefono: true, alumnoId: true, monto: true, pagoEstado: true, pagoMedio: true, pagoNota: true, comprobante: true },
+      },
     },
   });
 }
@@ -332,6 +448,7 @@ export async function hoy(ahora = new Date()) {
   const inicio = businessWallTimeToUtc(fecha, "00:00");
   const finManana = businessWallTimeToUtc(sumarDiasCalendario(fecha, 2), "00:00");
   await vencerPedidos(tenantId, ahora);
+  await completarSeries(tenantId, cargarParaSeries(tenantId), ahora);
   const [filas, pendientes, cobradoHoy, config, negocio, sinCerrar, pedidos, fr, recordados] = await Promise.all([
     // SIN_RESPUESTA también (O-3): si el alumno vino igual, el profe la da y la cobra desde acá.
     clasesDe(tenantId, { empiezaEn: { gte: inicio, lt: finManana }, estado: { in: ["PEDIDA", "CONFIRMADA", "DADA", "AUSENTE", "SIN_RESPUESTA"] } }),
@@ -346,7 +463,7 @@ export async function hoy(ahora = new Date()) {
         OR: [{ pagoMedio: null }, { pagoMedio: { not: "SALDO_A_FAVOR" } }],
       },
       select: { precio: true, pagoMedio: true },
-    }),
+    }).then(async (cs) => [...cs, ...(await cobrosDeIntegrantes(tenantId, inicio))]),
     configPadel(tenantId),
     datosDelNegocio(tenantId),
     // F10/M-044: «Ayer quedaron sin cerrar»: confirmadas que terminaron antes de hoy (últimos 7 días).
@@ -367,11 +484,9 @@ export async function hoy(ahora = new Date()) {
   const recordadas = [...new Set(recordados.map((r) => r.claseId).filter((x): x is string => Boolean(x)))];
   const deHoy = clases.filter((c) => dateStrInBusinessTz(c.empiezaEn) === fecha);
   const deManana = clases.filter((c) => dateStrInBusinessTz(c.empiezaEn) === manana);
-  // La "próxima": la que está en curso o la primera que viene, sin terminar de gestionar.
-  const proxima =
-    deHoy.find((c) => ["CONFIRMADA", "PEDIDA"].includes(c.estado) && c.terminaEn.getTime() > ahora.getTime()) ??
-    deHoy.find((c) => esDeuda(c)) ??
-    null;
+  // La "próxima": la que está en curso o la primera que viene. Una ya terminada (aun con deuda) no:
+  // queda en el resto del día con su «Cobrar» (QA: «Próxima clase» titulaba una pasada).
+  const proxima = proximaDelDia(deHoy, ahora);
   const porMedio: Record<string, number> = {};
   for (const c of cobradoHoy) porMedio[c.pagoMedio ?? "TRANSFERENCIA"] = (porMedio[c.pagoMedio ?? "TRANSFERENCIA"] ?? 0) + Number(c.precio);
   const total = Object.values(porMedio).reduce((s, v) => s + v, 0);
@@ -498,6 +613,7 @@ export async function semanaDelProfe(desde: string, ahora = new Date()) {
   const fin = sumarDias(lunes, 7);
   const ini = businessWallTimeToUtc(lunes, "00:00");
   const finUtc = businessWallTimeToUtc(fin, "00:00");
+  await completarSeries(tenantId, cargarParaSeries(tenantId), ahora);
   const [filas, fr, config, bloqueos, cobros] = await Promise.all([
     clasesDe(tenantId, { empiezaEn: { gte: ini, lt: finUtc }, estado: { in: ["PEDIDA", "CONFIRMADA", "DADA", "AUSENTE", "SIN_RESPUESTA"] } }),
     franjas(tenantId),
@@ -573,9 +689,16 @@ async function deudaPorAlumno(tenantId: string, alumnoIds?: string[]) {
   const debe = new Map<string, { total: number; cantidad: number }>();
   for (const d of [...dadas, ...ausentes]) {
     const prev = debe.get(d.alumnoId) ?? { total: 0, cantidad: 0 };
-    debe.set(d.alumnoId, { total: prev.total + Number(d._sum.precio ?? 0), cantidad: prev.cantidad + d._count._all });
+    debe.set(d.alumnoId, { total: redondear(prev.total + Number(d._sum.precio ?? 0)), cantidad: prev.cantidad + d._count._all });
   }
   const enRevision = new Map(revision.map((d) => [d.alumnoId, Number(d._sum.precio ?? 0)]));
+  // E7 · Más sus partes como integrante de una grupal (misma regla: esDeuda / esEnRevision).
+  for (const p of await partesPorCobrar(tenantId, alumnoIds)) {
+    if (esDeuda(p)) {
+      const prev = debe.get(p.alumnoId) ?? { total: 0, cantidad: 0 };
+      debe.set(p.alumnoId, { total: redondear(prev.total + p.precio), cantidad: prev.cantidad + 1 });
+    } else if (esEnRevision(p)) enRevision.set(p.alumnoId, redondear((enRevision.get(p.alumnoId) ?? 0) + p.precio));
+  }
   return { debe, enRevision };
 }
 
@@ -588,6 +711,8 @@ async function saldosPorAlumno(tenantId: string, alumnoIds?: string[]) {
   });
   const saldoPor = new Map<string, { estado: string; pagoEstado: string; pagoMedio: string | null; precio: number; id: string }[]>();
   for (const c of conSaldo) saldoPor.set(c.alumnoId, [...(saldoPor.get(c.alumnoId) ?? []), { ...c, precio: Number(c.precio) }]);
+  // E7 · Lo acreditado de sus partes como integrante (el id es el del integrante: devolverSaldo lo reconoce).
+  for (const p of await partesConSaldo(tenantId, alumnoIds)) saldoPor.set(p.alumnoId, [...(saldoPor.get(p.alumnoId) ?? []), p]);
   return (id: string) => {
     const clases = saldoPor.get(id) ?? [];
     const saldo = saldoAFavor(clases);
@@ -689,6 +814,14 @@ export async function alumnosParaBuscar(tope = 2000) {
   return filas.map((a) => ({ id: a.id, nombre: a.client.name, telefono: a.client.phone }));
 }
 
+/** B1 · El alumno que viene de su ficha (`agendar?alumno=`), aunque no entre en el buscador. */
+export async function alumnoParaAgendar(alumnoId: string): Promise<{ id: string; nombre: string; telefono: string } | null> {
+  if (!/^[A-Za-z0-9_-]{1,40}$/.test(alumnoId)) return null;
+  const tenantId = await getCurrentTenantId();
+  const a = await prisma.padelAlumno.findFirst({ where: { tenantId, id: alumnoId }, select: { id: true, client: { select: { name: true, phone: true } } } });
+  return a ? { id: a.id, nombre: a.client.name, telefono: a.client.phone } : null;
+}
+
 /** La ficha del alumno: datos, próximas, últimas 10 con su pago, deuda, en revisión y saldo a favor. */
 export async function ficha(alumnoId: string, ahora = new Date()) {
   const tenantId = await getCurrentTenantId();
@@ -698,8 +831,8 @@ export async function ficha(alumnoId: string, ahora = new Date()) {
   });
   if (!a) return null;
   const delAlumno = { tenantId, alumnoId: a.id };
-  const sel = { id: true, empiezaEn: true, terminaEn: true, tipo: true, personas: true, estado: true, precio: true, pagoEstado: true, pagoMedio: true, motivoCancel: true, pagoNota: true } as const;
-  const [proximas, ultimas, pendientesDePago, aFavorDe] = await Promise.all([
+  const sel = { id: true, empiezaEn: true, terminaEn: true, tipo: true, personas: true, estado: true, precio: true, pagoEstado: true, pagoMedio: true, motivoCancel: true, pagoNota: true, club: { select: { nombre: true } } } as const;
+  const [proximas, ultimas, pendientesDePago, aFavorDe, series] = await Promise.all([
     prisma.padelClase.findMany({ where: { ...delAlumno, estado: { in: ["PEDIDA", "CONFIRMADA"] }, terminaEn: { gt: ahora } }, orderBy: { empiezaEn: "asc" }, take: 20, select: sel }),
     prisma.padelClase.findMany({ where: { ...delAlumno, empiezaEn: { lte: ahora } }, orderBy: { empiezaEn: "desc" }, take: 10, select: sel }),
     prisma.padelClase.findMany({
@@ -708,10 +841,21 @@ export async function ficha(alumnoId: string, ahora = new Date()) {
       select: sel,
     }),
     saldosPorAlumno(tenantId, [a.id]),
+    // E8 · Sus clases fijas: las activas primero, después las que terminaron (las últimas 5).
+    prisma.padelSerie.findMany({
+      where: delAlumno,
+      orderBy: [{ activa: "desc" }, { createdAt: "desc" }],
+      take: 10,
+      select: { id: true, diaSemana: true, hora: true, desde: true, hasta: true, activa: true, club: { select: { nombre: true } } },
+    }),
   ]);
   const num = <T extends { precio: unknown }>(c: T) => ({ ...c, precio: Number(c.precio) });
   const deudas = pendientesDePago.map(num).filter(esDeuda);
   const enRevision = pendientesDePago.map(num).filter(esEnRevision);
+  // E7 · Sus partes como integrante de grupales de otros titulares.
+  const partes = await partesPorCobrar(tenantId, [a.id]);
+  const partesDeudas = partes.filter(esDeuda);
+  const partesEnRevision = partes.filter(esEnRevision);
   return {
     id: a.id,
     token: a.token,
@@ -724,9 +868,14 @@ export async function ficha(alumnoId: string, ahora = new Date()) {
     proximas: proximas.map(num),
     ultimas: ultimas.map(num),
     deudas,
-    debe: totalDeuda(deudas),
-    enRevision: totalEnRevision(enRevision),
+    partesDeudas: partesDeudas.map((p) => ({ id: p.id, claseId: p.clase.id, empiezaEn: p.clase.empiezaEn, titular: p.clase.client.name, monto: p.precio })),
+    debe: redondear(totalDeuda(deudas) + totalDeuda(partesDeudas)),
+    enRevision: redondear(totalEnRevision(enRevision) + totalEnRevision(partesEnRevision)),
     ...aFavorDe(a.id),
+    series: series.map((x) => ({
+      id: x.id, diaSemana: x.diaSemana, hora: x.hora, activa: x.activa, club: x.club?.nombre ?? null,
+      desde: x.desde.toISOString().slice(0, 10), hasta: x.hasta ? x.hasta.toISOString().slice(0, 10) : null,
+    })),
   };
 }
 
@@ -771,10 +920,11 @@ export async function plata(periodo: PeriodoPlata = "mes") {
       // saldo a favor no suma (ya se contó). Lo devuelto en mano salió: no suma.
       where: { tenantId, pagoEstado: { in: ["PAGADO", "ACREDITADO"] }, pagoValidadoEl: { gte: desde, lt: hasta }, OR: [{ pagoMedio: null }, { pagoMedio: { not: "SALDO_A_FAVOR" } }] },
       select: { precio: true, pagoMedio: true },
-    }),
+    }).then(async (cs) => [...cs, ...(await cobrosDeIntegrantes(tenantId, desde, hasta))]),
     prisma.padelClase.count({ where: { tenantId, estado: "DADA", empiezaEn: { gte: desde, lt: hasta } } }),
     deudoresDe(tenantId),
-    prisma.padelClase.findMany({ where: { tenantId, ...FILTRO_SALDO }, select: { alumnoId: true, estado: true, pagoEstado: true, pagoMedio: true, precio: true } }),
+    prisma.padelClase.findMany({ where: { tenantId, ...FILTRO_SALDO }, select: { alumnoId: true, estado: true, pagoEstado: true, pagoMedio: true, precio: true } })
+      .then(async (cs) => [...cs, ...(await partesConSaldo(tenantId))]),
   ]);
   const porMedio: Record<string, number> = {};
   for (const c of cobros) porMedio[c.pagoMedio ?? "TRANSFERENCIA"] = (porMedio[c.pagoMedio ?? "TRANSFERENCIA"] ?? 0) + Number(c.precio);
@@ -797,12 +947,12 @@ export async function plata(periodo: PeriodoPlata = "mes") {
 
 export async function configCompleta() {
   const tenantId = await getCurrentTenantId();
-  const [config, fr, negocio] = await Promise.all([configPadel(tenantId), franjas(tenantId), datosDelNegocio(tenantId)]);
+  const [config, fr, negocio, listaClubes] = await Promise.all([configPadel(tenantId), franjas(tenantId), datosDelNegocio(tenantId), clubesDe(tenantId, true)]);
   const bloqueos = await prisma.padelDisponibilidad.findMany({
     where: { tenantId, fecha: { gte: new Date(`${todayInBusinessTz()}T00:00:00.000Z`) } },
     orderBy: { fecha: "asc" },
   });
-  return { config, franjas: fr.filter((f) => f.fecha === null), bloqueos, negocio };
+  return { config, franjas: fr.filter((f) => f.fecha === null), bloqueos, negocio, clubes: listaClubes };
 }
 
 // ── Link del alumno (sin login): la llave es el token ──────────────────────
@@ -847,10 +997,41 @@ export async function alumnoPublico(token: string) {
       select: SELECT_CLASE_ALUMNO,
     }),
     prisma.padelClase.findMany({ where: { ...delAlumno, terminaEn: { lte: ahora } }, orderBy: { empiezaEn: "desc" }, take: 10, select: SELECT_CLASE_ALUMNO }),
-    prisma.padelClase.findMany({ where: { ...delAlumno, ...FILTRO_SALDO }, select: { estado: true, pagoEstado: true, pagoMedio: true, precio: true } }),
+    prisma.padelClase.findMany({ where: { ...delAlumno, ...FILTRO_SALDO }, select: { estado: true, pagoEstado: true, pagoMedio: true, precio: true } })
+      .then(async (cs) => [...cs, ...(await partesConSaldo(tenantId, [alumno.id]))]),
     configPadel(tenantId),
     datosDelNegocio(tenantId),
   ]);
+  // E7 · Las grupales de otro titular donde este alumno es integrante: lo que viene y lo que tiene
+  // por pagar (su parte). Puede mandar el comprobante de SU parte.
+  const filasPartes = await prisma.padelIntegrante.findMany({
+    where: {
+      tenantId, alumnoId: alumno.id,
+      OR: [
+        { clase: { tenantId, terminaEn: { gt: ahora }, estado: { in: ["PEDIDA", "CONFIRMADA"] } } },
+        { pagoEstado: { in: ["PENDIENTE", "EN_REVISION"] }, clase: { tenantId, OR: [{ estado: "DADA" }, { estado: "AUSENTE", motivoCancel: MOTIVO_AUSENTE_SE_COBRA }] } },
+      ],
+    },
+    orderBy: { createdAt: "desc" },
+    take: 20,
+    select: {
+      id: true, monto: true, pagoEstado: true, pagoMedio: true, pagoNota: true,
+      clase: { select: { id: true, estado: true, motivoCancel: true, empiezaEn: true, terminaEn: true, client: { select: { name: true } }, club: { select: { nombre: true } } } },
+    },
+  });
+  const partes = filasPartes
+    .map((i) => {
+      const parte = parteDeIntegrante(i.clase, { ...i, monto: Number(i.monto) });
+      return {
+        id: i.id, claseId: i.clase.id, empiezaEn: i.clase.empiezaEn, titular: i.clase.client.name, club: i.clase.club?.nombre ?? null,
+        estado: estadoEnPantalla(i.clase.estado as EstadoClase, i.clase.empiezaEn, ahora), monto: Number(i.monto),
+        pagoEstado: i.pagoEstado as EstadoPago, pagoNota: i.pagoEstado === "PENDIENTE" ? i.pagoNota : null,
+        deuda: esDeuda(parte), enRevision: esEnRevision(parte), pagable: esPagable(parte), parte,
+        // QA E7: la grupal que todavía no terminó también es «Tu próxima» del integrante.
+        viene: i.clase.terminaEn > ahora && (i.clase.estado === "PEDIDA" || i.clase.estado === "CONFIRMADA"),
+      };
+    })
+    .sort((a, b) => +a.empiezaEn - +b.empiezaEn);
   const porId = new Map<string, (typeof futuras)[number]>();
   for (const c of [...futuras, ...pagables, ...pasadas]) porId.set(c.id, c);
   const clases = [...porId.values()]
@@ -858,7 +1039,12 @@ export async function alumnoPublico(token: string) {
     .sort((a, b) => +b.empiezaEn - +a.empiezaEn);
   const saldoAFavorAlumno = saldoAFavor(saldo.map((f) => ({ ...f, precio: Number(f.precio) })));
   return {
-    alumno: { ...alumno, clases, dadas: alumno._count.clases, debe: totalDeuda(clases), enRevision: totalEnRevision(clases), saldoAFavor: saldoAFavorAlumno },
+    alumno: {
+      ...alumno, clases, dadas: alumno._count.clases, saldoAFavor: saldoAFavorAlumno,
+      debe: redondear(totalDeuda(clases) + totalDeuda(partes.map((p) => p.parte))),
+      enRevision: redondear(totalEnRevision(clases) + totalEnRevision(partes.map((p) => p.parte))),
+      partes: partes.map((p) => ({ id: p.id, claseId: p.claseId, empiezaEn: p.empiezaEn, titular: p.titular, club: p.club, estado: p.estado, monto: p.monto, pagoEstado: p.pagoEstado, pagoNota: p.pagoNota, deuda: p.deuda, enRevision: p.enRevision, pagable: p.pagable, viene: p.viene })),
+    },
     config,
     negocio,
   };

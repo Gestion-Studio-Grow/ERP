@@ -8,7 +8,8 @@ import "server-only";
 //   de `plata(periodo)` (datos.server.ts:744-747): lo pagado y lo que después quedó a favor (la
 //   plata entró), sin lo pagado con saldo a favor (ya se contó cuando entró). Así el .csv y la
 //   pantalla dan el mismo total.
-// - `paraDevolver`: para «Le devolví» en Plata → A favor, la clase acreditada que el botón marca
+// - `paraDevolver`: para «Le devolví» en Plata → A favor, la clase acreditada (o la parte de
+//   integrante acreditada) que el botón marca
 //   (la misma regla que la lista de Alumnos: una que entre en el saldo, nunca dejarlo negativo).
 //
 // Todo acotado por el negocio (`tenantId`); la página o la ruta piden su permiso antes (requireApp).
@@ -16,7 +17,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { businessWallTimeToUtc, todayInBusinessTz } from "@/lib/datetime";
-import { medioDelCobro, rangoDelPeriodo, type FilaCobro, type PeriodoPlata } from "./periodo";
+import { elegirDevoluciones, medioDelCobro, rangoDelPeriodo, type Acreditado, type FilaCobro, type PeriodoPlata } from "./periodo";
 
 /** Como mucho: un profe da unas 300 clases por mes. Un tope para que el archivo nunca sea enorme. */
 const MAX_FILAS = 5000;
@@ -45,23 +46,26 @@ export async function cobrosDelPeriodo(periodo: PeriodoPlata): Promise<{ hoy: st
 }
 
 /**
- * Para cada alumno con saldo a favor, la clase acreditada que «Le devolví» puede marcar (precio ≤
- * saldo, la más nueva). Una sola consulta para todos.
+ * Para cada alumno con saldo a favor, lo acreditado que «Le devolví» puede marcar (monto ≤ saldo, lo
+ * más nuevo): una clase propia o su parte como integrante de una grupal cancelada. Dos consultas.
  */
 export async function paraDevolver(saldos: readonly { alumnoId: string; aFavor: number }[]): Promise<Map<string, { claseId: string; monto: number }>> {
-  const out = new Map<string, { claseId: string; monto: number }>();
-  if (!saldos.length) return out;
+  if (!saldos.length) return new Map();
   const tenantId = await getCurrentTenantId();
-  const filas = await prisma.padelClase.findMany({
-    where: { tenantId, alumnoId: { in: saldos.map((s) => s.alumnoId) }, pagoEstado: "ACREDITADO" },
-    orderBy: { empiezaEn: "desc" },
-    select: { id: true, alumnoId: true, precio: true },
-  });
-  const saldoDe = new Map(saldos.map((s) => [s.alumnoId, s.aFavor]));
-  for (const f of filas) {
-    if (out.has(f.alumnoId)) continue;
-    const monto = Number(f.precio);
-    if (monto > 0 && monto <= (saldoDe.get(f.alumnoId) ?? 0)) out.set(f.alumnoId, { claseId: f.id, monto });
-  }
-  return out;
+  const ids = saldos.map((s) => s.alumnoId);
+  const [clases, partes] = await Promise.all([
+    prisma.padelClase.findMany({
+      where: { tenantId, alumnoId: { in: ids }, pagoEstado: "ACREDITADO" },
+      select: { id: true, alumnoId: true, precio: true, empiezaEn: true },
+    }),
+    prisma.padelIntegrante.findMany({
+      where: { tenantId, alumnoId: { in: ids }, pagoEstado: "ACREDITADO" },
+      select: { id: true, alumnoId: true, monto: true, clase: { select: { empiezaEn: true } } },
+    }),
+  ]);
+  const acreditados: Acreditado[] = [
+    ...clases.map((c) => ({ id: c.id, alumnoId: c.alumnoId, monto: Number(c.precio), empiezaEn: c.empiezaEn })),
+    ...partes.flatMap((p) => (p.alumnoId ? [{ id: p.id, alumnoId: p.alumnoId, monto: Number(p.monto), empiezaEn: p.clase.empiezaEn }] : [])),
+  ];
+  return elegirDevoluciones(saldos, acreditados);
 }

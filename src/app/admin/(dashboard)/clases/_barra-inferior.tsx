@@ -28,7 +28,8 @@ const ICONO: Record<ItemBarra, NombreIconoPieza> = {
 
 const foco = "focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus";
 
-export function BarraInferior({ pendientes }: { pendientes: number }) {
+/** `conPlata`: sólo quien ve la plata del negocio (`veLaPlata`, UAT 11/2026) tiene el lugar «Plata». */
+export function BarraInferior({ pendientes, conPlata }: { pendientes: number; conPlata: boolean }) {
   const actual = itemActivo(usePathname());
   const badge = textoBadge(pendientes);
 
@@ -39,7 +40,7 @@ export function BarraInferior({ pendientes }: { pendientes: number }) {
       className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface-raised pb-[env(safe-area-inset-bottom)] shadow-overlay lg:left-[236px]"
     >
       <ul className="mx-auto flex h-16 max-w-3xl items-stretch">
-        {ITEMS_BARRA.map((item) => {
+        {ITEMS_BARRA.filter((item) => conPlata || item.id !== "plata").map((item) => {
           const activo = actual === item.id;
           if (item.id === "agendar") {
             return (

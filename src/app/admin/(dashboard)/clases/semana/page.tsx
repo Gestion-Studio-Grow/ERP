@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { unstable_rethrow } from "next/navigation";
 import { requireApp } from "@/lib/require-app";
+import { veLaPlataDelDia } from "@/lib/padel/plata-guardia";
 import { AvisoError, Icono, Plata, cn } from "@/components/ui";
 import { badgePendientes, semanaDelProfe } from "@/lib/padel/datos.server";
 import { todayInBusinessTz } from "@/lib/datetime";
@@ -22,7 +23,8 @@ const flecha = "grid size-12 shrink-0 place-items-center rounded-xl border borde
 // sus bloqueos. Un día en que no das clases dice «No das clases», no «Libre». Deslizar de costado
 // cambia de semana.
 export default async function ClasesSemana({ searchParams }: { searchParams: Promise<{ desde?: string }> }) {
-  await requireApp("padel-clases");
+  const user = await requireApp("padel-clases");
+  const conPlata = veLaPlataDelDia(user);
   const { desde: q } = await searchParams;
   const hoy = todayInBusinessTz();
   const lunes = semanaDesdeLunes(q && fechaValida(q) ? q : hoy);
@@ -51,7 +53,13 @@ export default async function ClasesSemana({ searchParams }: { searchParams: Pro
         titulo="Semana"
         detalle={
           <span className="tabular-nums" data-qa="resumen-semana">
-            {nClases(totales.clases)} · <Plata valor={totales.esperado} sinCentavos /> esperados · <Plata valor={totales.cobrado} sinCentavos tono="cobrado" /> cobrados
+            {nClases(totales.clases)}
+            {conPlata && (
+              <>
+                {" "}
+                · <Plata valor={totales.esperado} sinCentavos /> esperados · <Plata valor={totales.cobrado} sinCentavos tono="cobrado" /> cobrados
+              </>
+            )}
           </span>
         }
         pendientes={numero}
@@ -125,7 +133,7 @@ export default async function ClasesSemana({ searchParams }: { searchParams: Pro
                 ) : !hayAlgo ? (
                   <p className="text-sm text-muted">{pasado ? "No hubo clases." : "Sin horarios libres."}</p>
                 ) : (
-                  <LineaDelDia fecha={d.fecha} clases={d.clases} huecos={d.huecos} bloqueos={d.bloqueos} qa="clase-semana" />
+                  <LineaDelDia fecha={d.fecha} clases={d.clases} huecos={d.huecos} bloqueos={d.bloqueos} qa="clase-semana" conPlata={conPlata} />
                 )}
               </section>
             );

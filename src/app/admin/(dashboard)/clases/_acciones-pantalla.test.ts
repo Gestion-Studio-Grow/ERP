@@ -30,7 +30,11 @@ const FALSOS: Record<string, string> = {
     export const agendarProxima = ok, cerrarPasada = ok, confirmarTodos = ok, devolverComprobante = ok, devolverSaldo = ok,
       mandarLinkAlAlumno = ok, moverClase = ok, moverPago = ok, recordarVarios = ok, recordatorio = ok, regenerarLink = ok,
       cobrar = ok, cancelarConMotivo = ok, alternativasPara = ok, horasLibres = ok, moverHorario = ok, editarClase = ok,
-      suspenderDia = ok, bloquearRango = ok, agendarClase = ok, quitarBloqueo = ok;`,
+      suspenderDia = ok, bloquearRango = ok, agendarClase = ok, quitarBloqueo = ok, cancelarSerieDesde = ok;`,
+  "@/lib/padel/acciones-grupal": `
+    const ok = async () => ({ ok: true, wa: null });
+    export const agregarIntegrante = ok, avisarIntegrante = ok, cobrarIntegrante = ok, devolverParteIntegrante = ok,
+      quitarIntegrante = ok, revisarComprobanteIntegrante = ok;`,
   "next/navigation": `export const useRouter = () => ({ refresh() {}, push() {}, back() {} }); export const usePathname = () => "/admin/clases";`,
   "next/link": `import { createElement } from "react"; export default function Link({ href, children, ...p }) { return createElement("a", { href, ...p }, children); }`,
 };
@@ -61,7 +65,7 @@ describe("Tanda 3A en pantalla", () => {
           {
             name: "falsos",
             setup(b) {
-              b.onResolve({ filter: /^(@\/lib\/padel\/acciones|next\/navigation|next\/link)$/ }, (a) => ({ path: a.path, namespace: "falso" }));
+              b.onResolve({ filter: /^(@\/lib\/padel\/acciones|@\/lib\/padel\/acciones-grupal|next\/navigation|next\/link)$/ }, (a) => ({ path: a.path, namespace: "falso" }));
               b.onLoad({ filter: /.*/, namespace: "falso" }, (a) => ({ contents: FALSOS[a.path], loader: "js", resolveDir: RAIZ }));
             },
           },

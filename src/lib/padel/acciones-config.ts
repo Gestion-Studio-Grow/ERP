@@ -7,7 +7,8 @@
 // `guardarCampoConfig(clave, valor)`: el profe sale del campo y queda guardado, sin un «Guardar»
 // al pie. La clave viene de la pantalla, así que pasa por la LISTA BLANCA de config-campos.ts
 // (nunca se escribe una clave arbitraria) y cada una con su validación. Como el resto de las
-// acciones del profe: `agenda:manage`, todo acotado por `tenantId` y rastro en la auditoría.
+// acciones del profe: `agenda:manage` (la cuenta de cobro, sólo OWNER: `puedeCambiarAjuste`), todo
+// acotado por `tenantId` y rastro en la auditoría.
 //
 // Un campo simple es un `upsert` de UNA columna de PadelConfig (dos campos distintos a la vez no se
 // pisan). Los horarios: borrar y volver a crear las franjas semanales en una transacción.
@@ -27,7 +28,7 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapabilityFueraDeLaAgenda } from "@/lib/authz";
 import { auditAdmin } from "@/lib/audit-core";
 import { PLANTILLAS_DEFAULT } from "./core";
-import { plantillasConBienvenida, plantillasConCambio, validarCampoConfig, type TramoSemanal } from "./config-campos";
+import { SOLO_EL_DUENIO_COBRO, plantillasConBienvenida, plantillasConCambio, puedeCambiarAjuste, validarCampoConfig, type TramoSemanal } from "./config-campos";
 import { refrescar, type Resultado } from "./acciones-compartido";
 
 /**
@@ -55,7 +56,8 @@ export async function guardarCampoConfig(
 }
 
 async function guardarCampo(clave: string, valor: unknown): Promise<Resultado<{ valor: number | string | null | TramoSemanal[] }>> {
-  await requireCapabilityFueraDeLaAgenda("agenda:manage");
+  const user = await requireCapabilityFueraDeLaAgenda("agenda:manage");
+  if (!puedeCambiarAjuste(user.role, clave)) return { ok: false, error: SOLO_EL_DUENIO_COBRO };
   const tenantId = await getCurrentTenantId();
   const r = validarCampoConfig(clave, valor);
   if (!r.ok) return { ok: false, error: r.error };
@@ -94,9 +96,19 @@ async function guardarCampo(clave: string, valor: unknown): Promise<Resultado<{ 
     return { ok: true, valor: v.texto ?? PLANTILLAS_DEFAULT[v.clave] };
   }
 
+  // E4 · Un club de otro negocio (o inventado) no entra: se valida contra los clubes de ÉSTE.
+  const pedidos = [...new Set(v.tramos.map((t) => t.clubId).filter((x): x is string => Boolean(x)))];
+  if (pedidos.length) {
+    const propios = await prisma.padelClub.count({ where: { tenantId, id: { in: pedidos } } });
+    if (propios !== pedidos.length) return { ok: false, error: "Uno de los clubes ya no está. Actualizá la pantalla." };
+  }
   await tenantTransaction(async (tx) => {
     await tx.padelDisponibilidad.deleteMany({ where: { tenantId, fecha: null } });
-    if (v.tramos.length) await tx.padelDisponibilidad.createMany({ data: v.tramos.map((t) => ({ tenantId, ...t, tipo: "DA" })) });
+    if (v.tramos.length) {
+      await tx.padelDisponibilidad.createMany({
+        data: v.tramos.map((t) => ({ tenantId, diaSemana: t.diaSemana, desde: t.desde, hasta: t.hasta, clubId: t.clubId ?? null, tipo: "DA" })),
+      });
+    }
   }, { tenantId });
   await auditAdmin({ action: "padel.horarios", entity: "PadelDisponibilidad", changes: { tramos: v.tramos.length } });
   refrescar();

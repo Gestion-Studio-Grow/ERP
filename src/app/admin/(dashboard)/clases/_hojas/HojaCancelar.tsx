@@ -8,7 +8,7 @@
 
 import { useEffect, useId, useState } from "react";
 import { Chip, Esqueleto, Plata } from "@/components/ui";
-import { alternativasPara, cancelarConMotivo } from "@/lib/padel/acciones";
+import { alternativasPara, cancelarConMotivo, cancelarSerieDesde } from "@/lib/padel/acciones";
 import { diaHoraCorta, type MotivoCancel } from "@/lib/padel/core";
 import { primerNombre } from "../_cola";
 import { ErrorAccion, HojaPanel, Pie, Rotulo, chip48, grande, useAccion } from "./comun";
@@ -24,6 +24,9 @@ export function HojaCancelar({ c, onCerrar }: { c: ClaseAcciones; onCerrar: () =
   const [ofrecer, setOfrecer] = useState<string[]>([]);
   const idMotivo = useId();
   const idOfrecer = useId();
+  const idAlcance = useId();
+  // E8 · En una clase fija: «Sólo esta» (como siempre) o «Esta y las que siguen» (corta la serie).
+  const [todaLaSerie, setTodaLaSerie] = useState(false);
 
   useEffect(() => {
     let vigente = true;
@@ -37,6 +40,7 @@ export function HojaCancelar({ c, onCerrar }: { c: ClaseAcciones; onCerrar: () =
 
   const confirmar = () => {
     if (!motivo) return;
+    if (todaLaSerie && c.serieId) return correr(() => cancelarSerieDesde(c.id, motivo), "Cancelada la clase fija", onCerrar);
     correr(() => cancelarConMotivo(c.id, motivo, ofrecer), esPedido ? "Le dijiste que no podés" : "Cancelada", onCerrar);
   };
 
@@ -46,7 +50,9 @@ export function HojaCancelar({ c, onCerrar }: { c: ClaseAcciones; onCerrar: () =
       ? "Elegí el motivo"
       : esPedido
         ? ofrecer.length ? `No puedo · ofrecerle ${ofrecer.length === 1 ? "otro" : ofrecer.length}` : "No puedo y avisar"
-        : "Cancelar y avisar";
+        : todaLaSerie
+          ? "Cancelar esta y las que siguen"
+          : "Cancelar y avisar";
 
   return (
     <HojaPanel
@@ -74,12 +80,31 @@ export function HojaCancelar({ c, onCerrar }: { c: ClaseAcciones; onCerrar: () =
         </>
       )}
 
+      {c.serieId && (
+        <>
+          <Rotulo id={idAlcance}>Es una clase fija. ¿Cuáles cancelás?</Rotulo>
+          <div role="group" aria-labelledby={idAlcance} className="flex flex-wrap gap-2" data-qa="alcance-cancelar">
+            <Chip prendido={!todaLaSerie} onClick={() => setTodaLaSerie(false)} className={chip48}>
+              Sólo esta
+            </Chip>
+            <Chip prendido={todaLaSerie} onClick={() => setTodaLaSerie(true)} className={chip48}>
+              Esta y las que siguen
+            </Chip>
+          </div>
+          {todaLaSerie && (
+            <p className="mt-2 text-sm text-muted">Deja de repetirse. Las que ya estaban pagadas quedan a favor de {nombre}.</p>
+          )}
+        </>
+      )}
+
       {c.pagoEstado === "PAGADO" && c.precio > 0 && (
         <p role="status" className="mt-4 rounded-xl bg-success-soft px-3 py-2 text-sm text-strong" data-qa="queda-a-favor">
           Ya estaba pagada: quedan <Plata valor={c.precio} sinCentavos /> a favor de {nombre} para la próxima.
         </p>
       )}
 
+      {!todaLaSerie && (
+      <>
       <Rotulo id={idOfrecer}>
         ¿Le ofrecés otro horario? <span className="font-normal text-muted">(opcional, hasta 3)</span>
       </Rotulo>
@@ -102,6 +127,8 @@ export function HojaCancelar({ c, onCerrar }: { c: ClaseAcciones; onCerrar: () =
         </div>
       )}
       {ofrecer.length > 0 && <p className="mt-2 text-sm text-muted">El WhatsApp le pregunta si le sirve y trae el link para pedirlo con un toque.</p>}
+      </>
+      )}
       <ErrorAccion texto={error} className="mt-3" />
     </HojaPanel>
   );

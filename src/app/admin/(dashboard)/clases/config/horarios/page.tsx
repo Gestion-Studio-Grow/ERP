@@ -11,11 +11,11 @@ export const metadata = { title: "Clases · Horarios", manifest: "/clases/app.we
 // (lluvia, viaje) no van acá: están en «Días bloqueados» (y en Semana → «Se suspende»).
 export default async function AjustesHorarios() {
   await requireApp("padel-clases");
-  const [{ config, franjas }, numero] = await Promise.all([configCompleta(), badgePendientes()]);
+  const [{ config, franjas, clubes }, numero] = await Promise.all([configCompleta(), badgePendientes()]);
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-5">
       <EncabezadoAjuste titulo="Horarios" detalle="Tocá los bloques de cada día. Abajo ves lo que va a ver el alumno." pendientes={numero} />
-      <EditorHorarios inicial={semanaDesde(franjas)} duracionMin={config.duracionMin} />
+      <EditorHorarios inicial={semanaDesde(franjas)} duracionMin={config.duracionMin} clubes={clubes.map((c) => ({ id: c.id, nombre: c.nombre, activo: c.activo }))} />
     </main>
   );
 }
