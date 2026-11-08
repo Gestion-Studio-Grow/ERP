@@ -194,7 +194,7 @@ async function LiquidacionDelLunes() {
           </dd>
         </div>
         <div className="rounded-md border border-line px-4 py-3">
-          <dt className="text-xs font-semibold uppercase tracking-wide text-muted">No pagados al conciliar</dt>
+          <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Rechazados al conciliar</dt>
           <dd className="mt-1 text-sm text-strong">
             {cuenta.impagos.cantidad > 0 ? (
               <>

@@ -19,7 +19,8 @@ import { rechazoDeDominio } from "@/lib/rechazo-de-dominio";
 import { isPrismaError } from "@/lib/prisma-errors";
 import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
 import { vouchersPrendidos } from "@/cambios/interruptores";
-import { leerMonto, MENSAJES_VOUCHER } from "./voucher-core";
+import { leerImporte } from "@/lib/dinero/leer";
+import { MENSAJES_VOUCHER } from "./voucher-core";
 import { esMedioAdministracion } from "./liquidacion-core";
 import {
   conciliarLiquidacionSemanal,
@@ -40,6 +41,12 @@ const APAGADO = { ok: false as const, error: MENSAJES_VOUCHER.apagado };
 
 function texto(v: FormDataEntryValue | null): string {
   return typeof v === "string" ? v.trim() : "";
+}
+
+/** Importe escrito a mano con la regla de la casa («18.000» = dieciocho mil, no dieciocho). */
+function importe(raw: string): number | null {
+  const l = leerImporte(raw);
+  return l.estado === "ok" ? l.valor : null;
 }
 
 function comoError(e: unknown, scope: string): { ok: false; error: string } {
@@ -99,7 +106,7 @@ export async function conciliarLiquidacion(formData: FormData): Promise<Resultad
   const liquidacionId = texto(formData.get("liquidacionId"));
   if (!liquidacionId) return { ok: false, error: "Falta identificar la liquidación." };
   const pagadoRaw = texto(formData.get("pagado"));
-  const pagado = pagadoRaw ? leerMonto(pagadoRaw) : null;
+  const pagado = pagadoRaw ? importe(pagadoRaw) : null;
   if (pagado == null || pagado < 0) return { ok: false, error: "Escribí cuánto pagó la administración (puede ser 0)." };
   const medio = texto(formData.get("medio"));
   if (!esMedioAdministracion(medio)) return { ok: false, error: "Elegí cómo pagó la administración." };
@@ -128,7 +135,7 @@ export async function pagoACuenta(formData: FormData): Promise<ResultadoLiquidac
   const ctx = await preparar();
   if ("ok" in ctx) return ctx;
   const montoRaw = texto(formData.get("monto"));
-  const monto = montoRaw ? leerMonto(montoRaw) : null;
+  const monto = montoRaw ? importe(montoRaw) : null;
   if (monto == null || monto <= 0) return { ok: false, error: "Escribí el monto que pagó la administración." };
   const medio = texto(formData.get("medio"));
   if (!esMedioAdministracion(medio)) return { ok: false, error: "Elegí cómo pagó la administración." };

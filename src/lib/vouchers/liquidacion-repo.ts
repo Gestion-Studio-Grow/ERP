@@ -381,7 +381,7 @@ export type CuentaDeLaAdministracion = {
   liquidaciones: FilaLiquidacion[];
   /** Vouchers usados que todavía no entraron en ninguna liquidación. */
   sinLiquidar: { cantidad: number; total: number };
-  /** Vouchers que la administración no pagó al conciliar (siguen en el saldo). */
+  /** Vouchers que la administración rechazó al conciliar (su plata sigue en el saldo salvo pago a cuenta). */
   impagos: { cantidad: number; total: number };
 };
 
@@ -416,7 +416,15 @@ export async function leerCuentaDeLaAdministracion(tenantId: string): Promise<Cu
     async (tx) => {
       const [usados, pagos, liquidaciones] = await Promise.all([
         tx.voucher.findMany({
-          where: { tenantId, estado: "USADO" },
+          // Débito = voucher USADO con su cobro vivo (o ya tomado por una liquidación): el mismo
+          // universo que la liquidación puede tomar, para que saldo y liquidaciones cuadren.
+          // Los que marcó la importación vieja de OpenKey (`liquidadoEn` sin liquidación semanal) ya
+          // se cobraron por fuera de esta cuenta: no son débito.
+          where: {
+            tenantId,
+            estado: "USADO",
+            OR: [{ liquidacionSemanalId: { not: null } }, { collectionId: { not: null }, liquidadoEn: null }],
+          },
           select: { id: true, numero: true, valorCubierto: true, usadoEn: true, liquidacionSemanalId: true, resultadoLiquidacion: true, client: { select: { name: true } } },
         }),
         tx.voucherPagoAdministracion.findMany({

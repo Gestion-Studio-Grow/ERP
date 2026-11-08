@@ -427,11 +427,34 @@ test("las Server Actions: apagadas rechazan sin escribir; prendidas generan y co
   assert.equal(gen.valor.cantidad, 1);
   const fc = new FormData();
   fc.set("liquidacionId", gen.valor.liquidacionId);
-  fc.set("pagado", "$ 14.000,00");
+  fc.set("pagado", "$ 14.000");
   fc.set("fecha", todayInBusinessTz());
   fc.set("medio", "TRANSFERENCIA");
   const conc = await correr(() => conciliarLiquidacion(fc));
   assert.ok(conc.ok && conc.valor.diferencia === 0, JSON.stringify(conc));
   const otra = await correr(() => conciliarLiquidacion(fc));
   assert.match(!otra.ok ? otra.error : "", /ya se concilió/);
+});
+
+test("cobrar con voucher desde el turno: «4.000» son cuatro mil pesos, no cuatro (regla de importes de la casa)", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const duenio = await prismaComoDuenio(s.base);
+  const c = await s.a.cliente("Mora");
+  const turno = await s.a.turno(c);
+  const numero = await s.a.voucher(c);
+  // El interruptor quedó prendido en el test anterior; si este corre solo, se prende acá.
+  const { filaDeInterruptor } = await import("@/cambios/interruptores-core");
+  const { VOUCHERS } = await import("@/cambios/interruptores");
+  await duenio.auditLog.create({ data: filaDeInterruptor({ tenantId: s.base.a.id, interruptor: VOUCHERS, accion: "encender", operador: "test" }) });
+  const { aplicarVoucherAlTurno } = await import("./voucher-actions");
+  const f = new FormData();
+  f.set("appointmentId", turno);
+  f.set("numero", numero);
+  f.set("monto", "4.000");
+  const r = await ejecutarAccion({ negocio: s.base.a, usuario: s.base.a.recepcion }, () => aplicarVoucherAlTurno(f));
+  assert.equal(r.tipo, "respuesta", JSON.stringify(r));
+  const v = (r as { valor: Awaited<ReturnType<typeof aplicarVoucherAlTurno>> }).valor;
+  assert.ok(v.ok, JSON.stringify(v));
+  if (v.ok) assert.deepEqual([v.valor.valorCubierto, v.valor.saldoDespues], [4000, 10000]);
 });

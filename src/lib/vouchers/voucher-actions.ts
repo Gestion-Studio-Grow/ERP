@@ -23,7 +23,8 @@ import { isDayKey } from "@/lib/caja/cierre-diario";
 import { leerFilasDeTurnos } from "@/lib/turnos/sin-cerrar.server";
 import { puedeCobrarEsteTurno } from "@/lib/turnos/cobro-mostrador";
 import { CobroTurnoRechazado } from "@/lib/turnos/cobro-turno-repo";
-import { csvDelReporte, esEstadoVoucher, leerCsvLiquidacion, leerCsvOpenKey, leerMonto, MENSAJES_VOUCHER } from "./voucher-core";
+import { csvDelReporte, esEstadoVoucher, leerCsvLiquidacion, leerCsvOpenKey, MENSAJES_VOUCHER } from "./voucher-core";
+import { leerImporte } from "@/lib/dinero/leer";
 import {
   cobrarConVoucher,
   crearLote as crearLoteRepo,
@@ -91,7 +92,9 @@ export async function aplicarVoucherAlTurno(formData: FormData): Promise<Resulta
   if (!appointmentId) return { ok: false, error: "Falta identificar el turno." };
   if (!numero) return { ok: false, error: "Falta el número del voucher." };
   const montoRaw = texto(formData.get("monto"));
-  const monto = montoRaw ? leerMonto(montoRaw) : null;
+  // Regla de la casa para importes escritos a mano: «4.000» son cuatro mil, no cuatro pesos.
+  const lectura = montoRaw ? leerImporte(montoRaw) : null;
+  const monto = lectura?.estado === "ok" ? lectura.valor : null;
   if (montoRaw && monto == null) return { ok: false, error: "El monto del voucher no se entiende." };
   const tenantId = await getCurrentTenantId();
   try {

@@ -1,6 +1,6 @@
 -- =============================================================================
 -- PASE A PRODUCCIÓN — el lote vigente de prisma/lote-deploy.txt (hoy: 1 migración,
--- 20261108120000_profeturnos_clubes_serie_grupal). Se pega en
+-- 20261108140000_voucher_liquidacion_semanal). Se pega en
 -- PRODUCCIÓN, DESPUÉS de crear un branch de respaldo con la fecha del día
 -- (Branches → Create branch → "respaldo-AAAA-MM-DD"). Gate 2: sólo con OK del dueño.
 -- =============================================================================
@@ -14,160 +14,106 @@
 BEGIN;
 DO $$
 BEGIN
-  IF EXISTS (SELECT 1 FROM _prisma_migrations WHERE migration_name IN ('20261108120000_profeturnos_clubes_serie_grupal')) THEN
+  IF EXISTS (SELECT 1 FROM _prisma_migrations WHERE migration_name IN ('20261108140000_voucher_liquidacion_semanal')) THEN
     RAISE EXCEPTION 'Alguna migración del lote ya figura en _prisma_migrations: no se vuelve a aplicar encima.';
   END IF;
 END $$;
 
--- ─── 20261108120000_profeturnos_clubes_serie_grupal · checksum 2047560fc12e230e1aab27f08117adc72717fc5e001c35d2be04316609e3ff01 ───
--- ProfeTurnos (módulo padel-clases) · E4 Clubes + E8 Clase fija semanal + E7 Grupal con integrantes.
--- ADITIVA: 3 tablas nuevas y 3 columnas nulables (PadelDisponibilidad.clubId, PadelClase.clubId,
--- PadelClase.serieId). No toca datos existentes; con todo en NULL el módulo anda como antes.
--- RLS en las tablas nuevas con la misma política que 20261015120000_modulo_padel_clases.
-
--- AlterTable
-ALTER TABLE "PadelDisponibilidad" ADD COLUMN     "clubId" TEXT;
-
--- AlterTable
-ALTER TABLE "PadelClase" ADD COLUMN     "clubId" TEXT,
-ADD COLUMN     "serieId" TEXT;
+-- ─── 20261108140000_voucher_liquidacion_semanal · checksum d1a3a67b65cb74551cd79e0aa009f2dd0ee16c779183100851a8fee02186df2d ───
+-- Vouchers de CH Estética (La Alameda): liquidación del lunes y cuenta corriente de la administración
+-- del country (regla del dueño del 08/11/2026, src/lib/vouchers/liquidacion-core.ts).
+-- ADITIVA: dos tablas nuevas con RLS y dos columnas NULLABLE en "Voucher" (sin default, sin backfill).
+-- No toca datos existentes ni enums. Vuelta atrás: borrar las dos columnas y las dos tablas.
 
 -- CreateTable
-CREATE TABLE "PadelClub" (
+CREATE TABLE "VoucherLiquidacion" (
     "id" TEXT NOT NULL,
     "tenantId" TEXT NOT NULL,
-    "nombre" TEXT NOT NULL,
-    "direccion" TEXT,
-    "mapsUrl" TEXT,
-    "activo" BOOLEAN NOT NULL DEFAULT true,
-    "orden" INTEGER NOT NULL DEFAULT 0,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "PadelClub_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "PadelSerie" (
-    "id" TEXT NOT NULL,
-    "tenantId" TEXT NOT NULL,
-    "alumnoId" TEXT NOT NULL,
-    "clubId" TEXT,
-    "diaSemana" INTEGER NOT NULL,
-    "hora" TEXT NOT NULL,
-    "tipo" TEXT NOT NULL DEFAULT 'INDIVIDUAL',
-    "personas" INTEGER NOT NULL DEFAULT 1,
-    "desde" DATE NOT NULL,
-    "hasta" DATE,
-    "activa" BOOLEAN NOT NULL DEFAULT true,
-    "canceladaEl" TIMESTAMP(3),
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "PadelSerie_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "PadelIntegrante" (
-    "id" TEXT NOT NULL,
-    "tenantId" TEXT NOT NULL,
-    "claseId" TEXT NOT NULL,
-    "alumnoId" TEXT,
-    "nombre" TEXT NOT NULL,
-    "telefono" TEXT,
-    "monto" DECIMAL(14,2) NOT NULL DEFAULT 0,
-    "pagoEstado" TEXT NOT NULL DEFAULT 'PENDIENTE',
+    "desde" TEXT NOT NULL,
+    "hasta" TEXT NOT NULL,
+    "estado" TEXT NOT NULL DEFAULT 'ABIERTA',
+    "cantidad" INTEGER NOT NULL DEFAULT 0,
+    "total" DECIMAL(14,2) NOT NULL DEFAULT 0,
+    "pagado" DECIMAL(14,2),
+    "diferencia" DECIMAL(14,2),
+    "pagoFecha" TEXT,
     "pagoMedio" TEXT,
-    "comprobante" TEXT,
-    "comprobanteEnviadoEl" TIMESTAMP(3),
-    "pagoValidadoEl" TIMESTAMP(3),
-    "pagoNota" TEXT,
+    "pagoReferencia" TEXT,
+    "nota" TEXT,
+    "creadoPor" TEXT,
+    "conciliadoPor" TEXT,
+    "conciliadoEn" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "PadelIntegrante_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "VoucherLiquidacion_pkey" PRIMARY KEY ("id")
 );
 
--- CreateIndex
-CREATE INDEX "PadelClub_tenantId_activo_idx" ON "PadelClub"("tenantId", "activo");
+-- CreateTable
+CREATE TABLE "VoucherPagoAdministracion" (
+    "id" TEXT NOT NULL,
+    "tenantId" TEXT NOT NULL,
+    "clave" TEXT NOT NULL,
+    "fecha" TEXT NOT NULL,
+    "monto" DECIMAL(14,2) NOT NULL,
+    "medio" TEXT NOT NULL,
+    "referencia" TEXT,
+    "nota" TEXT,
+    "liquidacionId" TEXT,
+    "creadoPor" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "VoucherPagoAdministracion_pkey" PRIMARY KEY ("id")
+);
+
+-- AlterTable (aditiva: columnas nullable)
+ALTER TABLE "Voucher" ADD COLUMN "liquidacionSemanalId" TEXT;
+ALTER TABLE "Voucher" ADD COLUMN "resultadoLiquidacion" TEXT;
 
 -- CreateIndex
-CREATE UNIQUE INDEX "PadelClub_tenantId_nombre_key" ON "PadelClub"("tenantId", "nombre");
-
--- CreateIndex
-CREATE INDEX "PadelSerie_tenantId_activa_idx" ON "PadelSerie"("tenantId", "activa");
-
--- CreateIndex
-CREATE INDEX "PadelSerie_tenantId_alumnoId_idx" ON "PadelSerie"("tenantId", "alumnoId");
-
--- CreateIndex
-CREATE INDEX "PadelIntegrante_tenantId_claseId_idx" ON "PadelIntegrante"("tenantId", "claseId");
-
--- CreateIndex
-CREATE INDEX "PadelIntegrante_tenantId_alumnoId_idx" ON "PadelIntegrante"("tenantId", "alumnoId");
-
--- CreateIndex
-CREATE INDEX "PadelIntegrante_tenantId_pagoEstado_idx" ON "PadelIntegrante"("tenantId", "pagoEstado");
-
--- CreateIndex
-CREATE UNIQUE INDEX "PadelIntegrante_claseId_alumnoId_key" ON "PadelIntegrante"("claseId", "alumnoId");
-
--- CreateIndex
-CREATE INDEX "PadelClase_tenantId_serieId_idx" ON "PadelClase"("tenantId", "serieId");
+CREATE UNIQUE INDEX "VoucherLiquidacion_tenantId_hasta_key" ON "VoucherLiquidacion"("tenantId", "hasta");
+CREATE UNIQUE INDEX "VoucherPagoAdministracion_tenantId_clave_key" ON "VoucherPagoAdministracion"("tenantId", "clave");
+CREATE UNIQUE INDEX "VoucherPagoAdministracion_liquidacionId_key" ON "VoucherPagoAdministracion"("liquidacionId");
+CREATE INDEX "VoucherPagoAdministracion_tenantId_fecha_idx" ON "VoucherPagoAdministracion"("tenantId", "fecha");
+CREATE INDEX "Voucher_tenantId_liquidacionSemanalId_idx" ON "Voucher"("tenantId", "liquidacionSemanalId");
 
 -- AddForeignKey
-ALTER TABLE "PadelDisponibilidad" ADD CONSTRAINT "PadelDisponibilidad_clubId_fkey" FOREIGN KEY ("clubId") REFERENCES "PadelClub"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "VoucherLiquidacion" ADD CONSTRAINT "VoucherLiquidacion_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "VoucherPagoAdministracion" ADD CONSTRAINT "VoucherPagoAdministracion_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "VoucherPagoAdministracion" ADD CONSTRAINT "VoucherPagoAdministracion_liquidacionId_fkey" FOREIGN KEY ("liquidacionId") REFERENCES "VoucherLiquidacion"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "Voucher" ADD CONSTRAINT "Voucher_liquidacionSemanalId_fkey" FOREIGN KEY ("liquidacionSemanalId") REFERENCES "VoucherLiquidacion"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
--- AddForeignKey
-ALTER TABLE "PadelClase" ADD CONSTRAINT "PadelClase_clubId_fkey" FOREIGN KEY ("clubId") REFERENCES "PadelClub"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+-- Valores cerrados (TEXT + CHECK: un enum en Neon es irreversible).
+ALTER TABLE "VoucherLiquidacion" ADD CONSTRAINT "VoucherLiquidacion_estado_check" CHECK ("estado" IN ('ABIERTA', 'CONCILIADA'));
+ALTER TABLE "VoucherLiquidacion" ADD CONSTRAINT "VoucherLiquidacion_dias_check" CHECK ("desde" ~ '^\d{4}-\d{2}-\d{2}$' AND "hasta" ~ '^\d{4}-\d{2}-\d{2}$' AND "desde" <= "hasta");
+ALTER TABLE "VoucherLiquidacion" ADD CONSTRAINT "VoucherLiquidacion_montos_check" CHECK ("cantidad" >= 0 AND "total" >= 0 AND ("pagado" IS NULL OR "pagado" >= 0));
+-- Conciliada ⇔ tiene el pago anotado.
+ALTER TABLE "VoucherLiquidacion" ADD CONSTRAINT "VoucherLiquidacion_conciliada_check" CHECK (("estado" = 'CONCILIADA') = ("pagado" IS NOT NULL AND "diferencia" IS NOT NULL AND "conciliadoEn" IS NOT NULL));
+ALTER TABLE "VoucherLiquidacion" ADD CONSTRAINT "VoucherLiquidacion_pagoMedio_check" CHECK ("pagoMedio" IS NULL OR "pagoMedio" IN ('TRANSFERENCIA', 'EFECTIVO', 'CHEQUE', 'OTRO'));
+ALTER TABLE "VoucherPagoAdministracion" ADD CONSTRAINT "VoucherPagoAdministracion_monto_check" CHECK ("monto" > 0);
+ALTER TABLE "VoucherPagoAdministracion" ADD CONSTRAINT "VoucherPagoAdministracion_fecha_check" CHECK ("fecha" ~ '^\d{4}-\d{2}-\d{2}$');
+ALTER TABLE "VoucherPagoAdministracion" ADD CONSTRAINT "VoucherPagoAdministracion_medio_check" CHECK ("medio" IN ('TRANSFERENCIA', 'EFECTIVO', 'CHEQUE', 'OTRO'));
+ALTER TABLE "Voucher" ADD CONSTRAINT "Voucher_resultadoLiquidacion_check" CHECK ("resultadoLiquidacion" IS NULL OR ("resultadoLiquidacion" IN ('PAGADO', 'IMPAGO') AND "liquidacionSemanalId" IS NOT NULL));
+-- Sólo un voucher USADO entra en una liquidación semanal.
+ALTER TABLE "Voucher" ADD CONSTRAINT "Voucher_liquidacionSemanal_solo_usado_check" CHECK ("liquidacionSemanalId" IS NULL OR "estado" = 'USADO');
 
--- AddForeignKey
-ALTER TABLE "PadelClase" ADD CONSTRAINT "PadelClase_serieId_fkey" FOREIGN KEY ("serieId") REFERENCES "PadelSerie"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+-- RLS: aislamiento por negocio (mismo molde que 20261105122000_vouchers).
+ALTER TABLE "VoucherLiquidacion" ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON "VoucherLiquidacion";
+CREATE POLICY tenant_isolation ON "VoucherLiquidacion"
+  USING ("tenantId" = current_setting('app.current_tenant_id', true))
+  WITH CHECK ("tenantId" = current_setting('app.current_tenant_id', true));
 
--- AddForeignKey
-ALTER TABLE "PadelClub" ADD CONSTRAINT "PadelClub_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "PadelSerie" ADD CONSTRAINT "PadelSerie_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "PadelSerie" ADD CONSTRAINT "PadelSerie_alumnoId_fkey" FOREIGN KEY ("alumnoId") REFERENCES "PadelAlumno"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "PadelSerie" ADD CONSTRAINT "PadelSerie_clubId_fkey" FOREIGN KEY ("clubId") REFERENCES "PadelClub"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "PadelIntegrante" ADD CONSTRAINT "PadelIntegrante_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "PadelIntegrante" ADD CONSTRAINT "PadelIntegrante_claseId_fkey" FOREIGN KEY ("claseId") REFERENCES "PadelClase"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "PadelIntegrante" ADD CONSTRAINT "PadelIntegrante_alumnoId_fkey" FOREIGN KEY ("alumnoId") REFERENCES "PadelAlumno"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
-
--- RLS por tenant (mismo patrón que el módulo).
-DO $$
-DECLARE
-  t text;
-BEGIN
-  FOREACH t IN ARRAY ARRAY['PadelClub', 'PadelSerie', 'PadelIntegrante']
-  LOOP
-    EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
-    EXECUTE format('DROP POLICY IF EXISTS tenant_isolation ON %I', t);
-    EXECUTE format(
-      'CREATE POLICY tenant_isolation ON %I '
-      || 'USING ("tenantId" = current_setting(''app.current_tenant_id'', true)) '
-      || 'WITH CHECK ("tenantId" = current_setting(''app.current_tenant_id'', true))',
-      t
-    );
-  END LOOP;
-END $$;
+ALTER TABLE "VoucherPagoAdministracion" ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON "VoucherPagoAdministracion";
+CREATE POLICY tenant_isolation ON "VoucherPagoAdministracion"
+  USING ("tenantId" = current_setting('app.current_tenant_id', true))
+  WITH CHECK ("tenantId" = current_setting('app.current_tenant_id', true));
 
 INSERT INTO _prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count)
-VALUES (gen_random_uuid()::text, '2047560fc12e230e1aab27f08117adc72717fc5e001c35d2be04316609e3ff01', now(), '20261108120000_profeturnos_clubes_serie_grupal', NULL, NULL, now(), 1);
+VALUES (gen_random_uuid()::text, 'd1a3a67b65cb74551cd79e0aa009f2dd0ee16c779183100851a8fee02186df2d', now(), '20261108140000_voucher_liquidacion_semanal', NULL, NULL, now(), 1);
 
 COMMIT;
 
 -- Verificación (sólo lectura): 1 filas, todas con finished_at.
-SELECT migration_name, finished_at FROM _prisma_migrations WHERE migration_name IN ('20261108120000_profeturnos_clubes_serie_grupal') ORDER BY migration_name;
+SELECT migration_name, finished_at FROM _prisma_migrations WHERE migration_name IN ('20261108140000_voucher_liquidacion_semanal') ORDER BY migration_name;
