@@ -25,10 +25,12 @@ import {
   cayoEnLaTrampa,
   huellaDelHash,
   mailDeConfirmacion,
+  mailDeReclamo,
   mailSinAlta,
   mismaHuella,
   selloDeClave,
   selloDeConfirmacion,
+  situacionDelCuit,
   slugParaElAlta,
   validarPedido,
   type AltaPendiente,
@@ -36,6 +38,7 @@ import {
   type Limites,
   type PedidoDeAlta,
 } from "./alta-web-core";
+import { tenedoresDelCuit } from "./tenedores-del-cuit.server";
 
 export interface DepsAltaWeb {
   /** La conexión del plano de operador (sujeta a RLS; la escritura para la transacción en el negocio). */
@@ -72,15 +75,18 @@ export async function pedirAlta(deps: DepsAltaWeb, pedido: PedidoDeAlta, ip: str
     return { ok: false, frenado: true, mensaje: FRENADO };
   }
 
-  // Tenant no tiene RLS: se lee directo. Haya o no negocio con ese CUIT, sale UN mail a la casilla
-  // que lo pidió y la pantalla dice lo mismo.
-  const tomado = await deps.prisma.tenant.findFirst({ where: { arcaCuit: a.cuit }, select: { id: true } });
-  const m = tomado
-    ? mailSinAlta()
-    : mailDeConfirmacion({
-        nombre: a.nombre,
-        enlace: `${deps.origenPublico}/facturita/alta/confirmar?t=${selloDeConfirmacion(a, deps.ahora(), deps.secreto)}`,
-      });
+  // Pase lo que pase con ese CUIT, sale UN mail a la casilla que lo pidió y la pantalla dice lo mismo.
+  //  - libre o de este mismo mail (perdió el mail): enlace de confirmación;
+  //  - ocupado por un alta web sin verificar: enlace para reclamarlo (gana quien conecte ARCA);
+  //  - ocupado por un negocio verificado o de GSG: «no pudimos», sin enlace.
+  const situacion = await deps.prisma.$transaction(async (tx) => situacionDelCuit(await tenedoresDelCuit(tx, a.cuit), deps.ahora(), a.email));
+  const enlace = `${deps.origenPublico}/facturita/alta/confirmar?t=${selloDeConfirmacion(a, deps.ahora(), deps.secreto)}`;
+  const m =
+    situacion.tipo === "bloqueado"
+      ? mailSinAlta()
+      : situacion.tipo === "reclamable"
+        ? mailDeReclamo({ nombre: a.nombre, enlace })
+        : mailDeConfirmacion({ nombre: a.nombre, enlace });
   const r = await deps.correo
     .enviar({ tenantId: ETIQUETA_MAIL, para: a.email, asunto: m.asunto, cuerpo: m.cuerpo })
     .catch(() => ({ sent: false, reason: "el envío falló" }));
@@ -119,6 +125,7 @@ export async function confirmarAlta(deps: DepsAltaWeb, sello: string, ip: string
           operador: "alta-factoque",
         },
         deps.dominio,
+        deps.ahora(),
       );
       return { ok: true, nuevo: true, destino: await enlaceDeClave(deps, r.tenantId, r.titularId, r.subdominio) };
     } catch (e) {
@@ -137,25 +144,17 @@ function esChoqueDeUnicidad(e: unknown): boolean {
 }
 
 /**
- * El enlace ya se usó (el CUIT tiene negocio). Si es ESTE mismo pedido —el titular es el mail del
- * sello— y todavía no eligió su clave (nunca entró), se le da un enlace de clave nuevo: así quien
- * cerró la pestaña no queda afuera. Si ya entró, el enlace está muerto. Para cualquier otro caso,
- * la misma respuesta que un enlace vencido.
+ * El CUIT no se pudo tomar. Si es porque ESTE mismo mail ya tiene su negocio con ese CUIT y todavía
+ * no eligió su clave (nunca entró), se le da un enlace de clave nuevo: así quien cerró la pestaña no
+ * queda afuera. Si ya entró, el enlace está muerto. Para cualquier otro caso, la misma respuesta que
+ * un enlace vencido.
  */
 async function retomar(deps: DepsAltaWeb, a: AltaPendiente): Promise<RespuestaDeConfirmacion> {
-  const t = await deps.prisma.tenant.findFirst({ where: { arcaCuit: a.cuit }, select: { id: true, subdomain: true } });
-  if (!t?.subdomain) return { ok: false, motivo: "enlace" };
-  const u = await enElNegocio(
-    t.id,
-    (tx) =>
-      tx.user.findFirst({
-        where: { tenantId: t.id, email: a.email, role: "OWNER", active: true, deletedAt: null, lastLoginAt: null },
-        select: { id: true },
-      }),
-    deps.prisma,
-  );
+  const s = await deps.prisma.$transaction(async (tx) => situacionDelCuit(await tenedoresDelCuit(tx, a.cuit), deps.ahora(), a.email));
+  if (s.tipo !== "propio" || !s.tenedor.subdomain) return { ok: false, motivo: "enlace" };
+  const u = s.tenedor.titulares.find((x) => x.email === a.email && x.lastLoginAt === null);
   if (!u) return { ok: false, motivo: "enlace" };
-  return { ok: true, nuevo: false, destino: await enlaceDeClave(deps, t.id, u.id, t.subdomain) };
+  return { ok: true, nuevo: false, destino: await enlaceDeClave(deps, s.tenedor.tenantId, u.id, s.tenedor.subdomain) };
 }
 
 async function enlaceDeClave(deps: DepsAltaWeb, tenantId: string, usuario: string, subdominio: string): Promise<string> {

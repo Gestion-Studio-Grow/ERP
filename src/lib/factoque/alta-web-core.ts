@@ -260,3 +260,70 @@ export function mailSinAlta(): { asunto: string; cuerpo: string } {
 export function hostDelNegocio(subdominio: string, dominio: string): string {
   return `${subdominio}.${dominio}`;
 }
+
+// ── CUIT sin verificar (aprobado por el dueño, 08/11/2026: «Está ok la validación de la alta web») ──
+//
+// Nada en el alta web prueba que quien la pide sea el titular del CUIT. La prueba llega después: el
+// certificado de ARCA sólo lo saca el titular con SU clave fiscal. Por eso:
+//  - un negocio está VERIFICADO cuando tiene cargado un certificado de ARCA de su mismo CUIT;
+//  - un alta web sin verificar NO bloquea al titular real: puede reclamar el CUIT dando de alta el suyo,
+//    y gana el primero que conecte ARCA (src/lib/fiscal/tenant-cert.ts se niega a cargarle el
+//    certificado a un alta web si otro negocio ya verificó ese CUIT);
+//  - un alta web sin verificar VENCE a los 15 días (provisional a confirmar) y deja de ocupar el CUIT.
+//    No se borra nada: vencer es dejar de contar.
+// Un negocio dado de alta por GSG (consola o script) siempre ocupa su CUIT: lo revisó una persona.
+
+/** Plazo para conectar ARCA antes de que el alta web deje de ocupar el CUIT. Provisional a confirmar. */
+export const VENCE_ALTA_SIN_VERIFICAR_MS = 15 * 24 * 60 * 60 * 1000;
+
+/** Un negocio que ya tiene ese CUIT cargado. */
+export interface TenedorDelCuit {
+  tenantId: string;
+  subdomain: string | null;
+  creado: Date;
+  /** Tiene certificado de ARCA de ese CUIT. */
+  verificado: boolean;
+  /** Vino del alta web (auditoría `factoque.alta` con actor `web:`). */
+  web: boolean;
+  titulares: { id: string; email: string; lastLoginAt: Date | null }[];
+}
+
+export type SituacionDelCuit =
+  /** Nadie lo ocupa (o sólo altas web vencidas). */
+  | { tipo: "libre" }
+  /** Sólo lo ocupan altas web sin verificar y vigentes: el titular real puede reclamarlo. */
+  | { tipo: "reclamable" }
+  /** Este mismo mail ya tiene un negocio con ese CUIT: no se crea otro (se retoma el suyo). */
+  | { tipo: "propio"; tenedor: TenedorDelCuit }
+  /** Lo ocupa un negocio verificado o dado de alta por GSG. */
+  | { tipo: "bloqueado" };
+
+export const ocupaElCuit = (t: TenedorDelCuit, ahora: number): boolean =>
+  t.verificado || !t.web || t.creado.getTime() + VENCE_ALTA_SIN_VERIFICAR_MS > ahora;
+
+export function situacionDelCuit(tenedores: readonly TenedorDelCuit[], ahora: number, email: string): SituacionDelCuit {
+  const propio = tenedores.find((t) => t.web && ocupaElCuit(t, ahora) && t.titulares.some((u) => u.email === email));
+  if (propio) return { tipo: "propio", tenedor: propio };
+  if (tenedores.some((t) => t.verificado || !t.web)) return { tipo: "bloqueado" };
+  return tenedores.some((t) => ocupaElCuit(t, ahora)) ? { tipo: "reclamable" } : { tipo: "libre" };
+}
+
+/** El mail al titular que encuentra su CUIT ocupado por un alta sin verificar. Lleva enlace para reclamarlo. */
+export function mailDeReclamo(d: { nombre: string; enlace: string }): { asunto: string; cuerpo: string } {
+  return {
+    asunto: "Confirmá tu alta en Factoque",
+    cuerpo: [
+      "¡Hola!",
+      "",
+      `Pediste dar de alta «${d.nombre}» en Factoque. Ese CUIT figura en otra alta que todavía no conectó ARCA`,
+      "(nadie comprobó todavía que sea del titular). Podés reclamarlo: confirmá con este enlace y conectá ARCA",
+      "con tu clave fiscal desde Mi cuenta. Se queda con el CUIT el primero que lo conecte.",
+      "",
+      d.enlace,
+      "",
+      "Sirve una sola vez y vence en 24 horas. Si no fuiste vos, ignorá este mail: sin confirmar no se crea nada.",
+      "",
+      "Gestión Studio Grow",
+    ].join("\n"),
+  };
+}

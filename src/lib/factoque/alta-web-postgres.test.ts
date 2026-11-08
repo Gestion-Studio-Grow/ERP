@@ -2,7 +2,8 @@
  * Alta WEB de Factoque contra Postgres de verdad: base efímera con RLS, conectada como `app_rls`.
  * Datos ficticios. Cubre el flujo entero (pedir → mail → confirmar → clave → un solo uso), que nada
  * se escribe antes de confirmar, la trampa, los límites, la respuesta igual con un CUIT tomado, la
- * carrera de dos confirmaciones con el mismo CUIT, retomar la clave y el aislamiento por negocio.
+ * carrera de confirmaciones, el CUIT sin verificar (reclamo, gana el primero que conecta ARCA aun a
+ * la vez, vencimiento a los 15 días), retomar la clave y el aislamiento por negocio.
  *
  * Sin Postgres local se saltea diciendo por qué (en CI falla).
  */
@@ -47,7 +48,8 @@ async function preparar(t: import("node:test").TestContext) {
 function cuit(diez: string): string {
   const pesos = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2];
   const r = 11 - ([...diez].reduce((s, d, i) => s + Number(d) * pesos[i], 0) % 11);
-  const dv = r === 11 ? 0 : r === 10 ? 9 : r;
+  if (r === 10) throw new Error(`${diez}: dígito 10 no existe en un CUIT; elegí otros números`);
+  const dv = r === 11 ? 0 : r;
   return `${diez}${dv}`;
 }
 let CUIT = "20123456786";
@@ -153,18 +155,82 @@ test("trampa y límites: el robot no recibe nada; el que insiste queda frenado",
   assert.ok((await web.pedirAlta(deps, pedido(), "3.3.3.99")).ok);
 });
 
-test("carrera: dos confirmaciones con el mismo CUIT a la vez dan UN negocio", async (t) => {
+test("carrera: el mismo enlace confirmado cinco veces a la vez da UN negocio", async (t) => {
   const p = await preparar(t);
   if (!p) return;
   CUIT = cuit("2030405060");
   const { web, deps, duenio, mails } = p;
   await web.pedirAlta(deps, pedido({ email: "uno@ficticio.test" }), "4.4.4.1");
-  await web.pedirAlta(deps, pedido({ email: "dos@ficticio.test", nombre: "Otro Nombre" }), "4.4.4.2");
-  const [a, b] = await Promise.all(mails.map((m) => web.confirmarAlta(deps, selloDelMail(m), "4.4.4.3")));
-  assert.equal([a, b].filter((x) => x.ok).length, 1, "gana una sola");
-  assert.deepEqual([a, b].find((x) => !x.ok), { ok: false, motivo: "enlace" });
+  const sello = selloDelMail(mails[0]);
+  const rs = await Promise.all(Array.from({ length: 5 }, () => web.confirmarAlta(deps, sello, "4.4.4.3")));
+  assert.equal(rs.filter((x) => x.ok && x.nuevo).length, 1, "se crea uno solo");
+  assert.ok(rs.every((x) => x.ok), "las demás retoman el mismo negocio (todavía no eligió la clave)");
   assert.equal(await duenio.tenant.count({ where: { arcaCuit: CUIT } }), 1);
-  assert.equal(await duenio.tenant.count({ where: { name: "Otro Nombre" } }) + (await duenio.tenant.count({ where: { arcaCuit: CUIT, name: "Kiosco Ficticio" } })), 1, "nada a medias");
+});
+
+const REG = (c: string) => ({ certCuit: c, certNotAfter: null, kekId: "k-prueba", wrappedDek: "dek-prueba", sealed: "sellado-prueba" });
+
+test("CUIT sin verificar: el titular real lo reclama y gana el PRIMERO que conecta ARCA, aunque conecten a la vez", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  CUIT = cuit("2044455566");
+  const { web, deps, duenio, mails } = p;
+  // Alguien ocupa el CUIT con su mail.
+  await web.pedirAlta(deps, pedido({ email: "ocupa@ficticio.test", nombre: "Ocupa" }), "6.6.6.1");
+  const okOcupa = await web.confirmarAlta(deps, selloDelMail(mails[0]), "6.6.6.1");
+  assert.ok(okOcupa.ok);
+  // El titular real pide el alta: la pantalla dice lo mismo, y el mail trae enlace para reclamarlo.
+  const r = await web.pedirAlta(deps, pedido({ email: "titular@ficticio.test", nombre: "Titular Real" }), "6.6.6.2");
+  assert.ok(r.ok);
+  assert.match(mails[1].cuerpo, /reclamarlo/);
+  const okTitular = await web.confirmarAlta(deps, selloDelMail(mails[1]), "6.6.6.2");
+  assert.ok(okTitular.ok && okTitular.nuevo);
+  const [a, b] = await duenio.tenant.findMany({ where: { arcaCuit: CUIT }, orderBy: { createdAt: "asc" } });
+  assert.ok(a && b, "dos altas sin verificar con el mismo CUIT");
+  assert.equal(b.arcaPuntoVenta, 7, "el alta sin verificar no le reserva el talonario");
+
+  // Los dos conectan ARCA a la vez: gana uno solo.
+  const { guardarRegistroCredencial, CuitVerificadoEnOtroNegocioError } = await import("@/lib/fiscal/tenant-cert");
+  const rs = await Promise.allSettled([a, b].map((n) => guardarRegistroCredencial(n.id, REG(CUIT), "test", p.app)));
+  assert.equal(rs.filter((x) => x.status === "fulfilled").length, 1, "gana uno");
+  const perdio = rs.find((x) => x.status === "rejected") as PromiseRejectedResult;
+  assert.ok(perdio.reason instanceof CuitVerificadoEnOtroNegocioError);
+  assert.equal(await duenio.tenantFiscalCredential.count({ where: { certCuit: CUIT } }), 1);
+  // Rotar el certificado del ganador sigue andando.
+  const ganador = rs[0].status === "fulfilled" ? a : b;
+  assert.equal((await guardarRegistroCredencial(ganador.id, REG(CUIT), "test", p.app)).yaExistia, true);
+
+  // Ya verificado: un tercero recibe «no pudimos» (sin enlace) y no se crea nada.
+  await web.pedirAlta(deps, pedido({ email: "tercero@ficticio.test" }), "6.6.6.3");
+  assert.equal(selloDelMail(mails[2]), "");
+  assert.equal(await duenio.tenant.count({ where: { arcaCuit: CUIT } }), 2);
+});
+
+test("vencimiento: un alta web sin verificar deja de ocupar el CUIT a los 15 días; una verificada o de GSG, nunca", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  CUIT = cuit("2377788899");
+  const { web, deps, duenio, mails } = p;
+  await web.pedirAlta(deps, pedido({ email: "viejo@ficticio.test" }), "7.7.7.1");
+  assert.ok((await web.confirmarAlta(deps, selloDelMail(mails[0]), "7.7.7.1")).ok);
+  const viejo = await duenio.tenant.findFirstOrThrow({ where: { arcaCuit: CUIT } });
+  const DIA = 24 * 60 * 60 * 1000;
+  // A los 14 días todavía ocupa (se puede reclamar).
+  await duenio.tenant.update({ where: { id: viejo.id }, data: { createdAt: new Date(deps.ahora() - 14 * DIA) } });
+  await web.pedirAlta(deps, pedido({ email: "nuevo@ficticio.test" }), "7.7.7.2");
+  assert.match(mails[1].cuerpo, /reclamarlo/);
+  // A los 16 días venció: el mail es el de siempre.
+  await duenio.tenant.update({ where: { id: viejo.id }, data: { createdAt: new Date(deps.ahora() - 16 * DIA) } });
+  await web.pedirAlta(deps, pedido({ email: "nuevo2@ficticio.test" }), "7.7.7.3");
+  assert.doesNotMatch(mails[2].cuerpo, /reclamarlo/);
+  assert.match(mails[2].cuerpo, /confirmar\?t=/);
+  const nuevo2 = await web.confirmarAlta(deps, selloDelMail(mails[2]), "7.7.7.3");
+  assert.ok(nuevo2.ok && nuevo2.nuevo, "el CUIT quedó libre: se crea el negocio nuevo");
+  // Uno de GSG sin certificado, por viejo que sea, sigue ocupando.
+  const deGsg = cuit("2011122244");
+  await duenio.tenant.create({ data: { name: "De GSG", slug: "de-gsg", blueprintId: "facturita", arcaCuit: deGsg, createdAt: new Date(deps.ahora() - 400 * DIA) } });
+  await web.pedirAlta(deps, pedido({ cuit: deGsg, email: "x@ficticio.test" }), "7.7.7.4");
+  assert.equal(selloDelMail(mails[3]), "");
 });
 
 test("retomar y aislamiento: reabrir el enlace antes de elegir la clave; un enlace de clave no sirve en otro negocio", async (t) => {

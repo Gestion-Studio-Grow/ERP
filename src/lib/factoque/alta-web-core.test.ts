@@ -135,3 +135,30 @@ test("textos: la respuesta no dice nada de lo que existe; los mails no llevan cl
   assert.doesNotMatch(s.cuerpo, /ya (existe|tiene)/i);
   assert.doesNotMatch(m.cuerpo + s.cuerpo, /contraseña:/i);
 });
+
+test("situacionDelCuit: libre, reclamable, propio, bloqueado y vencido", async () => {
+  const { situacionDelCuit, VENCE_ALTA_SIN_VERIFICAR_MS, mailDeReclamo } = await import("./alta-web-core");
+  const ahora = Date.UTC(2026, 10, 8);
+  const t = (o: Partial<import("./alta-web-core").TenedorDelCuit>) => ({
+    tenantId: "t",
+    subdomain: "s",
+    creado: new Date(ahora - 1000),
+    verificado: false,
+    web: true,
+    titulares: [{ id: "u", email: "otro@x.co", lastLoginAt: null }],
+    ...o,
+  });
+  assert.equal(situacionDelCuit([], ahora, "a@x.co").tipo, "libre");
+  assert.equal(situacionDelCuit([t({})], ahora, "a@x.co").tipo, "reclamable");
+  assert.equal(situacionDelCuit([t({ titulares: [{ id: "u", email: "a@x.co", lastLoginAt: null }] })], ahora, "a@x.co").tipo, "propio");
+  assert.equal(situacionDelCuit([t({}), t({ verificado: true })], ahora, "a@x.co").tipo, "bloqueado");
+  assert.equal(situacionDelCuit([t({ web: false, creado: new Date(0) })], ahora, "a@x.co").tipo, "bloqueado", "de GSG: nunca vence");
+  const vencida = t({ creado: new Date(ahora - VENCE_ALTA_SIN_VERIFICAR_MS) });
+  assert.equal(situacionDelCuit([vencida], ahora, "a@x.co").tipo, "libre");
+  assert.equal(situacionDelCuit([{ ...vencida, titulares: [{ id: "u", email: "a@x.co", lastLoginAt: null }] }], ahora, "a@x.co").tipo, "libre", "la propia vencida no se retoma");
+  assert.equal(situacionDelCuit([t({ verificado: true, creado: new Date(0) })], ahora, "a@x.co").tipo, "bloqueado", "verificada: nunca vence");
+  assert.equal(VENCE_ALTA_SIN_VERIFICAR_MS, 15 * 24 * 60 * 60 * 1000);
+  const m = mailDeReclamo({ nombre: "K", enlace: "https://x/c?t=1" });
+  assert.match(m.cuerpo, /reclamarlo/);
+  assert.match(m.cuerpo, /https:\/\/x\/c\?t=1/);
+});

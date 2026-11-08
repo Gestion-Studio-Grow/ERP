@@ -24,7 +24,9 @@ import {
   cuitDesdeCertPem,
   vencimientoDesdeCertPem,
 } from "@/plugins/arca";
+import type { PrismaClient } from "@/generated/prisma/client";
 import { operatorPrisma, enElNegocio } from "@/lib/operator-db";
+import { bloquearCuit, tenedoresDelCuit } from "@/lib/factoque/tenedores-del-cuit.server";
 import {
   masterKeyDesdeEnv,
   sealCredential,
@@ -76,6 +78,52 @@ export class CredencialFiscalAusenteError extends Error {
 }
 
 /** El tenant no tiene `arcaCuit` cargado; sin CUIT no hay guard posible → no se opera. */
+/**
+ * Alta web de Factoque (aprobado por el dueño, 08/11/2026): un alta web sin verificar puede compartir
+ * CUIT con otras, y se queda con él la PRIMERA que conecta ARCA. Ésta llegó tarde: otro negocio ya
+ * cargó el certificado de ese CUIT.
+ */
+export class CuitVerificadoEnOtroNegocioError extends Error {
+  constructor() {
+    super("Ese CUIT ya está conectado con ARCA en otro negocio de Factoque. Si es tuyo, escribinos y lo revisamos.");
+    this.name = "CuitVerificadoEnOtroNegocioError";
+  }
+}
+
+/**
+ * Guarda (o rota) la credencial parado en el negocio. Si el negocio vino del alta web, se pone en
+ * fila por el CUIT (la misma llave que el alta) y se niega si otro negocio ya verificó ese CUIT: así,
+ * de dos altas que reclaman el mismo CUIT, gana una sola aunque conecten a la vez. Los negocios dados
+ * de alta por GSG no cambian: un mismo contribuyente puede tener varios, con talonarios distintos.
+ */
+export async function guardarRegistroCredencial(
+  tenantId: string,
+  reg: RegistroCredencialFiscal,
+  loadedBy: string,
+  db: PrismaClient = operatorPrisma,
+): Promise<{ id: string; yaExistia: boolean }> {
+  return db.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`;
+    const web = await tx.auditLog.findFirst({
+      where: { tenantId, action: "factoque.alta", actor: { startsWith: "web:" } },
+      select: { id: true },
+    });
+    if (web) {
+      await bloquearCuit(tx, reg.certCuit);
+      const otros = await tenedoresDelCuit(tx, reg.certCuit, tenantId);
+      if (otros.some((o) => o.verificado)) throw new CuitVerificadoEnOtroNegocioError();
+      await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`;
+    }
+    const existente = await tx.tenantFiscalCredential.findUnique({ where: { tenantId }, select: { id: true } });
+    const row = await tx.tenantFiscalCredential.upsert({
+      where: { tenantId },
+      create: { tenantId, loadedBy, ...reg },
+      update: { loadedBy, ...reg },
+    });
+    return { id: row.id, yaExistia: existente != null };
+  });
+}
+
 export class CuitTenantAusenteError extends Error {
   constructor(readonly tenantId: string) {
     super(
@@ -111,19 +159,7 @@ function defaultDeps(): TenantCertDeps {
           }
         : null;
     },
-    guardarRegistro: (tenantId, reg, loadedBy) =>
-      enElNegocio(tenantId, async (tx) => {
-        const existente = await tx.tenantFiscalCredential.findUnique({
-          where: { tenantId },
-          select: { id: true },
-        });
-        const row = await tx.tenantFiscalCredential.upsert({
-          where: { tenantId },
-          create: { tenantId, loadedBy, ...reg },
-          update: { loadedBy, ...reg },
-        });
-        return { id: row.id, yaExistia: existente != null };
-      }),
+    guardarRegistro: (tenantId, reg, loadedBy) => guardarRegistroCredencial(tenantId, reg, loadedBy),
     auditar: async (entry) => {
       await enElNegocio(entry.tenantId, (tx) =>
         tx.auditLog.create({

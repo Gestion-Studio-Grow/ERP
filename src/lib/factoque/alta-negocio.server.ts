@@ -27,6 +27,10 @@ import {
   type NegocioFiscal,
 } from "@/app/operador/(console)/tenants/[id]/candado-punto-venta";
 import { provisionTenant } from "../../../scripts/provision-tenant";
+import { situacionDelCuit } from "./alta-web-core";
+// La MISMA llave que `bloquearCuit` de src/lib/operator-actions.ts (que no se puede importar: es
+// "use server"). Así el alta, la ficha y la carga del certificado se esperan entre sí.
+import { bloquearCuit, tenedoresDelCuit } from "./tenedores-del-cuit.server";
 import {
   BLUEPRINT_FACTOQUE,
   MODULOS_FACTOQUE,
@@ -64,16 +68,13 @@ export interface DependenciasDelAlta {
 /** Un dato que no se puede completar sin pisar algo. Mensaje en criollo, sin stack. */
 export class RechazoDelAlta extends Error {}
 
-/** Alta web: el CUIT ya es de otro negocio (un CUIT, un negocio). La web no lo dice en pantalla. */
+/**
+ * Alta web: el CUIT no se puede tomar (un negocio verificado o de GSG lo tiene, o este mismo mail ya
+ * tiene su negocio con ese CUIT). La web no lo dice en pantalla.
+ */
 export class CuitYaRegistrado extends RechazoDelAlta {}
 
-type Tx = Parameters<Parameters<PrismaClient["$transaction"]>[0]>[0];
 
-// La MISMA llave que `bloquearCuit` de src/lib/operator-actions.ts (no se puede importar: ese archivo
-// es "use server" y todo lo que exporta se vuelve acción). Así el alta y la ficha se esperan entre sí.
-async function bloquearCuit(tx: Tx, cuit: string): Promise<void> {
-  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`arca-punto-venta:${cuit}`}))`;
-}
 
 interface Escrito {
   tenantId: string;
@@ -90,15 +91,19 @@ async function escribirEnUnaTransaccion(
   d: DatosDelAlta,
   clave: string,
   habiaArchivo: boolean,
-  web = false,
+  web: { ahora: number } | null = null,
 ): Promise<Escrito> {
   return prisma.$transaction(async (tx) => {
     if (web) {
       // ALTA WEB: sólo negocios NUEVOS. El candado del CUIT va ANTES de crear nada: dos
       // confirmaciones con el mismo CUIT se ponen en fila y la segunda ve el negocio de la primera.
+      // Sólo bloquean un negocio verificado (con ARCA conectado) o uno dado de alta por GSG; un alta
+      // web sin verificar se puede reclamar y una vencida ya no cuenta (alta-web-core.ts).
       await bloquearCuit(tx, d.cuit);
-      const conEseCuit = await tx.tenant.findFirst({ where: { arcaCuit: d.cuit }, select: { id: true } });
-      if (conEseCuit) throw new CuitYaRegistrado("Ese CUIT ya tiene un negocio en Factoque.");
+      const situacion = situacionDelCuit(await tenedoresDelCuit(tx, d.cuit), web.ahora, d.email);
+      if (situacion.tipo === "propio" || situacion.tipo === "bloqueado") {
+        throw new CuitYaRegistrado("Ese CUIT ya tiene un negocio en Factoque.");
+      }
       const mismoSlug = await tx.tenant.findFirst({ where: { OR: [{ slug: d.slug }, { subdomain: d.slug }] }, select: { id: true } });
       if (mismoSlug) throw new RechazoDelAlta(`La dirección "${d.slug}" ya está tomada.`);
     }
@@ -143,8 +148,14 @@ async function escribirEnUnaTransaccion(
       throw new RechazoDelAlta(`"${d.slug}" ya tiene el CUIT ${t.arcaCuit} y pediste ${d.cuit}. No se pisa: corregilo desde la ficha del negocio.`);
     }
 
-    // Punto de venta: candado fiscal (un CUIT no repite talonario entre negocios).
-    if (t.arcaPuntoVenta == null) {
+    // Punto de venta: candado fiscal (un CUIT no repite talonario entre negocios). En el alta web los
+    // que quedan con ese CUIT son altas sin verificar (si no, ya se rechazó arriba): no reservan nada,
+    // porque el talonario es del que conecte ARCA.
+    if (t.arcaPuntoVenta == null && web) {
+      data.arcaPuntoVenta = d.puntoVenta;
+      completado.push("punto de venta");
+      auditar.push({ action: "fiscal.puntoVenta.set", changes: { arcaPuntoVenta: d.puntoVenta, antes: null, arcaCuit: d.cuit } });
+    } else if (t.arcaPuntoVenta == null) {
       const otros: NegocioFiscal[] = await tx.tenant.findMany({
         where: { arcaCuit: d.cuit, id: { not: tenantId } },
         select: { id: true, name: true, slug: true, arcaCuit: true, arcaPuntoVenta: true },
@@ -291,8 +302,9 @@ export async function altaNegocioFactoqueWeb(
   prisma: PrismaClient,
   d: DatosDelAlta,
   dominio?: string,
+  ahora: number = Date.now(),
 ): Promise<{ tenantId: string; titularId: string; subdominio: string; url: string }> {
-  const w = await escribirEnUnaTransaccion(prisma, d, generateStrongPassword(), false, true);
+  const w = await escribirEnUnaTransaccion(prisma, d, generateStrongPassword(), false, { ahora });
   if (!w.negocioCreado) throw new RechazoDelAlta("El negocio no se creó.");
   return { tenantId: w.tenantId, titularId: w.titularId, subdominio: w.subdominio, url: urlDelNegocio(w.subdominio, dominio) };
 }
