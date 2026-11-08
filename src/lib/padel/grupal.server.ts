@@ -8,7 +8,7 @@ import "server-only";
 // ============================================================================
 
 import { prisma } from "@/lib/prisma";
-import { ErrorNegocio, alumnoPorTelefono, origen, tokenParaMandar, type Tx } from "./acciones-compartido";
+import { ErrorNegocio, alumnoPorTelefono, origen, reconocerAlumno, tokenParaMandar, type Tx } from "./acciones-compartido";
 import { linkWhatsApp, pagoDeIntegranteAlCerrar, textoParaIntegrante, type IntegranteEntrada } from "./core";
 
 export type IntegranteCreado = { id: string; nombre: string; telefono: string | null; alumnoId: string | null; token: string | null };
@@ -34,6 +34,7 @@ export async function crearIntegrantesEnTx(
   for (const e of p.entradas) {
     let alumno: { id: string; token: string; nombre: string; telefono: string | null } | null = null;
     let nombre: string;
+    let recienCreado = false;
     if ("alumnoId" in e) {
       const a = await tx.padelAlumno.findFirst({ where: { tenantId, id: e.alumnoId }, select: { id: true, token: true, client: { select: { name: true, phone: true } } } });
       if (!a) throw new ErrorNegocio("No encontramos a uno de los integrantes.");
@@ -42,6 +43,7 @@ export async function crearIntegrantesEnTx(
     } else if (e.telefono) {
       const a = await alumnoPorTelefono(tx, tenantId, e.telefono, e.nombre);
       alumno = { id: a.id, token: a.token, nombre: a.nombre, telefono: e.telefono };
+      recienCreado = a.recienCreado;
       nombre = a.nombre;
     } else {
       nombre = e.nombre;
@@ -50,6 +52,9 @@ export async function crearIntegrantesEnTx(
       if (alumno.id === p.titularId) throw new ErrorNegocio(`${nombre.split(" ")[0]} ya es el titular de la clase.`);
       if (vistos.has(alumno.id)) throw new ErrorNegocio(`${nombre.split(" ")[0]} ya está en la clase.`);
       vistos.add(alumno.id);
+      // O-1: sumarlo es reconocerlo. Se regenera sólo la PRIMERA vez (antes de crear la fila); si ya
+      // estaba reconocido (clase propia u otra grupal), su link sigue andando.
+      alumno.token = (await reconocerAlumno(tx, tenantId, alumno, { recienCreado })).token;
     }
     const fila = await tx.padelIntegrante.create({
       data: { tenantId, claseId: p.claseId, alumnoId: alumno?.id ?? null, nombre, telefono: alumno?.telefono ?? null, monto: p.monto },

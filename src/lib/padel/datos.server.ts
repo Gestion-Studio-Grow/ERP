@@ -31,6 +31,7 @@ import {
   huecosDelDia,
   masCercanas,
   parteDeIntegrante,
+  proximaDelDia,
   redondear,
   saldoAFavor,
   semanaDesdeLunes,
@@ -483,11 +484,9 @@ export async function hoy(ahora = new Date()) {
   const recordadas = [...new Set(recordados.map((r) => r.claseId).filter((x): x is string => Boolean(x)))];
   const deHoy = clases.filter((c) => dateStrInBusinessTz(c.empiezaEn) === fecha);
   const deManana = clases.filter((c) => dateStrInBusinessTz(c.empiezaEn) === manana);
-  // La "próxima": la que está en curso o la primera que viene, sin terminar de gestionar.
-  const proxima =
-    deHoy.find((c) => ["CONFIRMADA", "PEDIDA"].includes(c.estado) && c.terminaEn.getTime() > ahora.getTime()) ??
-    deHoy.find((c) => esDeuda(c)) ??
-    null;
+  // La "próxima": la que está en curso o la primera que viene. Una ya terminada (aun con deuda) no:
+  // queda en el resto del día con su «Cobrar» (QA: «Próxima clase» titulaba una pasada).
+  const proxima = proximaDelDia(deHoy, ahora);
   const porMedio: Record<string, number> = {};
   for (const c of cobradoHoy) porMedio[c.pagoMedio ?? "TRANSFERENCIA"] = (porMedio[c.pagoMedio ?? "TRANSFERENCIA"] ?? 0) + Number(c.precio);
   const total = Object.values(porMedio).reduce((s, v) => s + v, 0);
@@ -1017,7 +1016,7 @@ export async function alumnoPublico(token: string) {
     take: 20,
     select: {
       id: true, monto: true, pagoEstado: true, pagoMedio: true, pagoNota: true,
-      clase: { select: { id: true, estado: true, motivoCancel: true, empiezaEn: true, client: { select: { name: true } }, club: { select: { nombre: true } } } },
+      clase: { select: { id: true, estado: true, motivoCancel: true, empiezaEn: true, terminaEn: true, client: { select: { name: true } }, club: { select: { nombre: true } } } },
     },
   });
   const partes = filasPartes
@@ -1028,6 +1027,8 @@ export async function alumnoPublico(token: string) {
         estado: estadoEnPantalla(i.clase.estado as EstadoClase, i.clase.empiezaEn, ahora), monto: Number(i.monto),
         pagoEstado: i.pagoEstado as EstadoPago, pagoNota: i.pagoEstado === "PENDIENTE" ? i.pagoNota : null,
         deuda: esDeuda(parte), enRevision: esEnRevision(parte), pagable: esPagable(parte), parte,
+        // QA E7: la grupal que todavía no terminó también es «Tu próxima» del integrante.
+        viene: i.clase.terminaEn > ahora && (i.clase.estado === "PEDIDA" || i.clase.estado === "CONFIRMADA"),
       };
     })
     .sort((a, b) => +a.empiezaEn - +b.empiezaEn);
@@ -1042,7 +1043,7 @@ export async function alumnoPublico(token: string) {
       ...alumno, clases, dadas: alumno._count.clases, saldoAFavor: saldoAFavorAlumno,
       debe: redondear(totalDeuda(clases) + totalDeuda(partes.map((p) => p.parte))),
       enRevision: redondear(totalEnRevision(clases) + totalEnRevision(partes.map((p) => p.parte))),
-      partes: partes.map((p) => ({ id: p.id, claseId: p.claseId, empiezaEn: p.empiezaEn, titular: p.titular, club: p.club, estado: p.estado, monto: p.monto, pagoEstado: p.pagoEstado, pagoNota: p.pagoNota, deuda: p.deuda, enRevision: p.enRevision, pagable: p.pagable })),
+      partes: partes.map((p) => ({ id: p.id, claseId: p.claseId, empiezaEn: p.empiezaEn, titular: p.titular, club: p.club, estado: p.estado, monto: p.monto, pagoEstado: p.pagoEstado, pagoNota: p.pagoNota, deuda: p.deuda, enRevision: p.enRevision, pagable: p.pagable, viene: p.viene })),
     },
     config,
     negocio,

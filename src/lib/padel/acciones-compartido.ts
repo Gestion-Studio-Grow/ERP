@@ -167,7 +167,8 @@ export async function alumnoPorTelefono(tx: Tx, tenantId: string, telefono: stri
 
 /**
  * O-1: ¿el profe ya reconoció a este alumno? Le confirmó una clase, se la agendó él o se la marcó
- * dada o ausente. Es el mismo criterio que `claseReconoce` (sesion-alumno.ts). `excluir`: la clase
+ * dada o ausente, o lo sumó como integrante de una grupal. Para las clases propias es el mismo
+ * criterio que `claseReconoce` (sesion-alumno.ts). `excluir`: la clase
  * que se está moviendo ahora (lo que importa es si estaba reconocido ANTES).
  */
 export async function alumnoReconocido(tx: Tx, tenantId: string, alumnoId: string, excluir?: string): Promise<boolean> {
@@ -180,7 +181,14 @@ export async function alumnoReconocido(tx: Tx, tenantId: string, alumnoId: strin
     },
     select: { id: true },
   });
-  return Boolean(c);
+  if (c) return true;
+  // QA O-1: que el profe lo haya sumado como integrante de una grupal también es reconocerlo; si no,
+  // cada WhatsApp de integrante (tokenParaMandar) le regeneraba el link y mataba el anterior.
+  const i = await tx.padelIntegrante.findFirst({
+    where: { tenantId, alumnoId, ...(excluir ? { claseId: { not: excluir } } : {}) },
+    select: { id: true },
+  });
+  return Boolean(i);
 }
 
 /** Link nuevo. Hay un solo token por alumno: el viejo deja de andar en la misma escritura. */

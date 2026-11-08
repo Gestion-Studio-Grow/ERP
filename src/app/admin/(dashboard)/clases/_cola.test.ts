@@ -59,3 +59,8 @@ test("encolar nada no abre la cola; acciones sobre la cola vacía no hacen nada"
   assert.deepEqual(cola(COLA_VACIA, { tipo: "avisado" }), COLA_VACIA);
   assert.deepEqual(cola(COLA_VACIA, { tipo: "despues" }), COLA_VACIA);
 });
+
+test("textoAFavorIntegrantes: cada parte pagada queda a favor de su integrante", async () => {
+  const { textoAFavorIntegrantes } = await import("./_cola");
+  assert.equal(textoAFavorIntegrantes("$10.000"), "las partes que ya pagaron los integrantes ($10.000 en total) quedan a favor de cada uno");
+});

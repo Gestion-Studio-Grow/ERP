@@ -17,7 +17,7 @@ import { Piel } from "@/app/clases/_piel";
 import { CabeceraPublica } from "@/app/clases/_cabecera";
 import { antetitulo, botonBorde, caja, tituloCaja } from "@/app/clases/_estilos";
 import { IconoCruz, IconoFlecha, IconoPunto, IconoReloj, IconoTilde } from "@/app/clases/_iconos";
-import { chipEstado, enCuanto, etiquetaPago, explicacionTerminal, lineaDeCuenta, plazoCancelar, terminalVisible, urlMaps, type ClaseVista, type IconoEstado, type Tono } from "./estado";
+import { chipEstado, elegirProxima, enCuanto, etiquetaPago, explicacionTerminal, lineaDeCuenta, plazoCancelar, terminalVisible, urlMaps, type ClaseVista, type IconoEstado, type Tono } from "./estado";
 import { Pagar, type ItemPago } from "./Pagar";
 import { PagarParte } from "./PagarParte";
 import { AvisoCancelada, Cancelar, FueraDeTermino } from "./Cancelar";
@@ -62,7 +62,11 @@ export async function VistaAlumno({ datos, token }: { datos: Datos; token: strin
   const clases = alumno.clases as ClaseVista[];
 
   const vivas = clases.filter((c) => ACTIVAS.includes(c.estado) && c.terminaEn > ahora).sort((a, b) => +a.empiezaEn - +b.empiezaEn);
-  const [proxima, ...otras] = vivas;
+  // QA E7: la grupal donde es integrante también puede ser «Tu próxima».
+  const elegida = elegirProxima(vivas, alumno.partes);
+  const proxima = elegida?.tipo === "clase" ? elegida.clase : undefined;
+  const proximaParte = elegida?.tipo === "parte" ? elegida.parte : undefined;
+  const otras = elegida?.otras ?? [];
   const terminales = clases.filter((c) => terminalVisible(c, ahora)).sort((a, b) => +a.empiezaEn - +b.empiezaEn);
   const historial = clases.filter((c) => c.terminaEn <= ahora && (c.estado === "DADA" || c.estado === "AUSENTE")).slice(0, 10);
 
@@ -74,7 +78,14 @@ export async function VistaAlumno({ datos, token }: { datos: Datos; token: strin
     .map((c) => ({ id: c.id, cuando: cuando(c.empiezaEn), precio: c.precio, deuda: esDeuda(c), enRevision: esEnRevision(c), nota: c.pagoEstado === "PENDIENTE" ? (c.pagoNota ?? null) : null }));
   // E7 · Sus partes como integrante de una grupal de otro titular (la deuda ya las suma).
   const partes = alumno.partes;
-  const cuenta = lineaDeCuenta({ debe: alumno.debe, clasesQueDebe: deudas.length + partes.filter((p) => p.deuda).length, saldoAFavor: alumno.saldoAFavor });
+  // QA E7: su parte confirmada sin pagar (todavía no es deuda) tampoco es «Estás al día».
+  const partesPorPagar = partes.filter((p) => p.pagable && !p.deuda && !p.enRevision);
+  const cuenta = lineaDeCuenta({
+    debe: alumno.debe,
+    clasesQueDebe: deudas.length + partes.filter((p) => p.deuda).length,
+    saldoAFavor: alumno.saldoAFavor,
+    partesPorPagar: { monto: partesPorPagar.reduce((t, p) => t + p.monto, 0), cantidad: partesPorPagar.length },
+  });
 
   // Las horas libres sólo se leen si hay alguna clase que todavía se puede cambiar.
   const plazos = new Map(vivas.map((c) => [c.id, plazoCancelar(c, ahora, config.anticipacionMin)]));
@@ -112,10 +123,11 @@ export async function VistaAlumno({ datos, token }: { datos: Datos; token: strin
       <main className="mx-auto grid max-w-[35rem] grid-cols-1 gap-4 px-4 pb-12 pt-4">
         <AvisoCancelada />
         <section aria-labelledby="cuenta" className={`${caja} border-t-[5px] ${cuenta.tono === "debe" ? "border-t-[var(--padel-peligro)]" : "border-t-[var(--padel-vivo)]"}`} data-qa="cuenta">
-          <h2 id="cuenta" className={`text-xl font-bold tabular-nums ${cuenta.tono === "debe" ? "text-[var(--padel-peligro)]" : ""}`} data-qa={cuenta.tono === "debe" ? "debes" : cuenta.tono === "favor" ? "saldo-a-favor" : "al-dia"}>
+          <h2 id="cuenta" className={`text-xl font-bold tabular-nums ${cuenta.tono === "debe" ? "text-[var(--padel-peligro)]" : ""}`} data-qa={cuenta.tono === "debe" ? "debes" : cuenta.tono === "por-pagar" ? "por-pagar" : cuenta.tono === "favor" ? "saldo-a-favor" : "al-dia"}>
             {cuenta.titulo}
             {cuenta.tono === "al-dia" && <IconoTilde className="ml-1.5 inline-block size-5 align-[-0.15em] text-[var(--padel-cancha)]" />}
           </h2>
+          {cuenta.tono === "por-pagar" && <p className="mt-1 text-base">Tu parte se paga abajo, en «Clases con amigos».</p>}
           {alumno.saldoAFavor > 0 && (
             <p className="mt-1 text-base" data-qa={cuenta.tono === "favor" ? undefined : "saldo-a-favor"}>
               {cuenta.tono === "favor" ? "Tu próxima clase se paga con eso." : `Además tenés ${pesos(alumno.saldoAFavor)} a favor: tu próxima clase se paga con eso.`}
@@ -196,6 +208,26 @@ export async function VistaAlumno({ datos, token }: { datos: Datos; token: strin
               {negocio.lugar && <p className="-mt-1 text-sm text-[var(--padel-suave)]">{negocio.lugar}</p>}
               {acciones(proxima)}
             </div>
+          ) : proximaParte ? (
+            <div className="mt-2 grid gap-3" data-qa="proxima-grupal">
+              <div>
+                <p className="text-2xl font-bold tabular-nums" data-qa="proxima">
+                  {cuando(proximaParte.empiezaEn)}
+                </p>
+                <p className="mt-1 text-base text-[var(--padel-suave)]" data-qa="en-cuanto">
+                  Con {proximaParte.titular.split(" ")[0]}
+                  {proximaParte.club ? ` · ${proximaParte.club}` : ""} · {enCuanto(proximaParte.empiezaEn, ahora)}
+                </p>
+              </div>
+              {maps && (
+                <div className="flex flex-wrap gap-2">
+                  <a href={maps} target="_blank" rel="noopener noreferrer" className={botonBorde} data-qa="como-llegar">
+                    Cómo llegar
+                  </a>
+                </div>
+              )}
+              {negocio.lugar && <p className="-mt-1 text-sm text-[var(--padel-suave)]">{negocio.lugar}</p>}
+            </div>
           ) : (
             <div className="mt-2 grid gap-3">
               <p className="text-xl font-bold">No tenés clases agendadas</p>
@@ -246,7 +278,7 @@ export async function VistaAlumno({ datos, token }: { datos: Datos; token: strin
           </section>
         )}
 
-        {proxima && (
+        {(proxima || proximaParte) && (
           <a href="/clases" className={`${botonBorde} w-full`} data-qa="pedir-otra">
             Pedir otra clase
           </a>

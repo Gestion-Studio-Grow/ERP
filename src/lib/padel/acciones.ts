@@ -1127,7 +1127,7 @@ export async function agendarClase(fd: FormData): Promise<Resultado<ConAviso & {
       action: "padel.agendar", entity: "PadelClase", entityId: r.clase.id,
       ...(r.regenerado || r.serieId || clubId || r.creados.length ? { changes: { ...(r.regenerado ? { linkNuevo: true } : {}), ...(clubId ? { clubId } : {}), ...(r.creados.length ? { integrantes: r.creados.map((i) => i.id), montoPorPersona: montoPorPersona(config) } : {}), ...(r.serieId ? { serieId: r.serieId, creadas: 1 + (r.fija?.creadas.length ?? 0), salteadas: r.fija?.salteadas.length ?? 0 } : {}) } } : {}),
     });
-    const salteadas = (r.fija?.salteadas ?? []).map((x) => `${diaHumano(x.empiezaEn)} (${x.motivo === "bloqueado" ? "día bloqueado" : "ya tenés otra clase"})`);
+    const salteadas = (r.fija?.salteadas ?? []).map((x) => `${diaHumano(x.empiezaEn)}: ${x.motivo === "bloqueado" ? "día bloqueado" : "ya tenés otra clase"}`);
     const extras = [
       r.clase.pagoMedio === "SALDO_A_FAVOR" ? YA_PAGADA_CON_SALDO : "",
       r.serieId ? `Te la dejo fija: ${textoSerie({ diaSemana: dayOfWeekForDate(fecha), hora: horaTxt }).toLowerCase()}.` : "",

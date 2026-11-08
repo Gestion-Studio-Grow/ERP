@@ -952,3 +952,15 @@ export function textoParaIntegrante(p: { nombre: string; titular: string; empiez
   const link = p.link ? ` Para mandar el comprobante: ${p.link}` : "";
   return `¡Hola ${primero}! Quedó la clase con ${p.titular.split(" ")[0]} el ${diaHumano(p.empiezaEn)} a las ${horaHumana(p.empiezaEn)}${donde}.${cuanto}${link}`;
 }
+
+/**
+ * La «Próxima clase» de Hoy: la que está en curso o la primera que viene, pedida o confirmada. Una
+ * que ya terminó nunca es «próxima» (QA: titulaba así una pasada con deuda); queda en el resto del día.
+ */
+export function proximaDelDia<C extends { estado: string; empiezaEn: Date; terminaEn: Date }>(deHoy: readonly C[], ahora: Date): C | null {
+  return (
+    [...deHoy]
+      .filter((c) => (c.estado === "CONFIRMADA" || c.estado === "PEDIDA") && c.terminaEn.getTime() > ahora.getTime())
+      .sort((a, b) => +a.empiezaEn - +b.empiezaEn)[0] ?? null
+  );
+}

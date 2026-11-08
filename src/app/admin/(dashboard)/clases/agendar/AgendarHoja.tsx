@@ -149,7 +149,7 @@ export default function AgendarHoja({
         return r.error;
       }
       const fija = r.fija
-        ? ` · fija: ${r.fija.creadas} clase${r.fija.creadas === 1 ? "" : "s"}${r.fija.salteadas.length ? ` (salteé ${r.fija.salteadas.join(", ")})` : ""}`
+        ? ` · fija: ${r.fija.creadas} clase${r.fija.creadas === 1 ? "" : "s"}${r.fija.salteadas.length ? `. Salteé ${r.fija.salteadas.join("; ")}` : ""}`
         : "";
       const texto = `Agendada: ${r.cuando}${fija}${r.linkNuevo ? " · va con su link nuevo" : ""}`;
       setHecho({ texto: `${nombre.split(/\s+/)[0]} · ${r.cuando}${fija}`, fecha: dateStrInBusinessTz(new Date(hora)) });

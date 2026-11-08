@@ -37,7 +37,8 @@ export function CobrarTodo({ alumnoId, nombre, total, cantidad }: { alumnoId: st
         onClick={() => setAbierto((v) => !v)}
         data-qa="cobrar-todo"
       >
-        Cobrar todo · <Plata valor={total} sinCentavos />
+        {/* El monto en texto plano hereda el blanco del botón lleno: <Plata> pinta la tinta oscura (AA). */}
+        Cobrar todo · <span className="tabular-nums">{plataTexto(total)}</span>
       </button>
       {abierto && (
         <div id={idMedios} role="group" aria-label={`¿Cómo te pagó ${primero(nombre)} las ${cantidad} clases?`} className="grid grid-cols-3 gap-2">
