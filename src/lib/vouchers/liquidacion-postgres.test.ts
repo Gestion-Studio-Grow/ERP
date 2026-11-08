@@ -1432,3 +1432,128 @@ test("cheques a depositar al cierre de un día pasado: no cuenta los recibidos d
   assert.equal(await deHoy(), hoy0 + 1, "hoy ya no está a depositar");
   assert.equal(await L.chequesADepositar(A, "no-es-un-dia").then((r) => r?.cantidad ?? 0), hoy0 + 1, "un día inválido cae en hoy");
 });
+
+// ── Cert 7: un pago a cuenta FIFO con cheque que rebota revierte su imputación ─────────────────
+
+/** Dos impagos conciliados (de $ 14.000) y un cheque a cuenta FIFO por uno y medio: el 1.º queda saldado, el 2.º a medias. */
+async function chequeFifoSobreDosImpagos(s: Sembrado, nombre: string) {
+  await sinPendientes(s);
+  const i1 = await voucherCobrado(s, `${nombre} 1`);
+  const i2 = await voucherCobrado(s, `${nombre} 2`);
+  const L = await liq();
+  const sem0 = await semanaNueva();
+  const g0 = await L.generarLiquidacionSemanal(s.base.a.id, { hasta: sem0.hasta, hoy: sem0.hoy, actor: "user:test" });
+  await L.conciliarLiquidacionSemanal(s.base.a.id, { liquidacionId: g0.liquidacionId, pagado: 0, fecha: "2026-11-02", medio: "TRANSFERENCIA", rechazados: [i1.numero, i2.numero], actor: "user:test" });
+  const s0 = await saldo(s.base.a.id);
+  const p = await L.registrarPagoACuenta(s.base.a.id, { clave: claveC5("fifo"), monto: 21000, fecha: await hoyDelNegocio(), medio: "CHEQUE", referencia: "CH-FIFO", actor: "user:test" });
+  assert.deepEqual(p.imputados.map((x) => [x.monto, x.saldado]), [[14000, true], [7000, false]]);
+  return { i1, i2, s0, pagoId: p.pagoId };
+}
+
+async function estadoDe(s: Sembrado, numero: string) {
+  const d = await prismaComoDuenio(s.base);
+  const v = await d.voucher.findFirst({ where: { tenantId: s.base.a.id, numero }, include: { liquidacionSemanal: { select: { estado: true } } } });
+  return { resultado: v!.resultadoLiquidacion, liquidado: v!.liquidadoEn != null, imputado: v!.montoLiquidado ? Number(v!.montoLiquidado) : 0, liq: v!.liquidacionSemanal?.estado ?? null, liqId: v!.liquidacionSemanalId };
+}
+
+test("cert 7 · cheque FIFO rechazado: los vouchers vuelven a impago y la próxima liquidación los reclama UNA vez; saldo cuadra", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const A = s.base.a.id;
+  const L = await liq();
+  const { i1, i2, s0, pagoId } = await chequeFifoSobreDosImpagos(s, "Cert7 FIFO");
+  assert.equal((await estadoDe(s, i1.numero)).resultado, "PAGADO");
+  const r = await L.rechazarChequeDeLaAdministracion(A, { pagoId, motivo: "Rebotó sin fondos", actor: "user:test" });
+  assert.deepEqual(r.revertidos.map((x) => [x.numero, x.monto, x.reabierto]), [[i1.numero, 14000, true], [i2.numero, 7000, false]]);
+  for (const numero of [i1.numero, i2.numero]) {
+    assert.deepEqual(await estadoDe(s, numero).then((e) => [e.resultado, e.liquidado, e.imputado, e.liq]), ["IMPAGO", false, 0, "CONCILIADA"]);
+  }
+  assert.equal(await saldo(A), s0, "el saldo vuelve al de antes del cheque");
+  // El segundo rechazo es duplicado: no revierte de nuevo.
+  const r2 = await L.rechazarChequeDeLaAdministracion(A, { pagoId, motivo: "Rebotó sin fondos", actor: "user:test" });
+  assert.equal(r2.duplicado, true);
+  assert.deepEqual(r2.revertidos, []);
+  assert.equal((await estadoDe(s, i2.numero)).imputado, 0);
+  // Re-liquidación: reclama los dos enteros, una sola vez.
+  const sem = await semanaNueva();
+  const g = await L.generarLiquidacionSemanal(A, { hasta: sem.hasta, hoy: sem.hoy, actor: "user:test" });
+  assert.deepEqual([g.cantidad, g.total], [2, 28000]);
+  const det = await L.leerLiquidacion(A, g.liquidacionId);
+  assert.deepEqual(det!.renglones.map((x) => x.valor), [14000, 14000]);
+  await L.conciliarLiquidacionSemanal(A, { liquidacionId: g.liquidacionId, pagado: 28000, fecha: await hoyDelNegocio(), medio: "TRANSFERENCIA", actor: "user:test" });
+  assert.equal(await saldo(A), s0 - 2_800_000, "saldo = antes − lo cobrado en la re-liquidación");
+  // Nada más que reclamar: la semana siguiente no tiene vouchers.
+  const sem2 = await semanaNueva();
+  await rechaza(L.generarLiquidacionSemanal(A, { hasta: sem2.hasta, hoy: sem2.hoy, actor: "user:test" }), /nada que liquidar/);
+});
+
+test("cert 7 · cheque rechazado con el impago re-tomado por una liquidación ABIERTA: la liquidación reclama lo revertido", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const A = s.base.a.id;
+  const L = await liq();
+  const { i1, i2, s0, pagoId } = await chequeFifoSobreDosImpagos(s, "Cert7 abierta");
+  const sem = await semanaNueva();
+  const g = await L.generarLiquidacionSemanal(A, { hasta: sem.hasta, hoy: sem.hoy, actor: "user:test" });
+  assert.deepEqual([g.cantidad, g.total], [1, 7000], "sólo el 2.º, por lo que falta");
+  await L.rechazarChequeDeLaAdministracion(A, { pagoId, motivo: "Rebotó sin fondos", actor: "user:test" });
+  const det = await L.leerLiquidacion(A, g.liquidacionId);
+  assert.equal(det!.total, 14000);
+  assert.deepEqual(det!.renglones.filter((x) => x.numero === i2.numero).map((x) => x.valor), [14000]);
+  assert.deepEqual(await estadoDe(s, i1.numero).then((e) => [e.resultado, e.liquidado, e.liq]), ["IMPAGO", false, "CONCILIADA"]);
+  assert.equal(await saldo(A), s0);
+  // Se concilia la abierta (el 2.º) y la próxima reclama el 1.º: cada uno una vez.
+  await L.conciliarLiquidacionSemanal(A, { liquidacionId: g.liquidacionId, pagado: 14000, fecha: await hoyDelNegocio(), medio: "TRANSFERENCIA", actor: "user:test" });
+  const sem2 = await semanaNueva();
+  const g2 = await L.generarLiquidacionSemanal(A, { hasta: sem2.hasta, hoy: sem2.hoy, actor: "user:test" });
+  assert.deepEqual([g2.cantidad, g2.total], [1, 14000]);
+  await L.conciliarLiquidacionSemanal(A, { liquidacionId: g2.liquidacionId, pagado: 14000, fecha: await hoyDelNegocio(), medio: "TRANSFERENCIA", actor: "user:test" });
+  assert.equal(await saldo(A), s0 - 2_800_000);
+});
+
+test("cert 7 · rechazo del cheque ‖ nueva liquidación (5 vueltas): cada voucher se reclama una sola vez y por su valor", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const A = s.base.a.id;
+  const L = await liq();
+  const fallas: string[] = [];
+  const crudos: string[] = [];
+  const ordenes: string[] = [];
+  for (let i = 0; i < 5; i++) {
+    const { i1, i2, s0, pagoId } = await chequeFifoSobreDosImpagos(s, `Cert7 par ${i}`);
+    const sem = await semanaNueva();
+    const rechazar = () => L.rechazarChequeDeLaAdministracion(A, { pagoId, motivo: "Rebotó sin fondos", actor: "user:test" });
+    const generar = () => L.generarLiquidacionSemanal(A, { hasta: sem.hasta, hoy: sem.hoy, actor: "user:test" });
+    const [rr, rg] = await Promise.allSettled([
+      new Promise((res) => setTimeout(res, (i % 2) * 25)).then(rechazar),
+      new Promise((res) => setTimeout(res, ((i + 1) % 2) * 25)).then(generar),
+    ]);
+    for (const x of [rr, rg]) {
+      if (x.status === "rejected" && (x.reason as Error)?.constructor?.name !== "VoucherRechazado") crudos.push(String((x.reason as Error)?.message).slice(0, 120));
+    }
+    // Lo que no pasó por conflicto se reintenta en serie: al final, rechazado y con su liquidación.
+    if (rr.status === "rejected") await rechazar();
+    const liqId = rg.status === "fulfilled" ? rg.value.liquidacionId : (await generar()).liquidacionId;
+    // Cada voucher: o está en la abierta (que reclama su valor entero) o es impago pendiente (lo reclama la próxima).
+    const det = await L.leerLiquidacion(A, liqId);
+    let reclamado = 0;
+    for (const numero of [i1.numero, i2.numero]) {
+      const e = await estadoDe(s, numero);
+      const enAbierta = e.liqId === liqId;
+      const pendiente = e.resultado === "IMPAGO" && !e.liquidado && e.liq === "CONCILIADA";
+      if (enAbierta === pendiente) fallas.push(`${i} ${numero}: abierta=${enAbierta} pendiente=${pendiente}`);
+      if (e.imputado !== 0) fallas.push(`${i} ${numero}: imputado ${e.imputado}`);
+      reclamado += enAbierta ? det!.renglones.find((x) => x.numero === numero)!.valor : 14000 - e.imputado;
+    }
+    if (reclamado !== 28000) fallas.push(`${i} reclamado ${reclamado}`);
+    ordenes.push(det!.renglones.filter((x) => x.resultado === null).length === 2 ? "rechazo-primero" : "liquidacion-primero");
+    if (Math.round(det!.total * 100) !== Math.round(det!.renglones.filter((x) => x.resultado === null).reduce((a, x) => a + x.valor, 0) * 100)) {
+      fallas.push(`${i} total ${det!.total} ≠ renglones`);
+    }
+    if ((await saldo(A)) !== s0) fallas.push(`${i} saldo`);
+    await L.descartarLiquidacion(A, { liquidacionId: liqId, actor: "user:test" });
+  }
+  console.log(`cert7 rechazo ‖ liquidación: ${JSON.stringify(ordenes)}`);
+  assert.deepEqual(crudos, []);
+  assert.deepEqual(fallas, []);
+});

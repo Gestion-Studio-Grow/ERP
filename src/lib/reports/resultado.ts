@@ -148,6 +148,8 @@ export function rubroDeCaja(m: MovimientoDeCaja): RubroDeCaja {
     case "cobro-cuenta-corriente":
       return "cobro-fiado";
     case "pago-cuenta-corriente":
+    // La vuelta del depósito de un cheque rechazado: plata de la cuenta de la administración, no gasto.
+    case "cheque-rechazado":
       return "pago-deuda";
     case "reintegro-proveedor":
       return "reintegro-proveedor";

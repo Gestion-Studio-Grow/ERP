@@ -34,7 +34,8 @@
 //   Sin columnas nuevas: «impago pendiente» = IMPAGO con `liquidadoEn` nulo.
 //
 //   CHEQUE RECHAZADO (cash:manage, motivo, AuditLog `voucher.pago.cheque-rechazado`): el pago vuelve a
-//     deuda con un débito por su monto; si ya se había depositado, contramovimiento EGRESO por MP.
+//     deuda con un débito por su monto; si ya se había depositado, contramovimiento EGRESO por MP. Si
+//     era un pago a cuenta, su imputación se revierte: los vouchers que saldó vuelven a IMPAGO pendiente.
 //
 // Invariante de la cuenta: saldo = Σ vouchers usados − Σ pagos (liquidaciones y a cuenta) − Σ bajas
 // (lo no imputado de cada una) + Σ cheques rechazados; cada voucher se reclama, entre todas sus liquidaciones y pagos a
@@ -125,6 +126,8 @@ const ACCION_DESCUENTO_A_CUENTA = "voucher.liquidacion.descuento-a-cuenta";
 const PREFIJO_BAJA = PREFIJO_BAJA_IMPAGO;
 /** Prefijo de `liquidacionRef` de un impago saldado con un pago a cuenta. */
 const PREFIJO_A_CUENTA = "Pago a cuenta";
+/** Rastro (AuditLog) de un pago a cuenta: guarda lo que imputó a cada voucher (`imputados`). */
+const ACCION_PAGO_A_CUENTA = "voucher.cuenta.pago";
 
 const centavosDeDecimal = (d: Prisma.Decimal | null | undefined): number => (d ? sumaCentavos([d.toNumber()]) : 0);
 /**
@@ -778,11 +781,24 @@ export async function registrarPagoACuenta(tenantId: string, args: PagoACuentaAr
           data: {
             tenantId,
             actor: args.actor,
-            action: "voucher.cuenta.pago",
+            action: ACCION_PAGO_A_CUENTA,
             entity: "VoucherPagoAdministracion",
             entityId: pago.id,
             channel: "admin",
-            changes: { monto, fecha: args.fecha, medio: args.medio, imputados, sinImputar },
+            // `voucherId` y `centavos`: lo que imputó a cada uno, para revertirlo si el cheque rebota.
+            changes: {
+              monto,
+              fecha: args.fecha,
+              medio: args.medio,
+              imputados: plan.imputaciones.map((i) => ({
+                numero: i.numero,
+                voucherId: i.id,
+                monto: pesosDeCentavos(i.centavos),
+                centavos: i.centavos,
+                saldado: i.completo,
+              })),
+              sinImputar,
+            },
           },
         });
         return { pagoId: pago.id, duplicado: false, imputados, sinImputar };
@@ -1028,7 +1044,142 @@ export type ChequeRechazado = {
   depositado: boolean;
   /** El EGRESO de caja que revierte el depósito (null si no se había depositado). */
   contramovimientoId: string | null;
+  /** Vouchers cuya imputación (de este pago a cuenta) se revirtió; `reabierto`: volvió a impago. */
+  revertidos: { numero: string; monto: number; reabierto: boolean }[];
 };
+
+/**
+ * ¿La `liquidacionRef` de un PAGADO es la de un pago a cuenta («Pago a cuenta … (<pagoId>)»)? La
+ * referencia de una conciliación la tipea la persona: se confirma que el id sea un pago a cuenta.
+ */
+async function saldadoPorPagoACuenta(tx: Prisma.TransactionClient, tenantId: string, ref: string | null): Promise<boolean> {
+  if (!ref?.startsWith(PREFIJO_A_CUENTA)) return false;
+  const id = /\(([^()\s]+)\)$/.exec(ref)?.[1];
+  if (!id) return false;
+  return (await tx.voucherPagoAdministracion.count({ where: { tenantId, id, liquidacionId: null } })) === 1;
+}
+
+type ImputacionDelPago = { voucherId: string | null; numero: string; centavos: number };
+
+/** Lo que un pago a cuenta imputó a cada voucher, leído de su rastro (`voucher.cuenta.pago`). */
+async function imputacionesDelPago(tx: Prisma.TransactionClient, tenantId: string, pagoId: string): Promise<ImputacionDelPago[]> {
+  const a = await tx.auditLog.findFirst({
+    where: { tenantId, action: ACCION_PAGO_A_CUENTA, entity: "VoucherPagoAdministracion", entityId: pagoId },
+    orderBy: { createdAt: "asc" },
+    select: { changes: true },
+  });
+  const crudos = (a?.changes as { imputados?: unknown } | null)?.imputados;
+  if (!Array.isArray(crudos)) return [];
+  const out: ImputacionDelPago[] = [];
+  for (const x of crudos) {
+    const i = (x && typeof x === "object" ? x : {}) as Record<string, unknown>;
+    if (typeof i.numero !== "string") continue;
+    // Los rastros anteriores no guardan centavos ni id: el monto en pesos y el número (único por negocio).
+    const centavos = typeof i.centavos === "number" ? i.centavos : typeof i.monto === "number" ? sumaCentavos([i.monto]) : 0;
+    if (centavos > 0) out.push({ voucherId: typeof i.voucherId === "string" ? i.voucherId : null, numero: i.numero, centavos });
+  }
+  return out;
+}
+
+/**
+ * Revierte lo que un pago a cuenta (cheque rechazado) imputó a cada voucher, dentro de la transacción
+ * del rechazo (fila del pago tomada FOR UPDATE, Serializable). Por voucher, según dónde está hoy:
+ *   · saldado a cuenta (PAGADO «Pago a cuenta …», éste u otro pago posterior): `montoLiquidado` −= lo
+ *     imputado y vuelve a IMPAGO pendiente (`liquidadoEn` nulo) en su liquidación conciliada: la
+ *     próxima liquidación lo re-toma y reclama lo que falta;
+ *   · impago pendiente: `montoLiquidado` −= lo imputado (la próxima liquidación reclama más);
+ *   · re-tomado por una liquidación ABIERTA: igual, y esa liquidación reclama lo revertido (`total`
+ *     += y un descuento negativo en su rastro, para que el reporte cuadre);
+ *   · dado de baja: `montoLiquidado` −= lo imputado (la baja compensa también esa parte).
+ *   · PAGADO por una liquidación conciliada después (su `montoLiquidado` es lo cobrado en ella, no lo
+ *     acumulado): no se toca; la deuda queda en la cuenta por el débito del cheque. Va al rastro.
+ * Cada `updateMany` está condicionado a lo que se leyó: una liquidación, un pago o una baja a la vez
+ * lo cambian y el rechazo entero se rechaza (`cambio-recien`). El saldo de la cuenta no depende de
+ * esto (débito del cheque); esto decide qué reclama la próxima liquidación: cada voucher, una vez.
+ */
+async function revertirImputacionesDelPago(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  args: { pagoId: string; actor: string },
+): Promise<{ revertidos: ChequeRechazado["revertidos"]; sinRevertir: string[] }> {
+  const revertidos: ChequeRechazado["revertidos"] = [];
+  const sinRevertir: string[] = [];
+  const aAbiertas = new Map<string, { centavos: number; descuentos: Record<string, number>; numeros: string[] }>();
+  for (const imp of await imputacionesDelPago(tx, tenantId, args.pagoId)) {
+    const v = await tx.voucher.findFirst({
+      where: imp.voucherId ? { tenantId, id: imp.voucherId } : { tenantId, numero: imp.numero },
+      select: {
+        id: true,
+        numero: true,
+        montoLiquidado: true,
+        resultadoLiquidacion: true,
+        liquidadoEn: true,
+        liquidacionRef: true,
+        liquidacionSemanalId: true,
+        liquidacionSemanal: { select: { estado: true } },
+      },
+    });
+    if (!v) {
+      sinRevertir.push(imp.numero);
+      continue;
+    }
+    const estadoLiq = v.liquidacionSemanal?.estado ?? null;
+    const saldadoACuenta =
+      v.resultadoLiquidacion === "PAGADO" && v.liquidadoEn != null && (await saldadoPorPagoACuenta(tx, tenantId, v.liquidacionRef));
+    const pendiente = v.resultadoLiquidacion === "IMPAGO" && v.liquidadoEn == null && estadoLiq === "CONCILIADA";
+    const enAbierta = v.liquidadoEn == null && v.resultadoLiquidacion == null && estadoLiq === "ABIERTA";
+    const deBaja = v.resultadoLiquidacion === "IMPAGO" && v.liquidadoEn != null && (v.liquidacionRef?.startsWith(PREFIJO_BAJA) ?? false);
+    const imputado = centavosDeDecimal(v.montoLiquidado);
+    if (!(saldadoACuenta || pendiente || enAbierta || deBaja) || imputado < imp.centavos) {
+      sinRevertir.push(v.numero);
+      continue;
+    }
+    const resto = imputado - imp.centavos;
+    const montoLiquidado = resto > 0 ? pesosDeCentavos(resto) : null;
+    const r = await tx.voucher.updateMany({
+      where: {
+        tenantId,
+        id: v.id,
+        estado: "USADO",
+        montoLiquidado: v.montoLiquidado,
+        resultadoLiquidacion: v.resultadoLiquidacion,
+        liquidadoEn: v.liquidadoEn,
+        liquidacionSemanalId: v.liquidacionSemanalId,
+      },
+      data: saldadoACuenta ? { resultadoLiquidacion: "IMPAGO", liquidadoEn: null, liquidacionRef: null, montoLiquidado } : { montoLiquidado },
+    });
+    if (r.count !== 1) throw new VoucherRechazado("cambio-recien", CAMBIO_RECIEN);
+    if (enAbierta) {
+      const k = v.liquidacionSemanalId as string;
+      const d = aAbiertas.get(k) ?? { centavos: 0, descuentos: {}, numeros: [] };
+      d.centavos += imp.centavos;
+      d.descuentos[v.id] = (d.descuentos[v.id] ?? 0) - imp.centavos;
+      d.numeros.push(v.numero);
+      aAbiertas.set(k, d);
+    }
+    revertidos.push({ numero: v.numero, monto: pesosDeCentavos(imp.centavos), reabierto: saldadoACuenta });
+  }
+  // La liquidación abierta reclama lo revertido; el descuento negativo en su rastro anula el del pago.
+  for (const [liquidacionId, d] of aAbiertas) {
+    const r = await tx.voucherLiquidacion.updateMany({
+      where: { id: liquidacionId, tenantId, estado: "ABIERTA" },
+      data: { total: { increment: pesosDeCentavos(d.centavos) } },
+    });
+    if (r.count !== 1) throw new VoucherRechazado("cambio-recien", CAMBIO_RECIEN);
+    await tx.auditLog.create({
+      data: {
+        tenantId,
+        actor: args.actor,
+        action: ACCION_DESCUENTO_A_CUENTA,
+        entity: "VoucherLiquidacion",
+        entityId: liquidacionId,
+        channel: "admin",
+        changes: { pago: args.pagoId, chequeRechazado: true, descontado: -pesosDeCentavos(d.centavos), descuentos: d.descuentos, saldados: [], numeros: d.numeros },
+      },
+    });
+  }
+  return { revertidos, sinRevertir };
+}
 
 /**
  * El banco rechazó un cheque de la administración. El pago vuelve a deuda: la cuenta suma un débito
@@ -1036,8 +1187,10 @@ export type ChequeRechazado = {
  * era antes de recibirlo). En la caja: si el cheque seguía en valores a depositar, nada (nunca entró
  * a una columna) y deja de figurar a depositar; si ya se había depositado, un EGRESO por Mercado Pago
  * por el mismo monto (marca `cuenta-corriente:voucher-pago-rechazo:<pagoId>`), que se rechaza si la
- * caja de hoy está cerrada. Los vouchers que ese pago había saldado no se tocan: la deuda vive en la
- * cuenta y la salda el próximo pago (a cuenta o de liquidación).
+ * caja de hoy está cerrada. Si era un pago a cuenta, lo que imputó a cada voucher se revierte en la
+ * misma transacción (`revertirImputacionesDelPago`): los que saldó vuelven a impago y la próxima
+ * liquidación los reclama una sola vez. El cheque de una liquidación conciliada no se imputa por
+ * voucher: su deuda vive en la cuenta y la salda el próximo pago.
  *
  * Idempotente: el segundo rechazo contesta `duplicado` sin escribir. Contra un depósito a la vez:
  * los dos toman la fila del pago FOR UPDATE y corren Serializable; si gana el depósito, el rechazo ve
@@ -1060,7 +1213,7 @@ export async function rechazarChequeDeLaAdministracion(tenantId: string, args: R
       const ya = (await rechazosDeCheques(tx, tenantId, [pago.id])).get(pago.id);
       if (ya) {
         const contra = await tx.cashMovement.findFirst({ where: { tenantId, createdBy: marcaDelRechazoEnCaja(pago.id) }, select: { id: true } });
-        return { pagoId: pago.id, duplicado: true, depositado: ya.depositado, contramovimientoId: contra?.id ?? null };
+        return { pagoId: pago.id, duplicado: true, depositado: ya.depositado, contramovimientoId: contra?.id ?? null, revertidos: [] };
       }
       const montoCentavos = centavosDeDecimal(pago.monto);
       const ingreso = (await ingresosDeLosPagos(tx, tenantId, [pago.id])).get(pago.id) ?? null;
@@ -1103,6 +1256,10 @@ export async function rechazarChequeDeLaAdministracion(tenantId: string, args: R
           contramovimientoId = mov.id;
         }
       }
+      // Pago a cuenta: lo que imputó deja de estar pagado (un pago de liquidación no tiene imputaciones).
+      const { revertidos, sinRevertir } = pago.liquidacionId
+        ? { revertidos: [], sinRevertir: [] }
+        : await revertirImputacionesDelPago(tx, tenantId, { pagoId: pago.id, actor: args.actor });
       await tx.auditLog.create({
         data: {
           tenantId,
@@ -1120,10 +1277,12 @@ export async function rechazarChequeDeLaAdministracion(tenantId: string, args: R
             depositado: ingreso != null,
             ingresoId: ingreso?.id ?? null,
             contramovimientoId,
+            revertidos,
+            sinRevertir,
           },
         },
       });
-      return { pagoId: pago.id, duplicado: false, depositado: ingreso != null, contramovimientoId };
+      return { pagoId: pago.id, duplicado: false, depositado: ingreso != null, contramovimientoId, revertidos };
     },
     { tenantId, isolationLevel: SERIALIZABLE },
   ).catch(sinConflictoCrudo);

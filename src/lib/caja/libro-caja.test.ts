@@ -339,3 +339,13 @@ test("el cobro de un proyecto no se rotula como turno; lo demás sigue igual", (
   assert.equal(rotuloDeVenta("turno", null), "Turno cobrado");
   assert.equal(rotuloDeVenta("pos", "Proyecto #12"), "Venta del mostrador");
 });
+
+import { marcaDelPagoEnCaja, marcaDelRechazoEnCaja } from "@/lib/vouchers/acreditacion-core";
+
+test("cheque de la administración rechazado: su salida por MP dice «Cheque rechazado», no «Pago a proveedor» (cert 7)", () => {
+  const egreso = clasificarOrigen({ type: "EGRESO", createdBy: marcaDelRechazoEnCaja("p1") });
+  assert.deepEqual(egreso, { origen: "cheque-rechazado", referencia: "p1" });
+  assert.equal(rotuloContable(egreso.origen, null), "Cheque rechazado · administración del country");
+  // El ingreso del pago sigue siendo un cobro de cuenta corriente.
+  assert.equal(clasificarOrigen({ type: "INGRESO", createdBy: marcaDelPagoEnCaja("p1") }).origen, "cobro-cuenta-corriente");
+});
