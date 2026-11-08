@@ -63,6 +63,8 @@ import {
 import { todosApagados, trabajaPorApps } from "@/cambios/interruptores-core";
 import { aplicarPase } from "@/lib/operador/pase-a-real.server";
 import { modoDesdeEnv } from "@/plugins/arca";
+import { leerCambioDePlanFactoque } from "@/lib/facturita-planes";
+import { ACCION_PLAN_FACTOQUE, BLUEPRINT_CON_TOPE } from "@/lib/facturacion/plan-factoque.server";
 
 // --- Sesión de operador -------------------------------------------------------
 
@@ -125,8 +127,52 @@ export async function setTenantPlan(formData: FormData) {
   const tenantId = String(formData.get("tenantId") || "");
   const plan = String(formData.get("plan") || "").trim() || null;
   const { nombre: op } = await requireOperadorParaNegocio({ id: tenantId });
+  // Los planes de Factoque se cambian SÓLO por `cambiarPlanFactoque` (candado del cupo y vigencia):
+  // por acá quedarían sin vencimiento (certificación T2).
+  if (plan && /^factoque-/i.test(plan)) {
+    redirect(`/operador/tenants/${tenantId}?error=${encodeURIComponent("Los planes de Factoque se cambian en «Plan de Factoque».")}`);
+  }
   await actualizarTenantAuditado(op, tenantId, "tenant.plan", { plan });
   redirect(`/operador/tenants/${tenantId}?ok=plan`);
+}
+
+/**
+ * «Cambiar plan» de Factoque (T2): Gratis / Plus / Pro, con vencimiento opcional, para la venta
+ * por transferencia. Escribe `Tenant.plan` y la fila de auditoría (`ACCION_PLAN_FACTOQUE`) en la
+ * MISMA transacción; la fila guarda la vigencia (no hay columna: Gate 2). Toma el candado del cupo
+ * del negocio, el mismo que la emisión: una emisión en curso termina con el plan con el que empezó
+ * a contar y la siguiente ya ve el nuevo. Bajar de plan no borra nada: bloquea la siguiente.
+ */
+export async function cambiarPlanFactoque(formData: FormData) {
+  const tenantId = String(formData.get("tenantId") || "");
+  const { nombre: op } = await requireOperadorParaNegocio({ id: tenantId });
+  const cambio = leerCambioDePlanFactoque(formData.get("plan"), formData.get("vigenciaHasta"));
+  const volver = `/operador/tenants/${tenantId}`;
+  if (!cambio.ok) redirect(`${volver}?error=${encodeURIComponent(cambio.error)}`);
+  const hecho = await operatorPrisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`;
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`facturita-cupo:${tenantId}`}))`;
+    const antes = await tx.tenant.findUnique({ where: { id: tenantId }, select: { plan: true, blueprintId: true } });
+    if (!antes) return "notfound" as const;
+    if (antes.blueprintId !== BLUEPRINT_CON_TOPE) return "noFactoque" as const;
+    await tx.tenant.update({ where: { id: tenantId }, data: { plan: cambio.plan } });
+    await tx.auditLog.create({
+      data: {
+        tenantId,
+        actor: `operator:${op}`,
+        action: ACCION_PLAN_FACTOQUE,
+        entity: "Tenant",
+        entityId: tenantId,
+        changes: { antes: { plan: antes.plan }, despues: { plan: cambio.plan, vigenciaHasta: cambio.vigenciaHasta } },
+      },
+    });
+    return "ok" as const;
+  });
+  if (hecho === "notfound") redirect("/operador?error=notfound");
+  if (hecho === "noFactoque") redirect(`${volver}?error=${encodeURIComponent("Este negocio no es de Factoque: su plan se cambia en «Plan del negocio».")}`);
+  revalidatePath(volver);
+  revalidatePath("/operador");
+  redirect(`${volver}?ok=plan`);
 }
 
 export async function setTenantBranding(formData: FormData) {

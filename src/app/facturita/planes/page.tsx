@@ -1,5 +1,6 @@
-// FACTURITA · Planes — Facturita gratis y la escalera de Comerciante (ADR-078). Los números salen
-// de src/lib/facturita-planes.ts (única fuente).
+// FACTURITA · Planes — Factoque Gratis, Plus y Pro (PLAN-SALIDA-2026-11 §2: la misma app, cambia el
+// tope) y Comerciante como «lo que sigue», sin botón. Los números salen de src/lib/facturita-planes.ts
+// (única fuente: la misma que usa el tope de la emisión).
 //
 // Rediseño 29/10/2026 (fronts/facturita/DISENO.md §5.2): cada plan es una hoja del talonario.
 // La leyenda interna `ESTADO_PRECIOS` («…a confirmar por el dueño») sigue existiendo en la
@@ -10,9 +11,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import {
   ACLARACION_IVA,
-  ORIGEN_LISTA,
+  ALIAS_TRANSFERENCIA_GSG,
+  LO_QUE_SIGUE,
+  PLAN_FACTOQUE_PLUS,
+  PLAN_FACTOQUE_PRO,
   PLAN_FACTURITA,
-  PLANES_COMERCIANTE,
   precioTexto,
   type Plan,
 } from "@/lib/facturita-planes";
@@ -24,24 +27,30 @@ export const dynamic = "force-static";
 
 export const metadata: Metadata = {
   title: "Planes — Factoque",
-  description: "Factoque es gratis hasta 5 facturas por mes. Cuando crecés, pasás a Comerciante sin migrar nada.",
+  description: `Factoque es gratis hasta ${PLAN_FACTURITA.facturasPorMes} facturas por mes. Si necesitás más, Plus (${PLAN_FACTOQUE_PLUS.facturasPorMes}) o Pro (${PLAN_FACTOQUE_PRO.facturasPorMes}), en la misma app.`,
   generator: "Gestión Studio Grow",
 };
 
 /** Lo que la vidriera dice en lugar de la leyenda interna mientras los precios no estén confirmados. */
 const PRECIOS_DE_REFERENCIA =
-  "Factoque es gratis. Lo demás es Comerciante, con precios de referencia que confirmamos antes de cobrarte.";
+  "Factoque es gratis. Plus y Pro tienen precios de referencia que confirmamos antes de cobrarte.";
 
 /**
- * QA 29/10: los planes pagos no tenían ninguna acción. No hay cobro online ni el alta elige plan:
- * «Consultanos» abre el canal de GSG (WhatsApp si está cargado; si no, mail) con el plan escrito.
+ * «Pasar a Plus/Pro»: todavía no hay cobro online (PLAN-SALIDA §2). Se paga por transferencia a GSG
+ * y se manda el comprobante por el canal de GSG (WhatsApp si está cargado; si no, mail); el operador
+ * activa el plan desde la ficha. El alias es un placeholder hasta que el dueño lo confirme.
  */
-function Consultar({ plan, canal }: { plan: Plan; canal: CanalGsg }) {
-  const texto = `¡Hola! Quiero consultar por el plan ${plan.nombre} de Factoque (${precioTexto(plan.precioMensual)} por mes).`;
+function Pasar({ plan, canal }: { plan: Plan; canal: CanalGsg }) {
+  const texto = `¡Hola! Quiero pasar al plan ${plan.nombre} de Factoque (${precioTexto(plan.precioMensual)} por mes). Te mando el comprobante de la transferencia.`;
   return (
     <div style={{ marginTop: "auto", paddingTop: 24 }}>
-      <a href={linkCanal(canal, `Plan ${plan.nombre} de Factoque`, texto)} target="_blank" rel="noopener noreferrer" className={BOTON_SECUNDARIO} style={{ width: "100%" }} data-qa="consultar-plan">
-        Consultanos{canal.tipo === "whatsapp" ? " por WhatsApp" : " por mail"}
+      <p className="fx-chico" style={{ margin: "0 0 10px" }} data-qa="alias-transferencia">
+        Transferí {precioTexto(plan.precioMensual)} al alias de Gestión Studio Grow: <strong>{ALIAS_TRANSFERENCIA_GSG}</strong>. Mandanos
+        el comprobante y lo activamos en el día.
+      </p>
+      <a href={linkCanal(canal, `Pasar a ${plan.nombre}`, texto)} target="_blank" rel="noopener noreferrer" className={BOTON_SECUNDARIO} style={{ width: "100%" }} data-qa="pasar-plan">
+        Pasar a {plan.nombre.replace("Factoque ", "")}
+        {canal.tipo === "whatsapp" ? " por WhatsApp" : " por mail"}
       </a>
     </div>
   );
@@ -92,7 +101,7 @@ function HojaPlan({ plan, grande = false, canal }: { plan: Plan; grande?: boolea
           </ul>
         </>
       )}
-      {canal && plan.precioMensual > 0 && <Consultar plan={plan} canal={canal} />}
+      {canal && plan.precioMensual > 0 && <Pasar plan={plan} canal={canal} />}
     </article>
   );
 }
@@ -104,8 +113,8 @@ export default function FacturitaPlanesPage() {
       <div className="fx-caja" style={{ paddingBlock: "clamp(40px, 3rem + 3vw, 112px) var(--fx-seccion)" }}>
         <h1 className="fx-h1">Planes</h1>
         <p className="fx-lead">
-          Factoque es gratis. Si un día te queda chico, pasás a Comerciante en el mismo lugar: nunca se cobra por
-          usuario, se cobra por el tamaño de tu negocio.
+          Factoque es gratis. Si un mes te queda chico, pasás a Plus o a Pro en la misma app: lo único que cambia es
+          cuántas facturas hacés por mes. Nunca se cobra por usuario.
         </p>
         <p className="fx-bajada">{PRECIOS_DE_REFERENCIA}</p>
 
@@ -117,8 +126,8 @@ export default function FacturitaPlanesPage() {
             </p>
             <ul className="fx-lista" style={{ marginTop: 4 }}>
               <li>Cuando un mes necesitás más de {PLAN_FACTURITA.facturasPorMes} facturas.</li>
-              <li>Cuando querés que lo que te entra al banco se facture solo.</li>
-              <li>Cuando querés cobrar con Mercado Pago y que la factura salga sola.</li>
+              <li>Te avisamos desde la anteúltima: nunca te enterás en el mostrador.</li>
+              <li>Lo que ya emitiste queda siempre en tu cuenta, cambies o no de plan.</li>
             </ul>
             <div style={{ marginTop: 8 }}>
               <Link href="/facturita/alta" className={BOTON_PRINCIPAL}>
@@ -129,17 +138,24 @@ export default function FacturitaPlanesPage() {
         </div>
 
         <h2 className="fx-h2" style={{ marginTop: "var(--fx-seccion)" }}>
-          <em>Comerciante</em>
+          <em>Más facturas</em>, la misma app
         </h2>
-        <p className="fx-bajada">La misma cuenta, con más músculo. Elegís por el tamaño de tu negocio.</p>
-        <div className="fx-planes-4">
-          {PLANES_COMERCIANTE.map((p) => (
+        <div className="fx-planes-4 fx-planes-2">
+          {[PLAN_FACTOQUE_PLUS, PLAN_FACTOQUE_PRO].map((p) => (
             <HojaPlan key={p.id} plan={p} canal={canal} />
           ))}
         </div>
+
+        <h2 className="fx-h3" style={{ marginTop: "var(--fx-seccion)" }}>
+          Lo que sigue: {LO_QUE_SIGUE.nombre.replace(/\s+Solo$/, "")}
+        </h2>
+        <p className="fx-bajada" data-qa="lo-que-sigue">
+          Cuando quieras que lo que te entra al banco o a Mercado Pago se facture solo, y que tu contador mire todo,
+          eso es Comerciante: otro producto de Gestión Studio Grow, desde {precioTexto(LO_QUE_SIGUE.precioMensual)} por
+          mes. Hoy no se contrata desde Factoque.
+        </p>
         <p className="fx-chico" style={{ margin: "28px 0 0" }}>
-          {ACLARACION_IVA}. {/* sin la referencia interna al ADR en público */}
-          {ORIGEN_LISTA.replace(/\s*\(ADR-\d+\)/, "")}.
+          {ACLARACION_IVA}.
         </p>
         <div style={{ marginTop: 40 }}>
           <Link href="/facturita" className={BOTON_SECUNDARIO}>

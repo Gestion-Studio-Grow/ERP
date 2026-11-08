@@ -37,7 +37,7 @@ test("tope: con 5 usadas bloquea y ofrece el upgrade", () => {
   const e = estadoLimite(5);
   assert.equal(e.puedeEmitir, false);
   assert.match(e.mensaje ?? "", /tope/i);
-  assert.match(e.mensaje ?? "", /plan Factoque/);
+  assert.match(e.mensaje ?? "", /Factoque Plus/);
   assert.doesNotMatch(e.mensaje ?? "", /Comerciante|\$/, "no nombra Comerciante ni inventa precios");
 });
 
@@ -205,11 +205,11 @@ test("mensaje: dice el estado real (de prueba, autorizada con CAE, pendiente o a
   assert.match(mensajeDeEmision({ estado: "pendiente", motivo: "apagada", ventanaDias: 10 }), /«Conectar con ARCA»/, "dice adónde ir");
 });
 
-test("el aviso del tope no promete «sin límite» ni fija un tope de plan que todavía no está en el motor (T2)", () => {
+test("el aviso del tope no promete «sin límite»: nombra el plan siguiente y su tope", () => {
   const m = estadoLimite(LIMITE_FACTURAS_FACTURITA).mensaje ?? "";
   assert.doesNotMatch(m, /sin límite/i);
-  assert.doesNotMatch(m, new RegExp(String(PLAN_SALTO.facturasPorMes)));
-  assert.match(m, /plan Factoque/);
+  assert.match(m, new RegExp(PLAN_SALTO.nombre));
+  assert.match(m, new RegExp(String(PLAN_SALTO.facturasPorMes)));
 });
 
 // ---------------------------------------------------------------------------

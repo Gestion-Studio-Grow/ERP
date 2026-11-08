@@ -13,8 +13,9 @@ import "server-only";
 // decide `decidirComprobante`), guarda el comprador para el PDF y el registro de la emisión en la
 // MISMA transacción (guarda del doble toque por clave), despacha a ARCA y contesta el estado REAL.
 //
-// Lo único que cambia según el negocio es el tope de 5 por mes: es del PLAN de Factoque
-// (blueprint `facturita`), no de quien emite. Un negocio de otro plan no tiene tope.
+// Lo único que cambia según el negocio es el tope mensual: es del PLAN de Factoque (blueprint
+// `facturita`; Gratis 5, Plus 40, Pro 159 según `Tenant.plan` y su vigencia, plan-factoque.server.ts),
+// no de quien emite. Un negocio de otro blueprint no tiene tope.
 
 import { revalidatePath } from "next/cache";
 import { tenantTransaction } from "@/lib/rls";
@@ -42,11 +43,9 @@ import {
 import { montosFacturita } from "@/lib/facturita-montos";
 import { ACCION_EMISION, ENTIDAD_EMISION, claveEmisionValida, type RegistroEmision } from "@/lib/facturita-atajos";
 import type { ResultadoEmisionManual } from "@/lib/facturacion/facturador-core";
+import { BLUEPRINT_CON_TOPE, leerPlanFactoque, planFactoqueEnTx } from "@/lib/facturacion/plan-factoque.server";
 
 export type { ResultadoEmisionManual };
-
-/** El plan con tope mensual de comprobantes (Factoque gratis). */
-const BLUEPRINT_CON_TOPE = "facturita";
 
 export interface ContextoEmisionManual {
   /** El negocio que EMITE (el de la sesión, o el cliente de la cartera del contador). */
@@ -138,7 +137,11 @@ async function emitir(ctx: ContextoEmisionManual, datos: EmisionFacturita): Prom
   // El mismo pedido otra vez (doble toque, reintento): la factura ya existe, no se cuenta de nuevo
   // contra el tope ni se pide otro CAE. Se contesta con cómo quedó la primera.
   const yaEmitida = clave ? await facturaDeLaClave(tenantId, clave) : null;
-  const limite = conTope ? estadoLimite(await contarFacturasDelMes(tenantId)) : null;
+  // El cupo del plan que rige hoy (vencido → Gratis). Se vuelve a leer DENTRO de la transacción, con
+  // el candado: esta lectura sólo frena temprano y arma la respuesta.
+  const planHoy = conTope ? await leerPlanFactoque(tenantId, hoy) : null;
+  const cupoHoy = planHoy?.cupo;
+  const limite = conTope ? estadoLimite(await contarFacturasDelMes(tenantId), cupoHoy) : null;
   if (!yaEmitida && limite && !limite.puedeEmitir) {
     return { ok: false, error: limite.mensaje ?? "Llegaste al límite de facturas del plan de este mes." };
   }
@@ -169,9 +172,14 @@ async function emitir(ctx: ContextoEmisionManual, datos: EmisionFacturita): Prom
             // El tope, contado DENTRO de la fila del negocio: dos pedidos simultáneos con claves
             // distintas no pasan los dos con el último lugar (certificación del facturador guiado).
             await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`facturita-cupo:${tenantId}`}))`;
-            const usadas = await tx.invoice.count({ where: { tenantId, ...filtrosFacturacionMes().cupo } });
-            const cupo = estadoLimite(usadas);
-            if (!cupo.puedeEmitir) throw new TopeDelPlanError(cupo.mensaje ?? "Llegaste al límite de facturas del plan de este mes.");
+            // El plan, releído con el candado tomado: un cambio de plan del operador o una
+            // vigencia que vence en el medio se respetan; si dejó de ser Factoque, sin tope.
+            const plan = await planFactoqueEnTx(tx, tenantId, hoy);
+            if (plan) {
+              const usadas = await tx.invoice.count({ where: { tenantId, ...filtrosFacturacionMes().cupo } });
+              const cupo = estadoLimite(usadas, plan.cupo);
+              if (!cupo.puedeEmitir) throw new TopeDelPlanError(cupo.mensaje ?? "Llegaste al límite de facturas del plan de este mes.");
+            }
           }
           const id = await createInvoiceInTx(tx, {
             tenantId,
@@ -290,14 +298,14 @@ async function emitir(ctx: ContextoEmisionManual, datos: EmisionFacturita): Prom
       if (estado.estado === "rechazada") {
         return { ok: false, error: mensajeDeEmision(estado), invoiceId, estado };
       }
-      const limiteDespues = conTope ? estadoLimite(await contarFacturasDelMes(tenantId)) : null;
+      const limiteDespues = conTope ? estadoLimite(await contarFacturasDelMes(tenantId), cupoHoy) : null;
       return { ok: true, invoiceId, limite: limiteDespues, estado, mensaje: mensajeDeEmision(estado), ...(repetida ? { repetida } : {}) };
     } catch (err) {
       logger.error("emision-manual", "factura creada; falló leer su estado", err, { tenantId, invoiceId });
       return {
         ok: true,
         invoiceId,
-        limite: limite ? estadoLimite(limite.usadas + (repetida ? 0 : 1)) : null,
+        limite: limite ? estadoLimite(limite.usadas + (repetida ? 0 : 1), cupoHoy) : null,
         estado: pendiente,
         mensaje: mensajeDeEmision(pendiente),
         ...(repetida ? { repetida } : {}),

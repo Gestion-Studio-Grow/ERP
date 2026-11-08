@@ -9,11 +9,35 @@ import { claseDelPrefijo, cuitValido, normalizarCuit } from "@/lib/cuit";
 import { redondearAlCentavo, sumarAlCentavo } from "@/lib/dinero/redondeo";
 import { UMBRAL_IDENTIFICACION_CONSUMIDOR_FINAL, vigenteEn } from "@/lib/fiscal/vigencias";
 
-/** Tope del plan gratis: 5 facturas por mes (el gancho de upgrade a un plan Factoque). */
+/** Tope del plan Gratis: 5 facturas por mes (el gancho para pasar a Plus). */
 export const LIMITE_FACTURAS_FACTURITA = 5;
 
-/** Aviso desde la 4ª factura ("te queda 1"). */
+/** Aviso desde la anteúltima factura del plan Gratis ("te queda 1"). */
 export const AVISO_DESDE = LIMITE_FACTURAS_FACTURITA - 1;
+
+/**
+ * El cupo de un plan de Factoque, lo único que la regla del tope necesita saber del plan. Lo arma
+ * `cupoDelPlan` (src/lib/facturita-planes.ts, la fuente de nombres y topes); acá sólo vive el de
+ * Gratis como valor por defecto, para no importar los planes desde el núcleo (ciclo). Un test
+ * exige que los dos sean iguales.
+ */
+export interface CupoDelPlan {
+  /** Facturas por mes del plan. */
+  tope: number;
+  /** Nombre visible del plan («Factoque Plus»). */
+  nombre: string;
+  /** El plan gratis habla de «facturas gratis»; los pagos, de «tu plan». */
+  gratis: boolean;
+  /** El plan al que conviene pasar cuando se llena; `null` en el último escalón. */
+  siguiente: { nombre: string; tope: number } | null;
+}
+
+export const CUPO_GRATIS: CupoDelPlan = {
+  tope: LIMITE_FACTURAS_FACTURITA,
+  nombre: "Factoque Gratis",
+  gratis: true,
+  siguiente: { nombre: "Factoque Plus", tope: 40 },
+};
 
 export interface EstadoLimite {
   usadas: number;
@@ -22,20 +46,35 @@ export interface EstadoLimite {
   puedeEmitir: boolean;
   /** Mensaje de aviso/bloqueo en criollo (null si no corresponde mostrar nada). */
   mensaje: string | null;
+  /** Nombre del plan cuyo tope se aplicó. */
+  plan: string;
 }
 
-/** Estado del tope mensual a partir de las facturas ya emitidas en el mes. */
-export function estadoLimite(usadas: number): EstadoLimite {
-  const restantes = Math.max(0, LIMITE_FACTURAS_FACTURITA - usadas);
-  const puedeEmitir = usadas < LIMITE_FACTURAS_FACTURITA;
+function mensajeDeTope(cupo: CupoDelPlan): string {
+  const llegaste = cupo.gratis
+    ? `Llegaste al tope de ${cupo.tope} facturas gratis de este mes.`
+    : `Llegaste al tope de ${cupo.tope} facturas de tu plan ${cupo.nombre} este mes.`;
+  if (!cupo.siguiente) return `${llegaste} El mes que viene se renueva; si necesitás más antes, escribinos.`;
+  return `${llegaste} Para emitir más, pasate a ${cupo.siguiente.nombre}: mismo lugar, hasta ${cupo.siguiente.tope} facturas por mes.`;
+}
+
+/**
+ * Estado del tope mensual a partir de las facturas ya emitidas en el mes y el cupo del plan.
+ * Avisa desde la anteúltima; con el tope lleno (o pasado, si el plan bajó a mitad de mes y ya
+ * había más emitidas) bloquea la SIGUIENTE: lo emitido no se toca.
+ */
+export function estadoLimite(usadas: number, cupo: CupoDelPlan = CUPO_GRATIS): EstadoLimite {
+  const restantes = Math.max(0, cupo.tope - usadas);
+  const puedeEmitir = usadas < cupo.tope;
   let mensaje: string | null = null;
   if (!puedeEmitir) {
-    mensaje =
-      "Llegaste al tope de 5 facturas gratis de este mes. Para emitir más, pasate a un plan Factoque: mismo lugar, más facturas por mes.";
-  } else if (usadas >= AVISO_DESDE) {
-    mensaje = `Te queda ${restantes === 1 ? "1 factura gratis" : `${restantes} facturas gratis`} este mes.`;
+    mensaje = mensajeDeTope(cupo);
+  } else if (usadas >= cupo.tope - 1) {
+    mensaje = cupo.gratis
+      ? `Te queda ${restantes === 1 ? "1 factura gratis" : `${restantes} facturas gratis`} este mes.`
+      : `Te queda ${restantes === 1 ? "1 factura" : `${restantes} facturas`} de tu plan ${cupo.nombre} este mes.`;
   }
-  return { usadas, limite: LIMITE_FACTURAS_FACTURITA, restantes, puedeEmitir, mensaje };
+  return { usadas, limite: cupo.tope, restantes, puedeEmitir, mensaje, plan: cupo.nombre };
 }
 
 // ---------------------------------------------------------------------------

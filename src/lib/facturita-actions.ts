@@ -19,6 +19,7 @@ import {
 } from "@/lib/fiscal";
 import { procesarEnviosDelNegocio } from "@/lib/arca-dispatch";
 import { emitirComprobanteManual } from "@/lib/facturacion/emision-manual.server";
+import { leerPlanFactoque } from "@/lib/facturacion/plan-factoque.server";
 import { contarFacturasDelMes, fechaFiscalDelDia } from "@/lib/bancos-glue";
 import { logger } from "@/lib/logger";
 import { modoDesdeEnv } from "@/plugins/arca";
@@ -83,10 +84,23 @@ function esMigracionPendiente(e: unknown): boolean {
   return code === "P2021" || code === "P2022";
 }
 
-/** Estado del tope mensual (5 gratis) para el tablero. */
+/** El tope del mes con el cupo del plan que rige hoy (Gratis 5 · Plus 40 · Pro 159; vencido → Gratis). */
+async function estadoDelCupo(tenantId: string): Promise<EstadoLimite> {
+  const [plan, usadas] = await Promise.all([leerPlanFactoque(tenantId, fechaHoy()), contarFacturasDelMes(tenantId)]);
+  return estadoLimite(usadas, plan?.cupo);
+}
+
+/** Estado del tope mensual del plan para el tablero. */
 export async function estadoFacturitaAction(): Promise<EstadoLimite> {
   const { tenantId } = await requireTenantFacturita();
-  return estadoLimite(await contarFacturasDelMes(tenantId));
+  return estadoDelCupo(tenantId);
+}
+
+/** El plan que rige hoy, para Mi cuenta: id, si venció y hasta cuándo corre. */
+export async function planFacturitaAction(): Promise<{ id: string; vencido: boolean; vigenciaHasta: string | null }> {
+  const { tenantId } = await requireTenantFacturita();
+  const plan = await leerPlanFactoque(tenantId, fechaHoy());
+  return { id: plan?.plan.id ?? "facturita", vencido: plan?.vencido ?? false, vigenciaHasta: plan?.vigenciaHasta ?? null };
 }
 
 async function leerDatosEmisor(tenantId: string): Promise<DatosEmisorGuardados> {
@@ -184,7 +198,7 @@ export async function emitirFacturitaAction(
   const r = await emitirComprobanteManual({ tenantId, actor: `user:${userId}`, revalidar: [PATH_APP] }, datos);
   if (!r.ok) return r;
   // Un negocio Factoque siempre tiene tope; el `?? ` sólo cubre el tipo.
-  return { ...r, limite: r.limite ?? estadoLimite(await contarFacturasDelMes(tenantId)) };
+  return { ...r, limite: r.limite ?? (await estadoDelCupo(tenantId)) };
 }
 
 // ---------------------------------------------------------------------------
@@ -304,6 +318,10 @@ export async function anularFacturitaAction(facturaId: string, motivo: string): 
   try {
     r = await tenantTransaction(
       async (tx) => {
+        // El candado del cupo (el mismo `facturita-cupo:` de la emisión): la nota NO ocupa lugar
+        // (T1: el filtro del cupo de bancos-glue la excluye), pero anular y emitir en el mismo negocio
+        // quedan en fila, así el recuento de la emisión nunca ve una nota a medio crear (T2).
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`facturita-cupo:${tenantId}`}))`;
         const nota = await crearNotaDeCreditoInTx(tx, { tenantId, facturaId, motivo: porque, fecha: fechaHoy() });
         if (!nota.ok) return nota;
         const ficha = await tx.auditLog.findFirst({
