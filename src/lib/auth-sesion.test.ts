@@ -160,3 +160,12 @@ test("PROXY: el token viejo (sin vencimiento) pasa antes de la fecha fija y no d
   assert.equal(res.status, 307);
   assert.equal(new URL(res.headers.get("location")!).searchParams.get("error"), "vencida");
 });
+
+test("ATAQUE: con `ahora` o `legadoHasta` NaN la sesión falla cerrada (v1 y v2)", async () => {
+  const viejo = tokenViejo(UID);
+  const antes = FIN_DE_LA_TRANSICION - HORA;
+  assert.equal(await readSessionToken(viejo, { ahora: NaN }), null);
+  assert.equal(await readSessionToken(viejo, { ahora: antes, legadoHasta: NaN }), null);
+  assert.equal(await readSessionToken(viejo, { ahora: NaN, legadoHasta: NaN }), null);
+  assert.equal(await readSessionToken(await createSessionToken(UID), { ahora: NaN }), null);
+});

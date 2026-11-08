@@ -134,13 +134,15 @@ export async function readSessionToken(
     const vence = Number(m[3]);
     if (emitido > ahora + TOLERANCIA_RELOJ_MS) return null;
     if (vence <= emitido || vence - emitido > VIGENCIA_SESION_MS) return null;
-    if (ahora >= vence) return null;
+    // Falla cerrada: con `ahora` NaN, `ahora >= vence` daba false y el token valía.
+    if (!(ahora < vence)) return null;
     return m[1];
   }
 
   // Formato viejo (`userId.firma`, sin fecha): sólo durante la transición, y sólo con forma de id.
   const legadoHasta = Math.min(opciones.legadoHasta ?? FIN_DE_LA_TRANSICION, FIN_DE_LA_TRANSICION);
-  if (ahora >= legadoHasta) return null;
+  // Falla cerrada: con `ahora` o `legadoHasta` NaN, `ahora >= legadoHasta` daba false y el v1 valía.
+  if (!(ahora < legadoHasta)) return null;
   if (!USER_ID_VALIDO.test(payload)) return null;
   if (!timingSafeStringEqual(signature, await sign(payload))) return null;
   return payload;

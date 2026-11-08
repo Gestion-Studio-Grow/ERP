@@ -3,7 +3,7 @@ import { getSessionCookieName, readSessionToken } from "@/lib/auth";
 import { getOperatorCookieName, readOperatorToken } from "@/lib/operator-auth";
 import { isDemoSandbox } from "@/lib/demo-flag";
 import { vidrieraDelHost } from "@/lib/producto-host";
-import { PREFIJO_CLUB_CRUDO } from "@/lib/club-crudo";
+import { ARCHIVOS_DEL_CLUB_CRUDO, PREFIJO_CLUB_CRUDO } from "@/lib/club-crudo";
 import {
   GATE_PATH,
   extraPublicPaths,
@@ -37,8 +37,11 @@ export function esApexDelDominio(host: string | null | undefined, base = process
 }
 
 /**
- * Si la ruta es del club crudo de Break Point, lo que queda debajo de la carpeta (`""` para la carpeta misma);
- * si no, `null`. Normalizada (mayúsculas, %xx, barras dobles e invertidas, . y ..) para no esquivarla. PURA.
+ * Si la ruta es del club crudo de Break Point: el archivo de `ARCHIVOS_DEL_CLUB_CRUDO` que nombra, o `""` para
+ * cualquier otra cosa dentro de la carpeta (la carpeta misma incluida); si no es del club, `null`. La detección se
+ * normaliza (mayúsculas, %xx, barras dobles e invertidas, . y ..) para no esquivarla; lo devuelto es siempre una
+ * clave de la lista blanca, nunca texto de la URL (con `%252e%252e` el resto decodificado una vez era `%2e%2e/...`
+ * y `new URL` lo resolvía como `..`: certificación GSG-SEG-002, cert 2). PURA.
  */
 export function rutaDelClubCrudo(pathname: string): string | null {
   let p = pathname;
@@ -48,8 +51,11 @@ export function rutaDelClubCrudo(pathname: string): string | null {
     // %xx roto: se mira la ruta tal cual llegó.
   }
   // Barras invertidas, dobles y segmentos . / .. resueltos: `/previews/breakpoint/turnero/..%2fclub/app.mjs` también cuenta.
+  const plano = p.toLowerCase().replace(/\\/g, "/");
+  // Lo que llega con el prefijo del club (antes de resolver `..`) es del club aunque «salga» al resolver: 404, no paso.
+  const conPrefijo = /^\/+previews\/+breakpoint\/+club(\/|$)/.test(plano);
   const segs: string[] = [];
-  for (const s of p.toLowerCase().replace(/\\/g, "/").split("/")) {
+  for (const s of plano.split("/")) {
     if (s === "" || s === ".") continue;
     if (s === "..") segs.pop();
     else segs.push(s);
@@ -59,7 +65,24 @@ export function rutaDelClubCrudo(pathname: string): string | null {
   // de los jugadores (public/previews/breakpoint/turnero/local.mjs) y ya viaja dentro de /turnero.
   if (p === "/previews/breakpoint/club/motor.mjs") return null;
   if (p === "/previews/breakpoint/club") return "";
-  return p.startsWith("/previews/breakpoint/club/") ? p.slice("/previews/breakpoint/club/".length) : null;
+  if (!p.startsWith("/previews/breakpoint/club/")) return conPrefijo ? "" : null;
+  return archivoDeLaLista(p.slice("/previews/breakpoint/club/".length)) ?? "";
+}
+
+/** La clave de `ARCHIVOS_DEL_CLUB_CRUDO` igual a `nombre` (la de la lista, no el texto recibido), o `null`. PURA. */
+function archivoDeLaLista(nombre: string): string | null {
+  return Object.keys(ARCHIVOS_DEL_CLUB_CRUDO).find((k) => k === nombre) ?? null;
+}
+
+/**
+ * El archivo del club crudo a servir para esta ruta, o `null` (→ 404). Sólo la forma canónica exacta,
+ * `/previews/breakpoint/club/<archivo de la lista>`: cualquier %xx, barra invertida o doble, segmento vacío, `.`,
+ * `..`, `;` o mayúscula queda afuera. PURA.
+ */
+export function archivoDelClubCrudo(pathname: string): string | null {
+  const prefijo = "/previews/breakpoint/club/";
+  if (!pathname.startsWith(prefijo)) return null;
+  return archivoDeLaLista(pathname.slice(prefijo.length));
 }
 
 /** ¿La ruta es del club crudo de Break Point? Ver `rutaDelClubCrudo`. PURA. */
@@ -120,7 +143,12 @@ export async function proxy(request: NextRequest) {
     if (!(await readSessionToken(request.cookies.get(getSessionCookieName())?.value))) {
       return new NextResponse("No encontrado", { status: 404, headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" } });
     }
-    return NextResponse.rewrite(new URL(`${PREFIJO_CLUB_CRUDO}/${restoDelClub}`, request.url), { request: { headers: requestHeaders } });
+    // Lista blanca exacta sobre la ruta cruda: el destino es una constante de la lista, nunca la URL recibida.
+    const archivo = archivoDelClubCrudo(pathname);
+    if (archivo === null || archivo !== restoDelClub) {
+      return new NextResponse("No encontrado", { status: 404, headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" } });
+    }
+    return NextResponse.rewrite(new URL(`${PREFIJO_CLUB_CRUDO}/${archivo}`, request.url), { request: { headers: requestHeaders } });
   }
 
   // --- Plano de OPERADOR (control-plane, ADR-021) — portón separado del de tenant.
