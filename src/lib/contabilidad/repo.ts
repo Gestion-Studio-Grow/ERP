@@ -350,7 +350,8 @@ function anularEnTransaccion(tenantId: string, asientoId: string, fecha?: Date):
         fecha: true,
         descripcion: true,
         estado: true,
-        lineas: { select: { cuentaId: true, debe: true, haber: true, detalle: true } },
+        // fechaOrigen viaja al contra-asiento: la partida no monetaria se revierte con SU origen (T8).
+        lineas: { select: { cuentaId: true, debe: true, haber: true, detalle: true, fechaOrigen: true } },
         anuladoPor: { select: { id: true } },
       },
     });

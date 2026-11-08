@@ -158,3 +158,33 @@ test("fechaOrigen: se guarda en la línea no monetaria; sin ella el asiento se r
   });
   assert.ok(!futura.ok && futura.error === "ASIENTO_INVALIDO");
 });
+
+test("fechaOrigen: el contra-asiento de anularAsiento la conserva en la línea no monetaria", async (t) => {
+  const base = await laBase(t);
+  if (!base) return;
+  const repo = await preparar(base);
+  const ej = await repo.abrirEjercicio(base.b.id, { fechaInicio: dia("2026-01-01"), fechaCierre: dia("2026-12-31") });
+  assert.equal(ej.ok, true);
+  const deB = await enNegocio(base.b.id, (tx) => tx.cuentaContable.findMany({ select: { id: true, codigo: true } }));
+  const id = (c: string) => deB.find((x) => x.codigo === c)!.id;
+
+  const original = await repo.registrarAsiento(base.b.id, {
+    fecha: dia("2026-03-10"),
+    descripcion: "Compra de rodado",
+    confirmar: true,
+    lineas: [
+      { cuentaId: id("1.2.1.05"), debe: BigInt(2000000), haber: BigInt(0), fechaOrigen: dia("2026-03-01") },
+      { cuentaId: id("1.1.1.02"), debe: BigInt(0), haber: BigInt(2000000) },
+    ],
+  });
+  assert.ok(original.ok, JSON.stringify(original));
+  const an = await repo.anularAsiento(base.b.id, original.asientoId, dia("2026-05-20"));
+  assert.ok(an.ok, JSON.stringify(an));
+  const lineas = await enNegocio(base.b.id, (tx) =>
+    tx.asientoLinea.findMany({ where: { asientoId: an.asientoId }, select: { cuentaId: true, debe: true, haber: true, fechaOrigen: true } }),
+  );
+  const noMonetaria = lineas.find((l) => l.cuentaId === id("1.2.1.05"))!;
+  assert.equal(noMonetaria.haber, BigInt(2000000), "el contra-asiento invierte la línea");
+  assert.equal(noMonetaria.fechaOrigen?.toISOString().slice(0, 10), "2026-03-01", "el contra-asiento conserva la fecha de origen");
+  assert.equal(lineas.find((l) => l.cuentaId === id("1.1.1.02"))!.fechaOrigen, null, "la monetaria sigue sin fecha de origen");
+});
