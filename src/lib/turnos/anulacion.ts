@@ -211,7 +211,8 @@ export type MotivoAnulacionRechazada =
   | "dia-cerrado" // el día del asiento ya está cerrado: la corrección va con fecha de hoy
   | "nota-de-credito" // opción B: el cobro tiene su factura autorizada y la nota de crédito no se pudo emitir
   | "voucher-con-baja" // CH: cobro con voucher ya dado de baja en OpenKey: no vuelve a DISPONIBLE
-  | "voucher-liquidado"; // CH: OpenKey ya pagó ese voucher: liberarlo dejaría plata sin cobro vivo
+  | "voucher-liquidado" // CH: OpenKey ya pagó ese voucher: liberarlo dejaría plata sin cobro vivo
+  | "voucher-en-liquidacion"; // CH: el voucher está en una liquidación del lunes (abierta o conciliada)
 
 export type PlanAnulacion =
   | { ok: true; monto: number }
@@ -320,6 +321,8 @@ export function mensajeAnulacionRechazada(motivo: MotivoAnulacionRechazada): str
       return "Ese cobro es con un voucher que ya se dio de baja en OpenKey: no se anula desde acá. Resolvelo con La Alameda y anotalo.";
     case "voucher-liquidado":
       return "Ese cobro es con un voucher que OpenKey ya liquidó: no se anula desde acá. Se resuelve con La Alameda y se anota.";
+    case "voucher-en-liquidacion":
+      return "Ese cobro es con un voucher que ya está en la liquidación del lunes a la administración: no se anula desde acá. Si la liquidación sigue abierta, descartala primero en Vouchers; si ya se concilió, se resuelve con la administración y se anota.";
   }
 }
 
@@ -569,9 +572,10 @@ export async function anularCobroTurnoInTx(
     original.method === "VOUCHER"
       ? await tx.voucher.findFirst({
           where: { tenantId, collectionId: args.collectionId },
-          select: { id: true, bajaOpenKeyEn: true, liquidadoEn: true },
+          select: { id: true, bajaOpenKeyEn: true, liquidadoEn: true, liquidacionSemanalId: true },
         })
       : null;
+  if (voucher?.liquidacionSemanalId) throw new AnulacionRechazada("voucher-en-liquidacion");
   if (voucher?.liquidadoEn) throw new AnulacionRechazada("voucher-liquidado");
   if (voucher?.bajaOpenKeyEn) throw new AnulacionRechazada("voucher-con-baja");
   // La liberación condicionada también va antes de la nota: si la baja o la liquidación de
@@ -579,13 +583,25 @@ export async function anularCobroTurnoInTx(
   // tomada hasta el final de la tx (si la nota falla, el rollback la devuelve a USADO).
   if (voucher) {
     const liberado = await tx.voucher.updateMany({
-      where: { id: voucher.id, tenantId, estado: "USADO", collectionId: args.collectionId, bajaOpenKeyEn: null, liquidadoEn: null },
+      where: {
+        id: voucher.id,
+        tenantId,
+        estado: "USADO",
+        collectionId: args.collectionId,
+        bajaOpenKeyEn: null,
+        liquidadoEn: null,
+        // La liquidación del lunes toma el voucher con un updateMany sobre esta misma fila: el
+        // bloqueo de fila ordena las dos transacciones y la segunda ve el estado de la primera.
+        liquidacionSemanalId: null,
+      },
       data: { estado: "DISPONIBLE", appointmentId: null, collectionId: null, valorCubierto: null, usadoEn: null, usadoPor: null },
     });
     // Cambió entre la lectura y acá (la foto o la liquidación de OpenKey entró en paralelo): no se anula.
     if (liberado.count !== 1) {
-      const actual = await tx.voucher.findFirst({ where: { id: voucher.id, tenantId }, select: { liquidadoEn: true } });
-      throw new AnulacionRechazada(actual?.liquidadoEn ? "voucher-liquidado" : "voucher-con-baja");
+      const actual = await tx.voucher.findFirst({ where: { id: voucher.id, tenantId }, select: { liquidadoEn: true, liquidacionSemanalId: true } });
+      throw new AnulacionRechazada(
+        actual?.liquidacionSemanalId ? "voucher-en-liquidacion" : actual?.liquidadoEn ? "voucher-liquidado" : "voucher-con-baja",
+      );
     }
   }
 

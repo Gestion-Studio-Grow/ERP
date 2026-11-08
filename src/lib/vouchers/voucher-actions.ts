@@ -44,6 +44,9 @@ const MIGRACION_PENDIENTE =
 const NO_SE_PUDO = "No se pudo completar y no quedó nada a medias. Probá de nuevo; si sigue, avisá.";
 const MODO_DEMO = "En la demo los vouchers no se guardan.";
 const TOPE_CSV = 2 * 1024 * 1024; // 2 MB
+const PERMITIR_CSV_DE_OPENKEY = false;
+const LIQUIDACION_ES_SEMANAL =
+  "La plata de los vouchers ahora se liquida todos los lunes con la administración del country: usá «Liquidación del lunes» en Vouchers.";
 
 function texto(v: FormDataEntryValue | null): string {
   return typeof v === "string" ? v.trim() : "";
@@ -193,6 +196,10 @@ export async function importarLiquidacion(
   // permiso de la plata de la caja (`cash:manage`, abrir/cerrar/arquear: caja-actions.ts).
   const user = await requireCapability("cash:manage");
   if (await apagado()) return APAGADO;
+  // Regla del dueño del 08/11/2026: la plata del voucher la paga la ADMINISTRACIÓN del country y se
+  // liquida y concilia todos los lunes (liquidacion-actions.ts). Dos caminos que marcan «liquidado»
+  // dejarían la cuenta de la administración con débitos sin su crédito: este queda cerrado.
+  if (!PERMITIR_CSV_DE_OPENKEY) return { ok: false, error: LIQUIDACION_ES_SEMANAL };
   if (isDemoSandbox()) return { ok: false, error: MODO_DEMO };
   const contenido = await contenidoDelCsv(formData);
   if (typeof contenido !== "string") return { ok: false, error: contenido.error };

@@ -122,6 +122,7 @@ export async function cobrarConVoucherInTx(
       professionalId: true,
       status: true,
       priceAtBooking: true,
+      commissionPayoutId: true,
       service: { select: { price: true, name: true } },
       client: { select: { name: true } },
     },
@@ -130,6 +131,11 @@ export async function cobrarConVoucherInTx(
   // Invariante dura: el turno es de quien cobra, leído en ESTA tx (no basta el chequeo previo de la action).
   args.autorizarTurno?.(turno.professionalId);
   const precio = turno.priceAtBooking ?? turno.service.price;
+
+  // La comisión ya pagada se calculó sobre lo cobrado SIN voucher: un voucher ahora (p. ej. tras
+  // anular el cobro en efectivo) dejaría a la profesional cobrando de más sobre plata que CH no
+  // recibe en el cajón. Se rechaza; el saldo se cobra con otro medio.
+  if (turno.commissionPayoutId) throw new VoucherRechazado("comision-pagada");
 
   const yaTiene = await tx.voucher.findFirst({ where: { tenantId, appointmentId: turno.id }, select: { id: true } });
   if (yaTiene) throw new VoucherRechazado("turno-con-voucher");
@@ -487,7 +493,8 @@ export async function importarLiquidacionOpenKey(tenantId: string, args: Importa
         // marcarlo lo dejaría «liquidado» sin cobro y trabaría su uso o su anulación futura.
         marcados += (
           await tx.voucher.updateMany({
-            where: { id, tenantId, estado: "USADO" },
+            // Uno tomado por la liquidación del lunes (liquidacion-repo.ts) lo concilia esa, no este CSV.
+            where: { id, tenantId, estado: "USADO", liquidacionSemanalId: null },
             data: { liquidadoEn, montoLiquidado: f.monto, liquidacionRef: f.referencia },
           })
         ).count;

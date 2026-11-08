@@ -46,6 +46,7 @@ export type MotivoVoucherRechazado =
   | "turno-con-voucher"
   | "no-existe"
   | "enum-ausente"
+  | "comision-pagada"
   | "apagado";
 
 export const MENSAJES_VOUCHER: Record<MotivoVoucherRechazado, string> = {
@@ -61,6 +62,8 @@ export const MENSAJES_VOUCHER: Record<MotivoVoucherRechazado, string> = {
   "no-existe": "No hay un voucher con ese número en este negocio.",
   "enum-ausente":
     "Cobrar con voucher necesita un paso de base de datos que todavía no se aplicó (lo hace el dueño). Mientras tanto, cobrá con otro medio.",
+  "comision-pagada":
+    "La comisión de este turno ya se le pagó a la profesional: cobrarlo ahora con voucher bajaría una base que ya se liquidó. Cobrá el saldo con otro medio o resolvelo desde Comisiones.",
   apagado: "Los vouchers no están prendidos en este negocio.",
 };
 

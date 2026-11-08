@@ -82,4 +82,10 @@
 # integrantes y cobro por persona (E7). Aditiva: tablas "PadelClub", "PadelSerie", "PadelIntegrante"
 # con RLS adentro y tres columnas nulables ("PadelDisponibilidad"."clubId", "PadelClase"."clubId",
 # "PadelClase"."serieId"). Orden del dueño del 08/11; respaldo de Neon antes del merge.
-20261108120000_profeturnos_clubes_serie_grupal
+# (aplicada por el build de producción del merge de #43; #47 publicó READY el 08/11 sobre esa base: sale de la lista) 20261108120000_profeturnos_clubes_serie_grupal
+#
+# 2026-11-08 · Vouchers de CH: liquidación del lunes y cuenta corriente de la administración del country
+# (orden del dueño del 08/11, 00-ESTADO/VOUCHERS-CH-2026-11-08.md). Aditiva: tablas "VoucherLiquidacion"
+# y "VoucherPagoAdministracion" con RLS adentro y dos columnas NULLABLE en "Voucher"
+# ("liquidacionSemanalId", "resultadoLiquidacion"), sin default ni backfill. No toca enums ni datos.
+20261108140000_voucher_liquidacion_semanal

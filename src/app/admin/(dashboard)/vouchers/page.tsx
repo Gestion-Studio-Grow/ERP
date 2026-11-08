@@ -26,6 +26,10 @@ import {
 } from "./vouchers-pantalla";
 import { CargarLote } from "./CargarLote";
 import { ImportarCsv } from "./ImportarCsv";
+import { GenerarLiquidacion, PagoACuenta } from "./LiquidacionFormularios";
+import { leerCuentaDeLaAdministracion, type CuentaDeLaAdministracion } from "@/lib/vouchers/liquidacion-repo";
+import { fechaArgentina, pesosDeCentavos, ultimaSemanaCerrada } from "@/lib/vouchers/liquidacion-core";
+import { isPrismaError } from "@/lib/prisma-errors";
 
 export const dynamic = "force-dynamic";
 
@@ -128,14 +132,151 @@ export default async function VouchersPage({ searchParams }: { searchParams: Pro
           </Herramienta>
         </div>
       )}
-      {puedeLiquidar && (
-        <div className="mt-6 space-y-6">
-          <Herramienta titulo="Importar la liquidación de OpenKey" id="importar-liquidacion">
-            <ImportarCsv tipo="liquidacion" />
-          </Herramienta>
+      {/* La plata del voucher la paga la administración del country y se liquida todos los lunes
+          (regla del dueño del 08/11/2026). Reemplaza a la importación de la liquidación de OpenKey. */}
+      {puedeLiquidar && <LiquidacionDelLunes />}
+    </main>
+  );
+}
+
+async function leerCuenta(tenantId: string): Promise<CuentaDeLaAdministracion | "falta-migracion"> {
+  try {
+    return await leerCuentaDeLaAdministracion(tenantId);
+  } catch (e) {
+    // Migración 20261108140000_voucher_liquidacion_semanal sin aplicar: aviso, sin 500.
+    if (isPrismaError(e, "P2021") || isPrismaError(e, "P2022")) return "falta-migracion";
+    throw e;
+  }
+}
+
+/**
+ * Cuenta de la administración del country y liquidación del lunes: el saldo a cobrar (vouchers
+ * usados menos lo que pagó la administración), lo que falta liquidar, las liquidaciones y los
+ * pagos a cuenta. Sólo con `cash:manage` (es plata, como su action).
+ */
+async function LiquidacionDelLunes() {
+  const tenantId = await getCurrentTenantId();
+  const cuenta = await leerCuenta(tenantId);
+  const hoy = todayInBusinessTz();
+  if (cuenta === "falta-migracion") {
+    return (
+      <AvisoError
+        className="mt-8"
+        tono="aviso"
+        titulo="Liquidación del lunes: falta un paso de base de datos"
+        comoSeguir="La liquidación semanal con la administración necesita un paso de base de datos que todavía no se aplicó. Cuando esté, esta sección se enciende sola."
+      />
+    );
+  }
+  const saldo = pesosDeCentavos(cuenta.resumen.saldoCentavos);
+  const domingo = ultimaSemanaCerrada(hoy).hasta;
+  return (
+    <section id="liquidacion" aria-labelledby="liquidacion-titulo" className="mt-10 space-y-6">
+      <div>
+        <h2 id="liquidacion-titulo" className="text-lg font-semibold text-strong">
+          Administración del country · liquidación del lunes
+        </h2>
+        <p className="mt-1 text-sm text-muted">
+          Los vouchers los paga la administración de La Alameda, no el vecino: cada voucher usado es plata a cobrarle (no entra al cajón). Todos los lunes se liquida la semana anterior y se concilia con lo que paga.
+        </p>
+      </div>
+      <dl className="grid gap-3 sm:grid-cols-3">
+        <div className="rounded-md border border-line px-4 py-3">
+          <dt className="text-xs font-semibold uppercase tracking-wide text-muted">{saldo >= 0 ? "A cobrar a la administración" : "A favor de la administración"}</dt>
+          <dd className="mt-1 text-xl font-semibold text-strong" data-testid="saldo-administracion">
+            <Plata valor={Math.abs(saldo)} sinCentavos={Number.isInteger(saldo)} />
+          </dd>
+        </div>
+        <div className="rounded-md border border-line px-4 py-3">
+          <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Usados sin liquidar</dt>
+          <dd className="mt-1 text-sm text-strong">
+            {cuenta.sinLiquidar.cantidad} por <Plata valor={cuenta.sinLiquidar.total} sinCentavos={Number.isInteger(cuenta.sinLiquidar.total)} />
+          </dd>
+        </div>
+        <div className="rounded-md border border-line px-4 py-3">
+          <dt className="text-xs font-semibold uppercase tracking-wide text-muted">No pagados al conciliar</dt>
+          <dd className="mt-1 text-sm text-strong">
+            {cuenta.impagos.cantidad > 0 ? (
+              <>
+                {cuenta.impagos.cantidad} por <Plata valor={cuenta.impagos.total} sinCentavos={Number.isInteger(cuenta.impagos.total)} />
+              </>
+            ) : (
+              "Ninguno"
+            )}
+          </dd>
+        </div>
+      </dl>
+
+      <Herramienta titulo="Generar la liquidación del lunes" id="generar-liquidacion">
+        <GenerarLiquidacion domingo={domingo} />
+      </Herramienta>
+
+      {cuenta.liquidaciones.length > 0 && (
+        <div className="overflow-x-auto rounded-md border border-line" role="region" aria-label="Liquidaciones semanales" tabIndex={0}>
+          <table className="w-full text-sm">
+            <caption className="sr-only">Liquidaciones semanales con la administración del country</caption>
+            <thead className="border-b border-line-strong bg-surface-raised">
+              <tr>
+                <th scope="col" className={TH}>Semana</th>
+                <th scope="col" className={`${TH} text-right`}>Vouchers</th>
+                <th scope="col" className={`${TH} text-right`}>Total</th>
+                <th scope="col" className={TH}>Estado</th>
+                <th scope="col" className={`${TH} text-right`}>Pagado</th>
+                <th scope="col" className={`${TH} text-right`}>Diferencia</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-line">
+              {cuenta.liquidaciones.map((l) => (
+                <tr key={l.id}>
+                  <th scope="row" className={`${TD} text-left`}>
+                    <Link href={`/admin/vouchers/liquidacion/${l.id}`} className="text-accent-ink hover:underline">
+                      {fechaArgentina(l.desde)} al {fechaArgentina(l.hasta)}
+                    </Link>
+                  </th>
+                  <td className={`${TD} text-right tabular-nums`}>{l.cantidad}</td>
+                  <td className={`${TD} text-right`}>
+                    <Plata valor={l.total} sinCentavos={Number.isInteger(l.total)} />
+                  </td>
+                  <td className={TD}>
+                    <Marca tipo={l.estado === "CONCILIADA" ? (l.diferencia ? "atencion" : "hecho") : "pendiente"}>
+                      {l.estado === "CONCILIADA" ? (l.diferencia ? "Conciliada con diferencia" : "Conciliada") : "Esperando el pago"}
+                    </Marca>
+                  </td>
+                  <td className={`${TD} text-right`}>{l.pagado == null ? "—" : <Plata valor={l.pagado} sinCentavos={Number.isInteger(l.pagado)} />}</td>
+                  <td className={`${TD} text-right`}>{l.diferencia == null ? "—" : <Plata valor={l.diferencia} sinCentavos={Number.isInteger(l.diferencia)} />}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
-    </main>
+
+      <Herramienta titulo="Anotar un pago a cuenta de la administración" id="pago-a-cuenta">
+        <p className="pt-3 text-xs text-muted">Para un pago por adelantado (un lote prepago) o lo que la administración pague después de una diferencia. El pago de cada lunes se anota al conciliar su liquidación.</p>
+        <PagoACuenta hoy={hoy} />
+      </Herramienta>
+
+      {cuenta.movimientos.length > 0 && (
+        <Herramienta titulo="Movimientos de la cuenta" id="movimientos-cuenta">
+          <ul className="divide-y divide-line pt-2 text-sm">
+            {cuenta.movimientos.map((m) => (
+              <li key={m.ref} className="flex flex-wrap items-baseline justify-between gap-2 py-2">
+                <span>
+                  <span className="tabular-nums text-muted">{fechaArgentina(m.fecha)}</span> · {m.concepto}
+                </span>
+                <span className="tabular-nums">
+                  {m.tipo === "DEBITO" ? "+" : "−"}
+                  <Plata valor={pesosDeCentavos(m.centavos)} />
+                  <span className="ml-2 text-muted">
+                    saldo <Plata valor={pesosDeCentavos(m.saldoCentavos)} />
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Herramienta>
+      )}
+    </section>
   );
 }
 
