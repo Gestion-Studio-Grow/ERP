@@ -5,7 +5,7 @@ import { chipLinkAtributos, EmptyState } from "@/components/ui";
 import { alumnosPagina, badgePendientes, deudores } from "@/lib/padel/datos.server";
 import { Cabecera } from "../_cabecera";
 import { campo } from "../config/_estilos";
-import { aFila } from "./_fila";
+import { aFila, sinPlata } from "./_fila";
 import { FilaDeAlumno, ListaAlumnos } from "./_lista";
 import { NuevoAlumno } from "./_nuevo";
 
@@ -78,7 +78,7 @@ export default async function ClasesAlumnos({ searchParams }: { searchParams: Pr
           description={q ? "Probá con otra parte del nombre o del celular." : "Compartí tu link del turnero en la bio de Instagram, o cargá uno con «+ Alumno»."}
         />
       ) : (
-        <ListaAlumnos key={q} iniciales={pagina.items.map(aFila)} siguiente={pagina.siguiente} q={q} />
+        <ListaAlumnos key={q} iniciales={pagina.items.map((a) => (conPlata ? aFila(a) : sinPlata(aFila(a))))} siguiente={pagina.siguiente} q={q} />
       )}
     </main>
   );
