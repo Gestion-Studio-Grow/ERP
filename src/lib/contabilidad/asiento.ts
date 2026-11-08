@@ -44,6 +44,12 @@ export interface LineaAsiento {
   debe: bigint;
   haber: bigint;
   detalle?: string | null;
+  /**
+   * Fecha de origen de una partida NO monetaria (bien de uso, mercadería, seña, resultado), para
+   * reexpresarla en el ajuste por inflación (RT 54, T8). Se guarda desde T0; `null`/ausente en las
+   * monetarias. No puede ser posterior a la fecha del asiento.
+   */
+  fechaOrigen?: Date | null;
 }
 
 export type CodigoErrorAsiento =
@@ -61,7 +67,8 @@ export type CodigoErrorAsiento =
   | "FECHA_INVALIDA"
   | "SIN_EJERCICIO"
   | "EJERCICIO_CERRADO"
-  | "FECHA_FUERA_DEL_EJERCICIO";
+  | "FECHA_FUERA_DEL_EJERCICIO"
+  | "FECHA_ORIGEN_INVALIDA";
 
 export interface ErrorAsiento {
   codigo: CodigoErrorAsiento;
@@ -159,6 +166,17 @@ export function validarAsiento(
     }
     totalDebe += l.debe;
     totalHaber += l.haber;
+    if (l.fechaOrigen != null) {
+      if (Number.isNaN(l.fechaOrigen.getTime())) {
+        errores.push({ codigo: "FECHA_ORIGEN_INVALIDA", linea: i, mensaje: `Línea ${n}: la fecha de origen no es válida.` });
+      } else if (opts.fecha !== undefined && !Number.isNaN(opts.fecha.getTime()) && dia(l.fechaOrigen) > dia(opts.fecha)) {
+        errores.push({
+          codigo: "FECHA_ORIGEN_INVALIDA",
+          linea: i,
+          mensaje: `Línea ${n}: la fecha de origen (${dia(l.fechaOrigen)}) no puede ser posterior a la del asiento (${dia(opts.fecha)}).`,
+        });
+      }
+    }
 
     const cuenta = porId.get(l.cuentaId);
     if (!cuenta) {
@@ -220,6 +238,8 @@ export function contraAsiento(
       debe: l.haber,
       haber: l.debe,
       ...(l.detalle != null ? { detalle: l.detalle } : {}),
+      // El contra-asiento revierte la partida con SU origen: el ajuste por inflación la anula entera.
+      ...(l.fechaOrigen != null ? { fechaOrigen: l.fechaOrigen } : {}),
     })),
   };
 }

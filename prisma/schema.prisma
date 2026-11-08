@@ -276,6 +276,8 @@ model Tenant {
   ejercicios                Ejercicio[]
   asientos                  Asiento[]
   asientoLineas             AsientoLinea[]
+  cuentaRoles               CuentaRol[] // contabilidad (ola 2 · T0 control de gestión)
+  configContable            ConfigContable?
   obligacionesFiscales      ObligacionFiscal[]
   vencimientosFiscales      VencimientoFiscal[]
   proyectoConfig            ProyectoConfig?
@@ -4298,25 +4300,64 @@ model VoucherConciliacion {
 // trigger diferido que rechaza un asiento CONFIRMADO descuadrado o la edición de uno confirmado.
 
 model CuentaContable {
-  id         String           @id @default(cuid())
-  tenant     Tenant           @relation(fields: [tenantId], references: [id])
-  tenantId   String
-  codigo     String // jerárquico: 1 · 1.1 · 1.1.1 · 1.1.1.01
-  nombre     String
-  tipo       String // ACTIVO · PASIVO · PATRIMONIO_NETO · RESULTADO_POSITIVO · RESULTADO_NEGATIVO
-  naturaleza String // DEUDORA · ACREEDORA (las regularizadoras, la opuesta a su rubro)
-  padre      CuentaContable?  @relation("CuentaPadre", fields: [padreId, tenantId], references: [id, tenantId])
-  padreId    String?
-  hijas      CuentaContable[] @relation("CuentaPadre")
-  imputable  Boolean          @default(true)
-  activa     Boolean          @default(true)
-  lineas     AsientoLinea[]
-  createdAt  DateTime         @default(now())
-  updatedAt  DateTime         @updatedAt
+  id           String           @id @default(cuid())
+  tenant       Tenant           @relation(fields: [tenantId], references: [id])
+  tenantId     String
+  codigo       String // jerárquico: 1 · 1.1 · 1.1.1 · 1.1.1.01
+  nombre       String
+  tipo         String // ACTIVO · PASIVO · PATRIMONIO_NETO · RESULTADO_POSITIVO · RESULTADO_NEGATIVO
+  naturaleza   String // DEUDORA · ACREEDORA (las regularizadoras, la opuesta a su rubro)
+  padre        CuentaContable?  @relation("CuentaPadre", fields: [padreId, tenantId], references: [id, tenantId])
+  padreId      String?
+  hijas        CuentaContable[] @relation("CuentaPadre")
+  imputable    Boolean          @default(true)
+  activa       Boolean          @default(true)
+  // Ola 2 (20261108150000_contabilidad_ola2_roles, T0 de control de gestión). Todo NULLABLE: el
+  // plan de un negocio sembrado en la ola 1 sigue válido; `null` = sin dato (no «falso»).
+  rubro        String? // rubro RT 54 del estado (RUBROS_ESTADO, plan-modelo.ts)
+  plazo        String? // CORRIENTE · NO_CORRIENTE (sólo activo y pasivo)
+  funcion      String? // COSTO · COMERCIALIZACION · ADMINISTRACION · FINANCIACION (por defecto; la línea la pisa en T2)
+  monetaria    Boolean? // para el ajuste por inflación (T8): las no monetarias guardan fechaOrigen en la línea
+  ritmo        String? // FIJO_MENSUAL · VARIABLE (sólo resultados; plan vs real a la fecha, T4)
+  nombreDueno  String? // cómo la ve el dueño en el tablero
+  monedaCuenta String? // nivel Corporativo (multimoneda, E3). NULL = moneda funcional (ARS)
+  lineas       AsientoLinea[]
+  roles        CuentaRol[]
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
 
   @@unique([tenantId, codigo])
   @@unique([id, tenantId])
   @@index([tenantId, padreId])
+}
+
+/// Qué cuenta del negocio cumple cada rol que usan las reglas de contabilización (roles.ts).
+/// Un rol, una cuenta por negocio. FK compuesta: nunca apunta a la cuenta de otro negocio.
+model CuentaRol {
+  id        String         @id @default(cuid())
+  tenant    Tenant         @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  rol       String // ROLES_CUENTA (roles.ts)
+  cuenta    CuentaContable @relation(fields: [cuentaId, tenantId], references: [id, tenantId])
+  cuentaId  String
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@unique([tenantId, rol])
+  @@index([tenantId, cuentaId])
+}
+
+/// Nivel del módulo por negocio: «Control de gestión · Pyme» o «· Corporativo», y las capacidades
+/// que se prenden de a una (config.ts). Sin fila = PYME sin capacidades. El interruptor
+/// «contabilidad» (AuditLog) decide si el negocio ve el módulo; esto, cómo.
+model ConfigContable {
+  tenant       Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId     String   @id
+  nivel        String   @default("PYME") // PYME · CORPORATIVO
+  capacidades  Json     @default("{}") // { multiempresa, multimoneda, jerarquia, aprobaciones, segmentos, api }: sólo `true` prende
+  rubroNegocio String? // plan modelo sembrado: comercio · servicios · club · agencia
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model Ejercicio {
@@ -4359,18 +4400,20 @@ model Asiento {
 }
 
 model AsientoLinea {
-  id        String         @id @default(cuid())
-  tenant    Tenant         @relation(fields: [tenantId], references: [id])
-  tenantId  String
-  asiento   Asiento        @relation(fields: [asientoId, tenantId], references: [id, tenantId], onDelete: Cascade)
-  asientoId String
-  cuenta    CuentaContable @relation(fields: [cuentaId, tenantId], references: [id, tenantId])
-  cuentaId  String
-  debe      BigInt         @default(0) // centavos
-  haber     BigInt         @default(0) // centavos
-  detalle   String?
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
+  id          String         @id @default(cuid())
+  tenant      Tenant         @relation(fields: [tenantId], references: [id])
+  tenantId    String
+  asiento     Asiento        @relation(fields: [asientoId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  asientoId   String
+  cuenta      CuentaContable @relation(fields: [cuentaId, tenantId], references: [id, tenantId])
+  cuentaId    String
+  debe        BigInt         @default(0) // centavos
+  haber       BigInt         @default(0) // centavos
+  detalle     String?
+  // Ola 2: fecha de origen de la partida no monetaria (ajuste por inflación RT 54, T8). NULL en monetarias.
+  fechaOrigen DateTime?      @db.Date
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
 
   @@index([tenantId, asientoId])
   @@index([tenantId, cuentaId])

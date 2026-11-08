@@ -1,6 +1,6 @@
 -- =============================================================================
 -- PASE A PRODUCCIÓN — el lote vigente de prisma/lote-deploy.txt (hoy: 1 migración,
--- 20261108120000_profeturnos_clubes_serie_grupal). Se pega en
+-- 20261108150000_contabilidad_ola2_roles). Se pega en
 -- PRODUCCIÓN, DESPUÉS de crear un branch de respaldo con la fecha del día
 -- (Branches → Create branch → "respaldo-AAAA-MM-DD"). Gate 2: sólo con OK del dueño.
 -- =============================================================================
@@ -14,160 +14,122 @@
 BEGIN;
 DO $$
 BEGIN
-  IF EXISTS (SELECT 1 FROM _prisma_migrations WHERE migration_name IN ('20261108120000_profeturnos_clubes_serie_grupal')) THEN
+  IF EXISTS (SELECT 1 FROM _prisma_migrations WHERE migration_name IN ('20261108150000_contabilidad_ola2_roles')) THEN
     RAISE EXCEPTION 'Alguna migración del lote ya figura en _prisma_migrations: no se vuelve a aplicar encima.';
   END IF;
 END $$;
 
--- ─── 20261108120000_profeturnos_clubes_serie_grupal · checksum 2047560fc12e230e1aab27f08117adc72717fc5e001c35d2be04316609e3ff01 ───
--- ProfeTurnos (módulo padel-clases) · E4 Clubes + E8 Clase fija semanal + E7 Grupal con integrantes.
--- ADITIVA: 3 tablas nuevas y 3 columnas nulables (PadelDisponibilidad.clubId, PadelClase.clubId,
--- PadelClase.serieId). No toca datos existentes; con todo en NULL el módulo anda como antes.
--- RLS en las tablas nuevas con la misma política que 20261015120000_modulo_padel_clases.
+-- ─── 20261108150000_contabilidad_ola2_roles · checksum 644120bb0bda14b06746b826db233762eb32de7877ce301f62ee72b793d6f84b ───
+-- Contabilidad, ola 2 — T0 de Contabilidad + Control de gestión (GSG-CTRL-001, Factory-GSG
+-- 20-PRODUCTO/control-de-gestion-DISENO-FINAL.md §3 T0 y control-de-gestion-EMPRESAS.md §2.2).
+--
+-- ADITIVA: sólo ADD COLUMN nullable, tablas nuevas con RLS, índices y CHECKs sobre columnas nuevas.
+-- No toca datos ni columnas existentes, no hay DROP ni ALTER TYPE. Escrita SIN aplicar (Gate 2).
+-- El código tolera su ausencia: con el interruptor «contabilidad» apagado no se lee nada; prendido
+-- y sin esta migración, P2021/P2022 → «migración pendiente» (src/lib/contabilidad/repo.ts).
+-- Requiere 20261104122000_contabilidad_ola1 aplicada (FK a "CuentaContable").
+--
+--   · CuentaContable: rubro RT 54, plazo, función, monetaria, ritmo, nombre del dueño y
+--     monedaCuenta (nivel Corporativo; NULL = ARS).
+--   · AsientoLinea.fechaOrigen: fecha de origen de la partida no monetaria (ajuste por inflación, T8).
+--   · CuentaRol: qué cuenta cumple cada rol de las reglas, uno por negocio.
+--   · ConfigContable: nivel PYME · CORPORATIVO + capacidades (JSON) + rubro del plan sembrado.
+--
+-- Columnas de AsientoLinea con trigger de inmutabilidad (ola 1): ADD COLUMN no dispara triggers
+-- y con NULL no reescribe la tabla.
 
 -- AlterTable
-ALTER TABLE "PadelDisponibilidad" ADD COLUMN     "clubId" TEXT;
+ALTER TABLE "CuentaContable" ADD COLUMN     "funcion" TEXT,
+ADD COLUMN     "monedaCuenta" TEXT,
+ADD COLUMN     "monetaria" BOOLEAN,
+ADD COLUMN     "nombreDueno" TEXT,
+ADD COLUMN     "plazo" TEXT,
+ADD COLUMN     "ritmo" TEXT,
+ADD COLUMN     "rubro" TEXT;
 
 -- AlterTable
-ALTER TABLE "PadelClase" ADD COLUMN     "clubId" TEXT,
-ADD COLUMN     "serieId" TEXT;
+ALTER TABLE "AsientoLinea" ADD COLUMN     "fechaOrigen" DATE;
 
 -- CreateTable
-CREATE TABLE "PadelClub" (
+CREATE TABLE "CuentaRol" (
     "id" TEXT NOT NULL,
     "tenantId" TEXT NOT NULL,
-    "nombre" TEXT NOT NULL,
-    "direccion" TEXT,
-    "mapsUrl" TEXT,
-    "activo" BOOLEAN NOT NULL DEFAULT true,
-    "orden" INTEGER NOT NULL DEFAULT 0,
+    "rol" TEXT NOT NULL,
+    "cuentaId" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "PadelClub_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "CuentaRol_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "PadelSerie" (
-    "id" TEXT NOT NULL,
+CREATE TABLE "ConfigContable" (
     "tenantId" TEXT NOT NULL,
-    "alumnoId" TEXT NOT NULL,
-    "clubId" TEXT,
-    "diaSemana" INTEGER NOT NULL,
-    "hora" TEXT NOT NULL,
-    "tipo" TEXT NOT NULL DEFAULT 'INDIVIDUAL',
-    "personas" INTEGER NOT NULL DEFAULT 1,
-    "desde" DATE NOT NULL,
-    "hasta" DATE,
-    "activa" BOOLEAN NOT NULL DEFAULT true,
-    "canceladaEl" TIMESTAMP(3),
+    "nivel" TEXT NOT NULL DEFAULT 'PYME',
+    "capacidades" JSONB NOT NULL DEFAULT '{}',
+    "rubroNegocio" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "PadelSerie_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "PadelIntegrante" (
-    "id" TEXT NOT NULL,
-    "tenantId" TEXT NOT NULL,
-    "claseId" TEXT NOT NULL,
-    "alumnoId" TEXT,
-    "nombre" TEXT NOT NULL,
-    "telefono" TEXT,
-    "monto" DECIMAL(14,2) NOT NULL DEFAULT 0,
-    "pagoEstado" TEXT NOT NULL DEFAULT 'PENDIENTE',
-    "pagoMedio" TEXT,
-    "comprobante" TEXT,
-    "comprobanteEnviadoEl" TIMESTAMP(3),
-    "pagoValidadoEl" TIMESTAMP(3),
-    "pagoNota" TEXT,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "PadelIntegrante_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "ConfigContable_pkey" PRIMARY KEY ("tenantId")
 );
 
 -- CreateIndex
-CREATE INDEX "PadelClub_tenantId_activo_idx" ON "PadelClub"("tenantId", "activo");
+CREATE INDEX "CuentaRol_tenantId_cuentaId_idx" ON "CuentaRol"("tenantId", "cuentaId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "PadelClub_tenantId_nombre_key" ON "PadelClub"("tenantId", "nombre");
-
--- CreateIndex
-CREATE INDEX "PadelSerie_tenantId_activa_idx" ON "PadelSerie"("tenantId", "activa");
-
--- CreateIndex
-CREATE INDEX "PadelSerie_tenantId_alumnoId_idx" ON "PadelSerie"("tenantId", "alumnoId");
-
--- CreateIndex
-CREATE INDEX "PadelIntegrante_tenantId_claseId_idx" ON "PadelIntegrante"("tenantId", "claseId");
-
--- CreateIndex
-CREATE INDEX "PadelIntegrante_tenantId_alumnoId_idx" ON "PadelIntegrante"("tenantId", "alumnoId");
-
--- CreateIndex
-CREATE INDEX "PadelIntegrante_tenantId_pagoEstado_idx" ON "PadelIntegrante"("tenantId", "pagoEstado");
-
--- CreateIndex
-CREATE UNIQUE INDEX "PadelIntegrante_claseId_alumnoId_key" ON "PadelIntegrante"("claseId", "alumnoId");
-
--- CreateIndex
-CREATE INDEX "PadelClase_tenantId_serieId_idx" ON "PadelClase"("tenantId", "serieId");
+CREATE UNIQUE INDEX "CuentaRol_tenantId_rol_key" ON "CuentaRol"("tenantId", "rol");
 
 -- AddForeignKey
-ALTER TABLE "PadelDisponibilidad" ADD CONSTRAINT "PadelDisponibilidad_clubId_fkey" FOREIGN KEY ("clubId") REFERENCES "PadelClub"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "CuentaRol" ADD CONSTRAINT "CuentaRol_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "PadelClase" ADD CONSTRAINT "PadelClase_clubId_fkey" FOREIGN KEY ("clubId") REFERENCES "PadelClub"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "CuentaRol" ADD CONSTRAINT "CuentaRol_cuentaId_tenantId_fkey" FOREIGN KEY ("cuentaId", "tenantId") REFERENCES "CuentaContable"("id", "tenantId") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "PadelClase" ADD CONSTRAINT "PadelClase_serieId_fkey" FOREIGN KEY ("serieId") REFERENCES "PadelSerie"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "PadelClub" ADD CONSTRAINT "PadelClub_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "PadelSerie" ADD CONSTRAINT "PadelSerie_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "PadelSerie" ADD CONSTRAINT "PadelSerie_alumnoId_fkey" FOREIGN KEY ("alumnoId") REFERENCES "PadelAlumno"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "PadelSerie" ADD CONSTRAINT "PadelSerie_clubId_fkey" FOREIGN KEY ("clubId") REFERENCES "PadelClub"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "PadelIntegrante" ADD CONSTRAINT "PadelIntegrante_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "PadelIntegrante" ADD CONSTRAINT "PadelIntegrante_claseId_fkey" FOREIGN KEY ("claseId") REFERENCES "PadelClase"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "PadelIntegrante" ADD CONSTRAINT "PadelIntegrante_alumnoId_fkey" FOREIGN KEY ("alumnoId") REFERENCES "PadelAlumno"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "ConfigContable" ADD CONSTRAINT "ConfigContable_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 
--- RLS por tenant (mismo patrón que el módulo).
-DO $$
-DECLARE
-  t text;
-BEGIN
-  FOREACH t IN ARRAY ARRAY['PadelClub', 'PadelSerie', 'PadelIntegrante']
-  LOOP
-    EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
-    EXECUTE format('DROP POLICY IF EXISTS tenant_isolation ON %I', t);
-    EXECUTE format(
-      'CREATE POLICY tenant_isolation ON %I '
-      || 'USING ("tenantId" = current_setting(''app.current_tenant_id'', true)) '
-      || 'WITH CHECK ("tenantId" = current_setting(''app.current_tenant_id'', true))',
-      t
-    );
-  END LOOP;
-END $$;
+-- ── Reglas que la base sostiene aunque el código se equivoque ───────────────────────────────
+-- Sobre columnas nuevas (todas NULL): validan al instante sin recorrer datos viejos.
+
+ALTER TABLE "CuentaContable" ADD CONSTRAINT "CuentaContable_plazo_check"
+  CHECK ("plazo" IS NULL OR "plazo" IN ('CORRIENTE', 'NO_CORRIENTE'));
+ALTER TABLE "CuentaContable" ADD CONSTRAINT "CuentaContable_funcion_check"
+  CHECK ("funcion" IS NULL OR "funcion" IN ('COSTO', 'COMERCIALIZACION', 'ADMINISTRACION', 'FINANCIACION'));
+ALTER TABLE "CuentaContable" ADD CONSTRAINT "CuentaContable_ritmo_check"
+  CHECK ("ritmo" IS NULL OR "ritmo" IN ('FIJO_MENSUAL', 'VARIABLE'));
+-- El catálogo de rubros RT 54 puede crecer sin migración: acá sólo la forma.
+ALTER TABLE "CuentaContable" ADD CONSTRAINT "CuentaContable_rubro_check"
+  CHECK ("rubro" IS NULL OR "rubro" ~ '^[A-Z][A-Z_]*$');
+ALTER TABLE "CuentaContable" ADD CONSTRAINT "CuentaContable_monedaCuenta_check"
+  CHECK ("monedaCuenta" IS NULL OR "monedaCuenta" ~ '^[A-Z]{3}$');
+
+ALTER TABLE "CuentaRol" ADD CONSTRAINT "CuentaRol_rol_check" CHECK ("rol" ~ '^[A-Z][A-Z_]*$');
+
+ALTER TABLE "ConfigContable" ADD CONSTRAINT "ConfigContable_nivel_check" CHECK ("nivel" IN ('PYME', 'CORPORATIVO'));
+ALTER TABLE "ConfigContable" ADD CONSTRAINT "ConfigContable_capacidades_check" CHECK (jsonb_typeof("capacidades") = 'object');
+ALTER TABLE "ConfigContable" ADD CONSTRAINT "ConfigContable_rubroNegocio_check"
+  CHECK ("rubroNegocio" IS NULL OR "rubroNegocio" IN ('comercio', 'servicios', 'club', 'agencia'));
+
+-- ── RLS: misma policy que el resto (prisma/rls/0001_enable_rls.sql la recrea igual) ───────────
+
+ALTER TABLE "CuentaRol" ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON "CuentaRol";
+CREATE POLICY tenant_isolation ON "CuentaRol"
+  USING ("tenantId" = current_setting('app.current_tenant_id', true))
+  WITH CHECK ("tenantId" = current_setting('app.current_tenant_id', true));
+
+ALTER TABLE "ConfigContable" ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON "ConfigContable";
+CREATE POLICY tenant_isolation ON "ConfigContable"
+  USING ("tenantId" = current_setting('app.current_tenant_id', true))
+  WITH CHECK ("tenantId" = current_setting('app.current_tenant_id', true));
 
 INSERT INTO _prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count)
-VALUES (gen_random_uuid()::text, '2047560fc12e230e1aab27f08117adc72717fc5e001c35d2be04316609e3ff01', now(), '20261108120000_profeturnos_clubes_serie_grupal', NULL, NULL, now(), 1);
+VALUES (gen_random_uuid()::text, '644120bb0bda14b06746b826db233762eb32de7877ce301f62ee72b793d6f84b', now(), '20261108150000_contabilidad_ola2_roles', NULL, NULL, now(), 1);
 
 COMMIT;
 
 -- Verificación (sólo lectura): 1 filas, todas con finished_at.
-SELECT migration_name, finished_at FROM _prisma_migrations WHERE migration_name IN ('20261108120000_profeturnos_clubes_serie_grupal') ORDER BY migration_name;
+SELECT migration_name, finished_at FROM _prisma_migrations WHERE migration_name IN ('20261108150000_contabilidad_ola2_roles') ORDER BY migration_name;
