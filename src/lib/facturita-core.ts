@@ -370,8 +370,11 @@ export type EstadoEmision =
   | { estado: "pendiente"; motivo: "apagada" | "esperando"; /** Días que ARCA acepta la fecha de la factura: 5 productos, 10 servicios. */ ventanaDias: 5 | 10 }
   | { estado: "rechazada"; origen: "arca" | "sistema"; motivo: string };
 
-/** Dónde el negocio conecta su certificado de ARCA (asistente de 4 pasos del backoffice). */
-export const LINK_CONECTAR_ARCA = "/admin/facturacion?vista=arca";
+/**
+ * Dónde el negocio de Factoque conecta su certificado de ARCA: el asistente de 4 pasos montado
+ * DENTRO de la app. No en /admin: el layout del backoffice devuelve a Factoque a /facturita/app.
+ */
+export const LINK_CONECTAR_ARCA = "/facturita/app/arca";
 
 /** Lo que se le dice a la persona después de emitir, según cómo quedó la factura. */
 export function mensajeDeEmision(e: EstadoEmision): string {
