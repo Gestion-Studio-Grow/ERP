@@ -15,19 +15,20 @@ const fechaLinda = (d: Date | null) => (d ? d.toISOString().slice(0, 10).split("
 // además avisa las clases afectadas. Mientras tanto viven acá para no perder la función.
 export default async function AjustesBloqueos() {
   await requireApp("padel-clases");
-  const [{ bloqueos }, numero] = await Promise.all([configCompleta(), badgePendientes()]);
+  const [{ bloqueos, clubes }, numero] = await Promise.all([configCompleta(), badgePendientes()]);
   const lista = bloqueos.filter((b) => b.tipo === "NO");
+  const nombreClub = new Map(clubes.map((c) => [c.id, c.nombre]));
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-5">
       <EncabezadoAjuste titulo="Días bloqueados" detalle="Lluvia, viaje, torneo: el turnero deja de ofrecerlos." pendientes={numero} />
       <section className={cn(tarjeta, "mb-4")} aria-label="Bloquear un día">
-        <FormBloqueo />
+        <FormBloqueo clubes={clubes.filter((c) => c.activo).map((c) => ({ id: c.id, nombre: c.nombre }))} />
         <p className="mt-3 text-sm text-muted">Si ya tenés clases ese día, cancelalas o movelas desde Hoy o Semana: el bloqueo no las toca.</p>
       </section>
       {lista.length > 0 ? (
         <ul className="grid gap-2" aria-label="Días bloqueados por delante">
           {lista.map((b) => {
-            const etiqueta = `${fechaLinda(b.fecha)} · ${b.desde === "00:00" && b.hasta === "23:59" ? "todo el día" : `${b.desde} a ${b.hasta}`}`;
+            const etiqueta = `${fechaLinda(b.fecha)} · ${b.desde === "00:00" && b.hasta === "23:59" ? "todo el día" : `${b.desde} a ${b.hasta}`}${b.clubId && nombreClub.get(b.clubId) ? ` · sólo ${nombreClub.get(b.clubId)}` : ""}`;
             return (
               <li key={b.id} className="flex items-center justify-between gap-2 rounded-xl border border-line bg-surface-raised px-3 text-sm text-strong" data-qa="bloqueo">
                 <span className="tabular-nums">{etiqueta}</span>

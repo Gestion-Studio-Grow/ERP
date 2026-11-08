@@ -78,3 +78,24 @@ export const CSV_BOM = BOM;
 export function nombreArchivo(periodo: PeriodoPlata, hoy: string): string {
   return periodo === "mes" ? `cobros-${hoy.slice(0, 7)}` : periodo === "semana" ? `cobros-semana-${semanaDesdeLunes(hoy)}` : `cobros-${hoy}`;
 }
+
+/** Un saldo acreditado que «Le devolví» puede marcar: una clase propia o la parte de un integrante. */
+export type Acreditado = { id: string; alumnoId: string; monto: number; empiezaEn: Date };
+
+/**
+ * Para cada alumno, lo acreditado más nuevo (clase o parte de integrante) que entre en su saldo:
+ * nunca lo deja negativo. El `id` va tal cual a `devolverSaldo`, que acepta los dos.
+ */
+export function elegirDevoluciones(
+  saldos: readonly { alumnoId: string; aFavor: number }[],
+  acreditados: readonly Acreditado[],
+): Map<string, { claseId: string; monto: number }> {
+  const out = new Map<string, { claseId: string; monto: number }>();
+  const saldoDe = new Map(saldos.map((s) => [s.alumnoId, s.aFavor]));
+  const ordenados = [...acreditados].sort((a, b) => b.empiezaEn.getTime() - a.empiezaEn.getTime());
+  for (const f of ordenados) {
+    if (out.has(f.alumnoId)) continue;
+    if (f.monto > 0 && f.monto <= (saldoDe.get(f.alumnoId) ?? 0)) out.set(f.alumnoId, { claseId: f.id, monto: f.monto });
+  }
+  return out;
+}

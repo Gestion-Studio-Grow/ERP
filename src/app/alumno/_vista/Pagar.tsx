@@ -18,7 +18,7 @@ import { esPdf, seleccionInicial, type ItemPago } from "./puro";
 export type { ItemPago };
 
 /** Achica la foto a JPEG de 1024 px de lado mayor en el teléfono. Devuelve un data URL. */
-async function achicarFoto(file: File, lado = 1024, calidad = 0.62): Promise<string> {
+export async function achicarFoto(file: File, lado = 1024, calidad = 0.62): Promise<string> {
   const bitmap = await createImageBitmap(file);
   const escala = Math.min(1, lado / Math.max(bitmap.width, bitmap.height));
   const canvas = document.createElement("canvas");

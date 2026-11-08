@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { requireApp } from "@/lib/require-app";
 import { buttonClasses, cn, Plata } from "@/components/ui";
 import { badgePendientes, ficha } from "@/lib/padel/datos.server";
-import { MEDIO_LABEL, PAGO_LABEL, diaHumano, horaHumana, linkWhatsApp, type EstadoClase, type EstadoPago, type MedioPago } from "@/lib/padel/core";
+import { MEDIO_LABEL, PAGO_LABEL, diaHumano, horaHumana, linkWhatsApp, textoSerie, type EstadoClase, type EstadoPago, type MedioPago } from "@/lib/padel/core";
 import { ChipEstado, tarjeta } from "../../_vista";
 import { Cabecera } from "../../_cabecera";
 import { CobrarTodo, LeDevolvi, Recordarle } from "../../plata/_acciones-plata";
@@ -73,6 +73,7 @@ export default async function FichaAlumno({ params }: { params: Promise<{ id: st
               <li key={c.id} className={cn(tarjeta, "flex flex-wrap items-center justify-between gap-2 py-3")} data-qa="proxima-alumno">
                 <span className="font-semibold capitalize text-strong">
                   {diaHumano(c.empiezaEn)} · <span className="tabular-nums">{horaHumana(c.empiezaEn)}</span>
+                  {c.club && <span className="font-normal normal-case text-muted"> · {c.club.nombre}</span>}
                 </span>
                 <ChipEstado estado={c.estado as EstadoClase} pago={c.pagoEstado as EstadoPago} />
               </li>
@@ -81,15 +82,35 @@ export default async function FichaAlumno({ params }: { params: Promise<{ id: st
         )}
       </section>
 
+      {a.series.length > 0 && (
+        <section className={seccion} aria-labelledby="t-fijas">
+          <h2 id="t-fijas" className={titulo}>Clases fijas</h2>
+          <ul className="grid gap-2">
+            {a.series.map((x) => (
+              <li key={x.id} className={cn(tarjeta, "flex flex-wrap items-center justify-between gap-2 py-3")} data-qa="serie-alumno">
+                <span className="font-semibold text-strong">
+                  {textoSerie(x)}
+                  {x.club && <span className="font-normal text-muted"> · {x.club}</span>}
+                </span>
+                <span className={cn("text-sm", x.activa ? "font-semibold text-success" : "text-muted")}>
+                  {x.activa ? "Activa" : x.hasta ? `Terminó el ${x.hasta.split("-").reverse().join("/")}` : "Terminada"}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-sm text-muted">Para cortar una, cancelá una de sus clases y elegí «Esta y las que siguen».</p>
+        </section>
+      )}
+
       <section className={cn(tarjeta, seccion, "grid gap-3")} aria-labelledby="t-plata">
         <h2 id="t-plata" className="text-sm font-bold uppercase tracking-wide text-strong">Plata</h2>
         {a.debe > 0 ? (
           <>
             <p className="text-base font-semibold text-danger" data-qa="ficha-debe">
-              Debe <Plata valor={a.debe} sinCentavos tono="peligro" /> · {a.deudas.length} clase{a.deudas.length === 1 ? "" : "s"}
+              Debe <Plata valor={a.debe} sinCentavos tono="peligro" /> · {a.deudas.length + a.partesDeudas.length} clase{a.deudas.length + a.partesDeudas.length === 1 ? "" : "s"}
             </p>
             <div className="grid gap-2 sm:grid-cols-2">
-              <CobrarTodo alumnoId={a.id} nombre={a.nombre} total={a.debe} cantidad={a.deudas.length} />
+              <CobrarTodo alumnoId={a.id} nombre={a.nombre} total={a.debe} cantidad={a.deudas.length + a.partesDeudas.length} />
               <Recordarle alumnoId={a.id} nombre={a.nombre} />
             </div>
           </>

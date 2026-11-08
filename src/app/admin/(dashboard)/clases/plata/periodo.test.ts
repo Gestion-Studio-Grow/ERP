@@ -60,3 +60,20 @@ test("nombreArchivo por período", () => {
   assert.equal(nombreArchivo("semana", "2026-10-23"), "cobros-semana-2026-10-19");
   assert.equal(nombreArchivo("hoy", "2026-10-23"), "cobros-2026-10-23");
 });
+
+test("elegirDevoluciones: suma partes de integrante; la más nueva que entre en el saldo", async () => {
+  const { elegirDevoluciones } = await import("./periodo");
+  const d = (s: string) => new Date(`${s}T12:00:00Z`);
+  const m = elegirDevoluciones(
+    [{ alumnoId: "a", aFavor: 10000 }, { alumnoId: "b", aFavor: 5000 }, { alumnoId: "c", aFavor: 1000 }],
+    [
+      { id: "clase-a", alumnoId: "a", monto: 8000, empiezaEn: d("2026-11-01") },
+      { id: "parte-a", alumnoId: "a", monto: 5000, empiezaEn: d("2026-11-05") },
+      { id: "parte-b", alumnoId: "b", monto: 5000, empiezaEn: d("2026-11-02") },
+      { id: "clase-c", alumnoId: "c", monto: 2000, empiezaEn: d("2026-11-02") },
+    ],
+  );
+  assert.deepEqual(m.get("a"), { claseId: "parte-a", monto: 5000 });
+  assert.deepEqual(m.get("b"), { claseId: "parte-b", monto: 5000 });
+  assert.equal(m.has("c"), false); // nunca deja el saldo negativo
+});

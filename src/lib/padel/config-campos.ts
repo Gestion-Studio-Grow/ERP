@@ -49,7 +49,7 @@ export const bienvenidaVista = (guardadas: unknown): boolean =>
   Boolean(guardadas && typeof guardadas === "object" && !Array.isArray(guardadas) && (guardadas as Record<string, unknown>)[MARCA_BIENVENIDA] === "1");
 
 /** Un tramo semanal: 0 = domingo … 6 = sábado, «08:00»–«12:00». */
-export type TramoSemanal = { diaSemana: number; desde: string; hasta: string };
+export type TramoSemanal = { diaSemana: number; desde: string; hasta: string; clubId?: string | null };
 
 export type CampoValidado =
   | { tipo: "campo"; campo: CampoConfig; valor: number | string | null }
@@ -122,7 +122,10 @@ export function validarTramos(raw: unknown): { ok: true; tramos: TramoSemanal[] 
     if (delDia.length >= TRAMOS_POR_DIA) return { ok: false, error: `Como mucho ${TRAMOS_POR_DIA} horarios por día.` };
     const e = errorDeTramo({ desde, hasta }, delDia);
     if (e) return { ok: false, error: `${DIA_NOMBRE[diaSemana]} ${desde}–${hasta}: ${e.toLowerCase()}.` };
-    tramos.push({ diaSemana, desde, hasta });
+    // E4 · El club del tramo (opcional). Acá sólo la forma; que sea de este negocio lo mira la acción.
+    const club = o.clubId == null || o.clubId === "" ? null : String(o.clubId);
+    if (club !== null && !/^[A-Za-z0-9_-]{1,40}$/.test(club)) return { ok: false, error: "No entendimos los horarios. Actualizá la pantalla." };
+    tramos.push({ diaSemana, desde, hasta, ...(club ? { clubId: club } : {}) });
   }
   return { ok: true, tramos: tramos.sort((a, b) => a.diaSemana - b.diaSemana || a.desde.localeCompare(b.desde)) };
 }

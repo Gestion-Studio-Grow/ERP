@@ -34,7 +34,7 @@ export default async function ClasesPlata({ searchParams }: { searchParams: Prom
         ))}
       </nav>
 
-      <section className={cn(tarjeta, "mb-5 grid gap-4")} aria-label="Resumen">
+      <section className={cn(tarjeta, "mb-5 grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4")} aria-label="Resumen">
         <div>
           <p className="text-sm font-semibold text-muted">Te deben</p>
           <p className={cn("font-display text-[2.25rem] leading-tight tracking-[-0.03em]", p.teDeben > 0 ? "text-danger" : "text-strong")} data-qa="te-deben">
@@ -60,7 +60,7 @@ export default async function ClasesPlata({ searchParams }: { searchParams: Prom
           )}
         </div>
         <p className="text-sm text-strong" data-qa="dadas">{rotuloDadas(periodo, p.dadas)}</p>
-        <a href={`/admin/clases/plata/exportar?periodo=${periodo}`} className={cn(buttonClasses("outline", "lg"), "h-12 w-full justify-center")} data-qa="exportar" download>
+        <a href={`/admin/clases/plata/exportar?periodo=${periodo}`} className={cn(buttonClasses("outline", "lg"), "h-auto! min-h-12 w-full justify-center whitespace-normal! py-2 text-center")} data-qa="exportar" download>
           Bajar los cobros ({PERIODOS.find((o) => o.valor === periodo)?.rotulo.toLowerCase()}) en planilla .csv
         </a>
       </section>

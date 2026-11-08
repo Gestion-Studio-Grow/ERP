@@ -120,3 +120,25 @@ test("M-111: los pasos de Safari sólo en iPhone/iPad con Safari y sin instalar"
   assert.equal(esIosSinInstalar(safari.replace("Version/17.0", "CriOS/120.0"), false), false);
   assert.equal(esIosSinInstalar("Mozilla/5.0 (Linux; Android 14) Chrome/120", false), false);
 });
+
+test("lineaDeCuenta: la parte de integrante sin pagar no es «Estás al día» (QA E7)", async () => {
+  const { lineaDeCuenta } = await import("./estado");
+  const r = lineaDeCuenta({ debe: 0, clasesQueDebe: 0, saldoAFavor: 0, partesPorPagar: { monto: 5000, cantidad: 1 } });
+  assert.equal(r.tono, "por-pagar");
+  assert.match(r.titulo, /por pagar · 1 clase con amigos/);
+  // La deuda manda.
+  assert.equal(lineaDeCuenta({ debe: 100, clasesQueDebe: 1, saldoAFavor: 0, partesPorPagar: { monto: 5000, cantidad: 1 } }).tono, "debe");
+  assert.equal(lineaDeCuenta({ debe: 0, clasesQueDebe: 0, saldoAFavor: 0, partesPorPagar: { monto: 0, cantidad: 0 } }).tono, "al-dia");
+});
+
+test("elegirProxima: la grupal de integrante cuenta como «Tu próxima» (QA E7)", async () => {
+  const { elegirProxima } = await import("./estado");
+  const d = (h: number) => new Date(Date.UTC(2026, 10, 10, h));
+  const c1 = { id: "c1", empiezaEn: d(15) };
+  const pVieja = { id: "p0", empiezaEn: d(8), viene: false };
+  const p1 = { id: "p1", empiezaEn: d(12), viene: true };
+  assert.deepEqual(elegirProxima([], [p1]), { tipo: "parte", parte: p1, otras: [] });
+  assert.deepEqual(elegirProxima([c1], [pVieja, p1]), { tipo: "parte", parte: p1, otras: [c1] });
+  assert.deepEqual(elegirProxima([c1], [{ ...p1, empiezaEn: d(18) }]), { tipo: "clase", clase: c1, otras: [] });
+  assert.equal(elegirProxima([], [pVieja]), null);
+});

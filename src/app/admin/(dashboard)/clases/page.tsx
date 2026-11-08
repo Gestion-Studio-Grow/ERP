@@ -208,7 +208,9 @@ async function ContenidoHoy() {
 
 function detalleProxima(c: Awaited<ReturnType<typeof hoy>>["deHoy"][number]): string {
   return [
+    c.club ? `En ${c.club}` : null,
     c.tipo === "GRUPAL" ? `Con amigos · ${c.personas}` : "Individual",
+    c.serieId ? "fija semanal" : null,
     c.precio > 0 ? plataTexto(c.precio) : null,
     c.dadas > 0 ? `${nClases(c.dadas)} con vos` : "alumno nuevo",
   ]
