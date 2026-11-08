@@ -189,19 +189,32 @@ test("CUIT sin verificar: el titular real lo reclama y gana el PRIMERO que conec
   assert.ok(a && b, "dos altas sin verificar con el mismo CUIT");
   assert.equal(b.arcaPuntoVenta, 7, "el alta sin verificar no le reserva el talonario");
 
-  // Los dos conectan ARCA a la vez: gana uno solo.
-  const { guardarRegistroCredencial, CuitVerificadoEnOtroNegocioError } = await import("@/lib/fiscal/tenant-cert");
-  const rs = await Promise.allSettled([a, b].map((n) => guardarRegistroCredencial(n.id, REG(CUIT), "test", p.app)));
+  // El ocupante carga un certificado armado con el CUIT ajeno (su propia CA): se guarda, pero NO
+  // verifica nada; el titular real puede seguir reclamando (certificación adversarial 08/11).
+  const { guardarRegistroCredencial, registrarPruebaArcaOk, CuitVerificadoEnOtroNegocioError } = await import("@/lib/fiscal/tenant-cert");
+  await guardarRegistroCredencial(a.id, REG(CUIT), "test", p.app);
+  await web.pedirAlta(deps, pedido({ email: "otro-reclamo@ficticio.test" }), "6.6.6.9");
+  assert.match(mails[2].cuerpo, /reclamarlo/, "un certificado cargado sin prueba de ARCA no verifica");
+  mails.splice(2, 1);
+
+  // Los dos cargan certificado y ARCA les acepta el ingreso a la vez: verifica uno solo.
+  await guardarRegistroCredencial(b.id, REG(CUIT), "test", p.app);
+  const rs = await Promise.allSettled([a, b].map((n) => registrarPruebaArcaOk(n.id, "test", "homologacion", p.app)));
   assert.equal(rs.filter((x) => x.status === "fulfilled").length, 1, "gana uno");
   const perdio = rs.find((x) => x.status === "rejected") as PromiseRejectedResult;
   assert.ok(perdio.reason instanceof CuitVerificadoEnOtroNegocioError);
-  assert.equal(await duenio.tenantFiscalCredential.count({ where: { certCuit: CUIT } }), 1);
-  // Rotar el certificado del ganador sigue andando.
   const ganador = rs[0].status === "fulfilled" ? a : b;
+  const perdedor = ganador === a ? b : a;
+  // El perdedor ya no puede cargar uno nuevo; rotar el del ganador sigue andando.
+  await assert.rejects(guardarRegistroCredencial(perdedor.id, REG(CUIT), "test", p.app), CuitVerificadoEnOtroNegocioError);
   assert.equal((await guardarRegistroCredencial(ganador.id, REG(CUIT), "test", p.app)).yaExistia, true);
+  // Al rotar, la prueba vieja no cuenta hasta probar de nuevo: el CUIT queda reclamable hasta entonces.
+  await registrarPruebaArcaOk(ganador.id, "test", "homologacion", p.app);
 
   // Ya verificado: un tercero recibe «no pudimos» (sin enlace) y no se crea nada.
+  p.pasar(60 * 60 * 1000); // cuarto pedido con este CUIT: se espera la hora del límite por CUIT
   await web.pedirAlta(deps, pedido({ email: "tercero@ficticio.test" }), "6.6.6.3");
+  assert.equal(mails.length, 3);
   assert.equal(selloDelMail(mails[2]), "");
   assert.equal(await duenio.tenant.count({ where: { arcaCuit: CUIT } }), 2);
 });

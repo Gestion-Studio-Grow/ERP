@@ -27,6 +27,7 @@ import {
 import type { PrismaClient } from "@/generated/prisma/client";
 import { operatorPrisma, enElNegocio } from "@/lib/operator-db";
 import { bloquearCuit, tenedoresDelCuit } from "@/lib/factoque/tenedores-del-cuit.server";
+import { ACCION_PRUEBA_OK } from "@/lib/fiscal/contador-arca";
 import {
   masterKeyDesdeEnv,
   sealCredential,
@@ -92,8 +93,8 @@ export class CuitVerificadoEnOtroNegocioError extends Error {
 
 /**
  * Guarda (o rota) la credencial parado en el negocio. Si el negocio vino del alta web, se pone en
- * fila por el CUIT (la misma llave que el alta) y se niega si otro negocio ya verificó ese CUIT: así,
- * de dos altas que reclaman el mismo CUIT, gana una sola aunque conecten a la vez. Los negocios dados
+ * fila por el CUIT (la misma llave que el alta) y se niega si otro negocio ya verificó ese CUIT (ARCA
+ * le aceptó el certificado, ver `registrarPruebaArcaOk`). Cargar no verifica: verifica la prueba. Los negocios dados
  * de alta por GSG no cambian: un mismo contribuyente puede tener varios, con talonarios distintos.
  */
 export async function guardarRegistroCredencial(
@@ -121,6 +122,38 @@ export async function guardarRegistroCredencial(
       update: { loadedBy, ...reg },
     });
     return { id: row.id, yaExistia: existente != null };
+  });
+}
+
+/**
+ * Anota que ARCA aceptó el certificado del negocio (el ingreso al WSAA salió bien): eso es lo que
+ * VERIFICA el CUIT de un alta web. Si el negocio vino del alta web, se pone en fila por el CUIT y se
+ * niega si otro negocio ya lo verificó: de dos altas del mismo CUIT, verifica una sola.
+ */
+export async function registrarPruebaArcaOk(
+  tenantId: string,
+  actor: string,
+  entorno: string,
+  db: PrismaClient = operatorPrisma,
+): Promise<void> {
+  await db.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`;
+    const web = await tx.auditLog.findFirst({
+      where: { tenantId, action: "factoque.alta", actor: { startsWith: "web:" } },
+      select: { id: true },
+    });
+    if (web) {
+      const t = await tx.tenant.findUnique({ where: { id: tenantId }, select: { arcaCuit: true } });
+      if (t?.arcaCuit) {
+        await bloquearCuit(tx, t.arcaCuit);
+        const otros = await tenedoresDelCuit(tx, t.arcaCuit, tenantId);
+        if (otros.some((o) => o.verificado)) throw new CuitVerificadoEnOtroNegocioError();
+        await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`;
+      }
+    }
+    await tx.auditLog.create({
+      data: { tenantId, actor, action: ACCION_PRUEBA_OK, entity: "Tenant", entityId: tenantId, changes: { entorno } },
+    });
   });
 }
 

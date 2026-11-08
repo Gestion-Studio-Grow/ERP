@@ -78,9 +78,16 @@ export async function probarCertificadoArcaAction() {
     ...(r.ok ? { entorno: r.entorno, conCae: !!r.prueba } : { paso: r.paso }),
   });
   if (r.ok) {
-    await registrarPruebaOk(tenantId, actor, r.entorno).catch((e) => {
-      logger.warn("arca.asistente", "No se pudo registrar la prueba con ARCA", { tenantId, err: e instanceof Error ? e.name : "error" });
-    });
+    const tarde = await registrarPruebaOk(tenantId, actor, r.entorno).then(
+      () => null,
+      (e) => {
+        // Alta web: otro negocio ya verificó este CUIT (gana el primero). Eso se le dice; lo demás se anota.
+        if (e instanceof Error && e.name === "CuitVerificadoEnOtroNegocioError") return e.message;
+        logger.warn("arca.asistente", "No se pudo registrar la prueba con ARCA", { tenantId, err: e instanceof Error ? e.name : "error" });
+        return null;
+      },
+    );
+    if (tarde) volver({ ok: false, motivo: tarde });
   }
   const texto = mensajeDeVerificacion(r);
   volver(r.ok ? { ok: true, mensaje: texto } : { ok: false, motivo: texto });

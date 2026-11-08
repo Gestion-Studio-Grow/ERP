@@ -4,6 +4,7 @@
 // quien llama vuelve a pararse donde necesite.
 
 import type { PrismaClient } from "@/generated/prisma/client";
+import { ACCION_PRUEBA_OK } from "@/lib/fiscal/contador-arca";
 import type { TenedorDelCuit } from "./alta-web-core";
 
 type Tx = Parameters<Parameters<PrismaClient["$transaction"]>[0]>[0];
@@ -24,14 +25,23 @@ export async function tenedoresDelCuit(tx: Tx, cuit: string, excluir?: string): 
   for (const n of negocios) {
     await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${n.id}, true)`;
     const [credencial, web, titulares] = await Promise.all([
-      tx.tenantFiscalCredential.findFirst({ where: { tenantId: n.id, certCuit: cuit }, select: { id: true } }),
+      tx.tenantFiscalCredential.findFirst({ where: { tenantId: n.id, certCuit: cuit }, select: { updatedAt: true } }),
       tx.auditLog.findFirst({ where: { tenantId: n.id, action: "factoque.alta", actor: { startsWith: "web:" } }, select: { id: true } }),
       tx.user.findMany({
         where: { tenantId: n.id, role: "OWNER", active: true, deletedAt: null },
         select: { id: true, email: true, lastLoginAt: true },
       }),
     ]);
-    out.push({ tenantId: n.id, subdomain: n.subdomain, creado: n.createdAt, verificado: credencial !== null, web: web !== null, titulares });
+    // VERIFICADO = ARCA aceptó el certificado: un ingreso al WSAA que salió bien DESPUÉS de la última
+    // carga. Un certificado cargado no alcanza: cualquiera puede armar uno con el CUIT de otro firmado
+    // por su propia CA (certificación adversarial 08/11); ARCA sólo acepta los que emitió al titular.
+    const prueba = credencial
+      ? await tx.auditLog.findFirst({
+          where: { tenantId: n.id, action: ACCION_PRUEBA_OK, createdAt: { gte: credencial.updatedAt } },
+          select: { id: true },
+        })
+      : null;
+    out.push({ tenantId: n.id, subdomain: n.subdomain, creado: n.createdAt, verificado: prueba !== null, web: web !== null, titulares });
   }
   await tx.$executeRaw`SELECT set_config('app.current_tenant_id', '', true)`;
   return out;
