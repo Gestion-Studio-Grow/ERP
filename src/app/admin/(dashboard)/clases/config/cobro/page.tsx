@@ -11,7 +11,7 @@ export const metadata = { title: "Clases · Cobro", manifest: "/clases/app.webma
 // Ajustes → Cobro (E2): el alias y el titular que ve el alumno para transferirte, y tu celular
 // (el botón «Escribirle» del turnero y del link del alumno). Se guarda solo, campo por campo.
 // Mercado Pago llega más adelante (Tanda 6, post-venta): no se muestra hasta que exista.
-// La cuenta (alias y titular) la cambia SÓLO el dueño (UAT 11/2026): Recepción la ve, no la edita.
+// La cuenta (alias, titular) y el celular los cambia SÓLO el dueño (UAT 11/2026): Recepción la ve, no la edita.
 export default async function AjustesCobro() {
   const user = await requireApp("padel-clases");
   const esDuenio = user.role === "OWNER";
@@ -31,17 +31,21 @@ export default async function AjustesCobro() {
             <DatoSoloDelDuenio etiqueta="Titular de la cuenta" valor={config.titularCuenta} qa="titular-fijo" />
           </>
         )}
-        <CampoAuto
-          clave="whatsappProfe"
-          etiqueta="Tu celular (WhatsApp)"
-          inicial={config.whatsappProfe}
-          formato="celular"
-          tipo="tel"
-          inputMode="tel"
-          placeholder="11 5555-1234"
-          ayuda="Con código de área. Es el botón «Escribirle» que ven tus alumnos."
-          qa="whatsapp-profe"
-        />
+        {esDuenio ? (
+          <CampoAuto
+            clave="whatsappProfe"
+            etiqueta="Tu celular (WhatsApp)"
+            inicial={config.whatsappProfe}
+            formato="celular"
+            tipo="tel"
+            inputMode="tel"
+            placeholder="11 5555-1234"
+            ayuda="Con código de área. Es el botón «Escribirle» que ven tus alumnos."
+            qa="whatsapp-profe"
+          />
+        ) : (
+          <DatoSoloDelDuenio etiqueta="Celular del profe (WhatsApp)" valor={config.whatsappProfe} qa="whatsapp-fijo" />
+        )}
       </section>
     </main>
   );

@@ -91,11 +91,11 @@ test("horarios: la grilla entera en un guardado, ordenada; un tramo malo frena t
   assert.ok(v.ok && v.v.tipo === "horarios" && v.v.tramos.length === 1);
 });
 
-test("UAT 11/2026 — la cuenta de cobro (alias y titular) la cambia sólo el dueño; el resto, quien gestiona", () => {
-  for (const clave of ["aliasCbu", "titularCuenta"]) {
+test("UAT 11/2026 — la cuenta de cobro, el celular y los textos los cambia sólo el dueño; el resto, quien gestiona", () => {
+  for (const clave of ["aliasCbu", "titularCuenta", "whatsappProfe", "plantilla.confirmada", "plantilla.pagoOk"]) {
     assert.equal(puedeCambiarAjuste("OWNER", clave), true);
     assert.equal(puedeCambiarAjuste("RECEPTION", clave), false);
     assert.equal(puedeCambiarAjuste("PROFESSIONAL", clave), false);
   }
-  for (const clave of ["precioIndividual", "horarios", "whatsappProfe", "plantilla.confirmada"]) assert.equal(puedeCambiarAjuste("RECEPTION", clave), true);
+  for (const clave of ["precioIndividual", "precioGrupal", "duracionMin", "horarios", "bienvenidaVista"]) assert.equal(puedeCambiarAjuste("RECEPTION", clave), true);
 });

@@ -27,7 +27,7 @@ type Datos = {
   whatsappProfe: string;
   aliasCbu: string;
   titularCuenta: string;
-  /** La cuenta de cobro la cambia sólo el dueño (UAT 11/2026); los demás la ven. */
+  /** El celular y la cuenta de cobro los cambia sólo el dueño (UAT 11/2026); los demás los ven. */
   cuentaEditable: boolean;
   precioIndividual: number;
   duracionMin: number;
@@ -79,14 +79,17 @@ export function Asistente({ datos }: { datos: Datos }) {
             <h2 id="b-t" ref={titulo} tabIndex={-1} className="text-lg font-bold text-strong outline-none">Para que te escriban y te paguen</h2>
             <p className="text-sm text-muted">Paso 1 de 3. Se guarda solo.</p>
           </div>
-          <CampoAuto clave="whatsappProfe" etiqueta="Tu celular (WhatsApp)" inicial={datos.whatsappProfe} formato="celular" tipo="tel" inputMode="tel" placeholder="11 5555-1234" ayuda="Con código de área." qa="b-whatsapp" />
           {datos.cuentaEditable ? (
             <>
+              <CampoAuto clave="whatsappProfe" etiqueta="Tu celular (WhatsApp)" inicial={datos.whatsappProfe} formato="celular" tipo="tel" inputMode="tel" placeholder="11 5555-1234" ayuda="Con código de área." qa="b-whatsapp" />
               <CampoAuto clave="aliasCbu" etiqueta="Tu alias o CBU" inicial={datos.aliasCbu} placeholder="matias.padel" maxLength={60} qa="b-alias" />
               <CampoAuto clave="titularCuenta" etiqueta="Titular de la cuenta (si querés)" inicial={datos.titularCuenta} maxLength={80} qa="b-titular" />
             </>
           ) : (
-            <DatoSoloDelDuenio etiqueta="Alias o CBU" valor={datos.aliasCbu} qa="b-alias-fijo" />
+            <>
+              <DatoSoloDelDuenio etiqueta="Celular del profe (WhatsApp)" valor={datos.whatsappProfe} qa="b-whatsapp-fijo" />
+              <DatoSoloDelDuenio etiqueta="Alias o CBU" valor={datos.aliasCbu} qa="b-alias-fijo" />
+            </>
           )}
           <button type="button" className={grande()} onClick={() => setPaso(1)} data-qa="b-siguiente-1">
             Siguiente

@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { redirect, unstable_rethrow } from "next/navigation";
 import { requireApp } from "@/lib/require-app";
+import { veLaPlataDelDia } from "@/lib/padel/plata-guardia";
 import { AvisoError, EmptyState, Esqueleto, Plata } from "@/components/ui";
 import { configPadel, franjas, hoy } from "@/lib/padel/datos.server";
 import { getCurrentTenantId } from "@/lib/tenant";
@@ -26,7 +27,7 @@ const titulo = "mb-2 text-sm font-bold uppercase tracking-wide text-strong";
 // huecos, mañana con «Recordar a todos» y lo cobrado. Mientras carga, esqueletos; si falla la
 // red, «Reintentar» (nunca pantalla en blanco).
 export default async function ClasesHoy() {
-  await requireApp("padel-clases");
+  const user = await requireApp("padel-clases");
   // Profe que todavía no configuró nada (sin precio ni horarios): a la Bienvenida (M-083).
   const tenantId = await getCurrentTenantId();
   const [config, fr] = await Promise.all([configPadel(tenantId), franjas(tenantId)]);
@@ -34,13 +35,13 @@ export default async function ClasesHoy() {
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-5">
       <Suspense fallback={<EsqueletoHoy />}>
-        <ContenidoHoy />
+        <ContenidoHoy conPlata={veLaPlataDelDia(user)} />
       </Suspense>
     </main>
   );
 }
 
-async function ContenidoHoy() {
+async function ContenidoHoy({ conPlata }: { conPlata: boolean }) {
   let d: Awaited<ReturnType<typeof hoy>>;
   try {
     d = await hoy();
@@ -77,7 +78,7 @@ async function ContenidoHoy() {
         detalle={
           <>
             {deHoy.length === 0 ? "Sin clases hoy" : nClases(deHoy.length)}
-            {caja.total > 0 && <> · cobrado <Plata valor={caja.total} sinCentavos /></>}
+            {conPlata && caja.total > 0 && <> · cobrado <Plata valor={caja.total} sinCentavos /></>}
           </>
         }
         pendientes={pendientes}
@@ -185,7 +186,7 @@ async function ContenidoHoy() {
         </section>
       )}
 
-      {caja.total > 0 && (
+      {conPlata && caja.total > 0 && (
         <p className="text-sm text-muted" data-qa="cobrado-hoy">
           Cobrado hoy: <Plata valor={caja.total} sinCentavos />
           {" · "}

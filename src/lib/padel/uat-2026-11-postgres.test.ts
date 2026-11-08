@@ -73,7 +73,8 @@ const cuenta = (c: Ctx) => c.db.padelConfig.findUniqueOrThrow({ where: { tenantI
 test("R1 — Recepción no cambia la cuenta de cobro; precio y horarios, sí. El dueño, todo", async (t) => {
   const c = await preparar(t);
   if (!c) return;
-  for (const [clave, v] of [["aliasCbu", "alias.desviado"], ["titularCuenta", "Otro Titular"]] as const) {
+  const antesTexto = (await c.db.padelConfig.findUniqueOrThrow({ where: { tenantId: c.base.a.id } })).plantillas;
+  for (const [clave, v] of [["aliasCbu", "alias.desviado"], ["titularCuenta", "Otro Titular"], ["whatsappProfe", "1155550000"], ["plantilla.confirmada", "Transferí a alias.desviado"]] as const) {
     const r: { ok: boolean } = valor(await ejecutarAccion(recepcion(c), () => c.config.guardarCampoConfig(clave, v)));
     assert.equal(r.ok, false, `${clave}: ${JSON.stringify(r)}`);
   }
@@ -82,6 +83,9 @@ test("R1 — Recepción no cambia la cuenta de cobro; precio y horarios, sí. El
     { aliasCbu: "alias.del.duenio", titularCuenta: "Dueño Real" },
     "la cuenta a la que transfieren los alumnos no se movió",
   );
+  const despues = await c.db.padelConfig.findUniqueOrThrow({ where: { tenantId: c.base.a.id } });
+  assert.equal(despues.whatsappProfe, null, "ni el celular al que mandan los comprobantes");
+  assert.deepEqual(despues.plantillas, antesTexto, "ni un texto con otro alias escrito");
   assert.ok(valor(await ejecutarAccion(recepcion(c), () => c.config.guardarCampoConfig("precioIndividual", "27000"))).ok);
   assert.equal(Number((await cuenta(c)).precioIndividual), 27_000);
   assert.ok(valor(await ejecutarAccion(recepcion(c), () => c.config.guardarCampoConfig("horarios", [{ diaSemana: 1, desde: "08:00", hasta: "12:00" }]))).ok);
@@ -109,6 +113,12 @@ test("P1 — la Plata (pantalla y .csv) es del dueño: el profesional y recepci�
   assert.equal(csv.status, 200);
   assert.match(csv.headers.get("content-type") ?? "", /text\/csv/);
   assert.equal((await ejecutarAccion(duenia(c), () => c.guardia.requirePlataDeClases())).tipo, "respuesta");
+
+  // La plata del día (Hoy, Semana, «Deben»): quien cobra la ve; el profesional, no.
+  const rol = (role: "OWNER" | "RECEPTION" | "PROFESSIONAL") => ({ role, overrides: [] });
+  assert.deepEqual([c.guardia.veLaPlataDelDia(rol("OWNER")), c.guardia.veLaPlataDelDia(rol("RECEPTION")), c.guardia.veLaPlataDelDia(rol("PROFESSIONAL"))], [true, true, false]);
+  // Ni con la casilla «editar» prendida por la matriz (sólo vale en la agenda de turnos).
+  assert.equal(c.guardia.veLaPlataDelDia({ role: "PROFESSIONAL", overrides: [{ capability: "agenda:manage", allowed: true }] }), false);
 });
 
 async function alumnoConClase(c: Ctx, nombre: string, h: string) {

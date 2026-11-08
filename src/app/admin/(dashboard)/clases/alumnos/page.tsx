@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireApp } from "@/lib/require-app";
+import { veLaPlataDelDia } from "@/lib/padel/plata-guardia";
 import { chipLinkAtributos, EmptyState } from "@/components/ui";
 import { alumnosPagina, badgePendientes, deudores } from "@/lib/padel/datos.server";
 import { Cabecera } from "../_cabecera";
@@ -19,13 +20,15 @@ type Vista = "todos" | "deben";
 // Provisional: «Fijos» llega con los turnos fijos (Tanda 5, PadelSerie) y «Nuevos» queda para
 // después; hoy un alumno nuevo se ve en su fila como «0 clases».
 export default async function ClasesAlumnos({ searchParams }: { searchParams: Promise<{ q?: string; ver?: string }> }) {
-  await requireApp("padel-clases");
+  const user = await requireApp("padel-clases");
+  // Quién debe y cuánto: sólo para quien cobra (veLaPlataDelDia); el PROFESSIONAL ve la lista.
+  const conPlata = veLaPlataDelDia(user);
   const sp = await searchParams;
   const q = (sp.q ?? "").slice(0, 60);
-  const ver: Vista = sp.ver === "deben" ? "deben" : "todos";
+  const ver: Vista = sp.ver === "deben" && conPlata ? "deben" : "todos";
   const [pagina, quienDebe, numero] = await Promise.all([
     ver === "todos" ? alumnosPagina(q) : Promise.resolve(null),
-    deudores(),
+    conPlata ? deudores() : Promise.resolve([]),
     badgePendientes(),
   ]);
   const texto = q.trim().toLocaleLowerCase("es-AR");
@@ -49,9 +52,11 @@ export default async function ClasesAlumnos({ searchParams }: { searchParams: Pr
         <Link href={href("todos")} {...chipLinkAtributos(ver === "todos", "min-h-12 px-5 sm:min-h-12")} data-qa="ver-todos">
           Todos
         </Link>
-        <Link href={href("deben")} {...chipLinkAtributos(ver === "deben", "min-h-12 px-5 sm:min-h-12")} data-qa="ver-deben">
-          Deben <span className="tabular-nums">{quienDebe.length}</span>
-        </Link>
+        {conPlata && (
+          <Link href={href("deben")} {...chipLinkAtributos(ver === "deben", "min-h-12 px-5 sm:min-h-12")} data-qa="ver-deben">
+            Deben <span className="tabular-nums">{quienDebe.length}</span>
+          </Link>
+        )}
       </nav>
 
       {ver === "deben" ? (
