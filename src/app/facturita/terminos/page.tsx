@@ -1,4 +1,4 @@
-// FACTURITA · Términos y condiciones — BORRADOR (ver DocumentoLegal). Pública y estática.
+// FACTOQUE · Términos y condiciones (ver DocumentoLegal). Pública y estática.
 // Marco: Ley 24.240 de Defensa del Consumidor (arts. 4, 10 ter, 34 y 37), Código Civil y Comercial
 // (arts. 1107 y 1110), Res. SCI 424/2020 (botón de arrepentimiento) y Res. 316/2018 (botón de baja).
 // Lo que no se pudo afirmar con certeza va entre corchetes (PENDIENTES en ../legales).
@@ -6,7 +6,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import DocumentoLegal from "../DocumentoLegal";
-import { PENDIENTES, RESPONSABLE, VIGENCIA_BORRADOR } from "../legales";
+import { PENDIENTES, RESPONSABLE, VIGENCIA } from "../legales";
 import { LIMITE_FACTURAS_FACTURITA } from "@/lib/facturita-core";
 
 export const dynamic = "force-static";
@@ -15,15 +15,13 @@ export const metadata: Metadata = {
   title: "Términos y condiciones — Factoque",
   description: "Las reglas de uso de Factoque, el emisor de facturas electrónicas de Gestión Studio Grow.",
   generator: "Gestión Studio Grow",
-  // Borrador «todavía no vigente»: fuera de los buscadores hasta que el dueño lo apruebe.
-  robots: { index: false, follow: false },
 };
 
 export default function TerminosPage() {
   return (
     <DocumentoLegal
       titulo="Términos y condiciones"
-      vigencia={VIGENCIA_BORRADOR}
+      vigencia={VIGENCIA}
       secciones={[
         {
           titulo: "Quiénes somos",

@@ -25,7 +25,6 @@ import { modoDesdeEnv } from "@/plugins/arca";
 import { ambienteDelComprobante } from "@/lib/comprobante-pdf";
 import { ACCION_RECEPTOR_DEL_COMPROBANTE, ENTIDAD_RECEPTOR_DEL_COMPROBANTE } from "@/lib/comprobante-pdf-datos";
 import {
-  anulacionSegunCupo,
   errorDeNotaRechazada,
   estadoDeAnulacion,
   estadoLimite,
@@ -65,7 +64,7 @@ async function requireTenantFacturita(): Promise<{ tenantId: string; userId: str
     { tenantId },
   );
   if (tenant?.blueprintId !== "facturita") {
-    throw new Error("Esta pantalla es del producto Facturita.");
+    throw new Error("Esta pantalla es del producto Factoque.");
   }
   return { tenantId, userId: user.id, homologacion: tenant.arcaHomologacion ?? true };
 }
@@ -289,9 +288,8 @@ export type ResultadoAnularFacturita = { ok: true; mensaje: string } | { ok: fal
 
 /**
  * «Anular» una factura autorizada: nota de crédito asociada por TODO lo que queda (el motor toma la
- * factura con bloqueo y nunca anula más de lo facturado). La nota ocupa un lugar del cupo del mes,
- * como cualquier comprobante (hasta que el dueño decida otra cosa): sin lugar, no se anula y se
- * dice qué hacer. En la MISMA transacción se le copia a la nota la ficha del comprador de la
+ * factura con bloqueo y nunca anula más de lo facturado). La nota NO ocupa lugar del cupo del mes
+ * (Plan de salida 11/2026 §1 #9b): se anula aunque el tope esté lleno. En la MISMA transacción se le copia a la nota la ficha del comprador de la
  * factura (`ComprobanteReceptor`), así el PDF de la nota sale con el mismo comprador. Con la
  * facturación encendida, la nota va a ARCA enseguida; si ARCA (o el sistema) la rechaza, es un
  * error: la factura sigue vigente.
@@ -301,9 +299,6 @@ export async function anularFacturitaAction(facturaId: string, motivo: string): 
   if (!/^[A-Za-z0-9_-]{1,64}$/.test(facturaId ?? "")) return { ok: false, error: "No encontramos esa factura." };
   const porque = (motivo ?? "").trim().slice(0, 200);
   if (porque.length < 3) return { ok: false, error: "Contá en pocas palabras por qué la anulás: queda escrito en la nota de crédito." };
-
-  const cupo = anulacionSegunCupo(estadoLimite(await contarFacturasDelMes(tenantId)));
-  if (!cupo.ok) return cupo;
 
   let r: Awaited<ReturnType<typeof crearNotaDeCreditoInTx>>;
   try {
@@ -355,7 +350,7 @@ export async function anularFacturitaAction(facturaId: string, motivo: string): 
   const notaId = r.invoiceId;
 
   let mensaje =
-    "La nota de crédito quedó cargada y espera que ARCA la autorice: hasta entonces, la anulación está en curso. Usó uno de los comprobantes del mes.";
+    "La nota de crédito quedó cargada y espera que ARCA la autorice: hasta entonces, la anulación está en curso. No usa lugar de tu cupo del mes.";
   if (isInvoicingEnabled()) {
     try {
       const d = await procesarEnviosDelNegocio(tenantId, 5, undefined, { ignorarEspera: true });

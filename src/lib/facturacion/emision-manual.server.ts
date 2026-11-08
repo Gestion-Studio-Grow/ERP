@@ -101,7 +101,10 @@ export async function emitirComprobanteManual(
   const r = await emitir(ctx, datos);
   // Los textos de `mensajeDeEmision` nombran la lista de Factoque; en las otras pantallas, la propia.
   if (!r.ok || r.limite) return r;
-  return { ...r, mensaje: r.mensaje.replace("«Mis facturas»", "la lista de comprobantes") };
+  return {
+    ...r,
+    mensaje: r.mensaje.replace("«Mis facturas»", "la lista de comprobantes").replace("«Mi cuenta» → «Conectar con ARCA»", "Facturación → «Conectar con ARCA»"),
+  };
 }
 
 async function emitir(ctx: ContextoEmisionManual, datos: EmisionFacturita): Promise<ResultadoEmisionManual> {

@@ -9,7 +9,7 @@ import { claseDelPrefijo, cuitValido, normalizarCuit } from "@/lib/cuit";
 import { redondearAlCentavo, sumarAlCentavo } from "@/lib/dinero/redondeo";
 import { UMBRAL_IDENTIFICACION_CONSUMIDOR_FINAL, vigenteEn } from "@/lib/fiscal/vigencias";
 
-/** Tope del plan gratis: 5 facturas por mes (el gancho de upgrade a Comerciante). */
+/** Tope del plan gratis: 5 facturas por mes (el gancho de upgrade a un plan Factoque). */
 export const LIMITE_FACTURAS_FACTURITA = 5;
 
 /** Aviso desde la 4ª factura ("te queda 1"). */
@@ -31,7 +31,7 @@ export function estadoLimite(usadas: number): EstadoLimite {
   let mensaje: string | null = null;
   if (!puedeEmitir) {
     mensaje =
-      "Llegaste al tope de 5 facturas gratis de este mes. Para emitir más, pasate a Comerciante: mismo lugar, hasta 159 facturas por mes.";
+      "Llegaste al tope de 5 facturas gratis de este mes. Para emitir más, pasate a un plan Factoque: mismo lugar, más facturas por mes.";
   } else if (usadas >= AVISO_DESDE) {
     mensaje = `Te queda ${restantes === 1 ? "1 factura gratis" : `${restantes} facturas gratis`} este mes.`;
   }
@@ -331,6 +331,9 @@ export type EstadoEmision =
   | { estado: "pendiente"; motivo: "apagada" | "esperando"; /** Días que ARCA acepta la fecha de la factura: 5 productos, 10 servicios. */ ventanaDias: 5 | 10 }
   | { estado: "rechazada"; origen: "arca" | "sistema"; motivo: string };
 
+/** Dónde el negocio conecta su certificado de ARCA (asistente de 4 pasos del backoffice). */
+export const LINK_CONECTAR_ARCA = "/admin/facturacion?vista=arca";
+
 /** Lo que se le dice a la persona después de emitir, según cómo quedó la factura. */
 export function mensajeDeEmision(e: EstadoEmision): string {
   if (e.estado === "autorizada") {
@@ -344,7 +347,7 @@ export function mensajeDeEmision(e: EstadoEmision): string {
       ` Ojo: ARCA acepta la factura hasta ${e.ventanaDias} días después de su fecha. ` +
       "Si para entonces no salió, ARCA la rechaza por la fecha y la tenés que volver a emitir.";
     return e.motivo === "apagada"
-      ? `La factura quedó guardada como pendiente: la conexión con ARCA todavía no está activa en tu cuenta. Sale cuando se active.${ojo}`
+      ? `La factura quedó guardada como pendiente: la conexión con ARCA todavía no está activa en tu cuenta. Activala en «Mi cuenta» → «Conectar con ARCA». Sale cuando se active.${ojo}`
       : `La factura quedó pendiente: sale apenas ARCA responda. La ves en «Mis facturas».${ojo}`;
   }
   return e.origen === "arca"
@@ -378,19 +381,9 @@ export function estadoDeAnulacion(
   return { saldo, estado: saldo <= 0 ? "anulada" : "ninguna" };
 }
 
-/**
- * ¿Se puede anular con el cupo de hoy? La nota de crédito es un comprobante más y ocupa un lugar
- * del cupo del mes (hasta que el dueño decida otra cosa). Sin lugar, se dice qué hacer.
- */
-export function anulacionSegunCupo(limite: EstadoLimite): { ok: true } | { ok: false; error: string } {
-  if (limite.puedeEmitir) return { ok: true };
-  return {
-    ok: false,
-    error:
-      `No te quedan comprobantes este mes (la nota de crédito cuenta como uno de los ${limite.limite}). ` +
-      "Podés anularla desde el sitio de ARCA, con una nota de crédito en «Comprobantes en línea», o pasarte a Comerciante.",
-  };
-}
+// La nota de crédito NO ocupa cupo (Plan de salida 11/2026 §1 #9b): corregir una factura
+// equivocada no puede depender del tope del plan. El conteo del cupo la excluye
+// (`filtrosFacturacionMes().cupo`, src/lib/bancos-glue.ts).
 
 /** Mensaje de una nota de crédito rechazada: es un error, y la factura sigue vigente. */
 export function errorDeNotaRechazada(origen: "arca" | "sistema", motivo: string | null | undefined): string {

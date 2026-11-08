@@ -1,11 +1,11 @@
-// FACTURITA · Política de privacidad — BORRADOR (ver DocumentoLegal). Pública y estática.
+// FACTOQUE · Política de privacidad (ver DocumentoLegal). Pública y estática.
 // Marco: Ley 25.326 de Protección de los Datos Personales (arts. 5, 6, 11, 12, 14, 16, 21 y 25) y
 // Disp. DNPDP 10/2008 (leyendas obligatorias; hoy el órgano de control es la AAIP). Lo que no se pudo
 // afirmar con certeza va entre corchetes (PENDIENTES en ../legales).
 
 import type { Metadata } from "next";
 import DocumentoLegal from "../DocumentoLegal";
-import { PENDIENTES, RESPONSABLE, SITIO_AAIP, VIGENCIA_BORRADOR } from "../legales";
+import { PENDIENTES, RESPONSABLE, SITIO_AAIP, VIGENCIA } from "../legales";
 
 export const dynamic = "force-static";
 
@@ -13,15 +13,13 @@ export const metadata: Metadata = {
   title: "Privacidad — Factoque",
   description: "Qué datos usa Factoque, para qué, y cómo ejercés tus derechos sobre ellos.",
   generator: "Gestión Studio Grow",
-  // Borrador «todavía no vigente»: fuera de los buscadores hasta que el dueño lo apruebe.
-  robots: { index: false, follow: false },
 };
 
 export default function PrivacidadPage() {
   return (
     <DocumentoLegal
       titulo="Política de privacidad"
-      vigencia={VIGENCIA_BORRADOR}
+      vigencia={VIGENCIA}
       secciones={[
         {
           titulo: "Quién trata tus datos",
