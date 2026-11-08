@@ -80,5 +80,8 @@
       }
     ]
   },
-  "model": "claude-opus-5-5"
+  "model": "claude-opus-5-5",
+  "env": {
+    "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "270000"
+  }
 }
