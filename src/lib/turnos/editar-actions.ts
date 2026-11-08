@@ -23,6 +23,8 @@
 //     `deshacer=1` (el [Deshacer] de la hoja): vuelve EXACTO al `from` del último `edit` auditado
 //     (precio congelado incluido), sólo si el turno sigue como lo dejó ese `edit`.
 
+import { exigirSeniaParaConfirmar } from "@/lib/turnos/sena-obligatoria";
+import { MENSAJE_EDITAR_SIN_SENIA } from "@/lib/turnos/sena-obligatoria-core";
 import { revalidatePath } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -328,7 +330,7 @@ async function editar(fd: FormData): Promise<ResultadoAccion | null> {
     // servicio entre la lectura y ahora, no se pisa su cambio.
     const vivo = await tx.appointment.findFirst({
       where: { id: appointmentId, tenantId, status: { in: ["PENDING", "CONFIRMED"] } },
-      select: { startsAt: true, endsAt: true, professionalId: true, serviceId: true, priceAtBooking: true },
+      select: { status: true, startsAt: true, endsAt: true, professionalId: true, serviceId: true, priceAtBooking: true },
     });
     if (
       !vivo ||
@@ -367,6 +369,12 @@ async function editar(fd: FormData): Promise<ResultadoAccion | null> {
         ...(seMueve ? { reminderSentAt: null } : {}),
       },
     });
+    // Seña obligatoria: un Confirmado al que se le cambia el servicio o el precio sigue Confirmado
+    // sólo si la seña del servicio NUEVO está cubierta (o lo confirmó la dueña por excepción). Si no,
+    // se rechaza y la edición vuelve atrás. Apagado, nada.
+    if (vivo.status === "CONFIRMED" && (vivo.serviceId !== servicio.id || vivo.priceAtBooking !== precio.priceAtBooking)) {
+      await exigirSeniaParaConfirmar(tx, { tenantId, appointmentId, excepcionVale: true, motivo: MENSAJE_EDITAR_SIN_SENIA });
+    }
   });
 
   await auditAdmin({

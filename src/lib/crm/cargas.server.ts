@@ -111,9 +111,11 @@ export async function cargarFichaCompleta(id: string) {
           id: true,
           status: true,
           startsAt: true,
+          // La seña obligatoria: cuándo se dio el turno (vencimiento) y la seña del servicio.
+          createdAt: true,
           notes: true,
           priceAtBooking: true,
-          service: { select: { name: true, price: true } },
+          service: { select: { name: true, price: true, depositAmount: true } },
           professional: { select: { name: true } },
           payment: { select: { status: true, amount: true } },
           review: { select: { rating: true } },

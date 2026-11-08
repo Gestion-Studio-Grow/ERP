@@ -30,6 +30,30 @@ export type FacturarPorPago = (
   pago?: PagoMP,
 ) => Promise<string | null>;
 
+/**
+ * Comando del Core para la SEÑA de un turno pagada por MP (interruptor «sena-obligatoria»): con el
+ * pago aprobado registra el cobro y confirma el turno si alcanza; con el pago devuelto o
+ * contracargado (`refunded`) anula ese cobro. Idempotente por id de pago. Apagado, no hace nada.
+ */
+export type SeniaPorPago = (appointmentId: string, tenantId: string, pago: PagoMP) => Promise<unknown>;
+
+/**
+ * Aviso del Core cuando la seña tiró un error inesperado (log + auditoría). No debe tirar. En el pago
+ * APROBADO puede contestar `"reintentar"` (p. ej. no se pudo leer el interruptor): el handler deja
+ * subir el error original (webhook 500, MP reintenta) en vez de seguir sin la seña.
+ */
+export type SeniaFallida = (appointmentId: string, tenantId: string, pago: PagoMP, error: unknown) => Promise<void | "reintentar"> | void | "reintentar";
+
+/**
+ * ¿La seña hizo su trabajo? Con la regla apagada el Core contesta `{ accion: "apagada" }` (o nada):
+ * entonces el handler responde exactamente como antes de existir la seña obligatoria.
+ */
+export function seniaActiva(r: unknown): boolean {
+  if (!r || typeof r !== "object") return false;
+  const accion = (r as { accion?: unknown }).accion;
+  return typeof accion === "string" && accion !== "apagada";
+}
+
 // ── El link de pago de un PEDIDO ─────────────────────────────────────────────
 //
 // El link que se genera desde la bandeja lleva como `external_reference` el pedido, con un

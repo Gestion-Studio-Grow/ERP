@@ -20,6 +20,7 @@ import { round2 } from "@/lib/round";
 import { revalidatePath } from "next/cache";
 import { RechazoDeDominio, rechazoDeDominio } from "@/lib/rechazo-de-dominio";
 import { precioADefinir } from "./ficha";
+import { volverAReservadoSiFaltaLaSenia } from "@/lib/turnos/sena-obligatoria";
 
 export type ResultadoPrecio = { ok: true; precio: number } | { ok: false; error: string };
 
@@ -51,6 +52,14 @@ export async function fijarPrecioDelTurno(fd: FormData): Promise<ResultadoPrecio
           data: { priceAtBooking: precio },
         });
         if (r.count !== 1) throw new RechazoDeDominio("Ese turno cambió recién. Recargá la agenda.");
+        // Seña obligatoria: con precio, el servicio puede pedir una seña que no entró; un Confirmado
+        // que todavía no empezó vuelve a Reservado (misma tx, auditado). Apagado, nada.
+        await volverAReservadoSiFaltaLaSenia(tx, {
+          tenantId,
+          appointmentId,
+          actor: `user:${user.id}`,
+          porque: "Se fijó el precio y el turno pide una seña que no entró.",
+        });
       },
       { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
