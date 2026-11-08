@@ -13,7 +13,8 @@
  *   · descartar una abierta libera sus vouchers; una conciliada no se descarta;
  *   · otro negocio no ve ni concilia la liquidación de A;
  *   · turno con la comisión ya pagada: no se cobra con voucher;
- *   · las Server Actions: apagadas rechazan; prendidas generan y concilian.
+ *   · las Server Actions: apagadas rechazan; prendidas generan y concilian;
+ *   · un impago vuelve en la próxima liquidación (también a la vez) o se da de baja con motivo.
  *
  * Sin Postgres local se saltea diciendo por qué (en CI falla), como los demás `*-postgres.test.ts`.
  */
@@ -99,6 +100,8 @@ const liq = () => import("./liquidacion-repo");
 async function sinPendientes(s: Sembrado) {
   const duenio = await prismaComoDuenio(s.base);
   await duenio.voucher.updateMany({ where: { tenantId: s.base.a.id, estado: "USADO", liquidacionSemanalId: null, liquidadoEn: null }, data: { liquidadoEn: new Date() } });
+  // Los impagos de tests anteriores volverían en la próxima liquidación: se los saca igual.
+  await duenio.voucher.updateMany({ where: { tenantId: s.base.a.id, resultadoLiquidacion: "IMPAGO", liquidadoEn: null }, data: { liquidadoEn: new Date() } });
 }
 
 async function voucherCobrado(s: Sembrado, nombre: string, monto?: number) {
@@ -463,4 +466,173 @@ test("cobrar con voucher desde el turno: «4.000» son cuatro mil pesos, no cuat
   const v = (r as { valor: Awaited<ReturnType<typeof aplicarVoucherAlTurno>> }).valor;
   assert.ok(v.ok, JSON.stringify(v));
   if (v.ok) assert.deepEqual([v.valor.valorCubierto, v.valor.saldoDespues], [4000, 10000]);
+});
+
+// ── Impagos: vuelven en la próxima liquidación o se dan de baja (hallazgo de la certificación) ──
+
+async function impagoConciliado(s: Sembrado, nombre: string) {
+  const A = s.base.a.id;
+  const v = await voucherCobrado(s, nombre);
+  const { generarLiquidacionSemanal, conciliarLiquidacionSemanal } = await liq();
+  const sem = await semanaNueva();
+  const g = await generarLiquidacionSemanal(A, { hasta: sem.hasta, hoy: sem.hoy, actor: "user:test" });
+  await conciliarLiquidacionSemanal(A, { liquidacionId: g.liquidacionId, pagado: 0, fecha: "2026-11-02", medio: "TRANSFERENCIA", rechazados: [v.numero], actor: "user:test" });
+  return { ...v, liquidacionId: g.liquidacionId };
+}
+
+test("un impago vuelve en la próxima liquidación: se cobra, el contador baja y el reporte viejo lo sigue mostrando", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  await sinPendientes(s);
+  const duenio = await prismaComoDuenio(s.base);
+  const A = s.base.a.id;
+  const v = await impagoConciliado(s, "Ines");
+  const { generarLiquidacionSemanal, conciliarLiquidacionSemanal, leerCuentaDeLaAdministracion, leerLiquidacion, descartarLiquidacion } = await liq();
+  assert.equal((await leerCuentaDeLaAdministracion(A)).impagos.cantidad, 1);
+  const saldoAntes = await saldo(A);
+
+  // Descartar la nueva devuelve el impago a su liquidación de origen, como IMPAGO.
+  const sem = await semanaNueva();
+  const g1 = await generarLiquidacionSemanal(A, { hasta: sem.hasta, hoy: sem.hoy, actor: "user:test" });
+  assert.equal(g1.cantidad, 1);
+  assert.equal(g1.total, 14000);
+  await descartarLiquidacion(A, { liquidacionId: g1.liquidacionId, actor: "user:test" });
+  const vuelto = await duenio.voucher.findUniqueOrThrow({ where: { id: v.voucherId } });
+  assert.equal(vuelto.liquidacionSemanalId, v.liquidacionId);
+  assert.equal(vuelto.resultadoLiquidacion, "IMPAGO");
+
+  const g = await generarLiquidacionSemanal(A, { hasta: sem.hasta, hoy: sem.hoy, actor: "user:test" });
+  assert.equal(g.cantidad, 1);
+  const tomado = await duenio.voucher.findUniqueOrThrow({ where: { id: v.voucherId } });
+  assert.equal(tomado.liquidacionSemanalId, g.liquidacionId);
+  assert.equal(tomado.resultadoLiquidacion, null);
+  assert.equal((await leerCuentaDeLaAdministracion(A)).impagos.cantidad, 0, "el contador de impagos baja");
+  // El reporte de la vieja lo sigue listando como IMPAGO; el de la nueva, pendiente.
+  const vieja = await leerLiquidacion(A, v.liquidacionId);
+  assert.deepEqual(vieja?.renglones.map((r) => [r.numero, r.resultado]), [[v.numero, "IMPAGO"]]);
+  assert.deepEqual((await leerLiquidacion(A, g.liquidacionId))?.renglones.map((r) => [r.numero, r.resultado]), [[v.numero, null]]);
+  // Una liquidación que no lo incluye no lo re-toma dos veces.
+  const sem3 = await semanaNueva();
+  await rechaza(generarLiquidacionSemanal(A, { hasta: sem3.hasta, hoy: sem3.hoy, actor: "user:test" }), /nada que liquidar/);
+
+  await conciliarLiquidacionSemanal(A, { liquidacionId: g.liquidacionId, pagado: 14000, fecha: "2026-11-02", medio: "TRANSFERENCIA", actor: "user:test" });
+  const pagado = await duenio.voucher.findUniqueOrThrow({ where: { id: v.voucherId } });
+  assert.equal(pagado.resultadoLiquidacion, "PAGADO");
+  assert.equal(await saldo(A), saldoAntes - 1_400_000, "el débito es uno solo; el pago lo cancela");
+});
+
+test("baja de un impago: motivo + AuditLog, idempotente, no se re-liquida y el saldo se compensa", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  await sinPendientes(s);
+  const duenio = await prismaComoDuenio(s.base);
+  const A = s.base.a.id;
+  const v = await impagoConciliado(s, "Juana");
+  const { darDeBajaImpago, generarLiquidacionSemanal, leerCuentaDeLaAdministracion } = await liq();
+  const saldoAntes = await saldo(A);
+  const bajasAntes = (await leerCuentaDeLaAdministracion(A)).bajas;
+  await rechaza(darDeBajaImpago(A, { numero: v.numero, motivo: "  ", actor: "user:test" }), /por qué/);
+  await rechaza(darDeBajaImpago(s.base.b.id, { numero: v.numero, motivo: "La administración lo desconoce", actor: "user:test" }), /No hay un voucher/);
+  const r = await darDeBajaImpago(A, { numero: v.numero, motivo: "La administración lo desconoce", actor: "user:test" });
+  assert.equal(r.duplicado, false);
+  assert.equal((await darDeBajaImpago(A, { numero: v.numero, motivo: "otra vez lo mismo", actor: "user:test" })).duplicado, true);
+  const audit = await duenio.auditLog.findMany({ where: { tenantId: A, action: "voucher.liquidacion.baja-impago", entityId: v.voucherId } });
+  assert.equal(audit.length, 1);
+  assert.equal((audit[0].changes as { motivo: string }).motivo, "La administración lo desconoce");
+  const cuenta = await leerCuentaDeLaAdministracion(A);
+  assert.equal(cuenta.impagos.cantidad, 0);
+  assert.deepEqual(cuenta.bajas, { cantidad: bajasAntes.cantidad + 1, total: bajasAntes.total + 14000 });
+  assert.equal(await saldo(A), saldoAntes - 1_400_000);
+  const sem = await semanaNueva();
+  await rechaza(generarLiquidacionSemanal(A, { hasta: sem.hasta, hoy: sem.hoy, actor: "user:test" }), /nada que liquidar/);
+  // Un voucher pagado (no impago) no se da de baja.
+  const p = await voucherCobrado(s, "Kiara");
+  await rechaza(darDeBajaImpago(A, { numero: p.numero, motivo: "Se equivocaron", actor: "user:test" }), /Sólo se da de baja/);
+  await duenio.voucher.updateMany({ where: { id: p.voucherId }, data: { liquidadoEn: new Date() } });
+});
+
+test("baja y re-liquidación del mismo impago a la vez: gana una sola y el estado es coherente", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  await sinPendientes(s);
+  const duenio = await prismaComoDuenio(s.base);
+  const A = s.base.a.id;
+  const { darDeBajaImpago, generarLiquidacionSemanal } = await liq();
+  for (let i = 0; i < 3; i++) {
+    const v = await impagoConciliado(s, `Lara${i}`);
+    const sem = await semanaNueva();
+    const rs = await Promise.allSettled([
+      generarLiquidacionSemanal(A, { hasta: sem.hasta, hoy: sem.hoy, actor: "user:test" }),
+      darDeBajaImpago(A, { numero: v.numero, motivo: "La administración lo desconoce", actor: "user:test" }),
+      darDeBajaImpago(A, { numero: v.numero, motivo: "La administración lo desconoce", actor: "user:test" }),
+    ]);
+    const x = await duenio.voucher.findUniqueOrThrow({ where: { id: v.voucherId } });
+    const bajas = await duenio.auditLog.count({ where: { tenantId: A, action: "voucher.liquidacion.baja-impago", entityId: v.voucherId } });
+    if (rs[0].status === "fulfilled") {
+      // La liquidación lo tomó: no hay baja.
+      assert.equal(x.liquidacionSemanalId, rs[0].value.liquidacionId);
+      assert.equal(x.resultadoLiquidacion, null);
+      assert.equal(x.liquidadoEn, null);
+      assert.equal(bajas, 0);
+      await duenio.voucher.updateMany({ where: { id: v.voucherId }, data: { liquidadoEn: new Date() } });
+    } else {
+      assert.equal(x.liquidacionSemanalId, v.liquidacionId);
+      assert.equal(x.resultadoLiquidacion, "IMPAGO");
+      assert.ok(x.liquidadoEn);
+      assert.equal(bajas, 1, "una sola baja aunque se pida dos veces a la vez");
+      assert.equal(await duenio.voucherLiquidacion.count({ where: { tenantId: A, hasta: sem.hasta } }), 0);
+    }
+  }
+});
+
+test("dos liquidaciones a la vez con el mismo impago pendiente: queda en una sola", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  await sinPendientes(s);
+  const duenio = await prismaComoDuenio(s.base);
+  const A = s.base.a.id;
+  const v = await impagoConciliado(s, "Mora");
+  const { generarLiquidacionSemanal } = await liq();
+  const [s1, s2] = [await semanaNueva(), await semanaNueva()];
+  const rs = await Promise.allSettled([
+    generarLiquidacionSemanal(A, { hasta: s1.hasta, hoy: s1.hoy, actor: "user:test" }),
+    generarLiquidacionSemanal(A, { hasta: s2.hasta, hoy: s2.hoy, actor: "user:test" }),
+  ]);
+  const ok = rs.filter((r) => r.status === "fulfilled");
+  assert.equal(ok.length, 1, JSON.stringify(rs.map((r) => (r.status === "rejected" ? String(r.reason) : "ok"))));
+  const x = await duenio.voucher.findUniqueOrThrow({ where: { id: v.voucherId } });
+  assert.equal(x.liquidacionSemanalId, (ok[0] as PromiseFulfilledResult<{ liquidacionId: string }>).value.liquidacionId);
+  assert.equal(await duenio.auditLog.count({ where: { tenantId: A, action: "voucher.liquidacion.reliquidar-impagos", entityId: v.liquidacionId } }), 1);
+});
+
+test("la baja como Server Action: con el permiso de conciliar (cash:manage, también la recepcionista), con motivo", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  await sinPendientes(s);
+  const duenio = await prismaComoDuenio(s.base);
+  const A = s.base.a.id;
+  const { filaDeInterruptor } = await import("@/cambios/interruptores-core");
+  const { VOUCHERS } = await import("@/cambios/interruptores");
+  await duenio.auditLog.create({ data: filaDeInterruptor({ tenantId: A, interruptor: VOUCHERS, accion: "encender", operador: "test" }) });
+  const v = await impagoConciliado(s, "Nora");
+  const { bajaDeImpago } = await import("./liquidacion-actions");
+  const correr = async (usuario: typeof s.base.a.duenia, fd: FormData) => {
+    const r = await ejecutarAccion({ negocio: s.base.a, usuario }, () => bajaDeImpago(fd));
+    assert.equal(r.tipo, "respuesta", JSON.stringify(r));
+    return (r as { valor: Awaited<ReturnType<typeof bajaDeImpago>> }).valor;
+  };
+  const sinMotivo = new FormData();
+  sinMotivo.set("numero", v.numero);
+  const r0 = await correr(s.base.a.recepcion, sinMotivo);
+  assert.match(!r0.ok ? r0.error : "", /por qué/);
+  assert.equal((await duenio.voucher.findUniqueOrThrow({ where: { id: v.voucherId } })).liquidadoEn, null);
+  const fd = new FormData();
+  fd.set("numero", v.numero);
+  fd.set("motivo", "La administración lo desconoce");
+  const r1 = await correr(s.base.a.recepcion, fd);
+  assert.ok(r1.ok && !r1.valor.duplicado, JSON.stringify(r1));
+  const r2 = await correr(s.base.a.duenia, fd);
+  assert.ok(r2.ok && r2.valor.duplicado, JSON.stringify(r2));
+  const audit = await duenio.auditLog.findMany({ where: { tenantId: A, action: "voucher.liquidacion.baja-impago", entityId: v.voucherId }, select: { actor: true } });
+  assert.deepEqual(audit, [{ actor: `user:${s.base.a.recepcion.id}` }]);
 });

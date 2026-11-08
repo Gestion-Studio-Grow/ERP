@@ -24,6 +24,7 @@ import { MENSAJES_VOUCHER } from "./voucher-core";
 import { esMedioAdministracion } from "./liquidacion-core";
 import {
   conciliarLiquidacionSemanal,
+  darDeBajaImpago,
   descartarLiquidacion as descartarRepo,
   generarLiquidacionSemanal,
   registrarPagoACuenta,
@@ -154,5 +155,24 @@ export async function pagoACuenta(formData: FormData): Promise<ResultadoLiquidac
     return { ok: true, valor };
   } catch (e) {
     return comoError(e, "vouchers.cuenta.pago");
+  }
+}
+
+/**
+ * Baja de un voucher IMPAGO que la administración desconoce para siempre (si no, vuelve solo en la
+ * próxima liquidación). Campos: `numero` y `motivo` (obligatorio, queda en el AuditLog). Mismo
+ * permiso que conciliar (`cash:manage`).
+ */
+export async function bajaDeImpago(formData: FormData): Promise<ResultadoLiquidacionAccion<{ voucherId: string; numero: string; duplicado: boolean }>> {
+  const ctx = await preparar();
+  if ("ok" in ctx) return ctx;
+  const numero = texto(formData.get("numero"));
+  if (!numero) return { ok: false, error: "Falta el número del voucher." };
+  try {
+    const valor = await darDeBajaImpago(ctx.tenantId, { numero, motivo: texto(formData.get("motivo")), actor: ctx.actor });
+    revalidar();
+    return { ok: true, valor };
+  } catch (e) {
+    return comoError(e, "vouchers.liquidacion.baja-impago");
   }
 }

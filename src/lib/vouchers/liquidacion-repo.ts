@@ -11,11 +11,20 @@
 //        `updateMany where {liquidacionSemanalId: null, …}` y exige que el conteo coincida (un
 //        voucher nunca entra en dos liquidaciones, ni aunque se generen dos semanas a la vez). Los
 //        rezagados de semanas anteriores entran en la próxima: ninguno queda afuera para siempre.
+//     3. RE-TOMA los IMPAGOS de liquidaciones ya conciliadas (la deuda de la administración sigue
+//        viva): pasan a la nueva con `resultadoLiquidacion: null`, con el mismo `updateMany` + conteo.
+//        La liquidación vieja guarda el rastro en su AuditLog (`…reliquidar-impagos`) y su detalle
+//        los sigue mostrando como IMPAGO.
 //   CONCILIAR (Serializable): pasa la liquidación de ABIERTA a CONCILIADA con
 //     `updateMany where {estado:'ABIERTA'}` y `count === 1` (la segunda conciliación no pasa),
 //     anota el pago como crédito de la cuenta (clave `liq:<id>`, única) y marca cada voucher
 //     PAGADO (con `liquidadoEn`, `montoLiquidado`, `liquidacionRef`) o IMPAGO.
-//   DESCARTAR una ABIERTA (mal generada): libera sus vouchers y la borra. Una conciliada no.
+//   DESCARTAR una ABIERTA (mal generada): libera sus vouchers y la borra. Una conciliada no. Los
+//     impagos que había re-tomado vuelven a su liquidación de origen como IMPAGO.
+//   BAJA de un IMPAGO (la administración lo desconoce para siempre; cash:manage, con motivo y
+//     AuditLog): queda IMPAGO con `liquidadoEn` (fecha de la baja), `montoLiquidado: 0` y
+//     `liquidacionRef: "Baja: <motivo>"`; ya no se re-liquida y en la cuenta suma un crédito que
+//     compensa su débito. Sin columnas nuevas: «impago pendiente» = IMPAGO con `liquidadoEn` nulo.
 //   PAGO A CUENTA: crédito suelto (pre-pago, o lo que la administración pague después de una
 //     diferencia), idempotente por la clave del formulario.
 //
@@ -55,6 +64,20 @@ const CAMBIO_RECIEN = "Los vouchers cambiaron recién (otra liquidación o una a
 const NO_EXISTE = "Esa liquidación ya no existe. Recargá la pantalla.";
 const YA_CONCILIADA = "Esa liquidación ya se concilió: no se concilia dos veces. Si falta plata, anotá un pago a cuenta.";
 
+/** Rastro en el AuditLog de la liquidación vieja cuando sus impagos pasan a otra. */
+const ACCION_RELIQUIDAR = "voucher.liquidacion.reliquidar-impagos";
+/** Prefijo de `liquidacionRef` de un impago dado de baja. */
+const PREFIJO_BAJA = "Baja: ";
+
+/** Impago que todavía es deuda viva de la administración (no se dio de baja): vuelve a liquidarse. */
+const impagoPendiente = (tenantId: string): Prisma.VoucherWhereInput => ({
+  tenantId,
+  estado: "USADO",
+  resultadoLiquidacion: "IMPAGO",
+  liquidacionSemanalId: { not: null },
+  liquidadoEn: null,
+});
+
 // ── Generar ─────────────────────────────────────────────────────────────────
 
 export type GenerarLiquidacionArgs = { hasta: string; actor: string; hoy?: string };
@@ -82,18 +105,50 @@ export async function generarLiquidacionSemanal(tenantId: string, args: GenerarL
           liquidadoEn: null,
           usadoEn: { lt: corte },
         };
-        const vouchers = await tx.voucher.findMany({ where: elegibles, select: { id: true, valorCubierto: true } });
+        const nuevos = await tx.voucher.findMany({ where: elegibles, select: { id: true, valorCubierto: true } });
+        // Los rechazados en liquidaciones ya conciliadas: la administración los sigue debiendo.
+        const impagos = await tx.voucher.findMany({
+          where: { ...impagoPendiente(tenantId), usadoEn: { lt: corte }, liquidacionSemanal: { estado: "CONCILIADA" } },
+          select: { id: true, numero: true, valorCubierto: true, liquidacionSemanalId: true },
+        });
+        const vouchers = [...nuevos, ...impagos];
         if (vouchers.length === 0) {
           throw new VoucherRechazado(
             "dato-invalido",
             "No hay vouchers usados sin liquidar hasta ese domingo: no hay nada que liquidar. Si la administración pagó por adelantado, anotalo como pago a cuenta.",
           );
         }
-        const tomados = await tx.voucher.updateMany({
-          where: { ...elegibles, id: { in: vouchers.map((x) => x.id) } },
-          data: { liquidacionSemanalId: liq.id },
-        });
-        if (tomados.count !== vouchers.length) throw new VoucherRechazado("cambio-recien", CAMBIO_RECIEN);
+        if (nuevos.length) {
+          const tomados = await tx.voucher.updateMany({
+            where: { ...elegibles, id: { in: nuevos.map((x) => x.id) } },
+            data: { liquidacionSemanalId: liq.id },
+          });
+          if (tomados.count !== nuevos.length) throw new VoucherRechazado("cambio-recien", CAMBIO_RECIEN);
+        }
+        // Re-toma por liquidación de origen (cada una deja su rastro para su detalle y el descarte).
+        const porOrigen = new Map<string, typeof impagos>();
+        for (const v of impagos) {
+          const k = v.liquidacionSemanalId as string;
+          porOrigen.set(k, [...(porOrigen.get(k) ?? []), v]);
+        }
+        for (const [origen, vs] of porOrigen) {
+          const r = await tx.voucher.updateMany({
+            where: { ...impagoPendiente(tenantId), liquidacionSemanalId: origen, id: { in: vs.map((x) => x.id) } },
+            data: { liquidacionSemanalId: liq.id, resultadoLiquidacion: null },
+          });
+          if (r.count !== vs.length) throw new VoucherRechazado("cambio-recien", CAMBIO_RECIEN);
+          await tx.auditLog.create({
+            data: {
+              tenantId,
+              actor: args.actor,
+              action: ACCION_RELIQUIDAR,
+              entity: "VoucherLiquidacion",
+              entityId: origen,
+              channel: "admin",
+              changes: { hacia: liq.id, vouchers: vs.map((x) => x.id), numeros: vs.map((x) => x.numero) },
+            },
+          });
+        }
         const totalCentavos = sumaCentavos(vouchers.map((x) => (x.valorCubierto ? x.valorCubierto.toNumber() : 0)));
         const total = pesosDeCentavos(totalCentavos);
         await tx.voucherLiquidacion.updateMany({ where: { id: liq.id, tenantId }, data: { cantidad: vouchers.length, total } });
@@ -105,7 +160,7 @@ export async function generarLiquidacionSemanal(tenantId: string, args: GenerarL
             entity: "VoucherLiquidacion",
             entityId: liq.id,
             channel: "admin",
-            changes: { desde: semana.desde, hasta: semana.hasta, cantidad: vouchers.length, total },
+            changes: { desde: semana.desde, hasta: semana.hasta, cantidad: vouchers.length, total, reliquidados: impagos.map((x) => x.numero) },
           },
         });
         return { liquidacionId: liq.id, semana, cantidad: vouchers.length, total };
@@ -122,6 +177,11 @@ export async function generarLiquidacionSemanal(tenantId: string, args: GenerarL
 
 // ── Descartar una liquidación ABIERTA ───────────────────────────────────────
 
+function idsDelRastro(changes: Prisma.JsonValue | null): string[] {
+  const c = changes as { vouchers?: unknown } | null;
+  return Array.isArray(c?.vouchers) ? c.vouchers.filter((x): x is string => typeof x === "string") : [];
+}
+
 export async function descartarLiquidacion(tenantId: string, args: { liquidacionId: string; actor: string }): Promise<{ liberados: number }> {
   return tenantTransaction(
     async (tx) => {
@@ -133,6 +193,19 @@ export async function descartarLiquidacion(tenantId: string, args: { liquidacion
       if (tomada.count !== 1) {
         const existe = await tx.voucherLiquidacion.findFirst({ where: { id: args.liquidacionId, tenantId }, select: { estado: true } });
         throw new VoucherRechazado("dato-invalido", existe ? "Una liquidación conciliada no se descarta." : NO_EXISTE);
+      }
+      // Los impagos que esta liquidación había re-tomado vuelven a la suya, como IMPAGO.
+      const retomas = await tx.auditLog.findMany({
+        where: { tenantId, action: ACCION_RELIQUIDAR, entity: "VoucherLiquidacion", changes: { path: ["hacia"], equals: args.liquidacionId } },
+        select: { entityId: true, changes: true },
+      });
+      for (const r of retomas) {
+        const ids = idsDelRastro(r.changes);
+        if (!r.entityId || ids.length === 0) continue;
+        await tx.voucher.updateMany({
+          where: { tenantId, liquidacionSemanalId: args.liquidacionId, id: { in: ids } },
+          data: { liquidacionSemanalId: r.entityId, resultadoLiquidacion: "IMPAGO" },
+        });
       }
       const { count: liberados } = await tx.voucher.updateMany({
         where: { tenantId, liquidacionSemanalId: args.liquidacionId },
@@ -147,7 +220,7 @@ export async function descartarLiquidacion(tenantId: string, args: { liquidacion
           entity: "VoucherLiquidacion",
           entityId: args.liquidacionId,
           channel: "admin",
-          changes: { liberados },
+          changes: { liberados, devueltosASuLiquidacion: retomas.flatMap((r) => idsDelRastro(r.changes)).length },
         },
       });
       return { liberados };
@@ -306,6 +379,64 @@ export async function conciliarLiquidacionSemanal(tenantId: string, args: Concil
   }
 }
 
+// ── Baja de un impago (la administración lo desconoce para siempre) ─────────
+
+export type BajaDeImpagoArgs = { numero: string; motivo: string; actor: string };
+
+/**
+ * Da de baja un voucher IMPAGO que todavía no volvió a liquidarse. Idempotente: la segunda baja del
+ * mismo voucher contesta `duplicado` sin escribir. El árbitro contra una liquidación que lo re-toma
+ * a la vez es el `updateMany` condicionado (`liquidadoEn: null`, misma liquidación) + Serializable.
+ */
+export async function darDeBajaImpago(tenantId: string, args: BajaDeImpagoArgs): Promise<{ voucherId: string; numero: string; duplicado: boolean }> {
+  const numero = args.numero.trim();
+  const motivo = args.motivo.trim().replace(/\s+/g, " ");
+  if (!numero) throw new VoucherRechazado("dato-invalido", "Falta el número del voucher.");
+  if (motivo.length < 5) throw new VoucherRechazado("dato-invalido", "Escribí por qué se da de baja (al menos 5 letras): queda en el registro.");
+  if (motivo.length > 200) throw new VoucherRechazado("dato-invalido", "El motivo es muy largo (hasta 200 letras).");
+  return tenantTransaction(
+    async (tx) => {
+      const v = await tx.voucher.findFirst({
+        where: { tenantId, numero },
+        select: { id: true, numero: true, valorCubierto: true, resultadoLiquidacion: true, liquidadoEn: true, liquidacionRef: true, liquidacionSemanalId: true },
+      });
+      if (!v) throw new VoucherRechazado("dato-invalido", "No hay un voucher con ese número.");
+      if (v.resultadoLiquidacion === "IMPAGO" && v.liquidadoEn && v.liquidacionRef?.startsWith(PREFIJO_BAJA)) {
+        return { voucherId: v.id, numero: v.numero, duplicado: true };
+      }
+      if (v.resultadoLiquidacion !== "IMPAGO" || v.liquidadoEn || !v.liquidacionSemanalId) {
+        throw new VoucherRechazado(
+          "dato-invalido",
+          "Sólo se da de baja un voucher que la administración rechazó al conciliar y que todavía no volvió a liquidarse.",
+        );
+      }
+      const r = await tx.voucher.updateMany({
+        where: { ...impagoPendiente(tenantId), id: v.id, liquidacionSemanalId: v.liquidacionSemanalId },
+        data: { liquidadoEn: new Date(), montoLiquidado: 0, liquidacionRef: `${PREFIJO_BAJA}${motivo}` },
+      });
+      if (r.count !== 1) throw new VoucherRechazado("cambio-recien", CAMBIO_RECIEN);
+      await tx.auditLog.create({
+        data: {
+          tenantId,
+          actor: args.actor,
+          action: "voucher.liquidacion.baja-impago",
+          entity: "Voucher",
+          entityId: v.id,
+          channel: "admin",
+          changes: {
+            numero: v.numero,
+            motivo,
+            liquidacionId: v.liquidacionSemanalId,
+            valor: v.valorCubierto ? v.valorCubierto.toNumber() : 0,
+          },
+        },
+      });
+      return { voucherId: v.id, numero: v.numero, duplicado: false };
+    },
+    { tenantId, isolationLevel: SERIALIZABLE },
+  );
+}
+
 // ── Pago a cuenta (pre-pago o saldo de una diferencia) ──────────────────────
 
 export type PagoACuentaArgs = {
@@ -393,8 +524,10 @@ export type CuentaDeLaAdministracion = {
   liquidaciones: FilaLiquidacion[];
   /** Vouchers usados que todavía no entraron en ninguna liquidación. */
   sinLiquidar: { cantidad: number; total: number };
-  /** Vouchers que la administración rechazó al conciliar (su plata sigue en el saldo salvo pago a cuenta). */
+  /** Vouchers que la administración rechazó al conciliar y siguen debiendo: entran en la próxima liquidación. */
   impagos: { cantidad: number; total: number };
+  /** Impagos dados de baja (la administración los desconoce): su crédito compensa el débito. */
+  bajas: { cantidad: number; total: number };
 };
 
 const TOPE_MOVIMIENTOS = 200;
@@ -437,7 +570,17 @@ export async function leerCuentaDeLaAdministracion(tenantId: string): Promise<Cu
             estado: "USADO",
             OR: [{ liquidacionSemanalId: { not: null } }, { collectionId: { not: null }, liquidadoEn: null }],
           },
-          select: { id: true, numero: true, valorCubierto: true, usadoEn: true, liquidacionSemanalId: true, resultadoLiquidacion: true, client: { select: { name: true } } },
+          select: {
+            id: true,
+            numero: true,
+            valorCubierto: true,
+            usadoEn: true,
+            liquidacionSemanalId: true,
+            resultadoLiquidacion: true,
+            liquidadoEn: true,
+            liquidacionRef: true,
+            client: { select: { name: true } },
+          },
         }),
         tx.voucherPagoAdministracion.findMany({
           where: { tenantId },
@@ -446,6 +589,9 @@ export async function leerCuentaDeLaAdministracion(tenantId: string): Promise<Cu
         tx.voucherLiquidacion.findMany({ where: { tenantId }, orderBy: { hasta: "desc" }, take: 60 }),
       ]);
       const liqPorId = new Map(liquidaciones.map((l) => [l.id, l]));
+      const esBaja = (v: (typeof usados)[number]) =>
+        v.resultadoLiquidacion === "IMPAGO" && v.liquidadoEn != null && (v.liquidacionRef?.startsWith(PREFIJO_BAJA) ?? false);
+      const bajas = usados.filter(esBaja);
       const movs: MovimientoDeCuenta[] = [
         ...usados.map((v) => ({
           fecha: v.usadoEn ? dateStrInBusinessTz(v.usadoEn) : "0000-00-00",
@@ -453,6 +599,13 @@ export async function leerCuentaDeLaAdministracion(tenantId: string): Promise<Cu
           concepto: `Voucher ${v.numero} · ${v.client.name}`,
           centavos: sumaCentavos([v.valorCubierto ? v.valorCubierto.toNumber() : 0]),
           ref: `v:${v.id}`,
+        })),
+        ...bajas.map((v) => ({
+          fecha: dateStrInBusinessTz(v.liquidadoEn as Date),
+          tipo: "CREDITO" as const,
+          concepto: `Baja del voucher ${v.numero} · ${(v.liquidacionRef ?? "").slice(PREFIJO_BAJA.length)}`,
+          centavos: sumaCentavos([v.valorCubierto ? v.valorCubierto.toNumber() : 0]),
+          ref: `b:${v.id}`,
         })),
         ...pagos.map((p) => {
           const l = p.liquidacionId ? liqPorId.get(p.liquidacionId) : null;
@@ -467,7 +620,7 @@ export async function leerCuentaDeLaAdministracion(tenantId: string): Promise<Cu
       ];
       const { movimientos, resumen } = cuentaCorriente(movs);
       const sinLiq = usados.filter((v) => !v.liquidacionSemanalId);
-      const imp = usados.filter((v) => v.resultadoLiquidacion === "IMPAGO");
+      const imp = usados.filter((v) => v.resultadoLiquidacion === "IMPAGO" && v.liquidadoEn == null);
       const total = (xs: typeof usados) => pesosDeCentavos(sumaCentavos(xs.map((v) => (v.valorCubierto ? v.valorCubierto.toNumber() : 0))));
       return {
         resumen,
@@ -475,6 +628,7 @@ export async function leerCuentaDeLaAdministracion(tenantId: string): Promise<Cu
         liquidaciones: liquidaciones.map(aFila),
         sinLiquidar: { cantidad: sinLiq.length, total: total(sinLiq) },
         impagos: { cantidad: imp.length, total: total(imp) },
+        bajas: { cantidad: bajas.length, total: total(bajas) },
       };
     },
     { tenantId },
@@ -495,8 +649,14 @@ export async function leerLiquidacion(tenantId: string, liquidacionId: string): 
       const l = await tx.voucherLiquidacion.findFirst({ where: { id: liquidacionId, tenantId } });
       if (!l) return null;
       const negocio = await tx.tenant.findFirst({ where: { id: tenantId }, select: { name: true } });
+      // Los impagos de esta liquidación que después pasaron a otra siguen en su reporte, como IMPAGO.
+      const rastro = await tx.auditLog.findMany({
+        where: { tenantId, action: ACCION_RELIQUIDAR, entity: "VoucherLiquidacion", entityId: l.id },
+        select: { changes: true },
+      });
+      const idsIdos = [...new Set(rastro.flatMap((r) => idsDelRastro(r.changes)))];
       const vouchers = await tx.voucher.findMany({
-        where: { tenantId, liquidacionSemanalId: l.id },
+        where: { tenantId, OR: [{ liquidacionSemanalId: l.id }, ...(idsIdos.length ? [{ id: { in: idsIdos } }] : [])] },
         orderBy: [{ usadoEn: "asc" }, { numero: "asc" }],
         select: {
           id: true,
@@ -504,6 +664,7 @@ export async function leerLiquidacion(tenantId: string, liquidacionId: string): 
           valorCubierto: true,
           usadoEn: true,
           resultadoLiquidacion: true,
+          liquidacionSemanalId: true,
           client: { select: { name: true } },
           appointment: { select: { service: { select: { name: true } } } },
         },
@@ -521,7 +682,12 @@ export async function leerLiquidacion(tenantId: string, liquidacionId: string): 
           fecha: v.usadoEn ? dateStrInBusinessTz(v.usadoEn) : null,
           servicio: v.appointment?.service.name ?? null,
           valor: v.valorCubierto ? v.valorCubierto.toNumber() : 0,
-          resultado: v.resultadoLiquidacion === "PAGADO" || v.resultadoLiquidacion === "IMPAGO" ? v.resultadoLiquidacion : null,
+          resultado:
+            v.liquidacionSemanalId !== l.id
+              ? "IMPAGO"
+              : v.resultadoLiquidacion === "PAGADO" || v.resultadoLiquidacion === "IMPAGO"
+                ? v.resultadoLiquidacion
+                : null,
         })),
       };
     },
