@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireApp } from "@/lib/require-app";
 import { requireCapability } from "@/lib/authz";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { todayInBusinessTz } from "@/lib/datetime";
 import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
@@ -9,7 +10,7 @@ import { vouchersPrendidos } from "@/cambios/interruptores";
 import { leerLiquidacion } from "@/lib/vouchers/liquidacion-repo";
 import { ETIQUETA_MEDIO_ADMINISTRACION, ETIQUETA_RESULTADO, esMedioAdministracion, fechaArgentina } from "@/lib/vouchers/liquidacion-core";
 import { AvisoError, Marca, PageHeader, Plata, buttonClasses, atributosBoton } from "@/components/ui";
-import { ConciliarLiquidacion, DescartarLiquidacion, Imprimir } from "../../LiquidacionFormularios";
+import { ConciliarLiquidacion, DarDeBajaImpago, DescartarLiquidacion, Imprimir } from "../../LiquidacionFormularios";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +27,9 @@ const TD = "whitespace-nowrap px-3 py-2";
 
 export default async function LiquidacionPage({ params }: { params: Promise<{ id: string }> }) {
   await requireApp("vouchers");
-  await requireCapability("cash:manage");
+  // `cash:manage` guarda la página entera: quien llega acá puede conciliar y dar de baja un impago.
+  const user = await requireCapability("cash:manage");
+  const puedeDarDeBaja = permisoEfectivo(user, "cash:manage");
   if (!vouchersPrendidos(await interruptoresDelNegocio())) notFound();
   const { id } = await params;
   const l = await leerLiquidacion(await getCurrentTenantId(), id);
@@ -74,7 +77,23 @@ export default async function LiquidacionPage({ params }: { params: Promise<{ id
                   <Plata valor={r.valor} sinCentavos={Number.isInteger(r.valor)} />
                 </td>
                 {conciliada && (
-                  <td className={TD}>{r.resultado ? <Marca tipo={r.resultado === "PAGADO" ? "hecho" : "atencion"}>{ETIQUETA_RESULTADO[r.resultado]}</Marca> : "—"}</td>
+                  <td className={TD}>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {r.baja === "dada" ? (
+                        <Marca tipo="atencion">Dado de baja</Marca>
+                      ) : r.resultado ? (
+                        <Marca tipo={r.resultado === "PAGADO" ? "hecho" : "atencion"}>{ETIQUETA_RESULTADO[r.resultado]}</Marca>
+                      ) : (
+                        "—"
+                      )}
+                      {/* Junto a cada impago: la baja con motivo y confirmación (bajaDeImpago). */}
+                      {puedeDarDeBaja && r.baja === "pendiente" && (
+                        <span className="print:hidden">
+                          <DarDeBajaImpago numero={r.numero} />
+                        </span>
+                      )}
+                    </div>
+                  </td>
                 )}
               </tr>
             ))}

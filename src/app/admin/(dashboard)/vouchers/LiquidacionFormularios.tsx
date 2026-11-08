@@ -9,7 +9,7 @@
 import { useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Input, Select } from "@/components/ui";
-import { conciliarLiquidacion, descartarLiquidacion, generarLiquidacion, pagoACuenta } from "@/lib/vouchers/liquidacion-actions";
+import { bajaDeImpago, conciliarLiquidacion, descartarLiquidacion, generarLiquidacion, pagoACuenta } from "@/lib/vouchers/liquidacion-actions";
 import { ETIQUETA_MEDIO_ADMINISTRACION, MEDIOS_DE_PAGO_ADMINISTRACION } from "@/lib/vouchers/liquidacion-core";
 import { textoAlCentavo } from "@/lib/dinero/redondeo";
 
@@ -306,5 +306,77 @@ export function Imprimir() {
     <Button type="button" variant="outline" onClick={() => window.print()}>
       Imprimir o guardar PDF
     </Button>
+  );
+}
+
+/** Motivo mínimo: el mismo tope que `darDeBajaImpago` (liquidacion-repo.ts), para avisar antes de ir al servidor. */
+export const MOTIVO_MINIMO_BAJA = 5;
+
+/**
+ * «Dar de baja» un voucher NO pagado que la administración desconoce para siempre (si no, vuelve solo
+ * en la próxima liquidación). Motivo obligatorio (queda en el registro) y confirmación en dos pasos.
+ * La página lo muestra sólo a quien tiene `cash:manage`; la acción lo vuelve a exigir.
+ */
+export function DarDeBajaImpago({ numero }: { numero: string }) {
+  const id = useId();
+  const router = useRouter();
+  const [abierto, setAbierto] = useState(false);
+  const [motivo, setMotivo] = useState("");
+  const [error, setError] = useState("");
+  const [pendiente, empezar] = useTransition();
+  const enviar = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (pendiente) return;
+    if (motivo.trim().length < MOTIVO_MINIMO_BAJA) return setError("Escribí por qué se da de baja (al menos 5 letras): queda en el registro.");
+    const fd = new FormData();
+    fd.set("numero", numero);
+    fd.set("motivo", motivo);
+    setError("");
+    empezar(async () => {
+      try {
+        const r = await bajaDeImpago(fd);
+        if (!r.ok) return setError(r.error);
+        setAbierto(false);
+        router.refresh();
+      } catch {
+        setError(FALLO);
+      }
+    });
+  };
+  if (!abierto) {
+    return (
+      <Button type="button" variant="ghost" size="sm" onClick={() => setAbierto(true)} aria-label={`Dar de baja el voucher ${numero}`}>
+        Dar de baja
+      </Button>
+    );
+  }
+  return (
+    <form onSubmit={enviar} className="flex min-w-64 flex-col gap-2 whitespace-normal" aria-busy={pendiente || undefined}>
+      <label htmlFor={`${id}-motivo`} className={ROTULO}>
+        Por qué se da de baja el {numero}
+      </label>
+      <Input
+        id={`${id}-motivo`}
+        name="motivo"
+        value={motivo}
+        onChange={(e) => setMotivo(e.target.value)}
+        required
+        minLength={MOTIVO_MINIMO_BAJA}
+        maxLength={200}
+        aria-describedby={`${id}-ayuda ${id}-error`}
+      />
+      <p id={`${id}-ayuda`} className="text-xs text-muted">
+        La administración no lo va a pagar: deja de reclamarse y no vuelve en la próxima liquidación. No se deshace.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <Button type="submit" variant="outline" size="sm" disabled={pendiente} estado={pendiente ? "cargando" : undefined}>
+          Sí, darlo de baja
+        </Button>
+        <Button type="button" variant="ghost" size="sm" disabled={pendiente} onClick={() => (setAbierto(false), setError(""))}>
+          No
+        </Button>
+      </div>
+      <MensajeError id={`${id}-error`} texto={error} />
+    </form>
   );
 }

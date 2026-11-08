@@ -192,7 +192,7 @@ export const INTERRUPTORES = [
     id: "vouchers",
     nombre: "Vouchers",
     queCambia:
-      "El turno se puede cubrir con un voucher del vecino (La Alameda): se carga el número, baja lo que falta cobrar y queda el reporte para conciliar con OpenKey. Apagado, no hay vouchers.",
+      "El turno se puede cubrir con un voucher del vecino (La Alameda): se carga el número, baja lo que falta cobrar y queda el reporte para conciliar con la administración del country. Apagado, no hay vouchers.",
     enAuditoria: "los vouchers",
     cambiaLasApps: false,
   },

@@ -15,7 +15,9 @@
 // Importa el registro (rutas.ts): sólo servidor. El armazón (cliente) importa sólo sus TIPOS.
 
 import type { AppDescriptor, NombreIcono } from "@/apps/contract";
-import type { ItemMenuDeHoy } from "@/apps/visibles";
+import { appPermitida, type ItemMenuDeHoy, type NegocioApps } from "@/apps/visibles";
+import { appPorId } from "@/apps/registro";
+import { vouchersPrendidos, type InterruptorId } from "@/cambios/interruptores";
 import {
   espacioNav,
   espacioNavDeApp,
@@ -110,6 +112,39 @@ export function espaciosDelMenu(menu: readonly ItemMenuDeHoy[], esMostrador: boo
   return agrupar(entradas, esMostrador);
 }
 
+/**
+ * Las apps que el registro no ofrece en el lanzador (`enLanzador: false`) porque dependen de un
+ * interruptor del negocio que el registro no sabe leer. Hoy: «Vouchers de La Alameda» (CH), sólo con
+ * el interruptor «vouchers» prendido Y si la persona puede abrirla (la misma regla que `requireApp`).
+ * Apagado o sin permiso: lista vacía y la navegación queda idéntica. PURA.
+ */
+export function appsDeInterruptores(
+  interruptores: Readonly<Partial<Record<InterruptorId, { encendido: boolean }>>>,
+  negocio: NegocioApps,
+): AppDescriptor[] {
+  if (!vouchersPrendidos(interruptores)) return [];
+  const app = appPorId("vouchers");
+  return appPermitida(app, negocio) ? [app] : [];
+}
+
+/** Suma `extras` a sus espacios (sin duplicar una ruta que ya está), con el mismo orden de siempre. */
+export function sumarApps(espacios: readonly EspacioDeNav[], extras: readonly AppDescriptor[], esMostrador: boolean): EspacioDeNav[] {
+  const rutas = new Set(espacios.flatMap((e) => e.apps.map((a) => a.ruta)));
+  const nuevas = extras.filter((a) => !rutas.has(a.ruta));
+  if (nuevas.length === 0) return [...espacios];
+  const entradas = espacios.flatMap((e) =>
+    e.apps.map((app, i) => ({ espacio: e.id, orden: i, app })),
+  );
+  for (const app of nuevas) {
+    const espacio = espacioNavDeApp(app);
+    if (!espacio) continue;
+    const nav: AppDeNav = { id: app.id, nombre: app.nombre, ruta: app.ruta, icono: app.icono, descripcion: app.descripcion };
+    // Al final de su espacio: no cambia el lugar de lo que la persona ya conoce.
+    entradas.push({ espacio, orden: Number.MAX_SAFE_INTEGER, app: nav });
+  }
+  return agrupar(entradas, esMostrador);
+}
+
 /** Los comandos del buscador: las acciones que puede usar y las apps que ve, con su espacio. */
 export function comandosDe(
   espacios: readonly EspacioDeNav[],
@@ -148,8 +183,11 @@ export function armarNavegacion({
   esMostrador,
   role,
   overrides,
+  extras = [],
 }: {
   visibles: readonly AppDescriptor[];
+  /** Apps fuera del lanzador que igual van en la navegación (`appsDeInterruptores`). */
+  extras?: readonly AppDescriptor[];
   menu: readonly ItemMenuDeHoy[];
   modoApps: boolean;
   esMostrador: boolean;
@@ -158,7 +196,8 @@ export function armarNavegacion({
   overrides?: UsuarioConPermisos["overrides"];
 }): NavDelArmazon {
   const quien: UsuarioConPermisos = { role, overrides: overrides ?? [] };
-  const espacios = modoApps ? espaciosDeApps(visibles, esMostrador) : espaciosDelMenu(menu, esMostrador);
+  const base = modoApps ? espaciosDeApps(visibles, esMostrador) : espaciosDelMenu(menu, esMostrador);
+  const espacios = extras.length > 0 ? sumarApps(base, extras, esMostrador) : base;
   // La tecla del rubro, sólo si su pantalla está en la navegación de esta persona (en CH, en su barra).
   const rutas = new Set(espacios.flatMap((e) => e.apps.map((a) => a.ruta)));
   const rubro = accionDelRubro(

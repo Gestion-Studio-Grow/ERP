@@ -20,7 +20,7 @@
 // Persistencia: liquidacion-repo.ts · Server Actions: liquidacion-actions.ts.
 
 import { centavosDe, textoAlCentavo, admiteCentavos } from "@/lib/dinero/redondeo";
-import { celdaCsv } from "./voucher-core";
+import { celdaCsv, PREFIJO_BAJA_IMPAGO } from "./voucher-core";
 
 export type DiaClave = string; // YYYY-MM-DD
 
@@ -254,6 +254,23 @@ export function fechaArgentina(dia: string | null): string {
 
 function importeCsv(n: number): string {
   return admiteCentavos(n) ? textoAlCentavo(n).replace(".", ",") : "";
+}
+
+/**
+ * ¿Se le ofrece «Dar de baja» a este voucher? Es la MISMA condición que exige `darDeBajaImpago`
+ * (liquidacion-repo.ts): impago de una liquidación conciliada que todavía no volvió a liquidarse
+ * ni se saldó. «dada» = ya se dio de baja (queda el motivo en `liquidacionRef`). PURA.
+ */
+export function estadoDeBaja(v: {
+  estado: string;
+  resultadoLiquidacion: string | null;
+  liquidadoEn: Date | null;
+  liquidacionRef: string | null;
+  liquidacionSemanalId: string | null;
+}): "pendiente" | "dada" | null {
+  if (v.resultadoLiquidacion !== "IMPAGO") return null;
+  if (v.liquidadoEn) return v.liquidacionRef?.startsWith(PREFIJO_BAJA_IMPAGO) ? "dada" : null;
+  return v.estado === "USADO" && v.liquidacionSemanalId ? "pendiente" : null;
 }
 
 export const ETIQUETA_RESULTADO: Record<"PAGADO" | "IMPAGO", string> = { PAGADO: "Pagado", IMPAGO: "No pagado" };

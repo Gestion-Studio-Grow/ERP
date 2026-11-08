@@ -41,7 +41,7 @@ test("validarAplicacion · cada rechazo con su motivo", () => {
 
 test("validarAplicacion · el mensaje de BAJA dice que OpenKey lo da por usado", () => {
   const r = validarAplicacion({ voucher: { ...libre, estadoOpenKey: "BAJA" }, turno, saldo: 1 });
-  assert.ok(!r.ok && /OpenKey lo da por usado/.test(r.mensaje));
+  assert.ok(!r.ok && /la administración lo da por usado/.test(r.mensaje));
 });
 
 test("validarAplicacion · monto menor que el saldo; más o ≤ 0 se rechaza", () => {

@@ -318,9 +318,9 @@ export function mensajeAnulacionRechazada(motivo: MotivoAnulacionRechazada): str
     case "dia-cerrado":
       return "Ese cobro es de un día ya cerrado y un día contado no se toca. La corrección va con fecha de hoy: cargala en el libro de caja como INGRESO/EGRESO, con el motivo.";
     case "voucher-con-baja":
-      return "Ese cobro es con un voucher que ya se dio de baja en OpenKey: no se anula desde acá. Resolvelo con La Alameda y anotalo.";
+      return "Ese cobro es con un voucher que ya se dio de baja en la administración del country: no se anula desde acá. Resolvelo con La Alameda y anotalo.";
     case "voucher-liquidado":
-      return "Ese cobro es con un voucher que OpenKey ya liquidó: no se anula desde acá. Se resuelve con La Alameda y se anota.";
+      return "Ese cobro es con un voucher que la administración del country ya liquidó: no se anula desde acá. Se resuelve con La Alameda y se anota.";
     case "voucher-en-liquidacion":
       return "Ese cobro es con un voucher que ya está en la liquidación del lunes a la administración: no se anula desde acá. Si la liquidación sigue abierta, descartala primero en Vouchers; si ya se concilió, se resuelve con la administración y se anota.";
   }

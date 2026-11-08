@@ -59,6 +59,8 @@ import {
   pesosDeCentavos,
   planDeConciliacion,
   sumarDias,
+  estadoDeBaja,
+  fechaArgentina,
   sumaCentavos,
   validarSemana,
   type MedioPagoAdministracion,
@@ -801,7 +803,7 @@ export async function leerCuentaDeLaAdministracion(tenantId: string): Promise<Cu
           return {
             fecha: p.fecha,
             tipo: "CREDITO" as const,
-            concepto: l ? `Pago de la liquidación del ${l.desde} al ${l.hasta}` : `Pago a cuenta${p.referencia ? ` · ${p.referencia}` : ""}`,
+            concepto: l ? `Pago de la liquidación del ${fechaArgentina(l.desde)} al ${fechaArgentina(l.hasta)}` : `Pago a cuenta${p.referencia ? ` · ${p.referencia}` : ""}`,
             centavos: sumaCentavos([p.monto.toNumber()]),
             ref: `p:${p.id}`,
           };
@@ -830,7 +832,8 @@ export type DetalleDeLiquidacion = FilaLiquidacion & {
   pagoMedio: string | null;
   pagoReferencia: string | null;
   conciliadoEn: string | null;
-  renglones: (RenglonDelReporte & { id: string })[];
+  /** `baja`: «pendiente» = impago que se puede dar de baja; «dada» = ya dado de baja (`estadoDeBaja`). */
+  renglones: (RenglonDelReporte & { id: string; baja: "pendiente" | "dada" | null })[];
 };
 
 export async function leerLiquidacion(tenantId: string, liquidacionId: string): Promise<DetalleDeLiquidacion | null> {
@@ -869,6 +872,9 @@ export async function leerLiquidacion(tenantId: string, liquidacionId: string): 
           usadoEn: true,
           resultadoLiquidacion: true,
           liquidacionSemanalId: true,
+          estado: true,
+          liquidadoEn: true,
+          liquidacionRef: true,
           client: { select: { name: true } },
           appointment: { select: { service: { select: { name: true } } } },
         },
@@ -892,6 +898,7 @@ export async function leerLiquidacion(tenantId: string, liquidacionId: string): 
               : v.resultadoLiquidacion === "PAGADO" || v.resultadoLiquidacion === "IMPAGO"
                 ? v.resultadoLiquidacion
                 : null,
+          baja: l.estado === "CONCILIADA" ? estadoDeBaja(v) : null,
         })),
       };
     },

@@ -28,6 +28,7 @@ import { lastClosedDayTx } from "@/lib/caja/frontera-cierre";
 import { cobroTurnoDetail, settleAppointmentPaymentGuarded, type RecordCobroTurnoResult } from "@/lib/caja/cobro-turno";
 import { estadoCobroTurno, MEDIO_VOUCHER } from "@/lib/turnos/cobros";
 import { aplicarCobroTurnoInTx, cobrosDelTurnoInTx } from "@/lib/turnos/cobro-turno-repo";
+import { fechaArgentina } from "./liquidacion-core";
 import {
   claveDelCobroConVoucher,
   conciliar,
@@ -396,7 +397,7 @@ export async function importarFotoOpenKey(tenantId: string, args: ImportarFotoAr
       if (anuladosPorOpenKey.length) {
         await tx.voucher.updateMany({
           where: { tenantId, numero: { in: anuladosPorOpenKey }, estado: "DISPONIBLE" },
-          data: { estado: "ANULADO", anuladoMotivo: `Anulado en OpenKey (foto del ${dateStrInBusinessTz(ahora)})` },
+          data: { estado: "ANULADO", anuladoMotivo: `Anulado por la administración del country (planilla del ${fechaArgentina(dateStrInBusinessTz(ahora))})` },
         });
       }
 

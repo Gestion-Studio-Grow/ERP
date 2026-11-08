@@ -188,11 +188,12 @@ export const APPS_FINANZAS = [
   {
     // CH · vouchers de La Alameda (docs/tenants/ch/VOUCHERS-OPENKEY.md). Atrás del interruptor
     // «vouchers» del negocio, que el registro no sabe leer: por eso NO se ofrece en el Inicio, la
-    // barra ni el buscador (`enLanzador: false`) y se llega desde el cierre del día con el
-    // interruptor prendido. Apagado, la página da 404. La capability es la de `listarVouchers`.
+    // barra ni el buscador del registro (`enLanzador: false`). Con el interruptor prendido y el rol que
+    // la abre, el menú del diseño nuevo la suma igual (`appsDeInterruptores`, armazon/navegacion.ts).
+    // Apagado, la página da 404. La capability es la de `listarVouchers`.
     id: "vouchers",
     nombre: "Vouchers de La Alameda",
-    descripcion: "Los vouchers cobrados, su baja en OpenKey y lo que falta liquidar.",
+    descripcion: "Los vouchers cobrados, su baja en la administración del country y lo que falta liquidar.",
     icono: "caja",
     ruta: "/admin/vouchers",
     espacio: "finanzas",

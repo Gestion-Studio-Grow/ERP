@@ -34,6 +34,7 @@ import { palabrasDelNegocio, type PalabrasDelNegocio } from "@/lib/palabras-del-
 import { getCurrentTenantSlug } from "@/lib/tenant-site";
 import { diferenciaDelComprobante, textoDelComprobante, type MedioDelComprobante } from "./comprobante";
 import { leerMediosDelComprobante } from "./comprobante.server";
+import { renglonDeVouchers } from "./vouchers-del-dia";
 
 type Datos = Awaited<ReturnType<typeof getCierreDiarioData>>;
 
@@ -250,6 +251,32 @@ function ComoSeLlega({ d }: { d: Datos }) {
   );
 }
 
+/**
+ * CH · vouchers: «A cobrar a la administración (vouchers)». Suma al total del día y NO a ninguna
+ * columna que se cuenta: el esperado de Efectivo (y de los demás medios) no lo incluye.
+ */
+function VouchersDelDia({ d }: { d: Datos }) {
+  const r = renglonDeVouchers(d.preview.porColumna, d.columnas, d.vouchersACobrar);
+  if (!r) return null;
+  return (
+    <section aria-labelledby="vouchers-del-dia" className="mt-6" data-testid="cierre-vouchers">
+      <div className="flex items-baseline justify-between gap-3 border-b border-line-strong pb-2">
+        <h2 id="vouchers-del-dia" className="text-[15px] font-semibold text-strong">
+          Total del día
+        </h2>
+        <span className="text-[13px] text-muted">Los vouchers no entran al cajón</span>
+      </div>
+      <LineaDeCuenta concepto="Entró por caja (todos los medios)" importe={<Plata valor={r.entroPorCaja} />} />
+      <LineaDeCuenta
+        concepto={r.etiqueta}
+        detalle={`${r.cantidad} ${r.cantidad === 1 ? "voucher" : "vouchers"}${r.anulados.cantidad > 0 ? ` · ${r.anulados.cantidad} ${r.anulados.cantidad === 1 ? "anulado" : "anulados"} por ${fmtMoneyARS(r.anulados.monto)}` : ""} · no se cuenta`}
+        importe={<Plata valor={r.aCobrar} />}
+      />
+      <LineaDeCuenta total concepto="Total del día" importe={<Plata valor={r.totalDelDia} />} />
+    </section>
+  );
+}
+
 function TurnosSinCerrar({ d }: { d: Datos }) {
   const turnos = d.turnosSinCerrar ?? [];
   if (turnos.length === 0) return null;
@@ -339,6 +366,7 @@ export default async function CierreRenglon({ d, regla = null }: { d: Datos; reg
           </div>
           <aside className="min-w-0" aria-label="De dónde sale lo que debería haber">
             <ComoSeLlega d={d} />
+            <VouchersDelDia d={d} />
           </aside>
         </DosColumnas>
       )}

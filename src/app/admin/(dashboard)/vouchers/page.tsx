@@ -77,7 +77,7 @@ export default async function VouchersPage({ searchParams }: { searchParams: Pro
     <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
       <PageHeader
         title={TITULO}
-        description="Cada voucher con su número, a quién se le dio, en qué turno se usó, si ya se dio de baja en OpenKey y si OpenKey ya lo pagó."
+        description="Cada voucher con su número, a quién se le dio, en qué turno se usó, si ya se dio de baja en el sistema de la administración del country y si la administración ya lo pagó."
         estado={[
           `${resumen.total} ${resumen.total === 1 ? "voucher" : "vouchers"}`,
           resumen.usados > 0 ? (
@@ -85,7 +85,7 @@ export default async function VouchersPage({ searchParams }: { searchParams: Pro
               {resumen.usados} {resumen.usados === 1 ? "usado" : "usados"} por <Plata valor={resumen.cubierto} sinCentavos={Number.isInteger(resumen.cubierto)} />
             </span>
           ) : null,
-          resumen.faltanBaja > 0 ? <strong key="b">{resumen.faltanBaja} sin baja en OpenKey</strong> : null,
+          resumen.faltanBaja > 0 ? <strong key="b">{resumen.faltanBaja} sin baja en la administración</strong> : null,
           resumen.sinLiquidar > 0 ? `${resumen.sinLiquidar} sin liquidar` : null,
         ]}
         actions={
@@ -100,7 +100,7 @@ export default async function VouchersPage({ searchParams }: { searchParams: Pro
           className="mb-6"
           tono="aviso"
           titulo="Cobrar con voucher todavía no está habilitado"
-          comoSeguir="Falta un paso de base de datos para cobrar turnos con voucher (lo aplica el dueño). Mientras tanto podés cargar lotes e importar OpenKey; los turnos se cobran con otro medio."
+          comoSeguir="Falta un paso de base de datos para cobrar turnos con voucher (lo aplica el dueño). Mientras tanto podés cargar lotes e importar la planilla de la administración; los turnos se cobran con otro medio."
         />
       )}
 
@@ -117,7 +117,7 @@ export default async function VouchersPage({ searchParams }: { searchParams: Pro
       ) : filas.length === 0 ? (
         <EmptyState
           title={hayFiltros(filtros) ? "No hay vouchers con esos filtros" : "Todavía no hay vouchers cargados"}
-          description={hayFiltros(filtros) ? "Probá con otras fechas o sacá algún filtro." : "Cargá el primer lote abajo, o importá la exportación de OpenKey."}
+          description={hayFiltros(filtros) ? "Probá con otras fechas o sacá algún filtro." : "Cargá el primer lote abajo, o importá la planilla que exporta la administración del country."}
         />
       ) : (
         <TablaDeVouchers filas={filas} />
@@ -128,7 +128,7 @@ export default async function VouchersPage({ searchParams }: { searchParams: Pro
           <Herramienta titulo="Cargar un lote" id="cargar-lote">
             <CargarLote hoy={todayInBusinessTz()} />
           </Herramienta>
-          <Herramienta titulo="Importar la foto de OpenKey" id="importar-foto">
+          <Herramienta titulo="Importar la planilla de la administración" id="importar-foto">
             <ImportarCsv tipo="foto" />
           </Herramienta>
         </div>
@@ -379,7 +379,7 @@ function TablaDeVouchers({ filas }: { filas: FilaVoucher[] }) {
   return (
     <div className="overflow-x-auto rounded-md border border-line" role="region" aria-label="Listado de vouchers" tabIndex={0}>
       <table className="w-full text-sm">
-        <caption className="sr-only">Vouchers con su número, lote, vecino, turno, uso, valor y estado en el ERP y en OpenKey</caption>
+        <caption className="sr-only">Vouchers con su número, lote, vecino, turno, uso, valor y estado acá y en la administración del country</caption>
         <thead className="border-b border-line-strong bg-surface-raised">
           <tr>
             <th scope="col" className={`${TH} sticky left-0 bg-surface-raised`}>
@@ -404,10 +404,10 @@ function TablaDeVouchers({ filas }: { filas: FilaVoucher[] }) {
               Estado ERP
             </th>
             <th scope="col" className={TH}>
-              Estado OpenKey
+              Estado en la administración
             </th>
             <th scope="col" className={TH}>
-              Baja OpenKey
+              Baja en la administración
             </th>
             <th scope="col" className={TH}>
               Liquidado
