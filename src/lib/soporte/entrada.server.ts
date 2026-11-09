@@ -18,7 +18,8 @@ export type ResultadoEntrada = { numero: number; nuevo: boolean } | { rechazado:
 
 /**
  * Crea (o reencuentra) el ticket del mensaje. Si se taparon secretos, el ticket nuevo lleva un
- * evento «secreto_tapado» con la CANTIDAD (nunca el secreto). Sin la tabla (migración sin
+ * evento «tapado_automatico» con la CANTIDAD de tramos tapados (nunca el texto). Es de MEJOR
+ * ESFUERZO: dice que se tapó algo, NO que no quede ningún secreto (DISENO-MANT-001 §7.7). Sin la tabla (migración sin
  * aplicar, Gate 2) devuelve {sinTabla}; cualquier otro error se relanza.
  */
 export async function crearTicketDesdeCanal(
@@ -43,7 +44,7 @@ export async function crearTicketDesdeCanal(
             select: { id: true },
           });
           await tx.supportTicketEvento.create({
-            data: { tenantId, ticketId: t.id, tipo: "secreto_tapado", actor: datos.creadoPor, datos: { cantidad: tapados, canal: datos.canal } },
+            data: { tenantId, ticketId: t.id, tipo: "tapado_automatico", actor: datos.creadoPor, datos: { cantidad: tapados, canal: datos.canal } },
             select: { id: true },
           });
         }
