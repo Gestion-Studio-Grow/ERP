@@ -1,4 +1,6 @@
+import { redirect } from "next/navigation";
 import { requireApp } from "@/lib/require-app";
+import { gestionaClases } from "@/lib/padel/plata-guardia";
 import { cn } from "@/components/ui";
 import { badgePendientes, configCompleta } from "@/lib/padel/datos.server";
 import { tarjeta } from "../../_vista";
@@ -14,7 +16,9 @@ const fechaLinda = (d: Date | null) => (d ? d.toISOString().slice(0, 10).split("
 // Provisional: el diseño los lleva a Semana («🌧 Se suspende» / «Bloquear días», Tanda 3A), que
 // además avisa las clases afectadas. Mientras tanto viven acá para no perder la función.
 export default async function AjustesBloqueos() {
-  await requireApp("padel-clases");
+  const user = await requireApp("padel-clases");
+  // Todo lo de esta pantalla guarda con acciones que exigen agenda:manage: sin él, vuelve a Hoy.
+  if (!gestionaClases(user)) redirect("/admin/clases");
   const [{ bloqueos, clubes }, numero] = await Promise.all([configCompleta(), badgePendientes()]);
   const lista = bloqueos.filter((b) => b.tipo === "NO");
   const nombreClub = new Map(clubes.map((c) => [c.id, c.nombre]));

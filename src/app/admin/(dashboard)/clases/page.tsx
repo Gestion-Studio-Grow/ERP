@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { redirect, unstable_rethrow } from "next/navigation";
 import { requireApp } from "@/lib/require-app";
-import { veLaPlataDelDia } from "@/lib/padel/plata-guardia";
+import { gestionaClases, veLaPlataDelDia } from "@/lib/padel/plata-guardia";
 import { AvisoError, EmptyState, Esqueleto, Plata } from "@/components/ui";
 import { configPadel, franjas, hoy } from "@/lib/padel/datos.server";
 import { getCurrentTenantId } from "@/lib/tenant";
@@ -31,17 +31,20 @@ export default async function ClasesHoy() {
   // Profe que todavía no configuró nada (sin precio ni horarios): a la Bienvenida (M-083).
   const tenantId = await getCurrentTenantId();
   const [config, fr] = await Promise.all([configPadel(tenantId), franjas(tenantId)]);
-  if (necesitaBienvenida({ vista: config.bienvenidaVista, precioIndividual: config.precioIndividual, franjas: fr })) redirect(RUTA_BIENVENIDA);
+  // Sólo quien gestiona Clases: la Bienvenida guarda con acciones que exigen agenda:manage (y le
+  // devuelve acá a quien no lo tiene: sin esta condición, el PROFESSIONAL rebotaría sin fin).
+  const gestiona = gestionaClases(user);
+  if (gestiona && necesitaBienvenida({ vista: config.bienvenidaVista, precioIndividual: config.precioIndividual, franjas: fr })) redirect(RUTA_BIENVENIDA);
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-5">
       <Suspense fallback={<EsqueletoHoy />}>
-        <ContenidoHoy conPlata={veLaPlataDelDia(user)} />
+        <ContenidoHoy conPlata={veLaPlataDelDia(user)} gestiona={gestiona} />
       </Suspense>
     </main>
   );
 }
 
-async function ContenidoHoy({ conPlata }: { conPlata: boolean }) {
+async function ContenidoHoy({ conPlata, gestiona }: { conPlata: boolean; gestiona: boolean }) {
   let d: Awaited<ReturnType<typeof hoy>>;
   try {
     d = await hoy();
@@ -151,7 +154,7 @@ async function ContenidoHoy({ conPlata }: { conPlata: boolean }) {
         <div className="mb-5">
           <EmptyState
             title="No tenés más clases por hoy"
-            description={huecos.length ? "Tocá un horario libre para agendar, o compartí tu turnero para que te pidan." : "Compartí tu turnero: cuando alguien pida, aparece acá para confirmarlo con un toque."}
+            description={!gestiona ? "Cuando alguien pida clase, aparece acá." : huecos.length ? "Tocá un horario libre para agendar, o compartí tu turnero para que te pidan." : "Compartí tu turnero: cuando alguien pida, aparece acá para confirmarlo con un toque."}
           />
         </div>
       )}
@@ -160,9 +163,9 @@ async function ContenidoHoy({ conPlata }: { conPlata: boolean }) {
         <section className="mb-5" aria-label="El resto de hoy">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-sm font-bold uppercase tracking-wide text-strong">El resto de hoy</h2>
-            {(vivasHoy.length > 0 || huecos.length > 0) && <BotonSuspender fecha={fecha} etiquetaDia="hoy" clases={otrasDeHoy} />}
+            {gestiona && (vivasHoy.length > 0 || huecos.length > 0) && <BotonSuspender fecha={fecha} etiquetaDia="hoy" clases={otrasDeHoy} />}
           </div>
-          <LineaDelDia fecha={fecha} clases={resto} huecos={huecos} otras={otrasDeHoy} qa="clase-hoy" conPlata={conPlata} />
+          <LineaDelDia fecha={fecha} clases={resto} huecos={huecos} otras={otrasDeHoy} qa="clase-hoy" conPlata={conPlata} gestiona={gestiona} />
         </section>
       )}
 

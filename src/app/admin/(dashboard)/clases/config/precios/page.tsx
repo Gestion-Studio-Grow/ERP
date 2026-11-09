@@ -1,4 +1,6 @@
+import { redirect } from "next/navigation";
 import { requireApp } from "@/lib/require-app";
+import { gestionaClases } from "@/lib/padel/plata-guardia";
 import { cn } from "@/components/ui";
 import { badgePendientes, configCompleta } from "@/lib/padel/datos.server";
 import { tarjeta } from "../../_vista";
@@ -13,7 +15,9 @@ export const metadata = { title: "Clases · Precios", manifest: "/clases/app.web
 // («$ 25.000 · guardado»). La duración, en chips. El precio nuevo vale para las clases que se
 // agenden de acá en adelante; las ya agendadas conservan el suyo.
 export default async function AjustesPrecios() {
-  await requireApp("padel-clases");
+  const user = await requireApp("padel-clases");
+  // Todo lo de esta pantalla guarda con acciones que exigen agenda:manage: sin él, vuelve a Hoy.
+  if (!gestionaClases(user)) redirect("/admin/clases");
   const [{ config }, numero] = await Promise.all([configCompleta(), badgePendientes()]);
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-5">

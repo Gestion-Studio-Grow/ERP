@@ -1,5 +1,6 @@
-import { unstable_rethrow } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { requireApp } from "@/lib/require-app";
+import { gestionaClases } from "@/lib/padel/plata-guardia";
 import { AvisoError } from "@/components/ui";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { alumnoParaAgendar, alumnosFrecuentes, alumnosParaBuscar, badgePendientes, clubes, configPadel } from "@/lib/padel/datos.server";
@@ -17,7 +18,9 @@ export const metadata = { title: "Clases · Agendar", manifest: "/clases/app.web
 // confirmada (la decidió el profe). La hoja viene con lo que ya se sabe: el hueco que tocó (día y
 // hora) o el alumno desde su ficha; nunca un alumno elegido por defecto (B1).
 export default async function ClasesAgendar({ searchParams }: { searchParams: Promise<{ fecha?: string; hora?: string; alumno?: string }> }) {
-  await requireApp("padel-clases");
+  const user = await requireApp("padel-clases");
+  // Todo lo de esta pantalla guarda con acciones que exigen agenda:manage: sin él, vuelve a Hoy.
+  if (!gestionaClases(user)) redirect("/admin/clases");
   const q = await searchParams;
   const hoy = todayInBusinessTz();
   // El día que vino, si es de hoy a 13 días (lo que muestra la cinta); si no, hoy.
