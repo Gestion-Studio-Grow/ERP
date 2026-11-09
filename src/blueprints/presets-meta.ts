@@ -111,6 +111,9 @@ const EXPLICIT_BLUEPRINT_MODULES: Record<string, string[]> = {
   // Productora: su circuito propio (módulo `proyectos`), la agenda para reuniones y visitas
   // técnicas, los clientes y la factura. Sin stock: lo que usa se alquila o se compra por trabajo.
   productora: ["proyectos", "clients", "reports", "arca"],
+  // Taller de stands (GSG-MIA-004): un stand = un proyecto; materiales en stock (catálogo +
+  // inventario); despiece y costo por stand en su módulo propio `taller-stands` (flag apagado).
+  "taller-stands": ["proyectos", "clients", "catalog", "inventario", "reports", "arca", "taller-stands"],
   // Profe de pádel: su circuito propio (módulo `padel-clases`: turnero, agenda, cobro) y sus
   // alumnos. Sin `agenda` del motor: una sola agenda, la del profe, para no tener dos.
   "profe-padel": ["padel-clases", "clients"],

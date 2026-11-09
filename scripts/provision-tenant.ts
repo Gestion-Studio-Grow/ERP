@@ -144,7 +144,7 @@ export function assertValidEmail(email: string): void {
 // ¿Está activo RLS (ADR-018) sobre las tablas de negocio? pg_class.relrowsecurity
 // es true cuando la tabla tiene ENABLE ROW LEVEL SECURITY. Requerimos que TODAS
 // las centinela lo tengan; si falta una, el aislamiento no está garantizado.
-async function isRlsActive(tx: Tx): Promise<boolean> {
+export async function isRlsActive(tx: Tx): Promise<boolean> {
   const rows = await tx.$queryRaw<{ relname: string; relrowsecurity: boolean }[]>`
     SELECT relname, relrowsecurity
     FROM pg_class

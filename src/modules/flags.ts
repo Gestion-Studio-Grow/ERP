@@ -90,6 +90,21 @@ export function upgradeTeaserEnabled(
 // tenía cargada (medido en Vercel el 2026-09-24), así que retirarla no le cambia nada a nadie; si
 // quedara cargada en algún entorno, ya no la lee ningún código.
 
+// ============================================================================
+// FLAG DEL TALLER DE STANDS (GSG-MIA-004) — DEFAULT OFF.
+// ============================================================================
+//
+// Apaga todo lo nuevo del taller de stands (módulo `taller-stands`): mientras esté OFF, el alta
+// del tenant (scripts/taller-stands/alta-taller-ale.ts) se niega a correr y las pantallas que
+// sumen las tandas siguientes no se muestran. Ningún otro negocio lo lee. Reversible sin datos.
+
+/** ¿Está prendido el taller de stands? Default OFF. PURA (env inyectable). */
+export function tallerStandsEnabled(
+  env: Record<string, string | undefined> = process.env,
+): boolean {
+  return truthy(env.TALLER_STANDS_ENABLED);
+}
+
 /** Parseo booleano compartido de los flags de este archivo (env string → boolean). PURA. */
 function truthy(v: string | undefined): boolean {
   const n = v?.trim().toLowerCase();
