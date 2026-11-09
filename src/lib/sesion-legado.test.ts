@@ -4,7 +4,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
-import { authSecret, createSessionToken, idDelTokenLegadoParaCanje, readSessionToken, VIGENCIA_SESION_MS } from "./auth";
+import { authSecret, createSessionToken, idDelTokenLegadoParaCanje, readSessionToken, INACTIVIDAD_BLOQUEO_MS } from "./auth";
+import { puedeDefinirPin } from "./sesion-pin";
 import {
   canjearTokenLegado,
   CORTE_LEGADO_V1,
@@ -57,15 +58,17 @@ const deps = (b: Pick<DependenciasDelCanje, "cargarUsuario" | "reclamarCanje">, 
   ...extra,
 });
 
-test("el token viejo de Macarena se acepta y se re-emite como v2 de 8 h", async () => {
+test("el token viejo de Macarena se acepta y se re-emite como v3, sin ingreso con contraseña", async () => {
   const ahora = Date.now();
   const r = await canjearTokenLegado(tokenViejo(MACA.id), deps(base([MACA, OTRA]), { ahora }));
   assert.ok(r);
   assert.equal(r.userId, MACA.id);
-  assert.match(r.tokenNuevo, /^v2\|cmmacarena0000001\|\d{13}\|\d{13}\.[0-9a-f]{64}$/);
+  assert.match(r.tokenNuevo, /^v3\|cmmacarena0000001\|0{13}\|\d{13}\.[0-9a-f]{64}$/);
   assert.equal(await readSessionToken(r.tokenNuevo), MACA.id);
-  // Sin renovación deslizante: a las 8 h del canje vence como cualquier v2.
-  assert.equal(await readSessionToken(r.tokenNuevo, { ahora: ahora + VIGENCIA_SESION_MS }), null);
+  // Desde ahí, la vigencia por uso: con 15 min sin uso se bloquea como cualquier sesión…
+  assert.equal(await readSessionToken(r.tokenNuevo, { ahora: ahora + INACTIVIDAD_BLOQUEO_MS }), null);
+  // …y como el canje no comprobó su contraseña (ingreso 0), no puede elegir un PIN con esta sesión.
+  assert.equal(await puedeDefinirPin(r.tokenNuevo, ahora), null);
 });
 
 test("ATAQUE: el token viejo de cualquier otro usuario se rechaza ya (aunque esté activo en CH)", async () => {
@@ -164,7 +167,7 @@ test("ATAQUE: next con tab/CR/LF, //, \\ o absoluto → /admin; ruta interna se 
   assert.equal(destinoDeRenovar("/admin/turnos?d=1"), "/admin/turnos?d=1");
 });
 
-test("ATAQUE: GET cruzado con una sesión v2 válida no borra la cookie ni consulta la base", async () => {
+test("ATAQUE: GET cruzado con una sesión nueva activa no borra la cookie ni consulta la base", async () => {
   const v2 = await createSessionToken(MACA.id);
   let cargas = 0;
   const plan = await planDeRenovacion(v2, "/\t/evil.com", async () => { cargas++; return deps(base([MACA])); });
@@ -172,11 +175,11 @@ test("ATAQUE: GET cruzado con una sesión v2 válida no borra la cookie ni consu
   assert.equal(cargas, 0);
 });
 
-test("renovar: v1 no canjeable → borra; basura o v2 vencido → no borra; v1 de Macarena → canjeado", async () => {
+test("renovar: v1 no canjeable → borra; basura o sesión nueva bloqueada → no borra; v1 de Macarena → canjeado", async () => {
   const b = base([MACA, OTRA]);
   assert.deepEqual(await planDeRenovacion(tokenViejo(OTRA.id), "/admin", async () => deps(b)), { tipo: "vencida", next: "/admin", borrarCookie: true });
   assert.deepEqual(await planDeRenovacion("basura", "/admin", async () => deps(b)), { tipo: "vencida", next: "/admin", borrarCookie: false });
-  const vencido = await createSessionToken(MACA.id, Date.now() - VIGENCIA_SESION_MS - 1);
+  const vencido = await createSessionToken(MACA.id, Date.now() - INACTIVIDAD_BLOQUEO_MS - 1);
   assert.deepEqual(await planDeRenovacion(vencido, "/admin", async () => deps(b)), { tipo: "vencida", next: "/admin", borrarCookie: false });
   const tira = async () => { throw new Error("sin negocio"); };
   assert.deepEqual(await planDeRenovacion(tokenViejo(MACA.id), null, tira), { tipo: "vencida", next: "/admin", borrarCookie: true });

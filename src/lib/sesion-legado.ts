@@ -6,10 +6,11 @@
 // DE LA BASE (no confía en nada del token salvo el id firmado) y sólo si
 //   · el pedido es del negocio `beauty-spa` (CH Estética) y el usuario es de ese negocio, activo y no borrado, y
 //   · su email (el de la base) está en la lista de abajo,
-// le emite en silencio un token v2 (8 h). Cualquier otra cosa (firma mala, otro negocio, otro usuario, la base que
+// le emite en silencio un token nuevo (v3, auth.ts). Cualquier otra cosa (firma mala, otro negocio, otro usuario, la base que
 // falla, la lista vacía) → null: falla cerrada, y la persona va al login con «tu sesión venció».
 //
-// Sin renovación deslizante del v2 (no existe en el panel): a las 8 h del canje tiene que volver a entrar con su clave.
+// Desde ahí rige la vigencia por uso de auth.ts: se renueva mientras la use; con 15 min sin uso se bloquea y, como el
+// canje no comprobó su contraseña, no puede definir un PIN hasta entrar con ella: el desbloqueo le pide la contraseña.
 //
 // UNA SOLA VEZ y CON FECHA TOPE (cert 5, sin migración): el canje exige que `lastLoginAt` del usuario sea anterior a
 // `CORTE_LEGADO_V1` (o nulo) y lo marca con la hora del canje en un UPDATE condicional (`reclamarCanje`): dos canjes
@@ -68,7 +69,7 @@ export type DependenciasDelCanje = {
   ahora?: number;
 };
 
-/** Token v2 nuevo para el dueño del token viejo si la excepción lo cubre; si no, null (falla cerrada). */
+/** Token nuevo (v3) para el dueño del token viejo si la excepción lo cubre; si no, null (falla cerrada). */
 export async function canjearTokenLegado(
   token: string | undefined | null,
   deps: DependenciasDelCanje,
@@ -99,7 +100,8 @@ export async function canjearTokenLegado(
     return null;
   }
   if (reclamado !== true) return null;
-  return { userId, tokenNuevo: await createSessionToken(userId, ahora) };
+  // `ingreso` 0: el canje no comprobó ninguna contraseña, así que no habilita definir el PIN (sesion-pin.ts).
+  return { userId, tokenNuevo: await createSessionToken(userId, ahora, 0) };
 }
 
 /** Destino de `next` para /admin/login/renovar: ruta interna segura (`destinoInterno`) o `/admin`. */
@@ -110,7 +112,7 @@ export function destinoDeRenovar(crudo: string | null | undefined): string {
 }
 
 export type PlanDeRenovacion =
-  /** Ya tiene una sesión v2 válida: se va a `next` SIN tocar la cookie (un GET cruzado no la borra). */
+  /** Ya tiene una sesión nueva activa: se va a `next` SIN tocar la cookie (un GET cruzado no la borra). */
   | { tipo: "seguir"; next: string }
   | { tipo: "canjeado"; next: string; userId: string; tokenNuevo: string }
   /** Al login con «tu sesión venció»; la cookie se borra sólo si es un token viejo de firma válida no canjeable. */

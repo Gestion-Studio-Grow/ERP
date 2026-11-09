@@ -1,8 +1,8 @@
-// Canje del token de sesión viejo (sin vencimiento) por uno v2, SÓLO para la excepción del dueño (08/11/2026):
+// Canje del token de sesión viejo (sin vencimiento) por uno nuevo (v3), SÓLO para la excepción del dueño (08/11/2026):
 // ver src/lib/sesion-legado.ts. El proxy manda acá a quien llega con un token viejo de firma válida. Si la
 // excepción lo cubre (usuario de la base, negocio beauty-spa, email en la lista, una sola vez, antes de la fecha
 // tope), se le cambia la cookie en silencio y vuelve a donde iba; si no, se borra la cookie vieja y va al login
-// con «tu sesión venció». Con una sesión v2 válida no toca nada (un GET cruzado no borra la sesión de nadie).
+// con «tu sesión venció». Con una sesión nueva activa no toca nada (un GET cruzado no borra la sesión de nadie).
 // Vive bajo /admin/login/ (el proxy lo deja pasar sin sesión) y corre en Node (Prisma).
 
 import { cookies } from "next/headers";
@@ -55,5 +55,6 @@ export async function GET(request: NextRequest) {
     where: { id: plan.userId, tenantId: await getCurrentTenantId() },
     select: { id: true, tenantId: true, role: true },
   });
-  redirect(user ? await destinoTrasIngreso(user, plan.next) : plan.next);
+  // Canje sin contraseña: no se ofrece definir el PIN (eso pide un ingreso con contraseña reciente).
+  redirect(user ? await destinoTrasIngreso(user, plan.next, { ofrecerPin: false }) : plan.next);
 }

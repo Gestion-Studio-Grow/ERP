@@ -1,5 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSessionCookieName, idDelTokenLegadoParaCanje, readSessionToken } from "@/lib/auth";
+import {
+  createSessionToken,
+  getSessionCookieName,
+  idDelTokenLegadoParaCanje,
+  leerSesion,
+  readSessionToken,
+  sesionParaRenovar,
+  VIDA_COOKIE_SESION_S,
+} from "@/lib/auth";
 import { getOperatorCookieName, readOperatorToken } from "@/lib/operator-auth";
 import { isDemoSandbox } from "@/lib/demo-flag";
 import { vidrieraDelHost } from "@/lib/producto-host";
@@ -204,27 +212,45 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/facturita/app/");
   if (!esSuperficieDeTenant) return pass();
 
-  // Portón grueso (ADR-017 §2.e): solo verifica que la cookie tenga una firma
-  // válida. El chequeo de rol por acción vive en los Server Actions (Fase 2).
+  // Portón grueso (ADR-017 §2.e): firma válida y sesión ACTIVA (con uso en los últimos 15 min). El chequeo de rol por
+  // acción vive en los Server Actions (Fase 2).
   const token = request.cookies.get(getSessionCookieName())?.value;
-  if (!(await readSessionToken(token))) {
-    // Token del formato viejo con firma válida: NO pasa. Va a canjearse a /admin/login/renovar, que carga el usuario
-    // de la base y sólo se lo cambia por uno v2 a la excepción del dueño (src/lib/sesion-legado.ts); al resto, login.
-    // Sólo en GET: un POST (acción de servidor) con token viejo va al login como cualquier sesión vencida.
-    if (request.method === "GET" && (await idDelTokenLegadoParaCanje(token))) {
-      const renovar = new URL("/admin/login/renovar", request.url);
-      renovar.searchParams.set("next", pathname);
-      return NextResponse.redirect(renovar);
-    }
-    const loginUrl = new URL("/admin/login", request.url);
-    loginUrl.searchParams.set("next", pathname);
-    // Había cookie pero ya no vale (venció a las 8 h, o es del formato viejo):
-    // el login lo dice, en vez de un «email o contraseña incorrectos» que nadie tipeó.
-    if (token) loginUrl.searchParams.set("error", "vencida");
-    return NextResponse.redirect(loginUrl);
+  const ahora = Date.now();
+  const sesion = await leerSesion(token, { ahora });
+  if (sesion?.estado === "activa") {
+    // VIGENCIA POR USO: el uso renueva la sesión. Se reemite como mucho cada RENOVAR_SESION_CADA_MS con la actividad en
+    // «ahora» y el mismo `ingreso` (el del último ingreso con contraseña). Mismos atributos que `ponerCookieDeSesion`.
+    if (!sesionParaRenovar(sesion, ahora)) return pass();
+    const res = pass();
+    res.cookies.set(getSessionCookieName(), await createSessionToken(sesion.userId, ahora, sesion.ingreso), {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: VIDA_COOKIE_SESION_S,
+    });
+    return res;
   }
-
-  return pass();
+  if (sesion?.estado === "bloqueada") {
+    // 15 min sin uso: la pantalla del PIN (o la contraseña). La sesión no abre nada mientras tanto.
+    const desbloquear = new URL("/admin/login/desbloquear", request.url);
+    desbloquear.searchParams.set("next", pathname);
+    return NextResponse.redirect(desbloquear);
+  }
+  // Token del formato viejo con firma válida: NO pasa. Va a canjearse a /admin/login/renovar, que carga el usuario
+  // de la base y sólo se lo cambia por uno nuevo a la excepción del dueño (src/lib/sesion-legado.ts); al resto, login.
+  // Sólo en GET: un POST (acción de servidor) con token viejo va al login como cualquier sesión vencida.
+  if (request.method === "GET" && (await idDelTokenLegadoParaCanje(token))) {
+    const renovar = new URL("/admin/login/renovar", request.url);
+    renovar.searchParams.set("next", pathname);
+    return NextResponse.redirect(renovar);
+  }
+  const loginUrl = new URL("/admin/login", request.url);
+  loginUrl.searchParams.set("next", pathname);
+  // Había cookie pero ya no vale (7 días sin uso, o es del formato viejo):
+  // el login lo dice, en vez de un «email o contraseña incorrectos» que nadie tipeó.
+  if (token) loginUrl.searchParams.set("error", "vencida");
+  return NextResponse.redirect(loginUrl);
 }
 
 export const config = {

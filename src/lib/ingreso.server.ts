@@ -3,12 +3,14 @@
 
 import "server-only";
 import { cookies } from "next/headers";
-import { createSessionToken, getSessionCookieName } from "@/lib/auth";
+import { createSessionToken, getSessionCookieName, VIDA_COOKIE_SESION_S } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getProductoContexto } from "@/lib/producto";
 import { productoHome, rutaPermitidaParaProducto } from "@/lib/producto-identidad";
 import { mustChangePasswordFor } from "@/lib/must-change-password";
 import { aterrizajeDelPanel } from "@/apps/visibles";
+import { reiniciarFallosTrasIngreso, tienePin } from "@/lib/sesion-pin.server";
+import { getCurrentTenantId } from "@/lib/tenant";
 
 export async function abrirSesion(userId: string): Promise<void> {
   await prisma.user.update({
@@ -16,6 +18,9 @@ export async function abrirSesion(userId: string): Promise<void> {
     data: { lastLoginAt: new Date() },
   });
 
+  // Entró con su contraseña (o Google, o clave y código): el PIN de desbloqueo vuelve a tener todos sus intentos.
+  // Si la base falla acá, el ingreso sigue: lo peor es un PIN con menos intentos (pide la contraseña antes).
+  await reiniciarFallosTrasIngreso(userId, await getCurrentTenantId()).catch((e) => console.error("[sesion-pin] no se reiniciaron los fallos", e));
   await ponerCookieDeSesion(await createSessionToken(userId));
 }
 
@@ -27,11 +32,34 @@ export async function ponerCookieDeSesion(token: string): Promise<void> {
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: 60 * 60 * 8,
+    // La sesión vive mientras se use (auth.ts): la cookie dura lo mismo que una sesión bloqueada, 7 días sin uso.
+    maxAge: VIDA_COOKIE_SESION_S,
   });
 }
 
-export async function destinoTrasIngreso(user: { id: string; tenantId: string; role: string }, next: string): Promise<string> {
+export type OpcionesDelDestino = {
+  /**
+   * Ofrecer definir el PIN de desbloqueo si todavía no tiene (sesion-pin.ts). Sólo tras comprobar la contraseña (o
+   * Google, o clave y código); el canje del token viejo pasa `false`.
+   */
+  ofrecerPin?: boolean;
+};
+
+export async function destinoTrasIngreso(
+  user: { id: string; tenantId: string; role: string },
+  next: string,
+  opciones: OpcionesDelDestino = {},
+): Promise<string> {
+  const destino = await destinoDelProducto(user, next);
+  // PIN DE DESBLOQUEO: lo define cada usuario después del primer ingreso (o del cambio obligatorio de contraseña, que
+  // va primero). Se puede saltear: sin PIN, la sesión bloqueada pide la contraseña.
+  if (destino !== "/admin/cambiar-password" && opciones.ofrecerPin !== false && !(await tienePin(user.id, user.tenantId).catch(() => true))) {
+    return `/admin/definir-pin?next=${encodeURIComponent(destino)}`;
+  }
+  return destino;
+}
+
+async function destinoDelProducto(user: { id: string; tenantId: string; role: string }, next: string): Promise<string> {
   // CONTRASEÑA TEMPORAL: si el OWNER entra con una contraseña marcada para cambio forzado
   // (reset del operador), lo mandamos derecho a definir una nueva ANTES de cualquier ruteo por
   // producto. Fail-safe: si la columna no existe todavía (Gate 2 sin aplicar), devuelve false y

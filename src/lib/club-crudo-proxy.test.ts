@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { NextRequest } from "next/server";
 import { proxy, esClubCrudo } from "@/proxy";
-import { createSessionToken, getSessionCookieName, VIGENCIA_SESION_MS } from "./auth";
+import { createSessionToken, getSessionCookieName, INACTIVIDAD_BLOQUEO_MS } from "./auth";
 
 test("esClubCrudo: atrapa variantes de mayúsculas, %xx y barras dobles; no toca el turnero", () => {
   for (const p of ["/previews/breakpoint/club/index.html", "/previews/breakpoint/club", "/Previews/BreakPoint/Club/app.mjs", "/previews/breakpoint/%63lub/app.mjs", "/previews//breakpoint//club/x", "/previews/breakpoint/turnero/..%2fclub/app.mjs", "/previews/breakpoint/./club/studio.mjs", "/previews\\breakpoint\\club\\index.html"]) {
@@ -15,11 +15,11 @@ test("esClubCrudo: atrapa variantes de mayúsculas, %xx y barras dobles; no toca
   }
 });
 
-test("PROXY: el club crudo sin sesión (o con sesión vencida) da 404; con sesión vigente pasa", async () => {
+test("PROXY: el club crudo sin sesión (o con sesión bloqueada por inactividad) da 404; con sesión vigente pasa", async () => {
   const sin = await proxy(new NextRequest("https://breakpointpadel.gsgapp.com.ar/previews/breakpoint/club/index.html"));
   assert.equal(sin.status, 404);
   const vencida = new NextRequest("https://breakpointpadel.gsgapp.com.ar/previews/breakpoint/club/app.mjs");
-  vencida.cookies.set(getSessionCookieName(), await createSessionToken("u1", Date.now() - VIGENCIA_SESION_MS - 1000));
+  vencida.cookies.set(getSessionCookieName(), await createSessionToken("u1", Date.now() - INACTIVIDAD_BLOQUEO_MS - 1000));
   assert.equal((await proxy(vencida)).status, 404);
   const con = new NextRequest("https://breakpointpadel.gsgapp.com.ar/previews/breakpoint/club/index.html");
   con.cookies.set(getSessionCookieName(), await createSessionToken("u1"));

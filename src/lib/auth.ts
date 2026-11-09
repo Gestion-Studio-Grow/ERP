@@ -7,22 +7,22 @@
 // entra al bundle edge por esta vía.
 //
 // VENCIMIENTO EN EL SERVIDOR (seguridad, 08/11/2026 · ENG-013 en parte). Antes el token era
-// `userId.HMAC(userId)`: sin fecha. Las 8 h eran sólo la vida de la cookie en el navegador; una
-// cookie copiada (otra compu, una extensión, un respaldo del navegador) abría caja, ventas y
-// facturación PARA SIEMPRE (medido en la operación real de CH, paso 15: a las 23:30 seguía
-// entrando). Ahora el token es
-//     v2|<userId>|<emitido ms>|<vence ms>.HMAC("gsg-sesion-v2|" + payload)
-// y el servidor (proxy y `getCurrentUser`) lo rechaza pasado `vence`, o si `vence` se aleja de
-// `emitido` más que VIGENCIA_SESION_MS, o si `emitido` está en el futuro. La firma lleva un prefijo
-// de dominio: ninguna firma del formato viejo sirve para el nuevo, ni al revés.
+// `userId.HMAC(userId)`: sin fecha. Una cookie copiada (otra compu, una extensión, un respaldo del navegador) abría
+// caja, ventas y facturación PARA SIEMPRE (medido en la operación real de CH, paso 15). Ahora el token es
+//     v3|<userId>|<ingreso ms>|<actividad ms>.HMAC("gsg-sesion-v3|" + payload)
+// y el servidor (proxy y `getCurrentUser`) decide con la ÚLTIMA ACTIVIDAD firmada: la cuenta no vence nunca, pero
+// con 15 min sin uso pide el PIN y con 7 días pide la contraseña (ver «VIGENCIA POR USO» más abajo). La firma lleva
+// un prefijo de dominio: ninguna firma del formato viejo sirve para el nuevo, ni al revés.
 //
 // SIN TRANSICIÓN GENERAL (orden del dueño, 08/11/2026: «solamente el de Macarena Arias se mantiene, los demás
 // no»). Desde que se publica, `readSessionToken` NO acepta el formato viejo de nadie. La única excepción no vive
 // acá: el proxy manda un token viejo con firma válida a /admin/login/renovar, que carga el usuario de la base y
-// sólo si está en la lista de `sesion-legado.ts` (tenant beauty-spa) le cambia la cookie por una v2. El token viejo
+// sólo si está en la lista de `sesion-legado.ts` (tenant beauty-spa) le cambia la cookie por una v3. El token viejo
 // nunca abre una pantalla ni una acción por sí mismo. Detalle: docs/seguridad/sesion-con-vencimiento.md.
 // Pendiente (no en este cambio): revocar al cerrar sesión o al cambiar la contraseña, que pide una
 // columna en User (Gate 2).
+
+import { INACTIVIDAD_BLOQUEO_MS, INACTIVIDAD_VENCE_MS, RENOVAR_SESION_CADA_MS } from "@/lib/sesion-constantes";
 
 const COOKIE_NAME = "admin_session";
 
@@ -75,20 +75,46 @@ export function getSessionCookieName() {
   return COOKIE_NAME;
 }
 
-/** Cuánto vale una sesión del panel, verificado en el servidor con las fechas firmadas. */
-export const VIGENCIA_SESION_MS = 8 * 60 * 60 * 1000;
-/** Tolerancia de reloj para un `emitido` apenas en el futuro (servidores con relojes distintos). */
+// ── VIGENCIA POR USO (orden del dueño, 08/11/2026, textual: «El usuario no se va a vencer ni nada. A lo sumo
+// diseñaríamos un ingreso por PIN cuando el usuario ya está logueado, para reactivarlo») ──────────────────────────
+// La cuenta no vence nunca. El token lleva la ÚLTIMA ACTIVIDAD firmada y el proxy lo reemite con el uso (como mucho
+// cada RENOVAR_SESION_CADA_MS). Según el tiempo sin uso:
+//   · menos de INACTIVIDAD_BLOQUEO_MS → activa (abre pantallas y acciones);
+//   · desde ahí y hasta INACTIVIDAD_VENCE_MS → bloqueada: NO abre nada; se destraba con el PIN del usuario
+//     (/admin/login/desbloquear, sesion-pin.ts) o con la contraseña;
+//   · desde INACTIVIDAD_VENCE_MS → vencida: contraseña completa.
+
+export { INACTIVIDAD_BLOQUEO_MS, INACTIVIDAD_VENCE_MS, RENOVAR_SESION_CADA_MS };
+/** Vida de la cookie en el navegador: lo mismo que la sesión bloqueada (después no sirve para nada). */
+export const VIDA_COOKIE_SESION_S = INACTIVIDAD_VENCE_MS / 1000;
+/** Tolerancia de reloj para una fecha apenas en el futuro (servidores con relojes distintos). */
 const TOLERANCIA_RELOJ_MS = 60 * 1000;
-/** Separación de dominio de la firma del formato con vencimiento. */
-const FIRMA_V2 = "gsg-sesion-v2|";
+/** Separación de dominio de la firma: ninguna firma del formato viejo ni del v2 sirve para este. */
+const FIRMA_V3 = "gsg-sesion-v3|";
 /** Ids de usuario que se firman: los de Prisma (cuid) y los de prueba. Nunca `|` ni `.`. */
 const USER_ID_VALIDO = /^[A-Za-z0-9_-]{1,64}$/;
-const PAYLOAD_V2 = /^v2\|([A-Za-z0-9_-]{1,64})\|(\d{13})\|(\d{13})$/;
-export async function createSessionToken(userId: string, emitido: number = Date.now()): Promise<string> {
+const PAYLOAD_V3 = /^v3\|([A-Za-z0-9_-]{1,64})\|(\d{13})\|(\d{13})$/;
+const trece = (ms: number) => String(ms).padStart(13, "0");
+
+/**
+ * Token de sesión `v3|<userId>|<ingreso ms>|<actividad ms>.HMAC("gsg-sesion-v3|" + payload)`.
+ * `actividad`: la última vez que se usó (por defecto, ahora). `ingreso`: cuándo se comprobó la CONTRASEÑA (o Google,
+ * o clave y código) por última vez; 0 = en esta sesión nunca (el canje del token viejo). El PIN no lo cambia: sólo
+ * con un `ingreso` reciente se puede definir o cambiar el PIN (sesion-pin.ts).
+ */
+export async function createSessionToken(
+  userId: string,
+  actividad: number = Date.now(),
+  ingreso: number = actividad,
+): Promise<string> {
   if (!USER_ID_VALIDO.test(userId)) throw new Error("Id de usuario inválido para la sesión.");
-  const desde = Math.floor(emitido);
-  const payload = `v2|${userId}|${String(desde).padStart(13, "0")}|${String(desde + VIGENCIA_SESION_MS).padStart(13, "0")}`;
-  return `${payload}.${await sign(FIRMA_V2 + payload)}`;
+  const act = Math.floor(actividad);
+  const ing = Math.floor(ingreso);
+  if (!Number.isFinite(act) || !Number.isFinite(ing) || ing < 0 || act < 0 || ing > act) {
+    throw new Error("Fechas inválidas para la sesión.");
+  }
+  const payload = `v3|${userId}|${trece(ing)}|${trece(act)}`;
+  return `${payload}.${await sign(FIRMA_V3 + payload)}`;
 }
 
 export type OpcionesDeLectura = {
@@ -96,37 +122,52 @@ export type OpcionesDeLectura = {
   ahora?: number;
 };
 
-// Verifica la firma y la vigencia del token y devuelve el `userId` firmado, o null si el token
-// falta / está mal formado / la firma no valida / venció. NO carga el usuario de la base
-// (eso es `getCurrentUser()` en session.ts, runtime Node): esto es el portón
-// grueso que puede correr en edge, y la misma verificación que usa session.ts.
-export async function readSessionToken(
+export type EstadoDeSesion = "activa" | "bloqueada" | "vencida";
+export type SesionLeida = { estado: EstadoDeSesion; userId: string; ingreso: number; actividad: number };
+
+/**
+ * Lee el token con su firma y dice en qué estado está, o null si falta / está mal formado / la firma no valida /
+ * las fechas no cierran. NO carga el usuario de la base. Edge-safe: lo usa el proxy.
+ */
+export async function leerSesion(
   token: string | undefined | null,
   opciones: OpcionesDeLectura = {},
-): Promise<string | null> {
+): Promise<SesionLeida | null> {
   if (!token) return null;
   const sepIndex = token.lastIndexOf(".");
   if (sepIndex <= 0) return null;
   const payload = token.slice(0, sepIndex);
   const signature = token.slice(sepIndex + 1);
   if (!payload || !signature) return null;
+  const m = PAYLOAD_V3.exec(payload);
+  if (!m) return null; // formato viejo y v2 (nunca publicado): no abren nada. Ver `idDelTokenLegadoParaCanje`.
+  if (!timingSafeStringEqual(signature, await sign(FIRMA_V3 + payload))) return null;
   const ahora = opciones.ahora ?? Date.now();
+  // Falla cerrada: con `ahora` NaN o infinito ninguna comparación es confiable.
+  if (!Number.isFinite(ahora)) return null;
+  const ingreso = Number(m[2]);
+  const actividad = Number(m[3]);
+  if (ingreso > actividad) return null;
+  if (actividad > ahora + TOLERANCIA_RELOJ_MS) return null;
+  const sinUso = ahora - actividad;
+  const estado: EstadoDeSesion =
+    sinUso < INACTIVIDAD_BLOQUEO_MS ? "activa" : sinUso < INACTIVIDAD_VENCE_MS ? "bloqueada" : "vencida";
+  return { estado, userId: m[1], ingreso, actividad };
+}
 
-  if (payload.startsWith("v2|")) {
-    const m = PAYLOAD_V2.exec(payload);
-    if (!m) return null;
-    if (!timingSafeStringEqual(signature, await sign(FIRMA_V2 + payload))) return null;
-    const emitido = Number(m[2]);
-    const vence = Number(m[3]);
-    if (emitido > ahora + TOLERANCIA_RELOJ_MS) return null;
-    if (vence <= emitido || vence - emitido > VIGENCIA_SESION_MS) return null;
-    // Falla cerrada: con `ahora` NaN, `ahora >= vence` daba false y el token valía.
-    if (!(ahora < vence)) return null;
-    return m[1];
-  }
+// El `userId` firmado SÓLO si la sesión está activa (con uso en los últimos INACTIVIDAD_BLOQUEO_MS); si no, null.
+// Es la verificación que usan el proxy y `getCurrentUser()` (session.ts): una sesión bloqueada no abre nada.
+export async function readSessionToken(
+  token: string | undefined | null,
+  opciones: OpcionesDeLectura = {},
+): Promise<string | null> {
+  const s = await leerSesion(token, opciones);
+  return s && s.estado === "activa" ? s.userId : null;
+}
 
-  // Formato viejo (`userId.firma`, sin fecha): no abre nada, de nadie. Ver `idDelTokenLegadoParaCanje`.
-  return null;
+/** ¿Hay que reemitir el token de una sesión activa? (pasó RENOVAR_SESION_CADA_MS desde la última actividad firmada). */
+export function sesionParaRenovar(s: SesionLeida | null, ahora: number = Date.now()): boolean {
+  return !!s && s.estado === "activa" && ahora - s.actividad >= RENOVAR_SESION_CADA_MS;
 }
 
 /**
@@ -140,7 +181,7 @@ export async function idDelTokenLegadoParaCanje(token: string | undefined | null
   if (sepIndex <= 0) return null;
   const payload = token.slice(0, sepIndex);
   const signature = token.slice(sepIndex + 1);
-  if (!signature || payload.startsWith("v2|")) return null;
+  if (!signature || payload.startsWith("v2|") || payload.startsWith("v3|")) return null;
   if (!USER_ID_VALIDO.test(payload)) return null;
   if (!timingSafeStringEqual(signature, await sign(payload))) return null;
   return payload;

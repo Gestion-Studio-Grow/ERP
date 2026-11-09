@@ -10,7 +10,7 @@ import { ConDiseno } from "@/lib/diseno/ConDiseno";
 import LoginRenglon from "./LoginRenglon";
 import FormularioDeSiempre from "./FormularioDeSiempre";
 import { RAIZ_HOJA_DE_INGRESO } from "./HojaDeIngreso";
-import { avisoDeIngreso, folioDelDia } from "./login-core";
+import { AVISOS_INFORMATIVOS, avisoDeIngreso, folioDelDia } from "./login-core";
 import type { CSSProperties } from "react";
 import { direccionConNegocio } from "@/lib/tenant";
 import DireccionNoHabilitada from "./DireccionNoHabilitada";
@@ -177,12 +177,12 @@ export default async function LoginPage({
               >
                 Demasiados intentos fallidos. Esperá unos minutos y volvé a probar.
               </p>
-            ) : error === "vencida" ? (
+            ) : error && AVISOS_INFORMATIVOS.has(error) ? (
               <p
                 role="status"
                 className="mb-5 rounded-md border border-line bg-surface-sunken px-3 py-2.5 text-sm text-strong"
               >
-                Tu sesión venció: cada ingreso dura 8 horas. Volvé a entrar.
+                {avisoDeIngreso(error)?.titulo} {avisoDeIngreso(error)?.detalle}
               </p>
             ) : error === "google" ? (
               <p
@@ -200,7 +200,7 @@ export default async function LoginPage({
               </p>
             ) : null}
 
-            <FormularioDeSiempre next={next ?? "/admin"} conError={Boolean(error) && error !== "vencida"} />
+            <FormularioDeSiempre next={next ?? "/admin"} conError={Boolean(error) && !AVISOS_INFORMATIVOS.has(error ?? "")} />
             {conGoogle && (
               <a href={`/admin/login/google?next=${encodeURIComponent(next ?? "/admin")}`} className={`${buttonClasses("outline", "lg", "w-full")} mt-3`}>
                 Ingresar con Google
