@@ -268,6 +268,8 @@ model Tenant {
   proyectoEntregableVers    ProyectoEntregableVersion[]
   proyectoArchivos          ProyectoArchivo[]
   proyectoStands            ProyectoStand[]
+  tallerPiezas              TallerPieza[]
+  tallerDespieces           TallerDespiece[]
   consultas                 Consulta[]
   consultaMensajes          ConsultaMensaje[]
   voucherLotes              VoucherLote[]
@@ -3551,6 +3553,7 @@ model Proyecto {
   anticipos           ProyectoAnticipo[]
   archivos            ProyectoArchivo[]
   stands              ProyectoStand[]
+  despiece            TallerDespiece[]
   consultas           Consulta[]
   entregables         ProyectoEntregable[]
   cuotas              ProyectoCuota[]
@@ -3772,6 +3775,45 @@ model ProyectoStand {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
+  @@index([tenantId, proyectoId])
+}
+
+// TALLER DE STANDS (GSG-MIA-004 · T2). Catálogo de piezas con costo interno del taller: nunca viaja a la productora.
+// `productId` queda suelto hasta T6 (stock real): sin FK para no tocar el catálogo de productos.
+model TallerPieza {
+  id        String           @id @default(cuid())
+  tenant    Tenant           @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  nombre    String
+  unidad    String           @default("u")
+  costoUnit Float            @default(0)
+  horasStd  Float            @default(0)
+  productId String?
+  activa    Boolean          @default(true)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  despieces TallerDespiece[]
+
+  @@unique([id, tenantId]) // destino de la FK compuesta del despiece: una pieza no cruza de negocio
+  @@index([tenantId, activa])
+}
+
+// Despiece de un stand (= Proyecto): cuántas de cada pieza, con el costo congelado al cargarlas.
+model TallerDespiece {
+  id            String      @id @default(cuid())
+  tenant        Tenant      @relation(fields: [tenantId], references: [id])
+  tenantId      String
+  // FKs compuestas (id, tenantId): la base rechaza un despiece con proyecto o pieza de otro negocio.
+  proyecto      Proyecto    @relation(fields: [proyectoId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  proyectoId    String
+  pieza         TallerPieza @relation(fields: [piezaId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  piezaId       String
+  cantidad      Float       @default(1)
+  costoUnitSnap Float       @default(0)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@unique([proyectoId, piezaId])
   @@index([tenantId, proyectoId])
 }
 

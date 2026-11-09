@@ -15,6 +15,8 @@ import { Numero, PestanaFicha, PestanaHistorial, PestanaResumen, PestanaSeguimie
 import { ArmadorYPiezas, PestanaArchivos } from "./_pestanas-diseno-archivos";
 import { PestanaCotizacion, PestanaFinanzas } from "./_pestanas-plata";
 import { PestanaRendiciones } from "./_rendiciones";
+import { PestanaDespiece } from "./_despiece";
+import { tallerActivo } from "@/lib/taller-stands/datos.server";
 
 export const dynamic = "force-dynamic";
 // Proponer con IA y Generar imagen esperan al proveedor desde esta pantalla.
@@ -39,11 +41,14 @@ export default async function FichaProyecto({ params, searchParams }: { params: 
   const fechas = [p.fechaEvento && fechaCorta(p.fechaEvento), p.fechaFin && p.fechaFin.getTime() !== p.fechaEvento?.getTime() && fechaCorta(p.fechaFin)].filter(Boolean).join(" al ");
 
   const verFicha = puede(a, "ficha", "ver");
+  // Taller de stands (GSG-MIA-004): sólo con flag + módulo + rubro del taller (la productora no la ve) y a quien ve costos.
+  const verDespiece = vista.cotizaciones && vista.costos && (await tallerActivo(a.tenantId));
   const pestanas = [
     { id: "resumen", label: "Resumen", ve: true },
     { id: "ficha", label: "Ficha del evento", ve: verFicha },
     { id: "cotizacion", label: "Cotización", ve: vista.cotizaciones },
     { id: "diseno", label: "Diseño", ve: puede(a, "diseno", "ver") },
+    { id: "despiece", label: "Despiece", ve: verDespiece },
     { id: "finanzas", label: "Finanzas", ve: vista.pagos },
     { id: "rendiciones", label: "Rendiciones", ve: puede(a, "rendiciones", "ver") },
     { id: "seguimiento", label: "Seguimiento", ve: verFicha },
@@ -115,6 +120,7 @@ export default async function FichaProyecto({ params, searchParams }: { params: 
           <ArmadorYPiezas a={a} cab={cab} />
         </div>
       )}
+      {tab === "despiece" && <PestanaDespiece tenantId={a.tenantId} proyectoId={p.id} edita={puede(a, "ficha", "editar") || puede(a, "cotizaciones", "editar")} cotiza={puede(a, "cotizaciones", "editar")} aviso={q.aviso} />}
       {tab === "finanzas" && <PestanaFinanzas a={a} cab={cab} vista={vista} filtro={q.filtro} />}
       {tab === "rendiciones" && <PestanaRendiciones a={a} proyectoId={p.id} />}
       {tab === "seguimiento" && <PestanaSeguimiento a={a} cab={cab} vista={vista} />}
