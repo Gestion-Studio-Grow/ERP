@@ -860,6 +860,7 @@ model Client {
 
   @@index([tenantId])
   @@index([tenantId, docNro])
+  @@unique([tenantId, id]) // destino de las FK compuestas con el negocio (SEG-006, 20261109120000_fk_compuestas_plata)
 }
 
 model Appointment {
@@ -911,6 +912,7 @@ model Appointment {
   @@index([boxId, startsAt])
   @@index([tenantId, startsAt])
   @@index([commissionPayoutId])
+  @@unique([tenantId, id]) // destino de las FK compuestas con el negocio (SEG-006, 20261109120000_fk_compuestas_plata)
 }
 
 // Liquidación de comisiones a un profesional por un período (BACKLOG "Alta
@@ -981,6 +983,7 @@ model Payment {
   cashMovements CashMovement[]
 
   @@index([tenantId])
+  @@unique([tenantId, id]) // destino de las FK compuestas con el negocio (SEG-006, 20261109120000_fk_compuestas_plata)
 }
 
 enum CouponType {
@@ -1442,6 +1445,7 @@ model ImportacionBancaria {
 
   @@index([tenantId])
   @@index([tenantId, createdAt])
+  @@unique([tenantId, id]) // destino de las FK compuestas con el negocio (SEG-006, 20261109120000_fk_compuestas_plata)
 }
 
 // Un movimiento del extracto con su propuesta de factura. `hash` es el id
@@ -1573,6 +1577,7 @@ model Order {
   @@unique([tenantId, code])
   @@unique([tenantId, idempotencyKey]) // A-1 — idempotencia del alta de vidriera (NULLs no colisionan)
   @@index([tenantId, status])
+  @@unique([tenantId, id]) // destino de las FK compuestas con el negocio (SEG-006, 20261109120000_fk_compuestas_plata)
 }
 
 model OrderItem {
@@ -1640,6 +1645,7 @@ model CashSession {
 
   @@index([tenantId, status])
   @@index([tenantId, openedAt])
+  @@unique([tenantId, id]) // destino de las FK compuestas con el negocio (SEG-006, 20261109120000_fk_compuestas_plata)
 }
 
 // Movimiento de dinero dentro de un turno de caja. El monto SIEMPRE es positivo;
@@ -2013,6 +2019,7 @@ model Collection {
   @@unique([tenantId, idempotencyKey]) // NULLs no colisionan (Postgres)
   @@index([tenantId, originType, originId]) // "todos los cobros de este origen" → para saldar
   @@index([tenantId, createdAt])
+  @@unique([tenantId, id]) // destino de las FK compuestas con el negocio (SEG-006, 20261109120000_fk_compuestas_plata)
 }
 
 // ============================================================================
@@ -2787,6 +2794,7 @@ model TallerPago {
 
   @@index([tenantId, ordenId])
   @@index([tenantId, createdAt])
+  @@unique([tenantId, id]) // destino de las FK compuestas con el negocio (SEG-006, 20261109120000_fk_compuestas_plata)
 }
 
 model TallerConfig {
@@ -3632,6 +3640,7 @@ model ProyectoPago {
   createdAt  DateTime       @default(now())
 
   @@index([tenantId, proyectoId])
+  @@unique([tenantId, id]) // destino de las FK compuestas con el negocio (SEG-006, 20261109120000_fk_compuestas_plata)
 }
 
 // Lo que realmente se paga o se debe por un trabajo. `neto` es lo que se compara contra el costo presupuestado,
@@ -4239,6 +4248,7 @@ model VoucherLote {
   createdAt DateTime  @default(now())
 
   @@unique([tenantId, numero])
+  @@unique([tenantId, id]) // destino de las FK compuestas con el negocio (SEG-006, 20261109120000_fk_compuestas_plata)
 }
 
 model Voucher {
