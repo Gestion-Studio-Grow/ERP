@@ -153,7 +153,8 @@ export function papelParaMia(items: readonly ItemParaPapel[], tc: Readonly<Recor
     }
     lineas.push({ descripcion: i.descripcion, cantidad: i.cantidad, unidad: i.unidad || "u", precio: i.cantidad > 0 ? redondear(total / i.cantidad) : 0, total });
   }
-  if (otros > 0) lineas.push({ descripcion: "Otros conceptos", cantidad: 1, unidad: "", precio: otros, total: otros });
+  // Distinto de cero (no «mayor»): un descuento oculto también tiene que restar en el papel, como en la planilla.
+  if (otros !== 0) lineas.push({ descripcion: "Otros conceptos", cantidad: 1, unidad: "", precio: otros, total: otros });
   const neto = redondear(lineas.reduce((s, l) => s + l.total, 0));
   const iva = redondear((neto * ivaPct) / 100);
   return { lineas, neto, ivaPct, iva, total: redondear(neto + iva) };

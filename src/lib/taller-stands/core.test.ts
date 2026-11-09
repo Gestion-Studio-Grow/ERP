@@ -93,3 +93,14 @@ test("la tabla sin migrar se reconoce (P2021/P2022) y lo demás no", () => {
   assert.ok(!faltaLaTabla({ code: "P2002" }));
   assert.ok(!faltaLaTabla(null));
 });
+
+test("papel para MIA: un descuento oculto resta en «Otros conceptos», como en la planilla de venta", () => {
+  const items = [
+    { descripcion: "Panel", cantidad: 1, costo: 0, moneda: "ARS", recargoPct: null, precio: 100, visibleCliente: true },
+    { descripcion: "Bonificación", cantidad: 1, costo: -20, moneda: "ARS", recargoPct: 0, precio: 0, visibleCliente: false },
+  ];
+  const p = papelParaMia(items, {}, 30, 0);
+  assert.equal(p.lineas.at(-1)?.descripcion, "Otros conceptos");
+  assert.equal(p.lineas.at(-1)?.total, -20);
+  assert.equal(p.neto, 80);
+});

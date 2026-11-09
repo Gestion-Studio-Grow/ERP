@@ -148,6 +148,9 @@ export async function despieceAlPresupuesto(formData: FormData): Promise<void> {
   if (conBorrador === 0 && versiones > 0) volver(ruta, "La cotización ya se envió. Abrí una versión nueva en Cotización y volvé a pasar el despiece.");
   const r = await conTabla(() =>
     tenantTransaction(async (tx) => {
+      // Un pase por proyecto a la vez: dos pedidos simultáneos (doble clic) leerían los mismos ítems y duplicarían
+      // «Materiales». El bloqueo de la fila del proyecto los pone en fila; el segundo ve lo que escribió el primero.
+      await tx.$queryRaw`SELECT 1 FROM "Proyecto" WHERE "id" = ${proyectoId} AND "tenantId" = ${tenantId} FOR UPDATE`;
       const filas = await tx.tallerDespiece.findMany({ where: { tenantId, proyectoId }, orderBy: { createdAt: "asc" }, select: { id: true, cantidad: true, costoUnitSnap: true, pieza: { select: { nombre: true, unidad: true } } } });
       const items = itemsDelDespiece(filas.map((f) => ({ id: f.id, nombre: f.pieza.nombre, unidad: f.pieza.unidad, cantidad: f.cantidad, costoUnitSnap: f.costoUnitSnap })), config.margenPct);
       let borrador = await tx.proyectoPresupuesto.findFirst({ where: { tenantId, proyectoId, estado: "BORRADOR" }, select: { id: true } });
@@ -160,9 +163,12 @@ export async function despieceAlPresupuesto(formData: FormData): Promise<void> {
         });
       }
       const presupuestoId = borrador.id;
-      const existentes = await tx.proyectoItem.findMany({ where: { tenantId, presupuestoId, origen: { startsWith: "despiece:" } }, select: { id: true, origen: true } });
+      const existentes = await tx.proyectoItem.findMany({ where: { tenantId, presupuestoId, origen: { startsWith: "despiece:" } }, select: { id: true, origen: true, costoReal: true, estadoItem: true } });
       const plan = planDePase(existentes, items);
-      if (plan.borrar.length > 0) await tx.proyectoItem.deleteMany({ where: { tenantId, presupuestoId, id: { in: plan.borrar } } });
+      // Un ítem que ya avanzó (tiene costo real o dejó de estar PENDIENTE) no se borra solo: queda para revisarlo a mano.
+      const conAvance = new Set(existentes.filter((e) => e.costoReal != null || (e.estadoItem && e.estadoItem !== "PENDIENTE")).map((e) => e.id));
+      const borrar = plan.borrar.filter((id) => !conAvance.has(id));
+      if (borrar.length > 0) await tx.proyectoItem.deleteMany({ where: { tenantId, presupuestoId, id: { in: borrar } } });
       for (const { id, item } of plan.actualizar) {
         await tx.proyectoItem.updateMany({ where: { id, tenantId, presupuestoId }, data: { rubro: item.rubro, descripcion: item.descripcion, unidad: item.unidad, cantidad: item.cantidad, costo: item.costo, precio: item.precio } });
       }
