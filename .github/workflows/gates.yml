@@ -37,6 +37,7 @@ jobs:
   lint:
     name: lint (no-bloqueante · deuda pre-existente)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     # continue-on-error: la deuda de lint queda VISIBLE (amarillo) pero NO tumba el
     # run ni enmascara a las demás vallas. Se salda por separado; ver el reporte de
     # la sesión ci/senal-verde.
@@ -54,6 +55,7 @@ jobs:
   tsc:
     name: tsc (tipos)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -76,6 +78,7 @@ jobs:
   tests:
     name: tests (npm test)
     runs-on: ubuntu-latest
+    timeout-minutes: 35
     services:
       postgres:
         image: postgres:16
@@ -90,6 +93,12 @@ jobs:
           --health-retries 20
     env:
       ERP_TEST_PG_URL: postgresql://postgres@localhost:5432/postgres
+      # Hora fija y la misma que producción (Vercel corre en UTC): un test que depende del huso
+      # falla igual en cada corrida, no según la máquina.
+      TZ: UTC
+      # Los 2 tests del paquete Gate 2 se salteaban sin esta URL (y el paso «skipped 0» frenaba).
+      # Es el mismo Postgres efímero del job: crean su base y su rol propios y los borran.
+      GATE2_PG_URL: postgresql://postgres@localhost:5432/postgres
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -143,6 +152,7 @@ jobs:
   rls:
     name: rls-coverage (aislamiento)
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -156,6 +166,7 @@ jobs:
   build:
     name: build (next build)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -183,6 +194,7 @@ jobs:
     name: visual (render real) · BLOQUEANTE
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -209,6 +221,7 @@ jobs:
     name: visual-aa (contraste/touch/overflow) · BLOQUEANTE
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
