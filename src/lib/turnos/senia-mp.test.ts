@@ -61,6 +61,8 @@ function base() {
       createdAt: new Date("2026-11-01T10:00:00Z"),
     });
   const tx = {
+    // El candado transaccional del aviso «una vez por pago» (la carrera real la prueba aviso-senia-mp-carrera-postgres).
+    $executeRaw: async () => 0,
     auditLog: {
       findMany: async ({ where }: { where: Record<string, unknown> }) => db.audit.filter((a) => coincide(a, where)).slice(-1),
       findFirst: async ({ where }: { where: Record<string, unknown> }) => db.audit.filter((a) => coincide(a, where)).at(-1) ?? null,

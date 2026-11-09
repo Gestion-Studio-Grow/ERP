@@ -327,3 +327,14 @@ test("turnos sin cerrar: «Quedaron N sin cerrar» en Cerrar, con la tecla a «C
   ).pendientes;
   assert.deepEqual(conCaja.map((x) => x.tecla.href), ["/admin/turnos/cerrar", "/admin/caja/cierre"]);
 });
+
+test("#T7 · la nota de crédito rechazada por ARCA dice que se vuelve a emitir desde Facturación; la venta anulada, que se hace en ARCA", () => {
+  const fac = (texto: string) =>
+    pendientesDeLaBandeja([{ app: app("facturacion", "/admin/facturacion"), resultado: ok("3", { alerta: { valor: "1", texto } }) }], new Map()).pendientes[0];
+  const rechazada = fac("nota de crédito rechazada por ARCA · y 2 ventas anuladas con factura sin nota de crédito");
+  assert.equal(rechazada.titulo, "Nota de crédito rechazada por ARCA · y 2 ventas anuladas con factura sin nota de crédito");
+  assert.match(rechazada.detalle ?? "", /volvé a emitirla desde Facturación/);
+  assert.equal(rechazada.tecla.href, "/admin/facturacion");
+  assert.match(fac("notas de crédito rechazadas por ARCA").detalle ?? "", /volvé a emitirla/);
+  assert.match(fac("venta anulada con factura sin nota de crédito").detalle ?? "", /hacela en ARCA/);
+});
