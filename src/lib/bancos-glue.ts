@@ -675,7 +675,10 @@ export interface ResultadoEmision {
 // pasa las propuestas a revisión con `MOTIVO_NEGOCIO_CON_CUOTAS` (la pantalla de bancos queda
 // abierta con el registro de módulos apagado, gating.ts:20). Un negocio sin facturas de cuota no
 // cambia en nada. DEUDA: en ese negocio la bandeja del extracto no factura sola; lo fino pide un
-// vínculo movimiento→cuota. El cobro por Mercado Pago (mercadopago-auto) no pasa por acá.
+// vínculo movimiento→cuota. El cobro por Mercado Pago (mercadopago-auto) tiene su propia barrera
+// en `facturarPagoMP`. Vuelta 3: la pregunta toma el candado de las facturas por cobro
+// (`tomarCandadoFacturasDeCobro`, dentro de `negocioFacturaCuotasEnTx`), el mismo que la escritura de
+// la cuota; ésta, bajo el candado, vuelve a mirar si hay movimientos importados: sin carrera.
 /**
  * Emite las propuestas `auto` de UN tenant, con tenantId EXPLÍCITO. Es el core de
  * `emitirPropuestasAction` (mismo claim idempotente auto→emitida, mismo cap del
@@ -714,7 +717,8 @@ export async function emitirPropuestas(
 
     // Negocio que factura cuotas de proyecto: el cobro de una cuota ya facturada se vería acá como
     // una venta más y abriría un segundo CAE. Las propuestas pasan a revisión con el motivo, en la
-    // misma transacción en la que se mira (columna preguntada antes, fuera de la tx).
+    // misma transacción en la que se mira (columna preguntada antes, fuera de la tx), bajo el
+    // candado de las facturas por cobro que también toma la factura de la cuota.
     if (await hayColumnaCuotaEnInvoice()) {
       const aRevision = await tenantTransaction(
         async (tx) => {

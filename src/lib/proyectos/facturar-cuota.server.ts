@@ -6,8 +6,11 @@
 // `proyectos-facturacion`, etapa2-core.ts) y el módulo `arca` explícito en el negocio, más el flag
 // maestro `isInvoicingEnabled()` y la columna `Invoice.proyectoCuotaId` (migración
 // 20261110120000_invoice_proyecto_cuota, Gate 2). Sin cualquiera de las cuatro, no se escribe nada.
-// Y una quinta que cierra al revés: el negocio NO factura desde el extracto del banco (módulo
-// `bancos` o movimientos importados), porque esas propuestas salen sin origen y duplicarían el CAE.
+// Y una quinta que cierra al revés: el negocio NO factura solo sus cobros por otro camino (el
+// extracto del banco: módulo `bancos` o movimientos importados; Mercado Pago: conexión no
+// desconectada o token legado), porque esas facturas salen sin origen y duplicarían el CAE. Se
+// pregunta antes y otra vez dentro de la escritura, bajo `tomarCandadoFacturasDeCobro`, el candado
+// que también toman las barreras del extracto y de Mercado Pago (certificación T2, vuelta 3).
 //
 // Concurrencia (lo que se certifica):
 //  · La cuota se toma FOR UPDATE dentro de `tenantTransaction` y se re-verifica (monto, moneda,
@@ -31,11 +34,13 @@ import { createInvoiceInTx, type InvoiceTx } from "@/lib/invoice-core";
 import { getFiscalProfile, isInvoicingEnabled, PerfilFiscalIncompletoError } from "@/lib/fiscal";
 import { procesarEnviosDelNegocio } from "@/lib/arca-dispatch";
 import { logger } from "@/lib/logger";
+import { modoLegadoMP } from "@/lib/pagos-dispatch";
 import { etapa2Activa, MENSAJE_APAGADO } from "./etapa2-core";
 import {
   armarFacturaDeCuota,
   motivoParaNoFacturar,
   CON_BANCOS,
+  CON_MERCADOPAGO,
   FACTURACION_APAGADA,
   SIN_ARCA,
   SIN_COLUMNA_CUOTA,
@@ -99,18 +104,65 @@ export async function facturasDeCuotas(
   return salida;
 }
 
-/** Motivo con el que una propuesta del extracto pasa a revisión en un negocio que factura cuotas. */
+/**
+ * Motivo con el que un cobro que se facturaría solo (propuesta del extracto o pago de Mercado Pago)
+ * pasa a revisión en un negocio que factura cuotas de proyecto.
+ */
 export const MOTIVO_NEGOCIO_CON_CUOTAS =
-  "Este negocio factura cuotas de proyectos: emití desde el proyecto, no desde el extracto.";
+  "Este negocio factura cuotas de proyectos: si este cobro es de una cuota, facturala desde el proyecto; si no, emitila a mano o marcala como no facturable.";
 
 /**
- * ¿El negocio ya facturó alguna cuota de proyecto? (cualquier estado). Corre en la transacción
- * dada, con el negocio explícito además de RLS. El llamador pregunta ANTES, fuera de la
- * transacción, `hayColumnaCuotaEnInvoice()`: sin la columna esta consulta abortaría la tx.
+ * Candado de las facturas «por cobro» del negocio (certificación T2, vuelta 3): lo toman, como
+ * PRIMERA sentencia de su transacción, la barrera de la bandeja del extracto (`emitirPropuestas`),
+ * la de Mercado Pago (`facturarPagoMP`) y la transacción que escribe la factura de una cuota. Así
+ * la pregunta de cada lado («¿el negocio factura cuotas?» / «¿el negocio factura solo sus cobros?»)
+ * y la escritura de la cuota quedan en orden: el que llega segundo ve lo que el primero confirmó
+ * (Read Committed: cada sentencia mira lo confirmado al empezar).
+ */
+export async function tomarCandadoFacturasDeCobro(tx: InvoiceTx, tenantId: string): Promise<void> {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`facturas-cobro:${tenantId}`}))`;
+}
+
+/**
+ * ¿El negocio ya facturó alguna cuota de proyecto? (cualquier estado). Toma ANTES el candado de las
+ * facturas por cobro, en la transacción dada, con el negocio explícito además de RLS. El llamador
+ * pregunta antes, fuera de la transacción, `hayColumnaCuotaEnInvoice()`: sin la columna esta
+ * consulta abortaría la tx.
  */
 export async function negocioFacturaCuotasEnTx(tx: InvoiceTx, tenantId: string): Promise<boolean> {
+  await tomarCandadoFacturasDeCobro(tx, tenantId);
   const una = await tx.invoice.findFirst({ where: { tenantId, proyectoCuotaId: { not: null } }, select: { id: true } });
   return una !== null;
+}
+
+/**
+ * Lo mismo, en su propia transacción (con el candado): lo usa la facturación automática de Mercado
+ * Pago antes de emitir un pago suelto. Sin la columna: `false` (no hay facturas de cuota).
+ */
+export async function negocioFacturaCuotas(tenantId: string): Promise<boolean> {
+  if (!(await hayColumnaCuotaEnInvoice())) return false;
+  return tenantTransaction((tx) => negocioFacturaCuotasEnTx(tx, tenantId), { tenantId });
+}
+
+/**
+ * ¿El negocio factura SOLO sus cobros por otro camino que no sabe de las cuotas? Devuelve el motivo
+ * (CON_BANCOS / CON_MERCADOPAGO) o `null`. Corre en la transacción dada (la de la escritura, después
+ * del candado; o una propia para la pregunta previa). Señales, todas fail-closed:
+ *  · Extracto: el módulo `bancos` o algún `MovimientoImportado` (con el registro de módulos apagado
+ *    la pantalla de bancos está abierta a todos).
+ *  · Mercado Pago: una conexión `mercadopago` que no esté desconectada (es lo que hace que el aviso
+ *    y la sincronización lleguen a `procesarPagoStandalone` → `facturarPagoMP`; una pendiente o
+ *    pausada cuenta, porque puede volver sola), o el token global con `MP_MODO_LEGADO=1`.
+ */
+export async function cobrosQueSeFacturanSolosEnTx(tx: InvoiceTx, tenantId: string): Promise<string | null> {
+  const t = await tx.tenant.findUnique({ where: { id: tenantId }, select: { modules: true } });
+  if ((t?.modules ?? []).includes("bancos")) return CON_BANCOS;
+  const mov = await tx.movimientoImportado.findFirst({ where: { tenantId }, select: { id: true } });
+  if (mov) return CON_BANCOS;
+  if (modoLegadoMP(process.env) && process.env.MP_ACCESS_TOKEN?.trim()) return CON_MERCADOPAGO;
+  const mp = await tx.integracionConexion.findFirst({ where: { tenantId, conector: "mercadopago", estado: { not: "desconectada" } }, select: { id: true } });
+  if (mp) return CON_MERCADOPAGO;
+  return null;
 }
 
 /** Toma la cuota FOR UPDATE (SQL crudo: Prisma no lo expresa; el negocio va explícito además de RLS). */
@@ -183,22 +235,23 @@ export async function motivoParaNoFacturarCuotas(tenantId: string, deps: Pick<De
   }
   if (!etapa2Activa(modulos, "facturacion-proyectos")) return MENSAJE_APAGADO["facturacion-proyectos"];
   if (!modulos.includes("arca")) return SIN_ARCA;
-  // Doble factura desde el extracto (certificación T2, vuelta 1): las propuestas de `bancos` se
-  // emiten sin origen y no ven las cuotas. Con el módulo, o con movimientos ya importados (con el
-  // registro de módulos apagado la pantalla de bancos está abierta a todos), se niega. Falla cerrado.
-  if (modulos.includes("bancos") || (await usaElExtractoDelBanco(tenantId))) return CON_BANCOS;
+  // Doble factura (certificación T2, vueltas 1 y 3): las propuestas del extracto y los pagos de
+  // Mercado Pago se facturan solos, sin origen, y no ven las cuotas. Con cualquiera de los dos, se
+  // niega. Falla cerrado. La escritura lo vuelve a preguntar bajo el candado (carrera, vuelta 3).
+  if (modulos.includes("bancos")) return CON_BANCOS;
+  const solos = await otroCaminoFacturaSolo(tenantId);
+  if (solos) return solos;
   if (!deps.isInvoicingEnabled()) return FACTURACION_APAGADA;
   if (!(await hayColumnaCuotaEnInvoice())) return SIN_COLUMNA_CUOTA;
   return null;
 }
 
-/** ¿El negocio importó algún extracto (MovimientoImportado)? Sin poder preguntar: `true` (falla cerrado). */
-async function usaElExtractoDelBanco(tenantId: string): Promise<boolean> {
+/** `cobrosQueSeFacturanSolosEnTx` en su propia transacción. Sin poder preguntar: CON_BANCOS (falla cerrado). */
+async function otroCaminoFacturaSolo(tenantId: string): Promise<string | null> {
   try {
-    const mov = await tenantTransaction((tx) => tx.movimientoImportado.findFirst({ where: { tenantId }, select: { id: true } }), { tenantId });
-    return !!mov;
+    return await tenantTransaction((tx) => cobrosQueSeFacturanSolosEnTx(tx, tenantId), { tenantId });
   } catch {
-    return true;
+    return CON_BANCOS;
   }
 }
 
@@ -261,6 +314,13 @@ export async function facturarCuotaDelProyecto(
     try {
       resultado = await tenantTransaction(
         async (tx) => {
+          // Carrera con la bandeja del extracto o con Mercado Pago (certificación T2, vuelta 3): el
+          // chequeo de arriba corrió fuera de esta transacción. Bajo el MISMO candado que sus
+          // barreras, se vuelve a preguntar; si en el medio se importó un extracto o se conectó
+          // Mercado Pago, se niega sin escribir. Si la barrera de ellos corre después, ve esta factura.
+          await tomarCandadoFacturasDeCobro(tx, tenantId);
+          const otroCamino = await cobrosQueSeFacturanSolosEnTx(tx, tenantId);
+          if (otroCamino) throw new CuotaCambioError(otroCamino);
           const fila = await tomarCuota(tx, tenantId, cuotaId);
           if (!fila || fila.proyectoId !== proyectoId) throw new CuotaCambioError("Esa cuota ya no existe.");
           const ahora = motivoParaNoFacturar(fila);

@@ -14,6 +14,11 @@
 //  (i) facturar la cuota y DESPUÉS importar el extracto con ese cobro → la bandeja no emite otra
 //      factura: la propuesta pasa a revisión con el motivo (certificación vuelta 2, X6).
 //  (j) un negocio SIN facturas de cuota (beauty-spa) sigue emitiendo sus propuestas como antes.
+//  (k) carrera (vuelta 3, X7): el extracto se importa y se emite ENTRE el chequeo y la escritura de
+//      la cuota → la escritura, bajo el candado, lo ve y se niega: un solo CAE por cobro.
+//  (l) Mercado Pago conectado (vuelta 3): la cuota no se factura; desconectado, sí.
+//  (m) Mercado Pago automático en un negocio con facturas de cuota: el pago suelto queda en
+//      revisión con el motivo, sin factura; en beauty-spa (sin cuotas) se factura como antes.
 //  (d) sin la columna (migración sin aplicar) → se niega sin escribir y `getInvoice` lee. VA ÚLTIMO: borra la columna.
 // ============================================================================
 
@@ -351,7 +356,7 @@ test("(i) facturar la cuota y DESPUÉS importar el extracto (registro de módulo
     assert.equal(await p.duenio.invoice.count({ where: { tenantId: a } }), antes, `doble factura del mismo cobro: ${JSON.stringify(res)}`);
     assert.equal(res.emitidas, 0);
     assert.equal(res.aRevisionPorCuotas, 1);
-    assert.match(res.mensaje ?? "", /emití desde el proyecto/);
+    assert.match(res.mensaje ?? "", /facturala desde el proyecto/);
     const fila = await p.duenio.movimientoImportado.findUniqueOrThrow({ where: { id: mov.id }, select: { estadoPropuesta: true, motivoRevision: true, invoiceId: true } });
     assert.equal(fila.estadoPropuesta, "revision");
     assert.match(fila.motivoRevision ?? "", /factura cuotas de proyectos/);
@@ -384,6 +389,140 @@ test("(j) un negocio SIN facturas de cuota (beauty-spa) emite sus propuestas del
   const factura = await p.duenio.invoice.findUniqueOrThrow({ where: { id: fila.invoiceId! }, select: { tenantId: true, proyectoCuotaId: true } });
   assert.equal(factura.tenantId, spa.id);
   assert.equal(factura.proyectoCuotaId, null);
+});
+
+test("(k) carrera: el extracto se importa y se emite ENTRE el chequeo de la cuota y su factura → un solo CAE", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  // Un negocio nuevo, SIN facturas de cuota ni extracto: la bandeja emite su propuesta (no hay
+  // cuotas que mirar) y la cuota es la que tiene que verlo bajo el candado (X7, vuelta 3).
+  const k = await p.duenio.tenant.create({
+    data: { name: "Estudio K", slug: `estudio-k-${Date.now()}`, modules: ["proyectos", "proyectos-facturacion", "arca"], arcaCuit: "20111111112", arcaPuntoVenta: 1, arcaHomologacion: true, arcaCondicionIva: "RESPONSABLE_INSCRIPTO", bancosCapFacturasMes: 1000 },
+    select: { id: true },
+  });
+  const cliente = await p.duenio.client.create({ data: { tenantId: k.id, name: "Cliente K", phone: "1100000000" }, select: { id: true } });
+  const pr = await p.proyecto(k.id, cliente.id);
+  const id = await p.cuota(pr.id, {}, k.id);
+  const glue = await import("@/lib/bancos-glue");
+  const fiscal = await import("@/lib/fiscal");
+  let res: Awaited<ReturnType<typeof glue.emitirPropuestas>> | null = null;
+  const imp = await p.duenio.importacionBancaria.create({ data: { tenantId: k.id, nombreArchivo: "ext-k.csv", origen: "banco", archivo: Buffer.from("x"), mapeoJson: {} }, select: { id: true } });
+  const deps = {
+    ...p.depsConSim,
+    // getFiscalProfile corre DESPUÉS de motivoParaNoFacturarCuotas y ANTES de la tx de escritura.
+    getFiscalProfile: async (tid: string) => {
+      await p.duenio.movimientoImportado.create({ data: { tenantId: k.id, importacionId: imp.id, hash: `h-k-${id}`, fecha: "20261109", monto: 1210, descripcion: "Transferencia cliente anticipo stand", clasificacion: "venta", estadoPropuesta: "auto" } });
+      res = await glue.emitirPropuestas(k.id, "auto");
+      return fiscal.getFiscalProfile(tid);
+    },
+  };
+  const r = await p.srv.facturarCuotaDelProyecto({ tenantId: k.id, proyectoId: pr.id, cuotaId: id, autor: "t" }, deps);
+  const facturas = await p.duenio.invoice.count({ where: { tenantId: k.id } });
+  const detalle = JSON.stringify({ r, res: { ...(res ?? {}), despachoArca: undefined } });
+  assert.equal(facturas, 1, `dos facturas (o ninguna) para el mismo cobro de $ 1.210: ${detalle}`);
+  assert.equal((res as { emitidas?: number } | null)?.emitidas, 1, detalle);
+  assert.equal(r.ok, false);
+  assert.match((r as { error: string }).error, /extracto del banco/);
+  assert.equal((await p.facturasDe(id)).length, 0);
+  assert.equal(await p.duenio.proyectoCambio.count({ where: { entidadId: id } }), 0);
+});
+
+test("(l) con Mercado Pago conectado la cuota no se factura (se factura solo cada pago); desconectado, sí", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const a = p.base.a.id;
+  const pr = await p.proyecto();
+  const id = await p.cuota(pr.id);
+  await p.duenio.movimientoImportado.deleteMany({ where: { tenantId: a } });
+  await p.duenio.importacionBancaria.deleteMany({ where: { tenantId: a } });
+  const conexion = await p.duenio.integracionConexion.create({ data: { tenantId: a, conector: "mercadopago", cuentaExterna: `collector-l-${id}`, estado: "conectada" }, select: { id: true } });
+  try {
+    for (const estado of ["conectada", "pausada", "pendiente"] as const) {
+      await p.duenio.integracionConexion.update({ where: { id: conexion.id }, data: { estado } });
+      const r = await p.srv.facturarCuotaDelProyecto({ tenantId: a, proyectoId: pr.id, cuotaId: id, autor: "test" }, p.depsConSim);
+      assert.equal(r.ok, false, estado);
+      assert.match((r as { error: string }).error, /Mercado Pago/);
+      assert.equal((await p.facturasDe(id)).length, 0);
+    }
+    // Se conecta ENTRE el chequeo y la escritura: la escritura lo ve bajo el candado y se niega.
+    await p.duenio.integracionConexion.update({ where: { id: conexion.id }, data: { estado: "desconectada" } });
+    const fiscal = await import("@/lib/fiscal");
+    const r = await p.srv.facturarCuotaDelProyecto(
+      { tenantId: a, proyectoId: pr.id, cuotaId: id, autor: "test" },
+      {
+        ...p.depsConSim,
+        getFiscalProfile: async (tid: string) => {
+          await p.duenio.integracionConexion.update({ where: { id: conexion.id }, data: { estado: "conectada" } });
+          return fiscal.getFiscalProfile(tid);
+        },
+      },
+    );
+    assert.equal(r.ok, false);
+    assert.match((r as { error: string }).error, /Mercado Pago/);
+    assert.equal((await p.facturasDe(id)).length, 0);
+    await p.duenio.integracionConexion.update({ where: { id: conexion.id }, data: { estado: "desconectada" } });
+    assert.ok((await p.srv.facturarCuotaDelProyecto({ tenantId: a, proyectoId: pr.id, cuotaId: id, autor: "test" }, p.depsConSim)).ok);
+  } finally {
+    await p.duenio.integracionConexion.delete({ where: { id: conexion.id } });
+  }
+});
+
+test("(m) Mercado Pago automático: con facturas de cuota el pago suelto queda en revisión; beauty-spa factura igual", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const a = p.base.a.id;
+  const pr = await p.proyecto();
+  await p.duenio.movimientoImportado.deleteMany({ where: { tenantId: a } });
+  await p.duenio.importacionBancaria.deleteMany({ where: { tenantId: a } });
+  // A factura una cuota (sin MP conectado todavía).
+  assert.ok((await p.srv.facturarCuotaDelProyecto({ tenantId: a, proyectoId: pr.id, cuotaId: await p.cuota(pr.id), autor: "test" }, p.depsConSim)).ok);
+
+  const { facturarPagoMP } = await import("@/lib/invoice-from-mp");
+  const { runInTenantContext } = await import("@/lib/tenant-context");
+  const { facturarPagoSiCorresponde } = await import("@/plugins/mercadopago");
+  const { getFiscalProfile } = await import("@/lib/fiscal");
+  const { createInvoice } = await import("@/lib/invoice-core");
+  const { facturarCobros } = await import("@/lib/facturacion/cobros-facturados");
+  const depsMP = { getFiscalProfile, createInvoice, facturarCobros, procesarEnviosDelNegocio: async () => ({}) as never, negocioFacturaCuotas: p.srv.negocioFacturaCuotas };
+  const pago = (n: string) => ({ id: `pago-m-${n}-${Date.now()}`, estado: "approved" as const, monto: 1210, externalReference: "", fechaAcreditacion: "20261109", tipoOperacionMP: "regular_payment" });
+
+  // La ingesta real (clasificador FACTURABLE): el pago va a revisión con el motivo, sin factura.
+  const marcas: { id: string; estado: string; motivo?: string }[] = [];
+  const reconciliacion = {
+    yaProcesado: async () => false,
+    marcarFacturado: async (id: string) => void marcas.push({ id, estado: "facturado" }),
+    marcarNoFacturable: async (id: string, motivo: string) => void marcas.push({ id, estado: "no_facturable", motivo }),
+    marcarRevisar: async (id: string, motivo: string) => void marcas.push({ id, estado: "revision", motivo }),
+    marcarRechazado: async (id: string, motivo: string) => void marcas.push({ id, estado: "rechazado", motivo }),
+    marcarError: async () => 1,
+    listar: async () => [],
+  };
+  const resumen = { leidos: 0, facturados: 0, noFacturables: 0, aRevisar: 0, rechazados: 0, saltados: 0, errores: 0 };
+  const antes = await p.duenio.invoice.count({ where: { tenantId: a } });
+  const pA = pago("a");
+  await runInTenantContext(a, () => facturarPagoSiCorresponde(pA as never, {
+    tenantId: a,
+    client: {} as never,
+    clasificador: { clasificar: async () => ({ clasificacion: "FACTURABLE" as const, motivo: "venta" }) },
+    reconciliacion: reconciliacion as never,
+    facturar: (pg, tid) => facturarPagoMP(pg, tid, depsMP),
+  }, resumen));
+  assert.equal(await p.duenio.invoice.count({ where: { tenantId: a } }), antes, "el pago suelto se facturó solo en un negocio con cuotas");
+  assert.deepEqual(marcas.map((m) => m.estado), ["revision"]);
+  assert.match(marcas[0].motivo ?? "", /factura cuotas de proyectos: si este cobro es de una cuota, facturala desde el proyecto/);
+  assert.equal(resumen.aRevisar, 1);
+  assert.equal(resumen.facturados, 0);
+
+  // Beauty-spa: sin facturas de cuota, el mismo pago se factura como antes.
+  const spa = await p.duenio.tenant.create({
+    data: { name: "Beauty Spa MP", slug: `beauty-spa-mp-${Date.now()}`, modules: ["arca"], arcaCuit: "20111111112", arcaPuntoVenta: 1, arcaHomologacion: true, arcaCondicionIva: "RESPONSABLE_INSCRIPTO" },
+    select: { id: true },
+  });
+  const invoiceId = await runInTenantContext(spa.id, () => facturarPagoMP(pago("spa") as never, spa.id, depsMP));
+  assert.ok(invoiceId);
+  const f = await p.duenio.invoice.findUniqueOrThrow({ where: { id: invoiceId! }, select: { tenantId: true, proyectoCuotaId: true } });
+  assert.equal(f.tenantId, spa.id);
+  assert.equal(f.proyectoCuotaId, null);
 });
 
 test("(d) sin la columna (migración sin aplicar): se niega sin escribir, regenerar y quitar siguen andando", async (t) => {
