@@ -83,3 +83,9 @@
 # con RLS adentro y tres columnas nulables ("PadelDisponibilidad"."clubId", "PadelClase"."clubId",
 # "PadelClase"."serieId"). Orden del dueño del 08/11; respaldo de Neon antes del merge.
 20261108120000_profeturnos_clubes_serie_grupal
+#
+# 2026-11-09 · seguridad (GSG-SEG-008): cambio obligatorio de contraseña en el próximo ingreso. Aditiva: columna
+# "User"."mustChangePassword" BOOLEAN NOT NULL DEFAULT false (antes prisma/pending-gate2/MustChangePassword.sql).
+# Sin ella el reset del OWNER y el alta desde la consola se niegan a emitir la provisoria. Independiente de
+# 20261108130000_user_pin (#50: tabla aparte); el orden entre las dos no importa.
+20261109120000_must_change_password

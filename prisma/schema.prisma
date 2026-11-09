@@ -508,6 +508,9 @@ model User {
   professionalId      String?                  @unique
   lastLoginAt         DateTime?
   deletedAt           DateTime?
+  // Contraseña provisoria (reset u alta desde la consola): obliga a definir una nueva en el próximo ingreso.
+  // Migración 20261109120000_must_change_password. Se lee/escribe con SQL crudo en src/lib/must-change-password.ts.
+  mustChangePassword  Boolean                  @default(false)
   createdAt           DateTime                 @default(now())
   updatedAt           DateTime                 @updatedAt
   // Matriz de permisos: sólo las casillas distintas del default del rol (PLAN permisos §1).
