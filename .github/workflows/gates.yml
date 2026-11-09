@@ -98,6 +98,14 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
+      # El Postgres del job vuelca TODO su log al apagarse («Stop containers», después del último paso):
+      # miles de líneas de checkpoints y de ERROR que los tests provocan a propósito (claves únicas,
+      # serialización, RLS) tapaban el resumen de fallidos en la cola del log. Sólo se apaga ese ruido.
+      - name: Postgres del job sin log de ruido
+        run: >-
+          docker exec ${{ job.services.postgres.id }} psql -U postgres -c "ALTER SYSTEM SET log_checkpoints = off"
+          -c "ALTER SYSTEM SET log_min_messages = fatal" -c "ALTER SYSTEM SET log_min_error_statement = panic"
+          -c "SELECT pg_reload_conf()"
       # La salida queda en un archivo: se sube como artefacto y la lee el chequeo de abajo.
       - name: npm test
         shell: bash
