@@ -6,7 +6,10 @@
  *     «auto» en la ventana: `emitirPropuestas` NO lo factura; lo pasa a «revision» con un motivo
  *     que no es la marca del enganche, y la acreditación lo engancha después igual;
  *   · un movimiento «auto» que no coincide con ningún pago pendiente se sigue emitiendo;
- *   · un pago ya acreditado (o en efectivo) no frena la emisión de otro movimiento del mismo monto;
+ *   · un pago acreditado con su movimiento enganchado (o en efectivo) no frena la emisión de otro
+ *     movimiento del mismo monto; acreditado A MANO (sin movimiento, cheques incluidos) sí frena, con
+ *     la ventana de 10 días desde la confirmación (ATQ-B, ATQ-C);
+ *   · un re-aviso de MP respeta la venta que una persona ya confirmó (ATQ-A);
  *   · carrera: el pago se registra mientras se emite → o facturado (y sin enganche posible) o en
  *     revisión (y enganchable), nunca facturado y enganchado a la vez; el candado de la acreditación
  *     (`candadoDeAcreditacion`) los pone en fila: el claim espera al registro y viceversa;
@@ -123,9 +126,12 @@ test("regresión: un movimiento «auto» que no coincide con ningún pago pendie
   // Mismo monto que un pago en EFECTIVO (no espera acreditación): es una venta.
   await registrarPagoACuenta(A, { clave: clave("efec"), monto: 2000.02, fecha: hoy, medio: "EFECTIVO", actor: "user:test" });
   const venta2 = await movimientoMp(base, A, 2000.02, hoy);
-  // Mismo monto que un pago YA acreditado (a mano): ya no está pendiente.
+  // Mismo monto que un pago YA acreditado con su movimiento enganchado: ya no frena (acreditado a
+  // mano, sin movimiento, sí frena: ver ATQ-B).
   const acreditado = await registrarPagoACuenta(A, { clave: clave("acre"), monto: 3000.03, fecha: hoy, medio: "TRANSFERENCIA", actor: "user:test" });
-  await confirmarAcreditacionMp(A, { pagoId: acreditado.pagoId, actor: "user:test" });
+  const suMovimiento = await movimientoMp(base, A, 3000.03, hoy);
+  const c3 = await confirmarAcreditacionMp(A, { pagoId: acreditado.pagoId, movimientoId: suMovimiento, actor: "user:test" });
+  assert.deepEqual([c3.via, c3.movimientoId], ["mp", suMovimiento]);
   const venta3 = await movimientoMp(base, A, 3000.03, hoy);
   // Mismo monto, pero el pago es de OTRO negocio.
   await registrarPagoACuenta(base.b.id, { clave: clave("negb"), monto: 4000.04, fecha: hoy, medio: "TRANSFERENCIA", actor: "user:test" });
@@ -380,4 +386,130 @@ test("el aviso de MP sin fecha de acreditación usa hoy y igual protege", async 
   const c = clasificadorSinPlataDeVouchers(facturable as never);
   const sinFecha = await c.clasificar({ id: "p-y", estado: "approved", monto: 1234.56 } as never, A);
   assert.equal(sinFecha.clasificacion, "REVISAR");
+});
+
+// ── Vuelta 3 de la certificación: ataques ATQ-A/B/C pasados a la suite ──────────────────────────────
+
+const L = () => import("./liquidacion-repo");
+
+/** Arma el pipeline real del aviso de MP con un clasificador base FACTURABLE y facturación de mentira. */
+async function pipelineMp(tenantId: string) {
+  const { clasificadorSinPlataDeVouchers, ReconciliacionMovimientosMP } = await import("@/lib/mercadopago-auto");
+  const { facturarPagoSiCorresponde } = await import("@/plugins/mercadopago");
+  const rec = new ReconciliacionMovimientosMP(tenantId);
+  const facturadas: string[] = [];
+  const deps = {
+    tenantId,
+    client: {} as never,
+    clasificador: clasificadorSinPlataDeVouchers({ clasificar: async () => ({ clasificacion: "FACTURABLE" as const, motivo: "venta" }) } as never),
+    reconciliacion: rec,
+    facturar: async (pago: { id: string }) => {
+      facturadas.push(pago.id);
+      return null as unknown as string; // null = transitorio, no persiste: sólo contamos que llegó a facturar
+    },
+  };
+  const procesar = async (pago: unknown) => {
+    rec.recordarPago(pago as never);
+    const resumen = { leidos: 0, facturados: 0, noFacturables: 0, aRevisar: 0, rechazados: 0, saltados: 0, errores: 0 };
+    await facturarPagoSiCorresponde(pago as never, deps as never, resumen as never);
+    return resumen;
+  };
+  return { procesar, facturadas };
+}
+
+test("ATQ-A · re-aviso / sincronización de MP después de aprobar la venta: ¿pisa la marca venta-confirmada?", async (t) => {
+  const base = await preparar(t);
+  if (!base) return;
+  const A = base.a.id;
+  const d = await prismaComoDuenio(base);
+  const { registrarPagoACuenta } = await L();
+  const { completarRevisionAction } = await import("@/lib/bancos-actions");
+  const { MARCA_VENTA_CONFIRMADA } = await import("@/lib/vouchers/acreditacion-core");
+  const { hashPagoMP } = await import("@/lib/mercadopago-auto");
+  const hoy = await hoyDelNegocio();
+  await registrarPagoACuenta(A, { clave: clave("rsy"), monto: 4242.42, fecha: hoy, medio: "TRANSFERENCIA", actor: "user:test" });
+  const { procesar } = await pipelineMp(A);
+  const pago = { id: "pay-rsy-1", estado: "approved", monto: 4242.42, fechaAcreditacion: hoy.replace(/-/g, ""), descripcion: "Transferencia" };
+  await procesar(pago);
+  const mov = await d.movimientoImportado.findFirstOrThrow({ where: { tenantId: A, hash: hashPagoMP(pago.id) } });
+  assert.equal(mov.estadoPropuesta, "revision");
+  const r = await ejecutarAccion({ negocio: base.a, usuario: base.a.duenia }, () => completarRevisionAction(mov.id, { docTipo: 99, docNro: "" }));
+  assert.equal(r.tipo, "respuesta");
+  let m = await d.movimientoImportado.findFirstOrThrow({ where: { id: mov.id } });
+  assert.ok((m.motivoRevision ?? "").includes(MARCA_VENTA_CONFIRMADA));
+  // MP manda otro aviso del mismo pago (payment.updated) o la persona aprieta «Sincronizar».
+  await procesar(pago);
+  m = await d.movimientoImportado.findFirstOrThrow({ where: { id: mov.id } });
+  console.log("# ATQ-A estado tras re-aviso:", m.estadoPropuesta, "| marca venta-confirmada:", (m.motivoRevision ?? "").includes(MARCA_VENTA_CONFIRMADA));
+  assert.ok((m.motivoRevision ?? "").includes(MARCA_VENTA_CONFIRMADA), `el re-aviso pisó la confirmación de la persona: ${m.estadoPropuesta} / ${m.motivoRevision}`);
+});
+
+test("ATQ-B · acreditación confirmada a mano (sin movimiento todavía) y el extracto de MP llega después: ¿se factura la plata de vouchers?", async (t) => {
+  const base = await preparar(t);
+  if (!base) return;
+  const A = base.a.id;
+  const d = await prismaComoDuenio(base);
+  const { registrarPagoACuenta, confirmarAcreditacionMp } = await L();
+  const hoy = await hoyDelNegocio();
+  const pago = await registrarPagoACuenta(A, { clave: clave("man"), monto: 5151.51, fecha: hoy, medio: "TRANSFERENCIA", actor: "user:test" });
+  const c = await confirmarAcreditacionMp(A, { pagoId: pago.pagoId, actor: "user:test" });
+  assert.deepEqual([c.via, c.movimientoId], ["manual", null]);
+  const mov = await movimientoMp(base, A, 5151.51, hoy); // el extracto CSV de MP importado después
+  await emitir(A);
+  const m = await d.movimientoImportado.findFirstOrThrow({ where: { id: mov } });
+  console.log("# ATQ-B estado:", m.estadoPropuesta, "invoice:", m.invoiceId != null);
+  assert.equal(m.invoiceId, null, "se facturó la acreditación de un pago de vouchers confirmado a mano");
+});
+
+test("ATQ-C · cheque: depósito confirmado y después llega el crédito a MP: ¿se factura?", async (t) => {
+  const base = await preparar(t);
+  if (!base) return;
+  const A = base.a.id;
+  const d = await prismaComoDuenio(base);
+  const { registrarPagoACuenta, confirmarAcreditacionMp } = await L();
+  const hoy = await hoyDelNegocio();
+  const pago = await registrarPagoACuenta(A, { clave: clave("chq"), monto: 6161.61, fecha: hoy, medio: "CHEQUE", actor: "user:test" });
+  const c = await confirmarAcreditacionMp(A, { pagoId: pago.pagoId, actor: "user:test" });
+  assert.equal(c.via, "manual");
+  const mov = await movimientoMp(base, A, 6161.61, hoy);
+  await emitir(A);
+  const m = await d.movimientoImportado.findFirstOrThrow({ where: { id: mov } });
+  console.log("# ATQ-C estado:", m.estadoPropuesta, "invoice:", m.invoiceId != null);
+  assert.equal(m.invoiceId, null, "se facturó el depósito de un cheque de vouchers");
+});
+
+
+test("acreditado a mano: la ventana de 10 días corre desde la confirmación (cheque viejo incluido); con movimiento enganchado no frena", async (t) => {
+  const base = await preparar(t);
+  if (!base) return;
+  const A = base.a.id;
+  const { registrarPagoACuenta, confirmarAcreditacionMp, pagoPendienteDelCreditoMp } = await L();
+  const { tenantTransaction } = await import("@/lib/rls");
+  const hoy = await hoyDelNegocio();
+  const enDias = (dias: number) => diasAntes(hoy, -dias).replace(/-/g, "");
+  const frena = (monto: number, fecha: string) =>
+    tenantTransaction(
+      (tx) => pagoPendienteDelCreditoMp(tx, A, { id: `mov-${n++}`, fecha, monto, referencia: null, descripcion: "Transferencia", contraparte: null }),
+      { tenantId: A },
+    );
+  // Cheque recibido hace 40 días, depósito confirmado hoy (a mano): la ventana corre desde hoy.
+  const chq = await registrarPagoACuenta(A, { clave: clave("cv40"), monto: 41414.14, fecha: diasAntes(hoy, 40), medio: "CHEQUE", actor: "user:test" });
+  assert.equal((await confirmarAcreditacionMp(A, { pagoId: chq.pagoId, actor: "user:test" })).via, "manual");
+  assert.equal(await frena(41414.14, enDias(0)), chq.pagoId);
+  assert.equal(await frena(41414.14, enDias(10)), chq.pagoId, "día 10 desde la confirmación: frena");
+  assert.equal(await frena(41414.14, enDias(-1)), chq.pagoId, "un día antes (DIAS_ANTES): frena");
+  assert.equal(await frena(41414.14, enDias(11)), null, "día 11: fuera de la ventana");
+  assert.equal(await frena(41414.14, enDias(-2)), null, "dos días antes: fuera de la ventana");
+  // Transferencia de hace 11 días confirmada a mano hoy: frena por la confirmación, no por su fecha.
+  const tr = await registrarPagoACuenta(A, { clave: clave("tv11"), monto: 42424.24, fecha: diasAntes(hoy, 11), medio: "TRANSFERENCIA", actor: "user:test" });
+  await confirmarAcreditacionMp(A, { pagoId: tr.pagoId, actor: "user:test" });
+  assert.equal(await frena(42424.24, enDias(0)), tr.pagoId);
+  // Cheque pendiente (sin confirmar): no frena.
+  await registrarPagoACuenta(A, { clave: clave("cpen"), monto: 43434.34, fecha: hoy, medio: "CHEQUE", actor: "user:test" });
+  assert.equal(await frena(43434.34, enDias(0)), null);
+  // Acreditado con su movimiento enganchado: no frena otro crédito del mismo monto.
+  const eng = await registrarPagoACuenta(A, { clave: clave("teng"), monto: 44444.44, fecha: hoy, medio: "TRANSFERENCIA", actor: "user:test" });
+  const suMov = await movimientoMp(base, A, 44444.44, hoy);
+  assert.equal((await confirmarAcreditacionMp(A, { pagoId: eng.pagoId, movimientoId: suMov, actor: "user:test" })).via, "mp");
+  assert.equal(await frena(44444.44, enDias(0)), null);
 });

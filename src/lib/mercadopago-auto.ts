@@ -46,7 +46,7 @@ import {
 import { UMBRAL_IDENTIFICACION_DEFAULT } from "@/plugins/bancos";
 import { aplicarMovimientosPosterioresMP } from "@/lib/facturacion/devoluciones-mp";
 import { pagoPendienteDelCreditoMp } from "@/lib/vouchers/liquidacion-repo";
-import { motivoDeAcreditacionPendiente } from "@/lib/vouchers/acreditacion-core";
+import { esVentaConfirmada, motivoDeAcreditacionPendiente } from "@/lib/vouchers/acreditacion-core";
 
 // ---------------------------------------------------------------------------
 // Mapeos plugin ↔ DB
@@ -249,6 +249,7 @@ export function clasificadorConReglasDelDueno(
  * confirmación) va a la cola de revisión en vez de a ARCA. Queda «revision» con un motivo que no es
  * la marca del enganche: la acreditación lo engancha después. Si el pago de la administración se
  * registra DESPUÉS del aviso, el aviso ya facturó: eso lo ve la persona al acreditar (pendiente).
+ * Un movimiento que una persona ya confirmó como venta (`MARCA_VENTA_CONFIRMADA`) no se vuelve a frenar.
  */
 export function clasificadorSinPlataDeVouchers(base: ClasificadorPort): ClasificadorPort {
   return {
@@ -256,8 +257,15 @@ export function clasificadorSinPlataDeVouchers(base: ClasificadorPort): Clasific
       const resultado = await base.clasificar(pago, tenantId);
       if (resultado.clasificacion !== "FACTURABLE") return resultado;
       const pagoId = await tenantTransaction(
-        (tx) =>
-          pagoPendienteDelCreditoMp(tx, tenantId, {
+        async (tx) => {
+          // Re-aviso o «Sincronizar» de un pago que una persona ya aprobó como venta: se respeta (no
+          // vuelve a revisión ni se le pisa la marca).
+          const previo = await tx.movimientoImportado.findFirst({
+            where: { tenantId, hash: hashPagoMP(pago.id) },
+            select: { motivoRevision: true },
+          });
+          if (esVentaConfirmada(previo?.motivoRevision)) return null;
+          return pagoPendienteDelCreditoMp(tx, tenantId, {
             id: hashPagoMP(pago.id),
             // La misma fecha con que `persistir` guarda el movimiento.
             fecha: pago.fechaAcreditacion ?? hoyAAAAMMDD(),
@@ -265,7 +273,8 @@ export function clasificadorSinPlataDeVouchers(base: ClasificadorPort): Clasific
             referencia: pago.id,
             descripcion: pago.descripcion ?? "",
             contraparte: pago.contraparteNombre ?? null,
-          }),
+          });
+        },
         { tenantId },
       );
       return pagoId ? { clasificacion: "REVISAR", motivo: motivoDeAcreditacionPendiente(pagoId) } : resultado;

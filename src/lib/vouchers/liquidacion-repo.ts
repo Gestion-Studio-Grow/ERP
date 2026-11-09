@@ -956,11 +956,16 @@ export type CacheDeAcreditaciones = { acreditaciones?: Awaited<ReturnType<typeof
 
 /**
  * La plata de vouchers no se factura (decisión del dueño). Si este crédito de MP puede ser la
- * acreditación de un pago de la administración TODAVÍA pendiente con destino Mercado Pago (sin
- * acreditar), devuelve el id de ese pago; si no, `null`. Los cheques no cuentan: entran a MP sólo
- * cuando una persona confirma el depósito. Mismo criterio que la confirmación
- * (`candidatosDeAcreditacion`: monto al centavo, ventana de 10 días, enganchable), sin desempatar: si
- * coincide con alguno, no se factura solo. Corre en la transacción de quien llama (la del claim de la
+ * acreditación de un pago de la administración, devuelve el id de ese pago; si no, `null`. Cuentan:
+ *   · los pagos TODAVÍA pendientes con destino Mercado Pago (transferencia, OTRO→MP), con la ventana
+ *     de 10 días desde la fecha del pago; un cheque pendiente NO (entra a MP recién al confirmar el
+ *     depósito);
+ *   · los pagos acreditados A MANO (`via: "manual"`, sin movimiento enganchado), cheques incluidos:
+ *     su crédito puede llegar después (el extracto de MP se importa más tarde, el depósito se acredita
+ *     días después). Ventana de 10 días contada desde el día de la confirmación (`porPago.dia`).
+ * Un pago acreditado con su movimiento enganchado ya no frena nada. Mismo criterio que la
+ * confirmación (`candidatosDeAcreditacion`: monto al centavo, ventana, enganchable), sin desempatar:
+ * si coincide con alguno, no se factura solo. Corre en la transacción de quien llama (la del claim de la
  * emisión) y toma `candadoDeAcreditacion` antes de leer, para quedar en fila con el registro del pago.
  * `cache`: la emisión lee el registro de acreditaciones una sola vez (leído viejo, un pago recién
  * acreditado parece pendiente: el crédito va a revisión, el lado seguro).
@@ -975,13 +980,18 @@ export async function pagoPendienteDelCreditoMp(
   const fechas = fechasDePagoDelMovimiento(credito.fecha);
   if (!fechas || montoCentavos <= 0) return null;
   await candadoDeAcreditacion(tx, tenantId);
-  // Al centavo y en la ventana: la consulta trae sólo los pagos de ESE monto (sin tope de filas).
+  const acreditaciones = cache?.acreditaciones ?? (await acreditacionesDelNegocio(tx, tenantId));
+  if (cache) cache.acreditaciones = acreditaciones;
+  const { porPago, usados } = acreditaciones;
+  // Acreditados a mano (sin movimiento) cuya ventana, contada desde la confirmación, puede incluir este crédito.
+  const aMano = [...porPago].filter(([, a]) => !a.movimientoId && a.dia >= fechas.desde && a.dia <= fechas.hasta).map(([id]) => id);
+  // Al centavo: los pendientes en la ventana y los acreditados a mano (sin tope de filas).
+  const enVentana = { fecha: { gte: fechas.desde, lte: fechas.hasta }, medio: { in: ["TRANSFERENCIA", "OTRO"] } } satisfies Prisma.VoucherPagoAdministracionWhereInput;
   const pagos = await tx.voucherPagoAdministracion.findMany({
     where: {
       tenantId,
       monto: pesosDeCentavos(montoCentavos).toFixed(2),
-      fecha: { gte: fechas.desde, lte: fechas.hasta },
-      medio: { in: ["TRANSFERENCIA", "OTRO"] },
+      ...(aMano.length > 0 ? { OR: [enVentana, { id: { in: aMano } }] } : enVentana),
     },
     select: { id: true, fecha: true, monto: true, medio: true, referencia: true },
     orderBy: [{ fecha: "asc" }, { id: "asc" }],
@@ -991,9 +1001,6 @@ export async function pagoPendienteDelCreditoMp(
     const imp = await tx.importacionBancaria.findFirst({ where: { id: credito.importacionId, tenantId }, select: { origen: true } });
     if (imp?.origen !== "mercadopago") return null;
   }
-  const acreditaciones = cache?.acreditaciones ?? (await acreditacionesDelNegocio(tx, tenantId));
-  if (cache) cache.acreditaciones = acreditaciones;
-  const { porPago, usados } = acreditaciones;
   const ids = pagos.map((p) => p.id);
   const ingresos = await ingresosDeLosPagos(tx, tenantId, ids);
   const mov: MovimientoMp = {
@@ -1004,11 +1011,15 @@ export async function pagoPendienteDelCreditoMp(
     referencia: credito.referencia,
     contraparte: credito.contraparte,
   };
+  const enganchados = new Set(usados.keys());
   for (const p of pagos) {
-    if (porPago.has(p.id)) continue;
-    const destino = destinoDelPago(p.medio, ingresos.get(p.id)?.method);
-    if (destino !== "MP") continue;
-    const c = candidatosDeAcreditacion({ fecha: p.fecha, montoCentavos: centavosDeDecimal(p.monto), referencia: p.referencia, destino }, [mov], new Set(usados.keys()));
+    const a = porPago.get(p.id);
+    if (a?.movimientoId) continue; // acreditado con su movimiento: ya no frena
+    // A mano: la plata ya está en MP (el cheque, depositado ahí); la ventana corre desde la confirmación.
+    const fecha = a ? a.dia : p.fecha;
+    const destino = a ? "MP" : destinoDelPago(p.medio, ingresos.get(p.id)?.method);
+    if (destino !== "MP") continue; // cheque sin confirmar, OTRO al cajón: no frenan
+    const c = candidatosDeAcreditacion({ fecha, montoCentavos: centavosDeDecimal(p.monto), referencia: p.referencia, destino }, [mov], enganchados);
     if (c.length > 0) return p.id;
   }
   return null;

@@ -213,8 +213,10 @@ export function candidatosDeAcreditacion(pago: PagoParaAcreditar, movimientos: r
 /**
  * Las fechas de pago (AAAA-MM-DD, inclusivas) cuya ventana de acreditación puede incluir un movimiento
  * de MP de este día (AAAAMMDD): la inversa de `ventanaDeAcreditacion` para destino Mercado Pago (10
- * días). Los cheques no cuentan: entran a MP sólo cuando una persona confirma el depósito, así que no
- * frenan la emisión. Sirve para buscar los pagos pendientes de un crédito; el chequeo fino lo hace
+ * días). Sirve también para el día de confirmación de un pago acreditado a mano (sin movimiento),
+ * cheques incluidos: su ventana corre desde ese día. Un cheque PENDIENTE no frena la emisión (entra a
+ * MP recién cuando una persona confirma el depósito); confirmado a mano, sí. Sirve para buscar los
+ * pagos de un crédito (`pagoPendienteDelCreditoMp`); el chequeo fino lo hace
  * `candidatosDeAcreditacion`. `null` si la fecha no es un día real. PURA.
  */
 export function fechasDePagoDelMovimiento(fechaMovimiento: string): { desde: string; hasta: string } | null {
