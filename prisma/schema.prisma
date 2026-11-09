@@ -3924,6 +3924,8 @@ model TallerConsumo {
   /// Costo de lo descontado NETO (suma de cantidad × costo estampado en cada CONSUMO; 0 = devuelto). La devolución
   /// vuelve a este costo (REPOSICION con unitCost = costoTotal / cantidad) para que descontar y devolver neteen 0.
   costoTotal Float       @default(0)
+  /// Cuánto de `cantidad` salió CON costo estampado (lo que vuelve a costoTotal / cantidadConCosto; el resto, sin costo).
+  cantidadConCosto Float @default(0)
   movementId String
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt

@@ -26,12 +26,14 @@ CREATE TABLE "TallerConsumo" (
   "productId" TEXT NOT NULL,
   "cantidad" DOUBLE PRECISION NOT NULL DEFAULT 0,
   "costoTotal" DOUBLE PRECISION NOT NULL DEFAULT 0,
+  "cantidadConCosto" DOUBLE PRECISION NOT NULL DEFAULT 0,
   "movementId" TEXT NOT NULL,
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updatedAt" TIMESTAMP(3) NOT NULL,
   CONSTRAINT "TallerConsumo_pkey" PRIMARY KEY ("id"),
   CONSTRAINT "TallerConsumo_cantidad_check" CHECK ("cantidad" >= 0),
-  CONSTRAINT "TallerConsumo_costoTotal_check" CHECK ("costoTotal" >= 0)
+  CONSTRAINT "TallerConsumo_costoTotal_check" CHECK ("costoTotal" >= 0),
+  CONSTRAINT "TallerConsumo_cantidadConCosto_check" CHECK ("cantidadConCosto" >= 0)
 );
 CREATE UNIQUE INDEX "TallerConsumo_proyectoId_piezaId_key" ON "TallerConsumo"("proyectoId", "piezaId");
 CREATE INDEX "TallerConsumo_tenantId_proyectoId_idx" ON "TallerConsumo"("tenantId", "proyectoId");

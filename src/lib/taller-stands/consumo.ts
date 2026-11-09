@@ -96,8 +96,8 @@ export async function descontarMaterialesTx(tx: Tx, d: Args): Promise<ResultadoC
     const costo = falta * (fila?.unitCost && fila.unitCost > 0 ? fila.unitCost : 0);
     await tx.tallerConsumo.upsert({
       where: { proyectoId_piezaId: { proyectoId, piezaId: l.piezaId } },
-      create: { tenantId, proyectoId, piezaId: l.piezaId, productId: prod.id, cantidad: round3(l.cantidad), costoTotal: costo, movementId },
-      update: { productId: prod.id, cantidad: round3(l.cantidad), costoTotal: { increment: costo }, movementId },
+      create: { tenantId, proyectoId, piezaId: l.piezaId, productId: prod.id, cantidad: round3(l.cantidad), costoTotal: costo, cantidadConCosto: costo > 0 ? falta : 0, movementId },
+      update: { productId: prod.id, cantidad: round3(l.cantidad), costoTotal: { increment: costo }, cantidadConCosto: { increment: costo > 0 ? falta : 0 }, movementId },
     });
   }
   for (const c of previos.values()) {
@@ -114,17 +114,23 @@ export async function devolverMaterialesTx(tx: Tx, d: Args): Promise<ResultadoCo
   if (!p) return { ok: false, motivo: "NO_EXISTE", movimientos: 0, avisos: [] };
   const consumos = await tx.tallerConsumo.findMany({
     where: { tenantId, proyectoId, cantidad: { gt: 0 } },
-    select: { id: true, productId: true, piezaId: true, cantidad: true, costoTotal: true, pieza: { select: { nombre: true } }, product: { select: { name: true } } },
+    select: { id: true, productId: true, piezaId: true, cantidad: true, costoTotal: true, cantidadConCosto: true, pieza: { select: { nombre: true } }, product: { select: { name: true } } },
   });
   // Mismo orden que al descontar (por producto, comparado en JS y no con la collation de la base).
   consumos.sort((x, y) => cmp(x.productId, y.productId) || cmp(x.piezaId, y.piezaId));
   const eventos: MovimientoParaEventos[] = [];
   for (const c of consumos) {
-    // Vuelve al costo al que salió (promedio de lo descontado); sin costo conocido, sin costo (como la salida).
-    const unitCost = c.costoTotal > 0 ? c.costoTotal / c.cantidad : null;
-    const movementId = await mover(tx, eventos, { tenantId, productId: c.productId, type: "REPOSICION", qty: c.cantidad, unitCost, reason: `Devolución del stand #${p.numero}: ${c.pieza.nombre}`, autor: `${TALLER_DEVOLUCION_ACTOR_PREFIX}${d.autor}`, label: c.product.name });
+    // Vuelve al costo al que salió: la parte que salió CON costo, a su promedio (costoTotal / cantidadConCosto); la que
+    // salió sin costo, sin costo (el reporte la valúa al costo de hoy, igual que a su salida). Así neta 0 aunque se mezclen.
+    const reason = `Devolución del stand #${p.numero}: ${c.pieza.nombre}`;
+    const autor = `${TALLER_DEVOLUCION_ACTOR_PREFIX}${d.autor}`;
+    const conCosto = c.costoTotal > 0 ? round3(Math.min(c.cantidadConCosto, c.cantidad)) : 0;
+    const sinCosto = round3(c.cantidad - conCosto);
+    let movementId = "";
+    if (conCosto > 0) movementId = await mover(tx, eventos, { tenantId, productId: c.productId, type: "REPOSICION", qty: conCosto, unitCost: c.costoTotal / conCosto, reason, autor, label: c.product.name });
+    if (sinCosto > 0) movementId = await mover(tx, eventos, { tenantId, productId: c.productId, type: "REPOSICION", qty: sinCosto, unitCost: null, reason, autor, label: c.product.name });
     // Transición condicional: si la fila cambió (no debería, con el bloqueo), se revierte todo.
-    const n = await tx.tallerConsumo.updateMany({ where: { id: c.id, tenantId, cantidad: c.cantidad }, data: { cantidad: 0, costoTotal: 0, movementId } });
+    const n = await tx.tallerConsumo.updateMany({ where: { id: c.id, tenantId, cantidad: c.cantidad }, data: { cantidad: 0, costoTotal: 0, cantidadConCosto: 0, movementId } });
     if (n.count !== 1) throw new Error("El consumo cambió mientras se devolvía: no se movió el stock.");
   }
   await emitirEventosDeMovimientos(tx, eventos);
