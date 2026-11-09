@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { PLANTILLAS, getPlantilla, BUNDLE } from "../../../data/catalogo";
 
 // Página de gracias / entrega. A esta URL redirige Lemon Squeezy tras el pago.
@@ -50,14 +51,14 @@ export default function GraciasPage({ params }: { params: { slug: string } }) {
             <span className="badge" style={{ marginBottom: 10 }}>Te puede servir</span>
             <h3>{upsell.nombre}</h3>
             <p style={{ color: "var(--ink-soft)" }}>{upsell.gancho}</p>
-            <a className="btn btn-secundario" href={`/producto/${upsell.slug}`}>
+            <Link className="btn btn-secundario" href={`/producto/${upsell.slug}`}>
               Ver plantilla →
-            </a>
+            </Link>
           </div>
         )}
 
         <p style={{ marginTop: 32 }}>
-          <a href="/#catalogo">← Volver al catálogo</a>
+          <Link href="/#catalogo">← Volver al catálogo</Link>
         </p>
       </div>
     </section>

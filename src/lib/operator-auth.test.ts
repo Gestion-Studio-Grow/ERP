@@ -3,6 +3,7 @@
 // nombre: quién entra, cuánto dura la sesión y qué pasa con las sesiones del formato anterior.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { createHmac } from "node:crypto";
 import { NextRequest } from "next/server";
 import { createSessionToken, getSessionCookieName } from "./auth";
 import {
@@ -76,7 +77,11 @@ test("ATAQUE: sin OPERATOR_SECRET (cae a AUTH_SECRET en dev), la sesión de un n
 
 test("ATAQUE: un id de usuario con forma de operador no sirve (la firma es de otro dominio)", async () => {
   await conEntorno({ ...DEV, AUTH_SECRET: "mismo", OPERATOR_SECRET: "mismo" }, async () => {
-    const forjado = await createSessionToken(`op|duenio|${Date.now()}`);
+    // La sesión de negocio ya no firma ids con `|` (formato v2, 08/11/2026); se forja a mano con el llavero
+    // del negocio, que es lo que tendría quien quisiera intentarlo.
+    await assert.rejects(createSessionToken(`op|duenio|${Date.now()}`));
+    const payload = `op|d|duenio|${Date.now()}`;
+    const forjado = `${payload}.${createHmac("sha256", "mismo").update(payload).digest("hex")}`;
     assert.equal(await readOperatorToken(forjado), null);
   });
 });

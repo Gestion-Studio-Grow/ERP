@@ -107,13 +107,13 @@ test("el sugerido de compra dice la cantidad en la tarea y lleva una palabra de 
 
 test("con la caja cerrada el Inicio ofrece «Abrir la caja»; abierta, o sin la app Caja, no dice nada", () => {
   const cerrada = ok("Cerrada", { detalle: "el efectivo va al libro, sin turno" });
-  const aviso = avisoDeCaja(cerrada, "/admin/caja");
+  const aviso = avisoDeCaja(cerrada, "/admin/caja", false, true);
   assert.equal(aviso?.titulo, "La caja está cerrada");
   assert.deepEqual(aviso?.tecla, { texto: "Abrir la caja", href: "/admin/caja" });
-  assert.equal(avisoDeCaja(ok("Abierta", { detalle: "desde las 09:10" }), "/admin/caja"), null);
-  assert.equal(avisoDeCaja(cerrada, undefined), null);
-  assert.equal(avisoDeCaja(null, "/admin/caja"), null);
-  assert.equal(avisoDeCaja({ estado: "error", motivo: "x" }, "/admin/caja"), null);
+  assert.equal(avisoDeCaja(ok("Abierta", { detalle: "desde las 09:10" }), "/admin/caja", false, true), null);
+  assert.equal(avisoDeCaja(cerrada, undefined, false, true), null);
+  assert.equal(avisoDeCaja(null, "/admin/caja", false, true), null);
+  assert.equal(avisoDeCaja({ estado: "error", motivo: "x" }, "/admin/caja", false, true), null);
 });
 
 const DESTINOS_KIOSCO = new Map([

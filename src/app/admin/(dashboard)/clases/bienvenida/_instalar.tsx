@@ -5,19 +5,25 @@
 // navegador (`beforeinstallprompt`); en iPhone no existe: se explican los dos pasos de Safari.
 // Ya instalada (se abre sola, sin barra del navegador), no se ofrece.
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { buttonClasses, cn } from "@/components/ui";
 
 type PedidoInstalar = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: "accepted" | "dismissed" }> };
 
+const sinSuscripcion = () => () => {};
+
+function leerEntorno(): "instalada" | "ios" | "otro" {
+  const standalone = window.matchMedia?.("(display-mode: standalone)").matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
+  return standalone ? "instalada" : /iphone|ipad|ipod/i.test(navigator.userAgent) ? "ios" : "otro";
+}
+
 export function Instalar() {
   const [pedido, setPedido] = useState<PedidoInstalar | null>(null);
-  const [entorno, setEntorno] = useState<"instalada" | "ios" | "otro" | null>(null);
+  // En el servidor no se sabe (null); en el navegador se lee una vez, sin efecto que re-renderice.
+  const entorno = useSyncExternalStore(sinSuscripcion, leerEntorno, () => null);
   const [listo, setListo] = useState(false);
 
   useEffect(() => {
-    const standalone = window.matchMedia?.("(display-mode: standalone)").matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
-    setEntorno(standalone ? "instalada" : /iphone|ipad|ipod/i.test(navigator.userAgent) ? "ios" : "otro");
     const guardar = (e: Event) => {
       e.preventDefault();
       setPedido(e as PedidoInstalar);

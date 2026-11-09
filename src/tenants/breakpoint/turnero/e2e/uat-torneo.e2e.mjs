@@ -20,7 +20,7 @@ const filas = []; let n = 0;
 const ok = (id, cond, que) => { filas.push({ id, estado: cond ? "OK" : "FALLA", que }); console.log(`${cond ? "✓" : "✗"} ${id} ${que}`); };
 const srv = createServer(async (req, res) => {
   const segs = new URL(req.url, "http://x").pathname.split("/").filter(Boolean);
-  const r = await responderSitioEstatico("breakpoint", segs, async (rel) => new Uint8Array(await readFile(path.join(RAIZ, rel))));
+  const r = await responderSitioEstatico("breakpoint", segs, async (rel) => new Uint8Array(await readFile(path.join(RAIZ, rel))), { conSesion: async () => true }); // puesto logueado
   res.writeHead(r.status, Object.fromEntries(r.headers)); res.end(Buffer.from(await r.arrayBuffer()));
 });
 await new Promise((o) => srv.listen(0, "127.0.0.1", o));
