@@ -232,6 +232,7 @@ model Tenant {
   tallerConfig              TallerConfig?
   tallerAvisosEnviados      TallerAvisoEnviado[]
   userPermissionOverrides   UserPermissionOverride[]
+  userPins                  UserPin[]
   supportTickets            SupportTicket[] // consola de soporte GSG (T1)
   supportTicketEventos      SupportTicketEvento[]
   proyectos                 Proyecto[] // módulo proyectos
@@ -512,8 +513,29 @@ model User {
   updatedAt           DateTime                 @updatedAt
   // Matriz de permisos: sólo las casillas distintas del default del rol (PLAN permisos §1).
   permissionOverrides UserPermissionOverride[]
+  // PIN de desbloqueo (tabla aparte a propósito: una columna nueva en User rompería todo `user.find*` sin
+  // `select` contra una base sin la migración; ver must-change-password.ts).
+  pin                 UserPin?
 
   @@unique([tenantId, email])
+  @@index([tenantId])
+}
+
+// PIN de 4 dígitos para destrabar una sesión BLOQUEADA por inactividad (orden del dueño, 08/11/2026; src/lib/sesion-pin.ts).
+// Lo define cada usuario justo después de entrar con su contraseña. `pinHash` = scrypt igual que la contraseña
+// (auth-password.ts), nunca el PIN. `fallos`: intentos errados seguidos; con MAX_INTENTOS_PIN el PIN no destraba más
+// hasta el próximo ingreso con contraseña. No es el código por mail de ProyectoPinIngreso (ése es de un solo uso).
+model UserPin {
+  id        String   @id @default(cuid())
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String   @unique
+  pinHash   String
+  fallos    Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([tenantId])
 }
 

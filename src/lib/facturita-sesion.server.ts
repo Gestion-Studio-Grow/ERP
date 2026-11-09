@@ -16,6 +16,6 @@ export async function sesionFacturita(): Promise<{ tenantId: string; userId: str
     (tx) => tx.tenant.findUnique({ where: { id: tenantId }, select: { blueprintId: true } }),
     { tenantId },
   );
-  if (tenant?.blueprintId !== "facturita") throw new Error("Esta pantalla es del producto Facturita.");
+  if (tenant?.blueprintId !== "facturita") throw new Error("Esta pantalla es del producto Factoque.");
   return { tenantId, userId: user.id };
 }

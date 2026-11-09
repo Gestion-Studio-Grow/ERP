@@ -10,6 +10,7 @@ import {
   gatePasswordMatches,
   getGateCookieName,
 } from "@/lib/site-gate";
+import { destinoInterno } from "@/lib/destino-interno";
 
 // Validación de la clave del portón del sitio (ver `@/lib/site-gate`).
 //
@@ -31,10 +32,7 @@ export async function entrarAlSitio(formData: FormData) {
 
   const intento = String(formData.get("clave") ?? "");
   const destinoCrudo = String(formData.get("next") ?? "/");
-  // Sólo se acepta una ruta interna como destino: un `next` con http(s) o con //
-  // convertiría esta pantalla en un trampolín para mandar gente a otro sitio.
-  const destino =
-    destinoCrudo.startsWith("/") && !destinoCrudo.startsWith("//") ? destinoCrudo : "/";
+  const destino = destinoInterno(destinoCrudo);
 
   if (!gatePasswordMatches(intento, clave)) {
     const url = new URL(GATE_PATH, "http://local");

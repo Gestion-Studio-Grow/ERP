@@ -68,7 +68,7 @@ function mandarALaNube(url: string, a: File, alAvanzar?: (porcentaje: number) =>
     const x = new XMLHttpRequest();
     x.open("PUT", url);
     x.upload.onprogress = (e) => {
-      if (e.lengthComputable) alAvanzar?.(Math.round((e.loaded / e.total) * 100));
+      if (e.lengthComputable) alAvanzar?.(Math.round((e.loaded / e.total) * 100)); // no-es-plata: avance de la subida en %
     };
     x.onload = () => listo(x.status >= 200 && x.status < 300);
     x.onerror = () => listo(false);

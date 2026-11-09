@@ -144,9 +144,11 @@ export interface FiltrosFacturacionMes {
   emitido: { createdAt: { gte: Date; lt: Date } };
   /**
    * Cupo del plan (ENG-329): lo emitido en el mes que ARCA NO rechazó. La pendiente cuenta (va a
-   * tener CAE o va a volver rechazada, y ahí devuelve el lugar); la autorizada cuenta.
+   * tener CAE o va a volver rechazada, y ahí devuelve el lugar); la autorizada cuenta. La nota de
+   * crédito (apunta a la factura que anula: `comprobanteAsociadoId`) NO cuenta: corregir una
+   * factura equivocada no gasta un lugar del plan (Factoque, Plan de salida 11/2026 §1 #9b).
    */
-  cupo: { createdAt: { gte: Date; lt: Date }; status: { not: "REJECTED" } };
+  cupo: { createdAt: { gte: Date; lt: Date }; status: { not: "REJECTED" }; comprobanteAsociadoId: null };
   /** Facturado: sólo con CAE (`AUTHORIZED`), por la fecha del comprobante. */
   facturado: { fecha: { gte: string; lt: string }; status: "AUTHORIZED" };
   /**
@@ -166,7 +168,7 @@ export function filtrosFacturacionMes(ahora: Date = new Date()): FiltrosFacturac
   const emitido = rangoMesActual(ahora);
   return {
     emitido: { createdAt: emitido },
-    cupo: { createdAt: emitido, status: { not: "REJECTED" } },
+    cupo: { createdAt: emitido, status: { not: "REJECTED" }, comprobanteAsociadoId: null },
     facturado: { fecha: rangoFiscalMes(ahora), status: "AUTHORIZED" },
     rechazado: { createdAt: emitido, status: "REJECTED" },
   };

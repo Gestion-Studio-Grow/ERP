@@ -38,7 +38,7 @@ export async function cambiarFijada(datos: FormData): Promise<ResultadoFijada> {
     return { ok: false, mensaje: "Mis apps todavía no está disponible en este negocio." };
   }
 
-  const visibles = appsVisibles(await getNegocioApps(user.role));
+  const visibles = appsVisibles(await getNegocioApps(user.role, user.overrides));
   const jar = await cookies();
   const actuales = leerFijadas(jar.get(COOKIE_FIJADAS)?.value, user.id);
   const r = aplicarCambio(actuales, { accion, appId }, visibles);

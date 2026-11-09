@@ -55,7 +55,7 @@ before(async () => {
   plugins: [
     {
       name: "servidor-simulado",
-      setup(b: { onResolve: Function; onLoad: Function }) {
+      setup(b: { onResolve: (o: { filter: RegExp }, f: (a: { path: string }) => { path: string; namespace: string }) => void; onLoad: (o: { filter: RegExp; namespace: string }, f: (a: { path: string }) => { contents: string | undefined; loader: "js" }) => void }) {
         b.onResolve({ filter: /^@\/(lib\/actions|lib\/coupon-actions|components\/whatsapp-cta|lib\/diseno\/DisenoProvider)$/ }, (a: { path: string }) => ({ path: a.path, namespace: "stub" }));
         b.onLoad({ filter: /.*/, namespace: "stub" }, (a: { path: string }) => ({ contents: STUBS[a.path], loader: "js" }));
       },

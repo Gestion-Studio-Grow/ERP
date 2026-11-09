@@ -12,6 +12,7 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Badge, Button, Field, Input, fmtMoneyARS } from "@/components/ui";
+import { LINK_CONECTAR_ARCA } from "@/lib/facturita-core";
 import {
   emisionDesdeAtajo,
   esCaminoCorto,
@@ -194,6 +195,11 @@ export default function MisProductos({
               <Badge tone="neutral" dot>Pendiente</Badge>
             )}
             <span className="text-sm text-body">{resultado.mensaje}</span>
+            {resultado.estado.estado === "pendiente" && resultado.estado.motivo === "apagada" && (
+              <a href={LINK_CONECTAR_ARCA} className="text-sm font-medium text-accent-ink underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+                Conectar con ARCA
+              </a>
+            )}
             {resultado.limite.mensaje && <span className="text-sm text-muted">{resultado.limite.mensaje}</span>}
           </div>
         )}

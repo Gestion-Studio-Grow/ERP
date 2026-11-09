@@ -9,7 +9,7 @@ import { gzipSync } from "node:zlib";
 import { descomprimir, guardadoDelTexto } from "@/lib/club/foto";
 import { claveDeLaJornada, crearAlmacen, LATIDO_MS, TOPE_APARTES, type AlmacenamientoLocal, type Temporizador } from "./almacen";
 import type { RespuestaGuardarFoto, RespuestaLeerFoto } from "./estado-actions";
-import { ESPERA_GUARDADO_MS, ESPERA_MAXIMA_GUARDADO_MS, crearGuardadoEnLaBase, type PuertaDeLaBase } from "./guardado-en-la-base";
+import { ESPERA_GUARDADO_MS, ESPERA_MAXIMA_GUARDADO_MS, crearGuardadoEnLaBase, type GuardadoEnLaBase, type PuertaDeLaBase } from "./guardado-en-la-base";
 
 const NEGOCIO = "club-prueba";
 const T0 = new Date(2026, 9, 17, 19, 0).getTime();
@@ -99,6 +99,7 @@ function relojManual() {
     esperarA(fn: () => boolean) {
       ocupado = fn;
     },
+    ocupado: () => ocupado(),
   };
 }
 
@@ -106,11 +107,26 @@ async function abrir(base = baseFalsa()) {
   const m = memoria();
   const r = relojManual();
   const enLaBase = crearGuardadoEnLaBase({ negocio: NEGOCIO, base: base.puerta, espejo: null, reloj: r.reloj, programar: r.programar, cancelar: r.cancelar });
+  // La recarga tras un choque (`leer`) también corre en otro hilo (descomprime el gzip) y `estado()` no la muestra:
+  // se cuenta acá para esperarla igual que a la subida. Sin esto, con la máquina cargada el test miraba al almacén
+  // antes de que llegara lo recargado («B ve 222 en vez de 111», 1 de 6 en CI).
+  let leyendo = 0;
+  const guardado: GuardadoEnLaBase = {
+    ...enLaBase,
+    async leer() {
+      leyendo++;
+      try {
+        return await enLaBase.leer();
+      } finally {
+        leyendo--;
+      }
+    },
+  };
   const a = crearAlmacen({
     reloj: "real",
     clave: claveDeLaJornada(NEGOCIO),
     almacenamiento: m,
-    guardado: enLaBase,
+    guardado,
     cerrojos: null,
     canal: null,
     temporizador: r.temporizador,
@@ -119,11 +135,10 @@ async function abrir(base = baseFalsa()) {
     enReposo: null,
     rol: "OWNER",
   });
-  r.esperarA(() => enLaBase.estado().subiendo);
+  r.esperarA(() => enLaBase.estado().subiendo || leyendo > 0);
   a.arrancar();
   await r.avanzar(0);
-  await new Promise((s) => setTimeout(s, 20));
-  await r.reposo();
+  await hasta(() => !r.ocupado(), r);
   return { a, base, m, r, enLaBase };
 }
 
@@ -179,8 +194,7 @@ test("salir con algo sin subir: el almacén deja SU copia en el equipo (una sola
   // Lo que hace el navegador al salir: primero el almacén (sincrónico, su copia), después el adaptador (la subida).
   a.guardarYa();
   oyentes.get("pagehide")!();
-  await new Promise((s) => setTimeout(s, 30));
-  await r.reposo();
+  await hasta(() => base.llamadas.guardar > tras && !enLaBase.estado().subiendo, r);
   assert.equal(base.llamadas.guardar, tras + 1, "subió sin esperar los 30 s");
   const copias = [...m.datos.entries()].filter(([, v]) => v.length > 1000);
   assert.equal(copias.length, 1, "una sola copia del club en el equipo");
@@ -205,11 +219,21 @@ async function hastaQue(listo: () => boolean, r: Awaited<ReturnType<typeof abrir
   for (const fin = Date.now() + 20_000; !listo() && Date.now() < fin; ) await r.avanzar(1000);
 }
 
+/** Ni subiendo, ni pendiente, ni recargando lo de la base tras un choque. */
+/** Espera de verdad (con tope de 10 s) a que se cumpla `cond`: el gzip corre en otro hilo y con la máquina cargada tarda. */
+async function hasta(cond: () => boolean, r: { reposo: () => Promise<unknown> }) {
+  const fin = Date.now() + 10_000;
+  while (!cond() && Date.now() < fin) {
+    await new Promise((s) => setTimeout(s, 5));
+    await r.reposo();
+  }
+}
+
 async function quieto(enLaBase: Awaited<ReturnType<typeof abrir>>["enLaBase"], r: Awaited<ReturnType<typeof abrir>>["r"]) {
   const fin = Date.now() + 10_000;
   while (Date.now() < fin) {
     const e = enLaBase.estado();
-    if (!e.subiendo && !e.pendiente) return;
+    if (!e.subiendo && !e.pendiente && !r.ocupado()) return;
     await new Promise((s) => setTimeout(s, 10));
     await r.reposo();
   }
@@ -241,8 +265,7 @@ test("al ocultar la pestaña lo pendiente sube en el acto, sin esperar los 30 s"
   await r.reposo();
   oculta = true;
   oyentes.get("visibilitychange")!();
-  await new Promise((s) => setTimeout(s, 30));
-  await r.reposo();
+  await hasta(() => base.llamadas.guardar > tras && !enLaBase.estado().subiendo, r);
   assert.equal(base.llamadas.guardar, tras + 1);
 });
 

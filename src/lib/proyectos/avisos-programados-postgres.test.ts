@@ -65,13 +65,23 @@ test("cron diario sólo a la productora, sin previstas ni repetidos; segundo pas
   // La tabla del segundo paso, mirada con el rol de la app.
   await duenio.proyectoSegundoFactor.create({ data: { tenantId: a.id, userId: a.duenia.id, secreto: "cifrado" } });
 
-  const verComo = (tenantId: string) =>
-    duenio.$transaction(async (tx) => {
-      await tx.$executeRawUnsafe(`SET LOCAL ROLE ${ROL_APP}`);
-      await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`;
-      const filas = await tx.$queryRaw<{ n: bigint }[]>`SELECT count(*) AS n FROM "ProyectoSegundoFactor"`;
-      return Number(filas[0].n);
-    });
+  // Por la conexión de la app: en un Postgres real el dueño no es miembro de `app_rls` y no puede
+  // `SET ROLE`; como `app_rls`, pasarse a sí mismo vale siempre (y en PGlite, superusuario, también).
+  const pg = (await import("pg")).default;
+  const verComo = async (tenantId: string) => {
+    const c = new pg.Client({ connectionString: base.urlApp });
+    await c.connect();
+    try {
+      await c.query("BEGIN");
+      await c.query(`SET LOCAL ROLE ${ROL_APP}`);
+      await c.query("SELECT set_config('app.current_tenant_id', $1, true)", [tenantId]);
+      const filas = await c.query<{ n: string }>('SELECT count(*) AS n FROM "ProyectoSegundoFactor"');
+      await c.query("ROLLBACK");
+      return Number(filas.rows[0].n);
+    } finally {
+      await c.end();
+    }
+  };
   assert.equal(await verComo(a.id), 1);
   assert.equal(await verComo(b.id), 0);
 

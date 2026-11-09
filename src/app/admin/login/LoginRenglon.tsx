@@ -53,7 +53,14 @@ export default function LoginRenglon({
       </div>
 
       {aviso && (
-        <div role="alert" className="mt-6 border-y border-danger/40 bg-danger-soft px-3 py-2.5 text-sm text-danger">
+        <div
+          role={aviso.informativo ? "status" : "alert"}
+          className={
+            aviso.informativo
+              ? "mt-6 border-y border-line bg-surface-sunken px-3 py-2.5 text-sm text-strong"
+              : "mt-6 border-y border-danger/40 bg-danger-soft px-3 py-2.5 text-sm text-danger"
+          }
+        >
           <strong className="font-semibold">{aviso.titulo}</strong> {aviso.detalle}
         </div>
       )}
@@ -64,7 +71,7 @@ export default function LoginRenglon({
           <label htmlFor="login-email" data-ui="rotulo" className={ROTULO_CAMPO}>
             Email
           </label>
-          <CampoEmail conError={aviso !== null} className="min-h-11" />
+          <CampoEmail conError={aviso !== null && !aviso.informativo} className="min-h-11" />
         </div>
         <div className={RENGLON_CAMPO}>
           <label htmlFor="login-password" data-ui="rotulo" className={ROTULO_CAMPO}>

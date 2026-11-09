@@ -19,7 +19,7 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
 - **MT** — MT-1 `findFirst` sin `where` · MT-2 home con acción admin-gated · MT-3 resolución fail-closed · MT-4 ruteo por hostname · MT-5 RLS = aislamiento + performance · MT-6 hosts en código (variable sensible)
 - **DX** — DX-8 demo pública en host serverless: back con estado no corre → dominio isomórfico + adaptador local · DX-1 backoffice-demo sin password · DX-2 falta sello GSG · DX-3 previews estáticos · DX-4 CTA WhatsApp roto · DX-5 réplica exacta a ojo vs. relevada · DX-6 relación seedeada uniforme = front miente por entidad · DX-7 fix de dato de prod sin seed/deleteMany (dry-run→apply→verify) · DX-10 lector que suma durante el cobro en vuelo · DX-11 suite verde ≠ pantalla bien: recorrido E2E contra next start + la cifra de plata sale de la regla compartida · DX-12 una etiqueta de balanza se lee de dos maneras: detectar con dos etiquetas o el PLU · DX-13 barra sticky que no se pega (padre corto) y lista del buscador que la tapa · DX-14 paridad por formulario, no por pantalla (CH: profesional/seña/cupón eran de «Servicios»)
 - **MP** — MP-1 sync file-tool↔bash · MP-2 tree compartido / commit-race · MP-3 congestión ≤4 · MP-4 subagentes en Opus · MP-5 FASE 0 · MP-6 `npm install` por worktree · MP-7 higiene de contexto · MP-8 sin tests · MP-9 modelo mal etiquetado · MP-10 reconciliar rama vieja = selectivo (no `git merge`) · MP-11 conflicto en tabla de irreversibles = dividir la fila (no pisar) · MP-12 drift INTERNO de ESTADO-ACTUAL (HANDOFF al día, §1/§8 stale) → reconciliar contra git, no contra el doc · MP-13 fundación gateada sin consumidor real = % engañoso (construido ≠ consumido) · MP-14 gating por redirect = riesgo de loop si el destino se gatea (esconder > redirigir)
-- **SEC** — SEC-1 secretos nunca en chat + rotación · SEC-2 rol con BYPASSRLS · SEC-3 firma de webhook + rate-limit · SEC-4 superficie pública: límite por IP sólo con fallos + motivos del dominio que nombran a terceros
+- **SEC** — SEC-1 secretos nunca en chat + rotación · SEC-2 rol con BYPASSRLS · SEC-3 firma de webhook + rate-limit · SEC-4 superficie pública: límite por IP sólo con fallos + motivos del dominio que nombran a terceros · SEC-6 sesión que vence en el servidor + la matriz que resta en la puerta de la app + gestión pública sin login
 
 ---
 
@@ -591,6 +591,20 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
   lector genérico** el mismo día que se crea (`ENTIDADES_FUERA_DE_LA_AUDITORIA`), con test contra Postgres.
 - **Refs:** SEC-4; `public/previews/breakpoint/club/motor.mjs` (`verificarFirma`, `anotarIntentoPin`, `pinFacil`);
   `docs/tenants/breakpoint/REINGENIERIA.md §10`.
+
+**[SEC-6] Tres puertas que miraban la cosa equivocada (sesión de seguridad, 08/11/2026)**
+- **Síntoma:** (a) el token de sesión era `userId.firma`, sin fecha: una cookie copiada entraba para siempre
+  (operación real de CH, paso 15); (b) `rolPuedeEntrar` miraba sólo el rol: con «Mover stock» apagado el encargado
+  seguía abriendo Recibir mercadería, Mermas, Recuento y Sugerido, y el Inicio ofrecía «Abrir la caja» sin
+  `cash:manage`; (c) `/club` de Break Point (gestión con caja y PIN) y su fuente cruda se servían a cualquiera.
+- **Causa raíz:** el vencimiento se delegó al navegador (`maxAge`); la matriz se aplicó en las acciones pero no en
+  la puerta de la app ni en las teclas; una pantalla de gestión quedó registrada como «sitio estático» público.
+- **Fix:** token v2 `v2|uid|emitido|vence` con firma de dominio y transición acotada (build + 9 h, tope 15/12)
+  — `src/lib/auth.ts`, `docs/seguridad/sesion-con-vencimiento.md`; `rolPuedeEntrar` resta con `permisoEfectivo`
+  (nunca suma) y las teclas de caja piden `cash:manage`; `soloConSesion` en `sitio-estatico.ts` + 404 al club crudo.
+- **Guardarraíl:** una credencial que el servidor no vence no vence; toda casilla de la matriz se prueba en la
+  acción, en la puerta de la app Y en la tecla que la ofrece; una pantalla con botones de plata nunca es «estática».
+- **Refs:** SEC-3, SEC-5, ENG-013 (falta revocación: logout y cambio de clave, Gate 2).
 
 **[MP-15] Deviación de una decisión de ADR citando una autoridad no trazable en el repo**
 - **Síntoma:** en el Gate de PR-2/M2, S4 renombró los 5 grupos de nav de las etiquetas **criollas** que fija
