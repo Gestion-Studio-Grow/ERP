@@ -6,7 +6,8 @@
 // se carga y por qué. No escribe nada: la acción (acciones-importador.ts) replanifica dentro de la transacción y sólo
 // escribe si la huella es la misma que vio la persona.
 //
-// Idempotencia (opción A, sin migración): clave = sha256(tenantId|cliente|proyecto|año) con nombres normalizados; se
+// Idempotencia (opción A, sin migración): clave = sha256(tenantId|cliente|proyecto|año[|mes]) con nombres normalizados (el mes
+// sólo si el mismo proyecto está en meses distintos del año); se
 // anota en ProyectoCambio (entidad «Importacion», campo «clave»). Lo que ya tiene su clave anotada no se vuelve a cargar.
 // Sólo altas: corregir una fila ya importada no actualiza el proyecto (riesgo anotado en el diseño).
 
@@ -19,6 +20,8 @@ export type Celda = string | number | boolean | Date | null;
 export interface HojaCruda {
   nombre: string;
   filas: Celda[][];
+  /** Hipervínculos de las celdas (`celda.l.Target`), por «fila:columna» de `filas`. El texto visible va en `filas`. */
+  links?: Readonly<Record<string, string>>;
 }
 
 // ── Textos ─────────────────────────────────────────────────────────────────
@@ -230,11 +233,11 @@ export function leerFechaDifusa(c: Celda | undefined, ctx: { anio: number | null
   }
 
   // Numérica: dd/mm, dd/mm/aa, dd-mm-aaaa.
-  const num = /^(\d{1,2})\s*[/.-]\s*(\d{1,2})(?:\s*[/.-]\s*(\d{4}|\d{2}))?$/.exec(t);
+  const num = /^(\d{1,2})\s*([/.-])\s*(\d{1,2})(?:\s*[/.-]\s*(\d{4}|\d{2}))?$/.exec(t);
   if (num) {
     const a = +num[1];
-    const b = +num[2];
-    const y = anio4(num[3], ctx.anio);
+    const b = +num[3];
+    const y = anio4(num[4], ctx.anio);
     if (!y) return { texto, tipo: "ambigua", aviso: `Fecha «${texto}» sin año: no se carga.` };
     let d: number, m: number;
     let aviso: string | undefined;
@@ -245,6 +248,8 @@ export function leerFechaDifusa(c: Celda | undefined, ctx: { anio: number | null
     } else if (a <= 12 && b <= 12) {
       if (a === b) [d, m] = [a, b];
       else if (ctx.mes === b) [d, m] = [a, b];
+      // «4-6» con Mes=4: ¿del 4 al 6 de abril o el 6 de abril? Con guion y sin año no se adivina.
+      else if (ctx.mes === a && num[2] === "-" && !num[4] && a < b) return { texto, tipo: "ambigua", aviso: `Fecha «${texto}» ambigua: ¿rango del ${a} al ${b} o una fecha? No se carga.` };
       else if (ctx.mes === a) [d, m] = [b, a];
       else return { texto, tipo: "ambigua", aviso: `Fecha «${texto}» ambigua (día/mes): no se carga.` };
     } else return { texto, tipo: "difusa" };
@@ -381,7 +386,9 @@ export interface PlanImportacion {
 }
 
 export const sha256 = (s: string): string => createHash("sha256").update(s).digest("hex");
-export const claveDeImportacion = (tenantId: string, cliNorm: string, proyNorm: string, anio: number): string => sha256(`${tenantId}|${cliNorm}|${proyNorm}|${anio}`);
+/** `mes` sólo entra cuando el mismo proyecto aparece en meses distintos del año (eventos que se repiten). */
+export const claveDeImportacion = (tenantId: string, cliNorm: string, proyNorm: string, anio: number, mes?: number | null): string =>
+  sha256(`${tenantId}|${cliNorm}|${proyNorm}|${anio}${mes ? `|${mes}` : ""}`);
 
 type TipoHoja = "general" | "sinAsignar" | "productor";
 function tipoDeHoja(nombre: string): TipoHoja {
@@ -415,6 +422,8 @@ interface Leida {
   proyecto: string;
   proyNorm: string;
   anio: number | null;
+  /** El mes que la fila dice (columna Mes o la fecha); null si no lo dice. */
+  mesDicho: number | null;
   alta: Omit<Alta, "cliente" | "clave"> | null;
   error: string | null;
 }
@@ -427,7 +436,7 @@ function leerFila(h: HojaCruda, tipo: TipoHoja, enc: Encabezado, i: number, base
   const col = (c: Campo): Celda | undefined => (enc.columnas[c] === undefined ? undefined : fila[enc.columnas[c]!]);
   const cliente = textoDe(col("cliente"), TOPE_NOMBRE);
   const proyecto = textoDe(col("proyecto"), TOPE_NOMBRE);
-  const ref = { hoja: h.nombre, tipo, fila: i + 1, cliente, proyecto, cliNorm: normalizarNombre(cliente), proyNorm: normalizarNombre(proyecto), anio: null as number | null };
+  const ref = { hoja: h.nombre, tipo, fila: i + 1, cliente, proyecto, cliNorm: normalizarNombre(cliente), proyNorm: normalizarNombre(proyecto), anio: null as number | null, mesDicho: null as number | null };
   if (!cliente && !proyecto) return null;
   if (!ref.cliNorm) return { ...ref, clave: "", alta: null, error: "Falta el cliente." };
   if (!ref.proyNorm) return { ...ref, clave: "", alta: null, error: "Falta el nombre del proyecto." };
@@ -439,6 +448,7 @@ function leerFila(h: HojaCruda, tipo: TipoHoja, enc: Encabezado, i: number, base
   if (!anio && fecha.desde) anio = diaDe(fecha.desde).y;
   if (!anio) return { ...ref, clave: "", alta: null, error: "Falta el año (columna Año)." };
   ref.anio = anio;
+  ref.mesDicho = mes ?? (fecha.desde ? diaDe(fecha.desde).m : null);
   if (!mes) {
     if (fecha.desde) mes = diaDe(fecha.desde).m;
     else {
@@ -461,8 +471,11 @@ function leerFila(h: HojaCruda, tipo: TipoHoja, enc: Encabezado, i: number, base
   const disenoTxt = textoDe(col("diseno"), TOPE_NOMBRE);
   const diseno = disenoTxt ? buscarPersona(disenoTxt, base.personas) : null;
 
-  const driveTexto = textoDe(col("drive"), TOPE_CORTO);
-  const carpetaUrl = driveTexto && linkSeguro(driveTexto) ? driveTexto : null;
+  // El chip de Drive de Sheets llega como hipervínculo: el texto dice «Carpeta» y la URL está en el link.
+  const visible = textoDe(col("drive"), TOPE_CORTO);
+  const link = enc.columnas.drive === undefined ? "" : textoDe(h.links?.[`${i}:${enc.columnas.drive}`], TOPE_CORTO);
+  const carpetaUrl = link && linkSeguro(link) ? link : visible && linkSeguro(visible) ? visible : null;
+  const driveTexto = link && link !== visible ? (visible ? `${visible} (${link})` : link) : visible;
   if (driveTexto && !carpetaUrl) avisos.push("El link de Drive no es https: queda sólo anotado.");
 
   const comentarios: Comentario[] = [];
@@ -516,7 +529,8 @@ function leerFila(h: HojaCruda, tipo: TipoHoja, enc: Encabezado, i: number, base
  * El plan de la importación. Reglas de duplicados (por clave cliente+proyecto+año):
  *  · las pestañas de productor y «Sin asignar» ganan sobre «General»; lo que está SÓLO en General se carga para revisar;
  *  · la misma fila en dos pestañas de productor distintas es un conflicto: no se carga ninguna;
- *  · lo que ya tiene su clave anotada, o un proyecto igual en el ERP, no se carga.
+ *  · lo que ya tiene su clave anotada, o un proyecto igual en el ERP, no se carga;
+ *  · mismo cliente+proyecto+año en meses distintos: un proyecto por mes (la clave suma el mes).
  */
 export function planificarImportacion(hojas: readonly HojaCruda[], base: BaseImportacion): PlanImportacion {
   const claves = new Set(base.claves);
@@ -543,11 +557,35 @@ export function planificarImportacion(hojas: readonly HojaCruda[], base: BaseImp
     }
   }
 
-  const porClave = new Map<string, Leida[]>();
-  for (const l of leidas) if (l.clave) porClave.set(l.clave, [...(porClave.get(l.clave) ?? []), l]);
+  const porAnio = new Map<string, Leida[]>();
+  for (const l of leidas) if (l.clave) porAnio.set(l.clave, [...(porAnio.get(l.clave) ?? []), l]);
 
   const estado = new Map<Leida, { estado: EstadoFila; motivo: string }>();
   for (const l of leidas) if (!l.clave) estado.set(l, { estado: "error", motivo: l.error ?? "" });
+
+  // Un evento que se repite en el año (mismo cliente y nombre, meses distintos) son proyectos distintos: la clave
+  // suma el mes sólo en ese caso. La misma fila en General y en la pestaña del productor cae en el mismo mes y se
+  // sigue deduplicando abajo. La fila que no dice el mes no se puede ubicar: no se carga y se dice por qué.
+  const porClave = new Map<string, Leida[]>();
+  for (const [clave, grupo] of porAnio) {
+    const meses = [...new Set(grupo.map((l) => l.mesDicho).filter((m): m is number => m !== null))].sort((x, y) => x - y);
+    if (meses.length < 2) {
+      porClave.set(clave, grupo);
+      continue;
+    }
+    const conMesFueraDeGeneral = grupo.some((l) => l.mesDicho !== null && l.tipo !== "general");
+    for (const l of grupo) {
+      if (l.mesDicho === null) {
+        const motivo = l.tipo === "general" && conMesFueraDeGeneral
+          ? "Repetida: el proyecto figura por mes en la pestaña de su productor."
+          : `El proyecto está en varios meses (${meses.join(", ")}) y esta fila no dice el mes: completá la columna Mes.`;
+        estado.set(l, { estado: l.tipo === "general" && conMesFueraDeGeneral ? "repetida" : "error", motivo });
+        continue;
+      }
+      l.clave = claveDeImportacion(base.tenantId, l.cliNorm, l.proyNorm, l.anio!, l.mesDicho);
+      porClave.set(l.clave, [...(porClave.get(l.clave) ?? []), l]);
+    }
+  }
 
   for (const [clave, grupo] of porClave) {
     const lugar = (l: Leida) => (l.fila ? `«${l.hoja}», fila ${l.fila}` : `«${l.hoja}»`);

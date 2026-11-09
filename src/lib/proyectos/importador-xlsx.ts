@@ -34,14 +34,39 @@ export function leerLibro(bytes: Uint8Array): LibroLeido {
   for (const nombre of nombres) {
     const hoja = libro.Sheets[nombre];
     if (!hoja) continue;
-    const matriz = XLSX.utils.sheet_to_json<Celda[]>(hoja, { header: 1, raw: true, defval: null, blankrows: true });
+    if (!hoja["!ref"]) {
+      hojas.push({ nombre: String(nombre).slice(0, 80), filas: [] });
+      continue;
+    }
+    // El rango se acota ANTES de leer: una sola celda en XFD1 haría que `defval: null` arme 2000 × 16384 celdas.
+    const rango = XLSX.utils.decode_range(hoja["!ref"]);
+    rango.e.c = Math.min(rango.e.c, rango.s.c + MAX_COLUMNAS - 1);
+    rango.e.r = Math.min(rango.e.r, rango.s.r + MAX_FILAS);
+    const matriz = XLSX.utils.sheet_to_json<Celda[]>(hoja, { header: 1, raw: true, defval: null, blankrows: true, range: rango });
     if (matriz.length > MAX_FILAS) avisos.push(`La pestaña «${nombre}» tiene más de ${MAX_FILAS} filas: se leen las primeras.`);
     hojas.push({
       nombre: String(nombre).slice(0, 80),
       filas: matriz.slice(0, MAX_FILAS).map((f) =>
         (f ?? []).slice(0, MAX_COLUMNAS).map((c) => (typeof c === "string" ? c.slice(0, MAX_TEXTO_CELDA) : c instanceof Date || typeof c === "number" || typeof c === "boolean" ? c : null)),
       ),
+      links: linksDe(hoja, rango),
     });
   }
   return { ok: true, hojas, avisos };
+}
+
+/** Los hipervínculos del rango ya acotado (el chip de Drive de Sheets: texto «Carpeta», URL en `l.Target`). */
+function linksDe(hoja: XLSX.WorkSheet, rango: XLSX.Range): Record<string, string> {
+  const links: Record<string, string> = {};
+  const letras: string[] = [];
+  for (let c = rango.s.c; c <= rango.e.c; c++) letras.push(XLSX.utils.encode_col(c));
+  const filas = Math.min(rango.e.r - rango.s.r + 1, MAX_FILAS);
+  for (let i = 0; i < filas; i++) {
+    const n = String(rango.s.r + i + 1);
+    for (let j = 0; j < letras.length; j++) {
+      const destino = (hoja[letras[j] + n] as XLSX.CellObject | undefined)?.l?.Target;
+      if (typeof destino === "string" && destino.trim()) links[`${i}:${j}`] = destino.trim().slice(0, MAX_TEXTO_CELDA);
+    }
+  }
+  return links;
 }

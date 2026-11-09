@@ -4,6 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { motivoBase, MOTIVOS_PERDIDA } from "./gestion-core";
+import { cambioLegible } from "./ficha-core";
 import {
   buscarPersona,
   claveDeImportacion,
@@ -12,6 +13,7 @@ import {
   leerFechaDifusa,
   leerMes,
   mapearEtapa,
+  mensajeDeDatosCrudos,
   MOTIVO_CANCELADO,
   MOTIVO_NO_APROBADO,
   normalizarNombre,
@@ -193,4 +195,62 @@ test("plan: clientes existentes por alias, proyecto cargado a mano, perdido con 
   assert.equal(p.filas[2].estado, "yaEnBase", "Quilmes / Stand ya está cargado a mano");
   assert.equal(claveDeImportacion("t1", "coca cola", "fiesta fin de ano", 2026), fiesta.clave);
   assert.notEqual(claveDeImportacion("t2", "coca cola", "fiesta fin de ano", 2026), fiesta.clave, "la clave es por negocio");
+});
+
+// ── Vuelta 1 de la certificación ─────────────────────────────────────────────
+
+test("Drive como hipervínculo (chip de Sheets): la URL segura va a la carpeta; la insegura, sólo al mensaje", () => {
+  const h = hoja("Julieta", fila("Acme", "Gala", { drive: "Carpeta" }), fila("Beta", "Feria", { drive: "Carpeta" }), fila("Gamma", "Expo", { drive: "https://drive.google.com/visible" }));
+  // La columna Drive es la 7; las filas de datos son la 1, 2 y 3 de la matriz.
+  h.links = { "1:7": "https://drive.google.com/drive/folders/abc", "2:7": "javascript:alert(1)", "3:7": "http://inseguro" };
+  const p = planificarImportacion([h], base());
+  const [gala, feria, expo] = ["Gala", "Feria", "Expo"].map((n) => p.altas.find((a) => a.nombre === n)!);
+  assert.equal(gala.carpetaUrl, "https://drive.google.com/drive/folders/abc");
+  assert.equal(gala.driveTexto, "Carpeta (https://drive.google.com/drive/folders/abc)");
+  assert.equal(feria.carpetaUrl, null, "un link que no es https no va a la carpeta");
+  assert.match(mensajeDeDatosCrudos(feria), /Drive: Carpeta \(javascript:alert\(1\)\)/, "queda anotado en el mensaje de datos");
+  assert.ok(feria.avisos.some((a) => /no es https/.test(a)));
+  assert.equal(expo.carpetaUrl, "https://drive.google.com/visible", "con link inseguro, el texto https visible sigue sirviendo");
+});
+
+test("evento que se repite en el año: un proyecto por mes; General + productor del mismo mes sigue siendo uno", () => {
+  const hojas = [
+    hoja("General", fila("Acme", "Desayuno de prensa", { mes: 3 }), fila("Acme", "Desayuno de prensa", { mes: 9 })),
+    hoja("Julieta", fila("Acme", "Desayuno de prensa", { mes: 3, etapa: "Aprobado" }), fila("Acme", "Desayuno de prensa", { mes: "Septiembre" })),
+  ];
+  const p = planificarImportacion(hojas, base());
+  assert.equal(p.altas.length, 2, "marzo y septiembre son dos proyectos");
+  assert.deepEqual(p.altas.map((a) => [a.hoja, a.mes]).sort(), [["Julieta", 3], ["Julieta", 9]]);
+  assert.equal(p.repetidas.length, 2, "las de General quedan como repetidas de su mes");
+  assert.equal(new Set(p.altas.map((a) => a.clave)).size, 2);
+  assert.equal(p.altas.find((a) => a.mes === 3)!.clave, claveDeImportacion("t1", "acme", "desayuno de prensa", 2026, 3));
+  // Estable: misma planilla → misma huella; con las claves anotadas no se repite nada.
+  assert.equal(planificarImportacion(hojas, base()).huella, p.huella);
+  assert.equal(planificarImportacion(hojas, base({ claves: p.altas.map((a) => a.clave) })).altas.length, 0);
+  // Un solo mes: la clave sigue siendo la de siempre (cliente+proyecto+año).
+  const uno = planificarImportacion([hoja("Julieta", fila("Acme", "Desayuno de prensa", { mes: 3 }))], base());
+  assert.equal(uno.altas[0].clave, claveDeImportacion("t1", "acme", "desayuno de prensa", 2026));
+  // La fila sin mes dentro de un evento repetido no se adivina: se dice por qué.
+  const sinMes = planificarImportacion([hoja("Julieta", fila("Acme", "Desayuno", { mes: 3 }), fila("Acme", "Desayuno", { mes: 9 }), fila("Acme", "Desayuno", { mes: "" }))], base());
+  assert.equal(sinMes.altas.length, 2);
+  assert.match(sinMes.errores[0].motivo, /varios meses \(3, 9\).*completá la columna Mes/);
+});
+
+test("«4-6» con Mes=4: ¿rango o fecha? no se carga una fecha exacta en silencio", () => {
+  const r = leerFechaDifusa("4-6", { anio: 2026, mes: 4 });
+  assert.equal(r.tipo, "ambigua");
+  assert.equal(r.desde, undefined);
+  assert.match(r.aviso!, /¿rango del 4 al 6 o una fecha\?/);
+  assert.deepEqual(leerFechaDifusa("4/6", { anio: 2026, mes: 4 }).desde, fechaLocal(2026, 4, 6), "con barra sigue decidiendo el Mes");
+  assert.deepEqual(leerFechaDifusa("4-6", { anio: 2026, mes: 6 }).desde, fechaLocal(2026, 6, 4), "dd-mm del mes de la columna: fecha");
+  const p = planificarImportacion([hoja("Julieta", fila("Acme", "Gala", { mes: 4, fecha: "4-6" }))], base());
+  assert.equal(p.altas[0].fechaEvento, null);
+  assert.equal(p.filas[0].estado, "revisar");
+});
+
+test("historial: la marca del importador se lee en criollo, lo demás pasa igual", () => {
+  const marca = { id: "x", entidad: "Importacion", campo: "clave", antes: null, despues: "a".repeat(64) };
+  assert.deepEqual(cambioLegible(marca), { id: "x", entidad: "Importacion", campo: "Origen", antes: null, despues: "Importado de planilla" });
+  const otro = { entidad: "Proyecto", campo: "Etapa", antes: "Pedido", despues: "Aprobado" };
+  assert.equal(cambioLegible(otro), otro);
 });
