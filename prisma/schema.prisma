@@ -3850,8 +3850,11 @@ model TallerHora {
   horas         Float
   valorHoraSnap Float
   nota          String?
+  /// Token del formulario: el doble clic manda el mismo y la base deja una sola carga.
+  envioId       String?
   createdAt     DateTime        @default(now())
 
+  @@unique([tenantId, envioId])
   @@index([tenantId, proyectoId])
   @@index([tenantId, personaId])
 }

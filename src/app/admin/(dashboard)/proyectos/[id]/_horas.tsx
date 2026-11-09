@@ -1,6 +1,7 @@
 // TALLER DE STANDS (GSG-MIA-004 · T3) — sección «Horas» de la pestaña Despiece: carga de horas por persona, la lista
 // y la mano de obra teórica (horas estándar del despiece) contra la real (horas × valor congelado), con el desvío.
 // Sólo se monta con el taller activo, igual que el despiece. Server component: los formularios llaman server actions.
+import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { Button, EmptyState } from "@/components/ui";
 import { pesos } from "@/lib/proyectos/core";
@@ -93,6 +94,7 @@ export async function SeccionHoras({ tenantId, proyectoId, edita }: { tenantId: 
         ) : (
           <form action={cargarHoras} className="mt-4 grid gap-3 sm:grid-cols-[1fr_10rem_6rem_1fr_auto] sm:items-end">
             <input type="hidden" name="proyectoId" value={proyectoId} />
+            <input type="hidden" name="envioId" value={randomUUID()} />
             <label className={etiqueta}>
               Persona
               <select name="personaId" required className={campo}>

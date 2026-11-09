@@ -41,15 +41,18 @@ export function leerFecha(texto: string): Date | null {
 
 export function validarHoras(horas: number): { ok: true; horas: number } | { ok: false; error: string } {
   if (!Number.isFinite(horas)) return { ok: false, error: "Poné las horas con un número." };
+  // Se valida lo que se GUARDA (redondeado): «0,001» redondea a 0 y la base lo rechazaría con un 500.
+  horas = redondear(horas);
   if (horas <= 0) return { ok: false, error: "Las horas tienen que ser más que cero." };
   if (horas > MAX_HORAS_POR_CARGA) return { ok: false, error: `No se pueden cargar más de ${MAX_HORAS_POR_CARGA} horas en una carga.` };
-  return { ok: true, horas: redondear(horas) };
+  return { ok: true, horas };
 }
 
 export function validarValorHora(valor: number): { ok: true; valor: number } | { ok: false; error: string } {
   if (!Number.isFinite(valor)) return { ok: false, error: "Poné el valor hora con un número." };
+  valor = redondear(valor);
   if (valor <= 0) return { ok: false, error: "El valor hora tiene que ser mayor que cero." };
-  return { ok: true, valor: redondear(valor) };
+  return { ok: true, valor };
 }
 
 /**

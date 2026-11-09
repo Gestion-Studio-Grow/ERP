@@ -237,19 +237,26 @@ export async function cargarHoras(formData: FormData): Promise<void> {
   const fecha = leerFecha(txt(formData.get("fecha")));
   if (!fecha) volver(ruta, "Poné la fecha de las horas.");
   const nota = txt(formData.get("nota")).slice(0, 200) || null;
+  // Token del formulario (se genera al dibujarlo): el doble clic repite el mismo y el único (tenantId, envioId) frena la segunda.
+  const envioId = txt(formData.get("envioId")).slice(0, 64) || null;
   const { tenantId } = a;
   const r = await conTabla(() =>
     tenantTransaction(async (tx) => {
+      if (envioId && (await tx.tallerHora.findFirst({ where: { tenantId, envioId }, select: { id: true } }))) return "Horas cargadas.";
       const persona = await tx.proyectoPersona.findFirst({ where: { tenantId, id: personaId }, select: { id: true, nombre: true } });
       if (!persona || !personaDelNegocio(personaId, [persona])) return "Esa persona no es de este negocio.";
       const valores = await tx.tallerValorHora.findMany({ where: { tenantId, personaId }, select: { valorHora: true, vigenteDesde: true } });
       const snap = valorHoraVigente(valores, fecha);
       if (snap == null) return `${persona.nombre} no tiene valor hora para esa fecha. Cargalo en «Valor hora por persona» y volvé a intentar.`;
-      const carga = await tx.tallerHora.create({ data: { tenantId, proyectoId, personaId, fecha, horas: h.horas, valorHoraSnap: snap, nota }, select: { id: true } });
+      const carga = await tx.tallerHora.create({ data: { tenantId, proyectoId, personaId, fecha, horas: h.horas, valorHoraSnap: snap, nota, envioId }, select: { id: true } });
       await registrarCambio(tx, { tenantId, proyectoId, entidad: "TallerHora", entidadId: carga.id, campo: "Horas", despues: `${persona.nombre}: ${h.horas} h`, autor: a.nombre });
       return "Horas cargadas.";
     }),
-  );
+  ).catch((e: unknown) => {
+    // Dos envíos simultáneos con el mismo token: el segundo choca con el único y la carga ya quedó hecha una vez.
+    if ((e as { code?: string })?.code === "P2002") return "Horas cargadas.";
+    throw e;
+  });
   revalidatePath(`/admin/proyectos/${proyectoId}`);
   volver(ruta, r);
 }

@@ -28,11 +28,14 @@ CREATE TABLE "TallerHora" (
   "horas" DOUBLE PRECISION NOT NULL,
   "valorHoraSnap" DOUBLE PRECISION NOT NULL,
   "nota" TEXT,
+  "envioId" TEXT,
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT "TallerHora_pkey" PRIMARY KEY ("id"),
   CONSTRAINT "TallerHora_horas_check" CHECK ("horas" > 0 AND "horas" <= 24),
   CONSTRAINT "TallerHora_valorHoraSnap_check" CHECK ("valorHoraSnap" >= 0)
 );
+-- Doble clic: el formulario manda un token; la base deja una sola carga por token (NULL no choca).
+CREATE UNIQUE INDEX "TallerHora_tenantId_envioId_key" ON "TallerHora"("tenantId", "envioId");
 CREATE INDEX "TallerHora_tenantId_proyectoId_idx" ON "TallerHora"("tenantId", "proyectoId");
 CREATE INDEX "TallerHora_tenantId_personaId_idx" ON "TallerHora"("tenantId", "personaId");
 ALTER TABLE "TallerHora" ADD CONSTRAINT "TallerHora_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

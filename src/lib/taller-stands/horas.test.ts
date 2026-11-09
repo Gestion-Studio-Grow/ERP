@@ -69,6 +69,9 @@ test("validaciones: horas > 0 y ≤ 24, sin NaN ni negativos", () => {
   for (const malo of [0, -1, 24.01, NaN, Infinity]) assert.equal(validarHoras(malo).ok, false, String(malo));
   assert.deepEqual(validarValorHora(5000), { ok: true, valor: 5000 });
   for (const malo of [0, -5, NaN, Infinity]) assert.equal(validarValorHora(malo).ok, false, String(malo));
+  // Se valida lo que se guarda: «0,001» redondea a 0 y tiene que avisar, no llegar a la base (500) ni dejar un valor $0.
+  assert.equal(validarHoras(0.001).ok, false);
+  assert.equal(validarValorHora(0.001).ok, false);
 });
 
 test("fecha del formulario: AAAA-MM-DD válida o null", () => {
@@ -98,4 +101,5 @@ test("migración T3: FKs compuestas (persona y proyecto del mismo negocio) y RLS
   assert.ok(sql.includes(`"TallerValorHora_personaId_tenantId_fkey" FOREIGN KEY ("personaId", "tenantId")`));
   assert.ok(sql.includes(`FOREIGN KEY ("proyectoId", "tenantId") REFERENCES "Proyecto"("id", "tenantId")`));
   assert.ok(!/ALTER TABLE "ProyectoPersona"/.test(sql), "ProyectoPersona no se toca");
+  assert.ok(sql.includes(`CREATE UNIQUE INDEX "TallerHora_tenantId_envioId_key" ON "TallerHora"("tenantId", "envioId");`), "doble clic: una carga por token");
 });
