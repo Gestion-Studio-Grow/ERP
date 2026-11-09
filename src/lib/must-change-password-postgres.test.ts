@@ -40,7 +40,7 @@ test("con la migración: el flag se marca desde la consola, la app lo ve, B no l
   assert.equal(u?.mustChangePassword, false);
 
   // Operador → marca el flag de la dueña de A (dentro del negocio, como el reset real).
-  const set = await enElNegocio(a.tenantId, (tx) => mc.operatorSetMustChange(tx, a.id, true));
+  const set = await enElNegocio(a.tenantId, (tx) => mc.operatorSetMustChange(tx, { userId: a.id, tenantId: a.tenantId }, true));
   assert.deepEqual(set, { persisted: true });
   assert.equal(await enElNegocio(a.tenantId, (tx) => mc.operatorReadMustChange(tx, a.id)), true);
   assert.equal(await mc.mustChangePasswordFor(a), true);
@@ -48,11 +48,18 @@ test("con la migración: el flag se marca desde la consola, la app lo ve, B no l
   // Parado en B no se ve ni se pisa la fila de A (RLS).
   assert.equal(await enElNegocio(b.tenantId, (tx) => mc.operatorReadMustChange(tx, a.id)), false);
   assert.deepEqual(
-    await enElNegocio(b.tenantId, (tx) => mc.operatorSetMustChange(tx, a.id, false)),
+    await enElNegocio(b.tenantId, (tx) => mc.operatorSetMustChange(tx, { userId: a.id, tenantId: b.tenantId }, false)),
     { persisted: false },
     "desde B el UPDATE no toca la fila de A: no cuenta como marcado",
   );
-  assert.equal(await mc.mustChangePasswordFor({ id: a.id, tenantId: b.tenantId }), false, "con el negocio de B no se lee A");
+  // Parado en A pero con el negocio de B en el filtro: el `AND "tenantId"` escrito a mano también frena (GSG-SEG-013),
+  // no sólo RLS.
+  assert.deepEqual(
+    await enElNegocio(a.tenantId, (tx) => mc.operatorSetMustChange(tx, { userId: a.id, tenantId: b.tenantId }, false)),
+    { persisted: false },
+  );
+  // Con el negocio de B no se lee A: 0 filas → LADO SEGURO (GSG-SEG-013): pide el cambio en vez de dejar pasar.
+  assert.equal(await mc.mustChangePasswordFor({ id: a.id, tenantId: b.tenantId }), true, "0 filas → true (falla cerrado)");
   assert.equal(await mc.mustChangePasswordFor(a), true, "B no pudo bajar el flag de A");
   assert.equal(await mc.mustChangePasswordFor(b), false);
 
@@ -97,7 +104,7 @@ test("sin la columna: el reset y el alta fallan cerrado (ninguna provisoria, nad
         setPasswordHash: async (id, h) => {
           await tx.$executeRaw`UPDATE "User" SET "passwordHash" = ${h} WHERE id = ${id}`;
         },
-        setMustChange: (id, v) => mc.operatorSetMustChange(tx, id, v),
+        setMustChange: (id, v) => mc.operatorSetMustChange(tx, { userId: id, tenantId: a.tenantId }, v),
         audit: async () => {
           await tx.$executeRaw`INSERT INTO "AuditLog" (id) VALUES ('no-deberia')`;
         },
@@ -124,7 +131,7 @@ test("sin la columna: el reset y el alta fallan cerrado (ninguna provisoria, nad
               VALUES ('u-provisoria', ${d.tenantId}, ${d.name}, ${d.email}, ${d.passwordHash}, 'RECEPTION', now())`;
             return { id: "u-provisoria" };
           },
-          setMustChange: (id, v) => mc.operatorSetMustChange(tx, id, v),
+          setMustChange: (id, v) => mc.operatorSetMustChange(tx, { userId: id, tenantId: a.tenantId }, v),
           audit: async () => {},
         },
         { tenantId: a.tenantId, operatorSubject: "test", entrada: { name: "Provisoria", email, role: "RECEPTION" } },
@@ -142,6 +149,6 @@ test("sin la columna: el reset y el alta fallan cerrado (ninguna provisoria, nad
   // Se aplica la migración en caliente: la lectura se entera en el acto (el «no existe» no se recuerda),
   // así que una provisoria emitida apenas después obliga al cambio sin ventana.
   await duenio.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN "mustChangePassword" BOOLEAN NOT NULL DEFAULT false`);
-  assert.deepEqual(await enElNegocio(a.tenantId, (tx) => mc.operatorSetMustChange(tx, a.id, true)), { persisted: true });
+  assert.deepEqual(await enElNegocio(a.tenantId, (tx) => mc.operatorSetMustChange(tx, { userId: a.id, tenantId: a.tenantId }, true)), { persisted: true });
   assert.equal(await mc.mustChangePasswordFor(a), true);
 });

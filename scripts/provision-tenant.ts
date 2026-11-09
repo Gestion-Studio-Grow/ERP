@@ -250,7 +250,11 @@ export async function provisionTenant(prisma: PrismaClient, params: ProvisionPar
     if (!existingOwner) {
       const passwordHash = await hashPassword(ownerPassword);
       await tx.user.create({
-        data: { tenantId, name: ownerName, email: ownerEmail, passwordHash, role: "OWNER" },
+        // La contraseña del alta es PROVISORIA siempre (la generó el sistema o la eligió quien da el alta: la conoce
+        // otro). Regla del dueño: nunca una provisoria sin cambio obligatorio (GSG-SEG-013). Va en la MISMA escritura:
+        // si la columna no está, el alta entera vuelve atrás en vez de dejar una provisoria eterna.
+        data: { tenantId, name: ownerName, email: ownerEmail, passwordHash, role: "OWNER", mustChangePassword: true },
+        select: { id: true },
       });
       ownerCreated = true;
     }

@@ -32,6 +32,7 @@ import type { PrismaClient, Prisma } from "@/generated/prisma/client";
 import { enElNegocio } from "@/lib/operator-db";
 import { provisionTenant } from "../../../../../scripts/provision-tenant";
 import { generateStrongPassword, hashPassword } from "@/lib/auth-password";
+import { CAMBIO_OBLIGATORIO_INACTIVO } from "@/lib/must-change-password";
 import { MODULO_CARTERA, crearClienteProvisioning, resolverSlugCliente } from "@/lib/cartera-core";
 import { mapaDeHostsVigente } from "@/lib/tenant";
 import { leerLimitesEnTx } from "@/lib/limites-del-negocio-en-tx";
@@ -543,6 +544,9 @@ export async function configurarSolicitud(
         }
 
         const m1 = await columnasDeM1(tx);
+        // Sin el cambio obligatorio activo, FRENA (GSG-SEG-013): el alta emite contraseñas provisorias y sin la
+        // columna quedarían válidas para siempre. Antes sólo se avisaba. Antes de escribir nada: no hay que deshacer.
+        if (!m1.cambioDeClave) throw new Rechazo(CAMBIO_OBLIGATORIO_INACTIVO);
         const avisos: string[] = avisoLocales ? [avisoLocales] : [];
         const usuarios: UsuarioEntregado[] = [];
         let cliente: { id: string; name: string; slug: string; subdomain: string | null; arcaPuntoVenta: number | null };
@@ -604,8 +608,10 @@ export async function configurarSolicitud(
             select: { id: true, name: true, slug: true, subdomain: true, arcaPuntoVenta: true },
           });
           cliente = t;
-          if (m1.cambioDeClave && r.generatedPassword) {
-            await tx.$executeRaw`UPDATE "User" SET "mustChangePassword" = true WHERE "tenantId" = ${t.id} AND lower("email") = ${c.email}`;
+          // El OWNER ya nace con el cambio obligatorio (provisionTenant); se reafirma y se exige la fila.
+          if (r.generatedPassword) {
+            const n = await tx.$executeRaw`UPDATE "User" SET "mustChangePassword" = true WHERE "tenantId" = ${t.id} AND lower("email") = ${c.email}`;
+            if (n !== 1) throw new Rechazo(CAMBIO_OBLIGATORIO_INACTIVO);
           }
           usuarios.push({ quien: "cliente", nombre: c.razonSocial, email: c.email, clave: r.generatedPassword ?? null });
         }
@@ -631,7 +637,8 @@ export async function configurarSolicitud(
               data: { tenantId: estudioId, name: c.contadora.nombre, email: c.contadora.email, passwordHash: await hashPassword(clave), role: "OWNER" },
               select: { id: true },
             });
-            if (m1.cambioDeClave) await tx.$executeRaw`UPDATE "User" SET "mustChangePassword" = true WHERE "id" = ${u.id}`;
+            const n = await tx.$executeRaw`UPDATE "User" SET "mustChangePassword" = true WHERE "id" = ${u.id} AND "tenantId" = ${estudioId}`;
+            if (n !== 1) throw new Rechazo(CAMBIO_OBLIGATORIO_INACTIVO);
             usuarios.push({ quien: "contadora", nombre: c.contadora.nombre, email: c.contadora.email, clave });
           }
         } else {
@@ -648,9 +655,6 @@ export async function configurarSolicitud(
 
         if (creado && !m1.condicionIva) {
           avisos.push("La condición frente al IVA quedó anotada en el registro del alta. Se carga en la ficha, pestaña Fiscal, cuando esté disponible.");
-        }
-        if (usuarios.some((u) => u.clave) && !m1.cambioDeClave) {
-          avisos.push("Todavía no se le puede exigir que cambie la contraseña en el primer ingreso: pedile que la cambie al entrar.");
         }
 
         // 8) Auditoría DENTRO de la transacción: si no se puede auditar, no hay alta. Sin claves ni teléfono.

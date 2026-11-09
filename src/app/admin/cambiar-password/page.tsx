@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { FUENTES_PANEL } from "@/design/fuentes-panel";
 import type { CSSProperties } from "react";
-import { requireUser } from "@/lib/authz";
+import { requireUserConCambioPendiente } from "@/lib/authz";
 import { getTenantBrand, resolveAccent, marcaDelNegocio } from "@/lib/branding";
 import { getTeamAccentPreset } from "@/lib/team-accent";
 import { getProductoContexto } from "@/lib/producto";
@@ -31,7 +31,7 @@ export default async function CambiarPasswordPage({
   // Nunca rechaza: si falla, el de siempre.
   const disenoP = disenoNuevo();
   const { status } = await searchParams;
-  const user = await requireUser();
+  const user = await requireUserConCambioPendiente();
 
   const brand = await getTenantBrand();
   const { identidad } = await getProductoContexto();
