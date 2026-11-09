@@ -303,8 +303,11 @@ describe("Studio de redes y cámaras de la demo en el navegador", { timeout: 240
     assert.match(await studio.getByLabel("Caption sugerido (lo podés editar)").inputValue(), /^🔥 2x1 en turnos de valle\n\nDe lunes a viernes/);
     // Lo de atrás queda inerte mientras está abierto (modal).
     assert.equal(await page.evaluate(() => document.querySelector("dialog")?.matches(":modal")), true);
+    // El <dialog> cerrado deja de contar para getByRole antes de que React lo saque del DOM: se espera a que
+    // ESE nodo se vaya (si no, getByLabel("Título") ve también el del Studio y falla según la carrera).
+    const nodo = await studio.elementHandle();
     await page.keyboard.press("Escape");
-    await studio.waitFor({ state: "detached" });
+    await page.waitForFunction((d) => !d?.isConnected, nodo, { timeout: 3000 });
     await page.waitForFunction(() => document.activeElement?.textContent === "Hacer la imagen en el Studio", undefined, { timeout: 3000 });
     // No se guardó nada: el borrador sigue.
     assert.equal(await page.getByLabel("Título", { exact: true }).inputValue(), "2x1 en turnos de valle");

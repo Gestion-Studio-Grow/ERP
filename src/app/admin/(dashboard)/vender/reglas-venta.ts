@@ -14,6 +14,7 @@
 // y el servidor tuvieran reglas propias, el cajero vería "Cobrar" habilitado y un rechazo
 // después, o al revés.
 
+import { centavosDe } from "@/lib/dinero/redondeo";
 import { round2 } from "@/lib/round";
 import { leerImporte, formatearCantidad } from "@/lib/pos-peso";
 import { etiquetaDeMedio } from "@/lib/caja/medio-cobro";
@@ -427,8 +428,8 @@ export const REDONDEO_DEL_TOTAL = 100;
  * redondo o si es menos que una centena (no se regala la venta entera). Al centavo. PURA.
  */
 export function descuentoParaRedondear(total: number, paso = REDONDEO_DEL_TOTAL): number {
-  const centavos = Math.round(round2(total) * 100);
-  const pasoC = Math.round(paso * 100);
+  const centavos = centavosDe(total);
+  const pasoC = centavosDe(paso);
   if (!(centavos >= pasoC) || pasoC <= 0) return 0;
   return (centavos % pasoC) / 100;
 }
@@ -477,7 +478,7 @@ export function cambiosDePrecio(
     const porKilo = p.saleUnit === "WEIGHT";
     const antes = (porKilo ? p.pricePerKg : p.price) ?? 0;
     const ahora = (porKilo ? v.pricePerKg : v.price) ?? 0;
-    if (Math.round(antes * 100) !== Math.round(ahora * 100)) out.push({ id: p.id, nombre: p.name, porKilo, antes, ahora });
+    if (centavosDe(antes) !== centavosDe(ahora)) out.push({ id: p.id, nombre: p.name, porKilo, antes, ahora });
   }
   return out;
 }

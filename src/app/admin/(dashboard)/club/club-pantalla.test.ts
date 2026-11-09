@@ -346,7 +346,15 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
     assert.match(await opcion.innerText(), /debe \$/);
     await page.keyboard.press("Escape");
     await paleta.waitFor({ state: "detached" });
+    // «/» sólo abre si nadie escribe y no hay ventana abierta (ClubDemo.tsx, alTeclear): se espera ESE estado,
+    // no sólo que la paleta salga del DOM (falló una vez en CI con la tecla perdida, 30 s sin paleta).
+    await page.waitForFunction(() => {
+      const a = document.activeElement as HTMLElement | null;
+      const escribiendo = !!a && (a.matches("input, select, textarea") || a.isContentEditable);
+      return !escribiendo && !document.querySelector("dialog[open], [role=dialog]:not([popover]), [popover]:popover-open, [role=alertdialog], [role=menu]");
+    });
     await page.keyboard.press("/");
+    await paleta.waitFor();
     await paleta.getByRole("combobox").fill(deudor.split(" ")[0]);
     await paleta.getByRole("option").filter({ hasText: deudor }).filter({ hasText: /^Cliente/i }).first().click();
     assert.equal(await page.getByRole("tab", { name: "Clientes" }).getAttribute("aria-selected"), "true");
@@ -393,6 +401,8 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
     await menu.getByRole("menuitem", { name: "Marcar falta…" }).click();
     await cuenta.getByRole("button", { name: "No vino", expanded: true }).waitFor();
     await cuenta.getByRole("group", { name: "A quién se le cobra el turno" }).waitFor();
+    // El foco lo mueve un efecto después de pintar el grupo: se espera a que llegue (como con «A la cancha»).
+    await page.waitForFunction(() => (document.activeElement as HTMLInputElement | null)?.type === "radio").catch(() => {});
     assert.equal(await page.evaluate(() => (document.activeElement as HTMLInputElement | null)?.type), "radio", "el foco queda en a quién se le cobra");
     assert.deepEqual(errores, []);
     await page.close();
@@ -773,7 +783,7 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
 
     // Cancelar a Agustina Romero (con ficha, faltan menos de 12 h): la previa dice qué pasa con lo pagado.
     await page.keyboard.press("Escape");
-    await page.getByRole("button", { name: /^Agustina Romero, Cancha 4/ }).click();
+    await page.getByRole("button", { name: /^Agustina Romero, Cancha 4, de 21:00/ }).click();
     const agus = page.getByRole("region", { name: "Agustina Romero" });
     await agus.getByRole("button", { name: "Cancelar el turno" }).first().click();
     await agus.getByRole("status").filter({ hasText: /No pagó nada|en suspenso|crédito/ }).waitFor();

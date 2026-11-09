@@ -25,6 +25,7 @@
 // por acá los datos para transferir»). Inventar un alias sería mandar a la clienta a transferirle a
 // otra persona: por eso no hay un valor de ejemplo.
 
+import { centavosDe } from "@/lib/dinero/redondeo";
 import { BUSINESS_TIMEZONE } from "@/lib/business-config";
 import { primerNombre } from "@/lib/crm/textos";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
@@ -54,7 +55,7 @@ export function hayPlata(n: number | null | undefined): n is number {
 export function pesosEnTexto(n: number): string {
   if (!Number.isFinite(n)) return "$0";
   const abs = Math.abs(n);
-  const entero = Math.round(abs * 100) % 100 === 0;
+  const entero = centavosDe(abs) % 100 === 0;
   return `${n < 0 ? "−" : ""}$${(entero ? PESOS : PESOS_CON_CENTAVOS).format(entero ? Math.round(abs) : abs)}`;
 }
 

@@ -37,6 +37,7 @@ jobs:
   lint:
     name: lint (no-bloqueante · deuda pre-existente)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     # continue-on-error: la deuda de lint queda VISIBLE (amarillo) pero NO tumba el
     # run ni enmascara a las demás vallas. Se salda por separado; ver el reporte de
     # la sesión ci/senal-verde.
@@ -54,6 +55,7 @@ jobs:
   tsc:
     name: tsc (tipos)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -76,6 +78,7 @@ jobs:
   tests:
     name: tests (npm test)
     runs-on: ubuntu-latest
+    timeout-minutes: 35
     services:
       postgres:
         image: postgres:16
@@ -90,6 +93,12 @@ jobs:
           --health-retries 20
     env:
       ERP_TEST_PG_URL: postgresql://postgres@localhost:5432/postgres
+      # Hora fija y la misma que producción (Vercel corre en UTC): un test que depende del huso
+      # falla igual en cada corrida, no según la máquina.
+      TZ: UTC
+      # Los 2 tests del paquete Gate 2 se salteaban sin esta URL (y el paso «skipped 0» frenaba).
+      # Es el mismo Postgres efímero del job: crean su base y su rol propios y los borran.
+      GATE2_PG_URL: postgresql://postgres@localhost:5432/postgres
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -98,6 +107,14 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
+      # El Postgres del job vuelca TODO su log al apagarse («Stop containers», después del último paso):
+      # miles de líneas de checkpoints y de ERROR que los tests provocan a propósito (claves únicas,
+      # serialización, RLS) tapaban el resumen de fallidos en la cola del log. Sólo se apaga ese ruido.
+      - name: Postgres del job sin log de ruido
+        run: >-
+          docker exec ${{ job.services.postgres.id }} psql -U postgres -c "ALTER SYSTEM SET log_checkpoints = off"
+          -c "ALTER SYSTEM SET log_min_messages = fatal" -c "ALTER SYSTEM SET log_min_error_statement = panic"
+          -c "SELECT pg_reload_conf()"
       # La salida queda en un archivo: se sube como artefacto y la lee el chequeo de abajo.
       - name: npm test
         shell: bash
@@ -124,10 +141,18 @@ jobs:
           name: npm-test-log
           path: npm-test.log
           if-no-files-found: warn
+      # Último paso: la lista de tests fallidos (y salteados) con archivo:línea y el motivo, en el log y en el
+      # resumen del run. El log entero llega truncado a quien lo lee de lejos (get_job_logs da la cola) y el
+      # artefacto no siempre se puede bajar: con esto los nombres están siempre al final. Sólo informa.
+      - name: tests fallidos (resumen)
+        if: always()
+        shell: bash
+        run: node scripts/ci/resumen-tests.mjs npm-test.log
 
   rls:
     name: rls-coverage (aislamiento)
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -141,6 +166,7 @@ jobs:
   build:
     name: build (next build)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -168,6 +194,7 @@ jobs:
     name: visual (render real) · BLOQUEANTE
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -194,6 +221,7 @@ jobs:
     name: visual-aa (contraste/touch/overflow) · BLOQUEANTE
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
