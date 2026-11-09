@@ -9,6 +9,7 @@
 
 import type { ColumnaDelCierre, VouchersDelCierre } from "@/lib/caja/cierre-diario";
 import type { CashMethod } from "@/lib/caja/cash-register";
+import { redondearAlCentavo } from "@/lib/dinero/redondeo";
 
 export const ETIQUETA_VOUCHERS_A_COBRAR = "A cobrar a la administración (vouchers)";
 
@@ -30,20 +31,16 @@ export function renglonDeVouchers(
   vouchers: VouchersDelCierre | null | undefined,
 ): RenglonDeVouchers | null {
   if (!vouchers) return null;
-  const entroPorCaja = centavos(columnas.reduce((s, c) => s + (porColumna[c]?.ingresos ?? 0), 0));
-  const aCobrar = centavos(vouchers.monto - vouchers.anulados.monto);
+  const entroPorCaja = redondearAlCentavo(columnas.reduce((s, c) => s + (porColumna[c]?.ingresos ?? 0), 0));
+  const aCobrar = redondearAlCentavo(vouchers.monto - vouchers.anulados.monto);
   return {
     etiqueta: ETIQUETA_VOUCHERS_A_COBRAR,
     entroPorCaja,
     aCobrar,
     cantidad: vouchers.cantidad,
     anulados: vouchers.anulados,
-    totalDelDia: centavos(entroPorCaja + aCobrar),
+    totalDelDia: redondearAlCentavo(entroPorCaja + aCobrar),
   };
-}
-
-function centavos(n: number): number {
-  return Math.round(n * 100) / 100;
 }
 
 // ── Pagos de la administración (regla del dueño del 08/11) ──────────────────
@@ -69,7 +66,7 @@ export function pagosDeLaAdministracion(
   for (const m of movimientos) {
     if (m.type !== "INGRESO" || !m.amount || !String(m.referencia ?? "").startsWith("voucher-pago:")) continue;
     const x = porMedio.get(m.method) ?? { monto: 0, cantidad: 0 };
-    porMedio.set(m.method, { monto: centavos(x.monto + m.amount), cantidad: x.cantidad + 1 });
+    porMedio.set(m.method, { monto: redondearAlCentavo(x.monto + m.amount), cantidad: x.cantidad + 1 });
   }
   if (porMedio.size === 0) return null;
   const lista = [...porMedio].map(([medio, x]) => ({ medio, ...x }));
