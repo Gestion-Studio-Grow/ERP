@@ -32,6 +32,7 @@ import { claveCobroBanco, claveCobroMP, cobrosYaFacturados, facturarCobros, vinc
 import { calcularImpuestos, getFiscalProfile, isInvoicingEnabled } from "@/lib/fiscal";
 import { procesarEnviosDelNegocio, type DispatchResumen } from "@/lib/arca-dispatch";
 import { logger } from "@/lib/logger";
+import { hayColumnaCuotaEnInvoice, MOTIVO_NEGOCIO_CON_CUOTAS, negocioFacturaCuotasEnTx } from "@/lib/proyectos/facturar-cuota.server";
 import { businessWallTimeToUtc, dateStrInBusinessTz } from "@/lib/datetime";
 import { fechaFiscalDelDia, ventanaYaFacturada } from "@/lib/libros/fecha-fiscal";
 import {
@@ -657,16 +658,24 @@ export interface ResultadoEmision {
    * factura. Sólo aparece si es mayor a 0.
    */
   yaFacturadas?: number;
+  /**
+   * Etapa 2 · T2 · Propuestas que pasaron a revisión sin emitirse porque el negocio factura cuotas
+   * de proyecto (emitir desde el proyecto). Sólo aparece cuando la barrera actuó.
+   */
+  aRevisionPorCuotas?: number;
   /** Resumen del despacho a ARCA (solo si ARCA_INVOICING_ENABLED está prendido). */
   despachoArca?: DispatchResumen;
 }
 
-// Cuotas de proyecto (Etapa 2 · T2, certificación vuelta 1): un movimiento del extracto NO tiene
-// vínculo con `ProyectoCuota` (la conciliación de Proyectos vive en `ProyectoMovBanco`, otra tabla
-// con su propio extracto), así que acá no se puede excluir barato el cobro de una cuota ya
-// facturada. La guarda está del otro lado: `facturarCuotaDelProyecto` se niega si el negocio tiene
-// `bancos` o movimientos importados. DEUDA: si un negocio factura cuotas y DESPUÉS activa `bancos`,
-// la transferencia de esa cuota puede volver a proponerse; atarlo pide un vínculo movimiento→cuota.
+// Cuotas de proyecto (Etapa 2 · T2, certificación vueltas 1 y 2): un movimiento del extracto NO
+// tiene vínculo con `ProyectoCuota` (la conciliación de Proyectos vive en `ProyectoMovBanco`, otra
+// tabla), así que no se puede saber cuál cobro es de una cuota ya facturada. Barrera simétrica:
+// `facturarCuotaDelProyecto` se niega si el negocio tiene `bancos` o movimientos importados, y
+// ESTA función, si el negocio tiene alguna factura de cuota (`Invoice.proyectoCuotaId`), no emite:
+// pasa las propuestas a revisión con `MOTIVO_NEGOCIO_CON_CUOTAS` (la pantalla de bancos queda
+// abierta con el registro de módulos apagado, gating.ts:20). Un negocio sin facturas de cuota no
+// cambia en nada. DEUDA: en ese negocio la bandeja del extracto no factura sola; lo fino pide un
+// vínculo movimiento→cuota. El cobro por Mercado Pago (mercadopago-auto) no pasa por acá.
 /**
  * Emite las propuestas `auto` de UN tenant, con tenantId EXPLÍCITO. Es el core de
  * `emitirPropuestasAction` (mismo claim idempotente auto→emitida, mismo cap del
@@ -701,6 +710,33 @@ export async function emitirPropuestas(
     });
     if (movimientos.length === 0) {
       return { emitidas: 0, bloqueadasPorCap: 0, capAlcanzado: false, errores: [] };
+    }
+
+    // Negocio que factura cuotas de proyecto: el cobro de una cuota ya facturada se vería acá como
+    // una venta más y abriría un segundo CAE. Las propuestas pasan a revisión con el motivo, en la
+    // misma transacción en la que se mira (columna preguntada antes, fuera de la tx).
+    if (await hayColumnaCuotaEnInvoice()) {
+      const aRevision = await tenantTransaction(
+        async (tx) => {
+          if (!(await negocioFacturaCuotasEnTx(tx, tenantId))) return null;
+          const r = await tx.movimientoImportado.updateMany({
+            where: { tenantId, id: { in: movimientos.map((m) => m.id) }, estadoPropuesta: "auto" },
+            data: { estadoPropuesta: "revision", motivoRevision: MOTIVO_NEGOCIO_CON_CUOTAS },
+          });
+          return r.count;
+        },
+        { tenantId },
+      );
+      if (aRevision !== null) {
+        return {
+          emitidas: 0,
+          bloqueadasPorCap: 0,
+          capAlcanzado: false,
+          aRevisionPorCuotas: aRevision,
+          mensaje: `${MOTIVO_NEGOCIO_CON_CUOTAS} ${aRevision === 1 ? "La propuesta quedó" : `Las ${aRevision} propuestas quedaron`} en revisión, sin facturar.`,
+          errores: [],
+        };
+      }
     }
 
     // El punto de venta ya viene del tenant dentro del perfil (`arcaPuntoVenta`,

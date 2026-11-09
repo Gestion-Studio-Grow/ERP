@@ -10,6 +10,7 @@ import { after } from "next/server";
 import { enviarMailInterno } from "@/lib/notifications";
 import { tenantTransaction } from "@/lib/rls";
 import { prisma } from "@/lib/prisma";
+import { logger } from "@/lib/logger";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
 import { roleHasCapability } from "@/lib/capabilities";
@@ -238,14 +239,23 @@ export async function regenerarCuotasDe(tenantId: string, cuales: Prisma.Proyect
   for (const p of abiertos) await regenerarCuotas(tenantId, p.id);
 }
 
-export async function regenerarCuotas(tenantId: string, proyectoId: string): Promise<void> {
+/** Lo que ve quien guardó cuando el plan no pudo cerrar porque se facturaron cuotas mientras se ajustaba. */
+export const AVISO_RECALCULAR_PLAN =
+  "Se facturó una cuota mientras se ajustaba el plan de cobros: recalculá el plan para que el saldo cierre.";
+
+/**
+ * Devuelve `null` si el plan quedó al día, o `AVISO_RECALCULAR_PLAN` si en las 3 pasadas siempre
+ * chocó con una cuota recién facturada (el plan puede haber quedado corto): queda registrado en
+ * el historial del proyecto y en el log, y la acción lo muestra.
+ */
+export async function regenerarCuotas(tenantId: string, proyectoId: string): Promise<string | null> {
   const [p, viva, config, tc] = await Promise.all([
     prisma.proyecto.findFirst({ where: { id: proyectoId, tenantId }, select: { id: true, nombre: true, moneda: true, etapa: true, fechaEvento: true, createdAt: true, anticipoClientePct: true, perdidoEl: true } }),
     versionViva(tenantId, proyectoId),
     configProyectos(tenantId),
     tiposDeCambio(tenantId),
   ]);
-  if (!p || !viva) return;
+  if (!p || !viva) return null;
   const items = viva.items.map(aItemFicha);
   const proveedores = [...new Set(items.map((i) => i.supplierId).filter((s): s is string => !!s))];
   const fichas = await prisma.proyectoProveedorFicha.findMany({ where: { tenantId, supplierId: { in: proveedores } }, select: { supplierId: true, anticipoPct: true } });
@@ -270,8 +280,12 @@ export async function regenerarCuotas(tenantId: string, proyectoId: string): Pro
   // confirma un «Facturar», el candado lo detecta (`"facturada"`) y el plan se recalcula con esa
   // cuota congelada; si no, el saldo quedaba calculado contra el monto viejo y el plan, corto.
   for (let vuelta = 0; vuelta < 3; vuelta++) {
-    if (!(await aplicarPlan(tenantId, proyectoId, planDeLaFicha, prevista))) return;
+    if (!(await aplicarPlan(tenantId, proyectoId, planDeLaFicha, prevista))) return null;
   }
+  // Tres pasadas y siempre chocó: no se sigue en silencio.
+  logger.warn("proyectos", "el plan de cobros no cerró: se facturaron cuotas mientras se ajustaba", { tenantId, proyectoId });
+  await registrarCambio(prisma, { tenantId, proyectoId, entidad: "Proyecto", entidadId: proyectoId, campo: "Plan de cobros", antes: null, despues: AVISO_RECALCULAR_PLAN, autor: "Sistema" });
+  return AVISO_RECALCULAR_PLAN;
 }
 
 /**

@@ -99,6 +99,20 @@ export async function facturasDeCuotas(
   return salida;
 }
 
+/** Motivo con el que una propuesta del extracto pasa a revisión en un negocio que factura cuotas. */
+export const MOTIVO_NEGOCIO_CON_CUOTAS =
+  "Este negocio factura cuotas de proyectos: emití desde el proyecto, no desde el extracto.";
+
+/**
+ * ¿El negocio ya facturó alguna cuota de proyecto? (cualquier estado). Corre en la transacción
+ * dada, con el negocio explícito además de RLS. El llamador pregunta ANTES, fuera de la
+ * transacción, `hayColumnaCuotaEnInvoice()`: sin la columna esta consulta abortaría la tx.
+ */
+export async function negocioFacturaCuotasEnTx(tx: InvoiceTx, tenantId: string): Promise<boolean> {
+  const una = await tx.invoice.findFirst({ where: { tenantId, proyectoCuotaId: { not: null } }, select: { id: true } });
+  return una !== null;
+}
+
 /** Toma la cuota FOR UPDATE (SQL crudo: Prisma no lo expresa; el negocio va explícito además de RLS). */
 async function tomarCuota(tx: InvoiceTx, tenantId: string, cuotaId: string): Promise<CuotaAFacturar | null> {
   const filas = await tx.$queryRaw<CuotaAFacturar[]>`

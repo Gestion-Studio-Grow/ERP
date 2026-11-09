@@ -11,6 +11,9 @@
 //  (f) otro negocio no ve ni factura la cuota (RLS + acción).
 //  (g) con `bancos` o un extracto importado → se niega sin escribir (doble CAE desde el extracto).
 //  (h) 15 iteraciones: «Facturar» y regenerar a la vez → el plan vivo suma el total del presupuesto.
+//  (i) facturar la cuota y DESPUÉS importar el extracto con ese cobro → la bandeja no emite otra
+//      factura: la propuesta pasa a revisión con el motivo (certificación vuelta 2, X6).
+//  (j) un negocio SIN facturas de cuota (beauty-spa) sigue emitiendo sus propuestas como antes.
 //  (d) sin la columna (migración sin aplicar) → se niega sin escribir y `getInvoice` lee. VA ÚLTIMO: borra la columna.
 // ============================================================================
 
@@ -324,6 +327,63 @@ test("(h) 15 de 15: «Facturar» y regenerar con el precio cambiado a la vez →
     if (total !== esperado) malas.push({ i, kind: "plan!=total", total, esperado, facturo: f.ok });
   }
   assert.deepEqual(malas, []);
+});
+
+test("(i) facturar la cuota y DESPUÉS importar el extracto (registro de módulos apagado): un solo CAE por cobro", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const a = p.base.a.id;
+  const pr = await p.proyecto();
+  const id = await p.cuota(pr.id);
+  const r = await p.srv.facturarCuotaDelProyecto({ tenantId: a, proyectoId: pr.id, cuotaId: id, autor: "test" }, p.depsConSim);
+  assert.ok(r.ok, JSON.stringify(r));
+  await p.pasoLaEspera();
+  await p.depsConSim.procesarEnviosDelNegocio(a);
+  const antes = await p.duenio.invoice.count({ where: { tenantId: a } });
+  // Al otro día la dueña sube el extracto: la transferencia del cliente por la misma cuota.
+  const imp = await p.duenio.importacionBancaria.create({ data: { tenantId: a, nombreArchivo: "extracto.csv", origen: "banco", archivo: Buffer.from("x"), mapeoJson: {} }, select: { id: true } });
+  try {
+    const mov = await p.duenio.movimientoImportado.create({ data: { tenantId: a, importacionId: imp.id, hash: `h-i-${id}`, fecha: "20261109", monto: 1210, descripcion: "Transferencia cliente anticipo stand", clasificacion: "venta", estadoPropuesta: "auto" }, select: { id: true } });
+    await p.duenio.tenant.update({ where: { id: a }, data: { bancosCapFacturasMes: 1000 } });
+    const glue = await import("@/lib/bancos-glue");
+    const res = await glue.emitirPropuestas(a, "auto");
+    // La cuota ya tiene CAE: el mismo cobro no abre otra factura; la propuesta queda en revisión, con el motivo.
+    assert.equal(await p.duenio.invoice.count({ where: { tenantId: a } }), antes, `doble factura del mismo cobro: ${JSON.stringify(res)}`);
+    assert.equal(res.emitidas, 0);
+    assert.equal(res.aRevisionPorCuotas, 1);
+    assert.match(res.mensaje ?? "", /emití desde el proyecto/);
+    const fila = await p.duenio.movimientoImportado.findUniqueOrThrow({ where: { id: mov.id }, select: { estadoPropuesta: true, motivoRevision: true, invoiceId: true } });
+    assert.equal(fila.estadoPropuesta, "revision");
+    assert.match(fila.motivoRevision ?? "", /factura cuotas de proyectos/);
+    assert.equal(fila.invoiceId, null);
+    // Otra vuelta: no hay nada en `auto`, nada que emitir.
+    assert.equal((await glue.emitirPropuestas(a, "auto")).emitidas, 0);
+  } finally {
+    await p.duenio.importacionBancaria.delete({ where: { id: imp.id } });
+  }
+});
+
+test("(j) un negocio SIN facturas de cuota (beauty-spa) emite sus propuestas del extracto igual que antes", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const spa = await p.duenio.tenant.create({
+    data: { name: "Beauty Spa", slug: `beauty-spa-${Date.now()}`, modules: ["bancos", "arca"], arcaCuit: "20111111112", arcaPuntoVenta: 1, arcaHomologacion: true, arcaCondicionIva: "RESPONSABLE_INSCRIPTO", bancosCapFacturasMes: 1000 },
+    select: { id: true },
+  });
+  const imp = await p.duenio.importacionBancaria.create({ data: { tenantId: spa.id, nombreArchivo: "extracto.csv", origen: "banco", archivo: Buffer.from("x"), mapeoJson: {} }, select: { id: true } });
+  const mov = await p.duenio.movimientoImportado.create({ data: { tenantId: spa.id, importacionId: imp.id, hash: "h-spa-1", fecha: "20261109", monto: 1210, descripcion: "Transferencia clienta masajes", clasificacion: "venta", estadoPropuesta: "auto" }, select: { id: true } });
+  const glue = await import("@/lib/bancos-glue");
+  const res = await glue.emitirPropuestas(spa.id, "auto");
+  assert.equal(res.emitidas, 1, JSON.stringify({ ...res, despachoArca: undefined }));
+  assert.equal(res.aRevisionPorCuotas, undefined);
+  assert.deepEqual(res.errores, []);
+  const fila = await p.duenio.movimientoImportado.findUniqueOrThrow({ where: { id: mov.id }, select: { estadoPropuesta: true, motivoRevision: true, invoiceId: true } });
+  assert.equal(fila.estadoPropuesta, "emitida");
+  assert.equal(fila.motivoRevision, null);
+  assert.ok(fila.invoiceId);
+  const factura = await p.duenio.invoice.findUniqueOrThrow({ where: { id: fila.invoiceId! }, select: { tenantId: true, proyectoCuotaId: true } });
+  assert.equal(factura.tenantId, spa.id);
+  assert.equal(factura.proyectoCuotaId, null);
 });
 
 test("(d) sin la columna (migración sin aplicar): se niega sin escribir, regenerar y quitar siguen andando", async (t) => {
