@@ -273,6 +273,7 @@ model Tenant {
   tallerValoresHora         TallerValorHora[]
   tallerHoras               TallerHora[]
   tallerPedidos             TallerPedido[]
+  tallerConsumos            TallerConsumo[]
   consultas                 Consulta[]
   consultaMensajes          ConsultaMensaje[]
   voucherLotes              VoucherLote[]
@@ -821,10 +822,15 @@ model Product {
   // Null = sin cargar (hoy: 21 % parejo y el inscripto no emite, iva-por-producto.ts).
   alicuotaIva Int?
 
+  // Taller de stands T6: piezas que salen de este producto y su consumo (FKs compuestas).
+  tallerPiezas   TallerPieza[]
+  tallerConsumos TallerConsumo[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([tenantId, codigo])
+  @@unique([id, tenantId]) // T6: destino de las FKs compuestas del taller (no cambia datos: "id" ya es único)
   @@index([tenantId])
 }
 
@@ -3561,6 +3567,7 @@ model Proyecto {
   despiece            TallerDespiece[]
   tallerHoras         TallerHora[]
   tallerPedidos       TallerPedido[]
+  tallerConsumos      TallerConsumo[]
   consultas           Consulta[]
   entregables         ProyectoEntregable[]
   cuotas              ProyectoCuota[]
@@ -3796,11 +3803,16 @@ model TallerPieza {
   unidad    String           @default("u")
   costoUnit Float            @default(0)
   horasStd  Float            @default(0)
+  // T6: producto del negocio del que sale el material. FK compuesta (productId, tenantId) → Product: nunca de otro
+  // negocio. RESTRICT y no SET NULL: SET NULL anularía también tenantId (Prisma no admite `SET NULL (productId)`);
+  // los productos se dan de baja lógica (`deletedAt`), así que borrar uno vinculado es un error que conviene ver.
+  product   Product?         @relation(fields: [productId, tenantId], references: [id, tenantId], onDelete: Restrict)
   productId String?
   activa    Boolean          @default(true)
   createdAt DateTime         @default(now())
   updatedAt DateTime         @updatedAt
   despieces TallerDespiece[]
+  consumos  TallerConsumo[]
 
   @@unique([id, tenantId]) // destino de la FK compuesta del despiece: una pieza no cruza de negocio
   @@index([tenantId, activa])
@@ -3892,6 +3904,28 @@ model TallerPedido {
 
   @@unique([id, tenantId])
   @@unique([tenantId, envioId])
+  @@index([tenantId, proyectoId])
+}
+
+/// Taller de stands T6: material del despiece descontado del stock real. Una fila por proyecto y pieza con la cantidad
+/// NETA descontada (0 = devuelta); el movimiento va por el ledger (`recordMovement`) y `movementId` es el último (rastro
+/// débil, sin FK, como los del ledger). `productId` es el producto del que salió: la devolución vuelve a ése.
+model TallerConsumo {
+  id         String      @id @default(cuid())
+  tenant     Tenant      @relation(fields: [tenantId], references: [id])
+  tenantId   String
+  proyecto   Proyecto    @relation(fields: [proyectoId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  proyectoId String
+  pieza      TallerPieza @relation(fields: [piezaId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  piezaId    String
+  product    Product     @relation(fields: [productId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  productId  String
+  cantidad   Float       @default(0)
+  movementId String
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  @@unique([proyectoId, piezaId])
   @@index([tenantId, proyectoId])
 }
 
