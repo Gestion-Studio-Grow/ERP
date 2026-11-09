@@ -74,6 +74,12 @@ del gasto es relectura), no el modelo.
   --tope-semanal-usd <tope>` (tokens, US$ por modelo, % del tope) → al informe.
 - **Continuidad:** sesiones en la nube y push a su rama al cerrar cada tanda; nada vive sólo en un disco.
 
+## Límite de contexto y compactación automática (09/11/2026 · orden del dueño)
+Metodología completa: Factory-GSG `CLAUDE.md`, sección «Metodología: límite de contexto y compactación automática».
+- Toda sesión compacta sola a ~200k: `.claude/settings.json` lleva `"env": {"CLAUDE_CODE_AUTO_COMPACT_WINDOW": "270000"}`. Sin eso, la ventana de fábrica (980k) relee todo en cada turno.
+- Sólo aplica con el directorio de trabajo dentro del repo. Lo que lo cubre siempre es la misma variable cargada por el dueño en el entorno Default de claude.ai.
+- **Paso 0 de toda sesión:** `get_session` sin id, o `env | grep AUTO_COMPACT`. Tiene que dar ventana 270000. Si no, avisá a la orquestadora.
+
 ## Verificación y QA
 `npm run gates` · `npx tsc --noEmit` · `node --import tsx --test <archivos>` · `npm run build` al integrar.
 QA = recorrido clic por clic, no «que cargue». Kit visual: `DESIGN.md`, `.claude/rules/`; sin dependencias
