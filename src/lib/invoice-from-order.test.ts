@@ -62,6 +62,8 @@ test("monotributo (como CH): el pedido a ARCA es el de siempre y no se lee la fi
       ...calcularImpuestos("MONOTRIBUTO", 1500),
       vencimientoPago: fecha,
       origin: { type: "ORDER", id: "orden-1" },
+      // Tanda plata: el total con que se armó, para compararlo bajo el candado del pedido.
+      totalDelPedido: 1500,
     },
   ]);
 });

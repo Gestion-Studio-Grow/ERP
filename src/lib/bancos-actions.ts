@@ -534,10 +534,12 @@ export async function marcarNoFacturableAction(
     };
   }
 
-  await tenantTransaction(
+  // Compare-and-set: la lectura de arriba es previa; si en el medio una emisión lo reclamó
+  // (auto → emitida) o quedó atado a una factura, no se pisa (tanda plata, punto 3).
+  const marcado = await tenantTransaction(
     (tx) =>
       tx.movimientoImportado.updateMany({
-        where: { id: movimientoId, tenantId },
+        where: { id: movimientoId, tenantId, estadoPropuesta: { not: "emitida" }, invoiceId: null },
         data: {
           estadoPropuesta: "no_facturable",
           motivoRevision: "Marcado como no facturable por el usuario.",
@@ -545,6 +547,12 @@ export async function marcarNoFacturableAction(
       }),
     { tenantId },
   );
+  if (marcado.count === 0) {
+    return {
+      ok: false,
+      error: "Este movimiento ya tiene factura emitida: no se puede marcar como no facturable.",
+    };
+  }
 
   if (aprenderPatron) {
     const movimientoBancario: MovimientoBancario = {

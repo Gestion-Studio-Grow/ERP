@@ -888,7 +888,8 @@ export async function ajustarPedidoInTx(
   const id = args.orderId;
   // El pedido TOMADO (FOR UPDATE) antes de leer nada: la facturación lo toma FOR SHARE
   // (`tomarPedidoNoAnulado`, invoice-core.ts), así que una factura del pedido o ya está
-  // confirmada y se ve abajo, o espera a que esta edición termine. Mismo patrón que la anulación.
+  // confirmada y se ve abajo, o espera a que esta edición termine y, si el total cambió, no
+  // factura el monto viejo (`TotalDelPedidoCambioError`). Mismo patrón que la anulación.
   await tx.$queryRaw`SELECT id FROM "Order" WHERE id = ${id} AND "tenantId" = ${tenantId} FOR UPDATE`;
   const order = await tx.order.findFirst({
     where: { tenantId, id },

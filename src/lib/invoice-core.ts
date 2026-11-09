@@ -133,6 +133,12 @@ export interface CreateInvoiceInput {
    * compara el cobro del turno contra este número, no contra el total facturado.
    */
   cobroDelTurno?: number;
+  /**
+   * Sólo con origen ORDER: el `Order.total` con el que se armó la factura (se leyó FUERA de la
+   * transacción). Bajo el FOR SHARE del pedido se compara contra el total confirmado: si una
+   * edición lo cambió en el medio, no se factura el monto viejo (`TotalDelPedidoCambioError`).
+   */
+  totalDelPedido?: number;
 }
 
 /** El comprobante que corrige una nota de crédito: la fila del Core y cómo lo conoce ARCA. */
@@ -147,7 +153,7 @@ export interface ComprobanteAsociadoInput {
 
 /** Forma del payload del evento `InvoiceCreated` que viaja por el outbox. */
 export interface InvoiceCreatedPayload
-  extends Omit<CreateInvoiceInput, "tenantId" | "origin" | "reabrirSiRechazada" | "asociado" | "descripcion" | "cobroDelTurno"> {
+  extends Omit<CreateInvoiceInput, "tenantId" | "origin" | "reabrirSiRechazada" | "asociado" | "descripcion" | "cobroDelTurno" | "totalDelPedido"> {
   /** Nota de crédito: la factura que corrige, como la conoce ARCA (CbtesAsoc). */
   asociado?: { cbteTipo: number; puntoVenta: number; numero: number; fecha: string };
   invoiceId: string;
@@ -297,7 +303,7 @@ export async function createInvoiceInTx(
   const hasOrigin = tieneOrigen(originLink);
 
   if ("orderId" in originLink && originLink.orderId) {
-    await tomarPedidoNoAnulado(tx, input.tenantId, originLink.orderId);
+    await tomarPedidoNoAnulado(tx, input.tenantId, originLink.orderId, input.totalDelPedido);
   }
   if ("appointmentId" in originLink && originLink.appointmentId) {
     await tomarTurnoConElMismoCobro(tx, input.tenantId, originLink.appointmentId, input.cobroDelTurno ?? input.total);
@@ -363,15 +369,35 @@ export class VentaAnuladaError extends Error {
  * SQL crudo porque Prisma no expresa FOR SHARE; el negocio va explícito en el WHERE (patrón de
  * `stock/adjustment-insert.ts`) además de RLS.
  */
-async function tomarPedidoNoAnulado(tx: InvoiceTx, tenantId: string, orderId: string): Promise<void> {
+async function tomarPedidoNoAnulado(
+  tx: InvoiceTx,
+  tenantId: string,
+  orderId: string,
+  totalDelPedido?: number,
+): Promise<void> {
   // Con FOR SHARE, Postgres devuelve la versión de la fila que dejó confirmada quien la tenía
-  // bloqueada: el `status` que se lee acá es el de después de la anulación.
-  const filas = await tx.$queryRaw<{ status: string }[]>`
-    SELECT status::text AS status FROM "Order"
+  // bloqueada: el `status` y el `total` que se leen acá son los de después de la anulación o
+  // de la edición (`ajustarPedidoInTx` toma la misma fila FOR UPDATE).
+  const filas = await tx.$queryRaw<{ status: string; total: number }[]>`
+    SELECT status::text AS status, total FROM "Order"
     WHERE id = ${orderId} AND "tenantId" = ${tenantId}
     FOR SHARE`;
   if (filas.length === 0) throw new Error("No se encontró la venta a facturar.");
   if (filas[0].status === "CANCELLED") throw new VentaAnuladaError();
+  if (totalDelPedido !== undefined && centavosDe(Number(filas[0].total)) !== centavosDe(totalDelPedido)) {
+    throw new TotalDelPedidoCambioError();
+  }
+}
+
+/**
+ * El total del pedido cambió (una edición confirmada) entre que se armó el comprobante y que se
+ * tomó la fila del pedido: no se factura con el monto viejo. Volver a facturar lo arma de nuevo.
+ */
+export class TotalDelPedidoCambioError extends Error {
+  constructor() {
+    super("El pedido cambió mientras se facturaba: volvé a facturarlo.");
+    this.name = "TotalDelPedidoCambioError";
+  }
 }
 
 /**

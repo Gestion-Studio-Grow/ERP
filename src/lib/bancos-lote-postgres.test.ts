@@ -14,6 +14,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import pg from "pg";
 import { apuntarLaAppA, baseEfimeraDelArchivo, prismaComoDuenio, type BaseEfimera } from "@/test/base-efimera";
+import { ejecutarAccion, prepararAccionesDeServidor } from "@/test/accion-de-servidor";
 
 const laBase = baseEfimeraDelArchivo();
 
@@ -87,10 +88,10 @@ test("un re-proceso en curso frena el reclamo: al terminar, el movimiento ya no 
   const { compartirLoteParaEmitirEnTx } = await import("@/lib/bancos-lote");
   const { lote, movs } = await sembrarLote(base, base.a.id, 2);
 
-  // El re-proceso: lote FOR UPDATE + borrado de lo provisional, sin confirmar.
+  // El re-proceso: SÓLO el lote FOR UPDATE, todavía sin borrar nada (sin bloqueo de fila sobre
+  // el movimiento). Si el reclamo espera acá, lo frena el FOR SHARE del lote y no el DELETE.
   const reproceso = await transaccionAbierta(base, base.a.id);
   await reproceso.query(`SELECT id FROM "ImportacionBancaria" WHERE id = $1 AND "tenantId" = $2 FOR UPDATE`, [lote, base.a.id]);
-  await reproceso.query(`DELETE FROM "MovimientoImportado" WHERE "importacionId" = $1`, [lote]);
 
   // El reclamo real de bancos-glue.ts.
   const reclamo = tenantTransaction(async (tx) => {
@@ -100,7 +101,9 @@ test("un re-proceso en curso frena el reclamo: al terminar, el movimiento ya no 
       data: { estadoPropuesta: "emitida" },
     });
   }, { tenantId: base.a.id });
-  assert.equal(await sigueEsperando(reclamo), true, "el reclamo tiene que esperar al re-proceso");
+  assert.equal(await sigueEsperando(reclamo), true, "el reclamo tiene que esperar al lote tomado");
+  // Ya con el reclamo esperando, el re-proceso borra lo provisional y confirma.
+  await reproceso.query(`DELETE FROM "MovimientoImportado" WHERE "importacionId" = $1`, [lote]);
   await reproceso.query("COMMIT");
   await reproceso.end();
 
@@ -139,4 +142,30 @@ test("con la sesión de B, el lote de A no existe: no se toma ni se vacía", asy
   const r = await tenantTransaction((tx) => vaciarLoteProvisionalEnTx(tx, base.b.id, lote), { tenantId: base.b.id });
   assert.deepEqual(r, { ok: false, error: "No se encontró la importación." });
   assert.equal(await (await prismaComoDuenio(base)).movimientoImportado.count({ where: { importacionId: lote } }), 2);
+});
+
+test("marcar «no facturable» no pisa un reclamo de emisión que entró en el medio", async (t) => {
+  const base = await laBase(t);
+  if (!base) return;
+  apuntarLaAppA(base);
+  prepararAccionesDeServidor();
+  const { marcarNoFacturableAction } = await import("@/lib/bancos-actions");
+  const { lote, movs } = await sembrarLote(base, base.a.id, 1);
+
+  // La emisión reclamó el movimiento (auto → emitida) y todavía no confirmó: la acción lee «auto».
+  const emision = await transaccionAbierta(base, base.a.id);
+  await emision.query(`SELECT id FROM "ImportacionBancaria" WHERE id = $1 AND "tenantId" = $2 FOR SHARE`, [lote, base.a.id]);
+  await emision.query(`UPDATE "MovimientoImportado" SET "estadoPropuesta" = 'emitida' WHERE id = $1`, [movs[0]]);
+
+  const marcar = ejecutarAccion({ negocio: base.a, usuario: base.a.duenia }, () => marcarNoFacturableAction(movs[0]));
+  assert.equal(await sigueEsperando(marcar), true, "la marca tiene que esperar al reclamo");
+  await emision.query("COMMIT");
+  await emision.end();
+
+  const r = await marcar;
+  assert.equal(r.tipo, "respuesta");
+  if (r.tipo !== "respuesta") return;
+  assert.equal((r.valor as { ok: boolean }).ok, false, JSON.stringify(r.valor));
+  const m = await (await prismaComoDuenio(base)).movimientoImportado.findUniqueOrThrow({ where: { id: movs[0] }, select: { estadoPropuesta: true } });
+  assert.equal(m.estadoPropuesta, "emitida", "el reclamo confirmado no se pisó");
 });
