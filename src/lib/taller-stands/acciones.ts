@@ -12,13 +12,14 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
-import { leerNumero } from "@/lib/proyectos/core";
+import { leerNumero, pesos } from "@/lib/proyectos/core";
 import { configProyectos } from "@/lib/proyectos/datos.server";
 import { actorActual, proyectoVisible, puede, regenerarCuotas, registrarCambio, type Actor } from "@/lib/proyectos/gestion.server";
 import type { ModuloGestion } from "@/lib/proyectos/gestion-core";
 import { faltaLaTabla, itemsDelDespiece, planDePase, validarPieza, RUBRO_DESPIECE } from "./core";
 import { tallerActivo } from "./datos.server";
 import { leerFecha, personaDelNegocio, validarHoras, validarValorHora, valorHoraVigente } from "./horas";
+import { anularPedidoTx, MENSAJE_ANULAR, MENSAJE_RECIBIR, recibirPedidoTx, validarPedido } from "./pedidos";
 
 const RUTA_PIEZAS = "/admin/proyectos/taller/piezas";
 const RUTA_VALORES = "/admin/proyectos/taller/valores-hora";
@@ -279,4 +280,90 @@ export async function borrarHoras(formData: FormData): Promise<void> {
   if (r === SIN_MIGRAR) volver(ruta, r);
   revalidatePath(`/admin/proyectos/${proyectoId}`);
   volver(ruta, r ? "Carga de horas borrada." : "Esa carga ya no estaba.");
+}
+
+// ── Pedidos de materiales (T4) ─────────────────────────────────────────────
+
+/**
+ * Pedido de materiales a un proveedor para el stand. El proveedor se escribe como se lo conoce: si ya está (mismo
+ * nombre, sin importar mayúsculas), es ése; si no, queda sumado. Doble clic: token del formulario + único en la base.
+ */
+export async function crearPedido(formData: FormData): Promise<void> {
+  const proyectoId = txt(formData.get("proyectoId"));
+  const ruta = rutaDespiece(proyectoId);
+  const a = await entrar(["ficha", "cotizaciones"]);
+  if (typeof a === "string") volver(ruta, a);
+  if (!proyectoId || !(await proyectoVisible(a, proyectoId))) volver("/admin/proyectos", "Ese proyecto no existe.");
+  const ivaTexto = txt(formData.get("iva"));
+  const v = validarPedido({ proveedor: txt(formData.get("proveedor")), descripcion: txt(formData.get("descripcion")), total: numero(formData.get("total")), iva: ivaTexto ? numero(formData.get("iva")) : null });
+  if (!v.ok) volver(ruta, v.error);
+  const envioId = txt(formData.get("envioId")).slice(0, 64) || null;
+  const { tenantId } = a;
+  const r = await conTabla(() =>
+    tenantTransaction(async (tx) => {
+      if (envioId && (await tx.tallerPedido.findFirst({ where: { tenantId, envioId }, select: { id: true } }))) return "Pedido cargado.";
+      const existente = await tx.supplier.findFirst({ where: { tenantId, name: { equals: v.pedido.proveedorNombre, mode: "insensitive" } }, select: { id: true } });
+      const proveedor = existente ?? (await tx.supplier.create({ data: { tenantId, name: v.pedido.proveedorNombre }, select: { id: true } }));
+      const pedido = await tx.tallerPedido.create({ data: { tenantId, proyectoId, supplierId: proveedor.id, ...v.pedido, cargadoPor: a.nombre, envioId }, select: { id: true } });
+      await registrarCambio(tx, { tenantId, proyectoId, entidad: "TallerPedido", entidadId: pedido.id, campo: "Pedido de materiales", despues: `${v.pedido.proveedorNombre}: ${v.pedido.descripcion}`, autor: a.nombre });
+      return "Pedido cargado.";
+    }),
+  ).catch((e: unknown) => {
+    // Dos envíos simultáneos con el mismo token: el segundo choca con el único y el pedido ya quedó cargado una vez.
+    if ((e as { code?: string })?.code === "P2002") return "Pedido cargado.";
+    throw e;
+  });
+  revalidatePath(`/admin/proyectos/${proyectoId}`);
+  volver(ruta, r);
+}
+
+/**
+ * Recibir el pedido carga la deuda con el proveedor: UN gasto «Materiales» impago (se paga desde Costos). Por eso pide
+ * el permiso de pagos, como cargar un gasto a mano. Recibir dos veces (doble clic o simultáneo) deja un solo gasto.
+ */
+export async function recibirPedido(formData: FormData): Promise<void> {
+  const proyectoId = txt(formData.get("proyectoId"));
+  const ruta = rutaDespiece(proyectoId);
+  const a = await entrar(["pagos"]);
+  if (typeof a === "string") volver(ruta, a);
+  if (!proyectoId || !(await proyectoVisible(a, proyectoId))) volver("/admin/proyectos", "Ese proyecto no existe.");
+  const pedidoId = txt(formData.get("id"));
+  const { tenantId } = a;
+  const r = await conTabla(() =>
+    tenantTransaction(async (tx) => {
+      const res = await recibirPedidoTx(tx, { tenantId, pedidoId, proyectoId, autor: a.nombre });
+      if (!res.ok) return MENSAJE_RECIBIR[res.motivo];
+      await registrarCambio(tx, { tenantId, proyectoId, entidad: "TallerPedido", entidadId: pedidoId, campo: "Pedido de materiales", antes: "Pedido", despues: "Recibido", autor: a.nombre });
+      await registrarCambio(tx, { tenantId, proyectoId, entidad: "ProyectoGasto", entidadId: res.gastoId, campo: "Costo real", despues: `Materiales: ${res.descripcion} · ${pesos(res.total)}`, autor: a.nombre });
+      return "Pedido recibido: el gasto de materiales quedó cargado en Costos, impago.";
+    }),
+  ).catch((e: unknown) => {
+    // Última barrera: el único de gastoId. Si dos recepciones llegaran a chocar, la segunda se revierte entera.
+    if ((e as { code?: string })?.code === "P2002") return MENSAJE_RECIBIR.YA_RECIBIDO;
+    throw e;
+  });
+  revalidatePath(`/admin/proyectos/${proyectoId}`);
+  volver(ruta, r);
+}
+
+/** Anular no borra el gasto de un pedido ya recibido: avisa que se anule desde Costos. */
+export async function anularPedido(formData: FormData): Promise<void> {
+  const proyectoId = txt(formData.get("proyectoId"));
+  const ruta = rutaDespiece(proyectoId);
+  const a = await entrar(["ficha", "cotizaciones", "pagos"]);
+  if (typeof a === "string") volver(ruta, a);
+  if (!proyectoId || !(await proyectoVisible(a, proyectoId))) volver("/admin/proyectos", "Ese proyecto no existe.");
+  const pedidoId = txt(formData.get("id"));
+  const { tenantId } = a;
+  const r = await conTabla(() =>
+    tenantTransaction(async (tx) => {
+      const res = await anularPedidoTx(tx, { tenantId, pedidoId, proyectoId });
+      if (res === "ANULADO" || res === "ANULADO_CON_GASTO") {
+        await registrarCambio(tx, { tenantId, proyectoId, entidad: "TallerPedido", entidadId: pedidoId, campo: "Pedido de materiales", despues: "Anulado", autor: a.nombre });
+      }
+      return MENSAJE_ANULAR[res];
+    }),
+  );
+  revalidatePath(`/admin/proyectos/${proyectoId}`);
+  volver(ruta, r);
 }
