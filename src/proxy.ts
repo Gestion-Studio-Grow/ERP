@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSessionCookieName, readSessionToken } from "@/lib/auth";
+import {
+  createSessionToken,
+  getSessionCookieName,
+  idDelTokenLegadoParaCanje,
+  leerSesion,
+  readSessionToken,
+  sesionParaRenovar,
+  VIDA_COOKIE_SESION_S,
+} from "@/lib/auth";
 import { getOperatorCookieName, readOperatorToken } from "@/lib/operator-auth";
 import { isDemoSandbox } from "@/lib/demo-flag";
 import { vidrieraDelHost } from "@/lib/producto-host";
+import { ARCHIVOS_DEL_CLUB_CRUDO, PREFIJO_CLUB_CRUDO } from "@/lib/club-crudo";
 import {
   GATE_PATH,
   extraPublicPaths,
@@ -35,6 +44,60 @@ export function esApexDelDominio(host: string | null | undefined, base = process
   return !!b && !!h && (h === b || h === `www.${b}`);
 }
 
+/**
+ * Si la ruta es del club crudo de Break Point: el archivo de `ARCHIVOS_DEL_CLUB_CRUDO` que nombra, o `""` para
+ * cualquier otra cosa dentro de la carpeta (la carpeta misma incluida); si no es del club, `null`. La detección se
+ * normaliza (mayúsculas, %xx, barras dobles e invertidas, . y ..) para no esquivarla; lo devuelto es siempre una
+ * clave de la lista blanca, nunca texto de la URL (con `%252e%252e` el resto decodificado una vez era `%2e%2e/...`
+ * y `new URL` lo resolvía como `..`: certificación GSG-SEG-002, cert 2). PURA.
+ */
+export function rutaDelClubCrudo(pathname: string): string | null {
+  let p = pathname;
+  try {
+    p = decodeURIComponent(pathname);
+  } catch {
+    // %xx roto: se mira la ruta tal cual llegó.
+  }
+  // Barras invertidas, dobles y segmentos . / .. resueltos: `/previews/breakpoint/turnero/..%2fclub/app.mjs` también cuenta.
+  const plano = p.toLowerCase().replace(/\\/g, "/");
+  // Lo que llega con el prefijo del club (antes de resolver `..`) es del club aunque «salga» al resolver: 404, no paso.
+  const conPrefijo = /^\/+previews\/+breakpoint\/+club(\/|$)/.test(plano);
+  const segs: string[] = [];
+  for (const s of plano.split("/")) {
+    if (s === "" || s === ".") continue;
+    if (s === "..") segs.pop();
+    else segs.push(s);
+  }
+  p = `/${segs.join("/")}`;
+  // El motor puro (reglas de canchas y precios, sin pantalla ni datos) queda público: lo importa el turnero crudo
+  // de los jugadores (public/previews/breakpoint/turnero/local.mjs) y ya viaja dentro de /turnero.
+  if (p === "/previews/breakpoint/club/motor.mjs") return null;
+  if (p === "/previews/breakpoint/club") return "";
+  if (!p.startsWith("/previews/breakpoint/club/")) return conPrefijo ? "" : null;
+  return archivoDeLaLista(p.slice("/previews/breakpoint/club/".length)) ?? "";
+}
+
+/** La clave de `ARCHIVOS_DEL_CLUB_CRUDO` igual a `nombre` (la de la lista, no el texto recibido), o `null`. PURA. */
+function archivoDeLaLista(nombre: string): string | null {
+  return Object.keys(ARCHIVOS_DEL_CLUB_CRUDO).find((k) => k === nombre) ?? null;
+}
+
+/**
+ * El archivo del club crudo a servir para esta ruta, o `null` (→ 404). Sólo la forma canónica exacta,
+ * `/previews/breakpoint/club/<archivo de la lista>`: cualquier %xx, barra invertida o doble, segmento vacío, `.`,
+ * `..`, `;` o mayúscula queda afuera. PURA.
+ */
+export function archivoDelClubCrudo(pathname: string): string | null {
+  const prefijo = "/previews/breakpoint/club/";
+  if (!pathname.startsWith(prefijo)) return null;
+  return archivoDeLaLista(pathname.slice(prefijo.length));
+}
+
+/** ¿La ruta es del club crudo de Break Point? Ver `rutaDelClubCrudo`. PURA. */
+export function esClubCrudo(pathname: string): boolean {
+  return rutaDelClubCrudo(pathname) !== null;
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const bloqueado = previewBloqueado(pathname);
@@ -44,7 +107,10 @@ export async function proxy(request: NextRequest) {
   // los layouts/páginas de /admin no reciben el pathname por props, y el gating por-URL
   // del producto Comerciante (layout del dashboard) lo necesita para mapear ruta → módulo.
   // Ver `NextResponse.next({ request: { headers } })` (proxy de Next 16).
+  // El `x-pathname` que mande el cliente se descarta siempre: lo único que llega al server es el de acá. Todo camino
+  // que deja seguir la request usa `pass()` o reenvía `requestHeaders` (certificación GSG-SEG-002, cert 3).
   const requestHeaders = new Headers(request.headers);
+  requestHeaders.delete("x-pathname");
   requestHeaders.set("x-pathname", pathname);
   const pass = () => NextResponse.next({ request: { headers: requestHeaders } });
 
@@ -77,6 +143,25 @@ export async function proxy(request: NextRequest) {
     }
   }
 
+  // --- El club de Break Point de antes del ERP, en crudo (public/previews/breakpoint/club): es la misma app que
+  // /club y se servía a cualquiera, en cualquier host (también en el de Break Point, donde comparte el guardado del
+  // navegador con la jornada). Sin una sesión vigente del panel, 404 acá. Con sesión, NUNCA se sirve el archivo
+  // público directo: se reescribe al manejador (src/app/club-crudo), que exige un usuario activo DEL NEGOCIO
+  // breakpoint con el permiso del club, el mismo criterio que /club (src/lib/sitio-estatico.ts). Antes alcanzaba un
+  // token válido de cualquier negocio (certificación GSG-SEG-002).
+  const restoDelClub = rutaDelClubCrudo(pathname);
+  if (restoDelClub !== null) {
+    if (!(await readSessionToken(request.cookies.get(getSessionCookieName())?.value))) {
+      return new NextResponse("No encontrado", { status: 404, headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" } });
+    }
+    // Lista blanca exacta sobre la ruta cruda: el destino es una constante de la lista, nunca la URL recibida.
+    const archivo = archivoDelClubCrudo(pathname);
+    if (archivo === null || archivo !== restoDelClub) {
+      return new NextResponse("No encontrado", { status: 404, headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" } });
+    }
+    return NextResponse.rewrite(new URL(`${PREFIJO_CLUB_CRUDO}/${archivo}`, request.url), { request: { headers: requestHeaders } });
+  }
+
   // --- Plano de OPERADOR (control-plane, ADR-021) — portón separado del de tenant.
   // Cookie propia y secreto propio; nunca comparte llavero con la sesión de un tenant.
   if (pathname.startsWith("/operador")) {
@@ -85,7 +170,7 @@ export async function proxy(request: NextRequest) {
     // navegador la línea de OPERADORES (no lee ni escribe nada del servidor: la clave no sale de la
     // pantalla). Por ruta exacta: nada debajo de ellas queda público.
     if (pathname === "/operador/login" || pathname === "/operador/login/ingresar" || pathname === "/operador/clave") {
-      return NextResponse.next();
+      return pass();
     }
     const opToken = request.cookies.get(getOperatorCookieName())?.value;
     if (!(await readOperatorToken(opToken))) {
@@ -93,7 +178,7 @@ export async function proxy(request: NextRequest) {
       loginUrl.searchParams.set("next", pathname);
       return NextResponse.redirect(loginUrl);
     }
-    return NextResponse.next();
+    return pass();
   }
 
   // --- Modo SANDBOX de preventa (docs/preventa/plan-acceso-sandbox-sin-password.md).
@@ -106,7 +191,7 @@ export async function proxy(request: NextRequest) {
 
   // Lo que hay debajo (segundo paso, Google) pasa antes de que exista la sesión; cada ruta controla su propio pase.
   if (pathname === "/admin/login" || pathname.startsWith("/admin/login/")) {
-    return NextResponse.next();
+    return pass();
   }
 
   // A partir de acá vive el PORTÓN DE TENANT (/admin y /contador). Hasta que el
@@ -127,16 +212,45 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/facturita/app/");
   if (!esSuperficieDeTenant) return pass();
 
-  // Portón grueso (ADR-017 §2.e): solo verifica que la cookie tenga una firma
-  // válida. El chequeo de rol por acción vive en los Server Actions (Fase 2).
+  // Portón grueso (ADR-017 §2.e): firma válida y sesión ACTIVA (con uso en los últimos 15 min). El chequeo de rol por
+  // acción vive en los Server Actions (Fase 2).
   const token = request.cookies.get(getSessionCookieName())?.value;
-  if (!(await readSessionToken(token))) {
-    const loginUrl = new URL("/admin/login", request.url);
-    loginUrl.searchParams.set("next", pathname);
-    return NextResponse.redirect(loginUrl);
+  const ahora = Date.now();
+  const sesion = await leerSesion(token, { ahora });
+  if (sesion?.estado === "activa") {
+    // VIGENCIA POR USO: el uso renueva la sesión. Se reemite como mucho cada RENOVAR_SESION_CADA_MS con la actividad en
+    // «ahora» y el mismo `ingreso` (el del último ingreso con contraseña). Mismos atributos que `ponerCookieDeSesion`.
+    if (!sesionParaRenovar(sesion, ahora)) return pass();
+    const res = pass();
+    res.cookies.set(getSessionCookieName(), await createSessionToken(sesion.userId, ahora, sesion.ingreso), {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: VIDA_COOKIE_SESION_S,
+    });
+    return res;
   }
-
-  return pass();
+  if (sesion?.estado === "bloqueada") {
+    // 15 min sin uso: la pantalla del PIN (o la contraseña). La sesión no abre nada mientras tanto.
+    const desbloquear = new URL("/admin/login/desbloquear", request.url);
+    desbloquear.searchParams.set("next", pathname);
+    return NextResponse.redirect(desbloquear);
+  }
+  // Token del formato viejo con firma válida: NO pasa. Va a canjearse a /admin/login/renovar, que carga el usuario
+  // de la base y sólo se lo cambia por uno nuevo a la excepción del dueño (src/lib/sesion-legado.ts); al resto, login.
+  // Sólo en GET: un POST (acción de servidor) con token viejo va al login como cualquier sesión vencida.
+  if (request.method === "GET" && (await idDelTokenLegadoParaCanje(token))) {
+    const renovar = new URL("/admin/login/renovar", request.url);
+    renovar.searchParams.set("next", pathname);
+    return NextResponse.redirect(renovar);
+  }
+  const loginUrl = new URL("/admin/login", request.url);
+  loginUrl.searchParams.set("next", pathname);
+  // Había cookie pero ya no vale (7 días sin uso, o es del formato viejo):
+  // el login lo dice, en vez de un «email o contraseña incorrectos» que nadie tipeó.
+  if (token) loginUrl.searchParams.set("error", "vencida");
+  return NextResponse.redirect(loginUrl);
 }
 
 export const config = {
@@ -153,7 +267,18 @@ export const config = {
   // pasarlos por el middleware sólo agrega latencia a cada imagen. `/api` entra al
   // matcher pero el portón lo deja pasar (webhooks y cron no tienen navegador donde
   // tipear una clave); las rutas de tenant que ya tenían portón siguen igual.
+  //
+  // Las superficies sensibles pasan SIEMPRE, aunque la ruta termine en una extensión de la lista (`/admin/x.txt` caía
+  // en una página dinámica sin portón: certificación GSG-SEG-002, cert 3). Next corre el proxy si cualquier entrada
+  // del matcher coincide.
   matcher: [
+    "/admin/:path*",
+    "/operador/:path*",
+    "/contador/:path*",
+    "/facturita/:path*",
+    "/api/:path*",
+    "/club-crudo/:path*",
+    "/previews/:path*",
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif|ico|txt|xml|woff|woff2)$).*)",
   ],
 };

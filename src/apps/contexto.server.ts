@@ -21,7 +21,7 @@ import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { logger } from "@/lib/logger";
-import type { Role } from "@/lib/capabilities";
+import type { PermisoOverride, Role } from "@/lib/capabilities";
 import { getActiveProfile } from "@/lib/profile-gating";
 import { lotesYDespieceListos } from "@/lib/carniceria/schema-probe";
 import { resolveRubroId } from "@/blueprints/retail/rubros";
@@ -72,8 +72,12 @@ export const getContextoApps = cache(async (): Promise<ContextoApps | null> => {
   return resolverContextoApps(t, { registroGlobal: moduleRegistryEnabled(), enInicioPorApps }, catalogo());
 });
 
-/** Todo lo que decide qué apps ve una persona con este `role` en el negocio actual. */
-export const getNegocioApps = cache(async (role: Role): Promise<NegocioApps> => {
+/**
+ * Todo lo que decide qué apps ve una persona con este `role` en el negocio actual. Con `overrides` (las
+ * excepciones de la matriz de QUIEN MIRA: `user.overrides`), una casilla apagada también cierra la app
+ * (`rolPuedeEntrar`); lo usan `requireApp`/`requireAppAccion`, la barra y el Inicio.
+ */
+export const getNegocioApps = cache(async (role: Role, overrides?: ReadonlyArray<PermisoOverride>): Promise<NegocioApps> => {
   const [t, contexto, perfil, carniceriaLista, ocultas] = await Promise.all([
     leerTenant(),
     getContextoApps(),
@@ -95,5 +99,6 @@ export const getNegocioApps = cache(async (role: Role): Promise<NegocioApps> => 
     // hubiera una fila, su menú queda como siempre (paridad-menu.test.ts). Sin la fila del negocio,
     // tampoco: no hay contra qué slug probarlo.
     ocultas: ocultasParaElPanel(t?.slug, ocultas),
+    ...(overrides !== undefined && { overrides }),
   };
 });

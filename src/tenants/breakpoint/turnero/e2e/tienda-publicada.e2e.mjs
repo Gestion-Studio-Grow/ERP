@@ -29,7 +29,7 @@ const srv = createServer(async (req, res) => {
     res.writeHead(b ? 200 : 404, { "Content-Type": { ".woff2": "font/woff2", ".webp": "image/webp" }[path.extname(url.pathname)] ?? "application/octet-stream" });
     return res.end(b ?? undefined);
   }
-  const r = await responderSitioEstatico("breakpoint", url.pathname.split("/").filter(Boolean), async (rel) => new Uint8Array(await readFile(path.join(RAIZ, rel))));
+  const r = await responderSitioEstatico("breakpoint", url.pathname.split("/").filter(Boolean), async (rel) => new Uint8Array(await readFile(path.join(RAIZ, rel))), { conSesion: async () => true }); // puesto logueado
   res.writeHead(r.status, Object.fromEntries(r.headers));
   res.end(Buffer.from(await r.arrayBuffer()));
 });
