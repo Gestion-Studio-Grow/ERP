@@ -17,7 +17,7 @@
 import { chromium } from "playwright";
 import { spawn } from "node:child_process";
 import { createHmac } from "node:crypto";
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -57,7 +57,8 @@ function sano(ms) {
   return new Promise((res) => {
     const probar = () =>
       http
-        .get(`${BASE}/admin/login`, (r) => { r.resume(); res(true); })
+        // Node no siempre resuelve *.localhost (Chromium sí): se pide a 127.0.0.1 con el Host del negocio.
+        .get({ host: "127.0.0.1", port: APP_PORT, path: "/admin/login", headers: { host: `estetica.localhost:${APP_PORT}` } }, (r) => { r.resume(); res(true); })
         .on("error", () => (Date.now() > hasta ? res(false) : setTimeout(probar, 500)));
     probar();
   });
@@ -79,12 +80,14 @@ async function main() {
 
   const app = spawn("npx", ["next", "start", "-p", String(APP_PORT)], {
     cwd: ROOT,
+    detached: true, // grupo propio: al final se mata entero (npx no le pasa la señal a next)
     stdio: ["ignore", "ignore", "inherit"],
     env: { ...process.env, DATABASE_URL: DB_URL, OPERATOR_DATABASE_URL: DB_URL, APP_BASE_DOMAIN: "localhost", AUTH_SECRET, OPERATOR_SECRET: "qa-op", NODE_ENV: "production" },
   });
   try {
     if (!(await sano(90_000))) throw new Error("la app no levantó");
-    const browser = await chromium.launch();
+    // El repo fija otra versión de Playwright: en la nube se usa el Chromium preinstalado si está.
+    const browser = await chromium.launch(existsSync("/opt/pw-browsers/chromium") ? { executablePath: "/opt/pw-browsers/chromium" } : {});
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
     const page = await ctx.newPage();
     const foto = (n) => page.screenshot({ path: path.join(OUT, `${n}.png`), fullPage: true });
@@ -108,8 +111,8 @@ async function main() {
     await page.fill("#pin", "1234");
     await page.fill("#confirmacion", "1234");
     await page.click('button[type="submit"]');
-    await page.getByRole("alert").waitFor();
-    check(/escalera/.test(await page.getByRole("alert").innerText()), "1234 se rechaza (escalera)");
+    await page.locator("p[role=alert]").waitFor();
+    check(/escalera/.test(await page.locator("p[role=alert]").innerText()), "1234 se rechaza (escalera)");
     await page.fill("#pin", "4826");
     await page.fill("#confirmacion", "4826");
     await page.click('button[type="submit"]');
@@ -124,7 +127,7 @@ async function main() {
     const antes = (await cookieActual()).value;
     await page.goto(`${BASE}/admin`);
     const despues = await cookieActual();
-    check(despues.value !== antes && Number(despues.value.split("|")[3].slice(0, 13)) > Date.now() - MIN, "con 6 min, el uso reemite la cookie con la actividad en ahora");
+    check(despues.value !== antes && Number(decodeURIComponent(despues.value).split("|")[3].slice(0, 13)) > Date.now() - MIN, "con 6 min, el uso reemite la cookie con la actividad en ahora");
     check(despues.expires - Date.now() / 1000 > 6.9 * 24 * 3600, "la cookie dura 7 días");
 
     // 3 · bloqueo → PIN correcto
@@ -143,7 +146,7 @@ async function main() {
     for (let i = 1; i <= 4; i++) {
       await page.fill("#pin", "0007");
       await page.click('button[type="submit"]');
-      await page.getByRole("alert").filter({ hasText: `${5 - i === 1 ? "queda 1 intento" : `quedan ${5 - i} intentos`}` }).waitFor();
+      await page.locator("p[role=alert]").filter({ hasText: `${5 - i === 1 ? "queda 1 intento" : `quedan ${5 - i} intentos`}` }).waitFor();
       check(true, `PIN errado ${i}: quedan ${5 - i}`);
       if (i === 1) await foto("04-pin-errado");
     }
@@ -184,7 +187,7 @@ async function main() {
 
     await browser.close();
   } finally {
-    app.kill("SIGTERM");
+    try { process.kill(-app.pid, "SIGTERM"); } catch { app.kill("SIGTERM"); }
     await db.end();
   }
   log(fallas ? `${fallas} FALLAS` : "TODO OK");
