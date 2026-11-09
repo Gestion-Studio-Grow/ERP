@@ -19,7 +19,9 @@ Plan hecho con Fable el 09/11/2026. Lo construido está marcado.
 | T2 (M) | `TallerPieza` (catálogo con costo interno) + `TallerDespiece` por stand + core + pantalla «Despiece» → pasa a presupuesto | Pendiente |
 | T3 (M) | `TallerHora` (mano de obra); costo teórico contra real por rubro | Pendiente |
 | T4 (M) | `TallerPedido`: compra de materiales que, recibida, entra como `ProyectoGasto` «Materiales» | Pendiente |
-| T5 (L, opt-in) | Cruce con MIA (abajo) | Sólo con OK del dueño |
+| T5 (L) | Cruce con MIA (abajo): se construye y queda **apagado**; certificado por subagentes antes del PR | Pendiente |
+| T6 (M) | Stock real de materiales: pieza ↔ `Product`, el despiece consume del stock al armar | Pendiente |
+| T7 (M) | Armador 3D: el cómputo de materiales del armador alimenta el despiece | Pendiente |
 
 ## Opción superadora (T5, opt-in, apagada)
 MIA genera desde su proyecto un vínculo, y Ale lo pega. Ale le manda el presupuesto por link con
@@ -35,10 +37,15 @@ TALLER_STANDS_ENABLED=1 npx tsx scripts/taller-stands/alta-taller-ale.ts --rama-
 ```
 Frena si el flag está apagado, si el host no es local ni el endpoint nombrado, o si RLS no está activo.
 
-## Decisiones del dueño (owner-level: no se hacen sin su OK)
-1. Confirmar el rubro nuevo `taller-stands` (recomendado).
-2. ¿Ale lleva stock real de materiales o sólo compras por stand?
-3. ¿Valor hora por persona o único?
-4. Usuarios y credenciales de Ale; nombre comercial y CUIT del taller.
-5. Activar el cruce con MIA (T5) y quién acepta del lado de MIA.
-6. ¿Ale usa el armador 3D o sólo el despiece?
+## Decisiones del dueño del 09/11/2026 (vía la orquestadora ORQ-005)
+- Rubro `taller-stands`: aprobado. Plan de T1 a T4 aprobado; T5 se construye y queda apagado.
+- A Ale no se le manda todavía nada: ni versión, ni usuario, ni acceso. El alta no crea usuarios.
+- El cruce con MIA no se activa. Por ahora el presupuesto pasa a MIA a mano: exportación o impresión
+  **sin costo ni margen**.
+- Del lado de MIA acepta Dirección o el Dueño (rol configurable).
+- Firmes: stock real de materiales (T6), valor hora por persona (T3) y armador 3D para el despiece (T7).
+
+## Quedan para el dueño (owner-level: sólo se anotan)
+1. Usuarios y credenciales de Ale, y cuándo se le da acceso.
+2. Nombre comercial y CUIT del taller (hoy, provisionales a confirmar).
+3. Activar el cruce con MIA (T5).
