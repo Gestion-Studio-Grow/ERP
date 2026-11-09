@@ -62,8 +62,8 @@ export async function destinoTrasIngreso(
 async function destinoDelProducto(user: { id: string; tenantId: string; role: string }, next: string): Promise<string> {
   // CONTRASEÑA TEMPORAL: si el OWNER entra con una contraseña marcada para cambio forzado
   // (reset del operador), lo mandamos derecho a definir una nueva ANTES de cualquier ruteo por
-  // producto. Fail-safe: si la columna no existe todavía (Gate 2 sin aplicar), devuelve false y
-  // el login sigue normal.
+  // producto. Sin la columna devuelve false (sin ella no se emiten provisorias); ante otro error,
+  // true: falla cerrado y lo manda a cambiarla.
   if (await mustChangePasswordFor({ id: user.id, tenantId: user.tenantId })) {
     return "/admin/cambiar-password";
   }

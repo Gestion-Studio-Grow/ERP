@@ -130,8 +130,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   // PORTÓN DE CAMBIO FORZADO: si la contraseña del usuario está marcada como temporal (reset del
   // operador), no lo dejamos usar el backoffice hasta que defina una nueva. La pantalla de cambio
-  // vive FUERA de (dashboard) → no hereda este layout → sin loop de redirect. Fail-safe: sin la
-  // columna (Gate 2 sin aplicar) devuelve false y no gatea nada.
+  // vive FUERA de (dashboard) → no hereda este layout → sin loop de redirect. Sin la columna
+  // devuelve false (sin ella no se emiten provisorias); ante otro error, true (falla cerrado).
   if (await mustChangePasswordFor({ id: user.id, tenantId: user.tenantId })) {
     redirect("/admin/cambiar-password");
   }

@@ -13,7 +13,7 @@ import { Button, Input, Marca, Renglon } from "@/components/ui";
 import { resetOwnerPasswordDeTenant } from "@/lib/operator-actions";
 import { RevelarClave } from "../../RevelarClave";
 
-type Resultado = { ok: true; password: string; email: string; flagPending: boolean } | { ok: false; error: string };
+type Resultado = { ok: true; password: string; email: string } | { ok: false; error: string };
 
 export function ResetOwnerPasswordCard({
   tenantId,
@@ -122,12 +122,6 @@ export function ResetOwnerPasswordCard({
       {resultado?.ok && (
         <>
           <RevelarClave clave={resultado.password} para={<span className="font-mono">{resultado.email}</span>} />
-          {resultado.flagPending && (
-            <p role="alert" className="text-[13px] text-warning">
-              La contraseña quedó reseteada, pero no se le puede exigir que la cambie al entrar: la columna{" "}
-              <code>mustChangePassword</code> todavía no está en la base (migración sin aplicar). Pedile que la cambie a mano.
-            </p>
-          )}
         </>
       )}
       {resultado && !resultado.ok && (

@@ -32,7 +32,7 @@ import { cargarCertificadoDelPedido, generarPedidoDelNegocio } from "@/lib/fisca
 import { TOPE_CERTIFICADO_BYTES } from "@/lib/fiscal/asistente-arca";
 import { CONDICIONES_DEL_EMISOR, interpretarCondicionIva } from "@/lib/fiscal/condicion-iva-emisor";
 import { interpretarCuitInput } from "@/lib/fiscal/cuit-input";
-import { operatorSetMustChange } from "@/lib/must-change-password";
+import { CambioObligatorioInactivo, operatorSetMustChange } from "@/lib/must-change-password";
 import { altaPersonaCore, type AltaPersonaPort, type AltaPersonaResult } from "@/lib/operador/alta-persona";
 import { decidirAltaDeUsuarioEnTx } from "@/lib/usuarios-del-plan";
 import {
@@ -593,7 +593,9 @@ export async function altaPersonaDeTenant(
       revalidatePath("/operador");
     }
     return result;
-  } catch {
+  } catch (e) {
+    // Sin el cambio obligatorio activo, el alta se deshizo entera (la tira altaPersonaCore).
+    if (e instanceof CambioObligatorioInactivo) return { ok: false, error: e.message };
     // Carrera de unicidad (otro alta con el mismo email entre el chequeo y el create): no se crea.
     return { ok: false, error: "No se pudo dar de alta: ese email ya existe en el negocio, o la base rechazó el alta. No se creó nada." };
   }

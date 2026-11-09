@@ -7,10 +7,12 @@
 //   - la contraseña en claro se GENERA acá (alta entropía) y se devuelve UNA vez; NUNCA se pasa a
 //     `audit()` ni a `setPasswordHash` en claro (solo su hash);
 //   - `audit()` recibe la acción canónica y un `changes` SIN el valor;
-//   - marca cambio forzado; si el flag no se pudo persistir, lo reporta (`flagPending`).
+//   - FALLA CERRADO: marca el cambio forzado ANTES de tocar la contraseña; si la base no tiene la
+//     columna (migración sin aplicar), devuelve error y la contraseña vieja queda intacta. Nunca
+//     se entrega una provisoria que no obligue a cambiarse.
 
 import { hashPassword, generateStrongPassword } from "@/lib/auth-password";
-import { AUDIT_ACTION_OWNER_RESET } from "@/lib/must-change-password";
+import { AUDIT_ACTION_OWNER_RESET, CAMBIO_OBLIGATORIO_INACTIVO } from "@/lib/must-change-password";
 
 export interface OwnerResetPort {
   // OWNER activo más antiguo del tenant (el dueño original), o null si no hay.
@@ -31,7 +33,7 @@ export interface OwnerResetPort {
 }
 
 export type OwnerResetResult =
-  | { ok: true; password: string; email: string; flagPending: boolean }
+  | { ok: true; password: string; email: string }
   | { ok: false; error: string };
 
 export async function resetOwnerPasswordCore(
@@ -45,11 +47,13 @@ export async function resetOwnerPasswordCore(
     return { ok: false, error: "Este tenant no tiene un OWNER activo. Revisá los usuarios del tenant." };
   }
 
+  // Primero el flag: si no se puede marcar, no se toca la contraseña (regla del dueño).
+  const { persisted } = await port.setMustChange(owner.id, true);
+  if (!persisted) return { ok: false, error: CAMBIO_OBLIGATORIO_INACTIVO };
+
   const password = generateStrongPassword();
   const passwordHash = await hashPassword(password);
   await port.setPasswordHash(owner.id, passwordHash);
-
-  const { persisted } = await port.setMustChange(owner.id, true);
 
   await port.audit({
     tenantId,
@@ -57,10 +61,10 @@ export async function resetOwnerPasswordCore(
     action: AUDIT_ACTION_OWNER_RESET,
     entity: "User",
     entityId: owner.id,
-    changes: { forcedChangePersisted: persisted },
+    changes: { forcedChangePersisted: true },
   });
 
-  return { ok: true, password, email: owner.email, flagPending: !persisted };
+  return { ok: true, password, email: owner.email };
 }
 
 // --- Reset MASIVO (primer uso de los 8 tenants) ------------------------------
@@ -72,7 +76,6 @@ export type OwnerResetRow = {
   tenantName: string;
   email: string | null;
   password: string | null;
-  flagPending: boolean;
   error?: string;
 };
 
@@ -87,8 +90,8 @@ export async function resetManyOwnerPasswordsCore(
     const r = await resetOwnerPasswordCore(port, { tenantId: t.id, operatorSubject });
     rows.push(
       r.ok
-        ? { tenantId: t.id, tenantName: t.name, email: r.email, password: r.password, flagPending: r.flagPending }
-        : { tenantId: t.id, tenantName: t.name, email: null, password: null, flagPending: false, error: r.error },
+        ? { tenantId: t.id, tenantName: t.name, email: r.email, password: r.password }
+        : { tenantId: t.id, tenantName: t.name, email: null, password: null, error: r.error },
     );
   }
   return rows;

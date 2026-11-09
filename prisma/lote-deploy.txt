@@ -104,5 +104,11 @@
 # nulables en "CuentaContable", 1 en "AsientoLinea" ("fechaOrigen"), tablas "CuentaRol" y
 # "ConfigContable" con RLS adentro, CHECKs sólo sobre columnas nuevas. No toca datos. Requiere la ola 1.
 # Owner-level: AUTORIZADA por escrito por el dueño — «Autorizo las migraciones 48 y 53.» (ORQ-005, 09/11 02:41, D40).
-# Gate 2: el merge la aplica; respaldo de Neon antes del merge.
-20261108150000_contabilidad_ola2_roles
+# (aplicada por el build de producción del merge de #53 el 09/11 12:26:27, deploy READY: sale de la lista) 20261108150000_contabilidad_ola2_roles
+#
+# 2026-11-09 · seguridad (GSG-SEG-008): cambio obligatorio de contraseña en el próximo ingreso. Aditiva: columna
+# "User"."mustChangePassword" BOOLEAN NOT NULL DEFAULT false (antes prisma/pending-gate2/MustChangePassword.sql).
+# Sin ella el reset del OWNER y el alta desde la consola se niegan a emitir la provisoria. Independiente de
+# 20261108130000_user_pin (#50: tabla aparte). El lote se compara en orden de timestamp: al integrar con #50,
+# user_pin va arriba de ésta (o comentada, si #50 ya se publicó). #50, #48 y #53 ya publicadas el 09/11.
+20261109120000_must_change_password
