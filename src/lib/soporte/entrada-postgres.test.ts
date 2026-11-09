@@ -5,7 +5,7 @@
 // La consola como `app_rls` (igual que producción) parada en cada negocio:
 //   · idempotencia: el mismo mensaje dos veces, y dos veces en paralelo, deja UN ticket;
 //   · aislamiento: parada en B no se ve el ticket de A; el mismo id de mensaje en B es OTRO ticket;
-//   · un secreto nunca persiste (ni en el ticket ni en sus eventos) y queda el evento «secreto_tapado»;
+//   · un secreto nunca persiste (ni en el ticket ni en sus eventos) y queda el evento «tapado_automatico»;
 //   · un mensaje que no dispara no escribe nada;
 //   · sin la tabla (migración sin aplicar) → {sinTabla}.
 
@@ -48,7 +48,7 @@ test("entrada por canal: idempotente, aislada por negocio, sin secretos guardado
   assert.equal(await enElNegocio(B, (tx) => tx.supportTicket.count(), operatorPrisma), 1);
   assert.equal(await enElNegocio(A, (tx) => tx.supportTicket.count(), operatorPrisma), 2, "A sigue con los suyos");
 
-  // ── 3) Secretos: ni en el ticket ni en los eventos; queda «secreto_tapado» con la cantidad ──
+  // ── 3) Secretos: ni en el ticket ni en los eventos; queda «tapado_automatico» con la cantidad ──
   const SECRETOS = ["Hunter2!", "4111 1111 1111 1111", "4111111111111111", "sk-ant-api03-AbCdEfGhIjKlMn", "0170099220000067797370"];
   const conSecretos = {
     canal: "mail",
@@ -62,14 +62,14 @@ test("entrada por canal: idempotente, aislada por negocio, sin secretos guardado
   const tk3 = await duenio.supportTicket.findUniqueOrThrow({ where: { tenantId_origenId: { tenantId: A, origenId: "mail:<m-secreto@mail>" } }, include: { eventos: true } });
   const guardado = JSON.stringify(tk3);
   for (const s of SECRETOS) assert.ok(!guardado.includes(s), `el secreto «${s.slice(0, 4)}…» no se guardó`);
-  const tapado = tk3.eventos.filter((e) => e.tipo === "secreto_tapado");
+  const tapado = tk3.eventos.filter((e) => e.tipo === "tapado_automatico");
   assert.equal(tapado.length, 1);
   assert.deepEqual(tapado[0].datos, { cantidad: 4, canal: "mail" });
   assert.equal(tapado[0].actor, "cliente:mail");
   assert.equal(tapado[0].texto, null);
   // El reintento no suma otro evento.
   await crearTicketDesdeCanal(operatorPrisma, A, conSecretos);
-  assert.equal(await duenio.supportTicketEvento.count({ where: { ticketId: tk3.id, tipo: "secreto_tapado" } }), 1);
+  assert.equal(await duenio.supportTicketEvento.count({ where: { ticketId: tk3.id, tipo: "tapado_automatico" } }), 1);
 
   // ── 4) Lo que no dispara no escribe nada ──
   const antes = await duenio.supportTicket.count();

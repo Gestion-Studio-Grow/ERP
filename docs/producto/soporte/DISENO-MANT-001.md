@@ -368,6 +368,28 @@ roles quedan inertes. `0004_rollback.sql` los quita si hace falta.
 
 ---
 
+### 7.7 Tapado de secretos: ayuda de mejor esfuerzo, no garantía (decidido el 10/11, tras 4 certificaciones)
+
+Cuatro certificaciones adversariales seguidas encontraron redacciones nuevas que pasan: «uso Hunter2x como clave», la clave
+dos líneas más abajo de un 👇, etc. Ningún filtro de texto reconoce una contraseña que no lleva etiqueta: el tapado
+automático (`canales-core.ts`, vocabulario cerrado que falla cerrado) **reduce** la exposición pero **no la garantiza**.
+Por eso el criterio de aceptación cambia: el tapado no es el control de seguridad, es una ayuda. Los controles son:
+
+1. **Evento honesto.** `tapado_automatico` (antes `secreto_tapado`) dice que se tapó algo y cuántos tramos; nunca afirma
+   que no queda un secreto.
+2. **Acuse sin IA que lo pide.** El acuse automático dice: «Nunca nos mandes contraseñas ni claves. Si ya lo hiciste,
+   cambiala: nosotros no la necesitamos para ayudarte».
+3. **Botón «Tapar esto» en la consola.** Un gesto humano tapa a mano un tramo que se escapó y deja el evento
+   (tanda T-B, junto con «Aprobar y enviar»).
+4. **La sesión de IA no repite datos.** Su instrucción le prohíbe copiar valores del texto del cliente en la respuesta o
+   en el PR; la persona que aprueba lo verifica en el mismo gesto.
+5. **Aislamiento.** El texto vive en `SupportTicket` bajo RLS por negocio: un secreto que se escape no cruza de negocio.
+6. **Retención.** Los tickets cerrados hace más de 90 días pierden el texto libre (provisional a confirmar; tanda T-F).
+
+Residuales conocidos (en los tests como casos documentados, no como fallas): el valor antes de la etiqueta sin cópula
+(«uso X como clave»), la clave varias líneas más abajo, una clave hecha de palabras comunes, homóglifos.
+Pruebas de las certificaciones: scratchpad de MANT-001 (`cert2`, `cert3`, `cert4`).
+
 ## 8. Consentimiento del cliente
 
 - **Qué firma:** el titular del negocio acepta, por escrito, que agentes de IA de GSG (a) lean sus
