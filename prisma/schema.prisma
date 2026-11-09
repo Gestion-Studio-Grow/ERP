@@ -3921,6 +3921,9 @@ model TallerConsumo {
   product    Product     @relation(fields: [productId, tenantId], references: [id, tenantId], onDelete: Restrict)
   productId  String
   cantidad   Float       @default(0)
+  /// Costo de lo descontado NETO (suma de cantidad × costo estampado en cada CONSUMO; 0 = devuelto). La devolución
+  /// vuelve a este costo (REPOSICION con unitCost = costoTotal / cantidad) para que descontar y devolver neteen 0.
+  costoTotal Float       @default(0)
   movementId String
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt

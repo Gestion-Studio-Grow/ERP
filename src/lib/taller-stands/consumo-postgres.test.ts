@@ -8,8 +8,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { baseEfimeraParaElTest, prismaComoDuenio } from "@/test/base-efimera";
-import { RechazoDelStock } from "@/lib/stock/ledger";
-import { descontarMaterialesTx, devolverMaterialesTx } from "./consumo";
+import { RechazoDelStock, recordMovement } from "@/lib/stock/ledger";
+import { SELECT_INGRESOS, costoVigenteEnTx, ultimoIngresoDe } from "@/lib/stock/costo";
+import { costearInsumos, type SalidaDeStock } from "@/lib/reports/costo-vendido";
+import { salidaDeStockDe, whereSalidasDelMes } from "@/lib/reports/resultado-lectura";
+import { demandaDe } from "@/lib/suppliers/sugerido";
+import { mesDelNegocio } from "@/lib/libros/fecha-fiscal";
+import { descontarMaterialesTx, devolverMaterialesTx, TALLER_DEVOLUCION_ACTOR_PREFIX } from "./consumo";
 
 const fk = (e: unknown) => /foreign key|P2003/i.test(String((e as { code?: string }).code ?? "") + String(e));
 
@@ -82,4 +87,56 @@ test("consumo de materiales: FK de producto, 2× simultáneo = 1 juego, diferenc
   assert.equal(await movs(mdf.id, "REPOSICION"), 1);
   assert.equal((await enNegocio(A, (tx) => tx.tallerConsumo.findFirstOrThrow({ where: { proyectoId: proyA.id, piezaId: panel.id } }))).cantidad, 0);
   assert.equal((await devolver()).movimientos, 0);
+});
+
+test("consumo de materiales: descontar → devolver → descontar deja costo y demanda netos; el costo vigente no cambia", async (t) => {
+  const base = await baseEfimeraParaElTest(t);
+  if (!base) return;
+  const db = await prismaComoDuenio(base);
+  const A = base.a.id;
+  const enA = <T>(fn: (tx: typeof db) => Promise<T>) =>
+    db.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${A}, true)`;
+      return fn(tx as unknown as typeof db);
+    }, { timeout: 20_000 });
+
+  const proy = await enA((tx) => tx.proyecto.create({ data: { tenantId: A, clientId: base.a.clientes[0], numero: 7, nombre: "Stand costo", servicio: "EVENTOS" }, select: { id: true } }));
+  const mdf = await enA((tx) => tx.product.create({ data: { tenantId: A, name: "MDF costo", stock: 0, trackStock: true }, select: { id: true } }));
+  await enA((tx) => recordMovement(tx, { tenantId: A, productId: mdf.id, type: "COMPRA", qty: 10, unitCost: 1000, createdBy: "user:compra" }));
+  const panel = await enA((tx) => tx.tallerPieza.create({ data: { tenantId: A, nombre: "Panel", productId: mdf.id }, select: { id: true } }));
+  await enA((tx) => tx.tallerDespiece.create({ data: { tenantId: A, proyectoId: proy.id, piezaId: panel.id, cantidad: 4 } }));
+  const d = { tenantId: A, proyectoId: proy.id, autor: "user:ale" };
+  const neto = async () => {
+    const movs = await enA((tx) => tx.stockMovement.findMany({ where: { productId: mdf.id }, orderBy: { createdAt: "asc" }, select: { type: true, orderId: true, productId: true, qty: true, unitCost: true, createdBy: true, reason: true } }));
+    const salidas = movs.map(salidaDeStockDe).filter((s): s is SalidaDeStock => s !== null && (s.type === "CONSUMO"));
+    return { costo: costearInsumos(salidas, {}).costo, demanda: demandaDe(movs) };
+  };
+  const consumoFila = () => enA((tx) => tx.tallerConsumo.findFirstOrThrow({ where: { proyectoId: proy.id }, select: { cantidad: true, costoTotal: true } }));
+
+  await enA((tx) => descontarMaterialesTx(tx, d));
+  assert.deepEqual(await consumoFila(), { cantidad: 4, costoTotal: 4000 });
+  assert.deepEqual(await neto(), { costo: 4000, demanda: 4 });
+
+  // Una compra más cara entre medio: el costo vigente pasa a 1500 y la devolución NO lo pisa.
+  await enA((tx) => recordMovement(tx, { tenantId: A, productId: mdf.id, type: "COMPRA", qty: 1, unitCost: 1500, createdBy: "user:compra" }));
+  await enA((tx) => devolverMaterialesTx(tx, d));
+  assert.deepEqual(await consumoFila(), { cantidad: 0, costoTotal: 0 });
+  const rep = await enA((tx) => tx.stockMovement.findFirstOrThrow({ where: { productId: mdf.id, type: "REPOSICION" }, select: { qty: true, unitCost: true, createdBy: true, createdAt: true } }));
+  assert.deepEqual({ ...rep, createdAt: undefined }, { createdAt: undefined,  qty: 4, unitCost: 1000, createdBy: `${TALLER_DEVOLUCION_ACTOR_PREFIX}user:ale` });
+  assert.deepEqual(await neto(), { costo: 0, demanda: 0 }, "descontar 4 y devolver 4 = neto 0");
+  assert.equal(await enA((tx) => costoVigenteEnTx(tx, A, mdf.id)), 1500, "la devolución no es último ingreso (SQL)");
+  const leido = await enA((tx) => tx.product.findUniqueOrThrow({ where: { id: mdf.id }, select: SELECT_INGRESOS }));
+  assert.equal(ultimoIngresoDe(leido), 1500, "la devolución no es último ingreso (Prisma)");
+  assert.equal(await enA((tx) => tx.product.findUniqueOrThrow({ where: { id: mdf.id }, select: { stock: true } })).then((p) => p.stock), 11);
+
+  // Descontar de nuevo: al costo vigente (1500) → costo 6000, demanda 4.
+  await enA((tx) => descontarMaterialesTx(tx, d));
+  assert.deepEqual(await consumoFila(), { cantidad: 4, costoTotal: 6000 });
+  assert.deepEqual(await neto(), { costo: 6000, demanda: 4 });
+
+  // El where del mes del reporte trae la devolución (y nada de otro negocio).
+  const mes = mesDelNegocio(rep.createdAt);
+  const delMes = await enA((tx) => tx.stockMovement.findMany({ where: whereSalidasDelMes(A, mes), select: { type: true, productId: true } }));
+  assert.ok(delMes.some((m) => m.type === "REPOSICION" && m.productId === mdf.id));
+  assert.ok(!delMes.some((m) => m.type === "COMPRA"));
 });

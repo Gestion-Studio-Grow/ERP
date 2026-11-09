@@ -22,6 +22,7 @@ import { leerFecha, personaDelNegocio, validarHoras, validarValorHora, valorHora
 import { anularPedidoTx, MENSAJE_ANULAR, MENSAJE_RECIBIR, recibirPedidoTx, validarPedido } from "./pedidos";
 import { descontarMaterialesTx, devolverMaterialesTx, mensajeConsumo } from "./consumo";
 import { RechazoDelStock } from "@/lib/stock/ledger";
+import { esConflictoDeEscritura } from "@/lib/conflicto-de-escritura";
 
 const RUTA_PIEZAS = "/admin/proyectos/taller/piezas";
 const RUTA_VALORES = "/admin/proyectos/taller/valores-hora";
@@ -381,6 +382,9 @@ export async function anularPedido(formData: FormData): Promise<void> {
  * Descontar del stock el material del despiece (salida CONSUMO por el ledger) o devolverlo (REPOSICION). Idempotente:
  * FOR UPDATE del proyecto + consumo neto por pieza (consumo.ts). Un faltante deshace todo y se avisa en criollo.
  */
+/** El aviso cuando otro movimiento de stock se cruzó (conflicto o deadlock): la transacción no dejó nada. */
+const MENSAJE_CHOQUE_DE_STOCK = "Otro movimiento de stock se cruzó: probá de nuevo.";
+
 async function moverMateriales(formData: FormData, accion: "descontar" | "devolver"): Promise<void> {
   const proyectoId = txt(formData.get("proyectoId"));
   const ruta = rutaDespiece(proyectoId);
@@ -403,6 +407,8 @@ async function moverMateriales(formData: FormData, accion: "descontar" | "devolv
       const motivo = e.message.charAt(0).toLowerCase() + e.message.slice(1);
       return accion === "descontar" ? `No se descontó nada: ${motivo} Cargá la compra o corregí el stock y volvé a probar.` : `No se devolvió nada: ${motivo}`;
     }
+    // Choque con otra transacción de stock (P2034 / 40001 / 40P01 deadlock): se deshizo entera, nada a medias.
+    if (esConflictoDeEscritura(e) || /deadlock|40P01/i.test(String((e as { message?: unknown } | null)?.message ?? e))) return MENSAJE_CHOQUE_DE_STOCK;
     throw e;
   });
   revalidatePath(`/admin/proyectos/${proyectoId}`);
