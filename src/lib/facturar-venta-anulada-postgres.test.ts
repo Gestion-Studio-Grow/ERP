@@ -194,3 +194,45 @@ test("facturación primero: «Anular venta» espera, ve la factura en camino y n
   const facturas = await duenio.invoice.findMany({ where: { orderId: pedido }, select: { tenantId: true, status: true } });
   assert.deepEqual(facturas, [{ tenantId: b.id, status: "PENDING" }], "una sola factura, en camino");
 });
+
+test("tanda plata · edición primero: «Facturar» leyó el total viejo, espera el pedido y no factura el monto viejo", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const { base, duenio } = p;
+  const { facturarOrden } = await import("@/lib/invoice-from-order");
+  const { TotalDelPedidoCambioError } = await import("@/lib/invoice-core");
+  // En el negocio B (los pedidos de A los usan los otros tests), con el mismo perfil fiscal.
+  const b = base.b;
+  const tb = await duenio.tenant.findUniqueOrThrow({ where: { id: b.id }, select: { modules: true } });
+  await duenio.tenant.update({
+    where: { id: b.id },
+    data: { arcaCuit: "20111111112", arcaPuntoVenta: 1, arcaHomologacion: true, modules: [...new Set([...tb.modules, "arca"])] },
+  });
+  const pedido = b.pedidos[1];
+  await duenio.order.update({ where: { id: pedido }, data: { paid: true, total: 6250, status: "DELIVERED" } });
+
+  // La edición tomó el pedido (FOR UPDATE, como ajustarPedidoInTx) y cambió el total, sin confirmar.
+  const soltar = puerta();
+  const tomada = puerta();
+  const edicion = duenio.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "Order" WHERE id = ${pedido} FOR UPDATE`;
+    await tx.order.update({ where: { id: pedido }, data: { total: 15500 } });
+    tomada.abrir();
+    await soltar.abierta;
+  }, { timeout: 15_000 });
+  await tomada.abierta;
+
+  // facturarOrden lee el total confirmado (6250) fuera de la transacción y arma con eso.
+  const facturacion = runInTenantContext(b.id, () => facturarOrden(pedido, b.id));
+  assert.equal(await sigueEsperando(facturacion), true, "la facturación tiene que esperar a la edición");
+  soltar.abrir();
+  await edicion;
+
+  await assert.rejects(facturacion, TotalDelPedidoCambioError);
+  assert.equal(await duenio.invoice.count({ where: { orderId: pedido } }), 0, "ninguna factura por el total viejo");
+  // Reintentar arma con el total nuevo.
+  const id = await runInTenantContext(b.id, () => facturarOrden(pedido, b.id));
+  assert.ok(id);
+  const f = await duenio.invoice.findUniqueOrThrow({ where: { id: id! }, select: { total: true } });
+  assert.equal(Number(f.total), 15500);
+});

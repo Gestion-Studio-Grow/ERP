@@ -16,7 +16,7 @@
 // Sin Prisma, sin React, sin valores de `@/generated/prisma`: se importa desde un client
 // component (mismo criterio que caja/medio-cobro.ts).
 
-import { centavosDe } from "@/lib/dinero/redondeo";
+import { admiteCentavos, centavosDe, textoAlCentavo } from "@/lib/dinero/redondeo";
 import { leerImporte } from "@/lib/dinero/leer";
 import { fmtMoneyARS } from "@/components/ui/format";
 import { MEDIOS_DE_COBRO, type MedioDeCobro } from "@/lib/caja/medio-cobro";
@@ -59,7 +59,8 @@ export function textoPlata(n: number): string {
 
 /** El importe como viaja en el formulario: punto decimal, dos cifras («16608.00»). */
 export function importeCanonico(n: number): string {
-  return (centavosDe(n) / 100).toFixed(2);
+  // Fuera de rango (NaN de un campo a medio tipear) no se lanza en la caja: viaja tal cual y el servidor lo rechaza.
+  return admiteCentavos(n) ? textoAlCentavo(n) : String(n);
 }
 
 // ── Billetes sugeridos ───────────────────────────────────────────────────────

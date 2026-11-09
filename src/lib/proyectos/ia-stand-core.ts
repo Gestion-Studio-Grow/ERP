@@ -85,7 +85,7 @@ export function metricasStand(d: DisenoStand): MetricasStand {
   return { piezas: d.piezas.length, ocupacion: ocupacionStand(d), errores: validarDiseno(d).filter((a) => a.nivel === "error").length };
 }
 
-const m = (n: number): string => String(Math.round(n * 100) / 100).replace(".", ",");
+const m = (n: number): string => String(Math.round(n * 100) / 100).replace(".", ","); // no-es-plata: metros
 
 /** El stand en una línea de texto para el contexto de los agentes: medidas, piezas y controles. Sin costos. */
 export function describirStand(nombre: string, d: DisenoStand): string {

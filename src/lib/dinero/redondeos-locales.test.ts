@@ -82,7 +82,7 @@ const PENDIENTES: Record<string, string> = {
   "src/app/admin/(dashboard)/turnos/_agenda/CobrarTurno.tsx": SIN_COMMIT,
   "src/app/operador/(console)/diseno/page.tsx": "pantalla sin commit; su toFixed(2) es una razón de contraste, no plata",
   "src/components/ui/display-core.ts": "rediseño sin commit: Plata y Ticket muestran con EPSILON; pasar a textoAlCentavo (pedido en necesita_fuera de ENG-109)",
-  "src/lib/fiscal/decidir-comprobante.ts": "núcleo aprobado sin commit (fiscal): la coherencia con el envío la asegura validarComprobante; parche propuesto en .qa/ENG-109/decidir-comprobante.diff",
+  "src/app/tienda/adosmanos/tokens.ts": "redondeo comercial a la centena (precio de lista de la vidriera), no al centavo: necesita una función de redondeo comercial en el módulo",
   "src/app/admin/(dashboard)/inmobiliaria/alquileres/[id]/page.tsx": INMOBILIARIA,
   "src/app/admin/(dashboard)/inmobiliaria/liquidaciones/page.tsx": INMOBILIARIA,
   "src/lib/inmobiliaria/core.ts": INMOBILIARIA,

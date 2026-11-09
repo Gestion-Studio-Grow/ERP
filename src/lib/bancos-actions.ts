@@ -23,6 +23,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
+import { LOTE_YA_FACTURADO, vaciarLoteProvisionalEnTx } from "@/lib/bancos-lote";
 import { capFacturasMesDelNegocioEnTx } from "@/lib/limites-del-negocio-en-tx";
 import { requireCapability } from "@/lib/authz";
 import { getCurrentTenantId } from "@/lib/tenant";
@@ -222,15 +223,15 @@ async function procesarYPersistir(
   }
   const mapeo = resultado.mapeo;
 
-  const importacionId = await tenantTransaction(
-    async (tx) => {
+  const persistido = await tenantTransaction(
+    async (tx): Promise<{ ok: true; id: string } | { ok: false; error: string }> => {
       let id: string;
       if (reproceso) {
-        // Re-proceso: lo provisional se borra y se recrea con el mapeo confirmado.
-        // (El guard de "nada emitido" lo hizo confirmarMapeoAction antes de llegar acá.)
-        await tx.movimientoImportado.deleteMany({
-          where: { tenantId, importacionId: reproceso.importacionId },
-        });
+        // Re-proceso: lo provisional se borra y se recrea con el mapeo confirmado. Con el lote
+        // tomado (FOR UPDATE) y el control de «nada emitido» ADENTRO de esta transacción: una
+        // emisión en curso no puede quedar con su movimiento borrado (bancos-lote.ts).
+        const vaciado = await vaciarLoteProvisionalEnTx(tx, tenantId, reproceso.importacionId);
+        if (!vaciado.ok) return vaciado;
         id = reproceso.importacionId;
       } else {
         const creada = await tx.importacionBancaria.create({
@@ -262,10 +263,12 @@ async function procesarYPersistir(
           ...(reproceso ? { estado: "confirmada" } : {}),
         },
       });
-      return id;
+      return { ok: true, id };
     },
     { tenantId },
   );
+  if (!persistido.ok) return { ok: false, error: persistido.error, alertas: [] };
+  const importacionId = persistido.id;
 
   revalidatePath(FACTURACION_PATH);
   return {
@@ -343,8 +346,8 @@ export async function confirmarMapeoAction(
   if (emitidas > 0) {
     return {
       ok: false,
-      error:
-        "Esta importación ya tiene facturas emitidas: no se puede reprocesar con otro mapeo.",
+      // Aviso temprano (evita leer y procesar el archivo); el que manda es el de la transacción.
+      error: LOTE_YA_FACTURADO,
       alertas: [],
     };
   }
@@ -531,10 +534,12 @@ export async function marcarNoFacturableAction(
     };
   }
 
-  await tenantTransaction(
+  // Compare-and-set: la lectura de arriba es previa; si en el medio una emisión lo reclamó
+  // (auto → emitida) o quedó atado a una factura, no se pisa (tanda plata, punto 3).
+  const marcado = await tenantTransaction(
     (tx) =>
       tx.movimientoImportado.updateMany({
-        where: { id: movimientoId, tenantId },
+        where: { id: movimientoId, tenantId, estadoPropuesta: { not: "emitida" }, invoiceId: null },
         data: {
           estadoPropuesta: "no_facturable",
           motivoRevision: "Marcado como no facturable por el usuario.",
@@ -542,6 +547,12 @@ export async function marcarNoFacturableAction(
       }),
     { tenantId },
   );
+  if (marcado.count === 0) {
+    return {
+      ok: false,
+      error: "Este movimiento ya tiene factura emitida: no se puede marcar como no facturable.",
+    };
+  }
 
   if (aprenderPatron) {
     const movimientoBancario: MovimientoBancario = {

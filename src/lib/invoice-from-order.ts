@@ -153,6 +153,8 @@ export async function facturarOrden(
     // I2 (ADR-064): enlace a la venta = idempotencia por pedido. Un reintento de facturación
     // del MISMO pedido devuelve el comprobante ya emitido, no crea un duplicado.
     origin: { type: "ORDER", id: orderId },
+    // El total con que se armó: bajo el candado del pedido se compara con el confirmado.
+    totalDelPedido: monto,
     // ENG-021: una factura rechazada se reabre sólo si lo pide quien la vuelve a facturar
     // ("Volver a facturar"); la ingesta de pedidos externos no lo pide.
     ...(opciones.reabrirSiRechazada ? { reabrirSiRechazada: true } : {}),

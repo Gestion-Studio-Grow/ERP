@@ -218,12 +218,8 @@ test("en el camino de la plata fiscal no queda redondeo a mano fuera de este mó
       .map((n) => path.join(lib, n)),
   ];
   assert.ok(archivos.length > 20, `se revisaron ${archivos.length} archivos`);
-  // El núcleo de decisión es de otro frente y no tiene commit: ENG-109 no lo edita. Su
-  // `toFixed(2)` recibe importes ya al centavo (DEC-012: el plugin rechaza los demás), así que no
-  // redondea nada; el parche para que use esta regla está en .qa/ENG-109/decidir-comprobante.diff.
-  const deOtroFrente = new Set(["src/lib/fiscal/decidir-comprobante.ts"]);
   const conRedondeo: string[] = [];
-  for (const archivo of archivos.filter((a) => !deOtroFrente.has(path.relative(RAIZ, a).split(path.sep).join("/")))) {
+  for (const archivo of archivos) {
     readFileSync(archivo, "utf8")
       .split("\n")
       .forEach((linea, i) => {

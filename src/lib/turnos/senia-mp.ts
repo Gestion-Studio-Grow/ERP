@@ -52,7 +52,7 @@ export { notaSeniaMP };
 
 /** La clave de idempotencia del cobro (con la columna migrada). El neto de un ajuste lleva sus centavos. */
 export function claveSeniaMP(paymentId: string, netoAjustado?: number): string {
-  return netoAjustado === undefined ? `mpturno:${paymentId}` : `mpturno:${paymentId}:${Math.round(netoAjustado * 100)}`;
+  return netoAjustado === undefined ? `mpturno:${paymentId}` : `mpturno:${paymentId}:${Math.round(netoAjustado * 100)}`; // no-es-plata: formato de una clave de idempotencia ya guardada en producción; cambiarlo no reconoce cobros registrados
 }
 
 /**

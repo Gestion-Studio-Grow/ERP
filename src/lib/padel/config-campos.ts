@@ -17,6 +17,7 @@
 //   de una). Reemplaza las franjas semanales, igual que `guardarHorarios`.
 // - `bienvenidaVista` (sólo `true`): la marca «ya vio la Bienvenida» (O-9), en el mismo JSON que los
 //   textos. Los textos y la marca se reescriben en Serializable (F-2, acciones-config.ts).
+import { redondearAlCentavo } from "@/lib/dinero/redondeo";
 
 import { leerImporte } from "@/lib/dinero/leer";
 import { CLAVES_PLANTILLA, PLANTILLAS_DEFAULT, horaValida, telefonoAlumno, type ClavePlantilla } from "./core";
@@ -96,7 +97,7 @@ function entero(raw: unknown, min: number, max: number): number | null {
 }
 
 function importe(raw: unknown): number | null {
-  if (typeof raw === "number") return Number.isFinite(raw) && raw >= 0 && raw <= PRECIO_MAXIMO ? Math.round(raw * 100) / 100 : null;
+  if (typeof raw === "number") return Number.isFinite(raw) && raw >= 0 && raw <= PRECIO_MAXIMO ? redondearAlCentavo(raw) : null;
   const l = leerImporte(String(raw ?? ""));
   if (l.estado === "vacio") return 0;
   if (l.estado !== "ok" || l.valor < 0 || l.valor > PRECIO_MAXIMO) return null;

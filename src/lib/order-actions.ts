@@ -43,7 +43,7 @@ import { cuentasCorrientesDe } from "@/lib/settlement/cuentas-corrientes.server"
 import { entregarAlFiadoEnTx, mensajeEntregaAlFiado, mensajeEntregaSinAppDeFiado, mensajeEntregaSinFicha, type ResultadoFiado } from "@/lib/clientes/fiado";
 import { decidirFiadoDeLaEntrega } from "@/lib/clientes/fiado.server";
 import { facturarOrden } from "@/lib/invoice-from-order";
-import { VentaAnuladaError } from "@/lib/invoice-core";
+import { TotalDelPedidoCambioError, VentaAnuladaError } from "@/lib/invoice-core";
 import { getFiscalProfile, isInvoicingEnabled, PerfilFiscalIncompletoError } from "@/lib/fiscal";
 import { buildWhatsAppHref, whatsappCanonico } from "@/lib/whatsapp-cta";
 import { logger } from "@/lib/logger";
@@ -1615,7 +1615,7 @@ export async function facturarVenta(_prev: EstadoFacturaVenta, formData: FormDat
     invoiceId = await facturarOrden(o.id, tenantId, undefined, { reabrirSiRechazada: true });
   } catch (e) {
     // ENG-023: la venta se anuló entre la lectura de arriba y la factura (otra pestaña).
-    if (e instanceof VentaAnuladaError) {
+    if (e instanceof VentaAnuladaError || e instanceof TotalDelPedidoCambioError) {
       return { ok: false, error: e.message, factura: { ...SIN_FACTURA, texto: `Sin factura: ${e.message}` } };
     }
     logger.error("ventas", "no se pudo facturar la venta", e, { tenantId, orderId: o.id });

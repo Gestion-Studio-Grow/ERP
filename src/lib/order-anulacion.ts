@@ -628,7 +628,12 @@ export type MotivoEdicionRechazada =
   | "ya-cobrada"
   | "tiene-caja"
   | "terminal"
-  | "sin-lineas";
+  | "sin-lineas"
+  // Tanda plata · punto 4: con factura viva el total ya lo fijó el comprobante (CAE de ARCA, o
+  // pedido en camino). Cambiar las líneas descuadraría la venta contra la factura: el camino es
+  // anular con nota de crédito y volver a cargar, nunca reescribir.
+  | "facturada"
+  | "factura-en-camino";
 
 export type PlanEdicion = { ok: true } | { ok: false; motivo: MotivoEdicionRechazada };
 
@@ -647,11 +652,15 @@ export function planEdicionDeLineas(input: {
   status: string;
   tieneAsientoDeCaja: boolean;
   lineasValidas: number;
+  /** La factura de la venta (`facturaDeLaVenta`), leída con el pedido tomado. */
+  factura: FacturaDeLaVenta;
 }): PlanEdicion {
   if (!input.existe) return { ok: false, motivo: "no-existe" };
   if (input.status === "CANCELLED" || input.status === "DELIVERED") {
     return { ok: false, motivo: "terminal" };
   }
+  if (input.factura === "autorizada") return { ok: false, motivo: "facturada" };
+  if (input.factura === "en-camino") return { ok: false, motivo: "factura-en-camino" };
   if (input.paid) return { ok: false, motivo: "ya-cobrada" };
   if (input.tieneAsientoDeCaja) return { ok: false, motivo: "tiene-caja" };
   if (input.lineasValidas <= 0) return { ok: false, motivo: "sin-lineas" };
@@ -672,6 +681,13 @@ export function mensajeEdicionRechazada(motivo: MotivoEdicionRechazada): string 
       );
     case "sin-lineas":
       return "Dejá al menos un producto con cantidad. Si el pedido no va, anulalo.";
+    case "facturada":
+      return (
+        "Ese pedido ya tiene factura electrónica autorizada por ARCA con este total: no se edita. " +
+        "Para corregirlo hay que emitir la nota de crédito que cancela la factura y volver a cargar la venta."
+      );
+    case "factura-en-camino":
+      return "Ese pedido tiene una factura esperando la respuesta de ARCA: no se edita. Esperá a que ARCA responda.";
   }
 }
 
@@ -870,6 +886,11 @@ export async function ajustarPedidoInTx(
   registrarStock: typeof recordMovement = recordMovement,
 ): Promise<AjustarPedidoResult> {
   const id = args.orderId;
+  // El pedido TOMADO (FOR UPDATE) antes de leer nada: la facturación lo toma FOR SHARE
+  // (`tomarPedidoNoAnulado`, invoice-core.ts), así que una factura del pedido o ya está
+  // confirmada y se ve abajo, o espera a que esta edición termine y, si el total cambió, no
+  // factura el monto viejo (`TotalDelPedidoCambioError`). Mismo patrón que la anulación.
+  await tx.$queryRaw`SELECT id FROM "Order" WHERE id = ${id} AND "tenantId" = ${tenantId} FOR UPDATE`;
   const order = await tx.order.findFirst({
     where: { tenantId, id },
     select: {
@@ -936,6 +957,9 @@ export async function ajustarPedidoInTx(
     status: String(order?.status ?? ""),
     tieneAsientoDeCaja: Boolean(asiento),
     lineasValidas: lines.length + aMano.length,
+    factura: order
+      ? facturaDeLaVenta(await tx.invoice.findMany({ where: { tenantId, orderId: id }, select: { status: true } }))
+      : "sin-factura-viva",
   });
   if (!plan.ok || !order) throw new Error(mensajeEdicionRechazada(plan.ok ? "no-existe" : plan.motivo));
 
