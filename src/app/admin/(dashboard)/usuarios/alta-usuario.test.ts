@@ -59,5 +59,6 @@ test("createUser decide con validarAltaDeUsuario y el negocio de la sesión, y d
   assert.match(cuerpo, /const \{ name, email, role, password \} = alta;/);
   // El rol no se vuelve a leer del formulario por otro lado.
   assert.ok(!/formData\.get\("role"\)/.test(cuerpo), "el rol sale sólo de la decisión");
-  assert.match(cuerpo, /data: \{ tenantId, name, email, role, passwordHash \}/);
+  // La clave la fija la dueña: es provisoria y nace con el cambio obligatorio (GSG-SEG-013).
+  assert.match(cuerpo, /data: \{ tenantId, name, email, role, passwordHash, mustChangePassword: true \}/);
 });

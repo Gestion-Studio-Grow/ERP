@@ -78,10 +78,16 @@ export async function createUser(formData: FormData) {
   const passwordHash = await hashPassword(password);
   // Tope de usuarios del plan (R3-F3): se cuenta y se crea en la misma transacción, con candado.
   // Sin plan del catálogo, o en CH, no hay tope. Quien choca va a "Tu plan", que dice el porqué.
+  // La clave la fija la dueña, así que es PROVISORIA (la conoce quien la fijó): la persona la cambia al entrar
+  // (regla del dueño, GSG-SEG-013). En la misma escritura que el hash, como `resetUserPassword`. Sin la columna en
+  // la base (Gate 2) el alta falla CERRADA: no se crea un usuario con una provisoria que valdría para siempre.
   let resultado: ResultadoAltaDeUsuario;
   try {
-    resultado = await crearUsuarioSiEntra({ data: { tenantId, name, email, role, passwordHash } });
-  } catch {
+    resultado = await crearUsuarioSiEntra({
+      data: { tenantId, name, email, role, passwordHash, mustChangePassword: true },
+    });
+  } catch (e) {
+    if (esTablaAusente(e)) backWith("error_sin_cambio_obligatorio");
     // P2002 u otro conflicto de unicidad que se coló entre el chequeo y el create.
     backWith("error_email_taken");
   }

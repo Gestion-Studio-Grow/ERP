@@ -14,10 +14,13 @@ import { existsSync, readdirSync } from "node:fs";
 const BREAKPOINT = "tenant-breakpoint";
 const OTRO = "tenant-ch";
 /** Usuarios por negocio: el dueño de breakpoint, el dueño de CH (otro negocio) y una recepcionista de breakpoint sin el permiso. */
-const USUARIOS: Record<string, { tenantId: string; user: UsuarioConPermisos }> = {
-  "duenio-bp": { tenantId: BREAKPOINT, user: { role: "OWNER", overrides: [] } },
-  "duenio-ch": { tenantId: OTRO, user: { role: "OWNER", overrides: [] } },
-  "recep-bp-sin-club": { tenantId: BREAKPOINT, user: { role: "RECEPTION", overrides: [{ capability: "agenda:manage", allowed: false }] } },
+const USUARIOS: Record<string, { tenantId: string; user: UsuarioConPermisos & { mustChangePassword: boolean } }> = {
+  "duenio-bp": { tenantId: BREAKPOINT, user: { role: "OWNER", overrides: [], mustChangePassword: false } },
+  "duenio-ch": { tenantId: OTRO, user: { role: "OWNER", overrides: [], mustChangePassword: false } },
+  "recep-bp-sin-club": {
+    tenantId: BREAKPOINT,
+    user: { role: "RECEPTION", overrides: [{ capability: "agenda:manage", allowed: false }], mustChangePassword: false },
+  },
 };
 const lecturas: LecturasDelClubCrudo = {
   negocioPorSlug: async (slug) => (slug === "breakpoint" ? BREAKPOINT : slug === "ch" ? OTRO : null),
@@ -45,6 +48,24 @@ test("ATAQUE: el manejador no sirve el club a un usuario de otro negocio (404); 
   assert.equal(ok.status, 200);
   assert.equal(ok.headers.get("cache-control"), "private, no-store");
   assert.match(ok.headers.get("content-type")!, /^text\/html/);
+});
+
+// GSG-SEG-013 vuelta 2 (refutador): con la contraseña provisoria pendiente de cambio, para el club crudo NO HAY
+// SESIÓN, igual que `getCurrentUser()`. Antes la lectura ni siquiera traía `mustChangePassword` y el dueño pasaba.
+test("ATAQUE: un OWNER de breakpoint con el cambio de contraseña pendiente no entra al club crudo", async () => {
+  const conFlag: LecturasDelClubCrudo = {
+    ...lecturas,
+    usuarioDelNegocio: async () => ({ role: "OWNER", overrides: [], mustChangePassword: true }),
+  };
+  assert.equal(await esUsuarioDelClubCrudo("u1", conFlag), false);
+  const leer = async () => new Uint8Array([65]);
+  assert.equal((await responderClubCrudo(["index.html"], leer, () => esUsuarioDelClubCrudo("u1", conFlag))).status, 404);
+  // Control: el mismo usuario con el cambio hecho, pasa.
+  const sinFlag: LecturasDelClubCrudo = {
+    ...lecturas,
+    usuarioDelNegocio: async () => ({ role: "OWNER", overrides: [], mustChangePassword: false }),
+  };
+  assert.equal(await esUsuarioDelClubCrudo("u1", sinFlag), true);
 });
 
 test("esUsuarioDelClubCrudo: sin sesión, sin negocio breakpoint o si la lectura falla, cerrado", async () => {

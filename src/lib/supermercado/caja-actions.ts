@@ -228,12 +228,21 @@ export async function anularRenglonDeCaja(entrada: unknown): Promise<EstadoAnula
     }
     const encargado = await prisma.user.findFirst({
       where: { tenantId, email, active: true, deletedAt: null },
-      select: { id: true, name: true, role: true, passwordHash: true },
+      select: { id: true, name: true, role: true, passwordHash: true, mustChangePassword: true },
     });
     const claveOk = encargado ? await verifyPassword(clave, encargado.passwordHash) : false;
     if (!encargado || !claveOk) {
       intentosDeEncargado.fail(llave);
       return { ok: false, error: "El mail o la clave del encargado no son correctos." };
+    }
+    // Cambio obligatorio pendiente (GSG-SEG-013): esa clave es provisoria y la conoce quien la fijó; no autoriza
+    // plata hasta que el encargado la cambie (con ella tampoco tiene sesión en el panel). Se dice después de validar
+    // la clave, para no revelar nada a quien no la sabe.
+    if (encargado.mustChangePassword !== false) {
+      return {
+        ok: false,
+        error: `${encargado.name} tiene que cambiar su clave antes de autorizar: que entre al sistema con su usuario y la cambie.`,
+      };
     }
     if (!esEncargado(encargado)) {
       return { ok: false, error: `${encargado.name} no autoriza anulaciones en la caja. Lo decide el dueño en la configuración de la caja.` };

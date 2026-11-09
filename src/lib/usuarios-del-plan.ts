@@ -32,7 +32,15 @@ export type ResultadoAltaDeUsuario = { ok: true; id: string } | { ok: false; mot
 
 /** Crea el usuario sólo si entra en el plan. Un error de la base (email repetido) se propaga. */
 export async function crearUsuarioSiEntra(alta: {
-  data: { tenantId: string; name: string; email: string; role: "OWNER" | "RECEPTION" | "PROFESSIONAL"; passwordHash: string };
+  data: {
+    tenantId: string;
+    name: string;
+    email: string;
+    role: "OWNER" | "RECEPTION" | "PROFESSIONAL";
+    passwordHash: string;
+    /** La clave que fija otra persona es provisoria (GSG-SEG-013): el alta desde Usuarios la manda en true. */
+    mustChangePassword?: boolean;
+  };
 }): Promise<ResultadoAltaDeUsuario> {
   const { tenantId } = alta.data;
   return tenantTransaction(
