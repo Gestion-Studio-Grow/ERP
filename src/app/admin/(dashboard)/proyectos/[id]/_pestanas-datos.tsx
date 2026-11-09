@@ -4,10 +4,10 @@ import Link from "next/link";
 import { Badge, buttonClasses, cn } from "@/components/ui";
 import SubmitButton from "@/components/SubmitButton";
 import { agregarTarea, alternarTarea, borrarTarea } from "@/lib/proyectos/acciones";
-import { agregarChecklist, alternarChecklist, asignarEquipo, borrarChecklist, cargarPlantillaChecklist, generarPortal, guardarDatos, nuevaVersion, quitarEquipo, revocarPortal } from "@/lib/proyectos/acciones-ficha";
+import { agregarChecklist, alternarChecklist, asignarEquipo, borrarChecklist, cargarPlantillaChecklist, generarPortal, generarPortalCliente, guardarDatos, nuevaVersion, quitarEquipo, revocarPortal, revocarPortalCliente } from "@/lib/proyectos/acciones-ficha";
 import { fechaCorta, fechaParaInput, MEDIO_LABEL, pesos, porcentaje, sePuedeEditar, yaVencio, type MedioPago } from "@/lib/proyectos/core";
 import { conteoPorEstado } from "@/lib/proyectos/ficha-core";
-import { cambioDeVenta, ESTADOS_ITEM, ESTADO_ITEM_LABEL, MONEDAS, plataEn, TIPOS_EVENTO, ventaEn } from "@/lib/proyectos/gestion-core";
+import { cambioDeVenta, ESTADOS_ITEM, ESTADO_ITEM_LABEL, MONEDAS, plataEn, TIPOS_EVENTO, ventaEn, veTodosLosProyectos } from "@/lib/proyectos/gestion-core";
 import { datosFicha, datosHistorial, datosResumen, datosSeguimiento, type Cabecera, type Vista } from "@/lib/proyectos/ficha.server";
 import { prisma } from "@/lib/prisma";
 import { puede, type Actor } from "@/lib/proyectos/gestion.server";
@@ -15,6 +15,7 @@ import { campo, etiqueta, tarjeta } from "../_vista";
 import { BotonConConfirmacion, FormAccion } from "./_cliente";
 import { CopiarLink } from "./_piezas";
 import { etapa2ActivaPara } from "@/lib/proyectos/etapa2.server";
+import { hayTablaPortalCliente, tokenPortalDelCliente } from "@/lib/proyectos/portal-cliente.server";
 import { TablaFicha } from "./_tabla-ficha";
 
 const areaTexto = "w-full rounded-lg border border-line bg-surface p-3 text-sm text-strong";
@@ -38,6 +39,11 @@ export async function PestanaResumen({ a, cab, vista }: { a: Actor; cab: Cabecer
   const { personas, finanzas, cantCuotas, cantChecklist } = await datosResumen(a, cab, vista);
   // Etapa 2: el portal del cliente se prende por negocio (apagado por defecto): si está apagado, no se ofrece el link.
   const conPortal = await etapa2ActivaPara(a.tenantId, "portal");
+  // T5: el link del cliente reúne TODOS sus eventos: sólo lo ve quien ve todos los proyectos, y sólo con la tabla aplicada.
+  const conPortalCliente = conPortal && veTodosLosProyectos(a.rol) && (await hayTablaPortalCliente());
+  // null = no se pudo leer (sin tabla o error de base): la tarjeta no se muestra.
+  const linkCliente = conPortalCliente ? await tokenPortalDelCliente(a.tenantId, p.client.id) : null;
+  const tokenCliente = linkCliente?.token ?? null;
   const avance = finanzas && finanzas.cobrado + finanzas.aCobrar > 0 ? (finanzas.cobrado / (finanzas.cobrado + finanzas.aCobrar)) * 100 : 0;
   const libres = personas.filter((x) => !p.equipo.some((e) => e.personaId === x.id));
   const clientes = vista.pipelineEdita ? await prisma.client.findMany({ where: { tenantId: a.tenantId }, orderBy: { name: "asc" }, take: 500, select: { id: true, name: true } }) : [];
@@ -180,6 +186,29 @@ export async function PestanaResumen({ a, cab, vista }: { a: Actor; cab: Cabecer
           </FormAccion>
         ) : (
           <p className="text-sm text-muted">Todavía sin acceso.</p>
+        )}
+        {conPortalCliente && linkCliente && (
+          <div className="mt-4 grid gap-2 border-t border-line pt-3" aria-label="Link del cliente">
+            <h3 className="text-sm font-semibold text-strong">Link del cliente (todos sus eventos)</h3>
+            <p className="text-xs text-muted">Un solo link para {p.client.name} con la lista de sus eventos con ustedes: fechas, lugar y en qué está cada uno. Cada evento que tenga su acceso generado abre su propio portal, con su propuesta y sus montos.</p>
+            {tokenCliente ? (
+              <>
+                <code className="break-all rounded-lg border border-line bg-surface p-2 text-xs text-strong">/portal/cliente/{tokenCliente}</code>
+                <div className="flex flex-wrap gap-2">
+                  <a href={`/portal/cliente/${tokenCliente}`} target="_blank" rel="noopener noreferrer" className={buttonClasses("outline", "md")}>Abrir</a>
+                  <CopiarLink ruta={`/portal/cliente/${tokenCliente}`} />
+                  {vista.pipelineEdita && <BotonConConfirmacion accion={revocarPortalCliente} ocultos={{ id: p.id }} texto="Sacar el acceso" textoConfirma="Saca el acceso a la lista de eventos. Los links de cada evento siguen abiertos hasta que los revoques en cada proyecto." />}
+                </div>
+              </>
+            ) : vista.pipelineEdita ? (
+              <FormAccion accion={generarPortalCliente}>
+                <input type="hidden" name="id" value={p.id} />
+                <SubmitButton className={buttonClasses("outline", "md")}>Generar link del cliente</SubmitButton>
+              </FormAccion>
+            ) : (
+              <p className="text-sm text-muted">Todavía sin link.</p>
+            )}
+          </div>
         )}
       </section>}
     </div>

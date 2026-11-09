@@ -234,6 +234,7 @@ model Tenant {
   userPermissionOverrides   UserPermissionOverride[]
   userPins                  UserPin[]
   supportTickets            SupportTicket[] // consola de soporte GSG (T1)
+  portalesCliente           PortalCliente[] // MIA Etapa 2 · T5: link del cliente con todos sus eventos
   supportTicketEventos      SupportTicketEvento[]
   proyectos                 Proyecto[] // módulo proyectos
   proyectoCuotas            ProyectoCuota[]
@@ -867,6 +868,7 @@ model Client {
   tallerCtaCte             Boolean             @default(false)
   // Módulo inmobiliaria: la misma persona puede ser propietaria, inquilina y haber consultado.
   proyectos                Proyecto[]
+  portalesCliente          PortalCliente[] // MIA Etapa 2 · T5 (uno por cliente: @@unique en PortalCliente)
   inmoPropiedades          InmoPropiedad[]     @relation("InmoPropietario")
   inmoConsultas            InmoConsulta[]
   inmoContratosInquilino   InmoContrato[]      @relation("InmoInquilino")
@@ -4576,4 +4578,20 @@ model IaConsumo {
   gastadoMicroUsd   BigInt @default(0)
 
   @@unique([tenantId, mes])
+}
+
+// MIA Etapa 2 · T5 — el link del cliente (empresa) que reúne todos sus eventos con la productora. Sin login: la
+// llave es el token. Revocar = borrar la fila; generar otra vez = otro token. Migración 20261110140000_portal_cliente
+// (sin aplicar, Gate 2): el código pregunta si la tabla existe antes de tocarla.
+model PortalCliente {
+  id        String   @id @default(cuid())
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId  String
+  token     String   @unique
+  creadoPor String?
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, clientId])
 }
