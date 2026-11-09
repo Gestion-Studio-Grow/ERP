@@ -1,5 +1,6 @@
 // QA vouchers (FALLA 2): la baja de un impago no tenía pantalla. En la liquidación conciliada, junto
-// a cada impago pendiente, «Dar de baja» con motivo obligatorio y confirmación, sólo con cash:manage.
+// a cada impago pendiente, «Dar de baja» con motivo obligatorio y confirmación. Desde el 09/11/2026
+// (orden del dueño) sólo la dueña: la recepción tiene cash:manage pero no da de baja.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -22,8 +23,9 @@ test("estadoDeBaja: la misma condición que darDeBajaImpago", () => {
 const pagina = readFileSync(new URL("./liquidacion/[id]/page.tsx", import.meta.url), "utf8");
 const forms = readFileSync(new URL("./LiquidacionFormularios.tsx", import.meta.url), "utf8");
 
-test("la liquidación ofrece «Dar de baja» sólo junto a un impago pendiente y con cash:manage", () => {
-  assert.match(pagina, /permisoEfectivo\(user, "cash:manage"\)/);
+test("la liquidación ofrece «Dar de baja» sólo junto a un impago pendiente y a la dueña", () => {
+  assert.match(pagina, /const puedeConciliar = motivoParaNoConciliar\(user\) === null;/);
+  assert.match(pagina, /const puedeDarDeBaja = puedeConciliar;/);
   assert.match(pagina, /\{puedeDarDeBaja && r\.baja === "pendiente" && \(/);
   assert.match(pagina, /<DarDeBajaImpago numero=\{r\.numero\} \/>/);
   assert.match(pagina, /r\.baja === "dada"/);
@@ -39,9 +41,9 @@ test("el formulario llama a bajaDeImpago con motivo obligatorio y pide confirmac
   assert.match(forms, /required/);
 });
 
-test("la acción exige cash:manage y el interruptor (preparar) antes de escribir", () => {
+test("la acción exige cash:manage, la puerta de la dueña y el interruptor (preparar) antes de escribir", () => {
   const acciones = readFileSync(new URL("../../../../lib/vouchers/liquidacion-actions.ts", import.meta.url), "utf8");
   assert.match(acciones, /requireCapability\("cash:manage"\)/);
   const cuerpo = acciones.slice(acciones.indexOf("export async function bajaDeImpago"));
-  assert.match(cuerpo, /const ctx = await preparar\(\);/);
+  assert.match(cuerpo, /const ctx = await preparar\(motivoParaNoConciliar\);/);
 });

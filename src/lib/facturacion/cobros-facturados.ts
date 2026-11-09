@@ -70,8 +70,14 @@ export function pendienteDelTurno(x: {
   cobradoPorMP: number;
   /** Σ de lo que ya facturaron pagos de MP de este turno (facturas no rechazadas). */
   facturadoPorMP: number;
+  /**
+   * Σ de los cobros del libro con voucher (netos de anulaciones). El voucher lo paga la administración
+   * del country y no se factura en ARCA (orden del dueño, 09/11/2026): sale de la base.
+   */
+  cobradoPorVoucher?: number;
 }): { base: number; cubierto: number; pendiente: number } {
-  const base = centavosDe(x.cobrado ?? x.precio);
+  const voucher = Math.max(0, centavosDe(x.cobradoPorVoucher ?? 0));
+  const base = Math.max(0, centavosDe(x.cobrado ?? x.precio) - voucher);
   const tope = x.cobrado == null ? base : Math.max(0, centavosDe(x.cobradoPorMP));
   const cubierto = Math.min(tope, Math.max(0, centavosDe(x.facturadoPorMP)), base);
   return { base: base / 100, cubierto: cubierto / 100, pendiente: Math.max(0, base - cubierto) / 100 };

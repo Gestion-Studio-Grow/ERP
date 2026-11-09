@@ -72,7 +72,7 @@ import {
   marcaDelPagoEnCaja,
   medioDeCajaDelDestino,
   motivoDelEnganche,
-  OTRO_SIN_COLUMNA,
+  destinoDeUnPagoNuevo,
   ventanaDeAcreditacion,
   type ColumnaDeOtro,
   type DestinoDelPago,
@@ -98,6 +98,7 @@ import {
   type RenglonDelReporte,
   type ResumenDeCuenta,
   type Semana,
+  type UsadoSinLiquidar,
 } from "./liquidacion-core";
 
 const SERIALIZABLE = Prisma.TransactionIsolationLevel.Serializable;
@@ -457,8 +458,10 @@ export async function conciliarLiquidacionSemanal(tenantId: string, args: Concil
           if (r.count !== plan.impagos.length) throw new VoucherRechazado("cambio-recien", CAMBIO_RECIEN);
         }
         if (plan.pagadoCentavos > 0) {
-          const destino = destinoDelPago(args.medio, args.otroA);
-          if (!destino) throw new VoucherRechazado("dato-invalido", OTRO_SIN_COLUMNA);
+          // La liquidación va al banco (orden del 09/11): ni efectivo ni «otro» al cajón.
+          const dn = destinoDeUnPagoNuevo(args.medio, args.otroA);
+          if (!dn.ok) throw new VoucherRechazado("dato-invalido", dn.error);
+          const destino = dn.destino;
           const pago = await tx.voucherPagoAdministracion.create({
             data: {
               tenantId,
@@ -669,8 +672,10 @@ export async function registrarPagoACuenta(tenantId: string, args: PagoACuentaAr
       async (tx) => {
         const ya = await tx.voucherPagoAdministracion.findFirst({ where: { tenantId, clave: claveDb }, select: { id: true } });
         if (ya) return { pagoId: ya.id, duplicado: true, imputados: [], sinImputar: 0 };
-        const destino = destinoDelPago(args.medio, args.otroA);
-        if (!destino) throw new VoucherRechazado("dato-invalido", OTRO_SIN_COLUMNA);
+        // La liquidación va al banco (orden del 09/11): ni efectivo ni «otro» al cajón.
+        const dn = destinoDeUnPagoNuevo(args.medio, args.otroA);
+        if (!dn.ok) throw new VoucherRechazado("dato-invalido", dn.error);
+        const destino = dn.destino;
         const pago = await tx.voucherPagoAdministracion.create({
           data: {
             tenantId,
@@ -1384,6 +1389,8 @@ export type CuentaDeLaAdministracion = {
   liquidaciones: FilaLiquidacion[];
   /** Vouchers usados que todavía no entraron en ninguna liquidación. */
   sinLiquidar: { cantidad: number; total: number };
+  /** Cada voucher usado sin liquidar: su día de uso (del negocio) y lo que cubrió, para «a cobrar el lunes» (`aCobrarElLunes`). */
+  sinLiquidarPorDia: UsadoSinLiquidar[];
   /** Vouchers que la administración rechazó al conciliar y siguen debiendo: entran en la próxima liquidación. */
   impagos: { cantidad: number; total: number };
   /** Impagos dados de baja (la administración los desconoce): su crédito compensa el débito. */
@@ -1543,6 +1550,9 @@ export async function leerCuentaDeLaAdministracion(tenantId: string): Promise<Cu
         movimientos: movimientos.slice(-TOPE_MOVIMIENTOS).reverse(),
         liquidaciones: liquidaciones.map(aFila),
         sinLiquidar: { cantidad: sinLiq.length, total: total(sinLiq) },
+        sinLiquidarPorDia: sinLiq
+          .filter((v) => v.usadoEn)
+          .map((v) => ({ dia: dateStrInBusinessTz(v.usadoEn as Date), centavos: centavosDeDecimal(v.valorCubierto) })),
         impagos: { cantidad: imp.length, total: debe(imp) },
         bajas: { cantidad: bajas.length, total: debe(bajas) },
         pendientesDeAcreditacion,

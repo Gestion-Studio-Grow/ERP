@@ -5,7 +5,8 @@
 // ============================================================================
 //
 // Cada acción: (1) capability `cash:manage` (es plata: la misma que abrir/cerrar/arquear la caja y
-// que la liquidación de antes), (2) interruptor «vouchers» del negocio (apagado = rechazo, nada se
+// que la liquidación de antes) y, salvo generar, `vouchers:conciliar` (sólo la dueña: la recepción no
+// concilia ni da de baja, orden del 09/11/2026), (2) interruptor «vouchers» del negocio (apagado = rechazo, nada se
 // escribe), (3) tenantId del request, (4) el repo con su transacción. Un rechazo de dominio vuelve
 // como `{ ok:false, error }` con el mensaje tal cual; la tabla ausente (migración
 // 20261108140000_voucher_liquidacion_semanal sin aplicar) vuelve como «falta un paso de base de datos».
@@ -22,8 +23,8 @@ import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
 import { vouchersPrendidos } from "@/cambios/interruptores";
 import { leerImporte } from "@/lib/dinero/leer";
 import { MENSAJES_VOUCHER } from "./voucher-core";
-import { esMedioAdministracion, motivoParaNoRechazarCheque } from "./liquidacion-core";
-import { esColumnaDeOtro, OTRO_SIN_COLUMNA } from "./acreditacion-core";
+import { esMedioAdministracion, motivoParaNoConciliar, motivoParaNoRechazarCheque } from "./liquidacion-core";
+import { destinoDeUnPagoNuevo, esColumnaDeOtro } from "./acreditacion-core";
 import {
   confirmarAcreditacionMp,
   conciliarLiquidacionSemanal,
@@ -98,7 +99,7 @@ export async function generarLiquidacion(formData: FormData): Promise<ResultadoL
 
 /** Descarta una liquidación ABIERTA (mal generada): sus vouchers vuelven a «sin liquidar». */
 export async function descartarLiquidacion(formData: FormData): Promise<ResultadoLiquidacionAccion<{ liberados: number }>> {
-  const ctx = await preparar();
+  const ctx = await preparar(motivoParaNoConciliar);
   if ("ok" in ctx) return ctx;
   const liquidacionId = texto(formData.get("liquidacionId"));
   if (!liquidacionId) return { ok: false, error: "Falta identificar la liquidación." };
@@ -117,7 +118,7 @@ export async function descartarLiquidacion(formData: FormData): Promise<Resultad
  * la administración no pagó, uno por renglón o separados por coma/espacio).
  */
 export async function conciliarLiquidacion(formData: FormData): Promise<ResultadoLiquidacionAccion<ResultadoConciliacionSemanal>> {
-  const ctx = await preparar();
+  const ctx = await preparar(motivoParaNoConciliar);
   if ("ok" in ctx) return ctx;
   const liquidacionId = texto(formData.get("liquidacionId"));
   if (!liquidacionId) return { ok: false, error: "Falta identificar la liquidación." };
@@ -127,7 +128,11 @@ export async function conciliarLiquidacion(formData: FormData): Promise<Resultad
   const medio = texto(formData.get("medio"));
   if (!esMedioAdministracion(medio)) return { ok: false, error: "Elegí cómo pagó la administración." };
   const otroA = texto(formData.get("otroA"));
-  if (medio === "OTRO" && pagado > 0 && !esColumnaDeOtro(otroA)) return { ok: false, error: OTRO_SIN_COLUMNA };
+  // La liquidación va al banco (orden del 09/11): con plata, ni efectivo ni «otro» al cajón.
+  if (pagado > 0) {
+    const dn = destinoDeUnPagoNuevo(medio, otroA);
+    if (!dn.ok) return { ok: false, error: dn.error };
+  }
   const rechazados = texto(formData.get("rechazados"))
     .split(/[\s,;]+/)
     .filter(Boolean);
@@ -156,7 +161,7 @@ export async function conciliarLiquidacion(formData: FormData): Promise<Resultad
  * favor de la administración.
  */
 export async function pagoACuenta(formData: FormData): Promise<ResultadoLiquidacionAccion<PagoACuentaRegistrado>> {
-  const ctx = await preparar();
+  const ctx = await preparar(motivoParaNoConciliar);
   if ("ok" in ctx) return ctx;
   const montoRaw = texto(formData.get("monto"));
   const monto = montoRaw ? importe(montoRaw) : null;
@@ -164,7 +169,9 @@ export async function pagoACuenta(formData: FormData): Promise<ResultadoLiquidac
   const medio = texto(formData.get("medio"));
   if (!esMedioAdministracion(medio)) return { ok: false, error: "Elegí cómo pagó la administración." };
   const otroA = texto(formData.get("otroA"));
-  if (medio === "OTRO" && !esColumnaDeOtro(otroA)) return { ok: false, error: OTRO_SIN_COLUMNA };
+  // La liquidación va al banco (orden del 09/11): ni efectivo ni «otro» al cajón.
+  const dn = destinoDeUnPagoNuevo(medio, otroA);
+  if (!dn.ok) return { ok: false, error: dn.error };
   try {
     const valor = await registrarPagoACuenta(ctx.tenantId, {
       clave: texto(formData.get("clave")),
@@ -189,10 +196,10 @@ export async function pagoACuenta(formData: FormData): Promise<ResultadoLiquidac
 /**
  * Baja de un voucher IMPAGO que la administración desconoce para siempre (si no, vuelve solo en la
  * próxima liquidación). Campos: `numero` y `motivo` (obligatorio, queda en el AuditLog). Mismo
- * permiso que conciliar (`cash:manage`).
+ * permiso que conciliar (`cash:manage` + `vouchers:conciliar`: sólo la dueña, orden del 09/11/2026).
  */
 export async function bajaDeImpago(formData: FormData): Promise<ResultadoLiquidacionAccion<{ voucherId: string; numero: string; duplicado: boolean }>> {
-  const ctx = await preparar();
+  const ctx = await preparar(motivoParaNoConciliar);
   if ("ok" in ctx) return ctx;
   const numero = texto(formData.get("numero"));
   if (!numero) return { ok: false, error: "Falta el número del voucher." };
@@ -211,7 +218,7 @@ export async function bajaDeImpago(formData: FormData): Promise<ResultadoLiquida
  * (opcional: el movimiento de MP elegido; sin él se engancha el único posible o queda a mano).
  */
 export async function confirmarAcreditacion(formData: FormData): Promise<ResultadoLiquidacionAccion<AcreditacionConfirmada>> {
-  const ctx = await preparar();
+  const ctx = await preparar(motivoParaNoConciliar);
   if ("ok" in ctx) return ctx;
   const pagoId = texto(formData.get("pagoId"));
   if (!pagoId) return { ok: false, error: "Falta identificar el pago." };

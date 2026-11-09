@@ -101,7 +101,12 @@ export type Capability =
   // lo puede hacer el dueño y el administrador». No hay rol ADMIN aparte (el enum `UserRole` dice
   // «OWNER absorbe el admin»), así que es sólo OWNER. NO está en la matriz por usuario: ningún override
   // se la da a la recepción. `cash:manage` sola no alcanza.
-  | "vouchers:rechazar-cheque";
+  | "vouchers:rechazar-cheque"
+  // Conciliar la liquidación de vouchers contra el pago de la administración, registrar un pago a
+  // cuenta, confirmar su acreditación, dar de baja un impago o descartar una liquidación. Orden del
+  // dueño (09/11/2026): «la recepción no concilia ni da de baja». Sólo OWNER; NO está en la matriz por
+  // usuario. Generar la liquidación sigue con `cash:manage` sola.
+  | "vouchers:conciliar";
 
 // Las capacidades del DUEÑO. El nombre dice "ALL" y no son todas — ver la exclusión de
 // abajo, que es deliberada y anterior a este comentario.
@@ -177,6 +182,7 @@ const DEL_DUENIO: Record<Exclude<Capability, keyof typeof NO_SON_DEL_DUENIO>, tr
   "cartera:manage": true,
   "appearance:manage": true,
   "vouchers:rechazar-cheque": true,
+  "vouchers:conciliar": true,
 };
 
 export const ALL_CAPABILITIES: Capability[] = Object.keys(DEL_DUENIO) as Capability[];

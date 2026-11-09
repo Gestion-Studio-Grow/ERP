@@ -491,6 +491,10 @@ model BusinessSettings {
   instagram   String? // handle o URL
   mapsUrl     String? // URL de mapa; si es null, se arma desde addressLine + city
   contactNote String? // leyenda de contacto del footer
+  // Valor del voucher del negocio (CH · La Alameda, orden del dueño 09/11/2026): con valor, un voucher cubre
+  // min(valor, saldo del turno). Null = sin tope (cubre el saldo). Migración 20261109200000_voucher_valor
+  // (Gate 2, CHECK > 0). Se lee y escribe con SQL crudo tolerante (src/lib/vouchers/valor-voucher.ts).
+  voucherValor Decimal? @db.Decimal(14, 2)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }

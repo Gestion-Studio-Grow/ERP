@@ -290,6 +290,8 @@ export async function provisionTenant(prisma: PrismaClient, params: ProvisionPar
           mapsUrl: b.mapsUrl ?? null,
           contactNote: b.contactNote ?? null,
         },
+        // Sólo el id: sin `select` el RETURNING pide todas las columnas (`voucherValor` puede no estar migrada).
+        select: { id: true },
       });
       settingsCreated = true;
     }

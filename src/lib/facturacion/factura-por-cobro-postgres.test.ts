@@ -51,7 +51,7 @@ async function preparar(t: import("node:test").TestContext, cual: "a" | "b") {
       },
     });
   /** Un cobro en el libro del turno y el `Payment` agregado (lo que deja `aplicarCobroTurnoInTx`). */
-  const cobrar = async (turnoId: string, monto: number, method: "EFECTIVO" | "TRANSFERENCIA" = "EFECTIVO") => {
+  const cobrar = async (turnoId: string, monto: number, method: "EFECTIVO" | "TRANSFERENCIA" | "VOUCHER" = "EFECTIVO") => {
     const c = await duenio.collection.create({
       data: { tenantId: n.id, originType: "APPOINTMENT", originId: turnoId, appointmentId: turnoId, amount: monto.toFixed(2), method, collectedBy: `user:${n.duenia.id}` },
       select: { id: true },
@@ -235,4 +235,26 @@ test("opción B · anular un cobro con factura autorizada: nota de crédito en l
   await p.completar(turno.id);
   assert.deepEqual(totales(await p.facturasDelTurno(turno.id)), [10000, 30000]);
   void senia;
+});
+
+// Orden del dueño (09/11/2026): el voucher lo paga la administración del country y NO se factura en ARCA.
+test("voucher · el cobro con voucher no se factura ni al cobrar ni al completar; el resto sí", async (t) => {
+  const p = await preparar(t, "a");
+  if (!p) return;
+  // El valor VOUCHER del enum es Gate 2 (prisma/pending-gate2/CH_voucher_enum.sql): sólo en esta base efímera.
+  await p.duenio.$executeRawUnsafe(`ALTER TYPE "PaymentMethod" ADD VALUE IF NOT EXISTS 'VOUCHER'`);
+  const entero = await p.crearTurno();
+  await p.cobrar(entero.id, 40000, "VOUCHER");
+  assert.equal(await p.despuesDelCobro(entero.id), null);
+  await p.duenio.appointment.update({ where: { id: entero.id }, data: { status: "COMPLETED" } });
+  assert.equal(await p.completar(entero.id), null, "pagado entero con voucher: sin factura");
+  assert.deepEqual(await p.facturasDelTurno(entero.id), []);
+
+  const mixto = await p.crearTurno();
+  await p.cobrar(mixto.id, 30000, "VOUCHER");
+  await p.cobrar(mixto.id, 10000, "EFECTIVO");
+  await p.duenio.appointment.update({ where: { id: mixto.id }, data: { status: "COMPLETED" } });
+  await p.completar(mixto.id);
+  await p.completar(mixto.id);
+  assert.deepEqual(totales(await p.facturasDelTurno(mixto.id)), [10000], "sólo el efectivo, una vez");
 });

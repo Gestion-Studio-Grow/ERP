@@ -35,6 +35,7 @@ import { claveCobroTurno, facturarCobrosInTx, tomarClaves, vincularCobroInTx, ty
 import { claveCobroDelLibro, cobroDeLaClave } from "@/lib/facturacion/clave-cobro-del-libro";
 import { coberturaMP, esPagoMP, facturadoPropioPorCobro, saldosMPSinPareja } from "@/lib/facturacion/cobertura-mp";
 import { MARCA_ANULACION, claseDeCobro, cobroAnuladoPor } from "@/lib/turnos/anulacion";
+import { MEDIO_VOUCHER } from "@/lib/turnos/cobros";
 
 // Códigos de catálogo ARCA (ver src/plugins/arca/domain/catalogos.ts).
 const CONCEPTO_SERVICIOS = 2;
@@ -61,6 +62,8 @@ export interface CobroPorFacturar {
 /**
  * Los cobros del turno que todavía no tienen factura, con el monto de cada uno.
  *   · Sólo cobros (no anulaciones ni condonaciones), positivos y sin contrapartida.
+ *   · Nunca el voucher (orden del dueño, 09/11/2026): lo paga la administración del country y no se
+ *     factura en ARCA. Lo demás del turno (el resto en efectivo o MP) sí.
  *   · `conFila`: los cobros que ya tienen fila en `CobroFacturado` (cualquier estado): no se tocan.
  *   · `mpSinPareja`: lo que facturaron pagos de Mercado Pago de este turno y no está ya atado a la
  *     factura de un cobro del libro. Cubre, en orden de llegada, los cobros con medio Mercado Pago
@@ -76,7 +79,7 @@ export function planFacturasPorCobro(x: {
 }): CobroPorFacturar[] {
   const anulados = new Set(x.filas.map((f) => cobroAnuladoPor(f.note)).filter((id): id is string => id != null));
   const vivos = x.filas
-    .filter((f) => claseDeCobro(f.note) === "cobro" && centavosDe(f.amount) > 0 && !anulados.has(f.id))
+    .filter((f) => f.method !== MEDIO_VOUCHER && claseDeCobro(f.note) === "cobro" && centavosDe(f.amount) > 0 && !anulados.has(f.id))
     .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id));
   const cubierto = coberturaMP({
     vivos: vivos.map((f) => ({ id: f.id, method: f.method, centavos: centavosDe(f.amount) })),

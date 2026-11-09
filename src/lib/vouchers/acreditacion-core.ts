@@ -15,6 +15,8 @@
 //     (`MERCADOPAGO` → `MP`), «pendiente de acreditación»; CHEQUE → «valores a depositar»: NO entra a
 //     ninguna columna hasta que se confirma el depósito, y recién ahí entra a Mercado Pago; OTRO →
 //     obliga a elegir si entró al cajón o a Mercado Pago (la elección queda en el método del ingreso).
+//     Desde el 09/11/2026 un pago NUEVO no entra al cajón (`destinoDeUnPagoNuevo`): va al banco (MP o
+//     cheque). Lo registrado antes al cajón se sigue leyendo igual.
 //   · La confirmación engancha el movimiento de MP que ya trae el ERP (`MovimientoImportado` de una
 //     importación con origen `mercadopago`) por monto + fecha + referencia, SÓLO si ese movimiento no
 //     está descartado (copia de una re-importación), no está facturado (`emitida` o con `invoiceId`) y
@@ -103,6 +105,25 @@ export function destinoDelPago(medio: MedioPagoAdministracion | string, otroA?: 
     default:
       return null;
   }
+}
+
+/**
+ * Regla del dueño (09/11/2026): «la liquidación va al banco» (Mercado Pago cuenta como banco). Un pago
+ * NUEVO de la administración (conciliar o pago a cuenta) no entra al cajón: efectivo, u «otro» al
+ * cajón, se rechaza con este mensaje. Lo ya registrado al cajón se sigue leyendo igual (`destinoDelPago`).
+ */
+export const PAGO_AL_CAJON =
+  "El pago de la administración va al banco: anotalo como transferencia o Mercado Pago, o como cheque. En efectivo al cajón ya no se anota; si te lo dieron en efectivo, depositalo y cargá el depósito.";
+
+/** El destino de un pago NUEVO, o el error para mostrar (sin elegir columna con «otro», o al cajón). PURA. */
+export function destinoDeUnPagoNuevo(
+  medio: MedioPagoAdministracion | string,
+  otroA?: string | null,
+): { ok: true; destino: Exclude<DestinoDelPago, "CAJON"> } | { ok: false; error: string } {
+  const destino = destinoDelPago(medio, otroA);
+  if (destino === "CAJON") return { ok: false, error: PAGO_AL_CAJON };
+  if (!destino) return { ok: false, error: medio === "OTRO" ? OTRO_SIN_COLUMNA : "Elegí cómo pagó la administración." };
+  return { ok: true, destino };
 }
 
 /**

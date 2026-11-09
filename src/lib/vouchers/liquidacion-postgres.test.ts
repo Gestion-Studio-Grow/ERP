@@ -222,8 +222,10 @@ test("punta a punta: cobro con voucher → saldo de la administración → liqui
 
   // La administración paga después el impago: pago a cuenta, idempotente por la clave.
   const clave = "11111111-2222-3333-4444-555555555555";
-  const p1 = await registrarPagoACuenta(A, { clave, monto: 4000, fecha: "2026-11-03", medio: "EFECTIVO", actor: "user:test" });
-  const p2 = await registrarPagoACuenta(A, { clave, monto: 4000, fecha: "2026-11-03", medio: "EFECTIVO", actor: "user:test" });
+  // La liquidación va al banco (orden del 09/11): el pago a cuenta nuevo no entra al cajón.
+  await rechaza(registrarPagoACuenta(A, { clave: "11111111-2222-3333-4444-cajon0000000", monto: 4000, fecha: "2026-11-03", medio: "EFECTIVO", actor: "user:test" }), /va al banco/);
+  const p1 = await registrarPagoACuenta(A, { clave, monto: 4000, fecha: "2026-11-03", medio: "TRANSFERENCIA", actor: "user:test" });
+  const p2 = await registrarPagoACuenta(A, { clave, monto: 4000, fecha: "2026-11-03", medio: "TRANSFERENCIA", actor: "user:test" });
   assert.deepEqual([p1.duplicado, p2.duplicado, p2.pagoId], [false, true, p1.pagoId]);
   assert.equal((await saldo(A)) - saldoAntes, 0);
   // Regla del dueño (08/11): cada pago entra a la caja UNA vez, en su medio (MP = la cuenta bancaria).
@@ -236,7 +238,7 @@ test("punta a punta: cobro con voucher → saldo de la administración → liqui
     ingresos.map((m) => [m.type, m.method, m.amount, m.createdBy]).sort(),
     [
       ["INGRESO", "MP", 14000, `cuenta-corriente:voucher-pago:${(await duenio.voucherPagoAdministracion.findFirstOrThrow({ where: { liquidacionId: g.liquidacionId } })).id}`],
-      ["INGRESO", "EFECTIVO", 4000, `cuenta-corriente:voucher-pago:${p1.pagoId}`],
+      ["INGRESO", "MP", 4000, `cuenta-corriente:voucher-pago:${p1.pagoId}`],
     ].sort(),
   );
 });
@@ -292,6 +294,33 @@ test("la misma semana generada a la vez: una sola liquidación; dos semanas a la
     assert.equal(Math.round(l.total.toNumber() * 100), vs.reduce((acc, x) => acc + Math.round((x.valorCubierto?.toNumber() ?? 0) * 100), 0));
   }
   assert.ok((await duenio.voucher.findFirstOrThrow({ where: { numero: v.numero } })).liquidacionSemanalId);
+});
+
+test("reintento en serie: generar la misma semana dos veces da un rechazo claro y no duplica nada", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  await sinPendientes(s);
+  const duenio = await prismaComoDuenio(s.base);
+  const A = s.base.a.id;
+  const v = await voucherCobrado(s, "Flor");
+  const { generarLiquidacionSemanal } = await liq();
+  const sem = await semanaNueva();
+  const auditAntes = await duenio.auditLog.count({ where: { tenantId: A, action: "voucher.liquidacion.generar" } });
+  const g = await generarLiquidacionSemanal(A, { hasta: sem.hasta, hoy: sem.hoy, actor: "user:test" });
+  // Un voucher nuevo entre los dos clics no se cuela en la liquidación ya generada ni abre otra de la misma semana.
+  const w = await voucherCobrado(s, "Gala");
+  for (let i = 0; i < 2; i++) {
+    await assert.rejects(
+      generarLiquidacionSemanal(A, { hasta: sem.hasta, hoy: sem.hoy, actor: "user:test" }),
+      (e: unknown) => /ya tiene su liquidación/.test(String((e as Error).message)),
+    );
+  }
+  assert.equal(await duenio.voucherLiquidacion.count({ where: { tenantId: A, hasta: sem.hasta } }), 1);
+  assert.equal(await duenio.auditLog.count({ where: { tenantId: A, action: "voucher.liquidacion.generar" } }), auditAntes + 1);
+  const l = await duenio.voucherLiquidacion.findUniqueOrThrow({ where: { id: g.liquidacionId } });
+  assert.deepEqual([l.estado, l.cantidad, l.total.toNumber()], ["ABIERTA", g.cantidad, g.total]);
+  assert.equal((await duenio.voucher.findFirstOrThrow({ where: { numero: v.numero } })).liquidacionSemanalId, g.liquidacionId);
+  assert.equal((await duenio.voucher.findFirstOrThrow({ where: { numero: w.numero } })).liquidacionSemanalId, null);
 });
 
 test("anular el cobro mientras se genera la liquidación: o se anula o se liquida, nunca las dos", async (t) => {
@@ -432,7 +461,7 @@ test("las Server Actions: apagadas rechazan sin escribir; prendidas generan y co
   assert.match(!apagada.ok ? apagada.error : "", /no están prendidos/);
   const fp = new FormData();
   fp.set("monto", "100");
-  fp.set("medio", "EFECTIVO");
+  fp.set("medio", "TRANSFERENCIA");
   fp.set("fecha", todayInBusinessTz());
   fp.set("clave", "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
   const apagadaPago = await correr(() => pagoACuenta(fp));
@@ -619,7 +648,7 @@ test("dos liquidaciones a la vez con el mismo impago pendiente: queda en una sol
   assert.equal(await duenio.auditLog.count({ where: { tenantId: A, action: "voucher.liquidacion.reliquidar-impagos", entityId: v.liquidacionId } }), 1);
 });
 
-test("la baja como Server Action: con el permiso de conciliar (cash:manage, también la recepcionista), con motivo", async (t) => {
+test("la baja como Server Action: sólo la dueña (la recepción no da de baja), con motivo", async (t) => {
   const s = await preparar(t);
   if (!s) return;
   await sinPendientes(s);
@@ -630,25 +659,91 @@ test("la baja como Server Action: con el permiso de conciliar (cash:manage, tamb
   await duenio.auditLog.create({ data: filaDeInterruptor({ tenantId: A, interruptor: VOUCHERS, accion: "encender", operador: "test" }) });
   const v = await impagoConciliado(s, "Nora");
   const { bajaDeImpago } = await import("./liquidacion-actions");
+  const { SOLO_DUENIO_CONCILIA } = await import("./liquidacion-core");
   const correr = async (usuario: typeof s.base.a.duenia, fd: FormData) => {
     const r = await ejecutarAccion({ negocio: s.base.a, usuario }, () => bajaDeImpago(fd));
     assert.equal(r.tipo, "respuesta", JSON.stringify(r));
     return (r as { valor: Awaited<ReturnType<typeof bajaDeImpago>> }).valor;
   };
-  const sinMotivo = new FormData();
-  sinMotivo.set("numero", v.numero);
-  const r0 = await correr(s.base.a.recepcion, sinMotivo);
-  assert.match(!r0.ok ? r0.error : "", /por qué/);
-  assert.equal((await duenio.voucher.findUniqueOrThrow({ where: { id: v.voucherId } })).liquidadoEn, null);
   const fd = new FormData();
   fd.set("numero", v.numero);
   fd.set("motivo", "La administración lo desconoce");
-  const r1 = await correr(s.base.a.recepcion, fd);
-  assert.ok(r1.ok && !r1.valor.duplicado, JSON.stringify(r1));
+  // Orden del dueño (09/11/2026): la recepcionista, aunque tenga `cash:manage`, no da de baja.
+  const r0 = await correr(s.base.a.recepcion, fd);
+  assert.deepEqual(r0, { ok: false, error: SOLO_DUENIO_CONCILIA });
+  assert.equal((await duenio.voucher.findUniqueOrThrow({ where: { id: v.voucherId } })).liquidadoEn, null);
+  const sinMotivo = new FormData();
+  sinMotivo.set("numero", v.numero);
+  const r1 = await correr(s.base.a.duenia, sinMotivo);
+  assert.match(!r1.ok ? r1.error : "", /por qué/);
   const r2 = await correr(s.base.a.duenia, fd);
-  assert.ok(r2.ok && r2.valor.duplicado, JSON.stringify(r2));
+  assert.ok(r2.ok && !r2.valor.duplicado, JSON.stringify(r2));
+  const r3 = await correr(s.base.a.duenia, fd);
+  assert.ok(r3.ok && r3.valor.duplicado, JSON.stringify(r3));
   const audit = await duenio.auditLog.findMany({ where: { tenantId: A, action: "voucher.liquidacion.baja-impago", entityId: v.voucherId }, select: { actor: true } });
-  assert.deepEqual(audit, [{ actor: `user:${s.base.a.recepcion.id}` }]);
+  assert.deepEqual(audit, [{ actor: `user:${s.base.a.duenia.id}` }]);
+});
+
+test("conciliar, pago a cuenta, acreditar, baja y descartar: recepción y profesional rechazados sin escribir; generar sí", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  await sinPendientes(s);
+  const d = await prismaComoDuenio(s.base);
+  const A = s.base.a.id;
+  const { filaDeInterruptor } = await import("@/cambios/interruptores-core");
+  const { VOUCHERS } = await import("@/cambios/interruptores");
+  await d.auditLog.create({ data: filaDeInterruptor({ tenantId: A, interruptor: VOUCHERS, accion: "encender", operador: "test" }) });
+  const acciones = await import("./liquidacion-actions");
+  const { SOLO_DUENIO_CONCILIA } = await import("./liquidacion-core");
+  const L = await liq();
+  const hoy = await hoyDelNegocio();
+  // Una liquidación ABIERTA, un impago y un pago por transferencia pendiente de acreditar.
+  const g = await liquidacionConciliable(s, "Quela");
+  const impago = await impagoConciliado(s, "Perla");
+  const pago = await L.registrarPagoACuenta(A, { clave: claveC5("permc"), monto: 321, fecha: hoy, medio: "TRANSFERENCIA", actor: "user:test" });
+  const profesional = await d.user.create({
+    data: { tenantId: A, name: "Profesional C", email: `profesional-conc-${Date.now()}@negocio-a.erp.test`, passwordHash: "x", role: "PROFESSIONAL" },
+  });
+  // Al profesional se le prende `cash:manage` y se intenta prenderle la fina: la puerta fina igual lo frena.
+  await d.userPermissionOverride.create({ data: { tenantId: A, userId: profesional.id, capability: "cash:manage", allowed: true } });
+  await d.userPermissionOverride.create({ data: { tenantId: A, userId: profesional.id, capability: "vouchers:conciliar", allowed: true } });
+  await d.userPermissionOverride.create({ data: { tenantId: A, userId: s.base.a.recepcion.id, capability: "vouchers:conciliar", allowed: true } });
+  const foto = async () => ({
+    pagos: await d.voucherPagoAdministracion.count({ where: { tenantId: A } }),
+    libro: await d.cashMovement.count({ where: { tenantId: A } }),
+    audit: await d.auditLog.count({ where: { tenantId: A } }),
+    liq: await d.voucherLiquidacion.findUniqueOrThrow({ where: { id: g.liquidacionId }, select: { estado: true } }),
+    impago: await d.voucher.findUniqueOrThrow({ where: { id: impago.voucherId }, select: { liquidadoEn: true } }),
+    saldo: await saldo(A),
+  });
+  const form = (campos: Record<string, string>) => {
+    const f = new FormData();
+    for (const [k, v] of Object.entries(campos)) f.set(k, v);
+    return f;
+  };
+  const intentos: [string, () => Promise<unknown>][] = [
+    ["conciliar", () => acciones.conciliarLiquidacion(form({ liquidacionId: g.liquidacionId, pagado: "14000", fecha: hoy, medio: "TRANSFERENCIA" }))],
+    ["pago a cuenta", () => acciones.pagoACuenta(form({ monto: "500", fecha: hoy, medio: "TRANSFERENCIA", clave: "perm-0000-1111-2222-333333333333" }))],
+    ["acreditar", () => acciones.confirmarAcreditacion(form({ pagoId: pago.pagoId }))],
+    ["baja", () => acciones.bajaDeImpago(form({ numero: impago.numero, motivo: "La administración lo desconoce" }))],
+    ["descartar", () => acciones.descartarLiquidacion(form({ liquidacionId: g.liquidacionId }))],
+  ];
+  const antes = await foto();
+  for (const [rol, usuario] of [["RECEPTION", s.base.a.recepcion], ["PROFESSIONAL", profesional]] as const) {
+    for (const [nombre, fn] of intentos) {
+      const r: { tipo: string; valor?: unknown } = await ejecutarAccion({ negocio: s.base.a, usuario }, fn);
+      assert.deepEqual(r.tipo === "respuesta" ? r.valor : r, { ok: false, error: SOLO_DUENIO_CONCILIA }, `${rol} · ${nombre}`);
+    }
+  }
+  assert.deepEqual(await foto(), antes, "nadie sin permiso escribió nada");
+  assert.equal((await L.leerLiquidacion(A, g.liquidacionId))?.pago, null);
+  // Generar la liquidación sigue con `cash:manage`: la recepción pasa la puerta (el resultado de dominio es otro tema).
+  const { ultimaSemanaCerrada } = await import("./liquidacion-core");
+  const gen = await ejecutarAccion({ negocio: s.base.a, usuario: s.base.a.recepcion }, () => acciones.generarLiquidacion(form({ hasta: ultimaSemanaCerrada(hoy).hasta })));
+  assert.equal(gen.tipo, "respuesta", JSON.stringify(gen));
+  assert.notDeepEqual((gen as { valor: unknown }).valor, { ok: false, error: SOLO_DUENIO_CONCILIA });
+  await d.userPermissionOverride.deleteMany({ where: { tenantId: A, capability: { in: ["vouchers:conciliar", "cash:manage"] } } });
+  await d.user.delete({ where: { id: profesional.id } });
 });
 
 // ── Pago a cuenta imputado a impagos: ningún voucher se cobra dos veces (cert 2, ATQ1/ATQ1b) ──
@@ -698,7 +793,7 @@ test("pago a cuenta en parte: la baja compensa sólo lo no imputado; la re-liqui
   // Baja después de un pago parcial.
   const saldo0 = await saldo(A);
   const v = await impagoConciliado(s, "Parcial1");
-  await L.registrarPagoACuenta(A, { clave: "parcial-1-cuenta", monto: 6000, fecha: "2026-11-02", medio: "EFECTIVO", actor: "user:test" });
+  await L.registrarPagoACuenta(A, { clave: "parcial-1-cuenta", monto: 6000, fecha: "2026-11-02", medio: "TRANSFERENCIA", actor: "user:test" });
   assert.equal(await saldo(A), saldo0 + 800_000);
   assert.equal((await L.leerCuentaDeLaAdministracion(A)).impagos.total, 8000);
   await L.darDeBajaImpago(A, { numero: v.numero, motivo: "La administración desconoce el resto", actor: "user:test" });
@@ -711,7 +806,7 @@ test("pago a cuenta en parte: la baja compensa sólo lo no imputado; la re-liqui
   await sinPendientes(s);
   const saldo1 = await saldo(A);
   const w = await impagoConciliado(s, "Parcial2");
-  await L.registrarPagoACuenta(A, { clave: "parcial-2-cuenta", monto: 5000, fecha: "2026-11-02", medio: "EFECTIVO", numeros: [w.numero], actor: "user:test" });
+  await L.registrarPagoACuenta(A, { clave: "parcial-2-cuenta", monto: 5000, fecha: "2026-11-02", medio: "TRANSFERENCIA", numeros: [w.numero], actor: "user:test" });
   const sem = await semanaNueva();
   const g = await L.generarLiquidacionSemanal(A, { hasta: sem.hasta, hoy: sem.hoy, actor: "user:test" });
   assert.deepEqual([g.cantidad, g.total], [1, 9000]);
@@ -728,7 +823,7 @@ test("pago a cuenta en parte: la baja compensa sólo lo no imputado; la re-liqui
   assert.deepEqual([x.resultadoLiquidacion, x.montoLiquidado?.toNumber()], ["PAGADO", 9000]);
   // Un número que no es un impago pendiente: el pago entero se rechaza y no queda nada a medias.
   await rechaza(
-    L.registrarPagoACuenta(A, { clave: "parcial-3-cuenta", monto: 100, fecha: "2026-11-02", medio: "EFECTIVO", numeros: [w.numero], actor: "user:test" }),
+    L.registrarPagoACuenta(A, { clave: "parcial-3-cuenta", monto: 100, fecha: "2026-11-02", medio: "TRANSFERENCIA", numeros: [w.numero], actor: "user:test" }),
     /no están impagos/,
   );
   assert.equal(await duenio.voucherPagoAdministracion.count({ where: { tenantId: A, clave: "cuenta:parcial-3-cuenta" } }), 0);
@@ -753,7 +848,7 @@ test("pago a cuenta FIFO con el impago en una liquidación ABIERTA: se imputa y 
   const g = await L.generarLiquidacionSemanal(A, { hasta: sem.hasta, hoy: sem.hoy, actor: "user:test" });
   assert.deepEqual([g.cantidad, g.total], [2, 28000]);
   // 14.000 saldan entero al primero (sale de la liquidación) y 3.000,50 van a cuenta del segundo.
-  const r = await L.registrarPagoACuenta(A, { clave: "abierta-fifo-1", monto: 17000.5, fecha: F.fecha, medio: "EFECTIVO", actor: "user:test" });
+  const r = await L.registrarPagoACuenta(A, { clave: "abierta-fifo-1", monto: 17000.5, fecha: F.fecha, medio: "TRANSFERENCIA", actor: "user:test" });
   assert.deepEqual([r.imputados.map((i) => [i.numero, i.monto, i.saldado]), r.sinImputar], [[[u.numero, 14000, true], [w.numero, 3000.5, false]], 0]);
   const det = await L.leerLiquidacion(A, g.liquidacionId);
   assert.deepEqual([det?.cantidad, det?.total, det?.renglones.map((x) => [x.numero, x.valor])], [1, 10999.5, [[w.numero, 10999.5]]]);
@@ -761,7 +856,7 @@ test("pago a cuenta FIFO con el impago en una liquidación ABIERTA: se imputa y 
   assert.deepEqual([xu.resultadoLiquidacion, xu.liquidacionSemanalId, xu.montoLiquidado?.toNumber()], ["PAGADO", u.liquidacionId, 14000]);
   assert.equal(await saldo(A), saldo0 + 1_099_950);
   // Por número sigue sin imputar a un voucher de una liquidación abierta.
-  await rechaza(L.registrarPagoACuenta(A, { clave: "abierta-fifo-2", monto: 1, fecha: F.fecha, medio: "EFECTIVO", numeros: [w.numero], actor: "user:test" }), /liquidación abierta/);
+  await rechaza(L.registrarPagoACuenta(A, { clave: "abierta-fifo-2", monto: 1, fecha: F.fecha, medio: "TRANSFERENCIA", numeros: [w.numero], actor: "user:test" }), /liquidación abierta/);
   // La conciliación pide lo que falta y graba lo cobrado en ella.
   await rechaza(L.conciliarLiquidacionSemanal(A, { ...F, liquidacionId: g.liquidacionId, pagado: 14000 }), /sobran/);
   await L.conciliarLiquidacionSemanal(A, { ...F, liquidacionId: g.liquidacionId, pagado: 10999.5 });
@@ -775,7 +870,7 @@ test("pago a cuenta FIFO con el impago en una liquidación ABIERTA: se imputa y 
   const z = await impagoConciliado(s, "Abierta3");
   const sem2 = await semanaNueva();
   const g2 = await L.generarLiquidacionSemanal(A, { hasta: sem2.hasta, hoy: sem2.hoy, actor: "user:test" });
-  await L.registrarPagoACuenta(A, { clave: "abierta-fifo-3", monto: 4000, fecha: F.fecha, medio: "EFECTIVO", actor: "user:test" });
+  await L.registrarPagoACuenta(A, { clave: "abierta-fifo-3", monto: 4000, fecha: F.fecha, medio: "TRANSFERENCIA", actor: "user:test" });
   await L.descartarLiquidacion(A, { liquidacionId: g2.liquidacionId, actor: "user:test" });
   const xz = await duenio.voucher.findUniqueOrThrow({ where: { id: z.voucherId } });
   assert.deepEqual([xz.resultadoLiquidacion, xz.liquidacionSemanalId, xz.montoLiquidado?.toNumber()], ["IMPAGO", z.liquidacionId, 4000]);
@@ -878,6 +973,20 @@ test("invariante: para cualquier secuencia, saldo = usados − pagos − bajas (
 // ── El pago entra a la caja y se concilia al acreditarse en Mercado Pago (regla del dueño, 08/11) ──
 
 const MARCA_PAGO = "cuenta-corriente:voucher-pago:";
+
+/**
+ * Un pago HISTÓRICO al cajón (antes del 09/11/2026 se podía; ahora un pago nuevo va al banco): se
+ * registra por Mercado Pago y se lo deja como quedaba en la base entonces (medio e ingreso en efectivo).
+ */
+async function pagoHistoricoAlCajon(s: Sembrado, tenantId: string, a: { clave: string; monto: number; fecha: string; medio: "EFECTIVO" | "OTRO" }) {
+  const { registrarPagoACuenta } = await liq();
+  const p = await registrarPagoACuenta(tenantId, { clave: a.clave, monto: a.monto, fecha: a.fecha, medio: "OTRO", otroA: "MP", actor: "user:test" });
+  const d = await prismaComoDuenio(s.base);
+  await d.voucherPagoAdministracion.update({ where: { id: p.pagoId }, data: { medio: a.medio } });
+  const r = await d.cashMovement.updateMany({ where: { tenantId, createdBy: `${MARCA_PAGO}${p.pagoId}` }, data: { method: "EFECTIVO" } });
+  assert.equal(r.count, 1);
+  return p;
+}
 
 /** Un movimiento acreditado de MP en el extracto (pipeline de mercadopago-auto.ts). */
 async function movimientoMp(s: Sembrado, tenantId: string, monto: number, fecha: string, descripcion = "Transferencia recibida", extra: Record<string, unknown> = {}) {
@@ -1000,7 +1109,7 @@ test("acreditación: pendiente → se engancha al movimiento de MP → idempoten
   const sinMp = await registrarPagoACuenta(A, { clave: "mano-0000-1111-2222-333333333333", monto: 777, fecha: "2026-11-05", medio: "TRANSFERENCIA", actor: "user:test" });
   const manual = await confirmarAcreditacionMp(A, { pagoId: sinMp.pagoId, actor: "user:test" });
   assert.deepEqual([manual.via, manual.movimientoId], ["manual", null]);
-  const efectivo = await registrarPagoACuenta(A, { clave: "efec-0000-1111-2222-333333333333", monto: 500, fecha: "2026-11-05", medio: "EFECTIVO", actor: "user:test" });
+  const efectivo = await pagoHistoricoAlCajon(s, A, { clave: "efec-0000-1111-2222-333333333333", monto: 500, fecha: "2026-11-05", medio: "EFECTIVO" });
   await rechaza(confirmarAcreditacionMp(A, { pagoId: efectivo.pagoId, actor: "user:test" }), /efectivo/);
   // Un pago sin su ingreso de caja no se acredita (invariante: no se concilia plata que la caja no registró).
   await duenio.cashMovement.deleteMany({ where: { tenantId: A, createdBy: `${MARCA_PAGO}${sinMp.pagoId}` } });
@@ -1076,7 +1185,8 @@ test("cierre del día: el pago de la administración está en su medio (Mercado 
   const { pagosDeLaAdministracion } = await import("@/app/admin/(dashboard)/caja/cierre/vouchers-del-dia");
   const hoy = todayInBusinessTz();
   await registrarPagoACuenta(B, { clave: "cier-0000-1111-2222-33333333333a", monto: 14000, fecha: hoy, medio: "TRANSFERENCIA", actor: "user:test" });
-  await registrarPagoACuenta(B, { clave: "cier-0000-1111-2222-33333333333b", monto: 2000, fecha: hoy, medio: "EFECTIVO", actor: "user:test" });
+  // Un pago histórico al cajón (antes del 09/11): el cierre lo sigue leyendo en Efectivo.
+  await pagoHistoricoAlCajon(s, B, { clave: "cier-0000-1111-2222-33333333333b", monto: 2000, fecha: hoy, medio: "EFECTIVO" });
   const filas = await duenio.cashMovement.findMany({ where: { tenantId: B } });
   const movements = filas
     .filter((r) => dateStrInBusinessTz(r.occurredAt) === hoy)
@@ -1280,7 +1390,7 @@ test("cheque: valores a depositar (fuera de la caja) hasta confirmar el depósit
   assert.deepEqual(await invariantesDeAcreditacion(s), []);
 });
 
-test("otro: obliga a elegir cajón o Mercado Pago; sin elegir no escribe nada", async (t) => {
+test("otro: obliga a elegir columna; al cajón se rechaza (va al banco); lo histórico al cajón se lee igual", async (t) => {
   const s = await preparar(t);
   if (!s) return;
   const A = s.base.a.id;
@@ -1298,7 +1408,18 @@ test("otro: obliga a elegir cajón o Mercado Pago; sin elegir no escribe nada", 
   assert.equal(await d.voucherPagoAdministracion.count({ where: { tenantId: A } }), pagosAntes);
   assert.equal(await d.cashMovement.count({ where: { tenantId: A } }), libroAntes);
 
-  const alCajon = await registrarPagoACuenta(A, { clave: claveC5("otroE"), monto: 601, fecha: hoy, medio: "OTRO", otroA: "EFECTIVO", actor: "user:test" });
+  // «Otro» al cajón: un pago nuevo ya no entra al cajón (orden del 09/11), ni a cuenta ni al conciliar.
+  await rechaza(registrarPagoACuenta(A, { clave: claveC5("otroE"), monto: 601, fecha: hoy, medio: "OTRO", otroA: "EFECTIVO", actor: "user:test" }), /va al banco/);
+  await rechaza(
+    conciliarLiquidacionSemanal(A, { liquidacionId: g.liquidacionId, pagado: 14000, fecha: hoy, medio: "OTRO", otroA: "EFECTIVO", actor: "user:test" }),
+    /va al banco/,
+  );
+  await rechaza(conciliarLiquidacionSemanal(A, { liquidacionId: g.liquidacionId, pagado: 14000, fecha: hoy, medio: "EFECTIVO", actor: "user:test" }), /va al banco/);
+  assert.equal(await d.voucherPagoAdministracion.count({ where: { tenantId: A } }), pagosAntes);
+  assert.equal(await d.cashMovement.count({ where: { tenantId: A } }), libroAntes);
+  assert.equal((await d.voucherLiquidacion.findUniqueOrThrow({ where: { id: g.liquidacionId } })).estado, "ABIERTA", "el rechazo no dejó la liquidación a medias");
+  // Lo histórico (un «otro» que entró al cajón antes del 09/11) se sigue leyendo igual.
+  const alCajon = await pagoHistoricoAlCajon(s, A, { clave: claveC5("otroH"), monto: 601, fecha: hoy, medio: "OTRO" });
   const aMp = await registrarPagoACuenta(A, { clave: claveC5("otroM"), monto: 602, fecha: hoy, medio: "OTRO", otroA: "MP", actor: "user:test" });
   const metodo = async (pagoId: string) => (await d.cashMovement.findFirstOrThrow({ where: { tenantId: A, createdBy: `${MARCA_PAGO}${pagoId}` } })).method;
   assert.equal(await metodo(alCajon.pagoId), "EFECTIVO");
