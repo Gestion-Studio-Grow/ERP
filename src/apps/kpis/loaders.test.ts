@@ -291,7 +291,7 @@ test("Facturación: el mes de la facturación automática y del contador, con lo
   assert.deepEqual(llamadas[0].args.where, { tenantId: "t-qa", ...filtrosFacturacionMes(ahora).emitido });
 });
 
-test("Facturación (#T7): una nota de crédito rechazada por ARCA sin volver a emitir es la alerta; 4 consultas, todas del negocio", async () => {
+test("Facturación (#T7): una nota de crédito rechazada por ARCA sin volver a emitir es la alerta; 5 consultas, todas del negocio", async () => {
   const rechazada = (id: string) => ({
     id,
     total: 5000,
@@ -311,8 +311,10 @@ test("Facturación (#T7): una nota de crédito rechazada por ARCA sin volver a e
     detalle: "comprobantes este mes",
     alerta: { valor: "1", texto: "nota de crédito rechazada por ARCA · y 2 ventas anuladas con factura sin nota de crédito" },
   });
-  assert.equal(llamadas.length, CONSULTAS_ESPERADAS.facturacion + 1);
+  // ids de las rechazadas → marcas de cerradas → detalle de las abiertas (tope de 50 DESPUÉS de filtrar).
+  assert.equal(llamadas.length, CONSULTAS_ESPERADAS.facturacion + 2);
   for (const l of llamadas) assert.equal(l.args.where?.tenantId, "t-qa");
+  assert.deepEqual(llamadas.at(-1)?.args.where?.id, { in: ["nc-1"] });
 });
 
 test("Campañas: si la tabla no está en la base, '—' con el motivo; cualquier otro error sube", async () => {

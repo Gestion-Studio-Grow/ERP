@@ -35,6 +35,7 @@ import { crearNotaDeCreditoInTx, type InvoiceTx } from "@/lib/invoice-core";
 import { fechaFiscalDelDia } from "@/lib/libros/fecha-fiscal";
 import { claveAlmacenada } from "@/lib/facturacion/clave-origen";
 import { claveCobroMP, cobrosYaFacturadosInTx, tomarClaves, vincularCobroInTx } from "@/lib/facturacion/cobros-facturados";
+import { ACCION_NC_RECHAZO_RESUELTO, ACCION_NC_REEMITIDA } from "@/lib/facturacion/nc-rechazadas-core";
 
 export interface DevolucionMP {
   /** Id de la devolución en Mercado Pago (cada devolución parcial tiene el suyo). */
@@ -45,6 +46,8 @@ export interface DevolucionMP {
   importe: number;
   /** Fecha de la nota (AAAAMMDD). Default: el día del negocio. */
   fecha?: string;
+  /** Quién la pide (#T7: el dueño que la vuelve a emitir desde Facturación). Default: "system". */
+  actor?: string;
 }
 
 export type ResultadoDevolucion =
@@ -104,6 +107,17 @@ export async function notaDeCreditoPorDevolucionInTx(
     if (definitivo) await cerrarPendienteInTx(tx, tenantId, claveDevolucion, motivo);
     return { estado: "rechazada", motivo };
   };
+  // #T7 · Si esta devolución ya tuvo una nota y ARCA la rechazó, el dueño puede haberla dado por
+  // resuelta a mano (no se acredita de nuevo); si no, la nota nueva deja la marca de «reemitida»
+  // sobre la rechazada, la misma que deja la reemisión desde Facturación (nc-rechazadas.server.ts).
+  const anterior = await tx.cobroFacturado.findFirst({ where: { tenantId, clave: claveDevolucion }, select: { invoiceId: true } });
+  if (anterior) {
+    const resuelta = await tx.auditLog.findFirst({
+      where: { tenantId, entity: "Invoice", entityId: anterior.invoiceId, action: ACCION_NC_RECHAZO_RESUELTO },
+      select: { id: true },
+    });
+    if (resuelta) return rechazar(`La devolución ${refundId} ya tuvo una nota de crédito rechazada por ARCA que se dio por resuelta a mano.`, true);
+  }
   const fila = await tx.cobroFacturado.findFirst({ where: { tenantId, clave: clavePago }, select: { importe: true } });
   const topeC = centavosDe(Number(fila?.importe ?? 0));
   let yaC = await acreditadoDelPagoInTx(tx, tenantId, paymentId);
@@ -148,6 +162,19 @@ export async function notaDeCreditoPorDevolucionInTx(
       changes: { refundId, paymentId, importe, notaId: nota.invoiceId, facturaId: factura.invoiceId },
     },
   });
+  if (anterior) {
+    await tx.auditLog.create({
+      data: {
+        tenantId,
+        actor: d.actor ?? "system",
+        action: ACCION_NC_REEMITIDA,
+        entity: "Invoice",
+        entityId: anterior.invoiceId,
+        changes: { notaNuevaId: nota.invoiceId, facturaId: factura.invoiceId, importe, devolucion: claveDevolucion },
+        channel: d.actor ? "admin" : "mercadopago",
+      },
+    });
+  }
   await cerrarPendienteInTx(tx, tenantId, claveDevolucion, "nota emitida");
   return { estado: "nota_emitida", invoiceId: nota.invoiceId, yaExistia: false };
 }
