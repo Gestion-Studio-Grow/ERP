@@ -28,8 +28,8 @@ import { tenantTransaction } from "@/lib/rls";
 import { capFacturasMesDelNegocioEnTx } from "@/lib/limites-del-negocio-en-tx";
 import { runInTenantContext } from "@/lib/tenant-context";
 import { pagoDeLaPropuesta } from "@/lib/facturacion/propuesta-mp";
-import { pagoPendienteDelCreditoMp } from "@/lib/vouchers/liquidacion-repo";
-import { motivoDeAcreditacionPendiente } from "@/lib/vouchers/acreditacion-core";
+import { pagoPendienteDelCreditoMp, type CacheDeAcreditaciones } from "@/lib/vouchers/liquidacion-repo";
+import { esVentaConfirmada, motivoDeAcreditacionPendiente } from "@/lib/vouchers/acreditacion-core";
 import { claveCobroBanco, claveCobroMP, cobrosYaFacturados, facturarCobros, vincularCobro } from "@/lib/facturacion/cobros-facturados";
 import { calcularImpuestos, getFiscalProfile, isInvoicingEnabled } from "@/lib/fiscal";
 import { procesarEnviosDelNegocio, type DispatchResumen } from "@/lib/arca-dispatch";
@@ -713,6 +713,8 @@ export async function emitirPropuestas(
     let bloqueadas = 0;
     let yaFacturadas = 0;
     let deVouchers = 0;
+    // El registro de acreditaciones de vouchers se lee una sola vez por emisión.
+    const acreditaciones: CacheDeAcreditaciones = {};
     const errores: { movimientoId: string; error: string }[] = [];
 
     for (const mov of movimientos) {
@@ -729,8 +731,11 @@ export async function emitirPropuestas(
       // del claim pasa a «revision» (sigue enganchable) en vez de a «emitida».
       const claim = await tenantTransaction(
         async (tx) => {
-          // Uno ya atado a una factura no es enganchable: sigue su camino de siempre.
-          const pagoId = mov.invoiceId ? null : await pagoPendienteDelCreditoMp(tx, tenantId, {
+          // Uno ya atado a una factura no es enganchable: sigue su camino de siempre. Una venta que una
+          // persona ya confirmó (aprobó la revisión) tampoco se vuelve a frenar. El chequeo toma el
+          // candado de la acreditación: queda en fila con el registro del pago (o uno o el otro antes).
+          const saltear = mov.invoiceId != null || esVentaConfirmada(mov.motivoRevision);
+          const pagoId = saltear ? null : await pagoPendienteDelCreditoMp(tx, tenantId, {
             id: mov.id,
             fecha: mov.fecha,
             monto: mov.monto,
@@ -738,7 +743,7 @@ export async function emitirPropuestas(
             descripcion: mov.descripcion,
             contraparte: mov.contraparte,
             importacionId: mov.importacionId,
-          });
+          }, acreditaciones);
           if (pagoId) {
             const r = await tx.movimientoImportado.updateMany({
               where: { id: mov.id, tenantId, estadoPropuesta: "auto", invoiceId: null },

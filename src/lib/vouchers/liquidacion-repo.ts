@@ -70,6 +70,7 @@ import {
   ESTADOS_ENGANCHABLES,
   leerAcreditacion,
   MARCA_ENGANCHE,
+  MARCA_VENTA_CONFIRMADA,
   marcaDelPagoEnCaja,
   medioDeCajaDelDestino,
   motivoDelEnganche,
@@ -460,6 +461,8 @@ export async function conciliarLiquidacionSemanal(tenantId: string, args: Concil
         if (plan.pagadoCentavos > 0) {
           const destino = destinoDelPago(args.medio, args.otroA);
           if (!destino) throw new VoucherRechazado("dato-invalido", OTRO_SIN_COLUMNA);
+          // En fila con el chequeo de la emisión: la plata de vouchers no se factura (`pagoPendienteDelCreditoMp`).
+          if (destino === "MP") await candadoDeAcreditacion(tx, tenantId);
           const pago = await tx.voucherPagoAdministracion.create({
             data: {
               tenantId,
@@ -672,6 +675,8 @@ export async function registrarPagoACuenta(tenantId: string, args: PagoACuentaAr
         if (ya) return { pagoId: ya.id, duplicado: true, imputados: [], sinImputar: 0 };
         const destino = destinoDelPago(args.medio, args.otroA);
         if (!destino) throw new VoucherRechazado("dato-invalido", OTRO_SIN_COLUMNA);
+        // En fila con el chequeo de la emisión: la plata de vouchers no se factura (`pagoPendienteDelCreditoMp`).
+        if (destino === "MP") await candadoDeAcreditacion(tx, tenantId);
         const pago = await tx.voucherPagoAdministracion.create({
           data: {
             tenantId,
@@ -847,7 +852,11 @@ function movimientoEnganchable(tenantId: string): Prisma.MovimientoImportadoWher
     importacion: { origen: "mercadopago" },
     estadoPropuesta: { in: [...ESTADOS_ENGANCHABLES] },
     invoiceId: null,
-    OR: [{ motivoRevision: null }, { NOT: { motivoRevision: { contains: MARCA_ENGANCHE } } }],
+    // Ni enganchado a otro pago ni confirmado como venta por una persona (`esEnganchable`).
+    OR: [
+      { motivoRevision: null },
+      { AND: [{ NOT: { motivoRevision: { contains: MARCA_ENGANCHE } } }, { NOT: { motivoRevision: { contains: MARCA_VENTA_CONFIRMADA } } }] },
+    ],
   };
 }
 
@@ -932,31 +941,60 @@ export type CreditoMp = {
 };
 
 /**
- * La plata de vouchers no se factura (decisión del dueño). Si este crédito de MP puede ser la
- * acreditación de un pago de la administración TODAVÍA pendiente (destino Mercado Pago o cheque a
- * depositar, sin acreditar ni rechazar), devuelve el id de ese pago; si no, `null`. Mismo criterio que
- * la confirmación (`candidatosDeAcreditacion`: monto al centavo, ventana, enganchable), sin
- * desempatar: si coincide con alguno, no se factura solo. Corre en la transacción de quien llama
- * (la del claim de la emisión), para leer el pago ya registrado. Sin pagos de ese monto: una consulta.
+ * El candado transaccional de la acreditación de vouchers, por negocio. Lo toman el registro de un pago
+ * con destino Mercado Pago y el chequeo de `pagoPendienteDelCreditoMp` (dentro del claim de la
+ * emisión): quedan en fila. O el pago se registró antes y el crédito no se factura, o el claim pasó
+ * antes y el movimiento ya está facturado (eso no se arregla sin nota de crédito: lo ve la persona al
+ * acreditar, que va a mano). Se suelta solo al terminar la transacción.
  */
-export async function pagoPendienteDelCreditoMp(tx: Prisma.TransactionClient, tenantId: string, credito: CreditoMp): Promise<string | null> {
+export async function candadoDeAcreditacion(tx: Prisma.TransactionClient, tenantId: string): Promise<void> {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`vouchers-acreditacion:${tenantId}`}))`;
+}
+
+/** Las acreditaciones del negocio leídas una sola vez por emisión (las comparte cada movimiento). */
+export type CacheDeAcreditaciones = { acreditaciones?: Awaited<ReturnType<typeof acreditacionesDelNegocio>> };
+
+/**
+ * La plata de vouchers no se factura (decisión del dueño). Si este crédito de MP puede ser la
+ * acreditación de un pago de la administración TODAVÍA pendiente con destino Mercado Pago (sin
+ * acreditar), devuelve el id de ese pago; si no, `null`. Los cheques no cuentan: entran a MP sólo
+ * cuando una persona confirma el depósito. Mismo criterio que la confirmación
+ * (`candidatosDeAcreditacion`: monto al centavo, ventana de 10 días, enganchable), sin desempatar: si
+ * coincide con alguno, no se factura solo. Corre en la transacción de quien llama (la del claim de la
+ * emisión) y toma `candadoDeAcreditacion` antes de leer, para quedar en fila con el registro del pago.
+ * `cache`: la emisión lee el registro de acreditaciones una sola vez (leído viejo, un pago recién
+ * acreditado parece pendiente: el crédito va a revisión, el lado seguro).
+ */
+export async function pagoPendienteDelCreditoMp(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  credito: CreditoMp,
+  cache?: CacheDeAcreditaciones,
+): Promise<string | null> {
   const montoCentavos = typeof credito.monto === "number" ? centavosDe(credito.monto) : centavosDeDecimal(credito.monto);
   const fechas = fechasDePagoDelMovimiento(credito.fecha);
   if (!fechas || montoCentavos <= 0) return null;
+  await candadoDeAcreditacion(tx, tenantId);
+  // Al centavo y en la ventana: la consulta trae sólo los pagos de ESE monto (sin tope de filas).
   const pagos = await tx.voucherPagoAdministracion.findMany({
-    where: { tenantId, monto: pesosDeCentavos(montoCentavos).toFixed(2), fecha: { gte: fechas.desde, lte: fechas.hasta }, medio: { not: "EFECTIVO" } },
+    where: {
+      tenantId,
+      monto: pesosDeCentavos(montoCentavos).toFixed(2),
+      fecha: { gte: fechas.desde, lte: fechas.hasta },
+      medio: { in: ["TRANSFERENCIA", "OTRO"] },
+    },
     select: { id: true, fecha: true, monto: true, medio: true, referencia: true },
     orderBy: [{ fecha: "asc" }, { id: "asc" }],
-    take: 50,
   });
   if (pagos.length === 0) return null;
   if (credito.importacionId) {
     const imp = await tx.importacionBancaria.findFirst({ where: { id: credito.importacionId, tenantId }, select: { origen: true } });
     if (imp?.origen !== "mercadopago") return null;
   }
-  const { porPago, usados } = await acreditacionesDelNegocio(tx, tenantId);
+  const acreditaciones = cache?.acreditaciones ?? (await acreditacionesDelNegocio(tx, tenantId));
+  if (cache) cache.acreditaciones = acreditaciones;
+  const { porPago, usados } = acreditaciones;
   const ids = pagos.map((p) => p.id);
-  const rechazos = await rechazosDeCheques(tx, tenantId, ids);
   const ingresos = await ingresosDeLosPagos(tx, tenantId, ids);
   const mov: MovimientoMp = {
     id: credito.id,
@@ -967,16 +1005,16 @@ export async function pagoPendienteDelCreditoMp(tx: Prisma.TransactionClient, te
     contraparte: credito.contraparte,
   };
   for (const p of pagos) {
-    if (porPago.has(p.id) || rechazos.has(p.id)) continue;
+    if (porPago.has(p.id)) continue;
     const destino = destinoDelPago(p.medio, ingresos.get(p.id)?.method);
-    if (!esperaAcreditacion(destino)) continue;
+    if (destino !== "MP") continue;
     const c = candidatosDeAcreditacion({ fecha: p.fecha, montoCentavos: centavosDeDecimal(p.monto), referencia: p.referencia, destino }, [mov], new Set(usados.keys()));
     if (c.length > 0) return p.id;
   }
   return null;
 }
 
-const CHEQUE_YA_RECHAZADO ="Ese cheque se marcó rechazado: no se deposita. Si la administración lo reemplaza, anotá el pago nuevo a cuenta.";
+const CHEQUE_YA_RECHAZADO = "Ese cheque se marcó rechazado: no se deposita. Si la administración lo reemplaza, anotá el pago nuevo a cuenta.";
 
 export type ConfirmarAcreditacionArgs = {
   pagoId: string;

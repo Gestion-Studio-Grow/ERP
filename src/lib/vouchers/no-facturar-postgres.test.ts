@@ -8,7 +8,12 @@
  *   · un movimiento «auto» que no coincide con ningún pago pendiente se sigue emitiendo;
  *   · un pago ya acreditado (o en efectivo) no frena la emisión de otro movimiento del mismo monto;
  *   · carrera: el pago se registra mientras se emite → o facturado (y sin enganche posible) o en
- *     revisión (y enganchable), nunca facturado y enganchado a la vez;
+ *     revisión (y enganchable), nunca facturado y enganchado a la vez; el candado de la acreditación
+ *     (`candadoDeAcreditacion`) los pone en fila: el claim espera al registro y viceversa;
+ *   · una venta del mismo monto que aprueba una persona queda confirmada: se factura y la acreditación
+ *     no la engancha (va a mano);
+ *   · un cheque pendiente no frena la emisión (entra a MP cuando se confirma el depósito); una
+ *     transferencia, sólo dentro de su ventana de 10 días;
  *   · el aviso / la sincronización de Mercado Pago: un pago que coincide va a revisión, no a ARCA.
  *
  * Sin Postgres local se saltea diciendo por qué (en CI falla), como los demás `*-postgres.test.ts`.
@@ -18,7 +23,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { apuntarLaAppA, baseEfimeraDelArchivo, prismaComoDuenio, type BaseEfimera } from "@/test/base-efimera";
-import { prepararAccionesDeServidor } from "@/test/accion-de-servidor";
+import { ejecutarAccion, prepararAccionesDeServidor } from "@/test/accion-de-servidor";
 
 const laBase = baseEfimeraDelArchivo();
 let lista: BaseEfimera | null = null;
@@ -165,7 +170,10 @@ test("carrera: el pago se registra mientras se emite → facturado o en revisió
     const enganchado = c.movimientoId === mov || m.estadoPropuesta === "no_facturable";
     assert.ok(!(facturado && enganchado), `vuelta ${i}: facturado Y enganchado`);
     assert.ok(facturado || enganchado, `vuelta ${i}: ni facturado ni enganchado (${m.estadoPropuesta})`);
+    // En fila por el candado: o el pago se registró antes del claim (no se factura: revisión y
+    // enganche) o el claim pasó antes (facturado; no se arregla sin nota de crédito: va a mano).
     if (facturado) {
+      assert.ok(m.invoiceId, `vuelta ${i}: emitida sin factura`);
       assert.equal(c.via, "manual", `vuelta ${i}: un movimiento facturado no se engancha`);
       finales.facturado++;
     } else finales.revision++;
@@ -211,4 +219,165 @@ test("aviso / sincronización de MP: un pago que coincide con uno pendiente va a
   assert.equal(venta.clasificacion, "FACTURABLE");
   // Otro negocio no ve el pago de A.
   assert.equal((await c.clasificar(pago("p-3", 9300.31), base.b.id)).clasificacion, "FACTURABLE");
+});
+
+const diasAntes = (dia: string, dias: number) => {
+  const d = new Date(dia + "T12:00:00Z");
+  d.setUTCDate(d.getUTCDate() - dias);
+  return d.toISOString().slice(0, 10);
+};
+
+test("venta del mismo monto que un pago pendiente: la persona la aprueba, se factura y la acreditación no la engancha", async (t) => {
+  const base = await preparar(t);
+  if (!base) return;
+  const A = base.a.id;
+  const d = await prismaComoDuenio(base);
+  const { registrarPagoACuenta, confirmarAcreditacionMp } = await import("./liquidacion-repo");
+  const { completarRevisionAction } = await import("@/lib/bancos-actions");
+  const { MARCA_VENTA_CONFIRMADA } = await import("./acreditacion-core");
+  const hoy = await hoyDelNegocio();
+  const pago = await registrarPagoACuenta(A, { clave: clave("vent"), monto: 50000, fecha: hoy, medio: "TRANSFERENCIA", actor: "user:test" });
+  const venta = await movimientoMp(base, A, 50000, hoy);
+
+  await emitir(A);
+  assert.equal((await d.movimientoImportado.findFirstOrThrow({ where: { id: venta } })).estadoPropuesta, "revision");
+
+  // La persona la aprueba como venta (consumidor final), con la acción real de la pantalla.
+  const r = await ejecutarAccion({ negocio: base.a, usuario: base.a.duenia }, () => completarRevisionAction(venta, { docTipo: 99, docNro: "" }));
+  assert.equal(r.tipo, "respuesta");
+  assert.deepEqual(r.tipo === "respuesta" ? r.valor : null, { ok: true });
+  let m = await d.movimientoImportado.findFirstOrThrow({ where: { id: venta } });
+  assert.equal(m.estadoPropuesta, "auto");
+  assert.ok((m.motivoRevision ?? "").includes(MARCA_VENTA_CONFIRMADA), "queda marcada como venta confirmada");
+
+  await emitir(A);
+  m = await d.movimientoImportado.findFirstOrThrow({ where: { id: venta } });
+  assert.equal(m.estadoPropuesta, "emitida", "una venta confirmada no vuelve a revisión");
+  assert.ok(m.invoiceId, "la venta confirmada se factura");
+
+  const c = await confirmarAcreditacionMp(A, { pagoId: pago.pagoId, actor: "user:test" });
+  assert.deepEqual([c.via, c.movimientoId], ["manual", null], "la acreditación no engancha la venta");
+  assert.equal((await d.movimientoImportado.findFirstOrThrow({ where: { id: venta } })).estadoPropuesta, "emitida");
+});
+
+test("venta confirmada todavía sin emitir: la acreditación tampoco la engancha", async (t) => {
+  const base = await preparar(t);
+  if (!base) return;
+  const A = base.a.id;
+  const d = await prismaComoDuenio(base);
+  const { registrarPagoACuenta, confirmarAcreditacionMp } = await import("./liquidacion-repo");
+  const { completarRevisionAction } = await import("@/lib/bancos-actions");
+  const hoy = await hoyDelNegocio();
+  const pago = await registrarPagoACuenta(A, { clave: clave("vsin"), monto: 51000.51, fecha: hoy, medio: "TRANSFERENCIA", actor: "user:test" });
+  const venta = await movimientoMp(base, A, 51000.51, hoy);
+  await emitir(A);
+  await ejecutarAccion({ negocio: base.a, usuario: base.a.duenia }, () => completarRevisionAction(venta, { docTipo: 99, docNro: "" }));
+  const c = await confirmarAcreditacionMp(A, { pagoId: pago.pagoId, actor: "user:test" });
+  assert.deepEqual([c.via, c.movimientoId], ["manual", null]);
+  assert.equal((await d.movimientoImportado.findFirstOrThrow({ where: { id: venta } })).estadoPropuesta, "auto");
+});
+
+test("un cheque pendiente no frena la emisión; una transferencia, sólo dentro de sus 10 días", async (t) => {
+  const base = await preparar(t);
+  if (!base) return;
+  const A = base.a.id;
+  const d = await prismaComoDuenio(base);
+  const { registrarPagoACuenta } = await import("./liquidacion-repo");
+  const hoy = await hoyDelNegocio();
+  // Cheque recibido hace 40 días, sin depositar: entra a MP sólo cuando una persona confirma el depósito.
+  await registrarPagoACuenta(A, { clave: clave("ch40"), monto: 30000, fecha: diasAntes(hoy, 40), medio: "CHEQUE", actor: "user:test" });
+  const venta1 = await movimientoMp(base, A, 30000, hoy);
+  // Cheque de hoy: tampoco.
+  await registrarPagoACuenta(A, { clave: clave("ch00"), monto: 30001.01, fecha: hoy, medio: "CHEQUE", actor: "user:test" });
+  const venta2 = await movimientoMp(base, A, 30001.01, hoy);
+  // Transferencia de hace 11 días: fuera de su ventana.
+  await registrarPagoACuenta(A, { clave: clave("tr11"), monto: 30002.02, fecha: diasAntes(hoy, 11), medio: "TRANSFERENCIA", actor: "user:test" });
+  const venta3 = await movimientoMp(base, A, 30002.02, hoy);
+  // Transferencia de hace 10 días: dentro, no se factura.
+  await registrarPagoACuenta(A, { clave: clave("tr10"), monto: 30003.03, fecha: diasAntes(hoy, 10), medio: "TRANSFERENCIA", actor: "user:test" });
+  const vouchers = await movimientoMp(base, A, 30003.03, hoy);
+
+  await emitir(A);
+
+  for (const id of [venta1, venta2, venta3]) {
+    const m = await d.movimientoImportado.findFirstOrThrow({ where: { id } });
+    assert.equal(m.estadoPropuesta, "emitida", `${m.monto} tenía que emitirse`);
+    assert.ok(m.invoiceId, `${m.monto} sin factura`);
+  }
+  const m = await d.movimientoImportado.findFirstOrThrow({ where: { id: vouchers } });
+  assert.deepEqual([m.estadoPropuesta, m.invoiceId], ["revision", null]);
+});
+
+test("serialización: el claim de la emisión y el registro de un pago a MP esperan el mismo candado del negocio", async (t) => {
+  const base = await preparar(t);
+  if (!base) return;
+  const A = base.a.id;
+  const d = await prismaComoDuenio(base);
+  const { registrarPagoACuenta } = await import("./liquidacion-repo");
+  const hoy = await hoyDelNegocio();
+  const espera = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  const candado = (tx: { $executeRaw: typeof d.$executeRaw }) => tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`vouchers-acreditacion:${A}`}))`;
+
+  // 1) Con el candado tomado, el claim espera; el pago entra antes y el movimiento no se factura.
+  const mov = await movimientoMp(base, A, 61000.61, hoy);
+  let emision: Promise<unknown> | null = null;
+  await d.$transaction(
+    async (tx) => {
+      await candado(tx);
+      emision = emitir(A);
+      await espera(400);
+      assert.equal((await d.movimientoImportado.findFirstOrThrow({ where: { id: mov } })).estadoPropuesta, "auto", "el claim espera el candado");
+      await tx.voucherPagoAdministracion.create({
+        data: { tenantId: A, clave: `cuenta:${clave("ser1")}`, fecha: hoy, monto: 61000.61, medio: "TRANSFERENCIA", creadoPor: "user:test" },
+      });
+    },
+    { timeout: 20_000 },
+  );
+  await emision;
+  const m = await d.movimientoImportado.findFirstOrThrow({ where: { id: mov } });
+  assert.deepEqual([m.estadoPropuesta, m.invoiceId], ["revision", null], "el pago quedó antes: no se factura");
+
+  // 2) Con el candado tomado, el registro de una transferencia espera; el de un cheque no.
+  let listo = false;
+  let registro: Promise<unknown> | null = null;
+  await d.$transaction(
+    async (tx) => {
+      await candado(tx);
+      registro = registrarPagoACuenta(A, { clave: clave("ser2"), monto: 62000.62, fecha: hoy, medio: "TRANSFERENCIA", actor: "user:test" }).then(() => (listo = true));
+      await registrarPagoACuenta(A, { clave: clave("ser3"), monto: 63000.63, fecha: hoy, medio: "CHEQUE", actor: "user:test" });
+      await espera(400);
+      assert.equal(listo, false, "el registro de un pago a MP espera el candado");
+    },
+    { timeout: 20_000 },
+  );
+  await registro;
+  assert.equal(listo, true);
+});
+
+test("el aviso de MP llega ANTES de registrar el pago: se factura (orden documentado, va a mano al acreditar)", async (t) => {
+  const base = await preparar(t);
+  if (!base) return;
+  const A = base.a.id;
+  const { clasificadorSinPlataDeVouchers } = await import("@/lib/mercadopago-auto");
+  const { registrarPagoACuenta } = await import("./liquidacion-repo");
+  const hoy = await hoyDelNegocio();
+  const facturable = { clasificar: async () => ({ clasificacion: "FACTURABLE" as const, motivo: "venta" }) };
+  const c = clasificadorSinPlataDeVouchers(facturable as never);
+  const r = await c.clasificar({ id: "p-x", estado: "approved", monto: 77777.77, fechaAcreditacion: hoy.replace(/-/g, ""), descripcion: "Transf Adm" } as never, A);
+  await registrarPagoACuenta(A, { clave: clave("tarde"), monto: 77777.77, fecha: hoy, medio: "TRANSFERENCIA", actor: "user:test" });
+  assert.equal(r.clasificacion, "FACTURABLE");
+});
+
+test("el aviso de MP sin fecha de acreditación usa hoy y igual protege", async (t) => {
+  const base = await preparar(t);
+  if (!base) return;
+  const A = base.a.id;
+  const { clasificadorSinPlataDeVouchers } = await import("@/lib/mercadopago-auto");
+  const { registrarPagoACuenta } = await import("./liquidacion-repo");
+  const hoy = await hoyDelNegocio();
+  await registrarPagoACuenta(A, { clave: clave("iso"), monto: 1234.56, fecha: hoy, medio: "TRANSFERENCIA", actor: "user:test" });
+  const facturable = { clasificar: async () => ({ clasificacion: "FACTURABLE" as const, motivo: "venta" }) };
+  const c = clasificadorSinPlataDeVouchers(facturable as never);
+  const sinFecha = await c.clasificar({ id: "p-y", estado: "approved", monto: 1234.56 } as never, A);
+  assert.equal(sinFecha.clasificacion, "REVISAR");
 });

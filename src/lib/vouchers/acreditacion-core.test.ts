@@ -7,12 +7,15 @@ import {
   detalleDelIngreso,
   eleccionDeAcreditacion,
   esEnganchable,
+  esPorAcreditacionPendiente,
+  esVentaConfirmada,
   esperaAcreditacion,
   fechasDePagoDelMovimiento,
   leerAcreditacion,
   marcaDelPagoEnCaja,
   medioDeCajaDelDestino,
   motivoDeAcreditacionPendiente,
+  motivoDeVentaConfirmada,
   motivoDelEnganche,
   pagoDelIngreso,
   ventanaDeAcreditacion,
@@ -164,19 +167,28 @@ test("cheque rechazado: motivo obligatorio y marca de caja distinta de la del in
 });
 
 test("plata de vouchers: las fechas de pago que pueden acreditarse con un movimiento y el motivo de revisión", () => {
-  // Inversa de la ventana: el pago va de 45 días antes (cheque) a 1 día después del movimiento.
-  assert.deepEqual(fechasDePagoDelMovimiento("20261109"), { desde: "2026-09-25", hasta: "2026-11-10" });
+  // Inversa de la ventana de MP: el pago va de 10 días antes a 1 día después del movimiento. Los
+  // cheques no cuentan (entran a MP cuando una persona confirma el depósito): no frenan la emisión.
+  assert.deepEqual(fechasDePagoDelMovimiento("20261109"), { desde: "2026-10-30", hasta: "2026-11-10" });
   assert.equal(fechasDePagoDelMovimiento("2026-11-09"), null);
   assert.equal(fechasDePagoDelMovimiento("20260230"), null);
-  // Cada fecha de pago cuya ventana incluye el movimiento cae dentro del rango.
-  for (const [fechaPago, destino] of [["2026-11-10", "MP"], ["2026-10-30", "MP"], ["2026-09-25", "A_DEPOSITAR"]] as const) {
-    const v = ventanaDeAcreditacion(fechaPago, destino)!;
+  // Cada fecha de pago a MP cuya ventana incluye el movimiento cae dentro del rango.
+  for (const fechaPago of ["2026-11-10", "2026-10-30"]) {
+    const v = ventanaDeAcreditacion(fechaPago, "MP")!;
     assert.ok(v.desde <= "20261109" && "20261109" <= v.hasta, fechaPago);
     const r = fechasDePagoDelMovimiento("20261109")!;
     assert.ok(r.desde <= fechaPago && fechaPago <= r.hasta, fechaPago);
   }
+  // Un pago a MP de 11 días antes ya no alcanza al movimiento.
+  assert.ok(fechasDePagoDelMovimiento("20261109")!.desde > "2026-10-29");
   // El motivo no es la marca del enganche: el movimiento en revisión sigue enganchable.
   const motivo = motivoDeAcreditacionPendiente("pago-1");
   assert.match(motivo, /Vouchers.*pago-1.*no se factura/);
+  assert.ok(esPorAcreditacionPendiente(motivo));
+  assert.ok(!esPorAcreditacionPendiente("Falta el CUIT (umbral)"));
   assert.ok(esEnganchable({ estadoPropuesta: "revision", invoiceId: null, motivoRevision: motivo }));
+  // Aprobada como venta por una persona: la acreditación nunca la engancha.
+  assert.ok(esVentaConfirmada(motivoDeVentaConfirmada()));
+  assert.equal(esEnganchable({ estadoPropuesta: "auto", invoiceId: null, motivoRevision: motivoDeVentaConfirmada() }), false);
+  assert.equal(esEnganchable({ estadoPropuesta: "revision", invoiceId: null, motivoRevision: motivoDeVentaConfirmada() }), false);
 });

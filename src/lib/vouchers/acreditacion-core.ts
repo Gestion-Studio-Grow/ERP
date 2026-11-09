@@ -151,10 +151,24 @@ export function motivoDelEnganche(pagoId: string): string {
   return `Vouchers: acreditación del pago de la administración ${MARCA_ENGANCHE}${pagoId}).`;
 }
 
+/**
+ * La marca que deja en `motivoRevision` la persona que aprobó como VENTA un movimiento que estaba en
+ * revisión por un pago de la administración pendiente (`motivoDeAcreditacionPendiente`): la emisión ya
+ * no lo frena y la acreditación nunca lo engancha.
+ */
+export const MARCA_VENTA_CONFIRMADA = "(venta-confirmada)";
+export function motivoDeVentaConfirmada(): string {
+  return `Vouchers: una persona confirmó que es una venta, no plata de la administración ${MARCA_VENTA_CONFIRMADA}.`;
+}
+export function esVentaConfirmada(motivoRevision: string | null | undefined): boolean {
+  return String(motivoRevision ?? "").includes(MARCA_VENTA_CONFIRMADA);
+}
+
 /** ¿Este movimiento de MP puede ser la acreditación de un pago? PURA. */
 export function esEnganchable(m: Pick<MovimientoMp, "estadoPropuesta" | "invoiceId" | "motivoRevision">): boolean {
   if (m.estadoPropuesta !== undefined && !(ESTADOS_ENGANCHABLES as readonly string[]).includes(m.estadoPropuesta)) return false;
   if (m.invoiceId) return false;
+  if (esVentaConfirmada(m.motivoRevision)) return false;
   return !String(m.motivoRevision ?? "").includes(MARCA_ENGANCHE);
 }
 
@@ -198,8 +212,9 @@ export function candidatosDeAcreditacion(pago: PagoParaAcreditar, movimientos: r
 
 /**
  * Las fechas de pago (AAAA-MM-DD, inclusivas) cuya ventana de acreditación puede incluir un movimiento
- * de MP de este día (AAAAMMDD): la inversa de `ventanaDeAcreditacion`, con la ventana más larga (la del
- * cheque). Sirve para buscar los pagos pendientes de un crédito; el chequeo fino lo hace
+ * de MP de este día (AAAAMMDD): la inversa de `ventanaDeAcreditacion` para destino Mercado Pago (10
+ * días). Los cheques no cuentan: entran a MP sólo cuando una persona confirma el depósito, así que no
+ * frenan la emisión. Sirve para buscar los pagos pendientes de un crédito; el chequeo fino lo hace
  * `candidatosDeAcreditacion`. `null` si la fecha no es un día real. PURA.
  */
 export function fechasDePagoDelMovimiento(fechaMovimiento: string): { desde: string; hasta: string } | null {
@@ -207,8 +222,11 @@ export function fechasDePagoDelMovimiento(fechaMovimiento: string): { desde: str
   if (!m) return null;
   const dia = `${m[1]}-${m[2]}-${m[3]}`;
   if (!esDiaReal(dia)) return null;
-  return { desde: sumarDias(dia, -DIAS_PARA_DEPOSITAR_CHEQUE), hasta: sumarDias(dia, DIAS_ANTES) };
+  return { desde: sumarDias(dia, -DIAS_PARA_ACREDITAR), hasta: sumarDias(dia, DIAS_ANTES) };
 }
+
+/** El comienzo del motivo de `motivoDeAcreditacionPendiente` (para reconocerlo al aprobar). */
+export const PREFIJO_ACREDITACION_PENDIENTE = "Vouchers: puede ser la plata del pago de la administración ";
 
 /**
  * El motivo con que un crédito de MP que puede ser la acreditación de un pago pendiente de la
@@ -216,7 +234,12 @@ export function fechasDePagoDelMovimiento(fechaMovimiento: string): { desde: str
  * factura (decisión del dueño). NO lleva `MARCA_ENGANCHE`: sigue enganchable (`esEnganchable`).
  */
 export function motivoDeAcreditacionPendiente(pagoId: string): string {
-  return `Vouchers: puede ser la plata del pago de la administración ${pagoId}, pendiente de acreditación: no se factura sola. Si es esa plata, confirmá la acreditación en Vouchers; si es una venta, primero acreditá ese pago con su movimiento verdadero (o a mano) y después aprobala.`;
+  return `${PREFIJO_ACREDITACION_PENDIENTE}${pagoId}, pendiente de acreditación: no se factura sola. Si es esa plata, confirmá la acreditación en Vouchers; si es una venta, aprobala: queda confirmada como venta y la acreditación ya no la toma.`;
+}
+
+/** ¿Está en revisión por un pago de la administración pendiente? PURA. */
+export function esPorAcreditacionPendiente(motivoRevision: string | null | undefined): boolean {
+  return String(motivoRevision ?? "").startsWith(PREFIJO_ACREDITACION_PENDIENTE);
 }
 
 export type EleccionDeAcreditacion =
