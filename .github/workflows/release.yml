@@ -114,6 +114,10 @@ jobs:
         shell: bash
         env:
           URL_EVENTO: ${{ github.event.deployment_status.environment_url || github.event.deployment_status.target_url }}
+          # Producción se prueba por su dominio público, no por la URL propia del deploy
+          # (erp-xxxx.vercel.app): esa tiene la protección SSO de Vercel y responde 302 al login,
+          # así que el smoke fallaba en todos los deploys. Mismo dominio que monitor-caidas.yml.
+          PROD_URL: ${{ vars.PROD_URL || 'https://chestetica-erp.vercel.app' }}
           ENTORNO_EVENTO: ${{ github.event.deployment.environment }}
           COMMIT_EVENTO: ${{ github.event.deployment.sha }}
           URL_MANUAL: ${{ inputs.url }}
@@ -122,11 +126,18 @@ jobs:
         run: |
           if [ "$GITHUB_EVENT_NAME" = "deployment_status" ]; then
             URL="$URL_EVENTO"; COMMIT="$COMMIT_EVENTO"
-            if [ "$ENTORNO_EVENTO" = "Production" ]; then MODO=produccion; else MODO=preview; fi
+            if [ "$ENTORNO_EVENTO" = "Production" ]; then MODO=produccion; URL="$PROD_URL"; else MODO=preview; fi
           else
             URL="$URL_MANUAL"; COMMIT="$COMMIT_MANUAL"; MODO="$MODO_MANUAL"
           fi
           case "$URL" in https://*) ;; *) echo "::error::URL inválida para el smoke"; exit 2;; esac
           ARGS=("$URL" --modo "$MODO")
           if [ -n "$COMMIT" ]; then ARGS+=(--commit "$COMMIT"); fi
-          node scripts/release/smoke.mjs "${ARGS[@]}"
+          # El alias de producción puede tardar unos segundos en apuntar al deploy nuevo (el smoke
+          # exige su commit): hasta 3 intentos, 30 s entre uno y otro, sólo en producción.
+          intentos=1; [ "$MODO" = "produccion" ] && intentos=3
+          for i in $(seq 1 "$intentos"); do
+            if node scripts/release/smoke.mjs "${ARGS[@]}"; then exit 0; fi
+            [ "$i" -lt "$intentos" ] && { echo "smoke: intento $i falló, reintento en 30 s"; sleep 30; }
+          done
+          exit 1
