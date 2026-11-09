@@ -479,6 +479,8 @@ test("historial real: aditivas pasan, lo demás frena", { skip: !existsSync(DIR)
     "20260705150002_fiscal_invoice_align": "ÚNICO EN TABLA EXISTENTE",
     "20260712120000_sprint_entregable_concurrency_guards": "ÚNICO EN TABLA EXISTENTE",
     "20261104121000_rendiciones": "ÚNICO EN TABLA EXISTENTE",
+    // PR #48 (sin aplicar): dos CHECK sobre "Voucher" que sólo miran columnas nuevas y NULL → la publica el dueño.
+    "20261108140000_voucher_liquidacion_semanal": "RESTRICCIÓN EN TABLA EXISTENTE",
   };
   const hay = new Set(readdirSync(DIR));
   for (const m of pasan) {
@@ -490,7 +492,7 @@ test("historial real: aditivas pasan, lo demás frena", { skip: !existsSync(DIR)
     if (!hay.has(m)) continue;
     assert.ok(reglas(readFileSync(`${DIR}${m}/migration.sql`, "utf8")).includes(regla), m);
   }
-  // Frenan EXACTAMENTE éstas (13 de 69 al 08/11/2026); una nueva que frene se mira y se agrega acá.
+  // Frenan EXACTAMENTE éstas (14 de 70 al 09/11/2026, con la de vouchers del PR #48); una nueva que frene se mira y se agrega acá.
   const frenanHoy = [...hay].filter((m) => existsSync(`${DIR}${m}/migration.sql`) && bloquea(readFileSync(`${DIR}${m}/migration.sql`, "utf8")));
   assert.deepEqual(frenanHoy.filter((m) => m < "20261109").sort(), Object.keys(frenan).sort());
 });
