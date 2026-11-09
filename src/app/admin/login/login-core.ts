@@ -5,8 +5,15 @@
 // y nunca le promete a la cajera un tiempo que no es.
 
 import { LOGIN_RULE, type RateLimitRule } from "@/lib/rate-limit";
+import { INACTIVIDAD_BLOQUEO_MS, INACTIVIDAD_VENCE_MS, MAX_INTENTOS_PIN } from "@/lib/sesion-constantes";
 
-export type AvisoDeIngreso = { titulo: string; detalle: string };
+const MINUTOS_SIN_USO = Math.round(INACTIVIDAD_BLOQUEO_MS / 60_000);
+const DIAS_SIN_USO = Math.round(INACTIVIDAD_VENCE_MS / 86_400_000);
+/** Avisos del login que no son un error de lo tipeado: sin rojo ni campo marcado. */
+export const AVISOS_INFORMATIVOS: ReadonlySet<string> = new Set(["vencida", "inactiva", "pin"]);
+
+/** `informativo`: no es un error de lo tipeado (la sesión venció): sin rojo ni campo marcado. */
+export type AvisoDeIngreso = { titulo: string; detalle: string; informativo?: true };
 
 const minutos = (regla: RateLimitRule) =>
   Math.max(1, Math.round(regla.windowMs / 60_000));
@@ -26,6 +33,27 @@ export function avisoDeIngreso(
     return {
       titulo: "No pudimos ingresar con Google.",
       detalle: "Tu mail de Google tiene que estar dado de alta en este panel. Probá de nuevo o ingresá con tu clave.",
+    };
+  }
+  if (error === "vencida") {
+    return {
+      titulo: "Tu sesión venció.",
+      detalle: `Pasaron ${DIAS_SIN_USO} días sin usar el panel en este dispositivo. Volvé a entrar con tu email y tu contraseña.`,
+      informativo: true,
+    };
+  }
+  if (error === "inactiva") {
+    return {
+      titulo: "Tapamos la pantalla.",
+      detalle: `Pasaron ${MINUTOS_SIN_USO} minutos sin uso y no tenés un PIN elegido. Volvé a entrar con tu contraseña; después podés elegir uno.`,
+      informativo: true,
+    };
+  }
+  if (error === "pin") {
+    return {
+      titulo: `Erraste el PIN ${MAX_INTENTOS_PIN} veces.`,
+      detalle: "Por seguridad, ahora hay que entrar con tu email y tu contraseña. Con eso el PIN vuelve a andar.",
+      informativo: true,
     };
   }
   if (error === "throttled") {

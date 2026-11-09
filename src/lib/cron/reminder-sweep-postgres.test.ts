@@ -37,6 +37,8 @@ test("cron de recordatorios con la consola sujeta a RLS: encuentra el turno de c
     OPERATOR_DATABASE_URL: base.urlApp,
     CRON_SECRET: "secreto-del-cron-qa",
     RESEND_API_KEY: "re_prueba_no_sale",
+    // Sin remitente propio el mail no sale (notifications.ts: nunca un remitente inventado).
+    RESEND_FROM_EMAIL: "Recordatorios QA <qa@ejemplo.test>",
     DB_CONNECTION_LIMIT: "3",
     DB_CONNECT_TIMEOUT_MS: "5000",
   });
@@ -51,7 +53,7 @@ test("cron de recordatorios con la consola sujeta a RLS: encuentra el turno de c
   }) as typeof fetch;
   t.after(() => {
     globalThis.fetch = fetchReal;
-    for (const k of ["OPERATOR_DATABASE_URL", "CRON_SECRET", "RESEND_API_KEY", "DB_CONNECTION_LIMIT", "DB_CONNECT_TIMEOUT_MS"]) {
+    for (const k of ["OPERATOR_DATABASE_URL", "CRON_SECRET", "RESEND_API_KEY", "RESEND_FROM_EMAIL", "DB_CONNECTION_LIMIT", "DB_CONNECT_TIMEOUT_MS"]) {
       if (antes[k] === undefined) delete env[k];
       else env[k] = antes[k];
     }

@@ -25,6 +25,7 @@ import {
   type OrigenAsiento,
 } from "./asiento";
 import { planModelo, type RubroContable } from "./plan-modelo";
+import { problemaDeAsignacion, rolesModelo, type RolCuenta } from "./roles";
 import {
   calcularVencimientos,
   diaIso,
@@ -49,12 +50,13 @@ export type CodigoErrorRepo =
   | "SIN_CUIT"
   | "CUIT_INVALIDO"
   | "PERIODO_INVALIDO"
-  | "ESTADO_INVALIDO";
+  | "ESTADO_INVALIDO"
+  | "ROL_INVALIDO";
 
 export type Resultado<T> = ({ ok: true } & T) | { ok: false; error: CodigoErrorRepo; mensaje: string; errores?: ErrorAsiento[] };
 
 export const MENSAJE_MIGRACION_PENDIENTE =
-  "Contabilidad todavía no está habilitada en este negocio: falta aplicar la migración 20261104122000_contabilidad_ola1.";
+  "Contabilidad todavía no está habilitada en este negocio: falta aplicar las migraciones 20261104122000_contabilidad_ola1 y 20261108150000_contabilidad_ola2_roles.";
 
 /** P2021 (tabla inexistente) / P2022 (columna inexistente): el código llegó antes que su migración. */
 export function esMigracionPendiente(e: unknown): boolean {
@@ -94,15 +96,22 @@ async function candado(tx: Tx, clave: string): Promise<void> {
 
 // ── Plan de cuentas ──────────────────────────────────────────────────────────────────────────
 
-/** Siembra el plan modelo del rubro. Idempotente: las cuentas que ya existen (por código) no se tocan. */
-export function sembrarPlanModelo(tenantId: string, rubro: RubroContable): Promise<Resultado<{ creadas: number; existentes: number }>> {
+/**
+ * Siembra el plan modelo del rubro con sus atributos de gestión (ola 2), deja asignados los roles
+ * de cuenta del rubro y anota el rubro en `ConfigContable`. Idempotente: las cuentas que ya existen
+ * (por código) no se tocan, un rol ya asignado no se reasigna y el rubro anotado no se pisa.
+ */
+export function sembrarPlanModelo(
+  tenantId: string,
+  rubro: RubroContable,
+): Promise<Resultado<{ creadas: number; existentes: number; rolesAsignados: number }>> {
   return enTransaccion(tenantId, async (tx) => {
     await candado(tx, `contabilidad-plan:${tenantId}`);
-    const existentes = await tx.cuentaContable.findMany({ where: { tenantId }, select: { id: true, codigo: true } });
-    const idPorCodigo = new Map(existentes.map((c) => [c.codigo, c.id]));
+    const existentes = await tx.cuentaContable.findMany({ where: { tenantId }, select: { id: true, codigo: true, tipo: true, imputable: true, activa: true } });
+    const porCodigo = new Map(existentes.map((c) => [c.codigo, c]));
     let creadas = 0;
     for (const c of planModelo(rubro)) {
-      if (idPorCodigo.has(c.codigo)) continue;
+      if (porCodigo.has(c.codigo)) continue;
       const nueva = await tx.cuentaContable.create({
         data: {
           tenantId,
@@ -110,16 +119,60 @@ export function sembrarPlanModelo(tenantId: string, rubro: RubroContable): Promi
           nombre: c.nombre,
           tipo: c.tipo,
           naturaleza: c.naturaleza,
-          padreId: c.padreCodigo ? (idPorCodigo.get(c.padreCodigo) ?? null) : null,
+          padreId: c.padreCodigo ? (porCodigo.get(c.padreCodigo)?.id ?? null) : null,
           imputable: c.imputable,
           activa: true,
+          rubro: c.rubro,
+          plazo: c.plazo,
+          funcion: c.funcion,
+          monetaria: c.monetaria,
+          ritmo: c.ritmo,
+          nombreDueno: c.nombreDueno,
         },
-        select: { id: true },
+        select: { id: true, codigo: true, tipo: true, imputable: true, activa: true },
       });
-      idPorCodigo.set(c.codigo, nueva.id);
+      porCodigo.set(c.codigo, nueva);
       creadas++;
     }
-    return { creadas, existentes: existentes.length };
+
+    // Roles: sólo los que faltan, y sólo si la cuenta del código puede cumplirlos (un negocio que
+    // cambió el uso de un código no recibe un rol equivocado: queda sin asignar para el contador).
+    const yaAsignados = new Set((await tx.cuentaRol.findMany({ where: { tenantId }, select: { rol: true } })).map((r) => r.rol));
+    const nuevos: { tenantId: string; rol: RolCuenta; cuentaId: string }[] = [];
+    for (const [rol, codigo] of rolesModelo(rubro)) {
+      const cuenta = porCodigo.get(codigo);
+      if (yaAsignados.has(rol) || !cuenta || problemaDeAsignacion(rol, cuenta)) continue;
+      nuevos.push({ tenantId, rol, cuentaId: cuenta.id });
+    }
+    const roles = nuevos.length ? await tx.cuentaRol.createMany({ data: nuevos, skipDuplicates: true }) : { count: 0 };
+
+    await tx.configContable.upsert({
+      where: { tenantId },
+      create: { tenantId, rubroNegocio: rubro },
+      update: {},
+    });
+    await tx.configContable.updateMany({ where: { tenantId, rubroNegocio: null }, data: { rubroNegocio: rubro } });
+
+    return { creadas, existentes: existentes.length, rolesAsignados: roles.count };
+  });
+}
+
+/**
+ * Asigna (o cambia) la cuenta que cumple un rol. La cuenta tiene que ser de ESTE negocio (se busca
+ * con su `tenantId`; además la FK compuesta lo garantiza), imputable, activa y del tipo del rol.
+ */
+export function asignarRolCuenta(tenantId: string, rol: string, cuentaId: string): Promise<Resultado<{ rol: RolCuenta; cuentaId: string }>> {
+  return enTransaccion(tenantId, async (tx) => {
+    const cuenta = await tx.cuentaContable.findFirst({ where: { id: cuentaId, tenantId }, select: { id: true, tipo: true, imputable: true, activa: true } });
+    if (!cuenta) throw new Rechazo("NO_ENCONTRADO", "Esa cuenta no existe en el plan de este negocio.");
+    const problema = problemaDeAsignacion(rol, cuenta);
+    if (problema) throw new Rechazo("ROL_INVALIDO", problema.mensaje);
+    await tx.cuentaRol.upsert({
+      where: { tenantId_rol: { tenantId, rol } },
+      create: { tenantId, rol, cuentaId },
+      update: { cuentaId },
+    });
+    return { rol: rol as RolCuenta, cuentaId };
   });
 }
 
@@ -230,6 +283,8 @@ async function crearEnTx(
       debe: l.debe,
       haber: l.haber,
       detalle: l.detalle ?? null,
+      // Sólo si vino: un asiento sin fechas de origen se sigue guardando aunque falte la ola 2.
+      ...(l.fechaOrigen != null ? { fechaOrigen: soloDia(l.fechaOrigen) } : {}),
     })),
   });
   if (!input.confirmar) return { asientoId: asiento.id, ejercicioId: ejercicio.id, numero: null, estado: "BORRADOR" };
@@ -295,7 +350,8 @@ function anularEnTransaccion(tenantId: string, asientoId: string, fecha?: Date):
         fecha: true,
         descripcion: true,
         estado: true,
-        lineas: { select: { cuentaId: true, debe: true, haber: true, detalle: true } },
+        // fechaOrigen viaja al contra-asiento: la partida no monetaria se revierte con SU origen (T8).
+        lineas: { select: { cuentaId: true, debe: true, haber: true, detalle: true, fechaOrigen: true } },
         anuladoPor: { select: { id: true } },
       },
     });

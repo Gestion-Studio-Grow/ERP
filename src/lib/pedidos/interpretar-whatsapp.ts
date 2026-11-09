@@ -27,7 +27,7 @@
 // navegador y los tests.
 
 import { normalizarTelefono } from "@/lib/clientes/telefono";
-import { redondearAlCentavo } from "@/lib/dinero/redondeo";
+import { centavosDe, redondearAlCentavo } from "@/lib/dinero/redondeo";
 
 // ── Texto ────────────────────────────────────────────────────────────────────────────────────
 
@@ -891,7 +891,7 @@ export function textoDeCantidad(cantidad: number, unidad: "kg" | "u"): string {
 }
 
 export function pesos(n: number): string {
-  const conCentavos = Math.round(n * 100) % 100 !== 0;
+  const conCentavos = centavosDe(n) % 100 !== 0;
   return `$${n.toLocaleString("es-AR", { minimumFractionDigits: conCentavos ? 2 : 0, maximumFractionDigits: 2 })}`;
 }
 

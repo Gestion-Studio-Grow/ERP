@@ -1,4 +1,6 @@
+import { redirect } from "next/navigation";
 import { requireApp } from "@/lib/require-app";
+import { gestionaClases } from "@/lib/padel/plata-guardia";
 import { cn } from "@/components/ui";
 import { badgePendientes, configCompleta } from "@/lib/padel/datos.server";
 import { tarjeta } from "../../_vista";
@@ -14,6 +16,8 @@ export const metadata = { title: "Clases · Cobro", manifest: "/clases/app.webma
 // La cuenta (alias, titular) y el celular los cambia SÓLO el dueño (UAT 11/2026): Recepción la ve, no la edita.
 export default async function AjustesCobro() {
   const user = await requireApp("padel-clases");
+  // Todo lo de esta pantalla guarda con acciones que exigen agenda:manage: sin él, vuelve a Hoy.
+  if (!gestionaClases(user)) redirect("/admin/clases");
   const esDuenio = user.role === "OWNER";
   const [{ config }, numero] = await Promise.all([configCompleta(), badgePendientes()]);
   return (

@@ -232,6 +232,7 @@ model Tenant {
   tallerConfig              TallerConfig?
   tallerAvisosEnviados      TallerAvisoEnviado[]
   userPermissionOverrides   UserPermissionOverride[]
+  userPins                  UserPin[]
   supportTickets            SupportTicket[] // consola de soporte GSG (T1)
   supportTicketEventos      SupportTicketEvento[]
   proyectos                 Proyecto[] // módulo proyectos
@@ -272,10 +273,14 @@ model Tenant {
   voucherLotes              VoucherLote[]
   vouchers                  Voucher[]
   voucherConciliaciones     VoucherConciliacion[]
+  voucherLiquidaciones      VoucherLiquidacion[]
+  voucherPagosAdministracion VoucherPagoAdministracion[]
   cuentasContables          CuentaContable[] // contabilidad (ola 1)
   ejercicios                Ejercicio[]
   asientos                  Asiento[]
   asientoLineas             AsientoLinea[]
+  cuentaRoles               CuentaRol[] // contabilidad (ola 2 · T0 control de gestión)
+  configContable            ConfigContable?
   obligacionesFiscales      ObligacionFiscal[]
   vencimientosFiscales      VencimientoFiscal[]
   proyectoConfig            ProyectoConfig?
@@ -515,8 +520,29 @@ model User {
   updatedAt           DateTime                 @updatedAt
   // Matriz de permisos: sólo las casillas distintas del default del rol (PLAN permisos §1).
   permissionOverrides UserPermissionOverride[]
+  // PIN de desbloqueo (tabla aparte a propósito: una columna nueva en User rompería todo `user.find*` sin
+  // `select` contra una base sin la migración; ver must-change-password.ts).
+  pin                 UserPin?
 
   @@unique([tenantId, email])
+  @@index([tenantId])
+}
+
+// PIN de 4 dígitos para destrabar una sesión BLOQUEADA por inactividad (orden del dueño, 08/11/2026; src/lib/sesion-pin.ts).
+// Lo define cada usuario justo después de entrar con su contraseña. `pinHash` = scrypt igual que la contraseña
+// (auth-password.ts), nunca el PIN. `fallos`: intentos errados seguidos; con MAX_INTENTOS_PIN el PIN no destraba más
+// hasta el próximo ingreso con contraseña. No es el código por mail de ProyectoPinIngreso (ése es de un solo uso).
+model UserPin {
+  id        String   @id @default(cuid())
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String   @unique
+  pinHash   String
+  fallos    Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([tenantId])
 }
 
@@ -4270,6 +4296,12 @@ model Voucher {
   liquidadoEn    DateTime?
   montoLiquidado Decimal?     @db.Decimal(14, 2)
   liquidacionRef String?
+  // Liquidación del lunes (regla del dueño 08/11/2026, src/lib/vouchers/liquidacion-core.ts):
+  // la semana en que la administración del country liquida este voucher, y qué pasó al conciliar.
+  // Migración 20261108140000_voucher_liquidacion_semanal (aditiva, columnas nullable).
+  liquidacionSemanal   VoucherLiquidacion? @relation(fields: [liquidacionSemanalId], references: [id], onDelete: Restrict)
+  liquidacionSemanalId String?
+  resultadoLiquidacion String? // null · PAGADO · IMPAGO (CHECK en la base)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
@@ -4277,6 +4309,56 @@ model Voucher {
   @@index([tenantId, estado])
   @@index([tenantId, loteId])
   @@index([tenantId, clientId])
+  @@index([tenantId, liquidacionSemanalId])
+}
+
+// Liquidación semanal (lunes a domingo) de los vouchers usados, que paga la administración del
+// country. Única por negocio y semana (`hasta` = el domingo): no se liquida dos veces la misma.
+model VoucherLiquidacion {
+  id             String                     @id @default(cuid())
+  tenant         Tenant                     @relation(fields: [tenantId], references: [id])
+  tenantId       String
+  desde          String // YYYY-MM-DD (lunes)
+  hasta          String // YYYY-MM-DD (domingo)
+  estado         String                     @default("ABIERTA") // ABIERTA · CONCILIADA (CHECK en la base)
+  cantidad       Int                        @default(0)
+  total          Decimal                    @default(0) @db.Decimal(14, 2)
+  pagado         Decimal?                   @db.Decimal(14, 2)
+  diferencia     Decimal?                   @db.Decimal(14, 2) // pagado − aceptado
+  pagoFecha      String?
+  pagoMedio      String?
+  pagoReferencia String?
+  nota           String?
+  creadoPor      String?
+  conciliadoPor  String?
+  conciliadoEn   DateTime?
+  vouchers       Voucher[]
+  pago           VoucherPagoAdministracion?
+  createdAt      DateTime                   @default(now())
+  updatedAt      DateTime                   @updatedAt
+
+  @@unique([tenantId, hasta])
+}
+
+// Créditos de la cuenta corriente de la administración: el pago de cada liquidación conciliada y
+// los pagos a cuenta (pre-pago). Los débitos son los vouchers USADOS (no se copian).
+model VoucherPagoAdministracion {
+  id            String              @id @default(cuid())
+  tenant        Tenant              @relation(fields: [tenantId], references: [id])
+  tenantId      String
+  clave         String // idempotencia: `liq:<id>` o la del formulario
+  fecha         String // YYYY-MM-DD
+  monto         Decimal             @db.Decimal(14, 2)
+  medio         String // TRANSFERENCIA · EFECTIVO · CHEQUE · OTRO (CHECK en la base)
+  referencia    String?
+  nota          String?
+  liquidacion   VoucherLiquidacion? @relation(fields: [liquidacionId], references: [id], onDelete: Restrict)
+  liquidacionId String?             @unique
+  creadoPor     String?
+  createdAt     DateTime            @default(now())
+
+  @@unique([tenantId, clave])
+  @@index([tenantId, fecha])
 }
 
 model VoucherConciliacion {
@@ -4301,25 +4383,64 @@ model VoucherConciliacion {
 // trigger diferido que rechaza un asiento CONFIRMADO descuadrado o la edición de uno confirmado.
 
 model CuentaContable {
-  id         String           @id @default(cuid())
-  tenant     Tenant           @relation(fields: [tenantId], references: [id])
-  tenantId   String
-  codigo     String // jerárquico: 1 · 1.1 · 1.1.1 · 1.1.1.01
-  nombre     String
-  tipo       String // ACTIVO · PASIVO · PATRIMONIO_NETO · RESULTADO_POSITIVO · RESULTADO_NEGATIVO
-  naturaleza String // DEUDORA · ACREEDORA (las regularizadoras, la opuesta a su rubro)
-  padre      CuentaContable?  @relation("CuentaPadre", fields: [padreId, tenantId], references: [id, tenantId])
-  padreId    String?
-  hijas      CuentaContable[] @relation("CuentaPadre")
-  imputable  Boolean          @default(true)
-  activa     Boolean          @default(true)
-  lineas     AsientoLinea[]
-  createdAt  DateTime         @default(now())
-  updatedAt  DateTime         @updatedAt
+  id           String           @id @default(cuid())
+  tenant       Tenant           @relation(fields: [tenantId], references: [id])
+  tenantId     String
+  codigo       String // jerárquico: 1 · 1.1 · 1.1.1 · 1.1.1.01
+  nombre       String
+  tipo         String // ACTIVO · PASIVO · PATRIMONIO_NETO · RESULTADO_POSITIVO · RESULTADO_NEGATIVO
+  naturaleza   String // DEUDORA · ACREEDORA (las regularizadoras, la opuesta a su rubro)
+  padre        CuentaContable?  @relation("CuentaPadre", fields: [padreId, tenantId], references: [id, tenantId])
+  padreId      String?
+  hijas        CuentaContable[] @relation("CuentaPadre")
+  imputable    Boolean          @default(true)
+  activa       Boolean          @default(true)
+  // Ola 2 (20261108150000_contabilidad_ola2_roles, T0 de control de gestión). Todo NULLABLE: el
+  // plan de un negocio sembrado en la ola 1 sigue válido; `null` = sin dato (no «falso»).
+  rubro        String? // rubro RT 54 del estado (RUBROS_ESTADO, plan-modelo.ts)
+  plazo        String? // CORRIENTE · NO_CORRIENTE (sólo activo y pasivo)
+  funcion      String? // COSTO · COMERCIALIZACION · ADMINISTRACION · FINANCIACION (por defecto; la línea la pisa en T2)
+  monetaria    Boolean? // para el ajuste por inflación (T8): las no monetarias guardan fechaOrigen en la línea
+  ritmo        String? // FIJO_MENSUAL · VARIABLE (sólo resultados; plan vs real a la fecha, T4)
+  nombreDueno  String? // cómo la ve el dueño en el tablero
+  monedaCuenta String? // nivel Corporativo (multimoneda, E3). NULL = moneda funcional (ARS)
+  lineas       AsientoLinea[]
+  roles        CuentaRol[]
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
 
   @@unique([tenantId, codigo])
   @@unique([id, tenantId])
   @@index([tenantId, padreId])
+}
+
+/// Qué cuenta del negocio cumple cada rol que usan las reglas de contabilización (roles.ts).
+/// Un rol, una cuenta por negocio. FK compuesta: nunca apunta a la cuenta de otro negocio.
+model CuentaRol {
+  id        String         @id @default(cuid())
+  tenant    Tenant         @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  rol       String // ROLES_CUENTA (roles.ts)
+  cuenta    CuentaContable @relation(fields: [cuentaId, tenantId], references: [id, tenantId])
+  cuentaId  String
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@unique([tenantId, rol])
+  @@index([tenantId, cuentaId])
+}
+
+/// Nivel del módulo por negocio: «Control de gestión · Pyme» o «· Corporativo», y las capacidades
+/// que se prenden de a una (config.ts). Sin fila = PYME sin capacidades. El interruptor
+/// «contabilidad» (AuditLog) decide si el negocio ve el módulo; esto, cómo.
+model ConfigContable {
+  tenant       Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId     String   @id
+  nivel        String   @default("PYME") // PYME · CORPORATIVO
+  capacidades  Json     @default("{}") // { multiempresa, multimoneda, jerarquia, aprobaciones, segmentos, api }: sólo `true` prende
+  rubroNegocio String? // plan modelo sembrado: comercio · servicios · club · agencia
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model Ejercicio {
@@ -4362,18 +4483,20 @@ model Asiento {
 }
 
 model AsientoLinea {
-  id        String         @id @default(cuid())
-  tenant    Tenant         @relation(fields: [tenantId], references: [id])
-  tenantId  String
-  asiento   Asiento        @relation(fields: [asientoId, tenantId], references: [id, tenantId], onDelete: Cascade)
-  asientoId String
-  cuenta    CuentaContable @relation(fields: [cuentaId, tenantId], references: [id, tenantId])
-  cuentaId  String
-  debe      BigInt         @default(0) // centavos
-  haber     BigInt         @default(0) // centavos
-  detalle   String?
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
+  id          String         @id @default(cuid())
+  tenant      Tenant         @relation(fields: [tenantId], references: [id])
+  tenantId    String
+  asiento     Asiento        @relation(fields: [asientoId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  asientoId   String
+  cuenta      CuentaContable @relation(fields: [cuentaId, tenantId], references: [id, tenantId])
+  cuentaId    String
+  debe        BigInt         @default(0) // centavos
+  haber       BigInt         @default(0) // centavos
+  detalle     String?
+  // Ola 2: fecha de origen de la partida no monetaria (ajuste por inflación RT 54, T8). NULL en monetarias.
+  fechaOrigen DateTime?      @db.Date
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
 
   @@index([tenantId, asientoId])
   @@index([tenantId, cuentaId])

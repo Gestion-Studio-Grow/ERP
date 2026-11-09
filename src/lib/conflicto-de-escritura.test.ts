@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { Prisma } from "@/generated/prisma/client";
 import { basePrisma } from "@/lib/prisma-base";
 import { bookingTransaction, tenantTransaction, trasladoTransaction } from "@/lib/rls";
-import { esConflictoDeEscritura } from "./conflicto-de-escritura";
+import { ESPERA_TOPE_MS, esConflictoDeEscritura, esperaAntesDeReintentar } from "./conflicto-de-escritura";
 
 /** Un P2010 de consulta cruda como el medido: SQLSTATE en el mensaje y en el meta. */
 function crudo(sqlstate: string, mensaje: string, kind = "postgres") {
@@ -125,12 +125,12 @@ test("tenantTransaction: un error que no es conflicto sube sin reintentar, y el 
   assert.equal(unaVez.r, otro);
   assert.equal(unaVez.intentos, 1);
 
-  // Siempre en conflicto: 1 intento + 3 reintentos, y después el error sube.
+  // Siempre en conflicto: 1 intento + 6 reintentos (SEG-011), y después el error sube.
   const siempre = await conTransaccionFalsa(SERIALIZACION, 99, () =>
     tenantTransaction(async () => "grabado", { tenantId: "t-qa", isolationLevel: Prisma.TransactionIsolationLevel.Serializable }),
   );
   assert.equal(siempre.r, SERIALIZACION);
-  assert.equal(siempre.intentos, 4);
+  assert.equal(siempre.intentos, 7);
 
   // Fuera de Serializable no se reintenta (default: 0 reintentos).
   const rc = await conTransaccionFalsa(SERIALIZACION, 1, () => tenantTransaction(async () => "grabado", { tenantId: "t-qa" }));
@@ -158,5 +158,29 @@ test("F-1: tenantTransaction, bookingTransaction y trasladoTransaction reintenta
   // Con tope: si nunca deja de chocar, sube el mismo error (el llamador decide qué decir).
   const siempre = await conTransaccionFalsa(ADAPTADOR_40001, 99, () => bookingTransaction(async () => "x", { tenantId: "t-qa" }));
   assert.equal(siempre.r, ADAPTADOR_40001);
-  assert.equal(siempre.intentos, 4);
+  assert.equal(siempre.intentos, 7);
+});
+
+test("SEG-011: la espera antes de reintentar crece al doble, con azar entre la mitad y el total, y tiene techo", () => {
+  const minimo = () => 0;
+  const maximo = () => 1;
+  assert.deepEqual([0, 1, 2, 3, 4].map((i) => esperaAntesDeReintentar(i, maximo)), [10, 20, 40, 80, 160]);
+  assert.deepEqual([0, 1, 2, 3, 4].map((i) => esperaAntesDeReintentar(i, minimo)), [5, 10, 20, 40, 80]);
+  assert.equal(esperaAntesDeReintentar(5, maximo), ESPERA_TOPE_MS);
+  assert.equal(esperaAntesDeReintentar(30, maximo), ESPERA_TOPE_MS, "techo: nunca más de 250 ms");
+  assert.equal(esperaAntesDeReintentar(30, minimo), ESPERA_TOPE_MS / 2);
+  // Nunca cero: la que abortó no vuelve a leer antes de que la ganadora commitee.
+  for (let i = 0; i < 200; i++) assert.ok(esperaAntesDeReintentar(0) >= 5);
+});
+
+test("SEG-011: tenantTransaction espera entre reintentos (no vuelve a chocar al instante)", async () => {
+  const t0 = Date.now();
+  const { r, intentos } = await conTransaccionFalsa(SERIALIZACION, 3, () =>
+    tenantTransaction(async () => "grabado", { tenantId: "t-qa", isolationLevel: Prisma.TransactionIsolationLevel.Serializable }),
+  );
+  assert.equal(r, "grabado");
+  assert.equal(intentos, 4);
+  // 3 esperas: como mínimo 5 + 10 + 20 = 35 ms. El piso va en 20 ms: un timer de Node puede vencer ~1 ms antes
+  // por el redondeo, y sin espera el reintento tarda ~0 ms, así que 20 separa los dos casos sin depender del reloj.
+  assert.ok(Date.now() - t0 >= 20, `esperó ${Date.now() - t0} ms`);
 });

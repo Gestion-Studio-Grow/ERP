@@ -117,7 +117,7 @@ test("grupal: doble cobro a la vez cobra una vez; Cobrar todo suma la parte; can
 
   const r = valor(await ejecutarAccion(enA, () => profe.agendarClase(fd({ fecha: fechaEn(3), hora: "18:00", alumnoId: s.juan.id, tipo: "GRUPAL", integrantes: JSON.stringify([{ alumnoId: s.lucia.id }, { nombre: "Carla" }]) }))));
   assert.ok(r.ok, JSON.stringify(r));
-  const clase = await s.db.padelClase.findFirstOrThrow({ where: { tenantId: base.a.id, empiezaEn: { gt: new Date(Date.now() + 2.5 * DIA) } }, include: { integrantes: true } });
+  const clase = await s.db.padelClase.findFirstOrThrow({ where: { tenantId: base.a.id, empiezaEn: { gt: new Date(Date.now() + 2.5 * DIA) } }, orderBy: { empiezaEn: "desc" }, include: { integrantes: true } });
   const carla = clase.integrantes.find((i) => i.nombre === "Carla")!;
   const lucia = clase.integrantes.find((i) => i.alumnoId === s.lucia.id)!;
 
@@ -151,7 +151,8 @@ test("grupal: doble cobro a la vez cobra una vez; Cobrar todo suma la parte; can
   // Otra grupal confirmada con Lucía pagada: se cancela → su parte queda a favor (su saldo).
   const r2 = valor(await ejecutarAccion(enA, () => profe.agendarClase(fd({ fecha: fechaEn(4), hora: "18:00", alumnoId: s.juan.id, tipo: "GRUPAL", integrantes: JSON.stringify([{ alumnoId: s.lucia.id }]) }))));
   assert.ok(r2.ok, JSON.stringify(r2));
-  const c2 = await s.db.padelClase.findFirstOrThrow({ where: { tenantId: base.a.id, empiezaEn: { gt: new Date(Date.now() + 3.5 * DIA) } }, include: { integrantes: true } });
+  // La más nueva: con sólo «más de 3,5 días», entre las 0 y las 6 (hora argentina) entraba también la del día 3.
+  const c2 = await s.db.padelClase.findFirstOrThrow({ where: { tenantId: base.a.id, empiezaEn: { gt: new Date(Date.now() + 3.5 * DIA) } }, orderBy: { empiezaEn: "desc" }, include: { integrantes: true } });
   assert.ok(valor(await ejecutarAccion(enA, () => grupal.cobrarIntegrante(c2.integrantes[0].id, "TRANSFERENCIA"))).ok);
   const saldoAntes = valor(await ejecutarAccion(enA, () => datos.saldoDelAlumno(base.a.id, s.lucia.id)));
   const cancel = valor(await ejecutarAccion(enA, () => profe.cancelarConMotivo(c2.id, "LLUVIA")));

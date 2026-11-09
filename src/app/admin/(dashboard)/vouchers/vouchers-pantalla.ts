@@ -175,18 +175,18 @@ export function lineasDeLaFoto(r: {
 }): LineaDeResultado[] {
   const c = r.conciliacion;
   const out: LineaDeResultado[] = [
-    linea("ok", `Se leyeron ${n(r.filas, "voucher", "vouchers")} de OpenKey; ${n(r.actualizados, "quedó actualizado", "quedaron actualizados")} acá.`),
+    linea("ok", `Se leyeron ${n(r.filas, "voucher", "vouchers")} del sistema de la administración del country; ${n(r.actualizados, "quedó actualizado", "quedaron actualizados")} acá.`),
   ];
   if (r.creados.length) out.push(linea("ok", `${n(r.creados.length, "voucher nuevo se dio de alta", "vouchers nuevos se dieron de alta")} con el documento del vecino.`, r.creados));
   if (r.anuladosPorOpenKey.length)
-    out.push(linea("aviso", `${n(r.anuladosPorOpenKey.length, "voucher quedó anulado", "vouchers quedaron anulados")} porque OpenKey los anuló: ya no se pueden usar.`, r.anuladosPorOpenKey));
+    out.push(linea("aviso", `${n(r.anuladosPorOpenKey.length, "voucher quedó anulado", "vouchers quedaron anulados")} porque la administración del country los anuló: ya no se pueden usar.`, r.anuladosPorOpenKey));
   if (c.faltaBaja.length)
-    out.push(linea("aviso", `Falta dar de baja en OpenKey ${n(c.faltaBaja.length, "voucher", "vouchers")}: se usaron acá y allá siguen disponibles.`, c.faltaBaja));
+    out.push(linea("aviso", `Falta dar de baja en el sistema de la administración del country ${n(c.faltaBaja.length, "voucher", "vouchers")}: se usaron acá y allá siguen disponibles.`, c.faltaBaja));
   if (c.usadoEnOpenKeySinCobro.length)
     out.push(
       linea(
         "alerta",
-        `${n(c.usadoEnOpenKeySinCobro.length, "voucher figura usado", "vouchers figuran usados")} en OpenKey y acá no tienen cobro: se cobró afuera o se usó mal. Revisalo.`,
+        `${n(c.usadoEnOpenKeySinCobro.length, "voucher figura usado", "vouchers figuran usados")} en el sistema de la administración y acá no tienen cobro: se cobró afuera o se usó mal. Revisalo.`,
         c.usadoEnOpenKeySinCobro,
       ),
     );
@@ -194,7 +194,7 @@ export function lineasDeLaFoto(r: {
     out.push(
       linea(
         "alerta",
-        `${n(c.anuladoEnOpenKeyUsadoEnErp.length, "voucher está anulado", "vouchers están anulados")} en OpenKey pero se usó acá: hay un turno cobrado con voucher sin respaldo.`,
+        `${n(c.anuladoEnOpenKeyUsadoEnErp.length, "voucher está anulado", "vouchers están anulados")} en el sistema de la administración pero se usó acá: hay un turno cobrado con voucher sin respaldo.`,
         c.anuladoEnOpenKeyUsadoEnErp,
       ),
     );
@@ -203,9 +203,9 @@ export function lineasDeLaFoto(r: {
       linea("alerta", `${n(c.usadoEnTurnoCancelado.length, "voucher quedó usado", "vouchers quedaron usados")} en un turno cancelado o que no vino: revisá si hay que anular el cobro.`, c.usadoEnTurnoCancelado),
     );
   if (c.desconocidosEnOpenKey.length)
-    out.push(linea("aviso", `${n(c.desconocidosEnOpenKey.length, "voucher de OpenKey no está", "vouchers de OpenKey no están")} cargado acá: cargá su lote si son de este negocio.`, c.desconocidosEnOpenKey));
+    out.push(linea("aviso", `${n(c.desconocidosEnOpenKey.length, "voucher de la administración no está", "vouchers de la administración no están")} cargado acá: cargá su lote si son de este negocio.`, c.desconocidosEnOpenKey));
   out.push(...lineaDeErrores(r.erroresDeLectura));
-  if (out.length === 1) out.push(linea("ok", "Todo coincide con OpenKey: no hay nada para revisar."));
+  if (out.length === 1) out.push(linea("ok", "Todo coincide con la administración del country: no hay nada para revisar."));
   return out;
 }
 
@@ -217,21 +217,21 @@ function pesos(v: number): string {
 export function lineasDeLaLiquidacion(r: { filas: number; marcados: number; conciliacion: ResultadoLiquidacion; erroresDeLectura: ErroresDeLectura }): LineaDeResultado[] {
   const c = r.conciliacion;
   const out: LineaDeResultado[] = [
-    linea("ok", `Se leyeron ${n(r.filas, "voucher liquidado", "vouchers liquidados")}; ${n(r.marcados, "quedó marcado", "quedaron marcados")} como pagado por OpenKey.`),
+    linea("ok", `Se leyeron ${n(r.filas, "voucher liquidado", "vouchers liquidados")}; ${n(r.marcados, "quedó marcado", "quedaron marcados")} como pagado por la administración del country.`),
   ];
   if (c.cobradoSinLiquidar.length) {
     const masViejo = c.cobradoSinLiquidar[0];
     out.push(
       linea(
         "aviso",
-        `${n(c.cobradoSinLiquidar.length, "voucher cobrado sigue", "vouchers cobrados siguen")} sin liquidar por OpenKey` +
+        `${n(c.cobradoSinLiquidar.length, "voucher cobrado sigue", "vouchers cobrados siguen")} sin liquidar por la administración del country` +
           (masViejo ? ` (el más viejo, ${masViejo.numero}, hace ${n(masViejo.dias, "día", "días")}).` : "."),
         c.cobradoSinLiquidar.map((x) => x.numero),
       ),
     );
   }
   if (c.liquidadoSinCobro.length)
-    out.push(linea("alerta", `OpenKey pagó ${n(c.liquidadoSinCobro.length, "voucher", "vouchers")} que acá no tienen cobro: revisalo con La Alameda.`, c.liquidadoSinCobro));
+    out.push(linea("alerta", `La administración del country pagó ${n(c.liquidadoSinCobro.length, "voucher", "vouchers")} que acá no tienen cobro: revisalo con La Alameda.`, c.liquidadoSinCobro));
   if (c.montoDistinto.length)
     out.push(
       linea(

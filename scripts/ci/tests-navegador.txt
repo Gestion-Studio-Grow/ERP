@@ -1,0 +1,38 @@
+# Tests que sólo necesitan Chromium (Playwright) y NO usan Postgres: corren en el job «tests-navegador»
+# de .github/workflows/gates.yml, en paralelo con «tests». Criterio: abren Chromium y pasan sin
+# ERP_TEST_PG_URL ni DATABASE_URL (medido el 09/11/2026: 34 archivos, 308/308, 0 salteados).
+# Uno nuevo que cumpla eso se suma acá; si empieza a usar la base, se saca (vuelve a «tests»).
+src/app/(site)/sitio-toque.test.ts
+src/app/admin/(dashboard)/ajustes/recuento/recuento-pantalla.test.ts
+src/app/admin/(dashboard)/caja/caja-renglon.test.ts
+src/app/admin/(dashboard)/caja/caja-teclado.test.ts
+src/app/admin/(dashboard)/chip-de-pedidos-nuevos.test.ts
+src/app/admin/(dashboard)/club/agenda-momento-pantalla.test.ts
+src/app/admin/(dashboard)/club/armazon-pantalla.test.ts
+src/app/admin/(dashboard)/club/bloqueo-pantalla.test.ts
+src/app/admin/(dashboard)/club/club-pantalla.test.ts
+src/app/admin/(dashboard)/club/cuenta-2d-pantalla.test.ts
+src/app/admin/(dashboard)/club/cuenta-y-buffet-pantalla.test.ts
+src/app/admin/(dashboard)/club/fijos-pantalla.test.ts
+src/app/admin/(dashboard)/club/studio-pantalla.test.ts
+src/app/admin/(dashboard)/club/vender-pantalla.test.ts
+src/app/admin/(dashboard)/club/vender-sin-internet-pantalla.test.ts
+src/app/admin/(dashboard)/enlaces-sobre-el-fondo-aa.test.ts
+src/app/admin/(dashboard)/inicio/cifra-de-renglon-celular.test.ts
+src/app/admin/(dashboard)/pedidos/aviso-de-pedidos-navegador.test.ts
+src/app/admin/(dashboard)/pie-pegado-zona-segura.test.ts
+src/app/admin/(dashboard)/turnos/_agenda/planilla-pantalla.test.ts
+src/app/admin/(dashboard)/turnos/_agenda/renglon-celular.test.ts
+src/app/admin/(dashboard)/vender/vender-pantalla.test.ts
+src/app/admin/login/ingreso-pantalla.test.ts
+src/app/clases/turnero-pantalla.test.ts
+src/app/operador/(console)/tabla-negocios-celular.test.ts
+src/app/tienda/magra-bolsa-navegador.test.ts
+src/app/tienda/magra-toque.test.ts
+src/app/tienda/tienda-nueva-entrega-navegador.test.ts
+src/app/tienda/vidriera-toque.test.ts
+src/components/balanza/tomar-peso-pantalla.test.ts
+src/components/ui/deslizar-tactil.test.ts
+src/lib/pedidos/pedido-desde-whatsapp-pantalla.test.ts
+src/lib/stock/alta-producto.test.ts
+src/test/gate-medicion.test.ts

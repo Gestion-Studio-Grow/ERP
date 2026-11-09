@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { requireApp } from "@/lib/require-app";
+import { gestionaClases } from "@/lib/padel/plata-guardia";
 import { cn, Icono } from "@/components/ui";
 import { badgePendientes, configCompleta } from "@/lib/padel/datos.server";
 import { CLAVES_PLANTILLA, PLANTILLAS_DEFAULT } from "@/lib/padel/core";
@@ -20,7 +22,9 @@ export const metadata = { title: "Clases · Ajustes", manifest: "/clases/app.web
 // Horarios, que es una grilla y se guarda de una (con aviso si te vas sin guardar).
 // Clubes (E4): dónde da clases; cada horario y cada clase pueden decir en qué club. Paquetes, después.
 export default async function ClasesConfig() {
-  await requireApp("padel-clases");
+  const user = await requireApp("padel-clases");
+  // Todo lo de esta pantalla guarda con acciones que exigen agenda:manage: sin él, vuelve a Hoy.
+  if (!gestionaClases(user)) redirect("/admin/clases");
   const [{ config, franjas, bloqueos, clubes }, numero, turnero] = await Promise.all([configCompleta(), badgePendientes(), linkDelTurnero()]);
   const qr = await qrDelTurnero(turnero);
   const cloud = modoWhatsApp(process.env) === "cloud";

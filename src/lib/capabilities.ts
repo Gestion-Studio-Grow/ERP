@@ -95,7 +95,13 @@ export type Capability =
   // Apariencia del backoffice (/admin/apariencia): elegir el color del equipo
   // (Tenant.accentPreset) y el tema claro/oscuro del panel. Solo OWNER — es
   // configuración del negocio, mismo tenor que localización/módulos.
-  | "appearance:manage";
+  | "appearance:manage"
+  // Marcar un cheque de la administración como rechazado (vouchers de CH): revierte la imputación del
+  // pago y, si ya se había depositado, saca la plata de la caja. Orden del dueño (08/11/2026): «solamente
+  // lo puede hacer el dueño y el administrador». No hay rol ADMIN aparte (el enum `UserRole` dice
+  // «OWNER absorbe el admin»), así que es sólo OWNER. NO está en la matriz por usuario: ningún override
+  // se la da a la recepción. `cash:manage` sola no alcanza.
+  | "vouchers:rechazar-cheque";
 
 // Las capacidades del DUEÑO. El nombre dice "ALL" y no son todas — ver la exclusión de
 // abajo, que es deliberada y anterior a este comentario.
@@ -170,6 +176,7 @@ const DEL_DUENIO: Record<Exclude<Capability, keyof typeof NO_SON_DEL_DUENIO>, tr
   "cash:manage": true,
   "cartera:manage": true,
   "appearance:manage": true,
+  "vouchers:rechazar-cheque": true,
 };
 
 export const ALL_CAPABILITIES: Capability[] = Object.keys(DEL_DUENIO) as Capability[];

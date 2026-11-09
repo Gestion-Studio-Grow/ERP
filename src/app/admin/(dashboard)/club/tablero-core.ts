@@ -34,7 +34,7 @@ import { leerMonto } from "./caja-core";
 import { MEDIOS_CAJA } from "./cuenta-core";
 
 const ddmm = (f: Fecha) => `${Number(f.slice(8))}/${Number(f.slice(5, 7))}`;
-const pct = (x: number) => `${Math.round(x * 100)} %`;
+const pct = (x: number) => `${Math.round(x * 100)} %`; // no-es-plata: proporción en % entero, para leer
 /** «vie 17/10». */
 export const fechaCorta = (f: Fecha) => `${NOMBRE_DIA[diaSemana(f)].slice(0, 3).toLowerCase()} ${ddmm(f)}`;
 

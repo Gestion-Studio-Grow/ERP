@@ -1,11 +1,11 @@
-// FACTURITA · Política de privacidad — BORRADOR (ver DocumentoLegal). Pública y estática.
+// FACTOQUE · Política de privacidad (ver DocumentoLegal). Pública y estática.
 // Marco: Ley 25.326 de Protección de los Datos Personales (arts. 5, 6, 11, 12, 14, 16, 21 y 25) y
 // Disp. DNPDP 10/2008 (leyendas obligatorias; hoy el órgano de control es la AAIP). Lo que no se pudo
 // afirmar con certeza va entre corchetes (PENDIENTES en ../legales).
 
 import type { Metadata } from "next";
 import DocumentoLegal from "../DocumentoLegal";
-import { PENDIENTES, RESPONSABLE, SITIO_AAIP, VIGENCIA_BORRADOR } from "../legales";
+import { PENDIENTES, RESPONSABLE, SITIO_AAIP, VIGENCIA } from "../legales";
 
 export const dynamic = "force-static";
 
@@ -13,15 +13,13 @@ export const metadata: Metadata = {
   title: "Privacidad — Factoque",
   description: "Qué datos usa Factoque, para qué, y cómo ejercés tus derechos sobre ellos.",
   generator: "Gestión Studio Grow",
-  // Borrador «todavía no vigente»: fuera de los buscadores hasta que el dueño lo apruebe.
-  robots: { index: false, follow: false },
 };
 
 export default function PrivacidadPage() {
   return (
     <DocumentoLegal
       titulo="Política de privacidad"
-      vigencia={VIGENCIA_BORRADOR}
+      vigencia={VIGENCIA}
       secciones={[
         {
           titulo: "Quién trata tus datos",
@@ -35,7 +33,7 @@ export default function PrivacidadPage() {
           parrafos: [
             "Los tuyos: nombre, email y contraseña para entrar a tu cuenta, teléfono si nos escribís, CUIT, condición frente al IVA y punto de venta.",
             "Los de tus facturas: el comprador (CUIT, CUIL o DNI, o consumidor final sin identificar), la descripción, los importes, la fecha, el número y el CAE que da ARCA.",
-            "Si usás tu propio certificado digital, el certificado y su clave privada, guardados cifrados.",
+            "Tu certificado digital de ARCA y su clave privada, guardados cifrados.",
             "No guardamos tu clave fiscal: no la necesitamos. Tampoco usamos cookies de publicidad ni de medición: sólo la necesaria para mantener abierta tu sesión.",
           ],
         },

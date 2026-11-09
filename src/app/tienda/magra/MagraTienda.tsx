@@ -191,7 +191,7 @@ function Vidriera({
     olvidarAviso.current(p.id);
     renovarClave();
     setCart((s) => {
-      const q = Math.max(0, Math.round(calcular(s[p.id] ?? 0) * 100) / 100);
+      const q = Math.max(0, Math.round(calcular(s[p.id] ?? 0) * 100) / 100); // no-es-plata: cantidad de la bolsa (kg o unidades)
       const n = { ...s };
       if (q > 0) n[p.id] = q;
       else delete n[p.id];

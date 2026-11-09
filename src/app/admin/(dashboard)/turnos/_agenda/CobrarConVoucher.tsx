@@ -14,6 +14,8 @@
 
 import { useId, useState, useTransition } from "react";
 import { aplicarVoucherAlTurno } from "@/lib/vouchers/voucher-actions";
+import { completeAppointment } from "@/lib/actions";
+import { aFormData, camposDeTerminar } from "./campos";
 import { Button, Input } from "@/components/ui";
 import { useToast } from "../../ToastProvider";
 import { pesos } from "../agenda-core";
@@ -23,11 +25,18 @@ export default function CobrarConVoucher({
   turnoId,
   clienta,
   saldo,
+  terminarAlSaldar,
   onListo,
 }: {
   turnoId: string;
   clienta: string;
   saldo: number;
+  /**
+   * Presente = el turno ya se puede cerrar (la tecla «Terminar»/«Vino» del cajón): si el voucher
+   * cubre todo, se termina por el MISMO camino que con efectivo (`completeAppointment` sin medio,
+   * como «Terminar el turno» con saldo 0 en TerminarTurno). Ausente: sólo se aplica el voucher.
+   */
+  terminarAlSaldar?: { estado: string };
   onListo?: () => void;
 }) {
   const id = useId();
@@ -68,10 +77,19 @@ export default function CobrarConVoucher({
           return;
         }
         const v = r.valor;
+        let cierre = "El turno quedó saldado.";
+        if (v.saldoDespues <= 0 && terminarAlSaldar) {
+          const t = await completeAppointment(aFormData(camposDeTerminar({ turnoId, saldo: 0, cobro: null, estado: terminarAlSaldar.estado })));
+          cierre = t.ok
+            ? terminarAlSaldar.estado === "PENDING"
+              ? "Vino y quedó terminado."
+              : "Quedó terminado."
+            : `El turno quedó saldado pero no se pudo terminar: ${t.error}`;
+        }
         showSuccess(
           `Voucher ${v.numero} aplicado a ${clienta}: ${pesos(v.valorCubierto)}. ` +
-            (v.saldoDespues > 0 ? `Falta cobrar ${pesos(v.saldoDespues)} con otro medio.` : "El turno quedó saldado.") +
-            (v.sinVerificar ? " OpenKey todavía no lo vio: se verifica en la próxima foto." : ""),
+            (v.saldoDespues > 0 ? `Falta cobrar ${pesos(v.saldoDespues)} con otro medio.` : cierre) +
+            (v.sinVerificar ? " La administración del country todavía no lo informó: se verifica con la próxima planilla." : ""),
         );
         setNumero("");
         setMonto("");

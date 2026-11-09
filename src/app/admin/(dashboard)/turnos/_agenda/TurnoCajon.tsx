@@ -596,7 +596,15 @@ export default function TurnoCajon({
         {permisos.vouchers && cobraEste && !t.precioADefinir && t.saldo > 0 && t.estado !== "NO_SHOW" && t.estado !== "CANCELLED" && !cobradoEste && (
           <Seccion titulo="Voucher de La Alameda">
             <div className="pt-3">
-              <CobrarConVoucher key={t.id} turnoId={t.id} clienta={t.clienta} saldo={t.saldo} onListo={() => router.refresh()} />
+              <CobrarConVoucher
+                key={t.id}
+                turnoId={t.id}
+                clienta={t.clienta}
+                saldo={t.saldo}
+                // Si el voucher cubre todo y el turno ya se cierra, queda terminado como con efectivo.
+                terminarAlSaldar={cierra ? { estado: t.estado } : undefined}
+                onListo={() => router.refresh()}
+              />
             </div>
           </Seccion>
         )}
