@@ -253,6 +253,38 @@ export const OFICIOS_RUBROS: OficiosRubro[] = [
     suggestedTheme: "light",
   },
   {
+    // Taller de stands (GSG-MIA-004): fabrica y arma stands para productoras (MIA y otras). Es un
+    // negocio APARTE de la productora: no hereda nada atado a `productora` (2FA, panel cerrado,
+    // redirect del sitio). Su circuito: proyectos (un stand = un proyecto) + stock de materiales +
+    // el módulo `taller-stands` (despiece y costo por stand, detrás de TALLER_STANDS_ENABLED).
+    // SIN palabras clave a propósito: el onboarding por texto libre no cae acá; se asigna sólo
+    // con --blueprint explícito (alta en scripts/taller-stands/alta-taller-ale.ts).
+    id: "taller-stands",
+    label: "Taller de stands",
+    keywords: [],
+    categories: ["Fabricación", "Armado", "Desarme"],
+    services: [
+      { name: "Fabricación de stand", cat: "Fabricación", durationMin: 60, price: 0 },
+      { name: "Armado en predio", cat: "Armado", durationMin: 240, price: 0 },
+      { name: "Desarme y retiro", cat: "Desarme", durationMin: 180, price: 0 },
+    ],
+    exampleProfessional: "Armador de ejemplo (editable)",
+    wording: {
+      catalogHeading: "Qué fabricamos",
+      providerNoun: "armador",
+      heroTagline: "Fabricamos y armamos tu stand.",
+      bookCta: "Pedí presupuesto",
+      priceNote: "Cada stand se presupuesta a medida.",
+    },
+    brandingDefaults: {
+      shortLabel: "Taller de stands (provisional a confirmar)",
+      hoursLabel: HORARIO_OFICIO,
+      contactNote: "Fabricación, armado y desarme de stands.",
+    },
+    suggestedAccent: "azul",
+    suggestedTheme: "light",
+  },
+  {
     // Inmobiliaria: de la familia toma la agenda (visitas, tasaciones, firmas) y los clientes.
     // Su circuito propio (propiedades, consultas, alquileres administrados, liquidaciones) es el
     // módulo `inmobiliaria`; acá va sólo la config del rubro. Los servicios son sin cargo: son

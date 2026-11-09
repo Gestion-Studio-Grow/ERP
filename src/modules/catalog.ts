@@ -31,6 +31,7 @@ import { multilocalModule } from "./descriptors/multilocal";
 import { cajaRapidaModule, ofertasModule } from "./descriptors/supermercado";
 import { tallerModule } from "./descriptors/taller";
 import { proyectosModule } from "./descriptors/proyectos";
+import { tallerStandsModule } from "./descriptors/taller-stands";
 import { inmobiliariaModule } from "./descriptors/inmobiliaria";
 import { terminalModule } from "./descriptors/terminal";
 import { clubModule } from "./descriptors/club";
@@ -65,6 +66,8 @@ export const DESCRIPTORES_CATALOGO = [
   whatsappModule,
   // Proyectos de una productora (src/modules/descriptors/proyectos.ts). Al final, como los anteriores.
   proyectosModule,
+  // Taller de stands (src/modules/descriptors/taller-stands.ts, GSG-MIA-004). Al final, como los anteriores.
+  tallerStandsModule,
 ];
 
 /**
