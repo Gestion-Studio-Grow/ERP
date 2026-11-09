@@ -151,6 +151,14 @@ describe("Ingreso en el navegador", { timeout: 120_000 }, () => {
 
   const montar = (page: Page, vista: Vista, conError: boolean, clave: number) =>
     page.evaluate(([v, e, c]) => (window as unknown as Ventana).__montar(v as Vista, e as boolean, c as number), [vista, conError, clave] as const);
+  // El estado final real después de volver con el error: el email escrito, la clave vacía y el
+  // cursor en la clave. Esperar sólo «el email no está vacío» dejaba leer un estado intermedio.
+  const estadoFinal = (page: Page, email: string) =>
+    page.waitForFunction((e) => {
+      const correo = document.getElementById("login-email") as HTMLInputElement | null;
+      const clave = document.getElementById("login-password") as HTMLInputElement | null;
+      return correo?.value === e && clave?.value === "" && document.activeElement === clave;
+    }, email);
   const enviados = (page: Page) => page.evaluate(() => (window as unknown as Ventana).__envios.length);
   const conFoco = (page: Page) => page.evaluate(() => document.activeElement?.id ?? "");
   const guardadoEnLaPestana = (page: Page) =>
@@ -168,7 +176,7 @@ describe("Ingreso en el navegador", { timeout: 120_000 }, () => {
       await page.waitForFunction(() => (window as unknown as Ventana).__envios.length === 1);
       // `login()` redirige a ?error=1: la página se arma de nuevo.
       await montar(page, vista, true, 2);
-      await page.waitForFunction(() => (document.getElementById("login-email") as HTMLInputElement).value !== "");
+      await estadoFinal(page, "ana@chestetica.com");
       assert.equal(await page.inputValue("#login-email"), "ana@chestetica.com", "antes volvía vacío");
       assert.equal(await page.inputValue("#login-password"), "");
       assert.equal(await conFoco(page), "login-password");
@@ -192,7 +200,7 @@ describe("Ingreso en el navegador", { timeout: 120_000 }, () => {
     await page.locator("#login-email").press("End");
     await page.keyboard.type("m");
     await montar(page, "siempre", true, 2);
-    await page.waitForFunction(() => (document.getElementById("login-email") as HTMLInputElement).value !== "");
+    await estadoFinal(page, "ana@chestetica.com");
     assert.equal(await page.inputValue("#login-email"), "ana@chestetica.com", "lo corregido queda");
     assert.equal(await page.inputValue("#login-password"), "");
     assert.deepEqual(errores, []);
