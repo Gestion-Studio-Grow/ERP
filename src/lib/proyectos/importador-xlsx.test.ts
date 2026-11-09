@@ -57,3 +57,68 @@ test("el chip de Drive de Sheets: el link de la celda llega al plan", async () =
   const p = planificarImportacion(r.hojas, { tenantId: "t1", clientes: [], personas: [], claves: [], proyectos: [] });
   assert.equal(p.altas[0].carpetaUrl, "https://drive.google.com/drive/folders/abc");
 });
+
+// ── Vuelta 2: el zip se inspecciona ANTES de XLSX.read (que parsea el libro entero antes de cualquier recorte) ──
+
+/** Un libro de `hojas` pestañas cuyo XML se reemplaza por `datos` y se comprime: pocos KB que se inflan a mucho. */
+function libroInflado(hojas: number, datos: string): Uint8Array {
+  const pestañas: [string, XLSX.WorkSheet][] = Array.from({ length: hojas }, (_, h) => [`P${h}`, XLSX.utils.aoa_to_sheet([["Cliente", "Proyecto"], ["a", "b"]])]);
+  const cfb = XLSX.CFB.read(libroDe(...pestañas), { type: "array" });
+  cfb.FullPaths.forEach((ruta: string, i: number) => {
+    if (!/xl\/worksheets\/sheet\d+\.xml$/.test(ruta)) return;
+    const xml = Buffer.from(cfb.FileIndex[i].content as Uint8Array).toString("utf8");
+    cfb.FileIndex[i].content = Buffer.from(xml.replace(/<dimension ref="[^"]+"\/>/, "").replace(/<sheetData>[\s\S]*<\/sheetData>|<sheetData\/>/, `<sheetData>${datos}</sheetData>`));
+  });
+  return new Uint8Array(XLSX.CFB.write(cfb, { fileType: "zip", type: "array", compression: true }) as ArrayLike<number>);
+}
+const filas = (n: number, celdas: number) => Array.from({ length: n }, (_, r) => `<row r="${r + 1}">${"<c><v>1</v></c>".repeat(celdas)}</row>`).join("");
+
+async function rechazaRapido(bytes: Uint8Array, motivo: RegExp) {
+  const { leerLibro } = await import("./importador-xlsx");
+  assert.ok(bytes.length < 2 * 1024 * 1024, `pasa el tope de 2 MB (${bytes.length} bytes)`);
+  const t0 = Date.now();
+  const r = leerLibro(bytes);
+  const ms = Date.now() - t0;
+  assert.equal(r.ok, false);
+  if (!r.ok) assert.match(r.error, motivo);
+  assert.ok(ms < 2000, `tardó ${ms} ms`);
+}
+
+test("bomba de celdas: 2001 filas × 600 celdas (18 MB de XML) se rechaza antes de parsear", async () => {
+  await rechazaRapido(libroInflado(1, filas(2001, 600)), /demasiados datos.*15 MB/);
+});
+
+test("bomba de una sola fila con 1,1 millones de celdas: se rechaza (no se confía en el tamaño declarado)", async () => {
+  await rechazaRapido(libroInflado(1, filas(1, 1_100_000)), /demasiados datos/);
+});
+
+test("más de 10 hojas en el zip: se rechaza con un mensaje claro", async () => {
+  await rechazaRapido(libroInflado(11, filas(2, 2)), /más de 10 pestañas/);
+});
+
+test("zip dañado (sin directorio central) y entradas con método desconocido: se rechazan sin romper", async () => {
+  const { leerLibro, inspeccionarZip } = await import("./importador-xlsx");
+  const sano = libroInflado(1, filas(2, 2));
+  assert.deepEqual(inspeccionarZip(sano), { ok: true });
+  const sinFin = sano.slice(0, sano.length - 22);
+  const r = leerLibro(sinFin);
+  assert.equal(r.ok, false);
+  if (!r.ok) assert.match(r.error, /dañado/);
+  // Método 99 en el primer encabezado local.
+  const raro = sano.slice();
+  raro[8] = 99;
+  assert.equal(inspeccionarZip(raro).ok, false);
+});
+
+test("10 hojas de 2000 × 40 sin estilos (dentro de los topes) se leen enteras", async () => {
+  const { leerLibro } = await import("./importador-xlsx");
+  const bytes = libroInflado(10, filas(2000, 40));
+  const t0 = Date.now();
+  const r = leerLibro(bytes);
+  const ms = Date.now() - t0;
+  assert.ok(r.ok, r.ok ? "" : r.error);
+  assert.equal(r.hojas.length, 10);
+  assert.equal(r.hojas[9].filas.length, 2000);
+  assert.ok(ms < 5000, `tardó ${ms} ms (~0,9 s medido; holgura para CI cargado)`);
+});
+

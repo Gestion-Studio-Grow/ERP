@@ -14,8 +14,11 @@ export const ENTIDAD_IMPORTACION = "Importacion";
 export const CAMPO_CLAVE = "clave";
 export const AUTOR_IMPORTADOR = "Importador";
 
-/** Año en Buenos Aires de una fecha guardada. */
-const anioAR = (d: Date): number => new Date(d.getTime() - 3 * 3_600_000).getUTCFullYear();
+/** Año y mes en Buenos Aires de una fecha guardada. */
+const anioMesAR = (d: Date): { anio: number; mes: number } => {
+  const ar = new Date(d.getTime() - 3 * 3_600_000);
+  return { anio: ar.getUTCFullYear(), mes: ar.getUTCMonth() + 1 };
+};
 
 /** Candado por negocio hasta el fin de la transacción: dos confirmaciones a la vez se ordenan y la segunda ve la primera. */
 export async function tomarCandadoImportador(tx: TxImportador, tenantId: string): Promise<void> {
@@ -36,8 +39,9 @@ export async function leerBaseImportacion(tx: TxImportador, tenantId: string): P
     personas,
     claves: marcas.flatMap((m) => (m.despues ? [m.despues] : [])),
     proyectos: proyectos.flatMap((p) => {
-      const anios = new Set([anioAR(p.createdAt), ...(p.fechaEvento ? [anioAR(p.fechaEvento)] : [])]);
-      return [...anios].map((anio) => ({ cliente: p.client.name, nombre: p.nombre, anio }));
+      // Mes de alta y mes del evento: la fila de la planilla coincide con cualquiera de los dos.
+      const fechas = [anioMesAR(p.createdAt), ...(p.fechaEvento ? [anioMesAR(p.fechaEvento)] : [])];
+      return fechas.map(({ anio, mes }) => ({ cliente: p.client.name, nombre: p.nombre, anio, mes }));
     }),
   };
 }
