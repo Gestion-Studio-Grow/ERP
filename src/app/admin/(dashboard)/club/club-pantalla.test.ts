@@ -773,7 +773,7 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
 
     // Cancelar a Agustina Romero (con ficha, faltan menos de 12 h): la previa dice qué pasa con lo pagado.
     await page.keyboard.press("Escape");
-    await page.getByRole("button", { name: /^Agustina Romero, Cancha 4/ }).click();
+    await page.getByRole("button", { name: /^Agustina Romero, Cancha 4, de 21:00/ }).click();
     const agus = page.getByRole("region", { name: "Agustina Romero" });
     await agus.getByRole("button", { name: "Cancelar el turno" }).first().click();
     await agus.getByRole("status").filter({ hasText: /No pagó nada|en suspenso|crédito/ }).waitFor();

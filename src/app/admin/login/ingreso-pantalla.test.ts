@@ -39,18 +39,22 @@ export function useSearchParams() { return new URLSearchParams(); }
 
 const ENTRADA = `
 import { createElement } from "react";
+import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 import FormularioDeSiempre from "@/app/admin/login/FormularioDeSiempre";
 import LoginRenglon from "@/app/admin/login/LoginRenglon";
 import { avisoDeIngreso } from "@/app/admin/login/login-core";
 window.__envios = [];
 const raiz = createRoot(document.getElementById("root"));
-window.__montar = (vista, conError, clave) =>
+// flushSync: el remontaje termina (render, commit y efectos) antes de que vuelva __montar. Con un
+// render() común quedaba agendado y el test leía el formulario VIEJO (la clave «clave-mala» todavía
+// en el campo): fallaba según quién ganara la carrera.
+window.__montar = (vista, conError, clave) => flushSync(() =>
   raiz.render(
     vista === "renglon"
       ? createElement(LoginRenglon, { key: clave, marcaNombre: "CH Estética", marcaMonograma: "CH", hoy: "jueves 25 de septiembre", titulo: "Ingresá a tu panel", subtitulo: "Con el email y la contraseña de tu cuenta.", aviso: conError ? avisoDeIngreso("1") : null, next: "/admin", mostrarAyudaClave: false })
       : createElement(FormularioDeSiempre, { key: clave, next: "/admin", conError }),
-  );
+  ));
 `;
 
 type Vista = "siempre" | "renglon";

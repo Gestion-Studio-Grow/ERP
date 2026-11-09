@@ -219,7 +219,7 @@ describe("Tanda 2D en el navegador", { timeout: 180_000 }, () => {
   test("BP-056 · «No vino»: la hoja no se cierra y queda «Avisar por WhatsApp» con lo que le quedó en su cuenta", async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);
     const { page, errores } = await montar();
-    await page.getByRole("button", { name: /^Camila Sosa, Cancha 3/ }).click();
+    await page.getByRole("button", { name: /^Camila Sosa, Cancha 3, de 18:30/ }).click();
     const cuenta = page.getByRole("region", { name: "Camila Sosa", exact: true });
     await cuenta.getByRole("button", { name: "No vino" }).click();
     // Recepción no ve «Sin cargo» (lo decide un dueño con su PIN).
