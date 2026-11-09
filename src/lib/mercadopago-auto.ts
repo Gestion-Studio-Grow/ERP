@@ -45,6 +45,8 @@ import {
 } from "@/lib/bancos-glue";
 import { UMBRAL_IDENTIFICACION_DEFAULT } from "@/plugins/bancos";
 import { aplicarMovimientosPosterioresMP } from "@/lib/facturacion/devoluciones-mp";
+import { pagoPendienteDelCreditoMp } from "@/lib/vouchers/liquidacion-repo";
+import { motivoDeAcreditacionPendiente } from "@/lib/vouchers/acreditacion-core";
 
 // ---------------------------------------------------------------------------
 // Mapeos plugin ↔ DB
@@ -241,6 +243,36 @@ export function clasificadorConReglasDelDueno(
   };
 }
 
+/**
+ * La plata de vouchers no se factura (decisión del dueño): un pago de MP que puede ser la acreditación
+ * de un pago de la administración pendiente (`pagoPendienteDelCreditoMp`, mismo criterio que la
+ * confirmación) va a la cola de revisión en vez de a ARCA. Queda «revision» con un motivo que no es
+ * la marca del enganche: la acreditación lo engancha después. Si el pago de la administración se
+ * registra DESPUÉS del aviso, el aviso ya facturó: eso lo ve la persona al acreditar (pendiente).
+ */
+export function clasificadorSinPlataDeVouchers(base: ClasificadorPort): ClasificadorPort {
+  return {
+    async clasificar(pago, tenantId) {
+      const resultado = await base.clasificar(pago, tenantId);
+      if (resultado.clasificacion !== "FACTURABLE") return resultado;
+      const pagoId = await tenantTransaction(
+        (tx) =>
+          pagoPendienteDelCreditoMp(tx, tenantId, {
+            id: hashPagoMP(pago.id),
+            // La misma fecha con que `persistir` guarda el movimiento.
+            fecha: pago.fechaAcreditacion ?? hoyAAAAMMDD(),
+            monto: pago.monto,
+            referencia: pago.id,
+            descripcion: pago.descripcion ?? "",
+            contraparte: pago.contraparteNombre ?? null,
+          }),
+        { tenantId },
+      );
+      return pagoId ? { clasificacion: "REVISAR", motivo: motivoDeAcreditacionPendiente(pagoId) } : resultado;
+    },
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Entorno real + entradas (webhook / backfill)
 // ---------------------------------------------------------------------------
@@ -289,7 +321,9 @@ export async function crearEntornoReal(tenantId: string): Promise<EntornoIngesta
   // R1 · el camino automático arma el clasificador CON la config del negocio (cuentas propias):
   // antes iba sin `config` y `cuentasPropias` nunca se aplicaba acá.
   const clasificador = clasificadorConReglasDelDueno(
-    new ClasificadorPorReglas({ aprendizaje: new AprendizajeEnMemoria(), config: await configClasificacionDelNegocio(tenantId) }),
+    clasificadorSinPlataDeVouchers(
+      new ClasificadorPorReglas({ aprendizaje: new AprendizajeEnMemoria(), config: await configClasificacionDelNegocio(tenantId) }),
+    ),
     {
       umbralIdentificacion: configTenant.config.umbralIdentificacion ?? UMBRAL_IDENTIFICACION_DEFAULT,
       capFacturasMes: configTenant.capFacturasMes,

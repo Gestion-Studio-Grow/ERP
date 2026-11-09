@@ -28,6 +28,8 @@ import { tenantTransaction } from "@/lib/rls";
 import { capFacturasMesDelNegocioEnTx } from "@/lib/limites-del-negocio-en-tx";
 import { runInTenantContext } from "@/lib/tenant-context";
 import { pagoDeLaPropuesta } from "@/lib/facturacion/propuesta-mp";
+import { pagoPendienteDelCreditoMp } from "@/lib/vouchers/liquidacion-repo";
+import { motivoDeAcreditacionPendiente } from "@/lib/vouchers/acreditacion-core";
 import { claveCobroBanco, claveCobroMP, cobrosYaFacturados, facturarCobros, vincularCobro } from "@/lib/facturacion/cobros-facturados";
 import { calcularImpuestos, getFiscalProfile, isInvoicingEnabled } from "@/lib/fiscal";
 import { procesarEnviosDelNegocio, type DispatchResumen } from "@/lib/arca-dispatch";
@@ -657,6 +659,11 @@ export interface ResultadoEmision {
    * factura. Sólo aparece si es mayor a 0.
    */
   yaFacturadas?: number;
+  /**
+   * Movimientos que NO se emitieron porque pueden ser la acreditación en Mercado Pago de un pago de
+   * la administración pendiente (plata de vouchers, no una venta): quedan «en revisión». Sólo si > 0.
+   */
+  deVouchers?: number;
   /** Resumen del despacho a ARCA (solo si ARCA_INVOICING_ENABLED está prendido). */
   despachoArca?: DispatchResumen;
 }
@@ -705,6 +712,7 @@ export async function emitirPropuestas(
     let emitidas = 0;
     let bloqueadas = 0;
     let yaFacturadas = 0;
+    let deVouchers = 0;
     const errores: { movimientoId: string; error: string }[] = [];
 
     for (const mov of movimientos) {
@@ -716,15 +724,38 @@ export async function emitirPropuestas(
 
       // CLAIM idempotente: solo el que pasa auto→emitida factura. Un doble clic o
       // dos sesiones simultáneas no generan dos comprobantes del mismo movimiento.
+      // La plata de vouchers no se factura (decisión del dueño): si el crédito puede ser la
+      // acreditación en MP de un pago de la administración pendiente, en la MISMA transacción
+      // del claim pasa a «revision» (sigue enganchable) en vez de a «emitida».
       const claim = await tenantTransaction(
-        (tx) =>
-          tx.movimientoImportado.updateMany({
+        async (tx) => {
+          // Uno ya atado a una factura no es enganchable: sigue su camino de siempre.
+          const pagoId = mov.invoiceId ? null : await pagoPendienteDelCreditoMp(tx, tenantId, {
+            id: mov.id,
+            fecha: mov.fecha,
+            monto: mov.monto,
+            referencia: mov.referencia,
+            descripcion: mov.descripcion,
+            contraparte: mov.contraparte,
+            importacionId: mov.importacionId,
+          });
+          if (pagoId) {
+            const r = await tx.movimientoImportado.updateMany({
+              where: { id: mov.id, tenantId, estadoPropuesta: "auto", invoiceId: null },
+              data: { estadoPropuesta: "revision", motivoRevision: motivoDeAcreditacionPendiente(pagoId) },
+            });
+            return { count: 0, aVouchers: r.count };
+          }
+          const r = await tx.movimientoImportado.updateMany({
             where: { id: mov.id, tenantId, estadoPropuesta: "auto" },
             data: { estadoPropuesta: "emitida" },
-          }),
+          });
+          return { count: r.count, aVouchers: 0 };
+        },
         { tenantId },
       );
-      if (claim.count === 0) continue; // otro lo agarró (o cambió de estado)
+      deVouchers += claim.aVouchers;
+      if (claim.count === 0) continue; // otro lo agarró (o cambió de estado), o es plata de vouchers
 
       try {
         // El monto del banco es TOTAL IVA-incluido; el Core calcula neto/IVA (ADR-006).
@@ -814,6 +845,7 @@ export async function emitirPropuestas(
     return {
       emitidas,
       ...(yaFacturadas > 0 ? { yaFacturadas } : {}),
+      ...(deVouchers > 0 ? { deVouchers } : {}),
       bloqueadasPorCap: bloqueadas,
       capAlcanzado,
       ...(capAlcanzado

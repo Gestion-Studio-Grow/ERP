@@ -64,6 +64,7 @@ import {
   candidatosDeAcreditacion,
   detalleDelIngreso,
   eleccionDeAcreditacion,
+  fechasDePagoDelMovimiento,
   destinoDelPago,
   esperaAcreditacion,
   ESTADOS_ENGANCHABLES,
@@ -917,7 +918,65 @@ async function rechazosDeCheques(tx: Prisma.TransactionClient, tenantId: string,
   return out;
 }
 
-const CHEQUE_YA_RECHAZADO = "Ese cheque se marcó rechazado: no se deposita. Si la administración lo reemplaza, anotá el pago nuevo a cuenta.";
+/** Un crédito de Mercado Pago visto por la facturación automática (un `MovimientoImportado` o un pago del aviso). */
+export type CreditoMp = {
+  id: string;
+  /** AAAAMMDD. */
+  fecha: string;
+  monto: Prisma.Decimal | number;
+  referencia: string | null;
+  descripcion: string;
+  contraparte: string | null;
+  /** La importación del movimiento: sólo los de origen `mercadopago` se enganchan. Ausente = es de MP (el aviso). */
+  importacionId?: string | null;
+};
+
+/**
+ * La plata de vouchers no se factura (decisión del dueño). Si este crédito de MP puede ser la
+ * acreditación de un pago de la administración TODAVÍA pendiente (destino Mercado Pago o cheque a
+ * depositar, sin acreditar ni rechazar), devuelve el id de ese pago; si no, `null`. Mismo criterio que
+ * la confirmación (`candidatosDeAcreditacion`: monto al centavo, ventana, enganchable), sin
+ * desempatar: si coincide con alguno, no se factura solo. Corre en la transacción de quien llama
+ * (la del claim de la emisión), para leer el pago ya registrado. Sin pagos de ese monto: una consulta.
+ */
+export async function pagoPendienteDelCreditoMp(tx: Prisma.TransactionClient, tenantId: string, credito: CreditoMp): Promise<string | null> {
+  const montoCentavos = typeof credito.monto === "number" ? centavosDe(credito.monto) : centavosDeDecimal(credito.monto);
+  const fechas = fechasDePagoDelMovimiento(credito.fecha);
+  if (!fechas || montoCentavos <= 0) return null;
+  const pagos = await tx.voucherPagoAdministracion.findMany({
+    where: { tenantId, monto: pesosDeCentavos(montoCentavos).toFixed(2), fecha: { gte: fechas.desde, lte: fechas.hasta }, medio: { not: "EFECTIVO" } },
+    select: { id: true, fecha: true, monto: true, medio: true, referencia: true },
+    orderBy: [{ fecha: "asc" }, { id: "asc" }],
+    take: 50,
+  });
+  if (pagos.length === 0) return null;
+  if (credito.importacionId) {
+    const imp = await tx.importacionBancaria.findFirst({ where: { id: credito.importacionId, tenantId }, select: { origen: true } });
+    if (imp?.origen !== "mercadopago") return null;
+  }
+  const { porPago, usados } = await acreditacionesDelNegocio(tx, tenantId);
+  const ids = pagos.map((p) => p.id);
+  const rechazos = await rechazosDeCheques(tx, tenantId, ids);
+  const ingresos = await ingresosDeLosPagos(tx, tenantId, ids);
+  const mov: MovimientoMp = {
+    id: credito.id,
+    fecha: credito.fecha,
+    montoCentavos,
+    descripcion: credito.descripcion,
+    referencia: credito.referencia,
+    contraparte: credito.contraparte,
+  };
+  for (const p of pagos) {
+    if (porPago.has(p.id) || rechazos.has(p.id)) continue;
+    const destino = destinoDelPago(p.medio, ingresos.get(p.id)?.method);
+    if (!esperaAcreditacion(destino)) continue;
+    const c = candidatosDeAcreditacion({ fecha: p.fecha, montoCentavos: centavosDeDecimal(p.monto), referencia: p.referencia, destino }, [mov], new Set(usados.keys()));
+    if (c.length > 0) return p.id;
+  }
+  return null;
+}
+
+const CHEQUE_YA_RECHAZADO ="Ese cheque se marcó rechazado: no se deposita. Si la administración lo reemplaza, anotá el pago nuevo a cuenta.";
 
 export type ConfirmarAcreditacionArgs = {
   pagoId: string;

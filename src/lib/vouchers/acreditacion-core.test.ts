@@ -8,9 +8,11 @@ import {
   eleccionDeAcreditacion,
   esEnganchable,
   esperaAcreditacion,
+  fechasDePagoDelMovimiento,
   leerAcreditacion,
   marcaDelPagoEnCaja,
   medioDeCajaDelDestino,
+  motivoDeAcreditacionPendiente,
   motivoDelEnganche,
   pagoDelIngreso,
   ventanaDeAcreditacion,
@@ -159,4 +161,22 @@ test("cheque rechazado: motivo obligatorio y marca de caja distinta de la del in
   assert.equal(marca, "cuenta-corriente:voucher-pago-rechazo:p1");
   assert.notEqual(marca, c.marcaDelPagoEnCaja("p1"));
   assert.equal(c.pagoDelIngreso(marca), null, "el contramovimiento no se lee como el ingreso de un pago");
+});
+
+test("plata de vouchers: las fechas de pago que pueden acreditarse con un movimiento y el motivo de revisión", () => {
+  // Inversa de la ventana: el pago va de 45 días antes (cheque) a 1 día después del movimiento.
+  assert.deepEqual(fechasDePagoDelMovimiento("20261109"), { desde: "2026-09-25", hasta: "2026-11-10" });
+  assert.equal(fechasDePagoDelMovimiento("2026-11-09"), null);
+  assert.equal(fechasDePagoDelMovimiento("20260230"), null);
+  // Cada fecha de pago cuya ventana incluye el movimiento cae dentro del rango.
+  for (const [fechaPago, destino] of [["2026-11-10", "MP"], ["2026-10-30", "MP"], ["2026-09-25", "A_DEPOSITAR"]] as const) {
+    const v = ventanaDeAcreditacion(fechaPago, destino)!;
+    assert.ok(v.desde <= "20261109" && "20261109" <= v.hasta, fechaPago);
+    const r = fechasDePagoDelMovimiento("20261109")!;
+    assert.ok(r.desde <= fechaPago && fechaPago <= r.hasta, fechaPago);
+  }
+  // El motivo no es la marca del enganche: el movimiento en revisión sigue enganchable.
+  const motivo = motivoDeAcreditacionPendiente("pago-1");
+  assert.match(motivo, /Vouchers.*pago-1.*no se factura/);
+  assert.ok(esEnganchable({ estadoPropuesta: "revision", invoiceId: null, motivoRevision: motivo }));
 });

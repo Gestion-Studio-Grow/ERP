@@ -196,6 +196,29 @@ export function candidatosDeAcreditacion(pago: PagoParaAcreditar, movimientos: r
   return posibles;
 }
 
+/**
+ * Las fechas de pago (AAAA-MM-DD, inclusivas) cuya ventana de acreditación puede incluir un movimiento
+ * de MP de este día (AAAAMMDD): la inversa de `ventanaDeAcreditacion`, con la ventana más larga (la del
+ * cheque). Sirve para buscar los pagos pendientes de un crédito; el chequeo fino lo hace
+ * `candidatosDeAcreditacion`. `null` si la fecha no es un día real. PURA.
+ */
+export function fechasDePagoDelMovimiento(fechaMovimiento: string): { desde: string; hasta: string } | null {
+  const m = /^(\d{4})(\d{2})(\d{2})$/.exec(String(fechaMovimiento ?? ""));
+  if (!m) return null;
+  const dia = `${m[1]}-${m[2]}-${m[3]}`;
+  if (!esDiaReal(dia)) return null;
+  return { desde: sumarDias(dia, -DIAS_PARA_DEPOSITAR_CHEQUE), hasta: sumarDias(dia, DIAS_ANTES) };
+}
+
+/**
+ * El motivo con que un crédito de MP que puede ser la acreditación de un pago pendiente de la
+ * administración sale de la facturación automática (pasa a «revision»): la plata de vouchers no se
+ * factura (decisión del dueño). NO lleva `MARCA_ENGANCHE`: sigue enganchable (`esEnganchable`).
+ */
+export function motivoDeAcreditacionPendiente(pagoId: string): string {
+  return `Vouchers: puede ser la plata del pago de la administración ${pagoId}, pendiente de acreditación: no se factura sola. Si es esa plata, confirmá la acreditación en Vouchers; si es una venta, primero acreditá ese pago con su movimiento verdadero (o a mano) y después aprobala.`;
+}
+
 export type EleccionDeAcreditacion =
   | { ok: true; via: "mp"; movimientoId: string }
   | { ok: true; via: "manual"; motivo: "sin-movimiento" | "varios-posibles" }
