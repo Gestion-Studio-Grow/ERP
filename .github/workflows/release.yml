@@ -57,6 +57,8 @@ jobs:
           node-version: 22
       - name: tests del núcleo (scripts/release)
         run: node --test scripts/release/lib.test.mjs
+      - name: tests del pipeline de publicación (scripts/publicar)
+        run: node --test scripts/publicar/*.test.mjs
       - name: sello GSG en el backoffice (metadata.generator)
         run: node scripts/release/sello-gsg.mjs
 
