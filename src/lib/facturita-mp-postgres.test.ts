@@ -139,6 +139,11 @@ test("renovación: un solo renovador gana; MP rechaza → «hay que volver a con
   assert.equal(await s.mp.renovarMPSiHaceFalta(a.id, { env, pedir: rechazo, ahora: AHORA }), "fallo");
   const e = await s.mp.estadoMPDelNegocio(a.id);
   assert.ok(e.conectado && e.problema === "reconectar");
+  // T3: con «requiere_reconectar» no se le vuelve a mandar a MP el refresh rechazado en cada cobro.
+  let reintentos = 0;
+  const contar: PedirMP = async () => (reintentos++, { ok: false, status: 400, json: async () => ({}) });
+  assert.equal(await s.mp.renovarMPSiHaceFalta(a.id, { env, pedir: contar, ahora: AHORA }), "fallo");
+  assert.equal(reintentos, 0);
   // El negocio B no se enteró de nada.
   assert.deepEqual(await s.mp.estadoMPDelNegocio(s.base.b.id), { conectado: false });
 });
@@ -194,9 +199,13 @@ test("T3: con el token YA vencido, el que llega tarde espera al ganador y sale c
   };
   const ganador = s.mp.renovarMPSiHaceFalta(a.id, { env, pedir: pedirLento, ahora: AHORA });
   await yaPidio;
-  const tarde = s.mp.renovarMPSiHaceFalta(a.id, { env, pedir: pedirLento, ahora: AHORA });
-  setTimeout(soltar, 200);
-  assert.deepEqual([await ganador, await tarde], ["renovado", "otro_renovo"]);
+  // Pool de 4: cinco que llegan tarde esperan AFUERA de la transacción; el negocio B sigue con base.
+  const tarde = [1, 2, 3, 4, 5].map(() => s.mp.renovarMPSiHaceFalta(a.id, { env, pedir: pedirLento, ahora: AHORA }));
+  await new Promise((r) => setTimeout(r, 400));
+  assert.deepEqual(await s.mp.estadoMPDelNegocio(s.base.b.id), { conectado: false }, "B no se queda sin conexiones");
+  soltar();
+  assert.equal(await ganador, "renovado");
+  assert.deepEqual(await Promise.all(tarde), ["otro_renovo", "otro_renovo", "otro_renovo", "otro_renovo", "otro_renovo"]);
   assert.equal(llamados, 1);
   const cxA = await s.cx.conexionDelNegocio(a.id, "mercadopago");
   assert.equal(await s.cx.leerCredencial(a.id, cxA!.conexionId, "access_token"), "APP_USR-vivo-0002");

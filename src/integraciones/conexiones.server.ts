@@ -447,14 +447,12 @@ export type ResultadoRenovacion = "no_hacia_falta" | "renovado" | "otro_renovo" 
  * tope de 30 s. Antes el ganador podía haber esperado hasta 15 s el candado y DESPUÉS pedir:
  * 15 + 10 + 5 = 30 s = el tope, y si se pasaba, la transacción se deshacía con el refresh_token
  * nuevo ya emitido por MP (el viejo queda usado) → conexión muerta.
- * El que llega TARDE no espera con el token vigente («en_curso»): esperar ocupaba una conexión del
- * pool (5 por instancia, 10 s de espera) por cada request en cola y dejaba sin base al resto.
- * Sólo espera si el token YA venció (con ése no puede cobrar), y en ese caso nunca llama al
- * proveedor: espera al ganador ≤ 15 s y sale con lo que haya.
+ * El que llega TARDE no espera DENTRO de la transacción («en_curso»): esperar el candado ocupaba
+ * una conexión del pool (5 por instancia, 10 s de espera) por request en cola y dejaba sin base
+ * al resto de los negocios de la instancia. Si el token ya venció, el que llama espera afuera,
+ * sin conexión tomada (ver `renovarMPSiHaceFalta`).
  */
 const TOPE_RENOVACION_MS = 30_000;
-/** Cuánto espera el que llega tarde, SÓLO con el token ya vencido; después no llama al proveedor. */
-const ESPERA_CANDADO_RENOVACION_MS = 15_000;
 /** Cuánto espera el ganador el candado de alta/baja: 10 (MP) + 5 queda muy dentro del tope. */
 const ESPERA_CANDADO_CONEXION_MS = 5_000;
 
@@ -462,9 +460,8 @@ const ESPERA_CANDADO_CONEXION_MS = 5_000;
  * Renovación OAuth en exclusión mutua. UN candado transaccional por negocio y conector
  * (`integracion-renovacion:…`, distinto del de alta/baja) cubre TODO el ciclo: releer → pedir al
  * proveedor → guardar, en UNA sola conexión de la base. Gana un solo renovador (toma el candado
- * sin esperar). El que llega mientras el ganador trabaja NO llama al proveedor: con el token
- * vigente sigue con ése («en_curso»); con el token vencido espera al ganador y sale con lo que
- * dejó («otro_renovo»). El que llega después relee y, como la versión cambió, tampoco llama. Así nunca se manda dos veces el mismo
+ * sin esperar). El que llega mientras el ganador trabaja NO llama al proveedor ni espera: devuelve
+ * «en_curso». El que llega después relee y, como la versión cambió, tampoco llama. Así nunca se manda dos veces el mismo
  * refresh_token (si el proveedor lo rota, el segundo pedido lo rechazaría y la conexión quedaría
  * «requiere_reconectar» sin motivo).
  *
@@ -483,8 +480,6 @@ export async function renovarConexionOAuth(
     campoVence: string;
     campoRefresh: string;
     hayQueRenovar: (expiraEn: Date | null) => boolean;
-    /** ¿El token ya no sirve? Con el candado ocupado, sólo en ese caso se espera al ganador. */
-    yaVencio?: (expiraEn: Date | null) => boolean;
     pedir: (refresh: string) => Promise<PedidoDeRenovacion>;
   },
   deps: DepsConexiones = {},
@@ -495,20 +490,9 @@ export async function renovarConexionOAuth(
     async (tx): Promise<ResultadoRenovacion> => {
       const candado = `integracion-renovacion:${tenantId}:${conectorId}`;
       const [{ tomado }] = await tx.$queryRaw<Array<{ tomado: boolean }>>`SELECT pg_try_advisory_xact_lock(hashtext(${candado})) AS tomado`;
-      if (!tomado) {
-        // Otro está renovando. Con el token vigente se sigue sin esperar (no se retiene el pool).
-        const actual = await tx.integracionCredencial.findFirst({
-          where: { tenantId, conexionId, campo: p.campoVence },
-          select: { expiraEn: true },
-        });
-        const yaVencio = p.yaVencio ?? ((e: Date | null) => !!e && e.getTime() <= Date.now());
-        if (!yaVencio(actual?.expiraEn ?? null)) return "en_curso";
-        // Vencido: esperar al ganador (≤ 15 s) y NO llamar al proveedor en esta transacción.
-        await tx.$executeRaw`SELECT set_config('lock_timeout', ${String(ESPERA_CANDADO_RENOVACION_MS)}, true)`;
-        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${candado}))`;
-        const tras = await tx.integracionConexion.findFirst({ where: { tenantId, id: conexionId }, select: { tokenVersion: true } });
-        return tras && tras.tokenVersion !== p.versionVista ? "otro_renovo" : "fallo";
-      }
+      // Otro está renovando: no se espera ADENTRO de la transacción (retendría una conexión del
+      // pool). El que llama decide; con el token vencido, `renovarMPSiHaceFalta` espera afuera.
+      if (!tomado) return "en_curso";
       // Releer con el candado tomado: lo que se leyó antes puede ser de un reclamo ajeno.
       const c = await tx.integracionConexion.findFirst({
         where: { tenantId, id: conexionId },
@@ -516,6 +500,8 @@ export async function renovarConexionOAuth(
       });
       if (!c || c.estado === "desconectada") return "no_hacia_falta";
       if (c.tokenVersion !== p.versionVista) return "otro_renovo";
+      // MP ya rechazó este refresh: mandarlo de nuevo en cada cobro sólo suma demora.
+      if (c.estado === "requiere_reconectar") return "fallo";
       const vence = await tx.integracionCredencial.findFirst({
         where: { tenantId, conexionId, campo: p.campoVence },
         select: { expiraEn: true },
