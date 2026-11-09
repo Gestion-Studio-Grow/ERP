@@ -87,5 +87,6 @@
 # 2026-11-09 · seguridad (GSG-SEG-008): cambio obligatorio de contraseña en el próximo ingreso. Aditiva: columna
 # "User"."mustChangePassword" BOOLEAN NOT NULL DEFAULT false (antes prisma/pending-gate2/MustChangePassword.sql).
 # Sin ella el reset del OWNER y el alta desde la consola se niegan a emitir la provisoria. Independiente de
-# 20261108130000_user_pin (#50: tabla aparte); el orden entre las dos no importa.
+# 20261108130000_user_pin (#50: tabla aparte). El lote se compara en orden de timestamp: al integrar con #50,
+# user_pin va arriba de ésta (o comentada, si #50 ya se publicó).
 20261109120000_must_change_password
