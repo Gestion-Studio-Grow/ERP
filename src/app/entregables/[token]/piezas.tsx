@@ -2,26 +2,31 @@
 
 // La respuesta del cliente a una pieza. El nombre se recuerda entre piezas para no pedirlo en cada una.
 
-import { useEffect, useState, useTransition } from "react";
+import { useState, useSyncExternalStore, useTransition } from "react";
 import { responderEntregable } from "@/lib/proyectos/acciones";
 
 const CLAVE_NOMBRE = "entregables:nombre";
 
+const sinSuscripcion = () => () => {};
+
+function leerNombreGuardado(): string {
+  try {
+    return sessionStorage.getItem(CLAVE_NOMBRE) ?? "";
+  } catch {
+    return ""; // Sin almacenamiento, se vuelve a escribir.
+  }
+}
+
 export function ResponderPieza({ token, versionId, acento }: { token: string; versionId: string; acento: string }) {
-  const [nombre, setNombre] = useState("");
+  // null = todavía no lo tocó: se muestra el que quedó guardado de otra pieza (leído en el navegador, "" en el servidor).
+  const [escrito, setNombre] = useState<string | null>(null);
+  const guardado = useSyncExternalStore(sinSuscripcion, leerNombreGuardado, () => "");
+  const nombre = escrito ?? guardado;
   const [comentario, setComentario] = useState("");
   const [corrigiendo, setCorrigiendo] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ocupado, iniciar] = useTransition();
 
-  useEffect(() => {
-    try {
-      const guardado = sessionStorage.getItem(CLAVE_NOMBRE);
-      if (guardado) setNombre(guardado);
-    } catch {
-      // Sin almacenamiento, se vuelve a escribir.
-    }
-  }, []);
 
   const enviar = (aprueba: boolean) =>
     iniciar(async () => {

@@ -46,8 +46,14 @@
 -- ADITIVA e IDEMPOTENTE: `ADD VALUE IF NOT EXISTS` no falla si el valor ya está. Re-correr
 -- el archivo no hace nada. No cambia filas existentes.
 --
--- TOLERANCIA DEL CÓDIGO: hasta que se aplique, `hayValorEnum("PaymentMethod","DEBITO")`
--- (src/lib/schema-probe) contesta false y M1/M6 muestran «En preparación» / ocultan la opción.
+-- TOLERANCIA DEL CÓDIGO: hasta que se aplique, `hayValorEnum("UserRole","ENCARGADO")`
+-- (src/lib/schema-probe) contesta false y M6 muestra «En preparación» / oculta la opción.
+--
+-- ⚠️ YA EN MIGRACIONES (pase de M1, 30/10/2026): los pasos 2.a, 2.b y 2.e (PaymentMethod.DEBITO,
+-- PaymentMethod.CREDITO, CashMethod.TRANSFERENCIA) los aplica `prisma migrate deploy` con
+-- prisma/migrations/20261030120000_m1_enums_caja. Acá quedan con IF NOT EXISTS: sobre una base
+-- migrada no hacen nada. Lo que este archivo agrega de verdad hoy es 2.c y 2.d (UserRole). La
+-- recreación de PaymentMethod/CashMethod de la reversa del pie deshace ESA migración, no el paquete.
 -- ============================================================================
 
 -- Paso 2.a · Medio de pago DEBITO (tarjeta de débito con posnet: M1, D-C01).
