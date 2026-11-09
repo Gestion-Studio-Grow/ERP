@@ -230,3 +230,5 @@ Migración `prisma/migrations/20261109120000_fk_compuestas_plata/migration.sql` 
 4. **Cierre**: borrar las FK viejas de una columna y un test-trinquete sobre `pg_constraint` (0 FK entre tablas de negocio
    sin el negocio, salvo exentas listadas).
 
+
+— Elaborado por GSG
