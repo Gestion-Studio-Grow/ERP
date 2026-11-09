@@ -241,10 +241,10 @@ export function armarPrecios(estado: EstadoClub, texto: string, ahora: Ahora): V
         nombre: f.nombre,
         codigos: codigosDe(f),
         costo: f.costo,
-        markup: f.markupPct == null ? null : Math.round(f.markupPct * 100),
+        markup: f.markupPct == null ? null : Math.round(f.markupPct * 100), // no-es-plata: markup en % entero, para leer
         precio: f.precio,
         margen: f.margen,
-        margenPct: Math.round(f.margenPct * 100),
+        margenPct: Math.round(f.margenPct * 100), // no-es-plata: margen en % entero, para leer
         tono: tono(f.margenPct),
         unidades: f.unidades,
         facturado: f.facturado,
@@ -256,7 +256,7 @@ export function armarPrecios(estado: EstadoClub, texto: string, ahora: Ahora): V
     filas,
     facturado: r.facturado,
     ganancia: r.ganancia,
-    margenPct: Math.round(r.margenPct * 100),
+    margenPct: Math.round(r.margenPct * 100), // no-es-plata: margen en % entero, para leer
   };
   return { ...vista, firma: JSON.stringify(vista) };
 }
@@ -365,7 +365,7 @@ export function ejecutarStock(estado: EstadoClub, accion: AccionStock, ahora: Ah
       }
       const r = editarProducto(estado, p.id, cambios, auth, ahora);
       if (!r.ok) return falla(r);
-      return { ok: true, mensaje: `${p.nombre}: precio ${pesos(p.precio)} · margen ${Math.round(((p.precio - (p.costo ?? 0)) / p.precio) * 100)} %.` };
+      return { ok: true, mensaje: `${p.nombre}: precio ${pesos(p.precio)} · margen ${Math.round(((p.precio - (p.costo ?? 0)) / p.precio) * 100)} %.` }; // no-es-plata: margen en % entero dentro del mensaje
     }
   }
 }

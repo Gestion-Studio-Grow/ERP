@@ -23,6 +23,7 @@
 //
 // PURO: sin base, sin React. Lo prueba decidir-lectura.test.ts.
 
+import { redondearAlCentavo } from "@/lib/dinero/redondeo";
 import { indexarPorCodigo, interpretarEntrada, resolverCodigo, type ProductoDeCaja } from "@/lib/supermercado/lectura";
 import type { FormatoBalanza } from "@/lib/supermercado/balanza";
 import { formatearCantidad } from "@/lib/pos-peso";
@@ -115,7 +116,7 @@ export function decidirLectura(
 
 /** Redondeo al centavo, como el servidor (`buildOrderLines`). */
 function alCentavo(n: number): number {
-  return Math.round(n * 100) / 100;
+  return redondearAlCentavo(n);
 }
 
 /** Lo que el sistema cobra por una etiqueta: kilos × precio por kilo, al centavo. PURA. */
