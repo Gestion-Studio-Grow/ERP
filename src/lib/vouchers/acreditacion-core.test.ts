@@ -160,3 +160,25 @@ test("cheque rechazado: motivo obligatorio y marca de caja distinta de la del in
   assert.notEqual(marca, c.marcaDelPagoEnCaja("p1"));
   assert.equal(c.pagoDelIngreso(marca), null, "el contramovimiento no se lee como el ingreso de un pago");
 });
+
+// Orden del dueño (09/11/2026): la liquidación va al banco (Mercado Pago cuenta como banco).
+test("un pago NUEVO de la administración no entra al cajón; lo histórico se sigue leyendo igual", async () => {
+  const { destinoDeUnPagoNuevo, PAGO_AL_CAJON, OTRO_SIN_COLUMNA, destinoDelPago } = await import("./acreditacion-core");
+  assert.deepEqual(destinoDeUnPagoNuevo("EFECTIVO"), { ok: false, error: PAGO_AL_CAJON });
+  assert.deepEqual(destinoDeUnPagoNuevo("OTRO", "EFECTIVO"), { ok: false, error: PAGO_AL_CAJON });
+  assert.deepEqual(destinoDeUnPagoNuevo("OTRO"), { ok: false, error: OTRO_SIN_COLUMNA });
+  assert.equal(destinoDeUnPagoNuevo("CUALQUIERA").ok, false);
+  assert.deepEqual(destinoDeUnPagoNuevo("TRANSFERENCIA"), { ok: true, destino: "MP" });
+  assert.deepEqual(destinoDeUnPagoNuevo("OTRO", "MP"), { ok: true, destino: "MP" });
+  assert.deepEqual(destinoDeUnPagoNuevo("CHEQUE"), { ok: true, destino: "A_DEPOSITAR" });
+  assert.match(PAGO_AL_CAJON, /va al banco/);
+  // Leer un pago ya registrado al cajón no cambia.
+  assert.equal(destinoDelPago("EFECTIVO"), "CAJON");
+  assert.equal(destinoDelPago("OTRO", "EFECTIVO"), "CAJON");
+});
+
+test("el formulario ofrece sólo medios al banco: sin efectivo y con «otro» a Mercado Pago", async () => {
+  const { MEDIOS_PARA_PAGO_NUEVO } = await import("./liquidacion-core");
+  assert.deepEqual([...MEDIOS_PARA_PAGO_NUEVO], ["TRANSFERENCIA", "CHEQUE", "OTRO"]);
+  for (const m of MEDIOS_PARA_PAGO_NUEVO) assert.equal((await import("./acreditacion-core")).destinoDeUnPagoNuevo(m, "MP").ok, true);
+});

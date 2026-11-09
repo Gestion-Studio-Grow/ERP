@@ -15,6 +15,7 @@ import { decidirFacturacion } from "@/lib/invoice-idempotency";
 import { fechaFiscalDelDia } from "@/lib/libros/fecha-fiscal";
 import { tenantTransaction } from "@/lib/rls";
 import { claseDeCobro } from "@/lib/turnos/anulacion";
+import { MEDIO_VOUCHER } from "@/lib/turnos/cobros";
 import {
   claveCobroMP,
   claveCobroTurno,
@@ -76,15 +77,18 @@ export interface DepsFacturarTurno {
 type DecidirResto = (yaMP: CobrosDelTurno) => { comprobante: CreateInvoiceInput; importe: number } | null;
 
 async function leerCobrosDelTurnoInTx(tx: InvoiceTx, tenantId: string, appointmentId: string): Promise<CobrosDelTurno> {
+  // Todas las filas del turno y el medio se filtra acá: filtrar por VOUCHER en la consulta falla si el
+  // valor del enum todavía no está en la base (prisma/pending-gate2/CH_voucher_enum.sql).
   const filas = await tx.collection.findMany({
-    where: { tenantId, originType: "APPOINTMENT", originId: appointmentId, method: "MERCADOPAGO" },
-    select: { amount: true, note: true },
+    where: { tenantId, originType: "APPOINTMENT", originId: appointmentId },
+    select: { amount: true, note: true, method: true },
   });
   // Las contrapartidas de anulación son negativas y conservan el medio: suman bien. La
   // condonación no es plata que entró: no cuenta.
-  const cobradoPorMP = filas.filter((f) => claseDeCobro(f.note) !== "condonacion").reduce((a, f) => a + f.amount.toNumber(), 0);
+  const suma = (medio: string) =>
+    filas.filter((f) => f.method === medio && claseDeCobro(f.note) !== "condonacion").reduce((a, f) => a + f.amount.toNumber(), 0);
   const { facturadoPorMP, ultimaFactura } = await facturadoDelTurnoInTx(tx, tenantId, appointmentId);
-  return { cobradoPorMP, facturadoPorMP, ultimaFactura };
+  return { cobradoPorMP: suma("MERCADOPAGO"), facturadoPorMP, ultimaFactura, cobradoPorVoucher: suma(MEDIO_VOUCHER) };
 }
 
 /**
@@ -126,6 +130,8 @@ export interface CobrosDelTurno {
   facturadoPorMP: number;
   /** La factura viva más reciente que cubre cobros de este turno. */
   ultimaFactura: string | null;
+  /** Lo cobrado con voucher (lo paga la administración del country): no se factura (orden del 09/11/2026). */
+  cobradoPorVoucher?: number;
 }
 
 /** Lectura real, parada en el negocio: cobros del libro con medio MP (sin condonaciones) y lo facturado por MP. */
@@ -213,6 +219,9 @@ export async function facturarAppointment(
       precio,
       cobradoPorMP: yaMP.cobradoPorMP,
       facturadoPorMP: yaMP.facturadoPorMP,
+      // El voucher no se factura en ARCA (orden del dueño, 09/11/2026): un turno pagado entero con
+      // voucher no lleva factura; uno con voucher + resto factura sólo el resto.
+      cobradoPorVoucher: yaMP.cobradoPorVoucher ?? 0,
     });
     if (!(monto > 0)) return null;
     if ("error" in perfilLeido) throw perfilLeido.error;

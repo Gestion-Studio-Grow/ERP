@@ -8,6 +8,7 @@ import type { BusinessSettingsRow } from "@/lib/settings";
 import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
 import type { RetailRubro } from "@/blueprints/retail/rubros";
 import CampoWhatsApp from "./CampoWhatsApp";
+import { ValorDelVoucher } from "./ValorDelVoucher";
 
 export const dynamic = "force-dynamic";
 
@@ -169,6 +170,10 @@ export default async function LocalizacionPage({
             </SubmitButton>
           </div>
         </form>
+        {/* El valor del voucher (orden del dueño, 09/11/2026): sólo la dueña y con los vouchers prendidos. */}
+        <div className="mt-8">
+          <ValorDelVoucher />
+        </div>
       </PageContainer>
     );
   }
@@ -238,6 +243,9 @@ export default async function LocalizacionPage({
           </SubmitButton>
         </div>
       </form>
+      <div className="mt-8">
+        <ValorDelVoucher />
+      </div>
     </main>
   );
 }

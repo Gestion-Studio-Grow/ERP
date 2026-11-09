@@ -43,6 +43,7 @@ export type MotivoVoucherRechazado =
   | "sin-saldo"
   | "monto-invalido"
   | "excede-saldo"
+  | "excede-valor"
   | "turno-con-voucher"
   | "no-existe"
   | "enum-ausente"
@@ -58,6 +59,7 @@ export const MENSAJES_VOUCHER: Record<MotivoVoucherRechazado, string> = {
   "sin-saldo": "Este turno no tiene saldo pendiente: no hay nada que cobrar con el voucher.",
   "monto-invalido": "El monto del voucher tiene que ser mayor a cero.",
   "excede-saldo": "El monto del voucher supera lo que falta cobrar del turno.",
+  "excede-valor": "El monto supera el valor del voucher. Lo que falta se cobra con otro medio.",
   "turno-con-voucher": "Este turno ya se cobró con un voucher.",
   "no-existe": "No hay un voucher con ese número en este negocio.",
   "enum-ausente":
@@ -80,15 +82,17 @@ function rechazo(motivo: MotivoVoucherRechazado): { ok: false; motivo: MotivoVou
 
 /**
  * ¿Se puede cobrar este turno con este voucher, y por cuánto? `saldo` = lo que falta cobrar del
- * turno (`estadoCobroTurno(...).saldo`). Sin `monto`, el voucher cubre TODO el saldo; con `monto`,
- * ese (0 < monto ≤ saldo). `estadoOpenKey` null = la foto de OpenKey no lo vio todavía: se permite,
- * marcado «sin verificar».
+ * turno (`estadoCobroTurno(...).saldo`). `valorVoucher` = el valor del voucher del negocio
+ * (`BusinessSettings.voucherValor`, orden del dueño del 09/11/2026); null = sin tope. Sin `monto`, el
+ * voucher cubre min(valor, saldo); con `monto`, ese (0 < monto ≤ saldo y ≤ valor). `estadoOpenKey`
+ * null = la foto de OpenKey no lo vio todavía: se permite, marcado «sin verificar».
  */
 export function validarAplicacion(input: {
   voucher: VoucherParaValidar;
   turno: TurnoParaValidar;
   saldo: number;
   monto?: number | null;
+  valorVoucher?: number | null;
 }): ValidacionAplicacion {
   const { voucher, turno } = input;
   if (voucher.estado === "ANULADO") return rechazo("anulado");
@@ -98,11 +102,13 @@ export function validarAplicacion(input: {
   if (turno.status === "CANCELLED" || turno.status === "NO_SHOW") return rechazo("turno-cerrado");
   const saldo = round2(Number(input.saldo));
   if (!Number.isFinite(saldo) || saldo <= 0) return rechazo("sin-saldo");
-  let valor = saldo;
+  const tope = input.valorVoucher != null && Number(input.valorVoucher) > 0 ? round2(Number(input.valorVoucher)) : null;
+  let valor = tope != null ? Math.min(tope, saldo) : saldo;
   if (input.monto != null) {
     const m = round2(Number(input.monto));
     if (!Number.isFinite(m) || m <= 0) return rechazo("monto-invalido");
     if (m > saldo) return rechazo("excede-saldo");
+    if (tope != null && m > tope) return rechazo("excede-valor");
     valor = m;
   }
   return { ok: true, valorCubierto: valor, sinVerificar: voucher.estadoOpenKey == null };

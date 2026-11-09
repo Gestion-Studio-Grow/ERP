@@ -12,7 +12,7 @@ import { getCurrentUser } from "@/lib/session";
 import { veLaPlataDelDia } from "./plata-guardia";
 import { enmascararTelefono, puedeVerContacto } from "@/lib/clientes/telefono";
 import { criterioDeContacto, wherePorContacto } from "@/lib/clientes/busqueda-por-contacto";
-import { resolveLocation } from "@/lib/settings";
+import { resolveLocation, SELECT_LOCALIZACION } from "@/lib/settings";
 import { businessWallTimeToUtc, dateStrInBusinessTz, todayInBusinessTz } from "@/lib/datetime";
 import { createRateLimiter } from "@/lib/rate-limit";
 import { bienvenidaVista } from "./config-campos";
@@ -91,7 +91,7 @@ export async function configPadel(tenantId: string): Promise<ConfigPadel> {
 export async function datosDelNegocio(tenantId: string) {
   const [tenant, fila, config] = await Promise.all([
     prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true, slug: true } }),
-    prisma.businessSettings.findUnique({ where: { tenantId } }),
+    prisma.businessSettings.findUnique({ where: { tenantId }, select: SELECT_LOCALIZACION }),
     configPadel(tenantId),
   ]);
   const loc = resolveLocation(fila);

@@ -143,7 +143,7 @@ export default function CobrarConVoucher({
           className="text-right tabular-nums"
         />
         <p id={`${id}-ayuda`} className="mt-1 text-xs text-muted">
-          Vacío, cubre lo que falta: {pesos(saldo)}. Lo que no cubra se cobra con otro medio.
+          Vacío, cubre lo que falta ({pesos(saldo)}), hasta el valor del voucher si el negocio lo tiene configurado. Lo que no cubra se cobra con otro medio.
         </p>
       </div>
       <div className="flex flex-col gap-2 sm:flex-row">

@@ -45,6 +45,7 @@ import {
   type ResultadoConciliacion,
   type ResultadoLiquidacion,
 } from "./voucher-core";
+import { leerValorVoucherInTx } from "./valor-voucher";
 
 export type VoucherTx = Prisma.TransactionClient;
 const SERIALIZABLE = Prisma.TransactionIsolationLevel.Serializable;
@@ -141,12 +142,14 @@ export async function cobrarConVoucherInTx(
   const yaTiene = await tx.voucher.findFirst({ where: { tenantId, appointmentId: turno.id }, select: { id: true } });
   if (yaTiene) throw new VoucherRechazado("turno-con-voucher");
 
-  const [cobros, pago] = await Promise.all([
+  const [cobros, pago, valorVoucher] = await Promise.all([
     cobrosDelTurnoInTx(tx, tenantId, turno.id),
     tx.payment.findFirst({ where: { tenantId, appointmentId: turno.id }, select: { status: true, amount: true } }),
+    // El valor del voucher del negocio (orden del 09/11): tope de lo que cubre. Sin la columna, null.
+    leerValorVoucherInTx(tx, tenantId),
   ]);
   const { saldo } = estadoCobroTurno({ precio, cobros, pagoLegado: pago });
-  const v = validarAplicacion({ voucher, turno, saldo, monto: args.monto });
+  const v = validarAplicacion({ voucher, turno, saldo, monto: args.monto, valorVoucher });
   if (!v.ok) throw new VoucherRechazado(v.motivo, v.mensaje);
 
   // 1 · El árbitro del doble uso: sólo UNA transacción pasa este voucher de DISPONIBLE a USADO.
