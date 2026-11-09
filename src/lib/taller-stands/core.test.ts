@@ -90,6 +90,10 @@ test("papel para MIA: sólo descripción, cantidad, precio y total; nunca costo,
 test("la tabla sin migrar se reconoce (P2021/P2022) y lo demás no", () => {
   assert.ok(faltaLaTabla({ code: "P2021" }));
   assert.ok(faltaLaTabla({ code: "P2022" }));
+  // $queryRaw (el FOR UPDATE de recibir/anular) informa la tabla ausente como P2010 + 42P01 del adaptador.
+  assert.ok(faltaLaTabla({ code: "P2010", meta: { driverAdapterError: { cause: { originalCode: "42P01" } } } }));
+  assert.ok(faltaLaTabla({ code: "P2010", meta: { code: "42703" } }));
+  assert.ok(!faltaLaTabla({ code: "P2010", meta: { driverAdapterError: { cause: { originalCode: "23505" } } } }));
   assert.ok(!faltaLaTabla({ code: "P2002" }));
   assert.ok(!faltaLaTabla(null));
 });

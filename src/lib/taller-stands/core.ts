@@ -160,8 +160,15 @@ export function papelParaMia(items: readonly ItemParaPapel[], tc: Readonly<Recor
   return { lineas, neto, ivaPct, iva, total: redondear(neto + iva) };
 }
 
-/** P2021/P2022: la tabla o la columna todavía no existe (migración sin aplicar). */
+/**
+ * P2021/P2022: la tabla o la columna todavía no existe (migración sin aplicar). Un `$queryRaw` lo informa distinto:
+ * P2010 con el código de Postgres 42P01 (tabla) o 42703 (columna) en el error del adaptador.
+ */
 export function faltaLaTabla(e: unknown): boolean {
-  const code = (e as { code?: unknown } | null)?.code;
-  return code === "P2021" || code === "P2022";
+  const err = e as { code?: unknown; meta?: { code?: unknown; driverAdapterError?: { cause?: { originalCode?: unknown } } } } | null;
+  const code = err?.code;
+  if (code === "P2021" || code === "P2022") return true;
+  if (code !== "P2010") return false;
+  const pg = err?.meta?.driverAdapterError?.cause?.originalCode ?? err?.meta?.code;
+  return pg === "42P01" || pg === "42703";
 }
