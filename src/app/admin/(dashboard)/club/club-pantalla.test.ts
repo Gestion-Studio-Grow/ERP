@@ -346,7 +346,15 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
     assert.match(await opcion.innerText(), /debe \$/);
     await page.keyboard.press("Escape");
     await paleta.waitFor({ state: "detached" });
+    // «/» sólo abre si nadie escribe y no hay ventana abierta (ClubDemo.tsx, alTeclear): se espera ESE estado,
+    // no sólo que la paleta salga del DOM (falló una vez en CI con la tecla perdida, 30 s sin paleta).
+    await page.waitForFunction(() => {
+      const a = document.activeElement as HTMLElement | null;
+      const escribiendo = !!a && (a.matches("input, select, textarea") || a.isContentEditable);
+      return !escribiendo && !document.querySelector("dialog[open], [role=dialog]:not([popover]), [popover]:popover-open, [role=alertdialog], [role=menu]");
+    });
     await page.keyboard.press("/");
+    await paleta.waitFor();
     await paleta.getByRole("combobox").fill(deudor.split(" ")[0]);
     await paleta.getByRole("option").filter({ hasText: deudor }).filter({ hasText: /^Cliente/i }).first().click();
     assert.equal(await page.getByRole("tab", { name: "Clientes" }).getAttribute("aria-selected"), "true");
