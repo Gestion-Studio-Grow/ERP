@@ -6,10 +6,16 @@
 // (scripts/qa/visual-smoke.mjs) contra localhost y baja el server (árbol completo
 // en Windows). Exit 0 = render OK; exit 1 = layout roto.
 //
-// SUBSET SIN DB (default en CI): por defecto corre ROUTES_NO_AUTH=1 → solo las
-// rutas que renderizan sin base de datos (login de operador, login de admin,
-// vidriera con branding fail-open). Son las que atrapan la clase de bug "CSS no
-// cargó / layout colapsado" — que fue exactamente lo que se escapó. Las rutas de
+// SUBSET SIN DB (default en CI): por defecto corre ROUTES_NO_AUTH=1 → login de
+// operador, login de admin y vidriera. Son las que atrapan la clase de bug "CSS no
+// cargó / layout colapsado" — que fue exactamente lo que se escapó.
+// PREMISA ACTUALIZADA (09/11/2026, GSG-UAT-002): «el login de admin y la vidriera
+// renderizan sin base» dejó de ser cierta a propósito — sin base el login da 500
+// (`direccionConNegocio` no disfraza la base caída) y la vidriera manda a
+// /sin-servicio con 503 (fail-safe, P0 ronda 2). Rojo desde el 27/09 por eso, no por
+// un render roto. Sin base, el server corre en el modo SANDBOX de preventa
+// (`DEMO_MODE_ENABLED`, src/lib/demo-flag.ts): pseudo-negocio fijo sin tocar ninguna
+// base, el mismo código de render. Así las 3 rutas se miran pintadas. Las rutas de
 // consola autenticadas necesitan DB (operatorPrisma) y se cubren en el pre-push
 // local con `npm run gate:visual:full` apuntando al server de dev con DB.
 //
@@ -79,8 +85,11 @@ function killTree(child) {
   if (isWin && child.pid) {
     // `next` corre como hijo de npx → matamos el árbol, no solo el wrapper.
     spawnSync("taskkill", ["/F", "/T", "/PID", String(child.pid)], { stdio: "ignore", shell: true });
-  } else {
-    child.kill("SIGTERM");
+  } else if (child.pid) {
+    // `npx` deja a `next-server` como hijo: matar sólo a npx lo dejaba huérfano con el stdout tomado
+    // (el paso no terminaba si la salida iba a un pipe, y el runner lo mataba como «orphan process»).
+    // Se arrancó en su propio grupo (`detached`): se termina el grupo entero.
+    try { process.kill(-child.pid, "SIGTERM"); } catch { child.kill("SIGTERM"); }
   }
 }
 
@@ -98,10 +107,12 @@ async function main() {
     OPERATOR_SECRET: process.env.OPERATOR_SECRET ?? "visual-gate-secret",
     // En prod OPERATOR_PASSWORD es obligatoria; acá basta para que el login exista.
     OPERATOR_PASSWORD: process.env.OPERATOR_PASSWORD ?? "operador",
+    // Sin base (subset de CI): sandbox de preventa, ver la premisa arriba. Con --full hay base real.
+    ...(FULL ? {} : { DEMO_MODE_ENABLED: process.env.DEMO_MODE_ENABLED ?? "true" }),
   };
   process.stdout.write(`🚀 next start en ${BASE_URL} …\n`);
   const server = spawn("npx", ["next", "start", "-p", String(PORT)], {
-    cwd: ROOT, env, stdio: "inherit", shell: isWin,
+    cwd: ROOT, env, stdio: "inherit", shell: isWin, detached: !isWin,
   });
 
   let code = 1;

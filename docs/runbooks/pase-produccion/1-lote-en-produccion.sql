@@ -1,6 +1,6 @@
 -- =============================================================================
 -- PASE A PRODUCCIÓN — el lote vigente de prisma/lote-deploy.txt (hoy: 1 migración,
--- 20261108140000_voucher_liquidacion_semanal). Se pega en
+-- 20261108140000_voucher_liquidacion_semanal (PR #48; user_pin de #50 ya aplicada el 09/11)). Se pega en
 -- PRODUCCIÓN, DESPUÉS de crear un branch de respaldo con la fecha del día
 -- (Branches → Create branch → "respaldo-AAAA-MM-DD"). Gate 2: sólo con OK del dueño.
 -- =============================================================================

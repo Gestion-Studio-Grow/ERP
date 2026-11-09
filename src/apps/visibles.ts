@@ -25,7 +25,7 @@
 // Client-safe: no importa Prisma ni nada de servidor. El catálogo de módulos entra por
 // parámetro (`resolverContextoApps`) para no arrastrarlo al bundle del navegador.
 
-import { homeRoute, roleHasCapability, type Role } from "@/lib/capabilities";
+import { homeRoute, permisoEfectivo, roleHasCapability, type Capability, type PermisoOverride, type Role } from "@/lib/capabilities";
 import { perfilGateAllows, type Perfil } from "@/modules/perfil";
 import { resolverActivacion } from "@/modules/activation";
 import type { ModuleRegistry } from "@/modules/registry";
@@ -116,6 +116,12 @@ export interface NegocioApps {
    * src/cambios/interruptores.ts). Ausente o vacío = ninguna: idéntico a hoy. Tapa menú, buscador y ruta.
    */
   ocultas?: ReadonlySet<string>;
+  /**
+   * Las excepciones de la matriz de permisos de QUIEN MIRA (`SessionUser.overrides`). Sólo RESTAN: una casilla
+   * apagada («Mover stock», «Abrir y cerrar caja», …) cierra la app aunque el rol la abriera; una prendida no
+   * abre nada que el rol no abra (seguridad, 08/11/2026). Ausente = rige el rol, como antes.
+   */
+  overrides?: ReadonlyArray<PermisoOverride>;
 }
 
 /**
@@ -139,15 +145,19 @@ export type MotivoNoDisponible = "rol" | "en-preparacion" | "modulo" | "rubro" |
 export function rolPuedeEntrar(
   app: AppDescriptor,
   role: Role,
-  n?: Pick<NegocioApps, "contexto" | "esMostrador">,
+  n?: Pick<NegocioApps, "contexto" | "esMostrador" | "overrides">,
 ): boolean {
-  if (app.capability === null || roleHasCapability(role, app.capability)) return true;
+  // El rol da la capability Y la matriz de quien mira no la apagó. Antes miraba sólo el rol: a un encargado con
+  // «Mover stock» apagado el piloto le seguía abriendo Recibir mercadería, Mermas, Lotes y Sugerido de compra.
+  const alcanza = (cap: Capability) =>
+    roleHasCapability(role, cap) && (n?.overrides === undefined || permisoEfectivo({ role, overrides: n.overrides }, cap));
+  if (app.capability === null || alcanza(app.capability)) return true;
   return (
     app.capabilityEnMostrador !== undefined &&
     !!n &&
     n.contexto?.origen === "piloto" &&
     n.esMostrador &&
-    roleHasCapability(role, app.capabilityEnMostrador)
+    alcanza(app.capabilityEnMostrador)
   );
 }
 

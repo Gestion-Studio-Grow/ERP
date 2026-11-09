@@ -35,26 +35,35 @@ const FORMATO_SALIDA = {
   },
 };
 
-export class AnthropicLLM implements LLM {
-  // El tipo `any` evita depender del paquete en este entorno aislado.
-  // En producción: `private client: Anthropic`.
-  private client: any;
+// Lo mínimo del SDK que se usa, tipado a mano para no depender del paquete en este entorno aislado.
+// En producción: `Anthropic` de @anthropic-ai/sdk.
+type BloqueRespuesta = { type: string; text?: string };
+type ClienteMensajes = {
+  messages: {
+    create(params: Record<string, unknown>): Promise<{ stop_reason: string | null; content: BloqueRespuesta[] }>;
+  };
+};
 
-  constructor(client?: any) {
+export class AnthropicLLM implements LLM {
+  private client: ClienteMensajes | undefined;
+
+  constructor(client?: ClienteMensajes) {
     this.client = client;
   }
 
-  private async cliente(): Promise<any> {
+  private async cliente(): Promise<ClienteMensajes> {
     if (this.client) return this.client;
     // Import dinámico: solo se resuelve si el SDK está instalado (producción).
-    const mod: any = await import("@anthropic-ai/sdk").catch(() => {
+    const mod = (await import("@anthropic-ai/sdk").catch(() => {
       throw new Error(
         "AnthropicLLM requiere @anthropic-ai/sdk instalado. En la demo usá MockLLM.",
       );
-    });
+    })) as { default?: new () => ClienteMensajes; Anthropic?: new () => ClienteMensajes };
     const Anthropic = mod.default ?? mod.Anthropic;
-    this.client = new Anthropic(); // resuelve credenciales del entorno
-    return this.client;
+    if (!Anthropic) throw new Error("@anthropic-ai/sdk no exporta el cliente Anthropic.");
+    const nuevo = new Anthropic(); // resuelve credenciales del entorno
+    this.client = nuevo;
+    return nuevo;
   }
 
   async generar(input: {
@@ -93,8 +102,8 @@ export class AnthropicLLM implements LLM {
       };
     }
 
-    const bloque = res.content.find((b: any) => b.type === "text");
-    const parsed = bloque ? JSON.parse(bloque.text) : null;
+    const bloque = res.content.find((b) => b.type === "text");
+    const parsed = bloque?.text ? JSON.parse(bloque.text) : null;
 
     if (!parsed) {
       return {

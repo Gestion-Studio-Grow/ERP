@@ -11,6 +11,8 @@
 // (src/tenants/storefront.ts, armado con el MODELO de negocio, no con material del dueño). Cada una se
 // puede apagar acá sin tocar JSX.
 
+import { redondearAlPeso } from "@/lib/dinero/redondeo";
+
 /** Identidad (logotipo, paleta, letras) provisional: el pie lo dice. [A VALIDAR dueño] */
 export const MARCA_PROVISIONAL = true;
 
@@ -42,7 +44,7 @@ export const PROMESAS = {
 /** El precio por transferencia, redondeado a $100, o null si no corresponde mostrarlo. */
 export function precioTransferencia(lista: number, mostrar = MOSTRAR_PRECIO_TRANSFERENCIA, descuento = DESCUENTO_TRANSFERENCIA): number | null {
   if (!mostrar || descuento === null || !(lista > 0)) return null;
-  return Math.round((lista * (1 - descuento)) / 100) * 100;
+  return redondearAlPeso((lista * (1 - descuento)) / 100) * 100;
 }
 
 /** Paleta provisional (cancha azul, líneas de cal, pelota). Los usa la piel (estilos.ts). */

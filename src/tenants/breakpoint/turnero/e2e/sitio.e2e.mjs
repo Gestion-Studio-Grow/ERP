@@ -40,7 +40,7 @@ const srv = createServer(async (req, res) => {
     return res.end(b ?? undefined);
   }
   const segmentos = url.pathname.split("/").filter(Boolean);
-  const r = await responderSitioEstatico("breakpoint", segmentos, async (rel) => new Uint8Array(await readFile(path.join(RAIZ, rel))));
+  const r = await responderSitioEstatico("breakpoint", segmentos, async (rel) => new Uint8Array(await readFile(path.join(RAIZ, rel))), { conSesion: async () => true }); // puesto logueado
   res.writeHead(r.status, Object.fromEntries(r.headers));
   res.end(Buffer.from(await r.arrayBuffer()));
 });

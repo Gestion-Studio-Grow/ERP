@@ -23,6 +23,7 @@ import InicioRenglon from "./inicio/InicioRenglon";
 import AtajosDelAlta from "./turnos/_agenda/AtajosDelAlta";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import { enInicioPorApps } from "./inicio/piloto";
+import { teclaDeCajaCerrada } from "./inicio/bandeja-core";
 import { puedeAbrirApp } from "./vender/puede-abrir";
 import {
   buttonClasses,
@@ -140,9 +141,12 @@ function unidadCorta(unit: string): string {
 async function RetailHome({
   canSeeRevenue,
   canSeeStock,
+  canOpenCash,
   itemNoun,
 }: {
   canSeeRevenue: boolean;
+  /** `cash:manage` con la matriz (casilla 8): sin ella no se ofrece «Abrir caja». */
+  canOpenCash: boolean;
   /**
    * `catalog:read`. Sin esa capacidad, /admin/inventario y /admin/compras REDIRIGEN al
    * home (authz.ts:29-35): un tile o un link a esas pantallas sería un botón que te
@@ -184,7 +188,7 @@ async function RetailHome({
         </Link>
       </div>
 
-      {!d.cashOpen && <AvisoCajaCerrada />}
+      {!d.cashOpen && <AvisoCajaCerrada puedeAbrirCaja={canOpenCash} />}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         {/* Con la caja cerrada no se repite acá: lo dice la banda de arriba, que además
@@ -244,9 +248,11 @@ async function RetailHome({
 //                     borde llegan acá, caen al Inicio vertical (genérico y seguro).
 // ─────────────────────────────────────────────────────────────────────────────
 /** Con hoy ya cerrado no se abre la caja ni se cobra en firme: lo dice y lleva al cierre (UAT caja 31/10, 10.9). */
-async function AvisoCajaCerrada() {
+async function AvisoCajaCerrada({ puedeAbrirCaja }: { puedeAbrirCaja: boolean }) {
   // Es una línea de estado: si la lectura falla, el aviso de siempre, no la pantalla caída.
   const diaCerrado = await getCurrentTenantId().then(hoyEstaCerrado).catch(() => false);
+  // «Abrir caja →» sólo para quien tiene la casilla 8 (`cash:manage`, rol o matriz): al resto el servidor se lo niega.
+  const tecla = teclaDeCajaCerrada(diaCerrado, puedeAbrirCaja);
   return (
     <div className="mb-6 flex items-center gap-2.5 rounded-lg bg-warning-soft border border-warning/25 px-4 py-2.5 text-sm text-warning">
       <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10" /><path d="M12 8v4M12 16h.01" /></svg>
@@ -264,9 +270,11 @@ async function AvisoCajaCerrada() {
           </>
         )}
       </span>
-      <Link href={diaCerrado ? "/admin/caja/cierre" : "/admin/caja"} className="font-semibold whitespace-nowrap hover:underline">
-        {diaCerrado ? "Ver el cierre →" : "Abrir caja →"}
-      </Link>
+      {tecla && (
+        <Link href={tecla.href} className="font-semibold whitespace-nowrap hover:underline">
+          {tecla.texto}
+        </Link>
+      )}
     </div>
   );
 }
@@ -328,6 +336,7 @@ async function InicioVertical() {
       <RetailHome
         canSeeRevenue={canSeeRevenue}
         canSeeStock={permisoEfectivo(user, "catalog:read")}
+        canOpenCash={permisoEfectivo(user, "cash:manage")}
         itemNoun={rubro.rubro?.wording.itemNoun ?? "producto"}
       />
     );

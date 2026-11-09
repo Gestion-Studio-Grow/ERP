@@ -285,3 +285,14 @@ test("medios de un toque: Mercado Pago y Transferencia viajan por el total exact
     assert.ok(leidos.ok && leidos.medio === medio && leidos.asientos === null && leidos.recibido === null);
   }
 });
+
+test("un importe fuera del rango con centavos (≥ 1e13) es inválido: no traba el pie al escribir el formulario", () => {
+  assert.deepEqual(estadoDelEfectivo(36608, "100.000.000.000.000"), { estado: "invalido" });
+  const d = resultadoDeLaDivision(36608, [
+    { medio: "EFECTIVO", montoTexto: "100.000.000.000.000" },
+    { medio: "MERCADOPAGO", montoTexto: "" },
+  ]);
+  assert.equal(d.ok, false);
+  // Justo debajo del límite sigue siendo un importe válido.
+  assert.equal(estadoDelEfectivo(36608, 9_999_999_999_999).estado, "vuelto");
+});

@@ -6,7 +6,6 @@ import { LIMITE_FACTURAS_FACTURITA } from "@/lib/facturita-core";
 import {
   ESTADO_PRECIOS,
   PLAN_FACTURITA,
-  PLAN_SALTO,
   PLANES_COMERCIANTE,
   precioConPeriodo,
   precioTexto,
@@ -30,7 +29,6 @@ test("lista de Comerciante de ADR-078, en orden creciente", () => {
     PLANES_COMERCIANTE.map((p) => p.precioMensual),
     [14_900, 39_900, 89_900, 149_900],
   );
-  assert.equal(PLAN_SALTO.id, "solo");
   for (let i = 1; i < PLANES_COMERCIANTE.length; i++) {
     assert.ok(PLANES_COMERCIANTE[i].facturasPorMes > PLANES_COMERCIANTE[i - 1].facturasPorMes);
   }

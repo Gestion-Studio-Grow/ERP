@@ -460,7 +460,7 @@ test("BP-101 (cert v4) 1b … al bajar la ventana (orden real de la lista), el f
   const r = ejecutarBajaFijo(e, { tipo: "pausa", fijoId: f.id, desde: HOY, hasta: M.sumarDias(dV4(4), -1) }, AHORA);
   const conflictos = M.materializarFijosHasta(e, dV4(2), 14);
   const pedro = e.reservas.some((x) => x.fijoId === B.id && x.fecha === dV4(4) && x.estado === "reservada");
-  assert.equal(pedro, true, `Pedro pierde el ${dV4(4)} (vuelve=${r.vuelve}; conflictos al bajar: ${conflictos.map((c: any) => c.fijo.titular + " " + c.fecha).join(", ")})`);
+  assert.equal(pedro, true, `Pedro pierde el ${dV4(4)} (vuelve=${r.vuelve}; conflictos al bajar: ${conflictos.map((c) => c.fijo.titular + " " + c.fecha).join(", ")})`);
 });
 
 test("BP-101 (cert v4) 2 fecha liberada por el titular: se salta sin choque", () => {

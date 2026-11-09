@@ -1,7 +1,8 @@
 // FACTURITA · Emitir — la pantalla principal del producto: la factura en dos
-// toques desde «Mis productos» (o el formulario completo), con el tope de 5 gratis por mes y el gancho de upgrade a Comerciante.
+// toques desde «Mis productos» (o el formulario completo), con el tope del plan (Gratis 5 · Plus 40 · Pro 159) y el gancho al plan siguiente.
 
 import { PageHeader } from "@/components/ui";
+import { CUPO_GRATIS } from "@/lib/facturita-core";
 import { atajosFacturitaAction, datosEmisorFacturitaAction, datosParaFacturasAction, estadoFacturitaAction } from "@/lib/facturita-actions";
 import Link from "next/link";
 import { formDesdeGuardado, listaEnCriollo } from "@/lib/facturita-emisor";
@@ -25,7 +26,7 @@ export default async function FacturitaEmitirPage() {
     <>
       <PageHeader
         title="Emitir una factura"
-        description={`Tocá un producto y emití, o cargá qué vendiste, el total y a quién: la factura va a ARCA para su autorización. Este mes usaste ${limite.usadas} de ${limite.limite} gratis.`}
+        description={`Tocá un producto y emití, o cargá qué vendiste, el total y a quién: la factura va a ARCA para su autorización. Este mes usaste ${limite.usadas} de ${limite.limite}${limite.plan === CUPO_GRATIS.nombre ? " gratis" : ` de tu plan ${limite.plan}`}.`}
       />
       {/* Con el tope agotado, lo explica la pantalla de emitir, arriba y con la salida (F4). */}
       {limite.mensaje && limite.puedeEmitir && (
