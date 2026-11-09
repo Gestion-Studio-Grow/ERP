@@ -4,7 +4,7 @@
 // Sólo convierte bytes en matrices crudas por pestaña (como src/plugins/bancos/parser/xlsx.ts); la interpretación
 // vive en importador-core.ts. Topes: 2 MB, 10 pestañas, 2000 filas por pestaña, textos recortados.
 // Antes de parsear, el .xlsx (un zip) se inspecciona a mano (inspeccionarZip): hasta 10 hojas y 15 MB descomprimidos
-// en total, inflando de verdad cada entrada con tope (no se confía en el tamaño declarado). `XLSX.read` parsea el libro
+// en total, inflando de verdad cada entrada con tope y topeando también el tamaño declarado (SheetJS reserva memoria por él). `XLSX.read` parsea el libro
 // entero antes de cualquier recorte: sin esto, 2 MB comprimidos son cientos de MB de XML y el servidor se cae.
 
 import "server-only";
@@ -41,14 +41,17 @@ export function inspeccionarZip(bytes: Uint8Array): { ok: true } | { ok: false; 
   let total = 0;
   for (let i = 0; i < entradas; i++) {
     if (p + 46 > b.length) return { ok: false, error: MSJ_DANADO };
+    const declaradoCentral = b.readUInt32LE(p + 24);
     const largoNombre = b.readUInt16LE(p + 28);
     const largoExtra = b.readUInt16LE(p + 30);
     const largoComentario = b.readUInt16LE(p + 32);
     const local = b.readUInt32LE(p + 42);
     p += 46 + largoNombre + largoExtra + largoComentario;
     if (local + 30 > b.length) return { ok: false, error: MSJ_DANADO };
+    const banderas = b.readUInt16LE(local + 6);
     const metodo = b.readUInt16LE(local + 8);
     const comprimido = b.readUInt32LE(local + 18);
+    const declaradoLocal = b.readUInt32LE(local + 22);
     const nombreLocal = b.readUInt16LE(local + 26);
     const extraLocal = b.readUInt16LE(local + 28);
     const datos = local + 30 + nombreLocal + extraLocal;
@@ -56,14 +59,24 @@ export function inspeccionarZip(bytes: Uint8Array): { ok: true } | { ok: false; 
     const nombre = b.toString("latin1", local + 30, local + 30 + nombreLocal);
     if (/^\/?xl\/worksheets\/[^/]+\.xml$/i.test(nombre) && ++hojas > MAX_PESTANAS)
       return { ok: false, error: `La planilla tiene más de ${MAX_PESTANAS} pestañas. Dejá sólo las de proyectos (General, Sin asignar y una por productor) y probá de nuevo.` };
-    if (metodo === 0) total += Math.min(comprimido, b.length - datos);
+    // El inflate de SheetJS reserva de entrada `Buffer.allocUnsafe` con el tamaño DECLARADO en el encabezado local
+    // (y el del directorio central sólo se compara después): un zip de pocos KB que declara 500 MB por entrada tumba el
+    // proceso aunque lo inflado de verdad sea chico. Se topean los dos declarados contra lo que queda del total.
+    const resta = MAX_DESCOMPRIMIDO - total;
+    if (declaradoLocal > resta || declaradoCentral > resta) return { ok: false, error: MSJ_GRANDE };
+    let real: number;
+    if (metodo === 0) real = Math.min(comprimido, b.length - datos);
     else if (metodo === 8) {
       try {
-        total += inflateRawSync(b.subarray(datos), { maxOutputLength: Math.max(1, MAX_DESCOMPRIMIDO - total) }).length;
+        real = inflateRawSync(b.subarray(datos), { maxOutputLength: Math.max(1, resta) }).length;
       } catch (err) {
         return { ok: false, error: (err as { code?: string }).code === "ERR_BUFFER_TOO_LARGE" ? MSJ_GRANDE : MSJ_DANADO };
       }
+      // Sin data descriptor (bit 3) los declarados tienen que coincidir con lo inflado: un desfase es un zip armado a
+      // mano. Con bit 3 el local suele venir en 0 y el real va en el descriptor (SheetJS reserva por el local, ya topeado).
+      if (!(banderas & 0x08) && (declaradoLocal !== real || declaradoCentral !== real)) return { ok: false, error: MSJ_DANADO };
     } else return { ok: false, error: MSJ_DANADO };
+    total += Math.max(declaradoLocal, declaradoCentral, real);
     if (total > MAX_DESCOMPRIMIDO) return { ok: false, error: MSJ_GRANDE };
   }
   return { ok: true };

@@ -122,3 +122,39 @@ test("10 hojas de 2000 × 40 sin estilos (dentro de los topes) se leen enteras",
   assert.ok(ms < 5000, `tardó ${ms} ms (~0,9 s medido; holgura para CI cargado)`);
 });
 
+
+// ── Vuelta 3: el tamaño DECLARADO también se topea (SheetJS reserva `Buffer.allocUnsafe` por el del encabezado local) ──
+
+/** Reescribe el tamaño descomprimido declarado (directorio central offset 24, encabezado local offset 22) de las
+ *  entradas comprimidas que cumplen `filtro`. */
+function conDeclarado(bytes: Uint8Array, declarado: number, filtro: (nombre: string) => boolean = () => true): Uint8Array {
+  const b = Buffer.from(bytes);
+  let fin = b.length - 4;
+  while (!(b[fin] === 0x50 && b[fin + 1] === 0x4b && b[fin + 2] === 0x05 && b[fin + 3] === 0x06)) fin--;
+  let p = b.readUInt32LE(fin + 16);
+  for (let i = 0, n = b.readUInt16LE(fin + 8); i < n; i++) {
+    const ln = b.readUInt16LE(p + 28), le = b.readUInt16LE(p + 30), lc = b.readUInt16LE(p + 32), local = b.readUInt32LE(p + 42);
+    if (filtro(b.toString("latin1", p + 46, p + 46 + ln)) && b.readUInt16LE(local + 8) === 8) {
+      b.writeUInt32LE(declarado, p + 24);
+      b.writeUInt32LE(declarado, local + 22);
+    }
+    p += 46 + ln + le + lc;
+  }
+  return new Uint8Array(b);
+}
+
+test("bomba por tamaño declarado: 10 hojas que declaran 500 MB cada una se rechazan sin reservar memoria", async () => {
+  const sano = libroInflado(10, filas(2, 2));
+  await rechazaRapido(conDeclarado(sano, 500_000_000), /demasiados datos/);
+  // Una sola entrada que declara 20 MB (más que el tope total) también.
+  await rechazaRapido(conDeclarado(sano, 20_000_000, (n) => /sheet1\.xml$/.test(n)), /demasiados datos/);
+});
+
+test("tamaño declarado que no coincide con lo inflado (sin data descriptor): zip armado a mano, se rechaza", async () => {
+  const { inspeccionarZip } = await import("./importador-xlsx");
+  const sano = libroInflado(1, filas(2, 2));
+  assert.deepEqual(inspeccionarZip(sano), { ok: true });
+  const r = inspeccionarZip(conDeclarado(sano, 1_000_000, (n) => /sheet1\.xml$/.test(n)));
+  assert.equal(r.ok, false);
+  if (!r.ok) assert.match(r.error, /dañado/);
+});

@@ -193,8 +193,8 @@ test("plan: clientes existentes por alias, proyecto cargado a mano, perdido con 
   assert.deepEqual([fiesta.fechaEvento, fiesta.fechaFin], [fechaLocal(2026, 12, 4), fechaLocal(2026, 12, 6)]);
   assert.equal(fiesta.carpetaUrl, "https://drive.google.com/x");
   assert.equal(p.filas[2].estado, "yaEnBase", "Quilmes / Stand ya está cargado a mano");
-  assert.equal(claveDeImportacion("t1", "coca cola", "fiesta fin de ano", 2026, 12), fiesta.clave);
-  assert.notEqual(claveDeImportacion("t2", "coca cola", "fiesta fin de ano", 2026, 12), fiesta.clave, "la clave es por negocio");
+  assert.equal(claveDeImportacion("t1", "coca cola", "fiesta fin de ano", 2026), fiesta.clave);
+  assert.notEqual(claveDeImportacion("t2", "coca cola", "fiesta fin de ano", 2026), fiesta.clave, "la clave es por negocio");
 });
 
 // ── Vuelta 1 de la certificación ─────────────────────────────────────────────
@@ -213,29 +213,27 @@ test("Drive como hipervínculo (chip de Sheets): la URL segura va a la carpeta; 
   assert.equal(expo.carpetaUrl, "https://drive.google.com/visible", "con link inseguro, el texto https visible sigue sirviendo");
 });
 
-test("evento que se repite en el año: un proyecto por mes; General + productor del mismo mes sigue siendo uno", () => {
+test("evento que se repite en el año: se carga uno y los otros meses se muestran para cargarlos a mano", () => {
   const hojas = [
     hoja("General", fila("Acme", "Desayuno de prensa", { mes: 3 }), fila("Acme", "Desayuno de prensa", { mes: 9 })),
     hoja("Julieta", fila("Acme", "Desayuno de prensa", { mes: 3, etapa: "Aprobado" }), fila("Acme", "Desayuno de prensa", { mes: "Septiembre" })),
   ];
   const p = planificarImportacion(hojas, base());
-  assert.equal(p.altas.length, 2, "marzo y septiembre son dos proyectos");
-  assert.deepEqual(p.altas.map((a) => [a.hoja, a.mes]).sort(), [["Julieta", 3], ["Julieta", 9]]);
-  assert.equal(p.repetidas.length, 2, "las de General quedan como repetidas de su mes");
-  assert.equal(new Set(p.altas.map((a) => a.clave)).size, 2);
-  assert.equal(p.altas.find((a) => a.mes === 3)!.clave, claveDeImportacion("t1", "acme", "desayuno de prensa", 2026, 3));
-  // Estable: misma planilla → misma huella; con las claves anotadas no se repite nada.
+  assert.deepEqual(p.altas.map((a) => [a.hoja, a.mes]), [["Julieta", 3]], "la primera en orden estable");
+  assert.equal(p.repetidas.length, 2, "las de General pierden contra el productor");
+  assert.equal(p.errores.length, 1);
+  assert.match(p.errores[0].motivo, /^Revisar: parece otro evento del mismo cliente y nombre en el año; cargalo a mano o cambiale el nombre/);
+  assert.deepEqual(p.filas.filter((f) => f.estado === "error").map((f) => [f.hoja, f.fila]), [["Julieta", 3]], "la vista previa lo muestra");
+  assert.equal(p.altas[0].clave, claveDeImportacion("t1", "acme", "desayuno de prensa", 2026));
+  // Estable: misma planilla → misma huella; con la clave anotada no se repite nada.
   assert.equal(planificarImportacion(hojas, base()).huella, p.huella);
   assert.equal(planificarImportacion(hojas, base({ claves: p.altas.map((a) => a.clave) })).altas.length, 0);
-  // Un solo mes: la clave lleva el mes igual (no depende del resto del archivo); sin mes, el año solo.
-  const uno = planificarImportacion([hoja("Julieta", fila("Acme", "Desayuno de prensa", { mes: 3 }))], base());
-  assert.equal(uno.altas[0].clave, claveDeImportacion("t1", "acme", "desayuno de prensa", 2026, 3));
-  const sinMesSolo = planificarImportacion([hoja("Julieta", fila("Acme", "Desayuno de prensa", { mes: "" }))], base());
-  assert.equal(sinMesSolo.altas[0].clave, claveDeImportacion("t1", "acme", "desayuno de prensa", 2026));
-  // La fila sin mes dentro de un evento repetido no se adivina: se dice por qué.
-  const sinMes = planificarImportacion([hoja("Julieta", fila("Acme", "Desayuno", { mes: 3 }), fila("Acme", "Desayuno", { mes: 9 }), fila("Acme", "Desayuno", { mes: "" }))], base());
-  assert.equal(sinMes.altas.length, 2);
-  assert.match(sinMes.errores[0].motivo, /varios meses \(3, 9\).*completá la columna Mes/);
+  // La clave no lleva mes: con mes, sin mes o con otro mes, es la misma.
+  const sinMes = planificarImportacion([hoja("Julieta", fila("Acme", "Desayuno de prensa", { mes: "" }))], base());
+  assert.equal(sinMes.altas[0].clave, p.altas[0].clave);
+  // La fila sin mes no es «otro evento»: queda como repetida de la que se carga.
+  const conSinMes = planificarImportacion([hoja("Julieta", fila("Acme", "Desayuno", { mes: 3 }), fila("Acme", "Desayuno", { mes: "" }))], base());
+  assert.deepEqual([conSinMes.altas.map((a) => a.mes), conSinMes.repetidas.length, conSinMes.errores.length], [[3], 1, 0]);
 });
 
 test("«4-6» con Mes=4: ¿rango o fecha? no se carga una fecha exacta en silencio", () => {
@@ -257,42 +255,56 @@ test("historial: la marca del importador se lee en criollo, lo demás pasa igual
   assert.equal(cambioLegible(otro), otro);
 });
 
-// ── Vuelta 2 de la certificación: la clave de una fila no depende del resto del archivo ──────────────────────
+// ── Vuelta 3: la clave es cliente+proyecto+año (sin mes); no depende del mes ni del resto del archivo ──────────
 
-const K3 = claveDeImportacion("t1", "acme", "desayuno", 2026, 3);
+const K = claveDeImportacion("t1", "acme", "desayuno", 2026);
+/** Simula leerBaseImportacion tras confirmar: las marcas y los proyectos con el año de alta y del evento. */
+function aplicar(b: BaseImportacion, p: ReturnType<typeof planificarImportacion>): BaseImportacion {
+  const anios = (a: (typeof p.altas)[number]) => [...new Set([a.creadoEl, ...(a.fechaEvento ? [a.fechaEvento] : [])].map((d) => new Date(d.getTime() - 3 * 3_600_000).getUTCFullYear()))];
+  return { ...b, claves: [...(b.claves as string[]), ...p.altas.map((a) => a.clave)], proyectos: [...b.proyectos, ...p.altas.flatMap((a) => anios(a).map((anio) => ({ cliente: a.cliente.nombre, nombre: a.nombre, anio })))] };
+}
+/** Cuántas altas da cada subida, aplicando la anterior. */
+function ciclo(...subidas: HojaCruda[][]): number[] {
+  let b = base();
+  return subidas.map((s) => {
+    const p = planificarImportacion(s, b);
+    b = aplicar(b, p);
+    return p.altas.length;
+  });
+}
+const SIN_MES = ["Cliente", "Proyecto", "Año", "Etapa", "Status", "Fecha", "Drive"];
 
-test("A1 · subida 1 sólo marzo; subida 2 suma septiembre: septiembre entra y marzo ya está", () => {
+test("A1 · subida 1 sólo marzo; subida 2 suma septiembre: marzo ya está, septiembre se muestra para cargarlo a mano", () => {
   const p1 = planificarImportacion([hoja("Julieta", fila("Acme", "Desayuno", { mes: 3 }))], base());
-  assert.equal(p1.altas[0].clave, K3);
-  const p2 = planificarImportacion(
-    [hoja("Julieta", fila("Acme", "Desayuno", { mes: 3 }), fila("Acme", "Desayuno", { mes: 9 }))],
-    base({ claves: [K3], proyectos: [{ cliente: "Acme", nombre: "Desayuno", anio: 2026, mes: 3 }] }),
-  );
-  assert.deepEqual(p2.altas.map((a) => a.mes), [9], "septiembre se carga");
-  assert.equal(p2.yaEnBase.length, 1, "marzo ya está");
+  assert.equal(p1.altas[0].clave, K);
+  const p2 = planificarImportacion([hoja("Julieta", fila("Acme", "Desayuno", { mes: 3 }), fila("Acme", "Desayuno", { mes: 9 }))], aplicar(base(), p1));
+  assert.equal(p2.altas.length, 0);
+  assert.deepEqual(p2.filas.map((f) => f.estado), ["yaEnBase", "error"]);
+  assert.match(p2.errores[0].motivo, /parece otro evento/);
 });
 
-test("A2 · igual que A1 pero el proyecto se renombró en el ERP: la marca de marzo lo protege, no se duplica", () => {
-  const p2 = planificarImportacion(
-    [hoja("Julieta", fila("Acme", "Desayuno", { mes: 3 }), fila("Acme", "Desayuno", { mes: 9 }))],
-    base({ claves: [K3], proyectos: [{ cliente: "Acme", nombre: "Desayuno de prensa (marzo)", anio: 2026, mes: 3 }] }),
-  );
-  assert.deepEqual(p2.altas.map((a) => a.mes), [9]);
-  // Cargado a mano en marzo (sin marca): la fila de marzo ya está; la de septiembre, no.
-  const aMano = planificarImportacion(
-    [hoja("Julieta", fila("Acme", "Desayuno", { mes: 3 }), fila("Acme", "Desayuno", { mes: 9 }))],
-    base({ proyectos: [{ cliente: "Acme", nombre: "Desayuno", anio: 2026, mes: 3 }] }),
-  );
-  assert.deepEqual(aMano.altas.map((a) => a.mes), [9]);
-  // Proyecto del ERP sin mes conocido: cubre todo el año (no se duplica por las dudas).
-  const sinMes = planificarImportacion([hoja("Julieta", fila("Acme", "Desayuno", { mes: 9 }))], base({ proyectos: [{ cliente: "Acme", nombre: "Desayuno", anio: 2026 }] }));
-  assert.equal(sinMes.altas.length, 0);
+test("A2 · renombrado en el ERP: la marca lo protege; cargado a mano con el mismo nombre y año: ya está", () => {
+  const renombrado = planificarImportacion([hoja("Julieta", fila("Acme", "Desayuno", { mes: 3 }))], base({ claves: [K], proyectos: [{ cliente: "Acme", nombre: "Desayuno de prensa (marzo)", anio: 2026 }] }));
+  assert.deepEqual([renombrado.altas.length, renombrado.yaEnBase.length], [0, 1]);
+  const aMano = planificarImportacion([hoja("Julieta", fila("Acme", "Desayuno", { mes: 9 }))], base({ proyectos: [{ cliente: "ACME", nombre: "desayuno", anio: 2026 }] }));
+  assert.deepEqual([aMano.altas.length, aMano.yaEnBase.length], [0, 1]);
+  // Otro año, otro proyecto.
+  assert.equal(planificarImportacion([hoja("Julieta", fila("Acme", "Desayuno", { mes: 9 }))], base({ proyectos: [{ cliente: "Acme", nombre: "Desayuno", anio: 2025 }] })).altas.length, 1);
 });
 
 test("A3 · General dice marzo y el productor dice abril (corrigió el mes): gana la del productor, un solo proyecto", () => {
   const p = planificarImportacion([hoja("General", fila("Acme", "Desayuno", { mes: 3 })), hoja("Julieta", fila("Acme", "Desayuno", { mes: 4 }))], base());
   assert.deepEqual(p.altas.map((a) => [a.hoja, a.mes]), [["Julieta", 4]]);
   assert.match(p.repetidas[0].motivo, /pestaña de su productor/);
+});
+
+test("conflicto entre dos pestañas de productor (mismo mes o sin mes): no se carga ninguna; con meses distintos, uno y el otro a revisar", () => {
+  const mismo = planificarImportacion([hoja("Julieta", fila("Acme", "Desayuno", { mes: 3 })), hoja("Pedro", fila("Acme", "Desayuno", { mes: "" }))], base());
+  assert.equal(mismo.altas.length, 0);
+  assert.ok(mismo.errores.every((e) => /Conflicto: está en las pestañas «Julieta» y «Pedro»/.test(e.motivo)) && mismo.errores.length === 2);
+  const distintos = [hoja("Julieta", fila("Acme", "Desayuno", { mes: 3 })), hoja("Pedro", fila("Acme", "Desayuno", { mes: 9 }))];
+  assert.deepEqual(ciclo(distintos, distintos, distintos), [1, 0, 0], "B8 · estable al subirlo varias veces");
+  assert.match(planificarImportacion(distintos, base()).errores[0].motivo, /parece otro evento/);
 });
 
 test("A4/A5 · huella estable con meses repetidos; la misma planilla en otro negocio da otras claves", () => {
@@ -302,12 +314,22 @@ test("A4/A5 · huella estable con meses repetidos; la misma planilla en otro neg
   assert.ok(a.altas.every((x) => !b.altas.some((y) => y.clave === x.clave)));
 });
 
-test("fila sin mes de un proyecto que en el archivo tiene mes: no se adivina; si ya está en el ERP, ya está", () => {
-  const hs = [hoja("Julieta", fila("Acme", "Desayuno", { mes: 3 }), fila("Acme", "Desayuno", { mes: "" }))];
-  const p = planificarImportacion(hs, base());
-  assert.deepEqual(p.altas.map((a) => a.mes), [3]);
-  assert.match(p.errores[0].motivo, /mes 3 y esta fila no dice el mes/);
-  const despues = planificarImportacion(hs, base({ claves: [K3], proyectos: [{ cliente: "Acme", nombre: "Desayuno", anio: 2026, mes: 3 }] }));
-  assert.equal(despues.altas.length, 0);
-  assert.equal(despues.yaEnBase.length, 2);
+test("B1/B5 · se agrega o se quita el mes, o la Fecha dice otro mes: no duplica", () => {
+  const sinColumna: HojaCruda = { nombre: "Julieta", filas: [SIN_MES, ["Acme", "Desayuno", 2026, "Aprobado", "", "", ""]] };
+  assert.deepEqual(ciclo([sinColumna], [hoja("Julieta", fila("Acme", "Desayuno", { mes: 3 }))]), [1, 0], "B1 · mes agregado");
+  assert.deepEqual(ciclo([hoja("Julieta", fila("Acme", "Desayuno", { mes: 3 }))], [sinColumna]), [1, 0], "B2 · mes quitado");
+  assert.deepEqual(ciclo([hoja("Julieta", fila("Acme", "Desayuno", { mes: "", fecha: "15/04/2026" }))], [hoja("Julieta", fila("Acme", "Desayuno", { mes: 3, fecha: "15/04/2026" }))]), [1, 0], "B5 · Fecha 15/04 y después Mes=3");
+});
+
+test("B4 · General sola en marzo; después el productor la corrige a abril: no duplica", () => {
+  const general = hoja("General", fila("Acme", "Desayuno", { mes: 3 }));
+  assert.deepEqual(ciclo([general], [general, hoja("Julieta", fila("Acme", "Desayuno", { mes: 4 }))]), [1, 0]);
+});
+
+test("B6 · cargado a mano en noviembre; la planilla dice octubre: no duplica (la comparación es por año)", () => {
+  assert.equal(planificarImportacion([hoja("Julieta", fila("Acme", "Desayuno", { mes: 10 }))], base({ proyectos: [{ cliente: "Acme", nombre: "Desayuno", anio: 2026 }] })).altas.length, 0);
+});
+
+test("B7 · OBSERVACIÓN: corregir el año en la planilla duplica (la T3 sólo hace altas; riesgo anotado)", () => {
+  assert.deepEqual(ciclo([hoja("Julieta", fila("Acme", "Desayuno", { mes: 12, anio: 2026 }))], [hoja("Julieta", fila("Acme", "Desayuno", { mes: 12, anio: 2027 }))]), [1, 1]);
 });

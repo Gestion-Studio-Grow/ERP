@@ -6,11 +6,13 @@
 // se carga y por qué. No escribe nada: la acción (acciones-importador.ts) replanifica dentro de la transacción y sólo
 // escribe si la huella es la misma que vio la persona.
 //
-// Idempotencia (opción A, sin migración): clave = sha256(tenantId|cliente|proyecto|año[|mes]) con nombres normalizados. El
-// mes entra SIEMPRE que la fila lo dice (columna Mes o la fecha), así la clave de una fila no depende del resto del
-// archivo: subir marzo y después sumar septiembre carga septiembre y no duplica marzo. Se
-// anota en ProyectoCambio (entidad «Importacion», campo «clave»). Lo que ya tiene su clave anotada no se vuelve a cargar.
-// Sólo altas: corregir una fila ya importada no actualiza el proyecto (riesgo anotado en el diseño).
+// Idempotencia (opción A, sin migración): clave = sha256(tenantId|cliente|proyecto|año) con nombres normalizados, SIN
+// mes: la clave de una fila no depende de su mes ni del resto del archivo. Un proyecto por cliente+nombre+año: si en el
+// archivo hay filas del mismo grupo con meses distintos, se carga la primera y las demás se muestran para cargarlas a
+// mano. Se anota en ProyectoCambio (entidad «Importacion», campo «clave»). Lo que ya tiene su clave anotada, o un
+// proyecto del mismo cliente, nombre y año cargado a mano, no se vuelve a cargar.
+// Sólo altas: corregir una fila ya importada no actualiza el proyecto; corregirle el mes o el año en la planilla y
+// volver a subirla puede duplicarlo (si cambia el año) o no hacer nada (si cambia el mes). Riesgo anotado.
 
 import { createHash } from "node:crypto";
 import { normalizarNombre as normalizarBase } from "@/lib/venta-reglas";
@@ -320,9 +322,9 @@ export interface BaseImportacion {
   personas: readonly PersonaBase[];
   /** Claves ya anotadas en ProyectoCambio (entidad Importacion). */
   claves: ReadonlySet<string> | readonly string[];
-  /** Proyectos que ya están (cargados a mano o importados): cliente, nombre, año y, si se sabe, mes. Un proyecto puede
-   *  venir en varias entradas (mes de alta y mes del evento). Sin `mes`, cubre todo el año. */
-  proyectos: readonly { cliente: string; nombre: string; anio: number; mes?: number | null }[];
+  /** Proyectos que ya están (cargados a mano o importados): cliente, nombre y año. Un proyecto puede venir en varias
+   *  entradas (año de alta y año del evento). */
+  proyectos: readonly { cliente: string; nombre: string; anio: number }[];
 }
 
 export interface Persona {
@@ -388,9 +390,9 @@ export interface PlanImportacion {
 }
 
 export const sha256 = (s: string): string => createHash("sha256").update(s).digest("hex");
-/** `mes` entra siempre que la fila lo dice; sin mes, la clave lleva el año solo. */
-export const claveDeImportacion = (tenantId: string, cliNorm: string, proyNorm: string, anio: number, mes?: number | null): string =>
-  sha256(`${tenantId}|${cliNorm}|${proyNorm}|${anio}${mes ? `|${mes}` : ""}`);
+/** Clave estable de un proyecto importado: negocio, cliente y nombre normalizados y año. Sin mes, a propósito. */
+export const claveDeImportacion = (tenantId: string, cliNorm: string, proyNorm: string, anio: number): string =>
+  sha256(`${tenantId}|${cliNorm}|${proyNorm}|${anio}`);
 
 type TipoHoja = "general" | "sinAsignar" | "productor";
 function tipoDeHoja(nombre: string): TipoHoja {
@@ -464,7 +466,7 @@ function leerFila(h: HojaCruda, tipo: TipoHoja, enc: Encabezado, i: number, base
   const etapaTxt = textoDe(col("etapa"));
   const statusTxt = textoDe(col("status"));
   const etapa = mapearEtapa(etapaTxt, statusTxt);
-  const clave = claveDeImportacion(base.tenantId, ref.cliNorm, ref.proyNorm, anio, ref.mesDicho);
+  const clave = claveDeImportacion(base.tenantId, ref.cliNorm, ref.proyNorm, anio);
   if (!etapa.ok) return { ...ref, clave, alta: null, error: etapa.error };
   if (etapa.aviso) avisos.push(etapa.aviso);
 
@@ -528,26 +530,17 @@ function leerFila(h: HojaCruda, tipo: TipoHoja, enc: Encabezado, i: number, base
 }
 
 /**
- * El plan de la importación. Reglas de duplicados:
- *  · por cliente+proyecto+año: si figura en una pestaña de productor o en «Sin asignar», sus filas de «General» quedan
- *    como repetidas, sea cual sea el mes; lo que está SÓLO en General se carga para revisar;
- *  · por clave (cliente+proyecto+año+mes, o año solo si la fila no dice el mes): un proyecto por clave;
- *  · la misma fila en dos pestañas de productor distintas es un conflicto: no se carga ninguna;
- *  · lo que ya tiene su clave anotada, o un proyecto igual en el ERP (mismo mes si los dos lo saben), no se carga;
- *  · la fila sin mes de un proyecto que en el archivo sí tiene meses no se adivina: no se carga y se dice por qué.
+ * El plan de la importación. Reglas de duplicados (todas por cliente+proyecto+año, la clave):
+ *  · si figura en una pestaña de productor o en «Sin asignar», sus filas de «General» quedan como repetidas, sea cual
+ *    sea el mes; lo que está SÓLO en General se carga para revisar;
+ *  · un proyecto por clave: se carga el primero en orden estable (productor, Sin asignar, General; después el orden del
+ *    archivo). Las filas del mismo grupo con otro mes no se cargan: «parece otro evento», se cargan a mano;
+ *  · la misma fila (mismo mes o sin mes) en dos pestañas de productor distintas es un conflicto: no se carga ninguna;
+ *  · lo que ya tiene su clave anotada, o un proyecto del mismo cliente, nombre y año en el ERP, no se carga.
  */
 export function planificarImportacion(hojas: readonly HojaCruda[], base: BaseImportacion): PlanImportacion {
   const claves = new Set(base.claves);
-  // «cli|proy|año» → meses conocidos de los proyectos del ERP; `null` = alguno sin mes (cubre todo el año).
-  const yaEstan = new Map<string, Set<number | null>>();
-  for (const p of base.proyectos) {
-    const k = `${normalizarNombre(p.cliente)}|${normalizarNombre(p.nombre)}|${p.anio}`;
-    yaEstan.set(k, (yaEstan.get(k) ?? new Set()).add(p.mes ?? null));
-  }
-  const estaEnErp = (l: Leida): boolean => {
-    const meses = yaEstan.get(`${l.cliNorm}|${l.proyNorm}|${l.anio}`);
-    return !!meses && (l.mesDicho === null || meses.has(null) || meses.has(l.mesDicho));
-  };
+  const yaEstan = new Set(base.proyectos.map((p) => `${normalizarNombre(p.cliente)}|${normalizarNombre(p.nombre)}|${p.anio}`));
   const clientesBase = new Map<string, { id: string; nombre: string }>();
   for (const c of base.clientes) {
     const n = normalizarNombre(c.nombre);
@@ -577,7 +570,6 @@ export function planificarImportacion(hojas: readonly HojaCruda[], base: BaseImp
   // nada (aunque diga otro mes: el productor pudo corregirlo). Así la decisión de una fila no depende de su mes.
   const grupoDe = (l: Leida) => `${l.cliNorm}|${l.proyNorm}|${l.anio}`;
   const fueraDeGeneral = new Set(leidas.filter((l) => l.clave && l.tipo !== "general").map(grupoDe));
-  const mesesDelGrupo = new Map<string, Set<number>>();
   const porClave = new Map<string, Leida[]>();
   for (const l of leidas) {
     if (!l.clave) continue;
@@ -585,42 +577,42 @@ export function planificarImportacion(hojas: readonly HojaCruda[], base: BaseImp
       estado.set(l, { estado: "repetida", motivo: "Repetida: el proyecto está en la pestaña de su productor." });
       continue;
     }
-    if (l.mesDicho !== null) mesesDelGrupo.set(grupoDe(l), (mesesDelGrupo.get(grupoDe(l)) ?? new Set()).add(l.mesDicho));
     porClave.set(l.clave, [...(porClave.get(l.clave) ?? []), l]);
   }
 
+  const lugar = (l: Leida) => (l.fila ? `«${l.hoja}», fila ${l.fila}` : `«${l.hoja}»`);
+  const prioridad = (l: Leida) => (l.tipo === "productor" ? 0 : l.tipo === "sinAsignar" ? 1 : 2);
   for (const [clave, grupo] of porClave) {
-    const lugar = (l: Leida) => (l.fila ? `«${l.hoja}», fila ${l.fila}` : `«${l.hoja}»`);
-    if (claves.has(clave) || estaEnErp(grupo[0])) {
-      for (const l of grupo) estado.set(l, { estado: "yaEnBase", motivo: "Ya está en el ERP." });
+    const ordenados = [...grupo].sort((a, b) => prioridad(a) - prioridad(b) || a.orden - b.orden);
+    const primera = ordenados.find((l) => !l.error) ?? ordenados[0];
+    // El mes del evento: el de la primera; si no lo dice, el primero que aparezca en el grupo. Las filas con otro mes
+    // no se cargan (la clave no lleva mes): se muestran para cargarlas a mano, también si el proyecto ya está.
+    const mesEvento = primera.mesDicho ?? ordenados.find((l) => l.mesDicho !== null)?.mesDicho ?? null;
+    const otroEvento = (l: Leida) => l.mesDicho !== null && mesEvento !== null && l.mesDicho !== mesEvento;
+    const mismo = ordenados.filter((l) => !otroEvento(l));
+    for (const l of ordenados) {
+      if (otroEvento(l))
+        estado.set(l, { estado: "error", motivo: "Revisar: parece otro evento del mismo cliente y nombre en el año; cargalo a mano o cambiale el nombre en la planilla." });
+    }
+    if (claves.has(clave) || yaEstan.has(grupoDe(primera))) {
+      for (const l of mismo) estado.set(l, { estado: "yaEnBase", motivo: "Ya está en el ERP." });
       continue;
     }
-    const meses = grupo[0].mesDicho === null ? [...(mesesDelGrupo.get(grupoDe(grupo[0])) ?? [])].sort((x, y) => x - y) : [];
-    if (meses.length) {
-      const motivo = meses.length > 1
-        ? `El proyecto está en varios meses (${meses.join(", ")}) y esta fila no dice el mes: completá la columna Mes.`
-        : `El proyecto figura en el mes ${meses[0]} y esta fila no dice el mes: completá la columna Mes.`;
-      for (const l of grupo) estado.set(l, { estado: "error", motivo });
-      continue;
-    }
-    const deProductor = grupo.filter((l) => l.tipo === "productor");
+    const deProductor = mismo.filter((l) => l.tipo === "productor");
     const pestanas = new Set(deProductor.map((l) => normalizarNombre(l.hoja)));
     if (pestanas.size > 1) {
       const donde = [...new Set(deProductor.map((l) => `«${l.hoja}»`))].join(" y ");
-      for (const l of grupo) estado.set(l, { estado: "error", motivo: `Conflicto: está en las pestañas ${donde}. Dejala en una sola.` });
+      for (const l of mismo) estado.set(l, { estado: "error", motivo: `Conflicto: está en las pestañas ${donde}. Dejala en una sola.` });
       continue;
     }
-    const prioridad = (l: Leida) => (l.tipo === "productor" ? 0 : l.tipo === "sinAsignar" ? 1 : 2);
-    const ordenados = [...grupo].sort((a, b) => prioridad(a) - prioridad(b) || a.orden - b.orden);
-    const ganadora = ordenados.find((l) => !l.error) ?? ordenados[0];
-    for (const l of grupo) {
-      if (l === ganadora) {
+    for (const l of mismo) {
+      if (l === primera) {
         if (l.error) estado.set(l, { estado: "error", motivo: l.error });
         else {
           if (l.tipo === "general") l.alta!.avisos.unshift("Sólo está en la pestaña General: revisar el productor.");
           estado.set(l, { estado: l.alta!.avisos.length ? "revisar" : "carga", motivo: l.alta!.avisos.join(" ") });
         }
-      } else estado.set(l, { estado: "repetida", motivo: `Repetida: se carga la de ${lugar(ganadora)}.` });
+      } else estado.set(l, { estado: "repetida", motivo: `Repetida: se carga la de ${lugar(primera)}.` });
     }
   }
 

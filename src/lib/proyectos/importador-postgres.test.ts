@@ -88,11 +88,11 @@ test("importador: idempotente, una sola carga con confirmaciones a la vez, aisla
   assert.deepEqual(await conteos(a.id), tras1, "confirmar de nuevo no duplica nada");
   assert.equal((await previa(a, archivo)).conteo.yaEnBase, 3, "la fila de General que también está en Julieta sigue como repetida");
 
-  // A1/A2 (vuelta 2): la misma planilla con Lanzamiento también en septiembre, y el de marzo renombrado en el ERP:
-  // marzo no se duplica (lo protege su marca con el mes) y septiembre se ofrece para cargar.
+  // A1/A2 (vuelta 3): la misma planilla con Lanzamiento también en septiembre, y el de marzo renombrado en el ERP:
+  // marzo no se duplica (lo protege su marca, sin mes) y septiembre no se carga: se muestra para cargarlo a mano.
   await duenio.proyecto.updateMany({ where: { tenantId: a.id, nombre: "Lanzamiento" }, data: { nombre: "Lanzamiento (marzo)" } });
   const conSeptiembre = libro({ ...PLANILLA, Julieta: [...PLANILLA.Julieta, ["Acme", "Lanzamiento", "Septiembre", 2026, "En curso", "Cotizando", "", "", "", ""]] });
-  assert.deepEqual((await previa(a, conSeptiembre)).conteo, { seCargan: 1, revisar: 0, repetidas: 1, yaEnBase: 3, noSeCargan: 0, clientesNuevos: 0 });
+  assert.deepEqual((await previa(a, conSeptiembre)).conteo, { seCargan: 0, revisar: 0, repetidas: 1, yaEnBase: 3, noSeCargan: 1, clientesNuevos: 0 });
   await duenio.proyecto.updateMany({ where: { tenantId: a.id, nombre: "Lanzamiento (marzo)" }, data: { nombre: "Lanzamiento" } });
 
   // Lo cargado: etapa, fechas, perdido, Drive, mensajes del importador.
