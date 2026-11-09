@@ -126,7 +126,8 @@ jobs:
         run: |
           if [ "$GITHUB_EVENT_NAME" = "deployment_status" ]; then
             URL="$URL_EVENTO"; COMMIT="$COMMIT_EVENTO"
-            if [ "$ENTORNO_EVENTO" = "Production" ]; then MODO=produccion; URL="$PROD_URL"; else MODO=preview; fi
+            # Vercel informa el entorno como «Production – erp-ch» (con el proyecto), no «Production».
+            case "$ENTORNO_EVENTO" in Production*) MODO=produccion; URL="$PROD_URL";; *) MODO=preview;; esac
           else
             URL="$URL_MANUAL"; COMMIT="$COMMIT_MANUAL"; MODO="$MODO_MANUAL"
           fi
