@@ -2,6 +2,7 @@
 // devuelven el objeto schema.org. Lo que falta no se inventa: un campo sin dato no se emite (dirección, teléfono,
 // horarios, calificación). Cada front los arma y los pinta con <JsonLd> (src/components/seo/JsonLd.tsx).
 
+import { admiteCentavos, textoAlCentavo } from "@/lib/dinero/redondeo";
 type Obj = Record<string, unknown>;
 
 /** Quita claves vacías (undefined, null, "", [] y objetos sin datos) para no publicar campos sin dato. PURA. */
@@ -96,16 +97,16 @@ export type ProductoLd = {
 };
 
 export function productoLd(p: ProductoLd, vendedor?: { nombre: string; url: string } | null): Obj {
-  const conPrecio = p.precio != null && Number.isFinite(p.precio) && p.precio > 0;
+  const conPrecio = p.precio != null && admiteCentavos(p.precio) && p.precio > 0;
   const oferta = conPrecio
     ? sinVacios({
         "@type": "Offer",
-        price: (p.precio as number).toFixed(2),
+        price: textoAlCentavo(p.precio as number),
         priceCurrency: "ARS",
         url: p.url,
         availability: p.hayStock == null ? undefined : p.hayStock ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
         priceSpecification: p.unidad
-          ? { "@type": "UnitPriceSpecification", price: (p.precio as number).toFixed(2), priceCurrency: "ARS", unitCode: p.unidad, referenceQuantity: { "@type": "QuantitativeValue", value: 1, unitCode: p.unidad } }
+          ? { "@type": "UnitPriceSpecification", price: textoAlCentavo(p.precio as number), priceCurrency: "ARS", unitCode: p.unidad, referenceQuantity: { "@type": "QuantitativeValue", value: 1, unitCode: p.unidad } }
           : undefined,
         seller: vendedor ? { "@type": "Organization", name: vendedor.nombre, url: vendedor.url } : undefined,
       })
@@ -143,7 +144,7 @@ export function servicioLd(s: ServicioLd, proveedor: { nombre: string; url: stri
     url: s.url,
     description: s.descripcion,
     provider: { "@type": proveedor.tipo, name: proveedor.nombre, url: proveedor.url },
-    offers: s.precio != null && s.precio > 0 ? { "@type": "Offer", price: s.precio.toFixed(2), priceCurrency: "ARS" } : undefined,
+    offers: s.precio != null && admiteCentavos(s.precio) && s.precio > 0 ? { "@type": "Offer", price: textoAlCentavo(s.precio), priceCurrency: "ARS" } : undefined,
     // ISO 8601: PT60M.
     timeRequired: s.duracionMin ? `PT${Math.round(s.duracionMin)}M` : undefined,
   });
@@ -168,8 +169,8 @@ export function personaLd(p: {
     sameAs: p.redes ?? undefined,
     workLocation: p.lugar ? sinContexto(negocioLd("SportsActivityLocation", p.lugar)) : undefined,
     makesOffer: (p.ofertas ?? [])
-      .filter((o) => o.precio != null && o.precio > 0)
-      .map((o) => ({ "@type": "Offer", name: o.nombre, price: (o.precio as number).toFixed(2), priceCurrency: "ARS" })),
+      .filter((o) => o.precio != null && admiteCentavos(o.precio) && o.precio > 0)
+      .map((o) => ({ "@type": "Offer", name: o.nombre, price: textoAlCentavo(o.precio as number), priceCurrency: "ARS" })),
   });
 }
 

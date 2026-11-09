@@ -20,6 +20,7 @@
 // No decide nada de plata: la LEE del renglón (`saldo`, `cobrado`, calculados con las reglas de
 // src/lib/turnos/cobros.ts) y el servidor vuelve a validar todo al cerrar.
 
+import { redondearAlCentavo } from "@/lib/dinero/redondeo";
 import { fmtTime } from "@/lib/datetime";
 import { METODO_LABEL, type MetodoDePago } from "@/lib/turnos/cobros";
 import { TOPE_DEL_LOTE, formDataDelLote, type PedidoDeCierre, type Permisos, type TurnoSinCerrar } from "@/lib/turnos/cierre-lote";
@@ -417,7 +418,7 @@ export function salidaDelVacio(veLaCaja: boolean, cierraElDia: boolean): { etiqu
 // ── Auxiliares ───────────────────────────────────────────────────────────────
 
 function redondear(n: number): number {
-  return Math.round(n * 100) / 100;
+  return redondearAlCentavo(n);
 }
 
 function suma(ns: readonly number[]): number {

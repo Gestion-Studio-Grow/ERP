@@ -11,7 +11,8 @@
 // niega a correr: NADA de esto va contra Neon (D-01).
 //
 // Qué hace, en una base propia que crea y borra:
-//   1. `prisma migrate deploy` (base = prisma/migrations de hoy) → probes en false (SIN paquete);
+//   1. `prisma migrate deploy` (base = prisma/migrations de hoy) → probes en false (SIN paquete; los
+//      tres valores de M1 ya en true, migración 20261030120000_m1_enums_caja);
 //      dos negocios y un evento del outbox "de antes".
 //   2. Paso 1 (CarniceriaRubro.sql) → diff de Prisma contra el schema de hoy = LÍNEA DE BASE
 //      (CarniceriaRubro no está en schema.prisma por diseño + drift previo ajeno a S2).
@@ -318,9 +319,12 @@ let diffDeHoy = "";
 test("paquete Gate 2 nivel 2 en Postgres local", { skip: motivoSalto }, async (t) => {
   tmp = mkdtempSync(path.join(tmpdir(), "s2-gate2-"));
   schemaN2 = path.join(tmp, "schema.n2.prisma");
-  // Los valores de enum que una tanda ya encendió (`// N2-enum-encendido:`, M1 encendió TARJETA) se
-  // vuelven a comentar: la «base de hoy» del paquete es el schema sin ningún valor del paquete.
-  const hoy = readFileSync(SCHEMA_HOY, "utf8").replace(/^(\s*)(\w+) \/\/ N2-enum-encendido: .*$/gm, "$1// N2-enum: $2");
+  // La «base de hoy» es schema.prisma TAL CUAL. Los valores `// N2-enum-encendido:` (M1:
+  // PaymentMethod.DEBITO/CREDITO, CashMethod.TRANSFERENCIA) ya NO son sólo del paquete: el pase de M1
+  // los sacó a la migración 20261030120000_m1_enums_caja, así que `prisma migrate deploy` los crea y
+  // antes se volvían a comentar acá (base sin ellos) → el diff de hoy los daba por «Removed variant»
+  // y los probes de «SIN el paquete» no coincidían con la base real. Sólo `// N2-enum:` es paquete.
+  const hoy = readFileSync(SCHEMA_HOY, "utf8");
   schemaHoy = path.join(tmp, "schema.hoy.prisma");
   writeFileSync(schemaHoy, hoy);
   writeFileSync(schemaN2, hoy.replace(/^(\s*)\/\/ N2(-enum)?: ?/gm, "$1"));
@@ -333,9 +337,11 @@ test("paquete Gate 2 nivel 2 en Postgres local", { skip: motivoSalto }, async (t
   try {
     await t.test("SIN el paquete: los probes contestan false (y true en lo que ya existe)", async () => {
       const p = await probes();
+      // debito/credito/transferenciaEnLibro en true: los aplica la migración 20261030120000_m1_enums_caja
+      // (prisma/migrations), no el paquete. N2_enums.sql los repite con IF NOT EXISTS (no hace nada).
       assert.deepEqual(
         { ...p },
-        { apiKey: false, clave: false, debito: false, credito: false, encargado: false, transferenciaEnLibro: false, pago: false, indice: false, limite: false, outbox: true, efectivo: true },
+        { apiKey: false, clave: false, debito: true, credito: true, encargado: false, transferenciaEnLibro: true, pago: false, indice: false, limite: false, outbox: true, efectivo: true },
       );
       diffDeHoy = diffContra(schemaHoy);
       // Dos negocios y un evento del outbox de ANTES del paquete (como los de ARCA de hoy).

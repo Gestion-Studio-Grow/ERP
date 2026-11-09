@@ -21,6 +21,7 @@
 //     veredicto de ESE turno lo deja (`puedeCobrarEsteTurno`: Vero cobra aparte);
 //   · una PROFESIONAL (sin clients:read) ve SÓLO sus turnos que vienen, sin ficha ni plata.
 
+import { sumarAlCentavo } from "@/lib/dinero/redondeo";
 import { normalizarBusqueda, rangoCoincidencia } from "@/modules/nav-search";
 import { fmtMoneyARS } from "@/components/ui/format";
 import { BUSINESS_TIMEZONE } from "@/lib/business-config";
@@ -148,7 +149,7 @@ export function deudaDe(completados: readonly CompletadoLeido[], cobros: Readonl
     .map((c) => ({ c, saldo: estadoCobroTurno({ precio: c.precio, cobros: cobros.get(c.id) ?? [], pagoLegado: c.pagoLegado }).saldo }))
     .filter((x) => esCuentaACobrar({ status: "COMPLETED", saldo: x.saldo }))
     .sort((a, b) => a.c.inicio.getTime() - b.c.inicio.getTime());
-  const monto = Math.round(conSaldo.reduce((n, x) => n + x.saldo, 0) * 100) / 100;
+  const monto = sumarAlCentavo(conSaldo.map((x) => x.saldo));
   return { monto, turnoIds: conSaldo.map((x) => x.c.id), cobros: conSaldo.map((x) => ({ id: x.c.id, monto: x.saldo })), desde: conSaldo.length > 0 ? dateStrInBusinessTz(conSaldo[0].c.inicio) : null };
 }
 

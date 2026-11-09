@@ -307,12 +307,12 @@ export interface AvisoStand {
   piezas: string[];
 }
 
-const metros = (n: number): string => String(Math.round(n * 100) / 100).replace(".", ",");
+const metros = (n: number): string => String(Math.round(n * 100) / 100).replace(".", ","); // no-es-plata: medidas en metros
 
 /** Qué parte del piso del lote tapan las piezas, en %. */
 export function ocupacionStand(d: Pick<DisenoStand, "ancho" | "fondo" | "piezas">): number {
   const ocupado = d.piezas.reduce((s, p) => s + PIEZAS[p.tipo].ancho * PIEZAS[p.tipo].fondo, 0);
-  return Math.round((ocupado / (d.ancho * d.fondo)) * 100);
+  return Math.round((ocupado / (d.ancho * d.fondo)) * 100); // no-es-plata: ocupación del piso en %
 }
 
 /** Controles que se pueden hacer sin un profesional: superposición, altura y espacio para circular. No reemplaza la validación técnica. */

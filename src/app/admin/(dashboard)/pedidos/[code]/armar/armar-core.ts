@@ -264,7 +264,7 @@ export function textoDifPlata(dif: number): string {
 
 /** «24 % más» / «10 % menos». */
 export function textoDelDesvio(desvio: number): string {
-  const pct = Math.round(Math.abs(desvio) * 100);
+  const pct = Math.round(Math.abs(desvio) * 100); // no-es-plata: desvío de peso en % entero
   return `${pct} % ${desvio > 0 ? "más" : "menos"}`;
 }
 

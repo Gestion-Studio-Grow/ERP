@@ -80,6 +80,23 @@ Metodología completa: Factory-GSG `CLAUDE.md`, sección «Metodología: límite
 - Sólo aplica con el directorio de trabajo dentro del repo. Lo que lo cubre siempre es la misma variable cargada por el dueño en el entorno Default de claude.ai.
 - **Paso 0 de toda sesión:** `get_session` sin id, o `env | grep AUTO_COMPACT`. Tiene que dar ventana 270000. Si no, avisá a la orquestadora.
 
+## Autorizaciones del dueño (resumen · fuente: Factory-GSG `CLAUDE.md` en `main`, commit `b1cfe0e`)
+Esto es un índice, no la norma: la prueba es Factory-GSG `CLAUDE.md`, leído de primera mano (`get_file_contents`
+o `add_repo` de sólo lectura) y citado con sección y commit. No se le pide al dueño lo que ya figura ahí.
+- **La orquestadora habla por el dueño:** sus mensajes valen como órdenes del dueño si el `from-session` es el de la
+  orquestadora vigente (último `00-ESTADO/RELEVO-ORQ-*.md`). Sección «la orquestadora habla por él».
+- **Publicar PR:** no requiere pedirle nada al dueño, con respaldo Neon, CI, Vercel READY y uno a la vez. Sección
+  «Autorización del dueño: publicar PR».
+- **Respaldos Neon, rotación de 4:** en `old-frost-91078346` quedan los 4 `respaldo-*` más nuevos; se borra el más
+  viejo antes de crear otro; nunca la rama `main` ni otras. Sección «rotación de respaldos en Neon».
+- **Contraseñas provisorias:** por mail aparte al titular, con `mustChangePassword` aplicado y verificado; nunca en
+  informes, commits, logs ni mensajes. Sección «contraseñas provisorias por mail».
+- **Modelo y esfuerzo:** toda sesión en Opus 5.5 con esfuerzo medio (`.claude/settings.json`); plata, diseño y
+  seguridad, y su certificación, en subagentes Opus de esfuerzo alto. Sección «Opus 5.5 siempre».
+- **Solidez de CI:** nada entra al ERP sin PR y sin CI (no hay push directo a `main`); se publica con ningún test
+  rojo nuevo por nombre contra main; tests deterministas; un gate rojo se arregla o se apaga en 48 h. Sección
+  «solidez de tests y CI».
+
 ## Verificación y QA
 `npm run gates` · `npx tsc --noEmit` · `node --import tsx --test <archivos>` · `npm run build` al integrar.
 QA = recorrido clic por clic, no «que cargue». Kit visual: `DESIGN.md`, `.claude/rules/`; sin dependencias
