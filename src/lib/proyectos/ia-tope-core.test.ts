@@ -6,8 +6,11 @@ import {
   gastoALiquidar,
   leerTopeUsd,
   MARGEN_TOKENS_ENTRADA,
+  MAX_TOKENS_POR_CAMPO,
   mesDeIA,
   precioDe,
+  precioMaximo,
+  PRECIOS_MICRO_USD_POR_MTOK,
   tokensEntradaMaximos,
   usd,
 } from "./ia-tope-core";
@@ -41,8 +44,48 @@ test("liquidación: real con usage, estimado si es incierto, 0 si la API rechaz�
   assert.equal(gastoALiquidar({ ...base, resultado: { tipo: "respuesta", uso: null } }), BigInt(999_999));
   assert.equal(gastoALiquidar({ ...base, resultado: { tipo: "incierto" } }), BigInt(999_999));
   assert.equal(gastoALiquidar({ ...base, resultado: { tipo: "rechazada" } }), BigInt(0));
-  // Respondió otro modelo sin precio: se cobra al precio del pedido.
-  assert.equal(gastoALiquidar({ ...base, resultado: { tipo: "respuesta", uso: { input_tokens: 1000, output_tokens: 1000 }, modelo: "otro" } }), BigInt(30_000));
+});
+
+test("liquidación (cert. T4 · 1): `usage` ilegible liquida el ESTIMADO, nunca 0", () => {
+  const base = { estimado: BigInt(999_999), modeloPedido: "claude-opus-5-5" };
+  const con = (uso: unknown) => gastoALiquidar({ ...base, resultado: { tipo: "respuesta", uso: uso as never, modelo: "claude-opus-5-5" } });
+  const malos: [string, unknown][] = [
+    ["vacío", {}],
+    ["sin salida", { input_tokens: 1000 }],
+    ["sin entrada", { output_tokens: 1000 }],
+    ["entrada negativa", { input_tokens: -100, output_tokens: 1000 }],
+    ["salida en texto", { input_tokens: 100, output_tokens: "999" }],
+    ["decimal", { input_tokens: 10.5, output_tokens: 10 }],
+    ["NaN", { input_tokens: Number.NaN, output_tokens: 10 }],
+    ["infinito", { input_tokens: Number.POSITIVE_INFINITY, output_tokens: 10 }],
+    ["null", { input_tokens: null, output_tokens: null }],
+    ["caché negativa", { input_tokens: 10, output_tokens: 10, cache_read_input_tokens: -1 }],
+    ["caché en texto", { input_tokens: 10, output_tokens: 10, cache_creation_input_tokens: "5" }],
+    ["no es objeto", "usage"],
+  ];
+  for (const [nombre, uso] of malos) assert.equal(con(uso), BigInt(999_999), nombre);
+  // Legible: ceros valen (una respuesta vacía de verdad no cuesta nada), y la caché ausente o null es 0.
+  assert.equal(con({ input_tokens: 0, output_tokens: 0 }), BigInt(0));
+  assert.equal(con({ input_tokens: 1000, output_tokens: 1000, cache_read_input_tokens: null }), BigInt(30_000));
+  // Gigante: se topea por campo, sin desbordar ni dar Infinity (1e300 es entero para JS).
+  const techo = con({ input_tokens: 1e300, output_tokens: Number.MAX_SAFE_INTEGER });
+  assert.equal(techo, costoMicroUsd("claude-opus-5-5", MAX_TOKENS_POR_CAMPO, MAX_TOKENS_POR_CAMPO));
+  assert.ok(techo > BigInt(999_999), "el techo cobra caro: a favor de no pasarse");
+});
+
+test("liquidación (cert. T4 · 2): si respondió un modelo sin precio (o no dijo cuál), se cobra el MÁXIMO de la tabla", () => {
+  const max = precioMaximo();
+  for (const p of Object.values(PRECIOS_MICRO_USD_POR_MTOK)) {
+    assert.ok(max.entrada >= p.entrada && max.salida >= p.salida);
+  }
+  const esperado = (BigInt(1000) * max.entrada + BigInt(1000) * max.salida + BigInt(999_999)) / BigInt(1_000_000);
+  const base = { estimado: BigInt(1), modeloPedido: "claude-opus-5-5" };
+  const uso = { input_tokens: 1000, output_tokens: 1000 };
+  assert.equal(gastoALiquidar({ ...base, resultado: { tipo: "respuesta", uso, modelo: "claude-otro-modelo-caro" } }), esperado);
+  assert.equal(gastoALiquidar({ ...base, resultado: { tipo: "respuesta", uso } }), esperado, "sin `model` en la respuesta");
+  assert.equal(gastoALiquidar({ ...base, resultado: { tipo: "respuesta", uso, modelo: 42 } }), esperado, "`model` que no es texto");
+  // El modelo que respondió, si tiene precio, manda (aunque el pedido fuera otro).
+  assert.equal(gastoALiquidar({ ...base, modeloPedido: "otro", resultado: { tipo: "respuesta", uso, modelo: "claude-opus-5-5" } }), BigInt(30_000));
 });
 
 test("mes de Buenos Aires: el borde de fin de mes es el de Argentina, no el de UTC", () => {

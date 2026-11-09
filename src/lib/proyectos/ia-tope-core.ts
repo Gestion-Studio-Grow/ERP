@@ -54,13 +54,44 @@ export interface UsoIA {
   cache_read_input_tokens?: unknown;
 }
 
-const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) && v > 0 ? v : 0);
+/**
+ * Techo por campo de `usage`: ningún pedido real llega a 10 millones de tokens. Un número más grande se
+ * cuenta como el techo (cobra caro, pero nunca desborda ni hace saltar la cuenta a `Infinity`).
+ */
+export const MAX_TOKENS_POR_CAMPO = 10_000_000;
+
+/** Entero finito ≥ 0, topeado. `undefined` si no lo es (negativo, decimal, texto, NaN, ausente). */
+function tokensLegibles(v: unknown): number | undefined {
+  if (typeof v !== "number" || !Number.isInteger(v) || v < 0) return undefined;
+  return Math.min(v, MAX_TOKENS_POR_CAMPO);
+}
+
+/** El precio más alto de la tabla, por separado en entrada y en salida (cota alta para un modelo sin precio). */
+export function precioMaximo(): { entrada: bigint; salida: bigint } {
+  let entrada = BigInt(0);
+  let salida = BigInt(0);
+  for (const p of Object.values(PRECIOS_MICRO_USD_POR_MTOK)) {
+    if (p.entrada > entrada) entrada = p.entrada;
+    if (p.salida > salida) salida = p.salida;
+  }
+  return { entrada, salida };
+}
+
+const costoConPrecio = (p: { entrada: bigint; salida: bigint }, entrada: number, salida: number): bigint =>
+  (BigInt(entrada) * p.entrada + BigInt(salida) * p.salida + TOKENS_POR_MTOK - BigInt(1)) / TOKENS_POR_MTOK;
 
 /**
  * Lo que se gasta al liquidar:
- * - con `usage` legible → el costo real (modelo de la respuesta si tiene precio; si no, el pedido);
- * - sin `usage` pero con la llamada que pudo haberse cobrado (2xx, o se cortó sin saber) → el estimado;
+ * - con `usage` legible (`input_tokens` y `output_tokens` enteros finitos ≥ 0; la caché, si viene, también)
+ *   → el costo real al precio del modelo QUE RESPONDIÓ; si ese modelo no está en la tabla (o no vino),
+ *   al precio MÁXIMO de la tabla (nunca de menos);
+ * - sin `usage` legible pero con la llamada que pudo haberse cobrado (2xx, o se cortó sin saber) → el estimado;
  * - la API dijo que no (4xx/5xx) → 0 (los errores no se cobran).
+ *
+ * DEUDA (cert. T4, BAJA): el gasto REAL puede pasar el tope. La reserva acota el pedido, pero si la API
+ * devuelve un `usage` mayor que lo reservado (p. ej. caché que se cuenta aparte, o un modelo más caro),
+ * se liquida lo real y el mes queda por encima del tope; la siguiente llamada ya no entra. Cerrarlo
+ * exigiría liquidar como mucho el estimado y perder la cuenta del exceso: se prefirió la cuenta fiel.
  */
 export function gastoALiquidar(x: {
   estimado: bigint;
@@ -68,12 +99,16 @@ export function gastoALiquidar(x: {
   resultado: { tipo: "respuesta"; uso: UsoIA | null; modelo?: unknown } | { tipo: "incierto" } | { tipo: "rechazada" };
 }): bigint {
   if (x.resultado.tipo === "rechazada") return BigInt(0);
-  if (x.resultado.tipo === "incierto" || !x.resultado.uso) return x.estimado;
+  if (x.resultado.tipo === "incierto" || !x.resultado.uso || typeof x.resultado.uso !== "object") return x.estimado;
   const u = x.resultado.uso;
-  const entrada = num(u.input_tokens) + num(u.cache_creation_input_tokens) + num(u.cache_read_input_tokens);
-  const salida = num(u.output_tokens);
-  const modelo = typeof x.resultado.modelo === "string" && precioDe(x.resultado.modelo) ? x.resultado.modelo : x.modeloPedido;
-  return costoMicroUsd(modelo, entrada, salida) ?? x.estimado;
+  const entradaBase = tokensLegibles(u.input_tokens);
+  const salida = tokensLegibles(u.output_tokens);
+  if (entradaBase === undefined || salida === undefined) return x.estimado;
+  const caches = [u.cache_creation_input_tokens, u.cache_read_input_tokens].map((v) => (v === undefined || v === null ? 0 : tokensLegibles(v)));
+  if (caches.some((c) => c === undefined)) return x.estimado;
+  const entrada = entradaBase + (caches[0] ?? 0) + (caches[1] ?? 0);
+  const precio = (typeof x.resultado.modelo === "string" && precioDe(x.resultado.modelo)) || precioMaximo();
+  return costoConPrecio(precio, entrada, salida);
 }
 
 /** "YYYY-MM" en hora de Buenos Aires (UTC-3, sin horario de verano). */

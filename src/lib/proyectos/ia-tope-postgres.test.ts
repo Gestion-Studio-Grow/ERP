@@ -3,7 +3,12 @@
 //
 // (a) tope 0 → niega sin llamar · (b) carrera: tope para 3 llamadas, 20 a la vez → exactamente 3, gasto ≤ tope
 // · (c) liquidar libera la diferencia · (d) sin tablas → paga negada, gratis sigue · (e) otro negocio no ve
-// ni consume el tope (RLS) · (f) borde de mes de Buenos Aires · (g) GSG (`tenantId` null) no toca las tablas.
+// ni consume el tope (RLS) · (f) borde de mes de Buenos Aires · (g) GSG (`tenantId` null) no toca las tablas
+// · (h) `usage` ilegible liquida el estimado · (i) sin respaldo de modelo en lo pago de un negocio; otro modelo
+// se liquida al máximo de la tabla · (j) `app_rls` no escribe ni borra `IaTope` ni borra `IaConsumo`.
+//
+// La consola (`OPERATOR_DATABASE_URL`) va con el rol DUEÑO: con `app_rls` no puede fijar el tope (la migración
+// le deja sólo SELECT). En producción hace falta un rol de consola con ese permiso: decisión del dueño.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -18,6 +23,7 @@ test("tope de IA: niega sin llamar, aguanta la carrera, libera al liquidar, fall
   prepararAccionesDeServidor();
   apuntarLaAppA(base);
   const env = process.env as Record<string, string | undefined>;
+  env.OPERATOR_DATABASE_URL = base.urlDuenio;
   const guardadas = Object.fromEntries(["ANTHROPIC_API_KEY", "CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_AI_TOKEN"].map((k) => [k, env[k]]));
   const fetchOriginal = globalThis.fetch;
   t.after(() => {
@@ -40,16 +46,20 @@ test("tope de IA: niega sin llamar, aguanta la carrera, libera al liquidar, fall
 
   // Espía: cuenta las llamadas a Anthropic y a Cloudflare. La respuesta paga trae `usage` igual al máximo
   // reservado (lo peor que puede pasar), así liquidar no libera nada y la carrera se mide limpia.
-  const { costoMicroUsd, tokensEntradaMaximos, mesDeIA, SIN_TOPE_CARGADO, IA_ESPERA_ACTUALIZACION } = await import("./ia-tope-core");
+  const { costoMicroUsd, tokensEntradaMaximos, mesDeIA, precioMaximo, SIN_TOPE_CARGADO, IA_ESPERA_ACTUALIZACION } = await import("./ia-tope-core");
   let pagas = 0;
   let gratuitas = 0;
+  let ultimoPago: { cuerpo: Record<string, unknown>; headers: Record<string, string> } | null = null;
+  let respuestaPaga: ((maximo: { input_tokens: number; output_tokens: number }) => Record<string, unknown>) | null = null;
   globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
     const u = String(url instanceof Request ? url.url : url);
     if (u === API) {
       pagas++;
       const cuerpo = JSON.parse(String(init?.body)) as { system: string; messages: { content: string }[]; max_tokens: number };
+      ultimoPago = { cuerpo, headers: { ...(init?.headers as Record<string, string>) } };
       await new Promise((ok) => setTimeout(ok, 30));
       const usage = { input_tokens: tokensEntradaMaximos({ sistema: cuerpo.system, mensajes: cuerpo.messages }), output_tokens: cuerpo.max_tokens };
+      if (respuestaPaga) return Response.json(respuestaPaga(usage));
       return Response.json({ model: "claude-opus-5-5", stop_reason: "end_turn", usage, content: [{ type: "text", text: "listo" }] });
     }
     if (u.startsWith("https://api.cloudflare.com/")) {
@@ -58,6 +68,7 @@ test("tope de IA: niega sin llamar, aguanta la carrera, libera al liquidar, fall
     }
     return fetchOriginal(url, init);
   }) as typeof fetch;
+  const espia = globalThis.fetch;
 
   const duenio = await prismaComoDuenio(base);
   const { a, b } = base;
@@ -86,6 +97,7 @@ test("tope de IA: niega sin llamar, aguanta la carrera, libera al liquidar, fall
   assert.equal((await ia.pedirAlModelo(pedido(null))).ok, true, "(g) el operador llama aunque nadie tenga tope");
   assert.equal(pagas, 1);
   assert.equal(await duenio.iaConsumo.count(), 0, "(g) el gasto de GSG no se anota a ningún negocio");
+  assert.equal(ultimoPago!.cuerpo.fallbacks, "default", "(i) el gasto de GSG sí usa el respaldo de modelo");
 
   // (a) Sin tope cargado (= 0): niega sin llamar.
   assert.deepEqual(await ia.pedirAlModelo(pedido(a.id)), { ok: false, error: SIN_TOPE_CARGADO });
@@ -177,6 +189,40 @@ test("tope de IA: niega sin llamar, aguanta la carrera, libera al liquidar, fall
   );
   assert.equal((await duenio.iaTope.findUnique({ where: { tenantId: a.id } }))?.topeMensualMicroUsd, topeA + estimado);
 
+  // (h) y (i) por la ruta real, en el mes en curso, con lugar de sobra.
+  globalThis.fetch = espia;
+  pago();
+  await tope.guardarTopeIA({ tenantId: a.id, topeMicroUsd: estimado * BigInt(100), operador: "qa" });
+  const gastadoAhora = async () => (await consumo(a.id, mesActual))!.gastadoMicroUsd;
+  const texto = { stop_reason: "end_turn", content: [{ type: "text", text: "listo" }] };
+  for (const [nombre, usage] of [
+    ["usage ausente", undefined],
+    ["usage vacío", {}],
+    ["negativo y en texto", { input_tokens: -100, output_tokens: "999" }],
+    ["decimal", { input_tokens: 10.5, output_tokens: 3 }],
+  ] as const) {
+    respuestaPaga = () => ({ model: "claude-opus-5-5", ...texto, ...(usage !== undefined && { usage }) });
+    const g0 = await gastadoAhora();
+    assert.equal((await ia.pedirAlModelo(pedido(a.id))).ok, true, nombre);
+    assert.equal((await gastadoAhora()) - g0, estimado, `(h) ${nombre}: se liquida el estimado, no 0`);
+  }
+  assert.equal(ultimoPago!.cuerpo.fallbacks, undefined, "(i) lo pago de un negocio sale sin respaldo de modelo");
+  assert.equal(ultimoPago!.headers["anthropic-beta"], undefined, "(i) ni con el beta del respaldo");
+  respuestaPaga = () => ({ model: "claude-otro-modelo-caro", ...texto, usage: { input_tokens: 10, output_tokens: 1000 } });
+  const g1 = await gastadoAhora();
+  assert.equal((await ia.pedirAlModelo(pedido(a.id))).ok, true);
+  const max = precioMaximo();
+  const alMaximo = (BigInt(10) * max.entrada + BigInt(1000) * max.salida + BigInt(999_999)) / BigInt(1_000_000);
+  assert.equal((await gastadoAhora()) - g1, alMaximo, "(i) otro modelo se liquida al máximo de la tabla");
+  // Saturada sin respaldo: 529 → el error de saturación, y no se cobra.
+  respuestaPaga = null;
+  globalThis.fetch = (async () => new Response("overloaded", { status: 529 })) as typeof fetch;
+  const g2 = await gastadoAhora();
+  assert.deepEqual(await ia.pedirAlModelo(pedido(a.id)), { ok: false, error: "La IA está saturada en este momento. Probá en unos minutos." });
+  assert.equal(await gastadoAhora(), g2, "(i) la saturación no se cobra");
+  assert.equal((await consumo(a.id, mesActual))!.reservadoMicroUsd, BigInt(0));
+  globalThis.fetch = espia;
+
   // Con el rol de la app y sin pasar por el código: las políticas aplican en las dos tablas.
   const pg = (await import("pg")).default;
   const verComo = async (tenantId: string, tabla: string) => {
@@ -197,4 +243,36 @@ test("tope de IA: niega sin llamar, aguanta la carrera, libera al liquidar, fall
   assert.equal(await verComo(b.id, "IaConsumo"), 0);
   assert.equal(await verComo(a.id, "IaTope"), 1);
   assert.equal(await verComo(b.id, "IaTope"), 0);
+
+  // (j) Parado en SU negocio, `app_rls` no sube su tope, no lo borra ni lo crea, y no borra su consumo.
+  // Cada intento en su propia transacción: el primer error aborta la que lo contiene.
+  const comoApp = async (tenantId: string, sql: string, params: unknown[] = []): Promise<{ filas: number } | { error: string }> => {
+    const c = new pg.Client({ connectionString: base.urlApp });
+    await c.connect();
+    try {
+      await c.query("BEGIN");
+      await c.query(`SET LOCAL ROLE ${ROL_APP}`);
+      await c.query("SELECT set_config('app.current_tenant_id', $1, true)", [tenantId]);
+      const r = await c.query(sql, params);
+      await c.query("COMMIT");
+      return { filas: r.rowCount ?? 0 };
+    } catch (e) {
+      await c.query("ROLLBACK").catch(() => {});
+      return { error: (e as Error).message };
+    } finally {
+      await c.end();
+    }
+  };
+  const negado = (r: { filas: number } | { error: string }, que: string) =>
+    assert.ok("error" in r ? /permission denied/i.test(r.error) : r.filas === 0, `(j) ${que}: ${JSON.stringify(r)}`);
+  negado(await comoApp(a.id, `UPDATE "IaTope" SET "topeMensualMicroUsd" = 999999999999 WHERE "tenantId" = $1`, [a.id]), "UPDATE IaTope");
+  negado(await comoApp(a.id, `DELETE FROM "IaTope" WHERE "tenantId" = $1`, [a.id]), "DELETE IaTope");
+  negado(await comoApp(b.id, `INSERT INTO "IaTope" ("tenantId", "topeMensualMicroUsd", "updatedAt") VALUES ($1, 999999999999, now())`, [b.id]), "INSERT IaTope");
+  negado(await comoApp(a.id, `DELETE FROM "IaConsumo" WHERE "tenantId" = $1`, [a.id]), "DELETE IaConsumo");
+  assert.equal((await duenio.iaTope.findUnique({ where: { tenantId: a.id } }))?.topeMensualMicroUsd, estimado * BigInt(100), "(j) el tope de A sigue igual");
+  assert.equal(await duenio.iaTope.findUnique({ where: { tenantId: b.id } }), null, "(j) B no se creó un tope");
+  assert.ok((await duenio.iaConsumo.count({ where: { tenantId: a.id } })) > 0, "(j) el consumo de A sigue");
+  // Lo que la app SÍ necesita sigue andando: leer el tope y escribir el consumo.
+  assert.deepEqual(await comoApp(a.id, `SELECT 1 FROM "IaTope" WHERE "tenantId" = $1`, [a.id]), { filas: 1 });
+  assert.ok("filas" in (await comoApp(a.id, `UPDATE "IaConsumo" SET "llamadas" = "llamadas" WHERE "tenantId" = $1`, [a.id])));
 });

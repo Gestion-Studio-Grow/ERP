@@ -61,3 +61,24 @@ DROP POLICY IF EXISTS tenant_isolation ON "IaConsumo";
 CREATE POLICY tenant_isolation ON "IaConsumo"
   USING ("tenantId" = current_setting('app.current_tenant_id', true))
   WITH CHECK ("tenantId" = current_setting('app.current_tenant_id', true));
+
+
+-- Permisos del rol de la app (`app_rls`), más chicos que los del ALTER DEFAULT PRIVILEGES de
+-- prisma/rls/0002_app_role.sql (que le da SELECT/INSERT/UPDATE/DELETE a toda tabla nueva):
+--   · "IaTope": sólo SELECT. El negocio lee su tope; no puede subírselo ni borrarlo, ni con un error
+--     del código. Lo escribe la consola (`guardarTopeIA`, conexión OPERATOR_DATABASE_URL).
+--   · "IaConsumo": SELECT, INSERT, UPDATE (reservar, liquidar, contar). Sin DELETE: el negocio no
+--     puede borrar lo que gastó.
+-- ⚠ Gate del dueño: si OPERATOR_DATABASE_URL también conecta como `app_rls`, la consola NO puede fijar
+-- topes (falla cerrado: «no tiene permiso», la IA paga sigue negada). Antes de usar la IA paga, la consola
+-- necesita un rol propio con SELECT, INSERT, UPDATE sobre "IaTope" (y sin BYPASSRLS).
+-- 0002 re-otorga todo si se lo vuelve a correr: por eso repite este mismo recorte al final.
+-- Guardado por la existencia del rol: en una base sin `app_rls` (local, primera corrida) no hace nada.
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_rls') THEN
+    REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON "IaTope" FROM app_rls;
+    GRANT SELECT ON "IaTope" TO app_rls;
+    REVOKE DELETE, TRUNCATE ON "IaConsumo" FROM app_rls;
+    GRANT SELECT, INSERT, UPDATE ON "IaConsumo" TO app_rls;
+  END IF;
+END $$;

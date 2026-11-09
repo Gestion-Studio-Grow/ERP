@@ -106,15 +106,19 @@ export async function pedirAlModelo(p: PedidoIA): Promise<RespuestaIA> {
 }
 
 async function llamarPago(clave: string, p: PedidoIA, maxTokens: number): Promise<{ respuesta: RespuestaIA; resultado: ResultadoPago }> {
+  // El respaldo de la API (responde OTRO modelo si éste está saturado) sólo en el gasto de GSG (`tenantId`
+  // null). Con un negocio, la reserva se calculó al precio de MODELO: sin respaldo, una saturación vuelve
+  // como 529 («La IA está saturada») y no se cobra; un modelo distinto no se cuela al tope del negocio.
+  const conRespaldo = p.tenantId === null;
   let r: Response;
   try {
     r = await fetch(API, {
       method: "POST",
-      headers: { "content-type": "application/json", "x-api-key": clave, "anthropic-version": VERSION_API, "anthropic-beta": FALLBACK },
+      headers: { "content-type": "application/json", "x-api-key": clave, "anthropic-version": VERSION_API, ...(conRespaldo && { "anthropic-beta": FALLBACK }) },
       body: JSON.stringify({
         model: MODELO,
         max_tokens: maxTokens,
-        fallbacks: "default",
+        ...(conRespaldo && { fallbacks: "default" }),
         system: p.sistema,
         messages: p.mensajes,
         output_config: { effort: p.esfuerzo ?? "low", ...(p.esquema && { format: { type: "json_schema", schema: p.esquema } }) },
