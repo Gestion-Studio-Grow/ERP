@@ -67,3 +67,63 @@ export async function papelMiaDelProyecto(a: Actor, proyectoId: string, versionI
   const [tc, config] = await Promise.all([tiposDeCambio(a.tenantId), configProyectos(a.tenantId)]);
   return { proyecto: p, version: version.version, condiciones: version.condiciones, papel: papelParaMia(version.items, tc, config.margenPct, version.ivaPct) };
 }
+
+// ── Horas y valor hora (T3) ────────────────────────────────────────────────
+
+export interface PersonaTaller {
+  id: string;
+  nombre: string;
+}
+
+/** Las personas activas del negocio (ProyectoPersona), siempre filtradas por tenant. */
+export async function personasDelTaller(tenantId: string): Promise<PersonaTaller[]> {
+  return prisma.proyectoPersona.findMany({ where: { tenantId, activa: true }, orderBy: { nombre: "asc" }, select: { id: true, nombre: true } });
+}
+
+export interface ValorHoraFila {
+  id: string;
+  personaId: string;
+  valorHora: number;
+  vigenteDesde: Date;
+}
+
+export async function valoresHoraDelTaller(tenantId: string): Promise<{ sinMigrar: boolean; valores: ValorHoraFila[] }> {
+  try {
+    const valores = await prisma.tallerValorHora.findMany({ where: { tenantId }, orderBy: { vigenteDesde: "desc" }, select: { id: true, personaId: true, valorHora: true, vigenteDesde: true } });
+    return { sinMigrar: false, valores };
+  } catch (e) {
+    if (faltaLaTabla(e)) return { sinMigrar: true, valores: [] };
+    throw e;
+  }
+}
+
+export interface HoraFila {
+  id: string;
+  personaId: string;
+  persona: string;
+  fecha: Date;
+  horas: number;
+  valorHoraSnap: number;
+  nota: string | null;
+}
+
+export async function horasDelProyecto(tenantId: string, proyectoId: string): Promise<{ sinMigrar: boolean; cargas: HoraFila[]; horasStd: { cantidad: number; horasStd: number }[] }> {
+  try {
+    const [filas, despiece] = await Promise.all([
+      prisma.tallerHora.findMany({
+        where: { tenantId, proyectoId },
+        orderBy: [{ fecha: "desc" }, { createdAt: "desc" }],
+        select: { id: true, personaId: true, fecha: true, horas: true, valorHoraSnap: true, nota: true, persona: { select: { nombre: true } } },
+      }),
+      prisma.tallerDespiece.findMany({ where: { tenantId, proyectoId }, select: { cantidad: true, pieza: { select: { horasStd: true } } } }),
+    ]);
+    return {
+      sinMigrar: false,
+      cargas: filas.map((f) => ({ id: f.id, personaId: f.personaId, persona: f.persona.nombre, fecha: f.fecha, horas: f.horas, valorHoraSnap: f.valorHoraSnap, nota: f.nota })),
+      horasStd: despiece.map((d) => ({ cantidad: d.cantidad, horasStd: d.pieza.horasStd })),
+    };
+  } catch (e) {
+    if (faltaLaTabla(e)) return { sinMigrar: true, cargas: [], horasStd: [] };
+    throw e;
+  }
+}
