@@ -191,3 +191,22 @@ export const esFacturaViva = (status: string | null | undefined): boolean => !!s
 export const SIN_COLUMNA_CUOTA = "La facturación de cuotas espera su migración: avisale a soporte de Gestión Studio Grow.";
 export const SIN_ARCA = "Tu negocio no tiene la facturación electrónica (ARCA) activada.";
 export const FACTURACION_APAGADA = "La facturación electrónica está apagada en este entorno.";
+/**
+ * Certificación T2 · vuelta 1 (ALTA): el negocio también factura desde el extracto del banco (módulo
+ * `bancos`, o ya tiene movimientos importados). Esas propuestas se emiten SIN origen y no saben de
+ * las cuotas: el mismo cobro saldría con dos CAE. Hasta atarlas, la cuota no se factura por acá.
+ */
+export const CON_BANCOS =
+  "Tu negocio también factura desde el extracto del banco: para no hacer dos facturas del mismo cobro, las cuotas de proyecto se facturan desde Facturación.";
+
+/**
+ * Certificación T2 · vuelta 1 (BAJA): el presupuesto suma IVA pero el negocio factura C
+ * (monotributo o exento). La factura sale bien —por lo que paga el cliente, sin IVA discriminado—,
+ * pero el precio lleva un IVA que el negocio no cobra. `null` si no hay nada que avisar.
+ */
+export function avisoIvaEnFacturaC(condicionIva: string | null | undefined, ivaPct: number | null | undefined): string | null {
+  if (!condicionIva || condicionIva === "RESPONSABLE_INSCRIPTO") return null;
+  if (typeof ivaPct !== "number" || !Number.isFinite(ivaPct) || ivaPct <= 0) return null;
+  const quien = condicionIva === "MONOTRIBUTO" ? "es monotributista" : "es exento de IVA";
+  return `El presupuesto suma IVA (${ivaPct} %), pero tu negocio ${quien} y factura C: la factura sale por el total de la cuota, sin IVA discriminado. Si ese IVA no corresponde, sacalo del presupuesto antes de facturar.`;
+}

@@ -661,6 +661,12 @@ export interface ResultadoEmision {
   despachoArca?: DispatchResumen;
 }
 
+// Cuotas de proyecto (Etapa 2 · T2, certificación vuelta 1): un movimiento del extracto NO tiene
+// vínculo con `ProyectoCuota` (la conciliación de Proyectos vive en `ProyectoMovBanco`, otra tabla
+// con su propio extracto), así que acá no se puede excluir barato el cobro de una cuota ya
+// facturada. La guarda está del otro lado: `facturarCuotaDelProyecto` se niega si el negocio tiene
+// `bancos` o movimientos importados. DEUDA: si un negocio factura cuotas y DESPUÉS activa `bancos`,
+// la transferencia de esa cuota puede volver a proponerse; atarlo pide un vínculo movimiento→cuota.
 /**
  * Emite las propuestas `auto` de UN tenant, con tenantId EXPLÍCITO. Es el core de
  * `emitirPropuestasAction` (mismo claim idempotente auto→emitida, mismo cap del

@@ -9,7 +9,9 @@
 //  (e) regenerar las cuotas después de facturar no toca la cuota facturada (ni la anula); quitar y
 //      escribir el texto `factura` se niegan.
 //  (f) otro negocio no ve ni factura la cuota (RLS + acción).
-//  (d) sin la columna (migración sin aplicar) → se niega sin escribir. VA ÚLTIMO: borra la columna.
+//  (g) con `bancos` o un extracto importado → se niega sin escribir (doble CAE desde el extracto).
+//  (h) 15 iteraciones: «Facturar» y regenerar a la vez → el plan vivo suma el total del presupuesto.
+//  (d) sin la columna (migración sin aplicar) → se niega sin escribir y `getInvoice` lee. VA ÚLTIMO: borra la columna.
 // ============================================================================
 
 import { test } from "node:test";
@@ -108,7 +110,7 @@ async function preparar(t: import("node:test").TestContext) {
     (await duenio.outboxEvent.findMany({ where: { type: "InvoiceCreated" }, orderBy: { createdAt: "asc" } })).filter((e) => (e.payload as { invoiceId?: string }).invoiceId === invoiceId);
   const pendientes = () => duenio.outboxEvent.count({ where: { processedAt: null, type: "InvoiceCreated" } });
 
-  return { base, duenio, acciones, empresa, srv, dispatch, simDeps, depsConSim, pasoLaEspera, proyecto, cuota, form, accion, facturasDe, enviosDe, pendientes };
+  return { base, duenio, acciones, empresa, srv, invoiceCore, dispatch, simDeps, depsConSim, pasoLaEspera, proyecto, cuota, form, accion, facturasDe, enviosDe, pendientes };
 }
 
 test("(a) 20 de 20: cinco «Facturar» a la vez de la misma cuota → 1 factura, 1 envío, el mismo id", async (t) => {
@@ -265,11 +267,73 @@ test("(f) otro negocio no ve ni factura la cuota de A (RLS y acción)", async (t
   assert.equal((await p.facturasDe(id)).length, 1);
 });
 
+test("(g) con `bancos` (o un extracto importado) la cuota no se factura: se niega sin escribir", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const a = p.base.a.id;
+  const pr = await p.proyecto();
+  const id = await p.cuota(pr.id);
+  const sinEscribir = async (r: { ok: boolean; error?: string }) => {
+    assert.equal(r.ok, false);
+    assert.match(r.error ?? "", /extracto del banco/);
+    assert.equal((await p.facturasDe(id)).length, 0);
+    assert.equal(await p.duenio.proyectoCambio.count({ where: { entidadId: id } }), 0);
+  };
+  const { modules } = await p.duenio.tenant.findUniqueOrThrow({ where: { id: a }, select: { modules: true } });
+  try {
+    await p.duenio.tenant.update({ where: { id: a }, data: { modules: [...modules, "bancos"] } });
+    await sinEscribir(await p.accion(() => p.acciones.facturarCuota(p.form({ id, proyectoId: pr.id }))));
+    await sinEscribir(await p.srv.facturarCuotaDelProyecto({ tenantId: a, proyectoId: pr.id, cuotaId: id, autor: "test" }, p.depsConSim));
+  } finally {
+    await p.duenio.tenant.update({ where: { id: a }, data: { modules } });
+  }
+  // Sin el módulo pero con un extracto ya importado (registro de módulos apagado: la pantalla está abierta).
+  const imp = await p.duenio.importacionBancaria.create({ data: { tenantId: a, nombreArchivo: "extracto.csv", origen: "banco", archivo: Buffer.from("x"), mapeoJson: {} }, select: { id: true } });
+  try {
+    await p.duenio.movimientoImportado.create({ data: { tenantId: a, importacionId: imp.id, hash: `h-${id}`, fecha: "20261109", monto: 1210, descripcion: "Transferencia", clasificacion: "venta", estadoPropuesta: "auto" } });
+    await sinEscribir(await p.srv.facturarCuotaDelProyecto({ tenantId: a, proyectoId: pr.id, cuotaId: id, autor: "test" }, p.depsConSim));
+  } finally {
+    await p.duenio.importacionBancaria.delete({ where: { id: imp.id } });
+  }
+  // Sin ninguna de las dos, factura.
+  assert.ok((await p.srv.facturarCuotaDelProyecto({ tenantId: a, proyectoId: pr.id, cuotaId: id, autor: "test" }, p.depsConSim)).ok);
+});
+
+test("(h) 15 de 15: «Facturar» y regenerar con el precio cambiado a la vez → el plan vivo suma el total del presupuesto", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const b = p.base.b;
+  const malas: unknown[] = [];
+  for (let i = 0; i < 15; i++) {
+    const pr = await p.proyecto(b.id, b.clientes[0]);
+    assert.deepEqual(await p.accion((): ReturnType<typeof p.acciones.recalcularCuotas> => p.acciones.recalcularCuotas(p.form({ proyectoId: pr.id })), b), { ok: true });
+    const auto = await p.duenio.proyectoCuota.findMany({ where: { proyectoId: pr.id, auto: true, tipo: "COBRO", anuladoEl: null } });
+    const ant = auto.find((c) => c.clave?.endsWith(":anticipo"));
+    if (!ant) throw new Error(`sin anticipo: ${JSON.stringify(auto)}`);
+    await p.duenio.proyectoItem.updateMany({ where: { presupuestoId: pr.presupuestoId }, data: { precio: 3000 + i } });
+    const [f, r] = await Promise.all([
+      p.accion((): ReturnType<typeof p.acciones.facturarCuota> => p.acciones.facturarCuota(p.form({ id: ant.id, proyectoId: pr.id })), b),
+      p.accion((): ReturnType<typeof p.acciones.recalcularCuotas> => p.acciones.recalcularCuotas(p.form({ proyectoId: pr.id })), b),
+    ]);
+    const c = await p.duenio.proyectoCuota.findUniqueOrThrow({ where: { id: ant.id } });
+    const vivasF = (await p.facturasDe(ant.id)).filter((x) => x.status === "PENDING" || x.status === "AUTHORIZED");
+    const vivas = await p.duenio.proyectoCuota.findMany({ where: { proyectoId: pr.id, tipo: "COBRO", anuladoEl: null } });
+    const total = Math.round(vivas.reduce((s, x) => s + x.monto, 0) * 100);
+    const esperado = Math.round((3000 + i) * 1.21 * 100);
+    if (vivasF.length > 0 && (c.anuladoEl || Math.round(vivasF[0].total.toNumber() * 100) !== Math.round(c.monto * 100))) malas.push({ i, kind: "factura!=cuota", f, r });
+    if (total !== esperado) malas.push({ i, kind: "plan!=total", total, esperado, facturo: f.ok });
+  }
+  assert.deepEqual(malas, []);
+});
+
 test("(d) sin la columna (migración sin aplicar): se niega sin escribir, regenerar y quitar siguen andando", async (t) => {
   const p = await preparar(t);
   if (!p) return;
   const pr = await p.proyecto();
   const id = await p.cuota(pr.id);
+  // Una factura de cuota hecha ANTES de quitar la columna: `getInvoice` (sin select) la tiene que poder leer después.
+  const previa = await p.srv.facturarCuotaDelProyecto({ tenantId: p.base.a.id, proyectoId: pr.id, cuotaId: await p.cuota(pr.id, { concepto: "Previa" }), autor: "test" }, p.depsConSim);
+  assert.ok(previa.ok, JSON.stringify(previa));
   // Sólo en ESTA base efímera: como Neon antes de aplicar 20261110120000.
   await p.duenio.$executeRawUnsafe(`ALTER TABLE "Invoice" DROP COLUMN "proyectoCuotaId"`);
   p.srv.olvidarColumnaCuotaParaTests();
@@ -285,4 +349,8 @@ test("(d) sin la columna (migración sin aplicar): se niega sin escribir, regene
   // Lo de siempre no se rompe: recalcular y quitar un movimiento.
   assert.deepEqual(await p.accion(() => p.acciones.recalcularCuotas(p.form({ proyectoId: pr.id }))), { ok: true });
   assert.deepEqual(await p.accion(() => p.acciones.quitarMovimiento(p.form({ id, proyectoId: pr.id }))), { ok: true });
+  // `getInvoice` no pide la columna que falta.
+  const { runInTenantContext } = await import("@/lib/tenant-context");
+  const leida = await runInTenantContext(p.base.a.id, () => p.invoiceCore.getInvoice(previa.invoiceId, p.base.a.id));
+  assert.equal(leida?.id, previa.invoiceId);
 });

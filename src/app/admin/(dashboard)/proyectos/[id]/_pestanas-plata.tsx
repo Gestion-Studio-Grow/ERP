@@ -445,6 +445,7 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
             <SubmitButton className={buttonClasses("solid", "md")}>Registrar cobro</SubmitButton>
           </form>
         )}
+        {d.avisoIva && <p role="status" className="mt-2 rounded-lg border border-warning bg-warning-soft px-3 py-2 text-sm text-strong">{d.avisoIva}</p>}
         <p className="mt-2 text-sm text-muted">Cada cobro entra al libro de caja. {d.facturaCuotas ? "La factura de cada cuota se pide a ARCA con «Facturar», en la tabla de arriba." : "La factura se emite desde Facturación."}</p>
       </section>
     </div>

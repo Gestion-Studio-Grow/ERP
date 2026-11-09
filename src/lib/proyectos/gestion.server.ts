@@ -265,6 +265,20 @@ export async function regenerarCuotas(tenantId: string, proyectoId: string): Pro
           anticipoProveedor: Object.fromEntries(fichas.map((f) => [f.supplierId, f.anticipoPct])),
         })
       : [];
+  const prevista = cuotaPrevista(p.etapa, p.fechaEvento);
+  // Certificación T2 · vuelta 1: las facturas se leen ANTES de recorrer el plan. Si en el medio se
+  // confirma un «Facturar», el candado lo detecta (`"facturada"`) y el plan se recalcula con esa
+  // cuota congelada; si no, el saldo quedaba calculado contra el monto viejo y el plan, corto.
+  for (let vuelta = 0; vuelta < 3; vuelta++) {
+    if (!(await aplicarPlan(tenantId, proyectoId, planDeLaFicha, prevista))) return;
+  }
+}
+
+/**
+ * Una pasada de `regenerarCuotas`: lee las cuotas y sus facturas, ajusta el plan y lo escribe.
+ * Devuelve `true` si una cuota se facturó mientras tanto (el plan quedó calculado con lo viejo).
+ */
+async function aplicarPlan(tenantId: string, proyectoId: string, planDeLaFicha: ReturnType<typeof planDeCuotas>, prevista: boolean): Promise<boolean> {
   const actuales = await prisma.proyectoCuota.findMany({ where: { tenantId, proyectoId, auto: true }, select: { id: true, clave: true, monto: true, pagadoEl: true, anuladoEl: true, venceEl: true, venceManual: true, prevista: true } });
   // Etapa 2 · T2: una cuota con factura viva (pedida o autorizada en ARCA) queda congelada como si
   // estuviera pagada: no se le cambia el monto, ni se anula, y el resto del plan se ajusta a ella.
@@ -272,20 +286,21 @@ export async function regenerarCuotas(tenantId: string, proyectoId: string): Pro
   const facturada = (id: string) => esFacturaViva(facturas.get(id)?.status);
   const congelada = (c: { id: string; pagadoEl: Date | null; anuladoEl: Date | null }) => (!!c.pagadoEl || facturada(c.id)) && !c.anuladoEl;
   const plan = ajustarAPagado(planDeLaFicha, actuales.filter(congelada).map((c) => ({ clave: c.clave ?? "", monto: c.monto })));
-  const prevista = cuotaPrevista(p.etapa, p.fechaEvento);
   const porClave = new Map(actuales.map((c) => [c.clave, c]));
   const vigentes = new Set(plan.map((c) => c.clave));
   const hoy = new Date();
+  let choco = false;
   for (const c of plan) {
     const previa = porClave.get(c.clave);
     if (previa?.pagadoEl || (previa && facturada(previa.id))) continue;
     const datos = { prevista, tipo: c.tipo, concepto: c.concepto, monto: c.monto, moneda: c.moneda, venceEl: venceDeLaCuota({ clave: c.clave, plan: c.venceEl, prevista, hoy, previa }), supplierId: c.supplierId, anuladoEl: null };
     // Con el candado de la facturación: si se facturó recién (después de leer las facturas), no se toca.
-    if (previa) await conCuotaSinFacturaViva(tenantId, previa.id, (tx) => tx.proyectoCuota.update({ where: { id: previa.id }, data: datos }));
+    if (previa) choco = (await conCuotaSinFacturaViva(tenantId, previa.id, (tx) => tx.proyectoCuota.update({ where: { id: previa.id }, data: datos }))) === "facturada" || choco;
     else await prisma.proyectoCuota.create({ data: { ...datos, tenantId, proyectoId, auto: true, clave: c.clave } });
   }
   const sobran = actuales.filter((c) => c.clave && !vigentes.has(c.clave) && !c.pagadoEl && !c.anuladoEl && !facturada(c.id)).map((c) => c.id);
   for (const id of sobran) {
-    await conCuotaSinFacturaViva(tenantId, id, (tx) => tx.proyectoCuota.updateMany({ where: { tenantId, id, pagadoEl: null, anuladoEl: null }, data: { anuladoEl: new Date() } }));
+    choco = (await conCuotaSinFacturaViva(tenantId, id, (tx) => tx.proyectoCuota.updateMany({ where: { tenantId, id, pagadoEl: null, anuladoEl: null }, data: { anuladoEl: new Date() } }))) === "facturada" || choco;
   }
+  return choco;
 }

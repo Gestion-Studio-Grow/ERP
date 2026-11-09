@@ -6,6 +6,8 @@
 // `proyectos-facturacion`, etapa2-core.ts) y el módulo `arca` explícito en el negocio, más el flag
 // maestro `isInvoicingEnabled()` y la columna `Invoice.proyectoCuotaId` (migración
 // 20261110120000_invoice_proyecto_cuota, Gate 2). Sin cualquiera de las cuatro, no se escribe nada.
+// Y una quinta que cierra al revés: el negocio NO factura desde el extracto del banco (módulo
+// `bancos` o movimientos importados), porque esas propuestas salen sin origen y duplicarían el CAE.
 //
 // Concurrencia (lo que se certifica):
 //  · La cuota se toma FOR UPDATE dentro de `tenantTransaction` y se re-verifica (monto, moneda,
@@ -33,6 +35,7 @@ import { etapa2Activa, MENSAJE_APAGADO } from "./etapa2-core";
 import {
   armarFacturaDeCuota,
   motivoParaNoFacturar,
+  CON_BANCOS,
   FACTURACION_APAGADA,
   SIN_ARCA,
   SIN_COLUMNA_CUOTA,
@@ -166,9 +169,23 @@ export async function motivoParaNoFacturarCuotas(tenantId: string, deps: Pick<De
   }
   if (!etapa2Activa(modulos, "facturacion-proyectos")) return MENSAJE_APAGADO["facturacion-proyectos"];
   if (!modulos.includes("arca")) return SIN_ARCA;
+  // Doble factura desde el extracto (certificación T2, vuelta 1): las propuestas de `bancos` se
+  // emiten sin origen y no ven las cuotas. Con el módulo, o con movimientos ya importados (con el
+  // registro de módulos apagado la pantalla de bancos está abierta a todos), se niega. Falla cerrado.
+  if (modulos.includes("bancos") || (await usaElExtractoDelBanco(tenantId))) return CON_BANCOS;
   if (!deps.isInvoicingEnabled()) return FACTURACION_APAGADA;
   if (!(await hayColumnaCuotaEnInvoice())) return SIN_COLUMNA_CUOTA;
   return null;
+}
+
+/** ¿El negocio importó algún extracto (MovimientoImportado)? Sin poder preguntar: `true` (falla cerrado). */
+async function usaElExtractoDelBanco(tenantId: string): Promise<boolean> {
+  try {
+    const mov = await tenantTransaction((tx) => tx.movimientoImportado.findFirst({ where: { tenantId }, select: { id: true } }), { tenantId });
+    return !!mov;
+  } catch {
+    return true;
+  }
 }
 
 /**

@@ -123,3 +123,13 @@ test("factura viva: PENDING y AUTHORIZED; la rechazada no congela", () => {
   assert.equal(esFacturaViva("REJECTED"), false);
   assert.equal(esFacturaViva(undefined), false);
 });
+
+test("aviso: presupuesto con IVA y negocio que factura C", async () => {
+  const { avisoIvaEnFacturaC } = await import("./facturar-cuota-core");
+  assert.match(avisoIvaEnFacturaC("MONOTRIBUTO", 21) ?? "", /monotributista y factura C/);
+  assert.match(avisoIvaEnFacturaC("EXENTO", 10.5) ?? "", /exento de IVA/);
+  assert.equal(avisoIvaEnFacturaC("MONOTRIBUTO", 0), null);
+  assert.equal(avisoIvaEnFacturaC("MONOTRIBUTO", null), null);
+  assert.equal(avisoIvaEnFacturaC("RESPONSABLE_INSCRIPTO", 21), null);
+  assert.equal(avisoIvaEnFacturaC(null, 21), null);
+});

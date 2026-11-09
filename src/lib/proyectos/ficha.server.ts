@@ -11,6 +11,7 @@ import { aPesos, COLUMNAS_FICHA, cashflowDelEvento, codigoProyecto, resumenCuota
 import { columnasOcultas, filtroDeProyectos, puede, tiposDeCambio, versionViva, aItemFicha, type Actor } from "./gestion.server";
 import { configProyectos, datosDelNegocio } from "./datos.server";
 import { facturasDeCuotas, motivoParaNoFacturarCuotas, type FacturaDeCuotaVista } from "./facturar-cuota.server";
+import { avisoIvaEnFacturaC } from "./facturar-cuota-core";
 import { desvioPorRubro, fechaCorta, fechaParaInput, redondear, resultadoReal, totales } from "./core";
 import { cambioDeVenta, costoSinProveedor, enMonedaDeVenta, ventaEn } from "./gestion-core";
 import { cambioVisible, columnaDe, filaDeFicha, iniciales, monedasSinCambio, planillaDeVenta } from "./ficha-core";
@@ -165,6 +166,15 @@ export async function datosCotizacion(a: Actor, proyectoId: string) {
   });
 }
 
+/** Aviso de IVA para facturar cuotas: condición del negocio + `ivaPct` del presupuesto vivo. */
+async function avisoIvaDeLaFactura(tenantId: string, proyectoId: string): Promise<string | null> {
+  const [negocio, viva] = await Promise.all([
+    prisma.tenant.findUnique({ where: { id: tenantId }, select: { arcaCondicionIva: true } }),
+    prisma.proyectoPresupuesto.findFirst({ where: { tenantId, proyectoId }, orderBy: { version: "desc" }, select: { ivaPct: true } }),
+  ]);
+  return avisoIvaEnFacturaC(negocio?.arcaCondicionIva, viva?.ivaPct);
+}
+
 export async function datosFinanzas(a: Actor, cab: Cabecera, vista: Vista) {
   const proyectoId = cab.proyecto.id;
   const { tenantId } = a;
@@ -186,9 +196,12 @@ export async function datosFinanzas(a: Actor, cab: Cabecera, vista: Vista) {
   // Etapa 2 · T2: la factura de ARCA de cada cobro, si el negocio factura cuotas (las cuatro llaves).
   const facturaCuotas = (await motivoParaNoFacturarCuotas(tenantId)) === null;
   const facturas = facturaCuotas ? await facturasDeCuotas(tenantId, visibles.filter((c) => c.tipo === "COBRO").map((c) => c.id)) : new Map<string, FacturaDeCuotaVista>();
+  // El presupuesto vivo (de donde salen las cuotas) suma IVA y el negocio factura C: se avisa.
+  const avisoIva = facturaCuotas ? await avisoIvaDeLaFactura(tenantId, proyectoId) : null;
   return {
     facturaCuotas,
     facturas,
+    avisoIva,
     cuotas: visibles,
     flujo,
     resumen: resumenCuotas(visibles, cab.tc),

@@ -868,7 +868,11 @@ export async function crearNotaDeCredito(input: NotaDeCreditoInput): Promise<Res
 
 const pesosAR = (n: number) => `$${n.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-/** Consulta una factura del tenant. */
+/**
+ * Consulta una factura del tenant. Sin `proyectoCuotaId` (`omit`): esa columna llega con la migración
+ * 20261110120000 (Gate 2) y, mientras no esté aplicada, pedirla rompe la consulta (certificación T2,
+ * vuelta 1). La cuota de una factura se lee aparte (`facturasDeCuotas`, que pregunta antes al catálogo).
+ */
 export async function getInvoice(id: string, tenantId: string) {
-  return prisma.invoice.findFirst({ where: { id, tenantId } });
+  return prisma.invoice.findFirst({ where: { id, tenantId }, omit: { proyectoCuotaId: true } });
 }
