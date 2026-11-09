@@ -272,6 +272,7 @@ model Tenant {
   tallerDespieces           TallerDespiece[]
   tallerValoresHora         TallerValorHora[]
   tallerHoras               TallerHora[]
+  tallerPedidos             TallerPedido[]
   consultas                 Consulta[]
   consultaMensajes          ConsultaMensaje[]
   voucherLotes              VoucherLote[]
@@ -1973,11 +1974,13 @@ model Supplier {
   itemsDeProyecto  ProyectoItem[]
   cuotasDeProyecto ProyectoCuota[]
   fichaDeProyecto  ProyectoProveedorFicha?
+  tallerPedidos    TallerPedido[] // taller de stands T4: pedidos de materiales
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([tenantId, taxId]) // un CUIT único por tenant (NULLs no colisionan)
+  @@unique([id, tenantId]) // taller T4: destino de la FK compuesta del pedido de materiales
   @@index([tenantId])
 }
 
@@ -3557,6 +3560,7 @@ model Proyecto {
   stands              ProyectoStand[]
   despiece            TallerDespiece[]
   tallerHoras         TallerHora[]
+  tallerPedidos       TallerPedido[]
   consultas           Consulta[]
   entregables         ProyectoEntregable[]
   cuotas              ProyectoCuota[]
@@ -3693,6 +3697,7 @@ model ProyectoGasto {
   cargadoPor  String?
   asientos    CashMovement[]
   rendiciones ProyectoRendicion[]
+  tallerPedidos TallerPedido[] // taller T4: el pedido que lo generó (gastoId es único: a lo sumo uno)
   createdAt   DateTime            @default(now())
 
   @@unique([id, tenantId]) // Rendí: destino de FKs compuestas (id, tenantId)
@@ -3857,6 +3862,37 @@ model TallerHora {
   @@unique([tenantId, envioId])
   @@index([tenantId, proyectoId])
   @@index([tenantId, personaId])
+}
+
+/// Taller de stands T4: pedido de materiales a un proveedor para un stand (= Proyecto). PEDIDO → RECIBIDO | ANULADO.
+/// Al recibirlo se crea UN `ProyectoGasto` rubro «Materiales» (impago) y queda en `gastoId` (único: un gasto por pedido).
+model TallerPedido {
+  id              String         @id @default(cuid())
+  tenant          Tenant         @relation(fields: [tenantId], references: [id])
+  tenantId        String
+  // FKs compuestas (x, tenantId): la base rechaza proyecto, proveedor o gasto de otro negocio.
+  proyecto        Proyecto       @relation(fields: [proyectoId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  proyectoId      String
+  supplier        Supplier?      @relation(fields: [supplierId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  supplierId      String?
+  proveedorNombre String
+  descripcion     String
+  estado          String         @default("PEDIDO") // PEDIDO · RECIBIDO · ANULADO
+  total           Float // neto, sin IVA
+  iva             Float          @default(0)
+  pedidoEl        DateTime       @default(now())
+  recibidoEl      DateTime?
+  gasto           ProyectoGasto? @relation(fields: [gastoId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  gastoId         String?        @unique
+  anuladoEl       DateTime?
+  cargadoPor      String?
+  /// Token del formulario: el doble clic manda el mismo y la base deja un solo pedido.
+  envioId         String?
+  createdAt       DateTime       @default(now())
+
+  @@unique([id, tenantId])
+  @@unique([tenantId, envioId])
+  @@index([tenantId, proyectoId])
 }
 
 /// Consulta de un potencial cliente que llegó por el formulario del sitio, mail, WhatsApp o se cargó a mano. Es el lead antes de ser proyecto.

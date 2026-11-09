@@ -127,3 +127,30 @@ export async function horasDelProyecto(tenantId: string, proyectoId: string): Pr
     throw e;
   }
 }
+
+export interface PedidoFila {
+  id: string;
+  proveedorNombre: string;
+  descripcion: string;
+  estado: string;
+  total: number;
+  iva: number;
+  pedidoEl: Date;
+  recibidoEl: Date | null;
+  gastoId: string | null;
+}
+
+/** Pedidos de materiales del stand (T4), los más nuevos arriba. Sin la migración, vacío con `sinMigrar`. */
+export async function pedidosDelProyecto(tenantId: string, proyectoId: string): Promise<{ sinMigrar: boolean; pedidos: PedidoFila[] }> {
+  try {
+    const pedidos = await prisma.tallerPedido.findMany({
+      where: { tenantId, proyectoId },
+      orderBy: { pedidoEl: "desc" },
+      select: { id: true, proveedorNombre: true, descripcion: true, estado: true, total: true, iva: true, pedidoEl: true, recibidoEl: true, gastoId: true },
+    });
+    return { sinMigrar: false, pedidos };
+  } catch (e) {
+    if (faltaLaTabla(e)) return { sinMigrar: true, pedidos: [] };
+    throw e;
+  }
+}
