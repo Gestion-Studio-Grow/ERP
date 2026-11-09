@@ -1,0 +1,30 @@
+-- MIA Etapa 2 · T5 — portal por cliente. ADITIVA: sólo crea la tabla "PortalCliente"; no toca ninguna existente
+-- (no es una columna en "Client": un select de Client sin la migración aplicada rompería). Sin aplicar (Gate 2) y
+-- fuera de prisma/lote-deploy.txt: el código pregunta si la tabla existe (information_schema) antes de tocarla;
+-- sin tabla no se ofrece el link y la página pública da 404.
+--
+-- "Client" no tiene UNIQUE (tenantId, id), así que la llave a Client es simple; el negocio lo cuida RLS y el filtro
+-- explícito por tenantId en cada lectura y escritura de la app.
+
+CREATE TABLE "PortalCliente" (
+  "id" TEXT NOT NULL,
+  "tenantId" TEXT NOT NULL,
+  "clientId" TEXT NOT NULL,
+  "token" TEXT NOT NULL,
+  "creadoPor" TEXT,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "PortalCliente_pkey" PRIMARY KEY ("id")
+);
+CREATE UNIQUE INDEX "PortalCliente_token_key" ON "PortalCliente"("token");
+-- Un link por cliente: dos «Generar» a la vez dan una sola fila (ON CONFLICT DO NOTHING en la app).
+CREATE UNIQUE INDEX "PortalCliente_tenantId_clientId_key" ON "PortalCliente"("tenantId", "clientId");
+
+ALTER TABLE "PortalCliente" ADD CONSTRAINT "PortalCliente_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "PortalCliente" ADD CONSTRAINT "PortalCliente_clientId_fkey" FOREIGN KEY ("clientId") REFERENCES "Client"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- RLS en la misma migración (check-coverage.mjs, segunda red): cada negocio ve sólo sus links.
+ALTER TABLE "PortalCliente" ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON "PortalCliente";
+CREATE POLICY tenant_isolation ON "PortalCliente"
+  USING ("tenantId" = current_setting('app.current_tenant_id', true))
+  WITH CHECK ("tenantId" = current_setting('app.current_tenant_id', true));

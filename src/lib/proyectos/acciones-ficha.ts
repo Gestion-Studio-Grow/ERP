@@ -7,6 +7,7 @@
 
 import { etapa2ActivaPara } from "./etapa2.server";
 import { MENSAJE_APAGADO } from "./etapa2-core";
+import { faltaTablaPortalCliente, hayTablaPortalCliente } from "./portal-cliente.server";
 import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { cuentaParaCuota } from "./gestion-cuentas.server";
@@ -18,7 +19,7 @@ import { transferenciaEnElLibroTx } from "@/lib/caja/transferencia-en-el-libro";
 import type { Prisma } from "@/generated/prisma/client";
 import { esEtapa, etapaAlAprobar, etapaLabel, MEDIOS, metodoDeCaja, redondear, sePuedeEditar, sumarDias, type MedioPago } from "./core";
 import { configProyectos } from "./datos.server";
-import { cambioDeVenta, aPesos, CHECKLIST_BASE, ESTADOS_ITEM, MONEDAS, RUBROS, TIPOS_EVENTO } from "./gestion-core";
+import { cambioDeVenta, aPesos, CHECKLIST_BASE, ESTADOS_ITEM, MONEDAS, RUBROS, TIPOS_EVENTO, veTodosLosProyectos } from "./gestion-core";
 import { avisar, columnasOcultas, exigirEditar, usuariosDelEquipo, usuariosDeDireccion, usuariosDeLaPlata, proyectoVisible, puede, regenerarCuotas, registrarCambio, tiposDeCambio, type Actor } from "./gestion.server";
 import { tipoDeArchivoSubido, clavesARenombrar, fechaAntesDe, fotoDeVersion, itemDeClave, linkSeguro, monedasSinCambio, numeroDe, PERDIDO, precioAlCopiar, precioAlEnviar, servicioDeTipo } from "./ficha-core";
 import { marcaDeGastoProyecto } from "./marcas";
@@ -308,6 +309,61 @@ export async function revocarPortal(formData: FormData): Promise<ResultadoFicha>
   await prisma.proyecto.updateMany({ where: { id, tenantId: a.tenantId }, data: { tokenPortal: null } });
   await auditAdmin({ action: "proyecto.portal.revocar", entity: "Proyecto", entityId: id, changes: {} });
   refrescar(id);
+  return { ok: true };
+}
+
+// ── Portal por cliente (Etapa 2 · T5) ───────────────────────────────────────
+
+const SIN_TABLA_PORTAL_CLIENTE = "El link del cliente todavía no está disponible para tu negocio. Pedile a GSG que lo active.";
+/** 32 bytes al azar: el link es la única llave y reúne todos los eventos del cliente. */
+const tokenDeCliente = () => randomBytes(32).toString("base64url");
+
+/**
+ * Quién maneja el link del cliente: permiso de editar el pipeline, el proyecto visible y, como el link reúne TODOS los
+ * eventos del cliente, ver todos los proyectos del negocio (falla cerrado para quien ve sólo los suyos). El cliente sale
+ * del proyecto, nunca del formulario.
+ */
+async function entrarPortalCliente(formData: FormData): Promise<{ a: Actor; clientId: string } | string> {
+  const id = txt(formData.get("id"));
+  const a = await entrar("pipeline", id);
+  if (typeof a === "string") return a;
+  if (!veTodosLosProyectos(a.rol)) return "No tenés permiso para hacer esto.";
+  if (!(await hayTablaPortalCliente())) return SIN_TABLA_PORTAL_CLIENTE;
+  const p = await prisma.proyecto.findFirst({ where: { id, tenantId: a.tenantId }, select: { clientId: true } });
+  if (!p) return "Ese proyecto no existe.";
+  return { a, clientId: p.clientId };
+}
+
+/** Generar el link del cliente. Dos clics a la vez dan un solo link; si ya hay uno, queda el mismo. */
+export async function generarPortalCliente(formData: FormData): Promise<ResultadoFicha> {
+  const e = await entrarPortalCliente(formData);
+  if (typeof e === "string") return mal(e);
+  const { a, clientId } = e;
+  if (!(await etapa2ActivaPara(a.tenantId, "portal"))) return mal(MENSAJE_APAGADO.portal);
+  try {
+    await prisma.portalCliente.createMany({ data: [{ tenantId: a.tenantId, clientId, token: tokenDeCliente(), creadoPor: a.user.id }], skipDuplicates: true });
+  } catch (err) {
+    if (faltaTablaPortalCliente(err)) return mal(SIN_TABLA_PORTAL_CLIENTE);
+    throw err;
+  }
+  await auditAdmin({ action: "proyecto.portalCliente.generar", entity: "Client", entityId: clientId, changes: {} });
+  refrescar(txt(formData.get("id")));
+  return { ok: true };
+}
+
+/** Sacarle el acceso al link del cliente (todos sus eventos). Se puede aunque el portal esté apagado. Al generarlo otra vez, es otro. */
+export async function revocarPortalCliente(formData: FormData): Promise<ResultadoFicha> {
+  const e = await entrarPortalCliente(formData);
+  if (typeof e === "string") return mal(e);
+  const { a, clientId } = e;
+  try {
+    await prisma.portalCliente.deleteMany({ where: { tenantId: a.tenantId, clientId } });
+  } catch (err) {
+    if (faltaTablaPortalCliente(err)) return mal(SIN_TABLA_PORTAL_CLIENTE);
+    throw err;
+  }
+  await auditAdmin({ action: "proyecto.portalCliente.revocar", entity: "Client", entityId: clientId, changes: {} });
+  refrescar(txt(formData.get("id")));
   return { ok: true };
 }
 
