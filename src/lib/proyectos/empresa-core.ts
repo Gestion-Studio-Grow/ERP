@@ -1,6 +1,7 @@
 // ADMINISTRACIÓN Y DIRECCIÓN — reglas puras que no están en gestion-core: desvíos, alertas, liquidaciones y conciliación.
 // Sin base ni React, para probarlas sin nada alrededor.
 
+import { centavosDe } from "@/lib/dinero/redondeo";
 import { pesos, redondear } from "./core";
 import { aPesos, cuotaParaMovimiento, estadoCuota, generaCuotas, type CuotaLeida, type LineaExtracto, type MesProyectado, type NivelCarga } from "./gestion-core";
 
@@ -229,7 +230,7 @@ export function reintegrosCuadran(extras: readonly ExtraGuardado[], reclamadas: 
   const ids = new Set(enExtras.map((e) => e.gastoId as string));
   if (ids.size !== enExtras.length || ids.size !== reclamadas.length) return false;
   if (reclamadas.some((r) => !ids.has(r.gastoId))) return false;
-  const centavosExtras = enExtras.reduce((s, e) => s + Math.round(e.monto * 100), 0);
+  const centavosExtras = enExtras.reduce((s, e) => s + centavosDe(e.monto), 0);
   return centavosExtras === reclamadas.reduce((s, r) => s + r.montoCentavos, 0);
 }
 

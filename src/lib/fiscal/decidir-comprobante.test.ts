@@ -26,6 +26,7 @@ import {
   type ReceptorFiscal,
 } from "@/lib/fiscal/decidir-comprobante";
 import type { TablaVigencias } from "@/lib/fiscal/vigencias";
+import { textoAlCentavo } from "@/lib/dinero/redondeo";
 import {
   CondicionIvaReceptorId,
   Concepto,
@@ -647,7 +648,7 @@ test("FCE: cada condición que puede ser gran empresa la dispara con su letra; l
   }
 });
 
-test("el importe se decide con 2 decimales, como viaja a ARCA (toFixed(2) del plugin)", () => {
+test("el importe se decide con 2 decimales, como viaja a ARCA (textoAlCentavo del plugin)", () => {
   // 5.549.861,995 viaja como 5.549.862,00: ya es el mínimo de FCE.
   const fce = decidirComprobante(MIPYME_RI, GRAN_EMPRESA, productos({ importeTotal: 5_549_861.995 }));
   assert.ok(codigos(fce).includes("FCE_OBLIGATORIA"), JSON.stringify(fce.motivos));
@@ -656,14 +657,13 @@ test("el importe se decide con 2 decimales, como viaja a ARCA (toFixed(2) del pl
   assert.ok(codigos(decidirComprobante(RI, CF, productos({ importeTotal: 9_999_999.996 }))).includes("IDENTIFICACION_OBLIGATORIA"));
   // El umbral se decide sobre el mismo número que recibe ARCA, sea cual sea el redondeo.
   for (const importeTotal of [9_999_999.99, 9_999_999.994, 9_999_999.995, 9_999_999.996, 10_000_000.004]) {
-    const viaja = Number(importeTotal.toFixed(2));
+    const viaja = Number(textoAlCentavo(importeTotal));
     const d = decidirComprobante(RI, CF, productos({ importeTotal }));
     assert.equal(codigos(d).includes("IDENTIFICACION_OBLIGATORIA"), viaja >= 10_000_000, `${importeTotal} viaja como ${viaja}`);
   }
-  // Igual con la regla del negocio. 599.999,995 es, en binario, 599.999,99499…: viaja como
-  // 599.999,99 (debajo de 600.000), aunque Math.round(importe * 100) diría 600.000,00.
-  for (const importeTotal of [599_999.99, 599_999.995, 599_999.996, 600_000]) {
-    const viaja = Number(importeTotal.toFixed(2));
+  // Igual con la regla del negocio: medio centavo hacia arriba sobre las 15 cifras del número.
+  for (const importeTotal of [599_999.99, 599_999.994, 599_999.995, 599_999.996, 600_000]) {
+    const viaja = Number(textoAlCentavo(importeTotal));
     const d = decidirComprobante(MONO, CF, productos({ importeTotal }), { umbralIdentificacionDelNegocio: 600_000 });
     assert.equal(codigos(d).includes("IDENTIFICACION_REGLA_DEL_NEGOCIO"), viaja >= 600_000, `${importeTotal} viaja como ${viaja}`);
   }
@@ -674,6 +674,19 @@ test("el importe se decide con 2 decimales, como viaja a ARCA (toFixed(2) del pl
     decidirComprobante(RI, RECEPTOR_RI, productos({ clase: "nota_credito", importeTotal: 121_000.004, asociado: FACTURA_A })).estado,
     "lista",
   );
+});
+
+test("tanda plata: 9.999.999,995 y 599.999,995 viajan redondeados hacia arriba y se deciden así (antes toFixed los bajaba)", () => {
+  // toFixed(2) redondea el binario (9.999.999,99499…) y daba 9.999.999,99; a ARCA viaja 10.000.000,00.
+  assert.equal(textoAlCentavo(9_999_999.995), "10000000.00");
+  assert.equal((9_999_999.995).toFixed(2), "9999999.99", "el defecto que se corrige: toFixed baja el medio centavo");
+  const d = decidirComprobante(RI, CF, productos({ fecha: "20250601", importeTotal: 9_999_999.995 }));
+  assert.ok(codigos(d).includes("IDENTIFICACION_OBLIGATORIA"), JSON.stringify(d.motivos));
+  const n = decidirComprobante(MONO, CF, productos({ importeTotal: 599_999.995 }), { umbralIdentificacionDelNegocio: 600_000 });
+  assert.ok(codigos(n).includes("IDENTIFICACION_REGLA_DEL_NEGOCIO"), JSON.stringify(n.motivos));
+  // 1,005: toFixed da 1,00; a ARCA viaja 1,01. Una NC de 1,005 contra una factura de 1,00 se pasa del saldo.
+  const nc = decidirComprobante(RI, RECEPTOR_RI, productos({ clase: "nota_credito", importeTotal: 1.005, asociado: { ...FACTURA_A, importeTotal: 1 } }));
+  assert.ok(codigos(nc).includes("NOTA_CREDITO_SUPERA_ORIGINAL"), JSON.stringify(nc.motivos));
 });
 
 test("tablas de ARCA (FEParamGetCondicionIvaReceptor): ids y clases que admite cada uno, tal cual", () => {

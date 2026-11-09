@@ -27,6 +27,7 @@ import {
   planAnulacionVenta,
   mensajeAnulacionVentaRechazada,
   leerAnulacion,
+  mensajeEdicionRechazada,
   planEdicionDeLineas,
   deltasDeStock,
   laVentaEscribeEnCaja,
@@ -457,7 +458,7 @@ test("con el día de hoy todavía ABIERTO, la venta cobrada pasa", () => {
 // ── 5. Editar al peso real ──────────────────────────────────────────────────
 
 test("un pedido sin cobrar se edita; uno cobrado NO", () => {
-  const base = { existe: true, status: "PENDING", tieneAsientoDeCaja: false, lineasValidas: 1 };
+  const base = { existe: true, status: "PENDING", tieneAsientoDeCaja: false, lineasValidas: 1, factura: "sin-factura-viva" as const };
   assert.deepEqual(planEdicionDeLineas({ ...base, paid: false }), { ok: true });
   assert.deepEqual(planEdicionDeLineas({ ...base, paid: true }), { ok: false, motivo: "ya-cobrada" });
 });
@@ -472,15 +473,26 @@ test("si hay asiento en el libro no se edita, aunque el pedido diga que no está
       status: "PENDING",
       tieneAsientoDeCaja: true,
       lineasValidas: 1,
+      factura: "sin-factura-viva",
     }),
     { ok: false, motivo: "tiene-caja" },
   );
 });
 
 test("un pedido entregado o anulado no se edita", () => {
-  const base = { existe: true, paid: false, tieneAsientoDeCaja: false, lineasValidas: 1 };
+  const base = { existe: true, paid: false, tieneAsientoDeCaja: false, lineasValidas: 1, factura: "sin-factura-viva" as const };
   assert.deepEqual(planEdicionDeLineas({ ...base, status: "DELIVERED" }), { ok: false, motivo: "terminal" });
   assert.deepEqual(planEdicionDeLineas({ ...base, status: "CANCELLED" }), { ok: false, motivo: "terminal" });
+});
+
+test("tanda plata · un pedido con factura viva no se edita, aunque no esté cobrado: el camino es la nota de crédito", () => {
+  const base = { existe: true, paid: false, status: "PENDING", tieneAsientoDeCaja: false, lineasValidas: 1 };
+  assert.deepEqual(planEdicionDeLineas({ ...base, factura: "autorizada" }), { ok: false, motivo: "facturada" });
+  assert.deepEqual(planEdicionDeLineas({ ...base, factura: "en-camino" }), { ok: false, motivo: "factura-en-camino" });
+  // Una factura RECHAZADA no está viva (sin CAE): el pedido se sigue pudiendo corregir.
+  assert.deepEqual(planEdicionDeLineas({ ...base, factura: "sin-factura-viva" }), { ok: true });
+  assert.match(mensajeEdicionRechazada("facturada"), /nota de crédito/);
+  assert.match(mensajeEdicionRechazada("factura-en-camino"), /ARCA/);
 });
 
 test("el peso real mueve SÓLO la diferencia: de 1,240 a 1,310 salen 70 gramos", () => {

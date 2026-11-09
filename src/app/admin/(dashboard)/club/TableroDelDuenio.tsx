@@ -165,7 +165,7 @@ function MapaDeCalor({ calor }: { calor: VistaTablero["calor"] }) {
             <div key={f.fecha} className="contents">
               <span className="pr-2 text-xs whitespace-nowrap text-body">{f.dia}</span>
               {f.valores.map((v, i) => (
-                <span key={i} className="h-6 rounded-sm" style={tono(v)} title={`${f.dia} ${calor.horas[i]} h: ${Math.round(v * 100)} % ocupado`} />
+                <span key={i} className="h-6 rounded-sm" style={tono(v)} title={`${f.dia} ${calor.horas[i]} h: ${Math.round(v * 100) /* no-es-plata: porcentaje de ocupación */} % ocupado`} />
               ))}
             </div>
           ))}
@@ -203,7 +203,7 @@ function MapaDeCalor({ calor }: { calor: VistaTablero["calor"] }) {
                   </th>
                   {f.valores.map((v, i) => (
                     <td key={i} className="px-1 text-right">
-                      {Math.round(v * 100)}
+                      {Math.round(v * 100) /* no-es-plata: porcentaje de ocupación */}
                     </td>
                   ))}
                 </tr>
@@ -220,7 +220,7 @@ function MapaDeCalor({ calor }: { calor: VistaTablero["calor"] }) {
 function Barra({ proporcion }: { proporcion: number }) {
   return (
     <span aria-hidden className="block h-2 w-full rounded-sm bg-surface-sunken">
-      <span className="block h-2 rounded-sm bg-accent" style={{ width: `${Math.round(Math.max(0, Math.min(1, proporcion)) * 100)}%` }} />
+      <span className="block h-2 rounded-sm bg-accent" style={{ width: `${Math.round(Math.max(0, Math.min(1, proporcion)) * 100)}%` /* no-es-plata: ancho de barra */ }} />
     </span>
   );
 }
@@ -311,7 +311,7 @@ export default function TableroDelDuenio({ almacen, irASolapa }: PropsDeSolapa) 
                 {c.juego ? (
                   <>
                     <p className="text-sm text-body">
-                      {c.juego.titular} · termina {c.juego.termina} · jugado {Math.round(c.juego.avance * 100)} %
+                      {c.juego.titular} · termina {c.juego.termina} · jugado {Math.round(c.juego.avance * 100) /* no-es-plata: avance del juego */} %
                     </p>
                     <Barra proporcion={c.juego.avance} />
                   </>
@@ -393,7 +393,7 @@ export default function TableroDelDuenio({ almacen, irASolapa }: PropsDeSolapa) 
                     <td className="py-1.5 pr-2 text-right">{pesos(f.margen)}</td>
                     <td className="w-32 py-1.5">
                       <span className="flex items-center gap-2">
-                        <span className="w-12 shrink-0 text-right text-xs whitespace-nowrap">{Math.round(f.participacion * 100)} %</span>
+                        <span className="w-12 shrink-0 text-right text-xs whitespace-nowrap">{Math.round(f.participacion * 100) /* no-es-plata: participación en % */} %</span>
                         <Barra proporcion={f.participacion} />
                       </span>
                     </td>

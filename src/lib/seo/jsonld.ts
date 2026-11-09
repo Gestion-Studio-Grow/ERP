@@ -1,8 +1,12 @@
 // JSON-LD por rubro (SEO ronda 2, P0). Constructores PUROS: reciben datos ya leídos de la base (nunca del copy) y
 // devuelven el objeto schema.org. Lo que falta no se inventa: un campo sin dato no se emite (dirección, teléfono,
 // horarios, calificación). Cada front los arma y los pinta con <JsonLd> (src/components/seo/JsonLd.tsx).
+import { admiteCentavos, textoAlCentavo } from "@/lib/dinero/redondeo";
 
 type Obj = Record<string, unknown>;
+
+/** Precio con dos decimales, con la regla única de redondeo. Fuera de rango no se emite (no se inventa). */
+const precioLd = (n: number): string | undefined => (admiteCentavos(n) ? textoAlCentavo(n) : undefined);
 
 /** Quita claves vacías (undefined, null, "", [] y objetos sin datos) para no publicar campos sin dato. PURA. */
 export function sinVacios<T extends Obj>(o: T): T {
@@ -100,12 +104,12 @@ export function productoLd(p: ProductoLd, vendedor?: { nombre: string; url: stri
   const oferta = conPrecio
     ? sinVacios({
         "@type": "Offer",
-        price: (p.precio as number).toFixed(2),
+        price: precioLd(p.precio as number),
         priceCurrency: "ARS",
         url: p.url,
         availability: p.hayStock == null ? undefined : p.hayStock ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
         priceSpecification: p.unidad
-          ? { "@type": "UnitPriceSpecification", price: (p.precio as number).toFixed(2), priceCurrency: "ARS", unitCode: p.unidad, referenceQuantity: { "@type": "QuantitativeValue", value: 1, unitCode: p.unidad } }
+          ? { "@type": "UnitPriceSpecification", price: precioLd(p.precio as number), priceCurrency: "ARS", unitCode: p.unidad, referenceQuantity: { "@type": "QuantitativeValue", value: 1, unitCode: p.unidad } }
           : undefined,
         seller: vendedor ? { "@type": "Organization", name: vendedor.nombre, url: vendedor.url } : undefined,
       })
@@ -143,7 +147,7 @@ export function servicioLd(s: ServicioLd, proveedor: { nombre: string; url: stri
     url: s.url,
     description: s.descripcion,
     provider: { "@type": proveedor.tipo, name: proveedor.nombre, url: proveedor.url },
-    offers: s.precio != null && s.precio > 0 ? { "@type": "Offer", price: s.precio.toFixed(2), priceCurrency: "ARS" } : undefined,
+    offers: s.precio != null && s.precio > 0 ? { "@type": "Offer", price: precioLd(s.precio), priceCurrency: "ARS" } : undefined,
     // ISO 8601: PT60M.
     timeRequired: s.duracionMin ? `PT${Math.round(s.duracionMin)}M` : undefined,
   });
@@ -169,7 +173,7 @@ export function personaLd(p: {
     workLocation: p.lugar ? sinContexto(negocioLd("SportsActivityLocation", p.lugar)) : undefined,
     makesOffer: (p.ofertas ?? [])
       .filter((o) => o.precio != null && o.precio > 0)
-      .map((o) => ({ "@type": "Offer", name: o.nombre, price: (o.precio as number).toFixed(2), priceCurrency: "ARS" })),
+      .map((o) => ({ "@type": "Offer", name: o.nombre, price: precioLd(o.precio as number), priceCurrency: "ARS" })),
   });
 }
 

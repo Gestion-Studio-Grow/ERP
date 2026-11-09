@@ -40,9 +40,10 @@
  *   - Confirmar en la bandeja es cargar el dato y VOLVER A DECIDIR; nunca emitir
  *     la propuesta que se mostró antes de confirmar.
  *
- * El importe se compara en centavos, redondeado como viaja a ARCA (`toFixed(2)`,
- * el formato de WSFEv1 en src/plugins/arca/afip/soap.ts): el umbral se decide
- * sobre el mismo número que recibe ARCA, no sobre decimales que nunca llegan.
+ * El importe se compara en centavos, redondeado como viaja a ARCA: con la regla
+ * única de src/lib/dinero/redondeo.ts (`centavosDe`), la misma con la que
+ * src/plugins/arca/afip/soap.ts escribe WSFEv1 (`textoAlCentavo`). El umbral se
+ * decide sobre el mismo número que recibe ARCA, no sobre decimales que nunca llegan.
  *
  * Reglas (la norma va en cada motivo):
  *   - Emisor Monotributo o Exento → siempre C (RG 1415).
@@ -68,6 +69,7 @@
  */
 
 import { validarCuit } from "./cuit";
+import { centavosDe } from "@/lib/dinero/redondeo";
 import { PARAMETROS_DEL_MOTOR } from "./parametros-del-motor";
 import {
   MONTO_MINIMO_FCE_MIPYME,
@@ -454,11 +456,13 @@ const pesos = (n: number) =>
 
 /**
  * Centavos de un importe, redondeado como viaja a ARCA: WSFEv1 lleva los montos
- * con 2 decimales y el plugin los arma con `toFixed(2)`
- * (src/plugins/arca/afip/soap.ts, `fmt`). Así 5.549.861,995 cuenta como
- * 5.549.862,00, que es lo que ARCA recibe.
+ * con 2 decimales y el plugin los escribe con `textoAlCentavo` (soap.ts, `fmt`),
+ * que redondea con esta misma regla. Antes se contaba con toFixed a dos decimales, que
+ * redondea el binario: 9.999.999,995 daba 9.999.999,99 (sin identificar) y a ARCA
+ * viajaba 10.000.000,00 (umbral de la RG 5700 alcanzado). Ahora las dos puntas
+ * cuentan el mismo número.
  */
-const aCentavos = (n: number) => Math.round(Number(n.toFixed(2)) * 100);
+const aCentavos = centavosDe;
 
 /** Un motivo que no deja armar propuesta (ver el contrato del encabezado). */
 const sinPropuesta = (m: Motivo) => m.fueraDelSistema != null || m.pideDato === true;

@@ -62,7 +62,7 @@ const PEDIDO_ONLINE: LineaGuardada[] = [
 ];
 
 test("pedido online de 0,5 kg pesado a 1,240: el total pasa de $6.250 a $15.500 y el stock baja 0,74", () => {
-  const plan = planEdicionDeLineas({ existe: true, paid: false, status: "PREPARING", tieneAsientoDeCaja: false, lineasValidas: 1 });
+  const plan = planEdicionDeLineas({ existe: true, paid: false, status: "PREPARING", tieneAsientoDeCaja: false, lineasValidas: 1, factura: "sin-factura-viva" });
   assert.deepEqual(plan, { ok: true });
 
   const { lineas, aMano } = lineasDelAjuste(PEDIDO_ONLINE, [VACIO_HOY], [{ productId: "p_vacio", qty: 1.24 }]);
@@ -112,7 +112,7 @@ test("pesar un pedido de la tienda con envío y cupón: el envío no es base del
 
 test("ya cobrado no se pesa: se anula y se rehace", () => {
   assert.deepEqual(
-    planEdicionDeLineas({ existe: true, paid: true, status: "READY", tieneAsientoDeCaja: true, lineasValidas: 1 }),
+    planEdicionDeLineas({ existe: true, paid: true, status: "READY", tieneAsientoDeCaja: true, lineasValidas: 1, factura: "sin-factura-viva" }),
     { ok: false, motivo: "ya-cobrada" },
   );
 });
@@ -326,10 +326,12 @@ function baseDePedido(pedido: {
   total: number;
   items: LineaGuardada[];
   conAsiento?: boolean;
+  /** Estados de las facturas del pedido (`Invoice.orderId`). */
+  facturas?: string[];
   /** La fila que escribió el alta con la regla del cupón (`registrarCuponDelPedidoEnTx`). */
   cupon?: CuponDelPedido;
 }) {
-  const { cupon, ...guardado } = pedido;
+  const { cupon, facturas = [], ...guardado } = pedido;
   const m = {
     pedido: { id: "ord_7", code: 7, paid: false, status: "PREPARING", ...guardado },
     itemsBorrados: 0,
@@ -337,8 +339,21 @@ function baseDePedido(pedido: {
     actualizacion: null as Fila | null,
     stock: [] as RecordMovementArgs[],
     lecturasDeCupon: [] as Fila[],
+    pedidoTomado: false,
   };
   const tx = {
+    // El pedido se toma FOR UPDATE antes de leerlo (y antes de mirar sus facturas).
+    $queryRaw: async (sql: TemplateStringsArray) => {
+      assert.match(sql.join("?"), /FROM "Order".*FOR UPDATE/);
+      m.pedidoTomado = true;
+      return [{ id: "ord_7" }];
+    },
+    invoice: {
+      findMany: async () => {
+        assert.equal(m.pedidoTomado, true, "las facturas se leen con el pedido tomado");
+        return facturas.map((status) => ({ status }));
+      },
+    },
     auditLog: {
       findFirst: async (args: { where: Fila }) => {
         m.lecturasDeCupon.push(args.where);
@@ -430,6 +445,17 @@ test("ajustarPedidoInTx: con plata en el libro no toca nada, aunque el pedido di
     /ya está cobrado/,
   );
   assert.deepEqual([m.stock, m.itemsBorrados, m.actualizacion], [[], 0, null]);
+});
+
+test("tanda plata · ajustarPedidoInTx: con factura autorizada (CAE) o en camino no toca nada; con una rechazada, sí", async () => {
+  for (const [facturas, error] of [[["AUTHORIZED"], /nota de crédito/], [["PENDING"], /esperando la respuesta de ARCA/], [["REJECTED", "AUTHORIZED"], /nota de crédito/]] as const) {
+    const { m, tx, registrarStock } = baseDePedido({ subtotal: 6250, discount: 0, total: 6250, items: PEDIDO_ONLINE, facturas: [...facturas] });
+    await assert.rejects(() => ajustarPedidoInTx(tx, "t_magra", argsDelAjuste(1.24), registrarStock), error);
+    assert.deepEqual([m.stock, m.itemsBorrados, m.actualizacion], [[], 0, null], facturas.join());
+  }
+  const { m, tx, registrarStock } = baseDePedido({ subtotal: 6250, discount: 0, total: 6250, items: PEDIDO_ONLINE, facturas: ["REJECTED"] });
+  await ajustarPedidoInTx(tx, "t_magra", argsDelAjuste(1.24), registrarStock);
+  assert.notEqual(m.actualizacion, null);
 });
 
 test("ajustarPedidoInTx: el pedido de la tienda con el cupón FIJO de $2.000 pesado a 2,4 kg guarda 30.000 / 2.000 / 28.000", async () => {

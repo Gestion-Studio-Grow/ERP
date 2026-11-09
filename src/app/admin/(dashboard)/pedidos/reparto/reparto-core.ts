@@ -16,6 +16,7 @@
 //
 // PURO: lo usan la bandeja (tablero.server.ts), las pantallas del reparto y los tests.
 
+import { redondearAlCentavo } from "@/lib/dinero/redondeo";
 import { dateStrInBusinessTz, fmtTime } from "@/lib/datetime";
 import { esNombreDeEnvio } from "@/lib/venta-reglas";
 import { horasDeLaFranja } from "@/app/tienda/reglas-tienda";
@@ -351,7 +352,7 @@ export function hojaDelReparto(envios: readonly EnvioDelReparto[], ordenDeZonas:
 }
 
 function centavos(n: number): number {
-  return Math.round(n * 100) / 100;
+  return redondearAlCentavo(n);
 }
 
 /** Lo que dice cada envío sobre la plata: «Cobrar $25.700» o «Ya pagó». PURA. */

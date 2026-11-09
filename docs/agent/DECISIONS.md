@@ -179,6 +179,9 @@ cumplido es un defecto ALTA (§5).
   pedido cuentan el mismo número aunque cada uno redondee a su modo; lo prueba
   `src/lib/dinero/decision-y-envio-arca.test.ts` contra el núcleo sin cambios. Descartado: editar
   el núcleo sin commit de otro frente (queda como parche propuesto en `.qa/ENG-109/decidir-comprobante.diff`).
+  **Actualización (tanda plata, 11/2026):** el núcleo ya usa la regla (`aCentavos = centavosDe`). El
+  `toFixed(2)` redondeaba el binario: 9.999.999,995 se decidía como 9.999.999,99 (sin identificar) y a
+  ARCA viajaba 10.000.000,00 (umbral RG 5700). La validación sigue como segunda red, no como única.
 - **DEC-013 · El cupón de % conserva la unidad de cada camino hasta que el dueño decida (ENG-109, revisión vuelta 2).**
   Una sola cuenta (`montoDeCupon`, `venta-reglas.ts`) con la unidad por camino en
   `UNIDAD_DEL_DESCUENTO_DE_CUPON`: turnos al peso (como la reserva y la vista previa de CH), venta y

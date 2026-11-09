@@ -22,6 +22,7 @@
  * el predicado de cada query.
  */
 
+import { compartirLoteParaEmitirEnTx } from "@/lib/bancos-lote";
 import { facturadoConSigno } from "@/lib/facturacion/lista-core";
 import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
@@ -714,12 +715,16 @@ export async function emitirPropuestas(
 
       // CLAIM idempotente: solo el que pasa auto→emitida factura. Un doble clic o
       // dos sesiones simultáneas no generan dos comprobantes del mismo movimiento.
+      // Con la fila del lote compartida (FOR SHARE): no se reclama mientras un re-proceso del mismo
+      // lote borra y recrea sus movimientos, ni el re-proceso borra un reclamo ya hecho (bancos-lote.ts).
       const claim = await tenantTransaction(
-        (tx) =>
-          tx.movimientoImportado.updateMany({
+        async (tx) => {
+          await compartirLoteParaEmitirEnTx(tx, tenantId, mov.importacionId);
+          return tx.movimientoImportado.updateMany({
             where: { id: mov.id, tenantId, estadoPropuesta: "auto" },
             data: { estadoPropuesta: "emitida" },
-          }),
+          });
+        },
         { tenantId },
       );
       if (claim.count === 0) continue; // otro lo agarró (o cambió de estado)

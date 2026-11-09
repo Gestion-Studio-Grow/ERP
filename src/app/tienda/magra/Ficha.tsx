@@ -56,7 +56,7 @@ export function FichaContenido({
 
   const bump = (_: MagraProducto, dir: 1 | -1) => {
     setPersonas(null);
-    setCantidad((c) => Math.max(paso, Math.round((c + dir * paso) * 100) / 100));
+    setCantidad((c) => Math.max(paso, Math.round((c + dir * paso) * 100) / 100)); // no-es-plata: kilos
   };
 
   return (

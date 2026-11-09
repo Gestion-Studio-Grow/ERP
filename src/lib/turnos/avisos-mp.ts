@@ -9,6 +9,7 @@
 //   · `senia_mp_no_registrada`       → entró la plata pero no se pudo asentar (caja cerrada u otro).
 // Acá se leen esas filas (PURO: sin base, sirve en el navegador) para que la agenda las muestre.
 // Cuándo deja de mostrarse cada una lo decide la agenda con el turno a la vista (agenda-core.ts).
+import { redondearAlCentavo } from "@/lib/dinero/redondeo";
 
 export const ACCION_SENIA_PARCIAL_MP = "senia_parcial_mp";
 export const ACCION_SENIA_MP_NO_REGISTRADA = "senia_mp_no_registrada";
@@ -40,7 +41,7 @@ export function avisoMPDeFila(f: Pick<FilaAvisoMP, "action" | "changes">): Aviso
       const senia = num(c.senia);
       const falta = num(c.seniaQueFalta);
       if (senia === null || falta === null) return null;
-      return { tipo: "parcial", pagado: Math.max(0, Math.round((senia - falta) * 100) / 100), senia };
+      return { tipo: "parcial", pagado: Math.max(0, redondearAlCentavo(senia - falta)), senia };
     }
     case ACCION_SENIA_MP_DEVUELTA_SIN_ANULAR:
       return { tipo: "devuelta-sin-anular", cobroId: str(c.cobroId) };
