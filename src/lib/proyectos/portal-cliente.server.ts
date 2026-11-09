@@ -34,14 +34,18 @@ export function faltaTablaPortalCliente(e: unknown): boolean {
   return falta;
 }
 
-/** El link vigente del cliente en este negocio, o null (sin link o sin tabla). */
-export async function tokenPortalDelCliente(tenantId: string, clientId: string): Promise<string | null> {
+/**
+ * El link del cliente en este negocio: `{ token }` (null si todavía no tiene) o null cuando no se puede saber (sin tabla
+ * o error de base) y la tarjeta no se muestra. Nunca tira: un error acá no puede tirar abajo la pestaña Resumen; se loguea.
+ */
+export async function tokenPortalDelCliente(tenantId: string, clientId: string): Promise<{ token: string | null } | null> {
   if (!(await hayTablaPortalCliente())) return null;
   try {
     const fila = await prisma.portalCliente.findFirst({ where: { tenantId, clientId }, select: { token: true } });
-    return fila?.token ?? null;
+    return { token: fila?.token ?? null };
   } catch (e) {
     if (faltaTablaPortalCliente(e)) return null;
-    throw e;
+    console.error("[proyectos/portal-cliente] no se pudo leer el link del cliente", e instanceof Error ? e.message : e);
+    return null;
   }
 }

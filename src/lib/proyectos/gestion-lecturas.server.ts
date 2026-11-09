@@ -571,8 +571,10 @@ export async function portalClientePublico(token: string) {
   const tenantId = await getCurrentTenantId();
   if (!tenantId) return null;
   try {
-    const fila = await prisma.portalCliente.findFirst({ where: { tenantId, token }, select: { tenantId: true, clientId: true, client: { select: { name: true } } } });
+    const fila = await prisma.portalCliente.findFirst({ where: { tenantId, token }, select: { tenantId: true, clientId: true, client: { select: { name: true, tenantId: true } } } });
     if (!fila || fila.tenantId !== tenantId) return null;
+    // Un cliente de otro negocio (o que RLS no deja ver) no abre nada: null limpio, nunca un TypeError.
+    if (!fila.client || fila.client.tenantId !== tenantId) return null;
     // El interruptor, con el negocio dueño de la fila (nunca el de una sesión).
     if (!(await etapa2ActivaPara(fila.tenantId, "portal"))) return null;
     const proyectos = await prisma.proyecto.findMany({

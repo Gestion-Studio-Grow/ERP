@@ -4,6 +4,8 @@
 // perdidos; (c) ningún dato fuera de la lista blanca, mirado clave por clave y recursivo; (d) revocar corta el link y dos
 // «Generar» a la vez dan un solo link; (e) con el portal apagado la acción niega y la lectura (lo que la página convierte en
 // 404) da null; (f) sin la tabla (migración sin aplicar) la lectura da null y la acción niega sin escribir.
+// (g) un cliente de otro negocio: generar niega y la lectura da null limpio; (h) un error de base que no es «falta la
+// tabla» no tira la pestaña: el link da null. Además, generar audita sólo si creó la fila.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -41,6 +43,7 @@ test("Portal por cliente: aislado por negocio, sólo sus eventos, lista blanca, 
   const { a, b } = base;
   const { generarPortalCliente, revocarPortalCliente } = await import("./acciones-ficha");
   const { portalClientePublico } = await import("./gestion-lecturas.server");
+  const { tokenPortalDelCliente } = await import("./portal-cliente.server");
 
   const prender = (tenantId: string, on: boolean) =>
     duenio.tenant.update({ where: { id: tenantId }, data: { modules: on ? { push: "proyectos-portal" } : { set: [] } } });
@@ -94,6 +97,9 @@ test("Portal por cliente: aislado por negocio, sólo sus eventos, lista blanca, 
   assert.ok(token.length >= 40, "32 bytes al azar");
   assert.deepEqual(await accion(comoDuenia, generarPortalCliente), { ok: true });
   assert.equal((await filas())[0].token, token, "con link vigente, generar no lo cambia");
+  // Sólo se audita la fila creada: tres «Generar» que dejaron un link = una auditoría.
+  const auditsGenerar = await duenio.auditLog.count({ where: { tenantId: a.id, action: "proyecto.portalCliente.generar" } });
+  assert.equal(auditsGenerar, 1, "se audita sólo si se creó la fila");
 
   // Quien no ve todos los proyectos (Producción, en el equipo) no maneja el link del cliente.
   const persona = await duenio.proyectoPersona.create({ data: { tenantId: a.id, userId: a.recepcion.id, nombre: "Prod", rol: "PRODUCCION" }, select: { id: true } });
@@ -144,6 +150,31 @@ test("Portal por cliente: aislado por negocio, sólo sus eventos, lista blanca, 
   assert.notEqual(vigentes[0].token, token, "regenerado = otro token");
   const tokenNuevo = vigentes[0].token;
   assert.ok(await leer(a, tokenNuevo));
+
+  // (g) Cliente de otro negocio. Un proyecto de B apuntando a un cliente de A (la FK simple lo admite): generar niega.
+  const cruzado = await duenio.proyecto.create({ data: { tenantId: b.id, numero: 99, clientId: cliente, nombre: "Cruzado", servicio: "EVENTOS", etapa: "PEDIDO" }, select: { id: true } });
+  assert.equal((await accion({ negocio: b, usuario: { id: b.duenia.id } }, generarPortalCliente, cruzado.id)).ok, false);
+  assert.equal(await duenio.portalCliente.count({ where: { tenantId: b.id } }), 0, "no crea link de B para un cliente de A");
+  // Y una fila de B con un cliente de A: la lectura en el host de B da null limpio (sin TypeError) y en el de A, nada.
+  await duenio.portalCliente.create({ data: { tenantId: b.id, clientId: cliente, token: "tokCruzadoB_1234567890abcdefghijklmnopqrstu" } });
+  assert.equal(await leer(b, "tokCruzadoB_1234567890abcdefghijklmnopqrstu"), null);
+  assert.equal(await leer(a, "tokCruzadoB_1234567890abcdefghijklmnopqrstu"), null);
+  await duenio.portalCliente.deleteMany({ where: { tenantId: b.id } });
+
+  // (h) Error de base que no es «falta la tabla»: el link del cliente da null (la tarjeta no se muestra) y no tira.
+  const linkOk = await ejecutarAccion(comoDuenia, () => tokenPortalDelCliente(a.id, cliente));
+  assert.deepEqual((linkOk as { valor: unknown }).valor, { token: tokenNuevo });
+  await duenio.$executeRawUnsafe(`ALTER TABLE "PortalCliente" RENAME COLUMN "token" TO "token_roto"`);
+  const errorOriginal = console.error;
+  console.error = () => {};
+  try {
+    const roto = await ejecutarAccion(comoDuenia, () => tokenPortalDelCliente(a.id, cliente));
+    assert.equal(roto.tipo, "respuesta", "no tira");
+    assert.equal((roto as { valor: unknown }).valor, null);
+  } finally {
+    console.error = errorOriginal;
+    await duenio.$executeRawUnsafe(`ALTER TABLE "PortalCliente" RENAME COLUMN "token_roto" TO "token"`);
+  }
 
   // (f) Sin la tabla (migración sin aplicar): la lectura da null y la acción niega sin escribir.
   const auditsAntes = await duenio.auditLog.count({ where: { tenantId: a.id, action: { startsWith: "proyecto.portalCliente" } } });

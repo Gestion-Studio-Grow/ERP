@@ -41,7 +41,9 @@ export async function PestanaResumen({ a, cab, vista }: { a: Actor; cab: Cabecer
   const conPortal = await etapa2ActivaPara(a.tenantId, "portal");
   // T5: el link del cliente reúne TODOS sus eventos: sólo lo ve quien ve todos los proyectos, y sólo con la tabla aplicada.
   const conPortalCliente = conPortal && veTodosLosProyectos(a.rol) && (await hayTablaPortalCliente());
-  const tokenCliente = conPortalCliente ? await tokenPortalDelCliente(a.tenantId, p.client.id) : null;
+  // null = no se pudo leer (sin tabla o error de base): la tarjeta no se muestra.
+  const linkCliente = conPortalCliente ? await tokenPortalDelCliente(a.tenantId, p.client.id) : null;
+  const tokenCliente = linkCliente?.token ?? null;
   const avance = finanzas && finanzas.cobrado + finanzas.aCobrar > 0 ? (finanzas.cobrado / (finanzas.cobrado + finanzas.aCobrar)) * 100 : 0;
   const libres = personas.filter((x) => !p.equipo.some((e) => e.personaId === x.id));
   const clientes = vista.pipelineEdita ? await prisma.client.findMany({ where: { tenantId: a.tenantId }, orderBy: { name: "asc" }, take: 500, select: { id: true, name: true } }) : [];
@@ -185,17 +187,17 @@ export async function PestanaResumen({ a, cab, vista }: { a: Actor; cab: Cabecer
         ) : (
           <p className="text-sm text-muted">Todavía sin acceso.</p>
         )}
-        {conPortalCliente && (
+        {conPortalCliente && linkCliente && (
           <div className="mt-4 grid gap-2 border-t border-line pt-3" aria-label="Link del cliente">
             <h3 className="text-sm font-semibold text-strong">Link del cliente (todos sus eventos)</h3>
-            <p className="text-xs text-muted">Un solo link para {p.client.name} con todos sus eventos con ustedes: fechas, lugar y en qué está cada uno. Nunca montos.</p>
+            <p className="text-xs text-muted">Un solo link para {p.client.name} con la lista de sus eventos con ustedes: fechas, lugar y en qué está cada uno. Cada evento que tenga su acceso generado abre su propio portal, con su propuesta y sus montos.</p>
             {tokenCliente ? (
               <>
                 <code className="break-all rounded-lg border border-line bg-surface p-2 text-xs text-strong">/portal/cliente/{tokenCliente}</code>
                 <div className="flex flex-wrap gap-2">
                   <a href={`/portal/cliente/${tokenCliente}`} target="_blank" rel="noopener noreferrer" className={buttonClasses("outline", "md")}>Abrir</a>
                   <CopiarLink ruta={`/portal/cliente/${tokenCliente}`} />
-                  {vista.pipelineEdita && <BotonConConfirmacion accion={revocarPortalCliente} ocultos={{ id: p.id }} texto="Sacar el acceso" textoConfirma="Sí, sacar el acceso a todos sus eventos" />}
+                  {vista.pipelineEdita && <BotonConConfirmacion accion={revocarPortalCliente} ocultos={{ id: p.id }} texto="Sacar el acceso" textoConfirma="Saca el acceso a la lista de eventos. Los links de cada evento siguen abiertos hasta que los revoques en cada proyecto." />}
                 </div>
               </>
             ) : vista.pipelineEdita ? (

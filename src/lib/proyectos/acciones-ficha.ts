@@ -331,6 +331,9 @@ async function entrarPortalCliente(formData: FormData): Promise<{ a: Actor; clie
   if (!(await hayTablaPortalCliente())) return SIN_TABLA_PORTAL_CLIENTE;
   const p = await prisma.proyecto.findFirst({ where: { id, tenantId: a.tenantId }, select: { clientId: true } });
   if (!p) return "Ese proyecto no existe.";
+  // El cliente del proyecto tiene que ser de este mismo negocio: si no, se niega (nunca un link a un cliente ajeno).
+  const c = await prisma.client.findFirst({ where: { id: p.clientId, tenantId: a.tenantId }, select: { id: true } });
+  if (!c) return "Ese cliente no existe.";
   return { a, clientId: p.clientId };
 }
 
@@ -340,13 +343,15 @@ export async function generarPortalCliente(formData: FormData): Promise<Resultad
   if (typeof e === "string") return mal(e);
   const { a, clientId } = e;
   if (!(await etapa2ActivaPara(a.tenantId, "portal"))) return mal(MENSAJE_APAGADO.portal);
+  let creadas = 0;
   try {
-    await prisma.portalCliente.createMany({ data: [{ tenantId: a.tenantId, clientId, token: tokenDeCliente(), creadoPor: a.user.id }], skipDuplicates: true });
+    ({ count: creadas } = await prisma.portalCliente.createMany({ data: [{ tenantId: a.tenantId, clientId, token: tokenDeCliente(), creadoPor: a.user.id }], skipDuplicates: true }));
   } catch (err) {
     if (faltaTablaPortalCliente(err)) return mal(SIN_TABLA_PORTAL_CLIENTE);
     throw err;
   }
-  await auditAdmin({ action: "proyecto.portalCliente.generar", entity: "Client", entityId: clientId, changes: {} });
+  // Sólo se audita si se creó la fila: el clic que encontró el link vigente no generó nada.
+  if (creadas > 0) await auditAdmin({ action: "proyecto.portalCliente.generar", entity: "Client", entityId: clientId, changes: {} });
   refrescar(txt(formData.get("id")));
   return { ok: true };
 }
