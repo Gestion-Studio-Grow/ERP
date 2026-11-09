@@ -275,6 +275,8 @@ model Tenant {
   voucherConciliaciones     VoucherConciliacion[]
   voucherLiquidaciones      VoucherLiquidacion[]
   voucherPagosAdministracion VoucherPagoAdministracion[]
+  iaTope                    IaTope? // tope mensual de IA paga (Etapa 2 · T4)
+  iaConsumos                IaConsumo[]
   cuentasContables          CuentaContable[] // contabilidad (ola 1)
   ejercicios                Ejercicio[]
   asientos                  Asiento[]
@@ -4547,4 +4549,31 @@ model VencimientoFiscal {
 
   @@unique([tenantId, obligacionId, periodo, cuota])
   @@index([tenantId, fechaVencimiento])
+}
+
+// ── Tope mensual de gasto de IA por negocio (Etapa 2 de MIA · T4) ──────────────────────────────
+// Migración 20261110130000_ia_tope_y_consumo (aditiva, tablas NUEVAS: un campo en Tenant rompería
+// todo `tenant.findUnique` mientras la migración no esté aplicada). Montos en MICRO-DÓLARES BigInt.
+// El tope lo carga GSG desde la consola del operador; sin fila = tope 0 = nada pago.
+model IaTope {
+  tenant              Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId            String   @id
+  topeMensualMicroUsd BigInt   @default(0)
+  actualizadoPor      String?
+  updatedAt           DateTime @updatedAt
+}
+
+// Consumo de IA de un negocio en un mes ("YYYY-MM", hora de Buenos Aires). `reservado` es lo que
+// está en vuelo (costo máximo de las llamadas que todavía no volvieron); `gastado`, lo liquidado.
+model IaConsumo {
+  id                String @id @default(cuid())
+  tenant            Tenant @relation(fields: [tenantId], references: [id])
+  tenantId          String
+  mes               String // YYYY-MM (America/Argentina/Buenos_Aires)
+  llamadas          Int    @default(0)
+  llamadasGratis    Int    @default(0)
+  reservadoMicroUsd BigInt @default(0)
+  gastadoMicroUsd   BigInt @default(0)
+
+  @@unique([tenantId, mes])
 }
