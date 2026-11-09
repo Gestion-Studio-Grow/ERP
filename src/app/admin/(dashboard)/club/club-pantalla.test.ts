@@ -393,6 +393,8 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
     await menu.getByRole("menuitem", { name: "Marcar falta…" }).click();
     await cuenta.getByRole("button", { name: "No vino", expanded: true }).waitFor();
     await cuenta.getByRole("group", { name: "A quién se le cobra el turno" }).waitFor();
+    // El foco lo mueve un efecto después de pintar el grupo: se espera a que llegue (como con «A la cancha»).
+    await page.waitForFunction(() => (document.activeElement as HTMLInputElement | null)?.type === "radio").catch(() => {});
     assert.equal(await page.evaluate(() => (document.activeElement as HTMLInputElement | null)?.type), "radio", "el foco queda en a quién se le cobra");
     assert.deepEqual(errores, []);
     await page.close();
