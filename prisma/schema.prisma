@@ -1347,6 +1347,14 @@ model Invoice {
   // R1 · los cobros que este comprobante factura (una factura por cobro; ver CobroFacturado).
   cobrosFacturados CobroFacturado[]
 
+  // Etapa 2 · T2 (20261110120000_invoice_proyecto_cuota, SIN APLICAR: Gate 2). Origen
+  // PROYECTO_CUOTA: la cuota de cobro de un proyecto que esta factura factura. Con el @@unique
+  // de abajo la BASE impide dos facturas de la misma cuota (carrera → P2002 → se devuelve la
+  // ganadora). Rastro débil (SetNull): borrar la cuota no rompe el histórico fiscal.
+  proyectoCuota   ProyectoCuota? @relation(fields: [proyectoCuotaId], references: [id], onDelete: SetNull)
+  proyectoCuotaId String?
+
+  @@unique([tenantId, proyectoCuotaId]) // 1 factura por cuota de proyecto; NULLs no colisionan
   @@unique([tenantId, abonoClave]) // 1 factura por (regla, mes); NULLs no colisionan
   @@unique([tenantId, id]) // destino de las llaves foráneas que incluyen el negocio
   @@unique([tenantId, puntoVenta, tipoComprobante, numero]) // guarda anti-duplicado de numeración fiscal (spec §1). NULLs (PENDING) no colisionan.
@@ -3856,6 +3864,7 @@ model ProyectoCuota {
   clave          String? // de qué ítem y tramo salió: regenerar no duplica
   anuladoEl      DateTime?
   conciliaciones ProyectoMovBanco[]
+  facturas       Invoice[] // Etapa 2 · T2: la factura ARCA de esta cuota (a lo sumo una, @@unique en Invoice)
   createdAt      DateTime           @default(now())
 
   @@unique([tenantId, clave])

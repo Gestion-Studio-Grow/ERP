@@ -49,7 +49,12 @@ export interface SubtotalIva {
  * traductor origen→FK es el helper puro `buildInvoiceOriginLink` (settlement/invoice-origin),
  * la MISMA fuente que usa el settlement — no se duplica la lógica.
  */
-export type InvoiceOrigin = { type: InvoiceOriginType; id: string } | { type: "ABONO"; id: string };
+export type InvoiceOrigin =
+  | { type: InvoiceOriginType; id: string }
+  | { type: "ABONO"; id: string }
+  /** Etapa 2 · T2: una cuota de cobro de un proyecto (`ProyectoCuota.id`), en `Invoice.proyectoCuotaId`
+   *  con índice único (tenantId, proyectoCuotaId) — migración 20261110120000, Gate 2. */
+  | { type: "PROYECTO_CUOTA"; id: string };
 
 /**
  * Motor de facturación · origen ABONO (pedido 2 de la consola del contador): `id` =
@@ -67,8 +72,19 @@ export function claveDeAbono(reglaId: string, mes: string): string {
 }
 
 /** Enlace de origen para `invoice.create/findFirst`: el de una venta (D10) o el del abono. */
-function enlaceDeOrigen(origin: InvoiceOrigin | undefined): { orderId?: string; appointmentId?: string; mpPaymentId?: string; abonoClave?: string } {
+function enlaceDeOrigen(origin: InvoiceOrigin | undefined): {
+  orderId?: string;
+  appointmentId?: string;
+  mpPaymentId?: string;
+  abonoClave?: string;
+  proyectoCuotaId?: string;
+} {
   if (!origin) return {};
+  if (origin.type === "PROYECTO_CUOTA") {
+    const id = String(origin.id ?? "").trim();
+    if (!id) throw new Error("Falta la cuota del proyecto a facturar.");
+    return { proyectoCuotaId: id };
+  }
   if (origin.type === "ABONO") {
     if (!FORMA_CLAVE_ABONO.test(origin.id)) throw new Error(`Clave de abono inválida: «${origin.id}» (va <regla>:<AAAA-MM>).`);
     return { abonoClave: origin.id };
@@ -77,7 +93,7 @@ function enlaceDeOrigen(origin: InvoiceOrigin | undefined): { orderId?: string; 
 }
 
 const tieneOrigen = (link: ReturnType<typeof enlaceDeOrigen>) =>
-  "orderId" in link || "appointmentId" in link || "mpPaymentId" in link || "abonoClave" in link;
+  "orderId" in link || "appointmentId" in link || "mpPaymentId" in link || "abonoClave" in link || "proyectoCuotaId" in link;
 
 /** Datos que se guardan en el payload del evento `InvoiceCreated`. */
 export interface CreateInvoiceInput {

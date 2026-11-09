@@ -10,6 +10,7 @@ import { prisma } from "@/lib/prisma";
 import { aPesos, COLUMNAS_FICHA, cashflowDelEvento, codigoProyecto, resumenCuotas, totalesFicha, ventaTotalItem } from "./gestion-core";
 import { columnasOcultas, filtroDeProyectos, puede, tiposDeCambio, versionViva, aItemFicha, type Actor } from "./gestion.server";
 import { configProyectos, datosDelNegocio } from "./datos.server";
+import { facturasDeCuotas, motivoParaNoFacturarCuotas, type FacturaDeCuotaVista } from "./facturar-cuota.server";
 import { desvioPorRubro, fechaCorta, fechaParaInput, redondear, resultadoReal, totales } from "./core";
 import { cambioDeVenta, costoSinProveedor, enMonedaDeVenta, ventaEn } from "./gestion-core";
 import { cambioVisible, columnaDe, filaDeFicha, iniciales, monedasSinCambio, planillaDeVenta } from "./ficha-core";
@@ -182,7 +183,12 @@ export async function datosFinanzas(a: Actor, cab: Cabecera, vista: Vista) {
   const totalesAprobada = aprobada ? totales(aprobadaEnPesos, aprobada.ivaPct) : null;
   const cobrado = redondear(pagos.filter((p) => !p.anuladoEl).reduce((s, p) => s + p.monto, 0));
   const totalAprobado = totalesAprobada?.total ?? 0;
+  // Etapa 2 · T2: la factura de ARCA de cada cobro, si el negocio factura cuotas (las cuatro llaves).
+  const facturaCuotas = (await motivoParaNoFacturarCuotas(tenantId)) === null;
+  const facturas = facturaCuotas ? await facturasDeCuotas(tenantId, visibles.filter((c) => c.tipo === "COBRO").map((c) => c.id)) : new Map<string, FacturaDeCuotaVista>();
   return {
+    facturaCuotas,
+    facturas,
     cuotas: visibles,
     flujo,
     resumen: resumenCuotas(visibles, cab.tc),

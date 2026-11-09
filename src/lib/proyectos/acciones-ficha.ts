@@ -10,6 +10,7 @@ import { MENSAJE_APAGADO } from "./etapa2-core";
 import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { cuentaParaCuota } from "./gestion-cuentas.server";
+import { conCuotaSinFacturaViva, facturarCuotaDelProyecto } from "./facturar-cuota.server";
 import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
 import { getCurrentTenantId } from "@/lib/tenant";
@@ -838,11 +839,33 @@ export async function quitarMovimiento(formData: FormData): Promise<ResultadoFic
   if (typeof a === "string") return mal(a);
   const { tenantId } = a;
   const id = txt(formData.get("id"));
-  const r = await prisma.proyectoCuota.updateMany({ where: { id, tenantId, proyectoId, auto: false, pagadoEl: null, anuladoEl: null }, data: { anuladoEl: new Date() } });
+  // Con el candado de la facturación (T2): un cobro con factura viva no se quita (se anula con nota de crédito).
+  const r = await conCuotaSinFacturaViva(tenantId, id, (tx) => tx.proyectoCuota.updateMany({ where: { id, tenantId, proyectoId, auto: false, pagadoEl: null, anuladoEl: null }, data: { anuladoEl: new Date() } }));
+  if (r === "facturada") return mal("Ese cobro ya tiene factura: no se quita. Para dejarlo sin efecto hace falta una nota de crédito desde Facturación.");
   if (r.count === 0) return mal("Ese movimiento ya no se puede quitar.");
   await registrarCambio(prisma, { tenantId, proyectoId, entidad: "ProyectoCuota", entidadId: id, campo: "Movimiento quitado", despues: id, autor: a.nombre });
   refrescar(proyectoId);
   return { ok: true };
+}
+
+/**
+ * Etapa 2 · T2 · «Facturar» una cuota de cobro con ARCA (interruptor `facturacion-proyectos` + módulo
+ * `arca`). Permiso de pagos y proyecto visible; lo demás (llaves del negocio, la cuota, la escritura
+ * idempotente con la fila tomada) está en facturar-cuota.server.ts. Sirve también de «Volver a
+ * facturar» una rechazada: reabre la misma factura.
+ */
+export async function facturarCuota(formData: FormData): Promise<ResultadoFicha<{ invoiceId?: string }>> {
+  const proyectoId = txt(formData.get("proyectoId"));
+  const a = await entrar("pagos", proyectoId);
+  if (typeof a === "string") return mal(a);
+  const cuotaId = txt(formData.get("id"));
+  if (!cuotaId) return mal("Esa cuota no existe.");
+  const r = await facturarCuotaDelProyecto({ tenantId: a.tenantId, proyectoId, cuotaId, autor: a.nombre });
+  if (!r.ok) return mal(r.error);
+  if (!r.yaEstaba) await auditAdmin({ action: "proyecto.cuota.facturar", entity: "ProyectoCuota", entityId: cuotaId, changes: { invoiceId: r.invoiceId } });
+  refrescar(proyectoId);
+  revalidatePath("/admin/facturacion");
+  return { ok: true, invoiceId: r.invoiceId };
 }
 
 /** La aprobación desde el link del cliente mueve la etapa sin pasar por acá: este botón pone las cuotas al día. */

@@ -5,13 +5,15 @@ import Link from "next/link";
 import { Badge, buttonClasses, cn } from "@/components/ui";
 import SubmitButton from "@/components/SubmitButton";
 import { pagarGasto, registrarCobro } from "@/lib/proyectos/acciones";
-import { anularCobroFicha, anularGastoFicha, aprobarInterno, pedirAprobacion, crearMovimientoManual, enviarCotizacion, guardarTextos, marcarCuota, nuevaVersion, quitarMovimiento, recalcularCuotas, registrarRespuesta } from "@/lib/proyectos/acciones-ficha";
+import { anularCobroFicha, anularGastoFicha, aprobarInterno, pedirAprobacion, crearMovimientoManual, enviarCotizacion, guardarTextos, marcarCuota, facturarCuota, nuevaVersion, quitarMovimiento, recalcularCuotas, registrarRespuesta } from "@/lib/proyectos/acciones-ficha";
 import { fechaCorta, fechaParaInput, MEDIOS, MEDIO_LABEL, pesos, porcentaje, sePuedeEditar, totalDelGasto, waLink, type MedioPago } from "@/lib/proyectos/core";
 import { esFoto, FILTROS_CASHFLOW, filtrarCashflow, fotoDeVersion, margenDeFoto, planillaDeVenta } from "@/lib/proyectos/ficha-core";
 import { aItemFicha } from "@/lib/proyectos/gestion.server";
 import { cambiosEntreVersiones, cambioDeVenta, estadoCuota, MONEDAS, plataEn, totalesFicha, ventaEn } from "@/lib/proyectos/gestion-core";
 import { datosCotizacion, datosFinanzas, type Cabecera, type Vista } from "@/lib/proyectos/ficha.server";
 import { veLaPlata } from "@/lib/proyectos/datos.server";
+import type { FacturaDeCuotaVista } from "@/lib/proyectos/facturar-cuota.server";
+import { nombreDelComprobante } from "@/lib/factura-de-prueba";
 import type { Actor } from "@/lib/proyectos/gestion.server";
 import { campo, etiqueta, tarjeta } from "../_vista";
 import { BotonConConfirmacion, FormAccion } from "./_cliente";
@@ -195,6 +197,27 @@ export async function PestanaCotizacion({ a, cab, vista, ver, cambios }: { a: Ac
 
 // ── Finanzas ────────────────────────────────────────────────────────────────
 
+/**
+ * Etapa 2 · T2 · La factura de ARCA de una cuota de cobro: el comprobante («Factura B 0001-…»),
+ * «en camino», o rechazada con su motivo y «Volver a facturar». Sin factura y con permiso de
+ * pagos: «Facturar» (pide confirmación: un comprobante autorizado sólo se anula con nota de crédito).
+ */
+function FacturaDeLaCuota({ cuota: c, factura: f, proyectoId, edita }: { cuota: { id: string; anuladoEl: Date | null; prevista: boolean; moneda: string; factura: string | null; concepto: string }; factura?: FacturaDeCuotaVista; proyectoId: string; edita: boolean }) {
+  if (f?.status === "AUTHORIZED") return <Badge tone="success">{nombreDelComprobante(f.tipoComprobante, f.puntoVenta, f.numero) ?? "Factura autorizada"}</Badge>;
+  if (f?.status === "PENDING") return <Badge tone="neutral">Factura en camino a ARCA</Badge>;
+  if (f?.status === "REJECTED") {
+    return (
+      <div className="mt-1 grid gap-1">
+        <Badge tone="danger">Factura rechazada por ARCA</Badge>
+        {f.rechazoMotivo && <p className="max-w-xs text-xs text-danger">{f.rechazoMotivo}</p>}
+        {edita && <BotonConConfirmacion accion={facturarCuota} ocultos={{ id: c.id, proyectoId }} texto="Volver a facturar" textoConfirma="Pedir CAE de nuevo" etiqueta={`Volver a facturar ${c.concepto}`} />}
+      </div>
+    );
+  }
+  if (!edita || c.anuladoEl || c.prevista || c.moneda !== "ARS" || (c.factura ?? "").trim() !== "") return null;
+  return <BotonConConfirmacion accion={facturarCuota} ocultos={{ id: c.id, proyectoId }} texto="Facturar" textoConfirma="Pedir CAE a ARCA" etiqueta={`Facturar ${c.concepto}`} />;
+}
+
 export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab: Cabecera; vista: Vista; filtro?: string }) {
   const cuentas = vista.editaPagos ? await prisma.proyectoCuentaBanco.findMany({ where: { tenantId: a.tenantId }, orderBy: { createdAt: "asc" }, select: { id: true, nombre: true, moneda: true } }) : [];
   const { proyecto: p, totales: t, faltanCambio } = cab;
@@ -270,6 +293,7 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
                       <td className="py-1.5 pr-2">{c.prevista && !c.pagadoEl ? <Badge tone="neutral">Prevista</Badge> : <Badge tone={estado === "PAGADA" ? "success" : estado === "VENCIDA" ? "danger" : "neutral"}>{estado === "PAGADA" ? (c.tipo === "COBRO" ? "Cobrado" : "Pagado") : estado === "VENCIDA" ? "Vencido" : "Pendiente"}</Badge>}</td>
                       <td className="py-1">
                         {c.pagadoEl && c.tipo === "COBRO" && !c.anuladoEl && <a href={`/admin/proyectos/imprimir/cobro/${c.id}`} className={buttonClasses("ghost", "sm")}>Constancia</a>}
+                        {d.facturaCuotas && c.tipo === "COBRO" && <FacturaDeLaCuota cuota={c} factura={d.facturas.get(c.id)} proyectoId={p.id} edita={vista.editaPagos} />}
                         {!c.pagadoEl && !c.prevista && vista.editaPagos && (
                           <div className="flex flex-wrap items-center justify-end gap-1">
                             <FormAccion accion={marcarCuota} className="flex flex-wrap items-center gap-1">
@@ -421,7 +445,7 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
             <SubmitButton className={buttonClasses("solid", "md")}>Registrar cobro</SubmitButton>
           </form>
         )}
-        <p className="mt-2 text-sm text-muted">Cada cobro entra al libro de caja. La factura se emite desde Facturación.</p>
+        <p className="mt-2 text-sm text-muted">Cada cobro entra al libro de caja. {d.facturaCuotas ? "La factura de cada cuota se pide a ARCA con «Facturar», en la tabla de arriba." : "La factura se emite desde Facturación."}</p>
       </section>
     </div>
   );
