@@ -180,6 +180,7 @@ test("SEG-011: tenantTransaction espera entre reintentos (no vuelve a chocar al 
   );
   assert.equal(r, "grabado");
   assert.equal(intentos, 4);
-  // 3 esperas: como mínimo 5 + 10 + 20 ms (margen de 2 ms por el redondeo del timer).
-  assert.ok(Date.now() - t0 >= 33, `esperó ${Date.now() - t0} ms`);
+  // 3 esperas: como mínimo 5 + 10 + 20 = 35 ms. El piso va en 20 ms: un timer de Node puede vencer ~1 ms antes
+  // por el redondeo, y sin espera el reintento tarda ~0 ms, así que 20 separa los dos casos sin depender del reloj.
+  assert.ok(Date.now() - t0 >= 20, `esperó ${Date.now() - t0} ms`);
 });
