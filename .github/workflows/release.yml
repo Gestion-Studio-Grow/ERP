@@ -1,7 +1,7 @@
 # Tren de releases — Plataforma, publicación y mantenimiento (frente facturación automática).
 # ============================================================================
 # COMPLEMENTA a gates.yml (no lo reemplaza): gates.yml sigue siendo la valla de código
-# (tsc, tests, rls, build, visual, visual-aa; lint no bloqueante). Este workflow suma lo del
+# (lint, tsc, tests, tests-navegador, rls, build, visual, visual-aa). Este workflow suma lo del
 # TREN DE RELEASES, todo sin dependencias y sin `npm ci` (sólo Node + git), así que es rápido:
 #
 #   · tren        → tests del núcleo de scripts/release + sello GSG en el backoffice (trinquete).
@@ -22,6 +22,9 @@ name: release
 on:
   push:
   pull_request:
+    # `edited`: el gate-pr lee la descripción del evento, así que editarla tiene que volver a
+    # disparar el chequeo (un re-run reusa el evento viejo y vuelve a fallar).
+    types: [opened, synchronize, reopened, edited]
   deployment_status:
   workflow_dispatch:
     inputs:

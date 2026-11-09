@@ -105,6 +105,9 @@ export default function BookingProvider({ children, negocio }: { children: React
   useEffect(() => {
     if (!nuevo) return;
     const guardada = leerReservaGuardada();
+    // Reabrir pide la agenda al servidor: es sincronizar con algo externo (el almacenamiento del navegador y
+    // la red) después de hidratar, que es justo para lo que está un efecto.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (guardada) openBooking(guardada);
   }, [nuevo, openBooking]);
 
