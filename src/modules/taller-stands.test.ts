@@ -92,3 +92,16 @@ test("alta idempotente y sin usuarios", async () => {
 test("alta: sin RLS activo no crea el tenant", async () => {
   await assert.rejects(altaTallerAle(baseFalsa(false, false).prisma), /ADR-018/);
 });
+
+// GSG-MIA-004 · T2 — el despiece no se le muestra a nadie más.
+test("T2: servicios y productora no cambian y no ven el despiece aunque el interruptor esté prendido", async () => {
+  const { tallerVisible } = await import("@/lib/taller-stands/core");
+  assert.deepEqual(defaultModulesForBlueprint("servicios"), ["agenda", "catalog", "clients", "waitlist", "reminders", "reports", "commissions"]);
+  assert.deepEqual(defaultModulesForBlueprint("productora"), ["proyectos", "clients", "reports", "arca"]);
+  for (const blueprintId of ["servicios", "productora"]) {
+    assert.equal(tallerVisible({ flag: true, modules: defaultModulesForBlueprint(blueprintId), blueprintId }), false, blueprintId);
+    assert.equal(tallerVisible({ flag: true, modules: [...defaultModulesForBlueprint(blueprintId), "taller-stands"], blueprintId }), false, blueprintId);
+  }
+  assert.equal(tallerVisible({ flag: true, modules: defaultModulesForBlueprint("taller-stands"), blueprintId: "taller-stands" }), true);
+  assert.equal(tallerVisible({ flag: false, modules: defaultModulesForBlueprint("taller-stands"), blueprintId: "taller-stands" }), false);
+});
