@@ -35,7 +35,7 @@ CREATE UNIQUE INDEX "ImportacionBancaria_tenantId_id_key" ON "ImportacionBancari
 CREATE UNIQUE INDEX "VoucherLote_tenantId_id_key" ON "VoucherLote"("tenantId", "id");
 CREATE UNIQUE INDEX "Client_tenantId_id_key" ON "Client"("tenantId", "id");
 
--- 2. FK compuestas (columna, negocio). Invoice ya tenía ("tenantId","id"); ProyectoGasto, ("id","tenantId").
+-- 2. FK compuestas (columna, negocio). ProyectoGasto, ("id","tenantId").
 ALTER TABLE "CashMovement" ADD CONSTRAINT "CashMovement_sessionId_tenant_fkey" FOREIGN KEY ("tenantId", "sessionId") REFERENCES "CashSession"("tenantId", "id") ON DELETE CASCADE ON UPDATE NO ACTION NOT VALID;
 ALTER TABLE "CashMovement" ADD CONSTRAINT "CashMovement_orderId_tenant_fkey" FOREIGN KEY ("tenantId", "orderId") REFERENCES "Order"("tenantId", "id") ON DELETE SET NULL ("orderId") ON UPDATE NO ACTION NOT VALID;
 ALTER TABLE "CashMovement" ADD CONSTRAINT "CashMovement_paymentId_tenant_fkey" FOREIGN KEY ("tenantId", "paymentId") REFERENCES "Payment"("tenantId", "id") ON DELETE SET NULL ("paymentId") ON UPDATE NO ACTION NOT VALID;
@@ -48,7 +48,8 @@ ALTER TABLE "Collection" ADD CONSTRAINT "Collection_appointmentId_tenant_fkey" F
 ALTER TABLE "Payment" ADD CONSTRAINT "Payment_appointmentId_tenant_fkey" FOREIGN KEY ("tenantId", "appointmentId") REFERENCES "Appointment"("tenantId", "id") ON DELETE RESTRICT ON UPDATE NO ACTION NOT VALID;
 ALTER TABLE "Invoice" ADD CONSTRAINT "Invoice_orderId_tenant_fkey" FOREIGN KEY ("tenantId", "orderId") REFERENCES "Order"("tenantId", "id") ON DELETE SET NULL ("orderId") ON UPDATE NO ACTION NOT VALID;
 ALTER TABLE "Invoice" ADD CONSTRAINT "Invoice_appointmentId_tenant_fkey" FOREIGN KEY ("tenantId", "appointmentId") REFERENCES "Appointment"("tenantId", "id") ON DELETE SET NULL ("appointmentId") ON UPDATE NO ACTION NOT VALID;
-ALTER TABLE "CobroFacturado" ADD CONSTRAINT "CobroFacturado_invoiceId_tenant_fkey" FOREIGN KEY ("tenantId", "invoiceId") REFERENCES "Invoice"("tenantId", "id") ON DELETE RESTRICT ON UPDATE NO ACTION NOT VALID;
+-- CobroFacturado.invoiceId → Invoice queda para la tanda 2: el único ("tenantId","id") de Invoice lo crea
+-- 20260925120000_lanzamiento_base y su rollback.sql lo borra; una FK acá rompería esa reversa.
 ALTER TABLE "Voucher" ADD CONSTRAINT "Voucher_loteId_tenant_fkey" FOREIGN KEY ("tenantId", "loteId") REFERENCES "VoucherLote"("tenantId", "id") ON DELETE RESTRICT ON UPDATE NO ACTION NOT VALID;
 ALTER TABLE "Voucher" ADD CONSTRAINT "Voucher_clientId_tenant_fkey" FOREIGN KEY ("tenantId", "clientId") REFERENCES "Client"("tenantId", "id") ON DELETE RESTRICT ON UPDATE NO ACTION NOT VALID;
 ALTER TABLE "Voucher" ADD CONSTRAINT "Voucher_appointmentId_tenant_fkey" FOREIGN KEY ("tenantId", "appointmentId") REFERENCES "Appointment"("tenantId", "id") ON DELETE SET NULL ("appointmentId") ON UPDATE NO ACTION NOT VALID;

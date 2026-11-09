@@ -19,7 +19,7 @@ La defensa de hoy es la app: `tenantTransaction` (`src/lib/rls.ts:176`) y el can
 - Relaciones con FK en el schema: **270**. Con `tenantId` dentro de la FK (a `Tenant` o compuestas): 158.
 - **Sin `tenantId`: 112** (111 entre tablas de negocio + 1 exenta). El «~250» de la cert4 de #49 contaba
   todas las FK, incluidas las de `tenantId → Tenant`, que están bien.
-- Por riesgo: P1 plata 42 (**18 cerradas en la tanda 1**, 24 pendientes) · P2 datos de clientas 34 ·
+- Por riesgo: P1 plata 42 (**17 cerradas en la tanda 1**, 25 pendientes) · P2 datos de clientas 34 ·
   P3 operación/catálogo 35 · exenta 1.
 
 ## Tanda 1 (esta rama): qué se hizo
@@ -27,13 +27,13 @@ La defensa de hoy es la app: `tenantTransaction` (`src/lib/rls.ts:176`) y el can
 Migración `prisma/migrations/20261109120000_fk_compuestas_plata/migration.sql` (**ADITIVA, SIN APLICAR**):
 - 10 índices únicos `("tenantId","id")` en los destinos (también en `schema.prisma` como `@@unique([tenantId, id])`).
   Son trivialmente únicos (`id` es PK): no pueden fallar por datos.
-- 18 FK nuevas `(col,"tenantId") → destino("tenantId","id")` **al lado** de las viejas, `NOT VALID`
+- 17 FK nuevas `(col,"tenantId") → destino("tenantId","id")` **al lado** de las viejas, `NOT VALID`
   (se cumplen en toda escritura nueva; no revisan filas viejas). `ON DELETE` igual a la vieja
   (SET NULL **sólo de la columna**, `SET NULL ("col")`, Postgres ≥ 15; Neon es 16). `ON UPDATE NO ACTION`.
 - Las FK nuevas **no** están en `schema.prisma`: Prisma no sabe expresar SET NULL de una columna de una FK
   compuesta. Prisma Client no cambia. Si alguien genera una migración con `migrate dev`, Prisma va a proponer
   borrarlas: **no aceptarla** (anotado en la migración).
-- Tests: `src/lib/seguridad/fk-compuestas-plata-postgres.test.ts` (base efímera, app_rls): las 18 FK y los 10 índices
+- Tests: `src/lib/seguridad/fk-compuestas-plata-postgres.test.ts` (base efímera, app_rls): las 17 FK y los 10 índices
   existen; con la sesión de A, un id de B rebota en 7 columnas (caja, pedido, cobro, voucher×2, banco, factura); como
   dueño de las tablas, también; ni mover la hija ni el padre de negocio; los borrados siguen igual (SET NULL deja el
   negocio, CASCADE de la caja).
@@ -75,8 +75,6 @@ Migración `prisma/migrations/20261109120000_fk_compuestas_plata/migration.sql` 
    UNION ALL
    SELECT 'Invoice.appointmentId' AS fk, count(*) FROM "Invoice" h JOIN "Appointment" p ON p.id = h."appointmentId" WHERE p."tenantId" <> h."tenantId"
    UNION ALL
-   SELECT 'CobroFacturado.invoiceId' AS fk, count(*) FROM "CobroFacturado" h JOIN "Invoice" p ON p.id = h."invoiceId" WHERE p."tenantId" <> h."tenantId"
-   UNION ALL
    SELECT 'Voucher.loteId' AS fk, count(*) FROM "Voucher" h JOIN "VoucherLote" p ON p.id = h."loteId" WHERE p."tenantId" <> h."tenantId"
    UNION ALL
    SELECT 'Voucher.clientId' AS fk, count(*) FROM "Voucher" h JOIN "Client" p ON p.id = h."clientId" WHERE p."tenantId" <> h."tenantId"
@@ -87,7 +85,7 @@ Migración `prisma/migrations/20261109120000_fk_compuestas_plata/migration.sql` 
    UNION ALL
    SELECT 'MovimientoImportado.importacionId' AS fk, count(*) FROM "MovimientoImportado" h JOIN "ImportacionBancaria" p ON p.id = h."importacionId" WHERE p."tenantId" <> h."tenantId";
    ```
-3. Si da 0: `ALTER TABLE "<tabla>" VALIDATE CONSTRAINT "<tabla>_<col>_tenant_fkey";` (18 sentencias; no bloquea escrituras).
+3. Si da 0: `ALTER TABLE "<tabla>" VALIDATE CONSTRAINT "<tabla>_<col>_tenant_fkey";` (17 sentencias; no bloquea escrituras).
 4. Más adelante (no aditivo, otra tanda): borrar la FK vieja de una columna. Hasta entonces el **nombre** de la
    restricción en el error distingue «no existe» de «es de otro negocio» si un mensaje crudo llegara a la pantalla;
    las rutas auditadas verifican antes y no llegan a la FK; no se verificó que ningún error crudo de Prisma llegue a la pantalla (*provisional a confirmar*).
@@ -114,7 +112,7 @@ Migración `prisma/migrations/20261109120000_fk_compuestas_plata/migration.sql` 
 | 5 | P1 · plata — HECHO en tanda 1 | CashMovement.tallerPagoId → TallerPago | SET NULL | sí | :1706 | SÍ — taller/caja.ts:63 ← taller/acciones.ts:385; :92 ← :422 |
 | 6 | P1 · plata — HECHO en tanda 1 | CashMovement.proyectoPagoId → ProyectoPago | SET NULL | sí | :1709 | SÍ — proyectos/acciones.ts:205, acciones-ficha.ts:780/:878 |
 | 7 | P1 · plata — HECHO en tanda 1 | CashMovement.proyectoGastoId → ProyectoGasto | SET NULL | sí | :1712 | SÍ — proyectos/acciones.ts:230, acciones-ficha.ts:790/:919, acciones-rendiciones.ts:227 |
-| 8 | P1 · plata — HECHO en tanda 1 | CobroFacturado.invoiceId → Invoice | RESTRICT | no | :2627 | SÍ — facturacion/cobros-facturados.ts:128; turnos/anulacion.ts:605 · latente: vincularCobroInTx (:115) |
+| 8 | P1 · plata — tanda 2 (diferida: el único (tenantId,id) de Invoice lo borra el rollback de 20260925120000_lanzamiento_base; hay que ajustar esa reversa junto) | CobroFacturado.invoiceId → Invoice | RESTRICT | no | :2627 | SÍ — facturacion/cobros-facturados.ts:128; turnos/anulacion.ts:605 · latente: vincularCobroInTx (:115) |
 | 9 | P1 · plata — HECHO en tanda 1 | Collection.orderId → Order | SET NULL | sí | :1983 | SÍ — pago-mixto-tx.ts:58 ← order-core.ts:1307 · latente: collection-repo.ts:104 confía en el llamador |
 | 10 | P1 · plata — HECHO en tanda 1 | Collection.appointmentId → Appointment | SET NULL | sí | :1985 | SÍ — turnos/cobro-turno-repo.ts:264/:282 ← appointment.findFirst({id,tenantId}) · latente: collection-repo.ts:105 |
 | 11 | P1 · plata — HECHO en tanda 1 | Invoice.orderId → Order | SET NULL | sí | :1290 | SÍ — invoice-core.ts:333 ← SQL con "tenantId" :371/:418 |
@@ -222,7 +220,7 @@ Migración `prisma/migrations/20261109120000_fk_compuestas_plata/migration.sql` 
 
 ## Orden propuesto de las próximas tandas
 
-1. **Tanda 2 · plata restante (24)**: comisiones, cuentas a pagar/cobrar, cheques, taller, inmobiliaria (cuotas/pagos/
+1. **Tanda 2 · plata restante (25, incluye CobroFacturado.invoiceId)**: comisiones, cuentas a pagar/cobrar, cheques, taller, inmobiliaria (cuotas/pagos/
    liquidaciones), proyectos (pagos/gastos/banco/cuotas/liquidaciones), compras de stock, renglones de pedido.
 2. **Tanda 3 · datos de clientas (34)**: todo lo que apunta a `Client` y la agenda (turnos, reseñas, lista de espera),
    ProfeTurnos, taller, inmobiliaria.

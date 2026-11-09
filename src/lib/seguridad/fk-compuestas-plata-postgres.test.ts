@@ -13,7 +13,7 @@ import { baseEfimeraDelArchivo, type BaseEfimera } from "@/test/base-efimera";
 
 const laBase = baseEfimeraDelArchivo();
 
-/** [tabla, columna, destino, ON DELETE (pg_constraint.confdeltype: c CASCADE, n SET NULL, r RESTRICT)] de las 18 FK de la tanda 1. */
+/** [tabla, columna, destino, ON DELETE (pg_constraint.confdeltype: c CASCADE, n SET NULL, r RESTRICT)] de las 17 FK de la tanda 1. */
 const FK_PLATA: [string, string, string, "c" | "n" | "r"][] = [
   ["CashMovement", "sessionId", "CashSession", "c"],
   ["CashMovement", "orderId", "Order", "n"],
@@ -27,7 +27,6 @@ const FK_PLATA: [string, string, string, "c" | "n" | "r"][] = [
   ["Payment", "appointmentId", "Appointment", "r"],
   ["Invoice", "orderId", "Order", "n"],
   ["Invoice", "appointmentId", "Appointment", "n"],
-  ["CobroFacturado", "invoiceId", "Invoice", "r"],
   ["Voucher", "loteId", "VoucherLote", "r"],
   ["Voucher", "clientId", "Client", "r"],
   ["Voucher", "appointmentId", "Appointment", "n"],
@@ -98,7 +97,7 @@ async function nuevaImportacion(q: Q, tenantId: string): Promise<string> {
 
 const FK_COMPUESTA = (tabla: string, col: string) => new RegExp(`${tabla}_${col}_tenant_fkey`);
 
-test("la migración deja las 18 FK de plata compuestas con el negocio y los 10 índices (negocio, id)", async (t) => {
+test("la migración deja las 17 FK de plata compuestas con el negocio y los 10 índices (negocio, id)", async (t) => {
   const base = await laBase(t);
   if (!base) return;
   await comoDuenio(base, async (q) => {
