@@ -431,3 +431,45 @@ test("ReDoS: 1 MB de entradas patológicas por ticketDesdeMensaje en menos de 20
     }
   }
 });
+
+// ── Escalamiento (certificación 3): criterio estructural por vocabulario, que falla cerrado ─────
+
+test("estructural: en la línea de una etiqueta, lo que no es palabra de charla se tapa (cualquier redacción)", () => {
+  const S = "Hunter2x";
+  const casos = [
+    `Clave de acceso a ARCA: ${S}`, `Contraseña para entrar: ${S}`, `La clave que me dieron: ${S}`, `Clave fiscal de la empresa: ${S}`,
+    `Clave (ARCA): ${S}`, `Datos de acceso: juan@x.com / ${S}`, `credenciales: juan / ${S}`, `login: juan / ${S}`, `psw: ${S}`,
+    `contaseña: ${S}`, `la contra es ${S}`, `${S} es la clave`, `la clave: me pide ${S}`, `clave: no sé si es ${S}`, `¿Clave? ${S}`,
+    `pass [${S}]`, `DB_PASSWORD=${S}`, `la clave es la siguiente:\n${S}`, `te paso la clave\n${S}`, `clave: caja lunes ${S}`,
+    `https://:${S}@host.com`, `probé con la contraseña ${S} y nada`, `clave: "${S} con no"`,
+  ];
+  for (const e of casos) {
+    const r = taparSecretos(e);
+    assert.ok(!r.texto.includes(S), `${e} → ${r.texto}`);
+    assert.ok(r.tapados >= 1, e);
+    const t = ticketDesdeMensaje({ canal: "whatsapp", idExterno: "w-es", texto: `AYUDA ${e}`, remitente: "+54 11" }, AHORA);
+    assert.ok(t.ok && !JSON.stringify(t.datos).includes(S), e);
+  }
+  for (const [e, s] of [["el código es 482913", "482913"], ["2FA es 482913", "482913"], ["tarjeta vto 12/28 cod 123", "123"], ["CBU 0170099-2-2000000677-97370", "97370"]]) {
+    assert.ok(!taparSecretos(e).texto.includes(s), e);
+  }
+  // Tras «:» o «es», palabras conocidas que no son charla también se tapan.
+  assert.equal(taparSecretos("clave: caja lunes").texto, `clave: ${TAPADO}`);
+  assert.equal(taparSecretos("mi clave es caja lunes").texto, `mi clave es ${TAPADO}`);
+  assert.equal(taparSecretos(`La clave que me dieron: ${S}`).texto, `La clave que me dieron: ${TAPADO}`);
+  assert.equal(taparSecretos(`${S} es la clave`).texto, `${TAPADO} es la clave`);
+  // La charla pura queda como está.
+  for (const t of ["¿cuál es la clave del wifi?", "la clave no me anda desde ayer", "no me llega el código por mail", "la contraseña es incorrecta", "el código de barras 7790001 no lee", "necesito blanquear la clave fiscal"]) {
+    assert.deepEqual(taparSecretos(t), { texto: t, tapados: 0 }, t);
+  }
+});
+
+test("MEDIA: «no me anda» es problema; factura, CAE y celular no se tapan; la tarjeta sí", () => {
+  for (const t of ["no me anda la caja", "no me funciona el posnet", "no me factura", "se colgó todo", "se trabó la caja", "no funca"]) assert.equal(tipoDeMensaje(t), "problema", t);
+  for (let k = 0; k < 500; k++) {
+    const t = `Factura 00003-${String(10000000 + k * 7919).slice(-8)} CAE ${74000000000000 + k * 104729} cel +54 9 11 ${4000 + k}-${1000 + k}`;
+    assert.equal(taparSecretos(t).tapados, 0, t);
+  }
+  assert.equal(taparSecretos("tarjeta 4111 1111 1111 1111").texto, `tarjeta ${TAPADO}`);
+  assert.equal(taparSecretos("CAE 4111111111111111").tapados, 1, "16 dígitos con Luhn no son un CAE");
+});
