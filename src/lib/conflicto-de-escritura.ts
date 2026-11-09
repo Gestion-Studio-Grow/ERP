@@ -73,3 +73,21 @@ export function esConflictoDeEscritura(e: unknown): boolean {
   const sqlstate = sqlstateDeConsultaCruda(e);
   return sqlstate !== null && SQLSTATE_DE_CONFLICTO.has(sqlstate);
 }
+
+// ── Cuánto esperar antes de reintentar (SEG-011) ─────────────────────────────
+//
+// Reintentar AL INSTANTE deja a las dos transacciones en paso de baile: la que abortó vuelve a
+// leer antes de que la ganadora haya commiteado, ve "libre" otra vez y vuelve a chocar. Medido
+// con 2 reservas al mismo hueco: ~1 % necesita 3 intentos y, con el runner de CI cargado, alguna
+// llegó a 5 con el tope de 4 (P2034 crudo, run 42560143758). La espera crece al doble por
+// reintento (10, 20, 40… ms, con techo de 250 ms) y lleva azar ("equal jitter": entre la mitad y
+// el total), así dos que abortaron juntas no vuelven a arrancar juntas y la ganadora llega a
+// commitear antes de la relectura.
+export const ESPERA_BASE_MS = 10;
+export const ESPERA_TOPE_MS = 250;
+
+/** Milisegundos a esperar antes del reintento número `intento` (0 = el primero). */
+export function esperaAntesDeReintentar(intento: number, azar: () => number = Math.random): number {
+  const techo = Math.min(ESPERA_TOPE_MS, ESPERA_BASE_MS * 2 ** Math.max(0, intento));
+  return techo / 2 + azar() * (techo / 2);
+}

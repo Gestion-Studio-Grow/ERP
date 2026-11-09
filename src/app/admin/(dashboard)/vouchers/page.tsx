@@ -26,6 +26,11 @@ import {
 } from "./vouchers-pantalla";
 import { CargarLote } from "./CargarLote";
 import { ImportarCsv } from "./ImportarCsv";
+import { AcreditacionDelPago, GenerarLiquidacion, PagoACuenta } from "./LiquidacionFormularios";
+import { leerCuentaDeLaAdministracion, type CuentaDeLaAdministracion } from "@/lib/vouchers/liquidacion-repo";
+import { fechaArgentina, motivoParaNoRechazarCheque, pesosDeCentavos, ultimaSemanaCerrada } from "@/lib/vouchers/liquidacion-core";
+import { motivoDeBaja } from "@/lib/vouchers/voucher-core";
+import { isPrismaError } from "@/lib/prisma-errors";
 
 export const dynamic = "force-dynamic";
 
@@ -66,13 +71,15 @@ export default async function VouchersPage({ searchParams }: { searchParams: Pro
   const puedeCargar = roleHasCapability(user.role, "clients:manage");
   // La liquidación escribe montos (lo que pagó OpenKey): el permiso de la plata de la caja, como su action.
   const puedeLiquidar = permisoEfectivo(user, "cash:manage");
+  // Marcar un cheque rechazado: sólo el dueño (orden del 08/11/2026). La acción lo vuelve a exigir.
+  const puedeRechazarCheque = motivoParaNoRechazarCheque(user) === null;
   const query = queryDeFiltros(filtros);
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
       <PageHeader
         title={TITULO}
-        description="Cada voucher con su número, a quién se le dio, en qué turno se usó, si ya se dio de baja en OpenKey y si OpenKey ya lo pagó."
+        description="Cada voucher con su número, a quién se le dio, en qué turno se usó, si ya se dio de baja en el sistema de la administración del country y si la administración ya lo pagó."
         estado={[
           `${resumen.total} ${resumen.total === 1 ? "voucher" : "vouchers"}`,
           resumen.usados > 0 ? (
@@ -80,7 +87,7 @@ export default async function VouchersPage({ searchParams }: { searchParams: Pro
               {resumen.usados} {resumen.usados === 1 ? "usado" : "usados"} por <Plata valor={resumen.cubierto} sinCentavos={Number.isInteger(resumen.cubierto)} />
             </span>
           ) : null,
-          resumen.faltanBaja > 0 ? <strong key="b">{resumen.faltanBaja} sin baja en OpenKey</strong> : null,
+          resumen.faltanBaja > 0 ? <strong key="b">{resumen.faltanBaja} sin baja en la administración</strong> : null,
           resumen.sinLiquidar > 0 ? `${resumen.sinLiquidar} sin liquidar` : null,
         ]}
         actions={
@@ -95,7 +102,7 @@ export default async function VouchersPage({ searchParams }: { searchParams: Pro
           className="mb-6"
           tono="aviso"
           titulo="Cobrar con voucher todavía no está habilitado"
-          comoSeguir="Falta un paso de base de datos para cobrar turnos con voucher (lo aplica el dueño). Mientras tanto podés cargar lotes e importar OpenKey; los turnos se cobran con otro medio."
+          comoSeguir="Falta un paso de base de datos para cobrar turnos con voucher (lo aplica el dueño). Mientras tanto podés cargar lotes e importar la planilla de la administración; los turnos se cobran con otro medio."
         />
       )}
 
@@ -112,7 +119,7 @@ export default async function VouchersPage({ searchParams }: { searchParams: Pro
       ) : filas.length === 0 ? (
         <EmptyState
           title={hayFiltros(filtros) ? "No hay vouchers con esos filtros" : "Todavía no hay vouchers cargados"}
-          description={hayFiltros(filtros) ? "Probá con otras fechas o sacá algún filtro." : "Cargá el primer lote abajo, o importá la exportación de OpenKey."}
+          description={hayFiltros(filtros) ? "Probá con otras fechas o sacá algún filtro." : "Cargá el primer lote abajo, o importá la planilla que exporta la administración del country."}
         />
       ) : (
         <TablaDeVouchers filas={filas} />
@@ -123,19 +130,199 @@ export default async function VouchersPage({ searchParams }: { searchParams: Pro
           <Herramienta titulo="Cargar un lote" id="cargar-lote">
             <CargarLote hoy={todayInBusinessTz()} />
           </Herramienta>
-          <Herramienta titulo="Importar la foto de OpenKey" id="importar-foto">
+          <Herramienta titulo="Importar la planilla de la administración" id="importar-foto">
             <ImportarCsv tipo="foto" />
           </Herramienta>
         </div>
       )}
-      {puedeLiquidar && (
-        <div className="mt-6 space-y-6">
-          <Herramienta titulo="Importar la liquidación de OpenKey" id="importar-liquidacion">
-            <ImportarCsv tipo="liquidacion" />
-          </Herramienta>
+      {/* La plata del voucher la paga la administración del country y se liquida todos los lunes
+          (regla del dueño del 08/11/2026). Reemplaza a la importación de la liquidación de OpenKey. */}
+      {puedeLiquidar && <LiquidacionDelLunes puedeRechazarCheque={puedeRechazarCheque} />}
+    </main>
+  );
+}
+
+async function leerCuenta(tenantId: string): Promise<CuentaDeLaAdministracion | "falta-migracion"> {
+  try {
+    return await leerCuentaDeLaAdministracion(tenantId);
+  } catch (e) {
+    // Migración 20261108140000_voucher_liquidacion_semanal sin aplicar: aviso, sin 500.
+    if (isPrismaError(e, "P2021") || isPrismaError(e, "P2022")) return "falta-migracion";
+    throw e;
+  }
+}
+
+/**
+ * Cuenta de la administración del country y liquidación del lunes: el saldo a cobrar (vouchers
+ * usados menos lo que pagó la administración), lo que falta liquidar, las liquidaciones y los
+ * pagos a cuenta. Sólo con `cash:manage` (es plata, como su action).
+ */
+async function LiquidacionDelLunes({ puedeRechazarCheque }: { puedeRechazarCheque: boolean }) {
+  const tenantId = await getCurrentTenantId();
+  const cuenta = await leerCuenta(tenantId);
+  const hoy = todayInBusinessTz();
+  if (cuenta === "falta-migracion") {
+    return (
+      <AvisoError
+        className="mt-8"
+        tono="aviso"
+        titulo="Liquidación del lunes: falta un paso de base de datos"
+        comoSeguir="La liquidación semanal con la administración necesita un paso de base de datos que todavía no se aplicó. Cuando esté, esta sección se enciende sola."
+      />
+    );
+  }
+  const saldo = pesosDeCentavos(cuenta.resumen.saldoCentavos);
+  const domingo = ultimaSemanaCerrada(hoy).hasta;
+  return (
+    <section id="liquidacion" aria-labelledby="liquidacion-titulo" className="mt-10 space-y-6">
+      <div>
+        <h2 id="liquidacion-titulo" className="text-lg font-semibold text-strong">
+          Administración del country · liquidación del lunes
+        </h2>
+        <p className="mt-1 text-sm text-muted">
+          Los vouchers los paga la administración de La Alameda, no el vecino: cada voucher usado es plata a cobrarle (no entra al cajón). Todos los lunes se liquida la semana anterior y se concilia con lo que paga.
+        </p>
+      </div>
+      <dl className="grid gap-3 sm:grid-cols-3">
+        <div className="rounded-md border border-line px-4 py-3">
+          <dt className="text-xs font-semibold uppercase tracking-wide text-muted">{saldo >= 0 ? "A cobrar a la administración" : "A favor de la administración"}</dt>
+          <dd className="mt-1 text-xl font-semibold text-strong" data-testid="saldo-administracion">
+            <Plata valor={Math.abs(saldo)} sinCentavos={Number.isInteger(saldo)} />
+          </dd>
+        </div>
+        <div className="rounded-md border border-line px-4 py-3">
+          <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Usados sin liquidar</dt>
+          <dd className="mt-1 text-sm text-strong">
+            {cuenta.sinLiquidar.cantidad} por <Plata valor={cuenta.sinLiquidar.total} sinCentavos={Number.isInteger(cuenta.sinLiquidar.total)} />
+          </dd>
+        </div>
+        <div className="rounded-md border border-line px-4 py-3">
+          <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Rechazados al conciliar</dt>
+          <dd className="mt-1 text-sm text-strong">
+            {cuenta.impagos.cantidad > 0 ? (
+              <>
+                {cuenta.impagos.cantidad} por <Plata valor={cuenta.impagos.total} sinCentavos={Number.isInteger(cuenta.impagos.total)} />
+              </>
+            ) : (
+              "Ninguno"
+            )}
+          </dd>
+        </div>
+      </dl>
+
+      <Herramienta titulo="Generar la liquidación del lunes" id="generar-liquidacion">
+        <GenerarLiquidacion domingo={domingo} />
+      </Herramienta>
+
+      {cuenta.liquidaciones.length > 0 && (
+        <div className="overflow-x-auto rounded-md border border-line" role="region" aria-label="Liquidaciones semanales" tabIndex={0}>
+          <table className="w-full text-sm">
+            <caption className="sr-only">Liquidaciones semanales con la administración del country</caption>
+            <thead className="border-b border-line-strong bg-surface-raised">
+              <tr>
+                <th scope="col" className={TH}>Semana</th>
+                <th scope="col" className={`${TH} text-right`}>Vouchers</th>
+                <th scope="col" className={`${TH} text-right`}>Total</th>
+                <th scope="col" className={TH}>Estado</th>
+                <th scope="col" className={`${TH} text-right`}>Pagado</th>
+                <th scope="col" className={`${TH} text-right`}>Diferencia</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-line">
+              {cuenta.liquidaciones.map((l) => (
+                <tr key={l.id}>
+                  <th scope="row" className={`${TD} text-left`}>
+                    <Link href={`/admin/vouchers/liquidacion/${l.id}`} className="text-accent-ink hover:underline">
+                      {fechaArgentina(l.desde)} al {fechaArgentina(l.hasta)}
+                    </Link>
+                  </th>
+                  <td className={`${TD} text-right tabular-nums`}>{l.cantidad}</td>
+                  <td className={`${TD} text-right`}>
+                    <Plata valor={l.total} sinCentavos={Number.isInteger(l.total)} />
+                  </td>
+                  <td className={TD}>
+                    <Marca tipo={l.estado === "CONCILIADA" ? (l.diferencia ? "atencion" : "hecho") : "pendiente"}>
+                      {l.estado === "CONCILIADA" ? (l.diferencia ? "Conciliada con diferencia" : "Conciliada") : "Esperando el pago"}
+                    </Marca>
+                  </td>
+                  <td className={`${TD} text-right`}>{l.pagado == null ? "—" : <Plata valor={l.pagado} sinCentavos={Number.isInteger(l.pagado)} />}</td>
+                  <td className={`${TD} text-right`}>{l.diferencia == null ? "—" : <Plata valor={l.diferencia} sinCentavos={Number.isInteger(l.diferencia)} />}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
-    </main>
+
+      {cuenta.pendientesDeAcreditacion.length > 0 && (
+        <section aria-labelledby="acreditacion-titulo" className="space-y-3" data-testid="pendientes-acreditacion">
+          <h3 id="acreditacion-titulo" className="text-base font-semibold text-strong">
+            Pagos pendientes de acreditación en Mercado Pago ({cuenta.pendientesDeAcreditacion.length})
+          </h3>
+          <p className="text-xs text-muted">
+            Las transferencias ya entraron a la caja en la columna Mercado Pago y se concilian cuando la plata aparece en la cuenta. Los cheques
+            quedan en valores a depositar (fuera de la caja) hasta que confirmás el depósito.
+          </p>
+          <ul className="divide-y divide-line text-sm">
+            {cuenta.pendientesDeAcreditacion.map((p) => (
+              <li key={p.id} className="space-y-2 py-3">
+                <p>
+                  <span className="tabular-nums text-muted">{fechaArgentina(p.fecha)}</span> · {p.concepto} ·{" "}
+                  <Plata valor={p.monto} sinCentavos={Number.isInteger(p.monto)} />
+                </p>
+                <AcreditacionDelPago pagoId={p.id} liquidacionId={p.liquidacionId ?? undefined} estado={p.acreditacion} puedeRechazarCheque={puedeRechazarCheque} />
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {cuenta.chequesDepositados.length > 0 && (
+        <Herramienta titulo={`Cheques depositados (${cuenta.chequesDepositados.length})`} id="cheques-depositados">
+          <p className="pt-3 text-xs text-muted">
+            Si el banco rechaza un cheque ya depositado, marcalo acá: el pago vuelve a la deuda de la administración y la caja de hoy registra la salida por
+            Mercado Pago.
+          </p>
+          <ul className="divide-y divide-line text-sm" data-testid="cheques-depositados">
+            {cuenta.chequesDepositados.map((p) => (
+              <li key={p.id} className="space-y-2 py-3">
+                <p>
+                  <span className="tabular-nums text-muted">{fechaArgentina(p.fecha)}</span> · {p.concepto} ·{" "}
+                  <Plata valor={p.monto} sinCentavos={Number.isInteger(p.monto)} />
+                </p>
+                <AcreditacionDelPago pagoId={p.id} liquidacionId={p.liquidacionId ?? undefined} estado={p.acreditacion} puedeRechazarCheque={puedeRechazarCheque} />
+              </li>
+            ))}
+          </ul>
+        </Herramienta>
+      )}
+
+      <Herramienta titulo="Anotar un pago a cuenta de la administración" id="pago-a-cuenta">
+        <p className="pt-3 text-xs text-muted">Para un pago por adelantado (un lote prepago) o lo que la administración pague después de una diferencia. El pago de cada lunes se anota al conciliar su liquidación.</p>
+        <PagoACuenta hoy={hoy} />
+      </Herramienta>
+
+      {cuenta.movimientos.length > 0 && (
+        <Herramienta titulo="Movimientos de la cuenta" id="movimientos-cuenta">
+          <ul className="divide-y divide-line pt-2 text-sm">
+            {cuenta.movimientos.map((m) => (
+              <li key={m.ref} className="flex flex-wrap items-baseline justify-between gap-2 py-2">
+                <span>
+                  <span className="tabular-nums text-muted">{fechaArgentina(m.fecha)}</span> · {m.concepto}
+                </span>
+                <span className="tabular-nums">
+                  {m.tipo === "DEBITO" ? "+" : "−"}
+                  <Plata valor={pesosDeCentavos(m.centavos)} />
+                  <span className="ml-2 text-muted">
+                    saldo <Plata valor={pesosDeCentavos(m.saldoCentavos)} />
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Herramienta>
+      )}
+    </section>
   );
 }
 
@@ -237,7 +424,7 @@ function TablaDeVouchers({ filas }: { filas: FilaVoucher[] }) {
   return (
     <div className="overflow-x-auto rounded-md border border-line" role="region" aria-label="Listado de vouchers" tabIndex={0}>
       <table className="w-full text-sm">
-        <caption className="sr-only">Vouchers con su número, lote, vecino, turno, uso, valor y estado en el ERP y en OpenKey</caption>
+        <caption className="sr-only">Vouchers con su número, lote, vecino, turno, uso, valor y estado acá y en la administración del country</caption>
         <thead className="border-b border-line-strong bg-surface-raised">
           <tr>
             <th scope="col" className={`${TH} sticky left-0 bg-surface-raised`}>
@@ -262,10 +449,10 @@ function TablaDeVouchers({ filas }: { filas: FilaVoucher[] }) {
               Estado ERP
             </th>
             <th scope="col" className={TH}>
-              Estado OpenKey
+              Estado en la administración
             </th>
             <th scope="col" className={TH}>
-              Baja OpenKey
+              Baja en la administración
             </th>
             <th scope="col" className={TH}>
               Liquidado
@@ -289,7 +476,9 @@ function TablaDeVouchers({ filas }: { filas: FilaVoucher[] }) {
               <td className={TD}>{etiquetaOpenKey(f.estadoOpenKey)}</td>
               <td className={`${TD} tabular-nums`}>{faltaLaBaja(f) ? <Marca tipo="atencion">Falta la baja</Marca> : fechaCorta(f.bajaOpenKeyEn)}</td>
               <td className={`${TD} tabular-nums`}>
-                {f.liquidadoEn ? (
+                {motivoDeBaja(f) != null ? (
+                  <Marca tipo="anulado">Dado de baja: {motivoDeBaja(f)}</Marca>
+                ) : f.liquidadoEn ? (
                   <>
                     {fechaCorta(f.liquidadoEn)}
                     {f.montoLiquidado != null && (

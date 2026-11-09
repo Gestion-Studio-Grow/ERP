@@ -1,4 +1,6 @@
+import { redirect } from "next/navigation";
 import { requireApp } from "@/lib/require-app";
+import { gestionaClases } from "@/lib/padel/plata-guardia";
 import { cn } from "@/components/ui";
 import { badgePendientes, clubes } from "@/lib/padel/datos.server";
 import { tarjeta } from "../../_vista";
@@ -12,7 +14,9 @@ export const metadata = { title: "Clases · Clubes", manifest: "/clases/app.webm
 // hora del turnero lo dice y el WhatsApp también («… a las 18:00 en Club Norte»). Sin clubes, todo
 // se ve como siempre. Un club no se borra: se desactiva (lo ya agendado sigue diciendo dónde fue).
 export default async function AjustesClubes() {
-  await requireApp("padel-clases");
+  const user = await requireApp("padel-clases");
+  // Todo lo de esta pantalla guarda con acciones que exigen agenda:manage: sin él, vuelve a Hoy.
+  if (!gestionaClases(user)) redirect("/admin/clases");
   const [lista, numero] = await Promise.all([clubes(true), badgePendientes()]);
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-5">

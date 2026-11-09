@@ -5,12 +5,14 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { cn, Icono } from "@/components/ui";
+import { getCurrentUser } from "@/lib/session";
+import { gestionaClases } from "@/lib/padel/plata-guardia";
 import { textoBadge } from "./_navegacion";
 
 const boton =
   "relative grid size-12 place-items-center rounded-xl text-strong hover:bg-surface-sunken focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus";
 
-export function Cabecera({
+export async function Cabecera({
   titulo,
   detalle,
   pendientes,
@@ -23,6 +25,10 @@ export function Cabecera({
   actual?: "pendientes" | "config";
 }) {
   const badge = textoBadge(pendientes);
+  // El engranaje sólo para quien gestiona Clases: todo Ajustes guarda con acciones que exigen
+  // agenda:manage (y sus páginas devuelven a Hoy a quien no lo tiene).
+  const user = await getCurrentUser();
+  const conAjustes = user ? gestionaClases(user) : false;
   return (
     <header className="mb-4 flex items-start justify-between gap-3">
       <div className="min-w-0">
@@ -48,6 +54,7 @@ export function Cabecera({
             </span>
           )}
         </Link>
+        {conAjustes && (
         <Link
           href="/admin/clases/config"
           aria-current={actual === "config" ? "page" : undefined}
@@ -57,6 +64,7 @@ export function Cabecera({
         >
           <Icono nombre="ajustes" className="size-6" />
         </Link>
+        )}
       </nav>
     </header>
   );

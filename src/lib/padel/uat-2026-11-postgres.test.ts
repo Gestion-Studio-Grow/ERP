@@ -183,3 +183,37 @@ test("C2 — cancela con el comprobante en revisión → «No es válido»: se d
   // Y el alumno no puede volver a mandar comprobante de una clase cancelada.
   assert.equal(valor(await ejecutarAccion(link(c), () => c.alumno.subirComprobante(a.token, a.claseId, PNG))).ok, false);
 });
+
+test("B1 — la campana del profesional no cuenta comprobantes; los botones que esconde son los que el servidor le rechaza", async (t) => {
+  const c = await preparar(t);
+  if (!c) return;
+  const a = await alumnoConClase(c, "Comprobante en la campana", "10:00");
+  assert.ok(valor(await ejecutarAccion(link(c), () => c.alumno.subirComprobante(a.token, a.claseId, PNG))).ok, "sube el comprobante");
+  const enRevision = await c.db.padelClase.count({ where: { tenantId: c.base.a.id, pagoEstado: "EN_REVISION" } });
+  assert.ok(enRevision >= 1);
+
+  const delDuenio = valor(await ejecutarAccion(duenia(c), () => c.datos.badgePendientes()));
+  const deRecepcion = valor(await ejecutarAccion(recepcion(c), () => c.datos.badgePendientes()));
+  const delProfe = valor(await ejecutarAccion(profesional(c), () => c.datos.badgePendientes()));
+  assert.equal(deRecepcion, delDuenio, "recepción cuenta lo mismo que el dueño");
+  assert.equal(delDuenio - delProfe, enRevision, "al profesional no le suman los comprobantes");
+  // Hoy usa el mismo conteo que la campana.
+  assert.equal(valor(await ejecutarAccion(profesional(c), () => c.datos.hoy())).pendientes, delProfe);
+
+  // Misma fuente de verdad: lo que `gestionaClases` esconde, el servidor lo rechaza (y viceversa).
+  const rol = (role: "OWNER" | "RECEPTION" | "PROFESSIONAL") => ({ role, overrides: [] });
+  assert.deepEqual([c.guardia.gestionaClases(rol("OWNER")), c.guardia.gestionaClases(rol("RECEPTION")), c.guardia.gestionaClases(rol("PROFESSIONAL"))], [true, true, false]);
+  const fecha = fechaEn(9);
+  const fd = new FormData();
+  fd.set("id", "no-existe");
+  for (const [nombre, accion] of [
+    ["Se suspende", () => c.profe.suspenderDia(fecha, null, null, "nada")],
+    ["Bloquear días", () => c.profe.bloquearRango(fecha, fecha)],
+    ["Quitar bloqueo", () => c.profe.quitarBloqueo(fd)],
+    ["Notas", () => c.profe.editarAlumno(a.alumnoId, { notas: "x" })],
+  ] as const) {
+    const r: SalidaDeAccion<unknown> = await ejecutarAccion(profesional(c), accion as () => Promise<unknown>);
+    assert.equal(r.tipo, "redireccion", `${nombre}: el servidor se lo rechaza al profesional`);
+  }
+  assert.notEqual((await ejecutarAccion(duenia(c), () => c.profe.quitarBloqueo(fd))).tipo, "redireccion", "al dueño, no");
+});

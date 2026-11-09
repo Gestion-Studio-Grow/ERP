@@ -16,7 +16,7 @@
 // Sin Prisma, sin React, sin valores de `@/generated/prisma`: se importa desde un client
 // component (mismo criterio que caja/medio-cobro.ts).
 
-import { centavosDe } from "@/lib/dinero/redondeo";
+import { admiteCentavos, centavosDe, textoAlCentavo } from "@/lib/dinero/redondeo";
 import { leerImporte } from "@/lib/dinero/leer";
 import { fmtMoneyARS } from "@/components/ui/format";
 import { MEDIOS_DE_COBRO, type MedioDeCobro } from "@/lib/caja/medio-cobro";
@@ -59,7 +59,7 @@ export function textoPlata(n: number): string {
 
 /** El importe como viaja en el formulario: punto decimal, dos cifras («16608.00»). */
 export function importeCanonico(n: number): string {
-  return (centavosDe(n) / 100).toFixed(2);
+  return textoAlCentavo(n);
 }
 
 // ── Billetes sugeridos ───────────────────────────────────────────────────────
@@ -109,7 +109,8 @@ export function estadoDelEfectivo(total: number, recibido: number | string | nul
     if (l.estado === "invalida") return { estado: "invalido" };
     valor = l.valor;
   }
-  if (!Number.isFinite(valor) || valor < 0) return { estado: "invalido" };
+  // Fuera del rango con centavos (≥ 1e13) no se puede escribir en el formulario: es un tipeo inválido.
+  if (!Number.isFinite(valor) || valor < 0 || !admiteCentavos(valor)) return { estado: "invalido" };
   const dif = centavosDe(valor) - centavosDe(total);
   if (dif === 0) return { estado: "justo" };
   return dif > 0 ? { estado: "vuelto", vuelto: dif / 100 } : { estado: "falta", falta: -dif / 100 };
@@ -150,7 +151,11 @@ export function leerDivision(total: number, renglones: readonly RenglonDeDivisio
   let invalido = false;
   const leidos = conMedio.map((r) => {
     const l = leerImporte(r.montoTexto);
-    if (l.estado === "invalida") invalido = true;
+    // Un monto fuera del rango con centavos no se puede mandar (importeCanonico lo rechaza): inválido.
+    if (l.estado === "invalida" || (l.estado === "ok" && !admiteCentavos(l.valor))) {
+      invalido = true;
+      return null;
+    }
     return l.estado === "ok" ? l.valor : null;
   });
   const vacios = leidos.filter((x) => x === null).length;

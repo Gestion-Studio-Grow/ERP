@@ -83,6 +83,9 @@ import { PaseARealCard } from "./PaseARealCard";
 import { AsistenteArca } from "@/components/fiscal/AsistenteArca";
 import { leerAsistente } from "@/lib/fiscal/asistente-arca.server";
 import PlanDelNegocioCard from "./PlanDelNegocioCard";
+import PlanFactoqueCard from "./PlanFactoqueCard";
+import { BLUEPRINT_CON_TOPE, planFactoqueEnTx } from "@/lib/facturacion/plan-factoque.server";
+import { fechaFiscalDelDia } from "@/lib/libros/fecha-fiscal";
 import { leerFichaDelPase } from "@/lib/operador/pase-a-real.server";
 import { mismoCuit } from "@/lib/multilocal/multilocal-core";
 import { RedDeLocalesCard, type CandidatoLocal } from "./RedDeLocalesCard";
@@ -291,6 +294,11 @@ export default async function FichaDelNegocio({
   });
   if (!tenant) notFound();
   const t = tenant!;
+  // Factoque: el plan que rige hoy (vencido → Gratis), de la misma fuente que el tope de la emisión.
+  const planFactoque =
+    t.blueprintId === BLUEPRINT_CON_TOPE
+      ? await enElNegocio(t.id, (tx) => planFactoqueEnTx(tx, t.id, fechaFiscalDelDia(new Date()))).catch(() => null)
+      : undefined;
   const esCasa = t.modules.includes("multilocal");
 
   // Todo lo que no depende de otra lectura, a la vez.
@@ -988,6 +996,9 @@ export default async function FichaDelNegocio({
   const conPlanAnterior = !t.plan || PLAN_IDS.includes(t.plan);
   const planPanel = (
     <>
+      {planFactoque !== undefined && (
+        <PlanFactoqueCard tenantId={t.id} planGuardado={t.plan} vigente={planFactoque} soloLectura={Boolean(soloLectura)} />
+      )}
       <PlanDelNegocioCard tenantId={t.id} flags={flags} planAbierto={planAbierto ?? null} />
 
       {conPlanAnterior && (

@@ -54,7 +54,9 @@ function Cuerpo({ turno, ahora, onListo }: { turno: TurnoDelDia; ahora: string; 
   const [servicioId, setServicioId] = useState(turno.servicioId);
   const [profesionalId, setProfesionalId] = useState(turno.profesionalId);
   const [dia, setDia] = useState(diaDelTurno >= hoy ? diaDelTurno : hoy);
-  const [huecos, setHuecos] = useState<Carga<Record<string, string[]>>>({ fase: "buscando" });
+  // El resultado guarda de qué servicio|profesional es: si no coincide con la clave actual, se está buscando
+  // (así no hace falta poner «buscando» a mano dentro del efecto).
+  const [cargaHuecos, setHuecos] = useState<{ clave: string; carga: Carga<Record<string, string[]>> } | null>(null);
   const [elegido, setElegido] = useState(turno.inicio);
   const [error, setError] = useState("");
   const [guardando, empezar] = useTransition();
@@ -73,14 +75,17 @@ function Cuerpo({ turno, ahora, onListo }: { turno: TurnoDelDia; ahora: string; 
   }, [turno.id]);
 
   const clave = `${servicioId}|${profesionalId}`;
+  const huecos = useMemo<Carga<Record<string, string[]>>>(
+    () => (cargaHuecos?.clave === clave ? cargaHuecos.carga : { fase: "buscando" }),
+    [cargaHuecos, clave],
+  );
   useEffect(() => {
     let vivo = true;
-    setHuecos({ fase: "buscando" });
     huecosParaEditar(turno.id, servicioId, profesionalId, dias)
-      .then((r) => vivo && setHuecos(r.ok ? { fase: "lista", valor: r.huecos } : { fase: "error", error: r.error }))
+      .then((r) => vivo && setHuecos({ clave, carga: r.ok ? { fase: "lista", valor: r.huecos } : { fase: "error", error: r.error } }))
       .catch((e) => {
         if (esRedireccionDeNext(e)) throw e;
-        if (vivo) setHuecos({ fase: "error", error: "No pude buscar los horarios libres. Probá de nuevo." });
+        if (vivo) setHuecos({ clave, carga: { fase: "error", error: "No pude buscar los horarios libres. Probá de nuevo." } });
       });
     return () => {
       vivo = false;

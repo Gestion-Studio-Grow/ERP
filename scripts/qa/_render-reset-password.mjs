@@ -98,7 +98,13 @@ function killTree(child) {
   if (isWin && child.pid) spawnSync("taskkill", ["/F", "/T", "/PID", String(child.pid)], { stdio: "ignore", shell: true });
   else child.kill("SIGTERM");
 }
-const adminCookie = (userId) => `${userId}.${createHmac("sha256", AUTH_SECRET).update(userId).digest("hex")}`;
+// Formato v3 de src/lib/auth.ts (ingreso y última actividad firmados; activa 15 min sin uso).
+const adminCookie = (userId) => {
+  const ahora = Date.now();
+  const t = String(ahora).padStart(13, "0");
+  const payload = `v3|${userId}|${t}|${t}`;
+  return `${payload}.${createHmac("sha256", AUTH_SECRET).update(`gsg-sesion-v3|${payload}`).digest("hex")}`;
+};
 const operatorCookie = () => `operator.${createHmac("sha256", OPERATOR_SECRET).update("operator").digest("hex")}`;
 
 async function main() {

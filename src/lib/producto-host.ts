@@ -25,5 +25,6 @@ export const HOSTS_DE_PRODUCTO: Readonly<Record<string, string>> = {
 export function vidrieraDelHost(host: string | null | undefined): string | null {
   if (!host) return null;
   const h = host.split(",")[0].trim().toLowerCase().split(":")[0];
-  return HOSTS_DE_PRODUCTO[h] ?? null;
+  // Propia, no heredada: un Host `constructor` o `__proto__` no puede volverse destino de la reescritura.
+  return Object.hasOwn(HOSTS_DE_PRODUCTO, h) ? HOSTS_DE_PRODUCTO[h] : null;
 }

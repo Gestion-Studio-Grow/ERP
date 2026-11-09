@@ -33,6 +33,7 @@ import { claveDeAbono, createInvoiceInTx } from "@/lib/invoice-core";
 import { getFiscalProfile, isInvoicingEnabled, PerfilFiscalIncompletoError } from "@/lib/fiscal";
 import { contarPendientesDelNegocio, procesarEnviosDelNegocio, type DepsDespacho } from "@/lib/arca-dispatch";
 import { capFacturasMesDelNegocioEnTx } from "@/lib/limites-del-negocio-en-tx";
+import { planFactoqueEnTx } from "@/lib/facturacion/plan-factoque.server";
 import { filtrosFacturacionMes } from "@/lib/bancos-glue";
 import { bordesDelMes, fechaFiscalDelDia, type MesKey } from "@/lib/libros/fecha-fiscal";
 import { logger } from "@/lib/logger";
@@ -267,7 +268,12 @@ async function emitirUna(
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`lote-abonos:${tenantId}`}))`;
         const existente = await tx.invoice.findFirst({ where: { tenantId, abonoClave: clave }, select: { status: true } });
         if (existente && existente.status !== "REJECTED") return "ya_emitida";
-        const cap = await capFacturasMesDelNegocioEnTx(tx, tenantId, capColumna);
+        // Si el cliente es un negocio Factoque, el tope es el de SU plan (Gratis/Plus/Pro) y el lugar
+        // se cuenta con el mismo candado que la emisión y la anulación de Factoque (`facturita-cupo:`).
+        // Orden de candados: lote-abonos → facturita-cupo; nadie los toma al revés (sin abrazo mortal).
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`facturita-cupo:${tenantId}`}))`;
+        const planFactoque = await planFactoqueEnTx(tx, tenantId, hoy);
+        const cap = planFactoque ? planFactoque.cupo.tope : await capFacturasMesDelNegocioEnTx(tx, tenantId, capColumna);
         const usadas = await tx.invoice.count({ where: { tenantId, ...filtrosFacturacionMes(ahora).cupo } });
         if (usadas >= cap) return "limite";
         await createInvoiceInTx(tx, { tenantId, ...armado.comprobante, origin: { type: "ABONO", id: clave }, reabrirSiRechazada: true });

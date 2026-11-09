@@ -8,11 +8,11 @@ import { movimientoDelLedger, motivoParaNoBorrar, rotuloDeOrigen, type FilaLedge
 const cerrada = { estado: "ok", valor: "Cerrada", detalle: "el efectivo va al libro, sin turno" } as Parameters<typeof avisoDeCaja>[0];
 
 test("con hoy cerrado, el Inicio no manda a abrir la caja: lleva al cierre", () => {
-  const aviso = avisoDeCaja(cerrada, "/admin/caja", true);
+  const aviso = avisoDeCaja(cerrada, "/admin/caja", true, true);
   assert.equal(aviso?.tecla.href, "/admin/caja/cierre");
   assert.equal(aviso?.tecla.texto, "Ver el cierre");
   assert.doesNotMatch(aviso?.detalle ?? "", /Abrila/);
-  assert.equal(avisoDeCaja(cerrada, "/admin/caja")?.tecla.texto, "Abrir la caja", "con el día abierto, como siempre");
+  assert.equal(avisoDeCaja(cerrada, "/admin/caja", false, true)?.tecla.texto, "Abrir la caja", "con el día abierto, como siempre");
 });
 
 test("el rechazo de abrir dice qué pasó y adónde ir, sin el texto de cargar movimientos", () => {
@@ -76,6 +76,6 @@ test("quien no cierra el día no tiene «Cerrar el primer día» entre sus pasos
     { id: "caja", titulo: "Abrir la caja", hecho: false },
     { id: "cierre", titulo: "Cerrar el primer día", hecho: false },
   ] as Parameters<typeof pasosSegunRol>[0];
-  assert.deepEqual(pasosSegunRol(pasos, false).map((p) => p.id), ["caja"]);
-  assert.deepEqual(pasosSegunRol(pasos, true).map((p) => p.id), ["caja", "cierre"]);
+  assert.deepEqual(pasosSegunRol(pasos, false, true).map((p) => p.id), ["caja"]);
+  assert.deepEqual(pasosSegunRol(pasos, true, true).map((p) => p.id), ["caja", "cierre"]);
 });

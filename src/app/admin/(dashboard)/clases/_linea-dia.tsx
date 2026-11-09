@@ -1,7 +1,7 @@
 // LA LÍNEA DEL DÍA (matias-DISENO.md §2.3 · M-056/M-059/M-065): las clases, los huecos libres y
 // los bloqueos de un día, en orden de hora. Una clase se abre con un toque y muestra las MISMAS
 // acciones que en Hoy (AccionesClase). Un hueco «18:00 libre ＋» abre Agendar con día y hora
-// puestos. Un bloqueo se ve tachado y se puede quitar. Servidor (las acciones son de cliente).
+// puestos. Un bloqueo se ve tachado y se puede quitar (sólo quien gestiona Clases: `gestiona`). Servidor (las acciones son de cliente).
 // No se anima: se ve cien veces al día.
 
 import Link from "next/link";
@@ -95,6 +95,7 @@ export function LineaDelDia({
   otras: otrasDadas,
   qa = "clase-dia",
   conPlata = true,
+  gestiona,
 }: {
   fecha: string;
   clases: readonly ClasePanel[];
@@ -106,6 +107,11 @@ export function LineaDelDia({
   qa?: string;
   /** false para el PROFESSIONAL: ver `FilaClase`. */
   conPlata?: boolean;
+  /**
+   * `gestionaClases`: el hueco abre Agendar y el bloqueo se puede quitar (agendarClase y
+   * quitarBloqueo exigen agenda:manage). Sin él (el PROFESSIONAL), se ven y no se tocan.
+   */
+  gestiona: boolean;
 }) {
   const items = lineaDelDia({ fecha, clases, huecos, bloqueos });
   const otras = otrasDadas ?? delDia(clases);
@@ -113,6 +119,13 @@ export function LineaDelDia({
     <ul className="grid gap-2">
       {items.map((it) => {
         if (it.tipo === "clase") return <FilaClase key={it.clave} c={it.clase} otras={otras} recordada={recordadas.includes(it.clase.id)} qa={qa} conPlata={conPlata} />;
+        if (it.tipo === "hueco" && !gestiona)
+          return (
+            <li key={it.clave} className="flex min-h-12 items-center gap-2 rounded-2xl border border-dashed border-line-strong px-4 text-muted" data-qa="hueco-solo-lectura">
+              <span className="text-lg font-bold tabular-nums">{it.hora}</span>
+              <span>libre</span>
+            </li>
+          );
         if (it.tipo === "hueco")
           return (
             <li key={it.clave}>
@@ -136,12 +149,14 @@ export function LineaDelDia({
               <span aria-hidden>░ </span>
               {it.todoElDia ? "Día bloqueado" : `Bloqueado ${it.desde}–${it.hasta}`}
             </span>
+            {gestiona && (
             <form action={quitarBloqueo}>
               <input type="hidden" name="id" value={it.clave.slice(2)} />
               <button type="submit" className="min-h-12 px-2 font-semibold text-strong underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus" data-qa="quitar-bloqueo">
                 Quitar
               </button>
             </form>
+            )}
           </li>
         );
       })}

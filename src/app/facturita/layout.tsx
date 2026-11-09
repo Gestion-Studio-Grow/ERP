@@ -13,11 +13,12 @@ import {
   THEME_COLOR_FACTURITA_OSCURO,
 } from "@/lib/facturita-pwa";
 import RegistrarServiceWorker from "./RegistrarServiceWorker";
+import { MARCA } from "./piel";
 
 export const metadata: Metadata = {
-  applicationName: "Factoque",
+  applicationName: MARCA,
   manifest: MANIFEST_FACTURITA_URL,
-  // Sello GSG (bloque 2 del Gate): firma como generador, discreto; la marca visible es Facturita.
+  // Sello GSG (bloque 2 del Gate): firma como generador, discreto; la marca visible es Factoque (MARCA).
   generator: "Gestión Studio Grow",
   icons: {
     icon: [
@@ -26,7 +27,7 @@ export const metadata: Metadata = {
     ],
     apple: [{ url: APPLE_TOUCH_ICON_FACTURITA, sizes: "180x180" }],
   },
-  appleWebApp: { capable: true, title: "Factoque", statusBarStyle: "default" },
+  appleWebApp: { capable: true, title: MARCA, statusBarStyle: "default" },
   formatDetection: { telephone: false },
 };
 

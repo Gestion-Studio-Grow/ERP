@@ -42,12 +42,15 @@ test("PIN: regresión de la certificación T4 y código para pasar por WhatsApp"
   const T0 = Date.now();
   const fila = (u: Persona) => duenio.proyectoPinIngreso.findFirstOrThrow({ where: { tenantId: u.tenantId, userId: u.id } });
 
-  // A. 12 fallos en paralelo + el código bueno: nadie entra y queda bloqueado.
+  // A. 12 fallos en paralelo: ninguno se pierde y queda bloqueado; el código bueno, después, ya no abre.
+  // (El bueno no va en la misma tanda: los intentos se turnan en la fila del PIN en un orden que nadie
+  // promete, y si le tocaba antes del bloqueo entraba con todo derecho; el test fallaba según la carga.)
   const p = await persona(a);
   const c = (await pedir(p, T0))!;
-  const rs = await Promise.all([...Array.from({ length: 12 }, (_, i) => confirmar(p, otro(c, i + 1), T0 + 1000)), confirmar(p, c, T0 + 1000)]);
+  const rs = await Promise.all(Array.from({ length: 12 }, (_, i) => confirmar(p, otro(c, i + 1), T0 + 1000)));
   assert.equal(rs.filter((r) => r.ok).length, 0);
   assert.ok((await fila(p)).bloqueadoHasta);
+  assert.equal((await confirmar(p, c, T0 + 1000)).ok, false, "bloqueado: el bueno no abre");
 
   // B. Ventana deslizante: 1 fallo en T0, 3 en T0+14:59, 4 en T0+15:00 → bloquea, y el código bueno ya no abre.
   const q = await persona(a);

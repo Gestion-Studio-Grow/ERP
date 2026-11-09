@@ -43,3 +43,13 @@ GitHub Actions programado (cron al cierre) con Playwright, credenciales de OpenK
 - Ley 25.326 (datos de vecinos): se guarda el mínimo necesario (número, lote, cliente ya existente en el ERP); nada más de OpenKey.
 - Liquidación de OpenKey: frecuencia, formato del archivo (columnas) y si paga por voucher o en un total por período; si viene neta de comisión de OpenKey, el «monto distinto» se calibra con eso.
 - Valor del voucher: ¿precio vecino del servicio, monto fijo por voucher, o según lote?
+
+## Liquidación del lunes con la administración del country (regla del dueño, 08/11/2026)
+Fuente: `Factory-GSG/00-ESTADO/VOUCHERS-CH-2026-11-08.md`. Quien paga el voucher es la **administración de La Alameda**, no el vecino ni OpenKey. Reemplaza a la importación del CSV de liquidación de OpenKey (la acción `importarLiquidacion` queda cerrada: dos caminos que marcan «liquidado» descuadrarían la cuenta).
+- **Cuenta corriente de la administración** (`src/lib/vouchers/liquidacion-core.ts`): débitos = vouchers USADOS (derivados, no copiados: anular el cobro devuelve el voucher y el débito se va solo); créditos = `VoucherPagoAdministracion` (el pago de cada liquidación conciliada y los pagos a cuenta). Saldo = débitos − créditos; negativo = pre-pago a favor de la administración. Soporta pos-pago (lectura tomada) y pre-pago. Nunca toca el cajón ni el libro de caja.
+- **Liquidación semanal** (`VoucherLiquidacion`, única por negocio y domingo): toma los vouchers usados sin liquidar hasta el domingo (los rezagados de semanas anteriores entran en la próxima). Un voucher tomado no se anula desde el turno (`voucher-en-liquidacion`; CHECK en la base). Abierta, se puede descartar.
+- **Conciliación**: monto pagado + vouchers que la administración no pagó → cada voucher PAGADO (`liquidadoEn`, `montoLiquidado`) o IMPAGO (sigue en el saldo); `diferencia` = pagado − aceptado. Una sola vez (ABIERTA→CONCILIADA con `updateMany` + clave `liq:<id>`).
+- **Reporte del lunes**: `/admin/vouchers/liquidacion/<id>` (imprimir/guardar PDF) y su planilla CSV. El envío lo decide CH.
+- Turno con la comisión ya pagada: no se cobra con voucher (`comision-pagada`).
+- Migración aditiva `20261108140000_voucher_liquidacion_semanal`. Permiso: `cash:manage`. Interruptor «vouchers» (sólo `beauty-spa`, después de publicar).
+- [A CONFIRMAR] pos-pago vs pre-pago; valor del voucher (hoy: lo que cubre del servicio); numeración/validación; facturación ARCA al vecino o a la administración; si el pago de la administración se asienta en caja/banco (hoy no).

@@ -82,11 +82,27 @@
 # integrantes y cobro por persona (E7). Aditiva: tablas "PadelClub", "PadelSerie", "PadelIntegrante"
 # con RLS adentro y tres columnas nulables ("PadelDisponibilidad"."clubId", "PadelClase"."clubId",
 # "PadelClase"."serieId"). Orden del dueño del 08/11; respaldo de Neon antes del merge.
-# (aplicada por el build de producción del merge de #47 el 2026-11-08: sale de la lista) 20261108120000_profeturnos_clubes_serie_grupal
-# [A CONFIRMAR por el integrador: si el build de #47 no quedó READY, volver a listarla arriba de la ola 2.]
+# (aplicada por el build de producción del merge de #43; #47 publicó READY el 08/11 sobre esa base: sale de la lista) 20261108120000_profeturnos_clubes_serie_grupal
+#
+# 2026-11-08 · PR #50 (seguridad): PIN de desbloqueo de la sesión del panel (orden del dueño del 08/11: «a lo sumo
+# diseñaríamos un ingreso por PIN cuando el usuario ya está logueado»). Aditiva: tabla "UserPin" con RLS adentro y
+# claves foráneas a "Tenant" y "User". No toca columnas ni datos. Sin aplicar, el código pide la contraseña.
+# Orden de publicación: #44 → #50 → #48 → #53 (#48 y #53 agregan las suyas debajo de ésta).
+# (aplicada en Neon el 09/11 07:18, antes de este merge: sale de la lista) 20261108130000_user_pin
+#
+# 2026-11-08 · Vouchers de CH: liquidación del lunes y cuenta corriente de la administración del country
+# (orden del dueño del 08/11, 00-ESTADO/VOUCHERS-CH-2026-11-08.md). Aditiva: tablas "VoucherLiquidacion"
+# y "VoucherPagoAdministracion" con RLS adentro y dos columnas NULLABLE en "Voucher"
+# ("liquidacionSemanalId", "resultadoLiquidacion"), sin default ni backfill. No toca enums ni datos.
+# NO ADITIVA para el detector de publicar.yml (scripts/publicar/lib/sql.mjs): dos CHECK sobre "Voucher" que sólo
+# miran las columnas nuevas y NULL («RESTRICCIÓN EN TABLA EXISTENTE», calibrado en scripts/publicar/sql.test.mjs).
+# Owner-level: AUTORIZADA por escrito por el dueño — «Autorizo las migraciones 48 y 53.» (ORQ-005, 09/11 02:41, D40).
+# No se publica con la etiqueta gsg:publicar: la orquestadora mergea con esa orden y el build la aplica (paso 1b + migrate deploy).
+# (aplicada por el build de producción del merge de #48 el 09/11 09:01:53, deploy READY: sale de la lista) 20261108140000_voucher_liquidacion_semanal
 #
 # 2026-11-08 · Contabilidad ola 2 = T0 de Control de gestión (GSG-CTRL-001). Aditiva: 7 columnas
 # nulables en "CuentaContable", 1 en "AsientoLinea" ("fechaOrigen"), tablas "CuentaRol" y
 # "ConfigContable" con RLS adentro, CHECKs sólo sobre columnas nuevas. No toca datos. Requiere la ola 1.
+# Owner-level: AUTORIZADA por escrito por el dueño — «Autorizo las migraciones 48 y 53.» (ORQ-005, 09/11 02:41, D40).
 # Gate 2: el merge la aplica; respaldo de Neon antes del merge.
 20261108150000_contabilidad_ola2_roles

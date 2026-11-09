@@ -10,6 +10,7 @@ depends_on: [ADR-054, ADR-055, ADR-076]
 **Estado:** Aceptada (dirección de producto del dueño, 2026-07-12) · **Depende de:** ADR-054 (repositorio de plugins / catálogo de módulos), ADR-055 (principio de variante: objeto se crea y se asigna), ADR-076 (un motor, tres productos) · **Relacionado:** ADR-058/059 (perfiles), la identidad por producto (`src/lib/producto.ts`).
 
 > Numeración provisional — verificar colisión al mergear (regla de timestamps de CLAUDE.md aplicada a ADRs; otras sesiones podrían haber tomado ADR-081+).
+> Numeración verificada el 09/11/2026 con `ls docs/adr`: ADR-081 no existe (después de ADR-080 sigue ADR-089), así que ADR-089 no colisiona.
 
 ## Contexto
 

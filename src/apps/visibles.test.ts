@@ -523,3 +523,35 @@ test("Proyectos entra a la barra sólo si la persona ve la app: antes de la Agen
   assert.deepEqual(sinGestion(conProyectosEnLaBarra(soloCaja, appsVisibles(negocio({ role: "OWNER", modulosAsignados: ["proyectos"] }))).map((i) => i.href)), ["/admin/proyectos", "/admin/caja"]);
   assert.deepEqual(conProyectosEnLaBarra(menu, appsVisibles(negocio({ role: "OWNER", modulosAsignados: ["agenda"] }))), menu);
 });
+
+// SEGURIDAD (08/11/2026): la matriz de permisos RESTA también en la puerta de la app. Antes `rolPuedeEntrar` miraba
+// sólo el rol: al encargado con «Mover stock» apagado el piloto le seguía abriendo Recibir mercadería, Mermas,
+// Recuento y Sugerido de compra (y sus acciones que sólo piden la app, como dejar la constancia del pedido).
+test("SEGURIDAD: «Mover stock» apagado cierra las apps de stock del encargado; prendida no abre nada que el rol no abra", () => {
+  const contexto = ctx({ ...MAGRA, modules: [...MAGRA.modules, "inventario"] });
+  const apagado = [
+    { capability: "stock:receive", allowed: false },
+    { capability: "stock:count", allowed: false },
+    { capability: "stock:adjust", allowed: false },
+  ];
+  const sinStock = negocio({ role: "RECEPTION", contexto, esMostrador: true, overrides: apagado });
+  for (const id of ["recibir-mercaderia", "mermas", "recuento", "sugerido-de-compra"] as const) {
+    assert.equal(motivoNoDisponible(appPorId(id), sinStock), "rol", id);
+  }
+  // Ver el stock (stock:read) no es de la casilla: sigue.
+  assert.equal(motivoNoDisponible(appPorId("inventario"), sinStock), null);
+  // Sin excepciones, como siempre.
+  const conRol = negocio({ role: "RECEPTION", contexto, esMostrador: true, overrides: [] });
+  assert.equal(motivoNoDisponible(appPorId("recibir-mercaderia"), conRol), null);
+  // Una casilla prendida a un PROFESSIONAL no le abre la app (sólo resta), ni dentro ni fuera del piloto.
+  const prendido = apagado.map((o) => ({ ...o, allowed: true }));
+  for (const c of [contexto, null]) {
+    const prof = negocio({ role: "PROFESSIONAL", contexto: c, esMostrador: true, overrides: prendido });
+    for (const id of ["recibir-mercaderia", "mermas", "recuento", "sugerido-de-compra"] as const) {
+      assert.equal(motivoNoDisponible(appPorId(id), prof), "rol", `${id} (${c ? "piloto" : "sin piloto"})`);
+    }
+  }
+  // Un override de una capability fuera de la matriz se ignora (candado de permisoEfectivo).
+  const raro = negocio({ role: "RECEPTION", contexto, esMostrador: true, overrides: [{ capability: "stock:read", allowed: false }] });
+  assert.equal(motivoNoDisponible(appPorId("inventario"), raro), null);
+});

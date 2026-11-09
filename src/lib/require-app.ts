@@ -48,7 +48,7 @@ export function rutaNoDisponible(id: AppId): string {
 export async function requireApp(id: AppId): Promise<SessionUser> {
   const app = appPorId(id);
   const user = await requireUser();
-  const negocio = await getNegocioApps(user.role);
+  const negocio = await getNegocioApps(user.role, user.overrides);
   if (motivoNoDisponible(app, negocio) !== null) redirect(rutaNoDisponible(id));
   return user;
 }
@@ -80,7 +80,7 @@ export class AppNoDisponibleError extends Error {
 export async function requireAppAccion(id: AppId): Promise<SessionUser> {
   const app = appPorId(id);
   const user = await requireUser();
-  const negocio = await getNegocioApps(user.role);
+  const negocio = await getNegocioApps(user.role, user.overrides);
   const motivo = motivoNoDisponible(app, negocio);
   if (motivo !== null) {
     const { porque, aQuien } = explicarNoDisponible(app, motivo, negocio);

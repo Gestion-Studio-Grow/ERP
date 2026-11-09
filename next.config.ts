@@ -1,11 +1,14 @@
 import type { NextConfig } from "next";
 import { carpetasParaTrazar, redireccionesDeSitiosEstaticos, reescriturasDeSitiosEstaticos } from "./src/lib/sitio-estatico";
 import { CARPETA_BUSCATUFOTO, reescrituraDeBuscatufoto } from "./src/lib/sitio-buscatufoto";
+import { CARPETA_CLUB_CRUDO } from "./src/lib/club-crudo";
 
 const nextConfig: NextConfig = {
   // Lo fija scripts/vercel-build.mjs en un preview que apunta a la base de producción: se inlinea
   // en el build y el proxy responde 503 a todo (ver src/proxy.ts). Vacío en cualquier otro caso.
-  env: { GSG_PREVIEW_BLOQUEADO: process.env.GSG_PREVIEW_BLOQUEADO ?? "" },
+  env: {
+    GSG_PREVIEW_BLOQUEADO: process.env.GSG_PREVIEW_BLOQUEADO ?? "",
+  },
   // Sitios estáticos por negocio (hoy Circuito WPE en wpe.*): `/` y sus adjuntos van al manejador
   // que resuelve el negocio del host y falla cerrado. Reglas y porqué: src/lib/sitio-estatico.ts.
   // buscatufoto (producto de GSG, app sin servidor) en su host propio: TODO va a su manejador, que sólo
@@ -50,6 +53,8 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/sitio-estatico/**": carpetasParaTrazar(),
     "/sitio-buscatufoto/**": [`./${CARPETA_BUSCATUFOTO}/**/*`],
+    // El club crudo de Break Point: lo sirve su manejador, sólo a un usuario de breakpoint (src/lib/club-crudo.ts).
+    "/club-crudo/**": [`./${CARPETA_CLUB_CRUDO}/**/*`],
   },
   images: {
     remotePatterns: [
