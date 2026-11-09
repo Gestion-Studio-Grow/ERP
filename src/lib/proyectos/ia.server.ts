@@ -16,6 +16,8 @@ import { describirStand, ESQUEMA_STAND, INSTRUCCIONES_STAND, leerStandPropuesto 
 import { normalizarDiseno, type DisenoStand } from "./stand";
 import { ESQUEMA_PIEZAS, INSTRUCCIONES_PIEZAS, leerPiezasPropuestas, type PiezaPropuesta } from "./ia-piezas-core";
 import { CAMPOS_BRIEF, ESTADOS_DATO, INSTRUCCIONES_CONSULTA, textoDeBrief, type BriefConsulta } from "./consulta-core";
+import { gastoALiquidar, tokensEntradaMaximos, type UsoIA } from "./ia-tope-core";
+import { anotarLlamadaGratis, liquidarGastoIA, reservarGastoIA } from "./ia-tope.server";
 
 const API = "https://api.anthropic.com/v1/messages";
 const MODELO = "claude-opus-5-5";
@@ -61,6 +63,11 @@ async function llamarGratis(g: { cuenta: string; token: string }, modelo: string
 export type RespuestaIA = { ok: true; texto: string; cortada: boolean } | { ok: false; error: string };
 
 interface PedidoIA {
+  /**
+   * El negocio que paga. Con un negocio, la llamada PAGA pasa por su tope mensual (ia-tope.server.ts) y
+   * la gratis se cuenta. `null` = gasto de GSG (soporte del operador): sin tope y sin tocar las tablas.
+   */
+  tenantId: string | null;
   sistema: string;
   mensajes: readonly { role: "user" | "assistant"; content: string }[];
   esfuerzo?: "low" | "medium" | "high";
@@ -69,6 +76,9 @@ interface PedidoIA {
   esquema?: Record<string, unknown>;
 }
 
+/** Lo que pasó con la llamada paga, para liquidar el tope (ver `gastoALiquidar`). */
+type ResultadoPago = Parameters<typeof gastoALiquidar>[0]["resultado"];
+
 export async function pedirAlModelo(p: PedidoIA): Promise<RespuestaIA> {
   const clave = process.env.ANTHROPIC_API_KEY?.trim();
   if (!clave) {
@@ -76,10 +86,26 @@ export async function pedirAlModelo(p: PedidoIA): Promise<RespuestaIA> {
     if (!g) return { ok: false, error: FALTA_CLAVE };
     const maxTokens = p.maxTokens ?? 2000;
     const res = await llamarGratis(g, MODELO_TEXTO_GRATIS, pedidoDeTexto({ sistema: p.sistema, mensajes: p.mensajes, maxTokens, esquema: p.esquema }));
+    if (p.tenantId !== null) await anotarLlamadaGratis(p.tenantId);
     if ("error" in res) return { ok: false, error: res.error };
     const t = textoDeGratis(res.cuerpo, maxTokens);
     return t ? { ok: true, ...t } : { ok: false, error: "La IA no devolvió texto. Probá de nuevo." };
   }
+  const maxTokens = p.maxTokens ?? 8000;
+  // Primero el tope: si no entra, la llamada no sale.
+  const reserva = p.tenantId === null ? null : await reservarGastoIA(p.tenantId, { modelo: MODELO, tokensEntrada: tokensEntradaMaximos(p), maxTokens });
+  if (reserva && !reserva.ok) return { ok: false, error: reserva.error };
+  let pagado: { respuesta: RespuestaIA; resultado: ResultadoPago };
+  try {
+    pagado = await llamarPago(clave, p, maxTokens);
+  } catch {
+    pagado = { respuesta: { ok: false, error: "La IA no pudo responder este pedido. Probá de nuevo." }, resultado: { tipo: "incierto" } };
+  }
+  if (reserva?.ok) await liquidarGastoIA(reserva.reserva, gastoALiquidar({ estimado: reserva.reserva.estimado, modeloPedido: MODELO, resultado: pagado.resultado }));
+  return pagado.respuesta;
+}
+
+async function llamarPago(clave: string, p: PedidoIA, maxTokens: number): Promise<{ respuesta: RespuestaIA; resultado: ResultadoPago }> {
   let r: Response;
   try {
     r = await fetch(API, {
@@ -87,7 +113,7 @@ export async function pedirAlModelo(p: PedidoIA): Promise<RespuestaIA> {
       headers: { "content-type": "application/json", "x-api-key": clave, "anthropic-version": VERSION_API, "anthropic-beta": FALLBACK },
       body: JSON.stringify({
         model: MODELO,
-        max_tokens: p.maxTokens ?? 8000,
+        max_tokens: maxTokens,
         fallbacks: "default",
         system: p.sistema,
         messages: p.mensajes,
@@ -97,21 +123,24 @@ export async function pedirAlModelo(p: PedidoIA): Promise<RespuestaIA> {
       cache: "no-store",
     });
   } catch {
-    return { ok: false, error: "La IA no respondió a tiempo. Probá de nuevo." };
+    // Pudo haber salido y cobrarse aunque no volvió: se cuenta el máximo (a favor de no pasarse del tope).
+    return { respuesta: { ok: false, error: "La IA no respondió a tiempo. Probá de nuevo." }, resultado: { tipo: "incierto" } };
   }
   if (!r.ok) {
     console.error(`[proyectos/ia] la API respondió ${r.status}`);
-    if (r.status === 401 || r.status === 403) return { ok: false, error: "La clave de la IA no es válida. Hay que revisar ANTHROPIC_API_KEY." };
-    if (r.status === 429 || r.status === 529) return { ok: false, error: "La IA está saturada en este momento. Probá en unos minutos." };
-    return { ok: false, error: "La IA no pudo responder este pedido. Probá de nuevo." };
+    const rechazada = { tipo: "rechazada" } as const;
+    if (r.status === 401 || r.status === 403) return { respuesta: { ok: false, error: "La clave de la IA no es válida. Hay que revisar ANTHROPIC_API_KEY." }, resultado: rechazada };
+    if (r.status === 429 || r.status === 529) return { respuesta: { ok: false, error: "La IA está saturada en este momento. Probá en unos minutos." }, resultado: rechazada };
+    return { respuesta: { ok: false, error: "La IA no pudo responder este pedido. Probá de nuevo." }, resultado: rechazada };
   }
-  const cuerpo = (await r.json().catch(() => null)) as { stop_reason?: string; content?: { type: string; text?: string }[] } | null;
-  if (!cuerpo) return { ok: false, error: "La respuesta de la IA no se pudo leer. Probá de nuevo." };
+  const cuerpo = (await r.json().catch(() => null)) as { model?: unknown; usage?: UsoIA; stop_reason?: string; content?: { type: string; text?: string }[] } | null;
+  if (!cuerpo) return { respuesta: { ok: false, error: "La respuesta de la IA no se pudo leer. Probá de nuevo." }, resultado: { tipo: "respuesta", uso: null } };
+  const resultado: ResultadoPago = { tipo: "respuesta", uso: cuerpo.usage && typeof cuerpo.usage === "object" ? cuerpo.usage : null, modelo: cuerpo.model };
   // Lo primero es el motivo de corte: rechazada, el contenido puede venir vacío o a medias.
-  if (cuerpo.stop_reason === "refusal") return { ok: false, error: "La IA no quiso responder este pedido. Probá reformularlo." };
+  if (cuerpo.stop_reason === "refusal") return { respuesta: { ok: false, error: "La IA no quiso responder este pedido. Probá reformularlo." }, resultado };
   const texto = (cuerpo.content ?? []).filter((b) => b.type === "text" && b.text).map((b) => b.text).join("").trim();
-  if (!texto) return { ok: false, error: "La IA no devolvió texto. Probá de nuevo." };
-  return { ok: true, texto, cortada: cuerpo.stop_reason === "max_tokens" };
+  if (!texto) return { respuesta: { ok: false, error: "La IA no devolvió texto. Probá de nuevo." }, resultado };
+  return { respuesta: { ok: true, texto, cortada: cuerpo.stop_reason === "max_tokens" }, resultado };
 }
 
 // ── Imágenes ────────────────────────────────────────────────────────────────
@@ -162,6 +191,7 @@ export async function proponerStandDelProyecto(a: Actor, proyectoId: string, ped
   if (!iaConectada()) return { ok: false, error: FALTA_CLAVE };
   const contexto = await contextoDeAgente(a, "disenador", proyectoId);
   const r = await pedirAlModelo({
+    tenantId: a.tenantId,
     sistema: `${SISTEMA.disenador}\n\n${INSTRUCCIONES_STAND}`,
     mensajes: [{ role: "user", content: `${contexto}\n\n${pedido.trim() ? `Pedido especial de la persona: ${pedido.trim()}` : "Proponé un primer borrador del stand para este evento."}${enfoque ? `\n\nEsta es una de varias alternativas para comparar; hacela ${enfoque}.` : ""}` }],
     esfuerzo: "medium",
@@ -353,6 +383,7 @@ export async function charlarConAgente(a: Actor, id: AgenteId, proyectoId: strin
   if (!iaConectada()) return { ok: false, error: FALTA_CLAVE };
   const contexto = await contextoDeAgente(a, id, proyectoId);
   return pedirAlModelo({
+    tenantId: a.tenantId,
     sistema: SISTEMA[id],
     mensajes: historial.map((m, i) => ({ role: m.rol, content: i === 0 ? `${contexto}\n\n${m.texto}` : m.texto })),
     esfuerzo: "low",
@@ -385,6 +416,7 @@ export async function proponerIdeaDelProyecto(a: Actor, proyectoId: string, pedi
   if (!iaConectada()) return { ok: false, error: FALTA_CLAVE };
   const contexto = await contextoDeAgente(a, "creativo", proyectoId);
   const r = await pedirAlModelo({
+    tenantId: a.tenantId,
     sistema: `${SISTEMA.creativo}\n\nCompletá la ficha de la idea de este evento. Si el brief no alcanza, proponé igual a partir de lo que hay y anotá en «informacion» lo que hay que confirmar.`,
     mensajes: [{ role: "user", content: `${contexto}\n\n${pedido.trim() ? `Pedido especial de la persona: ${pedido.trim()}` : "Proponé la idea del evento."}` }],
     esfuerzo: "medium",
@@ -420,7 +452,7 @@ const ESQUEMA_ANALISIS = {
 } as const;
 
 /** El Analista lee la conversación de una consulta y devuelve el brief con estados y un borrador. Lo que vuelve se valida antes de guardarse. */
-export async function analizarConsultaConIA(d: { negocio: string; nombre: string; mensajes: readonly { origen: string; texto: string }[]; brief: BriefConsulta }): Promise<{ ok: true; brief: unknown; borrador: string } | { ok: false; error: string }> {
+export async function analizarConsultaConIA(d: { tenantId: string; negocio: string; nombre: string; mensajes: readonly { origen: string; texto: string }[]; brief: BriefConsulta }): Promise<{ ok: true; brief: unknown; borrador: string } | { ok: false; error: string }> {
   if (!iaConectada()) return { ok: false, error: FALTA_CLAVE };
   const datos = bloqueDeDatos([
     { titulo: "Contacto", lineas: [d.nombre || "sin nombre", `Negocio: ${d.negocio}`] },
@@ -428,6 +460,7 @@ export async function analizarConsultaConIA(d: { negocio: string; nombre: string
     { titulo: "Lo que ya se sabe del pedido", lineas: textoDeBrief(d.brief).split("\n") },
   ]);
   const r = await pedirAlModelo({
+    tenantId: d.tenantId,
     sistema: `${SISTEMA.analista}\n\n${INSTRUCCIONES_CONSULTA}`,
     mensajes: [{ role: "user", content: `${datos}\n\nCompletá el brief y escribí el borrador de respuesta.` }],
     esfuerzo: "low",
@@ -455,6 +488,7 @@ export async function proponerPiezasDelProyecto(a: Actor, proyectoId: string, pe
     prisma.proyectoEntregable.findMany({ where: { tenantId: a.tenantId, proyectoId, anuladoEl: null }, select: { nombre: true }, take: 100 }),
   ]);
   const r = await pedirAlModelo({
+    tenantId: a.tenantId,
     sistema: `${SISTEMA.disenador}\n\n${INSTRUCCIONES_PIEZAS}`,
     mensajes: [{ role: "user", content: `${contexto}\n\n${pedido.trim() ? `Pedido especial de la persona: ${pedido.trim()}` : "Proponé las piezas que hacen falta para este proyecto."}` }],
     esfuerzo: "medium",

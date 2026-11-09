@@ -1,4 +1,5 @@
 import { FacturaAFicha } from "./FacturaAFicha";
+import { IaTopeFicha } from "./IaTopeFicha";
 import Link from "next/link";
 import { direccionDelPanel, panelesDeLaCartera } from "@/lib/contador/paneles-de-la-cartera";
 import { notFound } from "next/navigation";
@@ -1048,6 +1049,8 @@ export default async function FichaDelNegocio({
       />
 
       <AppsOcultasCard tenantId={t.id} ocultas={appsOcultas?.ocultas ?? null} clienteVivo={conCandado} />
+
+      <IaTopeFicha tenantId={t.id} />
 
       <AppsDelNegocioCard
         tenantId={t.id}

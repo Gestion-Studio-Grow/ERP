@@ -60,6 +60,8 @@ export async function sugerirConIaAction(_previo: ResultadoTicket | null, fd: Fo
   const t = await fichaDeTicket(operatorPrisma, tenantId, numero);
   if (!t) return { ok: false, error: "Ese ticket no existe." };
   const ia = await pedirAlModelo({
+    // Gasto de GSG (Soporte), no del negocio: sin tope mensual y sin tocar sus tablas de IA.
+    tenantId: null,
     sistema: INSTRUCCIONES_SUGERENCIA,
     mensajes: [{ role: "user", content: datosParaLaIa(t) }],
     esquema: ESQUEMA_SUGERENCIA as unknown as Record<string, unknown>,
