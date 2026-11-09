@@ -33,7 +33,7 @@
 //     crédito por lo NO imputado (valor − imputado): lo pagado a cuenta no se compensa dos veces.
 //   Sin columnas nuevas: «impago pendiente» = IMPAGO con `liquidadoEn` nulo.
 //
-//   CHEQUE RECHAZADO (cash:manage, motivo, AuditLog `voucher.pago.cheque-rechazado`): el pago vuelve a
+//   CHEQUE RECHAZADO (cash:manage + vouchers:rechazar-cheque = sólo el dueño, orden del 08/11; motivo, AuditLog `voucher.pago.cheque-rechazado`): el pago vuelve a
 //     deuda con un débito por su monto; si ya se había depositado, contramovimiento EGRESO por MP. Si
 //     era un pago a cuenta, su imputación se revierte: los vouchers que saldó vuelven a IMPAGO pendiente.
 //
