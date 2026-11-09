@@ -479,8 +479,11 @@ test("historial real: aditivas pasan, lo demás frena", { skip: !existsSync(DIR)
     "20260705150002_fiscal_invoice_align": "ÚNICO EN TABLA EXISTENTE",
     "20260712120000_sprint_entregable_concurrency_guards": "ÚNICO EN TABLA EXISTENTE",
     "20261104121000_rendiciones": "ÚNICO EN TABLA EXISTENTE",
-    // PR #48 (sin aplicar): dos CHECK sobre "Voucher" que sólo miran columnas nuevas y NULL → la publica el dueño.
+    // PR #48 (aplicada 09/11 con la orden D40 del dueño): dos CHECK sobre "Voucher" que sólo miran columnas nuevas y NULL.
     "20261108140000_voucher_liquidacion_semanal": "RESTRICCIÓN EN TABLA EXISTENTE",
+    // PR #53 (contabilidad ola 2, autorizada D40): CHECKs sobre "CuentaContable"/"AsientoLinea" que sólo miran
+    // columnas nuevas, y jsonb_typeof en el CHECK de "ConfigContable" → la publica la orquestadora con la orden del dueño.
+    "20261108150000_contabilidad_ola2_roles": "RESTRICCIÓN EN TABLA EXISTENTE",
   };
   const hay = new Set(readdirSync(DIR));
   for (const m of pasan) {
