@@ -28,7 +28,7 @@ import { CargarLote } from "./CargarLote";
 import { ImportarCsv } from "./ImportarCsv";
 import { AcreditacionDelPago, GenerarLiquidacion, PagoACuenta } from "./LiquidacionFormularios";
 import { leerCuentaDeLaAdministracion, type CuentaDeLaAdministracion } from "@/lib/vouchers/liquidacion-repo";
-import { fechaArgentina, pesosDeCentavos, ultimaSemanaCerrada } from "@/lib/vouchers/liquidacion-core";
+import { fechaArgentina, motivoParaNoRechazarCheque, pesosDeCentavos, ultimaSemanaCerrada } from "@/lib/vouchers/liquidacion-core";
 import { motivoDeBaja } from "@/lib/vouchers/voucher-core";
 import { isPrismaError } from "@/lib/prisma-errors";
 
@@ -71,6 +71,8 @@ export default async function VouchersPage({ searchParams }: { searchParams: Pro
   const puedeCargar = roleHasCapability(user.role, "clients:manage");
   // La liquidación escribe montos (lo que pagó OpenKey): el permiso de la plata de la caja, como su action.
   const puedeLiquidar = permisoEfectivo(user, "cash:manage");
+  // Marcar un cheque rechazado: sólo el dueño (orden del 08/11/2026). La acción lo vuelve a exigir.
+  const puedeRechazarCheque = motivoParaNoRechazarCheque(user) === null;
   const query = queryDeFiltros(filtros);
 
   return (
@@ -135,7 +137,7 @@ export default async function VouchersPage({ searchParams }: { searchParams: Pro
       )}
       {/* La plata del voucher la paga la administración del country y se liquida todos los lunes
           (regla del dueño del 08/11/2026). Reemplaza a la importación de la liquidación de OpenKey. */}
-      {puedeLiquidar && <LiquidacionDelLunes />}
+      {puedeLiquidar && <LiquidacionDelLunes puedeRechazarCheque={puedeRechazarCheque} />}
     </main>
   );
 }
@@ -155,7 +157,7 @@ async function leerCuenta(tenantId: string): Promise<CuentaDeLaAdministracion | 
  * usados menos lo que pagó la administración), lo que falta liquidar, las liquidaciones y los
  * pagos a cuenta. Sólo con `cash:manage` (es plata, como su action).
  */
-async function LiquidacionDelLunes() {
+async function LiquidacionDelLunes({ puedeRechazarCheque }: { puedeRechazarCheque: boolean }) {
   const tenantId = await getCurrentTenantId();
   const cuenta = await leerCuenta(tenantId);
   const hoy = todayInBusinessTz();
@@ -268,7 +270,7 @@ async function LiquidacionDelLunes() {
                   <span className="tabular-nums text-muted">{fechaArgentina(p.fecha)}</span> · {p.concepto} ·{" "}
                   <Plata valor={p.monto} sinCentavos={Number.isInteger(p.monto)} />
                 </p>
-                <AcreditacionDelPago pagoId={p.id} liquidacionId={p.liquidacionId ?? undefined} estado={p.acreditacion} />
+                <AcreditacionDelPago pagoId={p.id} liquidacionId={p.liquidacionId ?? undefined} estado={p.acreditacion} puedeRechazarCheque={puedeRechazarCheque} />
               </li>
             ))}
           </ul>
@@ -288,7 +290,7 @@ async function LiquidacionDelLunes() {
                   <span className="tabular-nums text-muted">{fechaArgentina(p.fecha)}</span> · {p.concepto} ·{" "}
                   <Plata valor={p.monto} sinCentavos={Number.isInteger(p.monto)} />
                 </p>
-                <AcreditacionDelPago pagoId={p.id} liquidacionId={p.liquidacionId ?? undefined} estado={p.acreditacion} />
+                <AcreditacionDelPago pagoId={p.id} liquidacionId={p.liquidacionId ?? undefined} estado={p.acreditacion} puedeRechazarCheque={puedeRechazarCheque} />
               </li>
             ))}
           </ul>

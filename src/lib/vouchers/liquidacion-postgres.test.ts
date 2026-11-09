@@ -1557,3 +1557,61 @@ test("cert 7 · rechazo del cheque ‖ nueva liquidación (5 vueltas): cada vouc
   assert.deepEqual(crudos, []);
   assert.deepEqual(fallas, []);
 });
+
+// ── Orden del dueño (08/11/2026): marcar un cheque rechazado «solamente lo puede hacer el dueño y el
+// administrador». La Server Action real, rol por rol: nadie más escribe, ni con `cash:manage` ni con
+// un override que intente prenderle el permiso por la base.
+
+test("rechazarCheque (Server Action): recepción y profesional reciben un rechazo sin escribir; la dueña sí puede", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const A = s.base.a.id;
+  const d = await prismaComoDuenio(s.base);
+  const L = await liq();
+  const { rechazarCheque } = await import("./liquidacion-actions");
+  const { SOLO_DUENIO_RECHAZA_CHEQUE } = await import("./liquidacion-core");
+  const { filaDeInterruptor } = await import("@/cambios/interruptores-core");
+  const { VOUCHERS } = await import("@/cambios/interruptores");
+  // Prendido, así la negación sale por el permiso y no por el interruptor.
+  await d.auditLog.create({ data: filaDeInterruptor({ tenantId: A, interruptor: VOUCHERS, accion: "encender", operador: "test" }) });
+  const hoy = await hoyDelNegocio();
+  const ch = await L.registrarPagoACuenta(A, { clave: claveC5("perm"), monto: 4321, fecha: hoy, medio: "CHEQUE", referencia: "Ch 0909", actor: "user:test" });
+  const saldoAntes = await saldo(A);
+  const fd = () => {
+    const f = new FormData();
+    f.set("pagoId", ch.pagoId);
+    f.set("motivo", "Sin fondos");
+    return f;
+  };
+  const rechazos = async () => d.auditLog.count({ where: { tenantId: A, action: "voucher.pago.cheque-rechazado", entityId: ch.pagoId } });
+
+  // Profesional: sin `cash:manage` ni llega (la puerta gruesa lo manda a su home); con `cash:manage`
+  // prendido por la matriz, la puerta fina lo rechaza.
+  const profesional = await d.user.create({
+    data: { tenantId: A, name: "Profesional A", email: `profesional-perm-${Date.now()}@negocio-a.erp.test`, passwordHash: "x", role: "PROFESSIONAL" },
+  });
+  const sinCaja = await ejecutarAccion({ negocio: s.base.a, usuario: profesional }, () => rechazarCheque(fd()));
+  assert.equal(sinCaja.tipo, "redireccion", JSON.stringify(sinCaja));
+  await d.userPermissionOverride.create({ data: { tenantId: A, userId: profesional.id, capability: "cash:manage", allowed: true } });
+  await d.userPermissionOverride.create({ data: { tenantId: A, userId: profesional.id, capability: "vouchers:rechazar-cheque", allowed: true } });
+  const conCaja = await ejecutarAccion({ negocio: s.base.a, usuario: profesional }, () => rechazarCheque(fd()));
+  assert.deepEqual(conCaja.tipo === "respuesta" ? conCaja.valor : conCaja, { ok: false, error: SOLO_DUENIO_RECHAZA_CHEQUE });
+
+  // Recepción: trae `cash:manage` por rol; un override que intente prenderle el permiso no cuenta.
+  await d.userPermissionOverride.create({ data: { tenantId: A, userId: s.base.a.recepcion.id, capability: "vouchers:rechazar-cheque", allowed: true } });
+  const recepcion = await ejecutarAccion({ negocio: s.base.a, usuario: s.base.a.recepcion }, () => rechazarCheque(fd()));
+  assert.deepEqual(recepcion.tipo === "respuesta" ? recepcion.valor : recepcion, { ok: false, error: SOLO_DUENIO_RECHAZA_CHEQUE });
+  await d.userPermissionOverride.deleteMany({ where: { tenantId: A, capability: "vouchers:rechazar-cheque" } });
+
+  assert.equal(await rechazos(), 0, "nadie sin permiso escribió el rechazo");
+  assert.equal(await saldo(A), saldoAntes, "la deuda no se movió");
+
+  // La dueña (OWNER, que absorbe al administrador): pasa y revierte la imputación.
+  const duenia = await ejecutarAccion({ negocio: s.base.a, usuario: s.base.a.duenia }, () => rechazarCheque(fd()));
+  assert.equal(duenia.tipo, "respuesta", JSON.stringify(duenia));
+  const v = (duenia as { valor: Awaited<ReturnType<typeof rechazarCheque>> }).valor;
+  assert.ok(v.ok, JSON.stringify(v));
+  assert.equal(await rechazos(), 1);
+  assert.equal(saldoAntes - (await saldo(A)), -432100, "el pago vuelve a deuda");
+  await d.user.delete({ where: { id: profesional.id } });
+});

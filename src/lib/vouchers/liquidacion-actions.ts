@@ -13,6 +13,7 @@
 import { unstable_rethrow } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireCapability } from "@/lib/authz";
+import type { UsuarioConPermisos } from "@/lib/capabilities";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { isDemoSandbox } from "@/lib/demo-flag";
 import { rechazoDeDominio } from "@/lib/rechazo-de-dominio";
@@ -21,7 +22,7 @@ import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
 import { vouchersPrendidos } from "@/cambios/interruptores";
 import { leerImporte } from "@/lib/dinero/leer";
 import { MENSAJES_VOUCHER } from "./voucher-core";
-import { esMedioAdministracion } from "./liquidacion-core";
+import { esMedioAdministracion, motivoParaNoRechazarCheque } from "./liquidacion-core";
 import { esColumnaDeOtro, OTRO_SIN_COLUMNA } from "./acreditacion-core";
 import {
   confirmarAcreditacionMp,
@@ -62,8 +63,13 @@ function comoError(e: unknown, scope: string): { ok: false; error: string } {
   return { ok: false, error: rechazoDeDominio(e, NO_SE_PUDO, scope) };
 }
 
-async function preparar(): Promise<{ actor: string; tenantId: string } | { ok: false; error: string }> {
+async function preparar(
+  extra?: (user: UsuarioConPermisos) => string | null,
+): Promise<{ actor: string; tenantId: string } | { ok: false; error: string }> {
   const user = await requireCapability("cash:manage");
+  // El permiso fino va ANTES del interruptor y de la demo: quien no puede no se entera de nada más.
+  const negado = extra?.(user);
+  if (negado) return { ok: false, error: negado };
   if (!vouchersPrendidos(await interruptoresDelNegocio())) return APAGADO;
   if (isDemoSandbox()) return { ok: false, error: MODO_DEMO };
   return { actor: `user:${user.id}`, tenantId: await getCurrentTenantId() };
@@ -222,10 +228,10 @@ export async function confirmarAcreditacion(formData: FormData): Promise<Resulta
  * El banco rechazó un cheque de la administración: el pago vuelve a deuda en la cuenta y, si ya se
  * había depositado, la caja lleva el contramovimiento por Mercado Pago. Campos: `pagoId`, `motivo`
  * (obligatorio, queda en el AuditLog) y `liquidacionId` (opcional, para refrescar su pantalla).
- * Mismo permiso que conciliar (`cash:manage`).
+ * Exige `cash:manage` Y `vouchers:rechazar-cheque` (sólo el dueño; orden del 08/11/2026).
  */
 export async function rechazarCheque(formData: FormData): Promise<ResultadoLiquidacionAccion<ChequeRechazado>> {
-  const ctx = await preparar();
+  const ctx = await preparar(motivoParaNoRechazarCheque);
   if ("ok" in ctx) return ctx;
   const pagoId = texto(formData.get("pagoId"));
   if (!pagoId) return { ok: false, error: "Falta identificar el pago." };

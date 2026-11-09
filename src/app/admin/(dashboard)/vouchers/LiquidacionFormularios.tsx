@@ -409,7 +409,8 @@ export const MOTIVO_MINIMO_RECHAZO = 5;
 /**
  * «Cheque rechazado»: el banco rebotó el cheque de la administración. El pago vuelve a deuda en la
  * cuenta; si ya se había depositado, la caja de hoy lleva la salida por Mercado Pago. Motivo
- * obligatorio (queda en el registro) y confirmación en dos pasos. La acción exige `cash:manage`.
+ * obligatorio (queda en el registro) y confirmación en dos pasos. Sólo lo ve el dueño (orden del
+ * 08/11/2026); la acción lo exige igual del lado del servidor (`vouchers:rechazar-cheque`).
  */
 export function RechazarCheque({ pagoId, liquidacionId, depositado }: { pagoId: string; liquidacionId?: string; depositado: boolean }) {
   const id = useId();
@@ -482,7 +483,18 @@ export function RechazarCheque({ pagoId, liquidacionId, depositado }: { pagoId: 
  * acreditación» hasta que alguien confirma que la plata entró. Si el extracto de MP ya trae el
  * movimiento (monto + fecha + referencia), se muestra y el botón lo engancha.
  */
-export function AcreditacionDelPago({ pagoId, liquidacionId, estado }: { pagoId: string; liquidacionId?: string; estado: EstadoAcreditacion }) {
+export function AcreditacionDelPago({
+  pagoId,
+  liquidacionId,
+  estado,
+  puedeRechazarCheque,
+}: {
+  pagoId: string;
+  liquidacionId?: string;
+  estado: EstadoAcreditacion;
+  /** Sólo el dueño marca un cheque rechazado (`motivoParaNoRechazarCheque`): al resto no se le muestra el botón. */
+  puedeRechazarCheque: boolean;
+}) {
   const id = useId();
   const router = useRouter();
   const [error, setError] = useState("");
@@ -504,7 +516,7 @@ export function AcreditacionDelPago({ pagoId, liquidacionId, estado }: { pagoId:
           {estado.cheque ? "Cheque depositado en Mercado Pago" : "Acreditado en Mercado Pago"}
           {estado.via === "mp" ? " (enganchado al movimiento de MP)" : " (confirmado a mano)"}
         </p>
-        {estado.cheque && <RechazarCheque pagoId={pagoId} liquidacionId={liquidacionId} depositado />}
+        {estado.cheque && puedeRechazarCheque && <RechazarCheque pagoId={pagoId} liquidacionId={liquidacionId} depositado />}
       </div>
     );
   }
@@ -545,7 +557,7 @@ export function AcreditacionDelPago({ pagoId, liquidacionId, estado }: { pagoId:
         <Button type="button" variant="outline" disabled={pendiente} estado={pendiente ? "cargando" : undefined} onClick={confirmar} aria-describedby={error ? `${id}-error` : undefined}>
           {cheque ? "Confirmar depósito del cheque" : "Confirmar acreditación en Mercado Pago"}
         </Button>
-        {cheque && <RechazarCheque pagoId={pagoId} liquidacionId={liquidacionId} depositado={false} />}
+        {cheque && puedeRechazarCheque && <RechazarCheque pagoId={pagoId} liquidacionId={liquidacionId} depositado={false} />}
       </div>
       <MensajeError id={`${id}-error`} texto={error} />
     </div>

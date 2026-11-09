@@ -8,7 +8,7 @@ import { todayInBusinessTz } from "@/lib/datetime";
 import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
 import { vouchersPrendidos } from "@/cambios/interruptores";
 import { leerLiquidacion } from "@/lib/vouchers/liquidacion-repo";
-import { ETIQUETA_MEDIO_ADMINISTRACION, ETIQUETA_RESULTADO, esMedioAdministracion, fechaArgentina } from "@/lib/vouchers/liquidacion-core";
+import { ETIQUETA_MEDIO_ADMINISTRACION, ETIQUETA_RESULTADO, esMedioAdministracion, fechaArgentina, motivoParaNoRechazarCheque } from "@/lib/vouchers/liquidacion-core";
 import { AvisoError, Marca, PageHeader, Plata, buttonClasses, atributosBoton } from "@/components/ui";
 import { AcreditacionDelPago, ConciliarLiquidacion, DarDeBajaImpago, DescartarLiquidacion, Imprimir } from "../../LiquidacionFormularios";
 
@@ -30,6 +30,8 @@ export default async function LiquidacionPage({ params }: { params: Promise<{ id
   // `cash:manage` guarda la página entera: quien llega acá puede conciliar y dar de baja un impago.
   const user = await requireCapability("cash:manage");
   const puedeDarDeBaja = permisoEfectivo(user, "cash:manage");
+  // Marcar un cheque rechazado: sólo el dueño (orden del 08/11/2026). La acción lo vuelve a exigir.
+  const puedeRechazarCheque = motivoParaNoRechazarCheque(user) === null;
   if (!vouchersPrendidos(await interruptoresDelNegocio())) notFound();
   const { id } = await params;
   const l = await leerLiquidacion(await getCurrentTenantId(), id);
@@ -127,7 +129,7 @@ export default async function LiquidacionPage({ params }: { params: Promise<{ id
             <div className="sm:col-span-2 print:hidden">
               <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Conciliación con Mercado Pago</dt>
               <dd className="mt-1">
-                <AcreditacionDelPago pagoId={l.pago.id} liquidacionId={l.id} estado={l.pago.acreditacion} />
+                <AcreditacionDelPago pagoId={l.pago.id} liquidacionId={l.id} estado={l.pago.acreditacion} puedeRechazarCheque={puedeRechazarCheque} />
               </dd>
             </div>
           )}

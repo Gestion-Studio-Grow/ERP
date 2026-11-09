@@ -21,6 +21,7 @@
 
 import { centavosDe, textoAlCentavo, admiteCentavos } from "@/lib/dinero/redondeo";
 import { celdaCsv, PREFIJO_BAJA_IMPAGO } from "./voucher-core";
+import { permisoEfectivo, type UsuarioConPermisos } from "@/lib/capabilities";
 
 export type DiaClave = string; // YYYY-MM-DD
 
@@ -319,4 +320,17 @@ export const ETIQUETA_MEDIO_ADMINISTRACION: Record<MedioPagoAdministracion, stri
 };
 export function esMedioAdministracion(v: unknown): v is MedioPagoAdministracion {
   return typeof v === "string" && (MEDIOS_DE_PAGO_ADMINISTRACION as readonly string[]).includes(v);
+}
+
+// ─────────────── Quién marca un cheque rechazado (orden del dueño, 08/11/2026) ───────────────
+
+/** «Solamente lo puede hacer el dueño y el administrador». No hay rol ADMIN aparte: OWNER lo absorbe. */
+export const SOLO_DUENIO_RECHAZA_CHEQUE = "Marcar un cheque como rechazado lo pueden hacer sólo el dueño y el administrador.";
+
+/**
+ * Puerta de `rechazarCheque` (y de mostrar su botón): null = puede. Usa `permisoEfectivo`, el único
+ * resolvedor; `vouchers:rechazar-cheque` no está en la matriz por usuario, así que vale sólo el rol.
+ */
+export function motivoParaNoRechazarCheque(user: UsuarioConPermisos): string | null {
+  return permisoEfectivo(user, "vouchers:rechazar-cheque") ? null : SOLO_DUENIO_RECHAZA_CHEQUE;
 }
