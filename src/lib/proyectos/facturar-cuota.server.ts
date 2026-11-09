@@ -7,8 +7,8 @@
 // maestro `isInvoicingEnabled()` y la columna `Invoice.proyectoCuotaId` (migración
 // 20261110120000_invoice_proyecto_cuota, Gate 2). Sin cualquiera de las cuatro, no se escribe nada.
 // Y una quinta que cierra al revés: el negocio NO factura solo sus cobros por otro camino (el
-// extracto del banco: módulo `bancos` o movimientos importados; Mercado Pago: conexión no
-// desconectada o token legado), porque esas facturas salen sin origen y duplicarían el CAE. Se
+// extracto del banco: módulo `bancos` o movimientos importados; Mercado Pago: cualquier
+// conexión, aun desconectada, o token legado), porque esas facturas salen sin origen y duplicarían el CAE. Se
 // pregunta antes y otra vez dentro de la escritura, bajo `tomarCandadoFacturasDeCobro`, el candado
 // que también toman las barreras del extracto y de Mercado Pago (certificación T2, vuelta 3).
 //
@@ -150,9 +150,10 @@ export async function negocioFacturaCuotas(tenantId: string): Promise<boolean> {
  * del candado; o una propia para la pregunta previa). Señales, todas fail-closed:
  *  · Extracto: el módulo `bancos` o algún `MovimientoImportado` (con el registro de módulos apagado
  *    la pantalla de bancos está abierta a todos).
- *  · Mercado Pago: una conexión `mercadopago` que no esté desconectada (es lo que hace que el aviso
- *    y la sincronización lleguen a `procesarPagoStandalone` → `facturarPagoMP`; una pendiente o
- *    pausada cuenta, porque puede volver sola), o el token global con `MP_MODO_LEGADO=1`.
+ *  · Mercado Pago: cualquier conexión `mercadopago`, en cualquier estado (es lo que hace que el aviso
+ *    y la sincronización lleguen a `procesarPagoStandalone` → `facturarPagoMP`). También la
+ *    desconectada: un pago que pasó la barrera de `facturarPagoMP` antes de desconectar todavía puede
+ *    salir facturado (cert. T2 vuelta 4, X10). O el token global con `MP_MODO_LEGADO=1`.
  */
 export async function cobrosQueSeFacturanSolosEnTx(tx: InvoiceTx, tenantId: string): Promise<string | null> {
   const t = await tx.tenant.findUnique({ where: { id: tenantId }, select: { modules: true } });
@@ -160,7 +161,7 @@ export async function cobrosQueSeFacturanSolosEnTx(tx: InvoiceTx, tenantId: stri
   const mov = await tx.movimientoImportado.findFirst({ where: { tenantId }, select: { id: true } });
   if (mov) return CON_BANCOS;
   if (modoLegadoMP(process.env) && process.env.MP_ACCESS_TOKEN?.trim()) return CON_MERCADOPAGO;
-  const mp = await tx.integracionConexion.findFirst({ where: { tenantId, conector: "mercadopago", estado: { not: "desconectada" } }, select: { id: true } });
+  const mp = await tx.integracionConexion.findFirst({ where: { tenantId, conector: "mercadopago" }, select: { id: true } });
   if (mp) return CON_MERCADOPAGO;
   return null;
 }

@@ -197,7 +197,7 @@ export const FACTURACION_APAGADA = "La facturación electrónica está apagada e
  * las cuotas: el mismo cobro saldría con dos CAE. Hasta atarlas, la cuota no se factura por acá.
  */
 export const CON_BANCOS =
-  "Tu negocio también factura desde el extracto del banco: para no hacer dos facturas del mismo cobro, las cuotas de proyecto se facturan desde Facturación.";
+  "Tu negocio tiene cobros importados (del extracto del banco o pagos de Mercado Pago que quedaron a revisar): para no hacer dos facturas del mismo cobro, las cuotas de proyecto se facturan desde Facturación.";
 /**
  * Certificación T2 · vuelta 3 (MEDIA): el negocio tiene Mercado Pago conectado, y cada pago
  * acreditado se factura solo (`facturarPagoMP`, sin origen de cuota). Mismo riesgo que el extracto.

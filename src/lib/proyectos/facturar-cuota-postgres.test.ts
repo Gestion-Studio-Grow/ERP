@@ -427,7 +427,7 @@ test("(k) carrera: el extracto se importa y se emite ENTRE el chequeo de la cuot
   assert.equal(await p.duenio.proyectoCambio.count({ where: { entidadId: id } }), 0);
 });
 
-test("(l) con Mercado Pago conectado la cuota no se factura (se factura solo cada pago); desconectado, sí", async (t) => {
+test("(l) con una conexión de Mercado Pago, en cualquier estado, la cuota no se factura; sin conexión, sí", async (t) => {
   const p = await preparar(t);
   if (!p) return;
   const a = p.base.a.id;
@@ -460,11 +460,16 @@ test("(l) con Mercado Pago conectado la cuota no se factura (se factura solo cad
     assert.equal(r.ok, false);
     assert.match((r as { error: string }).error, /Mercado Pago/);
     assert.equal((await p.facturasDe(id)).length, 0);
+    // Desconectada también niega: un pago que ya pasó la barrera puede salir facturado igual (X10).
     await p.duenio.integracionConexion.update({ where: { id: conexion.id }, data: { estado: "desconectada" } });
-    assert.ok((await p.srv.facturarCuotaDelProyecto({ tenantId: a, proyectoId: pr.id, cuotaId: id, autor: "test" }, p.depsConSim)).ok);
+    const rd = await p.srv.facturarCuotaDelProyecto({ tenantId: a, proyectoId: pr.id, cuotaId: id, autor: "test" }, p.depsConSim);
+    assert.equal(rd.ok, false);
+    assert.match((rd as { error: string }).error, /Mercado Pago/);
+    assert.equal((await p.facturasDe(id)).length, 0);
   } finally {
     await p.duenio.integracionConexion.delete({ where: { id: conexion.id } });
   }
+  assert.ok((await p.srv.facturarCuotaDelProyecto({ tenantId: a, proyectoId: pr.id, cuotaId: id, autor: "test" }, p.depsConSim)).ok);
 });
 
 test("(m) Mercado Pago automático: con facturas de cuota el pago suelto queda en revisión; beauty-spa factura igual", async (t) => {
