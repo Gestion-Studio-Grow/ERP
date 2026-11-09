@@ -9,6 +9,7 @@ import { exigirVer, puede } from "@/lib/proyectos/gestion.server";
 import { tarjeta } from "../../_vista";
 import { cuando, ENVIO_LABEL, ESTADO_LABEL, INTENCION_LABEL } from "../_etiquetas";
 import { PanelConsulta } from "./PanelConsulta";
+import { etapa2ActivaPara } from "@/lib/proyectos/etapa2.server";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Consulta" };
@@ -93,7 +94,7 @@ export default async function DetalleDeConsulta({ params }: { params: Promise<{ 
           id={c.id}
           estado={c.estado}
           proyectoId={c.proyectoId}
-          puedeUsarIA={puede(a, "ia", "editar")}
+          puedeUsarIA={puede(a, "ia", "editar") && (await etapa2ActivaPara(a.tenantId, "ia"))}
           tieneMail={mailConectado() && !!c.email}
           borradores={borradores.map((b) => ({ id: b.id, texto: b.texto, problemas: b.problemas }))}
         />
