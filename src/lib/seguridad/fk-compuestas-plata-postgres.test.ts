@@ -13,26 +13,26 @@ import { baseEfimeraDelArchivo, type BaseEfimera } from "@/test/base-efimera";
 
 const laBase = baseEfimeraDelArchivo();
 
-/** [tabla, columna, destino] de las 18 FK de la tanda 1 (mismo orden que la migración). */
-const FK_PLATA: [string, string, string][] = [
-  ["CashMovement", "sessionId", "CashSession"],
-  ["CashMovement", "orderId", "Order"],
-  ["CashMovement", "paymentId", "Payment"],
-  ["CashMovement", "collectionId", "Collection"],
-  ["CashMovement", "tallerPagoId", "TallerPago"],
-  ["CashMovement", "proyectoPagoId", "ProyectoPago"],
-  ["CashMovement", "proyectoGastoId", "ProyectoGasto"],
-  ["Collection", "orderId", "Order"],
-  ["Collection", "appointmentId", "Appointment"],
-  ["Payment", "appointmentId", "Appointment"],
-  ["Invoice", "orderId", "Order"],
-  ["Invoice", "appointmentId", "Appointment"],
-  ["CobroFacturado", "invoiceId", "Invoice"],
-  ["Voucher", "loteId", "VoucherLote"],
-  ["Voucher", "clientId", "Client"],
-  ["Voucher", "appointmentId", "Appointment"],
-  ["Voucher", "collectionId", "Collection"],
-  ["MovimientoImportado", "importacionId", "ImportacionBancaria"],
+/** [tabla, columna, destino, ON DELETE (pg_constraint.confdeltype: c CASCADE, n SET NULL, r RESTRICT)] de las 18 FK de la tanda 1. */
+const FK_PLATA: [string, string, string, "c" | "n" | "r"][] = [
+  ["CashMovement", "sessionId", "CashSession", "c"],
+  ["CashMovement", "orderId", "Order", "n"],
+  ["CashMovement", "paymentId", "Payment", "n"],
+  ["CashMovement", "collectionId", "Collection", "n"],
+  ["CashMovement", "tallerPagoId", "TallerPago", "n"],
+  ["CashMovement", "proyectoPagoId", "ProyectoPago", "n"],
+  ["CashMovement", "proyectoGastoId", "ProyectoGasto", "n"],
+  ["Collection", "orderId", "Order", "n"],
+  ["Collection", "appointmentId", "Appointment", "n"],
+  ["Payment", "appointmentId", "Appointment", "r"],
+  ["Invoice", "orderId", "Order", "n"],
+  ["Invoice", "appointmentId", "Appointment", "n"],
+  ["CobroFacturado", "invoiceId", "Invoice", "r"],
+  ["Voucher", "loteId", "VoucherLote", "r"],
+  ["Voucher", "clientId", "Client", "r"],
+  ["Voucher", "appointmentId", "Appointment", "n"],
+  ["Voucher", "collectionId", "Collection", "n"],
+  ["MovimientoImportado", "importacionId", "ImportacionBancaria", "c"],
 ];
 
 type Q = (sql: string, params?: unknown[]) => Promise<pg.QueryResult>;
@@ -102,16 +102,27 @@ test("la migración deja las 18 FK de plata compuestas con el negocio y los 10 �
   const base = await laBase(t);
   if (!base) return;
   await comoDuenio(base, async (q) => {
-    for (const [tabla, col, destino] of FK_PLATA) {
+    for (const [tabla, col, destino, alBorrar] of FK_PLATA) {
       const r = await q(
-        `SELECT c.confrelid::regclass::text AS destino,
-                array(SELECT a.attname::text FROM unnest(c.conkey) k JOIN pg_attribute a ON a.attrelid=c.conrelid AND a.attnum=k ORDER BY 1) AS cols
+        `SELECT c.confrelid::regclass::text AS destino, c.confdeltype AS del, c.confupdtype AS upd, c.condeferrable AS dif,
+                array(SELECT a.attname::text || '>' || b.attname::text
+                        FROM unnest(c.conkey, c.confkey) AS k(hijo, padre)
+                        JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.hijo
+                        JOIN pg_attribute b ON b.attrelid = c.confrelid AND b.attnum = k.padre ORDER BY 1) AS pares,
+                (SELECT array_agg(a.attname::text) FROM unnest(c.confdelsetcols) k JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k) AS anula
            FROM pg_constraint c WHERE c.conname=$1 AND c.contype='f'`,
         [`${tabla}_${col}_tenant_fkey`],
       );
       assert.equal(r.rowCount, 1, `${tabla}.${col}: falta la FK compuesta`);
-      assert.equal(r.rows[0].destino, `"${destino}"`);
-      assert.deepEqual([...r.rows[0].cols].sort(), [col, "tenantId"].sort(), `${tabla}.${col}`);
+      const fk = r.rows[0];
+      assert.equal(fk.destino, `"${destino}"`, `${tabla}.${col}: destino`);
+      // Cada columna contra la suya: la referencia contra id y el negocio contra el negocio.
+      assert.deepEqual([...fk.pares], [`${col}>id`, "tenantId>tenantId"].sort(), `${tabla}.${col}: pares`);
+      assert.equal(fk.del, alBorrar, `${tabla}.${col}: ON DELETE igual a la FK vieja`);
+      assert.equal(fk.upd, "a", `${tabla}.${col}: ON UPDATE NO ACTION`);
+      assert.equal(fk.dif, false, `${tabla}.${col}: no diferible`);
+      // SET NULL sólo de la columna: nunca pone el negocio en NULL.
+      assert.deepEqual(alBorrar === "n" ? fk.anula : null, alBorrar === "n" ? [col] : null, `${tabla}.${col}: SET NULL ("${col}")`);
     }
     const ix = await q(
       `SELECT count(*)::int AS n FROM pg_indexes WHERE indexname = ANY($1)`,

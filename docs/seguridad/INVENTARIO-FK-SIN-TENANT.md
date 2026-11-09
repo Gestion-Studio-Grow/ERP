@@ -44,7 +44,10 @@ Migración `prisma/migrations/20261109120000_fk_compuestas_plata/migration.sql` 
 
 ### Pasos del dueño (Gate 2 — nada de esto lo ejecuta un agente)
 
-1. **Aplicar** la migración (`prisma migrate deploy`). El detector de `publicar` la va a frenar con
+1. **Aplicar** la migración: agregar `20261109120000_fk_compuestas_plata` a `prisma/lote-deploy.txt` (sin eso el build
+   de producción frena en el paso 1b, falla cerrada) y `prisma migrate deploy`. Toma locks de escritura sobre las 16
+   tablas mientras crea 10 índices (sin `CONCURRENTLY`: no se puede dentro de la migración) — segundos con el volumen
+   actual; conviene una ventana sin cobros en curso. El detector de `publicar` la va a frenar con
    «REQUIERE REVISIÓN DEL DUEÑO» (índice único y FK sobre tablas existentes): es lo esperado.
 2. **Diagnóstico** (sólo lectura) — filas viejas que cruzarían negocios; debe dar 0 en todas:
    ```sql
@@ -93,6 +96,9 @@ Migración `prisma/migrations/20261109120000_fk_compuestas_plata/migration.sql` 
 
 - `ON UPDATE CASCADE` de la FK vieja sigue: si se reescribe el `id` de un padre, el orden de los triggers puede hacer
   fallar el UPDATE (falla cerrada, no corrompe). Los ids son cuid y no se reescriben.
+- Columnas de plata que guardan un id **sin ninguna FK** (fuera de este inventario, que sólo mira FK):
+  `MovimientoImportado.invoiceId` y `CobroFacturado.appointmentId`. Sin FK no hay ni oráculo ni cascada, pero tampoco
+  barrera: entran en la tanda 2 (FK compuesta nueva, previo diagnóstico de huérfanas).
 - Filas viejas cruzadas (si existen) siguen ahí hasta el diagnóstico del paso 2.
 
 ## Inventario completo (112)
