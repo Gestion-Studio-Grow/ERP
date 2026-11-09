@@ -345,7 +345,7 @@ test("cobro con voucher que OpenKey ya liquidó: la anulación se rechaza con su
   await importarLiquidacionOpenKey(s.base.a.id, { filas: [{ numero, monto: 14000, fecha: null, referencia: "LIQ-A" }], origen: "MANUAL", actor: "u" });
   const { AnulacionRechazada, mensajeAnulacionRechazada } = await import("@/lib/turnos/anulacion");
   await assert.rejects(anular(s, turno, r.collectionId), (e: unknown) => e instanceof AnulacionRechazada && e.motivo === "voucher-liquidado");
-  assert.match(mensajeAnulacionRechazada("voucher-liquidado"), /OpenKey ya lo liquidó|ya liquidó/);
+  assert.match(mensajeAnulacionRechazada("voucher-liquidado"), /administración del country ya liquidó|ya liquidó/);
   assert.deepEqual(await estado(s, numero), { estado: "USADO", turno, cobro: r.collectionId, valor: 14000 });
   assert.deepEqual(await cobrosVoucher(s, turno), [14000], "no quedó contrapartida");
 });

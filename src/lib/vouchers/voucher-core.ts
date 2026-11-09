@@ -46,12 +46,13 @@ export type MotivoVoucherRechazado =
   | "turno-con-voucher"
   | "no-existe"
   | "enum-ausente"
+  | "comision-pagada"
   | "apagado";
 
 export const MENSAJES_VOUCHER: Record<MotivoVoucherRechazado, string> = {
   anulado: "Este voucher está anulado: no se puede usar.",
   "ya-usado": "Este voucher ya fue usado.",
-  "baja-openkey": "Este voucher ya fue usado en OpenKey: OpenKey lo da por usado y no se puede volver a usar.",
+  "baja-openkey": "Este voucher ya figura usado en la administración del country: la administración lo da por usado y no se puede volver a usar.",
   "otro-cliente": "Este voucher es de otro vecino: sólo lo puede usar la persona a la que se le dio.",
   "turno-cerrado": "Este turno está cancelado o marcado como no se presentó: no admite cobros.",
   "sin-saldo": "Este turno no tiene saldo pendiente: no hay nada que cobrar con el voucher.",
@@ -61,6 +62,8 @@ export const MENSAJES_VOUCHER: Record<MotivoVoucherRechazado, string> = {
   "no-existe": "No hay un voucher con ese número en este negocio.",
   "enum-ausente":
     "Cobrar con voucher necesita un paso de base de datos que todavía no se aplicó (lo hace el dueño). Mientras tanto, cobrá con otro medio.",
+  "comision-pagada":
+    "La comisión de este turno ya se le pagó a la profesional: cobrarlo ahora con voucher bajaría una base que ya se liquidó. Cobrá el saldo con otro medio o resolvelo desde Comisiones.",
   apagado: "Los vouchers no están prendidos en este negocio.",
 };
 
@@ -452,8 +455,8 @@ export const COLUMNAS_REPORTE = [
   "Fecha de uso",
   "Valor cubierto",
   "Estado ERP",
-  "Estado OpenKey",
-  "Baja en OpenKey",
+  "Estado en la administración",
+  "Baja en la administración",
   "Liquidado",
   "Monto liquidado",
   "Referencia de liquidación",
@@ -478,10 +481,20 @@ function montoAr(n: number | null): string {
   return n == null || !admiteCentavos(n) ? "" : textoAlCentavo(n).replace(".", ",");
 }
 
+/** Prefijo de `liquidacionRef` de un impago que la administración desconoce (baja con motivo). */
+export const PREFIJO_BAJA_IMPAGO = "Baja: ";
+
+/** El motivo si el voucher es un impago dado de baja; si no, null. */
+export function motivoDeBaja(f: { liquidadoEn: unknown; liquidacionRef: string | null }): string | null {
+  return f.liquidadoEn && f.liquidacionRef?.startsWith(PREFIJO_BAJA_IMPAGO) ? f.liquidacionRef.slice(PREFIJO_BAJA_IMPAGO.length) : null;
+}
+
 /** CSV con BOM y `;` (abre bien en el Excel argentino), mismas columnas que la pantalla. */
 export function csvDelReporte(filas: readonly FilaReporteVoucher[]): string {
   const lineas = [COLUMNAS_REPORTE.map(celdaCsv).join(";")];
   for (const f of filas) {
+    // Una baja no es una liquidación: dice «Dado de baja: motivo», nunca «Liquidado 0,00».
+    const baja = motivoDeBaja(f);
     lineas.push(
       [
         f.numero,
@@ -493,9 +506,9 @@ export function csvDelReporte(filas: readonly FilaReporteVoucher[]): string {
         f.estado,
         f.estadoOpenKey ?? "Sin verificar",
         fechaAr(f.bajaOpenKeyEn),
-        fechaAr(f.liquidadoEn),
-        montoAr(f.montoLiquidado),
-        f.liquidacionRef ?? "",
+        baja != null ? `Dado de baja: ${baja}` : fechaAr(f.liquidadoEn),
+        baja != null ? (f.montoLiquidado ? montoAr(f.montoLiquidado) : "") : montoAr(f.montoLiquidado),
+        baja != null ? `Baja del ${fechaAr(f.liquidadoEn)}` : (f.liquidacionRef ?? ""),
       ]
         .map(celdaCsv)
         .join(";"),

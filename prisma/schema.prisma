@@ -273,6 +273,8 @@ model Tenant {
   voucherLotes              VoucherLote[]
   vouchers                  Voucher[]
   voucherConciliaciones     VoucherConciliacion[]
+  voucherLiquidaciones      VoucherLiquidacion[]
+  voucherPagosAdministracion VoucherPagoAdministracion[]
   cuentasContables          CuentaContable[] // contabilidad (ola 1)
   ejercicios                Ejercicio[]
   asientos                  Asiento[]
@@ -4289,6 +4291,12 @@ model Voucher {
   liquidadoEn    DateTime?
   montoLiquidado Decimal?     @db.Decimal(14, 2)
   liquidacionRef String?
+  // Liquidación del lunes (regla del dueño 08/11/2026, src/lib/vouchers/liquidacion-core.ts):
+  // la semana en que la administración del country liquida este voucher, y qué pasó al conciliar.
+  // Migración 20261108140000_voucher_liquidacion_semanal (aditiva, columnas nullable).
+  liquidacionSemanal   VoucherLiquidacion? @relation(fields: [liquidacionSemanalId], references: [id], onDelete: Restrict)
+  liquidacionSemanalId String?
+  resultadoLiquidacion String? // null · PAGADO · IMPAGO (CHECK en la base)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
@@ -4296,6 +4304,56 @@ model Voucher {
   @@index([tenantId, estado])
   @@index([tenantId, loteId])
   @@index([tenantId, clientId])
+  @@index([tenantId, liquidacionSemanalId])
+}
+
+// Liquidación semanal (lunes a domingo) de los vouchers usados, que paga la administración del
+// country. Única por negocio y semana (`hasta` = el domingo): no se liquida dos veces la misma.
+model VoucherLiquidacion {
+  id             String                     @id @default(cuid())
+  tenant         Tenant                     @relation(fields: [tenantId], references: [id])
+  tenantId       String
+  desde          String // YYYY-MM-DD (lunes)
+  hasta          String // YYYY-MM-DD (domingo)
+  estado         String                     @default("ABIERTA") // ABIERTA · CONCILIADA (CHECK en la base)
+  cantidad       Int                        @default(0)
+  total          Decimal                    @default(0) @db.Decimal(14, 2)
+  pagado         Decimal?                   @db.Decimal(14, 2)
+  diferencia     Decimal?                   @db.Decimal(14, 2) // pagado − aceptado
+  pagoFecha      String?
+  pagoMedio      String?
+  pagoReferencia String?
+  nota           String?
+  creadoPor      String?
+  conciliadoPor  String?
+  conciliadoEn   DateTime?
+  vouchers       Voucher[]
+  pago           VoucherPagoAdministracion?
+  createdAt      DateTime                   @default(now())
+  updatedAt      DateTime                   @updatedAt
+
+  @@unique([tenantId, hasta])
+}
+
+// Créditos de la cuenta corriente de la administración: el pago de cada liquidación conciliada y
+// los pagos a cuenta (pre-pago). Los débitos son los vouchers USADOS (no se copian).
+model VoucherPagoAdministracion {
+  id            String              @id @default(cuid())
+  tenant        Tenant              @relation(fields: [tenantId], references: [id])
+  tenantId      String
+  clave         String // idempotencia: `liq:<id>` o la del formulario
+  fecha         String // YYYY-MM-DD
+  monto         Decimal             @db.Decimal(14, 2)
+  medio         String // TRANSFERENCIA · EFECTIVO · CHEQUE · OTRO (CHECK en la base)
+  referencia    String?
+  nota          String?
+  liquidacion   VoucherLiquidacion? @relation(fields: [liquidacionId], references: [id], onDelete: Restrict)
+  liquidacionId String?             @unique
+  creadoPor     String?
+  createdAt     DateTime            @default(now())
+
+  @@unique([tenantId, clave])
+  @@index([tenantId, fecha])
 }
 
 model VoucherConciliacion {

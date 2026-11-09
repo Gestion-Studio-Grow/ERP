@@ -45,7 +45,8 @@ import { cargarKpi, llevaNumero, type ResultadoKpi } from "@/apps/kpis/index.ser
 import { IconoApp } from "@/components/iconos-apps";
 import { CifraDeRenglon } from "./CifraDeRenglon";
 import { Bloque, DosColumnas, LineaDeEstado, Marca, MenuMas, Plata, Renglon, Rotulo } from "@/components/ui";
-import { armarNavegacion, type NavDelArmazon } from "../armazon/navegacion";
+import { appsDeInterruptores, armarNavegacion, type NavDelArmazon } from "../armazon/navegacion";
+import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
 import { hrefDelEspacio, puestoDe, type AppDeNav, type EspacioDeNav } from "../armazon/armazon-core";
 import { enInicioPorApps } from "./piloto";
 import BotonFijar from "./BotonFijar";
@@ -82,12 +83,14 @@ type Contexto = {
 
 async function contexto(): Promise<Contexto> {
   const user = await requireCapability("dashboard:read");
-  const [negocio, modoApps] = await Promise.all([getNegocioApps(user.role, user.overrides), enInicioPorApps()]);
+  const [negocio, modoApps, interruptores] = await Promise.all([getNegocioApps(user.role, user.overrides), enInicioPorApps(), interruptoresDelNegocio()]);
   const visibles = appsVisibles(negocio);
   // Modo simple: el Inicio («Hoy») ofrece las mismas pantallas que la barra recortada.
   const deHoy = proyectarMenuDeHoy(visibles);
   const menu = (await modoSimpleDeLaSesion()).activo ? menuDeModoSimple(deHoy) : deHoy;
-  const nav = armarNavegacion({ visibles, menu, modoApps, esMostrador: negocio.esMostrador, role: user.role, overrides: user.overrides });
+  // Las mismas apps que el menú del layout, incluida «Vouchers de La Alameda» con su interruptor prendido.
+  const extras = appsDeInterruptores(interruptores, negocio);
+  const nav = armarNavegacion({ visibles, menu, modoApps, esMostrador: negocio.esMostrador, role: user.role, overrides: user.overrides, extras });
   const rutas = new Set(nav.espacios.flatMap((e) => e.apps.map((a) => a.ruta)));
   return {
     role: user.role,

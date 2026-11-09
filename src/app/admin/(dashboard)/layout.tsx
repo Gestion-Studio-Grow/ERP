@@ -47,7 +47,7 @@ import { pestanaDelPedido } from "@/lib/pestana";
 import { tenantBrandSheetEnabled } from "@/lib/identity";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import { PIEL_RENGLON } from "@/lib/diseno/diseno";
-import { armarNavegacion } from "./armazon/navegacion";
+import { appsDeInterruptores, armarNavegacion } from "./armazon/navegacion";
 import { ConDiseno } from "@/lib/diseno/ConDiseno";
 import type { CSSProperties } from "react";
 import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
@@ -297,7 +297,17 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // las MISMAS apps que ya decidió `appsVisibles`. Apagado no se arma ni viaja: CH recibe los mismos
   // props de siempre (armazon/armazon-ch.test.ts).
   const nav = nuevo
-    ? armarNavegacion({ visibles, menu, modoApps, esMostrador: negocioApps.esMostrador, role: user.role, overrides: user.overrides })
+    ? armarNavegacion({
+        visibles,
+        menu,
+        modoApps,
+        esMostrador: negocioApps.esMostrador,
+        role: user.role,
+        overrides: user.overrides,
+        // CH · «Vouchers de La Alameda»: con el interruptor prendido y permiso, entra al menú (sin
+        // pantalla en el lanzador de siempre). Panel de gestión (`actor`): no se suma.
+        extras: actor ? [] : appsDeInterruptores(interruptores, negocioApps),
+      })
     : undefined;
 
   // CHIP DE PEDIDOS NUEVOS (Magra 1I, MG-054): sólo con el mostrador boutique prendido y para quien
