@@ -6,7 +6,6 @@ import { LIMITE_FACTURAS_FACTURITA } from "@/lib/facturita-core";
 import {
   ESTADO_PRECIOS,
   PLAN_FACTURITA,
-  PLAN_SALTO,
   PLANES_COMERCIANTE,
   precioConPeriodo,
   precioTexto,
