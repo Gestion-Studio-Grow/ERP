@@ -28,9 +28,13 @@ export function VisorImagen({ imagenes, indice, alCerrar, alCambiar }: { imagene
     };
   }, []);
 
-  useEffect(() => {
+  // Al pasar a otra imagen vuelve sin zoom: se ajusta durante el render (patrón de React para estado que
+  // depende de una prop), sin un efecto que pinte un cuadro con el zoom viejo.
+  const [indiceVisto, setIndiceVisto] = useState(indice);
+  if (indiceVisto !== indice) {
+    setIndiceVisto(indice);
     setAcercada(false);
-  }, [indice]);
+  }
 
   useEffect(() => {
     const alApretar = (e: KeyboardEvent) => {

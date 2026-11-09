@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 import "./globals.css";
 
@@ -14,15 +15,15 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body>
         <header className="header">
           <div className="contenedor">
-            <a href="/" className="logo">
+            <Link href="/" className="logo">
               Plantillería<span style={{ color: "var(--brand)" }}>.ar</span>
-            </a>
+            </Link>
             <nav style={{ display: "flex", gap: 20, alignItems: "center" }}>
-              <a href="/#catalogo">Plantillas</a>
-              <a href="/#faq">Preguntas</a>
-              <a className="btn btn-primario" style={{ padding: "10px 20px", fontSize: ".95rem" }} href="/#catalogo">
+              <Link href="/#catalogo">Plantillas</Link>
+              <Link href="/#faq">Preguntas</Link>
+              <Link className="btn btn-primario" style={{ padding: "10px 20px", fontSize: ".95rem" }} href="/#catalogo">
                 Ver catálogo
-              </a>
+              </Link>
             </nav>
           </div>
         </header>
