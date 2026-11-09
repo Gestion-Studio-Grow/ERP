@@ -165,6 +165,19 @@ export async function readSessionToken(
   return s && s.estado === "activa" ? s.userId : null;
 }
 
+/**
+ * El token de esta sesión pero BLOQUEADO: la actividad firmada pasa a «hace INACTIVIDAD_BLOQUEO_MS» (o queda la que
+ * tenía, si era más vieja) y el ingreso no la supera. Lo usa /admin/login/bloquear cuando el navegador mide 15 min sin
+ * uso REAL: los sondeos automáticos (chip de pedidos, bandeja) renuevan la cookie en el proxy y, sin esto, una PC
+ * abandonada con el panel abierto no se bloqueaba nunca (certificación GSG-SEG-004). Vencida o inválida → null.
+ */
+export async function tokenBloqueadoDe(token: string | undefined | null, ahora: number = Date.now()): Promise<string | null> {
+  const s = await leerSesion(token, { ahora });
+  if (!s || s.estado === "vencida") return null;
+  const actividad = Math.max(0, Math.min(s.actividad, ahora - INACTIVIDAD_BLOQUEO_MS));
+  return createSessionToken(s.userId, actividad, Math.min(s.ingreso, actividad));
+}
+
 /** ¿Hay que reemitir el token de una sesión activa? (pasó RENOVAR_SESION_CADA_MS desde la última actividad firmada). */
 export function sesionParaRenovar(s: SesionLeida | null, ahora: number = Date.now()): boolean {
   return !!s && s.estado === "activa" && ahora - s.actividad >= RENOVAR_SESION_CADA_MS;
