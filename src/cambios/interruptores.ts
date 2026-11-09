@@ -196,6 +196,20 @@ export const INTERRUPTORES = [
     enAuditoria: "los vouchers",
     cambiaLasApps: false,
   },
+  {
+    // Contabilidad + Control de gestión (GSG-CTRL-001, T0): src/lib/contabilidad. Apagado por
+    // defecto: el negocio no ve rastro del módulo y nada lee sus tablas. Prendido sin la migración
+    // de la ola 2, la pantalla dice «migración pendiente» (estadoModuloContable, config.ts). Toca
+    // datos contables: no es una mejora incorporada. Va AL FINAL del array.
+    id: "contabilidad",
+    nombre: "Contabilidad y control de gestión",
+    queCambia:
+      "Aparece el módulo de contabilidad y control de gestión: plan de cuentas, borradores para el contador y el tablero del dueño. Apagado, no se ve nada del módulo.",
+    alPrender:
+      "No cambia qué apps ve cada persona ni toca ventas, cobros o caja: el módulo sólo lee. Si la migración de contabilidad no está aplicada, el negocio ve «migración pendiente».",
+    enAuditoria: "la contabilidad y el control de gestión",
+    cambiaLasApps: false,
+  },
 ] as const satisfies readonly Interruptor[];
 
 export type InterruptorId = (typeof INTERRUPTORES)[number]["id"];
@@ -263,6 +277,16 @@ export function vouchersPrendidos(
   estado: Readonly<Partial<Record<InterruptorId, { encendido: boolean }>>>,
 ): boolean {
   return estado[VOUCHERS]?.encendido === true;
+}
+
+/** Contabilidad + Control de gestión (src/lib/contabilidad, GSG-CTRL-001). */
+export const CONTABILIDAD_HABILITADA: InterruptorId = "contabilidad";
+
+/** ¿El negocio ve el módulo de contabilidad? Un estado sin la entrada cuenta como apagado. PURA. */
+export function contabilidadPrendida(
+  estado: Readonly<Partial<Record<InterruptorId, { encendido: boolean }>>>,
+): boolean {
+  return estado[CONTABILIDAD_HABILITADA]?.encendido === true;
 }
 
 /**

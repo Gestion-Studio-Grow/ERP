@@ -98,4 +98,11 @@
 # miran las columnas nuevas y NULL («RESTRICCIÓN EN TABLA EXISTENTE», calibrado en scripts/publicar/sql.test.mjs).
 # Owner-level: AUTORIZADA por escrito por el dueño — «Autorizo las migraciones 48 y 53.» (ORQ-005, 09/11 02:41, D40).
 # No se publica con la etiqueta gsg:publicar: la orquestadora mergea con esa orden y el build la aplica (paso 1b + migrate deploy).
-20261108140000_voucher_liquidacion_semanal
+# (aplicada por el build de producción del merge de #48 el 09/11 09:01:53, deploy READY: sale de la lista) 20261108140000_voucher_liquidacion_semanal
+#
+# 2026-11-08 · Contabilidad ola 2 = T0 de Control de gestión (GSG-CTRL-001). Aditiva: 7 columnas
+# nulables en "CuentaContable", 1 en "AsientoLinea" ("fechaOrigen"), tablas "CuentaRol" y
+# "ConfigContable" con RLS adentro, CHECKs sólo sobre columnas nuevas. No toca datos. Requiere la ola 1.
+# Owner-level: AUTORIZADA por escrito por el dueño — «Autorizo las migraciones 48 y 53.» (ORQ-005, 09/11 02:41, D40).
+# Gate 2: el merge la aplica; respaldo de Neon antes del merge.
+20261108150000_contabilidad_ola2_roles
