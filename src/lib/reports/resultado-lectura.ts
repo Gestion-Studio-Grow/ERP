@@ -24,6 +24,7 @@ import { SELECT_INGRESOS, costosVigentesDe } from "@/lib/stock/costo";
 import { bordesDelMes, type MesKey } from "@/lib/libros/fecha-fiscal";
 import { condicionDelNegocio, whereComprobantesEmitidos, type CondicionLibro } from "@/lib/libros/libro-iva";
 import { aNumero } from "@/lib/debts/resumen-cuentas";
+import { TALLER_DEVOLUCION_ACTOR_PREFIX, esDevolucionDelTaller } from "@/lib/taller-stands/actor";
 import { calcularResultado, type HechosDelMes, type MovimientoDeCaja, type ResultadoDelMes } from "./resultado";
 import type { PedidoDelPeriodo, SalidaDeStock } from "./costo-vendido";
 
@@ -48,10 +49,41 @@ export function whereFiadosDePedidosDelMes(tenantId: string, mes: MesKey) {
   return { tenantId, status: "OPEN" as const, orderId: { not: null }, createdAt: { gte: instantes.gte, lt: hasta } };
 }
 
-/** Las salidas de stock del mes que son costo de lo vendido: ventas y consumos de servicios. */
+/**
+ * Las salidas de stock del mes que son costo de lo vendido: ventas y consumos de servicios, más las devoluciones de
+ * materiales del taller (REPOSICION con `TALLER_DEVOLUCION_ACTOR_PREFIX`), que restan el consumo que deshacen.
+ */
 export function whereSalidasDelMes(tenantId: string, mes: MesKey) {
   const { instantes } = bordesDelMes(mes);
-  return { tenantId, type: { in: ["VENTA" as const, "CONSUMO" as const] }, createdAt: { gte: instantes.gte, lt: instantes.lt } };
+  return {
+    tenantId,
+    createdAt: { gte: instantes.gte, lt: instantes.lt },
+    OR: [
+      { type: { in: ["VENTA" as const, "CONSUMO" as const] } },
+      { type: "REPOSICION" as const, createdBy: { startsWith: TALLER_DEVOLUCION_ACTOR_PREFIX } },
+    ],
+  };
+}
+
+/**
+ * Una fila leída con `whereSalidasDelMes` como salida para el costo. La devolución del taller pasa a CONSUMO con su qty
+ * POSITIVA (firmada, como la guarda el registro): `costearInsumos` la resta. Una REPOSICION que no sea del taller (no
+ * debería llegar) se descarta. PURA.
+ */
+export function salidaDeStockDe(s: {
+  type: string;
+  orderId: string | null;
+  productId: string | null;
+  qty: unknown;
+  unitCost: unknown;
+  createdBy?: string | null;
+}): SalidaDeStock | null {
+  const unitCost = s.unitCost == null ? null : aNumero(s.unitCost);
+  if (s.type === "REPOSICION") {
+    if (!esDevolucionDelTaller(s.createdBy)) return null;
+    return { type: "CONSUMO", orderId: null, productId: s.productId, qty: Math.abs(aNumero(s.qty)), unitCost };
+  }
+  return { type: s.type === "CONSUMO" ? "CONSUMO" : "VENTA", orderId: s.orderId, productId: s.productId, qty: aNumero(s.qty), unitCost };
 }
 
 /** Los turnos cobrados en el mes, por fecha de COBRO (el reloj de Reportes). */
@@ -108,7 +140,7 @@ export async function leerHechosDelMes(
     }),
     db.stockMovement.findMany({
       where: whereSalidasDelMes(tenantId, mes),
-      select: { type: true, orderId: true, productId: true, qty: true, unitCost: true },
+      select: { type: true, orderId: true, productId: true, qty: true, unitCost: true, createdBy: true },
     }),
     db.payment.aggregate({
       where: whereTurnosCobradosDelMes(tenantId, mes),
@@ -133,13 +165,7 @@ export async function leerHechosDelMes(
       importe: aNumero(i.lineTotal),
     })),
   }));
-  const salidasDelMes: SalidaDeStock[] = salidas.map((s) => ({
-    type: s.type === "CONSUMO" ? "CONSUMO" : "VENTA",
-    orderId: s.orderId,
-    productId: s.productId,
-    qty: aNumero(s.qty),
-    unitCost: s.unitCost == null ? null : aNumero(s.unitCost),
-  }));
+  const salidasDelMes: SalidaDeStock[] = salidas.map(salidaDeStockDe).filter((s): s is SalidaDeStock => s !== null);
 
   // El costo de hoy, sólo de los productos que lo necesitan: líneas cuya venta no guardó el
   // costo (o que no tienen salida de stock) y consumos sin costo. Casi siempre ninguno.

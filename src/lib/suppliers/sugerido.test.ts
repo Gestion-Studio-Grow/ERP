@@ -24,6 +24,7 @@ import {
 import { ANULACION_VENTA_ACTOR_PREFIX, EDICION_ACTOR_PREFIX } from "@/lib/order-anulacion";
 import { motivoDeDespiece } from "@/lib/carniceria/despiece";
 import { TRASLADO_ACTOR_PREFIX } from "@/lib/multilocal/traslado-core";
+import { TALLER_DEVOLUCION_ACTOR_PREFIX } from "@/lib/taller-stands/actor";
 
 const venta = (qty: number): MovimientoDeDemanda => ({ type: "VENTA", qty: -qty, reason: null, createdBy: "user:caja" });
 
@@ -97,6 +98,20 @@ test("lo que el obrador manda a los locales por traslado es demanda; lo que reci
   assert.equal(demandaDe(local), 4);
 });
 
+test("taller: descontar 4 y devolver 4 = demanda 0; una reposición cualquiera no resta", () => {
+  const devolucion = `${TALLER_DEVOLUCION_ACTOR_PREFIX}user:ale`;
+  const consumo: MovimientoDeDemanda = { type: "CONSUMO", qty: -4, reason: "Stand #1: Panel", createdBy: "user:ale" };
+  assert.equal(demandaDe([consumo, { type: "REPOSICION", qty: 4, reason: "Devolución del stand #1: Panel", createdBy: devolucion }]), 0);
+  // Descontar 4, devolver 4, descontar 4 = 4.
+  assert.equal(demandaDe([consumo, { type: "REPOSICION", qty: 4, reason: null, createdBy: devolucion }, consumo]), 4);
+  // Devolución parcial (devolvió 1 de 4) = 3.
+  assert.equal(demandaDe([consumo, { type: "REPOSICION", qty: 1, reason: null, createdBy: devolucion }]), 3);
+  // Una REPOSICION sin la marca (otra entrada) no es demanda ni la resta.
+  assert.equal(demandaDe([consumo, { type: "REPOSICION", qty: 4, reason: null, createdBy: "user:ale" }]), 4);
+  // Nunca negativa (la devolución de un consumo de hace más de 28 días).
+  assert.equal(demandaDe([{ type: "REPOSICION", qty: 4, reason: null, createdBy: devolucion }]), 0);
+});
+
 test("sólo aparecen los productos a pedir, y el número del Inicio es la misma cuenta", () => {
   const productos: ProductoParaSugerir[] = [
     { id: "a", name: "Vacío", unit: "kg", saleUnit: "WEIGHT", stock: 5, lowStockAt: 4, stockMovements: Array.from({ length: 28 }, () => venta(2)) },
@@ -114,7 +129,13 @@ test("el where y el período: productos que controlan stock, movimientos de 28 d
   const desde = desdeVentaReciente(ahora);
   assert.equal(DIAS_DE_VENTA, 28);
   assert.equal(desde.toISOString(), "2026-08-26T15:00:00.000Z");
-  assert.deepEqual(selectDemanda(desde).where, { type: { in: ["VENTA", "CONSUMO", "AJUSTE"] }, createdAt: { gte: desde } });
+  assert.deepEqual(selectDemanda(desde).where, {
+    createdAt: { gte: desde },
+    OR: [
+      { type: { in: ["VENTA", "CONSUMO", "AJUSTE"] } },
+      { type: "REPOSICION", createdBy: { startsWith: "taller-devolucion:" } },
+    ],
+  });
 });
 
 test("por proveedor habitual, con los que no tienen proveedor al final", () => {

@@ -20,6 +20,9 @@ import { faltaLaTabla, itemsDelDespiece, planDePase, validarPieza, RUBRO_DESPIEC
 import { tallerActivo } from "./datos.server";
 import { leerFecha, personaDelNegocio, validarHoras, validarValorHora, valorHoraVigente } from "./horas";
 import { anularPedidoTx, MENSAJE_ANULAR, MENSAJE_RECIBIR, recibirPedidoTx, validarPedido } from "./pedidos";
+import { descontarMaterialesTx, devolverMaterialesTx, mensajeConsumo } from "./consumo";
+import { RechazoDelStock } from "@/lib/stock/ledger";
+import { esConflictoDeEscritura } from "@/lib/conflicto-de-escritura";
 
 const RUTA_PIEZAS = "/admin/proyectos/taller/piezas";
 const RUTA_VALORES = "/admin/proyectos/taller/valores-hora";
@@ -63,16 +66,21 @@ export async function guardarPieza(formData: FormData): Promise<void> {
   const v = validarPieza({ nombre: txt(formData.get("nombre")), unidad: txt(formData.get("unidad")), costoUnit: numero(formData.get("costoUnit")), horasStd: numero(formData.get("horasStd")) });
   if (!v.ok) volver(RUTA_PIEZAS, v.error);
   const { tenantId } = a;
+  // T6: producto del que sale el material. Sólo si el formulario trae el campo; vacío = desvincular.
+  const conProducto = formData.has("productId");
+  const productId = txt(formData.get("productId")) || null;
   const r = await conTabla(() =>
     tenantTransaction(async (tx) => {
-      if (id) return (await tx.tallerPieza.updateMany({ where: { id, tenantId }, data: v.pieza })).count > 0;
-      await tx.tallerPieza.create({ data: { tenantId, ...v.pieza } });
-      return true;
+      // La FK compuesta lo garantiza con la migración aplicada; sin ella, este filtro por negocio es la barrera.
+      if (productId && !(await tx.product.findFirst({ where: { id: productId, tenantId, deletedAt: null }, select: { id: true } }))) return "Ese producto no existe en tu negocio.";
+      const data = conProducto ? { ...v.pieza, productId } : v.pieza;
+      if (id) return (await tx.tallerPieza.updateMany({ where: { id, tenantId }, data })).count > 0 ? "Pieza guardada." : "Esa pieza no existe.";
+      await tx.tallerPieza.create({ data: { tenantId, ...data } });
+      return "Pieza guardada.";
     }),
   );
-  if (r === SIN_MIGRAR) volver(RUTA_PIEZAS, r);
   revalidatePath(RUTA_PIEZAS);
-  volver(RUTA_PIEZAS, r ? "Pieza guardada." : "Esa pieza no existe.");
+  volver(RUTA_PIEZAS, r);
 }
 
 /** Baja lógica: una pieza usada en un despiece no se borra, se desactiva. */
@@ -366,4 +374,51 @@ export async function anularPedido(formData: FormData): Promise<void> {
   );
   revalidatePath(`/admin/proyectos/${proyectoId}`);
   volver(ruta, r);
+}
+
+// ── Stock real de materiales (T6) ──────────────────────────────────────────
+
+/**
+ * Descontar del stock el material del despiece (salida CONSUMO por el ledger) o devolverlo (REPOSICION). Idempotente:
+ * FOR UPDATE del proyecto + consumo neto por pieza (consumo.ts). Un faltante deshace todo y se avisa en criollo.
+ */
+/** El aviso cuando otro movimiento de stock se cruzó (conflicto o deadlock): la transacción no dejó nada. */
+const MENSAJE_CHOQUE_DE_STOCK = "Otro movimiento de stock se cruzó: probá de nuevo.";
+
+async function moverMateriales(formData: FormData, accion: "descontar" | "devolver"): Promise<void> {
+  const proyectoId = txt(formData.get("proyectoId"));
+  const ruta = rutaDespiece(proyectoId);
+  const a = await entrar(["ficha", "cotizaciones"]);
+  if (typeof a === "string") volver(ruta, a);
+  if (!proyectoId || !(await proyectoVisible(a, proyectoId))) volver("/admin/proyectos", "Ese proyecto no existe.");
+  const { tenantId } = a;
+  const d = { tenantId, proyectoId, autor: `user:${a.user.id}` };
+  const r = await conTabla(() =>
+    tenantTransaction(async (tx) => {
+      const res = accion === "descontar" ? await descontarMaterialesTx(tx, d) : await devolverMaterialesTx(tx, d);
+      if (res.movimientos > 0) {
+        await registrarCambio(tx, { tenantId, proyectoId, entidad: "TallerConsumo", entidadId: proyectoId, campo: "Stock de materiales", despues: accion === "descontar" ? "Materiales descontados del stock" : "Materiales devueltos al stock", autor: a.nombre });
+      }
+      return mensajeConsumo(res, accion);
+    }),
+  ).catch((e: unknown) => {
+    // Falta de stock: el ledger rechazó una salida y la transacción entera se deshizo (no se descontó nada).
+    if (e instanceof RechazoDelStock) {
+      const motivo = e.message.charAt(0).toLowerCase() + e.message.slice(1);
+      return accion === "descontar" ? `No se descontó nada: ${motivo} Cargá la compra o corregí el stock y volvé a probar.` : `No se devolvió nada: ${motivo}`;
+    }
+    // Choque con otra transacción de stock (P2034 / 40001 / 40P01 deadlock): se deshizo entera, nada a medias.
+    if (esConflictoDeEscritura(e) || /deadlock|40P01/i.test(String((e as { message?: unknown } | null)?.message ?? e))) return MENSAJE_CHOQUE_DE_STOCK;
+    throw e;
+  });
+  revalidatePath(`/admin/proyectos/${proyectoId}`);
+  volver(ruta, r);
+}
+
+export async function descontarMateriales(formData: FormData): Promise<void> {
+  return moverMateriales(formData, "descontar");
+}
+
+export async function devolverMateriales(formData: FormData): Promise<void> {
+  return moverMateriales(formData, "devolver");
 }

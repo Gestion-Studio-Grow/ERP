@@ -17,10 +17,10 @@ Plan hecho con Fable el 09/11/2026. Lo construido está marcado.
 |---|---|---|
 | T1 (S) | Rubro, preset, descriptor `taller-stands` sin pantallas, flag `TALLER_STANDS_ENABLED` (apagado), alta idempotente sin usuarios (`scripts/taller-stands/alta-taller-ale.ts`), tests | **Hecha** |
 | T2 (M) | `TallerPieza` (catálogo con costo interno) + `TallerDespiece` por stand + core + pantalla «Despiece» → pasa a presupuesto + papel para la productora sin costo ni margen | **Hecha** (migración `20261109130000_taller_piezas_despiece` escrita, sin aplicar: Gate 2) |
-| T3 (M) | `TallerHora` (mano de obra); costo teórico contra real por rubro | Pendiente |
-| T4 (M) | `TallerPedido`: compra de materiales que, recibida, entra como `ProyectoGasto` «Materiales» | Pendiente |
-| T5 (L) | Cruce con MIA (abajo): se construye y queda **apagado**; certificado por subagentes antes del PR | Pendiente |
-| T6 (M) | Stock real de materiales: pieza ↔ `Product`, el despiece consume del stock al armar | Pendiente |
+| T3 (M) | `TallerHora` (mano de obra); costo teórico contra real por rubro | **Hecha** (migración `20261109140000_taller_horas`, sin aplicar: Gate 2) |
+| T4 (M) | `TallerPedido`: compra de materiales que, recibida, entra como `ProyectoGasto` «Materiales» | **Hecha** (migración `20261109150000_taller_pedidos`, sin aplicar: Gate 2) |
+| T5 (L) | Cruce con MIA (abajo): se construye y queda **apagado**; certificado por subagentes antes del PR | **En pausa** por orden del dueño (09/11/2026): no se construye ni apagado hasta que decida activar la conexión con MIA |
+| T6 (M) | Stock real de materiales: pieza ↔ `Product`, el despiece consume del stock al armar | **Hecha** (migración `20261109160000_taller_consumo`, sin aplicar: Gate 2) |
 | T7 (M) | Armador 3D: el cómputo de materiales del armador alimenta el despiece | Pendiente |
 
 ## Opción superadora (T5, opt-in, apagada)

@@ -20,7 +20,8 @@
 // como pieza de entrada de un despiece (la media res que se cortó es la demanda de media res),
 // más lo que salió por un traslado a otro local de la red (el obrador que abastece a los locales
 // compra para ellos; sin esto su sugerido daba casi cero). La entrada del traslado en el local
-// que lo recibe es una REPOSICION: no es demanda.
+// que lo recibe es una REPOSICION: no es demanda. La devolución de materiales del taller (REPOSICION
+// con `TALLER_DEVOLUCION_ACTOR_PREFIX`) sí RESTA: deshace un CONSUMO que no se usó.
 // Las mermas NO: son pérdida, no pedido, y sumarlas empujaría a comprar lo que se tira.
 //
 // LA SEMANA TIPO (sólo en un mostrador). La venta diaria es pareja, pero la semana no: si los días
@@ -34,6 +35,7 @@
 import { ANULACION_VENTA_ACTOR_PREFIX, EDICION_ACTOR_PREFIX } from "@/lib/order-anulacion";
 import { esDeKilo, esMovimientoDeDespiece } from "@/lib/carniceria/despiece";
 import { TRASLADO_ACTOR_PREFIX } from "@/lib/multilocal/traslado-core";
+import { TALLER_DEVOLUCION_ACTOR_PREFIX, esDevolucionDelTaller } from "@/lib/taller-stands/actor";
 import { factorDeLaVentana, perfilSemanal } from "@/lib/reports/semana-tipo";
 import type { FilaPorDia } from "@/lib/reports/ventas-mostrador";
 
@@ -71,6 +73,7 @@ export type MovimientoDeDemanda = {
  *     lo que salió de más al reajustar al peso real). Así una venta anulada no cuenta.
  *   · AJUSTE de despiece: la pieza de entrada que se cortó.
  *   · AJUSTE de un traslado: lo que salió hacia otro local de la red.
+ *   · REPOSICION de una devolución del taller: resta lo que volvió (el consumo que deshace).
  *   · Todo lo demás (compras, mermas, recuentos, la entrada de un traslado): no es demanda.
  */
 export function demandaDe(movs: readonly MovimientoDeDemanda[]): number {
@@ -79,6 +82,10 @@ export function demandaDe(movs: readonly MovimientoDeDemanda[]): number {
     if (!Number.isFinite(m.qty)) continue;
     if (m.type === "VENTA" || m.type === "CONSUMO") {
       total += Math.abs(m.qty);
+      continue;
+    }
+    if (m.type === "REPOSICION" && esDevolucionDelTaller(m.createdBy)) {
+      total -= Math.abs(m.qty);
       continue;
     }
     if (m.type !== "AJUSTE") continue;
@@ -138,10 +145,16 @@ export function whereSugerido(tenantId: string) {
   return { tenantId, deletedAt: null, active: true, trackStock: true };
 }
 
-/** Los movimientos de los últimos 28 días que pueden ser demanda (se filtran con `demandaDe`). */
+/** Los movimientos de los últimos 28 días que pueden ser demanda (se filtran con `demandaDe`), con las devoluciones del taller. */
 export function selectDemanda(desde: Date) {
   return {
-    where: { type: { in: ["VENTA" as const, "CONSUMO" as const, "AJUSTE" as const] }, createdAt: { gte: desde } },
+    where: {
+      createdAt: { gte: desde },
+      OR: [
+        { type: { in: ["VENTA" as const, "CONSUMO" as const, "AJUSTE" as const] } },
+        { type: "REPOSICION" as const, createdBy: { startsWith: TALLER_DEVOLUCION_ACTOR_PREFIX } },
+      ],
+    },
     select: { type: true, qty: true, reason: true, createdBy: true, createdAt: true },
   };
 }
