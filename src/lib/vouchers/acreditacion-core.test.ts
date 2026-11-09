@@ -20,6 +20,7 @@ import {
   pagoDelIngreso,
   ventanaDeAcreditacion,
   type MovimientoMp,
+  ventanaDelAcreditadoAMano,
 } from "./acreditacion-core";
 import { clasificarOrigen, motivoParaNoBorrar } from "@/lib/caja/libro-caja";
 import { decidirAsiento } from "@/lib/settlement/asiento-libro";
@@ -191,4 +192,14 @@ test("plata de vouchers: las fechas de pago que pueden acreditarse con un movimi
   assert.ok(esVentaConfirmada(motivoDeVentaConfirmada()));
   assert.equal(esEnganchable({ estadoPropuesta: "auto", invoiceId: null, motivoRevision: motivoDeVentaConfirmada() }), false);
   assert.equal(esEnganchable({ estadoPropuesta: "revision", invoiceId: null, motivoRevision: motivoDeVentaConfirmada() }), false);
+});
+
+test("ventanaDelAcreditadoAMano: de la fecha del pago (cheque: su fecha; si no, el día anterior) a la confirmación + 10", () => {
+  // Transferencia del 1/11 confirmada a mano el 9/11: el crédito puede ser de antes de la confirmación.
+  assert.deepEqual(ventanaDelAcreditadoAMano("2026-11-01", "2026-11-09", false), { desde: "20261031", hasta: "20261119" });
+  // Cheque recibido el 20/10, depósito confirmado el 9/11: arranca en su fecha.
+  assert.deepEqual(ventanaDelAcreditadoAMano("2026-10-20", "2026-11-09", true), { desde: "20261020", hasta: "20261119" });
+  // Fecha del pago posterior a la confirmación (mal tipeada): arranca en la confirmación.
+  assert.deepEqual(ventanaDelAcreditadoAMano("2026-11-15", "2026-11-09", false), { desde: "20261108", hasta: "20261119" });
+  assert.equal(ventanaDelAcreditadoAMano("2026-02-30", "2026-11-09", false), null);
 });

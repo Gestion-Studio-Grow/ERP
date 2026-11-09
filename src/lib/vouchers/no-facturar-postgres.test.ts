@@ -8,7 +8,8 @@
  *   · un movimiento «auto» que no coincide con ningún pago pendiente se sigue emitiendo;
  *   · un pago acreditado con su movimiento enganchado (o en efectivo) no frena la emisión de otro
  *     movimiento del mismo monto; acreditado A MANO (sin movimiento, cheques incluidos) sí frena, con
- *     la ventana de 10 días desde la confirmación (ATQ-B, ATQ-C);
+ *     la ventana de la fecha del pago a la confirmación + 10 (ATQ-B, ATQ-C, V4-2, V4-3); la
+ *     confirmación toma el mismo candado que el claim y el claim relee las acreditaciones (V4-4, V4-5);
  *   · un re-aviso de MP respeta la venta que una persona ya confirmó (ATQ-A);
  *   · carrera: el pago se registra mientras se emite → o facturado (y sin enganche posible) o en
  *     revisión (y enganchable), nunca facturado y enganchado a la vez; el candado de la acreditación
@@ -479,7 +480,7 @@ test("ATQ-C · cheque: depósito confirmado y después llega el crédito a MP: �
 });
 
 
-test("acreditado a mano: la ventana de 10 días corre desde la confirmación (cheque viejo incluido); con movimiento enganchado no frena", async (t) => {
+test("acreditado a mano: la ventana va de la fecha del pago (cheque: su fecha; si no, el día anterior) a la confirmación + 10; con movimiento enganchado no frena", async (t) => {
   const base = await preparar(t);
   if (!base) return;
   const A = base.a.id;
@@ -492,18 +493,23 @@ test("acreditado a mano: la ventana de 10 días corre desde la confirmación (ch
       (tx) => pagoPendienteDelCreditoMp(tx, A, { id: `mov-${n++}`, fecha, monto, referencia: null, descripcion: "Transferencia", contraparte: null }),
       { tenantId: A },
     );
-  // Cheque recibido hace 40 días, depósito confirmado hoy (a mano): la ventana corre desde hoy.
+  // Cheque recibido hace 40 días, depósito confirmado hoy (a mano): de su fecha a hoy + 10.
   const chq = await registrarPagoACuenta(A, { clave: clave("cv40"), monto: 41414.14, fecha: diasAntes(hoy, 40), medio: "CHEQUE", actor: "user:test" });
   assert.equal((await confirmarAcreditacionMp(A, { pagoId: chq.pagoId, actor: "user:test" })).via, "manual");
   assert.equal(await frena(41414.14, enDias(0)), chq.pagoId);
   assert.equal(await frena(41414.14, enDias(10)), chq.pagoId, "día 10 desde la confirmación: frena");
   assert.equal(await frena(41414.14, enDias(-1)), chq.pagoId, "un día antes (DIAS_ANTES): frena");
   assert.equal(await frena(41414.14, enDias(11)), null, "día 11: fuera de la ventana");
-  assert.equal(await frena(41414.14, enDias(-2)), null, "dos días antes: fuera de la ventana");
-  // Transferencia de hace 11 días confirmada a mano hoy: frena por la confirmación, no por su fecha.
+  assert.equal(await frena(41414.14, enDias(-2)), chq.pagoId, "depositado días antes de confirmar: frena");
+  assert.equal(await frena(41414.14, enDias(-40)), chq.pagoId, "el día que se recibió el cheque: frena");
+  assert.equal(await frena(41414.14, enDias(-41)), null, "antes de recibir el cheque: fuera de la ventana");
+  // Transferencia de hace 11 días confirmada a mano hoy: frena desde el día anterior a su fecha.
   const tr = await registrarPagoACuenta(A, { clave: clave("tv11"), monto: 42424.24, fecha: diasAntes(hoy, 11), medio: "TRANSFERENCIA", actor: "user:test" });
   await confirmarAcreditacionMp(A, { pagoId: tr.pagoId, actor: "user:test" });
   assert.equal(await frena(42424.24, enDias(0)), tr.pagoId);
+  assert.equal(await frena(42424.24, enDias(-12)), tr.pagoId, "el día anterior al pago: frena");
+  assert.equal(await frena(42424.24, enDias(-13)), null, "dos días antes del pago: fuera de la ventana");
+  assert.equal(await frena(42424.24, enDias(11)), null, "confirmación + 11: fuera de la ventana");
   // Cheque pendiente (sin confirmar): no frena.
   await registrarPagoACuenta(A, { clave: clave("cpen"), monto: 43434.34, fecha: hoy, medio: "CHEQUE", actor: "user:test" });
   assert.equal(await frena(43434.34, enDias(0)), null);
@@ -512,4 +518,83 @@ test("acreditado a mano: la ventana de 10 días corre desde la confirmación (ch
   const suMov = await movimientoMp(base, A, 44444.44, hoy);
   assert.equal((await confirmarAcreditacionMp(A, { pagoId: eng.pagoId, movimientoId: suMov, actor: "user:test" })).via, "mp");
   assert.equal(await frena(44444.44, enDias(0)), null);
+});
+
+test("V4-2 · transferencia confirmada A MANO hoy y el crédito real es de antes (hace 4 días): no se factura", async (t) => {
+  const base = await preparar(t);
+  if (!base) return;
+  const A = base.a.id;
+  const d = await prismaComoDuenio(base);
+  const { registrarPagoACuenta, confirmarAcreditacionMp } = await L();
+  const hoy = await hoyDelNegocio();
+  const pago = await registrarPagoACuenta(A, { clave: clave("v42"), monto: 7272.72, fecha: diasAntes(hoy, 5), medio: "TRANSFERENCIA", actor: "user:test" });
+  const c = await confirmarAcreditacionMp(A, { pagoId: pago.pagoId, actor: "user:test" });
+  assert.deepEqual([c.via, c.movimientoId], ["manual", null]);
+  const mov = await movimientoMp(base, A, 7272.72, diasAntes(hoy, 4)); // la fecha REAL del crédito en MP
+  await emitir(A);
+  const m = await d.movimientoImportado.findFirstOrThrow({ where: { id: mov } });
+  assert.deepEqual([m.estadoPropuesta, m.invoiceId], ["revision", null], "confirmar a mano desbloqueó la plata de vouchers");
+  assert.ok(!(m.motivoRevision ?? "").includes("pendiente"), "ya acreditado a mano: el motivo no dice «pendiente»");
+});
+
+test("V4-3 · cheque de hace 20 días depositado hace 3, confirmado hoy: el crédito de hace 3 días no se factura", async (t) => {
+  const base = await preparar(t);
+  if (!base) return;
+  const A = base.a.id;
+  const d = await prismaComoDuenio(base);
+  const { registrarPagoACuenta, confirmarAcreditacionMp } = await L();
+  const hoy = await hoyDelNegocio();
+  const pago = await registrarPagoACuenta(A, { clave: clave("v43"), monto: 7373.73, fecha: diasAntes(hoy, 20), medio: "CHEQUE", actor: "user:test" });
+  const c = await confirmarAcreditacionMp(A, { pagoId: pago.pagoId, actor: "user:test" });
+  assert.deepEqual([c.via, c.movimientoId], ["manual", null]);
+  const mov = await movimientoMp(base, A, 7373.73, diasAntes(hoy, 3));
+  await emitir(A);
+  const m = await d.movimientoImportado.findFirstOrThrow({ where: { id: mov } });
+  assert.deepEqual([m.estadoPropuesta, m.invoiceId], ["revision", null], "se facturó el depósito del cheque confirmado a mano");
+});
+
+test("V4-4 · la confirmación de un cheque espera el candado de la acreditación (en fila con el claim)", async (t) => {
+  const base = await preparar(t);
+  if (!base) return;
+  const A = base.a.id;
+  const d = await prismaComoDuenio(base);
+  const { registrarPagoACuenta, confirmarAcreditacionMp } = await L();
+  const hoy = await hoyDelNegocio();
+  const pago = await registrarPagoACuenta(A, { clave: clave("v44"), monto: 7474.74, fecha: diasAntes(hoy, 2), medio: "CHEQUE", actor: "user:test" });
+  const espera = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  // Determinista: con el candado tomado, se espera hasta que la confirmación termine (sin el arreglo)
+  // o hasta que Postgres la muestre esperando un candado consultivo (con el arreglo).
+  const esperandoCandado = async () =>
+    (await d.$queryRaw<{ n: bigint }[]>`SELECT count(*)::bigint AS n FROM pg_locks WHERE locktype = 'advisory' AND NOT granted`)[0].n > BigInt(0);
+  let listo = false;
+  let conf: Promise<unknown> | null = null;
+  await d.$transaction(
+    async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`vouchers-acreditacion:${A}`}))`;
+      conf = confirmarAcreditacionMp(A, { pagoId: pago.pagoId, actor: "user:test" }).then((x) => ((listo = true), x));
+      const tope = Date.now() + 10_000;
+      while (!listo && !(await esperandoCandado()) && Date.now() < tope) await espera(20);
+      assert.equal(listo, false, "la confirmación del cheque no hizo fila con el chequeo de la emisión");
+    },
+    { timeout: 20_000 },
+  );
+  await conf;
+  assert.equal(listo, true);
+});
+
+test("V4-5 · un registro de acreditaciones viejo (de la corrida) no deja pasar el depósito de un cheque recién confirmado", async (t) => {
+  const base = await preparar(t);
+  if (!base) return;
+  const A = base.a.id;
+  const { registrarPagoACuenta, confirmarAcreditacionMp, pagoPendienteDelCreditoMp } = await L();
+  const { tenantTransaction } = await import("@/lib/rls");
+  const hoy = await hoyDelNegocio();
+  const pago = await registrarPagoACuenta(A, { clave: clave("v45"), monto: 7575.75, fecha: diasAntes(hoy, 60), medio: "CHEQUE", actor: "user:test" });
+  // Quien llame con un registro leído antes (la caché vieja de una corrida) igual tiene que ver lo de hoy.
+  const conViejo = pagoPendienteDelCreditoMp as unknown as (...a: unknown[]) => Promise<string | null>;
+  const cache = {};
+  const credito = { id: `v45-${n++}`, fecha: hoy.replace(/-/g, ""), monto: 7575.75, referencia: null, descripcion: "dep", contraparte: null };
+  assert.equal(await tenantTransaction((tx) => conViejo(tx, A, credito, cache), { tenantId: A }), null, "cheque pendiente: no frena");
+  await confirmarAcreditacionMp(A, { pagoId: pago.pagoId, actor: "user:test" });
+  assert.equal(await tenantTransaction((tx) => conViejo(tx, A, credito, cache), { tenantId: A }), pago.pagoId, "con lo leído antes, el depósito se factura");
 });

@@ -183,6 +183,22 @@ export function ventanaDeAcreditacion(fechaPago: string, destino?: DestinoDelPag
   return { desde: aAAAAMMDD(sumarDias(fechaPago, -DIAS_ANTES)), hasta: aAAAAMMDD(sumarDias(fechaPago, dias)) };
 }
 
+/**
+ * La ventana (AAAAMMDD, inclusiva) del crédito de MP de un pago acreditado A MANO (sin movimiento
+ * enganchado): la persona confirma cuando VE la plata, así que el crédito puede ser de antes de la
+ * confirmación. Desde el día anterior a la fecha del pago (o a la confirmación, si es anterior) y
+ * hasta 10 días después de la confirmación (el extracto se importa más tarde). Un cheque arranca en su
+ * fecha: no se deposita antes de recibirlo. `null` si alguno de los días no es real. PURA.
+ */
+export function ventanaDelAcreditadoAMano(fechaPago: string, diaConfirmacion: string, esCheque: boolean): { desde: string; hasta: string } | null {
+  if (!esDiaReal(fechaPago) || !esDiaReal(diaConfirmacion)) return null;
+  const inicio = fechaPago < diaConfirmacion ? fechaPago : diaConfirmacion;
+  return {
+    desde: aAAAAMMDD(esCheque ? inicio : sumarDias(inicio, -DIAS_ANTES)),
+    hasta: aAAAAMMDD(sumarDias(diaConfirmacion, DIAS_PARA_ACREDITAR)),
+  };
+}
+
 const normal = (s: string | null | undefined) =>
   String(s ?? "")
     .normalize("NFD")
@@ -213,8 +229,7 @@ export function candidatosDeAcreditacion(pago: PagoParaAcreditar, movimientos: r
 /**
  * Las fechas de pago (AAAA-MM-DD, inclusivas) cuya ventana de acreditación puede incluir un movimiento
  * de MP de este día (AAAAMMDD): la inversa de `ventanaDeAcreditacion` para destino Mercado Pago (10
- * días). Sirve también para el día de confirmación de un pago acreditado a mano (sin movimiento),
- * cheques incluidos: su ventana corre desde ese día. Un cheque PENDIENTE no frena la emisión (entra a
+ * días). Un pago acreditado a mano (sin movimiento) usa `ventanaDelAcreditadoAMano`. Un cheque PENDIENTE no frena la emisión (entra a
  * MP recién cuando una persona confirma el depósito); confirmado a mano, sí. Sirve para buscar los
  * pagos de un crédito (`pagoPendienteDelCreditoMp`); el chequeo fino lo hace
  * `candidatosDeAcreditacion`. `null` si la fecha no es un día real. PURA.
@@ -236,7 +251,7 @@ export const PREFIJO_ACREDITACION_PENDIENTE = "Vouchers: puede ser la plata del 
  * factura (decisión del dueño). NO lleva `MARCA_ENGANCHE`: sigue enganchable (`esEnganchable`).
  */
 export function motivoDeAcreditacionPendiente(pagoId: string): string {
-  return `${PREFIJO_ACREDITACION_PENDIENTE}${pagoId}, pendiente de acreditación: no se factura sola. Si es esa plata, confirmá la acreditación en Vouchers; si es una venta, aprobala: queda confirmada como venta y la acreditación ya no la toma.`;
+  return `${PREFIJO_ACREDITACION_PENDIENTE}${pagoId}: no se factura sola. Si es esa plata, confirmá la acreditación en Vouchers; si es una venta, aprobala: queda confirmada como venta y la acreditación ya no la toma.`;
 }
 
 /** ¿Está en revisión por un pago de la administración pendiente? PURA. */
