@@ -46,8 +46,15 @@ export function resumirTap(tap) {
       if (t) tipo = t[1];
       const err = /^\s*error: (.*)$/.exec(l);
       if (err && !motivo) {
-        // `error: |-` deja el mensaje en la línea siguiente.
-        motivo = /^[|>]-?$/.test(err[1].trim()) ? (lineas[j + 1] ?? "").trim() : err[1].replace(/^'|'$/g, "");
+        // `error: |-` deja el mensaje en las líneas siguientes (a veces tras renglones vacíos o de relleno).
+        if (/^[|>]-?$/.test(err[1].trim())) {
+          const sangriaClave = l.length - l.trimStart().length;
+          for (let k = j + 1; k < lineas.length && !motivo; k++) {
+            const r = lineas[k];
+            if (r.trim() && r.length - r.trimStart().length <= sangriaClave) break;
+            if (r.trim() && !/^Invalid `/.test(r.trim())) motivo = r.trim();
+          }
+        } else motivo = err[1].replace(/^'|'$/g, "");
       }
       if (/^\s*(expected|actual): /.test(l) && motivo.length < 200) motivo += ` · ${l.trim()}`;
     }
