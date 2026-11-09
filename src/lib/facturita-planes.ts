@@ -10,9 +10,9 @@
  * PURO: sin DB, sin red, sin React. Se testea solo (facturita-planes.test.ts).
  */
 
-import { LIMITE_FACTURAS_FACTURITA } from "@/lib/facturita-core";
+import { LIMITE_FACTURAS_FACTURITA, type CupoDelPlan } from "@/lib/facturita-core";
 
-/** Leyenda que acompaña SIEMPRE a cualquier precio en pantalla. */
+/** Leyenda que acompaña SIEMPRE a los precios de la escalera Comerciante (los de Factoque son finales). */
 export const ESTADO_PRECIOS = "Precios provisionales, a confirmar por el dueño";
 
 /** De dónde sale la lista (para el pie de la tabla y para quien audite). */
@@ -21,7 +21,7 @@ export const ORIGEN_LISTA = "Lista del 11/07/2026 (ADR-078), en revisión trimes
 /** Los precios se muestran con IVA incluido (blueprint §5: "precio final"). */
 export const ACLARACION_IVA = "Precios finales por mes, en pesos, IVA incluido";
 
-export type IdPlan = "facturita" | "solo" | "comercio" | "pyme" | "cm";
+export type IdPlan = "facturita" | "factoque-plus" | "factoque-pro" | "solo" | "comercio" | "pyme" | "cm";
 
 export interface Plan {
   id: IdPlan;
@@ -41,11 +41,11 @@ export interface Plan {
   nota?: string;
 }
 
-/** C · Facturita: gratis, con frontera dura (ADR-076 §3 / ADR-078). */
+/** C · Factoque Gratis: con frontera dura (ADR-076 §3 / ADR-078). Es el plan de `Tenant.plan` nulo. */
 export const PLAN_FACTURITA: Plan = {
   id: "facturita",
   producto: "facturita",
-  nombre: "Factoque",
+  nombre: "Factoque Gratis",
   precioMensual: 0,
   para: "Monotributistas y comercios chicos que hacen pocas facturas por mes.",
   facturasPorMes: LIMITE_FACTURAS_FACTURITA,
@@ -62,6 +62,118 @@ export const PLAN_FACTURITA: Plan = {
   ],
   nota: "Sin tarjeta.",
 };
+
+/**
+ * Planes pagos de Factoque (PLAN-SALIDA-2026-11 §2): la MISMA app y la misma pantalla; lo único que
+ * cambia es el tope. Escalera por cantidad de facturas, nunca por usuario (ADR-078 principio 2).
+ * Precios FINALES del dueño (08/11/2026), por mes, IVA incluido: no llevan `ESTADO_PRECIOS`. Las notas de crédito siguen la regla del
+ * cupo del motor (`filtrosFacturacionMes().cupo`), igual en todos los planes.
+ */
+export const PLAN_FACTOQUE_PLUS: Plan = {
+  id: "factoque-plus",
+  producto: "facturita",
+  nombre: "Factoque Plus",
+  precioMensual: 9_000,
+  para: "Monotributistas con clientela fija.",
+  facturasPorMes: 40,
+  incluye: ["Todo lo de Factoque Gratis", "40 facturas por mes, autorizadas por ARCA", "La misma app: no se migra nada"],
+  nota: "Se paga por mes. Sin prueba extra: el plan Gratis ya es la prueba.",
+};
+
+export const PLAN_FACTOQUE_PRO: Plan = {
+  id: "factoque-pro",
+  producto: "facturita",
+  nombre: "Factoque Pro",
+  precioMensual: 15_000,
+  para: "Comercios chicos que facturan todos los días.",
+  facturasPorMes: 159,
+  incluye: ["Todo lo de Factoque Plus", "159 facturas por mes, autorizadas por ARCA", "La misma app: no se migra nada"],
+  nota: "Se paga por mes.",
+};
+
+/** La escalera de Factoque, de menor a mayor. */
+export const PLANES_FACTOQUE: readonly Plan[] = [PLAN_FACTURITA, PLAN_FACTOQUE_PLUS, PLAN_FACTOQUE_PRO];
+
+/** Los ids que se guardan en `Tenant.plan`. Gratis es `null` (o cualquier otro valor). */
+export const IDS_PLAN_FACTOQUE_PAGO = ["factoque-plus", "factoque-pro"] as const;
+export type IdPlanFactoquePago = (typeof IDS_PLAN_FACTOQUE_PAGO)[number];
+
+export function esPlanFactoquePago(x: unknown): x is IdPlanFactoquePago {
+  return typeof x === "string" && (IDS_PLAN_FACTOQUE_PAGO as readonly string[]).includes(x);
+}
+
+/** «AAAA-MM-DD» válido (fecha de calendario real), o `null`. */
+export function fechaDeVigencia(x: unknown): string | null {
+  if (typeof x !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(x)) return null;
+  const d = new Date(`${x}T12:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === x ? x : null;
+}
+
+export interface PlanEfectivo {
+  plan: Plan;
+  /** El negocio tenía un plan pago con la vigencia vencida: corre Gratis (nada se borra). */
+  vencido: boolean;
+  /** Hasta qué día (inclusive) corre el plan pago; `null` = sin vencimiento cargado. */
+  vigenciaHasta: string | null;
+}
+
+/**
+ * El plan que rige HOY para un negocio Factoque. `planGuardado` es `Tenant.plan`; `vigenciaHasta`
+ * («AAAA-MM-DD», inclusive) la carga el operador al cambiar el plan. `hoy` es la fecha fiscal del
+ * negocio en «AAAAMMDD» (`fechaFiscalDelDia`). Un plan pago vencido vuelve a Gratis: el tope pasa a
+ * 5 y lo ya emitido queda como está. Una vigencia ilegible se trata como vencida (falla cerrada:
+ * corre el plan chico, nunca uno más grande que el pagado).
+ */
+export function planFactoqueEfectivo(
+  planGuardado: string | null | undefined,
+  vigenciaHasta: string | null | undefined,
+  hoy: string,
+): PlanEfectivo {
+  if (!esPlanFactoquePago(planGuardado)) return { plan: PLAN_FACTURITA, vencido: false, vigenciaHasta: null };
+  const plan = planGuardado === "factoque-pro" ? PLAN_FACTOQUE_PRO : PLAN_FACTOQUE_PLUS;
+  if (vigenciaHasta == null) return { plan, vencido: false, vigenciaHasta: null };
+  const hasta = fechaDeVigencia(vigenciaHasta);
+  if (!hasta || hasta.replaceAll("-", "") < hoy) return { plan: PLAN_FACTURITA, vencido: true, vigenciaHasta: hasta };
+  return { plan, vencido: false, vigenciaHasta: hasta };
+}
+
+/** El cupo que aplica la regla del tope (`estadoLimite`) para un plan de la escalera de Factoque. */
+export function cupoDelPlan(plan: Plan): CupoDelPlan {
+  const i = PLANES_FACTOQUE.findIndex((p) => p.id === plan.id);
+  const siguiente = i >= 0 ? PLANES_FACTOQUE[i + 1] : undefined;
+  return {
+    tope: plan.facturasPorMes,
+    nombre: plan.nombre,
+    gratis: plan.precioMensual <= 0,
+    siguiente: siguiente ? { nombre: siguiente.nombre, tope: siguiente.facturasPorMes } : null,
+  };
+}
+
+export type CambioDePlanFactoque =
+  | { ok: true; plan: IdPlanFactoquePago | null; vigenciaHasta: string | null }
+  | { ok: false; error: string };
+
+/**
+ * Lo que manda el formulario «Cambiar plan» del operador, validado. `plan` vacío o «facturita» =
+ * Gratis (`Tenant.plan` nulo); la vigencia es opcional y sólo vale para un plan pago.
+ */
+export function leerCambioDePlanFactoque(plan: unknown, vigencia: unknown): CambioDePlanFactoque {
+  const p = typeof plan === "string" ? plan.trim() : "";
+  const v = typeof vigencia === "string" ? vigencia.trim() : "";
+  if (p === "" || p === "facturita") {
+    return v ? { ok: false, error: "El plan Gratis no lleva vencimiento." } : { ok: true, plan: null, vigenciaHasta: null };
+  }
+  if (!esPlanFactoquePago(p)) return { ok: false, error: "Ese plan no existe en Factoque." };
+  if (!v) return { ok: true, plan: p, vigenciaHasta: null };
+  const hasta = fechaDeVigencia(v);
+  return hasta ? { ok: true, plan: p, vigenciaHasta: hasta } : { ok: false, error: "La fecha de vencimiento no es válida (AAAA-MM-DD)." };
+}
+
+/**
+ * Cómo se paga un plan hoy: sin cobro online todavía (PLAN-SALIDA §2), transferencia a GSG y el
+ * operador lo activa desde la ficha. El alias es un placeholder hasta que el dueño lo confirme.
+ */
+export const ALIAS_TRANSFERENCIA_GSG = "provisional a confirmar";
 
 /**
  * A · Comerciante: escalera por tamaño de negocio, NUNCA por usuario (ADR-078 principio 2).
@@ -113,8 +225,14 @@ export const PLANES_COMERCIANTE: readonly Plan[] = [
   },
 ];
 
-/** El primer escalón pago: el salto natural desde Facturita (trigger de la factura n.º 6). */
-export const PLAN_SALTO: Plan = PLANES_COMERCIANTE[0];
+/** El primer escalón pago: el salto natural desde Gratis (trigger de la factura n.º 6). */
+export const PLAN_SALTO: Plan = PLAN_FACTOQUE_PLUS;
+
+/**
+ * Comerciante (producto A) es «lo que sigue» después de Pro: no se vende desde Factoque (sin
+ * botón), la vidriera sólo lo menciona.
+ */
+export const LO_QUE_SIGUE: Plan = PLANES_COMERCIANTE[0];
 
 /** "Gratis" o "$14.900" — sin decimales, separador de miles argentino. */
 export function precioTexto(precioMensual: number): string {

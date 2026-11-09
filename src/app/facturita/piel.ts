@@ -12,6 +12,14 @@
 // - Movimiento sólo con transform / clip-path / filter; nunca la opacidad de un H1/H2.
 // - prefers-reduced-motion: todo en estado final, sin transición.
 
+/**
+ * La marca VISIBLE del producto (decisión 05/11/2026, Plan de salida 11/2026 §3): «Factoque».
+ * `facturita` sigue siendo el id técnico (blueprint, rutas /facturita/**, archivos, tablas, scope
+ * del service worker) y no se renombra. `marca-visible.test.ts` falla si «Facturita» vuelve a un
+ * texto visible de la app.
+ */
+export const MARCA = "Factoque";
+
 export const PIEL_FACTURITA = `
 .fx{
   --fx-papel:#fff8e7;--fx-papel-2:#f2e6c8;--fx-fondo:#fffdf7;--fx-borde:#e8d3a8;
@@ -244,6 +252,7 @@ export const PIEL_FACTURITA = `
 .fx .fx-planes-4{display:grid;gap:clamp(16px,2vw,24px);margin-top:clamp(32px,3vw,48px)}
 @media (min-width:768px){.fx .fx-planes-4{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (min-width:1280px){.fx .fx-planes-4{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media (min-width:1280px){.fx .fx-planes-4.fx-planes-2{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .fx .fx-planes-4 .fx-hoja-plan{padding:28px 24px}
 .fx .fx-planes-4 .fx-lista{font-size:1rem}
 
@@ -289,5 +298,4 @@ export const PIEL_FACTURITA = `
 .fx .fx-doc h1{margin:0;font-family:var(--fx-serif);font-weight:500;font-size:clamp(2.75rem,2.2rem + 1.6vw,3.5rem);line-height:1.02;letter-spacing:-.02em;text-wrap:balance}
 .fx .fx-doc h2{margin:48px 0 0;font-family:var(--fx-serif);font-weight:500;font-size:1.75rem;line-height:1.2;letter-spacing:-.01em}
 .fx .fx-doc p{margin:14px 0 0;max-width:68ch;font-size:clamp(1.125rem,1.05rem + .25vw,1.1875rem);line-height:1.65}
-.fx .fx-borrador{margin:0 0 32px;padding:14px 18px;border-radius:12px;background:var(--fx-papel-2);box-shadow:inset 4px 0 0 var(--fx-verde);color:var(--fx-tinta);font-size:1rem;line-height:1.5}
 `;

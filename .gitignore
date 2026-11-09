@@ -72,3 +72,6 @@ qa-shots/
 CLAUDE.local.md
 .claude/settings.local.json
 .claude/.kit-backup/
+
+# Salida del QA de integración de Factoque (capturas PNG y logs): fuera de Git, nada binario.
+docs/qa/factoque-integracion/

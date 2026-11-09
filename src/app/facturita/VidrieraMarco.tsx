@@ -50,6 +50,16 @@ export default function VidrieraMarco({
       <a href="#contenido" className="fx-saltar">
         Saltar al contenido
       </a>
+      {/* Res. SCI 424/2020: el botón de arrepentimiento en la PRIMERA pantalla, a la vista y sin cuenta
+          (también en el pie). Arriba de la barra, en una línea chica: no tapa el alta. */}
+      <nav aria-label="Arrepentimiento y baja" className="fx-caja fx-chico" style={{ display: "flex", justifyContent: "flex-end", flexWrap: "wrap", columnGap: 16, paddingBlock: 4 }}>
+        <Link href="/facturita/arrepentimiento" className="fx-enlace">
+          Botón de arrepentimiento
+        </Link>
+        <Link href="/facturita/baja" className="fx-enlace">
+          Darme de baja
+        </Link>
+      </nav>
       <header className="fx-barra">
         <div className="fx-caja fx-barra-fila">
           <Link href="/facturita" className="fx-marca">
@@ -75,9 +85,12 @@ export default function VidrieraMarco({
       <footer className="fx-pie">
         <div className="fx-caja fx-pie-fila">
           <p>Factoque emite comprobantes electrónicos con el servicio oficial de ARCA.</p>
-          <nav aria-label="Legales" className="flex gap-5">
+          <nav aria-label="Legales" className="flex flex-wrap gap-x-5 gap-y-2">
             <Link href="/facturita/terminos">Términos</Link>
             <Link href="/facturita/privacidad">Privacidad</Link>
+            {/* Res. SCI 424/2020 y Res. 316/2018: en todas las pantallas de la vidriera, sin cuenta. */}
+            <Link href="/facturita/arrepentimiento">Botón de arrepentimiento</Link>
+            <Link href="/facturita/baja">Darme de baja</Link>
           </nav>
           <p>Un producto de Gestión Studio Grow</p>
         </div>

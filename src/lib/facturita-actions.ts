@@ -19,13 +19,13 @@ import {
 } from "@/lib/fiscal";
 import { procesarEnviosDelNegocio } from "@/lib/arca-dispatch";
 import { emitirComprobanteManual } from "@/lib/facturacion/emision-manual.server";
+import { leerPlanFactoque } from "@/lib/facturacion/plan-factoque.server";
 import { contarFacturasDelMes, fechaFiscalDelDia } from "@/lib/bancos-glue";
 import { logger } from "@/lib/logger";
 import { modoDesdeEnv } from "@/plugins/arca";
 import { ambienteDelComprobante } from "@/lib/comprobante-pdf";
 import { ACCION_RECEPTOR_DEL_COMPROBANTE, ENTIDAD_RECEPTOR_DEL_COMPROBANTE } from "@/lib/comprobante-pdf-datos";
 import {
-  anulacionSegunCupo,
   errorDeNotaRechazada,
   estadoDeAnulacion,
   estadoLimite,
@@ -65,7 +65,7 @@ async function requireTenantFacturita(): Promise<{ tenantId: string; userId: str
     { tenantId },
   );
   if (tenant?.blueprintId !== "facturita") {
-    throw new Error("Esta pantalla es del producto Facturita.");
+    throw new Error("Esta pantalla es del producto Factoque.");
   }
   return { tenantId, userId: user.id, homologacion: tenant.arcaHomologacion ?? true };
 }
@@ -84,10 +84,23 @@ function esMigracionPendiente(e: unknown): boolean {
   return code === "P2021" || code === "P2022";
 }
 
-/** Estado del tope mensual (5 gratis) para el tablero. */
+/** El tope del mes con el cupo del plan que rige hoy (Gratis 5 · Plus 40 · Pro 159; vencido → Gratis). */
+async function estadoDelCupo(tenantId: string): Promise<EstadoLimite> {
+  const [plan, usadas] = await Promise.all([leerPlanFactoque(tenantId, fechaHoy()), contarFacturasDelMes(tenantId)]);
+  return estadoLimite(usadas, plan?.cupo);
+}
+
+/** Estado del tope mensual del plan para el tablero. */
 export async function estadoFacturitaAction(): Promise<EstadoLimite> {
   const { tenantId } = await requireTenantFacturita();
-  return estadoLimite(await contarFacturasDelMes(tenantId));
+  return estadoDelCupo(tenantId);
+}
+
+/** El plan que rige hoy, para Mi cuenta: id, si venció y hasta cuándo corre. */
+export async function planFacturitaAction(): Promise<{ id: string; vencido: boolean; vigenciaHasta: string | null }> {
+  const { tenantId } = await requireTenantFacturita();
+  const plan = await leerPlanFactoque(tenantId, fechaHoy());
+  return { id: plan?.plan.id ?? "facturita", vencido: plan?.vencido ?? false, vigenciaHasta: plan?.vigenciaHasta ?? null };
 }
 
 async function leerDatosEmisor(tenantId: string): Promise<DatosEmisorGuardados> {
@@ -185,7 +198,7 @@ export async function emitirFacturitaAction(
   const r = await emitirComprobanteManual({ tenantId, actor: `user:${userId}`, revalidar: [PATH_APP] }, datos);
   if (!r.ok) return r;
   // Un negocio Factoque siempre tiene tope; el `?? ` sólo cubre el tipo.
-  return { ...r, limite: r.limite ?? estadoLimite(await contarFacturasDelMes(tenantId)) };
+  return { ...r, limite: r.limite ?? (await estadoDelCupo(tenantId)) };
 }
 
 // ---------------------------------------------------------------------------
@@ -289,9 +302,8 @@ export type ResultadoAnularFacturita = { ok: true; mensaje: string } | { ok: fal
 
 /**
  * «Anular» una factura autorizada: nota de crédito asociada por TODO lo que queda (el motor toma la
- * factura con bloqueo y nunca anula más de lo facturado). La nota ocupa un lugar del cupo del mes,
- * como cualquier comprobante (hasta que el dueño decida otra cosa): sin lugar, no se anula y se
- * dice qué hacer. En la MISMA transacción se le copia a la nota la ficha del comprador de la
+ * factura con bloqueo y nunca anula más de lo facturado). La nota NO ocupa lugar del cupo del mes
+ * (Plan de salida 11/2026 §1 #9b): se anula aunque el tope esté lleno. En la MISMA transacción se le copia a la nota la ficha del comprador de la
  * factura (`ComprobanteReceptor`), así el PDF de la nota sale con el mismo comprador. Con la
  * facturación encendida, la nota va a ARCA enseguida; si ARCA (o el sistema) la rechaza, es un
  * error: la factura sigue vigente.
@@ -302,13 +314,14 @@ export async function anularFacturitaAction(facturaId: string, motivo: string): 
   const porque = (motivo ?? "").trim().slice(0, 200);
   if (porque.length < 3) return { ok: false, error: "Contá en pocas palabras por qué la anulás: queda escrito en la nota de crédito." };
 
-  const cupo = anulacionSegunCupo(estadoLimite(await contarFacturasDelMes(tenantId)));
-  if (!cupo.ok) return cupo;
-
   let r: Awaited<ReturnType<typeof crearNotaDeCreditoInTx>>;
   try {
     r = await tenantTransaction(
       async (tx) => {
+        // El candado del cupo (el mismo `facturita-cupo:` de la emisión): la nota NO ocupa lugar
+        // (T1: el filtro del cupo de bancos-glue la excluye), pero anular y emitir en el mismo negocio
+        // quedan en fila, así el recuento de la emisión nunca ve una nota a medio crear (T2).
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`facturita-cupo:${tenantId}`}))`;
         const nota = await crearNotaDeCreditoInTx(tx, { tenantId, facturaId, motivo: porque, fecha: fechaHoy() });
         if (!nota.ok) return nota;
         const ficha = await tx.auditLog.findFirst({
@@ -355,7 +368,7 @@ export async function anularFacturitaAction(facturaId: string, motivo: string): 
   const notaId = r.invoiceId;
 
   let mensaje =
-    "La nota de crédito quedó cargada y espera que ARCA la autorice: hasta entonces, la anulación está en curso. Usó uno de los comprobantes del mes.";
+    "La nota de crédito quedó cargada y espera que ARCA la autorice: hasta entonces, la anulación está en curso. No usa lugar de tu cupo del mes.";
   if (isInvoicingEnabled()) {
     try {
       const d = await procesarEnviosDelNegocio(tenantId, 5, undefined, { ignorarEspera: true });
