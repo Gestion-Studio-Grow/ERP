@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { fechaCorta, SERVICIO_LABEL, waLink, type Servicio } from "@/lib/proyectos/core";
 import { portalPublico } from "@/lib/proyectos/gestion-lecturas.server";
 import { marcaProductora } from "@/lib/proyectos/marca";
+import { etapa2ActivaPara } from "@/lib/proyectos/etapa2.server";
 import { ResponderPresentacion } from "./responder";
 
 // Link del cliente: sin login, la llave es el token. No se indexa ni se cachea. Nunca costos, márgenes ni proveedores: la
@@ -26,6 +27,8 @@ export default async function PortalPage({ params }: { params: Promise<{ token: 
   const { token } = await params;
   const data = await portalPublico(token).catch(() => null);
   if (!data) notFound();
+  // Etapa 2: el portal existe sólo si el negocio dueño del token lo tiene prendido (apagado por defecto).
+  if (!(await etapa2ActivaPara(data.tenantId, "portal"))) notFound();
   const { negocio, proyecto: p, propuesta, presentaciones, piezas, tokenEntregables, archivos } = data;
   const marca = marcaProductora(negocio.slug);
   const wa = waLink(negocio.whatsapp, `Hola! Consulto por "${p.nombre}".`);

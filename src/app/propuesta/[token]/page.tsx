@@ -6,6 +6,7 @@ import { cambioDeVenta, ventaEn } from "@/lib/proyectos/gestion-core";
 import { marcaProductora } from "@/lib/proyectos/marca";
 import { clientePuedeResponder, fechaCorta, porRubro, SERVICIO_LABEL, waLink, yaVencio, type Servicio } from "@/lib/proyectos/core";
 import { BotonImprimir, Responder, VisorStand } from "./piezas";
+import { etapa2ActivaPara } from "@/lib/proyectos/etapa2.server";
 
 // Link del cliente: sin login, la llave es el token. No se indexa ni se cachea.
 export const dynamic = "force-dynamic";
@@ -40,6 +41,8 @@ export default async function PropuestaPage({ params }: { params: Promise<{ toke
   const cambio = cambioDeVenta(b.proyecto.moneda, b.tcVenta, {});
   const pesos = (n: number) => ventaEn(n, b.proyecto.moneda, cambio);
   const p = b.proyecto;
+  // Etapa 2: el visor 3D sale sólo si el negocio DUEÑO del token lo tiene prendido (nunca el de la sesión).
+  const con3d = await etapa2ActivaPara(b.tenantId, "armador3d");
   const marca = marcaProductora(negocio.slug);
   const puede = clientePuedeResponder(b);
   const vencida = b.estado === "ENVIADO" && yaVencio(b.validoHasta);
@@ -89,7 +92,7 @@ export default async function PropuestaPage({ params }: { params: Promise<{ toke
           </section>
         )}
 
-        {p.stands.length > 0 && (
+        {con3d && p.stands.length > 0 && (
           <section className="mia-solo-pantalla" aria-label="Stand en 3D">
             <h2 style={titulo}>Recorrelo en 3D</h2>
             <p style={{ margin: "0 0 12px", fontSize: 14 }}>Es una maqueta de volúmenes y distribución. Los acabados son los de las imágenes.</p>

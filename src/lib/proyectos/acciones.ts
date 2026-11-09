@@ -21,6 +21,8 @@ import { configProyectos } from "./datos.server";
 import { actorActual, avisar, proyectoVisible, puede, regenerarCuotas, registrarCambio, usuariosDelEquipo, usuariosDeLaPlata, type Actor } from "./gestion.server";
 import type { ModuloGestion } from "./gestion-core";
 import { marcaDeGastoProyecto } from "./marcas";
+import { etapa2ActivaPara } from "./etapa2.server";
+import { MENSAJE_APAGADO } from "./etapa2-core";
 import { mensajeDeProveedor, validateSupplierInput } from "@/lib/suppliers/supplier";
 
 export type Resultado<T = object> = ({ ok: true } & T) | { ok: false; error: string };
@@ -464,6 +466,7 @@ export async function responderEntregable(d: { token: string; versionId: string;
 export async function crearStand(formData: FormData): Promise<Resultado<{ id: string; proyectoId: string }>> {
   const a = await actorCon(["ficha", "diseno"]);
   const { tenantId } = a;
+  if (!(await etapa2ActivaPara(tenantId, "armador3d"))) return { ok: false, error: MENSAJE_APAGADO.armador3d };
   const proyectoId = txt(formData.get("proyectoId"));
   if (!(await proyectoDelActor(a, proyectoId))) return { ok: false, error: "Ese proyecto no existe." };
   const cuantos = await prisma.proyectoStand.count({ where: { tenantId, proyectoId } });
@@ -479,6 +482,7 @@ export async function crearStand(formData: FormData): Promise<Resultado<{ id: st
 export async function guardarStand(d: { id: string; nombre: string; diseno: DisenoStand }): Promise<Resultado> {
   const a = await actorCon(["ficha", "diseno"]);
   const { tenantId } = a;
+  if (!(await etapa2ActivaPara(tenantId, "armador3d"))) return { ok: false, error: MENSAJE_APAGADO.armador3d };
   const diseno = normalizarDiseno(d.diseno);
   if (!diseno) return { ok: false, error: "El diseño no es válido." };
   const s = await prisma.proyectoStand.findFirst({ where: { id: d.id, tenantId }, select: { proyectoId: true } });

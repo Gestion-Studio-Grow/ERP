@@ -14,6 +14,7 @@ import { puede, type Actor } from "@/lib/proyectos/gestion.server";
 import { campo, etiqueta, tarjeta } from "../_vista";
 import { BotonConConfirmacion, FormAccion } from "./_cliente";
 import { CopiarLink } from "./_piezas";
+import { etapa2ActivaPara } from "@/lib/proyectos/etapa2.server";
 import { TablaFicha } from "./_tabla-ficha";
 
 const areaTexto = "w-full rounded-lg border border-line bg-surface p-3 text-sm text-strong";
@@ -35,6 +36,8 @@ const CUANDO = new Intl.DateTimeFormat("es-AR", { day: "numeric", month: "short"
 export async function PestanaResumen({ a, cab, vista }: { a: Actor; cab: Cabecera; vista: Vista }) {
   const { proyecto: p } = cab;
   const { personas, finanzas, cantCuotas, cantChecklist } = await datosResumen(a, cab, vista);
+  // Etapa 2: el portal del cliente se prende por negocio (apagado por defecto): si está apagado, no se ofrece el link.
+  const conPortal = await etapa2ActivaPara(a.tenantId, "portal");
   const avance = finanzas && finanzas.cobrado + finanzas.aCobrar > 0 ? (finanzas.cobrado / (finanzas.cobrado + finanzas.aCobrar)) * 100 : 0;
   const libres = personas.filter((x) => !p.equipo.some((e) => e.personaId === x.id));
   const clientes = vista.pipelineEdita ? await prisma.client.findMany({ where: { tenantId: a.tenantId }, orderBy: { name: "asc" }, take: 500, select: { id: true, name: true } }) : [];
@@ -158,7 +161,7 @@ export async function PestanaResumen({ a, cab, vista }: { a: Actor; cab: Cabecer
         )}
       </section>
 
-      <section className={tarjeta} aria-label="Portal del cliente">
+      {conPortal && <section className={tarjeta} aria-label="Portal del cliente">
         <h2 className="mb-1 font-semibold text-strong">Portal del cliente</h2>
         <p className="mb-3 text-sm">{[p.contactoNombre || p.client.name, p.contactoEmail || p.client.email].filter(Boolean).join(" · ")}</p>
         {p.tokenPortal ? (
@@ -178,7 +181,7 @@ export async function PestanaResumen({ a, cab, vista }: { a: Actor; cab: Cabecer
         ) : (
           <p className="text-sm text-muted">Todavía sin acceso.</p>
         )}
-      </section>
+      </section>}
     </div>
   );
 }
