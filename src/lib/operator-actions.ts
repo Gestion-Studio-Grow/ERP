@@ -542,7 +542,7 @@ export async function cambiarFacturacionReal(formData: FormData) {
 // ver al OWNER y escribirle; y la contraseña, el cambio forzado y la auditoría quedan todos o
 // ninguno. El núcleo (`resetOwnerPasswordCore`) es puro y no conoce Prisma → testeable con un
 // doble en memoria.
-function operatorResetPort(tx: Prisma.TransactionClient): OwnerResetPort {
+function operatorResetPort(tx: Prisma.TransactionClient, tenantId: string): OwnerResetPort {
   return {
     findOwner: (tid) =>
       tx.user.findFirst({
@@ -553,7 +553,7 @@ function operatorResetPort(tx: Prisma.TransactionClient): OwnerResetPort {
     setPasswordHash: async (userId, passwordHash) => {
       await tx.user.update({ where: { id: userId }, data: { passwordHash } });
     },
-    setMustChange: (userId, value) => operatorSetMustChange(tx, userId, value),
+    setMustChange: (userId, value) => operatorSetMustChange(tx, { userId, tenantId }, value),
     audit: async (entry) => {
       await tx.auditLog.create({
         data: { ...entry, changes: entry.changes as Prisma.InputJsonValue },
@@ -564,13 +564,13 @@ function operatorResetPort(tx: Prisma.TransactionClient): OwnerResetPort {
 
 // Alta de UNA persona en un negocio desde la consola (ver alta-persona.ts). Todo en la transacción del
 // negocio: el tope del plan, el alta, el cambio forzado y la auditoría quedan todos o ninguno.
-function altaPersonaPort(tx: Prisma.TransactionClient): AltaPersonaPort {
+function altaPersonaPort(tx: Prisma.TransactionClient, tenantId: string): AltaPersonaPort {
   return {
     existeEmail: async (tid, email) => (await tx.user.findFirst({ where: { tenantId: tid, email }, select: { id: true } })) !== null,
     // `decidirAltaDeUsuarioEnTx` espera la transacción del negocio; ésta lo es (enElNegocio).
     decidirTope: (tid) => decidirAltaDeUsuarioEnTx(tx as unknown as Parameters<typeof decidirAltaDeUsuarioEnTx>[0], tid),
     crear: (data) => tx.user.create({ data, select: { id: true } }),
-    setMustChange: (userId, value) => operatorSetMustChange(tx, userId, value),
+    setMustChange: (userId, value) => operatorSetMustChange(tx, { userId, tenantId }, value),
     audit: async (entry) => {
       await tx.auditLog.create({ data: { ...entry, changes: entry.changes as Prisma.InputJsonValue } });
     },
@@ -586,7 +586,7 @@ export async function altaPersonaDeTenant(
   const op = g.sesion.nombre;
   try {
     const result = await enElNegocio(tenantId, (tx) =>
-      altaPersonaCore(altaPersonaPort(tx), { tenantId, operatorSubject: op, entrada }),
+      altaPersonaCore(altaPersonaPort(tx, tenantId), { tenantId, operatorSubject: op, entrada }),
     );
     if (result.ok) {
       revalidatePath(`/operador/tenants/${tenantId}`);
@@ -606,7 +606,7 @@ export async function resetOwnerPassword(tenantId: string): Promise<OwnerResetRe
   if (!g.ok) return { ok: false, error: g.motivo };
   const op = g.sesion.nombre;
   const result = await enElNegocio(tenantId, (tx) =>
-    resetOwnerPasswordCore(operatorResetPort(tx), { tenantId, operatorSubject: op }),
+    resetOwnerPasswordCore(operatorResetPort(tx, tenantId), { tenantId, operatorSubject: op }),
   );
   if (result.ok) revalidatePath(`/operador/tenants/${tenantId}`);
   return result;
@@ -673,7 +673,7 @@ export async function resetOwnerPasswordDeTenant(
   }
 
   const result = await enElNegocio(tenantId, (tx) =>
-    resetOwnerPasswordCore(operatorResetPort(tx), { tenantId, operatorSubject: op }),
+    resetOwnerPasswordCore(operatorResetPort(tx, tenantId), { tenantId, operatorSubject: op }),
   );
   if (result.ok) {
     revalidatePath(`/operador/tenants/${tenantId}`);

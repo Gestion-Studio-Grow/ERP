@@ -80,7 +80,7 @@ async function userFlagColumnExists(): Promise<boolean | null> {
 // `tenantTransaction` para que RLS deje ver su fila.
 //   - Columna inexistente (migración sin aplicar) → `false`: sin ella no se emite ninguna provisoria
 //     (el reset y el alta fallan cerrado), así que no hay a quién forzar y nadie queda trabado.
-//   - Cualquier OTRO error (catálogo o lectura) → `true`: FALLA CERRADO (ENG-104). Lo peor que pasa
+//   - Cualquier OTRO error (catálogo o lectura) o 0 filas → `true`: FALLA CERRADO (ENG-104). Lo peor que pasa
 //     es ver una vez la pantalla de cambio (vive fuera del portón: no hay loop); lo otro era dejar
 //     pasar una provisoria sin cambiarla.
 export async function mustChangePasswordFor(user: { id: string; tenantId: string }): Promise<boolean> {
@@ -95,7 +95,10 @@ export async function mustChangePasswordFor(user: { id: string; tenantId: string
           WHERE "id" = ${user.id} AND "tenantId" = ${user.tenantId}
           LIMIT 1
         `;
-        return rows.length > 0 ? rows[0].mustChangePassword === true : false;
+        // 0 filas (RLS sin contexto, usuario de otro negocio o borrado en el medio) → LADO SEGURO: no se puede
+        // probar que no tenga una provisoria, así que se pide el cambio (GSG-SEG-013). Sin loop: la pantalla de
+        // cambio vive fuera del portón.
+        return rows.length > 0 ? rows[0].mustChangePassword === true : true;
       },
       { tenantId: user.tenantId },
     );
@@ -154,16 +157,19 @@ export async function operatorReadMustChange(db: RawClient, userId: string): Pro
 
 // Setea el flag desde el operador (reset y alta). Devuelve `persisted:false` si la columna todavía
 // no existe o si el UPDATE no tocó exactamente una fila: el llamador falla cerrado (no emite provisoria).
+// Filtra por id Y por negocio: el UPDATE crudo no pasa por el candado de aplicación (rls.ts, `model ===
+// undefined`), así que el `AND "tenantId"` escrito a mano es la defensa garantizada aunque corra en `enElNegocio`.
 export async function operatorSetMustChange(
   db: RawClient,
-  userId: string,
+  usuario: { userId: string; tenantId: string },
   value: boolean,
 ): Promise<{ persisted: boolean }> {
   if (!(await hayColumnaMustChange(db))) return { persisted: false };
   try {
     // Exactamente una fila: si RLS o un id ajeno dejan el UPDATE en 0, el flag NO quedó marcado.
     const filas = await db.$executeRaw`
-      UPDATE "User" SET "mustChangePassword" = ${value} WHERE "id" = ${userId}
+      UPDATE "User" SET "mustChangePassword" = ${value}
+      WHERE "id" = ${usuario.userId} AND "tenantId" = ${usuario.tenantId}
     `;
     return { persisted: filas === 1 };
   } catch (e) {

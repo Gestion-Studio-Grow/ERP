@@ -150,7 +150,14 @@ test("alta por pedido: misma respuesta con cualquier CUIT, y Soporte lo configur
   );
   // El arnés define APP_BASE_DOMAIN: la dirección es la que ese ruteo sirve (el caso «sin dirección» va en el punto 9).
   assert.equal(hecho.direccion, `https://tornillo.${process.env.APP_BASE_DOMAIN}/admin`);
-  assert.deepEqual(hecho.pendientes, { condicionIva: false, cambioDeClave: true }, "M1 medida: condición escrita; cambio obligatorio pendiente");
+  // Con la migración del cambio obligatorio aplicada (20261109120000) no queda pendiente: sin ella el alta frena
+  // (GSG-SEG-013). El dueño entra con la provisoria y la tiene que cambiar.
+  assert.deepEqual(hecho.pendientes, { condicionIva: false, cambioDeClave: false }, "M1 medida: condición escrita; cambio obligatorio activo");
+  assert.equal(
+    (await duenio.user.findFirst({ where: { tenantId: creado.id }, select: { mustChangePassword: true } }))?.mustChangePassword,
+    true,
+    "la clave temporal del dueño obliga a cambiarla",
+  );
   assert.equal(
     (await duenio.carteraCliente.findFirst({ where: { tenantId: base.a.id, clienteTenantId: creado.id } }))?.estado,
     "activa",

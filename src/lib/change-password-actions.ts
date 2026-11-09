@@ -11,7 +11,7 @@
 
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/authz";
+import { requireUserConCambioPendiente } from "@/lib/authz";
 import { verifyPassword, hashPassword } from "@/lib/auth-password";
 import { validatePasswordStrength } from "@/lib/password-policy";
 import { clearMustChangePassword } from "@/lib/must-change-password";
@@ -29,7 +29,7 @@ function backWith(status: string): never {
 }
 
 export async function changeOwnPassword(formData: FormData) {
-  const user = await requireUser();
+  const user = await requireUserConCambioPendiente();
   const current = String(formData.get("currentPassword") || "");
   const next = String(formData.get("newPassword") || "");
   const confirm = String(formData.get("confirmPassword") || "");

@@ -59,22 +59,43 @@ test("un error que NO es columna-faltante se propaga (no se traga)", async () =>
 
 // --- operatorSetMustChange ---------------------------------------------------
 
+const U1 = { userId: "u1", tenantId: "t1" };
+
+// GSG-SEG-013 · hallazgo 5: el UPDATE crudo no pasa por el candado de aplicación (rls.ts: `model === undefined`),
+// así que lleva su `AND "tenantId" = ...` escrito a mano aunque corra dentro de `enElNegocio`.
+test("set filtra por id Y por negocio (el tenantId viaja en el UPDATE)", async () => {
+  let sql = "";
+  let valores: unknown[] = [];
+  const db = {
+    $queryRaw: async () => [{ hay: true }],
+    $executeRaw: async (q: TemplateStringsArray, ...v: unknown[]) => {
+      sql = q.join("?");
+      valores = v;
+      return 1;
+    },
+  } as unknown as Raw;
+  assert.deepEqual(await operatorSetMustChange(db, U1, true), { persisted: true });
+  assert.match(sql, /"tenantId"\s*=/);
+  assert.ok(valores.includes("t1"), "el negocio va como parámetro del UPDATE");
+  assert.ok(valores.includes("u1"));
+});
+
 test("set OK → persisted:true", async () => {
-  assert.deepEqual(await operatorSetMustChange(fakeRaw({ exec: () => 1 }), "u1", true), { persisted: true });
+  assert.deepEqual(await operatorSetMustChange(fakeRaw({ exec: () => 1 }), U1, true), { persisted: true });
 });
 
 test("set que no toca ninguna fila (id ajeno o RLS) → persisted:false: falla cerrado", async () => {
-  assert.deepEqual(await operatorSetMustChange(fakeRaw({ exec: () => 0 }), "u1", true), { persisted: false });
+  assert.deepEqual(await operatorSetMustChange(fakeRaw({ exec: () => 0 }), U1, true), { persisted: false });
 });
 
 test("set con columna inexistente → persisted:false (no rompe)", async () => {
   const db = fakeRaw({ exec: () => { throw pgError("42703"); } });
-  assert.deepEqual(await operatorSetMustChange(db, "u1", true), { persisted: false });
+  assert.deepEqual(await operatorSetMustChange(db, U1, true), { persisted: false });
 });
 
 test("set con error real se propaga", async () => {
   const db = fakeRaw({ exec: () => { throw pgError("23505"); } });
-  await assert.rejects(() => operatorSetMustChange(db, "u1", true), /23505/);
+  await assert.rejects(() => operatorSetMustChange(db, U1, true), /23505/);
 });
 
 // Forma MEDIDA con Prisma 7 + @prisma/adapter-pg (ver el comentario de isMissingColumn).
@@ -95,7 +116,7 @@ test("reconoce la columna faltante como la entrega el adaptador de Prisma 7 (P20
 // que falla aborta TODO lo que sigue: sin la columna no se la toca, se pregunta al catálogo.
 test("sin la columna, el set no intenta el UPDATE (no aborta la transacción del reset)", async () => {
   const db = fakeRaw({ columna: false, exec: () => { throw new Error("no se tenía que ejecutar"); } });
-  assert.deepEqual(await operatorSetMustChange(db, "u1", true), { persisted: false });
+  assert.deepEqual(await operatorSetMustChange(db, U1, true), { persisted: false });
   assert.deepEqual(db.sentencias, ["catalogo"]);
 });
 

@@ -175,7 +175,7 @@ export async function setUserActive(formData: FormData) {
 }
 
 export async function resetUserPassword(formData: FormData) {
-  await requireCapability("users:manage");
+  const actor = await requireCapability("users:manage");
   const tenantId = await getCurrentTenantId();
   const userId = String(formData.get("userId") || "");
   const password = String(formData.get("password") || "");
@@ -186,7 +186,12 @@ export async function resetUserPassword(formData: FormData) {
   if (!target) backWith("error_not_found");
 
   const passwordHash = await hashPassword(password);
-  await prisma.user.update({ where: { id: userId }, data: { passwordHash } });
+  // La clave que fija otro es PROVISORIA (la conoce quien la fijó): la persona la tiene que cambiar al entrar
+  // (regla del dueño, GSG-SEG-013). En la misma escritura que el hash. La propia, no: ya la conoce sólo ella.
+  await prisma.user.update({
+    where: { id: userId },
+    data: { passwordHash, ...(userId !== actor.id ? { mustChangePassword: true } : {}) },
+  });
 
   // Se audita el reset, NUNCA la contraseña en sí.
   await auditAdmin({ action: "reset_password", entity: "User", entityId: userId });

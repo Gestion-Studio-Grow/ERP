@@ -14,6 +14,7 @@ import ThemeToggle from "../../admin/(dashboard)/ThemeToggle";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import { PIEL_RENGLON } from "@/lib/diseno/diseno";
 import { ConDiseno } from "@/lib/diseno/ConDiseno";
+import { requireUser } from "@/lib/authz";
 
 export const metadata: Metadata = {
   title: "Factoque",
@@ -29,6 +30,9 @@ const TABS = [
 ];
 
 export default async function FacturitaLayout({ children }: { children: React.ReactNode }) {
+  // Portón de la app: sin sesión, al ingreso; con la contraseña provisoria pendiente de cambio, a cambiarla
+  // (ENG-104, GSG-SEG-013). Las acciones repiten su propio guard; acá se corta antes de pintar nada.
+  await requireUser();
   // Diseño nuevo del negocio (interruptor "Diseño nuevo"): se larga ya y se espera al final, en
   // paralelo con las lecturas de abajo. Nunca rechaza: si falla, el de siempre.
   const disenoP = disenoNuevo();
