@@ -23,6 +23,7 @@ import {
   darDeBajaConexion,
   renovarConexionOAuth,
   versionDeCredenciales,
+  type ResultadoRenovacion,
 } from "@/integraciones/conexiones.server";
 import { claveMaestraDesdeEntorno } from "@/integraciones/secretos";
 import { CAMPO_SECRETO_WEBHOOK_MP, CAMPO_TOKEN_MP } from "@/plugins/mercadopago/conector";
@@ -142,7 +143,7 @@ export async function desconectarMP(tenantId: string, userId: string): Promise<n
 export async function renovarMPSiHaceFalta(
   tenantId: string,
   deps: { env?: Env; pedir?: PedirMP; ahora?: Date } = {},
-): Promise<"no_hacia_falta" | "renovado" | "otro_renovo" | "fallo"> {
+): Promise<ResultadoRenovacion> {
   const env = deps.env ?? process.env;
   const ahora = deps.ahora ?? new Date();
   const cfg = conexionMPDisponible(env);
@@ -164,6 +165,7 @@ export async function renovarMPSiHaceFalta(
         campoVence: CAMPO_TOKEN_MP,
         campoRefresh: CAMPO_REFRESH_MP,
         hayQueRenovar: (expiraEn) => hayQueRenovar(expiraEn, ahora),
+        yaVencio: (expiraEn) => !!expiraEn && expiraEn.getTime() <= ahora.getTime(),
         pedir: async (refresh) => {
           let t: TokensMP;
           try {
