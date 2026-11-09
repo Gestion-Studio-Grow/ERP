@@ -16,6 +16,7 @@ import { ArmadorYPiezas, PestanaArchivos } from "./_pestanas-diseno-archivos";
 import { PestanaCotizacion, PestanaFinanzas } from "./_pestanas-plata";
 import { PestanaRendiciones } from "./_rendiciones";
 import { PestanaDespiece } from "./_despiece";
+import { SeccionHoras } from "./_horas";
 import { tallerActivo } from "@/lib/taller-stands/datos.server";
 
 export const dynamic = "force-dynamic";
@@ -120,7 +121,12 @@ export default async function FichaProyecto({ params, searchParams }: { params: 
           <ArmadorYPiezas a={a} cab={cab} />
         </div>
       )}
-      {tab === "despiece" && <PestanaDespiece tenantId={a.tenantId} proyectoId={p.id} edita={puede(a, "ficha", "editar") || puede(a, "cotizaciones", "editar")} cotiza={puede(a, "cotizaciones", "editar")} aviso={q.aviso} />}
+      {tab === "despiece" && (
+        <>
+          <PestanaDespiece tenantId={a.tenantId} proyectoId={p.id} edita={puede(a, "ficha", "editar") || puede(a, "cotizaciones", "editar")} cotiza={puede(a, "cotizaciones", "editar")} aviso={q.aviso} />
+          <SeccionHoras tenantId={a.tenantId} proyectoId={p.id} edita={puede(a, "ficha", "editar") || puede(a, "cotizaciones", "editar")} />
+        </>
+      )}
       {tab === "finanzas" && <PestanaFinanzas a={a} cab={cab} vista={vista} filtro={q.filtro} />}
       {tab === "rendiciones" && <PestanaRendiciones a={a} proyectoId={p.id} />}
       {tab === "seguimiento" && <PestanaSeguimiento a={a} cab={cab} vista={vista} />}

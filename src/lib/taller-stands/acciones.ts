@@ -18,8 +18,10 @@ import { actorActual, proyectoVisible, puede, regenerarCuotas, registrarCambio, 
 import type { ModuloGestion } from "@/lib/proyectos/gestion-core";
 import { faltaLaTabla, itemsDelDespiece, planDePase, validarPieza, RUBRO_DESPIECE } from "./core";
 import { tallerActivo } from "./datos.server";
+import { leerFecha, personaDelNegocio, validarHoras, validarValorHora, valorHoraVigente } from "./horas";
 
 const RUTA_PIEZAS = "/admin/proyectos/taller/piezas";
+const RUTA_VALORES = "/admin/proyectos/taller/valores-hora";
 const rutaDespiece = (proyectoId: string) => `/admin/proyectos/${proyectoId}?tab=despiece`;
 const SIN_MIGRAR = "Falta habilitar las tablas del taller (migración pendiente). Avisale a GSG.";
 
@@ -186,4 +188,88 @@ export async function despieceAlPresupuesto(formData: FormData): Promise<void> {
   await regenerarCuotas(tenantId, proyectoId);
   revalidatePath(`/admin/proyectos/${proyectoId}`);
   volver(ruta, r === 0 ? "El despiece está vacío: no hay nada para pasar." : `Pasaste ${r} ítems de «${RUBRO_DESPIECE}» al presupuesto en borrador.`);
+}
+
+// ── Valor hora por persona y carga de horas (T3) ───────────────────────────
+
+/**
+ * Valor hora de una persona desde una fecha. Repetir la misma fecha lo corrige (upsert por persona + fecha): no
+ * duplica. La persona se busca con el `tenantId` del actor; la FK compuesta de la base es la segunda barrera.
+ */
+export async function guardarValorHora(formData: FormData): Promise<void> {
+  const a = await entrar(["equipo", "cotizaciones"]);
+  if (typeof a === "string") volver(RUTA_VALORES, a);
+  const personaId = txt(formData.get("personaId"));
+  const v = validarValorHora(numero(formData.get("valorHora")));
+  if (!v.ok) volver(RUTA_VALORES, v.error);
+  const vigenteDesde = leerFecha(txt(formData.get("vigenteDesde")));
+  if (!vigenteDesde) volver(RUTA_VALORES, "Poné desde qué fecha rige el valor.");
+  const { tenantId } = a;
+  const r = await conTabla(() =>
+    tenantTransaction(async (tx) => {
+      const personas = await tx.proyectoPersona.findMany({ where: { tenantId, id: personaId }, select: { id: true } });
+      if (!personaDelNegocio(personaId, personas)) return "Esa persona no es de este negocio.";
+      await tx.tallerValorHora.upsert({
+        where: { tenantId_personaId_vigenteDesde: { tenantId, personaId, vigenteDesde } },
+        create: { tenantId, personaId, valorHora: v.valor, vigenteDesde },
+        update: { valorHora: v.valor },
+      });
+      return "Valor hora guardado.";
+    }),
+  );
+  revalidatePath(RUTA_VALORES);
+  volver(RUTA_VALORES, r);
+}
+
+/**
+ * Carga horas de una persona en el stand, con el valor hora vigente en esa fecha congelado en `valorHoraSnap`.
+ * Si la persona no tiene valor hora vigente, avisa y no carga nada.
+ */
+export async function cargarHoras(formData: FormData): Promise<void> {
+  const proyectoId = txt(formData.get("proyectoId"));
+  const ruta = rutaDespiece(proyectoId);
+  const a = await entrar(["ficha", "cotizaciones"]);
+  if (typeof a === "string") volver(ruta, a);
+  if (!proyectoId || !(await proyectoVisible(a, proyectoId))) volver("/admin/proyectos", "Ese proyecto no existe.");
+  const personaId = txt(formData.get("personaId"));
+  const h = validarHoras(numero(formData.get("horas")));
+  if (!h.ok) volver(ruta, h.error);
+  const fecha = leerFecha(txt(formData.get("fecha")));
+  if (!fecha) volver(ruta, "Poné la fecha de las horas.");
+  const nota = txt(formData.get("nota")).slice(0, 200) || null;
+  const { tenantId } = a;
+  const r = await conTabla(() =>
+    tenantTransaction(async (tx) => {
+      const persona = await tx.proyectoPersona.findFirst({ where: { tenantId, id: personaId }, select: { id: true, nombre: true } });
+      if (!persona || !personaDelNegocio(personaId, [persona])) return "Esa persona no es de este negocio.";
+      const valores = await tx.tallerValorHora.findMany({ where: { tenantId, personaId }, select: { valorHora: true, vigenteDesde: true } });
+      const snap = valorHoraVigente(valores, fecha);
+      if (snap == null) return `${persona.nombre} no tiene valor hora para esa fecha. Cargalo en «Valor hora por persona» y volvé a intentar.`;
+      const carga = await tx.tallerHora.create({ data: { tenantId, proyectoId, personaId, fecha, horas: h.horas, valorHoraSnap: snap, nota }, select: { id: true } });
+      await registrarCambio(tx, { tenantId, proyectoId, entidad: "TallerHora", entidadId: carga.id, campo: "Horas", despues: `${persona.nombre}: ${h.horas} h`, autor: a.nombre });
+      return "Horas cargadas.";
+    }),
+  );
+  revalidatePath(`/admin/proyectos/${proyectoId}`);
+  volver(ruta, r);
+}
+
+export async function borrarHoras(formData: FormData): Promise<void> {
+  const proyectoId = txt(formData.get("proyectoId"));
+  const ruta = rutaDespiece(proyectoId);
+  const a = await entrar(["ficha", "cotizaciones"]);
+  if (typeof a === "string") volver(ruta, a);
+  if (!proyectoId || !(await proyectoVisible(a, proyectoId))) volver("/admin/proyectos", "Ese proyecto no existe.");
+  const id = txt(formData.get("id"));
+  const { tenantId } = a;
+  const r = await conTabla(() =>
+    tenantTransaction(async (tx) => {
+      const borradas = (await tx.tallerHora.deleteMany({ where: { id, tenantId, proyectoId } })).count;
+      if (borradas > 0) await registrarCambio(tx, { tenantId, proyectoId, entidad: "TallerHora", entidadId: id, campo: "Horas", despues: "carga borrada", autor: a.nombre });
+      return borradas > 0;
+    }),
+  );
+  if (r === SIN_MIGRAR) volver(ruta, r);
+  revalidatePath(`/admin/proyectos/${proyectoId}`);
+  volver(ruta, r ? "Carga de horas borrada." : "Esa carga ya no estaba.");
 }

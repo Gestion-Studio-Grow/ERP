@@ -270,6 +270,8 @@ model Tenant {
   proyectoStands            ProyectoStand[]
   tallerPiezas              TallerPieza[]
   tallerDespieces           TallerDespiece[]
+  tallerValoresHora         TallerValorHora[]
+  tallerHoras               TallerHora[]
   consultas                 Consulta[]
   consultaMensajes          ConsultaMensaje[]
   voucherLotes              VoucherLote[]
@@ -3554,6 +3556,7 @@ model Proyecto {
   archivos            ProyectoArchivo[]
   stands              ProyectoStand[]
   despiece            TallerDespiece[]
+  tallerHoras         TallerHora[]
   consultas           Consulta[]
   entregables         ProyectoEntregable[]
   cuotas              ProyectoCuota[]
@@ -3815,6 +3818,42 @@ model TallerDespiece {
   @@index([tenantId, proyectoId])
 }
 
+// TALLER DE STANDS (GSG-MIA-004 · T3). Valor hora POR PERSONA (decisión del dueño), con vigencia: el vigente en
+// una fecha es el último con `vigenteDesde` <= esa fecha. FK compuesta (personaId, tenantId): la base no deja
+// apuntar a una persona de otro negocio. ProyectoPersona NO lleva columnas nuevas (modelo compartido con MIA).
+model TallerValorHora {
+  id           String          @id @default(cuid())
+  tenant       Tenant          @relation(fields: [tenantId], references: [id])
+  tenantId     String
+  persona      ProyectoPersona @relation(fields: [personaId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  personaId    String
+  valorHora    Float
+  vigenteDesde DateTime
+  createdAt    DateTime        @default(now())
+
+  @@unique([tenantId, personaId, vigenteDesde])
+  @@index([tenantId, personaId])
+}
+
+// Horas cargadas a un stand (= Proyecto), con el valor hora congelado al cargarlas (`valorHoraSnap`).
+model TallerHora {
+  id            String          @id @default(cuid())
+  tenant        Tenant          @relation(fields: [tenantId], references: [id])
+  tenantId      String
+  proyecto      Proyecto        @relation(fields: [proyectoId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  proyectoId    String
+  persona       ProyectoPersona @relation(fields: [personaId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  personaId     String
+  fecha         DateTime
+  horas         Float
+  valorHoraSnap Float
+  nota          String?
+  createdAt     DateTime        @default(now())
+
+  @@index([tenantId, proyectoId])
+  @@index([tenantId, personaId])
+}
+
 /// Consulta de un potencial cliente que llegó por el formulario del sitio, mail, WhatsApp o se cargó a mano. Es el lead antes de ser proyecto.
 model Consulta {
   id              String            @id @default(cuid())
@@ -3955,6 +3994,9 @@ model ProyectoPersona {
   liquidaciones ProyectoLiquidacion[]
   rendiciones   ProyectoRendicion[]
   anticipos     ProyectoAnticipo[]
+  // Taller de stands T3: relaciones virtuales (sin columnas en esta tabla, que es compartida con MIA).
+  tallerValoresHora TallerValorHora[]
+  tallerHoras       TallerHora[]
   createdAt     DateTime              @default(now())
 
   @@unique([tenantId, userId])

@@ -23,6 +23,7 @@ export default async function CatalogoPiezas({ searchParams }: { searchParams: P
     <main className="mx-auto w-full max-w-5xl px-4 py-5">
       <Link href="/admin/proyectos" className="inline-flex min-h-11 items-center text-sm underline">← Proyectos</Link>
       <h1 className="mb-1 text-2xl font-bold text-strong">Catálogo de piezas</h1>
+      <p className="mb-2 text-sm"><Link href="/admin/proyectos/taller/valores-hora" className="underline">Valor hora por persona</Link></p>
       <p className="mb-4 text-sm text-muted">Lo que el taller fabrica o compra para armar un stand, con su costo interno. Ese costo nunca sale en un presupuesto.</p>
       {aviso && <p role="status" className="mb-4 rounded-lg border border-line bg-surface px-3 py-2 text-sm">{aviso}</p>}
 
