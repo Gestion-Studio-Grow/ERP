@@ -82,7 +82,7 @@
 # integrantes y cobro por persona (E7). Aditiva: tablas "PadelClub", "PadelSerie", "PadelIntegrante"
 # con RLS adentro y tres columnas nulables ("PadelDisponibilidad"."clubId", "PadelClase"."clubId",
 # "PadelClase"."serieId"). Orden del dueño del 08/11; respaldo de Neon antes del merge.
-20261108120000_profeturnos_clubes_serie_grupal
+# (aplicada por el build de producción del merge de #43; #47 publicó READY el 08/11 sobre esa base: sale de la lista) 20261108120000_profeturnos_clubes_serie_grupal
 #
 # 2026-11-09 · seguridad (GSG-SEG-008): cambio obligatorio de contraseña en el próximo ingreso. Aditiva: columna
 # "User"."mustChangePassword" BOOLEAN NOT NULL DEFAULT false (antes prisma/pending-gate2/MustChangePassword.sql).

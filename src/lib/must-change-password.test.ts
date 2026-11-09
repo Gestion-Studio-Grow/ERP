@@ -63,6 +63,10 @@ test("set OK → persisted:true", async () => {
   assert.deepEqual(await operatorSetMustChange(fakeRaw({ exec: () => 1 }), "u1", true), { persisted: true });
 });
 
+test("set que no toca ninguna fila (id ajeno o RLS) → persisted:false: falla cerrado", async () => {
+  assert.deepEqual(await operatorSetMustChange(fakeRaw({ exec: () => 0 }), "u1", true), { persisted: false });
+});
+
 test("set con columna inexistente → persisted:false (no rompe)", async () => {
   const db = fakeRaw({ exec: () => { throw pgError("42703"); } });
   assert.deepEqual(await operatorSetMustChange(db, "u1", true), { persisted: false });

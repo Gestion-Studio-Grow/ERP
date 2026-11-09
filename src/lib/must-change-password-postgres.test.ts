@@ -47,7 +47,11 @@ test("con la migración: el flag se marca desde la consola, la app lo ve, B no l
 
   // Parado en B no se ve ni se pisa la fila de A (RLS).
   assert.equal(await enElNegocio(b.tenantId, (tx) => mc.operatorReadMustChange(tx, a.id)), false);
-  await enElNegocio(b.tenantId, (tx) => mc.operatorSetMustChange(tx, a.id, false));
+  assert.deepEqual(
+    await enElNegocio(b.tenantId, (tx) => mc.operatorSetMustChange(tx, a.id, false)),
+    { persisted: false },
+    "desde B el UPDATE no toca la fila de A: no cuenta como marcado",
+  );
   assert.equal(await mc.mustChangePasswordFor({ id: a.id, tenantId: b.tenantId }), false, "con el negocio de B no se lee A");
   assert.equal(await mc.mustChangePasswordFor(a), true, "B no pudo bajar el flag de A");
   assert.equal(await mc.mustChangePasswordFor(b), false);
@@ -134,4 +138,10 @@ test("sin la columna: el reset y el alta fallan cerrado (ninguna provisoria, nad
   // La lectura sin columna no traba a nadie (y sin columna no hay provisorias que forzar).
   assert.equal(await mc.mustChangePasswordFor(a), false);
   assert.equal(await enElNegocio(a.tenantId, (tx) => mc.operatorReadMustChange(tx, a.id)), "pendiente");
+
+  // Se aplica la migración en caliente: la lectura se entera en el acto (el «no existe» no se recuerda),
+  // así que una provisoria emitida apenas después obliga al cambio sin ventana.
+  await duenio.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN "mustChangePassword" BOOLEAN NOT NULL DEFAULT false`);
+  assert.deepEqual(await enElNegocio(a.tenantId, (tx) => mc.operatorSetMustChange(tx, a.id, true)), { persisted: true });
+  assert.equal(await mc.mustChangePasswordFor(a), true);
 });

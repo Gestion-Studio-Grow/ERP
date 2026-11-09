@@ -55,21 +55,15 @@ export function isMissingColumn(e: unknown): boolean {
 // frágiles (o pools chicos) eso ensucia la conexión. En vez de eso probamos la existencia con una
 // consulta al catálogo (`information_schema`, no toca RLS ni abre transacción) y sólo entramos a
 // la transacción con GUC cuando la columna EXISTE → la lectura del flag nunca aborta nada.
-// Memoizado: una vez que da true, no vuelve a chequear (la columna no desaparece sin reinicio);
-// mientras dé false/errore, reintenta (cubre el momento justo tras aplicar la migración).
+// Memoizado SÓLO el positivo: una vez que da true, no vuelve a chequear (la columna no desaparece
+// sin reinicio). El negativo NO se recuerda: un «no existe» viejo dejaría pasar, apenas aplicada la
+// migración, una provisoria recién emitida sin forzar el cambio. Con la columna en schema.prisma, la
+// base de producción la tiene siempre (el build frena si está atrasada): el costo de no recordar el
+// negativo sólo lo paga una base de desarrollo atrasada.
 let _columnPresent = false;
-// El NEGATIVO también se recuerda, pero con vencimiento. Mientras la migración no esté
-// aplicada (hoy, Gate 2 pendiente) la respuesta es "no existe" — y sin este recuerdo el
-// backoffice le preguntaba al catálogo en CADA request de CADA pantalla. Es una query
-// entera por pantalla para confirmar algo que cambia una sola vez en la vida del sistema.
-// Con el vencimiento corto se conserva la propiedad que import a: aplicada la migración, el
-// sistema se entera solo en menos de un minuto, sin reiniciar nada.
-const AUSENCIA_TTL_MS = 60_000;
-let _ausenciaHasta = 0;
 // `null` = no se pudo preguntar (catálogo caído): el llamador decide (la lectura falla cerrado).
-async function userFlagColumnExists(now: number = Date.now()): Promise<boolean | null> {
+async function userFlagColumnExists(): Promise<boolean | null> {
   if (_columnPresent) return true;
-  if (now < _ausenciaHasta) return false;
   const rows = await basePrisma
     .$queryRaw`SELECT 1 FROM information_schema.columns
       WHERE table_schema = 'public' AND table_name = 'User' AND column_name = 'mustChangePassword'
@@ -77,7 +71,6 @@ async function userFlagColumnExists(now: number = Date.now()): Promise<boolean |
     .catch(() => null);
   if (rows === null) return null; // catálogo no disponible: reintentar ya, no cachear
   _columnPresent = Array.isArray(rows) && rows.length > 0;
-  if (!_columnPresent) _ausenciaHasta = now + AUSENCIA_TTL_MS;
   return _columnPresent;
 }
 
@@ -159,9 +152,8 @@ export async function operatorReadMustChange(db: RawClient, userId: string): Pro
   }
 }
 
-// Setea el flag desde el operador (reset de contraseña). Devuelve `persisted:false` si la
-// columna todavía no existe — el reset de la contraseña en sí SÍ funcionó (es un UPDATE de
-// `passwordHash` aparte); solo el cambio-forzado queda inerte hasta aplicar la migración.
+// Setea el flag desde el operador (reset y alta). Devuelve `persisted:false` si la columna todavía
+// no existe o si el UPDATE no tocó exactamente una fila: el llamador falla cerrado (no emite provisoria).
 export async function operatorSetMustChange(
   db: RawClient,
   userId: string,
@@ -169,10 +161,11 @@ export async function operatorSetMustChange(
 ): Promise<{ persisted: boolean }> {
   if (!(await hayColumnaMustChange(db))) return { persisted: false };
   try {
-    await db.$executeRaw`
+    // Exactamente una fila: si RLS o un id ajeno dejan el UPDATE en 0, el flag NO quedó marcado.
+    const filas = await db.$executeRaw`
       UPDATE "User" SET "mustChangePassword" = ${value} WHERE "id" = ${userId}
     `;
-    return { persisted: true };
+    return { persisted: filas === 1 };
   } catch (e) {
     if (isMissingColumn(e)) return { persisted: false };
     throw e;
