@@ -1,20 +1,20 @@
 // FACTURITA · Marco de la vidriera pública (landing, alta, planes y legales): piel Fable en claro,
-// el acento verde de Factoque, el papel del talonario, la barra de arriba y el pie. Sin base ni
+// el acento cobre de la marca (preset `cobre`, branding.ts), el papel del talonario, la barra de arriba y el pie. Sin base ni
 // sesión (PD-1): todo sale de constantes, así las páginas pueden ser `force-static`.
 //
 // El CSS de la vidriera (`piel.ts`) se imprime ACÁ, en el servidor: si lo importara un componente
 // cliente viajaría dos veces (HTML y JS). Ver vidriera-de-autor §5.
 
 import type { CSSProperties, ReactNode } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { resolveAccent } from "@/lib/branding";
 import { BOTON_CHICO, BOTON_PRINCIPAL } from "./estilos";
 import { PIEL_FACTURITA } from "./piel";
 import BarraFija from "./BarraFija";
+import LogoFactoque from "./LogoFactoque";
 
-const claro = resolveAccent("monte", "light");
-const oscuro = resolveAccent("monte", "dark");
+const claro = resolveAccent("cobre", "light");
+const oscuro = resolveAccent("cobre", "dark");
 
 const ESTILO_ACENTO = {
   "--tenant-accent-light": claro.accent,
@@ -63,8 +63,7 @@ export default function VidrieraMarco({
       <header className="fx-barra">
         <div className="fx-caja fx-barra-fila">
           <Link href="/facturita" className="fx-marca">
-            <Image src="/facturita/icon.svg" alt="" width={36} height={36} priority />
-            Factoque
+            <LogoFactoque alto={64} />
           </Link>
           <nav aria-label="Factoque" className="fx-nav">
             <Link href="/facturita/planes" className="fx-nav-item">

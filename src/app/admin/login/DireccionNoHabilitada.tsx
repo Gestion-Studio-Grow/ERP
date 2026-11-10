@@ -15,7 +15,7 @@ export default function DireccionNoHabilitada({ whatsappGsg }: { whatsappGsg: st
     <main className="flex min-h-dvh flex-col bg-[#f4f5f4] text-[17px] leading-relaxed text-[#35363a] [background-image:radial-gradient(rgba(25,27,28,.07)_.8px,transparent_.9px)] [background-size:24px_24px]">
       <header className="mx-auto flex h-16 w-full max-w-5xl items-center px-6 text-[#191b1c] sm:h-[72px]">
         <a href="/sin-negocio" className="inline-flex min-h-11 items-center" aria-label="GSG — Gestión Studio Grow">
-          <LogoGSG alto={30} />
+          <LogoGSG alto={56} />
         </a>
       </header>
       <div className="mx-auto flex w-full max-w-xl flex-1 flex-col justify-center px-6 pb-16">
