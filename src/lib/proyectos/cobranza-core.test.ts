@@ -830,3 +830,14 @@ test("v5 (e): una cuota en USD de un proyecto en pesos pagada con el dólar a 10
   assert.equal(pagadoDeCuota(qi("N", 10, 1), c), null);
   assert.equal(pagadoDeCuota({ ...U, tipo: "PAGO" }, c), null);
 });
+
+test("v6 F1-bis: proyecto USD sin cobros, 211,54 + 268,68 USD a 975,01: pendientes exactos y marcar todo salda a 0", () => {
+  const tcHoy = 975.01;
+  const cuotas = [q(211.54, -5, { moneda: "USD" }), q(268.68, 10, { moneda: "USD" })];
+  const c = cobranzaEnMoneda(480.22 * tcHoy, [], { moneda: "USD", cambioVenta: tcHoy, tcHoy });
+  assert.deepEqual(pendientesDeCobro(cuotas, { USD: tcHoy }, c), [211.54, 268.68]);
+  const pagado = cobranzaEnMoneda(480.22 * tcHoy, [211.54, 268.68].map((m) => ({ monto: m * tcHoy, original: { monto: m, moneda: "USD" } })), { moneda: "USD", cambioVenta: tcHoy, tcHoy });
+  assert.equal(pagado.porCobrar, 0);
+  const r = conciliarConCobros(cuotas, { USD: tcHoy }, c, HOY);
+  assert.ok(r.cobrosVencidos + r.aCobrar7 <= c.porCobrar, "en pantalla, vencido + 7 días ≤ por cobrar");
+});
