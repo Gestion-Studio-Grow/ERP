@@ -371,7 +371,7 @@
 .pieSello { margin-top: 0.5rem; }
 
 /* ── Páginas legales ── */
-.legal { max-width: 42rem; margin: 0 auto; padding: 1.5rem 1rem 2rem; }
+.legal { max-width: 42rem; margin: 0 auto; padding: 1.5rem 1rem 2rem; overflow-wrap: anywhere; }
 .legal h1 {
   font-family: var(--font-display), Georgia, serif;
   font-size: clamp(1.75rem, 6vw, 2.25rem);

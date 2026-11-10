@@ -10,10 +10,13 @@
 // AuditLog (patrón de src/lib/envios/config.ts) cuando haya un segundo comercio. Hoy, uno solo.
 //
 // LOS DATOS DE BITÁCORA CAFÉ SON PROVISIONALES A CONFIRMAR con el local: alias, titular, dirección,
-// coordenadas, radio y horario. Sin la autorización registrada del cliente para usar su marca, la
-// vidriera va con la marca GSG y el nombre del local en texto (norma «Preset de cliente»).
+// coordenadas, radio y horario. MARCA: Bitácora tiene autorización registrada
+// (docs/tenants/bitacora/AUTORIZACION-MARCA.md), pero todavía no hay material (logo, colores, fotos:
+// marca-y-material.md). Mientras `marca` no traiga nada, la vidriera va con la piel GSG y el nombre
+// del local en texto. Un negocio SIN autorización registrada no lleva `marca` (ADR-042).
 
 import type { MedioPreferido } from "./pago";
+import type { MarcaDelLocal } from "./marca";
 
 export type ConfigDeliveryLocal = {
   /** Nombre que se muestra del comercio. */
@@ -35,6 +38,11 @@ export type ConfigDeliveryLocal = {
   cuit: string | null;
   /** Se marca en pantalla cuando algún dato todavía no lo confirmó el local. */
   provisional: boolean;
+  /**
+   * Identidad del local en SU vidriera, todo opcional (src/lib/delivery-local/marca.ts decide qué se
+   * puede usar sin romper el contraste). Sin esto, piel GSG. Sólo con autorización registrada.
+   */
+  marca?: MarcaDelLocal;
 };
 
 const PROVISIONAL = "provisional a confirmar";
@@ -54,6 +62,9 @@ export const CONFIGS_DELIVERY_LOCAL: Readonly<Record<string, ConfigDeliveryLocal
     razonSocial: `Bitácora Café (${PROVISIONAL})`,
     cuit: null,
     provisional: true,
+    // Autorizada (AUTORIZACION-MARCA.md), sin material todavía: cuando el local pase logo, colores y
+    // la foto de portada (Drive, no Git), se cargan acá. Vacío = piel GSG.
+    marca: {},
   },
 });
 
