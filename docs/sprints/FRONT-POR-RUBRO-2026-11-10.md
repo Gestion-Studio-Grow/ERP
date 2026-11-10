@@ -215,6 +215,17 @@ Una ronda = 1 o 2 constructores, un frente a la vez; lo que toque plata (checkou
 - **Criollo**: cero textos en inglés o tecnicismos en pantallas de cliente; estados vacíos con salida.
 - **Confiabilidad**: `tsc` + suites en verde (resumen `n/n`), ningún test rojo nuevo por nombre contra `main`.
 
+**Con qué se mide hoy (verificado en `package.json` y `.github/workflows`):**
+- **No hay** gate de Lighthouse ni de web-vitals: grep `lighthouse|web-vitals|LCP` en `scripts/`, `.github/` y
+  `package.json` da 0. El criterio de performance de arriba hoy **no lo controla nadie**: D5 implica construirlo.
+- **Sí hay** recorridos de punta a punta por negocio: `test:ch-uat`, `test:ch-mostrador-e2e`, `test:magra-uat`,
+  `test:mostrador-e2e`, `test:balanza-e2e`, `test:turnero-e2e`, `test:club-uat` (`package.json:30-39`). La ronda 0
+  los reutiliza para contar toques y sacar capturas en vez de armar un arnés nuevo.
+- **Sí hay** tests de contraste AA (3 archivos), de objetivo de toque (9) y de navegador (3) bajo `src/`. Faltan
+  equivalentes para Qué Bien Olés, inmobiliaria, taller y gastronomía (sin recorrido propio en `package.json`).
+- El menú del backoffice se recorta por rubro con tres banderas (`retailOnly`, `carniceriaOnly`, `agendaOnly`,
+  `src/lib/admin-nav-items.ts:179-187`): gastronomía, oficios y verticales no tienen bandera propia.
+
 ## 6. Relevo para Opus (ronda 0)
 
 1. `npm run brain`; leer sólo §1 y §3 de este archivo.
