@@ -16,7 +16,7 @@ import { transferenciaEnElLibroTx } from "@/lib/caja/transferencia-en-el-libro";
 import type { Prisma } from "@/generated/prisma/client";
 import { esEtapa, etapaAlAprobar, etapaLabel, MEDIOS, metodoDeCaja, redondear, sePuedeEditar, sumarDias, type MedioPago } from "./core";
 import { configProyectos } from "./datos.server";
-import { cambioDeVenta, aPesos, CHECKLIST_BASE, ESTADOS_ITEM, MONEDAS, RUBROS, TIPOS_EVENTO } from "./gestion-core";
+import { cambioDeVenta, cambioDelCobro, aPesos, CHECKLIST_BASE, ESTADOS_ITEM, MONEDAS, RUBROS, TIPOS_EVENTO } from "./gestion-core";
 import { avisar, columnasOcultas, exigirEditar, usuariosDelEquipo, usuariosDeDireccion, usuariosDeLaPlata, proyectoVisible, puede, regenerarCuotas, registrarCambio, tiposDeCambio, type Actor } from "./gestion.server";
 import { tipoDeArchivoSubido, clavesARenombrar, fechaAntesDe, fotoDeVersion, itemDeClave, linkSeguro, monedasSinCambio, numeroDe, PERDIDO, precioAlCopiar, precioAlEnviar, servicioDeTipo } from "./ficha-core";
 import { marcaDeGastoProyecto } from "./marcas";
@@ -775,7 +775,9 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
     const base = { tenantId, sessionId: session?.id ?? null, method, amount: importe };
     let asiento: string;
     if (esCobro) {
-      const pago = await tx.proyectoPago.create({ data: { tenantId, proyectoId, medio, monto: importe, nota: c.concepto.slice(0, 200), cobradoPor: a.nombre }, select: { id: true } });
+      // D13: el cobro recuerda su cuota y queda fijado al tipo de cambio de este momento.
+      const fijado = cambioDelCobro({ montoPesos: importe, moneda: c.moneda, tiposDeCambio: tc, cuota: { id, monto: c.monto } });
+      const pago = await tx.proyectoPago.create({ data: { tenantId, proyectoId, medio, monto: importe, nota: c.concepto.slice(0, 200), cobradoPor: a.nombre, ...fijado }, select: { id: true } });
       asiento = pago.id;
       await tx.cashMovement.create({ data: { ...base, type: "VENTA", reason: `${etiqueta}${cheque}`, proyectoPagoId: pago.id, createdBy: a.user.name } });
     } else {

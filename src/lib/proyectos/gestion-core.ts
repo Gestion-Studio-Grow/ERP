@@ -61,6 +61,28 @@ export function aPesos(monto: number, moneda: string, tiposDeCambio: Readonly<Re
   return redondear(monto * (tiposDeCambio[moneda] ?? 0));
 }
 
+/**
+ * D13: qué guarda un cobro de proyecto además de los pesos que entraron a la caja. Fija el tipo de cambio del MOMENTO del
+ * cobro, así ese cobro no cambia de valor cuando después se actualiza el tipo de cambio del negocio.
+ * - Con cuota: la cuota y su monto en su moneda (un cobro en pesos de una cuota en dólares guarda los dólares que pagó).
+ * - Sin cuota (cobro cargado a mano, en pesos): el monto pasado a la moneda del proyecto al cambio del día.
+ * - `tipoCambio` es pesos por unidad de la moneda: 1 en pesos. Si falta, quedan nulos los dos: nunca frena el cobro.
+ */
+export type CambioDelCobro = { cuotaId: string | null; montoMoneda: number | null; tipoCambio: number | null };
+
+export function cambioDelCobro(entrada: {
+  montoPesos: number;
+  moneda: string;
+  tiposDeCambio: Readonly<Record<string, number>>;
+  cuota?: { id: string; monto: number } | null;
+}): CambioDelCobro {
+  const cuotaId = entrada.cuota?.id ?? null;
+  const tipoCambio = entrada.moneda === "ARS" ? 1 : entrada.tiposDeCambio[entrada.moneda];
+  if (!(typeof tipoCambio === "number" && Number.isFinite(tipoCambio) && tipoCambio > 0)) return { cuotaId, montoMoneda: null, tipoCambio: null };
+  const montoMoneda = entrada.cuota ? entrada.cuota.monto : redondear(entrada.montoPesos / tipoCambio);
+  return { cuotaId, montoMoneda, tipoCambio };
+}
+
 export function plataEn(monto: number, moneda: string): string {
   const d = Number.isInteger(redondear(monto)) ? 0 : 2;
   return new Intl.NumberFormat("es-AR", { style: "currency", currency: moneda === "USD" ? "USD" : "ARS", minimumFractionDigits: d, maximumFractionDigits: d }).format(monto);

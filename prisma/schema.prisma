@@ -3659,8 +3659,16 @@ model ProyectoPago {
   anuladoPor String?
   asientos   CashMovement[]
   createdAt  DateTime       @default(now())
+  // D13 (opción a): qué cuota pagó este cobro y a qué tipo de cambio quedó fijado. Nulas en los cobros viejos y en los
+  // cargados a mano sin cuota; `tipoCambio` = pesos por unidad de la moneda al momento del cobro (1 en pesos).
+  // `cuotaId` sin clave foránea a propósito: la migración no toca restricciones de tablas existentes (sólo aditiva).
+  // La escribe sólo marcarCuota con una cuota del mismo negocio; si la cuota después se borra, queda como rastro.
+  cuotaId     String?
+  montoMoneda Float?
+  tipoCambio  Float?
 
   @@index([tenantId, proyectoId])
+  @@index([tenantId, cuotaId])
 }
 
 // Lo que realmente se paga o se debe por un trabajo. `neto` es lo que se compara contra el costo presupuestado,

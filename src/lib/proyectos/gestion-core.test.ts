@@ -1,7 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  aPesos,
   appDeGestionVisible,
+  cambioDelCobro,
   calendarioIcs,
   cambiosEntreVersiones,
   cashflowDelEvento,
@@ -385,4 +387,32 @@ test("Rendí: matriz de rendiciones (plan MIA §2)", async () => {
   assert.equal(puedeReintegrarRendicion("ADMINISTRACION", "a1", "c2"), true);
   assert.deepEqual(permisoDe("ADMINISTRACION", "rendiciones", []), { ver: true, editar: true });
   assert.deepEqual(permisoDe("COMERCIAL", "rendiciones", []), { ver: true, editar: false });
+});
+
+// ── D13: el cobro queda fijado a su cuota y al tipo de cambio del momento ──────────────────────────────────────────────
+test("cambioDelCobro: cuota en dólares cobrada en pesos guarda los dólares y el cambio del momento", () => {
+  const tc = { USD: 1200 };
+  const fijado = cambioDelCobro({ montoPesos: aPesos(500, "USD", tc), moneda: "USD", tiposDeCambio: tc, cuota: { id: "c1", monto: 500 } });
+  assert.deepEqual(fijado, { cuotaId: "c1", montoMoneda: 500, tipoCambio: 1200 });
+  // Cambia el tipo de cambio después: lo ya fijado no se recalcula (es un valor, no una referencia).
+  tc.USD = 1500;
+  assert.deepEqual(fijado, { cuotaId: "c1", montoMoneda: 500, tipoCambio: 1200 });
+});
+
+test("cambioDelCobro: en pesos el cambio es 1 y el monto en moneda es el de la cuota", () => {
+  assert.deepEqual(cambioDelCobro({ montoPesos: 80000, moneda: "ARS", tiposDeCambio: {}, cuota: { id: "c2", monto: 80000 } }), { cuotaId: "c2", montoMoneda: 80000, tipoCambio: 1 });
+});
+
+test("cambioDelCobro: cobro a mano (sin cuota) de un proyecto en dólares pasa los pesos a dólares al cambio del día", () => {
+  assert.deepEqual(cambioDelCobro({ montoPesos: 250000, moneda: "USD", tiposDeCambio: { USD: 1000 } }), { cuotaId: null, montoMoneda: 250, tipoCambio: 1000 });
+  assert.deepEqual(cambioDelCobro({ montoPesos: 100000, moneda: "USD", tiposDeCambio: { USD: 3 } }), { cuotaId: null, montoMoneda: 33333.33, tipoCambio: 3 });
+  assert.deepEqual(cambioDelCobro({ montoPesos: 1500, moneda: "ARS", tiposDeCambio: {} }), { cuotaId: null, montoMoneda: 1500, tipoCambio: 1 });
+});
+
+test("cambioDelCobro: sin tipo de cambio (o inválido) quedan nulos y no frena el cobro", () => {
+  for (const malo of [undefined, 0, -5, Number.NaN, Number.POSITIVE_INFINITY]) {
+    const tc: Record<string, number> = malo === undefined ? {} : { USD: malo };
+    assert.deepEqual(cambioDelCobro({ montoPesos: 1000, moneda: "USD", tiposDeCambio: tc, cuota: { id: "c3", monto: 1 } }), { cuotaId: "c3", montoMoneda: null, tipoCambio: null });
+    assert.deepEqual(cambioDelCobro({ montoPesos: 1000, moneda: "USD", tiposDeCambio: tc }), { cuotaId: null, montoMoneda: null, tipoCambio: null });
+  }
 });

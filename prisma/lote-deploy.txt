@@ -112,3 +112,9 @@
 # 20261108130000_user_pin (#50: tabla aparte). El lote se compara en orden de timestamp: al integrar con #50,
 # user_pin va arriba de ésta (o comentada, si #50 ya se publicó). #50, #48 y #53 ya publicadas el 09/11.
 20261109120000_must_change_password
+#
+# 2026-11-10 · D13 opción a (orden del dueño vía ORQ-006): cada cobro de un proyecto guarda qué cuota pagó y a qué tipo
+# de cambio quedó fijado. Aditiva: tres columnas NULLABLE en "ProyectoPago" ("cuotaId", "montoMoneda", "tipoCambio"),
+# sin default ni backfill, y un índice. Sin clave foránea (no toca restricciones de tablas existentes). Sin aplicar:
+# Gate 2, con OK del dueño antes de publicar.
+20261110120000_proyecto_pago_cuota
