@@ -442,8 +442,12 @@ function generarCaso(semilla: number): Caso {
 
 const cobranzaDelCaso = (k: Caso, cobros = k.cobros) => cobranzaEnMoneda(k.totalPesos, cobros, { moneda: k.moneda, cambioVenta: k.cambioVenta, tcHoy: k.tc.USD });
 const vivaDeCobro = (q: CuotaLeida) => q.tipo === "COBRO" && !q.anuladoEl;
-/** El redondeo al centavo de cada cuota (y, en un proyecto en USD, del saldo en USD) pasado a pesos: medio centavo × tc. */
-const tolerancia = (k: Caso) => 0.01 + (k.moneda === "ARS" ? 0 : 0.012 * k.tc.USD) + k.cuotas.reduce((s, q) => s + (q.moneda === "ARS" ? 0.01 : 0.006 * k.tc.USD), 0);
+/**
+ * El redondeo al centavo de cada cuota (y, en un proyecto en USD, del saldo en USD) pasado a pesos: lo cobrado de una cuota
+ * en USD se pasa a su moneda al centavo PARA ABAJO (V4-1: así una línea del cashflow nunca supera lo que entró), hasta un
+ * centavo × tc por cuota.
+ */
+const tolerancia = (k: Caso) => 0.01 + (k.moneda === "ARS" ? 0 : 0.012 * k.tc.USD) + k.cuotas.reduce((s, q) => s + (q.moneda === "ARS" ? 0.01 : 0.011 * k.tc.USD), 0);
 const CASOS = Array.from({ length: 500 }, (_, i) => generarCaso(20261110 + i));
 
 test("D-a I1: Σ pendientes (en pesos de hoy) ≤ por cobrar, en los 500 casos con aprobado", () => {
@@ -536,6 +540,84 @@ test("D-e: cashflow del evento: las líneas de cobro (lo que entró + lo que fal
   // Un pago a proveedor sigue con su monto; una cuota de cobro pagada, con lo que entró (no su monto).
   assert.equal(montoEnCashflow({ tipo: "PAGO", monto: 700, cobrado: 0, pendiente: 0 }), 700);
   assert.equal(montoEnCashflow({ tipo: "COBRO", monto: 700, cobrado: 400, pendiente: 0 }), 400);
+});
+
+// ── Certificación v4 ──────────────────────────────────────────────────────────────────────────────────────
+
+/** Σ de las líneas de cobro del cashflow del evento, en pesos de hoy. */
+const lineasDeCobro = (cuotas: readonly CuotaLeida[], tc: Record<string, number>, c: Cobranza) => {
+  const r = repartoDeCobros(cuotas, tc, c);
+  const { lineas } = cashflowDelEvento(cuotas.map((q, i) => ({ ...q, pendiente: r.pendiente[i], cobrado: r.cobrado[i] })), tc, montoEnCashflow);
+  return { r, suma: lineas.filter((l) => l.cuota.tipo === "COBRO").reduce((s, l) => s + l.importe, 0) };
+};
+
+test("V4-1: proyecto en pesos, cuota USD marcada con el dólar a 1000; con el dólar a 1500, 500 o 1000 vale los pesos que entraron (Σ cobro ≤ total, I3 en H)", () => {
+  const cuotas = [qi("U", 100, -10, { moneda: "USD", pagadoEl: dias(-10) }), qi("B", 100_000, 10)];
+  const cobros: CobroRegistrado[] = [{ monto: 100_000, cuotaId: "U", original: { monto: 100, moneda: "USD" } }];
+  for (const [dolar, enUsd] of [[1500, 66.66], [500, 200], [1000, 100]] as const) {
+    const tc = { USD: dolar };
+    const c = cobranza(200_000, cobros);
+    const { r, suma } = lineasDeCobro(cuotas, tc, c);
+    assert.equal(r.cobrado[0], enUsd, `dólar ${dolar}`); // 100.000 pesos en USD de hoy, al centavo para abajo
+    assert.deepEqual(r.pendiente, [0, 100_000], `dólar ${dolar}: la cuota en USD sigue completa (se mide en su moneda)`);
+    assert.ok(suma <= c.total + 0.01, `dólar ${dolar}: Σ cobro ${suma} > total ${c.total}`);
+    // I3 en H: lo contado por la cuota marcada son los pesos que entraron (al centavo de USD × tc).
+    assert.ok(Math.abs(aPesos(r.cobrado[0], "USD", tc) - 100_000) <= 0.01 * dolar, `dólar ${dolar}: I3`);
+  }
+  // Proyecto en USD con la cuota en USD: lo que pagó el cliente en dólares vale sus dólares (no los pesos de aquel día).
+  const v = (dolar: number) => ({ moneda: "USD", cambioVenta: 1000, tcHoy: dolar });
+  const cuotasUsd = [qi("U", 100, -10, { moneda: "USD", pagadoEl: dias(-10) }), qi("V", 100, 10, { moneda: "USD" })];
+  for (const dolar of [1500, 500]) {
+    const c = cobranzaEnMoneda(200_000, cobros, v(dolar));
+    const { r, suma } = lineasDeCobro(cuotasUsd, { USD: dolar }, c);
+    assert.deepEqual(r, { cobrado: [100, 0], pendiente: [0, 100] }, `dólar ${dolar}`);
+    assert.ok(Math.abs(suma - c.total) <= 0.01, `dólar ${dolar}: Σ cobro ${suma} vs total ${c.total}`);
+  }
+});
+
+const previstasV4 = () => [qi("A", 600, -30, { prevista: true }), qi("S", 400, -20, { prevista: true }), qi("M", 300, -5)];
+
+test("V4-2: las previstas no entran al reparto: la cuota real vencida queda en 300 en la ficha, en «Marcar cobrado» y en Administración", () => {
+  const c = cobranza(1000, []);
+  const ficha = previstasV4();
+  const pend = pendientesDeCobro(ficha, {}, c);
+  assert.equal(pend[2], 300);
+  assert.equal(pendientesDeCobro([ficha[2]], {}, c)[0], 300); // Administración: lee sin previstas
+  // Las previstas se muestran con lo que les queda del tope, después de las reales: el cashflow no pasa del total.
+  assert.deepEqual(pend, [600, 100, 300]);
+  assert.ok(lineasDeCobro(ficha, {}, c).suma <= c.total + 0.01);
+  // Vencido: sólo la real (las previstas no son plata todavía), igual en la ficha que en Administración.
+  assert.equal(conciliarConCobros(ficha, {}, c, HOY).cobrosVencidos, 300);
+  assert.equal(conciliarConCobros([ficha[2]], {}, c, HOY).cobrosVencidos, 300);
+  assert.equal(resumenConCobranza(ficha.map((q) => ({ ...q, proyectoId: "p" })), {}, new Map([["p", c]]), HOY).cobrosVencidos, 300);
+  // El lugar para una cuota manual no lo comen las previstas.
+  assert.deepEqual(lugarParaCobroManual(ficha, {}, c), { lugar: 700, esperado: 300 });
+  // Una prevista ya marcada es plata: cuenta como cualquier marcada.
+  const marcada = [qi("A", 600, -30, { prevista: true, pagadoEl: dias(-30) }), qi("M", 300, -5)];
+  assert.deepEqual(repartoDeCobros(marcada, {}, cobranza(1000, [{ monto: 600, cuotaId: "A" }])), { cobrado: [600, 0], pendiente: [0, 300] });
+});
+
+test("V4-3: proyecto en USD con cuota en EUR o en pesos: marcar baja por cobrar lo marcado ± 0,01 × tc del USD (declarado)", () => {
+  const { r, entre, uno } = azar(4242);
+  let peor = 0;
+  for (let k = 0; k < 400; k++) {
+    const tc = { USD: entre(800, 1700) + uno([0, 0.37]), EUR: 1100.13 };
+    const v = { moneda: "USD", cambioVenta: tc.USD * (0.8 + r() * 0.4), tcHoy: tc.USD };
+    const total = entre(100, 3000) * 1000 + 0.01;
+    const moneda = uno(["EUR", "ARS"]);
+    const cuota = qi("q", moneda === "ARS" ? entre(10, 1500) * 1000 + 0.33 : entre(1, 1500) + 0.01, -1, { moneda });
+    const cobros: CobroRegistrado[] = r() < 0.5 ? [{ monto: entre(1, 50) * 1000 }] : [];
+    const antes = cobranzaEnMoneda(total, cobros, v);
+    const pend = pendientesDeCobro([cuota], tc, antes)[0];
+    if (!(pend > 0)) continue;
+    const importe = aPesos(pend, moneda, tc);
+    const despues = cobranzaEnMoneda(total, [...cobros, { monto: importe, cuotaId: "q", original: moneda !== "ARS" ? { monto: pend, moneda } : null }], v);
+    const desvio = Math.abs(antes.porCobrar - despues.porCobrar - importe);
+    assert.ok(desvio <= 0.01 * tc.USD + 0.01, `k${k}: desvío ${desvio} > 0,01 × ${tc.USD}`);
+    peor = Math.max(peor, desvio / tc.USD);
+  }
+  // Es real (no un error de la prueba): pasa del medio centavo de dólar, por el redondeo del cobrado en USD antes y después.
+  assert.ok(peor > 0.005, `peor ${peor}`);
 });
 
 // ── Servidor con `db` falso: D-f (enlaces) y v2 #3/#4 (candado + relectura en la transacción) ──────────────────
@@ -631,4 +713,18 @@ test("sin presupuesto aprobado: una cuota vencida no suma vencido ni próximos (
   assert.equal(r.cobrosVencidos, 0);
   assert.equal(r.cantCobrosVencidos, 0);
   assert.equal(r.aCobrar7, 0);
+});
+
+test("V4-2 servidor: «Marcar cobrado» y la cuota manual leen las previstas pero las dejan fuera del reparto (como Administración)", async () => {
+  const { pendienteDeLaCuota, cobranzaConCuotas } = await servidor();
+  const cuotas = previstasV4().map((q) => ({ ...q, prevista: !!(q as { prevista?: boolean }).prevista }));
+  const { db } = dbFalso({ cuotas, proyecto: { moneda: "ARS", presupuestos: PRESUPUESTO(1000), pagos: [] }, enlaces: [] });
+  assert.equal((await pendienteDeLaCuota("t", "p", "M", {}, 0, db))?.pendiente, 300);
+  const { cuotas: leidas, cob } = await cobranzaConCuotas(db, "t", "p", {}, 0);
+  assert.equal(lugarParaCobroManual(leidas, {}, cob).lugar, 700);
+  // Marcada M por 300: por cobrar 700, Administración (sin previstas) ve la real cobrada y nada vencido.
+  const despues = cobranza(1000, [{ monto: 300, cuotaId: "M" }]);
+  const admin = conciliarConCobros([{ ...cuotas[2], pagadoEl: HOY }], {}, despues, HOY);
+  assert.equal(despues.porCobrar, 700);
+  assert.equal(admin.cobrosVencidos, 0);
 });
