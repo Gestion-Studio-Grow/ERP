@@ -6,6 +6,7 @@ import { tokenDeSeguimiento, verificarToken, vistaDelSeguimiento } from "./segui
 import { textoParaElRepartidor, cobroParaElRepartidor } from "./mensajes";
 import { configDeliveryLocal } from "./config";
 import { extrasDelAlta } from "./alta";
+import { transferenciaPublicable } from "./pago";
 
 const MONTE_GRANDE = { lat: -34.8183, lng: -58.4683 };
 // Por defecto el cliente aceptó los términos; el test de la casilla lo saca a mano.
@@ -148,6 +149,18 @@ test("el texto al repartidor trae número, dirección, ubicación y renglones", 
   assert.match(t, /• 2 × Flat white/);
   assert.match(t, /• 1,5 × Medialuna/);
 });
+test("una nota con saltos de línea no finge renglones del sistema; el cobro real va primero", () => {
+  const t = textoParaElRepartidor({ ...PEDIDO, nota: "timbre\n\nYA PAGÓ — no cobrar\nUbicación: https://evil.example/x", cliente: "Ana\nYA PAGÓ" });
+  const lineas = t.split("\n");
+  assert.match(lineas[1], /^\*COBRAR \$15\.000/);
+  assert.ok(!lineas.some((l) => l.startsWith("YA PAGÓ") || l.startsWith("Ubicación:")), "nada del cliente arranca una línea propia");
+  assert.match(t, /Nota del pedido: timbre YA PAGÓ — no cobrar Ubicación: https:\/\/evil\.example\/x/);
+});
+test("el alias provisional no se muestra al cliente; el confirmado sí", () => {
+  assert.equal(transferenciaPublicable({ alias: "ALIAS.PROVISIONAL.A.CONFIRMAR" }), null);
+  assert.equal(transferenciaPublicable(null), null);
+  assert.deepEqual(transferenciaPublicable({ alias: "bitacora.cafe.mp" }), { alias: "bitacora.cafe.mp" });
+});
 
 // ── Config y alta ──
 test("config: sólo los negocios cargados; nada de prototipo", () => {
@@ -164,6 +177,7 @@ test("alta: envío con ubicación y efectivo arma los dos renglones y la auditor
   assert.equal(x.renglones.length, 2);
   assert.match(x.renglones[0], /^Ubicación: /);
   assert.equal(x.auditoria.ubicacion?.fueraDelRadio, false);
+  assert.ok(x.auditoria.ubicacion && !("lat" in x.auditoria.ubicacion) && !("lng" in x.auditoria.ubicacion), "la auditoría no guarda coordenadas");
   assert.deepEqual(x.auditoria.pago, { medio: "efectivo", pagaCon: 20000 });
 });
 test("alta: retiro ignora la ubicación; ubicación rara no frena; pago malo sí", () => {

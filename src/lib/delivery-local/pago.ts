@@ -63,3 +63,13 @@ export function vueltoALlevar(total: number, pagaCon: number | null): number | n
   const v = Math.round((pagaCon - total) * 100) / 100;
   return v > 0 ? v : null;
 }
+
+/**
+ * Los datos para transferir sólo se muestran cuando el local confirmó su alias: un alias provisional
+ * a la vista del cliente es una invitación a transferirle a nadie. Sin alias confirmado, el local lo
+ * pasa por WhatsApp al confirmar el pedido.
+ */
+export function transferenciaPublicable<T extends { alias: string }>(t: T | null | undefined): T | null {
+  if (!t) return null;
+  return /provisional|a\.?confirmar/i.test(t.alias) ? null : t;
+}

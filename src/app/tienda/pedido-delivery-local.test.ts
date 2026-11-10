@@ -52,7 +52,8 @@ test("el seguimiento público no lee dirección, teléfono ni ubicación, y no s
   for (const prohibido of ["address", "customerPhone", "customerName", "notes", "ubicacion", "basePrisma"]) {
     assert.ok(!codigo.includes(prohibido), `no debe aparecer ${prohibido}`);
   }
-  assert.match(codigo, /verificarToken\(authSecret\(\), tenantId, token\)/);
+  assert.match(codigo, /secreto = authSecret\(\);\s*\} catch \{\s*return null;/, "sin secreto: 404, no 500");
+  assert.match(codigo, /verificarToken\(secreto, tenantId, token\)/);
   assert.match(codigo, /where: \{ id: orderId, tenantId \}/);
   assert.match(codigo, /if \(!datos\) notFound\(\);/);
   assert.match(codigo, /robots: \{ index: false/);

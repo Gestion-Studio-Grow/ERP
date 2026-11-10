@@ -106,7 +106,12 @@ export async function mandarSeguimientoAlCliente(orderId: string): Promise<Resul
   const ctx = await contexto();
   if (!ctx) return { ok: false, error: OTRO_NEGOCIO };
   const { origen } = await pedidoPublico();
-  const secreto = authSecret();
+  let secreto: string;
+  try {
+    secreto = authSecret();
+  } catch {
+    return { ok: false, error: "Falta la configuración del link de seguimiento. Avisale a soporte de GSG." };
+  }
   return seguimientoCore(
     {
       tenantId: ctx.tenantId,

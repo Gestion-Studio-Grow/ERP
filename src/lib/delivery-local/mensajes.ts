@@ -36,16 +36,22 @@ export function cobroParaElRepartidor(p: Pick<PedidoParaElRepartidor, "total" | 
   return `COBRAR ${pesos(p.total)} (todavía no figura pagado: consultá al local antes de salir)`;
 }
 
+/** Lo que escribió el cliente va en UNA línea: un salto de línea no puede fingir un renglón del sistema. */
+export function enUnaLinea(t: string): string {
+  return t.replace(/[\r\n\u2028\u2029]+/g, " ").replace(/\s{2,}/g, " ").trim();
+}
+
 export function textoParaElRepartidor(p: PedidoParaElRepartidor): string {
+  // La línea de cobro va PRIMERO y en negrita: lo que venga después es texto del pedido.
   const r = [
-    `*Pedido #${p.code}* · ${p.negocio}`,
-    `${p.cliente} · ${p.telefono}`,
-    p.direccion ? `Dirección: ${p.direccion}` : null,
-    p.nota ? p.nota : null,
+    `*Pedido #${p.code}* · ${enUnaLinea(p.negocio)}`,
+    `*${cobroParaElRepartidor(p)}*`,
     "",
-    ...p.renglones.map((l) => `• ${l.cantidad % 1 === 0 ? l.cantidad : String(l.cantidad).replace(".", ",")} × ${l.nombre}`),
+    `${enUnaLinea(p.cliente)} · ${enUnaLinea(p.telefono)}`,
+    p.direccion ? `Dirección: ${enUnaLinea(p.direccion)}` : null,
+    p.nota ? `Nota del pedido: ${enUnaLinea(p.nota)}` : null,
     "",
-    cobroParaElRepartidor(p),
+    ...p.renglones.map((l) => `• ${l.cantidad % 1 === 0 ? l.cantidad : String(l.cantidad).replace(".", ",")} × ${enUnaLinea(l.nombre)}`),
   ];
   return r.filter((x): x is string => x !== null).join("\n");
 }

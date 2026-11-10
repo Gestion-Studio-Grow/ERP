@@ -16,6 +16,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { authSecret } from "@/lib/auth";
+import { transferenciaPublicable } from "@/lib/delivery-local/pago";
 import { buildWhatsAppHref, whatsappCanonico } from "@/lib/whatsapp-cta";
 import { fmtMoneyARS } from "@/components/ui/format";
 import { formatearCantidad } from "@/lib/pos-peso";
@@ -40,7 +41,13 @@ async function leerSeguimiento(token: string) {
   const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { slug: true, name: true } });
   const cfg = configDeliveryLocal(tenant?.slug);
   if (!cfg) return null;
-  const orderId = verificarToken(authSecret(), tenantId, token);
+  let secreto: string;
+  try {
+    secreto = authSecret();
+  } catch {
+    return null; // sin secreto no se puede verificar ningún link: 404, no 500
+  }
+  const orderId = verificarToken(secreto, tenantId, token);
   if (!orderId) return null;
   const [pedido, alta, salio, settings] = await Promise.all([
     prisma.order.findFirst({
@@ -79,7 +86,7 @@ export default async function SeguimientoPage({ params }: { params: Promise<{ to
     paid: pedido.paid,
     medio: pago?.medio ?? null,
   });
-  const transferir = pago?.medio === "transferencia" && !pedido.paid && pedido.status !== "CANCELLED" ? cfg.transferencia : null;
+  const transferir = pago?.medio === "transferencia" && !pedido.paid && pedido.status !== "CANCELLED" ? transferenciaPublicable(cfg.transferencia) : null;
   const chat = whatsapp ? buildWhatsAppHref(whatsapp, `Hola, te escribo por mi pedido #${pedido.code}.`) : null;
 
   return (

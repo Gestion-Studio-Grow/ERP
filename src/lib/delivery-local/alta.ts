@@ -21,7 +21,8 @@ export type ExtrasDelAlta =
       ok: true;
       renglones: string[];
       auditoria: {
-        ubicacion: (Ubicacion & { km: number | null; fueraDelRadio: boolean }) | null;
+        /** Sin coordenadas: la auditoría no se borra (Ley 25.326); la ubicación vive en la nota del pedido. */
+        ubicacion: { precisionM: Ubicacion["precisionM"]; km: number | null; fueraDelRadio: boolean } | null;
         pago: { medio: MedioPreferido; pagaCon: number | null } | null;
       };
     }
@@ -41,7 +42,7 @@ export function extrasDelAlta(cfg: ConfigDeliveryLocal, form: CamposDelForm, env
       const d = chequearRadio(cfg.ubicacionDelLocal, u.ubicacion, cfg.radioKm);
       renglones.push(renglonDeUbicacion(u.ubicacion, d));
       ubicacion = {
-        ...u.ubicacion,
+        precisionM: u.ubicacion.precisionM,
         km: d.estado === "sin-dato" ? null : d.km,
         fueraDelRadio: d.estado === "fuera",
       };
