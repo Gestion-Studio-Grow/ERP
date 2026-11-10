@@ -10,7 +10,7 @@ import { prisma } from "@/lib/prisma";
 import { aPesos, COLUMNAS_FICHA, cashflowDelEvento, codigoProyecto, resumenCuotas, totalesFicha, ventaTotalItem } from "./gestion-core";
 import { columnasOcultas, filtroDeProyectos, puede, tiposDeCambio, versionViva, aItemFicha, type Actor } from "./gestion.server";
 import { configProyectos, datosDelNegocio } from "./datos.server";
-import { cobranza, conciliarConCobros, pendientesDeCobro } from "./cobranza-core";
+import { cobranza, conciliarConCobros, repartoDeCobros } from "./cobranza-core";
 import { cobranzasDelNegocio } from "./cobranza.server";
 import { desvioPorRubro, fechaCorta, fechaParaInput, redondear, resultadoReal, totales } from "./core";
 import { cambioDeVenta, costoSinProveedor, enMonedaDeVenta, ventaEn } from "./gestion-core";
@@ -139,7 +139,7 @@ export type Cabecera = NonNullable<Awaited<ReturnType<typeof cabeceraFicha>>>;
 export async function datosResumen(a: Actor, cab: Cabecera, vista: Vista) {
   const [personas, cuotas, cantChecklist, cobranzas] = await Promise.all([
     prisma.proyectoPersona.findMany({ where: { tenantId: a.tenantId, activa: true }, orderBy: { nombre: "asc" }, select: { id: true, nombre: true, puesto: true } }),
-    vista.pagos ? prisma.proyectoCuota.findMany({ where: { tenantId: a.tenantId, proyectoId: cab.proyecto.id, anuladoEl: null, prevista: false }, select: { tipo: true, monto: true, moneda: true, venceEl: true, pagadoEl: true, anuladoEl: true } }) : [],
+    vista.pagos ? prisma.proyectoCuota.findMany({ where: { tenantId: a.tenantId, proyectoId: cab.proyecto.id, anuladoEl: null, prevista: false }, select: { id: true, tipo: true, monto: true, moneda: true, venceEl: true, pagadoEl: true, anuladoEl: true } }) : [],
     prisma.proyectoChecklist.count({ where: { tenantId: a.tenantId, proyectoId: cab.proyecto.id } }),
     vista.pagos ? cobranzasDelNegocio(a.tenantId, cab.tc, cab.config.margenPct, [cab.proyecto.id]) : null,
   ]);
@@ -183,12 +183,13 @@ export async function datosFinanzas(a: Actor, cab: Cabecera, vista: Vista) {
   ]);
   // La fuente única de cobrado / saldo (cobranza-core): la misma cuenta que Estado financiero, clientes y reportes.
   const cob = cobranzas.get(proyectoId) ?? cobranza(0, []);
-  // Cada cuota con lo que le falta: lo cobrado a mano ya se descontó de las más viejas.
-  const faltan = pendientesDeCobro(todas, cab.tc, cob);
-  const cuotas = todas.map((c, i) => ({ ...c, pendiente: faltan[i] }));
+  // Cada cuota con lo que le falta y lo que entró por ella: lo cobrado a mano ya se descontó de las más viejas.
+  const reparto = repartoDeCobros(todas, cab.tc, cob);
+  const cuotas = todas.map((c, i) => ({ ...c, pendiente: reparto.pendiente[i], cobrado: reparto.cobrado[i] }));
   // Sin permiso de costos, un pago a proveedor delata el costo: sólo se ven los cobros.
   const visibles = vista.costos ? cuotas : cuotas.filter((c) => c.tipo === "COBRO");
-  const flujo = cashflowDelEvento(visibles, cab.tc);
+  // Una cuota de cobro ya cobrada cuenta lo que entró por ella, no su monto: si no, el saldo se pasa.
+  const flujo = cashflowDelEvento(visibles, cab.tc, (c) => (c.tipo === "COBRO" && c.pagadoEl ? c.cobrado : c.monto));
   // Pasados a pesos: un ítem en dólares no se puede comparar como si fueran pesos.
   const aprobadaEnPesos = aprobada?.items.map((i) => ({ rubro: i.rubro, cantidad: i.cantidad, costo: aPesos(i.costo, i.moneda, cab.tc), precio: i.cantidad > 0 ? ventaTotalItem(i, cab.tc, cab.config.margenPct) / i.cantidad : 0 })) ?? [];
   const totalesAprobada = aprobada ? totales(aprobadaEnPesos, aprobada.ivaPct) : null;

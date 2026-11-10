@@ -4,6 +4,7 @@
  */
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@/generated/prisma/client";
 import { cobranza, cobranzaEnMoneda, leerOriginal, pendientesDeCobro, totalAprobado, type Cobranza } from "./cobranza-core";
 import { cambioDeVenta } from "./gestion-core";
 
@@ -26,23 +27,35 @@ export const SELECT_COBRANZA = {
 } as const;
 
 type Original = { monto: number; moneda: string };
+/** Lectura o transacción: lo mismo para leer adentro de la transacción que va a grabar (con el candado tomado). */
+type Db = Prisma.TransactionClient;
+/** El enlace «Asiento» de un cobro: la cuota que lo asentó y, en otra moneda, lo que pagó el cliente en ella. */
+export type EnlaceDeCobro = { original: Original | null; cuotaId: string | null };
 
 /**
- * Lo que pagó el cliente en su moneda, por id de cobro, de los proyectos que no venden en pesos. Sale del enlace
- * «Asiento» que deja `marcarCuota` (cuota → cobro): el monto en moneda guardado en el enlace o, en los enlaces de antes,
- * el de la cuota entera (hasta entonces se cobraba la cuota completa). Un cobro sin enlace no figura: es en pesos.
+ * El enlace «Asiento» que deja `marcarCuota` (cuota → cobro), por id de cobro. En los proyectos que no venden en pesos
+ * trae además lo que pagó el cliente en su moneda: el monto guardado en el enlace o, en los enlaces de antes, el de la
+ * cuota entera (hasta entonces se cobraba la cuota completa). Un cobro sin enlace no figura: es suelto, en pesos.
+ * `todos`: también los de proyectos en pesos (hacen falta para repartir lo suelto contra las cuotas).
  */
-export async function originalesDeCobros(tenantId: string, proyectos: readonly { moneda: string; pagos: readonly { id: string }[] }[]): Promise<Map<string, Original>> {
-  const ids = proyectos.filter((p) => p.moneda !== "ARS").flatMap((p) => p.pagos.map((x) => x.id));
-  const salida = new Map<string, Original>();
+export async function originalesDeCobros(
+  tenantId: string,
+  proyectos: readonly { moneda: string; pagos: readonly { id: string }[] }[],
+  db: Db = prisma,
+  todos = false,
+): Promise<Map<string, EnlaceDeCobro>> {
+  const enMoneda = new Set(proyectos.filter((p) => p.moneda !== "ARS").flatMap((p) => p.pagos.map((x) => x.id)));
+  const ids = todos ? proyectos.flatMap((p) => p.pagos.map((x) => x.id)) : [...enMoneda];
+  const salida = new Map<string, EnlaceDeCobro>();
   if (ids.length === 0) return salida;
-  const enlaces = await prisma.proyectoCambio.findMany({ where: { tenantId, entidad: "ProyectoCuota", campo: "Asiento", despues: { in: ids } }, select: { entidadId: true, antes: true, despues: true } });
-  const sinMonto = enlaces.filter((e) => !leerOriginal(e.antes) && e.entidadId).map((e) => e.entidadId!);
-  const cuotas = sinMonto.length > 0 ? await prisma.proyectoCuota.findMany({ where: { tenantId, id: { in: sinMonto } }, select: { id: true, monto: true, moneda: true } }) : [];
+  const enlaces = await db.proyectoCambio.findMany({ where: { tenantId, entidad: "ProyectoCuota", campo: "Asiento", despues: { in: ids } }, select: { entidadId: true, antes: true, despues: true } });
+  const sinMonto = enlaces.filter((e) => e.despues && enMoneda.has(e.despues) && !leerOriginal(e.antes) && e.entidadId).map((e) => e.entidadId!);
+  const cuotas = sinMonto.length > 0 ? await db.proyectoCuota.findMany({ where: { tenantId, id: { in: sinMonto } }, select: { id: true, monto: true, moneda: true } }) : [];
   const porId = new Map(cuotas.map((c) => [c.id, { monto: c.monto, moneda: c.moneda }]));
   for (const e of enlaces) {
-    const o = leerOriginal(e.antes) ?? (e.entidadId ? porId.get(e.entidadId) : undefined);
-    if (o && e.despues) salida.set(e.despues, o);
+    if (!e.despues) continue;
+    const original = enMoneda.has(e.despues) ? (leerOriginal(e.antes) ?? (e.entidadId ? porId.get(e.entidadId) : undefined) ?? null) : null;
+    salida.set(e.despues, { original, cuotaId: e.entidadId ?? null });
   }
   return salida;
 }
@@ -56,39 +69,52 @@ export function cobranzaDe(
   },
   tc: Readonly<Record<string, number>>,
   recargoGeneral: number,
-  originales: ReadonlyMap<string, Original> = new Map(),
+  enlaces: ReadonlyMap<string, EnlaceDeCobro> = new Map(),
 ): Cobranza {
   const aprobado = p.presupuestos[0];
-  const cobros = p.pagos.map((x) => ({ monto: x.monto, original: originales.get(x.id) ?? null }));
+  const cobros = p.pagos.map((x) => ({ monto: x.monto, original: enlaces.get(x.id)?.original ?? null, cuotaId: enlaces.get(x.id)?.cuotaId ?? null }));
   if (!aprobado) return cobranza(0, cobros);
   return cobranzaEnMoneda(totalAprobado(aprobado, tc, recargoGeneral), cobros, { moneda: p.moneda, cambioVenta: cambioDeVenta(p.moneda, aprobado.tcVenta, tc), tcHoy: tc[p.moneda] ?? 0 });
 }
 
-/** La cobranza de cada proyecto del negocio (o de los pedidos), por id. */
+/** La cobranza de cada proyecto del negocio (o de los pedidos), por id. Con `db` = la transacción, lee adentro de ella. */
 export async function cobranzasDelNegocio(
   tenantId: string,
   tc: Readonly<Record<string, number>>,
   recargoGeneral: number,
   proyectoIds?: readonly string[],
+  db: Db = prisma,
 ): Promise<Map<string, Cobranza>> {
-  const proyectos = await prisma.proyecto.findMany({
+  const proyectos = await db.proyecto.findMany({
     where: { tenantId, ...(proyectoIds && { id: { in: [...proyectoIds] } }) },
     select: { id: true, ...SELECT_COBRANZA },
   });
-  const originales = await originalesDeCobros(tenantId, proyectos);
-  return new Map(proyectos.map((p) => [p.id, cobranzaDe(p, tc, recargoGeneral, originales)]));
+  const enlaces = await originalesDeCobros(tenantId, proyectos, db, true);
+  return new Map(proyectos.map((p) => [p.id, cobranzaDe(p, tc, recargoGeneral, enlaces)]));
+}
+
+/** Las cuotas de cobro vivas de un proyecto y su cobranza, leídas con `db` (adentro de la transacción, con el candado). */
+export async function cobranzaConCuotas(db: Db, tenantId: string, proyectoId: string, tc: Readonly<Record<string, number>>, recargoGeneral: number) {
+  const cuotas = await db.proyectoCuota.findMany({ where: { tenantId, proyectoId, anuladoEl: null, tipo: "COBRO" }, select: { id: true, tipo: true, monto: true, moneda: true, venceEl: true, pagadoEl: true } });
+  const cob = (await cobranzasDelNegocio(tenantId, tc, recargoGeneral, [proyectoId], db)).get(proyectoId) ?? cobranza(0, []);
+  return { cuotas, cob };
+}
+
+/**
+ * Candado de la cobranza de un proyecto: «Marcar cobrado», un cobro registrado y una cuota de cobro cargada a mano se
+ * ponen en fila, y cada uno recalcula lo que falta ADENTRO de su transacción. Se suelta solo al terminar la transacción.
+ */
+export async function trabarCobranza(tx: Db, tenantId: string, proyectoId: string): Promise<void> {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`cobranza-proyecto:${tenantId}:${proyectoId}`}))`;
 }
 
 /**
  * Lo que falta cobrar de una cuota de cobro, en su moneda: su monto menos lo que ya entró por cobros manuales
  * (`pendientesDeCobro`). Es lo que cobra «Marcar cobrado». `null` si la cuota no está pendiente.
  */
-export async function pendienteDeLaCuota(tenantId: string, proyectoId: string, cuotaId: string, tc: Readonly<Record<string, number>>, recargoGeneral: number): Promise<number | null> {
-  const [cuotas, cobranzas] = await Promise.all([
-    prisma.proyectoCuota.findMany({ where: { tenantId, proyectoId, anuladoEl: null, tipo: "COBRO" }, select: { id: true, tipo: true, monto: true, moneda: true, venceEl: true, pagadoEl: true } }),
-    cobranzasDelNegocio(tenantId, tc, recargoGeneral, [proyectoId]),
-  ]);
+export async function pendienteDeLaCuota(tenantId: string, proyectoId: string, cuotaId: string, tc: Readonly<Record<string, number>>, recargoGeneral: number, db: Db = prisma): Promise<number | null> {
+  const { cuotas, cob } = await cobranzaConCuotas(db, tenantId, proyectoId, tc, recargoGeneral);
   const i = cuotas.findIndex((c) => c.id === cuotaId);
   if (i < 0 || cuotas[i].pagadoEl) return null;
-  return pendientesDeCobro(cuotas, tc, cobranzas.get(proyectoId) ?? cobranza(0, []))[i];
+  return pendientesDeCobro(cuotas, tc, cob)[i];
 }

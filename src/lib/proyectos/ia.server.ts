@@ -259,8 +259,8 @@ export async function contextoDeAgente(a: Actor, id: AgenteId, proyectoId: strin
       secciones.push({ titulo: a.personaId ? "Sus tareas abiertas" : "Tareas abiertas", lineas: tareas.map((t) => linea(t.proyecto.nombre, t.titulo, ESTADO_TAREA_LABEL[t.estado], `vence ${fechaDe(t.venceEl)}`, t.responsable)) });
     }
     if (alcance.plata && ve("empresa")) {
-      const [cuotas, tc] = await Promise.all([
-        prisma.proyectoCuota.findMany({ where: { tenantId, anuladoEl: null, pagadoEl: null, prevista: false }, select: { tipo: true, monto: true, moneda: true, venceEl: true, pagadoEl: true, anuladoEl: true }, take: 2000 }),
+      const [cuotas, tc, config] = await Promise.all([
+        prisma.proyectoCuota.findMany({ where: { tenantId, anuladoEl: null, prevista: false }, select: { id: true, proyectoId: true, tipo: true, monto: true, moneda: true, venceEl: true, pagadoEl: true, anuladoEl: true }, take: 2000 }),
         tiposDeCambio(tenantId),
       ]);
       const r = resumenCuotas(cuotas, tc);

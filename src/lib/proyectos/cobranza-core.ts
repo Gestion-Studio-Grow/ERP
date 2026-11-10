@@ -43,6 +43,14 @@ export interface CobroRegistrado {
   anuladoEl?: Date | null;
   /** Si salió de una cuota en otra moneda: lo que pagó el cliente en esa moneda (enlace «Asiento» cuota↔cobro). */
   original?: { monto: number; moneda: string } | null;
+  /** La cuota que lo asentó («Marcar cobrado», enlace «Asiento»). Sin cuota (y sin `original`): un cobro suelto. */
+  cuotaId?: string | null;
+}
+
+/** Lo que entró por una cuota marcada: en pesos y, si era en otra moneda, en esa moneda. */
+export interface CobroDeCuota {
+  pesos: number;
+  original?: { monto: number; moneda: string } | null;
 }
 
 export interface Cobranza {
@@ -58,6 +66,25 @@ export interface Cobranza {
   avancePct: number;
   /** Proyecto en otra moneda: la cuenta hecha en esa moneda; los campos de arriba son esto × `tc` (el de hoy). */
   enMoneda?: { moneda: string; tc: number; total: number; cobrado: number; saldo: number };
+  /** Lo cobrado SIN cuota (cobros sueltos, no anulados), en pesos: lo único que se reparte contra las cuotas. */
+  sueltos: number;
+  /** Lo cobrado por cada cuota marcada, por id de cuota (sólo si hay alguno). */
+  deCuotas?: Readonly<Record<string, CobroDeCuota>>;
+}
+
+/** Cobros sueltos y cobros por cuota de una lista de cobros registrados. PURA. */
+function separarCobros(cobros: readonly CobroRegistrado[]): Pick<Cobranza, "sueltos" | "deCuotas"> {
+  let sueltos = 0;
+  const deCuotas: Record<string, CobroDeCuota> = {};
+  for (const c of cobros) {
+    if (c.anuladoEl) continue;
+    if (c.cuotaId) {
+      const previo = deCuotas[c.cuotaId];
+      const original = c.original && (!previo || previo.original?.moneda === c.original.moneda) ? { monto: (previo?.original?.monto ?? 0) + c.original.monto, moneda: c.original.moneda } : null;
+      deCuotas[c.cuotaId] = { pesos: redondear((previo?.pesos ?? 0) + c.monto), original };
+    } else if (!c.original) sueltos += c.monto;
+  }
+  return { sueltos: redondear(sueltos), ...(Object.keys(deCuotas).length > 0 && { deCuotas }) };
 }
 
 /** Cobrado, saldo y por cobrar de un proyecto. PURA. */
@@ -67,7 +94,7 @@ export function cobranza(total: number, cobros: readonly CobroRegistrado[]): Cob
   const saldo = redondear(t - cobrado);
   const porCobrar = Math.max(0, saldo);
   const avancePct = t > 0 ? redondear(Math.min(100, (cobrado / t) * 100)) : cobrado > 0 ? 100 : 0;
-  return { total: t, cobrado, saldo, porCobrar, avancePct };
+  return { total: t, cobrado, saldo, porCobrar, avancePct, ...separarCobros(cobros) };
 }
 
 /** «1234.5 USD»: lo que pagó el cliente en su moneda, guardado en el enlace «Asiento» (campo `antes`). PURA. */
@@ -103,32 +130,83 @@ export function cobranzaEnMoneda(totalEnPesos: number, cobros: readonly CobroReg
     porCobrar: Math.max(0, saldo),
     avancePct: m.avancePct,
     enMoneda: { moneda, tc: tcHoy, total: m.total, cobrado: m.cobrado, saldo: m.saldo },
+    ...separarCobros(cobros),
   };
 }
 
+/** Por cuota, alineado con las cuotas y en la moneda de cada una: lo que le falta y lo que ya entró por ella. */
+export interface RepartoDeCobros {
+  pendiente: number[];
+  cobrado: number[];
+}
+
 /**
- * Lo que falta cobrar de cada cuota, en su moneda y alineado con `cuotas` (pagada, anulada o sin precio en pesos: lo de
- * siempre; un pago a proveedor, su monto). Lo cobrado que no salió de una cuota (un cobro manual) se aplica a las cuotas
- * de cobro pendientes MÁS VIEJAS: lo que las cuotas pendientes suman por encima de lo que falta cobrar ya entró. Así cada
- * renglón suma lo mismo que el total y «Marcar cobrado» cobra sólo lo que falta. Sin presupuesto aprobado no hay contra
- * qué medir: las cuotas valen lo que dicen. PURA.
+ * Lo que falta cobrar y lo que ya entró de cada cuota, en su moneda. Lo que entró por una cuota marcada es su cobro
+ * enlazado («Asiento»). Lo único que se reparte entre las cuotas es la plata que YA ENTRÓ sin cuota (los cobros sueltos,
+ * `Cobranza.sueltos`): primero cubre lo que les faltó a las cuotas ya marcadas (marcada sin cobro enlazado, o con uno
+ * menor a su monto: se cubrió con plata suelta), por fecha, y lo que sobra se aplica a las cuotas de cobro pendientes
+ * MÁS VIEJAS. Una cuota cargada a mano es plata esperada, no entrada: no descuenta nada de otra. Así «Marcar cobrado»
+ * cobra sólo lo que falta. Sin presupuesto aprobado no hay contra qué medir: las pendientes valen lo que dicen. Un pago
+ * a proveedor: pendiente o pagado, su monto. PURA.
  */
-export function pendientesDeCobro(cuotas: readonly CuotaLeida[], tc: Readonly<Record<string, number>>, c: Cobranza): number[] {
-  const pend = cuotas.map((q) => (q.anuladoEl || q.pagadoEl ? 0 : q.monto));
-  if (!(c.total > 0)) return pend;
+export function repartoDeCobros(cuotas: readonly CuotaLeida[], tc: Readonly<Record<string, number>>, c: Cobranza): RepartoDeCobros {
+  const pendiente = cuotas.map((q) => (q.anuladoEl || q.pagadoEl ? 0 : q.monto));
+  const cobrado = cuotas.map((q) => (!q.anuladoEl && q.pagadoEl && q.tipo !== "COBRO" ? q.monto : 0));
   const enPesos = cuotas.map((q) => aPesos(q.monto, q.moneda, tc));
-  const cobros = cuotas
+  const vivas = cuotas
     .map((_, i) => i)
-    .filter((i) => cuotas[i].tipo === "COBRO" && pend[i] > 0 && enPesos[i] > 0)
+    .filter((i) => cuotas[i].tipo === "COBRO" && !cuotas[i].anuladoEl && enPesos[i] > 0)
     .sort((a, b) => cuotas[a].venceEl.getTime() - cuotas[b].venceEl.getTime());
-  let yaEntro = redondear(cobros.reduce((s, i) => s + enPesos[i], 0) - c.porCobrar);
-  for (const i of cobros) {
-    if (yaEntro <= 0) break;
-    const aplicado = Math.min(enPesos[i], yaEntro);
-    yaEntro = redondear(yaEntro - aplicado);
-    pend[i] = aplicado >= enPesos[i] ? 0 : redondear((cuotas[i].monto * (enPesos[i] - aplicado)) / enPesos[i]);
+  let suelta = redondear(c.sueltos ?? 0);
+  // 1) Las marcadas: su cobro propio y, lo que les faltó, de la plata suelta.
+  for (const i of vivas) {
+    const q = cuotas[i];
+    if (!q.pagadoEl) continue;
+    cobrado[i] = enlazadoDe(q, c);
+    const falta = Math.max(0, q.monto - cobrado[i]);
+    if (!(falta > 0) || !(suelta > 0)) continue;
+    const aplicado = Math.min(redondear((falta * enPesos[i]) / q.monto), suelta);
+    suelta = redondear(suelta - aplicado);
+    cobrado[i] = redondear(cobrado[i] + (q.monto * aplicado) / enPesos[i]);
   }
-  return pend;
+  if (!(c.total > 0)) return { pendiente, cobrado };
+  // 2) Lo que sobra, contra las pendientes más viejas.
+  for (const i of vivas) {
+    if (suelta <= 0) break;
+    const q = cuotas[i];
+    if (q.pagadoEl) continue;
+    const aplicado = Math.min(enPesos[i], suelta);
+    suelta = redondear(suelta - aplicado);
+    pendiente[i] = aplicado >= enPesos[i] ? 0 : redondear((q.monto * (enPesos[i] - aplicado)) / enPesos[i]);
+    cobrado[i] = redondear(q.monto - pendiente[i]);
+  }
+  return { pendiente, cobrado };
+}
+
+/** Lo que entró por el cobro enlazado de una cuota marcada, en su moneda. Sin enlace, nada. PURA. */
+function enlazadoDe(q: CuotaLeida, c: Cobranza): number {
+  const propio = q.id ? c.deCuotas?.[q.id] : undefined;
+  if (!propio) return 0;
+  if (q.moneda === "ARS") return propio.pesos;
+  // En otra moneda: lo que pagó el cliente en ella; un enlace sin ese dato es de antes (se cobraba la cuota entera).
+  return propio.original?.moneda === q.moneda ? propio.original.monto : q.monto;
+}
+
+/** Lo que falta cobrar de cada cuota, en su moneda (ver `repartoDeCobros`). PURA. */
+export function pendientesDeCobro(cuotas: readonly CuotaLeida[], tc: Readonly<Record<string, number>>, c: Cobranza): number[] {
+  return repartoDeCobros(cuotas, tc, c).pendiente;
+}
+
+/**
+ * Cuánto se puede cargar a mano como cuota de cobro nueva, en pesos: lo que falta cobrar menos lo que las cuotas de cobro
+ * pendientes ya esperan. Más que eso sería esperar más plata de la que se debe. Sin presupuesto aprobado, sin tope
+ * (`Infinity`). Puede dar 0 o negativo: no entra ninguna. PURA.
+ */
+export function lugarParaCobroManual(cuotas: readonly CuotaLeida[], tc: Readonly<Record<string, number>>, c: Cobranza): { lugar: number; esperado: number } {
+  if (!(c.total > 0)) return { lugar: Infinity, esperado: 0 };
+  const pend = pendientesDeCobro(cuotas, tc, c);
+  const esperado = redondear(cuotas.reduce((s, q, i) => (q.tipo === "COBRO" && !q.anuladoEl && !q.pagadoEl ? s + aPesos(pend[i], q.moneda, tc) : s), 0));
+  return { lugar: redondear(c.porCobrar - esperado), esperado };
 }
 
 /**
@@ -151,22 +229,38 @@ export function conciliarConCobros(cuotas: readonly CuotaLeida[], tc: Readonly<R
   };
 }
 
-/** `pendientesDeCobro` de las cuotas del negocio entero, alineado con `cuotas`: cada proyecto con su cobranza. PURA. */
-export function pendientesDelNegocio(
+/**
+ * `repartoDeCobros` de las cuotas del negocio entero, alineado con `cuotas`: cada proyecto con su cobranza. Las cuotas
+ * de la empresa (o de un proyecto sin cobranza) valen lo que dicen: pendiente o cobrada, su monto. PURA.
+ */
+export function repartoDelNegocio(
   cuotas: readonly (CuotaLeida & { proyectoId?: string | null })[],
   tc: Readonly<Record<string, number>>,
   cobranzas: ReadonlyMap<string, Cobranza>,
-): number[] {
-  const salida = cuotas.map((q) => (q.anuladoEl || q.pagadoEl ? 0 : q.monto));
+): RepartoDeCobros {
+  const pendiente = cuotas.map((q) => (q.anuladoEl || q.pagadoEl ? 0 : q.monto));
+  const cobrado = cuotas.map((q) => (!q.anuladoEl && q.pagadoEl ? q.monto : 0));
   const porProyecto = new Map<string, number[]>();
   cuotas.forEach((q, i) => {
     if (q.proyectoId && cobranzas.has(q.proyectoId)) porProyecto.set(q.proyectoId, [...(porProyecto.get(q.proyectoId) ?? []), i]);
   });
   for (const [id, idx] of porProyecto) {
-    const pend = pendientesDeCobro(idx.map((i) => cuotas[i]), tc, cobranzas.get(id)!);
-    idx.forEach((i, j) => (salida[i] = pend[j]));
+    const r = repartoDeCobros(idx.map((i) => cuotas[i]), tc, cobranzas.get(id)!);
+    idx.forEach((i, j) => {
+      pendiente[i] = r.pendiente[j];
+      cobrado[i] = r.cobrado[j];
+    });
   }
-  return salida;
+  return { pendiente, cobrado };
+}
+
+/** `pendientesDeCobro` de las cuotas del negocio entero, alineado con `cuotas`. PURA. */
+export function pendientesDelNegocio(
+  cuotas: readonly (CuotaLeida & { proyectoId?: string | null })[],
+  tc: Readonly<Record<string, number>>,
+  cobranzas: ReadonlyMap<string, Cobranza>,
+): number[] {
+  return repartoDelNegocio(cuotas, tc, cobranzas).pendiente;
 }
 
 const CLAVES = ["aCobrar", "aCobrar7", "cobrosVencidos", "cantCobrosVencidos", "aPagar", "aPagar7", "pagosVencidos", "cantPagosVencidos", "cobrado", "pagado"] as const;

@@ -29,7 +29,7 @@ function vence(d: Date, vencida: boolean) {
   );
 }
 
-export async function TabCuentas({ tipo, estado, q, cuotas, tc, tenantId, editaEmpresa, editaPagos }: { tipo: "COBRO" | "PAGO"; estado?: string; q?: string; cuotas: readonly (CuotaDelNegocio & { pendiente?: number })[]; tc: Readonly<Record<string, number>>; tenantId: string; editaEmpresa: boolean; editaPagos: boolean }) {
+export async function TabCuentas({ tipo, estado, q, cuotas, tc, tenantId, editaEmpresa, editaPagos }: { tipo: "COBRO" | "PAGO"; estado?: string; q?: string; cuotas: readonly (CuotaDelNegocio & { pendiente?: number; cobrado?: number })[]; tc: Readonly<Record<string, number>>; tenantId: string; editaEmpresa: boolean; editaPagos: boolean }) {
   const filtro: FiltroCuota = (FILTROS_CUOTA as readonly string[]).includes(estado ?? "") ? (estado as FiltroCuota) : "pendientes";
   const busqueda = (q ?? "").trim().toLowerCase();
   const tab = tipo === "COBRO" ? "cobrar" : "pagar";
@@ -79,8 +79,10 @@ export async function TabCuentas({ tipo, estado, q, cuotas, tc, tenantId, editaE
                 const vencida = est === "VENCIDA";
                 const deEmpresa = !c.proyecto;
                 const puedeMarcar = deEmpresa ? editaEmpresa : editaPagos;
-                // Lo cobrado a mano por fuera ya se descontó de las cuotas más viejas: el renglón muestra lo que falta.
-                const falta = !c.pagadoEl && c.tipo === "COBRO" && c.pendiente !== undefined ? c.pendiente : c.monto;
+                // Lo cobrado a mano por fuera ya se descontó de las cuotas más viejas: el renglón muestra lo que falta. Una
+                // cuota de cobro ya cobrada muestra lo que entró por ella (su cobro y lo suelto que la cubrió), no su monto.
+                const deCobro = c.tipo === "COBRO" ? (c.pagadoEl ? c.cobrado : c.pendiente) : undefined;
+                const falta = deCobro ?? c.monto;
                 const cubierta = !c.pagadoEl && !(falta > 0);
                 const referencia = aPesos(falta, c.moneda, tc);
                 return (

@@ -10,7 +10,7 @@ import { configProyectos } from "./datos.server";
 import { aPesos, codigoProyecto, nivelDeCarga, pipelinePonderado, proyeccionDeCaja, resumenCuotas, totalesFicha, type NivelCarga } from "./gestion-core";
 import { desviosDelEvento, estaAbierto, estaActivo, estaConfirmado, finDeSemana, margenSobreVenta } from "./empresa-core";
 import { redondear, yaVencio } from "./core";
-import { conciliarConCobros, pendientesDelNegocio, resumenConCobranza } from "./cobranza-core";
+import { conciliarConCobros, repartoDelNegocio, resumenConCobranza } from "./cobranza-core";
 import { cobranzasDelNegocio } from "./cobranza.server";
 
 const MESES_PROYECCION = 6;
@@ -47,8 +47,9 @@ export async function recuadrosDeCuotas(tenantId: string) {
   // «A cobrar» de cada proyecto = lo aprobado menos lo cobrado (cobranza-core), igual que Rentabilidad y Clientes.
   const cobranzas = await cobranzasDelNegocio(tenantId, tc, config.margenPct);
   // Cada renglón con lo que le falta (los cobros manuales se descuentan de las cuotas más viejas): suman lo mismo que el total.
-  const faltan = pendientesDelNegocio(cuotas, tc, cobranzas);
-  return { cuotas: cuotas.map((c, i) => ({ ...c, pendiente: faltan[i] })), tc, resumen: resumenConCobranza(cuotas, tc, cobranzas) };
+  // Y con lo que entró por cada una (las cobradas): «Pagados» muestra lo cobrado, no el monto de la cuota.
+  const { pendiente, cobrado } = repartoDelNegocio(cuotas, tc, cobranzas);
+  return { cuotas: cuotas.map((c, i) => ({ ...c, pendiente: pendiente[i], cobrado: cobrado[i] })), tc, resumen: resumenConCobranza(cuotas, tc, cobranzas) };
 }
 
 export async function proveedoresActivos(tenantId: string) {
@@ -182,7 +183,7 @@ export async function proyectosConNumeros(tenantId: string) {
         client: { select: { name: true } },
         presupuestos: { orderBy: { version: "desc" }, take: 1, select: { items: { orderBy: { posicion: "asc" }, include: { supplier: { select: { name: true } } } } } },
         gastos: { where: { anuladoEl: null }, select: { rubro: true, neto: true, anuladoEl: true } },
-        cuotas: { where: { anuladoEl: null, prevista: false, tipo: "COBRO" }, select: { monto: true, moneda: true, venceEl: true, pagadoEl: true, tipo: true } },
+        cuotas: { where: { anuladoEl: null, prevista: false, tipo: "COBRO" }, select: { id: true, monto: true, moneda: true, venceEl: true, pagadoEl: true, tipo: true } },
       },
     }),
     configProyectos(tenantId),
