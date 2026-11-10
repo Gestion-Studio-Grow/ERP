@@ -41,6 +41,7 @@ import { enlaceWhatsApp } from "./whatsapp-core";
 import { BotonWhatsApp } from "./WhatsAppDelClub";
 import { porFirma, useSeleccion } from "./usar-almacen";
 import { LIMITES_BLOQUEO } from "@/lib/club/motor.mjs";
+import { origenParaCompartir } from "@/lib/direccion-publica-cliente";
 
 // ───────────── avisos por WhatsApp ─────────────
 
@@ -273,7 +274,7 @@ export function HorariosDelClub({ almacen }: { almacen: Almacen }) {
 const elTexto = (_: string | undefined, nuevo: string) => nuevo;
 
 export function LinkParaClientes({ almacen }: { almacen: Almacen }) {
-  const [origen] = useState(() => (typeof window !== "undefined" ? window.location.origin : ""));
+  const [origen] = useState(() => origenParaCompartir());
   const seleccionar = useCallback((e: EstadoClub) => linkParaClientes(e, origen), [origen]);
   const link = useSeleccion(almacen, seleccionar, elTexto);
   const id = useId();

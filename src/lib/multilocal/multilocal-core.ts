@@ -281,8 +281,15 @@ export function direccionDelLocal(
   if (!sub) return null;
   const base = ruteo.dominioPropio?.trim().toLowerCase();
   if (base) return `https://${sub}.${base}${ruta}`;
-  for (const [host, s] of ruteo.mapaDeHosts) if (s === sub) return `https://${host}${ruta}`;
-  return null;
+  // Si el negocio tiene varios hosts en el mapa, el `.vercel.app` va último: un alias propio
+  // (p. ej. `chestetica.gsgapp.com.ar`) es la dirección oficial (GSG-MARCA-006).
+  let vercel: string | null = null;
+  for (const [host, s] of ruteo.mapaDeHosts) {
+    if (s !== sub) continue;
+    if (!/(^|\.)vercel\.app$/i.test(host)) return `https://${host}${ruta}`;
+    vercel ??= host;
+  }
+  return vercel ? `https://${vercel}${ruta}` : null;
 }
 
 // ── Días ─────────────────────────────────────────────────────────────────────

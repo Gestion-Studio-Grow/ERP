@@ -4,7 +4,6 @@
 // ============================================================================
 
 import "server-only";
-import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { leerOverridesTolerante } from "@/lib/permisos-overrides";
 import { getCurrentTenantId } from "@/lib/tenant";
@@ -18,6 +17,7 @@ import { claveDia, diasDelRango, enlaceSeguro, laminasPublicas, mediodia, pagina
 import { redondear } from "./core";
 import type { ModuloGestion, RolGestion } from "./gestion-core";
 import { SIN_COMPROBANTES } from "./rendiciones-core";
+import { origenPublicoDelPedido } from "@/lib/direccion-publica.server";
 
 const DIA = 86_400_000;
 
@@ -173,11 +173,9 @@ export function usuarioDelCalendario(tenantId: string, token: string): string | 
 export async function direccionDelCalendario(a: Actor): Promise<string | null> {
   const secreto = secretoDelCalendario();
   if (!secreto) return null;
-  const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host");
-  if (!host) return null;
-  const protocolo = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") || host.startsWith("127.") ? "http" : "https");
-  return `${protocolo}://${host}/api/proyectos/calendario/${tokenDeCalendario(secreto, a.tenantId, a.user.id)}`;
+  const origen = await origenPublicoDelPedido();
+  if (!origen) return null;
+  return `${origen}/api/proyectos/calendario/${tokenDeCalendario(secreto, a.tenantId, a.user.id)}`;
 }
 
 export const rangoDeSuscripcion = (hoy: Date = new Date()) => ({ desde: new Date(hoy.getTime() - 60 * DIA), hasta: new Date(hoy.getTime() + 400 * DIA) });

@@ -37,7 +37,7 @@ por mensaje en Argentina a una tarifa baja. Página oficial: *WhatsApp Business 
   ⚠️ **Decisión de Matías**, provisional a confirmar.
 - Un email del negocio.
 - Acceso al proyecto de Vercel del ERP (lo tiene el dueño de GSG).
-- El dominio donde corre su turnero, por ejemplo `https://matiasconsoli-erp.vercel.app`
+- El dominio donde corre su turnero, por ejemplo `https://matiasconsoli.gsgapp.com.ar`
   (provisional a confirmar: es la URL de la demo hasta la venta).
 
 ## 3. Meta Business Manager (el "negocio" en Meta)
@@ -94,7 +94,7 @@ El token que muestra "API Setup" **vence a las 24 h**: sirve sólo para probar. 
    503 y no deja guardar.
 2. developers.facebook.com → tu app → **WhatsApp → Configuración → Webhook → Editar**.
 3. **URL de devolución de llamada:** `https://<dominio-del-turnero>/api/webhooks/whatsapp`
-   (ej.: `https://matiasconsoli-erp.vercel.app/api/webhooks/whatsapp`). El negocio sale del
+   (ej.: `https://matiasconsoli.gsgapp.com.ar/api/webhooks/whatsapp`). El negocio sale del
    dominio: **tiene que ser el dominio de Matías**, no el de otro tenant.
 4. **Token de verificación:** el mismo de `WHATSAPP_VERIFY_TOKEN`.
 5. **Verificar y guardar.** Meta llama con un GET y el ERP le devuelve el código (si el token no
@@ -144,7 +144,7 @@ idioma **Español (ARG)** (`es_AR`).
 - `link_alumno` lo usa «¿Ya sos alumno? Pedí tu link» del turnero: el link le llega al número
   registrado y nunca se muestra en pantalla.
 - Meta pide un **ejemplo** de cada variable: `Juan`, `jueves 23/10`, `18:00`,
-  `https://matiasconsoli-erp.vercel.app/alumno/ejemplo`.
+  `https://matiasconsoli.gsgapp.com.ar/alumno/ejemplo`.
 - Fuente en el código: `PLANTILLAS_META` en `src/lib/padel/whatsapp-cloud.ts`. Si cambiás un
   nombre en Meta, cambialo ahí también.
 - Los textos que Matías edita en **Horarios y precios → Los textos de WhatsApp** se usan para el

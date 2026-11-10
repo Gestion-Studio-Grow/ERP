@@ -11,6 +11,7 @@ import { crearStand, eliminarStand } from "@/lib/proyectos/acciones";
 import { armarStandConIA, armarStandsConIA, crearPiezasPropuestas, proponerPiezas, type AlternativaStand } from "@/lib/proyectos/acciones-diseno";
 import type { PiezaPropuesta } from "@/lib/proyectos/ia-piezas-core";
 import { confirmarSubida, hayNube, pedirSubida, subirArchivoFicha, type ResultadoFicha } from "@/lib/proyectos/acciones-ficha";
+import { origenParaCompartir } from "@/lib/direccion-publica-cliente";
 
 const campo = "min-h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-strong";
 const TIPOS = [["RENDER", "Render"], ["PLANO", "Plano"], ["PRESENTACION", "Presentación"], ["PRESUPUESTO", "Presupuesto"], ["CONTRATO", "Contrato"], ["OTRO", "Otro"]];
@@ -443,7 +444,7 @@ export function CopiarLink({ ruta }: { ruta: string }) {
       type="button"
       className={buttonClasses("outline", "md")}
       onClick={async () => {
-        await navigator.clipboard.writeText(`${window.location.origin}${ruta}`);
+        await navigator.clipboard.writeText(`${origenParaCompartir()}${ruta}`);
         setCopiado(true);
         setTimeout(() => setCopiado(false), 2000);
       }}

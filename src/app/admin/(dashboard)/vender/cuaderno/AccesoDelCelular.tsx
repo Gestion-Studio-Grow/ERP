@@ -7,6 +7,7 @@
 // el enlace de Vender. No instala nada ni pide permisos.
 
 import { useState } from "react";
+import { origenParaCompartir } from "@/lib/direccion-publica-cliente";
 
 const RUTA_DE_VENDER = "/admin/vender";
 
@@ -14,7 +15,7 @@ export default function AccesoDelCelular() {
   const [aviso, setAviso] = useState<string | null>(null);
 
   async function compartir() {
-    const url = `${window.location.origin}${RUTA_DE_VENDER}`;
+    const url = `${origenParaCompartir()}${RUTA_DE_VENDER}`;
     try {
       if (typeof navigator.share === "function") {
         await navigator.share({ title: "Vender", url });

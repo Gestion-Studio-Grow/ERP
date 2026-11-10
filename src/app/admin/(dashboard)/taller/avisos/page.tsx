@@ -1,4 +1,3 @@
-import { headers } from "next/headers";
 import Link from "next/link";
 import { requireApp } from "@/lib/require-app";
 import { cn, EmptyState } from "@/components/ui";
@@ -7,6 +6,7 @@ import { marcarAvisoEnviado } from "@/lib/taller/acciones";
 import { armarMensaje, fechaCorta, pesos, type ClavePlantilla, type TipoAviso } from "@/lib/taller/core";
 import { BarraTaller, Patente, tarjeta } from "../_vista";
 import { EnviarWhatsApp } from "../_piezas";
+import { origenPublicoDelPedido } from "@/lib/direccion-publica.server";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Taller · Avisos" };
@@ -16,9 +16,7 @@ const PLANTILLA: Record<TipoAviso, ClavePlantilla> = { vtv: "vtv", service: "ser
 export default async function AvisosPage() {
   await requireApp("taller");
   const { avisos, config, negocio } = await bandejaDeAvisos();
-  const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "";
-  const turnos = `${host.includes("localhost") ? "http" : "https"}://${host}/reserva`;
+  const turnos = `${(await origenPublicoDelPedido()) ?? ""}/reserva`;
   const pendientes = avisos.filter((a) => !a.enviado);
 
   return (

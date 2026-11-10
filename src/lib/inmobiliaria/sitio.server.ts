@@ -8,6 +8,7 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import { getTenantIdentity } from "@/lib/identidad-rubro";
 import { configInmo, negocioInmo } from "./datos.server";
 import { marcaInmo } from "./marca";
+import { origenPublicoDelPedido } from "@/lib/direccion-publica.server";
 
 export const sitioInmo = cache(async () => {
   const identity = await getTenantIdentity();
@@ -19,9 +20,5 @@ export const sitioInmo = cache(async () => {
 
 /** La dirección pública del sitio, para links absolutos (compartir, buscadores). */
 export async function origenDelSitio(): Promise<string> {
-  const { headers } = await import("next/headers");
-  const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "";
-  const proto = h.get("x-forwarded-proto") ?? (host.includes("localhost") ? "http" : "https");
-  return host ? `${proto}://${host}` : "";
+  return (await origenPublicoDelPedido()) ?? "";
 }
