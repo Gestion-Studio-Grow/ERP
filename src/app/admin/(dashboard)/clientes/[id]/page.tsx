@@ -15,6 +15,7 @@ import FichaUnica from "./FichaUnica";
 import { enInicioPorApps } from "../../inicio/piloto";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import FichaRenglon from "./FichaRenglon";
+import FichaDeColor from "./FichaDeColor";
 import { hrefNuevoTurno } from "../../turnos/pasos";
 import { permisoEfectivo } from "@/lib/capabilities";
 import { appDelPanelCerrado, appPermitida } from "@/apps/visibles";
@@ -179,6 +180,9 @@ export default async function ClienteDetailPage({
           <p className="text-2xl font-semibold text-strong">{fmtMoneyARS(totalGastado, 0)}</p>
         </div>
       </div>
+
+      {/* Peluquería/barbería (T4): ficha técnica de color. En otros rubros no pinta nada. */}
+      <FichaDeColor clientId={client.id} />
 
       <h2 className="text-lg font-medium text-strong mb-3">Historial de turnos</h2>
       <div className="space-y-2">
