@@ -32,19 +32,20 @@ function Exito({ mensaje }: { mensaje: string }) {
 }
 
 function FormLectura({ idNuevo, equipos }: { idNuevo: string; equipos: string[] }) {
-  // Vuelta de cada anotación que salió bien: re-monta los campos vacíos. Con error, queda lo cargado.
-  const [vuelta, setVuelta] = useState(0);
+  // Cada anotación que salió bien estrena un id nuevo (y re-monta los campos vacíos) sin esperar el
+  // refresco del server (certificación T5, O3). Con error, queda lo cargado y el mismo id.
+  const [id, setId] = useState(idNuevo);
   const { estado, enviar, enviando } = useEnvio<EstadoFrio>(async (prev, fd) => {
     const r = await registrarLecturaFrio(prev, fd);
-    if (r?.ok) setVuelta((v) => v + 1);
+    if (r?.ok) setId(crypto.randomUUID());
     return r;
   }, null);
   return (
     <>
       {estado?.ok === false && <AvisoError titulo="No se anotó la temperatura" comoSeguir={estado.error} />}
       {estado?.ok && <Exito mensaje={estado.mensaje} />}
-      <form key={`${idNuevo}-${vuelta}`} onSubmit={enviar} className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-        <input type="hidden" name="id" value={idNuevo} />
+      <form key={id} onSubmit={enviar} className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+        <input type="hidden" name="id" value={id} />
         <div className="flex flex-col gap-1">
           <label htmlFor="frio-equipo" className="text-xs font-medium text-muted">Equipo</label>
           <Input id="frio-equipo" name="equipo" required maxLength={40} autoComplete="off" list="frio-equipos" placeholder="ej: Cámara 1" />

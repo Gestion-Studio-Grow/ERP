@@ -18,7 +18,6 @@ import { tenantTransaction } from "@/lib/rls";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireAppAccion, AppNoDisponibleError } from "@/lib/require-app";
 import { permisoEfectivo } from "@/lib/capabilities";
-import { auditAdmin } from "@/lib/audit-core";
 import { logger } from "@/lib/logger";
 import { motivoDelRechazoDelAlta } from "@/lib/order-core";
 import { Prisma } from "@/generated/prisma/client";
@@ -50,15 +49,37 @@ export async function registrarLecturaFrio(_prev: EstadoFrio, formData: FormData
 
     const tenantId = await getCurrentTenantId();
     const actor = `user:${user.id}`;
-    const insertadas = await tenantTransaction(
-      (tx) => tx.$executeRaw`
-        INSERT INTO "RegistroFrio" ("id","tenantId","equipo","temperaturaC","medidoPor","nota")
-        VALUES (${id}, ${tenantId}, ${equipo}, ${temperaturaC}, ${actor}, ${nota})
-        ON CONFLICT ("id") DO NOTHING`,
+    // La lectura y su auditoría van juntas en la misma transacción (certificación T5, O4): si falla la
+    // auditoría, la lectura se revierte y el reintento la anota de nuevo, en vez de decir «ya estaba».
+    const resultado = await tenantTransaction(
+      async (tx) => {
+        const insertadas = await tx.$executeRaw`
+          INSERT INTO "RegistroFrio" ("id","tenantId","equipo","temperaturaC","medidoPor","nota")
+          VALUES (${id}, ${tenantId}, ${equipo}, ${temperaturaC}, ${actor}, ${nota})
+          ON CONFLICT ("id") DO NOTHING`;
+        if (insertadas === 0) {
+          // Repetida sólo si la fila es de este negocio (O1); si el id es de otro, no se confirma nada.
+          const propia = await tx.$queryRaw<{ id: string }[]>`
+            SELECT "id" FROM "RegistroFrio" WHERE "id" = ${id} AND "tenantId" = ${tenantId}`;
+          return propia.length > 0 ? ("repetida" as const) : ("choque" as const);
+        }
+        await tx.auditLog.create({
+          data: {
+            tenantId,
+            actor,
+            action: "create",
+            entity: "RegistroFrio",
+            entityId: id,
+            changes: { equipo, temperaturaC, conNota: !!nota },
+            channel: "admin",
+          },
+        });
+        return "nueva" as const;
+      },
       { tenantId },
     );
-    if (insertadas === 0) return { ok: true, mensaje: "Esa lectura ya estaba anotada." };
-    await auditAdmin({ action: "create", entity: "RegistroFrio", entityId: id, changes: { equipo, temperaturaC, conNota: !!nota } });
+    if (resultado === "repetida") return { ok: true, mensaje: "Esa lectura ya estaba anotada." };
+    if (resultado === "choque") return { ok: false, error: "No se entendió el formulario. Recargá la pantalla y anotá de nuevo." };
     revalidatePath(FRIO_PATH);
 
     return { ok: true, mensaje: `Anotado: ${equipo} a ${fmtTemperatura(temperaturaC)}.` };

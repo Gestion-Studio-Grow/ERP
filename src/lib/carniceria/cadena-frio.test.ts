@@ -42,6 +42,11 @@ test("lectura inválida: equipo vacío o largo, temperatura fuera de −40..40 o
   }
   assert.equal(validarLectura({ equipo: "Cámara", temperatura: 2, nota: "n".repeat(201) }).ok, false);
   assert.equal(leerTemperatura(" 2,5 "), 2.5);
+  // Sólo decimales: nada de hexadecimal ni notación científica (certificación T5, O2).
+  assert.equal(leerTemperatura("0x10"), null);
+  assert.equal(leerTemperatura("1e1"), null);
+  assert.equal(leerTemperatura("-18"), -18);
+  assert.equal(leerTemperatura("3."), null);
 });
 
 test("rango: por defecto 0–4; min < max; lo guardado roto se ignora", () => {

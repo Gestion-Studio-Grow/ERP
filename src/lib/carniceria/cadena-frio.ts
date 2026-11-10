@@ -24,7 +24,8 @@ type Resultado<T> = { ok: true; valor: T } | { ok: false; error: string };
 
 /** "-1,5" / "3.25" / -2 → número con hasta 2 decimales; null si no se entiende. */
 export function leerTemperatura(x: unknown): number | null {
-  const n = typeof x === "string" ? (x.trim() === "" ? Number.NaN : Number(x.trim().replace(",", "."))) : x;
+  // Sólo un número decimal con coma o punto: Number() solo aceptaría "0x10" o "1e1" (certificación T5, O2).
+  const n = typeof x === "string" ? (/^-?\d+([.,]\d+)?$/.test(x.trim()) ? Number(x.trim().replace(",", ".")) : Number.NaN) : x;
   if (typeof n !== "number" || !Number.isFinite(n)) return null;
   return Math.round(n * 100) / 100;
 }
