@@ -13,6 +13,7 @@ import { cambiosEntreVersiones, cambioDeVenta, estadoCuota, MONEDAS, plataEn, to
 import { datosCotizacion, datosFinanzas, type Cabecera, type Vista } from "@/lib/proyectos/ficha.server";
 import { veLaPlata } from "@/lib/proyectos/datos.server";
 import { textoPagado } from "@/lib/proyectos/cobranza-core";
+import { textoCubierta } from "@/lib/proyectos/avisos-cuota";
 import { nombreDelComprobante } from "@/lib/factura-de-prueba";
 import type { Actor } from "@/lib/proyectos/gestion.server";
 import { campo, etiqueta, tarjeta } from "../_vista";
@@ -277,7 +278,16 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
                       <td className="py-1.5 pr-2">{c.prevista && !c.pagadoEl ? <Badge tone="neutral">Prevista</Badge> : <Badge tone={estado === "PAGADA" ? "success" : estado === "VENCIDA" ? "danger" : "neutral"}>{estado === "PAGADA" ? (c.tipo === "COBRO" ? "Cobrado" : "Pagado") : estado === "VENCIDA" ? "Vencido" : "Pendiente"}</Badge>}</td>
                       <td className="py-1">
                         {c.pagadoEl && c.tipo === "COBRO" && !c.anuladoEl && <a href={`/admin/proyectos/imprimir/cobro/${c.id}`} className={buttonClasses("ghost", "sm")}>Constancia</a>}
-                        {!c.pagadoEl && !c.anuladoEl && c.tipo === "COBRO" && !(c.pendiente > 0) && <span className="text-xs text-muted">Cubierta con cobros registrados</span>}
+                        {!c.pagadoEl && !c.anuladoEl && c.tipo === "COBRO" && !(c.pendiente > 0) && (
+                          c.prevista ? (
+                            <span className="text-xs text-muted">Prevista (sin marcar)</span>
+                          ) : (
+                            <div className="grid justify-items-end gap-1">
+                              <span className="text-xs text-muted">{textoCubierta(c.auto)}</span>
+                              {!c.auto && vista.editaPagos && <BotonConConfirmacion accion={quitarMovimiento} ocultos={{ id: c.id, proyectoId: p.id }} texto="Quitar" textoConfirma="Quitar" etiqueta={`Quitar ${c.concepto}`} />}
+                            </div>
+                          )
+                        )}
                         {!c.pagadoEl && !c.prevista && vista.editaPagos && (c.tipo !== "COBRO" || c.pendiente > 0) && (
                           <div className="flex flex-wrap items-center justify-end gap-1">
                             <FormAccion accion={marcarCuota} className="flex flex-wrap items-center gap-1">

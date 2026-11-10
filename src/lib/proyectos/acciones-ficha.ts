@@ -14,10 +14,11 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import { auditAdmin } from "@/lib/audit-core";
 import { transferenciaEnElLibroTx } from "@/lib/caja/transferencia-en-el-libro";
 import type { Prisma } from "@/generated/prisma/client";
-import { esEtapa, etapaAlAprobar, etapaLabel, MEDIOS, metodoDeCaja, pesos, redondear, sePuedeEditar, sumarDias, type MedioPago } from "./core";
+import { esEtapa, etapaAlAprobar, etapaLabel, MEDIOS, metodoDeCaja, redondear, sePuedeEditar, sumarDias, type MedioPago } from "./core";
 import { configProyectos } from "./datos.server";
 import { cobranzaConCuotas, pendienteDeLaCuota, trabarCobranza } from "./cobranza.server";
 import { lugarParaCobroManual, pasaElTope } from "./cobranza-core";
+import { avisoTopeCuota, avisoTopeMarcar, listoMarcada } from "./avisos-cuota";
 import { cambioDeVenta, aPesos, CHECKLIST_BASE, ESTADOS_ITEM, MONEDAS, RUBROS, TIPOS_EVENTO, veTodosLosProyectos } from "./gestion-core";
 import { avisar, columnasOcultas, exigirEditar, usuariosDelEquipo, usuariosDeDireccion, usuariosDeLaPlata, proyectoVisible, puede, regenerarCuotas, registrarCambio, tiposDeCambio, type Actor } from "./gestion.server";
 import { tipoDeArchivoSubido, clavesARenombrar, fechaAntesDe, fotoDeVersion, itemDeClave, linkSeguro, monedasSinCambio, numeroDe, PERDIDO, precioAlCopiar, precioAlEnviar, servicioDeTipo } from "./ficha-core";
@@ -27,7 +28,9 @@ import { archivoAdmitido, claveDeArchivo, claveEsDelProyecto, MINUTOS_SUBIDA, ur
 import { borrarDeNube, configR2, tamanoEnNube } from "./r2.server";
 import type { ModuloGestion } from "./gestion-core";
 
-export type ResultadoFicha<T = object> = ({ ok: true } & T) | { ok: false; error: string };
+/** `aviso`: salió bien, pero hay algo que mirar (p. ej. «recalculá el plan» si se facturó una cuota en el medio). */
+/** `listo`: el cartel de éxito (se muestra aparte, porque el renglón que lo pidió suele desaparecer al refrescar). */
+export type ResultadoFicha<T = object> = ({ ok: true; aviso?: string; listo?: string } & T) | { ok: false; error: string };
 
 const RAIZ = "/admin/proyectos";
 const MAX_ARCHIVOS = 30; // los que viven en la base; los que están en la nube tienen su propio tope
@@ -817,12 +820,12 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
     return true;
   });
   if (ganada === "cambio") return mal("Mientras marcabas entró otro cobro de este proyecto y ahora a la cuota le falta otro importe. Recargá la página y volvé a marcarla.");
-  if (ganada === "tope") return mal(`Pasa lo que falta cobrar del proyecto: ${pesos(importe)} es más de lo que se debe. Recargá la página y revisá los cobros.`);
+  if (ganada === "tope") return mal(avisoTopeMarcar(importe, leido.cob));
   if (!ganada) return mal("Esa cuota ya estaba marcada.");
   await auditAdmin({ action: esCobro ? "proyecto.cuota.cobrar" : "proyecto.cuota.pagar", entity: "ProyectoCuota", entityId: id, changes: { importe, medio } });
   refrescar(proyectoId);
   revalidatePath(`${RAIZ}/administracion`);
-  return { ok: true };
+  return { ok: true, listo: listoMarcada(esCobro, importe) };
 }
 
 export async function crearMovimientoManual(formData: FormData): Promise<ResultadoFicha> {
@@ -850,16 +853,13 @@ export async function crearMovimientoManual(formData: FormData): Promise<Resulta
       await trabarCobranza(tx, tenantId, proyectoId);
       const { cuotas, cob } = await cobranzaConCuotas(tx, tenantId, proyectoId, tc, config.margenPct);
       const { lugar, esperado } = lugarParaCobroManual(cuotas, tc, cob);
-      if (aPesos(monto, moneda, tc) > lugar + 0.01) return { porCobrar: cob.porCobrar, esperado, lugar };
+      if (aPesos(monto, moneda, tc) > lugar + 0.01) return { porCobrar: cob.porCobrar, esperado, lugar, cob };
     }
     const c = await tx.proyectoCuota.create({ data: { tenantId, proyectoId, tipo, concepto, monto, moneda, venceEl, supplierId: tipo === "PAGO" && supplierId ? supplierId : null, auto: false }, select: { id: true } });
     await registrarCambio(tx, { tenantId, proyectoId, entidad: "ProyectoCuota", entidadId: c.id, campo: `Movimiento manual · ${concepto}`, despues: `${tipo === "COBRO" ? "Cobro" : "Pago"} ${monto} ${moneda}`, autor: a.nombre });
     return null;
   });
-  if (tope) {
-    const queda = tope.lugar > 0 ? `Como mucho podés cargar ${pesos(tope.lugar)}.` : "No queda lugar para otra cuota: para esperar más, ajustá una de las que ya están.";
-    return mal(`Ese cobro pasa lo que falta cobrar: el cliente debe ${pesos(tope.porCobrar)} y las cuotas pendientes ya esperan ${pesos(tope.esperado)}. ${queda}`);
-  }
+  if (tope) return mal(avisoTopeCuota(tope, tope.cob));
   refrescar(proyectoId);
   return { ok: true };
 }
