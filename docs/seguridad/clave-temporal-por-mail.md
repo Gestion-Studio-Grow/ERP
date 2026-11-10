@@ -64,6 +64,15 @@ cuando salió bien, o `clave_temporal.mail_fallido` cuando no salió.
 - **Pendiente con el mail caído:** queda una fila `clave_temporal.mail_fallido` por día hasta que el mail vuelva.
 - **Latencia del cron:** el plan Hobby sólo permite cron diario, así que un pendiente tarda hasta 24 h.
 
+## Pendiente aparte (riesgo bajo, preexistente; no entra en este PR)
+
+**Dos altas del wizard a la vez con el mismo nombre corto y distinto email.**
+- Las dos pasan la revisión del plan. La segunda reusa el negocio que creó la primera y le suma otro OWNER, que recibe su propia provisoria.
+- La clave del primero no se filtra: cada mail va al OWNER de la base con su propio email.
+- Igual queda un dueño de más en un negocio ajeno. Por eso hay que arreglarlo.
+- **Arreglo propuesto:** el commit de la saga falla si el negocio ya existía y no lo creó esta misma alta. Se prueba con un test postgres de dos altas concurrentes.
+- Lo marcó el refutador de GSG-SEG-014 (vuelta 2) y ORQ-006 lo anotó como pendiente el 10/11/2026.
+
 ## Tests
 
 - `src/lib/clave-temporal-mail.test.ts`: armado del mail, la clave sólo en el cuerpo, mail caído o sin red o sin respuesta a tiempo, sin PII en logs.
