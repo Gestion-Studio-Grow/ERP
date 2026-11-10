@@ -33,7 +33,8 @@ import { TOPE_CERTIFICADO_BYTES } from "@/lib/fiscal/asistente-arca";
 import { CONDICIONES_DEL_EMISOR, interpretarCondicionIva } from "@/lib/fiscal/condicion-iva-emisor";
 import { interpretarCuitInput } from "@/lib/fiscal/cuit-input";
 import { CambioObligatorioInactivo, operatorSetMustChange } from "@/lib/must-change-password";
-import { operatorResetPort } from "@/lib/operador/owner-reset-port";
+import { operatorResetPort, ownersActivos } from "@/lib/operador/owner-reset-port";
+import { elegirOwner } from "@/lib/operador/elegir-owner";
 import { altaPersonaCore, type AltaPersonaPort, type AltaPersonaResult } from "@/lib/operador/alta-persona";
 import { decidirAltaDeUsuarioEnTx } from "@/lib/usuarios-del-plan";
 import {
@@ -586,11 +587,34 @@ export async function resetOwnerPassword(tenantId: string): Promise<OwnerResetRe
   const g = await operadorParaNegocio({ id: tenantId });
   if (!g.ok) return { ok: false, error: g.motivo };
   const op = g.sesion.nombre;
-  const result = await enElNegocio(tenantId, (tx) =>
-    resetOwnerPasswordCore(operatorResetPort(tx, tenantId), { tenantId, operatorSubject: op }),
-  );
+  // Legado (sin selector): con más de un OWNER activo se niega, no elige al más antiguo.
+  const result = await resetearOwnerElegido(tenantId, op);
   if (result.ok) revalidatePath(`/operador/tenants/${tenantId}`);
   return result;
+}
+
+// A QUIÉN se resetea, decidido ANTES de escribir y dentro de la misma transacción del negocio: la
+// lista de OWNER activos sale de `ownersActivos` y la regla es `elegirOwner` (la misma que el script
+// del responsable de seguridad). Sin `ownerId` y con más de uno, se niega: antes el puerto tomaba
+// al más antiguo, que podía ser otra persona. Un `ownerId` de otro negocio, inactivo o que no es
+// OWNER no está en la lista: se niega sin tocar nada. Recién con el elegido se escribe.
+async function resetearOwnerElegido(tenantId: string, op: string, ownerId?: string): Promise<OwnerResetResult> {
+  return enElNegocio(tenantId, async (tx): Promise<OwnerResetResult> => {
+    const eleccion = elegirOwner(await ownersActivos(tx, tenantId), { ownerId });
+    if (!eleccion.ok) {
+      const error =
+        eleccion.motivo === "varios"
+          ? "Hay más de un dueño activo: elegí a cuál le cambiás la contraseña. No se tocó nada."
+          : eleccion.motivo === "no-coincide"
+            ? "Esa persona no es un dueño activo de este negocio. No se tocó nada."
+            : "Este negocio no tiene un dueño activo: no hay a quién resetearle la contraseña. No se tocó nada.";
+      return { ok: false, error };
+    }
+    return resetOwnerPasswordCore(operatorResetPort(tx, tenantId, { ownerId: eleccion.ownerId }), {
+      tenantId,
+      operatorSubject: op,
+    });
+  });
 }
 
 // --- Reset de OWNER: por qué YA NO existe la versión masiva --------------------
@@ -630,9 +654,11 @@ export async function resetAllOwnerPasswords(): Promise<
 // operador está viendo en pantalla: obliga a mirar A QUIÉN le está cambiando la contraseña, que
 // es justo el paso que el botón masivo se salteaba. Devuelve la temporal UNA vez (sólo en el
 // retorno: nunca se persiste en claro, nunca se loguea, no va por la URL) y queda auditado.
+// Con más de un dueño activo hay que pasar `ownerId` (el que el operador eligió en la ficha).
 export async function resetOwnerPasswordDeTenant(
   tenantId: string,
   slugTipeado: string,
+  ownerId?: string,
 ): Promise<OwnerResetResult> {
   const g = await operadorParaNegocio({ id: tenantId });
   if (!g.ok) return { ok: false, error: g.motivo };
@@ -653,9 +679,8 @@ export async function resetOwnerPasswordDeTenant(
     };
   }
 
-  const result = await enElNegocio(tenantId, (tx) =>
-    resetOwnerPasswordCore(operatorResetPort(tx, tenantId), { tenantId, operatorSubject: op }),
-  );
+  // Con más de un dueño activo la ficha obliga a elegir: `ownerId` es el elegido (se valida igual acá).
+  const result = await resetearOwnerElegido(tenantId, op, typeof ownerId === "string" ? ownerId : undefined);
   if (result.ok) {
     revalidatePath(`/operador/tenants/${tenantId}`);
     revalidatePath("/operador");
