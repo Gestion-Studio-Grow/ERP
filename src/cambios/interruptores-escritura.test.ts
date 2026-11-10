@@ -46,6 +46,8 @@ const ESCRITORES_PERMITIDOS: Record<string, string> = {
     "los recorridos del mostrador de CH (npm run test:ch-mostrador-e2e), SÓLO contra su base efímera local (crearBaseEfimera): prende el diseño nuevo para recorrer el cajón",
   "src/tenants/magra/e2e/mostrador.e2e.mjs":
     "el recorrido del mostrador de MAGRA (npm run test:mostrador-e2e), SÓLO contra su base efímera local (crearBaseEfimera): prende el diseño nuevo para recorrer «Cobrar en el mostrador»",
+  "scripts/qa/capturas-vender.mjs":
+    "las capturas de Vender (MARCA-007), SÓLO contra su base efímera local (crearBaseEfimera): prende «mostrador-boutique» en magra, como en producción",
 };
 
 /** Quién puede importar la escritura real. */
