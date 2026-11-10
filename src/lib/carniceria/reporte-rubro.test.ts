@@ -32,7 +32,7 @@ test("whereRenglonesPorPeso: sólo por peso, pedidos no anulados y el tenantId e
   assert.deepEqual(whereRenglonesPorPeso("t1", d, h), {
     tenantId: "t1",
     saleUnit: "WEIGHT",
-    order: { tenantId: "t1", status: { not: "CANCELLED" }, createdAt: { gte: d, lt: h } },
+    order: { tenantId: "t1", paid: true, status: { not: "CANCELLED" }, createdAt: { gte: d, lt: h } },
   });
 });
 

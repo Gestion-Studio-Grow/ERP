@@ -50,14 +50,15 @@ const enRango = (dia: string | null, r: RangoDeDias) => dia != null && dia >= r.
 // ── a) Kilos vendidos por corte ──────────────────────────────────────────────
 
 /**
- * Los renglones de venta POR PESO de los pedidos no anulados del negocio, creados en
+ * Los renglones de venta POR PESO de los pedidos COBRADOS y no anulados del negocio (mismo
+ * criterio que Reportes: sólo lo cobrado), creados en
  * [desde, hasta). El `tenantId` va explícito en el renglón y en el pedido. PURA.
  */
 export function whereRenglonesPorPeso(tenantId: string, desde: Date, hasta: Date): Prisma.OrderItemWhereInput {
   return {
     tenantId,
     saleUnit: "WEIGHT",
-    order: { tenantId, status: { not: "CANCELLED" }, createdAt: { gte: desde, lt: hasta } },
+    order: { tenantId, paid: true, status: { not: "CANCELLED" }, createdAt: { gte: desde, lt: hasta } },
   };
 }
 
