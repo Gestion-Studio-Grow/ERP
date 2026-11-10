@@ -13,7 +13,8 @@
  *   Q = ARS; `original.monto` si `original.moneda === Q`; si no, pesos / tc[Q].
  * - Reparto, por fecha de vencimiento: (1) marcadas: su cobro propio y, lo que les falte, de lo suelto; (2) pendientes:
  *   lo suelto que sobra; (3) tope: de la más vieja a la más nueva, cada pendiente toma lo que le queda hasta agotar
- *   `porCobrar`. Sin aprobado, (2) y (3) no corren: las cuotas valen lo que dicen.
+ *   `porCobrar` (en la moneda del proyecto, al centavo y contra su saldo en esa moneda: marcarlas todas salda exacto; en
+ *   otra moneda, al centavo para abajo). Sin aprobado, (2) y (3) no corren: las cuotas valen lo que dicen.
  * - Cobro propio de una marcada: para saber si la cuota quedó COMPLETA cuenta en su moneda (lo que pagó el cliente en
  *   ella, `enlazadoDe`); para lo que VALE (H) cuenta como lo cuenta la cobranza (`CobroDeCuota.hoy`: los pesos asentados,
  *   o el original × cambio de hoy si es la moneda del proyecto). Así, con el dólar que sube o baja, una cuota en USD de
@@ -29,8 +30,8 @@
  * Proyecto en otra moneda (USD): el saldo se calcula EN SU MONEDA y recién al final se pasa a pesos con el cambio de
  * HOY (`cobranzaEnMoneda`): si el dólar se mueve la deuda en pesos se mueve con él, y quien pagó sus dólares debe cero.
  */
-import { redondear, totales } from "./core";
-import { aPesos, enMonedaDeVenta, resumenCuotas, ventaTotalItem, type CuotaLeida, type ResumenCuotas } from "./gestion-core";
+import { pesos, redondear, totales } from "./core";
+import { aPesos, enMonedaDeVenta, plataEn, resumenCuotas, ventaTotalItem, type CuotaLeida, type ResumenCuotas } from "./gestion-core";
 
 /** Una cuota como la lee la cobranza: con `prevista` si se la leyó (las lecturas de Administración ya las filtran). */
 export type CuotaDeCobranza = CuotaLeida & { prevista?: boolean | null };
@@ -39,6 +40,13 @@ export type CuotaDeCobranza = CuotaLeida & { prevista?: boolean | null };
 export function esPrevista(q: CuotaDeCobranza): boolean {
   return !!q.prevista && !q.pagadoEl;
 }
+
+/**
+ * La misma regla que `esPrevista`, como filtro de consulta (`where` de Prisma): deja afuera sólo las previstas SIN marcar.
+ * Una cuota marcada cuenta aunque haya sido prevista. Toda lectura de cuotas que alimente la cobranza (ficha,
+ * Administración, Clientes, Rentabilidad) usa ésta: así la ficha y Administración ven las mismas cuotas.
+ */
+export const SIN_PREVISTAS_SIN_MARCAR = { NOT: { prevista: true, pagadoEl: null } };
 
 /** Lo mínimo de un ítem para saber cuánto se le vende al cliente (precio fijo en pesos, o costo + recargo). */
 export interface ItemVendible {
@@ -215,24 +223,48 @@ export function repartoDeCobros(cuotas: readonly CuotaDeCobranza[], tc: Readonly
     bruto.set(i, redondear(enPesos[i] - aplicado));
     cobrado[i] = redondear((cuotas[i].monto * aplicado) / enPesos[i]);
   }
-  // 3) Tope: lo que quedan esperando no pasa de lo que falta cobrar; lo que sobra se recorta de las más nuevas.
-  let presupuesto = c.porCobrar;
-  for (const i of pendientes) {
-    const q = cuotas[i];
-    const pendH = Math.max(0, Math.min(bruto.get(i)!, presupuesto));
-    presupuesto = redondear(presupuesto - pendH);
-    // Al centavo para abajo: en otra moneda, redondear para arriba pasaría el tope por el tipo de cambio.
-    pendiente[i] = pendH >= enPesos[i] ? q.monto : alCentavoAbajo((q.monto * pendH) / enPesos[i]);
-  }
+  // 3) Tope: lo que quedan esperando no pasa de lo que falta cobrar; lo que sobra se recorta de las más nuevas. El tope
+  // corre en H (`restoH`) y, en paralelo, en la moneda del proyecto (`queda`): ahí el pendiente puede ser exacto.
+  const tope: Tope = { moneda: c.enMoneda?.moneda ?? "ARS", tc: c.enMoneda?.tc ?? 1, queda: c.enMoneda ? Math.max(0, c.enMoneda.saldo) : c.porCobrar, restoH: c.porCobrar };
+  for (const i of pendientes) pendiente[i] = pendienteDeCuota(cuotas[i], bruto.get(i)!, enPesos[i], tope, tc);
   // 4) Las previstas, después de las reales: se muestran con lo que les queda del tope (así el cashflow no pasa del total).
   for (const i of vivas) {
-    const q = cuotas[i];
-    if (!esPrevista(q) || !(enPesos[i] > 0)) continue;
-    const pendH = Math.max(0, Math.min(enPesos[i], presupuesto));
-    presupuesto = redondear(presupuesto - pendH);
-    pendiente[i] = pendH >= enPesos[i] ? q.monto : alCentavoAbajo((q.monto * pendH) / enPesos[i]);
+    if (!esPrevista(cuotas[i]) || !(enPesos[i] > 0)) continue;
+    pendiente[i] = pendienteDeCuota(cuotas[i], enPesos[i], enPesos[i], tope, tc);
   }
   return { pendiente, cobrado };
+}
+
+/** Lo que queda del tope del reparto: en H (`restoH`) y en la moneda del proyecto (`queda`, con su cambio de hoy `tc`). */
+interface Tope {
+  moneda: string;
+  tc: number;
+  queda: number;
+  restoH: number;
+}
+
+/**
+ * Lo que le queda a una cuota, en su moneda: lo que espera (`esperaH`, en H) hasta lo que queda del tope. Descuenta del tope.
+ * - En otra moneda que la del proyecto: al centavo para abajo (redondear para arriba pasaría el tope por el tipo de cambio).
+ * - En la moneda del proyecto: al centavo (`redondear`) y nunca más de lo que queda del saldo en esa moneda; así
+ *   «Marcar cobrado» en cadena salda al centavo (antes, con el redondeo para abajo, quedaba 0,01 por cobrar sin ninguna
+ *   cuota pendiente: certificación v5, F1). Si redondeado no entra en H en lo que queda del tope, para abajo. PURA (salvo `tope`).
+ */
+function pendienteDeCuota(q: CuotaDeCobranza, esperaH: number, enPesos: number, tope: Tope, tc: Readonly<Record<string, number>>): number {
+  let pendH = Math.max(0, Math.min(esperaH, tope.restoH));
+  const crudo = (q.monto * pendH) / enPesos;
+  let p = pendH >= enPesos ? q.monto : alCentavoAbajo(crudo);
+  if (q.moneda === tope.moneda) {
+    const exacto = Math.min(pendH >= enPesos ? q.monto : redondear(crudo), alCentavoAbajo(tope.queda));
+    const exactoH = aPesos(exacto, q.moneda, tc);
+    if (exacto > p && exactoH <= tope.restoH) {
+      p = exacto;
+      pendH = exactoH;
+    } else p = Math.min(p, alCentavoAbajo(tope.queda));
+    tope.queda = Math.max(0, tope.queda - p);
+  } else tope.queda = Math.max(0, tope.queda - pendH / tope.tc);
+  tope.restoH = redondear(tope.restoH - pendH);
+  return p;
 }
 
 function alCentavoAbajo(x: number): number {
@@ -249,6 +281,33 @@ function enlazadoDe(q: CuotaLeida, propio: CobroDeCuota | undefined, tc: Readonl
   if (propio.original?.moneda === q.moneda) return propio.original.monto;
   const cambio = tc[q.moneda] ?? 0;
   return cambio > 0 ? redondear(propio.pesos / cambio) : 0;
+}
+
+/** Lo que efectivamente se pagó por una cuota marcada: en la moneda en que se pagó y, si no fue en pesos, los pesos asentados. */
+export interface PagadoDeCuota {
+  monto: number;
+  moneda: string;
+  /** Los pesos que se asentaron en la caja; `null` si se pagó en pesos (`monto` ya lo son). */
+  pesos: number | null;
+}
+
+/**
+ * Lo que se pagó por una cuota de cobro marcada, para MOSTRAR («Pagados» de Administración, la ficha): su cobro propio
+ * tal como entró (el original en la moneda de la cuota y los pesos asentados), no lo que vale hoy. El cashflow sigue con
+ * `RepartoDeCobros.cobrado` (pesos de hoy). Sin cobro propio (cubierta con cobros sueltos, o un pago a proveedor), `null`.
+ * Sale de `Cobranza.deCuotas`: no hace falta otra consulta. PURA.
+ */
+export function pagadoDeCuota(q: { id?: string | null; tipo: string; moneda: string; pagadoEl?: Date | null; anuladoEl?: Date | null }, c: Cobranza | null | undefined): PagadoDeCuota | null {
+  if (q.tipo !== "COBRO" || !q.pagadoEl || q.anuladoEl || !q.id) return null;
+  const propio = c?.deCuotas?.[q.id];
+  if (!propio) return null;
+  if (q.moneda !== "ARS" && propio.original?.moneda === q.moneda) return { monto: propio.original.monto, moneda: q.moneda, pesos: propio.pesos };
+  return { monto: propio.pesos, moneda: "ARS", pesos: null };
+}
+
+/** «US$ 100 · $ 100.000»: lo pagado, y los pesos asentados si fue en otra moneda. PURA. */
+export function textoPagado(p: PagadoDeCuota): string {
+  return p.pesos === null ? plataEn(p.monto, p.moneda) : `${plataEn(p.monto, p.moneda)} · ${pesos(p.pesos)}`;
 }
 
 /** Lo que falta cobrar de cada cuota, en su moneda (ver `repartoDeCobros`). PURA. */

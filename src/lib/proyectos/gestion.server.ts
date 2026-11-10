@@ -272,7 +272,9 @@ export async function regenerarCuotas(tenantId: string, proyectoId: string): Pro
     const previa = porClave.get(c.clave);
     if (previa?.pagadoEl) continue;
     const datos = { prevista, tipo: c.tipo, concepto: c.concepto, monto: c.monto, moneda: c.moneda, venceEl: venceDeLaCuota({ clave: c.clave, plan: c.venceEl, prevista, hoy, previa }), supplierId: c.supplierId, anuladoEl: null };
-    if (previa) await prisma.proyectoCuota.update({ where: { id: previa.id }, data: datos });
+    // Sólo si sigue sin marcar: una cuota marcada mientras se ajustaba queda congelada (no se le pisa monto ni `prevista`);
+    // la próxima regeneración recalcula el plan con ella. (El candado de factura de cuota y el reintento son de la Etapa 2.)
+    if (previa) await prisma.proyectoCuota.updateMany({ where: { id: previa.id, tenantId, pagadoEl: null }, data: datos });
     else await prisma.proyectoCuota.create({ data: { ...datos, tenantId, proyectoId, auto: true, clave: c.clave } });
   }
   const sobran = actuales.filter((c) => c.clave && !vigentes.has(c.clave) && !c.pagadoEl && !c.anuladoEl).map((c) => c.id);

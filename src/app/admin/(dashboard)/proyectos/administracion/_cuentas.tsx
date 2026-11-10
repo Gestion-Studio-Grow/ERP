@@ -4,6 +4,7 @@ import { fechaCorta, fechaParaInput, pesos } from "@/lib/proyectos/core";
 import { aPesos, codigoProyecto, diasDeAtraso, estadoCuota, plataEn } from "@/lib/proyectos/gestion-core";
 import { FILTROS_CUOTA, pasaFiltro, type FiltroCuota } from "@/lib/proyectos/empresa-core";
 import { proveedoresActivos, type CuotaDelNegocio } from "@/lib/proyectos/empresa.server";
+import type { PagadoDeCuota } from "@/lib/proyectos/cobranza-core";
 import { anularCuotaEmpresa, crearPagoEmpresa } from "@/lib/proyectos/acciones-empresa";
 import { campo, etiqueta, tarjeta } from "../_vista";
 import { BotonDosPasos, DatoCuota, FormAccion, MarcarCuota, VenceCuota } from "./_controles";
@@ -29,7 +30,7 @@ function vence(d: Date, vencida: boolean) {
   );
 }
 
-export async function TabCuentas({ tipo, estado, q, cuotas, tc, tenantId, editaEmpresa, editaPagos }: { tipo: "COBRO" | "PAGO"; estado?: string; q?: string; cuotas: readonly (CuotaDelNegocio & { pendiente?: number; cobrado?: number })[]; tc: Readonly<Record<string, number>>; tenantId: string; editaEmpresa: boolean; editaPagos: boolean }) {
+export async function TabCuentas({ tipo, estado, q, cuotas, tc, tenantId, editaEmpresa, editaPagos }: { tipo: "COBRO" | "PAGO"; estado?: string; q?: string; cuotas: readonly (CuotaDelNegocio & { pendiente?: number; cobrado?: number; pagado?: PagadoDeCuota | null })[]; tc: Readonly<Record<string, number>>; tenantId: string; editaEmpresa: boolean; editaPagos: boolean }) {
   const filtro: FiltroCuota = (FILTROS_CUOTA as readonly string[]).includes(estado ?? "") ? (estado as FiltroCuota) : "pendientes";
   const busqueda = (q ?? "").trim().toLowerCase();
   const tab = tipo === "COBRO" ? "cobrar" : "pagar";
@@ -84,7 +85,10 @@ export async function TabCuentas({ tipo, estado, q, cuotas, tc, tenantId, editaE
                 const deCobro = c.tipo === "COBRO" ? (c.pagadoEl ? c.cobrado : c.pendiente) : undefined;
                 const falta = deCobro ?? c.monto;
                 const cubierta = !c.pagadoEl && !(falta > 0);
-                const referencia = aPesos(falta, c.moneda, tc);
+                // Una cobrada con su cobro: lo que se pagó tal como entró (el original y los pesos asentados), no lo que
+                // vale hoy (eso es del cashflow). «US$ 100 · $ 100.000», no «US$ 66,66».
+                const pagado = c.tipo === "COBRO" && c.pagadoEl ? (c.pagado ?? null) : null;
+                const referencia = pagado ? (pagado.pesos ?? pagado.monto) : aPesos(falta, c.moneda, tc);
                 return (
                   <tr key={c.id} className={cn("border-t border-line align-top", vencida && "bg-danger-soft")}>
                     <td className={cn("py-2 pr-3", vencida && "text-danger")}>
@@ -100,8 +104,8 @@ export async function TabCuentas({ tipo, estado, q, cuotas, tc, tenantId, editaE
                       {c.auto && <span className="ml-1 rounded border border-line px-1 text-xs text-muted">auto</span>}
                     </td>
                     <td className="whitespace-nowrap py-2 pr-3 text-right font-medium tabular-nums text-strong">
-                      {plataEn(falta, c.moneda)}
-                      {falta !== c.monto && <span className="block text-xs font-normal text-muted">de {plataEn(c.monto, c.moneda)}</span>}
+                      {pagado ? plataEn(pagado.monto, pagado.moneda) : plataEn(falta, c.moneda)}
+                      {(pagado ? pagado.moneda !== c.moneda || pagado.monto !== c.monto : falta !== c.monto) && <span className="block text-xs font-normal text-muted">de {plataEn(c.monto, c.moneda)}</span>}
                     </td>
                     <td className="whitespace-nowrap py-2 pr-3 text-right tabular-nums text-muted">{referencia > 0 ? pesos(referencia) : "—"}</td>
                     <td className="py-2 pr-3">{editaEmpresa ? <DatoCuota id={c.id} dato="factura" valor={c.factura ?? ""} etiqueta="Factura" /> : (c.factura ?? "—")}</td>

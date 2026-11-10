@@ -10,7 +10,7 @@ import { prisma } from "@/lib/prisma";
 import { aPesos, COLUMNAS_FICHA, cashflowDelEvento, codigoProyecto, resumenCuotas, totalesFicha, ventaTotalItem } from "./gestion-core";
 import { columnasOcultas, filtroDeProyectos, puede, tiposDeCambio, versionViva, aItemFicha, type Actor } from "./gestion.server";
 import { configProyectos, datosDelNegocio } from "./datos.server";
-import { cobranza, conciliarConCobros, montoEnCashflow, repartoDeCobros } from "./cobranza-core";
+import { cobranza, conciliarConCobros, montoEnCashflow, pagadoDeCuota, repartoDeCobros, SIN_PREVISTAS_SIN_MARCAR } from "./cobranza-core";
 import { cobranzasDelNegocio } from "./cobranza.server";
 import { desvioPorRubro, fechaCorta, fechaParaInput, redondear, resultadoReal, totales } from "./core";
 import { cambioDeVenta, costoSinProveedor, enMonedaDeVenta, ventaEn } from "./gestion-core";
@@ -139,7 +139,7 @@ export type Cabecera = NonNullable<Awaited<ReturnType<typeof cabeceraFicha>>>;
 export async function datosResumen(a: Actor, cab: Cabecera, vista: Vista) {
   const [personas, cuotas, cantChecklist, cobranzas] = await Promise.all([
     prisma.proyectoPersona.findMany({ where: { tenantId: a.tenantId, activa: true }, orderBy: { nombre: "asc" }, select: { id: true, nombre: true, puesto: true } }),
-    vista.pagos ? prisma.proyectoCuota.findMany({ where: { tenantId: a.tenantId, proyectoId: cab.proyecto.id, anuladoEl: null, prevista: false }, select: { id: true, tipo: true, monto: true, moneda: true, venceEl: true, pagadoEl: true, anuladoEl: true } }) : [],
+    vista.pagos ? prisma.proyectoCuota.findMany({ where: { tenantId: a.tenantId, proyectoId: cab.proyecto.id, anuladoEl: null, ...SIN_PREVISTAS_SIN_MARCAR }, select: { id: true, tipo: true, monto: true, moneda: true, venceEl: true, pagadoEl: true, anuladoEl: true } }) : [],
     prisma.proyectoChecklist.count({ where: { tenantId: a.tenantId, proyectoId: cab.proyecto.id } }),
     vista.pagos ? cobranzasDelNegocio(a.tenantId, cab.tc, cab.config.margenPct, [cab.proyecto.id]) : null,
   ]);
@@ -185,7 +185,8 @@ export async function datosFinanzas(a: Actor, cab: Cabecera, vista: Vista) {
   const cob = cobranzas.get(proyectoId) ?? cobranza(0, []);
   // Cada cuota con lo que le falta y lo que entró por ella: lo cobrado a mano ya se descontó de las más viejas.
   const reparto = repartoDeCobros(todas, cab.tc, cob);
-  const cuotas = todas.map((c, i) => ({ ...c, pendiente: reparto.pendiente[i], cobrado: reparto.cobrado[i] }));
+  // `pagado`: lo que se pagó por una marcada tal como entró (original y pesos asentados), para mostrar; el cashflow usa `cobrado`.
+  const cuotas = todas.map((c, i) => ({ ...c, pendiente: reparto.pendiente[i], cobrado: reparto.cobrado[i], pagado: pagadoDeCuota(c, cob) }));
   // Sin permiso de costos, un pago a proveedor delata el costo: sólo se ven los cobros.
   const visibles = vista.costos ? cuotas : cuotas.filter((c) => c.tipo === "COBRO");
   // Una cuota de cobro cuenta lo que entró por ella más lo que le falta (pagada o no), nunca su monto: si no, se pasa del total.
@@ -215,7 +216,7 @@ export async function datosSeguimiento(a: Actor, cab: Cabecera, vista: Vista) {
   const [checklist, tareas, cuotas, pagos] = await Promise.all([
     prisma.proyectoChecklist.findMany({ where: { tenantId, proyectoId }, orderBy: [{ fecha: { sort: "asc", nulls: "last" } }, { createdAt: "asc" }] }),
     prisma.proyectoTarea.findMany({ where: { tenantId, proyectoId }, orderBy: [{ hechaEl: { sort: "asc", nulls: "first" } }, { venceEl: { sort: "asc", nulls: "last" } }, { createdAt: "asc" }] }),
-    vista.pagos ? prisma.proyectoCuota.findMany({ where: { tenantId, proyectoId, tipo: "COBRO", anuladoEl: null, prevista: false }, orderBy: { venceEl: "asc" } }) : [],
+    vista.pagos ? prisma.proyectoCuota.findMany({ where: { tenantId, proyectoId, tipo: "COBRO", anuladoEl: null, ...SIN_PREVISTAS_SIN_MARCAR }, orderBy: { venceEl: "asc" } }) : [],
     vista.pagos ? prisma.proyectoPago.findMany({ where: { tenantId, proyectoId, anuladoEl: null }, orderBy: { createdAt: "desc" } }) : [],
   ]);
   return { checklist, tareas, cuotas, pagos };

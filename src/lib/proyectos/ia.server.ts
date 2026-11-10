@@ -19,6 +19,7 @@ import { CAMPOS_BRIEF, ESTADOS_DATO, INSTRUCCIONES_CONSULTA, textoDeBrief, type 
 import { gastoALiquidar, tokensEntradaMaximos, type UsoIA } from "./ia-tope-core";
 import { anotarLlamadaGratis, liquidarGastoIA, reservarGastoIA } from "./ia-tope.server";
 import { recuadrosDeCuotas } from "./empresa.server";
+import { SIN_PREVISTAS_SIN_MARCAR } from "./cobranza-core";
 
 const API = "https://api.anthropic.com/v1/messages";
 const MODELO = "claude-opus-5-5";
@@ -338,7 +339,7 @@ export async function contextoDeAgente(a: Actor, id: AgenteId, proyectoId: strin
     if (totales.length > 0) secciones.push({ titulo: "Totales, en pesos", lineas: totales });
   }
   if (alcance.plata && ve("pagos")) {
-    const cuotas = await prisma.proyectoCuota.findMany({ where: { tenantId, proyectoId, anuladoEl: null, prevista: false }, orderBy: { venceEl: "asc" }, take: 60, select: { tipo: true, concepto: true, monto: true, moneda: true, venceEl: true, pagadoEl: true } });
+    const cuotas = await prisma.proyectoCuota.findMany({ where: { tenantId, proyectoId, anuladoEl: null, ...SIN_PREVISTAS_SIN_MARCAR }, orderBy: { venceEl: "asc" }, take: 60, select: { tipo: true, concepto: true, monto: true, moneda: true, venceEl: true, pagadoEl: true } });
     secciones.push({ titulo: "Cobros y pagos", lineas: cuotas.map((c) => linea(c.tipo === "COBRO" ? "Cobro" : "Pago", c.concepto, `${c.monto} ${c.moneda}`, `vence ${fechaDe(c.venceEl)}`, c.pagadoEl ? "hecho" : "pendiente")) });
   }
   if (alcance.checklist && ve("ficha")) {
