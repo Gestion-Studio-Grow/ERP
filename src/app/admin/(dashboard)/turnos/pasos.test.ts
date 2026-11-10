@@ -169,3 +169,10 @@ test("cambiar de día no pierde la vista ni el «Ver por: Box» (?por=box)", () 
   // Lo que no es «box» o «profesionales» no viaja; un día inválido es hoy.
   assert.equal(hrefDiaDeLaAgenda("2026-02-31", hoy, { vista: "x", por: "otra" }), "/admin/turnos");
 });
+
+test("sin profesionales: dice «box» por defecto (CH) y «sillón» si se lo pasan (peluquería)", () => {
+  const siempre = vacioSinProfesionales({ esProfesional: false, puedeCargarCatalogo: true });
+  assert.match(siempre.descripcion, /en qué box\.$/);
+  const pelu = vacioSinProfesionales({ esProfesional: false, puedeCargarCatalogo: true, lugar: "sillón" });
+  assert.match(pelu.descripcion, /en qué sillón\.$/);
+});

@@ -17,6 +17,7 @@ import {
   type AgendaRubro,
   type AgendaWording,
 } from "./rubros";
+import { lugarDeAtencion } from "@/lib/palabras-del-negocio";
 
 // Capabilities del Core que todo rubro de agenda usa de forma central (gating efectivo
 // por rol en capabilities.ts; acá es config para la activación por tenant).
@@ -62,8 +63,11 @@ function seederFor(rubro: AgendaRubro) {
       serviceIds.push(svc.id);
     }
 
-    // Box + profesional de ejemplo con horarios, conectado a los servicios.
-    const box = await tx.box.create({ data: { tenantId, name: "Box de ejemplo (editable)" } });
+    // Box + profesional de ejemplo con horarios, conectado a los servicios. En peluquería y
+    // barbería el box se llama «Sillón» (sólo el nombre de ejemplo; el dato sigue siendo un Box).
+    const box = await tx.box.create({
+      data: { tenantId, name: `${lugarDeAtencion(rubro.id).Singular} de ejemplo (editable)` },
+    });
     await tx.professional.create({
       data: {
         tenantId,

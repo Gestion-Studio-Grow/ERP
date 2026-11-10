@@ -38,6 +38,7 @@ test("«Seña pendiente» sólo con seña; WhatsApp sólo con número", () => {
 test("los nombres de ejemplo del alta no se muestran al público", () => {
   assert.equal(nombrePublico("Box de ejemplo (editable)"), null);
   assert.equal(nombrePublico("Mecánico de ejemplo (editable)"), null);
+  assert.equal(nombrePublico("Sillón de ejemplo (editable)"), null);
   assert.equal(nombrePublico("Cabina 2"), "Cabina 2");
   assert.equal(nombrePublico(""), null);
 });

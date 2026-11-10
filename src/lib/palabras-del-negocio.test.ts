@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { palabrasDelNegocio } from "./palabras-del-negocio";
+import { lugarDeAtencion, palabrasDelNegocio } from "./palabras-del-negocio";
 
 test("CH no lee góndolas ni mostrador; los demás, como siempre", () => {
   assert.equal(palabrasDelNegocio("beauty-spa").cobrarLaVenta, "Cobrar una venta");
@@ -36,4 +36,29 @@ test("R4 · al reabrir el día, CH no lee «cuaderno» ni «cadete»; los demás
   for (const archivo of ["ContarYCerrar.tsx", "CierreRenglon.tsx"]) {
     assert.doesNotMatch(readFileSync(join(raiz, archivo), "utf8"), /cuaderno|cadete/, archivo);
   }
+});
+
+test("T2 peluquerías · el lugar de atención: «sillón» en peluquería y barbería; «box» en el resto y en CH", () => {
+  for (const rubro of ["peluqueria", "barberia"]) {
+    assert.deepEqual(lugarDeAtencion(rubro), { singular: "sillón", Singular: "Sillón", plural: "sillones", Plural: "Sillones" });
+  }
+  // No-cambio: CH (sin blueprint), estética, servicios y cualquier otro rubro siguen diciendo «box».
+  for (const otro of [null, undefined, "", "estetica", "servicios", "veterinaria", "consultorio", "carniceria"]) {
+    assert.deepEqual(lugarDeAtencion(otro), { singular: "box", Singular: "Box", plural: "boxes", Plural: "Boxes" });
+  }
+});
+
+test("T2 peluquerías · la agenda y el catálogo leen el lugar del rubro, no «box» fijo", () => {
+  const raiz = join(process.cwd(), "src/app/admin/(dashboard)");
+  const leer = (f: string) => readFileSync(join(raiz, f), "utf8");
+  const agenda = leer("turnos/_agenda/PorProfesional.tsx");
+  assert.match(agenda, /useLugarDeAtencion\(\)/);
+  assert.doesNotMatch(agenda, /"Por box"|"Choca en el box"|"La agenda por box"/);
+  const seccion = leer("catalogo/BoxesSection.tsx");
+  assert.match(seccion, /\{lugar\.Plural\}/);
+  assert.doesNotMatch(seccion, />Boxes</);
+  const renglon = leer("catalogo/CatalogoServiciosRenglon.tsx");
+  assert.doesNotMatch(renglon, /titulo="Boxes"|"Agregar box"|"Box agregado\."/);
+  // Las páginas proveen el lugar desde el blueprint del tenant.
+  for (const f of ["turnos/page.tsx", "catalogo/page.tsx"]) assert.match(leer(f), /lugarDeAtencion\(marca\.blueprintId\)/);
 });

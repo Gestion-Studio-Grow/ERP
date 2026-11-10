@@ -25,6 +25,9 @@ import PlanillaCortes from "./PlanillaCortes";
 import { vocabularioDelRubro } from "./vocabulario";
 import CatalogoRenglon from "./CatalogoRenglon";
 import CatalogoServiciosPagina from "./CatalogoServiciosPagina";
+import { getBrandSheet } from "@/lib/brand-sheet";
+import { lugarDeAtencion } from "@/lib/palabras-del-negocio";
+import { LugarDeAtencionProvider } from "../LugarDeAtencion";
 import { leerEditar, leerParametrosCatalogo, paginaDelCatalogo } from "./lista-core";
 
 export const dynamic = "force-dynamic";
@@ -204,20 +207,26 @@ export default async function CatalogoPage({ searchParams }: { searchParams: Pro
   }
 
   // --- Rubro SERVICIOS (spa) y demás: layout histórico, sin cambios ---
-  const [{ boxes, services, professionals, products, categories, resources, fichaDisponible }, coupons, conDisenoNuevo] = await Promise.all([
+  const [{ boxes, services, professionals, products, categories, resources, fichaDisponible }, coupons, conDisenoNuevo, marca] = await Promise.all([
     getCatalog(),
     getCoupons(),
     disenoNuevo(),
+    getBrandSheet(),
   ]);
+  // «Box» o, en peluquería y barbería, «sillón» (sólo el texto; sin blueprint —CH— dice «box»).
+  const lugar = lugarDeAtencion(marca.blueprintId);
 
   // «Diseño nuevo» (Renglón): una pestaña por parte del catálogo y un renglón por ítem, con los
   // MISMOS datos de arriba (cero consultas nuevas). Apagado, CH sigue viendo el catálogo de siempre.
   if (conDisenoNuevo) {
     return (
-      <CatalogoServiciosPagina
-        sp={await searchParams}
-        datos={{ boxes, services, professionals, products, categories, resources, coupons, fichaDisponible }}
-      />
+      <LugarDeAtencionProvider valor={lugar}>
+        <CatalogoServiciosPagina
+          sp={await searchParams}
+          datos={{ boxes, services, professionals, products, categories, resources, coupons, fichaDisponible }}
+          lugar={lugar}
+        />
+      </LugarDeAtencionProvider>
     );
   }
 
@@ -225,11 +234,13 @@ export default async function CatalogoPage({ searchParams }: { searchParams: Pro
     <main className="mx-auto max-w-4xl px-6 py-8">
       <h1 className="text-2xl font-semibold mb-1">Catálogo</h1>
       <p className="text-muted mb-8">
-        Profesionales, servicios, boxes y stock disponibles para la operación.
+        Profesionales, servicios, {lugar.plural} y stock disponibles para la operación.
       </p>
 
       <div className="space-y-10">
-        <BoxesSection boxes={boxes} />
+        <LugarDeAtencionProvider valor={lugar}>
+          <BoxesSection boxes={boxes} />
+        </LugarDeAtencionProvider>
         <ServicesSection
           fichaDisponible={fichaDisponible}
           services={services}
