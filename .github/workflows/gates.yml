@@ -67,6 +67,18 @@ jobs:
         env:
           NODE_OPTIONS: --max-old-space-size=6144
 
+  # Trinquete del kit: cuenta <button>/<input>/<table>/hex/style={ crudos en las pantallas y falla si
+  # alguno SUBE respecto de scripts/trinquete-kit.json. Sin dependencias: no hace falta `npm ci`.
+  trinquete:
+    name: trinquete del kit (crudos no suben)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node scripts/trinquete-kit.mjs
+
   # Los tests de integración corren contra bases EFÍMERAS que crea cada test en este Postgres
   # (src/test/base-efimera.ts: migraciones + RLS + app_rls; se borran al terminar). Nada de Neon.
   # `trust`: los roles de prueba (neondb_owner, app_rls) entran sin contraseña; el contenedor vive

@@ -49,6 +49,7 @@
     "test:release": "node --test scripts/release/lib.test.mjs",
     "test:publicar": "node --test scripts/publicar/*.test.mjs",
     "gate:sello": "node scripts/release/sello-gsg.mjs",
+    "gate:trinquete": "node scripts/trinquete-kit.mjs",
     "release:notas": "node scripts/release/notas.mjs",
     "release:smoke": "node scripts/release/smoke.mjs",
     "release:preparar": "node scripts/release/preparar.mjs",
