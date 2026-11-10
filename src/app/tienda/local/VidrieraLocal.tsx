@@ -17,12 +17,12 @@
 // (`getStorefront`, Envíos del negocio y el día de hoy): sin consultas nuevas.
 
 import type { CSSProperties } from "react";
-import Link from "next/link";
 import type { ConfigEnvios } from "@/lib/envios/modelo";
 import type { ConfigDeliveryLocal } from "@/lib/delivery-local/config";
 import { pielDelLocal } from "@/lib/delivery-local/marca";
 import { buildWhatsAppHref, numeroWhatsApp } from "@/lib/whatsapp-cta";
 import type { ProductoDeLaCarta } from "./carta";
+import BarraDelLocal from "./BarraDelLocal";
 import CartaYPedido from "./CartaYPedido";
 import { TazaDePortada } from "./Ilustracion";
 import PieLocal from "./PieLocal";
@@ -101,46 +101,5 @@ export default function VidrieraLocal({
       </main>
       <PieLocal cfg={cfg} />
     </div>
-  );
-}
-
-/** La barra de arriba: la marca del local (logo o monograma) y «Mi cuenta». También la usa /tienda/mi-cuenta. */
-export function BarraDelLocal({ cfg, logoUrl, enCuenta = false }: { cfg: ConfigDeliveryLocal; logoUrl: string | null; enCuenta?: boolean }) {
-  const inicial = cfg.nombre.trim().charAt(0).toUpperCase();
-  return (
-    <div className={s.barraSup}>
-      <div className={`${s.ancho} ${s.barraSupFila}`}>
-        <Link href="/tienda" className={s.marcaLocal} aria-label={`${cfg.nombre}, ir a la carta`}>
-          {logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element -- URL de la config del local; sin loader remoto configurado
-            <img className={s.logo} src={logoUrl} alt="" width={120} height={40} />
-          ) : (
-            <span className={s.monograma} aria-hidden="true">
-              {inicial}
-            </span>
-          )}
-          <span className={s.marcaNombre}>{cfg.nombre}</span>
-        </Link>
-        {enCuenta ? (
-          <Link href="/tienda" className={s.enlaceCuenta}>
-            Volver a la carta
-          </Link>
-        ) : (
-          <Link href="/tienda/mi-cuenta" className={s.enlaceCuenta}>
-            <CirculoPersona />
-            Mi cuenta
-          </Link>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function CirculoPersona() {
-  return (
-    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round">
-      <circle cx="12" cy="9" r="3.5" />
-      <path d="M5.5 19c1.2-3.2 3.6-4.8 6.5-4.8s5.3 1.6 6.5 4.8" />
-    </svg>
   );
 }

@@ -22,9 +22,11 @@ import { fmtMoneyARS } from "@/components/ui/format";
 import { formatearCantidad } from "@/lib/pos-peso";
 import SelloGSG from "@/components/marca/SelloGSG";
 import { configDeliveryLocal } from "@/lib/delivery-local/config";
-import { verificarToken, vistaDelSeguimiento, type EstadoDelPedido } from "@/lib/delivery-local/seguimiento";
+import { pagoParaElCliente, verificarToken, vistaDelSeguimiento, type EstadoDelPedido } from "@/lib/delivery-local/seguimiento";
 import { ACCION_SALIO, pagoDelAlta } from "@/lib/delivery-local/salida";
+import Link from "next/link";
 import Refresco from "./Refresco";
+import RecordarSeguimiento from "./RecordarSeguimiento";
 import CopiarAlias from "./CopiarAlias";
 
 export const dynamic = "force-dynamic";
@@ -70,14 +72,14 @@ async function leerSeguimiento(token: string) {
     prisma.businessSettings.findUnique({ where: { tenantId }, select: { whatsapp: true } }),
   ]);
   if (!pedido) return null;
-  return { cfg, pedido, pago: pagoDelAlta(alta?.changes), enCamino: Boolean(salio), whatsapp: whatsappCanonico(settings?.whatsapp) };
+  return { cfg, slug: tenant?.slug ?? "", pedido, pago: pagoDelAlta(alta?.changes), enCamino: Boolean(salio), whatsapp: whatsappCanonico(settings?.whatsapp) };
 }
 
 export default async function SeguimientoPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   const datos = await leerSeguimiento(token);
   if (!datos) notFound();
-  const { cfg, pedido, pago, enCamino, whatsapp } = datos;
+  const { cfg, slug, pedido, pago, enCamino, whatsapp } = datos;
   const envio = pedido.fulfillment === "DELIVERY";
   const vista = vistaDelSeguimiento({
     status: pedido.status as EstadoDelPedido,
@@ -87,11 +89,30 @@ export default async function SeguimientoPage({ params }: { params: Promise<{ to
     medio: pago?.medio ?? null,
   });
   const transferir = pago?.medio === "transferencia" && !pedido.paid && pedido.status !== "CANCELLED" ? transferenciaPublicable(cfg.transferencia) : null;
+  // Cómo paga, de la auditoría del alta (`entregaLocal.pago`), nunca de la nota.
+  const comoPaga = pagoParaElCliente({
+    medio: pago?.medio ?? null,
+    pagaCon: pago?.pagaCon ?? null,
+    total: Number(pedido.total),
+    paid: pedido.paid,
+    cancelado: pedido.status === "CANCELLED",
+    transferenciaVisible: Boolean(transferir),
+  });
   const chat = whatsapp ? buildWhatsAppHref(whatsapp, `Hola, te escribo por mi pedido #${pedido.code}.`) : null;
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-lg flex-col gap-6 bg-background px-4 py-8 text-body">
       <Refresco activo={!vista.terminado} />
+      {/* «Mi cuenta» del dispositivo: el pedido guardado al mandarlo queda atado a este link. */}
+      <RecordarSeguimiento slug={slug} token={token} code={String(pedido.code)} estado={vista.titular} terminado={vista.terminado} />
+      <nav aria-label="Navegación de la tienda" className="flex flex-wrap items-center justify-between gap-2 text-sm">
+        <Link href="/tienda" className="inline-flex min-h-11 items-center font-semibold text-accent-ink underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus">
+          ← Volver a la carta
+        </Link>
+        <Link href="/tienda/mi-cuenta" className="inline-flex min-h-11 items-center font-semibold text-accent-ink underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus">
+          Mi cuenta
+        </Link>
+      </nav>
       <header className="flex flex-col gap-1">
         <p className="text-sm font-medium text-muted">{cfg.nombre}</p>
         <h1 className="text-2xl font-bold text-strong">Pedido #{pedido.code}</h1>
@@ -119,6 +140,15 @@ export default async function SeguimientoPage({ params }: { params: Promise<{ to
           </ol>
         )}
       </section>
+
+      {comoPaga && (
+        <section aria-labelledby="como-pagas" className="flex flex-col gap-1 rounded-md border border-line bg-surface-raised p-4">
+          <h2 id="como-pagas" className="text-base font-semibold text-strong">
+            {comoPaga.titulo}
+          </h2>
+          <p className="text-sm">{comoPaga.detalle}</p>
+        </section>
+      )}
 
       {transferir && (
         <section aria-labelledby="transferencia" className="flex flex-col gap-2 rounded-md border border-line bg-surface-raised p-4">

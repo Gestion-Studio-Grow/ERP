@@ -104,7 +104,7 @@ export default function CartaYPedido({
   });
 
   // El servidor contestó con el número (pedido por WhatsApp): se completa el guardado.
-  const codigo = pedido.confirmado?.code ?? null;
+  const codigo = pedido.confirmado ? String(pedido.confirmado.code) : null;
   useEffect(() => {
     const clave = claveEnviada.current;
     if (codigo && clave && slug) cambiarCuenta(slug, (c) => asociarCodigo(c, clave, codigo));
@@ -122,16 +122,21 @@ export default function CartaYPedido({
     const url = new URL(window.location.href);
     const clave = url.searchParams.get("repetir");
     if (!clave) return;
-    url.searchParams.delete("repetir");
-    url.hash = "tu-pedido";
-    window.history.replaceState(null, "", url.pathname + url.search + url.hash);
     const anterior = leerCuentaGuardada(slug).pedidos.find((x) => x.clave === clave);
-    if (!anterior) return;
-    const r = repetirBolsa(anterior.items, productos);
-    setBolsa(r.bolsa);
-    setClaveDePedido(nuevaClaveDePedido());
-    setRepetido({ fecha: anterior.fecha, faltan: r.faltan });
-    requestAnimationFrame(() => document.getElementById("tu-pedido")?.scrollIntoView({ block: "start" }));
+    const r = anterior ? repetirBolsa(anterior.items, productos) : null;
+    // La bolsa sale de algo externo (el navegador): se carga en el cuadro siguiente, no en el efecto.
+    // El parámetro se saca recién ahí (en desarrollo, StrictMode corre el efecto dos veces).
+    const cuadro = requestAnimationFrame(() => {
+      url.searchParams.delete("repetir");
+      url.hash = "tu-pedido";
+      window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+      if (!anterior || !r) return;
+      setBolsa(r.bolsa);
+      setClaveDePedido(nuevaClaveDePedido());
+      setRepetido({ fecha: anterior.fecha, faltan: r.faltan });
+      requestAnimationFrame(() => document.getElementById("tu-pedido")?.scrollIntoView({ block: "start" }));
+    });
+    return () => cancelAnimationFrame(cuadro);
     // Sólo al montar: la carta del servidor ya vino con la página.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -201,7 +206,7 @@ export default function CartaYPedido({
         {anuncio}
       </p>
       <div className={`${s.ancho} ${s.cuerpo}`}>
-        <section aria-labelledby="pl-carta-titulo" id="carta" className={s.carta}>
+        <section aria-labelledby="pl-carta-titulo" id="carta" className={s.cartaSeccion}>
           <div className={s.cartaCabeza}>
             <h2 id="pl-carta-titulo" className={s.cartaTitulo}>
               La carta

@@ -13,6 +13,7 @@
 // pagar. NUNCA la dirección, el teléfono ni la ubicación (un link reenviado no expone a nadie).
 
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { vueltoALlevar, type MedioPreferido } from "./pago";
 
 const ETIQUETA = "gsg:delivery-local:seguimiento:v1";
 const LARGO_FIRMA = 22; // base64url → 132 bits
@@ -92,4 +93,39 @@ export function vistaDelSeguimiento(p: {
       : { pasos, actual: 2, titular: "Listo, sale en un ratito", detalle: "Está esperando al repartidor del local.", terminado: false };
   }
   return { pasos, actual: 4, titular: "Entregado", detalle: "¡Que lo disfrutes! Gracias por pedirle directo al local.", terminado: true };
+}
+
+// ── Cómo paga el cliente (sale de la AUDITORÍA del alta, `entregaLocal.pago`; nunca de la nota) ──
+
+const pesosEnteros = (n: number) => `$${Math.round(n).toLocaleString("es-AR")}`;
+
+/**
+ * El renglón de pago del seguimiento: cómo dijo que paga y, en efectivo, con cuánto y su vuelto.
+ * null si no eligió medio, si ya está pagado (la página ya lo dice) o si se canceló.
+ * `transferenciaVisible`: si el alias se muestra en la página (si no, el local lo pasa por WhatsApp).
+ */
+export function pagoParaElCliente(p: {
+  medio: MedioPreferido | null;
+  pagaCon: number | null;
+  total: number;
+  paid: boolean;
+  cancelado: boolean;
+  transferenciaVisible: boolean;
+}): { titulo: string; detalle: string } | null {
+  if (!p.medio || p.paid || p.cancelado) return null;
+  if (p.medio === "efectivo") {
+    if (p.pagaCon === null) return { titulo: "Pagás en efectivo", detalle: "Justo, sin vuelto." };
+    const vuelto = vueltoALlevar(p.total, p.pagaCon);
+    return {
+      titulo: "Pagás en efectivo",
+      detalle: vuelto !== null ? `Con ${pesosEnteros(p.pagaCon)}: tu vuelto es ${pesosEnteros(vuelto)}.` : `Con ${pesosEnteros(p.pagaCon)}, justo.`,
+    };
+  }
+  if (p.medio === "transferencia") {
+    return {
+      titulo: "Pagás por transferencia",
+      detalle: p.transferenciaVisible ? "Los datos para transferir están acá abajo." : "El local te pasa el alias por WhatsApp al confirmar.",
+    };
+  }
+  return { titulo: "Pagás con link de Mercado Pago", detalle: "El local te lo manda por WhatsApp." };
 }
