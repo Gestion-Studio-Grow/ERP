@@ -96,7 +96,8 @@ export const AGENDA_RUBROS: AgendaRubro[] = [
   {
     id: "peluqueria",
     label: "Peluquería / Barbería",
-    keywords: ["peluqueria", "barberia", "barber", "cabello", "corte", "color", "brushing", "salon"],
+    // «barbería» tiene su propio rubro (abajo) desde el paquete Peluquerías (T1, 10/11/2026).
+    keywords: ["peluqueria", "cabello", "corte", "color", "brushing", "salon"],
     categories: ["Corte y peinado", "Color", "Tratamientos"],
     services: [
       { name: "Corte de dama", cat: "Corte y peinado", durationMin: 45, price: 9000 },
@@ -117,6 +118,36 @@ export const AGENDA_RUBROS: AgendaRubro[] = [
       shortLabel: "Tu peluquería",
       hoursLabel: HORARIO_COMERCIAL,
       contactNote: "Corte, color y peinado con turno online.",
+    },
+    suggestedAccent: "ambar",
+    suggestedTheme: "dark",
+  },
+  {
+    // Barbería: mismo motor de agenda que la peluquería; cambia el catálogo (corte + barba) y la voz.
+    // Precios PROVISIONALES a confirmar (referencia AR, nov 2026): se editan en el panel.
+    id: "barberia",
+    label: "Barbería",
+    keywords: ["barberia", "barber", "barba", "navaja"],
+    categories: ["Cortes", "Barba", "Color"],
+    services: [
+      { name: "Corte clásico", cat: "Cortes", durationMin: 30, price: 8000 },
+      { name: "Corte + barba", cat: "Cortes", durationMin: 45, price: 12000 },
+      { name: "Corte de niño", cat: "Cortes", durationMin: 25, price: 6500 },
+      { name: "Perfilado de barba", cat: "Barba", durationMin: 20, price: 5000 },
+      { name: "Afeitado con navaja", cat: "Barba", durationMin: 30, price: 7000 },
+      { name: "Platinado / decoloración", cat: "Color", durationMin: 90, price: 25000 },
+    ],
+    exampleProfessional: "Barbero de ejemplo (editable)",
+    wording: {
+      catalogHeading: "Nuestros servicios",
+      providerNoun: "barbero",
+      heroTagline: "Corte y barba, sin esperar.",
+      bookCta: "Pedir turno",
+    },
+    brandingDefaults: {
+      shortLabel: "Tu barbería",
+      hoursLabel: HORARIO_COMERCIAL,
+      contactNote: "Corte y barba con turno online.",
     },
     suggestedAccent: "ambar",
     suggestedTheme: "dark",

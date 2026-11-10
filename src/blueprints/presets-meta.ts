@@ -37,6 +37,12 @@ export interface PresetMeta {
 const AGENDA_MODULES = ["agenda", "catalog", "clients", "waitlist", "reminders", "reports"];
 const OFICIOS_MODULES = ["agenda", "catalog", "clients", "reminders", "reports", "arca"];
 const GASTRO_MODULES = ["pos", "catalog", "clients", "reports", "arca"];
+// Paquete Peluquerías (T1, 10/11/2026): «dejá de pagar 3 suscripciones» = turnos + caja/cobros +
+// factura. Sobre el set de agenda suma comisiones por profesional, mostrador y stock para los
+// productos de reventa (shampoo, pomada), la factura ARCA y los cobros de Mercado Pago. La caja
+// del día no es módulo (es del Core). Sólo aplica a los blueprints `peluqueria` y `barberia`:
+// el resto de la familia agenda (estética, veterinaria, consultorio) no cambia.
+const PELUQUERIA_MODULES = [...AGENDA_MODULES, "commissions", "pos", "inventario", "arca", "mercadopago"];
 
 // Retail / Mostrador: el Comercio de una tienda (Magra, Shine, A Dos Manos). Vende
 // por mostrador (pos), tiene catálogo, clientes y reportes. SIN agenda/lista de
@@ -102,6 +108,8 @@ const EXPLICIT_BLUEPRINT_MODULES: Record<string, string[]> = {
   generico: ["catalog", "clients", "pos", "agenda", "reports"],
   // Producto C de la suite (ADR-076): tenant liviano SOLO facturación + receptores.
   facturita: ["arca", "clients"],
+  peluqueria: PELUQUERIA_MODULES,
+  barberia: PELUQUERIA_MODULES,
   // Taller mecánico: los turnos y recordatorios de la familia oficios, más lo que un taller sí
   // usa y un plomero no (repuestos en stock) y su circuito propio (módulo `taller`).
   taller: ["taller", "agenda", "catalog", "clients", "reminders", "reports", "inventario", "arca"],

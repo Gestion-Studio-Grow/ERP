@@ -164,7 +164,8 @@ export const commissionsModule: ModuleDescriptor = {
   // de servicios (coherente con el default de "servicios" en `defaultModulesForBlueprint`,
   // src/blueprints/presets-meta). Un tenant de otro rubro que intente activarlo cae en
   // `incompatibles` (no rompe: se rechaza y avisa).
-  rubros: ["servicios"],
+  // Peluquería y barbería (paquete Peluquerías, T1): pagan comisión por profesional igual que el spa.
+  rubros: ["servicios", "peluqueria", "barberia"],
   dependencias: [{ id: "reports", rango: "^1.0" }],
   grupo: "personal-comisiones",
   resumen: "Liquidás lo que le corresponde a cada profesional por lo que trabajó.",
