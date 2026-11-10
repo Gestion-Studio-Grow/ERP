@@ -17,6 +17,8 @@ import { businessWallTimeToUtc, dateStrInBusinessTz, todayInBusinessTz } from "@
 import { createRateLimiter } from "@/lib/rate-limit";
 import { bienvenidaVista } from "./config-campos";
 import { completarSeries } from "./series.server";
+import { FILTRO_PLATA_NUEVA } from "./paquetes-core";
+import { paquetesDelAlumno, ventasDePaquetes } from "./paquetes.server";
 import {
   CLAVES_PLANTILLA,
   ESTADOS_QUE_OCUPAN,
@@ -321,7 +323,7 @@ async function cobrosDeIntegrantes(tenantId: string, desde: Date, hasta?: Date) 
   const filas = await prisma.padelIntegrante.findMany({
     where: {
       tenantId, pagoEstado: { in: ["PAGADO", "ACREDITADO"] }, pagoValidadoEl: { gte: desde, ...(hasta ? { lt: hasta } : {}) },
-      OR: [{ pagoMedio: null }, { pagoMedio: { not: "SALDO_A_FAVOR" } }],
+      ...FILTRO_PLATA_NUEVA,
     },
     select: { monto: true, pagoMedio: true },
   });
@@ -461,10 +463,10 @@ export async function hoy(ahora = new Date()) {
         tenantId,
         pagoEstado: { in: ["PAGADO", "ACREDITADO"] },
         pagoValidadoEl: { gte: inicio },
-        OR: [{ pagoMedio: null }, { pagoMedio: { not: "SALDO_A_FAVOR" } }],
+        ...FILTRO_PLATA_NUEVA,
       },
       select: { precio: true, pagoMedio: true },
-    }).then(async (cs) => [...cs, ...(await cobrosDeIntegrantes(tenantId, inicio))]),
+    }).then(async (cs) => [...cs, ...(await cobrosDeIntegrantes(tenantId, inicio)), ...(await ventasDePaquetes(tenantId, inicio))]),
     configPadel(tenantId),
     datosDelNegocio(tenantId),
     // F10/M-044: «Ayer quedaron sin cerrar»: confirmadas que terminaron antes de hoy (últimos 7 días).
@@ -636,9 +638,9 @@ export async function semanaDelProfe(desde: string, ahora = new Date()) {
       orderBy: [{ fecha: "asc" }, { desde: "asc" }],
     }),
     prisma.padelClase.findMany({
-      where: { tenantId, pagoEstado: { in: ["PAGADO", "ACREDITADO"] }, pagoValidadoEl: { gte: ini, lt: finUtc }, OR: [{ pagoMedio: null }, { pagoMedio: { not: "SALDO_A_FAVOR" } }] },
+      where: { tenantId, pagoEstado: { in: ["PAGADO", "ACREDITADO"] }, pagoValidadoEl: { gte: ini, lt: finUtc }, ...FILTRO_PLATA_NUEVA },
       select: { precio: true },
-    }),
+    }).then(async (cs) => [...cs, ...(await ventasDePaquetes(tenantId, ini, finUtc))]),
   ]);
   const clases = filas.map(aPanel);
   const ocupadas = clases.filter((c) => ESTADOS_QUE_OCUPAN.includes(c.estado)).map((c) => ({ startsAt: c.empiezaEn, endsAt: c.terminaEn }));
@@ -844,7 +846,7 @@ export async function ficha(alumnoId: string, ahora = new Date()) {
   if (!a) return null;
   const delAlumno = { tenantId, alumnoId: a.id };
   const sel = { id: true, empiezaEn: true, terminaEn: true, tipo: true, personas: true, estado: true, precio: true, pagoEstado: true, pagoMedio: true, motivoCancel: true, pagoNota: true, club: { select: { nombre: true } } } as const;
-  const [proximas, ultimas, pendientesDePago, aFavorDe, series] = await Promise.all([
+  const [proximas, ultimas, pendientesDePago, aFavorDe, series, paquetes] = await Promise.all([
     prisma.padelClase.findMany({ where: { ...delAlumno, estado: { in: ["PEDIDA", "CONFIRMADA"] }, terminaEn: { gt: ahora } }, orderBy: { empiezaEn: "asc" }, take: 20, select: sel }),
     prisma.padelClase.findMany({ where: { ...delAlumno, empiezaEn: { lte: ahora } }, orderBy: { empiezaEn: "desc" }, take: 10, select: sel }),
     prisma.padelClase.findMany({
@@ -860,6 +862,8 @@ export async function ficha(alumnoId: string, ahora = new Date()) {
       take: 10,
       select: { id: true, diaSemana: true, hora: true, desde: true, hasta: true, activa: true, club: { select: { nombre: true } } },
     }),
+    // T5 · Sus paquetes de clases y cuántas le quedan (disponible: false sin la migración).
+    paquetesDelAlumno(tenantId, a.id),
   ]);
   const num = <T extends { precio: unknown }>(c: T) => ({ ...c, precio: Number(c.precio) });
   const deudas = pendientesDePago.map(num).filter(esDeuda);
@@ -888,6 +892,7 @@ export async function ficha(alumnoId: string, ahora = new Date()) {
       id: x.id, diaSemana: x.diaSemana, hora: x.hora, activa: x.activa, club: x.club?.nombre ?? null,
       desde: x.desde.toISOString().slice(0, 10), hasta: x.hasta ? x.hasta.toISOString().slice(0, 10) : null,
     })),
+    paquetes,
   };
 }
 
@@ -930,9 +935,9 @@ export async function plata(periodo: PeriodoPlata = "mes") {
     prisma.padelClase.findMany({
       // Como «cobrado hoy»: lo pagado y lo que después quedó a favor (la plata entró). Lo pagado con
       // saldo a favor no suma (ya se contó). Lo devuelto en mano salió: no suma.
-      where: { tenantId, pagoEstado: { in: ["PAGADO", "ACREDITADO"] }, pagoValidadoEl: { gte: desde, lt: hasta }, OR: [{ pagoMedio: null }, { pagoMedio: { not: "SALDO_A_FAVOR" } }] },
+      where: { tenantId, pagoEstado: { in: ["PAGADO", "ACREDITADO"] }, pagoValidadoEl: { gte: desde, lt: hasta }, ...FILTRO_PLATA_NUEVA },
       select: { precio: true, pagoMedio: true },
-    }).then(async (cs) => [...cs, ...(await cobrosDeIntegrantes(tenantId, desde, hasta))]),
+    }).then(async (cs) => [...cs, ...(await cobrosDeIntegrantes(tenantId, desde, hasta)), ...(await ventasDePaquetes(tenantId, desde, hasta))]),
     prisma.padelClase.count({ where: { tenantId, estado: "DADA", empiezaEn: { gte: desde, lt: hasta } } }),
     deudoresDe(tenantId),
     prisma.padelClase.findMany({ where: { tenantId, ...FILTRO_SALDO }, select: { alumnoId: true, estado: true, pagoEstado: true, pagoMedio: true, precio: true } })

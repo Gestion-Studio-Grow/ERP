@@ -36,7 +36,8 @@ export type EstadoClase = (typeof ESTADOS_CLASE)[number];
 export const ESTADOS_PAGO = ["PENDIENTE", "EN_REVISION", "PAGADO", "ACREDITADO", "DEVUELTO"] as const;
 export type EstadoPago = (typeof ESTADOS_PAGO)[number];
 
-export const MEDIOS_PAGO = ["EFECTIVO", "TRANSFERENCIA", "MERCADO_PAGO", "SALDO_A_FAVOR"] as const;
+// T5 · PAQUETE: la clase se descontó de un paquete de clases (paquetes-core.ts); no es plata nueva.
+export const MEDIOS_PAGO = ["EFECTIVO", "TRANSFERENCIA", "MERCADO_PAGO", "SALDO_A_FAVOR", "PAQUETE"] as const;
 export type MedioPago = (typeof MEDIOS_PAGO)[number];
 
 export const TIPOS_CLASE = ["INDIVIDUAL", "GRUPAL"] as const;
@@ -84,6 +85,7 @@ export const MEDIO_LABEL: Record<MedioPago, string> = {
   TRANSFERENCIA: "Transferencia",
   MERCADO_PAGO: "Mercado Pago",
   SALDO_A_FAVOR: "Saldo a favor",
+  PAQUETE: "Del paquete",
 };
 
 export type EventoClase = "confirmar" | "rechazar" | "dar" | "ausente" | "cancelar" | "vencer";
@@ -257,6 +259,9 @@ export const saldoCubre = (saldo: number, precio: number): boolean => Number(pre
 export function pagoAlCancelar(c: { pagoEstado: string; pagoMedio?: string | null }): { pagoEstado: EstadoPago; pagoMedio?: null } | null {
   if (c.pagoEstado !== "PAGADO") return null;
   if (c.pagoMedio === "SALDO_A_FAVOR") return { pagoEstado: "PENDIENTE", pagoMedio: null };
+  // T5 · Pagada con el paquete: vuelve a PENDIENTE y la clase vuelve sola al paquete (lo que queda se
+  // deriva de las clases pagadas con PAQUETE). Acreditarla sería cobrarla dos veces.
+  if (c.pagoMedio === "PAQUETE") return { pagoEstado: "PENDIENTE", pagoMedio: null };
   return { pagoEstado: "ACREDITADO" };
 }
 

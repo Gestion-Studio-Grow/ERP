@@ -40,6 +40,7 @@ import {
   type MotivoComprobante,
 } from "./core";
 import { configPadel } from "./datos.server";
+import { listaPara } from "./paquetes.server";
 import { ErrorNegocio, conErrorNegocio, refrescar, saldoEnTx, type Resultado } from "./acciones-compartido";
 import { CLASE_CAIDA, bloquearClaseDeIntegranteEnTx, crearIntegrantesEnTx, esIntegranteRepetido, waParaIntegrante } from "./grupal.server";
 
@@ -72,7 +73,9 @@ export async function agregarIntegrante(claseId: string, entrada: IntegranteEntr
   if (!v.ok) return { ok: false, error: v.error };
   try {
     return await conErrorNegocio(async () => {
-      const config = await configPadel(tenantId);
+      // T5 · La parte de cada uno sale de la lista del club de la clase (si tiene precio propio).
+      const deLaClase = await prisma.padelClase.findFirst({ where: { tenantId, id: claseId }, select: { clubId: true } });
+      const config = await listaPara(tenantId, await configPadel(tenantId), deLaClase?.clubId);
       const monto = montoPorPersona(config);
       const r = await bookingTransaction(async (tx) => {
         const clase = await tx.padelClase.findFirst({
@@ -111,7 +114,9 @@ export async function quitarIntegrante(integranteId: string): Promise<Resultado>
   const tenantId = await delProfe();
   if (!idValido(integranteId)) return { ok: false, error: "No encontramos ese integrante." };
   return conErrorNegocio(async () => {
-    const config = await configPadel(tenantId);
+    // T5 · Si queda solo, paga el individual de la lista del club de su clase (si tiene propio).
+    const deLaParte = await prisma.padelIntegrante.findFirst({ where: { tenantId, id: integranteId }, select: { clase: { select: { clubId: true } } } });
+    const config = await listaPara(tenantId, await configPadel(tenantId), deLaParte?.clase.clubId);
     const r = await tenantTransaction(async (tx) => {
       // Clase bloqueada (FOR UPDATE) ANTES de leer o borrar la parte: el mismo orden clase →
       // integrante que la cancelación, sin deadlock. Una clase caída no es error: quitar a quien no

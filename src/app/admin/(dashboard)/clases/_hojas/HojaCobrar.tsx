@@ -4,10 +4,14 @@
 // total de la clase: el pago parcial («Otro monto») necesita la columna `pagado` de la Tanda 4 y
 // llega en la 5 (M-137); acá no se ofrece algo que todavía no anda. «Mandarle el recibo» es
 // opcional: deja listo el WhatsApp «Recibí el pago».
+// T5 · Si el alumno tiene un paquete con clases, aparece «Del paquete · quedan N»: la clase se
+// descuenta del paquete (cobrarConPaquete) en vez de cobrarse con plata.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Icono, Plata, Switch, type NombreIconoPieza } from "@/components/ui";
 import { cobrar } from "@/lib/padel/acciones";
+import { cobrarConPaquete, paqueteParaCobrar } from "@/lib/padel/acciones-paquetes";
+import { textoQuedan } from "@/lib/padel/paquetes-core";
 import { MEDIO_LABEL, MEDIOS_COBRO, type MedioCobro } from "@/lib/padel/core";
 import { primerNombre } from "../_cola";
 import { ErrorAccion, HojaPanel, grande, useAccion } from "./comun";
@@ -19,6 +23,18 @@ export function HojaCobrar({ c, onCerrar }: { c: ClaseAcciones; onCerrar: () => 
   const { pendiente, error, correr } = useAccion(c.nombre);
   const [recibo, setRecibo] = useState(false);
   const cobrarCon = (medio: MedioCobro) => correr(() => cobrar(c.id, medio, { recibo }), `Cobrada en ${MEDIO_LABEL[medio].toLowerCase()}`, onCerrar);
+  // Cuántas le quedan en paquetes (null mientras se pregunta; 0 = no tiene: no se muestra el botón).
+  const [quedan, setQuedan] = useState<number | null>(null);
+  useEffect(() => {
+    let vivo = true;
+    paqueteParaCobrar(c.id)
+      .then((r) => vivo && setQuedan(r.disponible ? r.quedan : 0))
+      .catch(() => vivo && setQuedan(0));
+    return () => {
+      vivo = false;
+    };
+  }, [c.id]);
+  const delPaquete = () => correr(() => cobrarConPaquete(c.id, { recibo }), `Descontada del paquete`, onCerrar);
 
   return (
     <HojaPanel
@@ -37,6 +53,11 @@ export function HojaCobrar({ c, onCerrar }: { c: ClaseAcciones; onCerrar: () => 
             {MEDIO_LABEL[m]}
           </button>
         ))}
+        {quedan !== null && quedan > 0 && (
+          <button type="button" disabled={pendiente} onClick={delPaquete} className={grande("outline")} data-qa="cobrar-PAQUETE">
+            Del paquete · {textoQuedan(quedan).toLowerCase()}
+          </button>
+        )}
       </div>
       <Switch
         etiqueta="Mandarle el recibo por WhatsApp"

@@ -9,6 +9,7 @@ import { businessWallTimeToUtc, todayInBusinessTz } from "@/lib/datetime";
 import { fechaValida, horaValida, sumarDias } from "@/lib/padel/core";
 import { Cabecera } from "../_cabecera";
 import { BotonReintentar } from "../_acciones";
+import { preciosPorClub } from "@/lib/padel/paquetes.server";
 import AgendarHoja from "./AgendarHoja";
 
 export const dynamic = "force-dynamic";
@@ -42,7 +43,7 @@ export default async function ClasesAgendar({ searchParams }: { searchParams: Pr
       </main>
     );
   }
-  const [frecuentes, todosBuscador, config, numero, libres, listaClubes] = datos;
+  const [frecuentes, todosBuscador, config, numero, libres, listaClubes, precios] = datos;
   // B1 · Desde la ficha (`?alumno=`) llega elegido. Si no entra en el buscador (más de 2000
   // alumnos), se lo busca solo, siempre en este negocio.
   const extra = q.alumno && !todosBuscador.some((a) => a.id === q.alumno) ? await alumnoParaAgendar(q.alumno).catch(() => null) : null;
@@ -56,6 +57,7 @@ export default async function ClasesAgendar({ searchParams }: { searchParams: Pr
         hoy={hoy}
         diasAdelante={config.diasAdelante}
         clubes={listaClubes.map((c) => ({ id: c.id, nombre: c.nombre }))}
+        preciosClub={Object.fromEntries(precios)}
         frecuentes={frecuentes.map((a) => ({ id: a.id, nombre: a.nombre, telefono: a.telefono }))}
         todos={todos}
         precios={{ precioIndividual: config.precioIndividual, precioGrupal: config.precioGrupal }}
@@ -67,5 +69,5 @@ export default async function ClasesAgendar({ searchParams }: { searchParams: Pr
 
 async function cargar(fecha: string) {
   const tenantId = await getCurrentTenantId();
-  return Promise.all([alumnosFrecuentes(6), alumnosParaBuscar(), configPadel(tenantId), badgePendientes(), horasLibres(fecha), clubes()]);
+  return Promise.all([alumnosFrecuentes(6), alumnosParaBuscar(), configPadel(tenantId), badgePendientes(), horasLibres(fecha), clubes(), preciosPorClub(tenantId)]);
 }

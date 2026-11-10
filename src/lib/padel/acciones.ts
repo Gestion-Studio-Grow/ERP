@@ -87,6 +87,7 @@ import {
 } from "./core";
 import { AVISOS_QUE_ESPERAN, configPadel, franjas as franjasDe, libresCercanos, libresDelDia, libresEnRango } from "./datos.server";
 import { generarClasesDeSerie, horizonteDesde } from "./series.server";
+import { listaPara } from "./paquetes.server";
 import { devolverParteIntegrante } from "./acciones-grupal";
 import { bloquearClasesDeAlumnoIntegranteEnTx, cerrarIntegrantesEnTx, contarIntegrantesEnTx, crearIntegrantesEnTx, esIntegranteRepetido, moverIntegrantesEnTx, waParaIntegrante } from "./grupal.server";
 import {
@@ -201,6 +202,8 @@ async function transicionar(id: string, evento: EventoClase, op: OpcionesTransic
       nuevo === "AUSENTE" && op.seCobra !== undefined ? pagoAlNoVino(clase, op.seCobra) :
       null;
     const comprobanteNoAplica = Boolean(pago && "pagoNota" in pago && pago.pagoNota === COMPROBANTE_NO_APLICA);
+    // T5 · Al confirmar rige la lista del club de la clase (si tiene precio propio); si no, la general.
+    const lista = nuevo === "CONFIRMADA" ? await listaPara(tenantId, config, clase.clubId) : config;
     const r = await bookingTransaction(async (tx) => {
       // Un pedido vencido liberó su franja (M-031): darlo la vuelve a ocupar, si nadie la tomó.
       if (clase.estado === "SIN_RESPUESTA" && (await choqueEn(tx, tenantId, clase.empiezaEn, clase.terminaEn, id))) {
@@ -212,7 +215,7 @@ async function transicionar(id: string, evento: EventoClase, op: OpcionesTransic
       // paga su parte (precio por persona) y `personas` = 1 + integrantes.
       const nInt = nuevo === "CONFIRMADA" ? await contarIntegrantesEnTx(tx, tenantId, id) : 0;
       const precio: { precio?: number; personas?: number } = nuevo === "CONFIRMADA"
-        ? { precio: precioDelTitular(config, tipoClase, clase.personas, nInt), ...(nInt > 0 ? { personas: personasConIntegrantes(nInt) } : {}) }
+        ? { precio: precioDelTitular(lista, tipoClase, clase.personas, nInt), ...(nInt > 0 ? { personas: personasConIntegrantes(nInt) } : {}) }
         : {};
       const conSaldo =
         nuevo === "CONFIRMADA" && clase.pagoEstado === "PENDIENTE" && !cambio?.pagoDeLaVieja
@@ -944,7 +947,8 @@ export async function editarClase(
       if (l.estado !== "ok" || !Number.isFinite(l.valor) || l.valor < 0 || l.valor > 10_000_000) throw new ErrorNegocio("Poné un precio válido.");
       precioNuevo = redondear(l.valor);
     } else if (data.tipo !== undefined || data.personas !== undefined) {
-      precioNuevo = precioDelTitular(config, tipo, personas, nInt);
+      // T5 · La lista del club de la clase (si tiene precio propio); si no, la general.
+      precioNuevo = precioDelTitular(await listaPara(tenantId, config, clase.clubId), tipo, personas, nInt);
     }
     if (precioNuevo !== null && precioNuevo !== Number(clase.precio)) {
       if (["PAGADO", "ACREDITADO", "DEVUELTO"].includes(clase.pagoEstado)) throw new ErrorNegocio("Esa clase ya está pagada: el precio no se cambia.");
@@ -968,6 +972,8 @@ export async function editarClase(
 async function cambiarPago(id: string, evento: Exclude<EventoPago, "subir">, nota?: string): Promise<Resultado<ConAviso>> {
   return conErrorNegocio(async () => {
     const { tenantId, clase, config, alumno } = await claseDelProfe(id);
+    // T5 · Una clase pagada con el paquete no se acredita: al cancelarse vuelve sola al paquete.
+    if (evento === "acreditar" && clase.pagoMedio === "PAQUETE") throw new ErrorNegocio("Esa clase se pagó con el paquete: al cancelarla vuelve sola al paquete.");
     const nuevo = transicionPago(clase.pagoEstado, clase.estado, evento, "profe")
       // M-045: la AUSENTE que se cobra igual también se valida o se cobra.
       ?? (clase.estado === "AUSENTE" && clase.motivoCancel === MOTIVO_AUSENTE_SE_COBRA ? transicionPago(clase.pagoEstado, "DADA", evento, "profe") : null)
@@ -1019,6 +1025,8 @@ export async function agendarProxima(id: string): Promise<Resultado<ConAviso & {
     const { tenantId, clase, config, alumno } = await claseDelProfe(id);
     const empiezaEn = proximaSemana(clase.empiezaEn);
     const terminaEn = proximaSemana(clase.terminaEn);
+    // T5 · La lista del club de la clase (la próxima va al mismo club).
+    const lista = await listaPara(tenantId, config, clase.clubId);
     const { nueva, link } = await bookingTransaction(async (tx) => {
       if (await choqueEn(tx, tenantId, empiezaEn, terminaEn)) throw new ErrorNegocio(`El ${diaHumano(empiezaEn)} a las ${horaHumana(empiezaEn)} ya está ocupado.`);
       // Antes de crear la clase (que ya cuenta como «agendada por el profe»): ¿había que renovar el link?
@@ -1028,7 +1036,7 @@ export async function agendarProxima(id: string): Promise<Resultado<ConAviso & {
       const deAntes = tipo === "GRUPAL"
         ? await tx.padelIntegrante.findMany({ where: { tenantId, claseId: clase.id }, orderBy: { createdAt: "asc" }, select: { alumnoId: true, nombre: true, telefono: true } })
         : [];
-      const precio = precioDelTitular(config, tipo, clase.personas, deAntes.length);
+      const precio = precioDelTitular(lista, tipo, clase.personas, deAntes.length);
       const conSaldo = pagoConSaldo(await saldoEnTx(tx, tenantId, clase.alumnoId), precio);
       const nueva = await tx.padelClase.create({
         data: {
@@ -1038,7 +1046,7 @@ export async function agendarProxima(id: string): Promise<Resultado<ConAviso & {
         select: { id: true, empiezaEn: true, precio: true, pagoMedio: true },
       });
       for (const i of deAntes) {
-        await tx.padelIntegrante.create({ data: { tenantId, claseId: nueva.id, alumnoId: i.alumnoId, nombre: i.nombre, telefono: i.telefono, monto: montoPorPersona(config) } });
+        await tx.padelIntegrante.create({ data: { tenantId, claseId: nueva.id, alumnoId: i.alumnoId, nombre: i.nombre, telefono: i.telefono, monto: montoPorPersona(lista) } });
       }
       return { nueva, link };
     });
@@ -1083,7 +1091,11 @@ export async function agendarClase(fd: FormData): Promise<Resultado<ConAviso & {
   // nacerían sin ellos y el titular pagaría el total). Por ahora, una u otra.
   if (repetir && integrantes.length) return { ok: false, error: "La clase fija todavía no lleva integrantes: agendala sin repetir, o sin integrantes." };
 
-  const [config, fr] = await Promise.all([configPadel(tenantId), franjasDe(tenantId)]);
+  const [general, fr] = await Promise.all([configPadel(tenantId), franjasDe(tenantId)]);
+  // T5 · Precio por club: si el club elegido tiene precio propio, rige ése (individual, grupal, la
+  // parte de cada integrante y las semanas de la clase fija); si no, el de Ajustes → Precios. Se lee
+  // FUERA de la transacción: sin la migración aplicada, cae a la lista general sin abortar nada.
+  const config = await listaPara(tenantId, general, clubId);
   const empiezaEn = businessWallTimeToUtc(fecha, horaTxt);
   const terminaEn = new Date(empiezaEn.getTime() + config.duracionMin * 60_000);
   try {

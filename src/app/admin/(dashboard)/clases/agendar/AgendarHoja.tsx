@@ -17,6 +17,7 @@ import { BuscadorCombo, Chip, Segmented, buttonClasses, cn } from "@/components/
 import { agendarClase, horasLibres } from "@/lib/padel/acciones";
 import { dateStrInBusinessTz } from "@/lib/datetime";
 import { horaHumana, montoPorPersona, personasConIntegrantes, precioDelTitular, semanasDeSerie, textoSerie } from "@/lib/padel/core";
+import { listaDelClub, type PrecioDeClub } from "@/lib/padel/paquetes-core";
 import { dayOfWeekForDate } from "@/lib/datetime";
 import { diasDeCinta } from "../_agenda-core";
 import { CintaDias, ChipsHoras } from "../_cinta-dias";
@@ -37,6 +38,7 @@ export default function AgendarHoja({
   precios,
   inicial,
   clubes = [],
+  preciosClub = {},
   diasAdelante = 14,
 }: {
   hoy: string;
@@ -46,6 +48,8 @@ export default function AgendarHoja({
   inicial: { fecha: string; hora: string | null; libres: string[]; clubDe?: Record<string, string>; alumnoId: string | null };
   /** E4 · Los clubes activos. Sin clubes, la hoja es la de siempre. */
   clubes?: { id: string; nombre: string }[];
+  /** T5 · El precio propio de cada club (el que no está, rige `precios`). */
+  preciosClub?: Record<string, PrecioDeClub>;
   /** E8 · Lo que muestra el turnero: de ahí salen cuántas semanas se agendan de una clase fija. */
   diasAdelante?: number;
 }) {
@@ -103,7 +107,9 @@ export default function AgendarHoja({
   // E7 · Con integrantes, el titular paga su parte y cada integrante la suya (precio por persona).
   const conIntegrantes = tipo === "GRUPAL" ? integrantes.length : 0;
   const personasClase = tipo !== "GRUPAL" ? 1 : conIntegrantes ? personasConIntegrantes(conIntegrantes) : personas;
-  const precio = precioDelTitular(precios, tipo, personasClase, conIntegrantes);
+  // T5 · Con el club elegido rige su precio propio (si tiene); si no, la lista general.
+  const lista = listaDelClub(precios, clubId ? preciosClub[clubId] : null);
+  const precio = precioDelTitular(lista, tipo, personasClase, conIntegrantes);
   const hhmm = hora ? horaHumana(new Date(hora)) : null;
   const nombreClub = clubId ? clubes.find((c) => c.id === clubId)?.nombre ?? null : null;
   const base = textoResumen({ alumno: nombreResumen, fecha, hora: hhmm, tipo, personas: personasClase, precio, hoy });
@@ -323,7 +329,7 @@ export default function AgendarHoja({
           {tipo === "GRUPAL" && (
             <>
               <Rotulo>¿Quiénes vienen?</Rotulo>
-              <EditorIntegrantes todos={todos} excluir={nuevo ? null : alumnoId} lista={integrantes} onCambiar={setIntegrantes} montoPorPersona={montoPorPersona(precios)} />
+              <EditorIntegrantes todos={todos} excluir={nuevo ? null : alumnoId} lista={integrantes} onCambiar={setIntegrantes} montoPorPersona={montoPorPersona(lista)} />
             </>
           )}
           {tipo === "GRUPAL" && !conIntegrantes && (
