@@ -20,6 +20,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Input, cn, fmtMoneyARS } from "@/components/ui";
 import { TecladoNumerico } from "@/components/ui/Teclado";
+import { Icono } from "@/components/ui/Icono";
 import { formatearCantidad } from "@/lib/pos-peso";
 import { useBalanzaSerie, type BalanzaSerie } from "@/lib/balanza-serie/usar-balanza-serie";
 import { formatearKilos, textoDelEstado } from "@/components/balanza/TomarPesoDeBalanza";
@@ -266,13 +267,26 @@ export function PesoEnVivoDelRenglon({ balanza, nombre, onTomar }: { balanza: Ba
   if (estado !== "conectada") {
     return (
       <div data-vender="peso-en-vivo" className="flex flex-wrap items-center gap-2 text-sm">
+        {/* Un ícono de estado, no un botón grande: la balanza es un accesorio del renglón, no la
+            acción principal. El punto dice el estado (gris: sin conectar · ámbar: buscando) y la
+            palabra va en el nombre accesible y en el `title`. Tocarlo conecta. */}
         <button
           type="button"
-          className="chip-btn h-11 text-sm"
+          data-vender="conectar-balanza"
+          className="chip-btn relative size-11 justify-center !px-0"
           disabled={estado === "buscando"}
+          aria-label={estado === "buscando" ? "Buscando la balanza…" : "Conectar balanza"}
+          title={estado === "buscando" ? "Buscando la balanza…" : "Balanza sin conectar: tocá para conectarla"}
           onClick={() => void balanza.conectar()}
         >
-          {estado === "buscando" ? "Buscando la balanza…" : "Conectar balanza"}
+          <Icono nombre="balanza" className="size-5" />
+          <span
+            aria-hidden
+            className={cn(
+              "absolute right-1.5 top-1.5 size-2 rounded-full ring-2 ring-surface-raised",
+              estado === "buscando" ? "bg-warning" : "bg-faint",
+            )}
+          />
         </button>
         {balanza.error && (
           <p role="alert" className="text-xs text-danger">

@@ -309,17 +309,29 @@
 [data-diseno="renglon"] [data-ui="linea-estado"] {
   display: flex;
   flex-wrap: wrap;
-  column-gap: 0.5rem;
+  column-gap: 0;
   row-gap: 0.125rem;
-  margin: 0.25rem 0 0;
+  /* El «·» va ANTES de cada dato, en una franja de 1rem que queda fuera del borde izquierdo: el del
+     primer dato de cada renglón se recorta (clip-path) y ningún renglón empieza ni termina con un «·»
+     colgando. Se deja ver 0,25rem a la izquierda para el anillo de foco de un enlace. */
+  margin: 0.25rem 0 0 -1rem;
+  clip-path: inset(-0.5rem -0.5rem -0.5rem 0.75rem);
   font-size: 0.875rem;
   line-height: 1.4;
   color: var(--tinta-2);
 }
-/* El punto cuelga del dato anterior: al partirse la línea en el celular, ningún renglón empieza con «·». */
-[data-diseno="renglon"] [data-ui="linea-estado"] > [data-parte="dato"]:not(:last-child)::after {
+[data-diseno="renglon"] [data-ui="linea-estado"] > [data-parte="dato"] {
+  position: relative;
+  padding-left: 1rem;
+}
+/* El «·» vive en el margen de 1rem del dato: si el dato parte una línea, sus renglones siguen
+   alineados al texto, no al punto. */
+[data-diseno="renglon"] [data-ui="linea-estado"] > [data-parte="dato"]::before {
   content: "·";
-  margin-left: 0.5rem;
+  position: absolute;
+  left: 0;
+  width: 1rem;
+  text-align: center;
   color: var(--tinta-3);
 }
 [data-diseno="renglon"] [data-ui="linea-estado"] :is(strong, b) {
@@ -2516,6 +2528,11 @@
   height: 2.75rem;
   padding: 0 var(--margen);
 }
+/* Sin pestañas ni acción (p. ej. Vender, que es la acción del rubro) el renglón 2 quedaba como una
+   banda vacía de 44 px: se pliega. */
+[data-diseno="renglon"] [data-ui="cabecera"] [data-parte="fila-2"]:not(:has(a, button)) {
+  display: none;
+}
 [data-diseno="renglon"] [data-ui="cabecera"] [data-parte="fila-2"] [data-ui="pestanas"] > :is(a, button) {
   min-height: 100%;
   padding-inline: 0.625rem;
@@ -2560,6 +2577,20 @@
   text-transform: uppercase;
   white-space: nowrap;
 }
+/* El logo real del negocio en la cabecera (LogoDelNegocio): chico, en una línea, sin el aviso de
+   «provisional» (ése se lee en Inicio). Cada logo trae su letra (globals.css, [data-logo=…]). */
+[data-diseno="renglon"] [data-parte="logo"] {
+  display: inline-flex;
+  align-items: center;
+  max-width: 14rem;
+  max-height: 2.5rem;
+  overflow: hidden;
+  white-space: nowrap;
+}
+[data-diseno="renglon"] [data-parte="logo"] [data-logo-parte="provisional"] { display: none; }
+[data-diseno="renglon"] [data-parte="logo"] [data-logo-parte="nombre"] { -webkit-line-clamp: 1; line-clamp: 1; }
+[data-diseno="renglon"] [data-parte="logo"] :is(img, svg, [data-logo-parte="loseta"]) { max-height: 2rem; width: auto; }
+[data-diseno="renglon"] [data-ui="barra-movil"] [data-parte="logo"] { justify-content: center; max-width: 100%; vertical-align: middle; }
 [data-diseno="renglon"] [data-ui="cabecera"] [data-parte="espacios"] {
   display: flex;
   flex: 1;
