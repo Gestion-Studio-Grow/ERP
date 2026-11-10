@@ -13,7 +13,7 @@ import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import { cargarKpi } from "@/apps/kpis/index.server";
 import { LineaDeEstado } from "@/components/ui";
 import type { Role } from "@/lib/capabilities";
-import { reglaALaVista } from "@/lib/caja/reglas-a-la-vista";
+import { datosDelMostrador } from "./estado-del-mostrador";
 import { mostradorBoutiqueDelNegocio } from "@/lib/clientes/fiado.server";
 import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
 import { VENTANA_DEL_CUADERNO } from "@/lib/cuaderno/hora-de-la-venta";
@@ -33,35 +33,29 @@ import MostradorBoutique from "./boutique/MostradorBoutique";
  * esa plata se anota en el libro del día sin turno, fuera del arqueo de un cajero
  * (caja/cash-sale.ts). El cartel no prohíbe lo que el sistema deja hacer.
  */
-async function EstadoDelMostrador({ role, mostrador, tenantId }: { role: Role; mostrador: boolean; tenantId: string }) {
+async function EstadoDelMostrador({ role, mostrador, tenantId, abrirAca }: { role: Role; mostrador: boolean; tenantId: string; abrirAca: boolean }) {
   const [caja, vender] = await Promise.all([cargarKpi("caja-del-dia", role), cargarKpi("vender", role)]);
-  const datos: React.ReactNode[] = [];
-  if (caja?.estado === "ok") {
-    // Con hoy ya cerrado no se abre la caja: no se ofrece.
-    const diaCerrado = caja.valor === "Cerrada" && (await hoyEstaCerrado(tenantId).catch(() => false));
-    datos.push(
-      diaCerrado ? (
-        <span key="caja">
-          <strong>Hoy ya está cerrado</strong>: no se abre la caja ·{" "}
-          <Link href="/admin/caja/cierre" className="font-semibold text-accent-ink underline">
-            Ver el cierre
-          </Link>
-        </span>
-      ) : caja.valor === "Cerrada" ? (
-        <span key="caja">
-          <strong>Caja cerrada</strong>: lo que cobres en efectivo se anota en el libro del día, sin turno ·{" "}
-          <Link href="/admin/caja" className="font-semibold text-accent-ink underline">
-            Abrir la caja
-          </Link>
-        </span>
-      ) : (
-        <strong key="caja">{`Caja ${caja.valor.toLowerCase()}${caja.detalle ? ` ${caja.detalle}` : ""}`}</strong>
-      ),
-    );
-  }
-  if (vender?.estado === "ok") datos.push(`${vender.valor} ${vender.detalle ?? ""}`.trim());
-  // La regla del día cerrado, sólo en un mostrador (reglas-a-la-vista.ts).
-  datos.push(reglaALaVista("vender", mostrador));
+  const cajaOk = caja?.estado === "ok" ? caja : null;
+  // Con hoy ya cerrado no se abre la caja: no se ofrece (estado-del-mostrador.ts).
+  const diaCerrado = cajaOk?.valor === "Cerrada" && (await hoyEstaCerrado(tenantId).catch(() => false));
+  const datos = datosDelMostrador({
+    caja: cajaOk,
+    diaCerrado,
+    vendido: vender?.estado === "ok" ? `${vender.valor} ${vender.detalle ?? ""}`.trim() : null,
+    mostrador,
+    abrirAca,
+  }).map((d, i) =>
+    d.tipo === "enlace" ? (
+      <Link key={i} href={d.href} className="font-semibold text-accent-ink underline underline-offset-2">
+        {d.texto}
+      </Link>
+    ) : (
+      <span key={i}>
+        {d.fuerte && <strong className="text-strong">{d.fuerte}</strong>}
+        {d.texto}
+      </span>
+    ),
+  );
   return <LineaDeEstado datos={datos} className="mb-4" />;
 }
 
@@ -169,7 +163,7 @@ export default async function VenderPage({ searchParams }: { searchParams: Promi
       <main data-ui="pagina" className="mx-auto w-full px-4 py-6">
         <h1 className="sr-only">Vender</h1>
         <Suspense fallback={<p data-ui="linea-estado" aria-hidden>&nbsp;</p>}>
-          <EstadoDelMostrador role={user.role} mostrador={identidad.isRetail} tenantId={tenantId} />
+          <EstadoDelMostrador role={user.role} mostrador={identidad.isRetail} tenantId={tenantId} abrirAca={apertura !== null} />
         </Suspense>
         {respaldo}
         {solapas(true)}

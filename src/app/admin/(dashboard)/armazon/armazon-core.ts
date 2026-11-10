@@ -130,6 +130,21 @@ export function tituloDePantalla(
   return dondeEstoy(pathname, espacios)?.app.nombre ?? negocio;
 }
 
+const plano = (s: string) =>
+  s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("es-AR").replace(/[^a-z0-9ñ]+/g, " ").trim();
+
+/**
+ * El nombre de la persona para la cabecera, o `null` si repite el del negocio («Dueño Magra» en Magra):
+ * al lado del logo, «MAGRA · Dueño Magra» decía dos veces lo mismo. Sin nombre, la cabecera muestra el rol;
+ * el nombre completo sigue en el menú de la persona y en su etiqueta accesible. PURA.
+ */
+export function nombreEnLaCabecera(persona: string, negocio: string): string | null {
+  const p = ` ${plano(persona)} `;
+  const n = plano(negocio);
+  if (!p.trim()) return null;
+  return n && p.includes(` ${n} `) ? null : persona;
+}
+
 /** Las iniciales de una persona («Martín Aguirre» → «MA»; «Cecilia» → «CE»). */
 export function iniciales(nombre: string): string {
   const p = nombre.trim().split(/\s+/).filter(Boolean);
