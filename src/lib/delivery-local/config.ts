@@ -44,7 +44,7 @@ export const CONFIGS_DELIVERY_LOCAL: Readonly<Record<string, ConfigDeliveryLocal
     nombre: "Bitácora Café",
     bajada: "Café de especialidad, pastelería y brunch",
     localidad: "Monte Grande",
-    direccion: `Monte Grande, Esteban Echeverría (${PROVISIONAL})`,
+    direccion: `Florentino Ameghino 166, Monte Grande (${PROVISIONAL})`, // de su ficha pública en Rappi: ver docs/tenants/bitacora/marca-y-material.md
     // Centro de Monte Grande (plaza), PROVISIONAL: se reemplaza por la puerta del local.
     ubicacionDelLocal: { lat: -34.8183, lng: -58.4683 },
     radioKm: 4,
