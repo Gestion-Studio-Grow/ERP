@@ -8,6 +8,7 @@
 // REGLA DE ORO: el negocio SIN fila `profeturnos.alta` (altas manuales, el profe de referencia) es
 // «libre»: nunca se lo traba, haya o no filas de plan.
 
+import { centavosDe } from "@/lib/dinero/redondeo";
 import { DIAS_ARREPENTIMIENTO, DIAS_PRUEBA } from "./planes";
 
 export type EstadoPlan = "prueba" | "activo" | "vencido" | "libre";
@@ -191,7 +192,7 @@ export type MotivoPagoRechazado = "no-aprobado" | "moneda" | "monto" | "referenc
 export function validarPago(p: PagoLeido, precio: number): { ok: true; tenantId: string } | { ok: false; motivo: MotivoPagoRechazado } {
   if (p.status !== "approved") return { ok: false, motivo: "no-aprobado" };
   if (p.currency !== "ARS") return { ok: false, motivo: "moneda" };
-  if (typeof p.monto !== "number" || !Number.isFinite(p.monto) || Math.round(p.monto * 100) !== Math.round(precio * 100)) {
+  if (typeof p.monto !== "number" || !Number.isFinite(p.monto) || centavosDe(p.monto) !== centavosDe(precio)) {
     return { ok: false, motivo: "monto" };
   }
   const tenantId = tenantDeLaReferencia(p.referencia);
