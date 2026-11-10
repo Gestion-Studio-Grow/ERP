@@ -23,7 +23,8 @@ export type ClienteEditable = {
   birthDate: string | null;
 };
 
-export default function EditarClienteForm({ cliente }: { cliente: ClienteEditable }) {
+/** `sinCumpleanos` (productora, QA MIA #8): no se pide, pero lo guardado viaja oculto para que no se borre. */
+export default function EditarClienteForm({ cliente, sinCumpleanos = false }: { cliente: ClienteEditable; sinCumpleanos?: boolean }) {
   const [editando, setEditando] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const { showError, showSuccess } = useToast();
@@ -106,9 +107,13 @@ export default function EditarClienteForm({ cliente }: { cliente: ClienteEditabl
           />
         </Field>
 
-        <Field label="Fecha de nacimiento" htmlFor="cli-birth" hint="Opcional.">
-          <Input id="cli-birth" name="birthDate" type="date" defaultValue={cliente.birthDate ?? ""} />
-        </Field>
+        {sinCumpleanos ? (
+          <input type="hidden" name="birthDate" value={cliente.birthDate ?? ""} />
+        ) : (
+          <Field label="Fecha de nacimiento" htmlFor="cli-birth" hint="Opcional.">
+            <Input id="cli-birth" name="birthDate" type="date" defaultValue={cliente.birthDate ?? ""} />
+          </Field>
+        )}
       </div>
 
       <Field label="Notas internas" htmlFor="cli-notes" hint="No las ve el cliente.">

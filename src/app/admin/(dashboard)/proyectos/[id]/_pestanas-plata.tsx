@@ -235,8 +235,10 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
   // El cashflow se calcula al cambio de hoy, cuota por cuota: se muestra con ese mismo, no con el fijado al vender.
   const enCaja = (n: number) => ventaEn(n, p.moneda, cambioDeVenta(p.moneda, null, cab.tc));
 
+  // minmax(0,1fr): sin eso la columna de la grilla toma el ancho de la tabla (920 px) y en un celular la página
+  // entera desborda (QA MIA #7). Así la tabla se desliza adentro de su contenedor con overflow-x-auto.
   return (
-    <div className="grid gap-4">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
       {vista.costos && cab.sinProveedor.cuantos > 0 && (
         <p role="status" className="rounded-md border border-danger/30 bg-danger-soft px-3 py-2.5 text-sm text-danger">
           {cab.sinProveedor.cuantos === 1 ? "1 ítem con costo no tiene" : `${cab.sinProveedor.cuantos} ítems con costo no tienen`} proveedor: {pesos(cab.sinProveedor.monto)} no están en este cashflow, y el saldo se ve mejor de lo que es.
