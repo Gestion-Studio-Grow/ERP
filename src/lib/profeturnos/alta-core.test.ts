@@ -103,9 +103,9 @@ test("límites: 20 por hora por IP, cuenta cada pedido y libera con la ventana",
   assert.throws(() => l.pasa(["otra:x"]));
 });
 
-test("planes: los números provisionales y el precio en pesos", () => {
+test("planes: precio y prueba confirmados, y el precio en pesos", () => {
   assert.equal(DIAS_PRUEBA, 14);
   assert.equal(PRECIO_MENSUAL, 12900);
-  assert.equal(PRECIO_PROVISIONAL, true);
+  assert.equal(PRECIO_PROVISIONAL, false);
   assert.equal(precioEnPesos(), "$ 12.900");
 });

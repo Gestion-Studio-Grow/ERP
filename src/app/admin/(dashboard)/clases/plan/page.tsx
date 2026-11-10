@@ -17,7 +17,7 @@ import { pagarAbono, tramiteDesdeMiPlan } from "./_acciones";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Clases · Mi plan", generator: "Gestión Studio Grow" };
 
-// «MI PLAN» (ProfeTurnos T2): estado de la prueba o del abono, el precio (provisional a confirmar) y el
+// «MI PLAN» (ProfeTurnos T2): estado de la prueba o del abono, el precio (confirmado el 10/11/2026) y el
 // pago por Mercado Pago con la cuenta de GSG. Plata: sólo OWNER o quien gestiona Clases.
 
 const boton =

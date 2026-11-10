@@ -2,7 +2,7 @@
 // Marco: Ley 24.240 de Defensa del Consumidor (arts. 4, 10 ter, 34 y 37), Código Civil y Comercial
 // (arts. 1107 y 1110), Res. SCI 424/2020 (botón de arrepentimiento) y Res. 316/2018 (botón de baja).
 // Responsable y pendientes: los mismos de Factoque (src/app/facturita/legales.ts). Precio y días de
-// prueba: src/lib/profeturnos/planes.ts (provisional a confirmar).
+// prueba: src/lib/profeturnos/planes.ts (confirmados por el dueño el 10/11/2026).
 
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -51,8 +51,8 @@ export default function TerminosPage() {
         {
           titulo: "Prueba gratis y abono mensual",
           parrafos: [
-            `Cuando te das de alta tenés ${DIAS_PRUEBA} días de prueba gratis [provisional a confirmar]. Durante la prueba no te cobramos nada.`,
-            `Para seguir después de la prueba, el abono cuesta ${precioMensualEnTexto()} por mes [precio provisional a confirmar], se paga por adelantado por Mercado Pago y te mostramos el precio final antes de pagar.`,
+            `Cuando te das de alta tenés ${DIAS_PRUEBA} días de prueba gratis. Durante la prueba no te cobramos nada.`,
+            `Para seguir después de la prueba, el abono cuesta ${precioMensualEnTexto()} por mes, se paga por adelantado por Mercado Pago y te mostramos el precio final antes de pagar.`,
             `Si cambiamos el precio, te avisamos con ${PENDIENTES.avisoCambios} de anticipación y rige desde el mes siguiente. Si no estás de acuerdo, podés darte de baja sin costo antes de que rija.`,
           ],
         },
