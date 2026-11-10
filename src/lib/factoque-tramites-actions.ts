@@ -85,7 +85,7 @@ async function tramitar(formData: FormData, conSesion: boolean): Promise<Resulta
       after(async () => {
         const c = constanciaPorMail(tipo, numero, datos, efecto, cuando);
         try {
-          await enviarMailInterno({ tenantId: sesion?.tenantId ?? "factoque-publico", para: datos.email, asunto: c.asunto, cuerpo: c.cuerpo });
+          await enviarMailInterno({ tenantId: sesion?.tenantId ?? "factoque-publico", para: datos.email, asunto: c.asunto, cuerpo: c.cuerpo, marcaGsg: true });
         } catch (e) {
           logger.error("factoque", "no salió la constancia del trámite", e, { tipo, numero });
         }
