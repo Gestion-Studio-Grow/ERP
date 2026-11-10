@@ -26,6 +26,9 @@
  *   Tolerancias declaradas (centavos de una moneda que no es el peso): I3 en H, hasta 0,01 × tc por cuota en otra
  *   moneda; I4 en un proyecto en USD con cuota en ARS o EUR, hasta 0,01 × tc del USD (el cobrado en USD se redondea al
  *   centavo antes y después de marcar). Cuota en la moneda del proyecto, o proyecto en pesos con cuota en pesos: exacto.
+ *   Proyecto en otra moneda (USD): I1 es EXACTO en la moneda del proyecto (Σ pendientes ≤ saldo en USD, y «Marcar
+ *   cobrado» de todas sus cuotas salda a 0); en H, cada cuota se pasa a pesos por separado, así que I1 e I5 en H valen
+ *   hasta 0,01 × tc por cuota (certificación v6, F1-bis). En pantalla, vencido y 7 días se topean con porCobrar.
  *
  * Proyecto en otra moneda (USD): el saldo se calcula EN SU MONEDA y recién al final se pasa a pesos con el cambio de
  * HOY (`cobranzaEnMoneda`): si el dólar se mueve la deuda en pesos se mueve con él, y quien pagó sus dólares debe cero.
@@ -257,13 +260,15 @@ function pendienteDeCuota(q: CuotaDeCobranza, esperaH: number, enPesos: number, 
   if (q.moneda === tope.moneda) {
     const exacto = Math.min(pendH >= enPesos ? q.monto : redondear(crudo), alCentavoAbajo(tope.queda));
     const exactoH = aPesos(exacto, q.moneda, tc);
-    if (exacto > p && exactoH <= tope.restoH) {
+    // En la moneda del proyecto manda sólo `queda` (el saldo en esa moneda): `restoH` es el saldo redondeado una vez y
+    // los pesos de cada cuota se redondean uno por uno, así que pueden sumarle 0,01 de más (certificación v6, F1-bis).
+    if (exacto > p) {
       p = exacto;
       pendH = exactoH;
     } else p = Math.min(p, alCentavoAbajo(tope.queda));
-    tope.queda = Math.max(0, tope.queda - p);
+    tope.queda = Math.max(0, redondear(tope.queda - p));
   } else tope.queda = Math.max(0, tope.queda - pendH / tope.tc);
-  tope.restoH = redondear(tope.restoH - pendH);
+  tope.restoH = Math.max(0, redondear(tope.restoH - pendH));
   return p;
 }
 
@@ -356,7 +361,11 @@ export function conciliarConCobros(cuotas: readonly CuotaDeCobranza[], tc: Reado
   );
   const r = resumenCuotas(ajustadas, tc, hoy);
   // Vencido + 7 días ≤ por cobrar sale del tope del reparto (Σ pendientes ≤ porCobrar): no hace falta recortar acá.
-  return { ...r, cobrado: c.cobrado, aCobrar: c.porCobrar, cantCobrosVencidos: r.cobrosVencidos > 0 ? r.cantCobrosVencidos : 0 };
+  // En un proyecto en otra moneda, los pendientes son exactos en ESA moneda y en pesos de hoy pueden pasar por hasta
+  // 0,01×tc por cuota (redondeo): en pantalla, vencido y 7 días nunca muestran más que lo que falta cobrar.
+  const cobrosVencidos = Math.min(r.cobrosVencidos, c.porCobrar);
+  const aCobrar7 = Math.min(r.aCobrar7, redondear(c.porCobrar - cobrosVencidos));
+  return { ...r, cobrado: c.cobrado, aCobrar: c.porCobrar, cobrosVencidos, aCobrar7, cantCobrosVencidos: cobrosVencidos > 0 ? r.cantCobrosVencidos : 0 };
 }
 
 /**
