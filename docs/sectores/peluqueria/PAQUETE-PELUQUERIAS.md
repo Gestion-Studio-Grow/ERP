@@ -7,7 +7,10 @@ Consultorios quedan FUERA de este frente.
 
 «Dejá de pagar 3 suscripciones»: turnos + caja/cobros + factura ARCA en un solo sistema.
 La puerta de entrada es Factoque (blueprint `facturita`): todo monotributista factura; el
-upgrade a peluquería es activar módulos en el MISMO tenant (ADR-076), sin migrar datos.
+paso a peluquería **no se promete en el mismo negocio**: hoy Factoque se reconoce por el blueprint
+`facturita` y cambiarlo pierde sus pantallas y su tope mensual (ver
+`RUNBOOK-FACTOQUE-A-PELUQUERIA.md`, T6). El camino (A negocio nuevo · B Factoque como módulo ·
+C alta nueva al dejar Factoque) lo decide el dueño; hasta entonces, no se le ofrece a la clienta.
 
 ## Hallazgo principal
 
@@ -36,7 +39,7 @@ T1 cierra esos tres sin migración. CH (`beauty-spa`) vive sin blueprint: no la 
 | Comisiones | **Parcial → T1**: liquidación por profesional y override por servicio existen; faltaba compatibilidad con peluquería. Sin comisión sobre productos vendidos → T3 | `src/app/admin/(dashboard)/comisiones/page.tsx:32`, `prisma/schema.prisma:954,1133`, `src/lib/comision-liquidable.ts` |
 | Stock de reventa | **Existe** (inventario + cobro de turno con producto); faltaba en el set → T1 | `src/app/admin/(dashboard)/inventario/page.tsx:55`, `src/lib/turnos/cobro-con-producto.ts:16` |
 | Ficha del cliente (color, fórmulas) | **Falta**: sólo `Client.notes` (texto libre). Ficha técnica estructurada = tabla nueva → T4 (migración) | `prisma/schema.prisma:853` |
-| Factura ARCA (vía Factoque) | **Existe** (módulo `arca`, upgrade facturita → más módulos en el mismo tenant) | `src/blueprints/facturita.ts`, `src/lib/producto-identidad.ts:124` |
+| Factura ARCA (vía Factoque) | **Existe** (módulo `arca`; el paso de facturita a peluquería en el mismo negocio **no se promete**, decide el dueño A/B/C) | `src/blueprints/facturita.ts`, `src/lib/producto-identidad.ts:124` |
 | Reportes simples | **Existe** | `src/app/admin/(dashboard)/reportes/page.tsx:86` |
 
 Nota de datos sensibles: la ficha de color NO guarda alergias ni datos de salud (Ley 25.326,
@@ -57,7 +60,7 @@ Agenda (config pura, ADR-002/003), con un set de módulos propio:
 | **T3** | Comisión sobre productos de reventa vendidos en el turno (% por profesional) | Probable (columna aditiva) — se confirma al diseñar |
 | **T4** | Ficha técnica de color por cliente (fórmula, tono, oxidante, tiempo, fecha, profesional) con RLS | **Sí** |
 | **T5** | Recordatorio/confirmación por WhatsApp de un toque desde la agenda del día (plantilla por rubro, `wa.me`); envío automático queda para cuando haya API paga (DEMO → VENTA → INVERSIÓN) | No |
-| **T6** | Runbook de alta: Factoque → peluquería en el mismo tenant (checklist del operador) | No |
+| **T6** | Runbook de alta: Factoque → peluquería (checklist del operador; «mismo negocio» bloqueado, decide el dueño) | No |
 
 ## Precio del paquete
 
