@@ -91,3 +91,12 @@ test("M6: el panel se ofrece para instalar SÓLO con mostrador (terminal o club)
   assert.equal(panelInstalable(["pos", "terminal"]), true);
   assert.equal(panelInstalable(["club"]), true, "el club de Break Point");
 });
+
+test("los íconos genéricos (/gsg/icon-*.png) se generan en el build y no quedan también en public/", async () => {
+  const { existsSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  for (const i of ICONOS_GENERICOS) {
+    assert.ok(existsSync(join(process.cwd(), "src", "app", i.src, "route.ts")), i.src);
+    assert.ok(!existsSync(join(process.cwd(), "public", i.src)), `${i.src} no debe quedar también en public/`);
+  }
+});
