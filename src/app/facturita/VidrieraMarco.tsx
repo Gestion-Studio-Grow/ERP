@@ -12,6 +12,7 @@ import { BOTON_CHICO, BOTON_PRINCIPAL } from "./estilos";
 import { PIEL_FACTURITA } from "./piel";
 import BarraFija from "./BarraFija";
 import LogoFactoque from "./LogoFactoque";
+import { LogoGSG } from "@/components/marca/MarcaGSG";
 
 const claro = resolveAccent("cobre", "light");
 const oscuro = resolveAccent("cobre", "dark");
@@ -82,6 +83,16 @@ export default function VidrieraMarco({
       </header>
       <main id="contenido">{children}</main>
       <footer className="fx-pie">
+        {/* Madre y producto en la misma pieza (logo-madre-final.md §8.3): manda Factoque con su respaldo «Powered by
+            Gestión Studio Grow» (≥ 88 px); la madre va en v10 A2 a la mitad de su alto (112 → 56, el mínimo de la v10),
+            separada por más que el área de respeto de los dos (20 + 10 px). En el celular el lockup de 112 no entra
+            (403 px de ancho): queda sólo Factoque con respaldo, a todo el ancho, y el respaldo ya nombra a GSG. */}
+        <div className="fx-caja fx-pie-firma">
+          <LogoFactoque alto={112} respaldo className="fx-pie-producto" />
+          <a href="https://gsgapp.com.ar/" className="fx-pie-madre fx-solo-compu" aria-label="Gestión Studio Grow (se abre en otra pestaña)" target="_blank" rel="noopener noreferrer">
+            <LogoGSG alto={56} />
+          </a>
+        </div>
         <div className="fx-caja fx-pie-fila">
           <p>Factoque emite comprobantes electrónicos con el servicio oficial de ARCA.</p>
           <nav aria-label="Legales" className="flex flex-wrap gap-x-5 gap-y-2">
@@ -91,7 +102,6 @@ export default function VidrieraMarco({
             <Link href="/facturita/arrepentimiento">Botón de arrepentimiento</Link>
             <Link href="/facturita/baja">Darme de baja</Link>
           </nav>
-          <p>Un producto de Gestión Studio Grow</p>
         </div>
       </footer>
       {barraFija && (
