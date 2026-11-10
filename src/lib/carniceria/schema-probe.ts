@@ -81,9 +81,11 @@ export const lotesYDespieceListos = cache(async (): Promise<boolean> => (await m
 // ── La guarda de la VENTA (Magra T3b): ¿se controlan los lotes vencidos en este alta? ──────────
 
 /**
- * Cache de PROCESO, sólo del SÍ. Una migración aplicada no se desaplica (DROP está bloqueado por
- * norma): un "sí" visto una vez sigue valiendo. El "no" NO se guarda: si el dueño aplica la
- * migración con el proceso vivo, la próxima venta la ve (un "no" viejo apagaría la guarda).
+ * Cache de PROCESO, sólo del SÍ. Una migración aplicada no se desaplica en la operación normal
+ * (DROP está bloqueado por norma): un "sí" visto una vez sigue valiendo. Si alguna vez se corre el
+ * ROLLBACK de CarniceriaRubro.sql, hay que reiniciar los procesos (lo dice el propio ROLLBACK).
+ * El "no" NO se guarda: si el dueño aplica la migración con el proceso vivo, la próxima venta la
+ * ve (un "no" viejo apagaría la guarda).
  */
 let migracionVistaAplicada = false;
 

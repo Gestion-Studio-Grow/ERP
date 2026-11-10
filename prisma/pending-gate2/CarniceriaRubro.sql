@@ -194,6 +194,9 @@ COMMIT;
 -- se puede mergear ANTES de aplicar sin romper prod; las pantallas se encienden al migrar.
 --
 -- ROLLBACK (orden inverso):
+--   OJO (Magra T3b): la guarda de la venta (lotesListosParaVender, schema-probe.ts) cachea por
+--   proceso el "sí, está aplicada". Tras un rollback, REINICIAR los procesos (redeploy en Vercel)
+--   o las ventas de perecederos fallan al leer ProductBatch hasta el próximo arranque.
 --   DROP TABLE IF EXISTS "ProcessingOutput";
 --   DROP TABLE IF EXISTS "ProcessingRun";
 --   DROP TYPE IF EXISTS "ProcessingStatus";
