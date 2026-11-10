@@ -237,13 +237,17 @@ export interface LineaCashflow<T> {
   saldo: number;
 }
 
-/** Cada movimiento por fecha y el saldo que deja. El máximo a financiar es lo más abajo de cero que llega ese saldo. */
-export function cashflowDelEvento<T extends CuotaLeida>(cuotas: readonly T[], tc: Readonly<Record<string, number>>): { lineas: LineaCashflow<T>[]; saldoFinal: number; maximoAFinanciar: number } {
+/**
+ * Cada movimiento por fecha y el saldo que deja. El máximo a financiar es lo más abajo de cero que llega ese saldo.
+ * `montoDe` (en la moneda de la cuota): lo que cuenta cada cuota; sin él, su monto. Una cuota de cobro ya cobrada debe
+ * contar lo que entró por ella, no su monto (ver `repartoDeCobros`).
+ */
+export function cashflowDelEvento<T extends CuotaLeida>(cuotas: readonly T[], tc: Readonly<Record<string, number>>, montoDe: (c: T) => number = (c) => c.monto): { lineas: LineaCashflow<T>[]; saldoFinal: number; maximoAFinanciar: number } {
   const orden = cuotas.filter((c) => !c.anuladoEl).slice().sort((a, b) => a.venceEl.getTime() - b.venceEl.getTime() || (a.tipo === "COBRO" ? -1 : 1));
   let saldo = 0;
   let minimo = 0;
   const lineas = orden.map((cuota) => {
-    const pesos = aPesos(cuota.monto, cuota.moneda, tc);
+    const pesos = aPesos(montoDe(cuota), cuota.moneda, tc);
     const importe = cuota.tipo === "COBRO" ? pesos : -pesos;
     saldo = redondear(saldo + importe);
     minimo = Math.min(minimo, saldo);
