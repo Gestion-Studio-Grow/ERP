@@ -4,11 +4,22 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { operatorSetMustChange } from "@/lib/must-change-password";
 import type { OwnerResetPort } from "@/lib/owner-password-reset";
+import type { OwnerActivo } from "@/lib/operador/elegir-owner";
 
 //
-// `ownerId` (opcional) fija A QUÉ OWNER se resetea: el script de seguridad lo elige antes (por email o
-// porque hay uno solo). Sin `ownerId` (la consola) sigue siendo el OWNER activo más antiguo. Aun con
+// `ownerId` fija A QUÉ OWNER se resetea: la consola y el script de seguridad lo eligen antes con
+// `elegirOwner` (elegir-owner.ts) sobre `ownersActivos`. Sin `ownerId` sería el OWNER activo más
+// antiguo, que con varios puede ser otra persona: por eso los llamadores siempre lo pasan. Aun con
 // `ownerId`, el usuario tiene que ser OWNER activo de ESE negocio: si no, `findOwner` da null.
+/** Los OWNER activos del negocio (el más antiguo primero), leídos parado en él (`enElNegocio`). */
+export function ownersActivos(tx: Prisma.TransactionClient, tenantId: string): Promise<OwnerActivo[]> {
+  return tx.user.findMany({
+    where: { tenantId, role: "OWNER", active: true, deletedAt: null },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    select: { id: true, email: true },
+  });
+}
+
 export function operatorResetPort(
   tx: Prisma.TransactionClient,
   tenantId: string,

@@ -7,8 +7,9 @@
 // existe; si algo no cierra, tira y la transacción se deshace: no se entrega una provisoria sin rastro
 // o sin cambio obligatorio. La contraseña en claro sólo vive en el retorno.
 //
-// A QUIÉN se resetea: un negocio puede tener varios OWNER activos, y el puerto de la consola elige el
-// más antiguo (que puede ser otra persona). Por eso acá se elige ANTES de escribir nada:
+// A QUIÉN se resetea: un negocio puede tener varios OWNER activos, y el puerto sin `ownerId` elige el
+// más antiguo (que puede ser otra persona). Por eso acá se elige ANTES de escribir nada
+// (`elegirOwner`, la misma regla que la consola):
 //   - con `email` (sin espacios ni mayúsculas): el único OWNER activo de ESTE negocio con ese email;
 //     si no hay exactamente uno, error;
 //   - sin `email` y más de un OWNER activo: error, hay que indicar el email;
@@ -18,7 +19,8 @@ import type { PrismaClient } from "@/generated/prisma/client";
 import { enElNegocio } from "@/lib/operator-db";
 import { AUDIT_ACTION_OWNER_RESET } from "@/lib/must-change-password";
 import { resetOwnerPasswordCore } from "@/lib/owner-password-reset";
-import { operatorResetPort } from "@/lib/operador/owner-reset-port";
+import { operatorResetPort, ownersActivos } from "@/lib/operador/owner-reset-port";
+import { elegirOwner } from "@/lib/operador/elegir-owner";
 
 export type ResetPorSlugResult =
   | { ok: true; password: string; email: string; userId: string; tenantId: string; auditId: string }
@@ -40,25 +42,17 @@ export async function resetOwnerPorSlug(
   return enElNegocio(
     tenantId,
     async (tx): Promise<ResetPorSlugResult> => {
-      // Comparación en JS (no `mode: "insensitive"`): evita que `_` o `%` del email actúen de comodín.
-      const owners = await tx.user.findMany({
-        where: { tenantId, role: "OWNER", active: true, deletedAt: null },
-        select: { id: true, email: true },
-      });
-      let ownerId: string | undefined;
-      if (emailBuscado) {
-        const coinciden = owners.filter((o) => o.email.trim().toLowerCase() === emailBuscado);
-        if (coinciden.length !== 1) {
-          return { ok: false, error: "No hay un dueño activo de este negocio con ese email: no se tocó nada." };
-        }
-        ownerId = coinciden[0].id;
-      } else {
-        if (owners.length > 1) {
-          return { ok: false, error: "Hay más de un dueño activo: indicá RESET_EMAIL. No se tocó nada." };
-        }
-        ownerId = owners[0]?.id;
+      const eleccion = elegirOwner(await ownersActivos(tx, tenantId), { email: emailBuscado });
+      if (!eleccion.ok) {
+        const error =
+          eleccion.motivo === "no-coincide"
+            ? "No hay un dueño activo de este negocio con ese email: no se tocó nada."
+            : eleccion.motivo === "varios"
+              ? "Hay más de un dueño activo: indicá RESET_EMAIL. No se tocó nada."
+              : "Este negocio no tiene un dueño activo: no se tocó nada.";
+        return { ok: false, error };
       }
-      if (!ownerId) return { ok: false, error: "Este negocio no tiene un dueño activo: no se tocó nada." };
+      const ownerId = eleccion.ownerId;
 
       const r = await resetOwnerPasswordCore(operatorResetPort(tx, tenantId, { ownerId }), {
         tenantId,
