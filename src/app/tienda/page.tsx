@@ -35,6 +35,8 @@ import ShineFront from "./ShineFront";
 import QuebienolesVidriera from "./quebienoles/QuebienolesVidriera";
 import AdosmanosVidriera from "./adosmanos/AdosmanosVidriera";
 import TiendaNueva from "./vidriera/TiendaNueva";
+import VidrieraLocal from "./local/VidrieraLocal";
+import { configDeliveryLocal } from "@/lib/delivery-local/config";
 import { usaVidrieraNueva } from "./vidriera/marcas";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import { getCurrentTenantId } from "@/lib/tenant";
@@ -168,6 +170,14 @@ export default async function TiendaPage({
   const hoy = dateStrInBusinessTz(new Date());
   const slug = identity.slug;
   const front = editorialFrontFor(identity);
+
+  // PEDÍ LOCAL (nombre provisional a confirmar): el comercio del barrio con delivery propio y sin
+  // comisión (src/lib/delivery-local/config.ts). Va ANTES de la vidriera nueva y de los fronts
+  // editoriales, con los mismos datos. Un negocio sin esa configuración sigue exactamente igual.
+  const local = configDeliveryLocal(slug);
+  if (local) {
+    return <VidrieraLocal cfg={local} productos={data.products} branding={data.branding} entrega={entrega} hoy={hoy} />;
+  }
 
   // DISEÑO NUEVO (interruptor «Diseño nuevo» del negocio, apagado = todo lo de abajo, igual que
   // siempre). Sólo para negocios de mostrador o con marca propia: CH (servicios) no tiene tienda y
