@@ -16,7 +16,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { createProduct, updateProduct, toggleProductActive, deleteProduct } from "@/lib/catalog-actions";
-import { Input, Select, buttonClasses, fmtMoneyARS } from "@/components/ui";
+import { Input, Select, buttonClasses, fmtMoneyARS, useConfirmar } from "@/components/ui";
 import { salePriceOf, type SaleUnit } from "@/lib/stock/product-sale-fields";
 // "Stock bajo" tiene UNA definición (la de Stock y la del número del Inicio): un producto que
 // no controla stock nunca está "bajo". Pura y sin Prisma: se puede usar en el cliente.
@@ -304,6 +304,7 @@ function PriceCell({ product }: { product: Product }) {
 
 function ProductRow({ product }: { product: Product }) {
   const [editing, setEditing] = useState(false);
+  const { confirmarEnvio, dialogo } = useConfirmar();
   const lowStock = esStockBajo(product);
 
   if (editing) {
@@ -404,8 +405,8 @@ function ProductRow({ product }: { product: Product }) {
             Editar
           </button>
           <form
+            onSubmit={confirmarEnvio({ titulo: `¿Eliminar "${product.name}"?`, accion: "Sí, eliminar", peligro: true })}
             action={async (fd) => {
-              if (!confirm(`¿Eliminar "${product.name}"?`)) return;
               await deleteProduct(fd);
             }}
           >
@@ -414,6 +415,7 @@ function ProductRow({ product }: { product: Product }) {
               Eliminar
             </button>
           </form>
+          {dialogo}
         </div>
       </td>
     </tr>

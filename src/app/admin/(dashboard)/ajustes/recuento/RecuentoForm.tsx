@@ -32,7 +32,7 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { unstable_rethrow } from "next/navigation";
 import { registrarRecuento, type EstadoAjuste } from "@/lib/stock-adjustment-actions";
-import { AvisoError, Chip, Textarea, buttonClasses, fmtMoneyARS } from "@/components/ui";
+import { AvisoError, Chip, Textarea, buttonClasses, fmtMoneyARS, useConfirmar } from "@/components/ui";
 import { cantidadParaFormulario, formatearCantidad, leerCantidad } from "@/lib/pos-peso";
 import { round3 } from "@/lib/stock/ledger";
 import { marcaDeConteo } from "@/lib/stock/adjustment-core";
@@ -307,8 +307,15 @@ function Planilla({
   }
 
   // Tirar lo contado no tiene vuelta atrás: es de lo poco que pide confirmación.
-  function empezarDeCero() {
-    if (!confirm("¿Borrar todo lo que contaste y empezar de cero? No se puede deshacer.")) return;
+  const { confirmar, dialogo } = useConfirmar();
+  async function empezarDeCero() {
+    const si = await confirmar({
+      titulo: "¿Borrar todo lo que contaste y empezar de cero?",
+      detalle: "No se puede deshacer.",
+      accion: "Sí, borrar",
+      peligro: true,
+    });
+    if (!si) return;
     anotar({ ...estadoRef.current, nota: "", conteos: {}, enviadoA: null });
     setConteos({});
     setNota("");
@@ -317,6 +324,7 @@ function Planilla({
 
   return (
     <div className="space-y-6">
+      {dialogo}
       {sinRespuesta ? (
         <AvisoError
           titulo="No sabemos si se guardó"

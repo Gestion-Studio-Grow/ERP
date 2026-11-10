@@ -13,7 +13,7 @@ import {
 } from "@/lib/catalog-actions";
 import { fmtShortDate } from "@/lib/datetime";
 import { useToast } from "../ToastProvider";
-import { Input, Select, buttonClasses } from "@/components/ui";
+import { Input, Select, buttonClasses, useConfirmar } from "@/components/ui";
 
 type Box = { id: string; name: string; active: boolean };
 type Service = {
@@ -300,6 +300,7 @@ function ProfessionalRow({
   services: Service[];
 }) {
   const [editing, setEditing] = useState(false);
+  const { confirmarEnvio, dialogo } = useConfirmar();
   const [editingHours, setEditingHours] = useState(false);
   const [editingNovedades, setEditingNovedades] = useState(false);
   const [editingComisiones, setEditingComisiones] = useState(false);
@@ -460,8 +461,8 @@ function ProfessionalRow({
           </button>
         </form>
         <form
+          onSubmit={confirmarEnvio({ titulo: `¿Eliminar a "${p.name}"?`, detalle: "Esta acción no se puede deshacer.", accion: "Sí, eliminar", peligro: true })}
           action={async (fd) => {
-            if (!confirm(`¿Eliminar a "${p.name}"? Esta acción no se puede deshacer.`)) return;
             try {
               await deleteProfessional(fd);
               showSuccess(`“${p.name}” eliminado.`);
@@ -475,6 +476,7 @@ function ProfessionalRow({
             Eliminar
           </button>
         </form>
+        {dialogo}
       </div>
 
       {editingHours && (

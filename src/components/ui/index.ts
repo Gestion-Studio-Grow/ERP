@@ -91,5 +91,9 @@ export {
 } from "./tabla-core";
 export type { OrdenTabla } from "./tabla-core";
 export { Cajon, Dialogo } from "./Cajon";
+export { Modal } from "./Modal";
+export type { ModalProps } from "./Modal";
+export { Confirmar, useConfirmar } from "./Confirmar";
+export type { PedidoConfirmar } from "./Confirmar";
 export { MenuMas } from "./MenuMas";
 export type { Comando, GrupoComando } from "./comandos-core";

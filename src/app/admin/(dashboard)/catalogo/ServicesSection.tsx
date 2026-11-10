@@ -10,7 +10,7 @@ import {
   setServiceResources,
 } from "@/lib/catalog-actions";
 import { useToast } from "../ToastProvider";
-import { Field, Input, Seccion, Select, Textarea, buttonClasses } from "@/components/ui";
+import { Field, Input, Seccion, Select, Textarea, buttonClasses, useConfirmar } from "@/components/ui";
 import { CamposDeLaFicha, FotosDelServicio } from "./FichaServicioCampos";
 import { MODALIDAD_ETIQUETA, TIPO_ETIQUETA, precioADefinir, type FichaDelServicio } from "@/lib/servicios/ficha";
 
@@ -239,6 +239,7 @@ function ServiceRow({
   fichaDisponible: boolean;
 }) {
   const [editing, setEditing] = useState(false);
+  const { confirmarEnvio, dialogo } = useConfirmar();
   const [editingInsumos, setEditingInsumos] = useState(false);
   const [editingRecursos, setEditingRecursos] = useState(false);
   const { showError, showSuccess } = useToast();
@@ -330,8 +331,8 @@ function ServiceRow({
               Editar
             </button>
             <form
+              onSubmit={confirmarEnvio({ titulo: `¿Eliminar "${service.name}"?`, detalle: "Esta acción no se puede deshacer.", accion: "Sí, eliminar", peligro: true })}
               action={async (fd) => {
-                if (!confirm(`¿Eliminar "${service.name}"? Esta acción no se puede deshacer.`)) return;
                 try {
                   await deleteService(fd);
                   showSuccess(`“${service.name}” eliminado.`);
@@ -345,6 +346,7 @@ function ServiceRow({
                 Eliminar
               </button>
             </form>
+            {dialogo}
           </div>
         </td>
       </tr>

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { createResource, updateResource, deleteResource } from "@/lib/catalog-actions";
 import { useToast } from "../ToastProvider";
-import { buttonClasses } from "@/components/ui";
+import { buttonClasses, useConfirmar } from "@/components/ui";
 
 type Resource = {
   id: string;
@@ -15,6 +15,7 @@ type Resource = {
 
 function ResourceRow({ resource: r }: { resource: Resource }) {
   const [editing, setEditing] = useState(false);
+  const { confirmarEnvio, dialogo } = useConfirmar();
   const { showError, showSuccess } = useToast();
 
   if (editing) {
@@ -62,8 +63,8 @@ function ResourceRow({ resource: r }: { resource: Resource }) {
           Editar
         </button>
         <form
+          onSubmit={confirmarEnvio({ titulo: `¿Eliminar el recurso "${r.name}"?`, accion: "Sí, eliminar", peligro: true })}
           action={async (fd) => {
-            if (!confirm(`¿Eliminar el recurso "${r.name}"?`)) return;
             try {
               await deleteResource(fd);
               showSuccess(`“${r.name}” eliminado.`);
@@ -77,6 +78,7 @@ function ResourceRow({ resource: r }: { resource: Resource }) {
             Eliminar
           </button>
         </form>
+        {dialogo}
       </div>
     </div>
   );

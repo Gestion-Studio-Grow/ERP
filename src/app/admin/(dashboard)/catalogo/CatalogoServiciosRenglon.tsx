@@ -15,7 +15,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Bloque, Cajon, Field, Input, Marca, MenuMas, Plata, Renglon, Seccion, Select, Textarea, buttonClasses } from "@/components/ui";
+import { Bloque, Cajon, Field, Input, Marca, MenuMas, Plata, Renglon, Seccion, Select, Textarea, buttonClasses, useConfirmar } from "@/components/ui";
 import {
   createBox,
   createBoxBlock,
@@ -186,13 +186,15 @@ export function ServiciosRenglon({
   const sinCategoria = servicios.filter((s) => !s.categoryId);
   if (sinCategoria.length > 0) grupos.push({ id: "sin-categoria", titulo: "Sin categoría", items: sinCategoria });
 
-  const eliminar = (s: ServicioDelCatalogo) => {
-    if (!confirm(`¿Eliminar «${s.name}»? Deja de aparecer en la agenda y en la web. Si ya tiene turnos no se puede: pausalo.`)) return;
+  const { confirmar, dialogo } = useConfirmar();
+  const eliminar = async (s: ServicioDelCatalogo) => {
+    if (!(await confirmar({ titulo: `¿Eliminar «${s.name}»?`, detalle: "Deja de aparecer en la agenda y en la web. Si ya tiene turnos no se puede: pausalo.", accion: "Sí, eliminar", peligro: true }))) return;
     correr(deleteService, { id: s.id }, `«${s.name}» eliminado.`);
   };
 
   return (
     <div aria-busy={pendiente || undefined}>
+      {dialogo}
       {grupos.length === 0 && <Vacio>Todavía no hay servicios. Agregá el primero con el botón de arriba.</Vacio>}
       {grupos.map((g) => (
         <Bloque
@@ -464,13 +466,15 @@ export function BoxesRenglon({
   const { href, cerrar } = useCajon();
   const { correr, pendiente } = useAccion();
   const editando = editar ? (boxes.find((b) => b.id === editar) ?? null) : null;
-  const eliminar = (b: Box) => {
-    if (!confirm(`¿Eliminar «${b.name}»? Si ya tiene turnos no se puede: pausalo.`)) return;
+  const { confirmar, dialogo } = useConfirmar();
+  const eliminar = async (b: Box) => {
+    if (!(await confirmar({ titulo: `¿Eliminar «${b.name}»?`, detalle: "Si ya tiene turnos no se puede: pausalo.", accion: "Sí, eliminar", peligro: true }))) return;
     correr(deleteBox, { id: b.id }, `«${b.name}» eliminado.`);
   };
 
   return (
     <div aria-busy={pendiente || undefined}>
+      {dialogo}
       <Bloque titulo="Boxes" cuenta={boxes.filter((b) => b.active).length}>
         {boxes.length === 0 && <Vacio>Todavía no hay boxes.</Vacio>}
         <ul data-sin-folio>
@@ -570,9 +574,11 @@ function FormularioNombre({
 
 function FichaDelBox({ box: b }: { box: Box }) {
   const { correr } = useAccion();
+  const { confirmar, dialogo } = useConfirmar();
   const guardarBloqueo = useGuardar(() => {}, "Box bloqueado para esas fechas.");
   return (
     <div className="flex flex-col gap-8">
+      {dialogo}
       <Seccion titulo="Bloquear fechas" nivel="h3">
         <form action={(fd) => guardarBloqueo(createBoxBlock, fd)} className="flex flex-col gap-4">
           <input type="hidden" name="boxId" value={b.id} />
@@ -605,8 +611,14 @@ function FichaDelBox({ box: b }: { box: Box }) {
                   <button
                     type="button"
                     className={buttonClasses("ghost", "sm")}
-                    onClick={() => {
-                      if (!confirm("¿Quitar este bloqueo? El box vuelve a quedar libre esos días.")) return;
+                    onClick={async () => {
+                      const si = await confirmar({
+                        titulo: "¿Quitar este bloqueo?",
+                        detalle: "El box vuelve a quedar libre esos días.",
+                        accion: "Sí, quitar",
+                        peligro: true,
+                      });
+                      if (!si) return;
                       correr(deleteBoxBlock, { id: bl.id }, "Bloqueo quitado.");
                     }}
                   >
@@ -643,12 +655,14 @@ export function EquiposRenglon({
   const { href, cerrar } = useCajon();
   const { correr, pendiente } = useAccion();
   const editando = editar ? (equipos.find((r) => r.id === editar) ?? null) : null;
-  const eliminar = (r: Equipo) => {
-    if (!confirm(`¿Eliminar «${r.name}»? Los servicios que lo usan dejan de reservarlo.`)) return;
+  const { confirmar, dialogo } = useConfirmar();
+  const eliminar = async (r: Equipo) => {
+    if (!(await confirmar({ titulo: `¿Eliminar «${r.name}»?`, detalle: "Los servicios que lo usan dejan de reservarlo.", accion: "Sí, eliminar", peligro: true }))) return;
     correr(deleteResource, { id: r.id }, `«${r.name}» eliminado.`);
   };
   return (
     <div aria-busy={pendiente || undefined}>
+      {dialogo}
       <Bloque titulo="Equipos y gabinetes" cuenta={equipos.length}>
         {equipos.length === 0 && <Vacio>Todavía no hay equipos. Cargá los que se comparten entre servicios (una radiofrecuencia, un gabinete).</Vacio>}
         <ul>
@@ -723,12 +737,14 @@ export function CuponesRenglon({
 }) {
   const { cerrar } = useCajon();
   const { correr, pendiente } = useAccion();
-  const eliminar = (c: Cupon) => {
-    if (!confirm(`¿Eliminar el cupón «${c.code}»? Quien lo tenga ya no lo puede usar.`)) return;
+  const { confirmar, dialogo } = useConfirmar();
+  const eliminar = async (c: Cupon) => {
+    if (!(await confirmar({ titulo: `¿Eliminar el cupón «${c.code}»?`, detalle: "Quien lo tenga ya no lo puede usar.", accion: "Sí, eliminar", peligro: true }))) return;
     correr(deleteCoupon, { id: c.id }, `Cupón «${c.code}» eliminado.`);
   };
   return (
     <div aria-busy={pendiente || undefined}>
+      {dialogo}
       <Bloque titulo="Cupones" cuenta={cupones.filter((c) => c.active).length}>
         {cupones.length === 0 && <Vacio>{vacio}</Vacio>}
         <ul data-sin-folio>

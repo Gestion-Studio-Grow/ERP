@@ -3,7 +3,7 @@
 import { createCoupon, toggleCouponActive, deleteCoupon } from "@/lib/coupon-actions";
 import { useToast } from "../ToastProvider";
 import { fmtShortDate } from "@/lib/datetime";
-import { EmptyState, Input, Select, buttonClasses } from "@/components/ui";
+import { EmptyState, Input, Select, buttonClasses, useConfirmar } from "@/components/ui";
 
 type Coupon = {
   id: string;
@@ -18,6 +18,7 @@ type Coupon = {
 
 function CouponRow({ c }: { c: Coupon }) {
   const { showError, showSuccess } = useToast();
+  const { confirmarEnvio, dialogo } = useConfirmar();
   const label = c.type === "PERCENT" ? `${c.value}%` : `$${c.value.toLocaleString("es-AR")}`;
 
   return (
@@ -45,8 +46,8 @@ function CouponRow({ c }: { c: Coupon }) {
           </button>
         </form>
         <form
+          onSubmit={confirmarEnvio({ titulo: `¿Eliminar el cupón "${c.code}"?`, accion: "Sí, eliminar", peligro: true })}
           action={async (fd) => {
-            if (!confirm(`¿Eliminar el cupón "${c.code}"?`)) return;
             try {
               await deleteCoupon(fd);
               showSuccess(`Cupón "${c.code}" eliminado.`);
@@ -60,6 +61,7 @@ function CouponRow({ c }: { c: Coupon }) {
             Eliminar
           </button>
         </form>
+        {dialogo}
       </div>
     </div>
   );
