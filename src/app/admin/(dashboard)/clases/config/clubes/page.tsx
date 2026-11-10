@@ -2,7 +2,9 @@ import { redirect } from "next/navigation";
 import { requireApp } from "@/lib/require-app";
 import { gestionaClases } from "@/lib/padel/plata-guardia";
 import { cn } from "@/components/ui";
-import { badgePendientes, clubes } from "@/lib/padel/datos.server";
+import { badgePendientes, clubes, configPadel } from "@/lib/padel/datos.server";
+import { preciosPorClub } from "@/lib/padel/paquetes.server";
+import { getCurrentTenantId } from "@/lib/tenant";
 import { tarjeta } from "../../_vista";
 import { EncabezadoAjuste } from "../_encabezado";
 import { FichaClub, FormClub } from "./Formularios";
@@ -17,7 +19,9 @@ export default async function AjustesClubes() {
   const user = await requireApp("padel-clases");
   // Todo lo de esta pantalla guarda con acciones que exigen agenda:manage: sin él, vuelve a Hoy.
   if (!gestionaClases(user)) redirect("/admin/clases");
-  const [lista, numero] = await Promise.all([clubes(true), badgePendientes()]);
+  const tenantId = await getCurrentTenantId();
+  const [lista, numero, precios, config] = await Promise.all([clubes(true), badgePendientes(), preciosPorClub(tenantId), configPadel(tenantId)]);
+  const general = { precioIndividual: config.precioIndividual, precioGrupal: config.precioGrupal };
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-5">
       <EncabezadoAjuste titulo="Clubes" detalle="Dónde das clases. El alumno lo ve al elegir la hora y en el WhatsApp." pendientes={numero} />
@@ -29,7 +33,7 @@ export default async function AjustesClubes() {
         <ul className="grid gap-2" aria-label="Tus clubes">
           {lista.map((c) => (
             <li key={c.id}>
-              <FichaClub club={c} />
+              <FichaClub club={c} precio={precios.get(c.id) ?? null} general={general} />
             </li>
           ))}
         </ul>

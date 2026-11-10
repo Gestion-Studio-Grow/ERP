@@ -304,6 +304,9 @@ model Tenant {
   padelClubes               PadelClub[]
   padelSeries               PadelSerie[]
   padelIntegrantes          PadelIntegrante[]
+  padelPaquetes             PadelPaquete[]
+  padelPaqueteUsos          PadelPaqueteUso[]
+  padelPreciosClub          PadelPrecioClub[]
   invoices                  Invoice[]
   outboxEvents              OutboxEvent[]
   orders                    Order[]
@@ -3214,6 +3217,7 @@ model PadelAlumno {
   avisos       PadelAviso[]
   series       PadelSerie[]
   integranteEn PadelIntegrante[]
+  paquetes     PadelPaquete[]
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
 
@@ -3258,6 +3262,8 @@ model PadelClase {
   // de arriba) y cada integrante extra paga la suya en PadelIntegrante.
   integrantes          PadelIntegrante[]
   avisos               PadelAviso[]
+  // T5 · Si se cobró descontándola de un paquete (la columna vive en PadelPaqueteUso).
+  usoDePaquete         PadelPaqueteUso?
   createdAt            DateTime          @default(now())
   updatedAt            DateTime          @updatedAt
 
@@ -3281,6 +3287,7 @@ model PadelClub {
   clases           PadelClase[]
   disponibilidades PadelDisponibilidad[]
   series           PadelSerie[]
+  precio           PadelPrecioClub?
   createdAt        DateTime              @default(now())
   updatedAt        DateTime              @updatedAt
 
@@ -3339,6 +3346,63 @@ model PadelIntegrante {
   @@index([tenantId, claseId])
   @@index([tenantId, alumnoId])
   @@index([tenantId, pagoEstado])
+}
+
+// T5 · Paquete de clases: el profe le vende N clases a un alumno por un precio (efectivo,
+// transferencia o Mercado Pago, cobrado a mano). La plata entra el día de la venta (`pagadoEl`); cada
+// clase que después se cobra «del paquete» queda PAGADO con medio PAQUETE y su fila en
+// PadelPaqueteUso. Lo que queda NO es una columna: clases − usos cuya clase sigue pagada con PAQUETE
+// (una clase cancelada vuelve sola al paquete). Migración 20261110120000 (Gate 2: puede faltar).
+model PadelPaquete {
+  id        String            @id @default(cuid())
+  tenant    Tenant            @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  alumno    PadelAlumno       @relation(fields: [alumnoId], references: [id])
+  alumnoId  String
+  clases    Int
+  precio    Decimal           @db.Decimal(14, 2)
+  pagoMedio String // EFECTIVO · TRANSFERENCIA · MERCADO_PAGO
+  pagadoEl  DateTime
+  nota      String?
+  // Doble toque en «Vender»: la misma clave no crea dos paquetes.
+  claveIdem String?
+  anuladoEl DateTime?
+  usos      PadelPaqueteUso[]
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  @@unique([tenantId, claveIdem])
+  @@index([tenantId, alumnoId])
+  @@index([tenantId, pagadoEl])
+}
+
+// T5 · Una clase cobrada del paquete. `claseId` único: una clase no gasta dos clases del paquete.
+model PadelPaqueteUso {
+  id        String       @id @default(cuid())
+  tenant    Tenant       @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  paquete   PadelPaquete @relation(fields: [paqueteId], references: [id], onDelete: Cascade)
+  paqueteId String
+  clase     PadelClase   @relation(fields: [claseId], references: [id], onDelete: Cascade)
+  claseId   String       @unique
+  createdAt DateTime     @default(now())
+
+  @@index([tenantId, paqueteId])
+}
+
+// T5 · Precio propio de un club. Nulo (o sin fila) = rige el de PadelConfig.
+model PadelPrecioClub {
+  id               String    @id @default(cuid())
+  tenant           Tenant    @relation(fields: [tenantId], references: [id])
+  tenantId         String
+  club             PadelClub @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  clubId           String    @unique
+  precioIndividual Decimal?  @db.Decimal(14, 2)
+  precioGrupal     Decimal?  @db.Decimal(14, 2) // por persona
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([tenantId])
 }
 
 // La bandeja del profe (destino PROFE) y lo que se le avisa al alumno (destino ALUMNO).

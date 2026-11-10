@@ -6,7 +6,9 @@
 import { useId, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { buttonClasses, cn } from "@/components/ui";
-import { activarClub, crearClub, editarClub } from "@/lib/padel/acciones-clubes";
+import { activarClub, crearClub, editarClub, guardarPrecioClub } from "@/lib/padel/acciones-clubes";
+import type { ListaDePrecios, PrecioDeClub } from "@/lib/padel/paquetes-core";
+import { plataTexto } from "../../_plata";
 import type { ClubPadel } from "@/lib/padel/datos.server";
 import { useToast } from "../../../ToastProvider";
 import { campo, rotulo } from "../_estilos";
@@ -67,7 +69,56 @@ export function FormClub() {
   );
 }
 
-export function FichaClub({ club }: { club: ClubPadel }) {
+/**
+ * T5 · Precio propio del club: individual y grupal por persona. Vacío = el de la lista general
+ * (Ajustes → Precios). Rige para lo que se agende o se confirme desde ahora.
+ */
+function PrecioDelClub({ club, precio, general }: { club: ClubPadel; precio: PrecioDeClub | null; general: ListaDePrecios }) {
+  const router = useRouter();
+  const { showSuccess } = useToast();
+  const [pendiente, start] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const id = useId();
+  const valor = (n: number | null | undefined) => (n ? String(n) : "");
+  return (
+    <form
+      action={(fd) =>
+        start(async () => {
+          setError(null);
+          try {
+            const r = await guardarPrecioClub(club.id, { precioIndividual: fd.get("precioIndividual"), precioGrupal: fd.get("precioGrupal") });
+            if (!r.ok) return setError(r.error);
+            showSuccess("Precio del club guardado");
+            router.refresh();
+          } catch {
+            setError(SIN_CONEXION);
+          }
+        })
+      }
+      className="grid gap-3 border-t border-line pt-3"
+      aria-labelledby={`${id}-t`}
+    >
+      <p id={`${id}-t`} className="text-sm font-semibold text-strong">Precio en este club</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <label htmlFor={`${id}-ind`} className={rotulo}>Individual ($)</label>
+          <input id={`${id}-ind`} name="precioIndividual" inputMode="decimal" className={campo} defaultValue={valor(precio?.precioIndividual)} placeholder={general.precioIndividual ? `${plataTexto(general.precioIndividual)} (el de la lista)` : "El de la lista"} autoComplete="off" data-qa="club-precio-individual" />
+        </div>
+        <div>
+          <label htmlFor={`${id}-grp`} className={rotulo}>Grupal, por persona ($)</label>
+          <input id={`${id}-grp`} name="precioGrupal" inputMode="decimal" className={campo} defaultValue={valor(precio?.precioGrupal)} placeholder={general.precioGrupal ? `${plataTexto(general.precioGrupal)} (el de la lista)` : "El de la lista"} autoComplete="off" data-qa="club-precio-grupal" />
+        </div>
+      </div>
+      <p className="text-sm text-muted">Vacío = el de Ajustes → Precios. Rige para lo que agendes o confirmes desde ahora.</p>
+      {error && <p role="alert" className="rounded-lg bg-danger-soft px-3 py-2 text-sm font-semibold text-danger">{error}</p>}
+      <button type="submit" disabled={pendiente} className={cn(buttonClasses("outline", "lg"), "h-12 w-full justify-center")} data-qa="club-precio-guardar">
+        {pendiente ? "Guardando…" : "Guardar precio"}
+      </button>
+    </form>
+  );
+}
+
+export function FichaClub({ club, precio = null, general }: { club: ClubPadel; precio?: PrecioDeClub | null; general?: ListaDePrecios }) {
   const router = useRouter();
   const { showSuccess } = useToast();
   const [editando, setEditando] = useState(false);
@@ -97,6 +148,11 @@ export function FichaClub({ club }: { club: ClubPadel }) {
             {!club.activo && <span className="ml-2 text-sm font-normal text-muted">(desactivado)</span>}
           </p>
           {club.direccion && <p className="text-sm text-muted">{club.direccion}</p>}
+          {precio && (precio.precioIndividual || precio.precioGrupal) ? (
+            <p className="text-sm text-muted" data-qa="club-precio">
+              {[precio.precioIndividual ? `Individual ${plataTexto(precio.precioIndividual)}` : null, precio.precioGrupal ? `grupal ${plataTexto(precio.precioGrupal)} c/u` : null].filter(Boolean).join(" · ")}
+            </p>
+          ) : null}
           {club.mapsUrl && (
             <a href={club.mapsUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-12 items-center text-sm font-semibold text-accent-ink underline underline-offset-2">
               Ver en el mapa
@@ -137,6 +193,7 @@ export function FichaClub({ club }: { club: ClubPadel }) {
           </button>
         </form>
       )}
+      {editando && general && <PrecioDelClub club={club} precio={precio} general={general} />}
       {!club.activo && <p className="text-sm text-muted">No se ofrece para agendar ni en los horarios nuevos. Lo ya agendado sigue diciendo este club.</p>}
       {error && <p role="alert" className="rounded-lg bg-danger-soft px-3 py-2 text-sm font-semibold text-danger">{error}</p>}
     </div>

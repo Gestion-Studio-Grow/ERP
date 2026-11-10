@@ -48,6 +48,7 @@ import {
   type TipoClase,
 } from "./core";
 import { configPadel, datosDelNegocio, libresCercanos, libresDelDia } from "./datos.server";
+import { listaPara } from "./paquetes.server";
 import { notificadorActual } from "./notificador";
 import { bloquearClaseDeIntegranteEnTx, cerrarIntegrantesEnTx } from "./grupal.server";
 import { conPisoDeTiempo, decidirPedidoDeLink, politicaDeToken } from "./sesion-alumno";
@@ -141,6 +142,8 @@ export async function pedirClase(
   }
   // E4 · Si la franja es de un club, la clase lo hereda.
   const clubId = clubDeHora(fecha, franjas, empiezaEn);
+  // T5 · El precio de lista del club de esa franja (si tiene propio); si no, el general.
+  const lista = await listaPara(tenantId, config, clubId);
   // El freno de 3 por celular cuenta DESPUÉS de ver que la hora está libre (O-10 de la CERT T2+T3):
   // un alumno al que «se le ocupó» tres veces seguidas no queda frenado 10 minutos. El de IP, arriba,
   // sigue contando todo.
@@ -157,7 +160,7 @@ export async function pedirClase(
         throw new ErrorNegocio(`Ya tenés ${pendientes} clase${pendientes > 1 ? "s" : ""} esperando que el profe confirme. Cuando te conteste, pedí la próxima.`);
       }
       const clase = await tx.padelClase.create({
-        data: { tenantId, alumnoId: alumno.id, clientId: alumno.clientId, empiezaEn, terminaEn, tipo, personas, origen: "TURNERO", precio: precioDe(config, tipo, personas), clubId },
+        data: { tenantId, alumnoId: alumno.id, clientId: alumno.clientId, empiezaEn, terminaEn, tipo, personas, origen: "TURNERO", precio: precioDe(lista, tipo, personas), clubId },
         select: { id: true },
       });
       // ¿Este dispositivo es el dueño del link? Si no lo es y el profe todavía no reconoció al alumno,
@@ -354,6 +357,8 @@ export async function reservarDesdeLink(
   const fecha = dateStrInBusinessTz(empiezaEn);
   const { config, libres, franjas } = await libresDelDia(tenantId, fecha);
   const clubId = clubDeHora(fecha, franjas, empiezaEn);
+  // T5 · El precio de lista del club de esa franja (si tiene propio); si no, el general.
+  const lista = await listaPara(tenantId, config, clubId);
   if (!libres.includes(empiezaEn.toISOString())) {
     // Las tres franjas libres más cercanas a la que quería, ese día o el siguiente.
     return { ok: false, error: "Ese horario ya no está libre.", alternativas: await libresCercanos(tenantId, empiezaEn) };
@@ -368,7 +373,7 @@ export async function reservarDesdeLink(
         const pendientes = await tx.padelClase.count({ where: { tenantId, alumnoId: alumno.id, estado: "PEDIDA", empiezaEn: { gt: new Date() } } });
         if (!puedePedir(pendientes, config.maxPendientesPorTel)) throw new ErrorNegocio("Ya tenés clases esperando que el profe confirme.");
       }
-      const precio = precioDe(config, tipo, base.personas);
+      const precio = precioDe(lista, tipo, base.personas);
       // Confirmada de entrada: si tiene saldo a favor que la cubre entera, nace pagada.
       const conSaldo = confirmada ? pagoConSaldo(await saldoEnTx(tx, tenantId, alumno.id), precio) : null;
       return tx.padelClase.create({

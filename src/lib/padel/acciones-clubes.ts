@@ -10,7 +10,10 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapabilityFueraDeLaAgenda } from "@/lib/authz";
 import { auditAdmin } from "@/lib/audit-core";
+import { isTableMissing } from "@/lib/prisma-errors";
+import { tenantTransaction } from "@/lib/rls";
 import { linkDeMapsValido, nombreDeClub } from "./core";
+import { precioClubValido } from "./paquetes-core";
 import { refrescar, type Resultado } from "./acciones-compartido";
 
 /** Tope de clubes por profe: más que esto es un dedo que se quedó apretado. */
@@ -73,6 +76,43 @@ export async function activarClub(id: string, activo: boolean): Promise<Resultad
   const n = await prisma.padelClub.updateMany({ where: { tenantId, id: String(id ?? "") }, data: { activo: Boolean(activo) } });
   if (n.count === 0) return { ok: false, error: "No encontramos ese club. Actualizá la pantalla." };
   await auditAdmin({ action: activo ? "padel.club.activar" : "padel.club.desactivar", entity: "PadelClub", entityId: id });
+  refrescar();
+  return { ok: true };
+}
+
+/**
+ * T5 · Precio propio del club (individual y grupal por persona). Vacío = el de la lista general
+ * (Ajustes → Precios). Los dos vacíos borran el precio propio. Rige para lo que se agende o se
+ * confirme desde ahora: lo ya confirmado conserva su precio. Sin la migración 20261110120000
+ * aplicada, contesta «todavía no está habilitado».
+ */
+export async function guardarPrecioClub(clubId: string, datos: { precioIndividual: unknown; precioGrupal: unknown }): Promise<Resultado> {
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
+  const tenantId = await getCurrentTenantId();
+  const id = String(clubId ?? "");
+  const v = precioClubValido(datos ?? { precioIndividual: "", precioGrupal: "" });
+  if (!v.ok) return v;
+  try {
+    const hecho = await tenantTransaction(async (tx) => {
+      const club = await tx.padelClub.findFirst({ where: { tenantId, id }, select: { id: true } });
+      if (!club) return false;
+      if (v.precioIndividual === null && v.precioGrupal === null) {
+        await tx.padelPrecioClub.deleteMany({ where: { tenantId, clubId: club.id } });
+      } else {
+        const data = { precioIndividual: v.precioIndividual, precioGrupal: v.precioGrupal };
+        const n = await tx.padelPrecioClub.updateMany({ where: { tenantId, clubId: club.id }, data });
+        if (n.count === 0) await tx.padelPrecioClub.create({ data: { tenantId, clubId: club.id, ...data } });
+      }
+      return true;
+    }, { tenantId });
+    if (!hecho) return { ok: false, error: "No encontramos ese club. Actualizá la pantalla." };
+  } catch (e) {
+    if (isTableMissing(e)) return { ok: false, error: "El precio por club todavía no está habilitado en tu cuenta." };
+    // Dos guardados a la vez del mismo club: el segundo choca con el único de clubId.
+    if (typeof e === "object" && e !== null && (e as { code?: string }).code === "P2002") return { ok: false, error: "Se guardó recién desde otro lado. Actualizá la pantalla." };
+    throw e;
+  }
+  await auditAdmin({ action: "padel.club.precio", entity: "PadelClub", entityId: id, changes: { precioIndividual: v.precioIndividual, precioGrupal: v.precioGrupal } });
   refrescar();
   return { ok: true };
 }

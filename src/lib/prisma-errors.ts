@@ -92,3 +92,20 @@ export function isColumnMissing(e: unknown, column?: string): boolean {
   if (String(col ?? "").toLowerCase().includes(needle)) return true;
   return String(e.message ?? "").toLowerCase().includes(needle);
 }
+
+/**
+ * Tabla inexistente (P2021): la migración que la crea TODAVÍA no se aplicó (Gate 2). El código que
+ * lee una tabla nueva captura esto y cae al camino viejo. Si se pasa `tabla`, exige que el error sea
+ * de esa tabla (Prisma la nombra en `meta.table` o en el mensaje: «The table `public.X` does not
+ * exist»). Con los driver adapters también puede llegar el 42P01 de Postgres en el mensaje.
+ */
+export function isTableMissing(e: unknown, tabla?: string): boolean {
+  if (!isPrismaError(e, "P2021")) {
+    if (!(e instanceof Prisma.PrismaClientKnownRequestError)) return false;
+    if (!/42P01/.test(String(e.message ?? "")) && (e.meta as { code?: unknown } | undefined)?.code !== "42P01") return false;
+  }
+  if (!tabla) return true;
+  const t = (e as Prisma.PrismaClientKnownRequestError).meta as { table?: unknown } | undefined;
+  const needle = tabla.toLowerCase();
+  return String(t?.table ?? "").toLowerCase().includes(needle) || String((e as Error).message ?? "").toLowerCase().includes(needle);
+}

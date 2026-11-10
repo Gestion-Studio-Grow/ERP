@@ -9,6 +9,8 @@ import { ChipEstado, tarjeta } from "../../_vista";
 import { Cabecera } from "../../_cabecera";
 import { CobrarTodo, LeDevolvi, Recordarle } from "../../plata/_acciones-plata";
 import { EditarAlumno, MandarLink, NotasAlumno, RegenerarLink } from "./_ficha";
+import { AnularPaquete, VenderPaquete } from "./_paquete";
+import { puedeAnularPaquete, textoQuedan } from "@/lib/padel/paquetes-core";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Clases · Ficha del alumno", manifest: "/clases/app.webmanifest" };
@@ -142,6 +144,31 @@ export default async function FichaAlumno({ params }: { params: Promise<{ id: st
             </p>
             {a.devolverId && <LeDevolvi claseId={a.devolverId} nombre={a.nombre} monto={a.devolverMonto} />}
           </>
+        )}
+        {/* T5 · Paquetes: sin la migración aplicada (disponible: false) la sección no aparece. */}
+        {a.paquetes.disponible && (
+          <div className="grid gap-2 border-t border-line pt-3" data-qa="ficha-paquetes">
+            <p className={cn("text-base font-semibold", a.paquetes.quedan > 0 ? "text-success" : "text-strong")} data-qa="ficha-paquete-quedan">
+              Paquete: {a.paquetes.paquetes.length ? textoQuedan(a.paquetes.quedan).toLowerCase() : "no tiene"}
+            </p>
+            {a.paquetes.paquetes.length > 0 && (
+              <ul className="grid gap-1.5" aria-label="Paquetes">
+                {a.paquetes.paquetes.map((p) => (
+                  <li key={p.id} className={cn("flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line px-3 py-2 text-sm", p.anuladoEl && "border-dashed text-muted")} data-qa="paquete">
+                    <span className="text-strong">
+                      {p.clases} clases · <Plata valor={p.precio} sinCentavos /> · {MEDIO_LABEL[p.pagoMedio as MedioPago]?.toLowerCase() ?? p.pagoMedio}
+                      <span className="text-muted"> · {diaHumano(p.pagadoEl)}</span>
+                    </span>
+                    <span className="flex items-center gap-2">
+                      <span className="text-muted">{p.anuladoEl ? "Anulado" : `usó ${p.usadas} · ${textoQuedan(p.quedan).toLowerCase()}`}</span>
+                      {puedeAnularPaquete(p) && <AnularPaquete paqueteId={p.id} nombre={a.nombre} clases={p.clases} precio={p.precio} />}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <VenderPaquete alumnoId={a.id} nombre={a.nombre} />
+          </div>
         )}
         </section>
       )}

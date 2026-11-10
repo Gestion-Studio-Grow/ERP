@@ -7,7 +7,7 @@ import "server-only";
 // - `cobrosDelPeriodo`: los cobros, de a uno, para el .csv (M-075). MISMO filtro que el «Cobrado»
 //   de `plata(periodo)` (datos.server.ts:744-747): lo pagado y lo que después quedó a favor (la
 //   plata entró), sin lo pagado con saldo a favor (ya se contó cuando entró). Así el .csv y la
-//   pantalla dan el mismo total.
+//   pantalla dan el mismo total. Lo pagado «del paquete» tampoco suma (T5): suma la venta del paquete.
 // - `paraDevolver`: para «Le devolví» en Plata → A favor, la clase acreditada (o la parte de
 //   integrante acreditada) que el botón marca
 //   (la misma regla que la lista de Alumnos: una que entre en el saldo, nunca dejarlo negativo).
@@ -17,6 +17,8 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { businessWallTimeToUtc, todayInBusinessTz } from "@/lib/datetime";
+import { FILTRO_PLATA_NUEVA } from "@/lib/padel/paquetes-core";
+import { ventasDePaquetes } from "@/lib/padel/paquetes.server";
 import { elegirDevoluciones, medioDelCobro, rangoDelPeriodo, type Acreditado, type FilaCobro, type PeriodoPlata } from "./periodo";
 
 /** Como mucho: un profe da unas 300 clases por mes. Un tope para que el archivo nunca sea enorme. */
@@ -28,20 +30,24 @@ export async function cobrosDelPeriodo(periodo: PeriodoPlata): Promise<{ hoy: st
   const r = rangoDelPeriodo(periodo, hoy);
   const desde = businessWallTimeToUtc(r.desde, "00:00");
   const hasta = businessWallTimeToUtc(r.hasta, "00:00");
-  const cobros = await prisma.padelClase.findMany({
+  const [cobros, paquetes] = await Promise.all([prisma.padelClase.findMany({
     where: {
       tenantId,
       pagoEstado: { in: ["PAGADO", "ACREDITADO"] },
       pagoValidadoEl: { gte: desde, lt: hasta },
-      OR: [{ pagoMedio: null }, { pagoMedio: { not: "SALDO_A_FAVOR" } }],
+      ...FILTRO_PLATA_NUEVA,
     },
     orderBy: { pagoValidadoEl: "asc" },
     take: MAX_FILAS,
     select: { pagoValidadoEl: true, pagoMedio: true, precio: true, client: { select: { name: true } } },
-  });
+  }), ventasDePaquetes(tenantId, desde, hasta)]);
   return {
     hoy,
-    filas: cobros.map((c) => ({ fecha: c.pagoValidadoEl ?? desde, alumno: c.client.name, medio: medioDelCobro(c.pagoMedio), monto: Number(c.precio) })),
+    filas: [
+      ...cobros.map((c) => ({ fecha: c.pagoValidadoEl ?? desde, alumno: c.client.name, medio: medioDelCobro(c.pagoMedio), monto: Number(c.precio) })),
+      // T5 · La venta de un paquete es plata que entró ese día (las clases que después se descuentan no).
+      ...paquetes.map((v) => ({ fecha: v.pagadoEl, alumno: `${v.alumno} · paquete`, medio: medioDelCobro(v.pagoMedio), monto: v.precio })),
+    ],
   };
 }
 

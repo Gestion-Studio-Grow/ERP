@@ -24,6 +24,8 @@ import { businessWallTimeToUtc, dateStrInBusinessTz, todayInBusinessTz } from "@
 import { caeEnBloqueo, clasesQueFaltan, esTipoClase, precioDe, semanasDeSerie, sumarDias, type Franja } from "./core";
 import { choqueEn, pagoConSaldo, saldoEnTx, type Tx } from "./acciones-compartido";
 import type { ConfigPadel } from "./datos.server";
+import { listaDelClub } from "./paquetes-core";
+import { preciosPorClub } from "./paquetes.server";
 
 export type Salteada = { empiezaEn: Date; motivo: "ocupado" | "bloqueado" };
 
@@ -112,6 +114,8 @@ export async function completarSeries(
     if (!series.length) return 0;
     // La config y las franjas se leen sólo si hay series (el profe sin clases fijas no paga nada).
     const { config, franjas } = await cargar();
+    // T5 · Cada serie con la lista de su club (precio propio si tiene; si no, la general).
+    const precios = await preciosPorClub(tenantId);
     const ultimas = await prisma.padelClase.groupBy({
       by: ["serieId"],
       where: { tenantId, serieId: { in: series.map((s) => s.id) } },
@@ -129,7 +133,8 @@ export async function completarSeries(
       // Atajo sin transacción: si no falta ninguna, no se abre nada.
       const faltan = clasesQueFaltan({ serie, existentes: ultima ? [ultima] : [], horizonte, piso: hoy }).filter((d) => d.getTime() > ahora.getTime());
       if (!faltan.length) continue;
-      const r = await bookingTransaction((tx) => generarClasesDeSerie(tx, { tenantId, serie, config, franjas, horizonte, noAntesDe: ahora }), { tenantId });
+      const lista = listaDelClub(config, s.clubId ? precios.get(s.clubId) : null);
+      const r = await bookingTransaction((tx) => generarClasesDeSerie(tx, { tenantId, serie, config: lista, franjas, horizonte, noAntesDe: ahora }), { tenantId });
       total += r.creadas.length;
     }
     return total;
