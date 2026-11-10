@@ -28,7 +28,7 @@ async function preparar(t: import("node:test").TestContext, abierta = true) {
   base.alBorrar(() => app.$disconnect());
   const duenio = await prismaComoDuenio(base);
   const deps = { prisma: app, limites: core.crearLimites(), dominio: "erp.test", abierta };
-  return { base, duenio, deps, alta, verifyPassword };
+  return { base, duenio, deps, alta, verifyPassword, app, PrismaClient, PrismaPg };
 }
 
 let n = 0;
@@ -135,4 +135,60 @@ test("límite: 3 altas por hora por mail, después frena sin escribir", async (t
   const frenado = await p.alta.darDeAltaProfe(p.deps, form({ email, negocio: "Limite 9" }), "10.0.1.9");
   assert.deepEqual(frenado, { ok: false, motivo: "frenado", mensaje: p.alta.MENSAJES.frenado });
   assert.equal(await p.duenio.tenant.count(), antes);
+});
+
+test("carrera con otra superficie: el slug se confirma entre la búsqueda y la escritura de la fábrica → sufijo, nunca OWNER ajeno", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  // «Otra superficie» (el alta de Factoque, la consola): otra conexión que confirma su propio negocio.
+  const otra = new p.PrismaClient({ adapter: new p.PrismaPg({ connectionString: p.base.urlDuenio }) });
+  p.base.alBorrar(() => otra.$disconnect());
+  const SLUG = "carrera-ajena";
+  let inyectado = false;
+  // Envuelve la transacción del alta: cuando la fábrica busca el slug (findUnique) y no está, la otra
+  // conexión crea y CONFIRMA ese negocio antes de que la fábrica escriba.
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  const envolver = (tx: any): any =>
+    new Proxy(tx, {
+      get(o, k) {
+        const v = o[k];
+        if (k === "tenant")
+          return new Proxy(v, {
+            get(m, kk) {
+              const f = m[kk];
+              if (kk === "findUnique")
+                return async (args: any) => {
+                  const r = await f.call(m, args);
+                  if (!inyectado && args?.where?.slug === SLUG && r === null) {
+                    inyectado = true;
+                    await otra.tenant.create({
+                      data: { name: "Negocio Ajeno", slug: SLUG, subdomain: SLUG, timezone: "America/Argentina/Buenos_Aires", blueprintId: "profe-padel" },
+                      select: { id: true },
+                    });
+                  }
+                  return r;
+                };
+              return typeof f === "function" ? f.bind(m) : f;
+            },
+          });
+        return typeof v === "function" ? v.bind(o) : v;
+      },
+    });
+  const prisma = new Proxy(p.app as any, {
+    get(o, k) {
+      if (k === "$transaction") return (fn: any, opts?: any) => o.$transaction((tx: any) => fn(envolver(tx)), opts);
+      const v = o[k];
+      return typeof v === "function" ? v.bind(o) : v;
+    },
+  });
+  /* eslint-enable @typescript-eslint/no-explicit-any */
+  const r = await p.alta.darDeAltaProfe({ ...p.deps, prisma }, form({ negocio: "Carrera Ajena" }), "10.0.0.9");
+  assert.ok(inyectado, "la carrera no se produjo");
+  assert.ok(r.ok, JSON.stringify(r));
+  assert.equal(r.slug, "carrera-ajena-2");
+  const ajeno = await p.duenio.tenant.findUniqueOrThrow({ where: { slug: SLUG }, select: { id: true, name: true } });
+  assert.equal(ajeno.name, "Negocio Ajeno");
+  assert.equal(await p.duenio.user.count({ where: { tenantId: ajeno.id } }), 0, "se sumó un OWNER al negocio ajeno");
+  const nuevo = await p.duenio.tenant.findUniqueOrThrow({ where: { slug: r.slug }, select: { id: true } });
+  assert.equal(await p.duenio.user.count({ where: { tenantId: nuevo.id, role: "OWNER" } }), 1);
 });
