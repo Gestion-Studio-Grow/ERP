@@ -741,8 +741,9 @@
   border-radius: var(--radius);
   background: var(--surface-raised);
   font-size: 0.9375rem;
-  overflow-wrap: anywhere;
 }
+.direccion > span { min-width: 0; overflow-wrap: anywhere; }
+.direccion > .boton { flex: none; width: auto; padding: 0 1rem; overflow-wrap: normal; }
 
 /* ── Movimiento (sólo con permiso) ── */
 @media (prefers-reduced-motion: no-preference) {
