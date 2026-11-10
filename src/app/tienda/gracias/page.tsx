@@ -97,7 +97,14 @@ export default async function GraciasPage({
         tenantKey={identity.slug ?? "magra"}
         pedido={pedido && /^\d{1,9}$/.test(pedido) ? pedido : null}
         whatsapp={resolveMagraLocal(tienda.branding).whatsapp}
-        pago={medios ? `Te lo llevamos o lo retirás. Pagás al recibir: ${medios.charAt(0).toLowerCase()}${medios.slice(1)}` : "Te lo llevamos o lo retirás. El medio de pago te lo confirmamos antes de cobrar."}
+        pago={
+          // Con el botón de Mercado Pago a la vista, no se dice sólo «pagás al recibir» (certificación T6a).
+          mp
+            ? `Te lo llevamos o lo retirás. Podés pagar ahora con Mercado Pago${medios ? ` o al recibir: ${medios.charAt(0).toLowerCase()}${medios.slice(1)}` : " o coordinar el pago con el local."}`
+            : medios
+              ? `Te lo llevamos o lo retirás. Pagás al recibir: ${medios.charAt(0).toLowerCase()}${medios.slice(1)}`
+              : "Te lo llevamos o lo retirás. El medio de pago te lo confirmamos antes de cobrar."
+        }
         pagar={
           mp && <PagarConMercadoPago pedido={mp.pedido} token={mp.token} prueba={mp.prueba} claseBoton="mg-btn mg-btn-oro" claseNota="mg-gr-nota" />
         }

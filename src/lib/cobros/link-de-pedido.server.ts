@@ -23,6 +23,9 @@ export type LinkArmado =
   | { ok: false; tipo: "api"; status: number }
   | { ok: false; tipo: "otro" };
 
+/** Cuánto se puede pagar un link de pedido: después Mercado Pago lo rechaza (certificación T6a). */
+export const VIGENCIA_LINK_DE_PEDIDO_MS = 48 * 60 * 60 * 1000;
+
 export async function armarLinkDePagoDePedido(input: {
   tenantId: string;
   slug: string;
@@ -40,6 +43,7 @@ export async function armarLinkDePagoDePedido(input: {
     concepto: `Pedido #${pedido.code} · ${input.negocio}`,
     monto,
     referenciaExterna: referenciaMP,
+    venceEl: new Date(Date.now() + VIGENCIA_LINK_DE_PEDIDO_MS),
   };
   try {
     const link = await (await crearPasarelaCobrosPara(input.tenantId)).crearLinkDePago(solicitud);
@@ -49,7 +53,7 @@ export async function armarLinkDePagoDePedido(input: {
       action: ACCION_LINK_DE_PAGO,
       entity: "Order",
       entityId: pedido.id,
-      changes: { code: pedido.code, monto, preferenceId: link.preferenceId, modo, url, referenciaMP, ...input.extra },
+      changes: { code: pedido.code, monto, preferenceId: link.preferenceId, modo, url, referenciaMP, venceEl: solicitud.venceEl?.toISOString(), ...input.extra },
     });
     return { ok: true, url, preferenceId: link.preferenceId };
   } catch (e) {

@@ -61,6 +61,8 @@ export interface RawPreferenceRequest {
   items: Array<{ title: string; quantity: number; unit_price: number; currency_id: string }>;
   external_reference?: string;
   payer?: { email: string };
+  expires?: boolean;
+  expiration_date_to?: string;
 }
 
 /** Respuesta de `POST /checkout/preferences` (campos usados). */
@@ -96,6 +98,10 @@ export function armarBodyPreferencia(s: SolicitudCobro): RawPreferenceRequest {
   };
   if (s.referenciaExterna) body.external_reference = s.referenciaExterna;
   if (s.emailPagador) body.payer = { email: s.emailPagador };
+  if (s.venceEl && !Number.isNaN(s.venceEl.getTime())) {
+    body.expires = true;
+    body.expiration_date_to = s.venceEl.toISOString();
+  }
   return body;
 }
 

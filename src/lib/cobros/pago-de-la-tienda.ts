@@ -105,8 +105,22 @@ export function decidirPagoDeLaTienda(input: {
  * (`ultimosLinks`), si es por el MISMO monto que hoy tiene el pedido (Magra ajusta el total al peso
  * real: con otro monto el aviso no cobraría solo) y del mismo modo (prueba/real). PURA.
  */
-export function linkParaReusar(ultimo: LinkEnviado | undefined, monto: number, modo: ModoLink): LinkEnviado | null {
+/** Margen para no devolver un link al que le queda menos de esto antes de vencer en Mercado Pago. */
+export const MARGEN_REUSO_MS = 60 * 60 * 1000;
+
+export function linkParaReusar(
+  ultimo: LinkEnviado | undefined,
+  monto: number,
+  modo: ModoLink,
+  vigencia?: { creadoEl: Date | undefined; ahoraMs: number; vigenciaMs: number },
+): LinkEnviado | null {
   if (!ultimo) return null;
+  // Los links vencen en Mercado Pago: uno viejo (o sin fecha conocida) no se devuelve.
+  if (vigencia) {
+    const creado = vigencia.creadoEl?.getTime();
+    if (creado === undefined || Number.isNaN(creado)) return null;
+    if (creado + vigencia.vigenciaMs - MARGEN_REUSO_MS <= vigencia.ahoraMs) return null;
+  }
   if (Math.abs(round2(ultimo.monto) - round2(monto)) > 0.009) return null;
   if (ultimo.prueba !== (modo !== "real")) return null;
   return ultimo;

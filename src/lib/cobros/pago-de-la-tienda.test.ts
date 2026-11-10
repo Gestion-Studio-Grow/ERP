@@ -154,3 +154,14 @@ test("el alta online manda a Gracias con el token, y la action pública no conf�
   assert.doesNotMatch(action, /formData\.get\("(monto|total|importe)"\)/);
   assert.match(action, /where: \{ tenantId, code: leido\.code \}/);
 });
+
+test("reuso: un link que vence (o ya venció) en Mercado Pago no se devuelve; uno fresco sí", () => {
+  const ultimo = { url: "https://mp/x", monto: 15000, prueba: true };
+  const vigenciaMs = 48 * 60 * 60 * 1000;
+  const ahoraMs = Date.UTC(2026, 10, 10, 12);
+  const hace = (h: number) => new Date(ahoraMs - h * 60 * 60 * 1000);
+  assert.deepEqual(linkParaReusar(ultimo, 15000, "test", { creadoEl: hace(2), ahoraMs, vigenciaMs }), ultimo);
+  assert.equal(linkParaReusar(ultimo, 15000, "test", { creadoEl: hace(47.5), ahoraMs, vigenciaMs }), null);
+  assert.equal(linkParaReusar(ultimo, 15000, "test", { creadoEl: hace(72), ahoraMs, vigenciaMs }), null);
+  assert.equal(linkParaReusar(ultimo, 15000, "test", { creadoEl: undefined, ahoraMs, vigenciaMs }), null);
+});

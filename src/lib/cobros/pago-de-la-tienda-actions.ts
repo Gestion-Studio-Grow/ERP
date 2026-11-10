@@ -12,7 +12,7 @@ import { auditPublic } from "@/lib/audit-core";
 import { logger } from "@/lib/logger";
 import { nombreVisibleDelNegocio } from "@/lib/marca-demo";
 import { modoCobrosDesdeEnv } from "@/lib/mercadopago-cobros-dispatch";
-import { armarLinkDePagoDePedido } from "@/lib/cobros/link-de-pedido.server";
+import { armarLinkDePagoDePedido, VIGENCIA_LINK_DE_PEDIDO_MS } from "@/lib/cobros/link-de-pedido.server";
 import {
   ACCION_LINK_DE_PAGO,
   linkDePagoDisponible,
@@ -67,7 +67,12 @@ export async function pagarPedidoDeLaTienda(
     orderBy: { createdAt: "desc" },
     take: 20,
   });
-  const reuso = linkParaReusar(ultimosLinks(filas).get(o.id), decision.monto, modo);
+  const ultimo = ultimosLinks(filas).get(o.id);
+  const reuso = linkParaReusar(ultimo, decision.monto, modo, {
+    creadoEl: filas.find((f) => (f.changes as { url?: unknown } | null)?.url === ultimo?.url)?.createdAt,
+    ahoraMs: Date.now(),
+    vigenciaMs: VIGENCIA_LINK_DE_PEDIDO_MS,
+  });
   if (reuso) return { ok: true, url: reuso.url, prueba: reuso.prueba };
 
   const r = await armarLinkDePagoDePedido({
