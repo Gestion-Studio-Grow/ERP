@@ -16,6 +16,7 @@ import { armarEtiquetaDeBalanza, type FormatoBalanza } from "@/lib/supermercado/
 import { esGtinValido } from "@/lib/supermercado/ean";
 import { redondearAlCentavo } from "@/lib/dinero/redondeo";
 import { diaDelLote, fmtDia } from "./lotes";
+import { LEYENDA_CONSERVACION } from "./etiqueta-paquete-config";
 
 // --- Encoder EAN-13 ---------------------------------------------------------------------------
 
@@ -67,8 +68,8 @@ export function barrasDeModulos(modulos: string): BarraSvg[] {
 
 // --- Datos de la etiqueta -----------------------------------------------------------------------
 
-/** Provisional a confirmar con el dueño (rótulo según el CAA para carne envasada al vacío). */
-export const LEYENDA_CONSERVACION = "Conservar refrigerado entre 0 y 4 °C";
+// La leyenda por defecto vive con la config de la etiqueta (configurable por negocio).
+export { LEYENDA_CONSERVACION } from "./etiqueta-paquete-config";
 
 export interface EntradaEtiquetaDePaquete {
   producto: { nombre: string; codigo: string | null; precioPorKilo: number };
@@ -76,6 +77,8 @@ export interface EntradaEtiquetaDePaquete {
   pesoKg: number;
   formato: FormatoBalanza;
   negocio: string;
+  /** La leyenda de conservación del negocio; sin ella, la de fábrica. */
+  leyenda?: string;
 }
 
 export interface EtiquetaDePaquete {
@@ -111,7 +114,7 @@ export function datosDeEtiquetaDePaquete(e: EntradaEtiquetaDePaquete): EtiquetaD
     lote: e.lote.code,
     envasado: envasado ? fmtDia(envasado) : null,
     vence: vence ? fmtDia(vence) : null,
-    leyenda: LEYENDA_CONSERVACION,
+    leyenda: e.leyenda ?? LEYENDA_CONSERVACION,
   };
   const r = codigoDelPaquete(e.producto.codigo, e.formato, e.formato.contenido === "peso" ? e.pesoKg : total);
   return { ...base, ...r };

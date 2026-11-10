@@ -89,6 +89,8 @@ export default async function EtiquetasDelLotePage({ params }: { params: Promise
           formato={config.formato}
           negocio={nombreVisibleDelNegocio(tenant?.slug, tenant?.name, "")}
           bloqueo={bloqueo}
+          etiquetaGuardada={config.etiquetaPaquete}
+          version={config.version}
         />
       )}
     </main>
