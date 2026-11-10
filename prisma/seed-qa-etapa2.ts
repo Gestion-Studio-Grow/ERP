@@ -23,6 +23,7 @@ import { baseLocalParaSeed } from "../src/lib/seed/guarda-base";
 import { provisionTenant } from "../scripts/provision-tenant";
 import { CLAVE_ETAPA2, PARTES_ETAPA2 } from "../src/lib/proyectos/etapa2-core";
 import { mesDeIA } from "../src/lib/proyectos/ia-tope-core";
+import { cobroDeCuota } from "./seed-mia-gestion";
 
 const guarda = baseLocalParaSeed(process.env.DATABASE_URL);
 if (!guarda.ok) {
@@ -81,6 +82,7 @@ async function main() {
   await prisma.proyectoCuota.deleteMany({ where: { tenantId } });
   await prisma.cashMovement.deleteMany({ where: { tenantId, proyectoPagoId: { not: null } } });
   await prisma.proyectoPago.deleteMany({ where: { tenantId } });
+  await prisma.proyectoCambio.deleteMany({ where: { tenantId } });
   await prisma.proyecto.deleteMany({ where: { tenantId } });
 
   // Clientes ficticios (buscar o crear por nombre).
@@ -100,19 +102,38 @@ async function main() {
   const p2 = await proyecto(2, c2.id, "Lanzamiento de producto (QA)", "EVENTOS", "APROBADO", { fechaEvento: en(45), presupuestoEstimado: 2_500_000 });
   const p3 = await proyecto(3, c3.id, "Gala anual (QA, en dólares)", "EVENTOS", "PROPUESTA", { fechaEvento: en(60), moneda: "USD", presupuestoEstimado: 12_000 });
   const p4 = await proyecto(4, c4.id, "Video de marca (QA)", "CONTENIDOS", "PEDIDO");
-  const p5 = await proyecto(5, c5.id, "Activación cerrada (QA)", "EXPERIENCIAS", "CIERRE", { fechaEvento: en(-30), presupuestoEstimado: 1_800_000 });
+  const p5 = await proyecto(5, c5.id, "Activación cerrada (QA)", "EXPERIENCIAS", "CIERRE", { fechaEvento: en(-30), presupuestoEstimado: 1_800_000, anticipoClientePct: 100 });
   await proyecto(6, c4.id, "Branding perdido (QA)", "BRANDING", "PEDIDO", { perdidoEl: en(-10), motivoPerdida: "Eligió otra agencia (ficticio)." });
 
-  // Cuotas: pagadas, vencidas, por vencer, en USD, y un pago a proveedor de la empresa.
+  // Presupuesto aprobado de los proyectos confirmados: lo que se le cobra al cliente. Sus cuotas suman este total
+  // (sin IVA, para que la suma sea redonda) y «cobrado / por cobrar» sale de acá contra los cobros (cobranza-core.ts).
+  const aprobado = (proyectoId: string, total: number) =>
+    prisma.proyectoPresupuesto.create({
+      data: {
+        tenantId, proyectoId, version: 1, estado: "APROBADO", token: token(), ivaPct: 0, enviadoEl: en(-20), respondidoEl: en(-18), respondidoPor: "Cliente QA (ficticio)", creadoPor: "Dueña QA",
+        items: { create: [{ tenantId, rubro: "Producción", descripcion: "Servicio integral (ficticio)", cantidad: 1, costo: 0, precio: total }] },
+      },
+    });
+  await aprobado(p1.id, 4_000_000);
+  await aprobado(p2.id, 2_500_000);
+  await aprobado(p5.id, 1_800_000);
+
+  // Cuotas: pagadas (cada una con su cobro registrado), vencidas, por vencer, en USD, y un pago a proveedor de la empresa.
   const cuota = (clave: string, proyectoId: string | null, tipo: "COBRO" | "PAGO", concepto: string, monto: number, venceEl: Date, extra: Record<string, unknown> = {}) =>
     prisma.proyectoCuota.create({ data: { tenantId, clave: `qa:${clave}`, proyectoId, tipo, concepto, monto, venceEl, ...extra } });
-  await cuota("p1-anticipo", p1.id, "COBRO", "Stand en feria — anticipo", 2_000_000, en(-15), { pagadoEl: en(-14), pagadoPor: "Dueña QA", medio: "TRANSFERENCIA" });
-  await cuota("p1-saldo", p1.id, "COBRO", "Stand en feria — saldo", 2_000_000, en(5));
-  await cuota("p2-anticipo", p2.id, "COBRO", "Lanzamiento — anticipo", 1_250_000, en(-7));
-  await cuota("p2-saldo", p2.id, "COBRO", "Lanzamiento — saldo", 1_250_000, en(40));
-  await cuota("p3-anticipo", p3.id, "COBRO", "Gala anual — anticipo (USD)", 6_000, en(10), { moneda: "USD" });
+  // Los cobros de un proyecto con presupuesto aprobado llevan la clave de la app: si alguien toca la ficha y el plan se
+  // regenera, actualiza estas cuotas en vez de sumar otras (ver `planDeCuotas` / `aplicarPlan`).
+  const delPlan = (proyectoId: string, tramo: "anticipo" | "saldo") => ({ clave: `${proyectoId}:cliente:${tramo}`, auto: true });
+  const a1 = await cuota("p1-anticipo", p1.id, "COBRO", "Stand en feria — anticipo", 2_000_000, en(-15), { ...delPlan(p1.id, "anticipo"), pagadoEl: en(-14), pagadoPor: "Dueña QA", medio: "TRANSFERENCIA" });
+  await cobroDeCuota(prisma, tenantId, { proyectoId: p1.id, numero: 1, cuotaId: a1.id, concepto: a1.concepto, monto: a1.monto, cobradoEl: en(-14), autor: "Dueña QA", medio: "TRANSFERENCIA" });
+  await cuota("p1-saldo", p1.id, "COBRO", "Stand en feria — saldo", 2_000_000, en(5), delPlan(p1.id, "saldo"));
+  await cuota("p2-anticipo", p2.id, "COBRO", "Lanzamiento — anticipo", 1_250_000, en(-7), delPlan(p2.id, "anticipo"));
+  await cuota("p2-saldo", p2.id, "COBRO", "Lanzamiento — saldo", 1_250_000, en(40), delPlan(p2.id, "saldo"));
+  // En PROPUESTA no hay nada aprobado: sus cuotas son previsión (como `cuotaPrevista` en la app) y no cuentan como plata.
+  await cuota("p3-anticipo", p3.id, "COBRO", "Gala anual — anticipo (USD)", 6_000, en(10), { moneda: "USD", prevista: true });
   await cuota("p3-saldo", p3.id, "COBRO", "Gala anual — saldo (USD)", 6_000, en(55), { moneda: "USD", prevista: true });
-  await cuota("p5-unico", p5.id, "COBRO", "Activación — pago único", 1_800_000, en(-35), { pagadoEl: en(-31), pagadoPor: "Dueña QA", medio: "MERCADOPAGO" });
+  const u5 = await cuota("p5-unico", p5.id, "COBRO", "Activación — pago único", 1_800_000, en(-35), { ...delPlan(p5.id, "anticipo"), pagadoEl: en(-31), pagadoPor: "Dueña QA", medio: "MERCADO_PAGO" });
+  await cobroDeCuota(prisma, tenantId, { proyectoId: p5.id, numero: 5, cuotaId: u5.id, concepto: u5.concepto, monto: u5.monto, cobradoEl: en(-31), autor: "Dueña QA", medio: "MERCADO_PAGO" });
   await cuota("empresa-alquiler", null, "PAGO", "Alquiler del depósito (ficticio)", 450_000, en(3));
 
   // Portal del cliente (T5) para el cliente 1.

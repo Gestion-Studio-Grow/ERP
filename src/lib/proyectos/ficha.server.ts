@@ -12,6 +12,8 @@ import { columnasOcultas, filtroDeProyectos, puede, tiposDeCambio, versionViva, 
 import { configProyectos, datosDelNegocio } from "./datos.server";
 import { facturasDeCuotas, motivoParaNoFacturarCuotas, type FacturaDeCuotaVista } from "./facturar-cuota.server";
 import { avisoIvaEnFacturaC } from "./facturar-cuota-core";
+import { cobranza, conciliarConCobros, totalAprobado as totalAprobadoDe } from "./cobranza-core";
+import { cobranzasDelNegocio } from "./cobranza.server";
 import { desvioPorRubro, fechaCorta, fechaParaInput, redondear, resultadoReal, totales } from "./core";
 import { cambioDeVenta, costoSinProveedor, enMonedaDeVenta, ventaEn } from "./gestion-core";
 import { cambioLegible, cambioVisible, columnaDe, filaDeFicha, iniciales, monedasSinCambio, planillaDeVenta } from "./ficha-core";
@@ -137,12 +139,16 @@ export async function cabeceraFicha(a: Actor, id: string) {
 export type Cabecera = NonNullable<Awaited<ReturnType<typeof cabeceraFicha>>>;
 
 export async function datosResumen(a: Actor, cab: Cabecera, vista: Vista) {
-  const [personas, cuotas, cantChecklist] = await Promise.all([
+  const [personas, cuotas, cantChecklist, cobranzas] = await Promise.all([
     prisma.proyectoPersona.findMany({ where: { tenantId: a.tenantId, activa: true }, orderBy: { nombre: "asc" }, select: { id: true, nombre: true, puesto: true } }),
     vista.pagos ? prisma.proyectoCuota.findMany({ where: { tenantId: a.tenantId, proyectoId: cab.proyecto.id, anuladoEl: null, prevista: false }, select: { tipo: true, monto: true, moneda: true, venceEl: true, pagadoEl: true, anuladoEl: true } }) : [],
     prisma.proyectoChecklist.count({ where: { tenantId: a.tenantId, proyectoId: cab.proyecto.id } }),
+    vista.pagos ? cobranzasDelNegocio(a.tenantId, cab.tc, cab.config.margenPct, [cab.proyecto.id]) : null,
   ]);
-  return { personas, finanzas: vista.pagos ? resumenCuotas(cuotas, cab.tc) : null, cantCuotas: cuotas.length, cantChecklist };
+  // Cobrado y a cobrar, de los cobros registrados contra lo aprobado (cobranza-core); las cuotas sólo dan los vencimientos.
+  const cob = cobranzas?.get(cab.proyecto.id);
+  const finanzas = vista.pagos ? (cob ? conciliarConCobros(resumenCuotas(cuotas, cab.tc), cob) : resumenCuotas(cuotas, cab.tc)) : null;
+  return { personas, finanzas, cantCuotas: cuotas.length, cantChecklist };
 }
 
 export async function datosFicha(a: Actor, cab: Cabecera, vista: Vista) {
@@ -191,8 +197,8 @@ export async function datosFinanzas(a: Actor, cab: Cabecera, vista: Vista) {
   // Pasados a pesos: un ítem en dólares no se puede comparar como si fueran pesos.
   const aprobadaEnPesos = aprobada?.items.map((i) => ({ rubro: i.rubro, cantidad: i.cantidad, costo: aPesos(i.costo, i.moneda, cab.tc), precio: i.cantidad > 0 ? ventaTotalItem(i, cab.tc, cab.config.margenPct) / i.cantidad : 0 })) ?? [];
   const totalesAprobada = aprobada ? totales(aprobadaEnPesos, aprobada.ivaPct) : null;
-  const cobrado = redondear(pagos.filter((p) => !p.anuladoEl).reduce((s, p) => s + p.monto, 0));
-  const totalAprobado = totalesAprobada?.total ?? 0;
+  // La fuente única de cobrado / saldo (cobranza-core): la misma cuenta que Estado financiero, clientes y reportes.
+  const cob = cobranza(totalAprobadoDe(aprobada, cab.tc, cab.config.margenPct), pagos);
   // Etapa 2 · T2: la factura de ARCA de cada cobro, si el negocio factura cuotas (las cuatro llaves).
   const facturaCuotas = (await motivoParaNoFacturarCuotas(tenantId)) === null;
   const facturas = facturaCuotas ? await facturasDeCuotas(tenantId, visibles.filter((c) => c.tipo === "COBRO").map((c) => c.id)) : new Map<string, FacturaDeCuotaVista>();
@@ -204,13 +210,13 @@ export async function datosFinanzas(a: Actor, cab: Cabecera, vista: Vista) {
     avisoIva,
     cuotas: visibles,
     flujo,
-    resumen: resumenCuotas(visibles, cab.tc),
+    resumen: conciliarConCobros(resumenCuotas(visibles, cab.tc), cob),
     pagos,
     gastos,
     totalesAprobada,
-    totalAprobado,
-    cobrado,
-    saldo: redondear(totalAprobado - cobrado),
+    totalAprobado: cob.total,
+    cobrado: cob.cobrado,
+    saldo: cob.saldo,
     real: resultadoReal(totalesAprobada, gastos),
     rubros: desvioPorRubro(aprobadaEnPesos, gastos),
     proveedores,
