@@ -76,16 +76,35 @@ export function armarMailClaveTemporal(d: MailClaveTemporal): { asunto: string; 
   return { asunto, cuerpo };
 }
 
-/** Dirección de ingreso del backoffice de un negocio, o null si no tiene una publicada. */
+/**
+ * Dirección de ingreso del backoffice de un negocio, o null si no tiene una publicada.
+ * Sale de la dirección oficial: el subdominio del dominio propio (`APP_BASE_DOMAIN`, p. ej.
+ * `https://chestetica.gsgapp.com.ar/admin/login`) y, sólo sin dominio propio, un host del mapa de
+ * ruteo. NUNCA un `*.vercel.app` (ni `VERCEL_URL`, que no se lee): esas son direcciones técnicas
+ * de Vercel, no las que se le dan al cliente. Antes que un link técnico, ninguno: el mail dice
+ * «la dirección de siempre» (GSG-SEG-014, el mail de Carolina salió con `chestetica-erp.vercel.app`).
+ */
 export function urlDeIngreso(
   subdomain: string | null,
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): string | null {
-  return direccionDelLocal(
+  const url = direccionDelLocal(
     subdomain,
     { mapaDeHosts: mapaDeHostsVigente({ ...env }), dominioPropio: env.APP_BASE_DOMAIN?.trim() || null },
     "/admin/login",
   );
+  return url && !esDireccionTecnica(url) ? url : null;
+}
+
+/** Un host técnico (Vercel) o una URL de redirección de terceros: nunca va en un mail al cliente. */
+function esDireccionTecnica(url: string): boolean {
+  let host: string;
+  try {
+    host = new URL(url).hostname.toLowerCase();
+  } catch {
+    return true;
+  }
+  return host === "vercel.app" || host.endsWith(".vercel.app") || /(^|\.)google\.[a-z.]+$/.test(host);
 }
 
 export const MAIL_NO_CONECTADO =

@@ -61,6 +61,37 @@ test("sin dirección publicada no inventa un link", () => {
   assert.match(cuerpo, /dirección de siempre/);
 });
 
+test("el link sale del dominio propio (APP_BASE_DOMAIN), nunca de vercel.app ni de VERCEL_URL", () => {
+  // Como en producción: dominio propio cargado, y el mapa viejo con el host de Vercel todavía puesto.
+  const env = {
+    APP_BASE_DOMAIN: "gsgapp.com.ar",
+    TENANT_HOST_MAP: "chestetica-erp.vercel.app=chestetica",
+    VERCEL_URL: "erp-ch-abc123.vercel.app",
+    VERCEL_PROJECT_PRODUCTION_URL: "erp-ch.vercel.app",
+  };
+  const url = urlDeIngreso("chestetica", env);
+  assert.equal(url, "https://chestetica.gsgapp.com.ar/admin/login");
+  for (const motivo of ["alta", "reseteo"] as const) {
+    const { asunto, cuerpo } = armarMailClaveTemporal({ ...datos, motivo, urlIngreso: url });
+    const mail = `${asunto}\n${cuerpo}`;
+    assert.doesNotMatch(mail, /vercel\.app/i, "el mail no lleva un host de Vercel");
+    assert.doesNotMatch(mail, /google\.com\/url/i, "el mail no lleva una redirección de Google");
+    assert.match(cuerpo, /https:\/\/chestetica\.gsgapp\.com\.ar\/admin\/login/);
+  }
+});
+
+test("sin dominio propio, un host de Vercel del mapa NO se usa: mejor ningún link que uno técnico", () => {
+  const env = { APP_BASE_DOMAIN: "", TENANT_HOST_MAP: "chestetica-erp.vercel.app=chestetica", VERCEL_URL: "erp-ch.vercel.app" };
+  assert.equal(urlDeIngreso("chestetica", env), null);
+  assert.equal(urlDeIngreso("chestetica", { TENANT_HOST_MAP: "chestetica.vercel.app=chestetica" }), null);
+  assert.equal(urlDeIngreso("chestetica", { APP_BASE_DOMAIN: "vercel.app" }), null, "ni con el dominio base mal cargado");
+  assert.equal(urlDeIngreso("chestetica", { TENANT_HOST_MAP: "www.google.com=chestetica" }), null);
+  const { cuerpo } = armarMailClaveTemporal({ ...datos, urlIngreso: urlDeIngreso("chestetica", env) });
+  assert.doesNotMatch(cuerpo, /vercel\.app|google\.com\/url/i);
+  // Un host propio del mapa (sin dominio propio) sí sirve.
+  assert.equal(urlDeIngreso("facturita", { APP_BASE_DOMAIN: "" }), "https://factoque.gsgapp.com.ar/admin/login");
+});
+
 test("urlDeIngreso: con el mapa de hosts va al host del negocio; sin subdominio, null", () => {
   const env = { TENANT_HOST_MAP: "chestetica.gsg.test=chestetica", APP_BASE_DOMAIN: "" };
   const u = urlDeIngreso("chestetica", env);

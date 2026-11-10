@@ -22,13 +22,23 @@ test("reseteo pendiente: mail caído no cambia nada; mail OK resetea una sola ve
   if (!base) return;
   apuntarLaAppA(base);
   const antes = { ...process.env };
-  Object.assign(process.env, { RESEND_API_KEY: "re_prueba", RESEND_FROM_EMAIL: "GSG <no-responder@gsg.test>" });
-  t.after(() => {
-    for (const k of ["RESEND_API_KEY", "RESEND_FROM_EMAIL"]) {
+  // Como en producción: dominio propio cargado, el host viejo de Vercel todavía en el mapa y VERCEL_URL
+  // puesta. El link del mail tiene que salir del dominio propio (el de Carolina salió con vercel.app).
+  const ENV_DE_PRUEBA = {
+    RESEND_API_KEY: "re_prueba",
+    RESEND_FROM_EMAIL: "GSG <avisos@gsgapp.com.ar>",
+    APP_BASE_DOMAIN: "gsgapp.com.ar",
+    TENANT_HOST_MAP: `${base.a.subdominio}-erp.vercel.app=${base.a.subdominio}`,
+    VERCEL_URL: "erp-ch-prueba.vercel.app",
+  };
+  Object.assign(process.env, ENV_DE_PRUEBA);
+  const restaurarEntorno = () => {
+    for (const k of Object.keys(ENV_DE_PRUEBA)) {
       if (antes[k] === undefined) delete process.env[k];
       else process.env[k] = antes[k];
     }
-  });
+  };
+  t.after(restaurarEntorno);
   prepararAccionesDeServidor();
 
   const duenio = await prismaComoDuenio(base);
@@ -65,6 +75,8 @@ test("reseteo pendiente: mail caído no cambia nada; mail OK resetea una sola ve
   assert.equal(enviados.length, 1, "un solo mail");
   assert.equal(enviados[0].email, a.duenia.email);
   assert.equal(enviados[0].motivo, "reseteo");
+  assert.equal(enviados[0].urlIngreso, `https://${a.subdominio}.gsgapp.com.ar/admin/login`, "el link es el del dominio propio");
+  assert.doesNotMatch(JSON.stringify(enviados[0]), /vercel\.app|google\.com\/url/i);
 
   const despues = await fila();
   assert.equal(despues.mustChangePassword, true);
@@ -79,7 +91,9 @@ test("reseteo pendiente: mail caído no cambia nada; mail OK resetea una sola ve
   const deB = await duenio.auditLog.count({ where: { tenantId: base.b.id, action: "owner.password.reset" } });
   assert.equal(deB, 0);
 
-  // 4) Portón del cambio obligatorio: con la provisoria, la sesión del dueño no pasa.
+  // 4) Portón del cambio obligatorio: con la provisoria, la sesión del dueño no pasa. La sesión resuelve
+  //    el negocio por el host del arnés: vuelve el ruteo del arnés (sin el dominio propio de arriba).
+  restaurarEntorno();
   const { getCurrentUser } = await import("@/lib/session");
   const yo = await ejecutarAccion({ negocio: a, usuario: a.duenia }, () => getCurrentUser());
   assert.equal(yo.tipo === "respuesta" && yo.valor, null, "con el cambio pendiente no hay sesión útil");

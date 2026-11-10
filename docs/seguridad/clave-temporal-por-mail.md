@@ -15,6 +15,15 @@ reseteos se hacen sin que nadie intervenga en la consola de producción.
 - Toda provisoria deja `mustChangePassword = true`. Si la columna no existe, la operación **falla cerrada** y no se toca nada.
 - **Sin mail conectado** (`RESEND_API_KEY` y `RESEND_FROM_EMAIL`) no se crea ni se resetea nada. La pantalla
   dice «mail no conectado». No hay un camino alternativo que muestre la clave.
+- **El link de ingreso es la dirección oficial del negocio**: el subdominio del dominio propio (`APP_BASE_DOMAIN`),
+  por ejemplo `https://chestetica.gsgapp.com.ar/admin/login`. Lo arma `urlDeIngreso` (`src/lib/clave-temporal-mail.ts`),
+  por donde pasan los 5 orígenes.
+  - **Nunca** usa un `*.vercel.app` (ni `VERCEL_URL`, que no se lee) ni una redirección de Google.
+  - Si la única dirección que encuentra es técnica, el mail no lleva link y dice «la dirección de siempre».
+  - Motivo: el mail de Carolina del 10/11 salió con `chestetica-erp.vercel.app`.
+  - El mail sale en texto plano, así que Resend no reescribe los links.
+- **Remitente propuesto:** `RESEND_FROM_EMAIL = "Gestión Studio Grow <avisos@gsgapp.com.ar>"`. Necesita el dominio
+  `gsgapp.com.ar` verificado en Resend (SPF y DKIM en el DNS). Lo carga el dueño en Vercel Production.
 
 ## Dónde y cómo
 
@@ -75,9 +84,9 @@ cuando salió bien, o `clave_temporal.mail_fallido` cuando no salió.
 
 ## Tests
 
-- `src/lib/clave-temporal-mail.test.ts`: armado del mail, la clave sólo en el cuerpo, mail caído o sin red o sin respuesta a tiempo, sin PII en logs.
+- `src/lib/clave-temporal-mail.test.ts`: armado del mail, la clave sólo en el cuerpo, mail caído o sin red o sin respuesta a tiempo, sin PII en logs. Con `APP_BASE_DOMAIN`, el link es el del dominio propio. El test falla si el mail lleva `vercel.app` o `google.com/url`, aun con `VERCEL_URL` y un host de Vercel en el mapa.
 - `src/lib/owner-password-reset.test.ts`, `src/lib/operador/alta-persona.test.ts`: mail OK y mail caído (se tira y se deshace).
-- `src/lib/claves-pendientes.test.ts`, `src/lib/claves-pendientes-postgres.test.ts`: idempotencia, concurrencia, mail caído y reintento, y el portón del cambio obligatorio.
+- `src/lib/claves-pendientes.test.ts`, `src/lib/claves-pendientes-postgres.test.ts`: idempotencia, concurrencia, mail caído y reintento, y el portón del cambio obligatorio. El postgres también comprueba que el mail del reseteo sale con el link del dominio propio.
 - `src/lib/operador/consola-bajo-rls-postgres.test.ts`: alta y reseteo bajo RLS con Resend simulado; con el mail caído no cambia nada.
 - `solicitudes/entrega-de-claves.test.ts`: el configurador no devuelve ninguna clave.
 - `src/lib/alta-negocio-clave-postgres.test.ts`: repetir el alta con el mismo nombre corto y otro email no manda ningún mail más (hallazgo del refutador).
