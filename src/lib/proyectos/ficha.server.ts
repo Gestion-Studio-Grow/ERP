@@ -10,7 +10,7 @@ import { prisma } from "@/lib/prisma";
 import { aPesos, COLUMNAS_FICHA, cashflowDelEvento, codigoProyecto, resumenCuotas, totalesFicha, ventaTotalItem } from "./gestion-core";
 import { columnasOcultas, filtroDeProyectos, puede, tiposDeCambio, versionViva, aItemFicha, type Actor } from "./gestion.server";
 import { configProyectos, datosDelNegocio } from "./datos.server";
-import { cobranza, conciliarConCobros, totalAprobado as totalAprobadoDe } from "./cobranza-core";
+import { cobranza, conciliarConCobros, pendientesDeCobro } from "./cobranza-core";
 import { cobranzasDelNegocio } from "./cobranza.server";
 import { desvioPorRubro, fechaCorta, fechaParaInput, redondear, resultadoReal, totales } from "./core";
 import { cambioDeVenta, costoSinProveedor, enMonedaDeVenta, ventaEn } from "./gestion-core";
@@ -145,7 +145,7 @@ export async function datosResumen(a: Actor, cab: Cabecera, vista: Vista) {
   ]);
   // Cobrado y a cobrar, de los cobros registrados contra lo aprobado (cobranza-core); las cuotas sólo dan los vencimientos.
   const cob = cobranzas?.get(cab.proyecto.id);
-  const finanzas = vista.pagos ? (cob ? conciliarConCobros(resumenCuotas(cuotas, cab.tc), cob) : resumenCuotas(cuotas, cab.tc)) : null;
+  const finanzas = vista.pagos ? (cob ? conciliarConCobros(cuotas, cab.tc, cob) : resumenCuotas(cuotas, cab.tc)) : null;
   return { personas, finanzas, cantCuotas: cuotas.length, cantChecklist };
 }
 
@@ -173,25 +173,29 @@ export async function datosCotizacion(a: Actor, proyectoId: string) {
 export async function datosFinanzas(a: Actor, cab: Cabecera, vista: Vista) {
   const proyectoId = cab.proyecto.id;
   const { tenantId } = a;
-  const [cuotas, pagos, gastos, aprobada, proveedores] = await Promise.all([
+  const [todas, pagos, gastos, aprobada, proveedores, cobranzas] = await Promise.all([
     prisma.proyectoCuota.findMany({ where: { tenantId, proyectoId }, include: { supplier: { select: { name: true } } }, orderBy: { venceEl: "asc" } }),
     prisma.proyectoPago.findMany({ where: { tenantId, proyectoId }, orderBy: { createdAt: "desc" } }),
     vista.costos ? prisma.proyectoGasto.findMany({ where: { tenantId, proyectoId }, orderBy: [{ fecha: "desc" }, { createdAt: "desc" }], include: { supplier: { select: { name: true } } } }) : [],
     prisma.proyectoPresupuesto.findFirst({ where: { tenantId, proyectoId, estado: "APROBADO" }, orderBy: { version: "desc" }, select: { ivaPct: true, items: true } }),
     vista.editaPagos ? prisma.supplier.findMany({ where: { tenantId, active: true }, orderBy: { name: "asc" }, take: 500, select: { id: true, name: true } }) : [],
+    cobranzasDelNegocio(tenantId, cab.tc, cab.config.margenPct, [proyectoId]),
   ]);
+  // La fuente única de cobrado / saldo (cobranza-core): la misma cuenta que Estado financiero, clientes y reportes.
+  const cob = cobranzas.get(proyectoId) ?? cobranza(0, []);
+  // Cada cuota con lo que le falta: lo cobrado a mano ya se descontó de las más viejas.
+  const faltan = pendientesDeCobro(todas, cab.tc, cob);
+  const cuotas = todas.map((c, i) => ({ ...c, pendiente: faltan[i] }));
   // Sin permiso de costos, un pago a proveedor delata el costo: sólo se ven los cobros.
   const visibles = vista.costos ? cuotas : cuotas.filter((c) => c.tipo === "COBRO");
   const flujo = cashflowDelEvento(visibles, cab.tc);
   // Pasados a pesos: un ítem en dólares no se puede comparar como si fueran pesos.
   const aprobadaEnPesos = aprobada?.items.map((i) => ({ rubro: i.rubro, cantidad: i.cantidad, costo: aPesos(i.costo, i.moneda, cab.tc), precio: i.cantidad > 0 ? ventaTotalItem(i, cab.tc, cab.config.margenPct) / i.cantidad : 0 })) ?? [];
   const totalesAprobada = aprobada ? totales(aprobadaEnPesos, aprobada.ivaPct) : null;
-  // La fuente única de cobrado / saldo (cobranza-core): la misma cuenta que Estado financiero, clientes y reportes.
-  const cob = cobranza(totalAprobadoDe(aprobada, cab.tc, cab.config.margenPct), pagos);
   return {
     cuotas: visibles,
     flujo,
-    resumen: conciliarConCobros(resumenCuotas(visibles, cab.tc), cob),
+    resumen: conciliarConCobros(visibles, cab.tc, cob),
     pagos,
     gastos,
     totalesAprobada,

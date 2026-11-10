@@ -10,7 +10,7 @@ import { configProyectos } from "./datos.server";
 import { aPesos, codigoProyecto, nivelDeCarga, pipelinePonderado, proyeccionDeCaja, resumenCuotas, totalesFicha, type NivelCarga } from "./gestion-core";
 import { desviosDelEvento, estaAbierto, estaActivo, estaConfirmado, finDeSemana, margenSobreVenta } from "./empresa-core";
 import { redondear, yaVencio } from "./core";
-import { conciliarConCobros, resumenConCobranza } from "./cobranza-core";
+import { conciliarConCobros, pendientesDelNegocio, resumenConCobranza } from "./cobranza-core";
 import { cobranzasDelNegocio } from "./cobranza.server";
 
 const MESES_PROYECCION = 6;
@@ -46,7 +46,9 @@ export async function recuadrosDeCuotas(tenantId: string) {
   const [cuotas, tc, config] = await Promise.all([cuotasDelNegocio(tenantId), tiposDeCambio(tenantId), configProyectos(tenantId)]);
   // «A cobrar» de cada proyecto = lo aprobado menos lo cobrado (cobranza-core), igual que Rentabilidad y Clientes.
   const cobranzas = await cobranzasDelNegocio(tenantId, tc, config.margenPct);
-  return { cuotas, tc, resumen: resumenConCobranza(cuotas, tc, cobranzas) };
+  // Cada renglón con lo que le falta (los cobros manuales se descuentan de las cuotas más viejas): suman lo mismo que el total.
+  const faltan = pendientesDelNegocio(cuotas, tc, cobranzas);
+  return { cuotas: cuotas.map((c, i) => ({ ...c, pendiente: faltan[i] })), tc, resumen: resumenConCobranza(cuotas, tc, cobranzas) };
 }
 
 export async function proveedoresActivos(tenantId: string) {
@@ -194,7 +196,7 @@ export async function proyectosConNumeros(tenantId: string) {
     const d = desviosDelEvento(items.map((i) => ({ id: i.id, descripcion: i.descripcion, rubro: i.rubro, cantidad: i.cantidad, costo: i.costo, moneda: i.moneda, costoReal: i.costoReal, proveedor: i.supplier?.name ?? i.proveedor })), p.gastos, tc);
     // Cobrado, avance y vencido en línea con los cobros registrados contra lo aprobado (cobranza-core).
     const cob = cobranzas.get(p.id);
-    const r = cob ? conciliarConCobros(resumenCuotas(p.cuotas, tc, hoy), cob) : resumenCuotas(p.cuotas, tc, hoy);
+    const r = cob ? conciliarConCobros(p.cuotas, tc, cob, hoy) : resumenCuotas(p.cuotas, tc, hoy);
     const estimado = p.presupuestoEstimado ? aPesos(p.presupuestoEstimado, p.moneda, tc) : 0;
     return {
       id: p.id,

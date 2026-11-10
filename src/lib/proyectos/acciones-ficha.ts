@@ -14,9 +14,10 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import { auditAdmin } from "@/lib/audit-core";
 import { transferenciaEnElLibroTx } from "@/lib/caja/transferencia-en-el-libro";
 import type { Prisma } from "@/generated/prisma/client";
-import { esEtapa, etapaAlAprobar, etapaLabel, MEDIOS, metodoDeCaja, redondear, sePuedeEditar, sumarDias, type MedioPago } from "./core";
+import { esEtapa, etapaAlAprobar, etapaLabel, MEDIOS, metodoDeCaja, pesos, redondear, sePuedeEditar, sumarDias, type MedioPago } from "./core";
 import { configProyectos } from "./datos.server";
-import { cambioDeVenta, aPesos, CHECKLIST_BASE, ESTADOS_ITEM, MONEDAS, RUBROS, TIPOS_EVENTO } from "./gestion-core";
+import { cobranzasDelNegocio, pendienteDeLaCuota } from "./cobranza.server";
+import { cambioDeVenta, aPesos, CHECKLIST_BASE, ESTADOS_ITEM, MONEDAS, RUBROS, TIPOS_EVENTO, veTodosLosProyectos } from "./gestion-core";
 import { avisar, columnasOcultas, exigirEditar, usuariosDelEquipo, usuariosDeDireccion, usuariosDeLaPlata, proyectoVisible, puede, regenerarCuotas, registrarCambio, tiposDeCambio, type Actor } from "./gestion.server";
 import { tipoDeArchivoSubido, clavesARenombrar, fechaAntesDe, fotoDeVersion, itemDeClave, linkSeguro, monedasSinCambio, numeroDe, PERDIDO, precioAlCopiar, precioAlEnviar, servicioDeTipo } from "./ficha-core";
 import { marcaDeGastoProyecto } from "./marcas";
@@ -757,14 +758,18 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
   if (c.anuladoEl) return mal("Esa cuota ya no corre: la ficha la dejó afuera.");
   if (c.pagadoEl) return mal("Esa cuota ya estaba marcada.");
   const tc = await tiposDeCambio(tenantId);
-  const importe = aPesos(c.monto, c.moneda, tc);
-  if (!(importe > 0)) return mal(`Falta el tipo de cambio de ${c.moneda}: sin él no se puede asentar en pesos.`);
   const esCobro = c.tipo === "COBRO";
+  // Un cobro se lleva sólo lo que le falta a la cuota: lo cobrado a mano por fuera ya se descontó de las más viejas.
+  const pendiente = esCobro ? await pendienteDeLaCuota(tenantId, proyectoId, id, tc, (await configProyectos(tenantId)).margenPct) : c.monto;
+  if (pendiente === null) return mal("Esa cuota ya estaba marcada.");
+  if (!(pendiente > 0)) return mal("Esta cuota ya quedó cubierta con cobros registrados aparte: no queda nada por cobrar.");
+  const importe = aPesos(pendiente, c.moneda, tc);
+  if (!(importe > 0)) return mal(`Falta el tipo de cambio de ${c.moneda}: sin él no se puede asentar en pesos.`);
   const etiqueta = `Proyecto #${proyecto.numero} · ${c.concepto}`;
   const cheque = medio === "CHEQUE" ? " · Cheque" : "";
   // Afuera de la transacción: una lectura por otra conexión, adentro, la traba.
   const destinatarios2 = [...(await usuariosDelEquipo(tenantId, proyectoId, a.user.id)), ...(await usuariosDeLaPlata(prisma, tenantId, a.user.id))];
-  const cuenta = await cuentaParaCuota(tenantId, formData, { tipo: c.tipo, monto: c.monto, moneda: c.moneda, importeEnPesos: importe });
+  const cuenta = await cuentaParaCuota(tenantId, formData, { tipo: c.tipo, monto: pendiente, moneda: c.moneda, importeEnPesos: importe });
   if (typeof cuenta === "string") return mal(cuenta);
   const ganada = await tenantTransaction(async (tx) => {
     const r = await tx.proyectoCuota.updateMany({ where: { id, tenantId, pagadoEl: null, anuladoEl: null }, data: { pagadoEl: new Date(), pagadoPor: a.nombre, medio, cuentaId: cuenta?.id ?? null, cuentaMovido: cuenta?.movido ?? null } });
@@ -791,8 +796,9 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
     }
     const cambio = { tenantId, proyectoId, entidad: "ProyectoCuota", entidadId: id, autor: a.nombre };
     await registrarCambio(tx, { ...cambio, campo: esCobro ? `Cobrado · ${c.concepto}` : `Pagado · ${c.concepto}`, antes: "Pendiente", despues: `${importe} (${medio})` });
-    // Une la cuota con lo que se asentó: al anular el cobro o el gasto, la cuota vuelve a quedar pendiente.
-    await registrarCambio(tx, { ...cambio, campo: "Asiento", despues: asiento });
+    // Une la cuota con lo que se asentó: al anular el cobro o el gasto, la cuota vuelve a quedar pendiente. En otra
+    // moneda guarda además lo que pagó el cliente en ella («5000 USD»): el saldo del proyecto se cuenta en su moneda.
+    await registrarCambio(tx, { ...cambio, campo: "Asiento", antes: c.moneda !== "ARS" ? `${pendiente} ${c.moneda}` : null, despues: asiento });
     await avisar(tx, { tenantId, destinatarios: destinatarios2, tipo: esCobro ? "cobro" : "pago", texto: `${esCobro ? "Se cobró" : "Se pagó"}: ${c.concepto}`, enlace: `${RAIZ}/${proyectoId}?tab=finanzas` });
     return true;
   });
@@ -820,6 +826,13 @@ export async function crearMovimientoManual(formData: FormData): Promise<Resulta
   if (!(MONEDAS as readonly string[]).includes(moneda)) return mal("La moneda no es válida.");
   if (!venceEl) return mal("Elegí la fecha.");
   if (supplierId && !(await prisma.supplier.findFirst({ where: { id: supplierId, tenantId }, select: { id: true } }))) return mal("Ese proveedor no existe.");
+  if (tipo === "COBRO") {
+    // Tope: un cobro de más inflaría lo que se espera cobrar. Con presupuesto aprobado, no pasa de lo que falta cobrar.
+    const [config, tc] = await Promise.all([configProyectos(tenantId), tiposDeCambio(tenantId)]);
+    const cob = (await cobranzasDelNegocio(tenantId, tc, config.margenPct, [proyectoId])).get(proyectoId);
+    const enPesos = aPesos(monto, moneda, tc);
+    if (cob && cob.total > 0 && enPesos > cob.porCobrar + 0.01) return mal(`Ese cobro pasa lo que falta cobrar del proyecto (${pesos(cob.porCobrar)}). Revisá el monto.`);
+  }
   await tenantTransaction(async (tx) => {
     const c = await tx.proyectoCuota.create({ data: { tenantId, proyectoId, tipo, concepto, monto, moneda, venceEl, supplierId: tipo === "PAGO" && supplierId ? supplierId : null, auto: false }, select: { id: true } });
     await registrarCambio(tx, { tenantId, proyectoId, entidad: "ProyectoCuota", entidadId: c.id, campo: `Movimiento manual · ${concepto}`, despues: `${tipo === "COBRO" ? "Cobro" : "Pago"} ${monto} ${moneda}`, autor: a.nombre });
