@@ -6,6 +6,7 @@
 // con `MP_MODO=real` + `MP_ACCESS_TOKEN` genera links reales. Nunca maneja secretos
 // en código (el token lo carga el dueño en el entorno).
 
+import { aCobrarDelPedido } from "@/lib/settlement/saldo-del-pedido";
 import { revalidatePath } from "next/cache";
 import { nombreVisibleDelNegocio } from "@/lib/marca-demo";
 import { prisma } from "@/lib/prisma";
@@ -188,7 +189,9 @@ export async function generarLinkDePagoDePedido(
   if (!o || !tenant) return { ok: false, error: "No se encontró el pedido." };
   if (o.status === "CANCELLED") return { ok: false, error: `El pedido #${o.code} está anulado: no se cobra.` };
   if (o.paid) return { ok: false, error: `El pedido #${o.code} ya está cobrado.` };
-  const monto = round2(o.total);
+  // Lo que FALTA cobrar: un pedido cobrado antes de pesar que pesó más se cobra por el saldo
+  // (settlement/saldo-del-pedido.ts), nunca por el total entero.
+  const monto = round2(await aCobrarDelPedido(prisma, tenantId, o));
   if (!(monto > 0)) return { ok: false, error: `El pedido #${o.code} no tiene importe para cobrar.` };
   const negocio = nombreVisibleDelNegocio(tenant.slug, tenant.name, "el local"); // DEMO GSG: el nombre de la demo.
 

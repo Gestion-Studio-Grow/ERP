@@ -5,6 +5,7 @@
 // (`pago-de-la-tienda.ts`), y el monto sale SIEMPRE de la base. El link es el mismo de la bandeja
 // (`armarLinkDePagoDePedido`): si ya hay uno auditado por el mismo monto, se devuelve ése.
 
+import { aCobrarDelPedido } from "@/lib/settlement/saldo-del-pedido";
 import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
 import { getCurrentTenantId } from "@/lib/tenant";
@@ -52,8 +53,10 @@ export async function pagarPedidoDeLaTienda(
   }
   // Sin pedido, el mismo texto que un token que no corresponde: no se confirma qué números existen.
   if (!o || !tenant) return { ok: false, error: MENSAJE_SIN_PAGO.token };
+  // Lo que FALTA pagar: con una parte ya cobrada (pesó más de lo pagado, settlement/saldo-del-pedido.ts)
+  // el link es por el saldo, nunca por el total entero.
   const decision = decidirPagoDeLaTienda({
-    pedido: o,
+    pedido: o.paid ? o : { ...o, total: await aCobrarDelPedido(prisma, tenantId, o) },
     tenantId,
     tokenValido: tokenDelPedidoValido(authSecret(), tenantId, o.id, leido.token),
     ahoraMs: Date.now(),

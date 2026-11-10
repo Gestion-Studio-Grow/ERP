@@ -24,6 +24,7 @@ import { isUniqueViolation, isColumnMissing } from "@/lib/prisma-errors";
 import { buscarFichaPorTelefono } from "@/lib/clientes/ficha-por-telefono";
 import { logger } from "@/lib/logger";
 import { RechazoDeDominio } from "@/lib/rechazo-de-dominio";
+import { aCobrarDelPedido, cobradoDelPedido, cobrarSaldoDelPedidoEnTx, saldoDelPedido } from "@/lib/settlement/saldo-del-pedido";
 import { controlarLotesVencidosEnTx } from "@/lib/carniceria/lotes-registro";
 import { pedidoDelReintento, type PedidoDelReintento } from "@/lib/reintento-de-venta";
 import { shippingCost, type ShippingConfig } from "@/lib/storefront-shipping";
@@ -1323,6 +1324,20 @@ export async function cobrarPedidoEnTx(
   if (!order) return { tipo: "no-existe" };
   if (order.status === "CANCELLED") throw new CobroDePedidoAnulado(order.code);
   if (res.count === 0) return { tipo: "ya-cobrado", code: order.code, medioRegistrado: order.paymentMethod };
+  // SALDO (settlement/saldo-del-pedido.ts): el pedido cobrado antes de pesar que pesó más ya tiene
+  // una parte cobrada y su VENTA en el libro. Se cobra SÓLO lo que falta, como un cobro del pedido
+  // con su asiento: cobrar el total le haría pagar dos veces a la clienta, y la VENTA con `orderId`
+  // ya existe (el cobro de siempre la daría por «ya asentada» y la diferencia no entraría al libro).
+  const yaCobrado = await cobradoDelPedido(tx, tenantId, order.id);
+  if (yaCobrado > 0) {
+    if (mixto) throw new RechazoDeDominio("Este pedido ya tiene una parte cobrada: la diferencia se cobra con un solo medio.");
+    const saldo = saldoDelPedido(order.total, [yaCobrado]);
+    if (saldo > 0) {
+      await cobrarSaldoDelPedidoEnTx(tx, tenantId, { orderId: order.id, orderCode: order.code, saldo, medio: args.method, actor: args.actor });
+    }
+    await emitirPedidoCobrado(tx, { tenantId, pedidoId: order.id, codigo: order.code, monto: saldo, medio: args.method, actor: args.actor }); // P2
+    return { tipo: "cobrado", order: { id: order.id, code: order.code, total: saldo } };
+  }
   if (mixto) {
     // Contra el total de la BASE, con la fila ya bloqueada por el update: si el pedido se pesó y
     // cambió mientras se cobraba, no cierra y la transacción vuelve atrás entera (el `paid` también).
@@ -1405,8 +1420,14 @@ export type DepsAvisoDePedido = {
 };
 
 const DEPS_AVISO: DepsAvisoDePedido = {
-  leerPedido: (tenantId, orderId) =>
-    prisma.order.findFirst({ where: { id: orderId, tenantId }, select: { code: true, total: true, paid: true, status: true } }),
+  // El «total» que el pago tiene que igualar es lo que FALTA cobrar: un pedido con una parte ya
+  // cobrada (saldo-del-pedido.ts) se cobra por el saldo, nunca por el total entero.
+  leerPedido: async (tenantId, orderId) => {
+    const p = await prisma.order.findFirst({ where: { id: orderId, tenantId }, select: { id: true, code: true, total: true, paid: true, status: true } });
+    if (!p) return null;
+    const total = p.paid ? p.total : await aCobrarDelPedido(prisma, tenantId, p);
+    return { code: p.code, total, paid: p.paid, status: p.status };
+  },
   cerradoHasta: (tenantId) => lastClosedDay(tenantId),
   hoy: () => dateStrInBusinessTz(new Date()),
   cobrar: (tenantId, args) => tenantTransaction((tx) => cobrarPedidoEnTx(tx, tenantId, args), { tenantId }),

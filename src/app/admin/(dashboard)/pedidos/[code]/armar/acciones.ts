@@ -91,7 +91,7 @@ export async function guardarArmado(_prev: OrderActionState, formData: FormData)
   if (!id) return { ok: false, error: "Falta identificar el pedido a armar." };
   const o = await prisma.order.findFirst({ where: { id, tenantId }, select: SELECT_PEDIDO });
   if (!o) return { ok: false, error: "No se encontró el pedido. Volvé a la bandeja." };
-  // Cobrado o cerrado no se toca (lo vuelve a decir `updateOrderItems`): no se escribe la fila.
+  // Cobrado no escribe la fila: su ajuste deja la propia (`ajuste_peso_cobrado`, ajuste-peso-cobrado.ts).
   if (!o.paid && !(await filaOriginal(tenantId, id))) {
     await auditAdmin({
       action: ACCION_PEDIDO_ORIGINAL,
