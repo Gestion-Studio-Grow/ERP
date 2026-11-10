@@ -12,7 +12,10 @@
 import { revalidatePath } from "next/cache";
 import { operatorPrisma } from "@/lib/operator-db";
 import { operadorParaNegocio } from "@/lib/operador/guardia-negocio";
-import { configurarSolicitud, descartarSolicitud, type ResultadoConfigurador, type ResultadoDescarte } from "./configurador.server";
+import { configurarSolicitud, descartarSolicitud, type ResultadoDescarte } from "./configurador.server";
+import { entregarClavesDelConfigurador, type ResultadoConfiguradorConsola } from "./entrega-de-claves";
+import { MAIL_NO_CONECTADO, mailDeClavesConectado } from "@/lib/clave-temporal-mail";
+import { entregarClaveDeAlta } from "@/lib/clave-temporal-entrega.server";
 import type { FormConfigurador } from "./configurador-reglas";
 
 const CAMPOS: readonly (keyof FormConfigurador)[] = [
@@ -27,9 +30,9 @@ function texto(fd: FormData, campo: string): string {
 }
 
 export async function configurarSolicitudAction(
-  _previo: ResultadoConfigurador | null,
+  _previo: ResultadoConfiguradorConsola | null,
   fd: FormData,
-): Promise<ResultadoConfigurador> {
+): Promise<ResultadoConfiguradorConsola> {
   const estudioTenantId = texto(fd, "estudioTenantId").trim();
   const g = await operadorParaNegocio({ id: estudioTenantId });
   if (!g.ok) return { ok: false, error: g.motivo };
@@ -38,7 +41,13 @@ export async function configurarSolicitudAction(
   if (!solicitudId) return { ok: false, error: "Falta el pedido." };
   const form: FormConfigurador = {};
   for (const c of CAMPOS) form[c] = texto(fd, c);
-  const r = await configurarSolicitud(operatorPrisma, { solicitudId, estudioTenantId, sesion, form });
+  // Las provisorias sólo viajan por mail al titular (GSG-SEG-014): sin mail conectado no se da de alta.
+  if (!mailDeClavesConectado()) return { ok: false, error: `No se configuró nada. ${MAIL_NO_CONECTADO}` };
+  const actor = `operator:${sesion.nombre}`;
+  const r = await entregarClavesDelConfigurador(
+    await configurarSolicitud(operatorPrisma, { solicitudId, estudioTenantId, sesion, form }),
+    ({ tenantId, ...d }) => entregarClaveDeAlta(tenantId, { actor, ...d }),
+  );
   if (r.ok) {
     revalidatePath("/operador/solicitudes");
     revalidatePath(`/operador/tenants/${r.clienteTenantId}`);

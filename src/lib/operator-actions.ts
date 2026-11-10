@@ -35,12 +35,14 @@ import { interpretarCuitInput } from "@/lib/fiscal/cuit-input";
 import { CambioObligatorioInactivo, operatorSetMustChange } from "@/lib/must-change-password";
 import { altaPersonaCore, type AltaPersonaPort, type AltaPersonaResult } from "@/lib/operador/alta-persona";
 import { decidirAltaDeUsuarioEnTx } from "@/lib/usuarios-del-plan";
+import type { OwnerResetResult } from "@/lib/owner-password-reset";
+import { ClaveNoEnviada, MAIL_NO_CONECTADO, mailDeClavesConectado } from "@/lib/clave-temporal-mail";
 import {
-  resetOwnerPasswordCore,
-  type OwnerResetPort,
-  type OwnerResetResult,
-  type OwnerResetRow,
-} from "@/lib/owner-password-reset";
+  auditarEntregaDeClave,
+  enviadorDelNegocio,
+  resetearClaveDelDuenioConMail,
+  TX_CON_MAIL,
+} from "@/lib/clave-temporal-entrega.server";
 import { catalogo } from "@/modules/catalog";
 import {
   mismoConjunto,
@@ -527,44 +529,34 @@ export async function cambiarFacturacionReal(formData: FormData) {
   redirect(`${ficha}&ok=${encodeURIComponent(r.mensaje)}#pase-a-real`);
 }
 
-// --- Reset de contraseña del OWNER (revelado único) ---------------------------
-// El dueño necesita entrar por primera vez al backoffice de un tenant y anotarse la
-// contraseña. Esta acción:
+// --- Reset de contraseña del OWNER (por mail al titular, GSG-SEG-014) ---------
+// El dueño de un negocio necesita entrar (primera vez, o se olvidó la clave). Esta acción:
 //  1) genera una contraseña temporal fuerte (`generateStrongPassword`, alta entropía);
-//  2) guarda SOLO el hash (`hashPassword`, mismo scrypt del login) — el claro NUNCA se
-//     persiste, NUNCA se loguea, NUNCA se manda por email;
+//  2) guarda SOLO el hash (`hashPassword`, mismo scrypt del login) — el claro NUNCA se persiste
+//     ni se loguea, ni va a la auditoría, la URL o la pantalla;
 //  3) marca al OWNER para cambio forzado en el próximo ingreso (`mustChangePassword`);
-//  4) audita quién/a-quién/cuándo, SIN el valor.
-// Devuelve el claro UNA vez para que la ficha lo muestre con revelado único (BootstrapReveal):
-// no va por la URL ni queda en ningún lado. Si se pierde, se resetea de nuevo.
+//  4) audita quién/a-quién/cuándo, SIN el valor;
+//  5) se la MANDA POR MAIL al titular (orden del dueño del 10/11/2026: «mandársela al titular no
+//     cuenta como exponer a terceros»; reemplaza la regla vieja de «nunca por email»).
+// La pantalla muestra sólo a dónde fue, enmascarado («c***@dominio.com»).
 // Guardada por `operadorParaNegocio` (sesión de operador + candado de CH): en CH sólo el dueño.
-// PORT armado sobre UNA transacción parada en el negocio (`enElNegocio`): con RLS es lo que deja
-// ver al OWNER y escribirle; y la contraseña, el cambio forzado y la auditoría quedan todos o
-// ninguno. El núcleo (`resetOwnerPasswordCore`) es puro y no conoce Prisma → testeable con un
-// doble en memoria.
-function operatorResetPort(tx: Prisma.TransactionClient, tenantId: string): OwnerResetPort {
-  return {
-    findOwner: (tid) =>
-      tx.user.findFirst({
-        where: { tenantId: tid, role: "OWNER", active: true, deletedAt: null },
-        orderBy: { createdAt: "asc" },
-        select: { id: true, email: true },
-      }),
-    setPasswordHash: async (userId, passwordHash) => {
-      await tx.user.update({ where: { id: userId }, data: { passwordHash } });
-    },
-    setMustChange: (userId, value) => operatorSetMustChange(tx, { userId, tenantId }, value),
-    audit: async (entry) => {
-      await tx.auditLog.create({
-        data: { ...entry, changes: entry.changes as Prisma.InputJsonValue },
-      });
-    },
-  };
-}
+// Todo en UNA transacción parada en el negocio (`enElNegocio`), con el mail como último paso: si el
+// mail no sale, el núcleo tira `ClaveNoEnviada` y se deshace TODO (el hash anterior queda, la dueña
+// sigue entrando con su clave de siempre); la falla se audita aparte y se dice en pantalla. Si el
+// mail salió y lo que falla es el COMMIT (raro), la persona recibe una clave que no anda y la vieja
+// sigue valiendo: se reintenta, nadie queda afuera. El núcleo (`resetOwnerPasswordCore`) es puro →
+// testeable con un doble en memoria.
+// El puerto y la transacción viven en `clave-temporal-entrega.server.ts` (`resetearClaveDelDuenioConMail`):
+// no se exportan desde acá porque todo lo exportado por un archivo "use server" es invocable.
 
 // Alta de UNA persona en un negocio desde la consola (ver alta-persona.ts). Todo en la transacción del
-// negocio: el tope del plan, el alta, el cambio forzado y la auditoría quedan todos o ninguno.
-function altaPersonaPort(tx: Prisma.TransactionClient, tenantId: string): AltaPersonaPort {
+// negocio: el tope del plan, el alta, el cambio forzado, la auditoría y el mail con la clave quedan
+// todos o ninguno (sin mail, no nace la persona: no queda nadie con una clave que no conoce).
+function altaPersonaPort(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  enviarClave: AltaPersonaPort["enviarClave"],
+): AltaPersonaPort {
   return {
     existeEmail: async (tid, email) => (await tx.user.findFirst({ where: { tenantId: tid, email }, select: { id: true } })) !== null,
     // `decidirAltaDeUsuarioEnTx` espera la transacción del negocio; ésta lo es (enElNegocio).
@@ -574,6 +566,7 @@ function altaPersonaPort(tx: Prisma.TransactionClient, tenantId: string): AltaPe
     audit: async (entry) => {
       await tx.auditLog.create({ data: { ...entry, changes: entry.changes as Prisma.InputJsonValue } });
     },
+    enviarClave,
   };
 }
 
@@ -584,9 +577,14 @@ export async function altaPersonaDeTenant(
   const g = await operadorParaNegocio({ id: tenantId });
   if (!g.ok) return { ok: false, error: g.motivo };
   const op = g.sesion.nombre;
+  if (!mailDeClavesConectado()) return { ok: false, error: MAIL_NO_CONECTADO };
+  const enviar = await enviadorDelNegocio(tenantId, "alta");
   try {
-    const result = await enElNegocio(tenantId, (tx) =>
-      altaPersonaCore(altaPersonaPort(tx, tenantId), { tenantId, operatorSubject: op, entrada }),
+    const result = await enElNegocio(
+      tenantId,
+      (tx) => altaPersonaCore(altaPersonaPort(tx, tenantId, enviar), { tenantId, operatorSubject: op, entrada }),
+      operatorPrisma,
+      TX_CON_MAIL,
     );
     if (result.ok) {
       revalidatePath(`/operador/tenants/${tenantId}`);
@@ -596,6 +594,11 @@ export async function altaPersonaDeTenant(
   } catch (e) {
     // Sin el cambio obligatorio activo, el alta se deshizo entera (la tira altaPersonaCore).
     if (e instanceof CambioObligatorioInactivo) return { ok: false, error: e.message };
+    // Sin mail, también: se audita la falla (sin la clave) y la persona no queda creada.
+    if (e instanceof ClaveNoEnviada) {
+      await auditarEntregaDeClave(tenantId, { actor: `operator:${op}`, enviada: false, enviadaA: e.destino, motivo: e.motivo, origen: "alta-persona" });
+      return { ok: false, error: `${e.message} La persona no quedó dada de alta: probá de nuevo en un rato.` };
+    }
     // Carrera de unicidad (otro alta con el mismo email entre el chequeo y el create): no se crea.
     return { ok: false, error: "No se pudo dar de alta: ese email ya existe en el negocio, o la base rechazó el alta. No se creó nada." };
   }
@@ -605,9 +608,7 @@ export async function resetOwnerPassword(tenantId: string): Promise<OwnerResetRe
   const g = await operadorParaNegocio({ id: tenantId });
   if (!g.ok) return { ok: false, error: g.motivo };
   const op = g.sesion.nombre;
-  const result = await enElNegocio(tenantId, (tx) =>
-    resetOwnerPasswordCore(operatorResetPort(tx, tenantId), { tenantId, operatorSubject: op }),
-  );
+  const result = await resetearClaveDelDuenioConMail(tenantId, { actor: `operator:${op}`, operatorSubject: op });
   if (result.ok) revalidatePath(`/operador/tenants/${tenantId}`);
   return result;
 }
@@ -618,22 +619,13 @@ export async function resetOwnerPassword(tenantId: string): Promise<OwnerResetRe
 // TODOS los tenants de la plataforma, detrás de un solo click de confirmación. Su comentario
 // decía que se podía porque "ninguno tiene un cliente real usándolo hoy": ESO ERA FALSO.
 // `beauty-spa` (CH Estética) está VIVO en producción y su dueña entra con esa contraseña. Un
-// click dejaba a una clienta real afuera de su propio sistema, sin forma de volver atrás: el
-// hash anterior se pisa y la temporal se muestra UNA sola vez en pantalla — si el operador
-// cierra la pestaña, la recuperación es otro reset y una llamada incómoda.
-//
-// Agravante: el "cambio forzado en el próximo ingreso" que la pantalla promete NO funciona hoy.
-// La columna `mustChangePassword` no está aplicada en la base (Gate 2), así que `setMustChange`
-// devuelve `persisted:false` y la temporal queda válida para siempre. O sea: el disparo masivo
-// no sólo saca a la dueña — deja N contraseñas temporales vivas en un papel.
+// click dejaba a una clienta real afuera de su propio sistema.
 //
 // Se neutraliza en vez de borrarse porque su llamador (la tarjeta de la consola) no es de este
 // frente: manteniendo la firma, el botón sigue compilando pero ya no puede hacer daño, y el
 // operador lee en pantalla qué hacer en su lugar. El reemplazo es `resetOwnerPasswordDeTenant`:
-// uno por vez, tipeando el slug del tenant.
-export async function resetAllOwnerPasswords(): Promise<
-  { ok: true; rows: OwnerResetRow[] } | { ok: false; error: string }
-> {
+// uno por vez, tipeando el slug del tenant, y la clave le llega por mail al titular.
+export async function resetAllOwnerPasswords(): Promise<{ ok: false; error: string }> {
   await requireOperator();
   return {
     ok: false,
@@ -647,8 +639,8 @@ export async function resetAllOwnerPasswords(): Promise<
 
 // Reset del OWNER de UN tenant, confirmado tipeando su slug exacto. El slug es el nombre que el
 // operador está viendo en pantalla: obliga a mirar A QUIÉN le está cambiando la contraseña, que
-// es justo el paso que el botón masivo se salteaba. Devuelve la temporal UNA vez (sólo en el
-// retorno: nunca se persiste en claro, nunca se loguea, no va por la URL) y queda auditado.
+// es justo el paso que el botón masivo se salteaba. La temporal le llega por mail al titular (nunca
+// a la pantalla, la URL ni el log) y queda auditado.
 export async function resetOwnerPasswordDeTenant(
   tenantId: string,
   slugTipeado: string,
@@ -672,9 +664,7 @@ export async function resetOwnerPasswordDeTenant(
     };
   }
 
-  const result = await enElNegocio(tenantId, (tx) =>
-    resetOwnerPasswordCore(operatorResetPort(tx, tenantId), { tenantId, operatorSubject: op }),
-  );
+  const result = await resetearClaveDelDuenioConMail(tenantId, { actor: `operator:${op}`, operatorSubject: op });
   if (result.ok) {
     revalidatePath(`/operador/tenants/${tenantId}`);
     revalidatePath("/operador");

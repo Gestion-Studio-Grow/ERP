@@ -2,8 +2,9 @@
 
 // «La contraseña del dueño» en la pestaña Personas de la ficha (consola de GSG).
 //
-// Genera una contraseña temporal para el dueño de ESTE negocio y la muestra una sola vez
-// (RevelarClave). Dos pasos: primero «Resetear…», después escribir el slug del negocio y confirmar
+// Genera una contraseña temporal para el dueño de ESTE negocio y se la MANDA POR MAIL al titular
+// (GSG-SEG-014): la pantalla no la muestra, sólo a dónde fue («c***@dominio.com»). Si el mail no sale,
+// no se cambia nada y se ve el motivo. Dos pasos: primero «Resetear…», después escribir el slug del negocio y confirmar
 // (`resetOwnerPasswordDeTenant`, operator-actions.ts): obliga a mirar a quién se le cambia la
 // contraseña, que es justo lo que un clic suelto se saltea. La action repite la guardia (CH sólo
 // con el dueño de GSG) y deja el cambio en la auditoría.
@@ -11,9 +12,8 @@
 import { useState } from "react";
 import { Button, Input, Marca, Renglon } from "@/components/ui";
 import { resetOwnerPasswordDeTenant } from "@/lib/operator-actions";
-import { RevelarClave } from "../../RevelarClave";
 
-type Resultado = { ok: true; password: string; email: string } | { ok: false; error: string };
+type Resultado = { ok: true; email: string; enviadaA: string } | { ok: false; error: string };
 
 export function ResetOwnerPasswordCard({
   tenantId,
@@ -111,7 +111,7 @@ export function ResetOwnerPasswordCard({
             />
           </label>
           <Button type="submit" variant="danger" disabled={ocupado || tipeado.trim().toLowerCase() !== slug.toLowerCase()}>
-            {ocupado ? "Generando…" : "Resetear la contraseña"}
+            {ocupado ? "Generando y enviando…" : "Resetear y mandar por mail"}
           </Button>
           <Button type="button" variant="ghost" onClick={() => setConfirmando(false)} disabled={ocupado}>
             Cancelar
@@ -120,9 +120,10 @@ export function ResetOwnerPasswordCard({
       )}
 
       {resultado?.ok && (
-        <>
-          <RevelarClave clave={resultado.password} para={<span className="font-mono">{resultado.email}</span>} />
-        </>
+        <p role="status" className="border-y border-line-strong bg-success-soft px-3 py-3 text-sm text-strong">
+          Listo: la contraseña provisoria salió por mail a <b className="font-mono">{resultado.enviadaA}</b>. Al entrar,
+          el sistema le pide que elija una nueva.
+        </p>
       )}
       {resultado && !resultado.ok && (
         <p role="alert" className="text-sm text-danger">

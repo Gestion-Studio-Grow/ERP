@@ -56,7 +56,7 @@ test("el configurador de Soporte: «A con leyenda» sin la casilla no crea el cl
 });
 
 test("«Pasale esto» le dice al dueño que esas facturas, por ahora, van por el sitio de ARCA", () => {
-  const datos = { negocio: "Del Plata", direccion: "https://delplata.gsgapp.com.ar/admin", usuario: "duena@delplata.ejemplo.test", clave: "x" };
+  const datos = { negocio: "Del Plata", direccion: "https://delplata.gsgapp.com.ar/admin", usuario: "duena@delplata.ejemplo.test", claveEnviadaA: "d***@delplata.ejemplo.test" };
   const leyenda = pasaleEsto({ ...datos, facturaAFuera: "A_CON_LEYENDA" }).mensaje;
   assert.match(leyenda, /tus Facturas A con leyenda hacelas en el sitio de ARCA: el sistema todavía no las emite\. Las Facturas B, desde el sistema\./);
   assert.match(pasaleEsto({ ...datos, facturaAFuera: "M" }).mensaje, /tus Facturas M hacelas en el sitio de ARCA/);

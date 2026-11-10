@@ -21,6 +21,8 @@ import { enElNegocio, operatorPrisma } from "@/lib/operator-db";
 import { operadorParaNegocio } from "@/lib/operador/guardia-negocio";
 import { requestIp } from "@/lib/audit-core";
 import { logger } from "@/lib/logger";
+import { MAIL_NO_CONECTADO, mailDeClavesConectado } from "@/lib/clave-temporal-mail";
+import { entregarClaveDeAlta, recuperarClaveNoEnviada } from "@/lib/clave-temporal-entrega.server";
 import { planProvision } from "@/lib/provisioning/dry-run";
 import { marcarAltaParaLaRedEnTx, revisarAltaEnRedEnTx, type RevisionAltaEnRed } from "@/lib/multilocal/multilocal-core";
 import { requiereOkDelDuenio } from "@/app/operador/(console)/tenants/[id]/apps-del-negocio";
@@ -71,6 +73,8 @@ export async function commitTenantAction(raw: RawWizardForm): Promise<CommitActi
     if (!gc.ok) return { ok: false, error: gc.motivo };
   }
   const actor = g.sesion.nombre;
+  // La contraseña del dueño sólo viaja por mail (GSG-SEG-014): sin mail conectado no se crea nada.
+  if (!mailDeClavesConectado()) return { ok: false, error: `No se creó ningún negocio. ${MAIL_NO_CONECTADO}` };
   const input = buildProvisionInput(raw, "commit");
   const ip = (await requestIp()) ?? undefined;
 
@@ -175,11 +179,30 @@ export async function commitTenantAction(raw: RawWizardForm): Promise<CommitActi
     }
   }
 
+  // La provisoria del dueño (si el alta lo creó) sale SOLA por mail al titular y NUNCA vuelve al
+  // cliente: se saca del resultado antes de devolverlo (GSG-SEG-014).
+  let claveEnviadaA: string | undefined;
+  let claveNoEnviada: string | undefined;
+  if (commit?.tenantId && commit.generatedPassword) {
+    const entrega = await entregarClaveDeAlta(commit.tenantId, {
+      actor: `operator:${actor}`,
+      destino: { email: input.admin.email, nombre: input.admin.name || input.name },
+      clave: commit.generatedPassword,
+      origen: "alta-negocio",
+    });
+    if (entrega.enviada) claveEnviadaA = entrega.enviadaA;
+    else claveNoEnviada = recuperarClaveNoEnviada(entrega.motivo, entrega.enviadaA);
+  }
+  const outcomeSinClave: ProvisionOutcome = commit
+    ? { ...outcome, commit: { ...commit, generatedPassword: undefined } }
+    : outcome;
+
   return {
     ok: outcome.state === "ACTIVE",
-    outcome,
+    outcome: outcomeSinClave,
     tenantId: commit?.tenantId,
-    generatedPassword: commit?.generatedPassword,
+    claveEnviadaA,
+    claveNoEnviada,
     error: outcome.state === "FAILED_COMPENSATED" ? outcome.failure?.reason : undefined,
   };
 }

@@ -1,16 +1,18 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { resetOwnerPasswordCore, resetManyOwnerPasswordsCore, type OwnerResetPort } from "./owner-password-reset";
+import { resetOwnerPasswordCore, type OwnerResetPort } from "./owner-password-reset";
 import { verifyPassword } from "./auth-password";
 import { validatePasswordStrength } from "./password-policy";
 import { AUDIT_ACTION_OWNER_RESET, CAMBIO_OBLIGATORIO_INACTIVO } from "./must-change-password";
+import { ClaveNoEnviada } from "./clave-temporal-mail";
 
-// Doble en memoria del PORT: modela la fila del OWNER (solo lo que persiste el reset) + el log
-// de auditoría, para verificar los invariantes sin tocar la DB.
-function makeFakePort(opts?: { owner?: { id: string; email: string } | null; columnMissing?: boolean }) {
-  const owner = opts?.owner === undefined ? { id: "u1", email: "dueno@negocio.test" } : opts.owner;
+// Doble en memoria del PORT: la fila del OWNER, la auditoría y el MAIL (lo único por donde sale el
+// claro). `mailFalla` simula el servicio de mail caído.
+function makeFakePort(opts?: { owner?: { id: string; email: string; name: string } | null; columnMissing?: boolean; mailFalla?: boolean }) {
+  const owner = opts?.owner === undefined ? { id: "u1", email: "dueno@negocio.test", name: "Ana" } : opts.owner;
   const row: { passwordHash?: string; mustChangePassword?: boolean } = {};
   const audits: { action: string; entity: string; entityId: string; changes: unknown; actor: string }[] = [];
+  const mails: { email: string; nombre: string; clave: string }[] = [];
 
   const port: OwnerResetPort = {
     findOwner: async () => owner,
@@ -25,22 +27,25 @@ function makeFakePort(opts?: { owner?: { id: string; email: string } | null; col
     audit: async (e) => {
       audits.push({ action: e.action, entity: e.entity, entityId: e.entityId, changes: e.changes, actor: e.actor });
     },
+    enviarClave: async (destino, clave) => {
+      if (opts?.mailFalla) return { enviado: false, motivo: "el servicio de mail respondió 503" };
+      mails.push({ ...destino, clave });
+      return { enviado: true };
+    },
   };
-  return { port, row, audits };
+  return { port, row, audits, mails };
 }
 
-test("reset OK: devuelve una temporal fuerte, marca cambio forzado y audita", async () => {
-  const { port, row, audits } = makeFakePort();
+test("mail OK: la temporal fuerte sale por mail al titular, marca cambio forzado y audita", async () => {
+  const { port, row, audits, mails } = makeFakePort();
   const r = await resetOwnerPasswordCore(port, { tenantId: "t1", operatorSubject: "operator" });
 
-  assert.equal(r.ok, true);
-  if (!r.ok) return;
-  assert.equal(r.email, "dueno@negocio.test");
-  // La temporal devuelta es fuerte por construcción.
-  assert.equal(validatePasswordStrength(r.password).ok, true);
-  // Se marcó el cambio forzado.
+  assert.deepEqual(r, { ok: true, email: "dueno@negocio.test", enviadaA: "d***@negocio.test" });
+  assert.equal(mails.length, 1);
+  assert.equal(mails[0].email, "dueno@negocio.test");
+  assert.equal(mails[0].nombre, "Ana");
+  assert.equal(validatePasswordStrength(mails[0].clave).ok, true);
   assert.equal(row.mustChangePassword, true);
-  // Se auditó con la acción canónica.
   assert.equal(audits.length, 1);
   assert.equal(audits[0].action, AUDIT_ACTION_OWNER_RESET);
   assert.equal(audits[0].entity, "User");
@@ -48,62 +53,76 @@ test("reset OK: devuelve una temporal fuerte, marca cambio forzado y audita", as
   assert.equal(audits[0].actor, "operator:operator");
 });
 
-test("REVELADO ÚNICO: solo se persiste el hash; el claro no es recuperable del storage", async () => {
-  const { port, row } = makeFakePort();
+test("la contraseña NO viaja en el resultado (la pantalla sólo ve el destino enmascarado)", async () => {
+  const { port, mails } = makeFakePort();
   const r = await resetOwnerPasswordCore(port, { tenantId: "t1", operatorSubject: "op" });
-  assert.equal(r.ok, true);
-  if (!r.ok) return;
+  assert.ok(!JSON.stringify(r).includes(mails[0].clave));
+  assert.ok(!("password" in r));
+});
 
-  // Lo guardado es un hash scrypt$..., NO el texto plano.
+test("sólo se persiste el hash; corresponde a la clave del mail", async () => {
+  const { port, row, mails } = makeFakePort();
+  await resetOwnerPasswordCore(port, { tenantId: "t1", operatorSubject: "op" });
+  const clave = mails[0].clave;
   assert.ok(row.passwordHash && row.passwordHash.startsWith("scrypt$"));
-  assert.notEqual(row.passwordHash, r.password);
-  // El claro NO aparece en ninguna parte del estado persistido (no re-leíble).
-  assert.ok(!JSON.stringify(row).includes(r.password));
-  // Pero el hash corresponde a la temporal (se seteó de verdad).
-  assert.equal(await verifyPassword(r.password, row.passwordHash!), true);
+  assert.ok(!JSON.stringify(row).includes(clave));
+  assert.equal(await verifyPassword(clave, row.passwordHash!), true);
 });
 
-test("AUDITORÍA sin el valor: el log no contiene la contraseña en claro", async () => {
-  const { port, audits } = makeFakePort();
-  const r = await resetOwnerPasswordCore(port, { tenantId: "t1", operatorSubject: "op" });
-  assert.equal(r.ok, true);
-  if (!r.ok) return;
-  assert.ok(!JSON.stringify(audits).includes(r.password));
-  // changes lleva solo metadata, no la contraseña.
-  assert.deepEqual(audits[0].changes, { forcedChangePersisted: true });
+test("AUDITORÍA sin el valor: sólo metadata y el destino enmascarado", async () => {
+  const { port, audits, mails } = makeFakePort();
+  await resetOwnerPasswordCore(port, { tenantId: "t1", operatorSubject: "op", actor: "system:x", extra: { pendiente: "k1" } });
+  assert.ok(!JSON.stringify(audits).includes(mails[0].clave));
+  assert.deepEqual(audits[0].changes, { forcedChangePersisted: true, entrega: "mail", enviadaA: "d***@negocio.test", pendiente: "k1" });
+  assert.equal(audits[0].actor, "system:x");
 });
 
-test("dos resets consecutivos generan contraseñas distintas", async () => {
-  const a = await resetOwnerPasswordCore(makeFakePort().port, { tenantId: "t1", operatorSubject: "op" });
-  const b = await resetOwnerPasswordCore(makeFakePort().port, { tenantId: "t1", operatorSubject: "op" });
-  assert.equal(a.ok && b.ok, true);
-  if (a.ok && b.ok) assert.notEqual(a.password, b.password);
+test("MAIL CAÍDO: tira ClaveNoEnviada (la transacción del llamador se deshace) y nada devuelve la clave", async () => {
+  const { port, audits } = makeFakePort({ mailFalla: true });
+  await assert.rejects(
+    resetOwnerPasswordCore(port, { tenantId: "t1", operatorSubject: "op" }),
+    (e: unknown) => {
+      assert.ok(e instanceof ClaveNoEnviada);
+      assert.equal(e.destino, "d***@negocio.test");
+      assert.match(e.message, /503/);
+      assert.match(e.message, /No se cambió nada/);
+      return true;
+    },
+  );
+  // El mail es el ÚLTIMO paso: lo escrito antes vive en la misma transacción que se deshace.
+  assert.equal(audits.length, 1, "la auditoría del reset iba en la transacción que se revierte");
 });
 
-test("sin OWNER activo: no resetea y avisa", async () => {
-  const { port, row, audits } = makeFakePort({ owner: null });
+test("dos resets consecutivos mandan contraseñas distintas", async () => {
+  const a = makeFakePort();
+  const b = makeFakePort();
+  await resetOwnerPasswordCore(a.port, { tenantId: "t1", operatorSubject: "op" });
+  await resetOwnerPasswordCore(b.port, { tenantId: "t1", operatorSubject: "op" });
+  assert.notEqual(a.mails[0].clave, b.mails[0].clave);
+});
+
+test("sin OWNER activo: no resetea, no manda mail y avisa", async () => {
+  const { port, row, audits, mails } = makeFakePort({ owner: null });
   const r = await resetOwnerPasswordCore(port, { tenantId: "t1", operatorSubject: "op" });
   assert.equal(r.ok, false);
   if (r.ok) return;
   assert.match(r.error, /OWNER/);
   assert.equal(row.passwordHash, undefined);
   assert.equal(audits.length, 0);
+  assert.equal(mails.length, 0);
 });
 
-test("FALLA CERRADO: sin la columna del cambio obligatorio no se emite provisoria ni se toca la contraseña", async () => {
-  const { port, row, audits } = makeFakePort({ columnMissing: true });
+test("FALLA CERRADO: sin la columna del cambio obligatorio no se emite provisoria ni sale mail", async () => {
+  const { port, row, audits, mails } = makeFakePort({ columnMissing: true });
   const r = await resetOwnerPasswordCore(port, { tenantId: "t1", operatorSubject: "op" });
-  assert.equal(r.ok, false);
-  if (r.ok) return;
-  assert.equal(r.error, CAMBIO_OBLIGATORIO_INACTIVO);
-  assert.ok(!("password" in r), "no viaja ninguna contraseña en el resultado");
-  // La contraseña vieja queda intacta y no hay auditoría de un reset que no ocurrió.
+  assert.deepEqual(r, { ok: false, error: CAMBIO_OBLIGATORIO_INACTIVO });
   assert.equal(row.passwordHash, undefined);
   assert.equal(row.mustChangePassword, undefined);
   assert.equal(audits.length, 0);
+  assert.equal(mails.length, 0);
 });
 
-test("el flag se marca ANTES de escribir la contraseña (si la escritura falla, no queda provisoria sin flag)", async () => {
+test("orden: flag → hash → auditoría → mail (el mail último, para que su falla deshaga todo)", async () => {
   const orden: string[] = [];
   const { port } = makeFakePort();
   const r = await resetOwnerPasswordCore(
@@ -111,98 +130,19 @@ test("el flag se marca ANTES de escribir la contraseña (si la escritura falla, 
       ...port,
       setMustChange: async (id, v) => (orden.push("flag"), port.setMustChange(id, v)),
       setPasswordHash: async (id, h) => (orden.push("hash"), port.setPasswordHash(id, h)),
+      audit: async (e) => (orden.push("audit"), port.audit(e)),
+      enviarClave: async (d, c) => (orden.push("mail"), port.enviarClave(d, c)),
     },
     { tenantId: "t1", operatorSubject: "op" },
   );
   assert.equal(r.ok, true);
-  assert.deepEqual(orden, ["flag", "hash"]);
+  assert.deepEqual(orden, ["flag", "hash", "audit", "mail"]);
 });
 
 test("tenant vacío: no toca nada", async () => {
-  const { port, row } = makeFakePort();
+  const { port, row, mails } = makeFakePort();
   const r = await resetOwnerPasswordCore(port, { tenantId: "", operatorSubject: "op" });
   assert.equal(r.ok, false);
   assert.equal(row.passwordHash, undefined);
-});
-
-// --- Reset MASIVO ------------------------------------------------------------
-
-// Port multi-tenant: `owners` mapea tenantId→owner (o null si no tiene). Registra hashes + audits.
-function makeMultiPort(owners: Record<string, { id: string; email: string } | null>, columnMissing = false) {
-  const hashes = new Map<string, string>();
-  const flags = new Map<string, boolean>();
-  const audits: { entityId: string; action: string; changes: unknown }[] = [];
-  const port: OwnerResetPort = {
-    findOwner: async (tid) => owners[tid] ?? null,
-    setPasswordHash: async (id, h) => { hashes.set(id, h); },
-    setMustChange: async (id, v) => {
-      if (columnMissing) return { persisted: false };
-      flags.set(id, v);
-      return { persisted: true };
-    },
-    audit: async (e) => { audits.push({ entityId: e.entityId, action: e.action, changes: e.changes }); },
-  };
-  return { port, hashes, flags, audits };
-}
-
-test("masivo: una fila por tenant, todas con temporal distinta, todas auditadas", async () => {
-  const owners: Record<string, { id: string; email: string } | null> = {
-    t1: { id: "u1", email: "a@x.test" },
-    t2: { id: "u2", email: "b@x.test" },
-    t3: { id: "u3", email: "c@x.test" },
-  };
-  const { port, hashes, flags, audits } = makeMultiPort(owners);
-  const tenants = [
-    { id: "t1", name: "Uno" },
-    { id: "t2", name: "Dos" },
-    { id: "t3", name: "Tres" },
-  ];
-  const rows = await resetManyOwnerPasswordsCore(port, tenants, "operator");
-
-  assert.equal(rows.length, 3);
-  // Cada fila trae su tenant, email y una temporal.
-  assert.deepEqual(rows.map((r) => r.tenantName), ["Uno", "Dos", "Tres"]);
-  assert.deepEqual(rows.map((r) => r.email), ["a@x.test", "b@x.test", "c@x.test"]);
-  // Todas las temporales son distintas entre sí.
-  const pws = rows.map((r) => r.password);
-  assert.equal(new Set(pws).size, 3);
-  // Solo se persistió el hash de cada una (no el claro) y se marcó el flag.
-  for (const r of rows) {
-    const uid = owners[r.tenantId]!.id;
-    const h = hashes.get(uid);
-    assert.ok(h && h.startsWith("scrypt$") && !pws.includes(h));
-    assert.equal(flags.get(uid), true);
-  }
-  // Un audit por tenant, sin la contraseña en ninguno.
-  assert.equal(audits.length, 3);
-  assert.ok(pws[0] && !JSON.stringify(audits).includes(pws[0]));
-});
-
-test("masivo: un tenant sin OWNER no aborta el lote (se lista con error)", async () => {
-  const owners = {
-    t1: { id: "u1", email: "a@x.test" },
-    t2: null, // sin OWNER
-    t3: { id: "u3", email: "c@x.test" },
-  };
-  const { port } = makeMultiPort(owners);
-  const tenants = [
-    { id: "t1", name: "Uno" },
-    { id: "t2", name: "Dos" },
-    { id: "t3", name: "Tres" },
-  ];
-  const rows = await resetManyOwnerPasswordsCore(port, tenants, "op");
-  assert.equal(rows.length, 3);
-  assert.ok(rows[0].password && rows[2].password);
-  // El del medio: sin contraseña, con error, pero el lote siguió.
-  assert.equal(rows[1].password, null);
-  assert.equal(rows[1].email, null);
-  assert.match(rows[1].error ?? "", /OWNER/);
-});
-
-test("masivo: columna del flag sin aplicar → ninguna provisoria, cada fila con el error", async () => {
-  const owners = { t1: { id: "u1", email: "a@x.test" } };
-  const { port } = makeMultiPort(owners, true);
-  const rows = await resetManyOwnerPasswordsCore(port, [{ id: "t1", name: "Uno" }], "op");
-  assert.equal(rows[0].password, null);
-  assert.equal(rows[0].error, CAMBIO_OBLIGATORIO_INACTIVO);
+  assert.equal(mails.length, 0);
 });
