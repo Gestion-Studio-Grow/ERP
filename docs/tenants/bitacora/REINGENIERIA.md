@@ -96,6 +96,14 @@ y un mensaje claro al repartidor.
 - La vidriera `src/app/tienda/local/` (sólo para negocios con config) y las páginas legales `/tienda/{terminos,privacidad,arrepentimiento}`.
 - En el alta: `placeOnlineOrder` suma la ubicación y el pago a la nota y a la auditoría, y redirige a `/tienda/pedido/<token>`.
 - En la bandeja: «Mandar al repartidor» (marca «En camino») y «Mandar seguimiento al cliente».
+- Vidriera de autor (skill `vidriera-de-autor`): portada en capas con parallax en CSS, índice fijo de la carta,
+  microinteracciones con `prefers-reduced-motion`, y piel del local (`marca.ts`, contraste AA garantizado).
+- «Mi cuenta» (`/tienda/mi-cuenta`): historial, direcciones y «repetir pedido» guardados en el dispositivo;
+  el servidor no guarda nada nuevo (`mi-cuenta.ts`).
+- Certificación adversarial de seguridad y datos con 4 observaciones cerradas: mensaje al repartidor sin
+  renglones falsos (`enUnaLinea`), alias provisorio nunca visible (`transferenciaPublicable`), coordenadas fuera del
+  AuditLog y falta de secreto sin 500.
+- QA: 30 capturas a 390, 768 y 1280 px, 0 errores de consola, 0 scroll horizontal y 0 callejones (PR #115).
 
 ## 8. Camino a producción (qué es reversible y qué es §C)
 
@@ -126,5 +134,10 @@ mensual de GSG (propuesta en Factory-GSG) · la revisión legal.
 - Directorio «comercios de Monte Grande» (varias vidrieras en una página) cuando haya 3 o más.
 - Reparto por franjas (`pedidos/reparto`) para gastronomía: hoy exige un rubro retail.
 - Un token de MP por negocio (hoy hay uno por despliegue).
+- Lighthouse móvil, CLS y fps del parallax sin medir.
+- «Mi cuenta» asocia el pedido recién mandado por una ventana de 30 min: dos pedidos seguidos desde el
+  mismo teléfono pueden cruzarse.
+- La carta se agrupa por palabras del nombre (no hay campo de categoría).
+- Asignar repartidor con mapa, pantalla de horario y de zona: hoy el botón de WhatsApp con mapa y Ajustes → Envíos.
 
 — Elaborado por GSG
