@@ -806,7 +806,7 @@ test("v5 F2 servidor: las lecturas de la cobranza usan la regla compartida; marc
     for (const linea of s.split("\n").filter((l) => /proyectoCuota\.findMany|cuotas: \{ where/.test(l) && /prevista: false/.test(l))) assert.match(linea, /pagadoEl: null/, `${archivo}: ${linea.trim().slice(0, 90)}`);
   }
   const acc = leer("./acciones-ficha.ts");
-  assert.match(acc, /proyectoCuota\.updateMany\(\{ where: \{ id, tenantId, pagadoEl: null, anuladoEl: null, prevista: false \}/);
+  assert.match(acc, /proyectoCuota\.updateMany\(\{ where: \{ id, tenantId, pagadoEl: null, anuladoEl: null, prevista: false, monto: c\.monto, moneda: c\.moneda \}/);
   const gestion = leer("./gestion.server.ts");
   const plan = gestion.slice(gestion.indexOf("async function aplicarPlan("));
   assert.match(plan, /tx\.proyectoCuota\.updateMany\(\{ where: \{ id: previa\.id, tenantId, pagadoEl: null \}, data: datos \}\)/);
