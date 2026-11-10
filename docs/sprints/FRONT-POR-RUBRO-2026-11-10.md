@@ -104,15 +104,15 @@ Marcas: **[QW]** = quick win de bajo riesgo (copy, orden, tamaño de toque, sin 
 **Transversal (aplica a todos, va primero)**
 1. **Un solo embudo de compra**: bolsa → datos → entrega → pago (MP / transferencia con alias copiable) →
    «Gracias» con botón de WhatsApp prellenado. Hoy hay 3 implementaciones.
-2. **WhatsApp-first medible**: botón flotante con mensaje prellenado por contexto (producto, turno, propiedad). **[QW]**
+2. **WhatsApp-first medible**: el CTA **ya existe** en todas las salidas (§1.1); falta verificar que el mensaje salga prellenado con contexto (producto, turno, propiedad). **[QW]**
 3. **Precio argentino claro**: «transferencia −x %», cuotas, total con envío antes del último paso. **[QW]**
 4. **Móvil primero**: objetivo de toque ≥ 44 px, barra de acción pegada abajo con zona segura, sin scroll horizontal a 360 px.
 5. **Performance**: LCP móvil ≤ 2,5 s en vidrieras; el 3D/animación carga diferido (método `vidriera-de-autor`).
 
 **Estética — CH (vivo; lo estético lo cubre ESTETICA-001, acá sólo se lista)**
-1. Reserva pública sin cuenta en ≤ 3 pasos con seña por MP/transferencia.
+1. Reserva pública: **ya existe con seña** y tiene al menos 4 pasos (`src/app/(site)/_ch/BookingModal.tsx:111`). La mejora es medir abandono por paso y probar bajarla a 3 (vecino/a + servicio en uno).
 2. Recordatorio por WhatsApp con «confirmar / reprogramar» de un toque.
-3. Backoffice: «Hoy» como primera pantalla en el celular (ya existe modo simple: `admin-nav-items.ts:269`); medir que cobrar un turno sea ≤ 3 toques.
+3. Backoffice: «Hoy» en el celular **ya existe** (modo simple, `admin-nav-items.ts:269`); medir que cobrar un turno sea ≤ 3 toques.
 4. [QW] Vouchers y reseñas visibles en la vidriera como prueba social.
 
 **Carnicería — Magra**
@@ -120,7 +120,7 @@ Marcas: **[QW]** = quick win de bajo riesgo (copy, orden, tamaño de toque, sin 
 2. Packs y «repetir mi pedido» (recompra semanal es el negocio).
 3. Franja de entrega/retiro elegible antes de pagar.
 4. [QW] Sello de origen/trazabilidad (Lotes → Etiqueta) arriba del pliegue.
-5. Backoffice: Vender + Balanza usable con una mano y guantes (botones grandes, alto contraste).
+5. Backoffice: Vender + Balanza usable con una mano y guantes (botones grandes, alto contraste), y **modo simple de mostrador** (§1.2, D6): hoy el recorte simple no trae Vender ni Pedidos.
 
 **Velas — Shine**
 1. Cross-sell por aroma y «armá tu regalo» con dedicatoria.
@@ -136,11 +136,11 @@ Marcas: **[QW]** = quick win de bajo riesgo (copy, orden, tamaño de toque, sin 
 **Pádel tienda — A Dos Manos**
 1. Comparador (`Enfrentadas`) accesible desde toda ficha; filtros por nivel/forma/balance/precio.
 2. Recomendador de pala con resultado comprable y compartible por WhatsApp.
-3. [QW] Cuotas y precio transferencia en la tarjeta.
+3. Cuotas y precio transferencia: **ya resuelto** (`adosmanos/Precio.tsx`). Queda llevarlo a Magra, Shine y QBO.
 
 **Pádel club — Break Point**
 1. Reservar clase/cancha en 2 toques desde el celular, con estado claro (confirmada / en espera).
-2. Vista «mis clases» con cancelar/recuperar sin llamar.
+2. Vista «mis clases»: cancelar **ya existe**; «recuperar» clase y lista de espera, sin coincidencias (§1.2).
 3. Backoffice del profe: grilla del día legible al sol (contraste, tamaño).
 
 **Supermercado / almacén / kiosco / verdulería / dietética / fiambrería / indumentaria (vidriera genérica)**
@@ -150,7 +150,7 @@ Marcas: **[QW]** = quick win de bajo riesgo (copy, orden, tamaño de toque, sin 
 4. [QW] Estados vacíos y de error en criollo con salida (nunca callejón).
 
 **Gastronomía (`pedido-online.tsx`)**
-1. Menú por QR que abre en < 2 s, con modificadores y notas.
+1. Menú por QR que abre en < 2 s, con modificadores y notas (**confirmado faltante** por grep, §1.2).
 2. Estado del pedido en vivo + aviso por WhatsApp.
 3. [QW] Horario/abierto-cerrado y demora estimada arriba.
 
@@ -190,7 +190,7 @@ Una ronda = 1 o 2 constructores, un frente a la vez; lo que toque plata (checkou
 
 - **Lighthouse móvil** (4G lenta, Moto G): Performance ≥ 85 en vidrieras, Accesibilidad ≥ 95; LCP ≤ 2,5 s, CLS ≤ 0,1, INP ≤ 200 ms.
 - **a11y AA**: contraste ≥ 4,5:1 en texto; todo operable por teclado; foco visible; `prefers-reduced-motion` respetado.
-- **Toques**: comprar desde la tarjeta ≤ 5 toques hasta «pagar»; reservar turno ≤ 3 pasos; cobrar en backoffice ≤ 3 toques.
+- **Toques**: comprar desde la tarjeta ≤ 5 toques hasta «pagar»; reservar turno ≤ 3 pasos (hoy ≥ 4 en CH); cobrar en backoffice ≤ 3 toques.
 - **360 px**: sin scroll horizontal; objetivos de toque ≥ 44 px; barra de acción con zona segura.
 - **WhatsApp**: cada vidriera tiene ≥ 1 CTA con mensaje prellenado contextual; verificado clic por clic.
 - **Pago**: MP y transferencia (alias copiable + total) visibles antes de confirmar; «Gracias» con siguiente paso.
