@@ -1,6 +1,6 @@
 // A QUÉ OWNER se le resetea la contraseña. Un negocio puede tener varios OWNER activos y el puerto,
 // sin `ownerId`, toma el más antiguo (que puede ser otra persona). Por eso la consola
-// (`resetOwnerPasswordDeTenant`, `resetOwnerPassword`) y el script del responsable de seguridad
+// (`resetOwnerPasswordDeTenant`) y el script del responsable de seguridad
 // (`resetOwnerPorSlug`) eligen ANTES de escribir nada, con esta misma regla:
 //   - con `email` (sin espacios ni mayúsculas) o con `ownerId`: el único OWNER activo de ESTE negocio
 //     que coincide; si no hay exactamente uno → `no-coincide`;

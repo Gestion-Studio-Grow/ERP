@@ -432,7 +432,6 @@ test("TRINQUETE: todo endpoint con privilegio de operador tiene PRIMERO la guard
     "src/lib/operator-actions.ts#cargarCredencialFiscal",
     "src/lib/operator-actions.ts#fijarAsignacionActual",
     "src/lib/operator-actions.ts#generarPedidoCertificadoArca",
-    "src/lib/operator-actions.ts#resetOwnerPassword",
     "src/lib/operator-actions.ts#resetOwnerPasswordDeTenant",
     "src/lib/operator-actions.ts#setTenantArcaCondicionIva",
     "src/lib/operator-actions.ts#setTenantArcaCuit",

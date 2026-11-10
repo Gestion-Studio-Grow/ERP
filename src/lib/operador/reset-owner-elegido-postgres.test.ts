@@ -5,7 +5,7 @@
 // Antes la consola reseteaba siempre al OWNER activo MÁS ANTIGUO: con dos dueños, le cambiaba la
 // contraseña a quien no era. Ahora (`resetOwnerPasswordDeTenant` con `ownerId`, operator-actions.ts):
 //   · con dos dueños y sin elegir → se niega y no cambia ningún hash, flag ni auditoría;
-//   · lo mismo la acción legada `resetOwnerPassword`;
+//   · la acción legada `resetOwnerPassword` (sin slug) ya no existe: un test lo vigila;
 //   · un `ownerId` de otro negocio, inactivo, borrado o de una recepcionista → se niega sin tocar nada;
 //   · el `ownerId` elegido (el MÁS NUEVO) → cambia sólo ése: hash, cambio obligatorio y auditoría suya;
 //   · un negocio con un solo dueño y sin `ownerId` → sale como siempre.
@@ -40,7 +40,8 @@ test("consola: con varios dueños activos hay que elegir; se resetea sólo al el
   const duenio = await prismaComoDuenio(base);
   const { operatorPrisma } = await import("@/lib/operator-db");
   const { createOperatorToken } = await import("@/lib/operator-auth");
-  const { resetOwnerPassword, resetOwnerPasswordDeTenant } = await import("@/lib/operator-actions");
+  const acciones = await import("@/lib/operator-actions");
+  const { resetOwnerPasswordDeTenant } = acciones;
   const operador = { cookies: { operator_session: await createOperatorToken("tomas") } };
   assert.equal(await operatorPrisma.user.count(), 0, "la conexión de la consola tiene que estar sujeta a RLS");
 
@@ -81,11 +82,10 @@ test("consola: con varios dueños activos hay que elegir; se resetea sólo al el
     assert.equal(await foto(), sinTocar);
   });
 
-  await t.test("la acción legada tampoco elige al más antiguo", async () => {
-    const r = await intentar(() => resetOwnerPassword(a.id));
-    assert.equal(r?.ok, false);
-    assert.match(String(r?.error), /más de un dueño activo/);
-    assert.equal(await foto(), sinTocar);
+  await t.test("la acción legada sin slug (`resetOwnerPassword`) no vuelve a existir", () => {
+    // Reseteaba sin confirmar el slug del negocio. El único reset de la consola es
+    // `resetOwnerPasswordDeTenant(tenantId, slug, ownerId?)`.
+    assert.equal(typeof (acciones as Record<string, unknown>).resetOwnerPassword, "undefined");
   });
 
   await t.test("ownerId de otro negocio, inactivo, borrado, de recepción o inexistente: se niega sin tocar nada", async () => {
