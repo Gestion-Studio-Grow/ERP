@@ -14,6 +14,7 @@
 // `audit()` nunca lanza (audit-core.ts): si la fila original no se pudo escribir, el ajuste sale
 // igual y el desvío se mide contra lo que tenía el pedido (lo mismo que sin la fila).
 
+import { contactoVisibleDelNegocio, nombreVisibleDelNegocio } from "@/lib/marca-demo";
 import { prisma } from "@/lib/prisma";
 import { requireCapability } from "@/lib/authz";
 import { getCurrentTenantId } from "@/lib/tenant";
@@ -144,7 +145,7 @@ export async function listoYAvisar(formData: FormData): Promise<ResultadoDelList
     prisma.order.findFirst({ where: { id, tenantId }, select: { ...SELECT_PEDIDO, createdAt: true } }),
     filaOriginal(tenantId, id),
     getTenantIdentity(),
-    prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true } }),
+    prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true, slug: true } }),
     prisma.businessSettings.findUnique({ where: { tenantId }, select: { addressLine: true, hoursLabel: true } }).catch(() => null),
     conArmado ? negocioConOfertas(tenantId) : Promise.resolve(false),
   ]);
@@ -246,8 +247,8 @@ export async function listoYAvisar(formData: FormData): Promise<ResultadoDelList
     pagado: o.paid,
     fulfillment: o.fulfillment,
     direccionEnvio: o.address,
-    negocio: tenant?.name ?? "el local",
-    direccionLocal: bs?.addressLine?.trim() || null,
+    negocio: nombreVisibleDelNegocio(tenant?.slug, tenant?.name, "el local"),
+    direccionLocal: contactoVisibleDelNegocio(tenant?.slug, bs?.addressLine?.trim() || null), // DEMO GSG: sin la dirección del cliente.
     horarioLocal: bs?.hoursLabel?.trim() || null,
     listoPara: entregaDelRubro(identidad.rubro).listoPara,
   });

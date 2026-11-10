@@ -7,6 +7,7 @@
 // en código (el token lo carga el dueño en el entorno).
 
 import { revalidatePath } from "next/cache";
+import { nombreVisibleDelNegocio } from "@/lib/marca-demo";
 import { prisma } from "@/lib/prisma";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
@@ -188,7 +189,7 @@ export async function generarLinkDePagoDePedido(
   if (o.paid) return { ok: false, error: `El pedido #${o.code} ya está cobrado.` };
   const monto = round2(o.total);
   if (!(monto > 0)) return { ok: false, error: `El pedido #${o.code} no tiene importe para cobrar.` };
-  const negocio = tenant.name || "el local";
+  const negocio = nombreVisibleDelNegocio(tenant.slug, tenant.name, "el local"); // DEMO GSG: el nombre de la demo.
 
   // `gsg:<slug>:pedido:<id>`: el aviso de pago saca el negocio de acá, nunca del host (Tanda S1).
   const referenciaMP = referenciaDelLinkDePedido(tenant.slug, o.id);

@@ -92,3 +92,17 @@ export function contactoDeLaDemo<T extends DatosDeContacto>(datos: T | null): T 
     contactNote: null,
   };
 }
+
+/**
+ * El nombre del negocio que se MUESTRA (ticket del mostrador, pedidos, reparto, avisos y link de cobro): el de la demo
+ * si el negocio se presenta como demo GSG; si no, el de la fila Tenant tal cual (o el reemplazo de siempre). PURA.
+ */
+export function nombreVisibleDelNegocio(slug: string | null | undefined, nombre: string | null | undefined, siFalta: string): string {
+  if (presentaComoDemoGsg(slug)) return MARCA_DEMO_GSG.nombre;
+  return nombre || siFalta;
+}
+
+/** Un dato de contacto del local (dirección, WhatsApp) que la demo NO muestra: null en la demo, el valor si no. PURA. */
+export function contactoVisibleDelNegocio<T>(slug: string | null | undefined, valor: T): T | null {
+  return presentaComoDemoGsg(slug) ? null : valor;
+}

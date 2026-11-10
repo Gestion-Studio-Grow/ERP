@@ -12,6 +12,7 @@
 // No decide nada: lo traduce reparto-core.ts.
 
 import "server-only";
+import { nombreVisibleDelNegocio } from "@/lib/marca-demo";
 import { prisma } from "@/lib/prisma";
 import { businessWallTimeToUtc, todayInBusinessTz } from "@/lib/datetime";
 import { ESTADOS_EN_CURSO } from "@/lib/order-anulacion";
@@ -60,7 +61,7 @@ export async function leerDatosDelReparto(tenantId: string): Promise<DatosDelRep
       },
     }),
     leerConfigEnvios(prisma, tenantId),
-    prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true } }),
+    prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true, slug: true } }),
   ]);
   const ids = ordenes.map((o) => o.id);
   const filas = await prisma.auditLog.findMany({
@@ -106,7 +107,7 @@ export async function leerDatosDelReparto(tenantId: string): Promise<DatosDelRep
 
   return {
     hoy,
-    negocio: tenant?.name ?? "el local",
+    negocio: nombreVisibleDelNegocio(tenant?.slug, tenant?.name, "el local"),
     envios,
     ordenDeZonas: config.zonas.map((z) => z.nombre),
     rendidosHoy,
