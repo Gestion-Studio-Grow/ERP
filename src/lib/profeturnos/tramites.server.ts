@@ -15,7 +15,7 @@ import { tenantTransaction } from "@/lib/rls";
 import { logger } from "@/lib/logger";
 import { PROFETURNOS, type DatosTramiteProfeturnos, type Efecto, type TipoTramite } from "@/lib/factoque-tramites";
 import { dateStrInBusinessTz, todayInBusinessTz } from "@/lib/datetime";
-import { dentroDelArrepentimiento } from "./plan-core";
+import { dentroDelArrepentimiento, filaTrasElArrepentimiento, filaTrasLaBaja } from "./plan-core";
 import { ACCION_DEVOLUCION, ACCION_PAGO, ACCION_PLAN, planEnTx } from "./plan.server";
 
 type TenantTx = Parameters<Parameters<typeof tenantTransaction>[0]>[0];
@@ -28,10 +28,13 @@ export const BLUEPRINT_PROFETURNOS = "profe-padel";
  * negocio, con el candado `profeturnos-plan:<tenantId>` ya tomado, y SÓLO por el camino con sesión
  * (el trámite público no cambia el plan de nadie por saber un link).
  *  · Arrepentimiento con un pago de los últimos `DIAS_ARREPENTIMIENTO` días: fila `profeturnos.plan`
- *    {plan: "vencido"} (panel en modo lectura, no se borra nada) y una fila `profeturnos.devolucion`
- *    por cada pago a devolver: GSG devuelve A MANO (no se automatiza). → «plan_a_gratis».
+ *    con la vigencia del pago conservado más reciente (los meses pagados fuera de plazo no se devuelven
+ *    y se respetan) o {plan: "vencido"} si no queda vigencia (panel en modo lectura, no se borra nada);
+ *    y una fila `profeturnos.devolucion` por cada pago a devolver: GSG devuelve A MANO (no se
+ *    automatiza). → «plan_a_gratis».
  *    Si esos pagos ya estaban marcados para devolver → «ya_era_gratis». Sin pago en plazo → «registrado».
- *  · Baja: no renueva y conserva lo pagado: fila `profeturnos.plan` {plan: "baja", vigenciaHasta igual}.
+ *  · Baja: no renueva y conserva lo pagado: fila `profeturnos.plan` {plan: "baja", vigenciaHasta igual};
+ *    tras un arrepentimiento sigue «vencido» (la baja nunca deja el plan mejor de lo que estaba).
  *    → «registrado». Un negocio «libre» (sin alta web) no recibe filas de plan.
  */
 async function efectoDelTramite(tx: TenantTx, tenantId: string, tipo: TipoTramite, numero: string): Promise<Efecto> {
@@ -47,7 +50,7 @@ async function efectoDelTramite(tx: TenantTx, tenantId: string, tipo: TipoTramit
         action: ACCION_PLAN,
         entity: "Tenant",
         entityId: tenantId,
-        changes: { plan: "baja", vigenciaHasta: plan.fila.vigenciaHasta, por, tramite: numero, antes: { ...plan.fila } },
+        changes: { ...filaTrasLaBaja(plan.fila), por, tramite: numero, antes: { ...plan.fila } },
         channel: "admin",
       },
     });
@@ -61,16 +64,25 @@ async function efectoDelTramite(tx: TenantTx, tenantId: string, tipo: TipoTramit
   });
   const enPlazo = pagos.filter((p) => p.entityId && dentroDelArrepentimiento(dateStrInBusinessTz(p.createdAt), hoy));
   if (!enPlazo.length) return "registrado";
+  // Las devoluciones ya marcadas de TODOS los pagos leídos: el pago conservado más reciente sale de acá.
   const yaMarcados = new Set(
     (
       await tx.auditLog.findMany({
-        where: { tenantId, action: ACCION_DEVOLUCION, entity: "Pago", entityId: { in: enPlazo.map((p) => p.entityId as string) } },
+        where: { tenantId, action: ACCION_DEVOLUCION, entity: "Pago", entityId: { in: pagos.flatMap((p) => (p.entityId ? [p.entityId] : [])) } },
         select: { entityId: true },
       })
     ).map((d) => d.entityId),
   );
   const aDevolver = enPlazo.filter((p) => !yaMarcados.has(p.entityId));
   if (!aDevolver.length) return "ya_era_gratis";
+  const devueltos = new Set<string>([...yaMarcados].filter((x): x is string => !!x));
+  for (const p of aDevolver) devueltos.add(p.entityId as string);
+  const nueva = filaTrasElArrepentimiento(
+    pagos.flatMap((p) => (p.entityId ? [{ id: p.entityId, vigenciaHasta: (p.changes as { vigenciaHasta?: unknown } | null)?.vigenciaHasta }] : [])),
+    devueltos,
+    plan.fila,
+    hoy,
+  );
   await tx.auditLog.create({
     data: {
       tenantId,
@@ -78,7 +90,7 @@ async function efectoDelTramite(tx: TenantTx, tenantId: string, tipo: TipoTramit
       action: ACCION_PLAN,
       entity: "Tenant",
       entityId: tenantId,
-      changes: { plan: "vencido", vigenciaHasta: null, por, tramite: numero, antes: { ...plan.fila } },
+      changes: { ...nueva, por, tramite: numero, antes: { ...plan.fila } },
       channel: "admin",
     },
   });

@@ -7,7 +7,9 @@
 //  · El mismo pago 6 veces EN PARALELO: una sola fila de pago y una sola extensión.
 //  · Vencido: agendar (server action real) se rechaza; el turnero no toma pedidos. Pagado: anda.
 //  · Baja con sesión conserva la vigencia; arrepentimiento dentro de 10 días → vencido + devolución
-//    a mano (una por pago, sin duplicar). Sin fila de alta: «libre», nunca se traba.
+//    a mano (una por pago, sin duplicar); los pagos fuera de plazo conservan su vigencia; la baja
+//    posterior no revive la prueba. Reverso (refunded/charged_back) de un pago acreditado: fila y aviso.
+//    Sin fila de alta: «libre», nunca se traba.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -17,7 +19,7 @@ import { ejecutarAccion, prepararAccionesDeServidor } from "@/test/accion-de-ser
 import { buildManifest } from "@/plugins/mercadopago/signature";
 import type { HttpTransport } from "@/plugins/mercadopago/http";
 import { PRECIO_MENSUAL } from "./planes";
-import { sumarUnMes } from "./plan-core";
+import { sumarDias, sumarUnMes } from "./plan-core";
 
 const SECRETO = "secreto-de-prueba";
 
@@ -164,11 +166,42 @@ test("webhook de ProfeTurnos: firma, re-lectura, exigencias, idempotencia en par
   assert.equal((await filas(B, "profeturnos.devolucion")).length, 2);
   // Nada se borró: los pagos siguen.
   assert.equal((await filas(B, "profeturnos.pago")).length, 2);
+  // F3: una baja después del arrepentimiento no deshace el corte.
+  await registrarTramiteProfeturnos("baja", "BAJ-20261110-T2004", datos, { tenantId: B, userId: base.b.duenia.id });
+  assert.equal((await leerPlan(B)).estado, "vencido");
 
   // Un pago nuevo después del arrepentimiento arranca de hoy.
   pago("1003");
   assert.equal((await status(atenderAvisoProfeturnos(aviso("1003"), deps()))).cuerpo.acreditado, true);
   assert.equal((await leerPlan(B)).fila.vigenciaHasta, v1);
+
+  // ── F4: un pago acreditado que vuelve devuelto o contracargado → fila de reverso (una por estado) y
+  //    sin tocar los días (provisional a confirmar con el dueño).
+  pagos["1003"] = { ...pagos["1003"], status: "refunded" };
+  assert.equal((await status(atenderAvisoProfeturnos(aviso("1003"), deps()))).cuerpo.reverso, "registrado");
+  assert.equal((await status(atenderAvisoProfeturnos(aviso("1003"), deps()))).cuerpo.reverso, "repetido");
+  pagos["1003"] = { ...pagos["1003"], status: "charged_back" };
+  assert.equal((await status(atenderAvisoProfeturnos(aviso("1003"), deps()))).cuerpo.reverso, "registrado");
+  const rev = await filas(B, "profeturnos.pago.reverso");
+  assert.deepEqual(rev.map((r) => [r.entityId, (r.changes as { status: string }).status]), [["1003", "refunded"], ["1003", "charged_back"]]);
+  assert.equal((await leerPlan(B)).fila.vigenciaHasta, v1, "no se quitan días solos");
+  // Devuelto pero nunca acreditado: se ignora como antes, sin fila.
+  pago("2007", { status: "refunded" });
+  assert.equal((await status(atenderAvisoProfeturnos(aviso("2007"), deps()))).cuerpo.ignorado, "no-aprobado");
+  assert.equal((await filas(B, "profeturnos.pago.reverso")).length, 2);
+
+  // ── F2: arrepentimiento con un pago en plazo y otro de hace 20 días (fuera de plazo, no se devuelve):
+  //    el plan queda con la vigencia del pago conservado, no «vencido».
+  const vViejo = sumarDias(hoy, 5);
+  await duenio.auditLog.create({
+    data: { tenantId: B, actor: "webhook:profeturnos-mp", action: "profeturnos.pago", entity: "Pago", entityId: "0999", changes: { paymentId: "0999", monto: PRECIO_MENSUAL, vigenciaHasta: vViejo }, channel: "webhook", createdAt: new Date(Date.now() - 20 * 86_400_000) },
+  });
+  const arr3 = await registrarTramiteProfeturnos("arrepentimiento", "ARR-20261110-T2005", datos, { tenantId: B, userId: base.b.duenia.id });
+  assert.equal(arr3.efecto, "plan_a_gratis");
+  const trasArr3 = await leerPlan(B);
+  assert.equal(trasArr3.estado, "activo");
+  assert.equal(trasArr3.fila.vigenciaHasta, vViejo);
+  assert.deepEqual((await filas(B, "profeturnos.devolucion")).map((d) => d.entityId).sort(), ["1001", "1002", "1003"]);
 
   // ── Aislamiento: nada de ProfeTurnos en A.
   assert.equal(await duenio.auditLog.count({ where: { tenantId: A, action: { startsWith: "profeturnos." } } }), 0);

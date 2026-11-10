@@ -12,6 +12,9 @@ import {
   validarPago,
   vigenciaTrasUnPago,
   ultimoDiaDePrueba,
+  filaTrasElArrepentimiento,
+  filaTrasLaBaja,
+  sumarDias,
 } from "./plan-core";
 import { DIAS_PRUEBA, PRECIO_MENSUAL } from "./planes";
 import { crearCobroMensual, origenDelHost, pagosDisponibles, parsearPagoLeido } from "./cobro-mp";
@@ -153,4 +156,43 @@ test("parsearPagoLeido: toma moneda, monto, estado y referencia", () => {
 
 test("el portón del sitio no tapa el webhook", () => {
   assert.equal(gateAplicaA("/api/webhooks/profeturnos-mp"), false);
+});
+
+// ─── Regresiones de la certificación adversarial (F2, F3) ───────────────────────────────────────
+
+test("F2 arrepentimiento: devuelve sólo el pago en plazo y respeta los meses pagados fuera de plazo", () => {
+  const alta = "2026-01-01";
+  const v1 = vigenciaTrasUnPago({ altaEn: alta, vigenciaHasta: null, plan: null, hoy: "2026-01-20" }); // P1
+  const v2 = vigenciaTrasUnPago({ altaEn: alta, vigenciaHasta: v1, plan: "mensual", hoy: "2026-02-15" }); // P2
+  assert.equal(v1, "2026-02-20");
+  assert.equal(v2, "2026-03-20");
+  const pagos = [
+    { id: "p2", vigenciaHasta: v2 },
+    { id: "p1", vigenciaHasta: v1 },
+  ];
+  // El 16/02 se arrepiente: P2 (1 día) entra; P1 (27 días) no se devuelve → vigencia de P1.
+  const hoy = "2026-02-16";
+  const f = filaTrasElArrepentimiento(pagos, new Set(["p2"]), { plan: "mensual" }, hoy);
+  assert.deepEqual(f, { plan: "mensual", vigenciaHasta: v1 });
+  const e = estadoDelPlan({ altaEn: alta, ...f, hoy });
+  assert.equal(e.estado, "activo");
+  assert.equal(e.hasta, "2026-02-20");
+  // Con baja previa, la conserva.
+  assert.equal(filaTrasElArrepentimiento(pagos, new Set(["p2"]), { plan: "baja" }, hoy).plan, "baja");
+  // Todo devuelto (o lo conservado ya pasó): vencido, también la prueba.
+  assert.deepEqual(filaTrasElArrepentimiento(pagos, new Set(["p1", "p2"]), { plan: "mensual" }, hoy), { plan: "vencido", vigenciaHasta: null });
+  assert.deepEqual(filaTrasElArrepentimiento(pagos, new Set(["p2"]), { plan: "mensual" }, "2026-02-21"), { plan: "vencido", vigenciaHasta: null });
+  assert.deepEqual(filaTrasElArrepentimiento([{ id: "p1", vigenciaHasta: "basura" }], new Set(), { plan: null }, hoy), { plan: "vencido", vigenciaHasta: null });
+});
+
+test("F3 baja después de un arrepentimiento: sigue vencido, no revive la prueba", () => {
+  const alta = "2026-03-01";
+  const hoy = sumarDias(alta, 5);
+  const f = filaTrasLaBaja({ plan: "vencido", vigenciaHasta: null });
+  assert.deepEqual(f, { plan: "vencido", vigenciaHasta: null });
+  assert.equal(estadoDelPlan({ altaEn: alta, ...f, hoy }).estado, "vencido");
+  // Sin corte previo: conserva la vigencia y marca la baja.
+  assert.deepEqual(filaTrasLaBaja({ plan: "mensual", vigenciaHasta: "2026-04-10" }), { plan: "baja", vigenciaHasta: "2026-04-10" });
+  assert.deepEqual(filaTrasLaBaja({ plan: null, vigenciaHasta: null }), { plan: "baja", vigenciaHasta: null });
+  assert.equal(estadoDelPlan({ altaEn: alta, ...filaTrasLaBaja({ plan: null, vigenciaHasta: null }), hoy }).estado, "prueba");
 });

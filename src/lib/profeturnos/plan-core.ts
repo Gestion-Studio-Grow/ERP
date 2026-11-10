@@ -123,6 +123,41 @@ export function dentroDelArrepentimiento(fechaPago: string, hoy: string): boolea
   return d >= 0 && d <= DIAS_ARREPENTIMIENTO;
 }
 
+/** La fila de plan que deja un trámite: qué plan y hasta cuándo (null = sin abono). */
+export interface FilaNueva {
+  plan: PlanDeLaFila;
+  vigenciaHasta: string | null;
+}
+
+/**
+ * BAJA: no renueva y conserva lo pagado. Nunca deja el plan MEJOR de lo que estaba: si un
+ * arrepentimiento ya lo cortó («vencido»), sigue cortado (una «baja» sin vigencia revive la prueba).
+ */
+export function filaTrasLaBaja(actual: { plan: PlanDeLaFila | null; vigenciaHasta: string | null }): FilaNueva {
+  if (actual.plan === "vencido") return { plan: "vencido", vigenciaHasta: null };
+  return { plan: "baja", vigenciaHasta: esFecha(actual.vigenciaHasta) ? actual.vigenciaHasta : null };
+}
+
+/**
+ * ARREPENTIMIENTO: se devuelven sólo los pagos dentro del plazo; los de antes no se devuelven y sus
+ * días se conservan. La vigencia vuelve a la que dejó el pago CONSERVADO más reciente (cada fila
+ * `profeturnos.pago` guarda la vigencia que produjo). Si no queda vigencia (ningún pago conservado, o
+ * ya pasó), «vencido»: corta también lo que quede de prueba, como siempre.
+ *
+ * `pagos`: del más nuevo al más viejo. `devueltos`: los que se devuelven ahora y los ya marcados.
+ */
+export function filaTrasElArrepentimiento(
+  pagos: readonly { id: string; vigenciaHasta: unknown }[],
+  devueltos: ReadonlySet<string>,
+  actual: { plan: PlanDeLaFila | null },
+  hoy: string,
+): FilaNueva {
+  const conservado = pagos.find((p) => !devueltos.has(p.id));
+  const v = conservado && esFecha(conservado.vigenciaHasta) ? conservado.vigenciaHasta : null;
+  if (v === null || v < hoy) return { plan: "vencido", vigenciaHasta: null };
+  return { plan: actual.plan === "baja" ? "baja" : "mensual", vigenciaHasta: v };
+}
+
 // ─── Referencia externa del cobro: `pt:<tenantId>:mensual:<nonce>` ────────────────────────────────
 
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
