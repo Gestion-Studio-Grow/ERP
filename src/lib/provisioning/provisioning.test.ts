@@ -11,7 +11,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { planProvision } from "./dry-run";
-import { runTenantProvisioning, ProvisionBlockedError } from "./provision";
+import { runTenantProvisioning, ProvisionBlockedError, sinClaveProvisoria } from "./provision";
 import {
   nextOnSuccess,
   canTransition,
@@ -217,7 +217,9 @@ test("saga: idempotencia por idempotencyKey → 2ª llamada devuelve el cacheado
   const first = await runTenantProvisioning(baseInput({ mode: "commit" }), deps);
   const second = await runTenantProvisioning(baseInput({ mode: "commit" }), deps);
   assert.equal((deps.committer as EchoCommitter).commits.length, 1); // sólo una vez
-  assert.deepEqual(second, first); // mismo outcome
+  // Mismo outcome, pero SIN la provisoria: la repetición no la vuelve a entregar (GSG-SEG-014).
+  assert.deepEqual(second, sinClaveProvisoria(first));
+  assert.equal(second.commit?.generatedPassword, undefined);
 });
 
 test("saga: fallo al invitar → FAILED_COMPENSATED, host des-ligado (compensación), tenant NO borrado", async () => {

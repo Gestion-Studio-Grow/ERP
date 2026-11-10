@@ -22,7 +22,7 @@ reseteos se hacen sin que nadie intervenga en la consola de producción.
 |---|---|---|---|
 | Reseteo del dueño (ficha del negocio) | `resetearClaveDelDuenioConMail` (`src/lib/clave-temporal-entrega.server.ts`) | último paso **dentro** de la transacción (flag → hash → auditoría → mail) | se deshace todo (hash anterior intacto). La falla queda en la auditoría (`clave_temporal.mail_fallido`, en otra transacción) y en pantalla. |
 | Alta de una persona (consola) | `altaPersonaCore` (`src/lib/operador/alta-persona.ts`) | igual: último paso dentro de la transacción | el alta se deshace entera. Se audita y se avisa. |
-| Alta de negocio (wizard) | `commitTenantAction` → `entregarClaveDeAlta` | **después** del commit: la saga de provisión no puede quedar abierta esperando la red | el negocio queda creado con una clave que nadie tiene y el cambio obligatorio. La pantalla indica «Resetear y mandar por mail» en la ficha. |
+| Alta de negocio (wizard) | `commitTenantAction` → `entregarClaveDeAlta` | **después** del commit: la saga de provisión no puede quedar abierta esperando la red. Sólo si ESTE alta creó al dueño, y al OWNER de la base con ese email. El cache de idempotencia de la saga guarda el resultado **sin** la clave (`sinClaveProvisoria`): repetir el alta no vuelve a mandar nada | el negocio queda creado con una clave que nadie tiene y el cambio obligatorio. La pantalla indica «Resetear y mandar por mail» en la ficha. |
 | Configurador (pedido de alta) | `entregarClavesDelConfigurador` (`solicitudes/entrega-de-claves.ts`) | después del commit, una por titular, en su negocio | igual que el wizard. A la contadora le genera otra la dueña del estudio. |
 | Reseteo pendiente (orden del dueño) | `RESETEOS_PENDIENTES` (`src/lib/claves-pendientes.ts`) + `/api/cron/claves-pendientes` | igual que el reseteo del dueño | queda en `fallo` y se reintenta en la corrida del día siguiente. |
 
@@ -38,7 +38,11 @@ Se usan cuando el dueño pide resetear a alguien y nadie debe tocar la consola d
 1. Se suma una entrada a `RESETEOS_PENDIENTES` con:
    - una `clave` **única** para siempre (fecha + negocio + quién);
    - el `slug` del negocio;
-   - el `motivo`.
+   - el `motivo`;
+   - `vence` (AAAA-MM-DD), **a lo sumo 90 días** después de la fecha de la clave (un test lo controla).
+     Pasada esa fecha la entrada queda `vencida` y no hace nada. Motivo: la purga de auditoría
+     (`audit-retention.ts`, 18 meses) borra la fila que prueba que el reseteo ya se hizo; sin vencimiento,
+     una entrada olvidada volvería a resetear al dueño.
 2. Se publica por PR. El cron diario de producción (`vercel.json`, `0 13 * * *` UTC = 10:00 Argentina) lo corre
    con los secretos del servidor (`CRON_SECRET`, Resend).
 3. **Idempotente:**
@@ -66,3 +70,4 @@ cuando salió bien, o `clave_temporal.mail_fallido` cuando no salió.
 - `src/lib/claves-pendientes.test.ts`, `src/lib/claves-pendientes-postgres.test.ts`: idempotencia, concurrencia, mail caído y reintento, y el portón del cambio obligatorio.
 - `src/lib/operador/consola-bajo-rls-postgres.test.ts`: alta y reseteo bajo RLS con Resend simulado; con el mail caído no cambia nada.
 - `solicitudes/entrega-de-claves.test.ts`: el configurador no devuelve ninguna clave.
+- `src/lib/alta-negocio-clave-postgres.test.ts`: repetir el alta con el mismo nombre corto y otro email no manda ningún mail más (hallazgo del refutador).

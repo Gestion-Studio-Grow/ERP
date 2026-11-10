@@ -620,6 +620,10 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
   Detalle: `docs/seguridad/clave-temporal-por-mail.md`.
 - **Guardarraíl:** una credencial nunca pasa por la pantalla del operador; una operación que hoy pide «hacelo a
   mano en prod» se declara en código y la corre el servidor con sus propios secretos, idempotente y auditada.
+  Dos trampas que encontró el refutador: (1) un cache de idempotencia que guarda un resultado con un secreto lo
+  re-entrega a quien repita el pedido (el alta repetida con otro email recibía la clave del dueño): el cache
+  guarda el resultado SIN el secreto; (2) la idempotencia apoyada en la auditoría dura lo que dura la fila: la
+  purga de 18 meses la borra, así que cada reseteo declarado lleva `vence` (≤ 90 días).
 - **Refs:** SEC-1, SEC-6; `mustChangePassword` (#55).
 
 **[MP-15] Deviación de una decisión de ADR citando una autoridad no trazable en el repo**

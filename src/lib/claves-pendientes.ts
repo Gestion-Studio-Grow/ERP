@@ -13,6 +13,11 @@
 // vuelven a resetear. Para volver a resetear al mismo negocio se declara una entrada con OTRA clave.
 //
 // Una entrada ya cumplida se puede dejar (no hace nada, cuesta una consulta) o borrar en un PR aparte.
+//
+// VENCE. Cada entrada lleva `vence` (fecha ISO, hasta 90 días después de declararla). Pasada esa fecha
+// no corre más (`vencida`). Hace falta porque la purga de auditoría (`audit-retention.ts`, 18 meses)
+// borra la fila que prueba que el reseteo ya se hizo: sin vencimiento, una entrada olvidada en la
+// lista volvería a resetear la clave del dueño año y medio después.
 
 export type ResetPendiente = {
   /** Única para siempre: fecha + negocio + a quién. Es lo que hace idempotente al reseteo. */
@@ -21,17 +26,23 @@ export type ResetPendiente = {
   slug: string;
   /** Por qué (queda en la auditoría). */
   motivo: string;
+  /** Último día (AAAA-MM-DD, UTC) en que corre. Después queda `vencida` y no hace nada. */
+  vence: string;
 };
+
+/** Tope del vencimiento: la purga de auditoría es a los 18 meses; 90 días deja margen de sobra. */
+export const VENCE_MAXIMO_DIAS = 90;
 
 export const RESETEOS_PENDIENTES: readonly ResetPendiente[] = [
   // CH Estética (Carolina Haponiuk): orden del dueño del 10/11/2026, sin intervención manual.
-  { clave: "2026-11-10-beauty-spa-owner", slug: "beauty-spa", motivo: "orden del dueño 10/11/2026 (GSG-SEG-014)" },
+  { clave: "2026-11-10-beauty-spa-owner", slug: "beauty-spa", motivo: "orden del dueño 10/11/2026 (GSG-SEG-014)", vence: "2027-02-08" },
 ];
 
 export type EstadoPendiente =
   | { estado: "hecho"; enviadaA: string }
   | { estado: "ya-estaba" }
   | { estado: "sin-negocio" }
+  | { estado: "vencida" }
   | { estado: "fallo"; error: string };
 
 export type ResultadoPendiente = { clave: string } & EstadoPendiente;
@@ -47,7 +58,9 @@ export interface PendientesPort {
 export async function correrResetsPendientes(
   port: PendientesPort,
   pendientes: readonly ResetPendiente[] = RESETEOS_PENDIENTES,
+  hoy: Date = new Date(),
 ): Promise<ResultadoPendiente[]> {
+  const hoyIso = hoy.toISOString().slice(0, 10);
   const claves = new Set<string>();
   const salida: ResultadoPendiente[] = [];
   for (const p of pendientes) {
@@ -56,6 +69,14 @@ export async function correrResetsPendientes(
       continue;
     }
     claves.add(p.clave);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(p.vence ?? "")) {
+      salida.push({ clave: p.clave, estado: "fallo", error: "vence inválido (AAAA-MM-DD)" });
+      continue;
+    }
+    if (p.vence < hoyIso) {
+      salida.push({ clave: p.clave, estado: "vencida" });
+      continue;
+    }
     try {
       const tenantId = await port.buscarNegocio(p.slug);
       if (!tenantId) {

@@ -35,7 +35,7 @@ test("reseteo pendiente: mail caído no cambia nada; mail OK resetea una sola ve
   const { correrResetsPendientesEnLaBase } = await import("@/lib/claves-pendientes.server");
   const { verifyPassword } = await import("@/lib/auth-password");
   const a = base.a;
-  const pendiente = { clave: "2026-11-10-prueba-owner", slug: a.slug, motivo: "test" };
+  const pendiente = { clave: "2026-11-10-prueba-owner", slug: a.slug, motivo: "test", vence: "2099-12-31" };
   const fila = () =>
     duenio.user.findUniqueOrThrow({ where: { id: a.duenia.id }, select: { passwordHash: true, mustChangePassword: true } });
   const cuenta = (action: string) => duenio.auditLog.count({ where: { tenantId: a.id, action } });

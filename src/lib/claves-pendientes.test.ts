@@ -1,9 +1,9 @@
 // Reseteos pendientes declarados en código (GSG-SEG-014): el runner puro sobre un puerto en memoria.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { correrResetsPendientes, RESETEOS_PENDIENTES, type PendientesPort, type ResetPendiente } from "./claves-pendientes";
+import { correrResetsPendientes, RESETEOS_PENDIENTES, VENCE_MAXIMO_DIAS, type PendientesPort, type ResetPendiente } from "./claves-pendientes";
 
-const P: ResetPendiente = { clave: "k-1", slug: "beauty-spa", motivo: "prueba" };
+const P: ResetPendiente = { clave: "k-1", slug: "beauty-spa", motivo: "prueba", vence: "2099-12-31" };
 
 /** Puerto que simula la base: una auditoría con las claves ya hechas y un mail que acierta o falla. */
 function puerto(opts: { negocios?: Record<string, string>; mailFalla?: () => boolean } = {}) {
@@ -73,4 +73,24 @@ test("una clave repetida en la lista no se corre dos veces", async () => {
   const r = await correrResetsPendientes(p, [P, { ...P, slug: "otro" }]);
   assert.equal(r[1].estado, "fallo");
   assert.deepEqual(resets, ["t-ch"]);
+});
+
+test("VENCE: pasada la fecha no corre (la purga de auditoría a 18 meses no puede reabrir un reseteo)", async () => {
+  const { p, resets } = puerto();
+  const x = { ...P, vence: "2027-02-08" };
+  assert.deepEqual(await correrResetsPendientes(p, [x], new Date("2027-02-08T23:59:00Z")), [{ clave: "k-1", estado: "hecho", enviadaA: "c***@x.test" }]);
+  const y = { ...P, clave: "k-2", vence: "2027-02-08" };
+  assert.deepEqual(await correrResetsPendientes(p, [y], new Date("2027-02-09T00:00:00Z")), [{ clave: "k-2", estado: "vencida" }]);
+  const z = { ...P, clave: "k-3", vence: "" };
+  assert.equal((await correrResetsPendientes(p, [z]))[0].estado, "fallo", "sin vence válido no corre");
+  assert.equal(resets.length, 1);
+});
+
+test("toda entrada declarada vence a lo sumo 90 días después de la fecha de su clave", () => {
+  for (const x of RESETEOS_PENDIENTES) {
+    const desde = Date.parse(x.clave.slice(0, 10) + "T00:00:00Z");
+    const hasta = Date.parse(x.vence + "T00:00:00Z");
+    assert.ok(Number.isFinite(desde) && Number.isFinite(hasta), x.clave);
+    assert.ok(hasta >= desde && hasta - desde <= VENCE_MAXIMO_DIAS * 86_400_000, x.clave);
+  }
 });
