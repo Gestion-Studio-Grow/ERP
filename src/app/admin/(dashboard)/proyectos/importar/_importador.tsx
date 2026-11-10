@@ -3,9 +3,10 @@
 // Subir → vista previa con chips → contadores → «Cargar N proyectos». El File se conserva para confirmar: el servidor
 // vuelve a leerlo y a comparar la huella; nada se escribe con la vista previa.
 
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import { Badge, buttonClasses, type BadgeTone } from "@/components/ui";
-import { confirmarImportacion, previsualizarImportacion, type VistaImportacion } from "@/lib/proyectos/acciones-importador";
+import { confirmarImportacion, previsualizarImportacion, type ProyectoCreado, type VistaImportacion } from "@/lib/proyectos/acciones-importador";
 import type { EstadoFila } from "@/lib/proyectos/importador-core";
 import { tarjeta } from "../_vista";
 
@@ -17,11 +18,18 @@ const CHIP: Record<EstadoFila, { texto: string; tono: BadgeTone }> = {
   error: { texto: "No se carga", tono: "danger" },
 };
 
+/** Sólo se lee .xlsx: un .xls viejo (formato binario de Excel 97) se frena antes de mandarlo al servidor. */
+const MENSAJE_XLS = "Ese archivo es .xls viejo; descargalo como .xlsx (en Google Sheets: Archivo → Descargar → Microsoft Excel) y subilo de nuevo.";
+const esXlsViejo = (f: File) => /\.xls$/i.test(f.name) || f.type === "application/vnd.ms-excel";
+/** Hasta cuántos proyectos se linkean uno por uno; con más, el link a la lista alcanza. */
+const MAX_LINKS = 20;
+
 export function Importador() {
   const [archivo, setArchivo] = useState<File | null>(null);
   const [vista, setVista] = useState<VistaImportacion | null>(null);
   const [error, setError] = useState("");
   const [hecho, setHecho] = useState("");
+  const [creados, setCreados] = useState<ProyectoCreado[]>([]);
   const [pendiente, empezar] = useTransition();
 
   const form = () => {
@@ -33,6 +41,7 @@ export function Importador() {
     empezar(async () => {
       setError("");
       setHecho("");
+      setCreados([]);
       setVista(null);
       const r = await previsualizarImportacion(form());
       if (r.ok) setVista(r.vista);
@@ -45,6 +54,7 @@ export function Importador() {
       const r = await confirmarImportacion(form(), vista.huella);
       if (r.ok) {
         setVista(null);
+        setCreados(r.creados);
         setHecho(r.cargados === 0 ? "No había proyectos nuevos para cargar: ya estaban en el ERP." : `Listo: se cargaron ${r.cargados} proyectos${r.clientesNuevos ? ` y ${r.clientesNuevos} clientes nuevos` : ""}.`);
       } else {
         setError(r.error);
@@ -62,12 +72,20 @@ export function Importador() {
             Planilla
             <input
               type="file"
-              accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
               className="mt-1 block min-h-11 text-sm"
               onChange={(e) => {
-                setArchivo(e.target.files?.[0] ?? null);
+                const f = e.target.files?.[0] ?? null;
                 setVista(null);
                 setHecho("");
+                setCreados([]);
+                if (f && esXlsViejo(f)) {
+                  setArchivo(null);
+                  setError(MENSAJE_XLS);
+                  e.target.value = "";
+                  return;
+                }
+                setArchivo(f);
                 setError("");
               }}
             />
@@ -78,6 +96,24 @@ export function Importador() {
         </div>
         {error && <p role="alert" className="mt-3 text-sm text-danger">{error}</p>}
         {hecho && <p role="status" className="mt-3 text-sm font-medium text-strong">{hecho}</p>}
+        {hecho && (
+          <div className="mt-2 text-sm">
+            {creados.length > 0 && creados.length <= MAX_LINKS && (
+              <ul className="mb-2" aria-label="Proyectos cargados">
+                {creados.map((p) => (
+                  <li key={p.id}>
+                    <Link href={`/admin/proyectos/${p.id}`} className="inline-flex min-h-11 items-center text-strong underline">
+                      {p.cliente ? `${p.cliente} · ` : ""}{p.nombre || "Proyecto"}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <Link href="/admin/proyectos" className={buttonClasses("outline", "md")}>
+              Ver los proyectos
+            </Link>
+          </div>
+        )}
       </section>
 
       {vista && c && (
@@ -113,7 +149,7 @@ export function Importador() {
                     <td className="px-2">{f.etapa}</td>
                     <td className="px-2">
                       <Badge tone={CHIP[f.estado].tono}>{CHIP[f.estado].texto}</Badge>
-                      {f.motivo && <p className="mt-1 text-xs text-muted">{f.motivo}</p>}
+                      {f.motivo && f.motivo.replace(/\.$/, "") !== CHIP[f.estado].texto && <p className="mt-1 text-xs text-muted">{f.motivo}</p>}
                     </td>
                   </tr>
                 ))}

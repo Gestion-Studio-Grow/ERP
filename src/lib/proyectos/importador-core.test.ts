@@ -193,6 +193,7 @@ test("plan: clientes existentes por alias, proyecto cargado a mano, perdido con 
   assert.deepEqual([fiesta.fechaEvento, fiesta.fechaFin], [fechaLocal(2026, 12, 4), fechaLocal(2026, 12, 6)]);
   assert.equal(fiesta.carpetaUrl, "https://drive.google.com/x");
   assert.equal(p.filas[2].estado, "yaEnBase", "Quilmes / Stand ya está cargado a mano");
+  assert.equal(p.filas[2].motivo, "", "la etiqueta «Ya está en el ERP» alcanza: el motivo no la repite");
   assert.equal(claveDeImportacion("t1", "coca cola", "fiesta fin de ano", 2026), fiesta.clave);
   assert.notEqual(claveDeImportacion("t2", "coca cola", "fiesta fin de ano", 2026), fiesta.clave, "la clave es por negocio");
 });

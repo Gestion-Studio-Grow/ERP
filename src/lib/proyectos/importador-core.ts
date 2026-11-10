@@ -595,7 +595,7 @@ export function planificarImportacion(hojas: readonly HojaCruda[], base: BaseImp
         estado.set(l, { estado: "error", motivo: "Revisar: parece otro evento del mismo cliente y nombre en el año; cargalo a mano o cambiale el nombre en la planilla." });
     }
     if (claves.has(clave) || yaEstan.has(grupoDe(primera))) {
-      for (const l of mismo) estado.set(l, { estado: "yaEnBase", motivo: "Ya está en el ERP." });
+      for (const l of mismo) estado.set(l, { estado: "yaEnBase", motivo: "" }); // la etiqueta «Ya está en el ERP» ya lo dice
       continue;
     }
     const deProductor = mismo.filter((l) => l.tipo === "productor");

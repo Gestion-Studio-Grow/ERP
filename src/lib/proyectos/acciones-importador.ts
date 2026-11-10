@@ -31,8 +31,15 @@ export interface VistaImportacion {
 }
 export type ResultadoVistaImportacion = { ok: true; vista: VistaImportacion } | { ok: false; error: string };
 export type ResultadoConfirmarImportacion =
-  | { ok: true; cargados: number; clientesNuevos: number; yaEstaban: number }
+  | { ok: true; cargados: number; clientesNuevos: number; yaEstaban: number; creados: ProyectoCreado[] }
   | { ok: false; error: string; vista?: VistaImportacion };
+
+/** Proyecto recién cargado, para linkearlo desde el resultado. */
+export interface ProyectoCreado {
+  id: string;
+  nombre: string;
+  cliente: string;
+}
 
 const mal = (error: string) => ({ ok: false as const, error });
 
@@ -92,13 +99,15 @@ export async function confirmarImportacion(fd: FormData, huella: string): Promis
         await tomarCandadoImportador(tx, tenantId);
         const plan = planificarImportacion(libro.hojas, await leerBaseImportacion(tx, tenantId));
         // Nada para cargar (doble clic, otra pestaña que ya confirmó): no es un error, ya está todo.
-        if (plan.altas.length === 0) return { ok: true, cargados: 0, clientesNuevos: 0, yaEstaban: plan.yaEnBase.length };
+        if (plan.altas.length === 0) return { ok: true, cargados: 0, clientesNuevos: 0, yaEstaban: plan.yaEnBase.length, creados: [] };
         if (plan.huella !== String(huella ?? "")) {
           return { ok: false, error: "La planilla o el ERP cambiaron desde la vista previa. Revisá la vista previa nueva y confirmá de nuevo.", vista: vistaDe(plan, libro.avisos) };
         }
         const r = await escribirImportacion(tx, tenantId, plan, a.nombre, config);
         escrito = { plan, ids: r.ids };
-        return { ok: true, cargados: r.proyectos, clientesNuevos: r.clientesNuevos, yaEstaban: plan.yaEnBase.length };
+        // escribirImportacion crea un proyecto por alta, en orden: ids[i] es plan.altas[i].
+        const creados = r.ids.map((id, i) => ({ id, nombre: plan.altas[i]?.nombre ?? "", cliente: plan.altas[i]?.cliente.nombre ?? "" }));
+        return { ok: true, cargados: r.proyectos, clientesNuevos: r.clientesNuevos, yaEstaban: plan.yaEnBase.length, creados };
       },
       { tenantId, timeoutMs: 120_000 },
     );

@@ -79,12 +79,18 @@ test("importador: idempotente, una sola carga con confirmaciones a la vez, aisla
   assert.deepEqual(await conteos(a.id), antes, "la vista previa no escribe");
 
   // Confirmar dos veces da los mismos conteos.
-  assert.deepEqual(await confirmar(a, archivo, vista.huella), { ok: true, cargados: 3, clientesNuevos: 3, yaEstaban: 0 });
+  const primera = await confirmar(a, archivo, vista.huella);
+  assert.ok(primera.ok);
+  const { creados, ...resto } = primera;
+  assert.deepEqual(resto, { ok: true, cargados: 3, clientesNuevos: 3, yaEstaban: 0 });
+  assert.equal(creados.length, 3, "devuelve los proyectos creados para linkearlos");
+  assert.ok(creados.every((c) => c.id && c.nombre && c.cliente), "cada creado trae id, nombre y cliente");
   const tras1 = await conteos(a.id);
   assert.deepEqual(tras1, { proyectos: antes.proyectos + 3, clientes: antes.clientes + 3, mensajes: antes.mensajes + 5, marcas: 3, presupuestos: antes.presupuestos + 3 });
   const segunda = await confirmar(a, archivo, vista.huella);
   assert.equal(segunda.ok, true);
   assert.equal(segunda.ok && segunda.cargados, 0);
+  assert.deepEqual(segunda.ok && segunda.creados, [], "sin altas no hay links");
   assert.deepEqual(await conteos(a.id), tras1, "confirmar de nuevo no duplica nada");
   assert.equal((await previa(a, archivo)).conteo.yaEnBase, 3, "la fila de General que también está en Julieta sigue como repetida");
 
