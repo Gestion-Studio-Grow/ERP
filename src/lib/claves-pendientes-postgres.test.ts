@@ -35,7 +35,9 @@ test("reseteo pendiente: mail caído no cambia nada; mail OK resetea una sola ve
   const { correrResetsPendientesEnLaBase } = await import("@/lib/claves-pendientes.server");
   const { verifyPassword } = await import("@/lib/auth-password");
   const a = base.a;
-  const pendiente = { clave: "2026-11-10-prueba-owner", slug: a.slug, motivo: "test", vence: "2099-12-31" };
+  // Declarada hoy y con 30 días por delante: el test no depende de la fecha en que corre.
+  const dia = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+  const pendiente = { clave: `${dia(Date.now())}-prueba-owner`, slug: a.slug, motivo: "test", vence: dia(Date.now() + 30 * 86_400_000) };
   const fila = () =>
     duenio.user.findUniqueOrThrow({ where: { id: a.duenia.id }, select: { passwordHash: true, mustChangePassword: true } });
   const cuenta = (action: string) => duenio.auditLog.count({ where: { tenantId: a.id, action } });

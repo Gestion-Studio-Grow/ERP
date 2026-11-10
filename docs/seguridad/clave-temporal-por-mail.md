@@ -39,7 +39,8 @@ Se usan cuando el dueño pide resetear a alguien y nadie debe tocar la consola d
    - una `clave` **única** para siempre (fecha + negocio + quién);
    - el `slug` del negocio;
    - el `motivo`;
-   - `vence` (AAAA-MM-DD), **a lo sumo 90 días** después de la fecha de la clave (un test lo controla).
+   - `vence` (AAAA-MM-DD), **a lo sumo 90 días** después de la fecha de la clave. Lo controla el propio ejecutor
+     (`venceValido`): una fecha imposible, anterior a la clave o más lejana queda en `fallo` y no corre.
      Pasada esa fecha la entrada queda `vencida` y no hace nada. Motivo: la purga de auditoría
      (`audit-retention.ts`, 18 meses) borra la fila que prueba que el reseteo ya se hizo; sin vencimiento,
      una entrada olvidada volvería a resetear al dueño.

@@ -20,7 +20,7 @@
 // lista volvería a resetear la clave del dueño año y medio después.
 
 export type ResetPendiente = {
-  /** Única para siempre: fecha + negocio + a quién. Es lo que hace idempotente al reseteo. */
+  /** Única para siempre: AAAA-MM-DD (el día que se declara) + negocio + a quién. Es lo que la hace idempotente. */
   clave: string;
   /** `Tenant.slug` del negocio. */
   slug: string;
@@ -54,6 +54,20 @@ export interface PendientesPort {
   resetearSiFalta(tenantId: string, p: ResetPendiente): Promise<EstadoPendiente>;
 }
 
+const fechaIso = (x: string): number | null => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(x)) return null;
+  const t = Date.parse(`${x}T00:00:00Z`);
+  // Date.parse acepta «2026-02-31» corriéndolo: se exige que vuelva igual.
+  return Number.isFinite(t) && new Date(t).toISOString().slice(0, 10) === x ? t : null;
+};
+
+/** `vence` es una fecha real, no anterior a la fecha de la clave y a lo sumo VENCE_MAXIMO_DIAS después. */
+export function venceValido(p: Pick<ResetPendiente, "clave" | "vence">): boolean {
+  const desde = fechaIso(String(p.clave ?? "").slice(0, 10));
+  const hasta = fechaIso(String(p.vence ?? ""));
+  return desde !== null && hasta !== null && hasta >= desde && hasta - desde <= VENCE_MAXIMO_DIAS * 86_400_000;
+}
+
 /** Corre todos los pendientes. Uno que falla no frena a los demás. PURO sobre el puerto. */
 export async function correrResetsPendientes(
   port: PendientesPort,
@@ -69,8 +83,8 @@ export async function correrResetsPendientes(
       continue;
     }
     claves.add(p.clave);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(p.vence ?? "")) {
-      salida.push({ clave: p.clave, estado: "fallo", error: "vence inválido (AAAA-MM-DD)" });
+    if (!venceValido(p)) {
+      salida.push({ clave: p.clave, estado: "fallo", error: `vence inválido: AAAA-MM-DD real, hasta ${VENCE_MAXIMO_DIAS} días después de la fecha de la clave` });
       continue;
     }
     if (p.vence < hoyIso) {
