@@ -4,7 +4,12 @@
 //
 //   OPERATOR_DATABASE_URL=<conexión> RESET_SLUG=<slug> RESET_CONFIRMAR=<slug> \
 //   RESET_ACTOR="sistema:responsable-seguridad (SEG-NNN)" RESET_SALIDA=<archivo fuera del repo> \
-//   [OPS_DB_DRIVER=neon-ws] npx tsx scripts/seguridad/reset-owner-password.mts
+//   [RESET_EMAIL=<email del OWNER>] [OPS_DB_DRIVER=neon-ws] npx tsx scripts/seguridad/reset-owner-password.mts
+//
+// RESET_EMAIL (opcional; sin importar mayúsculas ni espacios) elige a QUÉ OWNER activo del negocio se le
+// resetea la contraseña. Es OBLIGATORIO si el negocio tiene más de un OWNER activo: sin él, el script
+// frena sin tocar nada. Si el email no es de un OWNER activo de ESE negocio, también frena. El email no
+// se imprime por consola (va sólo en RESET_SALIDA, junto con la provisoria).
 //
 // Desde una sesión en la nube (sólo sale HTTPS por proxy) va con OPS_DB_DRIVER=neon-ws: el driver de
 // Neon por WebSocket seguro (443), por el proxy del entorno. Sin la variable, TCP como siempre
@@ -33,6 +38,7 @@ async function main() {
       slug: env("RESET_SLUG"),
       confirmacion: env("RESET_CONFIRMAR"),
       actor: env("RESET_ACTOR"),
+      email: env("RESET_EMAIL") || undefined,
     });
     if (!r.ok) throw new Error(r.error);
     writeFileSync(salida, JSON.stringify({ email: r.email, password: r.password }), { mode: 0o600 });
