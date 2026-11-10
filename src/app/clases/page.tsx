@@ -7,6 +7,8 @@ import { diaCorto, horaHumana, linkWhatsApp, pesos } from "@/lib/padel/core";
 import { leerTokenCookie } from "@/lib/padel/sesion-alumno.server";
 import { reglaDeCancelacion, urlMaps } from "@/app/alumno/_vista/estado";
 import Turnero from "./Turnero";
+import { turneroTomaPedidos } from "@/lib/profeturnos/plan.server";
+import { MENSAJE_TURNERO_VENCIDO } from "@/lib/profeturnos/plan-core";
 import { Piel } from "./_piel";
 import { CabeceraPublica } from "./_cabecera";
 import { DetallesProfe, PresentacionProfe } from "./_placa";
@@ -73,6 +75,8 @@ export default async function ClasesPage({ searchParams }: { searchParams: Promi
     searchParams,
   ]);
   const saludo = cookieAlumno ? await saludoDelAlumno(tenantId, cookieAlumno) : null;
+  // ProfeTurnos T2: con el plan del profe vencido no se toman pedidos nuevos (la acción también lo frena).
+  const tomaPedidos = await turneroTomaPedidos(tenantId);
   // Sin ninguna franja en la que da clases, el profe todavía no publicó sus horarios: se dice eso,
   // no "no quedan horarios" (que sugiere una agenda llena que no existe).
   const sinHorarios = !grilla.some((f) => f.tipo === "DA");
@@ -162,6 +166,16 @@ export default async function ClasesPage({ searchParams }: { searchParams: Promi
             </div>
           </div>
           <div className="order-2 min-w-0 lg:order-none lg:col-span-7">
+            {!tomaPedidos ? (
+              <section className="rounded-[1.25rem] border-[1.5px] border-[var(--padel-linea)] bg-[var(--padel-superficie)] p-5" role="status" data-qa="turnero-renovando">
+                <p className="text-[1.0625rem] font-semibold">{MENSAJE_TURNERO_VENCIDO}</p>
+                {wa && (
+                  <a href={wa} className={`${botonBorde} mt-4`} data-qa="turnero-renovando-wa">
+                    Escribirle por WhatsApp
+                  </a>
+                )}
+              </section>
+            ) : (
             <Turnero
               dias={dias}
               sinHorarios={sinHorarios}
@@ -176,6 +190,7 @@ export default async function ClasesPage({ searchParams }: { searchParams: Promi
               nombreApp={nombreApp}
               info={{ duracionMin: config.duracionMin, precioIndividual: config.precioIndividual, precioGrupal: config.precioGrupal, lugar: negocio.lugar, maps, regla }}
             />
+            )}
           </div>
         </div>
 

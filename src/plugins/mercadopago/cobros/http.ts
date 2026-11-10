@@ -61,6 +61,9 @@ export interface RawPreferenceRequest {
   items: Array<{ title: string; quantity: number; unit_price: number; currency_id: string }>;
   external_reference?: string;
   payer?: { email: string };
+  notification_url?: string;
+  back_urls?: { success: string; failure: string; pending: string };
+  auto_return?: "approved";
 }
 
 /** Respuesta de `POST /checkout/preferences` (campos usados). */
@@ -96,6 +99,11 @@ export function armarBodyPreferencia(s: SolicitudCobro): RawPreferenceRequest {
   };
   if (s.referenciaExterna) body.external_reference = s.referenciaExterna;
   if (s.emailPagador) body.payer = { email: s.emailPagador };
+  if (s.urlAviso) body.notification_url = s.urlAviso;
+  if (s.urlVuelta) {
+    body.back_urls = { success: s.urlVuelta, failure: s.urlVuelta, pending: s.urlVuelta };
+    body.auto_return = "approved";
+  }
   return body;
 }
 

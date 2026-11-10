@@ -6,7 +6,7 @@
 // Mail FAIL-CLOSED: sin las claves de Resend el trámite se registra igual, el número sale en pantalla
 // y el mensaje dice «guardá este número». Si el envío falla, queda en el log (sin direcciones ni
 // claves). Nunca se cae en silencio y nunca se imprime un secreto.
-// Con la sesión del profe (procesar en el acto) lo cablea T2: `registrarTramiteProfeturnos`.
+// Con la sesión del profe (procesar en el acto): «Mi plan» (src/app/admin/(dashboard)/clases/plan/_acciones.ts).
 
 import { headers } from "next/headers";
 import { after } from "next/server";

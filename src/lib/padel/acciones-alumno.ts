@@ -17,6 +17,8 @@
 // Las altas de clase van en `bookingTransaction` (Serializable con reintento): dos alumnos que
 // tocan la misma franja a la vez no quedan los dos adentro (ADR-004/023).
 
+import { turneroTomaPedidos } from "@/lib/profeturnos/plan.server";
+import { MENSAJE_TURNERO_VENCIDO } from "@/lib/profeturnos/plan-core";
 import { after } from "next/server";
 import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
@@ -125,6 +127,8 @@ export async function pedirClase(
 ): Promise<Resultado<{ token: string | null; conocido: boolean; waProfe: string | null; cuando: string; claseId: string | null }> & { alternativas?: string[] }> {
   const tenantId = await getCurrentTenantId();
   if (await frenadoPorIp("pedir", tenantId)) return { ok: false, error: FRENADO };
+  // ProfeTurnos T2: con el plan del profe vencido, el turnero no toma pedidos nuevos.
+  if (!(await turneroTomaPedidos(tenantId))) return { ok: false, error: MENSAJE_TURNERO_VENCIDO };
   const nombre = nombreValido(p.nombre);
   if (!nombre) return { ok: false, error: "Poné tu nombre (y apellido si querés)." };
   const telefono = telefonoAlumno(p.telefono);
@@ -339,6 +343,7 @@ export async function reservarDesdeLink(
   const d = await alumnoDelLink(token);
   if (!d) return { ok: false, error: LINK_INVALIDO };
   const { tenantId, alumno } = d;
+  if (!(await turneroTomaPedidos(tenantId))) return { ok: false, error: MENSAJE_TURNERO_VENCIDO };
   const empiezaEn = new Date(horaIso);
   if (Number.isNaN(empiezaEn.getTime())) return { ok: false, error: "Elegí un horario." };
 
