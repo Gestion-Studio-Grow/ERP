@@ -1,7 +1,7 @@
 # ProfeTurnos · Kit de venta (BORRADOR — no publicar)
 
-> Borrador interno. No se publica ni se manda a nadie hasta que el dueño confirme el precio, el nombre y el host
-> (`PLAN-SALIDA-2026-11.md` §6). Los precios dicen **provisional a confirmar**.
+> Borrador interno. No se publica ni se manda a nadie hasta que el dueño confirme el nombre y el host
+> (`PLAN-SALIDA-2026-11.md` §6). Precio confirmado por el dueño el 10/11/2026: **$12.900 por mes, 14 días de prueba gratis**.
 
 ## 1. Propuesta de valor (una línea)
 
@@ -16,7 +16,7 @@
 > [nombre], ¿cómo va? Te dejo el link por si tenés 5 minutos entre clase y clase: [link]. Lo configurás desde el celular: cargás tus horarios y tu precio, y pegás el link en la bio. Si te trabás en algo, escribime por acá y lo resolvemos juntos.
 
 **C · Cierre (está en la prueba y le quedan pocos días)**
-> ¡Hola [nombre]! Te quedan [n] días de prueba. Vi que ya te pidieron [n] clases por el link 🙌. Para seguir es [precio provisional] por mes, menos que una clase. Pagás con Mercado Pago desde «Mi plan» y no perdés nada de lo que cargaste. ¿Lo dejamos andando?
+> ¡Hola [nombre]! Te quedan [n] días de prueba. Vi que ya te pidieron [n] clases por el link 🙌. Para seguir es $12.900 por mes, menos que una clase. Pagás con Mercado Pago desde «Mi plan» y no perdés nada de lo que cargaste. ¿Lo dejamos andando?
 
 ## 3. Cinco ideas de posteo
 
@@ -36,7 +36,7 @@
 | 1:20 | Plata: quién pagó, quién debe, saldo a favor | «Acá ves la deuda de cada alumno sin hacer cuentas.» |
 | 1:50 | Recordatorio de deuda por WhatsApp | «Le mandás el recordatorio armado, sin vueltas incómodas.» |
 | 2:20 | Alta: «Probalo gratis» desde la vidriera | «Te das de alta solo en 5 minutos, desde el celular.» |
-| 2:45 | Precio y cierre | «14 días gratis. Después [precio provisional], menos que una clase.» |
+| 2:45 | Precio y cierre | «14 días gratis. Después $12.900, menos que una clase.» |
 
 ## 5. Preguntas frecuentes
 
