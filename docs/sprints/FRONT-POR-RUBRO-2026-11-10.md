@@ -8,8 +8,9 @@ sigue un agente Opus desde el relevo (§6).
 > **Qué está verificado y qué no.** El mapa (§1) sale del código en `main` (`4ddcd7e`): listados de carpetas,
 > ids de `src/blueprints/**` y `src/lib/admin-nav-items.ts`. Los referentes de mercado (§2) y las mejoras (§3)
 > son **juicio de arquitectura sin recorrido en navegador ni búsqueda web hoy**: cada mejora es una HIPÓTESIS
-> que la ronda 0 confirma o descarta con captura y medición. El estado vivo/demo sólo está confirmado para CH
-> (`docs/ESTADO-ACTUAL.md:241`); el resto figura «a confirmar».
+> que la ronda 0 confirma o descarta con captura y medición. El estado sale de `docs/ESTADO-ACTUAL.md:239-248`
+> para CH, Magra, Shine y A Dos Manos; el resto figura «a confirmar». **§1.1 corrige con evidencia de código
+> varias hipótesis de §3: donde difieran, manda §1.1.**
 
 ## 1. Mapa de rubros (desde el código)
 
@@ -20,10 +21,10 @@ Familias de blueprint (`src/blueprints/`): **retail** (10 rubros), **agenda** (4
 |---|---|---|---|---|---|
 | Agenda | `estetica` | CH Estética (`chestetica`) | `(site)`, `consulta`, `portal` | Agenda, Clientes, Lista de espera, Recordatorios, Vouchers, Comisiones, Caja | **VIVO en prod** |
 | Agenda | `peluqueria`, `veterinaria`, `consultorio` | sin tenant | genérica | ídem agenda | preset |
-| Retail | `carniceria` | Magra | `tienda/magra` (editorial: Despiece, Etiqueta, Ficha) | Lotes/Vacío, Despiece, Balanza, Vender, Caja rápida, Pedidos | a confirmar (UAT-PRODUCCION existe) |
-| Retail | `velas` | Shine Velas | `tienda/shine` (Aromas, EscenaVela) | Catálogo, Pedidos, Inventario | demo (catálogo real 02/09) |
+| Retail | `carniceria` | Magra | `tienda/magra` (editorial: Despiece, Etiqueta, Ficha) | Lotes/Vacío, Despiece, Balanza, Vender, Caja rápida, Pedidos | alta hecha en Neon; **sin deploy del sitio**, faltan datos reales |
+| Retail | `velas` | Shine Velas | `tienda/shine` (Aromas, EscenaVela) | Catálogo, Pedidos, Inventario | alta hecha en Neon; **sin deploy**; catálogo real 02/09 |
 | Retail | `perfumeria` | Qué Bien Olés | `tienda/quebienoles` (Frasco 3D, Guía, recomendador) | ídem retail | demo — caso de referencia de `vidriera-de-autor` |
-| Retail | `padel` | A Dos Manos | `tienda/adosmanos` (Pared, Enfrentadas, recomendador de pala) | ídem retail | demo |
+| Retail | `padel` | A Dos Manos | `tienda/adosmanos` (Pared, Enfrentadas, recomendador de pala) | ídem retail | alta hecha en Neon (20 productos); **sin deploy** |
 | Retail | `supermercado` | (fit-gap) | `tienda/vidriera` genérica | Ofertas, Promociones, Proveedores, Compras | preset |
 | Retail | `verduleria`, `dietetica`, `kiosco`, `fiambreria`, `indumentaria` | sin tenant | `tienda/vidriera` + `Storefront.tsx` | retail | preset |
 | Gastronomía | `restaurante`, `cafeteria`, `panaderia`, `rotiseria`, `pizzeria`, `heladeria` | sin tenant | `pedido-online.tsx` | Pedidos, Caja | preset |
@@ -34,9 +35,29 @@ Familias de blueprint (`src/blueprints/`): **retail** (10 rubros), **agenda** (4
 | Vertical | `productora` | MIA Producciones, BuscaTuFoto, Circuito WPE | `sitio-buscatufoto`, `entregables` | Proyectos | demo |
 | Vertical | `servicios` / `facturita` | Matías Consoli | `facturita`, `contador` | Facturación | a confirmar |
 
-**Hallazgo estructural:** hay **tres motores de vidriera retail** conviviendo — `Storefront.tsx` (52 KB),
-`vidriera/Vidriera.tsx` (28 KB) y los cuatro fronts de autor. Cada mejora de conversión (bolsa, checkout,
-WhatsApp) hay que hacerla hasta 3 veces. Es la deuda que más encarece todo lo de abajo.
+**Hallazgo estructural:** `src/app/tienda/page.tsx` despacha a **cinco salidas**: `SiteReplica`, `Storefront.tsx`
+(52 KB, la vieja), `vidriera/TiendaNueva` (la nueva), y los fronts de autor (`MagraFront`, `ShineFront`,
+`QuebienolesVidriera`, `AdosmanosVidriera`). Cada mejora de conversión (bolsa, checkout, WhatsApp) hay que
+hacerla varias veces. Es la deuda que más encarece todo lo de abajo.
+
+### 1.1 Verificado en código (grep sobre `main`, 22:46 UTC) — corrige hipótesis de §3
+
+| Hecho | Evidencia | Consecuencia |
+|---|---|---|
+| **La unificación ya está empezada**: la vidriera nueva pone la estructura y cada marca pone el dato (`MarcaId = magra · shinevelas · adosmanos · generica`) | `src/app/tienda/vidriera/marcas.ts:2,14` | D1 no es «¿unificamos?» sino «¿terminamos la migración y retiramos `Storefront.tsx`?» |
+| La vidriera nueva se enciende por interruptor (`disenoNuevo`) o porque el rubro la declara (supermercado) | `src/app/tienda/page.tsx:176-179` | Los rubros retail sin interruptor siguen cayendo en la vieja |
+| Qué Bien Olés y A Dos Manos quedan **fuera** de la vidriera nueva a propósito (conservan su front de autor) | `vidriera/marcas.ts:182-190` | Su bolsa/checkout es propio: toda mejora de embudo se repite ahí |
+| WhatsApp, Mercado Pago, cuotas y transferencia en la vidriera común aparecen **sólo** en `TiendaNueva` | grep `whatsappCanonico`, `mercado ?pago`, `cuotas`, `transferencia` en `src/app/tienda` | `Storefront.tsx` (la vieja) no devuelve ninguna coincidencia: quien cae ahí no tiene esos CTA (a confirmar en navegador) |
+| El front de autor de **Shine** no tiene enlace de WhatsApp | grep `wa.me`/`whatsapp` en `tienda/shine` y `ShineFront.tsx`: sin resultados | Quick win real para Shine |
+| Cuotas y precio transferencia ya existen en **A Dos Manos** | `adosmanos/Precio.tsx`, `Bolsa.tsx`, `promesas.ts` | La mejora «[QW] cuotas y transferencia» de A Dos Manos está **ya resuelta**; falta en Magra, Shine y QBO (sin coincidencias) |
+| «Repetir pedido» no existe en ninguna vidriera | grep `repetir`: sólo `magra/Despiece.tsx` y `shine/catalogo.ts`, otro sentido | Hipótesis de Magra y supermercado confirmada como faltante |
+| `prefers-reduced-motion` está contemplado en los cuatro fronts de autor y en la vidriera nueva | `*/estilos.ts`, `vidriera.module.css` | Criterio de a11y de movimiento: ya cubierto en CSS; falta verificarlo en navegador |
+| **CH ya tiene reserva pública con seña**: `BookingModal`, `reserva/BookingForm`, `confirmacion/[id]`, `turno/[id]` con reseña, y WhatsApp en `_ch/ChFront.tsx` | `src/app/(site)/_ch/*`, `src/app/(site)/reserva/*` | La mejora 1 de CH no es «construir» sino **medir pasos y abandono** del flujo existente |
+| WhatsApp en backoffice está extendido (15 archivos en `admin/(dashboard)`) | grep `wa.me` | El canal existe; falta medir si el recordatorio trae «confirmar / reprogramar» |
+
+**Lectura:** la deuda no es de ideas sino de **migración a medio hacer**. El mayor retorno por peso gastado es
+terminar de mover los rubros a `TiendaNueva` y que QBO, A Dos Manos y Shine reutilicen su bolsa/pago en vez de
+mantener una propia.
 
 ## 2. Referente por rubro (a igualar o superar)
 
@@ -136,7 +157,7 @@ Marcas: **[QW]** = quick win de bajo riesgo (copy, orden, tamaño de toque, sin 
 |---|---|---|
 | **0** | Recorrido Opus con capturas 360/768/1280 + Lighthouse móvil por pantalla de §1; confirma o descarta cada hipótesis de §3 | Sin línea de base no hay «medible» |
 | **1** | CH Estética: reserva pública + «Hoy» móvil | Único vivo: es donde hoy entra o se pierde plata |
-| **2** | Embudo único de compra (transversal 1–3) sobre `tienda/vidriera` | Paga una vez, cobran 10 rubros |
+| **2** | Terminar la migración a `TiendaNueva` (transversal 1–3) y retirar `Storefront.tsx` | Ya está empezada: paga una vez, cobran 10 rubros |
 | **3** | Magra (cierre para pasar a vivo) | El más cercano a venta real |
 | **4** | Break Point (preventa) | Demo que tiene que cerrar venta |
 | **5** | QBO, A Dos Manos, Shine: conversión sobre el front de autor | Ya lindos; falta que vendan |
@@ -159,11 +180,12 @@ Una ronda = 1 o 2 constructores, un frente a la vez; lo que toque plata (checkou
 
 1. `npm run brain`; leer sólo §1 y §3 de este archivo.
 2. Por cada fila de §1 con vidriera: levantar local, capturar 360/768/1280, Lighthouse móvil, y anotar por
-   hipótesis de §3: **confirmada / descartada / ya resuelta** con `archivo:línea`. Usar
-   `node .claude/scripts/mapa-codigo.mjs src/app/tienda --a <archivo>`; no leer `Storefront.tsx` entero.
+   hipótesis de §3: **confirmada / descartada / ya resuelta** con `archivo:línea`. Partir de §1.1. Usar
+   `node .claude/scripts/mapa-codigo.mjs src/app/tienda --a /tmp/mapa-front.md` (**ojo: `--a` es el archivo de
+   SALIDA**, no un filtro; con un nombre suelto deja un volcado en la raíz del repo). No leer `Storefront.tsx` entero.
 3. Confirmar la columna «Estado» contra `docs/ESTADO-ACTUAL.md` y `docs/tenants/*` (hoy sólo CH está verificado).
-4. Verificar qué rutas usa de verdad cada motor de vidriera (`Storefront` vs `vidriera/Vidriera` vs autor) y
-   proponer cuál queda como único embudo (insumo de la decisión D1).
+4. Listar qué tenant/rubro cae hoy en cada salida de `tienda/page.tsx:150-200` (réplica, vieja, nueva, autor)
+   y qué le falta a `TiendaNueva` para absorber a los que siguen en `Storefront.tsx` (insumo de D1).
 5. Entregar `docs/sprints/FRONT-RONDA-0-HALLAZGOS.md` (tabla, ≤ 300 palabras de resumen) y recién ahí abrir ronda 1.
 6. **No tocar** lo que tienen abierto ERP-001 (PR #126), ERP-002 (PR #125) ni `claude/fable-estetica-5-rondas`.
 
@@ -171,7 +193,7 @@ Una ronda = 1 o 2 constructores, un frente a la vez; lo que toque plata (checkou
 
 | # | Decisión | Opciones | Recomendada |
 |---|---|---|---|
-| D1 | Motores de vidriera retail | (a) unificar el embudo de compra en uno y que los fronts de autor sólo vistan · (b) seguir con tres | **(a)** |
+| D1 | Vidriera retail (la unificación ya empezó, §1.1) | (a) terminar la migración a `TiendaNueva`, retirar `Storefront.tsx` y que los fronts de autor reutilicen bolsa/pago · (b) seguir con cinco salidas | **(a)** |
 | D2 | Primer frente | (a) CH (vivo) · (b) Magra · (c) demos de preventa | **(a)**, después Magra |
 | D3 | Rubros sin cliente (gastronomía, oficios, 5 retail) | (a) congelar front hasta tener venta · (b) pulir igual | **(a)** — DEMO → VENTA → INVERSIÓN |
 | D4 | Seña online en reservas (CH, Break Point) | (a) MP + transferencia · (b) sólo transferencia con comprobante | **(a)**, sandbox primero (plata: Opus alto + certificación) |
