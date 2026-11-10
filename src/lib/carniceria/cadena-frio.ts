@@ -27,7 +27,7 @@ export function leerTemperatura(x: unknown): number | null {
   // Sólo un número decimal con coma o punto: Number() solo aceptaría "0x10" o "1e1" (certificación T5, O2).
   const n = typeof x === "string" ? (/^-?\d+([.,]\d+)?$/.test(x.trim()) ? Number(x.trim().replace(",", ".")) : Number.NaN) : x;
   if (typeof n !== "number" || !Number.isFinite(n)) return null;
-  return Math.round(n * 100) / 100;
+  return Math.round(n * 100) / 100; // no-es-plata: temperatura en °C, a dos decimales
 }
 
 /** El nombre del equipo, sin espacios de más ("  Cámara   1 " → "Cámara 1"). */
