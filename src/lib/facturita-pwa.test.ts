@@ -10,11 +10,12 @@ import {
   SCOPE_FACTURITA,
   START_URL_FACTURITA,
   SW_FACTURITA_URL,
+  FONDO_FACTURITA,
   THEME_COLOR_FACTURITA,
   manifestFacturita,
 } from "@/lib/facturita-pwa";
 import { resolveAccent } from "@/lib/branding";
-import { FACTOQUE_VERDE, dataUriFactoque, svgFactoque } from "@/lib/factoque-icono";
+import { FACTOQUE_COBRE, FACTOQUE_PAPEL, dataUriFactoque, faviconFactoqueSvg, svgFactoque } from "@/lib/factoque-icono";
 
 const PUBLIC = path.join(process.cwd(), "public");
 const APP = path.join(process.cwd(), "src", "app");
@@ -42,20 +43,30 @@ test("manifiesto: íconos 192 y 512 (uno maskable), y cada uno tiene su ruta gen
   assert.ok(existsSync(path.join(PUBLIC, OFFLINE_FACTURITA_URL)));
 });
 
-test("el color de la barra es el verde de Factoque (el mismo del ícono)", () => {
-  assert.equal(THEME_COLOR_FACTURITA, FACTOQUE_VERDE);
-  assert.equal(resolveAccent("monte", "light").accent.toLowerCase(), FACTOQUE_VERDE.toLowerCase());
-  assert.match(svgFactoque(), new RegExp(`fill="${FACTOQUE_VERDE}"`));
+test("la barra y el arranque son el papel de la marca F06-A (el mismo fondo del ícono); el nudo, cobre", () => {
+  assert.equal(THEME_COLOR_FACTURITA, FACTOQUE_PAPEL);
+  assert.equal(FONDO_FACTURITA, FACTOQUE_PAPEL);
+  assert.match(svgFactoque(), new RegExp(`<rect [^>]*fill="${FACTOQUE_PAPEL}"`));
+  assert.match(svgFactoque(), new RegExp(`fill="${FACTOQUE_COBRE}"`));
+  // El acento de la vidriera es el preset «cobre»: el cobre oscurecido para que el texto blanco pase AA.
+  assert.equal(resolveAccent("cobre", "light").onAccent, "#ffffff");
 });
 
 test("ícono: el maskable achica el dibujo para la zona segura y ambos son SVG válidos", () => {
   const normal = svgFactoque();
   const seguro = svgFactoque({ zonaSegura: true });
   assert.match(normal, /^<svg [^>]*viewBox="0 0 1024 1024"/);
-  assert.match(normal, /scale\(0\.8\)/);
-  assert.match(normal, /translate\(60 110\)/); // el encuadre del SVG fuente
-  assert.match(seguro, /scale\(0\.62\)/);
+  assert.match(normal, /translate\(194\.5 194\.5\) scale\(6\.35\)/); // isotipo al 62 % del lado, centrado
+  assert.match(seguro, /translate\(256 256\) scale\(5\.12\)/); // al 50 %: adentro del círculo del 80 %
   assert.ok(dataUriFactoque().startsWith("data:image/svg+xml;base64,"));
+});
+
+test("favicon: grilla de 32 sin fondo, con claro y oscuro del sistema", () => {
+  const f = faviconFactoqueSvg();
+  assert.match(f, /viewBox="0 0 32 32"/);
+  assert.match(f, /shape-rendering="crispEdges"/);
+  assert.match(f, /prefers-color-scheme:dark/);
+  assert.ok(!/<rect/.test(f));
 });
 
 test("service worker: alcance /facturita/, sólo precarga lo público y nunca guarda navegaciones", () => {

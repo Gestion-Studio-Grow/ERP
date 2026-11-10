@@ -33,11 +33,11 @@ import { TOPE_CERTIFICADO_BYTES } from "@/lib/fiscal/asistente-arca";
 import { CONDICIONES_DEL_EMISOR, interpretarCondicionIva } from "@/lib/fiscal/condicion-iva-emisor";
 import { interpretarCuitInput } from "@/lib/fiscal/cuit-input";
 import { CambioObligatorioInactivo, operatorSetMustChange } from "@/lib/must-change-password";
+import { operatorResetPort } from "@/lib/operador/owner-reset-port";
 import { altaPersonaCore, type AltaPersonaPort, type AltaPersonaResult } from "@/lib/operador/alta-persona";
 import { decidirAltaDeUsuarioEnTx } from "@/lib/usuarios-del-plan";
 import {
   resetOwnerPasswordCore,
-  type OwnerResetPort,
   type OwnerResetResult,
   type OwnerResetRow,
 } from "@/lib/owner-password-reset";
@@ -541,26 +541,7 @@ export async function cambiarFacturacionReal(formData: FormData) {
 // PORT armado sobre UNA transacción parada en el negocio (`enElNegocio`): con RLS es lo que deja
 // ver al OWNER y escribirle; y la contraseña, el cambio forzado y la auditoría quedan todos o
 // ninguno. El núcleo (`resetOwnerPasswordCore`) es puro y no conoce Prisma → testeable con un
-// doble en memoria.
-function operatorResetPort(tx: Prisma.TransactionClient, tenantId: string): OwnerResetPort {
-  return {
-    findOwner: (tid) =>
-      tx.user.findFirst({
-        where: { tenantId: tid, role: "OWNER", active: true, deletedAt: null },
-        orderBy: { createdAt: "asc" },
-        select: { id: true, email: true },
-      }),
-    setPasswordHash: async (userId, passwordHash) => {
-      await tx.user.update({ where: { id: userId }, data: { passwordHash } });
-    },
-    setMustChange: (userId, value) => operatorSetMustChange(tx, { userId, tenantId }, value),
-    audit: async (entry) => {
-      await tx.auditLog.create({
-        data: { ...entry, changes: entry.changes as Prisma.InputJsonValue },
-      });
-    },
-  };
-}
+// doble en memoria. El puerto vive en `src/lib/operador/owner-reset-port.ts`.
 
 // Alta de UNA persona en un negocio desde la consola (ver alta-persona.ts). Todo en la transacción del
 // negocio: el tope del plan, el alta, el cambio forzado y la auditoría quedan todos o ninguno.

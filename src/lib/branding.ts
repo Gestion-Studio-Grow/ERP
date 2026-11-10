@@ -53,6 +53,10 @@ export const ACCENT_PRESETS = {
   // Factoque (05/11/2026, PROVISIONAL a confirmar): el verde del fondo del ícono del carpincho
   // (src/lib/factoque-icono.ts). light #1f6f5c con blanco 6,0:1; dark #5cbfa3 con tinta 7,5:1.
   monte: { light: "#1f6f5c", dark: "#5cbfa3", onLight: "#ffffff", onDark: "#06201a" },
+  // COBRE — el acento de la marca GSG y de Factoque F06-A (09/11/2026, src/lib/gsg/marca-svg.ts). El cobre de la
+  // marca (#C8541F) con blanco da 4,4:1 y no llega a AA: light es el mismo hue oscurecido (#a94618, blanco 5,9:1;
+  // 5,3:1 sobre el papel #F4F2EC). dark = el cobre de la marca en oscuro (#F0824C) con tinta tostada (7,2:1).
+  cobre: { light: "#a94618", dark: "#f0824c", onLight: "#ffffff", onDark: "#1f0b03" },
 } satisfies Record<string, PresetTones>;
 
 /** Etiquetas criollas de los presets (selector de color del equipo, /admin/apariencia). */
@@ -66,6 +70,7 @@ export const ACCENT_PRESET_LABELS: Record<AccentPreset, string> = {
   azul: "Azul",
   oro: "Oro",
   monte: "Monte",
+  cobre: "Cobre",
 };
 
 export type AccentPreset = keyof typeof ACCENT_PRESETS;
