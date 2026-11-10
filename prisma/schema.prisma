@@ -491,6 +491,11 @@ model BusinessSettings {
   instagram   String? // handle o URL
   mapsUrl     String? // URL de mapa; si es null, se arma desde addressLine + city
   contactNote String? // leyenda de contacto del footer
+  // Quién es la administración de vouchers (CH · La Alameda, 10/11/2026): CUIT/CUIL/CBU/CVU, sólo dígitos.
+  // Todo crédito de esos pagadores va a «revision» (no se factura solo). Vacío = criterio de monto y fecha.
+  // Migración 20261110120000_voucher_pagadores (Gate 2). Se lee con SQL crudo tolerante
+  // (src/lib/vouchers/pagadores-administracion.ts).
+  voucherPagadores String[] @default([])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }

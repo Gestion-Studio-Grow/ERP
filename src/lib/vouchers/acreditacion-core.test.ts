@@ -203,3 +203,51 @@ test("ventanaDelAcreditadoAMano: de la fecha del pago (cheque: su fecha; si no, 
   assert.deepEqual(ventanaDelAcreditadoAMano("2026-11-15", "2026-11-09", false), { desde: "20261108", hasta: "20261119" });
   assert.equal(ventanaDelAcreditadoAMano("2026-02-30", "2026-11-09", false), null);
 });
+
+// ── La administración por el PAGADOR (10/11/2026) ─────────────────────────────────────────────────
+
+test("pagadorDeLaAdministracion: el documento del aviso, el docNro o los dígitos de la contraparte", async () => {
+  const { pagadorDeLaAdministracion } = await import("./acreditacion-core");
+  const adm = ["30712345671", "0000003100012345678901"];
+  assert.equal(pagadorDeLaAdministracion({ pagadorDoc: "30712345671" }, adm), "30712345671");
+  assert.equal(pagadorDeLaAdministracion({ docNro: "30712345671" }, adm), "30712345671");
+  assert.equal(pagadorDeLaAdministracion({ contraparte: "Adm. La Alameda 30-71234567-1" }, adm), "30712345671");
+  assert.equal(pagadorDeLaAdministracion({ contraparte: "CVU 0000003100012345678901" }, adm), "0000003100012345678901");
+  // Otra persona, un DNI suelto, nada, o sin pagadores cargados: no.
+  assert.equal(pagadorDeLaAdministracion({ pagadorDoc: "27123456780", contraparte: "Clienta" }, adm), null);
+  assert.equal(pagadorDeLaAdministracion({ pagadorDoc: "71234567" }, adm), null);
+  assert.equal(pagadorDeLaAdministracion({}, adm), null);
+  assert.equal(pagadorDeLaAdministracion({ pagadorDoc: "30712345671" }, []), null);
+  // Basura guardada no coincide con nada (ni la cadena vacía).
+  assert.equal(pagadorDeLaAdministracion({ contraparte: "" }, ["", "123"]), null);
+});
+
+test("leerPagadoresDelFormulario: uno por renglón o con comas, con guiones; CUIT con verificador; CBU/CVU de 22", async () => {
+  const { leerPagadoresDelFormulario } = await import("./acreditacion-core");
+  assert.deepEqual(leerPagadoresDelFormulario(""), { ok: true, pagadores: [] });
+  assert.deepEqual(leerPagadoresDelFormulario("30-71234567-1\n 0000003100012345678901 , 30712345671"), {
+    ok: true,
+    pagadores: ["30712345671", "0000003100012345678901"],
+  });
+  assert.equal(leerPagadoresDelFormulario("30-71234567-2").ok, false); // verificador mal
+  assert.equal(leerPagadoresDelFormulario("12345").ok, false);
+  assert.equal(leerPagadoresDelFormulario(Array.from({ length: 11 }, (_, i) => String(i).padStart(22, "0")).join("\n")).ok, false);
+});
+
+test("pagadoresDeLaFila: lo guardado, leído sin confiar (columna ausente = vacío)", async () => {
+  const { pagadoresDeLaFila } = await import("./acreditacion-core");
+  assert.deepEqual(pagadoresDeLaFila(undefined), []);
+  assert.deepEqual(pagadoresDeLaFila(null), []);
+  assert.deepEqual(pagadoresDeLaFila("30712345671"), []);
+  assert.deepEqual(pagadoresDeLaFila(["30712345671", "30712345671", 5, "x", "0000003100012345678901"]), ["30712345671", "0000003100012345678901"]);
+});
+
+test("el motivo del pagador se reconoce al aprobar (queda venta confirmada) y no es la marca del enganche", async () => {
+  const m = await import("./acreditacion-core");
+  const motivo = m.motivoDePagadorDeLaAdministracion("30712345671");
+  assert.match(motivo, /30-71234567-1/);
+  assert.equal(m.esPorPagadorDeLaAdministracion(motivo), true);
+  assert.equal(m.esPorAcreditacionPendiente(motivo), true);
+  assert.equal(m.esEnganchable({ estadoPropuesta: "revision", invoiceId: null, motivoRevision: motivo }), true);
+  assert.equal(m.esPorPagadorDeLaAdministracion(m.motivoDeAcreditacionPendiente("p1")), false);
+});

@@ -46,7 +46,13 @@ import {
 import { UMBRAL_IDENTIFICACION_DEFAULT } from "@/plugins/bancos";
 import { aplicarMovimientosPosterioresMP } from "@/lib/facturacion/devoluciones-mp";
 import { pagoPendienteDelCreditoMp } from "@/lib/vouchers/liquidacion-repo";
-import { esVentaConfirmada, motivoDeAcreditacionPendiente } from "@/lib/vouchers/acreditacion-core";
+import {
+  esVentaConfirmada,
+  motivoDeAcreditacionPendiente,
+  motivoDePagadorDeLaAdministracion,
+  pagadorDeLaAdministracion,
+} from "@/lib/vouchers/acreditacion-core";
+import { leerPagadoresInTx } from "@/lib/vouchers/pagadores-administracion";
 
 // ---------------------------------------------------------------------------
 // Mapeos plugin ↔ DB
@@ -247,8 +253,10 @@ export function clasificadorConReglasDelDueno(
  * La plata de vouchers no se factura (decisión del dueño): un pago de MP que puede ser la acreditación
  * de un pago de la administración pendiente (`pagoPendienteDelCreditoMp`, mismo criterio que la
  * confirmación) va a la cola de revisión en vez de a ARCA. Queda «revision» con un motivo que no es
- * la marca del enganche: la acreditación lo engancha después. Si el pago de la administración se
- * registra DESPUÉS del aviso, el aviso ya facturó: eso lo ve la persona al acreditar (pendiente).
+ * la marca del enganche: la acreditación lo engancha después. Con el CUIT/CBU de la administración
+ * cargado (`voucherPagadores`), un aviso de ese pagador va a revisión SIEMPRE (aunque el pago se registre
+ * después o el monto no coincida). Sin pagadores cargados, si el pago se registra DESPUÉS del aviso, el
+ * aviso ya facturó: eso lo ve la persona al acreditar.
  * Un movimiento que una persona ya confirmó como venta (`MARCA_VENTA_CONFIRMADA`) no se vuelve a frenar.
  */
 export function clasificadorSinPlataDeVouchers(base: ClasificadorPort): ClasificadorPort {
@@ -256,8 +264,8 @@ export function clasificadorSinPlataDeVouchers(base: ClasificadorPort): Clasific
     async clasificar(pago, tenantId) {
       const resultado = await base.clasificar(pago, tenantId);
       if (resultado.clasificacion !== "FACTURABLE") return resultado;
-      const pagoId = await tenantTransaction(
-        async (tx) => {
+      const deVouchers = await tenantTransaction(
+        async (tx): Promise<{ motivo: string } | null> => {
           // Re-aviso o «Sincronizar» de un pago que una persona ya aprobó como venta: se respeta (no
           // vuelve a revisión ni se le pisa la marca).
           const previo = await tx.movimientoImportado.findFirst({
@@ -265,7 +273,14 @@ export function clasificadorSinPlataDeVouchers(base: ClasificadorPort): Clasific
             select: { motivoRevision: true },
           });
           if (esVentaConfirmada(previo?.motivoRevision)) return null;
-          return pagoPendienteDelCreditoMp(tx, tenantId, {
+          // La administración se reconoce por el PAGADOR: con su CUIT/CBU cargado, revisión aunque el
+          // pago todavía no se haya registrado o el monto no coincida.
+          const pagador = pagadorDeLaAdministracion(
+            { pagadorDoc: pago.pagadorDoc?.numero ?? null, contraparte: pago.contraparteNombre ?? null },
+            await leerPagadoresInTx(tx, tenantId),
+          );
+          if (pagador) return { motivo: motivoDePagadorDeLaAdministracion(pagador) };
+          const pagoId = await pagoPendienteDelCreditoMp(tx, tenantId, {
             id: hashPagoMP(pago.id),
             // La misma fecha con que `persistir` guarda el movimiento.
             fecha: pago.fechaAcreditacion ?? hoyAAAAMMDD(),
@@ -274,10 +289,11 @@ export function clasificadorSinPlataDeVouchers(base: ClasificadorPort): Clasific
             descripcion: pago.descripcion ?? "",
             contraparte: pago.contraparteNombre ?? null,
           });
+          return pagoId ? { motivo: motivoDeAcreditacionPendiente(pagoId) } : null;
         },
         { tenantId },
       );
-      return pagoId ? { clasificacion: "REVISAR", motivo: motivoDeAcreditacionPendiente(pagoId) } : resultado;
+      return deVouchers ? { clasificacion: "REVISAR", motivo: deVouchers.motivo } : resultado;
     },
   };
 }

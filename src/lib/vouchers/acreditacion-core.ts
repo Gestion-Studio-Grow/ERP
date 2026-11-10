@@ -25,6 +25,7 @@
 
 import { cuentaCorrienteMarker, CUENTA_CORRIENTE_ACTOR_PREFIX } from "@/lib/settlement/asiento-libro";
 import { esDiaReal, sumarDias, type MedioPagoAdministracion } from "./liquidacion-core";
+import { cuitValido } from "@/lib/cuit";
 
 /** Rastro (AuditLog) de la acreditación confirmada de un pago: entity `VoucherPagoAdministracion`. */
 export const ACCION_ACREDITADO_MP = "voucher.pago.acreditado-mp";
@@ -254,9 +255,105 @@ export function motivoDeAcreditacionPendiente(pagoId: string): string {
   return `${PREFIJO_ACREDITACION_PENDIENTE}${pagoId}: no se factura sola. Si es esa plata, confirmá la acreditación en Vouchers; si es una venta, aprobala: queda confirmada como venta y la acreditación ya no la toma.`;
 }
 
-/** ¿Está en revisión por un pago de la administración pendiente? PURA. */
+/**
+ * ¿Está en revisión como plata de la administración (por un pago pendiente o por el pagador)? Al
+ * aprobarlo como venta queda `MARCA_VENTA_CONFIRMADA` y ya no se vuelve a frenar. PURA.
+ */
 export function esPorAcreditacionPendiente(motivoRevision: string | null | undefined): boolean {
-  return String(motivoRevision ?? "").startsWith(PREFIJO_ACREDITACION_PENDIENTE);
+  const m = String(motivoRevision ?? "");
+  return m.startsWith(PREFIJO_ACREDITACION_PENDIENTE) || esPorPagadorDeLaAdministracion(m);
+}
+
+// ── Quién es la administración: el PAGADOR (10/11/2026) ─────────────────────────────────────────────
+//
+// `BusinessSettings.voucherPagadores`: los CUIT/CUIL (11 dígitos) y CBU/CVU (22) desde los que paga la
+// administración de vouchers (hay una sola por negocio). Todo crédito de esos pagadores va a «revision»,
+// sin importar el orden de los eventos (aviso antes que el registro del pago, gemelos del extracto,
+// re-proceso del mapeo) ni el monto (pagos en partes, fechas mal tipeadas). La salida manual sigue
+// siendo aprobarlo como venta (`MARCA_VENTA_CONFIRMADA`). Sin pagadores cargados: monto y fecha.
+
+/** Cuántos identificadores se guardan como mucho (hay una administración; puede pagar desde varias cuentas). */
+export const PAGADORES_MAXIMO = 10;
+
+/** El comienzo del motivo de `motivoDePagadorDeLaAdministracion` (para reconocerlo al aprobar). */
+export const PREFIJO_PAGADOR_ADMINISTRACION = "Vouchers: lo pagó la administración ";
+
+const soloDigitos = (s: string | null | undefined) => String(s ?? "").replace(/\D/g, "");
+
+/** El identificador para leer: CUIT/CUIL con guiones; CBU/CVU tal cual. PURA. */
+export function identificadorLegible(id: string): string {
+  return id.length === 11 ? `${id.slice(0, 2)}-${id.slice(2, 10)}-${id.slice(10)}` : id;
+}
+
+/** El motivo con que un crédito de la administración (reconocida por el pagador) sale de la facturación automática. */
+export function motivoDePagadorDeLaAdministracion(identificador: string): string {
+  return `${PREFIJO_PAGADOR_ADMINISTRACION}(${identificadorLegible(identificador)}): no se factura sola. Si es la acreditación de un pago, confirmala en Vouchers; si es una venta, aprobala: queda confirmada como venta y la acreditación ya no la toma.`;
+}
+
+/** ¿Está en revisión porque el pagador es la administración? PURA. */
+export function esPorPagadorDeLaAdministracion(motivoRevision: string | null | undefined): boolean {
+  return String(motivoRevision ?? "").startsWith(PREFIJO_PAGADOR_ADMINISTRACION);
+}
+
+/** Lo que se sabe de quién pagó un crédito: el documento del aviso de MP, el doc. del movimiento y su contraparte. */
+export type QuienPagoElCredito = {
+  /** `pagadorDoc.numero` del aviso de Mercado Pago (`payer.identification`). */
+  pagadorDoc?: string | null;
+  /** `MovimientoImportado.docNro`. */
+  docNro?: string | null;
+  /** `MovimientoImportado.contraparte` (nombre, CUIT o CBU, como venga del extracto). */
+  contraparte?: string | null;
+};
+
+/** ¿Es un identificador de pagador con forma válida (sólo dígitos: CUIT/CUIL 11, CBU/CVU 22)? PURA. */
+export function esIdentificadorDePagador(id: string): boolean {
+  return /^\d{11}$/.test(id) || /^\d{22}$/.test(id);
+}
+
+/**
+ * Si el crédito es de la administración, el identificador cargado que coincide; si no, `null`. Coincide
+ * si el documento del aviso o el `docNro` del movimiento ES el identificador, o si los dígitos de la
+ * contraparte lo contienen («Adm. La Alameda 30-71234567-1»). Lista vacía = nunca. PURA.
+ */
+export function pagadorDeLaAdministracion(credito: QuienPagoElCredito, pagadores: readonly string[]): string | null {
+  const ids = pagadores.filter(esIdentificadorDePagador);
+  if (ids.length === 0) return null;
+  const doc = soloDigitos(credito.pagadorDoc);
+  const nro = soloDigitos(credito.docNro);
+  const contraparte = soloDigitos(credito.contraparte);
+  for (const id of ids) {
+    if (doc === id || nro === id || (contraparte.length >= id.length && contraparte.includes(id))) return id;
+  }
+  return null;
+}
+
+/** La lista guardada (`to_jsonb` de la fila): ausente, no lista o con basura = sólo los válidos, sin repetir. PURA. */
+export function pagadoresDeLaFila(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return [...new Set(raw.map((x) => soloDigitos(typeof x === "string" ? x : "")).filter(esIdentificadorDePagador))];
+}
+
+/**
+ * Lo escrito en el formulario: uno por renglón (o separados por coma o punto y coma), con o sin guiones.
+ * Vacío = sin pagadores (criterio de monto y fecha). CUIT/CUIL con dígito verificador; CBU/CVU de 22. PURA.
+ */
+export function leerPagadoresDelFormulario(raw: string | null | undefined): { ok: true; pagadores: string[] } | { ok: false; error: string } {
+  const partes = String(raw ?? "")
+    .split(/[\n,;]+/)
+    .map((x) => x.trim())
+    .filter((x) => x.length > 0);
+  const pagadores: string[] = [];
+  for (const parte of partes) {
+    const id = soloDigitos(parte);
+    if (id.length === 11) {
+      if (!cuitValido(id)) return { ok: false, error: `«${parte}» no es un CUIT/CUIL válido (revisá el último dígito).` };
+    } else if (id.length !== 22) {
+      return { ok: false, error: `«${parte}» no es un CUIT/CUIL (11 números) ni un CBU/CVU (22 números).` };
+    }
+    if (!pagadores.includes(id)) pagadores.push(id);
+  }
+  if (pagadores.length > PAGADORES_MAXIMO) return { ok: false, error: `Cargá hasta ${PAGADORES_MAXIMO} identificadores.` };
+  return { ok: true, pagadores };
 }
 
 export type EleccionDeAcreditacion =

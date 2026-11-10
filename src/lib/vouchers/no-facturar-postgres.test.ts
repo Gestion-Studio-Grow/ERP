@@ -62,7 +62,14 @@ const hoyDelNegocio = async () => (await import("@/lib/datetime")).todayInBusine
 const clave = (p: string) => `${p}-nf-${String(n++).padStart(4, "0")}-1111-2222-3333`;
 
 /** Un crédito de MP en el extracto (pipeline de mercadopago-auto.ts), «auto» = listo para facturar solo. */
-async function movimientoMp(base: BaseEfimera, tenantId: string, monto: number, fecha: string, origen: "mercadopago" | "banco" = "mercadopago") {
+async function movimientoMp(
+  base: BaseEfimera,
+  tenantId: string,
+  monto: number,
+  fecha: string,
+  origen: "mercadopago" | "banco" = "mercadopago",
+  quien: { contraparte?: string; docNro?: string } = {},
+) {
   const d = await prismaComoDuenio(base);
   const imp = await d.importacionBancaria.create({
     data: { tenantId, nombreArchivo: `nf-${n++}`, origen, archivo: Buffer.from(""), mapeoJson: {} },
@@ -78,6 +85,8 @@ async function movimientoMp(base: BaseEfimera, tenantId: string, monto: number, 
         descripcion: "Transferencia de Adm. La Alameda",
         clasificacion: "venta",
         estadoPropuesta: "auto",
+        ...(quien.contraparte ? { contraparte: quien.contraparte } : {}),
+        ...(quien.docNro ? { docTipo: 80, docNro: quien.docNro } : {}),
       },
     })
   ).id;
@@ -597,4 +606,189 @@ test("V4-5 · un registro de acreditaciones viejo (de la corrida) no deja pasar 
   assert.equal(await tenantTransaction((tx) => conViejo(tx, A, credito, cache), { tenantId: A }), null, "cheque pendiente: no frena");
   await confirmarAcreditacionMp(A, { pagoId: pago.pagoId, actor: "user:test" });
   assert.equal(await tenantTransaction((tx) => conViejo(tx, A, credito, cache), { tenantId: A }), pago.pagoId, "con lo leído antes, el depósito se factura");
+});
+
+// ── Vuelta 5: la administración se reconoce por el PAGADOR (orden de la orquestadora, 10/11/2026) ────
+// Casos V5-1..V5-6 de docs/auditorias/2026-11-09-vouchers-ciclo-pago-admin con el CUIT de la administración
+// cargado (`BusinessSettings.voucherPagadores`): todo crédito de ese pagador va a «revision», sin importar el
+// orden de los eventos ni el monto. Sin pagadores cargados sigue el criterio de monto y fecha (tests de arriba).
+
+/** CUIT de la administración de mentira (dígito verificador válido). */
+const CUIT_ADM = "30712345671";
+const CUIT_CLIENTA = "27123456780";
+
+/** Carga los pagadores de la administración del negocio y los borra al terminar el test. */
+async function conPagadores(t: import("node:test").TestContext, base: BaseEfimera, tenantId: string, pagadores: string[]) {
+  const d = await prismaComoDuenio(base);
+  await d.$executeRaw`
+    INSERT INTO "BusinessSettings" ("id", "tenantId", "voucherPagadores", "updatedAt")
+    VALUES (${`nf-bs-${tenantId}`}, ${tenantId}, ${pagadores}::text[], now())
+    ON CONFLICT ("tenantId") DO UPDATE SET "voucherPagadores" = EXCLUDED."voucherPagadores"`;
+  t.after(async () => {
+    await d.$executeRaw`UPDATE "BusinessSettings" SET "voucherPagadores" = '{}' WHERE "tenantId" = ${tenantId}`;
+  });
+}
+
+const atras = (dia: string, dias: number) => {
+  const x = new Date(`${dia}T12:00:00Z`);
+  x.setUTCDate(x.getUTCDate() - dias);
+  return x.toISOString().slice(0, 10);
+};
+
+const avisoMp = (id: string, monto: number, fecha: string, doc: string | null) => ({
+  id,
+  estado: "approved",
+  monto,
+  externalReference: "",
+  operacion: "transferencia",
+  fechaAcreditacion: fecha.replace(/-/g, ""),
+  descripcion: "Transferencia recibida",
+  contraparteNombre: "Adm. La Alameda",
+  ...(doc ? { pagadorDoc: { tipo: "CUIT", numero: doc } } : {}),
+});
+
+test("P-1 (V5-1) · aviso de la administración ANTES de registrar el pago: no se factura y la acreditación lo engancha", async (t) => {
+  const base = await preparar(t);
+  if (!base) return;
+  const A = base.a.id;
+  await conPagadores(t, base, A, [CUIT_ADM]);
+  const hoy = await hoyDelNegocio();
+  const { procesar, facturadas } = await pipelineMp(A);
+  await procesar(avisoMp("p5p1", 9191.91, hoy, CUIT_ADM));
+  const { registrarPagoACuenta, confirmarAcreditacionMp } = await L();
+  const p = await registrarPagoACuenta(A, { clave: clave("p51"), monto: 9191.91, fecha: hoy, medio: "TRANSFERENCIA", actor: "user:test" });
+  const c = await confirmarAcreditacionMp(A, { pagoId: p.pagoId, actor: "user:test" });
+  assert.equal(facturadas.length, 0, "la transferencia de la administración se facturó");
+  assert.equal(c.via, "mp", "el aviso en revisión tiene que poder engancharse");
+});
+
+test("P-2 (V5-2) · cheque pendiente depositado en MP: el aviso de la administración no se factura", async (t) => {
+  const base = await preparar(t);
+  if (!base) return;
+  const A = base.a.id;
+  await conPagadores(t, base, A, [CUIT_ADM]);
+  const hoy = await hoyDelNegocio();
+  const { registrarPagoACuenta } = await L();
+  await registrarPagoACuenta(A, { clave: clave("p52"), monto: 9292.92, fecha: atras(hoy, 2), medio: "CHEQUE", actor: "user:test" });
+  const { procesar, facturadas } = await pipelineMp(A);
+  await procesar(avisoMp("p5p2", 9292.92, hoy, CUIT_ADM));
+  assert.equal(facturadas.length, 0, "el depósito del cheque de la administración se facturó");
+});
+
+test("P-3 (V5-3) · el gemelo del crédito enganchado (CSV con la contraparte) no se factura", async (t) => {
+  const base = await preparar(t);
+  if (!base) return;
+  const A = base.a.id;
+  await conPagadores(t, base, A, [CUIT_ADM]);
+  const d = await prismaComoDuenio(base);
+  const hoy = await hoyDelNegocio();
+  const { registrarPagoACuenta, confirmarAcreditacionMp } = await L();
+  const p = await registrarPagoACuenta(A, { clave: clave("p53"), monto: 9393.93, fecha: atras(hoy, 1), medio: "TRANSFERENCIA", actor: "user:test" });
+  const w = await movimientoMp(base, A, 9393.93, hoy);
+  const c = await confirmarAcreditacionMp(A, { pagoId: p.pagoId, movimientoId: w, actor: "user:test" });
+  assert.equal(c.movimientoId, w);
+  const gemelo = await movimientoMp(base, A, 9393.93, hoy, "mercadopago", { contraparte: "Adm. La Alameda 30-71234567-1" });
+  await emitir(A);
+  const m = await d.movimientoImportado.findFirstOrThrow({ where: { id: gemelo } });
+  assert.equal(m.invoiceId, null, "el gemelo del crédito enganchado se facturó");
+  assert.equal(m.estadoPropuesta, "revision");
+});
+
+test("P-4 (V5-4) · re-proceso del mapeo después del enganche: la fila recreada de la administración no se factura", async (t) => {
+  const base = await preparar(t);
+  if (!base) return;
+  const A = base.a.id;
+  await conPagadores(t, base, A, [CUIT_ADM]);
+  const d = await prismaComoDuenio(base);
+  const hoy = await hoyDelNegocio();
+  const { registrarPagoACuenta, confirmarAcreditacionMp } = await L();
+  const p = await registrarPagoACuenta(A, { clave: clave("p54"), monto: 9494.94, fecha: atras(hoy, 1), medio: "TRANSFERENCIA", actor: "user:test" });
+  const w = await movimientoMp(base, A, 9494.94, hoy, "mercadopago", { contraparte: "30-71234567-1" });
+  await confirmarAcreditacionMp(A, { pagoId: p.pagoId, movimientoId: w, actor: "user:test" });
+  const viejo = await d.movimientoImportado.findFirstOrThrow({ where: { id: w } });
+  await d.movimientoImportado.deleteMany({ where: { id: w } });
+  const nuevo = await d.movimientoImportado.create({
+    data: {
+      tenantId: A, importacionId: viejo.importacionId, hash: viejo.hash, fecha: viejo.fecha, monto: viejo.monto,
+      descripcion: viejo.descripcion, contraparte: viejo.contraparte, clasificacion: "venta", estadoPropuesta: "auto",
+    },
+  });
+  await emitir(A);
+  const m = await d.movimientoImportado.findFirstOrThrow({ where: { id: nuevo.id } });
+  assert.equal(m.invoiceId, null, "tras re-procesar, el crédito de la administración se facturó");
+});
+
+test("P-5 (V5-5) · la administración paga en dos partes: ninguna se factura", async (t) => {
+  const base = await preparar(t);
+  if (!base) return;
+  const A = base.a.id;
+  await conPagadores(t, base, A, [CUIT_ADM]);
+  const d = await prismaComoDuenio(base);
+  const hoy = await hoyDelNegocio();
+  const { registrarPagoACuenta } = await L();
+  await registrarPagoACuenta(A, { clave: clave("p55"), monto: 9595.96, fecha: atras(hoy, 1), medio: "TRANSFERENCIA", actor: "user:test" });
+  const a = await movimientoMp(base, A, 4797.98, hoy, "mercadopago", { docNro: CUIT_ADM });
+  const b = await movimientoMp(base, A, 4797.98, hoy, "mercadopago", { docNro: CUIT_ADM });
+  await emitir(A);
+  const ms = await d.movimientoImportado.findMany({ where: { id: { in: [a, b] } } });
+  assert.ok(ms.every((m) => m.invoiceId == null && m.estadoPropuesta === "revision"), "las partes de la transferencia se facturaron");
+});
+
+test("P-6 (V5-6) · crédito 3 días antes de la fecha tipeada del pago: no se factura", async (t) => {
+  const base = await preparar(t);
+  if (!base) return;
+  const A = base.a.id;
+  await conPagadores(t, base, A, [CUIT_ADM]);
+  const d = await prismaComoDuenio(base);
+  const hoy = await hoyDelNegocio();
+  const mov = await movimientoMp(base, A, 9696.96, atras(hoy, 3), "mercadopago", { contraparte: "30712345671" });
+  const { registrarPagoACuenta } = await L();
+  await registrarPagoACuenta(A, { clave: clave("p56"), monto: 9696.96, fecha: hoy, medio: "TRANSFERENCIA", actor: "user:test" });
+  await emitir(A);
+  const m = await d.movimientoImportado.findFirstOrThrow({ where: { id: mov } });
+  assert.equal(m.invoiceId, null, "el crédito de 3 días antes se facturó");
+});
+
+test("P-7 · aviso con el CUIT de la administración y un monto que no coincide con ningún pago: revisión, no ARCA", async (t) => {
+  const base = await preparar(t);
+  if (!base) return;
+  const A = base.a.id;
+  await conPagadores(t, base, A, [CUIT_ADM]);
+  const hoy = await hoyDelNegocio();
+  const { registrarPagoACuenta } = await L();
+  await registrarPagoACuenta(A, { clave: clave("p57"), monto: 9797.97, fecha: hoy, medio: "TRANSFERENCIA", actor: "user:test" });
+  const { procesar, facturadas } = await pipelineMp(A);
+  const r = await procesar(avisoMp("p5p7", 1313.13, hoy, CUIT_ADM));
+  assert.equal(facturadas.length, 0, "la plata de la administración se facturó por no coincidir el monto");
+  assert.equal(r.aRevisar, 1);
+  const { esPorPagadorDeLaAdministracion } = await import("./acreditacion-core");
+  const d = await prismaComoDuenio(base);
+  const fila = await d.movimientoImportado.findFirstOrThrow({ where: { tenantId: A, referencia: "p5p7" } });
+  assert.equal(esPorPagadorDeLaAdministracion(fila.motivoRevision), true);
+});
+
+test("P-8 · con pagadores cargados, el crédito de otra persona sigue el camino de siempre (se factura)", async (t) => {
+  const base = await preparar(t);
+  if (!base) return;
+  const A = base.a.id;
+  await conPagadores(t, base, A, [CUIT_ADM]);
+  const d = await prismaComoDuenio(base);
+  const hoy = await hoyDelNegocio();
+  const { procesar, facturadas } = await pipelineMp(A);
+  await procesar(avisoMp("p5p8", 1414.14, hoy, CUIT_CLIENTA));
+  assert.deepEqual(facturadas, ["p5p8"]);
+  const mov = await movimientoMp(base, A, 1515.15, hoy, "mercadopago", { contraparte: `Clienta ${CUIT_CLIENTA}` });
+  await emitir(A);
+  const m = await d.movimientoImportado.findFirstOrThrow({ where: { id: mov } });
+  assert.equal(m.estadoPropuesta, "emitida");
+});
+
+test("P-9 · otro negocio no ve los pagadores de A: su crédito con ese CUIT se factura", async (t) => {
+  const base = await preparar(t);
+  if (!base) return;
+  await conPagadores(t, base, base.a.id, [CUIT_ADM]);
+  const B = base.b.id;
+  const { procesar, facturadas } = await pipelineMp(B);
+  await procesar(avisoMp("p5p9", 1616.16, await hoyDelNegocio(), CUIT_ADM));
+  assert.deepEqual(facturadas, ["p5p9"]);
 });

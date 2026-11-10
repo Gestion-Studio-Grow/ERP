@@ -29,7 +29,13 @@ import { capFacturasMesDelNegocioEnTx } from "@/lib/limites-del-negocio-en-tx";
 import { runInTenantContext } from "@/lib/tenant-context";
 import { pagoDeLaPropuesta } from "@/lib/facturacion/propuesta-mp";
 import { pagoPendienteDelCreditoMp } from "@/lib/vouchers/liquidacion-repo";
-import { esVentaConfirmada, motivoDeAcreditacionPendiente } from "@/lib/vouchers/acreditacion-core";
+import {
+  esVentaConfirmada,
+  motivoDeAcreditacionPendiente,
+  motivoDePagadorDeLaAdministracion,
+  pagadorDeLaAdministracion,
+} from "@/lib/vouchers/acreditacion-core";
+import { leerPagadoresInTx } from "@/lib/vouchers/pagadores-administracion";
 import { claveCobroBanco, claveCobroMP, cobrosYaFacturados, facturarCobros, vincularCobro } from "@/lib/facturacion/cobros-facturados";
 import { calcularImpuestos, getFiscalProfile, isInvoicingEnabled } from "@/lib/fiscal";
 import { procesarEnviosDelNegocio, type DispatchResumen } from "@/lib/arca-dispatch";
@@ -734,6 +740,18 @@ export async function emitirPropuestas(
           // candado de la acreditación: queda en fila con el registro del pago y su confirmación (o uno
           // o el otro antes), y lee las acreditaciones recién ahí, en cada claim (acotado al crédito).
           const saltear = mov.invoiceId != null || esVentaConfirmada(mov.motivoRevision);
+          // La administración se reconoce por el PAGADOR (CUIT/CBU cargado): todo crédito suyo va a
+          // «revision», sin importar el monto ni el orden. Sin pagadores cargados, monto y fecha.
+          const pagador = saltear
+            ? null
+            : pagadorDeLaAdministracion({ docNro: mov.docNro, contraparte: mov.contraparte }, await leerPagadoresInTx(tx, tenantId));
+          if (pagador) {
+            const r = await tx.movimientoImportado.updateMany({
+              where: { id: mov.id, tenantId, estadoPropuesta: "auto", invoiceId: null },
+              data: { estadoPropuesta: "revision", motivoRevision: motivoDePagadorDeLaAdministracion(pagador) },
+            });
+            return { count: 0, aVouchers: r.count };
+          }
           const pagoId = saltear ? null : await pagoPendienteDelCreditoMp(tx, tenantId, {
             id: mov.id,
             fecha: mov.fecha,

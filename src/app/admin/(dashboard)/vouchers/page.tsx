@@ -31,6 +31,10 @@ import { leerCuentaDeLaAdministracion, type CuentaDeLaAdministracion } from "@/l
 import { fechaArgentina, motivoParaNoRechazarCheque, pesosDeCentavos, ultimaSemanaCerrada } from "@/lib/vouchers/liquidacion-core";
 import { motivoDeBaja } from "@/lib/vouchers/voucher-core";
 import { isPrismaError } from "@/lib/prisma-errors";
+import { tenantTransaction } from "@/lib/rls";
+import { identificadorLegible } from "@/lib/vouchers/acreditacion-core";
+import { leerPagadoresInTx, motivoParaNoEditarPagadores } from "@/lib/vouchers/pagadores-administracion";
+import { PagadoresDeLaAdministracion } from "./PagadoresDeLaAdministracion";
 
 export const dynamic = "force-dynamic";
 
@@ -73,6 +77,9 @@ export default async function VouchersPage({ searchParams }: { searchParams: Pro
   const puedeLiquidar = permisoEfectivo(user, "cash:manage");
   // Marcar un cheque rechazado: sólo el dueño (orden del 08/11/2026). La acción lo vuelve a exigir.
   const puedeRechazarCheque = motivoParaNoRechazarCheque(user) === null;
+  // Quién es la administración (sus CUIT/CBU): lo carga sólo la dueña. La acción lo vuelve a exigir.
+  const puedeCargarPagadores = motivoParaNoEditarPagadores(user) === null;
+  const pagadores = puedeLiquidar ? await pagadoresDelNegocio(await getCurrentTenantId()) : [];
   const query = queryDeFiltros(filtros);
 
   return (
@@ -103,6 +110,26 @@ export default async function VouchersPage({ searchParams }: { searchParams: Pro
           tono="aviso"
           titulo="Cobrar con voucher todavía no está habilitado"
           comoSeguir="Falta un paso de base de datos para cobrar turnos con voucher (lo aplica el dueño). Mientras tanto podés cargar lotes e importar la planilla de la administración; los turnos se cobran con otro medio."
+        />
+      )}
+
+      {puedeLiquidar && pagadores.length === 0 && (
+        <AvisoError
+          className="mb-6"
+          tono="aviso"
+          titulo="Cargá el CUIT de la administración para cerrar el control"
+          comoSeguir={
+            puedeCargarPagadores
+              ? "Con su CUIT o CBU, todo lo que pague la administración queda en revisión y no se factura solo. Mientras tanto se frena sólo lo que coincide en monto y fecha con un pago registrado."
+              : "Con su CUIT o CBU, todo lo que pague la administración queda en revisión y no se factura solo. Lo carga la dueña, en esta misma pantalla."
+          }
+          accion={
+            puedeCargarPagadores ? (
+              <a href="#pagadores-administracion" className={buttonClasses("outline", "md")} {...atributosBoton("outline", "md")}>
+                Cargar el CUIT
+              </a>
+            ) : undefined
+          }
         />
       )}
 
@@ -138,8 +165,20 @@ export default async function VouchersPage({ searchParams }: { searchParams: Pro
       {/* La plata del voucher la paga la administración del country y se liquida todos los lunes
           (regla del dueño del 08/11/2026). Reemplaza a la importación de la liquidación de OpenKey. */}
       {puedeLiquidar && <LiquidacionDelLunes puedeRechazarCheque={puedeRechazarCheque} />}
+      {puedeLiquidar && puedeCargarPagadores && (
+        <div className="mt-8">
+          <Herramienta titulo="Quién es la administración" id="pagadores-administracion">
+            <PagadoresDeLaAdministracion pagadores={pagadores.map(identificadorLegible)} />
+          </Herramienta>
+        </div>
+      )}
     </main>
   );
+}
+
+/** Los CUIT/CBU de la administración del negocio (lectura tolerante: sin la columna, lista vacía). */
+async function pagadoresDelNegocio(tenantId: string): Promise<string[]> {
+  return tenantTransaction((tx) => leerPagadoresInTx(tx, tenantId), { tenantId });
 }
 
 async function leerCuenta(tenantId: string): Promise<CuentaDeLaAdministracion | "falta-migracion"> {
