@@ -309,6 +309,9 @@
 [data-diseno="renglon"] [data-ui="linea-estado"] {
   display: flex;
   flex-wrap: wrap;
+  /* Un dato puede ser un chip más alto que el texto («Sin cerrar 4» en Agenda): al centro, para que
+     los datos de texto y sus «·» no queden colgados arriba del chip. */
+  align-items: center;
   column-gap: 0.5rem;
   row-gap: 0.125rem;
   margin: 0.25rem 0 0;
@@ -1796,6 +1799,9 @@
   }
 }
 [data-diseno="renglon"] dialog[data-ui="dialogo"] {
+  /* Centrado: el reinicio de Tailwind le saca al <dialog> su `margin: auto` nativo y sin esto el
+     diálogo aparecía pegado arriba a la izquierda. */
+  margin: auto;
   width: min(27.5rem, calc(100vw - 2rem));
   border-radius: var(--radio-flota);
   transition: opacity var(--dur-2) var(--ease-out), translate var(--dur-2) var(--ease-out), display var(--dur-2) allow-discrete, overlay var(--dur-2) allow-discrete;
