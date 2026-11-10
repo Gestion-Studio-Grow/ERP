@@ -9,7 +9,6 @@ import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { authSecret } from "@/lib/auth";
-import { auditPublic } from "@/lib/audit-core";
 import { logger } from "@/lib/logger";
 import { nombreVisibleDelNegocio } from "@/lib/marca-demo";
 import { modoCobrosDesdeEnv } from "@/lib/mercadopago-cobros-dispatch";
@@ -89,12 +88,32 @@ export async function pagarPedidoDeLaTienda(
         monto: decision.monto,
         negocio: nombreVisibleDelNegocio(tenant.slug, tenant.name, "el local"),
         modo,
-        auditar: (e) => auditPublic(e),
+        // La auditoría va en la MISMA transacción, con el negocio cargado para la RLS. Con el `prisma`
+        // global corría en otra conexión, la RLS la rechazaba y `audit()` se tragaba el error: sin la
+        // fila, el clic siguiente no tenía qué reusar (test de carrera T6). Tampoco pide una segunda
+        // conexión mientras otras esperan el candado (con 5 clics se agotaba el pool).
+        auditar: (e) =>
+          tx.auditLog.create({
+            data: {
+              tenantId,
+              actor: "cliente",
+              action: e.action,
+              entity: e.entity,
+              entityId: e.entityId,
+              changes: e.changes as never,
+              channel: "public",
+            },
+          }),
         extra: { origen: "tienda" },
       });
     },
     { tenantId, timeoutMs: 20_000 },
-  );
+  ).catch((e: unknown) => {
+    // Si la auditoría o la transacción fallan, no se entrega un link sin rastro (no sería reusable).
+    logger.warn("tienda", "falló la transacción del link de pago desde Gracias", { tenantId, error: String(e) });
+    return null;
+  });
+  if (!r) return { ok: false, error: MENSAJE_SIN_PAGO.falla };
   if (r.ok && "reusado" in r) return { ok: true, url: r.url, prueba: r.reusado };
   if (!r.ok) {
     logger.warn("tienda", "no se pudo armar el link de pago desde Gracias", { tenantId, tipo: r.tipo });
