@@ -284,3 +284,55 @@ test("retomar y aislamiento: reabrir el enlace antes de elegir la clave; un enla
   p.pasar(24 * 60 * 60 * 1000);
   assert.deepEqual(await web.confirmarAlta(deps, s, "5.5.5.1"), { ok: false, motivo: "enlace" });
 });
+
+test("D4 con columna: Tenant.cuitVerificadoEn marca la verificación de producción; rotar la invalida; sin la columna, verifica la auditoría", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  CUIT = cuit("2055566671");
+  const { web, deps, duenio, mails } = p;
+  const { guardarRegistroCredencial, registrarPruebaArcaOk } = await import("@/lib/fiscal/tenant-cert");
+  const { tenedoresDelCuit, olvidarColumnaCuitVerificado } = await import("./tenedores-del-cuit.server");
+  const { ACCION_PRUEBA_OK } = await import("@/lib/fiscal/contador-arca");
+  const verificado = async (id: string) =>
+    (await p.app.$transaction((tx) => tenedoresDelCuit(tx, CUIT))).find((x) => x.tenantId === id)?.verificado;
+  const marca = async (id: string) =>
+    (await duenio.$queryRawUnsafe<{ m: Date | null }[]>(`SELECT "cuitVerificadoEn" AS m FROM "Tenant" WHERE id = $1`, id))[0].m;
+
+  await web.pedirAlta(deps, pedido({ email: "col@ficticio.test" }), "8.8.8.1");
+  assert.ok((await web.confirmarAlta(deps, selloDelMail(mails[0]), "8.8.8.1")).ok);
+  const n = await duenio.tenant.findFirstOrThrow({ where: { arcaCuit: CUIT }, select: { id: true } });
+  await guardarRegistroCredencial(n.id, REG(CUIT), "test", p.app);
+
+  // Homologación: ni marca ni verifica.
+  await registrarPruebaArcaOk(n.id, "test", "homologacion", p.app);
+  assert.equal(await marca(n.id), null);
+  assert.equal(await verificado(n.id), false);
+  // Producción: marca, en la misma transacción que la auditoría.
+  await registrarPruebaArcaOk(n.id, "test", "produccion", p.app);
+  assert.ok((await marca(n.id)) instanceof Date);
+  assert.equal(await verificado(n.id), true);
+
+  // Sólo con la columna (sin la fila de auditoría) sigue verificado.
+  await duenio.auditLog.deleteMany({ where: { tenantId: n.id, action: ACCION_PRUEBA_OK } });
+  assert.equal(await verificado(n.id), true, "la columna sola alcanza");
+  // Verificado no vence: un año después sigue ocupando y un tercero no recibe enlace.
+  await duenio.$executeRawUnsafe(`UPDATE "Tenant" SET "createdAt" = now() - interval '400 days' WHERE id = $1`, n.id);
+  await web.pedirAlta(deps, pedido({ email: "tercero-col@ficticio.test" }), "8.8.8.2");
+  assert.equal(selloDelMail(mails.at(-1)!), "", "verificado hace un año: sin enlace");
+  // Rotar el certificado deja la marca vieja sin valor hasta probar de nuevo.
+  await new Promise((r) => setTimeout(r, 5));
+  await guardarRegistroCredencial(n.id, REG(CUIT), "test", p.app);
+  assert.equal(await verificado(n.id), false, "rotar invalida la marca");
+
+  // Base sin la migración: nada se rompe y la auditoría verifica sola.
+  await duenio.$executeRawUnsafe(`ALTER TABLE "Tenant" DROP COLUMN IF EXISTS "cuitVerificadoEn"`);
+  olvidarColumnaCuitVerificado();
+  try {
+    assert.equal(await verificado(n.id), false);
+    await registrarPruebaArcaOk(n.id, "test", "produccion", p.app);
+    assert.equal(await verificado(n.id), true, "sin columna verifica la auditoría");
+  } finally {
+    await duenio.$executeRawUnsafe(`ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "cuitVerificadoEn" TIMESTAMP(3)`);
+    olvidarColumnaCuitVerificado();
+  }
+});

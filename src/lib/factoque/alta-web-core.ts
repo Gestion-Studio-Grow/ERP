@@ -265,7 +265,8 @@ export function hostDelNegocio(subdominio: string, dominio: string): string {
 //
 // Nada en el alta web prueba que quien la pide sea el titular del CUIT. La prueba llega después: el
 // certificado de ARCA sólo lo saca el titular con SU clave fiscal. Por eso:
-//  - un negocio está VERIFICADO cuando tiene cargado un certificado de ARCA de su mismo CUIT;
+//  - un negocio está VERIFICADO cuando ARCA de PRODUCCIÓN le aceptó un certificado de su mismo CUIT después de la
+//    última carga (D4, 09/11: `Tenant.cuitVerificadoEn` o la auditoría, ver tenedores-del-cuit.server.ts);
 //  - un alta web sin verificar NO bloquea al titular real: puede reclamar el CUIT dando de alta el suyo,
 //    y gana el primero que conecte ARCA (src/lib/fiscal/tenant-cert.ts se niega a cargarle el
 //    certificado a un alta web si otro negocio ya verificó ese CUIT);
@@ -281,7 +282,7 @@ export interface TenedorDelCuit {
   tenantId: string;
   subdomain: string | null;
   creado: Date;
-  /** Tiene certificado de ARCA de ese CUIT. */
+  /** ARCA de producción le aceptó el certificado de ese CUIT después de la última carga. */
   verificado: boolean;
   /** Vino del alta web (auditoría `factoque.alta` con actor `web:`). */
   web: boolean;

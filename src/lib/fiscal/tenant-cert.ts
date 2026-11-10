@@ -26,7 +26,7 @@ import {
 } from "@/plugins/arca";
 import type { PrismaClient } from "@/generated/prisma/client";
 import { operatorPrisma, enElNegocio } from "@/lib/operator-db";
-import { bloquearCuit, tenedoresDelCuit } from "@/lib/factoque/tenedores-del-cuit.server";
+import { bloquearCuit, hayColumnaCuitVerificado, tenedoresDelCuit } from "@/lib/factoque/tenedores-del-cuit.server";
 import { ACCION_PRUEBA_OK } from "@/lib/fiscal/contador-arca";
 import {
   masterKeyDesdeEnv,
@@ -155,6 +155,11 @@ export async function registrarPruebaArcaOk(
     await tx.auditLog.create({
       data: { tenantId, actor, action: ACCION_PRUEBA_OK, entity: "Tenant", entityId: tenantId, changes: { entorno } },
     });
+    // D4: la marca de verificado, en la misma transacción que la auditoría (y bajo el candado del CUIT si es alta web).
+    // Sin la migración aplicada no se escribe: la auditoría de arriba sigue verificando sola.
+    if (entorno === "produccion" && (await hayColumnaCuitVerificado(tx))) {
+      await tx.$executeRaw`UPDATE "Tenant" SET "cuitVerificadoEn" = ${new Date()} WHERE id = ${tenantId}`;
+    }
   });
 }
 

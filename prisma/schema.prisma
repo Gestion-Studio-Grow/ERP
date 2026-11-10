@@ -369,6 +369,12 @@ model Tenant {
   // `arcaCuit` es String (no Int como sugería el spec): un CUIT de 11 dígitos no entra
   // en Int32 de Postgres — mismo criterio que `Invoice.docNro`.
   arcaCuit         String? // CUIT del emisor (11 dígitos, sin guiones)
+  // D4 del dueño (09/11): el CUIT de un alta web queda «sin verificar» hasta que ARCA de PRODUCCIÓN acepta el
+  // certificado del titular; sin verificar, el alta deja de ocupar el CUIT a los 15 días (alta-web-core.ts).
+  // Cuándo ARCA lo aceptó por última vez (registrarPruebaArcaOk, tenant-cert.ts). Cuenta si es posterior a la
+  // última carga del certificado. Aditiva/nullable, sin backfill: 20261110170000_tenant_cuit_verificado (Gate 2).
+  // El código la lee con SQL crudo y tolera que falte (tenedores-del-cuit.server.ts).
+  cuitVerificadoEn DateTime?
   arcaPuntoVenta   Int? // punto de venta habilitado en ARCA
   arcaHomologacion Boolean @default(true) // true = testing ARCA (seguro por default); false = producción
 

@@ -112,3 +112,9 @@
 # 20261108130000_user_pin (#50: tabla aparte). El lote se compara en orden de timestamp: al integrar con #50,
 # user_pin va arriba de ésta (o comentada, si #50 ya se publicó). #50, #48 y #53 ya publicadas el 09/11.
 20261109120000_must_change_password
+#
+# 2026-11-10 · Factoque alta web, D4 del dueño (GSG-FACT-004, PR #45): CUIT sin verificar hasta conectar ARCA.
+# Aditiva: columna nullable "Tenant"."cuitVerificadoEn" TIMESTAMP(3), sin default ni backfill. No toca datos.
+# El código tolera que falte (verifica por la auditoría). Va COMENTADA: SIN autorización del dueño registrada
+# (Gate 2). Se descomenta en el mismo PR que trae esa autorización; hasta entonces, el build frena si llega a main.
+# 20261110170000_tenant_cuit_verificado
