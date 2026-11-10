@@ -308,7 +308,12 @@ async function aplicarPlan(tenantId: string, proyectoId: string, planDeLaFicha: 
     if (previa?.pagadoEl || (previa && facturada(previa.id))) continue;
     const datos = { prevista, tipo: c.tipo, concepto: c.concepto, monto: c.monto, moneda: c.moneda, venceEl: venceDeLaCuota({ clave: c.clave, plan: c.venceEl, prevista, hoy, previa }), supplierId: c.supplierId, anuladoEl: null };
     // Con el candado de la facturación: si se facturó recién (después de leer las facturas), no se toca.
-    if (previa) choco = (await conCuotaSinFacturaViva(tenantId, previa.id, (tx) => tx.proyectoCuota.update({ where: { id: previa.id }, data: datos }))) === "facturada" || choco;
+    // Y sólo si sigue sin marcar: una cuota marcada mientras se ajustaba queda congelada (no se le pisa monto ni `prevista`)
+    // y el plan se vuelve a calcular con ella, como con una factura.
+    if (previa) {
+      const r = await conCuotaSinFacturaViva(tenantId, previa.id, (tx) => tx.proyectoCuota.updateMany({ where: { id: previa.id, tenantId, pagadoEl: null }, data: datos }));
+      choco = r === "facturada" || r.count === 0 || choco;
+    }
     else await prisma.proyectoCuota.create({ data: { ...datos, tenantId, proyectoId, auto: true, clave: c.clave } });
   }
   const sobran = actuales.filter((c) => c.clave && !vigentes.has(c.clave) && !c.pagadoEl && !c.anuladoEl && !facturada(c.id)).map((c) => c.id);

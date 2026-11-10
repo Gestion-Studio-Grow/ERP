@@ -12,6 +12,7 @@ import { aItemFicha } from "@/lib/proyectos/gestion.server";
 import { cambiosEntreVersiones, cambioDeVenta, estadoCuota, MONEDAS, plataEn, totalesFicha, ventaEn } from "@/lib/proyectos/gestion-core";
 import { datosCotizacion, datosFinanzas, type Cabecera, type Vista } from "@/lib/proyectos/ficha.server";
 import { veLaPlata } from "@/lib/proyectos/datos.server";
+import { textoPagado } from "@/lib/proyectos/cobranza-core";
 import type { FacturaDeCuotaVista } from "@/lib/proyectos/facturar-cuota.server";
 import { nombreDelComprobante } from "@/lib/factura-de-prueba";
 import type { Actor } from "@/lib/proyectos/gestion.server";
@@ -292,6 +293,8 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
                       <td className="py-1.5 pr-2 text-right tabular-nums">
                         {plataEn(c.monto, c.moneda)}
                         {!c.pagadoEl && !c.anuladoEl && c.tipo === "COBRO" && c.pendiente !== c.monto && <span className="block text-xs text-muted">Falta {plataEn(c.pendiente, c.moneda)}</span>}
+                        {/* Lo que se pagó tal como entró (el original y los pesos asentados), no lo que vale hoy: eso va en el importe. */}
+                        {c.pagado && (c.pagado.pesos !== null || c.pagado.moneda !== c.moneda || c.pagado.monto !== c.monto) && <span className="block text-xs text-muted">Pagó {textoPagado(c.pagado)}</span>}
                       </td>
                       <td className={cn("py-1.5 pr-2 text-right tabular-nums", importe < 0 ? "text-danger" : "text-strong")}>{enCaja(importe)}</td>
                       <td className={cn("py-1.5 pr-2 text-right font-medium tabular-nums", saldo < 0 && "text-danger")}>{enCaja(saldo)}</td>

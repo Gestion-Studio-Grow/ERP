@@ -853,7 +853,8 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
       if (Math.abs(ahora.pendiente - pendiente) > 0.005) return "cambio";
       if (pasaElTope(ahora.cob, importe)) return "tope";
     }
-    const r = await tx.proyectoCuota.updateMany({ where: { id, tenantId, pagadoEl: null, anuladoEl: null }, data: { pagadoEl: new Date(), pagadoPor: a.nombre, medio, cuentaId: cuenta?.id ?? null, cuentaMovido: cuenta?.movido ?? null } });
+    // `prevista: false` adentro: si la cuota volvió a prevista mientras tanto (se regeneró el plan), no se marca.
+    const r = await tx.proyectoCuota.updateMany({ where: { id, tenantId, pagadoEl: null, anuladoEl: null, prevista: false }, data: { pagadoEl: new Date(), pagadoPor: a.nombre, medio, cuentaId: cuenta?.id ?? null, cuentaMovido: cuenta?.movido ?? null } });
     if (r.count === 0) return false;
     if (cuenta) await tx.proyectoCuentaBanco.updateMany({ where: { id: cuenta.id, tenantId }, data: { saldo: { increment: cuenta.movido } } });
     const session = await tx.cashSession.findFirst({ where: { tenantId, status: "OPEN" }, select: { id: true } });

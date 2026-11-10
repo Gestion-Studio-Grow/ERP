@@ -10,7 +10,7 @@ import { configProyectos } from "./datos.server";
 import { aPesos, codigoProyecto, nivelDeCarga, pipelinePonderado, proyeccionDeCaja, resumenCuotas, totalesFicha, type NivelCarga } from "./gestion-core";
 import { desviosDelEvento, estaAbierto, estaActivo, estaConfirmado, finDeSemana, margenSobreVenta } from "./empresa-core";
 import { redondear, yaVencio } from "./core";
-import { conciliarConCobros, repartoDelNegocio, resumenConCobranza } from "./cobranza-core";
+import { conciliarConCobros, pagadoDeCuota, repartoDelNegocio, resumenConCobranza, SIN_PREVISTAS_SIN_MARCAR } from "./cobranza-core";
 import { cobranzasDelNegocio } from "./cobranza.server";
 
 const MESES_PROYECCION = 6;
@@ -19,7 +19,8 @@ const MESES_PROYECCION = 6;
 
 export async function cuotasDelNegocio(tenantId: string) {
   return prisma.proyectoCuota.findMany({
-    where: { tenantId, anuladoEl: null, prevista: false },
+    // Las previstas sin marcar no son plata; una marcada cuenta aunque haya sido prevista (la misma regla que la ficha).
+    where: { tenantId, anuladoEl: null, ...SIN_PREVISTAS_SIN_MARCAR },
     orderBy: { venceEl: "asc" },
     take: 3000,
     select: {
@@ -47,9 +48,14 @@ export async function recuadrosDeCuotas(tenantId: string) {
   // «A cobrar» de cada proyecto = lo aprobado menos lo cobrado (cobranza-core), igual que Rentabilidad y Clientes.
   const cobranzas = await cobranzasDelNegocio(tenantId, tc, config.margenPct);
   // Cada renglón con lo que le falta (los cobros manuales se descuentan de las cuotas más viejas): suman lo mismo que el total.
-  // Y con lo que entró por cada una (las cobradas): «Pagados» muestra lo cobrado, no el monto de la cuota.
+  // Y con lo que entró por cada una (las cobradas, en pesos de hoy: el cashflow). «Pagados» muestra `pagado`: lo que se
+  // pagó tal como entró (el original y los pesos asentados), sacado de la misma cobranza, sin otra consulta.
   const { pendiente, cobrado } = repartoDelNegocio(cuotas, tc, cobranzas);
-  return { cuotas: cuotas.map((c, i) => ({ ...c, pendiente: pendiente[i], cobrado: cobrado[i] })), tc, resumen: resumenConCobranza(cuotas, tc, cobranzas) };
+  return {
+    cuotas: cuotas.map((c, i) => ({ ...c, pendiente: pendiente[i], cobrado: cobrado[i], pagado: pagadoDeCuota(c, c.proyectoId ? cobranzas.get(c.proyectoId) : null) })),
+    tc,
+    resumen: resumenConCobranza(cuotas, tc, cobranzas),
+  };
 }
 
 export async function proveedoresActivos(tenantId: string) {
@@ -183,7 +189,7 @@ export async function proyectosConNumeros(tenantId: string) {
         client: { select: { name: true } },
         presupuestos: { orderBy: { version: "desc" }, take: 1, select: { items: { orderBy: { posicion: "asc" }, include: { supplier: { select: { name: true } } } } } },
         gastos: { where: { anuladoEl: null }, select: { rubro: true, neto: true, anuladoEl: true } },
-        cuotas: { where: { anuladoEl: null, prevista: false, tipo: "COBRO" }, select: { id: true, monto: true, moneda: true, venceEl: true, pagadoEl: true, tipo: true } },
+        cuotas: { where: { anuladoEl: null, ...SIN_PREVISTAS_SIN_MARCAR, tipo: "COBRO" }, select: { id: true, monto: true, moneda: true, venceEl: true, pagadoEl: true, tipo: true } },
       },
     }),
     configProyectos(tenantId),
