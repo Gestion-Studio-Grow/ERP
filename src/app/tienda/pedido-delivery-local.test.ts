@@ -41,7 +41,9 @@ test("placeOnlineOrder: el delivery local sólo corre con config; sin ella, la n
   assert.ok(cuerpo.indexOf("if (extrasLocal && !extrasLocal.ok)") < cuerpo.indexOf("tomarPedidoOnlineGuarded("));
   assert.match(cuerpo, /\.\.\.\(extrasLocal\?\.ok \? \{ extras: extrasLocal\.renglones \} : \{\}\)/);
   assert.match(cuerpo, /\.\.\.\(extrasLocal\?\.ok \? \{ entregaLocal: extrasLocal\.auditoria \} : \{\}\)/);
-  assert.match(cuerpo, /if \(deliveryLocal\) redirect\(rutaDeSeguimiento\(tokenDeSeguimiento\(authSecret\(\), tenantId, result\.id\)\)\);\s+redirect\(`\/tienda\/gracias\?pedido=\$\{result\.code\}`\);/);
+  assert.match(cuerpo, /seguimiento = rutaDeSeguimiento\(tokenDeSeguimiento\(authSecret\(\), tenantId, result\.id\)\);/);
+  // Sin el secreto, el pedido ya grabado no termina en error: cae a «gracias».
+  assert.match(cuerpo, /\} catch \(err\) \{[^}]*\}\s*\}\s*if \(seguimiento\) redirect\(seguimiento\);\s+redirect\(`\/tienda\/gracias\?pedido=\$\{result\.code\}`\);/);
 });
 
 test("el seguimiento público no lee dirección, teléfono ni ubicación, y no se indexa", () => {

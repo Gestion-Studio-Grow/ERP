@@ -887,7 +887,16 @@ export async function placeOnlineOrder(
   }
   if (!porWhatsApp) {
     // Delivery local: el cliente sigue su pedido en un link propio (firmado, sin datos personales).
-    if (deliveryLocal) redirect(rutaDeSeguimiento(tokenDeSeguimiento(authSecret(), tenantId, result.id)));
+    // El pedido ya está grabado: si falta el secreto del link, el cliente va a «gracias» en vez de ver un error.
+    let seguimiento: string | null = null;
+    if (deliveryLocal) {
+      try {
+        seguimiento = rutaDeSeguimiento(tokenDeSeguimiento(authSecret(), tenantId, result.id));
+      } catch (err) {
+        console.error("[delivery-local] no se pudo firmar el link de seguimiento", err);
+      }
+    }
+    if (seguimiento) redirect(seguimiento);
     redirect(`/tienda/gracias?pedido=${result.code}`);
   }
   // El pedido YA está registrado: si armar el link del chat falla, no se dice "no pudimos tomar

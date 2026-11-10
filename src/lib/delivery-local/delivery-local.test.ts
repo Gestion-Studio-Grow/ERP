@@ -8,7 +8,11 @@ import { configDeliveryLocal } from "./config";
 import { extrasDelAlta } from "./alta";
 
 const MONTE_GRANDE = { lat: -34.8183, lng: -58.4683 };
-const form = (o: Record<string, string>) => ({ get: (k: string) => (k in o ? o[k] : null) });
+// Por defecto el cliente aceptó los términos; el test de la casilla lo saca a mano.
+const form = (o: Record<string, string>, acepta = true) => {
+  const campos: Record<string, string> = acepta ? { aceptaTerminos: "on", ...o } : o;
+  return { get: (k: string) => (k in campos ? campos[k] : null) };
+};
 
 // ── Ubicación ──
 test("ubicación vacía no es error (el cliente no la quiso compartir)", () => {
@@ -169,4 +173,10 @@ test("alta: retiro ignora la ubicación; ubicación rara no frena; pago malo sí
   const rara = extrasDelAlta(cfg, form({ ubicacionLat: "40", ubicacionLng: "-3" }), true);
   assert.ok(rara.ok && rara.renglones.length === 0);
   assert.equal(extrasDelAlta(cfg, form({ medioPreferido: "cripto" }), true).ok, false);
+});
+test("alta: sin aceptar los términos no se toma el pedido, aunque el navegador se saltee la casilla", () => {
+  const cfg = configDeliveryLocal("bitacora")!;
+  const x = extrasDelAlta(cfg, form({ medioPreferido: "efectivo" }, false), true);
+  assert.equal(x.ok, false);
+  assert.equal(extrasDelAlta(cfg, form({ medioPreferido: "efectivo", aceptaTerminos: "si" }, false), true).ok, false);
 });

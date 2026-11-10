@@ -28,6 +28,8 @@ export type ExtrasDelAlta =
   | { ok: false; error: string };
 
 export function extrasDelAlta(cfg: ConfigDeliveryLocal, form: CamposDelForm, envio: boolean): ExtrasDelAlta {
+  // La aceptación de los términos se controla también acá: el navegador se puede saltear.
+  if (form.get("aceptaTerminos") !== "on") return { ok: false, error: "Para mandar el pedido, aceptá los términos y la política de privacidad." };
   const pago = leerPago(form.get("medioPreferido"), form.get("pagaCon"), cfg.medios);
   if (!pago.ok) return { ok: false, error: pago.error };
 
