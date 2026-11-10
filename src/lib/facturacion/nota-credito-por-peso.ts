@@ -14,6 +14,7 @@
 //     reintenta (el próximo «Pesar y ajustar» del pedido o `reintentarNotasPorPesoPendientes`).
 //   · SÓLO MODO PRUEBA: factura con CAE simulado y el negocio en stub; si no, no se emite.
 
+import { Prisma } from "@/generated/prisma/client";
 import { tenantTransaction } from "@/lib/rls";
 import { idsDeLosNegocios } from "@/lib/cron/negocios";
 import { sumarAlCentavo } from "@/lib/dinero/redondeo";
@@ -150,28 +151,25 @@ export async function reintentarNotasPorPesoPendientes(
   if (!(await deps.enModoPrueba(tenantId))) return r;
   const claves = await tenantTransaction(
     async (tx) => {
-      // Primero las PENDIENTES y después, sólo para esas claves, cuáles ya se emitieron o cerraron:
-      // leer las N filas más viejas de la entidad y filtrar después dejaba afuera a las pendientes
-      // nuevas en cuanto el negocio acumulaba notas emitidas (certificación, hallazgo 1).
-      const pendientes = await tx.auditLog.findMany({
-        where: { tenantId, entity: ENTIDAD_NC_POR_PESO, action: ACCION_NC_PESO_PENDIENTE, entityId: { not: null } },
-        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-        take: 1000,
-        select: { entityId: true },
-      });
-      const clavesPendientes = [...new Set(pendientes.map((f) => f.entityId!))];
-      if (clavesPendientes.length === 0) return [];
-      const cerradas = await tx.auditLog.findMany({
-        where: {
-          tenantId,
-          entity: ENTIDAD_NC_POR_PESO,
-          action: { in: [ACCION_NC_PESO_EMITIDA, ACCION_NC_PESO_CERRADA] },
-          entityId: { in: clavesPendientes },
-        },
-        select: { entityId: true },
-      });
-      const fuera = new Set(cerradas.map((f) => f.entityId));
-      return clavesPendientes.filter((c) => !fuera.has(c)).slice(0, opciones.limite ?? 20);
+      // Sólo las pendientes ABIERTAS (sin emitida ni cerrada de la misma clave), en la base: las
+      // filas de notas ya resueltas nunca se borran, así que traer «las N más viejas» y filtrar
+      // después deja ciega a la pendiente nueva en cuanto el historial pasa de N (certificación).
+      const filas = await tx.$queryRaw<{ entityId: string }[]>(Prisma.sql`
+        SELECT p."entityId"
+          FROM "AuditLog" p
+         WHERE p."tenantId" = ${tenantId}
+           AND p."entity" = ${ENTIDAD_NC_POR_PESO}
+           AND p."action" = ${ACCION_NC_PESO_PENDIENTE}
+           AND p."entityId" IS NOT NULL
+           AND NOT EXISTS (
+             SELECT 1 FROM "AuditLog" r
+              WHERE r."tenantId" = p."tenantId"
+                AND r."entity" = p."entity"
+                AND r."entityId" = p."entityId"
+                AND r."action" IN (${ACCION_NC_PESO_EMITIDA}, ${ACCION_NC_PESO_CERRADA}))
+         ORDER BY p."createdAt" ASC, p."id" ASC
+         LIMIT ${opciones.limite ?? 20}`);
+      return [...new Set(filas.map((f) => f.entityId))];
     },
     { tenantId },
   );

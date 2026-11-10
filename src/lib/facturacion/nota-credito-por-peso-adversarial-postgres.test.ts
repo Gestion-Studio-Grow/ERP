@@ -120,10 +120,10 @@ test("adversarial NC por peso", async (t) => {
     await nc.notaDeCreditoPorPeso(a.id, k, deps);
   });
 
-  await t.test("cron: ventana take:1000 asc deja ciega a la pendiente nueva", async () => {
+  await t.test("cron: más de 1000 notas ya resueltas no tapan a la pendiente nueva", async () => {
     const viejo = new Date(Date.now() - 86400000);
     await duenio.auditLog.createMany({
-      data: Array.from({ length: 1000 }, (_, i) => ({ tenantId: a.id, actor: "system", action: i % 2 ? "nc_peso_emitida" : "nc_peso_pendiente", entity: "NotaCreditoPorPeso", entityId: `viejo-${Math.floor(i / 2)}`, channel: "admin", changes: { notaId: "x" }, createdAt: viejo })),
+      data: Array.from({ length: 2002 }, (_, i) => ({ tenantId: a.id, actor: "system", action: i % 2 ? "nc_peso_emitida" : "nc_peso_pendiente", entity: "NotaCreditoPorPeso", entityId: `viejo-${Math.floor(i / 2)}`, channel: "admin", changes: { notaId: "x" }, createdAt: viejo })),
     });
     const p = await tomar(a, vA.id, 1);
     await cobrar(a, p.id);
