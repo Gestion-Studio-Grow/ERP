@@ -14,6 +14,9 @@ import {
   debeEstamparRecordatorio,
   motivoSinEnvio,
   textoRecordatorio,
+  plantillaRecordatorioPorRubro,
+  PLANTILLA_RECORDATORIO_POR_DEFECTO,
+  PLANTILLA_RECORDATORIO_CON_CONFIRMACION,
 } from "./turno-abierto";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
 
@@ -151,4 +154,24 @@ test("reprogramar desde la agenda borra el 'avisada': el aviso era para la fecha
   assert.ok(i !== -1, "no encontré rescheduleAppointment");
   const cuerpo = src.slice(i, src.indexOf("\nexport ", i + 10));
   assert.match(cuerpo, /tx\.appointment\.update\(\{[\s\S]*?data:\s*\{[^}]*reminderSentAt:\s*null/);
+});
+
+// Paquete Peluquerías T5: plantilla por defecto según el rubro.
+test("peluquería y barbería: sin plantilla propia, el recordatorio pide la confirmación", () => {
+  for (const rubro of ["peluqueria", "barberia"]) {
+    assert.equal(plantillaRecordatorioPorRubro(rubro), PLANTILLA_RECORDATORIO_CON_CONFIRMACION);
+  }
+  const texto = textoRecordatorio(plantillaRecordatorioPorRubro("barberia"), {
+    clientName: "Nico",
+    serviceName: "Corte y barba",
+    professionalName: "Leo",
+    startsAt: "2026-09-24T19:00:00.000Z",
+  });
+  assert.match(texto, /^Hola Nico, te esperamos .*16:00 para Corte y barba con Leo\. ¿Nos confirmás\? Respondé SÍ/);
+});
+
+test("sin cambio: CH (sin blueprint) y el resto de los rubros siguen con la plantilla de siempre", () => {
+  for (const rubro of [null, undefined, "", "estetica", "servicios", "veterinaria", "consultorio"]) {
+    assert.equal(plantillaRecordatorioPorRubro(rubro), PLANTILLA_RECORDATORIO_POR_DEFECTO);
+  }
 });
