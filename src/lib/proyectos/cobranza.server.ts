@@ -33,28 +33,22 @@ type Db = Prisma.TransactionClient;
 export type EnlaceDeCobro = { original: Original | null; cuotaId: string | null };
 
 /**
- * El enlace «Asiento» que deja `marcarCuota` (cuota → cobro), por id de cobro. En los proyectos que no venden en pesos
- * trae además lo que pagó el cliente en su moneda: el monto guardado en el enlace o, en los enlaces de antes, el de la
- * cuota entera (hasta entonces se cobraba la cuota completa). Un cobro sin enlace no figura: es suelto, en pesos.
- * `todos`: también los de proyectos en pesos (hacen falta para repartir lo suelto contra las cuotas).
+ * El enlace «Asiento» que deja `marcarCuota` (cuota → cobro), por id de cobro, para cualquier proyecto: la cuota que lo
+ * asentó y lo que pagó el cliente en la moneda de ESA cuota (el monto guardado en el enlace, «60 USD»). Un enlace de
+ * antes, sin monto, de una cuota que no es en pesos: la cuota entera (hasta entonces se cobraba completa). Un cobro sin
+ * enlace no figura: es suelto.
  */
-export async function originalesDeCobros(
-  tenantId: string,
-  proyectos: readonly { moneda: string; pagos: readonly { id: string }[] }[],
-  db: Db = prisma,
-  todos = false,
-): Promise<Map<string, EnlaceDeCobro>> {
-  const enMoneda = new Set(proyectos.filter((p) => p.moneda !== "ARS").flatMap((p) => p.pagos.map((x) => x.id)));
-  const ids = todos ? proyectos.flatMap((p) => p.pagos.map((x) => x.id)) : [...enMoneda];
+export async function originalesDeCobros(tenantId: string, proyectos: readonly { pagos: readonly { id: string }[] }[], db: Db = prisma): Promise<Map<string, EnlaceDeCobro>> {
+  const ids = proyectos.flatMap((p) => p.pagos.map((x) => x.id));
   const salida = new Map<string, EnlaceDeCobro>();
   if (ids.length === 0) return salida;
   const enlaces = await db.proyectoCambio.findMany({ where: { tenantId, entidad: "ProyectoCuota", campo: "Asiento", despues: { in: ids } }, select: { entidadId: true, antes: true, despues: true } });
-  const sinMonto = enlaces.filter((e) => e.despues && enMoneda.has(e.despues) && !leerOriginal(e.antes) && e.entidadId).map((e) => e.entidadId!);
-  const cuotas = sinMonto.length > 0 ? await db.proyectoCuota.findMany({ where: { tenantId, id: { in: sinMonto } }, select: { id: true, monto: true, moneda: true } }) : [];
-  const porId = new Map(cuotas.map((c) => [c.id, { monto: c.monto, moneda: c.moneda }]));
+  const sinMonto = enlaces.filter((e) => e.despues && e.entidadId && !leerOriginal(e.antes)).map((e) => e.entidadId!);
+  const viejas = sinMonto.length > 0 ? await db.proyectoCuota.findMany({ where: { tenantId, id: { in: sinMonto }, moneda: { not: "ARS" } }, select: { id: true, monto: true, moneda: true } }) : [];
+  const enteras = new Map(viejas.filter((c) => c.moneda !== "ARS").map((c) => [c.id, { monto: c.monto, moneda: c.moneda }]));
   for (const e of enlaces) {
     if (!e.despues) continue;
-    const original = enMoneda.has(e.despues) ? (leerOriginal(e.antes) ?? (e.entidadId ? porId.get(e.entidadId) : undefined) ?? null) : null;
+    const original = leerOriginal(e.antes) ?? (e.entidadId ? enteras.get(e.entidadId) : undefined) ?? null;
     salida.set(e.despues, { original, cuotaId: e.entidadId ?? null });
   }
   return salida;
@@ -89,7 +83,7 @@ export async function cobranzasDelNegocio(
     where: { tenantId, ...(proyectoIds && { id: { in: [...proyectoIds] } }) },
     select: { id: true, ...SELECT_COBRANZA },
   });
-  const enlaces = await originalesDeCobros(tenantId, proyectos, db, true);
+  const enlaces = await originalesDeCobros(tenantId, proyectos, db);
   return new Map(proyectos.map((p) => [p.id, cobranzaDe(p, tc, recargoGeneral, enlaces)]));
 }
 
@@ -109,12 +103,13 @@ export async function trabarCobranza(tx: Db, tenantId: string, proyectoId: strin
 }
 
 /**
- * Lo que falta cobrar de una cuota de cobro, en su moneda: su monto menos lo que ya entró por cobros manuales
- * (`pendientesDeCobro`). Es lo que cobra «Marcar cobrado». `null` si la cuota no está pendiente.
+ * Lo que falta cobrar de una cuota de cobro, en su moneda (`pendientesDeCobro`: ya descontado lo suelto y topeado contra
+ * lo que falta cobrar), con la cobranza con la que se calculó. Es lo que cobra «Marcar cobrado». `null` si la cuota no
+ * está pendiente.
  */
-export async function pendienteDeLaCuota(tenantId: string, proyectoId: string, cuotaId: string, tc: Readonly<Record<string, number>>, recargoGeneral: number, db: Db = prisma): Promise<number | null> {
+export async function pendienteDeLaCuota(tenantId: string, proyectoId: string, cuotaId: string, tc: Readonly<Record<string, number>>, recargoGeneral: number, db: Db = prisma): Promise<{ pendiente: number; cob: Cobranza } | null> {
   const { cuotas, cob } = await cobranzaConCuotas(db, tenantId, proyectoId, tc, recargoGeneral);
   const i = cuotas.findIndex((c) => c.id === cuotaId);
   if (i < 0 || cuotas[i].pagadoEl) return null;
-  return pendientesDeCobro(cuotas, tc, cob)[i];
+  return { pendiente: pendientesDeCobro(cuotas, tc, cob)[i], cob };
 }

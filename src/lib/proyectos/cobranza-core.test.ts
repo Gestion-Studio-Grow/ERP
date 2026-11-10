@@ -1,7 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cobranza, cobranzaEnMoneda, conciliarConCobros, leerOriginal, lugarParaCobroManual, pendientesDeCobro, pendientesDelNegocio, repartoDeCobros, repartoDelNegocio, resumenConCobranza, totalAprobado } from "./cobranza-core";
-import { aPesos, enMonedaDeVenta, resumenCuotas } from "./gestion-core";
+import { readFileSync } from "node:fs";
+import { cobranza, cobranzaEnMoneda, conciliarConCobros, leerOriginal, lugarParaCobroManual, montoEnCashflow, pasaElTope, pendientesDeCobro, repartoDeCobros, repartoDelNegocio, resumenConCobranza, totalAprobado, type Cobranza, type CobroRegistrado } from "./cobranza-core";
+import { aPesos, cashflowDelEvento, enMonedaDeVenta, resumenCuotas, type CuotaLeida } from "./gestion-core";
+import { prepararAccionesDeServidor } from "@/test/accion-de-servidor";
 
 const HOY = new Date("2026-11-10T12:00:00Z");
 const dias = (n: number) => new Date(HOY.getTime() + n * 86_400_000);
@@ -163,7 +165,7 @@ test("QA 2026-004: un cobro manual de $10M baja el renglón del saldo a $35.456.
   ];
   const cob = cobranza(90_912_140, [{ monto: 45_456_070 }, { monto: 10_000_000 }]);
   assert.equal(cob.porCobrar, 35_456_070);
-  const pend = pendientesDelNegocio(cuotas, TC, new Map([["p4", cob]]));
+  const pend = repartoDelNegocio(cuotas, TC, new Map([["p4", cob]])).pendiente;
   assert.deepEqual(pend, [0, 35_456_070, 1000]);
   const r = resumenConCobranza(cuotas, TC, new Map([["p4", cob]]), HOY);
   assert.equal(r.aCobrar, 35_456_070 + 1000);
@@ -187,97 +189,53 @@ test("pendientesDeCobro: sin presupuesto aprobado las cuotas valen lo que dicen;
   assert.deepEqual(pendientesDeCobro(usd, { USD: 1200 }, c), [4000, 5000]);
 });
 
-// ── Segunda certificación (adversarial v2) ──────────────────────────────────
-// El test 4 de la tanda (carrera con el pendiente leído afuera) estaba mal planteado: la carrera se cierra en el
-// servidor (candado + recálculo adentro de la transacción), y acá se prueba su versión en fila (test «Carrera…»).
+
+// ── Adversarial v2 (tal cual; #3 y #4 «Carrera», al final: candado + relectura en la transacción) ──────────────────
 
 const q = (monto: number, d: number, extra: Record<string, unknown> = {}) => ({ tipo: "COBRO", monto, moneda: "ARS", venceEl: dias(d), pagadoEl: null as Date | null, ...extra });
 
-test("v2 A1: USD pagado completo por enlace, con el dólar a 800, 1000 o 1500: saldo 0", () => {
+test("v2 #1 A1: USD pagado completo por enlace, con el dólar a 800, 1000 o 1500: saldo 0", () => {
   for (const tcHoy of [800, 1000, 1500]) {
     const c = cobranzaEnMoneda(10_000_000, [{ monto: 5000 * 900, original: { monto: 5000, moneda: "USD" } }, { monto: 5000 * tcHoy, original: { monto: 5000, moneda: "USD" } }], { moneda: "USD", cambioVenta: 1000, tcHoy });
     assert.equal(c.porCobrar, 0, `tc ${tcHoy}`);
   }
 });
 
-test("v2 A3: vencido + 7 días nunca pasan lo que falta cobrar", () => {
+test("v2 #2 A3: vencido + 7 días nunca pasan lo que falta cobrar", () => {
   const c = cobranza(1500, [{ monto: 0 }]);
   const r = conciliarConCobros([q(1000, -5), q(1000, 3)], {}, c, HOY);
   assert.ok(r.cobrosVencidos + r.aCobrar7 <= c.porCobrar + 0.001, JSON.stringify(r));
 });
 
-test("v2 B1 carrera: con el candado, «Marcar cobrado» relee después del cobro manual y no asienta nada (saldo ≥ 0)", () => {
-  const cuotas = [q(1000, -5, { id: "a" })];
-  // T2 (cobro manual de 1000) gana el candado y graba; T1 relee el pendiente ADENTRO: 0, no asienta.
-  const enTx = pendientesDeCobro(cuotas, {}, cobranza(1000, [{ monto: 1000 }]))[0];
-  assert.equal(enTx, 0);
-  const c = cobranza(1000, [{ monto: 1000 }, ...(enTx > 0 ? [{ monto: enTx, cuotaId: "a" }] : [])]);
-  assert.ok(c.saldo >= 0, "saldo " + c.saldo);
-  // Al revés (T1 primero): el registro manual ve por cobrar 0 y no entra.
-  assert.equal(cobranza(1000, [{ monto: 1000, cuotaId: "a" }]).porCobrar, 0);
-});
-
-test("v2 M1: una cuota de cobro cargada a mano no baja el pendiente de la vieja (nadie pagó nada)", () => {
+test("v2 #5: una cuota de cobro cargada a mano que pasa lo que falta no baja la vieja (se recorta la más nueva)", () => {
   const c = cobranza(2000, []);
-  for (const manual of [500, 1000, 1500]) {
-    const pend = pendientesDeCobro([q(1000, -5), q(1000, 10), q(manual, 20)], {}, c);
-    assert.deepEqual(pend, [1000, 1000, manual], `manual ${manual}`);
-  }
+  assert.ok(500 <= c.porCobrar);
+  const pend = pendientesDeCobro([q(1000, -5), q(1000, 10), q(500, 20)], {}, c);
+  assert.equal(pend[0], 1000, "nadie pagó nada y «Marcar cobrado» de la cuota vieja cobraría " + pend[0]);
+  for (const manual of [500, 1000, 1500]) assert.deepEqual(pendientesDeCobro([q(1000, -5), q(1000, 10), q(manual, 20)], {}, c), [1000, 1000, 0], `manual ${manual}`);
 });
 
-test("v2 M1 (test 6): aprobado menor que las cuotas (dólar a la baja) no recorta la cuota vieja sin cobro", () => {
+test("v2 #6 (D-b): aprobado menor que las cuotas (dólar a la baja): la vieja entera, la nueva recortada → [600.000, 400.000]", () => {
   const pend = pendientesDeCobro([q(600_000, -5), q(600_000, 10)], {}, cobranza(1_000_000, []));
-  assert.deepEqual(pend, [600_000, 600_000]);
+  assert.equal(pend[0], 600_000, "cuota vieja recortada a " + pend[0]);
+  assert.deepEqual(pend, [600_000, 400_000]);
 });
 
-test("v2 M1: tope de la cuota manual = por cobrar − lo que las cuotas pendientes ya esperan", () => {
-  const cuotas = [q(1000, -5), q(1000, 10)];
-  assert.deepEqual(lugarParaCobroManual(cuotas, {}, cobranza(2000, [])), { lugar: 0, esperado: 2000 });
-  assert.deepEqual(lugarParaCobroManual(cuotas, {}, cobranza(2500, [])), { lugar: 500, esperado: 2000 });
-  // 300 sueltos cubren parte de la vieja: lo esperado baja a 1700 y lo que falta a 2200.
-  assert.deepEqual(lugarParaCobroManual(cuotas, {}, cobranza(2500, [{ monto: 300 }])), { lugar: 500, esperado: 1700 });
-  assert.ok(lugarParaCobroManual([q(600_000, -5), q(600_000, 10)], {}, cobranza(1_000_000, [])).lugar < 0);
-  assert.equal(lugarParaCobroManual(cuotas, {}, cobranza(0, [])).lugar, Infinity);
-});
-
-test("v2 M1: marcada en parte con plata suelta (enlace con id): lo suelto no se vuelve a descontar de la siguiente", () => {
-  const cuotas = [q(1000, -5, { id: "a" }), q(1000, 10, { id: "b" })];
-  const antes = pendientesDeCobro(cuotas, {}, cobranza(2000, [{ monto: 400 }]));
-  assert.deepEqual(antes, [600, 1000]);
-  const c = cobranza(2000, [{ monto: 400 }, { monto: 600, cuotaId: "a" }]);
-  const r = repartoDeCobros([{ ...cuotas[0], pagadoEl: dias(0) }, cuotas[1]], {}, c);
-  assert.deepEqual(r.pendiente, [0, 1000]);
-  assert.deepEqual(r.cobrado, [1000, 0]);
-  assert.equal(c.porCobrar, 1000);
-});
-
-test("v2: lo cobrado por cuota es lo que entró (enlace + parte de lo suelto), no el monto de la cuota", () => {
-  // Marcada sin cobro y sin plata suelta: no entró nada.
-  const sinNada = repartoDeCobros([q(1000, -5, { id: "a", pagadoEl: dias(-1) })], {}, cobranza(1000, []));
-  assert.deepEqual(sinNada.cobrado, [0]);
-  // En dólares: el enlace guarda lo pagado en dólares.
-  const usd = [{ ...q(5000, -5, { id: "u", pagadoEl: dias(-1) }), moneda: "USD" }, { ...q(5000, 10, { id: "v" }), moneda: "USD" }];
-  const c = cobranzaEnMoneda(10_000_000, [{ monto: 2_000_000 }, { monto: 3_000_000, original: { monto: 3000, moneda: "USD" }, cuotaId: "u" }], { moneda: "USD", cambioVenta: 1000, tcHoy: 1000 });
-  assert.deepEqual(repartoDeCobros(usd, { USD: 1000 }, c), { pendiente: [0, 5000], cobrado: [5000, 0] });
-  // El negocio: las cuotas de la empresa valen lo que dicen.
-  const neg = repartoDelNegocio([{ ...q(700, -1, { pagadoEl: dias(-1) }), proyectoId: null }], {}, new Map());
-  assert.deepEqual(neg, { pendiente: [0], cobrado: [700] });
-});
-
-test("v2 leerOriginal: sólo «monto MONEDA» exacto", () => {
+test("v2 #7 leerOriginal: sólo «monto MONEDA» exacto", () => {
   assert.deepEqual(leerOriginal("5000 USD"), { monto: 5000, moneda: "USD" });
   assert.deepEqual(leerOriginal("1234.56 USD"), { monto: 1234.56, moneda: "USD" });
+  assert.deepEqual(leerOriginal("60.00 USD"), { monto: 60, moneda: "USD" }); // lo que graba marcarCuota (toFixed(2))
   for (const raro of ["-5000 USD", "5000 USD\n", "5000 usd", " 5000 USD", `${1e21} USD`, `${5e-7} USD`, "Infinity USD", null]) assert.equal(leerOriginal(raro), null, String(raro));
 });
 
-test("v2: USD sin cambio de hoy cuenta en pesos, sin NaN", () => {
+test("v2 #8: USD sin cambio de hoy cuenta en pesos, sin NaN", () => {
   const c = cobranzaEnMoneda(1_000_000, [{ monto: 500_000, original: { monto: 500, moneda: "USD" } }], { moneda: "USD", cambioVenta: 1000, tcHoy: 0 });
   assert.equal(c.porCobrar, 500_000);
   assert.ok(!c.enMoneda);
   assert.ok(Number.isFinite(cobranzaEnMoneda(1_000_000, [{ monto: 500_000 }], { moneda: "USD", cambioVenta: NaN, tcHoy: 1000 }).porCobrar));
 });
 
-test("v2: cobrado de más en USD deja por cobrar 0 y el negocio no resta", () => {
+test("v2 #9: cobrado de más en USD deja por cobrar 0 y el negocio no resta", () => {
   const c1 = cobranzaEnMoneda(1_000_000, [{ monto: 0, original: { monto: 1500, moneda: "USD" } }], { moneda: "USD", cambioVenta: 1000, tcHoy: 1200 });
   assert.equal(c1.porCobrar, 0);
   assert.ok(c1.saldo < 0);
@@ -285,12 +243,12 @@ test("v2: cobrado de más en USD deja por cobrar 0 y el negocio no resta", () =>
   assert.equal(r.aCobrar, 1000);
 });
 
-test("v2: tres cuotas USD 3333,33 / 3333,33 / 3333,34 cierran en saldo 0", () => {
+test("v2 #10: tres cuotas USD 3333,33 / 3333,33 / 3333,34 cierran en saldo 0", () => {
   const cob = [3333.33, 3333.33, 3333.34].map((m) => ({ monto: aPesos(m, "USD", { USD: 1200 }), original: { monto: m, moneda: "USD" } }));
   assert.equal(cobranzaEnMoneda(10_000 * 1137.5, cob, { moneda: "USD", cambioVenta: 1137.5, tcHoy: 1450.37 }).porCobrar, 0);
 });
 
-test("v2: USD con cobro suelto en pesos y la cuota marcada por lo que faltaba: la siguiente queda entera", () => {
+test("v2 #11: USD con cobro suelto en pesos y la cuota marcada por lo que faltaba: la siguiente queda entera", () => {
   const tc = { USD: 1000 };
   const cuotas = [{ ...q(5000, -5), moneda: "USD" }, { ...q(5000, 10), moneda: "USD" }];
   const v = { moneda: "USD", cambioVenta: 1000, tcHoy: 1000 };
@@ -298,4 +256,370 @@ test("v2: USD con cobro suelto en pesos y la cuota marcada por lo que faltaba: l
   assert.equal(pend[0], 3000);
   const c1 = cobranzaEnMoneda(10_000_000, [{ monto: 2_000_000 }, { monto: aPesos(pend[0], "USD", tc), original: { monto: pend[0], moneda: "USD" } }], v);
   assert.equal(pendientesDeCobro([{ ...cuotas[0], pagadoEl: dias(0) }, cuotas[1]], tc, c1)[1], 5000);
+});
+
+test("v2: tope de la cuota manual = por cobrar − lo que las cuotas pendientes ya esperan (nunca negativo)", () => {
+  const cuotas = [q(1000, -5), q(1000, 10)];
+  assert.deepEqual(lugarParaCobroManual(cuotas, {}, cobranza(2000, [])), { lugar: 0, esperado: 2000 });
+  assert.deepEqual(lugarParaCobroManual(cuotas, {}, cobranza(2500, [])), { lugar: 500, esperado: 2000 });
+  // 300 sueltos cubren parte de la vieja: lo esperado baja a 1700 y lo que falta a 2200.
+  assert.deepEqual(lugarParaCobroManual(cuotas, {}, cobranza(2500, [{ monto: 300 }])), { lugar: 500, esperado: 1700 });
+  assert.deepEqual(lugarParaCobroManual([q(600_000, -5), q(600_000, 10)], {}, cobranza(1_000_000, [])), { lugar: 0, esperado: 1_000_000 });
+  assert.equal(lugarParaCobroManual(cuotas, {}, cobranza(0, [])).lugar, Infinity);
+});
+
+test("v2: marcada en parte con plata suelta (enlace con id): lo suelto no se vuelve a descontar de la siguiente", () => {
+  const cuotas = [q(1000, -5, { id: "a" }), q(1000, 10, { id: "b" })];
+  assert.deepEqual(pendientesDeCobro(cuotas, {}, cobranza(2000, [{ monto: 400 }])), [600, 1000]);
+  const c = cobranza(2000, [{ monto: 400 }, { monto: 600, cuotaId: "a" }]);
+  const r = repartoDeCobros([{ ...cuotas[0], pagadoEl: dias(0) }, cuotas[1]], {}, c);
+  assert.deepEqual(r, { pendiente: [0, 1000], cobrado: [1000, 0] });
+  assert.equal(c.porCobrar, 1000);
+});
+
+test("v2: lo cobrado por cuota es lo que entró (enlace + parte de lo suelto), no el monto de la cuota", () => {
+  assert.deepEqual(repartoDeCobros([q(1000, -5, { id: "a", pagadoEl: dias(-1) })], {}, cobranza(1000, [])).cobrado, [0]);
+  const usd = [{ ...q(5000, -5, { id: "u", pagadoEl: dias(-1) }), moneda: "USD" }, { ...q(5000, 10, { id: "v" }), moneda: "USD" }];
+  const c = cobranzaEnMoneda(10_000_000, [{ monto: 2_000_000 }, { monto: 3_000_000, original: { monto: 3000, moneda: "USD" }, cuotaId: "u" }], { moneda: "USD", cambioVenta: 1000, tcHoy: 1000 });
+  assert.deepEqual(repartoDeCobros(usd, { USD: 1000 }, c), { pendiente: [0, 5000], cobrado: [5000, 0] });
+  assert.deepEqual(repartoDelNegocio([{ ...q(700, -1, { pagadoEl: dias(-1) }), proyectoId: null }], {}, new Map()), { pendiente: [0], cobrado: [700] });
+});
+
+// ── Adversarial v3 (tal cual) ───────────────────────────────────────────────
+
+const qi = (id: string, monto: number, d: number, extra: Record<string, unknown> = {}) => ({ id, tipo: "COBRO", monto, moneda: "ARS", venceEl: dias(d), pagadoEl: null as Date | null, anuladoEl: null, ...extra });
+const sumaPend = (cuotas: readonly CuotaLeida[], p: number[], tc: Record<string, number>) => p.reduce((s, x, i) => s + aPesos(x, cuotas[i].moneda, tc), 0);
+
+test("V3-1 ARS + cuota USD parcial: lo suelto no se cuenta dos veces", () => {
+  const tc = { USD: 1000 };
+  const U = qi("U", 100, -10, { moneda: "USD" });
+  const B = qi("B", 100_000, 10);
+  assert.deepEqual(pendientesDeCobro([U, B], tc, cobranza(200_000, [{ monto: 40_000 }])), [60, 100_000]);
+  // Enlace sin original (el peor caso: el servidor de antes no lo leía en proyectos en pesos): vale pesos / tc[USD].
+  const despues = cobranza(200_000, [{ monto: 40_000 }, { monto: 60_000, cuotaId: "U", original: null }]);
+  const Um = { ...U, pagadoEl: dias(0) };
+  const r = repartoDeCobros([Um, B], tc, despues);
+  assert.equal(despues.porCobrar, 100_000);
+  assert.equal(sumaPend([Um, B], r.pendiente, tc), despues.porCobrar, `U cobrado ${r.cobrado[0]} USD (entró 60)`);
+  assert.equal(r.cobrado[0], 100);
+});
+
+test("V3-2 (D-b) cuotas > total: marcar todas no cobra más que lo aprobado → [500, 500, 0]", () => {
+  const cuotas = [qi("A", 500, -10), qi("B", 500, 0), qi("M", 300, 5)];
+  const c = cobranza(1000, []);
+  const p = pendientesDeCobro(cuotas, {}, c);
+  assert.ok(p.reduce((s, x) => s + x, 0) <= c.porCobrar + 0.01);
+  assert.deepEqual(p, [500, 500, 0]);
+});
+
+test("V3-3 lugarParaCobroManual con cuotas que ya exceden: 0, no entra ninguna", () => {
+  const { lugar } = lugarParaCobroManual([qi("A", 500, -10), qi("B", 500, 0), qi("M", 300, 5)], {}, cobranza(1000, []));
+  assert.ok(lugar <= 0);
+});
+
+test("V3-4 USD con enlace + sueltos: pendientes == porCobrar", () => {
+  const tc = { USD: 1000 };
+  const A = qi("A", 5, -10, { moneda: "USD" }), B = qi("B", 5, 10, { moneda: "USD" });
+  const v = { moneda: "USD", cambioVenta: 1000, tcHoy: 1000 };
+  assert.deepEqual(pendientesDeCobro([A, B], tc, cobranzaEnMoneda(10_000, [{ monto: 2000 }], v)), [3, 5]);
+  const c1 = cobranzaEnMoneda(10_000, [{ monto: 2000 }, { monto: 3000, cuotaId: "A", original: { monto: 3, moneda: "USD" } }], v);
+  const Am = { ...A, pagadoEl: dias(0) };
+  const r = repartoDeCobros([Am, B], tc, c1);
+  assert.equal(sumaPend([Am, B], r.pendiente, tc), c1.porCobrar);
+  assert.equal(r.cobrado[0], 5);
+});
+
+test("V3-5 enlazado no es suelto", () => {
+  const c = cobranza(1000, [{ monto: 400, cuotaId: "A" }, { monto: 100 }]);
+  assert.equal(c.sueltos, 100);
+  assert.equal(c.deCuotas?.A.pesos, 400);
+});
+
+// ── D-d: huérfanos ──────────────────────────────────────────────────────────
+
+test("D-d: un cobro enlazado a una cuota reabierta o anulada cuenta como suelto (se descuenta de la más vieja)", () => {
+  // «A» se reabrió (pagadoEl null) con su cobro de 400 vivo; «X» se anuló con su cobro de 300 vivo.
+  const cuotas = [qi("A", 1000, -5), qi("X", 500, -10, { anuladoEl: dias(-1), pagadoEl: dias(-6) }), qi("B", 1000, 10)];
+  const c = cobranza(2000, [{ monto: 400, cuotaId: "A" }, { monto: 300, cuotaId: "X" }, { monto: 50, cuotaId: "fantasma" }]);
+  const r = repartoDeCobros(cuotas, {}, c);
+  assert.deepEqual(r.pendiente, [250, 0, 1000]);
+  assert.deepEqual(r.cobrado, [750, 0, 0]);
+  assert.equal(sumaPend(cuotas, r.pendiente, {}), c.porCobrar);
+});
+
+// ── D-c: I4, marcar en cadena hasta por cobrar 0 ────────────────────────────
+
+/** Marca la pendiente más vieja por su pendiente, como `marcarCuota`: asienta sus pesos y, en otra moneda, el original. */
+function marcarEnCadena(cuotas: CuotaLeida[], tc: Record<string, number>, cobrar: (cobros: CobroRegistrado[]) => Cobranza) {
+  const cobros: CobroRegistrado[] = [];
+  const pasos: number[] = [];
+  for (let vuelta = 0; vuelta < cuotas.length; vuelta++) {
+    const antes = cobrar(cobros);
+    const pend = pendientesDeCobro(cuotas, tc, antes);
+    const i = cuotas.map((_, k) => k).filter((k) => !cuotas[k].pagadoEl && pend[k] > 0).sort((a, b) => cuotas[a].venceEl.getTime() - cuotas[b].venceEl.getTime())[0];
+    if (i === undefined) break;
+    const importe = aPesos(pend[i], cuotas[i].moneda, tc);
+    assert.equal(pasaElTope(antes, importe), false, `marcar ${cuotas[i].id} por ${importe} pasa el tope ${antes.porCobrar}`);
+    cobros.push({ monto: importe, cuotaId: cuotas[i].id, original: cuotas[i].moneda !== "ARS" ? { monto: pend[i], moneda: cuotas[i].moneda } : null });
+    cuotas[i] = { ...cuotas[i], pagadoEl: HOY };
+    const despues = cobrar(cobros);
+    assert.ok(Math.abs(antes.porCobrar - despues.porCobrar - importe) <= 0.01, `I4: porCobrar ${antes.porCobrar} → ${despues.porCobrar}, marcó ${importe}`);
+    pasos.push(importe);
+  }
+  return { final: cobrar(cobros), pasos };
+}
+
+test("D-c I4: proyecto en pesos con una cuota en USD, más un suelto: marcar en cadena deja por cobrar 0", () => {
+  const tc = { USD: 1000 };
+  const cuotas = [qi("U", 300, -20, { moneda: "USD" }), qi("A", 400_000, -5), qi("B", 500_000, 10)];
+  const { final, pasos } = marcarEnCadena(cuotas, tc, (cs) => cobranza(1_000_000, [{ monto: 120_000 }, ...cs]));
+  assert.equal(final.porCobrar, 0);
+  assert.deepEqual(pasos, [180_000, 400_000, 300_000]); // U: 300 − 120 USD; B recortada al tope (880.000 − 580.000)
+});
+
+test("D-c I4: proyecto en USD con una cuota en pesos: marcar en cadena deja por cobrar 0", () => {
+  const tc = { USD: 1000 };
+  const v = { moneda: "USD", cambioVenta: 1000, tcHoy: 1000 };
+  const cuotas = [qi("A", 2_000_000, -20), qi("U", 5000, -5, { moneda: "USD" }), qi("V", 5000, 10, { moneda: "USD" })];
+  const { final, pasos } = marcarEnCadena(cuotas, tc, (cs) => cobranzaEnMoneda(10_000_000, [{ monto: 500_000 }, ...cs], v));
+  assert.equal(final.porCobrar, 0);
+  assert.deepEqual(pasos, [1_500_000, 5_000_000, 3_000_000]);
+});
+
+// ── D-a: propiedades I1, I2, I3, I5 y D-e (cashflow) con 500 casos de semilla fija ──────────────────────────────
+
+function azar(semilla: number) {
+  let a = semilla >>> 0;
+  const r = () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  return { r, entre: (min: number, max: number) => min + Math.floor(r() * (max - min + 1)), uno: <T,>(xs: readonly T[]) => xs[Math.floor(r() * xs.length)] };
+}
+
+interface Caso {
+  moneda: string;
+  tc: Record<string, number>;
+  totalPesos: number;
+  cambioVenta: number;
+  cuotas: (CuotaLeida & { id: string })[];
+  cobros: CobroRegistrado[];
+}
+
+function generarCaso(semilla: number): Caso {
+  const { r, entre, uno } = azar(semilla);
+  const moneda = r() < 0.6 ? "ARS" : "USD";
+  const tcUsd = uno([800, 1000, 1234.5]);
+  const tc = { USD: tcUsd };
+  const cambioVenta = moneda === "ARS" ? 1 : uno([900, 1000, 1100]);
+  const totalPesos = r() < 0.08 ? 0 : entre(50, 3000) * 1000;
+  const cuotas: Caso["cuotas"] = [];
+  for (let k = 0, n = entre(1, 5); k < n; k++) {
+    const enUsd = r() < 0.4;
+    const monto = enUsd ? entre(10, 1500) + entre(0, 99) / 100 : entre(10, 1500) * 1000 + entre(0, 99) / 100;
+    const estado = r();
+    cuotas.push({ id: `c${k}`, tipo: r() < 0.9 ? "COBRO" : "PAGO", monto, moneda: enUsd ? "USD" : "ARS", venceEl: dias(entre(-40, 40)), pagadoEl: estado < 0.35 ? dias(-1) : null, anuladoEl: estado > 0.9 ? dias(-2) : null });
+  }
+  const cobros: CobroRegistrado[] = [];
+  for (let k = 0, n = entre(0, 5); k < n; k++) {
+    const tipo = r();
+    const anuladoEl = r() < 0.1 ? dias(-1) : null;
+    if (tipo < 0.4) {
+      cobros.push({ monto: entre(1, 800) * 1000, anuladoEl }); // suelto
+    } else {
+      const cu = uno(cuotas);
+      const enlazado = tipo < 0.85 ? cu.id : `perdida${k}`; // cuota del caso (marcada o no: huérfano) o una que no está
+      const orig = cu.moneda === "USD" ? Math.round(cu.monto * (0.2 + r()) * 100) / 100 : null;
+      const pesos = orig !== null ? aPesos(orig, "USD", tc) : Math.round(cu.monto * (0.2 + r()) * 100) / 100;
+      cobros.push({ monto: pesos, cuotaId: enlazado, original: orig !== null && r() < 0.7 ? { monto: orig, moneda: "USD" } : null, anuladoEl });
+    }
+  }
+  return { moneda, tc, totalPesos, cambioVenta, cuotas, cobros };
+}
+
+const cobranzaDelCaso = (k: Caso, cobros = k.cobros) => cobranzaEnMoneda(k.totalPesos, cobros, { moneda: k.moneda, cambioVenta: k.cambioVenta, tcHoy: k.tc.USD });
+const vivaDeCobro = (q: CuotaLeida) => q.tipo === "COBRO" && !q.anuladoEl;
+/** El redondeo al centavo de cada cuota (y, en un proyecto en USD, del saldo en USD) pasado a pesos: medio centavo × tc. */
+const tolerancia = (k: Caso) => 0.01 + (k.moneda === "ARS" ? 0 : 0.012 * k.tc.USD) + k.cuotas.reduce((s, q) => s + (q.moneda === "ARS" ? 0.01 : 0.006 * k.tc.USD), 0);
+const CASOS = Array.from({ length: 500 }, (_, i) => generarCaso(20261110 + i));
+
+test("D-a I1: Σ pendientes (en pesos de hoy) ≤ por cobrar, en los 500 casos con aprobado", () => {
+  let conTotal = 0;
+  for (const [n, k] of CASOS.entries()) {
+    const c = cobranzaDelCaso(k);
+    if (!(c.total > 0)) continue;
+    conTotal++;
+    const pend = pendientesDeCobro(k.cuotas, k.tc, c);
+    const suma = k.cuotas.reduce((s, q, i) => (vivaDeCobro(q) && !q.pagadoEl ? s + aPesos(pend[i], q.moneda, k.tc) : s), 0);
+    assert.ok(suma <= c.porCobrar + 0.01 * k.cuotas.length, `caso ${n}: Σ pend ${suma} > porCobrar ${c.porCobrar}`);
+    assert.ok(pend.every((x) => x >= 0), `caso ${n}: pendiente negativo`);
+  }
+  assert.ok(conTotal > 400);
+});
+
+test("D-a I3: cada peso cobrado se cuenta una vez; si sobra plata suelta, las cuotas quedaron completas", () => {
+  for (const [n, k] of CASOS.entries()) {
+    const c = cobranzaDelCaso(k);
+    const { cobrado } = repartoDeCobros(k.cuotas, k.tc, c);
+    const entro = k.cobros.reduce((s, x) => (x.anuladoEl ? s : s + x.monto), 0);
+    const contado = k.cuotas.reduce((s, q, i) => (vivaDeCobro(q) ? s + aPesos(cobrado[i], q.moneda, k.tc) : s), 0);
+    // Lo cobrado contra cuotas que no son del caso (o de cobros de otra cuota) es suelto; lo propio de una cuota no se repite.
+    assert.ok(contado <= entro + tolerancia(k), `caso ${n}: se contaron ${contado} de ${entro}`);
+    if (entro - contado > tolerancia(k)) {
+      for (const [i, q] of k.cuotas.entries()) {
+        if (!vivaDeCobro(q) || (!q.pagadoEl && !(c.total > 0))) continue;
+        assert.ok(cobrado[i] >= q.monto - 0.01, `caso ${n}: sobró ${entro - contado} y la cuota ${q.id} quedó en ${cobrado[i]} de ${q.monto}`);
+      }
+    }
+  }
+});
+
+test("D-a I2: sin cobros, la cuota de cobro más vieja conserva su monto (lo recortado es la cola)", () => {
+  for (const [n, k] of CASOS.entries()) {
+    const c = cobranzaDelCaso(k, []);
+    const pend = pendientesDeCobro(k.cuotas, k.tc, c);
+    const orden = k.cuotas.map((_, i) => i).filter((i) => vivaDeCobro(k.cuotas[i]) && !k.cuotas[i].pagadoEl).sort((a, b) => k.cuotas[a].venceEl.getTime() - k.cuotas[b].venceEl.getTime());
+    if (orden.length === 0) continue;
+    const vieja = orden[0];
+    if (c.total > 0 && aPesos(k.cuotas[vieja].monto, k.cuotas[vieja].moneda, k.tc) > c.porCobrar) continue; // ni la vieja entra
+    assert.equal(pend[vieja], k.cuotas[vieja].monto, `caso ${n}`);
+    // Y de ahí para atrás, cada una toma lo que le queda del tope en orden: nunca una más nueva antes que una más vieja.
+    let cola = false;
+    for (const i of orden) {
+      if (cola) assert.equal(pend[i], 0, `caso ${n}: ${k.cuotas[i].id} después del recorte`);
+      else if (pend[i] < k.cuotas[i].monto) cola = true;
+    }
+  }
+});
+
+test("D-a I5: vencido + próximos 7 días ≤ por cobrar (consecuencia de I1), con aprobado", () => {
+  for (const [n, k] of CASOS.entries()) {
+    const c = cobranzaDelCaso(k);
+    if (!(c.total > 0)) continue;
+    const r = conciliarConCobros(k.cuotas, k.tc, c, HOY);
+    assert.ok(r.cobrosVencidos + r.aCobrar7 <= c.porCobrar + 0.01 * k.cuotas.length, `caso ${n}: ${r.cobrosVencidos} + ${r.aCobrar7} > ${c.porCobrar}`);
+  }
+});
+
+test("D-a I4: marcar la pendiente más vieja por su pendiente baja por cobrar exactamente eso (proyectos en pesos)", () => {
+  let probados = 0;
+  for (const [n, k] of CASOS.entries()) {
+    if (k.moneda !== "ARS") continue;
+    const c = cobranzaDelCaso(k);
+    if (!(c.total > 0)) continue;
+    const pend = pendientesDeCobro(k.cuotas, k.tc, c);
+    const i = k.cuotas.map((_, j) => j).filter((j) => vivaDeCobro(k.cuotas[j]) && !k.cuotas[j].pagadoEl && pend[j] > 0).sort((a, b) => k.cuotas[a].venceEl.getTime() - k.cuotas[b].venceEl.getTime())[0];
+    if (i === undefined) continue;
+    probados++;
+    const q = k.cuotas[i];
+    const importe = aPesos(pend[i], q.moneda, k.tc);
+    assert.equal(pasaElTope(c, importe), false, `caso ${n}`);
+    const despues = cobranzaDelCaso(k, [...k.cobros, { monto: importe, cuotaId: q.id, original: q.moneda !== "ARS" ? { monto: pend[i], moneda: q.moneda } : null }]);
+    assert.ok(Math.abs(c.porCobrar - despues.porCobrar - importe) <= 0.01, `caso ${n}: ${c.porCobrar} → ${despues.porCobrar} con ${importe}`);
+  }
+  assert.ok(probados > 100);
+});
+
+test("D-e: cashflow del evento: las líneas de cobro (lo que entró + lo que falta) no pasan del total aprobado", () => {
+  for (const [n, k] of CASOS.entries()) {
+    const c = cobranzaDelCaso(k);
+    if (!(c.total > 0) || c.saldo < 0) continue;
+    const reparto = repartoDeCobros(k.cuotas, k.tc, c);
+    const conReparto = k.cuotas.map((q, i) => ({ ...q, pendiente: reparto.pendiente[i], cobrado: reparto.cobrado[i] }));
+    const { lineas } = cashflowDelEvento(conReparto, k.tc, montoEnCashflow);
+    const cobros = lineas.filter((l) => l.cuota.tipo === "COBRO").reduce((s, l) => s + l.importe, 0);
+    assert.ok(cobros <= c.total + tolerancia(k), `caso ${n}: líneas de cobro ${cobros} > total ${c.total}`);
+  }
+  // Un pago a proveedor sigue con su monto; una cuota de cobro pagada, con lo que entró (no su monto).
+  assert.equal(montoEnCashflow({ tipo: "PAGO", monto: 700, cobrado: 0, pendiente: 0 }), 700);
+  assert.equal(montoEnCashflow({ tipo: "COBRO", monto: 700, cobrado: 400, pendiente: 0 }), 400);
+});
+
+// ── Servidor con `db` falso: D-f (enlaces) y v2 #3/#4 (candado + relectura en la transacción) ──────────────────
+
+type Fila = Record<string, unknown>;
+/** Un `db` de Prisma falso: anota el orden de las llamadas y filtra lo mínimo que piden las lecturas de cobranza. */
+function dbFalso(datos: { cuotas: Fila[]; proyecto: Fila & { pagos: Fila[] }; enlaces: Fila[] }) {
+  const log: string[] = [];
+  const db = {
+    $executeRaw: async () => (log.push("candado"), 1),
+    proyectoCuota: {
+      findMany: async ({ where }: { where: { id?: { in: string[] }; moneda?: { not: string } } }) => (
+        log.push("cuotas"), datos.cuotas.filter((c) => (!where.id || where.id.in.includes(c.id as string)) && (!where.moneda || c.moneda !== where.moneda.not))
+      ),
+    },
+    proyecto: { findMany: async () => (log.push("proyecto"), [{ id: "p", ...datos.proyecto, pagos: datos.proyecto.pagos.filter((x) => !x.anuladoEl) }]) },
+    proyectoCambio: { findMany: async ({ where }: { where: { despues: { in: string[] } } }) => (log.push("enlaces"), datos.enlaces.filter((e) => where.despues.in.includes(e.despues as string))) },
+  };
+  return { db: db as never, log };
+}
+const servidor = async () => {
+  prepararAccionesDeServidor();
+  return import("./cobranza.server");
+};
+const PRESUPUESTO = (precio: number) => [{ ivaPct: 0, tcVenta: null, items: [{ cantidad: 1, costo: 0, precio, moneda: "ARS", recargoPct: null }] }];
+
+test("D-f originalesDeCobros: proyecto en pesos con cuota en USD devuelve el original; enlace viejo sin monto, la cuota entera sólo si no es en pesos", async () => {
+  const { originalesDeCobros } = await servidor();
+  const { db } = dbFalso({
+    cuotas: [{ id: "U", monto: 100, moneda: "USD" }, { id: "V", monto: 80, moneda: "USD" }, { id: "A", monto: 5000, moneda: "ARS" }],
+    proyecto: { moneda: "ARS", pagos: [] },
+    enlaces: [{ entidadId: "U", antes: "60.00 USD", despues: "p1" }, { entidadId: "V", antes: null, despues: "p2" }, { entidadId: "A", antes: null, despues: "p3" }],
+  });
+  const m = await originalesDeCobros("t", [{ moneda: "ARS", pagos: [{ id: "p1" }, { id: "p2" }, { id: "p3" }, { id: "p4" }] }] as never, db);
+  assert.deepEqual(m.get("p1"), { original: { monto: 60, moneda: "USD" }, cuotaId: "U" });
+  assert.deepEqual(m.get("p2"), { original: { monto: 80, moneda: "USD" }, cuotaId: "V" });
+  assert.deepEqual(m.get("p3"), { original: null, cuotaId: "A" });
+  assert.equal(m.has("p4"), false); // sin enlace: suelto
+});
+
+test("v2 #3/#4 carrera: «Marcar cobrado» traba la cobranza y relee ADENTRO; si entró un cobro manual, no asienta de más", async () => {
+  const { trabarCobranza, pendienteDeLaCuota, cobranzasDelNegocio } = await servidor();
+  const datos = { cuotas: [{ id: "a", tipo: "COBRO", monto: 1000, moneda: "ARS", venceEl: dias(-5), pagadoEl: null }, { id: "b", tipo: "COBRO", monto: 1000, moneda: "ARS", venceEl: dias(10), pagadoEl: null }], proyecto: { moneda: "ARS", presupuestos: PRESUPUESTO(2000), pagos: [] as Fila[] }, enlaces: [] };
+  const { db, log } = dbFalso(datos);
+  // T1 (marcarCuota) lee afuera: a la vieja le faltan 1000.
+  const afuera = await pendienteDeLaCuota("t", "p", "a", {}, 0, db);
+  assert.equal(afuera?.pendiente, 1000);
+  // T2 (registrarCobro manual de 1000) gana el candado y graba.
+  datos.proyecto.pagos.push({ id: "m", monto: 1000 });
+  // T1 entra a su transacción: candado primero, relectura con el mismo `tx` después.
+  log.length = 0;
+  await trabarCobranza(db, "t", "p");
+  const adentro = await pendienteDeLaCuota("t", "p", "a", {}, 0, db);
+  assert.equal(log[0], "candado");
+  assert.ok(log.length > 1 && log.slice(1).every((x) => x !== "candado"));
+  assert.equal(adentro?.pendiente, 0); // ≠ 1000 → «cambio»: no se graba nada (saldo nunca negativo)
+  assert.ok(Math.abs(adentro!.pendiente - afuera!.pendiente) > 0.005);
+  // Al revés (T1 primero, asentó 1000 por «a»): el cobro manual ve por cobrar 1000 y uno de 1000,01 no pasa el tope.
+  datos.proyecto.pagos = [{ id: "x", monto: 1000 }];
+  const cob = (await cobranzasDelNegocio("t", {}, 0, ["p"], db)).get("p")!;
+  assert.equal(cob.porCobrar, 1000);
+  assert.equal(pasaElTope(cob, 1000), false);
+  assert.equal(pasaElTope(cob, 1000.02), true);
+});
+
+test("v2 #3/#4: las tres acciones que mueven la cobranza traban el candado como primera línea de la transacción y releen con `tx`", () => {
+  const fuente = (archivo: string, funcion: string) => {
+    const s = readFileSync(new URL(archivo, import.meta.url), "utf8");
+    const i = s.indexOf(`export async function ${funcion}(`);
+    assert.ok(i >= 0, funcion);
+    const cuerpo = s.slice(i, s.indexOf("\nexport ", i + 10));
+    const tx = cuerpo.indexOf("tenantTransaction(async (tx");
+    assert.ok(tx >= 0, `${funcion}: sin transacción`);
+    const lineas = cuerpo.slice(tx).split("\n").slice(1).map((l) => l.trim()).filter((l) => l && !l.startsWith("//") && l !== "if (esCobro) {");
+    return { cuerpo, primera: lineas[0] };
+  };
+  const marcar = fuente("./acciones-ficha.ts", "marcarCuota");
+  assert.match(marcar.primera, /^await trabarCobranza\(tx, tenantId, proyectoId\);$/);
+  assert.match(marcar.cuerpo, /pendienteDeLaCuota\(tenantId, proyectoId, id, tc, margenPct, tx\)/);
+  assert.match(marcar.cuerpo, /pasaElTope\(ahora\.cob, importe\)/);
+  const registrar = fuente("./acciones.ts", "registrarCobro");
+  assert.match(registrar.primera, /^await trabarCobranza\(tx, tenantId, proyectoId\);$/);
+  assert.match(registrar.cuerpo, /cobranzasDelNegocio\(tenantId, tc, config\.margenPct, \[proyectoId\], tx\)/);
+  assert.match(registrar.cuerpo, /pasaElTope\(cob, monto\)/);
+  const anular = fuente("./acciones-ficha.ts", "anularCobroFicha");
+  assert.match(anular.primera, /^await trabarCobranza\(tx, tenantId, pago\.proyectoId\);$/);
 });
