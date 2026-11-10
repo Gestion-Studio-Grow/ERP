@@ -6,7 +6,8 @@
 // (app_rls, RLS enforced) y la migración 20261110120000 aplicada en la base efímera local.
 //
 //   · Concurrencia: dos cobros «del paquete» a la vez con UNA clase restante → uno entra, el otro
-//     «No le quedan clases»; la misma clase dos veces a la vez → un solo uso. Nunca un error crudo.
+//     «No le quedan clases»; la misma clase dos veces a la vez → un solo uso; sin paquetes vivos y
+//     una venta confirmada en el medio → igual uno solo (candado = fila del alumno). Nunca un error crudo.
 //   · Doble toque al vender (misma clave): un solo paquete.
 //   · Cancelar una clase pagada con el paquete la devuelve al paquete; se puede volver a cobrar.
 //   · Lo cobrado: suma la venta del paquete, no la clase descontada.
@@ -132,6 +133,40 @@ test("concurrencia: la MISMA clase cobrada del paquete dos veces a la vez → un
   // Y por la puerta de siempre («Cobré» efectivo) tampoco se cobra dos veces.
   const otra = valor(await ejecutarAccion(enA, () => ctx.profe.cobrar(c.id, "EFECTIVO")));
   assert.equal(otra.ok, false);
+});
+
+test("concurrencia: sin paquetes vivos + venta confirmada en el medio + 2 cobros a la vez → exactamente 1 ok", async (t) => {
+  // F1 de la certificación: un candado sobre los paquetes no bloquea nada si el alumno no tiene
+  // ninguno; el candado es la fila del alumno. La venta entra mientras los cobros esperan.
+  const ctx = await preparar(t);
+  if (!ctx) return;
+  const { s, enA, paq } = ctx;
+  await sinPaquetes(s);
+  const [c1, c2] = await Promise.all([clase(s, "DADA"), clase(s, "DADA")]);
+  let soltar!: () => void;
+  const suelto = new Promise<void>((r) => (soltar = r));
+  let tomado!: () => void;
+  const lockOk = new Promise<void>((r) => (tomado = r));
+  // Frena la lectura de los usos: los cobros quedan adentro de su transacción, después del candado.
+  const freno = s.db.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe(`LOCK TABLE "PadelPaqueteUso" IN ACCESS EXCLUSIVE MODE`);
+    tomado();
+    await suelto;
+  }, { timeout: 30_000, maxWait: 10_000 });
+  await lockOk;
+  const cobros = Promise.allSettled([ejecutarAccion(enA, () => paq.cobrarConPaquete(c1.id)), ejecutarAccion(enA, () => paq.cobrarConPaquete(c2.id))]);
+  await new Promise((r) => setTimeout(r, 1500));
+  const p = await s.db.padelPaquete.create({ data: { tenantId: s.juan.tenantId, alumnoId: s.juan.id, clases: 1, precio: 30_000, pagoMedio: "EFECTIVO", pagadoEl: new Date() } });
+  await new Promise((r) => setTimeout(r, 200));
+  soltar();
+  await freno;
+  const rs = await cobros;
+  const valores = rs.map((r) => (r.status === "fulfilled" ? (r.value as { valor?: { ok: boolean; error?: string } }).valor : null));
+  assert.equal(valores.filter((v) => v === null).length, 0, "ningún error crudo");
+  assert.equal(valores.filter((v) => v?.ok).length, 1, "entra uno solo");
+  assert.ok(valores.some((v) => v && !v.ok && /No le quedan clases/.test(v.error ?? "")), "el otro dice que no le quedan");
+  assert.equal(await s.db.padelPaqueteUso.count({ where: { paqueteId: p.id } }), 1, "el paquete de 1 gastó una sola clase");
+  assert.equal(await s.db.padelClase.count({ where: { id: { in: [c1.id, c2.id] }, pagoEstado: "PAGADO", pagoMedio: "PAQUETE" } }), 1);
 });
 
 test("vender: doble toque con la misma clave → un solo paquete; validación y ficha con «quedan»", async (t) => {
