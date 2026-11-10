@@ -53,6 +53,9 @@ test("mostrador y pedidos: cada lector del nombre del negocio pasa por nombreVis
     "app/admin/(dashboard)/pedidos/reparto/datos.server.ts",
     "app/admin/(dashboard)/pedidos/[code]/armar/acciones.ts",
     "lib/cobros-actions.ts",
+    "app/admin/(dashboard)/catalogo/etiquetas/page.tsx",
+    "app/admin/(dashboard)/cierre-mes/paquete/route.ts",
+    "lib/suppliers/sugerido-loader.ts",
   ]) {
     const src = readFileSync(join(raiz, f), "utf8");
     assert.match(src, /nombreVisibleDelNegocio\(tenant\??\.slug, tenant\??\.name/, f);
