@@ -272,6 +272,7 @@ model Tenant {
   consultaMensajes          ConsultaMensaje[]
   voucherLotes              VoucherLote[]
   vouchers                  Voucher[]
+  fichasColor               FichaColor[]
   voucherConciliaciones     VoucherConciliacion[]
   voucherLiquidaciones      VoucherLiquidacion[]
   voucherPagosAdministracion VoucherPagoAdministracion[]
@@ -871,6 +872,7 @@ model Client {
   inmoContratosPropietario InmoContrato[]      @relation("InmoLocador")
   inmoLiquidaciones        InmoLiquidacion[]
   vouchers                 Voucher[]
+  fichasColor              FichaColor[] // paquete Peluquerías (T4): ficha técnica de color
   // Módulo padel-clases: el alumno del profe (su link estable) y sus clases.
   padelAlumno              PadelAlumno?
   padelClases              PadelClase[]
@@ -4538,4 +4540,27 @@ model VencimientoFiscal {
 
   @@unique([tenantId, obligacionId, periodo, cuota])
   @@index([tenantId, fechaVencimiento])
+}
+
+// Paquete Peluquerías (T4): ficha técnica de color de la clienta. SÓLO datos técnicos
+// (fórmula, tono, oxidante, tiempo de pose). Ningún campo de salud ni alergias: no se agrega acá.
+// Migración 20261110120000_ficha_color (aditiva, SIN aplicar · Gate 2). Sin la tabla, la ficha
+// muestra «migración pendiente» (P2021/42P01) y nada más se rompe.
+model FichaColor {
+  id          String   @id @default(cuid())
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId    String
+  client      Client   @relation(fields: [clientId], references: [id])
+  clientId    String
+  fecha       DateTime @default(now())
+  tono        String // tono o color logrado, p. ej. «7.1 rubio ceniza»
+  formula     String // mezcla y proporciones, p. ej. «30 g 7.1 + 10 g 8.0»
+  oxidante    Int? // volúmenes: 10 · 20 · 30 · 40 (CHECK en la base)
+  tiempoPose  Int? // minutos, 1 a 240 (CHECK en la base)
+  profesional String?
+  notas       String? // notas técnicas del servicio (no de salud)
+  createdBy   String?
+  createdAt   DateTime @default(now())
+
+  @@index([tenantId, clientId, fecha])
 }

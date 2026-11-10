@@ -27,6 +27,7 @@ import { diasEntre, diasHastaCumple, fmtMesDia, haceDias } from "@/lib/crm/fecha
 import { explicarSegmento, SEGMENTO_ETIQUETA } from "@/lib/crm/segmentos";
 import { ACCION_BAJA, CRM_REGLAS, MOTIVO_ETIQUETA, esMotivoContacto } from "@/lib/crm/reglas";
 import EditarClienteForm from "./EditarClienteForm";
+import FichaDeColor from "./FichaDeColor";
 import PermisoMensajes from "./PermisoMensajes";
 import MostradorDeLaFicha from "./MostradorDeLaFicha";
 import { separarNota } from "@/lib/reserva-publica-notas";
@@ -271,6 +272,9 @@ export default async function FichaUnica({
           )}
         </section>
       )}
+
+      {/* Peluquería/barbería (T4): ficha técnica de color. En otros rubros no pinta nada. */}
+      <FichaDeColor clientId={client.id} />
 
       {(servicios || f.turnos.length > 0) && (
         <section>
