@@ -6,6 +6,7 @@
 // pantalla de Facturación (ARCA + cobros) — misma navegación, mismo módulo.
 
 import type { Metadata } from "next";
+import SelloGSG from "@/components/marca/SelloGSG";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireCapability } from "@/lib/authz";
@@ -376,8 +377,8 @@ export default async function FacturacionBancosPage() {
         )}
       </SectionGroup>
 
-      <footer className="mt-2xl border-t border-line pt-4 text-center text-xs text-faint">
-        Con tecnología de Gestión Studio Grow
+      <footer className="mt-2xl border-t border-line pt-4">
+        <SelloGSG />
       </footer>
     </PageContainer>
   );

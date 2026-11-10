@@ -1,4 +1,5 @@
 import { badgePendientes } from "@/lib/padel/datos.server";
+import SelloGSG from "@/components/marca/SelloGSG";
 import { getCurrentUser } from "@/lib/session";
 import { gestionaClases, veLaPlata } from "@/lib/padel/plata-guardia";
 import { marcarAvisado } from "@/lib/padel/acciones";
@@ -32,7 +33,7 @@ export default async function ClasesLayout({ children }: { children: React.React
       {/* M-034: al tocar el link, el aviso queda con `enviadoEl` (Tanda 2A). */}
       <ColaAvisos marcarAvisado={marcarAvisado}>
         {children}
-        <p className="pb-6 pt-2 text-center text-xs text-muted">Con tecnología de Gestión Studio Grow</p>
+        <SelloGSG className="pb-6 pt-2" />
       </ColaAvisos>
       <BarraInferior pendientes={pendientes} conPlata={user ? veLaPlata(user) : false} conAgendar={user ? gestionaClases(user) : false} />
     </div>
