@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auditAdmin } from "@/lib/audit-core";
 import { getCurrentTenantId } from "@/lib/tenant";
+import { invalidarNegocio } from "@/lib/cache-negocio";
 import { requireCapability } from "@/lib/authz";
 import { LOCATION_DEFAULTS, type BusinessSettingsRow } from "@/lib/settings";
 
@@ -91,6 +92,8 @@ export async function updateBusinessSettings(formData: FormData) {
     changes: data,
   });
 
+  // La vidriera cachea estos datos por negocio (src/lib/cache-negocio.ts): se vencen al guardar.
+  invalidarNegocio(tenantId, "vidriera");
   // La localización se muestra en el sitio público (home + footer del layout) y
   // en la propia pantalla del admin.
   revalidatePath("/");

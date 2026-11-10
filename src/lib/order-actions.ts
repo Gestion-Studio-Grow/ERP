@@ -12,6 +12,7 @@ import { refresh, revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auditAdmin, auditPublic, requestIp } from "@/lib/audit-core";
 import { getCurrentTenantId } from "@/lib/tenant";
+import { cachePorNegocio } from "@/lib/cache-negocio";
 import { requireCapability } from "@/lib/authz";
 import { alcanceDeAnulacion } from "@/lib/capabilities";
 import { autorizadoraDeLaAnulacion, codigoDeLaDuena, type Autorizadora, type ResultadoAutorizacion } from "@/lib/anulacion-autorizada";
@@ -1643,9 +1644,14 @@ export async function facturarVenta(_prev: EstadoFacturaVenta, formData: FormDat
 // vidriera se sienta hecha para ese negocio) y el catálogo vendible del tenant
 // actual. Sin capability: es una página pública. El aislamiento lo da
 // getCurrentTenantId (fail-closed) + el filtro por tenantId en cada query.
-export async function getStorefront() {
-  const tenantId = await getCurrentTenantId();
-  const [tenant, settings, products] = await Promise.all([
+// Lectura de base de la vidriera, CACHEADA POR NEGOCIO (src/lib/cache-negocio.ts): la clave y la etiqueta llevan el
+// `tenantId`, el lector corre con ese negocio en contexto y no lee el pedido. Vence sola a los 30 s (techo de lo
+// viejo que puede verse el stock tras una venta) y se invalida al editar productos o los datos del local.
+// Sin export: no es endpoint. Devuelve sólo JSON (precios `Float`), que es lo que guarda la caché.
+const leerVidrieraDelNegocio = cachePorNegocio(
+  "vidriera",
+  async (tenantId: string) => {
+    const [tenant, settings, products] = await Promise.all([
     prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true, slug: true } }),
     prisma.businessSettings.findUnique({
       where: { tenantId },
@@ -1681,6 +1687,14 @@ export async function getStorefront() {
       },
     }),
   ]);
+    return { tenant, settings, products };
+  },
+  { revalidate: 30 },
+);
+
+export async function getStorefront() {
+  const tenantId = await getCurrentTenantId();
+  const { tenant, settings, products } = await leerVidrieraDelNegocio(tenantId);
   // Wording GENÉRICO del rubro (blueprint retail) + copy PROPIO del tenant (voz firma),
   // ambos resueltos por slug. `copy` es null para tenants sin copy → cae al wording.
   const wording = retailWordingForSlug(tenant?.slug);
