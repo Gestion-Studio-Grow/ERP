@@ -13,6 +13,7 @@ export default function HojaDeIngreso({
   marcaNombre,
   marcaMonograma,
   producto,
+  isotipo,
   hoy,
   lema,
   children,
@@ -21,6 +22,8 @@ export default function HojaDeIngreso({
   marcaMonograma: string;
   /** Producto con isotipo propio (Comerciante, Contador, Factoque): va el isotipo en vez del monograma. */
   producto?: ProductoConMarca | null;
+  /** Un isotipo ya armado (la consola de GSG lleva el de la madre); gana sobre `producto`. */
+  isotipo?: React.ReactNode;
   /** El folio de la hoja: `folioDelDia()` («jueves 24 de septiembre»). */
   hoy: string;
   /** La frase del producto (Facturita, Contador…); en los negocios, nada. */
@@ -30,7 +33,7 @@ export default function HojaDeIngreso({
   return (
     <div className="mx-auto w-full max-w-[34rem]">
       <header className="flex items-center gap-3 border-b border-line-strong pb-3">
-        {producto ? (
+        {isotipo ?? (producto ? (
           <IsotipoProducto producto={producto} tamano={36} className="shrink-0 text-strong" />
         ) : (
           <span
@@ -39,7 +42,7 @@ export default function HojaDeIngreso({
           >
             {marcaMonograma}
           </span>
-        )}
+        ))}
         <span className="min-w-0 truncate text-[15px] font-semibold text-strong">{marcaNombre}</span>
         <span data-parte="folio" className="ml-auto shrink-0 text-[13px] text-muted">
           {hoy}

@@ -1599,3 +1599,9 @@ summary:focus-visible {
   outline: 3px solid var(--accent-ink, var(--accent));
   outline-offset: 2px;
 }
+
+/* Marca de agua de GSG (src/components/marca/MarcaDeAgua.tsx): mosaico de isotipos como detalle del
+   fondo, sólo en pantallas de GSG y sus productos. Opacidad por tema dentro del 3–6 % pedido; no se imprime. */
+.gsg-marca-de-agua { opacity: 0.04; }
+[data-theme="dark"] .gsg-marca-de-agua { opacity: 0.06; }
+@media print { .gsg-marca-de-agua { display: none !important; } }

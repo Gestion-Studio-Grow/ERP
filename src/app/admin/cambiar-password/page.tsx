@@ -14,6 +14,8 @@ import HojaDeIngreso, { RAIZ_HOJA_DE_INGRESO } from "../login/HojaDeIngreso";
 import { folioDelDia } from "../login/login-core";
 import SelloGSG from "@/components/marca/SelloGSG";
 import { IsotipoProducto } from "@/components/marca/IsotipoProducto";
+import { MarcaDeAgua } from "@/components/marca/MarcaDeAgua";
+import { isotipoDeProducto } from "@/lib/gsg/isotipos-productos";
 
 // Vive FUERA de (dashboard) a propósito (como /admin/login): el proxy exige sesión válida para
 // llegar, pero NO hereda el layout del dashboard → el portón de cambio forzado que redirige acá
@@ -42,6 +44,8 @@ export default async function CambiarPasswordPage({
   const accentDark = resolveAccent(preset, "dark");
   const { nombre: marcaNombre, monograma: marcaMonograma } = marcaDelNegocio(brand, identidad);
   const nuevo = await disenoP;
+  // Marca de agua de GSG SÓLO en un producto de GSG; en un negocio cliente `identidad` es null.
+  const marcaDeAgua = isotipoDeProducto(identidad?.producto);
 
   return (
     <main
@@ -59,13 +63,14 @@ export default async function CambiarPasswordPage({
         } as CSSProperties
       }
       // Diseño nuevo: la misma hoja que el ingreso, anclada arriba. Apagado, la clase de siempre.
-      className={
+      className={`${marcaDeAgua ? "isolate " : ""}${
         nuevo
           ? `${RAIZ_HOJA_DE_INGRESO} ${FUENTES_PANEL}`
           : `min-h-screen flex flex-col items-center justify-center bg-surface text-body px-4 py-10 sm:px-6 ${FUENTES_PANEL}`
-      }
+      }`}
     >
       <AdminThemeScript nuevo={nuevo} />
+      {marcaDeAgua && <MarcaDeAgua geometria={marcaDeAgua} />}
 
       {/* Diseño nuevo: sus hojas y `useDiseno()`. Apagado devuelve este único hijo tal cual. */}
       <ConDiseno nuevo={nuevo}>
