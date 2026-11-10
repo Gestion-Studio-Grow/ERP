@@ -64,12 +64,12 @@ export async function tenedoresDelCuit(tx: Tx, cuit: string, excluir?: string): 
     // VERIFICADO = ARCA aceptó el certificado de PRODUCCIÓN: un ingreso al WSAA que salió bien DESPUÉS de la última
     // carga. Un certificado cargado no alcanza: cualquiera puede armar uno con el CUIT de otro firmado
     // por su propia CA (certificación adversarial 08/11); ARCA sólo acepta los que emitió al titular.
-    // La columna (D4) alcanza si es posterior a la última carga del certificado: rotarlo la invalida. Si falta (base
-    // sin migrar, o negocio verificado antes de la migración, que no lleva backfill) se mira la auditoría.
+    // La columna (D4) guarda la versión del certificado que ARCA de producción aceptó: vale si es la vigente (rotarlo
+    // la invalida, aun si la rotación corre a la vez que la prueba). Si falta (base sin migrar) se mira la auditoría.
     const marca = marcas.get(n.id) ?? null;
-    const porColumna = credencial !== null && marca !== null && marca.getTime() >= credencial.updatedAt.getTime();
-    const prueba = credencial && !porColumna
-      ? await tx.auditLog.findFirst({
+    const porColumna = credencial !== null && marca !== null && marca.getTime() === credencial.updatedAt.getTime();
+    const pruebas = credencial && !porColumna
+      ? await tx.auditLog.findMany({
           where: {
             tenantId: n.id,
             action: ACCION_PRUEBA_OK,
@@ -79,10 +79,21 @@ export async function tenedoresDelCuit(tx: Tx, cuit: string, excluir?: string): 
             // (certificación 08/11): no verifica.
             changes: { path: ["entorno"], equals: "produccion" },
           },
-          select: { id: true },
+          select: { changes: true },
+          orderBy: { createdAt: "desc" },
+          take: 20,
         })
-      : null;
-    out.push({ tenantId: n.id, subdomain: n.subdomain, creado: n.createdAt, verificado: porColumna || prueba !== null, web: web !== null, titulares });
+      : [];
+    // Desde el 10/11 la fila trae la versión probada y tiene que ser la vigente; las anteriores (sin versión) valen
+    // por fecha, como antes.
+    const version = credencial?.updatedAt.toISOString();
+    const verificado =
+      porColumna ||
+      pruebas.some((f) => {
+        const c = (f.changes ?? {}) as { certificado?: unknown };
+        return c.certificado === undefined || c.certificado === version;
+      });
+    out.push({ tenantId: n.id, subdomain: n.subdomain, creado: n.createdAt, verificado, web: web !== null, titulares });
   }
   await tx.$executeRaw`SELECT set_config('app.current_tenant_id', '', true)`;
   return out;

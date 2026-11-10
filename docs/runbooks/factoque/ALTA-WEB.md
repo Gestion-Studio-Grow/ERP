@@ -53,12 +53,15 @@ Nada en el alta web prueba que quien la pide sea el titular del CUIT. La prueba 
 certificado sólo lo saca el titular con su clave fiscal. D4 del dueño (09/11): el CUIT queda «sin verificar»
 hasta que el titular conecta ARCA, con una columna propia:
 
-- **Verificado** = ARCA aceptó el certificado en **producción**, después de la última carga del certificado
-  (`TenantFiscalCredential.updatedAt`). Se anota en `Tenant.cuitVerificadoEn` (migración
-  `20261110170000_tenant_cuit_verificado`, aditiva, **Gate 2: escrita, sin aplicar**; en `prisma/lote-deploy.txt`
-  va comentada hasta que el dueño la autorice) y en la auditoría `fiscal.arca.prueba-ok` con `entorno = produccion`.
-  Cuenta cualquiera de las dos: la auditoría cubre los negocios verificados antes de la migración (no hay backfill)
-  y las bases donde la columna todavía no existe (el código pregunta al catálogo antes de tocarla).
+- **Verificado** = ARCA aceptó en **producción** el certificado **vigente** del negocio, de su mismo CUIT.
+  «Probar con ARCA» toma la versión del certificado (`TenantFiscalCredential.updatedAt`) ANTES de probar, y
+  `registrarPruebaArcaOk` sólo anota si sigue siendo la vigente y si el certificado es del CUIT del negocio
+  (certificación 10/11: cambiar el CUIT o el certificado durante una prueba en curso no verifica nada). La versión
+  aceptada se guarda en `Tenant.cuitVerificadoEn` (migración `20261110170000_tenant_cuit_verificado`, aditiva,
+  **Gate 2: escrita, sin aplicar**; en `prisma/lote-deploy.txt` va comentada hasta que el dueño la autorice) y en
+  la auditoría `fiscal.arca.prueba-ok` (`entorno = produccion`, `certificado = versión`). Cuenta cualquiera de las
+  dos. La columna está a propósito **fuera de `schema.prisma`**: se lee y escribe con SQL crudo preguntando antes al
+  catálogo, así una base sin migrar no rompe ninguna lectura de `Tenant`.
   Un certificado cargado no alcanza (cualquiera arma uno con un CUIT ajeno firmado por su propia CA), y una
   prueba en homologación tampoco: no está comprobado que ARCA ate el certificado de prueba al CUIT de quien
   entra (provisional a confirmar con ARCA). Rotar el certificado obliga a probar de nuevo.

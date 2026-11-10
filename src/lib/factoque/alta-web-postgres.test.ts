@@ -170,6 +170,12 @@ test("carrera: el mismo enlace confirmado cinco veces a la vez da UN negocio", a
 
 const REG = (c: string) => ({ certCuit: c, certNotAfter: null, kekId: "k-prueba", wrappedDek: "dek-prueba", sealed: "sellado-prueba" });
 
+/** Lo que hace «Probar con ARCA» (pasoProbar): toma la versión del certificado, ARCA contesta bien, se anota. */
+async function probarConArca(id: string, actor: string, entorno: string, db: import("@/generated/prisma/client").PrismaClient) {
+  const { registrarPruebaArcaOk, versionDeLaCredencial } = await import("@/lib/fiscal/tenant-cert");
+  return registrarPruebaArcaOk(id, actor, entorno, await versionDeLaCredencial(id, db), db);
+}
+
 test("CUIT sin verificar: el titular real lo reclama y gana el PRIMERO que conecta ARCA, aunque conecten a la vez", async (t) => {
   const p = await preparar(t);
   if (!p) return;
@@ -191,7 +197,8 @@ test("CUIT sin verificar: el titular real lo reclama y gana el PRIMERO que conec
 
   // El ocupante carga un certificado armado con el CUIT ajeno (su propia CA): se guarda, pero NO
   // verifica nada; el titular real puede seguir reclamando (certificación adversarial 08/11).
-  const { guardarRegistroCredencial, registrarPruebaArcaOk, CuitVerificadoEnOtroNegocioError } = await import("@/lib/fiscal/tenant-cert");
+  const { guardarRegistroCredencial, CuitVerificadoEnOtroNegocioError } = await import("@/lib/fiscal/tenant-cert");
+  const registrarPruebaArcaOk = (id: string, actor: string, entorno: string, db: typeof p.app) => probarConArca(id, actor, entorno, db);
   await guardarRegistroCredencial(a.id, REG(CUIT), "test", p.app);
   await web.pedirAlta(deps, pedido({ email: "otro-reclamo@ficticio.test" }), "6.6.6.9");
   assert.match(mails[2].cuerpo, /reclamarlo/, "un certificado cargado sin prueba de ARCA no verifica");
@@ -285,16 +292,16 @@ test("retomar y aislamiento: reabrir el enlace antes de elegir la clave; un enla
   assert.deepEqual(await web.confirmarAlta(deps, s, "5.5.5.1"), { ok: false, motivo: "enlace" });
 });
 
-test("D4 con columna: Tenant.cuitVerificadoEn marca la verificación de producción; rotar la invalida; sin la columna, verifica la auditoría", async (t) => {
+test("D4 con columna: Tenant.cuitVerificadoEn guarda la versión aceptada; la prueba queda atada a lo probado; sin la columna, todo anda", async (t) => {
   const p = await preparar(t);
   if (!p) return;
   CUIT = cuit("2055566671");
   const { web, deps, duenio, mails } = p;
-  const { guardarRegistroCredencial, registrarPruebaArcaOk } = await import("@/lib/fiscal/tenant-cert");
+  const { guardarRegistroCredencial, registrarPruebaArcaOk, versionDeLaCredencial, PruebaDeOtroCertificadoError } = await import("@/lib/fiscal/tenant-cert");
   const { tenedoresDelCuit, olvidarColumnaCuitVerificado } = await import("./tenedores-del-cuit.server");
   const { ACCION_PRUEBA_OK } = await import("@/lib/fiscal/contador-arca");
-  const verificado = async (id: string) =>
-    (await p.app.$transaction((tx) => tenedoresDelCuit(tx, CUIT))).find((x) => x.tenantId === id)?.verificado;
+  const verificado = async (id: string, c = CUIT) =>
+    (await p.app.$transaction((tx) => tenedoresDelCuit(tx, c))).find((x) => x.tenantId === id)?.verificado;
   const marca = async (id: string) =>
     (await duenio.$queryRawUnsafe<{ m: Date | null }[]>(`SELECT "cuitVerificadoEn" AS m FROM "Tenant" WHERE id = $1`, id))[0].m;
 
@@ -304,12 +311,30 @@ test("D4 con columna: Tenant.cuitVerificadoEn marca la verificación de producci
   await guardarRegistroCredencial(n.id, REG(CUIT), "test", p.app);
 
   // Homologación: ni marca ni verifica.
-  await registrarPruebaArcaOk(n.id, "test", "homologacion", p.app);
+  await probarConArca(n.id, "test", "homologacion", p.app);
   assert.equal(await marca(n.id), null);
   assert.equal(await verificado(n.id), false);
-  // Producción: marca, en la misma transacción que la auditoría.
-  await registrarPruebaArcaOk(n.id, "test", "produccion", p.app);
-  assert.ok((await marca(n.id)) instanceof Date);
+
+  // Certificación 10/11 (F2): la prueba se ata a lo probado. Si el certificado cambia mientras ARCA contesta, nada.
+  const antes = await versionDeLaCredencial(n.id, p.app);
+  await new Promise((r) => setTimeout(r, 5));
+  await guardarRegistroCredencial(n.id, REG(CUIT), "test", p.app);
+  await assert.rejects(registrarPruebaArcaOk(n.id, "test", "produccion", antes, p.app), PruebaDeOtroCertificadoError);
+  // Si el CUIT del negocio cambia mientras se prueba el certificado del CUIT viejo, tampoco.
+  const otroCuit = cuit("2766677781");
+  const ahora = await versionDeLaCredencial(n.id, p.app);
+  await duenio.tenant.update({ where: { id: n.id }, data: { arcaCuit: otroCuit } });
+  await assert.rejects(registrarPruebaArcaOk(n.id, "test", "produccion", ahora, p.app), PruebaDeOtroCertificadoError);
+  assert.equal(await verificado(n.id, otroCuit), false);
+  await duenio.tenant.update({ where: { id: n.id }, data: { arcaCuit: CUIT } });
+  // Sin versión tomada antes de probar, tampoco.
+  await assert.rejects(registrarPruebaArcaOk(n.id, "test", "produccion", null, p.app), PruebaDeOtroCertificadoError);
+  assert.equal(await marca(n.id), null);
+  assert.equal(await verificado(n.id), false);
+
+  // Producción con la versión vigente: marca exactamente esa versión, en la misma transacción que la auditoría.
+  await probarConArca(n.id, "test", "produccion", p.app);
+  assert.equal((await marca(n.id))?.getTime(), ahora!.updatedAt.getTime());
   assert.equal(await verificado(n.id), true);
 
   // Sólo con la columna (sin la fila de auditoría) sigue verificado.
@@ -324,12 +349,17 @@ test("D4 con columna: Tenant.cuitVerificadoEn marca la verificación de producci
   await guardarRegistroCredencial(n.id, REG(CUIT), "test", p.app);
   assert.equal(await verificado(n.id), false, "rotar invalida la marca");
 
-  // Base sin la migración: nada se rompe y la auditoría verifica sola.
+  // Base sin la migración (F1): el alta web entera y la verificación andan; verifica la auditoría.
   await duenio.$executeRawUnsafe(`ALTER TABLE "Tenant" DROP COLUMN IF EXISTS "cuitVerificadoEn"`);
   olvidarColumnaCuitVerificado();
   try {
+    const sinCol = cuit("2088899911");
+    p.pasar(60 * 60 * 1000);
+    await web.pedirAlta(deps, pedido({ cuit: sinCol, email: "sincol@ficticio.test" }), "8.8.8.3");
+    const ok = await web.confirmarAlta(deps, selloDelMail(mails.at(-1)!), "8.8.8.3");
+    assert.ok(ok.ok && ok.nuevo, "sin la columna el alta web sigue andando");
     assert.equal(await verificado(n.id), false);
-    await registrarPruebaArcaOk(n.id, "test", "produccion", p.app);
+    await probarConArca(n.id, "test", "produccion", p.app);
     assert.equal(await verificado(n.id), true, "sin columna verifica la auditoría");
   } finally {
     await duenio.$executeRawUnsafe(`ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "cuitVerificadoEn" TIMESTAMP(3)`);
