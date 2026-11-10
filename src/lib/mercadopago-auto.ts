@@ -45,6 +45,14 @@ import {
 } from "@/lib/bancos-glue";
 import { UMBRAL_IDENTIFICACION_DEFAULT } from "@/plugins/bancos";
 import { aplicarMovimientosPosterioresMP } from "@/lib/facturacion/devoluciones-mp";
+import { pagoPendienteDelCreditoMp } from "@/lib/vouchers/liquidacion-repo";
+import {
+  esVentaConfirmada,
+  motivoDeAcreditacionPendiente,
+  motivoDePagadorDeLaAdministracion,
+  pagadorDeLaAdministracion,
+} from "@/lib/vouchers/acreditacion-core";
+import { leerPagadoresInTx } from "@/lib/vouchers/pagadores-administracion";
 
 // ---------------------------------------------------------------------------
 // Mapeos plugin ↔ DB
@@ -241,6 +249,55 @@ export function clasificadorConReglasDelDueno(
   };
 }
 
+/**
+ * La plata de vouchers no se factura (decisión del dueño): un pago de MP que puede ser la acreditación
+ * de un pago de la administración pendiente (`pagoPendienteDelCreditoMp`, mismo criterio que la
+ * confirmación) va a la cola de revisión en vez de a ARCA. Queda «revision» con un motivo que no es
+ * la marca del enganche: la acreditación lo engancha después. Con el CUIT/CBU de la administración
+ * cargado (`voucherPagadores`), un aviso de ese pagador va a revisión SIEMPRE (aunque el pago se registre
+ * después o el monto no coincida). Sin pagadores cargados, si el pago se registra DESPUÉS del aviso, el
+ * aviso ya facturó: eso lo ve la persona al acreditar.
+ * Un movimiento que una persona ya confirmó como venta (`MARCA_VENTA_CONFIRMADA`) no se vuelve a frenar.
+ */
+export function clasificadorSinPlataDeVouchers(base: ClasificadorPort): ClasificadorPort {
+  return {
+    async clasificar(pago, tenantId) {
+      const resultado = await base.clasificar(pago, tenantId);
+      if (resultado.clasificacion !== "FACTURABLE") return resultado;
+      const deVouchers = await tenantTransaction(
+        async (tx): Promise<{ motivo: string } | null> => {
+          // Re-aviso o «Sincronizar» de un pago que una persona ya aprobó como venta: se respeta (no
+          // vuelve a revisión ni se le pisa la marca).
+          const previo = await tx.movimientoImportado.findFirst({
+            where: { tenantId, hash: hashPagoMP(pago.id) },
+            select: { motivoRevision: true },
+          });
+          if (esVentaConfirmada(previo?.motivoRevision)) return null;
+          // La administración se reconoce por el PAGADOR: con su CUIT/CBU cargado, revisión aunque el
+          // pago todavía no se haya registrado o el monto no coincida.
+          const pagador = pagadorDeLaAdministracion(
+            { pagadorDoc: pago.pagadorDoc?.numero ?? null, contraparte: pago.contraparteNombre ?? null },
+            await leerPagadoresInTx(tx, tenantId),
+          );
+          if (pagador) return { motivo: motivoDePagadorDeLaAdministracion(pagador) };
+          const pagoId = await pagoPendienteDelCreditoMp(tx, tenantId, {
+            id: hashPagoMP(pago.id),
+            // La misma fecha con que `persistir` guarda el movimiento.
+            fecha: pago.fechaAcreditacion ?? hoyAAAAMMDD(),
+            monto: pago.monto,
+            referencia: pago.id,
+            descripcion: pago.descripcion ?? "",
+            contraparte: pago.contraparteNombre ?? null,
+          });
+          return pagoId ? { motivo: motivoDeAcreditacionPendiente(pagoId) } : null;
+        },
+        { tenantId },
+      );
+      return deVouchers ? { clasificacion: "REVISAR", motivo: deVouchers.motivo } : resultado;
+    },
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Entorno real + entradas (webhook / backfill)
 // ---------------------------------------------------------------------------
@@ -289,7 +346,9 @@ export async function crearEntornoReal(tenantId: string): Promise<EntornoIngesta
   // R1 · el camino automático arma el clasificador CON la config del negocio (cuentas propias):
   // antes iba sin `config` y `cuentasPropias` nunca se aplicaba acá.
   const clasificador = clasificadorConReglasDelDueno(
-    new ClasificadorPorReglas({ aprendizaje: new AprendizajeEnMemoria(), config: await configClasificacionDelNegocio(tenantId) }),
+    clasificadorSinPlataDeVouchers(
+      new ClasificadorPorReglas({ aprendizaje: new AprendizajeEnMemoria(), config: await configClasificacionDelNegocio(tenantId) }),
+    ),
     {
       umbralIdentificacion: configTenant.config.umbralIdentificacion ?? UMBRAL_IDENTIFICACION_DEFAULT,
       capFacturasMes: configTenant.capFacturasMes,
