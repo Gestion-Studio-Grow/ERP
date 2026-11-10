@@ -109,7 +109,10 @@ export async function pagarPedidoDeLaTienda(
     },
     { tenantId, timeoutMs: 20_000 },
   ).catch((e: unknown) => {
-    // Si la auditoría o la transacción fallan, no se entrega un link sin rastro (no sería reusable).
+    // Si la transacción falla (o vence a los 20 s), no se entrega un link sin rastro (no sería reusable).
+    // Si falla la auditoría, el error lo atrapa armarLinkDePagoDePedido (tipo "otro") y la tx revierte
+    // igual. En los dos casos la preferencia ya creada en MP queda huérfana (deuda anotada en #109;
+    // vence sola a las 48 h y no se puede pagar sin el link).
     logger.warn("tienda", "falló la transacción del link de pago desde Gracias", { tenantId, error: String(e) });
     return null;
   });
