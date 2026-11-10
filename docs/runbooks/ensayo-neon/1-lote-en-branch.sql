@@ -5,13 +5,13 @@
 --
 -- Cómo: Neon → Branches → Create branch (desde producción, nombre "ensayo-lote") →
 -- SQL Editor → elegí el branch "ensayo-lote" arriba → pegá TODO → Run.
--- Aplica las 1 migraciones en UNA transacción y las registra en _prisma_migrations con el
+-- Aplica las 2 migraciones en UNA transacción y las registra en _prisma_migrations con el
 -- checksum de Prisma. Si algo falla no queda nada a medias, y el error dice qué migración.
 -- Después: pegá 2-rls-despues-del-lote.sql (el aislamiento entre negocios, data-driven).
 BEGIN;
 DO $$
 BEGIN
-  IF EXISTS (SELECT 1 FROM _prisma_migrations WHERE migration_name IN ('20261109120000_must_change_password')) THEN
+  IF EXISTS (SELECT 1 FROM _prisma_migrations WHERE migration_name IN ('20261109120000_must_change_password', '20261110120000_proyecto_pago_cuota')) THEN
     RAISE EXCEPTION 'Alguna migración del lote ya figura en _prisma_migrations: no se vuelve a aplicar encima.';
   END IF;
 END $$;
@@ -36,7 +36,34 @@ ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "mustChangePassword" BOOLEAN NOT NUL
 INSERT INTO _prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count)
 VALUES (gen_random_uuid()::text, 'e5adc63542b220b0136059a17304af070c6c31960117ffc589bc469dedfcac02', now(), '20261109120000_must_change_password', NULL, NULL, now(), 1);
 
+-- ─── 20261110120000_proyecto_pago_cuota · checksum 89279179d9e5a4c82424f66d4a1abf064da2afb21b8d90a098dc090eaa69a35a ───
+-- D13, opción a (orden del dueño vía ORQ-006, 10/11/2026): cada cobro de un proyecto guarda qué cuota pagó y a qué
+-- tipo de cambio quedó fijado. Así un cobro en pesos de un proyecto en dólares no cambia de valor cuando después se
+-- actualiza el tipo de cambio del negocio.
+--
+-- ADITIVA: tres columnas NULLABLE en "ProyectoPago", sin default ni backfill (los cobros viejos quedan en NULL), y un
+-- índice. SIN clave foránea a "ProyectoCuota" a propósito: agregar una restricción a una tabla existente deja de ser
+-- aditivo (scripts/publicar/lib/sql.mjs lo frena); el código sólo escribe una cuota del mismo negocio y, si la cuota
+-- se borra después, el id queda como rastro. No toca datos, enums ni otras tablas. Idempotente (`IF NOT EXISTS`).
+-- RLS: las columnas viajan en la fila de "ProyectoPago", que ya tiene su policy; no suma superficie.
+--
+-- Sin aplicar (Gate 2): el build de producción frena si la base está atrás del schema (scripts/vercel-build.mjs).
+--
+-- Vuelta atrás:
+--   DROP INDEX IF EXISTS "ProyectoPago_tenantId_cuotaId_idx";
+--   ALTER TABLE "ProyectoPago" DROP COLUMN IF EXISTS "cuotaId", DROP COLUMN IF EXISTS "montoMoneda", DROP COLUMN IF EXISTS "tipoCambio";
+
+ALTER TABLE "ProyectoPago" ADD COLUMN IF NOT EXISTS "cuotaId" TEXT;
+ALTER TABLE "ProyectoPago" ADD COLUMN IF NOT EXISTS "montoMoneda" DOUBLE PRECISION;
+ALTER TABLE "ProyectoPago" ADD COLUMN IF NOT EXISTS "tipoCambio" DOUBLE PRECISION;
+
+CREATE INDEX IF NOT EXISTS "ProyectoPago_tenantId_cuotaId_idx" ON "ProyectoPago"("tenantId", "cuotaId");
+
+
+INSERT INTO _prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count)
+VALUES (gen_random_uuid()::text, '89279179d9e5a4c82424f66d4a1abf064da2afb21b8d90a098dc090eaa69a35a', now(), '20261110120000_proyecto_pago_cuota', NULL, NULL, now(), 1);
+
 COMMIT;
 
--- Verificación (sólo lectura): 1 filas, todas con finished_at.
-SELECT migration_name, finished_at FROM _prisma_migrations WHERE migration_name IN ('20261109120000_must_change_password') ORDER BY migration_name;
+-- Verificación (sólo lectura): 2 filas, todas con finished_at.
+SELECT migration_name, finished_at FROM _prisma_migrations WHERE migration_name IN ('20261109120000_must_change_password', '20261110120000_proyecto_pago_cuota') ORDER BY migration_name;
