@@ -64,6 +64,22 @@ archivos con `next/image`, y 30 de 54 componentes son de cliente; `(site)` de CH
 cliente; `inmobiliaria/page.tsx:102` y `clases/_cabecera.tsx:43` usan `<img>` crudo. Son candidatos de LCP para
 la ronda 0, no un diagnóstico: algunos son deliberados (`taller/marco.tsx:88` lo justifica en comentario).
 
+### 1.2 Verticales: qué existe y qué falta (grep sin distinguir mayúsculas, 22:47 UTC)
+
+Conteos de archivos con la palabra, no recorrido: dicen si algo **existe**, no si anda bien.
+
+| Rubro | Ya existe | Sin coincidencias (falta, a confirmar) |
+|---|---|---|
+| Gastronomía (`tienda/pedido-online.tsx`, 7 KB) | WhatsApp (9 menciones); seguimiento por enlace (`src/app/seguimiento/[token]`) | modificadores/aclaraciones/notas: 0 · demora, horario, abierto/cerrado: 0 · Mercado Pago/transferencia: 0 |
+| Pádel club (`clases`, `mis-clases`, `alumno`) | cancelar (6 archivos); pago/seña/transferencia (4) | «recuperar» clase: 0 · «lista de espera / en espera»: 0 |
+| Inmobiliaria (5 `.tsx` en `inmobiliaria`, `propiedades`, `alquiler`) | filtro, mapa y expensas (1 archivo cada uno); WhatsApp | es chica: medir calidad de galería y ficha antes de sumar |
+| Taller (`src/app/taller`) | presupuesto (4), aprobar/aceptar (1), fotos (1), seguimiento/estado (5), WhatsApp (4) | nada evidente: es de **medir**, no de construir |
+| Facturita (`src/app/facturita`) | es una app instalable (manifiesto, service worker, `InstalarApp.tsx`); ARCA en 30 archivos; rechazos contemplados (10) | medir los «30 segundos» en celular |
+| Backoffice — modo simple | `RUTAS_DEL_MODO_SIMPLE` = Hoy, Agenda, Clientes, Caja (`src/lib/admin-nav-items.ts:269`) | **es de agenda**: no incluye `/admin/vender` ni `/admin/pedidos`. El mostrador (`vender/`: `MostradorDeVenta`, `PedidoDesdeWhatsApp`, `ProtocoloSinSenal`, `TeclasPorGondola`) está construido pero el recorte simple no lo trae para retail |
+
+**Mejora nueva que sale de acá (retail, backoffice):** un modo simple de mostrador — Hoy, Vender, Pedidos, Caja —
+para carnicería, almacén y kiosco. Es recorte de menú (reversible, sin plata): candidato a quick win de la ronda 3.
+
 ## 2. Referente por rubro (a igualar o superar)
 
 | Rubro | AR / LatAm | Global | Qué hace mejor que nosotros (hipótesis) |
@@ -203,6 +219,7 @@ Una ronda = 1 o 2 constructores, un frente a la vez; lo que toque plata (checkou
 | D3 | Rubros sin cliente (gastronomía, oficios, 5 retail) | (a) congelar front hasta tener venta · (b) pulir igual | **(a)** — DEMO → VENTA → INVERSIÓN |
 | D4 | Seña online en reservas (CH, Break Point) | (a) MP + transferencia · (b) sólo transferencia con comprobante | **(a)**, sandbox primero (plata: Opus alto + certificación) |
 | D5 | Presupuesto de performance como gate | (a) Lighthouse móvil ≥ 85 bloquea integrar vidrieras · (b) informativo | **(a)** |
+| D6 | Modo simple para retail (§1.2) | (a) recorte Hoy · Vender · Pedidos · Caja por familia de rubro · (b) dejar el de agenda para todos | **(a)** |
 
 ## 8. Límites respetados
 
