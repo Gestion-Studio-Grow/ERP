@@ -6,7 +6,7 @@
 -- "Client" no tiene UNIQUE (tenantId, id), así que la llave a Client es simple; el negocio lo cuida RLS y el filtro
 -- explícito por tenantId en cada lectura y escritura de la app.
 
-CREATE TABLE "PortalCliente" (
+CREATE TABLE IF NOT EXISTS "PortalCliente" (
   "id" TEXT NOT NULL,
   "tenantId" TEXT NOT NULL,
   "clientId" TEXT NOT NULL,
@@ -15,12 +15,20 @@ CREATE TABLE "PortalCliente" (
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT "PortalCliente_pkey" PRIMARY KEY ("id")
 );
-CREATE UNIQUE INDEX "PortalCliente_token_key" ON "PortalCliente"("token");
+CREATE UNIQUE INDEX IF NOT EXISTS "PortalCliente_token_key" ON "PortalCliente"("token");
 -- Un link por cliente: dos «Generar» a la vez dan una sola fila (ON CONFLICT DO NOTHING en la app).
-CREATE UNIQUE INDEX "PortalCliente_tenantId_clientId_key" ON "PortalCliente"("tenantId", "clientId");
+CREATE UNIQUE INDEX IF NOT EXISTS "PortalCliente_tenantId_clientId_key" ON "PortalCliente"("tenantId", "clientId");
 
-ALTER TABLE "PortalCliente" ADD CONSTRAINT "PortalCliente_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "PortalCliente" ADD CONSTRAINT "PortalCliente_clientId_fkey" FOREIGN KEY ("clientId") REFERENCES "Client"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'PortalCliente_tenantId_fkey') THEN
+    ALTER TABLE "PortalCliente" ADD CONSTRAINT "PortalCliente_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'PortalCliente_clientId_fkey') THEN
+    ALTER TABLE "PortalCliente" ADD CONSTRAINT "PortalCliente_clientId_fkey" FOREIGN KEY ("clientId") REFERENCES "Client"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- RLS en la misma migración (check-coverage.mjs, segunda red): cada negocio ve sólo sus links.
 ALTER TABLE "PortalCliente" ENABLE ROW LEVEL SECURITY;
