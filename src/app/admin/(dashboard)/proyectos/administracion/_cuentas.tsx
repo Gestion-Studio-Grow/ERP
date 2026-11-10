@@ -29,7 +29,7 @@ function vence(d: Date, vencida: boolean) {
   );
 }
 
-export async function TabCuentas({ tipo, estado, q, cuotas, tc, tenantId, editaEmpresa, editaPagos }: { tipo: "COBRO" | "PAGO"; estado?: string; q?: string; cuotas: readonly CuotaDelNegocio[]; tc: Readonly<Record<string, number>>; tenantId: string; editaEmpresa: boolean; editaPagos: boolean }) {
+export async function TabCuentas({ tipo, estado, q, cuotas, tc, tenantId, editaEmpresa, editaPagos }: { tipo: "COBRO" | "PAGO"; estado?: string; q?: string; cuotas: readonly (CuotaDelNegocio & { pendiente?: number })[]; tc: Readonly<Record<string, number>>; tenantId: string; editaEmpresa: boolean; editaPagos: boolean }) {
   const filtro: FiltroCuota = (FILTROS_CUOTA as readonly string[]).includes(estado ?? "") ? (estado as FiltroCuota) : "pendientes";
   const busqueda = (q ?? "").trim().toLowerCase();
   const tab = tipo === "COBRO" ? "cobrar" : "pagar";
@@ -79,7 +79,10 @@ export async function TabCuentas({ tipo, estado, q, cuotas, tc, tenantId, editaE
                 const vencida = est === "VENCIDA";
                 const deEmpresa = !c.proyecto;
                 const puedeMarcar = deEmpresa ? editaEmpresa : editaPagos;
-                const referencia = aPesos(c.monto, c.moneda, tc);
+                // Lo cobrado a mano por fuera ya se descontó de las cuotas más viejas: el renglón muestra lo que falta.
+                const falta = !c.pagadoEl && c.tipo === "COBRO" && c.pendiente !== undefined ? c.pendiente : c.monto;
+                const cubierta = !c.pagadoEl && !(falta > 0);
+                const referencia = aPesos(falta, c.moneda, tc);
                 return (
                   <tr key={c.id} className={cn("border-t border-line align-top", vencida && "bg-danger-soft")}>
                     <td className={cn("py-2 pr-3", vencida && "text-danger")}>
@@ -94,13 +97,17 @@ export async function TabCuentas({ tipo, estado, q, cuotas, tc, tenantId, editaE
                       {c.concepto}
                       {c.auto && <span className="ml-1 rounded border border-line px-1 text-xs text-muted">auto</span>}
                     </td>
-                    <td className="whitespace-nowrap py-2 pr-3 text-right font-medium tabular-nums text-strong">{plataEn(c.monto, c.moneda)}</td>
+                    <td className="whitespace-nowrap py-2 pr-3 text-right font-medium tabular-nums text-strong">
+                      {plataEn(falta, c.moneda)}
+                      {falta !== c.monto && <span className="block text-xs font-normal text-muted">de {plataEn(c.monto, c.moneda)}</span>}
+                    </td>
                     <td className="whitespace-nowrap py-2 pr-3 text-right tabular-nums text-muted">{referencia > 0 ? pesos(referencia) : "—"}</td>
                     <td className="py-2 pr-3">{editaEmpresa ? <DatoCuota id={c.id} dato="factura" valor={c.factura ?? ""} etiqueta="Factura" /> : (c.factura ?? "—")}</td>
                     <td className={cn("whitespace-nowrap py-2 pr-3", vencida && "font-medium text-danger")}>{est === "PAGADA" && c.tipo === "COBRO" ? "Cobrada" : ESTADO_LABEL[est]}</td>
                     <td className="py-2 pr-3">
                       <div className="grid justify-items-start gap-1">
-                        {est !== "PAGADA" && puedeMarcar && <MarcarCuota id={c.id} deEmpresa={deEmpresa} etiqueta={tipo === "COBRO" ? "Cobrado" : "Pagar"} />}
+                        {cubierta && <span className="whitespace-nowrap text-xs text-muted">Cubierta con cobros registrados</span>}
+                        {est !== "PAGADA" && !cubierta && puedeMarcar && <MarcarCuota id={c.id} deEmpresa={deEmpresa} etiqueta={tipo === "COBRO" ? "Cobrado" : "Pagar"} />}
                         {est === "PAGADA" && <span className="whitespace-nowrap text-xs text-muted">{fechaCorta(c.pagadoEl)}{c.medio ? ` · ${c.medio.toLowerCase().replace("_", " ")}` : ""}</span>}
                         {deEmpresa && editaEmpresa && <BotonDosPasos accion={anularCuotaEmpresa} campos={{ id: c.id }} etiqueta="Anular" pregunta={est === "PAGADA" ? "¿Anular? La plata vuelve al libro." : "¿Anular?"} />}
                       </div>

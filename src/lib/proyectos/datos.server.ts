@@ -15,8 +15,7 @@ import { getLocation } from "@/lib/settings";
 import { desvioPorRubro, redondear, resultadoReal, totales, ultimaEnviada } from "./core";
 import { costosVigentes, normalizarDiseno } from "./stand";
 import { SIN_COMPROBANTES } from "./rendiciones-core";
-import { cobranza, totalAprobado as totalAprobadoDe } from "./cobranza-core";
-import { cobranzaDe, SELECT_COBRANZA, tiposDeCambio } from "./cobranza.server";
+import { cobranzaDe, originalesDeCobros, SELECT_COBRANZA, tiposDeCambio } from "./cobranza.server";
 
 export const veLaPlata = (u: SessionUser): boolean => permisoFueraDeLaAgenda(u, "agenda:manage");
 
@@ -105,7 +104,9 @@ export async function fichaProyecto(id: string) {
   const real = resultadoReal(totalesVigente, proyecto.gastos);
   const rubros = desvioPorRubro(vigente?.items ?? [], proyecto.gastos);
   // Cobrado y saldo: la fuente única (cobranza-core), igual que la caja «Cobros» y las listas.
-  const { total: totalAprobado, cobrado, saldo } = cobranza(totalAprobadoDe(vigente, tc, config.margenPct), proyecto.pagos);
+  const pagosVivos = proyecto.pagos.filter((x) => !x.anuladoEl);
+  const delProyecto = { moneda: proyecto.moneda, presupuestos: vigente ? [vigente] : [], pagos: pagosVivos };
+  const { total: totalAprobado, cobrado, saldo } = cobranzaDe(delProyecto, tc, config.margenPct, await originalesDeCobros(tenantId, [delProyecto]));
   return { user, conPlata, proyecto, config, negocio, totalAprobado, cobrado, saldo, totalesVigente, real, rubros, proveedores: proveedores.map((s) => s.name) };
 }
 
@@ -166,10 +167,11 @@ export async function reporteProyectos() {
       gastos: { where: { anuladoEl: null }, select: { rubro: true, neto: true, iva: true, pagadoEl: true, anuladoEl: true } },
     },
   });
+  const originales = await originalesDeCobros(tenantId, proyectos);
   return proyectos.map((p) => {
     const a = p.presupuestos[0];
     const t = a ? totales(a.items, a.ivaPct) : null;
-    const { cobrado, saldo } = cobranzaDe(p, tc, config.margenPct);
+    const { cobrado, saldo } = cobranzaDe(p, tc, config.margenPct, originales);
     return { ...p, t, cobrado, saldo, real: resultadoReal(t, p.gastos) };
   });
 }
@@ -230,11 +232,12 @@ export async function clientesConProyectos(q: string) {
       },
     },
   });
+  const originales = await originalesDeCobros(tenantId, clientes.flatMap((c) => c.proyectos));
   return clientes.map(({ proyectos, ...c }) => ({
     ...enmascararContacto(c, user),
     total: proyectos.length,
     abiertos: proyectos.filter((p) => p.etapa !== "CIERRE").length,
-    porCobrar: redondear(proyectos.reduce((s, p) => s + cobranzaDe(p, tc, config.margenPct).porCobrar, 0)),
+    porCobrar: redondear(proyectos.reduce((s, p) => s + cobranzaDe(p, tc, config.margenPct, originales).porCobrar, 0)),
   }));
 }
 
@@ -256,10 +259,11 @@ export async function proyectosDelCliente(clientId: string) {
       ...SELECT_COBRANZA,
     },
   });
+  const originales = await originalesDeCobros(tenantId, proyectos);
   return proyectos.map((p) => {
     const a = p.presupuestos[0];
     const t = a ? totales(a.items, a.ivaPct) : null;
-    const { cobrado, saldo } = cobranzaDe(p, tc, config.margenPct);
+    const { cobrado, saldo } = cobranzaDe(p, tc, config.margenPct, originales);
     return { ...p, t, cobrado, saldo };
   });
 }

@@ -289,14 +289,18 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
                       <td className="py-1.5 pr-2 whitespace-nowrap">{c.prevista && !p.fechaEvento ? "Sin fecha" : fechaCorta(c.venceEl)}</td>
                       <td className="py-1.5 pr-2">{c.concepto}{c.auto && <span className="ml-1 text-xs text-muted">auto</span>}</td>
                       <td className="py-1.5 pr-2">{c.tipo === "COBRO" ? p.client.name : c.supplier?.name ?? "—"}</td>
-                      <td className="py-1.5 pr-2 text-right tabular-nums">{plataEn(c.monto, c.moneda)}</td>
+                      <td className="py-1.5 pr-2 text-right tabular-nums">
+                        {plataEn(c.monto, c.moneda)}
+                        {!c.pagadoEl && !c.anuladoEl && c.tipo === "COBRO" && c.pendiente !== c.monto && <span className="block text-xs text-muted">Falta {plataEn(c.pendiente, c.moneda)}</span>}
+                      </td>
                       <td className={cn("py-1.5 pr-2 text-right tabular-nums", importe < 0 ? "text-danger" : "text-strong")}>{enCaja(importe)}</td>
                       <td className={cn("py-1.5 pr-2 text-right font-medium tabular-nums", saldo < 0 && "text-danger")}>{enCaja(saldo)}</td>
                       <td className="py-1.5 pr-2">{c.prevista && !c.pagadoEl ? <Badge tone="neutral">Prevista</Badge> : <Badge tone={estado === "PAGADA" ? "success" : estado === "VENCIDA" ? "danger" : "neutral"}>{estado === "PAGADA" ? (c.tipo === "COBRO" ? "Cobrado" : "Pagado") : estado === "VENCIDA" ? "Vencido" : "Pendiente"}</Badge>}</td>
                       <td className="py-1">
                         {c.pagadoEl && c.tipo === "COBRO" && !c.anuladoEl && <a href={`/admin/proyectos/imprimir/cobro/${c.id}`} className={buttonClasses("ghost", "sm")}>Constancia</a>}
                         {d.facturaCuotas && c.tipo === "COBRO" && <FacturaDeLaCuota cuota={c} factura={d.facturas.get(c.id)} proyectoId={p.id} edita={vista.editaPagos} />}
-                        {!c.pagadoEl && !c.prevista && vista.editaPagos && (
+                        {!c.pagadoEl && !c.anuladoEl && c.tipo === "COBRO" && !(c.pendiente > 0) && <span className="text-xs text-muted">Cubierta con cobros registrados</span>}
+                        {!c.pagadoEl && !c.prevista && vista.editaPagos && (c.tipo !== "COBRO" || c.pendiente > 0) && (
                           <div className="flex flex-wrap items-center justify-end gap-1">
                             <FormAccion accion={marcarCuota} className="flex flex-wrap items-center gap-1">
                               <input type="hidden" name="id" value={c.id} />
