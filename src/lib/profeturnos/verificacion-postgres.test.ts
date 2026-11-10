@@ -154,3 +154,17 @@ test("3 · una revocación firmada por la consola vuelve a cerrar A; una sin fir
   assert.deepEqual(await abierto(c, base.a), { abierto: false, conHorarios: false });
   assert.equal((await c.consola.leerVerificacionDeLaFicha(base.a.id))?.estado, "pendiente");
 });
+
+test("4 · la purga de retención no reabre un turnero revocado (las filas profeturnos.* quedan exentas)", async (t) => {
+  const c = await preparar(t);
+  if (!c) return;
+  const { base, db } = c;
+  const { purgeAuditLogs } = await import("@/lib/audit-retention");
+  // Todas las filas de A pasan a tener 20 meses: fuera de la ventana de 18.
+  const viejo = new Date(Date.now() - 20 * 30 * DIA);
+  await db.auditLog.updateMany({ where: { tenantId: base.a.id }, data: { createdAt: viejo } });
+  const antes = await db.auditLog.count({ where: { tenantId: base.a.id, action: { startsWith: "profeturnos." } } });
+  await purgeAuditLogs(db, { dryRun: false });
+  assert.equal(await db.auditLog.count({ where: { tenantId: base.a.id, action: { startsWith: "profeturnos." } } }), antes);
+  assert.deepEqual(await abierto(c, base.a), { abierto: false, conHorarios: false });
+});
