@@ -30,6 +30,7 @@ import { ComoPaga } from "./piezas";
 import type { PropsDeSolapa } from "./solapas-club";
 import { porFirma, useOperador, useSeleccion } from "./usar-almacen";
 import { BotonWhatsApp } from "./WhatsAppDelClub";
+import { origenParaCompartir } from "@/lib/direccion-publica-cliente";
 
 /** Lo que se puede deshacer en los 6 s del aviso. Lo del crédito no: es una decisión (o un intento de código). */
 const DESHACIBLES: ReadonlySet<AccionClientes["tipo"]> = new Set(["alta", "editar", "baja", "novedades", "cobrarDeuda"]);
@@ -359,7 +360,7 @@ function FichaDelCliente({ almacen, clienteId, onCerrar, onSeFue }: { almacen: A
   const negocio = useNegocioDelClub();
   // El link al aprobador del dueño sale de ESTE sitio (el panel del negocio): /admin/club/aprobar#aprobar&…, salvo que
   // el negocio apruebe en otro sitio (aprobador-externo.ts: Break Point en el trial, con el link del club de hoy).
-  const seleccionar = useCallback((e: EstadoClub, a: Ahora) => armarFicha(e, clienteId, a, modo, window.location.origin, negocio), [clienteId, modo, negocio]);
+  const seleccionar = useCallback((e: EstadoClub, a: Ahora) => armarFicha(e, clienteId, a, modo, origenParaCompartir(), negocio), [clienteId, modo, negocio]);
   const f = useSeleccion(almacen, seleccionar, porFirma);
   const hacer = useHacer(almacen);
   const titulo = useRef<HTMLHeadingElement>(null);

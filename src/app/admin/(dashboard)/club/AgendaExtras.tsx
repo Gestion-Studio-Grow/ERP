@@ -31,6 +31,7 @@ import { DURACIONES } from "./alta-core";
 import { linkParaClientes } from "./configuracion-core";
 import { enlaceLoLibre, textoLoLibre, type DiaLibre, type FranjaLibreWa } from "./whatsapp-core";
 import { useSeleccion } from "./usar-almacen";
+import { origenParaCompartir } from "@/lib/direccion-publica-cliente";
 
 export function DiasDeLaAgenda({ hoy, dia, onDia, calendario }: { hoy: string; dia: string; onDia: (d: string) => void; calendario?: ReturnType<typeof calendarioDeLaAgenda> }) {
   const dias = diasDeLaAgenda(hoy, dia, calendario?.dias);
@@ -264,7 +265,7 @@ export function CompartirLoLibre({ id, almacen, onCerrar }: { id: string; almace
   const [copiado, setCopiado] = useState<string | null>(null);
   const ids = { titulo: useId(), texto: useId() };
   // El link del turnero de ESTE club (con su WhatsApp y sus tarifas), en la misma dirección donde corre el club.
-  const origen = typeof window === "undefined" ? "" : window.location.origin;
+  const origen = origenParaCompartir();
   const seleccionar = useCallback(
     (e: EstadoClub, ahora: Ahora) => {
       const texto = textoLoLibre(e, dia, franja, ahora, origen ? linkParaClientes(e, origen) : null);

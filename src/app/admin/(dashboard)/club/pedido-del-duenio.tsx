@@ -21,6 +21,7 @@ import { useNegocioDelClub } from "./negocio-del-club";
 import { codigoDeLaDemo, mensajeParaElDuenio, pedidosPendientes } from "./credito-core";
 import { useSeleccion } from "./usar-almacen";
 import { BotonWhatsApp } from "./WhatsAppDelClub";
+import { origenParaCompartir } from "@/lib/direccion-publica-cliente";
 
 interface VistaDelPedido {
   id: string;
@@ -50,7 +51,7 @@ export default function PedidoDelDuenio({ almacen, novedadId }: { almacen: Almac
   const demo = verDemo && almacen.modo() === "demo" ? codigoDeLaDemo(almacen.estado(), pedido.id) : null;
   // Un aviso por dueño, a SU celular (Configuración → Avisos) con el link al aprobador del ERP; en la demo, sin número.
   // Con el negocio: si aprueba en otro sitio (aprobador-externo.ts: Break Point en el trial, G4), el link va ahí.
-  const avisos = avisosAlDuenio(almacen.estado(), pedido.id, typeof window !== "undefined" ? window.location.origin : "", almacen.modo(), negocio);
+  const avisos = avisosAlDuenio(almacen.estado(), pedido.id, origenParaCompartir(), almacen.modo(), negocio);
   return (
     <div className="flex flex-col gap-2 rounded-md border border-warning/40 bg-warning-soft p-3">
       <p className="text-sm text-strong">
