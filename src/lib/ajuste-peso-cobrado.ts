@@ -36,6 +36,7 @@ import { facturaDeLaVenta, mensajeFacturaViva } from "@/lib/factura-viva";
 import { formatDayLabel, isFrozenDay, nextDayKey, type DayKey } from "@/lib/caja/cierre-diario";
 import { AJUSTE_PESO_ACTOR_PREFIX } from "@/lib/caja/devolucion-por-peso";
 import { ajustarPedidoInTx, type AjustarPedidoArgs, type AjustarPedidoResult, type AnulacionVentaTx } from "@/lib/order-anulacion";
+import { anotarNotaPorPesoInTx, facturaParaLaNota, fraseDeLaNota, type NotaPorPeso } from "@/lib/facturacion/nota-credito-por-peso-core";
 
 // ── 1. NÚCLEO PURO ──────────────────────────────────────────────────────────
 
@@ -65,6 +66,7 @@ export type MotivoAjusteCobradoRechazado =
   | "ya-ajustado"
   | "sin-asiento"
   | "facturada"
+  | "facturada-peso-mas"
   | "factura-en-camino"
   | "dia-cerrado";
 
@@ -77,6 +79,9 @@ export type MotivoAjusteCobradoRechazado =
  *   · cobrado sin UNA venta en el libro (varios medios, a cuenta, voucher) → no: no hay un cobro
  *     único contra el cual devolver o sumar.
  *   · con factura viva             → no: cambiar el total pide nota de crédito (fuera de alcance).
+ *   · con factura SIMULADA (CAE del simulador, negocio en modo prueba) → sí: si pesó menos, la
+ *     devolución lleva su nota de crédito simulada (facturacion/nota-credito-por-peso.ts); si pesó
+ *     más se rechaza después, con la diferencia a la vista («facturada-peso-mas»).
  */
 export function planAjusteCobrado(input: {
   existe: boolean;
@@ -86,7 +91,7 @@ export function planAjusteCobrado(input: {
   yaAjustado: boolean;
   /** Tiene otros cobros parciales (pago con varios medios). */
   otrosCobros: boolean;
-  factura: "autorizada" | "en-camino" | "sin-factura-viva";
+  factura: "autorizada" | "en-camino" | "sin-factura-viva" | "simulada";
 }): { ok: true } | { ok: false; motivo: MotivoAjusteCobradoRechazado } {
   if (!input.existe) return { ok: false, motivo: "no-existe" };
   if (input.status === "CANCELLED" || input.status === "DELIVERED") return { ok: false, motivo: "terminal" };
@@ -109,6 +114,11 @@ export function mensajeAjusteCobradoRechazado(motivo: MotivoAjusteCobradoRechaza
       return "Este pedido se cobró con varios medios o quedó a cuenta, así que el peso no se ajusta acá: anulá la venta y volvé a cargarla con el peso real.";
     case "facturada":
       return mensajeFacturaViva("autorizada", "venta");
+    case "facturada-peso-mas":
+      return (
+        "Este pedido ya tiene factura y pesó más: una factura emitida no se agranda. Dejá el peso como " +
+        "estaba y cobrá lo que falta como una venta aparte, con su propia factura."
+      );
     case "factura-en-camino":
       return mensajeFacturaViva("en-camino", "venta");
     case "dia-cerrado": {
@@ -209,6 +219,12 @@ export type AjustarPesoArgs = Omit<AjustarPedidoArgs, "admiteCobrado"> & {
   cerradoHasta: DayKey | null;
   hoy: DayKey;
   ahora: Date;
+  /**
+   * El negocio factura en MODO PRUEBA (ARCA simulado, `modoEnPantalla` = stub). Sólo así una venta
+   * con factura simulada se ajusta y su devolución lleva nota de crédito simulada. Sin pasarlo
+   * (o false): una venta facturada se rechaza como siempre.
+   */
+  arcaSimulado?: boolean;
 };
 
 export type ResultadoAjustePeso = AjustarPedidoResult & {
@@ -219,6 +235,8 @@ export type ResultadoAjustePeso = AjustarPedidoResult & {
   cambios: CambioDePeso[];
   /** Mismo clic otra vez: no se escribió nada. */
   repetido: boolean;
+  /** Sólo si pesó menos: la nota de crédito de la devolución (o que no hacía falta: sin factura). */
+  notaDeCredito?: NotaPorPeso | null;
 };
 
 const CLAVE_VALIDA = /^[A-Za-z0-9_-]{8,80}$/;
@@ -260,16 +278,17 @@ export async function ajustarPesoInTx(tx: AnulacionVentaTx, tenantId: string, ar
   const [cobros, egreso, facturas] = await Promise.all([
     tx.collection.findMany({ where: { tenantId, originType: "ORDER", originId: id }, select: { idempotencyKey: true } }),
     tx.cashMovement.findFirst({ where: { tenantId, orderId: id, type: "EGRESO" }, select: { id: true } }),
-    tx.invoice.findMany({ where: { tenantId, orderId: id }, select: { status: true } }),
+    tx.invoice.findMany({ where: { tenantId, orderId: id }, select: { id: true, status: true, cae: true, comprobanteAsociadoId: true } }),
   ]);
   const claveCobrado = claveCobradoAntesDePesar(id);
+  const laFactura = facturaParaLaNota(facturas, args.arcaSimulado === true);
   const plan = planAjusteCobrado({
     existe: true,
     status: order.status,
     tieneVenta: Boolean(venta) && order.paymentMethod != null,
     yaAjustado: Boolean(egreso) || cobros.some((c) => c.idempotencyKey === claveCobrado),
     otrosCobros: cobros.length > 0,
-    factura: facturaDeLaVenta(facturas),
+    factura: laFactura.estado === "simulada" ? "simulada" : facturaDeLaVenta(facturas),
   });
   if (!plan.ok) throw new AjusteCobradoRechazado(plan.motivo);
 
@@ -279,7 +298,10 @@ export async function ajustarPesoInTx(tx: AnulacionVentaTx, tenantId: string, ar
   const porMercadoPago = order.paymentMethod === "MERCADOPAGO";
   const despues = await tx.orderItem.findMany({ where: { tenantId, orderId: id }, select: { productId: true, name: true, saleUnit: true, quantity: true } });
   const cambios = cambiosDePeso(order.items, despues);
+  // Una factura emitida no se agranda: pesó más con factura → se rechaza y la tx vuelve atrás.
+  if (laFactura.estado === "simulada" && diferencia.tipo === "cobrar") throw new AjusteCobradoRechazado("facturada-peso-mas");
 
+  let notaDeCredito: NotaPorPeso | null = null;
   if (diferencia.tipo === "devolver") {
     // DB-5: la devolución escribe en el libro de HOY; con hoy cerrado se rechaza y la tx vuelve
     // atrás entera (líneas y stock también).
@@ -287,7 +309,7 @@ export async function ajustarPesoInTx(tx: AnulacionVentaTx, tenantId: string, ar
       throw new AjusteCobradoRechazado("dia-cerrado", { hoy: args.hoy, cerradoHasta: args.cerradoHasta });
     }
     const turno = await tx.cashSession.findFirst({ where: { tenantId, status: "OPEN" }, select: { id: true } });
-    await tx.cashMovement.create({
+    const egreso = await tx.cashMovement.create({
       data: {
         tenantId,
         sessionId: turno?.id ?? null,
@@ -299,7 +321,21 @@ export async function ajustarPesoInTx(tx: AnulacionVentaTx, tenantId: string, ar
         orderId: id,
         createdBy: `${AJUSTE_PESO_ACTOR_PREFIX}${args.actor}`,
       },
+      select: { id: true },
     });
+    // Con factura (simulada): la nota de crédito por lo devuelto queda ANOTADA en esta tx y se
+    // emite en otra (si falla, la devolución no se revierte). Sin factura, no hay nada que acreditar.
+    notaDeCredito =
+      laFactura.estado === "simulada"
+        ? await anotarNotaPorPesoInTx(tx, tenantId, {
+            orderId: id,
+            egresoId: egreso.id,
+            facturaId: laFactura.facturaId,
+            importe: diferencia.monto,
+            code: order.code,
+            actor: args.actor,
+          })
+        : { estado: "sin-factura" };
   } else if (diferencia.tipo === "cobrar") {
     // Lo pagado queda como cobro del pedido SIN asiento (su plata ya es la VENTA original) y el
     // pedido vuelve a «sin cobrar»: el saldo es la diferencia (saldo-del-pedido.ts).
@@ -319,7 +355,7 @@ export async function ajustarPesoInTx(tx: AnulacionVentaTx, tenantId: string, ar
     await tx.order.updateMany({ where: { tenantId, id }, data: { paid: false } });
   }
 
-  const resultado: ResultadoAjustePeso = { ...out, cobrado, diferencia, porMercadoPago, cambios, repetido: false };
+  const resultado: ResultadoAjustePeso = { ...out, cobrado, diferencia, porMercadoPago, cambios, repetido: false, notaDeCredito };
   // El rastro, en ESTA transacción: es la clave del doble clic y lo que lee el aviso de «listo».
   await tx.auditLog.create({
     data: {
@@ -348,7 +384,8 @@ export function mensajeDelAjuste(r: ResultadoAjustePeso): string {
     return (
       `${titulo} Devolvé ${fmtMoneyARS(r.diferencia.monto)}` +
       (r.porMercadoPago ? " desde Mercado Pago (a mano, en la cuenta del local)" : " por el mismo medio con que pagó") +
-      ": la salida ya quedó en el libro de hoy."
+      ": la salida ya quedó en el libro de hoy." +
+      fraseDeLaNota(r.notaDeCredito)
     );
   }
   return `${titulo} Ya había pagado ${fmtMoneyARS(r.cobrado ?? 0)}: quedan ${fmtMoneyARS(r.diferencia.monto)} a cobrar.`;

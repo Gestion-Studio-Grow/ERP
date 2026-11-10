@@ -86,6 +86,7 @@ import { fmtMoneyARS } from "@/components/ui/format";
 import { textoPlata } from "@/lib/cobro/pie-de-cobro-core";
 import { lastClosedDay, lastClosedDayTx } from "@/lib/caja/frontera-cierre";
 import { ajustarPesoInTx, mensajeAjusteCobradoRechazado, mensajeDelAjuste, type ResultadoAjustePeso } from "@/lib/ajuste-peso-cobrado";
+import { negocioEnModoPrueba, notaDeCreditoPorPeso } from "@/lib/facturacion/nota-credito-por-peso";
 import { isFrozenDay } from "@/lib/caja/cierre-diario";
 import { dateStrInBusinessTz } from "@/lib/datetime";
 import { opcionLotesVencidos } from "@/lib/carniceria/schema-probe";
@@ -1466,6 +1467,9 @@ export async function updateOrderItems(
   // una sola vez, con la fila del pedido tomada y la clave del formulario contra el doble clic.
   const clave = String(formData.get("clave") || "").trim() || null;
   const ahora = new Date();
+  // Modo prueba (ARCA simulado): una venta con factura simulada se ajusta y su devolución lleva NC
+  // simulada. Falla cerrada: si no se pudo leer el modo, una venta facturada se rechaza como siempre.
+  const arcaSimulado = await negocioEnModoPrueba(tenantId).catch(() => false);
   let out: ResultadoAjustePeso;
   try {
     out = await tenantTransaction(
@@ -1483,6 +1487,7 @@ export async function updateOrderItems(
           cerradoHasta: await lastClosedDayTx(tx, tenantId),
           hoy: dateStrInBusinessTz(ahora),
           ahora,
+          arcaSimulado,
         }),
       { tenantId },
     );
@@ -1511,6 +1516,13 @@ export async function updateOrderItems(
         lines: wanted.length,
       },
     });
+  }
+  // La nota de crédito (simulada) de la devolución, en su propia tx: si falla, la devolución ya está
+  // en la caja y la nota queda pendiente (se reintenta; idempotente por pedido + ajuste).
+  if (out.notaDeCredito?.estado === "pendiente") {
+    const pendiente = out.notaDeCredito;
+    const nota = await notaDeCreditoPorPeso(tenantId, pendiente.clave).catch(() => null);
+    if (nota) out = { ...out, notaDeCredito: nota };
   }
   revalidarMostrador();
   return { ok: true, mensaje: mensajeDelAjuste(out) };
