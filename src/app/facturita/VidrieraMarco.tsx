@@ -14,7 +14,6 @@ import BarraFija from "./BarraFija";
 import LogoFactoque from "./LogoFactoque";
 import { LogoGSG } from "@/components/marca/MarcaGSG";
 import { MarcaDeAgua } from "@/components/marca/MarcaDeAgua";
-import { ISOTIPO_FACTOQUE } from "@/lib/factoque-icono";
 
 const claro = resolveAccent("cobre", "light");
 const oscuro = resolveAccent("cobre", "dark");
@@ -51,7 +50,7 @@ export default function VidrieraMarco({
     >
       <style dangerouslySetInnerHTML={{ __html: PIEL_FACTURITA }} />
       {/* Marca de agua: mosaico del isotipo de Factoque (la vidriera es de un producto de GSG). */}
-      <MarcaDeAgua geometria={ISOTIPO_FACTOQUE} className="text-[color:var(--fx-tinta)]" />
+      <MarcaDeAgua className="text-[color:var(--fx-tinta)]" />
       <a href="#contenido" className="fx-saltar">
         Saltar al contenido
       </a>

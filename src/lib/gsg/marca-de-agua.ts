@@ -1,5 +1,6 @@
 // LA MARCA DE AGUA DE GSG (10/11/2026, orden del dueño): un mosaico de isotipos chicos repetidos en
-// filas desplazadas que forman diagonales — un detalle del fondo, no un símbolo grande. Va SÓLO en lo
+// filas desplazadas que forman diagonales — un detalle del fondo, no un símbolo grande. SIEMPRE el
+// isotipo de GSG, también dentro de un producto («no importa qué producto sea»). Va SÓLO en lo
 // que es de GSG (ingreso de un producto, consola del operador, dirección sin negocio, vidrieras de los
 // productos, kit, plantillas de documentos de GSG). Nunca en pantallas ni documentos de un negocio
 // cliente (CH, MAGRA, Shine, Dos Manos) ni en comprobantes.
@@ -7,7 +8,7 @@
 // Módulo puro: arma el SVG del azulejo (una celda con dos isotipos, el segundo corrido media celda en
 // los dos ejes) y su data URI para usarlo como `mask-image` repetida. Con la máscara el color sale del
 // tema (`currentColor` sobre un token), así claro y oscuro funcionan sin otro archivo.
-import { ISOTIPO_GSG, type GeometriaIsotipo } from "./marca-svg";
+import { ISOTIPO_GSG } from "./marca-svg";
 
 /** Celda del mosaico en px: dos isotipos por celda → uno cada `celda/√2` en la diagonal. */
 export const CELDA_MOSAICO = 72;
@@ -24,9 +25,10 @@ function ladoDelViewBox(viewBox: string): number {
 }
 
 /** Los dos isotipos de una celda, como `<g>` con su traslado. `relleno` es el fill de las formas. */
-function isotiposDeLaCelda(geo: GeometriaIsotipo, celda: number, lado: number, relleno: string): string {
+function isotiposDeLaCelda(celda: number, lado: number, relleno: string): string {
+  const geo = ISOTIPO_GSG;
   const k = +(lado / ladoDelViewBox(geo.viewBox)).toFixed(4);
-  const margen = +((celda / 2 - lado) / 2).toFixed(2);
+  const margen = (celda / 2 - lado) / 2;
   const d = `${geo.forma}${geo.nudo}`;
   const uno = (x: number, y: number) =>
     `<path transform="translate(${x} ${y}) scale(${k})" fill="${relleno}" d="${d}"/>`;
@@ -34,19 +36,19 @@ function isotiposDeLaCelda(geo: GeometriaIsotipo, celda: number, lado: number, r
 }
 
 /** El azulejo (una celda) en negro: para usarlo como máscara repetida. */
-export function azulejoMosaicoSvg(geo: GeometriaIsotipo = ISOTIPO_GSG, opciones: OpcionesMosaico = {}): string {
+export function azulejoMosaicoSvg(opciones: OpcionesMosaico = {}): string {
   const celda = opciones.celda ?? CELDA_MOSAICO;
   const lado = opciones.lado ?? LADO_ISOTIPO_MOSAICO;
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" width="${celda}" height="${celda}" viewBox="0 0 ${celda} ${celda}">` +
-    isotiposDeLaCelda(geo, celda, lado, "#000") +
+    isotiposDeLaCelda(celda, lado, "#000") +
     `</svg>`
   );
 }
 
 /** `url("data:image/svg+xml,…")` del azulejo, listo para `mask-image` o `background-image`. */
-export function urlAzulejoMosaico(geo: GeometriaIsotipo = ISOTIPO_GSG, opciones: OpcionesMosaico = {}): string {
-  return `url("data:image/svg+xml,${encodeURIComponent(azulejoMosaicoSvg(geo, opciones))}")`;
+export function urlAzulejoMosaico(opciones: OpcionesMosaico = {}): string {
+  return `url("data:image/svg+xml,${encodeURIComponent(azulejoMosaicoSvg(opciones))}")`;
 }
 
 /**
@@ -54,7 +56,6 @@ export function urlAzulejoMosaico(geo: GeometriaIsotipo = ISOTIPO_GSG, opciones:
  * para Docs). Fondo y tinta en hex porque es un archivo suelto, fuera del tema.
  */
 export function hojaMosaicoSvg(
-  geo: GeometriaIsotipo = ISOTIPO_GSG,
   {
     ancho = 1200,
     alto = 800,
@@ -68,7 +69,7 @@ export function hojaMosaicoSvg(
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" width="${ancho}" height="${alto}" viewBox="0 0 ${ancho} ${alto}">` +
     `<defs><pattern id="gsg-mosaico" width="${celda}" height="${celda}" patternUnits="userSpaceOnUse">` +
-    isotiposDeLaCelda(geo, celda, lado, tinta) +
+    isotiposDeLaCelda(celda, lado, tinta) +
     `</pattern></defs>` +
     `<rect width="100%" height="100%" fill="${fondo}"/>` +
     `<rect width="100%" height="100%" fill="url(#gsg-mosaico)" opacity="${opacidad}"/>` +

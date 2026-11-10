@@ -3,9 +3,8 @@
  *
  * Misma gramática que la madre y que Factoque F06-A: trazo 10 con esquinas rectas, luz mínima 8 y un nudo cobre de
  * 10 × 10 en el punto de acción (skill `marca-gsg`, § 1 y § 4). Están en curvas (rectángulos), viewBox 100.
- * PROVISIONAL A CONFIRMAR: son las opciones recomendadas del tablero
- * https://claude.ai/artifact/FauBQcFMGjm78s4Wcy4oV5 (C1 «Mostrador» y K1 «Cuenta T»). Si el dueño elige otra,
- * se cambia la geometría acá y nada más. Módulo PURO: lo usan server components y tests.
+ * ELEGIDOS POR EL DUEÑO (10/11/2026) en el tablero https://claude.ai/artifact/FauBQcFMGjm78s4Wcy4oV5:
+ * Comerciante C1 «Mostrador» y Contador K3 «Carpeta». Módulo PURO: lo usan server components y tests.
  */
 
 import type { ProductoConMarca } from "../producto-identidad";
@@ -20,11 +19,12 @@ export const ISOTIPO_COMERCIANTE: GeometriaIsotipo = {
   nudo: "M45 37h10v10H45z",
 };
 
-/** Contador · K1 «Cuenta T»: debe a la izquierda, haber a la derecha; el nudo es el asiento que cuadra. */
+/** Contador · K3 «Carpeta»: la carpeta del cliente con su solapa; el nudo es el comprobante adentro, en su lugar. */
 export const ISOTIPO_CONTADOR: GeometriaIsotipo = {
   viewBox: "0 0 100 100",
-  forma: "M5 10h90v10H5zM45 10h10v85H45zM15 40h22v10H15z",
-  nudo: "M63 40h10v10H63z",
+  // El trazo «M10 90V15H40V27H90V90Z» (10, esquinas rectas) pasado a curvas: 0 píxeles de diferencia con el tablero.
+  forma: "M5 10h10v85H5zM15 10h30v10H15zM35 20h10v12H35zM45 22h50v10H45zM85 32h10v63H85zM15 85h70v10H15z",
+  nudo: "M45 52h10v10H45z",
 };
 
 const ISOTIPOS: Record<ProductoConMarca, GeometriaIsotipo> = {

@@ -15,7 +15,6 @@ import { folioDelDia } from "../login/login-core";
 import SelloGSG from "@/components/marca/SelloGSG";
 import { IsotipoProducto } from "@/components/marca/IsotipoProducto";
 import { MarcaDeAgua } from "@/components/marca/MarcaDeAgua";
-import { isotipoDeProducto } from "@/lib/gsg/isotipos-productos";
 
 // Vive FUERA de (dashboard) a propósito (como /admin/login): el proxy exige sesión válida para
 // llegar, pero NO hereda el layout del dashboard → el portón de cambio forzado que redirige acá
@@ -45,7 +44,7 @@ export default async function CambiarPasswordPage({
   const { nombre: marcaNombre, monograma: marcaMonograma } = marcaDelNegocio(brand, identidad);
   const nuevo = await disenoP;
   // Marca de agua de GSG SÓLO en un producto de GSG; en un negocio cliente `identidad` es null.
-  const marcaDeAgua = isotipoDeProducto(identidad?.producto);
+  const marcaDeAgua = identidad != null;
 
   return (
     <main
@@ -70,7 +69,7 @@ export default async function CambiarPasswordPage({
       }`}
     >
       <AdminThemeScript nuevo={nuevo} />
-      {marcaDeAgua && <MarcaDeAgua geometria={marcaDeAgua} />}
+      {marcaDeAgua && <MarcaDeAgua />}
 
       {/* Diseño nuevo: sus hojas y `useDiseno()`. Apagado devuelve este único hijo tal cual. */}
       <ConDiseno nuevo={nuevo}>
