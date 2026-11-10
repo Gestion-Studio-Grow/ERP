@@ -135,4 +135,21 @@ test("adversarial NC por peso", async (t) => {
     console.log("# ventana-1000: reintento", JSON.stringify(re), "notas", (await notasDe(f.id)).length);
     assert.equal(re.probadas, 1, "el cron debería ver la pendiente nueva");
   });
+  await t.test("cron: una clave con pendientes duplicadas cuenta una vez; la ilegible se cierra y deja de acaparar", async () => {
+    // Se limpian las abiertas que dejaron los casos anteriores para contar sólo las de este.
+    await nc.reintentarNotasPorPesoPendientes(a.id, { deps, limite: 50 });
+    const ilegible = { tenantId: a.id, actor: "system", action: "nc_peso_pendiente", entity: "NotaCreditoPorPeso", channel: "admin", changes: { roto: true } };
+    await duenio.auditLog.createMany({
+      data: [
+        { ...ilegible, entityId: "dup" },
+        { ...ilegible, entityId: "dup" },
+        { ...ilegible, entityId: "otra" },
+      ],
+    });
+    const r1 = await nc.reintentarNotasPorPesoPendientes(a.id, { deps, limite: 2 });
+    assert.equal(r1.probadas, 2, "dos claves distintas, aunque «dup» tenga dos filas");
+    assert.equal(r1.rechazadas, 2);
+    const r2 = await nc.reintentarNotasPorPesoPendientes(a.id, { deps, limite: 2 });
+    assert.equal(r2.probadas, 0, "las ilegibles quedaron cerradas");
+  });
 });

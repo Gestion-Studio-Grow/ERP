@@ -58,8 +58,16 @@ export async function notaDeCreditoPorPesoInTx(tx: InvoiceTx, tenantId: string, 
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     select: { action: true, changes: true },
   });
-  const p = leerPendiente(filas.find((f) => f.action === ACCION_NC_PESO_PENDIENTE)?.changes);
-  if (!p) return null;
+  const filaPendiente = filas.find((f) => f.action === ACCION_NC_PESO_PENDIENTE);
+  if (!filaPendiente) return null;
+  const p = leerPendiente(filaPendiente.changes);
+  if (!p) {
+    // Anotación ilegible: se cierra para que no acapare la cola del reintento (certificación).
+    if (!filas.some((f) => f.action === ACCION_NC_PESO_CERRADA)) {
+      await anotar(tx, tenantId, clave, ACCION_NC_PESO_CERRADA, { motivo: "anotación pendiente ilegible" });
+    }
+    return { estado: "rechazada", clave, importe: 0, motivo: "La anotación de la nota está incompleta: revisala en Facturación." };
+  }
   const emitida = filas.find((f) => f.action === ACCION_NC_PESO_EMITIDA)?.changes as { notaId?: string; importe?: number } | undefined;
   if (emitida?.notaId) return { estado: "emitida", clave, importe: Number(emitida.importe) || p.importe, invoiceId: emitida.notaId, yaExistia: true };
   const cerrada = filas.find((f) => f.action === ACCION_NC_PESO_CERRADA)?.changes as { motivo?: string } | undefined;
@@ -167,9 +175,10 @@ export async function reintentarNotasPorPesoPendientes(
                 AND r."entity" = p."entity"
                 AND r."entityId" = p."entityId"
                 AND r."action" IN (${ACCION_NC_PESO_EMITIDA}, ${ACCION_NC_PESO_CERRADA}))
-         ORDER BY p."createdAt" ASC, p."id" ASC
-         LIMIT ${opciones.limite ?? 20}`);
-      return [...new Set(filas.map((f) => f.entityId))];
+         GROUP BY p."entityId"
+         ORDER BY min(p."createdAt") ASC, p."entityId" ASC
+         LIMIT ${Math.max(1, Math.trunc(opciones.limite ?? 20))}`);
+      return filas.map((f) => f.entityId);
     },
     { tenantId },
   );
