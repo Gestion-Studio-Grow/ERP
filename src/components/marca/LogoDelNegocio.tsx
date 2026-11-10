@@ -12,7 +12,7 @@
 // Los colores van por tokens y por `data-logo` en globals.css; el nombre es texto real (el dibujo, aria-hidden).
 
 import type { EsteticaBackoffice } from "@/lib/estetica-backoffice";
-import { presentaComoDemoGsg } from "@/lib/marca-demo";
+import { MARCA_DEMO_GSG, presentaComoDemoGsg } from "@/lib/marca-demo";
 import { IsotipoGSG } from "./MarcaGSG";
 
 // Logos reales que ya están en public/tenants (los mismos del front de cada negocio). Por slug exacto: un local con otro slug
@@ -48,7 +48,12 @@ export default function LogoDelNegocio({
     return (
       <span data-logo="demo-gsg" className="flex min-w-0 items-center gap-2.5">
         <IsotipoGSG tamano={32} className="shrink-0" />
-        <span data-logo-parte="nombre" className="truncate">{nombre}</span>
+        <span className="flex min-w-0 flex-col leading-tight">
+          <span data-logo-parte="nombre" className="truncate">{nombre}</span>
+          <span data-logo-parte="bajada" className="hidden truncate text-xs font-normal text-muted sm:block">
+            {MARCA_DEMO_GSG.bajada}
+          </span>
+        </span>
       </span>
     );
   }

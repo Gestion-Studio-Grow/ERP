@@ -51,11 +51,13 @@ export function presentaComoDemoGsg(slug: string | null | undefined): boolean {
 }
 
 /**
- * Cómo se llama y se ve la demo. El nombre es PROVISIONAL A CONFIRMAR (no hay uno aprobado por el dueño); el acento es
- * el cobre de la marca GSG (branding.ts `cobre`, PR #81) y el monograma, la sigla.
+ * Cómo se llama y se ve la demo. Nombre y bajada en la línea que pidió el dueño (10/11/2026: «GSG Comercio de carnes
+ * envasadas al vacío» o similar): nombre corto visible y la bajada donde la pantalla tenga lugar. El acento es el cobre de
+ * la marca GSG (branding.ts `cobre`, PR #81) y el monograma, la sigla.
  */
 export const MARCA_DEMO_GSG = {
-  nombre: "Carnicería demo",
+  nombre: "GSG Carnes al vacío",
+  bajada: "Comercio de carnes envasadas al vacío",
   monograma: "GSG",
   preset: "cobre",
   frontTheme: "light",

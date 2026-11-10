@@ -26,6 +26,8 @@ test("magra: marca GSG demo (nombre provisional, cobre), sin relato, piel ni og 
   assert.equal(b.propia, true);
   assert.equal(b.layout, undefined, "sin el layout editorial de Magra");
   assert.notEqual(b.name, "Magra");
+  assert.equal(MARCA_DEMO_GSG.nombre, "GSG Carnes al vacío");
+  assert.equal(MARCA_DEMO_GSG.bajada, "Comercio de carnes envasadas al vacío");
   assert.equal(resolveTenantBrandId("magra"), null);
   assert.equal(resolveTenantBrandId("magra-lomas"), null);
   assert.equal(getStorefrontCopy("magra"), null);
