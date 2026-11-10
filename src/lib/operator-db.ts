@@ -38,9 +38,10 @@ export function enElNegocio<T>(
   tenantId: string,
   fn: (tx: Prisma.TransactionClient) => Promise<T>,
   db: PrismaClient = operatorPrisma,
+  opciones?: { timeout?: number; maxWait?: number },
 ): Promise<T> {
   return db.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`;
     return fn(tx);
-  });
+  }, opciones);
 }

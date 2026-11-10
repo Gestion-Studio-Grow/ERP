@@ -3,10 +3,10 @@ import assert from "node:assert/strict";
 import type { PrismaClient } from "@/generated/prisma/client";
 import { bajaDeUsuariosPorSlug, dominioDe } from "./baja-usuarios-por-slug";
 
-type U = { id: string; tenantId: string; name: string; email: string; role: string; active: boolean; deletedAt: null; createdAt: number };
+type U = { id: string; tenantId: string; name: string; email: string; role: string; active: boolean; deletedAt: Date | null; createdAt: number };
 
-function fakeDb(usuarios: U[]) {
-  const audits: { entityId: string; actor: string; action: string }[] = [];
+function fakeDb(usuarios: U[], falla: { auditoriaN?: number } = {}) {
+  const audits: { entityId: string; actor: string; action: string; entity?: string; tenantId?: string; channel?: string; changes?: unknown }[] = [];
   const raws: string[] = [];
   let enTx = false;
   const tx = {
@@ -15,15 +15,18 @@ function fakeDb(usuarios: U[]) {
       return 1;
     },
     user: {
-      findMany: async ({ where }: { where: { tenantId: string; id?: { in: string[] }; role?: string; active?: boolean } }) =>
+      findMany: async ({ where }: { where: { tenantId: string; id?: { in: string[] }; role?: string; active?: boolean; deletedAt?: null } }) =>
         usuarios
           .filter((u) => u.tenantId === where.tenantId)
+          .filter((u) => !("deletedAt" in where) || u.deletedAt === null)
           .filter((u) => !where.id || where.id.in.includes(u.id))
           .filter((u) => where.role === undefined || u.role === where.role)
           .filter((u) => where.active === undefined || u.active === where.active)
           .sort((a, b) => a.createdAt - b.createdAt),
-      count: async ({ where }: { where: { tenantId: string; role: string; active: boolean } }) =>
-        usuarios.filter((u) => u.tenantId === where.tenantId && u.role === where.role && u.active === where.active).length,
+      count: async ({ where }: { where: { tenantId: string; role: string; active: boolean; deletedAt?: null } }) =>
+        usuarios.filter(
+          (u) => u.tenantId === where.tenantId && u.role === where.role && u.active === where.active && (!("deletedAt" in where) || u.deletedAt === null),
+        ).length,
       updateMany: async ({ where, data }: { where: { id: string; tenantId: string; active: boolean }; data: { active: boolean } }) => {
         const m = usuarios.filter((u) => u.id === where.id && u.tenantId === where.tenantId && u.active === where.active);
         m.forEach((u) => (u.active = data.active));
@@ -31,7 +34,8 @@ function fakeDb(usuarios: U[]) {
       },
     },
     auditLog: {
-      create: async ({ data }: { data: { entityId: string; actor: string; action: string } }) => {
+      create: async ({ data }: { data: { entityId: string; actor: string; action: string; entity?: string; tenantId?: string; channel?: string; changes?: unknown } }) => {
+        if (falla.auditoriaN !== undefined && audits.length === falla.auditoriaN) throw new Error("falla simulada");
         audits.push(data);
         return { id: `audit-${audits.length}` };
       },
@@ -88,6 +92,10 @@ test("aplicar: baja, audita deactivate con la firma del operador y es idempotent
     ["romina", "deactivate", "operator:sistema:operador (OPS-T)"],
     ["dup", "deactivate", "operator:sistema:operador (OPS-T)"],
   ]);
+  assert.deepEqual(
+    f.audits.map((a) => [a.tenantId, a.entity, a.channel, a.changes]),
+    [["t1", "User", "admin", { active: false }], ["t1", "User", "admin", { active: false }]],
+  );
   const r2 = await bajaDeUsuariosPorSlug(f.db, { ...args, ids: ["romina", "dup"], aplicar: true });
   assert.ok(r2.ok && r2.filas.every((x) => !x.cambia));
   assert.equal(f.audits.length, 2);
@@ -122,4 +130,21 @@ test("confirmación distinta del slug, sin actor o sin ids: no hace nada", async
 test("dominioDe no expone la parte local", () => {
   assert.equal(dominioDe("alguien@gmail.com"), "gmail.com");
   assert.equal(dominioDe("sin-arroba"), "(sin dominio)");
+});
+
+test("un dueño borrado (deletedAt) no cuenta como dueño que queda", async () => {
+  const us = base();
+  us.push({ id: "borrado", tenantId: "t1", name: "B", email: "b@gmail.com", role: "OWNER", active: true, deletedAt: new Date(), createdAt: 5 });
+  const f = fakeDb(us);
+  const r = await bajaDeUsuariosPorSlug(f.db, { ...args, ids: ["maca", "dup"], aplicar: true });
+  assert.ok(!r.ok);
+  assert.match(r.error, /sin dueño/);
+  assert.equal(f.audits.length, 0);
+});
+
+test("una falla a mitad de camino deshace todo (sin escrituras parciales)", async () => {
+  const f = fakeDb(base(), { auditoriaN: 1 });
+  await assert.rejects(bajaDeUsuariosPorSlug(f.db, { ...args, ids: ["romina", "dup"], aplicar: true }));
+  assert.ok(f.usuarios.every((u) => u.active));
+  assert.equal(f.audits.length, 0);
 });

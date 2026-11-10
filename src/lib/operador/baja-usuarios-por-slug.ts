@@ -7,9 +7,11 @@
 // Cómo es segura:
 //   - confirmación tipeando el slug; los ids se buscan SIEMPRE con el tenantId de ese slug: un id de otro
 //     negocio no aparece y frena todo sin escribir nada;
-//   - una sola transacción parada en el negocio (`enElNegocio`) con el MISMO candado de usuarios que el
-//     panel y la consola (`pg_advisory_xact_lock(hashtext('usuarios:'+tenantId))`): nadie cuenta dueños
-//     a la vez;
+//   - una sola transacción parada en el negocio (`enElNegocio`) con el candado de usuarios
+//     (`pg_advisory_xact_lock(hashtext('usuarios:'+tenantId))`) que toman el alta y la reactivación
+//     (`src/lib/usuarios-del-plan.ts:22`). OJO: la baja del panel (`setUserActive`) cuenta dueños SIN ese
+//     candado, así que una baja de dueño simultánea desde el panel puede competir (deuda anotada abajo);
+//     no correr este script mientras alguien da de baja dueños en el panel;
 //   - la guarda de último dueño se evalúa sobre el lote entero: dueños activos después de la baja ≥ 1;
 //   - idempotente: quien ya está inactivo no cambia ni se audita de nuevo;
 //   - por defecto NO escribe (`aplicar: false`): devuelve el plan. Con `aplicar: true` escribe y VERIFICA
@@ -135,5 +137,10 @@ export async function bajaDeUsuariosPorSlug(
       return { ok: true, aplicado: true, tenantId, filas, dueniosActivosDespues };
     },
     db,
+    // ~13 consultas por WebSocket a través del proxy: el límite de 5 s de Prisma queda justo.
+    { timeout: 30_000, maxWait: 10_000 },
   );
 }
+
+// DEUDA (certificación 10/11): `setUserActive` (src/lib/user-actions.ts:158-169) debería dar de baja a un
+// dueño dentro de una transacción con este mismo candado; hoy cuenta fuera de transacción.
