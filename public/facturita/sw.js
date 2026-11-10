@@ -16,7 +16,7 @@
  * Facturita (y sólo las de Facturita).
  */
 
-const VERSION = "facturita-v2"; // v2: identidad Factoque (íconos nuevos)
+const VERSION = "facturita-v3"; // v3: marca F06-A (íconos nuevos, 09/11/2026)
 const PREFIJO_CACHE = "facturita-";
 const OFFLINE_URL = "/facturita/sin-conexion.html";
 const PRECACHE = [

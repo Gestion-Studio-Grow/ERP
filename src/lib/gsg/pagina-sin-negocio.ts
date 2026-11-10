@@ -6,7 +6,7 @@
 // CSS en línea y UNA letra (Geist latin, la del producto GSG, auto-hospedada en public/gsg/). Pesa ~40 KB con la letra,
 // contra ~380 KB de la landing que servía antes. PURA: recibe el host ya leído y devuelve el texto.
 
-import { logoGsgSvg, ISOTIPO_GSG_PATHS } from "./marca-svg";
+import { logoGsgSvg, faviconGsgDataUri } from "./marca-svg";
 import { buildWhatsAppHref } from "@/lib/whatsapp-cta";
 
 /** Escapa texto para meterlo en HTML. */
@@ -35,7 +35,7 @@ function cabezaGsg({ titulo, descripcion, indexable }: { titulo: string; descrip
 <meta name="description" content="${esc(descripcion)}">${indexable ? "" : `
 <meta name="robots" content="noindex, nofollow">`}
 <meta name="theme-color" content="#f4f5f4">
-<link rel="icon" href="data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='#191b1c'/><g transform='translate(12 13) scale(1.1)' color='#f4f5f4'>${ISOTIPO_GSG_PATHS.replace(/"/g, "'")}</g></svg>`)}">
+<link rel="icon" href="${faviconGsgDataUri()}">
 <link rel="preload" href="/gsg/geist-latin.woff2" as="font" type="font/woff2" crossorigin>
 <style>
 @font-face{font-family:Geist;font-style:normal;font-weight:100 900;font-display:swap;src:url(/gsg/geist-latin.woff2) format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+20AC,U+2122,U+2212,U+2215}
@@ -92,7 +92,7 @@ export function htmlSinNegocio({ host, whatsappGsg, indexable = false }: { host:
     : null;
   return `${cabezaGsg({ titulo: "GSG — Gestión Studio Grow", descripcion: "Esta dirección es de GSG, la plataforma de gestión de Gestión Studio Grow. Todavía no hay un negocio publicado acá.", indexable })}<body>
 <header><div class="marco">
-<a class="logo" href="https://gsgapp.com.ar/" aria-label="GSG — Gestión Studio Grow">${logoGsgSvg({ alto: 32 })}</a>
+<a class="logo" href="https://gsgapp.com.ar/" aria-label="GSG — Gestión Studio Grow">${logoGsgSvg({ alto: 56 })}</a>
 <a class="entrar" href="/admin/login">Entrar a tu panel</a>
 </div></header>
 <main><div class="marco"><div class="col">
@@ -127,7 +127,7 @@ export function htmlSinServicio({ host }: { host: string | null }): string {
   const visible = hostVisible(host);
   return `${cabezaGsg({ titulo: "Volvemos en un rato · GSG", descripcion: "El sitio no está disponible en este momento. Probá de nuevo en unos minutos.", indexable: false })}<body>
 <header><div class="marco">
-<span class="logo" aria-label="GSG — Gestión Studio Grow">${logoGsgSvg({ alto: 32 })}</span>
+<span class="logo" aria-label="GSG — Gestión Studio Grow">${logoGsgSvg({ alto: 56 })}</span>
 </div></header>
 <main><div class="marco"><div class="col">
 ${visible ? `<p class="host">${esc(visible)}</p>` : ""}
