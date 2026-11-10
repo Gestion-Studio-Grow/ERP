@@ -841,3 +841,13 @@ test("v6 F1-bis: proyecto USD sin cobros, 211,54 + 268,68 USD a 975,01: pendient
   const r = conciliarConCobros(cuotas, { USD: tcHoy }, c, HOY);
   assert.ok(r.cobrosVencidos + r.aCobrar7 <= c.porCobrar, "en pantalla, vencido + 7 días ≤ por cobrar");
 });
+
+test("v7 F1: proyecto USD con una cuota en pesos y tres en USD: Σ pendientes en USD no pasa el saldo en USD", () => {
+  const q = (id: string, monto: number, d: number, moneda = "ARS") => ({ id, tipo: "COBRO", monto, moneda, venceEl: dias(d), pagadoEl: null, anuladoEl: null, prevista: false });
+  const tc = { USD: 1029 };
+  const cuotas = [q("A", 154281.33, -15), q("B", 750.88, -10, "USD"), q("C", 488.29, -3, "USD"), q("D", 1169.44, 8, "USD")];
+  const c = cobranzaEnMoneda(1842.07 * 1029, [], { moneda: "USD", cambioVenta: 1029, tcHoy: 1029 });
+  const p = pendientesDeCobro(cuotas, tc, c);
+  const enUSD = cuotas.reduce((s, x, i) => s + (x.moneda === "USD" ? p[i] : aPesos(p[i], x.moneda, tc) / tc.USD), 0);
+  assert.ok(enUSD <= c.enMoneda!.saldo + 1e-9, `Σ USD ${enUSD} > saldo ${c.enMoneda!.saldo}`);
+});

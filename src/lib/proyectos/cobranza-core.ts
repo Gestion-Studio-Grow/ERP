@@ -266,7 +266,8 @@ function pendienteDeCuota(q: CuotaDeCobranza, esperaH: number, enPesos: number, 
       p = exacto;
       pendH = exactoH;
     } else p = Math.min(p, alCentavoAbajo(tope.queda));
-    tope.queda = Math.max(0, redondear(tope.queda - p));
+    // Sin redondear: las cuotas en otra moneda dejan restos fraccionarios y redondearlos inventaría hasta 0,005 (v7, F1).
+    tope.queda = Math.max(0, tope.queda - p);
   } else tope.queda = Math.max(0, tope.queda - pendH / tope.tc);
   tope.restoH = Math.max(0, redondear(tope.restoH - pendH));
   return p;
