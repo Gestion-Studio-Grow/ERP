@@ -3,6 +3,7 @@
 // tenantTransaction) y deja un solo botón que emite y manda a ARCA (`EmitirLote`).
 
 import { exigirEstudio } from "@/lib/cartera-gate";
+import SelloGSG from "@/components/marca/SelloGSG";
 import { MigracionPendienteError, prepararLoteDelEstudio, type LoteDelEstudio } from "@/lib/cartera-abonos";
 import { isInvoicingEnabled } from "@/lib/fiscal";
 import Link from "next/link";
@@ -133,7 +134,7 @@ export default async function LotePage({ searchParams }: { searchParams: Promise
         </ul>
       </Bloque>
 
-      <footer className="mt-2xl border-t border-line pt-4 text-center text-xs text-faint">Con tecnología de Gestión Studio Grow</footer>
+      <footer className="mt-2xl border-t border-line pt-4"><SelloGSG /></footer>
     </PageContainer>
   );
 }

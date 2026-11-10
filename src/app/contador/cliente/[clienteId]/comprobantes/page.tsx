@@ -5,6 +5,7 @@
 // transacción del CLIENTE (RLS con su GUC).
 
 import Link from "next/link";
+import SelloGSG from "@/components/marca/SelloGSG";
 import { tenantTransaction } from "@/lib/rls";
 import { todayInBusinessTz } from "@/lib/datetime";
 import { accesoAClienteDeCartera } from "@/lib/contador/recibidos-db";
@@ -148,7 +149,7 @@ export default async function ComprobantesDelCliente({
           )}
         </nav>
       )}
-      <footer className="mt-2xl border-t border-line pt-4 text-center text-xs text-faint">Con tecnología de Gestión Studio Grow</footer>
+      <footer className="mt-2xl border-t border-line pt-4"><SelloGSG /></footer>
     </PageContainer>
   );
 }
