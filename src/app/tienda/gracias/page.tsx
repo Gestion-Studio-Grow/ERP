@@ -29,12 +29,14 @@ const leerTienda = cache(getStorefront);
 
 // Título POR TENANT (no el "Panel de gestión" del layout raíz, que el CLIENTE veía en la pestaña
 // de su propia página de gracias). Sale del nombre del storefront, igual que /tienda.
+// referrer no-referrer: la URL lleva el token del pago (`&t=`) y no tiene que salir en el Referer
+// hacia Mercado Pago ni a ningún otro sitio (pedido de ORQ, deuda de la certificación T6a).
 export async function generateMetadata(): Promise<Metadata> {
   try {
     const { name } = await leerTienda();
-    return { title: `Pedido recibido · ${name}`, generator: "Gestión Studio Grow" };
+    return { title: `Pedido recibido · ${name}`, generator: "Gestión Studio Grow", referrer: "no-referrer" };
   } catch {
-    return { title: "Pedido recibido", generator: "Gestión Studio Grow" };
+    return { title: "Pedido recibido", generator: "Gestión Studio Grow", referrer: "no-referrer" };
   }
 }
 

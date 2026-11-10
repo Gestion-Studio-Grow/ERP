@@ -6,6 +6,7 @@
 // (`armarLinkDePagoDePedido`): si ya hay uno auditado por el mismo monto, se devuelve ése.
 
 import { prisma } from "@/lib/prisma";
+import { tenantTransaction } from "@/lib/rls";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { authSecret } from "@/lib/auth";
 import { auditPublic } from "@/lib/audit-core";
@@ -60,31 +61,41 @@ export async function pagarPedidoDeLaTienda(
   });
   if (!decision.ok) return { ok: false, error: MENSAJE_SIN_PAGO[decision.motivo] };
 
-  // ¿Ya hay un link por este mismo monto? Se devuelve ése: no se crea otra preferencia en cada clic.
-  const filas = await prisma.auditLog.findMany({
-    where: { tenantId, entity: "Order", entityId: o.id, action: ACCION_LINK_DE_PAGO },
-    select: { entityId: true, createdAt: true, changes: true },
-    orderBy: { createdAt: "desc" },
-    take: 20,
-  });
-  const ultimo = ultimosLinks(filas).get(o.id);
-  const reuso = linkParaReusar(ultimo, decision.monto, modo, {
-    creadoEl: filas.find((f) => (f.changes as { url?: unknown } | null)?.url === ultimo?.url)?.createdAt,
-    ahoraMs: Date.now(),
-    vigenciaMs: VIGENCIA_LINK_DE_PEDIDO_MS,
-  });
-  if (reuso) return { ok: true, url: reuso.url, prueba: reuso.prueba };
+  // IDEMPOTENTE POR PEDIDO: dos clics (o dos pestañas) a la vez esperan este candado; el segundo
+  // ya ve el link que auditó el primero y devuelve el mismo, sin crear otra preferencia en MP.
+  // El candado dura lo que la transacción (la llamada a MP incluida, con tope de 20 s).
+  const r = await tenantTransaction(
+    async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`link-de-pago-tienda:${tenantId}:${o.id}`}))`;
+      // ¿Ya hay un link por este mismo monto? Se devuelve ése: no se crea otra preferencia en cada clic.
+      const filas = await tx.auditLog.findMany({
+        where: { tenantId, entity: "Order", entityId: o.id, action: ACCION_LINK_DE_PAGO },
+        select: { entityId: true, createdAt: true, changes: true },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+      });
+      const ultimo = ultimosLinks(filas).get(o.id);
+      const reuso = linkParaReusar(ultimo, decision.monto, modo, {
+        creadoEl: filas.find((f) => (f.changes as { url?: unknown } | null)?.url === ultimo?.url)?.createdAt,
+        ahoraMs: Date.now(),
+        vigenciaMs: VIGENCIA_LINK_DE_PEDIDO_MS,
+      });
+      if (reuso) return { ok: true as const, url: reuso.url, reusado: reuso.prueba };
 
-  const r = await armarLinkDePagoDePedido({
-    tenantId,
-    slug: tenant.slug,
-    pedido: { id: o.id, code: o.code },
-    monto: decision.monto,
-    negocio: nombreVisibleDelNegocio(tenant.slug, tenant.name, "el local"),
-    modo,
-    auditar: (e) => auditPublic(e),
-    extra: { origen: "tienda" },
-  });
+      return await armarLinkDePagoDePedido({
+        tenantId,
+        slug: tenant.slug,
+        pedido: { id: o.id, code: o.code },
+        monto: decision.monto,
+        negocio: nombreVisibleDelNegocio(tenant.slug, tenant.name, "el local"),
+        modo,
+        auditar: (e) => auditPublic(e),
+        extra: { origen: "tienda" },
+      });
+    },
+    { tenantId, timeoutMs: 20_000 },
+  );
+  if (r.ok && "reusado" in r) return { ok: true, url: r.url, prueba: r.reusado };
   if (!r.ok) {
     logger.warn("tienda", "no se pudo armar el link de pago desde Gracias", { tenantId, tipo: r.tipo });
     return { ok: false, error: r.tipo === "sin-conexion" ? MENSAJE_SIN_PAGO["sin-mp"] : MENSAJE_SIN_PAGO.falla };
