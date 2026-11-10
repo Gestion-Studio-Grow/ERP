@@ -302,7 +302,11 @@ test("SEC-5 en Configuración: un acierto de DUEÑO vuelve a cero (alta, cambiar
   assert.deepEqual(g.leer(), SIN_INTENTOS_DEL_BLOQUEO);
   // Recepción cambia el suyo: bueno, pero los fallos de antes quedan.
   conTopeDePin(g, 0, () => hacer(e, { tipo: "pinNuevo", usuarioId: "u-lu", pin: "0000" }, { usuarioId: "u-rober", pin: "4711" }));
-  const lu = conTopeDePin(g, 0, () => hacer(e, { tipo: "cambiarMiPin", actual: "33", nuevo: "58", repetido: "58" }, LU));
+  // El PIN de Nico (el alta de arriba) sale al azar entre 10 y 99: el nuevo de Lu tiene que ser OTRO, o choca.
+  const pinDeNico = "pinNuevo" in alta.desenlace ? alta.desenlace.pinNuevo?.pin : undefined;
+  assert.match(pinDeNico ?? "", /^\d{2}$/, "el alta devuelve el PIN generado");
+  const nuevoDeLu = pinDeNico === "58" ? "59" : "58";
+  const lu = conTopeDePin(g, 0, () => hacer(e, { tipo: "cambiarMiPin", actual: "33", nuevo: nuevoDeLu, repetido: nuevoDeLu }, LU));
   assert.equal(lu.desenlace.ok, true, lu.desenlace.mensaje);
   assert.equal(g.leer().fallos, 1);
 });
