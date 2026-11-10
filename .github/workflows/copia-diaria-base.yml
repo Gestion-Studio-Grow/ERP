@@ -4,7 +4,8 @@
 # Secrets (Settings → Secrets and variables → Actions → Secrets):
 #   NEON_BACKUP_DATABASE_URL  URL de conexión DIRECTA (sin "-pooler") con un rol de sólo lectura si es posible.
 #   BACKUP_PASSPHRASE         Frase larga para cifrar; guardala fuera de GitHub (sin ella la copia no se abre).
-# Sin alguno de los dos, termina en verde con un aviso y no hace nada.
+# Sin alguno de los dos, termina en ROJO (exit 1) y GitHub avisa por mail: una copia que no se hizo
+# no puede parecer hecha. La alerta «sin copia en 26 h» vive en monitor-caidas.yml.
 # La URL nunca se imprime: no hay `set -x` y los errores de pg_dump se muestran con el host tapado.
 # Restauración: docs/runbooks/copia-y-monitor.md
 name: copia-diaria-base
@@ -27,7 +28,6 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Verificar secrets
-        id: secrets
         env:
           NEON_BACKUP_DATABASE_URL: ${{ secrets.NEON_BACKUP_DATABASE_URL }}
           BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
@@ -36,14 +36,12 @@ jobs:
           [ -z "${NEON_BACKUP_DATABASE_URL:-}" ] && faltan="$faltan NEON_BACKUP_DATABASE_URL"
           [ -z "${BACKUP_PASSPHRASE:-}" ] && faltan="$faltan BACKUP_PASSPHRASE"
           if [ -n "$faltan" ]; then
-            echo "::warning::Copia diaria INACTIVA: falta(n) el/los secret(s):$faltan. Cargalos en Settings → Secrets and variables → Actions (ver docs/runbooks/copia-y-monitor.md)."
-            echo "listo=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "listo=true" >> "$GITHUB_OUTPUT"
+            echo "::error::Faltan secrets de copia:$faltan. La copia NO se hizo. Cargalos en Settings → Secrets and variables → Actions (ver docs/runbooks/copia-y-monitor.md)."
+            exit 1
           fi
+          echo "Secrets de copia presentes."
 
       - name: Instalar postgresql-client-17 (repo oficial PGDG)
-        if: steps.secrets.outputs.listo == 'true'
         run: |
           set -euo pipefail
           sudo install -d /usr/share/postgresql-common/pgdg
@@ -56,7 +54,6 @@ jobs:
           /usr/lib/postgresql/17/bin/pg_dump --version
 
       - name: pg_dump + cifrado AES256
-        if: steps.secrets.outputs.listo == 'true'
         id: dump
         env:
           NEON_BACKUP_DATABASE_URL: ${{ secrets.NEON_BACKUP_DATABASE_URL }}
@@ -83,7 +80,6 @@ jobs:
           echo "::notice::Copia cifrada lista: $salida ($(du -h "$salida" | cut -f1))"
 
       - name: Subir artifact (30 días)
-        if: steps.secrets.outputs.listo == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.dump.outputs.nombre }}
