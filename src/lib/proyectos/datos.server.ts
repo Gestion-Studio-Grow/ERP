@@ -16,6 +16,8 @@ import { desvioPorRubro, redondear, resultadoReal, totales, ultimaEnviada } from
 import { costosVigentes, normalizarDiseno } from "./stand";
 import { SIN_COMPROBANTES } from "./rendiciones-core";
 import { cobranzaDe, originalesDeCobros, SELECT_COBRANZA, tiposDeCambio } from "./cobranza.server";
+import { totalesEnPesos } from "./cobranza-core";
+import { aPesos } from "./gestion-core";
 
 export const veLaPlata = (u: SessionUser): boolean => permisoFueraDeLaAgenda(u, "agenda:manage");
 
@@ -100,9 +102,10 @@ export async function fichaProyecto(id: string) {
     tiposDeCambio(tenantId),
   ]);
   const vigente = proyecto.presupuestos.find((p) => p.estado === "APROBADO") ?? null;
-  const totalesVigente = vigente ? totales(vigente.items, vigente.ivaPct) : null;
+  const totalesVigente = vigente ? totalesEnPesos(vigente, tc, config.margenPct) : null;
   const real = resultadoReal(totalesVigente, proyecto.gastos);
-  const rubros = desvioPorRubro(vigente?.items ?? [], proyecto.gastos);
+  // El costo presupuestado por rubro, en pesos: así se compara contra los gastos.
+  const rubros = desvioPorRubro(vigente?.items.map((i) => ({ ...i, costo: aPesos(i.costo, i.moneda, tc) })) ?? [], proyecto.gastos);
   // Cobrado y saldo: la fuente única (cobranza-core), igual que la caja «Cobros» y las listas.
   const pagosVivos = proyecto.pagos.filter((x) => !x.anuladoEl);
   const delProyecto = { moneda: proyecto.moneda, presupuestos: vigente ? [vigente] : [], pagos: pagosVivos };
@@ -170,7 +173,7 @@ export async function reporteProyectos() {
   const originales = await originalesDeCobros(tenantId, proyectos);
   return proyectos.map((p) => {
     const a = p.presupuestos[0];
-    const t = a ? totales(a.items, a.ivaPct) : null;
+    const t = a ? totalesEnPesos(a, tc, config.margenPct) : null;
     const { cobrado, saldo } = cobranzaDe(p, tc, config.margenPct, originales);
     return { ...p, t, cobrado, saldo, real: resultadoReal(t, p.gastos) };
   });
@@ -262,7 +265,7 @@ export async function proyectosDelCliente(clientId: string) {
   const originales = await originalesDeCobros(tenantId, proyectos);
   return proyectos.map((p) => {
     const a = p.presupuestos[0];
-    const t = a ? totales(a.items, a.ivaPct) : null;
+    const t = a ? totalesEnPesos(a, tc, config.margenPct) : null;
     const { cobrado, saldo } = cobranzaDe(p, tc, config.margenPct, originales);
     return { ...p, t, cobrado, saldo };
   });
