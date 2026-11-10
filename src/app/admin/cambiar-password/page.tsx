@@ -12,6 +12,8 @@ import { PIEL_RENGLON } from "@/lib/diseno/diseno";
 import { ConDiseno } from "@/lib/diseno/ConDiseno";
 import HojaDeIngreso, { RAIZ_HOJA_DE_INGRESO } from "../login/HojaDeIngreso";
 import { folioDelDia } from "../login/login-core";
+import SelloGSG from "@/components/marca/SelloGSG";
+import { IsotipoProducto } from "@/components/marca/IsotipoProducto";
 
 // Vive FUERA de (dashboard) a propósito (como /admin/login): el proxy exige sesión válida para
 // llegar, pero NO hereda el layout del dashboard → el portón de cambio forzado que redirige acá
@@ -71,6 +73,7 @@ export default async function CambiarPasswordPage({
           <HojaDeIngreso
             marcaNombre={marcaNombre}
             marcaMonograma={marcaMonograma}
+            producto={identidad?.producto}
             hoy={folioDelDia(new Date())}
             lema={identidad?.tagline}
           >
@@ -90,6 +93,9 @@ export default async function CambiarPasswordPage({
         ) : (
         <div className="w-full max-w-sm">
           <div className="mb-6 flex flex-col items-center text-center">
+            {identidad ? (
+              <IsotipoProducto producto={identidad.producto} tamano={48} className="text-strong" />
+            ) : (
             <span className="relative grid h-12 w-12 place-items-center">
               <span aria-hidden className="absolute inset-0 rounded-xl bg-accent opacity-20 blur-lg" />
               <span
@@ -99,6 +105,7 @@ export default async function CambiarPasswordPage({
                 {marcaMonograma}
               </span>
             </span>
+            )}
             <p className="mt-3 text-sm font-medium text-muted">{marcaNombre}</p>
           </div>
 
@@ -117,7 +124,7 @@ export default async function CambiarPasswordPage({
             <ChangePasswordForm status={status} />
           </section>
 
-          <p className="mt-6 text-center text-xs text-faint">Con tecnología de Gestión Studio Grow</p>
+          <SelloGSG className="mt-6" />
         </div>
         )}
       </ConDiseno>

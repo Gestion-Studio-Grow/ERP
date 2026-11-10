@@ -24,6 +24,8 @@ import { getBrandSheet } from "@/lib/brand-sheet";
 import { pestanaDelPedido } from "@/lib/pestana";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { esProductora } from "@/lib/proyectos/segundo-factor.server";
+import SelloGSG from "@/components/marca/SelloGSG";
+import { IsotipoProducto } from "@/components/marca/IsotipoProducto";
 
 // Título neutro + sin indexar, igual que el resto de /admin — esta pantalla vive
 // FUERA de (dashboard) (proxy.ts la deja pasar sin sesión) así que no hereda su
@@ -116,6 +118,7 @@ export default async function LoginPage({
           <LoginRenglon
             marcaNombre={marcaNombre}
             marcaMonograma={marcaMonograma}
+            producto={identidad?.producto}
             hoy={folioDelDia(new Date())}
             antetitulo={identidad?.login.eyebrow}
             titulo={tituloLogin}
@@ -140,6 +143,8 @@ export default async function LoginPage({
             )}
             {esteticaDelIngreso ? (
               <LogoDelNegocio estetica={esteticaDelIngreso} nombre={marcaNombre} />
+            ) : identidad ? (
+              <IsotipoProducto producto={identidad.producto} tamano={48} className="text-strong" />
             ) : (
             <span className="relative grid h-12 w-12 place-items-center">
               <span
@@ -214,9 +219,7 @@ export default async function LoginPage({
           )}
 
           {/* Sello GSG, discreto: el tenant conserva su marca; GSG firma detrás. */}
-          <p className="mt-6 text-center text-xs text-faint">
-            Con tecnología de Gestión Studio Grow
-          </p>
+          <SelloGSG className="mt-6" />
         </div>
         )}
       </ConDiseno>
