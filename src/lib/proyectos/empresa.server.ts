@@ -10,6 +10,8 @@ import { configProyectos } from "./datos.server";
 import { aPesos, codigoProyecto, nivelDeCarga, pipelinePonderado, proyeccionDeCaja, resumenCuotas, totalesFicha, type NivelCarga } from "./gestion-core";
 import { desviosDelEvento, estaAbierto, estaActivo, estaConfirmado, finDeSemana, margenSobreVenta } from "./empresa-core";
 import { redondear, yaVencio } from "./core";
+import { conciliarConCobros, resumenConCobranza } from "./cobranza-core";
+import { cobranzasDelNegocio } from "./cobranza.server";
 
 const MESES_PROYECCION = 6;
 
@@ -41,8 +43,10 @@ export async function cuotasDelNegocio(tenantId: string) {
 export type CuotaDelNegocio = Awaited<ReturnType<typeof cuotasDelNegocio>>[number];
 
 export async function recuadrosDeCuotas(tenantId: string) {
-  const [cuotas, tc] = await Promise.all([cuotasDelNegocio(tenantId), tiposDeCambio(tenantId)]);
-  return { cuotas, tc, resumen: resumenCuotas(cuotas, tc) };
+  const [cuotas, tc, config] = await Promise.all([cuotasDelNegocio(tenantId), tiposDeCambio(tenantId), configProyectos(tenantId)]);
+  // «A cobrar» de cada proyecto = lo aprobado menos lo cobrado (cobranza-core), igual que Rentabilidad y Clientes.
+  const cobranzas = await cobranzasDelNegocio(tenantId, tc, config.margenPct);
+  return { cuotas, tc, resumen: resumenConCobranza(cuotas, tc, cobranzas) };
 }
 
 export async function proveedoresActivos(tenantId: string) {
@@ -182,13 +186,15 @@ export async function proyectosConNumeros(tenantId: string) {
     configProyectos(tenantId),
     tiposDeCambio(tenantId),
   ]);
+  const cobranzas = await cobranzasDelNegocio(tenantId, tc, config.margenPct, proyectos.map((p) => p.id));
   const hoy = new Date();
   return proyectos.map((p) => {
     const items = p.presupuestos[0]?.items ?? [];
     const t = totalesFicha(items.map(aItemFicha), tc, config.margenPct);
     const d = desviosDelEvento(items.map((i) => ({ id: i.id, descripcion: i.descripcion, rubro: i.rubro, cantidad: i.cantidad, costo: i.costo, moneda: i.moneda, costoReal: i.costoReal, proveedor: i.supplier?.name ?? i.proveedor })), p.gastos, tc);
-    const r = resumenCuotas(p.cuotas, tc, hoy);
-    const aCobrarTotal = redondear(r.cobrado + r.aCobrar);
+    // Cobrado, avance y vencido en línea con los cobros registrados contra lo aprobado (cobranza-core).
+    const cob = cobranzas.get(p.id);
+    const r = cob ? conciliarConCobros(resumenCuotas(p.cuotas, tc, hoy), cob) : resumenCuotas(p.cuotas, tc, hoy);
     const estimado = p.presupuestoEstimado ? aPesos(p.presupuestoEstimado, p.moneda, tc) : 0;
     return {
       id: p.id,
@@ -215,7 +221,7 @@ export async function proyectosConNumeros(tenantId: string) {
       margenReal: d.conDatos ? redondear(t.venta - d.costoReal) : null,
       margenRealPct: d.conDatos ? margenSobreVenta(t.venta, d.costoReal) : null,
       cobrado: r.cobrado,
-      cobrosPct: aCobrarTotal > 0 ? redondear((r.cobrado / aCobrarTotal) * 100) : 0,
+      cobrosPct: cob ? cob.avancePct : 0,
       vencido: r.cobrosVencidos,
     };
   });

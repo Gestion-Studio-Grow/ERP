@@ -17,6 +17,7 @@ import type { SessionUser } from "@/lib/session";
 import type { Prisma } from "@/generated/prisma/client";
 import { configProyectos } from "./datos.server";
 import { venceDeLaCuota, ajustarAPagado, cambioDeVenta, COLUMNAS_OCULTAS_BASE, cuotaPrevista, rolDelActor, mailDeAviso, permisoDe, planDeCuotas, veTodosLosProyectos, type ItemFicha, type ModuloGestion, type RolGestion } from "./gestion-core";
+import { tiposDeCambio } from "./cobranza.server";
 
 export interface Actor {
   user: SessionUser;
@@ -73,10 +74,8 @@ export async function proyectoVisible(a: Actor, id: string) {
   return prisma.proyecto.findFirst({ where: { ...filtroDeProyectos(a), id }, select: { id: true } });
 }
 
-export async function tiposDeCambio(tenantId: string): Promise<Record<string, number>> {
-  const filas = await prisma.proyectoTipoCambio.findMany({ where: { tenantId }, select: { moneda: true, porUnidad: true } });
-  return Object.fromEntries(filas.map((f) => [f.moneda, f.porUnidad]));
-}
+// Vive en cobranza.server.ts (sólo Prisma) para que datos.server.ts la use sin ciclo de imports.
+export { tiposDeCambio };
 
 type Tx = Prisma.TransactionClient;
 
