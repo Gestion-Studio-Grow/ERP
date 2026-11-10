@@ -18,6 +18,7 @@
 
 import {
   MP_API_BASE,
+  MP_TIMEOUT_MS,
   type RespuestaHttp,
   type ProveedorAccessToken,
   tokenNoConfigurado,
@@ -46,7 +47,7 @@ export interface TransportePost {
 /** Transporte real: POST JSON. No lanza en no-2xx: el status viaja al parser puro. */
 export class FetchTransportePost implements TransportePost {
   async post(url: string, headers: Record<string, string>, body: string): Promise<RespuestaHttp> {
-    const res = await fetch(url, { method: "POST", headers, body });
+    const res = await fetch(url, { method: "POST", headers, body, signal: AbortSignal.timeout(MP_TIMEOUT_MS) });
     const text = await res.text();
     return { status: res.status, body: text };
   }

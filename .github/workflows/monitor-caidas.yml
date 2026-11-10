@@ -1,12 +1,15 @@
 # Monitor de caídas de producción (erp-ch).
-# Cada hora (minuto 23) pide GET <PROD_URL>/api/health (src/app/api/health/route.ts) con 2 reintentos.
+# Cada hora (minuto 23) pide GET <PROD_URL>/api/ready (src/app/api/ready/route.ts) con 2 reintentos.
+# Va contra /api/ready y no /api/health porque health NO consulta la base: con la base caída health
+# sigue dando 200 y este monitor no se enteraba. ready hace un SELECT 1 y responde 503 si no hay base.
 #   - Si falla: abre el issue «🔴 Producción caída» o, si ya hay uno abierto, le agrega un comentario (no duplica).
 #   - Si vuelve y hay un issue abierto: comenta «resuelto» y lo cierra.
 # El dominio sale de la variable de repo PROD_URL (Settings → Secrets and variables → Actions → Variables);
 # sin variable usa el dominio documentado de CH Estética (docs/runbooks/deploy-staging-multitenant-piloto.md:39).
 # Runbook: docs/runbooks/copia-y-monitor.md
 # Nota: horario (no cada 5 min) para no pasar los 2.000 min/mes gratis de Actions (5 min ≈ 8.600 min/mes).
-# El aviso fino de caída lo da UptimeRobot sobre /api/health; esto es la red de respaldo, de mejor esfuerzo.
+# El aviso fino de caída lo da UptimeRobot sobre /api/health (proceso vivo); esto es la red de respaldo,
+# de mejor esfuerzo, y la única que mira la base.
 name: monitor-caidas
 
 on:
@@ -31,17 +34,17 @@ jobs:
       GH_REPO: ${{ github.repository }}
       TITULO: '🔴 Producción caída'
     steps:
-      - name: Chequear /api/health (1 intento + 2 reintentos)
+      - name: Chequear /api/ready (1 intento + 2 reintentos)
         id: chequeo
         run: |
           set -uo pipefail
-          url="${PROD_URL%/}/api/health"
+          url="${PROD_URL%/}/api/ready"
           codigo="000"
           ok="false"
           for intento in 1 2 3; do
             codigo=$(curl -sS -o cuerpo.json -w '%{http_code}' --max-time 20 \
               -H 'Cache-Control: no-cache' "$url" 2>/dev/null) || codigo="${codigo:-000}"
-            if [ "$codigo" = "200" ] && grep -q '"status":"ok"' cuerpo.json 2>/dev/null; then
+            if [ "$codigo" = "200" ] && grep -q '"status":"ready"' cuerpo.json 2>/dev/null; then
               ok="true"
               break
             fi
@@ -69,7 +72,7 @@ jobs:
           HORA: ${{ steps.chequeo.outputs.hora }}
         run: |
           set -euo pipefail
-          cuerpo="Falla en \`/api/health\` de producción.
+          cuerpo="Falla en \`/api/ready\` de producción (la app o su base no responden).
           - Hora: ${HORA}
           - Código HTTP: ${CODIGO} (000 = sin respuesta / timeout)
           - Intentos: 3 (1 + 2 reintentos)
@@ -90,5 +93,5 @@ jobs:
           HORA: ${{ steps.chequeo.outputs.hora }}
         run: |
           set -euo pipefail
-          gh issue comment "$NUMERO" --body "✅ Resuelto: \`/api/health\` vuelve a responder 200 a las ${HORA}."
+          gh issue comment "$NUMERO" --body "✅ Resuelto: \`/api/ready\` vuelve a responder 200 a las ${HORA}."
           gh issue close "$NUMERO" --reason completed

@@ -133,11 +133,15 @@ export interface HttpTransport {
   get(url: string, headers: Record<string, string>): Promise<RespuestaHttp>;
 }
 
+/** Tope de espera de una llamada a MP. Sin tope, un MP colgado deja colgada la función entera
+ * (cobro, webhook o cron) hasta el máximo de la plataforma. Vence con `TimeoutError`. */
+export const MP_TIMEOUT_MS = 10_000;
+
 /** Transporte real: GET con el token en `Authorization`. No lanza en no-2xx: el
  * status viaja al parser puro (`lanzarSiErrorHttp`) que decide y tipa el error. */
 export class FetchHttpTransport implements HttpTransport {
   async get(url: string, headers: Record<string, string>): Promise<RespuestaHttp> {
-    const res = await fetch(url, { method: "GET", headers });
+    const res = await fetch(url, { method: "GET", headers, signal: AbortSignal.timeout(MP_TIMEOUT_MS) });
     const body = await res.text();
     return { status: res.status, body };
   }

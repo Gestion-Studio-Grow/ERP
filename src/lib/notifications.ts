@@ -72,6 +72,8 @@ async function sendEmailReminder(payload: ReminderPayload) {
       subject,
       text: body,
     }),
+    // Tope de espera: un servicio de mail colgado no puede frenar el barrido de recordatorios.
+    signal: AbortSignal.timeout(10_000),
   });
 
   return { sent: res.ok, channel: "email", reason: res.ok ? undefined : `HTTP ${res.status}` };

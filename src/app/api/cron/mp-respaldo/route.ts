@@ -5,8 +5,9 @@ import { DEPS_RESPALDO_MP, sincronizarRespaldoMP } from "@/lib/mercadopago-respa
 // Respaldo de los avisos de Mercado Pago (src/lib/mercadopago-respaldo.server.ts).
 //
 // SEGURIDAD: CRON_SECRET, fail-closed (`authorizeCron`: sin secret → 503; inválido → 401).
-// CADENCIA: la decide el dueño. NO va en vercel.json: en Hobby un cron de menos de un día rompe el
-// deploy (lección PD-3). La llama un programador externo cada 15 minutos (o una vez por día).
+// CADENCIA: una vez por día desde vercel.json (09:30 UTC = 06:30 de Argentina), que es lo máximo que
+// admite Hobby: un cron de menos de un día rompe el deploy (lección PD-3). Es el piso, no el techo:
+// si el dueño quiere cada 15 minutos, además lo llama un programador externo con el mismo secreto.
 // HOY EN SECO: clasifica y cuenta; no guarda ni factura hasta el contrato de estados.
 
 export const dynamic = "force-dynamic";
