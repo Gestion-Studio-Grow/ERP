@@ -60,6 +60,8 @@ import { todosApagados } from "@/cambios/interruptores-core";
 import { operadorDuenio } from "@/lib/operator-auth";
 import { ResetOwnerPasswordCard } from "./ResetOwnerPasswordCard";
 import { AltaPersonaCard } from "./AltaPersonaCard";
+import { VerificacionProfeCard } from "./VerificacionProfeCard";
+import { leerVerificacionDeLaFicha } from "@/lib/operador/verificacion-profe.server";
 import { motivoFueraDelPlan } from "./modulos-y-plan";
 import {
   appsPorModulo,
@@ -316,6 +318,7 @@ export default async function FichaDelNegocio({
     candidatosCasa,
     fichaDelPase,
     conteos,
+    verificacionProfe,
   ] = await Promise.all([
     credencialFiscalDe(t.id),
     // Dueño del negocio + estado de su contraseña temporal (tolera la migración sin aplicar).
@@ -393,6 +396,8 @@ export default async function FichaDelNegocio({
       personas: await tx.user.count({ where: { tenantId: t.id } }),
       clientes: await tx.client.count({ where: { tenantId: t.id } }),
     })).catch(() => ({ personas: 0, clientes: 0 })),
+    // Alta asistida de ProfeTurnos: ¿se dio de alta solo y falta verificarlo? (null: no se pudo leer).
+    leerVerificacionDeLaFicha(t.id),
   ]);
   if (!negocio) notFound();
   const { owner, tempPending: ownerTempPending } = ownerYEstado;
@@ -548,6 +553,7 @@ export default async function FichaDelNegocio({
 
   const puesta = (
     <>
+      <VerificacionProfeCard tenantId={t.id} verificacion={verificacionProfe} soloLectura={soloLectura} />
       <Bloque
         id="listo"
         titulo="Listo para abrir"

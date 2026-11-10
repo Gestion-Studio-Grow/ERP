@@ -385,6 +385,7 @@ test("el recorrido encuentra los endpoints con privilegio de operador en TODO sr
     "src/lib/operador/interruptores-actions.ts",
     "src/lib/operador/plan-actions.ts",
     "src/lib/operador/red-locales-actions.ts",
+    "src/lib/operador/verificacion-profe-actions.ts",
     "src/lib/operator-actions.ts",
     "src/lib/operator-provisioning-actions.ts",
   ]);
@@ -434,6 +435,7 @@ test("TRINQUETE: todo endpoint con privilegio de operador tiene PRIMERO la guard
     "src/lib/operador/red-locales-actions.ts#revisarAltaEnRedAction",
     "src/lib/operador/red-locales-actions.ts#sumarAltaALaRedAction",
     "src/lib/operador/red-locales-actions.ts#vincularLocalAction",
+    "src/lib/operador/verificacion-profe-actions.ts#verificarProfeAction",
     "src/lib/operator-actions.ts#altaPersonaDeTenant",
     "src/lib/operator-actions.ts#cambiarFacturacionReal",
     "src/lib/operator-actions.ts#cambiarPlanFactoque",
