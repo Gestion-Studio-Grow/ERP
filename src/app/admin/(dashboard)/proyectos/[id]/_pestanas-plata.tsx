@@ -441,7 +441,7 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
         )}
         {conCobros && <p className="text-sm text-muted">Los cobros de este evento se registran marcando su cuota, en la tabla de arriba.</p>}
         {cargaDirecta && !conCobros && (
-          <form action={registrarCobro} className="grid gap-2 sm:grid-cols-4">
+          <FormAccion accion={registrarCobro} limpiar className="grid gap-2 sm:grid-cols-4">
             <input type="hidden" name="proyectoId" value={p.id} />
             <input name="monto" required aria-label="Monto" placeholder="Monto" inputMode="decimal" className={campo} />
             <select name="medio" aria-label="Medio de cobro" defaultValue="TRANSFERENCIA" className={campo}>
@@ -449,7 +449,7 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
             </select>
             <input name="nota" aria-label="Nota del cobro" placeholder="Ej.: anticipo 50%" className={campo} />
             <SubmitButton className={buttonClasses("solid", "md")}>Registrar cobro</SubmitButton>
-          </form>
+          </FormAccion>
         )}
         {d.avisoIva && <p role="status" className="mt-2 rounded-lg border border-warning bg-warning-soft px-3 py-2 text-sm text-strong">{d.avisoIva}</p>}
         <p className="mt-2 text-sm text-muted">Cada cobro entra al libro de caja. {d.facturaCuotas ? "La factura de cada cuota se pide a ARCA con «Facturar», en la tabla de arriba." : "La factura se emite desde Facturación."}</p>

@@ -18,8 +18,7 @@ import { ESQUEMA_PIEZAS, INSTRUCCIONES_PIEZAS, leerPiezasPropuestas, type PiezaP
 import { CAMPOS_BRIEF, ESTADOS_DATO, INSTRUCCIONES_CONSULTA, textoDeBrief, type BriefConsulta } from "./consulta-core";
 import { gastoALiquidar, tokensEntradaMaximos, type UsoIA } from "./ia-tope-core";
 import { anotarLlamadaGratis, liquidarGastoIA, reservarGastoIA } from "./ia-tope.server";
-import { resumenConCobranza } from "./cobranza-core";
-import { cobranzasDelNegocio } from "./cobranza.server";
+import { recuadrosDeCuotas } from "./empresa.server";
 
 const API = "https://api.anthropic.com/v1/messages";
 const MODELO = "claude-opus-5-5";
@@ -311,13 +310,8 @@ export async function contextoDeAgente(a: Actor, id: AgenteId, proyectoId: strin
       secciones.push({ titulo: a.personaId ? "Sus tareas abiertas" : "Tareas abiertas", lineas: tareas.map((t) => linea(t.proyecto.nombre, t.titulo, ESTADO_TAREA_LABEL[t.estado], `vence ${fechaDe(t.venceEl)}`, t.responsable)) });
     }
     if (alcance.plata && ve("empresa")) {
-      const [cuotas, tc, config] = await Promise.all([
-        prisma.proyectoCuota.findMany({ where: { tenantId, anuladoEl: null, prevista: false }, select: { id: true, proyectoId: true, tipo: true, monto: true, moneda: true, venceEl: true, pagadoEl: true, anuladoEl: true }, take: 2000 }),
-        tiposDeCambio(tenantId),
-        configProyectos(tenantId),
-      ]);
-      // El mismo «a cobrar» que Administración: lo aprobado menos lo cobrado (cobranza-core).
-      const r = resumenConCobranza(cuotas, tc, await cobranzasDelNegocio(tenantId, tc, config.margenPct));
+      // El mismo número que Administración, por construcción: la misma lectura (cobranza-core).
+      const r = (await recuadrosDeCuotas(tenantId)).resumen;
       secciones.push({
         titulo: "Cuentas de la empresa, en pesos",
         lineas: [`A cobrar ${r.aCobrar} (en 7 días ${r.aCobrar7}); vencido ${r.cobrosVencidos} en ${r.cantCobrosVencidos} cobros`, `A pagar ${r.aPagar} (en 7 días ${r.aPagar7}); vencido ${r.pagosVencidos} en ${r.cantPagosVencidos} pagos`],

@@ -12,7 +12,7 @@ import { columnasOcultas, filtroDeProyectos, puede, tiposDeCambio, versionViva, 
 import { configProyectos, datosDelNegocio } from "./datos.server";
 import { facturasDeCuotas, motivoParaNoFacturarCuotas, type FacturaDeCuotaVista } from "./facturar-cuota.server";
 import { avisoIvaEnFacturaC } from "./facturar-cuota-core";
-import { cobranza, conciliarConCobros, repartoDeCobros } from "./cobranza-core";
+import { cobranza, conciliarConCobros, montoEnCashflow, repartoDeCobros } from "./cobranza-core";
 import { cobranzasDelNegocio } from "./cobranza.server";
 import { desvioPorRubro, fechaCorta, fechaParaInput, redondear, resultadoReal, totales } from "./core";
 import { cambioDeVenta, costoSinProveedor, enMonedaDeVenta, ventaEn } from "./gestion-core";
@@ -199,8 +199,8 @@ export async function datosFinanzas(a: Actor, cab: Cabecera, vista: Vista) {
   const cuotas = todas.map((c, i) => ({ ...c, pendiente: reparto.pendiente[i], cobrado: reparto.cobrado[i] }));
   // Sin permiso de costos, un pago a proveedor delata el costo: sólo se ven los cobros.
   const visibles = vista.costos ? cuotas : cuotas.filter((c) => c.tipo === "COBRO");
-  // Una cuota de cobro ya cobrada cuenta lo que entró por ella, no su monto: si no, el saldo se pasa.
-  const flujo = cashflowDelEvento(visibles, cab.tc, (c) => (c.tipo === "COBRO" && c.pagadoEl ? c.cobrado : c.monto));
+  // Una cuota de cobro cuenta lo que entró por ella más lo que le falta (pagada o no), nunca su monto: si no, se pasa del total.
+  const flujo = cashflowDelEvento(visibles, cab.tc, montoEnCashflow);
   // Pasados a pesos: un ítem en dólares no se puede comparar como si fueran pesos.
   const aprobadaEnPesos = aprobada?.items.map((i) => ({ rubro: i.rubro, cantidad: i.cantidad, costo: aPesos(i.costo, i.moneda, cab.tc), precio: i.cantidad > 0 ? ventaTotalItem(i, cab.tc, cab.config.margenPct) / i.cantidad : 0 })) ?? [];
   const totalesAprobada = aprobada ? totales(aprobadaEnPesos, aprobada.ivaPct) : null;
