@@ -44,7 +44,7 @@ function baseFalsa(pedido: Pedido) {
     },
     cashSession: { findFirst: async () => ({ id: "sess_1" }) },
     // Sin cobros parciales: el pedido se cobra entero (el saldo, settlement/saldo-del-pedido.ts).
-    collection: { findMany: async () => [] },
+    collection: { findMany: async () => [], findFirst: async () => null },
     cashMovement: {
       findFirst: async ({ where }: { where: { orderId: string; type: string } }) =>
         libro.find((m) => m.orderId === where.orderId && m.type === where.type) ?? null,

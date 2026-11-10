@@ -1284,6 +1284,20 @@ export type CobroDePedido =
   | { tipo: "ya-cobrado"; code: number; medioRegistrado: string | null }
   | { tipo: "no-existe" };
 
+/** ¿Este pago (actor `mercadopago:<paymentId>`) ya dejó su VENTA o su cobro en el pedido? */
+async function pagoYaImputadoAlPedido(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  orderId: string,
+  actor: string,
+): Promise<boolean> {
+  const [venta, cobro] = await Promise.all([
+    tx.cashMovement.findFirst({ where: { tenantId, orderId, createdBy: actor }, select: { id: true } }),
+    tx.collection.findFirst({ where: { tenantId, orderId, collectedBy: actor }, select: { id: true } }),
+  ]);
+  return Boolean(venta || cobro);
+}
+
 /**
  * Marca cobrado y asienta en el libro, dentro de la transacción del llamador (I7, ADR-064).
  *
@@ -1312,6 +1326,15 @@ export async function cobrarPedidoEnTx(
   const mixto = args.asientos && args.asientos.length > 0 ? args.asientos : null;
   if (mixto && medioPrincipal(mixto) !== args.method) {
     throw new RechazoDeDominio("El medio de la venta tiene que ser el principal del pago mixto.");
+  }
+  // EL MISMO PAGO NO COBRA DOS VECES (certificación del ajuste por peso, F1): el pedido cobrado que
+  // pesó más vuelve a `paid=false`, así que el `paid` ya no frena un aviso repetido del pago
+  // ORIGINAL de Mercado Pago (otro x-request-id, `payment.updated`). Se corta por el pago: si ese
+  // `paymentId` ya dejó su VENTA o su cobro en este pedido, es «ya-cobrado» y no se toca nada.
+  if (args.actor.startsWith("mercadopago:") && (await pagoYaImputadoAlPedido(tx, tenantId, args.orderId, args.actor))) {
+    const o = await tx.order.findFirst({ where: { id: args.orderId, tenantId }, select: { code: true, paymentMethod: true } });
+    if (!o) return { tipo: "no-existe" };
+    return { tipo: "ya-cobrado", code: o.code, medioRegistrado: o.paymentMethod };
   }
   const res = await tx.order.updateMany({
     where: { id: args.orderId, tenantId, paid: false },
