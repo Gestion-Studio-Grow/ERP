@@ -23,6 +23,7 @@ import { aplicarAccion } from "@/lib/rendiciones/rendicion";
 import type { RolActor } from "@/lib/rendiciones/tipos";
 import { conReintegros, etiquetaMes, extrasRecalculados, leerExtras, lineasNuevas, periodoValido, reintegrosCuadran, totalLiquidacion, type ExtraGuardado } from "./empresa-core";
 import type { Resultado } from "./acciones";
+import { listoMarcada } from "./avisos-cuota";
 
 const ADMIN = "/admin/proyectos/administracion";
 /** Un extracto de varios meses entra de sobra, y no pasa el límite de lo que recibe una acción del servidor. */
@@ -77,7 +78,7 @@ export async function cuentasParaMarcar(): Promise<{ id: string; nombre: string;
 }
 
 /** Marca pagada una cuota de la empresa y asienta el movimiento. El `where` con `pagadoEl: null` es lo que frena el doble clic. */
-export async function marcarCuotaEmpresa(formData: FormData): Promise<Resultado> {
+export async function marcarCuotaEmpresa(formData: FormData): Promise<Resultado<{ listo?: string }>> {
   const a = await exigirEditar("empresa");
   const id = txt(formData.get("id"));
   const medio = txt(formData.get("medio")) as MedioPago;
@@ -116,7 +117,7 @@ export async function marcarCuotaEmpresa(formData: FormData): Promise<Resultado>
   if (!hecho) return { ok: false, error: "Esa cuota ya estaba marcada." };
   await auditAdmin({ action: "proyecto.cuota-empresa.pagar", entity: "ProyectoCuota", entityId: id, changes: { amount, medio } });
   refrescar();
-  return { ok: true };
+  return { ok: true, listo: listoMarcada(c.tipo === "COBRO", amount) };
 }
 
 /** Anular no borra. Si ya se pagó, la plata vuelve al libro con fecha de hoy, como un gasto anulado. */

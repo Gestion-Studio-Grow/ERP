@@ -6,6 +6,9 @@ import { FILTROS_CUOTA, pasaFiltro, type FiltroCuota } from "@/lib/proyectos/emp
 import { proveedoresActivos, type CuotaDelNegocio } from "@/lib/proyectos/empresa.server";
 import type { PagadoDeCuota } from "@/lib/proyectos/cobranza-core";
 import { anularCuotaEmpresa, crearPagoEmpresa } from "@/lib/proyectos/acciones-empresa";
+import { quitarMovimiento } from "@/lib/proyectos/acciones-ficha";
+import { facturasDeCuotas } from "@/lib/proyectos/facturar-cuota.server";
+import { textoCubierta, textoFacturaDeCuota } from "@/lib/proyectos/avisos-cuota";
 import { campo, etiqueta, tarjeta } from "../_vista";
 import { BotonDosPasos, DatoCuota, FormAccion, MarcarCuota, VenceCuota } from "./_controles";
 
@@ -37,6 +40,8 @@ export async function TabCuentas({ tipo, estado, q, cuotas, tc, tenantId, editaE
   const hoy = new Date();
   const filas = cuotas.filter((c) => c.tipo === tipo && pasaFiltro(c, filtro, hoy) && (!busqueda || coincide(c, busqueda)));
   const proveedores = tipo === "PAGO" && editaEmpresa ? await proveedoresActivos(tenantId) : [];
+  // La factura de ARCA de las cuotas de proyecto facturadas con «Facturar» (la columna `factura` queda para la carga a mano).
+  const facturas = tipo === "COBRO" ? await facturasDeCuotas(tenantId, filas.slice(0, MAX_FILAS).filter((c) => c.proyecto).map((c) => c.id)) : new Map();
   const enlace = (f: FiltroCuota) => `/admin/proyectos/administracion?tab=${tab}&estado=${f}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
 
   return (
@@ -89,6 +94,7 @@ export async function TabCuentas({ tipo, estado, q, cuotas, tc, tenantId, editaE
                 // vale hoy (eso es del cashflow). «US$ 100 · $ 100.000», no «US$ 66,66».
                 const pagado = c.tipo === "COBRO" && c.pagadoEl ? (c.pagado ?? null) : null;
                 const referencia = pagado ? (pagado.pesos ?? pagado.monto) : aPesos(falta, c.moneda, tc);
+                const emitida = textoFacturaDeCuota(facturas.get(c.id));
                 return (
                   <tr key={c.id} className={cn("border-t border-line align-top", vencida && "bg-danger-soft")}>
                     <td className={cn("py-2 pr-3", vencida && "text-danger")}>
@@ -108,11 +114,12 @@ export async function TabCuentas({ tipo, estado, q, cuotas, tc, tenantId, editaE
                       {(pagado ? pagado.moneda !== c.moneda || pagado.monto !== c.monto : falta !== c.monto) && <span className="block text-xs font-normal text-muted">de {plataEn(c.monto, c.moneda)}</span>}
                     </td>
                     <td className="whitespace-nowrap py-2 pr-3 text-right tabular-nums text-muted">{referencia > 0 ? pesos(referencia) : "—"}</td>
-                    <td className="py-2 pr-3">{editaEmpresa ? <DatoCuota id={c.id} dato="factura" valor={c.factura ?? ""} etiqueta="Factura" /> : (c.factura ?? "—")}</td>
+                    <td className="py-2 pr-3">{emitida ? <span className="whitespace-nowrap">{emitida}</span> : editaEmpresa ? <DatoCuota id={c.id} dato="factura" valor={c.factura ?? ""} etiqueta="Factura" /> : (c.factura ?? "—")}</td>
                     <td className={cn("whitespace-nowrap py-2 pr-3", vencida && "font-medium text-danger")}>{est === "PAGADA" && c.tipo === "COBRO" ? "Cobrada" : ESTADO_LABEL[est]}</td>
                     <td className="py-2 pr-3">
                       <div className="grid justify-items-start gap-1">
-                        {cubierta && <span className="whitespace-nowrap text-xs text-muted">Cubierta con cobros registrados</span>}
+                        {cubierta && <span className="max-w-56 text-xs text-muted">{textoCubierta(c.auto)}</span>}
+                        {cubierta && !deEmpresa && !c.auto && editaPagos && c.proyecto && <BotonDosPasos accion={quitarMovimiento} campos={{ id: c.id, proyectoId: c.proyecto.id }} etiqueta="Quitar" pregunta="¿Quitar esta cuota? Lo cobrado sigue registrado." />}
                         {est !== "PAGADA" && !cubierta && puedeMarcar && <MarcarCuota id={c.id} deEmpresa={deEmpresa} etiqueta={tipo === "COBRO" ? "Cobrado" : "Pagar"} />}
                         {est === "PAGADA" && <span className="whitespace-nowrap text-xs text-muted">{fechaCorta(c.pagadoEl)}{c.medio ? ` · ${c.medio.toLowerCase().replace("_", " ")}` : ""}</span>}
                         {deEmpresa && editaEmpresa && <BotonDosPasos accion={anularCuotaEmpresa} campos={{ id: c.id }} etiqueta="Anular" pregunta={est === "PAGADA" ? "¿Anular? La plata vuelve al libro." : "¿Anular?"} />}

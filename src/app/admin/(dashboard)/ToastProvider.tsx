@@ -15,6 +15,11 @@ type ToastContextValue = {
 
 const ToastContext = createContext<ToastContextValue | null>(null);
 
+/** Igual que `useToast`, pero sin reventar fuera del proveedor (una pieza que también se usa suelta). */
+export function useToastSiHay(): ToastContextValue | null {
+  return useContext(ToastContext);
+}
+
 export function useToast() {
   const ctx = useContext(ToastContext);
   if (!ctx) throw new Error("useToast debe usarse dentro de ToastProvider");

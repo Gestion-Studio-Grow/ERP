@@ -8,6 +8,7 @@ import { buttonClasses, cn, Dialogo } from "@/components/ui";
 import { guardarCarpeta, moverProyecto, type ResultadoFicha } from "@/lib/proyectos/acciones-ficha";
 import { MOTIVOS_PERDIDA } from "@/lib/proyectos/gestion-core";
 import { campo } from "../_vista";
+import { useToastSiHay } from "../../ToastProvider";
 
 const campoEnLinea = "min-h-11 min-w-0 rounded-lg border border-line bg-surface px-3 text-sm text-strong";
 
@@ -16,6 +17,7 @@ export function FormAccion({ accion, className, children, limpiar, alGuardar }: 
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const form = useRef<HTMLFormElement>(null);
+  const toast = useToastSiHay();
   return (
     <form
       ref={form}
@@ -27,6 +29,8 @@ export function FormAccion({ accion, className, children, limpiar, alGuardar }: 
           const r = await accion(fd);
           if (!r.ok) return setError(r.error);
           if (r.aviso) setAviso(r.aviso);
+          // El éxito va en un aviso flotante: el renglón que lo pidió (la cuota marcada) suele desaparecer al refrescar.
+          if (r.listo) toast?.showSuccess(r.listo);
           if (limpiar) form.current?.reset();
           alGuardar?.();
         } catch {
