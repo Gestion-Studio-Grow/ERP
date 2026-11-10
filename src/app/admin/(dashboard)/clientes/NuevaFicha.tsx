@@ -23,10 +23,13 @@ export type PedidoFicha = "nueva" | "sin";
 export default function NuevaFicha({
   sinFicha,
   compacta = false,
+  sinCumpleanos = false,
 }: {
   sinFicha: CompradorSinFichaVista[];
   /** Diseño nuevo: en el celular los dos botones viven en el «⋯» de la lista, no arriba de ella. */
   compacta?: boolean;
+  /** Productora (QA MIA #8): su cliente es una empresa; el cumpleaños no se pide (el CUIT va en la ficha). */
+  sinCumpleanos?: boolean;
 }) {
   const [abierta, setAbierta] = useState(false);
   const [sinAbierta, setSinAbierta] = useState(false);
@@ -109,9 +112,11 @@ export default function NuevaFicha({
             <Field label="Teléfono" htmlFor="nf-phone" required hint="Es por donde se le escribe por WhatsApp.">
               <Input id="nf-phone" name="phone" type="tel" inputMode="tel" defaultValue={prefill.telefono} required autoComplete="off" />
             </Field>
-            <Field label="Cumpleaños" htmlFor="nf-birth" hint="Opcional. Sirve para saludar el día del cumpleaños.">
-              <Input id="nf-birth" name="birthDate" type="date" />
-            </Field>
+            {!sinCumpleanos && (
+              <Field label="Cumpleaños" htmlFor="nf-birth" hint="Opcional. Sirve para saludar el día del cumpleaños.">
+                <Input id="nf-birth" name="birthDate" type="date" />
+              </Field>
+            )}
             <Field label="Email" htmlFor="nf-email" hint="Opcional.">
               <Input id="nf-email" name="email" type="email" autoComplete="off" />
             </Field>

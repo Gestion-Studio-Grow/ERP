@@ -11,9 +11,9 @@ export function FaltaConectar({ titulo, detalle, mientras }: { titulo: string; d
 }
 
 export function FaltaIA({ mientras }: { mientras?: string }) {
-  return <FaltaConectar titulo="Falta conectar la IA" detalle="Hay que cargar la cuenta de Cloudflare (CLOUDFLARE_ACCOUNT_ID y CLOUDFLARE_AI_TOKEN) o la clave de Anthropic (ANTHROPIC_API_KEY) en la configuración del servidor." mientras={mientras} />;
+  return <FaltaConectar titulo="Falta conectar la IA" detalle="Todavía no está activada para tu negocio. Avisale a quien administra el sistema para que la conecte." mientras={mientras} />;
 }
 
 export function FaltanImagenes({ mientras }: { mientras?: string }) {
-  return <FaltaConectar titulo="Falta conectar las imágenes" detalle="Hay que cargar la cuenta de Cloudflare (CLOUDFLARE_ACCOUNT_ID y CLOUDFLARE_AI_TOKEN) o un servicio propio (IMAGENES_API_URL e IMAGENES_API_KEY) en la configuración del servidor." mientras={mientras} />;
+  return <FaltaConectar titulo="Falta conectar las imágenes" detalle="Todavía no están activadas para tu negocio. Avisale a quien administra el sistema para que las conecte." mientras={mientras} />;
 }
