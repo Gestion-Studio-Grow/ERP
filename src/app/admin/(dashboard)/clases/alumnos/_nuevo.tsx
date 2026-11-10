@@ -4,7 +4,7 @@
 // teléfono lo permite) y el nivel en chips. Si el celular ya es de un alumno, no se duplica: «Ya es
 // tu alumno: Lucía» y se abre su ficha. Al guardar, «Mandarle su link» queda a un toque.
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { buttonClasses, cn, Hoja, Icono } from "@/components/ui";
 import { crearAlumno, mandarLinkAlAlumno } from "@/lib/padel/acciones";
@@ -29,8 +29,7 @@ export function NuevoAlumno() {
   const link = useAccion();
   const nombreRef = useRef<HTMLInputElement>(null);
   // Sólo en el teléfono (después de hidratar): el servidor no sabe si hay selector de contactos.
-  const [hayContactos, setHayContactos] = useState(false);
-  useEffect(() => setHayContactos("contacts" in navigator), []);
+  const hayContactos = useSyncExternalStore(sinSuscripcion, () => "contacts" in navigator, () => false);
 
   const limpiar = () => {
     setNombre("");
@@ -195,3 +194,6 @@ export function NuevoAlumno() {
     </>
   );
 }
+
+// El selector de contactos no cambia mientras la página está abierta: no hay nada a qué suscribirse.
+const sinSuscripcion = () => () => {};

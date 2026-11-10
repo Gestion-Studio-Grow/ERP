@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import BotonComprar from "../../../components/BotonComprar";
 import FAQ from "../../../components/FAQ";
@@ -21,7 +22,7 @@ export default function ProductoPage({ params }: { params: { slug: string } }) {
   return (
     <section>
       <div className="contenedor" style={{ maxWidth: 920 }}>
-        <a href="/#catalogo" style={{ fontSize: ".9rem" }}>← Volver al catálogo</a>
+        <Link href="/#catalogo" style={{ fontSize: ".9rem" }}>← Volver al catálogo</Link>
 
         <div style={{ display: "grid", gap: 40, gridTemplateColumns: "1fr", marginTop: 20 }}>
           {/* Encabezado */}

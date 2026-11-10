@@ -1,0 +1,150 @@
+# Publicar un PR a producción por etiqueta (opción E aprobada por el dueño, 08/11/2026).
+# ============================================================================
+# Se dispara al poner la etiqueta `gsg:publicar` en un PR contra main. Hace lo que antes hacía
+# una sesión, con las reglas del dueño (Factory-GSG CLAUDE.md, «la orquestadora gestiona las
+# cuentas» y «Autorización del dueño: publicar PR»), siempre igual y auditado acá:
+#
+#   1. precondiciones  quien etiqueta tiene write+, PR abierto/no borrador/no fork/al día con main,
+#                      producción sana (último deploy READY y /api/health OK)
+#   2. ci              los jobs del CI del PR no tienen rojos que main no tenga (job por job)
+#   3. cambios         nada sensible (workflows, build, vallas) y migraciones nuevas sólo aditivas
+#   4. respaldo        rama de Neon respaldo-pre-pr-<n>-<fecha> (vía API)
+#   5. merge           merge del commit exacto que pasó el CI, sobre el main verificado (CAS)
+#   6. vercel          deploy de producción del commit de merge READY + /api/health sirve ese
+#                      commit + /api/ready OK. Las migraciones las aplica `prisma migrate deploy`
+#                      dentro del build (scripts/vercel-build.mjs), no este workflow.
+#   7. comentar        resultado en el PR (siempre) y se quita la etiqueta
+#
+# Ante cualquier rojo: frena, no corre los pasos siguientes y lo comenta.
+#
+# SEGURIDAD
+# · `pull_request_target`: el workflow y los scripts salen de MAIN, nunca del PR. Un PR que cambia
+#   este archivo no se aprueba a sí mismo (además, el paso `cambios` frena todo PR que toque
+#   .github/, scripts/publicar/, el build o las vallas). Jamás se hace checkout del código del PR
+#   ni se instala nada: los archivos del PR se leen como texto por la API.
+# · Sólo PR contra main (filtro `branches`). Secretos en el environment `produccion`, restringido a
+#   main; a nivel repo no queda ninguno (el job `en-cola` usa sólo el GITHUB_TOKEN).
+# · Merge como compare-and-swap: commit con padres [base verificada, head verificado] y main movido
+#   con force:false. Si main se movió entre la verificación y el merge, GitHub lo rechaza y no se
+#   mergea nada.
+# · Un PR a la vez: concurrencia global sin cancelar el que corre.
+# · Modo: variable de repo PUBLICAR_MODO. Sin ella (o con cualquier valor ≠ "real") corre en
+#   SIMULACIÓN: revisa todo, no crea respaldo, no mergea. Ver docs/operacion/publicar-por-actions.md.
+# ============================================================================
+name: publicar
+
+on:
+  pull_request_target:
+    types: [labeled]
+    # Sólo PR contra main: un PR contra otra rama nunca arranca este workflow (ni ve sus secretos).
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  actions: read
+
+jobs:
+  # Avisa enseguida que el PR quedó en cola. GitHub deja UNA sola corrida esperando por grupo de
+  # concurrencia: si se etiquetan tres PR seguidos, el del medio se cancela antes de empezar.
+  en-cola:
+    if: github.event.label.name == 'gsg:publicar'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: comentar que quedó en cola
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh api "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments" -f body="publicar.yml: en cola ($RUN). Se publica un PR a la vez. Si esta corrida termina «cancelled» sin otro comentario, es porque se etiquetó otro PR mientras éste esperaba: volvé a poner la etiqueta gsg:publicar." > /dev/null
+
+  publicar:
+    if: github.event.label.name == 'gsg:publicar'
+    runs-on: ubuntu-latest
+    # Los secretos (NEON_*, VERCEL_*, PUBLICAR_GH_TOKEN) viven en el environment `produccion`, NO a
+    # nivel repo: así ningún otro workflow (ni uno que traiga un PR) los puede leer. El environment
+    # se restringe a la rama main (Settings → Environments → produccion → Deployment branches:
+    # «Selected branches» = main). Con pull_request_target el job corre en el contexto de main, así
+    # que pasa esa regla; desde cualquier otra rama el job no arranca. Ver
+    # docs/operacion/publicar-por-actions.md.
+    environment: produccion
+    timeout-minutes: 150
+    concurrency:
+      group: publicar-produccion
+      cancel-in-progress: false
+    env:
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      SENDER: ${{ github.event.sender.login }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PUBLICAR_MODO: ${{ vars.PUBLICAR_MODO }}
+      PUBLICAR_PAUSADO: ${{ vars.PUBLICAR_PAUSADO }}
+      PUBLICAR_QUIENES: ${{ vars.PUBLICAR_QUIENES }}
+      PROD_URL: ${{ vars.PROD_URL }}
+      NEON_BRANCH_ID: ${{ vars.NEON_BRANCH_ID }}
+      VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
+    steps:
+      # Checkout de MAIN (el sha del evento pull_request_target), sin credenciales persistidas.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: 1 · precondiciones
+        id: pre
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          PUBLICAR_GH_TOKEN: ${{ secrets.PUBLICAR_GH_TOKEN }}
+        run: node scripts/publicar/publicar.mjs precondiciones
+
+      - name: 2 · CI igual que main
+        env:
+          HEAD_SHA: ${{ steps.pre.outputs.head_sha }}
+          BASE_SHA: ${{ steps.pre.outputs.base_sha }}
+        run: node scripts/publicar/publicar.mjs ci
+
+      - name: 3 · cambios y migraciones (sólo aditivas)
+        env:
+          HEAD_SHA: ${{ steps.pre.outputs.head_sha }}
+          BASE_SHA: ${{ steps.pre.outputs.base_sha }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: node scripts/publicar/publicar.mjs cambios
+
+      - name: 4 · respaldo en Neon
+        id: respaldo
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
+        run: node scripts/publicar/publicar.mjs respaldo
+
+      - name: 5 · merge
+        id: merge
+        env:
+          HEAD_SHA: ${{ steps.pre.outputs.head_sha }}
+          BASE_SHA: ${{ steps.pre.outputs.base_sha }}
+          RESPALDO: ${{ steps.respaldo.outputs.respaldo }}
+          PUBLICAR_GH_TOKEN: ${{ secrets.PUBLICAR_GH_TOKEN }}
+        run: node scripts/publicar/publicar.mjs merge
+
+      - name: 6 · Vercel READY y producción sana
+        env:
+          MERGE_SHA: ${{ steps.merge.outputs.merge_sha }}
+          RESPALDO: ${{ steps.respaldo.outputs.respaldo }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: node scripts/publicar/publicar.mjs vercel
+
+      - name: 7 · comentar el resultado en el PR
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: node scripts/publicar/publicar.mjs comentar

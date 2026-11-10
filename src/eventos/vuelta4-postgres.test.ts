@@ -150,6 +150,14 @@ test("P2 vuelta 4 · pedido.cobrado por cobranza y fiado; dedupe indexada con N2
     ms.sort((x, y) => x - y);
     return ms[Math.floor(n / 2)];
   }
+  /** Páginas que lee la consulta (hit + read, nodo raíz de EXPLAIN ANALYZE BUFFERS): trabajo real, sin ruido de reloj. */
+  async function paginas(sql: string): Promise<number> {
+    const filas = await duenio.$queryRawUnsafe<{ "QUERY PLAN": [{ Plan: Record<string, number> }] }[]>(
+      `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${sql}`, A, "pedido.cobrado@1", "pedido:no-esta:cobrado",
+    );
+    const raiz = filas[0]["QUERY PLAN"][0].Plan;
+    return (raiz["Shared Hit Blocks"] ?? 0) + (raiz["Shared Read Blocks"] ?? 0);
+  }
   const plan = async (sql: string) =>
     JSON.stringify(await duenio.$queryRawUnsafe(`EXPLAIN (FORMAT JSON) ${sql}`, A, "pedido.cobrado@1", "pedido:no-esta:cobrado"));
 
@@ -195,7 +203,13 @@ test("P2 vuelta 4 · pedido.cobrado por cobranza y fiado; dedupe indexada con N2
   assert.ok(!/"Seq Scan"/.test(planNueva), `la dedupe nueva recorre la tabla: ${planNueva}`);
   assert.ok(planNueva.includes("OutboxEvent_tenantId_clave_key"), "la rama de la columna no usa el UNIQUE");
   assert.ok(planNueva.includes("OutboxEvent_tenantId_payloadClave_sinClave_idx"), "la rama de clave NULL no usa el índice parcial");
-  assert.ok(nueva * 5 < vieja, `la nueva (${nueva.toFixed(2)} ms) no es mucho más barata que la vieja (${vieja.toFixed(1)} ms)`);
+  // El «5× más barata» se mide en páginas leídas (determinista), no en ms: el reloj de un runner compartido
+  // hacía fallar esta línea al azar también en main (0,8 ms contra 3,9 ms). Los ms quedan como diagnóstico.
+  const paginasVieja = await paginas(SQL_YA_ESTA);
+  const paginasNueva = await paginas(SQL_YA_ESTA_CON_COLUMNAS);
+  t.diagnostic(`v2-d · páginas leídas: vieja = ${paginasVieja} · nueva = ${paginasNueva}`);
+  assert.ok(paginasNueva > 0, "la medida de páginas de la nueva dio 0: EXPLAIN no informó buffers");
+  assert.ok(paginasNueva * 5 < paginasVieja, `la nueva (${paginasNueva} páginas, ${nueva.toFixed(2)} ms) no es mucho más barata que la vieja (${paginasVieja} páginas, ${vieja.toFixed(1)} ms)`);
 
   // La emisión entera dentro de la transacción del hecho (candado + chequeo + insert), con FILAS + 5 000 filas.
   const emisiones: number[] = [];

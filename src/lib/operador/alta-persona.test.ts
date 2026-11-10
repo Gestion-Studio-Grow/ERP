@@ -2,6 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { altaPersonaCore, validarAltaPersona, type AltaPersonaPort } from "./alta-persona";
+import { CambioObligatorioInactivo } from "../must-change-password";
 
 function puerto(over: Partial<AltaPersonaPort> = {}) {
   const log = { creados: [] as Array<Record<string, unknown>>, audits: [] as Array<Record<string, unknown>>, mustChange: [] as string[] };
@@ -73,9 +74,12 @@ test("si el plan no admite una persona más, no se crea y dice por qué", async 
   assert.equal(log.creados.length, 0);
 });
 
-test("si la columna del cambio forzado no existe, lo avisa pero el alta queda hecha", async () => {
-  const { p } = puerto({ setMustChange: async () => ({ persisted: false }) });
-  const r = await altaPersonaCore(p, { tenantId: "t1", operatorSubject: "x", entrada });
-  assert.equal(r.ok, true);
-  if (r.ok) assert.equal(r.flagPending, true);
+test("FALLA CERRADO: sin la columna del cambio forzado tira CambioObligatorioInactivo (la transacción deshace el alta)", async () => {
+  const { p, log } = puerto({ setMustChange: async () => ({ persisted: false }) });
+  await assert.rejects(
+    altaPersonaCore(p, { tenantId: "t1", operatorSubject: "x", entrada }),
+    (e: unknown) => e instanceof CambioObligatorioInactivo,
+  );
+  // No se audita un alta que se va a deshacer.
+  assert.equal(log.audits.length, 0);
 });

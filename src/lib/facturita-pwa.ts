@@ -15,7 +15,7 @@
  * por eso es estático y no depende del host (a diferencia del de /admin, MT-1).
  */
 
-import { FACTOQUE_CREMA, FACTOQUE_TRAZO, FACTOQUE_VERDE } from "./factoque-icono";
+import { FACTOQUE_FONDO_OSCURO, FACTOQUE_PAPEL } from "./factoque-icono";
 
 /** Dónde vive la app instalada: todo Facturita (vidriera, alta y app). */
 export const SCOPE_FACTURITA = "/facturita/";
@@ -28,13 +28,13 @@ export const SW_FACTURITA_URL = "/facturita/sw.js";
 export const OFFLINE_FACTURITA_URL = "/facturita/sin-conexion.html";
 
 /**
- * Colores de la barra del sistema y de la pantalla de arranque: el verde y la crema de Factoque
- * (src/lib/factoque-icono.ts; colores PROVISIONALES a confirmar por el dueño). El manifiesto no
- * puede leer variables CSS, por eso van como valor. En oscuro, el trazo del carpincho.
+ * Colores de la barra del sistema y de la pantalla de arranque: el papel de la marca F06-A
+ * (src/lib/factoque-icono.ts, paleta de GSG), el mismo fondo del ícono de app. El manifiesto no
+ * puede leer variables CSS, por eso van como valor. En oscuro, el fondo oscuro de la marca.
  */
-export const THEME_COLOR_FACTURITA = FACTOQUE_VERDE;
-export const THEME_COLOR_FACTURITA_OSCURO = FACTOQUE_TRAZO;
-export const FONDO_FACTURITA = FACTOQUE_CREMA;
+export const THEME_COLOR_FACTURITA = FACTOQUE_PAPEL;
+export const THEME_COLOR_FACTURITA_OSCURO = FACTOQUE_FONDO_OSCURO;
+export const FONDO_FACTURITA = FACTOQUE_PAPEL;
 
 export type IconoFacturita = {
   src: string;

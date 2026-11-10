@@ -14,11 +14,11 @@ import { ResultadoDeConciliacion } from "./ResultadoDeConciliacion";
 
 const TEXTOS = {
   foto: {
-    ayuda: "La exportación de vouchers de OpenKey (CSV). Columnas: número, lote, estado y documento del vecino.",
+    ayuda: "La planilla de vouchers que exporta la administración del country (CSV). Columnas: número, lote, estado y documento del vecino.",
     boton: "Importar y conciliar",
   },
   liquidacion: {
-    ayuda: "Lo que OpenKey le pagó a CH por cada voucher (CSV). Columnas: número, monto, fecha y referencia.",
+    ayuda: "Lo que la administración del country le pagó a CH por cada voucher (CSV). Columnas: número, monto, fecha y referencia.",
     boton: "Importar la liquidación",
   },
 } as const;

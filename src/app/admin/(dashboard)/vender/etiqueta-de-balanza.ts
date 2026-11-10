@@ -18,6 +18,7 @@
 //
 // PURO: lo usan la pantalla (VenderForm) y los tests.
 
+import { redondearAlCentavo } from "@/lib/dinero/redondeo";
 import { fmtMoneyARS } from "@/components/ui/format";
 import { formatearCantidad } from "@/lib/pos-peso";
 import type { TopePrecioAMano } from "@/lib/venta-reglas";
@@ -30,7 +31,7 @@ export const COBRAR_EL_DE_LA_ETIQUETA = "Cobrar el de la etiqueta";
 
 /** Redondeo al centavo, como el servidor (`buildOrderLines`). */
 function alCentavo(n: number): number {
-  return Math.round(n * 100) / 100;
+  return redondearAlCentavo(n);
 }
 
 /** ¿El papel dice otro importe que el sistema? Al centavo. PURA. */

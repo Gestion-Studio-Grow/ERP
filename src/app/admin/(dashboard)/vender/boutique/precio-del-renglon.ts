@@ -15,6 +15,7 @@
 //
 // Todo lo de acá es puro (lo usan la pantalla y la acción); se prueba sin base.
 
+import { centavosDe } from "@/lib/dinero/redondeo";
 import {
   cambiosDePrecio,
   textoDelCambioDePrecio,
@@ -180,7 +181,7 @@ export function cambiosEnLoCobrado(
     if (!visto || !p || out.some((x) => x.id === c.productId)) continue;
     const porKilo = p.saleUnit === "WEIGHT";
     const antes = (porKilo ? visto.pricePerKg : visto.price) ?? 0;
-    if (Math.round(antes * 100) !== Math.round(c.precio * 100)) {
+    if (centavosDe(antes) !== centavosDe(c.precio)) {
       out.push({ id: c.productId, nombre: p.name, porKilo, antes, ahora: c.precio });
     }
   }

@@ -140,6 +140,7 @@ export type OrigenContable =
   | "apertura"
   | "cobro-cuenta-corriente"
   | "pago-cuenta-corriente"
+  | "cheque-rechazado"
   | "reintegro-proveedor"
   | "gasto-proyecto";
 
@@ -158,6 +159,7 @@ export const ORIGENES_CONTABLES: readonly OrigenContable[] = [
   "apertura",
   "cobro-cuenta-corriente",
   "pago-cuenta-corriente",
+  "cheque-rechazado",
   "reintegro-proveedor",
   "gasto-proyecto",
 ];
@@ -176,6 +178,9 @@ export const ORIGEN_CONTABLE_LABEL: Record<OrigenContable, string> = {
   apertura: "Apertura de turno",
   "cobro-cuenta-corriente": "Cobro de cuenta corriente",
   "pago-cuenta-corriente": "Pago a proveedor",
+  // El cheque de la administración del country que rebotó después de depositarlo (vouchers): la
+  // salida por MP revierte su depósito. No es un pago a un proveedor.
+  "cheque-rechazado": "Cheque rechazado · administración del country",
   // La plata que devuelve un proveedor por mercadería devuelta (supplier-return.ts). Antes
   // salía como "Ingreso manual" y la contadora la buscaba como un cobro sin respaldo: no es
   // una venta ni un aporte, es una compra que se achica.
@@ -211,6 +216,9 @@ export type FilaParaOrigen = {
  * constante armada al cargar el módulo leería esas marcas antes de que existan, según qué
  * módulo se cargue primero; leídas al clasificar, ya están todas.
  */
+/** Lo que sigue a `cuenta-corriente:` en la marca del rechazo de un cheque de vouchers (acreditacion-core.ts). */
+const PREFIJO_CHEQUE_RECHAZADO = "voucher-pago-rechazo:";
+
 function marcasDelSistema(): readonly {
   prefijo: string;
   origen: OrigenContable;
@@ -225,6 +233,10 @@ function marcasDelSistema(): readonly {
     { prefijo: REINTEGRO_ACTOR_PREFIX, origen: "reintegro-proveedor", referenciaEnMarca: true }, // purchaseId
     // Cobro de una cuenta a cobrar (INGRESO) o pago de una cuenta a pagar (EGRESO), con la
     // marca `cuenta-corriente:<collectionId>` (settlement/asiento-libro.ts).
+    // El contramovimiento de un cheque de la administración rechazado ya depositado:
+    // `cuenta-corriente:voucher-pago-rechazo:<pagoId>` (vouchers/acreditacion-core.ts,
+    // `marcaDelRechazoEnCaja`). Va ANTES de la marca genérica de cuenta corriente.
+    { prefijo: `${CUENTA_CORRIENTE_ACTOR_PREFIX}${PREFIJO_CHEQUE_RECHAZADO}`, origen: "cheque-rechazado", referenciaEnMarca: true }, // pagoId
     {
       prefijo: CUENTA_CORRIENTE_ACTOR_PREFIX,
       origen: "cobro-cuenta-corriente",

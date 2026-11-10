@@ -24,6 +24,7 @@
 // leyó SIN dudas. Los que traen una duda («Pidió 8: van 2 paquetes de 6», «se vende por unidad») se
 // siguen confirmando de a uno con «Está bien»: ahí es donde se confirmaba sin mirar.
 
+import { redondearAlCentavo } from "@/lib/dinero/redondeo";
 import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { confirmablesDeUnToque } from "./boutique/confirmar-todo";
 import Link from "next/link";
@@ -600,7 +601,7 @@ export default function PedidoDesdeWhatsApp({ productos, stockById, hoy, negocio
 
           <div className="flex flex-col gap-2 border-t border-line pt-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-body">
-              Total estimado <strong className="text-lg text-strong">{pesos(Math.round(totalEstimado * 100) / 100)}</strong>
+              Total estimado <strong className="text-lg text-strong">{pesos(redondearAlCentavo(totalEstimado))}</strong>
               {entrega === "DELIVERY" && zona ? " + envío" : ""}
             </p>
             <div className="flex flex-col items-stretch gap-1 sm:items-end">

@@ -11,13 +11,16 @@
 
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/authz";
+import { requireUserConCambioPendiente } from "@/lib/authz";
 import { verifyPassword, hashPassword } from "@/lib/auth-password";
 import { validatePasswordStrength } from "@/lib/password-policy";
 import { clearMustChangePassword } from "@/lib/must-change-password";
 import { auditAdmin } from "@/lib/audit-core";
 import { getProductoContexto } from "@/lib/producto";
 import { productoHome } from "@/lib/producto-identidad";
+import { createSessionToken } from "@/lib/auth";
+import { ponerCookieDeSesion } from "@/lib/ingreso.server";
+import { tienePin } from "@/lib/sesion-pin.server";
 
 const CHANGE_PATH = "/admin/cambiar-password";
 
@@ -26,7 +29,7 @@ function backWith(status: string): never {
 }
 
 export async function changeOwnPassword(formData: FormData) {
-  const user = await requireUser();
+  const user = await requireUserConCambioPendiente();
   const current = String(formData.get("currentPassword") || "");
   const next = String(formData.get("newPassword") || "");
   const confirm = String(formData.get("confirmPassword") || "");
@@ -53,7 +56,15 @@ export async function changeOwnPassword(formData: FormData) {
   // Se audita el cambio, NUNCA la contraseña.
   await auditAdmin({ action: "change_own_password", entity: "User", entityId: user.id });
 
-  // Ya con contraseña definitiva: a la casa del producto (igual criterio que el login).
+  // Acaba de comprobar su contraseña: la sesión se reemite con el ingreso en «ahora» (habilita elegir el PIN).
+  await ponerCookieDeSesion(await createSessionToken(user.id));
+
+  // Ya con contraseña definitiva: a la casa del producto (igual criterio que el login), pasando por elegir el PIN de
+  // desbloqueo si todavía no tiene (sesion-pin.ts; se puede saltear).
   const { producto } = await getProductoContexto();
-  redirect(productoHome(producto));
+  const home = productoHome(producto);
+  if (!(await tienePin(user.id, user.tenantId).catch(() => true))) {
+    redirect(`/admin/definir-pin?next=${encodeURIComponent(home)}`);
+  }
+  redirect(home);
 }

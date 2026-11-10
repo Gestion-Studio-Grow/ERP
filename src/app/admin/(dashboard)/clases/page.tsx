@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { redirect, unstable_rethrow } from "next/navigation";
 import { requireApp } from "@/lib/require-app";
+import { gestionaClases, veLaPlataDelDia } from "@/lib/padel/plata-guardia";
 import { AvisoError, EmptyState, Esqueleto, Plata } from "@/components/ui";
 import { configPadel, franjas, hoy } from "@/lib/padel/datos.server";
 import { getCurrentTenantId } from "@/lib/tenant";
@@ -26,21 +27,24 @@ const titulo = "mb-2 text-sm font-bold uppercase tracking-wide text-strong";
 // huecos, mañana con «Recordar a todos» y lo cobrado. Mientras carga, esqueletos; si falla la
 // red, «Reintentar» (nunca pantalla en blanco).
 export default async function ClasesHoy() {
-  await requireApp("padel-clases");
+  const user = await requireApp("padel-clases");
   // Profe que todavía no configuró nada (sin precio ni horarios): a la Bienvenida (M-083).
   const tenantId = await getCurrentTenantId();
   const [config, fr] = await Promise.all([configPadel(tenantId), franjas(tenantId)]);
-  if (necesitaBienvenida({ vista: config.bienvenidaVista, precioIndividual: config.precioIndividual, franjas: fr })) redirect(RUTA_BIENVENIDA);
+  // Sólo quien gestiona Clases: la Bienvenida guarda con acciones que exigen agenda:manage (y le
+  // devuelve acá a quien no lo tiene: sin esta condición, el PROFESSIONAL rebotaría sin fin).
+  const gestiona = gestionaClases(user);
+  if (gestiona && necesitaBienvenida({ vista: config.bienvenidaVista, precioIndividual: config.precioIndividual, franjas: fr })) redirect(RUTA_BIENVENIDA);
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-5">
       <Suspense fallback={<EsqueletoHoy />}>
-        <ContenidoHoy />
+        <ContenidoHoy conPlata={veLaPlataDelDia(user)} gestiona={gestiona} />
       </Suspense>
     </main>
   );
 }
 
-async function ContenidoHoy() {
+async function ContenidoHoy({ conPlata, gestiona }: { conPlata: boolean; gestiona: boolean }) {
   let d: Awaited<ReturnType<typeof hoy>>;
   try {
     d = await hoy();
@@ -77,7 +81,7 @@ async function ContenidoHoy() {
         detalle={
           <>
             {deHoy.length === 0 ? "Sin clases hoy" : nClases(deHoy.length)}
-            {caja.total > 0 && <> · cobrado <Plata valor={caja.total} sinCentavos /></>}
+            {conPlata && caja.total > 0 && <> · cobrado <Plata valor={caja.total} sinCentavos /></>}
           </>
         }
         pendientes={pendientes}
@@ -91,7 +95,7 @@ async function ContenidoHoy() {
             {primerNombre(c.nombre)} espera respuesta: <span className="tabular-nums">{horaHumana(c.empiezaEn)}</span>
             <span className="font-normal text-body"> · {faltaPara(c.empiezaEn, ahora)}</span>
           </p>
-          <AccionesClase c={aAcciones(c)} conProxima={false} otras={otrasDeHoy} />
+          {conPlata && <AccionesClase c={aAcciones(c)} conProxima={false} otras={otrasDeHoy} />}
         </section>
       ))}
 
@@ -111,7 +115,7 @@ async function ContenidoHoy() {
                   </span>
                   <span className="font-semibold">{c.nombre}</span>
                 </p>
-                <AccionesSinCerrar c={aAcciones(c)} />
+                {conPlata && <AccionesSinCerrar c={aAcciones(c)} />}
               </li>
             ))}
           </ul>
@@ -125,13 +129,13 @@ async function ContenidoHoy() {
             <h2 className="text-sm font-bold uppercase tracking-wide text-strong">
               <span aria-hidden>⏳ </span>Esperan tu respuesta ({pedidos.length})
             </h2>
-            {pedidos.length > 1 && <ConfirmarTodos pedidos={pedidos.map((c) => ({ id: c.id, cuando: cuandoPedido(c) }))} />}
+            {conPlata && pedidos.length > 1 && <ConfirmarTodos pedidos={pedidos.map((c) => ({ id: c.id, cuando: cuandoPedido(c) }))} />}
           </div>
           <ul className="grid gap-2">
             {otrosPedidos.map((c) => (
               <li key={c.id}>
-                <TarjetaClase estado={c.estado} hora={cuandoPedido(c)} nombre={c.nombre} detalle={detalleClase(c)} qa="pedido">
-                  <AccionesClase c={aAcciones(c)} conProxima={false} />
+                <TarjetaClase estado={c.estado} hora={cuandoPedido(c)} nombre={c.nombre} detalle={detalleClase(c, conPlata)} qa="pedido">
+                  {conPlata && <AccionesClase c={aAcciones(c)} conProxima={false} />}
                 </TarjetaClase>
               </li>
             ))}
@@ -142,15 +146,15 @@ async function ContenidoHoy() {
       {proxima ? (
         <section className="mb-5" aria-label="Próxima clase" data-qa="proxima">
           <h2 className={titulo}>Próxima clase</h2>
-          <TarjetaClase destacada estado={proxima.estado} pago={proxima.pagoEstado} hora={horaHumana(proxima.empiezaEn)} nombre={proxima.nombre} detalle={detalleProxima(proxima)}>
-            <AccionesClase c={aAcciones(proxima)} otras={otrasDeHoy} />
+          <TarjetaClase destacada estado={proxima.estado} pago={conPlata ? proxima.pagoEstado : undefined} hora={horaHumana(proxima.empiezaEn)} nombre={proxima.nombre} detalle={detalleProxima(proxima, conPlata)}>
+            {conPlata && <AccionesClase c={aAcciones(proxima)} otras={otrasDeHoy} />}
           </TarjetaClase>
         </section>
       ) : (
         <div className="mb-5">
           <EmptyState
             title="No tenés más clases por hoy"
-            description={huecos.length ? "Tocá un horario libre para agendar, o compartí tu turnero para que te pidan." : "Compartí tu turnero: cuando alguien pida, aparece acá para confirmarlo con un toque."}
+            description={!gestiona ? "Cuando alguien pida clase, aparece acá." : huecos.length ? "Tocá un horario libre para agendar, o compartí tu turnero para que te pidan." : "Compartí tu turnero: cuando alguien pida, aparece acá para confirmarlo con un toque."}
           />
         </div>
       )}
@@ -159,9 +163,9 @@ async function ContenidoHoy() {
         <section className="mb-5" aria-label="El resto de hoy">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-sm font-bold uppercase tracking-wide text-strong">El resto de hoy</h2>
-            {(vivasHoy.length > 0 || huecos.length > 0) && <BotonSuspender fecha={fecha} etiquetaDia="hoy" clases={otrasDeHoy} />}
+            {gestiona && (vivasHoy.length > 0 || huecos.length > 0) && <BotonSuspender fecha={fecha} etiquetaDia="hoy" clases={otrasDeHoy} />}
           </div>
-          <LineaDelDia fecha={fecha} clases={resto} huecos={huecos} otras={otrasDeHoy} qa="clase-hoy" />
+          <LineaDelDia fecha={fecha} clases={resto} huecos={huecos} otras={otrasDeHoy} qa="clase-hoy" conPlata={conPlata} gestiona={gestiona} />
         </section>
       )}
 
@@ -169,11 +173,11 @@ async function ContenidoHoy() {
         <section className="mb-5" aria-label="Mañana" data-qa="manana">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-sm font-bold uppercase tracking-wide text-strong">Mañana ({deManana.length})</h2>
-            <RecordarTodos clases={aRecordar.map((c) => ({ id: c.id, cuando: `mañana ${horaHumana(c.empiezaEn)}` }))} />
+            {conPlata && <RecordarTodos clases={aRecordar.map((c) => ({ id: c.id, cuando: `mañana ${horaHumana(c.empiezaEn)}` }))} />}
           </div>
           <ul className="grid gap-2">
             {deManana.map((c) => (
-              <FilaClase key={c.id} c={c} otras={otrasDeManana} recordada={recordadas.includes(c.id)} qa="clase-manana" />
+              <FilaClase key={c.id} c={c} otras={otrasDeManana} recordada={recordadas.includes(c.id)} qa="clase-manana" conPlata={conPlata} />
             ))}
           </ul>
         </section>
@@ -185,7 +189,7 @@ async function ContenidoHoy() {
         </section>
       )}
 
-      {caja.total > 0 && (
+      {conPlata && caja.total > 0 && (
         <p className="text-sm text-muted" data-qa="cobrado-hoy">
           Cobrado hoy: <Plata valor={caja.total} sinCentavos />
           {" · "}
@@ -206,10 +210,12 @@ async function ContenidoHoy() {
   );
 }
 
-function detalleProxima(c: Awaited<ReturnType<typeof hoy>>["deHoy"][number]): string {
+function detalleProxima(c: Awaited<ReturnType<typeof hoy>>["deHoy"][number], conPlata: boolean): string {
   return [
+    c.club ? `En ${c.club}` : null,
     c.tipo === "GRUPAL" ? `Con amigos · ${c.personas}` : "Individual",
-    c.precio > 0 ? plataTexto(c.precio) : null,
+    c.serieId ? "fija semanal" : null,
+    conPlata && c.precio > 0 ? plataTexto(c.precio) : null,
     c.dadas > 0 ? `${nClases(c.dadas)} con vos` : "alumno nuevo",
   ]
     .filter(Boolean)

@@ -1,4 +1,6 @@
+import { redirect } from "next/navigation";
 import { requireApp } from "@/lib/require-app";
+import { gestionaClases } from "@/lib/padel/plata-guardia";
 import { cn } from "@/components/ui";
 import { badgePendientes, configCompleta } from "@/lib/padel/datos.server";
 import { tarjeta } from "../../_vista";
@@ -18,7 +20,9 @@ const conActual = (ops: readonly { valor: number; rotulo: string }[], actual: nu
 // cierre automático necesitan columnas nuevas (Tanda 4, migración sin aplicar). Hasta entonces se
 // explica cómo funciona hoy, sin un interruptor que no haga nada.
 export default async function AjustesReglas() {
-  await requireApp("padel-clases");
+  const user = await requireApp("padel-clases");
+  // Todo lo de esta pantalla guarda con acciones que exigen agenda:manage: sin él, vuelve a Hoy.
+  if (!gestionaClases(user)) redirect("/admin/clases");
   const [{ config }, numero] = await Promise.all([configCompleta(), badgePendientes()]);
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-5">

@@ -287,7 +287,8 @@ test("PDF de Facturita: sin datos del emisor, aviso que lleva a Mi cuenta; con d
   assert.equal(listaFinal.find((x) => x.id === r.invoiceId)?.anulacion, "anulada", "con la nota autorizada, «Anulada»");
   assert.equal(listaFinal.find((x) => x.id === nota.id)?.numero, "00002-00009001", "punto de venta de 5 cifras, como el PDF");
 
-  // 6) Cupo: con los comprobantes del mes agotados, no se anula y se dice qué hacer.
+  // 6) Cupo: la nota de crédito NO ocupa lugar (§1 #9b). Con el tope lleno, igual se anula y el
+  //    conteo del mes no sube.
   const usadas = await enNegocio(async () => (await import("@/lib/facturita-actions")).estadoFacturitaAction());
   for (let i = usadas.usadas; i < usadas.limite; i++) {
     const otra = await p.emitir({ descripcion: `Relleno ${i}`, total: 100 });
@@ -297,9 +298,12 @@ test("PDF de Facturita: sin datos del emisor, aviso que lleva a Mi cuenta; con d
       data: { status: "AUTHORIZED", tipoComprobante: 11, numero: 9100 + i, cae: `7654321098${String(7000 + i)}`, caeVencimiento: p.hoy, authorizedAt: new Date() },
     });
   }
+  const lleno = await enNegocio(async () => (await import("@/lib/facturita-actions")).estadoFacturitaAction());
+  assert.equal(lleno.puedeEmitir, false, "el tope está lleno");
   const ultima = (await enNegocio(() => facturasFacturitaAction())).find((x) => x.saldoAnulable > 0);
   assert.ok(ultima, "hay una autorizada con saldo");
-  const sinCupo = await enNegocio(() => anularFacturitaAction(ultima.id, "me equivoqué"));
-  assert.equal(sinCupo.ok, false);
-  assert.ok(!sinCupo.ok && /Comerciante/.test(sinCupo.error) && /ARCA/.test(sinCupo.error));
+  const conTopeLleno = await enNegocio(() => anularFacturitaAction(ultima.id, "me equivoqué"));
+  assert.ok(conTopeLleno.ok, JSON.stringify(conTopeLleno));
+  const despues = await enNegocio(async () => (await import("@/lib/facturita-actions")).estadoFacturitaAction());
+  assert.equal(despues.usadas, lleno.usadas, "la nota de crédito no suma al cupo");
 });

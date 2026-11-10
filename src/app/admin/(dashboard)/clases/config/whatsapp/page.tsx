@@ -1,4 +1,6 @@
+import { redirect } from "next/navigation";
 import { requireApp } from "@/lib/require-app";
+import { gestionaClases } from "@/lib/padel/plata-guardia";
 import { buttonClasses, cn } from "@/components/ui";
 import { badgePendientes } from "@/lib/padel/datos.server";
 import { modoWhatsApp } from "@/lib/padel/whatsapp-cloud";
@@ -13,7 +15,9 @@ export const metadata = { title: "Clases · WhatsApp", manifest: "/clases/app.we
 // Ajustes → WhatsApp (B6 · M-047): en criollo, cómo salen hoy los avisos y un botón para pedirle a
 // Gestión Studio Grow que los conecte a WhatsApp Business. Nunca una ruta de archivo.
 export default async function AjustesWhatsApp() {
-  await requireApp("padel-clases");
+  const user = await requireApp("padel-clases");
+  // Todo lo de esta pantalla guarda con acciones que exigen agenda:manage: sin él, vuelve a Hoy.
+  if (!gestionaClases(user)) redirect("/admin/clases");
   const [numero, turnero] = await Promise.all([badgePendientes(), linkDelTurnero()]);
   const cloud = modoWhatsApp(process.env) === "cloud";
   const contactoGsg = contactoParaWhatsAppBusiness(turnero);

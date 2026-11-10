@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { resetOwnerPasswordCore, resetManyOwnerPasswordsCore, type OwnerResetPort } from "./owner-password-reset";
 import { verifyPassword } from "./auth-password";
 import { validatePasswordStrength } from "./password-policy";
-import { AUDIT_ACTION_OWNER_RESET } from "./must-change-password";
+import { AUDIT_ACTION_OWNER_RESET, CAMBIO_OBLIGATORIO_INACTIVO } from "./must-change-password";
 
 // Doble en memoria del PORT: modela la fila del OWNER (solo lo que persiste el reset) + el log
 // de auditoría, para verificar los invariantes sin tocar la DB.
@@ -36,7 +36,6 @@ test("reset OK: devuelve una temporal fuerte, marca cambio forzado y audita", as
   assert.equal(r.ok, true);
   if (!r.ok) return;
   assert.equal(r.email, "dueno@negocio.test");
-  assert.equal(r.flagPending, false);
   // La temporal devuelta es fuerte por construcción.
   assert.equal(validatePasswordStrength(r.password).ok, true);
   // Se marcó el cambio forzado.
@@ -91,16 +90,32 @@ test("sin OWNER activo: no resetea y avisa", async () => {
   assert.equal(audits.length, 0);
 });
 
-test("columna del flag sin aplicar (Gate 2): resetea igual pero reporta flagPending", async () => {
-  const { port, row } = makeFakePort({ columnMissing: true });
+test("FALLA CERRADO: sin la columna del cambio obligatorio no se emite provisoria ni se toca la contraseña", async () => {
+  const { port, row, audits } = makeFakePort({ columnMissing: true });
   const r = await resetOwnerPasswordCore(port, { tenantId: "t1", operatorSubject: "op" });
-  assert.equal(r.ok, true);
-  if (!r.ok) return;
-  // La contraseña SÍ se reseteó...
-  assert.ok(row.passwordHash?.startsWith("scrypt$"));
-  // ...pero el forzado quedó pendiente.
-  assert.equal(r.flagPending, true);
+  assert.equal(r.ok, false);
+  if (r.ok) return;
+  assert.equal(r.error, CAMBIO_OBLIGATORIO_INACTIVO);
+  assert.ok(!("password" in r), "no viaja ninguna contraseña en el resultado");
+  // La contraseña vieja queda intacta y no hay auditoría de un reset que no ocurrió.
+  assert.equal(row.passwordHash, undefined);
   assert.equal(row.mustChangePassword, undefined);
+  assert.equal(audits.length, 0);
+});
+
+test("el flag se marca ANTES de escribir la contraseña (si la escritura falla, no queda provisoria sin flag)", async () => {
+  const orden: string[] = [];
+  const { port } = makeFakePort();
+  const r = await resetOwnerPasswordCore(
+    {
+      ...port,
+      setMustChange: async (id, v) => (orden.push("flag"), port.setMustChange(id, v)),
+      setPasswordHash: async (id, h) => (orden.push("hash"), port.setPasswordHash(id, h)),
+    },
+    { tenantId: "t1", operatorSubject: "op" },
+  );
+  assert.equal(r.ok, true);
+  assert.deepEqual(orden, ["flag", "hash"]);
 });
 
 test("tenant vacío: no toca nada", async () => {
@@ -157,7 +172,6 @@ test("masivo: una fila por tenant, todas con temporal distinta, todas auditadas"
     const h = hashes.get(uid);
     assert.ok(h && h.startsWith("scrypt$") && !pws.includes(h));
     assert.equal(flags.get(uid), true);
-    assert.equal(r.flagPending, false);
   }
   // Un audit por tenant, sin la contraseña en ninguno.
   assert.equal(audits.length, 3);
@@ -185,10 +199,10 @@ test("masivo: un tenant sin OWNER no aborta el lote (se lista con error)", async
   assert.match(rows[1].error ?? "", /OWNER/);
 });
 
-test("masivo: columna del flag sin aplicar → todas flagPending, pero resetean igual", async () => {
+test("masivo: columna del flag sin aplicar → ninguna provisoria, cada fila con el error", async () => {
   const owners = { t1: { id: "u1", email: "a@x.test" } };
   const { port } = makeMultiPort(owners, true);
   const rows = await resetManyOwnerPasswordsCore(port, [{ id: "t1", name: "Uno" }], "op");
-  assert.equal(rows[0].password !== null, true);
-  assert.equal(rows[0].flagPending, true);
+  assert.equal(rows[0].password, null);
+  assert.equal(rows[0].error, CAMBIO_OBLIGATORIO_INACTIVO);
 });

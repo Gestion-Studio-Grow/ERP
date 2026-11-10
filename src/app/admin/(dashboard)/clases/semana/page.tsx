@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { unstable_rethrow } from "next/navigation";
 import { requireApp } from "@/lib/require-app";
+import { gestionaClases, veLaPlataDelDia } from "@/lib/padel/plata-guardia";
 import { AvisoError, Icono, Plata, cn } from "@/components/ui";
 import { badgePendientes, semanaDelProfe } from "@/lib/padel/datos.server";
 import { todayInBusinessTz } from "@/lib/datetime";
@@ -22,7 +23,10 @@ const flecha = "grid size-12 shrink-0 place-items-center rounded-xl border borde
 // sus bloqueos. Un día en que no das clases dice «No das clases», no «Libre». Deslizar de costado
 // cambia de semana.
 export default async function ClasesSemana({ searchParams }: { searchParams: Promise<{ desde?: string }> }) {
-  await requireApp("padel-clases");
+  const user = await requireApp("padel-clases");
+  const conPlata = veLaPlataDelDia(user);
+  // Se suspende, Bloquear días, Quitar un bloqueo y agendar en un hueco exigen agenda:manage.
+  const gestiona = gestionaClases(user);
   const { desde: q } = await searchParams;
   const hoy = todayInBusinessTz();
   const lunes = semanaDesdeLunes(q && fechaValida(q) ? q : hoy);
@@ -51,7 +55,13 @@ export default async function ClasesSemana({ searchParams }: { searchParams: Pro
         titulo="Semana"
         detalle={
           <span className="tabular-nums" data-qa="resumen-semana">
-            {nClases(totales.clases)} · <Plata valor={totales.esperado} sinCentavos /> esperados · <Plata valor={totales.cobrado} sinCentavos tono="cobrado" /> cobrados
+            {nClases(totales.clases)}
+            {conPlata && (
+              <>
+                {" "}
+                · <Plata valor={totales.esperado} sinCentavos /> esperados · <Plata valor={totales.cobrado} sinCentavos tono="cobrado" /> cobrados
+              </>
+            )}
           </span>
         }
         pendientes={numero}
@@ -118,14 +128,14 @@ export default async function ClasesSemana({ searchParams }: { searchParams: Pro
                     {d.fecha === hoy ? "Hoy · " : ""}
                     {diaLargo(d.fecha)}
                   </h2>
-                  {!pasado && (d.trabaja || vivas) && <BotonSuspender fecha={d.fecha} etiquetaDia={diaLargo(d.fecha)} clases={otras} />}
+                  {gestiona && !pasado && (d.trabaja || vivas) && <BotonSuspender fecha={d.fecha} etiquetaDia={diaLargo(d.fecha)} clases={otras} />}
                 </div>
                 {!d.trabaja && d.clases.length === 0 && d.bloqueos.length === 0 ? (
                   <p className="text-sm text-muted" data-qa="no-das-clases">No das clases.</p>
                 ) : !hayAlgo ? (
                   <p className="text-sm text-muted">{pasado ? "No hubo clases." : "Sin horarios libres."}</p>
                 ) : (
-                  <LineaDelDia fecha={d.fecha} clases={d.clases} huecos={d.huecos} bloqueos={d.bloqueos} qa="clase-semana" />
+                  <LineaDelDia fecha={d.fecha} clases={d.clases} huecos={d.huecos} bloqueos={d.bloqueos} qa="clase-semana" conPlata={conPlata} gestiona={gestiona} />
                 )}
               </section>
             );
@@ -133,9 +143,11 @@ export default async function ClasesSemana({ searchParams }: { searchParams: Pro
         </div>
       </DeslizarSemana>
 
-      <div className="mt-6">
-        <BotonBloquearDias desde={lunes < hoy ? hoy : lunes} />
-      </div>
+      {gestiona && (
+        <div className="mt-6">
+          <BotonBloquearDias desde={lunes < hoy ? hoy : lunes} />
+        </div>
+      )}
       <p className="mt-2 flex items-center justify-center gap-1 text-xs text-muted">
         <Icono nombre="flecha" className="size-3.5" /> Deslizá de costado para cambiar de semana.
       </p>

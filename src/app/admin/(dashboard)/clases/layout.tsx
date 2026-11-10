@@ -1,4 +1,6 @@
 import { badgePendientes } from "@/lib/padel/datos.server";
+import { getCurrentUser } from "@/lib/session";
+import { gestionaClases, veLaPlata } from "@/lib/padel/plata-guardia";
 import { marcarAvisado } from "@/lib/padel/acciones";
 import { BarraInferior } from "./_barra-inferior";
 import { ColaAvisos } from "./_aviso";
@@ -20,7 +22,7 @@ export const metadata = { generator: "Gestión Studio Grow" };
 // re-renderizan al navegar. El globito de pendientes se refresca con cada router.refresh() de las
 // acciones; si la lectura falla, la barra sale sin número (nunca rompe la pantalla).
 export default async function ClasesLayout({ children }: { children: React.ReactNode }) {
-  const pendientes = await badgePendientes().catch(() => 0);
+  const [pendientes, user] = await Promise.all([badgePendientes().catch(() => 0), getCurrentUser().catch(() => null)]);
   return (
     <div
       data-density="lite"
@@ -32,7 +34,7 @@ export default async function ClasesLayout({ children }: { children: React.React
         {children}
         <p className="pb-6 pt-2 text-center text-xs text-muted">Con tecnología de Gestión Studio Grow</p>
       </ColaAvisos>
-      <BarraInferior pendientes={pendientes} />
+      <BarraInferior pendientes={pendientes} conPlata={user ? veLaPlata(user) : false} conAgendar={user ? gestionaClases(user) : false} />
     </div>
   );
 }

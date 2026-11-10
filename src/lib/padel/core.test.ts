@@ -298,3 +298,16 @@ test("O-6: un pedido cuya hora pasó se MUESTRA vencido aunque la base todavía 
   assert.equal(estadoEnPantalla("PEDIDA", ahora, ahora), "PEDIDA", "en el borde exacto, igual que el `lt` de la base");
   assert.equal(estadoEnPantalla("CONFIRMADA", new Date("2026-10-22T19:00:00-03:00"), ahora), "CONFIRMADA");
 });
+
+test("proximaDelDia: la primera que no terminó; nunca una pasada (QA Hoy)", async () => {
+  const { proximaDelDia } = await import("./core");
+  const h = (x: number) => new Date(Date.UTC(2026, 10, 9, x));
+  const ahora = h(15);
+  const pasadaConDeuda = { id: "a", estado: "DADA", empiezaEn: h(10), terminaEn: h(11) };
+  const pasadaConfirmada = { id: "b", estado: "CONFIRMADA", empiezaEn: h(12), terminaEn: h(13) };
+  const enCurso = { id: "c", estado: "CONFIRMADA", empiezaEn: h(14), terminaEn: h(16) };
+  const despues = { id: "d", estado: "PEDIDA", empiezaEn: h(18), terminaEn: h(19) };
+  assert.equal(proximaDelDia([pasadaConDeuda, pasadaConfirmada, despues, enCurso], ahora)?.id, "c");
+  assert.equal(proximaDelDia([pasadaConDeuda, despues], ahora)?.id, "d");
+  assert.equal(proximaDelDia([pasadaConDeuda, pasadaConfirmada], ahora), null);
+});

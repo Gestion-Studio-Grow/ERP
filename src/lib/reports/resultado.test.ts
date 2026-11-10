@@ -234,3 +234,8 @@ test("qué pedido es venta: cobrado, o a cuenta; uno saldado con cuenta es venta
   assert.deepEqual(cobrados.map((p) => p.id), ["a"]);
   assert.deepEqual(aCuenta.map((p) => p.id), ["b", "d"], "el fiado no aparece como venta cobrada");
 });
+
+test("la salida de un cheque de vouchers rechazado no es gasto del mes: pago de deuda (cert 7)", async () => {
+  const { marcaDelRechazoEnCaja } = await import("@/lib/vouchers/acreditacion-core");
+  assert.equal(rubroDeCaja(caja("EGRESO", 1, marcaDelRechazoEnCaja("p1"))), "pago-deuda");
+});

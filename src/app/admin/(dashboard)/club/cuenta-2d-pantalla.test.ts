@@ -119,7 +119,11 @@ describe("Tanda 2D en el navegador", { timeout: 180_000 }, () => {
   });
 
   async function montar(viewport = { width: 1024, height: 768 }): Promise<{ page: Page; errores: string[] }> {
-    const page = await browser!.newPage({ viewport, locale: "es-AR" });
+    // Fecha, hora y huso fijos: la demo se arma con el día de hoy (qué fijos tocan, el horario del
+    // día, la semilla) y el reloj de la máquina. Sin esto el test pasaba o fallaba según el día y la
+    // hora de la corrida. Jueves 05/11/2026 a las 19:10, la hora de la demo (MINUTO_DEMO).
+    const page = await browser!.newPage({ viewport, locale: "es-AR", timezoneId: "America/Argentina/Buenos_Aires" });
+    await page.clock.setFixedTime(new Date("2026-11-05T19:10:00-03:00"));
     const errores: string[] = [];
     page.on("pageerror", (e) => errores.push(e.message));
     page.on("console", (m) => {
@@ -219,7 +223,7 @@ describe("Tanda 2D en el navegador", { timeout: 180_000 }, () => {
   test("BP-056 · «No vino»: la hoja no se cierra y queda «Avisar por WhatsApp» con lo que le quedó en su cuenta", async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);
     const { page, errores } = await montar();
-    await page.getByRole("button", { name: /^Camila Sosa, Cancha 3/ }).click();
+    await page.getByRole("button", { name: /^Camila Sosa, Cancha 3, de 18:30/ }).click();
     const cuenta = page.getByRole("region", { name: "Camila Sosa", exact: true });
     await cuenta.getByRole("button", { name: "No vino" }).click();
     // Recepción no ve «Sin cargo» (lo decide un dueño con su PIN).

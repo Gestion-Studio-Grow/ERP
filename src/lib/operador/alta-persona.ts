@@ -14,6 +14,7 @@
 // el dueño de GSG).
 
 import { hashPassword, generateStrongPassword } from "@/lib/auth-password";
+import { CambioObligatorioInactivo } from "@/lib/must-change-password";
 
 export const ROLES_DE_ALTA = ["OWNER", "RECEPTION", "PROFESSIONAL"] as const;
 export type RolDeAlta = (typeof ROLES_DE_ALTA)[number];
@@ -31,7 +32,7 @@ export interface AltaPersonaPort {
 }
 
 export type AltaPersonaResult =
-  | { ok: true; password: string; email: string; name: string; role: RolDeAlta; flagPending: boolean }
+  | { ok: true; password: string; email: string; name: string; role: RolDeAlta }
   | { ok: false; error: string };
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -66,7 +67,10 @@ export async function altaPersonaCore(
   const password = generateStrongPassword();
   const passwordHash = await hashPassword(password);
   const creado = await port.crear({ tenantId, name: v.name, email: v.email, role: v.role, passwordHash });
+  // Falla cerrado: sin el cambio obligatorio, la provisoria quedaría válida para siempre. Se tira
+  // (no se devuelve) para que la transacción del negocio deshaga el alta recién creada.
   const { persisted } = await port.setMustChange(creado.id, true);
+  if (!persisted) throw new CambioObligatorioInactivo();
 
   await port.audit({
     tenantId,
@@ -74,8 +78,8 @@ export async function altaPersonaCore(
     action: "create",
     entity: "User",
     entityId: creado.id,
-    changes: { name: v.name, email: v.email, role: v.role, origen: "consola", forcedChangePersisted: persisted },
+    changes: { name: v.name, email: v.email, role: v.role, origen: "consola", forcedChangePersisted: true },
   });
 
-  return { ok: true, password, email: v.email, name: v.name, role: v.role, flagPending: !persisted };
+  return { ok: true, password, email: v.email, name: v.name, role: v.role };
 }

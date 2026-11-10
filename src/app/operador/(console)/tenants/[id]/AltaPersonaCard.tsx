@@ -13,7 +13,7 @@ import { altaPersonaDeTenant } from "@/lib/operator-actions";
 import { RevelarClave } from "../../RevelarClave";
 
 type Resultado =
-  | { ok: true; password: string; email: string; name: string; flagPending: boolean }
+  | { ok: true; password: string; email: string; name: string }
   | { ok: false; error: string };
 
 const ROLES = [
@@ -131,12 +131,6 @@ export function AltaPersonaCard({ tenantId, soloLectura }: { tenantId: string; s
               </>
             }
           />
-          {resultado.flagPending && (
-            <p role="alert" className="text-[13px] text-warning">
-              La persona quedó dada de alta, pero no se le puede exigir que cambie la contraseña al entrar: la columna{" "}
-              <code>mustChangePassword</code> todavía no está en la base. Pedile que la cambie a mano.
-            </p>
-          )}
         </>
       )}
       {resultado && !resultado.ok && (

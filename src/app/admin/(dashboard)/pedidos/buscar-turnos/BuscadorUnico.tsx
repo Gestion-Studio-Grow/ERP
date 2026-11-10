@@ -29,7 +29,8 @@ import {
 type Estado =
   | { tipo: "nada" }
   | { tipo: "buscando"; servicioId: string; nombre: string }
-  | { tipo: "listo"; servicioId: string; r: Extract<TurnosLibres, { ok: true }> }
+  // `ahora`: cuándo llegó la respuesta (los huecos ya pasados se descartan contra esa hora, no en cada render).
+  | { tipo: "listo"; servicioId: string; r: Extract<TurnosLibres, { ok: true }>; ahora: number }
   | { tipo: "error"; servicioId: string; mensaje: string };
 
 export default function BuscadorUnico({
@@ -67,7 +68,7 @@ export default function BuscadorUnico({
     turnosLibresDelServicio(servicioId).then(
       (r) => {
         if (n !== turno.current) return;
-        setEstado(r.ok ? { tipo: "listo", servicioId, r } : { tipo: "error", servicioId, mensaje: r.error });
+        setEstado(r.ok ? { tipo: "listo", servicioId, r, ahora: Date.now() } : { tipo: "error", servicioId, mensaje: r.error });
       },
       () => {
         if (n !== turno.current) return;
@@ -115,7 +116,7 @@ export default function BuscadorUnico({
 function PanelDeTurnosLibres({ estado, onCerrar }: { estado: Exclude<Estado, { tipo: "nada" }>; onCerrar: () => void }) {
   const hoy = todayInBusinessTz();
   const nombre = estado.tipo === "listo" ? estado.r.servicio.nombre : estado.tipo === "buscando" ? estado.nombre : "";
-  const grupos = estado.tipo === "listo" ? agruparHuecosPorProfesional(estado.r.profesionales, estado.r.dias, { ahora: Date.now() }) : [];
+  const grupos = estado.tipo === "listo" ? agruparHuecosPorProfesional(estado.r.profesionales, estado.r.dias, { ahora: estado.ahora }) : [];
   const anuncio =
     estado.tipo === "buscando"
       ? `Buscando turnos libres de ${nombre}…`

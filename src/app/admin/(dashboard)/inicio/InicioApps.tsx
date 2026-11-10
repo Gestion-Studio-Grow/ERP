@@ -44,7 +44,7 @@ import { enOrdenDePantalla, seccionesDelInicio } from "./secciones";
 
 export default async function InicioApps() {
   const user = await requireCapability("dashboard:read");
-  const negocio = await getNegocioApps(user.role);
+  const negocio = await getNegocioApps(user.role, user.overrides);
   const visibles = appsVisibles(negocio);
   const secciones = seccionesDelInicio(visibles, { esMostrador: negocio.esMostrador });
   // Mis apps: la cookie de ESTA persona, cruzada con lo que ve hoy (una id que ya no ve, o

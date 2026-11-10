@@ -25,7 +25,7 @@ import { basePrisma, RLS_ENFORCEMENT } from "@/lib/prisma-base";
 import { getTenantStore, runInTenantContext } from "@/lib/tenant-context";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { scopeArgs, scopeTxClient } from "@/lib/tenant-scope";
-import { esConflictoDeEscritura } from "@/lib/conflicto-de-escritura";
+import { esConflictoDeEscritura, esperaAntesDeReintentar } from "@/lib/conflicto-de-escritura";
 import { leerTenantSinTransaccion } from "@/lib/db-pool";
 
 async function resolveTenantId(): Promise<string> {
@@ -224,17 +224,27 @@ export async function tenantTransaction<T>(
     } catch (e) {
       // Serialization_failure/deadlock (Postgres 40001/40P01 → Prisma P2034 en una
       // operación de modelo, P2010 en una consulta cruda, DriverAdapterError crudo del
-      // adaptador pg): la transacción abortó por una concurrente. Reintentar re-corre `fn` entero.
-      if (attempt < maxRetries && isWriteConflict(e)) continue;
+      // adaptador pg): la transacción abortó por una concurrente. Reintentar re-corre `fn` entero,
+      // tras una espera creciente con azar (sin ella, las dos vuelven a chocar en paso de baile).
+      if (attempt < maxRetries && isWriteConflict(e)) {
+        await esperarAntesDeReintentar(attempt);
+        continue;
+      }
       throw e;
     }
   }
 }
 
 // Reintentos por default de una transacción Serializable antes de propagar el
-// conflicto. 3 alcanza de sobra para la contención real de dos reservas del mismo
-// hueco (a la 2ª pasada una ya está commiteada y `assertSlotAvailable` la ve).
-const DEFAULT_SERIALIZABLE_RETRIES = 3;
+// conflicto. Con dos reservas del mismo hueco casi siempre alcanza uno (a la 2ª pasada
+// una ya está commiteada y `assertSlotAvailable` la ve), pero 3 reintentos INMEDIATOS
+// no alcanzaban con el runner de CI cargado: alguna llegó al 5º intento y subió un
+// P2034 crudo (SEG-011, run 42560143758). Ahora son 6, con espera creciente y azar
+// entre uno y otro (`esperaAntesDeReintentar`): peor caso ~0,56 s antes de rendirse.
+const DEFAULT_SERIALIZABLE_RETRIES = 6;
+
+const esperarAntesDeReintentar = (intento: number) =>
+  new Promise<void>((r) => setTimeout(r, esperaAntesDeReintentar(intento)));
 
 /**
  * Postgres `serialization_failure` (SQLSTATE 40001) o deadlock (40P01). Prisma lo
@@ -347,7 +357,10 @@ export async function trasladoTransaction<T>(
         timeout: 15_000,
       });
     } catch (e) {
-      if (attempt < maxRetries && isWriteConflict(e)) continue;
+      if (attempt < maxRetries && isWriteConflict(e)) {
+        await esperarAntesDeReintentar(attempt);
+        continue;
+      }
       throw e;
     }
   }

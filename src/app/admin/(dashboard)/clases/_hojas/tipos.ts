@@ -15,6 +15,23 @@ export interface ClaseAcciones {
   tipo?: string;
   personas?: number;
   motivoCancel?: string | null;
+  /** E8 · De qué clase fija semanal salió (para «Cancelar esta y las que siguen»). */
+  serieId?: string | null;
+  /** E4 · El club (nombre). */
+  club?: string | null;
+  /** E7 · Los integrantes de la grupal (además del titular), cada uno con su parte. */
+  integrantes?: IntegranteAcciones[];
+}
+
+export interface IntegranteAcciones {
+  id: string;
+  nombre: string;
+  telefono: string | null;
+  alumnoId: string | null;
+  monto: number;
+  pagoEstado: string;
+  pagoNota: string | null;
+  comprobante: string | null;
 }
 
 /** Duración en minutos (60 si no se sabe). */

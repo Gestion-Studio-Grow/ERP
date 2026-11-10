@@ -12,14 +12,14 @@
 // LA CONTRASEÑA: se genera acá, se guarda en un archivo local 0600 ANTES de escribir (si algo se cae
 // entre el COMMIT y el mail, no se pierde una clave que ya quedó hasheada), viaja sólo en el mail al
 // titular y el archivo se borra al confirmarse el envío. Sin `mustChangePassword` persistido (la
-// columna es Gate 2, prisma/pending-gate2/MustChangePassword.sql) NO se manda: la regla es que la
+// columna de 20261109120000_must_change_password) el alta se deshace: la regla del dueño es que la
 // provisoria obliga a cambiarse en el primer ingreso (src/lib/ingreso.server.ts → /admin/cambiar-password).
 
 import type { PrismaClient } from "@/generated/prisma/client";
 import { generateStrongPassword } from "@/lib/auth-password";
 import { crearClienteProvisioning } from "@/lib/cartera-core";
 import { interpretarCondicionIva, CONDICIONES_DEL_EMISOR } from "@/lib/fiscal/condicion-iva-emisor";
-import { operatorSetMustChange } from "@/lib/must-change-password";
+import { CAMBIO_OBLIGATORIO_INACTIVO, operatorSetMustChange } from "@/lib/must-change-password";
 import {
   choqueDePuntoDeVenta,
   motivoDeChoque,
@@ -217,7 +217,11 @@ async function escribirEnUnaTransaccion(
     // Web: la clave generada no se entrega a nadie (no sale de la memoria); el titular elige la suya
     // con el enlace de un solo uso. No es una «provisoria» que obligue a cambiar.
     const entrega = web ? "ninguna" : claveAEntregar({ titularCreado: fabrica.ownerCreated, habiaArchivo });
-    const obligaACambiar = entrega === "ninguna" ? false : (await operatorSetMustChange(tx, titular.id, true)).persisted;
+    const obligaACambiar = entrega !== "ninguna";
+    // Regla del dueño (#66): nunca una provisoria sin cambio obligatorio. Sin la columna en la base, se deshace el alta.
+    if (obligaACambiar && !(await operatorSetMustChange(tx, { userId: titular.id, tenantId }, true)).persisted) {
+      throw new RechazoDelAlta(CAMBIO_OBLIGATORIO_INACTIVO);
+    }
 
     const actor = web ? `web:${d.operador}` : `operator:${d.operador}`;
     for (const a of auditar) {
@@ -269,25 +273,17 @@ export async function altaNegocioFactoque(prisma: PrismaClient, d: DatosDelAlta,
   }
 
   const archivo = deps.claves.ruta(d.slug);
+  const m = mailAlTitular({ negocio: d.nombre, titular: d.titular, url, email: d.email, clave });
+  const r = await deps.correo.enviar({ tenantId: w.tenantId, para: d.email, asunto: m.asunto, cuerpo: m.cuerpo }).catch(() => ({
+    sent: false,
+    reason: "el envío falló",
+  }));
   let estado: EstadoDeLaClave;
-  if (!w.obligaACambiar) {
-    estado = {
-      tipo: "pendiente",
-      motivo: "no se manda: falta la columna mustChangePassword en la base (Gate 2, prisma/pending-gate2/MustChangePassword.sql)",
-      archivo,
-    };
+  if (r.sent) {
+    deps.claves.borrar(d.slug);
+    estado = { tipo: "enviada" };
   } else {
-    const m = mailAlTitular({ negocio: d.nombre, titular: d.titular, url, email: d.email, clave });
-    const r = await deps.correo.enviar({ tenantId: w.tenantId, para: d.email, asunto: m.asunto, cuerpo: m.cuerpo }).catch(() => ({
-      sent: false,
-      reason: "el envío falló",
-    }));
-    if (r.sent) {
-      deps.claves.borrar(d.slug);
-      estado = { tipo: "enviada" };
-    } else {
-      estado = { tipo: "pendiente", motivo: `el mail no salió (${r.reason ?? "sin detalle"})`, archivo };
-    }
+    estado = { tipo: "pendiente", motivo: `el mail no salió (${r.reason ?? "sin detalle"})`, archivo };
   }
   return { ...base, clave: estado };
 }

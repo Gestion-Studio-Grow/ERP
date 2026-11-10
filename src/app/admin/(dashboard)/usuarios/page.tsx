@@ -28,6 +28,10 @@ const STATUS_MESSAGES: Record<string, { text: string; ok: boolean }> = {
   error_name: { text: "El nombre no puede estar vacío.", ok: false },
   error_email_invalid: { text: "Ingresá un email válido.", ok: false },
   error_email_taken: { text: "Ya existe un usuario con ese email.", ok: false },
+  error_sin_cambio_obligatorio: {
+    text: "Todavía no se pueden crear usuarios: falta activar el cambio obligatorio de contraseña. Avisale a soporte.",
+    ok: false,
+  },
   error_role: { text: "Elegí un rol válido.", ok: false },
   error_password_short: { text: "La contraseña debe tener al menos 8 caracteres.", ok: false },
   error_self_deactivate: { text: "No podés dar de baja a tu propio usuario.", ok: false },

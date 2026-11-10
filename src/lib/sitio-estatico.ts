@@ -26,6 +26,12 @@ export type ArchivoDelSitio = {
   cache: string;
   /** `false`: una pantalla de gestión (la del club), no una página para buscadores: fuera del sitemap (SEO ronda 2). */
   indexable?: boolean;
+  /**
+   * `true`: sólo con una sesión del panel de ESTE negocio con permiso para el club (lo decide el manejador, que
+   * pasa `conSesion`). Sin ella, una puerta sin la app. Es para las pantallas de gestión: el club de Break Point
+   * (seguridad, 08/11/2026: se servía a cualquiera).
+   */
+  soloConSesion?: boolean;
 };
 
 export type SitioEstatico = {
@@ -78,7 +84,9 @@ export const SITIOS_ESTATICOS: readonly SitioEstatico[] = [
     archivos: {
       "": { archivo: "index.html", ...PAGINA },
       turnero: { archivo: "turnero.html", ...PAGINA },
-      club: { archivo: "club.html", ...PAGINA, indexable: false },
+      // Gestión del club: sólo con sesión del ERP de Break Point (dueño o recepción). Sin caché: al salir del panel
+      // la copia del navegador no la vuelve a mostrar.
+      club: { archivo: "club.html", ...PAGINA, cache: "private, no-store", indexable: false, soloConSesion: true },
     },
   },
   {
@@ -187,6 +195,34 @@ const NO_ENCONTRADO = () =>
   });
 
 /**
+ * Lo que ve quien abre una pantalla de gestión sin sesión: dónde entrar, sin la app. Si llegó con el link de una
+ * aprobación (`#aprobar&…`, sólo lo ve el navegador), le dice cómo aprobarlo. 401, sin caché, sin embeber.
+ */
+export const PUERTA_DEL_CLUB = () =>
+  new Response(
+    `<!doctype html><html lang="es-AR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">` +
+      `<meta name="robots" content="noindex"><title>Entrar al club</title>` +
+      `<body style="font-family:system-ui,sans-serif;max-width:32rem;margin:3rem auto;padding:0 16px;line-height:1.5;color:#111;background:#fff">` +
+      `<h1 style="font-size:1.4rem">La gestión del club se usa desde el sistema</h1>` +
+      `<p id="general">Entrá con tu usuario y tu contraseña: el club abre ahí, con la jornada guardada.</p>` +
+      `<p id="aprobar" hidden>Para aprobar este pedido, entrá con tu usuario de dueño y después volvé a tocar el link del WhatsApp.</p>` +
+      `<p><a href="/admin/login?next=%2Fadmin%2Fclub" style="display:inline-block;padding:12px 18px;background:#111;color:#fff;border-radius:8px;text-decoration:none">Entrar al club</a></p>` +
+      `<script>if(location.hash.indexOf("#aprobar&")===0){document.getElementById("aprobar").hidden=false;document.getElementById("general").hidden=true}</script>` +
+      `</body></html>`,
+    {
+      status: 401,
+      headers: {
+        "content-type": "text/html; charset=utf-8",
+        "cache-control": "no-store",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "content-security-policy": "frame-ancestors 'none'",
+        "x-robots-tag": "noindex",
+      },
+    },
+  );
+
+/**
  * Respuesta del manejador: el archivo del sitio del negocio del host, o 404 sin contenido.
  * `slug` es el negocio que resolvió el host (`null` si no hay ninguno); `leer` recibe la ruta relativa
  * a la raíz del repo (inyectada para testear sin disco).
@@ -195,10 +231,13 @@ export async function responderSitioEstatico(
   slug: string | null,
   segmentos: readonly string[] | undefined,
   leer: (rutaRelativa: string) => Promise<Uint8Array<ArrayBuffer>>,
+  /** `conSesion`: ¿quien pide tiene sesión del panel de este negocio con permiso? Sin él, los `soloConSesion` no se sirven. */
+  opciones: { conSesion?: () => Promise<boolean> } = {},
 ): Promise<Response> {
   const sitio = sitioDelNegocio(slug);
   const archivo = sitio ? archivoPedido(sitio, segmentos) : null;
   if (!sitio || !archivo) return NO_ENCONTRADO();
+  if (archivo.soloConSesion && !(await (opciones.conSesion?.() ?? Promise.resolve(false)))) return PUERTA_DEL_CLUB();
   const cuerpo = await leer(`${sitio.carpeta}/${archivo.archivo}`);
   return new Response(cuerpo, {
     status: 200,

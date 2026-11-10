@@ -15,6 +15,7 @@ import { CampoClave } from "./CampoClave";
 import { CampoEmail } from "./CampoEmail";
 import HojaDeIngreso from "./HojaDeIngreso";
 import type { AvisoDeIngreso } from "./login-core";
+import type { ProductoConMarca } from "@/lib/producto-identidad";
 
 const ROTULO_CAMPO = "text-[11.5px] font-semibold uppercase tracking-[.06em] text-muted";
 const RENGLON_CAMPO = "grid gap-1.5 border-b border-line py-3 sm:grid-cols-[8rem_1fr] sm:items-center sm:gap-4";
@@ -22,6 +23,7 @@ const RENGLON_CAMPO = "grid gap-1.5 border-b border-line py-3 sm:grid-cols-[8rem
 export default function LoginRenglon({
   marcaNombre,
   marcaMonograma,
+  producto,
   hoy,
   antetitulo,
   titulo,
@@ -33,6 +35,7 @@ export default function LoginRenglon({
 }: {
   marcaNombre: string;
   marcaMonograma: string;
+  producto?: ProductoConMarca | null;
   hoy: string;
   antetitulo?: string;
   titulo: string;
@@ -43,7 +46,7 @@ export default function LoginRenglon({
   mostrarAyudaClave: boolean;
 }) {
   return (
-    <HojaDeIngreso marcaNombre={marcaNombre} marcaMonograma={marcaMonograma} hoy={hoy} lema={lema}>
+    <HojaDeIngreso marcaNombre={marcaNombre} marcaMonograma={marcaMonograma} producto={producto} hoy={hoy} lema={lema}>
       <div className="mt-8">
         {antetitulo && <Rotulo className="mb-1">{antetitulo}</Rotulo>}
         <h1 id="login-titulo" className="text-[26px] font-semibold leading-tight text-strong">
@@ -53,7 +56,14 @@ export default function LoginRenglon({
       </div>
 
       {aviso && (
-        <div role="alert" className="mt-6 border-y border-danger/40 bg-danger-soft px-3 py-2.5 text-sm text-danger">
+        <div
+          role={aviso.informativo ? "status" : "alert"}
+          className={
+            aviso.informativo
+              ? "mt-6 border-y border-line bg-surface-sunken px-3 py-2.5 text-sm text-strong"
+              : "mt-6 border-y border-danger/40 bg-danger-soft px-3 py-2.5 text-sm text-danger"
+          }
+        >
           <strong className="font-semibold">{aviso.titulo}</strong> {aviso.detalle}
         </div>
       )}
@@ -64,7 +74,7 @@ export default function LoginRenglon({
           <label htmlFor="login-email" data-ui="rotulo" className={ROTULO_CAMPO}>
             Email
           </label>
-          <CampoEmail conError={aviso !== null} className="min-h-11" />
+          <CampoEmail conError={aviso !== null && !aviso.informativo} className="min-h-11" />
         </div>
         <div className={RENGLON_CAMPO}>
           <label htmlFor="login-password" data-ui="rotulo" className={ROTULO_CAMPO}>

@@ -8,8 +8,8 @@
 #        (el token del destino con permiso de push; puede ser un PAT o un fine-grained token).
 #   3. Listo: corre cada 6 h, en cada push y a mano (workflow_dispatch). Sin el secret, no hace nada (sale OK).
 #
-# Nota: `git push --mirror` deja el backup IDÉNTICO al origen (incluye borrados de ref). Es el comportamiento
-# buscado de un espejo. Si preferís un backup acumulativo, cambiá `--mirror` por `--all --tags --force-with-lease`.
+# Nota: se espejan sólo ramas y tags (`--prune` replica los borrados). No se usa `--mirror` porque intenta
+# copiar refs/pull/* y GitHub las rechaza (corrida 42564205591).
 name: mirror-backup
 
 on:
@@ -29,6 +29,7 @@ concurrency:
 jobs:
   mirror:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Espejar a remoto de backup
         env:
@@ -43,6 +44,6 @@ jobs:
           echo "Clonando espejo del origen…"
           git clone --mirror "$SRC_URL" repo.git
           cd repo.git
-          echo "Pusheando --mirror al backup…"
-          git push --mirror "$MIRROR_REPO_URL"
+          echo "Pusheando ramas y tags al backup…"
+          git push --prune "$MIRROR_REPO_URL" '+refs/heads/*:refs/heads/*' '+refs/tags/*:refs/tags/*'
           echo "::notice::Mirror/backup completado."

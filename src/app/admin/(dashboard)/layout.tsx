@@ -11,6 +11,7 @@ import GlobalLoadingProvider from "./GlobalLoadingProvider";
 import { VocabularioDelNegocio } from "./VocabularioDelNegocio";
 import { vocabularioDelNegocio } from "@/lib/vocabulario-negocio";
 import DemoBanner from "./DemoBanner";
+import VigiaDeInactividad from "./VigiaDeInactividad";
 import { requireUser } from "@/lib/authz";
 import { mustChangePasswordFor } from "@/lib/must-change-password";
 import { permisoEfectivo } from "@/lib/capabilities";
@@ -46,7 +47,7 @@ import { pestanaDelPedido } from "@/lib/pestana";
 import { tenantBrandSheetEnabled } from "@/lib/identity";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import { PIEL_RENGLON } from "@/lib/diseno/diseno";
-import { armarNavegacion } from "./armazon/navegacion";
+import { appsDeInterruptores, armarNavegacion } from "./armazon/navegacion";
 import { ConDiseno } from "@/lib/diseno/ConDiseno";
 import type { CSSProperties } from "react";
 import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
@@ -129,8 +130,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   // PORTÓN DE CAMBIO FORZADO: si la contraseña del usuario está marcada como temporal (reset del
   // operador), no lo dejamos usar el backoffice hasta que defina una nueva. La pantalla de cambio
-  // vive FUERA de (dashboard) → no hereda este layout → sin loop de redirect. Fail-safe: sin la
-  // columna (Gate 2 sin aplicar) devuelve false y no gatea nada.
+  // vive FUERA de (dashboard) → no hereda este layout → sin loop de redirect. Sin la columna
+  // devuelve false (sin ella no se emiten provisorias); ante otro error, true (falla cerrado).
   if (await mustChangePasswordFor({ id: user.id, tenantId: user.tenantId })) {
     redirect("/admin/cambiar-password");
   }
@@ -251,7 +252,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // CO-MARCA (29/10/2026): TODOS los negocios llevan su logo arriba — el de su estética, su logo real o el tipográfico
   // «provisional a confirmar» (LogoDelNegocio) — y GSG firma al pie (FirmaGSG, en el shell).
   const logo = <LogoDelNegocio estetica={estetica} nombre={brandName} slug={slugDelNegocio} monograma={monogram} />;
-  const negocioApps = await getNegocioApps(user.role);
+  const negocioApps = await getNegocioApps(user.role, user.overrides);
   const visiblesDelNegocio = appsVisibles(negocioApps);
   // PANEL DE CASA: un negocio cuyo backoffice es UNA app (Break Point → el club) no ve el menú del ERP. Cualquier
   // otra pantalla de /admin (el Inicio incluido) rebota a su casa; quedan Usuarios y «Salir». Sin módulo con
@@ -296,7 +297,17 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // las MISMAS apps que ya decidió `appsVisibles`. Apagado no se arma ni viaja: CH recibe los mismos
   // props de siempre (armazon/armazon-ch.test.ts).
   const nav = nuevo
-    ? armarNavegacion({ visibles, menu, modoApps, esMostrador: negocioApps.esMostrador, role: user.role, overrides: user.overrides })
+    ? armarNavegacion({
+        visibles,
+        menu,
+        modoApps,
+        esMostrador: negocioApps.esMostrador,
+        role: user.role,
+        overrides: user.overrides,
+        // CH · «Vouchers de La Alameda»: con el interruptor prendido y permiso, entra al menú (sin
+        // pantalla en el lanzador de siempre). Panel de gestión (`actor`): no se suma.
+        extras: actor ? [] : appsDeInterruptores(interruptores, negocioApps),
+      })
     : undefined;
 
   // CHIP DE PEDIDOS NUEVOS (Magra 1I, MG-054): sólo con el mostrador boutique prendido y para quien
@@ -360,6 +371,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <AdminThemeScript nuevo={nuevo || modoApps} />
       {/* Banda de "modo demo" — solo aparece en el deploy de demo; null en real. */}
       <DemoBanner />
+      {/* 15 min sin uso real → PIN, aunque los sondeos automáticos renueven la cookie (GSG-SEG-004). */}
+      <VigiaDeInactividad />
       {/* Diseño nuevo: sus hojas y `useDiseno()` para el shell y las pantallas. Apagado devuelve su
           único hijo tal cual, en el mismo lugar: ni un nodo ni una referencia de más. */}
       <ConDiseno nuevo={nuevo}>

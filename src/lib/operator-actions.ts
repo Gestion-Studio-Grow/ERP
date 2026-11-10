@@ -32,12 +32,13 @@ import { cargarCertificadoDelPedido, generarPedidoDelNegocio } from "@/lib/fisca
 import { TOPE_CERTIFICADO_BYTES } from "@/lib/fiscal/asistente-arca";
 import { CONDICIONES_DEL_EMISOR, interpretarCondicionIva } from "@/lib/fiscal/condicion-iva-emisor";
 import { interpretarCuitInput } from "@/lib/fiscal/cuit-input";
-import { operatorSetMustChange } from "@/lib/must-change-password";
+import { CambioObligatorioInactivo, operatorSetMustChange } from "@/lib/must-change-password";
+import { operatorResetPort, ownersActivos } from "@/lib/operador/owner-reset-port";
+import { elegirOwner } from "@/lib/operador/elegir-owner";
 import { altaPersonaCore, type AltaPersonaPort, type AltaPersonaResult } from "@/lib/operador/alta-persona";
 import { decidirAltaDeUsuarioEnTx } from "@/lib/usuarios-del-plan";
 import {
   resetOwnerPasswordCore,
-  type OwnerResetPort,
   type OwnerResetResult,
   type OwnerResetRow,
 } from "@/lib/owner-password-reset";
@@ -63,6 +64,8 @@ import {
 import { todosApagados, trabajaPorApps } from "@/cambios/interruptores-core";
 import { aplicarPase } from "@/lib/operador/pase-a-real.server";
 import { modoDesdeEnv } from "@/plugins/arca";
+import { leerCambioDePlanFactoque } from "@/lib/facturita-planes";
+import { ACCION_PLAN_FACTOQUE, BLUEPRINT_CON_TOPE } from "@/lib/facturacion/plan-factoque.server";
 
 // --- Sesión de operador -------------------------------------------------------
 
@@ -125,8 +128,52 @@ export async function setTenantPlan(formData: FormData) {
   const tenantId = String(formData.get("tenantId") || "");
   const plan = String(formData.get("plan") || "").trim() || null;
   const { nombre: op } = await requireOperadorParaNegocio({ id: tenantId });
+  // Los planes de Factoque se cambian SÓLO por `cambiarPlanFactoque` (candado del cupo y vigencia):
+  // por acá quedarían sin vencimiento (certificación T2).
+  if (plan && /^factoque-/i.test(plan)) {
+    redirect(`/operador/tenants/${tenantId}?error=${encodeURIComponent("Los planes de Factoque se cambian en «Plan de Factoque».")}`);
+  }
   await actualizarTenantAuditado(op, tenantId, "tenant.plan", { plan });
   redirect(`/operador/tenants/${tenantId}?ok=plan`);
+}
+
+/**
+ * «Cambiar plan» de Factoque (T2): Gratis / Plus / Pro, con vencimiento opcional, para la venta
+ * por transferencia. Escribe `Tenant.plan` y la fila de auditoría (`ACCION_PLAN_FACTOQUE`) en la
+ * MISMA transacción; la fila guarda la vigencia (no hay columna: Gate 2). Toma el candado del cupo
+ * del negocio, el mismo que la emisión: una emisión en curso termina con el plan con el que empezó
+ * a contar y la siguiente ya ve el nuevo. Bajar de plan no borra nada: bloquea la siguiente.
+ */
+export async function cambiarPlanFactoque(formData: FormData) {
+  const tenantId = String(formData.get("tenantId") || "");
+  const { nombre: op } = await requireOperadorParaNegocio({ id: tenantId });
+  const cambio = leerCambioDePlanFactoque(formData.get("plan"), formData.get("vigenciaHasta"));
+  const volver = `/operador/tenants/${tenantId}`;
+  if (!cambio.ok) redirect(`${volver}?error=${encodeURIComponent(cambio.error)}`);
+  const hecho = await operatorPrisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`;
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`facturita-cupo:${tenantId}`}))`;
+    const antes = await tx.tenant.findUnique({ where: { id: tenantId }, select: { plan: true, blueprintId: true } });
+    if (!antes) return "notfound" as const;
+    if (antes.blueprintId !== BLUEPRINT_CON_TOPE) return "noFactoque" as const;
+    await tx.tenant.update({ where: { id: tenantId }, data: { plan: cambio.plan } });
+    await tx.auditLog.create({
+      data: {
+        tenantId,
+        actor: `operator:${op}`,
+        action: ACCION_PLAN_FACTOQUE,
+        entity: "Tenant",
+        entityId: tenantId,
+        changes: { antes: { plan: antes.plan }, despues: { plan: cambio.plan, vigenciaHasta: cambio.vigenciaHasta } },
+      },
+    });
+    return "ok" as const;
+  });
+  if (hecho === "notfound") redirect("/operador?error=notfound");
+  if (hecho === "noFactoque") redirect(`${volver}?error=${encodeURIComponent("Este negocio no es de Factoque: su plan se cambia en «Plan del negocio».")}`);
+  revalidatePath(volver);
+  revalidatePath("/operador");
+  redirect(`${volver}?ok=plan`);
 }
 
 export async function setTenantBranding(formData: FormData) {
@@ -495,36 +542,17 @@ export async function cambiarFacturacionReal(formData: FormData) {
 // PORT armado sobre UNA transacción parada en el negocio (`enElNegocio`): con RLS es lo que deja
 // ver al OWNER y escribirle; y la contraseña, el cambio forzado y la auditoría quedan todos o
 // ninguno. El núcleo (`resetOwnerPasswordCore`) es puro y no conoce Prisma → testeable con un
-// doble en memoria.
-function operatorResetPort(tx: Prisma.TransactionClient): OwnerResetPort {
-  return {
-    findOwner: (tid) =>
-      tx.user.findFirst({
-        where: { tenantId: tid, role: "OWNER", active: true, deletedAt: null },
-        orderBy: { createdAt: "asc" },
-        select: { id: true, email: true },
-      }),
-    setPasswordHash: async (userId, passwordHash) => {
-      await tx.user.update({ where: { id: userId }, data: { passwordHash } });
-    },
-    setMustChange: (userId, value) => operatorSetMustChange(tx, userId, value),
-    audit: async (entry) => {
-      await tx.auditLog.create({
-        data: { ...entry, changes: entry.changes as Prisma.InputJsonValue },
-      });
-    },
-  };
-}
+// doble en memoria. El puerto vive en `src/lib/operador/owner-reset-port.ts`.
 
 // Alta de UNA persona en un negocio desde la consola (ver alta-persona.ts). Todo en la transacción del
 // negocio: el tope del plan, el alta, el cambio forzado y la auditoría quedan todos o ninguno.
-function altaPersonaPort(tx: Prisma.TransactionClient): AltaPersonaPort {
+function altaPersonaPort(tx: Prisma.TransactionClient, tenantId: string): AltaPersonaPort {
   return {
     existeEmail: async (tid, email) => (await tx.user.findFirst({ where: { tenantId: tid, email }, select: { id: true } })) !== null,
     // `decidirAltaDeUsuarioEnTx` espera la transacción del negocio; ésta lo es (enElNegocio).
     decidirTope: (tid) => decidirAltaDeUsuarioEnTx(tx as unknown as Parameters<typeof decidirAltaDeUsuarioEnTx>[0], tid),
     crear: (data) => tx.user.create({ data, select: { id: true } }),
-    setMustChange: (userId, value) => operatorSetMustChange(tx, userId, value),
+    setMustChange: (userId, value) => operatorSetMustChange(tx, { userId, tenantId }, value),
     audit: async (entry) => {
       await tx.auditLog.create({ data: { ...entry, changes: entry.changes as Prisma.InputJsonValue } });
     },
@@ -540,28 +568,43 @@ export async function altaPersonaDeTenant(
   const op = g.sesion.nombre;
   try {
     const result = await enElNegocio(tenantId, (tx) =>
-      altaPersonaCore(altaPersonaPort(tx), { tenantId, operatorSubject: op, entrada }),
+      altaPersonaCore(altaPersonaPort(tx, tenantId), { tenantId, operatorSubject: op, entrada }),
     );
     if (result.ok) {
       revalidatePath(`/operador/tenants/${tenantId}`);
       revalidatePath("/operador");
     }
     return result;
-  } catch {
+  } catch (e) {
+    // Sin el cambio obligatorio activo, el alta se deshizo entera (la tira altaPersonaCore).
+    if (e instanceof CambioObligatorioInactivo) return { ok: false, error: e.message };
     // Carrera de unicidad (otro alta con el mismo email entre el chequeo y el create): no se crea.
     return { ok: false, error: "No se pudo dar de alta: ese email ya existe en el negocio, o la base rechazó el alta. No se creó nada." };
   }
 }
 
-export async function resetOwnerPassword(tenantId: string): Promise<OwnerResetResult> {
-  const g = await operadorParaNegocio({ id: tenantId });
-  if (!g.ok) return { ok: false, error: g.motivo };
-  const op = g.sesion.nombre;
-  const result = await enElNegocio(tenantId, (tx) =>
-    resetOwnerPasswordCore(operatorResetPort(tx), { tenantId, operatorSubject: op }),
-  );
-  if (result.ok) revalidatePath(`/operador/tenants/${tenantId}`);
-  return result;
+// A QUIÉN se resetea, decidido ANTES de escribir y dentro de la misma transacción del negocio: la
+// lista de OWNER activos sale de `ownersActivos` y la regla es `elegirOwner` (la misma que el script
+// del responsable de seguridad). Sin `ownerId` y con más de uno, se niega: antes el puerto tomaba
+// al más antiguo, que podía ser otra persona. Un `ownerId` de otro negocio, inactivo o que no es
+// OWNER no está en la lista: se niega sin tocar nada. Recién con el elegido se escribe.
+async function resetearOwnerElegido(tenantId: string, op: string, ownerId?: string): Promise<OwnerResetResult> {
+  return enElNegocio(tenantId, async (tx): Promise<OwnerResetResult> => {
+    const eleccion = elegirOwner(await ownersActivos(tx, tenantId), { ownerId });
+    if (!eleccion.ok) {
+      const error =
+        eleccion.motivo === "varios"
+          ? "Hay más de un dueño activo: elegí a cuál le cambiás la contraseña. No se tocó nada."
+          : eleccion.motivo === "no-coincide"
+            ? "Esa persona no es un dueño activo de este negocio. No se tocó nada."
+            : "Este negocio no tiene un dueño activo: no hay a quién resetearle la contraseña. No se tocó nada.";
+      return { ok: false, error };
+    }
+    return resetOwnerPasswordCore(operatorResetPort(tx, tenantId, { ownerId: eleccion.ownerId }), {
+      tenantId,
+      operatorSubject: op,
+    });
+  });
 }
 
 // --- Reset de OWNER: por qué YA NO existe la versión masiva --------------------
@@ -601,9 +644,11 @@ export async function resetAllOwnerPasswords(): Promise<
 // operador está viendo en pantalla: obliga a mirar A QUIÉN le está cambiando la contraseña, que
 // es justo el paso que el botón masivo se salteaba. Devuelve la temporal UNA vez (sólo en el
 // retorno: nunca se persiste en claro, nunca se loguea, no va por la URL) y queda auditado.
+// Con más de un dueño activo hay que pasar `ownerId` (el que el operador eligió en la ficha).
 export async function resetOwnerPasswordDeTenant(
   tenantId: string,
   slugTipeado: string,
+  ownerId?: string,
 ): Promise<OwnerResetResult> {
   const g = await operadorParaNegocio({ id: tenantId });
   if (!g.ok) return { ok: false, error: g.motivo };
@@ -624,9 +669,8 @@ export async function resetOwnerPasswordDeTenant(
     };
   }
 
-  const result = await enElNegocio(tenantId, (tx) =>
-    resetOwnerPasswordCore(operatorResetPort(tx), { tenantId, operatorSubject: op }),
-  );
+  // Con más de un dueño activo la ficha obliga a elegir: `ownerId` es el elegido (se valida igual acá).
+  const result = await resetearOwnerElegido(tenantId, op, typeof ownerId === "string" ? ownerId : undefined);
   if (result.ok) {
     revalidatePath(`/operador/tenants/${tenantId}`);
     revalidatePath("/operador");

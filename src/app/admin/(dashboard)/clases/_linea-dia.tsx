@@ -1,7 +1,7 @@
 // LA LÍNEA DEL DÍA (matias-DISENO.md §2.3 · M-056/M-059/M-065): las clases, los huecos libres y
 // los bloqueos de un día, en orden de hora. Una clase se abre con un toque y muestra las MISMAS
 // acciones que en Hoy (AccionesClase). Un hueco «18:00 libre ＋» abre Agendar con día y hora
-// puestos. Un bloqueo se ve tachado y se puede quitar. Servidor (las acciones son de cliente).
+// puestos. Un bloqueo se ve tachado y se puede quitar (sólo quien gestiona Clases: `gestiona`). Servidor (las acciones son de cliente).
 // No se anima: se ve cien veces al día.
 
 import Link from "next/link";
@@ -31,6 +31,9 @@ export function aAcciones(c: ClasePanel): ClaseAcciones {
     tipo: c.tipo,
     personas: c.personas,
     motivoCancel: c.motivoCancel,
+    serieId: c.serieId,
+    club: c.club,
+    integrantes: c.integrantes,
   };
 }
 
@@ -38,12 +41,17 @@ export function aAcciones(c: ClasePanel): ClaseAcciones {
 export const delDia = (clases: readonly ClasePanel[]): ClaseDelDia[] =>
   clases.map((c) => ({ id: c.id, nombre: c.nombre, empiezaEn: c.empiezaEn, terminaEn: c.terminaEn, estado: c.estado }));
 
-/** «Individual · $25.000 · Pagada» (lo que se lee en la fila, sin abrirla). */
-export function detalleClase(c: Pick<ClasePanel, "tipo" | "personas" | "precio" | "pagoEstado" | "estado" | "dadas">): string {
+/**
+ * «Individual · $25.000 · Pagada» (lo que se lee en la fila, sin abrirla). Sin `conPlata` (el
+ * PROFESSIONAL, `veLaPlataDelDia`), sin precio ni estado del pago.
+ */
+export function detalleClase(c: Pick<ClasePanel, "tipo" | "personas" | "precio" | "pagoEstado" | "estado" | "dadas"> & Partial<Pick<ClasePanel, "club" | "serieId">>, conPlata = true): string {
   return [
+    c.club ? `En ${c.club}` : null,
     c.tipo === "GRUPAL" ? `Con amigos · ${c.personas}` : "Individual",
-    c.precio > 0 ? plataTexto(c.precio) : null,
-    ["CONFIRMADA", "DADA"].includes(c.estado) ? PAGO_LABEL[c.pagoEstado as EstadoPago] : null,
+    c.serieId ? "fija semanal" : null,
+    conPlata && c.precio > 0 ? plataTexto(c.precio) : null,
+    conPlata && ["CONFIRMADA", "DADA"].includes(c.estado) ? PAGO_LABEL[c.pagoEstado as EstadoPago] : null,
     c.dadas === 0 ? "alumno nuevo" : null,
   ]
     .filter(Boolean)
@@ -52,8 +60,11 @@ export function detalleClase(c: Pick<ClasePanel, "tipo" | "personas" | "precio" 
 
 export const filaClase = "rounded-2xl border border-line border-l-4 bg-surface-raised";
 
-/** Una clase plegada: hora · nombre · estado; al tocarla, sus acciones. */
-export function FilaClase({ c, otras, recordada = false, qa }: { c: ClasePanel; otras: readonly ClaseDelDia[]; recordada?: boolean; qa: string }) {
+/**
+ * Una clase plegada: hora · nombre · estado; al tocarla, sus acciones. Sin `conPlata` (el
+ * PROFESSIONAL) no hay acciones (todas exigen agenda:manage) ni plata: la clase no viaja al cliente.
+ */
+export function FilaClase({ c, otras, recordada = false, qa, conPlata = true }: { c: ClasePanel; otras: readonly ClaseDelDia[]; recordada?: boolean; qa: string; conPlata?: boolean }) {
   return (
     <li className={filaClase} style={{ borderLeftColor: tonoEstado(c.estado) }} data-qa={qa}>
       <details className="group">
@@ -61,13 +72,14 @@ export function FilaClase({ c, otras, recordada = false, qa }: { c: ClasePanel; 
           <span className="flex min-w-0 items-baseline gap-2">
             <span className="text-lg font-bold tabular-nums text-strong">{horaHumana(new Date(c.empiezaEn))}</span>
             <span className="truncate font-semibold text-strong">{c.nombre}</span>
+            {c.club && <span className="truncate text-sm text-muted" data-qa="club-clase">{c.club}</span>}
             {recordada && <span className="text-xs font-semibold text-muted" data-qa="recordado">✓ recordado</span>}
           </span>
-          <ChipEstado estado={c.estado} pago={c.pagoEstado} />
+          <ChipEstado estado={c.estado} pago={conPlata ? c.pagoEstado : undefined} />
         </summary>
         <div className="grid gap-3 px-4 pb-4">
-          <p className="text-sm text-muted">{detalleClase(c)}</p>
-          <AccionesClase c={aAcciones(c)} otras={otras} />
+          <p className="text-sm text-muted">{detalleClase(c, conPlata)}</p>
+          {conPlata && <AccionesClase c={aAcciones(c)} otras={otras} />}
         </div>
       </details>
     </li>
@@ -82,6 +94,8 @@ export function LineaDelDia({
   recordadas = [],
   otras: otrasDadas,
   qa = "clase-dia",
+  conPlata = true,
+  gestiona,
 }: {
   fecha: string;
   clases: readonly ClasePanel[];
@@ -91,13 +105,27 @@ export function LineaDelDia({
   /** Todas las clases del día (si `clases` es sólo una parte, como «El resto de hoy»). */
   otras?: readonly ClaseDelDia[];
   qa?: string;
+  /** false para el PROFESSIONAL: ver `FilaClase`. */
+  conPlata?: boolean;
+  /**
+   * `gestionaClases`: el hueco abre Agendar y el bloqueo se puede quitar (agendarClase y
+   * quitarBloqueo exigen agenda:manage). Sin él (el PROFESSIONAL), se ven y no se tocan.
+   */
+  gestiona: boolean;
 }) {
   const items = lineaDelDia({ fecha, clases, huecos, bloqueos });
   const otras = otrasDadas ?? delDia(clases);
   return (
     <ul className="grid gap-2">
       {items.map((it) => {
-        if (it.tipo === "clase") return <FilaClase key={it.clave} c={it.clase} otras={otras} recordada={recordadas.includes(it.clase.id)} qa={qa} />;
+        if (it.tipo === "clase") return <FilaClase key={it.clave} c={it.clase} otras={otras} recordada={recordadas.includes(it.clase.id)} qa={qa} conPlata={conPlata} />;
+        if (it.tipo === "hueco" && !gestiona)
+          return (
+            <li key={it.clave} className="flex min-h-12 items-center gap-2 rounded-2xl border border-dashed border-line-strong px-4 text-muted" data-qa="hueco-solo-lectura">
+              <span className="text-lg font-bold tabular-nums">{it.hora}</span>
+              <span>libre</span>
+            </li>
+          );
         if (it.tipo === "hueco")
           return (
             <li key={it.clave}>
@@ -121,12 +149,14 @@ export function LineaDelDia({
               <span aria-hidden>░ </span>
               {it.todoElDia ? "Día bloqueado" : `Bloqueado ${it.desde}–${it.hasta}`}
             </span>
+            {gestiona && (
             <form action={quitarBloqueo}>
               <input type="hidden" name="id" value={it.clave.slice(2)} />
               <button type="submit" className="min-h-12 px-2 font-semibold text-strong underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus" data-qa="quitar-bloqueo">
                 Quitar
               </button>
             </form>
+            )}
           </li>
         );
       })}

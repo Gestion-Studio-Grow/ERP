@@ -137,11 +137,31 @@ export function etiquetaPago(c: Pick<ClaseVista, "pagoEstado" | "pagoMedio" | "p
   return base;
 }
 
-/** La línea grande de la cuenta: lo que debe manda; si no, el saldo; si no, al día. */
-export function lineaDeCuenta(p: { debe: number; clasesQueDebe: number; saldoAFavor: number }): { titulo: string; tono: "debe" | "favor" | "al-dia" } {
+/**
+ * La línea grande de la cuenta: lo que debe manda; si no, sus partes de integrante por pagar (QA E7:
+ * nunca «Estás al día» con su parte sin pagar); si no, el saldo; si no, al día.
+ */
+export function lineaDeCuenta(p: { debe: number; clasesQueDebe: number; saldoAFavor: number; partesPorPagar?: { monto: number; cantidad: number } }): { titulo: string; tono: "debe" | "por-pagar" | "favor" | "al-dia" } {
   if (p.debe > 0) return { titulo: `Debés ${pesos(p.debe)} · ${p.clasesQueDebe} clase${p.clasesQueDebe === 1 ? "" : "s"}`, tono: "debe" };
+  const pp = p.partesPorPagar;
+  if (pp && pp.monto > 0) return { titulo: `Tenés ${pesos(pp.monto)} por pagar · ${pp.cantidad} clase${pp.cantidad === 1 ? "" : "s"} con amigos`, tono: "por-pagar" };
   if (p.saldoAFavor > 0) return { titulo: `Tenés ${pesos(p.saldoAFavor)} a favor`, tono: "favor" };
   return { titulo: "Estás al día", tono: "al-dia" };
+}
+
+/**
+ * «Tu próxima»: la primera entre sus clases vivas y las grupales donde es integrante que todavía
+ * no terminaron. Devuelve cuál ganó; las clases propias que no ganaron siguen en «Próximas».
+ */
+export function elegirProxima<C extends { empiezaEn: Date }, P extends { empiezaEn: Date; viene: boolean }>(
+  vivas: readonly C[],
+  partes: readonly P[],
+): { tipo: "clase"; clase: C; otras: C[] } | { tipo: "parte"; parte: P; otras: C[] } | null {
+  const parte = partes.filter((p) => p.viene).sort((a, b) => +a.empiezaEn - +b.empiezaEn)[0];
+  const [clase, ...resto] = vivas;
+  if (parte && (!clase || +parte.empiezaEn < +clase.empiezaEn)) return { tipo: "parte", parte, otras: [...vivas] };
+  if (clase) return { tipo: "clase", clase, otras: resto };
+  return null;
 }
 
 /** «Cómo llegar»: Google Maps con la dirección que cargó el profe (null si no cargó ninguna). */

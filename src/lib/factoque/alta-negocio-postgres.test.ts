@@ -2,14 +2,14 @@
  * Alta Factoque contra Postgres de verdad: base efímera con RLS, conectada como `app_rls` (la
  * conexión de la consola en producción). Datos ficticios. Cubre: alta completa, idempotencia
  * (re-correr no duplica), completar lo que falta, no pisar datos fiscales, candado del punto de
- * venta, la regla «sin mustChangePassword no se manda la clave» (columna Gate 2) y que la
+ * venta, la regla «sin mustChangePassword no hay provisoria» (se deshace el alta) y que la
  * contraseña no sale por consola ni por la salida del script.
  *
  * Sin Postgres local se saltea diciendo por qué (en CI falla).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, statSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { apuntarLaAppA, baseEfimeraDelArchivo, prismaComoDuenio } from "@/test/base-efimera";
@@ -80,17 +80,32 @@ test("alta Factoque de punta a punta: crear, re-correr, entregar la clave, no pi
   const deps = { claves, correo };
   await columnaMustChange(duenio, false);
 
-  // 1) Sin la columna (Gate 2 sin aplicar): se crea todo, pero la clave NO se manda.
-  const uno = await capturarConsola(() => p.altaNegocioFactoque(app, datos("kiosco-ficticio"), deps));
-  assert.equal(uno.r.negocioCreado, true);
-  assert.equal(uno.r.url, "https://kiosco-ficticio.gsgapp.com.ar/facturita/app");
-  assert.equal(uno.r.clave.tipo, "pendiente");
+  // 1) Sin la columna (migración sin aplicar): no se emite una provisoria sin cambio obligatorio (#66).
+  //    El alta se deshace entera y la clave recién generada no queda en disco.
+  //    (Con la columna en schema.prisma ya falla el alta del usuario; si no, la guarda del alta. Las dos deshacen.)
+  await assert.rejects(p.altaNegocioFactoque(app, datos("kiosco-ficticio"), deps));
+  assert.equal(await duenio.tenant.count({ where: { slug: "kiosco-ficticio" } }), 0, "la transacción volvió atrás");
+  assert.equal(claves.leer("kiosco-ficticio"), null);
   assert.equal(mails.length, 0);
-  const clave = claves.leer("kiosco-ficticio");
-  assert.ok(clave);
-  assert.equal(statSync(claves.ruta("kiosco-ficticio")).mode & 0o777, 0o600);
+
+  // 2) Con la columna: crea todo, marca el cambio obligatorio y manda el mail aparte.
+  await columnaMustChange(duenio, true);
+  const tres = await capturarConsola(() => p.altaNegocioFactoque(app, datos("kiosco-ficticio"), deps));
+  assert.equal(tres.r.negocioCreado, true);
+  assert.equal(tres.r.url, "https://kiosco-ficticio.gsgapp.com.ar/facturita/app");
+  assert.equal(tres.r.clave.tipo, "enviada");
+  assert.equal(mails.length, 1);
+  assert.equal(mails[0].para, "titular@ficticio.test");
+  const clave = /Contraseña provisoria: (\S+)/.exec(mails[0].cuerpo)![1];
+  assert.ok(mails[0].cuerpo.includes(tres.r.url));
+  assert.equal(claves.leer("kiosco-ficticio"), null, "al salir el mail se borra el archivo");
 
   const t1 = await duenio.tenant.findUniqueOrThrow({ where: { slug: "kiosco-ficticio" } });
+  const [flag] = await duenio.$queryRawUnsafe<{ mustChangePassword: boolean }[]>(
+    `SELECT "mustChangePassword" FROM "User" WHERE "tenantId" = $1`,
+    t1.id,
+  );
+  assert.equal(flag.mustChangePassword, true);
   assert.equal(t1.blueprintId, "facturita");
   assert.equal(t1.arcaCuit, CUIT);
   assert.equal(t1.arcaPuntoVenta, 7);
@@ -101,32 +116,7 @@ test("alta Factoque de punta a punta: crear, re-correr, entregar la clave, no pi
   const u1 = await duenio.user.findMany({ where: { tenantId: t1.id } });
   assert.equal(u1.length, 1);
   assert.equal(u1[0].role, "OWNER");
-  assert.ok(await p.verifyPassword(clave!, u1[0].passwordHash));
-  const { roleHasCapability } = await import("@/lib/capabilities");
-  assert.ok(roleHasCapability("OWNER", "billing:manage"));
-
-  // 2) Re-correr igual: no duplica nada, la clave sigue pendiente (misma clave, mismo archivo).
-  const dos = await p.altaNegocioFactoque(app, datos("kiosco-ficticio"), deps);
-  assert.equal(dos.negocioCreado, false);
-  assert.deepEqual(dos.completado, []);
-  assert.equal(dos.clave.tipo, "pendiente");
-  assert.equal(claves.leer("kiosco-ficticio"), clave);
-  assert.equal(await duenio.tenant.count({ where: { slug: "kiosco-ficticio" } }), 1);
-  assert.equal(await duenio.user.count({ where: { tenantId: t1.id } }), 1);
-
-  // 3) Con la columna: la misma corrida marca el cambio obligatorio y manda el mail aparte.
-  await columnaMustChange(duenio, true);
-  const tres = await capturarConsola(() => p.altaNegocioFactoque(app, datos("kiosco-ficticio"), deps));
-  assert.equal(tres.r.clave.tipo, "enviada");
-  assert.equal(mails.length, 1);
-  assert.equal(mails[0].para, "titular@ficticio.test");
-  assert.ok(mails[0].cuerpo.includes(clave!) && mails[0].cuerpo.includes(tres.r.url));
-  assert.equal(claves.leer("kiosco-ficticio"), null, "al salir el mail se borra el archivo");
-  const [flag] = await duenio.$queryRawUnsafe<{ mustChangePassword: boolean }[]>(
-    `SELECT "mustChangePassword" FROM "User" WHERE "tenantId" = $1`,
-    t1.id,
-  );
-  assert.equal(flag.mustChangePassword, true);
+  assert.ok(await p.verifyPassword(clave, u1[0].passwordHash));
 
   // 4) Otra vez: nada que entregar, no se toca la contraseña ni se manda nada.
   const cuatro = await p.altaNegocioFactoque(app, datos("kiosco-ficticio"), deps);
@@ -135,11 +125,11 @@ test("alta Factoque de punta a punta: crear, re-correr, entregar la clave, no pi
   assert.equal((await duenio.user.findFirstOrThrow({ where: { tenantId: t1.id } })).passwordHash, u1[0].passwordHash);
 
   // La clave no apareció nunca por consola, ni en la salida, ni en la auditoría.
-  for (const s of [uno.salida, tres.salida]) assert.ok(!s.includes(clave!));
+  assert.ok(!tres.salida.includes(clave));
   const audit = await duenio.auditLog.findMany({ where: { tenantId: t1.id } });
   assert.ok(audit.some((a) => a.action === "factoque.alta"));
   assert.ok(audit.some((a) => a.action === "fiscal.cuit.set") && audit.some((a) => a.action === "fiscal.puntoVenta.set"));
-  assert.ok(!JSON.stringify(audit).includes(clave!));
+  assert.ok(!JSON.stringify(audit).includes(clave));
 
   // 5) Datos fiscales distintos sobre el mismo slug: se niega y no cambia nada.
   await assert.rejects(p.altaNegocioFactoque(app, datos("kiosco-ficticio", { puntoVenta: 8 }), deps), p.RechazoDelAlta);

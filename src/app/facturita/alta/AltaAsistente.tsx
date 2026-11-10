@@ -470,7 +470,7 @@ export default function AltaAsistente({
             <ol className="mt-5 space-y-4">
               {PASOS_CERTIFICADO_PROPIO.map((p, i) => (
                 <li key={p} className="flex gap-3 text-base">
-                  <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[var(--fx-verde)] text-sm font-semibold tabular-nums text-white">
+                  <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[var(--fx-cobre)] text-sm font-semibold tabular-nums text-white">
                     {i + 1}
                   </span>
                   <span className="pt-1">{p}</span>

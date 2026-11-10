@@ -9,18 +9,29 @@
 // grueso ("¿hay sesión válida?"); esto es la puerta fina por acción.
 
 import { redirect } from "next/navigation";
-import { getCurrentUser, type SessionUser } from "@/lib/session";
+import { getCurrentUser, getSesionDelPanel, type SessionUser } from "@/lib/session";
 import { homeRoute, motivoSoloLoSuyo, permisoEfectivo, permisoFueraDeLaAgenda, type Capability } from "@/lib/capabilities";
 import { RechazoDeDominio } from "@/lib/rechazo-de-dominio";
 
-// Exige una sesión válida. Sin usuario → al login. Devuelve el usuario ya
-// tipado (redirect() corta el flujo, así que el retorno nunca es null).
+/** La pantalla del cambio obligatorio de contraseña: la única puerta abierta con la provisoria pendiente. */
+export const RUTA_CAMBIAR_PASSWORD = "/admin/cambiar-password";
+
+// Exige una sesión válida. Sin usuario → al login. Con el CAMBIO OBLIGATORIO de contraseña pendiente → a cambiarla
+// (ENG-104, GSG-SEG-013): ninguna pantalla, Server Action ni ruta que pase por acá (requireCapability, requireApp…)
+// corre con una contraseña provisoria. Devuelve el usuario ya tipado (redirect() corta el flujo).
 export async function requireUser(): Promise<SessionUser> {
-  const user = await getCurrentUser();
-  if (!user) {
-    redirect("/admin/login");
-  }
-  return user;
+  const sesion = await getSesionDelPanel();
+  if (!sesion) redirect("/admin/login");
+  if (sesion.mustChangePassword) redirect(RUTA_CAMBIAR_PASSWORD);
+  return sesion.user;
+}
+
+// SÓLO para la pantalla del cambio obligatorio y su acción (`change-password-actions.ts`): exige sesión pero deja
+// pasar a quien tiene el cambio pendiente (es justamente lo que viene a hacer). Cualquier otro uso abre el portón.
+export async function requireUserConCambioPendiente(): Promise<SessionUser> {
+  const sesion = await getSesionDelPanel();
+  if (!sesion) redirect("/admin/login");
+  return sesion.user;
 }
 
 // Exige una capacidad concreta. Sin sesión → al login; con sesión pero sin la

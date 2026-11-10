@@ -34,7 +34,10 @@ test("rubros: comercio tiene CMV y mercaderías; servicios no tiene bienes de ca
   const nombres = (r: Parameters<typeof planModelo>[0]) => planModelo(r).map((c) => c.nombre);
   assert.ok(nombres("comercio").includes("Costo de mercaderías vendidas (CMV)"));
   assert.ok(nombres("comercio").includes("Mercaderías"));
-  assert.ok(!nombres("servicios").includes("Bienes de cambio"));
+  // Servicios (estética) sí tiene bienes de cambio desde la ola 2: los insumos; no tiene mercaderías.
+  assert.ok(!nombres("servicios").includes("Mercaderías"));
+  assert.ok(nombres("servicios").includes("Insumos"));
+  assert.ok(!nombres("agencia").includes("Bienes de cambio"));
   assert.ok(nombres("club").includes("Cuotas sociales"));
   assert.ok(nombres("agencia").includes("Costo de pauta de terceros"));
 });

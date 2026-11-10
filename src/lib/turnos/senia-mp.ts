@@ -27,6 +27,7 @@
 // Todo dentro del `tx` del negocio que recibe: `tenantId` explícito en cada WHERE además de RLS.
 // Sin "use server": no es un endpoint.
 
+import { centavosDe } from "@/lib/dinero/redondeo";
 import type { Prisma } from "@/generated/prisma/client";
 import type { PagoMP } from "@/plugins/mercadopago";
 import { round2 } from "@/lib/round";
@@ -52,7 +53,7 @@ export { notaSeniaMP };
 
 /** La clave de idempotencia del cobro (con la columna migrada). El neto de un ajuste lleva sus centavos. */
 export function claveSeniaMP(paymentId: string, netoAjustado?: number): string {
-  return netoAjustado === undefined ? `mpturno:${paymentId}` : `mpturno:${paymentId}:${Math.round(netoAjustado * 100)}`;
+  return netoAjustado === undefined ? `mpturno:${paymentId}` : `mpturno:${paymentId}:${centavosDe(netoAjustado)}`;
 }
 
 /**

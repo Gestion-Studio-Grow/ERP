@@ -28,7 +28,7 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireCapability } from "@/lib/authz";
-import { roleHasCapability, type Role } from "@/lib/capabilities";
+import { permisoEfectivo, roleHasCapability, type Role } from "@/lib/capabilities";
 import { puedeCerrarElDia } from "@/lib/caja/cierre-diario";
 import { hoyEstaCerrado } from "@/lib/caja/frontera-cierre";
 import { getCurrentTenantId } from "@/lib/tenant";
@@ -45,7 +45,8 @@ import { cargarKpi, llevaNumero, type ResultadoKpi } from "@/apps/kpis/index.ser
 import { IconoApp } from "@/components/iconos-apps";
 import { CifraDeRenglon } from "./CifraDeRenglon";
 import { Bloque, DosColumnas, LineaDeEstado, Marca, MenuMas, Plata, Renglon, Rotulo } from "@/components/ui";
-import { armarNavegacion, type NavDelArmazon } from "../armazon/navegacion";
+import { appsDeInterruptores, armarNavegacion, type NavDelArmazon } from "../armazon/navegacion";
+import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
 import { hrefDelEspacio, puestoDe, type AppDeNav, type EspacioDeNav } from "../armazon/armazon-core";
 import { enInicioPorApps } from "./piloto";
 import BotonFijar from "./BotonFijar";
@@ -76,16 +77,20 @@ type Contexto = {
   esMostrador: boolean;
   modoApps: boolean;
   userId: string;
+  /** Casilla 8 (`cash:manage`) de quien mira, con la matriz: decide si se le ofrece «Abrir la caja». */
+  puedeAbrirCaja: boolean;
 };
 
 async function contexto(): Promise<Contexto> {
   const user = await requireCapability("dashboard:read");
-  const [negocio, modoApps] = await Promise.all([getNegocioApps(user.role), enInicioPorApps()]);
+  const [negocio, modoApps, interruptores] = await Promise.all([getNegocioApps(user.role, user.overrides), enInicioPorApps(), interruptoresDelNegocio()]);
   const visibles = appsVisibles(negocio);
   // Modo simple: el Inicio («Hoy») ofrece las mismas pantallas que la barra recortada.
   const deHoy = proyectarMenuDeHoy(visibles);
   const menu = (await modoSimpleDeLaSesion()).activo ? menuDeModoSimple(deHoy) : deHoy;
-  const nav = armarNavegacion({ visibles, menu, modoApps, esMostrador: negocio.esMostrador, role: user.role, overrides: user.overrides });
+  // Las mismas apps que el menú del layout, incluida «Vouchers de La Alameda» con su interruptor prendido.
+  const extras = appsDeInterruptores(interruptores, negocio);
+  const nav = armarNavegacion({ visibles, menu, modoApps, esMostrador: negocio.esMostrador, role: user.role, overrides: user.overrides, extras });
   const rutas = new Set(nav.espacios.flatMap((e) => e.apps.map((a) => a.ruta)));
   return {
     role: user.role,
@@ -94,6 +99,7 @@ async function contexto(): Promise<Contexto> {
     esMostrador: negocio.esMostrador,
     modoApps,
     userId: user.id,
+    puedeAbrirCaja: permisoEfectivo(user, "cash:manage"),
   };
 }
 
@@ -270,7 +276,7 @@ async function Bandeja({ ctx }: { ctx: Contexto }) {
   const cajaCerrada = !arrancando && caja?.resultado?.estado === "ok" && caja.resultado.valor === "Cerrada";
   // Si esta lectura falla, el aviso de siempre: no se cae el Inicio por una línea de estado.
   const diaCerrado = cajaCerrada && (await getCurrentTenantId().then(hoyEstaCerrado).catch(() => false));
-  const aviso = arrancando ? null : avisoDeCaja(caja?.resultado, caja?.app.ruta, diaCerrado);
+  const aviso = arrancando ? null : avisoDeCaja(caja?.resultado, caja?.app.ruta, diaCerrado, ctx.puedeAbrirCaja);
   const { pendientes: crudos, sinRevisar } = pendientesDeLaBandeja(items, destinos);
   const pendientes = teclaDelCierreSegunRol(crudos, puedeCerrarElDia(ctx.role));
   const grupos = porObjetivo(pendientes);
@@ -372,7 +378,7 @@ async function ParaArrancar({ ctx }: { ctx: Contexto }) {
     (vende || destinos.has("pedidos")) && destinos.has("datos-del-negocio") ? whatsappDeLaVidriera() : Promise.resolve(null),
     vende ? primerDiaDelMostrador() : Promise.resolve(null),
   ]);
-  const pasos = pasosSegunRol(pasosParaArrancar(new Map(items.map((i) => [i.app.id, i.resultado])), destinos, facturacion, whatsapp, mostrador), puedeCerrarElDia(ctx.role));
+  const pasos = pasosSegunRol(pasosParaArrancar(new Map(items.map((i) => [i.app.id, i.resultado])), destinos, facturacion, whatsapp, mostrador), puedeCerrarElDia(ctx.role), ctx.puedeAbrirCaja);
   if (pasos.length === 0) return null;
   const hechos = pasos.filter((p) => p.hecho).length;
   return (

@@ -5,14 +5,17 @@
 // tokens del sistema. Los esqueletos son los comunes de @/components/ui (Esqueleto y
 // KpiTileEsqueleto): el mismo dibujo que el Inicio y NumeroKpi.
 
-import { Esqueleto, KpiTileEsqueleto, PageContainer } from "@/components/ui";
+import { Esqueleto, KpiTileEsqueleto } from "@/components/ui";
 // OJO frontera RSC: importar desde DataTable.tsx ("use client") entregaba un
 // client-reference en este server component y SKELETON_ROWS.map daba 500.
 import { SKELETON_ROWS } from "@/components/ui/data-table-skeleton";
 
+// NO es un <main> (antes, PageContainer): mientras llega la página, React deja su contenido en un
+// nodo oculto AL LADO de este esqueleto, y con dos <main> en el documento /admin/caja quedaba con
+// dos regiones principales (QA vouchers). Mismo marco y mismas clases que PageContainer.
 export default function Loading() {
   return (
-    <PageContainer>
+    <div data-ui="pagina" className="mx-auto w-full max-w-[1320px] px-5 py-7 sm:px-10 sm:py-10">
       <span className="sr-only" role="status">Cargando…</span>
 
       {/* PageHeader fantasma */}
@@ -42,6 +45,6 @@ export default function Loading() {
           </div>
         ))}
       </div>
-    </PageContainer>
+    </div>
   );
 }
