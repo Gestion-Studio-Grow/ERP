@@ -623,3 +623,12 @@ test("v2 #3/#4: las tres acciones que mueven la cobranza traban el candado como 
   const anular = fuente("./acciones-ficha.ts", "anularCobroFicha");
   assert.match(anular.primera, /^await trabarCobranza\(tx, tenantId, pago\.proyectoId\);$/);
 });
+
+test("sin presupuesto aprobado: una cuota vencida no suma vencido ni próximos (I1 e I5 valen siempre)", () => {
+  const c = cobranza(0, []);
+  const r = conciliarConCobros([q(500, -5), q(300, 3)], {}, c, HOY);
+  assert.equal(r.aCobrar, 0);
+  assert.equal(r.cobrosVencidos, 0);
+  assert.equal(r.cantCobrosVencidos, 0);
+  assert.equal(r.aCobrar7, 0);
+});
