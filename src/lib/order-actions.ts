@@ -106,6 +106,11 @@ import {
 } from "@/lib/envios/tarifa";
 import type { ZonaDeEnvio } from "@/lib/envios/modelo";
 import { shippingVigente } from "@/lib/storefront-shipping";
+import { configDeliveryLocal } from "@/lib/delivery-local/config";
+import { extrasDelAlta } from "@/lib/delivery-local/alta";
+import { tokenDeSeguimiento } from "@/lib/delivery-local/seguimiento";
+import { rutaDeSeguimiento } from "@/lib/delivery-local/salida";
+import { authSecret } from "@/lib/auth";
 import { RechazoDeDominio } from "@/lib/rechazo-de-dominio";
 import {
   AnulacionVentaRechazada,
@@ -763,9 +768,18 @@ export async function placeOnlineOrder(
     ahora,
   });
   if (!horario.ok) return { ok: false, error: horario.error, campo: "datos" };
+
+  const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { slug: true, name: true } });
+  // DELIVERY LOCAL (src/lib/delivery-local): sólo los negocios con su configuración. La ubicación y
+  // la forma de pago van a la nota (la ven la bandeja y el repartidor) y a la auditoría del alta;
+  // un pago mal formado frena el alta sin grabar. Sin configuración, nada de esto corre.
+  const deliveryLocal = configDeliveryLocal(tenant?.slug);
+  const extrasLocal = deliveryLocal ? extrasDelAlta(deliveryLocal, formData, fulfillment === "DELIVERY") : null;
+  if (extrasLocal && !extrasLocal.ok) return { ok: false, error: extrasLocal.error, campo: "datos" };
   const notes = notaDelPedido({
     zona: conZonas ? (zonaElegida?.nombre ?? null) : null,
     franja: horario.nota,
+    ...(extrasLocal?.ok ? { extras: extrasLocal.renglones } : {}),
     deLaClienta: String(formData.get("notes") || "").trim().slice(0, 500) || null,
   });
 
@@ -789,7 +803,6 @@ export async function placeOnlineOrder(
     return { ok: false, error: "Tu pedido está vacío: sumá algún producto con el botón +." };
   }
 
-  const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { slug: true, name: true } });
   // Con zonas propias, la tarifa es la de la zona (`envioZona`, abajo). Si no, la de la MARCA
   // (storefront.ts, `shippingVigente`): la misma que la vidriera usa para mostrar (Shine).
   const envio = tieneZonas(configEnvios) ? null : shippingVigente(null, getStorefrontCopy(tenant?.slug)?.shipping);
@@ -866,12 +879,17 @@ export async function placeOnlineOrder(
         ...(horario.scheduledFor ? { horario: horario.scheduledFor.toISOString() } : {}),
         ...(result.cupon ? { cupon: { codigo: result.cupon, monto: result.descuento ?? 0 } } : {}),
         ...(porWhatsApp ? { via: "whatsapp" } : {}),
+        ...(extrasLocal?.ok ? { entregaLocal: extrasLocal.auditoria } : {}),
       },
     });
     // El backoffice ve el pedido nuevo en su bandeja al revalidar.
     revalidarMostrador();
   }
-  if (!porWhatsApp) redirect(`/tienda/gracias?pedido=${result.code}`);
+  if (!porWhatsApp) {
+    // Delivery local: el cliente sigue su pedido en un link propio (firmado, sin datos personales).
+    if (deliveryLocal) redirect(rutaDeSeguimiento(tokenDeSeguimiento(authSecret(), tenantId, result.id)));
+    redirect(`/tienda/gracias?pedido=${result.code}`);
+  }
   // El pedido YA está registrado: si armar el link del chat falla, no se dice "no pudimos tomar
   // el pedido" (sería mentira y el cliente lo repetiría): se contesta sin chat.
   const whatsapp = await chatDelPedido(tenantId, result.id, tenant?.name ?? "el local").catch((err) => {

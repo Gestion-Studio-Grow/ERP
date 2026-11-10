@@ -37,6 +37,7 @@ import { alcanceDeAnulacion, permisoEfectivo } from "@/lib/capabilities";
 import { requireApp } from "@/lib/require-app";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { getTenantIdentity } from "@/lib/identidad-rubro";
+import { configDeliveryLocal } from "@/lib/delivery-local/config";
 import { esteticaBackoffice } from "@/lib/estetica-backoffice";
 import { esEstetica } from "@/lib/palabras-del-negocio";
 import { entregaDelRubro } from "@/blueprints/retail/rubros";
@@ -260,6 +261,7 @@ export default async function PedidosPage({ searchParams }: { searchParams?: Pro
       ofrecerLink,
       simulacion,
       alcance,
+      deliveryLocal: configDeliveryLocal(identidad.slug) !== null,
     });
     const verPlata = permisoEfectivo(user, "reports:read");
     // El reloj sólo en comercio: los de la tienda esperando y los listos sin retirar (CH no tiene

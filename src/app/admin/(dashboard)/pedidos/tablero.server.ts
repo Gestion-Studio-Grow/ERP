@@ -48,6 +48,8 @@ export type ExtraDelPedido = {
    * Listo desde un día anterior y con teléfono. null = no se ofrece.
    */
   recordatorio: string | null;
+  /** Delivery local (src/lib/delivery-local): envío de un negocio con el producto prendido. */
+  deliveryLocal?: { enviable: boolean };
 };
 
 type Linea = {
@@ -188,6 +190,8 @@ export function armarTablero(e: {
   ofrecerLink: boolean;
   simulacion: boolean;
   alcance: AlcanceDeAnulacion | null;
+  /** El negocio tiene el delivery local (configDeliveryLocal). Sin él, los extras no cambian. */
+  deliveryLocal?: boolean;
 }): { abiertos: PedidoDelTablero[]; cerrados: PedidoCerrado[]; extras: Record<string, ExtraDelPedido> } {
   const extras: Record<string, ExtraDelPedido> = {};
   // MOSTRADOR BOUTIQUE (2C): la zona, si salió con el cadete y el «Recordarle» de la tarjeta. Sólo
@@ -259,6 +263,7 @@ export function armarTablero(e: {
               }),
             )
           : null,
+      ...(e.deliveryLocal && o.fulfillment === "DELIVERY" ? { deliveryLocal: { enviable: o.status === "READY" } } : {}),
     };
     return {
       id: o.id,
