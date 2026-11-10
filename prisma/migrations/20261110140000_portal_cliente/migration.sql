@@ -3,8 +3,11 @@
 -- fuera de prisma/lote-deploy.txt: el código pregunta si la tabla existe (information_schema) antes de tocarla;
 -- sin tabla no se ofrece el link y la página pública da 404.
 --
--- "Client" no tiene UNIQUE (tenantId, id), así que la llave a Client es simple; el negocio lo cuida RLS y el filtro
--- explícito por tenantId en cada lectura y escritura de la app.
+-- La llave a Client es COMPUESTA (tenantId, clientId) → Client(tenantId, id): la base impide que una fila de un
+-- negocio apunte al cliente de otro. Para eso "Client" gana el UNIQUE (tenantId, id) (aditivo: id ya es PK, así que
+-- ninguna fila existente puede violarlo), con el nombre que genera Prisma, como SupportTicket/Invoice.
+
+CREATE UNIQUE INDEX IF NOT EXISTS "Client_tenantId_id_key" ON "Client"("tenantId", "id");
 
 CREATE TABLE IF NOT EXISTS "PortalCliente" (
   "id" TEXT NOT NULL,
@@ -25,8 +28,8 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'PortalCliente_clientId_fkey') THEN
-    ALTER TABLE "PortalCliente" ADD CONSTRAINT "PortalCliente_clientId_fkey" FOREIGN KEY ("clientId") REFERENCES "Client"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'PortalCliente_tenantId_clientId_fkey') THEN
+    ALTER TABLE "PortalCliente" ADD CONSTRAINT "PortalCliente_tenantId_clientId_fkey" FOREIGN KEY ("tenantId", "clientId") REFERENCES "Client"("tenantId", "id") ON DELETE CASCADE ON UPDATE CASCADE;
   END IF;
 END $$;
 
