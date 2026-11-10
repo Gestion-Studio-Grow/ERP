@@ -123,11 +123,16 @@ export default async function LotesPage() {
             ) : null,
           ]}
           actions={
-            puedeCargar ? (
-              <a href="#cargar" className={buttonClasses("solid", "md")}>
-                Cargar un lote
+            <>
+              <a href="/admin/lotes/frio" className={buttonClasses("outline", "md")}>
+                Cadena de frío
               </a>
-            ) : undefined
+              {puedeCargar ? (
+                <a href="#cargar" className={buttonClasses("solid", "md")}>
+                  Cargar un lote
+                </a>
+              ) : null}
+            </>
           }
         />
         <LotesClient
@@ -149,6 +154,11 @@ export default async function LotesPage() {
       <PageHeader
         title={TITULO}
         description="Cada lote al vacío con su fecha de envasado, su vencimiento, su peso real y su trazabilidad. Ordenados por el que vence antes."
+        actions={
+          <a href="/admin/lotes/frio" className={buttonClasses("outline", "md")}>
+            Cadena de frío
+          </a>
+        }
       />
       <LotesClient
         views={views}

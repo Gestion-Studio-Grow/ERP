@@ -38,6 +38,26 @@ export const migracionCarniceriaAplicada = cache(async (): Promise<boolean> => {
   }
 });
 
+// ── Cadena de frío (Magra T5): ¿está aplicada prisma/pending-gate2/CadenaDeFrio.sql? ─────────────
+
+type DbConQueryRaw = { $queryRaw: <T = unknown>(q: TemplateStringsArray, ...v: unknown[]) => Promise<T> };
+
+/** ¿Existe la tabla RegistroFrio? Sólo information_schema; cualquier error → false (ocultar). */
+export async function tablaFrioExiste(db: DbConQueryRaw): Promise<boolean> {
+  try {
+    const rows = await db.$queryRaw<{ n: number }[]>`
+      SELECT count(*)::int AS n
+      FROM information_schema.tables
+      WHERE table_schema = 'public' AND table_name = 'RegistroFrio'`;
+    return Number(rows?.[0]?.n ?? 0) > 0;
+  } catch {
+    return false;
+  }
+}
+
+/** ¿Está aplicada la migración de cadena de frío en esta base? Cacheado por request. */
+export const migracionFrioAplicada = cache(async (): Promise<boolean> => tablaFrioExiste(prisma as unknown as DbConQueryRaw));
+
 /**
  * Cómo están Lotes y Despiece en ESTE negocio. PURA.
  *   · "lista": vende perecederos y la migración está aplicada.
@@ -60,6 +80,9 @@ const perecederosDelNegocio = cache(async (): Promise<boolean> => {
     return false;
   }
 });
+
+/** ¿El negocio del request vende perecederos? (la Cadena de frío lo pregunta antes de la tabla). */
+export const negocioConPerecederos = perecederosDelNegocio;
 
 /** El estado de Lotes y Despiece del negocio del request (lo leen sus páginas). */
 export const leerEstadoLotesYDespiece = cache(async (): Promise<EstadoLotesYDespiece> => {
