@@ -12,8 +12,9 @@
 //
 // CONCURRENCIA: un candado de transacción (advisory) serializa las altas de ProfeTurnos; con él, la
 // búsqueda de direcciones ocupadas ya ve lo que confirmó la anterior. Si igual choca (otra superficie
-// creó el mismo slug), la fábrica reencuentra un negocio que NO es nuestro: se tira y la transacción
-// vuelve atrás entera (nunca se suma un OWNER a un negocio ajeno). Se reintenta con otra dirección.
+// creó el mismo slug), la fábrica (con `soloNuevo`) da P2002 o reencuentra un negocio que NO es nuestro:
+// se tira y la transacción vuelve atrás entera (nunca se suma un OWNER a un negocio ajeno). Se reintenta
+// con la dirección siguiente.
 
 import type { PrismaClient } from "@/generated/prisma/client";
 import { crearClienteProvisioning } from "@/lib/cartera-core";
@@ -81,17 +82,28 @@ async function escribirEnUnaTransaccion(prisma: PrismaClient, d: DatosDelAlta, s
     const slug = slugLibre(base, usados);
     if (!slug) throw new ChoqueDeDireccion(null);
 
-    const fabrica = await provisionTenant(crearClienteProvisioning({ $transaction: (fn) => fn(tx) }) as unknown as PrismaClient, {
-      name: d.negocio,
-      slug,
-      owner: { name: d.nombre, email: d.email, password: d.clave },
-      blueprint: BLUEPRINT_PROFE,
-      // El rubro siembra servicios/box/profesional de la agenda del motor, que el profe no usa
-      // (padel-clases tiene su propia agenda): sin catálogo de ejemplo.
-      skipCatalog: true,
-      branding: { email: d.email, whatsapp: d.whatsapp },
-      platform: { status: "TRIAL", subdomain: slug, modules: [...MODULOS_PROFE] },
-    });
+    let fabrica: Awaited<ReturnType<typeof provisionTenant>>;
+    try {
+      fabrica = await provisionTenant(crearClienteProvisioning({ $transaction: (fn) => fn(tx) }) as unknown as PrismaClient, {
+        name: d.negocio,
+        slug,
+        owner: { name: d.nombre, email: d.email, password: d.clave },
+        blueprint: BLUEPRINT_PROFE,
+        // El rubro siembra servicios/box/profesional de la agenda del motor, que el profe no usa
+        // (padel-clases tiene su propia agenda): sin catálogo de ejemplo.
+        skipCatalog: true,
+        branding: { email: d.email, whatsapp: d.whatsapp },
+        platform: { status: "TRIAL", subdomain: slug, modules: [...MODULOS_PROFE] },
+        // Sólo un negocio NUEVO: si otra superficie confirma el mismo slug en el medio, `create` da P2002
+        // en vez de devolver el negocio ajeno (el upsert lo devolvía con tenantCreated en true).
+        soloNuevo: true,
+      });
+    } catch (e) {
+      // Otra superficie (Factoque, la consola) tomó la dirección: la transacción vuelve atrás y se
+      // reintenta con el sufijo siguiente.
+      if (esChoqueDeUnicidad(e)) throw new ChoqueDeDireccion(slug);
+      throw e;
+    }
     // Sólo negocios NUEVOS: si la fábrica reencontró uno, es de otro (la transacción vuelve atrás).
     if (!fabrica.tenantCreated || !fabrica.ownerCreated) throw new ChoqueDeDireccion(slug);
     const tenantId = fabrica.tenantId;

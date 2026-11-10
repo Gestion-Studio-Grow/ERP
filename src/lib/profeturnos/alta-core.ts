@@ -123,9 +123,9 @@ export function urlDelPanel(slug: string, dominio: string): string {
 
 // ── El flag ──────────────────────────────────────────────────────────────────────────────────
 
-/** El alta sólo se abre con `PROFETURNOS_ALTA_ABIERTA=1` (prod no se abre sin el OK del dueño). */
+/** El alta sólo se abre con `PROFETURNOS_ALTA_ABIERTA=1` exacto, sin espacios (prod no se abre sin el OK del dueño). */
 export function altaAbierta(env: Record<string, string | undefined> = process.env): boolean {
-  return env.PROFETURNOS_ALTA_ABIERTA?.trim() === "1";
+  return env.PROFETURNOS_ALTA_ABIERTA === "1";
 }
 
 // ── Límites de pedidos (en memoria, por instancia: misma limitación documentada en rate-limit.ts) ──
