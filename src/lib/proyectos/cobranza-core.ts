@@ -281,7 +281,7 @@ function pendienteDeCuota(q: CuotaDeCobranza, esperaH: number, enPesos: number, 
 /** Al centavo hacia abajo (lo que se reparte nunca pasa del tope: I1). Redondea con el módulo de plata y,
  * si eso subió de verdad, baja un centavo. La tolerancia absorbe el ruido binario de un importe que ya
  * está en centavos (crece con el importe: un double de cientos de millones no distingue 1e-8). */
-function alCentavoAbajo(x: number): number {
+export function alCentavoAbajo(x: number): number {
   const r = redondearAlCentavo(x);
   return r > x + 1e-8 + Math.abs(x) * 1e-15 ? redondearAlCentavo(r - 0.01) : r;
 }
