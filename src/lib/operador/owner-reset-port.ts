@@ -5,11 +5,19 @@ import type { Prisma } from "@/generated/prisma/client";
 import { operatorSetMustChange } from "@/lib/must-change-password";
 import type { OwnerResetPort } from "@/lib/owner-password-reset";
 
-export function operatorResetPort(tx: Prisma.TransactionClient, tenantId: string): OwnerResetPort {
+//
+// `ownerId` (opcional) fija A QUÉ OWNER se resetea: el script de seguridad lo elige antes (por email o
+// porque hay uno solo). Sin `ownerId` (la consola) sigue siendo el OWNER activo más antiguo. Aun con
+// `ownerId`, el usuario tiene que ser OWNER activo de ESE negocio: si no, `findOwner` da null.
+export function operatorResetPort(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  { ownerId }: { ownerId?: string } = {},
+): OwnerResetPort {
   return {
     findOwner: (tid) =>
       tx.user.findFirst({
-        where: { tenantId: tid, role: "OWNER", active: true, deletedAt: null },
+        where: { tenantId: tid, role: "OWNER", active: true, deletedAt: null, ...(ownerId ? { id: ownerId } : {}) },
         orderBy: { createdAt: "asc" },
         select: { id: true, email: true },
       }),
