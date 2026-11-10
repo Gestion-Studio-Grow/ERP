@@ -23,6 +23,8 @@ export type EleccionDeDriver =
   | { ok: false; error: string };
 
 const DRIVERS: readonly DriverDeScript[] = ["pg-tcp", "neon-ws"];
+const HOST_NEON = /^[a-z0-9-]+(\.[a-z0-9-]+)*\.neon\.tech$/;
+const PARAMS_NEON = new Set(["sslmode", "channel_binding"]);
 
 /** Decide el driver sin abrir nada. Pura: testeable sin red. Los errores no llevan la conexión. */
 export function elegirDriverDeScript(env: Env, connectionString: string | undefined): EleccionDeDriver {
@@ -44,8 +46,16 @@ export function elegirDriverDeScript(env: Env, connectionString: string | undefi
   }
   const host = url.hostname.toLowerCase();
   // El WebSocket lleva la contraseña: sólo se habla con Neon, nunca con otro host por esta vía.
-  if (driver === "neon-ws" && !host.endsWith(".neon.tech")) {
-    return { ok: false, error: "OPS_DB_DRIVER=neon-ws sólo vale para hosts de Neon (*.neon.tech)." };
+  // Host estricto (sin comas ni listas de hosts) y sin parámetros que el driver lea como otro destino
+  // (`?host=…` redirigiría el WebSocket): sólo se aceptan los de TLS.
+  if (driver === "neon-ws") {
+    if (!HOST_NEON.test(host)) {
+      return { ok: false, error: "OPS_DB_DRIVER=neon-ws sólo vale para hosts de Neon (*.neon.tech)." };
+    }
+    const extra = [...url.searchParams.keys()].filter((k) => !PARAMS_NEON.has(k));
+    if (extra.length > 0) {
+      return { ok: false, error: `OPS_DB_DRIVER=neon-ws sólo acepta los parámetros ${[...PARAMS_NEON].join(", ")}.` };
+    }
   }
   return { ok: true, driver, host };
 }
@@ -54,15 +64,21 @@ export function elegirDriverDeScript(env: Env, connectionString: string | undefi
 export function sinSecretos(texto: string, connectionString: string | undefined): string {
   if (!connectionString) return texto;
   let limpio = texto.split(connectionString).join("[conexión]");
+  let pass = "";
   try {
-    const pass = new URL(connectionString).password;
-    if (pass) {
-      for (const v of new Set([pass, decodeURIComponent(pass)])) {
-        if (v.length >= 4) limpio = limpio.split(v).join("[secreto]");
-      }
-    }
+    pass = new URL(connectionString).password;
   } catch {
     // Si no es URL no hay contraseña que extraer: ya se quitó la cadena entera.
+  }
+  if (!pass) return limpio;
+  const variantes = new Set([pass]);
+  try {
+    variantes.add(decodeURIComponent(pass));
+  } catch {
+    // `%` mal formado: se tapa igual la contraseña tal como viene.
+  }
+  for (const v of variantes) {
+    if (v.length >= 4) limpio = limpio.split(v).join("[secreto]");
   }
   return limpio;
 }

@@ -38,6 +38,17 @@ test("driver: neon-ws sólo con hosts de Neon", () => {
   assert.equal(trampa.ok, false);
   const trampa2 = elegirDriverDeScript({ OPS_DB_DRIVER: "neon-ws" }, "postgres://u:p@atacanteneon.tech/db");
   assert.equal(trampa2.ok, false);
+  // `?host=` redirigiría el WebSocket a otro destino; una lista de hosts con coma tampoco pasa.
+  const desvio = elegirDriverDeScript({ OPS_DB_DRIVER: "neon-ws" }, "postgresql://u:p@ep-x.neon.tech/db?host=evil.example");
+  assert.equal(desvio.ok, false);
+  const coma = elegirDriverDeScript({ OPS_DB_DRIVER: "neon-ws" }, "postgresql://u:p@evil.example,ep.neon.tech/db");
+  assert.equal(coma.ok, false);
+  // Los parámetros de TLS sí.
+  const tls = elegirDriverDeScript(
+    { OPS_DB_DRIVER: "neon-ws" },
+    "postgresql://u:p@ep-x.neon.tech/db?sslmode=require&channel_binding=require",
+  );
+  assert.equal(tls.ok, true);
 });
 
 test("driver: valores inválidos y cadenas rotas se rechazan sin mostrar la conexión", () => {
@@ -68,6 +79,9 @@ test("sinSecretos: quita la cadena entera y la contraseña, codificada o no", ()
   assert.match(limpio, /\[conexión\]/);
   assert.equal(sinSecretos("nada que ver", NEON), "nada que ver");
   assert.equal(sinSecretos("texto", undefined), "texto");
+  // Un `%` mal formado no deja la contraseña a la vista.
+  const rara = "postgresql://ops:abc%zzClave@ep-x.neon.tech/db";
+  assert.ok(!sinSecretos("error: abc%zzClave", rara).includes("abc%zzClave"));
 });
 
 test("proxyDelEntorno: toma HTTPS_PROXY o https_proxy; sin proxy, directo", () => {
@@ -157,7 +171,7 @@ test("webSocketPorProxy: sin proxy en el entorno, va directo (no toca el proxy)"
 // El runtime de producción no carga el driver de Neon ni este módulo: sólo scripts y tests.
 test("runtime intacto: nadie fuera de scripts/ y de este módulo importa neon ni db-de-scripts", () => {
   const raiz = process.cwd();
-  const prohibidos = [/@prisma\/adapter-neon/, /@neondatabase\/serverless/, /operador\/db-de-scripts/];
+  const prohibidos = [/@prisma\/adapter-neon/, /@neondatabase\/serverless/, /db-de-scripts/];
   const permitidos = new Set(["src/lib/operador/db-de-scripts.ts", "src/lib/operador/db-de-scripts.test.ts"]);
   const culpables: string[] = [];
   const recorrer = (dir: string) => {
