@@ -47,9 +47,9 @@ hacerla varias veces. Es la deuda que más encarece todo lo de abajo.
 | **La unificación ya está empezada**: la vidriera nueva pone la estructura y cada marca pone el dato (`MarcaId = magra · shinevelas · adosmanos · generica`) | `src/app/tienda/vidriera/marcas.ts:2,14` | D1 no es «¿unificamos?» sino «¿terminamos la migración y retiramos `Storefront.tsx`?» |
 | La vidriera nueva se enciende por interruptor (`disenoNuevo`) o porque el rubro la declara (supermercado) | `src/app/tienda/page.tsx:176-179` | Los rubros retail sin interruptor siguen cayendo en la vieja |
 | Qué Bien Olés y A Dos Manos quedan **fuera** de la vidriera nueva a propósito (conservan su front de autor) | `vidriera/marcas.ts:182-190` | Su bolsa/checkout es propio: toda mejora de embudo se repite ahí |
-| WhatsApp, Mercado Pago, cuotas y transferencia en la vidriera común aparecen **sólo** en `TiendaNueva` | grep `whatsappCanonico`, `mercado ?pago`, `cuotas`, `transferencia` en `src/app/tienda` | `Storefront.tsx` (la vieja) no devuelve ninguna coincidencia: quien cae ahí no tiene esos CTA (a confirmar en navegador) |
-| El front de autor de **Shine** no tiene enlace de WhatsApp | grep `wa.me`/`whatsapp` en `tienda/shine` y `ShineFront.tsx`: sin resultados | Quick win real para Shine |
-| Cuotas y precio transferencia ya existen en **A Dos Manos** | `adosmanos/Precio.tsx`, `Bolsa.tsx`, `promesas.ts` | La mejora «[QW] cuotas y transferencia» de A Dos Manos está **ya resuelta**; falta en Magra, Shine y QBO (sin coincidencias) |
+| **WhatsApp ya está en todas las salidas retail**: la vieja (`WhatsAppCtaProvider`, pide el número si falta), la nueva, `pedido-online.tsx` y los cuatro fronts de autor (Shine: `Bolsa`, `Ficha`, `Pie`) | `Storefront.tsx:16,93-98`; grep sin distinguir mayúsculas `whatsapp` | La mejora transversal 2 no es «agregar el botón» sino **medir** que el mensaje salga prellenado con contexto. Corrige una primera lectura errónea de este mismo documento |
+| Mercado Pago, cuotas y transferencia en la vidriera común aparecen **sólo** en `TiendaNueva` | grep `mercado ?pago`, `cuotas`, `transferencia`: 0 coincidencias en `Storefront.tsx`, `ShineFront.tsx`, `MagraFront.tsx`, `pedido-online.tsx` | Quien cae en la vieja no ve medios de pago ni precio transferencia (a confirmar en navegador) |
+| Cuotas y precio transferencia ya existen en **A Dos Manos** | `adosmanos/Precio.tsx`, `Bolsa.tsx`, `promesas.ts` | La mejora «[QW] cuotas y transferencia» de A Dos Manos está **ya resuelta**; sin coincidencias en los fronts de autor de Magra, Shine y QBO |
 | «Repetir pedido» no existe en ninguna vidriera | grep `repetir`: sólo `magra/Despiece.tsx` y `shine/catalogo.ts`, otro sentido | Hipótesis de Magra y supermercado confirmada como faltante |
 | `prefers-reduced-motion` está contemplado en los cuatro fronts de autor y en la vidriera nueva | `*/estilos.ts`, `vidriera.module.css` | Criterio de a11y de movimiento: ya cubierto en CSS; falta verificarlo en navegador |
 | **CH ya tiene reserva pública con seña**: `BookingModal`, `reserva/BookingForm`, `confirmacion/[id]`, `turno/[id]` con reseña, y WhatsApp en `_ch/ChFront.tsx` | `src/app/(site)/_ch/*`, `src/app/(site)/reserva/*` | La mejora 1 de CH no es «construir» sino **medir pasos y abandono** del flujo existente |
@@ -58,6 +58,11 @@ hacerla varias veces. Es la deuda que más encarece todo lo de abajo.
 **Lectura:** la deuda no es de ideas sino de **migración a medio hacer**. El mayor retorno por peso gastado es
 terminar de mover los rubros a `TiendaNueva` y que QBO, A Dos Manos y Shine reutilicen su bolsa/pago en vez de
 mantener una propia.
+
+**Imágenes y peso (conteo, sin medir en navegador):** `src/app/tienda` tiene 14 `<img>` crudos contra 11
+archivos con `next/image`, y 30 de 54 componentes son de cliente; `(site)` de CH, 8 `<img>` y 16 de 36 de
+cliente; `inmobiliaria/page.tsx:102` y `clases/_cabecera.tsx:43` usan `<img>` crudo. Son candidatos de LCP para
+la ronda 0, no un diagnóstico: algunos son deliberados (`taller/marco.tsx:88` lo justifica en comentario).
 
 ## 2. Referente por rubro (a igualar o superar)
 
