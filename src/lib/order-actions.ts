@@ -86,7 +86,8 @@ import { textoPlata } from "@/lib/cobro/pie-de-cobro-core";
 import { lastClosedDay } from "@/lib/caja/frontera-cierre";
 import { isFrozenDay } from "@/lib/caja/cierre-diario";
 import { dateStrInBusinessTz } from "@/lib/datetime";
-import { lotesYDespieceListos } from "@/lib/carniceria/schema-probe";
+import { opcionLotesVencidos } from "@/lib/carniceria/schema-probe";
+import { LoteVencidoRechazado } from "@/lib/carniceria/lotes-registro";
 import { productosQuePuedenFaltarAFuturo } from "@/lib/pedidos/interpretar-whatsapp";
 import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
 import { mostradorBoutiquePrendido } from "@/cambios/interruptores";
@@ -548,9 +549,9 @@ export async function createOrder(formData: FormData): Promise<OrderActionState>
         envioZona,
         clientId: clientIdElegido,
         ...(delCuaderno ? { occurredAt: delCuaderno.en } : {}),
-        // Magra T3: con Lotes listos (migración cárnica aplicada Y rubro de perecederos), un corte
+        // Magra T3: con Lotes listos (rubro de perecederos Y migración cárnica aplicada), un corte
         // con todos sus lotes vencidos no se vende. Sin la migración (hoy) o en CH/Shine: null.
-        lotesVencidos: (await lotesYDespieceListos()) ? { hoy: delCuaderno?.dia ?? dateStrInBusinessTz(new Date()) } : null,
+        lotesVencidos: await opcionLotesVencidos(tenantId, delCuaderno?.dia ?? dateStrInBusinessTz(new Date())),
       },
     );
   } catch (err) {
@@ -821,18 +822,27 @@ export async function placeOnlineOrder(
       const subtotalDeLaBase = conZonas ? await subtotalDeLaBolsaEnBase(tenantId, items) : 0;
       const cotizacion = cotizarEnvio(configEnvios, { subtotal: subtotalDeLaBase, modo, zonaId });
       if (!cotizacion.ok) throw new RechazoDeDominio(cotizacion.motivo);
-      return insertOrder(tenantId, {
-        channel: "ONLINE",
-        fulfillment,
-        customerName,
-        customerPhone,
-        address,
-        notes,
-        scheduledFor: horario.scheduledFor,
-        paid: false,
-        paymentMethod: null,
-        items,
-      }, { idempotencyKey, envio, envioZona: cotizacion.zona, cupon, promociones });
+      // Magra T3b: un corte con todos sus lotes vencidos tampoco se vende por la tienda. Se decide
+      // ANTES de la transacción (sin Lotes listos, null: el alta de siempre, sin la consulta).
+      const lotesVencidos = await opcionLotesVencidos(tenantId, dateStrInBusinessTz(new Date()));
+      try {
+        return await insertOrder(tenantId, {
+          channel: "ONLINE",
+          fulfillment,
+          customerName,
+          customerPhone,
+          address,
+          notes,
+          scheduledFor: horario.scheduledFor,
+          paid: false,
+          paymentMethod: null,
+          items,
+        }, { idempotencyKey, envio, envioZona: cotizacion.zona, cupon, promociones, lotesVencidos });
+      } catch (err) {
+        // Al cliente, sin códigos de lote ni tareas del local: «no está disponible, sacalo».
+        if (err instanceof LoteVencidoRechazado) throw new RechazoDeDominio(err.paraElCliente);
+        throw err;
+      }
     },
   });
   if (toma.tipo === "cupon") {

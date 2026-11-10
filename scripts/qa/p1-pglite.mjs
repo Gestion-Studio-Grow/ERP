@@ -42,7 +42,7 @@ for (const test of TESTS) {
   await servidor.start();
   console.log(`\n── ${test} · PGlite en 127.0.0.1:${PUERTO}`);
   // sslmode=disable: el motor de Prisma pide SSL y PGlite no lo atiende.
-  const env = { ...process.env, ERP_TEST_PG_URL: `postgresql://postgres@127.0.0.1:${PUERTO}/postgres?sslmode=disable` };
+  const env = { ...process.env, ERP_TEST_PG_URL: `postgresql://postgres@127.0.0.1:${PUERTO}/postgres?sslmode=disable`, ERP_TEST_PGLITE: "1" };
   for (const k of Object.keys(env)) if (/DATABASE_URL$/.test(k)) delete env[k];
   delete env.CI;
   const hijo = spawn(process.execPath, ["--import", "tsx", "--test", "--test-concurrency=1", test], { stdio: "inherit", env });

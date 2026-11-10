@@ -237,10 +237,11 @@ export type InsertOrderOpts = {
   /**
    * LOTES VENCIDOS (Magra T3): con `hoy` (el día del NEGOCIO), el alta frena la venta de un corte
    * cuyos lotes disponibles están todos vencidos (`controlarLotesVencidosEnTx`, carniceria/
-   * lotes-registro.ts), adentro de la transacción y antes de grabar nada. Sólo lo pasa el
-   * mostrador cuando el negocio tiene Lotes listos (migración cárnica aplicada Y rubro de
-   * perecederos): sin la tabla la consulta abortaría la venta. Sin el dato (CH, Shine, la tienda,
-   * y Magra hasta que se aplique la migración) el alta de siempre.
+   * lotes-registro.ts), adentro de la transacción y antes de grabar nada. Lo pasan los cinco
+   * caminos que venden (mostrador, tienda, API externa, caja con lector, cobro del turno) con
+   * `opcionLotesVencidos` (carniceria/schema-probe.ts), sólo con Lotes listos (rubro de
+   * perecederos Y migración cárnica aplicada): sin la tabla la consulta abortaría la venta. Sin el
+   * dato (CH, Shine, y Magra hasta que se aplique la migración) el alta de siempre.
    */
   lotesVencidos?: { hoy: string } | null;
 };
