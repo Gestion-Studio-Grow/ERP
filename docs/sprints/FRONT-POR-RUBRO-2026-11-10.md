@@ -64,6 +64,24 @@ archivos con `next/image`, y 30 de 54 componentes son de cliente; `(site)` de CH
 cliente; `inmobiliaria/page.tsx:102` y `clases/_cabecera.tsx:43` usan `<img>` crudo. Son candidatos de LCP para
 la ronda 0, no un diagnóstico: algunos son deliberados (`taller/marco.tsx:88` lo justifica en comentario).
 
+### 1.3 Quién cae en cada salida de la tienda (`src/app/tienda/page.tsx:150-250`, leído)
+
+| Negocio / rubro | Interruptor «Diseño nuevo» APAGADO | PRENDIDO |
+|---|---|---|
+| Magra | `MagraFront` (autor) | `TiendaNueva` con marca `magra` |
+| Shine Velas | `ShineFront` (autor, si hay copy) | `TiendaNueva` con marca `shinevelas` |
+| Qué Bien Olés | `QuebienolesVidriera` | **igual**: excluido a propósito (`vidriera/marcas.ts:189`) |
+| A Dos Manos | `AdosmanosVidriera` | **igual**: excluido a propósito (`vidriera/marcas.ts:191`) |
+| Supermercado (rubro que declara `vidriera`) | `TiendaNueva` siempre, sin esperar al interruptor (`page.tsx:176-179`) | `TiendaNueva` |
+| Resto de retail sin marca (verdulería, dietética, kiosco, fiambrería, indumentaria) | `Storefront.tsx` (vieja) | `TiendaNueva` genérica |
+| Cliente con web propia | `SiteReplica` (orden respecto del interruptor: sin verificar) | — |
+| CH (servicios) | no tiene tienda: sigue con `(site)` aunque el interruptor esté prendido | ídem |
+
+El interruptor es **por negocio** y vive en la base: no se consultó (regla de Neon), así que **no se sabe hoy
+qué negocios lo tienen prendido**. Es el primer dato que la ronda 0 debe pedir (o leer de un seed/doc), porque
+define sobre qué código se trabaja Magra y Shine: mejorar `MagraFront`/`ShineFront` con el interruptor a punto
+de prenderse sería trabajo tirado.
+
 ### 1.2 Verticales: qué existe y qué falta (grep sin distinguir mayúsculas, 22:47 UTC)
 
 Conteos de archivos con la palabra, no recorrido: dicen si algo **existe**, no si anda bien.
@@ -220,6 +238,7 @@ Una ronda = 1 o 2 constructores, un frente a la vez; lo que toque plata (checkou
 | D4 | Seña online en reservas (CH, Break Point) | (a) MP + transferencia · (b) sólo transferencia con comprobante | **(a)**, sandbox primero (plata: Opus alto + certificación) |
 | D5 | Presupuesto de performance como gate | (a) Lighthouse móvil ≥ 85 bloquea integrar vidrieras · (b) informativo | **(a)** |
 | D6 | Modo simple para retail (§1.2) | (a) recorte Hoy · Vender · Pedidos · Caja por familia de rubro · (b) dejar el de agenda para todos | **(a)** |
+| D7 | Magra y Shine: ¿front de autor o vidriera nueva? (§1.3) | (a) prender «Diseño nuevo» y trabajar sólo sobre `TiendaNueva` · (b) seguir puliendo `MagraFront`/`ShineFront` | **(a)**, previa comparación lado a lado en la ronda 0 (es marca de cliente: la mira el dueño) |
 
 ## 8. Límites respetados
 
