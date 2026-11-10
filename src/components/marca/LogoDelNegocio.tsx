@@ -12,6 +12,8 @@
 // Los colores van por tokens y por `data-logo` en globals.css; el nombre es texto real (el dibujo, aria-hidden).
 
 import type { EsteticaBackoffice } from "@/lib/estetica-backoffice";
+import { presentaComoDemoGsg } from "@/lib/marca-demo";
+import { IsotipoGSG } from "./MarcaGSG";
 
 // Logos reales que ya están en public/tenants (los mismos del front de cada negocio). Por slug exacto: un local con otro slug
 // cae al logo tipográfico hasta que se lo agregue acá. PDC no figura: la inmobiliaria no se toca (orden del dueño, 29/10). Medidas = las del archivo, para
@@ -41,6 +43,15 @@ export default function LogoDelNegocio({
   slug?: string | null;
   monograma?: string;
 }) {
+  // DEMO GSG (src/lib/marca-demo.ts): el isotipo de GSG con el nombre de la demo, nunca el logo del cliente.
+  if (presentaComoDemoGsg(slug)) {
+    return (
+      <span data-logo="demo-gsg" className="flex min-w-0 items-center gap-2.5">
+        <IsotipoGSG tamano={32} className="shrink-0" />
+        <span data-logo-parte="nombre" className="truncate">{nombre}</span>
+      </span>
+    );
+  }
   const real = estetica ? null : logoRealDe(slug);
   if (real) {
     return (

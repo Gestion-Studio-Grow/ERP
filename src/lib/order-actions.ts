@@ -122,6 +122,7 @@ import {
   avanzarPedidoGuarded,
   horarioDelFormulario,
 } from "@/lib/order-anulacion";
+import { MARCA_DEMO_GSG, contactoDeLaDemo, presentaComoDemoGsg } from "@/lib/marca-demo";
 import { avisoAnulacionConDevolucion, devolucionManualDeLaVenta } from "@/lib/caja/doble-salida";
 import {
   descuentoDelFormulario,
@@ -874,7 +875,8 @@ export async function placeOnlineOrder(
   if (!porWhatsApp) redirect(`/tienda/gracias?pedido=${result.code}`);
   // El pedido YA está registrado: si armar el link del chat falla, no se dice "no pudimos tomar
   // el pedido" (sería mentira y el cliente lo repetiría): se contesta sin chat.
-  const whatsapp = await chatDelPedido(tenantId, result.id, tenant?.name ?? "el local").catch((err) => {
+  // DEMO GSG (src/lib/marca-demo.ts): un pedido de prueba nunca abre el chat del WhatsApp real del cliente.
+  const whatsapp = presentaComoDemoGsg(tenant?.slug) ? null : await chatDelPedido(tenantId, result.id, tenant?.name ?? "el local").catch((err) => {
     logger.warn("tienda", "pedido registrado sin link de WhatsApp", {
       tenantId,
       error: err instanceof Error ? err.message : String(err),
@@ -1685,10 +1687,12 @@ export async function getStorefront() {
   // ambos resueltos por slug. `copy` es null para tenants sin copy → cae al wording.
   const wording = retailWordingForSlug(tenant?.slug);
   const copy = getStorefrontCopy(tenant?.slug);
+  // DEMO GSG (src/lib/marca-demo.ts): nombre de la demo y sin los datos de contacto del cliente.
+  const demo = presentaComoDemoGsg(tenant?.slug);
   return {
-    name: tenant?.name ?? "Tienda",
+    name: demo ? MARCA_DEMO_GSG.nombre : (tenant?.name ?? "Tienda"),
     slug: tenant?.slug ?? null,
-    branding: settings ?? null,
+    branding: demo ? contactoDeLaDemo(settings) : (settings ?? null),
     wording,
     copy,
     // El stock NO sale de acá: esto es público (lo lee cualquiera que abra /tienda) y cuántos

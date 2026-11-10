@@ -62,7 +62,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const { accent } = resolveAccent(brand.preset, brand.frontTheme);
   // FICHA DE MARCA (RFC-004-D): con `TENANT_BRAND_SHEET_ENABLED` ON manda el nombre de la ficha, como siempre.
   const sheet = tenantBrandSheetEnabled() ? await getBrandSheet() : null;
-  if (sheet) return { title: sheet.name, description: "Gestión del negocio y reservas online.", icons: { icon: tenantFaviconDataUri(brand.monogram, accent) } };
+  if (sheet) return { title: sheet.name, description: "Gestión del negocio y reservas online.", icons: { icon: brand.demoGsg ? faviconGsg() : tenantFaviconDataUri(brand.monogram, accent) } };
   // Una base caída no se disfraza de «dirección sin negocio», pero tampoco de negocio (P0 ronda 2): pestaña neutra de
   // GSG y sin indexar. El cuerpo lo resuelve el layout del sitio (redirige a /sin-servicio).
   const estado = await estadoDeLaDireccion();
@@ -89,7 +89,8 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: pestana.titulo,
     description: "Gestión del negocio y reservas online.",
-    icons: { icon: tenantFaviconDataUri(pestana.glifo, accent) },
+    // DEMO GSG (src/lib/marca-demo.ts): el ícono de GSG, no un glifo «GSG» tipográfico.
+    icons: { icon: brand.demoGsg ? faviconGsg() : tenantFaviconDataUri(pestana.glifo, accent) },
     ...(origen
       ? {
           metadataBase: new URL(origen),

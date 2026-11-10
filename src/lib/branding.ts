@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { getCurrentTenantSlug } from "@/lib/tenant-site";
 import { tenantFamilySlug } from "@/blueprints/retail/rubros";
+import { MARCA_DEMO_GSG, presentaComoDemoGsg } from "./marca-demo";
 
 // ============================================================================
 // BRANDING POR TENANT + REGLA DE TEMAS FRONT/BACK (design system)
@@ -112,6 +113,8 @@ export type TenantBrand = {
    * tiene). La pone `brandForSlug`; en las fichas no se escribe.
    */
   propia?: boolean;
+  /** Se muestra como demo con la marca de GSG (src/lib/marca-demo.ts). La pone `brandForSlug`. */
+  demoGsg?: boolean;
   preset: AccentPreset;
   frontTheme: Theme;
   /** Logo real del tenant (URL o data-URI). Ausente → se usa el monograma sobre el acento. */
@@ -233,6 +236,11 @@ const DEFAULT_BRAND: TenantBrand = {
 // (`resolveTenantBrandId`, src/tenants/storefront.ts:279).
 export function brandForSlug(slug: string | null): TenantBrand {
   if (!slug) return DEFAULT_BRAND;
+  // DEMO GSG (marca-demo.ts): el negocio se muestra con la marca de GSG, no con la suya. Antes que la ficha propia.
+  if (presentaComoDemoGsg(slug)) {
+    const d = MARCA_DEMO_GSG;
+    return { name: d.nombre, monogram: d.monograma, preset: d.preset, frontTheme: d.frontTheme, propia: true, demoGsg: true };
+  }
   const familia = tenantFamilySlug(slug);
   const ficha = TENANTS[slug] ?? (familia ? TENANTS[familia] : undefined);
   return ficha ? { ...ficha, propia: true } : DEFAULT_BRAND;
