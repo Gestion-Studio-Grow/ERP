@@ -20,7 +20,6 @@ import "server-only";
 
 import { esConflictoDeEscritura } from "@/lib/conflicto-de-escritura";
 import { randomBytes } from "node:crypto";
-import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requestIp } from "@/lib/audit-core";
@@ -33,6 +32,7 @@ import { notificadorActual } from "./notificador";
 import { regenerarAlReconocer } from "./sesion-alumno";
 import { leerTokenCookie } from "./sesion-alumno.server";
 import type { ClaveMeta } from "./whatsapp-cloud";
+import { origenPublicoDelPedido } from "@/lib/direccion-publica.server";
 
 // ── Tipos de respuesta ──────────────────────────────────────────────────────
 
@@ -93,10 +93,8 @@ export function refrescar(...tokens: (string | undefined)[]) {
 
 /** https://<dominio> del pedido, para armar los links que van por WhatsApp. */
 export async function origen(): Promise<string> {
-  const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "";
-  const proto = h.get("x-forwarded-proto") ?? (host.includes("localhost") ? "http" : "https");
-  return host ? `${proto}://${host}` : "";
+  // Con dominio propio, nunca el .vercel.app por el que haya entrado el dueño (direccion-publica.ts).
+  return (await origenPublicoDelPedido()) ?? "";
 }
 
 // ── Frenos ──────────────────────────────────────────────────────────────────

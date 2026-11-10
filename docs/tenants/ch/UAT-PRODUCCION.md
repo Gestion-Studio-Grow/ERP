@@ -2,8 +2,8 @@
 
 **Negocio:** CH Estética (Carolina Haponiuk) · slug `beauty-spa` · subdominio `chestetica`.
 **Cuándo:** después de cada publicación que toque turnos, cobros o caja, y antes de prender un interruptor en CH.
-**Dónde:** `https://chestetica-erp.vercel.app` (la URL que hoy sirve CH; si el dueño ya movió el dominio, la que esté
-en `TENANT_HOST_MAP`), en Chrome real, en escritorio (1440 px) y con el celular emulado (DevTools → 390 × 844).
+**Dónde:** `https://chestetica.gsgapp.com.ar` (la dirección oficial de CH, la única que se le pasa al negocio; el
+`.vercel.app` viejo sigue ruteando pero no se usa ni se comparte, GSG-MARCA-006), en Chrome real, en escritorio (1440 px) y con el celular emulado (DevTools → 390 × 844).
 **Ensayo previo, sin producción:** `npm run build && npm run test:ch-uat` recorre este mismo guion clic por clic contra
 una base Postgres **local** sembrada con datos de demo de CH (nunca Neon). Capturas a 390 y 1440 px en `dist/uat-ch/`.
 Cada fila de abajo lleva entre corchetes el id del paso en ese recorrido.

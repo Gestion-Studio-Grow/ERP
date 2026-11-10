@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { isDemoSandbox } from "@/lib/demo-flag";
 import { activeDemoRecommendation } from "@/lib/demo-consultor";
+import { LogoGSG } from "@/components/marca/MarcaGSG";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PUNTO DE ENTRADA VISIBLE al backoffice en MODO DEMO (sin password).
@@ -50,6 +51,8 @@ export default function ProbarPage() {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-lg flex-col items-center justify-center gap-6 px-6 py-16 text-center">
+      {/* /probar es de GSG (la demo la ofrece GSG, no un negocio): logo madre arriba. */}
+      <LogoGSG alto={56} className="text-neutral-900" />
       <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-amber-800">
         Modo demo
       </span>

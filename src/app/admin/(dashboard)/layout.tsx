@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { FUENTES_PANEL } from "@/design/fuentes-panel";
 import { headers } from "next/headers";
+import { origenPublicoSiDifiere } from "@/lib/direccion-publica";
 import { redirect } from "next/navigation";
 import AdminShell from "./AdminShell";
 import PanelDeCasa from "./PanelDeCasa";
@@ -322,8 +323,13 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // `PROFILES_ENABLED` OFF, `activeProfile` es null → sin atributo → byte-idéntico.
   const density = densityForProfile(activeProfile);
 
+  // Entró por el .vercel.app: los links que se comparten desde el navegador salen con la dirección
+  // oficial (direccion-publica.ts). Por la dirección oficial no se agrega nada (CH no cambia).
+  const hdr = await headers();
+  const origenPublicoDistinto = origenPublicoSiDifiere(hdr.get("x-forwarded-host") ?? hdr.get("host"));
   return (
     <div
+      data-origen-publico={origenPublicoDistinto}
       data-skin="fable"
       // Escala nivel 5 (29/10/2026): letra y radios más generosos, sólo en el panel (globals.css).
       data-escala="nivel-5"

@@ -3,6 +3,7 @@
 // La lógica de la regla vive en abonos-core.ts; el guardado y la emisión, en cartera-abonos.ts.
 
 import { exigirEstudio, filasDeCarteraDb } from "@/lib/cartera-gate";
+import SelloGSG from "@/components/marca/SelloGSG";
 import { MigracionPendienteError, leerReglasDelEstudio } from "@/lib/cartera-abonos";
 import { mesDelNegocio } from "@/lib/libros/fecha-fiscal";
 import { formatearCuit } from "@/lib/fiscal/cuit";
@@ -87,7 +88,7 @@ export default async function AbonosPage() {
         )}
       </Bloque>
 
-      <footer className="mt-2xl border-t border-line pt-4 text-center text-xs text-faint">Con tecnología de Gestión Studio Grow</footer>
+      <footer className="mt-2xl border-t border-line pt-4"><SelloGSG /></footer>
     </PageContainer>
   );
 }
