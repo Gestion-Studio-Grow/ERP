@@ -12,7 +12,7 @@ import { defaultModulesForBlueprint as fromOperatorConfig } from "@/lib/operator
 // retail (stock/venta-peso/venta-unidad/proveedores/cuenta-corriente), que no son nav.
 const NAV_MODULE_IDS = new Set([
   "agenda", "pos", "catalog", "clients", "waitlist", "reminders", "reports",
-  "commissions", "arca", "mercadopago",
+  "commissions", "arca", "mercadopago", "inventario",
 ]);
 // Módulos propios de SERVICIOS que un retail/mostrador NO debe traer (nav limpia).
 const SERVICES_ONLY = ["agenda", "waitlist", "commissions"];
@@ -24,7 +24,7 @@ test("familia agenda (rubro sin preset propio, p. ej. peluquería) trae los mód
 });
 
 test("SET LITE POR RUBRO: todo rubro devuelve SOLO ids de módulo de nav reales (no vocabulario retail interno)", () => {
-  for (const rubro of ["carniceria", "velas", "padel", "verduleria", "dietetica", "kiosco", "fiambreria", "indumentaria", "servicios", "peluqueria"]) {
+  for (const rubro of ["carniceria", "velas", "padel", "verduleria", "dietetica", "kiosco", "fiambreria", "indumentaria", "servicios", "peluqueria", "barberia"]) {
     for (const m of defaultModulesForBlueprint(rubro)) {
       assert.ok(NAV_MODULE_IDS.has(m), `rubro "${rubro}" devolvió "${m}", que NO es un módulo de nav válido`);
     }
@@ -85,4 +85,24 @@ test("FU1 anti-drift: la re-exportada de operator-config === la canónica para T
   for (const b of casos) {
     assert.deepEqual(fromOperatorConfig(b), defaultModulesForBlueprint(b), `drift en blueprint "${b}"`);
   }
+});
+
+// ── Paquete Peluquerías (T1) ─────────────────────────────────────────────────────
+test("peluquería y barbería traen el paquete completo: turnos + comisiones + caja/mostrador + stock + factura + MP", () => {
+  for (const bp of ["peluqueria", "barberia"]) {
+    const modules = defaultModulesForBlueprint(bp);
+    for (const need of ["agenda", "catalog", "clients", "reminders", "reports", "commissions", "pos", "inventario", "arca", "mercadopago"]) {
+      assert.ok(modules.includes(need), `${bp} debería traer "${need}"`);
+    }
+  }
+});
+
+test("no-cambio: el resto de la familia agenda y 'servicios' (CH) siguen con su set de siempre", () => {
+  const AGENDA = ["agenda", "catalog", "clients", "waitlist", "reminders", "reports"];
+  for (const bp of ["estetica", "veterinaria", "consultorio"]) {
+    assert.deepEqual(defaultModulesForBlueprint(bp), AGENDA, `${bp} no debe cambiar`);
+  }
+  assert.deepEqual(defaultModulesForBlueprint("servicios"), [...AGENDA, "commissions"]);
+  // CH (beauty-spa) vive sin blueprint en producción: el fallback no se toca.
+  assert.deepEqual(defaultModulesForBlueprint(null), ["catalog", "clients", "pos", "reports"]);
 });
