@@ -197,7 +197,7 @@ export async function PestanaResumen({ a, cab, vista }: { a: Actor; cab: Cabecer
                 <div className="flex flex-wrap gap-2">
                   <a href={`/portal/cliente/${tokenCliente}`} target="_blank" rel="noopener noreferrer" className={buttonClasses("outline", "md")}>Abrir</a>
                   <CopiarLink ruta={`/portal/cliente/${tokenCliente}`} />
-                  {vista.pipelineEdita && <BotonConConfirmacion accion={revocarPortalCliente} ocultos={{ id: p.id }} texto="Sacar el acceso" textoConfirma="Saca el acceso a la lista de eventos. Los links de cada evento siguen abiertos hasta que los revoques en cada proyecto." />}
+                  {vista.pipelineEdita && <BotonConConfirmacion accion={revocarPortalCliente} ocultos={{ id: p.id }} texto="Sacar el acceso" textoConfirma="Sí, sacar el acceso" aviso="Saca el acceso a la lista de eventos. Los links de cada evento siguen abiertos hasta que los revoques en cada proyecto." />}
                 </div>
               </>
             ) : vista.pipelineEdita ? (

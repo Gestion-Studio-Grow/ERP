@@ -42,13 +42,14 @@ export function FormAccion({ accion, className, children, limpiar, alGuardar }: 
 }
 
 /** Sin confirm nativo: el primer toque arma el botón y el segundo hace. */
-export function BotonConConfirmacion({ accion, ocultos, texto, textoConfirma, etiqueta }: { accion: (fd: FormData) => Promise<ResultadoFicha>; ocultos: Record<string, string>; texto: string; textoConfirma: string; etiqueta?: string }) {
+export function BotonConConfirmacion({ accion, ocultos, texto, textoConfirma, etiqueta, aviso }: { accion: (fd: FormData) => Promise<ResultadoFicha>; ocultos: Record<string, string>; texto: string; textoConfirma: string; etiqueta?: string; aviso?: string }) {
   const [armado, setArmado] = useState(false);
   return (
     <FormAccion accion={accion} className="flex flex-wrap items-center gap-1" alGuardar={() => setArmado(false)}>
       {Object.entries(ocultos).map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />)}
       {armado ? (
         <>
+          {aviso && <p role="alert" className="basis-full text-sm text-strong">{aviso}</p>}
           <button type="submit" className={buttonClasses("danger", "md")}>{textoConfirma}</button>
           <button type="button" className={buttonClasses("ghost", "md")} onClick={() => setArmado(false)}>No</button>
         </>

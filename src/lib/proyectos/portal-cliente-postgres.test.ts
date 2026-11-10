@@ -4,7 +4,7 @@
 // perdidos; (c) ningún dato fuera de la lista blanca, mirado clave por clave y recursivo; (d) revocar corta el link y dos
 // «Generar» a la vez dan un solo link; (e) con el portal apagado la acción niega y la lectura (lo que la página convierte en
 // 404) da null; (f) sin la tabla (migración sin aplicar) la lectura da null y la acción niega sin escribir.
-// (g) un cliente de otro negocio: generar niega y la lectura da null limpio; (h) un error de base que no es «falta la
+// (g) un cliente de otro negocio: generar niega y la base rechaza la fila cruzada (FK compuesta, 23503); (h) un error de base que no es «falta la
 // tabla» no tira la pestaña: el link da null. Además, generar audita sólo si creó la fila.
 
 import { test } from "node:test";
@@ -155,11 +155,31 @@ test("Portal por cliente: aislado por negocio, sólo sus eventos, lista blanca, 
   const cruzado = await duenio.proyecto.create({ data: { tenantId: b.id, numero: 99, clientId: cliente, nombre: "Cruzado", servicio: "EVENTOS", etapa: "PEDIDO" }, select: { id: true } });
   assert.equal((await accion({ negocio: b, usuario: { id: b.duenia.id } }, generarPortalCliente, cruzado.id)).ok, false);
   assert.equal(await duenio.portalCliente.count({ where: { tenantId: b.id } }), 0, "no crea link de B para un cliente de A");
-  // Y una fila de B con un cliente de A: la lectura en el host de B da null limpio (sin TypeError) y en el de A, nada.
-  await duenio.portalCliente.create({ data: { tenantId: b.id, clientId: cliente, token: "tokCruzadoB_1234567890abcdefghijklmnopqrstu" } });
-  assert.equal(await leer(b, "tokCruzadoB_1234567890abcdefghijklmnopqrstu"), null);
-  assert.equal(await leer(a, "tokCruzadoB_1234567890abcdefghijklmnopqrstu"), null);
-  await duenio.portalCliente.deleteMany({ where: { tenantId: b.id } });
+  // Y una fila de B con un cliente de A ya no se puede crear: la llave compuesta (tenantId, clientId) → Client(tenantId, id)
+  // lo impide en la base, aunque la app se equivoque. Por SQL directo, como app_rls y con el negocio B puesto (la política
+  // de RLS deja pasar la fila: el tenantId es B), falla por la FK (23503). Antes este caso creaba la fila cruzada y
+  // comprobaba que la lectura daba null; esa fila ya no puede existir, así que esa parte se sacó.
+  const [{ PrismaClient: Cliente }, { PrismaPg }] = await Promise.all([import("@/generated/prisma/client"), import("@prisma/adapter-pg")]);
+  const comoApp = new Cliente({ adapter: new PrismaPg({ connectionString: base.urlApp }) });
+  try {
+    await assert.rejects(
+      comoApp.$transaction(async (tx) => {
+        await tx.$executeRawUnsafe(`SELECT set_config('app.current_tenant_id', $1, true)`, b.id);
+        await tx.$executeRawUnsafe(
+          `INSERT INTO "PortalCliente" ("id", "tenantId", "clientId", "token") VALUES ('cruzado', $1, $2, 'tokCruzadoB_1234567890abcdefghijklmnopqrstu')`,
+          b.id,
+          cliente,
+        );
+      }),
+      (e: unknown) => {
+        assert.match(JSON.stringify(e) + String(e), /23503/, "violación de llave foránea");
+        return true;
+      },
+    );
+  } finally {
+    await comoApp.$disconnect();
+  }
+  assert.equal(await duenio.portalCliente.count({ where: { tenantId: b.id } }), 0);
 
   // (h) Error de base que no es «falta la tabla»: el link del cliente da null (la tarjeta no se muestra) y no tira.
   const linkOk = await ejecutarAccion(comoDuenia, () => tokenPortalDelCliente(a.id, cliente));

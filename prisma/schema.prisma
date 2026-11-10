@@ -891,6 +891,7 @@ model Client {
 
   // N2: limiteCredito Decimal? @db.Decimal(14, 2) // N2_retail.sql (M7): tope de fiado; NULL = sin límite
 
+  @@unique([tenantId, id]) // destino de la llave foránea compuesta de PortalCliente (MIA Etapa 2 · T5)
   @@index([tenantId])
   @@index([tenantId, docNro])
 }
@@ -4587,7 +4588,7 @@ model PortalCliente {
   id        String   @id @default(cuid())
   tenant    Tenant   @relation(fields: [tenantId], references: [id])
   tenantId  String
-  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client    Client   @relation(fields: [tenantId, clientId], references: [tenantId, id], onDelete: Cascade) // compuesta: nunca el cliente de otro negocio
   clientId  String
   token     String   @unique
   creadoPor String?
