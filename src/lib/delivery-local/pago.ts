@@ -14,6 +14,7 @@
 // las reglas de caja de siempre. Esto es una PREFERENCIA declarada por el cliente.
 
 import { leerImporte } from "@/lib/dinero/leer";
+import { redondearAlCentavo } from "@/lib/dinero/redondeo";
 
 export type MedioPreferido = "transferencia" | "efectivo" | "mercadopago";
 
@@ -60,7 +61,7 @@ export function renglonDePago(medio: MedioPreferido, pagaCon: number | null): st
 /** Vuelto que tiene que llevar el repartidor; null si no aplica o si alcanza justo. */
 export function vueltoALlevar(total: number, pagaCon: number | null): number | null {
   if (pagaCon === null) return null;
-  const v = Math.round((pagaCon - total) * 100) / 100;
+  const v = redondearAlCentavo(pagaCon - total);
   return v > 0 ? v : null;
 }
 

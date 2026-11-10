@@ -14,6 +14,7 @@
 
 import type { Disponibilidad } from "../reglas-tienda";
 import { leerPago, type MedioPreferido } from "@/lib/delivery-local/pago";
+import { redondearAlCentavo } from "@/lib/dinero/redondeo";
 
 export type ProductoDeLaCarta = {
   id: string;
@@ -74,7 +75,7 @@ export function pasoDe(p: Pick<ProductoDeLaCarta, "saleUnit">): number {
   return p.saleUnit === "WEIGHT" ? 0.25 : 1;
 }
 
-const centavos = (n: number) => Math.round(n * 100) / 100;
+const centavos = redondearAlCentavo;
 
 export type LineaDeLaBolsa<P> = { producto: P; cantidad: number; importe: number };
 

@@ -221,8 +221,8 @@ export function repetirBolsa(items: readonly ItemGuardado[], productos: readonly
       faltan.push(it.nombre);
       continue;
     }
-    const cantidad = p.saleUnit === "UNIT" ? Math.max(1, Math.round(it.cantidad)) : Math.round(it.cantidad * 100) / 100;
-    bolsa[p.id] = Math.round(((bolsa[p.id] ?? 0) + cantidad) * 100) / 100;
+    const cantidad = p.saleUnit === "UNIT" ? Math.max(1, Math.round(it.cantidad)) : Math.round(it.cantidad * 100) / 100; // no-es-plata: cantidad (unidades o kilos), no un importe
+    bolsa[p.id] = Math.round(((bolsa[p.id] ?? 0) + cantidad) * 100) / 100; // no-es-plata: cantidad (unidades o kilos), no un importe
   }
   return { bolsa, faltan };
 }
