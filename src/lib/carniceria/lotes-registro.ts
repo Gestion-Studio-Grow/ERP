@@ -10,8 +10,9 @@
 // SQL crudo (la tabla no está en el cliente de Prisma) con el `tenantId` escrito a mano en cada
 // sentencia: rls.ts avisa que las crudas no pasan por el candado de la app.
 
-import type { Prisma } from "@/generated/prisma/client";
-import { instanteDelDia, type BatchStatus } from "./lotes";
+import { Prisma } from "@/generated/prisma/client";
+import { RechazoDeDominio } from "@/lib/rechazo-de-dominio";
+import { instanteDelDia, motivoDeVentaVencida, type BatchStatus } from "./lotes";
 
 type Tx = Prisma.TransactionClient;
 
@@ -77,4 +78,38 @@ export async function cambiarEstadoEnTx(
     UPDATE "ProductBatch" SET "status" = CAST(${status} AS "BatchStatus"), "updatedAt" = CURRENT_TIMESTAMP
     WHERE "id" = ${id} AND "tenantId" = ${tenantId}`;
   return { code: antes.code, desde: antes.status, igual: false };
+}
+
+/**
+ * GUARDA DE LA VENTA (T3): frena la venta de un corte cuyos lotes DISPONIBLES están todos
+ * vencidos (regla y porqué en `motivoDeVentaVencida`, lotes.ts). Corre ADENTRO de la
+ * transacción del alta, antes de grabar nada: si rechaza, no hay venta, ni stock, ni caja.
+ *
+ * Sólo la llama el alta cuando el negocio tiene Lotes listos (`lotesYDespieceListos`: migración
+ * aplicada Y rubro de perecederos). Sin la tabla, la consulta abortaría la transacción entera
+ * (Postgres no sigue después de un error): por eso NO se llama "a ver si existe". `hoy` es el día
+ * del negocio. El `tenantId` va escrito a mano (rls.ts: las crudas no pasan por el candado).
+ */
+export async function controlarLotesVencidosEnTx(
+  tx: Tx,
+  tenantId: string,
+  lineas: readonly { productId: string; name: string }[],
+  hoy: string,
+): Promise<void> {
+  const ids = [...new Set(lineas.map((l) => l.productId).filter(Boolean))];
+  if (ids.length === 0) return;
+  const filas = await tx.$queryRaw<{ productId: string; code: string; expiresAt: Date | null }[]>`
+    SELECT "productId", "code", "expiresAt" FROM "ProductBatch"
+    WHERE "tenantId" = ${tenantId} AND "status" = 'AVAILABLE' AND "productId" IN (${Prisma.join(ids)})`;
+  if (filas.length === 0) return;
+  const porCorte = new Map<string, { code: string; expiresAt: Date | null; status: BatchStatus }[]>();
+  for (const f of filas) {
+    const lista = porCorte.get(f.productId) ?? [];
+    lista.push({ code: f.code, expiresAt: f.expiresAt, status: "AVAILABLE" });
+    porCorte.set(f.productId, lista);
+  }
+  for (const l of lineas) {
+    const motivo = motivoDeVentaVencida(l.name, porCorte.get(l.productId) ?? [], hoy);
+    if (motivo) throw new RechazoDeDominio(motivo);
+  }
 }

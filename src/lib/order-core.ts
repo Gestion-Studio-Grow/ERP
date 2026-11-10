@@ -24,6 +24,7 @@ import { isUniqueViolation, isColumnMissing } from "@/lib/prisma-errors";
 import { buscarFichaPorTelefono } from "@/lib/clientes/ficha-por-telefono";
 import { logger } from "@/lib/logger";
 import { RechazoDeDominio } from "@/lib/rechazo-de-dominio";
+import { controlarLotesVencidosEnTx } from "@/lib/carniceria/lotes-registro";
 import { pedidoDelReintento, type PedidoDelReintento } from "@/lib/reintento-de-venta";
 import { shippingCost, type ShippingConfig } from "@/lib/storefront-shipping";
 import { costoDeEnvio, renglonDeEnvio } from "@/lib/envios/tarifa";
@@ -233,6 +234,15 @@ export type InsertOrderOpts = {
    * frenar). Sin el dato, el alta de siempre.
    */
   occurredAt?: Date | null;
+  /**
+   * LOTES VENCIDOS (Magra T3): con `hoy` (el día del NEGOCIO), el alta frena la venta de un corte
+   * cuyos lotes disponibles están todos vencidos (`controlarLotesVencidosEnTx`, carniceria/
+   * lotes-registro.ts), adentro de la transacción y antes de grabar nada. Sólo lo pasa el
+   * mostrador cuando el negocio tiene Lotes listos (migración cárnica aplicada Y rubro de
+   * perecederos): sin la tabla la consulta abortaría la venta. Sin el dato (CH, Shine, la tienda,
+   * y Magra hasta que se aplique la migración) el alta de siempre.
+   */
+  lotesVencidos?: { hoy: string } | null;
 };
 
 // A-2: cuántas veces se reintenta el alta ante una colisión del correlativo por tenant
@@ -705,6 +715,8 @@ export async function insertarOrdenEnTx(tx: Prisma.TransactionClient, p: AltaPar
   const { tenantId, alta, opts, clientId, writeKey, clave } = p;
   const input = alta.input;
   const negativoPermitido = new Set(opts?.permitirNegativoPorProducto ?? []);
+    // Magra T3: un corte con todos sus lotes vencidos no se vende (antes de escribir nada).
+    if (opts?.lotesVencidos) await controlarLotesVencidosEnTx(tx, tenantId, alta.lines, opts.lotesVencidos.hoy);
     // El tope de precio a mano y el cupón se deciden ACÁ, con lo que la base dice en esta
     // misma transacción: si alguno rechaza, no se escribe nada.
     await controlarPreciosAManoEnTx(tx, tenantId, alta.aMano, opts?.topePrecioAMano);

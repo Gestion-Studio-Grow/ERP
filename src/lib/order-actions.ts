@@ -86,6 +86,7 @@ import { textoPlata } from "@/lib/cobro/pie-de-cobro-core";
 import { lastClosedDay } from "@/lib/caja/frontera-cierre";
 import { isFrozenDay } from "@/lib/caja/cierre-diario";
 import { dateStrInBusinessTz } from "@/lib/datetime";
+import { lotesYDespieceListos } from "@/lib/carniceria/schema-probe";
 import { productosQuePuedenFaltarAFuturo } from "@/lib/pedidos/interpretar-whatsapp";
 import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
 import { mostradorBoutiquePrendido } from "@/cambios/interruptores";
@@ -547,6 +548,9 @@ export async function createOrder(formData: FormData): Promise<OrderActionState>
         envioZona,
         clientId: clientIdElegido,
         ...(delCuaderno ? { occurredAt: delCuaderno.en } : {}),
+        // Magra T3: con Lotes listos (migración cárnica aplicada Y rubro de perecederos), un corte
+        // con todos sus lotes vencidos no se vende. Sin la migración (hoy) o en CH/Shine: null.
+        lotesVencidos: (await lotesYDespieceListos()) ? { hoy: delCuaderno?.dia ?? dateStrInBusinessTz(new Date()) } : null,
       },
     );
   } catch (err) {
