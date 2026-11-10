@@ -33,8 +33,8 @@
  * Proyecto en otra moneda (USD): el saldo se calcula EN SU MONEDA y recién al final se pasa a pesos con el cambio de
  * HOY (`cobranzaEnMoneda`): si el dólar se mueve la deuda en pesos se mueve con él, y quien pagó sus dólares debe cero.
  */
-import { pesos, redondear, totales } from "./core";
-import { aPesos, enMonedaDeVenta, plataEn, resumenCuotas, ventaTotalItem, type CuotaLeida, type ResumenCuotas } from "./gestion-core";
+import { pesos, redondear, totales, type Totales } from "./core";
+import { aPesos, costoTotalItem, enMonedaDeVenta, plataEn, resumenCuotas, ventaTotalItem, type CuotaLeida, type ResumenCuotas } from "./gestion-core";
 
 /** Una cuota como la lee la cobranza: con `prevista` si se la leyó (las lecturas de Administración ya las filtran). */
 export type CuotaDeCobranza = CuotaLeida & { prevista?: boolean | null };
@@ -65,11 +65,15 @@ export interface PresupuestoAprobado {
   items: readonly ItemVendible[];
 }
 
+/** Costo, neto, IVA y ganancia del presupuesto, todo en pesos de hoy: un costo en dólares no se suma como si fueran pesos. PURA. */
+export function totalesEnPesos(aprobado: PresupuestoAprobado, tc: Readonly<Record<string, number>>, recargoGeneral: number): Totales {
+  const enPesos = aprobado.items.map((i) => ({ cantidad: 1, costo: costoTotalItem(i, tc), precio: ventaTotalItem(i, tc, recargoGeneral) }));
+  return totales(enPesos, aprobado.ivaPct);
+}
+
 /** El total con IVA, en pesos, del presupuesto aprobado; 0 si no hay. Mismo cálculo que la caja «Cobros». PURA. */
 export function totalAprobado(aprobado: PresupuestoAprobado | null | undefined, tc: Readonly<Record<string, number>>, recargoGeneral: number): number {
-  if (!aprobado) return 0;
-  const enPesos = aprobado.items.map((i) => ({ cantidad: 1, costo: 0, precio: ventaTotalItem(i, tc, recargoGeneral) }));
-  return totales(enPesos, aprobado.ivaPct).total;
+  return aprobado ? totalesEnPesos(aprobado, tc, recargoGeneral).total : 0;
 }
 
 export interface CobroRegistrado {

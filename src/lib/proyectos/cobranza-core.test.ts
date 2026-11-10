@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { cobranza, cobranzaEnMoneda, conciliarConCobros, esPrevista, leerOriginal, lugarParaCobroManual, montoEnCashflow, pagadoDeCuota, pasaElTope, pendientesDeCobro, repartoDeCobros, repartoDelNegocio, resumenConCobranza, SIN_PREVISTAS_SIN_MARCAR, textoPagado, totalAprobado, type Cobranza, type CobroRegistrado } from "./cobranza-core";
+import { cobranza, cobranzaEnMoneda, conciliarConCobros, esPrevista, leerOriginal, lugarParaCobroManual, montoEnCashflow, pagadoDeCuota, pasaElTope, pendientesDeCobro, repartoDeCobros, repartoDelNegocio, resumenConCobranza, SIN_PREVISTAS_SIN_MARCAR, textoPagado, totalAprobado, totalesEnPesos, type Cobranza, type CobroRegistrado } from "./cobranza-core";
 import { aPesos, cashflowDelEvento, enMonedaDeVenta, resumenCuotas, type CuotaLeida } from "./gestion-core";
 import { prepararAccionesDeServidor } from "@/test/accion-de-servidor";
 
@@ -851,3 +851,12 @@ test("v7 F1: proyecto USD con una cuota en pesos y tres en USD: Σ pendientes en
   const enUSD = cuotas.reduce((s, x, i) => s + (x.moneda === "USD" ? p[i] : aPesos(p[i], x.moneda, tc) / tc.USD), 0);
   assert.ok(enUSD <= c.enMoneda!.saldo + 1e-9, `Σ USD ${enUSD} > saldo ${c.enMoneda!.saldo}`);
 });
+
+test("totalesEnPesos: un costo en dólares se pasa a pesos (Reportes: costo US$ 2.000 no es $ 2.000)", () => {
+  const t = totalesEnPesos({ ivaPct: 21, items: [{ cantidad: 1, costo: 2000, precio: 15_124_793.39, moneda: "USD", recargoPct: null }, { cantidad: 2, costo: 100, precio: 0, moneda: "ARS", recargoPct: 50 }] }, { USD: 1000 }, 30);
+  assert.equal(t.costo, 2_000_200);
+  assert.equal(t.neto, redondearT(15_124_793.39 + 300));
+  assert.equal(t.ganancia, redondearT(t.neto - t.costo));
+  assert.equal(totalAprobado({ ivaPct: 21, items: [{ cantidad: 1, costo: 2000, precio: 15_124_793.39, moneda: "USD", recargoPct: null }, { cantidad: 2, costo: 100, precio: 0, moneda: "ARS", recargoPct: 50 }] }, { USD: 1000 }, 30), t.total);
+});
+const redondearT = (x: number) => Math.round(x * 100) / 100;

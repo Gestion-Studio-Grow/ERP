@@ -12,9 +12,9 @@ import { columnasOcultas, filtroDeProyectos, puede, tiposDeCambio, versionViva, 
 import { configProyectos, datosDelNegocio } from "./datos.server";
 import { facturasDeCuotas, motivoParaNoFacturarCuotas, type FacturaDeCuotaVista } from "./facturar-cuota.server";
 import { avisoIvaEnFacturaC } from "./facturar-cuota-core";
-import { cobranza, conciliarConCobros, montoEnCashflow, pagadoDeCuota, repartoDeCobros, SIN_PREVISTAS_SIN_MARCAR } from "./cobranza-core";
+import { cobranza, conciliarConCobros, montoEnCashflow, pagadoDeCuota, repartoDeCobros, SIN_PREVISTAS_SIN_MARCAR, totalesEnPesos } from "./cobranza-core";
 import { cobranzasDelNegocio } from "./cobranza.server";
-import { desvioPorRubro, fechaCorta, fechaParaInput, redondear, resultadoReal, totales } from "./core";
+import { desvioPorRubro, fechaCorta, fechaParaInput, redondear, resultadoReal } from "./core";
 import { cambioDeVenta, costoSinProveedor, enMonedaDeVenta, ventaEn } from "./gestion-core";
 import { cambioLegible, cambioVisible, columnaDe, filaDeFicha, iniciales, monedasSinCambio, planillaDeVenta } from "./ficha-core";
 
@@ -204,7 +204,7 @@ export async function datosFinanzas(a: Actor, cab: Cabecera, vista: Vista) {
   const flujo = cashflowDelEvento(visibles, cab.tc, montoEnCashflow);
   // Pasados a pesos: un ítem en dólares no se puede comparar como si fueran pesos.
   const aprobadaEnPesos = aprobada?.items.map((i) => ({ rubro: i.rubro, cantidad: i.cantidad, costo: aPesos(i.costo, i.moneda, cab.tc), precio: i.cantidad > 0 ? ventaTotalItem(i, cab.tc, cab.config.margenPct) / i.cantidad : 0 })) ?? [];
-  const totalesAprobada = aprobada ? totales(aprobadaEnPesos, aprobada.ivaPct) : null;
+  const totalesAprobada = aprobada ? totalesEnPesos(aprobada, cab.tc, cab.config.margenPct) : null;
   // Etapa 2 · T2: la factura de ARCA de cada cobro, si el negocio factura cuotas (las cuatro llaves).
   const facturaCuotas = (await motivoParaNoFacturarCuotas(tenantId)) === null;
   const facturas = facturaCuotas ? await facturasDeCuotas(tenantId, visibles.filter((c) => c.tipo === "COBRO").map((c) => c.id)) : new Map<string, FacturaDeCuotaVista>();
