@@ -19,7 +19,7 @@
 // (`src/lib/seguridad/reset-owner-por-slug.ts`). La provisoria NUNCA sale por consola: se escribe en
 // RESET_SALIDA (permiso 600, fuera del repo) para mandarla por mail aparte al titular, y ese archivo
 // se borra después de enviarla. Por consola sólo salen ids (auditoría, usuario) y el flag verificado.
-import { writeFileSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const env = (k: string) => (process.env[k] ?? "").trim();
@@ -29,6 +29,8 @@ async function main() {
   const salida = env("RESET_SALIDA");
   if (!salida) throw new Error("Falta RESET_SALIDA (archivo fuera del repo para la provisoria).");
   if (resolve(salida).startsWith(process.cwd())) throw new Error("RESET_SALIDA no puede quedar dentro del repo.");
+  // Archivo nuevo siempre: `mode` no cambia los permisos de uno que ya existe. Se chequea ANTES del reset.
+  if (existsSync(salida)) throw new Error("RESET_SALIDA ya existe: indicá un archivo nuevo.");
 
   const { crearClienteDeScript } = await import("../../src/lib/operador/db-de-scripts");
   const { resetOwnerPorSlug } = await import("../../src/lib/seguridad/reset-owner-por-slug");
@@ -41,7 +43,7 @@ async function main() {
       email: env("RESET_EMAIL") || undefined,
     });
     if (!r.ok) throw new Error(r.error);
-    writeFileSync(salida, JSON.stringify({ email: r.email, password: r.password }), { mode: 0o600 });
+    writeFileSync(salida, JSON.stringify({ email: r.email, password: r.password }), { mode: 0o600, flag: "wx" });
     console.log(
       JSON.stringify({ ok: true, driver: db.driver, auditId: r.auditId, userId: r.userId, tenantId: r.tenantId, mustChangePassword: true }),
     );
