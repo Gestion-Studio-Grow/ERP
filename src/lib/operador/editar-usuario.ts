@@ -66,7 +66,11 @@ export type CodigoEditarUsuario =
   | "ficha-no-encontrada"
   | "ficha-ocupada"
   | "sin-lugar-en-plan"
-  | "nada-que-cambiar";
+  | "nada-que-cambiar"
+  // Sólo los pone la action (guardia, slug, base): el núcleo nunca los devuelve.
+  | "sin-permiso"
+  | "slug-no-coincide"
+  | "error-de-base";
 
 export type EditarUsuarioResult =
   | { ok: true; cambios: { antes: CambiosDeUsuario; despues: CambiosDeUsuario } }
@@ -81,7 +85,7 @@ export interface EditarUsuarioInput {
   activo?: boolean;
 }
 
-const MENSAJES: Record<CodigoEditarUsuario, string> = {
+const MENSAJES: Record<Exclude<CodigoEditarUsuario, "sin-permiso" | "slug-no-coincide" | "error-de-base">, string> = {
   "falta-negocio": "Falta el negocio. No se tocó nada.",
   "no-encontrado": "Esa persona no es de este negocio (o fue borrada). No se tocó nada.",
   "rol-invalido": "El rol tiene que ser Dueño, Recepción o Profesional. No se tocó nada.",
@@ -96,7 +100,7 @@ const MENSAJES: Record<CodigoEditarUsuario, string> = {
   "nada-que-cambiar": "No hay nada que cambiar: los datos son los mismos que ya tiene.",
 };
 
-function falla(codigo: CodigoEditarUsuario, detalle?: string): EditarUsuarioResult {
+function falla(codigo: keyof typeof MENSAJES, detalle?: string): EditarUsuarioResult {
   return { ok: false, codigo, error: detalle ? `${MENSAJES[codigo]} (${detalle})` : MENSAJES[codigo] };
 }
 
