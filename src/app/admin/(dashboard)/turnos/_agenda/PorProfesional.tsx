@@ -76,6 +76,7 @@ import BarraDelTurno from "./BarraDelTurno";
 import { SIN_SELECCION, hayBarra, ladoDeLaBarra, seleccionDeLaBarra, teclasDeLaBarra, vistaDeLaBarra, type EventoDeLaBarra, type SeleccionDeLaBarra } from "./barra-core";
 import { ConfirmarMover, enlaceAvisoMover, useMoverTurno } from "./MoverTurno";
 import { AvisoDeshacerCambio, type CambioParaDeshacer } from "./Deshacer";
+import { useLugarDeAtencion } from "../../LugarDeAtencion";
 import {
   PASO_DURACION_MIN,
   destinoDelArrastre,
@@ -127,6 +128,7 @@ export default function PorProfesional({
   soloProfesional?: string | null;
 }) {
   const { permisos, abrir, cambiarUrl, reloj: relojDeLaMesa } = useMesa();
+  const lugar = useLugarDeAtencion();
   const params = useSearchParams();
   // Agenda interactiva (AGENDA-INTERACCION.md §2.1 y §2.7): apagada, todo como antes.
   const interaccion = permisos.interaccion === true;
@@ -254,7 +256,7 @@ export default function PorProfesional({
     const columna = columnas.find((c) => c.clave === celda.columna);
     const profesionalId = columna ? destinoDelArrastre(columna, t) : null;
     if (!columna || !profesionalId) {
-      return { destino: null, veredicto: { tipo: "no", motivo: "En ese box atiende más de una: movelo desde la vista por profesional o desde el turno." } };
+      return { destino: null, veredicto: { tipo: "no", motivo: `En ese ${lugar.singular} atiende más de una: movelo desde la vista por profesional o desde el turno.` } };
     }
     const destino: Destino = {
       profesionalId,
@@ -503,7 +505,7 @@ export default function PorProfesional({
           }}
           opciones={[
             { valor: "profesional", etiqueta: "Por profesional" },
-            { valor: "box", etiqueta: "Por box" },
+            { valor: "box", etiqueta: `Por ${lugar.singular}` },
           ]}
         />
         )}
@@ -521,7 +523,7 @@ export default function PorProfesional({
       <div
         className="overflow-x-auto border-t border-line-strong [--fila:2.75rem] lg:[--fila:2.25rem]"
         role="region"
-        aria-label={solo ? `La agenda de ${columnas[0]?.titulo ?? "la profesional"}` : verPor === "box" ? "La agenda por box" : "La agenda por profesional"}
+        aria-label={solo ? `La agenda de ${columnas[0]?.titulo ?? "la profesional"}` : verPor === "box" ? `La agenda por ${lugar.singular}` : "La agenda por profesional"}
         tabIndex={0}
       >
         <div className="relative grid min-w-full text-sm" style={estiloGrilla}>
@@ -787,7 +789,7 @@ export default function PorProfesional({
                     </span>
                   )}
                   {!enUnaLinea && alto > 1 && !choca && <Marca tipo={marca.tipo}>{marca.texto}</Marca>}
-                  {!enUnaLinea && choca && <Marca tipo="atencion">{verPor === "box" ? "Choca en el box" : "Se pisa con otro turno"}</Marca>}
+                  {!enUnaLinea && choca && <Marca tipo="atencion">{verPor === "box" ? `Choca en el ${lugar.singular}` : "Se pisa con otro turno"}</Marca>}
                 </button>
               );
               if (!envuelto) return bloque;

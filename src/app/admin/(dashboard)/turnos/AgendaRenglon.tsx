@@ -54,6 +54,8 @@ import ElDiaCorto from "./_agenda/ElDiaCorto";
 import { agendaInteraccionPrendida } from "@/cambios/interruptores";
 import { modoSimpleDeLaSesion } from "@/lib/modo-simple.server";
 import { hrefModoCompleto, recortarPermisosDeAgenda } from "@/lib/modo-simple";
+import { getBrandSheet } from "@/lib/brand-sheet";
+import { lugarDeAtencion } from "@/lib/palabras-del-negocio";
 
 type Quien = { role: Role; professionalId?: string | null; overrides: ReadonlyArray<PermisoOverride> };
 
@@ -181,6 +183,7 @@ export default async function AgendaRenglon({
   const sinProfesionales = vacioSinProfesionales({
     esProfesional: quien.role === "PROFESSIONAL",
     puedeCargarCatalogo: appPermitida(appPorId("catalogo"), negocio),
+    lugar: lugarDeAtencion((await getBrandSheet()).blueprintId).singular,
   });
   const diaVacio = vacioDiaSinTurnos({ fecha: dia, hoy, puedeDarTurno: permisos.gestionar });
   const paso = agenda.profesionales.length === 0 ? sinProfesionales : diaVacio;

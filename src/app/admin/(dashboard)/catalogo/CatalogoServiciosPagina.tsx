@@ -15,6 +15,7 @@ import ProfessionalsSection from "./ProfessionalsSection";
 import ProductsSection from "./ProductsSection";
 import AsignacionSection from "./AsignacionSection";
 import { contarCatalogo, leerParte, type ParteDelCatalogo } from "./catalogo-servicios-core";
+import type { LugarDeAtencion } from "@/lib/palabras-del-negocio";
 import { BoxesRenglon, CuponesRenglon, EquiposRenglon, ServiciosRenglon } from "./CatalogoServiciosRenglon";
 
 type Sp = Record<string, string | string[] | undefined>;
@@ -22,14 +23,14 @@ type Datos = Awaited<ReturnType<typeof getCatalog>> & { coupons: Awaited<ReturnT
 
 const ALTA: Partial<Record<ParteDelCatalogo, string>> = {
   servicios: "Agregar servicio",
-  boxes: "Agregar box",
   equipos: "Agregar equipo",
   cupones: "Crear cupón",
 };
 
 const href = (parte: ParteDelCatalogo, extra = "") => `/admin/catalogo${parte === "servicios" ? (extra ? `?${extra}` : "") : `?ver=${parte}${extra ? `&${extra}` : ""}`}`;
 
-export default function CatalogoServiciosPagina({ sp, datos }: { sp: Sp; datos: Datos }) {
+/** `lugar`: «box» o, en peluquería y barbería, «sillón» (`lugarDeAtencion`). */
+export default function CatalogoServiciosPagina({ sp, datos, lugar }: { sp: Sp; datos: Datos; lugar: LugarDeAtencion }) {
   const { boxes, services, professionals, products, categories, resources, coupons } = datos;
   const parte = leerParte(sp);
   const editar = typeof sp.editar === "string" && sp.editar !== "" ? sp.editar : null;
@@ -48,19 +49,19 @@ export default function CatalogoServiciosPagina({ sp, datos }: { sp: Sp; datos: 
       </Link>,
     );
   if (sinCategoria > 0) estado.push(<strong key="sin-cat">{sinCategoria} sin categoría</strong>);
-  estado.push(`${cuentas.profesionalesActivos} profesionales · ${boxes.filter((b) => b.active).length} boxes`);
+  estado.push(`${cuentas.profesionalesActivos} profesionales · ${boxes.filter((b) => b.active).length} ${lugar.plural}`);
 
   const pestanas = [
     { parte: "servicios", etiqueta: "Servicios", conteo: services.length },
     { parte: "profesionales", etiqueta: "Profesionales", conteo: professionals.length },
-    { parte: "boxes", etiqueta: "Boxes", conteo: boxes.length },
+    { parte: "boxes", etiqueta: lugar.Plural, conteo: boxes.length },
     { parte: "equipos", etiqueta: "Equipos", conteo: resources.length },
     { parte: "productos", etiqueta: "Productos", conteo: products.length },
     { parte: "quien", etiqueta: "Quién hace qué" },
     { parte: "cupones", etiqueta: "Cupones", conteo: coupons.length },
   ] as const;
 
-  const alta = ALTA[parte];
+  const alta = parte === "boxes" ? `Agregar ${lugar.singular}` : ALTA[parte];
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
