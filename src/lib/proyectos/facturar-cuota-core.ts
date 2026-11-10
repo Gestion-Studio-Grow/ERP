@@ -38,7 +38,7 @@ export const CONCEPTO_SERVICIOS = 2;
 /** Alícuota de IVA de ARCA (catálogo de WSFEv1) para el `ivaPct` del presupuesto; `null` si no hay. */
 export function alicuotaDeIvaPct(ivaPct: number | null | undefined): number | null {
   if (typeof ivaPct !== "number" || !Number.isFinite(ivaPct)) return null;
-  const centesimos = Math.round(ivaPct * 100);
+  const centesimos = Math.round(ivaPct * 100); // no-es-plata: alícuota de IVA en centésimos de punto, para compararla con el catálogo de ARCA
   if (centesimos === 2100) return 5;
   if (centesimos === 1050) return 4;
   if (centesimos === 2700) return 6;

@@ -18,6 +18,7 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import { auditAdmin } from "@/lib/audit-core";
 import { transferenciaEnElLibroTx } from "@/lib/caja/transferencia-en-el-libro";
 import type { Prisma } from "@/generated/prisma/client";
+import { textoAlCentavo } from "@/lib/dinero/redondeo";
 import { esEtapa, etapaAlAprobar, etapaLabel, MEDIOS, metodoDeCaja, redondear, sePuedeEditar, sumarDias, type MedioPago } from "./core";
 import { configProyectos } from "./datos.server";
 import { cobranzaConCuotas, pendienteDeLaCuota, trabarCobranza } from "./cobranza.server";
@@ -883,7 +884,7 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
     await registrarCambio(tx, { ...cambio, campo: esCobro ? `Cobrado · ${c.concepto}` : `Pagado · ${c.concepto}`, antes: "Pendiente", despues: `${importe} (${medio})` });
     // Une la cuota con lo que se asentó: al anular el cobro o el gasto, la cuota vuelve a quedar pendiente. En otra
     // moneda guarda además lo que pagó el cliente en ella («5000 USD»): el saldo del proyecto se cuenta en su moneda.
-    await registrarCambio(tx, { ...cambio, campo: "Asiento", antes: c.moneda !== "ARS" ? `${pendiente.toFixed(2)} ${c.moneda}` : null, despues: asiento });
+    await registrarCambio(tx, { ...cambio, campo: "Asiento", antes: c.moneda !== "ARS" ? `${textoAlCentavo(pendiente)} ${c.moneda}` : null, despues: asiento });
     await avisar(tx, { tenantId, destinatarios: destinatarios2, tipo: esCobro ? "cobro" : "pago", texto: `${esCobro ? "Se cobró" : "Se pagó"}: ${c.concepto}`, enlace: `${RAIZ}/${proyectoId}?tab=finanzas` });
     return true;
   });

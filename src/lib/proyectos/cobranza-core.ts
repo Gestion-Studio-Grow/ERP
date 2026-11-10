@@ -34,6 +34,7 @@
  * HOY (`cobranzaEnMoneda`): si el dólar se mueve la deuda en pesos se mueve con él, y quien pagó sus dólares debe cero.
  */
 import { pesos, redondear, totales, type Totales } from "./core";
+import { redondearAlCentavo } from "@/lib/dinero/redondeo";
 import { aPesos, costoTotalItem, enMonedaDeVenta, plataEn, resumenCuotas, ventaTotalItem, type CuotaLeida, type ResumenCuotas } from "./gestion-core";
 
 /** Una cuota como la lee la cobranza: con `prevista` si se la leyó (las lecturas de Administración ya las filtran). */
@@ -277,8 +278,12 @@ function pendienteDeCuota(q: CuotaDeCobranza, esperaH: number, enPesos: number, 
   return p;
 }
 
+/** Al centavo hacia abajo (lo que se reparte nunca pasa del tope: I1). Redondea con el módulo de plata y,
+ * si eso subió de verdad, baja un centavo. La tolerancia absorbe el ruido binario de un importe que ya
+ * está en centavos (crece con el importe: un double de cientos de millones no distingue 1e-8). */
 function alCentavoAbajo(x: number): number {
-  return Math.floor(x * 100 + 1e-6) / 100;
+  const r = redondearAlCentavo(x);
+  return r > x + 1e-8 + Math.abs(x) * 1e-15 ? redondearAlCentavo(r - 0.01) : r;
 }
 
 /**
