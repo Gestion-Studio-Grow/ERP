@@ -29,14 +29,14 @@
 // transacción) y el segundo clic con la misma clave recibe el mismo resultado sin escribir nada.
 
 import { round2 } from "@/lib/round";
-import { centavosDe } from "@/lib/dinero/redondeo";
+import { centavosDe, sumarAlCentavo } from "@/lib/dinero/redondeo";
 import { formatearCantidad } from "@/lib/pos-peso";
 import { fmtMoneyARS } from "@/components/ui/format";
 import { facturaDeLaVenta, mensajeFacturaViva } from "@/lib/factura-viva";
 import { formatDayLabel, isFrozenDay, nextDayKey, type DayKey } from "@/lib/caja/cierre-diario";
 import { AJUSTE_PESO_ACTOR_PREFIX } from "@/lib/caja/devolucion-por-peso";
 import { ajustarPedidoInTx, type AjustarPedidoArgs, type AjustarPedidoResult, type AnulacionVentaTx } from "@/lib/order-anulacion";
-import { anotarNotaPorPesoInTx, facturaParaLaNota, fraseDeLaNota, type NotaPorPeso } from "@/lib/facturacion/nota-credito-por-peso-core";
+import { anotarNotaPorPesoInTx, facturaParaLaNota, importeDeLaNota, fraseDeLaNota, type NotaPorPeso } from "@/lib/facturacion/nota-credito-por-peso-core";
 
 // ── 1. NÚCLEO PURO ──────────────────────────────────────────────────────────
 
@@ -68,6 +68,7 @@ export type MotivoAjusteCobradoRechazado =
   | "facturada"
   | "facturada-peso-mas"
   | "factura-en-camino"
+  | "factura-anulada"
   | "dia-cerrado";
 
 /**
@@ -121,6 +122,11 @@ export function mensajeAjusteCobradoRechazado(motivo: MotivoAjusteCobradoRechaza
       );
     case "factura-en-camino":
       return mensajeFacturaViva("en-camino", "venta");
+    case "factura-anulada":
+      return (
+        "La factura de este pedido ya está anulada entera con notas de crédito: no queda nada que acreditar " +
+        "por el peso. Revisalo en Facturación antes de devolver plata."
+      );
     case "dia-cerrado": {
       const abre = ctx?.cerradoHasta ? formatDayLabel(nextDayKey(ctx.cerradoHasta)) : "mañana";
       return (
@@ -307,6 +313,19 @@ export async function ajustarPesoInTx(tx: AnulacionVentaTx, tenantId: string, ar
     // atrás entera (líneas y stock también).
     if (args.cerradoHasta && isFrozenDay(args.hoy, args.cerradoHasta)) {
       throw new AjusteCobradoRechazado("dia-cerrado", { hoy: args.hoy, cerradoHasta: args.cerradoHasta });
+    }
+    // Factura ya anulada entera: la nota se rechazaría después, con la plata ya devuelta. Se frena
+    // antes de tocar la caja (certificación, hallazgo 2).
+    if (laFactura.estado === "simulada") {
+      const [factura, notas] = await Promise.all([
+        tx.invoice.findFirst({ where: { tenantId, id: laFactura.facturaId }, select: { total: true } }),
+        tx.invoice.findMany({
+          where: { tenantId, comprobanteAsociadoId: laFactura.facturaId, status: { in: ["PENDING", "AUTHORIZED"] } },
+          select: { total: true },
+        }),
+      ]);
+      const queda = importeDeLaNota(diferencia.monto, Number(factura?.total ?? 0), sumarAlCentavo(notas.map((n) => Number(n.total))));
+      if (queda <= 0) throw new AjusteCobradoRechazado("factura-anulada");
     }
     const turno = await tx.cashSession.findFirst({ where: { tenantId, status: "OPEN" }, select: { id: true } });
     const egreso = await tx.cashMovement.create({

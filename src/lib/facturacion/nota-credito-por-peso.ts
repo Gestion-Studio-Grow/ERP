@@ -150,15 +150,28 @@ export async function reintentarNotasPorPesoPendientes(
   if (!(await deps.enModoPrueba(tenantId))) return r;
   const claves = await tenantTransaction(
     async (tx) => {
-      const filas = await tx.auditLog.findMany({
-        where: { tenantId, entity: ENTIDAD_NC_POR_PESO },
+      // Primero las PENDIENTES y después, sólo para esas claves, cuáles ya se emitieron o cerraron:
+      // leer las N filas más viejas de la entidad y filtrar después dejaba afuera a las pendientes
+      // nuevas en cuanto el negocio acumulaba notas emitidas (certificación, hallazgo 1).
+      const pendientes = await tx.auditLog.findMany({
+        where: { tenantId, entity: ENTIDAD_NC_POR_PESO, action: ACCION_NC_PESO_PENDIENTE, entityId: { not: null } },
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         take: 1000,
-        select: { entityId: true, action: true },
+        select: { entityId: true },
       });
-      const fuera = new Set(filas.filter((f) => f.action === ACCION_NC_PESO_EMITIDA || f.action === ACCION_NC_PESO_CERRADA).map((f) => f.entityId));
-      const abiertas = filas.filter((f) => f.action === ACCION_NC_PESO_PENDIENTE && f.entityId && !fuera.has(f.entityId));
-      return abiertas.map((f) => f.entityId!).slice(0, opciones.limite ?? 20);
+      const clavesPendientes = [...new Set(pendientes.map((f) => f.entityId!))];
+      if (clavesPendientes.length === 0) return [];
+      const cerradas = await tx.auditLog.findMany({
+        where: {
+          tenantId,
+          entity: ENTIDAD_NC_POR_PESO,
+          action: { in: [ACCION_NC_PESO_EMITIDA, ACCION_NC_PESO_CERRADA] },
+          entityId: { in: clavesPendientes },
+        },
+        select: { entityId: true },
+      });
+      const fuera = new Set(cerradas.map((f) => f.entityId));
+      return clavesPendientes.filter((c) => !fuera.has(c)).slice(0, opciones.limite ?? 20);
     },
     { tenantId },
   );
