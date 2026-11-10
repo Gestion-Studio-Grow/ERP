@@ -6,17 +6,29 @@
 import { requestIp } from "@/lib/audit-core";
 import { operatorPrisma } from "@/lib/operator-db";
 import { CAMPO_TRAMPA, altaAbierta, crearLimites, type Limites } from "@/lib/profeturnos/alta-core";
-import { darDeAltaProfe, type RespuestaDelAlta } from "@/lib/profeturnos/alta.server";
+import { MENSAJES, darDeAltaProfe, type RespuestaDelAlta } from "@/lib/profeturnos/alta.server";
 
 const g = globalThis as unknown as { limitesAltaProfeTurnos?: Limites };
 const limites = () => (g.limitesAltaProfeTurnos ??= crearLimites());
 
 const texto = (f: FormData, k: string) => String(f.get(k) ?? "").slice(0, 300);
 
+/**
+ * Guardia del alta pública (registrada en OTRO_PLANO de src/lib/operador/guardia-negocio.test.ts):
+ * sin sesión, no toca ningún negocio existente (crea uno nuevo) y corta ANTES de usar la conexión
+ * privilegiada si el alta no está abierta por flag (PROFETURNOS_ALTA_ABIERTA=1).
+ */
+async function exigirAltaProfeTurnosAbierta(): Promise<{ ok: true } | { ok: false; respuesta: RespuestaDelAlta }> {
+  if (altaAbierta()) return { ok: true };
+  return { ok: false, respuesta: { ok: false, motivo: "cerrada", mensaje: MENSAJES.cerrada } };
+}
+
 /** Lo que la pantalla necesita para volver a mostrar el formulario (nunca la clave). */
 export type EstadoDelAlta = { respuesta: RespuestaDelAlta | null; valores: Record<string, string> };
 
 export async function altaProfeTurnos(_previo: EstadoDelAlta, formData: FormData): Promise<EstadoDelAlta> {
+  const guardia = await exigirAltaProfeTurnosAbierta();
+  if (!guardia.ok) return { respuesta: guardia.respuesta, valores: {} };
   const ip = (await requestIp()) ?? "sin-ip";
   const form = {
     nombre: texto(formData, "nombre"),
