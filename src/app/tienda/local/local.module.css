@@ -522,6 +522,10 @@
 /* Celular: con foto, la foto va arriba del texto (no detrás). */
 .portadaArte:has(.portadaFoto) { position: relative; inset: auto; width: 100%; order: -1; }
 .portadaArte:has(.portadaFoto) .portadaFoto { aspect-ratio: 16 / 9; }
+/* Celular sin foto: la taza va detrás, arriba a la derecha; la bajada no se le mete encima. */
+@media (max-width: 719.98px) {
+  .portadaGrilla:not(:has(.portadaFoto)) .bajada { max-width: calc(100% - 7.5rem); }
+}
 
 @media (min-width: 720px) {
   .portada { padding: 3rem 0 3.5rem; }
