@@ -436,19 +436,69 @@ export function BotonStandConIA({ proyectoId }: { proyectoId: string }) {
   );
 }
 
+/** Copia con la API del portapapeles; si no está (http sin certificado, permiso negado) prueba con execCommand. */
+async function copiarTexto(texto: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(texto);
+      return true;
+    }
+  } catch {
+    // sigue con el plan B
+  }
+  try {
+    const area = document.createElement("textarea");
+    area.value = texto;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.opacity = "0";
+    document.body.appendChild(area);
+    area.select();
+    const ok = document.execCommand("copy");
+    area.remove();
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+// Antes: si el portapapeles no estaba disponible o negaba el permiso, la promesa fallaba sin aviso y el botón no
+// cambiaba; y el cambio de texto no se anunciaba a lectores de pantalla. Ahora hay plan B, mensaje con aria-live y,
+// si nada funciona, el link queda a la vista y seleccionado para copiarlo a mano.
 export function CopiarLink({ ruta }: { ruta: string }) {
-  const [copiado, setCopiado] = useState(false);
+  const [estado, setEstado] = useState<"" | "copiado" | "fallo">("");
+  const [url, setUrl] = useState("");
+  const campo = useRef<HTMLInputElement>(null);
+  const reloj = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (reloj.current) clearTimeout(reloj.current);
+  }, []);
+  useEffect(() => {
+    if (estado === "fallo") campo.current?.select();
+  }, [estado]);
   return (
-    <button
-      type="button"
-      className={buttonClasses("outline", "md")}
-      onClick={async () => {
-        await navigator.clipboard.writeText(`${window.location.origin}${ruta}`);
-        setCopiado(true);
-        setTimeout(() => setCopiado(false), 2000);
-      }}
-    >
-      {copiado ? "Copiado" : "Copiar link"}
-    </button>
+    <span className="inline-flex flex-wrap items-center gap-2">
+      <button
+        type="button"
+        className={buttonClasses("outline", "md")}
+        onClick={async () => {
+          const completo = `${window.location.origin}${ruta}`;
+          setUrl(completo);
+          if (reloj.current) clearTimeout(reloj.current);
+          if (await copiarTexto(completo)) {
+            setEstado("copiado");
+            reloj.current = setTimeout(() => setEstado(""), 3000);
+          } else setEstado("fallo");
+        }}
+      >
+        {estado === "copiado" ? "¡Copiado!" : "Copiar link"}
+      </button>
+      <span role="status" aria-live="polite" className="text-sm text-strong">
+        {estado === "copiado" ? "Link copiado: pegalo en WhatsApp o en un mail." : estado === "fallo" ? "No se pudo copiar solo: copialo de acá." : ""}
+      </span>
+      {estado === "fallo" && (
+        <input ref={campo} readOnly value={url} aria-label="Link para copiar" onFocus={(e) => e.currentTarget.select()} className="min-h-11 w-full min-w-0 rounded-lg border border-line bg-surface px-2 text-sm text-strong" />
+      )}
+    </span>
   );
 }
