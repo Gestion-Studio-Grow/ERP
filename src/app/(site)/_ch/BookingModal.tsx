@@ -1155,7 +1155,7 @@ function Step1({
                 }}
               >
                 <span>{it.name}</span>
-                <span style={{ fontSize: 12, opacity: 0.75, textAlign: "right" }}>
+                <span style={{ fontSize: 12, opacity: 0.75, textAlign: "right", flexShrink: 0, paddingLeft: 12 }}>
                   {it.durationMin} min · {textoDelPrecio(it.price, (n) => `$${n.toLocaleString("es-AR")}`, shownPrice)}
                   {hasResidentPrice && !isResident && (
                     <span style={{ display: "block", opacity: 0.85 }}>

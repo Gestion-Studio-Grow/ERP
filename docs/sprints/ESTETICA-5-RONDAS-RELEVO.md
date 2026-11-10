@@ -25,7 +25,8 @@ cupones en la reserva, multi-sucursal). **Límite honesto:** la ronda 0 cargó p
 | — | `/admin/vender` manda a «no disponible»: **no es defecto**, CH no tiene prendida la app de Vender (confirmado por ERP-001 y por el recorrido). El cobro de estética pasa por turnos, caja y vouchers | — | cerrado |
 | Media | Letra 11,5 px en la barra inferior del celular y en encabezados de tabla | kit `public/diseno/renglon.css` (lo toca ERP-001) | D2 |
 | Media | Encabezado de Agenda a 390: «·» colgado después de «Sin cerrar» y «Laura con 2» partido | `turnos/page.tsx` | ronda 3 |
-| Media | Reserva a 390: «60 min · $15.000» se parte en dos renglones; «Otros servicios» como único título | `(site)/_ch/BookingModal.tsx:1150-1170` | ronda 2 |
+| Media | Reserva a 390: «60 min · $15.000» se partía en dos renglones | `(site)/_ch/BookingModal.tsx:1158` | **hecho** (ronda 1, medido a 390) |
+| Media | Reserva: «Otros servicios» como único título cuando no hay categorías | `(site)/_ch/BookingModal.tsx:1150-1170` | ronda 2 |
 | Baja | «Requiere seña» a 11 px en la reserva | `BookingModal.tsx:1166` | **ronda 1** |
 | Baja | Hora de la raya «ahora» a 11 px | `turnos/_agenda/PorProfesional.tsx:592,606` | **ronda 1** |
 | Baja | Pestaña «Lista» de 39 px de ancho en el celular | `turnos/page.tsx:193-196`, `turnos/lista/page.tsx:218-221` | **ronda 1** |
