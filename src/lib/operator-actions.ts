@@ -583,16 +583,6 @@ export async function altaPersonaDeTenant(
   }
 }
 
-export async function resetOwnerPassword(tenantId: string): Promise<OwnerResetResult> {
-  const g = await operadorParaNegocio({ id: tenantId });
-  if (!g.ok) return { ok: false, error: g.motivo };
-  const op = g.sesion.nombre;
-  // Legado (sin selector): con más de un OWNER activo se niega, no elige al más antiguo.
-  const result = await resetearOwnerElegido(tenantId, op);
-  if (result.ok) revalidatePath(`/operador/tenants/${tenantId}`);
-  return result;
-}
-
 // A QUIÉN se resetea, decidido ANTES de escribir y dentro de la misma transacción del negocio: la
 // lista de OWNER activos sale de `ownersActivos` y la regla es `elegirOwner` (la misma que el script
 // del responsable de seguridad). Sin `ownerId` y con más de uno, se niega: antes el puerto tomaba
