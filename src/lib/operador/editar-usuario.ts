@@ -13,6 +13,7 @@
 //   · la ficha de profesional pasa por `decidirVinculoProfesional` (sólo el rol Profesional, sólo fichas del
 //     negocio, no la de otra persona); desvincular (`fichaId: null`) se acepta con cualquier rol. Si la base
 //     rechaza por unicidad (P2002: otra pestaña la vinculó entre la lectura y la escritura) → «ficha-ocupada»;
+//   · si el rol con que queda no es Profesional y conserva una ficha, se la desvincula (auditado);
 //   · sin cambios reales → «nada-que-cambiar» (no se escribe ni se audita nada);
 //   · audita antes/después SÓLO de los campos tocados. Nunca toca la contraseña ni el email.
 // Dar de baja corta el acceso en el próximo pedido: la sesión del panel se valida contra la base en cada
@@ -157,6 +158,17 @@ export async function editarUsuarioCore(
   const rolFinal = despues.role ?? u.role;
   const activoFinal = despues.active ?? u.active;
 
+  // Una ficha de agenda es sólo del rol Profesional (`decidirVinculoProfesional`). Si el rol con que queda no
+  // es Profesional y conserva una ficha (p. ej. pasa de Profesional a Recepción sin tocar la ficha), se
+  // desvincula en la misma escritura y queda dicho en la auditoría: si no, seguiría «teniendo» esa agenda y la
+  // ficha quedaría ocupada para quien sí la atiende.
+  let fichaDesvinculadaPorRol = false;
+  if (rolFinal !== "PROFESSIONAL" && despues.professionalId === undefined && u.professionalId) {
+    antes.professionalId = u.professionalId;
+    despues.professionalId = null;
+    fichaDesvinculadaPorRol = true;
+  }
+
   // Nunca 0 dueños activos: si hoy es dueño activo y deja de serlo (por rol o por baja), tiene que haber otro.
   if (u.role === "OWNER" && u.active && (rolFinal !== "OWNER" || !activoFinal)) {
     if ((await port.contarOwnersActivos(tenantId)) <= 1) return falla("ultimo-owner");
@@ -195,7 +207,7 @@ export async function editarUsuarioCore(
     action: "update",
     entity: "User",
     entityId: u.id,
-    changes: { antes, despues, origen: "consola" },
+    changes: { antes, despues, origen: "consola", ...(fichaDesvinculadaPorRol ? { fichaDesvinculadaPorRol: true } : {}) },
   });
 
   return { ok: true, cambios: { antes, despues } };

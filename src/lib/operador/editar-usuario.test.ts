@@ -226,3 +226,34 @@ test("reactivar respeta el tope del plan; dar de baja no lo consulta", async () 
   }
   assert.equal(consultas, 2, "sólo se consulta al reactivar");
 });
+
+test("ficha: si el rol con que queda no es Profesional, la ficha se desvincula en la misma escritura y se audita", async () => {
+  {
+    // Profesional → Recepción sin tocar la ficha: se la desvincula.
+    const { p, log, filas } = puerto();
+    const r = await editar(p, { userId: "carla", rol: "RECEPTION" });
+    assert.equal(r.ok, true);
+    assert.deepEqual(log.updates, [{ userId: "carla", data: { role: "RECEPTION", professionalId: null } }]);
+    assert.equal(filas.find((f) => f.id === "carla")?.professionalId, null);
+    assert.deepEqual(log.audits[0].changes, {
+      antes: { role: "PROFESSIONAL", professionalId: "f-carla" },
+      despues: { role: "RECEPTION", professionalId: null },
+      origen: "consola",
+      fichaDesvinculadaPorRol: true,
+    });
+  }
+  {
+    // Sigue siendo Profesional: la ficha queda y la auditoría no dice nada de ella.
+    const { p, log } = puerto();
+    assert.equal((await editar(p, { userId: "carla", nombre: "Carla G." })).ok, true);
+    assert.deepEqual(log.updates, [{ userId: "carla", data: { name: "Carla G." } }]);
+    assert.equal("fichaDesvinculadaPorRol" in (log.audits[0].changes as object), false);
+  }
+  {
+    // Pedir a la vez otro rol y una ficha sigue siendo un error: no se desvincula «para que entre».
+    const { p, log } = puerto();
+    const r = await editar(p, { userId: "carla", rol: "OWNER", fichaId: "f-libre" });
+    assert.equal(r.ok ? null : r.codigo, "vinculo-rol");
+    sinTocar(log);
+  }
+});

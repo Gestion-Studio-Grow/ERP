@@ -3,16 +3,14 @@
 // igual que `owner-reset-port.ts`. Todas las lecturas van con `select` explícito: `mustChangePassword` se
 // lee con SQL crudo (must-change-password.ts) y un `find*` sin `select` pediría todas las columnas.
 import type { Prisma } from "@/generated/prisma/client";
-import { decidirAltaDeUsuarioEnTx } from "@/lib/usuarios-del-plan";
+import { bloquearUsuariosDelNegocioEnTx, decidirAltaDeUsuarioEnTx } from "@/lib/usuarios-del-plan";
 import type { EditarUsuarioPort } from "@/lib/operador/editar-usuario";
 
 export function editarUsuarioPort(tx: Prisma.TransactionClient): EditarUsuarioPort {
   return {
-    // La misma llave que `decidirAltaDeUsuarioEnTx` (usuarios-del-plan.ts): los candados de transacción de
-    // Postgres son reentrantes en la misma sesión, así que reactivar (que la vuelve a tomar) no se traba.
-    bloquearUsuarios: async (tenantId) => {
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`usuarios:${tenantId}`}))`;
-    },
+    // EL candado de usuarios del negocio (usuarios-del-plan.ts): el mismo del alta, del tope y de la baja del
+    // panel. Es reentrante en la misma sesión, así que reactivar (que lo vuelve a tomar) no se traba.
+    bloquearUsuarios: (tenantId) => bloquearUsuariosDelNegocioEnTx(tx, tenantId),
     leerUsuario: (tenantId, userId) =>
       tx.user.findFirst({
         where: { id: userId, tenantId },

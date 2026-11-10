@@ -60,7 +60,11 @@ export function EditarPersonaCard({
     try {
       const fd = new FormData(form);
       fd.set("tenantId", tenantId);
-      fd.set("activo", fd.get("activo") === "on" ? "true" : "false");
+      // `activo` viaja SÓLO si el operador lo cambió: si no, un alta o baja hecha mientras la tarjeta estaba
+      // abierta (desde el panel u otra pestaña) se pisaría con el valor viejo. Ausente = no tocar (la action).
+      const activoMarcado = fd.get("activo") === "on";
+      fd.delete("activo");
+      if (p && activoMarcado !== p.active) fd.set("activo", activoMarcado ? "true" : "false");
       const r = await editarUsuarioDeTenant(fd);
       setResultado(r.ok ? { ok: true, mensaje: "Listo: los cambios quedaron guardados y en la auditoría." } : r);
       if (r.ok) setTipeado("");
