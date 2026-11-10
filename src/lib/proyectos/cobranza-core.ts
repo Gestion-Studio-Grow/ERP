@@ -249,7 +249,11 @@ export function montoEnCashflow(c: { tipo: string; monto: number; cobrado: numbe
  */
 export function conciliarConCobros(cuotas: readonly CuotaLeida[], tc: Readonly<Record<string, number>>, c: Cobranza, hoy: Date = new Date()): ResumenCuotas {
   const pend = pendientesDeCobro(cuotas, tc, c);
-  const ajustadas = cuotas.flatMap((q, i) => (q.tipo !== "COBRO" || q.anuladoEl || q.pagadoEl ? [q] : pend[i] > 0 ? [{ ...q, monto: pend[i] }] : []));
+  // Sin presupuesto aprobado no hay nada «por cobrar» (porCobrar = 0): las cuotas de cobro todavía no son deuda y no
+  // suman vencido ni próximos 7 días. Así I1 vale siempre, también sin aprobado.
+  const ajustadas = cuotas.flatMap((q, i) =>
+    q.tipo !== "COBRO" || q.anuladoEl || q.pagadoEl ? [q] : c.total > 0 && pend[i] > 0 ? [{ ...q, monto: pend[i] }] : [],
+  );
   const r = resumenCuotas(ajustadas, tc, hoy);
   // Vencido + 7 días ≤ por cobrar sale del tope del reparto (Σ pendientes ≤ porCobrar): no hace falta recortar acá.
   return { ...r, cobrado: c.cobrado, aCobrar: c.porCobrar, cantCobrosVencidos: r.cobrosVencidos > 0 ? r.cantCobrosVencidos : 0 };
