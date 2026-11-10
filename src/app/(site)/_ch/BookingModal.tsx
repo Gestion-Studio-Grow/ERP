@@ -1163,7 +1163,7 @@ function Step1({
                     </span>
                   )}
                   {it.depositAmount != null && (
-                    <span style={{ display: "block", opacity: 0.7, fontSize: 11 }}>Requiere seña</span>
+                    <span style={{ display: "block", opacity: 0.7, fontSize: 12 }}>Requiere seña</span>
                   )}
                 </span>
               </button>
