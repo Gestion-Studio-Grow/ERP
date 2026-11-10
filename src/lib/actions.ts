@@ -90,7 +90,8 @@ import {
   type FichaEncontrada,
   type FichaParaAlta,
 } from "@/lib/clientes/ficha-por-telefono";
-import { diaSiguiente, rangoDelDia, textoRecordatorio } from "@/lib/turnos/turno-abierto";
+import { diaSiguiente, plantillaRecordatorioPorRubro, rangoDelDia, textoRecordatorio } from "@/lib/turnos/turno-abierto";
+import { getBrandSheet } from "@/lib/brand-sheet";
 import { contactoOculto } from "@/lib/clientes/telefono";
 import { cancelarTurnoVivo, whereTurnosDeManana, whereTurnosDelDia } from "@/lib/crm/wheres";
 import { Prisma } from "@/generated/prisma/client";
@@ -2514,7 +2515,7 @@ export async function getMananaConfirmar(): Promise<{ dia: string; turnos: Turno
   if (isDemoSandbox()) return { dia, turnos: [] };
   const tenantId = await getCurrentTenantId();
   const { desde, hasta } = rangoDelDia(dia);
-  const [turnos, plantilla] = await Promise.all([
+  const [turnos, plantilla, marca] = await Promise.all([
     prisma.appointment.findMany({
       // El MISMO `where` que el número de "Confirmar mañana" y la cobertura de Recordatorios.
       where: { ...whereTurnosDeManana(tenantId, desde, hasta), ...filtroSoloLoSuyo(user) },
@@ -2535,7 +2536,10 @@ export async function getMananaConfirmar(): Promise<{ dia: string; turnos: Turno
       where: { tenantId, type: "APPOINTMENT_REMINDER", channel: "WHATSAPP", active: true },
       select: { body: true },
     }),
+    getBrandSheet(),
   ]);
+  // Sin plantilla propia en el panel, la del rubro (peluquería y barbería piden confirmación).
+  const plantillaDelTexto = plantilla?.body || plantillaRecordatorioPorRubro(marca.blueprintId);
   const notas = await notasDeRecordatorio(tenantId, turnos.map((t) => t.serviceId));
   return {
     dia,
@@ -2548,7 +2552,7 @@ export async function getMananaConfirmar(): Promise<{ dia: string; turnos: Turno
       telefono: t.client.phone,
       servicio: t.service.name,
       profesional: t.professional.name,
-      texto: textoRecordatorio(plantilla?.body, {
+      texto: textoRecordatorio(plantillaDelTexto, {
         clientName: t.client.name,
         serviceName: t.service.name,
         professionalName: t.professional.name,

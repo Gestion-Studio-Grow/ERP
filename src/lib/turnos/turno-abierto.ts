@@ -118,6 +118,21 @@ export function motivoSinEnvio(resultados: Readonly<Record<string, ResultadoCana
 export const PLANTILLA_RECORDATORIO_POR_DEFECTO =
   "Hola {{clientName}}, te esperamos {{startsAt}} para {{serviceName}} con {{professionalName}}.";
 
+// Peluquería y barbería (paquete Peluquerías, T5): sin plantilla propia en el panel, el
+// recordatorio pide la confirmación, porque en el rubro el turno se confirma por WhatsApp el
+// día anterior. El resto de los rubros (y CH, sin blueprint) sigue con la de siempre.
+export const PLANTILLA_RECORDATORIO_CON_CONFIRMACION =
+  "Hola {{clientName}}, te esperamos {{startsAt}} para {{serviceName}} con {{professionalName}}. ¿Nos confirmás? Respondé SÍ, o avisanos si necesitás cambiarlo.";
+
+const RUBROS_QUE_PIDEN_CONFIRMACION = new Set(["peluqueria", "barberia"]);
+
+/** La plantilla por defecto del recordatorio según el rubro del negocio (`Tenant.blueprintId`). */
+export function plantillaRecordatorioPorRubro(blueprintId: string | null | undefined): string {
+  return blueprintId && RUBROS_QUE_PIDEN_CONFIRMACION.has(blueprintId)
+    ? PLANTILLA_RECORDATORIO_CON_CONFIRMACION
+    : PLANTILLA_RECORDATORIO_POR_DEFECTO;
+}
+
 export type DatosRecordatorio = {
   clientName: string;
   serviceName: string;
