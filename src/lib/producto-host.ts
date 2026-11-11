@@ -19,6 +19,8 @@ export const HOSTS_DE_PRODUCTO: Readonly<Record<string, string>> = {
   "factoque.gsgapp.com.ar": "/facturita",
   // El link viejo sigue andando: lo que ya se compartió no se rompe.
   "facturita-gsg.vercel.app": "/facturita",
+  // ProfeTurnos (app para profes de pádel): su vidriera con el alta sola.
+  "profeturnos.gsgapp.com.ar": "/profeturnos",
 };
 
 /** La vidriera a la que va la raíz de este host, o `null` si el host no es de un producto. */

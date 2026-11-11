@@ -70,6 +70,19 @@ export default async function ClasesConfig() {
         {qr && <QrTurnero qr={qr} url={turnero} />}
       </section>
 
+      {/* ProfeTurnos T2: la prueba gratis y el abono (la traba del panel vencido manda acá). */}
+      <Link
+        href="/admin/clases/plan"
+        className={cn(tarjeta, "mb-3 flex min-h-16 items-center justify-between gap-3 hover:bg-surface-sunken focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus")}
+        data-qa="ajuste-plan"
+      >
+        <span className="min-w-0">
+          <span className="block text-base font-semibold text-strong">Mi plan</span>
+          <span className="block text-sm text-muted">Tu prueba gratis, tu abono y el pago por Mercado Pago.</span>
+        </span>
+        <Icono nombre="flecha" className="size-5 shrink-0 text-muted" />
+      </Link>
+
       <nav aria-label="Ajustes">
         <ul className="grid gap-2">
           {tarjetas.map((t) => (

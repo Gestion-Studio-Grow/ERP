@@ -7,12 +7,16 @@ import { diaCorto, horaHumana, linkWhatsApp, pesos } from "@/lib/padel/core";
 import { leerTokenCookie } from "@/lib/padel/sesion-alumno.server";
 import { reglaDeCancelacion, urlMaps } from "@/app/alumno/_vista/estado";
 import Turnero from "./Turnero";
+import { turneroTomaPedidos } from "@/lib/profeturnos/plan.server";
+import { MENSAJE_TURNERO_VENCIDO } from "@/lib/profeturnos/plan-core";
 import { Piel } from "./_piel";
 import { CabeceraPublica } from "./_cabecera";
 import { DetallesProfe, PresentacionProfe } from "./_placa";
 import { Logotipo, iniciales, nombreDelProfe } from "./_logotipo";
 import { IconoInstagram, IconoReloj, IconoTilde } from "./_iconos";
 import { botonBorde, foco } from "./_estilos";
+import { turneroAbiertoDe } from "@/lib/profeturnos/verificacion.server";
+import { MENSAJE_TURNERO_EN_VERIFICACION } from "@/lib/profeturnos/verificacion-core";
 
 // El turnero del profe: lo que va en la bio de Instagram (§2.4). Sin login: tipo, día, hora y
 // «Pedir». Lo libre se calcula en el servidor en cada visita (no se cachea: una franja tomada hace un
@@ -64,6 +68,10 @@ const fechaDe = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: ZONA });
 
 export default async function ClasesPage({ searchParams }: { searchParams: Promise<{ link?: string; fecha?: string; hora?: string }> }) {
   const tenantId = await getCurrentTenantId();
+  // Alta asistida: el profe que se dio de alta solo y GSG todavía no verificó no recibe pedidos.
+  // Sin horarios ni WhatsApp del profe (todavía no está confirmado). Lectura fallida → igual
+  // (fail-closed). Negocios sin alta web: no-aplica (src/lib/profeturnos/verificacion-core.ts).
+  if (!(await turneroAbiertoDe(tenantId))) return <TurneroEnVerificacion tenantId={tenantId} />;
   const [negocio, config, dias, grilla, cookieAlumno, sp] = await Promise.all([
     datosDelNegocio(tenantId),
     configPadel(tenantId),
@@ -73,6 +81,8 @@ export default async function ClasesPage({ searchParams }: { searchParams: Promi
     searchParams,
   ]);
   const saludo = cookieAlumno ? await saludoDelAlumno(tenantId, cookieAlumno) : null;
+  // ProfeTurnos T2: con el plan del profe vencido no se toman pedidos nuevos (la acción también lo frena).
+  const tomaPedidos = await turneroTomaPedidos(tenantId);
   // Sin ninguna franja en la que da clases, el profe todavía no publicó sus horarios: se dice eso,
   // no "no quedan horarios" (que sugiere una agenda llena que no existe).
   const sinHorarios = !grilla.some((f) => f.tipo === "DA");
@@ -162,6 +172,16 @@ export default async function ClasesPage({ searchParams }: { searchParams: Promi
             </div>
           </div>
           <div className="order-2 min-w-0 lg:order-none lg:col-span-7">
+            {!tomaPedidos ? (
+              <section className="rounded-[1.25rem] border-[1.5px] border-[var(--padel-linea)] bg-[var(--padel-superficie)] p-5" role="status" data-qa="turnero-renovando">
+                <p className="text-[1.0625rem] font-semibold">{MENSAJE_TURNERO_VENCIDO}</p>
+                {wa && (
+                  <a href={wa} className={`${botonBorde} mt-4`} data-qa="turnero-renovando-wa">
+                    Escribirle por WhatsApp
+                  </a>
+                )}
+              </section>
+            ) : (
             <Turnero
               dias={dias}
               sinHorarios={sinHorarios}
@@ -176,6 +196,7 @@ export default async function ClasesPage({ searchParams }: { searchParams: Promi
               nombreApp={nombreApp}
               info={{ duracionMin: config.duracionMin, precioIndividual: config.precioIndividual, precioGrupal: config.precioGrupal, lugar: negocio.lugar, maps, regla }}
             />
+            )}
           </div>
         </div>
 
@@ -205,6 +226,27 @@ export default async function ClasesPage({ searchParams }: { searchParams: Promi
             </a>
           )}
           {m.provisional && <p data-qa="identidad-provisoria">Identidad provisoria · se reemplaza por la marca de {profe}</p>}
+        </footer>
+      </main>
+    </Piel>
+  );
+}
+
+/** El turnero de un profe todavía sin verificar: sólo el aviso, sin nada que pedir. */
+async function TurneroEnVerificacion({ tenantId }: { tenantId: string }) {
+  const negocio = await datosDelNegocio(tenantId).catch(() => null);
+  const m = marcaProfe(negocio?.slug);
+  const nombre = nombreDelProfe(negocio?.nombre ?? "Clases de pádel");
+  return (
+    <Piel marca={m}>
+      <CabeceraPublica grande marca={<Logotipo nombre={nombre} />} />
+      <main className="mx-auto max-w-[40rem] px-[clamp(1rem,4vw,3.5rem)] pb-16 pt-[clamp(1.5rem,4vw,3rem)] text-[clamp(1.0625rem,1.05vw,1.1875rem)] leading-[1.5]">
+        <section role="status" className="rounded-[1.25rem] border-[1.5px] border-[var(--padel-linea)] bg-[var(--padel-superficie)] p-5 sm:p-8" data-qa="turnero-en-verificacion">
+          <h1 className="pz-display text-[clamp(1.625rem,2.6vw,2.5rem)] font-bold leading-tight">{MENSAJE_TURNERO_EN_VERIFICACION}</h1>
+          <p className="mt-3 text-[var(--padel-suave)]">Estamos confirmando los datos del profe. En cuanto esté listo, desde acá vas a poder pedir tu clase.</p>
+        </section>
+        <footer className="mt-8 text-center text-[0.875rem] text-[var(--padel-suave)]">
+          <p>Con tecnología de Gestión Studio Grow</p>
         </footer>
       </main>
     </Piel>

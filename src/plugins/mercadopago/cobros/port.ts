@@ -31,6 +31,10 @@ export interface SolicitudCobro {
   cantidad?: number;
   /** Email del pagador (pre-carga el checkout; opcional). */
   emailPagador?: string;
+  /** URL del webhook de ESTE cobro (`notification_url`; opcional: sin ella, la de la app en MP). */
+  urlAviso?: string;
+  /** Adónde vuelve el pagador al terminar (`back_urls`; opcional). */
+  urlVuelta?: string;
 }
 
 /** Link de pago generado: lo que se le manda al cliente. */

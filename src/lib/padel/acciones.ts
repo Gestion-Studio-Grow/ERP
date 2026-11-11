@@ -29,6 +29,7 @@ import { bookingTransaction, tenantTransaction } from "@/lib/rls";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapabilityFueraDeLaAgenda } from "@/lib/authz";
 import { auditAdmin } from "@/lib/audit-core";
+import { exigirPlanVigente } from "@/lib/profeturnos/plan.server";
 import { leerImporte } from "@/lib/dinero/leer";
 import { businessWallTimeToUtc, dateStrInBusinessTz, dayOfWeekForDate, todayInBusinessTz } from "@/lib/datetime";
 import {
@@ -118,6 +119,12 @@ export type { AvisoEnCola, ConAviso, Resultado } from "./acciones-compartido";
 /** Clases que todavía se pueden mover, cancelar o cambiar: las que no pasaron ni se cerraron. */
 const ACTIVAS = ["PEDIDA", "CONFIRMADA"];
 
+/** ProfeTurnos T2: el plan vencido frena lo NUEVO (agendar, confirmar); nunca borra ni oculta nada. */
+async function trabaDelPlan(tenantId: string): Promise<void> {
+  const plan = await exigirPlanVigente(tenantId);
+  if (!plan.ok) throw new ErrorNegocio(plan.error);
+}
+
 async function claseDelProfe(id: string) {
   await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
@@ -184,6 +191,8 @@ async function transicionar(id: string, evento: EventoClase, op: OpcionesTransic
     const { tenantId, clase, config, alumno } = await claseDelProfe(id);
     const nuevo = transicionClase(clase.estado, evento, "profe");
     if (!nuevo) throw new ErrorNegocio("Esa clase ya cambió. Actualizá la pantalla.");
+    // ProfeTurnos T2: con el plan vencido no se confirma (ver/leer, cancelar y cobrar siguen andando).
+    if (nuevo === "CONFIRMADA") await trabaDelPlan(tenantId);
     const ahora = new Date();
     const motivoTexto = op.motivo ? MOTIVO_CANCEL_LABEL[op.motivo] : null;
     const sello: Record<string, Date | string | null> =
@@ -1017,6 +1026,7 @@ export async function devolverComprobante(id: string, motivo: MotivoComprobante)
 export async function agendarProxima(id: string): Promise<Resultado<ConAviso & { cuando: string; linkNuevo?: boolean }>> {
   try {
     const { tenantId, clase, config, alumno } = await claseDelProfe(id);
+    await trabaDelPlan(tenantId);
     const empiezaEn = proximaSemana(clase.empiezaEn);
     const terminaEn = proximaSemana(clase.terminaEn);
     const { nueva, link } = await bookingTransaction(async (tx) => {
@@ -1062,6 +1072,9 @@ export async function agendarProxima(id: string): Promise<Resultado<ConAviso & {
 export async function agendarClase(fd: FormData): Promise<Resultado<ConAviso & { cuando: string; linkNuevo?: boolean; fija?: { creadas: number; salteadas: string[] }; integrantes?: { nombre: string; monto: number; wa: string | null }[] }>> {
   await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
+  // ProfeTurnos T2: con el plan vencido no se crean clases nuevas.
+  const plan = await exigirPlanVigente(tenantId);
+  if (!plan.ok) return { ok: false, error: plan.error };
   const fecha = String(fd.get("fecha") ?? "");
   const horaTxt = String(fd.get("hora") ?? "");
   if (!fechaValida(fecha) || !horaValida(horaTxt)) return { ok: false, error: "Elegí día y hora." };

@@ -19,3 +19,14 @@ export function contactoParaWhatsAppBusiness(turnero: string, env: Record<string
     rotulo: "Escribirle a Gestión Studio Grow",
   };
 }
+
+/** T2 · «Mi plan» sin pagos por MP todavía (falta el token de GSG): el profe le escribe a GSG para pagar. */
+export function contactoParaPagarElAbono(negocio: string, env: Record<string, string | undefined> = process.env) {
+  const texto = `Hola! Quiero pagar el abono de ProfeTurnos. Mi negocio: ${negocio}`;
+  const wa = env.GSG_WHATSAPP_SOPORTE ? linkWhatsApp(env.GSG_WHATSAPP_SOPORTE, texto) : null;
+  if (wa) return { href: wa, rotulo: "Escribirle a Gestión Studio Grow" };
+  return {
+    href: `mailto:${CASILLA_GSG}?subject=${encodeURIComponent("Pagar el abono de ProfeTurnos")}&body=${encodeURIComponent(texto)}`,
+    rotulo: "Escribirle a Gestión Studio Grow",
+  };
+}
