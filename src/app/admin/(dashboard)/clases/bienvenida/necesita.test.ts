@@ -29,3 +29,11 @@ test("O-9: si ya la vio y eligió ir a Hoy, no rebota aunque siga sin precio ni 
   assert.equal(necesitaBienvenida({ vista: true, precioIndividual: 0, franjas: [] }), false);
   assert.equal(necesitaBienvenida({ vista: false, precioIndividual: 0, franjas: [] }), true);
 });
+
+test("T4: con un club activo ya arrancó; uno desactivado no cuenta", () => {
+  assert.equal(necesitaBienvenida({ precioIndividual: 0, franjas: [], clubes: [{ activo: true }] }), false);
+  assert.equal(necesitaBienvenida({ precioIndividual: 0, franjas: [], clubes: [{}] }), false);
+  assert.equal(necesitaBienvenida({ precioIndividual: 0, franjas: [], clubes: [{ activo: false }] }), true);
+  assert.equal(necesitaBienvenida({ precioIndividual: 0, franjas: [], clubes: [] }), true);
+  assert.equal(necesitaBienvenida({ precioIndividual: 0, franjas: [], clubes: null }), true);
+});
