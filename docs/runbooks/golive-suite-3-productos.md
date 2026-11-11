@@ -16,7 +16,7 @@ el dueño haga el UAT y salir a vender esta semana.
 |---|---|---|---|
 | Comerciante | `comerciante-gsg.vercel.app` | `/admin` (facturación automática) | arca + bancos + mercadopago |
 | Contador | `contador-gsg.vercel.app` | `/contador` (panel de cartera) | cartera + arca + bancos |
-| Facturita | `facturita-gsg.vercel.app` | `/facturita` (signup) → emisor simple | arca + clients |
+| Factoque | `facturita-gsg.vercel.app` | `/facturita` (signup) → emisor simple | arca + clients |
 
 Los tres corren en el MISMO deploy (proyecto Vercel `erp-ch`); el ruteo host→tenant lo hace
 `TENANT_HOST_MAP`. El aislamiento entre productos/clientes es por RLS.
@@ -49,7 +49,7 @@ Deploy de producción del proyecto `erp-ch`.
 ```
 npm run provision -- --name "Comerciante GSG" --slug comerciante --owner-email gestionstudiogrow@gmail.com --blueprint generico
 npm run provision -- --name "Contador GSG"   --slug contador   --owner-email gestionstudiogrow@gmail.com --blueprint generico
-npm run provision -- --name "Facturita GSG"  --slug facturita  --owner-email gestionstudiogrow@gmail.com --blueprint facturita
+npm run provision -- --name "Factoque GSG"  --slug facturita  --owner-email gestionstudiogrow@gmail.com --blueprint facturita
 ```
 Después, por cada tenant (SQL puntual con OK, o consola de operador):
 - `subdomain` = comerciante / contador / facturita
@@ -77,7 +77,7 @@ El `MP_ACCESS_TOKEN` de test de Mercado Pago (para el Comerciante) igual, cuando
 ### 9. UAT del dueño (los 3)
 - **Comerciante:** login → subir extracto → mapeo → emitir → CAE de prueba.
 - **Contador:** login → alta de un cliente en la cartera → emitir por ese cliente.
-- **Facturita:** signup público → emitir una factura a mano → CAE de prueba.
+- **Factoque:** signup público → emitir una factura a mano → CAE de prueba.
 Aceptación de cada uno = luz verde para vender ese producto.
 
 ### 10. Flip a real (POST-venta, por cliente)

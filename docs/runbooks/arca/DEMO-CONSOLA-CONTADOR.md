@@ -8,10 +8,10 @@ Relevado contra `origin/main` (b0dc696e). Sin migraciones: todo lo de abajo ya e
 - Subrutas (`exigirEstudio`, `src/lib/cartera-gate.ts:31`): `/contador/abonos` (abono mensual), `/contador/lote` (vista previa y emisión del lote),
   `/contador/cliente/<id>/comprobantes` (CAE, nota de crédito), `/contador/cliente/<id>/recibidos` (compras, necesita un CSV de ARCA),
   `/contador/exportar` y `/contador/paquete` (descargas).
-- **Facturita**: vidriera pública `/facturita` y app `/facturita/app` (emitir → facturas → PDF → anular con NC). La app exige `blueprintId="facturita"`
+- **Factoque**: vidriera pública `/facturita` y app `/facturita/app` (emitir → facturas → PDF → anular con NC). La app exige `blueprintId="facturita"`
   (`src/lib/facturita-actions.ts:53-64`).
 - **Ramas viejas** (`claude/facturacion-automatica-contador`, `-facturita`, `frente/producto-contador`, `integ/seg-contador`): no agregan nada de
-  contador ni de Facturita que no esté en `main`. Son versiones anteriores. **«producto/facturin» no existe** ni en git ni en docs: no se perdió nada.
+  contador ni de Factoque que no esté en `main`. Son versiones anteriores. **«producto/facturin» no existe** ni en git ni en docs: no se perdió nada.
 
 ## Antes de la demo (🔒 lo prepara el dueño o un operador, ~20 min)
 1. Un estudio demo: `npm run provision … --slug <estudio-demo> --blueprint generico`, módulos `cartera` + `arca` (`docs/runbooks/golive-suite-3-productos.md:47-58`).
@@ -19,7 +19,7 @@ Relevado contra `origin/main` (b0dc696e). Sin migraciones: todo lo de abajo ya e
 2. Dos o tres clientes en la cartera, **creados antes** desde `/operador/solicitudes`: en vivo, «Agregar cliente» sólo deja el pedido a Soporte
    (`src/lib/cartera-actions.ts:192-211`).
 3. `ARCA_INVOICING_ENABLED=true` con `ARCA_MODO` sin setear (stub). Así los CAE salen simulados («STUB…»). Si no, el lote queda «pendiente».
-4. Un negocio Facturita con los datos de `/facturita/app/cuenta#datos-para-facturas` cargados. Sin esos datos no sale el PDF.
+4. Un negocio Factoque con los datos de `/facturita/app/cuenta#datos-para-facturas` cargados. Sin esos datos no sale el PDF.
 5. Datos de prueba: se limpian al cerrar (`AGENTS.md`).
 
 ## Recorrido (10 min)
@@ -28,7 +28,7 @@ Relevado contra `origin/main` (b0dc696e). Sin migraciones: todo lo de abajo ya e
 3. `/contador/abonos`: cargar un abono mensual a un cliente (1,5 min).
 4. `/contador/lote`: vista previa del lote del mes → «Emitir el lote» → volver a comprobantes y ver los CAE (2 min).
 5. `/contador/exportar?mes=AAAA-MM`: bajar el CSV para el estudio (1 min).
-6. `/facturita` (vidriera) → logueado en el negocio Facturita, `/facturita/app`: emitir una factura (1,5 min).
+6. `/facturita` (vidriera) → logueado en el negocio Factoque, `/facturita/app`: emitir una factura (1,5 min).
 7. `/facturita/app/facturas`: bajar el PDF con QR y anularla con nota de crédito (1 min).
 
 ## Callejones (no mostrarlos en vivo)

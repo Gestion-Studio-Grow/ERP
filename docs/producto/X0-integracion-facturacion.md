@@ -39,7 +39,7 @@ En la corrida de los 22 archivos, una por una, también dieron verde. **[CONTRAD
 
 Negocios de prueba sembrados en una base local: `facturita-demo` (monotributo), `facturita-ri` (responsable inscripto) y `estudio-norte` con una cartera de 3 (monotributo, inscripto y exento).
 
-**Facturita, con migraciones**
+**Factoque, con migraciones**
 - Monotributo → inscripto, por servicios con fechas: Factura C 00002-00000001 «Autorizada de prueba». En la base: tipo 11, sin IVA, descripción guardada.
 - PDF con CAE simulado: 409 con una página clara («En modo de prueba el PDF no sale…» + faltan datos para facturas).
 - Anular: el foco va al motivo, «Cancelar» lo devuelve a «Anular» y el resultado se anuncia en `role="status"`. La nota sale con su propio número y la factura queda «Anulada con nota de crédito». La nota ocupa cupo (2 de 5): es lo que decide D-03.
@@ -47,7 +47,7 @@ Negocios de prueba sembrados en una base local: `facturita-demo` (monotributo), 
 - Inscripto, 10,5 % a consumidor final: Factura B, neto 10.000, IVA 1.050, total 11.050 (alícuota 4).
 - Inscripto → inscripto: el domicilio pasa a obligatorio y el botón no se habilita sin él.
 
-**Facturita, sin migraciones:** «Mis facturas» sale sin descripciones y sin error.
+**Factoque, sin migraciones:** «Mis facturas» sale sin descripciones y sin error.
 
 **Consola, con migraciones:** cartera (avisa que ARCA está en modo simulado) → Abonos (alta) → Lote (pide confirmación; «1 autorizado»; repetir no emite) → Comprobantes → nota de crédito por $100.000 sobre $80.000 (rechazada con el saldo) → nota parcial de −$30.000 → Exportar (CSV del mes con la nota en negativo).
 
@@ -57,10 +57,10 @@ Negocios de prueba sembrados en una base local: `facturita-demo` (monotributo), 
 
 | # | Gravedad | Hallazgo | Qué se hace |
 |---|---|---|---|
-| H-1 | media | **Facturita no tiene dónde cargar el régimen de Factura A.** Esa regla viene de `main` (`fiscal/regimen-factura-a.ts`); el dato sólo se carga desde la consola del operador y desde Libros del admin. Un inscripto en Facturita que factura a otro inscripto queda «Frenada antes de ARCA», y el aviso lo manda a «tus datos fiscales», que en Facturita no existen. | Va a **X1** (Factura A completa): pantalla en «Mi cuenta» o texto que mande a Soporte. No entra en el tope de 10 líneas de X0. |
-| H-2 | media · [A VALIDAR] | **Emitir en Facturita sin la migración `20261022140000`:** la emisión falló en el QA («No se pudo emitir la factura»). Aislado con un script: el primer intento da P2022 como se espera; el reintento sin `descripcion` vuelve vacío **sólo si sale enseguida**. Con 2 segundos de pausa, o con otro cliente de base, crea la factura. Apunta a PGlite (una sola sesión compartida), pero ningún test cubre este camino. | Agregar un test «emitir sin la migración» con Postgres real, en X2 o al cerrar D-01. Si las migraciones se aplican antes de publicar (D-01), el camino no se usa. |
+| H-1 | media | **Factoque no tiene dónde cargar el régimen de Factura A.** Esa regla viene de `main` (`fiscal/regimen-factura-a.ts`); el dato sólo se carga desde la consola del operador y desde Libros del admin. Un inscripto en Factoque que factura a otro inscripto queda «Frenada antes de ARCA», y el aviso lo manda a «tus datos fiscales», que en Factoque no existen. | Va a **X1** (Factura A completa): pantalla en «Mi cuenta» o texto que mande a Soporte. No entra en el tope de 10 líneas de X0. |
+| H-2 | media · [A VALIDAR] | **Emitir en Factoque sin la migración `20261022140000`:** la emisión falló en el QA («No se pudo emitir la factura»). Aislado con un script: el primer intento da P2022 como se espera; el reintento sin `descripcion` vuelve vacío **sólo si sale enseguida**. Con 2 segundos de pausa, o con otro cliente de base, crea la factura. Apunta a PGlite (una sola sesión compartida), pero ningún test cubre este camino. | Agregar un test «emitir sin la migración» con Postgres real, en X2 o al cerrar D-01. Si las migraciones se aplican antes de publicar (D-01), el camino no se usa. |
 | H-3 | baja | La tabla de «Mis facturas» y la de la cartera desbordaban la página a 360 px. | **Arreglado** en `f0ad761f`. |
-| H-4 | baja | Textos: «Antes de tu primera factura» sigue después de emitir varias; la nota dice «Anula la factura 2-1» en vez de 00002-00000001; la consola usa 4 cifras de punto de venta («0002-…») y Facturita 5; «1 comprobantes» en el lote; el CSV muestra el CUIT como receptor (X2 lo prevé); a 360 px el CUIT del abono se parte en dos renglones; tras un rechazo de la nota de crédito se borra el motivo escrito. | Al backlog de K2/K3/F1, sin tanda propia. |
+| H-4 | baja | Textos: «Antes de tu primera factura» sigue después de emitir varias; la nota dice «Anula la factura 2-1» en vez de 00002-00000001; la consola usa 4 cifras de punto de venta («0002-…») y Factoque 5; «1 comprobantes» en el lote; el CSV muestra el CUIT como receptor (X2 lo prevé); a 360 px el CUIT del abono se parte en dos renglones; tras un rechazo de la nota de crédito se borra el motivo escrito. | Al backlog de K2/K3/F1, sin tanda propia. |
 | H-5 | baja | `arca-reserva.ts:247` guarda `now() + espera` en una columna `TIMESTAMP` sin zona: depende de que la sesión de la base esté en UTC (lo está en Neon y en el CI). PGlite toma la zona de la máquina y adelanta 3 h el próximo intento. Código de `main`. | Anotado. Sólo hay que mirarlo si alguna vez cambia la zona de la base. |
 
 ## Qué no se pudo verificar en esta máquina
@@ -108,7 +108,7 @@ Se aplica la recomendación (a): las tres quedan en `prisma/migrations/`, fuera 
 
 | Migración | Qué agrega | Quién la usa | Irreversible |
 |---|---|---|---|
-| `20261022140000_invoice_abono_descripcion` | `Invoice.abonoClave`, `Invoice.descripcion` + índice único `(tenantId, abonoClave)` | lote de abonos (idempotencia), descripción en lista, PDF y CSV (consola y Facturita) | 🔴 el índice único |
+| `20261022140000_invoice_abono_descripcion` | `Invoice.abonoClave`, `Invoice.descripcion` + índice único `(tenantId, abonoClave)` | lote de abonos (idempotencia), descripción en lista, PDF y CSV (consola y Factoque) | 🔴 el índice único |
 | `20261022140100_regla_facturacion` | tabla `ReglaFacturacion` con RLS y CHECKs | abonos de la consola | tabla nueva |
 | `20261022150000_cobro_facturado` | tabla `CobroFacturado` con RLS | R1 «una factura por cobro» (MP, turno, banco) | tabla nueva |
 

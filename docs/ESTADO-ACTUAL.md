@@ -86,7 +86,7 @@ el repo/prod, gana el repo y este doc se corrige en el acto.
 
 > **🆕 Novedad 2026-07-11 — Suite de facturación (frente `producto-contador`):** módulo bancos EN MAIN y
 > deployado (merge `6735716`) + decisión estructural **UN motor, TRES productos** (A·Comerciante /
-> B·Contador / C·Facturita, empaquetados de módulos, nunca forks) + pricing con unit economics + gates
+> B·Contador / C·Factoque, empaquetados de módulos, nunca forks) + pricing con unit economics + gates
 > permanentes de craft UX/UI y textos — **ADR-075…080** (numeración provisional de la rama, verificar
 > colisión al mergear) + `docs/producto/costos-pricing-suite.md`. Primer cliente real: un contador.
 

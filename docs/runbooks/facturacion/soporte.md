@@ -1,4 +1,4 @@
-# Soporte de primer nivel — facturación y Facturita
+# Soporte de primer nivel — facturación y Factoque
 
 **Para:** Débora (soporte de primer nivel — *rol exacto provisional a confirmar*) y quien atienda el
 WhatsApp de soporte. **Tono:** de persona, criollo, sin jerga (ADR-046). Nada de «outbox», «CAE en
@@ -6,7 +6,7 @@ duda» ni «error 503» con el cliente: eso es para nosotros.
 
 ## Antes de contestar: tres preguntas
 
-1. **¿Quién es y de qué negocio?** (nombre del negocio; si es Facturita, el mail con el que entra).
+1. **¿Quién es y de qué negocio?** (nombre del negocio; si es Factoque, el mail con el que entra).
 2. **¿Qué quería hacer y qué vio?** Pedile una captura de pantalla.
 3. **¿Desde cuándo?** ¿Le pasa con todas las facturas o con una?
 
@@ -57,13 +57,13 @@ Si guardia confirmó que es ARCA:
 
 Escalar para que el dueño lo cargue por la consola.
 
-### Facturita: «No puedo entrar» / «No me llega el mail»
+### Factoque: «No puedo entrar» / «No me llega el mail»
 
 1. Que revise **spam / promociones**.
 2. Que verifique que escribe el mail **igual** que cuando se registró.
 3. Si sigue: escalar con el mail (no pidas la contraseña).
 
-### Facturita: «¿Cómo la instalo en el celular?»
+### Factoque: «¿Cómo la instalo en el celular?»
 
 Sólo si su cuenta tiene la app instalable activada (flag `facturita.pwa`):
 - **Android (Chrome):** menú ⋮ → «Instalar app» / «Agregar a pantalla principal».

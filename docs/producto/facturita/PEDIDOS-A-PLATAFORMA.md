@@ -1,6 +1,6 @@
-# Facturita — pedidos a Plataforma
+# Factoque — pedidos a Plataforma
 
-Cosas que la célula de Facturita **no tocó** porque son de Plataforma (proxy, hosts, config,
+Cosas que la célula de Factoque **no tocó** porque son de Plataforma (proxy, hosts, config,
 fábrica de tenants). Cada pedido dice qué, por qué y cómo se verifica. Fecha: 2026-10-22.
 Rama de origen: `claude/facturacion-automatica-facturita`.
 
@@ -13,7 +13,7 @@ Rama de origen: `claude/facturacion-automatica-facturita`.
 - **Por qué:** hoy la vidriera vive en `/facturita` de cualquier host. El link de venta tiene que
   abrir directo en la vidriera.
 - **Ojo:** el manifiesto declara `scope: /facturita/` y `start_url: /facturita/app`. Si Plataforma
-  decide servir Facturita en la raíz del host (sin el prefijo), hay que mover scope, start_url,
+  decide servir Factoque en la raíz del host (sin el prefijo), hay que mover scope, start_url,
   la ruta del SW y la de la página sin conexión en `src/lib/facturita-pwa.ts` y
   `public/facturita/sw.js` (un solo lugar cada uno).
 - **Se verifica:** `curl -I https://facturita-gsg.vercel.app/` → 200 con la vidriera o 308 a `/facturita`.
@@ -22,7 +22,7 @@ Rama de origen: `claude/facturacion-automatica-facturita`.
 
 - **Qué:** sumar `/facturita/app` (y lo de abajo) a `esSuperficieDeTenant` en `src/proxy.ts`,
   como `/admin` y `/contador`.
-- **Por qué:** hoy la app de Facturita depende sólo del chequeo de cada página/acción
+- **Por qué:** hoy la app de Factoque depende sólo del chequeo de cada página/acción
   (`requireCapability` en `src/lib/facturita-actions.ts`). Es seguro (las acciones validan
   sesión, capability y blueprint), pero el portón grueso del proxy es la primera línea en el resto
   de las superficies con login. **Importante:** NO sumar `/facturita` entero: la vidriera, el
@@ -55,7 +55,7 @@ Rama de origen: `claude/facturacion-automatica-facturita`.
 ## P-5 · `WHATSAPP_GSG` en el entorno del build
 
 - **Qué:** confirmar que `WHATSAPP_GSG` está cargada en Vercel para el proyecto que sirve
-  Facturita. La página `/facturita/alta` es estática: el número se lee **en el build**.
+  Factoque. La página `/facturita/alta` es estática: el número se lee **en el build**.
 - **Por qué:** sin la variable, el botón «Mandar por WhatsApp» no aparece (no se inventa número,
   DX-4) y queda sólo «Copiar el resumen».
 

@@ -15,7 +15,7 @@
 |---|---|---|
 | `facturacion.automatica` | Las ventas cobradas se facturan solas en ARCA | `ARCA_INVOICING_ENABLED=true` |
 | `facturacion.lote-mensual` | A fin de mes se arma y emite el lote pendiente | `facturacion.automatica` del mismo negocio + llave global |
-| `facturita.pwa` | Facturita instalable en el celular | — |
+| `facturita.pwa` | Factoque instalable en el celular | — |
 | `arca.produccion` | Las facturas del negocio salen con validez fiscal | llave global + `ARCA_MODO=real` |
 
 **Doble llave:** un flag prendido para un negocio no hace nada si la llave global está abajo. Así el
