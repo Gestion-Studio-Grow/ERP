@@ -6,7 +6,7 @@ import { Badge, buttonClasses, cn } from "@/components/ui";
 import SubmitButton from "@/components/SubmitButton";
 import { pagarGasto, registrarCobro } from "@/lib/proyectos/acciones";
 import { anularCobroFicha, anularGastoFicha, aprobarInterno, pedirAprobacion, crearMovimientoManual, enviarCotizacion, guardarTextos, marcarCuota, nuevaVersion, quitarMovimiento, recalcularCuotas, registrarRespuesta } from "@/lib/proyectos/acciones-ficha";
-import { fechaCorta, fechaParaInput, MEDIOS, MEDIO_LABEL, pesos, porcentaje, sePuedeEditar, totalDelGasto, waLink, type MedioPago } from "@/lib/proyectos/core";
+import { fechaCorta, fechaParaInput, MEDIOS, MEDIO_LABEL, pesos, porcentaje, redondear, sePuedeEditar, totalDelGasto, waLink, type MedioPago } from "@/lib/proyectos/core";
 import { esFoto, FILTROS_CASHFLOW, filtrarCashflow, fotoDeVersion, margenDeFoto, planillaDeVenta } from "@/lib/proyectos/ficha-core";
 import { aItemFicha } from "@/lib/proyectos/gestion.server";
 import { cambiosEntreVersiones, cambioDeVenta, estadoCuota, MONEDAS, plataEn, totalesFicha, ventaEn } from "@/lib/proyectos/gestion-core";
@@ -269,7 +269,7 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
                       <td className="py-1.5 pr-2">{c.tipo === "COBRO" ? p.client.name : c.supplier?.name ?? "—"}</td>
                       <td className="py-1.5 pr-2 text-right tabular-nums">
                         {plataEn(c.monto, c.moneda)}
-                        {!c.pagadoEl && !c.anuladoEl && c.tipo === "COBRO" && c.pendiente !== c.monto && <span className="block text-xs text-muted">Falta {plataEn(c.pendiente, c.moneda)}</span>}
+                        {!c.pagadoEl && !c.anuladoEl && c.tipo === "COBRO" && redondear(c.pendiente) !== c.monto && <span className="block text-xs text-muted">Falta {plataEn(c.pendiente, c.moneda)}</span>}
                         {/* Lo que se pagó tal como entró (el original y los pesos asentados), no lo que vale hoy: eso va en el importe. */}
                         {c.pagado && (c.pagado.pesos !== null || c.pagado.moneda !== c.moneda || c.pagado.monto !== c.monto) && <span className="block text-xs text-muted">Pagó {textoPagado(c.pagado)}</span>}
                       </td>
