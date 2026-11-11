@@ -24,7 +24,7 @@ import {
   type LineaAsiento,
   type OrigenAsiento,
 } from "./asiento";
-import { planModelo, type RubroContable } from "./plan-modelo";
+import { planModelo, rubroParaLaBase, type RubroContable } from "./plan-modelo";
 import { problemaDeAsignacion, rolesModelo, type RolCuenta } from "./roles";
 import {
   calcularVencimientos,
@@ -36,7 +36,7 @@ import {
 } from "./vencimientos";
 import { FERIADOS_2026, TABLA_VENCIMIENTOS_2026 } from "./tabla-vencimientos-2026";
 
-type Tx = Parameters<Parameters<typeof tenantTransaction>[0]>[0];
+export type Tx = Parameters<Parameters<typeof tenantTransaction>[0]>[0];
 
 export type CodigoErrorRepo =
   | "MIGRACION_PENDIENTE"
@@ -51,7 +51,10 @@ export type CodigoErrorRepo =
   | "CUIT_INVALIDO"
   | "PERIODO_INVALIDO"
   | "ESTADO_INVALIDO"
-  | "ROL_INVALIDO";
+  | "ROL_INVALIDO"
+  | "PADRE_INVALIDO"
+  | "DATOS_INVALIDOS"
+  | "CUENTA_EN_USO";
 
 export type Resultado<T> = ({ ok: true } & T) | { ok: false; error: CodigoErrorRepo; mensaje: string; errores?: ErrorAsiento[] };
 
@@ -64,7 +67,7 @@ export function esMigracionPendiente(e: unknown): boolean {
   return code === "P2021" || code === "P2022";
 }
 
-class Rechazo extends Error {
+export class Rechazo extends Error {
   constructor(
     readonly codigo: CodigoErrorRepo,
     mensaje: string,
@@ -74,7 +77,7 @@ class Rechazo extends Error {
   }
 }
 
-async function enTransaccion<T>(tenantId: string, fn: (tx: Tx) => Promise<T>): Promise<Resultado<T>> {
+export async function enTransaccion<T>(tenantId: string, fn: (tx: Tx) => Promise<T>): Promise<Resultado<T>> {
   try {
     const valor = await tenantTransaction(fn, { tenantId });
     return { ok: true, ...valor };
@@ -90,7 +93,7 @@ function soloDia(d: Date): Date {
   return new Date(`${diaIso(d)}T00:00:00Z`);
 }
 
-async function candado(tx: Tx, clave: string): Promise<void> {
+export async function candado(tx: Tx, clave: string): Promise<void> {
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${clave}, 0))`;
 }
 
@@ -148,10 +151,10 @@ export function sembrarPlanModelo(
 
     await tx.configContable.upsert({
       where: { tenantId },
-      create: { tenantId, rubroNegocio: rubro },
+      create: { tenantId, rubroNegocio: rubroParaLaBase(rubro) },
       update: {},
     });
-    await tx.configContable.updateMany({ where: { tenantId, rubroNegocio: null }, data: { rubroNegocio: rubro } });
+    await tx.configContable.updateMany({ where: { tenantId, rubroNegocio: null }, data: { rubroNegocio: rubroParaLaBase(rubro) } });
 
     return { creadas, existentes: existentes.length, rolesAsignados: roles.count };
   });

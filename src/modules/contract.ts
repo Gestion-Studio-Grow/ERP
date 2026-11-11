@@ -78,6 +78,22 @@ export interface ScopeItem {
   label: string;
   /** Ruta del backoffice que abre, si tiene pantalla propia (para deep-link/preview). */
   ruta?: string;
+  // ── Ficha del scope item (docs/finanzas-control/METODO-SCOPE-ITEMS.md). Todo opcional:
+  //    los módulos viejos no cambian y las guardias de `validarDescriptor` no los miran.
+  //    La coherencia (códigos únicos, dependencias que existen y van antes) la chequea
+  //    `problemasDeScopeItems` (src/modules/scope-items.ts) en los tests del módulo.
+  /** Código estable del scope item: "FC-01". */
+  codigo?: string;
+  /** Referencia SAP S/4HANA de la que sale (scope item o proceso): "J58", "YCOA". */
+  referenciaSap?: string;
+  /** Perfil mínimo que lo trae completo. Sin dato ⇒ los dos perfiles. */
+  perfilMin?: "lite" | "enterprise";
+  /** Qué ve el perfil lite cuando `perfilMin` es "enterprise" (p. ej. "sólo exportar"). */
+  enLite?: string;
+  /** Códigos de los scope items de los que depende (del mismo módulo). */
+  dependencias?: string[];
+  /** Guion de prueba clic por clic, relativo a la raíz del repo. */
+  guion?: string;
 }
 
 /** Un campo del schema de configuración por tenant. */

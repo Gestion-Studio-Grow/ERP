@@ -30,8 +30,19 @@ import { naturalezaPorTipo, type Naturaleza, type TipoCuenta } from "./asiento";
 export const PLAN_MODELO_PROVISIONAL = true;
 
 /** Rubro del NEGOCIO (qué plan modelo se siembra). */
-export type RubroContable = "comercio" | "servicios" | "club" | "agencia";
-export const RUBROS_CONTABLES: readonly RubroContable[] = ["comercio", "servicios", "club", "agencia"];
+export type RubroContable = "comercio" | "servicios" | "club" | "agencia" | "proyectos";
+export const RUBROS_CONTABLES: readonly RubroContable[] = ["comercio", "servicios", "club", "agencia", "proyectos"];
+
+/**
+ * «Servicios por proyecto» (productoras de eventos, activaciones, stands): se guarda en
+ * `ConfigContable.rubroNegocio` como "servicios" porque el CHECK de la ola 2 sólo admite los cuatro
+ * rubros originales (sin migración nueva en FC-01). Se reconoce por su cuenta marca
+ * (`CUENTA_MARCA_PROYECTOS`). Deuda: ampliar el CHECK en una migración aditiva y guardar "proyectos".
+ */
+export const CUENTA_MARCA_PROYECTOS = "1.1.1.05";
+export function rubroParaLaBase(rubro: RubroContable): Exclude<RubroContable, "proyectos"> {
+  return rubro === "proyectos" ? "servicios" : rubro;
+}
 
 /** Rubro del ESTADO contable (RT 54): dónde cae la cuenta en el ESP o en el ER. */
 export const RUBROS_ESTADO = [
@@ -295,6 +306,35 @@ const HOJAS_POR_RUBRO: Readonly<Record<RubroContable, Readonly<Record<string, re
       ["5.1.01", "Costo de pauta de terceros", { nombreDueno: "Pauta pagada" }],
       ["5.1.02", "Costo de producción y freelancers", { nombreDueno: "Freelancers y producción" }],
     ],
+  },
+  // Servicios por proyecto (productora de eventos, activaciones, stands). FC-01. Provisional a
+  // confirmar con el estudio: cuentas por banco y moneda, cheques y Echeq, retenciones a depositar
+  // por impuesto, saldos de IVA y diferencia de cambio (CATALOGO-FINANZAS-CONTROL §1.3).
+  proyectos: {
+    "1.1.1": [
+      // Moneda extranjera: no monetaria a efectos del ajuste (se mide al cambio de cierre). A confirmar.
+      ["1.1.1.04", "Banco cuenta en dólares", { monetaria: false }],
+      ["1.1.1.05", "Valores a depositar"],
+    ],
+    "1.1.3": [
+      ["1.1.3.09", "Percepciones de IVA sufridas"],
+      ["1.1.3.10", "IVA saldo de libre disponibilidad"],
+      ["1.1.3.11", "Recaudación bancaria IIBB"],
+    ],
+    "1.1.4": [["1.1.4.02", "Materiales en depósito"]],
+    "2.1.1": [["2.1.1.03", "Cheques diferidos y Echeq a pagar"]],
+    "2.1.2": [
+      ["2.1.2.06", "Retenciones de IVA a depositar"],
+      ["2.1.2.07", "Retenciones de Ganancias a depositar"],
+      ["2.1.2.08", "Retenciones de IIBB a depositar"],
+    ],
+    "4.1": [["4.1.01", "Ventas de servicios por proyecto", { nombreDueno: "Proyectos facturados" }]],
+    "5.1": [
+      ["5.1.01", "Costo de producción de proyectos", { nombreDueno: "Costo de los proyectos" }],
+      ["5.1.02", "Comisiones de productores", { nombreDueno: "Comisiones de productores" }],
+      ["5.1.03", "Materiales e insumos consumidos", { nombreDueno: "Materiales" }],
+    ],
+    "5.3": [["5.3.08", "Diferencias de cambio", { nombreDueno: "Diferencia por el dólar" }]],
   },
 };
 

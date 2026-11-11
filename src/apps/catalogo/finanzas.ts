@@ -325,4 +325,38 @@ export const APPS_FINANZAS = [
     kpi: { id: "comisiones", mide: "Lo que falta liquidar y a cuántos profesionales.", capability: "reports:read" },
     palabras: ["liquidar", "liquidacion", "profesionales", "porcentaje", "pagar comision"],
   },
+  // ── FINANZAS Y CONTROL · FC-01 Fundación (docs/finanzas-control/PLAN-TANDAS.md) ───────────
+  //
+  // Plan de cuentas y ejercicio contable: la base sobre la que se apoyan los asientos. Cuelgan del
+  // módulo `finanzas-control`; además la pantalla mira el interruptor «contabilidad» del negocio
+  // (modulo.server.ts): apagado no muestra nada contable, prendido sin la migración muestra el aviso.
+  // Como Vouchers, el interruptor no lo lee el registro: NO se ofrecen en el Inicio, la barra ni el
+  // buscador (`enLanzador: false`) y apagado la página da 404. Sin `menuDeHoy`: el menú de hoy no
+  // cambia. Plata del negocio: reports:read.
+  {
+    id: "plan-de-cuentas",
+    nombre: "Plan de cuentas",
+    descripcion: "Las cuentas del negocio, cuáles usa el sistema y las que sumes vos.",
+    icono: "contabilidad",
+    ruta: "/admin/contabilidad/plan",
+    espacio: "finanzas",
+    capability: "reports:read",
+    modulo: "finanzas-control",
+    estado: "lista",
+    palabras: ["cuentas contables", "plan contable", "contabilidad", "imputar", "roles contables"],
+    enLanzador: false,
+  },
+  {
+    id: "ejercicio-contable",
+    nombre: "Ejercicio contable",
+    descripcion: "El año contable del negocio: cuándo arranca y cuándo cierra.",
+    icono: "contabilidad",
+    ruta: "/admin/contabilidad/ejercicio",
+    espacio: "finanzas",
+    capability: "reports:read",
+    modulo: "finanzas-control",
+    estado: "lista",
+    palabras: ["ejercicio", "año contable", "cierre de ejercicio", "balance", "fecha de cierre"],
+    enLanzador: false,
+  },
 ] as const satisfies readonly AppDescriptor[];

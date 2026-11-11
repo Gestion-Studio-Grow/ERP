@@ -31,6 +31,7 @@ import { multilocalModule } from "./descriptors/multilocal";
 import { cajaRapidaModule, ofertasModule } from "./descriptors/supermercado";
 import { tallerModule } from "./descriptors/taller";
 import { proyectosModule } from "./descriptors/proyectos";
+import { finanzasControlModule } from "./descriptors/finanzas-control";
 import { inmobiliariaModule } from "./descriptors/inmobiliaria";
 import { terminalModule } from "./descriptors/terminal";
 import { clubModule } from "./descriptors/club";
@@ -65,6 +66,8 @@ export const DESCRIPTORES_CATALOGO = [
   whatsappModule,
   // Proyectos de una productora (src/modules/descriptors/proyectos.ts). Al final, como los anteriores.
   proyectosModule,
+  // Finanzas y control de Factoque (src/modules/descriptors/finanzas-control.ts). Al final, como los anteriores.
+  finanzasControlModule,
 ];
 
 /**

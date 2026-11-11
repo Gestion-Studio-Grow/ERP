@@ -62,9 +62,9 @@ export const ROLES_CUENTA = {
   COMISIONES_PERSONAL: {
     descripcion: "Comisiones del personal",
     tipo: "RESULTADO_NEGATIVO",
-    codigo: { servicios: "5.1.02", comercio: "5.4.03", club: "5.4.03", agencia: "5.4.03" },
+    codigo: { servicios: "5.1.02", proyectos: "5.1.02", comercio: "5.4.03", club: "5.4.03", agencia: "5.4.03" },
   },
-  INSUMOS: { descripcion: "Insumos consumidos", tipo: "RESULTADO_NEGATIVO", codigo: { servicios: "5.1.03" } },
+  INSUMOS: { descripcion: "Insumos consumidos", tipo: "RESULTADO_NEGATIVO", codigo: { servicios: "5.1.03", proyectos: "5.1.03" } },
   SUELDOS: { descripcion: "Sueldos y cargas sociales", tipo: "RESULTADO_NEGATIVO", codigo: "5.2.01" },
   SAC_Y_VACACIONES: { descripcion: "Aguinaldo y vacaciones devengados", tipo: "RESULTADO_NEGATIVO", codigo: "5.2.07" },
   AMORTIZACIONES: { descripcion: "Amortizaciones del mes", tipo: "RESULTADO_NEGATIVO", codigo: "5.2.08" },
@@ -76,6 +76,23 @@ export const ROLES_CUENTA = {
   COMISIONES_DE_COBRO: { descripcion: "Comisiones de Mercado Pago y tarjetas", tipo: "RESULTADO_NEGATIVO", codigo: "5.3.05" },
   RECPAM: { descripcion: "Resultado por exposición a la inflación", tipo: "RESULTADO_NEGATIVO", codigo: "5.3.06" },
   DEUDORES_INCOBRABLES: { descripcion: "Deudores incobrables", tipo: "RESULTADO_NEGATIVO", codigo: "5.4.02" },
+
+  // ── Roles nuevos de FC-01 (CATALOGO-FINANZAS-CONTROL §1.3). Provisionales a confirmar con el estudio.
+  //    Los de cuentas comunes valen para todos los rubros; el resto, por ahora sólo en «servicios por
+  //    proyecto». IIBB abierto por jurisdicción queda para FC-09 (hoy los roles de IIBB son únicos).
+  SALDO_TECNICO_IVA: { descripcion: "Saldo técnico de IVA a favor", tipo: "ACTIVO", codigo: "1.1.3.07" },
+  ANTICIPOS_GANANCIAS: { descripcion: "Anticipos de Ganancias pagados", tipo: "ACTIVO", codigo: "1.1.3.08" },
+  GANANCIAS_A_PAGAR: { descripcion: "Ganancias a pagar", tipo: "PASIVO", codigo: "2.1.2.04" },
+  BANCO_USD: { descripcion: "Banco en dólares", tipo: "ACTIVO", codigo: { proyectos: "1.1.1.04" } },
+  VALORES_A_DEPOSITAR: { descripcion: "Cheques y Echeq recibidos a depositar", tipo: "ACTIVO", codigo: { proyectos: "1.1.1.05" } },
+  PERCEPCIONES_IVA: { descripcion: "Percepciones de IVA sufridas", tipo: "ACTIVO", codigo: { proyectos: "1.1.3.09" } },
+  SALDO_LIBRE_DISPONIBILIDAD_IVA: { descripcion: "Saldo de libre disponibilidad de IVA", tipo: "ACTIVO", codigo: { proyectos: "1.1.3.10" } },
+  RECAUDACION_BANCARIA_IIBB: { descripcion: "Recaudación bancaria de IIBB", tipo: "ACTIVO", codigo: { proyectos: "1.1.3.11" } },
+  CHEQUES_DIFERIDOS_A_PAGAR: { descripcion: "Cheques diferidos y Echeq emitidos a pagar", tipo: "PASIVO", codigo: { proyectos: "2.1.1.03" } },
+  RETENCIONES_IVA_A_DEPOSITAR: { descripcion: "Retenciones de IVA practicadas a depositar", tipo: "PASIVO", codigo: { proyectos: "2.1.2.06" } },
+  RETENCIONES_GANANCIAS_A_DEPOSITAR: { descripcion: "Retenciones de Ganancias practicadas a depositar", tipo: "PASIVO", codigo: { proyectos: "2.1.2.07" } },
+  RETENCIONES_IIBB_A_DEPOSITAR: { descripcion: "Retenciones de IIBB practicadas a depositar", tipo: "PASIVO", codigo: { proyectos: "2.1.2.08" } },
+  DIFERENCIA_DE_CAMBIO: { descripcion: "Diferencia de cambio", tipo: "RESULTADO_NEGATIVO", codigo: { proyectos: "5.3.08" } },
 } as const satisfies Record<string, DefinicionRol>;
 
 export type RolCuenta = keyof typeof ROLES_CUENTA;
