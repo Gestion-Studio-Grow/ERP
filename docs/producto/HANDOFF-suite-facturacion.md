@@ -48,10 +48,10 @@ sostenida que bloqueó agentes/comandos/workflows. El trabajo quedó a salvo en 
 
 ## 🔨 LO QUE FALTA CONSTRUIR (en orden, spec en plan-construccion-suite-golive.md)
 
-1. **Auto-facturado total MP + banco** (Comerciante + Facturita): OAuth real de Mercado Pago por tenant
+1. **Auto-facturado total MP + banco** (Comerciante + Factoque): OAuth real de Mercado Pago por tenant
    + webhook HTTP + glue real (hoy el MP es stub simulado) → cada cobro aprobado se factura solo.
    Prompt de build ya redactado (ver historial de la sesión / plan-construccion §Frente 1).
-2. **Producto C · Facturita** — NO construido. Empaquetado liviano (arca+clients), signup público
+2. **Producto C · Factoque** — NO construido. Empaquetado liviano (arca+clients), signup público
    `/facturita`, emisión manual 3 clics, tope 5/mes, + recepción MP. Spec en ADR-076.
 3. **Tier PYME "reloj suizo"** (nada de esto existe hoy — verificado por grep): **nómina** (recibos,
    F.931, ART, SAC, CCT 130/75 comercio), **Convenio Multilateral / IIBB** (coeficientes, por
@@ -62,13 +62,13 @@ sostenida que bloqueó agentes/comandos/workflows. El trabajo quedó a salvo en 
    homologación) → 3 dominios (`comerciante-gsg`, `contador-gsg`, `facturita-gsg`) + `TENANT_HOST_MAP`.
    Script listo: `scratchpad/configurar-3-tenants.js`. Runbook: `golive-suite-3-productos.md`.
 5. **Entregables por producto:** 1 PDF ejecutivo + 1 MANUAL DE USO paso a paso (Comerciante, Contador,
-   Facturita; y Pyme cuando esté).
+   Factoque; y Pyme cuando esté).
 
 ---
 
 ## 🎯 REGLA DE VENTA (crítica — lección de la auditoría)
 
-Vendible/demostrable YA: **Comerciante + Facturita** (extracto/MP → factura automática). El **tier PYME
+Vendible/demostrable YA: **Comerciante + Factoque** (extracto/MP → factura automática). El **tier PYME
 NO se vende como terminado** hasta que cada módulo pase el Gate — va como premium "en construcción". No
 prometer nómina/CM/feed bancario/multi-local como disponibles: no lo están.
 

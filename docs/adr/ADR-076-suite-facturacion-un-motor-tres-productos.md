@@ -4,7 +4,7 @@ nivel: fundacional
 dominio: [Producto, Arquitectura]
 depends_on: [ADR-054, ADR-055, ADR-058, ADR-060, ADR-061, ADR-029]
 ---
-# ADR-076: Suite de facturación — UN motor, TRES productos empaquetados (A·Comerciante / B·Contador / C·Facturita)
+# ADR-076: Suite de facturación — UN motor, TRES productos empaquetados (A·Comerciante / B·Contador / C·Factoque)
 
 **Estado:** Aceptada — decisión estructural del dueño (Maxi), 2026-07-11. Fuente: síntesis del equipo de
 diseño **+ challenger (ADR-045)** corrido el 2026-07-11.
@@ -34,7 +34,7 @@ caro y el contador nos ve como competencia en vez de canal.
 
 1. **Los tres productos:** **A·Comerciante** (el negocio que factura lo suyo: extracto + MP + tope +
    clasificador), **B·Contador** (el estudio que administra una cartera de clientes — detalle en ADR-077),
-   **C·Facturita** (emisión simple y gratuita para el monotributista chico — el funnel).
+   **C·Factoque** (emisión simple y gratuita para el monotributista chico — el funnel).
 2. **Cada producto con SU cara comercial propia:** link de venta, landing y signup **propios por producto**.
    Técnicamente: **ruteo host→producto**, extensión natural del host→tenant vigente (ADR-029) — el mismo
    deploy sirve todo (ADR-070); la diferencia es config, no artefacto.

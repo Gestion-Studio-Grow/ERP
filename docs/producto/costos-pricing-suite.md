@@ -69,7 +69,7 @@ Lecturas honestas:
 
 1. **SOLO: mantener $14.900** (es el ancla de mercado y está por debajo del piso psicológico — ver punto 5), pero con **fair use explícito**: soporte humano hasta 0,3 h/mes; pasado eso, bot/KB primero, y sesión de soporte extendida a $9.900. Sin esto, SOLO es una lotería.
 2. **Cobrar el alta**: setup/onboarding SOLO $49.900 one-time, **bonificado 100% si paga plan anual** (anual = 10 meses). Eso corta el payback de 13-20 meses a 4-6 y empuja el prepago (caja + inflación a favor).
-3. **Ruta preferida de entrada a SOLO: vía Facturita** (certificado ARCA ya resuelto por el usuario en self-serve) → el onboarding cae de $90-135k a casi cero. SOLO "de la calle" paga setup; SOLO "graduado de C" no.
+3. **Ruta preferida de entrada a SOLO: vía Factoque** (certificado ARCA ya resuelto por el usuario en self-serve) → el onboarding cae de $90-135k a casi cero. SOLO "de la calle" paga setup; SOLO "graduado de C" no.
 4. COMERCIO, PYME y CM: **validados sin cambios**. Son los planes donde hay que empujar la venta (58% y 54% de margen real).
 
 ---
@@ -100,13 +100,13 @@ Condiciones del diseño:
 
 ---
 
-## 3) PRODUCTO C — Facturita
+## 3) PRODUCTO C — Factoque
 
 - **Costo real de regalar un usuario: ~$50/mes** ($2 infra + $10 IA + $40 WA, con emisión ARCA a costo literalmente cero). Estimado sobre tarifas relevadas. La contingencia es UNA sola: que se rompa la regla de cero soporte humano (cada 0,05 h/usuario/mes son +$2.265 — ahí se arregla UX, no se contrata gente).
 - **¿Cuántos free aguanta el fijo?** Con la infra del escalón actual (~$31.000/mes con Vercel Pro): cada **1.000 usuarios free activos ≈ $50.000/mes** de marginal — se financia con el margen de **~7-8 clientes SOLO** o **2-3 COMERCIO**. Con la base pagante proyectada (20-30 clientes A), **2.000-3.000 usuarios free son sostenibles sin despeinarse**. El límite práctico antes que la plata: que el bot WA y las 100 CU-h de Neon aguanten la concurrencia (a ~1.000+ usuarios el compute Neon sube unos USD 10-20/mes más, estimado).
 - **¿$0 o $2.900?** **$0, sin dudarlo.** Cobrar $2.900 por MP deja ~$2.700 netos, mete fricción de alta de pago exactamente donde queremos CERO fricción, genera soporte de cobranza (rechazos, bajas) que vale más que lo recaudado, y mata el volumen del funnel. C no es un producto, es el CAC de A.
-- **Límites free (el trigger de conversión):** 5 facturas/mes · 1 punto de venta · sin extracto bancario · sin MP · alertas WA básicas · sello "hecho con Facturita". **Triggers de upgrade a A SOLO:** factura n°6 del mes (pantalla de upgrade en el momento exacto del dolor), pedir extracto/conciliación, o pedir cobros MP. El certificado ARCA ya resuelto en C hace que el upgrade a A sea sin onboarding (ver punto 1.3).
-- Variante opcional si querés monetizar algo sin romper el funnel: "Facturita Plus" $4.900/mes (30 facturas, sin sello) como escalón intermedio — **pero no lo lanzaría hasta medir la conversión C→A** (riesgo: canibaliza SOLO).
+- **Límites free (el trigger de conversión):** 5 facturas/mes · 1 punto de venta · sin extracto bancario · sin MP · alertas WA básicas · sello "hecho con Factoque". **Triggers de upgrade a A SOLO:** factura n°6 del mes (pantalla de upgrade en el momento exacto del dolor), pedir extracto/conciliación, o pedir cobros MP. El certificado ARCA ya resuelto en C hace que el upgrade a A sea sin onboarding (ver punto 1.3).
+- Variante opcional si querés monetizar algo sin romper el funnel: "Factoque Plus" $4.900/mes (30 facturas, sin sello) como escalón intermedio — **pero no lo lanzaría hasta medir la conversión C→A** (riesgo: canibaliza SOLO).
 
 ---
 
@@ -134,7 +134,7 @@ Condiciones del diseño:
 
 1. **Inflación → revisión trimestral, NO indexación contractual.** Indexar por IPC en el contrato asusta en la venta y es rígido. Regla operativa: revisión de lista cada trimestre con aviso de 30 días, y **plan anual prepago como cobertura mutua** (el cliente congela precio, vos hacés caja). Los packs B, igual. Primera revisión programada: octubre 2026.
 2. **Dólar en los costos: exposición REAL baja, no cero.** Vercel+Neon+Anthropic facturan en USD, pero suman USD 40-55/mes para TODA la plataforma (~4-6% del costo total; el 95% del costo es soporte, en pesos). Una devaluación del 50% te mueve el costo total <3%. Ojo con lo que sí está dolarizado de facto: tu precio sombra hora ($45.300 = USD 30) — si ajustás tu tarifa con el dólar, el cost-to-serve sube en paralelo y el punto 1 (revisión trimestral) lo absorbe. Meta ya factura WhatsApp en ARS desde abr-2026. Percepciones por pagos al exterior sobre la tarjeta: verificar, no incluidas.
-3. **Piso psicológico del mercado (estimado, del blueprint de referencia):** los competidores de facturación cloud AR (Xubio, Colppy, Contabilium) arrancan en la zona de $20.000-40.000/mes. SOLO a $14.900 queda **debajo del piso de mercado** — es deliberado (ancla de entrada), pero significa dos cosas: (a) hay espacio para llevarlo a $17.900-19.900 en la revisión de Q4 sin perder competitividad, y (b) NO bajar de ahí nunca: más barato que $14.900 el mercado no lo lee como "accesible", lo lee como "juguete" — para eso ya existe Facturita gratis, que es quien pelea abajo.
+3. **Piso psicológico del mercado (estimado, del blueprint de referencia):** los competidores de facturación cloud AR (Xubio, Colppy, Contabilium) arrancan en la zona de $20.000-40.000/mes. SOLO a $14.900 queda **debajo del piso de mercado** — es deliberado (ancla de entrada), pero significa dos cosas: (a) hay espacio para llevarlo a $17.900-19.900 en la revisión de Q4 sin perder competitividad, y (b) NO bajar de ahí nunca: más barato que $14.900 el mercado no lo lee como "accesible", lo lee como "juguete" — para eso ya existe Factoque gratis, que es quien pelea abajo.
 4. **Riesgo silencioso n°1 (no es de precio pero mata el pricing): el soporte.** Todos los márgenes de arriba asumen la disciplina de horas (SOLO 0,15 h, COMERCIO 0,3 h, PYME 0,75 h). Sin KB + bot WA operativos, los 46-58% de margen son ficción. La inversión que más protege el pricing no es infra: es documentación y self-serve.
 5. **Comisión MP:** la tabla usada (4,61%+IVA a 10 días) fue relevada por fuentes secundarias porque el sitio oficial bloquea el fetch — **verificar el % exacto en la cuenta MP antes de publicar precios**.
 
