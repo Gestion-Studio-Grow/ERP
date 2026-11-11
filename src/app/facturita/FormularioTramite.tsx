@@ -2,6 +2,7 @@
 // FACTOQUE · Formulario del Botón de arrepentimiento y del Botón de baja (src/lib/factoque-tramites.ts).
 // Email + CUIT + motivo opcional. Al terminar muestra el número de trámite y el enlace para avisarle
 // a GSG por su canal (WhatsApp o mail). Lo usan la página pública (sin cuenta) y Mi cuenta (con sesión).
+// ProfeTurnos lo reusa con `identificador="usuario"`: el profe se identifica con el link de su turnero.
 
 import { useActionState, useId } from "react";
 import { Button, Field, Input, Textarea } from "@/components/ui";
@@ -14,8 +15,11 @@ export default function FormularioTramite({
   emailInicial = "",
   cuitInicial = "",
   boton,
+  identificador = "cuit",
 }: {
   tipo: TipoTramite;
+  /** Factoque pide el CUIT; ProfeTurnos, el usuario (o el link) del turnero. */
+  identificador?: "cuit" | "usuario";
   accion: (prev: ResultadoTramite | null, fd: FormData) => Promise<ResultadoTramite>;
   emailInicial?: string;
   cuitInicial?: string;
@@ -56,9 +60,21 @@ export default function FormularioTramite({
       <Field label="Tu email" htmlFor={`${id}-email`} required hint="Ahí te mandamos la constancia." error={error?.campo === "email" ? error.error : undefined}>
         <Input id={`${id}-email`} name="email" type="email" autoComplete="email" defaultValue={emailInicial} required />
       </Field>
-      <Field label="Tu CUIT" htmlFor={`${id}-cuit`} required hint="El de tu cuenta de Factoque, 11 números." error={error?.campo === "cuit" ? error.error : undefined}>
-        <Input id={`${id}-cuit`} name="cuit" inputMode="numeric" autoComplete="off" defaultValue={cuitInicial} required />
-      </Field>
+      {identificador === "cuit" ? (
+        <Field label="Tu CUIT" htmlFor={`${id}-cuit`} required hint="El de tu cuenta de Factoque, 11 números." error={error?.campo === "cuit" ? error.error : undefined}>
+          <Input id={`${id}-cuit`} name="cuit" inputMode="numeric" autoComplete="off" defaultValue={cuitInicial} required />
+        </Field>
+      ) : (
+        <Field
+          label="Tu usuario o el link de tu turnero"
+          htmlFor={`${id}-usuario`}
+          required
+          hint="El que compartís con tus alumnos, por ejemplo tunombre.gsgapp.com.ar."
+          error={error?.campo === "usuario" ? error.error : undefined}
+        >
+          <Input id={`${id}-usuario`} name="usuario" autoComplete="off" autoCapitalize="none" spellCheck={false} required />
+        </Field>
+      )}
       <Field label="¿Por qué? (opcional)" htmlFor={`${id}-motivo`} hint="No hace falta que lo digas.">
         <Textarea id={`${id}-motivo`} name="motivo" rows={3} maxLength={300} />
       </Field>
