@@ -39,6 +39,8 @@ import {
   type PedidoDeAlta,
 } from "./alta-web-core";
 import { tenedoresDelCuit } from "./tenedores-del-cuit.server";
+import { CASILLA_GSG, linkCanal, type CanalGsg } from "@/app/facturita/contacto";
+import { MENSAJE_ACTIVAR_FACTOQUE, RESPUESTA_SIN_MAIL_WHATSAPP, respuestaSinMailPorCasilla } from "./alta-web-form";
 
 export interface DepsAltaWeb {
   /** La conexión del plano de operador (sujeta a RLS; la escritura para la transacción en el negocio). */
@@ -54,25 +56,57 @@ export interface DepsAltaWeb {
   /** Dominio de las direcciones (para la URL que guarda el alta). */
   dominio?: string;
   azar?: () => string;
+  /**
+   * ¿Sale el mail? (RESEND_API_KEY + RESEND_FROM_EMAIL, `mailConectado()` de notifications.ts). Sin él, la
+   * pantalla no promete un mail: manda a activar por WhatsApp. Omitido = conectado (tests de Postgres).
+   */
+  mailConectado?: () => boolean;
+  /** Por dónde se activa cuando el mail no sale: el WhatsApp de GSG (WHATSAPP_GSG) o, sin número, su casilla. */
+  canalDeActivacion?: () => CanalGsg;
 }
 
 const ETIQUETA_MAIL = "factoque-alta-web";
 
+/** El botón para activar a mano cuando el mail no sale. El texto cargado no lleva ningún dato del pedido. */
+export interface ActivacionManual {
+  tipo: "whatsapp" | "mail";
+  enlace: string;
+  etiqueta: string;
+}
+
 export type RespuestaDelPedido =
-  | { ok: true; mensaje: string }
+  | { ok: true; mensaje: string; activacion?: ActivacionManual }
   | { ok: false; errores: Partial<Record<CampoDelPedido, string>> }
   | { ok: false; frenado: true; mensaje: string };
 
 const FRENADO = "Recibimos varios pedidos seguidos desde acá. Esperá un rato y probá de nuevo.";
 
+/**
+ * La respuesta de «pedido recibido». Depende sólo de la configuración del SERVIDOR (¿sale el mail?), nunca del
+ * mail ni del CUIT pedidos: es la misma para todos (anti-enumeración).
+ */
+export function respuestaRecibida(deps: Pick<DepsAltaWeb, "mailConectado" | "canalDeActivacion">): RespuestaDelPedido {
+  if (deps.mailConectado?.() ?? true) return { ok: true, mensaje: RESPUESTA_DEL_PEDIDO };
+  const canal: CanalGsg = deps.canalDeActivacion?.() ?? { tipo: "mail", casilla: CASILLA_GSG };
+  const enlace = linkCanal(canal, "Activar Factoque", MENSAJE_ACTIVAR_FACTOQUE);
+  return canal.tipo === "whatsapp"
+    ? { ok: true, mensaje: RESPUESTA_SIN_MAIL_WHATSAPP, activacion: { tipo: "whatsapp", enlace, etiqueta: "Escribir por WhatsApp" } }
+    : { ok: true, mensaje: respuestaSinMailPorCasilla(canal.casilla), activacion: { tipo: "mail", enlace, etiqueta: "Escribir por mail" } };
+}
+
 export async function pedirAlta(deps: DepsAltaWeb, pedido: PedidoDeAlta, ip: string): Promise<RespuestaDelPedido> {
   // El robot que llenó el campo trampa recibe lo mismo que una persona, y no pasa nada.
-  if (cayoEnLaTrampa(pedido.trampa)) return { ok: true, mensaje: RESPUESTA_DEL_PEDIDO };
+  if (cayoEnLaTrampa(pedido.trampa)) return respuestaRecibida(deps);
   const v = validarPedido(pedido);
   if (!v.ok) return v;
   const a = v.alta;
   if (!deps.limites.pasa([`alta-ip:${ip}`, `alta-mail:${a.email}`, `alta-cuit:${a.cuit}`])) {
     return { ok: false, frenado: true, mensaje: FRENADO };
+  }
+  // Sin mail conectado el enlace no saldría: no se consulta la base ni se promete un mail (prod 11/11).
+  if (!(deps.mailConectado?.() ?? true)) {
+    console.error("[alta-web] mail no configurado: el alta se deriva a la activación manual");
+    return respuestaRecibida(deps);
   }
 
   // Pase lo que pase con ese CUIT, sale UN mail a la casilla que lo pidió y la pantalla dice lo mismo.
@@ -92,7 +126,7 @@ export async function pedirAlta(deps: DepsAltaWeb, pedido: PedidoDeAlta, ip: str
     .catch(() => ({ sent: false, reason: "el envío falló" }));
   // Sin dirección ni CUIT en el registro (estándar §4).
   if (!r.sent) console.error(`[alta-web] el mail del alta no salió: ${r.reason ?? "sin detalle"}`);
-  return { ok: true, mensaje: RESPUESTA_DEL_PEDIDO };
+  return respuestaRecibida(deps);
 }
 
 export type RespuestaDeConfirmacion =
