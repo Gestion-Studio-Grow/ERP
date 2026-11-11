@@ -56,7 +56,7 @@ type Ventana = { __montar: (negocio: string, usuario: string, rol: string, reloj
 
 const STUBS: Record<string, string> = {
   "next/link": `import { createElement } from "react"; export default function Link({ href, children, ...p }) { return createElement("a", { href, ...p }, children); }`,
-  "next/font/google": `export const Montserrat = () => ({ variable: "${FUENTE_DE_PRUEBA}", className: "", style: { fontFamily: "Montserrat" } });`,
+  "next/font/local": `export default () => ({ variable: "${FUENTE_DE_PRUEBA}", className: "", style: { fontFamily: "Montserrat" } });`,
   FormCerrarSesion: `import { createElement } from "react"; export default function F({ children }) { return createElement("form", { onSubmit: (e) => e.preventDefault() }, children); }`,
 };
 
@@ -140,7 +140,7 @@ describe("El armazón del club (Break Point) en el navegador", { timeout: 240_00
         {
           name: "servidor-de-mentira",
           setup(b) {
-            b.onResolve({ filter: /^next\/link$|^next\/font\/google$|FormCerrarSesion$/ }, (a) => ({ path: a.path.endsWith("FormCerrarSesion") ? "FormCerrarSesion" : a.path, namespace: "stub" }));
+            b.onResolve({ filter: /^next\/link$|^next\/font\/local$|FormCerrarSesion$/ }, (a) => ({ path: a.path.endsWith("FormCerrarSesion") ? "FormCerrarSesion" : a.path, namespace: "stub" }));
             b.onLoad({ filter: /.*/, namespace: "stub" }, (a) => ({ contents: STUBS[a.path], loader: "js", resolveDir: RAIZ }));
           },
         },

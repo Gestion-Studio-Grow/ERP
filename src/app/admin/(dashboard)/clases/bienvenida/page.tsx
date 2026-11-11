@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { requireApp } from "@/lib/require-app";
 import { gestionaClases } from "@/lib/padel/plata-guardia";
 import { configCompleta } from "@/lib/padel/datos.server";
-import { linkDelTurnero } from "../config/_link.server";
+import { linkDelTurnero, qrDelTurnero } from "../config/_link.server";
 import { semanaDesde } from "../config/horarios/grilla";
 import { Asistente } from "./Asistente";
 
@@ -17,12 +17,13 @@ export default async function ClasesBienvenida() {
   const user = await requireApp("padel-clases");
   // Todo lo de esta pantalla guarda con acciones que exigen agenda:manage: sin él, vuelve a Hoy.
   if (!gestionaClases(user)) redirect("/admin/clases");
-  const [{ config, franjas, negocio }, turnero] = await Promise.all([configCompleta(), linkDelTurnero()]);
+  const [{ config, franjas, negocio, clubes }, turnero] = await Promise.all([configCompleta(), linkDelTurnero()]);
+  const qr = await qrDelTurnero(turnero);
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-5">
       <header className="mb-4">
         <h1 className="text-2xl font-bold text-strong">Hola{negocio.profe && negocio.profe !== "profe" ? `, ${negocio.profe}` : ""}. Armemos tu agenda</h1>
-        <p className="text-sm text-muted">Tres pasos y tus alumnos ya te pueden pedir clase desde tu link.</p>
+        <p className="text-sm text-muted">Cuatro pasos y tus alumnos ya te pueden pedir clase desde tu link.</p>
       </header>
       <Asistente
         datos={{
@@ -34,6 +35,8 @@ export default async function ClasesBienvenida() {
           precioIndividual: config.precioIndividual,
           duracionMin: config.duracionMin,
           semana: semanaDesde(franjas),
+          clubes: clubes.filter((c) => c.activo).map(({ id, nombre, direccion }) => ({ id, nombre, direccion })),
+          qr,
         }}
       />
     </main>
