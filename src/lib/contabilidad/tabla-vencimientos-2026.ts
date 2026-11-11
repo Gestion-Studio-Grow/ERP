@@ -99,6 +99,39 @@ export const TABLA_VENCIMIENTOS_2026: TablaVencimientos = {
       },
       diasPorMes: cadaMes([13, 13, 13, 14, 14, 14, 15, 15, 15, 15]), // provisional a confirmar
     },
+    // ── T7 (FC-11): obligaciones que faltaban. Todas «provisional a confirmar». ──
+    {
+      codigo: "GANANCIAS_DDJJ",
+      nombre: "Ganancias — declaración jurada anual y saldo",
+      organismo: "ARCA",
+      periodicidad: "ANUAL",
+      accion: "AMBAS",
+      // Período fiscal 2025 → vence en 2026 (provisional a confirmar: mes según tipo de sujeto).
+      porPeriodo: { "2025": [{ cuota: 0, mes: "2026-06" }] },
+      diasPorMes: { "2026-06": [11, 11, 12, 12, 12, 15, 15, 16, 16, 16] }, // provisional a confirmar
+    },
+    {
+      codigo: "SICORE",
+      nombre: "Retenciones y percepciones practicadas — SICORE",
+      organismo: "ARCA",
+      periodicidad: "MENSUAL",
+      accion: "AMBAS",
+      // Sólo si el negocio es agente de retención: entra apagada y se prende en el monitor.
+      activaPorDefecto: false,
+      mesesHastaVencimiento: 1,
+      diasPorMes: cadaMes([10, 10, 10, 10, 11, 11, 11, 12, 12, 12]), // provisional a confirmar
+    },
+    {
+      codigo: "IIBB_AGENTE",
+      nombre: "Ingresos brutos — retenciones y percepciones practicadas",
+      organismo: "Rentas provincial",
+      jurisdiccion: "provisional a confirmar",
+      periodicidad: "MENSUAL",
+      accion: "AMBAS",
+      activaPorDefecto: false,
+      mesesHastaVencimiento: 1,
+      diasPorMes: cadaMes([12, 12, 12, 12, 12, 12, 12, 12, 12, 12]), // provisional a confirmar
+    },
   ],
 };
 
