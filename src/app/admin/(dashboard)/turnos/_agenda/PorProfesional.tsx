@@ -589,7 +589,7 @@ export default function PorProfesional({
               />
               <span
                 aria-hidden
-                className="pointer-events-none sticky left-0 z-[11] -translate-y-1/2 self-start justify-self-end bg-surface pr-2 text-[11px] font-semibold leading-none tabular-nums text-accent-ink"
+                className="pointer-events-none sticky left-0 z-[11] -translate-y-1/2 self-start justify-self-end bg-surface pr-2 text-xs font-semibold leading-none tabular-nums text-accent-ink"
                 style={{ gridColumn: 1, gridRow: Math.floor(raya / PASO_MIN) + 2, marginTop: `calc(var(--fila) * ${(raya % PASO_MIN) / PASO_MIN})` }}
               >
                 {fmtTime(reloj)}
@@ -603,7 +603,7 @@ export default function PorProfesional({
               className="pointer-events-none z-[11] flex h-0 items-center self-start border-t-2 border-accent"
               style={{ gridColumn: "1 / -1", gridRow: Math.floor(raya / PASO_MIN) + 2, marginTop: `calc(var(--fila) * ${(raya % PASO_MIN) / PASO_MIN})` }}
             >
-              <span className="sticky left-0 bg-surface pr-1 text-[11px] font-semibold leading-none tabular-nums text-accent-ink">
+              <span className="sticky left-0 bg-surface pr-1 text-xs font-semibold leading-none tabular-nums text-accent-ink">
                 {fmtTime(reloj)}
               </span>
             </div>
@@ -921,8 +921,14 @@ export default function PorProfesional({
       {permisos.gestionar && (
         <p className="mt-2 text-xs text-muted">
           {interaccion
-            ? "Tocá un hueco para dar un turno a esa hora. Arrastrá un turno para moverlo (en el celular, mantenelo apretado) y estirá su borde de abajo para cambiar cuánto dura. Con el teclado: M lo levanta, flechas y Enter lo sueltan; Shift + flechas lo estiran."
-            : "Tocá un hueco para dar un turno a esa hora. Para mover un turno, arrastralo (en la compu) o abrilo y tocá «Mover»."}
+            ? (
+              <>
+                Tocá un hueco para dar un turno a esa hora. Arrastrá un turno para moverlo (en el celular, mantenelo apretado) y estirá su borde de abajo para cambiar cuánto dura.
+                {/* Los atajos de teclado no se leen en el celular: ahí no hay teclado (ronda 1 · estética). */}
+                <span className="max-sm:hidden"> Con el teclado: M lo levanta, flechas y Enter lo sueltan; Shift + flechas lo estiran.</span>
+              </>
+            )
+            :"Tocá un hueco para dar un turno a esa hora. Para mover un turno, arrastralo (en la compu) o abrilo y tocá «Mover»."}
         </p>
       )}
 
