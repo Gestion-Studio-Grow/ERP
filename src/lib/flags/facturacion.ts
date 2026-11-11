@@ -69,7 +69,7 @@ export const CATALOGO_FLAGS: Readonly<Record<FlagFacturacion, DefinicionFlag>> =
   },
   "facturita.pwa": {
     id: "facturita.pwa",
-    queCambia: "Facturita se puede instalar en el celular como app (manifiesto + ícono).",
+    queCambia: "Factoque se puede instalar en el celular como app (manifiesto + ícono).",
     requiere: [],
     requiereFacturacionGlobal: false,
     requiereArcaReal: false,

@@ -32,6 +32,8 @@ con «un agente = una tarea»).
 - **DEMO → VENTA → INVERSIÓN:** no se gasta un peso (dominio, persistencia, APIs pagas) antes de la venta.
 - **Preset de cliente:** sin autorización REGISTRADA del cliente para usar su marca no se genera ni se muestra, y
   la salida pasa el Gate antes de mostrarse (`docs/metodologia/generador-preset-ia.md`).
+- **Nombre del producto: Factoque.** "Facturita" sólo vive como nombre técnico interno (ruta /facturita, tipos y
+  archivos); nunca en textos visibles ni docs.
 
 ## Gate de Excelencia (antes de integrar)
 1. Auditoría SAP Fiori 7 ángulos + ángulo argentino (criollo claro, ARCA, MP/transferencia, WhatsApp-first, a11y).
