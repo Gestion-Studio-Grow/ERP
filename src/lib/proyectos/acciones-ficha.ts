@@ -854,6 +854,8 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
       const ahora = await pendienteDeLaCuota(tenantId, proyectoId, id, tc, margenPct, tx);
       if (ahora === null) return false;
       if (Math.abs(ahora.pendiente - pendiente) > 0.005) return "cambio";
+      // En pesos también: con el pendiente en otra moneda sin redondear, un cobro suelto de hasta 0,005 × tc no se ve arriba.
+      if (Math.abs(aPesos(ahora.pendiente, c.moneda, tc) - importe) > 0.005) return "cambio";
       if (pasaElTope(ahora.cob, importe)) return "tope";
     }
     // `prevista: false` y el mismo monto/moneda adentro: si la cuota volvió a prevista o el plan le cambió el importe

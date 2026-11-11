@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { cn } from "@/components/ui";
-import { fechaCorta, fechaParaInput, pesos } from "@/lib/proyectos/core";
+import { fechaCorta, fechaParaInput, pesos, redondear } from "@/lib/proyectos/core";
 import { aPesos, codigoProyecto, diasDeAtraso, estadoCuota, plataEn } from "@/lib/proyectos/gestion-core";
 import { FILTROS_CUOTA, pasaFiltro, type FiltroCuota } from "@/lib/proyectos/empresa-core";
 import { proveedoresActivos, type CuotaDelNegocio, type SinCalendarioDelNegocio } from "@/lib/proyectos/empresa.server";
@@ -117,7 +117,7 @@ export async function TabCuentas({ tipo, estado, q, cuotas, sinCalendario = [], 
                     </td>
                     <td className="whitespace-nowrap py-2 pr-3 text-right font-medium tabular-nums text-strong">
                       {pagado ? plataEn(pagado.monto, pagado.moneda) : plataEn(falta, c.moneda)}
-                      {(pagado ? pagado.moneda !== c.moneda || pagado.monto !== c.monto : falta !== c.monto) && <span className="block text-xs font-normal text-muted">de {plataEn(c.monto, c.moneda)}</span>}
+                      {(pagado ? pagado.moneda !== c.moneda || pagado.monto !== c.monto : redondear(falta) !== c.monto) && <span className="block text-xs font-normal text-muted">de {plataEn(c.monto, c.moneda)}</span>}
                     </td>
                     <td className="whitespace-nowrap py-2 pr-3 text-right tabular-nums text-muted">{referencia > 0 ? pesos(referencia) : "—"}</td>
                     <td className="py-2 pr-3">{emitida ? <span className="whitespace-nowrap">{emitida}</span> : editaEmpresa ? <DatoCuota id={c.id} dato="factura" valor={c.factura ?? ""} etiqueta="Factura" /> : (c.factura ?? "—")}</td>
