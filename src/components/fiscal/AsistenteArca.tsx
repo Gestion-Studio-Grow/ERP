@@ -10,7 +10,9 @@ import { ANTES_DE_EMPEZAR, TEXTO_CERTIFICADO_PROPIO } from "@/lib/fiscal/contado
 import { ObtenerAsistencia } from "./ObtenerAsistencia";
 import { CampoCertificado, CopiarTexto } from "./PiezasArca";
 import { GuiaArca } from "./GuiaArca";
+import { AyudaArca } from "./AyudaArca";
 import { canalGsg } from "@/app/facturita/contacto";
+import { mensajeDeAyuda } from "@/lib/fiscal/guia-arca";
 
 type Accion = (formData: FormData) => void | Promise<void>;
 
@@ -71,6 +73,8 @@ export function AsistenteArca({ vista, plano, tenantId, acciones, soloLectura = 
   const iva = f.arcaCondicionIva ? CONDICIONES_DEL_EMISOR[f.arcaCondicionIva as CondicionDelEmisor] ?? f.arcaCondicionIva : null;
   const cuit = (f.arcaCuit ?? "").replace(/\D/g, "");
   const conCertificado = estado.certificado !== "ninguno";
+  const canal = canalGsg();
+  const actual = estado.pasos.find((p) => p.estado === "actual");
 
   return (
     <Bloque
@@ -96,6 +100,20 @@ export function AsistenteArca({ vista, plano, tenantId, acciones, soloLectura = 
         <div className="space-y-2 border-b border-line py-3 text-sm">
           <p>{TEXTO_CERTIFICADO_PROPIO}</p>
           <Franja tono="atencion">{ANTES_DE_EMPEZAR}</Franja>
+        </div>
+      )}
+      {/* La ayuda, visible para todos (ajuste del dueño 11/11). Con la guía en ARCA a la vista, va adentro
+          de la guía con el subpaso exacto; si no, acá, con el paso del asistente. */}
+      {plano === "cliente" && estado.paso !== "listo" && !(datosOk && csrPem) && (
+        <div className="border-b border-line py-3">
+          <AyudaArca
+            canal={canal}
+            mensaje={mensajeDeAyuda({
+              donde: actual ? `el asistente de ARCA, paso ${actual.numero} de 4 («${actual.titulo}»)` : "el asistente de ARCA",
+              error: aviso?.error,
+              cuit,
+            })}
+          />
         </div>
       )}
       <ObtenerAsistencia
@@ -155,7 +173,7 @@ export function AsistenteArca({ vista, plano, tenantId, acciones, soloLectura = 
                       </ol>
                     );
                     // El cliente lo hace él mismo: la guía de a un paso. El operador ve la lista entera.
-                    if (k === "produccion" && plano === "cliente") return <GuiaArca key={k} cuit={cuit} canal={canalGsg()} />;
+                    if (k === "produccion" && plano === "cliente") return <GuiaArca key={k} cuit={cuit} canal={canal} error={aviso?.error} />;
                     return k === "produccion" ? (
                       <div key={k}>
                         <p className="font-semibold text-strong">{INSTRUCCIONES_DEL_PEDIDO[k].titulo}</p>

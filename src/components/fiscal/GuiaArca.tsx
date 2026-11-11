@@ -5,7 +5,7 @@
 // Lo tildado se recuerda en esta pestaña (sessionStorage): ARCA va en otra y al volver sigue donde estaba.
 import { useEffect, useId, useState } from "react";
 import { Button, ButtonLink } from "@/components/ui";
-import { linkCanal, type CanalGsg } from "@/app/facturita/contacto";
+import type { CanalGsg } from "@/app/facturita/contacto";
 import {
   ALIAS_ARCA,
   SUBPASOS_ARCA,
@@ -19,10 +19,11 @@ import {
   tildadosValidos,
 } from "@/lib/fiscal/guia-arca";
 import { CopiarTexto } from "./PiezasArca";
+import { AyudaArca } from "./AyudaArca";
 
 const GUARDADO = "guia-arca-tildados";
 
-export function GuiaArca({ cuit, canal }: { cuit: string; canal: CanalGsg | null }) {
+export function GuiaArca({ cuit, canal, error }: { cuit: string; canal: CanalGsg; error?: string | null }) {
   const [tildados, setTildados] = useState<number[]>([]);
   const [actual, setActual] = useState(1);
   const uid = useId();
@@ -56,7 +57,6 @@ export function GuiaArca({ cuit, canal }: { cuit: string; canal: CanalGsg | null
     recordar(t);
     if (s.numero < TOTAL_SUBPASOS) setActual(s.numero + 1);
   };
-  const ayuda = canal ? linkCanal(canal, "Me trabé conectando ARCA", mensajeDeAyudaArca(s.numero, { cuit })) : null;
 
   return (
     <section aria-labelledby={`${uid}-titulo`} className="space-y-3 rounded-md border border-line p-4">
@@ -120,12 +120,8 @@ export function GuiaArca({ cuit, canal }: { cuit: string; canal: CanalGsg | null
         <Button type="button" onClick={listo} disabled={hecho && s.numero === TOTAL_SUBPASOS}>
           {s.numero < TOTAL_SUBPASOS ? "Listo, sigo" : hecho ? "Hecho" : "Listo"}
         </Button>
-        {ayuda && (
-          <ButtonLink href={ayuda} target="_blank" rel="noopener noreferrer" variant="outline">
-            {canal?.tipo === "whatsapp" ? "Me trabé: pedir ayuda por WhatsApp" : "Me trabé: pedir ayuda por mail"}
-          </ButtonLink>
-        )}
       </div>
+      <AyudaArca canal={canal} mensaje={mensajeDeAyudaArca(s.numero, { cuit, error })} />
     </section>
   );
 }

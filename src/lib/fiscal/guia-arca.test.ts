@@ -9,7 +9,11 @@ import {
   URL_LOGIN_ARCA,
   botonesEnTexto,
   diagnosticarArca,
+  mensajeDeAyuda,
   mensajeDeAyudaArca,
+  errorParaAyuda,
+  TEXTO_BOTON_AYUDA,
+  NUNCA_TE_PEDIMOS_LA_CLAVE,
   primeroSinTildar,
   progresoGuia,
   resultadoAlSubir,
@@ -56,13 +60,27 @@ test("tildes: el primero sin tildar y lo recordado se limpia", () => {
   assert.deepEqual(tildadosValidos("basura"), []);
 });
 
-test("ayuda por WhatsApp: dice en qué subpaso se trabó, nunca la clave", () => {
+test("ayuda por WhatsApp: dice dónde está y el error; nunca el CUIT completo ni la clave", () => {
   const m = mensajeDeAyudaArca(4, { cuit: "20111111112" });
   assert.match(m, /paso 4 de 5/);
   assert.match(m, /Asocialo a Facturación Electrónica/);
-  assert.match(m, /CUIT: 20-11111111-2/);
+  assert.match(m, /termina en 112/);
+  assert.doesNotMatch(m, /20-?11111111-?2/);
+  assert.doesNotMatch(m, /error/);
   assert.doesNotMatch(m, /contraseña|clave fiscal:/i);
   assert.doesNotMatch(mensajeDeAyudaArca(1), /CUIT/);
+  const conError = mensajeDeAyuda({
+    donde: "Paso 3 de 4 · Certificado de ARCA",
+    error: "Falló la conexión: (ARCA: 600: ValidacionDeToken: CUIT 20-11111111-2 y 20111111112) -----BEGIN CERTIFICATE-----\nabc\n-----END CERTIFICATE-----",
+    cuit: "20-11111111-2",
+  });
+  assert.match(conError, /Estoy en: Paso 3 de 4/);
+  assert.match(conError, /Me salió este error: Falló la conexión/);
+  assert.doesNotMatch(conError, /11111111/);
+  assert.doesNotMatch(conError, /abc|BEGIN/);
+  assert.ok(errorParaAyuda("x".repeat(900)).length <= 300);
+  assert.equal(TEXTO_BOTON_AYUDA, "Te ayudamos en 10 minutos");
+  assert.equal(NUNCA_TE_PEDIMOS_LA_CLAVE, "Nunca te vamos a pedir tu clave fiscal");
 });
 
 test("rechazos en criollo con qué hacer: los cuatro del alta", () => {

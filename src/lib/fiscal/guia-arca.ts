@@ -107,19 +107,43 @@ export function botonesEnTexto(botones: readonly string[]): string {
   return botones.map((b) => `«${b}»`).join(" → ");
 }
 
+/** El botón de ayuda, visible para todos (no sólo ante un error). Ajuste del dueño 11/11/2026. */
+export const TEXTO_BOTON_AYUDA = "Te ayudamos en 10 minutos";
+/** La línea fija al lado del botón. */
+export const NUNCA_TE_PEDIMOS_LA_CLAVE = "Nunca te vamos a pedir tu clave fiscal";
+
+const TOPE_ERROR_EN_AYUDA = 300;
+
+/** Un error para mandar por WhatsApp: sin CUIT completos (con o sin guiones), sin PEM, recortado. */
+export function errorParaAyuda(error: string | null | undefined): string {
+  return (error ?? "")
+    .replace(/-----BEGIN[\s\S]*?-----END[^-]*-----/g, "[certificado]")
+    .replace(/\b\d{2}-?\d{8}-?\d\b/g, "[CUIT]")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, TOPE_ERROR_EN_AYUDA);
+}
+
 /**
- * El mensaje de WhatsApp (o mail) para pedir ayuda, armado con el subpaso donde se trabó. Nunca
- * lleva la clave fiscal ni material del certificado: sólo el CUIT y el paso.
+ * El mensaje de WhatsApp (o mail) para pedir ayuda: dónde está y, si lo hay, el error. Nunca lleva
+ * el CUIT completo (sólo los 3 últimos números, para ubicarlo), ni la clave fiscal, ni material del
+ * certificado.
  */
-export function mensajeDeAyudaArca(numero: number, datos: { cuit?: string | null } = {}): string {
-  const s = subpaso(numero);
-  const cuit = (datos.cuit ?? "").replace(/\D/g, "");
+export function mensajeDeAyuda(d: { donde: string; error?: string | null; cuit?: string | null }): string {
+  const cuit = (d.cuit ?? "").replace(/\D/g, "");
+  const error = errorParaAyuda(d.error);
   return [
-    "¡Hola! Estoy conectando Factoque con ARCA y me trabé.",
-    `Estoy en el ${progresoGuia(s.numero).toLowerCase()}: «${s.titulo}».`,
-    ...(cuit.length === 11 ? [`CUIT: ${cuit.slice(0, 2)}-${cuit.slice(2, 10)}-${cuit.slice(10)}`] : []),
-    "¿Me ayudan?",
+    "¡Hola! Estoy conectando Factoque con ARCA y necesito una mano.",
+    `Estoy en: ${d.donde}.`,
+    ...(error ? [`Me salió este error: ${error}`] : []),
+    ...(cuit.length === 11 ? [`Mi CUIT termina en ${cuit.slice(-3)}.`] : []),
   ].join("\n");
+}
+
+/** El mensaje de ayuda desde un subpaso de la guía en ARCA. */
+export function mensajeDeAyudaArca(numero: number, datos: { cuit?: string | null; error?: string | null } = {}): string {
+  const s = subpaso(numero);
+  return mensajeDeAyuda({ donde: `la guía en ARCA, ${progresoGuia(s.numero).toLowerCase()} («${s.titulo}»)`, ...datos });
 }
 
 // ── Los rechazos frecuentes, en criollo y con qué hacer ──────────────────────
