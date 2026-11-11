@@ -262,6 +262,11 @@ function pendienteDeCuota(q: CuotaDeCobranza, esperaH: number, enPesos: number, 
   let pendH = Math.max(0, Math.min(esperaH, tope.restoH));
   const crudo = (q.monto * pendH) / enPesos;
   let p = pendH >= enPesos ? q.monto : alCentavoAbajo(crudo);
+  // Cuota en dólares (u otra moneda que no es el peso) de un proyecto en otra moneda: el centavo para abajo perdía hasta
+  // 0,01 × tc en pesos, y esa diferencia aparecía como un renglón «Sin calendario» fantasma aunque la cuota cubriera todo,
+  // y quedaba debiéndose después de «Marcar cobrado» (certificación PR #110, F2). Si el valor sin redondear pasa a pesos
+  // justo en lo que espera, se usa ése: la pantalla lo muestra al centavo y el cobro asienta exactamente `pendH`.
+  if (q.moneda !== tope.moneda && q.moneda !== "ARS" && pendH < enPesos && aPesos(p, q.moneda, tc) < pendH && aPesos(crudo, q.moneda, tc) === pendH) p = crudo;
   if (q.moneda === tope.moneda) {
     const exacto = Math.min(pendH >= enPesos ? q.monto : redondear(crudo), alCentavoAbajo(tope.queda));
     const exactoH = aPesos(exacto, q.moneda, tc);
@@ -415,9 +420,12 @@ export interface SinCalendario {
 
 /**
  * Por proyecto, lo que falta cobrar y ninguna cuota pendiente espera (calendario corto, o sin cuotas): así los renglones
- * de Cuentas a cobrar suman lo mismo que el indicador «A cobrar». Se cuenta en la moneda del proyecto (en USD, contra su
- * saldo en USD: el centavo para abajo de cada cuota no inventa diferencias en pesos). Menos de un centavo, nada. `pendiente`
- * es el de `repartoDelNegocio`, alineado con `cuotas`. Las previstas sin marcar no cuentan (Administración no las ve). PURA.
+ * de Cuentas a cobrar suman lo mismo que el indicador «A cobrar». Se cuenta EN PESOS DE HOY, igual que la lista: el
+ * renglón es `porCobrar` menos los pesos de cada cuota pendiente (`aPesos`, uno por uno, como los muestra la lista), así
+ * que lista y KPI coinciden al centavo aunque haya monedas mezcladas o un tipo de cambio con decimales (certificación
+ * PR #110, F1 y F3: antes se restaba en la moneda del proyecto y se redondeaba al centavo de dólar antes de pasar a pesos).
+ * `monto` es sólo para mostrar, en la moneda del proyecto. Menos de un centavo de peso, nada. `pendiente` es el de
+ * `repartoDelNegocio`, alineado con `cuotas`. Las previstas sin marcar no cuentan (Administración no las ve). PURA.
  */
 export function sinCalendarioDelNegocio(
   cuotas: readonly (CuotaDeCobranza & { proyectoId?: string | null })[],
@@ -425,22 +433,19 @@ export function sinCalendarioDelNegocio(
   tc: Readonly<Record<string, number>>,
   cobranzas: ReadonlyMap<string, Cobranza>,
 ): SinCalendario[] {
-  const esperado = new Map<string, number>();
+  const esperadoH = new Map<string, number>();
   cuotas.forEach((q, i) => {
-    if (!q.proyectoId || q.tipo !== "COBRO" || q.anuladoEl || q.pagadoEl || esPrevista(q)) return;
-    const c = cobranzas.get(q.proyectoId);
-    if (!c) return;
-    const m = c.enMoneda;
-    const enSuMoneda = !m ? aPesos(pendiente[i] ?? 0, q.moneda, tc) : q.moneda === m.moneda ? (pendiente[i] ?? 0) : aPesos(pendiente[i] ?? 0, q.moneda, tc) / m.tc;
-    esperado.set(q.proyectoId, (esperado.get(q.proyectoId) ?? 0) + enSuMoneda);
+    if (!q.proyectoId || q.tipo !== "COBRO" || q.anuladoEl || q.pagadoEl || esPrevista(q) || !cobranzas.has(q.proyectoId)) return;
+    esperadoH.set(q.proyectoId, (esperadoH.get(q.proyectoId) ?? 0) + aPesos(pendiente[i] ?? 0, q.moneda, tc));
   });
   const salida: SinCalendario[] = [];
   for (const [proyectoId, c] of cobranzas) {
+    const pesosH = Math.max(0, redondear(c.porCobrar - (esperadoH.get(proyectoId) ?? 0)));
+    if (!(pesosH >= 0.01)) continue;
     const m = c.enMoneda;
-    const queda = m ? Math.max(0, m.saldo) : c.porCobrar;
-    const monto = redondear(queda - (esperado.get(proyectoId) ?? 0));
-    if (!(monto >= 0.01)) continue;
-    salida.push({ proyectoId, monto, moneda: m?.moneda ?? "ARS", pesos: m ? redondear(monto * m.tc) : monto });
+    // En la moneda del proyecto, sólo para mostrar. Si en esa moneda no llega al centavo, se muestra en pesos.
+    const enSuMoneda = m && m.tc > 0 ? redondear(pesosH / m.tc) : 0;
+    salida.push(m && enSuMoneda >= 0.01 ? { proyectoId, monto: enSuMoneda, moneda: m.moneda, pesos: pesosH } : { proyectoId, monto: pesosH, moneda: "ARS", pesos: pesosH });
   }
   return salida;
 }
