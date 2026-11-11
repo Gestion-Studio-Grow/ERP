@@ -337,3 +337,8 @@ test("basta UNA de las dos cadenas apuntando a producción para bloquear (la con
   const r = corre({ VERCEL_ENV: "preview", DATABASE_URL: qa.urlApp, OPERATOR_DATABASE_URL: prod.urlDuenio });
   assert.deepEqual(r.llamadas, ["prisma generate", "next build [bloqueado]"]);
 });
+
+test("vercel.json sólo construye main y las ramas tanda/** (economía de builds, 11/11)", () => {
+  const v = JSON.parse(readFileSync(new URL("../../vercel.json", import.meta.url), "utf8"));
+  assert.deepEqual(v.git?.deploymentEnabled, { "**": false, main: true, "tanda/**": true });
+});

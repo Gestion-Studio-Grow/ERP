@@ -31,7 +31,10 @@
 name: gates
 
 on:
+  # Economía (orden del dueño 11/11): una rama de trabajo no corre CI al subirse; corre en su PR
+  # (la tanda) y en main. Así cada cambio se prueba una vez, no dos ni en cada push suelto.
   push:
+    branches: [main]
   pull_request:
 
 jobs:

@@ -14,5 +14,12 @@
       "path": "/api/cron/arca-outbox",
       "schedule": "0 6 * * *"
     }
-  ]
+  ],
+  "git": {
+    "deploymentEnabled": {
+      "**": false,
+      "main": true,
+      "tanda/**": true
+    }
+  }
 }
