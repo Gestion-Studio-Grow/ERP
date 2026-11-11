@@ -1,4 +1,4 @@
-// FACTOQUE · PNG del ícono generado con next/og (ImageResponse) desde el SVG fuente único
+// FACTOQUE · PNG del ícono (marca F06-A sobre papel) generado con next/og (ImageResponse) desde el SVG fuente único
 // (src/lib/factoque-icono.ts). Lo usan las rutas /facturita/icon-*.png y apple-touch-icon.png:
 // las URLs son las mismas de antes (manifiesto, service worker), pero ya no hay binarios en Git.
 

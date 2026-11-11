@@ -15,6 +15,7 @@ import { CampoClave } from "./CampoClave";
 import { CampoEmail } from "./CampoEmail";
 import HojaDeIngreso from "./HojaDeIngreso";
 import type { AvisoDeIngreso } from "./login-core";
+import type { ProductoConMarca } from "@/lib/producto-identidad";
 
 const ROTULO_CAMPO = "text-[11.5px] font-semibold uppercase tracking-[.06em] text-muted";
 const RENGLON_CAMPO = "grid gap-1.5 border-b border-line py-3 sm:grid-cols-[8rem_1fr] sm:items-center sm:gap-4";
@@ -22,6 +23,7 @@ const RENGLON_CAMPO = "grid gap-1.5 border-b border-line py-3 sm:grid-cols-[8rem
 export default function LoginRenglon({
   marcaNombre,
   marcaMonograma,
+  producto,
   hoy,
   antetitulo,
   titulo,
@@ -33,6 +35,7 @@ export default function LoginRenglon({
 }: {
   marcaNombre: string;
   marcaMonograma: string;
+  producto?: ProductoConMarca | null;
   hoy: string;
   antetitulo?: string;
   titulo: string;
@@ -43,7 +46,7 @@ export default function LoginRenglon({
   mostrarAyudaClave: boolean;
 }) {
   return (
-    <HojaDeIngreso marcaNombre={marcaNombre} marcaMonograma={marcaMonograma} hoy={hoy} lema={lema}>
+    <HojaDeIngreso marcaNombre={marcaNombre} marcaMonograma={marcaMonograma} producto={producto} hoy={hoy} lema={lema}>
       <div className="mt-8">
         {antetitulo && <Rotulo className="mb-1">{antetitulo}</Rotulo>}
         <h1 id="login-titulo" className="text-[26px] font-semibold leading-tight text-strong">
