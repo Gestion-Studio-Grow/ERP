@@ -10,6 +10,21 @@ export const CAMPO_TRAMPA = "sitio_web";
 export const RESPUESTA_DEL_PEDIDO =
   "Si los datos están bien, en unos minutos te llega un mail con un enlace para confirmar. Vence en 24 horas. Si no lo ves, mirá en spam o promociones.";
 
+/**
+ * La respuesta cuando el servidor NO tiene el mail conectado (sin RESEND_API_KEY / RESEND_FROM_EMAIL): el
+ * enlace no saldría, así que no se promete un mail. Es un estado del servidor, igual para cualquier pedido:
+ * no revela si el mail o el CUIT existen. Prod 11/11: decía «revisá tu mail» y el mail nunca salía.
+ */
+export const RESPUESTA_SIN_MAIL_WHATSAPP =
+  "Recibimos tus datos. Por ahora la activación es por WhatsApp: escribinos y te activamos hoy.";
+
+/** Sin número de WhatsApp cargado (WHATSAPP_GSG), el canal es la casilla de GSG; nunca un número inventado. */
+export const respuestaSinMailPorCasilla = (casilla: string): string =>
+  `Recibimos tus datos. Por ahora la activación es por mail: escribinos a ${casilla} y te activamos hoy.`;
+
+/** El texto ya cargado en el WhatsApp (o el mail) de activación. Sin mail, sin CUIT, sin ningún dato del pedido. */
+export const MENSAJE_ACTIVAR_FACTOQUE = "Hola, quiero activar Factoque.";
+
 export function validarEmail(crudo: string): string | null {
   const email = (crudo ?? "").trim().toLowerCase();
   if (!email) return "Escribí tu mail: ahí te mandamos el enlace para confirmar.";

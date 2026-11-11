@@ -8,7 +8,7 @@
 import type { Metadata } from "next";
 import VidrieraMarco from "../VidrieraMarco";
 import { canalGsg } from "../contacto";
-import AltaAsistente from "./AltaAsistente";
+import AltaConActivacion from "./AltaConActivacion";
 import { conexionMPDisponibleEnElAlta } from "./mp-disponible";
 import { pedirAltaFactoque } from "./acciones";
 
@@ -33,7 +33,7 @@ export default function FacturitaAltaPage() {
         <p className="fx-lead">
           Seis pasos cortos, y el primero es opcional. No te pedimos tarjeta ni tu clave fiscal.
         </p>
-        <AltaAsistente canal={canal} mpDisponible={conexionMPDisponibleEnElAlta()} pedirAlta={pedirAltaFactoque} />
+        <AltaConActivacion canal={canal} mpDisponible={conexionMPDisponibleEnElAlta()} pedirAlta={pedirAltaFactoque} />
       </div>
     </VidrieraMarco>
   );
