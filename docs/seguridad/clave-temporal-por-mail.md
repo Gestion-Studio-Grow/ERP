@@ -35,6 +35,16 @@ reseteos se hacen sin que nadie intervenga en la consola de producción.
 | Configurador (pedido de alta) | `entregarClavesDelConfigurador` (`solicitudes/entrega-de-claves.ts`) | después del commit, una por titular, en su negocio | igual que el wizard. A la contadora le genera otra la dueña del estudio. |
 | Reseteo pendiente (orden del dueño) | `RESETEOS_PENDIENTES` (`src/lib/claves-pendientes.ts`) + `/api/cron/claves-pendientes` | igual que el reseteo del dueño | queda en `fallo` y se reintenta en la corrida del día siguiente. |
 
+**A quién se resetea** (con el merge de `main`, #102): con más de un dueño activo, la consola manda el
+`ownerId` elegido y `elegirOwner` lo valida **dentro** de la misma transacción del mail (dueño activo de ESTE
+negocio). Con varios y sin elegido, se niega sin tocar nada. El reseteo pendiente no elige: si el negocio tiene
+varios dueños, se niega y queda en `fallo` (no adivina a quién).
+
+**Excepción documentada:** el script del responsable de seguridad (`scripts/seguridad/reset-owner-password.mts`
+→ `resetOwnerPorSlug`) no manda mail: deja la provisoria en su archivo 0600, por autorización del dueño del 08/11
+(Factory-GSG `CLAUDE.md`, «Responsable de seguridad»). Usa el mismo núcleo y la auditoría dice
+`entrega: "archivo-seguridad"`. Pasarlo a mail es decisión de ORQ/dueño.
+
 `resetAllOwnerPasswords` (reseteo masivo) quedó **apagado**: devolvía las claves en pantalla. No vuelve sin un diseño propio.
 
 `createUser` / `resetUserPassword` del panel del negocio **no aplican**: ahí la contraseña la escribe la dueña.

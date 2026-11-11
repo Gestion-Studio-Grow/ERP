@@ -3,10 +3,11 @@
 // que corre solo en producción (`/api/cron/claves-pendientes`). El armado y el envío están en
 // `clave-temporal-mail.ts` (puro + Resend); acá sólo se ata al negocio y se audita.
 
-import { Prisma } from "@/generated/prisma/client";
+import type { Prisma } from "@/generated/prisma/client";
 import { operatorPrisma, enElNegocio } from "@/lib/operator-db";
-import { operatorSetMustChange } from "@/lib/must-change-password";
-import { resetOwnerPasswordCore, type OwnerResetPort, type OwnerResetResult } from "@/lib/owner-password-reset";
+import { resetOwnerPasswordCore, type OwnerResetResult } from "@/lib/owner-password-reset";
+import { operatorResetPort, ownersActivos } from "@/lib/operador/owner-reset-port";
+import { elegirOwner } from "@/lib/operador/elegir-owner";
 import {
   AUDIT_CLAVE_MAIL_ENVIADO,
   AUDIT_CLAVE_MAIL_FALLIDO,
@@ -70,29 +71,13 @@ export async function auditarEntregaDeClave(
   }
 }
 
-function operatorResetPort(
-  tx: Prisma.TransactionClient,
-  tenantId: string,
-  enviarClave: OwnerResetPort["enviarClave"],
-): OwnerResetPort {
-  return {
-    findOwner: (tid) =>
-      tx.user.findFirst({
-        where: { tenantId: tid, role: "OWNER", active: true, deletedAt: null },
-        orderBy: { createdAt: "asc" },
-        select: { id: true, email: true, name: true },
-      }),
-    setPasswordHash: async (userId, passwordHash) => {
-      await tx.user.update({ where: { id: userId }, data: { passwordHash } });
-    },
-    setMustChange: (userId, value) => operatorSetMustChange(tx, { userId, tenantId }, value),
-    audit: async (entry) => {
-      await tx.auditLog.create({
-        data: { ...entry, changes: entry.changes as Prisma.InputJsonValue },
-      });
-    },
-    enviarClave,
-  };
+/** Lo que ve el operador cuando no se puede elegir a qué dueño resetear (no se tocó nada). */
+function motivoSinEleccion(motivo: "sin-owner" | "varios" | "no-coincide"): string {
+  return motivo === "varios"
+    ? "Hay más de un dueño activo: elegí a cuál le cambiás la contraseña. No se tocó nada."
+    : motivo === "no-coincide"
+      ? "Esa persona no es un dueño activo de este negocio. No se tocó nada."
+      : "Este negocio no tiene un dueño activo: no hay a quién resetearle la contraseña. No se tocó nada.";
 }
 
 /**
@@ -110,6 +95,13 @@ export async function resetearClaveDelDuenioConMail(
      * ya se hizo). Si devuelve un resultado, no se resetea nada y se devuelve ese.
      */
     antes?: (tx: Prisma.TransactionClient) => Promise<OwnerResetResult | null>;
+    /**
+     * A QUÉ dueño (el que el operador eligió en la ficha). Se decide DENTRO de la transacción con
+     * `elegirOwner` sobre los OWNER activos, antes de escribir: sin `ownerId` y con más de uno se
+     * niega (antes se tomaba al más antiguo, que podía ser otra persona); un id que no es dueño
+     * activo de ESTE negocio, también.
+     */
+    ownerId?: string;
   },
   enviarMail: typeof enviarMailClaveTemporal = enviarMailClaveTemporal,
 ): Promise<OwnerResetResult> {
@@ -118,14 +110,18 @@ export async function resetearClaveDelDuenioConMail(
   try {
     return await enElNegocio(
       tenantId,
-      async (tx) =>
-        (await quien.antes?.(tx)) ??
-        (await resetOwnerPasswordCore(operatorResetPort(tx, tenantId, enviar), {
+      async (tx): Promise<OwnerResetResult> => {
+        const previo = await quien.antes?.(tx);
+        if (previo) return previo;
+        const eleccion = elegirOwner(await ownersActivos(tx, tenantId), { ownerId: quien.ownerId });
+        if (!eleccion.ok) return { ok: false, error: motivoSinEleccion(eleccion.motivo) };
+        return resetOwnerPasswordCore(operatorResetPort(tx, tenantId, { ownerId: eleccion.ownerId, enviarClave: enviar }), {
           tenantId,
           operatorSubject: quien.operatorSubject,
           actor: quien.actor,
           extra: quien.extra,
-        })),
+        });
+      },
       operatorPrisma,
       TX_CON_MAIL,
     );

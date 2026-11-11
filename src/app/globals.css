@@ -302,6 +302,8 @@
    marca (--ch-*, --spa-*) y radios se heredan de :root. El acento real lo
    inyecta el layout; acá va el fallback (petróleo en tono claro para oscuro). */
 [data-theme="dark"] {
+  /* Nudo y ™ de la marca GSG (src/lib/gsg/marca-svg.ts): el cobre sube de tono en oscuro (en claro rige el fallback de marca-svg.ts). */
+  --gsg-cobre: #f0824c; /* design-lint-ignore */
   --background: #15140f;
   --foreground: #f0ebde;
 
@@ -1597,3 +1599,9 @@ summary:focus-visible {
   outline: 3px solid var(--accent-ink, var(--accent));
   outline-offset: 2px;
 }
+
+/* Marca de agua de GSG (src/components/marca/MarcaDeAgua.tsx): mosaico de isotipos como detalle del
+   fondo, sólo en pantallas de GSG y sus productos. Opacidad por tema dentro del 3–6 % pedido; no se imprime. */
+.gsg-marca-de-agua { opacity: 0.04; }
+[data-theme="dark"] .gsg-marca-de-agua { opacity: 0.06; }
+@media print { .gsg-marca-de-agua { display: none !important; } }

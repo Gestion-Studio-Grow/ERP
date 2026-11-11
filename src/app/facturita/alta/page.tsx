@@ -1,16 +1,16 @@
-// FACTURITA · Alta self-serve (/facturita/alta). Estática y sin base (PD-1).
+// FACTURITA · Alta self-serve (/facturita/alta). La página es estática; el alta, no.
 //
-// Hoy el asistente NO crea un negocio: junta los datos en el navegador, enseña a delegar el
-// servicio en ARCA y termina con un mensaje para que GSG active la cuenta en el día (alta
-// operada, ADR-076 "hasta entonces, altas operadas"). Nada se guarda en el servidor ni en la base:
-// ciclo demo → venta → inversión (ADR-030) y DX-1. El cableado a la fábrica de tenants (ADR-074)
-// queda pedido a plataforma (docs/producto/facturita/PEDIDOS-A-PLATAFORMA.md).
+// Desde el 08/11/2026 (orden del dueño, «alta de negocios automatizada») el asistente crea el negocio
+// solo: con punto de venta y mail, «Crear mi cuenta» manda un enlace de confirmación (acciones.ts →
+// src/lib/factoque/alta-web.server.ts) y nada se escribe en la base hasta que se confirma. Sin punto de
+// venta queda el camino de siempre: el resumen para que GSG lo arme con la persona (alta operada).
 
 import type { Metadata } from "next";
 import VidrieraMarco from "../VidrieraMarco";
 import { canalGsg } from "../contacto";
 import AltaAsistente from "./AltaAsistente";
 import { conexionMPDisponibleEnElAlta } from "./mp-disponible";
+import { pedirAltaFactoque } from "./acciones";
 
 export const dynamic = "force-static";
 
@@ -33,7 +33,7 @@ export default function FacturitaAltaPage() {
         <p className="fx-lead">
           Seis pasos cortos, y el primero es opcional. No te pedimos tarjeta ni tu clave fiscal.
         </p>
-        <AltaAsistente canal={canal} mpDisponible={conexionMPDisponibleEnElAlta()} />
+        <AltaAsistente canal={canal} mpDisponible={conexionMPDisponibleEnElAlta()} pedirAlta={pedirAltaFactoque} />
       </div>
     </VidrieraMarco>
   );

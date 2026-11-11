@@ -149,6 +149,7 @@ test("el PDF lleva emisor, receptor, número, fecha, CAE y su vencimiento", asyn
     "Punto de venta: 00001", "Comp. nro: 00000012", "25/09/2026", "Consumidor final sin identificar",
     "Consumidor Final", "Vela aromática de soja", "$ 605,00", "$ 1.210,00",
     "CAE N°: 76543210987654", "Fecha de vto. de CAE: 05/10/2026", "Hoja 1 de 1",
+    "Hecho con Gestión Studio Grow",
   ]) {
     assert.ok(texto.includes(esperado), `falta en el PDF: ${esperado}`);
   }

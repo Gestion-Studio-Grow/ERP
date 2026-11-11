@@ -548,6 +548,8 @@ export async function cambiarFacturacionReal(formData: FormData) {
 // testeable con un doble en memoria.
 // El puerto y la transacción viven en `clave-temporal-entrega.server.ts` (`resetearClaveDelDuenioConMail`):
 // no se exportan desde acá porque todo lo exportado por un archivo "use server" es invocable.
+// A QUIÉN se resetea (con varios OWNER activos, el elegido en la ficha) se decide en esa misma
+// transacción con `elegirOwner`, antes de escribir nada.
 
 // Alta de UNA persona en un negocio desde la consola (ver alta-persona.ts). Todo en la transacción del
 // negocio: el tope del plan, el alta, el cambio forzado, la auditoría y el mail con la clave quedan
@@ -604,15 +606,6 @@ export async function altaPersonaDeTenant(
   }
 }
 
-export async function resetOwnerPassword(tenantId: string): Promise<OwnerResetResult> {
-  const g = await operadorParaNegocio({ id: tenantId });
-  if (!g.ok) return { ok: false, error: g.motivo };
-  const op = g.sesion.nombre;
-  const result = await resetearClaveDelDuenioConMail(tenantId, { actor: `operator:${op}`, operatorSubject: op });
-  if (result.ok) revalidatePath(`/operador/tenants/${tenantId}`);
-  return result;
-}
-
 // --- Reset de OWNER: por qué YA NO existe la versión masiva --------------------
 //
 // Esta acción hacía `tenant.findMany()` SIN FILTRO y le cambiaba la contraseña al OWNER de
@@ -641,9 +634,11 @@ export async function resetAllOwnerPasswords(): Promise<{ ok: false; error: stri
 // operador está viendo en pantalla: obliga a mirar A QUIÉN le está cambiando la contraseña, que
 // es justo el paso que el botón masivo se salteaba. La temporal le llega por mail al titular (nunca
 // a la pantalla, la URL ni el log) y queda auditado.
+// Con más de un dueño activo hay que pasar `ownerId` (el que el operador eligió en la ficha).
 export async function resetOwnerPasswordDeTenant(
   tenantId: string,
   slugTipeado: string,
+  ownerId?: string,
 ): Promise<OwnerResetResult> {
   const g = await operadorParaNegocio({ id: tenantId });
   if (!g.ok) return { ok: false, error: g.motivo };
@@ -664,7 +659,12 @@ export async function resetOwnerPasswordDeTenant(
     };
   }
 
-  const result = await resetearClaveDelDuenioConMail(tenantId, { actor: `operator:${op}`, operatorSubject: op });
+  // Con más de un dueño activo la ficha obliga a elegir: `ownerId` es el elegido (se valida igual adentro).
+  const result = await resetearClaveDelDuenioConMail(tenantId, {
+    actor: `operator:${op}`,
+    operatorSubject: op,
+    ownerId: typeof ownerId === "string" ? ownerId : undefined,
+  });
   if (result.ok) {
     revalidatePath(`/operador/tenants/${tenantId}`);
     revalidatePath("/operador");

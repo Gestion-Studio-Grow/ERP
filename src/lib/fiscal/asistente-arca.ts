@@ -220,6 +220,8 @@ export function errorDeCargaEnCriollo(e: unknown): string {
     return "No encontramos el CUIT dentro del certificado: ¿es el que te dio ARCA para este pedido?";
   }
   if (nombre === "CuitTenantAusenteError") return "El negocio no tiene CUIT cargado: pedile a GSG que lo cargue.";
+  // Alta web: dos altas reclamaban el mismo CUIT y la otra conectó ARCA primero (tenant-cert.ts).
+  if (nombre === "CuitVerificadoEnOtroNegocioError") return m;
   if (/FISCAL_MASTER_KEY|master key/i.test(m)) {
     return "Falta la configuración para guardar certificados cifrados. Avisale a GSG.";
   }
