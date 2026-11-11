@@ -20,6 +20,7 @@ import { generateKeyPairSync } from "node:crypto";
 import forge from "node-forge";
 import { cuitValido, normalizarCuit } from "@/lib/cuit";
 import { precondicionesDelPase, type FichaFiscalDelPase, type Precondicion } from "@/lib/operador/pase-a-real";
+import { DIAGNOSTICOS, SUBPASOS_ARCA, diagnosticoEnTexto } from "./guia-arca";
 
 export type PasoAsistente = "datos" | "pedido" | "certificado" | "produccion" | "listo";
 
@@ -214,7 +215,7 @@ export function errorDeCargaEnCriollo(e: unknown): string {
     return "Este certificado no es del último pedido que generaste. Subí el certificado que ARCA te dio para ese .csr (si generaste otro pedido después, usá el nuevo).";
   }
   if (nombre === "CredencialCuitMismatchError" || /no corresponde al CUIT/i.test(m)) {
-    return "El certificado es de otro CUIT, no del de este negocio. Revisá que lo hayas pedido con la clave fiscal del negocio.";
+    return diagnosticoEnTexto(DIAGNOSTICOS["cuit-distinto"]);
   }
   if (/CUIT del subject/i.test(m)) {
     return "No encontramos el CUIT dentro del certificado: ¿es el que te dio ARCA para este pedido?";
@@ -253,15 +254,10 @@ export function confirmaElPase(texto: unknown): boolean {
  * primero: es el que factura en serio; homologación queda como opcional.
  */
 export const INSTRUCCIONES_DEL_PEDIDO: Readonly<Record<"pruebas" | "produccion", { titulo: string; pasos: string[] }>> = {
+  // Los pasos de producción salen de la guía (src/lib/fiscal/guia-arca.ts), que la UI muestra de a uno.
   produccion: {
-    titulo: "En ARCA, con tu clave fiscal nivel 3 (unos 5 minutos)",
-    pasos: [
-      "Entrá a arca.gob.ar → «Iniciar sesión» con tu CUIT y tu clave fiscal. Buscá «Administración de Certificados Digitales» y entrá (si no aparece, tu clave no es nivel 3).",
-      "Tocá «Agregar alias». En «Alias» poné gsg-erp; en «Archivo» subí el pedido de certificado que bajaste acá (pedido-arca-….csr) y tocá «Agregar alias».",
-      "En la lista, tocá «Ver» al lado de gsg-erp y después «Descargar»: ese archivo (.crt) es tu certificado. Lo subís o lo pegás en el paso 3 de acá.",
-      "Volvé al inicio de ARCA y abrí «Administrador de Relaciones de Clave Fiscal» → «Nueva relación» → «Buscar» → ARCA → «WebServices» → «Facturación Electrónica».",
-      "En «Representante» tocá «Buscar» y elegí el certificado gsg-erp (figura como «computador fiscal»). Confirmá. No le das permiso a nadie: lo asociás a tu propio certificado.",
-    ],
+    titulo: "En ARCA, con tu clave fiscal nivel 3 (unos 10 minutos)",
+    pasos: SUBPASOS_ARCA.map((p) => p.texto),
   },
   pruebas: {
     titulo: "Opcional: probar antes en homologación (WSASS)",

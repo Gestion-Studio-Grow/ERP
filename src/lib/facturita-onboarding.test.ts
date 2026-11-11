@@ -8,6 +8,10 @@ import {
   formatearCuit,
   mensajeActivacion,
   PASOS_CERTIFICADO_PROPIO,
+  PERMISO_ARCA_ALTA,
+  OPCIONES_NIVEL_3,
+  AYUDA_NIVEL_3,
+  esClaveNivel3,
   resumenMercadoPago,
   validarAlta,
   validarCuitEmisor,
@@ -71,7 +75,7 @@ const COMPLETO: DatosAlta = {
   condicion: "monotributo",
   puntoVenta: "2",
   sinPuntoVenta: false,
-  delegacionHecha: true,
+  claveNivel3: "si",
 };
 
 test("alta vacía: marca todos los campos obligatorios", () => {
@@ -91,11 +95,32 @@ test("mensaje de activación: lleva los datos y NUNCA pide clave fiscal", () => 
   assert.match(m, /CUIT: 20-11111111-2/);
   assert.match(m, /Monotributo/);
   assert.match(m, /Punto de venta: 2/);
-  assert.match(m, /Certificado en ARCA: ya lo hice/);
-  assert.doesNotMatch(m, /clave/i);
-  const sinPv = mensajeActivacion({ ...COMPLETO, puntoVenta: "", sinPuntoVenta: true, delegacionHecha: false });
+  // La respuesta a «¿Tu clave fiscal es nivel 3?» reemplaza al viejo «Certificado en ARCA: ya lo hice».
+  assert.match(m, /Nivel 3 en ARCA: Sí/);
+  assert.doesNotMatch(m, /Certificado en ARCA/);
+  assert.doesNotMatch(m, /clave|contraseña/i);
+  const sinPv = mensajeActivacion({ ...COMPLETO, puntoVenta: "", sinPuntoVenta: true, claveNivel3: "no" });
   assert.match(sinPv, /todavía no lo creé/);
-  assert.match(sinPv, /ayudame/);
+  assert.match(sinPv, /No, ayudame a subirla/);
+  assert.match(mensajeActivacion({ ...COMPLETO, claveNivel3: "nose" }), /No sé, ayudame a revisarlo/);
+  assert.match(mensajeActivacion({ ...COMPLETO, claveNivel3: "" }), /Sin responder/);
+});
+
+test("permiso en ARCA en el alta: se hace después de activar, con compu y clave nivel 3; la respuesta no frena", () => {
+  assert.match(PERMISO_ARCA_ALTA.cuando, /después de que te activamos/);
+  assert.match(PERMISO_ARCA_ALTA.cuando, /10 minutos/);
+  const necesitas = PERMISO_ARCA_ALTA.necesitas.join(" ");
+  assert.match(necesitas, /nivel 3/);
+  assert.match(necesitas, /computadora/);
+  assert.match(necesitas, /celular/);
+  assert.deepEqual(OPCIONES_NIVEL_3.map((o) => o.nombre), ["Sí", "No", "No sé"]);
+  assert.match(AYUDA_NIVEL_3.comoSaberlo, /Certificados Digitales/);
+  assert.match(AYUDA_NIVEL_3.comoSubirla, /Mi ARCA/);
+  assert.equal(ALTA_VACIA.claveNivel3, "");
+  for (const v of ["", "si", "no", "nose"] as const) assert.equal(altaCompleta({ ...COMPLETO, claveNivel3: v }), true);
+  assert.equal(esClaveNivel3("si"), true);
+  assert.equal(esClaveNivel3("quizas"), false);
+  assert.equal(esClaveNivel3(true), false);
 });
 
 test("certificado propio: el usuario lo hace él mismo, sin delegar a GSG ni dar su clave", () => {

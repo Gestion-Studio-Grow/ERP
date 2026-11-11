@@ -16,7 +16,12 @@ import {
   mensajeActivacion,
   opcionCondicion,
   PASOS_CERTIFICADO_PROPIO,
+  AYUDA_NIVEL_3,
+  OPCIONES_NIVEL_3,
+  PERMISO_ARCA_ALTA,
+  esClaveNivel3,
   resumenMercadoPago,
+  resumenNivel3,
   validarCuitEmisor,
   validarNombre,
   validarPuntoVenta,
@@ -47,6 +52,7 @@ function leerGuardado(): Guardado | null {
     if (!g || typeof g !== "object" || !g.datos || typeof g.alcanzado !== "number") return null;
     const datos = { ...ALTA_VACIA, ...g.datos };
     if (!["", "quiere", "despues"].includes(datos.mercadoPago)) datos.mercadoPago = "";
+    if (!esClaveNivel3(datos.claveNivel3)) datos.claveNivel3 = "";
     return { datos, alcanzado: Math.max(0, Math.min(g.alcanzado, PASOS.length - 1)) };
   } catch {
     return null;
@@ -467,24 +473,51 @@ export default function AltaAsistente({
               Para que Factoque emita a tu nombre, creás vos tu certificado en ARCA. Nosotros no entramos a tu ARCA ni
               te pedimos la clave fiscal: queda con vos.
             </p>
-            <ol className="mt-5 space-y-4">
-              {PASOS_CERTIFICADO_PROPIO.map((p, i) => (
-                <li key={p} className="flex gap-3 text-base">
-                  <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[var(--fx-cobre)] text-sm font-semibold tabular-nums text-white">
-                    {i + 1}
-                  </span>
-                  <span className="pt-1">{p}</span>
-                </li>
+            <p className="mt-4 font-semibold text-strong" data-qa="permiso-despues">{PERMISO_ARCA_ALTA.cuando}</p>
+            <p className="mt-4 text-base">Qué vas a necesitar:</p>
+            <ul className="mt-2 list-disc space-y-1 pl-6 text-base">
+              {PERMISO_ARCA_ALTA.necesitas.map((n) => (
+                <li key={n}>{n}</li>
               ))}
-            </ol>
-            <label className="fx-check fx-condicion mt-6">
-              <input
-                type="checkbox"
-                checked={datos.delegacionHecha}
-                onChange={(e) => cambiar("delegacionHecha", e.target.checked)}
-              />
-              Ya lo hice. (Si no te sale, seguí igual: te ayudamos {baseWhatsApp ? "por WhatsApp" : "cuando te activamos"}.)
-            </label>
+            </ul>
+            <fieldset className="mt-6">
+              <legend className="fx-alta-label">¿Tu clave fiscal es nivel 3?</legend>
+              <div className="mt-3 space-y-3">
+                {OPCIONES_NIVEL_3.map((o) => (
+                  <label key={o.id} className="fx-condicion">
+                    <input
+                      type="radio"
+                      name="claveNivel3"
+                      value={o.id}
+                      checked={datos.claveNivel3 === o.id}
+                      onChange={() => cambiar("claveNivel3", o.id)}
+                    />
+                    <span className="font-semibold text-strong">{o.nombre}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            <details className="mt-4 text-base">
+              <summary className="cursor-pointer font-medium">¿Cómo sé si es nivel 3? ¿Cómo la subo?</summary>
+              <p className="mt-2">{AYUDA_NIVEL_3.comoSaberlo}</p>
+              <p className="mt-2">{AYUDA_NIVEL_3.comoSubirla}</p>
+            </details>
+            <details className="mt-3 text-base">
+              <summary className="cursor-pointer font-medium">Qué vas a hacer en ARCA</summary>
+              <ol className="mt-3 space-y-3">
+                {PASOS_CERTIFICADO_PROPIO.map((p, i) => (
+                  <li key={p} className="flex gap-3">
+                    <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[var(--fx-cobre)] text-sm font-semibold tabular-nums text-white">
+                      {i + 1}
+                    </span>
+                    <span className="pt-1">{p}</span>
+                  </li>
+                ))}
+              </ol>
+            </details>
+            <p className="mt-4 text-base text-[var(--fx-tenue)]">
+              Si te trabás, te ayudamos {baseWhatsApp ? "por WhatsApp" : "por mail"} en el momento.
+            </p>
           </div>
         )}
 
@@ -522,10 +555,8 @@ export default function AltaAsistente({
                 </div>
               )}
               <div>
-                <dt>Certificado en ARCA</dt>
-                <dd>
-                  {datos.delegacionHecha ? "Hecho" : "Te ayudamos"}
-                </dd>
+                <dt>Clave fiscal nivel 3</dt>
+                <dd>{resumenNivel3(datos.claveNivel3)}</dd>
               </div>
             </dl>
 

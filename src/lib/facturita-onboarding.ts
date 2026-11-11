@@ -2,7 +2,7 @@
  * FACTURITA · Alta self-serve — lógica PURA del asistente de /facturita/alta.
  *
  * Qué hace hoy (y por qué): el asistente junta CUIT, condición frente al IVA y punto de venta,
- * explica cómo delegar el servicio en ARCA, y termina armando un MENSAJE que la persona manda por
+ * avisa qué va a hacer en ARCA después de activarse (y pregunta si su clave es nivel 3), y termina armando un MENSAJE que la persona manda por
  * WhatsApp para que GSG le active la cuenta en el día. NO crea un negocio ni guarda nada en el
  * servidor: la fábrica de tenants (ADR-074) todavía no tiene una puerta pública segura para
  * Facturita, y el ciclo demo → venta → inversión (ADR-030) prohíbe persistir datos reales sin
@@ -140,6 +140,45 @@ export const PASOS_CERTIFICADO_PROPIO: readonly string[] = [
   "Subí el .crt en Factoque. Listo: el certificado es tuyo y sirve sólo para facturar; lo podés revocar cuando quieras.",
 ];
 
+/**
+ * El paso «Permiso en ARCA» del alta NO se hace en el alta: el .csr recién existe después de la
+ * activación. Acá sólo se avisa cuándo y con qué, y se pregunta el nivel de la clave fiscal (para
+ * saber de antemano si hay que ayudar a subirla). La clave NUNCA se pide.
+ */
+export const PERMISO_ARCA_ALTA = {
+  cuando: "Esto lo hacés después de que te activamos, en 10 minutos y con ayuda.",
+  necesitas: ["Tu clave fiscal nivel 3.", "Una computadora: la página de ARCA anda mal en el celular."],
+} as const;
+
+/** «¿Tu clave fiscal es nivel 3?». "" = no contestó (no frena el alta). */
+export type ClaveNivel3 = "" | "si" | "no" | "nose";
+
+export const OPCIONES_NIVEL_3: readonly { id: Exclude<ClaveNivel3, "">; nombre: string }[] = [
+  { id: "si", nombre: "Sí" },
+  { id: "no", nombre: "No" },
+  { id: "nose", nombre: "No sé" },
+];
+
+export function esClaveNivel3(v: unknown): v is ClaveNivel3 {
+  return v === "" || OPCIONES_NIVEL_3.some((o) => o.id === v);
+}
+
+/** La ayuda corta: cómo saberlo y cómo subirla. PROVISIONAL A CONFIRMAR si ARCA cambia el trámite. */
+export const AYUDA_NIVEL_3 = {
+  comoSaberlo:
+    "Entrá a arca.gob.ar con tu clave y buscá «Administración de Certificados Digitales»: si aparece, es nivel 3 (o más).",
+  comoSubirla:
+    "Si no aparece, subila gratis desde la app Mi ARCA en el celular, validando tu identidad con el DNI y una foto. Tarda unos minutos.",
+} as const;
+
+/** Lo que dicen el resumen y el mensaje de activación según la respuesta. */
+export function resumenNivel3(v: ClaveNivel3): string {
+  if (v === "si") return "Sí";
+  if (v === "no") return "No, ayudame a subirla";
+  if (v === "nose") return "No sé, ayudame a revisarlo";
+  return "Sin responder";
+}
+
 // ---------------------------------------------------------------------------
 // El alta completa → mensaje para activar
 // ---------------------------------------------------------------------------
@@ -159,8 +198,8 @@ export interface DatosAlta {
   /** Vacío + `sinPuntoVenta` = "todavía no lo creé" (se lo armamos juntos al activar). */
   puntoVenta: string;
   sinPuntoVenta: boolean;
-  /** «Ya hice el certificado en ARCA». Conserva el nombre viejo para no romper el PR #9. */
-  delegacionHecha: boolean;
+  /** «¿Tu clave fiscal es nivel 3?» (reemplaza al viejo «Ya lo hice», que no se podía hacer antes de activar). */
+  claveNivel3: ClaveNivel3;
   /** Mail del titular para el alta autoservicio (enlace de confirmación). Opcional en lo guardado viejo. */
   email?: string;
 }
@@ -172,7 +211,7 @@ export const ALTA_VACIA: DatosAlta = {
   condicion: "",
   puntoVenta: "",
   sinPuntoVenta: false,
-  delegacionHecha: false,
+  claveNivel3: "",
   email: "",
 };
 
@@ -224,7 +263,8 @@ export function mensajeActivacion(d: DatosAlta): string {
     `CUIT: ${cuit.ok ? cuit.formateado : d.cuit.trim()}`,
     `Condición frente al IVA: ${condicion}`,
     `Punto de venta: ${pv && pv.ok ? pv.numero : "todavía no lo creé"}`,
-    `Certificado en ARCA: ${d.delegacionHecha ? "ya lo hice" : "me falta, ayudame"}`,
+    // Sin la palabra «clave» en el mensaje: nunca tiene que parecer que se la pedimos.
+    `Nivel 3 en ARCA: ${resumenNivel3(esClaveNivel3(d.claveNivel3) ? d.claveNivel3 : "")}`,
     // Sólo si dijo que sí: saltar el paso deja el mensaje como siempre.
     ...(d.mercadoPago === "quiere" ? ["Mercado Pago: quiero conectarlo para facturar mis cobros"] : []),
   ].join("\n");

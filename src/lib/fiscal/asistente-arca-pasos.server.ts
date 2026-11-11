@@ -10,6 +10,7 @@ import { logger } from "@/lib/logger";
 import { verificarCertificadoDelNegocio } from "@/lib/operador/verificar-arca.server";
 import { mensajeDeVerificacion } from "@/lib/fiscal/verificar-con-arca";
 import { TOPE_CERTIFICADO_BYTES } from "@/lib/fiscal/asistente-arca";
+import { resultadoAlSubir } from "@/lib/fiscal/guia-arca";
 import {
   cancelarContadorDelNegocio,
   cargarCertificadoDelPedido,
@@ -40,7 +41,15 @@ export async function pasoCargarCertificado(tenantId: string, actor: string, for
   if (!texto && !(archivo instanceof File && archivo.size > 0)) {
     return { ok: false, motivo: "Pegá el certificado o subí el archivo .crt." };
   }
-  return cargarCertificadoDelPedido(tenantId, entrada, actor);
+  const carga = await cargarCertificadoDelPedido(tenantId, entrada, actor);
+  if (!carga.ok) return carga;
+  // Recién guardado, se verifica en el momento (lo mismo que «Probar con ARCA»): así el error, si lo
+  // hay, sale ahora y en criollo, con el subpaso de la guía donde se arregla.
+  const verificacion = await pasoProbar(tenantId, actor, "al subir el certificado").catch((e) => {
+    logger.warn("arca.asistente", "No se pudo verificar el certificado recién subido", { tenantId, err: e instanceof Error ? e.name : "error" });
+    return null;
+  });
+  return resultadoAlSubir(carga, verificacion);
 }
 
 export async function pasoProbar(tenantId: string, actor: string, plano: string): Promise<Resultado> {

@@ -9,6 +9,8 @@ import type { VistaDelAsistente } from "@/lib/fiscal/asistente-arca.server";
 import { ANTES_DE_EMPEZAR, TEXTO_CERTIFICADO_PROPIO } from "@/lib/fiscal/contador-arca";
 import { ObtenerAsistencia } from "./ObtenerAsistencia";
 import { CampoCertificado, CopiarTexto } from "./PiezasArca";
+import { GuiaArca } from "./GuiaArca";
+import { canalGsg } from "@/app/facturita/contacto";
 
 type Accion = (formData: FormData) => void | Promise<void>;
 
@@ -152,6 +154,8 @@ export function AsistenteArca({ vista, plano, tenantId, acciones, soloLectura = 
                         ))}
                       </ol>
                     );
+                    // El cliente lo hace él mismo: la guía de a un paso. El operador ve la lista entera.
+                    if (k === "produccion" && plano === "cliente") return <GuiaArca key={k} cuit={cuit} canal={canalGsg()} />;
                     return k === "produccion" ? (
                       <div key={k}>
                         <p className="font-semibold text-strong">{INSTRUCCIONES_DEL_PEDIDO[k].titulo}</p>
@@ -194,6 +198,7 @@ export function AsistenteArca({ vista, plano, tenantId, acciones, soloLectura = 
           <form action={acciones.cargarCertificado} className="grid gap-3">
             {oculto}
             <CampoCertificado />
+            <p className="text-[13px] text-muted">Al guardarlo, lo verificamos con ARCA en el momento y te decimos qué hacer si falta algo.</p>
             <div>
               <Button type="submit">Guardar el certificado</Button>
             </div>

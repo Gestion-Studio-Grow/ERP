@@ -28,6 +28,7 @@ import {
   type ComprobanteArca,
 } from "@/plugins/arca";
 import type { EntornoDelCertificado } from "@/lib/operador/pase-a-real";
+import { diagnosticarArca, diagnosticoEnTexto } from "@/lib/fiscal/guia-arca";
 
 export type PasoVerificacion = "certificado" | "conexion" | "emision";
 
@@ -93,15 +94,13 @@ export function queHacer(textoArca: string): string {
   if (t.includes("cert.expired") || t.includes("expirado") || t.includes("vencido")) {
     return "El certificado está vencido: hay que generar uno nuevo y rotarlo acá.";
   }
-  if (t.includes("notauthorized") || t.includes("no autorizado a acceder")) {
-    return "El certificado no está asociado al servicio de facturación: en ARCA, Administrador de Relaciones de Clave Fiscal → Nueva relación → «Facturación electrónica» (wsfe) → elegir el certificado (computador fiscal).";
-  }
   if (t.includes("alreadyauthenticated") || t.includes("ya posee un ta valido")) {
     return "ARCA ya entregó un ticket para este certificado hace menos de 10 minutos y no lo tenemos guardado: esperá 10 minutos y volvé a verificar.";
   }
-  if (t.includes("punto de venta") || t.includes("ptovta")) {
-    return "El punto de venta no está habilitado para web services: en ARCA, Administración de puntos de venta y domicilios → Agregar → sistema «Factura electrónica - Monotributo / RECE para aplicativo y web services».";
-  }
+  // Los frecuentes del alta (computador no autorizado, punto de venta que no es «Web Services», CUIT
+  // distinto, nivel de clave), en criollo y con qué hacer: src/lib/fiscal/guia-arca.ts.
+  const d = diagnosticarArca(textoArca);
+  if (d) return diagnosticoEnTexto(d);
   if (t.includes("cuit") && (t.includes("represent") || t.includes("no se encuentra"))) {
     return "El CUIT del negocio no coincide con el del certificado o no está activo en ARCA: revisá el CUIT de la ficha.";
   }
