@@ -90,4 +90,33 @@ Dos revisiones adversariales (agente `challenger`, Opus esfuerzo alto) sobre el 
 
 ### B.2 Challenger contable y fiscal argentino
 
-_(pendiente)_
+Lo fiscal es en su mayoría **inferido** por el challenger; las normas que cita no se abrieron en esta sesión.
+Todo se confirma con el estudio antes de construir.
+
+| # | Gravedad | Objeción | Estado y qué se hizo |
+|---|---|---|---|
+| F1 | ALTA | A4 ataba el ingreso a «Finalizado» (cobrado entero): viola el devengado. A3 acreditaba ventas antes del evento | **INC.** El ingreso se reconoce con el evento hecho; A3 va a anticipos si el evento no ocurrió. Catálogo §1.3 |
+| F2 | ALTA | El IVA del anticipo no es pregunta abierta (Ley de IVA, art. 5 inc. b); las bases de IVA e IIBB salen de los comprobantes, no de la cuenta de ventas | **INC.** «Tres relojes» en §1.3; FC-09 y FC-10 desde facturación |
+| F3 | ALTA | Un solo saldo a favor de IVA: hay que separar técnico y de libre disponibilidad. Presentación vigente «IVA Simple» (RG 5705/2025) | **INC** la separación (A11, FC-10). El formato vigente queda **ANOT** a confirmar |
+| F4 | ALTA | A8 mezclaba factura en USD cobrada en USD (diferencia financiera, sin IVA) con cobrada en pesos (nota de débito o crédito con IVA e IIBB) | **INC.** A8 y A8b |
+| F5 | ALTA | Falta la Factura de Crédito Electrónica MiPyME (Ley 27.440) | **INC** como brecha de FC-04; si aplica a MIA: **ANOT** |
+| F6 | ALTA | Responde el agente (el cliente), solidariamente; no depositar es delito. El brief dice que retiene el estudio y el catálogo decía que el ERP calcula y certifica. Archivos: IVA por SIRE (RG 5921/2026), Ganancias por SICORE | **INC.** Modo propuesta con aprobación del estudio, tablas firmadas, límite contractual, no venderlo como cálculo. FC-08 y §3.6. Régimen por impuesto: **ANOT** |
+| F7 | MEDIA | Monotributistas, no inscriptos, factura M; designación de MIA como agente de IVA | **INC** el padrón con condición fiscal (FC-05); la designación: **ANOT** |
+| F8 | MEDIA | Roles de IIBB sin jurisdicción; recaudación bancaria; saldo a favor por jurisdicción; padrones; evento en otra provincia; cliente del exterior | **INC.** A12, FC-09, FC-04 |
+| F9 | MEDIA | Falta el impuesto a los débitos y créditos (parte computable, parte gasto) y los roles de Ganancias | **INC.** A13 y roles nuevos |
+| F10 | MEDIA | Si los productores son empleados, la comisión es sueldo; falta el asiento de sueldos | **PAR.** A14 como asiento resumen; la naturaleza de la comisión: **ANOT** para el cliente y el estudio |
+| F11 | MEDIA | Notas de crédito por cancelación o postergación; seña retenida como penalidad | **INC.** FC-04 y eventualidad E1 |
+| F12 | MEDIA | El estudio lleva los libros en su sistema: el ERP sería contabilidad paralela; con ajuste por inflación el margen no coincide con el balance | **INC.** El libro del ERP es de gestión e histórico; la salida principal son comprobantes importables. FC-12 y FC-13. Refuerza dejar FC-03 en `lite` para MIA |
+| F13 | BAJA | Falta un indicador de bien de uso | **INC.** FC-07 |
+
+Fuentes que citó el challenger (no abiertas en esta sesión): ARCA, novedad sobre RG 5705/2025
+(`servicioscf.afip.gob.ar/publico/sitio/contenido/novedad/ver.aspx?id=4889`); texto de la Ley 23.349
+(`argentina.gob.ar/normativa/nacional/norma-271/actualizacion`); notas de terceros sobre IVA Simple y sobre SIRE.
+
+### B.3 Lo que los challengers dejan abierto para el dueño
+
+1. ¿Se invierte en la etapa 1 antes de la venta firmada? (M5)
+2. ¿Qué scope items de este arco tienen un segundo cliente probable? Si la respuesta es «ninguno» para
+   retenciones practicadas o Convenio Multilateral, pasan a proyecto del cliente y no al catálogo. (M2)
+3. ¿El ERP lleva un libro propio para MIA o sólo operación y salidas al estudio? (F12)
+4. ¿GSG acepta el riesgo de proponer retenciones, aun en modo propuesta? (F6)

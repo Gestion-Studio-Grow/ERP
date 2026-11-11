@@ -137,7 +137,10 @@ T5-A es etapa 1; T5-B es etapa 2 y espera la tabla de regímenes validada por el
   Echeq, cheque diferido); cheques de terceros; anticipo a proveedor.
 - **Alcance B (retenciones):** tabla de regímenes versionada y provisional; cálculo en la orden de pago con
   acumulado mensual por proveedor, mínimos y exclusiones con vigencia; certificado numerado; archivo para el
-  estudio.
+  estudio. **Modo propuesta:** el sistema propone, el estudio (o quien el cliente designe) aprueba, y recién
+  entonces se emite el certificado; queda registrado quién aprobó y con qué versión de tabla (Anexo B.2, F6).
+  Antes de arrancar: confirmar bajo qué designación el cliente es agente y el régimen de información vigente
+  por impuesto.
 - **Migración:** orden de pago y sus líneas; retención practicada; certificado; datos de Echeq en tabla
   lateral del cheque (no columna, ver reglas comunes).
 - **Aceptación:** A5 a A7 solos; no se paga más que el saldo; la retención del segundo pago del mes considera el

@@ -73,21 +73,32 @@ Los importes son centavos enteros (`AsientoLinea` `schema:4490`). Invariantes qu
 |---|---|---|---|
 | A1 | Factura de anticipo al cliente (N + I) | DEUDORES_POR_VENTAS N+I | ANTICIPOS_DE_CLIENTES N · IVA_DEBITO_FISCAL I |
 | A2 | Cobro por transferencia con retenciones sufridas (R) | BANCO N+I−R · RETENCIONES_IVA / _GANANCIAS / _IIBB R | DEUDORES_POR_VENTAS N+I |
-| A3 | Factura de saldo (N₂ + I₂) | DEUDORES_POR_VENTAS N₂+I₂ | VENTAS N₂ · IVA_DEBITO_FISCAL I₂ |
-| A4 | Evento hecho: el anticipo pasa a ingreso | ANTICIPOS_DE_CLIENTES N | VENTAS N |
+| A3 | Factura de saldo (N₂ + I₂) | DEUDORES_POR_VENTAS N₂+I₂ | IVA_DEBITO_FISCAL I₂ · **ANTICIPOS_DE_CLIENTES N₂ si el evento todavía no ocurrió**; VENTAS N₂ si ya ocurrió |
+| A4 | **Evento hecho** (aunque falte cobrar): lo facturado por adelantado pasa a ingreso | ANTICIPOS_DE_CLIENTES N (+N₂) | VENTAS N (+N₂) |
 | A5 | Factura A de proveedor con percepciones (P) | costo o gasto del proyecto N · IVA_CREDITO_FISCAL I · PERCEPCIONES_IIBB / percepción de IVA P | PROVEEDORES N+I+P |
 | A6 | Pago al proveedor con retención practicada (T) | PROVEEDORES N+I+P | BANCO N+I+P−T · retenciones a depositar T *(rol nuevo)* |
 | A7 | Echeq o cheque diferido emitido | PROVEEDORES X | cheques diferidos a pagar X *(rol nuevo)*; al débito: contra BANCO |
-| A8 | Cobro en USD con tipo de cambio distinto al de la factura | BANCO (USD × TC cobro) | DEUDORES (USD × TC factura) · diferencia de cambio *(rol nuevo, ganancia o pérdida)* |
+| A8 | Factura en USD **cobrada en USD** otro día | BANCO (USD × TC cobro) | DEUDORES (USD × TC factura) · diferencia de cambio *(rol nuevo; financiera, sin IVA)* |
+| A8b | Factura en USD **cobrada en pesos** al cambio del día | como A2, más una **nota de débito o de crédito** por la diferencia | la nota ajusta el precio: lleva IVA y entra en la base de IIBB |
 | A9 | Comisión devengada (proyecto finalizado) | COMISIONES_PERSONAL C | COMISIONES_A_PAGAR C |
 | A10 | Reintegro contra ticket o factura | gasto del proyecto G (+ IVA_CREDITO_FISCAL si es factura A) | FONDOS_A_RENDIR o BANCO |
-| A11 | Liquidación mensual de IVA | IVA_DEBITO_FISCAL | IVA_CREDITO_FISCAL · retenciones y percepciones de IVA · IVA_A_PAGAR (o saldo a favor) |
-| A12 | IIBB del mes | IIBB (gasto) | PERCEPCIONES_IIBB · RETENCIONES_IIBB · IIBB_A_PAGAR |
+| A11 | Liquidación mensual de IVA | IVA_DEBITO_FISCAL | IVA_CREDITO_FISCAL · retenciones y percepciones de IVA · IVA_A_PAGAR, o **saldo técnico** (sólo contra IVA futuro) y **saldo de libre disponibilidad** (nace de retenciones y percepciones) *(dos roles nuevos)* |
+| A12 | IIBB del mes, **por jurisdicción** | IIBB (gasto) | percepciones, retenciones y **recaudación bancaria** de esa jurisdicción · IIBB_A_PAGAR o saldo a favor de esa jurisdicción |
+| A13 | Impuesto a los débitos y créditos bancarios | parte computable como pago a cuenta *(rol nuevo; porcentaje = parámetro)* · resto a IDC (gasto) | BANCO |
+| A14 | Sueldos y cargas sociales (asiento resumen que informa el estudio) | sueldos y cargas (gasto) | sueldos y cargas a pagar |
 
-**A confirmar con el estudio (provisional):** el momento del ingreso (A4: al evento hecho, que es el criterio de
-«Finalizado» del cliente, o al facturar), el tratamiento del anticipo que congela precio, y los roles nuevos
-(retenciones a depositar por impuesto, cheques diferidos a pagar, diferencia de cambio, percepción de IVA,
-saldo a favor de IVA, valores a depositar).
+**Tres relojes distintos (corrección del challenger fiscal; el estudio confirma):**
+1. **Ingreso contable:** se reconoce con el **evento hecho**, esté o no cobrado (A4). No depende de «Finalizado».
+2. **IVA e IIBB:** se liquidan desde los **comprobantes emitidos**, no desde la cuenta VENTAS. En servicios, el
+   débito fiscal nace con el fin de la prestación o con el cobro total o parcial, lo que ocurra primero (Ley
+   de IVA, art. 5 inc. b): por eso la factura de anticipo lleva IVA (A1). IIBB al facturar: inferido.
+3. **Comisión del productor:** regla comercial del cliente: proyecto cobrado entero y evento hecho (A9).
+
+**A confirmar con el estudio (provisional):** el anticipo en USD (no se revalúa: inferido), el porcentaje
+computable de A13, si los productores son empleados (la comisión sería remuneración, con cargas y aguinaldo:
+cambia A9), y los roles nuevos: retenciones a depositar por impuesto, cheques diferidos a pagar, diferencia de
+cambio, percepción de IVA, saldos de IVA técnico y de libre disponibilidad, valores a depositar, anticipos de
+Ganancias y Ganancias a pagar, y los de IIBB **abiertos por jurisdicción** (hoy son únicos).
 
 ---
 
@@ -139,7 +150,11 @@ Cada ficha: **SAP** (referencia) · **Existe** (archivo:línea) · **Brecha** ·
   (`ProyectoPago` `schema:3653`).
 - **Brecha:** una factura por cada cobro ligada a la cuota; aplicación de un cobro a una o varias facturas y
   cobros parciales; cuenta corriente por cliente (auxiliar que cuadra con el rol, I2); anticipo como pasivo
-  hasta el evento (A1, A4); notas de crédito; padrón de clientes con CUIT y condición frente al IVA.
+  hasta el evento (A1, A4); notas de crédito y de débito (cancelación o postergación del evento, seña retenida
+  como penalidad, diferencia de cambio A8b); padrón de clientes con CUIT y condición frente al IVA; **Factura de
+  Crédito Electrónica MiPyME** (Ley 27.440) cuando el cliente es empresa grande: aceptación o rechazo, plazo y
+  cuenta informada (si aplica a MIA y desde qué importe: a confirmar); factura de exportación si hay cliente
+  del exterior.
 - **Parámetros:** plan de cobro por defecto (porcentaje de anticipo y de saldo, cuándo vence cada uno), si el
   adicional es proyecto aparte, momento del ingreso, medios de cobro habilitados, moneda de la cotización.
 - **MIA:** 70 % anticipo / 30 % saldo como **valor por defecto editable por proyecto** (la regla «en todos los
@@ -155,7 +170,9 @@ Cada ficha: **SAP** (referencia) · **Existe** (archivo:línea) · **Brecha** ·
   `/admin/cuentas-a-pagar`, `/admin/proveedores`, `/admin/compras`.
 - **Brecha:** factura de proveedor **de servicios** (hoy la carga con datos fiscales cuelga de la compra de
   mercadería) imputada a proyecto; **orden de pago** como documento (qué facturas paga, con qué medios, qué
-  retiene); Echeq como medio; cheques de terceros en cartera; agenda de pagos por vencimiento; anticipo a proveedor.
+  retiene); Echeq como medio; cheques de terceros en cartera; agenda de pagos por vencimiento; anticipo a
+  proveedor; **padrón de proveedores con condición fiscal** (inscripto, monotributista con factura C sin crédito
+  fiscal, no inscripto, factura M) y exclusiones con vigencia.
 - **Parámetros:** quién aprueba la orden de pago y desde qué importe, medios habilitados, anticipo a proveedor
   por defecto (hoy 50 %, `gestion-core.ts:149`).
 - **MIA:** hoy los pagos a proveedores **no están cargados**: es la brecha operativa más grande. La agenda de
@@ -194,7 +211,8 @@ Cada ficha: **SAP** (referencia) · **Existe** (archivo:línea) · **Brecha** ·
   (plugin ARCA existente), a decidir por el cliente.
 - **Catálogo inicial (provisional, lo confirma el estudio):** IVA ventas y compras a la alícuota general,
   reducida y diferencial; no gravado; exento; percepción de IVA; percepción de IIBB por jurisdicción; impuestos
-  internos u otros como «otros tributos».
+  internos u otros como «otros tributos»; **compra de bien de uso** (para que un equipo no se cargue como costo
+  de un proyecto; la gestión de bienes de uso sigue en reserva).
 
 ### FC-08 · Percepciones y retenciones
 - **SAP:** retención ampliada con tipos separados para la factura y para el pago, códigos, certificados
@@ -207,8 +225,15 @@ Cada ficha: **SAP** (referencia) · **Existe** (archivo:línea) · **Brecha** ·
   numerado; cuenta de retenciones a depositar; archivo para que el estudio presente.
 - **Parámetros (todos provisionales, tabla versionada por año):** impuestos en los que el cliente es agente,
   regímenes y alícuotas, mínimos, jurisdicciones de IIBB, numeración de certificados.
-- **MIA:** retenciones de IVA y Ganancias sufridas y practicadas. Las presenta el estudio: el ERP calcula,
-  emite el certificado y entrega el archivo; **no presenta**. Si es agente de recaudación de IIBB: a confirmar.
+- **Responsabilidad (corrección del challenger fiscal):** quien responde por retener y depositar es **el
+  agente, o sea el cliente**, no el estudio ni GSG; no depositar lo retenido tiene consecuencias penales. Por
+  eso el scope item trabaja en **modo propuesta**: el sistema propone la retención, **el estudio (o quien el
+  cliente designe) la aprueba** y recién ahí se emite el certificado. Las tablas van versionadas y con la firma
+  de quien las validó; el contrato limita la responsabilidad; **no se vende como «calculamos retenciones»**.
+  Un archivo por impuesto y por régimen de información vigente (cuál corresponde hoy a cada uno: a confirmar).
+- **MIA:** retenciones de IVA y Ganancias sufridas y practicadas. El brief dice que hoy **las hace el estudio**:
+  se arranca en modo propuesta y el estudio sigue presentando. A confirmar: bajo qué designación es agente de
+  IVA y si es agente de recaudación de IIBB.
 
 ### FC-09 · IIBB Convenio Multilateral
 - **SAP:** el cálculo de impuestos provinciales no forma parte del procedimiento estándar argentino de Public
@@ -219,16 +244,23 @@ Cada ficha: **SAP** (referencia) · **Existe** (archivo:línea) · **Brecha** ·
   jurisdicción y año; jurisdicción en cada venta (dónde se presta el servicio) y en cada gasto; papel de trabajo
   mensual (base por jurisdicción, impuesto, menos percepciones, retenciones y recaudaciones bancarias); papel de
   trabajo anual para recalcular coeficientes (ingresos y gastos por jurisdicción).
+  La base sale de los **comprobantes emitidos**, no de la cuenta de ventas. Roles, saldo a favor y recaudación
+  bancaria **por jurisdicción**; padrones mensuales de alícuotas de cada fisco como dato de entrada (carga
+  manual al principio).
 - **Parámetros:** jurisdicciones, actividades y alícuotas, coeficientes vigentes, régimen aplicable.
 - **MIA:** CABA y Buenos Aires. Coeficientes y alícuotas los informa el estudio; cada proyecto lleva la
-  jurisdicción del evento.
+  jurisdicción del evento. Un evento en otra provincia dispara una **alerta de alta de jurisdicción**.
 
 ### FC-10 · Posición fiscal del mes
 - **SAP 1J2** reportes de cumplimiento [E; nombre vigente AV]; libro IVA compras con percepciones [E].
 - **Existe:** libro IVA y su saldo (`src/lib/libros/libro-iva.ts:214`), exportación (`/admin/libros/export`).
 - **Brecha:** tablero mensual: IVA (débito − crédito − retenciones y percepciones − saldo anterior), IIBB
   (FC-09), Ganancias (retenciones sufridas y anticipos como pagos a cuenta), con el detalle que respalda cada
-  número y los asientos A11 y A12. Es **papel de trabajo**, no declaración jurada.
+  número y los asientos A11 a A13. Es **papel de trabajo**, no declaración jurada. El saldo a favor de IVA se
+  lleva **separado**: técnico y de libre disponibilidad (con clientes que retienen, el segundo se acumula todos
+  los meses). La exportación de IVA tiene que seguir el **formato de presentación vigente**: el challenger
+  informa que desde fines de 2025 es «IVA Simple» y que absorbe el libro IVA digital (norma citada en el Anexo
+  B; a confirmar con el estudio antes de construir).
 - **MIA:** lo usa administración para saber cuánto va a pagar antes de que el estudio arme el VEP.
 
 ### FC-11 · Monitor y calendario de obligaciones
@@ -253,6 +285,10 @@ Cada ficha: **SAP** (referencia) · **Existe** (archivo:línea) · **Brecha** ·
   conciliaciones, retenciones y percepciones (sufridas y practicadas), papel de IIBB por jurisdicción, agenda
   de pagos. Acceso de sólo lectura para el estudio. Formato importable por el sistema del estudio: **a relevar**
   cuál usa.
+- **Supuesto corregido:** lo más probable es que el estudio lleve los libros legales **en su propio sistema**.
+  El libro del ERP es **de gestión y a valores históricos** (sin ajuste por inflación): no reemplaza a la
+  contabilidad legal. La salida que más le sirve al estudio son los **comprobantes** en el formato que importa su
+  sistema, antes que un diario para pasar a mano.
 - **MIA:** el estudio hace retenciones, agenda de pagos, balance y VEP con estas salidas.
 
 ### FC-13 · Rentabilidad por proyecto y por productor; comisiones y reintegros
@@ -264,7 +300,8 @@ Cada ficha: **SAP** (referencia) · **Existe** (archivo:línea) · **Brecha** ·
   anticipos de personal (`schema:4099`, `:4128`, `:4163`), comisiones de salón (`src/lib/comision-liquidacion.ts:99`).
 - **Brecha:** **productor** como dimensión del proyecto y del asiento; rentabilidad por productor y por
   período; regla de comisión de proyecto (base, porcentaje, condición de devengamiento) con A9; reintegro
-  contra comprobante con A10; que el margen salga del libro (misma cifra que el estado de resultados).
+  contra comprobante con A10; que el margen salga del libro del ERP (misma cifra que su estado de resultados
+  **de gestión**; no va a coincidir con el balance legal del estudio, que lleva ajuste por inflación).
 - **Parámetros:** base de la comisión (venta neta, margen o cobrado), condición (proyecto finalizado),
   porcentaje por productor o por tipo de proyecto, tope de reintegro sin comprobante fiscal.
 - **MIA:** comisión se devenga con el proyecto cobrado entero y el evento hecho; reemplaza las planillas por
@@ -319,8 +356,11 @@ nacen la función del motor y su test. Las reglas son la propuesta por defecto; 
 4. **Tablas fiscales provisionales** (`PLAN_MODELO_PROVISIONAL`, `TABLA_VENCIMIENTOS_2026_PROVISIONAL`): no salen
    a un cliente sin la firma de un contador.
 5. **Fuentes SAP sin abrir:** releer con red habilitada antes de usar los códigos SAP en material comercial.
-6. **Cumplimiento:** el ERP produce papeles de trabajo y archivos; la presentación y la responsabilidad
-   profesional son del estudio. Debe decirse en pantalla y en el contrato.
+6. **Cumplimiento:** el ERP produce papeles de trabajo, propuestas y archivos. La responsabilidad fiscal es
+   **del cliente** (como contribuyente y como agente de retención); la profesional, del estudio. GSG no asume
+   ninguna de las dos: debe decirse en pantalla y en el contrato, y las retenciones van en modo propuesta.
+7. **Normas argentinas sin relevar de primera mano:** lo fiscal de este catálogo es inferido o viene del
+   challenger; antes de construir T3, T5-B y T8 se releva cada impuesto con fuente oficial y firma del estudio.
 
 Anexos: **A** (fuentes) y **B** (objeciones de los challengers) en `ANEXO-FUENTES-Y-OBJECIONES.md`.
 
