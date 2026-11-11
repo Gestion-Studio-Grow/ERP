@@ -53,6 +53,11 @@ export interface ObligacionEnTabla {
   jurisdiccion?: string | null;
   periodicidad: Periodicidad;
   accion: AccionObligacion;
+  /**
+   * Si se prende sola al sembrar (default true). Las que dependen del perfil fiscal (agente de
+   * retención, por ejemplo) entran apagadas y se prenden en el monitor.
+   */
+  activaPorDefecto?: boolean;
   /** Sólo MENSUAL: el período `YYYY-MM` vence N meses después (IVA de marzo → abril = 1). */
   mesesHastaVencimiento?: number;
   /** ANUAL / SEMESTRAL / ANTICIPO: período `YYYY` → cuotas con su mes de vencimiento. */

@@ -144,6 +144,15 @@ function LoQueFalta({
             </a>
           }
         />
+        <Renglon
+          titulo="Vencimientos"
+          detalle="El calendario fiscal del cliente: marcá lo presentado y lo pagado."
+          tecla={
+            <a href={`/contador/cliente/${encodeURIComponent(fila.clienteTenantId)}/vencimientos`} className={buttonClasses("outline", "sm")} data-ui="button" data-variant="outline" data-size="sm">
+              Ver
+            </a>
+          }
+        />
       </Bloque>
       <PedirASoporte clienteTenantId={fila.clienteTenantId} alias={fila.alias} pedidos={pedibles} />
     </>
