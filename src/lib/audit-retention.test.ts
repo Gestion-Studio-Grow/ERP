@@ -80,7 +80,7 @@ test("purgeAuditLogs filtra por un corte cercano a la ventana `months` pedida", 
 
 // F1 (certificación adversarial de ProfeTurnos T2): la purga borraba `profeturnos.alta` (entity
 // "Tenant") y el negocio quedaba «libre» para siempre; también se perdía la prueba de los cobros.
-test("purgeAuditLogs nunca borra las filas `profeturnos.*` (alta, plan, pago, devolución, reverso)", async () => {
+test("purgeAuditLogs nunca borra las filas `profeturnos.*` (alta, plan, verificación, revocación, pago, devolución, reverso)", async () => {
   const { PURGE_EXEMPT_ACTION_PREFIXES } = await import("./audit-retention");
   assert.ok((PURGE_EXEMPT_ACTION_PREFIXES as readonly string[]).includes("profeturnos."));
   const { client, calls } = makeMockClient(0);
@@ -90,8 +90,9 @@ test("purgeAuditLogs nunca borra las filas `profeturnos.*` (alta, plan, pago, de
   // Simulación del filtro: lo de ProfeTurnos queda, lo demás viejo se va, sin tocar las entidades exentas.
   const alcanza = (f: { action: string; entity: string }) =>
     !where.entity.notIn.includes(f.entity) && !where.NOT.some((n) => f.action.startsWith(n.action.startsWith));
-  for (const action of ["profeturnos.alta", "profeturnos.plan", "profeturnos.pago", "profeturnos.devolucion", "profeturnos.pago.reverso"]) {
-    assert.equal(alcanza({ action, entity: action === "profeturnos.alta" || action === "profeturnos.plan" ? "Tenant" : "Pago" }), false, action);
+  const sobreTenant = ["profeturnos.alta", "profeturnos.plan", "profeturnos.verificado", "profeturnos.verificacion.revocada"];
+  for (const action of [...sobreTenant, "profeturnos.pago", "profeturnos.devolucion", "profeturnos.pago.reverso"]) {
+    assert.equal(alcanza({ action, entity: sobreTenant.includes(action) ? "Tenant" : "Pago" }), false, action);
   }
   assert.equal(alcanza({ action: "update", entity: "Tenant" }), true, "el resto de la retención no cambia");
   assert.equal(alcanza({ action: "create", entity: "Booking" }), true);

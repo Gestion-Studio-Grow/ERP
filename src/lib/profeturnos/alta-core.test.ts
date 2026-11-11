@@ -90,6 +90,8 @@ test("la dirección del panel y el flag", () => {
   assert.equal(altaAbierta({}), false);
   assert.equal(altaAbierta({ PROFETURNOS_ALTA_ABIERTA: "true" }), false);
   assert.equal(altaAbierta({ PROFETURNOS_ALTA_ABIERTA: "1" }), true);
+  // Sólo "1" exacto: nada de espacios ni variantes.
+  for (const v of [" 1", "1 ", "\t1\n", "01", "1.0", "１", "TRUE", ""]) assert.equal(altaAbierta({ PROFETURNOS_ALTA_ABIERTA: v }), false, JSON.stringify(v));
 });
 
 test("límites: 20 por hora por IP, cuenta cada pedido y libera con la ventana", () => {

@@ -51,7 +51,9 @@ export const PURGE_EXEMPT_ENTITIES = [
 // Prefijos de `action` que la purga nunca borra, sea cual sea la entidad. «profeturnos.»: el plan de
 // ProfeTurnos vive sólo en AuditLog (src/lib/profeturnos/plan.server.ts). Purgada la fila
 // `profeturnos.alta`, el negocio pasaría a «libre» para siempre (plan-core.ts, regla de oro); purgadas
-// las de pago, plan, devolución y reverso, se perdería la prueba de lo cobrado y lo devuelto.
+// las de pago, plan, devolución y reverso, se perdería la prueba de lo cobrado y lo devuelto; purgadas
+// las de verificación y revocación (plan B, verificacion-core.ts), un profe sin verificar o revocado
+// quedaría con el turnero abierto a los 18 meses, sin que nadie lo decida.
 export const PURGE_EXEMPT_ACTION_PREFIXES = ["profeturnos."] as const;
 
 /** @deprecated Usar `PURGE_EXEMPT_ENTITIES`. Se conserva por compatibilidad de llamadores. */
