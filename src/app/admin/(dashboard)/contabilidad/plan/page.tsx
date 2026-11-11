@@ -15,7 +15,7 @@ import { leerPlanDeCuentas, rolesFaltantes } from "@/lib/contabilidad/repo-plan"
 import { cuentasParaRol, filasDelArbol } from "@/lib/contabilidad/plan-vista";
 import { RUBROS_CONTABLES } from "@/lib/contabilidad/plan-modelo";
 import { ROLES, ROLES_CUENTA, type RolCuenta } from "@/lib/contabilidad/roles";
-import { agregarHojaAccion, asignarRolAccion, cambiarActivaAccion, sembrarPlanAccion } from "../actions";
+import { agregarHojaAccion, asignarRolAccion, cambiarActivaAccion, completarRolesAccion, sembrarPlanAccion } from "../actions";
 import { AvisoMigracionPendiente, AvisoResultado, NOMBRE_RUBRO } from "../_partes";
 
 export const dynamic = "force-dynamic";
@@ -88,6 +88,9 @@ export default async function PlanDeCuentasPage({ searchParams }: { searchParams
                   <p className="text-sm text-body">
                     Faltan {fmtNumberAR(faltan.length)} {faltan.length === 1 ? "rol" : "roles"} sin cuenta. Hasta que los asignes, esos movimientos no se pueden anotar solos.
                   </p>
+                  <form action={completarRolesAccion}>
+                    <button type="submit" className={buttonClasses("outline", "sm")}>Completar con las cuentas del plan modelo</button>
+                  </form>
                   <ul className="flex flex-col gap-2">
                     {faltan.map((rol) => {
                       const opciones = cuentasParaRol(plan.cuentas, rol);

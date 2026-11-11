@@ -36,8 +36,11 @@ export const RUBROS_CONTABLES: readonly RubroContable[] = ["comercio", "servicio
 /**
  * «Servicios por proyecto» (productoras de eventos, activaciones, stands): se guarda en
  * `ConfigContable.rubroNegocio` como "servicios" porque el CHECK de la ola 2 sólo admite los cuatro
- * rubros originales (sin migración nueva en FC-01). Se reconoce por su cuenta marca
- * (`CUENTA_MARCA_PROYECTOS`). Deuda: ampliar el CHECK en una migración aditiva y guardar "proyectos".
+ * rubros originales (sin migración nueva en FC-01). Se reconoce por la fila de AuditLog que deja la
+ * carga del plan (`rubroAnotado: "proyectos"`, ver `rubroDelPlan`), NUNCA por sus cuentas: el usuario
+ * puede crear una hoja con este código y nombre (certificación T1, hallazgo 3). `CUENTA_MARCA_PROYECTOS`
+ * queda sólo como la cuenta propia del rubro. Deuda: ampliar el CHECK en una migración aditiva y
+ * guardar "proyectos" (Gate 2).
  */
 export const CUENTA_MARCA_PROYECTOS = "1.1.1.05";
 export function rubroParaLaBase(rubro: RubroContable): Exclude<RubroContable, "proyectos"> {

@@ -1,5 +1,6 @@
 // FC-01 sin base: rubro del plan, roles faltantes, el plan «servicios por proyecto» y la tolerancia a
 // la migración ausente (MIGRACION_PENDIENTE en vez de un 500) en las funciones de las pantallas.
+// Incluye la reproducción P2 de la certificación T1 (rubro inferido de una cuenta), ahora cerrada.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -25,14 +26,27 @@ test("plan «servicios por proyecto»: cuentas de §1.3 y todos sus roles con cu
   assert.equal(rubroParaLaBase("club"), "club");
 });
 
-test("rubroDelPlan: «proyectos» se reconoce por su cuenta marca; lo desconocido da null", async () => {
+test("rubroDelPlan: «proyectos» sólo con la marca de la carga; lo desconocido da null", async () => {
   const { rubroDelPlan } = await import("./repo-plan");
-  const marca = { codigo: "1.1.1.05", nombre: "Valores a depositar" };
-  assert.equal(rubroDelPlan("servicios", [marca]), "proyectos");
-  assert.equal(rubroDelPlan("servicios", [{ codigo: "1.1.1.05", nombre: "Otra cuenta propia" }]), "servicios");
-  assert.equal(rubroDelPlan("comercio", [marca]), "comercio");
-  assert.equal(rubroDelPlan(null, []), null);
-  assert.equal(rubroDelPlan("inventado", []), null);
+  assert.equal(rubroDelPlan("servicios", true), "proyectos");
+  assert.equal(rubroDelPlan("servicios", false), "servicios");
+  assert.equal(rubroDelPlan("comercio", true), "comercio", "la marca sólo cuenta sobre «servicios»");
+  assert.equal(rubroDelPlan(null, true), null);
+  assert.equal(rubroDelPlan("inventado", false), null);
+});
+
+// Certificación T1, P2: antes el rubro salía de la cuenta 1.1.1.05 «Valores a depositar», que un
+// negocio «servicios» fabrica con dos altas de hoja. Ahora las cuentas no entran en la decisión.
+test("P2 · un negocio «servicios» que crea 1.1.1.04 y 1.1.1.05 «Valores a depositar» sigue siendo «servicios»", async () => {
+  const { rubroDelPlan, rolesFaltantes } = await import("./repo-plan");
+  const { planModelo } = await import("./plan-modelo");
+  const { rolesModelo } = await import("./roles");
+  const plan = planModelo("servicios").map((c) => ({ codigo: c.codigo, nombre: c.nombre }));
+  assert.equal(plan.filter((c) => c.codigo.startsWith("1.1.1.")).length, 3, "servicios trae 1.1.1.01 a .03");
+  // `rubroDelPlan` ya no recibe las cuentas: sin la marca de la carga no hay forma de pasar a «proyectos».
+  const rubro = rubroDelPlan("servicios", false);
+  assert.equal(rubro, "servicios");
+  assert.deepEqual(rolesFaltantes([...rolesModelo("servicios").keys()], rubro).delRubro, [], "sin falsos faltantes");
 });
 
 test("rolesFaltantes: separa los del rubro de los opcionales", async () => {
@@ -63,6 +77,7 @@ for (const code of ["P2021", "P2022"]) {
         await plan.leerPlanDeCuentas("negocio-x"),
         await plan.agregarHoja("negocio-x", { padreId: "p", nombre: "Banco Provincia" }),
         await plan.cambiarActivaCuenta("negocio-x", "c", false),
+        await plan.completarRolesFaltantes("negocio-x"),
         await plan.listarEjercicios("negocio-x"),
       ]) {
         assert.equal(r.ok, false);

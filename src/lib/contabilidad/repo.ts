@@ -99,18 +99,59 @@ export async function candado(tx: Tx, clave: string): Promise<void> {
 
 // ── Plan de cuentas ──────────────────────────────────────────────────────────────────────────
 
+/** Quién cambia el plan: "admin:<id de usuario>" desde el panel; "system" si no lo pasa nadie (tests, scripts). */
+export interface AuditoriaPlan {
+  actor: string;
+  channel: "admin" | "system";
+}
+
+const AUDITORIA_SISTEMA: AuditoriaPlan = { actor: "system", channel: "system" };
+
+/** Entidades y acciones del rastro del plan (AuditLog). Sólo las escribe este código. */
+export const AUDITORIA_PLAN = {
+  entidadPlan: "PlanDeCuentas",
+  entidadCuenta: "CuentaContable",
+  entidadRol: "CuentaRol",
+  sembrar: "sembrar",
+} as const;
+
+/** Una fila de AuditLog en la MISMA transacción que el cambio: si el cambio se deshace, el rastro también. */
+export async function rastroDelPlan(
+  tx: Tx,
+  tenantId: string,
+  auditoria: AuditoriaPlan | undefined,
+  fila: { action: string; entity: string; entityId: string | null; changes: Record<string, unknown> },
+): Promise<void> {
+  const quien = auditoria ?? AUDITORIA_SISTEMA;
+  await tx.auditLog.create({
+    data: { tenantId, actor: quien.actor, channel: quien.channel, action: fila.action, entity: fila.entity, entityId: fila.entityId, changes: fila.changes as object },
+  });
+}
+
 /**
  * Siembra el plan modelo del rubro con sus atributos de gestión (ola 2), deja asignados los roles
  * de cuenta del rubro y anota el rubro en `ConfigContable`. Idempotente: las cuentas que ya existen
  * (por código) no se tocan, un rol ya asignado no se reasigna y el rubro anotado no se pisa.
+ *
+ * `soloSiVacio` (la pantalla): bajo el candado del plan, si el negocio ya tiene cuentas rechaza con
+ * DATOS_INVALIDOS. Así dos cargas simultáneas no mezclan dos rubros.
+ *
+ * Deja una fila de AuditLog `sembrar`. Si esta llamada es la que anota el rubro, la fila lleva
+ * `rubroAnotado` con el rubro elegido: es la marca de «servicios por proyecto», que la base guarda
+ * como "servicios" (`rubroDelPlan`, repo-plan.ts). El usuario no la puede fabricar desde el plan.
  */
 export function sembrarPlanModelo(
   tenantId: string,
   rubro: RubroContable,
+  opciones: { soloSiVacio?: boolean; auditoria?: AuditoriaPlan } = {},
 ): Promise<Resultado<{ creadas: number; existentes: number; rolesAsignados: number }>> {
   return enTransaccion(tenantId, async (tx) => {
     await candado(tx, `contabilidad-plan:${tenantId}`);
     const existentes = await tx.cuentaContable.findMany({ where: { tenantId }, select: { id: true, codigo: true, tipo: true, imputable: true, activa: true } });
+    if (opciones.soloSiVacio && existentes.length > 0) {
+      throw new Rechazo("DATOS_INVALIDOS", "Este negocio ya tiene un plan de cuentas cargado: no se mezcla con el plan modelo de otro rubro.");
+    }
+    const configAntes = await tx.configContable.findFirst({ where: { tenantId }, select: { rubroNegocio: true } });
     const porCodigo = new Map(existentes.map((c) => [c.codigo, c]));
     let creadas = 0;
     for (const c of planModelo(rubro)) {
@@ -156,6 +197,18 @@ export function sembrarPlanModelo(
     });
     await tx.configContable.updateMany({ where: { tenantId, rubroNegocio: null }, data: { rubroNegocio: rubroParaLaBase(rubro) } });
 
+    await rastroDelPlan(tx, tenantId, opciones.auditoria, {
+      action: AUDITORIA_PLAN.sembrar,
+      entity: AUDITORIA_PLAN.entidadPlan,
+      entityId: null,
+      changes: {
+        rubro,
+        ...(configAntes?.rubroNegocio ? {} : { rubroAnotado: rubro }),
+        creadas,
+        rolesAsignados: nuevos.map((n) => ({ rol: n.rol, cuentaId: n.cuentaId })),
+      },
+    });
+
     return { creadas, existentes: existentes.length, rolesAsignados: roles.count };
   });
 }
@@ -164,17 +217,34 @@ export function sembrarPlanModelo(
  * Asigna (o cambia) la cuenta que cumple un rol. La cuenta tiene que ser de ESTE negocio (se busca
  * con su `tenantId`; además la FK compuesta lo garantiza), imputable, activa y del tipo del rol.
  */
-export function asignarRolCuenta(tenantId: string, rol: string, cuentaId: string): Promise<Resultado<{ rol: RolCuenta; cuentaId: string }>> {
+export function asignarRolCuenta(
+  tenantId: string,
+  rol: string,
+  cuentaId: string,
+  auditoria?: AuditoriaPlan,
+): Promise<Resultado<{ rol: RolCuenta; cuentaId: string }>> {
   return enTransaccion(tenantId, async (tx) => {
+    // El mismo candado que la baja (`cambiarActivaCuenta`): la cuenta se valida activa y de detalle
+    // ADENTRO de la sección crítica, así una baja simultánea no deja el rol en una cuenta dada de baja.
+    await candado(tx, `contabilidad-plan:${tenantId}`);
     const cuenta = await tx.cuentaContable.findFirst({ where: { id: cuentaId, tenantId }, select: { id: true, tipo: true, imputable: true, activa: true } });
     if (!cuenta) throw new Rechazo("NO_ENCONTRADO", "Esa cuenta no existe en el plan de este negocio.");
     const problema = problemaDeAsignacion(rol, cuenta);
     if (problema) throw new Rechazo("ROL_INVALIDO", problema.mensaje);
+    const antes = await tx.cuentaRol.findFirst({ where: { tenantId, rol }, select: { cuentaId: true } });
     await tx.cuentaRol.upsert({
       where: { tenantId_rol: { tenantId, rol } },
       create: { tenantId, rol, cuentaId },
       update: { cuentaId },
     });
+    if (antes?.cuentaId !== cuentaId) {
+      await rastroDelPlan(tx, tenantId, auditoria, {
+        action: "asignar_rol",
+        entity: AUDITORIA_PLAN.entidadRol,
+        entityId: rol,
+        changes: { antes: antes?.cuentaId ?? null, despues: cuentaId },
+      });
+    }
     return { rol: rol as RolCuenta, cuentaId };
   });
 }

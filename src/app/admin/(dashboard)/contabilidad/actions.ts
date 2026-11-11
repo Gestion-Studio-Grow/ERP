@@ -8,34 +8,45 @@
 // filtran por `tenantId` dentro de `tenantTransaction` (RLS): un id de otro negocio da NO_ENCONTRADO.
 // El resultado vuelve como un código fijo en la URL (`?r=`), que la pantalla traduce con
 // MENSAJES_RESULTADO: nunca se muestra texto que venga de la URL.
+//
+// Escribir exige, además de abrir la app (`reports:read`), la capability de escritura de lo fiscal y
+// contable que ya existe (`billing:manage`, la de Facturación y Cuentas a pagar/cobrar): un rol que
+// mañana reciba sólo lectura de reportes no puede cambiar el plan (certificación T1, hallazgo 6).
+// Cada cambio queda en AuditLog con el actor `admin:<id del usuario>`.
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { AppNoDisponibleError, requireAppAccion } from "@/lib/require-app";
+import { permisoEfectivo, type Capability } from "@/lib/capabilities";
 import type { AppId } from "@/apps/registro";
 import { estadoContabilidadDelNegocio } from "@/lib/contabilidad/modulo.server";
-import { abrirEjercicio, asignarRolCuenta, sembrarPlanModelo, type Resultado } from "@/lib/contabilidad/repo";
-import { agregarHoja, cambiarActivaCuenta, leerPlanDeCuentas } from "@/lib/contabilidad/repo-plan";
+import { abrirEjercicio, asignarRolCuenta, sembrarPlanModelo, type AuditoriaPlan, type Resultado } from "@/lib/contabilidad/repo";
+import { agregarHoja, cambiarActivaCuenta, completarRolesFaltantes } from "@/lib/contabilidad/repo-plan";
 import { RUBROS_CONTABLES, type RubroContable } from "@/lib/contabilidad/plan-modelo";
 import { duracionValida, leerDia, mensajeResultado, type CodigoResultado } from "@/lib/contabilidad/plan-vista";
 
 const RUTA_PLAN = "/admin/contabilidad/plan";
 const RUTA_EJERCICIO = "/admin/contabilidad/ejercicio";
 
-/** El negocio de la sesión, si puede usar la app y la contabilidad está lista; si no, por qué. */
-async function negocioListo(app: AppId): Promise<{ tenantId: string } | CodigoResultado> {
+/** Capability de escritura del plan y del ejercicio (ver el encabezado). */
+const ESCRIBIR_CONTABILIDAD: Capability = "billing:manage";
+
+/** El negocio de la sesión, si puede usar la app, escribir y la contabilidad está lista; si no, por qué. */
+async function negocioListo(app: AppId): Promise<{ tenantId: string; auditoria: AuditoriaPlan } | CodigoResultado> {
+  let user;
   try {
-    await requireAppAccion(app);
+    user = await requireAppAccion(app);
   } catch (e) {
     if (e instanceof AppNoDisponibleError) return "SIN_PERMISO";
     throw e;
   }
+  if (!permisoEfectivo(user, ESCRIBIR_CONTABILIDAD)) return "SIN_PERMISO";
   const tenantId = await getCurrentTenantId();
   const estado = await estadoContabilidadDelNegocio(tenantId);
   if (estado === "OCULTO") return "APAGADO";
   if (estado === "MIGRACION_PENDIENTE") return "MIGRACION_PENDIENTE";
-  return { tenantId };
+  return { tenantId, auditoria: { actor: `admin:${user.id}`, channel: "admin" } };
 }
 
 function codigoDe(r: Resultado<object>, exito: CodigoResultado): CodigoResultado {
@@ -52,22 +63,32 @@ function volver(ruta: string, codigo: CodigoResultado): never {
   redirect(`${ruta}?r=${codigo}`);
 }
 
-/** Carga el plan modelo del rubro. Sólo con el plan vacío: no mezcla dos rubros. */
+/**
+ * Carga el plan modelo del rubro. Sólo con el plan vacío, y eso lo comprueba `sembrarPlanModelo`
+ * bajo el candado del plan (`soloSiVacio`): dos pestañas a la vez no mezclan dos rubros.
+ */
 export async function sembrarPlanAccion(formData: FormData): Promise<void> {
   const n = await negocioListo("plan-de-cuentas");
   if (typeof n === "string") volver(RUTA_PLAN, n);
   const rubro = texto(formData.get("rubro"), 20);
   if (!(RUBROS_CONTABLES as readonly string[]).includes(rubro)) volver(RUTA_PLAN, "DATOS_INVALIDOS");
-  const plan = await leerPlanDeCuentas(n.tenantId);
-  if (!plan.ok) volver(RUTA_PLAN, codigoDe(plan, "sembrado"));
-  if (plan.cuentas.length > 0) volver(RUTA_PLAN, "DATOS_INVALIDOS");
-  volver(RUTA_PLAN, codigoDe(await sembrarPlanModelo(n.tenantId, rubro as RubroContable), "sembrado"));
+  const r = await sembrarPlanModelo(n.tenantId, rubro as RubroContable, { soloSiVacio: true, auditoria: n.auditoria });
+  volver(RUTA_PLAN, !r.ok && r.error === "DATOS_INVALIDOS" ? "PLAN_YA_CARGADO" : codigoDe(r, "sembrado"));
+}
+
+/** Asigna los roles del rubro que faltan en un plan ya cargado. No pisa nada (idempotente). */
+export async function completarRolesAccion(): Promise<void> {
+  const n = await negocioListo("plan-de-cuentas");
+  if (typeof n === "string") volver(RUTA_PLAN, n);
+  const r = await completarRolesFaltantes(n.tenantId, n.auditoria);
+  if (r.ok && r.rolesAsignados === 0) volver(RUTA_PLAN, "roles-sin-cambios");
+  volver(RUTA_PLAN, codigoDe(r, "roles-completados"));
 }
 
 export async function agregarHojaAccion(formData: FormData): Promise<void> {
   const n = await negocioListo("plan-de-cuentas");
   if (typeof n === "string") volver(RUTA_PLAN, n);
-  const r = await agregarHoja(n.tenantId, { padreId: texto(formData.get("padreId"), 64), nombre: texto(formData.get("nombre"), 200) });
+  const r = await agregarHoja(n.tenantId, { padreId: texto(formData.get("padreId"), 64), nombre: texto(formData.get("nombre"), 200) }, n.auditoria);
   volver(RUTA_PLAN, codigoDe(r, "hoja"));
 }
 
@@ -75,14 +96,14 @@ export async function cambiarActivaAccion(formData: FormData): Promise<void> {
   const n = await negocioListo("plan-de-cuentas");
   if (typeof n === "string") volver(RUTA_PLAN, n);
   const activa = formData.get("activa") === "si";
-  const r = await cambiarActivaCuenta(n.tenantId, texto(formData.get("cuentaId"), 64), activa);
+  const r = await cambiarActivaCuenta(n.tenantId, texto(formData.get("cuentaId"), 64), activa, n.auditoria);
   volver(RUTA_PLAN, codigoDe(r, activa ? "alta" : "baja"));
 }
 
 export async function asignarRolAccion(formData: FormData): Promise<void> {
   const n = await negocioListo("plan-de-cuentas");
   if (typeof n === "string") volver(RUTA_PLAN, n);
-  const r = await asignarRolCuenta(n.tenantId, texto(formData.get("rol"), 64), texto(formData.get("cuentaId"), 64));
+  const r = await asignarRolCuenta(n.tenantId, texto(formData.get("rol"), 64), texto(formData.get("cuentaId"), 64), n.auditoria);
   volver(RUTA_PLAN, codigoDe(r, "rol"));
 }
 

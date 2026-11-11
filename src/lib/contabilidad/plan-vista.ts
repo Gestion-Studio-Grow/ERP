@@ -33,8 +33,8 @@ export function cuentasParaRol(cuentas: readonly CuentaDelPlan[], rol: RolCuenta
 }
 
 export type CodigoResultado =
-  | "sembrado" | "hoja" | "baja" | "alta" | "rol" | "ejercicio"
-  | "MIGRACION_PENDIENTE" | "NO_ENCONTRADO" | "PADRE_INVALIDO" | "DATOS_INVALIDOS" | "CUENTA_EN_USO"
+  | "sembrado" | "hoja" | "baja" | "alta" | "rol" | "ejercicio" | "roles-completados" | "roles-sin-cambios"
+  | "MIGRACION_PENDIENTE" | "NO_ENCONTRADO" | "PADRE_INVALIDO" | "DATOS_INVALIDOS" | "PLAN_YA_CARGADO" | "CUENTA_EN_USO"
   | "ROL_INVALIDO" | "EJERCICIO_SUPERPUESTO" | "FECHAS_INVALIDAS" | "APAGADO" | "SIN_PERMISO" | "ERROR";
 
 export const MENSAJES_RESULTADO: Record<CodigoResultado, { tono: "exito" | "error"; texto: string }> = {
@@ -44,11 +44,17 @@ export const MENSAJES_RESULTADO: Record<CodigoResultado, { tono: "exito" | "erro
   alta: { tono: "exito", texto: "Cuenta reactivada." },
   rol: { tono: "exito", texto: "Listo: el sistema usa esa cuenta para ese rol." },
   ejercicio: { tono: "exito", texto: "Ejercicio abierto." },
+  "roles-completados": { tono: "exito", texto: "Listo: asignamos los roles que faltaban a sus cuentas del plan modelo. Los que siguen sin cuenta, asignalos a mano." },
+  "roles-sin-cambios": { tono: "exito", texto: "No había roles para completar solos: los que faltan necesitan que elijas la cuenta a mano." },
   MIGRACION_PENDIENTE: { tono: "error", texto: "La contabilidad de este negocio todavía no está habilitada." },
   NO_ENCONTRADO: { tono: "error", texto: "No encontramos esa cuenta en el plan de este negocio. Recargá la pantalla." },
   PADRE_INVALIDO: { tono: "error", texto: "Las cuentas nuevas van debajo de un agrupador de detalle activo, por ejemplo «Caja y bancos»." },
   DATOS_INVALIDOS: { tono: "error", texto: "Revisá el nombre: entre 2 y 80 letras y que no se repita en el mismo agrupador. Sólo se dan de baja cuentas de detalle." },
-  CUENTA_EN_USO: { tono: "error", texto: "Esa cuenta cumple un rol del sistema: asigná el rol a otra cuenta antes de darla de baja." },
+  PLAN_YA_CARGADO: { tono: "error", texto: "Este negocio ya tiene un plan de cuentas cargado: no se mezcla con el plan modelo de otro rubro." },
+  CUENTA_EN_USO: {
+    tono: "error",
+    texto: "Esa cuenta todavía se usa y no se puede dar de baja. Antes: asigná a otra cuenta el rol que cumple, resolvé sus asientos en borrador y pasá su saldo a otra cuenta hasta dejarla en cero.",
+  },
   ROL_INVALIDO: { tono: "error", texto: "Esa cuenta no puede cumplir el rol: tiene que ser de detalle, estar activa y ser del tipo que el rol pide." },
   EJERCICIO_SUPERPUESTO: { tono: "error", texto: "Ya hay un ejercicio que cubre parte de esas fechas." },
   FECHAS_INVALIDAS: { tono: "error", texto: "Revisá las fechas: el cierre tiene que ser posterior al inicio, y el ejercicio no puede durar más de un año." },
