@@ -271,7 +271,7 @@ export const ESPACIOS_NAV: readonly EspacioNav[] = [
     nombre: "Números del negocio",
     rotulo: "Números",
     objetivo: "Saber cuánto gano y qué me conviene",
-    apps: ["resultado-del-mes", "margen", "flujo-de-fondos", "reportes", "comisiones", "cuenta-con-profesionales", "plan-de-cuentas", "ejercicio-contable"],
+    apps: ["resultado-del-mes", "margen", "flujo-de-fondos", "reportes", "comisiones", "cuenta-con-profesionales", "plan-de-cuentas", "ejercicio-contable", "vencimientos-fiscales"],
   },
   {
     id: "administracion",

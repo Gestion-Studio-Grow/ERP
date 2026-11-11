@@ -359,4 +359,19 @@ export const APPS_FINANZAS = [
     palabras: ["ejercicio", "año contable", "cierre de ejercicio", "balance", "fecha de cierre"],
     enLanzador: false,
   },
+  // FC-11 · T7: monitor y calendario de obligaciones fiscales. Mismo criterio que el plan de cuentas:
+  // fuera del lanzador y la página mira el interruptor «contabilidad» del negocio.
+  {
+    id: "vencimientos-fiscales",
+    nombre: "Vencimientos fiscales",
+    descripcion: "Qué hay que presentar y pagar, cuándo vence y quién se ocupa.",
+    icono: "contabilidad",
+    ruta: "/admin/vencimientos",
+    espacio: "finanzas",
+    capability: "reports:read",
+    modulo: "finanzas-control",
+    estado: "lista",
+    palabras: ["vencimientos", "obligaciones", "calendario fiscal", "iva", "ingresos brutos", "ganancias", "estudio contable"],
+    enLanzador: false,
+  },
 ] as const satisfies readonly AppDescriptor[];

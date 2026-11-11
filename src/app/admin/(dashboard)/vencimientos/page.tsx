@@ -5,7 +5,7 @@
 // «provisional a confirmar». Las reglas viven en src/lib/contabilidad/monitor.ts (puro, probado);
 // acá se lee y se pinta. Sin la migración de la ola 1 aplicada, se muestra el aviso, nunca un error.
 
-import { requireCapability } from "@/lib/authz";
+import { requireApp } from "@/lib/require-app";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { estadoContabilidadDelNegocio } from "@/lib/contabilidad/modulo.server";
 import { leerMonitor } from "@/lib/contabilidad/monitor.server";
@@ -29,7 +29,7 @@ export const dynamic = "force-dynamic";
 const TITULO = "Vencimientos";
 
 export default async function MonitorDeVencimientos({ searchParams }: { searchParams: Promise<{ aviso?: string }> }) {
-  await requireCapability("reports:read");
+  await requireApp("vencimientos-fiscales");
   const tenantId = await getCurrentTenantId();
   const { aviso } = await searchParams;
   const estado = await estadoContabilidadDelNegocio(tenantId);
