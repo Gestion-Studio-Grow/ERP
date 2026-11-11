@@ -31,6 +31,7 @@ import {
   diaIso,
   ESTADOS_VENCIMIENTO,
   hoyEnArgentina,
+  type AccionObligacion,
   type EstadoVencimiento,
   type TablaVencimientos,
 } from "./vencimientos";
@@ -51,6 +52,8 @@ export type CodigoErrorRepo =
   | "CUIT_INVALIDO"
   | "PERIODO_INVALIDO"
   | "ESTADO_INVALIDO"
+  | "TRANSICION_INVALIDA"
+  | "CAMBIO_CONCURRENTE"
   | "ROL_INVALIDO";
 
 export type Resultado<T> = ({ ok: true } & T) | { ok: false; error: CodigoErrorRepo; mensaje: string; errores?: ErrorAsiento[] };
@@ -440,11 +443,22 @@ export function generarCalendario(
 /**
  * Cambia el estado guardado de un vencimiento («vencido» no se guarda: se calcula). Al pasar a
  * PRESENTADO o PAGADO, si no viene la fecha se toma la de hoy en Argentina.
+ *
+ * `desde` (opcional) dice desde qué estados guardados se acepta el cambio según la acción de la
+ * obligación (el estudio usa `desdeDondeMarcaElEstudio`). La escritura es un `updateMany`
+ * condicionado al estado leído: si otro cambió el vencimiento en el medio, cuenta 0 y se rechaza,
+ * así el rastro nunca registra un «antes» falso ni gana la última escritura a ciegas.
  */
 export interface AuditoriaVencimiento {
   /** Quién: "admin:<usuario>" o "estudio:<estudio>/<usuario>". */
   actor: string;
   channel: "admin" | "estudio";
+  /** Ids que identifican a quien marcó (p. ej. `estudioTenantId`, `usuarioId`); van en `changes`. */
+  ids?: Record<string, string>;
+}
+
+export interface OpcionesCambioEstado {
+  desde?: (accion: AccionObligacion) => readonly EstadoVencimiento[];
 }
 
 export function cambiarEstadoVencimiento(
@@ -453,19 +467,30 @@ export function cambiarEstadoVencimiento(
   estado: EstadoVencimiento,
   fechas: { fechaPresentacion?: Date | null; fechaPago?: Date | null } = {},
   auditoria?: AuditoriaVencimiento,
+  opciones: OpcionesCambioEstado = {},
 ): Promise<Resultado<{ vencimientoId: string; estado: EstadoVencimiento }>> {
   return enTransaccion(tenantId, async (tx) => {
     if (!ESTADOS_VENCIMIENTO.includes(estado)) throw new Rechazo("ESTADO_INVALIDO", "Ese estado no existe para un vencimiento.");
     const v = await tx.vencimientoFiscal.findFirst({
       where: { id: vencimientoId, tenantId },
-      select: { id: true, estado: true, fechaPresentacion: true, fechaPago: true },
+      select: { id: true, estado: true, fechaPresentacion: true, fechaPago: true, obligacion: { select: { accion: true } } },
     });
     if (!v) throw new Rechazo("NO_ENCONTRADO", "No encontramos ese vencimiento.");
+    if (opciones.desde && !opciones.desde(v.obligacion.accion as AccionObligacion).includes(v.estado as EstadoVencimiento)) {
+      throw new Rechazo("TRANSICION_INVALIDA", "Ese vencimiento no se puede marcar así desde acá: ya está cerrado o no corresponde a esa obligación.");
+    }
     const hoy = hoyEnArgentina();
     const fechaPresentacion =
       fechas.fechaPresentacion !== undefined ? fechas.fechaPresentacion && soloDia(fechas.fechaPresentacion) : estado === "PRESENTADO" ? (v.fechaPresentacion ?? hoy) : v.fechaPresentacion;
     const fechaPago = fechas.fechaPago !== undefined ? fechas.fechaPago && soloDia(fechas.fechaPago) : estado === "PAGADO" ? (v.fechaPago ?? hoy) : v.fechaPago;
-    await tx.vencimientoFiscal.update({ where: { id: v.id, tenantId }, data: { estado, fechaPresentacion, fechaPago } });
+    // Atómico: sólo escribe si el estado sigue siendo el leído (que ya pasó la guarda `desde`).
+    const { count } = await tx.vencimientoFiscal.updateMany({
+      where: { id: v.id, tenantId, estado: v.estado },
+      data: { estado, fechaPresentacion, fechaPago },
+    });
+    if (count === 0) {
+      throw new Rechazo("CAMBIO_CONCURRENTE", "Alguien cambió este vencimiento recién. Volvé a cargar la página y fijate cómo quedó.");
+    }
     if (auditoria) {
       await tx.auditLog.create({
         data: {
@@ -474,7 +499,7 @@ export function cambiarEstadoVencimiento(
           action: "cambiar_estado",
           entity: "VencimientoFiscal",
           entityId: v.id,
-          changes: { antes: v.estado, despues: estado },
+          changes: { ...auditoria.ids, antes: v.estado, despues: estado },
           channel: auditoria.channel,
         },
       });

@@ -128,3 +128,79 @@ test("el estudio marca: queda el rastro en el negocio; con ids de otro negocio n
   assert.equal(m.tieneEstudio, true);
   assert.equal(mb.tieneEstudio, false);
 });
+
+test("transición del estudio en el servidor: lo cerrado por el negocio no se pisa (H1)", async (t) => {
+  const base = await laBase(t);
+  if (!base) return;
+  const { repo, duenio } = await preparar(base);
+  const { desdeDondeMarcaElEstudio } = await import("./monitor");
+  const delEstudio = (hacia: "PRESENTADO" | "PAGADO") => ({ desde: (accion: Parameters<typeof desdeDondeMarcaElEstudio>[1]) => desdeDondeMarcaElEstudio(hacia, accion) });
+  const auditoria = { actor: "estudio:E/u", channel: "estudio" as const };
+
+  const vs = await duenio.vencimientoFiscal.findMany({ where: { tenantId: base.a.id, estado: "PENDIENTE", obligacion: { accion: "AMBAS" } }, take: 3 });
+  assert.equal(vs.length, 3);
+  await duenio.vencimientoFiscal.update({ where: { id: vs[0].id }, data: { estado: "NO_CORRESPONDE" } });
+  await duenio.vencimientoFiscal.update({ where: { id: vs[1].id }, data: { estado: "VERIFICADO", fechaPago: new Date("2026-04-10") } });
+
+  // Antes pasaban (HALLAZGO del certificador): NO_CORRESPONDE → PAGADO y VERIFICADO → PRESENTADO.
+  const a = await repo.cambiarEstadoVencimiento(base.a.id, vs[0].id, "PAGADO", {}, auditoria, delEstudio("PAGADO"));
+  const b = await repo.cambiarEstadoVencimiento(base.a.id, vs[1].id, "PRESENTADO", {}, auditoria, delEstudio("PRESENTADO"));
+  assert.ok(!a.ok && a.error === "TRANSICION_INVALIDA", JSON.stringify(a));
+  assert.ok(!b.ok && b.error === "TRANSICION_INVALIDA", JSON.stringify(b));
+  assert.equal((await duenio.vencimientoFiscal.findUniqueOrThrow({ where: { id: vs[0].id } })).estado, "NO_CORRESPONDE");
+  assert.equal((await duenio.vencimientoFiscal.findUniqueOrThrow({ where: { id: vs[1].id } })).estado, "VERIFICADO");
+  assert.equal(await duenio.auditLog.count({ where: { entityId: { in: [vs[0].id, vs[1].id] } } }), 0);
+
+  // PENDIENTE → PRESENTADO → PAGADO sí; PAGADO → PRESENTADO no.
+  assert.ok((await repo.cambiarEstadoVencimiento(base.a.id, vs[2].id, "PRESENTADO", {}, auditoria, delEstudio("PRESENTADO"))).ok);
+  assert.ok((await repo.cambiarEstadoVencimiento(base.a.id, vs[2].id, "PAGADO", {}, auditoria, delEstudio("PAGADO"))).ok);
+  const vuelta = await repo.cambiarEstadoVencimiento(base.a.id, vs[2].id, "PRESENTADO", {}, auditoria, delEstudio("PRESENTADO"));
+  assert.ok(!vuelta.ok && vuelta.error === "TRANSICION_INVALIDA");
+
+  // «Presentado» en una obligación que sólo se paga: rechazo.
+  const soloPago = await duenio.vencimientoFiscal.findFirst({ where: { tenantId: base.a.id, estado: "PENDIENTE", obligacion: { accion: "PAGO" } } });
+  if (soloPago) {
+    const p = await repo.cambiarEstadoVencimiento(base.a.id, soloPago.id, "PRESENTADO", {}, auditoria, delEstudio("PRESENTADO"));
+    assert.ok(!p.ok && p.error === "TRANSICION_INVALIDA");
+  }
+});
+
+test("rastro del estudio con ids y «antes» real aunque marquen a la vez (H2 · H3)", async (t) => {
+  const base = await laBase(t);
+  if (!base) return;
+  const { repo, duenio } = await preparar(base);
+
+  const v = await duenio.vencimientoFiscal.findFirstOrThrow({ where: { tenantId: base.a.id, estado: "PENDIENTE", obligacion: { accion: "AMBAS" } } });
+  const rs = await Promise.all([
+    repo.cambiarEstadoVencimiento(base.a.id, v.id, "PAGADO", {}, {
+      actor: "estudio:E/u",
+      channel: "estudio",
+      ids: { estudioTenantId: base.b.id, usuarioId: "usuario-sintetico" },
+    }),
+    repo.cambiarEstadoVencimiento(base.a.id, v.id, "NO_CORRESPONDE", {}, { actor: "admin:x", channel: "admin" }),
+  ]);
+  for (const r of rs) assert.ok(r.ok || r.error === "CAMBIO_CONCURRENTE", JSON.stringify(r));
+  const rastro = await duenio.auditLog.findMany({ where: { entityId: v.id }, orderBy: { createdAt: "asc" } });
+  assert.equal(rastro.length, rs.filter((r) => r.ok).length);
+  const antes = rastro.map((r) => (r.changes as { antes: string }).antes);
+  assert.equal(new Set(antes).size, antes.length, `dos «antes» iguales: ${JSON.stringify(antes)}`);
+  // La cadena cierra: cada «antes» es el «después» del anterior, y el último «después» es lo guardado.
+  const cambios = rastro.map((r) => r.changes as { antes: string; despues: string });
+  assert.equal(cambios[0].antes, "PENDIENTE");
+  for (let i = 1; i < cambios.length; i++) assert.equal(cambios[i].antes, cambios[i - 1].despues);
+  assert.equal((await duenio.vencimientoFiscal.findUniqueOrThrow({ where: { id: v.id } })).estado, cambios.at(-1)?.despues);
+  const delEstudio = rastro.find((r) => r.channel === "estudio");
+  if (delEstudio) {
+    assert.deepEqual(delEstudio.changes, { estudioTenantId: base.b.id, usuarioId: "usuario-sintetico", antes: (delEstudio.changes as { antes: string }).antes, despues: "PAGADO" });
+  }
+});
+
+test("GANANCIAS_DDJJ se siembra apagada y no genera vencimientos (H6)", async (t) => {
+  const base = await laBase(t);
+  if (!base) return;
+  const { repo, duenio } = await preparar(base);
+  assert.ok((await repo.generarCalendario(base.a.id, null, "2025")).ok);
+  const ddjj = await duenio.obligacionFiscal.findFirstOrThrow({ where: { tenantId: base.a.id, codigo: "GANANCIAS_DDJJ" } });
+  assert.equal(ddjj.activa, false);
+  assert.equal(await duenio.vencimientoFiscal.count({ where: { obligacionId: ddjj.id } }), 0);
+});

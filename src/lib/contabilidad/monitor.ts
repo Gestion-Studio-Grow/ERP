@@ -31,6 +31,21 @@ export const ESTADOS_QUE_MARCA_EL_ESTUDIO = ["PRESENTADO", "PAGADO"] as const;
 export type EstadoDelEstudio = (typeof ESTADOS_QUE_MARCA_EL_ESTUDIO)[number];
 export const estudioPuedeMarcar = (v: unknown): v is EstadoDelEstudio => v === "PRESENTADO" || v === "PAGADO";
 
+/**
+ * Desde qué estados guardados el estudio puede pasar un vencimiento a `hacia` (la regla vive acá y
+ * la usan el server action, vía el repo, y la page): de PENDIENTE o EN_CURSO a PRESENTADO o PAGADO,
+ * y de PRESENTADO a PAGADO. Nunca «presentado» en una obligación que sólo se paga, ni «pagado»
+ * sobre una que sólo se presenta y ya se presentó. Lo cerrado por el negocio (NO_CORRESPONDE,
+ * SIN_SALDO, VERIFICADO, PAGADO) no se toca desde el estudio.
+ */
+export function desdeDondeMarcaElEstudio(hacia: EstadoDelEstudio, accion: AccionObligacion): readonly EstadoVencimiento[] {
+  if (hacia === "PRESENTADO") return accion === "PAGO" ? [] : ["PENDIENTE", "EN_CURSO"];
+  return accion === "PRESENTACION" ? ["PENDIENTE", "EN_CURSO"] : ["PENDIENTE", "EN_CURSO", "PRESENTADO"];
+}
+
+export const estudioPuedePasar = (desde: EstadoVencimiento, hacia: EstadoDelEstudio, accion: AccionObligacion): boolean =>
+  desdeDondeMarcaElEstudio(hacia, accion).includes(desde);
+
 /** Lo que la persona del negocio puede marcar desde el monitor (todo menos «vencido», que se calcula). */
 export const ESTADOS_QUE_MARCA_EL_NEGOCIO: readonly EstadoVencimiento[] = ["EN_CURSO", "PRESENTADO", "PAGADO", "SIN_SALDO", "NO_CORRESPONDE", "PENDIENTE"];
 
@@ -194,14 +209,21 @@ export function avisosDelMonitor(m: Monitor, anticipacion = 3): FilaMonitor[] {
   );
 }
 
+/** Tope de renglones del aviso: con más, el enlace wa.me se vuelve tan largo que WhatsApp lo corta. */
+export const RENGLONES_DEL_AVISO = 10;
+
+const A_CARGO_DE: Record<Responsable, string> = { NEGOCIO: "a cargo del negocio", ESTUDIO: "a cargo del estudio contable" };
+
 /** Texto del aviso, listo para WhatsApp o mail (sin importes: sólo qué, de qué período y cuándo). */
 export function textoDelAviso(negocio: string, avisos: readonly FilaMonitor[]): string {
   if (avisos.length === 0) return "";
-  const lineas = avisos.map(
+  const lineas = avisos.slice(0, RENGLONES_DEL_AVISO).map(
     (f) =>
       `• ${f.nombre} (${periodoLegible(f.periodo, f.cuota)}): ${cuandoVence(f.diasRestantes)}, ${fechaConDia(f.fechaVencimiento)}` +
-      `${f.faltaPago ? " — falta el pago" : ""} · a cargo de ${ETIQUETA_RESPONSABLE[f.responsable].toLowerCase()}`,
+      `${f.faltaPago ? " — falta el pago" : ""} · ${A_CARGO_DE[f.responsable]}`,
   );
+  const resto = avisos.length - RENGLONES_DEL_AVISO;
+  if (resto > 0) lineas.push(`y ${resto} más en Factoque.`);
   return [`Vencimientos de ${negocio} (Factoque):`, ...lineas].join("\n");
 }
 

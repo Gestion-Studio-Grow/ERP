@@ -11,7 +11,7 @@ import { redirect } from "next/navigation";
 import { accesoAClienteDeCartera } from "@/lib/contador/recibidos-db";
 import { cambiarEstadoVencimiento, generarCalendario } from "@/lib/contabilidad/repo";
 import { contabilidadPrendidaEn } from "@/lib/contabilidad/modulo.server";
-import { estudioPuedeMarcar, periodosParaGenerar } from "@/lib/contabilidad/monitor";
+import { desdeDondeMarcaElEstudio, estudioPuedeMarcar, periodosParaGenerar } from "@/lib/contabilidad/monitor";
 
 const texto = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
 
@@ -33,10 +33,20 @@ export async function marcarDesdeElEstudio(fd: FormData): Promise<void> {
   const estado = texto(fd, "estado");
   const acceso = await clienteParaEscribir(clienteId);
   if (!estudioPuedeMarcar(estado)) volver(clienteId, "Desde el estudio sólo se marca «presentado» o «pagado».");
-  const r = await cambiarEstadoVencimiento(acceso.cliente.id, texto(fd, "vencimientoId"), estado, {}, {
-    actor: `estudio:${acceso.estudioNombre}/${acceso.usuario.name}`,
-    channel: "estudio",
-  });
+  // La transición (desde qué estado, según la acción de la obligación) se valida en el repo,
+  // atómica con la escritura: un POST armado a mano no reabre ni pisa lo cerrado por el negocio.
+  const r = await cambiarEstadoVencimiento(
+    acceso.cliente.id,
+    texto(fd, "vencimientoId"),
+    estado,
+    {},
+    {
+      actor: `estudio:${acceso.estudioNombre}/${acceso.usuario.name}`,
+      channel: "estudio",
+      ids: { estudioTenantId: acceso.estudioTenantId, usuarioId: acceso.usuario.id },
+    },
+    { desde: (accion) => desdeDondeMarcaElEstudio(estado, accion) },
+  );
   volver(clienteId, r.ok ? undefined : r.mensaje);
 }
 

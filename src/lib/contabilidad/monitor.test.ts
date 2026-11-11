@@ -6,7 +6,10 @@ import {
   armarMonitor,
   avisosDelMonitor,
   enlaceWhatsApp,
+  desdeDondeMarcaElEstudio,
   estudioPuedeMarcar,
+  estudioPuedePasar,
+  RENGLONES_DEL_AVISO,
   filaDelMonitor,
   periodosParaGenerar,
   responsablePorDefecto,
@@ -137,6 +140,44 @@ test("el estudio sólo marca presentado o pagado", () => {
   for (const e of ["PENDIENTE", "EN_CURSO", "SIN_SALDO", "NO_CORRESPONDE", "VENCIDO", "", null]) assert.equal(estudioPuedeMarcar(e), false);
 });
 
+test("transiciones del estudio: sólo desde lo abierto; presentado sólo si se presenta (H1)", () => {
+  for (const desde of ["PENDIENTE", "EN_CURSO"] as const) {
+    assert.ok(estudioPuedePasar(desde, "PRESENTADO", "AMBAS"));
+    assert.ok(estudioPuedePasar(desde, "PRESENTADO", "PRESENTACION"));
+    assert.ok(estudioPuedePasar(desde, "PAGADO", "AMBAS"));
+    assert.ok(estudioPuedePasar(desde, "PAGADO", "PAGO"));
+  }
+  assert.ok(estudioPuedePasar("PRESENTADO", "PAGADO", "AMBAS"));
+  // Antes pasaba: NO_CORRESPONDE → PAGADO y VERIFICADO → PRESENTADO. Ahora, rechazo.
+  for (const desde of ["NO_CORRESPONDE", "VERIFICADO", "SIN_SALDO", "PAGADO"] as const) {
+    assert.equal(estudioPuedePasar(desde, "PAGADO", "AMBAS"), false, desde);
+    assert.equal(estudioPuedePasar(desde, "PRESENTADO", "AMBAS"), false, desde);
+  }
+  assert.equal(estudioPuedePasar("PRESENTADO", "PRESENTADO", "AMBAS"), false);
+  // «Presentado» en una obligación que sólo se paga: nunca.
+  assert.deepEqual(desdeDondeMarcaElEstudio("PRESENTADO", "PAGO"), []);
+  // Sólo se presenta y ya se presentó: está cumplida, no hay pago que marcar.
+  assert.equal(estudioPuedePasar("PRESENTADO", "PAGADO", "PRESENTACION"), false);
+});
+
+test("aviso: tope de renglones con «y N más» y criollo «a cargo del» (H4 · H5)", () => {
+  const filas = Array.from({ length: 120 }, (_, i) =>
+    fila({ nombre: `Obl ${i}`, periodo: `2025-${String((i % 12) + 1).padStart(2, "0")}`, fechaVencimiento: new Date(Date.UTC(2025, i % 12, 13)) }),
+  );
+  const m = armarMonitor(filas, { tieneEstudio: false, ahora: enArgentina("2026-04-20") });
+  const avisos = avisosDelMonitor(m);
+  assert.equal(avisos.length, 120);
+  const texto = textoDelAviso("Negocio Sintético", avisos);
+  assert.equal(texto.split("\n").filter((l) => l.startsWith("• ")).length, RENGLONES_DEL_AVISO);
+  assert.match(texto, /\ny 110 más en Factoque\.$/);
+  assert.ok(enlaceWhatsApp(texto).length < 3000, "el enlace wa.me queda acotado");
+  assert.match(texto, /a cargo del negocio/);
+  assert.doesNotMatch(texto, /de el /);
+  const conEstudio = textoDelAviso("N", avisosDelMonitor(armarMonitor(filas.slice(0, 2), { tieneEstudio: true, ahora: enArgentina("2026-04-20") })));
+  assert.match(conEstudio, /a cargo del estudio contable/);
+  assert.doesNotMatch(conEstudio, /y \d+ más/);
+});
+
 test("períodos a generar: mes anterior, mes en curso y los dos años; cruza el año", () => {
   assert.deepEqual(periodosParaGenerar(enArgentina("2026-04-20")), ["2026-03", "2026-04", "2025", "2026"]);
   assert.deepEqual(periodosParaGenerar(enArgentina("2026-01-05")), ["2025-12", "2026-01", "2025", "2026"]);
@@ -162,6 +203,6 @@ test("obligaciones nuevas: terminación de CUIT, fin de semana y feriado", () =>
   const porCodigo = new Map(TABLA_VENCIMIENTOS_2026.obligaciones.map((o) => [o.codigo, o]));
   assert.equal(porCodigo.get("SICORE")?.activaPorDefecto, false);
   assert.equal(porCodigo.get("IIBB_AGENTE")?.activaPorDefecto, false);
-  assert.equal(porCodigo.get("GANANCIAS_DDJJ")?.activaPorDefecto, undefined);
+  assert.equal(porCodigo.get("GANANCIAS_DDJJ")?.activaPorDefecto, false); // H6: monotributistas no la presentan
   assert.equal(TABLA_VENCIMIENTOS_2026.provisional, true);
 });

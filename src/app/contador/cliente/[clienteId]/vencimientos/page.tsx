@@ -6,7 +6,7 @@
 import { accesoAClienteDeCartera } from "@/lib/contador/recibidos-db";
 import { contabilidadPrendidaEn } from "@/lib/contabilidad/modulo.server";
 import { leerMonitor } from "@/lib/contabilidad/monitor.server";
-import { ESTADOS_QUE_MARCA_EL_ESTUDIO, ETIQUETA_ESTADO } from "@/lib/contabilidad/monitor";
+import { ESTADOS_QUE_MARCA_EL_ESTUDIO, ETIQUETA_ESTADO, estudioPuedePasar } from "@/lib/contabilidad/monitor";
 import { Button, ButtonLink, Franja, PageContainer, PageHeader, fmtCuit } from "@/components/ui";
 import { MonitorVencimientos } from "@/components/contabilidad/MonitorVencimientos";
 import { generarDesdeElEstudio, marcarDesdeElEstudio } from "./actions";
@@ -84,9 +84,9 @@ export default async function VencimientosDelCliente({
         monitor={monitor}
         vacio="Este cliente todavía no tiene vencimientos en el calendario. Tocá «Actualizar el calendario» para generarlos con su CUIT."
         acciones={(f) =>
-          f.situacion === "NO_APLICA" || f.situacion === "CUMPLIDO" ? null : (
+          !ESTADOS_QUE_MARCA_EL_ESTUDIO.some((e) => estudioPuedePasar(f.estado, e, f.accion)) ? null : (
             <div className="flex flex-wrap gap-2">
-              {ESTADOS_QUE_MARCA_EL_ESTUDIO.filter((e) => e !== f.estado && !(e === "PRESENTADO" && f.accion === "PAGO")).map((e) => (
+              {ESTADOS_QUE_MARCA_EL_ESTUDIO.filter((e) => estudioPuedePasar(f.estado, e, f.accion)).map((e) => (
                 <form key={e} action={marcarDesdeElEstudio}>
                   <input type="hidden" name="clienteId" value={cliente.id} />
                   <input type="hidden" name="vencimientoId" value={f.id} />

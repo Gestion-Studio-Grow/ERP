@@ -60,6 +60,8 @@ export const TABLA_VENCIMIENTOS_2026: TablaVencimientos = {
       organismo: "COMARB",
       periodicidad: "ANUAL",
       accion: "PRESENTACION",
+      // Entra apagada hasta tener el perfil fiscal (monotributistas no la presentan); se prende en el monitor.
+      activaPorDefecto: false,
       porPeriodo: { "2025": [{ cuota: 0, mes: "2026-06" }] },
       diasPorMes: { "2026-06": [15, 15, 15, 15, 15, 15, 15, 15, 15, 15] }, // provisional a confirmar
     },
@@ -107,6 +109,8 @@ export const TABLA_VENCIMIENTOS_2026: TablaVencimientos = {
       periodicidad: "ANUAL",
       accion: "AMBAS",
       // Período fiscal 2025 → vence en 2026 (provisional a confirmar: mes según tipo de sujeto).
+      // Entra apagada hasta tener el perfil fiscal (monotributistas no la presentan); se prende en el monitor.
+      activaPorDefecto: false,
       porPeriodo: { "2025": [{ cuota: 0, mes: "2026-06" }] },
       diasPorMes: { "2026-06": [11, 11, 12, 12, 12, 15, 15, 16, 16, 16] }, // provisional a confirmar
     },
