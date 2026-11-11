@@ -36,6 +36,8 @@ import { CambioObligatorioInactivo, operatorSetMustChange } from "@/lib/must-cha
 import { operatorResetPort, ownersActivos } from "@/lib/operador/owner-reset-port";
 import { elegirOwner } from "@/lib/operador/elegir-owner";
 import { altaPersonaCore, type AltaPersonaPort, type AltaPersonaResult } from "@/lib/operador/alta-persona";
+import { editarUsuarioCore, type EditarUsuarioInput, type EditarUsuarioResult } from "@/lib/operador/editar-usuario";
+import { editarUsuarioPort } from "@/lib/operador/editar-usuario-port";
 import { decidirAltaDeUsuarioEnTx } from "@/lib/usuarios-del-plan";
 import {
   resetOwnerPasswordCore,
@@ -676,6 +678,65 @@ export async function resetOwnerPasswordDeTenant(
     revalidatePath("/operador");
   }
   return result;
+}
+
+// --- Edición de UNA persona del negocio (rol, nombre, ficha, activo) -------------------------
+// Confirmada tipeando el slug exacto del negocio, como el reset del dueño: obliga a mirar EN QUÉ negocio se
+// cambia a alguien. La guardia es la misma (CH sólo con el dueño de GSG). Las reglas (último dueño, ficha,
+// tope al reactivar, nada que cambiar) viven en editar-usuario.ts; el candado, el conteo, la escritura y la
+// auditoría van en UNA transacción parada en el negocio (`enElNegocio`): todo o nada.
+// Campos del formulario: tenantId, slug, userId y, opcionales (ausente = no tocar): rol, nombre, fichaId
+// ("" = desvincular) y activo ("true"/"false").
+// Dar de baja corta el acceso en el próximo pedido: la sesión del panel se valida contra la base en cada
+// pedido (`getSesionDelPanel` exige `active: true`); no hay tokens que revocar aparte.
+export async function editarUsuarioDeTenant(formData: FormData): Promise<EditarUsuarioResult> {
+  const tenantId = String(formData.get("tenantId") ?? "").trim();
+  const g = await operadorParaNegocio({ id: tenantId });
+  if (!g.ok) return { ok: false, codigo: "sin-permiso", error: g.motivo };
+  const op = g.sesion.nombre;
+
+  const tenant = await operatorPrisma.tenant.findUnique({ where: { id: tenantId }, select: { slug: true } });
+  if (!tenant) return { ok: false, codigo: "falta-negocio", error: "Ese negocio no existe." };
+  const slugTipeado = String(formData.get("slug") ?? "");
+  if (slugTipeado.trim().toLowerCase() !== tenant.slug.trim().toLowerCase()) {
+    return {
+      ok: false,
+      codigo: "slug-no-coincide",
+      error: `Para confirmar, escribí exactamente el slug del negocio ("${tenant.slug}"). No se tocó nada.`,
+    };
+  }
+
+  const opcional = (k: string): string | undefined => {
+    const v = formData.get(k);
+    return typeof v === "string" ? v : undefined;
+  };
+  const ficha = opcional("fichaId");
+  const activo = opcional("activo");
+  const input: EditarUsuarioInput = {
+    userId: String(formData.get("userId") ?? ""),
+    rol: opcional("rol"),
+    nombre: opcional("nombre"),
+    fichaId: ficha === undefined ? undefined : ficha.trim() || null,
+    activo: activo === "true" ? true : activo === "false" ? false : undefined,
+  };
+
+  try {
+    const result = await enElNegocio(tenantId, (tx) =>
+      editarUsuarioCore(editarUsuarioPort(tx), { tenantId, operatorSubject: op, input }),
+    );
+    if (result.ok) {
+      revalidatePath(`/operador/tenants/${tenantId}`);
+      revalidatePath("/operador");
+    }
+    return result;
+  } catch (e) {
+    // Unicidad que llegue tarde (al confirmar la transacción): la ficha la tomó otra pestaña.
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      return { ok: false, codigo: "ficha-ocupada", error: "Esa ficha de profesional ya la tiene otra persona. No se tocó nada." };
+    }
+    logger.error("operador.editar-usuario", "la base rechazó la edición", e, { tenantId });
+    return { ok: false, codigo: "error-de-base", error: "La base rechazó el cambio. No se tocó nada: probá de nuevo." };
+  }
 }
 
 // --- Módulos del negocio: activación validada, condicional y auditada ------------------

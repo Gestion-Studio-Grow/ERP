@@ -24,6 +24,7 @@ import { MIN_PASSWORD_LENGTH, validarAltaDeUsuario } from "@/app/admin/(dashboar
 import { decidirVinculoProfesional } from "@/app/admin/(dashboard)/usuarios/vinculo-profesional";
 import {
   crearUsuarioSiEntra,
+  darDeBajaUsuarioSiQuedaDuenio,
   DESTINO_SIN_LUGAR_USUARIOS,
   reactivarUsuarioSiEntra,
   type ResultadoAltaDeUsuario,
@@ -153,16 +154,13 @@ export async function setUserActive(formData: FormData) {
   // No podés darte de baja a vos misma (te dejaría sin acceso al panel).
   if (!active && target.id === actor.id) backWith("error_self_deactivate");
 
-  // No se puede dar de baja al último OWNER activo: dejaría el panel sin dueño
-  // (la puerta sin dueño que ADR-017 justamente vino a cerrar).
-  if (!active && target.role === "OWNER") {
-    const activeOwners = await prisma.user.count({
-      where: { tenantId, role: "OWNER", active: true, deletedAt: null },
-    });
-    if (activeOwners <= 1) backWith("error_last_owner");
-  }
-
-  if (active && !target.active) {
+  if (!active) {
+    // No se puede dar de baja al último OWNER activo: dejaría el panel sin dueño (la puerta sin dueño que
+    // ADR-017 justamente vino a cerrar). Conteo y escritura en una transacción con el candado de usuarios del
+    // negocio, el mismo que la consola: dos cambios a la vez no pueden dejar 0 dueños.
+    const d = await darDeBajaUsuarioSiQuedaDuenio(tenantId, userId);
+    if (!d.ok) backWith(d.motivo === "ultimo-owner" ? "error_last_owner" : "error_not_found");
+  } else if (!target.active) {
     // Reactivar suma un usuario activo: mismo tope del plan que el alta (R3-F3).
     const d = await reactivarUsuarioSiEntra(tenantId, userId);
     if (!d.ok) redirect(DESTINO_SIN_LUGAR_USUARIOS);

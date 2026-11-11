@@ -61,6 +61,7 @@ import { operadorDuenio } from "@/lib/operator-auth";
 import { ResetOwnerPasswordCard } from "./ResetOwnerPasswordCard";
 import { ownersActivos } from "@/lib/operador/owner-reset-port";
 import { AltaPersonaCard } from "./AltaPersonaCard";
+import { EditarPersonaBloque } from "./EditarPersonaBloque";
 import { motivoFueraDelPlan } from "./modulos-y-plan";
 import {
   appsPorModulo,
@@ -1150,6 +1151,7 @@ export default async function FichaDelNegocio({
         soloLectura={soloLectura}
       />
       <AltaPersonaCard tenantId={t.id} soloLectura={soloLectura} />
+      <EditarPersonaBloque tenantId={t.id} slug={t.slug} soloLectura={soloLectura} />
       <p className="py-2 text-[13px] text-muted">
         Después, el dueño puede dar de alta a más personas desde su panel
         (Configuración › Usuarios y permisos).

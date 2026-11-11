@@ -430,6 +430,7 @@ test("TRINQUETE: todo endpoint con privilegio de operador tiene PRIMERO la guard
     "src/lib/operator-actions.ts#cambiarPlanFactoque",
     "src/lib/operator-actions.ts#cargarCertificadoDelPedidoArca",
     "src/lib/operator-actions.ts#cargarCredencialFiscal",
+    "src/lib/operator-actions.ts#editarUsuarioDeTenant",
     "src/lib/operator-actions.ts#fijarAsignacionActual",
     "src/lib/operator-actions.ts#generarPedidoCertificadoArca",
     "src/lib/operator-actions.ts#resetOwnerPasswordDeTenant",
