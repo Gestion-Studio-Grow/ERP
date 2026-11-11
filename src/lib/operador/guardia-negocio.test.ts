@@ -98,6 +98,13 @@ const OTRO_PLANO: Record<string, { guardias: Record<string, { negocio: boolean; 
       "asistente ARCA del cliente (/admin/facturacion?vista=arca): la sesión es de una persona del negocio; " +
       "exigirAsistenteArca verifica billing:manage y el módulo arca, y el negocio sale de su sesión, no del pedido",
   },
+  "src/app/profeturnos/alta/acciones.ts": {
+    guardias: { exigirAltaProfeTurnosAbierta: { negocio: false, rechazo: true } },
+    motivo:
+      "alta pública de ProfeTurnos (/profeturnos/alta): sin sesión y sin negocio de entrada (crea uno nuevo con " +
+      "provisionTenant, fábrica única). La guardia corta antes de tocar la conexión privilegiada si el alta no " +
+      "está abierta por flag; adentro: límites por IP/mail, campo trampa y candado (alta-postgres.test.ts)",
+  },
   "src/lib/facturita-arca-actions.ts": {
     guardias: { exigirArcaFactoque: { negocio: false, rechazo: false } },
     motivo:
@@ -371,12 +378,14 @@ test("el recorrido encuentra los endpoints con privilegio de operador en TODO sr
     "src/app/operador/(console)/soporte/actions.ts",
     // Refutador 26/09: la Factura A desde la ficha del negocio (su aislamiento: regimen-factura-a-postgres.test.ts).
     "src/app/operador/(console)/tenants/[id]/regimen-factura-a-actions.ts",
+    "src/app/profeturnos/alta/acciones.ts",
     "src/lib/cartera-actions.ts",
     "src/lib/facturita-arca-actions.ts",
     "src/lib/fiscal/asistente-arca-actions.ts",
     "src/lib/operador/interruptores-actions.ts",
     "src/lib/operador/plan-actions.ts",
     "src/lib/operador/red-locales-actions.ts",
+    "src/lib/operador/verificacion-profe-actions.ts",
     "src/lib/operator-actions.ts",
     "src/lib/operator-provisioning-actions.ts",
   ]);
@@ -401,6 +410,7 @@ test("TRINQUETE: todo endpoint con privilegio de operador tiene PRIMERO la guard
     "src/app/operador/(console)/soporte/actions.ts#cambiarTicketAction",
     "src/app/operador/(console)/soporte/actions.ts#sugerirConIaAction",
     "src/app/operador/(console)/tenants/[id]/regimen-factura-a-actions.ts#corregirRegimenFacturaAAction",
+    "src/app/profeturnos/alta/acciones.ts#altaProfeTurnos",
     "src/lib/cartera-actions.ts#altaClienteCarteraAction",
     "src/lib/cartera-actions.ts#emitirAutomaticasClienteAction",
     "src/lib/cartera-actions.ts#monitorCarteraAction",
@@ -425,6 +435,7 @@ test("TRINQUETE: todo endpoint con privilegio de operador tiene PRIMERO la guard
     "src/lib/operador/red-locales-actions.ts#revisarAltaEnRedAction",
     "src/lib/operador/red-locales-actions.ts#sumarAltaALaRedAction",
     "src/lib/operador/red-locales-actions.ts#vincularLocalAction",
+    "src/lib/operador/verificacion-profe-actions.ts#verificarProfeAction",
     "src/lib/operator-actions.ts#altaPersonaDeTenant",
     "src/lib/operator-actions.ts#cambiarFacturacionReal",
     "src/lib/operator-actions.ts#cambiarPlanFactoque",

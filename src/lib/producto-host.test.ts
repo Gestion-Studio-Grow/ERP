@@ -15,6 +15,12 @@ test("el host de Facturita lleva su raíz a la vidriera; los demás no", () => {
   assert.equal(vidrieraDelHost(null), null);
 });
 
+test("el host de ProfeTurnos lleva su raíz a su vidriera", () => {
+  assert.equal(vidrieraDelHost("profeturnos.gsgapp.com.ar"), "/profeturnos");
+  assert.equal(vidrieraDelHost("ProfeTurnos.gsgapp.com.ar:443"), "/profeturnos");
+  assert.equal(vidrieraDelHost("profeturnos.gsgapp.com.ar.evil.test"), null);
+});
+
 test("proxy: la raíz del host de Facturita sirve la vidriera sin redirigir", async () => {
   const res = await proxy(new NextRequest("https://facturita-gsg.vercel.app/"));
   assert.equal(res.headers.get("location"), null);
