@@ -10,7 +10,7 @@ import { configProyectos } from "./datos.server";
 import { aPesos, codigoProyecto, nivelDeCarga, pipelinePonderado, proyeccionDeCaja, resumenCuotas, totalesFicha, type NivelCarga } from "./gestion-core";
 import { desviosDelEvento, estaAbierto, estaActivo, estaConfirmado, finDeSemana, margenSobreVenta } from "./empresa-core";
 import { redondear, yaVencio } from "./core";
-import { conciliarConCobros, pagadoDeCuota, repartoDelNegocio, resumenConCobranza, SIN_PREVISTAS_SIN_MARCAR } from "./cobranza-core";
+import { conciliarConCobros, pagadoDeCuota, repartoDelNegocio, resumenConCobranza, sinCalendarioDelNegocio, SIN_PREVISTAS_SIN_MARCAR } from "./cobranza-core";
 import { cobranzasDelNegocio } from "./cobranza.server";
 
 const MESES_PROYECCION = 6;
@@ -51,12 +51,27 @@ export async function recuadrosDeCuotas(tenantId: string) {
   // Y con lo que entró por cada una (las cobradas, en pesos de hoy: el cashflow). «Pagados» muestra `pagado`: lo que se
   // pagó tal como entró (el original y los pesos asentados), sacado de la misma cobranza, sin otra consulta.
   const { pendiente, cobrado } = repartoDelNegocio(cuotas, tc, cobranzas);
+  // Lo aprobado que ninguna cuota espera (calendario corto o sin cuotas): un renglón «Sin calendario» por evento, para
+  // que la lista sume lo mismo que «A cobrar». Sin fecha: no entra a la proyección de caja.
+  const faltantes = sinCalendarioDelNegocio(cuotas, pendiente, tc, cobranzas);
+  const eventos = faltantes.length
+    ? await prisma.proyecto.findMany({
+        where: { tenantId, id: { in: faltantes.map((f) => f.proyectoId) } },
+        select: { id: true, numero: true, nombre: true, createdAt: true, client: { select: { name: true } } },
+      })
+    : [];
+  const porId = new Map(eventos.map((e) => [e.id, e]));
   return {
     cuotas: cuotas.map((c, i) => ({ ...c, pendiente: pendiente[i], cobrado: cobrado[i], pagado: pagadoDeCuota(c, c.proyectoId ? cobranzas.get(c.proyectoId) : null) })),
+    sinCalendario: faltantes.flatMap((f) => {
+      const proyecto = porId.get(f.proyectoId);
+      return proyecto ? [{ ...f, proyecto }] : [];
+    }),
     tc,
     resumen: resumenConCobranza(cuotas, tc, cobranzas),
   };
 }
+export type SinCalendarioDelNegocio = Awaited<ReturnType<typeof recuadrosDeCuotas>>["sinCalendario"][number];
 
 export async function proveedoresActivos(tenantId: string) {
   return prisma.supplier.findMany({ where: { tenantId, active: true }, orderBy: { name: "asc" }, take: 500, select: { id: true, name: true } });
