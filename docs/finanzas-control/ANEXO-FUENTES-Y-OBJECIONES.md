@@ -69,4 +69,25 @@ el estudio del cliente. Relevarlas con fuente es tarea de T0 (un `gsg-investigad
 
 ## Anexo B · Objeciones de los challengers
 
-_(se completa abajo con las dos revisiones adversariales y qué se hizo con cada objeción)_
+Dos revisiones adversariales (agente `challenger`, Opus esfuerzo alto) sobre el borrador del commit `958980a`.
+**Estado:** INC = incorporada · PAR = incorporada en parte · ANOT = queda anotada, la decide el dueño o el estudio.
+
+### B.1 Challenger de método, arquitectura y plan
+
+| # | Gravedad | Objeción | Estado y qué se hizo |
+|---|---|---|---|
+| M1 | ALTA | «El código tolera la migración ausente» no aguanta **columnas nuevas** en modelos en uso (Prisma pide todas las columnas: error en pantallas que hoy andan). La sonda cubre sólo 4 tablas. Y un push a `main` con `MIGRATE_DATABASE_URL` aplica solo | **INC.** Sólo tablas nuevas (tabla lateral en vez de columna), una sonda por migración, rama del arco en vez de `main`. Método §5.9 y Plan, reglas comunes |
+| M2 | ALTA | Según la regla del método MIA sería `lite`, y el plan le construye todo lo `enterprise`: desarrollo a medida con nombre de estándar | **PAR.** El perfil se decide **por scope item** y se cierra en T0-7. Propuesta: `enterprise` donde MIA cumple el criterio (agente de retención, dos monedas, control por proyecto) y `lite` en contabilidad general y presupuesto de empresa. La objeción de fondo (¿quién más lo va a usar?) queda **ANOT** para el dueño |
+| M3 | ALTA | `enterprise ⊇ lite` no se sostiene para el libro: con el interruptor apagado, subir obliga a contabilizar historia o a un asiento de apertura | **INC.** El motor corre siempre, en sombra; `lite` no muestra el libro. Para historia previa al motor se dice «apertura al corte», no «encender». Método §4 |
+| M4 | ALTA | `Asiento` no tiene único por origen; uno simple choca con el contraasiento; la numeración correlativa es punto de contención | **INC.** Tabla de clave `(tenantId, origenTipo, origenId, evento)`, numeración con bloqueo y test de concurrencia. Plan T2a |
+| M5 | ALTA | Diez tandas sin venta registrada: se invierte antes de vender. Mínimo vendible: cobrar + pagar + bancos + rentabilidad por productor, con el motor en sombra | **INC.** Plan, «Etapas»: etapa 1 mínima y etapa 2 con venta firmada; T0-7 exige la venta o la decisión expresa del dueño |
+| M6 | MEDIA | T2 ‖ T3 chocan en `schema.prisma` y en lógica; el diagrama ponía bancos sin el motor | **INC.** Schema en serie, orden en fila, timestamps reservados |
+| M7 | MEDIA | T2 y T5 demasiado grandes | **INC.** T2a/T2b y T5-A/T5-B en serie; T10-A/T10-B |
+| M8 | MEDIA | I2 compara `Float` con centavos: sumar y redondear después deriva | **INC.** Redondeo por documento y la misma regla para I2. Plan T2a |
+| M9 | MEDIA | Criterios no comprobables («lo da por bueno», «explicado al 100 %») | **INC.** Diferencia de 0 centavos o diferencias clasificadas; acta con fecha y firma |
+| M10 | ALTA | La rama de Neon copia todos los negocios; los montos reales terminan en el contexto de los agentes; no hay consentimiento de datos (Ley 25.326); compite con la rotación de respaldos | **INC** en el plan (anonimizar otros tenants, corrida por script sin importes, borrar al cerrar, consentimiento en T0-8). El consentimiento en sí es del dueño: **ANOT** |
+| M11 | ALTA | Falta la salida: saldos de apertura y partidas abiertas, corte, paralelo, reversa en masa, capacitación, soporte, salida de datos | **INC.** Tanda TS y Método §4 |
+
+### B.2 Challenger contable y fiscal argentino
+
+_(pendiente)_

@@ -85,7 +85,22 @@ al final, extensión.* Una adaptación que pide extensión se anota como brecha,
 **Cómo decide el relevamiento el perfil:** `lite` si el cliente sólo necesita operar y entregar al estudio
 (cobra, paga, factura, exporta); `enterprise` si además lleva contabilidad propia, retiene como agente, opera en
 más de una moneda o controla por proyecto. El nivel ya existe en el código como `PYME`/`CORPORATIVO`
-(`src/lib/contabilidad/config.ts:17`); se mapea `lite → PYME`, `enterprise → CORPORATIVO`.
+(`src/lib/contabilidad/config.ts:17`); se mapea `lite → PYME`, `enterprise → CORPORATIVO`. **El perfil se decide
+por scope item, no por cliente entero**, y se cierra por escrito en el alcance (etapa 2) antes de construir.
+
+**Cómo se sostiene `enterprise ⊇ lite` con el libro (corrección del challenger):** el motor de contabilización
+corre **siempre**, también en `lite`, en modo sombra: genera los asientos y `lite` simplemente no muestra el
+libro ni exige cerrarlo. Así subir de perfil es encender pantallas, no contabilizar historia hacia atrás. Para
+un negocio que operó **antes** de que existiera el motor, el ascenso no es «encender»: es una **apertura al
+corte** (saldos y partidas abiertas a una fecha), y se dice así en la propuesta.
+
+**Lo que la etapa 6 (Salida) tiene que traer sí o sí:** fecha de corte; saldos de apertura y **partidas
+abiertas** (anticipos de eventos futuros, cheques en cartera, cuentas corrientes de clientes y proveedores);
+un mes en paralelo con las planillas; reversa en masa del lote de carga si sale mal; capacitación por rol;
+canal de soporte; y la salida de datos si el cliente se va. Tiene su tanda propia (`PLAN-TANDAS.md`, TS).
+
+**Datos del cliente:** además de la autorización de marca, hace falta el **consentimiento registrado del
+cliente para tratar sus datos** en la prueba (Ley 25.326), con quién accede y cuándo se borran.
 
 ## 5. Principios de diseño del arco (decisiones de arquitectura, reversibles)
 
@@ -108,7 +123,10 @@ más de una moneda o controla por proyecto. El nivel ya existe en el código com
 8. **No se crea una tercera tesorería.** Hoy hay dos (extractos del núcleo para proponer facturas; cuentas de
    banco de Proyectos). Se unen por la **cuenta contable** de rol BANCO, no con un modelo nuevo.
 9. **Migraciones aditivas, escritas sin aplicar, y el código tolera su ausencia** (ya es el patrón:
-   `migracionContableAplicada`, `src/lib/contabilidad/modulo.server.ts:40`).
+   `migracionContableAplicada`, `src/lib/contabilidad/modulo.server.ts:40`). **Límite de ese patrón:** sólo
+   sirve para **tablas nuevas**. Una columna nueva en un modelo que ya se usa rompe las pantallas actuales si la
+   migración no está aplicada (Prisma pide todas las columnas). Por eso, hasta el Gate 2, lo nuevo va en tablas
+   nuevas con una sonda por migración, y las tandas se integran a una **rama del arco**, no a `main`.
 
 ## 6. Glosario mínimo (para que no se mezclen palabras)
 

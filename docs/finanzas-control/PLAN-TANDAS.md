@@ -8,12 +8,23 @@
 
 ## Reglas comunes a todas las tandas
 
-- **Migraciones:** aditivas (tablas y columnas nuevas, opcionales), **escritas sin aplicar**; el código tolera
-  su ausencia (`migracionContableAplicada`, `src/lib/contabilidad/modulo.server.ts:40`). Aplicarlas es **Gate 2
-  del dueño**. Verificar colisión de timestamp antes de crear cada una.
-- **Datos reales:** sólo en una **rama de prueba de Neon** creada por el dueño o la orquestadora (con la
-  rotación de respaldos vigente). Los datos de MIA salen del Drive del dueño; **ni datos personales ni montos
-  en Git**, tampoco en tests ni en informes. Los tests del repo usan datos sintéticos.
+- **Migraciones:** aditivas, **escritas sin aplicar**. Aplicarlas es **Gate 2 del dueño**. Hasta entonces:
+  **sólo tablas nuevas** (los datos nuevos de un modelo existente van en una tabla lateral 1 a 1, no en una
+  columna: una columna nueva sin aplicar rompe las pantallas que hoy andan), **una sonda por migración** al
+  estilo de `migracionContableAplicada` (`src/lib/contabilidad/modulo.server.ts:40`), cambios de
+  `prisma/schema.prisma` **en serie** (nunca dos tandas a la vez) y timestamp reservado por tanda.
+- **Integración:** las tandas se integran a una **rama del arco** (`arco/finanzas-control`), no a `main`: un push
+  a `main` con `MIGRATE_DATABASE_URL` cargada aplica las migraciones solo. El paso a `main` es un único PR, con
+  orden del dueño.
+- **Datos reales:** sólo en una **rama de prueba de Neon** creada por el dueño o la orquestadora, que no
+  compita con la rotación de 4 respaldos y se **borre al cerrar la prueba**. La rama copia todos los negocios:
+  antes de usarla se anonimizan o se vacían los otros tenants. Requiere el **consentimiento registrado del
+  cliente** para tratar sus datos. La corrida con datos reales la hace la orquestadora o el dueño con un script
+  que devuelve sólo `n/n` y diferencias en centavos **sin** nombres ni importes, para que no queden en el
+  contexto de ningún agente. Los datos de MIA salen del Drive del dueño; **ni datos personales ni montos en
+  Git**, tampoco en tests ni en informes. Los tests del repo usan datos sintéticos.
+- **Criterio comprobable:** toda comparación con datos reales se aprueba con **diferencia de 0 centavos** o con
+  cada diferencia listada y clasificada; cuando interviene el estudio, queda un **acta con fecha y firma**.
 - **Plata:** centavos enteros en el libro; cada hecho contable lleva test de cuadre (debe = haber) y de
   idempotencia.
 - **Aislamiento:** `tenantId` + `tenantTransaction` + RLS en toda tabla nueva; test de «otro negocio no ve».
@@ -32,22 +43,39 @@
 | 4 | Con el estudio de MIA: plan de cuentas, momento del ingreso, tipo de cambio, regímenes de retención, coeficientes de IIBB, qué sistema usa y qué archivos quiere | Dueño con el estudio |
 | 5 | Habilitar en la sesión los dominios públicos de SAP y releer las fuentes marcadas [E], [I] y [AV] | Dueño (red) + `gsg-investigador` |
 | 6 | Corregir J59/J60 y 1W0 en `docs/estrategia/mapa-cobertura-scope-items.md` | Tanda de docs |
+| 7 | **Venta registrada** (o decisión expresa del dueño de invertir antes) y **perfil de MIA por scope item** cerrado por escrito | Dueño |
+| 8 | Consentimiento registrado de MIA para tratar sus datos en la prueba | Dueño con el cliente |
 
 Sin 1 y 2 se puede construir (el código tolera la migración ausente) pero **no probar con datos reales**.
 Sin 4, todo valor fiscal queda «provisional a confirmar» y no sale a producción.
 
+## Etapas (DEMO → VENTA → INVERSIÓN)
+
+El arco entero son 13 tandas. No se construye todo antes de vender:
+
+- **Etapa 1 · mínimo vendible para MIA** (reemplaza las planillas y la agenda de pagos): **T1 → T2a → T4 →
+  T5-A → T6 → T10-A → TS**. El libro corre en sombra (T2a): MIA no lo ve todavía; el balance lo sigue haciendo
+  el estudio.
+- **Etapa 2 · con la venta firmada y las tablas fiscales validadas por el estudio:** T3, T5-B, T7, T8, T2b,
+  T9, T10-B.
+- T7 (monitor) es barata e independiente: puede adelantarse a la etapa 1 si el dueño la quiere para la demo.
+
+**Perfil de MIA (propuesta a cerrar en T0-7):** `enterprise` en cobrar, pagar, bancos, retenciones y control de
+gestión (retiene como agente, opera en dos monedas, controla por proyecto); `lite` en contabilidad general
+(FC-03: libro en sombra y salidas al estudio) y en presupuesto de empresa (FC-14).
+
 ## Orden y dependencias
 
 ```
-T1 Fundación ──► T2 Motor y libro ──┬─► T4 Cobrar ───┐
-                                    ├─► T5 Pagar ────┼─► T8 Impuestos del mes ─► T9 Cierre y salidas
-T3 Indicadores de impuesto ─────────┘                │
-                 T6 Bancos y tesorería ──────────────┘            T10 Control de gestión (tras T4, T5)
-T7 Monitor de obligaciones (independiente; puede ir en paralelo desde T1)
+T1 ─► T2a Motor ─► T4 Cobrar ─► T5-A Pagar ─► T6 Bancos ─► T10-A Rentabilidad ─► TS Salida     (etapa 1)
+T3 Indicadores ─► T5-B Retenciones ─► T8 IIBB y posición ─► T2b Libro ─► T9 Cierre ─► T10-B     (etapa 2)
+T7 Monitor (independiente)
 ```
 
-Paralelos posibles (zonas de código distintas): **T2 ‖ T3 ‖ T7**; después **T4 ‖ T5**; después **T6 ‖ T8**.
-Un frente a la vez hasta cerrarlo; el paralelo es opcional y nunca más de 3 agentes pesados.
+Los cambios de schema van **en serie**: por eso el orden es una fila y no un árbol. Paralelo admitido sólo
+entre una tanda con migración y otra sin ella (T7 con cualquiera; T2b con T8). Nunca más de 3 agentes pesados.
+T3 va antes de contabilizar compras con detalle de impuestos: en la etapa 1 la compra se contabiliza con los
+campos de IVA y percepciones que ya existen.
 
 ## Tandas
 
@@ -62,16 +90,25 @@ Un frente a la vez hasta cerrarlo; el paralelo es opcional y nunca más de 3 age
   pantalla muestra el aviso de `MENSAJE_MIGRACION_PENDIENTE` y no rompe.
 - **Prueba real:** sembrar el plan validado por el estudio en la rama de prueba; roles 100 % asignados.
 
-### T2 · Motor de contabilización y libro (FC-02, FC-03 parte 1) — 1 constructor + certificador
-- **Alcance:** motor puro `hecho → líneas` para A1 a A12 (uno por función, con motivo en criollo), clave única
-  de origen, cola de «sin contabilizar»; conversión `Float` → centavos; libro diario, mayor por cuenta y sumas y
-  saldos; asiento manual con pantalla.
-- **Migración (aditiva, sin aplicar):** en la línea del asiento: moneda, importe de origen, tipo de cambio,
-  proyecto, productor, rubro (todas opcionales); índice único de origen si no existe.
-- **Aceptación:** cada asiento tipo cuadra y coincide con la tabla §1.3; contabilizar dos veces el mismo
-  documento no duplica; anular genera contraasiento; sumas y saldos con Σ debe = Σ haber; invariante I4 en test;
-  concurrencia: dos confirmaciones simultáneas no duplican.
-- **Prueba real:** contabilizar un mes de MIA; sumas y saldos cuadradas; cola de pendientes explicada al 100 %.
+### T2a · Motor de contabilización en sombra (FC-02) — 1 constructor + certificador
+- **Alcance:** motor puro `hecho → líneas` (una función por asiento tipo, con motivo en criollo); cola de «sin
+  contabilizar»; conversión `Float` → centavos **redondeando cada documento** (nunca sumar y redondear después);
+  la invariante I2 se recalcula con esa misma regla, línea por línea. Arranca con los hechos de la etapa 1
+  (cobrar, pagar, banco, comisión, reintegro); los de impuestos del mes se suman en la etapa 2.
+- **Migración (tablas nuevas, sin aplicar):** tabla lateral de la línea del asiento (moneda, importe de origen,
+  tipo de cambio, proyecto, productor, rubro) y tabla de **clave de contabilización** con único
+  `(tenantId, origenTipo, origenId, evento)`: hoy `Asiento` no tiene único por origen, y uno simple chocaría con
+  el contraasiento del mismo documento. Numeración correlativa con bloqueo.
+- **Aceptación:** cada asiento tipo cuadra y coincide con §1.3 del catálogo; contabilizar dos veces no duplica;
+  anular genera contraasiento con su propia clave; dos confirmaciones simultáneas no duplican ni saltean número;
+  invariante I4 en test; sin migración aplicada, nada de lo existente cambia.
+- **Prueba real:** contabilizar un mes de MIA: Σ debe = Σ haber, y la cola de pendientes queda en cero o con
+  cada pendiente clasificado por motivo.
+
+### T2b · Libro: diario, mayor, sumas y saldos, asiento manual (FC-03 parte 1) — 1 constructor · etapa 2
+- **Migración:** ninguna.
+- **Aceptación:** sumas y saldos con Σ debe = Σ haber; el mayor de una cuenta de control coincide con su
+  auxiliar (I2) con diferencia de 0 centavos; el asiento manual pasa por `validarAsiento`.
 
 ### T3 · Indicadores de impuesto en la carga (FC-07) — 1 constructor
 - **Alcance:** catálogo de indicadores versionado; carga de factura de proveedor de servicios por línea con
@@ -94,13 +131,15 @@ Un frente a la vez hasta cerrarlo; el paralelo es opcional y nunca más de 3 age
   más que su importe; proyecto adicional queda ligado al original; cobro en USD guarda su tipo de cambio.
 - **Prueba real:** proyectos de un mes de MIA: saldo por cliente igual al de la planilla de control corregida.
 
-### T5 · Cuentas a pagar, orden de pago, Echeq y retenciones practicadas (FC-05, FC-08) — 2 constructores + certificador
+### T5 · Cuentas a pagar (T5-A) y retenciones practicadas (T5-B) — dos tandas en serie, 1 constructor + certificador cada una
+T5-A es etapa 1; T5-B es etapa 2 y espera la tabla de regímenes validada por el estudio.
 - **Alcance A (pagos):** agenda de pagos por vencimiento; orden de pago con aprobación; medios (transferencia,
   Echeq, cheque diferido); cheques de terceros; anticipo a proveedor.
 - **Alcance B (retenciones):** tabla de regímenes versionada y provisional; cálculo en la orden de pago con
   acumulado mensual por proveedor, mínimos y exclusiones con vigencia; certificado numerado; archivo para el
   estudio.
-- **Migración:** orden de pago y sus líneas; retención practicada; certificado; campos de Echeq en el cheque.
+- **Migración:** orden de pago y sus líneas; retención practicada; certificado; datos de Echeq en tabla
+  lateral del cheque (no columna, ver reglas comunes).
 - **Aceptación:** A5 a A7 solos; no se paga más que el saldo; la retención del segundo pago del mes considera el
   primero; numeración de certificados sin huecos ni repetidos bajo concurrencia; pago anulado revierte la
   retención.
@@ -138,16 +177,29 @@ Un frente a la vez hasta cerrarlo; el paralelo es opcional y nunca más de 3 age
 - **Migración:** período contable.
 - **Aceptación:** un período cerrado rechaza asientos (I5); reabrir deja rastro; el paquete se regenera idéntico
   para un período cerrado; el resultado del estado coincide con el del libro.
-- **Prueba real:** cerrar un mes de MIA y entregar el paquete al estudio; el estudio lo da por bueno.
+- **Prueba real:** cerrar un mes de MIA y entregar el paquete al estudio; acta del estudio con fecha y firma,
+  con cada observación listada.
 
-### T10 · Control de gestión (FC-13, FC-14) — 2 constructores
+### TS · Salida (método, etapa 6) — 1 constructor + certificador · cierra la etapa 1
+- **Alcance:** importador de **saldos de apertura y partidas abiertas** a una fecha de corte (anticipos de
+  eventos futuros, cheques en cartera, cuentas corrientes de clientes y proveedores, saldos de banco), por lote
+  y con **reversa del lote entero**; reusa el patrón de `src/lib/caja/corte-inicial.ts`. Runbook de corte, mes en
+  paralelo con las planillas, capacitación por rol, soporte y salida de datos.
+- **Migración:** tabla de lote de apertura.
+- **Aceptación:** el asiento de apertura cuadra; Σ partidas abiertas = saldo de cada cuenta de control;
+  revertir el lote deja todo como antes; cargar dos veces el mismo lote no duplica.
+- **Prueba real:** apertura de MIA al corte acordado con diferencia de 0 centavos contra los saldos que informa
+  el estudio.
+
+### T10 · Control de gestión (FC-13, FC-14) — T10-A (etapa 1) y T10-B (etapa 2), 1 constructor cada una
 - **Alcance A:** productor como dimensión; rentabilidad por proyecto y por productor desde el libro; comisión
   de proyecto con condición de devengamiento (A9); reintegros (A10).
 - **Alcance B:** presupuesto anual por cuenta y mes con versiones; comparación con el real; proyección.
 - **Migración:** productor en el proyecto; regla de comisión; presupuesto por cuenta y período.
 - **Aceptación:** Σ margen de proyectos + estructura = resultado del período; la comisión no se devenga si el
   proyecto no está cobrado entero y con el evento hecho; cada desvío abre su detalle.
-- **Prueba real:** tablero por productor de MIA contra sus planillas; las diferencias se explican una por una.
+- **Prueba real:** tablero por productor de MIA contra sus planillas; cada diferencia queda listada y
+  clasificada (error de la planilla, dato faltante o error del sistema); cero de la última clase.
 
 ## Riesgos del plan
 
