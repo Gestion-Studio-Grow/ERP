@@ -327,10 +327,14 @@ export interface MesProyectado {
 
 export const claveMes = (d: Date): string => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 
-/** Caja de hoy + lo previsto mes a mes. Lo vencido sin pagar cae en el mes actual: sigue pendiente de salir o de entrar. */
+/**
+ * Caja de hoy + lo previsto mes a mes. Lo vencido sin pagar cae en el mes actual: sigue pendiente de salir o de entrar.
+ * Una cuota de cobro con `pendiente` (lo que le falta, del reparto de la cobranza: `repartoDelNegocio`) entra por eso y no
+ * por su monto: un cobro registrado a mano por fuera ya está en la caja y no se cuenta dos veces.
+ */
 export function proyeccionDeCaja(d: {
   cajaHoy: number;
-  cuotas: readonly CuotaLeida[];
+  cuotas: readonly (CuotaLeida & { pendiente?: number })[];
   sueldosMes: number;
   fijos: readonly GastoFijoLeido[];
   tiposDeCambio: Readonly<Record<string, number>>;
@@ -350,7 +354,7 @@ export function proyeccionDeCaja(d: {
       if (c.pagadoEl || c.anuladoEl) continue;
       const t = c.venceEl.getTime();
       if (!(t < fin.getTime() && (n === 0 || t >= inicio.getTime()))) continue;
-      const pesos = aPesos(c.monto, c.moneda, d.tiposDeCambio);
+      const pesos = aPesos(c.tipo === "COBRO" && c.pendiente != null ? c.pendiente : c.monto, c.moneda, d.tiposDeCambio);
       if (c.tipo === "COBRO") cobros += pesos;
       else proveedores += pesos;
     }

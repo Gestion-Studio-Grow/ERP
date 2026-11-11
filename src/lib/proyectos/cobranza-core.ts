@@ -403,7 +403,55 @@ export function repartoDelNegocio(
   return { pendiente, cobrado };
 }
 
+/** Lo aprobado de un proyecto que ninguna cuota espera: el renglón «Sin calendario» de Cuentas a cobrar. */
+export interface SinCalendario {
+  proyectoId: string;
+  /** En la moneda del proyecto. */
+  monto: number;
+  moneda: string;
+  /** En pesos de hoy. */
+  pesos: number;
+}
+
+/**
+ * Por proyecto, lo que falta cobrar y ninguna cuota pendiente espera (calendario corto, o sin cuotas): así los renglones
+ * de Cuentas a cobrar suman lo mismo que el indicador «A cobrar». Se cuenta en la moneda del proyecto (en USD, contra su
+ * saldo en USD: el centavo para abajo de cada cuota no inventa diferencias en pesos). Menos de un centavo, nada. `pendiente`
+ * es el de `repartoDelNegocio`, alineado con `cuotas`. Las previstas sin marcar no cuentan (Administración no las ve). PURA.
+ */
+export function sinCalendarioDelNegocio(
+  cuotas: readonly (CuotaDeCobranza & { proyectoId?: string | null })[],
+  pendiente: readonly number[],
+  tc: Readonly<Record<string, number>>,
+  cobranzas: ReadonlyMap<string, Cobranza>,
+): SinCalendario[] {
+  const esperado = new Map<string, number>();
+  cuotas.forEach((q, i) => {
+    if (!q.proyectoId || q.tipo !== "COBRO" || q.anuladoEl || q.pagadoEl || esPrevista(q)) return;
+    const c = cobranzas.get(q.proyectoId);
+    if (!c) return;
+    const m = c.enMoneda;
+    const enSuMoneda = !m ? aPesos(pendiente[i] ?? 0, q.moneda, tc) : q.moneda === m.moneda ? (pendiente[i] ?? 0) : aPesos(pendiente[i] ?? 0, q.moneda, tc) / m.tc;
+    esperado.set(q.proyectoId, (esperado.get(q.proyectoId) ?? 0) + enSuMoneda);
+  });
+  const salida: SinCalendario[] = [];
+  for (const [proyectoId, c] of cobranzas) {
+    const m = c.enMoneda;
+    const queda = m ? Math.max(0, m.saldo) : c.porCobrar;
+    const monto = redondear(queda - (esperado.get(proyectoId) ?? 0));
+    if (!(monto >= 0.01)) continue;
+    salida.push({ proyectoId, monto, moneda: m?.moneda ?? "ARS", pesos: m ? redondear(monto * m.tc) : monto });
+  }
+  return salida;
+}
+
 const CLAVES = ["aCobrar", "aCobrar7", "cobrosVencidos", "cantCobrosVencidos", "aPagar", "aPagar7", "pagosVencidos", "cantPagosVencidos", "cobrado", "pagado"] as const;
+
+/** El resumen del negocio con «A cobrar» separado: lo de los eventos (su cobranza) y lo de la empresa (cuotas sin evento). */
+export interface ResumenDelNegocio extends ResumenCuotas {
+  aCobrarDeEventos: number;
+  aCobrarDeEmpresa: number;
+}
 
 /**
  * El resumen del negocio entero: cada proyecto con cobranza se concilia con sus cobros (aunque no tenga cuotas: lo
@@ -415,7 +463,7 @@ export function resumenConCobranza(
   tc: Readonly<Record<string, number>>,
   cobranzas: ReadonlyMap<string, Cobranza>,
   hoy: Date = new Date(),
-): ResumenCuotas {
+): ResumenDelNegocio {
   const porProyecto = new Map<string, CuotaLeida[]>();
   const sueltas: CuotaLeida[] = [];
   for (const c of cuotas) {
@@ -423,10 +471,11 @@ export function resumenConCobranza(
     else sueltas.push(c);
   }
   const total = resumenCuotas(sueltas, tc, hoy);
+  const aCobrarDeEmpresa = total.aCobrar;
   for (const [id, cob] of cobranzas) {
     const r = conciliarConCobros(porProyecto.get(id) ?? [], tc, cob, hoy);
     for (const k of CLAVES) total[k] += r[k];
   }
   for (const k of CLAVES) total[k] = redondear(total[k]);
-  return total;
+  return { ...total, aCobrarDeEmpresa, aCobrarDeEventos: redondear(total.aCobrar - aCobrarDeEmpresa) };
 }
