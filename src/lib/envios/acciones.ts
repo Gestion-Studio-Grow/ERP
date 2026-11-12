@@ -21,7 +21,7 @@ import { motivoMostrable } from "@/lib/rechazo-de-dominio";
 import { esConflictoDeEscritura } from "@/lib/conflicto-de-escritura";
 import { logger } from "@/lib/logger";
 import { guardarConfigEnviosEnTx, leerConfigEnvios, CAMBIO_MIENTRAS_MIRABAS_ENVIOS } from "./config";
-import { validarConfigEnvios } from "./modelo";
+import { esMinutosDePausa, horaDeVuelta, pausaHasta, validarConfigEnvios, type PausaDeLaTienda } from "./modelo";
 import { ACCION_PAUSAR_TIENDA, ACCION_REABRIR_TIENDA } from "./marcas";
 
 /** Lo que leen la configuración: la pantalla, la tienda y Vender (al instante, sin deploy). */
@@ -76,13 +76,16 @@ export async function guardarConfigEnvios(entrada: unknown): Promise<EstadoEnvio
 /**
  * Pausa (con mensaje) o reabre la tienda SIN tocar el resto de la configuración: lee la vigente
  * dentro de la misma transacción y sólo cambia la pausa. También exige la versión leída.
+ * `minutos` (20 o 40) = la pausa vuelve sola a esa hora (el «hasta» lo pone el servidor, con su
+ * reloj); sin `minutos`, hasta que el dueño la reactive, como siempre.
  */
-export async function pausarTienda(entrada: unknown): Promise<EstadoEnvios & { pausada?: { mensaje: string } | null }> {
+export async function pausarTienda(entrada: unknown): Promise<EstadoEnvios & { pausada?: PausaDeLaTienda | null }> {
   const quien = await dueno();
   if (!quien.ok) return quien;
-  const o = (entrada ?? {}) as { pausar?: unknown; mensaje?: unknown; version?: unknown };
+  const o = (entrada ?? {}) as { pausar?: unknown; mensaje?: unknown; version?: unknown; minutos?: unknown };
   const pausar = o.pausar === true;
   const mensaje = typeof o.mensaje === "string" ? o.mensaje : "";
+  const hasta = pausar && esMinutosDePausa(o.minutos) ? pausaHasta(o.minutos, new Date()) : null;
   const versionLeida = typeof o.version === "string" && o.version ? o.version : null;
   const tenantId = await getCurrentTenantId();
   try {
@@ -90,7 +93,9 @@ export async function pausarTienda(entrada: unknown): Promise<EstadoEnvios & { p
       async (tx) => {
         const { version: _leida, ...config } = await leerConfigEnvios(tx, tenantId);
         void _leida; // la versión que vale es la que vio la pantalla (versionLeida)
-        const nueva = { ...config, tiendaPausada: pausar ? { mensaje: mensaje.replace(/\s+/g, " ").trim() } : null };
+        const limpio = mensaje.replace(/\s+/g, " ").trim();
+        const pausa: PausaDeLaTienda | null = pausar ? (hasta ? { mensaje: limpio, hasta } : { mensaje: limpio }) : null;
+        const nueva = { ...config, tiendaPausada: pausa };
         const version = await guardarConfigEnviosEnTx(tx, tenantId, {
           config: nueva,
           actor: `user:${quien.userId}`,
@@ -106,7 +111,11 @@ export async function pausarTienda(entrada: unknown): Promise<EstadoEnvios & { p
       ok: true,
       version: r.version,
       pausada: r.pausada,
-      mensaje: pausar ? "La tienda quedó pausada: nadie puede confirmar pedidos por la web." : "La tienda volvió a tomar pedidos.",
+      mensaje: !pausar
+        ? "La tienda volvió a tomar pedidos."
+        : hasta
+          ? `La tienda quedó pausada ${o.minutos} minutos: vuelve sola a tomar pedidos a las ${horaDeVuelta(r.pausada)}.`
+          : "La tienda quedó pausada hasta que la vuelvas a abrir: nadie puede confirmar pedidos por la web.",
     };
   } catch (e) {
     return { ok: false, error: motivo(e, "envios.pausar") };

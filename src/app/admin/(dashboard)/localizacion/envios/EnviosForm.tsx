@@ -5,14 +5,24 @@
 // correr. La plata se escribe como se escribe acá («4.000», «60.000») y la lee `leerImporte`.
 //
 // «Pausar la tienda» se guarda solo (sin tocar lo demás que esté sin guardar): es lo que se
-// necesita YA cuando no se puede atender. El resto se guarda con «Guardar».
+// necesita YA cuando no se puede atender. El resto se guarda con «Guardar». La pausa puede volver
+// sola (20 o 40 minutos: «se me llenó la cocina») o durar hasta que el dueño la reactive.
 // Colores por tokens (bg-surface-raised, text-strong, accent…): la marca del negocio (en Magra,
 // oscuro y oro) la pone el tema, no este componente.
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { Button, Input, Seccion } from "@/components/ui";
 import { guardarConfigEnvios, pausarTienda } from "@/lib/envios/acciones";
-import { MAX_LARGO_MENSAJE_PAUSA, MAX_ZONAS, MENSAJE_PAUSA_POR_DEFECTO, validarConfigEnvios, type ConfigEnvios } from "@/lib/envios/modelo";
+import {
+  MAX_LARGO_MENSAJE_PAUSA,
+  MAX_ZONAS,
+  MENSAJE_PAUSA_POR_DEFECTO,
+  MINUTOS_DE_PAUSA,
+  horaDeVuelta,
+  validarConfigEnvios,
+  type ConfigEnvios,
+  type MinutosDePausa,
+} from "@/lib/envios/modelo";
 
 type ZonaEnPantalla = { id: string; nombre: string; costo: string; gratisDesde: string; franjas: string };
 
@@ -86,10 +96,10 @@ export default function EnviosForm({ inicial, version: versionInicial }: { inici
     });
   };
 
-  const cambiarPausa = (pausar: boolean) => {
+  const cambiarPausa = (pausar: boolean, minutos: MinutosDePausa | null = null) => {
     setAvisoPausa(null);
     empezarPausa(async () => {
-      const r = await pausarTienda({ pausar, mensaje: mensajePausa, version });
+      const r = await pausarTienda({ pausar, mensaje: mensajePausa, version, minutos });
       if (r.ok) {
         setVersion(r.version);
         setPausada(r.pausada ?? null);
@@ -126,7 +136,8 @@ export default function EnviosForm({ inicial, version: versionInicial }: { inici
         </div>
         {pausada && (
           <p className="text-sm text-body">
-            Las clientas ven: «{pausada.mensaje || MENSAJE_PAUSA_POR_DEFECTO}» y no pueden confirmar pedidos por la web. El mostrador sigue vendiendo.
+            Las clientas ven: «{pausada.mensaje || MENSAJE_PAUSA_POR_DEFECTO}» y no pueden confirmar pedidos por la web. El mostrador sigue vendiendo.{" "}
+            {horaDeVuelta(pausada) ? `Vuelve sola a tomar pedidos a las ${horaDeVuelta(pausada)}.` : "Sigue pausada hasta que la vuelvas a abrir."}
           </p>
         )}
         {!pausada && armandoPausa && (
@@ -144,11 +155,16 @@ export default function EnviosForm({ inicial, version: versionInicial }: { inici
               aria-describedby="envios-mensaje-pausa-ayuda"
             />
             <p id="envios-mensaje-pausa-ayuda" className="text-xs text-muted">
-              Si lo dejás vacío, ven el texto de ejemplo. Nadie puede confirmar un pedido por la web hasta que la vuelvas a abrir.
+              Si lo dejás vacío, ven el texto de ejemplo. Elegí cuánto: por un rato vuelve sola a tomar pedidos; si no, hasta que la vuelvas a abrir.
             </p>
             <div className="flex flex-wrap gap-2">
-              <Button type="button" onClick={() => cambiarPausa(true)} disabled={pausando}>
-                {pausando ? "Pausando…" : "Pausar la tienda"}
+              {MINUTOS_DE_PAUSA.map((m) => (
+                <Button key={m} type="button" onClick={() => cambiarPausa(true, m)} disabled={pausando}>
+                  {pausando ? "Pausando…" : `Pausar ${m} minutos`}
+                </Button>
+              ))}
+              <Button type="button" variant="outline" onClick={() => cambiarPausa(true)} disabled={pausando}>
+                {pausando ? "Pausando…" : "Pausar hasta que la reactive"}
               </Button>
               <Button type="button" variant="ghost" onClick={() => setArmandoPausa(false)} disabled={pausando}>
                 Cancelar

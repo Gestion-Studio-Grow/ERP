@@ -150,9 +150,10 @@ export default async function PedidosPage({ searchParams }: { searchParams?: Pro
   // entrega en un punto de encuentro (rubros.ts `entrega`). Lo mismo que ve el tablero nuevo.
   const entrega = entregaDelRubro(identidad.rubro);
   const vocab = vocabularioDelNegocio(identidad.rubro);
-  // El aviso de pedido nuevo (refresco solo + «bip»), sólo en el negocio que vende por kilo
-  // (UAT MAGRA 16/10). La bandeja de CH, y la de todo comercio que no pesa, queda como estaba.
-  const avisoDePedidos = comercio && vocab.porPeso
+  // El aviso de pedido nuevo (refresco solo + «bip»): en el negocio que vende por kilo (UAT MAGRA
+  // 16/10) y en el que tiene delivery local (Pedí Local: el pedido que entra no puede pasar sin que
+  // suene). La bandeja de CH, y la de todo otro comercio, queda como estaba.
+  const avisoDePedidos = (comercio && vocab.porPeso) || configDeliveryLocal(identidad.slug) !== null
     ? <AvisoDePedidosNuevos pedidosWeb={abiertos.filter((o) => o.channel === "ONLINE").map((o) => ({ id: o.id, code: o.code }))} />
     : null;
 

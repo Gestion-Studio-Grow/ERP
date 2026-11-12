@@ -32,9 +32,15 @@ export type ConfigEnvios = {
   pedidoMinimoEnvio: number | null;
   zonas: ZonaDeEnvio[];
   franjasRetiro: string[];
-  /** Con valor, la tienda no toma pedidos y muestra el mensaje. */
-  tiendaPausada: { mensaje: string } | null;
+  /**
+   * Con valor, la tienda no toma pedidos y muestra el mensaje. `hasta` (ISO) = la pausa vuelve
+   * sola a esa hora; sin `hasta` (o una pausa vieja, guardada antes de que existiera) = hasta que
+   * el dueño la reactive. Si sigue vigente se calcula AL LEER (`pausaVigente`): sin cron.
+   */
+  tiendaPausada: PausaDeLaTienda | null;
 };
+
+export type PausaDeLaTienda = { mensaje: string; hasta?: string | null };
 
 /**
  * Lo que rige cuando el negocio nunca configuró envíos: lo de siempre. Retiro en el local, sin
@@ -64,6 +70,50 @@ export const MAX_LARGO_MENSAJE_PAUSA = 200;
 export const MAX_IMPORTE = 100_000_000;
 
 export const MENSAJE_PAUSA_POR_DEFECTO = "Por ahora no estamos tomando pedidos por la web. Escribinos por WhatsApp.";
+
+// ── Pausa con vuelta sola ───────────────────────────────────────────────────────────────────────
+/** Las pausas cortas que se ofrecen en la pantalla (minutos). Otro valor no se acepta. */
+export const MINUTOS_DE_PAUSA = [20, 40] as const;
+export type MinutosDePausa = (typeof MINUTOS_DE_PAUSA)[number];
+
+export function esMinutosDePausa(v: unknown): v is MinutosDePausa {
+  return typeof v === "number" && (MINUTOS_DE_PAUSA as readonly number[]).includes(v);
+}
+
+/** El «hasta» de una pausa de `minutos` que arranca `ahora` (ISO). */
+export function pausaHasta(minutos: MinutosDePausa, ahora: Date): string {
+  return new Date(ahora.getTime() + minutos * 60_000).toISOString();
+}
+
+/** El instante del «hasta» en ms, o null si la pausa no tiene vuelta sola (o el dato es basura). */
+function msDelHasta(p: PausaDeLaTienda): number | null {
+  if (typeof p.hasta !== "string" || !p.hasta) return null;
+  const ms = Date.parse(p.hasta);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+/**
+ * ¿La pausa rige `ahora`? Sin pausa, no. Sin «hasta» (incluye las pausas viejas), sí: hasta que
+ * el dueño la reactive. Con «hasta», sólo mientras no haya llegado esa hora.
+ */
+export function pausaVigente(p: PausaDeLaTienda | null | undefined, ahora: Date): boolean {
+  if (!p) return false;
+  const hasta = msDelHasta(p);
+  return hasta === null || hasta > ahora.getTime();
+}
+
+/** «14:40» (hora de Argentina) para decir cuándo vuelve sola; null si es hasta que la reactiven. */
+export function horaDeVuelta(p: PausaDeLaTienda | null | undefined): string | null {
+  if (!p) return null;
+  const hasta = msDelHasta(p);
+  if (hasta === null) return null;
+  return new Date(hasta).toLocaleTimeString("es-AR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "America/Argentina/Buenos_Aires",
+  });
+}
 
 const ID_VALIDO = /^[a-z0-9][a-z0-9-]{0,39}$/;
 
@@ -180,7 +230,11 @@ export function validarConfigEnvios(entrada: unknown): ResultadoValidacion {
     const m = (o.tiendaPausada as Record<string, unknown>).mensaje;
     const mensaje = typeof m === "string" ? m.replace(/\s+/g, " ").trim() : "";
     if (mensaje.length > MAX_LARGO_MENSAJE_PAUSA) return { ok: false, error: `El mensaje de la tienda pausada es muy largo: hasta ${MAX_LARGO_MENSAJE_PAUSA} letras.` };
-    tiendaPausada = { mensaje };
+    // «hasta» sólo si es una fecha que se entiende; si no, la pausa queda como siempre (hasta
+    // que la reactiven): ante la duda, la tienda NO se abre sola.
+    const h = (o.tiendaPausada as Record<string, unknown>).hasta;
+    const hasta = typeof h === "string" && Number.isFinite(Date.parse(h)) ? new Date(Date.parse(h)).toISOString() : null;
+    tiendaPausada = hasta ? { mensaje, hasta } : { mensaje };
   }
 
   if (!retiroEnLocal && zonas.length === 0) {
