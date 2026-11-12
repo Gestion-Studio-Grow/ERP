@@ -24,6 +24,7 @@ import SelloGSG from "@/components/marca/SelloGSG";
 import { configDeliveryLocal } from "@/lib/delivery-local/config";
 import { pagoParaElCliente, verificarToken, vistaDelSeguimiento, type EstadoDelPedido } from "@/lib/delivery-local/seguimiento";
 import { ACCION_SALIO, pagoDelAlta } from "@/lib/delivery-local/salida";
+import { mensajeDeCancelacion } from "../../local/carta";
 import Link from "next/link";
 import Refresco from "./Refresco";
 import RecordarSeguimiento from "./RecordarSeguimiento";
@@ -60,6 +61,7 @@ async function leerSeguimiento(token: string) {
         fulfillment: true,
         total: true,
         paid: true,
+        createdAt: true,
         items: { select: { name: true, quantity: true, saleUnit: true, lineTotal: true }, orderBy: { id: "asc" } },
       },
     }),
@@ -87,7 +89,12 @@ export default async function SeguimientoPage({ params }: { params: Promise<{ to
     enCamino,
     paid: pedido.paid,
     medio: pago?.medio ?? null,
+    creadoEn: pedido.createdAt,
+    ahora: new Date(),
+    demoraMin: cfg.demoraMin ?? null,
   });
+  // Vencido el plazo de los términos sin confirmar: el mismo WhatsApp del botón de arrepentimiento.
+  const bajarlo = vista.vencido && whatsapp ? buildWhatsAppHref(whatsapp, mensajeDeCancelacion(cfg.nombre, pedido.code)) : null;
   const transferir = pago?.medio === "transferencia" && !pedido.paid && pedido.status !== "CANCELLED" ? transferenciaPublicable(cfg.transferencia) : null;
   // Cómo paga, de la auditoría del alta (`entregaLocal.pago`), nunca de la nota.
   const comoPaga = pagoParaElCliente({
@@ -125,6 +132,25 @@ export default async function SeguimientoPage({ params }: { params: Promise<{ to
           </h2>
           <p className="mt-1 text-sm">{vista.detalle}</p>
         </div>
+        {bajarlo && (
+          <a
+            href={bajarlo}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex min-h-11 items-center justify-center rounded-md border border-line-strong px-4 text-sm font-semibold text-strong hover:bg-accent-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+          >
+            Bajar el pedido por WhatsApp
+          </a>
+        )}
+        {vista.vencido && !whatsapp && (
+          <p className="text-sm">
+            Para bajarlo, usá el{" "}
+            <Link href={`/tienda/arrepentimiento?pedido=${pedido.code}`} className="font-semibold text-accent-ink underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus">
+              botón de arrepentimiento
+            </Link>
+            .
+          </p>
+        )}
         {vista.actual >= 0 && (
           <ol className="flex flex-col gap-2" aria-label={`Paso ${vista.actual + 1} de ${vista.pasos.length}`}>
             {vista.pasos.map((p, i) => {
