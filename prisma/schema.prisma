@@ -284,6 +284,18 @@ model Tenant {
   asientoLineas             AsientoLinea[]
   cuentaRoles               CuentaRol[] // contabilidad (ola 2 · T0 control de gestión)
   configContable            ConfigContable?
+  periodosApertura          PeriodoApertura[] // contabilidad · parametrización (R2)
+  numeradoresContables      NumeradorContable[]
+  clasesAsiento             ClaseAsiento[]
+  centrosCosto              CentroCosto[]
+  paramCambios              ParamCambio[]
+  tiposCotizacion           TipoCotizacion[]
+  cotizaciones              Cotizacion[]
+  indicadoresImpuesto       IndicadorImpuesto[]
+  regimenesRetencion        RegimenRetencion[]
+  determinacionesCuenta     DeterminacionCuenta[]
+  tolerancias               Tolerancia[]
+  gruposCampos              GrupoCampos[]
   obligacionesFiscales      ObligacionFiscal[]
   vencimientosFiscales      VencimientoFiscal[]
   proyectoConfig            ProyectoConfig?
@@ -3578,6 +3590,7 @@ model Proyecto {
   mensajes            ProyectoMensaje[]
   idea                ProyectoIdea?
   presentaciones      ProyectoPresentacion[]
+  centrosCosto        CentroCosto[] // contabilidad · parametrización (R2): centro de costo del proyecto
   createdAt           DateTime               @default(now())
   updatedAt           DateTime               @updatedAt
 
@@ -4402,31 +4415,38 @@ model VoucherConciliacion {
 // trigger diferido que rechaza un asiento CONFIRMADO descuadrado o la edición de uno confirmado.
 
 model CuentaContable {
-  id           String           @id @default(cuid())
-  tenant       Tenant           @relation(fields: [tenantId], references: [id])
-  tenantId     String
-  codigo       String // jerárquico: 1 · 1.1 · 1.1.1 · 1.1.1.01
-  nombre       String
-  tipo         String // ACTIVO · PASIVO · PATRIMONIO_NETO · RESULTADO_POSITIVO · RESULTADO_NEGATIVO
-  naturaleza   String // DEUDORA · ACREEDORA (las regularizadoras, la opuesta a su rubro)
-  padre        CuentaContable?  @relation("CuentaPadre", fields: [padreId, tenantId], references: [id, tenantId])
-  padreId      String?
-  hijas        CuentaContable[] @relation("CuentaPadre")
-  imputable    Boolean          @default(true)
-  activa       Boolean          @default(true)
+  id                  String                @id @default(cuid())
+  tenant              Tenant                @relation(fields: [tenantId], references: [id])
+  tenantId            String
+  codigo              String // jerárquico: 1 · 1.1 · 1.1.1 · 1.1.1.01
+  nombre              String
+  tipo                String // ACTIVO · PASIVO · PATRIMONIO_NETO · RESULTADO_POSITIVO · RESULTADO_NEGATIVO
+  naturaleza          String // DEUDORA · ACREEDORA (las regularizadoras, la opuesta a su rubro)
+  padre               CuentaContable?       @relation("CuentaPadre", fields: [padreId, tenantId], references: [id, tenantId])
+  padreId             String?
+  hijas               CuentaContable[]      @relation("CuentaPadre")
+  imputable           Boolean               @default(true)
+  activa              Boolean               @default(true)
   // Ola 2 (20261108150000_contabilidad_ola2_roles, T0 de control de gestión). Todo NULLABLE: el
   // plan de un negocio sembrado en la ola 1 sigue válido; `null` = sin dato (no «falso»).
-  rubro        String? // rubro RT 54 del estado (RUBROS_ESTADO, plan-modelo.ts)
-  plazo        String? // CORRIENTE · NO_CORRIENTE (sólo activo y pasivo)
-  funcion      String? // COSTO · COMERCIALIZACION · ADMINISTRACION · FINANCIACION (por defecto; la línea la pisa en T2)
-  monetaria    Boolean? // para el ajuste por inflación (T8): las no monetarias guardan fechaOrigen en la línea
-  ritmo        String? // FIJO_MENSUAL · VARIABLE (sólo resultados; plan vs real a la fecha, T4)
-  nombreDueno  String? // cómo la ve el dueño en el tablero
-  monedaCuenta String? // nivel Corporativo (multimoneda, E3). NULL = moneda funcional (ARS)
-  lineas       AsientoLinea[]
-  roles        CuentaRol[]
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
+  rubro               String? // rubro RT 54 del estado (RUBROS_ESTADO, plan-modelo.ts)
+  plazo               String? // CORRIENTE · NO_CORRIENTE (sólo activo y pasivo)
+  funcion             String? // COSTO · COMERCIALIZACION · ADMINISTRACION · FINANCIACION (por defecto; la línea la pisa en T2)
+  monetaria           Boolean? // para el ajuste por inflación (T8): las no monetarias guardan fechaOrigen en la línea
+  ritmo               String? // FIJO_MENSUAL · VARIABLE (sólo resultados; plan vs real a la fecha, T4)
+  nombreDueno         String? // cómo la ve el dueño en el tablero
+  monedaCuenta        String? // nivel Corporativo (multimoneda, E3). NULL = moneda funcional (ARS)
+  // Parametrización (R2, 20261112130000/130100_contabilidad_param_a/b). NULL = MAYOR / sin grupo.
+  claseCuenta         String? // MAYOR · CLIENTES · PROVEEDORES · BANCOS · IMPUESTOS
+  grupoCampos         GrupoCampos?          @relation(fields: [grupoCamposId, tenantId], references: [id, tenantId])
+  grupoCamposId       String?
+  lineas              AsientoLinea[]
+  roles               CuentaRol[]
+  indicadoresImpuesto IndicadorImpuesto[]
+  regimenesRetencion  RegimenRetencion[]
+  determinaciones     DeterminacionCuenta[]
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
 
   @@unique([tenantId, codigo])
   @@unique([id, tenantId])
@@ -4453,72 +4473,348 @@ model CuentaRol {
 /// que se prenden de a una (config.ts). Sin fila = PYME sin capacidades. El interruptor
 /// «contabilidad» (AuditLog) decide si el negocio ve el módulo; esto, cómo.
 model ConfigContable {
-  tenant       Tenant   @relation(fields: [tenantId], references: [id])
-  tenantId     String   @id
-  nivel        String   @default("PYME") // PYME · CORPORATIVO
-  capacidades  Json     @default("{}") // { multiempresa, multimoneda, jerarquia, aprobaciones, segmentos, api }: sólo `true` prende
-  rubroNegocio String? // plan modelo sembrado: comercio · servicios · club · agencia
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId        String   @id
+  nivel           String   @default("PYME") // PYME · CORPORATIVO
+  capacidades     Json     @default("{}") // { multiempresa, multimoneda, jerarquia, aprobaciones, segmentos, api }: sólo `true` prende
+  rubroNegocio    String? // plan modelo sembrado: comercio · servicios · club · agencia
+  // Parametrización (R2): NULL = modo actual (la capa no actúa) · V1 = la base exige los parámetros.
+  monedaFuncional String   @default("ARS")
+  parametrizacion String?
+  cuatroOjos      Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 
 model Ejercicio {
-  id          String    @id @default(cuid())
-  tenant      Tenant    @relation(fields: [tenantId], references: [id])
+  id          String              @id @default(cuid())
+  tenant      Tenant              @relation(fields: [tenantId], references: [id])
   tenantId    String
-  fechaInicio DateTime  @db.Date
-  fechaCierre DateTime  @db.Date // el cierre comercial no siempre es 31/12
-  estado      String    @default("ABIERTO") // ABIERTO · CERRADO
+  fechaInicio DateTime            @db.Date
+  fechaCierre DateTime            @db.Date // el cierre comercial no siempre es 31/12
+  estado      String              @default("ABIERTO") // ABIERTO · CERRADO
   asientos    Asiento[]
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  numeradores NumeradorContable[]
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
 
   @@unique([id, tenantId])
   @@index([tenantId, fechaInicio])
 }
 
 model Asiento {
-  id             String         @id @default(cuid())
-  tenant         Tenant         @relation(fields: [tenantId], references: [id])
-  tenantId       String
-  ejercicio      Ejercicio      @relation(fields: [ejercicioId, tenantId], references: [id, tenantId])
-  ejercicioId    String
-  numero         Int? // se asigna AL CONFIRMAR: correlativo sin saltos por ejercicio
-  fecha          DateTime       @db.Date
-  descripcion    String
-  origenTipo     String? // MANUAL · FACTURA · COBRO · PAGO · APERTURA · CIERRE · REFUNDICION · AJUSTE
-  origenId       String?
-  anula          Asiento?       @relation("ContraAsiento", fields: [anulaAsientoId, tenantId], references: [id, tenantId])
-  anulaAsientoId String?
-  anuladoPor     Asiento[]      @relation("ContraAsiento")
-  estado         String         @default("BORRADOR") // BORRADOR · CONFIRMADO
-  lineas         AsientoLinea[]
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  id                   String         @id @default(cuid())
+  tenant               Tenant         @relation(fields: [tenantId], references: [id])
+  tenantId             String
+  ejercicio            Ejercicio      @relation(fields: [ejercicioId, tenantId], references: [id, tenantId])
+  ejercicioId          String
+  numero               Int? // se asigna AL CONFIRMAR: correlativo sin saltos por ejercicio
+  fecha                DateTime       @db.Date
+  descripcion          String
+  origenTipo           String? // MANUAL · FACTURA · COBRO · PAGO · APERTURA · CIERRE · REFUNDICION · AJUSTE
+  origenId             String?
+  anula                Asiento?       @relation("ContraAsiento", fields: [anulaAsientoId, tenantId], references: [id, tenantId])
+  anulaAsientoId       String?
+  anuladoPor           Asiento[]      @relation("ContraAsiento")
+  estado               String         @default("BORRADOR") // BORRADOR · CONFIRMADO
+  lineas               AsientoLinea[]
+  // S2 · parametrización (R2). Todo NULL en los asientos de antes. `claveOrigen` tiene un único
+  // PARCIAL (tenantId, claveOrigen) en SQL (G1: un reintento no duplica el asiento automático).
+  claseAsiento         ClaseAsiento?  @relation(fields: [claseAsientoId, tenantId], references: [id, tenantId])
+  claseAsientoId       String?
+  claveOrigen          String?
+  moneda               String?
+  tipoCotizacionCodigo String? // BNA_VEND_DIVISA · BNA_COMP_DIVISA · MEP · PACTADA
+  cotizacion           BigInt? // pesos por unidad, 6 decimales enteros
+  fechaCotizacion      DateTime?      @db.Date
+  fechaComprobante     DateTime?      @db.Date
+  referencia           String?
+  creadoPor            String?
+  confirmadoPor        String?
+  confirmadoEn         DateTime?
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
 
   @@unique([tenantId, ejercicioId, numero])
   @@unique([id, tenantId])
   @@index([tenantId, fecha])
+  @@index([tenantId, claseAsientoId])
 }
 
 model AsientoLinea {
-  id          String         @id @default(cuid())
-  tenant      Tenant         @relation(fields: [tenantId], references: [id])
-  tenantId    String
-  asiento     Asiento        @relation(fields: [asientoId, tenantId], references: [id, tenantId], onDelete: Cascade)
-  asientoId   String
-  cuenta      CuentaContable @relation(fields: [cuentaId, tenantId], references: [id, tenantId])
-  cuentaId    String
-  debe        BigInt         @default(0) // centavos
-  haber       BigInt         @default(0) // centavos
-  detalle     String?
+  id                  String             @id @default(cuid())
+  tenant              Tenant             @relation(fields: [tenantId], references: [id])
+  tenantId            String
+  asiento             Asiento            @relation(fields: [asientoId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  asientoId           String
+  cuenta              CuentaContable     @relation(fields: [cuentaId, tenantId], references: [id, tenantId])
+  cuentaId            String
+  debe                BigInt             @default(0) // centavos
+  haber               BigInt             @default(0) // centavos
+  detalle             String?
   // Ola 2: fecha de origen de la partida no monetaria (ajuste por inflación RT 54, T8). NULL en monetarias.
-  fechaOrigen DateTime?      @db.Date
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  fechaOrigen         DateTime?          @db.Date
+  // S2 · parametrización (R2). Moneda, importe de origen y cotización van juntos o ninguno (CHECK);
+  // la cotización es foto en la línea (pesos por unidad, 6 decimales enteros).
+  moneda              String?
+  importeOrigen       BigInt? // centavos de la moneda de origen, > 0 (el lado lo dan debe/haber)
+  cotizacion          BigInt?
+  centroCosto         CentroCosto?       @relation(fields: [centroCostoId, tenantId], references: [id, tenantId])
+  centroCostoId       String?
+  indicadorImpuesto   IndicadorImpuesto? @relation(fields: [indicadorImpuestoId, tenantId], references: [id, tenantId])
+  indicadorImpuestoId String?
+  regimenRetencion    RegimenRetencion?  @relation(fields: [regimenRetencionId, tenantId], references: [id, tenantId])
+  regimenRetencionId  String?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
 
   @@index([tenantId, asientoId])
   @@index([tenantId, cuentaId])
+  @@index([tenantId, centroCostoId])
+}
+
+// ============================================================================
+// CONTABILIDAD · PARAMETRIZACIÓN (R2) — 20261112130000_contabilidad_param_a + 20261112130100_contabilidad_param_b
+// ============================================================================
+// Todas las FK son compuestas con `tenantId`; RLS tenant_isolation; catálogos cerrados con CHECK;
+// cada cambio deja una fila en ParamCambio (trigger, sólo-agregar). Con
+// `ConfigContable.parametrizacion = null` la base no usa estas tablas al confirmar asientos.
+
+/// Rango abierto por clase de cuenta (GENERAL + MAYOR · CLIENTES · PROVEEDORES · BANCOS · IMPUESTOS).
+model PeriodoApertura {
+  id           String   @id @default(cuid())
+  tenant       Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId     String
+  claseCuenta  String
+  abiertoDesde DateTime @db.Date
+  abiertoHasta DateTime @db.Date
+  motivo       String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([tenantId, claseCuenta])
+  @@unique([id, tenantId])
+}
+
+/// Numerador del ejercicio: `ultimo` lo mueve la base al confirmar (rangos sin superposición).
+model NumeradorContable {
+  id          String    @id @default(cuid())
+  tenant      Tenant    @relation(fields: [tenantId], references: [id])
+  tenantId    String
+  ejercicio   Ejercicio @relation(fields: [ejercicioId, tenantId], references: [id, tenantId])
+  ejercicioId String
+  codigo      String // DIARIO por defecto
+  desde       Int
+  hasta       Int
+  ultimo      Int
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([tenantId, ejercicioId, codigo])
+  @@unique([id, tenantId])
+}
+
+model ClaseAsiento {
+  id                     String         @id @default(cuid())
+  tenant                 Tenant         @relation(fields: [tenantId], references: [id])
+  tenantId               String
+  codigo                 String // MAN · FAC · COB · PAG · APE · CIE · REF · ANU · REV
+  nombre                 String         @default("")
+  origenTipo             String?
+  numeradorCodigo        String? // NULL = DIARIO (código del numerador del ejercicio del asiento)
+  permiteManual          Boolean        @default(false)
+  clasesCuentaPermitidas String[]       @default(["MAYOR", "CLIENTES", "PROVEEDORES", "BANCOS", "IMPUESTOS"])
+  claseAnulacion         ClaseAsiento?  @relation("ClaseAnulacion", fields: [claseAnulacionId, tenantId], references: [id, tenantId])
+  claseAnulacionId       String?
+  anulan                 ClaseAsiento[] @relation("ClaseAnulacion")
+  exigeReferencia        Boolean        @default(false)
+  exigeCentroCosto       Boolean        @default(false) // sólo en cuentas de resultado
+  activa                 Boolean        @default(true)
+  asientos               Asiento[]
+  createdAt              DateTime       @default(now())
+  updatedAt              DateTime       @updatedAt
+
+  @@unique([tenantId, codigo])
+  @@unique([id, tenantId])
+}
+
+model CentroCosto {
+  id           String         @id @default(cuid())
+  tenant       Tenant         @relation(fields: [tenantId], references: [id])
+  tenantId     String
+  codigo       String
+  nombre       String
+  tipo         String // AREA · PROYECTO
+  proyecto     Proyecto?      @relation(fields: [proyectoId, tenantId], references: [id, tenantId])
+  proyectoId   String?
+  padre        CentroCosto?   @relation("CentroCostoPadre", fields: [padreId, tenantId], references: [id, tenantId])
+  padreId      String?
+  hijos        CentroCosto[]  @relation("CentroCostoPadre")
+  vigenteDesde DateTime       @db.Date
+  vigenteHasta DateTime?      @db.Date
+  activo       Boolean        @default(true)
+  lineas       AsientoLinea[]
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@unique([tenantId, codigo])
+  @@unique([id, tenantId])
+  @@index([tenantId, proyectoId])
+}
+
+/// Rastro sólo-agregar de los cambios de parámetros. Lo escribe un trigger; la app sólo lo lee.
+model ParamCambio {
+  id         String   @id @default(cuid())
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId   String
+  tabla      String
+  registroId String
+  operacion  String // INSERT · UPDATE · DELETE
+  antes      Json?
+  despues    Json?
+  actor      String? // app.current_actor (obligatorio con la capa prendida)
+  motivo     String? // app.current_motivo
+  en         DateTime @default(now())
+
+  @@index([tenantId, tabla, registroId])
+  @@index([tenantId, en])
+}
+
+model TipoCotizacion {
+  id           String       @id @default(cuid())
+  tenant       Tenant       @relation(fields: [tenantId], references: [id])
+  tenantId     String
+  codigo       String // BNA_VEND_DIVISA · BNA_COMP_DIVISA · MEP · PACTADA
+  fuente       String       @default("")
+  maxDiasAtras Int          @default(0) // 0 = exige la del día
+  cotizaciones Cotizacion[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@unique([tenantId, codigo])
+  @@unique([id, tenantId])
+}
+
+/// Sólo-agregar: corregir = versión + 1. `valor` en pesos por unidad con 6 decimales enteros.
+model Cotizacion {
+  id               String         @id @default(cuid())
+  tenant           Tenant         @relation(fields: [tenantId], references: [id])
+  tenantId         String
+  tipoCotizacion   TipoCotizacion @relation(fields: [tipoCotizacionId, tenantId], references: [id, tenantId])
+  tipoCotizacionId String
+  moneda           String
+  fecha            DateTime       @db.Date
+  valor            BigInt
+  version          Int            @default(1)
+  cargadoPor       String?
+  createdAt        DateTime       @default(now())
+
+  @@unique([tenantId, tipoCotizacionId, moneda, fecha, version])
+  @@unique([id, tenantId])
+}
+
+/// Versionado por `vigenteDesde`: sólo `nombre` y `activa` se editan.
+model IndicadorImpuesto {
+  id           String          @id @default(cuid())
+  tenant       Tenant          @relation(fields: [tenantId], references: [id])
+  tenantId     String
+  codigo       String // IVA21_VTA · IVA105_CPA · EXENTO · PERC_IIBB_CABA…
+  nombre       String          @default("")
+  clase        String // IVA_DEBITO · IVA_CREDITO · PERCEPCION_SUFRIDA · EXENTO · NO_GRAVADO
+  alicuotaBp   Int             @default(0) // 21 % = 2100
+  jurisdiccion String?
+  cuenta       CuentaContable? @relation(fields: [cuentaId, tenantId], references: [id, tenantId])
+  cuentaId     String?
+  vigenteDesde DateTime        @db.Date
+  activa       Boolean         @default(true)
+  lineas       AsientoLinea[]
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@unique([tenantId, codigo, vigenteDesde])
+  @@unique([id, tenantId])
+}
+
+/// La sufrida no se calcula (importe del certificado); la practicada sí. Sólo `nombre`/`activa` se editan.
+model RegimenRetencion {
+  id               String         @id @default(cuid())
+  tenant           Tenant         @relation(fields: [tenantId], references: [id])
+  tenantId         String
+  codigo           String
+  nombre           String         @default("")
+  impuesto         String // IVA · GANANCIAS · IIBB · SUSS
+  jurisdiccion     String?
+  sentido          String // SUFRIDA (cuenta de ACTIVO) · PRACTICADA (cuenta de PASIVO)
+  codigoRegimen    String?
+  base             String? // NETO_GRAVADO · TOTAL · IVA (provisional a confirmar)
+  alicuotaBp       Int?
+  minimoCentavos   BigInt         @default(0)
+  cuenta           CuentaContable @relation(fields: [cuentaId, tenantId], references: [id, tenantId])
+  cuentaId         String
+  exigeCertificado Boolean        @default(false)
+  vigenteDesde     DateTime       @db.Date
+  activa           Boolean        @default(true)
+  lineas           AsientoLinea[]
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@unique([tenantId, codigo, vigenteDesde])
+  @@unique([id, tenantId])
+}
+
+/// Rol × dimensión × clave → cuenta, con vigencia. `CuentaRol` sigue siendo el nivel sin clave.
+model DeterminacionCuenta {
+  id           String         @id @default(cuid())
+  tenant       Tenant         @relation(fields: [tenantId], references: [id])
+  tenantId     String
+  rol          String // ROLES_CUENTA (roles.ts)
+  dimension    String // MONEDA · JURISDICCION · MEDIO_PAGO · CUENTA_BANCARIA
+  clave        String
+  cuenta       CuentaContable @relation(fields: [cuentaId, tenantId], references: [id, tenantId])
+  cuentaId     String
+  vigenteDesde DateTime       @db.Date
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@unique([tenantId, rol, dimension, clave, vigenteDesde])
+  @@unique([id, tenantId])
+}
+
+/// Sin fila = cero.
+model Tolerancia {
+  id           String   @id @default(cuid())
+  tenant       Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId     String
+  codigo       String // REDONDEO_CONVERSION_CENTAVOS · DIFERENCIA_COBRO_CENTAVOS · DIFERENCIA_COBRO_BP · DIFERENCIA_PAGO_CENTAVOS
+  valor        BigInt
+  vigenteDesde DateTime @db.Date
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([tenantId, codigo, vigenteDesde])
+  @@unique([id, tenantId])
+}
+
+/// Estado por campo: S (suprimido) · O (opcional) · R (requerido). Efectivo = el más exigente entre
+/// la cuenta y la clase de asiento; S + R es contradictorio y se rechaza.
+model GrupoCampos {
+  id                String           @id @default(cuid())
+  tenant            Tenant           @relation(fields: [tenantId], references: [id])
+  tenantId          String
+  codigo            String
+  nombre            String           @default("")
+  centroCosto       String           @default("O")
+  detalle           String           @default("O")
+  monedaOrigen      String           @default("O")
+  fechaOrigen       String           @default("O")
+  referencia        String           @default("O")
+  indicadorImpuesto String           @default("O")
+  cuentas           CuentaContable[]
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@unique([tenantId, codigo])
+  @@unique([id, tenantId])
 }
 
 model ObligacionFiscal {
