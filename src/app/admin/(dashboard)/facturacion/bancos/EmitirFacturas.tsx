@@ -104,7 +104,7 @@ export default function EmitirFacturas({
               )}
             </div>
 
-            {resultado.capAlcanzado && resultado.mensaje && (
+            {resultado.mensaje && (
               <p role="alert" className="rounded-md bg-danger-soft px-3 py-2 text-sm text-danger">
                 {resultado.mensaje}
               </p>

@@ -377,6 +377,7 @@ test("el recorrido encuentra los endpoints con privilegio de operador en TODO sr
     "src/app/operador/(console)/solicitudes/actions.ts",
     "src/app/operador/(console)/soporte/actions.ts",
     // Refutador 26/09: la Factura A desde la ficha del negocio (su aislamiento: regimen-factura-a-postgres.test.ts).
+    "src/app/operador/(console)/tenants/[id]/ia-tope-actions.ts",
     "src/app/operador/(console)/tenants/[id]/regimen-factura-a-actions.ts",
     "src/app/profeturnos/alta/acciones.ts",
     "src/lib/cartera-actions.ts",
@@ -409,6 +410,7 @@ test("TRINQUETE: todo endpoint con privilegio de operador tiene PRIMERO la guard
     "src/app/operador/(console)/solicitudes/actions.ts#descartarSolicitudAction",
     "src/app/operador/(console)/soporte/actions.ts#cambiarTicketAction",
     "src/app/operador/(console)/soporte/actions.ts#sugerirConIaAction",
+    "src/app/operador/(console)/tenants/[id]/ia-tope-actions.ts#guardarTopeIAAction",
     "src/app/operador/(console)/tenants/[id]/regimen-factura-a-actions.ts#corregirRegimenFacturaAAction",
     "src/app/profeturnos/alta/acciones.ts#altaProfeTurnos",
     "src/lib/cartera-actions.ts#altaClienteCarteraAction",

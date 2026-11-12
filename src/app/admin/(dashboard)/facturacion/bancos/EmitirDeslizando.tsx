@@ -86,7 +86,7 @@ export default function EmitirDeslizando({ cantidad, total, modoPrueba }: { cant
                 </Marca>
               )}
             </p>
-            {resultado.capAlcanzado && resultado.mensaje && (
+            {resultado.mensaje && (
               <p role="alert" className="text-sm text-danger">
                 {resultado.mensaje}
               </p>

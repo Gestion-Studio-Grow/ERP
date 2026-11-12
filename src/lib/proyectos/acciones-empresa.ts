@@ -6,6 +6,7 @@
 // ============================================================================
 
 import { cuentaParaCuota } from "./gestion-cuentas.server";
+import { conCuotaSinFacturaViva } from "./facturar-cuota.server";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
@@ -22,6 +23,7 @@ import { aplicarAccion } from "@/lib/rendiciones/rendicion";
 import type { RolActor } from "@/lib/rendiciones/tipos";
 import { conReintegros, etiquetaMes, extrasRecalculados, leerExtras, lineasNuevas, periodoValido, reintegrosCuadran, totalLiquidacion, type ExtraGuardado } from "./empresa-core";
 import type { Resultado } from "./acciones";
+import { listoMarcada } from "./avisos-cuota";
 
 const ADMIN = "/admin/proyectos/administracion";
 /** Un extracto de varios meses entra de sobra, y no pasa el límite de lo que recibe una acción del servidor. */
@@ -76,7 +78,7 @@ export async function cuentasParaMarcar(): Promise<{ id: string; nombre: string;
 }
 
 /** Marca pagada una cuota de la empresa y asienta el movimiento. El `where` con `pagadoEl: null` es lo que frena el doble clic. */
-export async function marcarCuotaEmpresa(formData: FormData): Promise<Resultado> {
+export async function marcarCuotaEmpresa(formData: FormData): Promise<Resultado<{ listo?: string }>> {
   const a = await exigirEditar("empresa");
   const id = txt(formData.get("id"));
   const medio = txt(formData.get("medio")) as MedioPago;
@@ -115,7 +117,7 @@ export async function marcarCuotaEmpresa(formData: FormData): Promise<Resultado>
   if (!hecho) return { ok: false, error: "Esa cuota ya estaba marcada." };
   await auditAdmin({ action: "proyecto.cuota-empresa.pagar", entity: "ProyectoCuota", entityId: id, changes: { amount, medio } });
   refrescar();
-  return { ok: true };
+  return { ok: true, listo: listoMarcada(c.tipo === "COBRO", amount) };
 }
 
 /** Anular no borra. Si ya se pagó, la plata vuelve al libro con fecha de hoy, como un gasto anulado. */
@@ -172,7 +174,14 @@ export async function guardarDatoCuota(formData: FormData): Promise<Resultado> {
   const valor = txt(formData.get("valor")).slice(0, campo === "factura" ? 60 : 300) || null;
   const c = await prisma.proyectoCuota.findFirst({ where: { id, tenantId: a.tenantId }, select: { proyectoId: true, factura: true, comentario: true } });
   if (!c) return { ok: false, error: "Esa cuota no existe." };
-  await prisma.proyectoCuota.updateMany({ where: { id, tenantId: a.tenantId }, data: { [campo]: valor } });
+  if (campo === "factura") {
+    // T2: con la factura de ARCA enlazada, el número sale de ella; el texto libre no se escribe (con
+    // el candado de la facturación, así no queda una cuota con las dos).
+    const r = await conCuotaSinFacturaViva(a.tenantId, id, (tx) => tx.proyectoCuota.updateMany({ where: { id, tenantId: a.tenantId }, data: { factura: valor } }));
+    if (r === "facturada") return { ok: false, error: "Esa cuota ya tiene su factura de ARCA: el número sale de ahí." };
+  } else {
+    await prisma.proyectoCuota.updateMany({ where: { id, tenantId: a.tenantId }, data: { [campo]: valor } });
+  }
   await registrarCambio(prisma, { tenantId: a.tenantId, proyectoId: c.proyectoId, entidad: "cuota", entidadId: id, campo, antes: c[campo], despues: valor, autor: a.nombre });
   revalidatePath(ADMIN);
   return { ok: true };

@@ -33,6 +33,8 @@ import {
 } from "./diseno-core";
 import { actorActual, avisar, exigirEditar, proyectoVisible, puede } from "./gestion.server";
 import { ESTADOS_TAREA, mencionados, veTodosLosProyectos, type RolGestion } from "./gestion-core";
+import { etapa2ActivaPara } from "./etapa2.server";
+import { MENSAJE_APAGADO } from "./etapa2-core";
 import { charlarConAgente, generarImagen, iaConectada, proponerIdeaDelProyecto, proponerPiezasDelProyecto, proponerStandDelProyecto, FALTA_CLAVE, type IdeaPropuesta } from "./ia.server";
 import { borrarDeNube } from "./r2.server";
 import type { PiezaPropuesta } from "./ia-piezas-core";
@@ -202,6 +204,7 @@ export async function guardarIdea(d: { proyectoId: string; concepto: string; nar
 export async function proponerIdea(d: { proyectoId: string; pedido?: string }): Promise<Resultado<{ idea: IdeaPropuesta }>> {
   const a = await exigirEditar("diseno");
   if (!puede(a, "ia", "editar")) return { ok: false, error: "Tu rol no puede usar la IA." };
+  if (!(await etapa2ActivaPara(a.tenantId, "ia"))) return { ok: false, error: MENSAJE_APAGADO.ia };
   if (!iaConectada()) return { ok: false, error: FALTA_CLAVE };
   if (!(await proyectoVisible(a, d.proyectoId))) return { ok: false, error: SIN_PROYECTO };
   const r = await proponerIdeaDelProyecto(a, d.proyectoId, texto(d.pedido, 2000));
@@ -212,7 +215,9 @@ export async function proponerIdea(d: { proyectoId: string; pedido?: string }): 
 export async function armarStandConIA(d: { proyectoId: string; pedido?: string }): Promise<Resultado<{ id: string; notas: string }>> {
   const a = await exigirEditar("diseno");
   if (!puede(a, "ia", "editar")) return { ok: false, error: "Tu rol no puede usar la IA." };
+  if (!(await etapa2ActivaPara(a.tenantId, "ia"))) return { ok: false, error: MENSAJE_APAGADO.ia };
   if (!iaConectada()) return { ok: false, error: FALTA_CLAVE };
+  if (!(await etapa2ActivaPara(a.tenantId, "armador3d"))) return { ok: false, error: MENSAJE_APAGADO.armador3d };
   if (!(await proyectoVisible(a, d.proyectoId))) return { ok: false, error: SIN_PROYECTO };
   const r = await proponerStandDelProyecto(a, d.proyectoId, texto(d.pedido, 2000));
   if (!r.ok) return r;
@@ -236,7 +241,9 @@ export interface AlternativaStand extends MetricasStand {
 export async function armarStandsConIA(d: { proyectoId: string; pedido?: string }): Promise<Resultado<{ alternativas: AlternativaStand[]; fallaron: number }>> {
   const a = await exigirEditar("diseno");
   if (!puede(a, "ia", "editar")) return { ok: false, error: "Tu rol no puede usar la IA." };
+  if (!(await etapa2ActivaPara(a.tenantId, "ia"))) return { ok: false, error: MENSAJE_APAGADO.ia };
   if (!iaConectada()) return { ok: false, error: FALTA_CLAVE };
+  if (!(await etapa2ActivaPara(a.tenantId, "armador3d"))) return { ok: false, error: MENSAJE_APAGADO.armador3d };
   if (!(await proyectoVisible(a, d.proyectoId))) return { ok: false, error: SIN_PROYECTO };
   const pedido = texto(d.pedido, 2000);
   const respuestas = await Promise.all(ENFOQUES_STAND.map((e) => proponerStandDelProyecto(a, d.proyectoId, pedido, e.texto)));
@@ -343,6 +350,7 @@ async function guardarDelEstudio(a: Awaited<ReturnType<typeof exigirEditar>>, pr
 export async function generarEnEstudio(d: { proyectoId: string; pedido: string }): Promise<Resultado<{ ref: string }>> {
   const a = await exigirEditar("ia");
   if (!puede(a, "diseno", "editar")) return { ok: false, error: "Tu rol no puede guardar imágenes en el proyecto." };
+  if (!(await etapa2ActivaPara(a.tenantId, "ia"))) return { ok: false, error: MENSAJE_APAGADO.ia };
   if (!(await proyectoVisible(a, d.proyectoId))) return { ok: false, error: SIN_PROYECTO };
   const pedido = texto(d.pedido, 2000);
   if (!pedido) return { ok: false, error: "Escribí qué imagen querés." };
@@ -482,6 +490,7 @@ export async function conversarConAgente(d: { agente: string; proyectoId?: strin
   const a = await actorActual();
   if (!puede(a, "ia", "ver")) throw new Error("No tenés permiso para hacer esto.");
   if (!esAgente(d.agente) || agenteBloqueado(d.agente, (m) => puede(a, m, "ver"))) return { ok: false, error: "Tu rol no tiene acceso a este agente." };
+  if (!(await etapa2ActivaPara(a.tenantId, "ia"))) return { ok: false, error: MENSAJE_APAGADO.ia };
   if (!iaConectada()) return { ok: false, error: FALTA_CLAVE };
   const proyectoId = d.proyectoId || null;
   if (proyectoId && !(await proyectoVisible(a, proyectoId))) return { ok: false, error: SIN_PROYECTO };
@@ -495,6 +504,7 @@ export async function conversarConAgente(d: { agente: string; proyectoId?: strin
 export async function proponerPiezas(d: { proyectoId: string; pedido?: string }): Promise<Resultado<{ piezas: PiezaPropuesta[]; nota: string }>> {
   const a = await exigirEditar("diseno");
   if (!puede(a, "ia", "editar")) return { ok: false, error: "Tu rol no puede usar la IA." };
+  if (!(await etapa2ActivaPara(a.tenantId, "ia"))) return { ok: false, error: MENSAJE_APAGADO.ia };
   if (!iaConectada()) return { ok: false, error: FALTA_CLAVE };
   if (!(await proyectoVisible(a, d.proyectoId))) return { ok: false, error: SIN_PROYECTO };
   return proponerPiezasDelProyecto(a, d.proyectoId, texto(d.pedido, 2000));

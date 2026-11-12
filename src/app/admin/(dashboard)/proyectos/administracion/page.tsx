@@ -47,7 +47,16 @@ export default async function Administracion({ searchParams }: { searchParams: P
       <h1 className="mb-4 text-2xl font-bold text-strong">Administración</h1>
       {datos && (
         <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <KpiTile label="A cobrar" value={pesos(datos.resumen.aCobrar)} sub={`${pesos(datos.resumen.aCobrar7)} en 7 días`} />
+          <KpiTile
+            label="A cobrar"
+            value={pesos(datos.resumen.aCobrar)}
+            sub={
+              <>
+                {datos.resumen.aCobrarDeEmpresa > 0 && <span className="block">{pesos(datos.resumen.aCobrarDeEventos)} de eventos · {pesos(datos.resumen.aCobrarDeEmpresa)} de la empresa</span>}
+                <span className="block">{pesos(datos.resumen.aCobrar7)} en 7 días</span>
+              </>
+            }
+          />
           <KpiTile label="Cobros vencidos" value={pesos(datos.resumen.cobrosVencidos)} sub={datos.resumen.cantCobrosVencidos === 1 ? "1 cobro" : `${datos.resumen.cantCobrosVencidos} cobros`} />
           <KpiTile label="A pagar" value={pesos(datos.resumen.aPagar)} sub={`${pesos(datos.resumen.aPagar7)} en 7 días`} />
           <KpiTile label="Pagos vencidos" value={pesos(datos.resumen.pagosVencidos)} sub={datos.resumen.cantPagosVencidos === 1 ? "1 pago" : `${datos.resumen.cantPagosVencidos} pagos`} />
@@ -58,7 +67,7 @@ export default async function Administracion({ searchParams }: { searchParams: P
       )}
       <Pestanas pestanas={pestanas} etiqueta="Vistas de Administración" conRaya className="mb-4" />
       {(tab === "cobrar" || tab === "pagar") && datos && (
-        <TabCuentas tipo={tab === "cobrar" ? "COBRO" : "PAGO"} estado={sp.estado} q={sp.q} cuotas={datos.cuotas} tc={datos.tc} tenantId={a.tenantId} editaEmpresa={editaEmpresa} editaPagos={editaPagos} />
+        <TabCuentas tipo={tab === "cobrar" ? "COBRO" : "PAGO"} estado={sp.estado} q={sp.q} cuotas={datos.cuotas} sinCalendario={tab === "cobrar" ? datos.sinCalendario : []} tc={datos.tc} tenantId={a.tenantId} editaEmpresa={editaEmpresa} editaPagos={editaPagos} />
       )}
       {tab === "cashflow" && <TabCashflow tenantId={a.tenantId} />}
       {tab === "bancos" && <TabBancos tenantId={a.tenantId} editaEmpresa={editaEmpresa} editaPagos={editaPagos} />}
