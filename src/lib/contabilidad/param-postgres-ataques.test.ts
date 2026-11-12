@@ -777,15 +777,16 @@ test("H4: confirmar y cerrar en la misma transacción, contra otra confirmación
 // `app_rls` puede crear tablas TEMP con triggers. Sin `REVOKE EXECUTE ... FROM PUBLIC`, un trigger
 // TEMP apuntado a una función nuestra corría como el dueño de las tablas, con la fila que quisiera.
 
-/** Todas las funciones SECURITY DEFINER de contabilidad (las de ola 1, cuadre y parametrización). */
+/** TODAS las funciones SECURITY DEFINER de public, no sólo las de contabilidad: sin `ALTER DEFAULT
+ *  PRIVILEGES`, una función SECURITY DEFINER futura nace con EXECUTE para PUBLIC y este test la caza. */
 const funcionesDefiner = (base: BaseEfimera) =>
   comoDuenio(base, async (c) =>
     (await c.query(`SELECT p.oid::regprocedure::text AS f FROM pg_proc p
-                     WHERE p.pronamespace = 'public'::regnamespace AND p.prosecdef AND p.proname LIKE 'contabilidad\\_%'
+                     WHERE p.pronamespace = 'public'::regnamespace AND p.prosecdef
                      ORDER BY 1`)).rows.map((r) => r.f as string),
   );
 
-test("H5: app_rls no ejecuta ninguna función SECURITY DEFINER de contabilidad (ni directo ni en un trigger TEMP)", async (t) => {
+test("H5: app_rls no ejecuta ninguna función SECURITY DEFINER de public (ni directo ni en un trigger TEMP)", async (t) => {
   const base = await laBase(t);
   if (!base) return;
   await preparar(base);

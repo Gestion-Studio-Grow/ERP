@@ -25,6 +25,9 @@
 --      fila nueva, ese negocio tiene que ser el de la sesión ANTES de usarlo. La WITH CHECK de RLS corre
 --      DESPUÉS de los BEFORE: rechazaría la fila, pero tarde (la traba tomada duraría hasta el ROLLBACK).
 --      Sólo restringe a sesiones sujetas a RLS (no al dueño, ni a superusuario o BYPASSRLS).
+--      NO es una frontera nueva: con SQL libre, `app_rls` puede cambiar `app.current_tenant_id` dentro de
+--      su transacción (modelo RLS de ADR-018). La frontera real es que la app sólo fija el negocio con
+--      `tenantTransaction`; esta guarda adelanta lo que haría la WITH CHECK, nada más.
 -- También cambia `contabilidad_asiento_inmutable()` (ola 1): esas dos guardas, y la cabecera se busca
 -- por ("id", "tenantId") de la fila.
 
