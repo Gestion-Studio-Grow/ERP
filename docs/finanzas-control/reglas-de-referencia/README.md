@@ -11,6 +11,7 @@ regla con palabras propias: fórmula, casos borde, vectores de prueba (calculado
 | `B-impuestos.md` | IVA, percepciones, retenciones (RG 830), Convenio Multilateral, posición mensual | FC-07 a FC-10 | 28 |
 | `C-cobros-pagos.md` | Imputación, diferencia de cambio, revaluación, cheques, conciliación, mora, antigüedad | FC-04 a FC-06 | 19 |
 | `D-aritmetica.md` | Precisión, redondeo, prorrateo por mayor resto, totales, promedio/FIFO, amortización, márgenes, presupuesto | transversal, FC-13, FC-14 | 15 |
+| `E-mapa-maestro-modulos.md` | Mapa maestro: SAP (público) × ERPs abiertos × nuestras apps, 146 capacidades en 12 áreas | todas | — |
 
 Cada archivo cierra con «Módulos encontrados» (inventario de módulos de los ERPs fuente, con licencia).
 
