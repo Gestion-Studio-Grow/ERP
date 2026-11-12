@@ -46,6 +46,8 @@ export type CodigoErrorRepo =
   | "YA_CONFIRMADO"
   | "NO_CONFIRMADO"
   | "YA_ANULADO"
+  | "YA_ES_CONTRAASIENTO"
+  | "ORIGEN_AUTOMATICO"
   | "EJERCICIO_SUPERPUESTO"
   | "FECHAS_INVALIDAS"
   | "SIN_CUIT"
@@ -323,8 +325,14 @@ async function validarEnTx(tx: Tx, tenantId: string, fecha: Date, lineas: readon
 /** Asigna el próximo número del ejercicio y confirma. Se llama dentro de la transacción. */
 async function confirmarEnTx(tx: Tx, tenantId: string, asientoId: string, ejercicioId: string): Promise<number> {
   await candado(tx, `contabilidad-numero:${tenantId}:${ejercicioId}`);
-  const max = await tx.asiento.aggregate({ where: { tenantId, ejercicioId }, _max: { numero: true } });
-  const numero = (max._max.numero ?? 0) + 1;
+  // El último número por el índice único (tenantId, ejercicioId, numero), recorrido hacia atrás: lee
+  // una fila. El `aggregate({ _max })` de Prisma leía todos los números del ejercicio (panel SAP 4, gap 3).
+  const ultimo = await tx.asiento.findFirst({
+    where: { tenantId, ejercicioId, numero: { not: null } },
+    orderBy: { numero: "desc" },
+    select: { numero: true },
+  });
+  const numero = (ultimo?.numero ?? 0) + 1;
   await tx.asiento.update({ where: { id: asientoId, tenantId }, data: { numero, estado: "CONFIRMADO" } });
   return numero;
 }
@@ -370,7 +378,21 @@ async function crearEnTx(
 
 /** Alta de un asiento (borrador, o confirmado con número si `confirmar`). Valida con el motor. */
 export function registrarAsiento(tenantId: string, input: AsientoInput): Promise<Resultado<AsientoGuardado>> {
-  return enTransaccion(tenantId, (tx) => crearEnTx(tx, tenantId, input));
+  return enTransaccion(tenantId, (tx) => registrarAsientoEnTx(tx, tenantId, input));
+}
+
+/**
+ * Lo mismo que `registrarAsiento`, dentro de la transacción de quien llama: el documento (cobro,
+ * factura, pago) y su asiento se graban juntos o no se graba ninguno (panel SAP 5, trampa 2).
+ *
+ * - `tx` tiene que venir de `tenantTransaction` (o `enTransaccion`) del MISMO `tenantId`: con otro,
+ *   el filtro por negocio no encuentra las cuentas y el asiento se rechaza.
+ * - No devuelve `Resultado`: si el motor lo rechaza tira `Rechazo` (y una migración faltante tira el
+ *   P2021/P2022 de Prisma), para que la transacción entera vuelva atrás. Quien llama lo traduce; con
+ *   `enTransaccion` la traducción es la misma que la de `registrarAsiento`.
+ */
+export function registrarAsientoEnTx(tx: Tx, tenantId: string, input: AsientoInput): Promise<AsientoGuardado> {
+  return crearEnTx(tx, tenantId, input);
 }
 
 /**
@@ -415,6 +437,11 @@ export async function anularAsiento(tenantId: string, asientoId: string, fecha?:
   }
 }
 
+/** Manual: el que carga la persona (`MANUAL`) o uno anterior a que existiera el campo (null). */
+function esOrigenManual(origenTipo: string | null): boolean {
+  return origenTipo === null || origenTipo === ("MANUAL" satisfies OrigenAsiento);
+}
+
 function anularEnTransaccion(tenantId: string, asientoId: string, fecha?: Date): Promise<Resultado<AsientoGuardado>> {
   return enTransaccion(tenantId, async (tx) => {
     await bloquearAsiento(tx, tenantId, asientoId);
@@ -426,6 +453,8 @@ function anularEnTransaccion(tenantId: string, asientoId: string, fecha?: Date):
         fecha: true,
         descripcion: true,
         estado: true,
+        origenTipo: true,
+        anulaAsientoId: true,
         // fechaOrigen viaja al contra-asiento: la partida no monetaria se revierte con SU origen (T8).
         lineas: { select: { cuentaId: true, debe: true, haber: true, detalle: true, fechaOrigen: true } },
         anuladoPor: { select: { id: true } },
@@ -434,6 +463,15 @@ function anularEnTransaccion(tenantId: string, asientoId: string, fecha?: Date):
     if (!a) throw new Rechazo("NO_ENCONTRADO", "No encontramos ese asiento.");
     if (a.estado !== "CONFIRMADO") throw new Rechazo("NO_CONFIRMADO", "Un borrador no se anula: se corrige o se borra.");
     if (a.anuladoPor.length) throw new Rechazo("YA_ANULADO", "Ese asiento ya tiene su contra-asiento.");
+    // Anular la anulación revive el original sin dejarlo «anulado»: el camino es un asiento nuevo.
+    if (a.anulaAsientoId !== null) {
+      throw new Rechazo("YA_ES_CONTRAASIENTO", "Ese asiento es la anulación de otro: no se anula. Si hace falta, cargá un asiento nuevo.");
+    }
+    // Un asiento de factura, cobro, pago, apertura, cierre o ajuste se anula con su documento, que
+    // revierte las dos cosas juntas; anularlo acá dejaría el documento vivo sin su asiento.
+    if (!esOrigenManual(a.origenTipo)) {
+      throw new Rechazo("ORIGEN_AUTOMATICO", "Este asiento lo generó otro documento: se anula desde el documento de origen.");
+    }
     const contra = contraAsiento({ numero: a.numero ?? undefined, fecha: a.fecha, descripcion: a.descripcion, lineas: a.lineas }, fecha ?? a.fecha);
     return crearEnTx(
       tx,

@@ -208,3 +208,220 @@ test("calendario fiscal: CUIT del negocio, idempotente, estado y aislamiento", a
   assert.ok(!deB.ok && deB.error === "NO_ENCONTRADO");
   assert.equal(await duenio.vencimientoFiscal.count({ where: { tenantId: base.b.id } }), 0);
 });
+
+// ── Endurecimiento del libro (S1 · panel SAP 1, 4 y 5) ─────────────────────────────────────────
+// Corren sobre un ejercicio propio de A (2030) para que la numeración no dependa de los tests de arriba.
+
+let ejercicio2030: Promise<string> | null = null;
+async function conEjercicio2030(repo: typeof import("./repo"), tenantId: string) {
+  ejercicio2030 ??= (async () => {
+    const r = await repo.abrirEjercicio(tenantId, { fechaInicio: dia("2030-01-01"), fechaCierre: dia("2030-12-31") });
+    assert.ok(r.ok, JSON.stringify(r));
+    return r.ejercicioId;
+  })();
+  return ejercicio2030;
+}
+
+test("cuadre por negocio: la función del trigger filtra por tenantId y la regla no cambia (D 1.000 + D 500 / H 1.200 + H 300)", async (t) => {
+  const base = await laBase(t);
+  if (!base) return;
+  const repo = await preparar(base);
+  const duenio = await prismaComoDuenio(base);
+  const deA = await cuentasDe(base, base.a.id);
+  const deB = await cuentasDe(base, base.b.id);
+  const caja = porNombre(deA, "Caja");
+  const ventas = porNombre(deA, "Ventas");
+
+  // La migración 20261112120000 quedó aplicada: la suma va por ("tenantId", "asientoId").
+  const [{ def }] = await duenio.$queryRaw<{ def: string }[]>`SELECT pg_get_functiondef('contabilidad_controlar_cuadre'::regproc) AS def`;
+  assert.match(def, /WHERE "tenantId" = v_tenant AND "asientoId" = v_asiento/);
+
+  // Renglones de B en la tabla: no cuentan para el cuadre de A.
+  const enB = await repo.registrarAsiento(base.b.id, {
+    fecha: dia("2026-06-01"),
+    descripcion: "ruido de B",
+    lineas: [L(porNombre(deB, "Caja"), 777, 0), L(porNombre(deB, "Ventas de servicios"), 0, 777)],
+    confirmar: true,
+  });
+  assert.ok(enB.ok);
+
+  const cuadrado = await repo.registrarAsiento(base.a.id, {
+    fecha: dia("2026-06-01"),
+    descripcion: "cuadre por negocio",
+    lineas: [L(caja, 100000, 0), L(caja, 50000, 0), L(ventas, 0, 120000), L(ventas, 0, 30000)],
+    confirmar: true,
+  });
+  assert.ok(cuadrado.ok && cuadrado.numero !== null, JSON.stringify(cuadrado));
+
+  // Regresión: un centavo de menos (H 1.200 + H 299,99) lo sigue frenando la base, sin el motor.
+  const ej = await duenio.ejercicio.findFirstOrThrow({ where: { tenantId: base.a.id, fechaInicio: dia("2026-01-01") } });
+  await assert.rejects(
+    duenio.$transaction(async (tx) => {
+      const a = await tx.asiento.create({ data: { tenantId: base.a.id, ejercicioId: ej.id, fecha: dia("2026-06-01"), descripcion: "descuadrado por un centavo" } });
+      await tx.asientoLinea.createMany({
+        data: [
+          { tenantId: base.a.id, asientoId: a.id, cuentaId: caja, debe: BigInt(100000), haber: BigInt(0) },
+          { tenantId: base.a.id, asientoId: a.id, cuentaId: caja, debe: BigInt(50000), haber: BigInt(0) },
+          { tenantId: base.a.id, asientoId: a.id, cuentaId: ventas, debe: BigInt(0), haber: BigInt(120000) },
+          { tenantId: base.a.id, asientoId: a.id, cuentaId: ventas, debe: BigInt(0), haber: BigInt(29999) },
+        ],
+      });
+      await tx.asiento.update({ where: { id: a.id }, data: { estado: "CONFIRMADO", numero: 9998 } });
+    }),
+    (e: unknown) => /descuadrado/.test(String(e)) && /23514/.test(JSON.stringify(e) + String(e)),
+  );
+  assert.equal(await duenio.asiento.count({ where: { descripcion: "descuadrado por un centavo" } }), 0);
+});
+
+test("numeración: el último número ignora los borradores; un rechazo al confirmar no deja hueco", async (t) => {
+  const base = await laBase(t);
+  if (!base) return;
+  const repo = await preparar(base);
+  const ejercicioId = await conEjercicio2030(repo, base.a.id);
+  const duenio = await prismaComoDuenio(base);
+  const deA = await cuentasDe(base, base.a.id);
+  const caja = porNombre(deA, "Caja");
+  const ventas = porNombre(deA, "Ventas");
+
+  // Borradores con número NULL: en Postgres NULL va primero en un ORDER BY DESC; no tienen que ganarle al máximo.
+  const borr = (d: string, debe: number, haber: number) =>
+    repo.registrarAsiento(base.a.id, { fecha: dia("2030-02-01"), descripcion: d, lineas: [L(caja, debe, 0), L(ventas, 0, haber)] });
+  const a = await borr("A", 1000, 1000);
+  const c = await borr("C", 3000, 3000);
+  assert.ok(a.ok && c.ok && a.numero === null && c.numero === null);
+  // B: borrador descuadrado (D 1.000 / H 999), cargado por fuera del motor (como uno viejo).
+  const b = await duenio.asiento.create({ data: { tenantId: base.a.id, ejercicioId, fecha: dia("2030-02-01"), descripcion: "B" } });
+  await duenio.asientoLinea.createMany({
+    data: [
+      { tenantId: base.a.id, asientoId: b.id, cuentaId: caja, debe: BigInt(1000), haber: BigInt(0) },
+      { tenantId: base.a.id, asientoId: b.id, cuentaId: ventas, debe: BigInt(0), haber: BigInt(999) },
+    ],
+  });
+
+  const r = await Promise.all([a.asientoId, b.id, c.asientoId].map((id) => repo.confirmarAsiento(base.a.id, id)));
+  assert.ok(r[0].ok && r[2].ok, JSON.stringify(r));
+  assert.deepEqual([r[0].ok && r[0].numero, r[2].ok && r[2].numero].sort(), [1, 2]);
+  assert.ok(!r[1].ok && r[1].error === "ASIENTO_INVALIDO");
+
+  const sigueBorrador = await duenio.asiento.findUniqueOrThrow({ where: { id: b.id } });
+  assert.equal(sigueBorrador.estado, "BORRADOR");
+  assert.equal(sigueBorrador.numero, null);
+  const agg = await duenio.asiento.aggregate({ where: { tenantId: base.a.id, ejercicioId }, _count: { numero: true }, _max: { numero: true } });
+  assert.equal(agg._count.numero, agg._max.numero, "COUNT(numero) = MAX(numero): sin huecos");
+
+  // Otro borrador más y uno nuevo confirmado: sigue el correlativo.
+  await borr("D", 5, 5);
+  const e = await repo.registrarAsiento(base.a.id, { fecha: dia("2030-02-02"), descripcion: "E", lineas: [L(caja, 7, 0), L(ventas, 0, 7)], confirmar: true });
+  assert.ok(e.ok && e.numero === (agg._max.numero ?? 0) + 1);
+});
+
+test("anular: un contra-asiento no se anula (Caja 100,00 / Ventas 100,00) y el original queda neto en cero", async (t) => {
+  const base = await laBase(t);
+  if (!base) return;
+  const repo = await preparar(base);
+  await conEjercicio2030(repo, base.a.id);
+  const duenio = await prismaComoDuenio(base);
+  const deA = await cuentasDe(base, base.a.id);
+  const caja = porNombre(deA, "Caja");
+  const ventas = porNombre(deA, "Ventas");
+
+  const original = await repo.registrarAsiento(base.a.id, { fecha: dia("2030-03-01"), descripcion: "Venta contado", lineas: [L(caja, 10000, 0), L(ventas, 0, 10000)], confirmar: true });
+  assert.ok(original.ok);
+  const contra = await repo.anularAsiento(base.a.id, original.asientoId);
+  assert.ok(contra.ok);
+
+  const otra = await repo.anularAsiento(base.a.id, contra.asientoId);
+  assert.ok(!otra.ok && otra.error === "YA_ES_CONTRAASIENTO", JSON.stringify(otra));
+  assert.equal(await duenio.asiento.count({ where: { anulaAsientoId: contra.asientoId } }), 0);
+
+  const lineas = await duenio.asientoLinea.findMany({ where: { asientoId: { in: [original.asientoId, contra.asientoId] }, cuentaId: caja } });
+  assert.equal(lineas.reduce((s, l) => s + l.debe - l.haber, BigInt(0)), BigInt(0), "Caja: neto 0,00");
+});
+
+test("anular: un asiento de origen automático se anula desde su documento; el manual (o sin origen) sí se anula", async (t) => {
+  const base = await laBase(t);
+  if (!base) return;
+  const repo = await preparar(base);
+  const ejercicioId = await conEjercicio2030(repo, base.a.id);
+  const duenio = await prismaComoDuenio(base);
+  const deA = await cuentasDe(base, base.a.id);
+  const caja = porNombre(deA, "Caja");
+  const ventas = porNombre(deA, "Ventas");
+
+  const automaticos = ["FACTURA", "COBRO", "PAGO", "APERTURA", "CIERRE", "REFUNDICION", "AJUSTE"] as const;
+  for (const origenTipo of automaticos) {
+    const r = await repo.registrarAsiento(base.a.id, {
+      fecha: dia("2030-04-01"),
+      descripcion: `Asiento de ${origenTipo}`,
+      lineas: [L(caja, 5000000, 0), L(ventas, 0, 5000000)],
+      origenTipo,
+      origenId: `doc-${origenTipo}`,
+      confirmar: true,
+    });
+    assert.ok(r.ok);
+    const an = await repo.anularAsiento(base.a.id, r.asientoId);
+    assert.ok(!an.ok && an.error === "ORIGEN_AUTOMATICO", `${origenTipo}: ${JSON.stringify(an)}`);
+    assert.match(an.mensaje, /se anula desde el documento de origen/);
+    assert.equal(await duenio.asiento.count({ where: { anulaAsientoId: r.asientoId } }), 0);
+  }
+
+  const manual = await repo.registrarAsiento(base.a.id, { fecha: dia("2030-04-02"), descripcion: "manual", lineas: [L(caja, 1, 0), L(ventas, 0, 1)], origenTipo: "MANUAL", confirmar: true });
+  assert.ok(manual.ok);
+  assert.ok((await repo.anularAsiento(base.a.id, manual.asientoId)).ok);
+
+  // Sin origen (NULL, anterior al campo): se trata como manual.
+  const sinOrigen = await duenio.$transaction(async (tx) => {
+    const ultimo = await tx.asiento.findFirst({ where: { tenantId: base.a.id, ejercicioId, numero: { not: null } }, orderBy: { numero: "desc" } });
+    const a = await tx.asiento.create({ data: { tenantId: base.a.id, ejercicioId, fecha: dia("2030-04-03"), descripcion: "sin origen" } });
+    await tx.asientoLinea.createMany({
+      data: [
+        { tenantId: base.a.id, asientoId: a.id, cuentaId: caja, debe: BigInt(2), haber: BigInt(0) },
+        { tenantId: base.a.id, asientoId: a.id, cuentaId: ventas, debe: BigInt(0), haber: BigInt(2) },
+      ],
+    });
+    await tx.asiento.update({ where: { id: a.id }, data: { estado: "CONFIRMADO", numero: (ultimo?.numero ?? 0) + 1 } });
+    return a.id;
+  });
+  assert.equal((await duenio.asiento.findUniqueOrThrow({ where: { id: sinOrigen } })).origenTipo, null);
+  assert.ok((await repo.anularAsiento(base.a.id, sinOrigen)).ok);
+});
+
+test("registrarAsientoEnTx: documento y asiento en la misma transacción, todo o nada; con otro negocio no graba", async (t) => {
+  const base = await laBase(t);
+  if (!base) return;
+  const repo = await preparar(base);
+  const ejercicioId = await conEjercicio2030(repo, base.a.id);
+  const duenio = await prismaComoDuenio(base);
+  const deA = await cuentasDe(base, base.a.id);
+  const caja = porNombre(deA, "Caja");
+  const ventas = porNombre(deA, "Ventas");
+  const ultimoNumero = async () =>
+    (await duenio.asiento.aggregate({ where: { tenantId: base.a.id, ejercicioId }, _max: { numero: true } }))._max.numero ?? 0;
+  const antes = await ultimoNumero();
+
+  // Cobro de $ 50.000,00: el "documento" se graba y el asiento falla (fecha sin ejercicio) → no queda ninguno.
+  const fallo = await repo.enTransaccion(base.a.id, async (tx) => {
+    const doc = await repo.registrarAsientoEnTx(tx, base.a.id, { fecha: dia("2030-05-01"), descripcion: "documento", lineas: [L(caja, 5000000, 0), L(ventas, 0, 5000000)], confirmar: true });
+    await repo.registrarAsientoEnTx(tx, base.a.id, { fecha: dia("2031-05-01"), descripcion: "asiento del cobro", lineas: [L(caja, 5000000, 0), L(ventas, 0, 5000000)], origenTipo: "COBRO", origenId: "cobro-1", confirmar: true });
+    return { doc };
+  });
+  assert.ok(!fallo.ok && fallo.error === "ASIENTO_INVALIDO" && fallo.errores?.[0].codigo === "SIN_EJERCICIO", JSON.stringify(fallo));
+  assert.equal(await duenio.asiento.count({ where: { tenantId: base.a.id, descripcion: { in: ["documento", "asiento del cobro"] } } }), 0);
+  assert.equal(await ultimoNumero(), antes, "el número no se consumió");
+
+  // Bien: los dos, con números correlativos.
+  const bien = await repo.enTransaccion(base.a.id, async (tx) => {
+    const doc = await repo.registrarAsientoEnTx(tx, base.a.id, { fecha: dia("2030-05-01"), descripcion: "doc ok", lineas: [L(caja, 5000000, 0), L(ventas, 0, 5000000)], confirmar: true });
+    const asiento = await repo.registrarAsientoEnTx(tx, base.a.id, { fecha: dia("2030-05-01"), descripcion: "asiento ok", lineas: [L(caja, 5000000, 0), L(ventas, 0, 5000000)], origenTipo: "COBRO", origenId: "cobro-2", confirmar: true });
+    return { numeros: [doc.numero, asiento.numero] };
+  });
+  assert.ok(bien.ok);
+  assert.deepEqual(bien.numeros, [antes + 1, antes + 2]);
+
+  // La tx de B con el negocio A: las cuentas de A no existen para esa transacción.
+  const cruzado = await repo.enTransaccion(base.b.id, (tx) =>
+    repo.registrarAsientoEnTx(tx, base.a.id, { fecha: dia("2030-05-02"), descripcion: "cruzado", lineas: [L(caja, 1, 0), L(ventas, 0, 1)], confirmar: true }),
+  );
+  assert.ok(!cruzado.ok && cruzado.error === "ASIENTO_INVALIDO" && cruzado.errores?.some((e) => e.codigo === "CUENTA_INEXISTENTE"), JSON.stringify(cruzado));
+  assert.equal(await duenio.asiento.count({ where: { descripcion: "cruzado" } }), 0);
+});
