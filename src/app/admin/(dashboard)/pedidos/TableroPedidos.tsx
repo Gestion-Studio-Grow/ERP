@@ -32,6 +32,7 @@ import { Button, Chip, Field, Icono, Input, Marca, Plata, Renglon, RielDeEstados
 import { useToast } from "../ToastProvider";
 import PedidoCajon, { type SeccionDelCajon } from "./PedidoCajon";
 import AnularDelPedido from "./AnularDelPedido";
+import SinConfirmar from "./SinConfirmar";
 import { rechazoDeAccion, sinRespuestaAlAvanzar } from "./avanzar-pedido";
 import { esRedirectDeNext } from "./formularios-del-pedido";
 import { useCobroDelNegocio } from "./CobroDelPedido";
@@ -325,7 +326,7 @@ function AvisarUnoPorUno({ pedidos, onCerrar }: { pedidos: PedidoDelTablero[]; o
 
 // ── Estado del pedido, en la fila ────────────────────────────────────────────
 
-function EstadoDeFila({ p, comercio, otros }: { p: PedidoDelTablero; comercio: boolean; otros: readonly number[] }) {
+function EstadoDeFila({ p, comercio, otros, pediLocal = false }: { p: PedidoDelTablero; comercio: boolean; otros: readonly number[]; pediLocal?: boolean }) {
   const vocab = useVocabulario();
   const riel = rielDelPedido(p, comercio);
   const doble = textoDeOtrosPedidos(otros);
@@ -333,6 +334,8 @@ function EstadoDeFila({ p, comercio, otros }: { p: PedidoDelTablero; comercio: b
     <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-0.5">
       {/* La misma clienta con otro pedido abierto (caso 8): antes de preparar los dos, juntalos o preguntale. */}
       {doble && <Marca tipo="atencion">{doble}</Marca>}
+      {/* Pedí Local: pasados 20 min sin confirmar, chip rojo (a los 30 el cliente puede bajarlo). */}
+      {pediLocal && <SinConfirmar status={p.status} creado={p.creado} />}
       {/* En el celular no entra el riel: queda la palabra del paso, y la entrega y el cobro van en
           la misma línea (en la PC tienen su columna). */}
       <span className="max-sm:hidden">
@@ -514,6 +517,7 @@ function TarjetaDelPedido({
           </span>
         </p>
         <p className="flex flex-wrap gap-1.5">
+          {extra?.deliveryLocal && <SinConfirmar status={p.status} creado={p.creado} />}
           {p.cobrado ? <Marca tipo="hecho">{p.medio ? `Cobrado · ${p.medio}` : "Cobrado"}</Marca> : null}
           {p.reparto && <Marca tipo="info">En la calle desde {p.reparto.desde}</Marca>}
           {p.status === "READY" && p.avisado && !p.reparto && <Marca tipo="hecho">Avisado {p.avisado}</Marca>}
@@ -894,7 +898,7 @@ export default function TableroPedidos({
       clave: "estado",
       titulo: "Estado",
       movil: "detalle",
-      celda: (p) => <EstadoDeFila p={p} comercio={comercio} otros={otrosDeLaClienta.get(p.id) ?? []} />,
+      celda: (p) => <EstadoDeFila p={p} comercio={comercio} otros={otrosDeLaClienta.get(p.id) ?? []} pediLocal={Boolean(extras[p.id]?.deliveryLocal)} />,
     },
     { clave: "total", titulo: "Total", alinear: "derecha", ordenable: true, movil: "plata", celda: (p) => <Plata valor={p.total} /> },
     {

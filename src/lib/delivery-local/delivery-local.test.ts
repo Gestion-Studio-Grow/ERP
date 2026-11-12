@@ -7,6 +7,7 @@ import { textoParaElRepartidor, cobroParaElRepartidor } from "./mensajes";
 import { configDeliveryLocal } from "./config";
 import { extrasDelAlta } from "./alta";
 import { transferenciaPublicable } from "./pago";
+import { confirmacionVencida, horaArgentina, minutosDesde, minutosSinConfirmar, rangoDeLlegada } from "./reloj";
 
 const MONTE_GRANDE = { lat: -34.8183, lng: -58.4683 };
 // Por defecto el cliente aceptó los términos; el test de la casilla lo saca a mano.
@@ -193,4 +194,70 @@ test("alta: sin aceptar los términos no se toma el pedido, aunque el navegador 
   const x = extrasDelAlta(cfg, form({ medioPreferido: "efectivo" }, false), true);
   assert.equal(x.ok, false);
   assert.equal(extrasDelAlta(cfg, form({ medioPreferido: "efectivo", aceptaTerminos: "si" }, false), true).ok, false);
+});
+
+// ── El reloj del pedido (reloj.ts) ──
+// 21:00 UTC = 18:00 en Buenos Aires (−3, sin horario de verano).
+const ALTA = new Date("2026-11-12T21:03:20Z"); // 18:03:20
+const mas = (min: number) => new Date(ALTA.getTime() + min * 60_000);
+const envioBase = { envio: true, enCamino: false, paid: true, medio: "efectivo" as const };
+
+test("reloj: la hora sale en la Argentina, 24 h, aunque el servidor corra en UTC", () => {
+  assert.equal(horaArgentina(new Date("2026-11-12T21:05:00Z")), "18:05");
+  assert.equal(horaArgentina(new Date("2026-11-13T03:00:00Z")), "00:00");
+});
+test("reloj: rango redondeado a 5 min (desde para abajo, hasta para arriba); sin demora, null", () => {
+  const r = rangoDeLlegada(ALTA, 35); // 18:38:20 → 18:35 · 18:53:20 → 18:55
+  assert.deepEqual(r && [r.desde, r.hasta], ["18:35", "18:55"]);
+  assert.equal(rangoDeLlegada(ALTA, null), null);
+  assert.equal(rangoDeLlegada(ALTA, undefined), null);
+  assert.equal(rangoDeLlegada(ALTA, 0), null);
+  assert.equal(rangoDeLlegada(ALTA, Number.NaN), null);
+});
+test("seguimiento: confirmado con demora muestra el rango, no una hora exacta", () => {
+  const v = vistaDelSeguimiento({ ...envioBase, status: "CONFIRMED", creadoEn: ALTA, ahora: mas(5), demoraMin: 35 });
+  assert.match(v.detalle, /Llega entre las 18:35 y 18:55\./);
+  assert.equal(v.vencido, false);
+  const camino = vistaDelSeguimiento({ ...envioBase, status: "READY", enCamino: true, creadoEn: ALTA, ahora: mas(40), demoraMin: 35 });
+  assert.match(camino.detalle, /entre las 18:35 y 18:55/);
+});
+test("seguimiento: sin demora configurada no promete hora; un retiro tampoco", () => {
+  const v = vistaDelSeguimiento({ ...envioBase, status: "CONFIRMED", creadoEn: ALTA, ahora: mas(5), demoraMin: null });
+  assert.equal(v.detalle, "El local ya lo tiene en la lista.");
+  const r = vistaDelSeguimiento({ ...envioBase, envio: false, status: "PREPARING", creadoEn: ALTA, ahora: mas(5), demoraMin: 35 });
+  assert.doesNotMatch(r.detalle, /entre las/);
+});
+test("seguimiento: pasado el rango sin entregar, no muestra una hora vieja", () => {
+  const v = vistaDelSeguimiento({ ...envioBase, status: "PREPARING", creadoEn: ALTA, ahora: mas(60), demoraMin: 35 });
+  assert.doesNotMatch(v.detalle, /entre las/);
+  assert.match(v.detalle, /demorando/);
+});
+test("seguimiento: pendiente sin rango; vence pasados 30 min, no a los 30 justos", () => {
+  const p = { ...envioBase, status: "PENDING" as const, creadoEn: ALTA, demoraMin: 35 };
+  const a29 = vistaDelSeguimiento({ ...p, ahora: mas(29) });
+  assert.equal(a29.vencido, false);
+  assert.doesNotMatch(a29.detalle, /entre las/);
+  assert.equal(vistaDelSeguimiento({ ...p, ahora: mas(30) }).vencido, false);
+  const vencida = vistaDelSeguimiento({ ...p, ahora: new Date(mas(30).getTime() + 1) });
+  assert.equal(vencida.vencido, true);
+  assert.equal(vencida.titular, "El local todavía no confirmó tu pedido");
+  assert.match(vencida.detalle, /Podés bajarlo/);
+  assert.equal(vencida.actual, 0);
+  assert.equal(vencida.terminado, false);
+});
+test("seguimiento: ya confirmado (o cancelado) nunca vence, aunque pasen horas; sin reloj, tampoco", () => {
+  for (const status of ["CONFIRMED", "PREPARING", "READY", "DELIVERED", "CANCELLED"] as const) {
+    assert.equal(vistaDelSeguimiento({ ...envioBase, status, creadoEn: ALTA, ahora: mas(180), demoraMin: 35 }).vencido, false, status);
+  }
+  assert.equal(vistaDelSeguimiento({ ...envioBase, status: "PENDING" }).vencido, false);
+  assert.equal(confirmacionVencida({ status: "PENDING", creadoEn: ALTA, ahora: mas(31) }), true);
+});
+test("tablero: chip desde los 20 min, sólo pendiente; minutos enteros y nunca negativos", () => {
+  const creado = ALTA.toISOString();
+  assert.equal(minutosSinConfirmar({ status: "PENDING", creado, ahora: mas(19.99) }), null);
+  assert.equal(minutosSinConfirmar({ status: "PENDING", creado, ahora: mas(20) }), 20);
+  assert.equal(minutosSinConfirmar({ status: "PENDING", creado, ahora: mas(47.5).getTime() }), 47);
+  assert.equal(minutosSinConfirmar({ status: "CONFIRMED", creado, ahora: mas(47) }), null);
+  assert.equal(minutosDesde(creado, mas(-3)), 0);
+  assert.equal(minutosDesde("no es fecha", mas(3)), 0);
 });

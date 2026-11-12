@@ -31,6 +31,12 @@ export type ConfigDeliveryLocal = {
   /** Hasta dónde llega el reparto (km en línea recta). null = no se controla. */
   radioKm: number | null;
   horario: string;
+  /**
+   * Demora típica de un envío, en minutos desde que se manda el pedido. Con ella el seguimiento
+   * promete un rango («llega entre las 18:20 y 18:35», src/lib/delivery-local/reloj.ts); sin ella,
+   * no promete hora.
+   */
+  demoraMin?: number;
   medios: readonly MedioPreferido[];
   transferencia: { alias: string; titular: string; banco: string } | null;
   /** Titular legal del comercio (vendedor) para las condiciones de venta. */
@@ -57,6 +63,7 @@ export const CONFIGS_DELIVERY_LOCAL: Readonly<Record<string, ConfigDeliveryLocal
     ubicacionDelLocal: { lat: -34.8183, lng: -58.4683 },
     radioKm: 4,
     horario: `Lunes a sábado de 8 a 20 (${PROVISIONAL})`,
+    demoraMin: 35, // provisional a confirmar con el local
     medios: ["transferencia", "efectivo", "mercadopago"],
     transferencia: { alias: "ALIAS.PROVISIONAL.A.CONFIRMAR", titular: `Titular ${PROVISIONAL}`, banco: "Mercado Pago" },
     razonSocial: `Bitácora Café (${PROVISIONAL})`,
