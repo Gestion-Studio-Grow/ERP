@@ -89,6 +89,33 @@ BEGIN
 END
 $$;
 
+-- Contabilidad: las funciones SECURITY DEFINER (corren como el dueño de las tablas) no se ejecutan
+-- desde afuera. Postgres les da EXECUTE a PUBLIC: con eso, app_rls podía apuntarles un trigger de una
+-- tabla TEMP propia y hacerlas correr con una fila inventada de otro negocio. Los triggers legítimos
+-- siguen andando: el EXECUTE se controla al CREAR el trigger (lo crea el dueño), no al dispararlo.
+-- Cada una sólo si existe (las crean 20261104122000_contabilidad_ola1 y 20261112130000/130100_param);
+-- sus migraciones hacen el mismo recorte.
+DO $$
+DECLARE
+  f text;
+BEGIN
+  FOREACH f IN ARRAY ARRAY[
+    'contabilidad_controlar_cuadre()', 'contabilidad_asiento_inmutable()',
+    'contabilidad_asiento_en_ejercicio()', 'contabilidad_controlar_ejercicio()',
+    'contabilidad_param_activa(text)', 'contabilidad_param_rastro()', 'contabilidad_param_rastro_inmutable()',
+    'contabilidad_param_cuenta_estable()', 'contabilidad_param_numerador()', 'contabilidad_param_vigencia()',
+    'contabilidad_param_periodo()', 'contabilidad_param_al_confirmar("Asiento")',
+    'contabilidad_param_campos("Asiento", boolean, boolean)', 'contabilidad_param_conversion(text, text)',
+    'contabilidad_param_cotizacion()', 'contabilidad_param_versionada()',
+    'contabilidad_param_cuenta_impuesto()', 'contabilidad_param_conflicto_campos()'
+  ] LOOP
+    IF to_regprocedure(f) IS NOT NULL THEN
+      EXECUTE format('REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC', to_regprocedure(f));
+    END IF;
+  END LOOP;
+END
+$$;
+
 COMMIT;
 
 -- Verificación rápida (debe devolver rolbypassrls = false):

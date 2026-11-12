@@ -281,6 +281,9 @@ DECLARE
   v_activa boolean;
   v_actor text := contabilidad_param_actor();
 BEGIN
+  PERFORM contabilidad_exigir_tabla(TG_TABLE_SCHEMA, TG_TABLE_NAME, ARRAY['ConfigContable', 'CuentaContable', 'CuentaRol', 'PeriodoApertura', 'NumeradorContable', 'ClaseAsiento',
+    'CentroCosto', 'TipoCotizacion', 'Cotizacion', 'IndicadorImpuesto', 'RegimenRetencion', 'DeterminacionCuenta', 'Tolerancia',
+    'GrupoCampos']);
   IF TG_OP <> 'INSERT' THEN v_antes := to_jsonb(OLD); END IF;
   IF TG_OP <> 'DELETE' THEN v_despues := to_jsonb(NEW); END IF;
   IF TG_OP = 'UPDATE' AND (v_antes - 'updatedAt') = (v_despues - 'updatedAt') THEN
@@ -313,6 +316,7 @@ END $$;
 CREATE OR REPLACE FUNCTION contabilidad_param_rastro_inmutable() RETURNS trigger
   LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 BEGIN
+  PERFORM contabilidad_exigir_tabla(TG_TABLE_SCHEMA, TG_TABLE_NAME, ARRAY['ParamCambio', 'Cotizacion']);
   IF TG_OP = 'INSERT' AND pg_trigger_depth() > 1 THEN
     RETURN NEW;
   END IF;
@@ -345,6 +349,7 @@ CREATE TRIGGER "CentroCosto_rastro" AFTER INSERT OR UPDATE OR DELETE ON "CentroC
 CREATE OR REPLACE FUNCTION contabilidad_param_cuenta_estable() RETURNS trigger
   LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 BEGIN
+  PERFORM contabilidad_exigir_tabla(TG_TABLE_SCHEMA, TG_TABLE_NAME, ARRAY['CuentaContable']);
   IF (NEW."tipo", NEW."monedaCuenta", NEW."claseCuenta") IS DISTINCT FROM (OLD."tipo", OLD."monedaCuenta", OLD."claseCuenta")
      AND contabilidad_param_activa(OLD."tenantId")
      AND EXISTS (SELECT 1 FROM "AsientoLinea" l
@@ -366,6 +371,8 @@ CREATE OR REPLACE FUNCTION contabilidad_param_numerador() RETURNS trigger
 DECLARE
   v_rango boolean := TG_OP = 'INSERT';
 BEGIN
+  PERFORM contabilidad_exigir_tabla(TG_TABLE_SCHEMA, TG_TABLE_NAME, ARRAY['NumeradorContable']);
+  PERFORM contabilidad_exigir_negocio(TG_RELID, NEW."tenantId");
   IF TG_OP = 'UPDATE' THEN
     IF NEW."ultimo" <> OLD."ultimo" AND pg_trigger_depth() < 2 THEN
       RAISE EXCEPTION 'El último número del numerador % lo asigna la base al confirmar', OLD."codigo"
@@ -414,6 +421,10 @@ CREATE OR REPLACE FUNCTION contabilidad_param_periodo() RETURNS trigger
 DECLARE
   v_fila "PeriodoApertura";
 BEGIN
+  PERFORM contabilidad_exigir_tabla(TG_TABLE_SCHEMA, TG_TABLE_NAME, ARRAY['PeriodoApertura']);
+  IF TG_OP <> 'DELETE' THEN
+    PERFORM contabilidad_exigir_negocio(TG_RELID, NEW."tenantId");
+  END IF;
   IF TG_OP = 'DELETE' THEN v_fila := OLD; ELSE v_fila := NEW; END IF;
   IF v_fila."claseCuenta" <> 'GENERAL' AND (TG_OP <> 'UPDATE' OR OLD."claseCuenta" <> 'GENERAL') THEN
     UPDATE "PeriodoApertura" SET "updatedAt" = CURRENT_TIMESTAMP
@@ -438,6 +449,10 @@ DECLARE
   v_fila jsonb;
   v_desde date;
 BEGIN
+  PERFORM contabilidad_exigir_tabla(TG_TABLE_SCHEMA, TG_TABLE_NAME, ARRAY['IndicadorImpuesto', 'RegimenRetencion', 'DeterminacionCuenta', 'Tolerancia']);
+  IF TG_OP <> 'DELETE' THEN
+    PERFORM contabilidad_exigir_negocio(TG_RELID, NEW."tenantId");
+  END IF;
   IF TG_OP = 'DELETE' THEN v_fila := to_jsonb(OLD); ELSE v_fila := to_jsonb(NEW); END IF;
   SELECT "abiertoDesde" INTO v_desde FROM "PeriodoApertura"
     WHERE "tenantId" = v_fila->>'tenantId' AND "claseCuenta" = 'GENERAL' FOR NO KEY UPDATE;
@@ -565,6 +580,8 @@ DECLARE
   v_ej RECORD;
   v_confirma boolean;
 BEGIN
+  PERFORM contabilidad_exigir_tabla(TG_TABLE_SCHEMA, TG_TABLE_NAME, ARRAY['Asiento']);
+  PERFORM contabilidad_exigir_negocio(TG_RELID, NEW."tenantId");
   SELECT "tenantId", "estado", "fechaInicio", "fechaCierre" INTO v_ej
     FROM "Ejercicio" WHERE "id" = NEW."ejercicioId" AND "tenantId" = NEW."tenantId" FOR SHARE;
   IF NOT FOUND THEN
@@ -607,6 +624,7 @@ DECLARE
   v_debe NUMERIC;
   v_haber NUMERIC;
 BEGIN
+  PERFORM contabilidad_exigir_tabla(TG_TABLE_SCHEMA, TG_TABLE_NAME, ARRAY['Asiento', 'AsientoLinea']);
   IF TG_TABLE_NAME = 'Asiento' THEN
     v_asiento := NEW."id";
   ELSIF TG_OP = 'DELETE' THEN
@@ -639,6 +657,7 @@ END $$;
 CREATE OR REPLACE FUNCTION contabilidad_controlar_ejercicio() RETURNS trigger
   LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 BEGIN
+  PERFORM contabilidad_exigir_tabla(TG_TABLE_SCHEMA, TG_TABLE_NAME, ARRAY['Ejercicio']);
   IF NEW."estado" = 'CERRADO' AND OLD."estado" <> 'CERRADO'
      AND EXISTS (SELECT 1 FROM "Asiento" WHERE "tenantId" = OLD."tenantId" AND "ejercicioId" = OLD."id"
                  AND "estado" = 'BORRADOR') THEN
@@ -671,6 +690,22 @@ BEGIN
     ALTER FUNCTION contabilidad_controlar_ejercicio() OWNER TO neondb_owner;
   END IF;
 END $$;
+
+-- Sin EXECUTE para PUBLIC (ver 20261112120000: los triggers legítimos siguen andando; una tabla TEMP
+-- de app_rls ya no puede apuntarles un trigger, ni llamarlas directo). 0002 lo repite.
+REVOKE EXECUTE ON FUNCTION contabilidad_param_activa(TEXT) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION contabilidad_param_rastro() FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION contabilidad_param_rastro_inmutable() FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION contabilidad_param_cuenta_estable() FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION contabilidad_param_numerador() FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION contabilidad_param_vigencia() FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION contabilidad_param_periodo() FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION contabilidad_param_campos("Asiento", boolean, boolean) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION contabilidad_param_conversion(TEXT, TEXT) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION contabilidad_param_al_confirmar("Asiento") FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION contabilidad_asiento_en_ejercicio() FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION contabilidad_controlar_cuadre() FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION contabilidad_controlar_ejercicio() FROM PUBLIC;
 
 -- ── RLS: misma policy que el resto (prisma/rls/0001_enable_rls.sql la recrea igual) ───────────
 

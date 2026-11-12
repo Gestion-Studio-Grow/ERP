@@ -12,6 +12,8 @@
 //   F16 estado de campos · F17 claveOrigen única (idempotente) · inerte sin `parametrizacion`.
 //   H1–H4 (certificación, vuelta 1): permisos de app_rls sin pg_trigger_depth · alta de período por
 //   clase vs asiento en vuelo (y REPEATABLE READ) · numerador en REPEATABLE READ · confirmar+cerrar sin 40P01.
+//   H5–H9 (certificación, vuelta 2): sin EXECUTE para PUBLIC en las SECURITY DEFINER · rastro forjado en
+//   una TEMP · numerador quemado vía TEMP · B no traba la GENERAL de A · guarda de tabla en cada trigger.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -768,5 +770,140 @@ test("H4: confirmar y cerrar en la misma transacción, contra otra confirmación
     await cerrarTx(t1);
     await cerrarTx(t2);
     await reabrir(base);
+  }
+});
+
+// ── Certificación, vuelta 2: las funciones SECURITY DEFINER no se reusan desde afuera ─────────────
+// `app_rls` puede crear tablas TEMP con triggers. Sin `REVOKE EXECUTE ... FROM PUBLIC`, un trigger
+// TEMP apuntado a una función nuestra corría como el dueño de las tablas, con la fila que quisiera.
+
+/** Todas las funciones SECURITY DEFINER de contabilidad (las de ola 1, cuadre y parametrización). */
+const funcionesDefiner = (base: BaseEfimera) =>
+  comoDuenio(base, async (c) =>
+    (await c.query(`SELECT p.oid::regprocedure::text AS f FROM pg_proc p
+                     WHERE p.pronamespace = 'public'::regnamespace AND p.prosecdef AND p.proname LIKE 'contabilidad\\_%'
+                     ORDER BY 1`)).rows.map((r) => r.f as string),
+  );
+
+test("H5: app_rls no ejecuta ninguna función SECURITY DEFINER de contabilidad (ni directo ni en un trigger TEMP)", async (t) => {
+  const base = await laBase(t);
+  if (!base) return;
+  await preparar(base);
+  const fs = await funcionesDefiner(base);
+  assert.ok(fs.length >= 18, `pocas funciones SECURITY DEFINER: ${fs.join(", ")}`);
+  const ejecutables = await comoDuenio(base, async (c) =>
+    (await c.query(`SELECT f FROM unnest($1::text[]) f WHERE has_function_privilege('app_rls', f::regprocedure, 'EXECUTE')`, [fs])).rows.map((r) => r.f),
+  );
+  assert.deepEqual(ejecutables, [], "app_rls tiene EXECUTE");
+});
+
+test("H6 (X1): un trigger TEMP «Tolerancia» con contabilidad_param_rastro no deja rastro falso de OTRO negocio", async (t) => {
+  const base = await laBase(t);
+  if (!base) return;
+  await preparar(base);
+  const A = base.a.id;
+  const e = await enTx(base, base.b.id, async (c) => {
+    await c.query(`CREATE TEMP TABLE "Tolerancia" (id text, "tenantId" text, motivo text)`);
+    await c.query(`CREATE TRIGGER f AFTER INSERT ON pg_temp."Tolerancia" FOR EACH ROW EXECUTE FUNCTION public.contabilidad_param_rastro()`);
+    await c.query(`SELECT set_config('app.current_motivo','rastro fabricado H6',true)`);
+    await c.query(`INSERT INTO pg_temp."Tolerancia" VALUES ('falso-1', $1, 'x')`, [A]);
+  });
+  assert.equal(e?.code, "42501", e?.message ?? "el trigger TEMP corrió");
+  const falsos = await comoDuenio(base, async (c) => (await c.query(`SELECT count(*)::int AS n FROM "ParamCambio" WHERE "motivo"='rastro fabricado H6'`)).rows[0].n);
+  assert.equal(falsos, 0);
+});
+
+test("H7 (X2): contabilidad_param_al_confirmar no se llama ni directo ni desde un trigger TEMP: «ultimo» no se adelanta", async (t) => {
+  const base = await laBase(t);
+  if (!base) return;
+  const x = await preparar(base);
+  const A = base.a.id;
+  let id = "";
+  assert.equal(await enTx(base, A, async (c) => {
+    id = await asiento(c, A, x.ejA, { fecha: "2026-03-03", cab: { claseAsientoId: x.claseMan }, lineas: [{ cuenta: x.a["1.1.1.01"], debe: 50 }, { cuenta: x.a["4.1.01"], haber: 50 }], confirmar: false });
+  }), null);
+  const antes = await ultimoDiario(base);
+  const directo = await enTx(base, A, (c) => c.query(`SELECT contabilidad_param_al_confirmar(a) FROM "Asiento" a WHERE "id"=$1`, [id]));
+  assert.equal(directo?.code, "42501", directo?.message ?? "la llamada directa pasó");
+  const viaTemp = await enTx(base, A, async (c) => {
+    await c.query(`CREATE TEMP TABLE g (x int)`);
+    await c.query(`CREATE FUNCTION pg_temp.gf() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM contabilidad_param_al_confirmar(a) FROM "Asiento" a WHERE a."id"='${id}'; RETURN NEW; END $$`);
+    await c.query(`CREATE TRIGGER g BEFORE INSERT ON pg_temp.g FOR EACH ROW EXECUTE FUNCTION pg_temp.gf()`);
+    await c.query(`INSERT INTO pg_temp.g SELECT generate_series(1,5)`);
+  });
+  assert.equal(viaTemp?.code, "42501", viaTemp?.message ?? "el trigger TEMP pasó");
+  assert.equal(await ultimoDiario(base), antes);
+  // El trigger legítimo sigue numerando sin EXECUTE para PUBLIC.
+  assert.equal(await enTx(base, A, (c) => confirmar(c, id)), null);
+  assert.equal(await ultimoDiario(base), antes + 1);
+});
+
+test("H8 (X3): el negocio B no traba la fila GENERAL de A — ni con un trigger TEMP ni escribiendo una fila de A en la tabla real", async (t) => {
+  const base = await laBase(t);
+  if (!base) return;
+  const x = await preparar(base);
+  const A = base.a.id;
+  const B = base.b.id;
+  const ataques: Record<string, (c: pg.Client) => Promise<unknown>> = {
+    "TEMP periodo": async (c) => {
+      await c.query(`CREATE TEMP TABLE "PeriodoApertura" (LIKE public."PeriodoApertura" INCLUDING DEFAULTS)`);
+      await c.query(`CREATE TRIGGER s BEFORE INSERT ON pg_temp."PeriodoApertura" FOR EACH ROW EXECUTE FUNCTION public.contabilidad_param_periodo()`);
+      await c.query(`INSERT INTO pg_temp."PeriodoApertura" (id,"tenantId","claseCuenta","abiertoDesde","abiertoHasta","updatedAt") VALUES ('x',$1,'BANCOS','2026-01-01','2026-12-31',now())`, [A]);
+    },
+    "TEMP vigencia": async (c) => {
+      await c.query(`CREATE TEMP TABLE "Tolerancia" (id text, "tenantId" text, "vigenteDesde" date)`);
+      await c.query(`CREATE TRIGGER v BEFORE INSERT ON pg_temp."Tolerancia" FOR EACH ROW EXECUTE FUNCTION public.contabilidad_param_vigencia()`);
+      await c.query(`INSERT INTO pg_temp."Tolerancia" VALUES ('x',$1,'2026-12-01')`, [A]);
+    },
+    // La WITH CHECK de RLS corre DESPUÉS de los triggers BEFORE: la traba tomada con la fila de A
+    // duraría hasta el ROLLBACK de B (que la deja colgada en una transacción abortada).
+    "real periodo": (c) =>
+      c.query(`INSERT INTO "PeriodoApertura" (id,"tenantId","claseCuenta","abiertoDesde","abiertoHasta","updatedAt") VALUES ($2,$1,'BANCOS','2026-01-01','2026-12-31',now())`, [A, randomUUID()]),
+    "real vigencia": (c) =>
+      c.query(`INSERT INTO "Tolerancia" (id,"tenantId","codigo","valor","vigenteDesde","updatedAt") VALUES ($2,$1,'REDONDEO_CONVERSION_CENTAVOS',1,'2026-12-01',now())`, [A, randomUUID()]),
+    "real asiento": (c) =>
+      c.query(`INSERT INTO "Asiento" (id,"tenantId","ejercicioId",fecha,descripcion,estado,"claseAsientoId","updatedAt") VALUES ($3,$1,$2,'2026-03-04','x','CONFIRMADO',$4,now())`, [A, x.ejA, randomUUID(), x.claseMan]),
+  };
+  for (const [via, ataque] of Object.entries(ataques)) {
+    const atk = await txAbierta(base, B);
+    try {
+      const ea = await resultado(ataque(atk));
+      assert.equal(ea?.code, "42501", `${via}: ${ea?.code ?? "pasó"} ${ea?.message ?? ""}`);
+      // En la tabla real lo frena la guarda del trigger, ANTES de la WITH CHECK de RLS (que también da 42501).
+      if (via.startsWith("real")) assert.match(ea!.message, /otro negocio/, via);
+      // B queda en la transacción abortada, sin ROLLBACK: A confirma igual.
+      const ev = await enTx(base, A, async (c) => {
+        await c.query("SET LOCAL lock_timeout='1500ms'");
+        await asiento(c, A, x.ejA, { fecha: "2026-03-04", cab: { claseAsientoId: x.claseMan }, lineas: [{ cuenta: x.a["1.1.1.01"], debe: 7 }, { cuenta: x.a["4.1.01"], haber: 7 }] });
+      });
+      assert.equal(ev, null, `${via}: A no confirmó: ${ev?.code} ${ev?.message}`);
+    } finally {
+      await cerrarTx(atk);
+    }
+  }
+});
+
+test("H9: cada función de trigger SECURITY DEFINER rechaza (42501) una tabla que no es la suya, aun con EXECUTE (dueño)", async (t) => {
+  const base = await laBase(t);
+  if (!base) return;
+  await preparar(base);
+  const fs = (await funcionesDefiner(base)).filter((f) => f.endsWith("()"));
+  assert.ok(fs.length >= 14, `pocas funciones de trigger: ${fs.join(", ")}`);
+  const c = await conectar(base.urlDuenio);
+  try {
+    for (const f of fs) {
+      for (const tabla of ["Tolerancia", "Asiento", "x"]) {
+        await c.query("BEGIN");
+        const e = await resultado((async () => {
+          await c.query(`CREATE TEMP TABLE "${tabla}" (id text, "tenantId" text, "asientoId" text)`);
+          await c.query(`CREATE TRIGGER g BEFORE INSERT ON pg_temp."${tabla}" FOR EACH ROW EXECUTE FUNCTION public.${f}`);
+          await c.query(`INSERT INTO pg_temp."${tabla}" VALUES ('x', 'y', 'z')`);
+        })());
+        await c.query("ROLLBACK");
+        assert.equal(e?.code, "42501", `${f} en TEMP "${tabla}": ${e?.code ?? "pasó"} ${e?.message ?? ""}`);
+      }
+    }
+  } finally {
+    await c.end();
   }
 });

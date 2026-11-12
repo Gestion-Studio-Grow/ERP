@@ -214,6 +214,10 @@ ALTER TABLE "AsientoLinea" ADD CONSTRAINT "AsientoLinea_regimenRetencionId_tenan
 CREATE OR REPLACE FUNCTION contabilidad_param_cotizacion() RETURNS trigger
   LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 BEGIN
+  PERFORM contabilidad_exigir_tabla(TG_TABLE_SCHEMA, TG_TABLE_NAME, ARRAY['Cotizacion']);
+  IF TG_OP <> 'DELETE' THEN
+    PERFORM contabilidad_exigir_negocio(TG_RELID, NEW."tenantId");
+  END IF;
   IF TG_OP <> 'INSERT' THEN
     RAISE EXCEPTION 'Una cotización cargada no se cambia ni se borra: se carga una versión nueva' USING ERRCODE = '23514';
   END IF;
@@ -236,6 +240,7 @@ CREATE TRIGGER "Cotizacion_sin_truncate" BEFORE TRUNCATE ON "Cotizacion"
 CREATE OR REPLACE FUNCTION contabilidad_param_versionada() RETURNS trigger
   LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 BEGIN
+  PERFORM contabilidad_exigir_tabla(TG_TABLE_SCHEMA, TG_TABLE_NAME, ARRAY['IndicadorImpuesto', 'RegimenRetencion', 'DeterminacionCuenta', 'Tolerancia']);
   IF (to_jsonb(NEW) - 'nombre' - 'activa' - 'updatedAt') IS DISTINCT FROM (to_jsonb(OLD) - 'nombre' - 'activa' - 'updatedAt') THEN
     RAISE EXCEPTION '% no se edita: cargá una versión nueva con su fecha de vigencia', TG_TABLE_NAME USING ERRCODE = '23514';
   END IF;
@@ -251,6 +256,8 @@ DECLARE
   v_esperado text;
   v_tipo text;
 BEGIN
+  PERFORM contabilidad_exigir_tabla(TG_TABLE_SCHEMA, TG_TABLE_NAME, ARRAY['IndicadorImpuesto', 'RegimenRetencion']);
+  PERFORM contabilidad_exigir_negocio(TG_RELID, NEW."tenantId");
   IF TG_TABLE_NAME = 'RegimenRetencion' THEN
     v_esperado := CASE v_fila->>'sentido' WHEN 'SUFRIDA' THEN 'ACTIVO' ELSE 'PASIVO' END;
   ELSE
@@ -274,6 +281,7 @@ CREATE OR REPLACE FUNCTION contabilidad_param_conflicto_campos() RETURNS trigger
 DECLARE
   v_c RECORD;
 BEGIN
+  PERFORM contabilidad_exigir_tabla(TG_TABLE_SCHEMA, TG_TABLE_NAME, ARRAY['ClaseAsiento', 'GrupoCampos', 'CuentaContable']);
   SELECT ca."codigo" AS "clase", c."codigo" AS "cuenta",
          CASE WHEN ca."exigeCentroCosto" AND g."centroCosto" = 'S'
                    AND c."tipo" IN ('RESULTADO_POSITIVO', 'RESULTADO_NEGATIVO') THEN 'el centro de costo'
@@ -439,6 +447,14 @@ BEGIN
     ALTER FUNCTION contabilidad_param_conversion(TEXT, TEXT) OWNER TO neondb_owner;
   END IF;
 END $$;
+
+-- Sin EXECUTE para PUBLIC (ver 20261112120000). 0002 lo repite.
+REVOKE EXECUTE ON FUNCTION contabilidad_param_cotizacion() FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION contabilidad_param_versionada() FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION contabilidad_param_cuenta_impuesto() FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION contabilidad_param_conflicto_campos() FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION contabilidad_param_campos("Asiento", boolean, boolean) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION contabilidad_param_conversion(TEXT, TEXT) FROM PUBLIC;
 
 -- ── RLS ─────────────────────────────────────────────────────────────────────────────────────────
 
