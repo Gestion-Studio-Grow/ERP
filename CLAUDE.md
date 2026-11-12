@@ -30,6 +30,8 @@ con «un agente = una tarea»).
 - **Destructivo bloqueado:** force push, `reset --hard`, `migrate reset`, DROP, `rm -rf`.
 - Commits por **pathspec explícito**, nunca `git add -A`. Secretos: los pega el dueño; nunca se imprimen.
 - **DEMO → VENTA → INVERSIÓN:** no se gasta un peso (dominio, persistencia, APIs pagas) antes de la venta.
+- **Comunicación saliente:** todo mail o documento de GSG hacia afuera lleva cabecera, firma y pie GSG y pasa el
+  checklist de `docs/metodologia/comunicacion-saliente-gsg.md` antes de presentarse; sale sólo con el «enviá» del dueño.
 - **Preset de cliente:** sin autorización REGISTRADA del cliente para usar su marca no se genera ni se muestra, y
   la salida pasa el Gate antes de mostrarse (`docs/metodologia/generador-preset-ia.md`).
 
@@ -47,7 +49,7 @@ con «un agente = una tarea»).
   rol + este archivo + la lección del área de riesgo que toque; no se lee el corpus entero.
 - **Contexto fijo chico:** el agente trabaja con el cwd dentro del repo (no en la carpeta madre, que suma otros
   CLAUDE.md) y con los agentes `gsg-ingeniero` / `gsg-certificador` (`.claude/agents/`), sin conectores que no usa.
-- **Mapa antes de explorar:** `node .claude/scripts/mapa-codigo.mjs <carpeta> --a <archivo>` da exportaciones
+- **Mapa antes de explorar:** `node .claude/scripts/mapa-codigo.mjs <carpeta> [--a /tmp/mapa.md]` (`--a` es el archivo de SALIDA: nunca un archivo del repo) da exportaciones
   con línea, modelos de Prisma, dependencias y tests de una zona (600 KB de código → ~11 KB). El brief lo adjunta;
   el agente abre sólo los `archivo:línea` que necesita.
 - **Techo de contexto:** al acercarse a ~150k tokens, el agente escribe un relevo de 1 página y termina.

@@ -18,7 +18,7 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
 - **DB** — DB-1 seed/deleteMany contra prod · DB-2 `modules:[]` · DB-3 `migrate deploy` aplica todas · DB-4 overbooking TOCTOU · DB-5 un camino de plata sin la frontera del cierre (cobro de turno en el día congelado)
 - **MT** — MT-1 `findFirst` sin `where` · MT-2 home con acción admin-gated · MT-3 resolución fail-closed · MT-4 ruteo por hostname · MT-5 RLS = aislamiento + performance · MT-6 hosts en código (variable sensible)
 - **DX** — DX-8 demo pública en host serverless: back con estado no corre → dominio isomórfico + adaptador local · DX-1 backoffice-demo sin password · DX-2 falta sello GSG · DX-3 previews estáticos · DX-4 CTA WhatsApp roto · DX-5 réplica exacta a ojo vs. relevada · DX-6 relación seedeada uniforme = front miente por entidad · DX-7 fix de dato de prod sin seed/deleteMany (dry-run→apply→verify) · DX-10 lector que suma durante el cobro en vuelo · DX-11 suite verde ≠ pantalla bien: recorrido E2E contra next start + la cifra de plata sale de la regla compartida · DX-12 una etiqueta de balanza se lee de dos maneras: detectar con dos etiquetas o el PLU · DX-13 barra sticky que no se pega (padre corto) y lista del buscador que la tapa · DX-14 paridad por formulario, no por pantalla (CH: profesional/seña/cupón eran de «Servicios»)
-- **MP** — MP-1 sync file-tool↔bash · MP-2 tree compartido / commit-race · MP-3 congestión ≤4 · MP-4 subagentes en Opus · MP-5 FASE 0 · MP-6 `npm install` por worktree · MP-7 higiene de contexto · MP-8 sin tests · MP-9 modelo mal etiquetado · MP-10 reconciliar rama vieja = selectivo (no `git merge`) · MP-11 conflicto en tabla de irreversibles = dividir la fila (no pisar) · MP-12 drift INTERNO de ESTADO-ACTUAL (HANDOFF al día, §1/§8 stale) → reconciliar contra git, no contra el doc · MP-13 fundación gateada sin consumidor real = % engañoso (construido ≠ consumido) · MP-14 gating por redirect = riesgo de loop si el destino se gatea (esconder > redirigir)
+- **MP** — MP-1 sync file-tool↔bash · MP-2 tree compartido / commit-race · MP-3 congestión ≤4 · MP-4 subagentes en Opus · MP-5 FASE 0 · MP-6 `npm install` por worktree · MP-7 higiene de contexto · MP-8 sin tests · MP-9 modelo mal etiquetado · MP-10 reconciliar rama vieja = selectivo (no `git merge`) · MP-11 conflicto en tabla de irreversibles = dividir la fila (no pisar) · MP-12 drift INTERNO de ESTADO-ACTUAL (HANDOFF al día, §1/§8 stale) → reconciliar contra git, no contra el doc · MP-13 fundación gateada sin consumidor real = % engañoso (construido ≠ consumido) · MP-14 gating por redirect = riesgo de loop si el destino se gatea (esconder > redirigir) · MP-16 mail saliente sin marca GSG → checklist antes de enviar
 - **SEC** — SEC-1 secretos nunca en chat + rotación · SEC-2 rol con BYPASSRLS · SEC-3 firma de webhook + rate-limit · SEC-4 superficie pública: límite por IP sólo con fallos + motivos del dominio que nombran a terceros · SEC-6 sesión que vence en el servidor + la matriz que resta en la puerta de la app + gestión pública sin login
 
 ---
@@ -526,6 +526,14 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
 - **Lección:** un guard que redirige necesita un destino **probadamente terminal** (accesible para todo rol/estado, nunca gateado). Ante la duda, **esconder > redirigir**: ocultar no puede loopear.
 - **Guardarraíl:** antes de enforcar gating con `redirect()`, mapear el destino para CADA rol y CADA combinación de módulos apagados; si algún destino puede estar gateado, no redirigir — usar 404/estado neutro o esconder. Nunca redirigir a la home del rol si esa home es gateable.
 - **Refs:** ADR-017 (ocultar nav = UX; rol = seguridad), ADR-054/055, ADR-047 (retro).
+
+**[MP-16] Un mail de GSG salió sin la marca GSG**
+- **Síntoma:** un mail a un cliente salió sin cabecera, banner ni firma GSG (y antes, uno con un link a un dominio de prueba). El dueño lo marcó como falla grave.
+- **Causa raíz:** el estándar de marca cubría producto y documentos, pero no los **borradores salientes**; nadie chequeaba el mail antes de presentarlo.
+- **Fix:** norma `docs/metodologia/comunicacion-saliente-gsg.md` (kit mínimo + checklist antes de enviar) y el Guardián del Sello GSG como responsable de revisarlo.
+- **Lección:** lo que sale de GSG hacia afuera es marca; si no hay un control antes del envío, depende de la memoria del agente.
+- **Guardarraíl:** ningún borrador se presenta al dueño sin la línea «sello saliente: OK»; la cabecera de marca va en texto (no depende de que cargue una imagen); nunca links a dominios de prueba.
+- **Refs:** `docs/metodologia/estandar-marca-gsg.md`, ADR-043 (sello), ADR-044 (argentinizar).
 
 ## SEC — Seguridad
 

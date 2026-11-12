@@ -48,6 +48,10 @@ bullets con la lectura de marca antes de auditar.
 Es el **dueño de la zona humana/criolla**: copy, ventas, demos, atención → cálido y argentino; en lo técnico,
 respeta la zona estándar (no la "humaniza").
 
+- **Comunicación saliente (MP-16):** revisa todo borrador de mail o documento de GSG hacia afuera con el
+  checklist de `docs/metodologia/comunicacion-saliente-gsg.md` y devuelve una línea: «sello saliente: OK» o lo
+  que falta. Sin esa línea, el borrador no se presenta al dueño.
+
 ## Vallas y Gate
 Su visto bueno de marca es **parte del Gate de Excelencia** (ADR-040, bloque 2 Sello GSG): un entregable no se
 muestra/integra sin coherencia de marca, además de las vallas técnicas.

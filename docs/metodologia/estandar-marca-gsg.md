@@ -35,6 +35,7 @@ Todo entregable lleva un **sello GSG verificable**. Según el tipo de entregable
 | **App / UI (Next)** | (a) `metadata.generator = "Gestión Studio Grow"` en el `<head>` (invisible al usuario, verificable en el HTML); **y** (b) crédito discreto **"Hecho por Gestión Studio Grow"** en el footer del **backoffice** (`/admin`, `/operador`). **NO** en la vidriera pública del tenant (esa lleva SOLO la marca del tenant). |
 | **Documento / entregable escrito** | Línea de cierre **"— Elaborado por Gestión Studio Grow (GSG)"** al pie. |
 | **Commit / PR** | Trailer `Co-Authored-By` del equipo GSG (convención ya vigente) + mensaje en el estándar del repo. |
+| **Mail / documento saliente de GSG** | Cabecera GSG (texto + banner si el canal lo admite), firma con canal oficial y pie «Elaborado por GSG». Checklist en `docs/metodologia/comunicacion-saliente-gsg.md`. |
 | **Artefacto público (demo, landing GSG)** | Firma/crédito GSG visible cuando el artefacto es de GSG (no de un tenant). |
 
 > **Principio de no-colisión:** el sello GSG **nunca compite ni pisa** la marca del tenant en su
