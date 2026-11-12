@@ -26,6 +26,29 @@
 --     `exigeCentroCosto` o grupo de campos `R`).
 --   · actor: se lee de `app.current_actor` (lo cablea C2 en `enTransaccion`). Mientras la capa está
 --     apagada se tolera NULL; con `V1`, cambio de parámetro sin actor → rechazo.
+--
+-- Permisos de `app_rls` (no dependen de pg_trigger_depth(), que la app falsea con un trigger TEMP):
+--   · "ParamCambio": sólo SELECT. Lo escribe `contabilidad_param_rastro` (SECURITY DEFINER, como dueño).
+--   · "NumeradorContable": SELECT, INSERT, DELETE y UPDATE sólo de "desde", "hasta", "updatedAt";
+--     "ultimo" lo mueve únicamente `contabilidad_param_al_confirmar` (SECURITY DEFINER).
+--   0002_app_role.sql repite este recorte (re-correrlo re-otorga todo).
+--
+-- Concurrencia (orden de trabas, igual en todos los caminos):
+--   · la fila GENERAL de "PeriodoApertura" del negocio es el candado de la capa: confirmar la toma
+--     FOR NO KEY UPDATE ANTES que cualquier otra traba de la capa y la tiene hasta el COMMIT; toda
+--     escritura en "PeriodoApertura" (cerrar, abrir, crear o borrar la fila de una clase) la toma
+--     primero (`contabilidad_param_periodo` le escribe "updatedAt"). Así el cierre espera al asiento
+--     en vuelo, confirmar+cerrar en la misma transacción no se traba con otra confirmación, y una
+--     confirmación en REPEATABLE READ / SERIALIZABLE con foto anterior al cierre recibe 40001.
+--   · los rangos de numerador se escriben sólo en READ COMMITTED (con otra foto no se ven los rangos
+--     que otra transacción ya guardó): en REPEATABLE READ o SERIALIZABLE se rechaza (23514).
+--   · resto conocido: cambiar OTRO parámetro (clase de asiento, rango de numerador) y confirmar en la
+--     misma transacción, contra otra confirmación, puede terminar en 40P01 (rechazo limpio, se
+--     reintenta). Hoy ningún flujo de la app hace eso.
+--
+-- DEUDA (operativa, anotada en la certificación de C1): un negocio con filas en "ParamCambio" ya no se
+-- puede borrar (FK RESTRICT a "Tenant" + rastro sólo-agregar). Borrarlo exige un procedimiento del
+-- dueño de la base (deshabilitar el trigger del rastro en una ventana controlada). Provisional a confirmar.
 
 -- ── ConfigContable y CuentaContable (ampliar) ──────────────────────────────────────────────────
 
@@ -355,6 +378,12 @@ BEGIN
     v_rango := (NEW."desde", NEW."hasta") IS DISTINCT FROM (OLD."desde", OLD."hasta");
   END IF;
   IF v_rango THEN
+    -- El candado de abajo serializa, pero el control lee con la foto de la transacción: sólo en
+    -- READ COMMITTED esa foto incluye lo que guardó quien soltó el candado.
+    IF current_setting('transaction_isolation') <> 'read committed' THEN
+      RAISE EXCEPTION 'El rango del numerador % se da de alta o se cambia en READ COMMITTED (llegó en %)',
+        NEW."codigo", upper(current_setting('transaction_isolation')) USING ERRCODE = '23514';
+    END IF;
     PERFORM pg_advisory_xact_lock(hashtextextended('contabilidad-numerador:' || NEW."tenantId" || ':' || NEW."ejercicioId", 0));
     IF EXISTS (SELECT 1 FROM "NumeradorContable" n
                 WHERE n."tenantId" = NEW."tenantId" AND n."ejercicioId" = NEW."ejercicioId" AND n."id" <> NEW."id"
@@ -375,6 +404,32 @@ END $$;
 CREATE TRIGGER "NumeradorContable_controlar" BEFORE INSERT OR UPDATE ON "NumeradorContable"
   FOR EACH ROW EXECUTE FUNCTION contabilidad_param_numerador();
 
+-- Toda escritura en PeriodoApertura que no sea la fila GENERAL le escribe "updatedAt" a la fila
+-- GENERAL del negocio, ANTES de escribir la suya: espera a las confirmaciones en vuelo (que tienen
+-- GENERAL tomada hasta el COMMIT) y deja a GENERAL modificada, así una confirmación con foto vieja
+-- (REPEATABLE READ / SERIALIZABLE) recibe 40001 en vez de leer el período anterior al cierre. Sin
+-- fila GENERAL no hay nada que esperar: confirmar ya se rechaza. El rastro no anota ese "updatedAt".
+CREATE OR REPLACE FUNCTION contabilidad_param_periodo() RETURNS trigger
+  LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+  v_fila "PeriodoApertura";
+BEGIN
+  IF TG_OP = 'DELETE' THEN v_fila := OLD; ELSE v_fila := NEW; END IF;
+  IF v_fila."claseCuenta" <> 'GENERAL' AND (TG_OP <> 'UPDATE' OR OLD."claseCuenta" <> 'GENERAL') THEN
+    UPDATE "PeriodoApertura" SET "updatedAt" = CURRENT_TIMESTAMP
+     WHERE "tenantId" = v_fila."tenantId" AND "claseCuenta" = 'GENERAL' AND "id" <> v_fila."id";
+    IF TG_OP = 'UPDATE' AND OLD."tenantId" <> NEW."tenantId" THEN
+      UPDATE "PeriodoApertura" SET "updatedAt" = CURRENT_TIMESTAMP
+       WHERE "tenantId" = OLD."tenantId" AND "claseCuenta" = 'GENERAL';
+    END IF;
+  END IF;
+  IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
+  RETURN NEW;
+END $$;
+
+CREATE TRIGGER "PeriodoApertura_serializar" BEFORE INSERT OR UPDATE OR DELETE ON "PeriodoApertura"
+  FOR EACH ROW EXECUTE FUNCTION contabilidad_param_periodo();
+
 -- Vigencias (parte B: indicadores, regímenes, determinación, tolerancias): no se agrega ni se borra
 -- una versión con vigencia dentro del período ya cerrado (antes de GENERAL.abiertoDesde).
 CREATE OR REPLACE FUNCTION contabilidad_param_vigencia() RETURNS trigger
@@ -385,7 +440,7 @@ DECLARE
 BEGIN
   IF TG_OP = 'DELETE' THEN v_fila := to_jsonb(OLD); ELSE v_fila := to_jsonb(NEW); END IF;
   SELECT "abiertoDesde" INTO v_desde FROM "PeriodoApertura"
-    WHERE "tenantId" = v_fila->>'tenantId' AND "claseCuenta" = 'GENERAL' FOR SHARE;
+    WHERE "tenantId" = v_fila->>'tenantId' AND "claseCuenta" = 'GENERAL' FOR NO KEY UPDATE;
   IF FOUND AND (v_fila->>'vigenteDesde')::date < v_desde THEN
     RAISE EXCEPTION 'Vigencia % de % dentro de un período cerrado (abierto desde %)',
       v_fila->>'vigenteDesde', TG_TABLE_NAME, v_desde USING ERRCODE = '23514';
@@ -419,7 +474,15 @@ DECLARE
   v_l RECORD;
   v_num RECORD;
   v_codigo text;
+  v_hay_gen boolean;
 BEGIN
+  -- 0. Candado de la capa: la fila GENERAL del negocio, la PRIMERA traba, FOR NO KEY UPDATE y hasta el
+  --    COMMIT. Las escrituras de períodos la toman primero (contabilidad_param_periodo): el cierre espera
+  --    a este asiento, y confirmar+cerrar en una transacción no se cruza con otra confirmación.
+  SELECT "abiertoDesde", "abiertoHasta" INTO v_gen FROM "PeriodoApertura"
+    WHERE "tenantId" = p."tenantId" AND "claseCuenta" = 'GENERAL' FOR NO KEY UPDATE;
+  v_hay_gen := FOUND;
+
   -- 1. Clase de asiento.
   IF p."claseAsientoId" IS NULL THEN
     RAISE EXCEPTION 'Falta parametrizar: Clases de asiento → el asiento % no tiene clase', p."id" USING ERRCODE = '23514';
@@ -436,10 +499,8 @@ BEGIN
     RAISE EXCEPTION 'La clase de asiento % no admite asientos manuales', v_clase."codigo" USING ERRCODE = '23514';
   END IF;
 
-  -- 2. Período GENERAL (FOR SHARE: el cierre, que es un UPDATE, espera a los asientos en vuelo).
-  SELECT "abiertoDesde", "abiertoHasta" INTO v_gen FROM "PeriodoApertura"
-    WHERE "tenantId" = p."tenantId" AND "claseCuenta" = 'GENERAL' FOR SHARE;
-  IF NOT FOUND THEN
+  -- 2. Período GENERAL (leído y trabado en el paso 0).
+  IF NOT v_hay_gen THEN
     RAISE EXCEPTION 'Falta parametrizar: Períodos contables → GENERAL' USING ERRCODE = '23514';
   END IF;
   IF p."fecha" < v_gen."abiertoDesde" OR p."fecha" > v_gen."abiertoHasta" THEN
@@ -458,8 +519,9 @@ BEGIN
       RAISE EXCEPTION 'La clase de asiento % no imputa cuentas de clase %', v_clase."codigo", v_l."clase"
         USING ERRCODE = '23514';
     END IF;
+    -- Sin traba propia: quien escribe esta fila espera antes a GENERAL (paso 0).
     SELECT "abiertoDesde", "abiertoHasta" INTO v_per FROM "PeriodoApertura"
-      WHERE "tenantId" = p."tenantId" AND "claseCuenta" = v_l."clase" FOR SHARE;
+      WHERE "tenantId" = p."tenantId" AND "claseCuenta" = v_l."clase";
     IF FOUND AND (p."fecha" < v_per."abiertoDesde" OR p."fecha" > v_per."abiertoHasta") THEN
       RAISE EXCEPTION 'La fecha % cae en un período cerrado para las cuentas de clase % (abierto del % al %)',
         p."fecha", v_l."clase", v_per."abiertoDesde", v_per."abiertoHasta" USING ERRCODE = '23514';
@@ -600,6 +662,7 @@ BEGIN
     ALTER FUNCTION contabilidad_param_cuenta_estable() OWNER TO neondb_owner;
     ALTER FUNCTION contabilidad_param_numerador() OWNER TO neondb_owner;
     ALTER FUNCTION contabilidad_param_vigencia() OWNER TO neondb_owner;
+    ALTER FUNCTION contabilidad_param_periodo() OWNER TO neondb_owner;
     ALTER FUNCTION contabilidad_param_campos("Asiento", boolean, boolean) OWNER TO neondb_owner;
     ALTER FUNCTION contabilidad_param_conversion(TEXT, TEXT) OWNER TO neondb_owner;
     ALTER FUNCTION contabilidad_param_al_confirmar("Asiento") OWNER TO neondb_owner;
@@ -640,3 +703,15 @@ DROP POLICY IF EXISTS tenant_isolation ON "ParamCambio";
 CREATE POLICY tenant_isolation ON "ParamCambio"
   USING ("tenantId" = current_setting('app.current_tenant_id', true))
   WITH CHECK ("tenantId" = current_setting('app.current_tenant_id', true));
+
+-- ── Permisos de la app (ver encabezado). Guardado por la existencia del rol; 0002 repite el recorte.
+
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_rls') THEN
+    REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON "ParamCambio" FROM app_rls;
+    GRANT SELECT ON "ParamCambio" TO app_rls;
+    REVOKE UPDATE, TRUNCATE ON "NumeradorContable" FROM app_rls;
+    GRANT SELECT, INSERT, DELETE ON "NumeradorContable" TO app_rls;
+    GRANT UPDATE ("desde", "hasta", "updatedAt") ON "NumeradorContable" TO app_rls;
+  END IF;
+END $$;

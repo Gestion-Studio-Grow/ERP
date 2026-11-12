@@ -9,7 +9,9 @@
 //
 //   F1 período cerrado por clase de cuenta · F2 cierre vs asiento en vuelo · F3 numerador de la base
 //   F5 cotización sólo-agregar + foto · F8 catálogos con CHECK · F9 rastro · F10 FK compuestas
-//   F16 estado de campos · F17 claveOrigen única · inerte sin `parametrizacion`.
+//   F16 estado de campos · F17 claveOrigen única (idempotente) · inerte sin `parametrizacion`.
+//   H1–H4 (certificación, vuelta 1): permisos de app_rls sin pg_trigger_depth · alta de período por
+//   clase vs asiento en vuelo (y REPEATABLE READ) · numerador en REPEATABLE READ · confirmar+cerrar sin 40P01.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -266,9 +268,13 @@ test("F3: el número lo pone la base — 50 en paralelo con 10 rechazos quedan c
   assert.deepEqual(numeros, Array.from({ length: 40 }, (_, i) => antes + 1 + i), "1..40 sin huecos ni repetidos");
   assert.equal(await ultimo(), antes + 40, "los rechazos devolvieron su número");
 
-  // La app no mueve el contador.
+  // La app no mueve el contador: no tiene UPDATE sobre «ultimo» (42501). El dueño lo intenta y lo frena el trigger.
   const e1 = await enTx(base, A, (c) => c.query(`UPDATE "NumeradorContable" SET "ultimo"="ultimo"+5 WHERE "codigo"='DIARIO'`));
-  assert.match(e1!.message, /lo asigna la base/);
+  assert.equal(e1?.code, "42501", e1?.message ?? "pasó");
+  await assert.rejects(
+    comoDuenio(base, (c) => c.query(`UPDATE "NumeradorContable" SET "ultimo"="ultimo"+5 WHERE "tenantId"=$1 AND "codigo"='DIARIO'`, [A])),
+    /lo asigna la base/,
+  );
   // Rango superpuesto en el mismo ejercicio.
   const e2 = await enTx(base, A, (c) => insertar(c, "NumeradorContable", { tenantId: A, ejercicioId: x.ejA, codigo: "OTRO", desde: 500, hasta: 600, ultimo: 499 }));
   assert.match(e2!.message, /se superpone/);
@@ -403,13 +409,24 @@ test("F9: todo cambio de parámetro deja rastro con actor; sin actor rebota; el 
   // Sin actor, con la capa prendida: rechazo (también para apagarla).
   assert.match((await enTx(base, A, (c) => c.query(`UPDATE "IndicadorImpuesto" SET "nombre"='otro' WHERE "id"=$1`, [ind]), null))!.message, /sin actor/);
   assert.match((await enTx(base, A, (c) => c.query(`UPDATE "ConfigContable" SET "parametrizacion"=NULL`), null))!.message, /sin actor/);
-  // El rastro es sólo-agregar y sólo lo escribe la base.
-  for (const sql of [`DELETE FROM "ParamCambio"`, `UPDATE "ParamCambio" SET "actor"='otro'`, `TRUNCATE "ParamCambio"`]) {
-    const e = await enTx(base, A, (c) => c.query(sql));
-    assert.ok(e && /sólo-agregar|permission denied/.test(e.message), `${sql}: ${e?.message ?? "pasó"}`);
+  // El rastro es sólo-agregar y sólo lo escribe la base: la app no tiene permiso de escribirlo (42501)…
+  const falso = (c: pg.Client) => insertar(c, "ParamCambio", { tenantId: A, tabla: "Tolerancia", registroId: "x", operacion: "INSERT", actor: "yo" });
+  const ataques: Array<[string, (c: pg.Client) => Promise<unknown>]> = [
+    ["DELETE", (c) => c.query(`DELETE FROM "ParamCambio"`)],
+    ["UPDATE", (c) => c.query(`UPDATE "ParamCambio" SET "actor"='otro'`)],
+    ["TRUNCATE", (c) => c.query(`TRUNCATE "ParamCambio"`)],
+    ["INSERT", falso],
+  ];
+  for (const [nombre, paso] of ataques) {
+    const e = await enTx(base, A, paso);
+    assert.equal(e?.code, "42501", `app ${nombre}: ${e?.message ?? "pasó"}`);
   }
-  const e = await enTx(base, A, (c) => insertar(c, "ParamCambio", { tenantId: A, tabla: "Tolerancia", registroId: "x", operacion: "INSERT", actor: "yo" }));
-  assert.match(e!.message, /lo escribe la base/);
+  // …y el dueño de las tablas choca con el trigger (también el de TRUNCATE).
+  for (const [nombre, paso] of ataques) {
+    const e: (Error & { code?: string }) | null = await comoDuenio(base, paso).then(() => null, (err: Error & { code?: string }) => err);
+    assert.equal(e?.code, "23514", `dueño ${nombre}: ${e?.message ?? "pasó"}`);
+    assert.match(e!.message, nombre === "INSERT" ? /lo escribe la base/ : new RegExp(`sólo-agregar.*\\(${nombre}\\)`));
+  }
   // RLS: B no ve el rastro de A.
   const deB = await enTx(base, base.b.id, async (c) => {
     const n = (await c.query(`SELECT count(*)::int AS n FROM "ParamCambio"`)).rows[0].n;
@@ -548,13 +565,38 @@ test("F17: claveOrigen única por negocio — dos confirmaciones paralelas del m
   if (!base) return;
   const x = await preparar(base);
   const A = base.a.id;
-  const uno = (c: pg.Client) =>
-    asiento(c, A, x.ejA, { fecha: "2026-11-04", cab: { claseAsientoId: x.claseMan, claveOrigen: "cobro:123" }, lineas: [{ cuenta: x.a["1.1.1.01"], debe: 300 }, { cuenta: x.a["4.1.01"], haber: 300 }] });
-  const r = await Promise.all([enTx(base, A, uno), enTx(base, A, uno)]);
-  assert.equal(r.filter((e) => e === null).length, 1);
-  assert.equal(r.find((e) => e !== null)?.code, "23505");
-  const n = await comoDuenio(base, async (c) => (await c.query(`SELECT count(*)::int AS n FROM "Asiento" WHERE "claveOrigen"='cobro:123'`)).rows[0].n);
-  assert.equal(n, 1);
+  // El alta idempotente que usa la app: INSERT … ON CONFLICT DO NOTHING; si no insertó, devuelve el id existente.
+  const idempotente = (ids: string[]) => (c: pg.Client) =>
+    (async () => {
+      const r = await c.query(
+        `INSERT INTO "Asiento" ("id","tenantId","ejercicioId","fecha","descripcion","updatedAt","claseAsientoId","claveOrigen")
+         VALUES ($1,$2,$3,'2026-11-04','cobro',now(),$4,'cobro:123')
+         ON CONFLICT ("tenantId","claveOrigen") WHERE "claveOrigen" IS NOT NULL DO NOTHING RETURNING "id"`,
+        [randomUUID(), A, x.ejA, x.claseMan],
+      );
+      if (r.rowCount === 1) {
+        const id = r.rows[0].id as string;
+        await insertar(c, "AsientoLinea", { tenantId: A, asientoId: id, cuentaId: x.a["1.1.1.01"], debe: 300, haber: 0 });
+        await insertar(c, "AsientoLinea", { tenantId: A, asientoId: id, cuentaId: x.a["4.1.01"], debe: 0, haber: 300 });
+        await confirmar(c, id);
+        await dormir(150); // la otra llamada queda esperando el COMMIT de ésta
+        ids.push(id);
+      } else {
+        ids.push((await c.query(`SELECT "id" FROM "Asiento" WHERE "claveOrigen"='cobro:123'`)).rows[0].id as string);
+      }
+    })();
+  const ids: string[] = [];
+  const r = await Promise.all([enTx(base, A, idempotente(ids)), enTx(base, A, idempotente(ids))]);
+  assert.deepEqual(r, [null, null]);
+  assert.equal(ids.length, 2);
+  assert.equal(ids[0], ids[1], "la segunda llamada devuelve el MISMO asiento");
+  const fila = await comoDuenio(base, async (c) => (await c.query(`SELECT "id","estado" FROM "Asiento" WHERE "claveOrigen"='cobro:123'`)).rows);
+  assert.deepEqual(fila, [{ id: ids[0], estado: "CONFIRMADO" }]);
+  // Sin ON CONFLICT, la base lo rechaza con 23505 (nunca un segundo asiento).
+  const e = await enTx(base, A, (c) =>
+    asiento(c, A, x.ejA, { fecha: "2026-11-04", cab: { claseAsientoId: x.claseMan, claveOrigen: "cobro:123" }, lineas: [{ cuenta: x.a["1.1.1.01"], debe: 300 }, { cuenta: x.a["4.1.01"], haber: 300 }] }),
+  );
+  assert.equal(e?.code, "23505");
   // Otro negocio puede usar la misma clave.
   assert.equal(await enTx(base, base.b.id, async (c) => {
     const ej = x.ejB;
@@ -590,4 +632,141 @@ test("inerte sin parametrizacion: el negocio B confirma como antes, sin clase, p
   assert.equal(await enTx(base, B, (c) => c.query(`UPDATE "CuentaContable" SET "nombre"='Caja chica' WHERE "id"=$1`, [x.b["1.1.1.01"]]), null), null);
   const rastroB = await comoDuenio(base, async (c) => (await c.query(`SELECT count(*)::int AS n FROM "ParamCambio" WHERE "tenantId"=$1 AND "tabla" IN ('CuentaContable','CuentaRol','ConfigContable')`, [B])).rows[0].n);
   assert.equal(rastroB, 0);
+});
+
+// ── Vuelta 1 de certificación: cada hallazgo, su ataque ─────────────────────────────────────────
+
+const ultimoDiario = (base: BaseEfimera) =>
+  comoDuenio(base, async (c) => (await c.query(`SELECT "ultimo" FROM "NumeradorContable" WHERE "tenantId"=$1 AND "codigo"='DIARIO'`, [base.a.id])).rows[0].ultimo as number);
+
+/** Abre una transacción de la app en el negocio, con el aislamiento pedido. */
+async function txAbierta(base: BaseEfimera, tenantId: string, aislamiento = "READ COMMITTED") {
+  const c = await conectar(base.urlApp);
+  await c.query(`BEGIN ISOLATION LEVEL ${aislamiento}`);
+  await c.query("SELECT set_config('app.current_tenant_id',$1,true), set_config('app.current_actor',$2,true)", [tenantId, ACTOR]);
+  return c;
+}
+const cerrarTx = async (c: pg.Client) => {
+  await c.query("ROLLBACK").catch(() => {});
+  await c.end().catch(() => {});
+};
+const resultado = (p: Promise<unknown>) => p.then(() => null, (e: Error & { code?: string }) => e);
+
+test("H1: un trigger TEMP de la app (profundidad falsa) no baja «ultimo» ni fabrica rastro; la app sí ajusta el rango", async (t) => {
+  const base = await laBase(t);
+  if (!base) return;
+  const x = await preparar(base);
+  const A = base.a.id;
+  const conGatillo = (cuerpo: string) =>
+    enTx(base, A, async (c) => {
+      await c.query(`CREATE TEMP TABLE gatillo (x int)`);
+      await c.query(`CREATE FUNCTION pg_temp.gatillo_f() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN ${cuerpo}; RETURN NEW; END $$`);
+      await c.query(`CREATE TRIGGER g BEFORE INSERT ON pg_temp.gatillo FOR EACH ROW EXECUTE FUNCTION pg_temp.gatillo_f()`);
+      await c.query(`INSERT INTO pg_temp.gatillo VALUES (1)`);
+    });
+  const antes = await ultimoDiario(base);
+  const e1 = await conGatillo(`UPDATE "NumeradorContable" SET "ultimo" = 0 WHERE "codigo" = 'DIARIO'`);
+  assert.equal(e1?.code, "42501", e1?.message ?? "bajó el numerador");
+  assert.equal(await ultimoDiario(base), antes);
+  const e2 = await conGatillo(
+    `INSERT INTO "ParamCambio" ("id","tenantId","tabla","registroId","operacion","actor","motivo") VALUES (gen_random_uuid()::text, '${A}', 'Tolerancia', 'x', 'DELETE', 'auditor', 'rastro fabricado')`,
+  );
+  assert.equal(e2?.code, "42501", e2?.message ?? "fabricó rastro");
+  const falsos = await comoDuenio(base, async (c) => (await c.query(`SELECT count(*)::int AS n FROM "ParamCambio" WHERE "motivo"='rastro fabricado'`)).rows[0].n);
+  assert.equal(falsos, 0);
+  // La app sigue pudiendo dar de alta un numerador y ajustar su rango (desde/hasta).
+  assert.equal(await enTx(base, A, async (c) => {
+    const id = await insertar(c, "NumeradorContable", { tenantId: A, ejercicioId: x.ejA, codigo: "H1", desde: 3_000_000, hasta: 3_000_010, ultimo: 2_999_999 });
+    await c.query(`UPDATE "NumeradorContable" SET "hasta"=3_000_020, "updatedAt"=now() WHERE "id"=$1`, [id]);
+  }), null);
+});
+
+test("H2: abrir un período por clase CREANDO su fila espera al asiento en vuelo; en REPEATABLE READ la confirmación no se cuela", async (t) => {
+  const base = await laBase(t);
+  if (!base) return;
+  const x = await preparar(base);
+  const A = base.a.id;
+  const cab = { claseAsientoId: x.claseMan };
+  const lineas = [{ cuenta: x.a["1.1.1.01"], debe: 120 }, { cuenta: x.a["4.1.01"], haber: 120 }]; // clase MAYOR
+  const mayor = { tenantId: A, claseCuenta: "MAYOR", abiertoDesde: "2026-07-01", abiertoHasta: "2026-12-31" };
+  const borrarMayor = () => comoDuenio(base, (c) => c.query(`DELETE FROM "PeriodoApertura" WHERE "tenantId"=$1 AND "claseCuenta"='MAYOR'`, [A]));
+  const cA = await txAbierta(base, A);
+  const cB = await txAbierta(base, A);
+  try {
+    await asiento(cA, A, x.ejA, { fecha: "2026-06-10", cab, lineas });
+    let cerro = false;
+    const alta = resultado(insertar(cB, "PeriodoApertura", mayor).then(() => (cerro = true)));
+    await dormir(400);
+    const espero = !cerro;
+    await cA.query("COMMIT");
+    assert.equal(await alta, null);
+    await cB.query("COMMIT");
+    assert.equal(espero, true, "el alta del período MAYOR espera a la confirmación en vuelo");
+  } finally {
+    await cerrarTx(cA);
+    await cerrarTx(cB);
+    await borrarMayor();
+  }
+  // REPEATABLE READ: la foto del asiento es anterior al cierre de MAYOR; confirmar no puede leer el período viejo.
+  const cR = await txAbierta(base, A, "REPEATABLE READ");
+  try {
+    const borrador = await asiento(cR, A, x.ejA, { fecha: "2026-06-11", cab, lineas, confirmar: false });
+    assert.equal(await enTx(base, A, (c) => insertar(c, "PeriodoApertura", mayor)), null);
+    const e = await resultado(confirmar(cR, borrador));
+    assert.ok(e && ["40001", "23514"].includes(e.code ?? ""), `confirmó con la foto vieja: ${e?.message ?? "pasó"}`);
+  } finally {
+    await cerrarTx(cR);
+    await borrarMayor();
+  }
+});
+
+test("H3: dos altas de numerador superpuestas en REPEATABLE READ no quedan las dos", async (t) => {
+  const base = await laBase(t);
+  if (!base) return;
+  const x = await preparar(base);
+  const A = base.a.id;
+  const t1 = await txAbierta(base, A, "REPEATABLE READ");
+  const t2 = await txAbierta(base, A, "REPEATABLE READ");
+  try {
+    for (const c of [t1, t2]) await c.query(`SELECT count(*) FROM "NumeradorContable"`); // fija la foto
+    const r1 = await resultado(insertar(t1, "NumeradorContable", { tenantId: A, ejercicioId: x.ejA, codigo: "RRUNO", desde: 5_000_000, hasta: 5_000_100, ultimo: 4_999_999 }));
+    const p2 = resultado(insertar(t2, "NumeradorContable", { tenantId: A, ejercicioId: x.ejA, codigo: "RRDOS", desde: 5_000_050, hasta: 5_000_200, ultimo: 5_000_049 }));
+    const c1 = r1 ? r1 : await resultado(t1.query("COMMIT"));
+    const r2 = await p2;
+    const c2 = r2 ? r2 : await resultado(t2.query("COMMIT"));
+    const n = await comoDuenio(base, async (c) => (await c.query(`SELECT count(*)::int AS n FROM "NumeradorContable" WHERE "codigo" IN ('RRUNO','RRDOS')`)).rows[0].n);
+    assert.ok(n <= 1, `quedaron ${n} numeradores superpuestos`);
+    for (const e of [c1, c2].filter(Boolean)) assert.ok(["23514", "40001"].includes(e!.code ?? ""), e!.message);
+    assert.match((c1 ?? c2)!.message, /READ COMMITTED/);
+  } finally {
+    await cerrarTx(t1);
+    await cerrarTx(t2);
+    await comoDuenio(base, (c) => c.query(`DELETE FROM "NumeradorContable" WHERE "codigo" IN ('RRUNO','RRDOS')`));
+  }
+});
+
+test("H4: confirmar y cerrar en la misma transacción, contra otra confirmación: sin deadlock, la otra rebota limpia", async (t) => {
+  const base = await laBase(t);
+  if (!base) return;
+  const x = await preparar(base);
+  const A = base.a.id;
+  const cab = { claseAsientoId: x.claseMan };
+  const lineas = [{ cuenta: x.a["1.1.1.01"], debe: 80 }, { cuenta: x.a["4.1.01"], haber: 80 }];
+  const t1 = await txAbierta(base, A);
+  const t2 = await txAbierta(base, A);
+  try {
+    await asiento(t1, A, x.ejA, { fecha: "2026-09-01", cab, lineas });
+    const p2 = resultado(asiento(t2, A, x.ejA, { fecha: "2026-09-01", cab, lineas }));
+    await dormir(300);
+    const r1 = await resultado(t1.query(`UPDATE "PeriodoApertura" SET "abiertoDesde"='2026-09-02' WHERE "claseCuenta"='GENERAL'`));
+    const fin1 = r1 ?? (await resultado(t1.query("COMMIT")));
+    const e2 = await p2;
+    assert.equal(fin1, null, `confirmar+cerrar: ${fin1?.code} ${fin1?.message}`);
+    assert.equal(e2?.code, "23514", `la otra confirmación: ${e2?.code ?? "pasó"} ${e2?.message ?? ""}`);
+    assert.match(e2!.message, /período cerrado/);
+  } finally {
+    await cerrarTx(t1);
+    await cerrarTx(t2);
+    await reabrir(base);
+  }
 });

@@ -77,6 +77,15 @@ BEGIN
   IF to_regclass('public."IaConsumo"') IS NOT NULL THEN
     REVOKE DELETE, TRUNCATE ON "IaConsumo" FROM app_rls;
   END IF;
+  -- Contabilidad, parametrización (20261112130000_contabilidad_param_a): el rastro lo escribe sólo la
+  -- base; «ultimo» del numerador lo mueve sólo la base al confirmar (la app ajusta desde/hasta).
+  IF to_regclass('public."ParamCambio"') IS NOT NULL THEN
+    REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON "ParamCambio" FROM app_rls;
+  END IF;
+  IF to_regclass('public."NumeradorContable"') IS NOT NULL THEN
+    REVOKE UPDATE, TRUNCATE ON "NumeradorContable" FROM app_rls;
+    GRANT UPDATE ("desde", "hasta", "updatedAt") ON "NumeradorContable" TO app_rls;
+  END IF;
 END
 $$;
 
