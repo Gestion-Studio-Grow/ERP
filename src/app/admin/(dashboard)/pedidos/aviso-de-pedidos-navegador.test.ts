@@ -6,7 +6,7 @@
 // router falso que cuenta los `refresh()` y el reloj de Playwright para adelantar el tiempo:
 // la bandeja se refresca sola a los 45 s, no con la pestaña escondida ni con alguien escribiendo,
 // y cuando la vuelta trae un pedido de la tienda que no estaba, lo avisa a la vista.
-// Que en CH no se monte lo decide page.tsx (`comercio && vocab.porPeso`), con su test abajo.
+// Que en CH no se monte lo decide page.tsx (por kilo o con Pedí Local), con su test abajo.
 
 import { after, before, describe, test } from "node:test";
 import assert from "node:assert/strict";
@@ -15,6 +15,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Browser, Page } from "playwright";
 import { REFRESCO_DE_LA_BANDEJA_MS } from "./pedidos-core";
+import { CONFIGS_DELIVERY_LOCAL } from "@/lib/delivery-local/config";
 
 const RAIZ = fileURLToPath(new URL("../../../../../", import.meta.url));
 const ORIGEN = "http://localhost:3997/admin/pedidos";
@@ -158,8 +159,13 @@ describe("Aviso de pedido nuevo en el navegador", { timeout: 120_000 }, () => {
   });
 });
 
-test("la bandeja monta el aviso sólo en el negocio que vende por kilo: la de CH queda como estaba", () => {
+test("la bandeja monta el aviso sólo en el que vende por kilo o tiene Pedí Local: la de CH queda como estaba", () => {
   const pagina = readFileSync(fileURLToPath(new URL("./page.tsx", import.meta.url)), "utf8");
-  assert.match(pagina, /const avisoDePedidos = comercio && vocab\.porPeso\s*\?/);
+  assert.match(
+    pagina,
+    /const avisoDePedidos = \(comercio && vocab\.porPeso\) \|\| configDeliveryLocal\(identidad\.slug\) !== null\s*\?/,
+  );
+  // Pedí Local sólo está prendido en el piloto: ningún otro negocio (CH incluido) gana el aviso por esa vía.
+  assert.deepEqual(Object.keys(CONFIGS_DELIVERY_LOCAL), ["bitacora"]);
   assert.equal((pagina.match(/<AvisoDePedidosNuevos /g) ?? []).length, 1, "un solo lugar lo arma, con esa condición");
 });
