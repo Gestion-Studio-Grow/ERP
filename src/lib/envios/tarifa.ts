@@ -14,7 +14,7 @@
 
 import { centavosDe } from "@/lib/dinero/redondeo";
 import type { ShippingConfig } from "@/lib/storefront-shipping";
-import { MENSAJE_PAUSA_POR_DEFECTO, type ConfigEnvios, type ZonaDeEnvio } from "./modelo";
+import { MENSAJE_PAUSA_POR_DEFECTO, pausaVigente, type ConfigEnvios, type ZonaDeEnvio } from "./modelo";
 
 const pesos = (centavos: number) => centavos / 100;
 const fmt = (n: number) => `$${n.toLocaleString("es-AR", { maximumFractionDigits: 2 })}`;
@@ -74,9 +74,12 @@ export function configComoShipping(c: ConfigEnvios, zonaId: string | null): Ship
   return { flatRate: zona.costo, freeThreshold: zona.gratisDesde ?? Number.POSITIVE_INFINITY };
 }
 
-/** El mensaje para la clienta si la tienda está pausada; null si toma pedidos. */
-export function motivoTiendaPausada(c: Pick<ConfigEnvios, "tiendaPausada">): string | null {
-  if (!c.tiendaPausada) return null;
+/**
+ * El mensaje para la clienta si la tienda está pausada `ahora`; null si toma pedidos. Una pausa
+ * con «hasta» ya vencido no rige: la tienda volvió sola (se calcula al leer, sin cron).
+ */
+export function motivoTiendaPausada(c: Pick<ConfigEnvios, "tiendaPausada">, ahora: Date = new Date()): string | null {
+  if (!c.tiendaPausada || !pausaVigente(c.tiendaPausada, ahora)) return null;
   return c.tiendaPausada.mensaje.trim() || MENSAJE_PAUSA_POR_DEFECTO;
 }
 
