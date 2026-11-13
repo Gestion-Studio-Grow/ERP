@@ -227,6 +227,42 @@ test("contra Postgres: saldo de un pedido con parte cobrada (cierre, aviso de MP
     }
   });
 
+  // ── D2 · el WEBHOOK de producción (mercadopago-dispatch.ts) también cobra por el saldo ──────
+  await t.test("D2 webhook real: el aviso por el saldo de un pedido que pesó más se cobra solo", async () => {
+    const { cobrarPedidoDelWebhook } = await import("@/lib/mercadopago-dispatch");
+    const webhook = (orderId: string, paymentId: string, monto: number) =>
+      runInTenantContext(a.id, () => cobrarPedidoDelWebhook({ tenantId: a.id, orderId, paymentId, monto }));
+    const p = await tomar(1);
+    assert.equal((await webhook(p.id, "PAY-W-1", 10000)).cobrado, true);
+    assert.deepEqual((await ajustar(p.id, 2)).diferencia, { tipo: "cobrar", monto: 10000 });
+    const porTotal = await webhook(p.id, "PAY-W-2", 20000);
+    assert.equal(!porTotal.cobrado && porTotal.motivo, "monto-distinto", "por el total nuevo nunca cobra");
+    // El link de MP se arma por el saldo (cobros-actions.ts, `aCobrarDelPedido`): ése es el aviso que llega.
+    assert.deepEqual(await webhook(p.id, "PAY-W-3", 10000), { cobrado: true, code: p.code, total: 10000 });
+    const l = await cuadra(p.id);
+    assert.equal(l.paid, true);
+    assert.equal(l.neto, 20000);
+    assert.equal(l.ventasDeSaldo, 1);
+  });
+
+  // ── D1 · pesó menos OTRO día: la hoja del día del cobro no alerta «pagado de más» ──────────
+  await t.test("D1 días distintos: cobrado ayer, pesó menos hoy; la hoja de ayer no se mueve", async () => {
+    const { dateStrInBusinessTz } = await import("@/lib/datetime");
+    const ayerD = new Date(Date.now() - 86400000);
+    const ayer = dateStrInBusinessTz(ayerD);
+    const hojaDe = async (d: string) => {
+      const r = await ejecutarAccion({ negocio: a, usuario: a.duenia }, () => getCierreDiarioData(d, { conTurnosSinCerrar: true, esperadoALaVista: true }));
+      return (r as unknown as { valor: Awaited<ReturnType<typeof getCierreDiarioData>> }).valor.hechos!;
+    };
+    const p = await tomar(3);
+    assert.equal((await aviso(p.id, "PAY-D1-AYER", 30000)).cobrado, true);
+    await duenio.cashMovement.updateMany({ where: { tenantId: a.id, orderId: p.id }, data: { createdAt: ayerD, occurredAt: ayerD } });
+    const antes = await hojaDe(ayer);
+    assert.deepEqual((await ajustar(p.id, 1)).diferencia, { tipo: "devolver", monto: 20000 });
+    const despues = await hojaDe(ayer);
+    assert.deepEqual(despues.pagadosDeMas, antes.pagadosDeMas, "la devolución de hoy no hace de ayer un «pagado de más»");
+  });
+
   // ── Sin cobros parciales (CH, beauty-spa, y cualquier negocio sin ajuste por peso): el mismo número de siempre.
   await t.test("no-cambio: un negocio sin cobros parciales ve en el cierre la suma de los totales, como antes", async () => {
     const prod = await duenio.product.create({

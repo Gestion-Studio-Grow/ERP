@@ -41,3 +41,15 @@ test("pagados de más: la devolución por peso se descuenta; un egreso cualquier
     { cantidad: 1, monto: 500 },
   );
 });
+
+test("pagados de más: el total del período es el de hoy más lo devuelto por peso DESPUÉS (pesó menos otro día)", () => {
+  // Cobrado $30.000 ayer; hoy pesó menos (total $10.000) y devolvió $20.000 hoy, fuera de la hoja de ayer.
+  const ayer = [{ orderId: "q", total: 10_000, amount: 30_000, type: "VENTA" }];
+  assert.deepEqual(pagadosDeMasDelPeriodo(ayer), { cantidad: 1, monto: 20_000 }, "sin lo devuelto después: la alerta falsa de antes");
+  assert.deepEqual(pagadosDeMasDelPeriodo(ayer, new Map([["q", 20_000]])), { cantidad: 0, monto: 0 });
+  // Un excedente de verdad ese día sigue alertando: $35.000 por un pedido de $30.000 (total del período).
+  assert.deepEqual(
+    pagadosDeMasDelPeriodo([{ orderId: "q", total: 10_000, amount: 35_000, type: "VENTA" }], new Map([["q", 20_000]])),
+    { cantidad: 1, monto: 5_000 },
+  );
+});

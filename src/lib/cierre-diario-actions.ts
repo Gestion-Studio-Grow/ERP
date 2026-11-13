@@ -23,6 +23,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { AJUSTE_PESO_ACTOR_PREFIX } from "@/lib/caja/devolucion-por-peso";
 import { tenantTransaction } from "@/lib/rls";
 import { emitirCajaCerrada } from "@/eventos/del-core";
 import { Prisma } from "@/generated/prisma/client";
@@ -491,6 +492,11 @@ async function leerCierreDiario(
   // encendido). Acá sólo se marca; lo blanquea `diaALaVista` a la salida de `getCierreDiarioData`.
   const efectivoACiegas = arqueaACiegas && !abierto;
 
+  // El total de cada pedido al FINAL del período: el de hoy más lo devuelto por peso después (A8).
+  const devueltoDespues =
+    !sinCobrar || !repartoSinRendir
+      ? new Map<string, number>()
+      : await devueltoPorPesoDespues(tenantId, [...new Set(rows.flatMap((r) => (r.order && r.orderId ? [r.orderId] : [])))], end);
   const hechos: HechosDelCierre | null = !sinCobrar || !repartoSinRendir ? null : {
     ventasSinCobrar: sinCobrar,
     repartoSinRendir,
@@ -502,6 +508,7 @@ async function leerCierreDiario(
         type: r.type,
         createdBy: r.createdBy,
       })),
+      devueltoDespues,
     ),
     cuadernoConFechaVieja: rows.reduce(
       (acc, r) =>
@@ -550,6 +557,25 @@ async function leerCierreDiario(
     chequesADepositar: await chequesDeLaAdministracion(tenantId, day),
     reabrir: null,
   };
+}
+
+/**
+ * Lo devuelto por peso DESPUÉS del período (EGRESO firmado `ajuste-peso:` con fecha desde `hasta`),
+ * por pedido, de los pedidos que se movieron en el período. Con esto `pagadosDeMasDelPeriodo`
+ * recompone el total del final del período (el de hoy ya bajó). SÓLO LECTURA; no exportada.
+ */
+async function devueltoPorPesoDespues(tenantId: string, orderIds: readonly string[], hasta: Date): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  if (orderIds.length === 0) return out;
+  const filas = await prisma.cashMovement.findMany({
+    where: { tenantId, orderId: { in: [...orderIds] }, type: "EGRESO", createdBy: { startsWith: AJUSTE_PESO_ACTOR_PREFIX }, occurredAt: { gte: hasta } },
+    select: { orderId: true, amount: true },
+  });
+  for (const f of filas) {
+    if (!f.orderId) continue;
+    out.set(f.orderId, round2((out.get(f.orderId) ?? 0) + Number(f.amount)));
+  }
+  return out;
 }
 
 /**
