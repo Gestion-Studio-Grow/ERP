@@ -32,6 +32,7 @@ import { Button, Chip, Field, Icono, Input, Marca, Plata, Renglon, RielDeEstados
 import { useToast } from "../ToastProvider";
 import PedidoCajon, { type SeccionDelCajon } from "./PedidoCajon";
 import AnularDelPedido from "./AnularDelPedido";
+import SinConfirmar from "./SinConfirmar";
 import { rechazoDeAccion, sinRespuestaAlAvanzar } from "./avanzar-pedido";
 import { esRedirectDeNext } from "./formularios-del-pedido";
 import { useCobroDelNegocio } from "./CobroDelPedido";
@@ -75,6 +76,7 @@ import {
   type PedidoDelTablero,
 } from "./pedidos-core";
 import type { ExtraDelPedido } from "./tablero.server";
+import MandarViaje from "./delivery-local/MandarViaje";
 import { useVocabulario } from "../VocabularioDelNegocio";
 import { tituloDeEntrega } from "@/lib/vocabulario-negocio";
 
@@ -208,10 +210,13 @@ function LoteDePedidos({
   seleccionados,
   limpiar,
   onAvisar,
+  viaje = [],
 }: {
   seleccionados: PedidoDelTablero[];
   limpiar: () => void;
   onAvisar: (ids: string[]) => void;
+  /** Pedí Local: los elegidos que pueden salir con el repartidor (Listos con envío). */
+  viaje?: string[];
 }) {
   const router = useRouter();
   const { showError, showSuccess } = useToast();
@@ -246,7 +251,8 @@ function LoteDePedidos({
     router.refresh();
   }
 
-  if (lote.avanzar.length === 0 && lote.avisar.length === 0) {
+  const conViaje = viaje.length >= 2;
+  if (lote.avanzar.length === 0 && lote.avisar.length === 0 && !conViaje) {
     return <span className="text-sm text-muted">Estos no tienen un paso en común: abrilos de a uno.</span>;
   }
   return (
@@ -268,6 +274,7 @@ function LoteDePedidos({
           Avisar por WhatsApp · {lote.avisar.length}
         </Button>
       )}
+      {conViaje && corriendo === null && <MandarViaje ids={viaje} onHecho={limpiar} />}
     </>
   );
 }
@@ -325,7 +332,19 @@ function AvisarUnoPorUno({ pedidos, onCerrar }: { pedidos: PedidoDelTablero[]; o
 
 // ── Estado del pedido, en la fila ────────────────────────────────────────────
 
-function EstadoDeFila({ p, comercio, otros }: { p: PedidoDelTablero; comercio: boolean; otros: readonly number[] }) {
+function EstadoDeFila({
+  p,
+  comercio,
+  otros,
+  pediLocal = false,
+  repartidorEntrego = false,
+}: {
+  p: PedidoDelTablero;
+  comercio: boolean;
+  otros: readonly number[];
+  pediLocal?: boolean;
+  repartidorEntrego?: boolean;
+}) {
   const vocab = useVocabulario();
   const riel = rielDelPedido(p, comercio);
   const doble = textoDeOtrosPedidos(otros);
@@ -333,6 +352,10 @@ function EstadoDeFila({ p, comercio, otros }: { p: PedidoDelTablero; comercio: b
     <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-0.5">
       {/* La misma clienta con otro pedido abierto (caso 8): antes de preparar los dos, juntalos o preguntale. */}
       {doble && <Marca tipo="atencion">{doble}</Marca>}
+      {/* Pedí Local: pasados 20 min sin confirmar, chip rojo (a los 30 el cliente puede bajarlo). */}
+      {pediLocal && <SinConfirmar status={p.status} creado={p.creado} />}
+      {/* El repartidor tocó «Entregué» en su link: es un aviso; el local lo cierra con su tecla. */}
+      {repartidorEntrego && <Marca tipo="info">Repartidor: entregado</Marca>}
       {/* En el celular no entra el riel: queda la palabra del paso, y la entrega y el cobro van en
           la misma línea (en la PC tienen su columna). */}
       <span className="max-sm:hidden">
@@ -514,6 +537,8 @@ function TarjetaDelPedido({
           </span>
         </p>
         <p className="flex flex-wrap gap-1.5">
+          {extra?.deliveryLocal && <SinConfirmar status={p.status} creado={p.creado} />}
+          {extra?.deliveryLocal?.repartidorEntrego && <Marca tipo="info">Repartidor: entregado</Marca>}
           {p.cobrado ? <Marca tipo="hecho">{p.medio ? `Cobrado · ${p.medio}` : "Cobrado"}</Marca> : null}
           {p.reparto && <Marca tipo="info">En la calle desde {p.reparto.desde}</Marca>}
           {p.status === "READY" && p.avisado && !p.reparto && <Marca tipo="hecho">Avisado {p.avisado}</Marca>}
@@ -894,7 +919,15 @@ export default function TableroPedidos({
       clave: "estado",
       titulo: "Estado",
       movil: "detalle",
-      celda: (p) => <EstadoDeFila p={p} comercio={comercio} otros={otrosDeLaClienta.get(p.id) ?? []} />,
+      celda: (p) => (
+        <EstadoDeFila
+          p={p}
+          comercio={comercio}
+          otros={otrosDeLaClienta.get(p.id) ?? []}
+          pediLocal={Boolean(extras[p.id]?.deliveryLocal)}
+          repartidorEntrego={Boolean(extras[p.id]?.deliveryLocal?.repartidorEntrego)}
+        />
+      ),
     },
     { clave: "total", titulo: "Total", alinear: "derecha", ordenable: true, movil: "plata", celda: (p) => <Plata valor={p.total} /> },
     {
@@ -1149,7 +1182,12 @@ export default function TableroPedidos({
           onAbrir={(p) => abrir(p.id)}
           seleccion={puedeOperar}
           lote={(ids, limpiar) => (
-            <LoteDePedidos seleccionados={visibles.filter((p) => ids.includes(p.id))} limpiar={limpiar} onAvisar={setAvisar} />
+            <LoteDePedidos
+              seleccionados={visibles.filter((p) => ids.includes(p.id))}
+              limpiar={limpiar}
+              onAvisar={setAvisar}
+              viaje={visibles.filter((p) => ids.includes(p.id) && extras[p.id]?.deliveryLocal?.enviable).map((p) => p.id)}
+            />
           )}
           teclas={
             puedeOperar

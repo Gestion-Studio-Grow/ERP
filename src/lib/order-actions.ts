@@ -29,6 +29,7 @@ import {
   claveDeLaVidriera,
   buildOrderLines,
   orderSubtotal,
+  sellPrice,
   AnulacionDeCuentaRechazada,
   CobroDePedidoAnulado,
   type CobroDePedido,
@@ -106,6 +107,13 @@ import {
 } from "@/lib/envios/tarifa";
 import type { ZonaDeEnvio } from "@/lib/envios/modelo";
 import { shippingVigente } from "@/lib/storefront-shipping";
+import { configDeliveryLocal } from "@/lib/delivery-local/config";
+import { extrasDelAlta } from "@/lib/delivery-local/alta";
+import { rechazoPorHorario } from "@/lib/delivery-local/horario";
+import { opcionesDelAlta, idsParaLasOpciones, DEMASIADOS_PRODUCTOS } from "@/lib/delivery-local/opciones";
+import { tokenDeSeguimiento } from "@/lib/delivery-local/seguimiento";
+import { rutaDeSeguimiento } from "@/lib/delivery-local/salida";
+import { authSecret } from "@/lib/auth";
 import { RechazoDeDominio } from "@/lib/rechazo-de-dominio";
 import {
   AnulacionVentaRechazada,
@@ -763,9 +771,46 @@ export async function placeOnlineOrder(
     ahora,
   });
   if (!horario.ok) return { ok: false, error: horario.error, campo: "datos" };
+
+  const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { slug: true, name: true } });
+  // DELIVERY LOCAL (src/lib/delivery-local): sólo los negocios con su configuración. La ubicación y
+  // la forma de pago van a la nota (la ven la bandeja y el repartidor) y a la auditoría del alta;
+  // un pago mal formado frena el alta sin grabar. Sin configuración, nada de esto corre.
+  const deliveryLocal = configDeliveryLocal(tenant?.slug);
+  // Fuera del horario del local (horario.ts) no se toma el pedido: la vidriera apaga el botón,
+  // pero el navegador se saltea. El rechazo va DENTRO del alta (`insertar`, abajo), DESPUÉS de
+  // buscar la clave: el reintento de un pedido grabado a las 19:59 que llega a las 20:00 tiene
+  // que devolver ese pedido, no «cerrado».
+  const cerrado = deliveryLocal ? rechazoPorHorario(deliveryLocal, ahora) : null;
+  const extrasLocal = deliveryLocal ? extrasDelAlta(deliveryLocal, formData, fulfillment === "DELIVERY") : null;
+  if (extrasLocal && !extrasLocal.ok) return { ok: false, error: extrasLocal.error, campo: "datos" };
+
+  // Las líneas tal como vinieron (productId y quantity en el mismo orden).
+  const crudas = parseItems(formData);
+  // OPCIONES DE PRODUCTO (delivery local, opciones.ts). Del formulario se lee sólo QUÉ se eligió
+  // (`opciones`, una por línea, en el orden de `productId`); el recargo se RECALCULA con la config
+  // y entra como línea sin producto. Opción desconocida o mal formada → rechazo, sin grabar.
+  // Si viene el campo, viene uno por línea: si no, no se sabe de qué línea es cada elección.
+  // Como el horario, el rechazo va dentro del alta, después de la clave (un reintento manda).
+  const opcionesCrudas = formData.getAll("opciones");
+  const idsDeLasOpciones = deliveryLocal?.opciones?.length ? idsParaLasOpciones(crudas) : null;
+  const opcionesLocal = deliveryLocal?.opciones?.length
+    ? opcionesCrudas.length > 0 && opcionesCrudas.length !== crudas.length
+      ? ({ ok: false, error: "No pudimos leer las opciones de tu pedido: recargá la página y volvé a elegirlas." } as const)
+      : !idsDeLasOpciones
+        ? ({ ok: false, error: DEMASIADOS_PRODUCTOS } as const)
+        : opcionesDelAlta(
+            deliveryLocal.opciones,
+            crudas.map((l, i) => ({ ...l, opciones: opcionesCrudas[i] ?? null })),
+            await nombresDeLaBolsa(tenantId, idsDeLasOpciones),
+          )
+    : null;
+  // El recargo de las opciones suma al pedido mínimo, como en la vidriera y en el costo del envío.
+  const recargoDeOpciones = opcionesLocal?.ok ? opcionesLocal.lineasAMano.reduce((s, l) => s + l.importe, 0) : 0;
   const notes = notaDelPedido({
     zona: conZonas ? (zonaElegida?.nombre ?? null) : null,
     franja: horario.nota,
+    ...(extrasLocal?.ok ? { extras: [...extrasLocal.renglones, ...(opcionesLocal?.ok ? opcionesLocal.renglones : [])] } : {}),
     deLaClienta: String(formData.get("notes") || "").trim().slice(0, 500) || null,
   });
 
@@ -779,7 +824,6 @@ export async function placeOnlineOrder(
   // El precio que la vidriera mostró en cada línea (lo mandan las cuatro tiendas desde la ronda 2, src/components/vidriera): se empareja ANTES de
   // filtrar, porque viaja en el mismo orden que `productId`. Sólo sirve para avisar; el alta
   // cobra siempre el precio de la base.
-  const crudas = parseItems(formData);
   const vistos = preciosVistos(formData.getAll("unitPrice"), crudas.length);
   const lineasDeLaBolsa: LineaDeLaBolsa[] = crudas
     .map((l, i) => ({ ...l, precioVisto: vistos[i] }))
@@ -789,7 +833,6 @@ export async function placeOnlineOrder(
     return { ok: false, error: "Tu pedido está vacío: sumá algún producto con el botón +." };
   }
 
-  const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { slug: true, name: true } });
   // Con zonas propias, la tarifa es la de la zona (`envioZona`, abajo). Si no, la de la MARCA
   // (storefront.ts, `shippingVigente`): la misma que la vidriera usa para mostrar (Shine).
   const envio = tieneZonas(configEnvios) ? null : shippingVigente(null, getStorefrontCopy(tenant?.slug)?.shipping);
@@ -810,10 +853,14 @@ export async function placeOnlineOrder(
     buscarPorClave: (key) => pedidoConClave(tenantId, key),
     revisarBolsa: () => problemasDeLaBolsaEnBase(tenantId, lineasDeLaBolsa),
     insertar: async () => {
+      // Horario y opciones (delivery local): después de la clave, antes de grabar nada.
+      if (cerrado) throw new RechazoDeDominio(cerrado);
+      if (opcionesLocal && !opcionesLocal.ok) throw new RechazoDeDominio(opcionesLocal.error);
       // La cotización con las reglas del negocio (retiro habilitado, zona que existe, pedido
-      // mínimo) sobre lo que suman los productos A PRECIO DE LA BASE. Un no es un rechazo con su
+      // mínimo) sobre lo que suman los productos A PRECIO DE LA BASE más el recargo de las
+      // opciones (la misma base que la vidriera y que `costoDeEnvio`). Un no es un rechazo con su
       // motivo («te faltan $X… lo retirás en el local sin mínimo»): no se graba nada.
-      const subtotalDeLaBase = conZonas ? await subtotalDeLaBolsaEnBase(tenantId, items) : 0;
+      const subtotalDeLaBase = conZonas ? round2((await subtotalDeLaBolsaEnBase(tenantId, items)) + recargoDeOpciones) : 0;
       const cotizacion = cotizarEnvio(configEnvios, { subtotal: subtotalDeLaBase, modo, zonaId });
       if (!cotizacion.ok) throw new RechazoDeDominio(cotizacion.motivo);
       return insertOrder(tenantId, {
@@ -827,7 +874,8 @@ export async function placeOnlineOrder(
         paid: false,
         paymentMethod: null,
         items,
-      }, { idempotencyKey, envio, envioZona: cotizacion.zona, cupon, promociones });
+        ...(opcionesLocal?.ok && opcionesLocal.lineasAMano.length > 0 ? { lineasAMano: opcionesLocal.lineasAMano } : {}),
+      }, { idempotencyKey, envio, envioZona: cotizacion.zona, cupon, promociones, ...(deliveryLocal ? { lineasCompletas: true } : {}) });
     },
   });
   if (toma.tipo === "cupon") {
@@ -866,12 +914,27 @@ export async function placeOnlineOrder(
         ...(horario.scheduledFor ? { horario: horario.scheduledFor.toISOString() } : {}),
         ...(result.cupon ? { cupon: { codigo: result.cupon, monto: result.descuento ?? 0 } } : {}),
         ...(porWhatsApp ? { via: "whatsapp" } : {}),
+        ...(extrasLocal?.ok ? { entregaLocal: extrasLocal.auditoria } : {}),
+        ...(opcionesLocal?.ok && opcionesLocal.auditoria.length > 0 ? { opciones: opcionesLocal.auditoria } : {}),
       },
     });
     // El backoffice ve el pedido nuevo en su bandeja al revalidar.
     revalidarMostrador();
   }
-  if (!porWhatsApp) redirect(`/tienda/gracias?pedido=${result.code}`);
+  if (!porWhatsApp) {
+    // Delivery local: el cliente sigue su pedido en un link propio (firmado, sin datos personales).
+    // El pedido ya está grabado: si falta el secreto del link, el cliente va a «gracias» en vez de ver un error.
+    let seguimiento: string | null = null;
+    if (deliveryLocal) {
+      try {
+        seguimiento = rutaDeSeguimiento(tokenDeSeguimiento(authSecret(), tenantId, result.id));
+      } catch (err) {
+        console.error("[delivery-local] no se pudo firmar el link de seguimiento", err);
+      }
+    }
+    if (seguimiento) redirect(seguimiento);
+    redirect(`/tienda/gracias?pedido=${result.code}`);
+  }
   // El pedido YA está registrado: si armar el link del chat falla, no se dice "no pudimos tomar
   // el pedido" (sería mentira y el cliente lo repetiría): se contesta sin chat.
   const whatsapp = await chatDelPedido(tenantId, result.id, tenant?.name ?? "el local").catch((err) => {
@@ -894,6 +957,20 @@ async function subtotalDeLaBolsaEnBase(tenantId: string, items: { productId: str
     select: { id: true, name: true, saleUnit: true, price: true, pricePerKg: true, trackStock: true },
   });
   return orderSubtotal(buildOrderLines(productos, items));
+}
+
+/**
+ * Id y nombre de los productos de la bolsa que se pueden vender (del negocio, activos y con
+ * precio): para buscar sus opciones (delivery local). Los ids ya vienen sin repetir y con el tope
+ * (`idsParaLasOpciones`); el que falta acá rechaza el pedido en `opcionesDelAlta`.
+ */
+async function nombresDeLaBolsa(tenantId: string, ids: string[]): Promise<{ id: string; name: string }[]> {
+  if (ids.length === 0) return [];
+  const productos = await prisma.product.findMany({
+    where: { tenantId, id: { in: ids }, deletedAt: null, active: true },
+    select: { id: true, name: true, saleUnit: true, price: true, pricePerKg: true },
+  });
+  return productos.filter((p) => (sellPrice(p) ?? 0) > 0).map((p) => ({ id: p.id, name: p.name }));
 }
 
 /** La bolsa contra la base: qué línea no se puede pedir y por qué (`problemasDeLaBolsa`). */

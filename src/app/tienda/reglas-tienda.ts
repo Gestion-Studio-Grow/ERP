@@ -371,8 +371,14 @@ export function horarioDeLaEntrega(p: {
  * La nota del pedido con la zona y la franja delante de lo que escribió la clienta, para que el
  * local y el cadete lo vean sin abrir nada más. Hasta 500 caracteres, como siempre. PURA.
  */
-export function notaDelPedido(p: { zona: string | null; franja: string | null; deLaClienta: string | null }): string | null {
-  const partes = [p.zona ? `Zona: ${p.zona}` : null, p.franja, p.deLaClienta?.trim() || null].filter((x): x is string => Boolean(x));
+export function notaDelPedido(p: {
+  zona: string | null;
+  franja: string | null;
+  deLaClienta: string | null;
+  /** Renglones del producto que tenga el negocio (delivery local: ubicación, pago), antes de lo de la clienta. */
+  extras?: readonly string[];
+}): string | null {
+  const partes = [p.zona ? `Zona: ${p.zona}` : null, p.franja, ...(p.extras ?? []), p.deLaClienta?.trim() || null].filter((x): x is string => Boolean(x));
   return partes.length ? partes.join(" · ").slice(0, 500) : null;
 }
 

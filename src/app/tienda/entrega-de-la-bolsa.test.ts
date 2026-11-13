@@ -128,9 +128,9 @@ test("cada vidriera que pasa por placeOnlineOrder ofrece la entrega del negocio 
     assert.match(src, /<FrenoDeEntrega /, `${f} dice lo que frena`);
     assert.match(src, /entrega\.freno/, `${f} frena el botón`);
   }
-  // La página le pasa la configuración (y hoy) a TODAS: magra, la nueva, Shine, Qué Bien Olés, A Dos Manos, réplica y genérica.
+  // La página le pasa la configuración (y hoy) a TODAS: magra, la nueva, Shine, Qué Bien Olés, A Dos Manos, réplica, genérica y Pedí Local (delivery local).
   const pagina = leer("./page.tsx");
-  assert.equal((pagina.match(/entrega=\{entrega\}/g) ?? []).length, 7);
-  assert.equal((pagina.match(/hoy=\{hoy\}/g) ?? []).length, 7);
+  assert.equal((pagina.match(/entrega=\{entrega\}/g) ?? []).length, 8);
+  assert.equal((pagina.match(/hoy=\{hoy\}/g) ?? []).length, 8);
   assert.match(pagina, /return version === null \? null : config;/, "un negocio que nunca guardó Envíos queda como siempre");
 });

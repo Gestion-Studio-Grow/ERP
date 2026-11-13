@@ -28,6 +28,7 @@ import { textoDelLinkDePago, type LinkEnviado } from "./link-de-pago";
 import { cuandoDelPedido, listoDesdeAyer, type PedidoCerrado, type PedidoDelTablero } from "./pedidos-core";
 import { recordatorioDePago } from "@/lib/clientes/fiado";
 import { textoPlata } from "@/lib/cobro/pie-de-cobro-core";
+import { ACCION_ENTREGO } from "@/lib/delivery-local/entrega";
 import { ACCION_REPARTO, estadoDelReparto, estaEnReparto, zonaDelPedido } from "./reparto/reparto-core";
 
 /** Lo que el cajón del pedido necesita además de la fila (las acciones de «Más»). */
@@ -48,6 +49,8 @@ export type ExtraDelPedido = {
    * Listo desde un día anterior y con teléfono. null = no se ofrece.
    */
   recordatorio: string | null;
+  /** Delivery local (src/lib/delivery-local): envío de un negocio con el producto prendido. */
+  deliveryLocal?: { enviable: boolean; repartidorEntrego: boolean };
 };
 
 type Linea = {
@@ -171,6 +174,20 @@ export async function leerAvisados(ids: readonly string[], opciones: { boutique:
   return out;
 }
 
+/**
+ * Delivery local: los Listos con envío que el repartidor ya marcó «Entregué» desde su link
+ * (ACCION_ENTREGO). Es un aviso, no un estado: el local cierra el pedido con su tecla. UNA consulta.
+ */
+export async function leerEntregasDelRepartidor(ids: readonly string[]): Promise<Set<string>> {
+  if (ids.length === 0) return new Set();
+  const tenantId = await getCurrentTenantId();
+  const filas = await prisma.auditLog.findMany({
+    where: { tenantId, entity: "Order", action: ACCION_ENTREGO, entityId: { in: [...ids] } },
+    select: { entityId: true },
+  });
+  return new Set(filas.map((f) => f.entityId).filter((x): x is string => Boolean(x)));
+}
+
 export function armarTablero(e: {
   abiertos: readonly OrdenAbierta[];
   cerrados: readonly OrdenCerrada[];
@@ -188,6 +205,10 @@ export function armarTablero(e: {
   ofrecerLink: boolean;
   simulacion: boolean;
   alcance: AlcanceDeAnulacion | null;
+  /** El negocio tiene el delivery local (configDeliveryLocal). Sin él, los extras no cambian. */
+  deliveryLocal?: boolean;
+  /** Los pedidos que el repartidor marcó «Entregué» (`leerEntregasDelRepartidor`). */
+  entregadosPorRepartidor?: ReadonlySet<string>;
 }): { abiertos: PedidoDelTablero[]; cerrados: PedidoCerrado[]; extras: Record<string, ExtraDelPedido> } {
   const extras: Record<string, ExtraDelPedido> = {};
   // MOSTRADOR BOUTIQUE (2C): la zona, si salió con el cadete y el «Recordarle» de la tarjeta. Sólo
@@ -259,6 +280,7 @@ export function armarTablero(e: {
               }),
             )
           : null,
+      ...(e.deliveryLocal && o.fulfillment === "DELIVERY" ? { deliveryLocal: { enviable: o.status === "READY", repartidorEntrego: o.status === "READY" && Boolean(e.entregadosPorRepartidor?.has(o.id)) } } : {}),
     };
     return {
       id: o.id,

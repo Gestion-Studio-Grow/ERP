@@ -233,7 +233,17 @@ export type InsertOrderOpts = {
    * frenar). Sin el dato, el alta de siempre.
    */
   occurredAt?: Date | null;
+  /**
+   * TODAS LAS LÍNEAS O NINGUNA (la vidriera con opciones, delivery local): si una línea pedida
+   * con cantidad se cae al armar (producto borrado, inactivo o sin precio entre la revisión de la
+   * bolsa y el alta), se rechaza el pedido en vez de descartarla en silencio. Sin esto, el
+   * recargo de sus opciones se cobraba sin el producto. Sin el dato, lo de siempre.
+   */
+  lineasCompletas?: boolean;
 };
+
+/** El rechazo de `lineasCompletas`: la tienda vuelve a mirar la bolsa y dice cuál línea fue. */
+export const LINEA_QUE_SE_CAYO = "Uno de los productos de tu pedido ya no está disponible: revisá la bolsa y volvé a confirmar.";
 
 // A-2: cuántas veces se reintenta el alta ante una colisión del correlativo por tenant
 // (max(code)+1 bajo concurrencia). Cada reintento recomputa el code; con el @@unique como
@@ -401,9 +411,11 @@ export function decidirAlta(p: {
   tenantId: string;
   input: OrderInput;
   products: OrderProduct[];
-  opts?: Pick<InsertOrderOpts, "descuento" | "imputarCajaActor" | "envio" | "envioZona" | "cupon" | "aCuenta" | "promociones" | "pagosMixtos" | "occurredAt">;
+  opts?: Pick<InsertOrderOpts, "descuento" | "imputarCajaActor" | "envio" | "envioZona" | "cupon" | "aCuenta" | "promociones" | "pagosMixtos" | "occurredAt" | "lineasCompletas">;
 }): AltaDecidida {
-  const brutas = buildOrderLines(p.products, pedidasValidas(p.input.items));
+  const pedidas = pedidasValidas(p.input.items);
+  const brutas = buildOrderLines(p.products, pedidas);
+  if (p.opts?.lineasCompletas && brutas.length < pedidas.length) throw new RechazoDeDominio(LINEA_QUE_SE_CAYO);
   const aMano = p.input.lineasAMano ?? [];
   if (brutas.length === 0 && aMano.length === 0) {
     throw new RechazoDeDominio("Ninguno de los productos elegidos tiene precio de venta cargado.");

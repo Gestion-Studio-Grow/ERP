@@ -37,6 +37,7 @@ import { alcanceDeAnulacion, permisoEfectivo } from "@/lib/capabilities";
 import { requireApp } from "@/lib/require-app";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { getTenantIdentity } from "@/lib/identidad-rubro";
+import { configDeliveryLocal } from "@/lib/delivery-local/config";
 import { esteticaBackoffice } from "@/lib/estetica-backoffice";
 import { esEstetica } from "@/lib/palabras-del-negocio";
 import { entregaDelRubro } from "@/blueprints/retail/rubros";
@@ -50,7 +51,7 @@ import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import { roleHasCapability } from "@/lib/capabilities";
 import TableroPedidos from "./TableroPedidos";
 import AvisoDePedidosNuevos from "./AvisoDePedidosNuevos";
-import { armarTablero, leerAvisados } from "./tablero.server";
+import { armarTablero, leerAvisados, leerEntregasDelRepartidor } from "./tablero.server";
 import { LineaDeEstado, Plata } from "@/components/ui";
 import { lineaDelTablero, listoDesdeAyer, otrosPedidosDeLaClienta, textoDeLaTiendaEsperando, textoDeOtrosPedidos } from "./pedidos-core";
 import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
@@ -149,9 +150,10 @@ export default async function PedidosPage({ searchParams }: { searchParams?: Pro
   // entrega en un punto de encuentro (rubros.ts `entrega`). Lo mismo que ve el tablero nuevo.
   const entrega = entregaDelRubro(identidad.rubro);
   const vocab = vocabularioDelNegocio(identidad.rubro);
-  // El aviso de pedido nuevo (refresco solo + «bip»), sólo en el negocio que vende por kilo
-  // (UAT MAGRA 16/10). La bandeja de CH, y la de todo comercio que no pesa, queda como estaba.
-  const avisoDePedidos = comercio && vocab.porPeso
+  // El aviso de pedido nuevo (refresco solo + «bip»): en el negocio que vende por kilo (UAT MAGRA
+  // 16/10) y en el que tiene delivery local (Pedí Local: el pedido que entra no puede pasar sin que
+  // suene). La bandeja de CH, y la de todo otro comercio, queda como estaba.
+  const avisoDePedidos = (comercio && vocab.porPeso) || configDeliveryLocal(identidad.slug) !== null
     ? <AvisoDePedidosNuevos pedidosWeb={abiertos.filter((o) => o.channel === "ONLINE").map((o) => ({ id: o.id, code: o.code }))} />
     : null;
 
@@ -246,6 +248,11 @@ export default async function PedidosPage({ searchParams }: { searchParams?: Pro
     // Con el fiado del negocio prendido (2D), «A cobrar» dice adónde va lo entregado sin cobrar con ficha.
     // …y sólo si la app de Fiado abre (sin «inicio por apps» el enlace era un callejón sin salida).
     const fiado = boutique && (await fiadoAbreEnLaBandeja(await getCurrentTenantId()));
+    // Delivery local: los Listos con envío que el repartidor ya marcó «Entregué» (sólo con el producto prendido).
+    const deliveryLocal = configDeliveryLocal(identidad.slug) !== null;
+    const entregadosPorRepartidor = deliveryLocal
+      ? await leerEntregasDelRepartidor(abiertos.filter((o) => o.status === "READY" && o.fulfillment === "DELIVERY").map((o) => o.id))
+      : undefined;
     const tablero = armarTablero({
       abiertos,
       cerrados,
@@ -260,6 +267,8 @@ export default async function PedidosPage({ searchParams }: { searchParams?: Pro
       ofrecerLink,
       simulacion,
       alcance,
+      deliveryLocal,
+      entregadosPorRepartidor,
     });
     const verPlata = permisoEfectivo(user, "reports:read");
     // El reloj sólo en comercio: los de la tienda esperando y los listos sin retirar (CH no tiene

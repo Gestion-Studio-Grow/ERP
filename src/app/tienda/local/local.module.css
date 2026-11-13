@@ -1,0 +1,889 @@
+/* ============================================================================
+   PEDÍ LOCAL — la vidriera de pedidos y delivery propio de un comercio del barrio.
+   ============================================================================
+   Piel GSG por defecto (DESIGN.md): superficies hueso, tinta, un solo acento, Fraunces en títulos y
+   Hanken en el texto. Con marca del local (autorización registrada, marca.ts → raiz.ts): sus colores,
+   su banda (`data-banda`: barra, portada e índice) y su letra (`data-letra`). Hoy, Bitácora Café.
+   Mobile-first (390 px): la carta arriba, el pedido abajo y una barra fija con la bolsa; desde
+   900 px, la carta a la izquierda y el pedido en un riel a la derecha. Sólo tokens. Contraste AA. */
+
+.raiz {
+  /* Tokens PROPIOS del módulo: la piel GSG por defecto; la marca del local (marca.ts) los pisa desde
+     el style de la raíz. Los tokens de tema compartidos no se tocan. */
+  --pl-fondo: var(--surface);
+  --pl-primario: var(--accent);
+  --pl-sobre-primario: var(--text-on-accent);
+  --pl-primario-texto: var(--accent-ink);
+  --pl-suave: var(--accent-soft);
+  --pl-papel: color-mix(in oklab, var(--pl-primario) 7%, var(--surface-raised));
+  --pl-alto-barra: 3.5rem;
+  --pl-alto-indice: 3.75rem;
+  /* Letra, banda y acento: por defecto, la piel de siempre. marca.ts los pisa desde el style. */
+  --pl-letra-titulo: var(--font-display), Georgia, serif;
+  --pl-letra-texto: var(--font-body), system-ui, -apple-system, sans-serif;
+  --pl-banda: var(--pl-papel);
+  --pl-sobre-banda: var(--text-strong);
+  --pl-sobre-banda-suave: var(--text-muted);
+  --pl-acento: var(--pl-primario);
+  --pl-sobre-acento: var(--pl-sobre-primario);
+  --pl-acento-texto: var(--pl-primario-texto);
+  background: var(--pl-fondo);
+  color: var(--text);
+  font-family: var(--pl-letra-texto);
+  font-size: 1rem;
+  line-height: 1.5;
+  min-height: 100vh;
+  padding-bottom: 6rem; /* lugar para la barra fija de la bolsa */
+}
+.raiz[data-marca] { --pl-suave: color-mix(in oklab, var(--pl-primario) 14%, var(--pl-fondo)); }
+.raiz *, .raiz *::before, .raiz *::after { box-sizing: border-box; }
+.raiz :where(h1, h2, h3, h4, p, ul, dl, dd) { margin: 0; }
+.raiz :where(ul) { padding: 0; list-style: none; }
+.raiz :where(a, button, input, select, summary):focus-visible {
+  outline: 2px solid var(--pl-primario);
+  outline-offset: 2px;
+}
+
+.salto {
+  position: absolute;
+  left: 0.5rem;
+  top: 0.5rem;
+  transform: translateY(-200%);
+  padding: 0.5rem 0.75rem;
+  background: var(--surface-raised);
+  color: var(--text-strong);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  z-index: 30;
+}
+.salto:focus { transform: none; }
+
+.ancho {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+/* ── Cabecera ── */
+.cabecera {
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-raised);
+  padding: 1.5rem 0;
+}
+.cabeceraRotulo {
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.titulo {
+  font-family: var(--pl-letra-titulo);
+  font-size: clamp(2rem, 7vw, 3rem);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--text-strong);
+  margin-top: 0.25rem;
+}
+.bajada { margin-top: 0.5rem; color: var(--text); }
+.datos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  font-size: 0.875rem;
+}
+.dato {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2rem;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  color: var(--text-strong);
+  background: var(--surface);
+}
+.datoAcento {
+  border-color: var(--pl-primario);
+  background: var(--pl-suave);
+  color: var(--pl-primario-texto);
+  font-weight: 600;
+}
+.enlaceWa {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap-min);
+  margin-top: 1rem;
+  color: var(--pl-primario-texto);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ── Cuerpo: carta + pedido ── */
+.cuerpo {
+  display: grid;
+  /* minmax(0, 1fr): sin esto la columna crece al ancho del carril de «elegidos» (1532px en un 390). */
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2rem;
+  padding-top: 1.5rem;
+  padding-bottom: 2rem;
+}
+@media (min-width: 900px) {
+  .cuerpo { grid-template-columns: minmax(0, 1fr) 24rem; align-items: start; }
+  .riel { position: sticky; top: calc(var(--pl-alto-indice) + 1rem); max-height: calc(100vh - var(--pl-alto-indice) - 2rem); overflow-y: auto; }
+}
+
+.categoria { scroll-margin-top: calc(var(--pl-alto-indice) + 1rem); }
+.categoria:focus { outline: none; }
+.categoria:focus-visible { outline: 2px solid var(--pl-primario); outline-offset: 0.5rem; border-radius: var(--radius); }
+.categoria + .categoria { margin-top: 2.5rem; }
+.categoriaTitulo {
+  font-family: var(--pl-letra-titulo);
+  font-size: clamp(1.375rem, 4.5vw, 1.75rem);
+  letter-spacing: -0.015em;
+  line-height: 1.2;
+  color: var(--text-strong);
+}
+
+.item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.itemNombre { color: var(--text-strong); font-weight: 600; }
+.itemPrecio { font-variant-numeric: tabular-nums; color: var(--text); font-size: 0.875rem; }
+.itemAviso { font-size: 0.8125rem; color: var(--warning); font-weight: 600; }
+.itemSinStock { color: var(--text-muted); }
+
+.cantidad {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.cantidadValor {
+  min-width: 2.5rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--text-strong);
+}
+.toque {
+  min-width: var(--tap-min);
+  min-height: var(--tap-min);
+  border-radius: var(--radius);
+  border: 1px solid var(--line-strong);
+  background: var(--surface-raised);
+  color: var(--text-strong);
+  font-size: 1.125rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.toqueSumar {
+  border-color: var(--pl-primario);
+  background: var(--pl-primario);
+  color: var(--pl-sobre-primario);
+}
+.toque:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.vacio { color: var(--text-muted); padding: 1rem 0; }
+
+/* ── El pedido ── */
+.pedido {
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem 1rem;
+  scroll-margin-top: calc(var(--pl-alto-indice) + 1rem);
+}
+.pedidoTitulo {
+  font-family: var(--pl-letra-titulo);
+  font-size: 1.5rem;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  color: var(--text-strong);
+  margin-bottom: 1rem;
+}
+.form { display: grid; gap: 1rem; }
+.lineas { display: grid; gap: 0.5rem; font-size: 0.875rem; }
+.linea {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.linea > :last-child { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.lineaSuave { color: var(--text-muted); }
+.lineaTotal {
+  border-top: 1px solid var(--line-strong);
+  padding-top: 0.75rem;
+  font-weight: 700;
+  font-size: 1.125rem;
+  color: var(--text-strong);
+}
+
+.grupo { border: 0; padding: 0; margin: 0; display: grid; gap: 0.5rem; min-width: 0; }
+.leyenda { font-size: 0.875rem; color: var(--text-strong); font-weight: 600; padding: 0; margin-bottom: 0.25rem; }
+.opciones { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.opcion {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: var(--tap-min);
+  padding: 0 1rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  font-size: 0.875rem;
+  cursor: pointer;
+  color: var(--text-strong);
+  background: var(--surface-raised);
+}
+.opcion:has(input:checked) { border-color: var(--pl-primario); background: var(--pl-suave); font-weight: 600; }
+.opcion:has(input:focus-visible) { outline: 2px solid var(--pl-primario); outline-offset: 2px; }
+.opcion input { accent-color: var(--pl-primario); }
+
+.campo { display: grid; gap: 0.25rem; font-size: 0.875rem; }
+.rotulo { color: var(--text-strong); font-weight: 600; }
+.ayuda { font-size: 0.8125rem; color: var(--text-muted); }
+.control {
+  min-height: var(--tap-min);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  padding: 0.5rem 0.75rem;
+  font-size: 1rem; /* 16 px: iOS no hace zoom al enfocar */
+  font-family: inherit;
+  background: var(--surface-raised);
+  color: var(--text-strong);
+  width: 100%;
+}
+.control[aria-invalid="true"] { border-color: var(--danger); }
+
+.caja {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  font-size: 0.875rem;
+}
+.cajaOk { border-color: var(--success); background: var(--success-soft); }
+.cajaAviso { border-color: var(--warning); background: var(--warning-soft); }
+.cajaError { border-color: var(--danger); background: var(--danger-soft); color: var(--text-strong); }
+
+.boton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: var(--tap-min);
+  padding: 0 1rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--line-strong);
+  background: var(--surface-raised);
+  color: var(--text-strong);
+  font-weight: 600;
+  font-size: 0.875rem;
+  font-family: inherit;
+  cursor: pointer;
+  text-decoration: none;
+}
+.boton:disabled { opacity: 0.6; cursor: progress; }
+.botonPrincipal {
+  min-height: 3rem;
+  width: 100%;
+  border-color: var(--pl-primario);
+  background: var(--pl-primario);
+  color: var(--pl-sobre-primario);
+  font-size: 1rem;
+}
+.botonWa {
+  width: 100%;
+  min-height: 3rem;
+  border-color: var(--success);
+  color: var(--success);
+  font-size: 1rem;
+}
+.alias {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 1rem;
+  color: var(--text-strong);
+  word-break: break-all;
+}
+.casilla {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  font-size: 0.875rem;
+  min-height: var(--tap-min);
+}
+.casilla input { width: 1.25rem; height: 1.25rem; margin-top: 0.125rem; accent-color: var(--pl-primario); flex: 0 0 auto; }
+.enlace { color: var(--pl-primario-texto); text-decoration: underline; text-underline-offset: 2px; }
+.letraChica { font-size: 0.8125rem; color: var(--text-muted); text-align: center; }
+
+/* ── Barra fija de la bolsa (sólo celular) ── */
+.barra {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom));
+  background: var(--surface-raised);
+  border-top: 1px solid var(--line-strong);
+}
+.barraBoton {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 3rem;
+  padding: 0 1rem;
+  border-radius: var(--radius);
+  background: var(--pl-primario);
+  color: var(--pl-sobre-primario);
+  font-weight: 700;
+  text-decoration: none;
+}
+.barraBoton span:last-child { font-variant-numeric: tabular-nums; }
+@media (min-width: 900px) {
+  .barra { display: none; }
+  .raiz { padding-bottom: 0; }
+}
+
+/* ── Pie ── */
+.pie {
+  border-top: 1px solid var(--line);
+  padding: 1.5rem 0 2rem;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+.pieEnlaces { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; }
+.pieEnlaces a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap-min);
+  color: var(--text-strong);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.pieSello { margin-top: 0.5rem; }
+
+/* ── Páginas legales ── */
+.legal { max-width: 42rem; margin: 0 auto; padding: 1.5rem 1rem 2rem; overflow-wrap: anywhere; }
+.legal h1 {
+  font-family: var(--pl-letra-titulo);
+  font-size: clamp(1.75rem, 6vw, 2.25rem);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--text-strong);
+}
+.legal h2 {
+  font-family: var(--pl-letra-titulo);
+  font-size: 1.25rem;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  color: var(--text-strong);
+  margin-top: 2rem;
+}
+.legal p { margin-top: 0.75rem; line-height: 1.625; }
+.vigencia { font-size: 0.8125rem; color: var(--text-muted); margin-top: 0.5rem; }
+.volver {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap-min);
+  color: var(--pl-primario-texto);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .toque, .opcion, .boton { transition: transform var(--dur-1, 120ms) cubic-bezier(.2, .8, .2, 1); }
+  .toque:active, .boton:active { transform: scale(0.97); }
+}
+.raizSinBarra { padding-bottom: 0; }
+.separado { margin-top: 1.5rem; }
+
+/* ============================================================================
+   VIDRIERA DE AUTOR (skill vidriera-de-autor) — portada en capas, carta por sección con índice fijo,
+   tarjetas con dibujo, microinteracciones y «Mi cuenta». Mobile-first, objetivos ≥ 44 px, AA.
+   Movimiento: sólo transform; nada entra desde opacity 0 (el titular es el candidato a LCP);
+   con prefers-reduced-motion, todo quieto y legible.
+   ============================================================================ */
+
+.soloLector {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── Barra de arriba: marca del local + Mi cuenta ── */
+.barraSup {
+  background: var(--surface-raised);
+  border-bottom: 1px solid var(--line);
+}
+.barraSupFila {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: var(--pl-alto-barra);
+}
+.marcaLocal {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: var(--tap-min);
+  min-width: 0;
+  color: var(--text-strong);
+  text-decoration: none;
+  font-weight: 600;
+}
+.marcaNombre { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.monograma {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  background: var(--pl-primario);
+  color: var(--pl-sobre-primario);
+  font-family: var(--pl-letra-titulo);
+  font-size: 1rem;
+  line-height: 1;
+}
+.logo {
+  display: block;
+  flex: 0 0 auto;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 999px;
+  background: var(--pl-fondo);
+  object-fit: contain;
+}
+.enlaceCuenta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  flex: 0 0 auto;
+  min-height: var(--tap-min);
+  padding: 0 0.75rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  color: var(--text-strong);
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 600;
+  background: var(--surface-raised);
+}
+
+/* ── Portada en capas ── */
+.portada {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  background: var(--pl-papel);
+  border-bottom: 1px solid var(--line);
+  padding: 1.5rem 0 2rem;
+}
+.portadaGrilla { position: relative; display: grid; gap: 1.5rem; }
+.portadaTexto { position: relative; z-index: 1; display: grid; justify-items: start; }
+.portada .titulo {
+  font-size: clamp(2.5rem, 11vw, 4.5rem);
+  line-height: 1;
+  letter-spacing: -0.035em;
+  margin-top: 0.5rem;
+  text-wrap: balance;
+}
+.portada .bajada { font-size: 1.125rem; max-width: 32rem; margin-top: 0.75rem; text-wrap: pretty; }
+.portadaAcciones {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin-top: 1.5rem;
+}
+.portadaAcciones .enlaceWa { margin-top: 0; }
+.botonPortada { width: auto; padding: 0 1.5rem; text-decoration: none; }
+.portadaArte {
+  position: absolute;
+  z-index: 0;
+  top: -0.5rem;
+  right: -2.5rem;
+  width: 11rem;
+  color: var(--pl-primario);
+  pointer-events: none;
+}
+.portadaArte svg { display: block; width: 100%; height: auto; overflow: visible; }
+.capaFondo { color: var(--pl-suave); }
+.capaFondo circle { fill: var(--pl-suave); }
+.capaDisco circle { fill: color-mix(in oklab, var(--pl-primario) 22%, var(--surface-raised)); }
+.capaTaza, .capaVapor { color: var(--pl-primario-texto); }
+.portadaFoto {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 15;
+  object-fit: cover;
+  border-radius: var(--radius-xl, var(--radius-lg));
+  box-shadow: var(--shadow-lg);
+}
+/* Celular: con foto, la foto va arriba del texto (no detrás). */
+.portadaArte:has(.portadaFoto) { position: relative; inset: auto; width: 100%; order: -1; }
+.portadaArte:has(.portadaFoto) .portadaFoto { aspect-ratio: 16 / 9; }
+/* Celular sin foto: la taza va detrás, arriba a la derecha; la bajada no se le mete encima. */
+@media (max-width: 719.98px) {
+  .portadaGrilla:not(:has(.portadaFoto)) .bajada { max-width: calc(100% - 7.5rem); }
+}
+
+@media (min-width: 720px) {
+  .portada { padding: 3rem 0 3.5rem; }
+  .portadaGrilla { grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr); align-items: center; gap: 2.5rem; }
+  .portadaArte,
+  .portadaArte:has(.portadaFoto) { position: relative; top: auto; right: auto; width: 100%; max-width: 26rem; justify-self: end; order: 0; }
+  .portadaArte:has(.portadaFoto) .portadaFoto { aspect-ratio: 16 / 15; }
+}
+
+/* ── Índice fijo por secciones ── */
+.indice {
+  position: sticky;
+  top: 0;
+  z-index: 15;
+  background: color-mix(in oklab, var(--pl-fondo) 94%, transparent);
+  border-bottom: 1px solid var(--line);
+  box-shadow: var(--shadow-xs);
+}
+@supports (backdrop-filter: blur(8px)) {
+  .indice { backdrop-filter: saturate(1.2) blur(8px); }
+}
+.indiceRiel {
+  display: flex;
+  gap: 0.5rem;
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 0.5rem 1rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+}
+.indiceRiel::-webkit-scrollbar { display: none; }
+.indiceChip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap-min);
+  padding: 0 1rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  color: var(--text-strong);
+  background: var(--surface-raised);
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.indiceChip[aria-current="true"] {
+  border-color: var(--pl-primario);
+  background: var(--pl-primario);
+  color: var(--pl-sobre-primario);
+}
+
+/* ── La carta ── */
+.cartaSeccion { min-width: 0; scroll-margin-top: calc(var(--pl-alto-indice) + 0.5rem); }
+/* Con el local cerrado, la franja pegajosa (≈2,5rem) se suma al índice: el salto no la deja tapando el título. */
+:global(body):has(.franjaCerrado) .cartaSeccion,
+:global(body):has(.franjaCerrado) .categoria,
+:global(body):has(.franjaCerrado) .pedido { scroll-margin-top: calc(var(--pl-alto-indice) + 3.5rem); }
+.cartaCabeza { display: grid; gap: 0.25rem; margin-bottom: 1.5rem; }
+.cartaTitulo {
+  font-family: var(--pl-letra-titulo);
+  font-size: clamp(1.75rem, 6vw, 2.25rem);
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+  color: var(--text-strong);
+}
+.cartaBajada { color: var(--text-muted); font-size: 0.9375rem; }
+.categoriaCabeza {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding-bottom: 0.75rem;
+  margin-bottom: 0.75rem;
+  border-bottom: 1px solid var(--line-strong);
+}
+.categoriaNumero {
+  font-family: var(--pl-letra-titulo);
+  font-size: 0.9375rem;
+  color: var(--pl-primario-texto);
+  font-variant-numeric: tabular-nums;
+}
+.categoriaCuenta { margin-left: auto; font-size: 0.8125rem; color: var(--text-muted); white-space: nowrap; }
+
+.grilla { display: grid; gap: 0.75rem; }
+@media (min-width: 640px) {
+  .grilla { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.tarjeta {
+  position: relative;
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr);
+  grid-template-areas: "arte texto" "arte control";
+  column-gap: 0.875rem;
+  row-gap: 0.5rem;
+  align-items: center;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-xs);
+}
+@media (min-width: 420px) {
+  .tarjeta { grid-template-columns: 4.5rem minmax(0, 1fr) auto; grid-template-areas: "arte texto control"; }
+}
+.tarjetaEnBolsa {
+  border-color: var(--pl-primario);
+  box-shadow: 0 0 0 1px var(--pl-primario), var(--shadow-sm);
+}
+.tarjetaSinStock .tarjetaArte { filter: grayscale(1); }
+.tarjetaArte {
+  grid-area: arte;
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 4.5rem;
+  aspect-ratio: 1;
+  border-radius: var(--radius);
+  background: var(--pl-suave);
+  color: var(--pl-primario-texto);
+}
+.tarjetaDibujo { width: 70%; height: 70%; }
+.insignia {
+  position: absolute;
+  top: -0.375rem;
+  right: -0.375rem;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  padding: 0 0.375rem;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--pl-primario);
+  color: var(--pl-sobre-primario);
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 0 0 2px var(--surface-raised);
+}
+.tarjetaTexto { grid-area: texto; display: grid; gap: 0.125rem; min-width: 0; }
+.tarjeta .itemNombre { font-size: 1rem; line-height: 1.3; text-wrap: pretty; overflow-wrap: anywhere; }
+.tarjeta .itemPrecio { font-size: 0.9375rem; font-weight: 600; color: var(--text-strong); }
+.tarjeta .cantidad { grid-area: control; justify-self: start; }
+@media (min-width: 420px) { .tarjeta .cantidad { justify-self: end; } }
+.agregar {
+  min-height: var(--tap-min);
+  min-width: 6rem;
+  padding: 0 1rem;
+  border-radius: 999px;
+  border: 1px solid var(--pl-primario);
+  background: var(--surface-raised);
+  color: var(--pl-primario-texto);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.agregar:disabled { border-color: var(--line-strong); color: var(--text-muted); cursor: not-allowed; }
+
+/* Selector de opciones (tamaño, leche y extras): ocupa el ancho de la tarjeta, debajo del control. */
+.selector { grid-column: 1 / -1; display: grid; gap: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--line); }
+
+/* Direcciones guardadas en el checkout */
+.guardadas { display: grid; gap: 0.25rem; }
+.guardadas .opcion { font: inherit; font-size: 0.875rem; text-align: left; }
+.opcion[aria-pressed="true"] { border-color: var(--pl-primario); background: var(--pl-suave); font-weight: 600; }
+
+/* Barra de la bolsa con contador */
+.barraCuenta { display: inline-flex; align-items: center; gap: 0.625rem; }
+.contador {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.75rem;
+  height: 1.75rem;
+  padding: 0 0.375rem;
+  border-radius: 999px;
+  background: var(--pl-sobre-primario);
+  color: var(--pl-primario);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.875rem;
+}
+
+/* ── Mi cuenta ── */
+.cuenta { padding-top: 1.5rem; padding-bottom: 2.5rem; max-width: 44rem; }
+.cuentaTitulo {
+  font-family: var(--pl-letra-titulo);
+  font-size: clamp(2rem, 8vw, 2.75rem);
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  color: var(--text-strong);
+}
+.cuentaBajada { margin-top: 0.5rem; color: var(--text-muted); }
+.cuentaCuerpo { display: grid; gap: 2rem; margin-top: 1.5rem; }
+.cuentaBloque { display: grid; gap: 0.75rem; }
+.cuentaBloque .pedidoTitulo { margin-bottom: 0; }
+.historial { display: grid; gap: 0.75rem; }
+.historialItem {
+  display: grid;
+  gap: 0.5rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-xs);
+}
+.historialCabeza { display: flex; justify-content: space-between; align-items: baseline; gap: 0.75rem; }
+.historialTitulo { font-size: 1rem; font-weight: 700; color: var(--text-strong); }
+.historialTotal { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--text-strong); white-space: nowrap; }
+.historialResumen { font-size: 0.875rem; overflow-wrap: anywhere; }
+.botonAcento { border-color: var(--pl-primario); background: var(--pl-primario); color: var(--pl-sobre-primario); }
+.direcciones { display: grid; gap: 0.5rem; }
+.direccion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 0.5rem 0.5rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+  font-size: 0.9375rem;
+}
+.direccion > span { min-width: 0; overflow-wrap: anywhere; }
+.direccion > .boton { flex: none; width: auto; padding: 0 1rem; overflow-wrap: normal; }
+
+/* ── Movimiento (sólo con permiso) ── */
+@media (prefers-reduced-motion: no-preference) {
+  .indiceChip, .agregar, .enlaceCuenta { transition: transform var(--dur-1, 120ms) var(--ease-out, cubic-bezier(.2, .8, .2, 1)), background-color var(--dur-2, 200ms) var(--ease-out, cubic-bezier(.2, .8, .2, 1)); }
+  .agregar:active, .indiceChip:active { transform: scale(0.96); }
+  .pop { animation: pl-pop var(--dur-3, 320ms) var(--ease-out, cubic-bezier(.2, .8, .2, 1)); }
+  .contador { animation: pl-latido var(--dur-3, 320ms) var(--ease-out, cubic-bezier(.2, .8, .2, 1)); }
+  .capaVapor path { animation: pl-vapor 3.2s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: 50% 100%; }
+  .capaVapor path:nth-child(2) { animation-delay: -1.1s; }
+  .capaVapor path:nth-child(3) { animation-delay: -2.2s; }
+  @media (hover: hover) and (pointer: fine) {
+    .tarjeta { transition: transform var(--dur-2, 200ms) var(--ease-out, cubic-bezier(.2, .8, .2, 1)), box-shadow var(--dur-2, 200ms) var(--ease-out, cubic-bezier(.2, .8, .2, 1)); }
+    .tarjeta:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+    .tarjetaEnBolsa:hover { box-shadow: 0 0 0 1px var(--pl-primario), var(--shadow-md); }
+  }
+  /* Parallax liviano de la portada: scroll-timeline en el compositor, sin JS. Donde no hay
+     soporte, la portada queda quieta (igual de legible). */
+  @supports (animation-timeline: scroll()) {
+    .capaFondo, .capaDisco, .capaTaza, .capaVapor { animation-timeline: scroll(root block); animation-range: 0 60vh; animation-fill-mode: both; animation-timing-function: linear; }
+    .capaFondo { animation-name: pl-capa-lenta; }
+    .capaDisco { animation-name: pl-capa-media; }
+    .capaTaza { animation-name: pl-capa-rapida; }
+    .capaVapor { animation-name: pl-capa-rapida; }
+  }
+}
+@keyframes pl-pop {
+  0% { transform: scale(0.6); }
+  60% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+@keyframes pl-latido {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.25); }
+  100% { transform: scale(1); }
+}
+@keyframes pl-vapor {
+  from { transform: translateY(0) scaleY(1); }
+  to { transform: translateY(-6px) scaleY(1.08); }
+}
+@keyframes pl-capa-lenta { to { transform: translateY(18px); } }
+@keyframes pl-capa-media { to { transform: translateY(36px); } }
+@keyframes pl-capa-rapida { to { transform: translateY(-28px); } }
+
+/* ── Letra del local (data-letra, fuentes.ts) ── */
+.raiz[data-letra="manrope"] {
+  --pl-letra-titulo: var(--pl-manrope), system-ui, sans-serif;
+  --pl-letra-texto: var(--pl-manrope), system-ui, sans-serif;
+  font-weight: 500;
+}
+.raiz[data-letra] :is(.titulo, .cartaTitulo, .categoriaTitulo, .pedidoTitulo, .cuentaTitulo) { font-weight: 800; letter-spacing: -0.02em; }
+.raiz[data-letra] .itemPrecio { font-weight: 700; }
+
+/* ── Banda del local (data-banda): barra, portada e índice en su color, con el texto que marca.ts
+   eligió por contraste (≥ 4,5:1). Sobre la banda, el botón y el chip activo se invierten. ── */
+.raiz[data-banda] :is(.barraSup, .portada, .indice) { background: var(--pl-banda); color: var(--pl-sobre-banda); border-color: transparent; }
+.raiz[data-banda] :is(.barraSup, .portada, .indice) :focus-visible { outline-color: var(--pl-sobre-banda); }
+.raiz[data-banda] :is(.marcaLocal, .portada .titulo, .portada .bajada, .portada .enlaceWa) { color: var(--pl-sobre-banda); }
+.raiz[data-banda] .portada :is(.cabeceraRotulo, .dato) { color: var(--pl-sobre-banda-suave); background: transparent; border-color: color-mix(in oklab, var(--pl-sobre-banda) 35%, transparent); }
+.raiz[data-banda] .portada .datoAcento { color: var(--pl-sobre-banda); }
+.raiz[data-banda] .indiceChip { background: transparent; color: var(--pl-sobre-banda); border-color: color-mix(in oklab, var(--pl-sobre-banda) 45%, transparent); }
+.raiz[data-banda] .portada .botonPrincipal,
+.raiz[data-banda] .indiceChip[aria-current="true"] { background: var(--pl-sobre-banda); border-color: var(--pl-sobre-banda); color: var(--pl-banda); }
+.raiz[data-banda] .barra { background: var(--pl-fondo); }
+
+/* ── Carta del local: foto, descripción, «Los elegidos», «Lo de siempre», cerrado y envío gratis ── */
+.tarjetaFoto { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; background: var(--pl-suave); }
+.itemDescripcion {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.elegidosSeccion { margin-bottom: 1.5rem; }
+.elegidos {
+  display: flex;
+  gap: 0.75rem;
+  margin: 0 -1rem;
+  padding: 0.25rem 1rem 0.5rem;
+  align-items: start;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  overscroll-behavior-x: contain;
+}
+.elegidos > li { flex: 0 0 15rem; scroll-snap-align: start; }
+@media (min-width: 640px) { .elegidos { margin-inline: 0; padding-inline: 0; } }
+.tarjetaGrande { grid-template-columns: minmax(0, 1fr); grid-template-areas: "arte" "texto" "control"; align-items: start; }
+.tarjetaGrande .tarjetaArte { width: 100%; aspect-ratio: 4 / 3; }
+.tarjetaGrande .cantidad { justify-self: start; }
+.deSiempre {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin-bottom: 1.5rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--pl-primario);
+  border-radius: var(--radius-lg);
+  background: var(--pl-suave);
+}
+.deSiempreTexto { font-size: 0.9375rem; color: var(--text-strong); min-width: 0; }
+.franjaCerrado {
+  position: sticky;
+  top: var(--pl-alto-indice);
+  z-index: 14;
+  padding: 0.5rem 1rem;
+  background: var(--warning-soft);
+  color: var(--text-strong);
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-align: center;
+  border-bottom: 1px solid var(--warning);
+}
+.haciaGratis { font-size: 0.8125rem; color: var(--text-strong); text-align: center; padding-bottom: 0.5rem; }

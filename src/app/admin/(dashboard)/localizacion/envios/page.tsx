@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { ButtonLink, PageContainer, PageHeader } from "@/components/ui";
 import { leerConfigEnvios } from "@/lib/envios/config";
 import { motivoTiendaPausada } from "@/lib/envios/tarifa";
+import { pausaVigente } from "@/lib/envios/modelo";
 import EnviosForm from "./EnviosForm";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +17,8 @@ export default async function EnviosPage() {
   await requireApp("datos-del-negocio");
   const tenantId = await getCurrentTenantId();
   const config = await leerConfigEnvios(prisma, tenantId);
-  const pausa = motivoTiendaPausada(config);
+  const ahora = new Date();
+  const pausa = motivoTiendaPausada(config, ahora);
   return (
     <PageContainer width="narrow">
       <PageHeader
@@ -39,7 +41,8 @@ export default async function EnviosPage() {
           pedidoMinimoEnvio: config.pedidoMinimoEnvio,
           zonas: config.zonas,
           franjasRetiro: config.franjasRetiro,
-          tiendaPausada: config.tiendaPausada,
+          // Una pausa con «hasta» vencido ya no rige: la pantalla la muestra abierta.
+          tiendaPausada: pausaVigente(config.tiendaPausada, ahora) ? config.tiendaPausada : null,
         }}
         version={config.version}
       />
