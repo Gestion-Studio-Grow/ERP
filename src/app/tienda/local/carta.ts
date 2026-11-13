@@ -15,6 +15,8 @@
 import type { Disponibilidad } from "../reglas-tienda";
 import { leerPago, type MedioPreferido } from "@/lib/delivery-local/pago";
 import { redondearAlCentavo } from "@/lib/dinero/redondeo";
+import { detalleDeEleccion, leerEleccion, partesDeLaClave, recargoUnitario, type GrupoDeOpciones } from "@/lib/delivery-local/opciones";
+export { claveDeLinea, partesDeLaClave } from "@/lib/delivery-local/opciones";
 
 export type ProductoDeLaCarta = {
   id: string;
@@ -77,13 +79,39 @@ export function pasoDe(p: Pick<ProductoDeLaCarta, "saleUnit">): number {
 
 const centavos = redondearAlCentavo;
 
-export type LineaDeLaBolsa<P> = { producto: P; cantidad: number; importe: number };
+export type LineaDeLaBolsa<P> = {
+  /** La clave de la línea en la bolsa: el id del producto, o «id#opciones» (claveDeLinea). */
+  clave: string;
+  producto: P;
+  cantidad: number;
+  importe: number;
+  /** La elección codificada que viaja en el campo `opciones` («» sin opciones). */
+  opciones: string;
+  /** «Grande, Leche de almendras» («» sin opciones). */
+  detalle: string;
+};
 
-/** Las líneas de la bolsa con su importe, en el orden de la carta. Lo que ya no está, se cae. */
-export function lineasDeLaBolsa<P extends ProductoDeLaCarta>(productos: readonly P[], bolsa: Readonly<Record<string, number>>): LineaDeLaBolsa<P>[] {
-  return productos
-    .filter((p) => (bolsa[p.id] ?? 0) > 0)
-    .map((p) => ({ producto: p, cantidad: bolsa[p.id], importe: centavos(bolsa[p.id] * precioUnitario(p)) }));
+/**
+ * Las líneas de la bolsa con su importe, en el orden de la carta. Lo que ya no está, se cae; y la
+ * línea con opciones que la config ya no reconoce, también. El importe con recargo es VISTA PREVIA:
+ * el servidor lo vuelve a calcular con la config (opciones.ts).
+ */
+export function lineasDeLaBolsa<P extends ProductoDeLaCarta>(
+  productos: readonly P[],
+  bolsa: Readonly<Record<string, number>>,
+  gruposDe: (p: P) => readonly GrupoDeOpciones[] = () => [],
+): LineaDeLaBolsa<P>[] {
+  const claves = Object.keys(bolsa).filter((k) => bolsa[k] > 0);
+  return productos.flatMap((p) =>
+    claves.flatMap((clave) => {
+      const { productId, opciones } = partesDeLaClave(clave);
+      if (productId !== p.id) return [];
+      const r = leerEleccion(gruposDe(p), opciones, p.name);
+      if (!r.ok) return [];
+      const cantidad = bolsa[clave];
+      return [{ clave, producto: p, cantidad, importe: centavos(cantidad * (precioUnitario(p) + recargoUnitario(r.elegidas))), opciones, detalle: detalleDeEleccion(r.elegidas) }];
+    }),
+  );
 }
 
 export type TotalesDeLaBolsa = { subtotal: number; envio: number; total: number; unidades: number };

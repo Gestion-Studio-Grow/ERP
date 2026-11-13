@@ -17,6 +17,8 @@
 //
 // Sin React, sin DOM, sin reloj propio: `ahora` entra por parámetro (tests deterministas).
 
+import { claveDeLinea } from "./opciones";
+
 export const VERSION_CUENTA = 1;
 export const TOPE_PEDIDOS = 20;
 export const TOPE_DIRECCIONES = 5;
@@ -27,7 +29,14 @@ export const VENTANA_SEGUIMIENTO_MS = 30 * 60 * 1000;
 const LARGO_DIRECCION = 200;
 const LARGO_NOMBRE = 120;
 
-export type ItemGuardado = { productId: string; nombre: string; cantidad: number; saleUnit: "UNIT" | "WEIGHT" };
+export type ItemGuardado = {
+  productId: string;
+  nombre: string;
+  cantidad: number;
+  saleUnit: "UNIT" | "WEIGHT";
+  /** Las opciones elegidas, codificadas (opciones.ts). Sin opciones, no está. */
+  opciones?: string;
+};
 
 export type PedidoGuardado = {
   /** La clave anti-duplicado con que se mandó (idempotencyKey). Identifica el pedido en el dispositivo. */
@@ -67,7 +76,9 @@ function leerItem(x: unknown): ItemGuardado | null {
   const o = x as Record<string, unknown>;
   if (!esTexto(o.productId, 100) || !esTexto(o.nombre, LARGO_NOMBRE) || !esNumero(o.cantidad) || o.cantidad <= 0) return null;
   if (o.saleUnit !== "UNIT" && o.saleUnit !== "WEIGHT") return null;
-  return { productId: o.productId, nombre: o.nombre, cantidad: o.cantidad, saleUnit: o.saleUnit };
+  const item: ItemGuardado = { productId: o.productId, nombre: o.nombre, cantidad: o.cantidad, saleUnit: o.saleUnit };
+  if (esTexto(o.opciones, 300)) item.opciones = o.opciones;
+  return item;
 }
 
 function leerPedido(x: unknown): PedidoGuardado | null {
@@ -222,7 +233,8 @@ export function repetirBolsa(items: readonly ItemGuardado[], productos: readonly
       continue;
     }
     const cantidad = p.saleUnit === "UNIT" ? Math.max(1, Math.round(it.cantidad)) : Math.round(it.cantidad * 100) / 100; // no-es-plata: cantidad (unidades o kilos), no un importe
-    bolsa[p.id] = Math.round(((bolsa[p.id] ?? 0) + cantidad) * 100) / 100; // no-es-plata: cantidad (unidades o kilos), no un importe
+    const clave = claveDeLinea(p.id, it.opciones ?? "");
+    bolsa[clave] = Math.round(((bolsa[clave] ?? 0) + cantidad) * 100) / 100; // no-es-plata: cantidad (unidades o kilos), no un importe
   }
   return { bolsa, faltan };
 }

@@ -19,17 +19,19 @@
 
 import { transferenciaPublicable } from "@/lib/delivery-local/pago";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import type { ConfigEnvios } from "@/lib/envios/modelo";
 import type { ConfigDeliveryLocal } from "@/lib/delivery-local/config";
 import { formatearCantidad } from "@/lib/pos-peso";
 import { asociarCodigo, descartarSinConfirmar, guardarPedido, recordarDireccion, repetirBolsa } from "@/lib/delivery-local/mi-cuenta";
+import { gruposDelProducto, type GrupoDeOpciones } from "@/lib/delivery-local/opciones";
 import { usePedidoOnline } from "../pedido-online";
 import { nuevaClaveDePedido, etiquetaDeDisponibilidad } from "../reglas-tienda";
 import { CamposDeEntrega, FrenoDeEntrega, useEntregaDeLaTienda, type AparienciaDeEntrega } from "../EntregaDeLaTienda";
 import {
   cantidadTrasToque,
   cartaPorCategoria,
+  claveDeLinea,
   lineasDeLaBolsa,
   precioUnitario,
   revisarPedidoLocal,
@@ -41,6 +43,7 @@ import { cambiarCuenta, leerCuentaGuardada, useCuentaDelDispositivo } from "./cu
 import IndiceDeLaCarta from "./IndiceDeLaCarta";
 import { IlustracionDeCategoria } from "./Ilustracion";
 import PagoDelPedido from "./PagoDelPedido";
+import SelectorDeOpciones from "./SelectorDeOpciones";
 import UbicacionDelCliente from "./UbicacionDelCliente";
 import s from "./local.module.css";
 
@@ -56,6 +59,7 @@ export default function CartaYPedido({
   direccionDelLocal,
   entrega: configEnvios,
   hoy,
+  cerrado,
 }: {
   cfg: ConfigDeliveryLocal;
   slug: string;
@@ -64,6 +68,11 @@ export default function CartaYPedido({
   direccionDelLocal: string | null;
   entrega: ConfigEnvios | null;
   hoy: string | null;
+  /**
+   * Fuera de horario, el aviso del local (`rechazoPorHorario`, horario.ts: el MISMO texto que
+   * devuelve el servidor): se arma la bolsa igual, pero el botón de pedir se apaga.
+   */
+  cerrado: string | null;
 }) {
   const [bolsa, setBolsa] = useState<Record<string, number>>({});
   const [claveDePedido, setClaveDePedido] = useState(nuevaClaveDePedido);
@@ -79,7 +88,9 @@ export default function CartaYPedido({
   const [anuncio, setAnuncio] = useState("");
   const claveEnviada = useRef<string | null>(null);
 
-  const lineas = lineasDeLaBolsa(productos, bolsa);
+  // Las opciones de cada producto (tamaño, leche y extras), de la config del local.
+  const gruposDe = useCallback((p: { id: string; name: string }) => gruposDelProducto(cfg.opciones, p), [cfg.opciones]);
+  const lineas = lineasDeLaBolsa(productos, bolsa, gruposDe);
   const hayProductos = lineas.length > 0;
   const subtotal = totalesDeLaBolsa(lineas, 0).subtotal;
   const entrega = useEntregaDeLaTienda({
@@ -131,9 +142,14 @@ export default function CartaYPedido({
       url.hash = "tu-pedido";
       window.history.replaceState(null, "", url.pathname + url.search + url.hash);
       if (!anterior || !r) return;
+      // Lo que tenía opciones que hoy ya no existen no se carga: se avisa con lo que falta.
+      const cargadas = new Set(lineasDeLaBolsa(productos, r.bolsa, gruposDe).map((l) => l.clave));
+      const sinOpciones = Object.keys(r.bolsa)
+        .filter((k) => !cargadas.has(k))
+        .map((k) => `${productos.find((p) => k === p.id || k.startsWith(`${p.id}#`))?.name ?? "un producto"} (volvé a elegir las opciones)`);
       setBolsa(r.bolsa);
       setClaveDePedido(nuevaClaveDePedido());
-      setRepetido({ fecha: anterior.fecha, faltan: r.faltan });
+      setRepetido({ fecha: anterior.fecha, faltan: [...r.faltan, ...sinOpciones] });
       requestAnimationFrame(() => document.getElementById("tu-pedido")?.scrollIntoView({ block: "start" }));
     });
     return () => cancelAnimationFrame(cuadro);
@@ -141,20 +157,29 @@ export default function CartaYPedido({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function tocar(p: ProductoDeLaCarta, dir: 1 | -1) {
-    const nueva = cantidadTrasToque(p, bolsa[p.id] ?? 0, dir);
-    if (nueva === (bolsa[p.id] ?? 0)) return;
+  // `clave`: la línea de la bolsa (el id del producto o, con opciones, «id#opciones»).
+  function tocar(p: ProductoDeLaCarta, dir: 1 | -1, clave: string = p.id, detalle = "") {
+    const nueva = cantidadTrasToque(p, bolsa[clave] ?? 0, dir);
+    if (nueva === (bolsa[clave] ?? 0)) return;
     pedido.olvidarAviso(p.id);
-    setAnuncio(`${dir === 1 ? "Sumaste" : "Sacaste"} ${p.name}. En tu pedido: ${formatearCantidad(nueva)}${p.saleUnit === "WEIGHT" ? " kg" : ""}.`);
+    setAnuncio(`${dir === 1 ? "Sumaste" : "Sacaste"} ${p.name}${detalle ? ` (${detalle})` : ""}. En tu pedido: ${formatearCantidad(nueva)}${p.saleUnit === "WEIGHT" ? " kg" : ""}.`);
     // Cambió la bolsa: es OTRO pedido, con otra clave anti-duplicado (ver Storefront.tsx).
     setClaveDePedido(nuevaClaveDePedido());
     setBolsa((b) => {
       const n = { ...b };
-      if (nueva > 0) n[p.id] = nueva;
-      else delete n[p.id];
+      if (nueva > 0) n[clave] = nueva;
+      else delete n[clave];
       return n;
     });
   }
+
+  /** Sumar uno con las opciones elegidas: mismas opciones, misma línea; distintas, otra línea. */
+  function sumarConOpciones(p: ProductoDeLaCarta, opciones: string) {
+    tocar(p, 1, claveDeLinea(p.id, opciones));
+  }
+
+  /** Cuántos hay del producto en la bolsa, sumando todas sus líneas (con y sin opciones). */
+  const cantidadDe = (p: ProductoDeLaCarta) => lineas.filter((l) => l.producto.id === p.id).reduce((t, l) => t + l.cantidad, 0);
 
   function enviar(e: FormEvent<HTMLFormElement>) {
     const form = e.currentTarget;
@@ -184,7 +209,13 @@ export default function CartaYPedido({
     claveEnviada.current = clave;
     if (slug) {
       const ahora = new Date();
-      const items = lineas.map((l) => ({ productId: l.producto.id, nombre: l.producto.name, cantidad: l.cantidad, saleUnit: l.producto.saleUnit }));
+      const items = lineas.map((l) => ({
+        productId: l.producto.id,
+        nombre: l.producto.name,
+        cantidad: l.cantidad,
+        saleUnit: l.producto.saleUnit,
+        ...(l.opciones ? { opciones: l.opciones } : {}),
+      }));
       cambiarCuenta(slug, (c) => {
         const n = guardarPedido(c, { clave, items, total: totales.total, fulfillment: entrega.fulfillment }, ahora);
         return entrega.fulfillment === "DELIVERY" ? recordarDireccion(n, valorDireccion, ahora) : n;
@@ -195,7 +226,7 @@ export default function CartaYPedido({
 
   const errorDe = (campo: CampoDelPedido) => (revision?.campo === campo ? revision.error : null);
   const invalido = (campo: CampoDelPedido) => (revision?.campo === campo ? true : undefined);
-  const bloqueado = pedido.enviando || Boolean(entrega.freno);
+  const bloqueado = pedido.enviando || Boolean(entrega.freno) || Boolean(cerrado);
   const carta = useMemo(() => cartaPorCategoria(productos), [productos]);
   const secciones = useMemo(() => carta.map((g) => g.categoria), [carta]);
 
@@ -229,7 +260,15 @@ export default function CartaYPedido({
               </div>
               <ul className={s.grilla}>
                 {g.productos.map((p) => (
-                  <TarjetaDeProducto key={p.id} p={p} categoria={g.categoria.id} cant={bolsa[p.id] ?? 0} tocar={tocar} />
+                  <TarjetaDeProducto
+                    key={p.id}
+                    p={p}
+                    categoria={g.categoria.id}
+                    cant={cantidadDe(p)}
+                    tocar={tocar}
+                    grupos={gruposDe(p)}
+                    sumarConOpciones={sumarConOpciones}
+                  />
                 ))}
               </ul>
             </section>
@@ -276,15 +315,30 @@ export default function CartaYPedido({
 
                 <div className={s.lineas}>
                   {lineas.map((l) => (
-                    <div key={l.producto.id}>
+                    <div key={l.clave}>
                       <div className={s.linea}>
                         <span>
                           {formatearCantidad(l.cantidad)} {l.producto.saleUnit === "WEIGHT" ? "kg" : "×"} {l.producto.name}
                         </span>
                         <span>{plata2.format(l.importe)}</span>
                       </div>
+                      {l.detalle && (
+                        <div className={s.linea}>
+                          <span className={s.ayuda}>{l.detalle}</span>
+                          <span className={s.cantidad}>
+                            <button type="button" className={s.toque} onClick={() => tocar(l.producto, -1, l.clave, l.detalle)} aria-label={`Sacar uno de ${l.producto.name} (${l.detalle})`}>
+                              −
+                            </button>
+                            <button type="button" className={`${s.toque} ${s.toqueSumar}`} onClick={() => tocar(l.producto, 1, l.clave, l.detalle)} aria-label={`Sumar otro de ${l.producto.name} (${l.detalle})`}>
+                              +
+                            </button>
+                          </span>
+                        </div>
+                      )}
                       <input type="hidden" name="productId" value={l.producto.id} />
                       <input type="hidden" name="quantity" value={l.cantidad} />
+                      {/* Una por línea, aunque esté vacía: el servidor las empareja con productId por orden. */}
+                      <input type="hidden" name="opciones" value={l.opciones} />
                       {pedido.avisoDe(l.producto.id) && (
                         <p role="alert" className={s.itemAviso}>
                           {pedido.avisoDe(l.producto.id)}
@@ -428,6 +482,11 @@ export default function CartaYPedido({
                 )}
 
                 <FrenoDeEntrega e={entrega} apariencia={APARIENCIA_ENTREGA} />
+                {cerrado && (
+                  <p role="status" className={`${s.caja} ${s.cajaAviso}`}>
+                    {cerrado}
+                  </p>
+                )}
                 <div aria-live="assertive">
                   {pedido.error && (
                     <p role="alert" className={`${s.caja} ${s.cajaError}`}>
@@ -482,15 +541,28 @@ function TarjetaDeProducto({
   categoria,
   cant,
   tocar,
+  grupos,
+  sumarConOpciones,
 }: {
   p: ProductoDeLaCarta;
   categoria: string;
   cant: number;
   tocar: (p: ProductoDeLaCarta, dir: 1 | -1) => void;
+  /** Con opciones (tamaño, leche…), «Agregar» abre el selector y las cantidades se tocan en la bolsa. */
+  grupos: readonly GrupoDeOpciones[];
+  sumarConOpciones: (p: ProductoDeLaCarta, opciones: string) => void;
 }) {
+  const [eligiendo, setEligiendo] = useState(false);
+  // Al cerrar el selector, el foco vuelve al botón que lo abrió (teclado y lector de pantalla).
+  const elegir = useRef<HTMLButtonElement>(null);
+  const cerrarSelector = () => {
+    setEligiendo(false);
+    requestAnimationFrame(() => elegir.current?.focus());
+  };
   const aviso = etiquetaDeDisponibilidad(p.disponibilidad ?? null);
   const sinStock = p.disponibilidad === "sin-stock";
   const kg = p.saleUnit === "WEIGHT";
+  const conOpciones = grupos.length > 0;
   return (
     <li className={`${s.tarjeta} ${cant > 0 ? s.tarjetaEnBolsa : ""} ${sinStock ? s.tarjetaSinStock : ""}`}>
       <div className={s.tarjetaArte} data-categoria={categoria}>
@@ -509,28 +581,57 @@ function TarjetaDeProducto({
         </p>
         {aviso && <p className={s.itemAviso}>{aviso}</p>}
       </div>
-      <div className={s.cantidad}>
-        {cant > 0 && (
-          <>
-            <button type="button" className={s.toque} onClick={() => tocar(p, -1)} aria-label={`Sacar ${kg ? "un cuarto kilo" : "uno"} de ${p.name}`}>
-              −
-            </button>
-            <span key={cant} className={`${s.cantidadValor} ${s.pop}`}>
-              {formatearCantidad(cant)}
-            </span>
-          </>
-        )}
-        {/* El MISMO botón pasa de «Agregar» a «+»: el foco del teclado no se pierde al sumar el primero. */}
-        <button
-          type="button"
-          className={cant > 0 ? `${s.toque} ${s.toqueSumar}` : s.agregar}
-          onClick={() => tocar(p, 1)}
-          disabled={sinStock}
-          aria-label={sinStock ? `${p.name}: sin stock` : cant > 0 ? `Sumar ${kg ? "un cuarto kilo" : "otro"} de ${p.name}` : `Agregar ${p.name} a tu pedido`}
-        >
-          {sinStock && cant === 0 ? "Sin stock" : cant > 0 ? "+" : "Agregar"}
-        </button>
-      </div>
+      {conOpciones ? (
+        <div className={s.cantidad}>
+          <button
+            ref={elegir}
+            type="button"
+            className={s.agregar}
+            onClick={() => setEligiendo((x) => !x)}
+            disabled={sinStock}
+            aria-expanded={eligiendo}
+            aria-label={sinStock ? `${p.name}: sin stock` : `Elegir opciones de ${p.name}${cant > 0 ? " y sumar otro" : ""}`}
+          >
+            {sinStock ? "Sin stock" : cant > 0 ? "Sumar otro" : "Elegir"}
+          </button>
+        </div>
+      ) : (
+        <div className={s.cantidad}>
+          {cant > 0 && (
+            <>
+              <button type="button" className={s.toque} onClick={() => tocar(p, -1)} aria-label={`Sacar ${kg ? "un cuarto kilo" : "uno"} de ${p.name}`}>
+                −
+              </button>
+              <span key={cant} className={`${s.cantidadValor} ${s.pop}`}>
+                {formatearCantidad(cant)}
+              </span>
+            </>
+          )}
+          {/* El MISMO botón pasa de «Agregar» a «+»: el foco del teclado no se pierde al sumar el primero. */}
+          <button
+            type="button"
+            className={cant > 0 ? `${s.toque} ${s.toqueSumar}` : s.agregar}
+            onClick={() => tocar(p, 1)}
+            disabled={sinStock}
+            aria-label={sinStock ? `${p.name}: sin stock` : cant > 0 ? `Sumar ${kg ? "un cuarto kilo" : "otro"} de ${p.name}` : `Agregar ${p.name} a tu pedido`}
+          >
+            {sinStock && cant === 0 ? "Sin stock" : cant > 0 ? "+" : "Agregar"}
+          </button>
+        </div>
+      )}
+      {conOpciones && eligiendo && !sinStock && (
+        <SelectorDeOpciones
+          id={p.id}
+          nombre={p.name}
+          precioBase={precioUnitario(p)}
+          grupos={grupos}
+          alSumar={(opciones) => {
+            sumarConOpciones(p, opciones);
+            cerrarSelector();
+          }}
+          alCerrar={cerrarSelector}
+        />
+      )}
     </li>
   );
 }

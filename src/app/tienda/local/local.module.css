@@ -682,6 +682,9 @@
 }
 .agregar:disabled { border-color: var(--line-strong); color: var(--text-muted); cursor: not-allowed; }
 
+/* Selector de opciones (tamaño, leche y extras): ocupa el ancho de la tarjeta, debajo del control. */
+.selector { grid-column: 1 / -1; display: grid; gap: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--line); }
+
 /* Direcciones guardadas en el checkout */
 .guardadas { display: grid; gap: 0.25rem; }
 .guardadas .opcion { font: inherit; font-size: 0.875rem; text-align: left; }

@@ -17,6 +17,8 @@
 
 import type { MedioPreferido } from "./pago";
 import type { MarcaDelLocal } from "./marca";
+import type { HorarioDelLocal } from "./horario";
+import type { GrupoDeOpciones, OpcionesDeProducto } from "./opciones";
 
 export type ConfigDeliveryLocal = {
   /** Nombre que se muestra del comercio. */
@@ -30,7 +32,16 @@ export type ConfigDeliveryLocal = {
   ubicacionDelLocal: { lat: number; lng: number } | null;
   /** Hasta dónde llega el reparto (km en línea recta). null = no se controla. */
   radioKm: number | null;
-  horario: string;
+  /**
+   * Franjas por día en la hora argentina (horario.ts). Con él la vidriera dice «Abierto · cierra
+   * 20:00» y el alta rechaza fuera de horario. El texto («Lunes a sábado de 8 a 20») sale de acá.
+   */
+  horario: HorarioDelLocal;
+  /**
+   * Opciones por producto (id o nombre): «Tamaño», «Leche y extras», con recargo en pesos enteros.
+   * El servidor recalcula el recargo desde ACÁ (opciones.ts); el navegador sólo dice qué eligió.
+   */
+  opciones?: readonly OpcionesDeProducto[];
   /**
    * Demora típica de un envío, en minutos desde que se manda el pedido. Con ella el seguimiento
    * promete un rango («llega entre las 18:20 y 18:35», src/lib/delivery-local/reloj.ts); sin ella,
@@ -53,6 +64,31 @@ export type ConfigDeliveryLocal = {
 
 const PROVISIONAL = "provisional a confirmar";
 
+// Grupos de opciones de Bitácora: PROVISIONALES A CONFIRMAR (nombres y recargos de ejemplo).
+const TAMANO_CAFE: GrupoDeOpciones = {
+  id: "tamano",
+  nombre: "Tamaño",
+  tipo: "unico",
+  obligatorio: true,
+  opciones: [
+    { id: "chico", nombre: "Chico", recargo: 0 },
+    { id: "mediano", nombre: "Mediano", recargo: 500 },
+    { id: "grande", nombre: "Grande", recargo: 900 },
+  ],
+};
+const LECHE_Y_EXTRAS: GrupoDeOpciones = {
+  id: "leche-extras",
+  nombre: "Leche y extras",
+  tipo: "multiple",
+  opciones: [
+    { id: "deslactosada", nombre: "Leche deslactosada", recargo: 0 },
+    { id: "almendras", nombre: "Leche de almendras", recargo: 700 },
+    { id: "avena", nombre: "Leche de avena", recargo: 700 },
+    { id: "shot", nombre: "Shot extra de café", recargo: 800 },
+    { id: "canela", nombre: "Canela", recargo: 0 },
+  ],
+};
+
 export const CONFIGS_DELIVERY_LOCAL: Readonly<Record<string, ConfigDeliveryLocal>> = Object.freeze({
   bitacora: {
     nombre: "Bitácora Café",
@@ -62,7 +98,26 @@ export const CONFIGS_DELIVERY_LOCAL: Readonly<Record<string, ConfigDeliveryLocal
     // Centro de Monte Grande (plaza), PROVISIONAL: se reemplaza por la puerta del local.
     ubicacionDelLocal: { lat: -34.8183, lng: -58.4683 },
     radioKm: 4,
-    horario: `Lunes a sábado de 8 a 20 (${PROVISIONAL})`,
+    // PROVISIONAL A CONFIRMAR con el local: lunes a sábado de 8 a 20, domingo cerrado.
+    horario: {
+      porDia: {
+        lun: [["08:00", "20:00"]],
+        mar: [["08:00", "20:00"]],
+        mie: [["08:00", "20:00"]],
+        jue: [["08:00", "20:00"]],
+        vie: [["08:00", "20:00"]],
+        sab: [["08:00", "20:00"]],
+      },
+      provisional: true,
+    },
+    // PROVISIONALES A CONFIRMAR con el local: productos, nombres y recargos de ejemplo. El producto
+    // se busca por nombre en la carta (sin tildes ni mayúsculas); el que no está, no lleva opciones.
+    opciones: [
+      { producto: "Latte", grupos: [TAMANO_CAFE, LECHE_Y_EXTRAS] },
+      { producto: "Café con leche", grupos: [TAMANO_CAFE, LECHE_Y_EXTRAS] },
+      { producto: "Capuccino", grupos: [TAMANO_CAFE, LECHE_Y_EXTRAS] },
+      { producto: "Flat white", grupos: [LECHE_Y_EXTRAS] },
+    ],
     demoraMin: 35, // provisional a confirmar con el local
     medios: ["transferencia", "efectivo", "mercadopago"],
     transferencia: { alias: "ALIAS.PROVISIONAL.A.CONFIRMAR", titular: `Titular ${PROVISIONAL}`, banco: "Mercado Pago" },
