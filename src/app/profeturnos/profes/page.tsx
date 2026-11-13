@@ -36,10 +36,11 @@ export const metadata: Metadata = {
 const FOCO = "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus";
 const CAMPO = `h-12 w-full rounded-xl border border-line bg-surface px-3 text-base text-strong ${FOCO}`;
 
-// Freno por conexión (CERT 13/11), el mismo limitador en memoria que /mis-clases: 60 búsquedas cada
-// 10 minutos por IP y por instancia. El directorio ya sale de la caché de 10 min; esto corta a un bot
+// Freno por conexión (CERT 13/11), el mismo limitador en memoria que /mis-clases: 300 búsquedas cada
+// 10 minutos por IP y por instancia (300 y no 60: celulares detrás de la misma IP de la operadora; CERT-2 13/11).
+// El directorio ya sale de la caché de 10 min; esto corta a un bot
 // que martille la página. Sin store compartido (deuda anotada en src/lib/rate-limit.ts).
-const freno = createRateLimiter({ max: 60, windowMs: 10 * 60 * 1000 });
+const freno = createRateLimiter({ max: 300, windowMs: 10 * 60 * 1000 });
 
 type Busqueda = { zona?: string | string[]; dia?: string | string[] };
 const uno = (x: string | string[] | undefined): string | null => (typeof x === "string" ? x : null);

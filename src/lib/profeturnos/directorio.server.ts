@@ -45,7 +45,7 @@ export const depsDirectorio: DepsDirectorio = {
         tenant: { status: { in: ["TRIAL", "ACTIVE"] }, modules: { has: MODULO_CLASES }, subdomain: { not: null } },
       },
       select: { tenant: { select: { id: true, name: true, subdomain: true } } },
-      orderBy: { tenant: { createdAt: "asc" } },
+      orderBy: [{ tenant: { createdAt: "asc" } }, { tenantId: "asc" }],
       take: tope,
     });
     return filas.map(({ tenant: t }) => ({ tenantId: t.id, nombre: t.name, subdomain: t.subdomain }));
