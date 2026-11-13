@@ -36,6 +36,10 @@ test("adversarial NC por peso", async (t) => {
   const despachar = (tenantId: string) => dispatch.procesarEnviosDelNegocio(tenantId, 50, despDeps);
   const deps = { enModoPrueba: async () => true, procesarEnviosDelNegocio: despachar };
   const fuera = { ...deps, enModoPrueba: async () => false };
+  // El reloj de la ventana del intento: cada «corrida del cron» de los tests es otra vuelta (+11 min).
+  const reloj = { t: Date.now() };
+  const otraVuelta = () => (reloj.t += 11 * 60 * 1000);
+  const conReloj = { ...deps, ahora: () => new Date(reloj.t) };
 
   const producto = (n: NegocioDePrueba, precio: number) =>
     duenio.product.create({
@@ -174,11 +178,17 @@ test("adversarial NC por peso", async (t) => {
     const k = (r.notaDeCredito as { clave: string }).clave;
     assert.equal(await nc.notaDeCreditoPorPeso(a.id, k, fuera), null);
     const corridas = [];
-    for (let i = 0; i < 3; i++) corridas.push(await nc.reintentarNotasPorPesoPendientes(a.id, { deps }));
+    for (let i = 0; i < 3; i++) {
+      otraVuelta();
+      corridas.push(await nc.reintentarNotasPorPesoPendientes(a.id, { deps: conReloj }));
+    }
     console.log("# MEDIA corridas", JSON.stringify(corridas), "notas de la nueva", (await notasDe(f.id)).length);
     assert.equal((await notasDe(f.id)).length, 1, "la pendiente nueva debería emitirse en alguna corrida del cron");
     // Las trabadas se cierran al llegar a MAX_INTENTOS_NC_PESO, con el motivo a la vista; después el cron no las prueba más.
-    for (let i = 0; i < MAX_INTENTOS_NC_PESO; i++) await nc.reintentarNotasPorPesoPendientes(a.id, { deps });
+    for (let i = 0; i < MAX_INTENTOS_NC_PESO; i++) {
+      otraVuelta();
+      await nc.reintentarNotasPorPesoPendientes(a.id, { deps: conReloj });
+    }
     const cerradas = await duenio.auditLog.findMany({
       where: { tenantId: a.id, entity: "NotaCreditoPorPeso", entityId: { startsWith: "trabada-" }, action: "nc_peso_cerrada" },
       select: { entityId: true, changes: true },
@@ -191,5 +201,62 @@ test("adversarial NC por peso", async (t) => {
     const ultima = await nc.reintentarNotasPorPesoPendientes(a.id, { deps });
     assert.equal(ultima.probadas, 0, "ya no queda nada abierto");
     assert.equal((await notasDe(f.id)).length, 1, "una sola nota por clave");
+  });
+  await t.test("BAJA C1: dos crones a la vez son UNA vuelta: el intento cuenta una vez y la nota no se cierra antes de tiempo", async () => {
+    const p0 = await tomar(a, vA.id, 1);
+    await cobrar(a, p0.id);
+    const f0 = await facturar(a, p0.id);
+    const m = await crearNotaDeCredito({ tenantId: a.id, facturaId: f0.id, motivo: "parcial", fecha: HOY, importe: 100 });
+    assert.equal(m.ok, true);
+    await despachar(a.id);
+    const ncId = (m as { invoiceId: string }).invoiceId;
+    await duenio.auditLog.create({
+      data: { tenantId: a.id, actor: "system", action: "nc_peso_pendiente", entity: "NotaCreditoPorPeso", entityId: "carrera", channel: "admin", changes: { orderId: p0.id, facturaId: ncId, importe: 50, code: 77 } },
+    });
+    const audit = (action: string) => duenio.auditLog.findMany({ where: { tenantId: a.id, entityId: "carrera", action }, select: { changes: true } });
+    const intentos = async () => (await audit("nc_peso_intento")).map((f) => (f.changes as { intento: number }).intento).sort((x, y) => x - y);
+    const dosALaVez = () => Promise.all([nc.reintentarNotasPorPesoPendientes(a.id, { deps: conReloj }), nc.reintentarNotasPorPesoPendientes(a.id, { deps: conReloj })]);
+    for (let i = 0; i < MAX_INTENTOS_NC_PESO - 1; i++) {
+      otraVuelta();
+      await dosALaVez();
+    }
+    assert.deepEqual(await intentos(), [1, 2, 3, 4], "una vuelta con dos crones suma UN intento");
+    assert.equal((await audit("nc_peso_cerrada")).length, 0, "con 4 vueltas todavía no se cierra");
+    // Otro intento dentro de la misma ventana (p. ej. «Pesar y ajustar» repetido) tampoco suma.
+    await nc.notaDeCreditoPorPeso(a.id, "carrera", conReloj);
+    assert.equal((await intentos()).length, 4);
+    otraVuelta();
+    await dosALaVez();
+    assert.deepEqual(await intentos(), [1, 2, 3, 4, 5]);
+    assert.equal((await audit("nc_peso_cerrada")).length, 1, "se cierra a la 5.ª vuelta, una sola vez");
+    assert.equal((await audit("nc_peso_rechazada")).length, 1);
+  });
+  await t.test("BAJA: las notas cerradas sin emitir se leen por negocio (aislamiento de B)", async () => {
+    // «carrera» (A) quedó cerrada en el subtest anterior; «resuelta» (A) tiene cierre y emitida; «solo-b» es de B.
+    const fila = (tenantId: string, entityId: string, action: string, changes: Record<string, string | number | boolean>) =>
+      duenio.auditLog.create({ data: { tenantId, actor: "system", action, entity: "NotaCreditoPorPeso", entityId, channel: "admin", changes } });
+    await fila(a.id, "resuelta", "nc_peso_cerrada", { motivo: "x" });
+    await fila(a.id, "resuelta", "nc_peso_emitida", { notaId: "n", importe: 1 });
+    await fila(b.id, "solo-b", "nc_peso_pendiente", { orderId: "o", facturaId: "f", importe: 12.5, code: 9 });
+    await fila(b.id, "solo-b", "nc_peso_cerrada", { motivo: "La factura del pedido ya no está autorizada." });
+    await fila(b.id, "carrera", "nc_peso_cerrada", { motivo: "de B" });
+    const deA = await nc.notasPorPesoCerradasSinEmitir(a.id);
+    const deB = await nc.notasPorPesoCerradasSinEmitir(b.id);
+    const carrera = deA.find((n) => n.clave === "carrera");
+    assert.ok(carrera, "la cerrada al 5.º intento aparece en Facturación");
+    assert.match(carrera.motivo, /Se probó 5 veces y no se pudo emitir: .*Eso ya es una nota/);
+    assert.equal(carrera.code, 77);
+    assert.equal(carrera.importe, 50);
+    assert.ok(carrera.fecha instanceof Date);
+    assert.equal(deA.filter((n) => n.clave === "carrera").length, 1, "una por clave");
+    assert.ok(!deA.some((n) => n.clave === "resuelta"), "la que se emitió no se muestra");
+    assert.ok(!deA.some((n) => n.clave === "solo-b"), "A no ve las de B");
+    // (B ya tiene otra cerrada del subtest de aislamiento: se miran sólo las de este.)
+    const propias = deB.filter((n) => n.clave === "carrera" || n.clave === "solo-b");
+    assert.ok(!deB.some((n) => n.clave === "resuelta"), "B no ve las de A");
+    assert.deepEqual(propias.map((n) => [n.clave, n.motivo, n.code, n.importe]).sort(), [
+      ["carrera", "de B", null, null],
+      ["solo-b", "La factura del pedido ya no está autorizada.", 9, 12.5],
+    ]);
   });
 });

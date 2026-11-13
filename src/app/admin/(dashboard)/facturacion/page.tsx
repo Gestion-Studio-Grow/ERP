@@ -28,6 +28,8 @@ import { leerPuestaAPunto } from "@/lib/facturacion/puesta-a-punto.server";
 import { serviciosParaFacturar } from "@/lib/facturacion/servicios-del-negocio.server";
 import PuestaAPunto, { CabeceraDePuesta } from "@/components/facturacion/PuestaAPunto";
 import FacturaDePrueba from "./FacturaDePrueba";
+import { notasPorPesoCerradasSinEmitir, type NotaPorPesoCerrada } from "@/lib/facturacion/nota-credito-por-peso";
+import { fmtMoneyARS } from "@/components/ui/format";
 import {
   cargarCertificadoArcaAction,
   generarPedidoArcaAction,
@@ -77,6 +79,11 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
   const conLista = !conLink && !conArca && !conEmitir;
   const asistente = conArca || (conLista && negocioId) ? await leerAsistenteDelCliente(sp, estado.facturaDePrueba, conArca) : null;
   const banner = conLista && asistente && !asistente.puesta.listo ? <div className="mb-4"><CabeceraDePuesta puesta={asistente.puesta} comoBanner /></div> : null;
+  // Las notas de crédito por peso que se cerraron sin emitir (5 intentos, factura real, etc.): a la
+  // vista para que alguien las resuelva. Si la lectura falla, la lista sigue igual.
+  const cerradasPorPeso = conLista
+    ? await notasPorPesoCerradasSinEmitir(negocioId ?? (await getCurrentTenantId())).catch(() => [])
+    : [];
   const links = linksPedidos ?? (conLink ? await getLinksDeCobro(sp) : null);
   const listaDeLinks = links && <LinksDeCobro pagina={links.pagina} filtros={links.filtros} fallo={links.fallo} />;
   const hoy = todayInBusinessTz();
@@ -103,6 +110,7 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
   ) : (
     <>
       {banner}
+      <AvisoNotasPorPeso notas={cerradasPorPeso} />
       <ComprobantesArca lista={lista} filtros={filtros} estado={estado} hoy={hoy} fallo={fallo} />
     </>
   );
@@ -165,6 +173,30 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
       )}
       {aviso}
     </PageContainer>
+  );
+}
+
+const fechaAR = new Intl.DateTimeFormat("es-AR", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "America/Argentina/Buenos_Aires" });
+
+/** Aviso de las notas de crédito por peso que no se pudieron emitir (cerradas para un humano). */
+function AvisoNotasPorPeso({ notas }: { notas: readonly NotaPorPesoCerrada[] }) {
+  if (notas.length === 0) return null;
+  const n = notas.length;
+  return (
+    <section role="status" aria-label="Notas de crédito por peso sin emitir" className="mb-4 rounded-md border border-warning/40 bg-warning-soft/40 px-4 py-3 text-sm">
+      <p className="font-medium text-strong">
+        {n === 1 ? "1 nota de crédito por peso no se pudo emitir" : `${n} notas de crédito por peso no se pudieron emitir`}: revisalas.
+      </p>
+      <ul className="mt-2 space-y-1 text-muted">
+        {notas.slice(0, 5).map((x) => (
+          <li key={x.clave}>
+            {x.code != null ? `Pedido #${x.code}` : "Pedido sin número"}
+            {x.importe != null ? ` · ${fmtMoneyARS(x.importe)}` : ""} · {fechaAR.format(x.fecha)}: {x.motivo || "sin motivo anotado"}
+          </li>
+        ))}
+      </ul>
+      {n > 5 && <p className="mt-1 text-muted">Y {n - 5} más.</p>}
+    </section>
   );
 }
 

@@ -50,15 +50,37 @@ async function anotar(tx: InvoiceTx, tenantId: string, clave: string, action: st
 }
 
 /**
- * Emite (simulada) la nota pendiente de `clave`, en la tx del llamador. Nunca lanza por un dato:
- * devuelve el estado. `null` = no hay nada anotado con esa clave en este negocio.
+ * Ventana de un intento: dentro de ella, una clave suma COMO MÁXIMO un intento fallido. Dos crones
+ * que corren a la vez (o el cron y un «Pesar y ajustar» repetido) son la misma vuelta y no adelantan
+ * el cierre (certificación, hallazgo BAJA). El cron corre una vez por día (vercel.json): 10 minutos
+ * alcanzan para juntar corridas superpuestas sin tragarse la del día siguiente.
  */
-export async function notaDeCreditoPorPesoInTx(tx: InvoiceTx, tenantId: string, clave: string): Promise<NotaPorPeso | null> {
+export const VENTANA_INTENTO_NC_PESO_MS = 10 * 60 * 1000;
+
+/** Cuándo se anotó un intento: `changes.en` (lo escribe el intento) o, en filas viejas, su `createdAt`. */
+function momentoDelIntento(f: { changes: unknown; createdAt: Date }): number {
+  const en = (f.changes && typeof f.changes === "object" ? (f.changes as Record<string, unknown>).en : undefined);
+  const t = typeof en === "string" ? Date.parse(en) : NaN;
+  return Number.isFinite(t) ? t : f.createdAt.getTime();
+}
+
+/**
+ * Emite (simulada) la nota pendiente de `clave`, en la tx del llamador. Nunca lanza por un dato:
+ * devuelve el estado. `null` = no hay nada anotado con esa clave en este negocio. `ahora` sólo
+ * cuenta para la ventana del intento (inyectable en los tests).
+ */
+export async function notaDeCreditoPorPesoInTx(
+  tx: InvoiceTx,
+  tenantId: string,
+  clave: string,
+  opciones: { ahora?: Date } = {},
+): Promise<NotaPorPeso | null> {
+  const ahora = opciones.ahora ?? new Date();
   await tomarClaves(tx, tenantId, [clave]);
   const filas = await tx.auditLog.findMany({
     where: { tenantId, entity: ENTIDAD_NC_POR_PESO, entityId: clave },
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-    select: { action: true, changes: true },
+    select: { action: true, changes: true, createdAt: true },
   });
   const filaPendiente = filas.find((f) => f.action === ACCION_NC_PESO_PENDIENTE);
   if (!filaPendiente) return null;
@@ -86,9 +108,13 @@ export async function notaDeCreditoPorPesoInTx(tx: InvoiceTx, tenantId: string, 
     }
     // No definitivo: se cuenta el intento (manda a la clave al fondo de la cola del reintento) y, al
     // llegar a MAX_INTENTOS_NC_PESO, se cierra con el motivo para que la resuelva un humano. Bajo el
-    // candado de la clave: el conteo no se pisa con otro intento simultáneo (certificación).
-    const intentos = filas.filter((f) => f.action === ACCION_NC_PESO_INTENTO).length + 1;
-    await anotar(tx, tenantId, clave, ACCION_NC_PESO_INTENTO, { intento: intentos, motivo, importe });
+    // candado de la clave: el conteo no se pisa con otro intento simultáneo (certificación). Si ya
+    // hay un intento de esta clave dentro de la ventana, es la misma vuelta: no suma ni cierra.
+    const previos = filas.filter((f) => f.action === ACCION_NC_PESO_INTENTO);
+    const enLaVentana = previos.some((f) => Math.abs(ahora.getTime() - momentoDelIntento(f)) < VENTANA_INTENTO_NC_PESO_MS);
+    if (enLaVentana) return { estado: "rechazada", clave, importe, motivo };
+    const intentos = previos.length + 1;
+    await anotar(tx, tenantId, clave, ACCION_NC_PESO_INTENTO, { intento: intentos, motivo, importe, en: ahora.toISOString() });
     if (intentos >= MAX_INTENTOS_NC_PESO) {
       await anotar(tx, tenantId, clave, ACCION_NC_PESO_CERRADA, {
         motivo: `Se probó ${intentos} veces y no se pudo emitir: ${motivo}`,
@@ -139,6 +165,8 @@ export type DepsNotaPorPeso = {
   enModoPrueba: (tenantId: string) => Promise<boolean>;
   /** El tick del despacho: el simulador le pone el CAE a la nota. Su falla no importa (lo toma el próximo). */
   procesarEnviosDelNegocio: (tenantId: string) => Promise<unknown>;
+  /** El reloj de la ventana del intento. Por defecto, la hora real. */
+  ahora?: () => Date;
 };
 
 /** ¿Este negocio está en modo prueba? Falla cerrada: si no se pudo leer, no. */
@@ -160,7 +188,7 @@ export async function notaDeCreditoPorPeso(
   deps: DepsNotaPorPeso = DEPS,
 ): Promise<NotaPorPeso | null> {
   if (!(await deps.enModoPrueba(tenantId))) return null;
-  const r = await tenantTransaction((tx) => notaDeCreditoPorPesoInTx(tx, tenantId, clave), { tenantId });
+  const r = await tenantTransaction((tx) => notaDeCreditoPorPesoInTx(tx, tenantId, clave, { ahora: deps.ahora?.() }), { tenantId });
   if (r?.estado === "emitida" && !r.yaExistia) await deps.procesarEnviosDelNegocio(tenantId).catch(() => undefined);
   return r;
 }
@@ -237,4 +265,58 @@ export async function reintentarNotasPorPesoDeLosNegocios(
     }
   }
   return total;
+}
+
+/** Una nota por peso que se cerró sin emitir: la tiene que resolver un humano en Facturación. */
+export type NotaPorPesoCerrada = {
+  clave: string;
+  motivo: string;
+  fecha: Date;
+  /** Número del pedido (de la anotación pendiente); null si no se pudo leer. */
+  code: number | null;
+  /** Lo devuelto en la caja que falta acreditar; null si no se pudo leer. */
+  importe: number | null;
+};
+
+/**
+ * Las notas por peso CERRADAS sin emitir del negocio (las más nuevas primero, una por clave): el
+ * cierre al 5.º intento, la factura real o la anotación ilegible. Lectura por negocio, con RLS.
+ */
+export async function notasPorPesoCerradasSinEmitir(tenantId: string, limite = 50): Promise<NotaPorPesoCerrada[]> {
+  return tenantTransaction(
+    async (tx) => {
+      const filas = await tx.$queryRaw<{ clave: string; motivo: string | null; fecha: Date; pendiente: unknown }[]>(Prisma.sql`
+        SELECT c."entityId" AS clave,
+               c."changes"->>'motivo' AS motivo,
+               c."createdAt" AS fecha,
+               (SELECT p."changes" FROM "AuditLog" p
+                 WHERE p."tenantId" = c."tenantId" AND p."entity" = c."entity"
+                   AND p."entityId" = c."entityId" AND p."action" = ${ACCION_NC_PESO_PENDIENTE}
+                 ORDER BY p."createdAt" ASC, p."id" ASC LIMIT 1) AS pendiente
+          FROM (SELECT DISTINCT ON (x."entityId") x.*
+                  FROM "AuditLog" x
+                 WHERE x."tenantId" = ${tenantId}
+                   AND x."entity" = ${ENTIDAD_NC_POR_PESO}
+                   AND x."action" = ${ACCION_NC_PESO_CERRADA}
+                   AND x."entityId" IS NOT NULL
+                 ORDER BY x."entityId", x."createdAt" ASC, x."id" ASC) c
+         WHERE NOT EXISTS (
+           SELECT 1 FROM "AuditLog" e
+            WHERE e."tenantId" = c."tenantId" AND e."entity" = c."entity"
+              AND e."entityId" = c."entityId" AND e."action" = ${ACCION_NC_PESO_EMITIDA})
+         ORDER BY c."createdAt" DESC, c."entityId" ASC
+         LIMIT ${Math.max(1, Math.trunc(limite))}`);
+      return filas.map((f) => {
+        const p = (f.pendiente && typeof f.pendiente === "object" ? f.pendiente : {}) as Record<string, unknown>;
+        return {
+          clave: f.clave,
+          motivo: f.motivo ?? "",
+          fecha: f.fecha,
+          code: typeof p.code === "number" ? p.code : null,
+          importe: typeof p.importe === "number" ? p.importe : null,
+        };
+      });
+    },
+    { tenantId },
+  );
 }
