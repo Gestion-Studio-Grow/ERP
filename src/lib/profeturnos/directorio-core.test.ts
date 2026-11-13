@@ -5,6 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { Directorio } from "@/lib/padel/directorio";
 import {
+  DIRECTORIO_TTL_MS,
   TOPE_CANDIDATOS,
   TOPE_RESULTADOS,
   armarDirectorio,
@@ -92,7 +93,7 @@ test("turnero cerrado (sin verificar), subdominio inválido o negocio que falla:
   assert.equal(llamadas.some((l) => l.tenantId === "ceci" && l.dep === "agenda"), false);
 });
 
-test("tope de candidatos: nunca se miran más de TOPE_CANDIDATOS negocios", async () => {
+test("tope de anotados: nunca se miran más de TOPE_CANDIDATOS negocios", async () => {
   const muchos = Array.from({ length: TOPE_CANDIDATOS + 20 }, (_, i) => neg(`p${i}`, dir(false)));
   const { deps, llamadas } = fake(muchos);
   deps.candidatos = async () => muchos.map((n) => n.c); // aunque la fuente ignore el tope
@@ -149,4 +150,47 @@ test("caché corta: reusa dentro del plazo, vuelve a armar después y no guarda 
   ahora = 200_000;
   await assert.rejects(memo(async () => { throw new Error("x"); }));
   assert.equal(await memo(cargar), 3);
+});
+
+test("CERT 13/11 · costo: la fuente trae sólo anotados y el armado hace 4 lecturas por anotado", async () => {
+  // 500 negocios con el módulo; 3 anotados al FINAL (los más nuevos). La fuente real filtra en
+  // Postgres por `_directorio.visible`: acá, lo mismo sobre los datos de mentira.
+  const negocios = [
+    ...Array.from({ length: 497 }, (_, i) => neg(`n${i}`, dir(false))),
+    neg("ana", dir(true, "Canning")),
+    neg("beto", dir(true, "Adrogué")),
+    neg("ceci", dir(true, "Lanús")),
+  ];
+  const { deps, llamadas } = fake(negocios);
+  let topePedido = -1;
+  deps.candidatos = async (tope) => {
+    topePedido = tope;
+    return negocios.filter((n) => n.dir.visible).map((n) => n.c).slice(0, tope);
+  };
+  const out = await armarDirectorio(deps, "gsgapp.com.ar");
+  assert.equal(topePedido, TOPE_CANDIDATOS);
+  assert.deepEqual(out.map((p) => p.clave).sort(), ["ana", "beto", "ceci"], "los anotados nuevos aparecen aunque haya cientos de negocios antes");
+  assert.equal(llamadas.length, 3 * 4, "ajuste + abierto + agenda + clubes, sólo de los anotados");
+  assert.ok(TOPE_CANDIDATOS >= 100, "el tope corta anotados, no negocios en general");
+});
+
+test("CERT 13/11 · el pre-filtro no alcanza: si el ajuste leído en su negocio no es visible, no aparece", async () => {
+  const { deps, llamadas } = fake([neg("ana", dir(true)), neg("raro", dir(false)), neg("sinzona", dir(true, ""))]);
+  // La fuente (un índice) los trae a los tres; el ajuste de cada negocio decide.
+  const out = await armarDirectorio(deps, "gsgapp.com.ar");
+  assert.deepEqual(out.map((p) => p.clave), ["ana"]);
+  assert.equal(llamadas.some((l) => l.tenantId !== "ana" && l.dep !== "ajuste"), false);
+  assert.ok(!JSON.stringify(out).includes("tenantId"));
+});
+
+test("CERT 13/11 · caché de 10 minutos", async () => {
+  assert.equal(DIRECTORIO_TTL_MS, 10 * 60_000);
+  let ahora = 0;
+  let cargas = 0;
+  const memo = memoriaCorta<number>(DIRECTORIO_TTL_MS, () => ahora);
+  await memo(async () => ++cargas);
+  ahora = DIRECTORIO_TTL_MS - 1;
+  assert.equal(await memo(async () => ++cargas), 1);
+  ahora = DIRECTORIO_TTL_MS;
+  assert.equal(await memo(async () => ++cargas), 2);
 });

@@ -13,6 +13,8 @@ import { diaCorto, sumarDias } from "@/lib/padel/core";
 import { horaCorta, plata } from "@/app/clases/cinta";
 import { todayInBusinessTz } from "@/lib/datetime";
 import { directorioDeProfes } from "@/lib/profeturnos/directorio.server";
+import { requestIp } from "@/lib/audit-core";
+import { createRateLimiter } from "@/lib/rate-limit";
 import {
   DIAS_DEL_FILTRO,
   fechaValida,
@@ -34,6 +36,11 @@ export const metadata: Metadata = {
 const FOCO = "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus";
 const CAMPO = `h-12 w-full rounded-xl border border-line bg-surface px-3 text-base text-strong ${FOCO}`;
 
+// Freno por conexión (CERT 13/11), el mismo limitador en memoria que /mis-clases: 60 búsquedas cada
+// 10 minutos por IP y por instancia. El directorio ya sale de la caché de 10 min; esto corta a un bot
+// que martille la página. Sin store compartido (deuda anotada en src/lib/rate-limit.ts).
+const freno = createRateLimiter({ max: 60, windowMs: 10 * 60 * 1000 });
+
 type Busqueda = { zona?: string | string[]; dia?: string | string[] };
 const uno = (x: string | string[] | undefined): string | null => (typeof x === "string" ? x : null);
 
@@ -47,11 +54,16 @@ export default async function BuscadorDeProfes({ searchParams }: { searchParams:
   const diaPedido = fechaValida(uno(sp.dia));
   const dia = diaPedido && dias.some((d) => d.fecha === diaPedido) ? diaPedido : null;
 
+  const clave = `profeturnos-profes:${(await requestIp()) ?? "sin-ip"}`;
+  const frenado = freno.blocked(clave);
   let todos: ProfePublico[] | null = null;
-  try {
-    todos = await directorioDeProfes();
-  } catch {
-    todos = null;
+  if (!frenado) {
+    freno.fail(clave);
+    try {
+      todos = await directorioDeProfes();
+    } catch {
+      todos = null;
+    }
   }
   const zonas = todos ? zonasDe(todos) : [];
   const zonaPedida = (uno(sp.zona) ?? "").trim();
@@ -96,7 +108,7 @@ export default async function BuscadorDeProfes({ searchParams }: { searchParams:
           <h2 id="resultados" className="sr-only">Profes</h2>
           {todos === null ? (
             <p role="status" className="rounded-2xl border border-line bg-surface-sunken p-5 text-body">
-              No pudimos cargar los profes en este momento. Probá de nuevo en un rato.
+              {frenado ? "Hiciste muchas búsquedas seguidas desde esta conexión. Probá de nuevo en unos minutos." : "No pudimos cargar los profes en este momento. Probá de nuevo en un rato."}
             </p>
           ) : profes.length === 0 ? (
             <Vacio filtrado={filtrado} />

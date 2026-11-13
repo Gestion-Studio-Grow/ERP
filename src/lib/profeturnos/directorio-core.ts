@@ -9,22 +9,33 @@
 //    interno del negocio (la tarjeta se identifica por su subdominio, que ya es su link público).
 //  · Cada lectura de un negocio corre en SU contexto (`runInTenantContext` en el .server): la deps
 //    recibe el `tenantId` de ese negocio y nada más.
-//  · Topes: candidatos que se miran, profes que se arman y resultados que se muestran.
+//  · Topes: anotados que se miran, profes que se arman y resultados que se muestran.
+//  · Costo (CERT 13/11, MEDIA): los candidatos llegan YA filtrados a los anotados (una consulta, en
+//    el .server); recién a ésos se les lee el ajuste, la verificación, la agenda y los clubes. Un
+//    armado cuesta 1 + 4 consultas por anotado (no ~560 como cuando se leía el ajuste de todos).
 
 import type { DiaConLugar } from "@/lib/padel/datos.server";
 import type { Directorio } from "@/lib/padel/directorio";
 import { DESDE_DIRECTORIO } from "@/lib/padel/canal";
 
-/** Cuántos negocios con el módulo de clases se miran como mucho por armado. */
-export const TOPE_CANDIDATOS = 200;
-/** Cuántos profes anotados se arman (horarios y clubes) como mucho. */
-export const TOPE_PROFES = 60;
+/**
+ * Cuántos negocios ANOTADOS (`_directorio.visible`) se miran como mucho por armado. Como la fuente
+ * ya trae sólo anotados, el tope no deja afuera a los nuevos por haber muchos negocios sin anotar
+ * (CERT 13/11, BAJA). Tope provisional a confirmar: 100 anotados ≈ 401 consultas cada 10 min por
+ * instancia. TODO(escala): pasados los 100, paginar por zona o pasar `_directorio` a columnas con
+ * índice (la migración ya anotada en src/lib/padel/directorio.ts).
+ */
+export const TOPE_CANDIDATOS = 100;
+/** Cuántos profes anotados se arman (horarios y clubes) como mucho: todos los que se miran. */
+export const TOPE_PROFES = TOPE_CANDIDATOS;
 /** Cuántas tarjetas se muestran como mucho después de filtrar. */
 export const TOPE_RESULTADOS = 30;
 /** Cuántos días para adelante se ofrecen en el filtro y se guardan por profe. */
 export const DIAS_DEL_FILTRO = 7;
 /** Cuántos horarios libres muestra cada tarjeta. */
 export const HORARIOS_POR_TARJETA = 3;
+/** Cada cuánto se rearma el directorio (caché por instancia, directorio.server.ts). CERT 13/11: 10 min. */
+export const DIRECTORIO_TTL_MS = 10 * 60_000;
 /** Negocios que se leen a la vez (no ahogar el pool de conexiones). */
 export const EN_PARALELO = 6;
 
@@ -33,7 +44,10 @@ export type Candidato = { tenantId: string; nombre: string; subdomain: string | 
 export type AjustePublico = { directorio: Directorio; precioIndividual: number; precioGrupal: number };
 
 export interface DepsDirectorio {
-  /** Negocios activos con el módulo de clases (sólo columnas de `Tenant`, que no tiene datos de nadie). */
+  /**
+   * Negocios activos con el módulo de clases que se ANOTARON en el directorio (pre-filtro en una
+   * sola consulta; sólo columnas de `Tenant`). Es un índice, no la verdad: `ajuste` decide.
+   */
   candidatos(tope: number): Promise<Candidato[]>;
   /** Todas las de abajo corren en el contexto del negocio `tenantId`. */
   ajuste(tenantId: string): Promise<AjustePublico>;
@@ -107,7 +121,8 @@ export async function armarDirectorio(deps: DepsDirectorio, dominio: string): Pr
     .map((c) => ({ ...c, turnero: turneroDe(c.subdomain, dominio) }))
     .filter((c): c is Candidato & { turnero: string } => c.turnero !== null);
 
-  // Paso 1: sólo el ajuste (opt-in). A quien no se anotó no se le lee nada más.
+  // Paso 1: sólo el ajuste (opt-in), leído en SU contexto: es la verdad (un JSON raro = no visible),
+  // aunque el pre-filtro lo haya traído. A quien no se anotó no se le lee nada más.
   const anotados = (
     await deA(candidatos, EN_PARALELO, async (c) => {
       try {

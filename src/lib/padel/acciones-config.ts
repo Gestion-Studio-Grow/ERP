@@ -28,7 +28,7 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapabilityFueraDeLaAgenda } from "@/lib/authz";
 import { auditAdmin } from "@/lib/audit-core";
 import { PLANTILLAS_DEFAULT } from "./core";
-import { SOLO_EL_DUENIO_COBRO, plantillasConBienvenida, plantillasConCambio, puedeCambiarAjuste, validarCampoConfig, type TramoSemanal } from "./config-campos";
+import { AJUSTE_DIRECTORIO, SOLO_EL_DUENIO_COBRO, SOLO_EL_DUENIO_DIRECTORIO, plantillasConBienvenida, plantillasConCambio, puedeCambiarAjuste, validarCampoConfig, type TramoSemanal } from "./config-campos";
 import { refrescar, type Resultado } from "./acciones-compartido";
 import { plantillasConDirectorio, validarDirectorio, type Directorio } from "./directorio";
 
@@ -120,10 +120,12 @@ async function guardarCampo(clave: string, valor: unknown): Promise<Resultado<{ 
  * «Aparecer en el buscador de profes» (directorio público, src/lib/padel/directorio.ts): sí/no y la
  * zona, de una. Vive en el mismo JSON que los textos (clave reservada
  * `_directorio`, sin migración): leer y reescribir en Serializable, como los textos (F-2), y sin
- * tocar los textos ni la marca de la Bienvenida. Lo cambia quien gestiona las clases (agenda:manage).
+ * tocar los textos ni la marca de la Bienvenida. Publicar el negocio lo decide SÓLO el dueño (CERT
+ * 13/11): `agenda:manage` + `puedeCambiarAjuste(rol, "directorio")`, como la cuenta de cobro.
  */
 export async function guardarDirectorio(valor: unknown): Promise<Resultado<{ valor: Directorio }>> {
-  await requireCapabilityFueraDeLaAgenda("agenda:manage");
+  const user = await requireCapabilityFueraDeLaAgenda("agenda:manage");
+  if (!puedeCambiarAjuste(user.role, AJUSTE_DIRECTORIO)) return { ok: false, error: SOLO_EL_DUENIO_DIRECTORIO };
   const tenantId = await getCurrentTenantId();
   const r = validarDirectorio(valor);
   if (!r.ok) return { ok: false, error: r.error };

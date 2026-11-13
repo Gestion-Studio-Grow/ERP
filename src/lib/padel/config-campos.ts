@@ -45,9 +45,18 @@ export const CAMPOS_DE_COBRO: readonly CampoConfig[] = ["aliasCbu", "titularCuen
 
 export const SOLO_EL_DUENIO_COBRO = "Sólo el dueño del negocio cambia la cuenta, el celular y los textos que reciben los alumnos.";
 
-/** ¿Este rol puede cambiar este ajuste? Todo lo de `agenda:manage`, salvo lo de cobro y los textos: sólo OWNER. */
+/** La clave con la que `guardarDirectorio` pregunta a `puedeCambiarAjuste` (publicar el negocio). */
+export const AJUSTE_DIRECTORIO = "directorio";
+
+export const SOLO_EL_DUENIO_DIRECTORIO = "Sólo el dueño del negocio decide si aparece en el buscador de profes.";
+
+/**
+ * ¿Este rol puede cambiar este ajuste? Todo lo de `agenda:manage`, salvo lo de cobro, los textos y
+ * publicar el negocio en el buscador de profes (CERT 13/11): sólo OWNER.
+ */
 export const puedeCambiarAjuste = (rol: string, clave: unknown): boolean =>
-  rol === "OWNER" || !((CAMPOS_DE_COBRO as readonly unknown[]).includes(clave) || (typeof clave === "string" && clave.startsWith("plantilla.")));
+  rol === "OWNER" ||
+  !((CAMPOS_DE_COBRO as readonly unknown[]).includes(clave) || clave === AJUSTE_DIRECTORIO || (typeof clave === "string" && clave.startsWith("plantilla.")));
 
 export type ClaveConfig = CampoConfig | `plantilla.${ClavePlantilla}` | "horarios" | "bienvenidaVista";
 
