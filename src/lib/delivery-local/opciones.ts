@@ -155,6 +155,23 @@ export type OpcionesDelAlta =
     }
   | { ok: false; error: string };
 
+/** Uno de los productos pedidos no está en la base como algo que se puede vender. */
+export const PRODUCTO_QUE_YA_NO_ESTA = "Uno de los productos de tu pedido ya no está en la carta: sacalo y volvé a probar.";
+
+/** Cuántos productos distintos se buscan para las opciones: más que esto, el pedido se rechaza. */
+export const TOPE_PRODUCTOS_DISTINTOS = 200;
+export const DEMASIADOS_PRODUCTOS = `Tu pedido tiene más de ${TOPE_PRODUCTOS_DISTINTOS} productos distintos: dividilo en dos pedidos.`;
+
+/**
+ * Los ids distintos de las líneas que se piden de verdad (cantidad > 0), para buscar sus
+ * opciones. `null` si pasan el tope: se rechaza el pedido, nunca se corta la lista (lo que
+ * quedara afuera se saltearía sin validar su opción obligatoria). PURA.
+ */
+export function idsParaLasOpciones(lineas: readonly { productId: string; qty: number }[]): string[] | null {
+  const unicos = [...new Set(lineas.filter((l) => l.productId && l.qty > 0).map((l) => l.productId))];
+  return unicos.length > TOPE_PRODUCTOS_DISTINTOS ? null : unicos;
+}
+
 const NOMBRE_MAX = 80; // el de las líneas a mano del Core (venta-reglas.ts, NOMBRE_A_MANO_MAX)
 const MOTIVO = "Opciones elegidas en la vidriera (Pedí Local)";
 
@@ -163,7 +180,8 @@ const cantidadTexto = (n: number) => (Number.isInteger(n) ? String(n) : String(n
 /**
  * Las opciones de todas las líneas del pedido, RECALCULADAS desde la config. `lineas` va en el
  * orden del formulario (productId, quantity, opciones); `productos` son los de la base, del
- * negocio (id y nombre) para buscar los grupos. Las líneas sin cantidad o sin producto se saltean.
+ * negocio, activos y con precio (id y nombre) para buscar los grupos. Las líneas sin cantidad se
+ * saltean; la de un producto que no está en `productos` rechaza el pedido.
  */
 export function opcionesDelAlta(
   config: readonly OpcionesDeProducto[] | undefined,
@@ -177,12 +195,10 @@ export function opcionesDelAlta(
   for (const l of lineas) {
     if (!l.productId || !(l.qty > 0)) continue;
     const p = porId.get(l.productId);
-    const pidio = typeof l.opciones === "string" && l.opciones.trim() !== "";
-    if (!p) {
-      // El producto que no existe lo rechaza el alta; con opciones, se frena acá.
-      if (pidio) return { ok: false, error: "Uno de los productos de tu pedido ya no está en la carta: sacalo y volvé a probar." };
-      continue;
-    }
+    // Sin el producto (no existe, es de otro negocio, se desactivó o quedó sin precio) se frena
+    // acá, con o sin opciones: si se salteara, su opción obligatoria quedaría sin validar y el
+    // alta descartaría la línea en silencio (cobrando el recargo sin el producto).
+    if (!p) return { ok: false, error: PRODUCTO_QUE_YA_NO_ESTA };
     const grupos = gruposDelProducto(config, p);
     const r = leerEleccion(grupos, l.opciones, p.name);
     if (!r.ok) return r;

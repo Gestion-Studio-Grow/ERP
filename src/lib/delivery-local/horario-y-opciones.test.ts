@@ -1,7 +1,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { estaAbierto, proximaApertura, rechazoPorHorario, resumenDelHorario, textoDelEstado, type HorarioDelLocal } from "./horario";
-import { codificarEleccion, gruposDelProducto, leerEleccion, opcionesDelAlta, recargoUnitario, type OpcionesDeProducto } from "./opciones";
+import {
+  codificarEleccion,
+  gruposDelProducto,
+  idsParaLasOpciones,
+  leerEleccion,
+  opcionesDelAlta,
+  recargoUnitario,
+  PRODUCTO_QUE_YA_NO_ESTA,
+  TOPE_PRODUCTOS_DISTINTOS,
+  type OpcionesDeProducto,
+} from "./opciones";
 import { configDeliveryLocal } from "./config";
 
 // Hora argentina escrita a mano (−03:00, sin horario de verano). 13/11/2026 es viernes.
@@ -169,9 +179,11 @@ test("opciones: opción o grupo inexistente, dos en un grupo único, obligatorio
 test("opciones: en un producto sin opciones, mandar opciones es rechazo", () => {
   const r = opcionesDelAlta(CONFIG, [{ productId: "p_medialuna", qty: 1, opciones: "tamano:grande" }], PRODUCTOS);
   assert.equal(r.ok, false);
-  // Producto que no es del negocio, con opciones: rechazo (sin opciones, lo resuelve el alta).
+  // Producto que no está (de otro negocio, inactivo, sin precio): rechazo, con o sin opciones.
   assert.equal(opcionesDelAlta(CONFIG, [{ productId: "p_otro", qty: 1, opciones: "tamano:grande" }], PRODUCTOS).ok, false);
-  assert.equal(opcionesDelAlta(CONFIG, [{ productId: "p_otro", qty: 1, opciones: "" }], PRODUCTOS).ok, true);
+  const sin = opcionesDelAlta(CONFIG, [{ productId: "p_otro", qty: 1, opciones: "" }], PRODUCTOS);
+  assert.equal(sin.ok, false);
+  if (!sin.ok) assert.equal(sin.error, PRODUCTO_QUE_YA_NO_ESTA);
 });
 
 test("opciones: cantidad — se saltean las líneas en 0, y con recargo no se pide por peso", () => {
@@ -199,4 +211,30 @@ test("opciones de Bitácora: recargos en pesos enteros, ids válidos y un tamañ
       }
     }
   }
+});
+
+// ── Certificación vuelta 1 (B1 y B2) ──
+
+test("B1: el tope de productos distintos cuenta sólo las líneas con cantidad; pasado el tope, rechazo", () => {
+  // 200 ids falsos en 0 + el Latte en 1: el Latte entra a la búsqueda (antes quedaba afuera).
+  const relleno = Array.from({ length: TOPE_PRODUCTOS_DISTINTOS }, (_, i) => ({ productId: `falso_${i}`, qty: 0 }));
+  assert.deepEqual(idsParaLasOpciones([...relleno, { productId: "p_latte", qty: 1 }]), ["p_latte"]);
+  // Repetidos cuentan una vez; NaN y negativos no cuentan.
+  assert.deepEqual(idsParaLasOpciones([{ productId: "a", qty: 1 }, { productId: "a", qty: 2 }, { productId: "b", qty: NaN }, { productId: "c", qty: -1 }, { productId: "", qty: 1 }]), ["a"]);
+  // 200 distintos con cantidad pasan; 201 rechazan (nunca se corta la lista).
+  const doscientos = Array.from({ length: TOPE_PRODUCTOS_DISTINTOS }, (_, i) => ({ productId: `p_${i}`, qty: 1 }));
+  assert.equal(idsParaLasOpciones(doscientos)?.length, TOPE_PRODUCTOS_DISTINTOS);
+  assert.equal(idsParaLasOpciones([...doscientos, { productId: "p_latte", qty: 1 }]), null);
+});
+
+test("B1: un producto con opciones que no llegó a la lista de nombres no se saltea su obligatorio", () => {
+  // El ataque del certificador: el Latte sin tamaño y fuera de `productos` → antes se aceptaba.
+  const r = opcionesDelAlta(CONFIG, [{ productId: "p_latte", qty: 1, opciones: "" }], []);
+  assert.equal(r.ok, false);
+});
+
+test("B2: producto inactivo o sin precio (fuera de la lista) con recargo → rechazo con texto en criollo", () => {
+  const r = opcionesDelAlta(CONFIG, [{ productId: "p_latte", qty: 2, opciones: "tamano:grande" }, { productId: "p_medialuna", qty: 1, opciones: "" }], [PRODUCTOS[1]]);
+  assert.equal(r.ok, false);
+  if (!r.ok) assert.match(r.error, /ya no está en la carta/);
 });
