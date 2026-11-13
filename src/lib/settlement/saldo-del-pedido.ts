@@ -59,6 +59,20 @@ export async function cobradoDeLosPedidos(db: DbCobros, tenantId: string, ids: r
   return out;
 }
 
+/**
+ * Lo que falta cobrar de varios pedidos sin cobrar: la SUMA DE SUS SALDOS, no de sus totales. PURA.
+ * La lee el aviso del cierre del día («ventas sin cobrar», «envíos sin rendir»): con el total, un
+ * pedido con una parte ya cobrada (el que pesó más, D9) se alertaba por lo que ya entró a la caja.
+ * `cantidad` cuenta todos los pedidos que se le pasan (siguen sin cobrar aunque el saldo sea 0).
+ */
+export function sinCobrarDeLosPedidos(
+  pedidos: readonly { id: string; total: number }[],
+  cobrado: ReadonlyMap<string, number>,
+): { cantidad: number; monto: number } {
+  const centavos = pedidos.reduce((s, p) => s + centavosDe(saldoDelPedido(p.total, [cobrado.get(p.id) ?? 0])), 0);
+  return { cantidad: pedidos.length, monto: centavos / 100 };
+}
+
 type TxSaldo = Pick<Prisma.TransactionClient, "collection" | "cashMovement" | "cashSession" | "$queryRawUnsafe">;
 
 /**

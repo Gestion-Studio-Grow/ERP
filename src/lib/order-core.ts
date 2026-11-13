@@ -1279,6 +1279,23 @@ export class CobroDePedidoAnulado extends Error {
   }
 }
 
+/**
+ * El aviso de Mercado Pago llegó por un monto que NO es lo que hoy falta cobrar, mirado ADENTRO de
+ * la transacción con la fila del pedido tomada (D2): un ajuste por peso que entró entre la lectura
+ * del aviso y el cobro dejaba una VENTA por el total nuevo con Mercado Pago habiendo cobrado el viejo.
+ * Se lanza para que la transacción vuelva atrás entera (el `paid` también).
+ */
+export class CobroPorOtroMonto extends Error {
+  readonly code: number;
+  readonly aCobrar: number;
+  constructor(code: number, aCobrar: number) {
+    super(`El pedido #${code} ahora es de ${fmtMoneyARS(aCobrar)}: no se cobra por otro monto.`);
+    this.name = "CobroPorOtroMonto";
+    this.code = code;
+    this.aCobrar = aCobrar;
+  }
+}
+
 export type CobroDePedido =
   | { tipo: "cobrado"; order: { id: string; code: number; total: number } }
   | { tipo: "ya-cobrado"; code: number; medioRegistrado: string | null }
@@ -1321,6 +1338,12 @@ export async function cobrarPedidoEnTx(
      * mostrador con varios medios. Sin asientos, el cobro de siempre.
      */
     asientos?: readonly AsientoDePago[] | null;
+    /**
+     * Lo que el pago trae (el aviso de Mercado Pago): tiene que ser, al centavo, lo que falta cobrar
+     * leído con la fila tomada —el saldo si hay una parte cobrada, si no el total—. Si no, se lanza
+     * `CobroPorOtroMonto` y no se escribe nada. Sin él (el botón «Cobrar»), lo de siempre.
+     */
+    montoEsperado?: number | null;
   },
 ): Promise<CobroDePedido> {
   const mixto = args.asientos && args.asientos.length > 0 ? args.asientos : null;
@@ -1352,6 +1375,10 @@ export async function cobrarPedidoEnTx(
   // con su asiento: cobrar el total le haría pagar dos veces a la clienta, y la VENTA con `orderId`
   // ya existe (el cobro de siempre la daría por «ya asentada» y la diferencia no entraría al libro).
   const yaCobrado = await cobradoDelPedido(tx, tenantId, order.id);
+  if (args.montoEsperado != null) {
+    const aCobrar = yaCobrado > 0 ? saldoDelPedido(order.total, [yaCobrado]) : round2(order.total);
+    if (Math.abs(round2(args.montoEsperado) - aCobrar) > 0.009) throw new CobroPorOtroMonto(order.code, aCobrar);
+  }
   if (yaCobrado > 0) {
     if (mixto) throw new RechazoDeDominio("Este pedido ya tiene una parte cobrada: la diferencia se cobra con un solo medio.");
     const saldo = saldoDelPedido(order.total, [yaCobrado]);
@@ -1438,7 +1465,7 @@ export type DepsAvisoDePedido = {
   leerPedido: (tenantId: string, orderId: string) => Promise<{ code: number; total: number; paid: boolean; status: string } | null>;
   cerradoHasta: (tenantId: string) => Promise<string | null>;
   hoy: () => string;
-  cobrar: (tenantId: string, args: { orderId: string; method: OrderPaymentMethod; actor: string }) => Promise<CobroDePedido>;
+  cobrar: (tenantId: string, args: { orderId: string; method: OrderPaymentMethod; actor: string; montoEsperado: number }) => Promise<CobroDePedido>;
   auditar: (entry: { actor: string; action: string; entity: string; entityId: string; changes: unknown }) => Promise<void>;
 };
 
@@ -1493,10 +1520,15 @@ export async function cobrarPedidoPorAvisoDePago(
   const actor = `mercadopago:${aviso.paymentId}`;
   let cobro: CobroDePedido;
   try {
-    cobro = await deps.cobrar(aviso.tenantId, { orderId: aviso.orderId, method: "MERCADOPAGO", actor });
+    // El monto se vuelve a mirar ADENTRO, con la fila tomada (D2): lo leído arriba puede haber cambiado.
+    cobro = await deps.cobrar(aviso.tenantId, { orderId: aviso.orderId, method: "MERCADOPAGO", actor, montoEsperado: aviso.monto });
   } catch (e) {
     if (e instanceof CobroDePedidoAnulado) {
       return { cobrado: false, motivo: "anulado", detalle: e.message, code: pedido!.code };
+    }
+    if (e instanceof CobroPorOtroMonto) {
+      const d = decidirCobroPorAviso({ pedido: { code: e.code, total: e.aCobrar, paid: false, status: "PENDING" }, monto: aviso.monto });
+      return { cobrado: false, motivo: "monto-distinto", detalle: d.cobrar ? e.message : d.detalle, code: e.code };
     }
     // Dos avisos simultáneos del mismo pago: el segundo choca el único asiento VENTA del pedido.
     if (isUniqueViolation(e, "orderId")) {
