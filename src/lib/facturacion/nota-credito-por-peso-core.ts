@@ -27,6 +27,13 @@ export const ACCION_NC_PESO_PENDIENTE = "nc_peso_pendiente";
 export const ACCION_NC_PESO_EMITIDA = "nc_peso_emitida";
 export const ACCION_NC_PESO_RECHAZADA = "nc_peso_rechazada";
 export const ACCION_NC_PESO_CERRADA = "nc_peso_cerrada";
+/** Un intento fallido por un rechazo NO definitivo (uno por corrida): ordena la cola y la cierra a los N. */
+export const ACCION_NC_PESO_INTENTO = "nc_peso_intento";
+/**
+ * Intentos fallidos (rechazos no definitivos) antes de cerrar la nota para que la vea un humano en
+ * Facturación. Una falla que LANZA (base, red, ARCA caído) revierte la tx y no cuenta: se reintenta siempre.
+ */
+export const MAX_INTENTOS_NC_PESO = 5;
 
 /** Clave de la nota: una por pedido y por ajuste (el EGRESO de la devolución). */
 export function claveNotaPorPeso(orderId: string, egresoId: string): string {

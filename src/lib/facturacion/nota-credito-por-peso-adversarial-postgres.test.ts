@@ -7,6 +7,7 @@ import { apuntarLaAppA, baseEfimeraParaElTest, prismaComoDuenio, type NegocioDeP
 import { ejecutarAccion, prepararAccionesDeServidor } from "@/test/accion-de-servidor";
 import { StubAfipClient } from "@/plugins/arca/afip/stub";
 import { fechaFiscalDelDia } from "@/lib/libros/fecha-fiscal";
+import { MAX_INTENTOS_NC_PESO } from "@/lib/facturacion/nota-credito-por-peso-core";
 
 test("adversarial NC por peso", async (t) => {
   const base = await baseEfimeraParaElTest(t);
@@ -151,5 +152,44 @@ test("adversarial NC por peso", async (t) => {
     assert.equal(r1.rechazadas, 2);
     const r2 = await nc.reintentarNotasPorPesoPendientes(a.id, { deps, limite: 2 });
     assert.equal(r2.probadas, 0, "las ilegibles quedaron cerradas");
+  });
+  await t.test("MEDIA: 20 pendientes con falla NO definitiva no acaparan el lote: la nueva se emite y las trabadas se cierran a los N intentos", async () => {
+    // Las trabadas apuntan a una NOTA (no a una factura): «Eso ya es una nota», rechazo no definitivo.
+    const p0 = await tomar(a, vA.id, 1);
+    await cobrar(a, p0.id);
+    const f0 = await facturar(a, p0.id);
+    const m = await crearNotaDeCredito({ tenantId: a.id, facturaId: f0.id, motivo: "parcial", fecha: HOY, importe: 100 });
+    assert.equal(m.ok, true);
+    await despachar(a.id);
+    const ncId = (m as { invoiceId: string }).invoiceId;
+    assert.equal((await duenio.invoice.findUniqueOrThrow({ where: { id: ncId }, select: { status: true } })).status, "AUTHORIZED");
+    const viejo = new Date(Date.now() - 86400000);
+    await duenio.auditLog.createMany({
+      data: Array.from({ length: 20 }, (_, i) => ({ tenantId: a.id, actor: "system", action: "nc_peso_pendiente", entity: "NotaCreditoPorPeso", entityId: `trabada-${i}`, channel: "admin", changes: { orderId: p0.id, facturaId: ncId, importe: 50, code: 1 }, createdAt: viejo })),
+    });
+    const p = await tomar(a, vA.id, 1);
+    await cobrar(a, p.id);
+    const f = await facturar(a, p.id);
+    const r = await ajustar(a, vA.id, p.id, 0.8);
+    const k = (r.notaDeCredito as { clave: string }).clave;
+    assert.equal(await nc.notaDeCreditoPorPeso(a.id, k, fuera), null);
+    const corridas = [];
+    for (let i = 0; i < 3; i++) corridas.push(await nc.reintentarNotasPorPesoPendientes(a.id, { deps }));
+    console.log("# MEDIA corridas", JSON.stringify(corridas), "notas de la nueva", (await notasDe(f.id)).length);
+    assert.equal((await notasDe(f.id)).length, 1, "la pendiente nueva debería emitirse en alguna corrida del cron");
+    // Las trabadas se cierran al llegar a MAX_INTENTOS_NC_PESO, con el motivo a la vista; después el cron no las prueba más.
+    for (let i = 0; i < MAX_INTENTOS_NC_PESO; i++) await nc.reintentarNotasPorPesoPendientes(a.id, { deps });
+    const cerradas = await duenio.auditLog.findMany({
+      where: { tenantId: a.id, entity: "NotaCreditoPorPeso", entityId: { startsWith: "trabada-" }, action: "nc_peso_cerrada" },
+      select: { entityId: true, changes: true },
+    });
+    assert.equal(new Set(cerradas.map((c) => c.entityId)).size, 20, "las 20 trabadas quedan cerradas");
+    assert.equal(cerradas.length, 20, "un solo cierre por clave");
+    assert.match(String((cerradas[0].changes as { motivo?: string }).motivo), /Eso ya es una nota/);
+    const intentos = await duenio.auditLog.count({ where: { tenantId: a.id, entityId: "trabada-0", action: "nc_peso_intento" } });
+    assert.equal(intentos, MAX_INTENTOS_NC_PESO);
+    const ultima = await nc.reintentarNotasPorPesoPendientes(a.id, { deps });
+    assert.equal(ultima.probadas, 0, "ya no queda nada abierto");
+    assert.equal((await notasDe(f.id)).length, 1, "una sola nota por clave");
   });
 });

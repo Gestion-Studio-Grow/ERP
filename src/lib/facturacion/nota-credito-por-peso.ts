@@ -26,10 +26,12 @@ import { modoEnPantalla } from "@/lib/facturacion/modo-en-pantalla";
 import {
   ACCION_NC_PESO_CERRADA,
   ACCION_NC_PESO_EMITIDA,
+  ACCION_NC_PESO_INTENTO,
   ACCION_NC_PESO_PENDIENTE,
   ACCION_NC_PESO_RECHAZADA,
   ENTIDAD_NC_POR_PESO,
   importeDeLaNota,
+  MAX_INTENTOS_NC_PESO,
   type NotaPorPeso,
 } from "@/lib/facturacion/nota-credito-por-peso-core";
 
@@ -78,7 +80,21 @@ export async function notaDeCreditoPorPesoInTx(tx: InvoiceTx, tenantId: string, 
     if (!filas.some((f) => f.action === ACCION_NC_PESO_RECHAZADA)) {
       await anotar(tx, tenantId, clave, ACCION_NC_PESO_RECHAZADA, { orderId: p.orderId, importe, motivo, definitivo });
     }
-    if (definitivo) await anotar(tx, tenantId, clave, ACCION_NC_PESO_CERRADA, { motivo });
+    if (definitivo) {
+      await anotar(tx, tenantId, clave, ACCION_NC_PESO_CERRADA, { motivo });
+      return { estado: "rechazada", clave, importe, motivo };
+    }
+    // No definitivo: se cuenta el intento (manda a la clave al fondo de la cola del reintento) y, al
+    // llegar a MAX_INTENTOS_NC_PESO, se cierra con el motivo para que la resuelva un humano. Bajo el
+    // candado de la clave: el conteo no se pisa con otro intento simultáneo (certificación).
+    const intentos = filas.filter((f) => f.action === ACCION_NC_PESO_INTENTO).length + 1;
+    await anotar(tx, tenantId, clave, ACCION_NC_PESO_INTENTO, { intento: intentos, motivo, importe });
+    if (intentos >= MAX_INTENTOS_NC_PESO) {
+      await anotar(tx, tenantId, clave, ACCION_NC_PESO_CERRADA, {
+        motivo: `Se probó ${intentos} veces y no se pudo emitir: ${motivo}`,
+        intentos,
+      });
+    }
     return { estado: "rechazada", clave, importe, motivo };
   };
 
@@ -149,7 +165,11 @@ export async function notaDeCreditoPorPeso(
   return r;
 }
 
-/** Vuelve a probar las notas por peso pendientes del negocio (las más viejas primero). */
+/**
+ * Vuelve a probar las notas por peso pendientes del negocio: primero las menos intentadas y, entre
+ * ellas, las más viejas. Así las que fallan una y otra vez (rechazo no definitivo) no acaparan el
+ * lote y una pendiente nueva sale en la corrida siguiente (certificación, hallazgo MEDIA).
+ */
 export async function reintentarNotasPorPesoPendientes(
   tenantId: string,
   opciones: { limite?: number; deps?: DepsNotaPorPeso } = {},
@@ -176,7 +196,12 @@ export async function reintentarNotasPorPesoPendientes(
                 AND r."entityId" = p."entityId"
                 AND r."action" IN (${ACCION_NC_PESO_EMITIDA}, ${ACCION_NC_PESO_CERRADA}))
          GROUP BY p."entityId"
-         ORDER BY min(p."createdAt") ASC, p."entityId" ASC
+         ORDER BY (SELECT count(*) FROM "AuditLog" i
+                    WHERE i."tenantId" = ${tenantId}
+                      AND i."entity" = ${ENTIDAD_NC_POR_PESO}
+                      AND i."entityId" = p."entityId"
+                      AND i."action" = ${ACCION_NC_PESO_INTENTO}) ASC,
+                  min(p."createdAt") ASC, p."entityId" ASC
          LIMIT ${Math.max(1, Math.trunc(opciones.limite ?? 20))}`);
       return filas.map((f) => f.entityId);
     },
