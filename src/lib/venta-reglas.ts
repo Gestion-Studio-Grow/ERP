@@ -639,3 +639,21 @@ export function ventaNaceEntregada(v: {
   if (v.isRetail) return cobrada || v.aCuenta;
   return v.esEstetica && cobrada;
 }
+
+// ── Tope de la nota del pedido de la tienda (D5 de MAGRA-5C) ─────────────────────────────────────
+// La nota que escribe la clienta en la bolsa. La pantalla la corta con `maxLength` y el servidor
+// (`placeOnlineOrder`) la vuelve a cortar con ESTE número, porque el `maxLength` se saltea con un
+// POST armado a mano. Por negocio: Magra pidió 300 (decisión sp-mg2 del dueño, 11/11); el resto
+// queda en 500, como estaba, para no cambiarle nada a ninguna otra tienda.
+export const TOPE_NOTA_DEL_PEDIDO = 500;
+const TOPE_NOTA_POR_NEGOCIO: Readonly<Record<string, number>> = { magra: 300 };
+
+/** Cuántos caracteres de nota guarda la tienda de este negocio (por slug; sin slug, el general). */
+export function topeDeNotaDelPedido(slug: string | null | undefined): number {
+  return (slug && TOPE_NOTA_POR_NEGOCIO[slug]) || TOPE_NOTA_DEL_PEDIDO;
+}
+
+/** La nota de la clienta como la graba el servidor: sin espacios de más, cortada en el tope; vacía → null. */
+export function notaDeLaClientaDelFormulario(cruda: unknown, slug: string | null | undefined): string | null {
+  return String(cruda ?? "").trim().slice(0, topeDeNotaDelPedido(slug)).trim() || null;
+}
