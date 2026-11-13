@@ -54,20 +54,23 @@ test("token de entrega: de otro negocio, con otro secreto o alterado → null", 
 
 // ── La página y la acción ────────────────────────────────────────────────────────────────────────
 
-function baseEntrega(p: Partial<PedidoDeLaEntrega> = {}) {
+/** Base falsa: el pedido (mutable, como la fila) sólo existe en NEGOCIO; la marca relee el estado. */
+function baseEntrega(p: Partial<PedidoDeLaEntrega> = {}, { salio = true } = {}) {
   const marcas: string[] = [];
+  const fila: PedidoDeLaEntrega = { id: ID, code: 41, status: "READY", fulfillment: "DELIVERY", ...p };
   const deps: DepsDeLaEntrega = {
-    pedido: async (tenantId, orderId) =>
-      tenantId === NEGOCIO && orderId === ID ? { id: ID, code: 41, status: "READY", fulfillment: "DELIVERY", ...p } : null,
+    pedido: async (tenantId, orderId) => (tenantId === NEGOCIO && orderId === ID ? { ...fila } : null),
     yaAvisado: async (tenantId, orderId) => marcas.includes(`${tenantId}:${orderId}`),
+    yaSalio: async (tenantId, orderId) => salio && tenantId === NEGOCIO && orderId === ID,
     marcarEntregaUnaVez: async (tenantId, orderId) => {
+      if (fila.status !== "READY") return "no-listo";
       const k = `${tenantId}:${orderId}`;
       if (marcas.includes(k)) return "ya-estaba";
       marcas.push(k);
       return "grabada";
     },
   };
-  return { deps, marcas };
+  return { deps, marcas, fila };
 }
 
 const ctx = (token: unknown, tenantId = NEGOCIO, slug: string | null = "bitacora") => ({ tenantId, slug, secreto: SECRETO, token });
@@ -103,20 +106,43 @@ test("Entregué: otro negocio, token de seguimiento o delivery apagado → mensa
   assert.equal(marcas.length, 0);
 });
 
-test("Entregué: cancelado, ya entregado, sin salir o para retirar → sin efecto", async () => {
+test("Entregué: cancelado, ya entregado, sin salir, sin preparar o para retirar → sin efecto", async () => {
   const t = tokenDeEntrega(SECRETO, NEGOCIO, ID);
-  const casos: [Partial<PedidoDeLaEntrega>, RegExp][] = [
-    [{ status: "CANCELLED" }, /fue cancelado/],
-    [{ status: "DELIVERED" }, /ya cerró el pedido #41/],
-    [{ status: "PREPARING" }, /todavía no figura listo/],
-    [{ fulfillment: "PICKUP" }, /no es de un pedido de este negocio/],
+  const casos: [Partial<PedidoDeLaEntrega>, boolean, RegExp][] = [
+    [{ status: "CANCELLED" }, true, /fue cancelado/],
+    [{ status: "DELIVERED" }, true, /ya cerró el pedido #41/],
+    [{}, false, /#41 todavía no figura en camino/], // «Listo» pero sin la marca de salida
+    [{ status: "PREPARING" }, true, /todavía no figura listo/],
+    [{ fulfillment: "PICKUP" }, true, /no es de un pedido de este negocio/],
   ];
-  for (const [p, motivo] of casos) {
-    const { deps, marcas } = baseEntrega(p);
+  for (const [p, salio, motivo] of casos) {
+    const { deps, marcas } = baseEntrega(p, { salio });
     const r = await repartidorEntrego(ctx(t), deps);
     assert.equal(r.ok, false);
     if (!r.ok) assert.match(r.error, motivo);
+    const v = await vistaDeLaEntrega(ctx(t), deps);
+    assert.equal(v.estado, "sin-efecto");
+    if (v.estado === "sin-efecto") assert.match(v.mensaje, motivo);
     assert.equal(marcas.length, 0);
+  }
+});
+
+test("Entregué: cancelado o cerrado entre el chequeo y el candado → no graba y da el mismo motivo", async () => {
+  const t = tokenDeEntrega(SECRETO, NEGOCIO, ID);
+  for (const [status, motivo] of [
+    ["CANCELLED", /fue cancelado/],
+    ["DELIVERED", /ya cerró el pedido #41/],
+  ] as const) {
+    const { deps, marcas, fila } = baseEntrega();
+    const marcar = deps.marcarEntregaUnaVez;
+    deps.marcarEntregaUnaVez = async (...a) => {
+      fila.status = status; // el local lo cambia justo antes del candado
+      return marcar(...a);
+    };
+    const r = await repartidorEntrego(ctx(t), deps);
+    assert.equal(r.ok, false);
+    if (!r.ok) assert.match(r.error, motivo);
+    assert.equal(marcas.length, 0, "no queda un aviso sobre un pedido que ya no está «Listo»");
   }
 });
 
@@ -125,6 +151,9 @@ test("Entregué: el acceso a datos busca por {id, tenantId}, graba con candado y
   assert.match(src, /where: \{ id: orderId, tenantId \}/);
   assert.match(src, /pg_advisory_xact_lock/);
   assert.ok(src.includes("action: ACCION_ENTREGO"));
+  assert.ok(src.includes("action: ACCION_SALIO"), "exige la marca de salida");
+  const tx = src.slice(src.indexOf("marcarEntregaUnaVez"));
+  assert.match(tx, /pg_advisory_xact_lock[\s\S]*FOR SHARE[\s\S]*status !== "READY"\) return "no-listo"[\s\S]*auditLog\.create/, "relee el estado bajo candado antes de grabar");
   assert.ok(!/order\.(update|updateMany)\(/.test(src), "no cambia el pedido");
   assert.ok(!/customer(Name|Phone)|address/.test(src), "no lee datos del cliente");
   const accion = readFileSync(new URL("../../app/tienda/entrega/[token]/acciones.ts", import.meta.url), "utf8");
@@ -148,16 +177,24 @@ const PEDIDO: PedidoDelCajon = {
   items: [{ name: "Medialuna", quantity: 6 }],
 };
 
+/** Base falsa: `pedidos` es la tabla (mutable); la marca relee el estado de TODOS antes de grabar. */
 function baseSalida(pedidos: Record<string, Partial<PedidoDelCajon>>, pagos: Record<string, unknown> = {}) {
   const salidas: string[] = [];
+  const estado = (id: string) => ({ ...PEDIDO, ...pedidos[id] }).status;
   const deps: DepsDeLaSalida = {
     pedido: async (tenantId, orderId) => (tenantId === NEGOCIO && pedidos[orderId] ? { ...PEDIDO, id: orderId, ...pedidos[orderId] } : null),
     cambiosDelAlta: async (tenantId, orderId) => (tenantId === NEGOCIO ? (pagos[orderId] ?? null) : null),
-    marcarSalidaUnaVez: async (tenantId, orderId) => {
-      const k = `${tenantId}:${orderId}`;
-      if (salidas.includes(k)) return "ya-estaba";
-      salidas.push(k);
-      return "grabada";
+    marcarSalidaUnaVez: async (tenantId, lista) => {
+      const malo = lista.find((p) => tenantId !== NEGOCIO || !pedidos[p.id] || estado(p.id) !== "READY");
+      if (malo) return { ok: false, code: malo.code };
+      let nuevas = 0;
+      for (const { id } of lista) {
+        const k = `${tenantId}:${id}`;
+        if (salidas.includes(k)) continue;
+        salidas.push(k);
+        nuevas += 1;
+      }
+      return { ok: true, nuevas };
     },
   };
   return { deps, salidas };
@@ -250,6 +287,53 @@ test("mandarViajeAlRepartidor: uno que no va → no sale NINGUNO, con el número
   }
   assert.equal((await mandarViajeAlRepartidor({ tenantId: NEGOCIO, slug: null, orderIds: [A, B] }, deps)).ok, false);
   assert.equal(salidas.length, 0);
+});
+
+test("cancelado entre el chequeo y el candado: el de a uno no sale y en el viaje no sale NINGUNO", async () => {
+  // De a uno.
+  const uno: Record<string, Partial<PedidoDelCajon>> = { [A]: { code: 41 } };
+  const s1 = baseSalida(uno);
+  const alta1 = s1.deps.cambiosDelAlta;
+  s1.deps.cambiosDelAlta = async (...a) => {
+    uno[A].status = "CANCELLED"; // el local lo cancela justo antes del candado
+    return alta1(...a);
+  };
+  const r1 = await mandarAlRepartidor({ tenantId: NEGOCIO, slug: "bitacora", orderId: A }, s1.deps);
+  assert.equal(r1.ok, false);
+  if (!r1.ok) assert.match(r1.error, /Primero marcalo «Listo»/);
+  assert.equal(s1.salidas.length, 0);
+  // El viaje: el tercero se cancela a mitad; ninguno queda «salió».
+  const tabla: Record<string, Partial<PedidoDelCajon>> = { [A]: { code: 41 }, [B]: { code: 42 }, [C]: { code: 43 } };
+  const s2 = baseSalida(tabla);
+  const alta2 = s2.deps.cambiosDelAlta;
+  s2.deps.cambiosDelAlta = async (...a) => {
+    tabla[C].status = "CANCELLED";
+    return alta2(...a);
+  };
+  const r2 = await mandarViajeAlRepartidor({ tenantId: NEGOCIO, slug: "bitacora", orderIds: [A, B, C] }, s2.deps);
+  assert.equal(r2.ok, false);
+  if (!r2.ok) assert.match(r2.error, /#43 todavía no está «Listo»/);
+  assert.deepEqual(s2.salidas, []);
+});
+
+test("viaje: doble click concurrente → cada pedido salido una vez; reintento cuenta los que ya figuraban", async () => {
+  const { deps, salidas } = baseSalida({ [A]: { code: 41 }, [B]: { code: 42 }, [C]: { code: 43 } });
+  const rs = await Promise.all([1, 2].map(() => mandarViajeAlRepartidor({ tenantId: NEGOCIO, slug: "bitacora", orderIds: [A, B, C] }, deps)));
+  assert.ok(rs.every((r) => r.ok));
+  assert.equal(salidas.length, 3);
+  const otro = baseSalida({ [A]: { code: 41 }, [B]: { code: 42 } });
+  otro.salidas.push(`${NEGOCIO}:${A}`);
+  const r = await mandarViajeAlRepartidor({ tenantId: NEGOCIO, slug: "bitacora", orderIds: [A, B] }, otro.deps);
+  assert.equal(r.ok, true);
+  if (r.ok) assert.match(r.mensaje, /Uno ya figuraba/);
+  assert.equal(otro.salidas.length, 2);
+});
+
+test("acción de la salida: relee el estado bajo candado, en orden fijo, y graba todo o nada", () => {
+  const src = readFileSync(new URL("../../app/admin/(dashboard)/pedidos/delivery-local/acciones.ts", import.meta.url), "utf8");
+  const tx = src.slice(src.indexOf("marcarSalidaUnaVez"));
+  assert.match(tx, /\.sort\(\)[\s\S]*pg_advisory_xact_lock[\s\S]*FOR SHARE[\s\S]*status !== "READY"\) return \{ ok: false[\s\S]*auditLog\.createMany/);
+  assert.match(tx, /tenantTransaction\([\s\S]*\{ tenantId \}/);
 });
 
 test("mapaDeLaParada: sólo coordenadas re-armadas; un link ajeno en la nota cae a la dirección", () => {

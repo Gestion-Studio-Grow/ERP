@@ -5,14 +5,16 @@
 // Sin sesión: lo que habilita es el TOKEN (src/lib/delivery-local/entrega.ts), firmado para ESTE
 // pedido de ESTE negocio con el propósito «entrega». El negocio sale del host (fail-closed, como
 // /tienda) y todo se lee y se escribe por {id, tenantId}. Lo único que se escribe es UNA fila de
-// auditoría (ACCION_ENTREGO), con candado: dos toques o dos pestañas dejan un solo aviso. El estado
-// del pedido no se toca.
+// auditoría (ACCION_ENTREGO), con candado: dos toques o dos pestañas dejan un solo aviso. Bajo el
+// candado se relee el pedido (con la fila trabada en modo compartido, así nadie lo cambia hasta el
+// commit): si ya no está «Listo», no se graba. El estado del pedido no se toca.
 
 import { prisma } from "@/lib/prisma";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { tenantTransaction } from "@/lib/rls";
 import { authSecret } from "@/lib/auth";
 import { ACCION_ENTREGO, type CtxDeLaEntrega, type DepsDeLaEntrega } from "@/lib/delivery-local/entrega";
+import { ACCION_SALIO } from "@/lib/delivery-local/salida";
 
 export async function contextoDeLaEntrega(token: unknown): Promise<CtxDeLaEntrega> {
   const tenantId = await getCurrentTenantId();
@@ -31,11 +33,17 @@ export const depsDeLaEntrega: DepsDeLaEntrega = {
     prisma.order.findFirst({ where: { id: orderId, tenantId }, select: { id: true, code: true, status: true, fulfillment: true } }),
   yaAvisado: async (tenantId, orderId) =>
     Boolean(await prisma.auditLog.findFirst({ where: { tenantId, entity: "Order", entityId: orderId, action: ACCION_ENTREGO }, select: { id: true } })),
+  yaSalio: async (tenantId, orderId) =>
+    Boolean(await prisma.auditLog.findFirst({ where: { tenantId, entity: "Order", entityId: orderId, action: ACCION_SALIO }, select: { id: true } })),
   marcarEntregaUnaVez: (tenantId, orderId, code) =>
     tenantTransaction(
       async (tx) => {
         await tx.$executeRaw`SELECT set_config('lock_timeout', '5000', true)`;
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`delivery-local-entrego:${tenantId}:${orderId}`}))`;
+        // Releer bajo candado: si lo cancelaron o cerraron recién, no queda un aviso suelto.
+        await tx.$queryRaw`SELECT 1 FROM "Order" WHERE id = ${orderId} AND "tenantId" = ${tenantId} FOR SHARE`;
+        const ahora = await tx.order.findFirst({ where: { id: orderId, tenantId }, select: { status: true } });
+        if (ahora?.status !== "READY") return "no-listo" as const;
         const ya = await tx.auditLog.findFirst({
           where: { tenantId, entity: "Order", entityId: orderId, action: ACCION_ENTREGO },
           select: { id: true },

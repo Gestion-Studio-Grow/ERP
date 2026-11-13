@@ -60,14 +60,22 @@ export type DepsDeLaSalida = {
   pedido(tenantId: string, orderId: string): Promise<PedidoDelCajon | null>;
   /** La fila de auditoría del alta (sus `changes`), o null. */
   cambiosDelAlta(tenantId: string, orderId: string): Promise<unknown>;
-  /** Graba ACCION_SALIO si todavía no está (con candado): «grabada» o «ya-estaba». */
-  marcarSalidaUnaVez(tenantId: string, orderId: string, code: number): Promise<"grabada" | "ya-estaba">;
+  /**
+   * Graba ACCION_SALIO de cada pedido que todavía no la tenga, en UNA transacción con candado, y
+   * RELEYENDO cada pedido adentro: si alguno ya no está «Listo» (lo cancelaron en ese instante) no
+   * se graba NINGUNO y se devuelve su número. Si no, cuántas marcas eran nuevas.
+   */
+  marcarSalidaUnaVez(tenantId: string, pedidos: { id: string; code: number }[]): Promise<MarcaDeSalida>;
 };
+
+export type MarcaDeSalida = { ok: true; nuevas: number } | { ok: false; code: number };
 
 export type ResultadoDelCajon = { ok: true; wa: string; url?: string; mensaje: string } | { ok: false; error: string };
 
 const APAGADO = "El delivery local no está prendido en este negocio.";
 const NO_ESTA = "Ese pedido ya no está (o no es de este negocio). Recargá la bandeja.";
+const NO_LISTO = "Primero marcalo «Listo»: al salir, el cliente ve en su link que va en camino.";
+const NO_LISTO_EN_VIAJE = (code: number) => `El pedido #${code} todavía no está «Listo»: marcalo o sacalo del viaje.`;
 
 function idValido(orderId: unknown): orderId is string {
   return typeof orderId === "string" && /^[A-Za-z0-9_-]{8,64}$/.test(orderId);
@@ -104,16 +112,15 @@ export async function mandarAlRepartidor(
   const p = await deps.pedido(ctx.tenantId, ctx.orderId);
   if (!p) return { ok: false, error: NO_ESTA };
   if (p.fulfillment !== "DELIVERY") return { ok: false, error: "Es para retirar en el local: no sale con el repartidor." };
-  if (p.status !== "READY") {
-    return { ok: false, error: "Primero marcalo «Listo»: al salir, el cliente ve en su link que va en camino." };
-  }
+  if (p.status !== "READY") return { ok: false, error: NO_LISTO };
   const pago = pagoDelAlta(await deps.cambiosDelAlta(ctx.tenantId, p.id));
-  const marca = await deps.marcarSalidaUnaVez(ctx.tenantId, p.id, p.code);
+  const marca = await deps.marcarSalidaUnaVez(ctx.tenantId, [{ id: p.id, code: p.code }]);
+  if (!marca.ok) return { ok: false, error: NO_LISTO };
   const texto = textoParaElRepartidor(paraElRepartidor(p, cfg.nombre, pago, ctx.linkDeEntrega?.(p.id) ?? null));
   return {
     ok: true,
     wa: waSinDestinatario(texto),
-    mensaje: marca === "grabada" ? `Pedido #${p.code} en camino: el cliente ya lo ve en su link.` : `El pedido #${p.code} ya figuraba en camino. Te armamos el mensaje de nuevo.`,
+    mensaje: marca.nuevas === 1 ? `Pedido #${p.code} en camino: el cliente ya lo ve en su link.` : `El pedido #${p.code} ya figuraba en camino. Te armamos el mensaje de nuevo.`,
   };
 }
 
@@ -122,8 +129,9 @@ export const TOPE_DEL_VIAJE = 8;
 
 /**
  * «Mandar juntos al repartidor»: 2 a TOPE_DEL_VIAJE pedidos Listos con envío. Se valida TODO antes
- * de marcar nada (uno que no va → no sale ninguno, con el número que falló); después cada pedido
- * se marca salido UNA vez (el mismo candado que el de a uno) y sale UN WhatsApp con las paradas.
+ * de marcar nada (uno que no va → no sale ninguno, con el número que falló); después se marcan
+ * TODOS en una transacción (el mismo candado que el de a uno, releyendo el estado adentro: si uno
+ * dejó de estar «Listo» en ese instante, no sale ninguno) y sale UN WhatsApp con las paradas.
  */
 export async function mandarViajeAlRepartidor(
   ctx: { tenantId: string; slug: string | null; orderIds: unknown; linkDeEntrega?: LinkDeEntrega },
@@ -140,16 +148,17 @@ export async function mandarViajeAlRepartidor(
     const p = await deps.pedido(ctx.tenantId, id);
     if (!p) return { ok: false, error: NO_ESTA };
     if (p.fulfillment !== "DELIVERY") return { ok: false, error: `El pedido #${p.code} es para retirar en el local: sacalo del viaje.` };
-    if (p.status !== "READY") return { ok: false, error: `El pedido #${p.code} todavía no está «Listo»: marcalo o sacalo del viaje.` };
+    if (p.status !== "READY") return { ok: false, error: NO_LISTO_EN_VIAJE(p.code) };
     pedidos.push(p);
   }
   const paradas: PedidoParaElRepartidor[] = [];
-  let nuevas = 0;
   for (const p of pedidos) {
     const pago = pagoDelAlta(await deps.cambiosDelAlta(ctx.tenantId, p.id));
-    if ((await deps.marcarSalidaUnaVez(ctx.tenantId, p.id, p.code)) === "grabada") nuevas += 1;
     paradas.push(paraElRepartidor(p, cfg.nombre, pago, ctx.linkDeEntrega?.(p.id) ?? null));
   }
+  const marca = await deps.marcarSalidaUnaVez(ctx.tenantId, pedidos.map((p) => ({ id: p.id, code: p.code })));
+  if (!marca.ok) return { ok: false, error: NO_LISTO_EN_VIAJE(marca.code) };
+  const { nuevas } = marca;
   const codigos = pedidos.map((p) => `#${p.code}`).join(", ");
   return {
     ok: true,

@@ -38,11 +38,15 @@ function base(p: Partial<PedidoDelCajon> = {}) {
     pedido: async (tenantId, orderId) => (tenantId === NEGOCIO && orderId === ID ? { ...PEDIDO, ...p } : null),
     cambiosDelAlta: async (tenantId) =>
       tenantId === NEGOCIO ? { code: 41, entregaLocal: { ubicacion: null, pago: { medio: "efectivo", pagaCon: 20_000 } } } : null,
-    marcarSalidaUnaVez: async (tenantId, orderId) => {
-      const k = `${tenantId}:${orderId}`;
-      if (salidas.includes(k)) return "ya-estaba";
-      salidas.push(k);
-      return "grabada";
+    marcarSalidaUnaVez: async (tenantId, lista) => {
+      let nuevas = 0;
+      for (const { id } of lista) {
+        const k = `${tenantId}:${id}`;
+        if (salidas.includes(k)) continue;
+        salidas.push(k);
+        nuevas += 1;
+      }
+      return { ok: true, nuevas };
     },
   };
   return { deps, salidas };

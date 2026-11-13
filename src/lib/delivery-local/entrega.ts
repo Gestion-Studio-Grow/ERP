@@ -60,8 +60,13 @@ export type DepsDeLaEntrega = {
   pedido(tenantId: string, orderId: string): Promise<PedidoDeLaEntrega | null>;
   /** ¿Ya hay un aviso ACCION_ENTREGO de este pedido? */
   yaAvisado(tenantId: string, orderId: string): Promise<boolean>;
-  /** Graba ACCION_ENTREGO si todavía no está (con candado): «grabada» o «ya-estaba». */
-  marcarEntregaUnaVez(tenantId: string, orderId: string, code: number): Promise<"grabada" | "ya-estaba">;
+  /** ¿El pedido tiene la marca «salió con el repartidor» (ACCION_SALIO)? */
+  yaSalio(tenantId: string, orderId: string): Promise<boolean>;
+  /**
+   * Graba ACCION_ENTREGO si todavía no está, con candado y RELEYENDO el pedido adentro: si ya no
+   * está «Listo» (lo cancelaron o cerraron en ese instante) no graba nada y da «no-listo».
+   */
+  marcarEntregaUnaVez(tenantId: string, orderId: string, code: number): Promise<"grabada" | "ya-estaba" | "no-listo">;
 };
 
 export type CtxDeLaEntrega = { tenantId: string; slug: string | null; secreto: string | null; token: unknown };
@@ -74,10 +79,11 @@ export type VistaDeLaEntrega =
 export type ResultadoDeLaEntrega = { ok: true; code: number; mensaje: string } | { ok: false; error: string };
 
 const LINK_INVALIDO = "Este link no es de un pedido de este negocio. Avisale al local por WhatsApp.";
+const CAMBIO_RECIEN = (code: number) => `El pedido #${code} cambió recién en el local: no hay nada que marcar. Avisale al local.`;
 
 type Chequeo = { ok: true; pedido: PedidoDeLaEntrega } | { ok: false; code: number | null; mensaje: string };
 
-async function chequear(ctx: CtxDeLaEntrega, deps: Pick<DepsDeLaEntrega, "pedido">): Promise<Chequeo> {
+async function chequear(ctx: CtxDeLaEntrega, deps: Pick<DepsDeLaEntrega, "pedido" | "yaSalio">): Promise<Chequeo> {
   if (!configDeliveryLocal(ctx.slug) || !ctx.secreto) return { ok: false, code: null, mensaje: LINK_INVALIDO };
   const orderId = verificarTokenDeEntrega(ctx.secreto, ctx.tenantId, ctx.token);
   if (!orderId) return { ok: false, code: null, mensaje: LINK_INVALIDO };
@@ -86,20 +92,30 @@ async function chequear(ctx: CtxDeLaEntrega, deps: Pick<DepsDeLaEntrega, "pedido
   if (p.status === "CANCELLED") return { ok: false, code: p.code, mensaje: `El pedido #${p.code} fue cancelado: no hay nada que marcar. Si lo llevaste igual, avisale al local.` };
   if (p.status === "DELIVERED") return { ok: false, code: p.code, mensaje: `El local ya cerró el pedido #${p.code} como entregado. No hace falta marcar nada.` };
   if (p.status !== "READY") return { ok: false, code: p.code, mensaje: `El pedido #${p.code} todavía no figura listo para salir. Avisale al local.` };
+  // El link sólo se arma al marcar la salida; igual se exige la marca: «Listo» sin salir no se entrega.
+  if (!(await deps.yaSalio(ctx.tenantId, p.id))) return { ok: false, code: p.code, mensaje: `El pedido #${p.code} todavía no figura en camino. Avisale al local.` };
   return { ok: true, pedido: p };
 }
 
-export async function vistaDeLaEntrega(ctx: CtxDeLaEntrega, deps: Pick<DepsDeLaEntrega, "pedido" | "yaAvisado">): Promise<VistaDeLaEntrega> {
+export async function vistaDeLaEntrega(ctx: CtxDeLaEntrega, deps: Pick<DepsDeLaEntrega, "pedido" | "yaSalio" | "yaAvisado">): Promise<VistaDeLaEntrega> {
   const c = await chequear(ctx, deps);
   if (!c.ok) return { estado: "sin-efecto", code: c.code, mensaje: c.mensaje };
   return { estado: (await deps.yaAvisado(ctx.tenantId, c.pedido.id)) ? "ya-avisado" : "para-marcar", code: c.pedido.code };
 }
 
-/** «Entregué»: graba el aviso UNA vez. No cambia el estado del pedido. */
-export async function repartidorEntrego(ctx: CtxDeLaEntrega, deps: Pick<DepsDeLaEntrega, "pedido" | "marcarEntregaUnaVez">): Promise<ResultadoDeLaEntrega> {
+/**
+ * «Entregué»: graba el aviso UNA vez. No cambia el estado del pedido. Si entre el chequeo y el
+ * candado el pedido dejó de estar «Listo», no se graba nada y se responde lo mismo que si ya lo
+ * hubiera estado al abrir (se vuelve a chequear para dar el motivo).
+ */
+export async function repartidorEntrego(ctx: CtxDeLaEntrega, deps: Pick<DepsDeLaEntrega, "pedido" | "yaSalio" | "marcarEntregaUnaVez">): Promise<ResultadoDeLaEntrega> {
   const c = await chequear(ctx, deps);
   if (!c.ok) return { ok: false, error: c.mensaje };
   const marca = await deps.marcarEntregaUnaVez(ctx.tenantId, c.pedido.id, c.pedido.code);
+  if (marca === "no-listo") {
+    const otra = await chequear(ctx, deps);
+    return { ok: false, error: otra.ok ? CAMBIO_RECIEN(c.pedido.code) : otra.mensaje };
+  }
   return {
     ok: true,
     code: c.pedido.code,

@@ -10,7 +10,9 @@
 // La lógica vive en src/lib/delivery-local/salida.ts (con su test); acá sólo el acceso a datos.
 //
 // LA PLATA NO SE MUEVE ACÁ: lo único que se escribe es la marca «salió con el repartidor» en la
-// auditoría del pedido, una sola vez (candado de la transacción sobre el pedido).
+// auditoría del pedido, una sola vez (candado de la transacción sobre el pedido). Bajo el candado se
+// relee cada pedido con su fila trabada en modo compartido: si uno ya no está «Listo» (lo cancelaron
+// en ese instante), no se marca ninguno.
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
@@ -30,6 +32,7 @@ import {
   type LinkDeEntrega,
   seguimientoParaElCliente as seguimientoCore,
   type DepsDeLaSalida,
+  type MarcaDeSalida,
   type ResultadoDelCajon,
 } from "@/lib/delivery-local/salida";
 
@@ -70,20 +73,30 @@ function deps(actor: string): DepsDeLaSalida {
           select: { changes: true },
         })
       )?.changes ?? null,
-    marcarSalidaUnaVez: (tenantId, orderId, code) =>
+    marcarSalidaUnaVez: (tenantId, pedidos) =>
       tenantTransaction(
-        async (tx) => {
+        async (tx): Promise<MarcaDeSalida> => {
           await tx.$executeRaw`SELECT set_config('lock_timeout', '5000', true)`;
-          await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`delivery-local-salio:${tenantId}:${orderId}`}))`;
-          const ya = await tx.auditLog.findFirst({
-            where: { tenantId, entity: "Order", entityId: orderId, action: ACCION_SALIO },
-            select: { id: true },
+          // Siempre en el mismo orden: dos viajes que comparten pedidos no se traban entre sí.
+          const ids = [...new Set(pedidos.map((p) => p.id))].sort();
+          for (const id of ids) await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`delivery-local-salio:${tenantId}:${id}`}))`;
+          await tx.$queryRaw`SELECT 1 FROM "Order" WHERE "tenantId" = ${tenantId} AND id = ANY(${ids}::text[]) ORDER BY id FOR SHARE`;
+          const ahora = await tx.order.findMany({ where: { tenantId, id: { in: ids } }, select: { id: true, status: true } });
+          for (const p of pedidos) {
+            if (ahora.find((o) => o.id === p.id)?.status !== "READY") return { ok: false, code: p.code };
+          }
+          const ya = await tx.auditLog.findMany({
+            where: { tenantId, entity: "Order", entityId: { in: ids }, action: ACCION_SALIO },
+            select: { entityId: true },
           });
-          if (ya) return "ya-estaba" as const;
-          await tx.auditLog.create({
-            data: { tenantId, actor, action: ACCION_SALIO, entity: "Order", entityId: orderId, changes: { code }, channel: "admin" },
-          });
-          return "grabada" as const;
+          const salidos = new Set(ya.map((f) => f.entityId));
+          const nuevas = pedidos.filter((p, i) => !salidos.has(p.id) && pedidos.findIndex((q) => q.id === p.id) === i);
+          if (nuevas.length > 0) {
+            await tx.auditLog.createMany({
+              data: nuevas.map((p) => ({ tenantId, actor, action: ACCION_SALIO, entity: "Order", entityId: p.id, changes: { code: p.code }, channel: "admin" })),
+            });
+          }
+          return { ok: true, nuevas: nuevas.length };
         },
         { tenantId },
       ),
