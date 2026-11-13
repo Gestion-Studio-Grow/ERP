@@ -4,8 +4,9 @@
 //
 // «Pedí Local» (nombre PROVISIONAL A CONFIRMAR): la vidriera de pedidos y delivery propio de un
 // comercio del barrio (src/lib/delivery-local/config.ts). Acá vive lo que no necesita pantalla:
-//   · `cartaPorCategoria`: el catálogo no trae categoría (getStorefront), así que se agrupa por el
-//     nombre del producto con palabras de cafetería. Lo que no encaja va a «Más de la carta».
+//   · `cartaPorCategoria`: el catálogo no trae categoría (getStorefront). Si la config del local trae
+//     su carta (`cfg.carta`, carta-del-local.ts), manda esa: categorías y orden del local. Lo que no
+//     figura ahí se agrupa por el nombre con palabras de cafetería; lo que no encaja, «Más de la carta».
 //   · `totalesDeLaBolsa`: subtotal + envío = total, el MISMO número que el alta suma en el servidor.
 //   · `revisarPedidoLocal`: lo que se controla ANTES de mandar (nombre, WhatsApp, dirección, pago,
 //     términos). El servidor vuelve a decidir todo: esto es para no hacer esperar a la persona.
@@ -15,6 +16,7 @@
 import type { Disponibilidad } from "../reglas-tienda";
 import { leerPago, type MedioPreferido } from "@/lib/delivery-local/pago";
 import { redondearAlCentavo } from "@/lib/dinero/redondeo";
+import { fichasDeLaCarta, planoDelNombre, type CartaDelLocal } from "@/lib/delivery-local/carta-del-local";
 import { detalleDeEleccion, leerEleccion, partesDeLaClave, recargoUnitario, type GrupoDeOpciones } from "@/lib/delivery-local/opciones";
 export { claveDeLinea, partesDeLaClave } from "@/lib/delivery-local/opciones";
 
@@ -28,14 +30,16 @@ export type ProductoDeLaCarta = {
   disponibilidad?: Disponibilidad;
 };
 
-export type Categoria = { id: string; titulo: string };
+/** `dibujo`: el de Ilustracion.tsx cuando el id es de la carta del local (si no, el id). */
+export type Categoria = { id: string; titulo: string; dibujo?: string };
 
 // El orden es el de la carta de una cafetería. Se compara SIN tildes y en minúscula («Café» = «cafe»).
 // La PRIMERA que matchea gana: «Tostado de jamón y queso» es salado aunque no diga «sándwich»;
 // «Café con leche» es café aunque diga «leche». «Café en grano» es para llevar a casa: va primero.
+// «capuc» y «mocca» cubren cómo lo escriben muchos locales («Capuccino», «Moccacino»).
 const CATEGORIAS: readonly (Categoria & { palabras: RegExp })[] = [
   { id: "granos", titulo: "Café para llevar a casa", palabras: /\b(en grano|grano|molido|bolsa de cafe|blend de)/ },
-  { id: "cafe", titulo: "Café", palabras: /\b(cafe|espresso|expreso|cortado|lagrima|capuch|cappuc|latte|flat ?white|americano|ristretto|macchiato|moka|mocha|filtrado|chemex|v60|aeropress|cold ?brew)/ },
+  { id: "cafe", titulo: "Café", palabras: /\b(cafe|espresso|expreso|cortado|lagrima|capuc|cappuc|latte|flat ?white|americano|ristretto|macchiato|moka|mocha|mocca|filtrado|chemex|v60|aeropress|cold ?brew)/ },
   { id: "bebidas", titulo: "Otras bebidas", palabras: /\b(te\b|chai|mate\b|submarino|chocolatada|chocolate caliente|jugo|exprimido|limonada|licuado|smoothie|agua\b|gaseosa|soda|tonica|kombucha|batido)/ },
   { id: "brunch", titulo: "Brunch y salado", palabras: /\b(tostad|toston|sandwich|wrap|bagel|focaccia|chipa|huevo|revuelto|omelette|palta|avocado|bowl|ensalada|quiche|empanada|brunch|desayuno|yogur|granola|panini)/ },
   { id: "pasteleria", titulo: "Pastelería", palabras: /\b(medialuna|croissant|factura|torta|budin|muffin|brownie|alfajor|cookie|galleta|scon|cheesecake|lemon pie|tarteleta|cuadrado|roll|rogel|pastafrola|pasta frola|carrot|bizcocho|chocotorta|cinnamon|danesa|tarta de)/ },
@@ -54,18 +58,42 @@ export function categoriaDe(nombre: string): Categoria {
   return c ? { id: c.id, titulo: c.titulo } : OTROS;
 }
 
-/** La carta agrupada, en el orden de CATEGORIAS y con «Más de la carta» al final. Sin grupos vacíos. */
-export function cartaPorCategoria<P extends { name: string }>(productos: readonly P[]): { categoria: Categoria; productos: P[] }[] {
-  // Orden de la carta: lo de tomar, lo de comer, lo dulce, y lo de llevar a casa al final.
-  const orden = ["cafe", "bebidas", "brunch", "pasteleria", "granos", OTROS.id];
-  const grupos = new Map<string, { categoria: Categoria; productos: P[] }>();
-  for (const p of productos) {
-    const c = categoriaDe(p.name);
+/**
+ * La carta agrupada. Con la carta del local: sus categorías primero, en su orden y con sus
+ * productos en su orden; lo que no figura ahí, por palabras (orden de CATEGORIAS) y «Más de la
+ * carta» al final. Sin grupos vacíos.
+ */
+export function cartaPorCategoria<P extends { name: string }>(
+  productos: readonly P[],
+  cartaDelLocal?: CartaDelLocal | null,
+): { categoria: Categoria; productos: P[] }[] {
+  const fichas = fichasDeLaCarta(cartaDelLocal);
+  // Orden por palabras: lo de tomar, lo de comer, lo dulce, y lo de llevar a casa al final.
+  const porPalabras = ["cafe", "bebidas", "brunch", "pasteleria", "granos", OTROS.id];
+  const orden = [...(cartaDelLocal ?? []).map((c) => c.id), ...porPalabras];
+  const grupos = new Map<string, { categoria: Categoria; productos: { p: P; orden: number }[] }>();
+  productos.forEach((p, i) => {
+    const f = fichas.get(planoDelNombre(p.name));
+    const c = f ? f.categoria : categoriaDe(p.name);
     const g = grupos.get(c.id) ?? { categoria: c, productos: [] };
-    g.productos.push(p);
+    // Los de la carta del local, en su orden; los demás, detrás y en el orden en que llegaron.
+    g.productos.push({ p, orden: f ? f.orden : 10_000 + i });
     grupos.set(c.id, g);
-  }
-  return orden.flatMap((id) => (grupos.has(id) ? [grupos.get(id)!] : []));
+  });
+  return [...new Set(orden)].flatMap((id) => {
+    const g = grupos.get(id);
+    return g ? [{ categoria: g.categoria, productos: g.productos.sort((a, b) => a.orden - b.orden).map((x) => x.p) }] : [];
+  });
+}
+
+/** «Flat white + 2 × Medialuna de manteca» (hasta 3 cosas y «y N más»): para «Lo de siempre». */
+export function resumenDelPedido(items: readonly { nombre: string; cantidad: number; saleUnit: "UNIT" | "WEIGHT" }[]): string {
+  const partes = items.slice(0, 3).map((i) => {
+    if (i.saleUnit === "WEIGHT") return `${String(i.cantidad).replace(".", ",")} kg de ${i.nombre}`;
+    return i.cantidad > 1 ? `${i.cantidad} × ${i.nombre}` : i.nombre;
+  });
+  const resto = items.length - partes.length;
+  return resto > 0 ? `${partes.join(" + ")} y ${resto} más` : partes.join(" + ");
 }
 
 export function precioUnitario(p: Pick<ProductoDeLaCarta, "saleUnit" | "price" | "pricePerKg">): number {

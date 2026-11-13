@@ -11,14 +11,18 @@
 //
 // LOS DATOS DE BITÁCORA CAFÉ SON PROVISIONALES A CONFIRMAR con el local: alias, titular, dirección,
 // coordenadas, radio y horario. MARCA: Bitácora tiene autorización registrada
-// (docs/tenants/bitacora/AUTORIZACION-MARCA.md), pero todavía no hay material (logo, colores, fotos:
-// marca-y-material.md). Mientras `marca` no traiga nada, la vidriera va con la piel GSG y el nombre
-// del local en texto. Un negocio SIN autorización registrada no lleva `marca` (ADR-042).
+// (docs/tenants/bitacora/AUTORIZACION-MARCA.md), sólo para su tienda. Su carta, sus opciones y su
+// piel (colores, logo, portada y letra) salen de su menú público de Fudo (13/11/2026): carta en
+// carta-bitacora.ts, opciones en opciones-bitacora.ts; todo provisional a confirmar con el local.
+// Un negocio SIN autorización registrada no lleva `marca` (ADR-042).
 
 import type { MedioPreferido } from "./pago";
 import type { MarcaDelLocal } from "./marca";
 import type { HorarioDelLocal } from "./horario";
-import type { GrupoDeOpciones, OpcionesDeProducto } from "./opciones";
+import type { OpcionesDeProducto } from "./opciones";
+import type { CartaDelLocal } from "./carta-del-local";
+import { CARTA_BITACORA } from "./carta-bitacora";
+import { OPCIONES_BITACORA } from "./opciones-bitacora";
 
 export type ConfigDeliveryLocal = {
   /** Nombre que se muestra del comercio. */
@@ -43,6 +47,11 @@ export type ConfigDeliveryLocal = {
    */
   opciones?: readonly OpcionesDeProducto[];
   /**
+   * La carta del local: categorías en su orden, descripción, foto y destacados, por NOMBRE de
+   * producto (carta-del-local.ts). Sin esto (o para lo que no figura), la regla por palabras.
+   */
+  carta?: CartaDelLocal;
+  /**
    * Demora típica de un envío, en minutos desde que se manda el pedido. Con ella el seguimiento
    * promete un rango («llega entre las 18:20 y 18:35», src/lib/delivery-local/reloj.ts); sin ella,
    * no promete hora.
@@ -63,31 +72,6 @@ export type ConfigDeliveryLocal = {
 };
 
 const PROVISIONAL = "provisional a confirmar";
-
-// Grupos de opciones de Bitácora: PROVISIONALES A CONFIRMAR (nombres y recargos de ejemplo).
-const TAMANO_CAFE: GrupoDeOpciones = {
-  id: "tamano",
-  nombre: "Tamaño",
-  tipo: "unico",
-  obligatorio: true,
-  opciones: [
-    { id: "chico", nombre: "Chico", recargo: 0 },
-    { id: "mediano", nombre: "Mediano", recargo: 500 },
-    { id: "grande", nombre: "Grande", recargo: 900 },
-  ],
-};
-const LECHE_Y_EXTRAS: GrupoDeOpciones = {
-  id: "leche-extras",
-  nombre: "Leche y extras",
-  tipo: "multiple",
-  opciones: [
-    { id: "deslactosada", nombre: "Leche deslactosada", recargo: 0 },
-    { id: "almendras", nombre: "Leche de almendras", recargo: 700 },
-    { id: "avena", nombre: "Leche de avena", recargo: 700 },
-    { id: "shot", nombre: "Shot extra de café", recargo: 800 },
-    { id: "canela", nombre: "Canela", recargo: 0 },
-  ],
-};
 
 export const CONFIGS_DELIVERY_LOCAL: Readonly<Record<string, ConfigDeliveryLocal>> = Object.freeze({
   bitacora: {
@@ -110,23 +94,28 @@ export const CONFIGS_DELIVERY_LOCAL: Readonly<Record<string, ConfigDeliveryLocal
       },
       provisional: true,
     },
-    // PROVISIONALES A CONFIRMAR con el local: productos, nombres y recargos de ejemplo. El producto
-    // se busca por nombre en la carta (sin tildes ni mayúsculas); el que no está, no lleva opciones.
-    opciones: [
-      { producto: "Latte", grupos: [TAMANO_CAFE, LECHE_Y_EXTRAS] },
-      { producto: "Café con leche", grupos: [TAMANO_CAFE, LECHE_Y_EXTRAS] },
-      { producto: "Capuccino", grupos: [TAMANO_CAFE, LECHE_Y_EXTRAS] },
-      { producto: "Flat white", grupos: [LECHE_Y_EXTRAS] },
-    ],
+    // Del mapeo de Fudo (opciones-bitacora.ts): lo que no dice «real» es PROVISIONAL A CONFIRMAR.
+    // El producto se busca por nombre en la carta (sin tildes ni mayúsculas).
+    opciones: OPCIONES_BITACORA,
+    carta: CARTA_BITACORA,
     demoraMin: 35, // provisional a confirmar con el local
     medios: ["transferencia", "efectivo", "mercadopago"],
     transferencia: { alias: "ALIAS.PROVISIONAL.A.CONFIRMAR", titular: `Titular ${PROVISIONAL}`, banco: "Mercado Pago" },
     razonSocial: `Bitácora Café (${PROVISIONAL})`,
     cuit: null,
     provisional: true,
-    // Autorizada (AUTORIZACION-MARCA.md), sin material todavía: cuando el local pase logo, colores y
-    // la foto de portada (Drive, no Git), se cargan acá. Vacío = piel GSG.
-    marca: {},
+    // Autorizada (AUTORIZACION-MARCA.md). Su cara en Fudo: azul marino, crema, terracota y Manrope
+    // (contrastes AA calculados en marca.ts). Logo y portada por URL de Fudo (no se bajan a Git):
+    // PROVISIONAL A CONFIRMAR, pasarlos a almacenamiento propio antes de salir de la prueba.
+    marca: {
+      colorPrimario: "#323977",
+      colorFondo: "#FCF5F0",
+      colorBanda: "#323977",
+      colorAcento: "#B37C57",
+      letra: "manrope",
+      logoUrl: "https://fudo-apps-storage.s3.sa-east-1.amazonaws.com/production/354552/qr-menu/logo?updatedAt=1786545600271",
+      fotoPortada: "https://fudo-apps-storage.s3.sa-east-1.amazonaws.com/production/354552/qr-menu/background-image?updatedAt=1786545600271",
+    },
   },
 });
 

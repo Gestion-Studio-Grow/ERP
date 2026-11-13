@@ -9,6 +9,12 @@
 //     contraste; como texto suelto (precios, enlaces) sólo se usa si da ≥ 4,5:1 contra el fondo.
 //   · `colorFondo` sólo se acepta si es claro (la piel es clara: los textos del tema no se invierten).
 //   · `logoUrl` y `fotoPortada`: rutas propias (`/…`) o https. Otra cosa se ignora.
+//   · `colorBanda` pinta la barra, la portada y el índice (data-banda en la raíz). El texto encima
+//     (el fondo del local, blanco o tinta: el primero que dé ≥ 4,5:1) se elige por contraste; si ninguno
+//     llega, no hay banda. El secundario sobre la banda es una mezcla que también da ≥ 4,5:1.
+//   · `colorAcento` rellena etiquetas con la tinta o el blanco que dé ≥ 4,5:1; como texto suelto se
+//     oscurece lo mínimo para dar ≥ 4,5:1 contra el fondo y contra el blanco de las tarjetas.
+//   · `letra`: la familia del local (sólo las que la vidriera sabe cargar, VidrieraLocal → fuentes.ts).
 // Las variables son PROPIAS del módulo (`--pl-*`, local.module.css): los tokens de tema compartidos
 // no se tocan.
 
@@ -17,13 +23,22 @@ export type MarcaDelLocal = {
   colorPrimario?: string;
   colorFondo?: string;
   fotoPortada?: string;
+  colorBanda?: string;
+  colorAcento?: string;
+  letra?: LetraDelLocal;
 };
+
+/** Las letras que la vidriera sabe cargar (next/font, fuentes.ts). */
+export type LetraDelLocal = "manrope";
 
 export type PielDelLocal = {
   /** Variables CSS para el `style` de la raíz. Vacío = piel GSG. */
   variables: Record<string, string>;
   logoUrl: string | null;
   fotoPortada: string | null;
+  /** Hay banda (barra, portada e índice en el color del local): `data-banda` en la raíz. */
+  banda: boolean;
+  letra: LetraDelLocal | null;
 };
 
 type Rgb = [number, number, number];
@@ -56,7 +71,8 @@ const hex = (c: Rgb) => `#${c.map((n) => n.toString(16).padStart(2, "0")).join("
 /** Fondo de referencia cuando el local no trae el suyo (la superficie hueso de la piel GSG). */
 const HUESO: Rgb = [250, 248, 244];
 
-function urlSegura(u: string | undefined): string | null {
+/** Ruta propia (`/…`) o https sin caracteres raros; otra cosa, null. */
+export function urlSegura(u: string | undefined): string | null {
   const s = (u ?? "").trim();
   if (!s) return null;
   if (s.startsWith("/") && !s.startsWith("//")) return s;
@@ -78,5 +94,52 @@ export function pielDelLocal(marca: MarcaDelLocal | null | undefined): PielDelLo
     // Como texto suelto, sólo si se lee contra el fondo (AA 4,5:1); si no, queda la tinta del tema.
     if (contraste(primario, fondoOk ?? HUESO) >= 4.5) variables["--pl-primario-texto"] = hex(primario);
   }
-  return { variables, logoUrl: urlSegura(marca?.logoUrl), fotoPortada: urlSegura(marca?.fotoPortada) };
+  const banda = leerHex(marca?.colorBanda);
+  if (banda) {
+    // En orden de preferencia: la crema del local, el blanco y la tinta; el primero que dé AA.
+    const sobre = [fondoOk ?? BLANCO, BLANCO, TINTA].find((c) => contraste(banda, c) >= AA);
+    if (sobre) {
+      const suave = mezclar(sobre, banda, 0.18);
+      variables["--pl-banda"] = hex(banda);
+      variables["--pl-sobre-banda"] = hex(sobre);
+      variables["--pl-sobre-banda-suave"] = hex(contraste(banda, suave) >= AA ? suave : sobre);
+    }
+  }
+
+  const acento = leerHex(marca?.colorAcento);
+  if (acento) {
+    const tinta = contraste(acento, TINTA) >= contraste(acento, BLANCO) ? TINTA : BLANCO;
+    if (contraste(acento, tinta) >= AA) {
+      variables["--pl-acento"] = hex(acento);
+      variables["--pl-sobre-acento"] = hex(tinta);
+    }
+    const texto = oscurecerHasta(acento, [fondoOk ?? HUESO, BLANCO]);
+    if (texto) variables["--pl-acento-texto"] = hex(texto);
+  }
+
+  const letra = marca?.letra && LETRAS.includes(marca.letra) ? marca.letra : null;
+  return {
+    variables,
+    logoUrl: urlSegura(marca?.logoUrl),
+    fotoPortada: urlSegura(marca?.fotoPortada),
+    banda: Boolean(variables["--pl-banda"]),
+    letra,
+  };
+}
+
+const AA = 4.5;
+const LETRAS: readonly LetraDelLocal[] = ["manrope"];
+
+/** `a` con un `t` (0–1) de `b`, canal por canal. */
+function mezclar(a: Rgb, b: Rgb, t: number): Rgb {
+  return a.map((c, i) => Math.round(c + (b[i] - c) * t)) as Rgb;
+}
+
+/** El color, oscurecido de a 2 % hasta leerse (≥ 4,5:1) sobre todos los fondos; null si no llega. */
+function oscurecerHasta(c: Rgb, fondos: readonly Rgb[]): Rgb | null {
+  for (let k = 0; k <= 50; k++) {
+    const x = c.map((n) => Math.round(n * (1 - k * 0.02))) as Rgb;
+    if (fondos.every((f) => contraste(x, f) >= AA)) return x;
+  }
+  return null;
 }

@@ -1,5 +1,5 @@
-// La barra de arriba de «Pedí Local»: la marca del local (su logo si la config lo trae, si no un
-// monograma con la inicial) y el enlace a «Mi cuenta». La usan la vidriera y /tienda/mi-cuenta.
+// La barra de arriba de «Pedí Local»: la marca del local (su logo en un disco de 40 px si la config
+// lo trae, como en su menú QR; `alt` vacío porque el nombre va al lado; si no, un monograma) y el enlace a «Mi cuenta». La usan la vidriera y /tienda/mi-cuenta.
 // Server-safe (sin estado).
 
 import Link from "next/link";
@@ -15,7 +15,7 @@ export default function BarraDelLocal({ cfg, logoUrl, enCuenta = false }: { cfg:
         <Link href="/tienda" className={s.marcaLocal} aria-label={`${cfg.nombre}, ir a la carta`}>
           {logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element -- URL de la config del local; sin loader remoto configurado
-            <img className={s.logo} src={logoUrl} alt="" width={120} height={40} />
+            <img className={s.logo} src={logoUrl} alt="" width={40} height={40} />
           ) : (
             <span className={s.monograma} aria-hidden="true">
               {inicial}

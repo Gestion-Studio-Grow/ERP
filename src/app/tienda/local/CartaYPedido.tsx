@@ -8,9 +8,13 @@
 //     `usePedidoOnline` (placeOnlineOrder). Suma `medioPreferido`, `pagaCon`, la ubicación
 //     (`ubicacionLat/Lng/Precision`) y `aceptaTerminos`, que lee src/lib/delivery-local/alta.ts.
 //   · En el celular, una barra fija abajo lleva al pedido con la cantidad y el total.
-//   · Vidriera de autor: navegación fija por secciones (IndiceDeLaCarta), tarjetas con el dibujo de
-//     su categoría (no hay fotos de producto en `getStorefront`), un «pop» al sumar y la barra que
-//     late con el contador. Todo con transform; con reduced-motion, quieto.
+//   · Vidriera de autor: navegación fija por secciones (IndiceDeLaCarta), tarjetas con la foto y la
+//     descripción de la carta del local (`cfg.carta`, carta-del-local.ts; `getStorefront` no las
+//     trae) o el dibujo de su categoría, el riel «Los elegidos» con los destacados, un «pop» al
+//     sumar y la barra que late con el contador. Todo con transform; con reduced-motion, quieto.
+//   · Cerrado: una franja fija bajo el índice y la barra de la bolsa lo dicen; la carta sigue a la vista.
+//   · «Lo de siempre»: con un pedido confirmado en este teléfono, una ficha arriba de la carta lo
+//     repite de un toque (la misma carga que `?repetir=`).
 //   · «Mi cuenta» del dispositivo (src/lib/delivery-local/mi-cuenta.ts): al mandar, el pedido y la
 //     dirección quedan en ESTE navegador; las direcciones guardadas prellenan el checkout y
 //     `/tienda?repetir=<clave>` recarga la bolsa con la carta de hoy (precio del servidor).
@@ -23,7 +27,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import type { ConfigEnvios } from "@/lib/envios/modelo";
 import type { ConfigDeliveryLocal } from "@/lib/delivery-local/config";
 import { formatearCantidad } from "@/lib/pos-peso";
-import { asociarCodigo, descartarSinConfirmar, guardarPedido, recordarDireccion, repetirBolsa } from "@/lib/delivery-local/mi-cuenta";
+import { asociarCodigo, descartarSinConfirmar, guardarPedido, recordarDireccion, repetirBolsa, type PedidoGuardado } from "@/lib/delivery-local/mi-cuenta";
+import { destacadosDeLaCarta, fichasDeLaCarta, planoDelNombre, type FichaDelProducto } from "@/lib/delivery-local/carta-del-local";
 import { gruposDelProducto, type GrupoDeOpciones } from "@/lib/delivery-local/opciones";
 import { usePedidoOnline } from "../pedido-online";
 import { nuevaClaveDePedido, etiquetaDeDisponibilidad } from "../reglas-tienda";
@@ -34,6 +39,7 @@ import {
   claveDeLinea,
   lineasDeLaBolsa,
   precioUnitario,
+  resumenDelPedido,
   revisarPedidoLocal,
   totalesDeLaBolsa,
   type CampoDelPedido,
@@ -60,6 +66,7 @@ export default function CartaYPedido({
   entrega: configEnvios,
   hoy,
   cerrado,
+  estado,
 }: {
   cfg: ConfigDeliveryLocal;
   slug: string;
@@ -73,6 +80,8 @@ export default function CartaYPedido({
    * devuelve el servidor): se arma la bolsa igual, pero el botón de pedir se apaga.
    */
   cerrado: string | null;
+  /** «Abierto · cierra 20:00» / «Cerrado · abre mañana 8:00» (horario.ts → textoDelEstado). */
+  estado: string;
 }) {
   const [bolsa, setBolsa] = useState<Record<string, number>>({});
   const [claveDePedido, setClaveDePedido] = useState(nuevaClaveDePedido);
@@ -134,28 +143,32 @@ export default function CartaYPedido({
     const clave = url.searchParams.get("repetir");
     if (!clave) return;
     const anterior = leerCuentaGuardada(slug).pedidos.find((x) => x.clave === clave);
-    const r = anterior ? repetirBolsa(anterior.items, productos) : null;
     // La bolsa sale de algo externo (el navegador): se carga en el cuadro siguiente, no en el efecto.
     // El parámetro se saca recién ahí (en desarrollo, StrictMode corre el efecto dos veces).
     const cuadro = requestAnimationFrame(() => {
       url.searchParams.delete("repetir");
       url.hash = "tu-pedido";
       window.history.replaceState(null, "", url.pathname + url.search + url.hash);
-      if (!anterior || !r) return;
-      // Lo que tenía opciones que hoy ya no existen no se carga: se avisa con lo que falta.
-      const cargadas = new Set(lineasDeLaBolsa(productos, r.bolsa, gruposDe).map((l) => l.clave));
-      const sinOpciones = Object.keys(r.bolsa)
-        .filter((k) => !cargadas.has(k))
-        .map((k) => `${productos.find((p) => k === p.id || k.startsWith(`${p.id}#`))?.name ?? "un producto"} (volvé a elegir las opciones)`);
-      setBolsa(r.bolsa);
-      setClaveDePedido(nuevaClaveDePedido());
-      setRepetido({ fecha: anterior.fecha, faltan: [...r.faltan, ...sinOpciones] });
-      requestAnimationFrame(() => document.getElementById("tu-pedido")?.scrollIntoView({ block: "start" }));
+      if (anterior) cargarPedidoAnterior(anterior);
     });
     return () => cancelAnimationFrame(cuadro);
     // Sólo al montar: la carta del servidor ya vino con la página.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /** Carga un pedido guardado con la carta y los precios de HOY (repetir y «Lo de siempre»). */
+  function cargarPedidoAnterior(anterior: PedidoGuardado) {
+    const r = repetirBolsa(anterior.items, productos);
+    // Lo que tenía opciones que hoy ya no existen no se carga: se avisa con lo que falta.
+    const cargadas = new Set(lineasDeLaBolsa(productos, r.bolsa, gruposDe).map((l) => l.clave));
+    const sinOpciones = Object.keys(r.bolsa)
+      .filter((k) => !cargadas.has(k))
+      .map((k) => `${productos.find((p) => k === p.id || k.startsWith(`${p.id}#`))?.name ?? "un producto"} (volvé a elegir las opciones)`);
+    setBolsa(r.bolsa);
+    setClaveDePedido(nuevaClaveDePedido());
+    setRepetido({ fecha: anterior.fecha, faltan: [...r.faltan, ...sinOpciones] });
+    requestAnimationFrame(() => document.getElementById("tu-pedido")?.scrollIntoView({ block: "start" }));
+  }
 
   // `clave`: la línea de la bolsa (el id del producto o, con opciones, «id#opciones»).
   function tocar(p: ProductoDeLaCarta, dir: 1 | -1, clave: string = p.id, detalle = "") {
@@ -227,12 +240,23 @@ export default function CartaYPedido({
   const errorDe = (campo: CampoDelPedido) => (revision?.campo === campo ? revision.error : null);
   const invalido = (campo: CampoDelPedido) => (revision?.campo === campo ? true : undefined);
   const bloqueado = pedido.enviando || Boolean(entrega.freno) || Boolean(cerrado);
-  const carta = useMemo(() => cartaPorCategoria(productos), [productos]);
+  const carta = useMemo(() => cartaPorCategoria(productos, cfg.carta), [productos, cfg.carta]);
   const secciones = useMemo(() => carta.map((g) => g.categoria), [carta]);
+  const fichas = useMemo(() => fichasDeLaCarta(cfg.carta), [cfg.carta]);
+  const fichaDe = (p: ProductoDeLaCarta) => fichas.get(planoDelNombre(p.name)) ?? null;
+  const destacados = useMemo(() => destacadosDeLaCarta(productos, cfg.carta), [productos, cfg.carta]);
+  // «Lo de siempre»: el último pedido CONFIRMADO de este teléfono (los sin número no cuentan).
+  const loDeSiempre = cuenta.pedidos.find((x) => x.code) ?? null;
+  const conGratis = entrega.modo === "envio" && entrega.faltaParaGratis > 0;
 
   return (
     <>
       {secciones.length > 1 && <IndiceDeLaCarta secciones={secciones} />}
+      {cerrado && (
+        <p role="status" className={s.franjaCerrado}>
+          {estado}. Podés mirar la carta y dejar tu pedido armado.
+        </p>
+      )}
       <p className={s.soloLector} aria-live="polite">
         {anuncio}
       </p>
@@ -245,6 +269,41 @@ export default function CartaYPedido({
             <p className={s.cartaBajada}>Elegí, sumá a tu pedido y lo recibís en casa o lo pasás a buscar.</p>
           </div>
           {carta.length === 0 && <p className={s.vacio}>El local todavía no cargó su carta. Escribile por WhatsApp y te cuenta qué hay hoy.</p>}
+          {loDeSiempre && !hayProductos && !pedido.confirmado && (
+            <div className={s.deSiempre}>
+              <p className={s.deSiempreTexto}>
+                <strong>Lo de siempre:</strong> {resumenDelPedido(loDeSiempre.items)}
+              </p>
+              <button type="button" className={s.agregar} onClick={() => cargarPedidoAnterior(loDeSiempre)} aria-label={`Repetir lo de siempre: ${resumenDelPedido(loDeSiempre.items)}`}>
+                Repetir
+              </button>
+            </div>
+          )}
+          {destacados.length > 0 && (
+            <section aria-labelledby="pl-elegidos-t" className={s.elegidosSeccion}>
+              <div className={s.categoriaCabeza}>
+                <h3 id="pl-elegidos-t" className={s.categoriaTitulo}>
+                  Los elegidos de {cfg.nombre}
+                </h3>
+              </div>
+              <ul className={s.elegidos}>
+                {destacados.map((p) => (
+                  <TarjetaDeProducto
+                    key={p.id}
+                    p={p}
+                    idBase={`elegido-${p.id}`}
+                    grande
+                    dibujo={fichaDe(p)?.categoria.dibujo ?? "otros"}
+                    ficha={fichaDe(p)}
+                    cant={cantidadDe(p)}
+                    tocar={tocar}
+                    grupos={gruposDe(p)}
+                    sumarConOpciones={sumarConOpciones}
+                  />
+                ))}
+              </ul>
+            </section>
+          )}
           {carta.map((g, i) => (
             <section key={g.categoria.id} id={`cat-${g.categoria.id}`} tabIndex={-1} className={s.categoria} aria-labelledby={`cat-${g.categoria.id}-t`}>
               <div className={s.categoriaCabeza}>
@@ -263,7 +322,9 @@ export default function CartaYPedido({
                   <TarjetaDeProducto
                     key={p.id}
                     p={p}
-                    categoria={g.categoria.id}
+                    idBase={p.id}
+                    dibujo={g.categoria.dibujo ?? g.categoria.id}
+                    ficha={fichaDe(p)}
                     cant={cantidadDe(p)}
                     tocar={tocar}
                     grupos={gruposDe(p)}
@@ -514,13 +575,14 @@ export default function CartaYPedido({
 
       {hayProductos && (
         <div className={s.barra}>
+          {conGratis && <p className={s.haciaGratis}>Te faltan {plata.format(entrega.faltaParaGratis)} para el envío gratis</p>}
           <a href="#tu-pedido" className={s.barraBoton}>
             <span className={s.barraCuenta}>
               <span key={totales.unidades} className={s.contador} aria-hidden="true">
                 {formatearCantidad(totales.unidades)}
               </span>
               <span>
-                Ver mi pedido<span className={s.soloLector}> · {formatearCantidad(totales.unidades)} {totales.unidades === 1 ? "cosa" : "cosas"}</span>
+                {cerrado ? estado : "Ver mi pedido"}<span className={s.soloLector}> · {formatearCantidad(totales.unidades)} {totales.unidades === 1 ? "cosa" : "cosas"}</span>
               </span>
             </span>
             <span>{plata.format(totales.total)}</span>
@@ -532,20 +594,28 @@ export default function CartaYPedido({
 }
 
 /**
- * Una tarjeta de la carta: el dibujo de su categoría (no hay fotos de producto), nombre, precio y
- * el control. Sin nada en la bolsa, «Agregar»; con algo, «− n +» y la insignia sobre el dibujo.
+ * Una tarjeta de la carta: la foto de la carta del local (lazy, 72 px, medidas fijas: CLS 0) o el
+ * dibujo de su categoría, nombre, descripción a dos líneas, precio y el control. `grande`: la del
+ * riel «Los elegidos» (foto 4:3 arriba). Sin nada en la bolsa, «Agregar»; con algo, «− n +» y la insignia sobre el dibujo.
  * El número entra con un «pop» (key = cantidad): sólo transform, quieto con reduced-motion.
  */
 function TarjetaDeProducto({
   p,
-  categoria,
+  idBase,
+  grande = false,
+  dibujo,
+  ficha,
   cant,
   tocar,
   grupos,
   sumarConOpciones,
 }: {
   p: ProductoDeLaCarta;
-  categoria: string;
+  /** Prefijo de los id del selector: el mismo producto puede estar en el riel y en su categoría. */
+  idBase: string;
+  grande?: boolean;
+  dibujo: string;
+  ficha: FichaDelProducto | null;
   cant: number;
   tocar: (p: ProductoDeLaCarta, dir: 1 | -1) => void;
   /** Con opciones (tamaño, leche…), «Agregar» abre el selector y las cantidades se tocan en la bolsa. */
@@ -564,9 +634,14 @@ function TarjetaDeProducto({
   const kg = p.saleUnit === "WEIGHT";
   const conOpciones = grupos.length > 0;
   return (
-    <li className={`${s.tarjeta} ${cant > 0 ? s.tarjetaEnBolsa : ""} ${sinStock ? s.tarjetaSinStock : ""}`}>
-      <div className={s.tarjetaArte} data-categoria={categoria}>
-        <IlustracionDeCategoria categoria={categoria} className={s.tarjetaDibujo} />
+    <li className={`${s.tarjeta} ${grande ? s.tarjetaGrande : ""} ${cant > 0 ? s.tarjetaEnBolsa : ""} ${sinStock ? s.tarjetaSinStock : ""}`}>
+      <div className={s.tarjetaArte} data-categoria={dibujo}>
+        {ficha?.imagen ? (
+          // eslint-disable-next-line @next/next/no-img-element -- URL de la carta del local (Fudo); sin loader remoto configurado
+          <img className={s.tarjetaFoto} src={ficha.imagen} alt={p.name} width={grande ? 240 : 72} height={grande ? 180 : 72} loading="lazy" decoding="async" />
+        ) : (
+          <IlustracionDeCategoria categoria={dibujo} className={s.tarjetaDibujo} />
+        )}
         {cant > 0 && (
           <span key={cant} className={`${s.insignia} ${s.pop}`} aria-hidden="true">
             {formatearCantidad(cant)}
@@ -575,6 +650,7 @@ function TarjetaDeProducto({
       </div>
       <div className={s.tarjetaTexto}>
         <h4 className={s.itemNombre}>{p.name}</h4>
+        {ficha?.descripcion && <p className={s.itemDescripcion}>{ficha.descripcion}</p>}
         <p className={s.itemPrecio}>
           {plata.format(precioUnitario(p))}
           {kg ? " el kg" : ""}
@@ -621,7 +697,7 @@ function TarjetaDeProducto({
       )}
       {conOpciones && eligiendo && !sinStock && (
         <SelectorDeOpciones
-          id={p.id}
+          id={idBase}
           nombre={p.name}
           precioBase={precioUnitario(p)}
           grupos={grupos}

@@ -1,8 +1,9 @@
 /* ============================================================================
    PEDÍ LOCAL — la vidriera de pedidos y delivery propio de un comercio del barrio.
    ============================================================================
-   Marca GSG (DESIGN.md): superficies hueso, tinta, un solo acento, Fraunces en títulos y Hanken
-   en el texto. El nombre del local va en texto (sin su logo: no hay autorización registrada).
+   Piel GSG por defecto (DESIGN.md): superficies hueso, tinta, un solo acento, Fraunces en títulos y
+   Hanken en el texto. Con marca del local (autorización registrada, marca.ts → raiz.ts): sus colores,
+   su banda (`data-banda`: barra, portada e índice) y su letra (`data-letra`). Hoy, Bitácora Café.
    Mobile-first (390 px): la carta arriba, el pedido abajo y una barra fija con la bolsa; desde
    900 px, la carta a la izquierda y el pedido en un riel a la derecha. Sólo tokens. Contraste AA. */
 
@@ -17,9 +18,18 @@
   --pl-papel: color-mix(in oklab, var(--pl-primario) 7%, var(--surface-raised));
   --pl-alto-barra: 3.5rem;
   --pl-alto-indice: 3.75rem;
+  /* Letra, banda y acento: por defecto, la piel de siempre. marca.ts los pisa desde el style. */
+  --pl-letra-titulo: var(--font-display), Georgia, serif;
+  --pl-letra-texto: var(--font-body), system-ui, -apple-system, sans-serif;
+  --pl-banda: var(--pl-papel);
+  --pl-sobre-banda: var(--text-strong);
+  --pl-sobre-banda-suave: var(--text-muted);
+  --pl-acento: var(--pl-primario);
+  --pl-sobre-acento: var(--pl-sobre-primario);
+  --pl-acento-texto: var(--pl-primario-texto);
   background: var(--pl-fondo);
   color: var(--text);
-  font-family: var(--font-body), system-ui, -apple-system, sans-serif;
+  font-family: var(--pl-letra-texto);
   font-size: 1rem;
   line-height: 1.5;
   min-height: 100vh;
@@ -68,7 +78,7 @@
   font-weight: 600;
 }
 .titulo {
-  font-family: var(--font-display), Georgia, serif;
+  font-family: var(--pl-letra-titulo);
   font-size: clamp(2rem, 7vw, 3rem);
   line-height: 1.1;
   letter-spacing: -0.02em;
@@ -127,7 +137,7 @@
 .categoria:focus-visible { outline: 2px solid var(--pl-primario); outline-offset: 0.5rem; border-radius: var(--radius); }
 .categoria + .categoria { margin-top: 2.5rem; }
 .categoriaTitulo {
-  font-family: var(--font-display), Georgia, serif;
+  font-family: var(--pl-letra-titulo);
   font-size: clamp(1.375rem, 4.5vw, 1.75rem);
   letter-spacing: -0.015em;
   line-height: 1.2;
@@ -188,7 +198,7 @@
   scroll-margin-top: calc(var(--pl-alto-indice) + 1rem);
 }
 .pedidoTitulo {
-  font-family: var(--font-display), Georgia, serif;
+  font-family: var(--pl-letra-titulo);
   font-size: 1.5rem;
   letter-spacing: -0.01em;
   line-height: 1.25;
@@ -363,14 +373,14 @@
 /* ── Páginas legales ── */
 .legal { max-width: 42rem; margin: 0 auto; padding: 1.5rem 1rem 2rem; overflow-wrap: anywhere; }
 .legal h1 {
-  font-family: var(--font-display), Georgia, serif;
+  font-family: var(--pl-letra-titulo);
   font-size: clamp(1.75rem, 6vw, 2.25rem);
   line-height: 1.15;
   letter-spacing: -0.02em;
   color: var(--text-strong);
 }
 .legal h2 {
-  font-family: var(--font-display), Georgia, serif;
+  font-family: var(--pl-letra-titulo);
   font-size: 1.25rem;
   letter-spacing: -0.01em;
   line-height: 1.25;
@@ -447,11 +457,19 @@
   border-radius: 999px;
   background: var(--pl-primario);
   color: var(--pl-sobre-primario);
-  font-family: var(--font-display), Georgia, serif;
+  font-family: var(--pl-letra-titulo);
   font-size: 1rem;
   line-height: 1;
 }
-.logo { display: block; height: 2rem; width: auto; max-width: 7.5rem; object-fit: contain; }
+.logo {
+  display: block;
+  flex: 0 0 auto;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 999px;
+  background: var(--pl-fondo);
+  object-fit: contain;
+}
 .enlaceCuenta {
   display: inline-flex;
   align-items: center;
@@ -583,7 +601,7 @@
 .cartaSeccion { scroll-margin-top: calc(var(--pl-alto-indice) + 0.5rem); }
 .cartaCabeza { display: grid; gap: 0.25rem; margin-bottom: 1.5rem; }
 .cartaTitulo {
-  font-family: var(--font-display), Georgia, serif;
+  font-family: var(--pl-letra-titulo);
   font-size: clamp(1.75rem, 6vw, 2.25rem);
   letter-spacing: -0.025em;
   line-height: 1.1;
@@ -599,7 +617,7 @@
   border-bottom: 1px solid var(--line-strong);
 }
 .categoriaNumero {
-  font-family: var(--font-display), Georgia, serif;
+  font-family: var(--pl-letra-titulo);
   font-size: 0.9375rem;
   color: var(--pl-primario-texto);
   font-variant-numeric: tabular-nums;
@@ -708,7 +726,7 @@
 /* ── Mi cuenta ── */
 .cuenta { padding-top: 1.5rem; padding-bottom: 2.5rem; max-width: 44rem; }
 .cuentaTitulo {
-  font-family: var(--font-display), Georgia, serif;
+  font-family: var(--pl-letra-titulo);
   font-size: clamp(2rem, 8vw, 2.75rem);
   line-height: 1.05;
   letter-spacing: -0.03em;
@@ -789,3 +807,76 @@
 @keyframes pl-capa-lenta { to { transform: translateY(18px); } }
 @keyframes pl-capa-media { to { transform: translateY(36px); } }
 @keyframes pl-capa-rapida { to { transform: translateY(-28px); } }
+
+/* ── Letra del local (data-letra, fuentes.ts) ── */
+.raiz[data-letra="manrope"] {
+  --pl-letra-titulo: var(--pl-manrope), system-ui, sans-serif;
+  --pl-letra-texto: var(--pl-manrope), system-ui, sans-serif;
+  font-weight: 500;
+}
+.raiz[data-letra] :is(.titulo, .cartaTitulo, .categoriaTitulo, .pedidoTitulo, .cuentaTitulo) { font-weight: 800; letter-spacing: -0.02em; }
+.raiz[data-letra] .itemPrecio { font-weight: 700; }
+
+/* ── Banda del local (data-banda): barra, portada e índice en su color, con el texto que marca.ts
+   eligió por contraste (≥ 4,5:1). Sobre la banda, el botón y el chip activo se invierten. ── */
+.raiz[data-banda] :is(.barraSup, .portada, .indice) { background: var(--pl-banda); color: var(--pl-sobre-banda); border-color: transparent; }
+.raiz[data-banda] :is(.barraSup, .portada, .indice) :focus-visible { outline-color: var(--pl-sobre-banda); }
+.raiz[data-banda] :is(.marcaLocal, .portada .titulo, .portada .bajada, .portada .enlaceWa) { color: var(--pl-sobre-banda); }
+.raiz[data-banda] .portada :is(.cabeceraRotulo, .dato) { color: var(--pl-sobre-banda-suave); background: transparent; border-color: color-mix(in oklab, var(--pl-sobre-banda) 35%, transparent); }
+.raiz[data-banda] .portada .datoAcento { color: var(--pl-sobre-banda); }
+.raiz[data-banda] .indiceChip { background: transparent; color: var(--pl-sobre-banda); border-color: color-mix(in oklab, var(--pl-sobre-banda) 45%, transparent); }
+.raiz[data-banda] .portada .botonPrincipal,
+.raiz[data-banda] .indiceChip[aria-current="true"] { background: var(--pl-sobre-banda); border-color: var(--pl-sobre-banda); color: var(--pl-banda); }
+.raiz[data-banda] .barra { background: var(--pl-fondo); }
+
+/* ── Carta del local: foto, descripción, «Los elegidos», «Lo de siempre», cerrado y envío gratis ── */
+.tarjetaFoto { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; background: var(--pl-suave); }
+.itemDescripcion {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.elegidosSeccion { margin-bottom: 1.5rem; }
+.elegidos {
+  display: flex;
+  gap: 0.75rem;
+  margin: 0 -1rem;
+  padding: 0.25rem 1rem 0.5rem;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  overscroll-behavior-x: contain;
+}
+.elegidos > li { flex: 0 0 15rem; scroll-snap-align: start; }
+@media (min-width: 640px) { .elegidos { margin-inline: 0; padding-inline: 0; } }
+.tarjetaGrande { grid-template-columns: minmax(0, 1fr); grid-template-areas: "arte" "texto" "control"; align-items: start; }
+.tarjetaGrande .tarjetaArte { width: 100%; aspect-ratio: 4 / 3; }
+.tarjetaGrande .cantidad { justify-self: start; }
+.deSiempre {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin-bottom: 1.5rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--pl-primario);
+  border-radius: var(--radius-lg);
+  background: var(--pl-suave);
+}
+.deSiempreTexto { font-size: 0.9375rem; color: var(--text-strong); min-width: 0; }
+.franjaCerrado {
+  position: sticky;
+  top: var(--pl-alto-indice);
+  z-index: 14;
+  padding: 0.5rem 1rem;
+  background: var(--warning-soft);
+  color: var(--text-strong);
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-align: center;
+  border-bottom: 1px solid var(--warning);
+}
+.haciaGratis { font-size: 0.8125rem; color: var(--text-strong); text-align: center; padding-bottom: 0.5rem; }
