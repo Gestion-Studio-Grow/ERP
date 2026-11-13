@@ -16,6 +16,7 @@ import { resolveLocation } from "@/lib/settings";
 import { businessWallTimeToUtc, dateStrInBusinessTz, todayInBusinessTz } from "@/lib/datetime";
 import { createRateLimiter } from "@/lib/rate-limit";
 import { bienvenidaVista } from "./config-campos";
+import { leerDirectorio, type Directorio } from "./directorio";
 import { completarSeries } from "./series.server";
 import { turneroAbiertoDe } from "@/lib/profeturnos/verificacion.server";
 import {
@@ -64,6 +65,8 @@ export interface ConfigPadel {
   plantillas: Record<ClavePlantilla, string>;
   /** El profe ya pasó por la Bienvenida y tocó «Ir a Hoy» (O-9): Hoy no lo rebota. */
   bienvenidaVista?: boolean;
+  /** «Aparecer en el buscador de profes» (clave reservada `_directorio`, sin migración). */
+  directorio?: Directorio;
 }
 
 export async function configPadel(tenantId: string): Promise<ConfigPadel> {
@@ -85,6 +88,7 @@ export async function configPadel(tenantId: string): Promise<ConfigPadel> {
     whatsappProfe: c?.whatsappProfe ?? "",
     plantillas,
     bienvenidaVista: bienvenidaVista(c?.plantillas),
+    directorio: leerDirectorio(c?.plantillas),
   };
 }
 

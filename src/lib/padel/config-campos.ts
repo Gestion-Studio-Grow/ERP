@@ -63,6 +63,23 @@ export const MARCA_BIENVENIDA = "_bienvenidaVista";
 export const bienvenidaVista = (guardadas: unknown): boolean =>
   Boolean(guardadas && typeof guardadas === "object" && !Array.isArray(guardadas) && (guardadas as Record<string, unknown>)[MARCA_BIENVENIDA] === "1");
 
+/**
+ * Claves RESERVADAS del JSON de plantillas: empiezan con «_» y ningún texto de WhatsApp las usa
+ * (CLAVES_PLANTILLA no tiene ninguna con «_»). Hoy: la marca de la Bienvenida y el directorio
+ * público (`_directorio`, src/lib/padel/directorio.ts). El editor de textos y el notificador sólo
+ * leen CLAVES_PLANTILLA, así que las ignoran; los que REESCRIBEN el JSON las conservan tal cual.
+ */
+export const PREFIJO_RESERVADO = "_";
+export const esClaveReservada = (k: string): boolean => k.startsWith(PREFIJO_RESERVADO);
+
+/** Las claves reservadas del JSON guardado, tal cual (para no borrarlas al reescribirlo). */
+export function reservadasDe(guardadas: unknown): Record<string, unknown> {
+  if (!guardadas || typeof guardadas !== "object" || Array.isArray(guardadas)) return {};
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(guardadas as Record<string, unknown>)) if (esClaveReservada(k)) out[k] = v;
+  return out;
+}
+
 /** Un tramo semanal: 0 = domingo … 6 = sábado, «08:00»–«12:00». */
 export type TramoSemanal = { diaSemana: number; desde: string; hasta: string; clubId?: string | null };
 
@@ -210,7 +227,7 @@ export function validarCampoConfig(clave: unknown, valor: unknown): Validacion {
  * Los textos de WhatsApp guardados después de editar UNO: el JSON de la base trae sólo los que el
  * profe tocó; `null` borra esa clave (vuelve el de fábrica). Lo que no es un texto conocido se cae.
  */
-export function plantillasConCambio(guardadas: unknown, clave: ClavePlantilla, texto: string | null): Record<string, string> {
+export function plantillasConCambio(guardadas: unknown, clave: ClavePlantilla, texto: string | null): Record<string, unknown> {
   const base = guardadas && typeof guardadas === "object" && !Array.isArray(guardadas) ? (guardadas as Record<string, unknown>) : {};
   const out: Record<string, string> = {};
   for (const k of CLAVES_PLANTILLA) {
@@ -219,19 +236,18 @@ export function plantillasConCambio(guardadas: unknown, clave: ClavePlantilla, t
   }
   if (texto === null) delete out[clave];
   else out[clave] = texto;
-  // La marca de la Bienvenida viaja en el mismo JSON: editar un texto no la borra (O-9).
-  if (bienvenidaVista(base)) out[MARCA_BIENVENIDA] = "1";
-  return out;
+  // Las claves reservadas («_…»: la marca de la Bienvenida, el directorio) viajan en el mismo JSON:
+  // editar un texto no las borra (O-9).
+  return { ...reservadasDe(base), ...out };
 }
 
 /** Las plantillas guardadas (sólo las claves válidas) más la marca «ya vio la Bienvenida». */
-export function plantillasConBienvenida(guardadas: unknown): Record<string, string> {
+export function plantillasConBienvenida(guardadas: unknown): Record<string, unknown> {
   const base = guardadas && typeof guardadas === "object" && !Array.isArray(guardadas) ? (guardadas as Record<string, unknown>) : {};
   const out: Record<string, string> = {};
   for (const k of CLAVES_PLANTILLA) {
     const v = base[k];
     if (typeof v === "string" && v.trim()) out[k] = v;
   }
-  out[MARCA_BIENVENIDA] = "1";
-  return out;
+  return { ...reservadasDe(base), ...out, [MARCA_BIENVENIDA]: "1" };
 }

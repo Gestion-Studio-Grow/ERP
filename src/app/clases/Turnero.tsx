@@ -71,6 +71,7 @@ export default function Turnero({
   nombreAlumno = null,
   abrirLink = false,
   inicio = {},
+  desde,
   nombreApp,
   info,
 }: {
@@ -89,6 +90,8 @@ export default function Turnero({
   abrirLink?: boolean;
   /** `?fecha=` / `?hora=` del link («Elegir otro horario», «¿Te sirve…?»). */
   inicio?: { fecha?: string | null; hora?: string | null };
+  /** `?desde=` del link (el buscador de profes manda «directorio»): viaja con el pedido (canal.ts). */
+  desde?: string;
   nombreApp: string;
   /** La ficha «¿Qué incluye?» (duración, precios, dónde, regla). Sin ella, no hay ficha. */
   info?: InfoClase;
@@ -219,7 +222,7 @@ export default function Turnero({
       start(async () => {
         let r: Awaited<ReturnType<typeof reservarDesdeLink>>;
         try {
-          r = await reservarDesdeLink(null, iso, undefined, { tipo, personas, nota });
+          r = await reservarDesdeLink(null, iso, undefined, { tipo, personas, nota, ...(desde ? { desde } : {}) });
         } catch {
           // La acción tiró (corte de señal o error nuestro; un choque vuelve como «se ocupó»).
           setError(SIN_CONEXION_PEDIDO);
@@ -249,7 +252,7 @@ export default function Turnero({
     start(async () => {
       let r: Awaited<ReturnType<typeof pedirClase>>;
       try {
-        r = await pedirClase({ hora: iso, nombre: q.nombre, telefono: q.telefono, tipo, personas, nota });
+        r = await pedirClase({ hora: iso, nombre: q.nombre, telefono: q.telefono, tipo, personas, nota, ...(desde ? { desde } : {}) });
       } catch {
         // Corte de señal o error nuestro (O-16): lo que tipeó queda («Pedís como …») y la hora también,
         // para probar de nuevo con un toque.

@@ -64,7 +64,7 @@ export async function generateMetadata(): Promise<Metadata> {
 const ZONA = "America/Argentina/Buenos_Aires";
 const fechaDe = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: ZONA });
 
-export default async function ClasesPage({ searchParams }: { searchParams: Promise<{ link?: string; fecha?: string; hora?: string }> }) {
+export default async function ClasesPage({ searchParams }: { searchParams: Promise<{ link?: string; fecha?: string; hora?: string; desde?: string }> }) {
   const tenantId = await getCurrentTenantId();
   // Alta asistida: el profe que se dio de alta solo y GSG todavía no verificó no recibe pedidos.
   // Sin horarios ni WhatsApp del profe (todavía no está confirmado). Lectura fallida → igual
@@ -179,6 +179,7 @@ export default async function ClasesPage({ searchParams }: { searchParams: Promi
               nombreAlumno={saludo?.nombre ?? null}
               abrirLink={sp.link === "1"}
               inicio={{ fecha: typeof sp.fecha === "string" ? sp.fecha : null, hora: typeof sp.hora === "string" ? sp.hora : null }}
+              desde={typeof sp.desde === "string" ? sp.desde.slice(0, 20) : undefined}
               nombreApp={nombreApp}
               info={{ duracionMin: config.duracionMin, precioIndividual: config.precioIndividual, precioGrupal: config.precioGrupal, lugar: negocio.lugar, maps, regla }}
             />
