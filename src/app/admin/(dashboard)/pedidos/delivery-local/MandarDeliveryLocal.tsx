@@ -7,14 +7,14 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui";
+import { Button, Marca } from "@/components/ui";
 import { useToast } from "../../ToastProvider";
 import { mandarAlRepartidor, mandarSeguimientoAlCliente } from "./acciones";
 import type { ResultadoDelCajon } from "@/lib/delivery-local/salida";
 
 type Cual = "repartidor" | "seguimiento";
 
-export default function MandarDeliveryLocal({ id, enviable }: { id: string; enviable: boolean }) {
+export default function MandarDeliveryLocal({ id, enviable, repartidorEntrego = false }: { id: string; enviable: boolean; repartidorEntrego?: boolean }) {
   const router = useRouter();
   const { showError, showSuccess } = useToast();
   const [pending, startTransition] = useTransition();
@@ -49,6 +49,13 @@ export default function MandarDeliveryLocal({ id, enviable }: { id: string; envi
 
   return (
     <section aria-label="Delivery propio" className="flex flex-col gap-2">
+      {/* El repartidor tocó «Entregué» en su link: un aviso; el pedido lo cierra el local con su tecla. */}
+      {repartidorEntrego && (
+        <p className="flex flex-col gap-0.5 text-sm">
+          <Marca tipo="info">Repartidor: entregado</Marca>
+          <span className="text-muted">Lo marcó desde su link. Si está bien, cerralo con «Entregar».</span>
+        </p>
+      )}
       {enviable ? (
         <Button variant="outline" disabled={pending} estado={enCurso === "repartidor" ? "cargando" : undefined} onClick={() => correr("repartidor")}>
           Mandar al repartidor

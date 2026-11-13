@@ -300,7 +300,7 @@ export default function PedidoCajon({
           <Renglon titulo={<strong>Total</strong>} plata={<Plata valor={pedido.total} />} className="border-b-0 border-t-2 border-line-strong font-semibold" />
         </section>
 
-        {puedeOperar && extra?.deliveryLocal && <MandarDeliveryLocal id={pedido.id} enviable={extra.deliveryLocal.enviable} />}
+        {puedeOperar && extra?.deliveryLocal && <MandarDeliveryLocal id={pedido.id} enviable={extra.deliveryLocal.enviable} repartidorEntrego={extra.deliveryLocal.repartidorEntrego} />}
 
         {conMas && (
           <details ref={masRef} className="group" open={seccion === "ajustar" || seccion === "link" || seccion === "anular"}>

@@ -22,9 +22,12 @@ import { pedidoPublico } from "@/lib/seo/base";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
 import { logger } from "@/lib/logger";
 import { tokenDeSeguimiento } from "@/lib/delivery-local/seguimiento";
+import { rutaDeEntrega, tokenDeEntrega } from "@/lib/delivery-local/entrega";
 import {
   ACCION_SALIO,
   mandarAlRepartidor as mandarAlRepartidorCore,
+  mandarViajeAlRepartidor as mandarViajeCore,
+  type LinkDeEntrega,
   seguimientoParaElCliente as seguimientoCore,
   type DepsDeLaSalida,
   type ResultadoDelCajon,
@@ -87,17 +90,52 @@ function deps(actor: string): DepsDeLaSalida {
   };
 }
 
+/**
+ * El link «Entregué» (absoluto, firmado con su propósito para ESTE negocio). Sin origen o sin
+ * secreto, null: el mensaje sale igual, sin el link (el local cierra el pedido como siempre).
+ */
+async function linkDeEntrega(tenantId: string): Promise<LinkDeEntrega> {
+  const { origen } = await pedidoPublico();
+  let secreto: string | null = null;
+  try {
+    secreto = authSecret();
+  } catch {
+    secreto = null;
+  }
+  return (orderId) => (origen && secreto ? `${origen}${rutaDeEntrega(tokenDeEntrega(secreto, tenantId, orderId))}` : null);
+}
+
 /** «Mandar al repartidor»: marca la salida (una vez) y devuelve el wa.me armado. */
 export async function mandarAlRepartidor(orderId: string): Promise<ResultadoDelCajon> {
   const ctx = await contexto();
   if (!ctx) return { ok: false, error: OTRO_NEGOCIO };
   try {
-    const r = await mandarAlRepartidorCore({ tenantId: ctx.tenantId, slug: ctx.slug, orderId }, deps(ctx.actor));
+    const r = await mandarAlRepartidorCore(
+      { tenantId: ctx.tenantId, slug: ctx.slug, orderId, linkDeEntrega: await linkDeEntrega(ctx.tenantId) },
+      deps(ctx.actor),
+    );
     if (r.ok) revalidatePath("/admin/pedidos");
     return r;
   } catch (err) {
     logger.error("delivery-local", "no se pudo mandar el pedido al repartidor", err, { tenantId: ctx.tenantId, entityId: String(orderId) });
     return { ok: false, error: "No pudimos marcar la salida ahora. Probá de nuevo en un momento." };
+  }
+}
+
+/** «Mandar juntos al repartidor»: un viaje con 2+ pedidos Listos con envío, un solo wa.me. */
+export async function mandarJuntosAlRepartidor(orderIds: string[]): Promise<ResultadoDelCajon> {
+  const ctx = await contexto();
+  if (!ctx) return { ok: false, error: OTRO_NEGOCIO };
+  try {
+    const r = await mandarViajeCore(
+      { tenantId: ctx.tenantId, slug: ctx.slug, orderIds, linkDeEntrega: await linkDeEntrega(ctx.tenantId) },
+      deps(ctx.actor),
+    );
+    if (r.ok) revalidatePath("/admin/pedidos");
+    return r;
+  } catch (err) {
+    logger.error("delivery-local", "no se pudo armar el viaje del repartidor", err, { tenantId: ctx.tenantId });
+    return { ok: false, error: "No pudimos marcar la salida ahora. Revisá la bandeja y probá de nuevo." };
   }
 }
 

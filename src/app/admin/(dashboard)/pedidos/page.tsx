@@ -51,7 +51,7 @@ import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import { roleHasCapability } from "@/lib/capabilities";
 import TableroPedidos from "./TableroPedidos";
 import AvisoDePedidosNuevos from "./AvisoDePedidosNuevos";
-import { armarTablero, leerAvisados } from "./tablero.server";
+import { armarTablero, leerAvisados, leerEntregasDelRepartidor } from "./tablero.server";
 import { LineaDeEstado, Plata } from "@/components/ui";
 import { lineaDelTablero, listoDesdeAyer, otrosPedidosDeLaClienta, textoDeLaTiendaEsperando, textoDeOtrosPedidos } from "./pedidos-core";
 import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
@@ -248,6 +248,11 @@ export default async function PedidosPage({ searchParams }: { searchParams?: Pro
     // Con el fiado del negocio prendido (2D), «A cobrar» dice adónde va lo entregado sin cobrar con ficha.
     // …y sólo si la app de Fiado abre (sin «inicio por apps» el enlace era un callejón sin salida).
     const fiado = boutique && (await fiadoAbreEnLaBandeja(await getCurrentTenantId()));
+    // Delivery local: los Listos con envío que el repartidor ya marcó «Entregué» (sólo con el producto prendido).
+    const deliveryLocal = configDeliveryLocal(identidad.slug) !== null;
+    const entregadosPorRepartidor = deliveryLocal
+      ? await leerEntregasDelRepartidor(abiertos.filter((o) => o.status === "READY" && o.fulfillment === "DELIVERY").map((o) => o.id))
+      : undefined;
     const tablero = armarTablero({
       abiertos,
       cerrados,
@@ -262,7 +267,8 @@ export default async function PedidosPage({ searchParams }: { searchParams?: Pro
       ofrecerLink,
       simulacion,
       alcance,
-      deliveryLocal: configDeliveryLocal(identidad.slug) !== null,
+      deliveryLocal,
+      entregadosPorRepartidor,
     });
     const verPlata = permisoEfectivo(user, "reports:read");
     // El reloj sólo en comercio: los de la tienda esperando y los listos sin retirar (CH no tiene

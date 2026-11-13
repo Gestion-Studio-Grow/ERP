@@ -22,6 +22,8 @@ export type PedidoParaElRepartidor = {
   medio: MedioPreferido | null;
   pagaCon: number | null;
   renglones: { nombre: string; cantidad: number }[];
+  /** El link firmado de «Entregué» (src/lib/delivery-local/entrega.ts); null si no se pudo armar. */
+  linkEntrega?: string | null;
 };
 
 const pesos = (n: number) => `$${Math.round(n).toLocaleString("es-AR")}`;
@@ -51,8 +53,86 @@ export function textoParaElRepartidor(p: PedidoParaElRepartidor): string {
     p.direccion ? `Dirección: ${enUnaLinea(p.direccion)}` : null,
     p.nota ? `Nota del pedido: ${enUnaLinea(p.nota)}` : null,
     "",
-    ...p.renglones.map((l) => `• ${l.cantidad % 1 === 0 ? l.cantidad : String(l.cantidad).replace(".", ",")} × ${enUnaLinea(l.nombre)}`),
+    ...p.renglones.map((l) => `• ${cantidad(l.cantidad)} × ${enUnaLinea(l.nombre)}`),
+    ...renglonDeEntrega(p.linkEntrega),
   ];
+  return r.filter((x): x is string => x !== null).join("\n");
+}
+
+const cantidad = (n: number) => (n % 1 === 0 ? String(n) : String(n).replace(".", ","));
+
+function renglonDeEntrega(link: string | null | undefined): string[] {
+  return link ? ["", `Cuando lo entregues, tocá «Entregué»: ${link}`] : [];
+}
+
+// ── Viaje con varios pedidos ─────────────────────────────────────────────────────────────────────
+
+const MAPA_DE_LA_NOTA = /https:\/\/www\.google\.com\/maps\/search\/\?api=1&query=(-?\d{1,2}(?:\.\d{1,8})?),(-?\d{1,3}(?:\.\d{1,8})?)/;
+
+/**
+ * El mapa de la parada: las coordenadas que el sistema dejó en la nota («Ubicación: <link>»),
+ * re-armadas desde los números (el texto del cliente no puede meter otro dominio); sin ellas, la
+ * búsqueda de la dirección en Google Maps. Sin ninguna de las dos, null.
+ */
+export function mapaDeLaParada(direccion: string | null, nota: string | null): string | null {
+  const m = nota ? MAPA_DE_LA_NOTA.exec(nota) : null;
+  if (m) return `https://www.google.com/maps/search/?api=1&query=${m[1]},${m[2]}`;
+  const d = direccion ? enUnaLinea(direccion) : "";
+  return d ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(d)}` : null;
+}
+
+export type EfectivoDelViaje = {
+  /** Lo que el repartidor cobra en efectivo, sumado. */
+  cobrar: number;
+  /** El vuelto que tiene que llevar, sumado. */
+  vuelto: number;
+  /** Paradas sin pagar y sin efectivo elegido (transferencia sin acreditar, o sin dato). */
+  sinConfirmar: number;
+};
+
+/** La plata del viaje, en centavos enteros para que la suma no arrastre decimales. */
+export function efectivoDelViaje(paradas: readonly Pick<PedidoParaElRepartidor, "total" | "pagado" | "medio" | "pagaCon">[]): EfectivoDelViaje {
+  let cobrar = 0;
+  let vuelto = 0;
+  let sinConfirmar = 0;
+  for (const p of paradas) {
+    if (p.pagado) continue;
+    if (p.medio !== "efectivo") {
+      sinConfirmar += 1;
+      continue;
+    }
+    cobrar += Math.round(p.total * 100);
+    const v = vueltoALlevar(p.total, p.pagaCon);
+    if (v !== null) vuelto += Math.round(v * 100);
+  }
+  return { cobrar: cobrar / 100, vuelto: vuelto / 100, sinConfirmar };
+}
+
+/** UN WhatsApp con todas las paradas del viaje y el total de efectivo arriba de todo. */
+export function textoDelViaje(negocio: string, paradas: readonly PedidoParaElRepartidor[]): string {
+  const plata = efectivoDelViaje(paradas);
+  const r: (string | null)[] = [
+    `*Viaje de ${paradas.length} pedidos* · ${enUnaLinea(negocio)}`,
+    `*TOTAL A COBRAR EN EFECTIVO: ${pesos(plata.cobrar)}*`,
+    plata.vuelto > 0 ? `*Llevar ${pesos(plata.vuelto)} de cambio en total*` : null,
+    plata.sinConfirmar > 0
+      ? `*${plata.sinConfirmar === 1 ? "1 pedido" : `${plata.sinConfirmar} pedidos`} sin pago confirmado: consultá al local antes de salir*`
+      : null,
+  ];
+  paradas.forEach((p, i) => {
+    const mapa = mapaDeLaParada(p.direccion, p.nota);
+    r.push(
+      "",
+      `*Parada ${i + 1} · Pedido #${p.code}*`,
+      `*${cobroParaElRepartidor(p)}*`,
+      `${enUnaLinea(p.cliente)} · ${enUnaLinea(p.telefono)}`,
+      p.direccion ? `Dirección: ${enUnaLinea(p.direccion)}` : null,
+      mapa ? `Mapa: ${mapa}` : null,
+      p.nota ? `Nota del pedido: ${enUnaLinea(p.nota)}` : null,
+      p.renglones.length ? `Lleva: ${p.renglones.map((l) => `${cantidad(l.cantidad)} × ${enUnaLinea(l.nombre)}`).join(" · ")}` : null,
+      p.linkEntrega ? `Al entregarlo, tocá «Entregué»: ${p.linkEntrega}` : null,
+    );
+  });
   return r.filter((x): x is string => x !== null).join("\n");
 }
 
