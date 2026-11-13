@@ -5,8 +5,9 @@
 // La sirve /tienda (page.tsx) para los negocios con configuración en src/lib/delivery-local/config.ts
 // (hoy, Bitácora Café en Monte Grande; nombre del producto PROVISIONAL A CONFIRMAR). Los demás
 // negocios no pasan por acá. Piel: la del local si su config trae `marca` (con autorización
-// registrada; src/lib/delivery-local/marca.ts decide qué se puede usar sin romper AA) y, sin
-// material, la de GSG con el nombre del local en texto y una portada dibujada.
+// registrada; src/lib/delivery-local/marca.ts decide qué se puede usar sin romper AA; raiz.ts la
+// aplica con su banda y su letra) y, sin material, la de GSG con el nombre del local en texto y
+// una portada dibujada.
 //
 // Vidriera de autor (.claude/skills/vidriera-de-autor): un solo momento protagonista, la taza de la
 // portada en capas con un parallax de CSS (scroll-timeline, sin JS; quieta con reduced-motion). El
@@ -16,7 +17,6 @@
 // comparten la bolsa en el cliente. Los datos son los mismos que lee la vidriera de siempre
 // (`getStorefront`, Envíos del negocio y el día de hoy): sin consultas nuevas.
 
-import type { CSSProperties } from "react";
 import type { ConfigEnvios } from "@/lib/envios/modelo";
 import type { ConfigDeliveryLocal } from "@/lib/delivery-local/config";
 import { pielDelLocal } from "@/lib/delivery-local/marca";
@@ -27,6 +27,7 @@ import BarraDelLocal from "./BarraDelLocal";
 import CartaYPedido from "./CartaYPedido";
 import { TazaDePortada } from "./Ilustracion";
 import PieLocal from "./PieLocal";
+import { atributosDeRaiz } from "./raiz";
 import s from "./local.module.css";
 
 type Branding = { whatsapp: string | null; addressLine: string | null; hoursLabel: string | null } | null;
@@ -58,7 +59,7 @@ export default function VidrieraLocal({
   const estado = textoDelEstado(cfg.horario, ahora);
   const cerrado = rechazoPorHorario(cfg, ahora);
   return (
-    <div className={s.raiz} style={piel.variables as CSSProperties} data-marca={piel.variables["--pl-primario"] ? "" : undefined}>
+    <div {...atributosDeRaiz(piel, s.raiz)}>
       <a href="#carta" className={s.salto}>
         Ir a la carta
       </a>
@@ -107,6 +108,7 @@ export default function VidrieraLocal({
           entrega={entrega}
           hoy={hoy}
           cerrado={cerrado}
+          estado={estado}
         />
       </main>
       <PieLocal cfg={cfg} />

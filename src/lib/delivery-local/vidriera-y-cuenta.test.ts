@@ -22,6 +22,7 @@ import {
   type PedidoAGuardar,
 } from "./mi-cuenta";
 import { contraste, leerHex, pielDelLocal } from "./marca";
+import { configDeliveryLocal } from "./config";
 import { pagoParaElCliente } from "./seguimiento";
 
 const T0 = new Date("2026-11-10T12:00:00.000Z");
@@ -170,8 +171,8 @@ test("repetirBolsa: por id o por nombre; lo que no está, sin stock o cambió de
 // ── marca ──
 
 test("pielDelLocal: sin marca → piel GSG (sin variables)", () => {
-  assert.deepEqual(pielDelLocal(undefined), { variables: {}, logoUrl: null, fotoPortada: null });
-  assert.deepEqual(pielDelLocal({}), { variables: {}, logoUrl: null, fotoPortada: null });
+  assert.deepEqual(pielDelLocal(undefined), { variables: {}, logoUrl: null, fotoPortada: null, banda: false, letra: null });
+  assert.deepEqual(pielDelLocal({}), { variables: {}, logoUrl: null, fotoPortada: null, banda: false, letra: null });
 });
 
 test("pielDelLocal: el texto sobre el primario siempre da AA; el primario como texto sólo si da 4,5:1", () => {
@@ -187,12 +188,44 @@ test("pielDelLocal: el texto sobre el primario siempre da AA; el primario como t
 
 test("pielDelLocal: fondo oscuro o color inválido se ignoran; URL sólo propia o https", () => {
   const p = pielDelLocal({ colorFondo: "#111111", colorPrimario: "rojo", logoUrl: "javascript:alert(1)", fotoPortada: "//evil.com/x.jpg" });
-  assert.deepEqual(p, { variables: {}, logoUrl: null, fotoPortada: null });
+  assert.deepEqual(p, { variables: {}, logoUrl: null, fotoPortada: null, banda: false, letra: null });
   const q = pielDelLocal({ colorFondo: "#fffaf0", logoUrl: "/tenants/bitacora/logo.svg", fotoPortada: "https://cdn.example.com/a.jpg" });
   assert.equal(q.variables["--pl-fondo"], "#fffaf0");
   assert.equal(q.logoUrl, "/tenants/bitacora/logo.svg");
   assert.equal(q.fotoPortada, "https://cdn.example.com/a.jpg");
   assert.equal(pielDelLocal({ logoUrl: 'https://x.com/a.png") ; background:url(' }).logoUrl, null);
+});
+
+test("pielDelLocal: banda y acento con texto encima ≥ 4,5:1; letra sólo de la lista", () => {
+  const v = pielDelLocal({ colorFondo: "#FCF5F0", colorPrimario: "#323977", colorBanda: "#323977", colorAcento: "#B37C57", letra: "manrope" });
+  assert.equal(v.banda, true);
+  assert.equal(v.letra, "manrope");
+  const rgb = (k: string) => leerHex(v.variables[k])!;
+  assert.equal(v.variables["--pl-sobre-banda"], "#fcf5f0", "sobre el azul, la crema del local");
+  assert.ok(contraste(rgb("--pl-banda"), rgb("--pl-sobre-banda")) >= 4.5);
+  assert.ok(contraste(rgb("--pl-banda"), rgb("--pl-sobre-banda-suave")) >= 4.5);
+  assert.notEqual(v.variables["--pl-sobre-banda-suave"], v.variables["--pl-sobre-banda"]);
+  // Terracota: relleno con tinta (el blanco da 3,54 y no pasa); como texto, oscurecido hasta AA.
+  assert.equal(v.variables["--pl-acento"], "#b37c57");
+  assert.ok(contraste(rgb("--pl-acento"), rgb("--pl-sobre-acento")) >= 4.5);
+  assert.notEqual(v.variables["--pl-sobre-acento"], "#ffffff");
+  for (const fondo of ["#fcf5f0", "#ffffff"]) assert.ok(contraste(rgb("--pl-acento-texto"), leerHex(fondo)!) >= 4.5, fondo);
+  assert.notEqual(v.variables["--pl-acento-texto"], "#b37c57");
+  // Una banda gris media (ningún texto llega a 4,5:1) no se pinta; una letra desconocida, tampoco.
+  const gris = pielDelLocal({ colorBanda: "#767676", letra: "comic-sans" as never });
+  assert.equal(gris.variables["--pl-banda"] === undefined || contraste(leerHex(gris.variables["--pl-banda"])!, leerHex(gris.variables["--pl-sobre-banda"])!) >= 4.5, true);
+  assert.equal(gris.letra, null);
+  assert.equal(pielDelLocal({ colorBanda: "azul" }).banda, false);
+});
+
+test("pielDelLocal de Bitácora (config.ts): banda azul, fondo crema, Manrope, logo y portada https", () => {
+  const p = pielDelLocal(configDeliveryLocal("bitacora")!.marca);
+  assert.equal(p.variables["--pl-primario"], "#323977");
+  assert.equal(p.variables["--pl-fondo"], "#fcf5f0");
+  assert.equal(p.banda, true);
+  assert.equal(p.letra, "manrope");
+  assert.match(p.logoUrl ?? "", /^https:\/\//);
+  assert.match(p.fotoPortada ?? "", /^https:\/\//);
 });
 
 // ── pago en el seguimiento ──

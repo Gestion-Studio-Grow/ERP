@@ -4,7 +4,8 @@
 //
 // QUÉ HACE: deja una base de QA VACÍA lista para que el dueño y el titular de Bitácora prueben la
 // tienda en un preview: el negocio `bitacora` (rubro cafetería), su dueño con cambio de contraseña
-// obligatorio, una carta DE EJEMPLO (no la del local) y dos zonas de envío de ejemplo. Aditivo e
+// obligatorio, la carta REAL del local (su menú de Fudo, 13/11/2026: carta-bitacora.ts) y dos zonas
+// de envío de ejemplo. Aditivo e
 // idempotente: correrlo dos veces no duplica nada ni pisa lo que se haya editado en la base.
 //
 // DÓNDE CORRE: sólo en la rama de Neon de QA (`qa-pedi-local`, sólo estructura, sin datos reales) o
@@ -20,6 +21,7 @@
 
 import type { PrismaClient } from "@/generated/prisma/client";
 import { provisionTenant } from "../../../scripts/provision-tenant";
+import { CARTA_BITACORA } from "./carta-bitacora";
 import { guardarConfigEnviosEnTx, leerConfigEnvios, type ConfigEnvios } from "@/lib/envios/config";
 
 export const SLUG_QA = "bitacora";
@@ -78,24 +80,13 @@ export async function frenoPorContenido(db: LectorDeNegocios): Promise<Resultado
 }
 
 /**
- * Carta DE EJEMPLO, con nombres que la vidriera agrupa sola (carta.ts → categoriaDe). Precios de
- * ejemplo en pesos: la carta real la carga el local (docs/tenants/bitacora/datos-a-pedir-al-local.md).
+ * La carta de Bitácora para la prueba: código, nombre y precio de carta-bitacora.ts (su menú de
+ * Fudo, 13/11/2026). Precios PROVISIONALES A CONFIRMAR: cambian seguido, revalidar antes de
+ * publicar. Categoría, foto, descripción y destacado van por la config (`cfg.carta`), no por acá.
  */
-export const CARTA_DE_EJEMPLO: readonly { codigo: string; name: string; price: number }[] = Object.freeze([
-  { codigo: "qa-espresso", name: "Espresso", price: 2400 },
-  { codigo: "qa-cortado", name: "Cortado", price: 2700 },
-  { codigo: "qa-cafe-con-leche", name: "Café con leche", price: 3200 },
-  { codigo: "qa-flat-white", name: "Flat white", price: 3800 },
-  { codigo: "qa-cold-brew", name: "Cold brew", price: 4200 },
-  { codigo: "qa-te", name: "Té en hebras", price: 2600 },
-  { codigo: "qa-limonada", name: "Limonada con menta y jengibre", price: 3900 },
-  { codigo: "qa-tostado", name: "Tostado de jamón y queso", price: 6500 },
-  { codigo: "qa-palta", name: "Tostón de palta y huevo", price: 8200 },
-  { codigo: "qa-medialuna", name: "Medialuna de manteca", price: 1500 },
-  { codigo: "qa-budin", name: "Budín de limón (porción)", price: 3400 },
-  { codigo: "qa-cheesecake", name: "Cheesecake de frutos rojos", price: 5600 },
-  { codigo: "qa-grano", name: "Café en grano 250 g", price: 14500 },
-]);
+export const CARTA_DEL_SEED: readonly { codigo: string; name: string; price: number }[] = Object.freeze(
+  CARTA_BITACORA.flatMap((c) => c.productos.map((p) => ({ codigo: p.codigo, name: p.nombre, price: p.precio }))),
+);
 
 /** Envíos DE EJEMPLO: retiro en el local y dos zonas. El local carga las reales en Ajustes → Envíos. */
 export const ENVIOS_DE_EJEMPLO: Readonly<ConfigEnvios> = Object.freeze({
@@ -139,7 +130,7 @@ export async function sembrarBitacoraQA(prisma: PrismaClient, o: OpcionesSeedQA)
       shortLabel: "Bitácora Café",
       city: "Monte Grande",
       hoursLabel: "Lunes a sábado de 8 a 20 (provisional a confirmar)",
-      contactNote: "Prueba cerrada: carta y precios de ejemplo.",
+      contactNote: "Prueba cerrada: carta de Fudo del 13/11/2026, precios a revalidar con el local.",
     },
     platform: { status: "TRIAL" },
   });
@@ -149,7 +140,7 @@ export async function sembrarBitacoraQA(prisma: PrismaClient, o: OpcionesSeedQA)
     // Con RLS, todo lo que sigue va parado en el negocio (igual que provisionTenant). Local a la transacción.
     await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`;
     let productosNuevos = 0;
-    for (const p of CARTA_DE_EJEMPLO) {
+    for (const p of CARTA_DEL_SEED) {
       const existe = await tx.product.findUnique({ where: { tenantId_codigo: { tenantId, codigo: p.codigo } }, select: { id: true } });
       if (existe) continue; // Lo que ya está no se pisa: el dueño puede haberlo editado en la prueba.
       await tx.product.create({ data: { tenantId, codigo: p.codigo, name: p.name, price: p.price, saleUnit: "UNIT", unit: "unidades", active: true } });

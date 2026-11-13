@@ -1,10 +1,10 @@
 // Datos de ejemplo de la prueba cerrada de Bitácora (qa-seed.ts): los dos frenos anti-producción, la
-// carta de ejemplo y la siembra entera contra una base efímera (sin Postgres local, se saltea; en CI falla).
+// carta real del seed y la siembra entera contra una base efímera (sin Postgres local, se saltea; en CI falla).
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  CARTA_DE_EJEMPLO,
+  CARTA_DEL_SEED,
   ENDPOINT_NEON_MAIN,
   ENVIOS_DE_EJEMPLO,
   frenoPorContenido,
@@ -12,7 +12,9 @@ import {
   sembrarBitacoraQA,
   SLUG_QA,
 } from "./qa-seed";
-import { categoriaDe } from "@/app/tienda/local/carta";
+import { cartaPorCategoria } from "@/app/tienda/local/carta";
+import { fichasDeLaCarta, planoDelNombre } from "./carta-del-local";
+import { configDeliveryLocal } from "./config";
 import { validarConfigEnvios } from "@/lib/envios/modelo";
 import { baseEfimeraParaElTest, prismaComoDuenio } from "@/test/base-efimera";
 
@@ -65,12 +67,19 @@ test("freno por contenido: si no se puede mirar la base, corta", async () => {
   assert.equal((await frenoPorContenido(rota)).ok, false);
 });
 
-test("la carta de ejemplo: códigos únicos, precios enteros y cada plato en una sección de la carta", () => {
-  assert.equal(new Set(CARTA_DE_EJEMPLO.map((p) => p.codigo)).size, CARTA_DE_EJEMPLO.length);
-  for (const p of CARTA_DE_EJEMPLO) {
+test("la carta del seed: 84 productos, códigos y nombres únicos, precios enteros y cada uno con su categoría", () => {
+  assert.equal(CARTA_DEL_SEED.length, 84);
+  assert.equal(new Set(CARTA_DEL_SEED.map((p) => p.codigo)).size, CARTA_DEL_SEED.length);
+  assert.equal(new Set(CARTA_DEL_SEED.map((p) => planoDelNombre(p.name))).size, CARTA_DEL_SEED.length, "el nombre es la llave de la ficha");
+  const fichas = fichasDeLaCarta(configDeliveryLocal(SLUG_QA)?.carta);
+  for (const p of CARTA_DEL_SEED) {
     assert.ok(Number.isInteger(p.price) && p.price > 0, p.name);
-    assert.notEqual(categoriaDe(p.name).id, "otros", `«${p.name}» cae en «Más de la carta»`);
+    assert.match(p.codigo, /^bit-[a-z0-9-]+$/);
+    assert.ok(fichas.get(planoDelNombre(p.name)), `«${p.name}» no tiene categoría en la carta del local`);
   }
+  // Ninguno cae en «Más de la carta» en la vidriera (carta explícita + regla por palabras).
+  const carta = cartaPorCategoria(CARTA_DEL_SEED, configDeliveryLocal(SLUG_QA)?.carta);
+  assert.ok(!carta.some((g) => g.categoria.id === "otros"));
   assert.ok(validarConfigEnvios(ENVIOS_DE_EJEMPLO).ok, "los envíos de ejemplo pasan la validación de Ajustes → Envíos");
 });
 
@@ -91,7 +100,7 @@ test("siembra contra una base: corta con otros negocios; en una base vacía siem
   const r1 = await sembrarBitacoraQA(db, { ownerEmail: "titular@bitacora.test", ownerPassword: CLAVE });
   assert.equal(r1.tenantCreado, true);
   assert.equal(r1.ownerCreado, true);
-  assert.equal(r1.productosNuevos, CARTA_DE_EJEMPLO.length);
+  assert.equal(r1.productosNuevos, CARTA_DEL_SEED.length);
   assert.equal(r1.enviosCargados, true);
 
   const duenio = await db.user.findFirstOrThrow({ where: { tenantId: r1.tenantId }, select: { role: true, mustChangePassword: true, passwordHash: true } });
@@ -101,10 +110,10 @@ test("siembra contra una base: corta con otros negocios; en una base vacía siem
 
   // Lo que la vidriera lee (getStorefront): productos activos con precio.
   const visibles = await db.product.count({ where: { tenantId: r1.tenantId, active: true, deletedAt: null, price: { not: null } } });
-  assert.equal(visibles, CARTA_DE_EJEMPLO.length);
+  assert.equal(visibles, CARTA_DEL_SEED.length);
 
   // El dueño edita un precio en la prueba; volver a correr no lo pisa ni duplica nada.
-  await db.product.update({ where: { tenantId_codigo: { tenantId: r1.tenantId, codigo: "qa-cortado" } }, data: { price: 9999 } });
+  await db.product.update({ where: { tenantId_codigo: { tenantId: r1.tenantId, codigo: "bit-cortado" } }, data: { price: 9999 } });
   const r2 = await sembrarBitacoraQA(db, { ownerEmail: "titular@bitacora.test", ownerPassword: CLAVE });
   assert.deepEqual(
     { tenantCreado: r2.tenantCreado, ownerCreado: r2.ownerCreado, productosNuevos: r2.productosNuevos, enviosCargados: r2.enviosCargados },
@@ -112,7 +121,7 @@ test("siembra contra una base: corta con otros negocios; en una base vacía siem
   );
   assert.equal(await db.tenant.count(), 1);
   assert.equal(await db.user.count({ where: { tenantId: r1.tenantId } }), 1);
-  assert.equal(await db.product.count({ where: { tenantId: r1.tenantId } }), CARTA_DE_EJEMPLO.length);
-  const cortado = await db.product.findUniqueOrThrow({ where: { tenantId_codigo: { tenantId: r1.tenantId, codigo: "qa-cortado" } }, select: { price: true } });
+  assert.equal(await db.product.count({ where: { tenantId: r1.tenantId } }), CARTA_DEL_SEED.length);
+  const cortado = await db.product.findUniqueOrThrow({ where: { tenantId_codigo: { tenantId: r1.tenantId, codigo: "bit-cortado" } }, select: { price: true } });
   assert.equal(cortado.price, 9999);
 });

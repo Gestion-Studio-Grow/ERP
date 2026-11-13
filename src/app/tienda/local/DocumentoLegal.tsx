@@ -6,6 +6,8 @@ import type { ReactNode } from "react";
 import type { ConfigDeliveryLocal } from "@/lib/delivery-local/config";
 import type { DocumentoDeTexto } from "@/lib/delivery-local/legales";
 import PieLocal from "./PieLocal";
+import { pielDelLocal } from "@/lib/delivery-local/marca";
+import { atributosDeRaiz } from "./raiz";
 import s from "./local.module.css";
 
 export default function DocumentoLegal({
@@ -19,7 +21,7 @@ export default function DocumentoLegal({
   children?: ReactNode;
 }) {
   return (
-    <div className={`${s.raiz} ${s.raizSinBarra}`}>
+    <div {...atributosDeRaiz(pielDelLocal(cfg.marca), `${s.raiz} ${s.raizSinBarra}`)}>
       <main className={s.legal}>
         <Link href="/tienda" className={s.volver}>
           ← Volver a la carta de {cfg.nombre}
