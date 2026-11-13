@@ -20,6 +20,7 @@
 // (sobrante) / EGRESO (faltante) y el test verifica que su signo sale de esa tabla.
 
 import { round2 } from "@/lib/round";
+import { esDevolucionPorPeso } from "@/lib/caja/devolucion-por-peso";
 import { leerImporte, type LecturaImporte } from "@/lib/pos-peso";
 import { movementSign, type CashMethod } from "@/lib/caja/cash-register";
 import {
@@ -830,15 +831,21 @@ export type HechosDelCierre = {
 /**
  * Pedidos pagados de más, desde los asientos del período: suma lo que entró por cada pedido y lo
  * compara con su total. PURA. Un pedido sin total conocido no cuenta.
+ *
+ * La devolución por peso (EGRESO firmado `ajuste-peso:`, ajuste-peso-cobrado.ts) se descuenta: el
+ * pedido cobrado que pesó menos ya devolvió la diferencia y su total bajó; sin descontarla, esa
+ * diferencia se alertaba como un vuelto que salió de más.
  */
 export function pagadosDeMasDelPeriodo(
-  filas: readonly { orderId: string | null; total: number | null; amount: number; type: string }[],
+  filas: readonly { orderId: string | null; total: number | null; amount: number; type: string; createdBy?: string | null }[],
 ): MontoContado {
   const porPedido = new Map<string, { asentado: number; total: number }>();
   for (const f of filas) {
-    if (!f.orderId || f.type !== "VENTA" || f.total === null || !Number.isFinite(f.amount)) continue;
+    if (!f.orderId || f.total === null || !Number.isFinite(f.amount)) continue;
+    const signo = f.type === "VENTA" ? 1 : f.type === "EGRESO" && esDevolucionPorPeso(f) ? -1 : 0;
+    if (signo === 0) continue;
     const p = porPedido.get(f.orderId) ?? { asentado: 0, total: f.total };
-    p.asentado = round2(p.asentado + f.amount);
+    p.asentado = round2(p.asentado + signo * f.amount);
     porPedido.set(f.orderId, p);
   }
   const out: MontoContado = { cantidad: 0, monto: 0 };
