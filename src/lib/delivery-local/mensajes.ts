@@ -7,6 +7,7 @@
 // armado con lo justo para entregar: número, cliente, teléfono, dirección, ubicación, qué cobrar y
 // el vuelto. Sin número del repartidor, `wa.me/?text=` deja elegir a quién mandarlo.
 
+import { centavosDe } from "@/lib/dinero/redondeo";
 import { vueltoALlevar, type MedioPreferido } from "./pago";
 
 export type PedidoParaElRepartidor = {
@@ -101,9 +102,9 @@ export function efectivoDelViaje(paradas: readonly Pick<PedidoParaElRepartidor, 
       sinConfirmar += 1;
       continue;
     }
-    cobrar += Math.round(p.total * 100);
+    cobrar += centavosDe(p.total);
     const v = vueltoALlevar(p.total, p.pagaCon);
-    if (v !== null) vuelto += Math.round(v * 100);
+    if (v !== null) vuelto += centavosDe(v);
   }
   return { cobrar: cobrar / 100, vuelto: vuelto / 100, sinConfirmar };
 }
