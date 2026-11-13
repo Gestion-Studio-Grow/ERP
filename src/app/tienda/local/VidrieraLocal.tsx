@@ -20,6 +20,7 @@ import type { CSSProperties } from "react";
 import type { ConfigEnvios } from "@/lib/envios/modelo";
 import type { ConfigDeliveryLocal } from "@/lib/delivery-local/config";
 import { pielDelLocal } from "@/lib/delivery-local/marca";
+import { rechazoPorHorario, resumenDelHorario, textoDelEstado } from "@/lib/delivery-local/horario";
 import { buildWhatsAppHref, numeroWhatsApp } from "@/lib/whatsapp-cta";
 import type { ProductoDeLaCarta } from "./carta";
 import BarraDelLocal from "./BarraDelLocal";
@@ -37,6 +38,7 @@ export default function VidrieraLocal({
   branding,
   entrega,
   hoy,
+  ahora,
 }: {
   cfg: ConfigDeliveryLocal;
   /** El negocio: separa «Mi cuenta» del dispositivo por local. */
@@ -45,10 +47,16 @@ export default function VidrieraLocal({
   branding: Branding;
   entrega: ConfigEnvios | null;
   hoy: string | null;
+  /** El momento del pedido de la página (la página es dinámica): decide «Abierto · cierra 20:00». */
+  ahora: Date;
 }) {
   const numero = numeroWhatsApp(branding?.whatsapp);
   const consulta = numero ? buildWhatsAppHref(numero, `Hola ${cfg.nombre}, tengo una consulta sobre un pedido.`) : null;
   const piel = pielDelLocal(cfg.marca);
+  // El horario que se muestra es el MISMO que controla el alta (config.ts → horario.ts): por eso
+  // manda sobre el rótulo de horario de la marca, que podría decir otra cosa.
+  const estado = textoDelEstado(cfg.horario, ahora);
+  const cerrado = rechazoPorHorario(cfg, ahora);
   return (
     <div className={s.raiz} style={piel.variables as CSSProperties} data-marca={piel.variables["--pl-primario"] ? "" : undefined}>
       <a href="#carta" className={s.salto}>
@@ -63,7 +71,8 @@ export default function VidrieraLocal({
             <p className={s.bajada}>{cfg.bajada}</p>
             <ul className={s.datos} aria-label="Datos del local">
               <li className={`${s.dato} ${s.datoAcento}`}>Delivery propio, sin comisión de apps</li>
-              <li className={s.dato}>{branding?.hoursLabel ?? cfg.horario}</li>
+              <li className={`${s.dato} ${cerrado ? "" : s.datoAcento}`}>{estado}</li>
+              <li className={s.dato}>{resumenDelHorario(cfg.horario)}</li>
               {cfg.radioKm !== null && <li className={s.dato}>Reparte hasta {String(cfg.radioKm).replace(".", ",")} km</li>}
             </ul>
             <div className={s.portadaAcciones}>
@@ -97,6 +106,7 @@ export default function VidrieraLocal({
           direccionDelLocal={branding?.addressLine ?? cfg.direccion}
           entrega={entrega}
           hoy={hoy}
+          cerrado={cerrado}
         />
       </main>
       <PieLocal cfg={cfg} />

@@ -176,7 +176,7 @@ export default async function TiendaPage({
   // editoriales, con los mismos datos. Un negocio sin esa configuración sigue exactamente igual.
   const local = configDeliveryLocal(slug);
   if (local) {
-    return <VidrieraLocal cfg={local} slug={slug ?? ""} productos={data.products} branding={data.branding} entrega={entrega} hoy={hoy} />;
+    return <VidrieraLocal cfg={local} slug={slug ?? ""} productos={data.products} branding={data.branding} entrega={entrega} hoy={hoy} ahora={new Date()} />;
   }
 
   // DISEÑO NUEVO (interruptor «Diseño nuevo» del negocio, apagado = todo lo de abajo, igual que

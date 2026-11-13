@@ -39,7 +39,13 @@ test("placeOnlineOrder: el delivery local sólo corre con config; sin ella, la n
   assert.match(cuerpo, /const extrasLocal = deliveryLocal \? extrasDelAlta\(deliveryLocal, formData, fulfillment === "DELIVERY"\) : null;/);
   // Un pago mal formado frena ANTES de grabar.
   assert.ok(cuerpo.indexOf("if (extrasLocal && !extrasLocal.ok)") < cuerpo.indexOf("tomarPedidoOnlineGuarded("));
-  assert.match(cuerpo, /\.\.\.\(extrasLocal\?\.ok \? \{ extras: extrasLocal\.renglones \} : \{\}\)/);
+  assert.match(cuerpo, /\.\.\.\(extrasLocal\?\.ok \? \{ extras: \[\.\.\.extrasLocal\.renglones, \.\.\.\(opcionesLocal\?\.ok \? opcionesLocal\.renglones : \[\]\)\] \} : \{\}\)/);
+  // Fuera de horario y con opciones mal elegidas, se frena ANTES de grabar.
+  assert.ok(cuerpo.indexOf("if (cerrado) return") > 0 && cuerpo.indexOf("if (cerrado) return") < cuerpo.indexOf("tomarPedidoOnlineGuarded("));
+  assert.ok(cuerpo.indexOf("if (opcionesLocal && !opcionesLocal.ok)") > 0 && cuerpo.indexOf("if (opcionesLocal && !opcionesLocal.ok)") < cuerpo.indexOf("tomarPedidoOnlineGuarded("));
+  // El recargo de las opciones sale de la config (opcionesDelAlta), nunca de un precio del formulario.
+  assert.match(cuerpo, /lineasAMano: opcionesLocal\.lineasAMano/);
+  assert.doesNotMatch(cuerpo, /formData\.get(All)?\("recargo/);
   assert.match(cuerpo, /\.\.\.\(extrasLocal\?\.ok \? \{ entregaLocal: extrasLocal\.auditoria \} : \{\}\)/);
   assert.match(cuerpo, /seguimiento = rutaDeSeguimiento\(tokenDeSeguimiento\(authSecret\(\), tenantId, result\.id\)\);/);
   // Sin el secreto, el pedido ya grabado no termina en error: cae a «gracias».

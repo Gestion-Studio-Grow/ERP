@@ -132,3 +132,26 @@ test("numeroDePedido y mensajeDeCancelacion: el número sólo si parece uno", ()
   assert.equal(mensajeDeCancelacion("Bitácora Café", "P7"), "Hola Bitácora Café, quiero cancelar mi pedido #P7. Mi nombre es ___. Gracias.");
   assert.match(mensajeDeCancelacion("Bitácora Café", "no válido!"), /número: ___/);
 });
+
+test("lineasDeLaBolsa con opciones: mismo producto con opciones distintas son dos líneas, con su recargo", async () => {
+  const { claveDeLinea } = await import("./carta");
+  const { repetirBolsa } = await import("@/lib/delivery-local/mi-cuenta");
+  const grupos = [
+    { id: "tamano", nombre: "Tamaño", tipo: "unico" as const, obligatorio: true, opciones: [{ id: "chico", nombre: "Chico", recargo: 0 }, { id: "grande", nombre: "Grande", recargo: 900 }] },
+  ];
+  const latte = prod("l", "Latte", 3000);
+  const gruposDe = (p: ProductoDeLaCarta) => (p.id === "l" ? grupos : []);
+  const bolsa = { [claveDeLinea("l", "tamano:grande")]: 2, [claveDeLinea("l", "tamano:chico")]: 1, [claveDeLinea("l", "tamano:gigante")]: 1, l: 1 };
+  const lineas = lineasDeLaBolsa([latte], bolsa, gruposDe);
+  // La de una opción que no existe y la que no eligió el tamaño obligatorio se caen.
+  assert.deepEqual(
+    lineas.map((l) => [l.clave, l.cantidad, l.importe, l.detalle]),
+    [
+      ["l#tamano:grande", 2, 7800, "Grande"],
+      ["l#tamano:chico", 1, 3000, "Chico"],
+    ],
+  );
+  // «Repetir pedido» vuelve a armar la misma línea con sus opciones.
+  const r = repetirBolsa([{ productId: "l", nombre: "Latte", cantidad: 2, saleUnit: "UNIT", opciones: "tamano:grande" }], [{ id: "l", name: "Latte", saleUnit: "UNIT" }]);
+  assert.deepEqual(r.bolsa, { "l#tamano:grande": 2 });
+});

@@ -108,6 +108,8 @@ import type { ZonaDeEnvio } from "@/lib/envios/modelo";
 import { shippingVigente } from "@/lib/storefront-shipping";
 import { configDeliveryLocal } from "@/lib/delivery-local/config";
 import { extrasDelAlta } from "@/lib/delivery-local/alta";
+import { rechazoPorHorario } from "@/lib/delivery-local/horario";
+import { opcionesDelAlta } from "@/lib/delivery-local/opciones";
 import { tokenDeSeguimiento } from "@/lib/delivery-local/seguimiento";
 import { rutaDeSeguimiento } from "@/lib/delivery-local/salida";
 import { authSecret } from "@/lib/auth";
@@ -774,12 +776,34 @@ export async function placeOnlineOrder(
   // la forma de pago van a la nota (la ven la bandeja y el repartidor) y a la auditoría del alta;
   // un pago mal formado frena el alta sin grabar. Sin configuración, nada de esto corre.
   const deliveryLocal = configDeliveryLocal(tenant?.slug);
+  // Fuera del horario del local (horario.ts) no se toma el pedido: la vidriera apaga el botón,
+  // pero el navegador se saltea. Se rechaza antes de leer nada más, sin grabar.
+  const cerrado = deliveryLocal ? rechazoPorHorario(deliveryLocal, ahora) : null;
+  if (cerrado) return { ok: false, error: cerrado };
   const extrasLocal = deliveryLocal ? extrasDelAlta(deliveryLocal, formData, fulfillment === "DELIVERY") : null;
   if (extrasLocal && !extrasLocal.ok) return { ok: false, error: extrasLocal.error, campo: "datos" };
+
+  // Las líneas tal como vinieron (productId y quantity en el mismo orden).
+  const crudas = parseItems(formData);
+  // OPCIONES DE PRODUCTO (delivery local, opciones.ts). Del formulario se lee sólo QUÉ se eligió
+  // (`opciones`, una por línea, en el orden de `productId`); el recargo se RECALCULA con la config
+  // y entra como línea sin producto. Opción desconocida o mal formada → rechazo, sin grabar.
+  // Si viene el campo, viene uno por línea: si no, no se sabe de qué línea es cada elección.
+  const opcionesCrudas = formData.getAll("opciones");
+  const opcionesLocal = deliveryLocal?.opciones?.length
+    ? opcionesCrudas.length > 0 && opcionesCrudas.length !== crudas.length
+      ? ({ ok: false, error: "No pudimos leer las opciones de tu pedido: recargá la página y volvé a elegirlas." } as const)
+      : opcionesDelAlta(
+          deliveryLocal.opciones,
+          crudas.map((l, i) => ({ ...l, opciones: opcionesCrudas[i] ?? null })),
+          await nombresDeLaBolsa(tenantId, crudas.map((l) => l.productId)),
+        )
+    : null;
+  if (opcionesLocal && !opcionesLocal.ok) return { ok: false, error: opcionesLocal.error };
   const notes = notaDelPedido({
     zona: conZonas ? (zonaElegida?.nombre ?? null) : null,
     franja: horario.nota,
-    ...(extrasLocal?.ok ? { extras: extrasLocal.renglones } : {}),
+    ...(extrasLocal?.ok ? { extras: [...extrasLocal.renglones, ...(opcionesLocal?.ok ? opcionesLocal.renglones : [])] } : {}),
     deLaClienta: String(formData.get("notes") || "").trim().slice(0, 500) || null,
   });
 
@@ -793,7 +817,6 @@ export async function placeOnlineOrder(
   // El precio que la vidriera mostró en cada línea (lo mandan las cuatro tiendas desde la ronda 2, src/components/vidriera): se empareja ANTES de
   // filtrar, porque viaja en el mismo orden que `productId`. Sólo sirve para avisar; el alta
   // cobra siempre el precio de la base.
-  const crudas = parseItems(formData);
   const vistos = preciosVistos(formData.getAll("unitPrice"), crudas.length);
   const lineasDeLaBolsa: LineaDeLaBolsa[] = crudas
     .map((l, i) => ({ ...l, precioVisto: vistos[i] }))
@@ -840,6 +863,7 @@ export async function placeOnlineOrder(
         paid: false,
         paymentMethod: null,
         items,
+        ...(opcionesLocal?.ok && opcionesLocal.lineasAMano.length > 0 ? { lineasAMano: opcionesLocal.lineasAMano } : {}),
       }, { idempotencyKey, envio, envioZona: cotizacion.zona, cupon, promociones });
     },
   });
@@ -880,6 +904,7 @@ export async function placeOnlineOrder(
         ...(result.cupon ? { cupon: { codigo: result.cupon, monto: result.descuento ?? 0 } } : {}),
         ...(porWhatsApp ? { via: "whatsapp" } : {}),
         ...(extrasLocal?.ok ? { entregaLocal: extrasLocal.auditoria } : {}),
+        ...(opcionesLocal?.ok && opcionesLocal.auditoria.length > 0 ? { opciones: opcionesLocal.auditoria } : {}),
       },
     });
     // El backoffice ve el pedido nuevo en su bandeja al revalidar.
@@ -921,6 +946,13 @@ async function subtotalDeLaBolsaEnBase(tenantId: string, items: { productId: str
     select: { id: true, name: true, saleUnit: true, price: true, pricePerKg: true, trackStock: true },
   });
   return orderSubtotal(buildOrderLines(productos, items));
+}
+
+/** Id y nombre de los productos de la bolsa, del negocio: para buscar sus opciones (delivery local). */
+async function nombresDeLaBolsa(tenantId: string, ids: string[]): Promise<{ id: string; name: string }[]> {
+  const unicos = [...new Set(ids.filter(Boolean))].slice(0, 200);
+  if (unicos.length === 0) return [];
+  return prisma.product.findMany({ where: { tenantId, id: { in: unicos }, deletedAt: null }, select: { id: true, name: true } });
 }
 
 /** La bolsa contra la base: qué línea no se puede pedir y por qué (`problemasDeLaBolsa`). */
