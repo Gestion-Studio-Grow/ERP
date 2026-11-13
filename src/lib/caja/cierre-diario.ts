@@ -840,10 +840,12 @@ export type HechosDelCierre = {
  * (otro día), su total bajó y la devolución cayó fuera del período: comparar lo que entró en el
  * período contra el total de hoy alertaba un «pagado de más» falso en la hoja del día del cobro.
  * Criterio: total del período = total de hoy + lo devuelto por peso después del período
- * (`devueltoDespues`, por pedido). Es exacto porque el ajuste por peso de un pedido cobrado es
- * UNO solo (`@@unique(tenantId, orderId, type)`) y devuelve justo lo que el total bajó
- * (`diferenciaDelAjuste`). Un pesó-MÁS posterior sube el total sin asiento: puede tapar un
- * excedente de ese día, nunca inventarlo (deuda aceptada: falso negativo, no falso positivo).
+ * (`devueltoDespues`, por pedido). El ajuste por peso de un pedido cobrado es UNO solo
+ * (`@@unique(tenantId, orderId, type)`) y devuelve lo cobrado menos el total nuevo: es exacto
+ * cuando lo cobrado era igual al total. Si ese día ya se había cobrado DE MÁS, la devolución
+ * posterior incluye ese excedente y la alerta de ese día se apaga (el excedente también se
+ * devolvió). Un pesó-MÁS posterior sube el total sin asiento. En los dos casos puede tapar un
+ * excedente del día, nunca inventarlo (deuda aceptada: falso negativo, no falso positivo).
  */
 export function pagadosDeMasDelPeriodo(
   filas: readonly { orderId: string | null; total: number | null; amount: number; type: string; createdBy?: string | null }[],
