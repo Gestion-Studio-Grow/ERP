@@ -258,5 +258,12 @@ test("adversarial NC por peso", async (t) => {
       ["carrera", "de B", null, null],
       ["solo-b", "La factura del pedido ya no está autorizada.", 9, 12.5],
     ]);
+    // El total es el real aunque la lista venga cortada: el aviso no se queda en el límite.
+    const todasDeB = await nc.notasPorPesoCerradasSinEmitir(b.id);
+    const cortada = await nc.notasPorPesoCerradasSinEmitir(b.id, 1);
+    assert.equal(cortada.length, 1);
+    assert.equal(cortada[0].total, todasDeB.length);
+    assert.ok(todasDeB.length >= 2 && todasDeB.every((n) => n.total === todasDeB.length));
+    assert.ok(deA.every((n) => n.total === deA.length), "el total de A no cuenta las de B");
   });
 });

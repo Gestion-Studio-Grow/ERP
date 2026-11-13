@@ -181,7 +181,7 @@ const fechaAR = new Intl.DateTimeFormat("es-AR", { day: "2-digit", month: "2-dig
 /** Aviso de las notas de crédito por peso que no se pudieron emitir (cerradas para un humano). */
 function AvisoNotasPorPeso({ notas }: { notas: readonly NotaPorPesoCerrada[] }) {
   if (notas.length === 0) return null;
-  const n = notas.length;
+  const n = Math.max(notas.length, notas[0].total);
   return (
     <section role="status" aria-label="Notas de crédito por peso sin emitir" className="mb-4 rounded-md border border-warning/40 bg-warning-soft/40 px-4 py-3 text-sm">
       <p className="font-medium text-strong">

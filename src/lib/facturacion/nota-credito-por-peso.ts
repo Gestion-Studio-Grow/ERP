@@ -276,6 +276,8 @@ export type NotaPorPesoCerrada = {
   code: number | null;
   /** Lo devuelto en la caja que falta acreditar; null si no se pudo leer. */
   importe: number | null;
+  /** Cuántas cerradas sin emitir tiene el negocio en total (la lista viene cortada en `limite`). */
+  total: number;
 };
 
 /**
@@ -285,10 +287,11 @@ export type NotaPorPesoCerrada = {
 export async function notasPorPesoCerradasSinEmitir(tenantId: string, limite = 50): Promise<NotaPorPesoCerrada[]> {
   return tenantTransaction(
     async (tx) => {
-      const filas = await tx.$queryRaw<{ clave: string; motivo: string | null; fecha: Date; pendiente: unknown }[]>(Prisma.sql`
+      const filas = await tx.$queryRaw<{ clave: string; motivo: string | null; fecha: Date; pendiente: unknown; total: bigint }[]>(Prisma.sql`
         SELECT c."entityId" AS clave,
                c."changes"->>'motivo' AS motivo,
                c."createdAt" AS fecha,
+               count(*) OVER () AS total,
                (SELECT p."changes" FROM "AuditLog" p
                  WHERE p."tenantId" = c."tenantId" AND p."entity" = c."entity"
                    AND p."entityId" = c."entityId" AND p."action" = ${ACCION_NC_PESO_PENDIENTE}
@@ -314,6 +317,7 @@ export async function notasPorPesoCerradasSinEmitir(tenantId: string, limite = 5
           fecha: f.fecha,
           code: typeof p.code === "number" ? p.code : null,
           importe: typeof p.importe === "number" ? p.importe : null,
+          total: Number(f.total),
         };
       });
     },
