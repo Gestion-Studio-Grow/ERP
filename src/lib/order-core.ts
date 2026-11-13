@@ -1469,15 +1469,21 @@ export type DepsAvisoDePedido = {
   auditar: (entry: { actor: string; action: string; entity: string; entityId: string; changes: unknown }) => Promise<void>;
 };
 
+/**
+ * El pedido que un aviso de pago tiene que igualar. Su «total» es lo que FALTA cobrar: un pedido
+ * con una parte ya cobrada (saldo-del-pedido.ts) se cobra por el saldo, nunca por el total entero,
+ * igual que el link de Mercado Pago (cobros-actions.ts, `aCobrarDelPedido`). Lo usan el simulador
+ * (`DEPS_AVISO`) y el webhook de producción (mercadopago-dispatch.ts): un solo lugar.
+ */
+export const leerPedidoParaAviso: DepsAvisoDePedido["leerPedido"] = async (tenantId, orderId) => {
+  const p = await prisma.order.findFirst({ where: { id: orderId, tenantId }, select: { id: true, code: true, total: true, paid: true, status: true } });
+  if (!p) return null;
+  const total = p.paid ? p.total : await aCobrarDelPedido(prisma, tenantId, p);
+  return { code: p.code, total, paid: p.paid, status: p.status };
+};
+
 const DEPS_AVISO: DepsAvisoDePedido = {
-  // El «total» que el pago tiene que igualar es lo que FALTA cobrar: un pedido con una parte ya
-  // cobrada (saldo-del-pedido.ts) se cobra por el saldo, nunca por el total entero.
-  leerPedido: async (tenantId, orderId) => {
-    const p = await prisma.order.findFirst({ where: { id: orderId, tenantId }, select: { id: true, code: true, total: true, paid: true, status: true } });
-    if (!p) return null;
-    const total = p.paid ? p.total : await aCobrarDelPedido(prisma, tenantId, p);
-    return { code: p.code, total, paid: p.paid, status: p.status };
-  },
+  leerPedido: leerPedidoParaAviso,
   cerradoHasta: (tenantId) => lastClosedDay(tenantId),
   hoy: () => dateStrInBusinessTz(new Date()),
   cobrar: (tenantId, args) => tenantTransaction((tx) => cobrarPedidoEnTx(tx, tenantId, args), { tenantId }),

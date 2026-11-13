@@ -835,16 +835,26 @@ export type HechosDelCierre = {
  * La devolución por peso (EGRESO firmado `ajuste-peso:`, ajuste-peso-cobrado.ts) se descuenta: el
  * pedido cobrado que pesó menos ya devolvió la diferencia y su total bajó; sin descontarla, esa
  * diferencia se alertaba como un vuelto que salió de más.
+ *
+ * El total que vale es el del FINAL del período, no el de hoy. Si el pedido pesó menos DESPUÉS
+ * (otro día), su total bajó y la devolución cayó fuera del período: comparar lo que entró en el
+ * período contra el total de hoy alertaba un «pagado de más» falso en la hoja del día del cobro.
+ * Criterio: total del período = total de hoy + lo devuelto por peso después del período
+ * (`devueltoDespues`, por pedido). Es exacto porque el ajuste por peso de un pedido cobrado es
+ * UNO solo (`@@unique(tenantId, orderId, type)`) y devuelve justo lo que el total bajó
+ * (`diferenciaDelAjuste`). Un pesó-MÁS posterior sube el total sin asiento: puede tapar un
+ * excedente de ese día, nunca inventarlo (deuda aceptada: falso negativo, no falso positivo).
  */
 export function pagadosDeMasDelPeriodo(
   filas: readonly { orderId: string | null; total: number | null; amount: number; type: string; createdBy?: string | null }[],
+  devueltoDespues: ReadonlyMap<string, number> = new Map(),
 ): MontoContado {
   const porPedido = new Map<string, { asentado: number; total: number }>();
   for (const f of filas) {
     if (!f.orderId || f.total === null || !Number.isFinite(f.amount)) continue;
     const signo = f.type === "VENTA" ? 1 : f.type === "EGRESO" && esDevolucionPorPeso(f) ? -1 : 0;
     if (signo === 0) continue;
-    const p = porPedido.get(f.orderId) ?? { asentado: 0, total: f.total };
+    const p = porPedido.get(f.orderId) ?? { asentado: 0, total: round2(f.total + (devueltoDespues.get(f.orderId) ?? 0)) };
     p.asentado = round2(p.asentado + signo * f.amount);
     porPedido.set(f.orderId, p);
   }
