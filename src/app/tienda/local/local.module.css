@@ -123,6 +123,8 @@
 /* ── Cuerpo: carta + pedido ── */
 .cuerpo {
   display: grid;
+  /* minmax(0, 1fr): sin esto la columna crece al ancho del carril de «elegidos» (1532px en un 390). */
+  grid-template-columns: minmax(0, 1fr);
   gap: 2rem;
   padding-top: 1.5rem;
   padding-bottom: 2rem;
@@ -598,7 +600,11 @@
 }
 
 /* ── La carta ── */
-.cartaSeccion { scroll-margin-top: calc(var(--pl-alto-indice) + 0.5rem); }
+.cartaSeccion { min-width: 0; scroll-margin-top: calc(var(--pl-alto-indice) + 0.5rem); }
+/* Con el local cerrado, la franja pegajosa (≈2,5rem) se suma al índice: el salto no la deja tapando el título. */
+:global(body):has(.franjaCerrado) .cartaSeccion,
+:global(body):has(.franjaCerrado) .categoria,
+:global(body):has(.franjaCerrado) .pedido { scroll-margin-top: calc(var(--pl-alto-indice) + 3.5rem); }
 .cartaCabeza { display: grid; gap: 0.25rem; margin-bottom: 1.5rem; }
 .cartaTitulo {
   font-family: var(--pl-letra-titulo);
@@ -830,7 +836,7 @@
 .raiz[data-banda] .barra { background: var(--pl-fondo); }
 
 /* ── Carta del local: foto, descripción, «Los elegidos», «Lo de siempre», cerrado y envío gratis ── */
-.tarjetaFoto { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; background: var(--pl-suave); }
+.tarjetaFoto { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; background: var(--pl-suave); }
 .itemDescripcion {
   font-size: 0.8125rem;
   color: var(--text-muted);
@@ -845,6 +851,7 @@
   gap: 0.75rem;
   margin: 0 -1rem;
   padding: 0.25rem 1rem 0.5rem;
+  align-items: start;
   overflow-x: auto;
   scroll-snap-type: x proximity;
   overscroll-behavior-x: contain;
