@@ -113,7 +113,9 @@ export async function notaDeCreditoPorPesoInTx(
   const cerrada = filas.find((f) => f.action === ACCION_NC_PESO_CERRADA)?.changes as { motivo?: string } | undefined;
   if (cerrada) return { estado: "rechazada", clave, importe: p.importe, motivo: String(cerrada.motivo ?? "") };
   if (rechazadas.length > 0) {
-    // Cada nota rechazada suma UN intento, una sola vez (por su id), bajo el candado de la clave.
+    // Cada nota rechazada suma UN intento, una sola vez (por su id), bajo el candado de la clave. Sin la
+    // ventana de `rechazar()` a propósito: cada rechazo es una nota distinta que ARCA no autorizó, no
+    // la misma vuelta repetida; el tope deja como mucho MAX_INTENTOS_NC_PESO notas por clave.
     const contadas = new Set(
       filas.flatMap((f) => {
         const id = f.action === ACCION_NC_PESO_INTENTO ? (f.changes as { notaRechazadaId?: unknown } | null)?.notaRechazadaId : undefined;
@@ -235,8 +237,9 @@ export async function notaDeCreditoPorPeso(
 }
 
 /**
- * Subconsulta: una `nc_peso_emitida` de la clave de la fila `alias` cuya nota NO fue rechazada por el
- * despacho (o no se encuentra: se toma como viva). Es la misma regla que `notaDeCreditoPorPesoInTx`.
+ * Subconsulta: una `nc_peso_emitida` CON `notaId` de la clave de la fila `alias` cuya nota NO fue
+ * rechazada por el despacho (o no se encuentra: se toma como viva). Es la misma regla que
+ * `notaDeCreditoPorPesoInTx`, que tampoco cuenta una emitida sin `notaId` (certificación, BAJA).
  * `alias` es siempre un literal del código («p», «c»), nunca un dato.
  */
 function emitidaViva(alias: Prisma.Sql): Prisma.Sql {
@@ -244,6 +247,7 @@ function emitidaViva(alias: Prisma.Sql): Prisma.Sql {
     SELECT 1 FROM "AuditLog" e
      WHERE e."tenantId" = ${alias}."tenantId" AND e."entity" = ${alias}."entity"
        AND e."entityId" = ${alias}."entityId" AND e."action" = ${ACCION_NC_PESO_EMITIDA}
+       AND e."changes"->>'notaId' IS NOT NULL
        AND NOT EXISTS (
          SELECT 1 FROM "Invoice" i
           WHERE i."tenantId" = e."tenantId"
