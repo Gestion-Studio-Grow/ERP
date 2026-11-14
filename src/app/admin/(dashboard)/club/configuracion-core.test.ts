@@ -308,7 +308,9 @@ test("SEC-5 en Configuración: un acierto de DUEÑO vuelve a cero (alta, cambiar
   // Recepción cambia el suyo: bueno, pero los fallos de antes quedan.
   conTopeDePin(g, 0, () => hacer(e, { tipo: "pinNuevo", usuarioId: "u-lu", pin: "0000" }, { usuarioId: "u-rober", pin: "4711" }));
   // El de Nico no se lo puede quedar Lu (nunca dos personas con el mismo PIN); el rechazo no toca el tope.
-  assert.match(hacer(e, { tipo: "cambiarMiPin", actual: "33", nuevo: deNico!, repetido: deNico! }, LU).mensaje, /ya lo usa otra persona/);
+  const repetido = conTopeDePin(g, 0, () => hacer(e, { tipo: "cambiarMiPin", actual: "33", nuevo: deNico!, repetido: deNico! }, LU));
+  assert.match(repetido.desenlace.mensaje, /ya lo usa otra persona/);
+  assert.equal(g.leer().fallos, 1, "el PIN de Lu era bueno: el rechazo por repetido no suma ni limpia");
   const lu = conTopeDePin(g, 0, () => hacer(e, { tipo: "cambiarMiPin", actual: "33", nuevo: nuevoDeLu, repetido: nuevoDeLu }, LU));
   assert.equal(lu.desenlace.ok, true, lu.desenlace.mensaje);
   assert.equal(g.leer().fallos, 1);
