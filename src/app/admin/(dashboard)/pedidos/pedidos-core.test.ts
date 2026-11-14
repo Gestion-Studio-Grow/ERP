@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   coincide,
+  textoDeAjustar,
   conteosDelTablero,
   filtrarPedidos,
   leerFiltrosDelTablero,
@@ -294,4 +295,10 @@ test("doble pedido: entregados, anulados y teléfonos a medias no cuentan", () =
     pedido({ id: "p7", status: "READY", telefono: null }),
   ];
   assert.equal(otrosPedidosDeLaClienta(lista).size, 0);
+});
+
+test("Ajustar: «Pesar y ajustar» si lleva algo por peso; «Ajustar el pedido» si va todo por unidad", () => {
+  assert.equal(textoDeAjustar([{ saleUnit: "UNIT" }, { saleUnit: "WEIGHT" }]), "Pesar y ajustar");
+  assert.equal(textoDeAjustar([{ saleUnit: "UNIT" }]), "Ajustar el pedido");
+  assert.equal(textoDeAjustar([]), "Ajustar el pedido");
 });

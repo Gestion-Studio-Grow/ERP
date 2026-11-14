@@ -1055,7 +1055,7 @@ describe("Vender en el navegador", { timeout: 240_000 }, () => {
     await page.getByRole("button", { name: "Ver la venta #42" }).click();
     const grabada = page.getByRole("region", { name: "Venta #42 ya grabada" });
     await grabada.waitFor();
-    assert.match((await grabada.textContent()) ?? "", /Pagó con mercado pago/);
+    assert.match((await grabada.textContent()) ?? "", /Pagó con Mercado Pago/);
     // Consultar de nuevo SIN anularla: la misma clave, la misma respuesta. No se graba nada.
     await page.getByRole("button", { name: "Ya la anulé: volver a consultar" }).click();
     await aviso.waitFor();

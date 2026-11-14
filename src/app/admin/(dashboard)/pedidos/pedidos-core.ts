@@ -822,3 +822,12 @@ export function puedeMarcarNoRetiro(p: Pick<PedidoDelTablero, "status" | "entreg
 
 // «Recordarle» el pago de un pedido entregado sin cobrar: el texto es UNO solo para la bandeja y la
 // ficha, `recordatorioDePago` (src/lib/clientes/fiado.ts, con `pedido`). Lo arma tablero.server.ts.
+
+/**
+ * El nombre de la acción de ajustar: «Pesar y ajustar» si lleva algo por peso; si no, «Ajustar el
+ * pedido». El mismo texto en el renglón («Más»), en el cajón al lado de «Lo que lleva» y en su
+ * sección. PURA.
+ */
+export function textoDeAjustar(items: readonly { saleUnit: string }[]): string {
+  return items.some((i) => i.saleUnit === "WEIGHT") ? "Pesar y ajustar" : "Ajustar el pedido";
+}
