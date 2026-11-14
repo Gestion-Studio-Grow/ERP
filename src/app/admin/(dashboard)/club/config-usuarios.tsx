@@ -158,7 +158,9 @@ async function cambiarEnLaBase(almacen: Almacen, negocio: string | undefined, ac
   try {
     r = await puerta({ usuarioId: op.usuario.id, pinActual: accion.actual.trim(), pinNuevo: accion.nuevo.trim() });
   } catch {
-    r = { ok: false, error: "No se pudo cambiar el PIN: revisá la conexión y probá de nuevo. Tu PIN sigue siendo el de antes." };
+    // Sin respuesta no se sabe si el servidor llegó a guardarlo: se baja la base y se avisa sin afirmar nada.
+    almacen.latir();
+    r = { ok: false, error: "Se cortó la conexión y no sabemos si el PIN cambió. Probá entrar con el nuevo; si no anda, seguí con el de antes." };
   }
   if (!r.ok) return almacen.informar({ ok: false, mensaje: r.error });
   // Quien opera sigue siendo el mismo, con su PIN nuevo; el estado lo trae la base en el latido.
