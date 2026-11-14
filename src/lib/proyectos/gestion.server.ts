@@ -294,6 +294,10 @@ async function aplicarPlan(tenantId: string, proyectoId: string, planDeLaFicha: 
     } else await prisma.proyectoCuota.create({ data: { ...datos, tenantId, proyectoId, auto: true, clave: c.clave } });
   }
   const sobran = actuales.filter((c) => c.clave && !vigentes.has(c.clave) && !c.pagadoEl && !c.anuladoEl).map((c) => c.id);
-  if (sobran.length > 0) await prisma.proyectoCuota.updateMany({ where: { tenantId, id: { in: sobran }, pagadoEl: null, anuladoEl: null }, data: { anuladoEl: new Date() } });
+  if (sobran.length > 0) {
+    const r = await prisma.proyectoCuota.updateMany({ where: { tenantId, id: { in: sobran }, pagadoEl: null, anuladoEl: null }, data: { anuladoEl: new Date() } });
+    // Si una de las que sobran se marcó en el medio, el plan se calculó sin descontarla: otra pasada.
+    choco = r.count < sobran.length || choco;
+  }
   return choco;
 }
