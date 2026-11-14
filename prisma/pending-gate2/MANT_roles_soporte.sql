@@ -136,7 +136,7 @@ REVOKE ALL ON FUNCTION gsg_consentimiento_lo_firma_el_titular() FROM PUBLIC;
 --     la versión vigente del texto (a igual hora gana la que no vale; la hora la pone la base, §4).
 -- Devuelve sólo un boolean (nunca filas, fechas ni ids). Esquema explícito y pg_temp al final del
 -- search_path (una tabla temporal de quien llama no tapa a la real). EXECUTE sólo para gsg_agente
--- (dueño, REVOKE y GRANT de las cuatro funciones SECURITY DEFINER: al final del §4 bis).
+-- (dueño, REVOKE y GRANT de las seis funciones SECURITY DEFINER: al final del §4 bis).
 -- Residual (diseño §7.3): parado en un estudio CON permiso y fijando un cliente de SU cartera, el agente
 -- puede saber si ese cliente dio el permiso n1: es lo mismo que ya revela ver o no su ticket. Sin ticket
 -- de cartera con ese cliente, o sin permiso del estudio, la respuesta es siempre false.
@@ -178,6 +178,43 @@ CREATE OR REPLACE FUNCTION gsg_permiso_n1_vigente() RETURNS BOOLEAN
   ), false)
 $f$;
 
+-- Permiso n2 vigente (certificación MANT-004, hallazgo 1): un despacho n2 exige el n2 DEL NIVEL, no sólo el
+-- n1. Mismo patrón que las dos de arriba (SECURITY DEFINER, sin parámetros, sólo boolean, EXECUTE sólo para
+-- gsg_agente) y la misma regla que consentimientoVigente (consentimiento-core.ts): n2 vale sólo con el n1
+-- vigente, si la última casilla n2 está tildada con la versión vigente Y es posterior (o igual) a la última
+-- casilla n1 (sacar n1 y volver a darlo no revive el n2 viejo). CH: siempre false (lo da el n1).
+--   · gsg_permiso_n2_vigente(): el negocio fijado (`app.current_tenant_id`);
+--   · gsg_permiso_n2_cliente_de_cartera(): el estudio Y el cliente fijados, sobre gsg_permiso_n1_cliente_de_cartera()
+--     (los dos fijados, ninguno protegido, un ticket de cartera entre los dos).
+-- Las usa agente-db.ts (ticketVisibleEnTx) en GET y POST para n2/n3. Residual: el mismo de las del n1 (sólo
+-- un boolean de un negocio que el agente ya puede ver).
+CREATE OR REPLACE FUNCTION gsg_permiso_n2_vigente() RETURNS BOOLEAN
+  LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $f$
+  SELECT public.gsg_permiso_n1_vigente() AND COALESCE((
+    SELECT c."aceptado" AND c."versionTexto" = '2026-11-14-provisorio'
+           AND c."createdAt" >= (SELECT max(u."createdAt") FROM public."SoporteConsentimiento" u WHERE u."tenantId" = c."tenantId" AND u."nivel" = 'n1')
+    FROM public."SoporteConsentimiento" c
+    WHERE c."tenantId" = NULLIF(current_setting('app.current_tenant_id', true), '') AND c."nivel" = 'n2'
+      AND NOT EXISTS (SELECT 1 FROM public."NegocioProtegido" p WHERE p."negocioId" = c."tenantId")
+    ORDER BY c."createdAt" DESC, (c."aceptado" AND c."versionTexto" = '2026-11-14-provisorio') ASC
+    LIMIT 1
+  ), false)
+$f$;
+CREATE OR REPLACE FUNCTION gsg_permiso_n2_cliente_de_cartera() RETURNS BOOLEAN
+  LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $f$
+  SELECT public.gsg_permiso_n1_cliente_de_cartera() AND COALESCE((
+    SELECT bool_and(COALESCE((
+             SELECT c."aceptado" AND c."versionTexto" = '2026-11-14-provisorio'
+                    AND c."createdAt" >= (SELECT max(u."createdAt") FROM public."SoporteConsentimiento" u WHERE u."tenantId" = c."tenantId" AND u."nivel" = 'n1')
+             FROM public."SoporteConsentimiento" c
+             WHERE c."tenantId" = n.negocio AND c."nivel" = 'n2'
+             ORDER BY c."createdAt" DESC, (c."aceptado" AND c."versionTexto" = '2026-11-14-provisorio') ASC
+             LIMIT 1), false))
+    FROM (SELECT NULLIF(current_setting('app.current_tenant_id', true), '') AS negocio
+          UNION ALL SELECT NULLIF(current_setting('app.cliente_tenant_id', true), '')) n
+  ), false)
+$f$;
+
 -- Slug del negocio fijado y del cliente fijado (BAJO 6): el agente ya no lee `Tenant` (sin RLS: veía
 -- id/slug/nombre de TODOS los negocios, CH incluido). Ronda adversarial 2: el slug sale SÓLO con acceso
 -- (si no, NULL, y agente-db.ts lo trata como «sin acceso», falla cerrado):
@@ -205,14 +242,20 @@ ALTER FUNCTION gsg_permiso_n1_cliente_de_cartera() OWNER TO neondb_owner;
 ALTER FUNCTION gsg_permiso_n1_vigente() OWNER TO neondb_owner;
 ALTER FUNCTION gsg_slug_del_negocio() OWNER TO neondb_owner;
 ALTER FUNCTION gsg_slug_del_cliente() OWNER TO neondb_owner;
+ALTER FUNCTION gsg_permiso_n2_vigente() OWNER TO neondb_owner;
+ALTER FUNCTION gsg_permiso_n2_cliente_de_cartera() OWNER TO neondb_owner;
 REVOKE ALL ON FUNCTION gsg_permiso_n1_cliente_de_cartera() FROM PUBLIC;
 REVOKE ALL ON FUNCTION gsg_permiso_n1_vigente() FROM PUBLIC;
 REVOKE ALL ON FUNCTION gsg_slug_del_negocio() FROM PUBLIC;
 REVOKE ALL ON FUNCTION gsg_slug_del_cliente() FROM PUBLIC;
+REVOKE ALL ON FUNCTION gsg_permiso_n2_vigente() FROM PUBLIC;
+REVOKE ALL ON FUNCTION gsg_permiso_n2_cliente_de_cartera() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION gsg_permiso_n1_cliente_de_cartera() TO gsg_agente;
 GRANT EXECUTE ON FUNCTION gsg_permiso_n1_vigente() TO gsg_agente;
 GRANT EXECUTE ON FUNCTION gsg_slug_del_negocio() TO gsg_agente;
 GRANT EXECUTE ON FUNCTION gsg_slug_del_cliente() TO gsg_agente;
+GRANT EXECUTE ON FUNCTION gsg_permiso_n2_vigente() TO gsg_agente;
+GRANT EXECUTE ON FUNCTION gsg_permiso_n2_cliente_de_cartera() TO gsg_agente;
 
 REVOKE ALL ON FUNCTION gsg_negocio_protegido(TEXT) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION gsg_negocio_protegido(TEXT) TO gsg_agente;
@@ -328,18 +371,20 @@ BEGIN
     RAISE EXCEPTION 'MANT_roles_soporte: el permiso del cliente sólo lo escribe su panel (app_rls)';
   END IF;
   IF EXISTS (SELECT 1 FROM pg_proc WHERE proname IN ('gsg_negocio_protegido', 'gsg_permiso_n1_vigente', 'gsg_consentimiento_lo_firma_el_titular',
-                                                     'gsg_permiso_n1_cliente_de_cartera', 'gsg_slug_del_negocio', 'gsg_slug_del_cliente')
+                                                     'gsg_permiso_n1_cliente_de_cartera', 'gsg_slug_del_negocio', 'gsg_slug_del_cliente',
+                                                     'gsg_permiso_n2_vigente', 'gsg_permiso_n2_cliente_de_cartera')
              AND NOT COALESCE(proconfig @> ARRAY['search_path=pg_catalog, public, pg_temp'], false)) THEN
     RAISE EXCEPTION 'MANT_roles_soporte: una función del candado no fija search_path con pg_temp al final';
   END IF;
-  -- SECURITY DEFINER sólo las cuatro del §4 bis; las demás corren como quien consulta.
+  -- SECURITY DEFINER sólo las seis del §4 bis (permiso n1 y n2, de negocio y de cartera, y los dos slugs); las demás, como quien consulta.
   IF EXISTS (SELECT 1 FROM pg_proc WHERE proname IN ('gsg_negocio_protegido', 'gsg_consentimiento_lo_firma_el_titular') AND prosecdef) THEN
     RAISE EXCEPTION 'MANT_roles_soporte: SECURITY DEFINER fuera de lugar en el candado';
   END IF;
   -- Las SECURITY DEFINER: una sola por nombre (sin sobrecargas viejas), del dueño de las tablas, sin
   -- parámetros (los negocios salen del contexto), devuelven un solo valor (boolean o el slug), EXECUTE
   -- sólo para gsg_agente (ni PUBLIC, ni app_rls, ni gsg_operador).
-  IF EXISTS (SELECT 1 FROM unnest(ARRAY['gsg_permiso_n1_cliente_de_cartera', 'gsg_permiso_n1_vigente', 'gsg_slug_del_negocio', 'gsg_slug_del_cliente']) f(nombre)
+  IF EXISTS (SELECT 1 FROM unnest(ARRAY['gsg_permiso_n1_cliente_de_cartera', 'gsg_permiso_n1_vigente', 'gsg_slug_del_negocio', 'gsg_slug_del_cliente',
+                                        'gsg_permiso_n2_vigente', 'gsg_permiso_n2_cliente_de_cartera']) f(nombre)
              WHERE (SELECT count(*) FROM pg_proc p WHERE p.proname = f.nombre) <> 1
                 OR EXISTS (SELECT 1 FROM pg_proc p WHERE p.proname = f.nombre
                            AND (NOT p.prosecdef OR pg_get_userbyid(p.proowner) <> 'neondb_owner'
@@ -385,6 +430,8 @@ COMMIT;
 --   DROP FUNCTION IF EXISTS gsg_permiso_n1_vigente();
 --   DROP FUNCTION IF EXISTS gsg_slug_del_negocio();
 --   DROP FUNCTION IF EXISTS gsg_slug_del_cliente();
+--   DROP FUNCTION IF EXISTS gsg_permiso_n2_vigente();
+--   DROP FUNCTION IF EXISTS gsg_permiso_n2_cliente_de_cartera();
 --   DROP FUNCTION IF EXISTS gsg_negocio_protegido(TEXT);
 --   ALTER DEFAULT PRIVILEGES FOR ROLE neondb_owner IN SCHEMA public REVOKE ALL ON TABLES FROM gsg_operador;
 --   ALTER DEFAULT PRIVILEGES FOR ROLE neondb_owner IN SCHEMA public REVOKE ALL ON SEQUENCES FROM gsg_operador;

@@ -75,3 +75,6 @@ CLAUDE.local.md
 
 # Salida del QA de integración de Factoque (capturas PNG y logs): fuera de Git, nada binario.
 docs/qa/factoque-integracion/
+
+# Salida local del navegador de QA (capturas y logs: nada binario en Git)
+.playwright-mcp/

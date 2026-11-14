@@ -8,9 +8,11 @@
 import { useActionState, useState } from "react";
 import { Button, Select, Textarea } from "@/components/ui";
 import { Franja } from "@/components/ui/Renglon";
+import { Marca } from "@/components/ui/Marca";
 import { ESTADO, PRIORIDAD, PRIORIDADES, NOTA_INTERNA_MAX, RESPUESTA_MAX, TIPO, type EstadoTicket, type Prioridad } from "@/lib/soporte/config";
 import type { SugerenciaIa } from "@/lib/soporte/tickets-core";
-import { cambiarTicketAction, sugerirConIaAction, traerPedidosAction, type ResultadoTicket } from "./actions";
+import type { VistaDelDespacho } from "@/lib/soporte/vista-despacho-core";
+import { cambiarTicketAction, prepararConIaAction, sugerirConIaAction, traerPedidosAction, type ResultadoTicket } from "./actions";
 
 const T44 = "min-h-11";
 
@@ -228,6 +230,41 @@ export function Respuesta({ negocio, numero, respuesta, borrador, borradorVersio
         </div>
         <Resultado r={r} id={id} />
       </form>
+    </div>
+  );
+}
+
+/**
+ * «Preparar con IA» (MANT-004): el estado del despacho n1 en criollo, con el enlace a la sesión si hay,
+ * y el botón cuando corresponde (la vista la arma el servidor: vistaDelDespacho). El estado vive en una
+ * región aria-live: al revalidar la ficha, el lector de pantalla lee el cambio.
+ */
+export function PrepararConIa({ negocio, numero, vista }: { negocio: string; numero: number; vista: VistaDelDespacho }) {
+  const [r, accion, pendiente] = useActionState<ResultadoTicket | null, FormData>(prepararConIaAction, null);
+  const id = `ticket-${negocio}-${numero}-despacho`;
+  return (
+    <div className="grid gap-2">
+      <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm" aria-live="polite" id={`${id}-estado`}>
+        <span className="font-medium text-strong">Borrador con IA:</span>
+        <Marca tipo={vista.tono}>{vista.estado}</Marca>
+        {vista.sesionUrl && (
+          <a href={vista.sesionUrl} target="_blank" rel="noopener noreferrer" className={`inline-flex ${T44} items-center underline underline-offset-4 focus-visible:outline focus-visible:outline-2`}>
+            Ver la sesión de la IA
+          </a>
+        )}
+      </p>
+      {vista.boton && (
+        <form action={accion} className="grid gap-2">
+          <Ocultos negocio={negocio} numero={numero} />
+          <div>
+            <Button type="submit" size="md" variant="outline" className={T44} disabled={pendiente} aria-describedby={`${id}-estado ${id}`}>
+              {pendiente ? "Pidiendo a la IA…" : vista.etiqueta}
+            </Button>
+          </div>
+          <p className="text-[13px] text-muted">La IA prepara un borrador para revisar: no le contesta al cliente ni cambia el ticket.</p>
+        </form>
+      )}
+      <Resultado r={r} id={id} />
     </div>
   );
 }
