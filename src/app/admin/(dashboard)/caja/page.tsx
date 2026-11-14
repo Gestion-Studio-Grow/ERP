@@ -215,13 +215,14 @@ function ResumenDelDia({ dia }: { dia: Awaited<ReturnType<typeof getCierreDiario
             )}
           </span>
           <span className="flex flex-wrap gap-x-4 gap-y-1">
-            <Link href="/admin/caja/libro" className="underline underline-offset-4 hover:text-strong">
+            {/* inline-flex + min-h-11: son acciones del día, no texto corrido; 44 px para el dedo. */}
+            <Link href="/admin/caja/libro" className="inline-flex min-h-11 items-center underline underline-offset-4 hover:text-strong">
               Ver el mes en el libro
             </Link>
             {(dia.puedeCerrar || isDemoSandbox()) && (
               <Link
                 href="/admin/caja/cierre"
-                className="font-medium underline underline-offset-4 hover:text-strong"
+                className="inline-flex min-h-11 items-center font-medium underline underline-offset-4 hover:text-strong"
               >
                 Cerrar el día →
               </Link>
