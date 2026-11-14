@@ -22,7 +22,7 @@ import { randomUUID } from "node:crypto";
 import { enElNegocio, operatorPrisma } from "@/lib/operator-db";
 import { logger } from "@/lib/logger";
 import { isUniqueViolation } from "@/lib/prisma-errors";
-import { elSobreAbre, masterKeyDesdeEnv, openSecret, sealSecret } from "@/lib/fiscal/cert-crypto";
+import { comoAbreElSobre, elSobreAbre, masterKeyDesdeEnv, openSecret, sealSecret, type MasterKey, type SealedCredential } from "@/lib/fiscal/cert-crypto";
 import {
   cargarCredencialTenant,
   credencialParaTenant,
@@ -123,11 +123,14 @@ async function abrirPedido(tenantId: string): Promise<(PedidoAbierto & { id: str
   return { ...abrirFila(fila, masterKeyDesdeEnv()), id: fila.id };
 }
 
+/** ¿La clave actual desenvuelve la DEK? Si no, el pedido es «otra-clave» aunque la etiqueta coincida. */
+const abreLaClave = (fila: SealedCredential, master: MasterKey) => comoAbreElSobre(fila, master) !== "no-abre-con-esta-clave";
+
 /**
  * El pedido pendiente para mostrar (sólo el .csr y la fecha; la clave no sale), con la causa separada
- * si falla: base («ilegible», reintentar), clave maestra («sin-configuracion»), fila cerrada con otra
- * clave maestra que no abre («otra-clave», no se pisa) o fila que no abre con su clave («dañado», se
- * puede generar otro). Nunca «no hay pedido» por un error: la pantalla ofrecería generar
+ * si falla: base («ilegible», reintentar), clave maestra («sin-configuracion»), fila que la clave actual
+ * no abre («otra-clave», aunque la etiqueta sea la misma: no se pisa) o fila que abre la capa de la clave
+ * pero no su contenido («dañado», se puede generar otro). Nunca «no hay pedido» por un error: la pantalla ofrecería generar
  * otro y eso invalida el .csr que el dueño quizá ya subió a ARCA.
  */
 export async function leerPedidoPendiente(tenantId: string, alLeerFila?: (id: string | null) => void): Promise<LecturaDelPedido> {
@@ -142,7 +145,7 @@ export async function leerPedidoPendiente(tenantId: string, alLeerFila?: (id: st
       const p = abrirFila(fila, master);
       return { csrPem: p.csrPem, creadoEn: p.creadoEn };
     },
-    sobreAbre: elSobreAbre,
+    abreLaClave,
     // Sólo la causa y el nombre del error: el mensaje podría traer datos del entorno o del sobre.
     alFallar: (causa, e) =>
       logger.warn("arca.asistente", "No se pudo abrir el pedido de certificado pendiente", {
@@ -160,6 +163,8 @@ export interface PedidoPreparado {
   subject: string;
   /** El id de la fila de pedido que se leyó al preparar (null = no había). */
   filaVista: string | null;
+  /** Si el pedido que se reemplaza estaba dañado (va a la auditoría). */
+  reemplaza: "dañado" | null;
 }
 
 /**
@@ -192,7 +197,8 @@ export async function prepararPedidoDelNegocio(
     return { ok: false, motivo: MOTIVO_SIN_CONFIGURACION };
   }
   const sobre = sealSecret(JSON.stringify({ keyPem: pedido.keyPem, csrPem: pedido.csrPem }), master);
-  return { ok: true, pedido: { tenantId, sobre, subject: pedido.subject, filaVista } };
+  const reemplaza = lectura.estado === "dañado" ? "dañado" : null;
+  return { ok: true, pedido: { tenantId, sobre, subject: pedido.subject, filaVista, reemplaza } };
 }
 
 /** Paso 2, segunda mitad: guarda el pedido preparado (reemplaza el anterior: el .csr viejo deja de servir). */
@@ -216,7 +222,14 @@ export async function guardarPedidoDelNegocio(p: PedidoPreparado, actor: string)
       data: { id: randomUUID(), tenantId, certHuella: huella, service: SERVICIO_PEDIDO, ...sobre, expiration: creadoEn },
     });
     await tx.auditLog.create({
-      data: { tenantId, actor, action: ACCION_PEDIDO_CSR, entity: "Tenant", entityId: tenantId, changes: { subject, creadoEn } },
+      data: {
+        tenantId,
+        actor,
+        action: ACCION_PEDIDO_CSR,
+        entity: "Tenant",
+        entityId: tenantId,
+        changes: { subject, creadoEn, ...(p.reemplaza ? { reemplaza: p.reemplaza } : {}) },
+      },
     });
     return null;
   }), (e) => isUniqueViolation(e));
@@ -278,11 +291,12 @@ export async function cargarCertificadoDelPedido(
 // ── Descarte del pedido cerrado con otra clave (sólo el operador) ────────────
 
 /**
- * El operador descarta el pedido que quedó cerrado con OTRA clave maestra (el asistente lo bloquea y
+ * El operador descarta el pedido que la clave maestra actual no abre (cerrado con OTRA, aunque tenga la
+ * misma etiqueta: rotación sin cambiar FISCAL_MASTER_KEY_ID). El asistente lo bloquea y
  * el negocio no puede generar otro). Con la confirmación tipeada y el candado del pedido, relee la
  * fila y la clasifica igual que la pantalla (`leerPedidoConEstado`): sólo si es «otra-clave» la borra
  * y deja la fila de AuditLog. El material no sale de acá: para clasificar se usa `elSobreAbre` (no
- * devuelve nada) y la auditoría lleva sólo la etiqueta de la clave y la fecha del pedido.
+ * devuelve nada) y la auditoría lleva sólo la etiqueta de la clave, si coincide con la actual y la fecha.
  * La guardia (sesión de operador y candado de CH) la pone la action (src/lib/operator-actions.ts).
  */
 export async function descartarPedidoDeOtraClave(tenantId: string, actor: string, confirmacion: unknown): Promise<Resultado> {
@@ -290,6 +304,7 @@ export async function descartarPedidoDeOtraClave(tenantId: string, actor: string
   const r = await enElNegocio(tenantId, async (tx): Promise<Resultado> => {
     await bloquearPedido(tx, tenantId);
     let fila: { id: string; kekId: string; wrappedDek: string; sealed: string; expiration: string } | null = null;
+    let master: MasterKey | null = null;
     const lectura = await leerPedidoConEstado({
       leerFila: async () => {
         fila = await tx.arcaAuthTicket.findFirst({
@@ -298,16 +313,18 @@ export async function descartarPedidoDeOtraClave(tenantId: string, actor: string
         });
         return fila;
       },
-      clave: () => masterKeyDesdeEnv(),
-      abrir: (f, master) => {
-        if (!elSobreAbre(f, master)) throw new Error("El pedido no abre con la clave actual.");
+      clave: () => (master = masterKeyDesdeEnv()),
+      abrir: (f, m) => {
+        if (!elSobreAbre(f, m)) throw new Error("El pedido no abre con la clave actual.");
         return { csrPem: "", creadoEn: f.expiration };
       },
-      sobreAbre: elSobreAbre,
+      abreLaClave,
     });
     const motivo = motivoParaNoDescartar(lectura);
     if (motivo || !fila) return { ok: false, motivo: motivo ?? "No hay un pedido de certificado para descartar." };
     const { id, kekId, expiration } = fila as { id: string; kekId: string; expiration: string };
+    // La misma etiqueta que la clave actual = la clave se rotó sin cambiar FISCAL_MASTER_KEY_ID.
+    const mismaEtiqueta = kekId === (master as MasterKey | null)?.id;
     await tx.arcaAuthTicket.delete({ where: { id } });
     await tx.auditLog.create({
       data: {
@@ -316,7 +333,7 @@ export async function descartarPedidoDeOtraClave(tenantId: string, actor: string
         action: ACCION_PEDIDO_DESCARTADO,
         entity: "Tenant",
         entityId: tenantId,
-        changes: { motivo: "otra-clave", kekIdDelPedido: kekId, creadoEn: expiration },
+        changes: { motivo: "otra-clave", kekIdDelPedido: kekId, mismaEtiqueta, creadoEn: expiration },
       },
     });
     return { ok: true, mensaje: "Pedido de certificado descartado. Ya se puede generar uno nuevo." };

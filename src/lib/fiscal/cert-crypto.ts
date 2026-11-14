@@ -193,14 +193,36 @@ export function openSecret(sealed: SealedCredential, master: MasterKey): string 
  * clave maestra) sin que el material salga de acá. La etiqueta (`kekId`) no decide.
  */
 export function elSobreAbre(sealed: SealedCredential, master: MasterKey): boolean {
+  return comoAbreElSobre(sealed, master) === "abre";
+}
+
+/**
+ * Qué capa del sobre abre con esta KEK, sin devolver nada (lo descifrado se pisa con ceros):
+ *   - «abre»: las dos capas.
+ *   - «no-abre-con-esta-clave»: la DEK no se desenvuelve. Es lo que da un sobre cerrado con OTRA KEK
+ *     aunque la etiqueta (`kekId`) sea la misma (rotación sin cambiar `FISCAL_MASTER_KEY_ID`): puede
+ *     volver a abrir restaurando esa clave. GCM no distingue esto de una DEK envuelta alterada, así que
+ *     se trata como recuperable (no se pisa sin una decisión humana).
+ *   - «contenido-dañado»: la DEK se desenvuelve (GCM: la KEK es esta y la DEK es auténtica) pero el
+ *     contenido no descifra. Irrecuperable con cualquier clave.
+ */
+export type AperturaDelSobre = "abre" | "no-abre-con-esta-clave" | "contenido-dañado";
+
+export function comoAbreElSobre(sealed: SealedCredential, master: MasterKey): AperturaDelSobre {
   let dek: Buffer | null = null;
   let payload: Buffer | null = null;
   try {
-    dek = decryptWith(master.key, sealed.wrappedDek);
-    payload = decryptWith(dek, sealed.sealed);
-    return true;
-  } catch {
-    return false;
+    try {
+      dek = decryptWith(master.key, sealed.wrappedDek);
+    } catch {
+      return "no-abre-con-esta-clave";
+    }
+    try {
+      payload = decryptWith(dek, sealed.sealed);
+    } catch {
+      return "contenido-dañado";
+    }
+    return "abre";
   } finally {
     dek?.fill(0);
     payload?.fill(0);

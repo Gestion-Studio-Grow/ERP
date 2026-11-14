@@ -8,6 +8,7 @@ import {
   sealSecret,
   openSecret,
   elSobreAbre,
+  comoAbreElSobre,
   KEK_ID_POR_DEFECTO,
   type MasterKey,
 } from "./cert-crypto";
@@ -170,4 +171,22 @@ test("elSobreAbre: dice si abre sin devolver el material (con la clave correcta,
   const roto = { ...sobre, sealed: `${iv}.${tag}.${Buffer.from("x" + ct).toString("base64")}` };
   assert.equal(elSobreAbre(roto, master()), false);
   assert.equal(elSobreAbre({ ...sobre, wrappedDek: "no.es.valido" }, master()), false);
+});
+
+test("comoAbreElSobre: distingue «no abre con esta clave» (aunque la etiqueta sea la misma) de «contenido dañado»", () => {
+  const sobre = sealSecret("material-de-prueba", master());
+  assert.equal(comoAbreElSobre(sobre, master()), "abre");
+  // Clave rotada SIN cambiar la etiqueta: la etiqueta coincide pero la clave no → recuperable, no dañado.
+  const rotadaMismaEtiqueta: MasterKey = { key: otra().key, id: master().id };
+  assert.equal(comoAbreElSobre(sobre, rotadaMismaEtiqueta), "no-abre-con-esta-clave");
+  assert.equal(comoAbreElSobre(sobre, otra()), "no-abre-con-esta-clave");
+  assert.equal(comoAbreElSobre({ ...sobre, wrappedDek: "no.es.valido" }, master()), "no-abre-con-esta-clave");
+  // La DEK se desenvuelve con esta clave pero el contenido está alterado → dañado de verdad.
+  const [iv, tag, ct] = sobre.sealed.split(".");
+  const ctRoto = Buffer.from(ct, "base64");
+  ctRoto[0] ^= 1;
+  assert.equal(comoAbreElSobre({ ...sobre, sealed: `${iv}.${tag}.${ctRoto.toString("base64")}` }, master()), "contenido-dañado");
+  assert.equal(comoAbreElSobre({ ...sobre, sealed: "roto" }, master()), "contenido-dañado");
+  // elSobreAbre sigue siendo «las dos capas abren».
+  assert.equal(elSobreAbre(sobre, rotadaMismaEtiqueta), false);
 });

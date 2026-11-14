@@ -170,7 +170,7 @@ test("descartar el pedido de otra clave: con confirmación, auditado, sin materi
   const audit = await auditoria(c, base.a.id, srv.ACCION_PEDIDO_DESCARTADO);
   assert.equal(audit.length, 1);
   assert.equal(audit[0].actor, "operator:soporte-qa");
-  assert.deepEqual(audit[0].changes, { motivo: "otra-clave", kekIdDelPedido: CLAVE_VIEJA.id, creadoEn: CREADO_EN });
+  assert.deepEqual(audit[0].changes, { motivo: "otra-clave", kekIdDelPedido: CLAVE_VIEJA.id, mismaEtiqueta: false, creadoEn: CREADO_EN });
   // Ya se puede generar uno nuevo.
   assert.equal((await srv.generarPedidoDelNegocio(base.a.id, "user:a")).ok, true);
 });
@@ -201,13 +201,51 @@ test("descartar: no se descarta lo que abre, lo dañado ni lo que no existe", as
   assert.equal((await srv.descartarPedidoDeOtraClave(base.a.id, "operator:x", palabra)).ok, false);
   assert.equal((await srv.generarPedidoDelNegocio(base.a.id, "user:a")).ok, true);
 
-  // Misma etiqueta, no abre: «dañado» (el cliente ya puede generar otro; no es de otra clave).
+  // Abre la capa de la clave actual pero el contenido cifrado está roto: «dañado» de verdad (la clave
+  // privada no se recupera con ninguna clave). Generar lo reemplaza y la auditoría lo dice.
   await limpiar(c, base);
-  await sembrarPedido(c, base.a.id, CLAVE_VIEJA, KEK_ACTUAL);
+  const sano = sealSecret(JSON.stringify({ keyPem: "k", csrPem: "c" }), actual);
+  const [iv, tag, ct] = sano.sealed.split(".");
+  const ctRoto = Buffer.from(ct, "base64");
+  ctRoto[0] ^= 1;
+  await c.comoDuenio.arcaAuthTicket.create({
+    data: { tenantId: base.a.id, certHuella: huella(base.a.id), service: c.srv.SERVICIO_PEDIDO, ...sano, sealed: `${iv}.${tag}.${ctRoto.toString("base64")}`, expiration: CREADO_EN },
+  });
   assert.equal((await srv.leerPedidoPendiente(base.a.id)).estado, "dañado");
   assert.equal((await srv.descartarPedidoDeOtraClave(base.a.id, "operator:x", palabra)).ok, false);
-  assert.equal((await filasDelPedido(c, base.a.id)).length, 1);
+  assert.equal((await srv.generarPedidoDelNegocio(base.a.id, "user:a")).ok, true);
+  const csr = await auditoria(c, base.a.id, srv.ACCION_PEDIDO_CSR);
+  assert.equal(csr.length, 1);
+  assert.equal((csr[0].changes as { reemplaza?: string }).reemplaza, "dañado");
   assert.equal((await auditoria(c, base.a.id, srv.ACCION_PEDIDO_DESCARTADO)).length, 0);
+});
+
+test("clave rotada sin cambiar su etiqueta: el pedido no es «dañado», generar no lo pisa y sólo el operador lo descarta", async (t) => {
+  // Hallazgo medio heredado del #147: con la MISMA etiqueta y otra clave, el pedido (recuperable
+  // restaurando la clave anterior) se mostraba «dañado» y generar lo pisaba.
+  const c = await preparar(t);
+  if (!c) return;
+  const { base, srv, pura } = c;
+  await limpiar(c, base);
+  await sembrarPedido(c, base.a.id, CLAVE_VIEJA, KEK_ACTUAL);
+  const antes = await filasDelPedido(c, base.a.id);
+  assert.equal((await srv.leerPedidoPendiente(base.a.id)).estado, "otra-clave");
+
+  const g = await srv.generarPedidoDelNegocio(base.a.id, "user:a");
+  assert.deepEqual(g, { ok: false, motivo: pura.MOTIVO_OTRA_CLAVE });
+  assert.deepEqual(await filasDelPedido(c, base.a.id), antes, "el pedido queda intacto");
+  assert.equal((await auditoria(c, base.a.id, srv.ACCION_PEDIDO_CSR)).length, 0);
+
+  // Sin la palabra no se borra; con ella, el operador lo descarta y queda auditado.
+  assert.equal((await srv.descartarPedidoDeOtraClave(base.a.id, "operator:soporte-qa", "si")).ok, false);
+  assert.equal((await filasDelPedido(c, base.a.id)).length, 1);
+  const r = await srv.descartarPedidoDeOtraClave(base.a.id, "operator:soporte-qa", pura.PALABRA_DEL_DESCARTE);
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const audit = await auditoria(c, base.a.id, srv.ACCION_PEDIDO_DESCARTADO);
+  assert.deepEqual(audit, [
+    { actor: "operator:soporte-qa", changes: { motivo: "otra-clave", kekIdDelPedido: KEK_ACTUAL, mismaEtiqueta: true, creadoEn: CREADO_EN } },
+  ]);
+  assert.equal((await srv.generarPedidoDelNegocio(base.a.id, "user:a")).ok, true);
 });
 
 test("descartar desde la consola: sin sesión de operador va al login y no borra; con sesión, borra", async (t) => {

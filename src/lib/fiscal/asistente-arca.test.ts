@@ -148,6 +148,7 @@ describe("lectura del pedido: cada causa de falla tiene su estado", () => {
       leerFila: async () => FILA,
       clave: () => CLAVE,
       abrir: abrirOk,
+      abreLaClave: () => true,
       alFallar: (causa) => fallas.push(causa),
       ...p,
     });
@@ -181,7 +182,7 @@ describe("lectura del pedido: cada causa de falla tiene su estado", () => {
     }
   });
 
-  test("(c) la fila se leyó pero no abre (descifrado o JSON) con la clave presente → dañado; se puede generar", async () => {
+  test("(c) la clave actual abre la capa de la clave pero el contenido no (descifrado o JSON) → dañado; se puede generar", async () => {
     const descifrado = await lectura({
       abrir: () => {
         throw new Error("Unsupported state or unable to authenticate data");
@@ -201,12 +202,13 @@ describe("lectura del pedido: cada causa de falla tiene su estado", () => {
     assert.equal(motivoParaNoReemplazarPedido(l), null);
   });
 
-  test("(d2) etiqueta distinta y la fila NO abre → otra-clave: bloquea generar, no se borra", async () => {
+  test("(d2) etiqueta distinta y la clave actual NO abre → otra-clave: bloquea generar, no se borra", async () => {
     const { l, fallas } = await lectura({
       clave: () => ({ id: "env:FISCAL_MASTER_KEY:v2" }),
       abrir: () => {
         throw new Error("Unsupported state or unable to authenticate data");
       },
+      abreLaClave: () => false,
     });
     assert.deepEqual(l, { estado: "otra-clave" });
     assert.deepEqual(fallas, ["otra-clave"]);
@@ -223,13 +225,39 @@ describe("lectura del pedido: cada causa de falla tiene su estado", () => {
     const { l, fallas } = await lectura({
       clave: () => ({ id: "env:FISCAL_MASTER_KEY:v2" }),
       abrir: () => JSON.parse("{roto"),
-      sobreAbre: () => true,
+      abreLaClave: () => true,
     });
     assert.deepEqual(l, { estado: "dañado" });
     assert.deepEqual(fallas, ["dañado"]);
     // Y si el sobre no abre, sigue siendo «otra-clave».
-    const otra = await lectura({ clave: () => ({ id: "env:FISCAL_MASTER_KEY:v2" }), abrir: () => JSON.parse("{roto"), sobreAbre: () => false });
+    const otra = await lectura({ clave: () => ({ id: "env:FISCAL_MASTER_KEY:v2" }), abrir: () => JSON.parse("{roto"), abreLaClave: () => false });
     assert.deepEqual(otra.l, { estado: "otra-clave" });
+  });
+
+  test("(e2) MISMA etiqueta y la clave actual no abre (rotada sin cambiar el identificador) → otra-clave, no dañado", async () => {
+    // Hallazgo medio heredado del #147: antes decidía la etiqueta y esto era «dañado» → generar lo pisaba.
+    const { l, fallas } = await lectura({
+      clave: () => ({ id: FILA.kekId }),
+      abrir: () => {
+        throw new Error("Unsupported state or unable to authenticate data");
+      },
+      abreLaClave: () => false,
+    });
+    assert.deepEqual(l, { estado: "otra-clave" });
+    assert.deepEqual(fallas, ["otra-clave"]);
+    assert.equal(motivoParaNoReemplazarPedido(l), MOTIVO_OTRA_CLAVE);
+    assert.equal(estadoDelAsistente(entrada({}, { problemaDelPedido: problemaDelPedido(l) })).puedeGenerarPedido, false);
+    assert.equal(motivoParaNoDescartar(l), null);
+  });
+
+  test("(e3) si `abreLaClave` misma falla → otra-clave (lo conservador: no se pisa)", async () => {
+    const { l } = await lectura({
+      abrir: () => JSON.parse("{roto"),
+      abreLaClave: () => {
+        throw new Error("x");
+      },
+    });
+    assert.deepEqual(l, { estado: "otra-clave" });
   });
 
   test("(e) misma clave maestra y el descifrado falla → dañado (como siempre)", async () => {
