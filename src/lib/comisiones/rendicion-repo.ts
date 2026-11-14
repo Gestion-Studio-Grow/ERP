@@ -23,6 +23,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { isFrozenDay, type DayKey } from "@/lib/caja/cierre-diario";
 import type { CashMethod } from "@/lib/caja/cash-register";
 import { todayInBusinessTz } from "@/lib/datetime";
+import { sumarAlCentavo } from "@/lib/dinero/redondeo";
 import {
   destinoDelCobro,
   detalleDeRendicion,
@@ -386,7 +387,7 @@ export async function leerRendicionesInTx(tx: RendicionTx, tenantId: string): Pr
       professionalId: p.id,
       nombre: p.name,
       pendientes,
-      cobradoPendiente: pendientes.reduce((s, c) => s + Math.round(c.monto * 100), 0) / 100,
+      cobradoPendiente: sumarAlCentavo(pendientes.map((c) => c.monto)),
     });
   }
 

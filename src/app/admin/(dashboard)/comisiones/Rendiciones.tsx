@@ -11,6 +11,7 @@ import { randomUUID } from "node:crypto";
 import { registrarRendicion } from "@/lib/comisiones/rendicion-actions";
 import type { LecturaRendiciones } from "@/lib/comisiones/rendicion-repo";
 import { fmtShortDate } from "@/lib/datetime";
+import { textoAlCentavo } from "@/lib/dinero/redondeo";
 import SubmitButton from "@/components/SubmitButton";
 import { buttonClasses, fmtMoneyARS } from "@/components/ui";
 
@@ -26,7 +27,7 @@ const MEDIO: Record<string, string> = {
 };
 const medio = (m: string) => MEDIO[m] ?? m;
 // El monto como se tipea acá ("12500,50"): lo lee `leerImporte` en el servidor.
-const montoEditable = (n: number) => n.toFixed(2).replace(".", ",");
+const montoEditable = (n: number) => textoAlCentavo(n).replace(".", ",");
 
 export default function Rendiciones({
   lectura,

@@ -13,6 +13,7 @@
 // está en el cajón— se prueba con una llamada, no montando media base.
 
 import { round2 } from "@/lib/round";
+import { centavosDe } from "@/lib/dinero/redondeo";
 
 /** Marca del asiento de la rendición en `CashMovement.createdBy` (lo protege de borrarse a mano). */
 export const RENDICION_ACTOR_PREFIX = "rendicion:";
@@ -81,9 +82,9 @@ export function validarRendicion(i: {
   if (ids.some((id) => !porId.has(id))) return { ok: false, motivo: "cobro-ajeno" };
 
   // En centavos: Σ de Decimal(14,2) sin arrastrar el error del float.
-  const cobradoCent = ids.reduce((s, id) => s + Math.round(porId.get(id)!.monto * 100), 0);
+  const cobradoCent = ids.reduce((s, id) => s + centavosDe(porId.get(id)!.monto), 0);
   if (!Number.isFinite(i.entregado) || i.entregado < 0) return { ok: false, motivo: "entregado-invalido" };
-  const entregadoCent = Math.round(i.entregado * 100);
+  const entregadoCent = centavosDe(i.entregado);
   if (entregadoCent > cobradoCent) return { ok: false, motivo: "entregado-de-mas" };
   // La comisión que se quedaría la profesional la paga la liquidación: retenerla acá la pagaría
   // dos veces. Hasta integrar las dos (RENDICION.md §Deuda), retenido es siempre 0.
