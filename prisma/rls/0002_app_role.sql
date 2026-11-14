@@ -65,6 +65,18 @@ ALTER DEFAULT PRIVILEGES FOR ROLE neondb_owner IN SCHEMA public
 ALTER DEFAULT PRIVILEGES FOR ROLE neondb_owner IN SCHEMA public
   GRANT USAGE, SELECT                  ON SEQUENCES TO app_rls;
 
+-- El registro del equipo de agentes (AgenteAccion) es sólo INSERT también en la base: el GRANT de
+-- arriba (:58) le volvería a dar UPDATE y DELETE si este archivo se corre de nuevo. Va ADENTRO de
+-- la transacción y mirando que la tabla exista: este archivo también corre en bases que todavía no
+-- tienen la migración 20261115120000_agentes_base (docs/tenants/mia-producciones/agentes/03 §3).
+DO $$
+BEGIN
+  IF to_regclass('public."AgenteAccion"') IS NOT NULL THEN
+    REVOKE UPDATE, DELETE ON "AgenteAccion" FROM app_rls;
+  END IF;
+END
+$$;
+
 COMMIT;
 
 -- Verificación rápida (debe devolver rolbypassrls = false):

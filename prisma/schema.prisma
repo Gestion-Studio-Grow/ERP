@@ -405,6 +405,19 @@ model Tenant {
   cuentasCorrientes Boolean?
   perfiles          Boolean?
 
+  // Equipo de agentes (src/lib/agentes, migración 20261115120000_agentes_base, sin aplicar).
+  agentePuestos             AgentePuesto[]
+  agentePedidos             AgentePedido[]
+  agenteCompromisos         AgenteCompromiso[]
+  agenteNotas               AgenteNota[]
+  agentePropuestas          AgentePropuesta[]
+  agentePartes              AgenteParte[]
+  agenteContadores          AgenteContador[]
+  agenteAcciones            AgenteAccion[]
+  agenteGastos              AgenteGasto[]
+  agenteReservas            AgenteReserva[]
+  agenteAjuste              AgenteAjuste?
+
   // --- Gate 2 nivel 2 (prisma/pending-gate2/N2_*.sql) — COMENTADO hasta aplicar el paquete.
   // Mismo criterio que MustChangePassword/CarniceriaRubro: si estos campos estuvieran vivos,
   // el cliente Prisma los seleccionaría y prod se caería hasta migrar (schema-ahead de CH).
@@ -4543,4 +4556,218 @@ model VencimientoFiscal {
 
   @@unique([tenantId, obligacionId, periodo, cuota])
   @@index([tenantId, fechaVencimiento])
+}
+
+// ============================================================================
+// EQUIPO DE AGENTES (src/lib/agentes · docs/tenants/mia-producciones/agentes/03 §3)
+// ============================================================================
+// Migración 20261115120000_agentes_base: ESCRITA y SIN aplicar (Gate 2 del dueño). Sólo tablas
+// nuevas; el código tolera su ausencia (`tablasDeAgentes`, estado.server.ts). Los estados son
+// TEXTO validado en código y con CHECK en la base, como SupportTicket. Plata en micro-dólares
+// enteros. Los índices únicos PARCIALES viven sólo en el SQL (el schema no los expresa; mismo
+// criterio que Asiento_tenantId_anulaAsientoId_key):
+//   AgenteCompromiso_tenantId_puesto_clave_abierto_key  (tenantId, puesto, clave) WHERE estado = 'ABIERTO'
+//   AgentePropuesta_tenantId_herr_entidad_pendiente_key (tenantId, herramienta, entidad, entidadId) WHERE estado = 'PENDIENTE'
+// `AgenteAccion` (el registro) es sólo INSERT también en la base: REVOKE UPDATE, DELETE a app_rls
+// (en la migración y en prisma/rls/0002_app_role.sql).
+
+// Estado y niveles de un puesto en un negocio. Sin fila = activo con los niveles iniciales del código.
+model AgentePuesto {
+  tenant     Tenant    @relation(fields: [tenantId], references: [id])
+  tenantId   String
+  puesto     String // "administracion.cobranzas"
+  estado     String    @default("ACTIVO") // ACTIVO · PAUSADO
+  pausadoPor String?
+  pausadoEl  DateTime?
+  niveles    Json      @default("{}")
+  updatedAt  DateTime  @updatedAt
+
+  @@id([tenantId, puesto])
+}
+
+// El buzón: un pedido de una persona a un puesto y su respuesta (03 §4.3). Única fuente de las métricas.
+model AgentePedido {
+  id            String         @id @default(cuid())
+  tenant        Tenant         @relation(fields: [tenantId], references: [id])
+  tenantId      String
+  puesto        String
+  userId        String
+  tipo          String // LISTA · LIBRE
+  frecuente     String?
+  argumentos    Json?
+  texto         String?
+  clave         String // la del envío: un doble envío devuelve el mismo pedido
+  estado        String // RECIBIDO · EN_CURSO · RESPONDIDO · NECESITA_PERSONA · SIN_RESPONDER · EN_BANDEJA
+  pedidoEl      DateTime
+  venceEl       DateTime
+  tomadoHasta   DateTime?
+  intentos      Int            @default(0)
+  respondidoEl  DateTime?
+  respuesta     String?
+  /// Recorte de quien dejó el pedido, tomado con su sesión al dejarlo (módulos que ve, proyectos
+  /// visibles, si ve los sin proyecto, columnas ocultas). Sólo ids y nombres de módulo/columna: ni
+  /// datos de terceros ni secretos. Quien atienda el pedido después lo respeta; nunca arma una persona.
+  recorte       Json?
+  filas         Json?
+  motivo        String?
+  conModelo     Boolean        @default(false)
+  respondidoPor String? // operator:<nombre> cuando contesta una persona de GSG (bandeja)
+  acciones      AgenteAccion[]
+
+  @@unique([tenantId, id]) // destino de la llave foránea compuesta de AgenteAccion
+  @@unique([tenantId, userId, clave])
+  @@index([tenantId, estado, venceEl])
+  @@index([tenantId, userId, pedidoEl])
+}
+
+// Compromisos con fecha (memoria 2). Uno ABIERTO por clave: índice único parcial en el SQL.
+model AgenteCompromiso {
+  id         String    @id @default(cuid())
+  tenant     Tenant    @relation(fields: [tenantId], references: [id])
+  tenantId   String
+  puesto     String
+  texto      String
+  fecha      DateTime  @db.Date
+  entidad    String?
+  entidadId  String?
+  clave      String
+  estado     String    @default("ABIERTO") // ABIERTO · CUMPLIDO · ROTO · CANCELADO
+  creadoPor  String
+  revisadoEl DateTime?
+  cerradoEl  DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([tenantId, estado, fecha])
+}
+
+// Cuaderno del puesto (memoria 3).
+model AgenteNota {
+  id        String   @id @default(cuid())
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  puesto    String
+  texto     String
+  activa    Boolean  @default(true)
+  autor     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId, puesto, activa])
+}
+
+// Propuestas para aprobar (tanda 2). Una PENDIENTE por herramienta y entidad: único parcial en el SQL.
+model AgentePropuesta {
+  id          String         @id @default(cuid())
+  tenant      Tenant         @relation(fields: [tenantId], references: [id])
+  tenantId    String
+  puesto      String
+  tarea       String
+  herramienta String
+  entidad     String
+  entidadId   String
+  argumentos  Json
+  resumen     Json
+  texto       String?
+  huella      String?
+  estado      String         @default("PENDIENTE") // PENDIENTE · EJECUTADA · RECHAZADA · VENCIDA · FALLIDA
+  venceEl     DateTime
+  decididaPor String?
+  decididaEl  DateTime?
+  resultado   Json?
+  createdAt   DateTime       @default(now())
+  acciones    AgenteAccion[]
+
+  @@unique([tenantId, id]) // destino de la llave foránea compuesta de AgenteAccion
+  @@index([tenantId, estado, venceEl])
+}
+
+// Parte automático de la mañana (tanda 3): uno por equipo, día y negocio.
+model AgenteParte {
+  id        String   @id @default(cuid())
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  equipo    String
+  dia       DateTime @db.Date
+  numeros   Json
+  intro     String?
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, equipo, dia])
+}
+
+// Cupos de los topes (03 §6): se toman con un UPDATE condicional, nunca «contar y después escribir».
+model AgenteContador {
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+  tenantId String
+  puesto   String
+  tope     String
+  sujeto   String // "*" si el cupo es del puesto; el userId si es por persona
+  periodo  String // AAAA-MM-DD (hora de Argentina) o "abiertos"
+  n        Int    @default(0)
+
+  @@id([tenantId, puesto, tope, sujeto, periodo])
+}
+
+// El registro: una fila por acción. Nunca se edita ni se borra (la base tampoco lo deja).
+model AgenteAccion {
+  id            String           @id @default(cuid())
+  tenant        Tenant           @relation(fields: [tenantId], references: [id])
+  tenantId      String
+  puesto        String
+  tipo          String // LECTURA · RESPUESTA · VENCIDO · PROPUESTA · DECISION · EJECUCION · DERIVACION · TOPE · RECHAZO · ERROR · PAUSA · LECTURA_GSG · RESPUESTA_GSG
+  herramienta   String?
+  detalle       Json?
+  nivel         Int?
+  actor         String
+  pedido        AgentePedido?    @relation(fields: [tenantId, pedidoId], references: [tenantId, id], onDelete: Restrict) // compuesta: nunca de un pedido de otro negocio
+  pedidoId      String?
+  propuesta     AgentePropuesta? @relation(fields: [tenantId, propuestaId], references: [tenantId, id], onDelete: Restrict)
+  propuestaId   String?
+  proveedor     String?
+  modelo        String?
+  tokensEntrada Int?
+  tokensSalida  Int?
+  microUsd      Int?
+  ms            Int?
+  createdAt     DateTime         @default(now())
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, pedidoId])
+}
+
+// Gasto del mes por negocio, en micro-dólares enteros (03 §11, tanda 1C).
+model AgenteGasto {
+  tenant       Tenant @relation(fields: [tenantId], references: [id])
+  tenantId     String
+  periodo      String // AAAA-MM
+  gastado      Int    @default(0)
+  comprometido Int    @default(0) // gastado más reservas abiertas
+  llamadas     Int    @default(0)
+
+  @@id([tenantId, periodo])
+}
+
+// Una reserva por llamada al modelo, con su propio vencimiento (03 §11, tanda 1C).
+model AgenteReserva {
+  id        String   @id @default(cuid())
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  periodo   String
+  estimado  Int
+  venceEl   DateTime
+  estado    String   @default("ABIERTA") // ABIERTA · CERRADA · VENCIDA
+  real      Int?
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, estado, venceEl])
+}
+
+// Ajustes por negocio. Sin fila, rigen los del código (objetivo 180 s, tope del código).
+model AgenteAjuste {
+  tenant       Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId     String   @id
+  objetivoSeg  Int?
+  topeMicroUsd Int?
+  updatedAt    DateTime @updatedAt
+  updatedPor   String?
 }
