@@ -17,8 +17,7 @@
 // jamás debe tumbar un render (build sin DB, login sin base, etc.).
 
 import { cache } from "react";
-import { basePrisma } from "@/lib/prisma-base";
-import { getCurrentTenantId } from "@/lib/tenant";
+import { filaDelNegocioDelPedido } from "@/lib/tenant";
 import { ACCENT_PRESETS, type AccentPreset } from "@/lib/branding";
 
 function coerce(v: string | null | undefined): AccentPreset | null {
@@ -34,11 +33,8 @@ function coerce(v: string | null | undefined): AccentPreset | null {
  */
 export const getTeamAccentPreset = cache(async (): Promise<AccentPreset | null> => {
   try {
-    const id = await getCurrentTenantId();
-    const t = await basePrisma.tenant.findUnique({
-      where: { id },
-      select: { accentPreset: true },
-    });
+    // La fila del pedido, compartida con el producto y el gate por módulo (PLAT-005).
+    const t = await filaDelNegocioDelPedido();
     return coerce(t?.accentPreset);
   } catch {
     return null;
