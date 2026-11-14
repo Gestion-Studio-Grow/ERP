@@ -40,7 +40,7 @@ export async function leerConsentimiento(tenantId: string, db?: PrismaClient): P
     async (tx) => {
       if (!(await hayTablaDeConsentimiento(tx))) return SIN_CONSENTIMIENTO;
       const filas = await tx.$queryRaw<FilaDeConsentimiento[]>`
-        SELECT nivel, aceptado, "createdAt" FROM "SoporteConsentimiento"
+        SELECT nivel, aceptado, "versionTexto", "createdAt" FROM "SoporteConsentimiento"
         WHERE "tenantId" = ${tenantId} ORDER BY "createdAt" ASC`;
       return consentimientoVigente(filas);
     },
@@ -55,7 +55,7 @@ export async function leerEstadoDelPermiso(tenantId: string, db?: PrismaClient):
     async (tx) => {
       if (!(await hayTablaDeConsentimiento(tx))) return { habilitado: false, vigente: SIN_CONSENTIMIENTO };
       const filas = await tx.$queryRaw<FilaDeConsentimiento[]>`
-        SELECT nivel, aceptado, "createdAt" FROM "SoporteConsentimiento" WHERE "tenantId" = ${tenantId}`;
+        SELECT nivel, aceptado, "versionTexto", "createdAt" FROM "SoporteConsentimiento" WHERE "tenantId" = ${tenantId}`;
       return { habilitado: true, vigente: consentimientoVigente(filas) };
     },
     db,
@@ -103,7 +103,7 @@ export async function registrarConsentimientoConCopia(
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`soporte-permiso:${p.tenantId}`}))`;
       if (v.valor.nivel === "n2" && v.valor.aceptado) {
         const antes = await tx.$queryRaw<FilaDeConsentimiento[]>`
-          SELECT nivel, aceptado, "createdAt" FROM "SoporteConsentimiento" WHERE "tenantId" = ${p.tenantId}`;
+          SELECT nivel, aceptado, "versionTexto", "createdAt" FROM "SoporteConsentimiento" WHERE "tenantId" = ${p.tenantId}`;
         if (!consentimientoVigente(antes).n1) return { ok: false, error: "Primero da el permiso de lectura: sin él, el segundo no vale." };
       }
       const negocio = await tx.tenant.findUnique({ where: { id: p.tenantId }, select: { name: true } });
@@ -136,7 +136,7 @@ export async function registrarConsentimientoConCopia(
         },
       });
       const filas = await tx.$queryRaw<FilaDeConsentimiento[]>`
-        SELECT nivel, aceptado, "createdAt" FROM "SoporteConsentimiento" WHERE "tenantId" = ${p.tenantId}`;
+        SELECT nivel, aceptado, "versionTexto", "createdAt" FROM "SoporteConsentimiento" WHERE "tenantId" = ${p.tenantId}`;
       return { ok: true, vigente: consentimientoVigente(filas), copia };
     },
     db,
@@ -152,13 +152,17 @@ export async function registrarConsentimiento(
   return r.ok ? { ok: true, vigente: r.vigente } : r;
 }
 
-/** La última copia en borrador del negocio (para mostrarla en pantalla). Sin filas: null. */
+/**
+ * La última copia en borrador del negocio (para mostrarla en pantalla). Sin filas: null. Sólo las que
+ * escribió el panel del titular (actor `user:…`, canal admin, acción y entidad exactas): nunca una fila
+ * de un agente (`agente:…`), que además la base le impide escribir (MANT_roles_soporte.sql §5).
+ */
 export async function ultimaCopiaEnBorrador(tenantId: string, db?: PrismaClient): Promise<(CopiaEnBorrador & { createdAt: Date }) | null> {
   return enElNegocio(
     tenantId,
     async (tx) => {
       const f = await tx.auditLog.findFirst({
-        where: { tenantId, entity: ENTIDAD_MAIL_BORRADOR, action: ACCION_COPIA_DE_PERMISO },
+        where: { tenantId, entity: ENTIDAD_MAIL_BORRADOR, action: ACCION_COPIA_DE_PERMISO, actor: { startsWith: "user:" }, channel: "admin" },
         orderBy: { createdAt: "desc" },
         select: { changes: true, createdAt: true },
       });

@@ -18,6 +18,7 @@ import { negocioEnVivo } from "./decisiones-core";
 import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import type { RolOperador } from "@/lib/operator-auth";
 import { quienApruebaElBorrador } from "./agentes-permisos";
+import { huellaDelBorrador } from "./huella-borrador-core";
 import { crearTicketEnTx, esTablaAusente, hayTablaDeTickets } from "./alta.server";
 import { enElNegocio } from "@/lib/operator-db";
 import { MODULO_CARTERA } from "@/lib/cartera-core";
@@ -180,7 +181,10 @@ export interface FichaDeTicket extends TicketResumen {
   creadoPor: string;
   respuesta: string | null;
   borradorIa: SugerenciaIa | null;
-  /** La versión del borrador (`borradorIa.el`): aprobar o descartar va atado a ella. */
+  /**
+   * La versión del borrador: huella sha256 de lo que la ficha muestra (+ `el`), calculada en el servidor
+   * (huella-borrador-core.ts). Aprobar o descartar va atado a ella: si el contenido cambió, se rechaza.
+   */
   borradorVersion: string | null;
   respondidoEl: Date | null;
   resueltoEl: Date | null;
@@ -196,10 +200,15 @@ function borradorLeido(x: unknown): SugerenciaIa | null {
   return { tipo: tipoLeido(o.tipo), prioridad: prioridadLeida(o.prioridad), respuesta: o.respuesta, motivo: typeof o.motivo === "string" ? o.motivo : "" };
 }
 
+/**
+ * La versión del borrador = huella de su CONTENIDO tal como lo muestra la ficha (no `el`, que lo pone
+ * quien escribe: el agente podía reescribir el texto con el mismo `el`). null si no hay borrador.
+ */
 function versionDelBorrador(x: unknown): string | null {
-  if (typeof x !== "object" || x === null) return null;
+  const b = borradorLeido(x);
+  if (!b) return null;
   const el = (x as Record<string, unknown>).el;
-  return typeof el === "string" && el ? el : null;
+  return huellaDelBorrador({ ...b, el: typeof el === "string" ? el : "" });
 }
 
 /** La ficha de un ticket, parada en su negocio. null si no existe (o la tabla todavía no está). */
@@ -259,8 +268,8 @@ export type CambioDeTicket =
   | { que: "tomar" }
   | { que: "borrador"; sugerencia: SugerenciaIa }
   /**
-   * D5/D6: aprobar o descartar el borrador de la IA, atado a SU versión (`borradorIa.el`): una
-   * aprobación vieja (de un borrador que ya se reemplazó) o doble se rechaza. `rolOperador` sale de
+   * D5/D6: aprobar o descartar el borrador de la IA, atado a SU versión (la huella del contenido que
+   * mostró la ficha): una aprobación vieja, doble o de un contenido reescrito se rechaza. `rolOperador` sale de
    * la sesión: en CH (o si no se sabe el negocio) sólo el dueño (rol «d»). Aprobar NO envía nada.
    */
   | { que: "aprobar_borrador"; version: unknown; rolOperador: RolOperador }
@@ -339,7 +348,8 @@ export async function cambiarTicket(
           case "aprobar_borrador":
           case "descartar_borrador": {
             // Candado de FILA, además del de ticket: el agente (gsg_agente) escribe `borradorIa`
-            // directo, sin el candado de la consola. Lo que se aprueba es lo leído acá adentro.
+            // directo, sin el candado de la consola. Lo que se aprueba es lo leído acá adentro, y la
+            // huella se recalcula sobre ESA fila: si el contenido no es el que vio la persona, se rechaza.
             const filas = await tx.$queryRaw<{ borradorIa: unknown }[]>`
               SELECT "borradorIa" FROM "SupportTicket" WHERE id = ${t.id} AND "tenantId" = ${p.tenantId} FOR UPDATE`;
             const negocio = await tx.tenant.findUnique({ where: { id: p.tenantId }, select: { slug: true } });

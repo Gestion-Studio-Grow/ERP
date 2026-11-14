@@ -8,7 +8,8 @@
 //   · gsg_agente: no lee User ni plata; sin set_config no ve nada; otro negocio → 0 filas; el negocio
 //     protegido (B hace de CH) → 0 filas y no escribe aunque tenga permiso; un ticket de cartera cuyo
 //     cliente es el protegido tampoco se ve; sin permiso n1 vigente → 0 filas (y la revocación gana,
-//     también a igual hora); sólo cambia estado/borrador, no asunto; no borra tickets ni AuditLog;
+//     también a igual hora); sólo cambia el borrador (ni estado, ni asunto); no borra tickets ni AuditLog;
+//     no lee Tenant ni SoporteConsentimiento; AuditLog sólo 'soporte.agente.%'; eventos sólo 'borrador_ia';
 //   · NegocioProtegido: nadie salvo el dueño lo escribe; SoporteConsentimiento: sólo se agregan filas;
 //   · gsg_operador no edita ni borra AuditLog;
 //   · el guardado del permiso (consentimiento.server) como app_rls: sólo el titular, con su AuditLog;
@@ -25,6 +26,7 @@ import path from "node:path";
 import pg from "pg";
 import { apuntarLaAppA, baseEfimeraParaElTest, urlDeRol, urlDelServidor } from "@/test/base-efimera";
 import { prepararAccionesDeServidor } from "@/test/accion-de-servidor";
+import { TEXTO_CONSENTIMIENTO } from "./consentimiento-core";
 
 const SQL = readFileSync(path.join(process.cwd(), "prisma/pending-gate2/MANT_roles_soporte.sql"), "utf8");
 const CANDADO_DE_ROLES = 7_300_000_001; // el mismo de base-efimera.ts: los roles son del servidor
@@ -108,8 +110,8 @@ test("roles de soporte: aislamiento por negocio, CH bloqueado desde la base y pe
   const permiso = (id: string, tenantId: string, aceptado: boolean, cuando: string) =>
     duenio.query(
       `INSERT INTO "SoporteConsentimiento" (id, "tenantId", nivel, aceptado, "versionTexto", "userId", "createdAt")
-       VALUES ($1, $2, 'n1', $3, 'test', $5, $4::timestamp)`,
-      [id, tenantId, aceptado, cuando, titular[tenantId]],
+       VALUES ($1, $2, 'n1', $3, $6, $5, $4::timestamp)`,
+      [id, tenantId, aceptado, cuando, titular[tenantId], TEXTO_CONSENTIMIENTO.version],
     );
   await permiso("c-b", B, true, "2026-01-01 10:00"); // el protegido CON permiso: igual no se ve
   await permiso("c-c", C, false, "2026-01-01 10:00"); // C revocó (o nunca dio): su ticket de cartera no se ve
@@ -139,7 +141,8 @@ test("roles de soporte: aislamiento por negocio, CH bloqueado desde la base y pe
   await assert.rejects(en(agente, A, `SELECT 1 FROM "User" LIMIT 1`), denegado, "User");
   await assert.rejects(en(agente, A, `SELECT 1 FROM "Payment" LIMIT 1`), denegado, "plata");
   await assert.rejects(en(agente, A, `SELECT 1 FROM "CashMovement" LIMIT 1`), denegado, "caja");
-  await assert.rejects(en(agente, A, `SELECT "modules" FROM "Tenant" LIMIT 1`), denegado, "Tenant fuera de las columnas otorgadas");
+  await assert.rejects(en(agente, A, `SELECT "modules" FROM "Tenant" LIMIT 1`), denegado, "Tenant: nada");
+  await assert.rejects(en(agente, A, `SELECT slug FROM "Tenant"`), denegado, "Tenant: ni el slug (lo da gsg_slug_del_negocio)");
 
   // ── Sin permiso n1: nada, aunque esté parado en su negocio ──
   assert.equal((await en(agente, A, `SELECT id FROM "SupportTicket"`)).rowCount, 0, "A sin permiso");
@@ -153,7 +156,7 @@ test("roles de soporte: aislamiento por negocio, CH bloqueado desde la base y pe
   assert.deepEqual((await en(agente, A, `SELECT id FROM "SupportTicketEvento" ORDER BY id`)).rows.map((r) => r.id), ["ev-a"], "eventos: sólo de tickets visibles");
   assert.equal((await en(agente, B, `SELECT id FROM "SupportTicket"`)).rowCount, 0, "CH: 0 filas con permiso y parado en CH");
   assert.equal((await en(agente, B, `SELECT id FROM "SupportTicketEvento"`)).rowCount, 0);
-  assert.equal((await en(agente, B, `SELECT id FROM "SoporteConsentimiento"`)).rowCount, 0);
+  await assert.rejects(en(agente, B, `SELECT id FROM "SoporteConsentimiento"`), denegado, "permisos: sin SELECT");
 
   // ── Ataque con tablas temporales (pg_temp va primero en el search_path por defecto) ──
   const ataque = `CREATE TEMP TABLE "NegocioProtegido" ("negocioId" TEXT);
@@ -162,20 +165,22 @@ test("roles de soporte: aislamiento por negocio, CH bloqueado desde la base y pe
   await agente.query(ataque);
   try {
     assert.equal((await en(agente, B, `SELECT id FROM "SupportTicket"`)).rowCount, 0, "temp: CH sigue en 0 filas");
-    assert.equal((await en(agente, B, `UPDATE "SupportTicket" SET estado = 'en_curso', "updatedAt" = now() WHERE id = 'tk-b'`)).rowCount, 0, "temp: CH no se actualiza");
+    assert.equal((await en(agente, B, `UPDATE "SupportTicket" SET "updatedAt" = now() WHERE id = 'tk-b'`)).rowCount, 0, "temp: CH no se actualiza");
     assert.deepEqual((await en(agente, A, `SELECT id FROM "SupportTicket" ORDER BY id`)).rows.map((r) => r.id), ["tk-a"], "temp: ni cartera de CH ni de C");
   } finally {
     await agente.query(`DROP TABLE IF EXISTS pg_temp."NegocioProtegido", pg_temp."SoporteConsentimiento"`);
   }
 
   // ── Escrituras ──
-  assert.equal((await en(agente, A, `UPDATE "SupportTicket" SET estado = 'en_curso', "updatedAt" = now() WHERE id = 'tk-a'`)).rowCount, 1);
-  assert.equal((await en(agente, B, `UPDATE "SupportTicket" SET estado = 'en_curso', "updatedAt" = now() WHERE id = 'tk-b'`)).rowCount, 0, "CH: no actualiza");
+  assert.equal((await en(agente, A, `UPDATE "SupportTicket" SET "borradorIa" = '{"respuesta":"x"}'::jsonb, "updatedAt" = now() WHERE id = 'tk-a'`)).rowCount, 1);
+  assert.equal((await en(agente, B, `UPDATE "SupportTicket" SET "updatedAt" = now() WHERE id = 'tk-b'`)).rowCount, 0, "CH: no actualiza");
+  await assert.rejects(en(agente, A, `UPDATE "SupportTicket" SET estado = 'resuelto' WHERE id = 'tk-a'`), denegado, "estado: lo cambia una persona");
+  await assert.rejects(en(agente, A, `UPDATE "SupportTicket" SET respuesta = 'x' WHERE id = 'tk-a'`), denegado, "respuesta");
   await assert.rejects(en(agente, A, `UPDATE "SupportTicket" SET asunto = 'otro' WHERE id = 'tk-a'`), denegado, "asunto");
   await assert.rejects(en(agente, A, `UPDATE "SupportTicket" SET "tenantId" = $1 WHERE id = 'tk-a'`, [B]), denegado, "mudar de negocio");
   await assert.rejects(en(agente, A, `DELETE FROM "SupportTicket" WHERE id = 'tk-a'`), denegado);
   await assert.rejects(en(agente, A, `INSERT INTO "SupportTicket" (id, "tenantId", numero, tipo, prioridad, asunto, canal, "creadoPor", "updatedAt") VALUES ('x', $1, 9, 'consulta', 'P3', 'x', 'erp', 'x', now())`, [A]), denegado);
-  const audit = (tenantId: string) => `INSERT INTO "AuditLog" (id, "tenantId", actor, action, entity) VALUES ('al-' || md5(random()::text), '${tenantId}', 'agente:n1', 'test', 'SupportTicket')`;
+  const audit = (tenantId: string) => `INSERT INTO "AuditLog" (id, "tenantId", actor, action, entity) VALUES ('al-' || md5(random()::text), '${tenantId}', 'agente:n1', 'soporte.agente.test', 'SupportTicket')`;
   assert.equal((await en(agente, A, audit(A))).rowCount, 1, "AuditLog en su negocio");
   await assert.rejects(en(agente, B, audit(B)), denegado, "AuditLog en CH");
   await assert.rejects(en(agente, A, audit(B)), denegado, "AuditLog de otro negocio");
@@ -184,16 +189,28 @@ test("roles de soporte: aislamiento por negocio, CH bloqueado desde la base y pe
     denegado,
     "el agente no firma auditoría a nombre de una persona",
   );
+  await assert.rejects(
+    en(agente, A, `INSERT INTO "AuditLog" (id, "tenantId", actor, action, entity) VALUES ('al-accion', $1, 'agente:n1', 'soporte.permiso.copia_borrador', 'MailBorrador')`, [A]),
+    denegado,
+    "el agente sólo escribe acciones 'soporte.agente.%'",
+  );
   await assert.rejects(en(agente, A, `DELETE FROM "AuditLog"`), denegado);
   await assert.rejects(en(agente, A, `SELECT 1 FROM "AuditLog" LIMIT 1`), denegado, "AuditLog: sólo INSERT");
-  assert.equal((await en(agente, A, `INSERT INTO "SupportTicketEvento" (id, "tenantId", "ticketId", tipo, actor) VALUES ('ev-ag', $1, 'tk-a', 'nota', 'agente:n1')`, [A])).rowCount, 1);
+  assert.equal((await en(agente, A, `INSERT INTO "SupportTicketEvento" (id, "tenantId", "ticketId", tipo, actor) VALUES ('ev-ag', $1, 'tk-a', 'borrador_ia', 'agente:n1')`, [A])).rowCount, 1);
+  for (const tipo of ["borrador_aprobado", "nota", "estado"]) {
+    await assert.rejects(
+      en(agente, A, `INSERT INTO "SupportTicketEvento" (id, "tenantId", "ticketId", tipo, actor) VALUES ('ev-tipo', $1, 'tk-a', $2, 'agente:n1')`, [A, tipo]),
+      denegado,
+      `el agente no escribe eventos «${tipo}»`,
+    );
+  }
   await assert.rejects(
     en(agente, A, `INSERT INTO "SupportTicketEvento" (id, "tenantId", "ticketId", tipo, actor) VALUES ('ev-falso', $1, 'tk-a', 'aprobado', 'duenia:x')`, [A]),
     denegado,
     "el agente no firma eventos a nombre de una persona",
   );
-  await assert.rejects(en(agente, A, `INSERT INTO "SupportTicketEvento" (id, "tenantId", "ticketId", tipo, actor) VALUES ('ev-ag2', $1, 'tk-a-cartera-ch', 'nota', 'agente:n1')`, [A]), denegado, "evento sobre ticket de CH");
-  await assert.rejects(en(agente, B, `INSERT INTO "SupportTicketEvento" (id, "tenantId", "ticketId", tipo, actor) VALUES ('ev-ag3', $1, 'tk-b', 'nota', 'agente:n1')`, [B]), denegado, "evento en CH");
+  await assert.rejects(en(agente, A, `INSERT INTO "SupportTicketEvento" (id, "tenantId", "ticketId", tipo, actor) VALUES ('ev-ag2', $1, 'tk-a-cartera-ch', 'borrador_ia', 'agente:n1')`, [A]), denegado, "evento sobre ticket de CH");
+  await assert.rejects(en(agente, B, `INSERT INTO "SupportTicketEvento" (id, "tenantId", "ticketId", tipo, actor) VALUES ('ev-ag3', $1, 'tk-b', 'borrador_ia', 'agente:n1')`, [B]), denegado, "evento en CH");
 
   // ── Revocación: gana la última; a igual hora, gana la revocación ──
   await permiso("c-a2", A, false, "2026-01-01 11:00");

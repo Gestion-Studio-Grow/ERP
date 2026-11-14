@@ -156,7 +156,7 @@ export function Respuesta({ negocio, numero, respuesta, borrador, borradorVersio
   numero: number;
   respuesta: string | null;
   borrador: SugerenciaIa | null;
-  /** `borradorIa.el`: aprobar o descartar va atado a esta versión. */
+  /** Huella del contenido del borrador (la calcula el servidor): aprobar o descartar va atado a ella. */
   borradorVersion: string | null;
   /** En CH (o negocio desconocido) sólo el dueño; la regla la vuelve a aplicar el servidor. */
   puedeAprobar: boolean;

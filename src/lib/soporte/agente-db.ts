@@ -126,17 +126,19 @@ function antesDeLaBase(p: PedidoDeTicket, accion: "leer_ticket" | "borrador_resp
  * vigentes y ninguno es CH. null si no (indistinguible a propósito: no existe / sin permiso / CH).
  */
 async function ticketVisibleEnTx(tx: Prisma.TransactionClient, p: PedidoDeTicket, nivel: NivelDeAgente, accion: "leer_ticket" | "borrador_respuesta"): Promise<TicketParaElAgente | null> {
-  const [negocio] = await tx.$queryRaw<{ slug: string }[]>`SELECT slug FROM "Tenant" WHERE id = ${p.tenantId}`;
-  if (!negocio || negocio.slug !== p.slug || decidirAccionDeAgente(nivel, accion, negocio.slug).decision !== "permitido") return null;
+  // El agente no lee `Tenant` ni `SoporteConsentimiento` (MANT_roles_soporte.sql §5): el slug y el
+  // permiso salen de funciones SECURITY DEFINER sin parámetros, sobre el negocio FIJADO en la transacción.
+  const [negocio] = await tx.$queryRaw<{ slug: string | null }[]>`SELECT gsg_slug_del_negocio() AS slug`;
+  if (!negocio?.slug || negocio.slug !== p.slug || decidirAccionDeAgente(nivel, accion, negocio.slug).decision !== "permitido") return null;
   const [t] = await tx.$queryRaw<TicketParaElAgente[]>`
     SELECT id, numero, tipo, prioridad, estado, asunto, detalle, canal, "clienteTenantId", "borradorIa", "createdAt"
     FROM "SupportTicket" WHERE "tenantId" = ${p.tenantId} AND numero = ${p.numero}`;
   if (!t || (t.clienteTenantId ?? null) !== (p.clienteTenantId?.trim() || null)) return null;
   const [permiso] = await tx.$queryRaw<{ estudio: boolean; cliente: boolean }[]>`
-    SELECT gsg_permiso_n1_vigente(${p.tenantId}) AS estudio, gsg_permiso_n1_cliente_de_cartera() AS cliente`;
+    SELECT gsg_permiso_n1_vigente() AS estudio, gsg_permiso_n1_cliente_de_cartera() AS cliente`;
   let cliente: { slug: string | null; n1: boolean } | null = null;
   if (t.clienteTenantId) {
-    const [c] = await tx.$queryRaw<{ slug: string }[]>`SELECT slug FROM "Tenant" WHERE id = ${t.clienteTenantId}`;
+    const [c] = await tx.$queryRaw<{ slug: string | null }[]>`SELECT gsg_slug_del_cliente() AS slug`;
     cliente = { slug: c?.slug ?? null, n1: permiso?.cliente === true };
   }
   const v = agentePuedeEnTicket({ estudio: { slug: negocio.slug, n1: permiso?.estudio === true }, cliente });

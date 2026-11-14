@@ -9,6 +9,8 @@
 //   · BORRADOR: aprobar/descartar va atado a la versión; dos aprobaciones a la vez → una; una versión
 //     vieja tras un borrador nuevo → rechazo; un id cruzado de otro negocio no aprueba nada; en CH sólo
 //     el dueño (rol «d»). Aprobar pasa el texto a la respuesta y deja quién aprobó; no envía nada.
+//   · Certificación adversarial ronda 1: la versión es la HUELLA del contenido (reescribir el texto con
+//     el mismo `el` ya no se aprueba) y el panel no muestra una «copia por mail» que no escribió el titular.
 //
 // La tabla `SoporteConsentimiento` se crea acá con lo mínimo de prisma/pending-gate2/MANT_roles_soporte.sql
 // (tabla, RLS tenant_isolation, SELECT/INSERT para app_rls): el archivo entero lo prueba
@@ -18,6 +20,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { apuntarLaAppA, baseEfimeraParaElTest, prismaComoDuenio } from "@/test/base-efimera";
 import { ejecutarAccion, prepararAccionesDeServidor } from "@/test/accion-de-servidor";
+import { huellaDelBorrador } from "./huella-borrador-core";
 
 const TABLA_MINIMA = [
   `CREATE TABLE IF NOT EXISTS "SoporteConsentimiento" (
@@ -98,6 +101,15 @@ test("permiso del titular (D4) y borrador aprobado (D5/D6): aislamiento, carrera
   assert.equal((await ultimaCopiaEnBorrador(A.id))?.asunto, ok.valor.ok ? ok.valor.copia.asunto : "");
   assert.deepEqual(await leerEstadoDelPermiso(A.id), { habilitado: true, vigente: { n1: true, n2: false } });
   assert.deepEqual(await leerEstadoDelPermiso(B.id), { habilitado: true, vigente: { n1: false, n2: false } });
+  // A2 (certificación): una «copia por mail» más nueva escrita por un agente (actor agente:…) no se muestra.
+  await duenio.auditLog.create({
+    data: {
+      tenantId: A.id, actor: "agente:n1", action: "soporte.permiso.copia_borrador", entity: "MailBorrador", entityId: "x", channel: "agente",
+      changes: { para: "atacante@evil.test", asunto: "Confirmá tu clave", cuerpo: "Entrá a http://evil.test", enviado: false },
+      createdAt: new Date(Date.now() + 60_000),
+    },
+  });
+  assert.equal((await ultimaCopiaEnBorrador(A.id))?.asunto, ok.valor.ok ? ok.valor.copia.asunto : "", "A2: el panel muestra sólo la copia del titular");
 
   // Directo al servidor: un OWNER de A con el negocio B → rechazado (el usuario no es de B).
   const cruzado = await registrarConsentimientoConCopia({ tenantId: B.id, userId: A.duenia.id, rol: "OWNER", nivel: "n1", aceptado: true }, operatorPrisma);
@@ -132,7 +144,7 @@ test("permiso del titular (D4) y borrador aprobado (D5/D6): aislamiento, carrera
   assert.deepEqual(await poner(A.id, "Respuesta vieja de A", t1), { ok: true });
   assert.deepEqual(await poner(B.id, "Respuesta de B", tB), { ok: true });
   const vieja = (await fichaDeTicket(operatorPrisma, A.id, 1))!.borradorVersion;
-  assert.equal(vieja, t1.toISOString());
+  assert.equal(vieja, huellaDelBorrador({ tipo: "otro", prioridad: "P3", respuesta: "Respuesta vieja de A", motivo: "prueba", el: t1.toISOString() }), "la versión es la huella del contenido");
 
   // Versión vieja tras un borrador nuevo → rechazo.
   assert.deepEqual(await poner(A.id, "Respuesta nueva de A", t2), { ok: true });
@@ -141,6 +153,20 @@ test("permiso del titular (D4) y borrador aprobado (D5/D6): aislamiento, carrera
   const rv = await aprobar(A.id, vieja);
   assert.ok(!rv.ok && /cambió/.test(rv.error), "una aprobación vieja no pisa el borrador nuevo");
   assert.equal((await fichaDeTicket(operatorPrisma, A.id, 1))!.respuesta, null);
+
+  // ALTO 1 (certificación): el agente reescribe el texto con el MISMO `el` → la aprobación de lo que la
+  // persona vio se rechaza y no se guarda el texto cambiado.
+  const reescribir = (respuesta: string) =>
+    duenio.$executeRaw`UPDATE "SupportTicket" SET "borradorIa" = jsonb_set("borradorIa", '{respuesta}', to_jsonb(${respuesta}::text)) || '{"autor":"agente:n1"}'::jsonb
+                       WHERE "tenantId" = ${A.id} AND numero = 1`;
+  await reescribir("Texto CAMBIADO que nadie revisó");
+  const reescrita = (await fichaDeTicket(operatorPrisma, A.id, 1))!;
+  assert.notEqual(reescrita.borradorVersion, nueva, "otra huella");
+  const ra = await aprobar(A.id, nueva);
+  assert.ok(!ra.ok && /cambió/.test(ra.error), "ALTO 1: no se aprueba un contenido que nadie vio");
+  assert.equal((await fichaDeTicket(operatorPrisma, A.id, 1))!.respuesta, null, "ALTO 1: el texto cambiado no quedó como respuesta");
+  await reescribir("Respuesta nueva de A"); // vuelve al contenido que se vio: misma huella
+  assert.equal((await fichaDeTicket(operatorPrisma, A.id, 1))!.borradorVersion, nueva);
 
   // Id cruzado: la versión de A contra el ticket #1 de B → rechazo; B queda igual.
   const rc = await aprobar(B.id, nueva);

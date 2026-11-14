@@ -12,7 +12,10 @@
 //   · la función SECURITY DEFINER: sin parámetros, sólo boolean, nada para app_rls; no es un oráculo de
 //     negocios ajenos a la cartera del estudio parado;
 //   · carrera: revocación entre la lectura y la escritura del borrador → la escritura falla y no queda nada;
-//   · CH o slug vacío → no toca la base; el agente nunca escribe `respuesta`.
+//   · CH o slug vacío → no toca la base; el agente nunca escribe `respuesta`;
+//   · certificación adversarial ronda 1 (cada ataque, ahora rechazado): cerrar un ticket (estado), leer
+//     permisos de un negocio fijándose el contexto, listar negocios (Tenant), evento «borrador_aprobado»
+//     falso, borrador de mail falso en AuditLog, permiso dado a una versión vieja del texto.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -22,6 +25,7 @@ import pg from "pg";
 import type { PrismaClient } from "@/generated/prisma/client";
 import { baseEfimeraParaElTest, urlDeRol, urlDelServidor } from "@/test/base-efimera";
 import { prepararAccionesDeServidor } from "@/test/accion-de-servidor";
+import { TEXTO_CONSENTIMIENTO } from "./consentimiento-core";
 
 const SQL = readFileSync(path.join(process.cwd(), "prisma/pending-gate2/MANT_roles_soporte.sql"), "utf8");
 const CANDADO_DE_ROLES = 7_300_000_001; // el mismo de base-efimera.ts
@@ -94,11 +98,11 @@ test("agente-db: apagado sin variable, aislamiento, cartera con permiso del clie
   let n = 0;
   // La hora del permiso la pone la base con milisegundos y, a igual hora, gana la revocación (falla
   // cerrado). Para que «revoca y vuelve a dar» no caiga en el mismo milisegundo, cada casilla espera 3 ms.
-  const permiso = async (tenantId: string, aceptado: boolean) => {
+  const permiso = async (tenantId: string, aceptado: boolean, version: string = TEXTO_CONSENTIMIENTO.version) => {
     await new Promise((r) => setTimeout(r, 3));
     return duenio.query(
-      `INSERT INTO "SoporteConsentimiento" (id, "tenantId", nivel, aceptado, "versionTexto", "userId") VALUES ($1, $2, 'n1', $3, 'test', $4)`,
-      [`cs-${++n}`, tenantId, aceptado, titular[tenantId]],
+      `INSERT INTO "SoporteConsentimiento" (id, "tenantId", nivel, aceptado, "versionTexto", "userId") VALUES ($1, $2, 'n1', $3, $5, $4)`,
+      [`cs-${++n}`, tenantId, aceptado, titular[tenantId], version],
     );
   };
   for (const x of [A, B, C, CH]) await permiso(x, true); // CH CON permiso: igual nunca
@@ -266,6 +270,68 @@ test("agente-db: apagado sin variable, aislamiento, cartera con permiso del clie
   );
   assert.deepEqual(await borradorDe("tk-a2"), previo, "ninguna de las tres carreras dejó un borrador");
   assert.equal(await eventosDe("tk-a2"), eventosPrevios, "ni un evento");
+
+  // ── Certificación adversarial, ronda 1: cada ataque de la prueba, ahora rechazado por la base ──
+  const comoAgente = async (negocio: string, sql: string, params: unknown[] = [], cliente: string | null = null) => {
+    await agente.query("BEGIN");
+    try {
+      await agente.query("SELECT set_config('app.current_tenant_id', $1, true), set_config('app.cliente_tenant_id', $2, true)", [negocio, cliente ?? ""]);
+      const r = await agente.query(sql, params);
+      await agente.query("COMMIT");
+      return r;
+    } catch (e) {
+      await agente.query("ROLLBACK");
+      throw e;
+    }
+  };
+  // A1: cerrar un ticket sin que lo apruebe nadie (UPDATE de estado).
+  await assert.rejects(comoAgente(A, `UPDATE "SupportTicket" SET estado = 'resuelto' WHERE id = 'tk-a1'`), denegado, "A1: el agente no cambia el estado");
+  assert.equal((await duenio.query(`SELECT estado FROM "SupportTicket" WHERE id = 'tk-a1'`)).rows[0].estado, "nuevo", "A1: el ticket sigue igual");
+  // A3: fijarse un negocio ajeno (D: sin permiso, ni relación de agente) y leer sus permisos.
+  await assert.rejects(comoAgente(D, `SELECT "tenantId", aceptado, "userId", "versionTexto" FROM "SoporteConsentimiento"`), denegado, "A3: sin SELECT de permisos");
+  await assert.rejects(comoAgente(A, `SELECT 1 FROM "SoporteConsentimiento" LIMIT 1`), denegado, "A3: ni de su propio negocio");
+  // El permiso sale de la función SECURITY DEFINER sin parámetros, sobre el negocio fijado: sólo boolean.
+  const n1De = async (negocio: string) => (await comoAgente(negocio, "SELECT gsg_permiso_n1_vigente() AS v")).rows[0].v as boolean;
+  assert.equal(await n1De(A), true);
+  assert.equal(await n1De(D), false, "D sin permiso");
+  assert.equal(await n1De(CH), true, "CH con permiso cargado: la función dice true, pero el candado de la fila no lo deja ver");
+  await assert.rejects(agente.query("SELECT gsg_permiso_n1_vigente('x')"), /does not exist/, "no acepta parámetros");
+  await assert.rejects(app.query("SELECT gsg_permiso_n1_vigente()"), denegado, "app_rls no la ejecuta");
+  await agente.query(`CREATE TEMP TABLE "SoporteConsentimiento" ("tenantId" TEXT, nivel TEXT, aceptado BOOLEAN, "versionTexto" TEXT, "createdAt" TIMESTAMP);
+    INSERT INTO "SoporteConsentimiento" VALUES ('${D}', 'n1', true, '${TEXTO_CONSENTIMIENTO.version}', now() + interval '1 day')`);
+  try {
+    assert.equal(await n1De(D), false, "temp: D sigue sin permiso");
+  } finally {
+    await agente.query(`DROP TABLE IF EXISTS pg_temp."SoporteConsentimiento"`);
+  }
+  // A4: listar los negocios (CH incluido) desde Tenant.
+  await assert.rejects(comoAgente(D, `SELECT slug FROM "Tenant"`), denegado, "A4: no lista negocios");
+  assert.equal((await comoAgente(A, "SELECT gsg_slug_del_negocio() AS s")).rows[0].s, base.a.slug, "el slug del negocio fijado");
+  assert.equal((await comoAgente(A, "SELECT gsg_slug_del_cliente() AS s", [], C)).rows[0].s, C, "el del cliente de su cartera");
+  assert.equal((await comoAgente(B, "SELECT gsg_slug_del_cliente() AS s", [], CH)).rows[0].s, null, "un cliente que no es de su cartera: nada");
+  await assert.rejects(app.query("SELECT gsg_slug_del_negocio()"), denegado, "app_rls no la ejecuta");
+  // A5: evento de aprobación falso.
+  await assert.rejects(
+    comoAgente(A, `INSERT INTO "SupportTicketEvento" (id, "tenantId", "ticketId", tipo, actor, datos) VALUES ('evx', $1, 'tk-a1', 'borrador_aprobado', 'agente:n1', '{"aprobadoPor":"Dueño"}')`, [A]),
+    denegado,
+    "A5: el agente no escribe «borrador_aprobado»",
+  );
+  // A2: borrador de mail falso en AuditLog (lo mostraba el panel del titular).
+  await assert.rejects(
+    comoAgente(A, `INSERT INTO "AuditLog" (id, "tenantId", actor, action, entity, "entityId", changes, channel) VALUES ('alx', $1, 'agente:n1', 'soporte.permiso.copia_borrador', 'MailBorrador', 'x', $2::jsonb, 'agente')`,
+      [A, JSON.stringify({ para: "atacante@evil.test", asunto: "Confirmá tu clave", cuerpo: "Entrá a http://evil.test", enviado: false })]),
+    denegado,
+    "A2: sólo acciones 'soporte.agente.%'",
+  );
+  assert.equal((await duenio.query(`SELECT 1 FROM "AuditLog" WHERE id IN ('alx')`)).rowCount, 0);
+  // V: el último permiso de B es de una versión VIEJA del texto → no vale (ni en la base ni en el código).
+  assert.deepEqual(await ids(B), ["tk-b1"]);
+  await permiso(B, true, "VERSION-VIEJA-1999");
+  assert.deepEqual(await ids(B), [], "V: permiso de versión vieja, 0 filas");
+  assert.equal(await n1De(B), false);
+  assert.equal((await m.leerTicketComoAgente({ tenantId: B, slug: base.b.slug, nivel: "n1", numero: 1 })).ok, false);
+  await permiso(B, true);
+  assert.deepEqual(await ids(B), ["tk-b1"], "re-tildado con la versión vigente");
 
   // ── Revocación del ESTUDIO: tampoco ve lo suyo ──
   await permiso(A, false);
