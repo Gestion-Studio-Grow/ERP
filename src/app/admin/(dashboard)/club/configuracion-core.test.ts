@@ -295,6 +295,11 @@ test("SEC-5 en Configuración: un acierto de DUEÑO vuelve a cero (alta, cambiar
   const alta = conTopeDePin(g, 0, () => hacer(e, { tipo: "alta", nombre: "Nico", rol: "recepcion", pin: "1111" }));
   assert.equal(alta.desenlace.ok, true, alta.desenlace.mensaje);
   assert.deepEqual(g.leer(), SIN_INTENTOS_DEL_BLOQUEO);
+  // El PIN de Nico (recepción, 2 números) lo sortea el motor: el que elija Lu más abajo no puede ser ése. Con uno
+  // fijo («58») el test fallaba ~1 de cada 86 corridas con «ya lo usa otra persona» (el motor tiene razón).
+  const deNico = "pinNuevo" in alta.desenlace ? alta.desenlace.pinNuevo?.pin : undefined;
+  assert.match(String(deNico), /^\d{2}$/);
+  const nuevoDeLu = deNico === "58" ? "59" : "58";
   // Cambiar mi PIN: el actual se evalúa ANTES del motor (después el PIN ya es el nuevo) y, bueno de dueño, limpia.
   for (let k = 0; k < 2; k++) conTopeDePin(g, 0, () => hacer(e, { tipo: "cambiarMiPin", actual: "9999", nuevo: "4711", repetido: "4711" }));
   const cambio = conTopeDePin(g, 0, () => hacer(e, { tipo: "cambiarMiPin", actual: "1111", nuevo: "4711", repetido: "4711" }));
@@ -302,7 +307,9 @@ test("SEC-5 en Configuración: un acierto de DUEÑO vuelve a cero (alta, cambiar
   assert.deepEqual(g.leer(), SIN_INTENTOS_DEL_BLOQUEO);
   // Recepción cambia el suyo: bueno, pero los fallos de antes quedan.
   conTopeDePin(g, 0, () => hacer(e, { tipo: "pinNuevo", usuarioId: "u-lu", pin: "0000" }, { usuarioId: "u-rober", pin: "4711" }));
-  const lu = conTopeDePin(g, 0, () => hacer(e, { tipo: "cambiarMiPin", actual: "33", nuevo: "58", repetido: "58" }, LU));
+  // El de Nico no se lo puede quedar Lu (nunca dos personas con el mismo PIN); el rechazo no toca el tope.
+  assert.match(hacer(e, { tipo: "cambiarMiPin", actual: "33", nuevo: deNico!, repetido: deNico! }, LU).mensaje, /ya lo usa otra persona/);
+  const lu = conTopeDePin(g, 0, () => hacer(e, { tipo: "cambiarMiPin", actual: "33", nuevo: nuevoDeLu, repetido: nuevoDeLu }, LU));
   assert.equal(lu.desenlace.ok, true, lu.desenlace.mensaje);
   assert.equal(g.leer().fallos, 1);
 });
