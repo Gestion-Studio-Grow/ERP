@@ -74,13 +74,14 @@ export const ESTADO: Readonly<Record<EstadoTicket, { nombre: string; marca: "pen
 
 // ── Canales ─────────────────────────────────────────────────────────────────────────────────────
 
-export const CANALES = ["pedido_cartera", "consola", "whatsapp", "mail"] as const;
+export const CANALES = ["pedido_cartera", "consola", "whatsapp", "mail", "erp"] as const;
 export type Canal = (typeof CANALES)[number];
 export const CANAL: Readonly<Record<Canal, string>> = {
   pedido_cartera: "Pedido desde la ficha de un cliente",
   consola: "Cargado en la consola",
   whatsapp: "WhatsApp",
   mail: "Mail",
+  erp: "Botón Pedir ayuda del sistema",
 };
 
 // ── Largos ──────────────────────────────────────────────────────────────────────────────────────
