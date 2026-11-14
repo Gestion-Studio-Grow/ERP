@@ -95,15 +95,17 @@ export default async function CalendarioGestion({ searchParams }: { searchParams
             return (
               <div key={clave} className={cn("min-h-28 min-w-0 border-b border-r border-line p-1", !clave.startsWith(mes) && "bg-surface-sunken")}>
                 <p className={cn("mb-1 flex h-6 w-6 items-center justify-center rounded-full text-xs", clave === hoy ? "bg-accent font-bold text-on-accent" : clave.startsWith(mes) ? "text-strong" : "text-muted")}>{Number(clave.slice(8))}</p>
-                <ul className="grid gap-0.5">
+                {/* minmax(0,1fr) + min-w-0: sin esto la columna implícita toma el ancho del texto sin cortar
+                    (truncate = nowrap) y el evento y el «+N más» se salen del día. */}
+                <ul className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-0.5">
                   {lista.slice(0, POR_CELDA).map((e) => (
-                    <li key={e.id}>
+                    <li key={e.id} className="min-w-0">
                       <Link href={enlace(e)} title={`${ETIQUETA_CORTA[e.tipo]}: ${e.titulo}`} className={cn("block truncate rounded px-1 py-0.5 text-xs", COLOR[e.tipo])}>
                         <span className="font-semibold">{ETIQUETA_CORTA[e.tipo]}</span> {e.titulo}
                       </Link>
                     </li>
                   ))}
-                  {sobran > 0 && <li><Link href={ruta({ dia: clave })} className="block px-1 py-0.5 text-xs font-medium text-strong underline">+{sobran} más</Link></li>}
+                  {sobran > 0 && <li className="min-w-0"><Link href={ruta({ dia: clave })} className="block truncate px-1 py-0.5 text-xs font-medium text-strong underline">+{sobran} más</Link></li>}
                 </ul>
               </div>
             );

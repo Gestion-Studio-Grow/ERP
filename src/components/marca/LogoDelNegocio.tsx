@@ -9,9 +9,15 @@
 //   · Shine, Taller AGR, Qué Bien Olés → su logo real, el mismo archivo que usa su front (LOGO_REAL, abajo).
 //   · El resto → LOGO TIPOGRÁFICO (co-marca, 29/10/2026): la loseta con sus iniciales en el acento del negocio y su
 //     nombre, marcado «Logo provisional · a confirmar» hasta que el cliente pase el suyo. Nunca el de otro negocio.
+//   · Demo GSG (src/lib/marca-demo.ts) → el mismo tipográfico con «GSG» en cobre, el nombre de la demo y «Demo · …».
+//     Sin isotipo ni piezas de la marca GSG (guarda sin-gsg-en-tenants.test.ts): GSG firma abajo, con FirmaGSG.
 // Los colores van por tokens y por `data-logo` en globals.css; el nombre es texto real (el dibujo, aria-hidden).
 
 import type { EsteticaBackoffice } from "@/lib/estetica-backoffice";
+import { MARCA_DEMO_GSG, presentaComoDemoGsg } from "@/lib/marca-demo";
+
+// La leyenda de la demo: avisa que es una demo y de qué rubro, en minúscula después del punto medio.
+const LEYENDA_DEMO = `Demo · ${MARCA_DEMO_GSG.bajada.charAt(0).toLowerCase()}${MARCA_DEMO_GSG.bajada.slice(1)}`;
 
 // Logos reales que ya están en public/tenants (los mismos del front de cada negocio). Por slug exacto: un local con otro slug
 // cae al logo tipográfico hasta que se lo agregue acá. PDC no figura: la inmobiliaria no se toca (orden del dueño, 29/10). Medidas = las del archivo, para
@@ -41,6 +47,19 @@ export default function LogoDelNegocio({
   slug?: string | null;
   monograma?: string;
 }) {
+  // DEMO GSG (src/lib/marca-demo.ts): el logo tipográfico con la sigla en cobre y el nombre de la demo, y la leyenda
+  // «Demo · …» donde el provisional dice «Logo provisional». Nunca el logo del cliente; tampoco el isotipo de GSG (C12:
+  // el logo de un negocio es sólo suyo; GSG firma abajo con FirmaGSG, sin excepción para la demo).
+  if (presentaComoDemoGsg(slug)) {
+    return (
+      <LogoTipografico
+        nombre={nombre}
+        monograma={MARCA_DEMO_GSG.monograma}
+        leyenda={LEYENDA_DEMO}
+        logo="demo-gsg"
+      />
+    );
+  }
   const real = estetica ? null : logoRealDe(slug);
   if (real) {
     return (
@@ -141,11 +160,23 @@ export default function LogoDelNegocio({
  * LOGO TIPOGRÁFICO PROVISIONAL: el negocio todavía no pasó su logo. Loseta con las iniciales en el acento del negocio
  * (par AA accent/on-accent del preset) + el nombre entero, y la aclaración «Logo provisional · a confirmar» (sólo en
  * la barra y el cajón; en la cabecera del celular va la loseta sola). `data-logo="provisional"` lo deja medible.
+ * La demo GSG usa la misma pieza con su leyenda («Demo · …», que se corta con «…» si no entra) y `data-logo="demo-gsg"`.
  */
-export function LogoTipografico({ nombre, monograma }: { nombre: string; monograma: string }) {
+export function LogoTipografico({
+  nombre,
+  monograma,
+  leyenda,
+  logo = "provisional",
+}: {
+  nombre: string;
+  monograma: string;
+  leyenda?: string;
+  logo?: "provisional" | "demo-gsg";
+}) {
   const iniciales = (monograma || "").trim() || nombre.trim().slice(0, 1).toUpperCase() || "•";
+  const esDemo = logo === "demo-gsg";
   return (
-    <span data-logo="provisional" className="flex min-w-0 items-center gap-3" title="Logo provisional, a confirmar con GSG">
+    <span data-logo={logo} className="flex min-w-0 items-center gap-3" title={leyenda ?? "Logo provisional, a confirmar con GSG"}>
       <span
         aria-hidden="true"
         data-logo-parte="loseta"
@@ -157,9 +188,15 @@ export function LogoTipografico({ nombre, monograma }: { nombre: string; monogra
         <span data-logo-parte="nombre" className="line-clamp-2 text-[17px] font-[650] leading-[1.15] tracking-[-0.02em] text-strong [text-wrap:balance]">
           {nombre}
         </span>
-        <span data-logo-parte="provisional" className="mt-0.5 whitespace-nowrap text-[11px] font-medium tracking-[.03em] text-faint">
-          Logo provisional · a confirmar
-        </span>
+        {esDemo ? (
+          <span data-logo-parte="leyenda" className="mt-0.5 truncate text-[11px] font-medium tracking-[.03em] text-muted">
+            {leyenda}
+          </span>
+        ) : (
+          <span data-logo-parte="provisional" className="mt-0.5 whitespace-nowrap text-[11px] font-medium tracking-[.03em] text-faint">
+            Logo provisional · a confirmar
+          </span>
+        )}
       </span>
     </span>
   );

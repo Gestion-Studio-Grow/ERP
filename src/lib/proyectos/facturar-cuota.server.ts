@@ -53,15 +53,24 @@ import {
 // recuerda: apenas se aplica la migración, la próxima pregunta ya lo ve.
 let _columnaPresente = false;
 
-/** ¿La base tiene `Invoice.proyectoCuotaId`? Falla cerrado: sin poder preguntar, `false`. */
+/** Lo que se ve cuando la sonda no pudo preguntar (pool lleno, base caída): la operación no sigue sin el candado. */
+export const SONDA_FACTURAS_SIN_RESPUESTA = "No se pudo verificar la facturación de las cuotas. Probá de nuevo en unos segundos.";
+
+/**
+ * ¿La base tiene `Invoice.proyectoCuotaId`? Sin poder preguntar, TIRA (cert. D13 · R7, segunda vuelta): un `false` acá
+ * significa «no hay facturas de cuota» y los llamadores saltean el candado de la factura viva, así que con el pool lleno
+ * una cuota facturada se pisaba. «No está la columna» (`false`) y «no pude preguntar» (error) ya no se confunden.
+ */
 export async function hayColumnaCuotaEnInvoice(): Promise<boolean> {
   if (_columnaPresente) return true;
-  const filas = await basePrisma
-    .$queryRaw<unknown[]>`SELECT 1 FROM information_schema.columns
+  let filas: unknown[];
+  try {
+    filas = await basePrisma.$queryRaw<unknown[]>`SELECT 1 FROM information_schema.columns
       WHERE table_schema = 'public' AND table_name = 'Invoice' AND column_name = 'proyectoCuotaId'
-      LIMIT 1`
-    .catch(() => null);
-  if (filas === null) return false;
+      LIMIT 1`;
+  } catch (e) {
+    throw new Error(SONDA_FACTURAS_SIN_RESPUESTA, { cause: e });
+  }
   _columnaPresente = Array.isArray(filas) && filas.length > 0;
   return _columnaPresente;
 }
@@ -89,9 +98,11 @@ export async function facturasDeCuotas(
   tenantId: string,
   cuotaIds: readonly string[],
   db: InvoiceTx | null = null,
+  /** Lo que ya respondió `hayColumnaCuotaEnInvoice()` AFUERA de la transacción `db` (adentro no se pide otra conexión). */
+  conColumna?: boolean,
 ): Promise<Map<string, FacturaDeCuotaVista>> {
   const salida = new Map<string, FacturaDeCuotaVista>();
-  if (cuotaIds.length === 0 || !(await hayColumnaCuotaEnInvoice())) return salida;
+  if (cuotaIds.length === 0 || !(conColumna ?? (await hayColumnaCuotaEnInvoice()))) return salida;
   const leer = (tx: InvoiceTx) =>
     tx.invoice.findMany({
       where: { tenantId, proyectoCuotaId: { in: [...cuotaIds] } },
@@ -181,22 +192,28 @@ async function tomarCuota(tx: InvoiceTx, tenantId: string, cuotaId: string): Pro
  * si la tiene, devuelve `"facturada"` sin correr nada. Lo usan regenerar, quitar y el texto
  * `factura`: el mismo candado que toma la facturación, así nunca terminan las dos juntas. Sin la
  * columna corre `fn` directo (no hay facturas de cuotas que cuidar).
+ *
+ * Con `enTx` corre adentro de esa transacción (la de `regenerarCuotas`, que ya tiene el candado de la
+ * cobranza del proyecto y preguntó la sonda antes de abrirla): la fila queda tomada hasta que esa transacción cierre. Orden de candados:
+ * cobranza → fila de la cuota; la facturación toma facturas-cobro → fila de la cuota. No se cruzan.
  */
 export async function conCuotaSinFacturaViva<T>(
   tenantId: string,
   cuotaId: string,
   fn: (tx: InvoiceTx) => Promise<T>,
+  enTx?: { tx: InvoiceTx; conColumna: boolean },
 ): Promise<T | "facturada"> {
+  const conCandado = async (tx: InvoiceTx): Promise<T | "facturada"> => {
+    await tomarCuota(tx, tenantId, cuotaId);
+    const viva = await tx.invoice.findFirst({ where: { tenantId, proyectoCuotaId: cuotaId, status: { in: ["PENDING", "AUTHORIZED"] } }, select: { id: true } });
+    if (viva) return "facturada" as const;
+    return fn(tx);
+  };
+  // Con `enTx`, la sonda ya se preguntó AFUERA de esa transacción (cert. D13 · R7): adentro, `basePrisma` pediría otra
+  // conexión del pool y, si no la consigue, la sonda daría `false` y la cuota se tocaría sin su candado.
+  if (enTx) return enTx.conColumna ? conCandado(enTx.tx) : fn(enTx.tx);
   if (!(await hayColumnaCuotaEnInvoice())) return tenantTransaction(fn, { tenantId });
-  return tenantTransaction(
-    async (tx) => {
-      await tomarCuota(tx, tenantId, cuotaId);
-      const viva = await tx.invoice.findFirst({ where: { tenantId, proyectoCuotaId: cuotaId, status: { in: ["PENDING", "AUTHORIZED"] } }, select: { id: true } });
-      if (viva) return "facturada" as const;
-      return fn(tx);
-    },
-    { tenantId },
-  );
+  return tenantTransaction(conCandado, { tenantId });
 }
 
 /** La cuota cambió entre que se armó la factura y que se tomó su fila: no se factura con lo viejo. */

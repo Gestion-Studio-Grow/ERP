@@ -6,7 +6,9 @@
 // con `MP_MODO=real` + `MP_ACCESS_TOKEN` genera links reales. Nunca maneja secretos
 // en código (el token lo carga el dueño en el entorno).
 
+import { aCobrarDelPedido } from "@/lib/settlement/saldo-del-pedido";
 import { revalidatePath } from "next/cache";
+import { nombreVisibleDelNegocio } from "@/lib/marca-demo";
 import { prisma } from "@/lib/prisma";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
@@ -27,11 +29,12 @@ import {
 import { MercadoPagoApiError } from "@/plugins/mercadopago/http";
 import { procesarNotificacionPago } from "@/plugins/mercadopago/handler";
 import { referenciaDePedido } from "@/plugins/mercadopago/core-contract";
-import { referenciaDelLinkDePedido, referenciaDelLinkManual } from "@/lib/webhooks/resolver-negocio";
+import { referenciaDelLinkManual } from "@/lib/webhooks/resolver-negocio";
 import { StubMercadoPagoClient } from "@/plugins/mercadopago/stub";
 import { importeONaN } from "@/lib/dinero/leer";
 import { leerFiltrosLinks, type FiltrosLinks, type PaginaDeLinks } from "@/lib/cobros/links-core";
 import { leerPaginaDeLinks } from "@/lib/cobros/links.server";
+import { armarLinkDePagoDePedido } from "@/lib/cobros/link-de-pedido.server";
 import {
   ACCION_LINK_DE_PAGO,
   linkDePagoDisponible,
@@ -186,49 +189,43 @@ export async function generarLinkDePagoDePedido(
   if (!o || !tenant) return { ok: false, error: "No se encontró el pedido." };
   if (o.status === "CANCELLED") return { ok: false, error: `El pedido #${o.code} está anulado: no se cobra.` };
   if (o.paid) return { ok: false, error: `El pedido #${o.code} ya está cobrado.` };
-  const monto = round2(o.total);
+  // Lo que FALTA cobrar: un pedido cobrado antes de pesar que pesó más se cobra por el saldo
+  // (settlement/saldo-del-pedido.ts), nunca por el total entero.
+  const monto = round2(await aCobrarDelPedido(prisma, tenantId, o));
   if (!(monto > 0)) return { ok: false, error: `El pedido #${o.code} no tiene importe para cobrar.` };
-  const negocio = tenant.name || "el local";
+  const negocio = nombreVisibleDelNegocio(tenant.slug, tenant.name, "el local"); // DEMO GSG: el nombre de la demo.
 
-  // `gsg:<slug>:pedido:<id>`: el aviso de pago saca el negocio de acá, nunca del host (Tanda S1).
-  const referenciaMP = referenciaDelLinkDePedido(tenant.slug, o.id);
-  const solicitud: SolicitudCobro = {
-    concepto: `Pedido #${o.code} · ${negocio}`,
+  // El núcleo (referencia `gsg:<slug>:pedido:<id>`, preferencia y auditoría) es el mismo que usa
+  // la página de Gracias de la tienda (`pagarPedidoDeLaTienda`): cobros/link-de-pedido.server.ts.
+  const r = await armarLinkDePagoDePedido({
+    tenantId,
+    slug: tenant.slug,
+    pedido: { id: o.id, code: o.code },
     monto,
-    referenciaExterna: referenciaMP,
-  };
-  try {
-    const link = await (await crearPasarelaCobrosPara(tenantId)).crearLinkDePago(solicitud);
-    // Con credenciales de prueba se paga en el sandbox de Mercado Pago; con las reales, el link real.
-    const url = modo === "real" ? link.initPoint : (link.sandboxInitPoint ?? link.initPoint);
-    await auditAdmin({
-      action: ACCION_LINK_DE_PAGO,
-      entity: "Order",
-      entityId: o.id,
-      changes: { code: o.code, monto, preferenceId: link.preferenceId, modo, url, referenciaMP },
-    });
-    revalidatePath("/admin/pedidos");
-    return {
-      ok: true,
-      url,
-      monto,
-      code: o.code,
-      whatsapp: waLinkClienta(o.customerPhone, textoDelLinkDePago({ negocio, code: o.code, monto, url })),
-      prueba: modo !== "real",
-    };
-  } catch (e) {
-    if (e instanceof SolicitudCobroInvalidaError) {
-      return { ok: false, error: e.errores.map((x) => x.mensaje).join(" ") };
-    }
-    if (e instanceof CobrosSinConexionError) return { ok: false, error: SIN_MERCADO_PAGO };
-    if (e instanceof MercadoPagoApiError) {
+    negocio,
+    modo,
+    auditar: auditAdmin,
+  });
+  if (!r.ok) {
+    if (r.tipo === "invalida") return { ok: false, error: r.detalle };
+    if (r.tipo === "sin-conexion") return { ok: false, error: SIN_MERCADO_PAGO };
+    if (r.tipo === "api") {
       return {
         ok: false,
-        error: `Mercado Pago rechazó el link (${e.status}). Pedile al dueño que revise la conexión con Mercado Pago.`,
+        error: `Mercado Pago rechazó el link (${r.status}). Pedile al dueño que revise la conexión con Mercado Pago.`,
       };
     }
     return { ok: false, error: "No se pudo generar el link ahora. Probá de nuevo en un rato." };
   }
+  revalidatePath("/admin/pedidos");
+  return {
+    ok: true,
+    url: r.url,
+    monto,
+    code: o.code,
+    whatsapp: waLinkClienta(o.customerPhone, textoDelLinkDePago({ negocio, code: o.code, monto, url: r.url })),
+    prueba: modo !== "real",
+  };
 }
 
 export type EstadoSimulacionDePago = null | { ok: true; mensaje: string } | { ok: false; error: string };

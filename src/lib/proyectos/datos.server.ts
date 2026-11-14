@@ -5,6 +5,7 @@
 
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@/generated/prisma/client";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability, requireCapabilityFueraDeLaAgenda } from "@/lib/authz";
 import { permisoFueraDeLaAgenda } from "@/lib/capabilities";
@@ -15,14 +16,14 @@ import { getLocation } from "@/lib/settings";
 import { desvioPorRubro, redondear, resultadoReal, totales, ultimaEnviada } from "./core";
 import { costosVigentes, normalizarDiseno } from "./stand";
 import { SIN_COMPROBANTES } from "./rendiciones-core";
-import { cobranzaDe, originalesDeCobros, SELECT_COBRANZA, tiposDeCambio } from "./cobranza.server";
+import { cobranzaDe, COLUMNAS_PAGO, originalesDeCobros, SELECT_COBRANZA, tiposDeCambio } from "./cobranza.server";
 import { totalesEnPesos } from "./cobranza-core";
 import { aPesos } from "./gestion-core";
 
 export const veLaPlata = (u: SessionUser): boolean => permisoFueraDeLaAgenda(u, "agenda:manage");
 
-export async function configProyectos(tenantId: string) {
-  const c = await prisma.proyectoConfig.findUnique({ where: { tenantId } });
+export async function configProyectos(tenantId: string, db: Prisma.TransactionClient = prisma) {
+  const c = await db.proyectoConfig.findUnique({ where: { tenantId } });
   return {
     margenPct: c?.margenPct ?? 35,
     validezDias: c?.validezDias ?? 15,
@@ -85,7 +86,7 @@ export async function fichaProyecto(id: string) {
       archivos: { where: SIN_COMPROBANTES, orderBy: { createdAt: "desc" } },
       stands: { orderBy: { createdAt: "asc" }, select: { id: true, nombre: true, updatedAt: true } },
       presupuestos: { orderBy: { version: "desc" }, include: { items: { orderBy: [{ posicion: "asc" }, { createdAt: "asc" }] } } },
-      pagos: { orderBy: { createdAt: "desc" } },
+      pagos: { orderBy: { createdAt: "desc" }, select: COLUMNAS_PAGO },
       gastos: { orderBy: [{ fecha: "desc" }, { createdAt: "desc" }], include: { supplier: { select: { name: true } } } },
       entregables: {
         where: { anuladoEl: null },

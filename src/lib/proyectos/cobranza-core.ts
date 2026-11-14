@@ -9,7 +9,8 @@
  * - Unidad de reparto: pesos de hoy (H) = `aPesos(monto, moneda, tc)`. `porCobrar` ya está en H.
  * - Un cobro es suelto si no tiene una cuota viva marcada: sin `cuotaId`, o con una que no está marcada (huérfano).
  * - Moneda (única conversión): para el saldo del proyecto (moneda M) un cobro vale `original.monto` si
- *   `original.moneda === M`; si no, sus pesos (M = ARS) o pesos / cambio de hoy. Para SU cuota (moneda Q): pesos si
+ *   `original.moneda === M`; un cobro a mano fijado (D13), `fijado.monto` si `fijado.moneda === M`; si no, sus pesos
+ *   (M = ARS) o pesos / cambio de hoy. Lo suelto se reparte en H como lo cuenta la cobranza (`sueltos`). Para SU cuota (moneda Q): pesos si
  *   Q = ARS; `original.monto` si `original.moneda === Q`; si no, pesos / tc[Q].
  * - Reparto, por fecha de vencimiento: (1) marcadas: su cobro propio y, lo que les falte, de lo suelto; (2) pendientes:
  *   lo suelto que sobra; (3) tope: de la más vieja a la más nueva, cada pendiente toma lo que le queda hasta agotar
@@ -85,6 +86,11 @@ export interface CobroRegistrado {
   original?: { monto: number; moneda: string } | null;
   /** La cuota que lo asentó («Marcar cobrado», enlace «Asiento»). Sin cuota marcada: un cobro suelto. */
   cuotaId?: string | null;
+  /**
+   * D13: un cobro a mano en pesos fijado al tipo de cambio de su momento: lo que valió en la moneda del proyecto. Si es la
+   * moneda del proyecto, vale eso (no sus pesos / cambio de hoy). Sin él, como siempre.
+   */
+  fijado?: { monto: number; moneda: string } | null;
 }
 
 /** Lo que entró por una cuota marcada: en pesos y, si era en otra moneda, en esa moneda. */
@@ -109,7 +115,8 @@ export interface Cobranza {
   avancePct: number;
   /** Proyecto en otra moneda: la cuenta hecha en esa moneda; los campos de arriba son esto × `tc` (el de hoy). */
   enMoneda?: { moneda: string; tc: number; total: number; cobrado: number; saldo: number };
-  /** Lo cobrado SIN cuota (cobros sueltos, no anulados), en pesos: lo único que se reparte contra las cuotas. */
+  /** Lo cobrado SIN cuota (cobros sueltos, no anulados), en pesos de hoy (H) como lo cuenta la cobranza: sus pesos, o lo
+   * fijado (D13) × cambio de hoy. Es lo único que se reparte contra las cuotas. */
   sueltos: number;
   /** Lo cobrado por cada cuota marcada, por id de cuota (sólo si hay alguno). */
   deCuotas?: Readonly<Record<string, CobroDeCuota>>;
@@ -125,7 +132,7 @@ function separarCobros(cobros: readonly CobroRegistrado[], hoyDe: (c: CobroRegis
       const previo = deCuotas[c.cuotaId];
       const original = c.original && (!previo || previo.original?.moneda === c.original.moneda) ? { monto: (previo?.original?.monto ?? 0) + c.original.monto, moneda: c.original.moneda } : null;
       deCuotas[c.cuotaId] = { pesos: redondear((previo?.pesos ?? 0) + c.monto), original, hoy: redondear((previo?.hoy ?? 0) + hoyDe(c)) };
-    } else sueltos += c.monto;
+    } else sueltos += hoyDe(c);
   }
   return { sueltos: redondear(sueltos), ...(Object.keys(deCuotas).length > 0 && { deCuotas }) };
 }
@@ -163,7 +170,10 @@ export function cobranzaEnMoneda(totalEnPesos: number, cobros: readonly CobroReg
   const { moneda, cambioVenta, tcHoy } = v;
   if (moneda === "ARS" || !(cambioVenta > 0) || !(tcHoy > 0)) return cobranza(totalEnPesos, cobros);
   const total = enMonedaDeVenta(Math.max(0, totalEnPesos), cambioVenta);
-  const cobrado = cobros.reduce((s, c) => (c.anuladoEl ? s : s + (c.original?.moneda === moneda ? c.original.monto : c.monto / tcHoy)), 0);
+  // Lo que vale cada cobro en la moneda del proyecto: lo que pagó en ella (cuota) o lo que valió al fijarse (D13); si no,
+  // sus pesos al cambio de hoy.
+  const enSuMoneda = (c: CobroRegistrado): number | null => (c.original?.moneda === moneda ? c.original.monto : c.fijado?.moneda === moneda ? c.fijado.monto : null);
+  const cobrado = cobros.reduce((s, c) => (c.anuladoEl ? s : s + (enSuMoneda(c) ?? c.monto / tcHoy)), 0);
   const m = cobranza(total, [{ monto: cobrado }]);
   const saldo = redondear(m.saldo * tcHoy);
   return {
@@ -173,7 +183,10 @@ export function cobranzaEnMoneda(totalEnPesos: number, cobros: readonly CobroReg
     porCobrar: Math.max(0, saldo),
     avancePct: m.avancePct,
     enMoneda: { moneda, tc: tcHoy, total: m.total, cobrado: m.cobrado, saldo: m.saldo },
-    ...separarCobros(cobros, (c) => (c.original?.moneda === moneda ? c.original.monto * tcHoy : c.monto)),
+    ...separarCobros(cobros, (c) => {
+      const m = enSuMoneda(c);
+      return m === null ? c.monto : m * tcHoy;
+    }),
   };
 }
 

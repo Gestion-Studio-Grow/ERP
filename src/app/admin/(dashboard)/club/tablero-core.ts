@@ -32,6 +32,7 @@ import type { Ahora, Auth, EstadoClub, Fecha, Rol } from "@/lib/club/motor.mjs";
 import type { Desenlace } from "./almacen";
 import { leerMonto } from "./caja-core";
 import { MEDIOS_CAJA } from "./cuenta-core";
+import { firmaGuardadaVencida } from "./firma-del-duenio";
 
 const ddmm = (f: Fecha) => `${Number(f.slice(8))}/${Number(f.slice(5, 7))}`;
 const pct = (x: number) => `${Math.round(x * 100)} %`; // no-es-plata: proporción en % entero, para leer
@@ -185,6 +186,17 @@ export type AccionTablero =
 /** Con «otorgar», el PIN que generó el motor: la pantalla lo muestra UNA vez (no va en el mensaje del aviso). */
 export interface DesenlaceTablero extends Desenlace {
   acceso?: { nombre: string; rol: string; pin: string };
+}
+
+/** Lo del Tablero que firma con el PIN GUARDADO de quien opera (el motor lo pide: `resolverCredito`, `otorgarAcceso`). */
+const FIRMAN_CON_EL_PIN_GUARDADO: ReadonlySet<AccionTablero["tipo"]> = new Set(["autorizar", "rechazar", "otorgar"]);
+
+/**
+ * SEG-020: ¿hay que pedir el PIN de nuevo antes de esto? Sí si firma con el PIN guardado de un dueño con el PIN en el
+ * servidor y su pase en este equipo ya venció (firma-del-duenio.ts): así no se corre para que el motor lo rechace.
+ */
+export function pideFirmaDeNuevo(estado: EstadoClub, accion: AccionTablero, auth: Auth): boolean {
+  return FIRMAN_CON_EL_PIN_GUARDADO.has(accion.tipo) && firmaGuardadaVencida(estado, auth);
 }
 
 export function ejecutarTablero(estado: EstadoClub, accion: AccionTablero, ahora: Ahora, auth: Auth): DesenlaceTablero {

@@ -1562,10 +1562,20 @@ export declare function contenidoDelMes(estado: EstadoClub, anio: number, mes: n
 export declare const VUELTAS_PIN: number;
 export declare function esPinConHash(p: unknown): boolean;
 export declare function hashPin(pin: string, sal: string): string;
-export declare function pinCoincide(estado: Pick<EstadoClub, "salPin">, u: Pick<Usuario, "pin"> | null | undefined, pin: string | null | undefined): boolean;
+export declare function pinCoincide(estado: Pick<EstadoClub, "salPin">, u: (Pick<Usuario, "pin"> & { id?: string }) | null | undefined, pin: string | null | undefined): boolean;
 export declare function largoDelPinGuardado(u: Pick<Usuario, "pin" | "pinLargo"> | null | undefined): number;
 export declare function pasarPinesAHash(estado: EstadoClub): number;
 export declare function pinDeEjemplo(u: Pick<Usuario, "id" | "pin"> | null | undefined): string;
+// ── el PIN que se verifica en el servidor (SEG-020) ──
+/** La marca que lleva en la foto de la jornada real el PIN de un dueño (lo tiene sólo el servidor). */
+export declare const MARCA_PIN_SERVIDOR: "srv:";
+export declare function esPinEnServidor(p: unknown): boolean;
+/** Lo que confirma el servidor: un PIN de un usuario con pase vigente, o un código de aprobación. */
+export interface VerificadorDelServidor {
+  pin?: (usuarioId: string, pin: string) => boolean;
+  codigo?: (datos: { usuarioId: string; novedadId: string; codigo: string; monto: number }) => boolean;
+}
+export declare function fijarVerificadorDelServidor(v: VerificadorDelServidor | null): void;
 
 // ───────────── Reingeniería Break Point · tanda 1A (alta: seña del nuevo + hueco con alternativas) ─────────────
 

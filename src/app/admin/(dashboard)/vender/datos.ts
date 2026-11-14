@@ -4,6 +4,7 @@
 // del mostrador.
 
 import "server-only";
+import { nombreVisibleDelNegocio } from "@/lib/marca-demo";
 import { prisma } from "@/lib/prisma";
 import { businessWallTimeToUtc } from "@/lib/datetime";
 import { logger } from "@/lib/logger";
@@ -45,10 +46,10 @@ export async function cargarVender(tenantId: string, hoy: string) {
       // El doble: algunos pueden haber dejado de venderse y se descartan después.
       take: BOTONES_RAPIDOS * 2,
     }),
-    prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true } }),
+    prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true, slug: true } }),
   ]);
   const rapidos = masVendidos(grupos, new Set(products.map((p) => p.id)));
-  return { products, rapidos, negocio: tenant?.name ?? "Mi negocio" };
+  return { products, rapidos, negocio: nombreVisibleDelNegocio(tenant?.slug, tenant?.name, "Mi negocio") };
 }
 
 // ── MOSTRADOR BOUTIQUE (interruptor `mostrador-boutique`) ───────────────────────

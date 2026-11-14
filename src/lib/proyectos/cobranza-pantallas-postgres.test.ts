@@ -21,6 +21,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ejecutarAccion, prepararAccionesDeServidor } from "@/test/accion-de-servidor";
 import { apuntarLaAppA, baseEfimeraParaElTest, prismaComoDuenio } from "@/test/base-efimera";
+import { porCobrarEnLasPantallas } from "@/test/por-cobrar-en-las-pantallas";
 
 const DIA = 86_400_000;
 
@@ -60,11 +61,6 @@ test("QA MIA: con cuotas marcadas sin cobro, un cobro parcial y un proyecto en U
 
   const { registrarCobro } = await import("./acciones");
   const { marcarCuota } = await import("./acciones-ficha");
-  const { exigirVer } = await import("./gestion.server");
-  const { cabeceraFicha, datosFinanzas, datosResumen, vistaDe } = await import("./ficha.server");
-  const { clientesConProyectos, proyectosDelCliente, reporteProyectos } = await import("./datos.server");
-  const { proyectosConNumeros, recuadrosDeCuotas } = await import("./empresa.server");
-  const { aPesos } = await import("./gestion-core");
   const { redondear } = await import("./core");
 
   const comoDuenia = { negocio: a, usuario: { id: a.duenia.id } };
@@ -97,37 +93,7 @@ test("QA MIA: con cuotas marcadas sin cobro, un cobro parcial y un proyecto en U
     [p2.id, a.clientes[1]],
   ]);
 
-  const pantallas = await enSesion(async () => {
-    const actor = await exigirVer("pipeline");
-    const vista = vistaDe(actor);
-    const porProyecto = new Map<string, Record<string, number>>();
-    const rentabilidad = await reporteProyectos();
-    const numeros = await proyectosConNumeros(a.id);
-    const admin = await recuadrosDeCuotas(a.id);
-    const clientes = await clientesConProyectos("");
-    for (const id of esperado.keys()) {
-      const cab = await cabeceraFicha(actor, id);
-      assert.ok(cab, "la ficha del proyecto se lee");
-      const resumen = await datosResumen(actor, cab, vista);
-      const finanzas = await datosFinanzas(actor, cab, vista);
-      const delCliente = await proyectosDelCliente(clienteDe.get(id)!);
-      const fila = rentabilidad.find((f) => f.id === id)!;
-      const cuotasAdmin = admin.cuotas.filter((c) => c.proyectoId === id && c.tipo === "COBRO" && !c.pagadoEl);
-      const renglones = redondear(cuotasAdmin.reduce((s, c) => s + aPesos(c.pendiente, c.moneda, admin.tc), 0) + admin.sinCalendario.filter((f) => f.proyectoId === id).reduce((s, f) => s + f.pesos, 0));
-      porProyecto.set(id, {
-        "1 Estado financiero": resumen.finanzas!.aCobrar,
-        "2 Caja «Cobros» (saldo)": finanzas.saldo,
-        "2 Caja «Cobros» (resumen)": finanzas.resumen.aCobrar,
-        "3 Ficha del cliente": redondear(delCliente.reduce((s, p) => s + p.porCobrar, 0)),
-        "3 Lista de clientes": clientes.find((c) => c.id === clienteDe.get(id))!.porCobrar,
-        "4 Números (Rentabilidad)": fila.porCobrar,
-        "5 Administración (renglones)": renglones,
-      });
-      // Números de Dirección (Por evento): el mismo cobrado que la caja «Cobros».
-      assert.equal(numeros.find((n) => n.id === id)!.cobrado, finanzas.cobrado, `Dirección y la caja «Cobros» difieren en lo cobrado de ${id}`);
-    }
-    return { porProyecto, kpiAdmin: admin.resumen.aCobrar, kpiEventos: admin.resumen.aCobrarDeEventos };
-  });
+  const pantallas = await enSesion(() => porCobrarEnLasPantallas(a.id, clienteDe));
 
   for (const [id, valores] of pantallas.porProyecto) {
     for (const [pantalla, valor] of Object.entries(valores)) {

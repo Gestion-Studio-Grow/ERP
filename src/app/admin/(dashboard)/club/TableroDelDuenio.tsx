@@ -22,8 +22,10 @@ import { ROLES, pesos } from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub, Rol } from "@/lib/club/motor.mjs";
 import { operadorActual } from "./operador-del-club";
 import type { PropsDeSolapa } from "./solapas-club";
-import { armarTablero, type AccesoPedido, type AccionTablero, type DesenlaceTablero, type PedidoParaAutorizar, type VistaTablero } from "./tablero-core";
+import { armarTablero, pideFirmaDeNuevo, type AccesoPedido, type AccionTablero, type DesenlaceTablero, type PedidoParaAutorizar, type VistaTablero } from "./tablero-core";
 import { porFirma, useOperador, useSeleccion } from "./usar-almacen";
+import { FIRMA_VENCIDA } from "./firma-del-duenio";
+import { bloquearElClub } from "./bloqueo-core";
 import { SoloEnElPuestoDelDuenio, puestoDeDuenio } from "./config-jornada";
 import { BandejaDelDuenio } from "./BandejaDelClub";
 
@@ -232,6 +234,13 @@ export default function TableroDelDuenio({ almacen, irASolapa }: PropsDeSolapa) 
   const [pinNuevo, setPinNuevo] = useState<DesenlaceTablero["acceso"] | null>(null);
   const hacer = useCallback(
     (a: AccionTablero): DesenlaceTablero => {
+      // SEG-020: con el pase del servidor vencido, el PIN guardado ya no firma. No se hace nada: se pide el PIN de nuevo
+      // (la pantalla se bloquea con quien estaba) y después se vuelve a tocar.
+      if (pideFirmaDeNuevo(almacen.estado(), a, almacen.auth())) {
+        almacen.informar({ ok: false, mensaje: FIRMA_VENCIDA });
+        bloquearElClub(almacen, "firma");
+        return { ok: false, mensaje: FIRMA_VENCIDA };
+      }
       const d: DesenlaceTablero = almacen.comando("tablero", [a]);
       if (d.ok && d.acceso) setPinNuevo(d.acceso);
       return d;

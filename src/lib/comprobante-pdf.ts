@@ -34,6 +34,7 @@ import {
   type Naturaleza,
 } from "@/lib/fiscal/decidir-comprobante";
 import { emiteConValidezFiscal, type ModoArca } from "@/lib/monitor-core";
+import { cuitValido } from "@/lib/cuit";
 
 export type EstadoComprobante = "PENDING" | "AUTHORIZED" | "REJECTED";
 export type CondicionIva = "RESPONSABLE_INSCRIPTO" | "MONOTRIBUTO" | "EXENTO" | "CONSUMIDOR_FINAL";
@@ -217,14 +218,12 @@ function cuitImpreso(cuit: string): string {
   return `${cuit.slice(0, 2)}-${cuit.slice(2, 10)}-${cuit.slice(10)}`;
 }
 
-/** 11 dígitos y dígito verificador (módulo 11). Si el resto da 10, ARCA usa prefijos especiales: no se juzga. */
-export function cuitValido(cuit: string | null): cuit is string {
-  if (cuit === null || !/^\d{11}$/.test(cuit)) return false;
-  const pesos = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2];
-  const suma = pesos.reduce((s, p, i) => s + p * Number(cuit[i]), 0);
-  const r = 11 - (suma % 11);
-  if (r === 10) return true;
-  return (r === 11 ? 0 : r) === Number(cuit[10]);
+/**
+ * El CUIT que se puede imprimir: los 11 números pelados (`cuitImpreso` pone los guiones) y válido
+ * según @/lib/cuit (prefijo conocido y verificador módulo 11; el resto 10 no existe).
+ */
+export function cuitImprimible(cuit: string | null): cuit is string {
+  return cuit !== null && /^\d{11}$/.test(cuit) && cuitValido(cuit);
 }
 
 function vacio(s: string | null): boolean {
@@ -285,7 +284,7 @@ export function faltantesDelComprobante(d: DatosComprobanteImpreso): Faltante[] 
   const e = d.emisor;
   if (vacio(e.razonSocial)) falta("emisor.razonSocial", `Falta la razón social del negocio (el nombre que figura en ARCA). ${DONDE_EMISOR}`);
   if (vacio(e.cuit)) falta("emisor.cuit", `Falta el CUIT del negocio. ${DONDE_EMISOR}`);
-  else if (!cuitValido(e.cuit)) falta("emisor.cuit", `El CUIT del negocio no es válido: revisá los 11 números. ${DONDE_EMISOR}`);
+  else if (!cuitImprimible(e.cuit)) falta("emisor.cuit", `El CUIT del negocio no es válido: revisá los 11 números. ${DONDE_EMISOR}`);
   const condEmisor = condicion(e.condicionIva);
   if (!condEmisor || condEmisor === "CONSUMIDOR_FINAL") falta("emisor.condicionIva", `Falta la condición del negocio frente al IVA (responsable inscripto, monotributo o exento). ${DONDE_EMISOR}`);
   if (vacio(e.domicilio)) falta("emisor.domicilio", `Falta el domicilio comercial del negocio. ${DONDE_EMISOR}`);
@@ -300,7 +299,7 @@ export function faltantesDelComprobante(d: DatosComprobanteImpreso): Faltante[] 
   }
 
   const r = d.receptor;
-  const docValido = r.docTipo === 99 || (r.docTipo === 80 || r.docTipo === 86 ? cuitValido(r.docNro) : /^\d{6,11}$/.test(r.docNro));
+  const docValido = r.docTipo === 99 || (r.docTipo === 80 || r.docTipo === 86 ? cuitImprimible(r.docNro) : /^\d{6,11}$/.test(r.docNro));
   if (!docValido) falta("receptor.docNro", "El documento del cliente no es válido. Corregilo en la ficha del cliente.");
   if (r.docTipo !== 99 && vacio(r.nombre)) falta("receptor.nombre", "Falta el nombre o la razón social del cliente. Cargalo en su ficha.");
   const condReceptor = condicionDelReceptor(r);

@@ -25,6 +25,7 @@ import { estadoDesdeAuditoria, evaluarPasos, mesCerrable } from "@/lib/cierre-me
 import { leerAuditoriaCierre, leerHechosCierreMes } from "@/lib/cierre-mes/lectura";
 import { leerDatosPaquete, registrarDescarga } from "@/lib/cierre-mes/paquete-lectura";
 import { armarPaquete, nombreDelPaquete } from "@/lib/cierre-mes/paquete";
+import { nombreVisibleDelNegocio } from "@/lib/marca-demo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -48,7 +49,7 @@ export async function GET(request: Request) {
     ]);
     const hechos = await leerHechosCierreMes(prisma, tenantId, mes, { esMostrador: negocio.esMostrador });
     const pasos = evaluarPasos(hechos, estadoDesdeAuditoria(filas));
-    const datos = await leerDatosPaquete(tenantId, mes, { negocio: tenant?.name ?? "", pasos, ahora });
+    const datos = await leerDatosPaquete(tenantId, mes, { negocio: nombreVisibleDelNegocio(tenant?.slug, tenant?.name, ""), pasos, ahora });
     const cuerpo = armarPaquete(datos);
     const borrador = !datos.estado.congelado;
     await registrarDescarga(prisma, tenantId, mes, { actor: `user:${user.id}`, por: user.name, borrador });

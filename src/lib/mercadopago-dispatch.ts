@@ -47,7 +47,6 @@ import { entradaDeRequest, registrarYDespachar, type ManejadorEvento, type Resum
 import { registro as registroDeConectores } from "@/integraciones/registro";
 import { procesarPagoStandalone } from "@/lib/mercadopago-auto";
 import { isInvoicingEnabled } from "@/lib/fiscal";
-import { prisma } from "@/lib/prisma";
 import { basePrisma } from "@/lib/prisma-base";
 import { tenantTransaction } from "@/lib/rls";
 import { runInTenantContext } from "@/lib/tenant-context";
@@ -56,7 +55,7 @@ import { logger } from "@/lib/logger";
 import { setRequestContext } from "@/lib/request-context";
 import { lastClosedDay } from "@/lib/caja/frontera-cierre";
 import { dateStrInBusinessTz } from "@/lib/datetime";
-import { cobrarPedidoEnTx, cobrarPedidoPorAvisoDePago, type DepsAvisoDePedido } from "@/lib/order-core";
+import { cobrarPedidoEnTx, cobrarPedidoPorAvisoDePago, leerPedidoParaAviso, type DepsAvisoDePedido } from "@/lib/order-core";
 import {
   candidatosDeFirma,
   conMercadoPagoActivo,
@@ -108,8 +107,8 @@ export async function auditarEnNegocio(tenantId: string, e: EntradaAuditoriaWebh
 /** Las dependencias del cobro de un pedido por aviso, con la auditoría al negocio del aviso. */
 function depsCobroWebhook(tenantId: string): DepsAvisoDePedido {
   return {
-    leerPedido: (t, orderId) =>
-      prisma.order.findFirst({ where: { id: orderId, tenantId: t }, select: { code: true, total: true, paid: true, status: true } }),
+    // Lo que FALTA cobrar (el saldo de un pedido que pesó más), no `Order.total`: el link se arma por el saldo.
+    leerPedido: leerPedidoParaAviso,
     cerradoHasta: (t) => lastClosedDay(t),
     hoy: () => dateStrInBusinessTz(new Date()),
     cobrar: (t, args) => tenantTransaction((tx) => cobrarPedidoEnTx(tx, t, args), { tenantId: t }),

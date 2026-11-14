@@ -3677,8 +3677,20 @@ model ProyectoPago {
   anuladoPor String?
   asientos   CashMovement[]
   createdAt  DateTime       @default(now())
+  // D13 (GSG-MIA-009): qué cuota pagó este cobro y a qué tipo de cambio quedó fijado, en centavos y con el tc exacto.
+  // GATE 2: las columnas vienen con prisma/pending-gate2/D13_cobro_fijado.sql (sin aplicar) y van comentadas con
+  // `// GATE2-D13: ` para que el predeploy-check no las exija; al aplicar el SQL se descomentan en el mismo PR. Hasta
+  // entonces el código las escribe y lee con SQL crudo (`fijarCobroTx` y `fijadosDeCobros`, cobranza.server.ts) sólo si
+  // `hayColumnasCobroFijado()` las ve con sus tipos. `cuotaId` sin clave foránea (rastro si la cuota se borra). `moneda` =
+  // la del proyecto AL MOMENTO del cobro; el fijado se lee sólo si coincide con la de hoy. Un trigger del SQL pendiente
+  // impide editar lo contabilizado (monto, medio, …) y re-fijar.
+  // GATE2-D13: cuotaId             String?
+  // GATE2-D13: moneda              String?
+  // GATE2-D13: montoMonedaCentavos BigInt?
+  // GATE2-D13: tipoCambio          Decimal? @db.Decimal(18, 6)
 
   @@index([tenantId, proyectoId])
+  // GATE2-D13: @@index([tenantId, cuotaId])
 }
 
 // Lo que realmente se paga o se debe por un trabajo. `neto` es lo que se compara contra el costo presupuestado,

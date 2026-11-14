@@ -21,10 +21,10 @@ import type { Prisma } from "@/generated/prisma/client";
 import { textoAlCentavo } from "@/lib/dinero/redondeo";
 import { esEtapa, etapaAlAprobar, etapaLabel, MEDIOS, metodoDeCaja, redondear, sePuedeEditar, sumarDias, type MedioPago } from "./core";
 import { configProyectos } from "./datos.server";
-import { cobranzaConCuotas, pendienteDeLaCuota, trabarCobranza } from "./cobranza.server";
+import { cobranzaConCuotas, fijarCobroTx, hayColumnasCobroFijado, pendienteDeLaCuota, trabarCobranza } from "./cobranza.server";
 import { lugarParaCobroManual, pasaElTope } from "./cobranza-core";
 import { avisoTopeCuota, avisoTopeMarcar, listoFacturada, listoMarcada } from "./avisos-cuota";
-import { cambioDeVenta, aPesos, CHECKLIST_BASE, ESTADOS_ITEM, MONEDAS, RUBROS, TIPOS_EVENTO, veTodosLosProyectos } from "./gestion-core";
+import { cambioDeVenta, cambioDelCobro, aPesos, CHECKLIST_BASE, ESTADOS_ITEM, MONEDAS, RUBROS, TIPOS_EVENTO, veTodosLosProyectos } from "./gestion-core";
 import { avisar, columnasOcultas, exigirEditar, usuariosDelEquipo, usuariosDeDireccion, usuariosDeLaPlata, proyectoVisible, puede, regenerarCuotas, registrarCambio, tiposDeCambio, type Actor } from "./gestion.server";
 import { tipoDeArchivoSubido, clavesARenombrar, fechaAntesDe, fotoDeVersion, itemDeClave, linkSeguro, monedasSinCambio, numeroDe, PERDIDO, precioAlCopiar, precioAlEnviar, servicioDeTipo } from "./ficha-core";
 import { marcaDeGastoProyecto } from "./marcas";
@@ -229,16 +229,22 @@ export async function guardarDatos(formData: FormData): Promise<ResultadoFicha> 
     // Lo cobrado ya tiene recibo y quizás factura a nombre del anterior.
     if (await prisma.proyectoCuota.count({ where: { tenantId, proyectoId: id, tipo: "COBRO", pagadoEl: { not: null }, anuladoEl: null } })) return mal("El cliente no se puede cambiar: ya hay un cobro hecho a su nombre.");
   }
-  if (moneda !== previo.moneda) {
-    const [enviadas, cobradas] = await Promise.all([
-      prisma.proyectoPresupuesto.count({ where: { tenantId, proyectoId: id, estado: { in: ["ENVIADO", "APROBADO"] } } }),
-      prisma.proyectoCuota.count({ where: { tenantId, proyectoId: id, tipo: "COBRO", pagadoEl: { not: null }, anuladoEl: null } }),
-    ]);
-    if (enviadas + cobradas > 0) return mal("La moneda de venta no se puede cambiar: el cliente ya tiene una versión enviada o hay un cobro hecho.");
-  }
-  await tenantTransaction(async (tx) => {
-    await tx.proyecto.updateMany({
-      where: { id, tenantId },
+  const error = await tenantTransaction(async (tx): Promise<string | null> => {
+    if (moneda !== previo.moneda) {
+      // Los cobros vivos cuentan aunque no tengan cuota (los cargados a mano): su valor fijado (D13) está en la moneda de
+      // hoy, y cambiarla los dejaría valuados en otra. Regla del dueño (14/11/2026): con cobros no se cambia la moneda; lo
+      // contabilizado se corrige anulando y registrando de nuevo. Contado CON el candado de la cobranza: un cobro que entra a la vez queda antes (y
+      // frena el cambio) o después (y se fija en la moneda nueva); nunca uno fijado en la vieja con el proyecto en la nueva.
+      await trabarCobranza(tx, tenantId, id);
+      const enviadas = await tx.proyectoPresupuesto.count({ where: { tenantId, proyectoId: id, estado: { in: ["ENVIADO", "APROBADO"] } } });
+      const cobradas = await tx.proyectoCuota.count({ where: { tenantId, proyectoId: id, tipo: "COBRO", pagadoEl: { not: null }, anuladoEl: null } });
+      const cobros = await tx.proyectoPago.count({ where: { tenantId, proyectoId: id, anuladoEl: null } });
+      if (cobradas + cobros > 0) return `La moneda de venta no se puede cambiar: el proyecto ya tiene cobros registrados en ${previo.moneda}. Para cambiarla hay que anular esos cobros, y anular un cobro mueve la caja (asienta la contrapartida en el libro).`;
+      if (enviadas > 0) return "La moneda de venta no se puede cambiar: el cliente ya tiene una versión enviada.";
+    }
+    // `moneda: previo.moneda`: si la moneda cambió desde que se leyó, no se pisa.
+    const guardado = await tx.proyecto.updateMany({
+      where: { id, tenantId, moneda: previo.moneda },
       data: {
         nombre,
         clientId,
@@ -260,6 +266,7 @@ export async function guardarDatos(formData: FormData): Promise<ResultadoFicha> 
         brief: txt(formData.get("brief")),
       },
     });
+    if (guardado.count === 0) return "El proyecto cambió mientras lo editabas. Recargá la página y volvé a guardar.";
     const datosNuevos: [string, unknown, unknown][] = [
       ["Nombre", previo.nombre, nombre],
       ["Cliente", previo.client.name, clienteNuevo?.name ?? previo.client.name],
@@ -283,7 +290,9 @@ export async function guardarDatos(formData: FormData): Promise<ResultadoFicha> 
         await tx.proyectoChecklist.updateMany({ where: { tenantId, proyectoId: id, texto: c.texto, hechoEl: null }, data: { fecha: fechaAntesDe(fechaEvento, c.dias) } });
       }
     }
+    return null;
   });
+  if (error) return mal(error);
   const plan = await regenerar(tenantId, id);
   refrescar(id);
   return { ok: true, ...plan };
@@ -819,7 +828,7 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
   const medio = txt(formData.get("medio")) as MedioPago;
   const c = await prisma.proyectoCuota.findFirst({
     where: { id, tenantId },
-    include: { supplier: { select: { name: true } }, proyecto: { select: { numero: true, nombre: true } } },
+    include: { supplier: { select: { name: true } }, proyecto: { select: { numero: true, nombre: true, moneda: true } } },
   });
   if (!c) return mal("Esa cuota ya no existe. Recargá la página.");
   const { proyectoId, proyecto } = c;
@@ -846,6 +855,8 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
   const destinatarios2 = [...(await usuariosDelEquipo(tenantId, proyectoId, a.user.id)), ...(await usuariosDeLaPlata(prisma, tenantId, a.user.id))];
   const cuenta = await cuentaParaCuota(tenantId, formData, { tipo: c.tipo, monto: pendiente, moneda: c.moneda, importeEnPesos: importe });
   if (typeof cuenta === "string") return mal(cuenta);
+  // D13: sin la migración aplicada no se escriben las columnas del cobro (catálogo, afuera de la transacción).
+  const conColumnas = esCobro && (await hayColumnasCobroFijado());
   const ganada = await tenantTransaction(async (tx): Promise<boolean | "cambio" | "tope"> => {
     if (esCobro) {
       // En fila con los otros cobros del proyecto, y el pendiente leído de nuevo ADENTRO: si entró un cobro mientras
@@ -866,7 +877,15 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
     const base = { tenantId, sessionId: session?.id ?? null, method, amount: importe };
     let asiento: string;
     if (esCobro) {
+      // D13: el cobro recuerda su cuota y queda fijado al tipo de cambio de este momento.
+      // Lo que paga es el pendiente de la cuota (lo cobrado a mano por fuera ya se descontó), no su monto entero.
+      // En la moneda del PROYECTO (no la de la cuota), que queda grabada con el monto.
       const pago = await tx.proyectoPago.create({ data: { tenantId, proyectoId, medio, monto: importe, nota: c.concepto.slice(0, 200), cobradoPor: a.nombre }, select: { id: true } });
+      if (conColumnas) {
+        // La moneda del proyecto, releída con el candado de la cobranza ya tomado (el mismo que toma la regla de moneda).
+        const actual = await tx.proyecto.findFirst({ where: { id: proyectoId, tenantId }, select: { moneda: true } });
+        if (actual) await fijarCobroTx(tx, tenantId, pago.id, cambioDelCobro({ montoPesos: importe, moneda: actual.moneda, tiposDeCambio: tc, cuota: { id, monto: pendiente, moneda: c.moneda } }));
+      }
       asiento = pago.id;
       await tx.cashMovement.create({ data: { ...base, type: "VENTA", reason: `${etiqueta}${cheque}`, proyectoPagoId: pago.id, createdBy: a.user.name } });
     } else {

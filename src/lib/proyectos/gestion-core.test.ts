@@ -1,7 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  aPesos,
   appDeGestionVisible,
+  cambioDelCobro,
   calendarioIcs,
   cambiosEntreVersiones,
   cashflowDelEvento,
@@ -387,4 +389,72 @@ test("Rendí: matriz de rendiciones (plan MIA §2)", async () => {
   assert.equal(puedeReintegrarRendicion("ADMINISTRACION", "a1", "c2"), true);
   assert.deepEqual(permisoDe("ADMINISTRACION", "rendiciones", []), { ver: true, editar: true });
   assert.deepEqual(permisoDe("COMERCIAL", "rendiciones", []), { ver: true, editar: false });
+});
+
+// ── D13: el cobro queda fijado a su cuota y al tipo de cambio del momento ──────────────────────────────────────────────
+// En centavos (`bigint`) y con el tipo de cambio exacto como texto de NUMERIC(18,6): ningún `number` con decimales.
+const SIN_FIJAR = { moneda: null, montoMonedaCentavos: null, tipoCambio: null };
+
+test("cambioDelCobro: proyecto en pesos → tipo de cambio 1 y los centavos que entraron (con o sin cuota)", () => {
+  assert.deepEqual(cambioDelCobro({ montoPesos: 80000, moneda: "ARS", tiposDeCambio: {}, cuota: { id: "c2", monto: 80000, moneda: "ARS" } }), { cuotaId: "c2", moneda: "ARS", montoMonedaCentavos: BigInt(8_000_000), tipoCambio: "1.000000" });
+  assert.deepEqual(cambioDelCobro({ montoPesos: 1500.25, moneda: "ARS", tiposDeCambio: { USD: 1000 } }), { cuotaId: null, moneda: "ARS", montoMonedaCentavos: BigInt(150_025), tipoCambio: "1.000000" });
+  // Cuota en dólares de un proyecto en pesos: los pesos que entraron, sin dividir.
+  assert.deepEqual(cambioDelCobro({ montoPesos: 120000, moneda: "ARS", tiposDeCambio: { USD: 1000 }, cuota: { id: "c6", monto: 120, moneda: "USD" } }), { cuotaId: "c6", moneda: "ARS", montoMonedaCentavos: BigInt(12_000_000), tipoCambio: "1.000000" });
+});
+
+test("cambioDelCobro: cuota en la moneda del proyecto → los centavos de la cuota (sin dividir) y el cambio del momento", () => {
+  const tc = { USD: 1200 };
+  const fijado = cambioDelCobro({ montoPesos: aPesos(500, "USD", tc), moneda: "USD", tiposDeCambio: tc, cuota: { id: "c1", monto: 500, moneda: "USD" } });
+  assert.deepEqual(fijado, { cuotaId: "c1", moneda: "USD", montoMonedaCentavos: BigInt(50_000), tipoCambio: "1200.000000" });
+  // Cambia el tipo de cambio después: lo ya fijado no se recalcula (es un valor, no una referencia).
+  tc.USD = 1500;
+  assert.deepEqual(fijado, { cuotaId: "c1", moneda: "USD", montoMonedaCentavos: BigInt(50_000), tipoCambio: "1200.000000" });
+  // Lo que pagó de la cuota con centavos: 60,07 USD a 1.234,5678 → 6.007 centavos, sin pasar por la división.
+  assert.deepEqual(cambioDelCobro({ montoPesos: 74160.6, moneda: "USD", tiposDeCambio: { USD: 1234.5678 }, cuota: { id: "c7", monto: 60.07, moneda: "USD" } }), { cuotaId: "c7", moneda: "USD", montoMonedaCentavos: BigInt(6_007), tipoCambio: "1234.567800" });
+});
+
+test("cambioDelCobro: cuota en pesos (u otra moneda) de un proyecto en dólares → los pesos pasados por R8", () => {
+  const tc = { USD: 1000, EUR: 1100 };
+  // $ 50.000 al cambio del día son 50 USD.
+  assert.deepEqual(cambioDelCobro({ montoPesos: 50000, moneda: "USD", tiposDeCambio: tc, cuota: { id: "c4", monto: 50000, moneda: "ARS" } }), { cuotaId: "c4", moneda: "USD", montoMonedaCentavos: BigInt(5_000), tipoCambio: "1000.000000" });
+  // Cuota en euros: 100 EUR = $ 110.000 = 110 USD (no 100).
+  assert.deepEqual(cambioDelCobro({ montoPesos: aPesos(100, "EUR", tc), moneda: "USD", tiposDeCambio: tc, cuota: { id: "c5", monto: 100, moneda: "EUR" } }), { cuotaId: "c5", moneda: "USD", montoMonedaCentavos: BigInt(11_000), tipoCambio: "1000.000000" });
+});
+
+test("cambioDelCobro: cobro a mano (sin cuota) de un proyecto en dólares → R8 al cambio del día, medio centavo sube", () => {
+  assert.deepEqual(cambioDelCobro({ montoPesos: 250000, moneda: "USD", tiposDeCambio: { USD: 1000 } }), { cuotaId: null, moneda: "USD", montoMonedaCentavos: BigInt(25_000), tipoCambio: "1000.000000" });
+  // $ 100.000 a 3 = 33.333,333… → 33.333,33; $ 200.000 a 3 → 66.666,67.
+  assert.deepEqual(cambioDelCobro({ montoPesos: 100000, moneda: "USD", tiposDeCambio: { USD: 3 } }), { cuotaId: null, moneda: "USD", montoMonedaCentavos: BigInt(3_333_333), tipoCambio: "3.000000" });
+  assert.deepEqual(cambioDelCobro({ montoPesos: 200000, moneda: "USD", tiposDeCambio: { USD: 3 } }), { cuotaId: null, moneda: "USD", montoMonedaCentavos: BigInt(6_666_667), tipoCambio: "3.000000" });
+  // Empate: $ 0,01 a 2 = 0,005 → 0,01.
+  assert.deepEqual(cambioDelCobro({ montoPesos: 0.01, moneda: "USD", tiposDeCambio: { USD: 2 } }), { cuotaId: null, moneda: "USD", montoMonedaCentavos: BigInt(1), tipoCambio: "2.000000" });
+});
+
+test("cambioDelCobro: falta el tipo de cambio, es inválido o no es exacto a 6 decimales → sin fijar, y no frena el cobro", () => {
+  for (const malo of [undefined, 0, -5, Number.NaN, Number.POSITIVE_INFINITY, 1 / 3, 1.0000001, 1e13]) {
+    const tc: Record<string, number> = malo === undefined ? {} : { USD: malo };
+    assert.deepEqual(cambioDelCobro({ montoPesos: 1000, moneda: "USD", tiposDeCambio: tc, cuota: { id: "c3", monto: 1, moneda: "USD" } }), { cuotaId: "c3", ...SIN_FIJAR }, String(malo));
+    assert.deepEqual(cambioDelCobro({ montoPesos: 1000, moneda: "USD", tiposDeCambio: tc }), { cuotaId: null, ...SIN_FIJAR }, String(malo));
+  }
+  // Pesos que no se pueden escribir con centavos (≥ 10^13 o no finitos): sin fijar.
+  assert.deepEqual(cambioDelCobro({ montoPesos: 1e13, moneda: "USD", tiposDeCambio: { USD: 1000 } }), { cuotaId: null, ...SIN_FIJAR });
+  assert.deepEqual(cambioDelCobro({ montoPesos: Number.NaN, moneda: "ARS", tiposDeCambio: {} }), { cuotaId: null, ...SIN_FIJAR });
+});
+
+test("cambioDelCobro: ningún campo del fijado es un number (plata en bigint, tipo de cambio en texto exacto)", () => {
+  const f = cambioDelCobro({ montoPesos: 123456.78, moneda: "USD", tiposDeCambio: { USD: 987.654321 } });
+  assert.equal(typeof f.montoMonedaCentavos, "bigint");
+  assert.equal(typeof f.tipoCambio, "string");
+  assert.equal(f.tipoCambio, "987.654321");
+  // 12.345.678 centavos ÷ 987,654321 → 12.499,99… USD; R8 en enteros.
+  assert.equal(f.montoMonedaCentavos, (BigInt(2) * BigInt(12_345_678) * BigInt(1_000_000) + BigInt(987_654_321)) / (BigInt(2) * BigInt(987_654_321)));
+});
+
+test("cambioDelCobro (cert. D13 · R1): pesos con fracción de centavo no se fijan (un solo redondeo, el de R8)", () => {
+  // Una cuota en pesos cargada a mano sin redondear, en un proyecto en USD a 1000: redondear al centavo y después R8
+  // daría 1001 centavos; Postgres `round(10004.995 / 1000, 2)` da 10,00. No se fabrica el centavo: queda sin fijar.
+  const r = cambioDelCobro({ montoPesos: 10004.995, moneda: "USD", tiposDeCambio: { USD: 1000 }, cuota: { id: "c9", monto: 10004.995, moneda: "ARS" } });
+  assert.deepEqual(r, { cuotaId: "c9", moneda: null, montoMonedaCentavos: null, tipoCambio: null });
+  // 0,1 + 0,2 sí está al centavo (R7 lo lee 0,30): se fija.
+  assert.equal(cambioDelCobro({ montoPesos: 0.1 + 0.2, moneda: "USD", tiposDeCambio: { USD: 1 } }).montoMonedaCentavos, BigInt(30));
 });
