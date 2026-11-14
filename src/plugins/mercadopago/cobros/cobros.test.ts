@@ -139,3 +139,13 @@ test("StubPasarelaCobros: también valida", async () => {
   const stub = new StubPasarelaCobros();
   await assert.rejects(() => stub.crearLinkDePago({ concepto: "", monto: 0 }), SolicitudCobroInvalidaError);
 });
+
+test("armarBodyPreferencia: con venceEl, la preferencia vence en Mercado Pago; sin él, no", () => {
+  const vence = new Date("2026-11-12T12:00:00.000Z");
+  const conVencimiento = armarBodyPreferencia({ concepto: "Pedido #1", monto: 100, venceEl: vence });
+  assert.equal(conVencimiento.expires, true);
+  assert.equal(conVencimiento.expiration_date_to, "2026-11-12T12:00:00.000Z");
+  const sin = armarBodyPreferencia({ concepto: "Pedido #1", monto: 100 });
+  assert.equal(sin.expires, undefined);
+  assert.equal(sin.expiration_date_to, undefined);
+});

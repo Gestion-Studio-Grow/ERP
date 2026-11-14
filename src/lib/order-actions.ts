@@ -47,6 +47,7 @@ import { VentaAnuladaError } from "@/lib/invoice-core";
 import { getFiscalProfile, isInvoicingEnabled, PerfilFiscalIncompletoError } from "@/lib/fiscal";
 import { buildWhatsAppHref, whatsappCanonico } from "@/lib/whatsapp-cta";
 import { logger } from "@/lib/logger";
+import { tokenParaGracias } from "@/lib/cobros/pago-de-la-tienda.server";
 import { normalizarCodigoDeCupon, topeDePrecioAMano, ventaNaceEntregada, CUPON_NO_VALE } from "@/lib/venta-reglas";
 import type { VentaYaGrabada } from "@/lib/reintento-de-venta";
 import { pedidoDelFormulario, rechazoDelAltaConClave, respuestaAlReintento } from "@/lib/respuesta-al-reintento";
@@ -886,7 +887,9 @@ export async function placeOnlineOrder(
     // El backoffice ve el pedido nuevo en su bandeja al revalidar.
     revalidarMostrador();
   }
-  if (!porWhatsApp) redirect(`/tienda/gracias?pedido=${result.code}`);
+  // `t`: el token que prueba en Gracias que el pedido es de quien lo hizo (el número es
+  // correlativo): sin él no se ofrece «Pagar ahora con Mercado Pago» (cobros/pago-de-la-tienda.ts).
+  if (!porWhatsApp) redirect(`/tienda/gracias?pedido=${result.code}&t=${tokenParaGracias(tenantId, result.id)}`);
   // El pedido YA está registrado: si armar el link del chat falla, no se dice "no pudimos tomar
   // el pedido" (sería mentira y el cliente lo repetiría): se contesta sin chat.
   // DEMO GSG (src/lib/marca-demo.ts): un pedido de prueba nunca abre el chat del WhatsApp real del cliente.
