@@ -161,6 +161,8 @@ export interface DatosAlta {
   sinPuntoVenta: boolean;
   /** «Ya hice el certificado en ARCA». Conserva el nombre viejo para no romper el PR #9. */
   delegacionHecha: boolean;
+  /** Mail del titular para el alta autoservicio (enlace de confirmación). Opcional en lo guardado viejo. */
+  email?: string;
 }
 
 export const ALTA_VACIA: DatosAlta = {
@@ -171,6 +173,7 @@ export const ALTA_VACIA: DatosAlta = {
   puntoVenta: "",
   sinPuntoVenta: false,
   delegacionHecha: false,
+  email: "",
 };
 
 export type CampoAlta = "nombre" | "cuit" | "condicion" | "puntoVenta";

@@ -48,6 +48,13 @@ export const PURGE_EXEMPT_ENTITIES = [
   ENTIDAD_CLUB_ESTADO, // la foto del club (club/estado-repo.ts): purgada, el club perdería turnos, cuentas y caja; la poda es suya
 ] as const;
 
+// Acciones que la purga nunca borra, por prefijo, aunque su entidad no esté exenta.
+// "profeturnos." (src/lib/profeturnos): el alta, la verificación del profe y su revocación, y el
+// plan del profe, viven como filas de `AuditLog` sobre la entidad "Tenant" (que no se exime
+// entera porque junta mucho rastro común). Purgadas, un profe sin verificar o revocado quedaría
+// con el turnero abierto a los 18 meses, sin que nadie lo decida.
+export const PURGE_EXEMPT_ACTION_PREFIXES = ["profeturnos."] as const;
+
 /** @deprecated Usar `PURGE_EXEMPT_ENTITIES`. Se conserva por compatibilidad de llamadores. */
 export const PURGE_EXEMPT_ENTITY = PURGE_EXEMPT_ENTITIES[0];
 
@@ -106,7 +113,11 @@ export async function purgeAuditLogs(
   // la prueba de que pidió no recibir mensajes (Ley 25.326, art. 27) o de que volvió a
   // aceptarlos. Hasta que existan las columnas en `Client` (2ª ventana) vive sólo acá: purgarla
   // a los 18 meses haría que una baja dejara de respetarse. Son pocas filas por clienta.
-  const where = { createdAt: { lt: cutoff }, entity: { notIn: [...PURGE_EXEMPT_ENTITIES] } };
+  const where = {
+    createdAt: { lt: cutoff },
+    entity: { notIn: [...PURGE_EXEMPT_ENTITIES] },
+    NOT: { OR: PURGE_EXEMPT_ACTION_PREFIXES.map((prefijo) => ({ action: { startsWith: prefijo } })) },
+  };
 
   if (dryRun) {
     return { cutoff, affected: await client.auditLog.count({ where }), dryRun };

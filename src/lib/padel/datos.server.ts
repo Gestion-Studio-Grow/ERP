@@ -17,6 +17,7 @@ import { businessWallTimeToUtc, dateStrInBusinessTz, todayInBusinessTz } from "@
 import { createRateLimiter } from "@/lib/rate-limit";
 import { bienvenidaVista } from "./config-campos";
 import { completarSeries } from "./series.server";
+import { turneroAbiertoDe } from "@/lib/profeturnos/verificacion.server";
 import {
   CLAVES_PLANTILLA,
   ESTADOS_QUE_OCUPAN,
@@ -168,6 +169,9 @@ export interface DiaConLugar {
  * lectura de clases para todo el rango; el armado de franjas es puro (core.ts).
  */
 export async function agendaPublica(tenantId: string, ahora = new Date()): Promise<DiaConLugar[]> {
+  // Alta asistida: el turnero de un profe sin verificar no ofrece horarios (fail-closed si no se
+  // pudo leer). Negocios sin alta web: no-aplica, siguen igual (src/lib/profeturnos/verificacion-core.ts).
+  if (!(await turneroAbiertoDe(tenantId))) return [];
   const [config, fr, listaClubes] = await Promise.all([configPadel(tenantId), franjas(tenantId), clubesDe(tenantId, true)]);
   const nombreClub = new Map(listaClubes.map((c) => [c.id, c.nombre]));
   const hoy = todayInBusinessTz();

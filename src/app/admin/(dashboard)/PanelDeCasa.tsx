@@ -4,7 +4,7 @@
 // negocio (`data-estetica` en la raíz del layout, src/lib/estetica-backoffice.ts).
 
 import Link from "next/link";
-import { Montserrat } from "next/font/google";
+import localFont from "next/font/local";
 import type { ReactNode } from "react";
 import type { AppDescriptor } from "@/apps/contract";
 import FormCerrarSesion from "../FormCerrarSesion";
@@ -15,7 +15,7 @@ import FirmaGSG from "@/components/marca/FirmaGSG";
 // La letra del logo de Break Point y de «GESTIÓN / DEL CLUB» al lado, como el club de hoy (club.html: Montserrat 500).
 // Va como variable (`--font-montserrat`) en la cabecera; la usa sólo la piel de Break Point (club/piel/armazon.css),
 // y con `preload: false` el archivo lo baja sólo quien la pinta (no todo /admin).
-const montserrat = Montserrat({ weight: "500", subsets: ["latin"], variable: "--font-montserrat", display: "swap", preload: false });
+const montserrat = localFont({ src: "../../../fonts/montserrat/montserrat-latin-500-normal.woff2", weight: "500", variable: "--font-montserrat", display: "swap", preload: false });
 
 export default function PanelDeCasa({
   apps,
