@@ -1,5 +1,7 @@
 # Equipo de agentes de Administración · MIA — 07 · Camino de ejecución
 
+> **Estado (MIA-016, 14/11):** insumo, no diseño vigente. El diseño funcional y técnico del camino de ejecución lo escribe la sesión de análisis (07 a 10). Este texto queda como material para el desafío. La regla del permiso ya la decidió el dueño: vale el más chico entre el agente y quien pide; la opción D de §1.4 no aplica.
+
 > **Estado:** diseño, 14/11/2026. Sin construir y sin certificar. Pide certificación adversarial (plata, seguridad,
 > concurrencia y datos) sobre el diff de cada operación, con Opus alto.
 > **Manda sobre** `01` §3 y §4 (lo que el equipo «no hace nunca» y los niveles iniciales), sobre `02` en los topes que
