@@ -287,3 +287,57 @@ test("defecto 2: cambiar el cambio en «Guardar textos» mantiene los US$ 4.033,
   // Los textos sí se guardan si no se toca el cambio.
   assert.equal((await textos("1400")).ok, true);
 });
+
+test("cert. F1: parte SIN cuenta y resto CON cuenta; anular la parte no toca el banco, anular el resto lo deja en 0", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const { id } = await p.proyecto();
+  const q = await p.cuota(id, 1210, 5);
+  const banco = await p.cuenta();
+  assert.equal((await p.cobrar(q, { monto: "300", cuenta: "ninguna" })()).ok, true);
+  const [parte] = await p.duenio.proyectoPago.findMany({ where: { proyectoId: id }, select: { id: true } });
+  assert.equal((await p.cobrar(q, { cuenta: banco })()).ok, true);
+  assert.equal(await p.saldoCuenta(banco), 910);
+  assert.equal((await p.enSesion(() => p.ficha.anularCobroFicha(p.form({ id: parte.id })))).ok, true);
+  assert.equal(await p.saldoCuenta(banco), 910, "la parte no movió el banco: anularla tampoco");
+  const [resto] = await p.duenio.proyectoPago.findMany({ where: { proyectoId: id, anuladoEl: null }, select: { id: true } });
+  assert.equal((await p.enSesion(() => p.ficha.anularCobroFicha(p.form({ id: resto.id })))).ok, true);
+  assert.equal(await p.saldoCuenta(banco), 0);
+});
+
+test("cert. F2: precio tipeado y «Guardar textos» con otro cambio a la vez, en los dos órdenes: lo tipeado en USD nunca cambia", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const gestion = await import("./gestion-core");
+  await p.duenio.proyectoTipoCambio.updateMany({ where: { tenantId: p.a.id, moneda: "USD" }, data: { porUnidad: 1350 } });
+  const armar = async () => {
+    const { presupuestoId, itemId } = await p.proyecto("USD", "BORRADOR");
+    await p.duenio.proyectoPresupuesto.update({ where: { id: presupuestoId }, data: { tcVenta: 1350 } });
+    await p.duenio.proyectoItem.update({ where: { id: itemId }, data: { precio: 5_444_995.5 } }); // US$ 4.033,33 a 1.350
+    const x = await p.duenio.proyectoItem.create({ data: { tenantId: p.a.id, presupuestoId, rubro: "General", descripcion: "Extra", cantidad: 1, precio: 0 }, select: { id: true } });
+    return { presupuestoId, itemId, x: x.id };
+  };
+  const enUsd = async (presupuestoId: string, itemId: string, x: string) => {
+    const pr = await p.duenio.proyectoPresupuesto.findUniqueOrThrow({ where: { id: presupuestoId }, select: { tcVenta: true, proyectoId: true } });
+    const precio = async (id: string) => (await p.duenio.proyectoItem.findUniqueOrThrow({ where: { id }, select: { precio: true } })).precio;
+    return { clave: p.clave(pr.proyectoId), tc: pr.tcVenta, y: gestion.enMonedaDeVenta(await precio(itemId), pr.tcVenta ?? 0), x: gestion.enMonedaDeVenta(await precio(x), pr.tcVenta ?? 0) };
+  };
+  const precio = (x: string) => () => p.enSesion(() => p.ficha.guardarCampoItem({ id: x, campo: "precio", valor: "100" }));
+  const textos = (presupuestoId: string) => () => p.enSesion(() => p.ficha.guardarTextos(p.form({ id: presupuestoId, ivaPct: "21", tcVenta: "1400", presentacion: "", condiciones: "" })));
+
+  // Primero el precio (a 1.350), después el cambio a 1.400: los dos entran y el cambio reescala los dos ítems.
+  const a = await armar();
+  const [r1, r2] = await enFila(p.base, (await enUsd(a.presupuestoId, a.itemId, a.x)).clave, [precio(a.x), textos(a.presupuestoId)]);
+  assert.deepEqual([r1.ok, r2.ok], [true, true], JSON.stringify([r1, r2]));
+  const ea = await enUsd(a.presupuestoId, a.itemId, a.x);
+  assert.deepEqual({ tc: ea.tc, y: ea.y, x: ea.x }, { tc: 1400, y: 4033.33, x: 100 });
+
+  // Primero el cambio a 1.400, después el precio que se pasó a pesos con 1.350: el precio no se graba (pide recargar).
+  const b = await armar();
+  const [s1, s2] = await enFila(p.base, (await enUsd(b.presupuestoId, b.itemId, b.x)).clave, [textos(b.presupuestoId), precio(b.x)]);
+  assert.equal(s1.ok, true, JSON.stringify(s1));
+  assert.equal(s2.ok, false, "el precio leído con el cambio viejo no se graba");
+  assert.match(String((s2 as { error: string }).error), /Recargá/);
+  const eb = await enUsd(b.presupuestoId, b.itemId, b.x);
+  assert.deepEqual({ tc: eb.tc, y: eb.y, x: eb.x }, { tc: 1400, y: 4033.33, x: 0 });
+});
