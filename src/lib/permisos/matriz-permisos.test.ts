@@ -26,7 +26,10 @@ test("defaults 3×8: socio todo; recepción agenda, contacto, stock y caja; prof
     assert.equal(roleHasCapability("RECEPTION", cap), true, cap);
     assert.equal(roleHasCapability("PROFESSIONAL", cap), false, cap);
   }
-  assert.deepEqual([...ROLE_CAPABILITIES.PROFESSIONAL].sort(), ["agenda:collect", "agenda:complete", "agenda:read", "booking:online"]);
+  // `commissions:read-own` (D5, «Mi liquidación»): ve SU liquidación, sin tocar plata.
+  assert.deepEqual([...ROLE_CAPABILITIES.PROFESSIONAL].sort(), [
+    "agenda:collect", "agenda:complete", "agenda:read", "booking:online", "commissions:read-own",
+  ]);
 });
 
 test("payments:own-account existe pero ningún rol la tiene ni la matriz la graba («próximamente»)", () => {
