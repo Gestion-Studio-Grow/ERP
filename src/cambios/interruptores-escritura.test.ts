@@ -42,6 +42,8 @@ const ESCRITORES_PERMITIDOS: Record<string, string> = {
     "el QA de «Vender · buscar servicio o producto» de CH, SÓLO contra su base efímera local (entorno-ch.mjs → crearBaseEfimera): prende «agenda-interaccion» para recorrer el buscador",
   "src/tenants/ch/e2e/agenda-interaccion.e2e.mjs":
     "el QA de la Agenda interactiva de CH, SÓLO contra su base efímera local (entorno-ch.mjs → crearBaseEfimera): prende «agenda-practica» y «agenda-interaccion» para recorrer la barra y la grilla",
+  "src/tenants/ch/e2e/no-vino-hueco.e2e.mjs":
+    "el QA de CH-008 («No vino» libera el hueco), SÓLO contra su base efímera local (entorno-ch.mjs → crearBaseEfimera): prende «agenda-practica» y «agenda-interaccion» para recorrer la barra y la grilla",
   "src/tenants/ch/e2e/preparar-mostrador-ch.mjs":
     "los recorridos del mostrador de CH (npm run test:ch-mostrador-e2e), SÓLO contra su base efímera local (crearBaseEfimera): prende el diseño nuevo para recorrer el cajón",
   "src/tenants/magra/e2e/mostrador.e2e.mjs":
