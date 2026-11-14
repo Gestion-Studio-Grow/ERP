@@ -11,7 +11,9 @@
  *   · con el día ya cerrado no se escribe nada (DB-5);
  *   · un cobro anulado ANTES de rendirse no toca el libro y no se rinde; el negocio B no ve ni rinde lo de A;
  *   · anular un cobro YA rendido asienta un EGRESO de hoy (idempotente) y con hoy cerrado se rechaza;
- *   · CARRERA · rendir ‖ anular el mismo cobro: gane cuál gane, el libro neto del cobro da 0;
+ *   · CARRERA · rendir ‖ anular el mismo cobro: gane cuál gane, el libro neto del cobro da 0; con el
+ *     hueco provocado (la rendición confirma con la foto de la anulación ya tomada) igual hay EGRESO;
+ *     en el orden inverso (anulación primero) la rendición en vuelo no rinde el cobro anulado;
  *   · la misma clave con otros cobros es error, no «ya registrada»;
  *   · cobro con producto de la profesional que cobra aparte: se detecta para rechazarlo;
  *   · sin las tablas, o con las tablas sin permisos para `app_rls`, el cobro entra a la caja como hoy.
@@ -29,18 +31,21 @@ import { apuntarLaAppA, baseEfimeraDelArchivo, prismaComoDuenio, type BaseEfimer
 const laBase = baseEfimeraDelArchivo();
 const HORA = 3_600_000;
 const SQL = readFileSync(path.join(process.cwd(), "prisma/pending-gate2/CH_rendicion_profesional.sql"), "utf8");
+const dormir = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 type Duenio = Awaited<ReturnType<typeof prismaComoDuenio>>;
 type Mundo = {
   base: BaseEfimera;
   /** El cobro de Vero hecho ANTES de aplicar la migración (caso 1 del refutador). */
   sinTablas: import("@/lib/turnos/cobro-turno-repo").AplicarCobroResult;
-  anular: (o: { collectionId: string; appointmentId: string; diaCerradoHasta?: string | null }) => Promise<import("@/lib/turnos/anulacion").AnularCobroResult>;
+  /** Serializable con reintentos, como en producción. `demoraMs`: espera DENTRO de la tx, con el turno tomado. */
+  anular: (o: { collectionId: string; appointmentId: string; diaCerradoHasta?: string | null; demoraMs?: number }) => Promise<import("@/lib/turnos/anulacion").AnularCobroResult>;
   duenio: Duenio;
   vero: { id: string; userId: string };
   turno: (tenantId?: string) => Promise<string>;
   cobrar: (o: { appointmentId: string; actor: string; monto?: number; tenantId?: string }) => Promise<import("@/lib/turnos/cobro-turno-repo").AplicarCobroResult>;
-  rendir: (o: Partial<import("./rendicion-repo").RegistrarRendicionArgs> & { cobroIds: string[]; tenantId?: string }) => Promise<import("./rendicion-repo").RegistrarRendicionResult>;
+  /** READ COMMITTED, como en producción. `demoraMs`: espera DENTRO de la tx, con los candados tomados. */
+  rendir: (o: Partial<import("./rendicion-repo").RegistrarRendicionArgs> & { cobroIds: string[]; tenantId?: string; demoraMs?: number }) => Promise<import("./rendicion-repo").RegistrarRendicionResult>;
   pendientesDe: (tenantId?: string) => Promise<{ id: string; monto: number }[]>;
 };
 let mundo: Mundo | null = null;
@@ -54,6 +59,7 @@ async function preparar(t: import("node:test").TestContext): Promise<Mundo | nul
   Object.assign(process.env as Record<string, string | undefined>, { DB_CONNECTION_LIMIT: "10", DB_CONNECT_TIMEOUT_MS: "3000" });
   const duenio = await prismaComoDuenio(base);
   const { tenantTransaction } = await import("@/lib/rls");
+  const { Prisma } = await import("@/generated/prisma/client");
   const { aplicarCobroTurnoInTx } = await import("@/lib/turnos/cobro-turno-repo");
   const { registrarRendicionInTx, leerRendicionesInTx } = await import("./rendicion-repo");
   const { anularCobroTurnoInTx } = await import("@/lib/turnos/anulacion");
@@ -126,10 +132,10 @@ async function preparar(t: import("node:test").TestContext): Promise<Mundo | nul
   mundo = {
     base,
     sinTablas,
-    anular: ({ collectionId, appointmentId, diaCerradoHasta = null }) =>
+    anular: ({ collectionId, appointmentId, diaCerradoHasta = null, demoraMs = 0 }) =>
       tenantTransaction(
-        (tx) =>
-          anularCobroTurnoInTx(tx, A, {
+        async (tx) => {
+          const r = await anularCobroTurnoInTx(tx, A, {
             collectionId,
             appointmentId,
             precio: 18000,
@@ -139,17 +145,20 @@ async function preparar(t: import("node:test").TestContext): Promise<Mundo | nul
             esDiaCerrado: (d, h) => d <= h,
             diaDe: (d) => d.toISOString().slice(0, 10),
             withSchema: true,
-          }),
-        { tenantId: A },
+          });
+          if (demoraMs) await dormir(demoraMs);
+          return r;
+        },
+        { tenantId: A, isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeoutMs: 15_000 },
       ),
     duenio,
     vero: { id: prof.id, userId: user.id },
     turno,
     cobrar,
-    rendir: ({ tenantId = A, ...o }) =>
+    rendir: ({ tenantId = A, demoraMs = 0, ...o }) =>
       tenantTransaction(
-        (tx) =>
-          registrarRendicionInTx(tx, tenantId, {
+        async (tx) => {
+          const r = await registrarRendicionInTx(tx, tenantId, {
             professionalId: prof.id,
             entregado: 0,
             method: "EFECTIVO",
@@ -158,8 +167,11 @@ async function preparar(t: import("node:test").TestContext): Promise<Mundo | nul
             actor: `user:${base.a.duenia.id}`,
             cerradoHasta: null,
             ...o,
-          }),
-        { tenantId },
+          });
+          if (demoraMs) await dormir(demoraMs);
+          return r;
+        },
+        { tenantId, timeoutMs: 15_000 },
       ),
     pendientesDe: async (tenantId = A) => {
       const l = await tenantTransaction((tx) => leerRendicionesInTx(tx, tenantId), { tenantId });
@@ -367,6 +379,79 @@ test("CARRERA · rendir ‖ anular el mismo cobro: gane cuál gane, el libro net
       0,
     );
     assert.equal(ingreso - egreso, 0, `vuelta ${i}: ingreso ${ingreso} egreso ${egreso}`);
+  }
+});
+
+async function egresoDelCobro(m: Mundo, collectionId: string): Promise<number> {
+  const filas = await m.duenio.cashMovement.findMany({ where: { collectionId, type: "EGRESO" }, select: { amount: true } });
+  return filas.reduce((s, x) => s + Number(x.amount), 0);
+}
+
+test("CARRERA · hueco provocado: la rendición confirma mientras la anulación (Serializable) ya tenía su foto → igual asienta el EGRESO (caso 7 del refutador)", async (t) => {
+  const m = await preparar(t);
+  if (!m) return;
+  for (let i = 0; i < 3; i++) {
+    const appointmentId = await m.turno();
+    const r = await m.cobrar({ appointmentId, actor: `user:${m.vero.userId}` });
+    assert.ok(r.applied && r.aRendir);
+    // La rendición toma el turno y tarda en confirmar; la anulación arranca en ese hueco.
+    const rendicion: ReturnType<Mundo["rendir"]> = m.rendir({ cobroIds: [r.aRendir.cobroARendirId], entregado: 18000, demoraMs: 400 });
+    await dormir(120);
+    const anulacion: ReturnType<Mundo["anular"]> = m.anular({ collectionId: r.collectionId, appointmentId });
+    const [rend, an] = await Promise.all([rendicion, anulacion]);
+    assert.equal(rend.estado, "registrada");
+    assert.ok(an.applied, "la anulación se aplica");
+    assert.equal(an.applied && an.libro.asentada, true, `vuelta ${i}: ${JSON.stringify(an.applied && an.libro)}`);
+    const ingreso: number = rend.estado === "registrada" ? (await ingresosDeRendicion(m, [rend.rendicionId])).reduce((s, x) => s + x.amount, 0) : 0;
+    assert.equal(ingreso, 18000);
+    assert.equal(await egresoDelCobro(m, r.collectionId), 18000, `vuelta ${i}: el INGRESO de la rendición no puede quedar sin su EGRESO`);
+  }
+});
+
+test("CARRERA · orden inverso: la anulación confirma primero y la rendición estaba en vuelo → no rinde el cobro anulado", async (t) => {
+  const m = await preparar(t);
+  if (!m) return;
+  for (let i = 0; i < 3; i++) {
+    const appointmentId = await m.turno();
+    const r = await m.cobrar({ appointmentId, actor: `user:${m.vero.userId}` });
+    assert.ok(r.applied && r.aRendir);
+    const anulacion: ReturnType<Mundo["anular"]> = m.anular({ collectionId: r.collectionId, appointmentId, demoraMs: 400 });
+    await dormir(120);
+    const rendicion: ReturnType<Mundo["rendir"]> = m.rendir({ cobroIds: [r.aRendir.cobroARendirId], entregado: 18000 });
+    const [an, rend] = await Promise.allSettled([anulacion, rendicion]);
+    assert.equal(an.status, "fulfilled", an.status === "rejected" ? String(an.reason) : "");
+    assert.ok(an.status === "fulfilled" && an.value.applied);
+    assert.equal(rend.status, "rejected", "la rendición no puede rendir un cobro ya anulado");
+    assert.equal((rend.status === "rejected" && (rend.reason as { motivo?: string }).motivo) || "", "cobro-ajeno", rend.status === "rejected" ? String(rend.reason) : "");
+    const fila: { rendicionId: string | null }[] = await m.duenio.$queryRaw<{ rendicionId: string | null }[]>`SELECT "rendicionId" FROM "CobroARendir" WHERE "id" = ${r.aRendir.cobroARendirId}`;
+    assert.equal(fila[0]?.rendicionId, null);
+    // Nunca entró al libro: ni INGRESO de rendición ni EGRESO.
+    assert.equal(await egresoDelCobro(m, r.collectionId), 0);
+    assert.ok(!(await m.pendientesDe()).some((p) => p.id === r.aRendir!.cobroARendirId));
+  }
+});
+
+test("CARRERA · rendir ‖ anular sin demora, 10 vueltas: el INGRESO de una rendición siempre tiene su EGRESO (caso 8 del refutador)", async (t) => {
+  const m = await preparar(t);
+  if (!m) return;
+  for (let i = 0; i < 10; i++) {
+    const appointmentId = await m.turno();
+    const r = await m.cobrar({ appointmentId, actor: `user:${m.vero.userId}` });
+    assert.ok(r.applied && r.aRendir);
+    const [rend, an]: [
+      PromiseSettledResult<Awaited<ReturnType<Mundo["rendir"]>>>,
+      PromiseSettledResult<Awaited<ReturnType<Mundo["anular"]>>>,
+    ] = await Promise.allSettled([
+      m.rendir({ cobroIds: [r.aRendir.cobroARendirId], entregado: 18000 }),
+      m.anular({ collectionId: r.collectionId, appointmentId }),
+    ]);
+    assert.equal(an.status, "fulfilled", an.status === "rejected" ? String(an.reason) : "");
+    if (rend.status === "rejected") assert.equal((rend.reason as { motivo?: string }).motivo, "cobro-ajeno", String(rend.reason));
+    const ingreso: number =
+      rend.status === "fulfilled" && rend.value.estado === "registrada"
+        ? (await ingresosDeRendicion(m, [rend.value.rendicionId])).reduce((s, x) => s + x.amount, 0)
+        : 0;
+    assert.equal(ingreso - (await egresoDelCobro(m, r.collectionId)), 0, `vuelta ${i}`);
   }
 });
 

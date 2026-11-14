@@ -709,12 +709,29 @@ async function cobroRendidoInTx(
   tenantId: string,
   collectionId: string,
 ): Promise<{ cashMovementId: string; method: string; reason: string | null } | null> {
-  const hay = await tx.$queryRaw<{ ok: boolean }[]>`
+  const hay = await tx.$queryRaw<{ ok: boolean; candado: boolean }[]>`
     SELECT COALESCE(
       has_table_privilege(to_regclass('"CobroARendir"'), 'SELECT')
       AND has_table_privilege(to_regclass('"RendicionProfesional"'), 'SELECT'),
-      false) AS ok`;
+      false) AS ok,
+      COALESCE(has_table_privilege(to_regclass('"CobroARendir"'), 'UPDATE'), false) AS candado`;
   if (hay[0]?.ok !== true) return null;
+  // CARRERA con una rendición del mismo cobro (refutador, hallazgo ALTO): la rendición corre en
+  // READ COMMITTED y suelta el candado del turno al confirmar; esta anulación (Serializable en
+  // producción) ya tenía su foto tomada, y sin esto leía `rendicionId` NULL, no asentaba el EGRESO
+  // y el INGRESO `rendicion:` quedaba de más en la caja. La fila se toma FOR SHARE:
+  //  · Serializable: si una rendición la actualizó y confirmó después de la foto, Postgres aborta
+  //    con 40001 y `tenantTransaction` reintenta; el reintento ve la rendición y asienta el EGRESO;
+  //  · READ COMMITTED: espera a la rendición en vuelo y la consulta de abajo (foto nueva) la ve.
+  // Se eligió esto y no pasar la rendición a Serializable: es local a la lectura que fallaba, sirve
+  // con cualquier aislamiento de quien llama, y no cambia la re-evaluación por candado de la rendición.
+  // FOR SHARE pide UPDATE sobre la tabla: sin ese permiso nadie con este rol puede rendir, no hay carrera.
+  if (hay[0]?.candado === true) {
+    await tx.$queryRaw`
+      SELECT r."id" FROM "CobroARendir" r
+      WHERE r."tenantId" = ${tenantId} AND r."collectionId" = ${collectionId}
+      FOR SHARE OF r`;
+  }
   const filas = await tx.$queryRaw<{ cashMovementId: string | null; method: string; reason: string | null }[]>`
     SELECT p."cashMovementId", p."method", m."reason"
     FROM "CobroARendir" r

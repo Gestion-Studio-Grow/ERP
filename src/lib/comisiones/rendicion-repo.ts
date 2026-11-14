@@ -261,9 +261,16 @@ export async function registrarRendicionInTx(
     VALUES (${rendicionId}, ${tenantId}, ${a.professionalId}, ${v.cobrado}::numeric(14,2), ${v.entregado}::numeric(14,2),
             ${v.retenido}::numeric(14,2), ${a.method}, ${a.idempotencyKey}, ${cashMovementId}, ${a.nota}, ${a.actor})`;
 
+  // Re-chequeo en el UPDATE (foto nueva en READ COMMITTED, filas ya tomadas): un cobro anulado
+  // mientras esta rendición estaba en vuelo no se rinde; si pasara, `reclamados` no cierra y se deshace todo.
   const reclamados = await tx.$executeRaw`
-    UPDATE "CobroARendir" SET "rendicionId" = ${rendicionId}
-    WHERE "tenantId" = ${tenantId} AND "id" IN (${Prisma.join(v.ids)}) AND "rendicionId" IS NULL`;
+    UPDATE "CobroARendir" r SET "rendicionId" = ${rendicionId}
+    WHERE r."tenantId" = ${tenantId} AND r."id" IN (${Prisma.join(v.ids)}) AND r."rendicionId" IS NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM "Collection" c
+        WHERE c."tenantId" = r."tenantId" AND c."appointmentId" = r."appointmentId"
+          AND c."note" LIKE ('ANULACION:' || r."collectionId" || '%')
+      )`;
   if (reclamados !== v.ids.length) {
     // No debería pasar con los candados de arriba; si pasa, la tx se deshace entera (asiento incluido).
     throw new RendicionRechazada("cobro-ajeno");
