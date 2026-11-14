@@ -41,14 +41,15 @@ test("sonda de facturas sin respuesta (pool lleno): regenerarCuotas no sigue y l
   // Instancia fría: el «sí» todavía no se recordó.
   fc.olvidarColumnaCuotaParaTests();
   // Otro pedido ocupa la única conexión del pool 2,4 s (p.ej. una transacción lenta de otro usuario).
+  // Espera determinista, sin relojes: la ocupante avisa desde ADENTRO de su transacción (la conexión ya está tomada).
+  // (pg_stat_activity no sirve: el rol de la app no ve la consulta de otro rol.)
+  let avisar: () => void = () => undefined;
+  const tomada = new Promise<void>((r) => { avisar = r; });
   const ocupante = rls.tenantTransaction(async (tx) => {
+    avisar();
     await tx.$executeRaw`SELECT pg_sleep(2.4)`;
   }, { tenantId: a.id, timeout: 10_000 } as never);
-  // Espera determinista: hasta que el pg_sleep esté corriendo (mirado por la conexión del dueño, aparte).
-  for (let i = 0; i < 500; i++) {
-    const n = await duenio.$queryRaw<{ n: number }[]>`SELECT count(*)::int AS n FROM pg_stat_activity WHERE query LIKE '%pg_sleep(2.4)%' AND state = 'active' AND pid <> pg_backend_pid()`;
-    if (n[0].n > 0) break;
-  }
+  await Promise.race([tomada, ocupante.then(() => { throw new Error("la ocupante terminó sin tomar la conexión"); })]);
   let error = "";
   await regen().catch((x) => { error = String((x as Error).message).slice(0, 200); });
   await ocupante.catch(() => undefined);
