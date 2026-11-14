@@ -17,7 +17,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { round2 } from "@/lib/round";
 import { linkDePagoDisponible, type LinkEnviado, type ModoLink } from "@/app/admin/(dashboard)/pedidos/link-de-pago";
-import { getRetailRubro } from "@/blueprints/retail/rubros";
+import { RETAIL_RUBROS, resolveRubroId } from "@/blueprints/retail/rubros";
 import { rubroContableSugerido } from "@/lib/contabilidad/config";
 
 const ETIQUETA_DE_LA_CLAVE = "gsg:pago-de-la-tienda:v1";
@@ -135,7 +135,10 @@ export function linkParaReusar(
  * (incluye los negocios marcados por slug, como A Dos Manos). Sin blueprint o desconocido → false. PURA.
  */
 export function esNegocioDeComercio(t: { slug: string; blueprintId: string | null | undefined }): boolean {
-  if (t.blueprintId && getRetailRubro(t.blueprintId)) return true;
+  // El mismo rubro que usa el resto del sistema (`resolveRubroId`: el blueprint y, si falta, el slug).
+  // `Object.hasOwn`: un blueprint como «constructor» no cuenta como rubro (certificación MAGRA-005).
+  const rubro = resolveRubroId({ slug: t.slug ?? "", blueprintId: t.blueprintId ?? null });
+  if (typeof rubro === "string" && Object.hasOwn(RETAIL_RUBROS, rubro)) return true;
   return rubroContableSugerido({ slug: t.slug ?? "", blueprintId: t.blueprintId ?? null }) === "comercio";
 }
 

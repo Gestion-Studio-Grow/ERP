@@ -164,6 +164,14 @@ test("comercio: rubro de retail conocido o rubro contable «comercio»; servicio
   assert.equal(esNegocioDeComercio({ slug: "un-negocio", blueprintId: "inventado" }), false);
 });
 
+test("comercio: Magra sin blueprint se resuelve por slug como el resto del sistema; claves del prototipo no cuentan", () => {
+  assert.equal(esNegocioDeComercio({ slug: "magra", blueprintId: null }), true);
+  for (const bp of ["constructor", "toString", "__proto__", "hasOwnProperty"]) {
+    assert.equal(esNegocioDeComercio({ slug: "un-negocio", blueprintId: bp }), false, bp);
+  }
+  assert.equal(esNegocioDeComercio({ slug: "constructor", blueprintId: null }), false);
+});
+
 // La demo de Magra tal como corre: MP_MODO sin setear (stub) y el simulador de avisos prendido.
 const ENV_DEMO: Record<string, string | undefined> = { MP_SIMULAR_AVISOS: "1" };
 
