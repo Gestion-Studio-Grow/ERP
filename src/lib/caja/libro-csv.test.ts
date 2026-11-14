@@ -148,6 +148,8 @@ const UNA_DE_CADA: [FilaLedger, string, string][] = [
   // La plata que devuelve un proveedor por una devolución de mercadería: antes salía como
   // "Ingreso manual" y la contadora la buscaba como un cobro sin respaldo.
   [ledger({ id: "reintegro", type: "INGRESO", method: "MP", amount: 450, createdBy: "devolucion-proveedor:pur_5" }), "Reintegro de proveedor", "pur_5"],
+  // CH-011 · lo que entrega la profesional que cobra aparte: antes «Ingreso manual».
+  [ledger({ id: "rendicion", type: "INGRESO", amount: 18000, createdBy: "rendicion:ren_1" }), "Rendición de profesional", "ren_1"],
   [ledger({ id: "gasto-a-mano", type: "EGRESO", amount: 700, createdBy: ACTOR }), "Egreso manual", ""],
   [ledger({ id: "ingreso-a-mano", type: "INGRESO", amount: 300, createdBy: ACTOR }), "Ingreso manual", ""],
   [ledger({ id: "venta-pos", type: "VENTA", method: "MP", amount: 4000, createdBy: ACTOR, orderId: "ord_1" }), "Venta mostrador", "ord_1"],

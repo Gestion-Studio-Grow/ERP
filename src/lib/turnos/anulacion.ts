@@ -51,6 +51,7 @@ import { facturaDeLaVenta, mensajeFacturaViva, type FacturaDeLaVenta } from "@/l
 import { claveCobroDelLibro, cobroDeLaClave } from "@/lib/facturacion/clave-cobro-del-libro";
 import { claveNotaDeCobroMP, coberturaMP, facturadoPropioPorCobro, saldosMPSinPareja } from "@/lib/facturacion/cobertura-mp";
 import { centavosDe } from "@/lib/dinero/redondeo";
+import { detalleDeCobroRendido } from "@/lib/comisiones/rendicion-core";
 
 export type AnulacionTx = Prisma.TransactionClient;
 
@@ -289,7 +290,7 @@ export function detalleReversa(detalleOriginal: string | null | undefined, motiv
 // ── Quién anula: los textos, para que la pantalla y el servidor digan lo mismo ──
 
 export const MENSAJE_SIN_ANULAR = "Anular un cobro lo hace la dueña. Pasale el turno a ella.";
-export const MENSAJE_FALTA_CODIGO = "Para anular hace falta el código de la dueña. Pedile que abra este cobro y toque «Autorizar anulación».";
+export const MENSAJE_FALTA_CODIGO = "Para anular hace falta el código de la dueña. Pedile que abra este cobro, toque «Anular» y saque el código con «Autorizar anulación».";
 export const MENSAJE_CODIGO_MALO = "Ese código no sirve: está mal escrito, venció o es de otro cobro. Pedile uno nuevo a la dueña.";
 export const MENSAJE_TOPE_DE_CODIGOS = "Demasiados intentos con el código. Esperá unos minutos y pedile uno nuevo a la dueña.";
 export const MENSAJE_NO_DESHACE = "La seña ya quedó registrada. Si estuvo mal, anular el cobro necesita a la dueña.";
@@ -519,6 +520,17 @@ export async function anularCobroTurnoInTx(
     });
   }
 
+  // D6 · cobro de la profesional que cobra aparte YA RENDIDO: no tiene VENTA (no entró al libro al
+  // cobrarse), pero su plata entró con la rendición (un INGRESO `rendicion:<id>`). La devolución
+  // sale del cajón HOY: la contrapartida es un EGRESO con fecha de hoy, y es HOY el día que tiene
+  // que estar abierto. Si todavía no se rindió, no hay plata en el libro que devolver (la rendición
+  // ya no lo toma: ve la contrapartida). Ver docs/producto/comisiones/RENDICION.md §Anulación.
+  const rendido = args.withSchema && !asientoOriginal ? await cobroRendidoInTx(tx, tenantId, args.collectionId) : null;
+  if (rendido) {
+    const sesion = await tx.cashSession.findFirst({ where: { tenantId, status: "OPEN" }, select: { id: true } });
+    asientoOriginal = { id: rendido.cashMovementId, occurredAt: new Date(), sessionId: sesion?.id ?? null, reason: rendido.reason, method: rendido.method };
+  }
+
   const diaContable = args.diaDe(asientoOriginal?.occurredAt ?? original.createdAt);
   // ENG-023: la factura del turno, por su enlace (`Invoice.appointmentId`) y dentro del negocio.
   const facturaDelTurno = facturaDeLaVenta(
@@ -685,6 +697,60 @@ export async function anularCobroTurnoInTx(
     libro,
     ...(notaDeCreditoId ? { notaDeCreditoId } : {}),
   };
+}
+
+/**
+ * ¿Este cobro quedó a rendir y ya se rindió? Devuelve el INGRESO de la rendición y su medio (la
+ * plata entró por ahí) y el detalle de ESTE cobro para el EGRESO. SQL crudo sobre las tablas de pending-gate2: se pregunta
+ * antes si existen y si este rol puede leerlas (una tabla ausente abortaría la anulación entera).
+ * Sin `Prisma` en runtime: este módulo lo importan pantallas del navegador.
+ */
+async function cobroRendidoInTx(
+  tx: AnulacionTx,
+  tenantId: string,
+  collectionId: string,
+): Promise<{ cashMovementId: string; method: string; reason: string | null } | null> {
+  const hay = await tx.$queryRaw<{ ok: boolean; candado: boolean }[]>`
+    SELECT COALESCE(
+      has_table_privilege(to_regclass('"CobroARendir"'), 'SELECT')
+      AND has_table_privilege(to_regclass('"RendicionProfesional"'), 'SELECT'),
+      false) AS ok,
+      COALESCE(has_table_privilege(to_regclass('"CobroARendir"'), 'UPDATE'), false) AS candado`;
+  if (hay[0]?.ok !== true) return null;
+  // CARRERA con una rendición del mismo cobro (refutador, hallazgo ALTO): la rendición corre en
+  // READ COMMITTED y suelta el candado del turno al confirmar; esta anulación (Serializable en
+  // producción) ya tenía su foto tomada, y sin esto leía `rendicionId` NULL, no asentaba el EGRESO
+  // y el INGRESO `rendicion:` quedaba de más en la caja. La fila se toma FOR SHARE:
+  //  · Serializable: si una rendición la actualizó y confirmó después de la foto, Postgres aborta
+  //    con 40001 y `tenantTransaction` reintenta; el reintento ve la rendición y asienta el EGRESO;
+  //  · READ COMMITTED: espera a la rendición en vuelo y la consulta de abajo (foto nueva) la ve.
+  // Se eligió esto y no pasar la rendición a Serializable: es local a la lectura que fallaba, sirve
+  // con cualquier aislamiento de quien llama, y no cambia la re-evaluación por candado de la rendición.
+  // FOR SHARE pide UPDATE sobre la tabla: sin ese permiso nadie con este rol puede rendir, no hay carrera.
+  if (hay[0]?.candado === true) {
+    await tx.$queryRaw`
+      SELECT r."id" FROM "CobroARendir" r
+      WHERE r."tenantId" = ${tenantId} AND r."collectionId" = ${collectionId}
+      FOR SHARE OF r`;
+  }
+  // El detalle del EGRESO nombra ESTE cobro (servicio, clienta, profesional), no el INGRESO de la
+  // rendición: ese dice «Rendición · Vero · 3 cobros» y la devolución es de uno solo.
+  const filas = await tx.$queryRaw<
+    { cashMovementId: string | null; method: string; servicio: string | null; clienta: string | null; profesional: string | null }[]
+  >`
+    SELECT p."cashMovementId", p."method", s."name" AS "servicio", cl."name" AS "clienta", pr."name" AS "profesional"
+    FROM "CobroARendir" r
+    JOIN "RendicionProfesional" p ON p."id" = r."rendicionId" AND p."tenantId" = r."tenantId"
+    LEFT JOIN "Appointment" a ON a."id" = r."appointmentId" AND a."tenantId" = r."tenantId"
+    LEFT JOIN "Service" s ON s."id" = a."serviceId" AND s."tenantId" = a."tenantId"
+    LEFT JOIN "Client" cl ON cl."id" = a."clientId" AND cl."tenantId" = a."tenantId"
+    LEFT JOIN "Professional" pr ON pr."id" = r."professionalId" AND pr."tenantId" = r."tenantId"
+    WHERE r."tenantId" = ${tenantId} AND r."collectionId" = ${collectionId}
+    LIMIT 1`;
+  const f = filas[0];
+  // Sin asiento (rendición de $0, imposible con la retención apagada): nada entró, nada sale.
+  if (!f || !f.cashMovementId) return null;
+  return { cashMovementId: f.cashMovementId, method: f.method, reason: detalleDeCobroRendido(f) };
 }
 
 /**

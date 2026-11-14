@@ -33,6 +33,7 @@ import { PAGO_MIXTO_ACTOR_PREFIX, esAsientoDePagoMixto } from "@/lib/supermercad
 // al cargar el módulo.
 import { CUENTA_CORRIENTE_ACTOR_PREFIX, esAsientoDeCuentaCorriente } from "@/lib/settlement/asiento-libro";
 import { GASTO_PROYECTO_ACTOR_PREFIX } from "@/lib/proyectos/marcas";
+import { RENDICION_ACTOR_PREFIX, esAsientoDeRendicion } from "@/lib/comisiones/rendicion-core";
 
 // Orden CANÓNICO de los medios: es el orden de las columnas de la planilla y el de
 // las columnas de la pantalla. Un solo lugar para que tabla y resumen no se
@@ -129,6 +130,7 @@ const esDetalleDeProyecto = (detalle: string | null | undefined): boolean => /^P
 export type OrigenContable =
   | "venta-mostrador"
   | "cobro-turno"
+  | "rendicion-profesional"
   | "ingreso-manual"
   | "egreso-manual"
   | "retiro"
@@ -148,6 +150,7 @@ export type OrigenContable =
 export const ORIGENES_CONTABLES: readonly OrigenContable[] = [
   "venta-mostrador",
   "cobro-turno",
+  "rendicion-profesional",
   "ingreso-manual",
   "egreso-manual",
   "retiro",
@@ -167,6 +170,10 @@ export const ORIGENES_CONTABLES: readonly OrigenContable[] = [
 export const ORIGEN_CONTABLE_LABEL: Record<OrigenContable, string> = {
   "venta-mostrador": "Venta mostrador",
   "cobro-turno": "Cobro turno",
+  // Lo que entrega la profesional que cobra aparte por los turnos que cobró ella
+  // (comisiones/rendicion-core.ts, marca `rendicion:<id>`). Antes salía como «Ingreso manual» y la
+  // contadora lo buscaba como un cobro sin respaldo: es el cobro de esos turnos, que entra tarde.
+  "rendicion-profesional": "Rendición de profesional",
   "ingreso-manual": "Ingreso manual",
   "egreso-manual": "Egreso manual",
   retiro: "Retiro de caja",
@@ -244,6 +251,8 @@ function marcasDelSistema(): readonly {
       referenciaEnMarca: true,
     }, // collectionId
     { prefijo: COMISION_ACTOR_PREFIX, origen: "comision", referenciaEnMarca: true }, // payoutId
+    // El INGRESO de la rendición de la profesional que cobra aparte: `rendicion:<rendicionId>`.
+    { prefijo: RENDICION_ACTOR_PREFIX, origen: "rendicion-profesional", referenciaEnMarca: true }, // rendicionId
     // El pago a un proveedor desde un proyecto, y su reversa si se anula (proyectos/acciones.ts).
     { prefijo: GASTO_PROYECTO_ACTOR_PREFIX, origen: "gasto-proyecto", referenciaEnMarca: true }, // gastoId
     { prefijo: ANULACION_VENTA_ACTOR_PREFIX, origen: "anulacion", referenciaEnMarca: false },
@@ -338,6 +347,11 @@ export function motivoParaNoBorrar(m: { type: CashMovementType; orderId?: string
     return "Ese movimiento lo generó la caja del mostrador. Corregilo desde el turno, no desde el libro.";
   }
   const marca = String(m.createdBy ?? "");
+  // La plata que rindió la profesional que cobra aparte: los cobros que cubre quedaron marcados
+  // como rendidos; borrar el ingreso dejaría esa plata fuera del libro para siempre.
+  if (esAsientoDeRendicion(m)) {
+    return "Ese ingreso es la rendición de una profesional. No se borra desde el libro: si estuvo mal, cargá una corrección con la fecha de hoy.";
+  }
   if (marca.startsWith(GASTO_PROYECTO_ACTOR_PREFIX)) {
     return "Ese movimiento es el pago de un gasto de proyecto. Corregilo desde el proyecto: anular el gasto asienta la vuelta.";
   }

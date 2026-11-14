@@ -18,6 +18,13 @@ import { LineaDeEstado, PageHeader, Plata, fmtMoneyARS, fmtNumberAR } from "@/co
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import ComisionesPendientes from "./ComisionesPendientes";
 import ComisionesRenglon from "./ComisionesRenglon";
+// T1 (docs/producto/comisiones/LIQUIDACION.md): el período, el detalle por turno y el comprobante
+// por WhatsApp, ARRIBA de lo de siempre. Lo de abajo no cambia.
+import VistaPrevia from "./VistaPrevia";
+import { getComprobantesRecientes, getVistaPreviaDeComisiones } from "@/lib/comisiones/lectura";
+import Rendiciones from "./Rendiciones";
+import { getRendiciones } from "@/lib/comisiones/rendicion-actions";
+import { avisoDeRendicion } from "@/lib/comisiones/rendicion-core";
 
 export const dynamic = "force-dynamic";
 
@@ -27,14 +34,33 @@ const ESTADOS: Record<string, { texto: string; ok: boolean }> = {
   error_nada: { texto: "Ese profesional no tiene comisiones pendientes de liquidar.", ok: false },
   error_prof: { texto: "No se pudo identificar al profesional. Recargá la pantalla y volvé a intentar.", ok: false },
   error_medio: { texto: "Este negocio todavía no separa la transferencia en el libro. No se liquidó nada: elegí otro medio.", ok: false },
+  error_periodo: { texto: "No se entendió el período elegido. No se liquidó nada: volvé a elegirlo.", ok: false },
 };
 
-export default async function ComisionesPage({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
+function estadoDe(status: string): { texto: string; ok: boolean } | undefined {
+  // La vuelta de la rendición de la profesional que cobra aparte (rendicion-actions.ts).
+  return ESTADOS[status] ?? avisoDeRendicion(status);
+}
+
+export default async function ComisionesPage({ searchParams }: { searchParams: Promise<{ status?: string; periodo?: string }> }) {
   const user = await requireApp("comisiones");
-  const [{ status }, overview, nuevo] = await Promise.all([searchParams, getCommissionsOverview(), disenoNuevo()]);
+  const { status, periodo } = await searchParams;
+  const [overview, nuevo, vista, comprobantes, rendiciones] = await Promise.all([
+    getCommissionsOverview(),
+    disenoNuevo(),
+    getVistaPreviaDeComisiones(periodo),
+    getComprobantesRecientes(),
+    getRendiciones(),
+  ]);
   const total = totalALiquidar(overview.pending);
   const canSettle = permisoEfectivo(user, "commissions:manage");
-  const banner = status ? ESTADOS[status] : undefined;
+  const banner = status ? estadoDe(status) : undefined;
+  const rendir = (
+    <Rendiciones
+      lectura={rendiciones}
+      canRegister={permisoEfectivo(user, "cash:manage")}
+    />
+  );
   const aviso = banner && (
     <p
       role="status"
@@ -66,7 +92,9 @@ export default async function ComisionesPage({ searchParams }: { searchParams: P
           ]}
         />
         {aviso}
+        <VistaPrevia vista={vista} comprobantes={comprobantes} canSettle={canSettle} />
         <ComisionesRenglon overview={overview} canSettle={canSettle} volver="/admin/comisiones" />
+        {rendir}
       </main>
     );
   }
@@ -97,7 +125,9 @@ export default async function ComisionesPage({ searchParams }: { searchParams: P
         </p>
       </div>
 
+      <VistaPrevia vista={vista} comprobantes={comprobantes} canSettle={canSettle} />
       <ComisionesPendientes overview={overview} canSettle={canSettle} volver="/admin/comisiones" />
+      {rendir}
     </main>
   );
 }

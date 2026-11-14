@@ -29,7 +29,8 @@ function dbFalsa(respuestas: Record<string, unknown> = {}) {
     {},
     {
       get: (_, modelo) =>
-        new Proxy(
+        // SQL crudo (¿hay tablas de rendición?, CH-011): la base falsa no las tiene.
+        modelo === "$queryRaw" ? async () => [] : new Proxy(
           {},
           {
             get: (__, op) => async (args: Llamada["args"]) => {

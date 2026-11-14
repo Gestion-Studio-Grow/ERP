@@ -188,6 +188,9 @@ test("qué es cada movimiento del libro: por su marca, no por el tipo", () => {
   assert.equal(rubroDeCaja(caja("INGRESO", 1, `${IMPORT_ACTOR_PREFIX}abcd1234`)), "ingreso-manual");
   assert.equal(rubroDeCaja(caja("EGRESO", 1, `${CORTE_INICIAL_ACTOR_PREFIX}2026-08-01`)), "ajuste-inicial");
   assert.equal(rubroDeCaja(caja("INGRESO", 1, `${REINTEGRO_ACTOR_PREFIX}c1`)), "reintegro-proveedor");
+  // CH-011 · la rendición es el cobro diferido de turnos que ya suman en `turnos`: venta, no se cuenta dos
+  // veces ni cae en «ingresos cargados a mano» (criterio provisional a confirmar con la contadora).
+  assert.equal(rubroDeCaja(caja("INGRESO", 1, "rendicion:ren_1")), "venta");
 });
 
 test("costo de lo vendido: guardado primero, el de hoy si la venta no lo guardó, y nunca un $0 inventado", () => {

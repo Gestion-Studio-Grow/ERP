@@ -245,7 +245,7 @@ test("paso 6: pendiente es sólo lo que la liquidación puede liquidar; con sald
     new Map([["ana", 40], ["recep", 0]]),
     new Map([["ana", new Map([["cejas", 0]])]]),
   );
-  assert.deepEqual(r, { pendientes: 2, esperanSaldo: 1 });
+  assert.deepEqual(r, { pendientes: 2, esperanSaldo: 1, esperanRendicion: 0 });
 
   // Con eso, el paso: pendiente con el botón, y los que esperan el saldo dichos aparte.
   const con = evaluarPasos(agostoEnOrden({ comisiones: r }), ABIERTO).find((p) => p.id === "comisiones-liquidadas")!;
@@ -258,6 +258,21 @@ test("paso 6: pendiente es sólo lo que la liquidación puede liquidar; con sald
   )!;
   assert.equal(soloSaldo.estado, "listo");
   assert.match(soloSaldo.detalle, /3 turnos más tienen saldo por cobrar: su comisión se liquida cuando se cobre/);
+});
+
+test("CH-011: el turno con cobros de la profesional sin rendir no queda como pendiente de liquidar; se dice aparte", () => {
+  const cobrado = (precio: number, cobrado: number) => ({ precio, cobros: [{ amount: cobrado, method: "EFECTIVO" as const }] });
+  const turnos: TurnoSinLiquidar[] = [
+    { professionalId: "laura", serviceId: "facial", ...cobrado(37000, 37000), pendienteDeRendir: 37000 }, // sin rendir
+    { professionalId: "laura", serviceId: "facial", ...cobrado(20000, 20000), pendienteDeRendir: 0 }, // rendido
+  ];
+  const r = contarComisionesDelMes(turnos, new Map([["laura", 40]]), new Map());
+  assert.deepEqual(r, { pendientes: 1, esperanSaldo: 0, esperanRendicion: 1 });
+  const soloRendir = evaluarPasos(agostoEnOrden({ comisiones: { pendientes: 0, esperanSaldo: 0, esperanRendicion: 2 } }), ABIERTO).find(
+    (p) => p.id === "comisiones-liquidadas",
+  )!;
+  assert.equal(soloRendir.estado, "listo");
+  assert.match(soloRendir.detalle, /2 turnos esperan que la profesional rinda lo cobrado/);
 });
 
 test("un pendiente no termina en 'App no disponible': sin Libro IVA en el negocio, el paso 3 va sin botón y lo dice", () => {

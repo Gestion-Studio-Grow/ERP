@@ -5,6 +5,8 @@ import { appDelPanelCerrado } from "@/apps/visibles";
 import { getCajaData } from "@/lib/caja-actions";
 import { permisoEfectivo } from "@/lib/capabilities";
 import { getCierreDiarioData } from "@/lib/cierre-diario-actions";
+import { getCobrosARendir } from "@/lib/comisiones/rendicion-actions";
+import { textoARendir } from "@/lib/comisiones/rendicion-core";
 import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
 import { reglaALaVista } from "@/lib/caja/reglas-a-la-vista";
 import { isDemoSandbox } from "@/lib/demo-flag";
@@ -83,7 +85,7 @@ export default async function CajaPage() {
   // base). El turno de cajero sigue consultándose sólo donde hay cajón: sin cajón, es una
   // consulta al pedo, así que espera a saber el rubro (que el layout del panel ya pidió en el
   // mismo pedido) y el día no lo espera a él.
-  const [dia, caja, nuevo, slug, negocio] = await Promise.all([
+  const [dia, caja, nuevo, slug, negocio, aRendir] = await Promise.all([
     getCierreDiarioData(),
     // El turno de cajero (abrir/cerrar/arqueo) es la casilla 8 (`cash:manage`): sin ella no se
     // pide, así el loader no rebota la página entera y el resumen del día se sigue viendo.
@@ -92,6 +94,10 @@ export default async function CajaPage() {
     disenoNuevo(),
     getCurrentTenantSlug(),
     getNegocioApps(user.role),
+    // Cobros de las profesionales que cobran aparte esperando rendición (CH-011): la entrada de la
+    // recepción a /admin/caja/rendiciones. 0 sin `cash:manage` o sin las tablas. Es un aviso: si
+    // falla, la Caja abre igual (sin el enlace) en vez de caerse entera.
+    getCobrosARendir().catch(() => 0),
   ]);
   // Con el día cerrado no se vende (lo dice el servidor): no se ofrece.
   const cobrarVenta = dia.yaCerrado ? null : enlaceCobrarUnaVenta(slug, user.role);
@@ -103,7 +109,7 @@ export default async function CajaPage() {
 
   // DISEÑO NUEVO («Renglón»): los mismos datos, ordenados para quien pasa el día acá.
   // La regla del arqueo, sólo donde hay cajón (el mostrador; CH no la ve): reglas-a-la-vista.ts.
-  if (nuevo) return <CajaRenglon dia={dia} caja={caja} regla={reglaALaVista("caja", caja !== null)} cobrarVenta={cobrarVenta} puedeCargar={puedeCargar} />;
+  if (nuevo) return <CajaRenglon dia={dia} caja={caja} regla={reglaALaVista("caja", caja !== null)} cobrarVenta={cobrarVenta} puedeCargar={puedeCargar} aRendir={aRendir} />;
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-8">
@@ -111,6 +117,11 @@ export default async function CajaPage() {
       {cobrarVenta && (
         <Link href={cobrarVenta.href} className="mb-2 inline-flex min-h-11 items-center text-sm text-strong underline underline-offset-4">
           {cobrarVenta.etiqueta}
+        </Link>
+      )}
+      {aRendir > 0 && (
+        <Link href="/admin/caja/rendiciones" className="mb-2 ml-4 inline-flex min-h-11 items-center text-sm text-strong underline underline-offset-4">
+          {textoARendir(aRendir)}
         </Link>
       )}
       <p className="text-muted mb-6 max-w-2xl">

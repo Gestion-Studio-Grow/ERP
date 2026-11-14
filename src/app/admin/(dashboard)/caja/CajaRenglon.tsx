@@ -13,6 +13,7 @@
 //
 // Un día ya cerrado no se pinta como un día vacío: dice que está cerrado, quién y cómo corregir.
 
+import { textoARendir } from "@/lib/comisiones/rendicion-core";
 import Link from "next/link";
 import type { getCierreDiarioData } from "@/lib/cierre-diario-actions";
 import type { getCajaData } from "@/lib/caja-actions";
@@ -370,6 +371,7 @@ export default function CajaRenglon({
   regla = null,
   cobrarVenta = null,
   puedeCargar = true,
+  aRendir = 0,
 }: {
   dia: Dia;
   caja: Turno | null;
@@ -378,6 +380,8 @@ export default function CajaRenglon({
   cobrarVenta?: { href: string; etiqueta: string } | null;
   /** «Cargar un movimiento» exige `cash:manage` (casilla 8): sin ella no se ofrece. */
   puedeCargar?: boolean;
+  /** Cobros de profesionales que cobran aparte esperando rendición (sólo con `cash:manage`). */
+  aRendir?: number;
 }) {
   const deHoy = dia.movements.filter((m) => m.day === dia.day).length;
   return (
@@ -401,6 +405,11 @@ export default function CajaRenglon({
             {cobrarVenta && (
               <Link href={cobrarVenta.href} className={buttonClasses("outline", "md")} {...atributosBoton("outline", "md")}>
                 {cobrarVenta.etiqueta}
+              </Link>
+            )}
+            {aRendir > 0 && (
+              <Link href="/admin/caja/rendiciones" className={buttonClasses("outline", "md")} {...atributosBoton("outline", "md")}>
+                {textoARendir(aRendir)}
               </Link>
             )}
             {dia.puedeCerrar && (

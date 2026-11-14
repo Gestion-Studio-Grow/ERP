@@ -50,6 +50,7 @@ import {
 import { aFormData, camposDelTurno, camposDeTerminar, leerResultado } from "./campos";
 import CancelarONoVino, { type CierreAbierto } from "./CancelarONoVino";
 import CobrarTurno from "./CobrarTurno";
+import { pagosDelTurno } from "./pagos-core";
 import TerminarTurno from "./TerminarTurno";
 import TurnoCajon from "./TurnoCajon";
 import AvisoDeshacerCierre, { AvisoDeshacerCambio, type CambioParaDeshacer } from "./Deshacer";
@@ -281,6 +282,7 @@ export default function MesaDeTurnos({
             clienta={turnoDeLaHoja.clienta}
             sugerido={turnoDeLaHoja.sugerido}
             saldo={turnoDeLaHoja.saldo}
+            voucher={pagosDelTurno(turnoDeLaHoja).voucher}
             onListo={cerrarHoja}
             onQuedaDebiendo={turnoDeLaHoja.cuentaACobrar ? cerrarHoja : undefined}
           />
@@ -294,6 +296,7 @@ export default function MesaDeTurnos({
             saldo={turnoDeLaHoja.saldo}
             puedeCobrar={cobraLaHoja}
             motivoSinCobro={turnoDeLaHoja.veredicto.ok ? undefined : turnoDeLaHoja.veredicto.motivo}
+            voucher={pagosDelTurno(turnoDeLaHoja).voucher}
             onListo={cerrarHoja}
           />
         )}

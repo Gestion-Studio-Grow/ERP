@@ -15,6 +15,9 @@
 import { claseDeCobro, cobroAnuladoPor } from "@/lib/turnos/anulacion";
 import { METODO_LABEL, type MetodoDePago } from "@/lib/turnos/cobros";
 import { ETIQUETA_DE_TARJETA } from "@/lib/turnos/cobro-con-producto";
+import { MEDIO_VOUCHER } from "@/lib/comisiones/base";
+import { sumarAlCentavo } from "@/lib/dinero/redondeo";
+import { fmtMoneyARS } from "@/components/ui/format";
 import type { TurnoDelDia } from "../agenda-core";
 
 export type RenglonDePago = {
@@ -36,6 +39,8 @@ export type PagosDelTurno = {
   falta: number;
   /** Saldo dado de baja (no es plata que entró). */
   deBaja: number;
+  /** Lo pagado con voucher (no anulado): lo que falta se cobra APARTE del voucher. */
+  voucher: number;
   vacio: boolean;
 };
 
@@ -76,6 +81,28 @@ export function pagosDelTurno(t: Pick<TurnoDelDia, "cobros" | "cobrado" | "preci
     precio: t.precio,
     falta: Math.max(0, t.saldo),
     deBaja: t.condonado,
+    voucher: sumarVoucher(t.cobros, anulados),
     vacio: renglones.length === 0,
   };
+}
+
+function sumarVoucher(cobros: TurnoDelDia["cobros"], anulados: ReadonlySet<string>): number {
+  return sumarAlCentavo(
+    cobros
+      .filter((c) => c.method === MEDIO_VOUCHER && claseDeCobro(c.note) === "cobro" && !(c.id && anulados.has(c.id)))
+      .map((c) => c.amount),
+  );
+}
+
+const pesos = (n: number) => fmtMoneyARS(n, Number.isInteger(n) ? 0 : 2);
+
+/**
+ * El renglón «Falta» de la sección Pagos. Con un voucher pagado, «Falta cobrar» a secas se leía
+ * como si el voucher no hubiera entrado (CH-011): dice que es APARTE del voucher y cuánto cubrió.
+ * PURA.
+ */
+export function rotuloDeLoQueFalta(p: Pick<PagosDelTurno, "falta" | "voucher">): { titulo: string; detalle?: string } {
+  if (p.falta <= 0) return { titulo: "Pagado ✓" };
+  if (p.voucher > 0) return { titulo: "Falta cobrar aparte del voucher", detalle: `El voucher cubre ${pesos(p.voucher)}; el resto, con otro medio.` };
+  return { titulo: "Falta cobrar" };
 }

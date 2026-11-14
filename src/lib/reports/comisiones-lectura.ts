@@ -11,11 +11,13 @@
 
 import type { Prisma } from "@/generated/prisma/client";
 import { aNumero } from "@/lib/debts/resumen-cuentas";
+import { pendienteDeRendirDeLectura } from "@/lib/comisiones/rendicion-repo";
 import { comisionesPendientes, contarTurnosEsperandoSaldo, whereTurnosConComisionPendiente, type ComisionPendiente, type TurnoPendiente } from "./comisiones";
 
 async function leerTurnos(
   db: Prisma.TransactionClient,
-  where: Prisma.AppointmentWhereInput,
+  where: Prisma.AppointmentWhereInput & { tenantId: string },
+  conRendicion = true,
 ): Promise<{ turnos: TurnoPendiente[]; overrides: Map<string, Map<string, number>> }> {
   const turnos = await db.appointment.findMany({
     where,
@@ -34,9 +36,13 @@ async function leerTurnos(
       },
       payment: { select: { status: true, amount: true } },
       collections: { select: { amount: true, method: true } },
-      service: { select: { price: true } },
+      service: { select: { price: true, name: true } },
+      client: { select: { name: true } },
     },
   });
+  const pendienteDeRendir = conRendicion
+    ? await pendienteDeRendirDeLectura(db, where.tenantId, turnos.map((t) => t.id))
+    : new Map<string, number>();
   const overrides = new Map<string, Map<string, number>>();
   for (const t of turnos) {
     if (overrides.has(t.professionalId)) continue;
@@ -57,6 +63,9 @@ async function leerTurnos(
       precio: aNumero(t.priceAtBooking ?? t.service?.price),
       cobros: (t.collections ?? []).map((c) => ({ amount: aNumero(c.amount), method: c.method })),
       payment: t.payment ? { status: t.payment.status, amount: aNumero(t.payment.amount) } : null,
+      servicio: t.service?.name,
+      clienta: t.client?.name,
+      pendienteDeRendir: pendienteDeRendir.get(t.id) ?? 0,
     })),
   };
 }
@@ -69,8 +78,23 @@ export async function leerComisionesPendientes(
   return comisionesPendientes(turnos, overrides);
 }
 
+/**
+ * Los turnos con comisión pendiente tal cual, para la vista previa del período y «Mi liquidación»
+ * (comisiones/vista-previa.ts). El MISMO `where` que la liquidación; `professionalId` acota a una
+ * sola profesional (la de la sesión, en «Mi liquidación»).
+ */
+export function leerTurnosPendientes(
+  db: Prisma.TransactionClient,
+  tenantId: string,
+  professionalId?: string,
+): Promise<{ turnos: TurnoPendiente[]; overrides: Map<string, Map<string, number>> }> {
+  const where = whereTurnosConComisionPendiente(tenantId);
+  return leerTurnos(db, professionalId ? { ...where, professionalId } : where);
+}
+
 /** Los turnos terminados y sin liquidar que esperan a que se cobre el saldo, con o sin cobro todavía. */
 export async function leerTurnosEsperandoSaldo(db: Prisma.TransactionClient, tenantId: string): Promise<number> {
-  const { turnos, overrides } = await leerTurnos(db, { tenantId, status: "COMPLETED", commissionPayoutId: null });
+  // Sólo cuenta el saldo: lo pendiente de rendir no entra en esta cuenta.
+  const { turnos, overrides } = await leerTurnos(db, { tenantId, status: "COMPLETED", commissionPayoutId: null }, false);
   return contarTurnosEsperandoSaldo(turnos, overrides);
 }
