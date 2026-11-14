@@ -301,6 +301,11 @@ Calculadora: sección «La ganancia» del manual (https://claude.ai/artifact/Aa2
   queda descartado. Límite a resolver con el dueño: el plan sirve para el trabajo propio del titular dentro de Claude
   Code (el equipo de GSG); el equipo de MIA corre en el servidor del producto y necesita una clave de la API, paga por
   uso. Los términos leídos el 14/11 no permiten ofrecer el acceso del plan dentro de un producto sin aprobación previa.
+- Buzón en vez de conversación en vivo: «vamos a hacer un buzón de mensajes para la gente. Con pedidos y con
+  respuestas menores a 3 minutos.» El tiempo de respuesta se mide.
+- Modelo de negocio: «Tenemos que hacer un modelo que es Agent as a Service. El RP no es un SaaS, ni ningún producto de
+  GSG es un SaaS, sino que es un Agent as a Service.» Coincide con la tesis de la sección 1 (puestos cubiertos por
+  agentes). A bajar: precio por puesto y resultado, textos, y el encaje de los planes ya decididos de Factoque.
 - Suscripción de Codex disponible para este producto: revisor y segundo constructor acotado.
 - ABIERTO: con qué IA corre la prueba. El dueño planteó dar servicio con suscripciones personales hasta 50 clientes;
   los términos de Anthropic leídos el 14/11 lo prohíben (code.claude.com/docs/en/legal-and-compliance). Sin resolver.
