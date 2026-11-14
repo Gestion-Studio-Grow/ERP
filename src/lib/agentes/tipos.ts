@@ -291,8 +291,6 @@ export const TIPOS_ACCION = [
   "PAUSA",
   "LECTURA_GSG",
   "RESPUESTA_GSG",
-  // 06 C3: una persona de GSG copió la ficha de un pedido de la bandeja para trabajarla con IA.
-  "COPIA_PARA_IA",
 ] as const;
 export type TipoAccion = (typeof TIPOS_ACCION)[number];
 

@@ -60,10 +60,23 @@ export class VigenciaCaida extends Error {
 }
 
 /**
- * Segunda lectura, al FINAL de la transacción que escribe (después de sus escrituras). En READ
- * COMMITTED cada sentencia ve lo confirmado hasta ese momento: una pausa o un apagado confirmados
- * después de la primera lectura se ven acá y la transacción se deshace (hallazgo de certificación
- * 1A). Sin bloqueos ni SQL crudo: gana sólo la escritura cuya última lectura fue anterior a la pausa.
+ * Vigencia para una transacción que ESCRIBE (alta, toma, cierre, reserva de gasto): primero traba la
+ * fila del puesto y recién después lee. `pausarPuestos` actualiza esa misma fila, así que una pausa
+ * o se confirmó antes (y acá se ve) o espera a que esta transacción confirme: no hay ventana
+ * (hallazgo F2 de la 2ª certificación 1A). La traba es un UPDATE sin cambio de valor sobre un puesto
+ * ACTIVO; si la fila no existe se crea igual que en `pausarPuestos`. Sin SQL crudo.
+ */
+export async function vigenciaParaEscribir(tx: Tx, p: { tenantId: string; puesto: string; ahora: Date }): Promise<Vigencia> {
+  await tx.agentePuesto.createMany({ data: [{ tenantId: p.tenantId, puesto: p.puesto, updatedAt: p.ahora }], skipDuplicates: true });
+  await tx.agentePuesto.updateMany({ where: { tenantId: p.tenantId, puesto: p.puesto, estado: "ACTIVO" }, data: { estado: "ACTIVO" } });
+  return vigencia(tx, p);
+}
+
+/**
+ * Segunda lectura, al FINAL de la transacción que escribe (después de sus escrituras). La pausa ya
+ * no puede colarse (la traba de `vigenciaParaEscribir`); esto cubre el APAGADO del equipo, que es una
+ * fila del registro y no traba el puesto: un apagado confirmado durante la transacción la deshace.
+ * Queda el hueco de lo que tarda el COMMIT para el apagado (riesgo aceptado, anotado en el PR).
  */
 export async function exigirVigenciaAlFinal(tx: Tx, p: { tenantId: string; puesto: string }): Promise<void> {
   const v = await vigencia(tx, p);
@@ -151,12 +164,14 @@ export async function equipoPrendidoEn(tenantId: string): Promise<boolean> {
 export async function pausarPuestos(p: { tenantId: string; puestos: readonly string[]; quien: string; actor: string; ahora: Date }): Promise<{ pausados: number }> {
   return tenantTransaction(
     async (tx) => {
+      // Siempre en el mismo orden: dos pausas de varios puestos no se traban entre sí.
+      const puestos = [...new Set(p.puestos)].sort();
       await tx.agentePuesto.createMany({
-        data: p.puestos.map((puesto) => ({ tenantId: p.tenantId, puesto, updatedAt: p.ahora })),
+        data: puestos.map((puesto) => ({ tenantId: p.tenantId, puesto, updatedAt: p.ahora })),
         skipDuplicates: true,
       });
       let pausados = 0;
-      for (const puesto of p.puestos) {
+      for (const puesto of puestos) {
         const r = await tx.agentePuesto.updateMany({
           where: { tenantId: p.tenantId, puesto, estado: "ACTIVO" },
           data: { estado: "PAUSADO", pausadoPor: p.quien, pausadoEl: p.ahora, updatedAt: p.ahora },

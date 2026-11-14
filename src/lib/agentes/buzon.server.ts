@@ -12,7 +12,7 @@ import { tenantTransaction } from "@/lib/rls";
 import type { Prisma } from "@/generated/prisma/client";
 import { exigirCupo, TopeAlcanzado } from "./contadores.server";
 import { registrar, type FilaDeRegistro } from "./registro.server";
-import { esMigracionPendiente, exigirVigenciaAlFinal, rutaDelTextoLibre, textoSinVigencia, vigencia, VigenciaCaida } from "./estado.server";
+import { esMigracionPendiente, exigirVigenciaAlFinal, rutaDelTextoLibre, textoSinVigencia, vigenciaParaEscribir, VigenciaCaida } from "./estado.server";
 import { buscarPuesto, periodoDelTope, PUESTO_DE_LOS_PEDIDOS, puestosVisibles, recorteDeLaVista, TOPES } from "./permisos-core";
 import {
   COLGADO_RECIBIDO_MS,
@@ -126,7 +126,7 @@ export async function dejarPedido(
   try {
     return await tenantTransaction(
       async (tx): Promise<ResultadoAlta> => {
-        const v = await vigencia(tx, { tenantId, puesto: puesto.id });
+        const v = await vigenciaParaEscribir(tx, { tenantId, puesto: puesto.id, ahora });
         if (!v.vigente) return rechazo(v.motivo, textoSinVigencia(v));
 
         const ajuste = await tx.agenteAjuste.findFirst({ where: { tenantId }, select: { objetivoSeg: true } });
@@ -144,7 +144,7 @@ export async function dejarPedido(
               frecuente: frecuente?.id ?? null,
               argumentos: (entrada.tipo === "LISTA" ? (entrada.argumentos ?? {}) : undefined) as Prisma.InputJsonValue | undefined,
               texto,
-              // Lo que veía quien pidió, tomado de SU vista: la ficha de la bandeja lo respeta (06 C4).
+              // Lo que veía quien pidió, tomado de SU vista: quien atienda el pedido después lo respeta.
               recorte: recorteDeLaVista(vista, deps.equipos) as unknown as Prisma.InputJsonValue,
               clave: entrada.clave,
               estado,
@@ -217,7 +217,7 @@ function tomarEnTx(p: { tenantId: string; id: string; userId: string; ahora: Dat
         OR: [{ estado: "RECIBIDO" }, { estado: "EN_CURSO", tomadoHasta: { lt: ahora } }],
       } satisfies Prisma.AgentePedidoWhereInput;
 
-      const v = await vigencia(tx, { tenantId, puesto: fila.puesto });
+      const v = await vigenciaParaEscribir(tx, { tenantId, puesto: fila.puesto, ahora });
       if (!v.vigente) {
         const cerrados = await cerrarSinVigenciaEnTx(tx, { tenantId, where: tomable, puesto: fila.puesto, pedidoId: id, venceEl: fila.venceEl, ahora, v });
         return cerrados ? { tomado: false, motivo: "cerrado_sin_vigencia" } : { tomado: false, motivo: "ocupado" };
@@ -323,7 +323,7 @@ function cerrarEnTx(p: Parameters<typeof cerrarPedido>[0]): Promise<{ cerrado: b
         ? { proveedor: p.rastro.consumo.proveedor, modelo: p.rastro.consumo.modelo, tokensEntrada: p.rastro.consumo.tokensEntrada, tokensSalida: p.rastro.consumo.tokensSalida, microUsd: p.rastro.consumo.microUsd }
         : {};
 
-      const v = await vigencia(tx, { tenantId, puesto: p.puesto });
+      const v = await vigenciaParaEscribir(tx, { tenantId, puesto: p.puesto, ahora });
       if (!v.vigente) {
         const herramientas = p.rastro.acciones.map((a) => a.herramienta).filter(Boolean);
         const ok = await cerrarSinVigenciaEnTx(tx, { tenantId, where: enCurso, puesto: p.puesto, pedidoId: id, venceEl: fila.venceEl, ahora, v, detalle: { herramientas }, consumo });

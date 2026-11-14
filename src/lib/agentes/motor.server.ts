@@ -13,7 +13,7 @@ import "server-only";
 import { tenantTransaction } from "@/lib/rls";
 import { getTenantStore } from "@/lib/tenant-context";
 import { cerrarPedido, tomarPedido, type RastroDelProceso, type ResultadoDelProceso } from "./buzon.server";
-import { exigirVigenciaAlFinal, iaPrendidaEnTx, vigencia, VigenciaCaida } from "./estado.server";
+import { exigirVigenciaAlFinal, iaPrendidaEnTx, vigenciaParaEscribir, VigenciaCaida } from "./estado.server";
 import { lecturaDelNegocio } from "./lectura.server";
 import { registrar } from "./registro.server";
 import { buscarPuesto, decidirLlamada, recortarFilas, tareaDe } from "./permisos-core";
@@ -199,12 +199,12 @@ export async function procesarPedido(id: string, vista: Vista, deps: DepsDelMoto
       const estimado = gasto.estimar({ modelo, caracteresDeEntrada: caracteres, maxTokens });
       const antes = await tenantTransaction(
         async (tx) => {
-          const v = await vigencia(tx, { tenantId, puesto: puesto.id });
+          const v = await vigenciaParaEscribir(tx, { tenantId, puesto: puesto.id, ahora: deps.reloj() });
           if (!v.vigente) return { ok: false as const, motivo: "vigencia" as const, v };
           if (!(await iaPrendidaEnTx(tx, tenantId))) return { ok: false as const, motivo: "ia" as const, v };
           const r = await gasto.reservar(tx, { tenantId, estimadoMicroUsd: estimado, ahora: deps.reloj() });
           if (!r.ok) return { ok: false as const, motivo: "sin_saldo" as const, v };
-          // Si la pausa se confirmó mientras reservábamos, la reserva se deshace con la transacción.
+          // Si el equipo se apagó mientras reservábamos, la reserva se deshace con la transacción.
           await exigirVigenciaAlFinal(tx, { tenantId, puesto: puesto.id });
           return { ok: true as const, reservaId: r.reservaId, v };
         },
@@ -219,19 +219,27 @@ export async function procesarPedido(id: string, vista: Vista, deps: DepsDelMoto
         return await necesitaPersona(antes.motivo === "sin_saldo" ? "Se terminó el presupuesto de IA del mes." : "La IA no está disponible para este negocio.", paso > 0);
       }
 
-      exigirFueraDeTransaccion("PENSAR");
-      const corte = (deps.crearCorte ?? ((ms: number) => AbortSignal.timeout(ms)))(Math.min(CORTE_LLAMADA_MS, restante));
       // Un proveedor que LANZA (en vez de devolver ok:false) no deja la reserva abierta: se cierra
       // con lo estimado, igual que un corte por tiempo (no sabemos cuánto se gastó).
       let resp: Awaited<ReturnType<ProveedorIA["turno"]>>;
       let lanzo = false;
+      exigirFueraDeTransaccion("PENSAR"); // error de programación: que se vea, no se disimula como caída
       try {
+        // Lo que corre entre la reserva y su cierre va dentro de este try (hallazgo F1, 2ª certificación).
+        const corte = (deps.crearCorte ?? ((ms: number) => AbortSignal.timeout(ms)))(Math.min(CORTE_LLAMADA_MS, restante));
         resp = await proveedor.turno({ sistema, mensajes, herramientas: defs, maxTokens, corte });
       } catch {
         lanzo = true;
         resp = { ok: false, motivo: "caida" };
       }
-      const real = resp.ok ? gasto.costo({ modelo: resp.modelo ?? modelo, uso: resp.uso }) : resp.motivo === "tiempo" || lanzo ? estimado : 0;
+      // Si el costo no se puede calcular (p. ej. el proveedor devolvió un modelo sin precio cargado),
+      // la reserva igual se cierra, con lo estimado (hallazgo F1 de la 2ª certificación 1A).
+      let real = estimado;
+      try {
+        real = resp.ok ? gasto.costo({ modelo: resp.modelo ?? modelo, uso: resp.uso }) : resp.motivo === "tiempo" || lanzo ? estimado : 0;
+      } catch {
+        rastro.acciones.push({ tipo: "ERROR", herramienta: null, nivel: null, detalle: { motivo: "costo_sin_precio" } });
+      }
       // Cerrar la reserva vale aunque se haya caído la vigencia: es plata ya gastada.
       await tenantTransaction((tx) => gasto.cerrar(tx, { tenantId, reservaId: antes.reservaId, realMicroUsd: real, ahora: deps.reloj() }), { tenantId });
       microUsd += real;

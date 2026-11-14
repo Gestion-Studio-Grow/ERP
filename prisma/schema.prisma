@@ -4606,7 +4606,7 @@ model AgentePedido {
   respuesta     String?
   /// Recorte de quien dejó el pedido, tomado con su sesión al dejarlo (módulos que ve, proyectos
   /// visibles, si ve los sin proyecto, columnas ocultas). Sólo ids y nombres de módulo/columna: ni
-  /// datos de terceros ni secretos. Lo usa la ficha de la bandeja (06 C4); nunca arma una persona.
+  /// datos de terceros ni secretos. Quien atienda el pedido después lo respeta; nunca arma una persona.
   recorte       Json?
   filas         Json?
   motivo        String?

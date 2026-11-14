@@ -12,7 +12,7 @@ import { bloqueDeDatos, filtrarTexto } from "./texto-seguro-core";
 import { costoMicroUsd, estimadoMicroUsd, periodoDelGasto, precioDe, saldoMicroUsd } from "./gasto-core";
 import { armarRespuesta, sinTenant, validarArgumentos } from "./motor-core";
 import { EQUIPO_ADMINISTRACION } from "./puestos/administracion";
-import { TIPOS_ACCION, type Fila, type Vigencia, type Vista } from "./tipos";
+import type { Fila, Vigencia, Vista } from "./tipos";
 
 const T0 = new Date("2026-11-12T18:00:00.000Z");
 const cobranzas = buscarPuesto([EQUIPO_ADMINISTRACION], "administracion.cobranzas")!.puesto;
@@ -100,7 +100,6 @@ test("recorte guardado (06 C4): sólo módulos, proyectos y columnas; ida y vuel
   for (const malo of [null, undefined, "x", [], {}, { ...r, modulos: "pagos" }, { ...r, proyectos: [1] }, { ...r, veSinProyecto: "no" }, { ...r, columnasOcultas: null }]) {
     assert.equal(restriccionDesdeRecorte(malo), null, `forma inválida: ${JSON.stringify(malo)}`);
   }
-  assert.ok((TIPOS_ACCION as readonly string[]).includes("COPIA_PARA_IA"), "06 C3: el registro admite la copia para IA");
 });
 
 test("buzón: plazo, presupuesto del intento, 30 s para tomar, rescate y estado mostrado", () => {

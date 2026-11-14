@@ -10,7 +10,8 @@
 //   · IA apagada entre el alta y el proceso: ninguna reserva ni llamada;
 //   · pausar es idempotente bajo carrera; reanudar con el equipo apagado no reanuda;
 //   · sin las tablas (migración sin aplicar): el alta devuelve «sin_tablas» y no rompe;
-//   · una pausa confirmada A MITAD del alta, del cierre o de la reserva deshace esa escritura.
+//   · una pausa espera a la escritura que tiene el puesto; un apagado a mitad de una escritura la deshace;
+//   · la reserva de gasto se cierra aunque el proveedor o el costo lancen.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -168,21 +169,20 @@ test("agentes: vigencia sin caché (apagado, pausa antes y en medio del pedido, 
   }
   assert.equal(await tablasDeAgentes(a.id), true);
 
-  // ── 10) Pausa confirmada A MITAD de una transacción que escribe (hallazgo de la certificación) ──
-  // Una fila se traba como dueño; la transacción de la app ya leyó la vigencia y queda esperando
-  // esa fila; se pausa (y se confirma) mientras espera; se suelta. La relectura del final la deshace.
-  // Sin sleeps: se espera a ver en pg_locks un candado pedido y no concedido (la otra conexión, bloqueada).
-  const esperarBloqueo = async () => {
+  // ── 10) Pausa o apagado A MITAD de una transacción que escribe (hallazgos de las certificaciones) ──
+  // Una fila se traba como dueño y la transacción de la app queda esperándola. Sin sleeps: se espera
+  // a ver en pg_locks los candados pedidos y no concedidos (las otras conexiones, bloqueadas).
+  const esperarBloqueos = async (n: number) => {
     for (let i = 0; i < 2000; i++) {
       const filas = await duenio.$queryRawUnsafe<{ n: bigint }[]>(
         `SELECT count(*) AS n FROM pg_locks l JOIN pg_stat_activity a ON a.pid = l.pid WHERE a.datname = current_database() AND NOT l.granted`,
       );
-      if (Number(filas[0].n) > 0) return;
+      if (Number(filas[0].n) >= n) return;
       await new Promise((res) => setImmediate(res));
     }
-    throw new Error("la transacción de la app nunca quedó esperando el candado");
+    throw new Error(`nunca hubo ${n} conexiones esperando un candado`);
   };
-  const conFilaTrabada = async <T>(sql: string, valor: string, mientras: () => Promise<T>, pausar: () => Promise<unknown>): Promise<T> => {
+  const trabarFila = async (sql: string, valor: string) => {
     let soltar!: () => void;
     const suelto = new Promise<void>((res) => (soltar = res));
     let trabada!: () => void;
@@ -196,72 +196,84 @@ test("agentes: vigencia sin caché (apagado, pausa antes y en medio del pedido, 
       { timeout: 60_000 },
     );
     await yaTrabada;
-    const enVuelo = mientras();
-    await Promise.race([esperarBloqueo(), enVuelo.then(() => Promise.reject(new Error("terminó sin esperar el candado")))]);
-    await pausar();
-    soltar();
-    await candado;
-    return enVuelo;
+    return async () => {
+      soltar();
+      await candado;
+    };
   };
+  const enEspera = async <T>(enVuelo: Promise<T>, n: number) =>
+    Promise.race([esperarBloqueos(n), enVuelo.then(() => Promise.reject(new Error("terminó sin esperar el candado")))]);
   const pausarCobranzas = () => pausarPuestos({ tenantId: a.id, puestos: [COBRANZAS], quien: "Duenia A", actor: "user:a", ahora: r.reloj() });
   const reanudar = () => reanudarPuesto({ tenantId: a.id, puesto: COBRANZAS, actor: "user:a", ahora: r.reloj() });
 
-  // 10a · Cierre: no queda RESPONDIDO con el puesto ya pausado; se cierra por el camino sin vigencia.
+  // 10a · Pausa durante un cierre: la pausa ESPERA a que el cierre confirme (traba del puesto), así
+  // que no hay un RESPONDIDO escrito con el puesto ya pausado. Queda en orden: respondido, después pausa.
   const p10 = await lista("toctou-cierre-1");
   assert.ok(p10.ok);
   const toma10 = await tomarPedido({ tenantId: a.id, id: p10.pedido.id, userId: a.duenia.id, ahora: r.reloj() });
   assert.ok(toma10.tomado);
-  const cierre10 = await conFilaTrabada(
-    'SELECT 1 FROM "AgentePedido" WHERE id = $1 FOR UPDATE',
-    p10.pedido.id,
-    () =>
-      cerrarPedido({
-        tenantId: a.id,
-        id: p10.pedido.id,
-        userId: a.duenia.id,
-        puesto: COBRANZAS,
-        intento: toma10.intento,
-        ahora: r.reloj(),
-        resultado: { estado: "RESPONDIDO", respuesta: "respuesta armada", filas: null, motivo: null, conModelo: false },
-        rastro: { acciones: [], consumo: null },
-      }),
-    pausarCobranzas,
-  );
-  assert.deepEqual(cierre10, { cerrado: true, estado: "NECESITA_PERSONA" });
+  const soltar10 = await trabarFila('SELECT 1 FROM "AgentePedido" WHERE id = $1 FOR UPDATE', p10.pedido.id);
+  const cierre10 = cerrarPedido({
+    tenantId: a.id,
+    id: p10.pedido.id,
+    userId: a.duenia.id,
+    puesto: COBRANZAS,
+    intento: toma10.intento,
+    ahora: r.reloj(),
+    resultado: { estado: "RESPONDIDO", respuesta: "respuesta armada", filas: null, motivo: null, conModelo: false },
+    rastro: { acciones: [], consumo: null },
+  });
+  await enEspera(cierre10, 1);
+  let pausaConfirmada = false;
+  const pausa10 = pausarCobranzas().then((x) => ((pausaConfirmada = true), x));
+  await enEspera(pausa10, 2);
+  assert.equal(pausaConfirmada, false, "la pausa espera al cierre que ya tenía el puesto");
+  await soltar10();
+  assert.deepEqual(await cierre10, { cerrado: true, estado: "RESPONDIDO" });
+  assert.deepEqual(await pausa10, { pausados: 1 });
   const c10 = await pedido(p10.pedido.id);
-  assert.equal(c10.respuesta, null, "no se guardó la respuesta después de la pausa");
-  assert.equal(await duenio.agenteAccion.count({ where: { pedidoId: p10.pedido.id, tipo: "RESPUESTA" } }), 0);
-  assert.equal(await duenio.agenteAccion.count({ where: { pedidoId: p10.pedido.id, tipo: "PAUSA" } }), 1);
+  assert.equal(c10.respuesta, "respuesta armada");
+  assert.equal(await duenio.agenteAccion.count({ where: { pedidoId: p10.pedido.id, tipo: "RESPUESTA" } }), 1);
+  // Y con el puesto ya pausado, el alta siguiente se rechaza.
+  const despues10 = await lista("toctou-cierre-2");
+  assert.ok(!despues10.ok && despues10.motivo === "pausado");
   await reanudar();
 
-  // 10b · Alta: el pedido que esperaba su cupo no entra si la pausa se confirmó mientras tanto.
+  // 10b · Apagado durante el alta: la relectura del final la deshace entera (cupo incluido).
   const periodo = new Date(r.reloj().getTime() - 3 * 3_600_000).toISOString().slice(0, 10);
   await duenio.agenteContador.createMany({ data: [{ tenantId: a.id, puesto: "*", tope: "pedidos_por_dia", sujeto: a.duenia.id, periodo, n: 0 }], skipDuplicates: true });
-  const alta10 = await conFilaTrabada(
+  const contador = () => duenio.agenteContador.findMany({ where: { tenantId: a.id, sujeto: a.duenia.id }, select: { tope: true, puesto: true, periodo: true, n: true }, orderBy: [{ tope: "asc" }, { puesto: "asc" }, { periodo: "asc" }] });
+  const cuposAntes = await contador();
+  const soltar10b = await trabarFila(
     `SELECT 1 FROM "AgenteContador" WHERE "tenantId" = $1 AND "tope" = 'pedidos_por_dia' AND "sujeto" = '${a.duenia.id}' FOR UPDATE`,
     a.id,
-    () => lista("toctou-alta-1"),
-    pausarCobranzas,
   );
-  assert.ok(!alta10.ok && alta10.motivo === "pausado");
+  const alta10 = lista("toctou-alta-1");
+  await enEspera(alta10, 1);
+  await interruptor(duenio, a.id, "equipo-agentes", false);
+  await soltar10b();
+  const res10b = await alta10;
+  assert.ok(!res10b.ok && res10b.motivo === "apagado");
   assert.equal(await duenio.agentePedido.count({ where: { tenantId: a.id, clave: "toctou-alta-1" } }), 0, "el alta se deshizo entera");
-  await reanudar();
+  assert.deepEqual(await contador(), cuposAntes, "y no consumió cupo");
+  await interruptor(duenio, a.id, "equipo-agentes");
 
-  // 10c · Reserva: si la pausa se confirma mientras se reserva, la reserva se deshace y no sale la llamada.
+  // 10c · Apagado durante la reserva de gasto: la reserva se deshace y la llamada no sale.
   await interruptor(duenio, a.id, "equipo-agentes-ia");
   const p10c = await libre("toctou-reserva-1");
   assert.ok(p10c.ok && p10c.pedido.estado === "RECIBIDO");
   const g10 = gastoDePrueba();
   const reservarOriginal = g10.reservar;
   g10.reservar = async (tx, datos) => {
-    await pausarCobranzas();
+    await interruptor(duenio, a.id, "equipo-agentes", false);
     return reservarOriginal(tx, datos);
   };
   const prov10 = proveedorDeGuion([{ ok: true, texto: "No debería salir.", llamadas: [], uso: { entrada: 1, salida: 1 }, corte: "end_turn" }]);
-  assert.deepEqual(await procesarPedido(p10c.pedido.id, vista, { ...deps, proveedor: prov10, gasto: g10 }), { procesado: true, estado: "NECESITA_PERSONA" });
-  assert.equal(prov10.llamadas, 0, "sin reserva vigente no hay llamada");
+  const proc10c = await procesarPedido(p10c.pedido.id, vista, { ...deps, proveedor: prov10, gasto: g10 });
+  assert.ok(proc10c.procesado && proc10c.estado !== "RESPONDIDO");
+  assert.equal(prov10.llamadas, 0, "sin vigencia al final de la reserva no hay llamada");
   assert.deepEqual(g10.cierres, [], "nada que cerrar: la reserva se deshizo con su transacción");
-  await reanudar();
+  await interruptor(duenio, a.id, "equipo-agentes");
 
   // 10d · Un proveedor que LANZA no deja la reserva abierta: se cierra con el estimado.
   const p10d = await libre("proveedor-lanza-1");
@@ -276,4 +288,17 @@ test("agentes: vigencia sin caché (apagado, pausa antes y en medio del pedido, 
   assert.ok(proc10d.procesado, "el pedido no queda colgado");
   assert.equal(g10d.reservas, 1);
   assert.deepEqual(g10d.cierres, [100], "la reserva se cierra con el estimado");
+
+  // 10e · Si el costo no se puede calcular (modelo sin precio), la reserva igual se cierra, con el estimado.
+  const p10e = await libre("costo-lanza-1");
+  assert.ok(p10e.ok && p10e.pedido.estado === "RECIBIDO");
+  const g10e = gastoDePrueba();
+  g10e.costo = () => {
+    throw new Error("Sin precio cargado para el modelo x");
+  };
+  const prov10e = proveedorDeGuion([{ ok: true, texto: "Hay clientes.", llamadas: [], uso: { entrada: 1, salida: 1 }, corte: "end_turn" }]);
+  const proc10e = await procesarPedido(p10e.pedido.id, vista, { ...deps, proveedor: prov10e, gasto: g10e });
+  assert.ok(proc10e.procesado);
+  assert.equal(prov10e.llamadas, 1);
+  assert.deepEqual(g10e.cierres, [100], "la reserva se cierra aunque el costo lance");
 });

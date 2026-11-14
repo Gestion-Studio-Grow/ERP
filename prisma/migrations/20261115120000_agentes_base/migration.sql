@@ -274,7 +274,7 @@ ALTER TABLE "AgentePropuesta" ADD CONSTRAINT "AgentePropuesta_estado_check"
   CHECK ("estado" IN ('PENDIENTE', 'EJECUTADA', 'RECHAZADA', 'VENCIDA', 'FALLIDA'));
 ALTER TABLE "AgenteContador" ADD CONSTRAINT "AgenteContador_n_check" CHECK ("n" >= 0);
 ALTER TABLE "AgenteAccion" ADD CONSTRAINT "AgenteAccion_tipo_check"
-  CHECK ("tipo" IN ('LECTURA', 'RESPUESTA', 'VENCIDO', 'PROPUESTA', 'DECISION', 'EJECUCION', 'DERIVACION', 'TOPE', 'RECHAZO', 'ERROR', 'PAUSA', 'LECTURA_GSG', 'RESPUESTA_GSG', 'COPIA_PARA_IA'));
+  CHECK ("tipo" IN ('LECTURA', 'RESPUESTA', 'VENCIDO', 'PROPUESTA', 'DECISION', 'EJECUCION', 'DERIVACION', 'TOPE', 'RECHAZO', 'ERROR', 'PAUSA', 'LECTURA_GSG', 'RESPUESTA_GSG'));
 ALTER TABLE "AgenteGasto" ADD CONSTRAINT "AgenteGasto_montos_check" CHECK ("gastado" >= 0 AND "comprometido" >= 0 AND "llamadas" >= 0);
 ALTER TABLE "AgenteReserva" ADD CONSTRAINT "AgenteReserva_estado_check" CHECK ("estado" IN ('ABIERTA', 'CERRADA', 'VENCIDA'));
 ALTER TABLE "AgenteReserva" ADD CONSTRAINT "AgenteReserva_montos_check" CHECK ("estimado" >= 0 AND ("real" IS NULL OR "real" >= 0));

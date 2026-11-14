@@ -158,8 +158,11 @@ test("agentes: aislamiento entre negocios, RLS de las 11 tablas y registro sólo
   assert.ok(!textoLibre.includes("inventada"), "la «Fuente:» del modelo se descarta");
   assert.ok(textoLibre.includes("(Fuente: Clientes ·"), "los renglones con su origen los pone el código");
 
-  // 06 C3 · el registro admite la copia para IA (el CHECK del tipo la incluye).
-  await duenio.agenteAccion.create({ data: { tenantId: a.id, puesto: COBRANZAS, tipo: "COPIA_PARA_IA", actor: "operator:qa", pedidoId: idA, createdAt: T0 } });
+  // El CHECK del tipo no admite tipos fuera de TIPOS_ACCION (ni como dueño).
+  await assert.rejects(
+    duenio.agenteAccion.create({ data: { tenantId: a.id, puesto: COBRANZAS, tipo: "INVENTADO", actor: "operator:qa", pedidoId: idA, createdAt: T0 } }),
+    /AgenteAccion_tipo_check/,
+  );
 
   // ── 6) FK compuesta: el registro no se cuelga de un pedido de otro negocio (ni como dueño) ──
   await assert.rejects(
