@@ -121,7 +121,7 @@ jobs:
           # Producción se prueba por su dominio público, no por la URL propia del deploy
           # (erp-xxxx.vercel.app): esa tiene la protección SSO de Vercel y responde 302 al login,
           # así que el smoke fallaba en todos los deploys. Mismo dominio que monitor-caidas.yml.
-          PROD_URL: ${{ vars.PROD_URL || 'https://chestetica-erp.vercel.app' }}
+          PROD_URL: ${{ vars.PROD_URL || 'https://chestetica.gsgapp.com.ar' }}
           ENTORNO_EVENTO: ${{ github.event.deployment.environment }}
           COMMIT_EVENTO: ${{ github.event.deployment.sha }}
           URL_MANUAL: ${{ inputs.url }}
