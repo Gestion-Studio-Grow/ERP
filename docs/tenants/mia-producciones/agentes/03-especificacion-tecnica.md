@@ -252,8 +252,10 @@ importar nada prohibido. Se reemplaza por tres cierres:
    llamada de escritura (`.create(`, `.createMany(`, `.update(`, `.updateMany(`, `.upsert(`, `.delete(`,
    `.deleteMany(`, `$executeRaw`, `$queryRaw`).
 3. **En `src/lib/agentes/` sólo se escribe en tablas `Agente*`** y siempre con `tx`: el mismo test exige que toda
-   llamada de escritura sea sobre un delegado `tx.agente…`. Las dos excepciones se nombran una por una: `avisar`
-   (aviso interno, `gestion.server.ts:170`) y, desde la tanda 4, la conciliación (§7.1).
+   llamada de escritura sea sobre un delegado `tx.agente…`, y que el motor **no importe nada de
+   `src/lib/proyectos/`** (así sirve a otro rubro y al equipo de GSG). Las dos escrituras de negocio permitidas se las
+   pasa el rubro por parámetro y se nombran una por una: `avisar` (aviso interno, `gestion.server.ts:170`) y, desde la
+   tanda 4, la conciliación (§7.1).
 
 Tests: `solo-lectura.test.ts` (unidad: `ctx.db.proyectoCuota.update` lanza; un modelo no declarado lanza; `where` de
 otro negocio se pisa) y `guardia-escrituras.test.ts` (estático, lista blanca, probado además contra código de ejemplo
@@ -474,6 +476,7 @@ Deterministas: reloj inyectado, proveedor de guion, `TZ` fija, sin red.
 | Los 30 casos (10 normales, 12 trampa, 4 de memoria, 4 de falla) | Guion | `casos-administracion.test.ts` |
 | Dos negocios, **rol sin bypass**: A ve lo propio (más de cero) y nada de B, en conversación, barrido, huella y ejecución; identificador ajeno → «no existe»; clave compuesta impide colgar de otro negocio; `UPDATE` y `DELETE` sobre `AgenteAccion` rechazados | Postgres | `agentes-aislamiento-postgres.test.ts` |
 | Rol que no ve todos los proyectos ni todas las columnas: no los recibe, y los totales se recalculan | Postgres | `agentes-permisos-postgres.test.ts` |
+| Dos equipos en un negocio: cada persona ve sólo los puestos, charlas, partes y registro de los suyos | Unidad | `equipos.test.ts` |
 | Doble aprobación: una ejecución · dos «crear» a la vez: una propuesta · rehacer tras rechazo · FALLIDA no pisa una decisión ganadora · cuota cobrada en el medio → VENCIDA | Postgres, carrera | `propuestas-carrera-postgres.test.ts` |
 | Cupos: N a la vez no pasan el tope; mismo compromiso dos veces → uno; dos barridos a la vez → un parte y un aviso | Postgres, carrera | `topes-carrera-postgres.test.ts` |
 | Gasto: primera llamada del mes sin fila; N a la vez no pasan el tope; función cortada → la reserva vence y se cobra | Postgres, carrera | `gasto-carrera-postgres.test.ts` |
@@ -538,7 +541,7 @@ negocios provisionados. Hasta confirmarlo, el diseño asume ese caso, que es el 
 6. El formato exacto de un alias bancario no se leyó en la fuente oficial: el filtro frena por palabra y por forma, y
    puede frenar de más. Se ajusta con la medición (`05`, S16).
 7. Declarar `maxDuration` cambia la configuración de una ruta que ya corre en producción (los recordatorios de turnos).
-   Es reversible y entra por PR; el máximo que permite el plan no está leído en la fuente (`05`, S15).
+   Es reversible y entra por PR; el máximo que permite el plan no está leído en la fuente (`05`, S17).
 8. Probar sobre lo real quiere decir que el código y la migración llegan a la base y al despliegue de producción antes
    de que el dueño lo vea andar (§15). Lo que lo acota: interruptor apagado de fábrica, migración sólo aditiva, código
    que tolera la falta de tablas, y CI sin rojos nuevos antes de publicar.

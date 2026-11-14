@@ -3,6 +3,8 @@
 > Diseño del 14/11/2026 (orden del dueño). Sólo diseño: nada de esto está construido, desplegado ni aplicado a
 > ninguna base. Decisiones de base: `docs/sectores/agencia-digital/analisis-mercado/2026-11-14-linea-agentes-ia-para-pymes.md`
 > (§3, 5, 6, 10, 13, 14 y 15). Siguen: `02` funcional, `03` técnica, `04` tandas, `05` decisiones y supuestos.
+> **Corregido el 14/11** tras la revisión adversarial y las decisiones del dueño de ese día: el detalle manda en `03`;
+> la lista de cambios está en `05`, sección F.
 
 ## 1. Qué es, en una frase
 
@@ -41,7 +43,8 @@ Salen de lo que Administración hace hoy en MIA: cobros y pagos sin tablero com�
 | 5 | **Comprobantes** | Revisar rendiciones enviadas y preparar la carga de comprobantes | Va último y sólo «tras prueba medida» (§15, punto 6) |
 
 No son cinco programas: es **un solo motor** con cinco configuraciones (instrucciones, herramientas, topes). El
-equipo de Ale se arma con otro archivo de puestos sobre el mismo motor (ver `03`, §2).
+equipo de Ale, que es el de **Dirección de MIA y vive en el mismo negocio** (decisión del dueño, 14/11), se arma con
+otro archivo de puestos sobre el mismo motor (ver `03`, §2).
 
 **Lo que el equipo no hace, nunca:** registrar cobros o pagos, pagar, emitir facturas, anular, registrar o
 confirmar asientos, aprobar o reintegrar rendiciones, cambiar precios, borrar. Eso queda en una persona (nivel 3).
@@ -59,7 +62,7 @@ dueño, puesto por puesto, después de medir.
 | Coordinación | K3 Informe mensual | 2 | 2 | Queda en el panel. Sólo lee el registro |
 | Cobranzas | C1 Consultar cobros | 0 | 0 | — |
 | Cobranzas | C2 Preparar recordatorio de cobro | 1 | 1 (*) | Queda «listo para enviar»: Mariana lo copia o abre su WhatsApp o su mail. El sistema no envía |
-| Cobranzas | C3 Anotar una promesa de pago o un seguimiento | 2 | 2 | Crea un compromiso con fecha (interno, se puede cancelar) |
+| Cobranzas | C3 Anotar una promesa de pago o un seguimiento | 1 | 1 | La persona confirma con un botón en la charla y el sistema crea el compromiso con fecha (interno, se puede cancelar). La IA no lo crea sola (corrección del 14/11) |
 | Cobranzas | C4 Marcar una cuota como cobrada | 3 | 3 | Deriva: deja el enlace a la cuota |
 | Cuentas a pagar | P1 Consultar pagos | 0 | 0 | — |
 | Cuentas a pagar | P2 Proponer los pagos de la semana | 1 | 1 | Guarda el plan aprobado como compromisos por fecha. No paga |
@@ -122,7 +125,8 @@ flowchart TB
 Tres reglas de este dibujo:
 1. **La IA no toca la base.** Sólo pide herramientas; el código decide si corren, con qué permisos y con qué tope.
 2. **Los datos salen del sistema en cada vuelta** y las cuentas las hace el código (las mismas funciones que usan
-   las pantallas). La IA redacta.
+   las pantallas). La IA escribe el texto que acompaña; los renglones con datos, sus fuentes y lo que sale hacia un
+   cliente de MIA (el recordatorio) los arma el código (corrección del 14/11: `03` §4.2 y §13).
 3. **Las memorias y el registro son tablas propias del negocio**, no del proveedor: cambiar de modelo no pierde nada.
 
 ## 6. Flujo de una tarea de punta a punta
@@ -157,7 +161,9 @@ sequenceDiagram
     Ma->>Ma: Copia o abre su WhatsApp o su mail y lo manda ella
   end
   Ma->>M: «Dijo que paga el viernes»
-  M->>M: Crea compromiso con fecha (nivel 2, tope de compromisos abiertos)
+  M-->>Ma: «¿Anoto que paga el viernes?» (tarjeta con botón)
+  Ma->>M: Anotar
+  M->>M: Crea compromiso con fecha (lo crea el código; tope de compromisos abiertos)
   Note over T,M: El viernes la tarea diaria despierta al puesto
   T->>M: Compromiso del día
   M->>S: ¿La cuota se cobró?

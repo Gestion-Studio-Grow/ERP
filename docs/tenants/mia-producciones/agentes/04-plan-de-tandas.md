@@ -128,10 +128,10 @@ cliente; que el modelo no pueda fijar `tenantId`, importes ni orígenes; que la 
 
 No hay demo para el dueño: prueba en el ambiente de MIA (`03` §15). Pasos, en orden, y de quién es cada uno:
 
-1. El PR de la tanda 1 entra en una tanda de publicación (6 o más PR, un push a `main`) — orquestadora.
-2. **Gate 2:** aplicar la migración en la base donde vive el negocio de MIA, con respaldo previo — **decisión del
-   dueño, PR por PR**. Si el despliegue tiene `MIGRATE_DATABASE_URL`, publicar el PR ya la aplica.
-3. Confirmar en qué base y en qué despliegue vive hoy MIA (`05`, S15: provisional a confirmar).
+1. Confirmar en qué base y en qué despliegue vive hoy MIA (`05`, S15: provisional a confirmar) — sólo lectura.
+2. **Gate 2:** aplicar la migración en esa base, con respaldo previo — **decisión del dueño, PR por PR**. Si el
+   despliegue tiene `MIGRATE_DATABASE_URL`, publicar el PR ya la aplica: los pasos 2 y 3 son entonces uno solo.
+3. El PR de la tanda 1 entra en una tanda de publicación (6 o más PR, un push a `main`) — orquestadora.
 4. Decidir el «cerebro» de la prueba (`05`, D4-bis: abierta) y cargar su configuración.
 5. Prender `equipo-agentes` sólo para MIA, desde la consola del operador.
 6. Cargar a mano datos inventados (clientes, eventos, cuotas vencidas y por vencer).
