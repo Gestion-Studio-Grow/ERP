@@ -98,6 +98,12 @@ export interface DepsConfigCobros {
   env: Record<string, string | undefined>;
   /** La conexión de Mercado Pago activa del negocio, o null. */
   conexionMP(tenantId: string): Promise<{ conexionId: string } | null>;
+  /**
+   * Renueva el token OAuth del negocio si está por vencer, ANTES de leerlo (T3): el cobro era el
+   * único lector que no renovaba, y sin nadie que abriera la pantalla de la cuenta el token moría.
+   * Nunca bloquea el cobro: si falla, se sigue con el token que hay.
+   */
+  renovar?(tenantId: string): Promise<unknown>;
   /** El `access_token` en claro (sólo en memoria) de esa conexión, o null si no lo tiene. */
   tokenDe(tenantId: string, conexionId: string): Promise<string | null>;
   /** Deja constancia de que el negocio cobró con el token global (modo legado). */
@@ -106,6 +112,11 @@ export interface DepsConfigCobros {
 
 /** Config con el token de UNA conexión del negocio. Sin token → falla cerrada. */
 async function configDeConexion(deps: DepsConfigCobros, tenantId: string, conexionId: string): Promise<ConfigCobros> {
+  try {
+    await deps.renovar?.(tenantId);
+  } catch (err) {
+    logger.warn("monitor", "no se pudo renovar el token de Mercado Pago antes del cobro", { tenantId, error: err instanceof Error ? err.name : "error" });
+  }
   const accessToken = await deps.tokenDe(tenantId, conexionId);
   if (!accessToken) {
     throw new CobrosSinConexionError(
@@ -177,6 +188,10 @@ export const depsConfigCobrosDeLaBase: DepsConfigCobros = {
   async conexionMP(tenantId) {
     const { conexionDelNegocio } = await import("@/integraciones/conexiones.server");
     return conexionDelNegocio(tenantId, CLAVE_MERCADOPAGO);
+  },
+  async renovar(tenantId) {
+    const { renovarMPSiHaceFalta } = await import("@/lib/facturita-mp.server");
+    return renovarMPSiHaceFalta(tenantId);
   },
   async tokenDe(tenantId, conexionId) {
     const { leerCredencial } = await import("@/integraciones/conexiones.server");

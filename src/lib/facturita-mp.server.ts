@@ -23,6 +23,7 @@ import {
   darDeBajaConexion,
   renovarConexionOAuth,
   versionDeCredenciales,
+  type ResultadoRenovacion,
 } from "@/integraciones/conexiones.server";
 import { claveMaestraDesdeEntorno } from "@/integraciones/secretos";
 import { CAMPO_SECRETO_WEBHOOK_MP, CAMPO_TOKEN_MP } from "@/plugins/mercadopago/conector";
@@ -134,6 +135,10 @@ export async function desconectarMP(tenantId: string, userId: string): Promise<n
   return n;
 }
 
+/** Con el token vencido, cuánto se espera (sin conexión tomada) a que el ganador renueve: MP corta a los 10 s. */
+const ESPERA_AL_GANADOR_MS = 12_000;
+const PASO_ESPERA_MS = 250;
+
 /**
  * Renueva el access token si vence en menos de 15 días. Un solo renovador gana (candado + `tokenVersion`);
  * si MP rechaza el refresh, la conexión queda «requiere_reconectar» y la pantalla lo dice.
@@ -142,7 +147,7 @@ export async function desconectarMP(tenantId: string, userId: string): Promise<n
 export async function renovarMPSiHaceFalta(
   tenantId: string,
   deps: { env?: Env; pedir?: PedirMP; ahora?: Date } = {},
-): Promise<"no_hacia_falta" | "renovado" | "otro_renovo" | "fallo"> {
+): Promise<ResultadoRenovacion> {
   const env = deps.env ?? process.env;
   const ahora = deps.ahora ?? new Date();
   const cfg = conexionMPDisponible(env);
@@ -155,7 +160,7 @@ export async function renovarMPSiHaceFalta(
     // El candado de `renovarConexionOAuth` cubre releer → pedir a MP → guardar: el que pierde
     // espera, relee y NO le manda a MP el mismo refresh_token (sigue con el token del ganador).
     const pedir = deps.pedir ?? (fetch as unknown as PedirMP);
-    return await renovarConexionOAuth(
+    const r = await renovarConexionOAuth(
       tenantId,
       CONECTOR_MP,
       cx.conexionId,
@@ -184,6 +189,17 @@ export async function renovarMPSiHaceFalta(
       },
       { env },
     );
+    if (r !== "en_curso" || !v.expiraEn || v.expiraEn.getTime() > ahora.getTime()) return r;
+    // Token YA vencido y otro renovando: con el vencido no se puede cobrar. Se espera al ganador
+    // AFUERA de toda transacción (sin retener el pool), releyendo la versión cada tanto.
+    const hasta = Date.now() + ESPERA_AL_GANADOR_MS;
+    while (Date.now() < hasta) {
+      await new Promise((ok) => setTimeout(ok, PASO_ESPERA_MS));
+      const ahoraV = await versionDeCredenciales(tenantId, cx.conexionId, CAMPO_TOKEN_MP);
+      if (!ahoraV) return "no_hacia_falta";
+      if (ahoraV.tokenVersion !== v.tokenVersion) return "otro_renovo";
+    }
+    return "fallo";
   } catch (e) {
     logger.error("facturita", "renovación de Mercado Pago", e, { tenantId });
     return "fallo";

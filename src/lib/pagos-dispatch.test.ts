@@ -57,6 +57,22 @@ test("P1-C4: con conexión, el token sale de la conexión del negocio (aunque ha
   assert.equal(f.auditados.length, 0, "con conexión no hay modo legado");
 });
 
+test("T3: antes de leer el token de la conexión se renueva si hace falta (el cobro no usa un token muerto)", async () => {
+  const f = depsFalsas({}, { "t-a": { conexionId: "con-a", token: "APP_USR-de-a" } });
+  const orden: string[] = [];
+  const tokenDe = f.deps.tokenDe;
+  const deps: DepsConfigCobros = {
+    ...f.deps,
+    renovar: async (t) => void orden.push(`renovar:${t}`),
+    tokenDe: async (t, c) => (orden.push(`token:${t}`), tokenDe(t, c)),
+  };
+  await configCobrosDesde(deps).configDe("t-a");
+  assert.deepEqual(orden, ["renovar:t-a", "token:t-a"]);
+  // Si la renovación revienta, el cobro sigue con el token que hay (no se cae por eso).
+  const cfg = await configCobrosDesde({ ...deps, renovar: async () => { throw new Error("MP caído"); } }).configDe("t-a");
+  assert.deepEqual(cfg.config, { credenciales: { accessToken: "APP_USR-de-a" } });
+});
+
 test("P1-C4: sin conexión y sin MP_MODO_LEGADO → falla cerrada clara, sin tocar el token global", async () => {
   for (const flag of [undefined, "", "0", "true", "si", " 2 "]) {
     const f = depsFalsas({ MP_ACCESS_TOKEN: "APP_USR-global", MP_MODO_LEGADO: flag });

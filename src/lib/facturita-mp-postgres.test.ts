@@ -122,7 +122,7 @@ test("renovación: un solo renovador gana; MP rechaza → «hay que volver a con
     s.mp.renovarMPSiHaceFalta(a.id, { env, pedir: pedirOk, ahora: AHORA }),
     s.mp.renovarMPSiHaceFalta(a.id, { env, pedir: pedirOk, ahora: AHORA }),
   ]);
-  assert.deepEqual([r1, r2].sort(), ["otro_renovo", "renovado"]);
+  assert.ok([r1, r2].includes("renovado") && [r1, r2].some((r) => r === "otro_renovo" || r === "en_curso"), `${r1}/${r2}`);
   assert.equal(llamados, 1, "a MP se le pide UNA renovación");
   const cxA = await s.cx.conexionDelNegocio(a.id, "mercadopago");
   assert.equal(await s.cx.leerCredencial(a.id, cxA!.conexionId, "access_token"), "APP_USR-nuevo-0002");
@@ -139,8 +139,76 @@ test("renovación: un solo renovador gana; MP rechaza → «hay que volver a con
   assert.equal(await s.mp.renovarMPSiHaceFalta(a.id, { env, pedir: rechazo, ahora: AHORA }), "fallo");
   const e = await s.mp.estadoMPDelNegocio(a.id);
   assert.ok(e.conectado && e.problema === "reconectar");
+  // T3: con «requiere_reconectar» no se le vuelve a mandar a MP el refresh rechazado en cada cobro.
+  let reintentos = 0;
+  const contar: PedirMP = async () => (reintentos++, { ok: false, status: 400, json: async () => ({}) });
+  assert.equal(await s.mp.renovarMPSiHaceFalta(a.id, { env, pedir: contar, ahora: AHORA }), "fallo");
+  assert.equal(reintentos, 0);
   // El negocio B no se enteró de nada.
   assert.deepEqual(await s.mp.estadoMPDelNegocio(s.base.b.id), { conectado: false });
+});
+
+test("T3: mientras uno renueva, los demás NO se quedan con conexiones del pool esperando el candado", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const { a } = s.base;
+  const cfg = s.mp.conexionMPDisponible(env)!;
+  await s.mp.guardarConexionMP(a.id, a.duenia.id, tokens("111111", "p", 5), cfg, env); // vence en 5 días: vigente
+  let soltar!: () => void;
+  const enVuelo = new Promise<void>((r) => (soltar = r));
+  let entro!: () => void;
+  const yaPidio = new Promise<void>((r) => (entro = r));
+  let llamados = 0;
+  const pedirLento: PedirMP = async () => {
+    llamados++;
+    entro();
+    await enVuelo; // MP tarda: el ganador sostiene el candado
+    return { ok: true, status: 200, json: async () => ({ access_token: "APP_USR-pool-0002", refresh_token: "TG-pool-0002", expires_in: 15552000, user_id: 111111 }) };
+  };
+  const ganador = s.mp.renovarMPSiHaceFalta(a.id, { env, pedir: pedirLento, ahora: AHORA });
+  await yaPidio;
+  // Pool de 4 (DB_CONNECTION_LIMIT): el ganador tiene 1; tres que llegan después no pueden tomar las otras 3.
+  const t0 = Date.now();
+  const perdedores = await Promise.all([1, 2, 3].map(() => s.mp.renovarMPSiHaceFalta(a.id, { env, pedir: pedirLento, ahora: AHORA })));
+  assert.ok(Date.now() - t0 < 2000, `los que llegan tarde vuelven enseguida (tardaron ${Date.now() - t0} ms)`);
+  assert.deepEqual(perdedores, ["en_curso", "en_curso", "en_curso"]);
+  const cxA = await s.cx.conexionDelNegocio(a.id, "mercadopago");
+  assert.equal(await s.cx.leerCredencial(a.id, cxA!.conexionId, "access_token"), "APP_USR-p-acceso-0001", "siguen con el token vigente");
+  soltar();
+  assert.equal(await ganador, "renovado");
+  assert.equal(llamados, 1, "a MP se le pide UNA renovación");
+  assert.equal(await s.cx.leerCredencial(a.id, cxA!.conexionId, "refresh_token"), "TG-pool-0002");
+});
+
+test("T3: con el token YA vencido, el que llega tarde espera al ganador y sale con el token nuevo", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const { a } = s.base;
+  const cfg = s.mp.conexionMPDisponible(env)!;
+  await s.mp.guardarConexionMP(a.id, a.duenia.id, tokens("111111", "v", -1), cfg, env); // venció ayer
+  let soltar!: () => void;
+  const enVuelo = new Promise<void>((r) => (soltar = r));
+  let entro!: () => void;
+  const yaPidio = new Promise<void>((r) => (entro = r));
+  let llamados = 0;
+  const pedirLento: PedirMP = async () => {
+    llamados++;
+    entro();
+    await enVuelo;
+    return { ok: true, status: 200, json: async () => ({ access_token: "APP_USR-vivo-0002", refresh_token: "TG-vivo-0002", expires_in: 15552000, user_id: 111111 }) };
+  };
+  const ganador = s.mp.renovarMPSiHaceFalta(a.id, { env, pedir: pedirLento, ahora: AHORA });
+  await yaPidio;
+  // Pool de 4: cinco que llegan tarde esperan AFUERA de la transacción; el negocio B sigue con base.
+  const tarde = [1, 2, 3, 4, 5].map(() => s.mp.renovarMPSiHaceFalta(a.id, { env, pedir: pedirLento, ahora: AHORA }));
+  await new Promise((r) => setTimeout(r, 400));
+  assert.deepEqual(await s.mp.estadoMPDelNegocio(s.base.b.id), { conectado: false }, "B no se queda sin conexiones");
+  soltar();
+  assert.equal(await ganador, "renovado");
+  assert.deepEqual(await Promise.all(tarde), ["otro_renovo", "otro_renovo", "otro_renovo", "otro_renovo", "otro_renovo"]);
+  assert.equal(llamados, 1);
+  const cxA = await s.cx.conexionDelNegocio(a.id, "mercadopago");
+  assert.equal(await s.cx.leerCredencial(a.id, cxA!.conexionId, "access_token"), "APP_USR-vivo-0002");
 });
 
 test("certificación M1/M2: reemplazar y desconectar no dejan secretos ni bloquean la cuenta de MP", async (t) => {
