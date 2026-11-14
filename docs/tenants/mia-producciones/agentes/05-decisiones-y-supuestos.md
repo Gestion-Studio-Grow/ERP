@@ -1,7 +1,7 @@
 # Equipo de agentes de Administración · MIA — 05 · Decisiones del dueño y supuestos
 
-> Diseño del 14/11/2026, **corregido el 14/11 tras la revisión adversarial y con las decisiones del dueño de ese día**
-> (sección F). Lo reversible (código, pantallas, textos) ya está decidido en `01` a `04`. Acá va sólo lo que es del
+> Diseño del 14/11/2026, **corregido dos veces ese día**: tras la revisión adversarial (sección F) y tras la
+> verificación del diseño corregido, con los hechos y decisiones nuevas del dueño (sección G). Lo reversible (código, pantallas, textos) ya está decidido en `01` a `04`. Acá va sólo lo que es del
 > dueño: gasto, exposición a terceros, datos de un cliente, migraciones y permisos.
 
 ## A. Decisiones que esperan al dueño
@@ -9,21 +9,23 @@
 Formato: opciones, **recomendada**, por qué, y qué se arriesga con cada una. Las que el dueño ya tomó el 14/11 dicen
 «Decidido» y dejan a la vista lo que implican.
 
-**Abiertas hoy, en orden de urgencia:** D4-bis (cerebro de la prueba) · D13 (migración, Gate 2) · S15 (confirmar dónde
-vive el ambiente de MIA) · D1 y D2 (IA y tope con datos reales) · el resto no frena la construcción.
+**Abiertas hoy, en orden de urgencia:** D15 (en qué negocio prueba el dueño) · D13 (migración, Gate 2, con ensayo en
+una copia) · D4-bis (conversación en vivo: tres caminos) · D1 y D2 (IA y tope con datos reales) · el resto no frena la
+construcción. **Ninguna frena construir la tanda 1**, que se prueba sin clave.
 
 ### D1 · Con qué IA trabaja el equipo cuando haya datos reales (gasto)
 
 | Opción | Qué es | Riesgo |
 |---|---|---|
-| **A (recomendada)** | Construir y probar con el proveedor de guion y datos inventados; contratar la API paga recién para salir en vivo | Ninguno de gasto ahora. La calidad real de redacción se mide más tarde |
-| B | Cargar ya una clave paga con tope bajo para medir los 30 casos contra el modelo real | Gasto antes de la venta (choca con «demo → venta → inversión»). Monto a definir con precios leídos en la fuente |
-| C | Usar el servicio gratis con datos reales | No recomendada: no está aclarado qué hace con lo enviado (`docs/tenants/mia-producciones/README.md:25-29`) |
+| **A (recomendada)** | Construir con el proveedor de guion (sólo tests) y probar en producción lo que calcula el código, sin modelo; contratar la API paga recién para la conversación con datos reales | Ninguno de gasto ahora. La calidad real de redacción se mide más tarde |
+| B | Cargar ya una clave paga con tope bajo para conversar en la prueba y medir los 30 casos contra el modelo real | Gasto antes de la venta (choca con «demo → venta → inversión»). Monto a definir con precios leídos en la fuente |
+| C | Usar el servicio sin cargo de Cloudflare | **Descartada por el dueño (14/11):** «No utilizaremos Cloudflare por ahora». Además no está aclarado qué hace con lo enviado (`docs/tenants/mia-producciones/README.md:25-29`) |
 
 **Lo que cambió con la revisión:** el equipo **no sale en vivo con datos reales sin correr los 30 casos contra el modelo
 real** (`03` §12). El guion prueba el código, no al modelo. Entonces el gasto de la opción B no se evita: se elige
-**cuándo** hacerlo, y a más tardar es antes de cargar el primer dato real. Ninguna suscripción personal sirve para esto
-(decisión del dueño, 14/11).
+**cuándo** hacerlo, y a más tardar es antes de que la IA lea el primer dato real. Ningún plan ni suscripción personal
+sirve para esto (D4-bis). El dueño ya lo dijo el 14/11: «cuando el equipo de Mía aborde el sistema con datos reales,
+vamos a utilizar la API».
 
 ### D2 · Tope de gasto de IA por negocio y por mes
 
@@ -47,23 +49,32 @@ alias bloqueados (`03` §13): el modelo ya no redacta lo que le llega al cliente
 ### D4 · Dónde se prueba — **Decidido por el dueño (14/11/2026)**
 
 **Decisión:** nada de vista previa en Vercel ni de demostración levantada por una sesión. Se construye el producto real
-y **se prueba sobre lo real, en el ambiente de MIA**, que el dueño describe como un QA todavía sin datos reales.
-**Orden:** primero prueba el dueño; después Mariana prueba el equipo de Administración.
+y **se prueba sobre lo real**.
 
-Qué implica técnicamente (detalle en `03` §15 y pasos en `04`, «Prueba sobre lo real»):
+**Hecho confirmado el 14/11 (cierra S15): MIA es producción, compartida con CH.** Entra por el comodín
+`*.gsgapp.com.ar` del proyecto Vercel `erp-ch` (rama `main` del ERP) y su negocio está en la rama `main` de Neon, la
+misma base de CH. Fuente: Factory-GSG `main`, `_accesos/clientes/mia-producciones.md` (verificado contra Vercel y Neon
+por GSG-OPS-010), leída de primera mano en esta corrección. No hay un «ambiente de MIA» aparte.
 
-1. El código de la tanda 1 se publica en el despliegue que atiende a MIA (PR, CI, tanda de 6 o más PR).
-2. **La migración se aplica en la base donde vive el negocio de MIA: es Gate 2 y se eleva al dueño PR por PR** (D13).
-3. El interruptor `equipo-agentes` se prende sólo para el negocio de MIA, desde la consola del operador.
-4. Hace falta un «cerebro» configurado en ese despliegue (D4-bis, abierta).
-5. Los datos de la prueba son inventados y se cargan a mano: la siembra de la demo se niega a correr fuera de una base
-   local (`prisma/seed-mia-producciones.ts:29`).
+Qué implica (detalle en `03` §15 y pasos en `04`, «Prueba sobre lo real»):
+
+1. El código de la tanda 1 se publica en producción y llega a **todos** los negocios, apagado por interruptor.
+   Publicación por PR, CI y tanda; la orquestadora recomienda una tanda de publicación aparte para agentes.
+2. **La migración se aplica a la base que comparten todos los negocios: es Gate 2, del dueño, PR por PR**, con respaldo
+   y con ensayo en una copia antes (D13).
+3. El interruptor `equipo-agentes` se prende sólo en el negocio de la prueba (D15).
+4. **No hace falta ningún «cerebro» para empezar a probar:** lo que calcula el código anda sin modelo. La conversación
+   en vivo es D4-bis.
+5. Se dan de alta usuarios de prueba (Dirección, Administración y Diseño) y los datos son inventados, cargados a mano:
+   la siembra de la demo se niega a correr fuera de una base local (`prisma/seed-mia-producciones.ts:29`).
+6. **Quién prueba:** el dueño. Mariana y el equipo de MIA entran cuando su negocio pase a la API (frase del dueño en
+   D4-bis). Antes se había escrito «después prueba Mariana»: queda corregido.
 
 Lo que se arriesga con lo decidido, para tenerlo a la vista:
 - El código y la migración llegan a producción **antes** de que el dueño lo vea andar. Lo acota: interruptor apagado de
-  fábrica, migración sólo aditiva, código que tolera la falta de tablas y CI sin rojos nuevos.
-- Si MIA vive en la base compartida (S15), la migración se aplica a la base de todos los negocios, y las variables del
-  «cerebro» son del despliegue, no del negocio.
+  fábrica, migración sólo aditiva y ensayada, código que tolera la falta de tablas y CI sin rojos nuevos.
+- Las variables del despliegue alcanzan a todos los negocios: por eso la clave es propia del equipo y la conversación
+  con IA tiene su propio interruptor por negocio (`03` §10 y §12).
 - El registro de la prueba no se borra (es de sólo alta, también en la base): el informe mensual cuenta desde la salida
   en vivo.
 
@@ -74,29 +85,57 @@ bloquea un Preview cuya base tenga al negocio vivo (`scripts/preview-base.mjs:16
 aplicar la migración a mano en esa rama y ocupar un lugar del tope de ramas. La demostración en memoria queda sólo como
 herramienta de quien construye.
 
-### D4-bis · Con qué «cerebro» conversa el equipo en esa prueba — **Abierta**
+### D4-bis · Con qué «cerebro» conversa el equipo en la prueba — **Abierta: vuelve al dueño con tres caminos**
 
-El proveedor de guion (respuestas fijas) alcanza para recorrer el guion de `02` §6, pero **no deja conversar**: el
-dueño no puede preguntar lo que quiera. Para conversar hay dos caminos. **No se usan suscripciones personales como
-motor** (decisión del dueño, 14/11).
+**Lo que ya no depende de esto:** la tanda 1 se prueba **sin ningún cerebro**. Parte, consultas de Cobranzas, registro,
+pausa e interruptor los calcula el código (`03` §10.1; `04`, Prueba A). Lo único que espera esta decisión es la
+**conversación en vivo** (`04`, Prueba B).
 
-| Opción | Qué es | Riesgo |
+**Lo que dijo el dueño (14/11):**
+- «No utilizaremos Cloudflare por ahora».
+- «El plan de Claude lo vamos a utilizar para todo lo que construyamos en prueba hasta que sacamos a producción y luego
+  ahí sí utilizamos la API o pedimos la autorización».
+- «No vamos a utilizar datos reales ni tampoco interactuar con el equipo real de Mía antes de utilizar la API. Es
+  decir, cuando el equipo de Mía aborde el sistema con datos reales, vamos a utilizar la API.»
+
+**Qué permite el plan y qué no** (citas leídas el 14/11 por la orquestadora y por un verificador; esta corrección no
+releyó las páginas: S19):
+- `https://code.claude.com/docs/en/legal-and-compliance`: el acceso del plan es para «ordinary use of Claude Code and
+  other native Anthropic applications»; quien construye productos «should use API key authentication»; no se permite
+  «to route requests through Free, Pro, Max, or Ultra plan credentials on behalf of their users» ni «collect, store, or
+  intermediate Claude.ai credentials». Sin excepción para pruebas.
+- Política de uso (`https://www.anthropic.com/legal/aup`, «Do Not Abuse Our Platform»): prohíbe «Resell, proxy, or
+  otherwise provide access to Claude through unauthorized means, including services that route requests through
+  consumer subscriptions».
+- Términos de consumidor (`https://www.anthropic.com/legal/consumer-terms`): prohíben acceder «through automated or
+  non-human means, whether through a bot, script, or otherwise», salvo con clave de API o permiso explícito. Sanción:
+  suspensión sin aviso y sin reembolso.
+
+**Por lo tanto:** el plan sirve para **construir** y para el trabajo del equipo de GSG dentro de Claude Code. El motor
+del producto corre en el servidor y necesita una clave de la API. El servidor nunca usa ni guarda el acceso del plan
+(`03` §10). El diseño no depende de Cloudflare ni del plan.
+
+**Evaluado y descartado: un «puente de Claude Code».** El 14/11 se evaluó un adaptador en el que el motor dejaba el
+pedido en una cola y un proceso en la computadora del titular del plan lo contestaba con Claude Code. Un verificador
+lo refutó con las citas de arriba: es enrutar pedidos de un producto por una suscripción de consumidor y es acceso
+automatizado sin clave de API. **No está en el diseño** y no se construye salvo un sí por escrito de Anthropic (b).
+
+| Camino | Qué es | Qué se arriesga |
 |---|---|---|
-| G · cupo gratis | El servicio sin cargo que ya usa MIA (Cloudflare Workers AI), sólo con los datos inventados de la prueba | Sin gasto. Nunca se probó con herramientas (sección C, 1): puede fallar casos trampa, y el dueño estaría juzgando el producto con un modelo que no es el final. El cupo es diario y lo comparte con los agentes actuales y las imágenes (`README.md:25-27`). Los datos salen a un tercero que no aclara qué hace con ellos: por eso, sólo inventados. No está verificado que ese despliegue tenga hoy la cuenta cargada (`README.md:31`) |
-| P · clave de API con tope bajo | Una clave paga, en una variable propia del equipo, con el tope de `03` §11 y un límite en la consola del proveedor | **Gasto antes de la venta** (choca con «demo → venta → inversión»): decisión del dueño. Muestra la calidad real. Obliga a adelantar el adaptador pago (`04`, brief 1C). Monto: provisional a confirmar, con precios leídos en la fuente. Ojo: la clave **no** va en `ANTHROPIC_API_KEY`, porque esa variable cambiaría de proveedor a los 7 agentes actuales, sin tope (`ia.server.ts:40` y `:85`) |
-| Sólo guion | Sin conversación libre | Sin gasto y sin datos afuera. Sirve para validar pantallas y flujo, no para juzgar cómo responde |
+| (a) Clave de la API con tope bajo | Una clave paga para la conversación de la prueba, en la variable propia del equipo, con el tope de `03` §11 y un límite puesto también del lado del proveedor. Monto que se habló: US$ 20 (provisional a confirmar) | **Gasto antes de la venta** (choca con «demo → venta → inversión»): decisión del dueño. Muestra la calidad real. La clave **no** va en `ANTHROPIC_API_KEY`: esa variable cambiaría de proveedor a los 7 agentes actuales, sin tope (`ia.server.ts:40` y `:85`). Sólo con datos inventados hasta cumplir `03` §12 |
+| (b) Pedir autorización a Anthropic («contact sales») | La pregunta exacta: «¿Puede el titular de un plan Max correr `claude -p` o el Agent SDK en su propia máquina para contestar pedidos que encola el producto web de su empresa, en pruebas y siendo él el único usuario?» | Sin costo. Sin plazo conocido y la respuesta puede ser no. Hasta tener un sí por escrito no se construye nada sobre el plan |
+| (c) Probar la tanda 1 sin conversación en vivo | Sólo la Prueba A de `04` | Sin gasto y sin datos afuera. El dueño no juzga cómo conversa el equipo hasta que haya clave |
 
-**Recomendación (no es una decisión):** empezar por **G** con datos inventados, sabiendo que mide el flujo y no la
-calidad final, y pasar a **P** cuando el dueño apruebe el gasto. Motivo: respeta «no se gasta antes de la venta» y el
-ambiente todavía no tiene datos reales. Pero el gasto de P llega igual antes de salir en vivo (D1): si el dueño quiere
-juzgar al equipo con el modelo que va a usar de verdad, conviene decidir P ahora, con un tope bajo. Mientras no haya
-decisión, la tanda 1 se construye igual y se prueba con guion.
+**Recomendación (no es una decisión):** (c) ahora, porque no frena nada: la tanda 1 se construye y se prueba igual. En
+paralelo (b), que no cuesta. Y (a) el día que el dueño quiera juzgar la conversación: ese gasto llega igual antes de
+que MIA entre con datos reales (D1). El código es el mismo en los tres caminos: el adaptador de la API queda construido
+en la tanda 1 (`04`, brief 1C) y se prende con la variable de la clave y con `equipo-agentes-ia` en el negocio.
 
 ### D5 · Consentimiento de MIA — **Informado por el dueño (14/11/2026)**
 
 **El dueño informa que el consentimiento de MIA está dado.** Constancia escrita: **a adjuntar** (archivo o enlace en
-`docs/tenants/mia-producciones/`; hoy no está en el repositorio). **Igual no se usan datos reales antes de salir en
-vivo.**
+`docs/tenants/mia-producciones/`; hoy no está en el repositorio). **Igual la IA no lee datos reales antes de la API y
+de las condiciones de `03` §12.**
 
 Para cuando se adjunte, lo que conviene que la constancia diga (se suma al pedido del PR de finanzas, tablero MIA, M26):
 qué datos lee el equipo, a qué proveedor de IA viajan y qué no hace. El proveedor todavía no está elegido (D1 y D4-bis):
@@ -123,7 +162,9 @@ aprueba y Dirección recibe copia de lo aprobado (se puede sumar después).
 recién con clientes pagos.** · B: el mismo Claude por otra nube (segunda cuenta paga). · C: otra familia de modelos
 por API paga. Riesgo de A: en una caída el equipo sigue con números pero sin redacción. B y C son gasto y decisión
 del dueño. **Ninguna suscripción personal es una opción acá** (ni la de Codex ni la de Claude): una suscripción es
-para quien desarrolla, no para dar servicio a un cliente. El dueño lo confirmó el 14/11.
+para quien desarrolla, no para dar servicio a un cliente. El dueño lo confirmó el 14/11. **Tras la segunda
+corrección:** la opción B queda sólo como interfaz; no se construye un segundo adaptador y Cloudflare queda fuera del
+camino por ahora (`03` §10).
 
 ### D9 · Rol de Codex en la construcción
 
@@ -152,16 +193,20 @@ conversación sin haber medido si hace falta.
 
 ### D13 · La migración (Gate 2)
 
-Una sola, aditiva: **10 tablas nuevas** (eran 8; se sumaron el parte y los contadores), sus índices, claves foráneas y
-políticas, y un `REVOKE` que le quita al rol de la app el permiso de editar y borrar **sólo** en la tabla nueva del
-registro. No toca ninguna tabla existente. Se eleva al dueño **PR por PR**, con qué cambia, cómo se deshace (borrar las
-10 tablas; no hay datos de negocio en ellas) y el respaldo previo.
+Una sola, aditiva: **11 tablas nuevas** (eran 8, después 10; la segunda corrección sumó las reservas de gasto), sus
+índices, claves foráneas y políticas, y un `REVOKE` que le quita al rol de la app el permiso de editar y borrar **sólo**
+en la tabla nueva del registro. No toca ninguna tabla existente. Se eleva al dueño **PR por PR**, con qué cambia, cómo
+se deshace (borrar las 11 tablas; no hay datos de negocio en ellas) y el respaldo previo.
 
-**Lo que cambió con la decisión de D4:** probar sobre lo real exige aplicarla **antes** de la prueba del dueño, en la
-base donde vive el negocio de MIA (S15). Si esa base es la compartida y el despliegue tiene `MIGRATE_DATABASE_URL`,
-publicar el PR de la tanda 1 **es** aplicarla (`scripts/vercel-build.mjs:59-66`): ese push también es Gate 2.
-**Recomendación:** aplicarla en la misma ventana que las de MIA que ya esperan («uno por uno, después de corregir»,
-tablero MIA, M12), con un solo respaldo.
+**Dónde se aplica (confirmado, S15):** en la rama `main` de Neon, **la base que MIA comparte con CH y con los demás
+negocios**. Por eso va con dos cuidados: **ensayo en una copia** (una rama de Neon sacada de `main`, `prisma migrate
+deploy` ahí y comprobar tablas, políticas y `REVOKE`) y respaldo con la rotación de 4. Hay que aplicarla **antes** de la
+prueba del dueño. Si `erp-ch` tiene `MIGRATE_DATABASE_URL` (S18: provisional a confirmar), publicar el PR de la tanda 1
+**es** aplicarla (`scripts/vercel-build.mjs:59-66`): ese push también es Gate 2.
+**Recomendaciones:** la de la orquestadora, que los agentes vayan en una tanda de publicación aparte, apagados por
+interruptor; y aplicarla en la misma ventana que las de MIA que ya esperan (tablero MIA, M12), con un solo respaldo.
+La rama del ensayo ocupa un lugar del tope de 10 y borrarla después lo decide el dueño: la rotación automática sólo
+cubre las `respaldo-*`.
 
 **Aparte, y no para ahora:** la defensa de base contra la doble conciliación (tanda 4) sería un índice único sobre
 `ProyectoMovBanco.cuotaId`. Toca una tabla existente y puede chocar con datos ya cargados. Recomendación: resolverlo en
@@ -171,8 +216,21 @@ el código (candado de fila, `03` §7.1) y decidir el índice después de contar
 
 Las decisiones (§15) ponían primero a GSG como cliente cero (seguimiento de clientes) y a MIA segundo. La orden del
 14/11 pone a MIA primero: Administración, después Dirección (S14) y después el equipo de la propia GSG (sección D).
-**Recomendación:** seguir la orden nueva; el motor es el mismo y cada equipo es otro archivo de puestos. Riesgo: MIA no
-tiene operación diaria en el sistema, así que la prueba medida va a ser con datos inventados hasta que salga en vivo.
+**Recomendación:** seguir la orden nueva; el motor es el mismo y cada equipo es otro archivo de puestos. Riesgo: MIA
+empieza a usar el sistema el 18/11 y el equipo de agentes llega después: la prueba del dueño es con datos inventados
+(D15) y la prueba medida con datos reales espera a la API y a los 30 casos.
+
+### D15 · En qué negocio prueba el dueño — **Abierta (nueva: sale de dos hechos que chocan)**
+
+Hechos: (1) MIA vive en producción y empieza a usar el sistema el 18/11 (ficha del cliente y dato de la orquestadora).
+(2) El dueño dijo: sin datos reales y sin el equipo real de MIA antes de la API (D4-bis). Si la tanda 1 se publica
+después del 18/11, el negocio de MIA ya va a tener datos reales.
+
+| Opción | Qué es | Qué se arriesga |
+|---|---|---|
+| **A (recomendada)** | Un negocio de prueba de rubro productora, en producción, con datos inventados: ahí se prenden los interruptores y prueba el dueño. El de MIA queda apagado hasta la API | Un alta en la base de producción (con respaldo, por el alta por comando de siempre): la decide el dueño. Convive con negocios reales, aislado como cualquier otro. Si ya existe un negocio de prueba de productora, se usa ese (provisional a confirmar) |
+| B | El negocio de MIA, sólo si la tanda 1 se publica antes de que entren datos reales | Quedan días hasta el 18/11 y antes hay que construir, certificar, ensayar la migración y publicar. Los datos inventados quedarían mezclados con los reales (borrarlos es decisión del dueño) |
+| C | El negocio de MIA con sus datos reales, sólo con lo que calcula el código (sin IA, nada sale del sistema) | Contradice la frase del dueño tal como está escrita («no vamos a utilizar datos reales»). Sólo si el dueño lo aclara |
 
 ## B. Supuestos — todos «provisional a confirmar»
 
@@ -182,7 +240,7 @@ tiene operación diaria en el sistema, así que la prueba medida va a ser con da
 | S2 | Las tareas de Administración de MIA son las del `01` §3 | Salen de sus planillas y del código, no de una charla con ella | Mostrarle el `01` §3 y §4 al dueño antes de mostrárselo a MIA |
 | S3 | La tarea diaria corre una sola vez (9:00 ART) y no se agrega otra | Sin seguimiento dentro del día | Si hace falta, es decisión de plan de Vercel (gasto) |
 | S4 | Los compromisos tienen fecha, no hora | Alcanza para cobranza | Uso real |
-| S5 | Topes: 10 propuestas por día, 50 compromisos abiertos, 20 pares por conciliación, 40 notas por puesto, 60 mensajes por persona por día, 3 partes a pedido por día | Son el freno; ahora se cuentan con cupo atómico (`03` §6) | Se ajustan con la medición |
+| S5 | Topes: 10 propuestas por día, 50 compromisos abiertos, 20 pares por conciliación, 40 notas por puesto, 60 mensajes por persona por día, 3 partes a pedido por día | Son el freno; se cuentan con cupo atómico y el de mensajes es de cada persona (`03` §6) | Se ajustan con la medición |
 | S6 | El recordatorio usa la moneda del evento y el importe pendiente de la cuota | Hay un defecto abierto de cobro parcial y otro de precio en dólares (tablero MIA, M3) | No salir en vivo con datos reales hasta que cierren |
 | S7 | `ProyectoCuota.monto` y `ProyectoMovBanco.importe` siguen en `Float` hasta que entre el pase a centavos (`prisma/schema.prisma:3852` y `:4079`; tablero MIA, M12) | Conciliación por importe exacto: se compara en centavos enteros | Revisar las herramientas cuando entre ese PR |
 | S8 | Precios de los modelos y forma exacta de la API con herramientas | No se tomaron de memoria | El constructor los lee en la fuente oficial y los cita en el PR |
@@ -192,32 +250,50 @@ tiene operación diaria en el sistema, así que la prueba medida va a ser con da
 | S12 | Timestamp de la migración `20261115120000` | Puede chocar con ramas abiertas | El constructor lo verifica contra las ramas |
 | S13 | Leyes 24.240, 25.326 y 20.488: sin fuente oficial leída | Contrato y descargo | Frente de dirección, antes de firmar con MIA |
 | S14 | **Corregido por el dueño (14/11): el equipo de Ale es el de Dirección de MIA, en el mismo negocio**, y lo prueba Dirección. (Antes se suponía otro negocio.) Sus puestos no están relevados | El motor tiene que admitir más de un equipo por negocio, con rol base y visibilidad por equipo (`03` §2 y §5) | Relevar con el dueño qué puestos quiere Ale; se prueba en la tanda 6 |
-| S15 | **Dónde vive hoy el ambiente de MIA.** El repositorio sólo dice que el alta se hizo el 02/11 con `--produccion` (`docs/tenants/mia-producciones/README.md:95`; `scripts/soporte/alta-negocio.mts:6` y `:37`): indicaría un negocio sin datos reales **dentro de la base de producción compartida**, atendido por el despliegue de producción. No verificado contra Neon ni Vercel; el `CLAUDE.md` de Factory-GSG no lo nombra entre los negocios provisionados | Define a qué base se aplica la migración (D13), a qué despliegue se le carga el «cerebro» (D4-bis) y si las variables alcanzan a otros negocios | Leer en Neon (sólo lectura) si existe el negocio `mia-producciones` y en Vercel qué dominio lo atiende; anotar en la ficha del cliente |
+| S15 | **RESUELTO (14/11).** MIA es producción, compartida con CH: comodín `*.gsgapp.com.ar` del proyecto Vercel `erp-ch` (rama `main` del ERP) y rama `main` de Neon. Fuente: Factory-GSG `main`, `_accesos/clientes/mia-producciones.md`, verificado contra Vercel y Neon por GSG-OPS-010; leída de primera mano en esta corrección | Código apagado por interruptor para todos; migración aditiva a la base compartida, con respaldo y ensayo en una copia (Gate 2); publicación por PR, CI y tanda | Ya confirmado. La ficha vence el 14/12/2026 (regla de los 30 días) |
 | S16 | Forma de un alias bancario: no se leyó en la fuente oficial. El filtro frena por palabra y por forma | Puede frenar de más o de menos | Leer la norma del BCRA y ajustar; medir cuánto frena |
-| S17 | `maxDuration` de la tarea diaria: 120 s provisional; corte de la llamada a la IA: 60 s; vencimiento de la reserva de gasto: 120 s; estimado de tokens de entrada por caracteres | Tiempos y gasto del barrido | El máximo del plan, en la documentación de Vercel; el resto se calibra en la tanda 5 |
+| S17 | `maxDuration` de la tarea diaria y del panel: 120 s provisional; tiempo de una vuelta: ese valor menos 15 s; corte de cada llamada a la IA: 60 s o lo que quede; vencimiento de cada reserva de gasto: 120 s; estimado de tokens de entrada por caracteres | Tiempos y gasto | El máximo del plan, en la documentación de Vercel; el resto se calibra en la tanda 5 |
+| S18 | Si el proyecto `erp-ch` tiene cargada `MIGRATE_DATABASE_URL` | Con la variable, publicar el PR de la tanda 1 aplica la migración: ese push es Gate 2 (D13) | Leerlo en Vercel (sólo lectura) antes de publicar. No se consultó en esta corrección |
+| S19 | Las citas de los términos de Anthropic de D4-bis las leyeron la orquestadora y un verificador el 14/11; esta corrección no releyó las páginas | Deciden que el plan no puede ser motor del producto | Releer las tres páginas antes de escribirle a Anthropic (camino b) |
+| S20 | Que `createMany` con `skipDuplicates` cubra los índices únicos **parciales** escritos a mano en la migración | De eso depende no duplicar propuestas, compromisos ni partes sin SQL crudo (`03` §3) | El primer test de carrera de la tanda 1; si no los cubre, `updateMany` condicional previo |
+| S21 | Nombre de la variable de la clave (`AGENTES_ANTHROPIC_API_KEY`, propuesto), modelo por defecto para la prueba con clave y monto del tope (US$ 20 hablado) | Sin esto no se prende la conversación | El constructor de 1C lee modelos y precios en la fuente oficial; el monto lo confirma el dueño en D4-bis |
+| S22 | Si ya existe en producción un negocio de prueba de rubro productora | Evita un alta nueva para D15 | Lo lee el rol de operación, en sólo lectura |
 
 ## C. Lo que no se pudo verificar
 
-1. Cómo responde el servicio gratis a un pedido con herramientas: nunca se probó contra el servicio real
-   (`README.md` de MIA, «No se pudo probar»). Por eso el adaptador por esquema y el proveedor de guion.
+1. Cómo responde el servicio sin cargo a un pedido con herramientas: nunca se probó. Ya no importa para este diseño:
+   Cloudflare quedó fuera del camino (D4-bis) y no se construye un adaptador para ese servicio.
 2. Estado actual de los PR de MIA posteriores al 14/11 11:40 UTC y si hay migraciones en ramas abiertas.
 3. El cuerpo de `_diseno-agentes.tsx`: se cita como referencia de pantalla, no se leyó entero. (`revisarRespuesta`,
    `consulta-core.ts:156-174`, sí se leyó en la corrección: ya frena links y contactos.)
 4. La propuesta comercial de MIA: es privada y no se abrió; este diseño no copia precios ni su contenido. Si la
    propuesta promete algo sobre agentes, hay que contrastarlo con el `01` §9.
-5. Si la consola del operador ya permite sumar un interruptor nuevo sin tocar más que el catálogo.
-6. **En qué base y en qué despliegue vive hoy el ambiente de MIA** (S15), y si ese despliegue tiene cargadas
-   `MIGRATE_DATABASE_URL` y la cuenta del cupo gratis.
+5. ~~Si la consola del operador ya permite sumar un interruptor nuevo sin tocar más que el catálogo.~~ **Verificado en
+   la segunda corrección:** sí (`InterruptoresCard.tsx:49`, `interruptores.ts:223`).
+6. ~~En qué base y en qué despliegue vive MIA~~ (resuelto, S15). Sigue sin verificar si `erp-ch` tiene cargada
+   `MIGRATE_DATABASE_URL` (S18).
 7. Que la constancia del consentimiento de MIA exista por escrito: el dueño informa que está dado; falta adjuntarla.
+9. Los términos de Anthropic citados en D4-bis no se releyeron en esta corrección (S19).
+10. El adaptador de la API no se puede probar contra el servicio real sin una clave (`03` §16, riesgo 11).
 8. Los tests de la corrección no se corrieron: es un diseño. Los hallazgos se verificaron leyendo el código
    (`archivo:línea` en `03`); el comportamiento con el rol sin bypass lo prueba el primer test de la tanda 1.
 
-## D. Equipo GSG (próximo diseño)
+## D. Equipo de proyecto de GSG (próximo diseño)
 
-**Decisión del dueño (14/11/2026):** además se va a crear un equipo de agentes para la propia GSG, usado desde la
-aplicación real del producto, igual que un cliente. Puestos que nombró: **programador, PM, arquitecto de soluciones y
-testing**. **No se diseña acá.** Va lo que el motor tiene que permitir para que entre como otro archivo de puestos, y
-las preguntas que hay que contestar antes de diseñarlo.
+**No se diseña acá.** Va lo que el dueño decidió el 14/11, lo que el motor tiene que permitir y las preguntas que hay
+que contestar antes de diseñarlo.
+
+**Decisiones del dueño (14/11/2026):**
+- **GSG entra a la base como un cliente real:** «Lo nuestro también tiene que ir subido a la base de datos como
+  corresponde, como si fuera un cliente real […] con métricas reales». Implica dar de alta un negocio GSG en producción
+  (con respaldo y script idempotente).
+- **Qué es el equipo:** el **equipo de proyecto de la consultora**: programador, PM, arquitecto de soluciones y
+  testing. Hoy está asignado al proyecto MIA y a todos los productos que se le venden, y se puede reasignar a otros
+  proyectos. **Construye y mantiene; no lleva administración.** Después vendrá un equipo de mantenimiento.
+- **Dónde corre:** dentro de Claude Code, con el plan de Claude. Es el uso normal del plan (D4-bis). **No corre en el
+  motor del producto** y el servidor no usa el plan.
+- **Cómo se refleja en el panel «Mi equipo» y cómo llegan sus métricas a la base: próximo diseño, sin puente.** El
+  puente con el plan se evaluó y se descartó (D4-bis).
 
 Lo que el motor ya tiene que permitir (y por eso se corrigió ahora):
 
@@ -227,30 +303,27 @@ Lo que el motor ya tiene que permitir (y por eso se corrigió ahora):
    con los roles de `gestion-core.ts`, que son de la productora: el negocio de GSG va a necesitar su propia versión.
 3. **Panel montable fuera de `proyectos`** (S10): los componentes reciben los equipos por parámetro; falta definir en
    qué ruta vive para un negocio que no es productora.
-4. **Herramientas que leen fuera de la base del ERP.** El contrato (`leer`, `Fila`, `Origen`) no exige que el dato
-   venga de Prisma, pero hoy todo origen es una pantalla del sistema. Un PM o un programador leen de otro lado: hace
-   falta decidir cómo entra una fuente externa (credencial, límite de tiempo, costo) y tratarla como dato no confiable.
-5. **Acciones con efecto afuera.** Hoy el motor sólo escribe en sus tablas y tiene una única escritura de negocio
-   permitida. Un programador o un agente de testing que «ejecuta» algo necesita una clase de herramienta nueva, con su
-   nivel, su huella y su registro. Hasta diseñarlo, todo lo que no sea leer es nivel 3 (lo hace una persona).
-6. **Tope de gasto propio** del negocio de GSG, con clave de API propia (ninguna suscripción personal como motor).
+4. **Registro y métricas que no dependen de un proveedor:** las tablas del equipo guardan qué se hizo, quién y cuánto
+   costó, venga de donde venga. Que el trabajo hecho en Claude Code quede anotado ahí es parte del próximo diseño.
+5. **Herramientas que leen fuera de la base del ERP y acciones con efecto afuera:** hoy todo origen es una pantalla del
+   sistema y el motor sólo escribe en sus tablas. Hasta diseñarlo, todo lo que no sea leer es nivel 3 (lo hace una
+   persona).
 
 Preguntas abiertas (del dueño o del próximo diseño):
 
-1. **¿Qué negocio de GSG existe en el sistema?** El `CLAUDE.md` de Factory-GSG lista `beauty-spa`, `magra`,
-   `shinevelas` y `adosmanos`; ninguno es GSG. ¿Se da de alta uno? ¿Con qué rubro y qué módulos?
-2. **¿De dónde lee datos un PM?** ¿Del tablero y de la página de pendientes de Factory-GSG, de GitHub, de las sesiones?
-   Ninguno vive en la base del ERP.
-3. **¿De dónde lee un programador y un arquitecto?** ¿El repositorio del ERP, los ADR, el CI? ¿Con qué acceso?
-4. **¿Qué puede ejecutar cada uno?** Programador: ¿propone un cambio o abre un PR? Testing: ¿corre suites, dónde y
-   contra qué base? PM: ¿sólo informa o abre y cierra tareas? Arquitecto: ¿sólo recomienda?
-5. **¿Cómo convive con lo que ya existe?** GSG ya trabaja con sesiones y agentes de Claude Code (orquestadora,
-   `gsg-ingeniero`, `gsg-certificador`). ¿El equipo del producto los reemplaza, los consulta o sólo muestra su estado?
+1. **El negocio GSG:** ¿con qué rubro y qué módulos se da de alta? El `CLAUDE.md` de Factory-GSG lista `beauty-spa`,
+   `magra`, `shinevelas` y `adosmanos`; ninguno es GSG.
+2. **¿Qué son «métricas reales»?** ¿Tareas, PR, tests, costo en US$, horas? ¿De dónde salen (GitHub, sesiones,
+   `medir-consumo.mjs`, tablero)? Ninguna vive hoy en la base del ERP.
+3. **¿Cómo llegan a la base** sin que el servidor use el plan? (Por ejemplo, que la propia sesión de Claude Code las
+   escriba al terminar. A diseñar y a contrastar con los términos.)
+4. **¿Cómo se asigna y se reasigna** el equipo a un proyecto o a un cliente, y qué ve cada cliente de ese trabajo?
+5. **¿Qué puede ejecutar cada puesto** desde el panel, si es que algo? Hoy la respuesta es: nada, sólo se ve.
 6. **¿Quién aprueba?** El dueño decide con un clic y los roles ejecutan (`10-GOBIERNO/roles-y-accesos.md`): ¿el panel
-   «Mi equipo» de GSG pasa a ser ese lugar, o sigue siendo el tablero?
-7. **Seguridad:** un agente dentro del producto que lee código de plata y de seguridad de todos los clientes. ¿Qué
-   revisa el responsable de seguridad antes de prenderlo?
-8. **Gasto:** cuatro puestos técnicos consumen mucho más que cobranzas. ¿Con qué tope y medido contra qué?
+   de GSG pasa a ser ese lugar, o sigue siendo el tablero?
+7. **Seguridad:** qué revisa el responsable de seguridad antes de mostrar en un panel el estado de trabajo sobre código
+   de plata y de seguridad de todos los clientes.
+8. **Equipo de mantenimiento:** cuándo empieza y en qué se diferencia.
 
 ## E. Aviso de arranque (Paso 0)
 
@@ -293,3 +366,45 @@ Cambios que salen de la corrección y nadie pidió, para que estén a la vista:
 - **El equipo usa una variable de clave propia**, no `ANTHROPIC_API_KEY`, para no cambiar a los agentes actuales (`03` §10).
 - **Las tablas pasan de 8 a 10** (D13).
 - **`02` §6 apuntaba a `03` §14 para el ambiente de prueba; era §15.** Corregido.
+
+## G. Cambios por la verificación del 14/11
+
+Segunda corrección. Un verificador adversarial revisó el diseño corregido (commit `951cc6a`) y concluyó que la tanda 1
+no se podía abrir así. Cada hallazgo se verificó contra el código antes de corregir. **Ninguno resultó falso.**
+
+| Hallazgo | Qué cambió | Dónde |
+|---|---|---|
+| **H1** · `ctx.db` no decía sobre qué cliente se arma | Cierto. Se arma sobre el `prisma` con RLS (`rls.ts:86`, `:139-143`), nunca sobre `basePrisma`, y lanza si lo llaman dentro de una transacción (`rls.ts:118-119`) o con otro negocio en el contexto. Test «más de cero filas» con el rol sin bypass | `03` §6.1 punto 1, §14; `04` brief 1A |
+| **H2a** · La prueba terminaba en «se prueba con guion», y el guion es sólo de tests | Cierto. El proveedor de guion no existe en producción. La tanda 1 entrega lo que el código calcula sin modelo (parte a pedido y consultas rápidas) y eso es lo que se prueba sin clave | `03` §10 y §10.1; `04` Prueba A; D4-bis |
+| **H2b** · Faltaba el alta de usuarios | Cierto. Es el paso 5 de «Antes de probar»: Dirección, Administración y Diseño | `04`; `03` §15; `02` §6 |
+| **H2c** · El guion pedía cosas de las tandas 2 y 4 | Cierto. El parte de la tanda 1 trae sólo cobros; cada paso del guion dice su tanda y si necesita IA | `02` §1.1 y §6; `03` §10.1; `04` |
+| **H3a** · Conversar y armar el parte sin protección de doble envío | Cierto. Clave de envío generada por el navegador; únicos en `AgenteMensaje` y `AgenteParte`; el reenvío no llama al modelo ni gasta otro cupo | `03` §3, §4.3; `02` §4 (23) |
+| **H3b** · «60 mensajes por persona» sin `userId` en la clave | Cierto. `AgenteContador` suma `sujeto` a su clave | `03` §3, §6 punto 4, §11 |
+| **H3c** · Un solo vencimiento para todas las reservas de gasto | Cierto. Tabla nueva `AgenteReserva`: una fila por llamada, con su vencimiento y su cierre. `AgenteGasto` pasa a `gastado` y `comprometido` | `03` §3, §11; `04` brief 1C; D13 (11 tablas) |
+| **H3d** · Pausa e interruptor no se volvían a mirar al escribir | Cierto. `vigencia(tx)` al abrir cada transacción que escribe; al decidir una propuesta, candado de fila sobre el puesto | `03` §7, §12.1; `04` reglas comunes y brief 2A |
+| **H4** · Brief 1B: cita equivocada del interruptor, secciones sin indicar, dependencias incompletas | Cierto: en `gestion.server.ts:33-60` hay actor y permisos, no interruptor. El brief cita `actorActual` (`:33-42`), `puede` (`:44-46`), `exigirEditar` (`:56-60`) y el interruptor en `interruptores.server.ts:56-59`; nombra las secciones de `03` y todo lo que usa de 1A; 1A arranca con un commit de contratos | `04` briefs 1A y 1B; `03` §13 |
+| **H5a** · «Sin código nuevo en la consola» contra «trabajo de la tanda 5» | **Una respuesta:** prender y apagar sale del catálogo, sin código nuevo (verificado: `InterruptoresCard.tsx:49`, `interruptores.ts:223`), desde la tanda 1. La tanda 5 sólo suma fijar el tope de gasto por negocio | `03` §12; `04` tanda 5; sección C punto 5 |
+| **H5b** · `cambiaLasApps: true` daba vista previa y auditoría equivocadas | **Una respuesta: `cambiaLasApps: false`** en los dos interruptores (verificado: `interruptores-core.ts:294`, `:384`, `:394`). La app aparece por código: `layout.tsx:276-277` | `03` §2, §12; `04` briefs 1A y 1B |
+| **H5c** · La guardia pedía sólo `tx.agente…` y el gasto necesitaba `$executeRaw` | **Una respuesta: no hay SQL crudo en el motor.** Cupos y gasto se rediseñaron con `skipDuplicates`, `updateMany` condicional y `updateManyAndReturn`; la guardia prohíbe `$executeRaw` y `$queryRaw` en toda la carpeta | `03` §3, §6, §6.1 punto 3, §11; `04` reglas comunes |
+| **H6** · Una vuelta larga seguía escribiendo y gastando después de pausar o apagar | Cierto. Vigencia y reserva en la misma transacción antes de cada llamada; después del corte sólo se cierra la reserva ya tomada y se registra; la respuesta no se guarda. Además la vuelta tiene un tiempo total (6 pasos de 60 s no entraban en 120 s) | `03` §4.3, §12.1, §14; `02` §4 (24) |
+
+Hechos y decisiones nuevas del dueño, incorporados:
+
+| # | Qué | Dónde quedó |
+|---|---|---|
+| N1 | S15 resuelto: MIA es producción, compartida con CH | S15, D4, D13; `03` §15; `04` encabezado y «Antes de probar» |
+| N2 | Sin Cloudflare; el plan de Claude no es motor del producto; la tanda 1 se prueba sin clave y la conversación se prende con la clave propia; el «puente» con el plan, evaluado y descartado | D1, D4-bis, D8; `03` §1 (8), §2, §10, §10.1; `04` brief 1C y Pruebas A y B |
+| N3 | GSG entra a la base como cliente real; el equipo de GSG es el equipo de proyecto de la consultora y corre en Claude Code | Sección D (sigue siendo próximo diseño) |
+| N4 | Agentes en una tanda de publicación aparte; migración con ensayo en una copia; MIA empieza a usar el sistema el 18/11 | D13, D15; `03` §15, §16 (10); `04` |
+
+Cambios que salen de esta corrección y nadie pidió, para que estén a la vista:
+- **Segundo interruptor, `equipo-agentes-ia`.** La clave se carga en un despliegue que atiende a todos los negocios;
+  sin un interruptor propio, cualquier negocio con el equipo prendido mandaría sus datos al proveedor (`03` §10, §12).
+- **Las tablas pasan de 10 a 11** (`AgenteReserva`) y varias suman columnas (`clave`, `sujeto`). Sigue siendo una sola
+  migración aditiva (D13).
+- **Decisión nueva D15** (en qué negocio prueba el dueño) y **Mariana pasa a probar después de la API**, por la frase
+  del dueño.
+- **El parte de la tanda 1 trae sólo cobros**; pagos y bancos entran con la tanda 4 (`02` §1.1).
+- **El adaptador para modelos sin herramientas (`proveedor-esquema`) sale del diseño**; la opción B queda como interfaz.
+- **El gasto estricto se construye en la tanda 1** (brief 1C), no en la tanda 3.
+- **Una vuelta que se cortó no se retoma sola:** botón «Reintentar» (`03` §4.3).
