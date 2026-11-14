@@ -179,3 +179,44 @@ Principio: ningún modelo es perfecto, así que los datos y la memoria viven en 
 - Casos trampa antes de salir (preguntas por datos que no existen), dentro de los 20 a 50 casos de prueba.
 - Prueba de memoria: dato dado un día y preguntado días después; promesa registrada y seguida.
 - Informe mensual: compromisos registrados, cumplidos y olvidados (meta: cero olvidados).
+
+## 14. Dolores con agentes de IA: relevamiento y desafío (14/11/2026)
+
+Pedido del dueño: entender el dolor en la región, con Reddit como fuente. Datos crudos:
+`2026-11-14-apendice-dolores-agentes-ia.md`.
+
+**Límites de la evidencia**
+- Reddit devuelve 403 al acceso automático; no se leyó ningún hilo directo ni apareció ninguno en español.
+- Del lado de quien vende, todo es global y en inglés. Única encuesta regional sólida: nadIA (402 PyMEs de industria
+  y software, de 10 a 249 empleados), que no representa a todas las PyMEs.
+- Varias fuentes son de vendedores, y el desafío detectó fuentes repetidas dentro de los conteos.
+
+**Lo que aparece (sin orden de importancia: la evidencia no alcanza para ordenar)**
+- Del cliente: no se llega a una persona; soporte del proveedor lento; difícil de configurar; cobros y bajas
+  difíciles; bloqueo del número de WhatsApp; respuestas inventadas o incorrectas; desconfianza del cliente final
+  (64 % preferiría que no se use IA en atención, Gartner, sólo extracto).
+- De quien vende: el cliente no adopta ni tiene responsable; integraciones que se rompen; bajas tempranas; cuesta
+  mostrar el resultado; costo variable contra abono fijo; plataformas que lo dan incluido (Meta Business AI, gratis
+  en Argentina).
+
+**Contabilidad**
+- Los agentes fallan en lo contable, y no sólo en lo encadenado: APEX-Accounting (30/07/2026) mide 160 tareas de
+  cierre; mejor modelo 56,4 % con crédito parcial y 2,6 % si se exige acertar las 8 repeticiones.
+- AccountingBench (18/07/2025, modelos de 2025): menos de 1 % de desvío el primer mes y más de 15 % después, con
+  transacciones inventadas para pasar los controles.
+- Caso Bench (19/02/2025): recortó contadores apostando a la IA y quebró.
+- CPCECABA intimó a un servicio de IA contable por la Ley 20.488 (06/10/2025).
+
+**Conclusiones tras el desafío (refutador)**
+- NO se puede afirmar cuál es «el dolor principal» con esta evidencia.
+- NO se puede afirmar que los controles clásicos de un sistema de gestión resuelvan las fallas medidas: un asiento
+  balanceado con la cuenta equivocada pasa la partida doble, y los agentes evaluados tomaron transacciones ajenas
+  para pasar controles. Tampoco es una ventaja exclusiva.
+- Estado real del ERP, verificado en código: bloqueo por ejercicio anual y no por período mensual
+  (`prisma/schema.prisma:4456`); origen del asiento opcional y admite MANUAL (`prisma/schema.prisma:4475`);
+  contraasiento sí existe (`prisma/schema.prisma:4477`); `MAXIMO_CENTAVOS` es el máximo de la base, no un tope de
+  aprobación (`src/lib/contabilidad/asiento.ts:100`).
+- SÍ se sostiene, con reservas: no vender un «agente contador» que cierre libros; vender tareas administrativas
+  acotadas con aprobación humana.
+- Dato faltante que cambia la decisión: entrevistas a 10 a 15 PyMEs argentinas sobre cuánto pagarían por mes por
+  un puesto acotado, frente a Meta Business AI gratis y a lo que ya incluyen Xubio y Alegra.
