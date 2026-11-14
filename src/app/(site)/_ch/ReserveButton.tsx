@@ -52,9 +52,9 @@ export default function ReserveButton({
       // instantáneo aunque su contenido no viaje en el HTML de la página.
       onPointerEnter={precargar}
       onFocus={precargar}
-      // En el celular, 44 px de alto como mínimo (el piso táctil): el «Reservar» del encabezado
-      // medía 37. En la PC queda como siempre.
-      className="ch-reserve-btn max-sm:min-h-11"
+      // 44 px de alto como mínimo (el piso táctil): el «Reservar» del encabezado medía 37.
+      // También en tablet (768 px), que es táctil aunque pase el corte `sm`.
+      className="ch-reserve-btn min-h-11"
       style={{
         background: "var(--text-strong)",
         color: "var(--text-on-accent)",

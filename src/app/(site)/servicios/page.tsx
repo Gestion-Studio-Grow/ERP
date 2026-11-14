@@ -137,6 +137,9 @@ export default async function ServiciosPage() {
           href="/"
           style={{
             ...versalitas,
+            display: "inline-flex",
+            alignItems: "center",
+            minHeight: 44,
             color: "color-mix(in srgb, var(--accent) 78%, #000)",
             textDecoration: "underline",
             textUnderlineOffset: 5,
