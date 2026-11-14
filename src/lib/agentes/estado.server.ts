@@ -63,12 +63,13 @@ export class VigenciaCaida extends Error {
  * Vigencia para una transacción que ESCRIBE (alta, toma, cierre, reserva de gasto): primero traba la
  * fila del puesto y recién después lee. `pausarPuestos` actualiza esa misma fila, así que una pausa
  * o se confirmó antes (y acá se ve) o espera a que esta transacción confirme: no hay ventana
- * (hallazgo F2 de la 2ª certificación 1A). La traba es un UPDATE sin cambio de valor sobre un puesto
- * ACTIVO; si la fila no existe se crea igual que en `pausarPuestos`. Sin SQL crudo.
+ * (hallazgo F2 de la 2ª certificación 1A). La traba es un UPDATE de `updatedAt` sobre la fila del puesto;
+ * si la fila no existe se crea igual que en `pausarPuestos`. Sin SQL crudo.
  */
 export async function vigenciaParaEscribir(tx: Tx, p: { tenantId: string; puesto: string; ahora: Date }): Promise<Vigencia> {
   await tx.agentePuesto.createMany({ data: [{ tenantId: p.tenantId, puesto: p.puesto, updatedAt: p.ahora }], skipDuplicates: true });
-  await tx.agentePuesto.updateMany({ where: { tenantId: p.tenantId, puesto: p.puesto, estado: "ACTIVO" }, data: { estado: "ACTIVO" } });
+  // Traba siempre (también un puesto PAUSADO, para que un reanudar no abra la ventana), con el reloj lógico.
+  await tx.agentePuesto.updateMany({ where: { tenantId: p.tenantId, puesto: p.puesto }, data: { updatedAt: p.ahora } });
   return vigencia(tx, p);
 }
 
