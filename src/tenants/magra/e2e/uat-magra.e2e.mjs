@@ -35,6 +35,11 @@ await duenioDb.businessSettings.updateMany({
   where: { tenantId: magra.id },
   data: { shortLabel: null, addressLine: null, hoursLabel: null, contactNote: null, whatsapp: null },
 });
+// El cobro por Mercado Pago es un módulo que se activa por negocio (no viene en la semilla de la carnicería):
+// se prende acá, como lo haría el dueño, para recorrer el pago desde «gracias» con avisos simulados.
+if (!magra.modules.includes("mercadopago")) {
+  await duenioDb.tenant.update({ where: { id: magra.id }, data: { modules: [...magra.modules, "mercadopago"] } });
+}
 
 const b = await chromium.launch({ executablePath: process.env.PW_CHROMIUM ?? "/opt/pw-browsers/chromium" }).catch(() => chromium.launch());
 const errores = [];
@@ -234,7 +239,7 @@ try {
     ok("2.4", Boolean(codigoWeb) && /Pedido recibido/i.test(await p.locator("body").innerText()), `checkout: «¡Pedido recibido!» con el número #${codigoWeb}`);
     await foto(p, "tienda-gracias-390");
     // Con Mercado Pago (stub + avisos simulados), la clienta puede pagar el pedido desde la misma pantalla.
-    const pagarMp = p.getByRole("link", { name: /Pagar con Mercado Pago/ }).or(p.getByRole("button", { name: /Pagar con Mercado Pago/ }));
+    const pagarMp = p.getByRole("link", { name: /Pagar (ahora )?con Mercado Pago/ }).or(p.getByRole("button", { name: /Pagar (ahora )?con Mercado Pago/ }));
     ok("2.4b", await pagarMp.first().waitFor({ timeout: 10000 }).then(() => true, () => false), "en «gracias» aparece «Pagar con Mercado Pago»");
     await ctx.close();
   }
