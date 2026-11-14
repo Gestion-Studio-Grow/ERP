@@ -26,6 +26,8 @@ import {
 } from "@/lib/facturita-onboarding";
 import { BOTON_PRINCIPAL, BOTON_SECUNDARIO, FOCO } from "../estilos";
 import { CASILLA_GSG as CASILLA, linkCanal, type CanalGsg } from "../contacto";
+import { CAMPO_TRAMPA, validarEmail } from "@/lib/factoque/alta-web-form";
+import type { RespuestaDelPedido } from "@/lib/factoque/alta-web.server";
 
 // Rediseño 29/10/2026 (fronts/facturita/DISENO.md §5.3): sólo cambian clases y estructura visual
 // (la tarjeta pasa a hoja del talonario, campos h 56, barra fija con el botón del paso en el
@@ -81,13 +83,26 @@ function MensajeError({ id, texto }: { id: string; texto?: string }) {
   );
 }
 
-export default function AltaAsistente({ canal, mpDisponible }: { canal: CanalGsg; mpDisponible: boolean }) {
+export default function AltaAsistente({
+  canal,
+  mpDisponible,
+  pedirAlta,
+}: {
+  canal: CanalGsg;
+  mpDisponible: boolean;
+  /** La acción del alta autoservicio (./acciones.ts, viene de page.tsx). Sin ella, el alta operada de siempre. */
+  pedirAlta?: (f: FormData) => Promise<RespuestaDelPedido>;
+}) {
   const [paso, setPaso] = useState(0);
   const [datos, setDatos] = useState<DatosAlta>(ALTA_VACIA);
   const [errores, setErrores] = useState<ErroresAlta>({});
   // «ok»: se copió (aviso visible); «fallo»: el portapapeles no anduvo → el resumen a la vista, seleccionable.
   const [copia, setCopia] = useState<"nada" | "ok" | "fallo">("nada");
   const [alcanzado, setAlcanzado] = useState(0);
+  // Alta autoservicio (orden del dueño 08/11): el pedido al servidor y su respuesta.
+  const [pedido, setPedido] = useState<{ estado: "nada" | "enviando" | "listo" | "error"; texto: string }>({ estado: "nada", texto: "" });
+  const [errorMail, setErrorMail] = useState<string | undefined>();
+  const trampa = useRef<HTMLInputElement>(null);
   const titulo = useRef<HTMLHeadingElement>(null);
   const primerMontaje = useRef(true);
   const textoManual = useRef<HTMLTextAreaElement>(null);
@@ -179,6 +194,12 @@ export default function AltaAsistente({ canal, mpDisponible }: { canal: CanalGsg
       if (n) e.nombre = n;
       const c = validarCuitEmisor(datos.cuit);
       if (!c.ok) e.cuit = c.error;
+      const m = pedirAlta ? validarEmail(datos.email ?? "") : null;
+      setErrorMail(m ?? undefined);
+      if (m) {
+        setErrores(e);
+        return;
+      }
     }
     if (paso === 2 && !datos.condicion) e.condicion = "Elegí una opción para seguir.";
     if (paso === 3 && !datos.sinPuntoVenta) {
@@ -192,6 +213,28 @@ export default function AltaAsistente({ canal, mpDisponible }: { canal: CanalGsg
   const cuit = validarCuitEmisor(datos.cuit);
   const mensaje = mensajeActivacion(datos);
   const completa = altaCompleta(datos);
+  // Con punto de venta y mail, el alta es autoservicio. Sin punto de venta, el camino de siempre (lo armamos juntos).
+  const autoservicio = Boolean(pedirAlta) && completa && !datos.sinPuntoVenta && !validarEmail(datos.email ?? "");
+
+  const crearCuenta = async () => {
+    if (pedido.estado === "enviando" || !pedirAlta) return;
+    setPedido({ estado: "enviando", texto: "" });
+    const f = new FormData();
+    f.set("nombre", datos.nombre);
+    f.set("cuit", datos.cuit);
+    f.set("condicion", datos.condicion);
+    f.set("puntoVenta", datos.puntoVenta);
+    f.set("email", datos.email ?? "");
+    f.set(CAMPO_TRAMPA, trampa.current?.value ?? "");
+    try {
+      const r = await pedirAlta(f);
+      if (r.ok) setPedido({ estado: "listo", texto: r.mensaje });
+      else setPedido({ estado: "error", texto: "frenado" in r ? r.mensaje : "Falta algún dato: volvé a los pasos anteriores y revisalos." });
+    } catch {
+      setPedido({ estado: "error", texto: "No pudimos mandar el pedido. Revisá tu conexión y probá de nuevo." });
+    }
+    requestAnimationFrame(() => aviso.current?.scrollIntoView({ block: "nearest" }));
+  };
 
   const copiar = async () => {
     try {
@@ -307,6 +350,36 @@ export default function AltaAsistente({ canal, mpDisponible }: { canal: CanalGsg
               )}
               <MensajeError id={id("cuit-error")} texto={errores.cuit} />
             </div>
+            {pedirAlta && (
+            <div>
+              <label htmlFor={id("email")} className="fx-alta-label">
+                Tu mail
+              </label>
+              <p id={id("email-ayuda")} className="fx-alta-ayuda">
+                Ahí te mandamos el enlace para confirmar el alta y elegir tu contraseña.
+              </p>
+              <input
+                id={id("email")}
+                type="email"
+                className={INPUT}
+                value={datos.email ?? ""}
+                onChange={(e) => {
+                  cambiar("email", e.target.value);
+                  setErrorMail(undefined);
+                }}
+                autoComplete="email"
+                inputMode="email"
+                aria-invalid={Boolean(errorMail)}
+                aria-describedby={`${id("email-ayuda")}${errorMail ? ` ${id("email-error")}` : ""}`}
+              />
+              <MensajeError id={id("email-error")} texto={errorMail} />
+            </div>
+            )}
+            {/* Trampa para robots: fuera de la vista y del teclado; una persona nunca la completa. */}
+            <div aria-hidden="true" style={{ position: "absolute", left: "-10000px", width: 1, height: 1, overflow: "hidden" }}>
+              <label htmlFor={id("trampa")}>No completar</label>
+              <input id={id("trampa")} ref={trampa} name={CAMPO_TRAMPA} type="text" tabIndex={-1} autoComplete="off" defaultValue="" />
+            </div>
           </div>
         )}
 
@@ -397,7 +470,7 @@ export default function AltaAsistente({ canal, mpDisponible }: { canal: CanalGsg
             <ol className="mt-5 space-y-4">
               {PASOS_CERTIFICADO_PROPIO.map((p, i) => (
                 <li key={p} className="flex gap-3 text-base">
-                  <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[var(--fx-verde)] text-sm font-semibold tabular-nums text-white">
+                  <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[var(--fx-cobre)] text-sm font-semibold tabular-nums text-white">
                     {i + 1}
                   </span>
                   <span className="pt-1">{p}</span>
@@ -442,6 +515,12 @@ export default function AltaAsistente({ canal, mpDisponible }: { canal: CanalGsg
                   {datos.sinPuntoVenta ? "Lo armamos juntos" : datos.puntoVenta}
                 </dd>
               </div>
+              {autoservicio && (
+                <div>
+                  <dt>Mail</dt>
+                  <dd>{(datos.email ?? "").trim().toLowerCase()}</dd>
+                </div>
+              )}
               <div>
                 <dt>Certificado en ARCA</dt>
                 <dd>
@@ -450,6 +529,12 @@ export default function AltaAsistente({ canal, mpDisponible }: { canal: CanalGsg
               </div>
             </dl>
 
+            {autoservicio ? (
+              <p className="mt-6 text-base text-[var(--fx-tenue)]" data-qa="autoservicio">
+                Al tocar «Crear mi cuenta» te mandamos un mail para confirmar. Hasta que lo confirmes no se crea nada.
+                Después elegís tu contraseña y conectás ARCA desde Mi cuenta, con tu clave fiscal.
+              </p>
+            ) : (
             <p className="mt-6 text-base text-[var(--fx-tenue)]" data-qa="adonde-mandarlo">
               {baseWhatsApp ? (
                 <>Mandanos este resumen por WhatsApp y te escribimos para activar la cuenta.</>
@@ -461,15 +546,26 @@ export default function AltaAsistente({ canal, mpDisponible }: { canal: CanalGsg
               )}{" "}
               Todavía no guardamos nada: estos datos quedan sólo en tu pantalla hasta que los mandes.
             </p>
+            )}
             <p className="mt-3 text-[0.9375rem] leading-relaxed text-[var(--fx-tenue)]">
-              Al mandarlo aceptás los{" "}
+              {autoservicio ? "Al crear la cuenta" : "Al mandarlo"} aceptás los{" "}
               <a href="/facturita/terminos" className={`rounded underline underline-offset-2 hover:text-strong ${FOCO}`}>términos</a>{" "}
               y que usemos tus datos para darte de alta y emitir tus facturas, como dice la{" "}
               <a href="/facturita/privacidad" className={`rounded underline underline-offset-2 hover:text-strong ${FOCO}`}>política de privacidad</a>.
               Podés pedir acceso, corrección o borrado cuando quieras (Ley 25.326).
             </p>
 
-            {completa ? (
+            {autoservicio ? (
+              <p
+                ref={aviso}
+                role="status"
+                aria-live="polite"
+                className={`mt-5 text-base font-medium ${pedido.estado === "error" ? "text-danger" : "text-success"}`}
+                data-qa="aviso-alta"
+              >
+                {pedido.texto}
+              </p>
+            ) : completa ? (
               // «Copiar» queda como alternativa a «Mandar»: en compu va en la fila de abajo; en el celular,
               // acá (la barra fija lleva sólo el botón principal).
               <div className="mt-6 fx-solo-celu">
@@ -482,9 +578,11 @@ export default function AltaAsistente({ canal, mpDisponible }: { canal: CanalGsg
                 Falta algún dato: volvé a los pasos anteriores y revisalos.
               </p>
             )}
+            {!autoservicio && (
             <p ref={aviso} role="status" aria-live="polite" className="mt-3 text-base font-medium text-success" data-qa="aviso-copia">
               {copia === "ok" ? (baseWhatsApp ? "Copiado: pegalo en el chat de WhatsApp con nosotros." : `Copiado: pegalo en un mail a ${CASILLA}.`) : ""}
             </p>
+            )}
             {copia === "fallo" && (
               <div className="mt-3">
                 <p role="alert" className="text-base font-medium text-danger">
@@ -517,7 +615,19 @@ export default function AltaAsistente({ canal, mpDisponible }: { canal: CanalGsg
               {paso === 0 && mpDisponible ? "Sí, conectarlo" : paso === 4 ? "Ver el resumen" : "Seguir"}
             </button>
           )}
-          {paso === PASOS.length - 1 && completa && (
+          {paso === PASOS.length - 1 && autoservicio && pedido.estado !== "listo" && (
+            <button
+              type="button"
+              className={BOTON_PRINCIPAL}
+              onClick={crearCuenta}
+              disabled={pedido.estado === "enviando"}
+              aria-busy={pedido.estado === "enviando"}
+              data-qa="crear-cuenta"
+            >
+              {pedido.estado === "enviando" ? "Mandando…" : "Crear mi cuenta"}
+            </button>
+          )}
+          {paso === PASOS.length - 1 && completa && !autoservicio && (
             <div className="fx-alta-grupo">
               <a href={linkMandar} target="_blank" rel="noopener noreferrer" className={BOTON_PRINCIPAL} data-qa="mandar-resumen">
                 {baseWhatsApp ? "Mandar por WhatsApp" : "Mandar por mail"}

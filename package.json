@@ -73,6 +73,8 @@
   "devDependencies": {
     "@electric-sql/pglite": "^0.4.1",
     "@electric-sql/pglite-socket": "^0.1.1",
+    "@neondatabase/serverless": "1.2.0",
+    "@prisma/adapter-neon": "7.8.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/node-forge": "^1.3.14",
@@ -88,6 +90,7 @@
     "playwright": "^1.61.1",
     "tailwindcss": "^4",
     "tsx": "^4.22.4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "undici": "8.12.3"
   }
 }

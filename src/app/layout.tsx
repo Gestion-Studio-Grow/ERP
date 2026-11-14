@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import { FUENTES_CH } from "@/design/fuentes-ch";
 import { getTenantBrand, resolveAccent, tenantFaviconDataUri } from "@/lib/branding";
 import { gsgIdentityEnabled, identityAttr, tenantBrandSheetEnabled } from "@/lib/identity";
@@ -34,17 +34,21 @@ export const dynamic = "force-dynamic";
 // Excepción temporal: Fraunces + Hanken (src/design/fuentes-ch.ts, SIN precarga) siguen colgadas de <html> por
 // Facturita, que las toma de la raíz (src/app/facturita/piel.ts) y está en otra rama. Sin precarga no bajan nada en
 // las vidrieras que no las pintan. Se van de acá cuando facturin ponga `FUENTES_CH` en su layout.
-const geistSans = Geist({
+const geistSans = localFont({
+  src: [
+    { path: "../fonts/geist/geist-latin-wght-normal.woff2", weight: "100 900", style: "normal" },
+  ],
   variable: "--font-geist-sans",
-  subsets: ["latin"],
   // Sin precarga en la raíz: las vidrieras pintan su propia letra y no la necesitan. El panel la precarga con su
   // propia declaración (src/design/fuentes-panel.ts, mismo archivo).
   preload: false,
 });
 
-const geistMono = Geist_Mono({
+const geistMono = localFont({
+  src: [
+    { path: "../fonts/geist-mono/geist-mono-latin-wght-normal.woff2", weight: "100 900", style: "normal" },
+  ],
   variable: "--font-geist-mono",
-  subsets: ["latin"],
   // Monoespaciada: la usan pantallas puntuales (códigos, importes técnicos), no el
   // grueso del panel → sin preload.
   preload: false,

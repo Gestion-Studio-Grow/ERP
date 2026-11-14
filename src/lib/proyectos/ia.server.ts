@@ -315,7 +315,7 @@ export async function contextoDeAgente(a: Actor, id: AgenteId, proyectoId: strin
       const r = (await recuadrosDeCuotas(tenantId)).resumen;
       secciones.push({
         titulo: "Cuentas de la empresa, en pesos",
-        lineas: [`A cobrar ${r.aCobrar} (en 7 días ${r.aCobrar7}); vencido ${r.cobrosVencidos} en ${r.cantCobrosVencidos} cobros`, `A pagar ${r.aPagar} (en 7 días ${r.aPagar7}); vencido ${r.pagosVencidos} en ${r.cantPagosVencidos} pagos`],
+        lineas: [`A cobrar ${r.aCobrar} (de eventos ${r.aCobrarDeEventos}, de la empresa ${r.aCobrarDeEmpresa}; en 7 días ${r.aCobrar7}); vencido ${r.cobrosVencidos} en ${r.cantCobrosVencidos} cobros`, `A pagar ${r.aPagar} (en 7 días ${r.aPagar7}); vencido ${r.pagosVencidos} en ${r.cantPagosVencidos} pagos`],
       });
     }
     return bloqueDeDatos(secciones);

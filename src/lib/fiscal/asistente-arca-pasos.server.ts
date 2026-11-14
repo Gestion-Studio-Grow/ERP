@@ -17,6 +17,7 @@ import {
   pedirContadorDelNegocio,
   pedirPaseDelNegocio,
   registrarPruebaOk,
+  versionAntesDeProbar,
   type Resultado,
 } from "@/lib/fiscal/asistente-arca.server";
 
@@ -43,6 +44,8 @@ export async function pasoCargarCertificado(tenantId: string, actor: string, for
 }
 
 export async function pasoProbar(tenantId: string, actor: string, plano: string): Promise<Resultado> {
+  // La versión del certificado ANTES de probar: si cambia mientras ARCA contesta, la prueba no verifica nada.
+  const probada = await versionAntesDeProbar(tenantId);
   const r = await verificarCertificadoDelNegocio(tenantId);
   logger.info("arca.verificacion", `Verificación del certificado con ARCA (asistente del cliente, ${plano})`, {
     tenantId,
@@ -51,9 +54,19 @@ export async function pasoProbar(tenantId: string, actor: string, plano: string)
     ...(r.ok ? { entorno: r.entorno, conCae: !!r.prueba } : { paso: r.paso }),
   });
   if (r.ok) {
-    await registrarPruebaOk(tenantId, actor, r.entorno).catch((e) => {
-      logger.warn("arca.asistente", "No se pudo registrar la prueba con ARCA", { tenantId, err: e instanceof Error ? e.name : "error" });
-    });
+    const tarde = await registrarPruebaOk(tenantId, actor, r.entorno, probada).then(
+      () => null,
+      (e) => {
+        // Otro negocio ya verificó este CUIT (alta web, gana el primero) o el certificado cambió durante la prueba:
+        // eso se le dice. Lo demás se anota.
+        if (e instanceof Error && (e.name === "CuitVerificadoEnOtroNegocioError" || e.name === "PruebaDeOtroCertificadoError")) {
+          return e.message;
+        }
+        logger.warn("arca.asistente", "No se pudo registrar la prueba con ARCA", { tenantId, err: e instanceof Error ? e.name : "error" });
+        return null;
+      },
+    );
+    if (tarde) return { ok: false, motivo: tarde };
   }
   const texto = mensajeDeVerificacion(r);
   return r.ok ? { ok: true, mensaje: texto } : { ok: false, motivo: texto };
