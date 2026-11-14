@@ -157,3 +157,25 @@ En el ERP ya hay un antecedente: los agentes de MIA se bloquean según los permi
 
 Página con el flujo completo, el rol del dueño, la primera venta, la instalación, el mantenimiento y casos
 (MIA Producciones, estética, comercio, fábrica): https://claude.ai/artifact/Aa27VY7nXTKCNgia66fG3Y
+
+## 13. Requisito del dueño: que no inventen y que no olviden (14/11/2026)
+
+Principio: ningún modelo es perfecto, así que los datos y la memoria viven en el sistema y no en el modelo.
+
+**Para que no invente**
+- Cada dato del negocio (saldo, precio, stock, turno) se lee del sistema en el momento; el agente sólo redacta.
+- Cuentas y fechas las hace el código.
+- Cada respuesta indica el origen del dato; si no está, responde «no lo tengo» y deriva.
+- Antes de ejecutar una acción de nivel 2, el código vuelve a comparar contra el sistema.
+
+**Para que no olvide: tres memorias en nuestra base, por negocio**
+- Historial: lo que pasó con cada contacto.
+- Agenda de compromisos: cada promesa o pendiente es una tarea con fecha; el sistema despierta al agente ese día.
+- Cuaderno del puesto: reglas y excepciones del negocio, visibles y corregibles por el cliente en el panel.
+- Al ser propia, la memoria no cambia si se cambia de modelo o se usa la opción B. La herramienta de memoria de
+  Claude la implementa quien construye y está disponible en las cinco plataformas (tabla de disponibilidad, 14/11).
+
+**Cómo se comprueba**
+- Casos trampa antes de salir (preguntas por datos que no existen), dentro de los 20 a 50 casos de prueba.
+- Prueba de memoria: dato dado un día y preguntado días después; promesa registrada y seguida.
+- Informe mensual: compromisos registrados, cumplidos y olvidados (meta: cero olvidados).
