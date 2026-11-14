@@ -157,5 +157,10 @@ test("PIN nuevo: 4 números, ni repetidos ni escaleras, y la confirmación igual
 test("el PIN se guarda con scrypt como la contraseña (nunca en claro)", async () => {
   const h = await hashPassword("4826");
   assert.match(h, /^scrypt\$[0-9a-f]{32}\$[0-9a-f]{128}$/);
-  assert.ok(!h.includes("4826"));
+  // El formato ya prueba que no está en claro: todo el texto es «scrypt$<sal>$<hash>» en hexadecimal.
+  // No se busca «4826» dentro del texto: son 4 dígitos hex y aparecen por azar en la sal o el hash (~0,24 %).
+  assert.notEqual(h, "4826");
+  assert.ok(await verifyPassword("4826", h));
+  assert.equal(await verifyPassword("4827", h), false);
+  assert.notEqual(h, await hashPassword("4826")); // con sal: el mismo PIN no da el mismo hash
 });

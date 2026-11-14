@@ -87,6 +87,13 @@ export async function PestanaResumen({ a, cab, vista }: { a: Actor; cab: Cabecer
                 <label className={etiqueta}>Lugar<input name="lugar" maxLength={120} defaultValue={p.lugar ?? ""} className={campo} /></label>
                 <label className={etiqueta}>Armado<input type="date" name="fechaArmado" defaultValue={fechaParaInput(p.fechaArmado)} className={campo} /></label>
                 <label className={etiqueta}>Inicio del evento<input type="date" name="fechaEvento" defaultValue={fechaParaInput(p.fechaEvento)} className={campo} /></label>
+                {cab.venta.disponible && !!cab.formula.vigente && (
+                  <label className={etiqueta}>
+                    Sin fecha exacta: cuándo es
+                    <input name="fechaEventoTexto" maxLength={120} placeholder="a confirmar · primeros días de diciembre" defaultValue={cab.venta.fechaEventoTexto ?? ""} aria-describedby="ayuda-fecha-texto" className={campo} />
+                    <span id="ayuda-fecha-texto" className="text-xs text-muted">Se usa sólo si «Inicio del evento» está vacío.</span>
+                  </label>
+                )}
                 <label className={etiqueta}>Fin del evento<input type="date" name="fechaFin" defaultValue={fechaParaInput(p.fechaFin)} className={campo} /></label>
                 <label className={etiqueta}>Desarme<input type="date" name="fechaDesarme" defaultValue={fechaParaInput(p.fechaDesarme)} className={campo} /></label>
                 <label className={etiqueta}>Invitados<input name="invitados" inputMode="numeric" defaultValue={p.invitados ?? ""} className={campo} /></label>

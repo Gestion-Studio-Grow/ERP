@@ -287,6 +287,8 @@ model Tenant {
   obligacionesFiscales      ObligacionFiscal[]
   vencimientosFiscales      VencimientoFiscal[]
   proyectoConfig            ProyectoConfig?
+  proyectoPrecioConfig      ProyectoPrecioConfig? // fórmula de precio por capas (MIA T1)
+  proyectoVentas            ProyectoVenta[]
   inmoPropiedades           InmoPropiedad[] // módulo inmobiliaria
   inmoFotos                 InmoFoto[]
   serviceDetails            ServiceDetail[]
@@ -3578,6 +3580,7 @@ model Proyecto {
   mensajes            ProyectoMensaje[]
   idea                ProyectoIdea?
   presentaciones      ProyectoPresentacion[]
+  venta               ProyectoVenta?
   createdAt           DateTime               @default(now())
   updatedAt           DateTime               @updatedAt
 
@@ -3846,6 +3849,47 @@ model ProyectoConfig {
   updatedAt   DateTime @updatedAt
 }
 
+// Fórmula de precio por capas (MIA T1). Sin fila, o con `activa = false`, el negocio sigue con el margen único de
+// ProyectoConfig: los negocios de hoy no cambian. Porcentajes en puntos básicos (3000 = 30 %): enteros, sin flotantes.
+// Los valores por defecto son los de la planilla de MIA, provisionales a confirmar.
+model ProyectoPrecioConfig {
+  id                  String   @id @default(cuid())
+  tenant              Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId            String   @unique
+  activa              Boolean  @default(false)
+  rentabilidadBp      Int      @default(3000)
+  comisionProductorBp Int      @default(1000) // sobre la rentabilidad
+  comisionComercialBp Int      @default(1000) // sobre la rentabilidad
+  margenErrorBp       Int      @default(500)
+  impuestosBp         Int      @default(700) // sobre la venta (Ingresos Brutos y gastos administrativos)
+  topeRedondeoBp      Int      @default(500)
+  ahorroEmpresaBp     Int      @default(7500) // del ahorro contra el presupuesto; el resto es del productor
+  updatedAt           DateTime @updatedAt
+}
+
+// Lo comercial de un proyecto (MIA T1): quién lo produce y quién lo vendió (sus comisiones), el precio final escrito a
+// mano (centavos) y la fecha del evento «a confirmar» en texto libre. Tabla aparte: si la migración no está aplicada,
+// el resto de la ficha lee Proyecto igual que hoy.
+model ProyectoVenta {
+  id               String           @id @default(cuid())
+  tenant           Tenant           @relation(fields: [tenantId], references: [id])
+  tenantId         String
+  proyecto         Proyecto         @relation(fields: [proyectoId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  proyectoId       String           @unique
+  productor        ProyectoPersona? @relation("VentaProductor", fields: [productorId, tenantId], references: [id, tenantId])
+  productorId      String?
+  comercial        ProyectoPersona? @relation("VentaComercial", fields: [comercialId, tenantId], references: [id, tenantId])
+  comercialId      String?
+  precioFinalCent  BigInt?
+  fechaEventoTexto String?
+  statusImportado  String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@unique([proyectoId, tenantId]) // la relación 1:1 por la llave compuesta: no cruza de negocio
+  @@index([tenantId])
+}
+
 // ── Gestión de eventos: las apps relevadas de Heka (docs/benchmark/heka-especificacion.md). Sólo tablas del módulo. ──
 
 model ProyectoCuota {
@@ -3934,6 +3978,8 @@ model ProyectoPersona {
   liquidaciones ProyectoLiquidacion[]
   rendiciones   ProyectoRendicion[]
   anticipos     ProyectoAnticipo[]
+  ventasComoProductor ProyectoVenta[] @relation("VentaProductor")
+  ventasComoComercial ProyectoVenta[] @relation("VentaComercial")
   createdAt     DateTime              @default(now())
 
   @@unique([tenantId, userId])

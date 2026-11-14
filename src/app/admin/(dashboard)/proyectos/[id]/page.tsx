@@ -15,6 +15,7 @@ import { Numero, PestanaFicha, PestanaHistorial, PestanaResumen, PestanaSeguimie
 import { ArmadorYPiezas, PestanaArchivos } from "./_pestanas-diseno-archivos";
 import { PestanaCotizacion, PestanaFinanzas } from "./_pestanas-plata";
 import { PestanaRendiciones } from "./_rendiciones";
+import { PestanaPrecio } from "./_precio-capas";
 
 export const dynamic = "force-dynamic";
 // Proponer con IA y Generar imagen esperan al proveedor desde esta pantalla.
@@ -37,6 +38,8 @@ export default async function FichaProyecto({ params, searchParams }: { params: 
   const verCosto = !vista.ocultas.has("costoTotal");
   const verMargen = !vista.ocultas.has("margen");
   const fechas = [p.fechaEvento && fechaCorta(p.fechaEvento), p.fechaFin && p.fechaFin.getTime() !== p.fechaEvento?.getTime() && fechaCorta(p.fechaFin)].filter(Boolean).join(" al ");
+  // MIA T1: sin fecha exacta, lo que se sabe («a confirmar», «primeros días de diciembre»).
+  const cuando = fechas || (cab.formula.vigente && cab.venta.fechaEventoTexto ? `Fecha a confirmar: ${cab.venta.fechaEventoTexto}` : "");
 
   const verFicha = puede(a, "ficha", "ver");
   const pestanas = [
@@ -45,6 +48,8 @@ export default async function FichaProyecto({ params, searchParams }: { params: 
     { id: "cotizacion", label: "Cotización", ve: vista.cotizaciones },
     { id: "diseno", label: "Diseño", ve: puede(a, "diseno", "ver") },
     { id: "finanzas", label: "Finanzas", ve: vista.pagos },
+    // Sólo en los negocios que prendieron la fórmula por capas (MIA); los demás no ven nada nuevo.
+    { id: "precio", label: "Precio y comisiones", ve: !!cab.formula.vigente && puede(a, "costos", "ver") },
     { id: "rendiciones", label: "Rendiciones", ve: puede(a, "rendiciones", "ver") },
     { id: "seguimiento", label: "Seguimiento", ve: verFicha },
     { id: "chat", label: "Chat", ve: true },
@@ -62,7 +67,7 @@ export default async function FichaProyecto({ params, searchParams }: { params: 
           {[codigo, p.ciudad, p.tipoEvento, perdido ? "Perdido" : etapaLabel(p.etapa, p.servicio)].filter(Boolean).join(" · ")}
         </p>
         <h1 className="text-2xl font-bold text-strong">{p.nombre}</h1>
-        <p className="text-sm">{[p.client.name, p.lugar, fechas].filter(Boolean).join(" · ")}</p>
+        <p className="text-sm">{[p.client.name, p.lugar, cuando].filter(Boolean).join(" · ")}</p>
         <div className="mt-2 flex flex-wrap items-center gap-2">
           {p.equipo.length > 0 && (
             <ul className="flex flex-wrap gap-1" aria-label="Equipo">
@@ -116,6 +121,7 @@ export default async function FichaProyecto({ params, searchParams }: { params: 
         </div>
       )}
       {tab === "finanzas" && <PestanaFinanzas a={a} cab={cab} vista={vista} filtro={q.filtro} />}
+      {tab === "precio" && <PestanaPrecio a={a} cab={cab} />}
       {tab === "rendiciones" && <PestanaRendiciones a={a} proyectoId={p.id} />}
       {tab === "seguimiento" && <PestanaSeguimiento a={a} cab={cab} vista={vista} />}
       {tab === "chat" && <ChatProyecto proyectoId={p.id} />}

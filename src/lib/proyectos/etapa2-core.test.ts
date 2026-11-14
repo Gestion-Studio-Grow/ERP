@@ -24,7 +24,7 @@ test("prende sólo con la clave exacta; claves ajenas o parecidas no activan", (
 test("estado por negocio: lo de un negocio no prende al otro", () => {
   const a = etapa2Estado(["proyectos", "proyectos-portal"]);
   const b = etapa2Estado(["proyectos"]);
-  assert.deepEqual(a, { ia: false, armador3d: false, portal: true, "facturacion-proyectos": false, importador: false });
+  assert.deepEqual(a, { ia: false, armador3d: false, portal: true, "facturacion-proyectos": false, importador: false, "precio-capas": false });
   assert.ok(Object.values(b).every((v) => v === false));
 });
 
@@ -35,7 +35,7 @@ test("las reservadas existen y tienen mensaje, pero arrancan apagadas", () => {
   assert.equal(etapa2Activa(["proyectos-facturacion"], "facturacion-proyectos"), true);
 });
 
-test("catálogo: las cinco claves están registradas y dependen de proyectos", () => {
+test("catálogo: todas las claves están registradas y dependen de proyectos", () => {
   const r = construirCatalogo();
   for (const clave of Object.values(CLAVE_ETAPA2)) {
     const d = r.get(clave);
@@ -47,4 +47,11 @@ test("catálogo: las cinco claves están registradas y dependen de proyectos", (
   assert.ok(con.activos.some((d) => d.id === "proyectos-ia"));
   const sin = resolverActivacion({ tenantId: "t2", blueprintId: "productora", modules: ["clients", "proyectos-armador3d"] }, r);
   assert.ok(sin.dependenciasFaltantes.some((x) => x.id === "proyectos-armador3d"));
+});
+
+test("precio por capas (MIA T1): apagado por defecto y sólo con su clave exacta", () => {
+  assert.equal(CLAVE_ETAPA2["precio-capas"], "proyectos-precio-capas");
+  assert.equal(etapa2Activa(["proyectos", "proyectos-importador"], "precio-capas"), false);
+  assert.equal(etapa2Activa(["precio-capas"], "precio-capas"), false);
+  assert.equal(etapa2Activa(["proyectos-precio-capas"], "precio-capas"), true);
 });

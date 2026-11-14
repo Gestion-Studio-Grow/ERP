@@ -6,7 +6,12 @@ import SubmitButton from "@/components/SubmitButton";
 import { configProyectos, veLaPlata } from "@/lib/proyectos/datos.server";
 import { guardarConfig } from "@/lib/proyectos/acciones";
 import { COSTO_LABEL, type ClaveCosto } from "@/lib/proyectos/stand";
+import Link from "next/link";
+import { guardarFormulaPrecio } from "@/lib/proyectos/acciones-precio";
+import { formulaDelNegocio } from "@/lib/proyectos/precio-capas.server";
+import { AVISO_PROVISIONAL, CLAVES_PARAMETRO, ETIQUETA_PARAMETRO, PARAMETROS_PROVISIONALES, textoDeBp } from "@/lib/proyectos/precio-capas-core";
 import { BarraProyectos, campo, etiqueta, tarjeta } from "../_vista";
+import { FormAccion } from "../[id]/_cliente";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Configuración de proyectos" };
@@ -14,7 +19,8 @@ export const metadata = { title: "Configuración de proyectos" };
 export default async function ConfigProyectos() {
   const user = await requireApp("proyectos");
   await requireCapabilityFueraDeLaAgenda("agenda:manage");
-  const c = await configProyectos(await getCurrentTenantId());
+  const tenantId = await getCurrentTenantId();
+  const [c, formula] = await Promise.all([configProyectos(tenantId), formulaDelNegocio(tenantId)]);
 
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-5">
@@ -44,6 +50,40 @@ export default async function ConfigProyectos() {
         </section>
         <SubmitButton className={buttonClasses("solid", "lg")}>Guardar configuración</SubmitButton>
       </form>
+
+      {/* MIA T1: fórmula de precio por capas, tras el interruptor de la Etapa 2 `proyectos-precio-capas` (apagado por
+          defecto: la pantalla queda como en main). Prendido, la fórmula también arranca apagada hasta que Dirección la usa. */}
+      {formula.encendida && (
+      <section className={`${tarjeta} mt-4`} aria-labelledby="titulo-formula">
+        <h2 id="titulo-formula" className="font-semibold text-strong">Precio por capas y comisiones</h2>
+        {!formula.disponible ? (
+          <p className="text-sm text-muted">Todavía no está habilitado en este negocio: falta actualizar la base.</p>
+        ) : (
+          <FormAccion accion={guardarFormulaPrecio} className="grid gap-3">
+            <p className="text-sm text-muted">
+              Costo → + rentabilidad → + comisiones (un % de la rentabilidad) → + margen de error → + Ingresos Brutos y gastos sobre la venta → precio sugerido.
+              Los valores que vienen cargados son los de la planilla de MIA.
+            </p>
+            {PARAMETROS_PROVISIONALES && <p role="note" className="text-sm font-medium text-strong">{AVISO_PROVISIONAL}</p>}
+            <label className="flex min-h-11 items-center gap-2 text-sm font-medium text-strong">
+              <input type="checkbox" name="activa" defaultChecked={formula.config.activa} className="size-5" />
+              Usar esta fórmula en las fichas de los proyectos
+            </label>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {CLAVES_PARAMETRO.map((k) => (
+                <label key={k} className={etiqueta}>{ETIQUETA_PARAMETRO[k]} %<input name={k} inputMode="decimal" defaultValue={textoDeBp(formula.config[k])} className={campo} /></label>
+              ))}
+            </div>
+            <div><SubmitButton className={buttonClasses("solid", "md")}>Guardar la fórmula</SubmitButton></div>
+          </FormAccion>
+        )}
+        {formula.vigente && (
+          <p className="mt-3 text-sm">
+            <Link href="/admin/proyectos/importar" className="inline-flex min-h-11 items-center underline">Importar la planilla de status (CSV)</Link>
+          </p>
+        )}
+      </section>
+      )}
     </main>
   );
 }
