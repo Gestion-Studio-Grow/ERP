@@ -21,7 +21,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { textoAlCentavo } from "@/lib/dinero/redondeo";
 import { esEtapa, etapaAlAprobar, etapaLabel, MEDIOS, metodoDeCaja, redondear, sePuedeEditar, sumarDias, type MedioPago } from "./core";
 import { configProyectos } from "./datos.server";
-import { cobranzaConCuotas, hayColumnasCobroFijado, pendienteDeLaCuota, trabarCobranza } from "./cobranza.server";
+import { cobranzaConCuotas, cobroFijadoActivo, hayColumnasCobroFijado, pendienteDeLaCuota, trabarCobranza } from "./cobranza.server";
 import { lugarParaCobroManual, pasaElTope } from "./cobranza-core";
 import { avisoTopeCuota, avisoTopeMarcar, listoFacturada, listoMarcada } from "./avisos-cuota";
 import { cambioDeVenta, cambioDelCobro, aPesos, CHECKLIST_BASE, ESTADOS_ITEM, MONEDAS, RUBROS, TIPOS_EVENTO, veTodosLosProyectos } from "./gestion-core";
@@ -237,7 +237,8 @@ export async function guardarDatos(formData: FormData): Promise<ResultadoFicha> 
     const [enviadas, cobradas, cobros] = await Promise.all([
       prisma.proyectoPresupuesto.count({ where: { tenantId, proyectoId: id, estado: { in: ["ENVIADO", "APROBADO"] } } }),
       prisma.proyectoCuota.count({ where: { tenantId, proyectoId: id, tipo: "COBRO", pagadoEl: { not: null }, anuladoEl: null } }),
-      prisma.proyectoPago.count({ where: { tenantId, proyectoId: id, anuladoEl: null } }),
+      // Sólo con el interruptor D13 prendido: apagado, la regla nueva no corre (y la lectura descarta un fijado de otra moneda).
+      cobroFijadoActivo() ? prisma.proyectoPago.count({ where: { tenantId, proyectoId: id, anuladoEl: null } }) : 0,
     ]);
     if (cobradas + cobros > 0) return mal(`La moneda de venta no se puede cambiar: el proyecto ya tiene cobros registrados en ${previo.moneda}. Si hace falta, anulá primero esos cobros.`);
     if (enviadas > 0) return mal("La moneda de venta no se puede cambiar: el cliente ya tiene una versión enviada.");
