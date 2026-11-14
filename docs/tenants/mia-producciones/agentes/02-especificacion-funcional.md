@@ -1,7 +1,8 @@
 # Equipo de agentes de Administración · MIA — 02 · Especificación funcional
 
 > Diseño del 14/11/2026, corregido dos veces ese día: tras la revisión adversarial (`05`, sección F) y tras la
-> verificación del diseño corregido (`05`, sección G). Nada construido. Los textos son los que se muestran; se pueden
+> verificación del diseño corregido (`05`, sección G). Ajuste final esa noche (`05`, sección H): la bandeja de GSG para
+> los pedidos escritos (§2.1). Nada construido. Los textos son los que se muestran; se pueden
 > corregir antes de construir.
 
 ## 1. Puestos
@@ -93,11 +94,11 @@ aparece. Celular a 375 px sin desbordes; todo operable con teclado; estados con 
 | Pestaña | Qué muestra | Acciones |
 |---|---|---|
 | **Hoy** | Parte del día, cómo viene el buzón (pedidos de hoy y porcentaje dentro del objetivo), compromisos de hoy, contador de «Para aprobar», estado de cada puesto (Activo, En pausa, Sin IA) | «Armar el parte ahora» · «Pausar todo» |
-| **Buzón** | Arriba, **dejar un pedido**: se elige el puesto y después un pedido de su lista de frecuentes (para Cobranzas: «Cobranzas pendientes», «Cuotas vencidas», «Vencimientos de los próximos 7 días», «Cuotas de un cliente»; para Coordinación: «Parte del día») o se escribe uno. Abajo, **mis pedidos**: cada uno con su estado (Recibido · En curso · Respondido · Necesita una persona · Sin responder a tiempo · En espera), hora de pedido, hora de respuesta, cuánto tardó y la respuesta entera, con cada dato y su origen clicable. La respuesta aparece completa, no palabra por palabra | «Dejar pedido» · «Reintentar» · «Pedir ahora» (los que esperaban la IA) · «Anotar compromiso» (siempre a mano, desde la tanda 2) · «Pasárselo a una persona» |
+| **Buzón** | Arriba, **dejar un pedido**: se elige el puesto y después un pedido de su lista de frecuentes (para Cobranzas: «Cobranzas pendientes», «Cuotas vencidas», «Vencimientos de los próximos 7 días», «Cuotas de un cliente»; para Coordinación: «Parte del día») o se escribe uno. Abajo, **mis pedidos**: cada uno con su estado (Recibido · En curso · Respondido · Necesita una persona · Sin responder a tiempo), hora de pedido, hora de respuesta, cuánto tardó, quién respondió (el equipo o una persona de GSG) y la respuesta entera, con cada dato y su origen clicable. La respuesta aparece completa, no palabra por palabra | «Dejar pedido» · «Reintentar» · «Anotar compromiso» (siempre a mano, desde la tanda 2) · «Pasárselo a una persona» |
 | **Para aprobar** | Tarjetas: puesto, qué propone, importes y fechas (del sistema), texto preparado, cuándo vence | «Aprobar» · «Corregir y aprobar» (sólo el texto) · «Rechazar» · «Ver de dónde salió» |
 | **Agenda** | Compromisos: hoy, próximos, vencidos; quién lo anotó y sobre qué | «Hecho» · «Cambiar fecha» · «Cancelar» |
 | **Cuaderno** | Reglas y excepciones por puesto, con autor y fecha | «Agregar regla» · «Editar» · «Desactivar» |
-| **Registro** | Toda acción: fecha y hora, puesto, qué hizo, sobre qué, resultado, quién aprobó; filtro por puesto y por fecha; consumo del mes. **Servicio del buzón:** pedidos del día y del mes, porcentaje respondido dentro del objetivo, tiempo mediano y máximo, sin responder a tiempo y derivados | «Bajar en Excel» (tanda posterior) |
+| **Registro** | Toda acción: fecha y hora, puesto, qué hizo, sobre qué, resultado, quién aprobó; filtro por puesto y por fecha; consumo del mes. **Servicio del buzón:** pedidos del día y del mes, porcentaje respondido dentro del objetivo, tiempo mediano y máximo, sin responder a tiempo, derivados y respondidos por una persona de GSG. También figura cada vez que una persona de GSG abrió o contestó un pedido | «Bajar en Excel» (tanda posterior) |
 | **Ajustes** | Cada puesto con su nivel por tarea (sólo lectura), interruptor de pausa por puesto, gasto del mes contra el tope | «Pausar» · «Reanudar» |
 
 **No hay conversación en vivo** (decisión del dueño, 14/11): «No vamos a hacer la conversación en vivo, pero vamos a
@@ -108,8 +109,10 @@ cambia GSG). Pasado el plazo sin respuesta, el pedido queda «Sin responder a ti
 una persona»; no se sigue intentando solo. El tiempo de cada pedido se guarda y se muestra.
 
 **Sin IA conectada** (no hay clave cargada o GSG no la prendió para ese negocio): los pedidos de la lista se responden
-igual, dentro del objetivo, porque los resuelve el sistema. Un pedido escrito queda guardado como «En espera: el equipo
-todavía no tiene la IA conectada»; no se pierde, y cuando la IA se conecte se manda con «Pedir ahora».
+igual, dentro del objetivo, porque los resuelve el sistema. Un pedido escrito va a la **bandeja de GSG** (§2.1): antes
+de mandarlo, el formulario avisa que lo va a leer una persona de GSG; queda como «Necesita una persona: lo responde
+alguien de GSG» y, cuando esa persona contesta, pasa a «Respondido por una persona de GSG». Corre el mismo reloj de 3
+minutos y se mide igual. Cuando el negocio tenga la IA conectada, los pedidos escritos nuevos los responde el equipo.
 
 **Aprobar con un toque:** un toque aprueba; un cartel de 5 segundos permite «Deshacer» antes de que se ejecute.
 En celular, el botón «Aprobar» queda fijo abajo y mide al menos 44 px.
@@ -117,16 +120,45 @@ En celular, el botón «Aprobar» queda fijo abajo y mide al menos 44 px.
 **Pausar:** pausa al instante. Con el puesto en pausa no recibe pedidos, no dispara y las propuestas pendientes no se
 pueden aprobar hasta reanudar. «Pausar todo» frena los cinco. Reanudar lo hace Dirección o Administración.
 
+### 2.1 Pantalla de GSG: bandeja de pedidos escritos
+
+Decisión del dueño (14/11, noche): «Vamos a sumar la bandeja para que GSG conteste el texto libre.» No es una pantalla
+del negocio: está en la **consola del operador de GSG**, en `/operador/bandeja`, dentro de «Pedidos». La usa una
+persona de GSG con su sesión de operador.
+
+| Parte | Qué muestra | Acciones |
+|---|---|---|
+| **Lista** | Los pedidos escritos de los negocios sin IA que esperan respuesta: negocio, puesto, quién lo pidió, hace cuánto y si ya pasó su plazo de 3 minutos. Primero el más viejo. **No muestra el texto del pedido** | «Abrir» |
+| **Pedido abierto** | El texto del pedido, el negocio, el puesto, quién lo pidió y su hora. Un cuadro para escribir la respuesta (texto simple, hasta 2000 caracteres) | «Responder» · «Volver a la bandeja» |
+
+- Abrir un pedido queda anotado en el registro de ese negocio, con el nombre de la persona de GSG. Responder, también.
+- Si dos personas contestan el mismo pedido, vale la primera; la segunda ve que ya estaba respondido y su texto no se
+  guarda.
+- La persona de GSG ve el pedido, no los datos del negocio: contesta con lo que sabe o dice dónde mirarlo.
+- Con el puesto en pausa o el equipo apagado en ese negocio, no se puede abrir ni responder, y la pantalla dice por qué.
+- **Sólo contesta una persona.** No existe ninguna entrada automática para responder: ni un robot, ni una rutina, ni
+  una respuesta sugerida por IA.
+- Celular a 375 px, todo operable con teclado, estados con texto.
+
 ## 3. Mensajes y textos
 
 | Situación | Texto |
 |---|---|
 | Encabezado del panel | «Mi equipo» · «Preparan el trabajo. Vos decidís.» |
-| Sin IA conectada | «El equipo está sin conexión a la IA. Los pedidos de la lista se responden igual.» |
+| Sin IA conectada | «El equipo está sin conexión a la IA. Los pedidos de la lista se responden igual; los escritos los responde una persona de GSG.» |
 | Pedido recibido | «Recibido a las {hora}. Te respondo en menos de 3 minutos.» |
 | Pedido respondido | «Respondido a las {hora} · tardó {tiempo}» |
-| Pedido escrito, sin IA | «En espera: el equipo todavía no tiene la IA conectada. Tu pedido queda guardado.» |
-| Pedido que esperaba y ya se puede mandar | «Ya se puede responder.» [Pedir ahora] |
+| Antes de mandar un pedido escrito, sin IA | «El equipo todavía no tiene la IA conectada: este pedido lo va a leer y responder una persona de Gestión Studio Grow.» |
+| Pedido escrito, sin IA | «Necesita una persona: lo responde alguien de GSG. Recibido a las {hora}.» |
+| Pedido escrito, sin IA, pasado el plazo | «Necesita una persona: lo responde alguien de GSG. Ya pasaron los 3 minutos; sigue en espera de respuesta.» |
+| Pedido respondido por una persona | «Respondido por una persona de GSG a las {hora} · tardó {tiempo}» |
+| Bandeja de GSG, vacía | «No hay pedidos esperando respuesta.» |
+| Bandeja de GSG, renglón | «{negocio} · {puesto} · {persona} · hace {tiempo}» y, si corresponde, «fuera del plazo» |
+| Bandeja de GSG, al abrir | «Abrir este pedido queda anotado en el registro del negocio, con tu nombre.» [Abrir] |
+| Bandeja de GSG, respuesta enviada | «Listo: {persona} ya la ve en su buzón.» |
+| Bandeja de GSG, ya respondido | «Este pedido ya lo respondió {operador} a las {hora}. Tu texto no se guardó.» |
+| Bandeja de GSG, puesto en pausa o equipo apagado | «{negocio} pausó este puesto (o tiene el equipo apagado). No se puede responder hasta que lo reanuden.» |
+| Bandeja de GSG, sin las tablas | «Falta aplicar la migración del equipo de agentes. Todavía no hay bandeja.» |
 | Pedido fuera de plazo | «Sin responder a tiempo. No llegué en 3 minutos.» [Reintentar] [Pasárselo a una persona] |
 | Pedido que necesita una persona | «Necesita una persona: {motivo}.» [Abrir] |
 | Pedido enviado dos veces | Se muestra el mismo pedido una sola vez, sin cartel |
@@ -190,7 +222,7 @@ y no promete descuentos: eso no está en ningún dato del sistema.
 20. Una persona que no ve todos los eventos o todas las columnas no los recibe por el equipo, ni sumados en un total.
 21. El equipo no sale en vivo con datos reales sin haber corrido los 30 casos contra el modelo real elegido.
 22. Sin clave cargada, o sin la IA prendida para ese negocio, no sale ninguna llamada a un proveedor de IA; los pedidos
-    de la lista se responden igual y dentro del objetivo; un pedido escrito queda «En espera» y no se pierde.
+    de la lista se responden igual y dentro del objetivo; un pedido escrito va a la bandeja de GSG y no se pierde.
 23. Un pedido enviado dos veces (doble toque o reintento de la red) es un solo pedido: una respuesta y un cupo. El tope
     de pedidos por día es de cada persona.
 24. Si alguien pausa el puesto, toca «Pausar todo» o GSG apaga el equipo mientras un pedido está en curso, no sale
@@ -201,6 +233,20 @@ y no promete descuentos: eso no está en ningún dato del sistema.
 26. De cada pedido quedan guardadas la hora de pedido y la de respuesta. El registro y el parte muestran el tiempo de
     respuesta y el porcentaje dentro del objetivo, calculados con esas horas.
 27. La respuesta se muestra entera cuando está lista: no hay texto que aparezca palabra por palabra.
+28. Un pedido escrito de un negocio sin IA aparece en la bandeja de GSG con negocio, puesto, quién lo pidió y hace
+    cuánto. La lista no muestra el texto; se ve recién al abrirlo.
+29. Cuando una persona de GSG responde, quien lo pidió ve en su buzón «Respondido por una persona de GSG», con la hora
+    y cuánto tardó. Ese tiempo entra en las métricas, dentro o fuera del objetivo, contado aparte como «por una persona».
+30. Abrir y responder dejan cada uno una fila en el registro del negocio, con el nombre de la persona de GSG. Dos
+    respuestas al mismo pedido dejan una sola.
+31. **Ningún proceso automático puede contestar por la bandeja:** no hay ruta de API, ni webhook, ni tarea programada,
+    ni sugerencia de IA; el motor y el rescate no toman un pedido que está en la bandeja. Lo prueban dos tests
+    (`03` §4.4 y §14).
+32. Un operador de GSG no puede abrir ni responder, con un identificador cambiado a mano, un pedido de otro negocio que
+    el que eligió; y a CH sólo la toca el dueño de GSG, como en el resto de la consola.
+33. El rescate de un pedido colgado sólo lo dispara quien lo dejó: mirar el buzón no procesa pedidos de otra persona.
+34. Dos toques seguidos en «Dejar pedido» o en «Armar el parte ahora» dejan un solo pedido: la clave del envío nace con
+    el formulario, no con el toque.
 
 ## 5. Casos de prueba
 
@@ -255,7 +301,8 @@ rol»); en producción, los usuarios de prueba que se dan de alta para esto (`04
 | 2 | Pestaña **Hoy**: tocá «Armar el parte ahora». Muestra cobros vencidos y por vencer y cómo viene el buzón. Desde la tanda 2 suma compromisos y propuestas esperando; desde la 4, pagos y movimientos sin conciliar | 1 | No |
 | 3 | Abrí **Administración** en otra pestaña del navegador y compará «cobros vencidos»: mismo número, al centavo | 1 | No |
 | 4 | **Buzón** → Cobranzas → dejá el pedido de la lista «Cuotas vencidas». Pasa a «Respondido» con su hora y cuánto tardó; cada renglón trae su fuente: tocá una y te lleva a la cuota | 1 | No |
-| 5 | Dejá un pedido escrito: «¿cuánto debe Perengano SA?» (no existe). Sin IA queda «En espera» y no se pierde. Con IA: responde en menos de 3 minutos que no lo tiene | 1 | Sí, para la respuesta |
+| 5 | Dejá un pedido escrito: «¿cuánto debe Perengano SA?» (no existe). Sin IA: el formulario avisa que lo lee una persona de GSG y queda «Necesita una persona: lo responde alguien de GSG». Con IA: responde en menos de 3 minutos que no lo tiene | 1 | Sólo para la respuesta del equipo |
+| 5b | **Lo hace una persona de GSG**, en la consola del operador: Pedidos → Bandeja. Está el pedido del paso 5, con el negocio, quién lo pidió y hace cuánto, sin el texto. «Abrir», escribir la respuesta, «Responder». Volvé al Buzón del negocio: dice «Respondido por una persona de GSG», con la hora y cuánto tardó | 1 | No |
 | 6 | Dejá el pedido escrito «marcá esa cuota como cobrada». Tiene que quedar «Necesita una persona», con el enlace | 1 | Sí |
 | 7 | Dejá el pedido «preparale un recordatorio a ese cliente». La respuesta avisa que quedó en **Para aprobar** | 2 | Sí |
 | 8 | **Para aprobar**: revisá importe y fecha, tocá «Aprobar». Aparece «Listo para enviar» con Copiar, WhatsApp y mail. Tocá «Copiar» y pegalo en un bloc de notas: el importe tiene que coincidir con la cuota | 2 | No |
@@ -263,9 +310,10 @@ rol»); en producción, los usuarios de prueba que se dan de alta para esto (`04
 | 10 | **Buzón**: dejá el pedido «dijo que paga el viernes». En la respuesta aparece «¿Anoto que … paga el viernes?»: tocá «Anotar». Abrí **Agenda**: está el compromiso del viernes. Probá también no tocar nada: en Agenda no tiene que haber nada | 2 | Sí (el botón «Anotar compromiso», no) |
 | 11 | **Cuaderno** → Cobranzas → «Agregar regla»: «A Farma se le escribe sólo por mail». Pedí otro recordatorio para ese cliente: tiene que decir que va por mail y citar el cuaderno | 2 | Sí |
 | 12 | **Ajustes**: pausá Cobranzas. Volvé al Buzón e intentá dejarle un pedido: no entra y dice quién lo pausó. Reanudalo | 1 | No |
-| 13 | **Registro**: con la tanda 1 tienen que estar los pedidos con su tiempo de respuesta, el porcentaje dentro del objetivo y la pausa; desde la tanda 2, también la propuesta, tu aprobación, el intento repetido y el compromiso | 1 | No |
+| 13 | **Registro**: con la tanda 1 tienen que estar los pedidos con su tiempo de respuesta, el porcentaje dentro del objetivo, la pausa y las dos filas del paso 5b (GSG abrió y GSG respondió); desde la tanda 2, también la propuesta, tu aprobación, el intento repetido y el compromiso | 1 | No |
 | 14 | Salí y entrá como Diseño: «Mi equipo» no aparece y la dirección directa te devuelve a Inicio | 1 | No |
 | 15 | Callejones sin salida a marcar si aparecen: una tarjeta sin botón de volver, un origen que no abre nada, un cartel de error sin decir qué hacer | 1 | No |
 
-**Con la tanda 1** se hacen los pasos 1 a 6 y 12 a 15. Sin clave se hacen todos esos menos la respuesta del paso 5 y el
-paso 6: en los dos el pedido escrito queda «En espera». Los pasos 7 a 11 son de la tanda 2.
+**Con la tanda 1** se hacen los pasos 1 a 6 (con el 5b) y 12 a 15. Sin clave se hacen todos: en los pasos 5 y 6 el
+pedido escrito va a la bandeja de GSG y lo contesta una persona (5b); lo que no se ve sin clave es cómo responde la IA.
+Los pasos 7 a 11 son de la tanda 2.

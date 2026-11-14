@@ -1,7 +1,8 @@
 # Equipo de agentes de Administración · MIA — 05 · Decisiones del dueño y supuestos
 
 > Diseño del 14/11/2026, **corregido dos veces ese día**: tras la revisión adversarial (sección F) y tras la
-> verificación del diseño corregido, con los hechos y decisiones nuevas del dueño (sección G). Lo reversible (código, pantallas, textos) ya está decidido en `01` a `04`. Acá va sólo lo que es del
+> verificación del diseño corregido, con los hechos y decisiones nuevas del dueño (sección G). **Ajuste final esa
+> noche** (sección H): segunda verificación, bandeja de GSG, las 6 tandas en cadena y un push por brief. Lo reversible (código, pantallas, textos) ya está decidido en `01` a `04`. Acá va sólo lo que es del
 > dueño: gasto, exposición a terceros, datos de un cliente, migraciones y permisos.
 
 ## A. Decisiones que esperan al dueño
@@ -90,8 +91,8 @@ herramienta de quien construye.
 **Lo que ya no depende de esto:** la tanda 1 se prueba **sin ningún cerebro**. Parte, consultas de Cobranzas, registro,
 pausa e interruptor los calcula el código (`03` §10.1; `04`, Prueba A). **No hay conversación en vivo:** el dueño
 decidió un buzón de pedidos con respuesta en menos de 3 minutos (sección G). Los pedidos de la lista se responden sin
-modelo. Lo único que espera esta decisión es **responder los pedidos de texto libre** (`04`, Prueba B); mientras tanto
-quedan «en espera», sin perderse.
+modelo. Lo único que espera esta decisión es **responder con IA los pedidos de texto libre** (`04`, Prueba B);
+mientras tanto van a la **bandeja de GSG** y los contesta una persona (sección H; `03` §4.4).
 
 **Lo que dijo el dueño (14/11):**
 - «No utilizaremos Cloudflare por ahora».
@@ -126,7 +127,7 @@ automatizado sin clave de API. **No está en el diseño** y no se construye salv
 |---|---|---|
 | (a) Clave de la API con tope bajo | Una clave paga para responder los pedidos de texto libre de la prueba, en la variable propia del equipo, con el tope de `03` §11 y un límite puesto también del lado del proveedor. Monto que se habló: US$ 20 (provisional a confirmar) | **Gasto antes de la venta** (choca con «demo → venta → inversión»): decisión del dueño. Muestra la calidad real. La clave **no** va en `ANTHROPIC_API_KEY`: esa variable cambiaría de proveedor a los 7 agentes actuales, sin tope (`ia.server.ts:40` y `:85`). Sólo con datos inventados hasta cumplir `03` §12 |
 | (b) Pedir autorización a Anthropic («contact sales») | La pregunta exacta: «¿Puede el titular de un plan Max correr `claude -p` o el Agent SDK en su propia máquina para contestar pedidos que encola el producto web de su empresa, en pruebas y siendo él el único usuario?» | Sin costo. Sin plazo conocido y la respuesta puede ser no. Hasta tener un sí por escrito no se construye nada sobre el plan |
-| (c) Probar la tanda 1 sin modelo | Sólo la Prueba A de `04`: pedidos de la lista, parte, registro y pausa | Sin gasto y sin datos afuera. Los pedidos de texto libre quedan en espera y el dueño no juzga cómo responde el modelo hasta que haya clave |
+| (c) Probar la tanda 1 sin modelo | Sólo la Prueba A de `04`: pedidos de la lista, parte, registro y pausa | Sin gasto y sin datos a un proveedor. Los pedidos de texto libre los contesta una persona de GSG desde la bandeja, y el dueño no juzga cómo responde el modelo hasta que haya clave |
 
 **Recomendación (no es una decisión):** (c) ahora, porque no frena nada: la tanda 1 se construye y se prueba igual. En
 paralelo (b), que no cuesta. Y (a) el día que el dueño quiera juzgar las respuestas del modelo: ese gasto llega igual antes de
@@ -186,7 +187,7 @@ B: subida automática al cumplir el criterio (no recomendada: es un cambio de pe
 
 **A (recomendada): se elige con la evaluación de 30 casos, el más barato que los pase todos** (norma del ERP para
 productos). · B: el mismo que usan hoy los agentes de MIA (`ia.server.ts:23`). Riesgo de B: es el más caro por
-conversación sin haber medido si hace falta.
+pedido sin haber medido si hace falta.
 
 ### D12 · Qué se hace con el agente «Administrador» actual
 
@@ -195,8 +196,9 @@ conversación sin haber medido si hace falta.
 
 ### D13 · La migración (Gate 2)
 
-Una sola, aditiva: **11 tablas nuevas** (eran 10: salen las dos de la charla y entran el buzón de pedidos, las
-reservas de gasto y los ajustes por negocio; `03` §3), sus
+Una sola, aditiva: **11 tablas nuevas** (eran 10 en el primer diseño: salieron las dos del historial palabra por
+palabra y entraron el buzón de pedidos, las reservas de gasto y los ajustes por negocio; `03` §3; la bandeja de GSG no
+suma ninguna: es una columna y un estado del buzón), sus
 índices, claves foráneas y políticas, y un `REVOKE` que le quita al rol de la app el permiso de editar y borrar **sólo**
 en la tabla nueva del registro. No toca ninguna tabla existente. Se eleva al dueño **PR por PR**, con qué cambia, cómo
 se deshace (borrar las 11 tablas; no hay datos de negocio en ellas) y el respaldo previo.
@@ -231,7 +233,7 @@ después del 18/11, el negocio de MIA ya va a tener datos reales.
 
 | Opción | Qué es | Qué se arriesga |
 |---|---|---|
-| **A (recomendada)** | Un negocio de prueba de rubro productora, en producción, con datos inventados: ahí se prenden los interruptores y prueba el dueño. El de MIA queda apagado hasta la API | Un alta en la base de producción (con respaldo, por el alta por comando de siempre): la decide el dueño. Convive con negocios reales, aislado como cualquier otro. Si ya existe un negocio de prueba de productora, se usa ese (provisional a confirmar) |
+| **A (recomendada)** | Un negocio de prueba de rubro productora, en producción, con datos inventados: ahí se prenden los interruptores y prueba el dueño. El de MIA queda apagado hasta la API | Un alta en la base de producción (con respaldo, por el alta por comando de siempre): la decide el dueño. Convive con negocios reales, aislado como cualquier otro. Si ya existe un negocio de prueba de productora, se usa ese (S22, provisional a confirmar); si no, el alta es el paso 4b de `04`, «Antes de probar» |
 | B | El negocio de MIA, sólo si la tanda 1 se publica antes de que entren datos reales | Quedan días hasta el 18/11 y antes hay que construir, certificar, ensayar la migración y publicar. Los datos inventados quedarían mezclados con los reales (borrarlos es decisión del dueño) |
 | C | El negocio de MIA con sus datos reales, sólo con lo que calcula el código (sin IA, nada sale del sistema) | Contradice la frase del dueño tal como está escrita («no vamos a utilizar datos reales»). Sólo si el dueño lo aclara |
 
@@ -243,7 +245,7 @@ después del 18/11, el negocio de MIA ya va a tener datos reales.
 | S2 | Las tareas de Administración de MIA son las del `01` §3 | Salen de sus planillas y del código, no de una charla con ella | Mostrarle el `01` §3 y §4 al dueño antes de mostrárselo a MIA |
 | S3 | La tarea diaria corre una sola vez (9:00 ART) y no se agrega otra | Sin seguimiento dentro del día | Si hace falta, es decisión de plan de Vercel (gasto) |
 | S4 | Los compromisos tienen fecha, no hora | Alcanza para cobranza | Uso real |
-| S5 | Topes: 10 propuestas por día, 50 compromisos abiertos, 20 pares por conciliación, 40 notas por puesto, 60 pedidos por persona por día, 3 partes a pedido por día | Son el freno; se cuentan con cupo atómico y el de mensajes es de cada persona (`03` §6) | Se ajustan con la medición |
+| S5 | Topes: 10 propuestas por día, 50 compromisos abiertos, 20 pares por conciliación, 40 notas por puesto, 60 pedidos por persona por día, 10 partes a pedido por persona y por día (eran 3 por puesto: una sola prueba los gastaba) | Son el freno; se cuentan con cupo atómico y los de pedidos y partes son de cada persona (`03` §3 y §6) | Se ajustan con la medición |
 | S6 | El recordatorio usa la moneda del evento y el importe pendiente de la cuota | Hay un defecto abierto de cobro parcial y otro de precio en dólares (tablero MIA, M3) | No salir en vivo con datos reales hasta que cierren |
 | S7 | `ProyectoCuota.monto` y `ProyectoMovBanco.importe` siguen en `Float` hasta que entre el pase a centavos (`prisma/schema.prisma:3852` y `:4079`; tablero MIA, M12) | Conciliación por importe exacto: se compara en centavos enteros | Revisar las herramientas cuando entre ese PR |
 | S8 | Precios de los modelos y forma exacta de la API con herramientas | No se tomaron de memoria | El constructor los lee en la fuente oficial y los cita en el PR |
@@ -259,8 +261,10 @@ después del 18/11, el negocio de MIA ya va a tener datos reales.
 | S18 | Si el proyecto `erp-ch` tiene cargada `MIGRATE_DATABASE_URL` | Con la variable, publicar el PR de la tanda 1 aplica la migración: ese push es Gate 2 (D13) | Leerlo en Vercel (sólo lectura) antes de publicar. No se consultó en esta corrección |
 | S19 | Las citas de los términos de Anthropic de D4-bis las leyeron la orquestadora y un verificador el 14/11; esta corrección no releyó las páginas | Deciden que el plan no puede ser motor del producto | Releer las tres páginas antes de escribirle a Anthropic (camino b) |
 | S20 | Que `createMany` con `skipDuplicates` cubra los índices únicos **parciales** escritos a mano en la migración | De eso depende no duplicar propuestas, compromisos ni partes sin SQL crudo (`03` §3) | El primer test de carrera de la tanda 1; si no los cubre, `updateMany` condicional previo |
-| S21 | Nombre de la variable de la clave (`AGENTES_ANTHROPIC_API_KEY`, propuesto), modelo por defecto para la prueba con clave y monto del tope (US$ 20 hablado) | Sin esto no se prende la conversación | El constructor de 1C lee modelos y precios en la fuente oficial; el monto lo confirma el dueño en D4-bis |
-| S22 | Si ya existe en producción un negocio de prueba de rubro productora | Evita un alta nueva para D15 | Lo lee el rol de operación, en sólo lectura |
+| S21 | Nombre de la variable de la clave (`AGENTES_ANTHROPIC_API_KEY`, propuesto), modelo por defecto para la prueba con clave y monto del tope (US$ 20 hablado) | Sin esto no se responde con IA ningún pedido de texto libre | El constructor de 1C lee modelos y precios en la fuente oficial; el monto lo confirma el dueño en D4-bis |
+| S22 | Si ya existe en producción un negocio de prueba de rubro productora. **Sigue sin confirmar** | Evita un alta nueva para D15. Si no existe, hay que darlo de alta: paso 4b de `04`, «Antes de probar» | Lo lee el rol de operación, en sólo lectura |
+| S23 | Bandeja de GSG: largo máximo de la respuesta (2000 caracteres), que el negocio vea «GSG» y no el nombre de la persona, y que un pedido en bandeja no se cierre solo aunque pasen días | Textos, privacidad de quien contesta y pedidos que pueden quedar abiertos | Uso real; lo ajusta el dueño |
+| S24 | Nombre y slug del negocio de prueba, y desde qué máquina se corre el alta por comando (lee la conexión de producción de un archivo local, `scripts/soporte/alta-negocio.mts:21`) | Sin eso no se puede hacer el paso 4b | Lo define el dueño con el rol de operación |
 
 ## C. Lo que no se pudo verificar
 
@@ -279,7 +283,10 @@ después del 18/11, el negocio de MIA ya va a tener datos reales.
 8. Los tests de la corrección no se corrieron: es un diseño. Los hallazgos se verificaron leyendo el código
    (`archivo:línea` en `03`); el comportamiento con el rol sin bypass lo prueba el primer test de la tanda 1.
 9. Los términos de Anthropic citados en D4-bis no se releyeron en esta corrección (S19).
-10. El adaptador de la API no se puede probar contra el servicio real sin una clave (`03` §16, riesgo 11).
+10. El adaptador de la API no se puede probar contra el servicio real sin una clave (`03` §16, riesgo 10).
+11. Ajuste final (sección H): la consola del operador y el alta por comando se leyeron en el código; no se abrió la
+    consola ni se corrió nada. Que la demo local de quien construye tenga una sesión de operador para el QA de la
+    bandeja: provisional a confirmar por el constructor de 1D.
 
 ## D. Equipo de proyecto de GSG (próximo diseño)
 
@@ -364,7 +371,8 @@ Decisiones del dueño del 14/11, incorporadas:
 | 5 | «Cerebro» de la prueba: sigue abierta; ninguna suscripción personal como motor | D4-bis, D8; `03` §10 |
 
 Cambios que salen de la corrección y nadie pidió, para que estén a la vista:
-- **C3 (anotar promesa) baja de nivel 2 a nivel 1**, con confirmación en la charla (`01` §4, `02` §1.2).
+- **C3 (anotar promesa) baja de nivel 2 a nivel 1**, con confirmación de la persona, hoy un botón en la respuesta del
+  pedido (`01` §4, `02` §1.2).
 - **«Agenda y cuaderno» deja de ser apta para Codex** (D9, `04`).
 - **El equipo usa una variable de clave propia**, no `ANTHROPIC_API_KEY`, para no cambiar a los agentes actuales (`03` §10).
 - **Las tablas pasan de 8 a 10** (D13).
@@ -397,27 +405,28 @@ Hechos y decisiones nuevas del dueño, incorporados:
 |---|---|---|
 | N1 | S15 resuelto: MIA es producción, compartida con CH | S15, D4, D13; `03` §15; `04` encabezado y «Antes de probar» |
 | N2 | Sin Cloudflare; el plan de Claude no es motor del producto; la tanda 1 se prueba sin clave y responder con IA se prende con la clave propia; el «puente» con el plan, evaluado y descartado | D1, D4-bis, D8; `03` §1 (8), §2, §10, §10.1; `04` brief 1C y Pruebas A y B |
-| N5 | **No hay conversación en vivo: hay un buzón de pedidos** («No vamos a hacer la conversación en vivo, pero vamos a hacer un buzón de mensajes para la gente. Con pedidos y con respuestas menores a 3 minutos.», 14/11 ~21:35 UTC). Pedidos de la lista o de texto libre, con estado, horas y respuesta entera; objetivo de 3 minutos por negocio, medido; sin clave, los de la lista se responden igual y los de texto libre quedan en espera | `01` §5 y §5.1; `02` §2, §3, §4 (22 a 27), §6; `03` §2, §3, §4.3, §10.1, §14, §16 (15); `04` tanda 1 entera |
+| N5 | **No hay conversación en vivo: hay un buzón de pedidos** («No vamos a hacer la conversación en vivo, pero vamos a hacer un buzón de mensajes para la gente. Con pedidos y con respuestas menores a 3 minutos.», 14/11 ~21:35 UTC). Pedidos de la lista o de texto libre, con estado, horas y respuesta entera; objetivo de 3 minutos por negocio, medido; sin clave, los de la lista se responden igual y los de texto libre quedaban en espera (**cambiado esa noche: van a la bandeja de GSG, sección H**) | `01` §5 y §5.1; `02` §2, §3, §4 (22 a 27), §6; `03` §2, §3, §4.3, §10.1, §14, §16 (9); `04` tanda 1 entera |
 | N3 | GSG entra a la base como cliente real; el equipo de GSG es el equipo de proyecto de la consultora y corre en Claude Code | Sección D (sigue siendo próximo diseño) |
-| N4 | Agentes en una tanda de publicación aparte; migración con ensayo en una copia; MIA empieza a usar el sistema el 18/11 | D13, D15; `03` §15, §16 (10); `04` |
+| N4 | Agentes en una tanda de publicación aparte; migración con ensayo en una copia; MIA empieza a usar el sistema el 18/11 | D13, D15; `03` §15, §16 (8); `04` |
 
 **Cómo se sostiene el objetivo de 3 minutos (para que esté a la vista):** el proyecto sólo tiene tareas programadas
 que corren una vez por día (`vercel.json:8-17`) y no se agrega otra. El pedido se procesa apenas entra, después de
 responder «recibido», con `after()` de Next (guías de Next 16.3.4 leídas del paquete, citadas en `03` §4.3); cada
 intento termina 10 s antes del plazo; mientras alguien tenga el buzón abierto, el sondeo rescata los colgados; pasado
 el plazo, el pedido queda «sin responder a tiempo», cuenta como fuera del objetivo y no se reintenta solo. Riesgo que
-queda: si la función se corta y nadie tiene el buzón abierto, no hay rescate (`03` §16, riesgo 15). Un despertador por
+queda: si la función se corta y quien lo pidió no tiene su buzón abierto, no hay rescate (`03` §16, riesgo 9). Un despertador por
 minuto sería una decisión de plan y de gasto: no se propone.
 
 **Cantidad de tablas:** siguen siendo 11, pero no las mismas. Salen `AgenteConversacion` y `AgenteMensaje` (no hay
-charla). Entran `AgentePedido` (el buzón), `AgenteReserva` (H3c) y `AgenteAjuste` (objetivo de respuesta y tope de
+historial palabra por palabra). Entran `AgentePedido` (el buzón), `AgenteReserva` (H3c) y `AgenteAjuste` (objetivo de respuesta y tope de
 gasto por negocio). El diseño verificado tenía 10.
 
 Cambios que salen de esta corrección y nadie pidió, para que estén a la vista:
 - **Segundo interruptor, `equipo-agentes-ia`.** La clave se carga en un despliegue que atiende a todos los negocios;
   sin un interruptor propio, cualquier negocio con el equipo prendido mandaría sus datos al proveedor (`03` §10, §12).
-- **Los pedidos de texto libre que esperaban la IA no se procesan solos** cuando la IA se conecta: la persona toca
-  «Pedir ahora». Nadie gasta sin que alguien lo pida (`03` §4.3).
+- ~~Los pedidos de texto libre que esperaban la IA no se procesan solos cuando la IA se conecta: la persona toca
+  «Pedir ahora».~~ **Reemplazado esa noche (sección H):** ya no esperan; van a la bandeja de GSG y los contesta una
+  persona. El botón «Pedir ahora» sale del diseño.
 - **Un pedido vencido no recibe una respuesta tardía:** el intento se corta 10 s antes del plazo. Se prefirió un estado
   claro («sin responder a tiempo», con «Reintentar») a una respuesta que llega fuera de plazo (`03` §4.3).
 - **`AgenteParte` queda sólo para el parte automático** (tanda 3); el parte a pedido es un pedido de la lista.
@@ -427,3 +436,43 @@ Cambios que salen de esta corrección y nadie pidió, para que estén a la vista
   (`02` §1.1).
 - **El adaptador para modelos sin herramientas (`proveedor-esquema`) sale del diseño**; la opción B queda como interfaz.
 - **El gasto estricto se construye en la tanda 1** (brief 1C), no en la tanda 3.
+
+## H. Cambios por la segunda verificación y decisiones del 14/11 (noche)
+
+Ajuste final, sobre el commit `8cf9021`. Una segunda verificación adversarial concluyó «se puede abrir con
+condiciones»: dos bloqueantes, tres restos y siete observaciones. Después llegaron tres decisiones nuevas del dueño.
+Cada punto se verificó contra el código antes de corregir; ninguno resultó falso. (Ojo con los nombres: en la sección
+G hay otro N5, el del buzón. Acá los puntos llevan el número de la segunda verificación.)
+
+| Punto | Qué cambió | Dónde |
+|---|---|---|
+| **B1** · El rescate procesaba pedidos de otras personas con la sesión de quien miraba | Cierto: la persona se arma desde la sesión (`gestion.server.ts:33-42`) y no hay función que la arme desde un `userId`. **Solución elegida: el rescate toma sólo los pedidos propios.** `procesarPedido(id, vista)` exige en la base que el pedido sea de esa persona; el actor se arma antes de `after()` y viaja por parámetro. Se descartó crear `actorDe(tenantId, userId)`: sería una puerta para armar identidades sin sesión | `03` §4.3 (paso 1 y puntos 1 y 3), §5, §14; `04` briefs 1A y 1B; `02` §4 (33) |
+| **B2** · Faltaba el alta del negocio de prueba | Cierto. Paso 4b nuevo: mirar si existe (S22, sigue sin confirmar) y, si no, alta por comando (`scripts/soporte/alta-negocio.mts:5-6`), con `--probar` antes. Decide el dueño | `04` «Antes de probar» (4b); `03` §15 (3b); D15, S22, S24 |
+| **Restos** · Menciones a mensajes y a conversación | Corregidas: `03` §3 (`AgenteContador`: «60 pedidos»), D11 («por pedido»), S21 («no se responde con IA ningún pedido»), S5 y sección F (C3). Quedan sólo la frase del dueño que decide que no hay conversación en vivo y la descripción de los 7 agentes actuales (`01` §2) | `03` §3; esta hoja, D11, D13, S5, S21, sección F |
+| **O1** · Sin vigencia o sin plazo al tomar, nadie cerraba el pedido y el sondeo lo relanzaba cada 5 s | Sin vigencia, el pedido se cierra como «necesita una persona». El rescate sólo relanza pedidos con 30 s o más de plazo. Al leer su buzón, la persona cierra sus pedidos vencidos como «sin responder» | `03` §4.3 (paso 1, puntos 3 y 4), §12.1, §14 |
+| **O2** · No se decía cuándo nace la clave del envío | Nace al montar el formulario o el botón, no en el clic, y cambia cuando vuelve la respuesta | `03` §4.3 (Alta); `04` brief 1B; `02` §4 (34) |
+| **O3** · Métricas de pedidos sin cerrar | Todas las cuentas salen de `AgentePedido`; el registro es el rastro, no la fuente | `03` §4.3 (Métricas), §14 |
+| **O4** · A 1B le faltaban archivos | Sumados `src/apps/espacios.ts:59`, `:204`, `:213`, `src/apps/visibles.ts:539` y `proyectos/equipo/page.tsx:126` (la fila del módulo, sólo con el interruptor prendido). Verificados | `03` §2; `04` tabla de la tanda 1 y brief 1B |
+| **O5** · `interruptores.ts:66` es el comienzo del catálogo | El catálogo empieza en `:66` y cierra en `:213`; los dos nuevos van antes de ese cierre | `03` §2, §12; `04` brief 1A |
+| **O6** · El `REVOKE` quedaba después del `COMMIT` y sin mirar si la tabla existe | Va dentro de la transacción de `0002_app_role.sql` (después de `:63-66`, antes de `:68`), en un `DO` que comprueba la tabla. El test lo corre dos veces y sin la tabla | `03` §3, §14; `04` brief 1A |
+| **O7** · Los 3 partes por día se gastaban en una prueba | El cupo pasa a 10 por persona y por día (provisional). No llama al modelo y el doble toque no gasta cupo | `03` §3 (`AgenteParte`); S5; `04` Prueba A (2) |
+| **N5 (bandeja)** · «Vamos a sumar la bandeja para que GSG conteste el texto libre.» | El texto libre de un negocio sin IA nace `EN_BANDEJA`, con su plazo, y lo contesta **una persona de GSG** en `/operador/bandeja`. Reemplaza al estado «en espera» y al botón «Pedir ahora». Lee entre negocios con el patrón de Soporte (`enElNegocio`, `operator-db.ts:37-46`; guardia `operadorParaNegocio`), deja en el registro del negocio quién leyó y quién contestó, y se mide igual, contado aparte. **Invariante con test: ningún proceso automático contesta por la bandeja.** No suma tablas: siguen siendo 11 (una columna, `respondidoPor`, y un estado) | `03` §1 (8), §2, §3, §4.3, §4.4 (nueva), §6.1, §10, §10.1, §12, §12.1, §13, §14, §15, §16 (11); `01` §5 y §5.1; `02` §2, §2.1 (nueva), §3, §4 (22, 28 a 32), §6 (5 y 5b); `04` brief 1D, certificación y Prueba A (5 a 7) |
+| **N6 (cadena)** · «Hagamos más de una tanda, hagamos todas completas.» | Las 6 tandas se construyen en cadena, 1 → 6, sin esperar la prueba del dueño. Cada una abre su rama desde la anterior, verifica su brief contra el código real al abrirse y se cierra con su certificación antes de la siguiente. Publicar y Gate 2 no cambian | `04` encabezado, «Reglas comunes», Resumen, tandas 3, 5 y 6 |
+| **N7 (un push)** · Cada push a una rama del ERP gasta un despliegue de Vercel (100 por día, por cuenta) | Commits locales y un push por brief, al terminar. Única excepción: el commit de contratos de 1A | `04` «Reglas comunes» |
+
+**Regla de trabajo que sale de la bandeja (no es código):** ninguna sesión de Claude ni rutina programada usa una
+sesión de operador para abrir o contestar pedidos de la bandeja. El código cierra las entradas automáticas (`03` §4.4);
+no puede distinguir a una persona de un robot que maneje su navegador.
+
+**Queda abierto, para el dueño:**
+1. **Quién de GSG atiende la bandeja y cómo se entera.** Hoy no hay aviso automático: se mira la bandeja. Con un
+   objetivo de 3 minutos, casi todos esos pedidos van a medirse fuera de plazo. Opciones: (a) dejarlo así y medir
+   (recomendada para la prueba, sin costo); (b) un aviso a una persona (mail o WhatsApp), que avisa pero no contesta;
+   (c) un objetivo distinto para lo que contesta una persona. Riesgo de (a): la métrica sale mala desde el primer día.
+2. **Si la persona de GSG puede ver datos del negocio para contestar.** Hoy ve sólo el pedido. Abrirle los datos es
+   más lectura entre negocios: decisión aparte, con su certificación.
+3. **Aviso a MIA.** Los pedidos escritos, sin IA, los lee una persona de GSG. El formulario lo avisa antes de mandar;
+   conviene que también lo diga la constancia de consentimiento (D5).
+4. **Un pedido que se queda sin saldo de IA** sigue cerrando como «necesita una persona» del negocio; no va a la
+   bandeja. Mandarlo ahí es un cambio chico, si el dueño lo quiere.
+5. Siguen abiertas, sin cambios: D1, D2, D3, D4-bis, D15, S18 (`MIGRATE_DATABASE_URL`) y S22.

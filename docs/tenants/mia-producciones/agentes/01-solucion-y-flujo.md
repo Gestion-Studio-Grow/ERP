@@ -6,6 +6,8 @@
 > **Corregido el 14/11** tras la revisión adversarial y las decisiones del dueño de ese día: el detalle manda en `03`;
 > la lista de cambios está en `05`, sección F. **Segunda corrección, mismo día** (`05`, sección G): no hay conversación
 > en vivo sino un **buzón de pedidos** con respuesta en menos de 3 minutos (§5.1), y el equipo funciona sin modelo.
+> **Ajuste final, 14/11 a la noche** (`05`, sección H): mientras un negocio no tenga la IA conectada, los pedidos
+> escritos los contesta **una persona de GSG** desde una bandeja (§5.1).
 
 ## 1. Qué es, en una frase
 
@@ -27,7 +29,7 @@ libros y no le escribe a nadie de afuera por su cuenta.
 | Cobranza con una sola cuenta | `cobranza-core.ts:370-384`, `empresa.server.ts:20-43` | Se lee con las mismas funciones: el agente da el mismo número que la pantalla |
 | Conciliación a mano (atar movimiento y cuota, sin marcar pagada) | `acciones-empresa.ts:227-244` | Es la acción que el agente puede proponer |
 | Avisos diarios desde una tarea programada | `vercel.json:8-17`, `src/app/api/cron/reminders/route.ts:31-37`, `avisos-programados.server.ts:14-27` | Es el único despertador: corre una vez por día |
-| Interruptores por negocio, que sólo prende GSG | `src/cambios/interruptores.ts:9-20`, `:66` | Se suma uno: «equipo de agentes» |
+| Interruptores por negocio, que sólo prende GSG | `src/cambios/interruptores.ts:9-20`, `:66` | Se suman dos, al final del catálogo: «equipo de agentes» y la IA para ese equipo (`03` §12) |
 | WhatsApp entrante | `src/app/api/webhooks/whatsapp/route.ts:139-202` | Hoy atiende sólo pádel; no se usa en la primera versión |
 
 ## 3. Los puestos del equipo de Mariana y por qué
@@ -98,6 +100,10 @@ flowchart TB
     C[(Gasto del mes)]
   end
 
+  subgraph GSG["Consola del operador de GSG"]
+    BG["Bandeja: una persona de GSG<br/>contesta el texto libre sin IA"]
+  end
+
   subgraph IA["Proveedor de IA (intercambiable)"]
     I1[Ruta 1 · Claude por API]
     I2[Opción B · sólo la interfaz, sin construir]
@@ -112,6 +118,8 @@ flowchart TB
   end
 
   Panel --> B --> L
+  B -- texto libre, negocio sin IA --> BG
+  BG -- respuesta escrita por una persona --> B
   CRON --> L
   L --> G --> H
   H -- lee en el momento --> ERP
@@ -130,6 +138,8 @@ Tres reglas de este dibujo:
    las pantallas). La IA escribe el texto que acompaña; los renglones con datos, sus fuentes y lo que sale hacia un
    cliente de MIA (el recordatorio) los arma el código (corrección del 14/11: `03` §4.2 y §13).
 3. **Las memorias y el registro son tablas propias del negocio**, no del proveedor: cambiar de modelo no pierde nada.
+4. **Por la bandeja de GSG sólo contesta una persona.** No hay proceso, rutina ni entrada automática que la vigile y
+   responda; quién leyó y quién contestó queda en el registro del negocio (`03` §4.4).
 
 ### 5.1 Cómo se le pide algo al equipo: el buzón (decisión del dueño, 14/11)
 
@@ -143,21 +153,25 @@ palabra por palabra.
 ```mermaid
 stateDiagram-v2
   [*] --> RECIBIDO: deja un pedido (de la lista o de texto libre)
-  [*] --> EN_ESPERA: texto libre y el equipo todavía no tiene la IA conectada
+  [*] --> EN_BANDEJA: texto libre y el negocio no tiene la IA conectada
   RECIBIDO --> EN_CURSO: el motor lo toma (interruptor y pausa mirados)
   EN_CURSO --> RESPONDIDO: respuesta completa, con su tiempo
   EN_CURSO --> NECESITA_PERSONA: tarea de nivel 3, falta el dato o se pausó en el medio
   RECIBIDO --> SIN_RESPONDER: pasó el plazo
   EN_CURSO --> SIN_RESPONDER: pasó el plazo
-  EN_ESPERA --> RECIBIDO: la IA se conecta y la persona toca «Pedir ahora»
+  EN_BANDEJA --> RESPONDIDO: una persona de GSG lo abre y escribe la respuesta
 ```
 
 - **Objetivo de servicio: respuesta en menos de 3 minutos**, configurable por negocio. Se mide de verdad: el tiempo de
   cada pedido y el porcentaje dentro del objetivo van al registro y al parte.
 - **Sin clave de API**, los pedidos de la lista se responden igual (los resuelve el código: cobranzas pendientes,
-  vencimientos, parte del día) y los de texto libre quedan «en espera», sin perderse. Con clave, los responde el motor
-  con el modelo.
-- **Un pedido enviado dos veces es uno solo**, y cada persona tiene un tope de pedidos por día.
+  vencimientos, parte del día). Los de texto libre van a la **bandeja de GSG**: la persona los ve como «Necesita una
+  persona: lo responde alguien de GSG», una persona de GSG los abre en la consola del operador, escribe la respuesta y
+  la manda, y aparece en el buzón como «Respondido por una persona de GSG». Se miden igual que los demás (tiempo, y
+  dentro o fuera de los 3 minutos). Con clave y la IA prendida para ese negocio, los responde el motor con el modelo.
+- **Ningún robot contesta por la bandeja:** sólo una persona con sesión en la consola (`03` §4.4).
+- **Un pedido enviado dos veces es uno solo**, y cada persona tiene un tope de pedidos por día. El rescate de un
+  pedido colgado lo hace sólo quien lo dejó, con sus propios permisos.
 - Con el puesto en pausa o el equipo apagado no entra ningún pedido. Si se pausa mientras uno está en curso, se corta
   y queda «necesita una persona».
 - Cómo se cumple el plazo y qué pasa cuando se vence: `03` §4.3.
