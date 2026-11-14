@@ -6,7 +6,8 @@ import assert from "node:assert/strict";
 import type { Directorio } from "@/lib/padel/directorio";
 import {
   DIRECTORIO_TTL_MS,
-  TOPE_CANDIDATOS,
+  TOPE_NEGOCIOS,
+  TOPE_PROFES,
   TOPE_RESULTADOS,
   armarDirectorio,
   filtrarDirectorio,
@@ -93,12 +94,19 @@ test("turnero cerrado (sin verificar), subdominio inválido o negocio que falla:
   assert.equal(llamadas.some((l) => l.tenantId === "ceci" && l.dep === "agenda"), false);
 });
 
-test("tope de anotados: nunca se miran más de TOPE_CANDIDATOS negocios", async () => {
-  const muchos = Array.from({ length: TOPE_CANDIDATOS + 20 }, (_, i) => neg(`p${i}`, dir(false)));
+test("tope de negocios: nunca se miran más de TOPE_NEGOCIOS (sólo su ajuste si no se anotaron)", async () => {
+  const muchos = Array.from({ length: TOPE_NEGOCIOS + 20 }, (_, i) => neg(`p${i}`, dir(false)));
   const { deps, llamadas } = fake(muchos);
   deps.candidatos = async () => muchos.map((n) => n.c); // aunque la fuente ignore el tope
   await armarDirectorio(deps, "gsgapp.com.ar");
-  assert.equal(llamadas.length, TOPE_CANDIDATOS);
+  assert.equal(llamadas.length, TOPE_NEGOCIOS);
+  assert.ok(llamadas.every((l) => l.dep === "ajuste"));
+});
+
+test("tope de profes: nunca se arman más de TOPE_PROFES anotados", async () => {
+  const muchos = Array.from({ length: TOPE_PROFES + 5 }, (_, i) => neg(`p${i}`, dir(true)));
+  const { deps } = fake(muchos);
+  assert.equal((await armarDirectorio(deps, "gsgapp.com.ar")).length, TOPE_PROFES);
 });
 
 const profe = (clave: string, zona: string, dias: ProfePublico["dias"]): ProfePublico => ({
@@ -152,11 +160,11 @@ test("caché corta: reusa dentro del plazo, vuelve a armar después y no guarda 
   assert.equal(await memo(cargar), 3);
 });
 
-test("CERT 13/11 · costo: la fuente trae sólo anotados y el armado hace 4 lecturas por anotado", async () => {
-  // 500 negocios con el módulo; 3 anotados al FINAL (los más nuevos). La fuente real filtra en
-  // Postgres por `_directorio.visible`: acá, lo mismo sobre los datos de mentira.
+test("PROFE-005 · costo con RLS: la fuente trae negocios (no anotados); 1 lectura por negocio y 4 por anotado", async () => {
+  // 50 negocios con el módulo; 3 anotados al FINAL (los más nuevos). Con RLS la fuente (`Tenant`) no
+  // puede saber quién se anotó: trae todos y el ajuste, leído en cada negocio, decide.
   const negocios = [
-    ...Array.from({ length: 497 }, (_, i) => neg(`n${i}`, dir(false))),
+    ...Array.from({ length: 47 }, (_, i) => neg(`n${i}`, dir(false))),
     neg("ana", dir(true, "Canning")),
     neg("beto", dir(true, "Adrogué")),
     neg("ceci", dir(true, "Lanús")),
@@ -165,13 +173,13 @@ test("CERT 13/11 · costo: la fuente trae sólo anotados y el armado hace 4 lect
   let topePedido = -1;
   deps.candidatos = async (tope) => {
     topePedido = tope;
-    return negocios.filter((n) => n.dir.visible).map((n) => n.c).slice(0, tope);
+    return negocios.map((n) => n.c).slice(0, tope);
   };
   const out = await armarDirectorio(deps, "gsgapp.com.ar");
-  assert.equal(topePedido, TOPE_CANDIDATOS);
-  assert.deepEqual(out.map((p) => p.clave).sort(), ["ana", "beto", "ceci"], "los anotados nuevos aparecen aunque haya cientos de negocios antes");
-  assert.equal(llamadas.length, 3 * 4, "ajuste + abierto + agenda + clubes, sólo de los anotados");
-  assert.ok(TOPE_CANDIDATOS >= 100, "el tope corta anotados, no negocios en general");
+  assert.equal(topePedido, TOPE_NEGOCIOS);
+  assert.deepEqual(out.map((p) => p.clave).sort(), ["ana", "beto", "ceci"], "los anotados nuevos aparecen aunque haya negocios antes");
+  assert.equal(llamadas.length, 50 + 3 * 3, "ajuste de todos + abierto, agenda y clubes sólo de los anotados");
+  assert.ok(TOPE_PROFES >= 100 && TOPE_NEGOCIOS >= TOPE_PROFES, "el tope de negocios no es menor que el de profes");
 });
 
 test("CERT 13/11 · el pre-filtro no alcanza: si el ajuste leído en su negocio no es visible, no aparece", async () => {

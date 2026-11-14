@@ -9,25 +9,26 @@
 //    interno del negocio (la tarjeta se identifica por su subdominio, que ya es su link público).
 //  · Cada lectura de un negocio corre en SU contexto (`runInTenantContext` en el .server): la deps
 //    recibe el `tenantId` de ese negocio y nada más.
-//  · Topes: anotados que se miran, profes que se arman y resultados que se muestran.
-//  · Costo (CERT 13/11, MEDIA): los candidatos llegan YA filtrados a los anotados (una consulta, en
-//    el .server); recién a ésos se les lee el ajuste, la verificación, la agenda y los clubes. Un
-//    armado cuesta 1 + 4 consultas por anotado (no ~560 como cuando se leía el ajuste de todos).
+//  · Topes: negocios que se miran, profes que se arman y resultados que se muestran.
+//  · Costo (PROFE-005, RLS): con RLS prendido no hay forma de pre-filtrar a los anotados entre
+//    negocios sin migración (PadelConfig tiene RLS). Los candidatos salen de `Tenant` (sin RLS):
+//    negocios activos con el módulo de clases, hasta TOPE_NEGOCIOS. A cada uno se le lee SÓLO el
+//    ajuste en su contexto (1 consulta); a los anotados, 3 más. Armado: 1 + N + 3·anotados, cada
+//    10 minutos por instancia.
 
 import type { DiaConLugar } from "@/lib/padel/datos.server";
 import type { Directorio } from "@/lib/padel/directorio";
 import { DESDE_DIRECTORIO } from "@/lib/padel/canal";
 
 /**
- * Cuántos negocios ANOTADOS (`_directorio.visible`) se miran como mucho por armado. Como la fuente
- * ya trae sólo anotados, el tope no deja afuera a los nuevos por haber muchos negocios sin anotar
- * (CERT 13/11, BAJA). Tope provisional a confirmar: 100 anotados ≈ 401 consultas cada 10 min por
- * instancia. TODO(escala): pasados los 100, paginar por zona o pasar `_directorio` a columnas con
- * índice (la migración ya anotada en src/lib/padel/directorio.ts).
+ * Cuántos negocios con el módulo de clases (anotados o no) se miran como mucho por armado: a cada
+ * uno se le lee el ajuste en su contexto. Tope provisional a confirmar: 300 negocios ≈ 300 + 3·anotados
+ * consultas cada 10 min por instancia. TODO(escala, Gate 2): pasar `_directorio` a una columna (o una
+ * tabla índice sin RLS) para volver a pre-filtrar en una sola consulta (src/lib/padel/directorio.ts).
  */
-export const TOPE_CANDIDATOS = 100;
-/** Cuántos profes anotados se arman (horarios y clubes) como mucho: todos los que se miran. */
-export const TOPE_PROFES = TOPE_CANDIDATOS;
+export const TOPE_NEGOCIOS = 300;
+/** Cuántos profes ANOTADOS se arman (horarios y clubes) como mucho. */
+export const TOPE_PROFES = 100;
 /** Cuántas tarjetas se muestran como mucho después de filtrar. */
 export const TOPE_RESULTADOS = 30;
 /** Cuántos días para adelante se ofrecen en el filtro y se guardan por profe. */
@@ -45,8 +46,8 @@ export type AjustePublico = { directorio: Directorio; precioIndividual: number; 
 
 export interface DepsDirectorio {
   /**
-   * Negocios activos con el módulo de clases que se ANOTARON en el directorio (pre-filtro en una
-   * sola consulta; sólo columnas de `Tenant`). Es un índice, no la verdad: `ajuste` decide.
+   * Negocios activos con el módulo de clases (una sola consulta, sólo columnas de `Tenant`, que no
+   * tiene RLS). Es un índice, no la verdad: `ajuste`, leído en el contexto de cada uno, decide.
    */
   candidatos(tope: number): Promise<Candidato[]>;
   /** Todas las de abajo corren en el contexto del negocio `tenantId`. */
@@ -116,8 +117,8 @@ async function deA<T, R>(items: readonly T[], n: number, fn: (x: T) => Promise<R
  * al leerse se saltea (no tira la página de todos). Orden: con horarios primero, después por nombre.
  */
 export async function armarDirectorio(deps: DepsDirectorio, dominio: string): Promise<ProfePublico[]> {
-  const candidatos = (await deps.candidatos(TOPE_CANDIDATOS))
-    .slice(0, TOPE_CANDIDATOS)
+  const candidatos = (await deps.candidatos(TOPE_NEGOCIOS))
+    .slice(0, TOPE_NEGOCIOS)
     .map((c) => ({ ...c, turnero: turneroDe(c.subdomain, dominio) }))
     .filter((c): c is Candidato & { turnero: string } => c.turnero !== null);
 

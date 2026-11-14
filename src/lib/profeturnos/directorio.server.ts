@@ -1,22 +1,24 @@
 // PROFETURNOS · Directorio público: las lecturas reales detrás de `armarDirectorio` (directorio-core.ts).
 //
 // LECTURA ENTRE NEGOCIOS (para el certificador), en dos planos:
-//  1. `candidatos`: UNA consulta con el cliente crudo (`basePrisma`) que sólo trae QUIÉNES se
-//     anotaron: `PadelConfig.tenantId` de las filas con `plantillas._directorio.visible = true`, y de
-//     su `Tenant` (sin RLS, prisma/rls/0001_enable_rls.sql) id, nombre y subdominio. No se lee el JSON
-//     de plantillas (ni textos, ni precios, ni nada) entre negocios: el filtro corre en Postgres y
-//     vuelve sólo el id. Es un índice: lo que decide si aparece es el paso 2 (`leerDirectorio`,
-//     fail-closed). Si algún día el rol de DATABASE_URL deja de estar exento de RLS, esta consulta
-//     vuelve vacía: el buscador queda sin profes (falla cerrado, no muestra de más).
-//  2. Todo lo demás, POR NEGOCIO ANOTADO, dentro de `runInTenantContext(<su tenantId>)`: con RLS
-//     prendido el cliente `prisma` fija `app.current_tenant_id` a ese negocio en cada consulta; con
-//     RLS apagado cada consulta lleva además su `where: { tenantId }` explícito. Sin BYPASS.
+//  1. `candidatos`: UNA consulta a `Tenant` (tabla SIN RLS: excluida a propósito en
+//     prisma/rls/0001_enable_rls.sql:41, y la resolución de negocio por request la lee igual) que trae
+//     id, nombre y subdominio de los negocios activos con el módulo de clases. NO toca PadelConfig:
+//     esa tabla tiene RLS (prisma/migrations/20261015120000_modulo_padel_clases/migration.sql:180) y
+//     con el rol `app_rls` + RLS_ENFORCEMENT=on una lectura sin contexto vuelve VACÍA (QA PROFE-004:
+//     el buscador quedaba siempre sin profes). Es un índice: no dice quién se anotó.
+//  2. Todo lo demás, POR NEGOCIO, dentro de `runInTenantContext(<su tenantId>)`: con RLS prendido
+//     el cliente `prisma` fija `app.current_tenant_id` a ese negocio en cada consulta; con RLS
+//     apagado cada consulta lleva además su `where: { tenantId }` explícito. Sin BYPASS ni SECURITY
+//     DEFINER. El primero es `ajuste` (el opt-in `_directorio`); a quien no se anotó no se le lee más.
 //
 // Qué se lee de cada anotado: `PadelConfig` (sólo `plantillas` para la clave `_directorio`, y los dos
 // precios), la verificación de GSG, los horarios libres (`agendaPublica`, lo mismo que muestra su
 // turnero) y los nombres de sus clubes. Nunca alumnos, clases con dueño ni teléfonos.
 //
-// Costo (CERT 13/11): 1 + 4 consultas por anotado, cada 10 minutos por instancia (`memoriaCorta`).
+// Costo (PROFE-005): 1 + 1 por negocio con el módulo (tope TOPE_NEGOCIOS) + 3 por anotado, cada 10
+// minutos por instancia (`memoriaCorta`). Volver a 1 + 4·anotados pide sacar `_directorio` a una
+// columna o tabla sin RLS: migración, Gate 2 del dueño.
 // TODO(deuda): la caché es POR INSTANCIA. El repo no usa `unstable_cache`/"use cache" de Next en
 // ningún lado (sólo el doble de tests en src/test/accion-de-servidor.ts), así que no se estrena acá;
 // cuando se adopte, este armado es el primer candidato (compartido entre instancias, revalidate 600).
@@ -26,7 +28,7 @@ import "server-only";
 import { basePrisma, prisma } from "@/lib/prisma";
 import { runInTenantContext } from "@/lib/tenant-context";
 import { agendaPublica, clubesDe } from "@/lib/padel/datos.server";
-import { CLAVE_DIRECTORIO, DIRECTORIO_DEFAULT, leerDirectorio } from "@/lib/padel/directorio";
+import { DIRECTORIO_DEFAULT, leerDirectorio } from "@/lib/padel/directorio";
 import { turneroAbiertoDe } from "./verificacion.server";
 import { DIRECTORIO_TTL_MS, armarDirectorio, memoriaCorta, type DepsDirectorio, type ProfePublico } from "./directorio-core";
 
@@ -38,17 +40,14 @@ const enSuNegocio = <T>(tenantId: string, fn: () => Promise<T>): Promise<T> => r
 
 export const depsDirectorio: DepsDirectorio = {
   async candidatos(tope) {
-    // Primero los anotados (CERT 13/11): el tope corta anotados, no negocios en general.
-    const filas = await basePrisma.padelConfig.findMany({
-      where: {
-        plantillas: { path: [CLAVE_DIRECTORIO, "visible"], equals: true },
-        tenant: { status: { in: ["TRIAL", "ACTIVE"] }, modules: { has: MODULO_CLASES }, subdomain: { not: null } },
-      },
-      select: { tenant: { select: { id: true, name: true, subdomain: true } } },
-      orderBy: [{ tenant: { createdAt: "asc" } }, { tenantId: "asc" }],
+    // `Tenant` no tiene RLS: esta consulta ve lo mismo con el dueño de las tablas que con `app_rls`.
+    const filas = await basePrisma.tenant.findMany({
+      where: { status: { in: ["TRIAL", "ACTIVE"] }, modules: { has: MODULO_CLASES }, subdomain: { not: null } },
+      select: { id: true, name: true, subdomain: true },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       take: tope,
     });
-    return filas.map(({ tenant: t }) => ({ tenantId: t.id, nombre: t.name, subdomain: t.subdomain }));
+    return filas.map((t) => ({ tenantId: t.id, nombre: t.name, subdomain: t.subdomain }));
   },
   ajuste: (tenantId) =>
     enSuNegocio(tenantId, async () => {

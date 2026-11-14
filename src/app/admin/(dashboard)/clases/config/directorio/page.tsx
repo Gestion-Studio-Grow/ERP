@@ -34,7 +34,7 @@ export default async function AjustesDirectorio() {
           <li>En el buscador, la gente ve tus próximos horarios libres y toca «Reservar»: cae en tu mismo turnero, con el horario elegido.</li>
           <li>Lo que te reservan desde el buscador lo confirmás igual que siempre. Al alumno le escribe Gestión Studio Grow en tu nombre («Tu profe … confirmó tu clase»). Por ahora ese mensaje sale con el mismo botón verde que tocás vos.</li>
           <li>Lo que te piden por tu link sigue como hoy: les escribís vos.</li>
-          <li>Si después no querés aparecer más, tocá «No» y salís del buscador en un minuto.</li>
+          <li>Si después no querés aparecer más, tocá «No» y salís del buscador en unos 10 minutos.</li>
         </ul>
         <Link href="/profeturnos/profes" target="_blank" className="inline-flex min-h-12 items-center text-sm font-semibold text-accent-ink underline underline-offset-2" data-qa="ver-buscador">
           Ver el buscador

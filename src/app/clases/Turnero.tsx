@@ -72,6 +72,7 @@ export default function Turnero({
   abrirLink = false,
   inicio = {},
   desde,
+  avisaGsg = false,
   nombreApp,
   info,
 }: {
@@ -92,6 +93,8 @@ export default function Turnero({
   inicio?: { fecha?: string | null; hora?: string | null };
   /** `?desde=` del link (el buscador de profes manda «directorio»): viaja con el pedido (canal.ts). */
   desde?: string;
+  /** Vino del buscador de profes: la confirmación la avisa GSG, no el profe (canal.ts). */
+  avisaGsg?: boolean;
   nombreApp: string;
   /** La ficha «¿Qué incluye?» (duración, precios, dónde, regla). Sin ella, no hay ficha. */
   info?: InfoClase;
@@ -127,6 +130,7 @@ export default function Turnero({
       <Listo
         r={listo}
         profe={profe}
+        avisaGsg={avisaGsg}
         nombreApp={nombreApp}
         onOtra={() => {
           setListo(null);
@@ -448,6 +452,7 @@ export default function Turnero({
         inicial={recuerdo}
         textoBoton={cta === "Elegí día y hora" ? "Pedir" : cta}
         profe={profe}
+        avisaGsg={avisaGsg}
       />
     </>
   );

@@ -19,6 +19,7 @@ export function HojaQuien({
   inicial,
   textoBoton,
   profe,
+  avisaGsg = false,
 }: {
   abierta: boolean;
   onCerrar: () => void;
@@ -28,13 +29,15 @@ export function HojaQuien({
   inicial: { nombre: string; telefono: string } | null;
   textoBoton: string;
   profe: string;
+  /** Vino del buscador de profes: avisa GSG (canal.ts), no el profe. */
+  avisaGsg?: boolean;
 }) {
   return (
     <HojaPublica
       abierta={abierta}
       onCerrar={onCerrar}
       titulo="¿Quién sos?"
-      descripcion={`Así ${profe} sabe quién pidió y te confirma por WhatsApp. Lo pedimos una sola vez.`}
+      descripcion={avisaGsg ? `Así ${profe} sabe quién pidió y te avisamos por WhatsApp cuando confirme. Lo pedimos una sola vez.` : `Así ${profe} sabe quién pidió y te confirma por WhatsApp. Lo pedimos una sola vez.`}
       qa="hoja-quien"
       pie={
         <button type="submit" form="form-quien" aria-busy={pendiente} className={cn(botonPrincipal, ocupado)} data-qa="pedir-hoja">
