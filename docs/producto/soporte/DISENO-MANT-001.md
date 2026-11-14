@@ -335,8 +335,11 @@ aparta de la tabla de arriba:**
   `actor LIKE 'agente:%'`; (5) **D5 en CH no contradice el candado:** el agente no toca la base de CH; el ERP
   le pasa el texto tapado, el agente devuelve el borrador y la consola (`gsg_operador`) lo guarda para que
   el dueño lo apruebe (`agentes-permisos.ts`, `borrador_al_duenio`); (6) el `CREATE ROLE` del archivo corre
-  en el ensayo en rama de Neon (el owner local es NOCREATEROLE). Todo con test en
-  `roles-soporte-postgres.test.ts`.
+  en el ensayo en rama de Neon (el owner local es NOCREATEROLE). Vuelta 2 (certifica con observaciones):
+  el agente tampoco firma eventos con actor de persona, la hora del permiso la pone la base
+  (`clock_timestamp()` en el trigger) y el chequeo de `search_path` no se saltea con NULL. Quedan BAJOS
+  anotados: el agente elige `createdAt` de AuditLog/evento y ve id/slug/nombre de CH en `Tenant` (sin RLS a
+  propósito). Todo con test en `roles-soporte-postgres.test.ts`.
 - Al final, un bloque `DO` aborta la migración si algún rol quedó con BYPASSRLS o superusuario, si el agente
   puede leer `User`, si `NegocioProtegido` es escribible, si la consola o el agente pueden firmar permisos,
   si una función del candado no fija `search_path` con `pg_temp` al final o si CH existe y no quedó protegido. En Neon el

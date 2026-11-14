@@ -109,6 +109,8 @@ BEGIN
                  WHERE u."id" = NEW."userId" AND u."tenantId" = NEW."tenantId" AND u."role"::text = 'OWNER') THEN
     RAISE EXCEPTION 'SoporteConsentimiento: sólo lo firma el titular (OWNER) del negocio' USING ERRCODE = '42501';
   END IF;
+  -- La hora la pone la base: un permiso fechado en el futuro no puede ganarle a una revocación posterior.
+  NEW."createdAt" := clock_timestamp();
   RETURN NEW;
 END
 $f$;
@@ -152,7 +154,8 @@ CREATE POLICY mant_agente_candado ON "SupportTicket" AS RESTRICTIVE FOR ALL TO g
 DROP POLICY IF EXISTS mant_agente_candado ON "SupportTicketEvento";
 CREATE POLICY mant_agente_candado ON "SupportTicketEvento" AS RESTRICTIVE FOR ALL TO gsg_agente
   USING (EXISTS (SELECT 1 FROM "SupportTicket" t WHERE t."tenantId" = "SupportTicketEvento"."tenantId" AND t."id" = "SupportTicketEvento"."ticketId"))
-  WITH CHECK (EXISTS (SELECT 1 FROM "SupportTicket" t WHERE t."tenantId" = "SupportTicketEvento"."tenantId" AND t."id" = "SupportTicketEvento"."ticketId"));
+  WITH CHECK (EXISTS (SELECT 1 FROM "SupportTicket" t WHERE t."tenantId" = "SupportTicketEvento"."tenantId" AND t."id" = "SupportTicketEvento"."ticketId")
+              AND "actor" LIKE 'agente:%');
 
 DROP POLICY IF EXISTS mant_agente_candado ON "AuditLog";
 CREATE POLICY mant_agente_candado ON "AuditLog" AS RESTRICTIVE FOR ALL TO gsg_agente
@@ -199,7 +202,7 @@ BEGIN
     RAISE EXCEPTION 'MANT_roles_soporte: el permiso del cliente sólo lo escribe su panel (app_rls)';
   END IF;
   IF EXISTS (SELECT 1 FROM pg_proc WHERE proname IN ('gsg_negocio_protegido', 'gsg_permiso_n1_vigente', 'gsg_consentimiento_lo_firma_el_titular')
-             AND (prosecdef OR NOT (proconfig @> ARRAY['search_path=pg_catalog, public, pg_temp']))) THEN
+             AND (prosecdef OR NOT COALESCE(proconfig @> ARRAY['search_path=pg_catalog, public, pg_temp'], false))) THEN
     RAISE EXCEPTION 'MANT_roles_soporte: una función del candado no fija search_path con pg_temp al final';
   END IF;
   IF EXISTS (SELECT 1 FROM "Tenant" WHERE slug = 'beauty-spa')

@@ -187,6 +187,11 @@ test("roles de soporte: aislamiento por negocio, CH bloqueado desde la base y pe
   await assert.rejects(en(agente, A, `DELETE FROM "AuditLog"`), denegado);
   await assert.rejects(en(agente, A, `SELECT 1 FROM "AuditLog" LIMIT 1`), denegado, "AuditLog: sólo INSERT");
   assert.equal((await en(agente, A, `INSERT INTO "SupportTicketEvento" (id, "tenantId", "ticketId", tipo, actor) VALUES ('ev-ag', $1, 'tk-a', 'nota', 'agente:n1')`, [A])).rowCount, 1);
+  await assert.rejects(
+    en(agente, A, `INSERT INTO "SupportTicketEvento" (id, "tenantId", "ticketId", tipo, actor) VALUES ('ev-falso', $1, 'tk-a', 'aprobado', 'duenia:x')`, [A]),
+    denegado,
+    "el agente no firma eventos a nombre de una persona",
+  );
   await assert.rejects(en(agente, A, `INSERT INTO "SupportTicketEvento" (id, "tenantId", "ticketId", tipo, actor) VALUES ('ev-ag2', $1, 'tk-a-cartera-ch', 'nota', 'agente:n1')`, [A]), denegado, "evento sobre ticket de CH");
   await assert.rejects(en(agente, B, `INSERT INTO "SupportTicketEvento" (id, "tenantId", "ticketId", tipo, actor) VALUES ('ev-ag3', $1, 'tk-b', 'nota', 'agente:n1')`, [B]), denegado, "evento en CH");
 
@@ -195,8 +200,11 @@ test("roles de soporte: aislamiento por negocio, CH bloqueado desde la base y pe
   assert.equal((await en(agente, A, `SELECT id FROM "SupportTicket"`)).rowCount, 0, "revocado");
   await permiso("c-a3", A, true, "2026-01-01 12:00");
   assert.equal((await en(agente, A, `SELECT id FROM "SupportTicket"`)).rowCount, 1, "vuelto a dar");
-  await permiso("c-a4", A, false, "2026-01-01 12:00");
-  assert.equal((await en(agente, A, `SELECT id FROM "SupportTicket"`)).rowCount, 0, "empate: gana la revocación");
+  await permiso("c-a4", A, false, "2099-01-01 12:00");
+  await permiso("c-a5", A, true, "2099-12-31 12:00"); // fecha futura: la base la pisa con su hora
+  await permiso("c-a6", A, false, "2000-01-01 00:00"); // revocación posterior con fecha vieja: igual gana
+  assert.equal((await en(agente, A, `SELECT id FROM "SupportTicket"`)).rowCount, 0, "la hora del permiso la pone la base");
+  // (el empate a igual hora lo cubre consentimiento-core.test.ts; acá la base no deja elegir la hora)
 
   // ── NegocioProtegido: sólo el dueño lo escribe ──
   for (const [nombre, c] of [["app_rls", app], ["gsg_operador", operador], ["gsg_agente", agente]] as const) {
