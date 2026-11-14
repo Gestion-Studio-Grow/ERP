@@ -52,6 +52,11 @@ export default async function ClasesConfig() {
     { href: "reglas", titulo: "Reglas", linea: `${rotuloAnticipacion(config.anticipacionMin)} · el turnero muestra ${config.diasAdelante} días` },
     { href: "textos", titulo: "Textos de WhatsApp", linea: editados ? `Cambiaste ${editados} de ${CLAVES_PLANTILLA.length}` : "Los de fábrica" },
     { href: "whatsapp", titulo: "WhatsApp", linea: cloud ? "Conectado: los avisos salen solos." : "Los avisos salen con un botón verde que tocás vos." },
+    {
+      href: "directorio",
+      titulo: "Buscador de profes",
+      linea: config.directorio?.visible ? `Aparecés en el buscador · ${config.directorio.zona}` : "No aparecés: activalo para que te encuentren alumnos nuevos.",
+    },
     { href: "bloqueos", titulo: "Días bloqueados", linea: diasBloqueados ? `${diasBloqueados} día${diasBloqueados === 1 ? "" : "s"} sin clases por delante` : "Ninguno por delante." },
   ];
 

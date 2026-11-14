@@ -28,7 +28,8 @@ import { createRateLimiter } from "@/lib/rate-limit";
 import { tenantTransaction } from "@/lib/rls";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { ESTADOS_QUE_OCUPAN, armarMensaje, diaHumano, horaHumana, pesos, plantillaConClub, plantillaConfirmada, saldoAFavor, saldoCubre, tokenValido, type ClavePlantilla } from "./core";
-import type { ConfigPadel } from "./datos.server";
+import { datosDelNegocio, type ConfigPadel } from "./datos.server";
+import { elegirCanal, plantillaGsg } from "./canal";
 import { notificadorActual } from "./notificador";
 import { regenerarAlReconocer } from "./sesion-alumno";
 import { leerTokenCookie } from "./sesion-alumno.server";
@@ -316,9 +317,15 @@ export async function avisarAlAlumno(p: {
   const precio = p.clase ? Number(p.clase.precio) : 0;
   // E4 · El club de la clase (si tiene) va en el texto: `{club}` donde el profe lo puso, o « en <club>»
   // después de la hora (plantillaConClub). Sin club, el mensaje es el de siempre.
-  const club = p.clase
-    ? (await prisma.padelClase.findFirst({ where: { tenantId: p.tenantId, id: p.clase.id }, select: { club: { select: { nombre: true } } } }))?.club?.nombre ?? ""
-    : "";
+  const fila = p.clase
+    ? await prisma.padelClase.findFirst({ where: { tenantId: p.tenantId, id: p.clase.id }, select: { origen: true, club: { select: { nombre: true } } } })
+    : null;
+  const club = fila?.club?.nombre ?? "";
+  // Por dónde entró la clase decide quién le habla (src/lib/padel/canal.ts): del buscador de profes,
+  // GSG en tercera persona; cualquier otro origen, el profe con sus textos, como siempre.
+  const notificador = notificadorActual();
+  const canal = elegirCanal(fila?.origen, notificador.modo);
+  const profe = canal.voz === "tercera" ? (await datosDelNegocio(p.tenantId)).profe : "";
   const vars: Record<string, string> = {
     nombre: p.alumno.nombre.split(" ")[0],
     dia: p.clase ? diaHumano(p.clase.empiezaEn) : "",
@@ -329,17 +336,23 @@ export async function avisarAlAlumno(p: {
     link: `${base}/alumno/${p.alumno.token}`,
     turnero: `${base}/clases`,
     club,
+    ...(canal.voz === "tercera" ? { profe } : {}),
     ...(p.vars ?? {}),
   };
+  const datosDeCobro = { hayPrecio: precio > 0, hayAlias: Boolean(p.config.aliasCbu) };
   const plantilla = plantillaConClub(
-    p.clave === "confirmada"
-      ? plantillaConfirmada(p.config.plantillas.confirmada, { hayPrecio: precio > 0, hayAlias: Boolean(p.config.aliasCbu) })
-      : p.config.plantillas[p.clave],
+    canal.voz === "tercera"
+      ? plantillaGsg(p.clave, datosDeCobro)
+      : p.clave === "confirmada"
+        ? plantillaConfirmada(p.config.plantillas.confirmada, datosDeCobro)
+        : p.config.plantillas[p.clave],
     Boolean(club),
   );
   const texto = [armarMensaje(plantilla, vars), p.extra].filter(Boolean).join(" ");
-  const meta = META_DE[p.clave];
-  const r = await notificadorActual().enviar({
+  // Las plantillas aprobadas en Meta están en la voz del profe: para un aviso de GSG no se usan (sale
+  // el texto libre; fuera de la ventana de 24 h Meta lo rechaza y queda el botón verde con este texto).
+  const meta = canal.voz === "tercera" ? undefined : META_DE[p.clave];
+  const r = await notificador.enviar({
     telefono: p.alumno.telefono,
     texto,
     plantilla: meta ? { clave: meta, vars } : undefined,

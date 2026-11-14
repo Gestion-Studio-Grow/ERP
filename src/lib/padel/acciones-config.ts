@@ -28,8 +28,9 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapabilityFueraDeLaAgenda } from "@/lib/authz";
 import { auditAdmin } from "@/lib/audit-core";
 import { PLANTILLAS_DEFAULT } from "./core";
-import { SOLO_EL_DUENIO_COBRO, plantillasConBienvenida, plantillasConCambio, puedeCambiarAjuste, validarCampoConfig, type TramoSemanal } from "./config-campos";
+import { AJUSTE_DIRECTORIO, SOLO_EL_DUENIO_COBRO, SOLO_EL_DUENIO_DIRECTORIO, plantillasConBienvenida, plantillasConCambio, puedeCambiarAjuste, validarCampoConfig, type TramoSemanal } from "./config-campos";
 import { refrescar, type Resultado } from "./acciones-compartido";
+import { plantillasConDirectorio, validarDirectorio, type Directorio } from "./directorio";
 
 /**
  * Leer-y-reescribir el JSON de plantillas: Serializable con reintento (F-2). Cinco reintentos: con
@@ -77,7 +78,7 @@ async function guardarCampo(clave: string, valor: unknown): Promise<Resultado<{ 
     // «Ya vio la Bienvenida» (O-9): marca en el JSON de plantillas, en la misma transacción que lo lee.
     await tenantTransaction(async (tx) => {
       const actual = await tx.padelConfig.findUnique({ where: { tenantId }, select: { plantillas: true } });
-      const plantillas = plantillasConBienvenida(actual?.plantillas);
+      const plantillas = plantillasConBienvenida(actual?.plantillas) as Prisma.InputJsonObject;
       await tx.padelConfig.upsert({ where: { tenantId }, create: { tenantId, plantillas }, update: { plantillas } });
     }, { tenantId, ...ESCRITURA_DEL_JSON });
     await auditAdmin({ action: "padel.config.bienvenida", entity: "PadelConfig", entityId: tenantId, changes: { vista: true } });
@@ -88,7 +89,7 @@ async function guardarCampo(clave: string, valor: unknown): Promise<Resultado<{ 
   if (v.tipo === "plantilla") {
     await tenantTransaction(async (tx) => {
       const actual = await tx.padelConfig.findUnique({ where: { tenantId }, select: { plantillas: true } });
-      const plantillas = plantillasConCambio(actual?.plantillas, v.clave, v.texto);
+      const plantillas = plantillasConCambio(actual?.plantillas, v.clave, v.texto) as Prisma.InputJsonObject;
       await tx.padelConfig.upsert({ where: { tenantId }, create: { tenantId, plantillas }, update: { plantillas } });
     }, { tenantId, ...ESCRITURA_DEL_JSON });
     await auditAdmin({ action: "padel.config.plantilla", entity: "PadelConfig", entityId: tenantId, changes: { clave: v.clave, restaurada: v.texto === null } });
@@ -113,4 +114,32 @@ async function guardarCampo(clave: string, valor: unknown): Promise<Resultado<{ 
   await auditAdmin({ action: "padel.horarios", entity: "PadelDisponibilidad", changes: { tramos: v.tramos.length } });
   refrescar();
   return { ok: true, valor: v.tramos };
+}
+
+/**
+ * «Aparecer en el buscador de profes» (directorio público, src/lib/padel/directorio.ts): sí/no y la
+ * zona, de una. Vive en el mismo JSON que los textos (clave reservada
+ * `_directorio`, sin migración): leer y reescribir en Serializable, como los textos (F-2), y sin
+ * tocar los textos ni la marca de la Bienvenida. Publicar el negocio lo decide SÓLO el dueño (CERT
+ * 13/11): `agenda:manage` + `puedeCambiarAjuste(rol, "directorio")`, como la cuenta de cobro.
+ */
+export async function guardarDirectorio(valor: unknown): Promise<Resultado<{ valor: Directorio }>> {
+  const user = await requireCapabilityFueraDeLaAgenda("agenda:manage");
+  if (!puedeCambiarAjuste(user.role, AJUSTE_DIRECTORIO)) return { ok: false, error: SOLO_EL_DUENIO_DIRECTORIO };
+  const tenantId = await getCurrentTenantId();
+  const r = validarDirectorio(valor);
+  if (!r.ok) return { ok: false, error: r.error };
+  try {
+    await tenantTransaction(async (tx) => {
+      const actual = await tx.padelConfig.findUnique({ where: { tenantId }, select: { plantillas: true } });
+      const plantillas = plantillasConDirectorio(actual?.plantillas, r.v) as Prisma.InputJsonObject;
+      await tx.padelConfig.upsert({ where: { tenantId }, create: { tenantId, plantillas }, update: { plantillas } });
+    }, { tenantId, ...ESCRITURA_DEL_JSON });
+  } catch (e) {
+    if (esConflictoDeEscritura(e)) return { ok: false, error: "Se estaban guardando dos cosas a la vez y ésta no entró. Probá de nuevo." };
+    throw e;
+  }
+  await auditAdmin({ action: "padel.config.directorio", entity: "PadelConfig", entityId: tenantId, changes: { visible: r.v.visible, zona: r.v.zona } });
+  refrescar();
+  return { ok: true, valor: r.v };
 }
