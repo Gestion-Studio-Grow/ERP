@@ -5,6 +5,8 @@
 // proyecto sea visible para esta persona. Los cambios de costos, precios, pagos y etapas quedan en el historial.
 // ============================================================================
 
+import { etapa2ActivaPara } from "./etapa2.server";
+import { MENSAJE_APAGADO } from "./etapa2-core";
 import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { cuentaParaCuota } from "./gestion-cuentas.server";
@@ -291,6 +293,7 @@ export async function generarPortal(formData: FormData): Promise<ResultadoFicha>
   const id = txt(formData.get("id"));
   const a = await entrar("pipeline", id);
   if (typeof a === "string") return mal(a);
+  if (!(await etapa2ActivaPara(a.tenantId, "portal"))) return mal(MENSAJE_APAGADO.portal);
   await prisma.proyecto.updateMany({ where: { id, tenantId: a.tenantId, tokenPortal: null }, data: { tokenPortal: token() } });
   await auditAdmin({ action: "proyecto.portal.generar", entity: "Proyecto", entityId: id, changes: {} });
   refrescar(id);

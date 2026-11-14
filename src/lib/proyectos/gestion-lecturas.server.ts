@@ -543,6 +543,8 @@ export async function portalPublico(token: string) {
   if (!p) return null;
   const imagenes = await imagenesDeLaminas(tenantId, p.id, p.presentaciones.map((x) => x.laminas));
   return {
+    // El negocio dueño del token (para los interruptores de Etapa 2). No se muestra.
+    tenantId,
     negocio: await datosDelNegocio(tenantId),
     proyecto: { nombre: p.nombre, servicio: p.servicio, evento: p.evento, tipoEvento: p.tipoEvento, lugar: p.lugar, ciudad: p.ciudad, fechaEvento: p.fechaEvento, fechaFin: p.fechaFin, cliente: p.client.name },
     propuesta: p.presupuestos[0] ?? null,

@@ -2,6 +2,8 @@ import { requireApp } from "@/lib/require-app";
 import { AGENTES, agenteBloqueado } from "@/lib/proyectos/diseno-core";
 import { exigirVer, puede } from "@/lib/proyectos/gestion.server";
 import { iaConectada } from "@/lib/proyectos/ia.server";
+import { etapa2ActivaPara } from "@/lib/proyectos/etapa2.server";
+import { MENSAJE_APAGADO } from "@/lib/proyectos/etapa2-core";
 import { FaltaIA } from "../_diseno-avisos";
 import { ChatAgentes } from "../_diseno-agentes";
 import { proyectosElegibles } from "../_pestana-diseno";
@@ -15,6 +17,7 @@ export default async function PaginaAgentes({ searchParams }: { searchParams: Pr
   const a = await exigirVer("ia");
   const { proyecto } = await searchParams;
   const proyectos = await proyectosElegibles(a);
+  const activa = await etapa2ActivaPara(a.tenantId, "ia");
   const conectada = iaConectada();
   const agentes = AGENTES.map((x) => ({ id: x.id, nombre: x.nombre, ayuda: x.ayuda, sugerencias: x.sugerencias, bloqueado: agenteBloqueado(x.id, (m) => puede(a, m, "ver")) }));
   return (
@@ -23,8 +26,14 @@ export default async function PaginaAgentes({ searchParams }: { searchParams: Pr
         <h1 className="text-2xl font-bold text-strong">Agentes IA</h1>
         <p className="text-sm text-muted">Cada agente ve sólo lo que tu rol puede ver.</p>
       </header>
-      {!conectada && <FaltaIA mientras="Hasta entonces los agentes no pueden responder: no se muestran respuestas de ejemplo." />}
-      <ChatAgentes agentes={agentes} proyectos={proyectos} iaLista={conectada} proyectoInicial={proyectos.some((p) => p.id === proyecto) ? proyecto : undefined} />
+      {!activa ? (
+        <p role="note" className="rounded-xl border border-line bg-surface p-3 text-sm text-strong">{MENSAJE_APAGADO.ia}</p>
+      ) : (
+        <>
+          {!conectada && <FaltaIA mientras="Hasta entonces los agentes no pueden responder: no se muestran respuestas de ejemplo." />}
+          <ChatAgentes agentes={agentes} proyectos={proyectos} iaLista={conectada} proyectoInicial={proyectos.some((p) => p.id === proyecto) ? proyecto : undefined} />
+        </>
+      )}
     </main>
   );
 }
