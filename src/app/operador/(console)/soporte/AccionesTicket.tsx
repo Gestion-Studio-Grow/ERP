@@ -115,18 +115,63 @@ export function NotaInterna({ negocio, numero }: { negocio: string; numero: numb
   );
 }
 
+/**
+ * Aprobar o descartar el borrador (D5/D6), atado a su versión: si otro lo reemplazó o ya lo aprobó, el
+ * servidor lo rechaza. Aprobar lo pasa a la respuesta guardada; no se envía nada.
+ */
+function DecidirBorrador({ negocio, numero, version, puedeAprobar }: { negocio: string; numero: number; version: string | null; puedeAprobar: boolean }) {
+  const [r, accion, pendiente] = useActionState<ResultadoTicket | null, FormData>(cambiarTicketAction, null);
+  const id = `ticket-${negocio}-${numero}-borrador`;
+  if (!version) return null;
+  if (!puedeAprobar) return <p className="text-[13px] text-muted">Este borrador lo aprueba sólo el dueño de GSG.</p>;
+  return (
+    <div className="grid gap-2">
+      <div className="flex flex-wrap gap-2">
+        <form action={accion}>
+          <Ocultos negocio={negocio} numero={numero} />
+          <input type="hidden" name="que" value="aprobar_borrador" />
+          <input type="hidden" name="version" value={version} />
+          <Button type="submit" size="md" className={T44} disabled={pendiente} aria-describedby={id}>
+            Aprobar como respuesta
+          </Button>
+        </form>
+        <form action={accion}>
+          <Ocultos negocio={negocio} numero={numero} />
+          <input type="hidden" name="que" value="descartar_borrador" />
+          <input type="hidden" name="version" value={version} />
+          <Button type="submit" size="md" variant="ghost" className={T44} disabled={pendiente} aria-describedby={id}>
+            Descartar el borrador
+          </Button>
+        </form>
+      </div>
+      <p className="text-[13px] text-muted">Aprobar no le manda nada al cliente: queda como respuesta guardada y la mandás vos.</p>
+      <Resultado r={r} id={id} />
+    </div>
+  );
+}
+
 /** La respuesta al cliente + la sugerencia de la IA (borrador). */
-export function Respuesta({ negocio, numero, respuesta, borrador, enlaceWhatsapp }: {
+export function Respuesta({ negocio, numero, respuesta, borrador, borradorVersion, puedeAprobar, enlaceWhatsapp }: {
   negocio: string;
   numero: number;
   respuesta: string | null;
   borrador: SugerenciaIa | null;
+  /** Huella del contenido del borrador (la calcula el servidor): aprobar o descartar va atado a ella. */
+  borradorVersion: string | null;
+  /** En CH (o negocio desconocido) sólo el dueño; la regla la vuelve a aplicar el servidor. */
+  puedeAprobar: boolean;
   /** wa.me del negocio con la respuesta guardada, o null si no tiene WhatsApp cargado. */
   enlaceWhatsapp: string | null;
 }) {
   const [r, accion, pendiente] = useActionState<ResultadoTicket | null, FormData>(cambiarTicketAction, null);
   const [ria, sugerir, pensando] = useActionState<ResultadoTicket | null, FormData>(sugerirConIaAction, null);
   const [texto, setTexto] = useState(respuesta ?? "");
+  // Si la respuesta guardada cambia (p. ej. se aprobó el borrador), el campo muestra la nueva.
+  const [guardada, setGuardada] = useState(respuesta);
+  if (guardada !== respuesta) {
+    setGuardada(respuesta);
+    setTexto(respuesta ?? "");
+  }
   const id = `ticket-${negocio}-${numero}-respuesta`;
   return (
     <div className="grid gap-4">
@@ -153,6 +198,7 @@ export function Respuesta({ negocio, numero, respuesta, borrador, enlaceWhatsapp
               Usar el borrador en la respuesta
             </Button>
           </div>
+          <DecidirBorrador negocio={negocio} numero={numero} version={borradorVersion} puedeAprobar={puedeAprobar} />
         </section>
       )}
       <form action={accion} className="grid gap-2">

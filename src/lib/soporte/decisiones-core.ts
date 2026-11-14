@@ -44,10 +44,43 @@ export const GUARDIA: Readonly<Record<number, { desde: number; hasta: number } |
   6: { desde: 9 * 60, hasta: 13 * 60 },
 };
 
+/**
+ * Feriados nacionales «AAAA-MM-DD» (hora argentina) en los que no hay guardia. Fuente oficial, leída el
+ * 14/11/2026: https://www.argentina.gob.ar/sites/default/files/holidays-2026-es.json (el recurso que publica
+ * https://datos.gob.ar/dataset/feriados-nacionales y que arma https://www.argentina.gob.ar/jefatura/feriados-nacionales-2026;
+ * normas: Ley 27.399, Decreto 614/2025, Resolución 164/2025, Decreto 1103/2026). Fechas ya trasladadas.
+ * Criterio (provisional a confirmar por el dueño): entran «inamovible», «trasladable» y «turistico»; quedan
+ * afuera los «no_laborable» de cada credo y los «especial» de una sola provincia (10 y 11/11). 2027 todavía no
+ * está publicado (sólo el 1/1, que viene en el mismo archivo): hay que sumarlo cuando salga.
+ */
+export const FERIADOS_NACIONALES: ReadonlySet<string> = new Set([
+  "2026-01-01", // Año Nuevo
+  "2026-02-16", // Carnaval
+  "2026-02-17", // Carnaval
+  "2026-03-23", // Día no laborable con fines turísticos
+  "2026-03-24", // Día Nacional de la Memoria por la Verdad y la Justicia
+  "2026-04-02", // Veteranos y Caídos en la Guerra de Malvinas
+  "2026-04-03", // Viernes Santo
+  "2026-05-01", // Día del Trabajador
+  "2026-05-25", // Revolución de Mayo
+  "2026-06-15", // Güemes (17/6, trasladado)
+  "2026-06-20", // Belgrano
+  "2026-07-09", // Independencia
+  "2026-07-10", // Día no laborable con fines turísticos
+  "2026-08-17", // San Martín
+  "2026-10-12", // 12 de octubre
+  "2026-11-09", // Visita del Papa León XIV (Decreto 1103/2026)
+  "2026-11-23", // Soberanía Nacional (20/11, trasladado)
+  "2026-12-07", // Día no laborable con fines turísticos
+  "2026-12-08", // Inmaculada Concepción de María
+  "2026-12-25", // Navidad
+  "2027-01-01", // Año Nuevo
+]);
+
 /** Lo que el reloj necesita saber del negocio. `enVivo`: el negocio ya opera de verdad (provisional: `Tenant.status = ACTIVE`). */
 export interface ContextoDeReloj {
   enVivo?: boolean;
-  /** Feriados nacionales «AAAA-MM-DD» (hora argentina): no hay guardia. Provisional: lista vacía hasta que el dueño la cargue. */
+  /** Feriados «AAAA-MM-DD» (hora argentina): no hay guardia. Si no se pasa, los nacionales oficiales. */
   feriados?: ReadonlySet<string>;
 }
 
@@ -63,7 +96,7 @@ function ventanaDelDia(msAr: number, feriados: ReadonlySet<string>): { desde: nu
 }
 
 /** ¿Este instante cae dentro del horario de guardia? PURA. */
-export function enHorarioDeGuardia(instante: Date, feriados: ReadonlySet<string> = new Set()): boolean {
+export function enHorarioDeGuardia(instante: Date, feriados: ReadonlySet<string> = FERIADOS_NACIONALES): boolean {
   const ar = instante.getTime() + DESFASE_AR_MS;
   const v = ventanaDelDia(ar, feriados);
   if (!v) return false;
@@ -72,7 +105,7 @@ export function enHorarioDeGuardia(instante: Date, feriados: ReadonlySet<string>
 }
 
 /** Suma `horas` de guardia a `desde`: el reloj sólo corre dentro de la ventana. PURA. */
-export function sumarHorasDeGuardia(desde: Date, horas: number, feriados: ReadonlySet<string> = new Set()): Date {
+export function sumarHorasDeGuardia(desde: Date, horas: number, feriados: ReadonlySet<string> = FERIADOS_NACIONALES): Date {
   let resta = Math.max(0, horas) * HORA;
   let ar = desde.getTime() + DESFASE_AR_MS;
   // Tope de vueltas: 120 h de guardia son ~3 semanas; 400 días alcanzan aun con feriados de más.

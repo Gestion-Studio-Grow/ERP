@@ -311,14 +311,26 @@ aparta de la tabla de arriba:**
 - **El candado mira la fila, no `current_setting`:** `NOT gsg_negocio_protegido("tenantId")` y, en
   `SupportTicket`, también `clienteTenantId` (los tickets de cartera viven en el negocio del estudio con el
   cliente en `clienteTenantId`: un ticket de cartera sobre CH tampoco se ve).
-- **Permiso del cliente en la base (D-4, defensa extra):** la misma política restrictiva exige
-  `gsg_permiso_n1_vigente("tenantId")` (la última casilla N1 del titular, tildada). Sin permiso o en CH el
-  agente no ve filas; el ERP le pasa sólo el texto tapado.
-- **`gsg_agente`, mínimo privilegio** (más chico que la tabla): `Tenant` SELECT de `id, slug, name, status`
-  (sin `modules`); `SupportTicket` SELECT + UPDATE de `estado, borradorIa, updatedAt` (ni INSERT ni
-  `prioridad`: eso lo decide el triage del ERP); `SupportTicketEvento` SELECT, INSERT; `AuditLog` INSERT
-  sólo (con SQL crudo: un `create` de Prisma usa `RETURNING` y pide SELECT); consentimiento y
-  `NegocioProtegido` SELECT. Nada más: plata, `User`, `Payment`, `CashMovement` → *permission denied*.
+- **Permiso del cliente en la base (D-4, defensa extra):** la misma política restrictiva exige que la fila
+  sea del negocio fijado y `gsg_permiso_n1_vigente()` (la última casilla N1 del titular, tildada y con la
+  **versión vigente del texto**: un permiso dado a otra versión no vale; la constante del SQL es la de
+  `TEXTO_CONSENTIMIENTO.version` y `consentimiento-core.test.ts` lo comprueba leyendo el `.sql`). Sin
+  permiso o en CH el agente no ve filas; el ERP le pasa sólo el texto tapado.
+- **`gsg_agente`, mínimo privilegio** (más chico que la tabla; certificación adversarial ronda 1, 14/11):
+  `SupportTicket` SELECT + UPDATE sólo de `borradorIa, updatedAt` (ni `estado`, ni `respuesta`, ni INSERT,
+  ni `prioridad`: eso lo decide una persona o el triage del ERP); `SupportTicketEvento` SELECT, INSERT sólo
+  del tipo `borrador_ia` (nunca `borrador_aprobado`); `AuditLog` INSERT sólo, con `action LIKE
+  'soporte.agente.%'` y actor de agente (con SQL crudo: un `create` de Prisma usa `RETURNING` y pide
+  SELECT); `NegocioProtegido` SELECT. **Nada en `Tenant` ni en `SoporteConsentimiento`:** el slug del
+  negocio fijado (y el del cliente, sólo si es de su cartera) y el permiso salen de funciones SECURITY
+  DEFINER sin parámetros (`gsg_slug_del_negocio()`, `gsg_slug_del_cliente()`, `gsg_permiso_n1_vigente()`),
+  `search_path` fijo con `pg_temp` al final, del dueño de las tablas, EXECUTE sólo a `gsg_agente`. Nada
+  más: plata, `User`, `Payment`, `CashMovement` → *permission denied*.
+- **Aprobación atada al contenido:** la «versión» del borrador que manda la ficha es una huella sha256 de
+  tipo, prioridad, respuesta, motivo y `el` (`huella-borrador-core.ts`), calculada en el servidor;
+  `aprobar_borrador` la recalcula sobre la fila con `FOR UPDATE` y rechaza si no coincide. Antes era `el`,
+  que pone quien escribe: el agente podía reescribir el texto con el mismo `el`. El panel del titular
+  muestra sólo la copia por mail escrita por el titular (actor `user:…`, canal admin).
 - **`gsg_operador` = espejo de `app_rls` menos UPDATE/DELETE de AuditLog. DEUDA ANOTADA:** el inventario dio
   58 archivos que usan `operatorPrisma`/`enElNegocio` (fiscal, cartera, consola); otorgar tabla por tabla
   sin probar la consola rompería producción. Se angosta después de probar la consola en una rama de Neon.
@@ -329,19 +341,40 @@ aparta de la tabla de arriba:**
 - **Refutación del 14/11 (corregida):** (1) las funciones del candado usan `public."…"` y
   `search_path = pg_catalog, public, pg_temp`: una tabla temporal del agente no tapa a la real (no se le
   sacó TEMP a PUBLIC porque toca roles vivos de producción); (2) el ticket de cartera exige también el
-  permiso del CLIENTE; como bajo RLS el permiso del cliente no se ve desde el estudio, hoy el agente no ve
-  ningún ticket de cartera (falla cerrado: los atiende una persona; abrirlo pide una función propia y su
-  certificación); (3) la consola no firma permisos; (4) el agente sólo escribe AuditLog con
+  permiso del CLIENTE; como bajo RLS el permiso del cliente no se ve desde el estudio, se lee con
+  `gsg_permiso_n1_cliente_de_cartera()` (MANT-003, 14/11): SECURITY DEFINER sin parámetros (estudio y cliente
+  salen de `app.current_tenant_id` y `app.cliente_tenant_id`, que fija `agente-db.ts` desde el despacho),
+  `search_path` fijo con `pg_temp` al final, sólo boolean, EXECUTE sólo a `gsg_agente`; exige permiso n1
+  vigente del estudio Y del cliente, un ticket de cartera entre los dos y ninguno protegido. La política sólo
+  deja ver cartera del cliente fijado. **Oráculo residual (anotado, aceptado):** el agente puede fijarse
+  `app.current_tenant_id` él mismo; con eso `gsg_permiso_n1_vigente()` le dice, como mucho, si ESE negocio
+  tiene el n1 vigente (un boolean: ni filas, ni quién firmó, ni cuándo, ni qué versión; antes leía las filas
+  con SELECT), y sólo si conoce su id (cuid). Es lo mismo que ya revela ver o no sus tickets. Igual con
+  `gsg_slug_del_negocio()`: sabiendo el id de un negocio CON permiso, su slug; y los ids de
+  `NegocioProtegido` los ve (los necesita el candado). Parado en un estudio con permiso, sabe si un cliente
+  de SU cartera dio el n1 (lo mismo que revela ver su ticket). **Ronda adversarial 2 (14/11, corregida):**
+  (a) `gsg_permiso_n1_vigente()` da false y `gsg_slug_del_negocio()` NULL para un negocio protegido (CH),
+  y el slug exige además el n1 vigente; (b) `gsg_slug_del_cliente()` da el slug sólo si
+  `gsg_permiso_n1_cliente_de_cartera()` es true (permiso de los dos, ninguno protegido): un estudio sin
+  permiso, o CH como estudio o cliente, da NULL (`agente-db.ts` lo trata como sin acceso); (c) las tres
+  políticas `mant_agente_candado` exigen `transaction_isolation = 'read committed'`: en REPEATABLE READ o
+  SERIALIZABLE el agente ve 0 filas y no escribe (la revocación no podía cortar una foto ya tomada);
+  (d) `mant_agente_abierto` (RESTRICTIVE, FOR UPDATE) deja escribir el borrador sólo con `estado` en
+  `ESTADOS_ABIERTOS` (lista de permitidos; un test compara el SQL con `config.ts`). Queda: dentro de UNA
+  sentencia la revocación no corta (foto de la sentencia); las funciones-disparador de contabilidad
+  (SECURITY DEFINER, EXECUTE de PUBLIC) las puede invocar el agente, pero fuera de un disparador fallan; con el FORCE RLS opcional (0003) la función de cartera no ve el permiso del cliente
+  y la cartera queda cerrada (falla cerrado); la del negocio fijado sigue andando (su `tenant_isolation`
+  coincide con el negocio fijado). Prueba: `agente-db-postgres.test.ts`; (3) la consola no firma permisos; (4) el agente sólo escribe AuditLog con
   `actor LIKE 'agente:%'`; (5) **D5 en CH no contradice el candado:** el agente no toca la base de CH; el ERP
   le pasa el texto tapado, el agente devuelve el borrador y la consola (`gsg_operador`) lo guarda para que
   el dueño lo apruebe (`agentes-permisos.ts`, `borrador_al_duenio`); (6) el `CREATE ROLE` del archivo corre
   en el ensayo en rama de Neon (el owner local es NOCREATEROLE). Vuelta 2 (certifica con observaciones):
   el agente tampoco firma eventos con actor de persona, la hora del permiso la pone la base
-  (`clock_timestamp()` en el trigger) y el chequeo de `search_path` no se saltea con NULL. Quedan BAJOS
-  anotados: el agente elige `createdAt` de AuditLog/evento y ve id/slug/nombre de CH en `Tenant` (sin RLS a
-  propósito). Todo con test en `roles-soporte-postgres.test.ts`.
+  (`clock_timestamp() AT TIME ZONE 'UTC'` en el trigger: ronda 3, T1, la hora ya no depende de la TimeZone de la sesión) y el chequeo de `search_path` no se saltea con NULL. Queda BAJO
+  anotado: el agente elige `createdAt` de AuditLog/evento. Ronda 3, C3: el evento `borrador_ia` también exige ticket abierto. (Ya no ve `Tenant`: ronda adversarial 1.) Todo con test en `roles-soporte-postgres.test.ts`.
 - Al final, un bloque `DO` aborta la migración si algún rol quedó con BYPASSRLS o superusuario, si el agente
-  puede leer `User`, si `NegocioProtegido` es escribible, si la consola o el agente pueden firmar permisos,
+  puede leer `User`, `Tenant` o `SoporteConsentimiento` o cambiar `estado`/`respuesta`, si una función
+  SECURITY DEFINER quedó abierta o sobrecargada, si `NegocioProtegido` es escribible, si la consola o el agente pueden firmar permisos,
   si una función del candado no fija `search_path` con `pg_temp` al final o si CH existe y no quedó protegido. En Neon el
   owner no puede poner `NOBYPASSRLS` explícito: se omite (es el valor por defecto) y se verifica ahí.
 - Pendiente de T-E: `agente-db.ts` (conexión sin caída con `AGENTE_DATABASE_URL`), `IaTope`, `SoporteContacto`
@@ -462,8 +495,10 @@ Pruebas de las certificaciones: scratchpad de MANT-001 (`cert2`, `cert3`, `cert4
 
 Base: `config.ts:23`. **Decidido el 14/11 (D-2 = b):** P1 corre las 24 h sólo para negocios en vivo
 (`Tenant.status = ACTIVE`); el resto, y P1 de un negocio que no está en vivo, en horario de guardia
-(L–V 9–19, sáb 9–13, hora argentina, sin feriados). Código: `decisiones-core.ts`. Feriados: lista
-provisoria a confirmar (hoy vacía). **Hueco anotado:** el alta desde cartera (`ticketDesdePedido`) todavía no
+(L–V 9–19, sáb 9–13, hora argentina, sin feriados). Código: `decisiones-core.ts`. Feriados (MANT-003): `FERIADOS_NACIONALES`
+con la fuente oficial (argentina.gob.ar, `holidays-2026-es.json`); criterio provisorio a confirmar: inamovibles,
+trasladables y puente turístico; quedan fuera los no laborables por credo y los provinciales. 2027 sin publicar.
+Ojo: el lunes 23/11 es feriado (Soberanía Nacional). **Hueco anotado:** el alta desde cartera (`ticketDesdePedido`) todavía no
 sabe si el cliente está en vivo y cuenta P1 en horas de guardia (lo más conservador para la promesa).
 **D-3:** el gasto de IA del soporte se corta con `estadoDelTope` (¼ del tope semanal, aviso al 80 %).
 
