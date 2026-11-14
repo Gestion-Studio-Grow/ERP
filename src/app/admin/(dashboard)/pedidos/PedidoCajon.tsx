@@ -7,9 +7,9 @@
 // Se abre tocando el renglón (o Enter con el foco en él) y la lista queda a la vista y en su
 // lugar. Arriba, quién y para cuándo; en el medio, lo que lleva con la cuenta a la vista
 // (`1,280 kg × $28.600 = $36.608`: el cliente del otro lado del mostrador la puede controlar); al
-// pie, la tecla del paso que sigue, al alcance del pulgar. Lo demás (link de pago, anular) va en
-// «Más acciones», plegado. «Pesar y ajustar» se busca donde están los kilos: su tecla queda a la
-// vista al lado de «Lo que lleva» y abre su sección (que sigue viviendo en «Más acciones»).
+// pie, la tecla del paso que sigue, al alcance del pulgar. «Pesar y ajustar» va a la vista debajo de
+// «Lo que lleva», donde están los kilos (la prueba de Magra del 08/11 no lo encontraba plegado en
+// «Más acciones»). Lo demás (link de pago, ya pagó, anular) va en «Más acciones», plegado.
 //
 // Las acciones son las de siempre: los formularios viejos de pesar y de link de pago (tal cual) y
 // los nuevos de cobro y anulación, que mandan los mismos campos (formularios-del-pedido.ts).
@@ -34,30 +34,31 @@ import { guardarArmado } from "./[code]/armar/acciones";
 import AnularDelPedido from "./AnularDelPedido";
 import { rechazoDeAccion, sinRespuestaAlAvanzar } from "./avanzar-pedido";
 import { esRedirectDeNext } from "./formularios-del-pedido";
-import { quedoElPedido, rielDelPedido, teclaDelPedido, textoDeAjustar, type PedidoDelTablero } from "./pedidos-core";
+import { quedoElPedido, rielDelPedido, teclaDelPedido, type PedidoDelTablero } from "./pedidos-core";
 import type { ExtraDelPedido } from "./tablero.server";
 import { useVocabulario } from "../VocabularioDelNegocio";
 
 export type SeccionDelCajon = "cobro" | "ajustar" | "link" | "anular" | null;
 
 /**
- * Abre «Más acciones», baja hasta la sección y le da el foco a su primer campo o botón. En «ajustar»
- * abre también el formulario del peso y deja el foco en el primer kilo: quien toca «Pesar y
- * ajustar» viene a escribir el peso, no a encontrar otro botón con el mismo nombre.
+ * Baja hasta la sección (abre «Más acciones» si vive ahí) y le da el foco a su primer campo o botón.
+ * En «ajustar» (desde «Más» del renglón) abre también el formulario del peso con el foco en el
+ * primer kilo: quien eligió «Pesar y ajustar» viene a escribir el peso, no a tocar otro botón igual.
  */
-function irASeccionDeMas(mas: HTMLDetailsElement | null, seccion: string): void {
-  if (!mas) return;
-  mas.open = true;
-  const destino = mas.querySelector<HTMLElement>(`[data-seccion="${seccion}"]`);
-  destino?.scrollIntoView({ block: "start" });
-  const plegado = seccion === "ajustar" ? destino?.querySelector<HTMLButtonElement>('button[aria-expanded="false"]') : null;
+function irASeccion(raiz: HTMLElement | null, seccion: string): void {
+  const destino = raiz?.querySelector<HTMLElement>(`[data-seccion="${seccion}"]`);
+  if (!destino) return;
+  const mas = destino.closest("details");
+  if (mas) mas.open = true;
+  destino.scrollIntoView({ block: "start" });
+  const plegado = seccion === "ajustar" ? destino.querySelector<HTMLButtonElement>('button[aria-expanded="false"]') : null;
   if (plegado) {
     plegado.click();
     // El formulario se arma con el clic: el foco va al primer peso en el cuadro siguiente.
-    requestAnimationFrame(() => destino?.querySelector<HTMLElement>('input:not([type="hidden"])')?.focus());
+    requestAnimationFrame(() => destino.querySelector<HTMLElement>('input:not([type="hidden"])')?.focus());
     return;
   }
-  destino?.querySelector<HTMLElement>("button, input")?.focus();
+  destino.querySelector<HTMLElement>("button, input")?.focus();
 }
 
 /** El riel con las palabras de cada paso (en el cajón hay lugar para decirlas). */
@@ -141,7 +142,7 @@ export default function PedidoCajon({
   const router = useRouter();
   const vocab = useVocabulario();
   const { boutique } = useCobroDelNegocio();
-  const masRef = useRef<HTMLDetailsElement>(null);
+  const contenidoRef = useRef<HTMLDivElement>(null);
   const cobroRef = useRef<HTMLDivElement>(null);
   // Si se abrió desde «Más» (pesar, link, anular) o desde «Cobrar», se va directo a esa parte.
   useEffect(() => {
@@ -152,7 +153,7 @@ export default function PedidoCajon({
         cobroRef.current?.querySelector<HTMLInputElement>("input")?.focus();
         return;
       }
-      irASeccionDeMas(masRef.current, seccion);
+      irASeccion(contenidoRef.current, seccion);
     }, 60);
     return () => clearTimeout(t);
   }, [pedido, seccion]);
@@ -163,7 +164,9 @@ export default function PedidoCajon({
   const tecla = teclaDelPedido(pedido);
   // ONLINE = llegó para retirar o enviar (por la tienda o tomado por teléfono): el canal no dice cuál.
   const canal = pedido.canal === "ONLINE" ? "Pedido por la tienda o por teléfono" : "Pedido del mostrador";
-  const conMas = puedeOperar && Boolean(extra?.ajustar || extra?.link || anulacion);
+  // «Ya pagó» (cobro antes de estar listo) va en «Más acciones», como siempre que hubo algo más que hacer.
+  const yaPagoAntes = !pedido.cobrado && pedido.status !== "DELIVERED" && pedido.status !== "READY";
+  const conMas = puedeOperar && Boolean(extra?.link || anulacion || (extra?.ajustar && yaPagoAntes));
 
   // Mostrador boutique: armar a pantalla completa mientras no esté cobrado ni Listo (el cobrado se
   // ajusta en «Más acciones»: el armado todavía no sabe devolver ni dejar saldo).
@@ -245,7 +248,7 @@ export default function PedidoCajon({
       descripcion={`${canal} · ${pedido.cuando}`}
       pie={pie}
     >
-      <div className="flex flex-col gap-6">
+      <div ref={contenidoRef} className="flex flex-col gap-6">
         <div className="flex flex-col gap-2">
           <RielConPalabras pasos={riel.pasos} hechos={riel.hechos} />
           <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -293,16 +296,9 @@ export default function PedidoCajon({
         </section>
 
         <section aria-labelledby="cajon-lleva">
-          <div className="mb-1 flex items-center justify-between gap-3">
-            <Rotulo as="h3">
-              <span id="cajon-lleva">Lo que lleva</span>
-            </Rotulo>
-            {puedeOperar && extra?.ajustar && (
-              <Button type="button" variant="outline" size="sm" onClick={() => irASeccionDeMas(masRef.current, "ajustar")}>
-                {textoDeAjustar(extra.ajustar.items)}
-              </Button>
-            )}
-          </div>
+          <Rotulo as="h3" className="mb-1">
+            <span id="cajon-lleva">Lo que lleva</span>
+          </Rotulo>
           {pedido.lineas.map((l, i) => (
             <Renglon
               key={i}
@@ -330,10 +326,24 @@ export default function PedidoCajon({
               className="border-b-0 font-semibold text-warning"
             />
           )}
+          {puedeOperar && extra?.ajustar && (
+            <div data-seccion="ajustar" className="mt-3">
+              <AjustarPedidoForm
+                id={pedido.id}
+                code={pedido.code}
+                cobrado={extra.ajustar.cobrado}
+                subtotal={extra.ajustar.subtotal}
+                descuento={extra.ajustar.descuento}
+                cupon={extra.ajustar.cupon}
+                items={extra.ajustar.items}
+                {...(boutique ? { conQuitar: true, guardar: guardarArmado } : {})}
+              />
+            </div>
+          )}
         </section>
 
         {conMas && (
-          <details ref={masRef} className="group" open={seccion === "ajustar" || seccion === "link" || seccion === "anular"}>
+          <details className="group" open={seccion === "link" || seccion === "anular"}>
             <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between border-b border-line-strong text-[15px] font-semibold text-strong">
               Más acciones
               <span aria-hidden className="text-muted group-open:rotate-90">
@@ -341,20 +351,6 @@ export default function PedidoCajon({
               </span>
             </summary>
             <div className="flex flex-col gap-5 pt-4">
-              {extra?.ajustar && (
-                <section data-seccion="ajustar" aria-label={textoDeAjustar(extra.ajustar.items)}>
-                  <AjustarPedidoForm
-                    id={pedido.id}
-                    code={pedido.code}
-                    cobrado={extra.ajustar.cobrado}
-                    subtotal={extra.ajustar.subtotal}
-                    descuento={extra.ajustar.descuento}
-                    cupon={extra.ajustar.cupon}
-                    items={extra.ajustar.items}
-                    {...(boutique ? { conQuitar: true, guardar: guardarArmado } : {})}
-                  />
-                </section>
-              )}
               {extra?.link && (
                 <section data-seccion="link" aria-label="Link de pago">
                   <LinkDePagoPedido
@@ -369,7 +365,7 @@ export default function PedidoCajon({
                 </section>
               )}
               {/* Listo ya ofrece cobrar al entregar, en el pie: acá sólo antes de estar listo. */}
-              {!pedido.cobrado && pedido.status !== "DELIVERED" && pedido.status !== "READY" && (
+              {yaPagoAntes && (
                 <section data-seccion="cobro-anticipado" aria-label="Ya pagó">
                   <p className="mb-2 text-sm text-muted">¿Ya pagó (por ejemplo, por transferencia) y retira más tarde?</p>
                   <CobroDelPedido id={pedido.id} code={pedido.code} total={pedido.aCobrar ?? pedido.total} cobrado={false} modo="cobrar" />

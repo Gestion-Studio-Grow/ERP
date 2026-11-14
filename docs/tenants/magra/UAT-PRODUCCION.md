@@ -83,7 +83,7 @@ Caso de acceso:
 
 | # | Paso | Esperado |
 |---|---|---|
-| 4.1 | En el pedido de la clienta: **Preparar** → **Pesar y ajustar** → poner el peso real (1,62 kg) → Guardar peso real | El renglón pasa a 1,62 kg y el total se recalcula al precio por kilo con el que pidió. |
+| 4.1 | En el pedido de la clienta: **Preparar** → abrir el pedido (cajón) → **Pesar y ajustar**, debajo de «Lo que lleva» (también en el menú ⋯ de la fila) → poner el peso real (1,62 kg) → Guardar peso real | El renglón pasa a 1,62 kg y el total se recalcula al precio por kilo con el que pidió. |
 | 4.2 | **Marcar listo** → **Entregar** → elegir Efectivo → **Cobrar y entregar** | Queda «Entregado» y cobrado; entra en la caja del día. |
 | 4.2b | En otro pedido: Entregar → «Queda a cobrar» | Queda entregado y a cobrar; no entra plata en la caja. |
 | 4.3 | Dueño: Catálogo → el corte | El stock bajó el peso **real** (1,62), no el pedido (1,5). |

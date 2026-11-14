@@ -1,9 +1,14 @@
 // UAT de MAGRA (docs/tenants/magra/UAT-PRODUCCION.md), clic por clic, contra la app de PRODUCCIÓN
 // (`next start`) sobre una base Postgres LOCAL recién hecha con RLS y la semilla de MAGRA (entorno.mjs).
 // Nunca toca Neon. Cubre: aislamiento, matriz de acceso dueño/mostrador, la clienta que pide 1,5 kg
-// desde el celular (checkout y WhatsApp), el aviso de la bandeja, pesar y ajustar, cobrar, entregar,
-// anular, la venta de mostrador, caja del día y cierre, y catálogo con precio por kilo. Capturas a
-// 390 y 1440 px; falla ante cualquier error de consola.
+// desde el celular (checkout), el aviso de la bandeja, pesar y ajustar, cobrar, entregar, anular, la
+// venta de mostrador, caja del día y cierre, y catálogo con precio por kilo. Capturas a 390 y 1440 px;
+// falla ante cualquier error de consola.
+// Al día con el sistema del 14/11/2026: MAGRA se presenta como demo de GSG («GSG Carnes al vacío»,
+// src/lib/marca-demo.ts) y sin los datos de contacto del cliente (la tienda no ofrece su WhatsApp);
+// al entrar se ofrece elegir un PIN («Ahora no»); el menú son los espacios; la bandeja es el tablero
+// con el pedido en un cajón («Pesar y ajustar» a la vista debajo de «Lo que lleva»); el día se cierra
+// después de cerrar el turno de caja, deslizando.
 // Uso: npm run build && npm run test:magra-uat [carpeta de capturas]
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -33,6 +38,13 @@ await duenioDb.businessSettings.updateMany({
   data: { shortLabel: null, addressLine: null, hoursLabel: null, contactNote: null, whatsapp: null },
 });
 
+// MAGRA se muestra como demo de GSG (src/lib/marca-demo.ts): el nombre que se ve es éste.
+const { MARCA_DEMO_GSG } = await import("../../../lib/marca-demo.ts");
+const NOMBRE_DEMO = MARCA_DEMO_GSG.nombre;
+const stockInicial = async (nombre) => (await duenioDb.product.findFirstOrThrow({ where: { tenantId: magra.id, name: nombre } })).stock;
+const STOCK_OJO = await stockInicial("Ojo de bife");
+const STOCK_VACIO = await stockInicial("Vacío");
+
 const b = await chromium.launch({ executablePath: process.env.PW_CHROMIUM ?? "/opt/pw-browsers/chromium" }).catch(() => chromium.launch());
 const errores = [];
 async function pagina(ancho, { reloj = false } = {}) {
@@ -55,29 +67,56 @@ async function entrar(p, quien) {
   await p.fill('input[name="password"]', quien.clave);
   await p.locator('button[type="submit"]').first().click();
   await p.waitForURL((u) => !u.pathname.startsWith("/admin/login"), { timeout: 30000 });
+  // El primer ingreso ofrece elegir un PIN para destapar la pantalla: el recorrido sigue sin él.
+  if (new URL(p.url()).pathname.startsWith("/admin/definir-pin")) {
+    await p.getByRole("button", { name: "Ahora no" }).or(p.getByRole("link", { name: "Ahora no" })).first().click();
+    await p.waitForURL((u) => !u.pathname.startsWith("/admin/definir-pin"), { timeout: 30000 });
+  }
 }
 // Mientras la página transmite conviven un instante el <main> viejo y el nuevo: se lee al terminar.
 async function textoDe(p) {
   await p.waitForLoadState("networkidle").catch(() => {});
   return p.locator("main").last().innerText();
 }
-const filaPedido = (p, texto) => p.locator("div.rounded-lg.border.p-4", { hasText: texto }).first();
+// La bandeja es el tablero: un renglón por pedido; el pedido entero se abre en un cajón (dialog).
+const filaPedido = (p, texto) => p.locator("tr", { hasText: texto }).first();
+const cajon = (p) => p.getByRole("dialog");
 const toast = (p, re) => p.getByText(re).first().waitFor({ timeout: 15000 }).then(() => true, () => false);
-// La clienta arma la bolsa en la tienda: `pasos` toques de + (0,25 kg por toque en lo que va por kilo).
+// La clienta arma la bolsa en la tienda: `pasos` toques de + (250 g por toque en lo que va por kilo).
 async function armarBolsa(p, corte, pasos) {
-  const mas = p.getByRole("button", { name: `Agregar ${corte}` }).first();
+  const mas = p.getByRole("button", { name: new RegExp(`^Sumar (250 g|uno) de ${corte}$`) }).first();
   for (let i = 0; i < pasos; i++) await mas.click();
 }
-async function datosDeLaClienta(p, { nombre, tel, retiro = false, direccion = "Los Robles 123, Canning" }) {
-  await p.fill('input[name="customerName"]', nombre);
-  await p.fill('input[name="customerPhone"]', tel);
-  if (retiro) await p.selectOption('select[name="fulfillment"]', "PICKUP");
-  else await p.fill('input[name="address"]', direccion);
+// En el celular la bolsa es un panel: se abre con «Ver mi pedido».
+async function abrirBolsa(p) {
+  const ver = p.getByRole("button", { name: "Ver mi pedido" });
+  if (await ver.isVisible().catch(() => false)) await ver.click();
+  return p.locator("#pedido");
 }
+async function datosDeLaClienta(p, { nombre, tel, retiro = false, direccion = "Los Robles 123, Canning" }) {
+  const bolsa = await abrirBolsa(p);
+  await bolsa.getByLabel("Nombre y apellido").fill(nombre);
+  await bolsa.getByLabel("Tu WhatsApp").fill(tel);
+  if (retiro) await bolsa.getByLabel("Retiro en el local").check();
+  else {
+    await bolsa.getByLabel("Envío a domicilio").check();
+    await bolsa.getByLabel("Dirección").fill(direccion);
+  }
+}
+const enviarPedido = (p) => p.locator("#pedido").getByRole("button", { name: /^Enviar pedido/ }).click();
+// «Efectivo · al abrir $X · entró $Y · salió $Z · según el libro del día · $saldo»
 async function efectivoEnCaja(p) {
   await p.goto(`${BASE}/admin/caja`);
   const t = await textoDe(p);
-  return plata(t.match(/Efectivo\s*\n\s*(\$[\d.,]+)/)?.[1] ?? "NaN");
+  return plata(t.match(/Efectivo\s*\n\s*al abrir[^\n]*\n[^$]*?(\$[\d.]+,\d{2})/)?.[1] ?? "NaN");
+}
+// Las acciones de un renglón del catálogo viven en «Más acciones»; la edición abre su cajón.
+async function editarProducto(p, nombre) {
+  await p.getByRole("button", { name: `Más acciones de ${nombre}` }).click();
+  await p.locator("[popover]:popover-open").getByRole("link", { name: "Corregir precio y datos" }).click();
+  const edicion = p.locator('form:has([id^="edit-"][id$="-name"])');
+  await edicion.waitFor({ timeout: 15000 });
+  return edicion;
 }
 
 try {
@@ -86,7 +125,8 @@ try {
     const { ctx, p } = await pagina(1440);
     await p.goto(`${BASE}/tienda`);
     const cuerpo = await p.locator("body").innerText();
-    ok("0.1", /ESTO NO ES UNA CARNICERÍA/i.test(cuerpo) && !/Mi negocio/.test(cuerpo), "la tienda es la de MAGRA, no la vidriera genérica");
+    ok("0.1", cuerpo.includes(NOMBRE_DEMO) && !/Mi negocio|\bMagra\b/i.test(cuerpo),
+      `la tienda se presenta como la demo «${NOMBRE_DEMO}»: ni la vidriera genérica ni la marca del cliente`);
     const prohibidas = cuerpo.match(/\b(demo|de prueba|de ejemplo|fictici[oa]s?|a confirmar|provisional)\b/gi) ?? [];
     ok("0.1c", (await p.getByRole("button", { name: /WhatsApp/ }).count()) === 0, "sin WhatsApp del local, la tienda no ofrece botones de WhatsApp");
     ok("0.1b", prohibidas.length === 0 && !/wa\.me\/\d/.test(await p.content()),
@@ -95,7 +135,7 @@ try {
     await p.goto(`${BASE}/admin`);
     ok("0.2", new URL(p.url()).pathname === "/admin/login", "/admin sin sesión rebota al ingreso");
     await p.goto(`${HOST_AJENO}/tienda`);
-    ok("0.3", !/ESTO NO ES UNA CARNICERÍA/i.test(await p.locator("body").innerText()), "otro negocio de la misma base no muestra la tienda de MAGRA");
+    ok("0.3", !(await p.locator("body").innerText()).includes(NOMBRE_DEMO), "otro negocio de la misma base no muestra la tienda de MAGRA");
     await entrar(p, DUENIO);
     await p.goto(`${BASE}/admin/clientes`);
     ok("0.4", !/Negocio A|Negocio B/.test(await textoDe(p)), "en Clientes de MAGRA no aparece ningún cliente de otro negocio (RLS)");
@@ -103,18 +143,19 @@ try {
   }
 
   // ── 1. Matriz de acceso: dueño y mostrador ──
-  const MENU_DUENIO = ["Inicio", "Clientes", "Pedidos", "Caja", "Cierre del día", "Catálogo", "Reportes", "Usuarios"];
+  // El menú son los espacios (Pedidos, Vender y el cierre viven en «Mostrador» y «Caja»).
+  const MENU_DUENIO = ["Mostrador", "Caja", "Clientes", "Catálogo", "Stock", "Compras", "Facturas", "Números", "Configuración"];
   const SOLO_DUENIO = ["/admin/catalogo", "/admin/catalogo/precios", "/admin/reportes", "/admin/usuarios", "/admin/inventario", "/admin/facturacion", "/admin/localizacion", "/admin/auditoria"];
   const DE_LOS_DOS = ["/admin/pedidos", "/admin/vender", "/admin/ventas", "/admin/caja", "/admin/caja/cierre", "/admin/clientes"];
   for (const quien of [DUENIO, MOSTRADOR]) {
     const { ctx, p } = await pagina(1440);
     await entrar(p, quien);
-    const menu = await p.locator("nav").first().innerText();
+    const menu = await p.getByRole("navigation", { name: "Espacios" }).first().innerText();
     const esDuenio = quien === DUENIO;
-    ok("1.menu", esDuenio ? MENU_DUENIO.every((m) => menu.includes(m)) : !/Catálogo|Reportes|Usuarios|Auditoría/.test(menu) && /Pedidos/.test(menu) && /Caja/.test(menu),
-      `${quien.nombre}: el menú ${esDuenio ? "trae todo" : "trae Pedidos y Caja, sin Catálogo, Reportes, Usuarios ni Auditoría"}`);
+    ok("1.menu", esDuenio ? MENU_DUENIO.every((m) => menu.includes(m)) : !/Catálogo|Números|Facturas|Configuración/.test(menu) && /Mostrador/.test(menu) && /Caja/.test(menu),
+      `${quien.nombre}: el menú ${esDuenio ? "trae todos los espacios" : "trae Mostrador y Caja, sin Catálogo, Números, Facturas ni Configuración"}`);
     const inicio = await textoDe(p);
-    ok("1.plata", esDuenio === /Ingresos hoy/.test(inicio), `${quien.nombre}: «Ingresos hoy» ${esDuenio ? "visible" : "no visible"} en el Inicio`);
+    ok("1.plata", esDuenio === /Cobrado hoy/i.test(inicio), `${quien.nombre}: «Cobrado hoy» ${esDuenio ? "visible" : "no visible"} en el Inicio`);
     const negadas = [];
     for (const r of SOLO_DUENIO) {
       await p.goto(`${BASE}${r}`);
@@ -142,8 +183,10 @@ try {
     await p.goto(`${BASE}/admin/caja`);
     await p.fill("#openingFloat", "10000");
     await p.getByRole("button", { name: "Abrir caja" }).click();
+    // Contra el libro vacío, $10.000 es un sobrante: la pantalla pide confirmarlo.
     await p.getByRole("button", { name: "Sí, abrir caja" }).click();
-    ok("7.1", await toast(p, /Caja abierta|abierta desde/i), "abrir la caja con $10.000 de fondo (confirma el sobrante contra el libro vacío)");
+    await p.getByRole("button", { name: "Cerrar el turno" }).waitFor({ timeout: 15000 }).catch(() => {});
+    ok("7.1", (await p.getByRole("button", { name: "Cerrar el turno" }).count()) > 0, "abrir la caja con $10.000 de fondo (confirma el sobrante contra el libro vacío): el turno queda abierto");
     await foto(p, "caja-abierta-390");
   }
 
@@ -156,16 +199,18 @@ try {
     const { ctx, p } = await pagina(390);
     await p.goto(`${BASE}/tienda`);
     await armarBolsa(p, "Ojo de bife", 6);
-    const bolsa = await p.locator("#pedido").innerText();
+    const bolsa = await (await abrirBolsa(p)).innerText();
     ok("2.1", /1,5 kg/.test(bolsa) && /Total estimado/i.test(bolsa) && /25\.350/.test(bolsa), "6 toques de + = 1,5 kg de ojo de bife, $25.350, «total estimado»");
-    ok("2.2", (await p.locator("#pedido .mf-nota-peso").count()) === 1, "avisa que el total se ajusta al peso real de cada pieza");
+    ok("2.2", /se pesa al envasar/i.test(bolsa) && /peso real/i.test(bolsa), "avisa que se pesa al envasar y que el total sale del peso real");
+    const cerrarBolsa = p.getByRole("button", { name: "Cerrar el pedido" });
+    if (await cerrarBolsa.isVisible().catch(() => false)) await cerrarBolsa.click();
     await armarBolsa(p, "Hamburguesas caseras x4", 1);
     await datosDeLaClienta(p, { nombre: "Clienta UAT", tel: "hola" });
-    await p.locator(".mf-rail-submit").click();
+    await enviarPedido(p);
     ok("2.3", await toast(p, /Revisá tu WhatsApp/), "un teléfono inválido no manda el pedido y dice qué corregir");
-    await p.fill('input[name="customerPhone"]', "11 2345 6789");
+    await p.locator("#pedido").getByLabel("Tu WhatsApp").fill("11 2345 6789");
     await foto(p, "tienda-bolsa-390");
-    await p.locator(".mf-rail-submit").click();
+    await enviarPedido(p);
     await p.waitForURL(/\/tienda\/gracias/, { timeout: 30000 });
     codigoWeb = new URL(p.url()).searchParams.get("pedido");
     ok("2.4", Boolean(codigoWeb) && /Pedido recibido/i.test(await p.locator("body").innerText()), `checkout: «¡Pedido recibido!» con el número #${codigoWeb}`);
@@ -181,20 +226,22 @@ try {
     ok("3.2", /1 de la tienda esperando/.test(await textoDe(p)), "la línea de estado dice cuántos pedidos de la tienda esperan y desde cuándo");
     await foto(p, "bandeja-aviso-1440");
   }
-  // WhatsApp: con el número del local cargado (en esta base local; el real es dato del dueño).
+  // WhatsApp: con el número del local cargado (en esta base local; el real es dato del dueño). La
+  // demo de GSG no muestra los datos de contacto del cliente: un pedido de prueba nunca llega a su
+  // WhatsApp real (src/lib/marca-demo.ts). El segundo pedido entra por «Enviar pedido», para retirar.
   await duenioDb.businessSettings.updateMany({ where: { tenantId: magra.id }, data: { whatsapp: "5491100000000" } });
   let codigoWa;
   {
     const { ctx, p } = await pagina(390);
     await p.goto(`${BASE}/tienda`);
     await armarBolsa(p, "Vacío", 4);
-    await datosDeLaClienta(p, { nombre: "Clienta WhatsApp", tel: "11 5555 1234", retiro: true });
-    const [chat] = await Promise.all([ctx.waitForEvent("page", { timeout: 20000 }), p.locator(".mf-rail-wa").click()]);
-    await chat.waitForURL(/wa\.me|whatsapp/, { timeout: 20000 }).catch(() => {});
-    const destino = decodeURIComponent(chat.url());
-    codigoWa = destino.match(/#(\d+)/)?.[1];
-    if (process.env.DEBUG) console.log("   [debug] chat:", destino);
-    ok("2.5", /5491100000000/.test(destino) && Boolean(codigoWa), `«Pedir por WhatsApp» registra el pedido y abre el chat del local con el número #${codigoWa}`);
+    await datosDeLaClienta(p, { nombre: "Clienta Retiro", tel: "11 5555 1234", retiro: true });
+    const sinWa = (await p.getByRole("button", { name: /WhatsApp/ }).count()) === 0 && !/wa\.me|5491100000000/.test(await p.content());
+    ok("2.5", sinWa, "con el WhatsApp del local cargado, la demo igual no lo muestra ni ofrece «Pedir por WhatsApp»");
+    await enviarPedido(p);
+    await p.waitForURL(/\/tienda\/gracias/, { timeout: 30000 });
+    codigoWa = new URL(p.url()).searchParams.get("pedido");
+    ok("2.6", Boolean(codigoWa), `un pedido para retirar entra con el número #${codigoWa}`);
     await ctx.close();
   }
 
@@ -203,42 +250,44 @@ try {
     const { p } = duenio;
     await p.goto(`${BASE}/admin/pedidos`);
     const fila = () => filaPedido(p, "Clienta UAT");
-    await fila().getByRole("button", { name: "Preparar" }).click();
+    await p.getByRole("button", { name: `Preparar: Clienta UAT, pedido #${codigoWeb}` }).click();
     await fila().getByText("En preparación").waitFor();
-    await fila().getByRole("button", { name: "Pesar y ajustar" }).click();
-    await fila().getByRole("textbox", { name: /Ojo de bife/ }).fill("1,62");
+    // El pedido entero en el cajón: «Pesar y ajustar» a la vista debajo de «Lo que lleva».
+    await fila().getByRole("button", { name: "Clienta UAT" }).click();
+    const c = cajon(p);
+    await c.getByRole("button", { name: "Pesar y ajustar" }).click();
+    await c.getByRole("textbox", { name: /Ojo de bife/ }).fill("1,62");
     await foto(p, "pesar-1440");
-    await fila().getByRole("button", { name: "Guardar peso real" }).click();
+    await c.getByRole("button", { name: "Guardar peso real" }).click();
     // 1,62 × 16.900 + 6.500 = 33.878
-    await fila().getByText("1,62 kg · Ojo de bife").waitFor({ timeout: 15000 }).catch(() => {});
-    if (process.env.DEBUG) console.log("   [debug] fila:", await fila().innerText());
-    ok("4.1", /1,62 kg · Ojo de bife/.test(await fila().innerText()) && /\$33\.878,00/.test(await fila().innerText()), "pesar y ajustar: 1,62 kg reales → el pedido pasa a $33.878");
-    await fila().getByRole("button", { name: "Marcar listo" }).click();
-    await fila().getByRole("button", { name: "Entregar" }).click();
-    await fila().getByLabel(/¿Cómo pagó el pedido/).first().selectOption("EFECTIVO");
-    await fila().getByRole("button", { name: "Cobrar y entregar" }).click();
-    await p.getByText(`#${codigoWeb}`).first().waitFor();
-    await p.waitForTimeout(800);
-    const cerrado = await textoDe(p);
-    ok("4.2", new RegExp(`#${codigoWeb}[\\s\\S]{0,40}Entregado`).test(cerrado), `cobrar y entregar: el #${codigoWeb} queda entregado y cobrado`);
+    const pesado = await toast(p, /actualizado al peso real: \$31\.850,00 → \$33\.878,00/);
+    if (process.env.DEBUG) console.log("   [debug] cajón:", await c.innerText());
+    ok("4.1", pesado && /1,62 kg/.test(await c.innerText()) && /\$33\.878,00/.test(await fila().innerText()), "pesar y ajustar: 1,62 kg reales → el pedido pasa a $33.878");
+    await c.getByRole("button", { name: "Marcar listo" }).click();
+    await fila().getByText("Listo").first().waitFor({ timeout: 15000 });
+    await c.getByRole("radio", { name: "Efectivo" }).or(c.getByRole("button", { name: "Efectivo" })).first().click();
+    await c.getByRole("button", { name: "Cobrar $33.878,00 y entregar" }).click();
+    const entregado = await toast(p, new RegExp(`Pedido #${codigoWeb} cobrado: \\$33\\.878,00\\. Quedó entregado`));
+    const orden = await duenioDb.order.findFirstOrThrow({ where: { tenantId: magra.id, code: Number(codigoWeb) } });
+    ok("4.2", entregado && orden.status === "DELIVERED" && orden.paid, `cobrar y entregar: el #${codigoWeb} queda entregado y cobrado`);
     const ojo = await duenioDb.product.findFirstOrThrow({ where: { tenantId: magra.id, name: "Ojo de bife" } });
-    ok("4.3", Math.abs(ojo.stock - (18 - 1.62)) < 1e-6, `el stock descuenta el peso REAL: 18 → ${ojo.stock} kg`);
+    ok("4.3", Math.abs(ojo.stock - (STOCK_OJO - 1.62)) < 1e-6, `el stock descuenta el peso REAL: ${STOCK_OJO} → ${ojo.stock} kg`);
   }
 
   // ── 5. Anular (mostrador: motivo obligatorio) ──
   {
     const { p } = mostrador;
     await p.goto(`${BASE}/admin/pedidos`);
-    const fila = () => filaPedido(p, "Clienta WhatsApp");
-    await fila().getByRole("button", { name: "Anular…" }).click();
-    await fila().getByRole("button", { name: "Sí, anular" }).click();
-    if (process.env.DEBUG) console.log("   [debug] anular:", await fila().innerText());
-    ok("5.1", await fila().getByRole("alert").waitFor({ timeout: 10000 }).then(() => true, () => false), "el mostrador no anula sin motivo");
-    await fila().getByLabel(/Motivo/).fill("La clienta canceló por WhatsApp");
-    await fila().getByRole("button", { name: "Sí, anular" }).click();
-    ok("5.2", await toast(p, new RegExp(`#${codigoWa}.*anulado|anulado`, "i")), `con motivo, el #${codigoWa} se anula (no estaba cobrado: la caja no se toca)`);
+    await p.getByRole("button", { name: `Más acciones del pedido #${codigoWa}` }).click();
+    await p.locator("[popover]:popover-open").getByRole("button", { name: "Anular…" }).click();
+    const anular = cajon(p).locator('[data-seccion="anular"]');
+    await anular.getByRole("button", { name: `Anular el pedido #${codigoWa}` }).click();
+    ok("5.1", await toast(p, /Escribí por qué se anula/), "el mostrador no anula sin motivo");
+    await anular.getByLabel(/Motivo/i).fill("La clienta canceló por WhatsApp");
+    await anular.getByRole("button", { name: `Anular el pedido #${codigoWa}` }).click();
+    ok("5.2", await toast(p, new RegExp(`#${codigoWa} anulad`, "i")), `con motivo, el #${codigoWa} se anula (no estaba cobrado: la caja no se toca)`);
     const vacio = await duenioDb.product.findFirstOrThrow({ where: { tenantId: magra.id, name: "Vacío" } });
-    ok("5.3", Math.abs(vacio.stock - 2) < 1e-6, `al anular, el vacío vuelve al stock (${vacio.stock} kg)`);
+    ok("5.3", Math.abs(vacio.stock - STOCK_VACIO) < 1e-6, `al anular, el vacío vuelve al stock (${vacio.stock} kg)`);
   }
 
   // ── 6. Venta de mostrador (mostrador, 390) ──
@@ -270,22 +319,20 @@ try {
   {
     const { p } = duenio;
     await p.goto(`${BASE}/admin/catalogo`);
-    const fila = p.locator("tr", { hasText: "Lomo" }).first();
-    await fila.getByRole("button", { name: "Editar" }).click();
-    const edicion = p.locator('form:has([id^="edit-"][id$="-name"])');
+    const edicion = await editarProducto(p, "Lomo");
     await edicion.getByLabel("Precio por kilo").fill("19500");
     await edicion.getByRole("button", { name: "Guardar" }).click();
-    await p.locator("tr", { hasText: "Lomo" }).getByText("$19.500,00/kg").waitFor({ timeout: 15000 }).catch(() => {});
-    ok("8.1", (await p.locator("tr", { hasText: "Lomo" }).getByText("$19.500,00/kg").count()) > 0, "el dueño cambia el precio por kilo del lomo a $19.500");
+    const filaLomo = p.locator("tr", { hasText: "Lomo" }).first();
+    await filaLomo.getByText(/\$19\.500(,00)?\/kg/).waitFor({ timeout: 15000 }).catch(() => {});
+    ok("8.1", (await filaLomo.getByText(/\$19\.500(,00)?\/kg/).count()) > 0, "el dueño cambia el precio por kilo del lomo a $19.500");
     await foto(p, "catalogo-1440");
     const t = await pagina(390);
     await t.p.goto(`${BASE}/tienda`);
-    ok("8.2", /LOMO\s*\$ 19\.500\s*\/ kg/i.test((await t.p.locator("body").innerText()).replace(/ /g, " ")), "la tienda muestra el precio nuevo del lomo");
+    ok("8.2", /Lomo\s*\$\s?19\.500\s*\/\s*kg/i.test((await t.p.locator("body").innerText()).replace(/ /g, " ")), "la tienda muestra el precio nuevo del lomo");
     await t.ctx.close();
     // 8.3 El PLU del vacío, el número con el que lo imprime la balanza.
     await p.goto(`${BASE}/admin/catalogo`);
-    await p.locator("tr", { hasText: "Vacío" }).first().getByRole("button", { name: "Editar" }).click();
-    const edicionVacio = p.locator('form:has([id^="edit-"][id$="-name"])');
+    const edicionVacio = await editarProducto(p, "Vacío");
     await edicionVacio.getByLabel("Código / PLU").fill("123");
     await edicionVacio.getByRole("button", { name: "Guardar" }).click();
     await edicionVacio.waitFor({ state: "detached", timeout: 15000 }).catch(() => {});
@@ -314,10 +361,11 @@ try {
     await foto(p, "vender-balanza-390");
   }
 
-  // ── 7b. Gasto, cierre del día con diferencia (dueño) ──
+  // ── 7b. Gasto, cierre del turno y cierre del día con diferencia (dueño) ──
   {
     const { p } = duenio;
     await p.goto(`${BASE}/admin/caja`);
+    await p.getByRole("button", { name: "Cargar un gasto o retiro" }).click();
     await p.fill("#libro-detail", "Hielo y bolsas");
     await p.selectOption("#libro-type", "EGRESO");
     await p.selectOption("#libro-method", "EFECTIVO");
@@ -325,17 +373,27 @@ try {
     await p.getByRole("button", { name: "Agregar movimiento" }).click();
     ok("7.2", await toast(p, /Guardado: Hielo y bolsas/), "registrar un gasto en efectivo de $2.000");
     const esperado = await efectivoEnCaja(p);
+    // El día se cierra después de cerrar el turno del cajero, con su conteo (justo lo esperado).
+    await p.getByRole("button", { name: "Cerrar el turno" }).click();
+    await p.fill("#counted", String(esperado));
+    await p.getByRole("button", { name: "Cerrar caja" }).click();
+    await p.getByRole("button", { name: "Sí, cerrar caja" }).click({ timeout: 5000 }).catch(() => {});
+    await p.getByRole("button", { name: "Cerrar el turno" }).waitFor({ state: "detached", timeout: 15000 }).catch(() => {});
     await p.goto(`${BASE}/admin/caja/cierre`);
     const contado = esperado - 100;
-    const libro = await textoDe(p);
-    const movimientos = libro.slice(libro.indexOf("Movimientos del período"));
-    ok("7.3a", /Apertura del turno: conteo del cajón de \$\s?10\.000,00, no suma/.test(movimientos),
+    await textoDe(p);
+    const movimientos = p.locator("details", { hasText: "movimientos del período" }).first();
+    await movimientos.locator("summary").click();
+    const lista = await movimientos.innerText();
+    if (process.env.DEBUG) console.log("   [debug] movimientos:", lista);
+    ok("7.3a", /Apertura del turno: conteo del cajón de \$\s?10\.000,00, no suma/.test(lista),
       "la lista del cierre muestra la apertura como conteo del cajón, sin sumarla como ingreso");
     await p.getByLabel(/^Efectivo/).first().fill(String(contado));
-    await p.getByLabel("Qué pasó").fill("Faltan $100: vuelto mal dado a la tarde");
+    await p.getByLabel(/Qué pasó/i).fill("Faltan $100: vuelto mal dado a la tarde");
     await foto(p, "cierre-1440");
-    await p.getByRole("button", { name: "Cerrar el día" }).click();
-    await p.getByRole("button", { name: "Sí, cerrar el día" }).click();
+    // «Deslizá para cerrar»: con el teclado, End lo lleva hasta el final.
+    await p.getByRole("slider", { name: /^Cerrar el día/ }).focus();
+    await p.keyboard.press("End");
     ok("7.3", await toast(p, /Día .* cerrado/), `cierre: contó $${contado} contra $${esperado}, anotó qué pasó y el día queda cerrado`);
     await p.goto(`${BASE}/admin/caja/libro`);
     ok("7.3b", /100,00/.test(await textoDe(p)), "la diferencia de $100 queda asentada en el libro");
