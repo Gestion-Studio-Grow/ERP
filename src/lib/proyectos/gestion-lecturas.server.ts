@@ -12,6 +12,7 @@ import { permisoEfectivo, permisoFueraDeLaAgenda } from "@/lib/capabilities";
 import type { Prisma } from "@/generated/prisma/client";
 import { datosDelNegocio } from "./datos.server";
 import { leerRef } from "./diseno-core";
+import { cambioLegible } from "./ficha-core";
 import { aPesos, generaCuotas } from "./gestion-core";
 import { filtroDeProyectos, puede, tiposDeCambio, type Actor } from "./gestion.server";
 import { claveDia, diasDelRango, enlaceSeguro, laminasPublicas, mediodia, paginacion, tokenDeCalendario, usuarioDelToken, versionesVivas, type EntradaCalendario, type TipoCalendario } from "./gestion-lecturas-core";
@@ -400,7 +401,7 @@ export async function registroDeCambios(a: Actor, pedida?: string) {
     select: { id: true, createdAt: true, autor: true, entidad: true, campo: true, antes: true, despues: true, proyectoId: true },
   });
   const oculto = (campo: string) => (!verSueldos && /sueldo|liquidaci|plus/i.test(campo)) || (!verCostos && /costo|recargo|margen/i.test(campo));
-  return { total, pagina, paginas, filas: filas.map((f) => (oculto(f.campo) ? { ...f, antes: "Oculto", despues: "Oculto" } : f)) };
+  return { total, pagina, paginas, filas: filas.map((f) => (oculto(f.campo) ? { ...f, antes: "Oculto", despues: "Oculto" } : cambioLegible(f))) };
 }
 
 // ── Avisos y configuración ──────────────────────────────────────────────────

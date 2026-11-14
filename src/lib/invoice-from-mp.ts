@@ -11,11 +11,12 @@
 import { createInvoice } from "@/lib/invoice-core";
 import { calcularImpuestos, getFiscalProfile } from "@/lib/fiscal";
 import { procesarEnviosDelNegocio } from "@/lib/arca-dispatch";
-import type { PagoMP } from "@/plugins/mercadopago";
+import { CobroARevisar, type PagoMP } from "@/plugins/mercadopago";
 import { fechaFiscalDelDia } from "@/lib/libros/fecha-fiscal";
 import { tenantTransaction } from "@/lib/rls";
 import { claveCobroMP, facturarCobros, vincularCobro } from "@/lib/facturacion/cobros-facturados";
 import { facturarPagoMPDelTurno } from "@/lib/facturacion/factura-por-cobro";
+import { MOTIVO_NEGOCIO_CON_CUOTAS, negocioFacturaCuotas } from "@/lib/proyectos/facturar-cuota.server";
 
 // Códigos de catálogo ARCA (ver src/plugins/arca/domain/catalogos.ts).
 const CONCEPTO_PRODUCTOS = 1; // venta de productos/servicios sueltos, sin fechas de servicio
@@ -44,6 +45,12 @@ export interface DepsFacturarPagoMP {
    * `facturarCobros`.
    */
   facturarPagoDelTurno?: typeof facturarPagoMPDelTurno;
+  /**
+   * Certificación T2 · vuelta 3: ¿el negocio factura cuotas de proyecto? (alguna Invoice con
+   * `proyectoCuotaId`, preguntado bajo el candado de las facturas por cobro). Si sí, un pago suelto
+   * no se factura solo: puede ser el cobro de una cuota ya facturada. Opcional: sin él, no se mira.
+   */
+  negocioFacturaCuotas?: (tenantId: string) => Promise<boolean>;
 }
 
 /** El extracto ya facturó un crédito con la referencia de este pago (y la factura sigue viva). */
@@ -70,6 +77,7 @@ const DEPS: DepsFacturarPagoMP = {
   facturaDelExtracto: facturaDelExtractoPrisma,
   vincularCobro,
   facturarPagoDelTurno: facturarPagoMPDelTurno,
+  negocioFacturaCuotas,
 };
 
 /**
@@ -89,6 +97,14 @@ export async function facturarPagoMP(
   // el cobro queda anotado contra esa factura.
   const delExtracto = deps.facturaDelExtracto ? await deps.facturaDelExtracto(tenantId, pago.id) : null;
   if (delExtracto && deps.vincularCobro) return deps.vincularCobro(tenantId, cobro, delExtracto);
+
+  // Negocio que factura cuotas de proyecto (certificación T2, vuelta 3): un pago suelto puede ser el
+  // cobro de una cuota ya facturada, y no hay vínculo pago→cuota para saberlo. No se factura solo:
+  // queda en revisión con el motivo. El pago de un TURNO tiene dueño y sigue igual. Del otro lado,
+  // `facturarCuotaDelProyecto` se niega con Mercado Pago conectado, bajo el mismo candado.
+  if (!cobro.appointmentId && deps.negocioFacturaCuotas && (await deps.negocioFacturaCuotas(tenantId))) {
+    throw new CobroARevisar(MOTIVO_NEGOCIO_CON_CUOTAS);
+  }
 
   const perfil = await deps.getFiscalProfile(tenantId);
   const { neto, iva, total } = calcularImpuestos(perfil.condicionIva, pago.monto);

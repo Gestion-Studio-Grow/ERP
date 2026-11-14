@@ -6,6 +6,7 @@ import { guardarPreferenciasAvisos } from "@/lib/proyectos/acciones-gestion";
 import { veLaPlata } from "@/lib/proyectos/datos.server";
 import { TIPOS_AVISO } from "@/lib/proyectos/gestion-core";
 import { actorActual } from "@/lib/proyectos/gestion.server";
+import { etapa2ActivaActual } from "@/lib/proyectos/etapa2.server";
 import { mailConectado } from "@/lib/notifications";
 import { direccionDelCalendario, misPreferenciasDeAviso } from "@/lib/proyectos/gestion-lecturas.server";
 import { tarjeta } from "../_vista";
@@ -17,7 +18,7 @@ export const metadata = { title: "Configuración" };
 export default async function ConfiguracionGestion({ searchParams }: { searchParams: Promise<{ ok?: string }> }) {
   await requireApp("proyectos");
   const a = await actorActual();
-  const [{ ok }, prefs, direccion] = await Promise.all([searchParams, misPreferenciasDeAviso(a), direccionDelCalendario(a)]);
+  const [{ ok }, prefs, direccion, importador] = await Promise.all([searchParams, misPreferenciasDeAviso(a), direccionDelCalendario(a), etapa2ActivaActual("importador")]);
   const apagados = new Set(prefs.filter((p) => !p.enSistema).map((p) => p.tipo));
   const porMail = new Set(prefs.filter((p) => p.porMail).map((p) => p.tipo));
 
@@ -59,6 +60,14 @@ export default async function ConfiguracionGestion({ searchParams }: { searchPar
         <p className="mb-3 text-sm text-muted">Tu dirección de suscripción, para Google Calendar o el teléfono. Es personal y nunca trae montos.</p>
         {direccion ? <CopiarDireccion direccion={direccion} /> : <p className="text-sm text-danger">No se pudo armar la dirección en este servidor.</p>}
       </section>
+
+      {importador && a.rol === "DIRECCION" && (
+        <section className={tarjeta} aria-label="Importar planilla">
+          <h2 className="mb-1 font-semibold text-strong">Importar planilla de proyectos</h2>
+          <p className="mb-3 text-sm text-muted">Cargá de una vez los proyectos de la planilla de estado (clientes, etapas, fechas y comentarios). Primero ves qué se carga y nada se repite.</p>
+          <Link href="/admin/proyectos/importar" className={buttonClasses("outline", "md")}>Importar planilla</Link>
+        </section>
+      )}
 
       <section className={tarjeta} aria-label="Seguridad">
         <h2 className="mb-3 font-semibold text-strong">Seguridad</h2>

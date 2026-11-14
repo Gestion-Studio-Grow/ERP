@@ -8,22 +8,29 @@ import { buttonClasses, cn, Dialogo } from "@/components/ui";
 import { guardarCarpeta, moverProyecto, type ResultadoFicha } from "@/lib/proyectos/acciones-ficha";
 import { MOTIVOS_PERDIDA } from "@/lib/proyectos/gestion-core";
 import { campo } from "../_vista";
+import { useToastSiHay } from "../../ToastProvider";
 
 const campoEnLinea = "min-h-11 min-w-0 rounded-lg border border-line bg-surface px-3 text-sm text-strong";
 
 /** Un <form> de acción de servidor que dice qué falló sin perder lo tipeado. Con `limpiar`, vacía los campos si salió bien. */
 export function FormAccion({ accion, className, children, limpiar, alGuardar }: { accion: (fd: FormData) => Promise<ResultadoFicha>; className?: string; children: ReactNode; limpiar?: boolean; alGuardar?: () => void }) {
   const [error, setError] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
   const form = useRef<HTMLFormElement>(null);
+  const toast = useToastSiHay();
   return (
     <form
       ref={form}
       className={className}
       action={async (fd) => {
         setError(null);
+        setAviso(null);
         try {
           const r = await accion(fd);
           if (!r.ok) return setError(r.error);
+          if (r.aviso) setAviso(r.aviso);
+          // El éxito va en un aviso flotante: el renglón que lo pidió (la cuota marcada) suele desaparecer al refrescar.
+          if (r.listo) toast?.showSuccess(r.listo);
           if (limpiar) form.current?.reset();
           alGuardar?.();
         } catch {
@@ -33,6 +40,7 @@ export function FormAccion({ accion, className, children, limpiar, alGuardar }: 
     >
       {children}
       {error && <p role="alert" className="col-span-full basis-full text-sm font-medium text-danger">{error}</p>}
+      {aviso && <p role="status" className="col-span-full basis-full rounded-lg border border-warning bg-warning-soft px-3 py-2 text-sm text-strong">{aviso}</p>}
     </form>
   );
 }
@@ -69,6 +77,7 @@ export function ControlEtapa({ id, etapa, perdido, motivo, siguiente, etapas }: 
       setError(null);
       const r = await moverProyecto({ id, destino, motivo: motivoPerdida });
       if (!r.ok) return setError(r.error);
+      if (r.aviso) setError(r.aviso);
       setAbierto(false);
       setTexto("");
     });

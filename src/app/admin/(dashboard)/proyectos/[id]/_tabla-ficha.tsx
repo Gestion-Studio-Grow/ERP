@@ -52,7 +52,7 @@ export function TablaFicha({
     iniciar(async () => {
       try {
         const r = await guardarCampoItem({ id, campo: nombre, valor });
-        setEstado(r.ok ? { tipo: "guardado", texto: nombre === "costoReal" ? "Guardado." : "Guardado. Las cuotas quedaron al día." } : { tipo: "error", texto: r.error });
+        setEstado(r.ok ? (r.aviso ? { tipo: "error", texto: `Guardado. ${r.aviso}` } : { tipo: "guardado", texto: nombre === "costoReal" ? "Guardado." : "Guardado. Las cuotas quedaron al día." }) : { tipo: "error", texto: r.error });
       } catch {
         setEstado({ tipo: "error", texto: "No se pudo guardar. Revisá la conexión y probá de nuevo." });
       }
@@ -64,7 +64,7 @@ export function TablaFicha({
     setEstado({ tipo: "guardando", texto: "Borrando…" });
     iniciar(async () => {
       const r = await borrarItemFicha({ id });
-      setEstado(r.ok ? { tipo: "guardado", texto: "Ítem quitado. Las cuotas quedaron al día." } : { tipo: "error", texto: r.error });
+      setEstado(r.ok ? (r.aviso ? { tipo: "error", texto: `Ítem quitado. ${r.aviso}` } : { tipo: "guardado", texto: "Ítem quitado. Las cuotas quedaron al día." }) : { tipo: "error", texto: r.error });
     });
   };
 
