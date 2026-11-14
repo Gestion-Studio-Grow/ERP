@@ -294,6 +294,13 @@ Calculadora: sección «La ganancia» del manual (https://claude.ai/artifact/Aa2
   fuera un cliente real. Nosotros somos nuestro propio cliente, así que debemos también probar el producto real con
   métricas reales.» Implica dar de alta a GSG como negocio en la base, con el mismo interruptor y las mismas tablas que
   MIA. Al 14/11 no se encontró un negocio GSG en `src`, `scripts` ni `prisma` (búsqueda por nombre, no concluyente).
+- El equipo de GSG es un equipo de proyecto de la consultora (programador, PM, arquitecto de soluciones, testing): hoy
+  asignado al proyecto MIA, reasignable a otros proyectos. Construye y mantiene; no lleva administración («nosotros no
+  llevamos la administración de GCG por acá»). Después se crea un equipo de mantenimiento.
+- Cerebro: «nosotros vamos a utilizar el plan de Claude que tenemos. No utilizaremos Cloudflare por ahora.» Cloudflare
+  queda descartado. Límite a resolver con el dueño: el plan sirve para el trabajo propio del titular dentro de Claude
+  Code (el equipo de GSG); el equipo de MIA corre en el servidor del producto y necesita una clave de la API, paga por
+  uso. Los términos leídos el 14/11 no permiten ofrecer el acceso del plan dentro de un producto sin aprobación previa.
 - Suscripción de Codex disponible para este producto: revisor y segundo constructor acotado.
 - ABIERTO: con qué IA corre la prueba. El dueño planteó dar servicio con suscripciones personales hasta 50 clientes;
   los términos de Anthropic leídos el 14/11 lo prohíben (code.claude.com/docs/en/legal-and-compliance). Sin resolver.
