@@ -17,7 +17,15 @@
 --
 -- ⚠️ Al aplicar: tienen `tenantId` → la policy `tenant_isolation` va acá y la re-pone
 -- `prisma/rls/0001_enable_rls.sql`. Los permisos de `app_rls` salen de los DEFAULT PRIVILEGES de
--- `neondb_owner` (prisma/rls/0002_app_role.sql): correr esto como `neondb_owner`.
+-- `neondb_owner` (prisma/rls/0002_app_role.sql).
+--
+-- ⚠️⚠️ CORRER COMO `neondb_owner` (la URL de MIGRATE_DATABASE_URL), NUNCA con otro rol. Si la crea
+-- otro rol, las tablas existen pero `app_rls` no recibe SELECT/INSERT/UPDATE. El código lo tolera
+-- (`hayRendicionesInTx` mira `has_table_privilege` y sin permisos el cobro entra a la caja como hoy),
+-- pero la rendición queda apagada hasta corregirlo. Verificación después de aplicar:
+--   SELECT has_table_privilege('app_rls', '"CobroARendir"', 'INSERT'),
+--          has_table_privilege('app_rls', '"RendicionProfesional"', 'INSERT');   -- los dos: true
+-- Si da false: GRANT SELECT, INSERT, UPDATE ON "CobroARendir", "RendicionProfesional" TO app_rls;
 
 BEGIN;
 
@@ -29,7 +37,9 @@ CREATE TABLE IF NOT EXISTS "RendicionProfesional" (
   "professionalId"  TEXT NOT NULL,
   "cobrado"         NUMERIC(14,2) NOT NULL, -- Σ de los cobros que cubre
   "entregado"       NUMERIC(14,2) NOT NULL, -- lo que entró al cajón / cuenta del local
-  "retenido"        NUMERIC(14,2) NOT NULL, -- lo que se quedó la profesional (comisión adelantada)
+  -- Lo que se quedaría la profesional (comisión adelantada). APAGADO: siempre 0 (CHECK abajo), porque
+  -- la liquidación (`settleCommissions`) paga esa comisión igual. Vuelve con la integración (RENDICION.md §Deuda).
+  "retenido"        NUMERIC(14,2) NOT NULL DEFAULT 0,
   "method"          TEXT NOT NULL,          -- CashMethod del asiento (texto: sin enum nuevo)
   "idempotencyKey"  TEXT NOT NULL,          -- uuid del formulario: doble envío = una rendición
   "cashMovementId"  TEXT,                   -- el INGRESO del libro (NULL si entregó $0)
@@ -47,6 +57,11 @@ CREATE INDEX IF NOT EXISTS "RendicionProfesional_tenantId_professionalId_idx" ON
 DO $$ BEGIN
   ALTER TABLE "RendicionProfesional" ADD CONSTRAINT "RendicionProfesional_montos_ok"
     CHECK ("entregado" >= 0 AND "retenido" >= 0 AND "cobrado" > 0 AND "cobrado" = "entregado" + "retenido");
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+-- Retención apagada: se rinde el total. Al integrar la retención con la liquidación se borra este
+-- CHECK (DROP CONSTRAINT "RendicionProfesional_sin_retencion"), en la misma migración que lo integre.
+DO $$ BEGIN
+  ALTER TABLE "RendicionProfesional" ADD CONSTRAINT "RendicionProfesional_sin_retencion" CHECK ("retenido" = 0);
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
   ALTER TABLE "RendicionProfesional" ADD CONSTRAINT "RendicionProfesional_tenantId_fkey"
@@ -84,10 +99,13 @@ DO $$ BEGIN
   ALTER TABLE "CobroARendir" ADD CONSTRAINT "CobroARendir_tenantId_fkey"
     FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
--- CASCADE con el cobro: los scripts de operador que borran cobros (reset de go-live) no se traban.
+-- RESTRICT con el cobro: es rastro de plata (un cobro rendido no se borra y se lleva su rastro).
+-- Ningún flujo normal borra `Collection` (se anula con una contrapartida). Los únicos que borran
+-- cobros son de operador: `src/lib/reset-golive-db.ts` y `prisma/seed-magra.ts`; si corren sobre
+-- un negocio con cobros a rendir, tienen que borrar antes `CobroARendir` (deuda en RENDICION.md).
 DO $$ BEGIN
   ALTER TABLE "CobroARendir" ADD CONSTRAINT "CobroARendir_collectionId_fkey"
-    FOREIGN KEY ("collectionId") REFERENCES "Collection"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    FOREIGN KEY ("collectionId") REFERENCES "Collection"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
   ALTER TABLE "CobroARendir" ADD CONSTRAINT "CobroARendir_professionalId_fkey"

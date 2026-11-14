@@ -76,6 +76,8 @@ import {
   rechazoDeCantidad,
 } from "./cobro-con-producto";
 import { pesos } from "@/app/admin/(dashboard)/turnos/agenda-core";
+import { cobroQuedariaARendirInTx } from "@/lib/comisiones/rendicion-repo";
+import { MENSAJE_COBRA_APARTE_CON_PRODUCTO } from "@/lib/comisiones/rendicion-core";
 
 export type ResultadoCobroConProducto =
   | { ok: true; aviso?: string; orderCode?: number; total?: number }
@@ -321,6 +323,12 @@ export async function cobrarTurnoConProductos(formData: FormData): Promise<Resul
         }
         const puede = puedeCompletarse({ status: a.status, startsAt: a.startsAt, ahora: new Date(), vino });
         if (!puede.ok) throw new CompletarTurnoRechazado(puede.motivo);
+        // D6 · la profesional que cobra aparte, cobrando SU turno: esa plata queda en su bolsillo
+        // (a rendir), pero el producto entraría al libro como si estuviera en el cajón. Se rechaza
+        // el camino entero; el producto lo vende el mostrador (RENDICION.md §Cobro con producto).
+        if (await cobroQuedariaARendirInTx(tx, tenantId, { appointmentId, actor, method })) {
+          throw new RechazoDeDominio(MENSAJE_COBRA_APARTE_CON_PRODUCTO);
+        }
 
         const precio = a.priceAtBooking ?? a.service.price;
         const estado = estadoCobroTurno({ precio, cobros: await cobrosDelTurnoInTx(tx, tenantId, appointmentId), pagoLegado: a.payment });

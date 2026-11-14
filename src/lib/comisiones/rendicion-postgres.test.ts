@@ -7,9 +7,15 @@
  *   · CARRERA · doble envío de la MISMA rendición → una sola rendición y un solo ingreso;
  *   · CARRERA · N rendiciones concurrentes de la misma profesional sobre los mismos cobros → una;
  *   · CARRERA · rendiciones concurrentes de a un cobro → cada cobro rendido una vez, Σ exacta;
- *   · nunca de más; la retención sólo con permiso; con permiso queda retenida y entra lo entregado;
+ *   · nunca de más ni de menos: la retención está apagada (la comisión la paga la liquidación);
  *   · con el día ya cerrado no se escribe nada (DB-5);
- *   · un cobro anulado no se rinde; el negocio B no ve ni rinde lo de A (RLS + tenantId explícito).
+ *   · un cobro anulado ANTES de rendirse no toca el libro y no se rinde; el negocio B no ve ni rinde lo de A;
+ *   · anular un cobro YA rendido asienta un EGRESO de hoy (idempotente) y con hoy cerrado se rechaza;
+ *   · CARRERA · rendir ‖ anular el mismo cobro: gane cuál gane, el libro neto del cobro da 0;
+ *   · la misma clave con otros cobros es error, no «ya registrada»;
+ *   · cobro con producto de la profesional que cobra aparte: se detecta para rechazarlo;
+ *   · sin las tablas, o con las tablas sin permisos para `app_rls`, el cobro entra a la caja como hoy.
+ * Los casos del refutador (d6-adv-postgres) quedan acá.
  *
  * Sin Postgres local se saltea diciendo por qué (en CI falla), como los demás `*-postgres.test.ts`.
  */
@@ -27,6 +33,9 @@ const SQL = readFileSync(path.join(process.cwd(), "prisma/pending-gate2/CH_rendi
 type Duenio = Awaited<ReturnType<typeof prismaComoDuenio>>;
 type Mundo = {
   base: BaseEfimera;
+  /** El cobro de Vero hecho ANTES de aplicar la migración (caso 1 del refutador). */
+  sinTablas: import("@/lib/turnos/cobro-turno-repo").AplicarCobroResult;
+  anular: (o: { collectionId: string; appointmentId: string; diaCerradoHasta?: string | null }) => Promise<import("@/lib/turnos/anulacion").AnularCobroResult>;
   duenio: Duenio;
   vero: { id: string; userId: string };
   turno: (tenantId?: string) => Promise<string>;
@@ -41,19 +50,13 @@ async function preparar(t: import("node:test").TestContext): Promise<Mundo | nul
   const base = await laBase(t);
   if (!base) return null;
 
-  // La migración pendiente, tal cual, como la aplicaría el dueño (neondb_owner, una conexión).
-  const pg = await import("pg");
-  const cli = new pg.default.Client({ connectionString: base.urlDuenio });
-  await cli.connect();
-  await cli.query(SQL);
-  await cli.end();
-
   apuntarLaAppA(base);
   Object.assign(process.env as Record<string, string | undefined>, { DB_CONNECTION_LIMIT: "10", DB_CONNECT_TIMEOUT_MS: "3000" });
   const duenio = await prismaComoDuenio(base);
   const { tenantTransaction } = await import("@/lib/rls");
   const { aplicarCobroTurnoInTx } = await import("@/lib/turnos/cobro-turno-repo");
   const { registrarRendicionInTx, leerRendicionesInTx } = await import("./rendicion-repo");
+  const { anularCobroTurnoInTx } = await import("@/lib/turnos/anulacion");
 
   const A = base.a.id;
   const box = await duenio.box.create({ data: { tenantId: A, name: "Box 1" } });
@@ -91,29 +94,58 @@ async function preparar(t: import("node:test").TestContext): Promise<Mundo | nul
     return a.id;
   };
 
+  const cobrar: Mundo["cobrar"] = ({ appointmentId, actor, monto = 18000, tenantId = A }) =>
+    tenantTransaction(
+      (tx) =>
+        aplicarCobroTurnoInTx(tx, tenantId, {
+          appointmentId,
+          status: "CONFIRMED",
+          precio: 18000,
+          monto,
+          method: "EFECTIVO",
+          actor,
+          detail: "Turno · Esculpidas",
+          idempotencyKey: randomUUID(),
+          withSchema: true,
+          cerradoHasta: null,
+          camino: "cobro",
+        }),
+      { tenantId },
+    );
+
+  // Caso 1 del refutador: SIN la migración, el cobro de Vero entra al libro como hoy.
+  const sinTablas = await cobrar({ appointmentId: await turno(), actor: `user:${user.id}` });
+
+  // Recién ahora, la migración pendiente, tal cual, como la aplicaría el dueño (neondb_owner, una conexión).
+  const pg = await import("pg");
+  const cli = new pg.default.Client({ connectionString: base.urlDuenio });
+  await cli.connect();
+  await cli.query(SQL);
+  await cli.end();
+
   mundo = {
     base,
+    sinTablas,
+    anular: ({ collectionId, appointmentId, diaCerradoHasta = null }) =>
+      tenantTransaction(
+        (tx) =>
+          anularCobroTurnoInTx(tx, A, {
+            collectionId,
+            appointmentId,
+            precio: 18000,
+            motivo: "la clienta pidió devolución",
+            actor: `user:${base.a.duenia.id}`,
+            diaCerradoHasta,
+            esDiaCerrado: (d, h) => d <= h,
+            diaDe: (d) => d.toISOString().slice(0, 10),
+            withSchema: true,
+          }),
+        { tenantId: A },
+      ),
     duenio,
     vero: { id: prof.id, userId: user.id },
     turno,
-    cobrar: ({ appointmentId, actor, monto = 18000, tenantId = A }) =>
-      tenantTransaction(
-        (tx) =>
-          aplicarCobroTurnoInTx(tx, tenantId, {
-            appointmentId,
-            status: "CONFIRMED",
-            precio: 18000,
-            monto,
-            method: "EFECTIVO",
-            actor,
-            detail: "Turno · Esculpidas",
-            idempotencyKey: randomUUID(),
-            withSchema: true,
-            cerradoHasta: null,
-            camino: "cobro",
-          }),
-        { tenantId },
-      ),
+    cobrar,
     rendir: ({ tenantId = A, ...o }) =>
       tenantTransaction(
         (tx) =>
@@ -124,7 +156,6 @@ async function preparar(t: import("node:test").TestContext): Promise<Mundo | nul
             idempotencyKey: randomUUID(),
             nota: null,
             actor: `user:${base.a.duenia.id}`,
-            puedeRetener: false,
             cerradoHasta: null,
             ...o,
           }),
@@ -231,22 +262,25 @@ test("CARRERA · rendiciones concurrentes de a un cobro (dos por cobro): cada co
   assert.equal(Math.round(ingresos.reduce((s, i) => s + i.amount, 0) * 100), 4 * 123456);
 });
 
-test("nunca de más; la retención sólo con permiso; con permiso entra lo entregado y queda lo retenido", async (t) => {
+test("nunca de más ni de menos: la retención está apagada (caso 3 del refutador: la comisión no se paga dos veces)", async (t) => {
   const m = await preparar(t);
   if (!m) return;
   const [id] = await cobrosARendir(m, 1);
-  await assert.rejects(m.rendir({ cobroIds: [id], entregado: 18000.01, puedeRetener: true }), { motivo: "entregado-de-mas" });
-  await assert.rejects(m.rendir({ cobroIds: [id], entregado: 12600, puedeRetener: false }), { motivo: "retencion-sin-permiso" });
-  const r = await m.rendir({ cobroIds: [id], entregado: 12600, puedeRetener: true });
+  await assert.rejects(m.rendir({ cobroIds: [id], entregado: 18000.01 }), { motivo: "entregado-de-mas" });
+  // Antes: 12.600 con permiso quedaba «retenido 5.400» y la liquidación le pagaba otros 5.400.
+  await assert.rejects(m.rendir({ cobroIds: [id], entregado: 12600 }), { motivo: "retencion-apagada" });
+  await assert.rejects(m.rendir({ cobroIds: [id], entregado: 0 }), { motivo: "retencion-apagada" });
+  // La base tampoco lo deja (CHECK retenido = 0), aunque alguien saltee el código.
+  await assert.rejects(
+    m.duenio.$executeRaw`INSERT INTO "RendicionProfesional" ("id","tenantId","professionalId","cobrado","entregado","retenido","method","idempotencyKey","registradaPor")
+      VALUES (${randomUUID()}, ${m.base.a.id}, ${m.vero.id}, 18000, 12600, 5400, 'EFECTIVO', ${randomUUID()}, 'user:x')`,
+    /RendicionProfesional_sin_retencion/,
+  );
+  const r = await m.rendir({ cobroIds: [id], entregado: 18000 });
   assert.equal(r.estado, "registrada");
   if (r.estado !== "registrada") return;
-  assert.deepEqual([r.cobrado, r.entregado, r.retenido], [18000, 12600, 5400]);
-  const ingresos = await ingresosDeRendicion(m, [r.rendicionId]);
-  assert.deepEqual(ingresos.map((i) => i.amount), [12600]);
-  const { leerRendicionesInTx } = await import("./rendicion-repo");
-  const { tenantTransaction } = await import("@/lib/rls");
-  const l = await tenantTransaction((tx) => leerRendicionesInTx(tx, m.base.a.id), { tenantId: m.base.a.id });
-  assert.ok(l.habilitada && (l.profesionales.find((p) => p.professionalId === m.vero.id)?.retenidoSinDescontar ?? 0) >= 5400);
+  assert.deepEqual([r.cobrado, r.entregado, r.retenido], [18000, 18000, 0]);
+  assert.deepEqual((await ingresosDeRendicion(m, [r.rendicionId])).map((i) => i.amount), [18000]);
 });
 
 test("con el día ya cerrado no se rinde ni se escribe nada (DB-5)", async (t) => {
@@ -260,27 +294,114 @@ test("con el día ya cerrado no se rinde ni se escribe nada (DB-5)", async (t) =
   assert.ok((await m.pendientesDe()).some((p) => p.id === id), "sigue a rendir");
 });
 
-test("un cobro anulado no se rinde ni figura a rendir", async (t) => {
+test("un cobro anulado ANTES de rendirse no toca el libro, no figura a rendir y no se rinde", async (t) => {
   const m = await preparar(t);
   if (!m) return;
-  const r = await m.cobrar({ appointmentId: await m.turno(), actor: `user:${m.vero.userId}` });
+  const appointmentId = await m.turno();
+  const r = await m.cobrar({ appointmentId, actor: `user:${m.vero.userId}` });
   assert.ok(r.applied && r.aRendir);
-  const original = await m.duenio.collection.findUniqueOrThrow({ where: { id: r.collectionId } });
-  // La contrapartida que escribe la anulación (anulacion.ts): misma forma de nota.
-  await m.duenio.collection.create({
-    data: {
-      tenantId: original.tenantId,
-      originType: "APPOINTMENT",
-      originId: original.originId,
-      appointmentId: original.appointmentId,
-      amount: original.amount.negated(),
-      method: original.method,
-      note: `ANULACION:${original.id} — cobro mal cargado`,
-      collectedBy: "user:x",
-    },
-  });
+  const an = await m.anular({ collectionId: r.collectionId, appointmentId });
+  assert.ok(an.applied);
+  assert.deepEqual(an.libro, { asentada: false, reason: "sin-asiento-original" }, "la plata nunca entró: nada sale");
+  assert.equal(await m.duenio.cashMovement.count({ where: { collectionId: r.collectionId } }), 0);
   assert.ok(!(await m.pendientesDe()).some((p) => p.id === r.aRendir!.cobroARendirId));
   await assert.rejects(m.rendir({ cobroIds: [r.aRendir.cobroARendirId], entregado: 18000 }), { motivo: "cobro-ajeno" });
+});
+
+test("anular un cobro YA rendido: EGRESO de hoy contra el cobro, idempotente; con hoy cerrado se rechaza (caso 2 del refutador)", async (t) => {
+  const m = await preparar(t);
+  if (!m) return;
+  const appointmentId = await m.turno();
+  const r = await m.cobrar({ appointmentId, actor: `user:${m.vero.userId}` });
+  assert.ok(r.applied && r.aRendir);
+  const rend = await m.rendir({ cobroIds: [r.aRendir.cobroARendirId], entregado: 18000 });
+  assert.equal(rend.estado, "registrada");
+  if (rend.estado !== "registrada") return;
+
+  // Hoy cerrado: la devolución saldría hoy de un día contado → no se anula nada.
+  const hoy = new Date().toISOString().slice(0, 10);
+  const { AnulacionRechazada } = await import("@/lib/turnos/anulacion");
+  await assert.rejects(m.anular({ collectionId: r.collectionId, appointmentId, diaCerradoHasta: hoy }), (e) => e instanceof AnulacionRechazada && e.motivo === "dia-cerrado");
+  assert.equal(await m.duenio.collection.count({ where: { appointmentId, amount: { lt: 0 } } }), 0);
+
+  const antes = Date.now();
+  const an = await m.anular({ collectionId: r.collectionId, appointmentId });
+  assert.ok(an.applied);
+  assert.equal(an.libro.asentada, true, JSON.stringify(an.libro));
+  const egresos = await m.duenio.cashMovement.findMany({ where: { collectionId: r.collectionId }, select: { type: true, amount: true, method: true, occurredAt: true, createdBy: true } });
+  assert.equal(egresos.length, 1);
+  assert.deepEqual([egresos[0].type, Number(egresos[0].amount), egresos[0].method], ["EGRESO", 18000, "EFECTIVO"]);
+  assert.ok(egresos[0].occurredAt.getTime() >= antes - 60_000, "fecha de hoy, no la del cobro");
+  assert.match(String(egresos[0].createdBy), /^anulacion-turno:/);
+  // Neto del cobro en el libro: entró con la rendición, salió con la anulación.
+  const ingreso = await ingresosDeRendicion(m, [rend.rendicionId]);
+  assert.equal(ingreso.reduce((s, i) => s + i.amount, 0) - Number(egresos[0].amount), 0);
+  // Segunda anulación: duplicada, ningún EGRESO más.
+  const otra = await m.anular({ collectionId: r.collectionId, appointmentId });
+  assert.equal(otra.applied, false);
+  assert.equal(await m.duenio.cashMovement.count({ where: { collectionId: r.collectionId } }), 1);
+});
+
+test("CARRERA · rendir ‖ anular el mismo cobro: gane cuál gane, el libro neto del cobro da 0 (caso 5 del refutador)", async (t) => {
+  const m = await preparar(t);
+  if (!m) return;
+  for (let i = 0; i < 6; i++) {
+    const appointmentId = await m.turno();
+    const r = await m.cobrar({ appointmentId, actor: `user:${m.vero.userId}` });
+    assert.ok(r.applied && r.aRendir);
+    const [rend, an]: [
+      PromiseSettledResult<Awaited<ReturnType<Mundo["rendir"]>>>,
+      PromiseSettledResult<Awaited<ReturnType<Mundo["anular"]>>>,
+    ] = await Promise.allSettled([
+      m.rendir({ cobroIds: [r.aRendir.cobroARendirId], entregado: 18000 }),
+      m.anular({ collectionId: r.collectionId, appointmentId }),
+    ]);
+    assert.equal(an.status, "fulfilled", an.status === "rejected" ? String(an.reason) : "");
+    const ingreso: number =
+      rend.status === "fulfilled" && rend.value.estado === "registrada"
+        ? (await ingresosDeRendicion(m, [rend.value.rendicionId])).reduce((s, x) => s + x.amount, 0)
+        : 0;
+    if (rend.status === "rejected") assert.equal((rend.reason as { motivo?: string }).motivo, "cobro-ajeno", String(rend.reason));
+    const egreso: number = (await m.duenio.cashMovement.findMany({ where: { collectionId: r.collectionId, type: "EGRESO" }, select: { amount: true } })).reduce(
+      (s, x) => s + Number(x.amount),
+      0,
+    );
+    assert.equal(ingreso - egreso, 0, `vuelta ${i}: ingreso ${ingreso} egreso ${egreso}`);
+  }
+});
+
+test("la misma clave con OTROS cobros es error; con los mismos, «ya registrada» (caso 4 del refutador)", async (t) => {
+  const m = await preparar(t);
+  if (!m) return;
+  const [c4, c5] = await cobrosARendir(m, 2);
+  const K = randomUUID();
+  const a4 = await m.rendir({ cobroIds: [c4], entregado: 18000, idempotencyKey: K });
+  assert.equal(a4.estado, "registrada");
+  const igual = await m.rendir({ cobroIds: [c4], entregado: 18000, idempotencyKey: K });
+  assert.equal(igual.estado, "duplicada");
+  await assert.rejects(m.rendir({ cobroIds: [c5], entregado: 18000, idempotencyKey: K }), { motivo: "clave-reusada" });
+  assert.ok((await m.pendientesDe()).some((p) => p.id === c5), "c5 sigue a rendir: nadie lo dio por rendido");
+  const { rendicionPorClaveInTx } = await import("./rendicion-repo");
+  const { tenantTransaction } = await import("@/lib/rls");
+  const A = m.base.a.id;
+  const misma = await tenantTransaction((tx) => rendicionPorClaveInTx(tx, A, { idempotencyKey: K, professionalId: m.vero.id, cobroIds: [c4] }), { tenantId: A });
+  const otra = await tenantTransaction((tx) => rendicionPorClaveInTx(tx, A, { idempotencyKey: K, professionalId: m.vero.id, cobroIds: [c5] }), { tenantId: A });
+  assert.deepEqual([misma?.misma, otra?.misma], [true, false]);
+});
+
+test("cobro con producto: se detecta la profesional que cobra aparte en SU turno (y no la dueña)", async (t) => {
+  const m = await preparar(t);
+  if (!m) return;
+  const { cobroQuedariaARendirInTx } = await import("./rendicion-repo");
+  const { tenantTransaction } = await import("@/lib/rls");
+  const A = m.base.a.id;
+  const appointmentId = await m.turno();
+  const q = (actor: string, method = "EFECTIVO") =>
+    tenantTransaction((tx) => cobroQuedariaARendirInTx(tx, A, { appointmentId, actor, method }), { tenantId: A });
+  assert.equal(await q(`user:${m.vero.userId}`), true);
+  assert.equal(await q(`user:${m.base.a.duenia.id}`), false);
+  assert.equal(await q(`user:${m.vero.userId}`, "VOUCHER"), false);
+  assert.equal(await q("mp:webhook"), false);
 });
 
 test("aislamiento: el negocio B no ve ni rinde los cobros a rendir de A", async (t) => {
@@ -296,4 +417,30 @@ test("aislamiento: el negocio B no ve ni rinde los cobros a rendir de A", async 
   const luz = await m.duenio.professional.findFirstOrThrow({ where: { tenantId: B, name: "Luz" } });
   await assert.rejects(m.rendir({ tenantId: B, professionalId: luz.id, cobroIds: [id], entregado: 18000 }), { motivo: "cobro-ajeno" });
   assert.ok((await m.pendientesDe()).some((p) => p.id === id), "en A sigue a rendir");
+});
+
+test("sin las tablas el cobro entra a la caja como hoy (caso 1 del refutador)", async (t) => {
+  const m = await preparar(t);
+  if (!m) return;
+  assert.ok(m.sinTablas.applied);
+  assert.equal(m.sinTablas.aRendir, null);
+  assert.equal(m.sinTablas.caja?.recorded, true);
+});
+
+test("tablas sin permisos para app_rls (migración aplicada con otro rol): el cobro entra a la caja, no se cae", async (t) => {
+  const m = await preparar(t);
+  if (!m) return;
+  const pg = await import("pg");
+  const cli = new pg.default.Client({ connectionString: m.base.urlDuenio });
+  await cli.connect();
+  try {
+    await cli.query(`REVOKE INSERT ON "CobroARendir" FROM app_rls`);
+    const r = await m.cobrar({ appointmentId: await m.turno(), actor: `user:${m.vero.userId}` });
+    assert.ok(r.applied);
+    assert.equal(r.aRendir, null);
+    assert.equal(r.caja?.recorded, true, "degrada a la caja de hoy");
+  } finally {
+    await cli.query(`GRANT INSERT ON "CobroARendir" TO app_rls`);
+    await cli.end();
+  }
 });

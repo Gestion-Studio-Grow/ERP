@@ -39,7 +39,8 @@ const MOTIVOS_RENDICION: readonly (MotivoRendicionRechazada | "dia-cerrado" | "s
   "cobro-ajeno",
   "entregado-invalido",
   "entregado-de-mas",
-  "retencion-sin-permiso",
+  "retencion-apagada",
+  "clave-reusada",
   "dia-cerrado",
   "sin-tabla",
   "medio",
@@ -65,7 +66,6 @@ export default async function ComisionesPage({ searchParams }: { searchParams: P
     <Rendiciones
       lectura={rendiciones}
       canRegister={permisoEfectivo(user, "cash:manage")}
-      canRetain={permisoEfectivo(user, "commissions:manage")}
     />
   );
   const aviso = banner && (

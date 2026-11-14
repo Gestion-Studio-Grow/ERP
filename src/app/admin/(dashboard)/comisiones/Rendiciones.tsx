@@ -31,13 +31,10 @@ const montoEditable = (n: number) => n.toFixed(2).replace(".", ",");
 export default function Rendiciones({
   lectura,
   canRegister,
-  canRetain,
 }: {
   lectura: LecturaRendiciones;
   /** `cash:manage`: registrar la plata que entra. */
   canRegister: boolean;
-  /** `commissions:manage`: registrar que la profesional se queda con una parte. */
-  canRetain: boolean;
 }) {
   if (!lectura.habilitada) return null;
   const { profesionales, historial } = lectura;
@@ -63,16 +60,6 @@ export default function Rendiciones({
                 ({p.pendientes.length} {p.pendientes.length === 1 ? "cobro" : "cobros"})
               </span>
             </p>
-            {p.pendientes.length > 0 && (
-              <p className="text-xs text-muted">Su comisión estimada sobre esto: {money(p.comisionEstimada)}.</p>
-            )}
-            {p.retenidoSinDescontar > 0 && (
-              <p role="note" className="mt-2 rounded-md bg-warning-soft px-2 py-1 text-xs text-warning">
-                Se quedó con {money(p.retenidoSinDescontar)} en rendiciones anteriores. Descontalo al liquidar su comisión: la
-                liquidación todavía no lo resta sola.
-              </p>
-            )}
-
             {p.pendientes.length > 0 && canRegister && (
               <form action={registrarRendicion} className="mt-3 space-y-3">
                 <input type="hidden" name="professionalId" value={p.professionalId} />
@@ -133,9 +120,8 @@ export default function Rendiciones({
                   </SubmitButton>
                 </div>
                 <p id={`ayuda-${p.professionalId}`} className="text-xs text-muted">
-                  {canRetain
-                    ? "Si se queda con su comisión, poné lo que entregó: la diferencia queda como retenida. Si destildás cobros, ajustá el monto."
-                    : "Cargá el total cobrado. Si se queda con su comisión, la rendición la registra la dueña. Si destildás cobros, ajustá el monto."}
+                  Se rinde el total de los cobros tildados: su comisión se paga en la liquidación. Si destildás cobros,
+                  ajustá el monto.
                 </p>
               </form>
             )}
@@ -154,7 +140,6 @@ export default function Rendiciones({
                 </span>
                 <span className="tabular-nums text-muted">
                   entregó {money(h.entregado)} ({medio(h.method)})
-                  {h.retenido > 0 ? ` · retuvo ${money(h.retenido)}` : ""}
                 </span>
               </li>
             ))}

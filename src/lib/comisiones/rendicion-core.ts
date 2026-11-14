@@ -5,8 +5,9 @@
 //     bolsillo, no en el cajón. Su cobro NO entra al libro de caja: queda «a rendir».
 //   · Cuando la profesional entrega la plata, la dueña o la recepción registran la RENDICIÓN:
 //     ahí, y recién ahí, entra al libro (un INGRESO marcado `rendicion:<id>`).
-//   · Lo que la profesional se queda (su comisión o lo acordado) es la RETENCIÓN: nunca más que
-//     lo cobrado, y sólo la registra quien liquida comisiones (`commissions:manage`).
+//   · La rendición es por el TOTAL cobrado. La RETENCIÓN (que la profesional se quede con su
+//     comisión) está APAGADA: la liquidación (`settleCommissions`) le paga esa comisión igual y
+//     quedaría pagada dos veces. Vuelve cuando la liquidación descuente lo retenido (RENDICION.md §Deuda).
 //
 // Vive puro por la misma razón que `cobro-mostrador.ts`: el caso que importa —la plata que no
 // está en el cajón— se prueba con una llamada, no montando media base.
@@ -43,6 +44,14 @@ export function destinoDelCobro(i: {
   return "a-rendir";
 }
 
+/**
+ * Cobro con producto (cobro-con-producto-actions.ts) de la profesional que cobra aparte, en SU
+ * turno: el turno quedaría a rendir pero el producto entraría al libro como plata del cajón. Se
+ * rechaza entero (lo más simple y coherente); el producto lo vende el mostrador.
+ */
+export const MENSAJE_COBRA_APARTE_CON_PRODUCTO =
+  "Vos cobrás tus turnos aparte: el producto lo cobra el mostrador. Terminá el turno sin productos y pasá la venta a la recepción.";
+
 export type CobroPendiente = { id: string; monto: number };
 
 export type MotivoRendicionRechazada =
@@ -50,7 +59,8 @@ export type MotivoRendicionRechazada =
   | "cobro-ajeno" // un id que no es un cobro a rendir pendiente de esta profesional (o ya rendido)
   | "entregado-invalido" // vacío, negativo, no numérico
   | "entregado-de-mas" // más de lo que cobró: nunca se rinde de más
-  | "retencion-sin-permiso"; // se queda con algo y quien registra no liquida comisiones
+  | "retencion-apagada" // entrega menos de lo cobrado: la comisión se paga en la liquidación
+  | "clave-reusada"; // la clave del formulario ya registró una rendición con OTROS cobros
 
 export type RendicionValida = { ok: true; ids: string[]; cobrado: number; entregado: number; retenido: number };
 export type RendicionRechazada = { ok: false; motivo: MotivoRendicionRechazada };
@@ -58,12 +68,12 @@ export type RendicionRechazada = { ok: false; motivo: MotivoRendicionRechazada }
 /**
  * Valida una rendición contra los cobros que SIGUEN pendientes (leídos con lock, dentro de la tx).
  * Todo o nada: si un solo id ya no está pendiente, no se rinde nada (otra rendición se lo llevó).
+ * Se rinde el total exacto: ni de más, ni de menos (la retención está apagada, ver arriba).
  */
 export function validarRendicion(i: {
   pendientes: readonly CobroPendiente[];
   idsPedidos: readonly string[];
   entregado: number;
-  puedeRetener: boolean;
 }): RendicionValida | RendicionRechazada {
   const ids = [...new Set(i.idsPedidos.map((s) => s.trim()).filter(Boolean))];
   if (ids.length === 0) return { ok: false, motivo: "sin-cobros" };
@@ -75,10 +85,11 @@ export function validarRendicion(i: {
   if (!Number.isFinite(i.entregado) || i.entregado < 0) return { ok: false, motivo: "entregado-invalido" };
   const entregadoCent = Math.round(i.entregado * 100);
   if (entregadoCent > cobradoCent) return { ok: false, motivo: "entregado-de-mas" };
-  const retenidoCent = cobradoCent - entregadoCent;
-  if (retenidoCent > 0 && !i.puedeRetener) return { ok: false, motivo: "retencion-sin-permiso" };
+  // La comisión que se quedaría la profesional la paga la liquidación: retenerla acá la pagaría
+  // dos veces. Hasta integrar las dos (RENDICION.md §Deuda), retenido es siempre 0.
+  if (entregadoCent < cobradoCent) return { ok: false, motivo: "retencion-apagada" };
 
-  return { ok: true, ids, cobrado: cobradoCent / 100, entregado: entregadoCent / 100, retenido: retenidoCent / 100 };
+  return { ok: true, ids, cobrado: cobradoCent / 100, entregado: entregadoCent / 100, retenido: 0 };
 }
 
 export function mensajeRendicionRechazada(m: MotivoRendicionRechazada | "dia-cerrado" | "sin-tabla" | "medio"): string {
@@ -91,8 +102,10 @@ export function mensajeRendicionRechazada(m: MotivoRendicionRechazada | "dia-cer
       return "El monto entregado tiene que ser un número igual o mayor a cero.";
     case "entregado-de-mas":
       return "Entregó más de lo que cobró: revisá el monto. Nunca se rinde de más.";
-    case "retencion-sin-permiso":
-      return "Lo que se queda la profesional (su comisión) lo registra quien liquida comisiones. Cargá el total cobrado o pedíselo a la dueña.";
+    case "retencion-apagada":
+      return "La rendición es por el total cobrado; la comisión se paga en la liquidación. Cargá el total de los cobros que tildaste.";
+    case "clave-reusada":
+      return "Ese formulario ya registró otra rendición. No se registró nada: recargá la pantalla y volvé a elegir los cobros.";
     case "dia-cerrado":
       return "La caja de hoy ya está cerrada: la rendición entra al libro el próximo día abierto. Registrala mañana.";
     case "sin-tabla":
@@ -104,7 +117,8 @@ export function mensajeRendicionRechazada(m: MotivoRendicionRechazada | "dia-cer
 
 /**
  * Comisión ESTIMADA sobre los cobros elegidos: lo que la profesional podría retener. Es una
- * sugerencia para la pantalla, no la liquidación (esa sigue en `calcularLiquidacion`).
+ * sugerencia, no la liquidación (esa sigue en `calcularLiquidacion`). Hoy no se muestra: queda
+ * para cuando la retención vuelva integrada con la liquidación (RENDICION.md §Deuda).
  * El % de la profesional, con el override por servicio si lo hay.
  */
 export function comisionEstimada(

@@ -3,14 +3,13 @@
 // RENDICIÓN DE LA PROFESIONAL QUE COBRA APARTE — la acción de la pantalla de Comisiones.
 //
 // Registrar la rendición es PLATA QUE ENTRA AL CAJÓN → `cash:manage` (dueña y recepción, como
-// abrir y cerrar la caja). Registrar una RETENCIÓN (la profesional se queda con su comisión) es
-// pagar comisión → además `commissions:manage` (sólo la dueña). Diseño:
+// abrir y cerrar la caja). Siempre por el total cobrado: la retención (que la profesional se quede
+// con su comisión) está apagada hasta integrarla con la liquidación. Diseño:
 // docs/producto/comisiones/RENDICION.md.
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireCapability } from "@/lib/authz";
-import { permisoEfectivo } from "@/lib/capabilities";
 import { auditAdmin } from "@/lib/audit-core";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { tenantTransaction } from "@/lib/rls";
@@ -25,6 +24,7 @@ import {
   esChoqueDeClaveDeRendicion,
   leerRendicionesInTx,
   registrarRendicionInTx,
+  rendicionPorClaveInTx,
   type LecturaRendiciones,
 } from "./rendicion-repo";
 
@@ -75,15 +75,21 @@ export async function registrarRendicion(formData: FormData) {
           idempotencyKey,
           nota,
           actor,
-          puedeRetener: permisoEfectivo(user, "commissions:manage"),
           cerradoHasta,
         }),
       { tenantId },
     );
   } catch (e) {
     if (e instanceof RendicionRechazada) volverCon(`rendicion_${e.motivo}`);
-    // Dos envíos de la MISMA rendición que pasaron juntos el pre-check: ganó el otro.
-    if (esChoqueDeClaveDeRendicion(e)) volverCon("rendicion_ok");
+    // Dos envíos con la misma clave que pasaron juntos el pre-check: ganó el otro. Es «ya
+    // registrada» sólo si el otro rindió LOS MISMOS cobros; si no, estos quedaron sin rendir.
+    if (esChoqueDeClaveDeRendicion(e)) {
+      const previa = await tenantTransaction(
+        (tx) => rendicionPorClaveInTx(tx, tenantId, { idempotencyKey, professionalId, cobroIds }),
+        { tenantId },
+      );
+      volverCon(previa?.misma ? "rendicion_ok" : "rendicion_clave-reusada");
+    }
     throw e;
   }
 

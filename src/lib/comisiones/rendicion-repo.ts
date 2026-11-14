@@ -15,7 +15,8 @@
 //      los cobros a rendir, en orden de id (sin deadlocks entre dos rendiciones);
 //   3. reclamo condicionado (`rendicionId IS NULL`) con conteo exacto: si otra se llevó uno, se
 //      deshace todo;
-//   4. CHECK en la base: cobrado = entregado + retenido, ninguno negativo.
+//   4. CHECK en la base: cobrado = entregado + retenido, ninguno negativo, retenido = 0 (la
+//      retención está apagada hasta integrarla con la liquidación, RENDICION.md §Deuda).
 
 import { randomUUID } from "node:crypto";
 import { Prisma } from "@/generated/prisma/client";
@@ -23,7 +24,6 @@ import { isFrozenDay, type DayKey } from "@/lib/caja/cierre-diario";
 import type { CashMethod } from "@/lib/caja/cash-register";
 import { todayInBusinessTz } from "@/lib/datetime";
 import {
-  comisionEstimada,
   destinoDelCobro,
   detalleDeRendicion,
   marcaDeRendicion,
@@ -35,10 +35,22 @@ import {
 
 export type RendicionTx = Prisma.TransactionClient;
 
-/** ¿Están las dos tablas? Una lectura de catálogo: nunca aborta la transacción. */
+/**
+ * ¿Están las dos tablas Y este rol puede usarlas? Una lectura de catálogo: nunca aborta la
+ * transacción. Los permisos importan: si la migración la aplicó otro rol que `neondb_owner`, las
+ * tablas existen pero `app_rls` no hereda los DEFAULT PRIVILEGES y el INSERT del cobro fallaría
+ * (abortando el cobro entero). Sin permisos, todo sigue como hoy: el cobro entra a la caja.
+ * `has_table_privilege(oid, …)` con oid NULL (tabla ausente) da NULL → false.
+ */
 export async function hayRendicionesInTx(tx: RendicionTx): Promise<boolean> {
   const filas = await tx.$queryRaw<{ ok: boolean }[]>`
-    SELECT (to_regclass('"CobroARendir"') IS NOT NULL AND to_regclass('"RendicionProfesional"') IS NOT NULL) AS ok`;
+    SELECT COALESCE(
+      has_table_privilege(to_regclass('"CobroARendir"'), 'SELECT')
+      AND has_table_privilege(to_regclass('"CobroARendir"'), 'INSERT')
+      AND has_table_privilege(to_regclass('"CobroARendir"'), 'UPDATE')
+      AND has_table_privilege(to_regclass('"RendicionProfesional"'), 'SELECT')
+      AND has_table_privilege(to_regclass('"RendicionProfesional"'), 'INSERT'),
+      false) AS ok`;
   return filas[0]?.ok === true;
 }
 
@@ -66,6 +78,20 @@ export async function destinoDelCobroInTx(
     method: i.method,
   });
   return { destino, professionalId: turno.professionalId };
+}
+
+/**
+ * ¿Un cobro de este actor en este turno quedaría a rendir? (profesional que cobra aparte, cobrando
+ * SU turno, con las tablas habilitadas). Lo usa el cobro con producto para no mezclar: el
+ * producto entraría al libro con plata que tiene la profesional (RENDICION.md §Cobro con producto).
+ */
+export async function cobroQuedariaARendirInTx(
+  tx: RendicionTx,
+  tenantId: string,
+  i: { appointmentId: string; actor: string; method: string },
+): Promise<boolean> {
+  const d = await destinoDelCobroInTx(tx, tenantId, i);
+  return d.destino === "a-rendir" && !!d.professionalId && (await hayRendicionesInTx(tx));
 }
 
 export async function marcarCobroARendirInTx(
@@ -100,8 +126,6 @@ export type RegistrarRendicionArgs = {
   idempotencyKey: string;
   nota: string | null;
   actor: string;
-  /** `commissions:manage`: sólo quien liquida comisiones registra una retención. */
-  puedeRetener: boolean;
   /** Último día cerrado de la caja. Obligatorio (DB-5): la rendición escribe en el libro. */
   cerradoHasta: DayKey | null;
 };
@@ -119,10 +143,40 @@ export type RegistrarRendicionResult =
     }
   | { estado: "duplicada"; rendicionId: string };
 
-async function rendicionPorClave(tx: RendicionTx, tenantId: string, clave: string): Promise<string | null> {
-  const filas = await tx.$queryRaw<{ id: string }[]>`
-    SELECT "id" FROM "RendicionProfesional" WHERE "tenantId" = ${tenantId} AND "idempotencyKey" = ${clave} LIMIT 1`;
-  return filas[0]?.id ?? null;
+/**
+ * La rendición ya registrada con esta clave de formulario, y si es LA MISMA que se pide (misma
+ * profesional, mismos cobros). Un doble envío idéntico es «ya registrada» (ok); la misma clave con
+ * otros cobros es un error: si se mostrara ok, esos cobros quedarían sin rendir en silencio.
+ */
+export async function rendicionPorClaveInTx(
+  tx: RendicionTx,
+  tenantId: string,
+  a: { idempotencyKey: string; professionalId: string; cobroIds: readonly string[] },
+): Promise<{ id: string; misma: boolean } | null> {
+  const filas = await tx.$queryRaw<{ id: string; professionalId: string; cobros: string[] | null }[]>`
+    SELECT p."id", p."professionalId",
+           ARRAY(SELECT r."id" FROM "CobroARendir" r WHERE r."tenantId" = p."tenantId" AND r."rendicionId" = p."id" ORDER BY r."id") AS "cobros"
+    FROM "RendicionProfesional" p
+    WHERE p."tenantId" = ${tenantId} AND p."idempotencyKey" = ${a.idempotencyKey}
+    LIMIT 1`;
+  const f = filas[0];
+  if (!f) return null;
+  const pedidos = [...new Set(a.cobroIds.map((s) => s.trim()).filter(Boolean))].sort();
+  const grabados = [...(f.cobros ?? [])].sort();
+  const misma =
+    f.professionalId === a.professionalId && pedidos.length === grabados.length && pedidos.every((id, k) => id === grabados[k]);
+  return { id: f.id, misma };
+}
+
+async function duplicadaOReusada(
+  tx: RendicionTx,
+  tenantId: string,
+  a: RegistrarRendicionArgs,
+): Promise<{ estado: "duplicada"; rendicionId: string } | null> {
+  const previa = await rendicionPorClaveInTx(tx, tenantId, a);
+  if (!previa) return null;
+  if (!previa.misma) throw new RendicionRechazada("clave-reusada");
+  return { estado: "duplicada", rendicionId: previa.id };
 }
 
 export async function registrarRendicionInTx(
@@ -132,8 +186,8 @@ export async function registrarRendicionInTx(
 ): Promise<RegistrarRendicionResult> {
   if (!(await hayRendicionesInTx(tx))) throw new RendicionRechazada("sin-tabla");
 
-  const previa = await rendicionPorClave(tx, tenantId, a.idempotencyKey);
-  if (previa) return { estado: "duplicada", rendicionId: previa };
+  const previa = await duplicadaOReusada(tx, tenantId, a);
+  if (previa) return previa;
 
   const hoy = todayInBusinessTz();
   if (a.cerradoHasta && isFrozenDay(hoy, a.cerradoHasta)) throw new RendicionRechazada("dia-cerrado");
@@ -172,10 +226,10 @@ export async function registrarRendicionInTx(
     FOR UPDATE OF r`;
 
   // Doble envío de la MISMA rendición que esperó los candados: la primera ya está confirmada.
-  const ganadora = await rendicionPorClave(tx, tenantId, a.idempotencyKey);
-  if (ganadora) return { estado: "duplicada", rendicionId: ganadora };
+  const ganadora = await duplicadaOReusada(tx, tenantId, a);
+  if (ganadora) return ganadora;
 
-  const v = validarRendicion({ pendientes, idsPedidos: ids, entregado: a.entregado, puedeRetener: a.puedeRetener });
+  const v = validarRendicion({ pendientes, idsPedidos: ids, entregado: a.entregado });
   if (!v.ok) throw new RendicionRechazada(v.motivo);
 
   const rendicionId = randomUUID();
@@ -257,9 +311,6 @@ export type ProfesionalARendir = {
   nombre: string;
   pendientes: CobroARendirFila[];
   cobradoPendiente: number;
-  comisionEstimada: number;
-  /** Σ retenido en rendiciones que ninguna liquidación descontó todavía (`payoutId` NULL). */
-  retenidoSinDescontar: number;
 };
 
 export type RendicionHistorial = {
@@ -280,10 +331,10 @@ export type LecturaRendiciones =
 export async function leerRendicionesInTx(tx: RendicionTx, tenantId: string): Promise<LecturaRendiciones> {
   if (!(await hayRendicionesInTx(tx))) return { habilitada: false };
 
-  const [pros, cobros, retenidos, historial] = await Promise.all([
+  const [pros, cobros, historial] = await Promise.all([
     tx.professional.findMany({
       where: { tenantId, deletedAt: null },
-      select: { id: true, name: true, cobraEnMostrador: true, commissionPercent: true, serviceCommissions: { select: { serviceId: true, commissionPercent: true } } },
+      select: { id: true, name: true, cobraEnMostrador: true },
     }),
     tx.$queryRaw<(Omit<CobroARendirFila, "serviceId"> & { serviceId: string | null; professionalId: string })[]>`
       SELECT r."id", r."professionalId", r."monto"::float8 AS "monto", r."method", r."createdAt",
@@ -299,11 +350,6 @@ export async function leerRendicionesInTx(tx: RendicionTx, tenantId: string): Pr
             AND c."note" LIKE ('ANULACION:' || r."collectionId" || '%')
         )
       ORDER BY r."createdAt"`,
-    tx.$queryRaw<{ professionalId: string; retenido: number }[]>`
-      SELECT "professionalId", SUM("retenido")::float8 AS "retenido"
-      FROM "RendicionProfesional"
-      WHERE "tenantId" = ${tenantId} AND "payoutId" IS NULL AND "retenido" > 0
-      GROUP BY "professionalId"`,
     tx.$queryRaw<(Omit<RendicionHistorial, "nombre" | "cantidad"> & { professionalId: string; cantidad: bigint | number })[]>`
       SELECT p."id", p."professionalId", p."cobrado"::float8 AS "cobrado", p."entregado"::float8 AS "entregado",
              p."retenido"::float8 AS "retenido", p."method", p."createdAt",
@@ -315,12 +361,10 @@ export async function leerRendicionesInTx(tx: RendicionTx, tenantId: string): Pr
   ]);
 
   const nombre = new Map(pros.map((p) => [p.id, p.name]));
-  const retenidoPor = new Map(retenidos.map((r) => [r.professionalId, Number(r.retenido)]));
   const profesionales: ProfesionalARendir[] = [];
   for (const p of pros) {
     const suyos = cobros.filter((c) => c.professionalId === p.id);
-    const retenido = retenidoPor.get(p.id) ?? 0;
-    if (p.cobraEnMostrador !== false && suyos.length === 0 && retenido === 0) continue;
+    if (p.cobraEnMostrador !== false && suyos.length === 0) continue;
     const pendientes: CobroARendirFila[] = suyos.map((c) => ({
       id: c.id,
       monto: Number(c.monto),
@@ -331,14 +375,11 @@ export async function leerRendicionesInTx(tx: RendicionTx, tenantId: string): Pr
       serviceId: c.serviceId,
       clienta: c.clienta ?? "",
     }));
-    const overrides = new Map(p.serviceCommissions.map((o) => [o.serviceId, o.commissionPercent]));
     profesionales.push({
       professionalId: p.id,
       nombre: p.name,
       pendientes,
       cobradoPendiente: pendientes.reduce((s, c) => s + Math.round(c.monto * 100), 0) / 100,
-      comisionEstimada: comisionEstimada(pendientes, p.commissionPercent, overrides),
-      retenidoSinDescontar: retenido,
     });
   }
 
