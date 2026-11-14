@@ -636,6 +636,7 @@ export default function TurnoCajon({
                 motivoSinCobro={t.veredicto.ok ? undefined : t.veredicto.motivo}
                 proximo={proximo}
                 conProductos={permisos.cobroConProducto}
+                voucher={pagosDelTurno(t).voucher}
                 {...(permisos.ventaSimple
                   ? {
                       alCobrar: (cobro: CobroHecho) => setCobrado({ turnoId: t.id, cobro, vino: t.estado === "PENDING" }),
@@ -661,6 +662,7 @@ export default function TurnoCajon({
                 clienta={t.clienta}
                 sugerido={t.sugerido}
                 saldo={t.saldo}
+                voucher={pagosDelTurno(t).voucher}
               />
             </div>
           </Seccion>

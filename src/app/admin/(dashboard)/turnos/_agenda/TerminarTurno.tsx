@@ -28,6 +28,7 @@ import SumarProductos, { type RenglonDelCajon } from "./SumarProductos";
 import CobroConProductos from "./CobroConProductos";
 import VueltoEnEfectivo from "./VueltoEnEfectivo";
 import { vueltoDelCajon, type CobroHecho } from "@/lib/turnos/cobro-del-cajon";
+import { rotuloDeLoQueFalta } from "./pagos-core";
 
 type Cobro = { metodo: MetodoDePago } | "dejar-a-cobrar" | null;
 
@@ -43,6 +44,7 @@ export default function TerminarTurno({
   alCobrar,
   telefono,
   servicio,
+  voucher = 0,
   onListo,
 }: {
   turnoId: string;
@@ -66,6 +68,8 @@ export default function TerminarTurno({
   alCobrar?: (cobro: CobroHecho) => void;
   telefono?: string | null;
   servicio?: string | null;
+  /** Lo que ya pagó un voucher: «Falta cobrar aparte del voucher» y cuánto cubre. */
+  voucher?: number;
   onListo?: () => void;
 }) {
   const { showError, showSuccess } = useToast();
@@ -74,6 +78,7 @@ export default function TerminarTurno({
   const [enCurso, setEnCurso] = useState<Cobro | undefined>(undefined);
   const [pendiente, empezar] = useTransition();
   const vino = estado === "PENDING";
+  const faltaRotulo = rotuloDeLoQueFalta({ falta: saldo, voucher });
   const [renglones, setRenglones] = useState<RenglonDelCajon[]>([]);
   const [conTarjeta, setConTarjeta] = useState(false);
   const [pagaCon, setPagaCon] = useState("");
@@ -166,8 +171,9 @@ export default function TerminarTurno({
   return (
     <div data-ui="terminar-turno" className="space-y-4">
       <div className="text-center">
-        <p className="text-sm text-muted">Falta cobrar</p>
+        <p className="text-sm text-muted">{voucher > 0 ? faltaRotulo.titulo : "Falta cobrar"}</p>
         <Plata valor={saldo} tamano="grande" sinCentavos={Number.isInteger(saldo)} />
+        {voucher > 0 && faltaRotulo.detalle && <p className="text-xs text-muted">{faltaRotulo.detalle}</p>}
       </div>
       {alCobrar && <VueltoEnEfectivo total={saldo} pagaCon={pagaCon} onCambiar={setPagaCon} disabled={pendiente} />}
       <TeclasDeMedio

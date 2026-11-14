@@ -23,6 +23,7 @@ import { useToast } from "../../ToastProvider";
 import { pesos } from "../agenda-core";
 import TeclasDeMedio from "../cerrar/TeclasDeMedio";
 import { aFormData, camposDeCobro, claveNueva, leerMontoDelCobro } from "./campos";
+import { rotuloDeLoQueFalta } from "./pagos-core";
 
 export function montoParaEditar(n: number): string {
   // «22000» y no «22.000»: lo que se muestra es lo que se relee igual (leerImporte).
@@ -34,6 +35,7 @@ export default function CobrarTurno({
   clienta,
   sugerido,
   saldo,
+  voucher = 0,
   onListo,
   onQuedaDebiendo,
 }: {
@@ -42,12 +44,15 @@ export default function CobrarTurno({
   /** Lo que se propone cobrar ahora (la seña o el saldo). */
   sugerido: { tipo: "senia" | "saldo"; monto: number };
   saldo: number;
+  /** Lo que ya cubrió un voucher: el rótulo dice que el saldo se cobra aparte del voucher. */
+  voucher?: number;
   onListo?: () => void;
   /** Turno terminado con saldo: «Queda debiendo» cierra la hoja sin cobrar (la deuda ya figura). */
   onQuedaDebiendo?: () => void;
 }) {
   const id = useId();
   const { showError, showSuccess } = useToast();
+  const faltaRotulo = saldo > 0 ? rotuloDeLoQueFalta({ falta: saldo, voucher }) : { titulo: "Falta cobrar", detalle: undefined };
   const [texto, setTexto] = useState(montoParaEditar(sugerido.monto));
   const [clave, setClave] = useState(claveNueva);
   const [error, setError] = useState("");
@@ -82,9 +87,10 @@ export default function CobrarTurno({
   return (
     <div data-ui="cobrar-turno" className="space-y-4">
       <p className="flex items-baseline justify-between gap-3 text-sm text-muted">
-        <span>{sugerido.tipo === "senia" ? "Seña del servicio" : "Falta cobrar"}</span>
+        <span>{sugerido.tipo === "senia" ? "Seña del servicio" : faltaRotulo.titulo}</span>
         <Plata valor={sugerido.tipo === "senia" ? sugerido.monto : saldo} sinCentavos={Number.isInteger(sugerido.tipo === "senia" ? sugerido.monto : saldo)} />
       </p>
+      {sugerido.tipo === "saldo" && faltaRotulo.detalle && <p className="-mt-3 text-xs text-muted">{faltaRotulo.detalle}</p>}
       <div>
         <label htmlFor={`${id}-monto`} data-ui="rotulo" className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted">
           Cuánto cobrás
