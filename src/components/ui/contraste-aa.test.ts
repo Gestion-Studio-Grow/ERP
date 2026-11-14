@@ -20,7 +20,9 @@ const token = (nombre: string): string => {
 };
 
 test("la pestaña activa usa --accent-ink, no el acento crudo", () => {
-  assert.match(css, /\[data-ui="pestanas"\] a\[aria-current="page"\] \{ color: var\(--accent-ink,/);
+  const pestanas = readFileSync(path.join(__dirname, "Pestanas.tsx"), "utf8");
+  assert.match(pestanas, /color: "var\(--accent-ink,/);
+  assert.match(pestanas, /style=\{p\.actual \? ACTIVA_AA : undefined\}/);
   const fondo = hex("#f4f6f8");
   const azul = hex("#0071e3");
   assert.ok(razonContraste(azul, fondo) < 4.5, "el acento crudo no llega (por eso el cambio)");

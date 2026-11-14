@@ -1549,7 +1549,7 @@ summary:focus-visible {
 }
 
 /* Apps de gestión de eventos: se ve en qué pestaña estás y las barras de desplazamiento van con el tema. */
-[data-gestion] [data-ui="pestanas"] a[aria-current="page"] { color: var(--accent-ink, var(--accent, currentColor)); /* AA: accent-ink, no el acento crudo (0071e3 sobre f4f6f8 = 4,34:1; accent-ink = 6,61:1) */ box-shadow: inset 0 -2px 0 currentColor; font-weight: 600; }
+[data-gestion] [data-ui="pestanas"] a[aria-current="page"] { color: var(--accent, currentColor); box-shadow: inset 0 -2px 0 currentColor; font-weight: 600; }
 [data-gestion] [data-ui="pestanas"] a { white-space: nowrap; }
 /* Cajón y diálogo del panel de gestión: su piel vive en el diseño Renglón, que este panel no usa. */
 [data-gestion] dialog[data-ui="cajon"] { margin: 0 0 0 auto; width: min(32rem, 100%); max-width: 100%; height: 100dvh; max-height: 100dvh; border-left: 1px solid var(--line); }

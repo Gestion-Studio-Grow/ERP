@@ -12,6 +12,10 @@ import { cn } from "./cn";
 //
 // Sirve en servidor (la página sabe cuál es la actual) y en cliente (el armazón).
 
+/** AA: la activa va en --accent-ink, no en el acento crudo (#0071e3 sobre #f4f6f8 = 4,34:1; accent-ink = 6,61:1).
+ *  Va en línea porque la regla de globals.css tiene más especificidad; la raya usa currentColor y la sigue. */
+const ACTIVA_AA = { color: "var(--accent-ink, var(--accent, currentColor))" } as const;
+
 export type Pestana = {
   href: string;
   etiqueta: React.ReactNode;
@@ -37,7 +41,7 @@ export function Pestanas({
   return (
     <nav data-ui="pestanas" data-con-raya={conRaya || undefined} aria-label={etiqueta} className={cn("flex overflow-x-auto", className)}>
       {pestanas.map((p) => (
-        <Link key={p.href} href={p.href} aria-current={p.actual ? "page" : undefined} className="inline-flex min-h-11 items-center gap-1.5 px-3 text-sm">
+        <Link key={p.href} href={p.href} aria-current={p.actual ? "page" : undefined} style={p.actual ? ACTIVA_AA : undefined} className="inline-flex min-h-11 items-center gap-1.5 px-3 text-sm">
           {p.etiqueta}
           {p.conteo !== undefined && (
             <span data-parte="conteo" className="tabular-nums text-muted">
