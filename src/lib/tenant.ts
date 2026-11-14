@@ -347,6 +347,13 @@ export type FilaDelNegocio = {
  * queda cacheado en ese pedido, como el de `getCurrentTenantId`); cada lector decide su fallback como
  * hacía antes con su consulta propia. `null` = el id resolvió pero la fila no está (mismo caso que el
  * `findUnique` de cada lector devolviendo null).
+ *
+ * Decisiones aceptadas (certificación PLAT-005):
+ *   · Un error de lectura queda cacheado para todo el pedido: una falla transitoria pega a los tres
+ *     lectores a la vez (producto y color caen a su fallback; el gate por módulo tira). No abre nada
+ *     de más; sólo agranda el alcance de esa falla dentro del pedido.
+ *   · Foto al primer uso: si un pedido ESCRIBE `modules`, `accentPreset` o `blueprintId` y después lee
+ *     con estos lectores, ve la fila vieja. Quien escribe y relee en el mismo pedido lee directo.
  */
 export function crearFilaDelPedido(
   tenantId: () => Promise<string>,
