@@ -28,6 +28,7 @@ import { requireCapability } from "@/lib/authz";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { hechosDeLasFacturas } from "@/lib/facturacion/hechos-comprobantes.server";
 import { estadoEnBandeja, type EstadoEnBandeja } from "@/lib/facturacion/propuesta-mp";
+import { esPorAcreditacionPendiente, motivoDeVentaConfirmada } from "@/lib/vouchers/acreditacion-core";
 import {
   ClasificadorBancarioPorReglas,
   procesarExtracto,
@@ -453,18 +454,27 @@ export async function completarRevisionAction(
   if (!validacion.ok) return { ok: false, error: validacion.error };
 
   const res = await tenantTransaction(
-    (tx) =>
-      tx.movimientoImportado.updateMany({
+    async (tx) => {
+      // Si estaba en revisión porque podía ser la plata de un pago de la administración pendiente
+      // (vouchers), aprobarla es confirmar que es una VENTA: queda marcada, así la emisión no la vuelve
+      // a frenar y la acreditación del pago nunca la engancha. El motivo leído condiciona el update.
+      const actual = await tx.movimientoImportado.findFirst({
         where: { id: movimientoId, tenantId, estadoPropuesta: "revision" },
+        select: { motivoRevision: true },
+      });
+      if (!actual) return { count: 0 };
+      return tx.movimientoImportado.updateMany({
+        where: { id: movimientoId, tenantId, estadoPropuesta: "revision", motivoRevision: actual.motivoRevision },
         data: {
           docTipo: datos.docTipo,
           docNro: validacion.docNro,
           nombreReceptor: datos.nombreReceptor?.trim() || null,
           descripcionServicio: datos.descripcionServicio?.trim() || null,
           estadoPropuesta: "auto",
-          motivoRevision: null,
+          motivoRevision: esPorAcreditacionPendiente(actual.motivoRevision) ? motivoDeVentaConfirmada() : null,
         },
-      }),
+      });
+    },
     { tenantId },
   );
   if (res.count === 0) {

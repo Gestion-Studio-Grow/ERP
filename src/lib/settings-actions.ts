@@ -82,6 +82,8 @@ export async function updateBusinessSettings(formData: FormData) {
     where: { tenantId },
     update: data,
     create: { tenantId, ...data },
+    // Sólo el id de vuelta: sin `select` el RETURNING pide todas las columnas (y `voucherValor` puede no estar migrada).
+    select: { id: true },
   });
 
   await auditAdmin({
