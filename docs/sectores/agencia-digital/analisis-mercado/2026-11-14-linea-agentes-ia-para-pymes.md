@@ -251,3 +251,42 @@ fecha que vuelve a disparar; si no, suma al informe.
 - En paralelo: entrevistas a 10 a 15 PyMEs para fijar precio y elegir el segundo cliente.
 
 **API de Reddit:** las páginas oficiales devolvieron 403 al lector; no hay fuente leída sobre cómo pedirla hoy.
+
+## 16. Modelo de ganancia (14/11/2026, para el tablero)
+
+**Dónde está la ganancia**
+- Abono por puesto, todos los meses. Es el centro del negocio.
+- Más puestos en el mismo cliente: sin costo de venta ni de relevamiento.
+- Un motor para muchos negocios: un cliente nuevo del mismo rubro es configuración.
+- La implementación cubre la puesta en marcha; no es donde se gana.
+
+**Qué la puede comer**
+- La atención por cliente (soporte, ajustes, vigilancia): tiempo del dueño y consumo de las sesiones de GSG. Sin medir.
+- Bajas tempranas, modelo equivocado, tipo de cambio (IA en dólares, abono en pesos) y precio de mercado (Meta gratis).
+
+**Cuenta por puesto y por mes (supuestos, no medición)**
+- Supuesto de uso: 1.100 tareas por mes, 20.000 tokens de entrada y 1.000 de salida por tarea.
+- Precios de lista de Claude (tabla del 03/11/2026): Haiku 5.5 US$ 0,10 / 0,50 por millón; Sonnet 5.5 US$ 2 / 10;
+  Opus 5.5 US$ 4 / 20.
+- Costo de IA: Haiku ≈ US$ 3; Sonnet ≈ US$ 55; Opus ≈ US$ 110. Sin contar el ahorro por caché.
+- Con abono de US$ 150 por puesto (estimación de mercado sin validar): margen antes de fijos de ≈ 98 % con Haiku,
+  ≈ 63 % con Sonnet y ≈ 27 % con Opus.
+- Ejemplo con 50 clientes y 2 puestos cada uno: ingreso US$ 15.000 por mes; IA US$ 275 (Haiku) o US$ 5.500 (Sonnet).
+- Punto de equilibrio: costos fijos ÷ margen por cliente. Con fijos de ejemplo de US$ 1.000 y Sonnet: 6 clientes.
+
+**Lo que falta para que el modelo sea cierto:** costo real por tarea (tanda 5 del diseño de MIA), horas de atención
+por cliente, costos fijos reales de GSG, tarifa de WhatsApp si el sistema envía, y precio validado con clientes.
+Calculadora: sección «La ganancia» del manual (https://claude.ai/artifact/Aa27VY7nXTKCNgia66fG3Y).
+
+## 17. Órdenes del dueño del 14/11/2026 sobre la construcción (escritas en la sesión session_01BtqRUKojnK9M175EeSA8pp)
+
+- Construir completo el primer equipo de agentes para MIA: primero Administración (Mariana); después Dirección (Ale).
+- Diseño por un agente Fable; construcción por Opus en esfuerzo alto. Diseño en `docs/tenants/mia-producciones/agentes/`.
+- Prueba sobre el producto real en el ambiente de MIA (QA, sin datos reales): primero el dueño, después Mariana;
+  Dirección prueba su equipo. Sin vista previa ni demostración aparte.
+- El consentimiento de MIA está dado según el dueño (constancia a adjuntar); igual no se usan datos reales antes de
+  salir en vivo.
+- Equipo propio de GSG sobre el mismo producto: programador, PM, arquitecto de soluciones y testing. Diseño pendiente.
+- Suscripción de Codex disponible para este producto: revisor y segundo constructor acotado.
+- ABIERTO: con qué IA corre la prueba. El dueño planteó dar servicio con suscripciones personales hasta 50 clientes;
+  los términos de Anthropic leídos el 14/11 lo prohíben (code.claude.com/docs/en/legal-and-compliance). Sin resolver.
