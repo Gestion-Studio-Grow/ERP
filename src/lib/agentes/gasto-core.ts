@@ -5,6 +5,8 @@
 // entonces la tabla está vacía y un modelo sin precio no se puede usar: `precioDe` tira, y sin
 // precio no hay reserva ni llamada (provisional a confirmar, 05 S8).
 
+import { textoAlCentavo } from "@/lib/dinero/redondeo";
+
 /** Precio por millón de tokens, en micro-dólares (US$ 1 = 1.000.000). */
 export interface Precio {
   entradaPorMillon: number;
@@ -57,5 +59,5 @@ export function periodoDelGasto(instante: Date): string {
 
 /** Micro-dólares a texto para una persona: "US$ 1,23". */
 export function textoMicroUsd(microUsd: number): string {
-  return `US$ ${(microUsd / 1_000_000).toFixed(2).replace(".", ",")}`;
+  return `US$ ${textoAlCentavo(microUsd / 1_000_000).replace(".", ",")}`;
 }

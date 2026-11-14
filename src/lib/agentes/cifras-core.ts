@@ -7,6 +7,7 @@
 // prosa (queda «necesita una persona»).
 
 import type { Cifra, Fila } from "./tipos";
+import { redondearAlCentavo } from "@/lib/dinero/redondeo";
 
 export interface Problema {
   cifra: string;
@@ -88,7 +89,7 @@ export function totalesPorMoneda(filas: readonly Fila[]): Map<string, number> {
     for (const c of f.cifras) {
       if (c.tipo !== "importe") continue;
       const m = c.moneda ?? "ARS";
-      t.set(m, Math.round(((t.get(m) ?? 0) + c.valor) * 100) / 100);
+      t.set(m, redondearAlCentavo((t.get(m) ?? 0) + c.valor));
     }
   }
   return t;

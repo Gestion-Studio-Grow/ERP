@@ -141,7 +141,7 @@ export function metricas(pedidos: readonly Pick<PedidoDelBuzon, "estado" | "pedi
   return {
     recibidos: pedidos.length,
     respondidos,
-    porcentajeDentro: evaluables === 0 ? null : Math.round((dentro * 100) / evaluables),
+    porcentajeDentro: evaluables === 0 ? null : Math.round((dentro * 100) / evaluables), // no-es-plata: porcentaje de pedidos a tiempo
     tiempoMedianoMs: mediana(tiempos),
     tiempoMaximoMs: tiempos.length ? Math.max(...tiempos) : null,
     sinResponderATiempo: sinResponder,
