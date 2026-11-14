@@ -9,6 +9,7 @@ import {
   sumaCentavos,
   sumarDias,
   ultimaSemanaCerrada,
+  aCobrarElLunes,
   validarSemana,
 } from "./liquidacion-core";
 
@@ -141,4 +142,26 @@ test("planDeImputacion · FIFO, por número, en parte, y lo que sobra queda sin 
     assert.ok(i.centavos + p.imputadoCentavos <= p.valorCentavos);
   }
   assert.equal(mucho.restoCentavos, 99_000_000 - 1_400_000 - 1_000_000 - 900_000);
+});
+
+test("a cobrar el lunes: sólo los usados sin liquidar de la última semana cerrada, en centavos, con la fecha del lunes", () => {
+  const usados = [
+    { dia: "2026-11-01", centavos: 100_000 }, // domingo de la semana anterior: no
+    { dia: "2026-11-02", centavos: 1_400_010 }, // lunes de la semana cerrada: sí
+    { dia: "2026-11-05", centavos: 20 },
+    { dia: "2026-11-08", centavos: 1_400_000 }, // domingo de la semana cerrada: sí
+    { dia: "2026-11-09", centavos: 700_000 }, // hoy (semana en curso): no
+  ];
+  assert.deepEqual(aCobrarElLunes(usados, "2026-11-09"), {
+    desde: "2026-11-02",
+    hasta: "2026-11-08",
+    lunes: "2026-11-09",
+    cantidad: 3,
+    totalCentavos: 2_800_030,
+  });
+  // Un miércoles mira la misma semana y el mismo lunes (ya pasado): lo que quedó sin liquidar sigue acá.
+  assert.equal(aCobrarElLunes(usados, "2026-11-11").lunes, "2026-11-09");
+  // El domingo todavía no cerró la semana: mira la anterior.
+  assert.deepEqual(aCobrarElLunes(usados, "2026-11-08"), { desde: "2026-10-26", hasta: "2026-11-01", lunes: "2026-11-02", cantidad: 1, totalCentavos: 100_000 });
+  assert.deepEqual(aCobrarElLunes([], "2026-11-09"), { desde: "2026-11-02", hasta: "2026-11-08", lunes: "2026-11-09", cantidad: 0, totalCentavos: 0 });
 });

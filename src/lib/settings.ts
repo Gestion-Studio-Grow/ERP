@@ -59,6 +59,23 @@ export type BusinessSettingsRow = {
   contactNote: string | null;
 };
 
+/**
+ * Las columnas de la localización, explícitas: un `findUnique` sin `select` pide TODAS las columnas del
+ * modelo y, con una columna nueva sin migrar (p. ej. `voucherValor`, 20261109200000_voucher_valor),
+ * se caería con P2022. Con esto, la localización no depende de columnas de otros módulos.
+ */
+export const SELECT_LOCALIZACION = {
+  shortLabel: true,
+  addressLine: true,
+  city: true,
+  hoursLabel: true,
+  whatsapp: true,
+  email: true,
+  instagram: true,
+  mapsUrl: true,
+  contactNote: true,
+} as const satisfies Record<keyof BusinessSettingsRow, true>;
+
 // Localización ya resuelta (defaults aplicados, URLs derivadas): lo que consume
 // la UI sin tener que volver a decidir fallbacks.
 export type ResolvedLocation = {
@@ -140,7 +157,7 @@ export const getLocation = cache(async (): Promise<ResolvedLocation> => {
   // con la DB sana (schema migrado → mismo comportamiento).
   try {
     const tenantId = await getCurrentTenantId();
-    const [row, slug] = await Promise.all([prisma.businessSettings.findUnique({ where: { tenantId } }), slugResueltoDelPedido()]);
+    const [row, slug] = await Promise.all([prisma.businessSettings.findUnique({ where: { tenantId }, select: SELECT_LOCALIZACION }), slugResueltoDelPedido()]);
     return resolveLocation(row, defaultsDeLocalizacion(slug));
   } catch {
     // Sin poder leer: neutros (nunca la dirección de CH en el sitio de otro).

@@ -68,3 +68,21 @@ test("el aviso de una factura que no salió al cobrar habla del cobro, no del tu
   assert.match(avisoDeFacturaDelTurno({ tipo: "fallo" }, "cobro") ?? "", /^El cobro quedó registrado, pero la factura no se pudo emitir/);
   assert.match(avisoDeFacturaDelTurno({ tipo: "fallo" }) ?? "", /^El turno quedó terminado/);
 });
+
+// Orden del dueño (09/11/2026): el voucher lo paga la administración del country y NO se factura en ARCA.
+test("el cobro con voucher no se factura; el resto del turno (efectivo o MP) sí", () => {
+  const soloVoucher = planFacturasPorCobro({ filas: [fila("v", 14000, "VOUCHER")], conFila: new Set(), mpSinPareja: 0 });
+  assert.deepEqual(soloVoucher, []);
+  const mixto = planFacturasPorCobro({
+    filas: [fila("v", 10000, "VOUCHER"), fila("resto", 4000, "EFECTIVO", null, 1), fila("mp", 2000, "MERCADOPAGO", null, 2)],
+    conFila: new Set(),
+    mpSinPareja: 0,
+  });
+  assert.deepEqual(mixto, [
+    { collectionId: "resto", importe: 4000, method: "EFECTIVO" },
+    { collectionId: "mp", importe: 2000, method: "MERCADOPAGO" },
+  ]);
+  // Lo facturado por MP no se «come» con el voucher: cubre sólo cobros de MP.
+  const conMp = planFacturasPorCobro({ filas: [fila("v", 10000, "VOUCHER"), fila("mp", 2000, "MERCADOPAGO", null, 1)], conFila: new Set(), mpSinPareja: 2000 });
+  assert.deepEqual(conMp, []);
+});

@@ -12,6 +12,7 @@ import {
   estadoOpenKeyDesdeTexto,
   leerCsvOpenKey,
   validarAplicacion,
+  MENSAJES_VOUCHER,
 } from "./voucher-core";
 
 const turno = { clientId: "c1", status: "CONFIRMED" };
@@ -251,4 +252,24 @@ test("csvDelReporte · un impago dado de baja dice «Dado de baja: motivo», nun
   assert.equal(fila(0), "V-003;L1;Ana;;04/11/2026;14000,00;USADO;Sin verificar;;Dado de baja: La administración lo desconoce;;Baja del 12/11/2026");
   // Si antes se le imputó parte de un pago a cuenta, se ve lo cobrado.
   assert.equal(fila(5000), "V-003;L1;Ana;;04/11/2026;14000,00;USADO;Sin verificar;;Dado de baja: La administración lo desconoce;5000,00;Baja del 12/11/2026");
+});
+
+// Valor del voucher del negocio (orden del dueño, 09/11/2026): cubre min(valor, saldo); un monto explícito no lo pasa.
+test("validarAplicacion · con valor del negocio cubre min(valor, saldo)", () => {
+  assert.deepEqual(validarAplicacion({ voucher: libre, turno, saldo: 14000, valorVoucher: 10000 }), { ok: true, valorCubierto: 10000, sinVerificar: false });
+  assert.deepEqual(validarAplicacion({ voucher: libre, turno, saldo: 6000, valorVoucher: 10000 }), { ok: true, valorCubierto: 6000, sinVerificar: false });
+  assert.deepEqual(validarAplicacion({ voucher: libre, turno, saldo: 9999.99, valorVoucher: 9999.995 }), { ok: true, valorCubierto: 9999.99, sinVerificar: false });
+  // Sin valor (null, ausente o ≤ 0 leído de una base rara): sin tope, como antes.
+  for (const valorVoucher of [null, undefined, 0, -5]) {
+    assert.deepEqual(validarAplicacion({ voucher: libre, turno, saldo: 14000, valorVoucher }), { ok: true, valorCubierto: 14000, sinVerificar: false });
+  }
+});
+
+test("validarAplicacion · un monto explícito no puede superar el valor del voucher", () => {
+  const r = validarAplicacion({ voucher: libre, turno, saldo: 14000, monto: 12000, valorVoucher: 10000 });
+  assert.deepEqual(r, { ok: false, motivo: "excede-valor", mensaje: MENSAJES_VOUCHER["excede-valor"] });
+  assert.deepEqual(validarAplicacion({ voucher: libre, turno, saldo: 14000, monto: 10000, valorVoucher: 10000 }), { ok: true, valorCubierto: 10000, sinVerificar: false });
+  assert.deepEqual(validarAplicacion({ voucher: libre, turno, saldo: 14000, monto: 4000, valorVoucher: 10000 }), { ok: true, valorCubierto: 4000, sinVerificar: false });
+  // Superar el saldo sigue diciendo eso (aunque también supere el valor).
+  assert.equal((validarAplicacion({ voucher: libre, turno, saldo: 5000, monto: 12000, valorVoucher: 10000 }) as { motivo: string }).motivo, "excede-saldo");
 });

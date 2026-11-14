@@ -28,7 +28,7 @@ import { CargarLote } from "./CargarLote";
 import { ImportarCsv } from "./ImportarCsv";
 import { AcreditacionDelPago, GenerarLiquidacion, PagoACuenta } from "./LiquidacionFormularios";
 import { leerCuentaDeLaAdministracion, type CuentaDeLaAdministracion } from "@/lib/vouchers/liquidacion-repo";
-import { fechaArgentina, motivoParaNoRechazarCheque, pesosDeCentavos, ultimaSemanaCerrada } from "@/lib/vouchers/liquidacion-core";
+import { aCobrarElLunes, fechaArgentina, motivoParaNoConciliar, motivoParaNoRechazarCheque, pesosDeCentavos } from "@/lib/vouchers/liquidacion-core";
 import { motivoDeBaja } from "@/lib/vouchers/voucher-core";
 import { isPrismaError } from "@/lib/prisma-errors";
 
@@ -73,6 +73,9 @@ export default async function VouchersPage({ searchParams }: { searchParams: Pro
   const puedeLiquidar = permisoEfectivo(user, "cash:manage");
   // Marcar un cheque rechazado: sólo el dueño (orden del 08/11/2026). La acción lo vuelve a exigir.
   const puedeRechazarCheque = motivoParaNoRechazarCheque(user) === null;
+  // Conciliar, pago a cuenta, acreditar, baja y descartar: sólo la dueña (orden del 09/11/2026). Generar
+  // la liquidación sigue con `cash:manage`. Las acciones lo vuelven a exigir.
+  const puedeConciliar = motivoParaNoConciliar(user) === null;
   const query = queryDeFiltros(filtros);
 
   return (
@@ -137,7 +140,7 @@ export default async function VouchersPage({ searchParams }: { searchParams: Pro
       )}
       {/* La plata del voucher la paga la administración del country y se liquida todos los lunes
           (regla del dueño del 08/11/2026). Reemplaza a la importación de la liquidación de OpenKey. */}
-      {puedeLiquidar && <LiquidacionDelLunes puedeRechazarCheque={puedeRechazarCheque} />}
+      {puedeLiquidar && <LiquidacionDelLunes puedeRechazarCheque={puedeRechazarCheque} puedeConciliar={puedeConciliar} />}
     </main>
   );
 }
@@ -157,7 +160,7 @@ async function leerCuenta(tenantId: string): Promise<CuentaDeLaAdministracion | 
  * usados menos lo que pagó la administración), lo que falta liquidar, las liquidaciones y los
  * pagos a cuenta. Sólo con `cash:manage` (es plata, como su action).
  */
-async function LiquidacionDelLunes({ puedeRechazarCheque }: { puedeRechazarCheque: boolean }) {
+async function LiquidacionDelLunes({ puedeRechazarCheque, puedeConciliar }: { puedeRechazarCheque: boolean; puedeConciliar: boolean }) {
   const tenantId = await getCurrentTenantId();
   const cuenta = await leerCuenta(tenantId);
   const hoy = todayInBusinessTz();
@@ -172,7 +175,9 @@ async function LiquidacionDelLunes({ puedeRechazarCheque }: { puedeRechazarChequ
     );
   }
   const saldo = pesosDeCentavos(cuenta.resumen.saldoCentavos);
-  const domingo = ultimaSemanaCerrada(hoy).hasta;
+  const lunes = aCobrarElLunes(cuenta.sinLiquidarPorDia, hoy);
+  const domingo = lunes.hasta;
+  const aCobrar = pesosDeCentavos(lunes.totalCentavos);
   return (
     <section id="liquidacion" aria-labelledby="liquidacion-titulo" className="mt-10 space-y-6">
       <div>
@@ -183,12 +188,27 @@ async function LiquidacionDelLunes({ puedeRechazarCheque }: { puedeRechazarChequ
           Los vouchers los paga la administración de La Alameda, no el vecino: cada voucher usado es plata a cobrarle (no entra al cajón). Todos los lunes se liquida la semana anterior y se concilia con lo que paga.
         </p>
       </div>
-      <dl className="grid gap-3 sm:grid-cols-3">
+      <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-md border border-line px-4 py-3">
           <dt className="text-xs font-semibold uppercase tracking-wide text-muted">{saldo >= 0 ? "A cobrar a la administración" : "A favor de la administración"}</dt>
           <dd className="mt-1 text-xl font-semibold text-strong" data-testid="saldo-administracion">
             <Plata valor={Math.abs(saldo)} sinCentavos={Number.isInteger(saldo)} />
           </dd>
+        </div>
+        <div className="rounded-md border border-line px-4 py-3">
+          <dt className="text-xs font-semibold uppercase tracking-wide text-muted">A cobrar el lunes {fechaArgentina(lunes.lunes)}</dt>
+          <dd className="mt-1 text-sm text-strong" data-testid="a-cobrar-el-lunes">
+            {lunes.cantidad > 0 ? (
+              <>
+                {lunes.cantidad} {lunes.cantidad === 1 ? "voucher" : "vouchers"} por <Plata valor={aCobrar} sinCentavos={Number.isInteger(aCobrar)} />
+              </>
+            ) : (
+              "Nada pendiente de esa semana"
+            )}
+          </dd>
+          <p className="mt-1 text-xs text-muted">
+            Usados del {fechaArgentina(lunes.desde)} al {fechaArgentina(lunes.hasta)} y todavía sin liquidar.
+          </p>
         </div>
         <div className="rounded-md border border-line px-4 py-3">
           <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Usados sin liquidar</dt>
@@ -270,7 +290,7 @@ async function LiquidacionDelLunes({ puedeRechazarCheque }: { puedeRechazarChequ
                   <span className="tabular-nums text-muted">{fechaArgentina(p.fecha)}</span> · {p.concepto} ·{" "}
                   <Plata valor={p.monto} sinCentavos={Number.isInteger(p.monto)} />
                 </p>
-                <AcreditacionDelPago pagoId={p.id} liquidacionId={p.liquidacionId ?? undefined} estado={p.acreditacion} puedeRechazarCheque={puedeRechazarCheque} />
+                <AcreditacionDelPago pagoId={p.id} liquidacionId={p.liquidacionId ?? undefined} estado={p.acreditacion} puedeRechazarCheque={puedeRechazarCheque} puedeConciliar={puedeConciliar} />
               </li>
             ))}
           </ul>
@@ -290,17 +310,19 @@ async function LiquidacionDelLunes({ puedeRechazarCheque }: { puedeRechazarChequ
                   <span className="tabular-nums text-muted">{fechaArgentina(p.fecha)}</span> · {p.concepto} ·{" "}
                   <Plata valor={p.monto} sinCentavos={Number.isInteger(p.monto)} />
                 </p>
-                <AcreditacionDelPago pagoId={p.id} liquidacionId={p.liquidacionId ?? undefined} estado={p.acreditacion} puedeRechazarCheque={puedeRechazarCheque} />
+                <AcreditacionDelPago pagoId={p.id} liquidacionId={p.liquidacionId ?? undefined} estado={p.acreditacion} puedeRechazarCheque={puedeRechazarCheque} puedeConciliar={puedeConciliar} />
               </li>
             ))}
           </ul>
         </Herramienta>
       )}
 
-      <Herramienta titulo="Anotar un pago a cuenta de la administración" id="pago-a-cuenta">
-        <p className="pt-3 text-xs text-muted">Para un pago por adelantado (un lote prepago) o lo que la administración pague después de una diferencia. El pago de cada lunes se anota al conciliar su liquidación.</p>
-        <PagoACuenta hoy={hoy} />
-      </Herramienta>
+      {puedeConciliar && (
+        <Herramienta titulo="Anotar un pago a cuenta de la administración" id="pago-a-cuenta">
+          <p className="pt-3 text-xs text-muted">Para un pago por adelantado (un lote prepago) o lo que la administración pague después de una diferencia. El pago de cada lunes se anota al conciliar su liquidación.</p>
+          <PagoACuenta hoy={hoy} />
+        </Herramienta>
+      )}
 
       {cuenta.movimientos.length > 0 && (
         <Herramienta titulo="Movimientos de la cuenta" id="movimientos-cuenta">

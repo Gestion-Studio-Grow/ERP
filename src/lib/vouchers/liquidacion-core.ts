@@ -73,6 +73,32 @@ export function ultimaSemanaCerrada(hoy: DiaClave): Semana {
   return { desde: sumarDias(hasta, -6), hasta };
 }
 
+/** Un voucher usado que todavía no entró en ninguna liquidación: el día de uso y lo que cubrió (centavos). */
+export type UsadoSinLiquidar = { dia: DiaClave; centavos: number };
+
+export type ACobrarElLunes = Semana & {
+  /** El lunes en que se liquida esa semana (el día después del domingo `hasta`). */
+  lunes: DiaClave;
+  cantidad: number;
+  totalCentavos: number;
+};
+
+/**
+ * «A cobrar el lunes»: los vouchers usados en la última semana CERRADA (antes de `hoy`) que todavía no
+ * están en una liquidación, con su total y el lunes en que se liquidan. Los de semanas anteriores o de
+ * la semana en curso no cuentan acá (se ven en «usados sin liquidar»). PURA.
+ */
+export function aCobrarElLunes(usados: readonly UsadoSinLiquidar[], hoy: DiaClave): ACobrarElLunes {
+  const semana = ultimaSemanaCerrada(hoy);
+  const deLaSemana = usados.filter((u) => u.dia >= semana.desde && u.dia <= semana.hasta);
+  return {
+    ...semana,
+    lunes: sumarDias(semana.hasta, 1),
+    cantidad: deLaSemana.length,
+    totalCentavos: deLaSemana.reduce((acc, u) => acc + u.centavos, 0),
+  };
+}
+
 export type MotivoSemanaInvalida = "fecha-invalida" | "no-es-domingo" | "semana-sin-cerrar";
 
 /** ¿Se puede liquidar la semana que termina el domingo `hasta`? Tiene que haber terminado (hasta < hoy). */
@@ -318,6 +344,17 @@ export const ETIQUETA_MEDIO_ADMINISTRACION: Record<MedioPagoAdministracion, stri
   CHEQUE: "Cheque (valores a depositar)",
   OTRO: "Otro (elegí si entró al cajón o a Mercado Pago)",
 };
+/**
+ * Los medios que se ofrecen para un pago NUEVO: la liquidación va al banco (orden del 09/11/2026), así
+ * que el efectivo no se ofrece y «otro» sólo entra a Mercado Pago. EFECTIVO queda en
+ * MEDIOS_DE_PAGO_ADMINISTRACION para leer lo histórico.
+ */
+export const MEDIOS_PARA_PAGO_NUEVO = ["TRANSFERENCIA", "CHEQUE", "OTRO"] as const satisfies readonly MedioPagoAdministracion[];
+export const ETIQUETA_MEDIO_PAGO_NUEVO: Record<(typeof MEDIOS_PARA_PAGO_NUEVO)[number], string> = {
+  TRANSFERENCIA: "Transferencia o Mercado Pago",
+  CHEQUE: "Cheque (valores a depositar)",
+  OTRO: "Otro (entró a Mercado Pago)",
+};
 export function esMedioAdministracion(v: unknown): v is MedioPagoAdministracion {
   return typeof v === "string" && (MEDIOS_DE_PAGO_ADMINISTRACION as readonly string[]).includes(v);
 }
@@ -333,4 +370,19 @@ export const SOLO_DUENIO_RECHAZA_CHEQUE = "Marcar un cheque como rechazado lo pu
  */
 export function motivoParaNoRechazarCheque(user: UsuarioConPermisos): string | null {
   return permisoEfectivo(user, "vouchers:rechazar-cheque") ? null : SOLO_DUENIO_RECHAZA_CHEQUE;
+}
+
+// ─────────────── Quién concilia y da de baja (orden del dueño, 09/11/2026) ───────────────
+
+/** «La recepción no concilia ni da de baja»: conciliar, pago a cuenta, acreditar, baja y descartar son de la dueña. */
+export const SOLO_DUENIO_CONCILIA =
+  "Conciliar el pago de la administración, registrar pagos a cuenta, confirmar acreditaciones, dar de baja un voucher o descartar una liquidación lo hace sólo la dueña.";
+
+/**
+ * Puerta de conciliarLiquidacion, pagoACuenta, confirmarAcreditacion, bajaDeImpago y
+ * descartarLiquidacion (y de mostrar sus formularios): null = puede. Mismo molde que
+ * `motivoParaNoRechazarCheque`: `vouchers:conciliar` no está en la matriz por usuario, vale el rol.
+ */
+export function motivoParaNoConciliar(user: UsuarioConPermisos): string | null {
+  return permisoEfectivo(user, "vouchers:conciliar") ? null : SOLO_DUENIO_CONCILIA;
 }

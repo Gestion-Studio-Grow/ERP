@@ -11,7 +11,7 @@ import { useRouter } from "next/navigation";
 import { Button, Input, Select } from "@/components/ui";
 import { bajaDeImpago, conciliarLiquidacion, confirmarAcreditacion, descartarLiquidacion, generarLiquidacion, pagoACuenta, rechazarCheque } from "@/lib/vouchers/liquidacion-actions";
 import type { EstadoAcreditacion } from "@/lib/vouchers/acreditacion-core";
-import { ETIQUETA_MEDIO_ADMINISTRACION, MEDIOS_DE_PAGO_ADMINISTRACION } from "@/lib/vouchers/liquidacion-core";
+import { ETIQUETA_MEDIO_PAGO_NUEVO, MEDIOS_PARA_PAGO_NUEVO } from "@/lib/vouchers/liquidacion-core";
 import { textoAlCentavo } from "@/lib/dinero/redondeo";
 
 const ROTULO = "mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted";
@@ -26,7 +26,10 @@ function MensajeError({ id, texto }: { id: string; texto: string }) {
   );
 }
 
-/** El medio del pago. Con «otro», obliga a elegir si la plata entró al cajón o a Mercado Pago. */
+/**
+ * El medio del pago. La liquidación va al banco (orden del 09/11/2026): no se ofrece efectivo al cajón,
+ * y «otro» sólo entra a Mercado Pago (el servidor rechaza el cajón igual).
+ */
 function Medio({ id }: { id: string }) {
   const [medio, setMedio] = useState("TRANSFERENCIA");
   return (
@@ -36,9 +39,9 @@ function Medio({ id }: { id: string }) {
           Cómo pagó
         </label>
         <Select id={id} name="medio" value={medio} onChange={(e) => setMedio(e.target.value)}>
-          {MEDIOS_DE_PAGO_ADMINISTRACION.map((m) => (
+          {MEDIOS_PARA_PAGO_NUEVO.map((m) => (
             <option key={m} value={m}>
-              {ETIQUETA_MEDIO_ADMINISTRACION[m]}
+              {ETIQUETA_MEDIO_PAGO_NUEVO[m]}
             </option>
           ))}
         </Select>
@@ -48,12 +51,8 @@ function Medio({ id }: { id: string }) {
           <label htmlFor={`${id}-otro`} className={ROTULO}>
             Dónde entró la plata
           </label>
-          <Select id={`${id}-otro`} name="otroA" defaultValue="" required>
-            <option value="" disabled>
-              Elegí…
-            </option>
-            <option value="EFECTIVO">Al cajón (efectivo)</option>
-            <option value="MP">A Mercado Pago</option>
+          <Select id={`${id}-otro`} name="otroA" defaultValue="MP" required>
+            <option value="MP">A Mercado Pago (cuenta del banco)</option>
           </Select>
         </div>
       )}
@@ -488,10 +487,13 @@ export function AcreditacionDelPago({
   liquidacionId,
   estado,
   puedeRechazarCheque,
+  puedeConciliar,
 }: {
   pagoId: string;
   liquidacionId?: string;
   estado: EstadoAcreditacion;
+  /** Sólo la dueña confirma la acreditación (`motivoParaNoConciliar`, orden del 09/11): al resto no se le muestra el botón. */
+  puedeConciliar: boolean;
   /** Sólo el dueño marca un cheque rechazado (`motivoParaNoRechazarCheque`): al resto no se le muestra el botón. */
   puedeRechazarCheque: boolean;
 }) {
@@ -554,9 +556,11 @@ export function AcreditacionDelPago({
               : "Todavía no aparece en el extracto de Mercado Pago. Confirmalo cuando veas la plata en la app."}
       </p>
       <div className="flex flex-wrap items-start gap-2">
-        <Button type="button" variant="outline" disabled={pendiente} estado={pendiente ? "cargando" : undefined} onClick={confirmar} aria-describedby={error ? `${id}-error` : undefined}>
-          {cheque ? "Confirmar depósito del cheque" : "Confirmar acreditación en Mercado Pago"}
-        </Button>
+        {puedeConciliar && (
+          <Button type="button" variant="outline" disabled={pendiente} estado={pendiente ? "cargando" : undefined} onClick={confirmar} aria-describedby={error ? `${id}-error` : undefined}>
+            {cheque ? "Confirmar depósito del cheque" : "Confirmar acreditación en Mercado Pago"}
+          </Button>
+        )}
         {cheque && puedeRechazarCheque && <RechazarCheque pagoId={pagoId} liquidacionId={liquidacionId} depositado={false} />}
       </div>
       <MensajeError id={`${id}-error`} texto={error} />

@@ -2,13 +2,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireApp } from "@/lib/require-app";
 import { requireCapability } from "@/lib/authz";
-import { permisoEfectivo } from "@/lib/capabilities";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { todayInBusinessTz } from "@/lib/datetime";
 import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
 import { vouchersPrendidos } from "@/cambios/interruptores";
 import { leerLiquidacion } from "@/lib/vouchers/liquidacion-repo";
-import { ETIQUETA_MEDIO_ADMINISTRACION, ETIQUETA_RESULTADO, esMedioAdministracion, fechaArgentina, motivoParaNoRechazarCheque } from "@/lib/vouchers/liquidacion-core";
+import { ETIQUETA_MEDIO_ADMINISTRACION, ETIQUETA_RESULTADO, esMedioAdministracion, fechaArgentina, motivoParaNoConciliar, motivoParaNoRechazarCheque } from "@/lib/vouchers/liquidacion-core";
 import { AvisoError, Marca, PageHeader, Plata, buttonClasses, atributosBoton } from "@/components/ui";
 import { AcreditacionDelPago, ConciliarLiquidacion, DarDeBajaImpago, DescartarLiquidacion, Imprimir } from "../../LiquidacionFormularios";
 
@@ -27,9 +26,11 @@ const TD = "whitespace-nowrap px-3 py-2";
 
 export default async function LiquidacionPage({ params }: { params: Promise<{ id: string }> }) {
   await requireApp("vouchers");
-  // `cash:manage` guarda la página entera: quien llega acá puede conciliar y dar de baja un impago.
+  // `cash:manage` guarda la página entera (ver e imprimir el reporte). Conciliar, descartar, acreditar y
+  // dar de baja un impago: sólo la dueña (orden del 09/11/2026); las acciones lo vuelven a exigir.
   const user = await requireCapability("cash:manage");
-  const puedeDarDeBaja = permisoEfectivo(user, "cash:manage");
+  const puedeConciliar = motivoParaNoConciliar(user) === null;
+  const puedeDarDeBaja = puedeConciliar;
   // Marcar un cheque rechazado: sólo el dueño (orden del 08/11/2026). La acción lo vuelve a exigir.
   const puedeRechazarCheque = motivoParaNoRechazarCheque(user) === null;
   if (!vouchersPrendidos(await interruptoresDelNegocio())) notFound();
@@ -129,7 +130,7 @@ export default async function LiquidacionPage({ params }: { params: Promise<{ id
             <div className="sm:col-span-2 print:hidden">
               <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Conciliación con Mercado Pago</dt>
               <dd className="mt-1">
-                <AcreditacionDelPago pagoId={l.pago.id} liquidacionId={l.id} estado={l.pago.acreditacion} puedeRechazarCheque={puedeRechazarCheque} />
+                <AcreditacionDelPago pagoId={l.pago.id} liquidacionId={l.id} estado={l.pago.acreditacion} puedeRechazarCheque={puedeRechazarCheque} puedeConciliar={puedeConciliar} />
               </dd>
             </div>
           )}
@@ -147,6 +148,10 @@ export default async function LiquidacionPage({ params }: { params: Promise<{ id
             </dd>
           </div>
         </dl>
+      ) : !puedeConciliar ? (
+        <p className="mt-8 text-sm text-muted print:hidden" data-testid="conciliar-solo-duenia">
+          Esperando el pago de la administración. La conciliación la hace la dueña.
+        </p>
       ) : (
         <section aria-labelledby="conciliar-titulo" className="mt-8 space-y-4 rounded-md border border-line px-4 py-4 print:hidden">
           <h2 id="conciliar-titulo" className="text-base font-semibold text-strong">
