@@ -18,7 +18,8 @@
 7. **Lo que no puede fallar no depende del modelo:** el origen de cada renglón, a quién pertenece cada importe, los
    compromisos y todo texto que sale hacia un tercero los arma o los controla el código (§4.2, §8.1, §13).
 8. **El equipo sirve sin modelo.** El parte, las consultas de Cobranzas, el registro, la pausa y los permisos los
-   calcula el código (§10.1). La conversación es un agregado que se prende por negocio y sólo con una clave de API
+   calcula el código (§10.1). No hay conversación en vivo: hay un **buzón de pedidos** con plazo de respuesta (§4.3).
+   Responder con IA los pedidos de texto libre es un agregado que se prende por negocio y sólo con una clave de API
    propia (§10). El diseño no depende de Cloudflare ni del acceso de un plan de Claude.
 
 ## 2. Capas y archivos nuevos
@@ -35,7 +36,9 @@ src/lib/agentes/                      ← motor común, sin nada de MIA ni de «
   respaldo-core.ts        puro   textos por plantilla cuando no hay IA (tanda 3; lo «sin modelo» de la tanda 1 es del motor, §10.1)
   proveedor.ts            puro   interfaz ProveedorIA + proveedor de guion (SÓLO tests y demo local; nunca en producción)
   proveedor-claude.server.ts     adaptador a la API de mensajes con herramientas, con clave propia del equipo (§10)
-  motor.server.ts                la vuelta del agente (máx. 6 pasos) y la consulta sin modelo; único que llama al proveedor
+  buzon-core.ts           puro   estados del pedido, plazo, presupuesto de un intento y métricas del servicio
+  buzon.server.ts                alta, toma, cierre, rescate y vencimiento de pedidos (§4.3)
+  motor.server.ts                procesa un pedido (de la lista, sin modelo; de texto libre, hasta 6 pasos); único que llama al proveedor
   lectura.server.ts              `ctx.db`: acceso de SÓLO LECTURA al negocio, sobre el cliente con RLS (§6.1)
   contadores.server.ts           cupos de los topes con `updateMany` condicional (§6)
   memoria.server.ts              historial, compromisos, cuaderno, búsqueda (lecturas y escrituras)
@@ -48,8 +51,8 @@ src/lib/agentes/                      ← motor común, sin nada de MIA ni de «
 src/lib/proyectos/agentes/            ← herramientas de MIA (rubro productora)
   actor-agente.server.ts         arma el actor del agente y la vista de la persona (ver §5)
   herramientas-cobranzas.server.ts · -pagos · -bancos · -coordinacion · -comprobantes
-  acciones-equipo.ts      "use server": conversar, decidir propuesta, confirmar compromiso, agenda, cuaderno, pausar
-src/app/admin/(dashboard)/proyectos/mi-equipo/   page.tsx + _hoy · _conversar · _aprobar · _agenda · _cuaderno · _registro · _ajustes
+  acciones-equipo.ts      "use server": dejar pedido, mi buzón, decidir propuesta, confirmar compromiso, agenda, cuaderno, pausar
+src/app/admin/(dashboard)/proyectos/mi-equipo/   page.tsx + _hoy · _buzon · _aprobar · _agenda · _cuaderno · _registro · _ajustes
 ```
 
 Se tocan (poco) archivos existentes: `gestion-core.ts:616-631` (módulo nuevo `agentes`), `:645-651` (permiso de
@@ -70,7 +73,7 @@ cambian. Para que eso sea cierto, el motor no puede asumir «un equipo por negoc
 - Cada archivo de `puestos/` declara un **equipo**: su identificador, el rol base de sus agentes, los módulos que hay
   que tener para verlo y sus puestos. Los identificadores de puesto llevan el equipo adelante
   (`administracion.cobranzas`, `direccion.…`), así no chocan en las tablas, que guardan `puesto` como texto.
-- **Qué equipo ve cada persona lo decide el código:** toda lectura de conversaciones, propuestas, agenda, cuaderno,
+- **Qué equipo ve cada persona lo decide el código:** toda lectura de pedidos, propuestas, agenda, cuaderno,
   partes y registro filtra por los puestos de los equipos visibles para esa persona. Administración no ve el equipo de
   Dirección ni su registro; Dirección ve los dos.
 - El panel recibe la lista de equipos visibles por parámetro; el parte es uno por equipo y por día (§3).
@@ -82,30 +85,31 @@ Nombre propuesto: `prisma/migrations/20261115120000_agentes_base/` (**verificar 
 ramas abiertas antes de escribirla; la última en este árbol es `20261110170000_tenant_cuit_verificado`). Sólo
 `CREATE TABLE`, índices, claves foráneas, políticas y un `REVOKE` sobre una tabla nueva: no toca tablas existentes, no
 agrega columnas a ninguna, no usa enums (texto validado en código, como `SupportTicket`). Plata en centavos enteros o
-micro-dólares enteros, nunca `Float`. Son **11 tablas** (eran 8; se sumaron el parte y los contadores y, en la segunda
-corrección, las reservas de gasto). Van todas en esta única migración, aunque algunas se usen recién en tandas
+micro-dólares enteros, nunca `Float`. Son **11 tablas**. Eran 10: salen las dos de la charla (`AgenteConversacion` y
+`AgenteMensaje`) y entran tres: el buzón (`AgentePedido`), las reservas de gasto (`AgenteReserva`) y los ajustes por
+negocio (`AgenteAjuste`). Van todas en esta única migración, aunque algunas se usen recién en tandas
 siguientes: así hay un solo Gate 2.
 
 | Tabla | Campos principales | Notas |
 |---|---|---|
 | `AgentePuesto` | `tenantId`, `puesto` (texto del catálogo), `estado` ACTIVO·PAUSADO, `pausadoPor`, `pausadoEl`, `niveles` Json, `updatedAt` · único (`tenantId`,`puesto`) | Sin fila = activo con niveles iniciales. `niveles` nunca supera el techo del código |
-| `AgenteConversacion` | `id`, `tenantId`, `puesto`, `userId`, `titulo`, `origen` PANEL·TAREA, `createdAt`, `cerradaEl` · único (`tenantId`,`id`) | Memoria 1 |
-| `AgenteMensaje` | `id`, `tenantId`, `conversacionId`, `rol` user·assistant·herramienta, `texto`, `filas` Json (renglones con su origen, armados por código), `clave` (puede faltar), `createdAt` · índice (`tenantId`,`conversacionId`,`createdAt`) · **único** (`tenantId`,`conversacionId`,`clave`) · FK (`tenantId`,`conversacionId`) | El historial deja de vivir en el navegador (`diseno-core.ts:362`). `clave` es la del envío: `u:<uuid>` en el mensaje de la persona y `r:<uuid>` en su respuesta (§4.3); un doble envío no abre dos vueltas ni guarda dos respuestas |
+| `AgentePedido` | `id`, `tenantId`, `puesto`, `userId`, `tipo` LISTA·LIBRE, `frecuente` (id del catálogo, si es de la lista), `argumentos` Json, `texto` (≤ 1000), `clave`, `estado` RECIBIDO·EN_CURSO·RESPONDIDO·NECESITA_PERSONA·SIN_RESPONDER·EN_ESPERA_IA, `pedidoEl`, `venceEl` (falta mientras espera la IA), `tomadoHasta`, `intentos`, `respondidoEl`, `respuesta`, `filas` Json (renglones con su origen, armados por código), `motivo`, `conModelo` · único (`tenantId`,`id`) · **único** (`tenantId`,`userId`,`clave`) · índices (`tenantId`,`estado`,`venceEl`) y (`tenantId`,`userId`,`pedidoEl`) | El buzón (§4.3) y la memoria 1: reemplaza a las dos tablas de charla del diseño anterior y al historial que hoy vive en el navegador (`diseno-core.ts:362`). `clave` es la del envío: un doble envío devuelve el mismo pedido |
 | `AgenteCompromiso` | `id`, `tenantId`, `puesto`, `texto`, `fecha` (día), `entidad`, `entidadId`, `clave`, `estado` ABIERTO·CUMPLIDO·ROTO·CANCELADO, `creadoPor` (siempre una persona o `sistema`), `revisadoEl`, `cerradoEl` · índice (`tenantId`,`estado`,`fecha`) · **único parcial** (`tenantId`,`puesto`,`clave`) `WHERE estado='ABIERTO'` | Memoria 2. `clave` = `entidad:entidadId:fecha`; sin entidad, hash del texto normalizado + fecha. Dos toques o dos corridas no abren dos iguales |
 | `AgenteNota` | `id`, `tenantId`, `puesto`, `texto` (≤ 500), `activa`, `autor`, `createdAt`, `updatedAt` | Memoria 3. Hasta 40 activas por puesto |
 | `AgentePropuesta` | `id`, `tenantId`, `puesto`, `tarea`, `herramienta`, `entidad`, `entidadId`, `argumentos` Json, `resumen` Json (datos del sistema para la tarjeta), `texto`, `huella`, `estado` PENDIENTE·EJECUTADA·RECHAZADA·VENCIDA·FALLIDA, `venceEl`, `decididaPor`, `decididaEl`, `resultado` Json · único (`tenantId`,`id`) · **único parcial** (`tenantId`,`herramienta`,`entidad`,`entidadId`) `WHERE estado='PENDIENTE'` | Una sola abierta por herramienta y entidad, sin importar el día; rechazada o vencida, se puede rehacer en el momento |
-| `AgenteParte` | `id`, `tenantId`, `equipo`, `dia`, `origen` AUTOMATICO·PEDIDO, `numeros` Json (los calcula el código), `intro` (texto de la IA, puede faltar), `clave` (puede faltar), `creadoPor`, `createdAt` · índice (`tenantId`,`equipo`,`dia`) · **único parcial** (`tenantId`,`equipo`,`dia`) `WHERE origen='AUTOMATICO'` · **único** (`tenantId`,`equipo`,`clave`) | Un parte automático por día, por equipo y por negocio, garantizado por la base. Los «a pedido» van por contador (3 por día) y llevan la clave del envío: un doble toque devuelve el mismo parte y gasta un solo cupo (§4.3) |
+| `AgenteParte` | `id`, `tenantId`, `equipo`, `dia`, `numeros` Json (los calcula el código), `intro` (texto de la IA, puede faltar), `createdAt` · **único** (`tenantId`,`equipo`,`dia`) | El parte **automático** de la mañana (tanda 3): uno por día, por equipo y por negocio, garantizado por la base. El parte «a pedido» es un pedido de la lista (§4.3), con cupo de 3 por día |
 | `AgenteContador` | `tenantId`, `puesto`, `tope`, `sujeto` (`*` si el cupo es del puesto; el `userId` si es por persona), `periodo` (día `AAAA-MM-DD` en hora de Argentina, o `abiertos`), `n` · PK (`tenantId`,`puesto`,`tope`,`sujeto`,`periodo`) | Cupos de los topes (§6). Con `sujeto`, «60 mensajes por persona por día» es de cada persona y no del puesto |
-| `AgenteAccion` | `id`, `tenantId`, `puesto`, `tipo` LECTURA·PROPUESTA·DECISION·EJECUCION·DERIVACION·TOPE·RECHAZO·ERROR·PAUSA, `herramienta`, `detalle` Json (sin datos sensibles), `nivel`, `actor` (`agente:<puesto>` o usuario), `conversacionId`, `propuestaId`, `proveedor`, `modelo`, `tokensEntrada`, `tokensSalida`, `microUsd`, `ms`, `createdAt` · índice (`tenantId`,`createdAt`) · FK (`tenantId`,`conversacionId`) y (`tenantId`,`propuestaId`) | Registro. Sólo `INSERT`, **también en la base** (abajo) |
+| `AgenteAccion` | `id`, `tenantId`, `puesto`, `tipo` LECTURA·RESPUESTA·VENCIDO·PROPUESTA·DECISION·EJECUCION·DERIVACION·TOPE·RECHAZO·ERROR·PAUSA, `herramienta`, `detalle` Json (sin datos sensibles), `nivel`, `actor` (`agente:<puesto>` o usuario), `pedidoId`, `propuestaId`, `proveedor`, `modelo`, `tokensEntrada`, `tokensSalida`, `microUsd`, `ms`, `createdAt` · índice (`tenantId`,`createdAt`) · FK (`tenantId`,`pedidoId`) y (`tenantId`,`propuestaId`) | Registro. Sólo `INSERT`, **también en la base** (abajo) |
 | `AgenteGasto` | `tenantId`, `periodo` (AAAA-MM), `gastado`, `comprometido` (gastado más reservas abiertas), `llamadas` · PK (`tenantId`,`periodo`) | Contador del tope de gasto, en micro-dólares enteros (§11) |
 | `AgenteReserva` | `id`, `tenantId`, `periodo`, `estimado`, `venceEl`, `estado` ABIERTA·CERRADA·VENCIDA, `real`, `createdAt` · índice (`tenantId`,`estado`,`venceEl`) | **Una fila por llamada al modelo**, con su propio vencimiento: cada reserva vence sola y se cierra sola (§11) |
+| `AgenteAjuste` | `tenantId` (PK), `objetivoSeg` (180 si falta), `topeMicroUsd` (puede faltar: rige el del código), `updatedAt`, `updatedPor` | Ajustes por negocio: el objetivo de respuesta del buzón y el tope de gasto. Sin fila, valen los del código. En la tanda 1 sólo se lee; cambiarlos desde la consola es de la tanda 5 |
 
 **Aislamiento escrito en la base, no sólo en RLS** (patrón completo de
 `prisma/migrations/20261106120000_support_ticket/migration.sql`, no sólo sus políticas):
 - Cada tabla lleva `tenantId`, su clave foránea a `Tenant` y la política `tenant_isolation` (`:54-58`).
 - Las tablas que son destino de otra llevan índice único (`tenantId`,`id`) (`:29-31`) y las hijas apuntan con **clave
-  foránea compuesta** (`tenantId`,`…Id`) (`:51`): un mensaje no puede colgar de una conversación de otro negocio aunque
-  falle el código. Las compuestas van con `ON DELETE RESTRICT` (conversaciones y propuestas no se borran).
+  foránea compuesta** (`tenantId`,`…Id`) (`:51`): una fila del registro no puede colgar de un pedido de otro negocio aunque
+  falle el código. Las compuestas van con `ON DELETE RESTRICT` (pedidos y propuestas no se borran).
 - Los índices únicos parciales se escriben en SQL a mano (precedente:
   `prisma/migrations/20261104122000_contabilidad_ola1/migration.sql:191`); el constructor mira cómo quedó declarado ese
   precedente en `schema.prisma` y hace lo mismo.
@@ -116,7 +120,7 @@ siguientes: así hay un solo Gate 2.
   nuevo, el mismo PR agrega esa línea al final de ese archivo. Lo comprueba un test (§14).
 - **Chocar con un único no se resuelve atrapando el error.** Dentro de una transacción de Postgres, una sentencia que
   falla deja la transacción abortada (lo recuerda `src/lib/contabilidad/modulo.server.ts:9-10`). Toda alta que puede
-  chocar con un único (mensaje, parte, compromiso, propuesta, fila del mes, contador) se hace con
+  chocar con un único (pedido, parte, compromiso, propuesta, fila del mes, contador) se hace con
   `createMany({ skipDuplicates: true })` y se mira `count`: 0 quiere decir «ya existía». Que eso cubra también los
   únicos parciales escritos a mano lo confirma el test de carrera (`05`, S20).
 
@@ -195,7 +199,7 @@ código: «Lee por fuera de la transacción: llamarla antes de abrirla» (`gesti
   (`tenant-context.ts:45`); si está dentro de una transacción, corta con error de programación. Una herramienta mal
   escrita falla en el test, no en producción en silencio.
 - **Todo camino comprueba que no vino vacío por error:** el test con el rol sin bypass (§14) exige que el negocio A vea
-  **lo propio (más de cero)** y nada de B, en la conversación, en el barrido, en `huella` y en `ejecutar`. La demo en
+  **lo propio (más de cero)** y nada de B, en el buzón, en el barrido, en `huella` y en `ejecutar`. La demo en
   memoria no sirve para esto: ahí toda conexión es superusuario (`avisos-programados-postgres.test.ts:4-5`).
 
 ### 4.2 Quién escribe qué en una respuesta
@@ -208,32 +212,85 @@ código: «Lee por fuera de la transacción: llamarla antes de abrirla» (`gesti
 - Los textos de confirmación («Anotado», «Dejé listo un recordatorio», «Listo para enviar») los emite el código después
   de que la escritura ocurrió; el modelo no puede afirmar que hizo algo.
 
-### 4.3 La vuelta de conversar, paso a paso (doble envío, pausa y gasto)
+### 4.3 El buzón: de un pedido a su respuesta (doble envío, plazo, pausa y gasto)
 
-`conversar({ conversacionId, puesto, texto, clave })`. La `clave` la genera el navegador **una vez por envío** (un
-identificador único que viaja con el formulario); un doble toque o un reintento de la red mandan la misma.
+**Decisión del dueño (14/11):** «No vamos a hacer la conversación en vivo, pero vamos a hacer un buzón de mensajes para
+la gente. Con pedidos y con respuestas menores a 3 minutos.» No hay chat ni respuesta palabra por palabra: la persona
+deja un pedido y lo ve en su buzón con su estado, su hora de pedido, su hora de respuesta y la respuesta entera.
+
+**El pedido** es una fila de `AgentePedido` (§3). Dos tipos: **de la lista** (un pedido frecuente del puesto, que el
+código resuelve sin modelo: para Cobranzas, «Cobranzas pendientes», «Cuotas vencidas», «Vencimientos de los próximos 7
+días» y «Cuotas de un cliente»; para Coordinación, «Parte del día») y **de texto libre** (lo responde el motor con el
+modelo).
+
+| Estado | Qué ve la persona | Cómo se llega |
+|---|---|---|
+| `RECIBIDO` | Recibido | Alta del pedido |
+| `EN_CURSO` | En curso | Un proceso lo tomó |
+| `RESPONDIDO` | Respondido, con su tiempo | Cierre con respuesta dentro del plazo |
+| `NECESITA_PERSONA` | Necesita una persona, con el motivo y el enlace | Tarea de nivel 3, dato que falta, control de cifras que no pasa, o pausa o apagado en el medio |
+| `SIN_RESPONDER` | Sin responder a tiempo | Pasó `venceEl` sin respuesta |
+| `EN_ESPERA_IA` | «En espera: el equipo todavía no tiene la IA conectada» | Texto libre sin ruta 1 (§10). No corre el reloj y no se pierde |
+
+**Alta: `dejarPedido({ puesto, tipo, frecuente?, argumentos?, texto?, clave })`.** La `clave` la genera el navegador
+una vez por envío. Una transacción corta: vigencia (§12.1; con el puesto en pausa o el equipo apagado **no entra**
+ningún pedido y se dice quién lo pausó), alta con `skipDuplicates` (`count = 0` es un reenvío: se devuelve el pedido
+que ya estaba y no pasa nada más) y cupo de **60 pedidos por persona por día** (§6; sin cupo, se deshace). Se guarda
+`venceEl = pedidoEl + objetivo`. El objetivo es de 180 s y se puede cambiar por negocio (`AgenteAjuste`, §3).
+
+**Proceso: `procesarPedido(id)`**, siempre en tres fases (§4.1):
 
 | Paso | Dónde | Qué hace |
 |---|---|---|
-| 0 · Puerta | Acción de servidor | Actor, módulo `agentes`, interruptor y tablas (§13) |
-| 1 · Apertura | Una transacción corta | Vigencia (§12.1). Alta del mensaje de la persona con `clave = u:<clave>` (`skipDuplicates`). Si `count = 0` **es un reenvío: no se llama al modelo**; se devuelve la respuesta `r:<clave>` si ya está, o «Sigo con ese mensaje» si todavía no. Si es nuevo: cupo de mensajes de esa persona (§6) y tope de 24 por charla; sin cupo, la transacción se deshace y no queda nada |
-| 2 · Cada paso (hasta 6) | Transacción corta, después afuera | **Antes de gastar:** vigencia y reserva de gasto (§11), juntas en una transacción. Sin vigencia, la vuelta termina ahí. Sin saldo, ruta 3 (§10). Después: llamada al modelo fuera de transacción, con corte `min(60 s, lo que le queda a la vuelta)`; cierre de la reserva; lecturas de herramientas (fase 1) |
-| 3 · Cierre | Una transacción corta | Vigencia. Alta de la respuesta con `clave = r:<clave>` (`skipDuplicates`) y filas del registro |
+| 1 · Tomar | Una transacción corta | Vigencia. `updateMany` condicional: sólo si está `RECIBIDO`, o `EN_CURSO` con `tomadoHasta` ya pasado, y le quedan al menos 30 s. Pone `EN_CURSO`, `tomadoHasta` e `intentos + 1`. `count = 0`: lo tiene otro proceso o ya no hay tiempo; se sale |
+| 2a · De la lista | Fuera de transacción | `leer` de la herramienta del pedido, recorte en tres capas (§5) y renglones con su origen (§4.2). Sin proveedor y sin gasto |
+| 2b · Texto libre, hasta 6 pasos | Transacción corta, después afuera | **Antes de gastar:** vigencia y reserva de gasto (§11), juntas en una transacción. Sin vigencia, se corta. Sin saldo, `NECESITA_PERSONA`. Después: llamada al modelo fuera de transacción, con corte `min(60 s, lo que le queda al intento)`; cierre de la reserva; lecturas de herramientas |
+| 3 · Cerrar | Una transacción corta | Vigencia. `updateMany` condicional (`EN_CURSO` y el mismo número de intento) a `RESPONDIDO` o `NECESITA_PERSONA`, con `respondidoEl`, respuesta y renglones; fila de registro con el tiempo y si entró en el objetivo. Si ya pasó `venceEl`, se cierra como `SIN_RESPONDER` |
 
-- **Tiempo de la vuelta:** el total es el `maxDuration` de la página menos 15 s, con reloj inyectado. Seis pasos de
-  60 s no entran en 120 s: cada paso recibe lo que queda y, si no alcanza, la vuelta termina con «No llegué a terminar.
-  Probá de nuevo o lo paso a una persona» (texto provisional).
-- **Una vuelta que se cortó no se retoma sola.** Si existe el mensaje `u:` y no su respuesta `r:`, el panel muestra «No
-  llegué a responder ese mensaje» con el botón «Reintentar», que manda una clave nueva. Así dos reintentos a la vez no
-  pagan dos llamadas por el mismo mensaje.
-- **Pausa o apagado en el medio de una vuelta.** Con la vigencia caída, lo único que se escribe después es (a) el
-  cierre de la reserva ya tomada, que es la cuenta de plata ya gastada, y (b) una fila de registro tipo PAUSA. La
-  respuesta a medio armar no se guarda ni se muestra. Peor caso: una llamada que ya había salido termina y se cobra; no
-  sale ninguna más.
-- `armarParte({ equipo, clave })`: los números se leen antes (fase 1); después una sola transacción: vigencia, alta del
-  parte con su `clave` (`skipDuplicates`; `count = 0` devuelve el que ya estaba) y cupo de 3 por día (sin cupo, se
-  deshace).
-- La consulta sin modelo (§10.1) usa los pasos 0, 1 y 3, sin el paso 2.
+**Cómo se sostiene el objetivo de 3 minutos con lo que hay.** El proyecto tiene dos tareas programadas y las dos corren
+una vez por día (`vercel.json:8-17`): no hay nada en el servidor que despierte cada minuto, y este diseño no agrega
+una. Entonces:
+
+1. **Se procesa apenas entra, en el mismo pedido web.** `dejarPedido` guarda la fila, responde «recibido» y deja el
+   trabajo agendado con `after()` de `next/server`. Leído en las guías de Next 16.3.4
+   (`node_modules/next/dist/docs/01-app/`): `after` corre cuando la respuesta ya se envió y dura hasta el `maxDuration`
+   de la ruta (`03-api-reference/04-functions/after.md`); para las acciones de servidor ese valor se declara en la
+   página (`03-api-reference/03-file-conventions/02-route-segment-config/maxDuration.md`). No se espera adentro de la
+   acción porque Next despacha las acciones de servidor de a una por cliente (`02-guides/server-actions.md`,
+   «Sequential dispatch»): una acción larga trabaría el buzón. El repo ya usa `after` así
+   (`src/lib/factoque-tramites-actions.ts:69`). Dentro de `after`, el trabajo corre en `runInTenantContext`
+   (`tenant-context.ts:36`).
+2. **Cada intento tiene presupuesto:** termina 10 s antes de `venceEl` y nunca pasa de `maxDuration − 15 s`, con reloj
+   inyectado. Con `maxDuration` 120 (provisional, `05` S17) y objetivo 180: un intento de hasta 105 s y lugar para un
+   rescate. Los pedidos de la lista no llaman a nadie: se resuelven en esa misma vuelta.
+3. **Rescate por sondeo.** Mientras alguien tenga el buzón abierto con pedidos sin terminar, el panel consulta cada 5 s
+   (provisional). Esa consulta, además de leer, vuelve a lanzar con `after()` los pedidos del negocio que quedaron
+   colgados (`RECIBIDO` hace más de 10 s, o `EN_CURSO` con `tomadoHasta` pasado). El paso 1 impide que dos procesos
+   tomen el mismo.
+4. **Si se vence el plazo:** el pedido pasa a `SIN_RESPONDER` y no se reintenta solo. Lo marca quien lo lea (el estado
+   que se muestra se calcula con `venceEl`, así que nunca figura «en curso» pasado su plazo) y, para los que nadie
+   miró, la tarea diaria (tanda 3). La persona ve «Sin responder a tiempo» con «Reintentar» (un pedido nuevo) y
+   «Pasárselo a una persona». Cuenta como fuera del objetivo.
+
+Qué queda garantizado y qué no: los pedidos de la lista se responden en la misma vuelta; ningún pedido queda «en
+curso» pasado su plazo; el tiempo de cada pedido y el porcentaje dentro del objetivo salen de las horas guardadas, no
+de una estimación. **No** se garantiza que todos los de texto libre lleguen a tiempo: depende del proveedor y de que la
+función no se corte. Si se corta y nadie tiene el buzón abierto, no hay rescate hasta que alguien lo abra. Un
+despertador por minuto sería otra entrada en `vercel.json`: es una decisión de plan y de gasto y no se propone ahora.
+
+**Métricas reales (las pidió el dueño).** De cada pedido quedan `pedidoEl`, `respondidoEl`, `venceEl`, el estado final
+y si usó modelo. El registro guarda una fila por pedido cerrado con el tiempo en milisegundos y si entró en el
+objetivo. El parte y la pestaña Registro muestran, por día y por mes: pedidos recibidos, respondidos, porcentaje dentro
+del objetivo, tiempo mediano y máximo, sin responder a tiempo, derivados a una persona y en espera de IA.
+
+**Pausa o apagado en el medio.** Con la vigencia caída, lo único que se escribe después es (a) el cierre de la reserva
+ya tomada, que es la cuenta de plata ya gastada, (b) el pedido como `NECESITA_PERSONA` con el motivo y (c) su fila de
+registro. La respuesta a medio armar no se guarda. Peor caso: una llamada que ya había salido termina y se cobra; no
+sale ninguna más.
+
+**En espera de IA.** Un pedido de texto libre que entra sin ruta 1 se guarda como `EN_ESPERA_IA`, sin `venceEl`. Cuando
+la IA se conecta para ese negocio, la persona lo ve con el botón «Pedir ahora»: recién ahí pasa a `RECIBIDO` y arranca
+su reloj. No se procesan solos: nadie gasta sin que alguien lo pida.
 
 ## 5. Identidad y permisos del agente
 
@@ -244,7 +301,7 @@ identificador único que viaja con el formulario); un doble toque o un reintento
   permiso, el agente también lo pierde. Ojo con el equipo de Dirección: ese rol tiene todo permitido en el código
   (`gestion-core.ts:726`), así que ahí el único límite es la lista de módulos del puesto; por eso la lista es
   obligatoria y un puesto sin módulos declarados no lee nada.
-- En conversación, lo que se ve es la **intersección** entre el agente y la persona que habla, en **tres capas** (el
+- En un pedido, lo que se ve es la **intersección** entre el agente y la persona que lo dejó, en **tres capas** (el
   diseño anterior sólo miraba la primera):
   1. **Módulo:** `puede` (`gestion.server.ts:44-46`).
   2. **Proyectos:** `filtroDeProyectos(humano)` (`:69-72`). Toda `Fila` con `proyectoId` se descarta si ese proyecto no
@@ -276,7 +333,7 @@ identificador único que viaja con el formulario); un doble toque o un reintento
    `tx.agenteContador.updateMany` con `where: { …, n: { lt: max } }` y `data: { n: { increment: 1 } }` (es un único
    `UPDATE … SET n = n + 1 WHERE … AND n < max`, sin SQL crudo). `count = 0` = tope alcanzado y la transacción se
    deshace entera con un error controlado. Va en la misma transacción que la escritura que consume el cupo. `sujeto` es
-   `*` para los cupos del puesto y el `userId` para los cupos por persona (60 mensajes por día). Los topes «abiertos a
+   `*` para los cupos del puesto y el `userId` para los cupos por persona (60 pedidos por día). Los topes «abiertos a
    la vez» usan `periodo = 'abiertos'` y se devuelven al cerrar: el cierre es condicional (`updateMany … where
    estado='ABIERTO'`, una fila) y recién entonces `n: { decrement: 1 }`. «Una abierta por cuota» no es un contador: es
    el índice único parcial de §3.
@@ -391,17 +448,17 @@ con datos ya cargados: queda como decisión aparte (`05`, D13).
 ### 8.1 Compromisos y memoria: lo hace el código
 
 - **Una promesa de pago no la anota el modelo.** Cuando el modelo llama `agenda.anotar`, el código no crea nada: arma
-  una tarjeta en la charla con datos del sistema («¿Anoto que {cliente} paga el {fecha}?») y dos botones. Al tocar
+  una tarjeta en la respuesta del pedido con datos del sistema («¿Anoto que {cliente} paga el {fecha}?») y dos botones. Al tocar
   «Anotar», una acción de servidor valida fecha y entidad, toma el cupo y crea el compromiso. `creadoPor` es la persona.
-- **Si el modelo no llamó a la herramienta, igual no se pierde:** la pestaña Conversar tiene siempre el botón «Anotar
+- **Si el modelo no llamó a la herramienta, igual no se pierde:** la pestaña Buzón tiene siempre el botón «Anotar
   compromiso», y `agenda-core.pareceUnaPromesa(texto, ahora)` (regla pura: verbo de pago más una fecha o un día)
-  ofrece «¿Anoto esta promesa?» con el formulario precargado cuando la vuelta terminó sin tarjeta.
-- **Recordar tampoco depende de que el modelo se acuerde de buscar.** Antes de la primera llamada de cada vuelta, el
-  código busca en el mensaje de la persona los nombres de clientes y proveedores del negocio y, si encuentra alguno,
+  ofrece «¿Anoto esta promesa?» con el formulario precargado cuando el pedido se respondió sin tarjeta.
+- **Recordar tampoco depende de que el modelo se acuerde de buscar.** Antes de la primera llamada de cada pedido, el
+  código busca en el texto del pedido los nombres de clientes y proveedores del negocio y, si encuentra alguno,
   corre `memoria.buscar` por su cuenta y mete el resultado en `<datos>` con origen («Cuaderno», «Agenda» o «Historial ·
-  charla del {fecha}»). El modelo además puede llamar a `memoria.buscar` para buscar otra cosa (caso M1).
-- `memoria.buscar(texto, entidadId?)`: notas activas del puesto, compromisos de la entidad y mensajes de **las charlas
-  de esa misma persona** con ese puesto (búsqueda por texto, últimos 90 días, hasta 10 extractos). Lo que dijo otra
+  pedido del {fecha}»). El modelo además puede llamar a `memoria.buscar` para buscar otra cosa (caso M1).
+- `memoria.buscar(texto, entidadId?)`: notas activas del puesto, compromisos de la entidad y **los pedidos anteriores
+  de esa misma persona** a ese puesto, con sus respuestas (búsqueda por texto, últimos 90 días, hasta 10 extractos). Lo que dijo otra
   persona no se cruza por esta vía: lo compartido entre personas es el cuaderno y la agenda, que tienen autor.
   Sin índice de texto ni dependencias nuevas: alcanza para el volumen de un negocio; si deja de alcanzar, se anota.
 
@@ -425,7 +482,7 @@ interface ProveedorIA {
 
 | Ruta | Qué es | Cuándo |
 |---|---|---|
-| 1 | `proveedor-claude`: API de mensajes con herramientas, con **clave de API propia del equipo** | Sólo si se cumplen las tres: la variable de la clave está cargada en el despliegue, el negocio tiene prendido `equipo-agentes-ia` (§12) y queda saldo del mes (§11) |
+| 1 | `proveedor-claude`: API de mensajes con herramientas, con **clave de API propia del equipo** | Para los pedidos de texto libre, y sólo si se cumplen las tres: la variable de la clave está cargada en el despliegue, el negocio tiene prendido `equipo-agentes-ia` (§12) y queda saldo del mes (§11) |
 | 2 · opción B | Sólo la interfaz `ProveedorIA` | **No se construye ningún segundo adaptador por ahora** (decisión del dueño, 14/11: «No utilizaremos Cloudflare por ahora»; `05` D8) |
 | 3 | Sin modelo (§10.1): lo que calcula el código | En cualquier otro caso: sin clave, sin ese interruptor, proveedor caído o gasto agotado |
 | Pruebas | Proveedor de guion (respuestas fijas por caso) | Tests, CI y la demo local de quien construye. **No existe en producción:** el motor publicado elige entre la ruta 1 y la ruta 3 |
@@ -453,17 +510,15 @@ interface ProveedorIA {
 
 ### 10.1 Sin modelo: lo que el equipo hace igual (se entrega en la tanda 1)
 
-- **Parte a pedido.** Los números los calcula el código con la lectura de Administración (`recuadrosDeCuotas`,
-  `empresa.server.ts:46`) y se guardan en `AgenteParte` sin `intro`. En la tanda 1 trae cobros vencidos y cobros de
-  los próximos 7 días; los demás renglones del parte entran con su tanda (`02` §1.1).
-- **Consultas rápidas.** Cada puesto declara en su catálogo qué herramientas de lectura se ofrecen como botones. Para
-  Cobranzas: «Resumen», «Cuotas vencidas», «Cuotas por vencer» y «Cuotas de un cliente» (el cliente se elige de una
-  lista que arma el código). `motor.consultar(herramienta, argumentos)` corre sin proveedor: permisos (§6), `leer`,
-  recorte en tres capas (§5), renglones con su origen (§4.2) y registro (LECTURA, sin proveedor). Queda en el historial
-  como cualquier charla.
-- **Sin modelo no hay caja de texto libre:** se muestra el cartel de `02` §3 («El equipo está sin conexión a la IA…»).
-  Con la ruta 1 la caja se habilita y las consultas rápidas siguen estando.
-- Registro, pausa, permisos, topes e interruptor funcionan igual con modelo y sin modelo.
+- **Los pedidos de la lista se responden siempre**, con clave o sin clave, y dentro del objetivo: los resuelve el
+  código con las lecturas de Administración (§4, §4.3). Para Cobranzas: «Cobranzas pendientes», «Cuotas vencidas»,
+  «Vencimientos de los próximos 7 días» y «Cuotas de un cliente» (el cliente se elige de una lista que arma el código).
+  Para Coordinación: «Parte del día».
+- **El parte del día** es un pedido de la lista. En la tanda 1 trae cobros vencidos, cobros de los próximos 7 días y
+  las métricas del buzón (§4.3); los demás renglones entran con su tanda (`02` §1.1). El parte **automático** de la
+  mañana y su tabla `AgenteParte` son de la tanda 3.
+- **Los pedidos de texto libre, sin modelo, quedan «en espera»** (§4.3): no se pierden y no corre su reloj.
+- Buzón, registro, métricas, pausa, permisos, topes e interruptor funcionan igual con modelo y sin modelo.
 - Los textos por plantilla (recordatorios, parte automático) son otra cosa: `plantillas-core.ts` y `respaldo-core.ts`,
   tandas 2 y 3.
 
@@ -496,10 +551,10 @@ interface ProveedorIA {
   la respuesta. Cada cierre compara estimado contra real; si lo real supera lo estimado, se registra y se sube el
   coeficiente (se calibra en la tanda 5 con el conteo oficial).
 - Precio por modelo en una tabla del código, **leída de la página oficial de precios y citada con fecha** (no de memoria).
-- Además: 6 pasos por vuelta dentro del tiempo de la vuelta (§4.3), tope de tokens por respuesta, 60 mensajes **por
-  persona** por día (cupo en `AgenteContador` con `sujeto = userId`, §6), 24 mensajes por charla (igual que hoy,
-  `diseno-core.ts:359`). Aviso interno a Dirección al 80 % del tope.
-- Sin modelo no hay gasto: las consultas rápidas y el parte por código (§10.1) no reservan nada.
+- Además: 6 pasos por pedido dentro del presupuesto del intento (§4.3), tope de tokens por respuesta y 60 pedidos
+  **por persona** por día (cupo en `AgenteContador` con `sujeto = userId`, §6). Aviso interno a Dirección al 80 % del
+  tope.
+- Sin modelo no hay gasto: los pedidos de la lista (§10.1) no reservan nada.
 
 ## 12. Interruptores por negocio y pausa
 
@@ -508,8 +563,8 @@ consola del operador (`interruptores.ts:15-20`). Si la lectura falla, apagados.
 
 | Id | Qué prende | Texto para el operador (`alPrender`) |
 |---|---|---|
-| `equipo-agentes` | El panel «Mi equipo» y todo lo que calcula el código (§10.1). No manda datos a ningún proveedor | «Suma la app Mi equipo a Dirección y Administración; no le quita apps a nadie. Sin la migración aplicada, el negocio ve "Falta activar el equipo".» |
-| `equipo-agentes-ia` | La conversación con IA (ruta 1, §10). Sólo cuenta si el otro está prendido y la clave está cargada | «Los datos de este negocio viajan al proveedor de IA. Con datos reales exige el consentimiento escrito del cliente, con el proveedor nombrado, y los 30 casos contra el modelo real.» |
+| `equipo-agentes` | El panel «Mi equipo», el buzón y todo lo que calcula el código (§10.1). No manda datos a ningún proveedor | «Suma la app Mi equipo a Dirección y Administración; no le quita apps a nadie. Sin la migración aplicada, el negocio ve "Falta activar el equipo".» |
+| `equipo-agentes-ia` | Responder con IA los pedidos de texto libre (ruta 1, §10). Sólo cuenta si el otro está prendido y la clave está cargada | «Los datos de este negocio viajan al proveedor de IA. Con datos reales exige el consentimiento escrito del cliente, con el proveedor nombrado, y los 30 casos contra el modelo real.» |
 
 - **Los dos van con `cambiaLasApps: false`.** Con `true`, la consola arma la vista previa con las apps que se pierden
   y se ganan al pasar del menú de siempre a «Trabaja por apps», no con este interruptor
@@ -543,17 +598,18 @@ consola del operador (`interruptores.ts:15-20`). Si la lectura falla, apagados.
 
 ### 12.1 Vigencia: se vuelve a mirar antes de gastar y al escribir
 
-Una vuelta puede durar hasta el tiempo de la página (§4.3). Si alguien toca «Pausar todo» o GSG apaga el interruptor
+Un pedido de texto libre puede tardar hasta su presupuesto (§4.3). Si alguien toca «Pausar todo» o GSG apaga el interruptor
 en el medio, el equipo no puede seguir escribiendo ni gastando con lo que leyó al empezar.
 
 `vigencia(tx, { tenantId, puesto })`, en `estado.server.ts`: lee **con `tx` y sin caché** la última fila válida de
 `equipo-agentes` (la consulta de `modulo.server.ts:24-30`) y la fila del puesto en `AgentePuesto`. Devuelve `vigente` o
 el motivo (`apagado`, `pausado`). Reglas:
 
-1. **Toda transacción del equipo que escribe la llama primero.** Sin vigencia no escribe, salvo las dos excepciones de
-   §4.3: cerrar una reserva ya tomada y la fila de registro que cuenta el corte.
+1. **Toda transacción del equipo que escribe la llama primero.** Vale también al dejar un pedido: en pausa o apagado, no entra. Sin
+   vigencia no se escribe, salvo lo que dice §4.3: cerrar una reserva ya tomada, dejar el pedido como «necesita una
+   persona» y su fila de registro.
 2. **Antes de cada llamada al modelo**, dentro de la transacción de la reserva (§11): sin vigencia no hay reserva, y
-   sin reserva no hay llamada. Vale para cada uno de los 6 pasos de una charla y para cada redacción del barrido.
+   sin reserva no hay llamada. Vale para cada uno de los 6 pasos de un pedido y para cada redacción del barrido.
 3. La ruta 1 pide además `equipo-agentes-ia` prendido, leído en esa misma transacción.
 4. Donde se ejecuta algo que no se deshace (decidir una propuesta, tandas 2 y 4), la pausa se toma con candado de fila
    (§7), no con una lectura.
@@ -579,10 +635,10 @@ que ya salió termina y se cobra. Después de eso no sale ninguna más ni se gua
   aunque vengan separadas por espacios, puntos o guiones (CBU o CVU), las palabras «alias», «CBU» y «CVU» y textos con
   forma de alias, mails y teléfonos. Frase bloqueada → se descarta y sale la plantilla sola. Campo bloqueado → no se
   arma la propuesta y se deriva («el concepto de la cuota trae un dato que no puedo mandar»). El mismo filtro corre
-  sobre toda respuesta del modelo en la charla (los enlaces internos los pone el código, no el modelo). Antecedente:
+  sobre toda respuesta del modelo a un pedido (los enlaces internos los pone el código, no el modelo). Antecedente:
   `revisarRespuesta` (`consulta-core.ts:156-174`), que ya frena links y contactos.
 - **Control de cifras y de atribución:** `cifras-core` extrae importes, fechas y porcentajes de la prosa y exige (1)
-  que cada uno figure en las `filas` leídas en esa vuelta o en el mensaje de la persona, y (2) que **no quede atribuido
+  que cada uno figure en las `filas` leídas en esa vuelta o en el texto del pedido, y (2) que **no quede atribuido
   a otra entidad**: si en la misma oración aparece la etiqueta de una entidad leída (cliente, evento, proveedor), el
   importe tiene que ser de una fila de esa entidad. «Farma debe $ 500.000» se frena si los $ 500.000 son de otro
   cliente. Si no pasa, se reintenta una vez y, si persiste, se responde sólo con los renglones armados por el código y
@@ -611,18 +667,19 @@ Deterministas: reloj inyectado, proveedor de guion, `TZ` fija, sin red.
 | Recordatorio: los datos salen de la base aunque el modelo proponga otros | Puro | `plantillas-core.test.ts` |
 | Gasto: costo con entrada y salida, redondeo en enteros, estimado ≥ real en los casos de guion | Puro | `gasto-core.test.ts` |
 | Agenda: hoy, atrasados, no repetir, «parece una promesa» | Puro | `agenda-core.test.ts` |
-| Vuelta del agente con guion: 6 pasos dentro del tiempo de la vuelta, herramienta inválida, sin IA, **el proveedor nunca se llama dentro de una transacción**, `leer` dentro de una transacción lanza; reenvío con la misma clave → no llama al modelo; pausa o apagado entre dos pasos → no sale otra llamada y la respuesta no se guarda | Unidad | `motor.test.ts` |
-| Sin clave o sin `equipo-agentes-ia`: ruta 3 y ninguna llamada de red; las consultas rápidas y el parte salen igual | Unidad | `sin-modelo.test.ts` |
+| Un pedido con guion: 6 pasos dentro del presupuesto, herramienta inválida, **el proveedor nunca se llama dentro de una transacción**, `leer` dentro de una transacción lanza; pausa o apagado entre dos pasos → no sale otra llamada, la respuesta no se guarda y el pedido queda «necesita una persona» | Unidad | `motor.test.ts` |
+| Buzón, reglas puras con reloj inyectado: estados, plazo, presupuesto de un intento (termina 10 s antes del plazo), estado mostrado pasado el plazo, métricas (tiempo y % dentro del objetivo) | Puro | `buzon-core.test.ts` |
+| Sin clave o sin `equipo-agentes-ia`: ninguna llamada de red; los pedidos de la lista se responden igual; el de texto libre queda «en espera» y no se pierde | Unidad | `sin-modelo.test.ts` |
 | `ctx.db` no escribe ni sale del negocio; dentro de una transacción lanza | Unidad | `solo-lectura.test.ts` |
 | Lista blanca de imports y de escrituras; sin SQL crudo y sin `prisma-base` en el motor | Estático | `guardia-escrituras.test.ts` |
 | Los 30 casos (10 normales, 12 trampa, 4 de memoria, 4 de falla) | Guion | `casos-administracion.test.ts` |
-| Dos negocios, **rol sin bypass**: A ve lo propio (más de cero) y nada de B, en `ctx.db`, conversación, consulta rápida, barrido, huella y ejecución; identificador ajeno → «no existe»; clave compuesta impide colgar de otro negocio; `UPDATE` y `DELETE` sobre `AgenteAccion` rechazados | Postgres | `agentes-aislamiento-postgres.test.ts` |
+| Dos negocios, **rol sin bypass**: A ve lo propio (más de cero) y nada de B, en `ctx.db`, el buzón, el barrido, huella y ejecución; identificador ajeno → «no existe»; clave compuesta impide colgar de otro negocio; `UPDATE` y `DELETE` sobre `AgenteAccion` rechazados | Postgres | `agentes-aislamiento-postgres.test.ts` |
 | Rol que no ve todos los proyectos ni todas las columnas: no los recibe, y los totales se recalculan | Postgres | `agentes-permisos-postgres.test.ts` |
-| Dos equipos en un negocio: cada persona ve sólo los puestos, charlas, partes y registro de los suyos | Unidad | `equipos.test.ts` |
+| Dos equipos en un negocio: cada persona ve sólo los puestos, pedidos, partes y registro de los suyos | Unidad | `equipos.test.ts` |
 | Doble aprobación: una ejecución · dos «crear» a la vez: una propuesta · rehacer tras rechazo · FALLIDA no pisa una decisión ganadora · cuota cobrada en el medio → VENCIDA | Postgres, carrera | `propuestas-carrera-postgres.test.ts` |
-| Cupos: N a la vez no pasan el tope; el cupo por persona no lo gasta otra persona; doble envío de `conversar` o de `armarParte` con la misma clave → una vuelta, un parte y un cupo; mismo compromiso dos veces → uno; dos barridos a la vez → un parte y un aviso | Postgres, carrera | `topes-carrera-postgres.test.ts` |
+| Cupos: N a la vez no pasan el tope; el cupo por persona no lo gasta otra persona; doble envío de un pedido con la misma clave → un pedido y un cupo; dos procesos sobre el mismo pedido → lo toma uno; pedido colgado → el rescate lo toma una sola vez; pasado el plazo → «sin responder», sin más intentos; mismo compromiso dos veces → uno; dos barridos a la vez → un parte y un aviso | Postgres, carrera | `topes-carrera-postgres.test.ts` |
 | Gasto: primera llamada del mes sin fila; N a la vez no pasan el tope; función cortada → esa reserva vence y se cobra una sola vez; una reserva nueva no corre el vencimiento de otra; un cierre tardío no toca la reserva de otro | Postgres, carrera | `gasto-carrera-postgres.test.ts` |
-| Vigencia: pausa o apagado a mitad de vuelta → ninguna escritura posterior salvo el cierre de la reserva y el registro; decidir y pausar a la vez (tanda 2) → o decide antes o no decide | Postgres, carrera | `vigencia-carrera-postgres.test.ts` |
+| Vigencia: en pausa o apagado no entra ningún pedido; pausa o apagado a mitad de un pedido → ninguna escritura posterior salvo el cierre de la reserva, el pedido como «necesita una persona» y el registro; decidir y pausar a la vez (tanda 2) → o decide antes o no decide | Postgres, carrera | `vigencia-carrera-postgres.test.ts` |
 | Conciliación (tanda 4): dos movimientos a la misma cuota a la vez → uno gana; no regresión de la manual | Postgres, carrera | `conciliacion-carrera-postgres.test.ts` |
 | Sin tablas: panel, acciones y barrido no rompen | Unidad | `estado-sin-migracion.test.ts` |
 | Mismo número que Administración | Postgres | `cobranzas-mismo-numero-postgres.test.ts` |
@@ -652,7 +709,7 @@ Qué implica:
    políticas y `REVOKE`).
 3. **Publicación por PR, CI y tanda.** La orquestadora recomienda que los agentes vayan en una tanda de publicación
    aparte.
-4. **Las variables son del despliegue, no del negocio.** Por eso la clave es propia del equipo y la conversación con IA
+4. **Las variables son del despliegue, no del negocio.** Por eso la clave es propia del equipo y la respuesta con IA
    se prende negocio por negocio (§10, §12).
 5. Provisional a confirmar (`05`, S18): si `erp-ch` tiene cargada `MIGRATE_DATABASE_URL`. Si la tiene, el build de
    producción aplica la migración solo (`scripts/vercel-build.mjs:59-66`): publicar ese PR **es** aplicarla y ese push
@@ -668,7 +725,7 @@ Qué hace falta para la prueba (pasos y responsables en `04`, «Prueba sobre lo 
 | 4 | Usuarios de prueba en ese negocio: uno Dirección (el dueño), uno Administración y uno Diseño, con verificación en dos pasos, obligatoria para esos roles en una productora (`README.md` de MIA) | GSG, por el alta de siempre; contraseña provisoria por mail aparte, con cambio obligatorio |
 | 5 | Datos inventados cargados a mano en ese negocio. La siembra de la demo no sirve: se niega a correr fuera de una base local (`prisma/seed-mia-producciones.ts:29`) | Quien prueba, o un rol de GSG |
 | 6 | `equipo-agentes` prendido sólo en ese negocio, desde la consola | GSG (operador) |
-| 7 | **Ningún «cerebro» para la primera parte de la prueba:** se prueba lo que calcula el código (§10.1). Para conversar: la clave cargada y `equipo-agentes-ia` prendido en ese negocio (`05`, D4-bis) | Dueño |
+| 7 | **Ningún «cerebro» para la primera parte de la prueba:** se prueba lo que calcula el código (§10.1). Para responder texto libre: la clave cargada y `equipo-agentes-ia` prendido en ese negocio (`05`, D4-bis) | Dueño |
 
 **Reglas de datos.**
 - Frase del dueño (14/11): «no vamos a utilizar datos reales ni tampoco interactuar con el equipo real de Mía antes de
@@ -677,11 +734,11 @@ Qué hace falta para la prueba (pasos y responsables en `04`, «Prueba sobre lo 
   ese negocio pase a la API, con las condiciones de §12. (El equipo de Dirección, cuando exista, lo prueba Dirección.)
 - Si el negocio de MIA ya tiene datos reales cuando la tanda 1 esté publicada (empieza a usarse el 18/11), la prueba con
   datos inventados necesita otro negocio: es la decisión D15 de `05`.
-- Lo que la prueba deja en las tablas del equipo (charlas, partes) queda en el negocio de la prueba. El registro no se
+- Lo que la prueba deja en las tablas del equipo (pedidos y sus respuestas) queda en el negocio de la prueba. El registro no se
   borra (§3 y §9): el informe mensual cuenta desde la fecha de salida en vivo.
 - **La demostración en memoria queda como herramienta de quien construye**, para su QA clic por clic
   (`node scripts/proyectos/demo-local.mjs --start`, `demo-local.mjs:5-11`, puerto 3218), con el interruptor prendido en
-  su siembra (§12) y, si hace falta ver la charla, con el proveedor de guion. No es el ambiente de prueba del dueño.
+  su siembra (§12) y, para ver un pedido de texto libre respondido, con el proveedor de guion. No es el ambiente de prueba del dueño.
   Prueba el producto, **no el aislamiento**: ahí toda conexión es superusuario; el aislamiento lo prueban los tests de
   Postgres con el rol sin bypass (§14).
 
@@ -717,3 +774,7 @@ Qué hace falta para la prueba (pasos y responsables en `04`, «Prueba sobre lo 
     de procedimiento, no de código (§12).
 14. La vigencia se lee, no se bloquea (salvo al decidir una propuesta): queda una ventana de milisegundos y una llamada
     al modelo ya salida termina y se cobra (§12.1).
+15. El objetivo de 3 minutos se sostiene sin un despertador por minuto: el pedido se procesa con `after()` en el mismo
+    pedido web y lo rescata el sondeo del buzón (§4.3). Si la función se corta y nadie tiene el buzón abierto, ese
+    pedido termina «sin responder a tiempo». El comportamiento de `after` en el plan de Vercel de `erp-ch` (cuánto dura
+    de verdad) lo confirma la primera prueba en producción (`05`, S17).

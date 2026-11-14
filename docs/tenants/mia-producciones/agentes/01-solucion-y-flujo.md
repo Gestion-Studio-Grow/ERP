@@ -4,7 +4,8 @@
 > ninguna base. Decisiones de base: `docs/sectores/agencia-digital/analisis-mercado/2026-11-14-linea-agentes-ia-para-pymes.md`
 > (§3, 5, 6, 10, 13, 14 y 15). Siguen: `02` funcional, `03` técnica, `04` tandas, `05` decisiones y supuestos.
 > **Corregido el 14/11** tras la revisión adversarial y las decisiones del dueño de ese día: el detalle manda en `03`;
-> la lista de cambios está en `05`, sección F.
+> la lista de cambios está en `05`, sección F. **Segunda corrección, mismo día** (`05`, sección G): no hay conversación
+> en vivo sino un **buzón de pedidos** con respuesta en menos de 3 minutos (§5.1), y el equipo funciona sin modelo.
 
 ## 1. Qué es, en una frase
 
@@ -62,7 +63,7 @@ dueño, puesto por puesto, después de medir.
 | Coordinación | K3 Informe mensual | 2 | 2 | Queda en el panel. Sólo lee el registro |
 | Cobranzas | C1 Consultar cobros | 0 | 0 | — |
 | Cobranzas | C2 Preparar recordatorio de cobro | 1 | 1 (*) | Queda «listo para enviar»: Mariana lo copia o abre su WhatsApp o su mail. El sistema no envía |
-| Cobranzas | C3 Anotar una promesa de pago o un seguimiento | 1 | 1 | La persona confirma con un botón en la charla y el sistema crea el compromiso con fecha (interno, se puede cancelar). La IA no lo crea sola (corrección del 14/11) |
+| Cobranzas | C3 Anotar una promesa de pago o un seguimiento | 1 | 1 | La persona confirma con un botón en la respuesta del pedido y el sistema crea el compromiso con fecha (interno, se puede cancelar). La IA no lo crea sola (corrección del 14/11) |
 | Cobranzas | C4 Marcar una cuota como cobrada | 3 | 3 | Deriva: deja el enlace a la cuota |
 | Cuentas a pagar | P1 Consultar pagos | 0 | 0 | — |
 | Cuentas a pagar | P2 Proponer los pagos de la semana | 1 | 1 | Guarda el plan aprobado como compromisos por fecha. No paga |
@@ -82,24 +83,25 @@ esta versión: es exposición a terceros o dato de plata, y queda como decisión
 ```mermaid
 flowchart TB
   subgraph Panel["Backoffice de MIA · panel «Mi equipo»"]
-    P1[Conversar] --- P2[Para aprobar] --- P3[Registro] --- P4[Agenda] --- P5[Cuaderno] --- P6[Pausar]
+    P1[Buzón de pedidos] --- P2[Para aprobar] --- P3[Registro] --- P4[Agenda] --- P5[Cuaderno] --- P6[Pausar]
   end
   CRON["Tarea diaria ya existente<br/>cron de recordatorios, 9:00 ART"]
 
   subgraph Motor["Motor de agentes · src/lib/agentes (común a todos los negocios)"]
-    L["Vuelta del agente<br/>hasta 6 pasos"]
+    B[("Buzón: cada pedido con su estado y su plazo")]
+    L["Proceso de un pedido<br/>sin modelo o hasta 6 pasos"]
     G["Guardia: interruptor, pausa,<br/>permisos y topes"]
     H[Herramientas del puesto]
     R[(Registro de toda acción)]
-    M[("Tres memorias: historial, agenda y cuaderno")]
+    M[("Tres memorias: pedidos anteriores, agenda y cuaderno")]
     A[(Propuestas para aprobar)]
     C[(Gasto del mes)]
   end
 
   subgraph IA["Proveedor de IA (intercambiable)"]
     I1[Ruta 1 · Claude por API]
-    I2[Ruta 2 · opción B]
-    I3[Ruta 3 · plantillas sin IA]
+    I2[Opción B · sólo la interfaz, sin construir]
+    I3[Sin modelo · lo que calcula el código]
   end
 
   subgraph ERP["Sistema de MIA (fuente de los datos)"]
@@ -109,7 +111,7 @@ flowchart TB
     D4[Avisos internos]
   end
 
-  Panel --> L
+  Panel --> B --> L
   CRON --> L
   L --> G --> H
   H -- lee en el momento --> ERP
@@ -128,6 +130,37 @@ Tres reglas de este dibujo:
    las pantallas). La IA escribe el texto que acompaña; los renglones con datos, sus fuentes y lo que sale hacia un
    cliente de MIA (el recordatorio) los arma el código (corrección del 14/11: `03` §4.2 y §13).
 3. **Las memorias y el registro son tablas propias del negocio**, no del proveedor: cambiar de modelo no pierde nada.
+
+### 5.1 Cómo se le pide algo al equipo: el buzón (decisión del dueño, 14/11)
+
+«No vamos a hacer la conversación en vivo, pero vamos a hacer un buzón de mensajes para la gente. Con pedidos y con
+respuestas menores a 3 minutos.»
+
+La persona deja un pedido: lo elige de una lista corta de pedidos frecuentes del puesto o lo escribe. Lo ve en su
+buzón con su estado, la hora en que lo pidió, la hora en que se respondió y la respuesta entera. No hay respuesta
+palabra por palabra.
+
+```mermaid
+stateDiagram-v2
+  [*] --> RECIBIDO: deja un pedido (de la lista o de texto libre)
+  [*] --> EN_ESPERA: texto libre y el equipo todavía no tiene la IA conectada
+  RECIBIDO --> EN_CURSO: el motor lo toma (interruptor y pausa mirados)
+  EN_CURSO --> RESPONDIDO: respuesta completa, con su tiempo
+  EN_CURSO --> NECESITA_PERSONA: tarea de nivel 3, falta el dato o se pausó en el medio
+  RECIBIDO --> SIN_RESPONDER: pasó el plazo
+  EN_CURSO --> SIN_RESPONDER: pasó el plazo
+  EN_ESPERA --> RECIBIDO: la IA se conecta y la persona toca «Pedir ahora»
+```
+
+- **Objetivo de servicio: respuesta en menos de 3 minutos**, configurable por negocio. Se mide de verdad: el tiempo de
+  cada pedido y el porcentaje dentro del objetivo van al registro y al parte.
+- **Sin clave de API**, los pedidos de la lista se responden igual (los resuelve el código: cobranzas pendientes,
+  vencimientos, parte del día) y los de texto libre quedan «en espera», sin perderse. Con clave, los responde el motor
+  con el modelo.
+- **Un pedido enviado dos veces es uno solo**, y cada persona tiene un tope de pedidos por día.
+- Con el puesto en pausa o el equipo apagado no entra ningún pedido. Si se pausa mientras uno está en curso, se corta
+  y queda «necesita una persona».
+- Cómo se cumple el plazo y qué pasa cuando se vence: `03` §4.3.
 
 ## 6. Flujo de una tarea de punta a punta
 
@@ -160,8 +193,8 @@ sequenceDiagram
     M->>M: Queda «listo para enviar» y se anota en el registro
     Ma->>Ma: Copia o abre su WhatsApp o su mail y lo manda ella
   end
-  Ma->>M: «Dijo que paga el viernes»
-  M-->>Ma: «¿Anoto que paga el viernes?» (tarjeta con botón)
+  Ma->>M: Deja el pedido «Dijo que paga el viernes»
+  M-->>Ma: Respuesta con la tarjeta «¿Anoto que paga el viernes?» (con botón)
   Ma->>M: Anotar
   M->>M: Crea compromiso con fecha (lo crea el código; tope de compromisos abiertos)
   Note over T,M: El viernes la tarea diaria despierta al puesto
