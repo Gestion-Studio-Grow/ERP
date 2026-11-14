@@ -56,7 +56,7 @@ export async function pedirBorradorConsulta(d: { id: string }): Promise<Resultad
   if (c.intencion === "NO_CLIENTE") return { ok: false, error: "Esta consulta no parece de un cliente: no se arma una respuesta." };
   const previo = (c.brief ?? {}) as BriefConsulta;
   const negocio = (await datosDelNegocio(a.tenantId)).nombre;
-  const r = await analizarConsultaConIA({ negocio, nombre: c.nombre, mensajes: c.mensajes.map((m) => ({ origen: m.origen, texto: m.texto })), brief: previo });
+  const r = await analizarConsultaConIA({ tenantId: a.tenantId, negocio, nombre: c.nombre, mensajes: c.mensajes.map((m) => ({ origen: m.origen, texto: m.texto })), brief: previo });
   if (!r.ok) return r;
   const cliente = delCliente(c.mensajes);
   const brief = mezclarBrief(previo, validarBriefDeModelo(r.brief, cliente));

@@ -65,6 +65,21 @@ ALTER DEFAULT PRIVILEGES FOR ROLE neondb_owner IN SCHEMA public
 ALTER DEFAULT PRIVILEGES FOR ROLE neondb_owner IN SCHEMA public
   GRANT USAGE, SELECT                  ON SEQUENCES TO app_rls;
 
+-- Excepciones al «todo DML» de arriba (re-correr este script no tiene que reabrirlas). Cada una
+-- se aplica sólo si su tabla ya existe; la migración que la crea hace el mismo recorte.
+--   · Tope de IA (20261110130000_ia_tope_y_consumo): el negocio lee su tope pero no lo escribe,
+--     y no borra su consumo. El tope lo escribe la consola.
+DO $$
+BEGIN
+  IF to_regclass('public."IaTope"') IS NOT NULL THEN
+    REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON "IaTope" FROM app_rls;
+  END IF;
+  IF to_regclass('public."IaConsumo"') IS NOT NULL THEN
+    REVOKE DELETE, TRUNCATE ON "IaConsumo" FROM app_rls;
+  END IF;
+END
+$$;
+
 COMMIT;
 
 -- Verificación rápida (debe devolver rolbypassrls = false):
