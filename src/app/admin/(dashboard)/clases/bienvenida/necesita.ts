@@ -1,8 +1,8 @@
 // ¿El profe tiene que ver la Bienvenida? (E1 · M-083). PURO.
 //
-// Sí cuando todavía no configuró nada: precio individual en 0 Y ninguna franja semanal en la que
-// dé clases (las excepciones de un día y los bloqueos no cuentan). Con cualquiera de las dos
-// cargada, ya arrancó: va a Hoy.
+// Sí cuando todavía no configuró nada: precio individual en 0, ninguna franja semanal en la que
+// dé clases (las excepciones de un día y los bloqueos no cuentan) Y ningún club activo (T4
+// ProfeTurnos: el paso «Club»). Con cualquiera de las tres cargada, ya arrancó: va a Hoy.
 //
 // QUIÉN LA LLAMA: la página Hoy (`/admin/clases`, `page.tsx`, Tanda 3A / integración), al principio:
 //
@@ -27,9 +27,12 @@ export function necesitaBienvenida(c: {
   vista?: boolean;
   precioIndividual: number | null | undefined;
   franjas: readonly { diaSemana?: number | null; fecha?: string | Date | null; tipo?: string | null }[] | null | undefined;
+  /** Los clubes del profe (T4). Uno desactivado no cuenta. Sin el dato, como si no tuviera. */
+  clubes?: readonly { activo?: boolean | null }[] | null;
 }): boolean {
   if (c.vista) return false;
   const sinPrecio = !(Number(c.precioIndividual) > 0);
   const semanales = (c.franjas ?? []).filter((f) => !f.fecha && f.diaSemana !== null && f.diaSemana !== undefined && (f.tipo ?? "DA") === "DA");
-  return sinPrecio && semanales.length === 0;
+  const sinClub = !(c.clubes ?? []).some((x) => x.activo !== false);
+  return sinPrecio && semanales.length === 0 && sinClub;
 }

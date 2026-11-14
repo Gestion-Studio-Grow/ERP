@@ -10,25 +10,25 @@
 <style>
   /* Página que guarda el service worker de Factoque: tiene que andar sola, sin red, sin el CSS
      de la app. Los valores espejan los tokens de la piel Fable (globals.css [data-skin="fable"])
-     y los colores de Factoque (src/lib/factoque-icono.ts, provisionales). */
+     y la paleta de la marca F06-A (src/lib/factoque-icono.ts y ACCENT_PRESETS.cobre). */
   :root {
-    --surface: #fff8e7; /* design-lint-ignore: página offline autónoma, crema de Factoque */
+    --surface: #f4f2ec; /* design-lint-ignore: página offline autónoma, papel de la marca */
     --surface-raised: #ffffff; /* design-lint-ignore: espeja --surface-raised de Fable */
-    --text-strong: #2e2115; /* design-lint-ignore: trazo de Factoque */
-    --text-muted: #5f5040; /* design-lint-ignore: tenue de la vidriera (piel.ts) */
+    --text-strong: #1b1b1b; /* design-lint-ignore: grafito de la marca */
+    --text-muted: #5c5a55; /* design-lint-ignore: gris de la marca, AA sobre blanco y papel */
     --line: rgba(0, 0, 0, 0.08);
-    --accent: #1f6f5c; /* design-lint-ignore: verde de Factoque */
-    --on-accent: #ffffff; /* design-lint-ignore: espeja blanco sobre el verde, 6,0:1 */
+    --accent: #a94618; /* design-lint-ignore: espeja ACCENT_PRESETS.cobre.light */
+    --on-accent: #ffffff; /* design-lint-ignore: blanco sobre el cobre, 5,9:1 */
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --surface: #1a1510; /* design-lint-ignore: oscuro cálido, desde el trazo */
-      --surface-raised: #2e2115; /* design-lint-ignore: espeja --surface-raised oscuro */
-      --text-strong: #fff8e7; /* design-lint-ignore: espeja --text-strong oscuro */
-      --text-muted: #c8b48e; /* design-lint-ignore: espeja --text-muted oscuro */
+      --surface: #0e0f10; /* design-lint-ignore: fondo oscuro de la marca */
+      --surface-raised: #1b1b1b; /* design-lint-ignore: grafito de la marca */
+      --text-strong: #efede6; /* design-lint-ignore: tinta de la marca en oscuro */
+      --text-muted: #b3b0a7; /* design-lint-ignore: gris claro, AA sobre grafito */
       --line: rgba(255, 255, 255, 0.1);
-      --accent: #5cbfa3; /* design-lint-ignore: espeja ACCENT_PRESETS.monte.dark */
-      --on-accent: #06201a; /* design-lint-ignore: espeja ACCENT_PRESETS.monte.onDark */
+      --accent: #f0824c; /* design-lint-ignore: espeja ACCENT_PRESETS.cobre.dark */
+      --on-accent: #1f0b03; /* design-lint-ignore: espeja ACCENT_PRESETS.cobre.onDark */
     }
   }
   * { box-sizing: border-box; }

@@ -19,7 +19,7 @@ import { canalGsg, linkCanal } from "@/app/facturita/contacto";
 
 export type ResultadoTramite =
   | { ok: true; numero: string; mensaje: string; avisoHref: string; canal: "whatsapp" | "mail" }
-  | { ok: false; error: string; campo?: "email" | "cuit" | "motivo" };
+  | { ok: false; error: string; campo?: "email" | "cuit" | "usuario" | "motivo" };
 
 // Contra el spam en el AuditLog del negocio (certificación de los trámites, hallazgo 2): por IP y por
 // CUIT. En memoria de cada instancia, como el del login: alcanza para frenar la ráfaga; no es contable.
@@ -85,7 +85,7 @@ async function tramitar(formData: FormData, conSesion: boolean): Promise<Resulta
       after(async () => {
         const c = constanciaPorMail(tipo, numero, datos, efecto, cuando);
         try {
-          await enviarMailInterno({ tenantId: sesion?.tenantId ?? "factoque-publico", para: datos.email, asunto: c.asunto, cuerpo: c.cuerpo });
+          await enviarMailInterno({ tenantId: sesion?.tenantId ?? "factoque-publico", para: datos.email, asunto: c.asunto, cuerpo: c.cuerpo, marcaGsg: true });
         } catch (e) {
           logger.error("factoque", "no salió la constancia del trámite", e, { tipo, numero });
         }
