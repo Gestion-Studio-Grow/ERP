@@ -4,7 +4,7 @@
 // La clave privada nunca llega acá: sólo el .csr (público) para descargarlo.
 import { Bloque, Button, Field, Franja, Input, Marca, Renglon, fmtCuit } from "@/components/ui";
 import { CONDICIONES_DEL_EMISOR, type CondicionDelEmisor } from "@/lib/fiscal/condicion-iva-emisor";
-import { INSTRUCCIONES_DEL_PEDIDO, PALABRA_DEL_PASE, type EstadoDePaso } from "@/lib/fiscal/asistente-arca";
+import { INSTRUCCIONES_DEL_PEDIDO, MOTIVO_SIN_CONFIGURACION, PALABRA_DEL_PASE, type EstadoDePaso } from "@/lib/fiscal/asistente-arca";
 import type { VistaDelAsistente } from "@/lib/fiscal/asistente-arca.server";
 import { ANTES_DE_EMPEZAR, TEXTO_CERTIFICADO_PROPIO } from "@/lib/fiscal/contador-arca";
 import { ObtenerAsistencia } from "./ObtenerAsistencia";
@@ -127,13 +127,24 @@ export function AsistenteArca({ vista, plano, tenantId, acciones, soloLectura = 
           <p className="text-muted">Primero hacen falta los datos del paso 1.</p>
         ) : (
           <>
-            {estado.pedidoIlegible ? (
+            {estado.problemaDelPedido === "ilegible" ? (
               <div role="alert" className="space-y-2">
                 <Franja tono="atencion">
                   No pudimos leer el pedido de certificado de este negocio. No generes otro: si ya lo subiste a ARCA, el
                   nuevo dejaría sin efecto el anterior. Reintentá en un rato y, si sigue, avisale a nuestro equipo.
                 </Franja>
                 <Reintentar />
+              </div>
+            ) : estado.problemaDelPedido === "sin-configuracion" ? (
+              <div role="alert">
+                <Franja tono="atencion">{MOTIVO_SIN_CONFIGURACION}</Franja>
+              </div>
+            ) : estado.problemaDelPedido === "dañado" ? (
+              <div role="alert">
+                <Franja tono="atencion">
+                  El pedido de certificado anterior está dañado y no se puede recuperar. Generá uno nuevo: si ya habías
+                  subido el .csr anterior a ARCA, ese deja de servir y tenés que subir el nuevo.
+                </Franja>
               </div>
             ) : csrPem ? (
               <>

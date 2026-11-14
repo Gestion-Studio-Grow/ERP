@@ -37,10 +37,13 @@ export interface EntradaAsistente {
   ficha: FichaFiscalDelPase;
   pedidoPendiente: PedidoPendiente | null;
   /**
-   * La lectura del pedido falló (base o descifrado): NO es «no hay pedido». Puede haber un .csr ya
-   * subido a ARCA; generar otro lo invalidaría, así que la pantalla ofrece reintentar, no generar.
+   * Por qué no se pudo leer el pedido (null = se leyó bien o no hay). «ilegible» (falló la base) y
+   * «sin-configuracion» (falta la clave maestra) NO son «no hay pedido»: puede haber un .csr ya subido a
+   * ARCA y generar otro lo invalidaría (o fallaría igual), así que no se ofrece generar. «dañado» (la
+   * fila no abre con la clave presente) no tiene arreglo: su clave privada es irrecuperable y se permite
+   * generar uno nuevo, con el aviso de que el .csr anterior deja de servir.
    */
-  pedidoIlegible: boolean;
+  problemaDelPedido: ProblemaDelPedido | null;
   pedidoDePase: PedidoDePase | null;
 }
 
@@ -48,25 +51,73 @@ export interface EntradaAsistente {
 export type LecturaDelPedido =
   | { estado: "ninguno" }
   | { estado: "pendiente"; csrPem: string; creadoEn: string }
-  | { estado: "ilegible" };
+  /** Falló la base al leer: transitorio (reintentar, no regenerar). */
+  | { estado: "ilegible" }
+  /** Falta la clave maestra (FISCAL_MASTER_KEY): configuración; generar fallaría igual. */
+  | { estado: "sin-configuracion"; hayPedido: boolean }
+  /** La fila se leyó pero no abre (descifrado o JSON) con la clave presente: irrecuperable. */
+  | { estado: "dañado" };
 
-/** Envuelve la lectura del pedido (inyectada: el servidor pasa la que abre la base y el cifrado). */
-export async function leerPedidoConEstado(
-  abrir: () => Promise<{ csrPem: string; creadoEn: string } | null>,
-): Promise<LecturaDelPedido> {
+export type ProblemaDelPedido = Extract<LecturaDelPedido["estado"], "ilegible" | "sin-configuracion" | "dañado">;
+
+export const MOTIVO_SIN_CONFIGURACION = "Falta la configuración para guardar certificados cifrados. Avisale a GSG.";
+
+/**
+ * Lee el pedido separando las causas de falla (pasos inyectados: el servidor pasa la base, la clave
+ * maestra y el descifrado). `alFallar` recibe la causa y el error para el log (sin material sensible).
+ * La clave se pide aunque no haya fila: sin ella generar fallaría igual.
+ */
+export async function leerPedidoConEstado<F, K>(pasos: {
+  leerFila: () => Promise<F | null>;
+  clave: () => K;
+  abrir: (fila: F, clave: K) => { csrPem: string; creadoEn: string };
+  alFallar?: (causa: ProblemaDelPedido, error: unknown) => void;
+}): Promise<LecturaDelPedido> {
+  let fila: F | null;
   try {
-    const p = await abrir();
-    return p ? { estado: "pendiente", csrPem: p.csrPem, creadoEn: p.creadoEn } : { estado: "ninguno" };
-  } catch {
+    fila = await pasos.leerFila();
+  } catch (e) {
+    pasos.alFallar?.("ilegible", e);
     return { estado: "ilegible" };
+  }
+  let clave: K;
+  try {
+    clave = pasos.clave();
+  } catch (e) {
+    pasos.alFallar?.("sin-configuracion", e);
+    return { estado: "sin-configuracion", hayPedido: fila !== null };
+  }
+  if (fila === null) return { estado: "ninguno" };
+  try {
+    const p = pasos.abrir(fila, clave);
+    return { estado: "pendiente", csrPem: p.csrPem, creadoEn: p.creadoEn };
+  } catch (e) {
+    pasos.alFallar?.("dañado", e);
+    return { estado: "dañado" };
   }
 }
 
-/** Defensa del servidor (llamada directa, doble clic): un pedido que no se pudo leer no se pisa. */
+export function problemaDelPedido(lectura: LecturaDelPedido): ProblemaDelPedido | null {
+  return lectura.estado === "ninguno" || lectura.estado === "pendiente" ? null : lectura.estado;
+}
+
+/** Para el pedido al contador: hay una fila de pedido, aunque no se haya podido leer o abrir. */
+export function hayPedidoEnCurso(lectura: LecturaDelPedido): boolean {
+  if (lectura.estado === "ninguno") return false;
+  if (lectura.estado === "sin-configuracion") return lectura.hayPedido;
+  return true;
+}
+
+/**
+ * Defensa del servidor (llamada directa, doble clic): no se pisa un pedido que no se pudo leer, ni se
+ * intenta sin la clave maestra. Un pedido dañado sí se reemplaza (no hay otra salida).
+ */
 export function motivoParaNoReemplazarPedido(lectura: LecturaDelPedido): string | null {
-  return lectura.estado === "ilegible"
-    ? "No pudimos leer el pedido de certificado que ya generaste, así que no generamos otro (el anterior dejaría de servir). Reintentá en un rato y, si sigue, avisale a GSG."
-    : null;
+  if (lectura.estado === "ilegible") {
+    return "No pudimos leer el pedido de certificado que ya generaste, así que no generamos otro (el anterior dejaría de servir). Reintentá en un rato y, si sigue, avisale a GSG.";
+  }
+  if (lectura.estado === "sin-configuracion") return MOTIVO_SIN_CONFIGURACION;
+  return null;
 }
 
 export type EstadoDePaso = "hecho" | "actual" | "falta";
@@ -82,9 +133,9 @@ export interface EstadoDelAsistente {
   certificado: "ninguno" | "pruebas" | "produccion" | "con-problema";
   /** El cliente puede mandar el pedido de pase (todas las condiciones que dependen de él están). */
   puedePedirPase: boolean;
-  /** No se pudo leer el pedido pendiente: se muestra el aviso con «Reintentar». */
-  pedidoIlegible: boolean;
-  /** Se puede ofrecer generar un pedido: datos completos y el pedido anterior (si hay) se leyó bien. */
+  /** Por qué no se pudo leer el pedido pendiente (null = sin problema): la pantalla muestra el aviso. */
+  problemaDelPedido: ProblemaDelPedido | null;
+  /** Se puede ofrecer generar un pedido: datos completos y nada que lo bloquee (ilegible o sin configuración). */
   puedeGenerarPedido: boolean;
 }
 
@@ -136,9 +187,9 @@ export function estadoDelAsistente(e: EntradaAsistente): EstadoDelAsistente {
     e.ficha.arcaHomologacion &&
     !e.pedidoDePase &&
     precondiciones.filter((p) => DEL_NEGOCIO.has(p.id)).every((p) => p.ok);
-  const pedidoIlegible = e.pedidoIlegible;
-  const puedeGenerarPedido = faltanDatos.length === 0 && !pedidoIlegible;
-  return { paso, pasos, precondiciones, faltanDatos, certificado, puedePedirPase, pedidoIlegible, puedeGenerarPedido };
+  const problema = e.problemaDelPedido;
+  const puedeGenerarPedido = faltanDatos.length === 0 && problema !== "ilegible" && problema !== "sin-configuracion";
+  return { paso, pasos, precondiciones, faltanDatos, certificado, puedePedirPase, problemaDelPedido: problema, puedeGenerarPedido };
 }
 
 // ── El pedido de certificado (CSR) ───────────────────────────────────────────

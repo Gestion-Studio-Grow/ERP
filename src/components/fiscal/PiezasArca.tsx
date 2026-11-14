@@ -40,7 +40,6 @@ function Mensaje({ id, r }: { id: string; r: RevisionCertificado }) {
   );
 }
 
-/** Pegar el certificado o subir el archivo, con aviso inmediato. Los nombres de campo son los del servidor. */
 /** «Reintentar»: vuelve a pedirle la vista al servidor (sin perder la dirección ni la pestaña). */
 export function Reintentar() {
   const router = useRouter();
@@ -52,6 +51,7 @@ export function Reintentar() {
   );
 }
 
+/** Pegar el certificado o subir el archivo, con aviso inmediato. Los nombres de campo son los del servidor. */
 export function CampoCertificado() {
   const [pegado, setPegado] = useState<RevisionCertificado>({ ok: null });
   const [archivo, setArchivo] = useState<RevisionCertificado>({ ok: null });

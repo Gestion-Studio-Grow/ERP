@@ -39,8 +39,11 @@ import {
   errorDeCargaEnCriollo,
   estadoDelAsistente,
   generarPedidoDeCertificado,
+  hayPedidoEnCurso,
   leerPedidoConEstado,
+  MOTIVO_SIN_CONFIGURACION,
   motivoParaNoReemplazarPedido,
+  problemaDelPedido,
   PALABRA_DEL_PASE,
   type EntradaAsistente,
   type LecturaDelPedido,
@@ -83,49 +86,64 @@ interface PedidoAbierto {
   creadoEn: string;
 }
 
-async function abrirPedido(tenantId: string): Promise<PedidoAbierto | null> {
-  const fila = await enElNegocio(tenantId, (tx) =>
+async function leerFilaDelPedido(tenantId: string) {
+  return enElNegocio(tenantId, (tx) =>
     tx.arcaAuthTicket.findFirst({
       where: { tenantId, certHuella: huellaDelPedido(tenantId), service: SERVICIO_PEDIDO },
       select: { kekId: true, wrappedDek: true, sealed: true, expiration: true },
     }),
   );
-  if (!fila) return null;
-  const { keyPem, csrPem } = JSON.parse(openSecret(fila, masterKeyDesdeEnv())) as { keyPem: string; csrPem: string };
+}
+
+type FilaDelPedido = NonNullable<Awaited<ReturnType<typeof leerFilaDelPedido>>>;
+
+function abrirFila(fila: FilaDelPedido, master: ReturnType<typeof masterKeyDesdeEnv>): PedidoAbierto {
+  const { keyPem, csrPem } = JSON.parse(openSecret(fila, master)) as { keyPem: string; csrPem: string };
   return { keyPem, csrPem, creadoEn: fila.expiration };
 }
 
+async function abrirPedido(tenantId: string): Promise<PedidoAbierto | null> {
+  const fila = await leerFilaDelPedido(tenantId);
+  if (!fila) return null;
+  return abrirFila(fila, masterKeyDesdeEnv());
+}
+
 /**
- * El pedido pendiente para mostrar (sólo el .csr y la fecha; la clave no sale). Un error de lectura
- * vuelve como «ilegible», nunca como «no hay pedido»: si no, la pantalla ofrecería generar otro y eso
- * invalida el .csr que el dueño quizá ya subió a ARCA.
+ * El pedido pendiente para mostrar (sólo el .csr y la fecha; la clave no sale), con la causa separada
+ * si falla: base («ilegible», reintentar), clave maestra («sin-configuracion») o fila que no abre
+ * («dañado», se puede generar otro). Nunca «no hay pedido» por un error: la pantalla ofrecería generar
+ * otro y eso invalida el .csr que el dueño quizá ya subió a ARCA.
  */
 export async function leerPedidoPendiente(tenantId: string): Promise<LecturaDelPedido> {
-  return leerPedidoConEstado(async () => {
-    try {
-      const p = await abrirPedido(tenantId);
-      return p && { csrPem: p.csrPem, creadoEn: p.creadoEn };
-    } catch (e) {
+  return leerPedidoConEstado({
+    leerFila: () => leerFilaDelPedido(tenantId),
+    clave: () => masterKeyDesdeEnv(),
+    abrir: (fila, master) => {
+      const p = abrirFila(fila, master);
+      return { csrPem: p.csrPem, creadoEn: p.creadoEn };
+    },
+    // Sólo la causa y el nombre del error: el mensaje podría traer datos del entorno o del sobre.
+    alFallar: (causa, e) =>
       logger.warn("arca.asistente", "No se pudo abrir el pedido de certificado pendiente", {
         tenantId,
+        causa,
         err: e instanceof Error ? e.name : "error",
-      });
-      throw e;
-    }
+      }),
   });
 }
 
 /**
  * Paso 2: genera clave + CSR en el servidor y deja la clave cifrada y pendiente (reemplaza un pedido
  * anterior: el .csr viejo deja de servir). No toca el certificado cargado. Si el pedido anterior no se
- * pudo leer, no lo reemplaza (ver `leerPedidoPendiente`).
+ * pudo leer por la base o falta la clave maestra, no lo reemplaza; si está dañado, sí (ver
+ * `leerPedidoPendiente`).
  */
 export async function generarPedidoDelNegocio(tenantId: string, actor: string): Promise<Resultado> {
   const t = await enElNegocio(tenantId, (tx) =>
     tx.tenant.findUnique({ where: { id: tenantId }, select: { name: true, arcaCuit: true, arcaRazonSocial: true } }),
   );
   if (!t) return { ok: false, motivo: "No existe el negocio." };
-  // Un pedido que existe pero no se pudo leer no se pisa (llamada directa o doble clic con la pantalla vieja).
+  // Un pedido que no se pudo leer no se pisa (llamada directa o doble clic con la pantalla vieja).
   const noReemplazar = motivoParaNoReemplazarPedido(await leerPedidoPendiente(tenantId));
   if (noReemplazar) return { ok: false, motivo: noReemplazar };
   const pedido = generarPedidoDeCertificado({ razonSocial: t.arcaRazonSocial || t.name, cuit: t.arcaCuit ?? "" });
@@ -135,7 +153,7 @@ export async function generarPedidoDelNegocio(tenantId: string, actor: string): 
   try {
     master = masterKeyDesdeEnv();
   } catch {
-    return { ok: false, motivo: "Falta la configuración para guardar certificados cifrados. Avisale a GSG." };
+    return { ok: false, motivo: MOTIVO_SIN_CONFIGURACION };
   }
   const sobre = sealSecret(JSON.stringify({ keyPem: pedido.keyPem, csrPem: pedido.csrPem }), master);
   const creadoEn = new Date().toISOString();
@@ -240,13 +258,13 @@ export async function leerAsistente(tenantId: string, fichaYaLeida?: FichaFiscal
   const entrada: EntradaAsistente = {
     ficha,
     pedidoPendiente: pedido.estado === "pendiente" ? { creadoEn: pedido.creadoEn } : null,
-    pedidoIlegible: pedido.estado === "ilegible",
+    problemaDelPedido: problemaDelPedido(pedido),
     pedidoDePase,
   };
   const estado = estadoDelAsistente(entrada);
   const contador = pedidoAlContador(filaContador, {
-    // Ilegible cuenta como en curso: lo más probable es una fila que existe y no se pudo abrir.
-    pedidoPendiente: pedido.estado !== "ninguno",
+    // Una fila que existe cuenta como en curso aunque no se haya podido leer o abrir.
+    pedidoPendiente: hayPedidoEnCurso(pedido),
     certificado: estado.certificado,
     certificadoDesde: ficha.credencial?.actualizada ?? null,
     pruebaOkEn,

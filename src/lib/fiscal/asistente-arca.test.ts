@@ -1,6 +1,6 @@
 // Asistente ARCA: el paso derivado de lo cargado, el pedido de certificado (CSR) de punta a punta con
 // cargarCredencialTenant (deps en memoria), la lectura del certificado pegado/subido y los textos.
-import { test } from "node:test";
+import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import forge from "node-forge";
 import {
@@ -9,8 +9,10 @@ import {
   errorDeCargaEnCriollo,
   estadoDelAsistente,
   generarPedidoDeCertificado,
+  hayPedidoEnCurso,
   leerPedidoConEstado,
   motivoParaNoReemplazarPedido,
+  problemaDelPedido,
   organizacionDelPedido,
   type EntradaAsistente,
 } from "./asistente-arca";
@@ -43,7 +45,7 @@ const CRED = (entorno: "produccion" | "homologacion", certCuit = CUIT) => ({
 const entrada = (f: Partial<FichaFiscalDelPase>, extra: Partial<EntradaAsistente> = {}): EntradaAsistente => ({
   ficha: { ...FICHA, ...f },
   pedidoPendiente: null,
-  pedidoIlegible: false,
+  problemaDelPedido: null,
   pedidoDePase: null,
   ...extra,
 });
@@ -95,41 +97,129 @@ test("el pedido de pase: uno solo, y no depende del modo de la plataforma ni de 
   assert.equal(estadoDelAsistente(conPruebas).puedePedirPase, true);
 });
 
-test("pedido que no se pudo leer: hay estado de error y NO se ofrece generar otro (invalidaría el .csr subido a ARCA)", () => {
-  const e = estadoDelAsistente(entrada({}, { pedidoIlegible: true }));
-  assert.equal(e.pedidoIlegible, true);
-  assert.equal(e.puedeGenerarPedido, false);
-  // Con certificado cargado tampoco: no sabemos si hay una renovación en curso.
-  const conCert = estadoDelAsistente(entrada({ credencial: CRED("produccion") }, { pedidoIlegible: true }));
-  assert.equal(conCert.puedeGenerarPedido, false);
+test("pedido que no se pudo leer (base) o sin configuración: NO se ofrece generar otro", () => {
+  for (const problema of ["ilegible", "sin-configuracion"] as const) {
+    const e = estadoDelAsistente(entrada({}, { problemaDelPedido: problema }));
+    assert.equal(e.problemaDelPedido, problema);
+    assert.equal(e.puedeGenerarPedido, false, problema);
+    // Con certificado cargado tampoco: no sabemos si hay una renovación en curso.
+    const conCert = estadoDelAsistente(entrada({ credencial: CRED("produccion") }, { problemaDelPedido: problema }));
+    assert.equal(conCert.puedeGenerarPedido, false, problema);
+  }
+});
+
+test("pedido dañado (se leyó y no abre con la clave presente): se puede generar uno nuevo", () => {
+  const e = estadoDelAsistente(entrada({}, { problemaDelPedido: "dañado" }));
+  assert.equal(e.problemaDelPedido, "dañado");
+  assert.equal(e.puedeGenerarPedido, true);
+  // Sin datos del paso 1, igual no.
+  assert.equal(estadoDelAsistente(entrada({ arcaCuit: null }, { problemaDelPedido: "dañado" })).puedeGenerarPedido, false);
 });
 
 test("pedido que se lee bien (o que no existe): igual que siempre, se puede generar", () => {
   const sinPedido = estadoDelAsistente(entrada({}));
-  assert.equal(sinPedido.pedidoIlegible, false);
+  assert.equal(sinPedido.problemaDelPedido, null);
   assert.equal(sinPedido.puedeGenerarPedido, true);
   const pendiente = estadoDelAsistente(entrada({}, { pedidoPendiente: { creadoEn: "2026-11-05T10:00:00.000Z" } }));
   assert.equal(pendiente.paso, "certificado");
-  assert.equal(pendiente.pedidoIlegible, false);
+  assert.equal(pendiente.problemaDelPedido, null);
   assert.equal(pendiente.puedeGenerarPedido, true);
   // Sin datos del paso 1 no se genera (como hoy: la pantalla no muestra el botón).
   assert.equal(estadoDelAsistente(entrada({ arcaCuit: null })).puedeGenerarPedido, false);
 });
 
-test("lectura del pedido: el error no se traga como «no hay pedido»", async () => {
-  const fallida = await leerPedidoConEstado(async () => {
-    throw new Error("descifrado");
+describe("lectura del pedido: cada causa de falla tiene su estado", () => {
+  const FILA = { sellado: "x", creadoEn: "2026-11-05T10:00:00.000Z" };
+  const abrirOk = (f: typeof FILA) => ({ csrPem: "CSR", creadoEn: f.creadoEn });
+  const sinClave = () => {
+    throw new Error("FISCAL_MASTER_KEY no está seteada");
+  };
+  const lectura = (p: Partial<Parameters<typeof leerPedidoConEstado<typeof FILA, string>>[0]>) => {
+    const fallas: string[] = [];
+    const r = leerPedidoConEstado<typeof FILA, string>({
+      leerFila: async () => FILA,
+      clave: () => "K",
+      abrir: abrirOk,
+      alFallar: (causa) => fallas.push(causa),
+      ...p,
+    });
+    return r.then((l) => ({ l, fallas }));
+  };
+
+  test("se lee bien → pendiente; sin fila → ninguno", async () => {
+    assert.deepEqual((await lectura({})).l, { estado: "pendiente", csrPem: "CSR", creadoEn: FILA.creadoEn });
+    assert.deepEqual((await lectura({ leerFila: async () => null })).l, { estado: "ninguno" });
   });
-  assert.deepEqual(fallida, { estado: "ilegible" });
-  assert.deepEqual(await leerPedidoConEstado(async () => null), { estado: "ninguno" });
-  const ok = await leerPedidoConEstado(async () => ({ csrPem: "CSR", creadoEn: "2026-11-05T10:00:00.000Z" }));
-  assert.deepEqual(ok, { estado: "pendiente", csrPem: "CSR", creadoEn: "2026-11-05T10:00:00.000Z" });
+
+  test("(a) falla la base al leer → ilegible (transitorio: reintentar, no generar)", async () => {
+    const { l, fallas } = await lectura({
+      leerFila: async () => {
+        throw new Error("conexión");
+      },
+    });
+    assert.deepEqual(l, { estado: "ilegible" });
+    assert.deepEqual(fallas, ["ilegible"]);
+    assert.equal(estadoDelAsistente(entrada({}, { problemaDelPedido: problemaDelPedido(l) })).puedeGenerarPedido, false);
+  });
+
+  test("(b) falta la clave maestra → sin-configuracion, con o sin fila; no se ofrece generar", async () => {
+    const conFila = await lectura({ clave: sinClave });
+    assert.deepEqual(conFila.l, { estado: "sin-configuracion", hayPedido: true });
+    assert.deepEqual(conFila.fallas, ["sin-configuracion"]);
+    const sinFila = await lectura({ clave: sinClave, leerFila: async () => null });
+    assert.deepEqual(sinFila.l, { estado: "sin-configuracion", hayPedido: false });
+    for (const { l } of [conFila, sinFila]) {
+      assert.equal(estadoDelAsistente(entrada({}, { problemaDelPedido: problemaDelPedido(l) })).puedeGenerarPedido, false);
+    }
+  });
+
+  test("(c) la fila se leyó pero no abre (descifrado o JSON) con la clave presente → dañado; se puede generar", async () => {
+    const descifrado = await lectura({
+      abrir: () => {
+        throw new Error("Unsupported state or unable to authenticate data");
+      },
+    });
+    assert.deepEqual(descifrado.l, { estado: "dañado" });
+    assert.deepEqual(descifrado.fallas, ["dañado"]);
+    const json = await lectura({ abrir: () => JSON.parse("{roto") });
+    assert.deepEqual(json.l, { estado: "dañado" });
+    assert.equal(estadoDelAsistente(entrada({}, { problemaDelPedido: problemaDelPedido(json.l) })).puedeGenerarPedido, true);
+  });
+
+  test("lo que bloquea es lo mismo en la pantalla y en el servidor", async () => {
+    for (const l of [
+      { estado: "ninguno" },
+      { estado: "pendiente", csrPem: "CSR", creadoEn: FILA.creadoEn },
+      { estado: "ilegible" },
+      { estado: "sin-configuracion", hayPedido: true },
+      { estado: "sin-configuracion", hayPedido: false },
+      { estado: "dañado" },
+    ] as const) {
+      const bloquea = motivoParaNoReemplazarPedido(l) !== null;
+      const enPantalla = estadoDelAsistente(entrada({}, { problemaDelPedido: problemaDelPedido(l) })).puedeGenerarPedido;
+      assert.equal(bloquea, !enPantalla, l.estado);
+    }
+  });
 });
 
-test("servidor: con el pedido ilegible no se pisa; sin pedido o con uno legible, sí", () => {
+test("servidor: ilegible y sin configuración no se pisan; ninguno, legible o dañado, sí", () => {
   assert.match(motivoParaNoReemplazarPedido({ estado: "ilegible" }) ?? "", /no pudimos leer/i);
+  assert.equal(
+    motivoParaNoReemplazarPedido({ estado: "sin-configuracion", hayPedido: false }),
+    "Falta la configuración para guardar certificados cifrados. Avisale a GSG.",
+  );
   assert.equal(motivoParaNoReemplazarPedido({ estado: "ninguno" }), null);
+  assert.equal(motivoParaNoReemplazarPedido({ estado: "dañado" }), null);
   assert.equal(motivoParaNoReemplazarPedido({ estado: "pendiente", csrPem: "CSR", creadoEn: "2026-11-05T10:00:00.000Z" }), null);
+});
+
+test("pedido en curso para el contador: hay fila (aunque no se pueda leer o abrir)", () => {
+  assert.equal(hayPedidoEnCurso({ estado: "ninguno" }), false);
+  assert.equal(hayPedidoEnCurso({ estado: "pendiente", csrPem: "CSR", creadoEn: "2026-11-05T10:00:00.000Z" }), true);
+  assert.equal(hayPedidoEnCurso({ estado: "ilegible" }), true);
+  assert.equal(hayPedidoEnCurso({ estado: "dañado" }), true);
+  assert.equal(hayPedidoEnCurso({ estado: "sin-configuracion", hayPedido: true }), true);
+  assert.equal(hayPedidoEnCurso({ estado: "sin-configuracion", hayPedido: false }), false);
 });
 
 test("confirmación tipeada: PRODUCCIÓN con o sin tilde, sin importar mayúsculas", () => {
