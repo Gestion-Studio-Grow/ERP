@@ -10,6 +10,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ejecutarAccion, prepararAccionesDeServidor } from "@/test/accion-de-servidor";
 import { apuntarLaAppA, baseEfimeraParaElTest, prismaComoDuenio } from "@/test/base-efimera";
+import { aplicarD13, fijadoDe } from "@/test/cobro-fijado-gate2";
 import { porCobrarEnLasPantallas } from "@/test/por-cobrar-en-las-pantallas";
 
 const DIA = 86_400_000;
@@ -26,6 +27,8 @@ test("D13: cobro en ARS de un proyecto en USD; cambia el tipo de cambio y el «p
   });
   process.env.PROYECTOS_COBRO_FIJADO = "on";
   prepararAccionesDeServidor();
+  // D13 es Gate 2: sus columnas vienen con el SQL pendiente, no con `migrate deploy`.
+  aplicarD13(base);
   const duenio = await prismaComoDuenio(base);
   const { a } = base;
   const t0 = await duenio.tenant.findUniqueOrThrow({ where: { id: a.id }, select: { modules: true } });
@@ -54,7 +57,8 @@ test("D13: cobro en ARS de un proyecto en USD; cambia el tipo de cambio y el «p
   // $ 30.000 al dólar de hoy (1.000) = 30 USD, fijados.
   assert.deepEqual(await enSesion(() => registrarCobro(fd)), { ok: true });
   const pago = await duenio.proyectoPago.findFirstOrThrow({ where: { tenantId: a.id, proyectoId: p.id } });
-  assert.deepEqual([pago.monto, pago.cuotaId, pago.montoMoneda, pago.tipoCambio], [30000, null, 30, 1000]);
+  assert.equal(pago.monto, 30000);
+  assert.deepEqual(await fijadoDe(duenio, pago.id), { cuotaId: null, moneda: "USD", centavos: "3000", tipoCambio: "1000.000000" });
 
   const clienteDe = new Map([[p.id, a.clientes[0]]]);
   const saldoEnUsd = async () => (await enSesion(async () => (await cobranzasDelNegocio(a.id, await tiposDeCambio(a.id), 0, [p.id])).get(p.id)!)).enMoneda?.saldo;

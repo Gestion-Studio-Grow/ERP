@@ -1,8 +1,9 @@
 // ============================================================================
-// D13 sin la migración aplicada (20261114120000_proyecto_pago_cuota): el código tolera que falten las tres columnas de
-// `ProyectoPago`. Contra una base migrada a la que se le BORRAN las columnas (como en Neon antes del Gate 2), y con el
-// interruptor prendido: el cobro a mano y «Marcar cobrado» entran igual, sin escribirlas; la ficha, Finanzas, Seguimiento
-// y las 5 pantallas leen sin romper, y valúan como antes de D13 (el cobro a mano, al cambio de hoy).
+// D13 sin el SQL pendiente aplicado (prisma/pending-gate2/D13_cobro_fijado.sql, Gate 2): el código tolera que falten las
+// cuatro columnas de `ProyectoPago` (así queda la base con `migrate deploy`, como Neon antes del Gate 2), y también que
+// estén con los tipos de la migración vieja borrada (DOUBLE PRECISION): la sonda exige los tipos y no escribe centavos en
+// coma flotante. Con el interruptor prendido: el cobro a mano y «Marcar cobrado» entran igual, sin escribirlas; la ficha,
+// Finanzas, Seguimiento y las 5 pantallas leen sin romper, y valúan como antes de D13 (el cobro a mano, al cambio de hoy).
 // ============================================================================
 
 import { test } from "node:test";
@@ -28,9 +29,11 @@ test("D13 sin migrar: cobrar, marcar y leer las pantallas no rompe y valúa como
   const duenio = await prismaComoDuenio(base);
   const { a } = base;
 
-  // La base «atrás del schema»: sin las cuatro columnas (el índice se va con `cuotaId`).
-  await duenio.$executeRawUnsafe(`ALTER TABLE "ProyectoPago" DROP COLUMN "cuotaId", DROP COLUMN "montoMoneda", DROP COLUMN "tipoCambio", DROP COLUMN "moneda"`);
+  // La base de `migrate deploy`: sin las columnas D13.
   const { hayColumnasCobroFijado } = await import("./cobranza.server");
+  assert.equal(await hayColumnasCobroFijado(), false);
+  // Con las columnas de la migración vieja (DOUBLE, nunca aplicada en Neon): tampoco, por los tipos.
+  await duenio.$executeRawUnsafe(`ALTER TABLE "ProyectoPago" ADD COLUMN "cuotaId" TEXT, ADD COLUMN "montoMoneda" DOUBLE PRECISION, ADD COLUMN "tipoCambio" DOUBLE PRECISION, ADD COLUMN "moneda" TEXT`);
   assert.equal(await hayColumnasCobroFijado(), false);
 
   const t0 = await duenio.tenant.findUniqueOrThrow({ where: { id: a.id }, select: { modules: true } });
@@ -68,6 +71,9 @@ test("D13 sin migrar: cobrar, marcar y leer las pantallas no rompe y valúa como
   assert.equal(marcada.ok, true, JSON.stringify(marcada));
   const montos = await duenio.$queryRawUnsafe<{ monto: number }[]>(`SELECT monto FROM "ProyectoPago" WHERE "proyectoId" = $1 ORDER BY "createdAt"`, p.id);
   assert.deepEqual(montos.map((m) => m.monto), [30000, 30000]);
+  // Las columnas viejas quedan como estaban: nada escrito en coma flotante.
+  const viejas = await duenio.$queryRawUnsafe<{ n: number }[]>(`SELECT count(*)::int AS n FROM "ProyectoPago" WHERE "proyectoId" = $1 AND ("cuotaId" IS NOT NULL OR "montoMoneda" IS NOT NULL OR "tipoCambio" IS NOT NULL OR "moneda" IS NOT NULL)`, p.id);
+  assert.equal(viejas[0].n, 0);
 
   // Las lecturas de cobros enteros (ficha, Finanzas, Seguimiento) no piden las columnas que faltan.
   const ficha = await enSesion(() => fichaProyecto(p.id));

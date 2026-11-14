@@ -18,7 +18,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { clientePuedeResponder, fechaCorta, leerNumero, MEDIO_LABEL, pesos, esEtapa, esServicio, etapaAlAprobar, etapaLabel, etapasDe, MEDIOS, metodoDeCaja, precioConMargen, redondear, sePuedeEditar, sumarDias, type MedioPago } from "./core";
 import { bloqueoDeEliminar, computar, costosVigentes, COSTO_LABEL, disenoInicial, normalizarDiseno, TIPOS_STAND, type ClaveCosto, type DisenoStand } from "./stand";
 import { configProyectos } from "./datos.server";
-import { cobranzasDelNegocio, hayColumnasCobroFijado, tiposDeCambio, trabarCobranza } from "./cobranza.server";
+import { cobranzasDelNegocio, fijarCobroTx, hayColumnasCobroFijado, tiposDeCambio, trabarCobranza } from "./cobranza.server";
 import { pasaElTope, type Cobranza } from "./cobranza-core";
 import { avisoTopeCobro } from "./avisos-cuota";
 import { actorActual, avisar, proyectoVisible, puede, regenerarCuotas, registrarCambio, usuariosDelEquipo, usuariosDeLaPlata, type Actor } from "./gestion.server";
@@ -200,21 +200,25 @@ export async function registrarCobro(formData: FormData): Promise<Resultado> {
   if (!MEDIOS.includes(medio)) return { ok: false, error: "Elegí el medio de cobro." };
   if (!(monto > 0)) return { ok: false, error: "Escribí el monto del cobro." };
   if (!(await proyectoDelActor(a, proyectoId))) return { ok: false, error: "Ese proyecto no existe." };
-  const p = await prisma.proyecto.findFirst({ where: { id: proyectoId, tenantId }, select: { numero: true, nombre: true, moneda: true } });
+  const p = await prisma.proyecto.findFirst({ where: { id: proyectoId, tenantId }, select: { numero: true, nombre: true } });
   if (!p) return { ok: false, error: "Ese proyecto ya no existe. Recargá la página." };
   const nota = txt(formData.get("nota")) || null;
   const [config, tc, conColumnas] = await Promise.all([configProyectos(tenantId), tiposDeCambio(tenantId), hayColumnasCobroFijado()]);
-  // D13: un cobro en pesos de un proyecto en otra moneda queda fijado al tipo de cambio de hoy (sin cuota: es a mano). Sin
-  // la migración aplicada, no se escriben las columnas (el cobro entra igual, como antes).
-  const fijado = conColumnas ? cambioDelCobro({ montoPesos: monto, moneda: p.moneda, tiposDeCambio: tc }) : {};
   // El cobro y su asiento en el libro de caja van juntos: o entran los dos o ninguno.
-  const pago = await tenantTransaction(async (tx): Promise<{ id: string } | { porCobrar: number; cob: Cobranza }> => {
-    // Tope: con presupuesto aprobado no entra más de lo que falta cobrar. En fila con «Marcar cobrado» y las cuotas
-    // cargadas a mano del mismo proyecto, y contado adentro de la transacción (dos cobros a la vez no pasan los dos).
+  const pago = await tenantTransaction(async (tx): Promise<{ id: string } | { porCobrar: number; cob: Cobranza } | null> => {
+    // Tope: con presupuesto aprobado no entra más de lo que falta cobrar. En fila con «Marcar cobrado», las cuotas
+    // cargadas a mano y el cambio de moneda del mismo proyecto, y contado adentro de la transacción (dos cobros a la vez
+    // no pasan los dos).
     await trabarCobranza(tx, tenantId, proyectoId);
+    // D13: la moneda se relee CON el candado (un cambio de moneda a la vez no deja este cobro fijado en la vieja).
+    const actual = await tx.proyecto.findFirst({ where: { id: proyectoId, tenantId }, select: { moneda: true } });
+    if (!actual) return null;
     const cob = (await cobranzasDelNegocio(tenantId, tc, config.margenPct, [proyectoId], tx)).get(proyectoId);
     if (cob && pasaElTope(cob, monto)) return { porCobrar: cob.porCobrar, cob };
-    const creado = await tx.proyectoPago.create({ data: { tenantId, proyectoId, medio, monto, nota, cobradoPor: user.name, ...fijado }, select: { id: true } });
+    const creado = await tx.proyectoPago.create({ data: { tenantId, proyectoId, medio, monto, nota, cobradoPor: user.name }, select: { id: true } });
+    // D13: un cobro en pesos de un proyecto en otra moneda queda fijado al tipo de cambio de hoy (sin cuota: es a mano). Sin
+    // el SQL D13 aplicado no se escribe (el cobro entra igual, como antes).
+    if (conColumnas) await fijarCobroTx(tx, tenantId, creado.id, cambioDelCobro({ montoPesos: monto, moneda: actual.moneda, tiposDeCambio: tc }));
     await registrarCambio(tx, { tenantId, proyectoId, entidad: "ProyectoPago", entidadId: creado.id, campo: "Cobro", despues: `${MEDIO_LABEL[medio]} · ${pesos(monto)}`, autor: user.name });
     const session = await tx.cashSession.findFirst({ where: { tenantId, status: "OPEN" }, select: { id: true } });
     await tx.cashMovement.create({
@@ -231,6 +235,7 @@ export async function registrarCobro(formData: FormData): Promise<Resultado> {
     });
     return creado;
   });
+  if (pago === null) return { ok: false, error: "Ese proyecto ya no existe. Recargá la página." };
   // Pasaba lo que falta cobrar: no se graba nada.
   if (!("id" in pago)) return { ok: false, error: avisoTopeCobro(pago.porCobrar, monto, pago.cob) };
   await auditAdmin({ action: "proyecto.cobro", entity: "ProyectoPago", entityId: pago.id, changes: { monto, medio } });

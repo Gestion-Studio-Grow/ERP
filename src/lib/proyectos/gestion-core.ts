@@ -2,6 +2,7 @@
 // las alertas y la liquidación. Sin base ni React, para probarlas sin nada alrededor. Especificación funcional en
 // docs/benchmark/heka-especificacion.md.
 
+import { admiteCentavos, centavosDe, monedaCentavosDePesos, textoDeMicro, tipoCambioMicroDe } from "@/lib/dinero/redondeo";
 import { redondear, yaVencio } from "./core";
 
 const DIA = 86_400_000;
@@ -70,24 +71,37 @@ export function aPesos(monto: number, moneda: string, tiposDeCambio: Readonly<Re
  *   los dólares que pagó). Con cuota en OTRA moneda (una cuota en pesos de un proyecto en dólares): los pesos que entraron
  *   pasados a la moneda del proyecto al cambio del día.
  * - Sin cuota (cobro cargado a mano, en pesos): el monto pasado a la moneda del proyecto al cambio del día.
- * - `tipoCambio` es pesos por unidad de la moneda del proyecto: 1 en pesos. Si falta, quedan nulos los tres (monto, cambio
- *   y moneda): nunca frena el cobro.
+ * - En centavos (`bigint`) y con el tipo de cambio EXACTO (texto de NUMERIC(18,6), pesos por unidad de la moneda del
+ *   proyecto; "1.000000" en pesos): el único redondeo es R8 (`monedaCentavosDePesos`), y sólo cuando hay que dividir.
+ * - Si falta el tipo de cambio, no es exacto a 6 decimales o el importe no se escribe con centavos, quedan nulos los tres
+ *   (centavos, cambio y moneda): nunca frena el cobro.
  */
-export type CambioDelCobro = { cuotaId: string | null; montoMoneda: number | null; tipoCambio: number | null; moneda: string | null };
+export type CambioDelCobro = { cuotaId: string | null; moneda: string | null; montoMonedaCentavos: bigint | null; tipoCambio: string | null };
+
+const PESO_MICRO = BigInt(1_000_000);
 
 export function cambioDelCobro(entrada: {
   montoPesos: number;
-  /** La moneda del proyecto en este momento. */
+  /** La moneda del proyecto en este momento (leída con el candado de la cobranza tomado). */
   moneda: string;
   tiposDeCambio: Readonly<Record<string, number>>;
   /** `monto` en la moneda de la cuota (`moneda`). */
   cuota?: { id: string; monto: number; moneda: string } | null;
 }): CambioDelCobro {
   const cuotaId = entrada.cuota?.id ?? null;
-  const tipoCambio = entrada.moneda === "ARS" ? 1 : entrada.tiposDeCambio[entrada.moneda];
-  if (!(typeof tipoCambio === "number" && Number.isFinite(tipoCambio) && tipoCambio > 0)) return { cuotaId, montoMoneda: null, tipoCambio: null, moneda: null };
-  const montoMoneda = entrada.cuota && entrada.cuota.moneda === entrada.moneda ? entrada.cuota.monto : redondear(entrada.montoPesos / tipoCambio);
-  return { cuotaId, montoMoneda, tipoCambio, moneda: entrada.moneda };
+  const sinFijar: CambioDelCobro = { cuotaId, moneda: null, montoMonedaCentavos: null, tipoCambio: null };
+  const tcMicro = entrada.moneda === "ARS" ? PESO_MICRO : tipoCambioMicroDe(entrada.tiposDeCambio[entrada.moneda] ?? Number.NaN);
+  if (tcMicro === null) return sinFijar;
+  let centavos: bigint;
+  if (entrada.cuota && entrada.cuota.moneda === entrada.moneda) {
+    // Lo que pagó de la cuota, ya en la moneda del proyecto: sin dividir.
+    if (!admiteCentavos(entrada.cuota.monto)) return sinFijar;
+    centavos = BigInt(centavosDe(entrada.cuota.monto));
+  } else {
+    if (!admiteCentavos(entrada.montoPesos)) return sinFijar;
+    centavos = monedaCentavosDePesos(BigInt(centavosDe(entrada.montoPesos)), tcMicro);
+  }
+  return { cuotaId, moneda: entrada.moneda, montoMonedaCentavos: centavos, tipoCambio: textoDeMicro(tcMicro) };
 }
 
 export function plataEn(monto: number, moneda: string): string {

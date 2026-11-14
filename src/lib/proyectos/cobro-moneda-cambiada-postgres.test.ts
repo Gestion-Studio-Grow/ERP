@@ -5,7 +5,7 @@
 //   1) el cobro graba la moneda en la que quedó fijado (`ProyectoPago.moneda`);
 //   2) `guardarDatos` no deja cambiar la moneda con cobros vivos (también los cargados a mano, sin cuota);
 //   3) si igual cambia (carrera, dato viejo), el fijado de otra moneda NO se usa: se valúa al cambio de hoy;
-//   4) una fila de antes de la columna (`moneda` NULL) también se valúa al cambio de hoy.
+//   4) un cobro sin fijar (las cuatro columnas D13 en NULL: de antes del SQL o sin tipo de cambio) se valúa al cambio de hoy.
 // Archivo aparte: cada archivo es su proceso y su base efímera.
 // ============================================================================
 
@@ -13,6 +13,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ejecutarAccion, prepararAccionesDeServidor } from "@/test/accion-de-servidor";
 import { apuntarLaAppA, baseEfimeraParaElTest, prismaComoDuenio } from "@/test/base-efimera";
+import { aplicarD13, fijadoDe } from "@/test/cobro-fijado-gate2";
 
 test("D13: cobro fijado en ARS y proyecto pasado a USD: no se lee como USD; el candado frena el cambio de moneda", async (t) => {
   const base = await baseEfimeraParaElTest(t);
@@ -26,6 +27,8 @@ test("D13: cobro fijado en ARS y proyecto pasado a USD: no se lee como USD; el c
   });
   process.env.PROYECTOS_COBRO_FIJADO = "on";
   prepararAccionesDeServidor();
+  // D13 es Gate 2: sus columnas vienen con el SQL pendiente, no con `migrate deploy`.
+  aplicarD13(base);
   const duenio = await prismaComoDuenio(base);
   const { a } = base;
   const t0 = await duenio.tenant.findUniqueOrThrow({ where: { id: a.id }, select: { modules: true } });
@@ -58,7 +61,8 @@ test("D13: cobro fijado en ARS y proyecto pasado a USD: no se lee como USD; el c
   const p1 = await proyecto(904, "ARS");
   assert.deepEqual(await enSesion(() => registrarCobro(form({ proyectoId: p1, medio: "EFECTIVO", monto: "30000", nota: "anticipo" }))), { ok: true });
   const pago = await duenio.proyectoPago.findFirstOrThrow({ where: { tenantId: a.id, proyectoId: p1 } });
-  assert.deepEqual([pago.monto, pago.cuotaId, pago.montoMoneda, pago.tipoCambio, pago.moneda], [30000, null, 30000, 1, "ARS"]);
+  assert.equal(pago.monto, 30000);
+  assert.deepEqual(await fijadoDe(duenio, pago.id), { cuotaId: null, moneda: "ARS", centavos: "3000000", tipoCambio: "1.000000" });
 
   // 2) Candado: con un cobro vivo (aunque sea a mano, sin cuota) no se cambia la moneda.
   const r = await enSesion(() => guardarDatos(form({ id: p1, nombre: "Stand 904", moneda: "USD" })));
@@ -73,12 +77,13 @@ test("D13: cobro fijado en ARS y proyecto pasado a USD: no se lee como USD; el c
   assert.equal(c1.porCobrar, 91000);
 
   // 4) Cambia el tipo de cambio a 1500. Dos proyectos en USD con el mismo cobro de $30.000 fijado a 1000 (30 USD):
-  //    con `moneda` = USD queda fijado; con `moneda` NULL (fila de antes de la columna) se valúa al de hoy (20 USD).
+  //    con `moneda` = USD queda fijado; sin fijar (las tres en NULL: el CHECK no deja una a medias) se valúa al de hoy (20 USD).
   await duenio.proyectoTipoCambio.update({ where: { tenantId_moneda: { tenantId: a.id, moneda: "USD" } }, data: { porUnidad: 1500 } });
   const fijo = await proyecto(905, "USD");
   const viejo = await proyecto(906, "USD");
   for (const [proyectoId, moneda] of [[fijo, "USD"], [viejo, null]] as const) {
-    await duenio.proyectoPago.create({ data: { tenantId: a.id, proyectoId, medio: "EFECTIVO", monto: 30000, cobradoPor: "test", montoMoneda: 30, tipoCambio: 1000, moneda } });
+    await duenio.$executeRaw`INSERT INTO "ProyectoPago" ("id", "tenantId", "proyectoId", "medio", "monto", "cobradoPor", "moneda", "montoMonedaCentavos", "tipoCambio")
+      VALUES (${`fijo-${proyectoId}`}, ${a.id}, ${proyectoId}, 'EFECTIVO', 30000, 'test', ${moneda}, ${moneda === null ? null : 3000}::bigint, ${moneda === null ? null : "1000"}::numeric)`;
   }
   const cf = await cobranza(fijo);
   const cv = await cobranza(viejo);

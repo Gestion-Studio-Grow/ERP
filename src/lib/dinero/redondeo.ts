@@ -11,6 +11,11 @@
  *      exacto, a la unidad que se pida (peso o centavo): nunca centavo primero y peso después.
  * R5 · Una proporción entera de un importe (`proporcionAlCentavo`: el precio por litro de una
  *      botella, la parte de un descuento) se redondea UNA vez, en enteros.
+ * R8 · Un importe en pesos pasado a otra moneda con un tipo de cambio (`monedaCentavosDePesos`,
+ *      el cobro fijado de un proyecto, D13) se redondea UNA vez, en `bigint`: centavos de pesos
+ *      y tipo de cambio EXACTO en millonésimos (`tipoCambioMicroDe`, el NUMERIC(18,6) de la base),
+ *      medio centavo hacia arriba como R1. El tipo de cambio nunca se redondea: si no entra
+ *      exacto en 6 decimales, no hay cambio (`null`) y quien llama no fija nada.
  *
  * Sin importaciones, a propósito: lo usan pantallas del navegador y el plugin ARCA
  * (que no puede traer el resto del Core, ADR-022). `redondeo.test.ts` lo verifica.
@@ -175,4 +180,56 @@ export function textoAlCentavo(importe: number): string {
   const resto = absoluto % 100;
   const signo = centavos < 0 ? "-" : "";
   return `${signo}${(absoluto - resto) / 100}.${resto < 10 ? "0" : ""}${resto}`;
+}
+
+// ── R8 · cambio de moneda en enteros (D13) ──────────────────────────────────────
+
+/** Millonésimos por unidad: el tipo de cambio va en `bigint` con 6 decimales (NUMERIC(18,6)). */
+const MICRO = BigInt(1_000_000);
+// Sin literales `0n`: el tsconfig compila para antes de ES2020.
+const CERO = BigInt(0);
+const DOS = BigInt(2);
+/** NUMERIC(18,6) tiene 12 cifras enteras: de 10^12 para arriba no entra. */
+const LIMITE_TIPO_DE_CAMBIO = 1e12;
+
+/**
+ * R8: centavos de la moneda que valen `pesosCent` centavos de pesos a `tcMicro` millonésimos de
+ * peso por unidad: `(2·p·10⁶ + tc) / (2·tc)` en enteros, medio centavo hacia arriba (lejos del
+ * cero, como R1 y `round(numeric)` de Postgres). $ 100.000 a 3 → 33.333,33; $ 0,01 a 2 → 0,01.
+ * Un tipo de cambio que no es positivo es un error de quien llama (RangeError).
+ */
+export function monedaCentavosDePesos(pesosCent: bigint, tcMicro: bigint): bigint {
+  if (tcMicro <= CERO) throw new RangeError(`Tipo de cambio inválido: ${String(tcMicro)} millonésimos.`);
+  if (pesosCent < CERO) return -monedaCentavosDePesos(-pesosCent, tcMicro);
+  return (DOS * pesosCent * MICRO + tcMicro) / (DOS * tcMicro);
+}
+
+/**
+ * El tipo de cambio en millonésimos, EXACTO (R7: lo que dicen sus 15 cifras): 1234,5678 →
+ * 1.234.567.800; 0,1 + 0,2 → 300.000. `null` si no es un número positivo, si no entra en
+ * NUMERIC(18,6) (≥ 10^12) o si tiene más de 6 decimales (1/3): nunca se redondea.
+ */
+export function tipoCambioMicroDe(n: number): bigint | null {
+  if (!Number.isFinite(n) || n <= 0 || n >= LIMITE_TIPO_DE_CAMBIO) return null;
+  const texto = n.toPrecision(15);
+  // Menos de un millonésimo se escribe con exponente («1.00000000000000e-7»): no entra en 6 decimales.
+  if (texto.includes("e")) return null;
+  const punto = texto.indexOf(".");
+  const enteros = punto < 0 ? texto : texto.slice(0, punto);
+  const decimales = punto < 0 ? "" : texto.slice(punto + 1).replace(/0+$/, "");
+  if (decimales.length > 6) return null;
+  const micro = BigInt(enteros) * MICRO + BigInt(decimales.padEnd(6, "0"));
+  return micro > CERO ? micro : null;
+}
+
+/** Millonésimos como texto para un NUMERIC(18,6): 1.200.000.000 → "1200.000000"; 1 → "0.000001". */
+export function textoDeMicro(micro: bigint): string {
+  const signo = micro < CERO ? "-" : "";
+  const absoluto = micro < CERO ? -micro : micro;
+  return `${signo}${absoluto / MICRO}.${String(absoluto % MICRO).padStart(6, "0")}`;
+}
+
+/** Centavos como `number` de la moneda, SÓLO para mostrar o comparar: 12.345 → 123,45. */
+export function importeDeCentavos(centavos: bigint): number {
+  return Number(centavos) / 100;
 }
