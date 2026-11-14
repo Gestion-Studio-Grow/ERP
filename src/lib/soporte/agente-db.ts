@@ -145,7 +145,15 @@ async function ticketVisibleEnTx(tx: Prisma.TransactionClient, p: PedidoDeTicket
   return v.puede ? t : null;
 }
 
-type Opciones = { db?: PrismaClient | null };
+type Opciones = {
+  db?: PrismaClient | null;
+  /**
+   * Sólo para el borrador: corre DENTRO de la transacción del agente, antes de guardar. Devuelve un
+   * motivo para rechazar (no se escribe nada) o null para seguir. Lo usa el despacho (despacho.server.ts)
+   * para comprobar, con su candado, que el despacho sigue abierto: así el borrador y el cierre van juntos.
+   */
+  antesDeGuardar?: (tx: Prisma.TransactionClient) => Promise<string | null>;
+};
 const dbDe = (o: Opciones) => ("db" in o ? (o.db ?? null) : agenteDb());
 
 /** Lee un ticket como agente (acción «leer_ticket»). CH o slug vacío → no toca la base. */
@@ -205,7 +213,17 @@ export async function guardarBorradorComoAgente(
   const v = validarBorradorDeAgente(p.borrador);
   if (!v.ok) return { ok: false, motivo: v.error };
   try {
-    const r = await enElNegocioComoAgente(p.tenantId, p.nivel as NivelDeAgente, (tx) => guardarBorradorEnTx(tx, p), dbDe(opciones), p);
+    const r = await enElNegocioComoAgente(
+      p.tenantId,
+      p.nivel as NivelDeAgente,
+      async (tx) => {
+        const rechazo = opciones.antesDeGuardar ? await opciones.antesDeGuardar(tx) : null;
+        if (rechazo) throw new Rechazo(rechazo);
+        return guardarBorradorEnTx(tx, p);
+      },
+      dbDe(opciones),
+      p,
+    );
     if (r.apagado) return { ok: false, apagado: true, motivo: APAGADO };
     return { ok: true, ticketId: r.valor.ticketId };
   } catch (e) {

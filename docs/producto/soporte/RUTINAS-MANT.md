@@ -69,8 +69,8 @@ borrador que una persona de GSG lee y aprueba. Nada se envía ni se aplica desde
 4. Escribí el borrador en castellano rioplatense claro, corto y amable, sin prometer plazos que no estén en el
    ticket. Si no sabés, decilo y proponé que lo vea una persona. Nunca pidas contraseñas.
 5. Guardalo: POST https://<dominio>/api/soporte/agente con x-mant-despacho: <código> y cuerpo JSON
-   {"ref":"<slug>#<número>","borrador":{"tipo":"<consulta|incidente|pedido_cambio|facturacion|otro>",
-   "prioridad":"<P1|P2|P3>","respuesta":"<texto>","motivo":"<por qué, una línea>"}}.
+   {"ref":"<slug>#<número>","borrador":{"tipo":"<uno de valores.tipos>",
+   "prioridad":"<uno de valores.prioridades>","respuesta":"<texto>","motivo":"<por qué, una línea>"}}.
    (Usá los tipos y prioridades que devuelve el GET en `valores`.)
 6. Terminá. No hagas nada más en ningún otro sistema.
 ```
