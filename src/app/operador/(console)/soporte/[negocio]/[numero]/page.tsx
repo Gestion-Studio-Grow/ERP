@@ -9,7 +9,9 @@ import { CANAL, ESTADO, PRIORIDAD, TIPO } from "@/lib/soporte/config";
 import { estadoLeido, prioridadLeida, semaforo, TEXTO_SEMAFORO } from "@/lib/soporte/tickets-core";
 import { fichaDeTicket, type EventoDeTicket } from "@/lib/soporte/tickets.server";
 import { quienApruebaElBorrador } from "@/lib/soporte/agentes-permisos";
-import { CambiarEstadoYPrioridad, NotaInterna, Respuesta } from "../../AccionesTicket";
+import { despachoActual, leerTipoDeEvento, modoDelMotor, rutinaDelNivel } from "@/lib/soporte/despacho-core";
+import { vistaDelDespacho } from "@/lib/soporte/vista-despacho-core";
+import { CambiarEstadoYPrioridad, NotaInterna, PrepararConIa, Respuesta } from "../../AccionesTicket";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +27,14 @@ function quien(actor: string): string {
 function campo(x: unknown, k: string): unknown {
   return typeof x === "object" && x !== null && !Array.isArray(x) ? (x as Record<string, unknown>)[k] : undefined;
 }
+
+const DESPACHO_EN_CRIOLLO = {
+  pendiente: "quedó en cola",
+  disparado: "se le pidió a la IA",
+  listo: "la IA dejó el borrador",
+  vencido: "la IA no respondió a tiempo",
+  fallido: "no se pudo pedir a la IA",
+} as const;
 
 /** Una línea del historial, en criollo. */
 function queHizo(e: EventoDeTicket): string {
@@ -49,8 +59,11 @@ function queHizo(e: EventoDeTicket): string {
       return `Aprobó el borrador de la IA como respuesta (no se envió)${typeof campo(e.datos, "aprobadoPor") === "string" ? ` · aprobó ${campo(e.datos, "aprobadoPor")}` : ""}`;
     case "borrador_descartado":
       return "Descartó el borrador de la IA";
-    default:
+    default: {
+      const d = leerTipoDeEvento(e.tipo);
+      if (d) return `Borrador con IA (${d.nivel}): ${DESPACHO_EN_CRIOLLO[d.estado]}`;
       return e.tipo;
+    }
   }
 }
 
@@ -63,6 +76,15 @@ export default async function FichaDeTicketPage({ params }: { params: Promise<{ 
   if (!t) notFound();
   const s = semaforo(t, new Date());
   const enlace = t.respuesta ? linkWhatsapp(t.whatsappDelNegocio, t.respuesta) : null;
+  // El despacho a la IA (MANT-004): el estado se deduce de los eventos del ticket; el motor y la tarea n1,
+  // del entorno (sin leer secretos: sólo si están cargados). Apagado → «respondé a mano», sin romper.
+  const vistaIa = vistaDelDespacho({
+    modo: modoDelMotor(process.env).modo,
+    rutinaCargada: rutinaDelNivel(process.env, "n1").ok,
+    slug: t.negocio.slug,
+    estadoTicket: t.estado,
+    despacho: despachoActual(t.eventos, "n1"),
+  });
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 px-4 py-6">
@@ -137,6 +159,9 @@ export default async function FichaDeTicketPage({ params }: { params: Promise<{ 
       </Bloque>
 
       <Bloque titulo="Respuesta">
+        <div className="border-b border-line py-3">
+          <PrepararConIa negocio={t.negocio.id} numero={t.numero} vista={vistaIa} />
+        </div>
         <div className="py-3">
           <Respuesta
             negocio={t.negocio.id}
