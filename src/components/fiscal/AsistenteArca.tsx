@@ -4,7 +4,7 @@
 // La clave privada nunca llega acá: sólo el .csr (público) para descargarlo.
 import { Bloque, Button, Field, Franja, Input, Marca, Renglon, fmtCuit } from "@/components/ui";
 import { CONDICIONES_DEL_EMISOR, type CondicionDelEmisor } from "@/lib/fiscal/condicion-iva-emisor";
-import { INSTRUCCIONES_DEL_PEDIDO, MOTIVO_SIN_CONFIGURACION, PALABRA_DEL_PASE, type EstadoDePaso } from "@/lib/fiscal/asistente-arca";
+import { INSTRUCCIONES_DEL_PEDIDO, MOTIVO_OTRA_CLAVE, MOTIVO_SIN_CONFIGURACION, PALABRA_DEL_PASE, type EstadoDePaso } from "@/lib/fiscal/asistente-arca";
 import type { VistaDelAsistente } from "@/lib/fiscal/asistente-arca.server";
 import { ANTES_DE_EMPEZAR, TEXTO_CERTIFICADO_PROPIO } from "@/lib/fiscal/contador-arca";
 import { ObtenerAsistencia } from "./ObtenerAsistencia";
@@ -138,6 +138,20 @@ export function AsistenteArca({ vista, plano, tenantId, acciones, soloLectura = 
             ) : estado.problemaDelPedido === "sin-configuracion" ? (
               <div role="alert">
                 <Franja tono="atencion">{MOTIVO_SIN_CONFIGURACION}</Franja>
+              </div>
+            ) : estado.problemaDelPedido === "otra-clave" ? (
+              <div role="alert" className="space-y-2">
+                <Franja tono="atencion">{MOTIVO_OTRA_CLAVE}</Franja>
+                {plano === "cliente" && vista.soporte && (
+                  <a
+                    href={vista.soporte}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex min-h-11 items-center font-medium text-accent-ink underline underline-offset-4"
+                  >
+                    Escribirnos por WhatsApp
+                  </a>
+                )}
               </div>
             ) : estado.problemaDelPedido === "dañado" ? (
               <div role="alert">

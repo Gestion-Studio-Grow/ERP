@@ -39,9 +39,10 @@ export interface EntradaAsistente {
   /**
    * Por qué no se pudo leer el pedido (null = se leyó bien o no hay). «ilegible» (falló la base) y
    * «sin-configuracion» (falta la clave maestra) NO son «no hay pedido»: puede haber un .csr ya subido a
-   * ARCA y generar otro lo invalidaría (o fallaría igual), así que no se ofrece generar. «dañado» (la
-   * fila no abre con la clave presente) no tiene arreglo: su clave privada es irrecuperable y se permite
-   * generar uno nuevo, con el aviso de que el .csr anterior deja de servir.
+   * ARCA y generar otro lo invalidaría (o fallaría igual), así que no se ofrece generar. «otra-clave» (no
+   * abre y se cerró con otra clave maestra) tampoco: restaurando esa clave la privada se recupera.
+   * «dañado» (no abre con la misma clave con que se cerró) no tiene arreglo: su clave privada es
+   * irrecuperable y se permite generar uno nuevo, con el aviso de que el .csr anterior deja de servir.
    */
   problemaDelPedido: ProblemaDelPedido | null;
   pedidoDePase: PedidoDePase | null;
@@ -55,18 +56,25 @@ export type LecturaDelPedido =
   | { estado: "ilegible" }
   /** Falta la clave maestra (FISCAL_MASTER_KEY): configuración; generar fallaría igual. */
   | { estado: "sin-configuracion"; hayPedido: boolean }
-  /** La fila se leyó pero no abre (descifrado o JSON) con la clave presente: irrecuperable. */
+  /** No abre y se cerró con otra clave maestra (`kekId` ≠ el actual): recuperable restaurándola. */
+  | { estado: "otra-clave" }
+  /** No abre (descifrado o JSON) con la misma clave con que se cerró: irrecuperable. */
   | { estado: "dañado" };
 
-export type ProblemaDelPedido = Extract<LecturaDelPedido["estado"], "ilegible" | "sin-configuracion" | "dañado">;
+export type ProblemaDelPedido = Extract<LecturaDelPedido["estado"], "ilegible" | "sin-configuracion" | "otra-clave" | "dañado">;
 
 export const MOTIVO_SIN_CONFIGURACION = "Falta la configuración para guardar certificados cifrados. Avisale a GSG.";
+
+export const MOTIVO_OTRA_CLAVE =
+  "El pedido de certificado se guardó con otra clave de cifrado y no se puede abrir. No generes uno nuevo todavía: avisale a GSG para recuperarlo.";
 
 /**
  * Lee el pedido separando las causas de falla (pasos inyectados: el servidor pasa la base, la clave
  * maestra y el descifrado). `alFallar` recibe la causa y el error para el log (sin material sensible).
- * La clave se pide aunque no haya fila: sin ella generar fallaría igual. Una fila cerrada con otra
- * clave maestra (`kekId` ≠ `clave.id`) es «sin-configuracion», no «dañado».
+ * La clave se pide aunque no haya fila: sin ella generar fallaría igual. Se intenta abrir siempre: el
+ * descifrado no mira `kekId` (cert-crypto.ts `openSecret`), así que si sólo cambió la etiqueta
+ * (FISCAL_MASTER_KEY_ID) la fila abre y es «pendiente», igual que al cargar el certificado. Si no abre,
+ * el `kekId` distinto la vuelve «otra-clave» (recuperable) y el igual, «dañado».
  */
 export async function leerPedidoConEstado<F extends { kekId: string }, K extends { id: string }>(pasos: {
   leerFila: () => Promise<F | null>;
@@ -89,18 +97,15 @@ export async function leerPedidoConEstado<F extends { kekId: string }, K extends
     return { estado: "sin-configuracion", hayPedido: fila !== null };
   }
   if (fila === null) return { estado: "ninguno" };
-  // Cerrada con otra clave maestra (rotación o FISCAL_MASTER_KEY_ID cambiado): es configuración, no
-  // daño. Si se tomara por «dañado» se borraría una clave privada que abre al corregir la config.
-  if (fila.kekId !== clave.id) {
-    pasos.alFallar?.("sin-configuracion", new Error("La fila se cerró con otra clave maestra"));
-    return { estado: "sin-configuracion", hayPedido: true };
-  }
   try {
     const p = pasos.abrir(fila, clave);
     return { estado: "pendiente", csrPem: p.csrPem, creadoEn: p.creadoEn };
   } catch (e) {
-    pasos.alFallar?.("dañado", e);
-    return { estado: "dañado" };
+    // Cerrada con otra clave maestra (rotación): no es daño. Tomarla por «dañado» dejaría pisar una
+    // clave privada que vuelve a abrir al restaurar esa clave.
+    const causa = fila.kekId !== clave.id ? "otra-clave" : "dañado";
+    pasos.alFallar?.(causa, e);
+    return { estado: causa };
   }
 }
 
@@ -135,14 +140,16 @@ export function hayPedidoEnCurso(lectura: LecturaDelPedido): boolean {
 }
 
 /**
- * Defensa del servidor (llamada directa, doble clic): no se pisa un pedido que no se pudo leer, ni se
- * intenta sin la clave maestra. Un pedido dañado sí se reemplaza (no hay otra salida).
+ * Defensa del servidor (llamada directa, doble clic): no se pisa un pedido que no se pudo leer ni uno
+ * cerrado con otra clave maestra, ni se intenta sin la clave maestra. Un pedido dañado sí se reemplaza
+ * (no hay otra salida).
  */
 export function motivoParaNoReemplazarPedido(lectura: LecturaDelPedido): string | null {
   if (lectura.estado === "ilegible") {
     return "No pudimos leer el pedido de certificado que ya generaste, así que no generamos otro (el anterior dejaría de servir). Reintentá en un rato y, si sigue, avisale a GSG.";
   }
   if (lectura.estado === "sin-configuracion") return MOTIVO_SIN_CONFIGURACION;
+  if (lectura.estado === "otra-clave") return MOTIVO_OTRA_CLAVE;
   return null;
 }
 
@@ -161,7 +168,7 @@ export interface EstadoDelAsistente {
   puedePedirPase: boolean;
   /** Por qué no se pudo leer el pedido pendiente (null = sin problema): la pantalla muestra el aviso. */
   problemaDelPedido: ProblemaDelPedido | null;
-  /** Se puede ofrecer generar un pedido: datos completos y nada que lo bloquee (ilegible o sin configuración). */
+  /** Se puede ofrecer generar un pedido: datos completos y nada que lo bloquee (ilegible, sin configuración u otra clave). */
   puedeGenerarPedido: boolean;
 }
 
@@ -214,7 +221,8 @@ export function estadoDelAsistente(e: EntradaAsistente): EstadoDelAsistente {
     !e.pedidoDePase &&
     precondiciones.filter((p) => DEL_NEGOCIO.has(p.id)).every((p) => p.ok);
   const problema = e.problemaDelPedido;
-  const puedeGenerarPedido = faltanDatos.length === 0 && problema !== "ilegible" && problema !== "sin-configuracion";
+  const puedeGenerarPedido =
+    faltanDatos.length === 0 && problema !== "ilegible" && problema !== "sin-configuracion" && problema !== "otra-clave";
   return { paso, pasos, precondiciones, faltanDatos, certificado, puedePedirPase, problemaDelPedido: problema, puedeGenerarPedido };
 }
 

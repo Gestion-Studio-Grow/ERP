@@ -12,6 +12,7 @@ import {
   hayPedidoEnCurso,
   leerPedidoConEstado,
   motivoParaNoReemplazarPedido,
+  MOTIVO_OTRA_CLAVE,
   sinChoqueDePedido,
   problemaDelPedido,
   organizacionDelPedido,
@@ -99,7 +100,7 @@ test("el pedido de pase: uno solo, y no depende del modo de la plataforma ni de 
 });
 
 test("pedido que no se pudo leer (base) o sin configuración: NO se ofrece generar otro", () => {
-  for (const problema of ["ilegible", "sin-configuracion"] as const) {
+  for (const problema of ["ilegible", "sin-configuracion", "otra-clave"] as const) {
     const e = estadoDelAsistente(entrada({}, { problemaDelPedido: problema }));
     assert.equal(e.problemaDelPedido, problema);
     assert.equal(e.puedeGenerarPedido, false, problema);
@@ -188,20 +189,27 @@ describe("lectura del pedido: cada causa de falla tiene su estado", () => {
     assert.equal(estadoDelAsistente(entrada({}, { problemaDelPedido: problemaDelPedido(json.l) })).puedeGenerarPedido, true);
   });
 
-  test("(d) la fila se cerró con OTRA clave maestra → sin-configuracion (no dañado): no se borra ni se regenera", async () => {
-    let abrio = false;
+  test("(d) etiqueta distinta (FISCAL_MASTER_KEY_ID cambiado) pero la fila abre → pendiente", async () => {
+    const { l, fallas } = await lectura({ clave: () => ({ id: "env:FISCAL_MASTER_KEY:v2" }) });
+    assert.deepEqual(l, { estado: "pendiente", csrPem: "CSR", creadoEn: FILA.creadoEn });
+    assert.deepEqual(fallas, []);
+    assert.equal(motivoParaNoReemplazarPedido(l), null);
+  });
+
+  test("(d2) etiqueta distinta y la fila NO abre → otra-clave: bloquea generar, no se borra", async () => {
     const { l, fallas } = await lectura({
       clave: () => ({ id: "env:FISCAL_MASTER_KEY:v2" }),
       abrir: () => {
-        abrio = true;
         throw new Error("Unsupported state or unable to authenticate data");
       },
     });
-    assert.deepEqual(l, { estado: "sin-configuracion", hayPedido: true });
-    assert.deepEqual(fallas, ["sin-configuracion"]);
-    assert.equal(abrio, false, "no se intenta abrir con una clave que no es la del sobre");
-    assert.notEqual(motivoParaNoReemplazarPedido(l), null);
-    assert.equal(estadoDelAsistente(entrada({}, { problemaDelPedido: problemaDelPedido(l) })).puedeGenerarPedido, false);
+    assert.deepEqual(l, { estado: "otra-clave" });
+    assert.deepEqual(fallas, ["otra-clave"]);
+    assert.equal(motivoParaNoReemplazarPedido(l), MOTIVO_OTRA_CLAVE);
+    assert.equal(hayPedidoEnCurso(l), true);
+    const e = estadoDelAsistente(entrada({}, { problemaDelPedido: problemaDelPedido(l) }));
+    assert.equal(e.problemaDelPedido, "otra-clave");
+    assert.equal(e.puedeGenerarPedido, false);
   });
 
   test("(e) misma clave maestra y el descifrado falla → dañado (como siempre)", async () => {
@@ -221,6 +229,7 @@ describe("lectura del pedido: cada causa de falla tiene su estado", () => {
       { estado: "ilegible" },
       { estado: "sin-configuracion", hayPedido: true },
       { estado: "sin-configuracion", hayPedido: false },
+      { estado: "otra-clave" },
       { estado: "dañado" },
     ] as const) {
       const bloquea = motivoParaNoReemplazarPedido(l) !== null;
@@ -246,6 +255,7 @@ test("pedido en curso para el contador: hay fila (aunque no se pueda leer o abri
   assert.equal(hayPedidoEnCurso({ estado: "pendiente", csrPem: "CSR", creadoEn: "2026-11-05T10:00:00.000Z" }), true);
   assert.equal(hayPedidoEnCurso({ estado: "ilegible" }), true);
   assert.equal(hayPedidoEnCurso({ estado: "dañado" }), true);
+  assert.equal(hayPedidoEnCurso({ estado: "otra-clave" }), true);
   assert.equal(hayPedidoEnCurso({ estado: "sin-configuracion", hayPedido: true }), true);
   assert.equal(hayPedidoEnCurso({ estado: "sin-configuracion", hayPedido: false }), false);
 });

@@ -112,8 +112,9 @@ async function abrirPedido(tenantId: string): Promise<PedidoAbierto | null> {
 
 /**
  * El pedido pendiente para mostrar (sólo el .csr y la fecha; la clave no sale), con la causa separada
- * si falla: base («ilegible», reintentar), clave maestra («sin-configuracion») o fila que no abre
- * («dañado», se puede generar otro). Nunca «no hay pedido» por un error: la pantalla ofrecería generar
+ * si falla: base («ilegible», reintentar), clave maestra («sin-configuracion»), fila cerrada con otra
+ * clave maestra que no abre («otra-clave», no se pisa) o fila que no abre con su clave («dañado», se
+ * puede generar otro). Nunca «no hay pedido» por un error: la pantalla ofrecería generar
  * otro y eso invalida el .csr que el dueño quizá ya subió a ARCA.
  */
 export async function leerPedidoPendiente(tenantId: string): Promise<LecturaDelPedido> {
@@ -137,8 +138,8 @@ export async function leerPedidoPendiente(tenantId: string): Promise<LecturaDelP
 /**
  * Paso 2: genera clave + CSR en el servidor y deja la clave cifrada y pendiente (reemplaza un pedido
  * anterior: el .csr viejo deja de servir). No toca el certificado cargado. Si el pedido anterior no se
- * pudo leer por la base o falta la clave maestra, no lo reemplaza; si está dañado, sí (ver
- * `leerPedidoPendiente`).
+ * pudo leer por la base, falta la clave maestra o se guardó con otra clave que no lo abre, no lo
+ * reemplaza; si está dañado, sí (ver `leerPedidoPendiente`).
  */
 export async function generarPedidoDelNegocio(tenantId: string, actor: string): Promise<Resultado> {
   const t = await enElNegocio(tenantId, (tx) =>
