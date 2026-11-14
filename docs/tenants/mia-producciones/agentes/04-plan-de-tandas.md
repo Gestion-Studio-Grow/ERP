@@ -41,7 +41,7 @@ producto.
 
 | Tanda | Qué deja | Constructores | Certificación adversarial | Migración |
 |---|---|---|---|---|
-| 1 | **Panel «Mi equipo» con lo que calcula el código**: parte a pedido, consultas de Cobranzas con su origen, registro, pausa e interruptor. Y la conversación con IA construida, que se prende sólo con clave propia y con su interruptor por negocio. **Se puede probar sin ninguna clave** | 3 briefs, 2 a la vez: A (motor) y B (herramientas y panel); C (API y gasto) después de A | Seguridad y datos (aislamiento, sólo lectura, permisos, inyección), concurrencia (cupos, doble envío, vigencia) y plata (gasto) | Se escribe, sin aplicar: 11 tablas |
+| 1 | **Panel «Mi equipo» con buzón de pedidos**: la persona deja un pedido y lo ve con su estado, sus horas y su respuesta, con objetivo de menos de 3 minutos medido de verdad. Los pedidos de la lista (cobranzas pendientes, vencimientos, parte del día) los responde el código, sin modelo. Los de texto libre se responden con IA cuando haya clave propia e interruptor; mientras tanto quedan en espera, sin perderse. Registro, pausa e interruptor. **Se puede probar sin ninguna clave** | 3 briefs, 2 a la vez: A (motor y buzón) y B (herramientas y panel); C (API y gasto) después de A | Seguridad y datos (aislamiento, sólo lectura, permisos, inyección), concurrencia (cupos, doble envío, toma de pedidos, vigencia) y plata (gasto) | Se escribe, sin aplicar: 11 tablas |
 | 2 | Para aprobar, recordatorio de cobro por plantilla, agenda con confirmación y cuaderno | 2 | Concurrencia (propuestas, cupos, pausa al decidir) y seguridad (salida a terceros) | No |
 | 3 | Tarea diaria en tres pasos, parte automático, seguimiento de compromisos, textos por plantilla | 1 | Concurrencia y plata (gasto en el barrido) | No |
 | 4 | Cuentas a pagar y Bancos (conciliación al aprobar, sin la carrera de hoy); pagos y bancos entran al parte | 2 | Plata y datos | No |
@@ -53,43 +53,44 @@ Fuera de este plan: el equipo de proyecto de la propia GSG (`05`, sección D: pr
 
 ---
 
-## Tanda 1 — Motor, primer puesto y panel (se prueba sin clave)
+## Tanda 1 — Motor, buzón, primer puesto y panel (se prueba sin clave)
 
 Una rama y un PR. Orden: 1A hace primero un commit de **contratos** (tipos, modelos y firmas); desde ahí 1B trabaja en
 paralelo con 1A, en archivos distintos; 1C entra cuando 1A terminó. Nunca más de 2 constructores a la vez.
 
 | Brief | Archivos de código que toca |
 |---|---|
-| 1A | `src/lib/agentes/` (`tipos`, `permisos-core`, `cifras-core`, `texto-seguro-core`, `gasto-core`, `proveedor`, `motor.server`, `lectura.server`, `contadores.server`, `registro.server`, `estado.server`, `puestos/administracion` y sus tests) · `prisma/schema.prisma` · `prisma/migrations/<timestamp>_agentes_base/migration.sql` · `prisma/rls/0002_app_role.sql` · `src/cambios/interruptores.ts` |
+| 1A | `src/lib/agentes/` (`tipos`, `permisos-core`, `cifras-core`, `texto-seguro-core`, `gasto-core`, `buzon-core`, `proveedor`, `motor.server`, `buzon.server`, `lectura.server`, `contadores.server`, `registro.server`, `estado.server`, `puestos/administracion` y sus tests) · `prisma/schema.prisma` · `prisma/migrations/<timestamp>_agentes_base/migration.sql` · `prisma/rls/0002_app_role.sql` · `src/cambios/interruptores.ts` |
 | 1B | `src/lib/proyectos/agentes/` (`actor-agente.server`, `herramientas-cobranzas.server`, `herramientas-coordinacion.server`, `acciones-equipo` y sus tests) · `src/lib/proyectos/gestion-core.ts` · `src/apps/catalogo/comercial.ts` · `src/app/admin/(dashboard)/layout.tsx` · `src/app/admin/(dashboard)/proyectos/mi-equipo/` · `prisma/seed-mia-producciones.ts` |
 | 1C | `src/lib/agentes/proveedor-claude.server.ts` · `src/lib/agentes/gasto.server.ts` · `src/lib/agentes/gasto-core.ts` (precios) · `src/lib/agentes/estado.server.ts` (sólo la función que elige ruta) y sus tests |
 
 ### Brief 1A · constructor del motor
 
 ```
-Rol: ingeniero del ERP (Opus alto; seguridad, datos y concurrencia). Tarea: motor de agentes, sin pantalla.
-PRIMER commit, antes que nada, los contratos para 1B y 1C: tipos.ts, los 11 modelos al final de
-prisma/schema.prisma y las firmas de estado, contadores, registro y motor.
+Rol: ingeniero del ERP (Opus alto; seguridad, datos y concurrencia). Tarea: motor de agentes y buzón de
+pedidos, sin pantalla. PRIMER commit: los contratos para 1B y 1C: tipos.ts, los 11 modelos
+al final de prisma/schema.prisma y las firmas de estado, buzon, contadores, registro y motor.
 Abrí de 03 sólo: §2, §3, §4 a §4.3, §5, §6 y §6.1, §9, §10.1, §12 y §12.1, §14.
-Construí en src/lib/agentes/ los archivos de 03 §2, salvo proveedor-claude y gasto.server (1C) y memoria,
-propuestas, barrido, plantillas, respaldo y agenda (tandas 2 y 3). motor.server: conversar (el proveedor
-llega por parámetro) y consultar (sin modelo). El guion, sólo para tests.
-Migración prisma/migrations/<timestamp sin colisión>_agentes_base: sólo CREATE. Patrón:
-prisma/migrations/20261106120000_support_ticket/migration.sql:29-31, :51, :54-58. Únicos parciales en SQL.
-REVOKE UPDATE, DELETE de AgenteAccion a app_rls (si el rol existe) y la misma línea al final de
+Construí en src/lib/agentes/ los archivos de 03 §2, menos proveedor-claude y gasto.server (1C) y los de
+las tandas 2 y 3 (memoria, propuestas, barrido, plantillas, respaldo, agenda). El motor recibe el proveedor
+por parámetro; sin proveedor, el pedido de texto libre queda en espera. El guion, sólo para tests.
+Migración prisma/migrations/<timestamp sin colisión>_agentes_base, sólo CREATE; patrón
+prisma/migrations/20261106120000_support_ticket/migration.sql:29-31, :51, :54-58; únicos parciales en SQL;
+REVOKE UPDATE, DELETE de AgenteAccion a app_rls (si el rol existe), repetido al final de
 prisma/rls/0002_app_role.sql. NO se aplica.
 Interruptores equipo-agentes y equipo-agentes-ia al FINAL de src/cambios/interruptores.ts:66, con
 cambiaLasApps:false.
 No se negocia:
 - ctx.db sobre prisma de @/lib/prisma; nunca basePrisma ni dentro de una transacción
   (src/lib/rls.ts:118-119, :139-143).
-- Sin SQL crudo; altas con skipDuplicates; cupos con updateMany condicional.
+- Sin SQL crudo; altas con skipDuplicates; cupos y toma de pedidos con updateMany condicional.
 - vigencia(tx) sin caché (patrón src/lib/contabilidad/modulo.server.ts:24-30); estado.server sin audit( ni
   $executeRaw. Falta de tablas: modulo.server.ts:40-56.
+- Reloj inyectado; plazo, presupuesto y métricas en buzon-core.
 - El motor no importa src/lib/proyectos/. El modelo nunca recibe tenantId.
-ESCRIBÍ PRIMERO (03 §14): agentes-aislamiento-postgres (con app_rls, A ve más de cero y nada de B, también
-por ctx.db), topes-carrera-postgres (cupo por persona; doble envío) y vigencia-carrera-postgres.
-Además, los tests de 03 §14 de esos archivos (incluye sin-modelo, solo-lectura y guardia-escrituras).
+ESCRIBÍ PRIMERO (03 §14): agentes-aislamiento-postgres, topes-carrera-postgres (cupo por persona, doble
+envío, toma y rescate de un pedido, plazo) y vigencia-carrera-postgres. Después, los demás tests de 03 §14
+de esos archivos.
 Verificación: tsc · tests · npm run gates. Entrega: PR en borrador, informe ≤ 300 palabras.
 ```
 
@@ -97,24 +98,23 @@ Verificación: tsc · tests · npm run gates. Entrega: PR en borrador, informe �
 
 ```
 Rol: ingeniero del ERP (Opus alto). Tarea: puestos Cobranzas (sólo lectura) y Coordinación (parte a pedido)
-y panel «Mi equipo», con y sin IA. Misma rama; arrancás desde el commit de contratos de 1A.
-De 1A usás: tipos, motor (conversar, consultar), estado (vigencia, tablas, ¿hay IA?),
-contadores (tomarCupo), registro y los modelos Agente*.
-Abrí sólo: 02 §1.1, §1.2, §2, §3 y 03 §3 (AgenteParte, AgenteMensaje, AgentePuesto), §4, §4.2, §4.3, §5,
-§6 punto 4, §10.1, §12, §12.1.
+y panel «Mi equipo» con BUZÓN de pedidos (no hay chat). Arrancás del commit de contratos de 1A.
+De 1A usás: tipos, buzon, estado (vigencia, tablas, ¿hay IA?), registro y los modelos Agente*.
+Abrí sólo: 02 §1.1, §1.2, §2, §3 y 03 §3 (AgentePedido, AgentePuesto, AgenteAjuste), §4, §4.2, §4.3, §5,
+§10.1, §12, §12.1.
 Construí:
 - src/lib/proyectos/agentes/actor-agente.server.ts: rol base y recorte en tres capas
   (gestion.server.ts:44-46, :62-66, :69-72); va al motor por parámetro.
 - herramientas-cobranzas y -coordinacion: SÓLO lecturas existentes (empresa.server.ts:20-43 y :46,
   cobranza.server.ts:75, cobranza-core.ts:334), fuera de transacción y sin importar Prisma.
-- acciones-equipo.ts ("use server"): conversar, consultar, armarParte, pausar, pausarTodo, reanudar. Puerta
-  de cada una: actorActual (gestion.server.ts:33-42), módulo «agentes» (puede :44-46; exigirEditar :56-60
-  para pausar) e interruptor (src/cambios/interruptores.server.ts:56-59). conversar y armarParte llevan la
-  clave del envío.
+- acciones-equipo.ts ("use server"): dejarPedido (guarda y agenda el proceso con after(); leé antes la guía
+  de Next que cita 03 §4.3), miBuzon (lee y rescata), pedirAhora, pausar, pausarTodo, reanudar. Puerta de
+  cada una: actorActual (gestion.server.ts:33-42), módulo «agentes» (puede :44-46; exigirEditar :56-60 para
+  pausar) e interruptor (src/cambios/interruptores.server.ts:56-59).
 - módulo y app: gestion-core.ts:616-631, :645-651, :675-684, :704-712; src/apps/catalogo/comercial.ts:302;
   la app, sólo con equipo-agentes prendido: src/app/admin/(dashboard)/layout.tsx:276-277.
-- src/app/admin/(dashboard)/proyectos/mi-equipo/: Hoy, Conversar, Registro, Ajustes. Sin IA: consultas
-  rápidas y cartel, sin caja de texto. maxDuration como proyectos/agentes/page.tsx:10.
+- src/app/admin/(dashboard)/proyectos/mi-equipo/: Hoy, Buzón (02 §2), Registro, Ajustes. Sondeo mientras
+  haya pedidos sin terminar. maxDuration en la página, como proyectos/agentes/page.tsx:10.
 - demo local: prender equipo-agentes en prisma/seed-mia-producciones.ts:63-64. NO desde scripts/.
 Kit: DESIGN.md y .claude/rules/. 375 px. Sello GSG.
 Tests: cobranzas-mismo-numero-postgres, agentes-permisos-postgres, acceso por rol; T1, T2, T4, T6, T12.
@@ -124,8 +124,8 @@ Verificación: tsc · tests · npm run build. Informe ≤ 300 palabras.
 
 ### Brief 1C · adaptador de la API y gasto
 
-Se construye siempre, dentro de la tanda 1. No gasta nada hasta que haya clave: la conversación en vivo se prende con
-la variable de clave propia y con `equipo-agentes-ia` en el negocio (`05`, D4-bis).
+Se construye siempre, dentro de la tanda 1. No gasta nada hasta que haya clave: responder con IA los pedidos de texto
+libre se prende con la variable de clave propia y con `equipo-agentes-ia` en el negocio (`05`, D4-bis).
 
 ```
 Rol: ingeniero del ERP (Opus alto; superficie: plata, por el gasto). Tarea: adaptador de la API y gasto del
@@ -137,7 +137,7 @@ Construí:
 - src/lib/agentes/gasto.server.ts: reservar, cerrar y cobrar vencidas, una fila por llamada, sólo con
   delegados. Precios en gasto-core, de la página oficial, citados con fecha.
 - en estado.server.ts, la función que elige ruta: ruta 1 sólo con la variable AGENTES_ANTHROPIC_API_KEY
-  cargada, equipo-agentes-ia prendido en el negocio y saldo; si no, sin modelo.
+  cargada, equipo-agentes-ia prendido en el negocio y saldo; si no, el pedido de texto libre queda en espera.
 No se negocia:
 - La clave NO va en ANTHROPIC_API_KEY: la leen los agentes actuales (src/lib/proyectos/ia.server.ts:40 y
   :85) y cargarla los cambiaría de proveedor sin tope. No tocar ia.server.ts.
@@ -154,7 +154,8 @@ Verificación: tsc · tests. Informe ≤ 300 palabras, con lo que NO se pudo pro
 **Certificación de la tanda 1 (Opus alto, sobre el diff):** aislamiento entre negocios con el rol sin bypass, mirando
 que lo propio **aparezca** (también por `ctx.db`); que ninguna herramienta tenga un camino de escritura ni haya SQL
 crudo en el motor; que ninguna acción de servidor quede sin control de módulo e interruptor, y ninguna escritura sin
-vigencia; doble envío, cupos por persona y pausa a mitad de vuelta; recorte por proyectos y columnas; inyección por
+vigencia; doble envío, cupos por persona, dos procesos sobre el mismo pedido, plazo vencido y pausa a mitad de un
+pedido; que el tiempo de respuesta y el porcentaje dentro del objetivo salgan de las horas guardadas; recorte por proyectos y columnas; inyección por
 concepto de cuota y por nombre de cliente; que el modelo no pueda fijar `tenantId`, importes ni orígenes; que sin clave
 o sin `equipo-agentes-ia` no salga ninguna llamada; que el tope de gasto no se pase con llamadas simultáneas ni quede
 trabado; que la migración no toque tablas existentes.
@@ -180,33 +181,39 @@ Usa **sólo lo que la tanda 1 entrega**. No hay demo para el dueño: se prueba e
 **Prueba A — sin clave: lo que calcula el código.** Entrando con el usuario de Administración:
 
 1. En la barra aparece **Mi equipo**. Abrilo. Arriba dice que el equipo está sin conexión a la IA.
-2. **Hoy** → «Armar el parte ahora»: muestra cobros vencidos (cantidad y total) y cobros de los próximos 7 días. Tocá
-   dos veces seguidas: tiene que quedar un solo parte.
+2. **Hoy** → «Armar el parte ahora»: muestra cobros vencidos (cantidad y total), cobros de los próximos 7 días y cómo
+   viene el buzón. Tocá dos veces seguidas: tiene que quedar un solo pedido de parte.
 3. Abrí **Administración** en otra pestaña y compará «cobros vencidos»: mismo número, al centavo. La cuota del evento
    sin confirmar no cuenta.
-4. **Conversar** → Cobranzas → «Cuotas vencidas»: dos renglones, cada uno con su fuente; tocá una y te lleva a la
-   cuota. Probá «Cuotas por vencer», «Resumen» y «Cuotas de un cliente».
-5. No hay caja para escribir: sin IA sólo están las consultas rápidas.
-6. **Ajustes** → pausá Cobranzas. En Conversar dice quién lo pausó y las consultas no corren. Reanudalo. Después, en
-   Hoy, «Pausar todo»: «Armar el parte ahora» no corre. Reanudá.
-7. **Registro**: están las consultas, el parte, las pausas y las reanudaciones, con fecha, puesto y persona.
+4. **Buzón** → Cobranzas → dejá el pedido de la lista «Cuotas vencidas». Aparece «Recibido» y enseguida «Respondido»,
+   con la hora del pedido, la hora de la respuesta y cuánto tardó (tiene que ser menos de 3 minutos; son segundos). La
+   respuesta trae dos renglones, cada uno con su fuente: tocá una y te lleva a la cuota. Probá también «Cobranzas
+   pendientes», «Vencimientos de los próximos 7 días» y «Cuotas de un cliente».
+5. Dejá un pedido escrito («¿quién me debe más?»). Queda «En espera: el equipo todavía no tiene la IA conectada».
+   Recargá la página: sigue ahí.
+6. **Ajustes** → pausá Cobranzas. En el Buzón, intentá dejarle un pedido: no entra y dice quién lo pausó. Reanudalo.
+   Después, en Hoy, «Pausar todo»: «Armar el parte ahora» no corre. Reanudá.
+7. **Registro**: están los pedidos con su tiempo de respuesta, el porcentaje dentro del objetivo, las pausas y las
+   reanudaciones, con fecha, puesto y persona.
 8. Entrá con el usuario de Diseño: «Mi equipo» no aparece y la dirección directa te devuelve a Inicio.
 9. Entrá con el usuario de Dirección: ve lo mismo que Administración.
 10. GSG apaga `equipo-agentes` en la consola: al recargar, «Mi equipo» desaparece para todos. Se vuelve a prender.
 11. Callejones sin salida a marcar: una pantalla sin botón de volver, una fuente que no abre nada, un cartel de error
     que no dice qué hacer.
 
-**Prueba B — con clave: conversación en vivo.** Sólo si el dueño elige el camino (a) de `05` D4-bis. Antes: se carga
-la variable de la clave en `erp-ch` (el valor no se imprime), con un límite de gasto puesto también del lado del
-proveedor, y GSG prende `equipo-agentes-ia` sólo en el negocio de la prueba. Después:
+**Prueba B — con clave: pedidos de texto libre respondidos con IA.** Sólo si el dueño elige el camino (a) de `05`
+D4-bis. Antes: se carga la variable de la clave en `erp-ch` (el valor no se imprime), con un límite de gasto puesto
+también del lado del proveedor, y GSG prende `equipo-agentes-ia` sólo en el negocio de la prueba. Después:
 
-1. **Conversar** → Cobranzas: aparece la caja para escribir. «¿Qué cuotas vencieron?»: los mismos renglones que la
-   consulta rápida, con sus fuentes.
-2. «¿Cuánto debe Perengano SA?» (no existe): tiene que decir que no lo tiene.
-3. «Marcá esa cuota como cobrada»: tiene que negarse y darte el enlace.
-4. Pausá Cobranzas y escribile: no responde y dice quién lo pausó. Reanudalo.
-5. **Ajustes**: el gasto del mes ya no está en cero y se ve contra el tope. **Registro**: cada llamada con su consumo.
-6. GSG apaga `equipo-agentes-ia`: vuelve el cartel «sin conexión a la IA» y las consultas rápidas siguen andando.
+1. **Buzón**: el pedido que estaba «En espera» ahora ofrece «Pedir ahora». Tocalo: pasa a «Recibido», «En curso» y
+   «Respondido» en menos de 3 minutos, con su tiempo a la vista y la respuesta entera (no aparece palabra por palabra).
+2. Dejá el pedido «¿Cuánto debe Perengano SA?» (no existe): tiene que responder que no lo tiene.
+3. Dejá el pedido «Marcá esa cuota como cobrada»: tiene que quedar «Necesita una persona», con el enlace.
+4. Pausá Cobranzas y dejale un pedido: no entra y dice quién lo pausó. Reanudalo.
+5. **Ajustes**: el gasto del mes ya no está en cero y se ve contra el tope. **Registro**: cada pedido con su consumo y
+   su tiempo.
+6. GSG apaga `equipo-agentes-ia`: un pedido escrito nuevo vuelve a quedar «En espera» y los de la lista se siguen
+   respondiendo.
 
 **Lo que esta prueba no cubre, porque llega después:** recordatorios, aprobar, agenda y cuaderno (tanda 2); el parte
 automático de la mañana (tanda 3); pagos y bancos (tanda 4). El guion completo de `02` §6 dice de qué tanda es cada
@@ -247,8 +254,8 @@ agenda.anotar, agenda.listar, cuaderno.leer y memoria.buscar, y las dos pestaña
 - agenda.anotar NO crea: arma la tarjeta de confirmación. El compromiso lo crea la acción de servidor al
   tocar «Anotar» (cupo de 50 abiertos, clave única). Botón fijo «Anotar compromiso» y aviso «¿Anoto esta
   promesa?» con pareceUnaPromesa.
-- Antes de la primera llamada de cada vuelta, el código busca en la memoria los clientes nombrados y lo
-  agrega a <datos> con su origen. memoria.buscar sólo mira charlas de la misma persona.
+- Antes de la primera llamada de cada pedido, el código busca en la memoria los clientes nombrados y lo
+  agrega a <datos> con su origen. memoria.buscar sólo mira pedidos de la misma persona.
 - Notas e historial viajan dentro de <datos> (diseno-core.ts:377-385), nunca como instrucciones.
 Tests: agenda-core.test.ts; M1 y M4 con guion (M1 pasa aunque el modelo no llame a la herramienta); mismo
 compromiso dos veces → uno; el modelo no puede crear un compromiso sin el botón.
@@ -257,7 +264,7 @@ QA: guion de 02 §6, pasos 10 y 11. Verificación: tsc · tests. Informe ≤ 300
 
 **Certificación:** carreras de aprobación, de creación y de cupos; que «Corregir y aprobar» no permita cambiar
 importes ni destinatario; que ningún dato que sale a un cliente de MIA venga del modelo; enlaces, CBU y alias
-bloqueados; inyección por nota del cuaderno; que la memoria no cruce charlas entre personas.
+bloqueados; inyección por nota del cuaderno; que la memoria no cruce pedidos entre personas.
 
 ---
 
@@ -273,8 +280,8 @@ Construí src/lib/agentes/barrido.server.ts y sumalo ÚLTIMO en src/app/api/cron
 documentación de Vercel y citarlo. NO agregar entradas a vercel.json.
 Por negocio, tres pasos (03 §8), nunca una sola transacción:
 A leer fuera de transacción, en runInTenantContext (src/lib/tenant-context.ts:36);
-B escribir en transacciones cortas lo que no usa IA: vencer, compromisos, parte, recordatorios por
-  plantilla, avisos;
+B escribir en transacciones cortas lo que no usa IA: vencer (propuestas y pedidos del buzón fuera de
+  plazo), compromisos, parte, recordatorios por plantilla, avisos;
 C llamar al modelo fuera de transacción, hasta 5 redacciones, y guardar cada texto sólo si nada cambió.
 Tiempo: min(40 s, lo que queda ÷ negocios que faltan), reloj inyectado. Lo demás: «preparar al abrir».
 Atraso de 7 días como gestion.server.ts:124-139. Avisos: gestion.server.ts:170-179.
@@ -335,7 +342,7 @@ la carrera que se cierra.
 
 Un constructor Opus alto, más revisión de Codex. Contenido:
 1. Corrida de los 30 casos contra 2 o 3 modelos candidatos **sólo si el dueño aprobó el gasto** (`05` D1): tabla de
-   aciertos, costo por conversación y por parte, y calibración del estimado de tokens de entrada. El resultado se guarda
+   aciertos, costo por pedido y por parte, y calibración del estimado de tokens de entrada. El resultado se guarda
    en esta carpeta: **sin esa corrida no se prende la IA sobre datos reales** (`03` §12).
 2. CI: los 30 casos con guion, por la ruta 1 (respuestas grabadas) y por la ruta 3 (sin modelo). La opción B queda
    como interfaz: no se construye un segundo adaptador (`03` §10).

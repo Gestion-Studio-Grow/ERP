@@ -433,8 +433,8 @@ con datos ya cargados: queda como decisión aparte (`05`, D13).
 
   | Paso | Fase | Qué hace |
   |---|---|---|
-  | A | 1 · LEER, en `runInTenantContext` | Tablas, pausa, cuotas (lecturas de pantalla), compromisos del día y atrasados, propuestas por vencer |
-  | B | 3 · ESCRIBIR, transacciones cortas | **Todo lo que no necesita IA:** vencer propuestas; levantar compromisos (`updateMany` condicional sobre `revisadoEl`: sólo si no se revisó hoy); guardar el parte con sus números (`AgenteParte`; si choca el único del día, no repite); crear las propuestas de recordatorio con la plantilla (§13); avisos internos. Lotes de hasta 50 filas por transacción para no pasar los 5 s |
+  | A | 1 · LEER, en `runInTenantContext` | Tablas, pausa, cuotas (lecturas de pantalla), compromisos del día y atrasados, propuestas por vencer, pedidos del buzón con el plazo pasado |
+  | B | 3 · ESCRIBIR, transacciones cortas | **Todo lo que no necesita IA:** vencer propuestas; marcar «sin responder» los pedidos del buzón que pasaron su plazo y nadie miró (§4.3); levantar compromisos (`updateMany` condicional sobre `revisadoEl`: sólo si no se revisó hoy); guardar el parte con sus números (`AgenteParte`; si choca el único del día, no repite); crear las propuestas de recordatorio con la plantilla (§13); avisos internos. Lotes de hasta 50 filas por transacción para no pasar los 5 s |
   | C | 2 · PENSAR, después 3 | Con lo que quede de tiempo y de gasto: hasta 5 redacciones (introducción del parte, frase libre). Cada una: vigencia y reserva de gasto en una transacción (§12.1, §11), llamada con corte por tiempo, control de cifras y filtro, y una transacción corta que guarda el texto **sólo si** el parte o la propuesta siguen como estaban |
 
 - Presupuesto de IA por negocio: lo que dé `min(40 s, tiempo restante ÷ negocios que faltan)`, con reloj inyectado. Lo
@@ -442,7 +442,7 @@ con datos ya cargados: queda como decisión aparte (`05`, D13).
   abrir Inicio, `gestion.server.ts:148`). Si la función se corta entre B y C no queda nada a medias: los números ya
   están guardados y falta sólo el texto.
 - El panel también llama al modelo fuera de transacción; `mi-equipo/page.tsx` declara `maxDuration` como sus vecinas.
-- Idempotencia: el único parcial del parte, el de las propuestas, la `clave` de los compromisos y el `updateMany`
+- Idempotencia: el único del parte, el de las propuestas, la `clave` de los compromisos y el `updateMany`
   condicional de `revisadoEl` hacen que dos corridas el mismo día, o dos a la vez, no dupliquen.
 
 ### 8.1 Compromisos y memoria: lo hace el código
