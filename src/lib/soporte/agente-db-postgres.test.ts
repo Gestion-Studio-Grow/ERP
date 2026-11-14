@@ -376,6 +376,9 @@ test("agente-db: apagado sin variable, aislamiento, cartera con permiso del clie
   // BAJO c: borrador por SQL directo en un ticket resuelto o cerrado → 0 filas (y por el módulo, rechazo).
   const sqlAbiertos = /mant_agente_abierto[\s\S]*?USING \("estado" IN \(([^)]*)\)\)/.exec(SQL)?.[1] ?? "";
   assert.deepEqual([...sqlAbiertos.matchAll(/'([^']+)'/g)].map((x) => x[1]), [...ESTADOS_ABIERTOS], "el SQL usa ESTADOS_ABIERTOS de config.ts");
+  // C3 (ronda 3): el evento borrador_ia también exige ticket abierto, con la misma lista.
+  const sqlEventoAbiertos = /ON "SupportTicketEvento"[\s\S]*?t\."estado" IN \(([^)]*)\)/.exec(SQL)?.[1] ?? "";
+  assert.deepEqual([...sqlEventoAbiertos.matchAll(/'([^']+)'/g)].map((x) => x[1]), [...ESTADOS_ABIERTOS], "C3: el evento usa ESTADOS_ABIERTOS");
   for (const estado of ["resuelto", "cerrado"]) {
     await duenio.query(`UPDATE "SupportTicket" SET estado = $1 WHERE id = 'tk-a1'`, [estado]);
     const previoCerrado = await borradorDe("tk-a1");
@@ -383,6 +386,13 @@ test("agente-db: apagado sin variable, aislamiento, cartera con permiso del clie
     assert.equal((await comoAgente(A, `SELECT id FROM "SupportTicket" WHERE id = 'tk-a1'`)).rowCount, 1, `${estado}: lo sigue pudiendo leer`);
     assert.equal((await m.guardarBorradorComoAgente({ ...pA(1), borrador })).ok, false);
     assert.deepEqual(await borradorDe("tk-a1"), previoCerrado, `${estado}: el borrador no cambió`);
+    const eventosCerrado = await eventosDe("tk-a1");
+    await assert.rejects(
+      comoAgente(A, `INSERT INTO "SupportTicketEvento" (id, "tenantId", "ticketId", tipo, actor) VALUES ($2, $1, 'tk-a1', 'borrador_ia', 'agente:n1')`, [A, `ev-c3-${estado}`]),
+      denegado,
+      `C3: ${estado}, ni un evento borrador_ia`,
+    );
+    assert.equal(await eventosDe("tk-a1"), eventosCerrado, `C3: ${estado}, no quedó el evento`);
   }
   await duenio.query(`UPDATE "SupportTicket" SET estado = 'nuevo' WHERE id = 'tk-a1'`);
   assert.equal((await comoAgente(A, `UPDATE "SupportTicket" SET "updatedAt" = now() WHERE id = 'tk-a1'`)).rowCount, 1, "reabierto: vuelve a poder");
@@ -391,4 +401,28 @@ test("agente-db: apagado sin variable, aislamiento, cartera con permiso del clie
   await permiso(A, false);
   assert.deepEqual(await ids(A), [], "estudio sin permiso: nada");
   assert.equal((await m.guardarBorradorComoAgente({ ...pA(1), borrador })).ok, false);
+
+  // ── T1 (ronda 3): la hora del permiso no depende de la TimeZone de la sesión ──
+  // El titular da n1 desde una sesión en Pacific/Kiritimati (UTC+14) y revoca después desde una en UTC:
+  // la revocación es posterior y gana. Con clock_timestamp() a secas, el permiso quedaba 14 h «adelante».
+  const permisoEnZona = async (aceptado: boolean, zona: string) => {
+    await new Promise((r) => setTimeout(r, 3));
+    await duenio.query("BEGIN");
+    try {
+      await duenio.query(`SELECT set_config('TimeZone', $1, true)`, [zona]);
+      await duenio.query(
+        `INSERT INTO "SoporteConsentimiento" (id, "tenantId", nivel, aceptado, "versionTexto", "userId") VALUES ($1, $2, 'n1', $3, $4, $5)`,
+        [`cs-${++n}`, A, aceptado, TEXTO_CONSENTIMIENTO.version, titular[A]],
+      );
+      await duenio.query("COMMIT");
+    } catch (e) {
+      await duenio.query("ROLLBACK");
+      throw e;
+    }
+  };
+  await permisoEnZona(true, "Pacific/Kiritimati");
+  assert.equal(await n1De(A), true, "T1: dado desde Kiritimati, vale");
+  await permisoEnZona(false, "UTC");
+  assert.equal(await n1De(A), false, "T1: revocado después desde UTC, ya no vale");
+  assert.deepEqual(await ids(A), [], "T1: el agente ve 0 tickets");
 });

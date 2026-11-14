@@ -370,8 +370,8 @@ aparta de la tabla de arriba:**
   el dueño lo apruebe (`agentes-permisos.ts`, `borrador_al_duenio`); (6) el `CREATE ROLE` del archivo corre
   en el ensayo en rama de Neon (el owner local es NOCREATEROLE). Vuelta 2 (certifica con observaciones):
   el agente tampoco firma eventos con actor de persona, la hora del permiso la pone la base
-  (`clock_timestamp()` en el trigger) y el chequeo de `search_path` no se saltea con NULL. Queda BAJO
-  anotado: el agente elige `createdAt` de AuditLog/evento. (Ya no ve `Tenant`: ronda adversarial 1.) Todo con test en `roles-soporte-postgres.test.ts`.
+  (`clock_timestamp() AT TIME ZONE 'UTC'` en el trigger: ronda 3, T1, la hora ya no depende de la TimeZone de la sesión) y el chequeo de `search_path` no se saltea con NULL. Queda BAJO
+  anotado: el agente elige `createdAt` de AuditLog/evento. Ronda 3, C3: el evento `borrador_ia` también exige ticket abierto. (Ya no ve `Tenant`: ronda adversarial 1.) Todo con test en `roles-soporte-postgres.test.ts`.
 - Al final, un bloque `DO` aborta la migración si algún rol quedó con BYPASSRLS o superusuario, si el agente
   puede leer `User`, `Tenant` o `SoporteConsentimiento` o cambiar `estado`/`respuesta`, si una función
   SECURITY DEFINER quedó abierta o sobrecargada, si `NegocioProtegido` es escribible, si la consola o el agente pueden firmar permisos,

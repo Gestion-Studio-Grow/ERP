@@ -108,7 +108,10 @@ BEGIN
     RAISE EXCEPTION 'SoporteConsentimiento: sólo lo firma el titular (OWNER) del negocio' USING ERRCODE = '42501';
   END IF;
   -- La hora la pone la base: un permiso fechado en el futuro no puede ganarle a una revocación posterior.
-  NEW."createdAt" := clock_timestamp();
+  -- En UTC explícito (certificación ronda 3, T1): la columna es TIMESTAMP sin zona y un clock_timestamp()
+  -- a secas se convierte con la TimeZone de la sesión; un permiso dado con SET LOCAL TimeZone='Pacific/Kiritimati'
+  -- quedaría 14 h «después» de una revocación hecha en UTC y seguiría vigente.
+  NEW."createdAt" := clock_timestamp() AT TIME ZONE 'UTC';
   RETURN NEW;
 END
 $f$;
@@ -258,13 +261,16 @@ CREATE POLICY mant_agente_abierto ON "SupportTicket" AS RESTRICTIVE FOR UPDATE T
   WITH CHECK ("estado" IN ('nuevo', 'en_curso', 'esperando_cliente'));
 
 -- Un evento existe para el agente sólo si su ticket existe para el agente (hereda el candado). Escribe
--- sólo su propio tipo ('borrador_ia'): nunca 'borrador_aprobado' ni otro evento de persona.
+-- sólo su propio tipo ('borrador_ia'): nunca 'borrador_aprobado' ni otro evento de persona, y sólo en un
+-- ticket ABIERTO (certificación ronda 3, C3): los mismos estados que mant_agente_abierto (ESTADOS_ABIERTOS;
+-- lo comprueba agente-db-postgres.test.ts). Leer, puede leer los eventos de un ticket cerrado.
 DROP POLICY IF EXISTS mant_agente_candado ON "SupportTicketEvento";
 CREATE POLICY mant_agente_candado ON "SupportTicketEvento" AS RESTRICTIVE FOR ALL TO gsg_agente
   USING (current_setting('transaction_isolation') = 'read committed'
          AND EXISTS (SELECT 1 FROM "SupportTicket" t WHERE t."tenantId" = "SupportTicketEvento"."tenantId" AND t."id" = "SupportTicketEvento"."ticketId"))
   WITH CHECK (current_setting('transaction_isolation') = 'read committed'
-              AND EXISTS (SELECT 1 FROM "SupportTicket" t WHERE t."tenantId" = "SupportTicketEvento"."tenantId" AND t."id" = "SupportTicketEvento"."ticketId")
+              AND EXISTS (SELECT 1 FROM "SupportTicket" t WHERE t."tenantId" = "SupportTicketEvento"."tenantId" AND t."id" = "SupportTicketEvento"."ticketId"
+                          AND t."estado" IN ('nuevo', 'en_curso', 'esperando_cliente'))
               AND "actor" LIKE 'agente:%' AND "tipo" = 'borrador_ia');
 
 -- AuditLog: sólo acciones propias del agente ('soporte.agente.%'), con actor de agente. Así no puede
@@ -345,13 +351,15 @@ BEGIN
                                 OR has_function_privilege('gsg_operador', p.oid, 'EXECUTE')))) THEN
     RAISE EXCEPTION 'MANT_roles_soporte: una función SECURITY DEFINER del candado quedó abierta, sobrecargada o con otro dueño';
   END IF;
-  -- Las tres políticas del agente exigen READ COMMITTED y el borrador va sólo a tickets abiertos.
+  -- Las tres políticas del agente exigen READ COMMITTED y el borrador y su evento van sólo a tickets abiertos.
   IF (SELECT count(*) FROM pg_policies WHERE schemaname = 'public' AND policyname = 'mant_agente_candado'
         AND tablename IN ('SupportTicket', 'SupportTicketEvento', 'AuditLog') AND permissive = 'RESTRICTIVE'
         AND qual LIKE '%transaction_isolation%' AND with_check LIKE '%transaction_isolation%') <> 3
      OR NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'SupportTicket'
                     AND policyname = 'mant_agente_abierto' AND permissive = 'RESTRICTIVE' AND cmd = 'UPDATE'
-                    AND qual LIKE '%estado%' AND with_check LIKE '%estado%') THEN
+                    AND qual LIKE '%estado%' AND with_check LIKE '%estado%')
+     OR NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'SupportTicketEvento'
+                    AND policyname = 'mant_agente_candado' AND with_check LIKE '%estado%') THEN
     RAISE EXCEPTION 'MANT_roles_soporte: falta READ COMMITTED en el candado del agente o el candado de ticket abierto';
   END IF;
   IF EXISTS (SELECT 1 FROM "Tenant" WHERE slug = 'beauty-spa')
