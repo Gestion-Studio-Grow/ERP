@@ -10,11 +10,14 @@
 //     aparte ("esperan que se cobre el saldo");
 //   · el turno cuyo porcentaje da 0 (`resolvePct` > 0, comision-liquidacion.ts): esa
 //     profesional o ese servicio no pagan comisión, y la liquidación nunca lo toma.
+//   · el turno con cobros de la profesional todavía sin rendir (`seLiquidaSegunRendicion`,
+//     comisiones/comision-no-rendida.ts, CH-011): se liquida cuando rinda, y se dice aparte.
 //
 // Las mismas dos funciones que usa la liquidación, no una copia de sus reglas.
 
 import { resolvePct } from "@/lib/comision-liquidacion";
 import { sePuedeLiquidar } from "@/lib/comision-liquidable";
+import { seLiquidaSegunRendicion } from "@/lib/comisiones/comision-no-rendida";
 import type { CobroTurno, PagoLegado } from "@/lib/turnos/cobros";
 
 /** Un turno realizado, cobrado y sin liquidar, con lo que hace falta para decidir. */
@@ -25,6 +28,8 @@ export interface TurnoSinLiquidar {
   precio: number;
   cobros: readonly CobroTurno[];
   pagoLegado?: PagoLegado;
+  /** Lo cobrado por la profesional que todavía no rindió (0/ausente: nada pendiente). */
+  pendienteDeRendir?: number;
 }
 
 export interface ComisionesDelMes {
@@ -32,6 +37,8 @@ export interface ComisionesDelMes {
   pendientes: number;
   /** Turnos con comisión que esperan que se cobre el saldo: todavía no se pueden liquidar. */
   esperanSaldo: number;
+  /** Turnos con comisión que esperan que la profesional rinda lo cobrado. */
+  esperanRendicion?: number;
 }
 
 /**
@@ -46,11 +53,13 @@ export function contarComisionesDelMes(
   const sinOverrides: ReadonlyMap<string, number> = new Map();
   let pendientes = 0;
   let esperanSaldo = 0;
+  let esperanRendicion = 0;
   for (const t of turnos) {
     const pct = resolvePct(pctGeneral.get(t.professionalId) ?? 0, overrides.get(t.professionalId) ?? sinOverrides, t.serviceId);
     if (!(pct > 0)) continue;
-    if (sePuedeLiquidar({ precio: t.precio, cobros: t.cobros, pagoLegado: t.pagoLegado })) pendientes++;
-    else esperanSaldo++;
+    if (!sePuedeLiquidar({ precio: t.precio, cobros: t.cobros, pagoLegado: t.pagoLegado })) esperanSaldo++;
+    else if (!seLiquidaSegunRendicion(t.pendienteDeRendir)) esperanRendicion++;
+    else pendientes++;
   }
-  return { pendientes, esperanSaldo };
+  return { pendientes, esperanSaldo, esperanRendicion };
 }

@@ -247,7 +247,7 @@ export interface HechosCierreMes {
    * liquidar hoy; `esperanSaldo`: turnos con saldo por cobrar, que se liquidan después
    * (comisiones.ts).
    */
-  comisiones: { pendientes: number; esperanSaldo: number } | null;
+  comisiones: { pendientes: number; esperanSaldo: number; esperanRendicion?: number } | null;
   /** `null` = el negocio no controla stock. */
   recuento: { recuentosDelMes: number } | null;
 }
@@ -419,11 +419,14 @@ export function evaluarPasos(h: HechosCierreMes, estado: EstadoCierreMes): Paso[
   if (!h.comisiones) {
     pasos.push(paso("comisiones-liquidadas", "no-aplica", "Tu negocio no liquida comisiones."));
   } else {
-    const { pendientes, esperanSaldo } = h.comisiones;
+    const { pendientes, esperanSaldo, esperanRendicion = 0 } = h.comisiones;
     const conSaldo =
-      esperanSaldo > 0
+      (esperanSaldo > 0
         ? ` ${plural(esperanSaldo, "turno más tiene", "turnos más tienen")} saldo por cobrar: su comisión se liquida cuando se cobre.`
-        : "";
+        : "") +
+      (esperanRendicion > 0
+        ? ` ${plural(esperanRendicion, "turno espera", "turnos esperan")} que la profesional rinda lo cobrado: su comisión se liquida cuando rinda.`
+        : "");
     if (pendientes > 0) {
       pasos.push(
         paso("comisiones-liquidadas", "pendiente", `${plural(pendientes, "turno", "turnos")} de ${mes} con la comisión sin liquidar.${conSaldo}`, {

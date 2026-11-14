@@ -33,6 +33,7 @@ import {
   type RegistroCierre,
 } from "./cierre-mes";
 import { contarComisionesDelMes } from "./comisiones";
+import { pendienteDeRendirPorTurnoInTx } from "@/lib/comisiones/rendicion-repo";
 // El AJUSTE de un recuento se reconoce por el motivo que le pone la app de Recuento: la misma
 // constante que usan la planilla y el botón de Recuento (no hay columna para distinguirlo).
 import { MOTIVO_RECUENTO } from "@/lib/inventario/recuento";
@@ -208,6 +209,7 @@ export async function leerHechosCierreMes(
                 startsAt: enElMes,
               },
               select: {
+                id: true,
                 professionalId: true,
                 serviceId: true,
                 priceAtBooking: true,
@@ -228,8 +230,11 @@ export async function leerHechosCierreMes(
             m.set(o.serviceId, o.commissionPercent);
             overrides.set(o.professionalId, m);
           }
+          // CH-011: lo que la profesional cobró y no rindió espera (misma regla que la liquidación).
+          const aRendir = await pendienteDeRendirPorTurnoInTx(db, tenantId, turnos.map((t) => t.id));
           return contarComisionesDelMes(
             turnos.map((t) => ({
+              pendienteDeRendir: aRendir.get(t.id),
               professionalId: t.professionalId,
               serviceId: t.serviceId,
               precio: t.priceAtBooking ?? t.service.price,
