@@ -5,9 +5,9 @@
 //
 // En el «modo foto» `guardarFotoDelClub` recibe el estado ENTERO. Si guarda alguien que no es OWNER del ERP (la
 // tablet de recepción), el servidor CONSERVA los usuarios de la foto vigente: altas, bajas, roles y PIN quedan como
-// estaban. Lo único que pasa es el PIN propio de un usuario de recepción que lo cambió (sabiendo el actual, en
-// «Cambiar mi PIN»): mismo usuario, mismo rol, PIN válido para su rol (con hash, del largo del rol y con la MISMA sal).
-// El PIN de un dueño, nunca desde recepción. La sal del club (`salPin`) tampoco cambia desde otro puesto.
+// estaban. Ningún PIN cambia por la foto (GSG-SEG-019): el servidor no sabe qué usuario del club opera la tablet, así
+// que no puede distinguir «mi PIN» del de otra persona. «Cambiar mi PIN» va por su propia acción, que exige el PIN
+// actual en el servidor (src/lib/club/cambiar-pin.ts). La sal del club (`salPin`) tampoco cambia desde otro puesto.
 // Sí pasa el MISMO PIN guardado con hash (la jornada de recepción que abre una foto de antes del 21/10 los pasa a
 // hash): se comprueba que el hash nuevo sea el del PIN en claro de la base con la sal de la foto.
 //
@@ -24,7 +24,7 @@
 //
 // — Elaborado por GSG
 
-import { esPinConHash, hashPin, largoPin, pinValidoPara } from "./motor.mjs";
+import { esPinConHash, hashPin } from "./motor.mjs";
 
 interface UsuarioCrudo {
   id?: unknown;
@@ -96,20 +96,13 @@ export function conservarLoDelicado(textoVigente: string, textoNuevo: string): {
   // Una sal es texto en hex (la arma el motor, `salDelClub`): otra cosa no se acepta ni para estrenarla.
   const salValida = (x: unknown) => typeof x === "string" && /^[0-9a-f]{16,128}$/.test(x);
   const misma = salAntes === undefined ? salAhora === undefined || salValida(salAhora) : salAntes === salAhora;
-  const pinNuevoValido = (rol: string, n: UsuarioCrudo) =>
-    typeof n.pin === "string" && (esPinConHash(n.pin) ? misma && Number(n.pinLargo) === largoPin(rol) : pinValidoPara(rol, n.pin));
   const mismoPinConHash = (u: UsuarioCrudo, n: UsuarioCrudo) =>
     typeof u.pin === "string" && u.pin.trim() !== "" && !esPinConHash(u.pin) && typeof n.pin === "string" && esPinConHash(n.pin) &&
     salValida(salAhora) && misma && Number(n.pinLargo) === u.pin.trim().length && hashPin(u.pin, salAhora as string) === n.pin;
   const quedan = antes.map((u) => {
     const n = porId.get(u.id);
-    if (n && n.rol === u.rol && mismoPinConHash(u, n)) return { ...u, pin: n.pin, pinLargo: n.pinLargo };
-    const pinPropio = n && u.rol !== "duenio" && n.rol === u.rol && n.pin !== u.pin && pinNuevoValido(String(u.rol), n);
-    if (!pinPropio) return u;
-    const c: UsuarioCrudo = { ...u, pin: n.pin };
-    if (esPinConHash(n.pin)) c.pinLargo = n.pinLargo;
-    else delete c.pinLargo;
-    return c;
+    // Lo único que pasa: el MISMO PIN guardado con hash. Cualquier otro PIN, de cualquier usuario, queda el vigente.
+    return n && n.rol === u.rol && mismoPinConHash(u, n) ? { ...u, pin: n.pin, pinLargo: n.pinLargo } : u;
   });
   const usuariosIguales = JSON.stringify(quedan) === JSON.stringify(ahora);
   if (usuariosIguales && misma) return configCorregida ? { texto: JSON.stringify(nuevo), corregido: true } : { texto: textoNuevo, corregido: false };

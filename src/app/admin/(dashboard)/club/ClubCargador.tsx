@@ -14,6 +14,8 @@ import dynamic from "next/dynamic";
 import { Esqueleto } from "@/components/ui/Esqueleto";
 import type { Role } from "@/lib/capabilities";
 import { guardarFotoDelClub, leerFotoDelClub, leerVersionDelClub } from "./estado-actions";
+import { cambiarMiPinDelClub } from "./pin-del-club-actions";
+import { fijarPuertaDelPin } from "./puerta-del-pin";
 
 function Cargando() {
   return (
@@ -34,6 +36,8 @@ const ClubDemo = dynamic(() => import("./ClubDemo"), { ssr: false, loading: Carg
 // gzip). El adaptador que las usa (guardado-en-la-base.ts) importa el motor, así que lo arma ClubDemo, dentro de su chunk.
 // `leerVersion`: el latido de dos puestos (cada 15 s con la pestaña visible, sólo la versión, sin la foto).
 const BASE = { leer: leerFotoDelClub, guardar: guardarFotoDelClub, leerVersion: leerVersionDelClub };
+// «Cambiar mi PIN» de recepción va por su propia acción (SEG-019: la foto ya no lleva PIN sin un dueño del ERP).
+fijarPuertaDelPin(cambiarMiPinDelClub);
 
 export default function ClubCargador({ negocio, usuario, rol, reloj = "demo" }: { negocio: string; usuario: string; rol: Role; reloj?: "demo" | "real" }) {
   return <ClubDemo negocio={negocio} usuario={usuario} rol={rol} reloj={reloj} base={reloj === "real" ? BASE : undefined} />;
