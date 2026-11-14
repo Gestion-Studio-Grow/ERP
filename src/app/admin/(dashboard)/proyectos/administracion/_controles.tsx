@@ -39,9 +39,10 @@ function useAccion() {
  * `onSubmit` en vez de `action`: React 19 vacía un <form action> al terminar, también cuando falló, y el medio volvía a
  * «Transferencia» con el monto y la cuenta borrados (recorrido del PR #166 · 4). Así lo cargado queda hasta que salga bien.
  */
-const alEnviar = (enviar: (fd: FormData) => void) => (e: FormEvent<HTMLFormElement>) => {
+const alEnviar = (enviar: (fd: FormData, form: HTMLFormElement) => void) => (e: FormEvent<HTMLFormElement>) => {
   e.preventDefault();
-  enviar(new FormData(e.currentTarget, (e.nativeEvent as SubmitEvent).submitter));
+  const form = e.currentTarget;
+  enviar(new FormData(form, (e.nativeEvent as SubmitEvent).submitter), form);
 };
 
 const Fallo = ({ texto }: { texto: string | null }) => (texto ? <p role="alert" className="text-sm text-danger">{texto}</p> : null);
@@ -50,14 +51,12 @@ const Fallo = ({ texto }: { texto: string | null }) => (texto ? <p role="alert" 
 
 export function FormAccion({ accion, children, boton, className, limpiar = true }: { accion: Accion; children?: ReactNode; boton: string; className?: string; limpiar?: boolean }) {
   const { error, ocupado, correr } = useAccion();
-  const form = useRef<HTMLFormElement>(null);
   return (
     <form
-      ref={form}
       className={cn("grid gap-2", className)}
-      onSubmit={alEnviar((fd) =>
+      onSubmit={alEnviar((fd, form) =>
         correr(accion, fd, () => {
-          if (limpiar) form.current?.reset();
+          if (limpiar) form.reset();
         }),
       )}
     >
