@@ -85,7 +85,8 @@ for (const conHash of [false, true]) {
     const suyo = pinLibreDe2(e);
     assert.ok(M.cambiarMiPin(e, { usuarioId: enUso.id, pin: M.pinDeEjemplo(enUso) }, suyo).ok);
     const r = pedir(suyo);
-    assert.equal(!r.ok && r.codigo, "pin-nuevo");
+    // SEG-024: «en uso» delata el PIN de otra persona: tiene su propio código (cuenta en el tope del servidor).
+    assert.equal(!r.ok && r.codigo, "pin-en-uso");
     assert.match(!r.ok ? r.motivo : "", /otra persona/);
   });
 
@@ -147,3 +148,4 @@ test("SEG-024: el carril del tope sale de la foto vigente — dueño, equipo o n
   assert.equal(carrilDePin("{no es json", lu.id), null);
   assert.equal(carrilDePin(JSON.stringify({ v: 1 }), lu.id), null);
 });
+

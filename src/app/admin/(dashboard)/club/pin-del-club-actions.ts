@@ -19,8 +19,11 @@
 //
 // SEG-024: el PIN actual de quien NO es dueño cuenta en su propio tope, por persona (ámbito «equipo»: 5 fallos y la
 // escalera 30 s, 2 min, 10 min), aparte del de los dueños: los fallos de uno no traban al otro. El de un dueño, desde
-// una sesión OWNER, va al carril «pin-owner». Sólo cuenta como fallo un PIN actual mal; si el usuario no existe o está
-// inactivo, la regla lo rechaza sin mirar el PIN y no se anota nada (`carrilDePin`).
+// una sesión OWNER, va al carril «pin-owner». Cuentan como fallo un PIN actual mal y un PIN nuevo que ya usa otra
+// persona (delata un PIN ajeno). En el equipo ningún acierto limpia (la regla del motor para recepción: si no, un cambio
+// bien hecho reabre la puerta a seguir probando); el de un dueño limpia sólo con el cambio hecho. Los otros rechazos
+// del PIN nuevo (largo, fácil) no suman ni limpian. Si el usuario no existe o está inactivo, la regla lo rechaza sin
+// mirar el PIN y no se anota nada (`carrilDePin`).
 //
 // — Elaborado por GSG
 
@@ -95,9 +98,8 @@ export async function cambiarMiPinDelClub(pedido: { usuarioId: unknown; pinActua
         ambito,
         () => {
           const x = cambiarPinEnLaFoto(vigente.texto, pedidoDeCambio);
-          // Sólo un PIN actual mal es un fallo; «pin-nuevo» sale con el actual ya comprobado (acierto, limpia).
-          const acerto = x.ok || x.codigo === "pin-nuevo";
-          return { ok: x.ok || x.codigo !== "pin-actual", limpia: acerto ? usuarioId : null, x };
+          const fallo = !x.ok && (x.codigo === "pin-actual" || x.codigo === "pin-en-uso");
+          return { ok: !fallo, limpia: x.ok && ambito !== "equipo" ? usuarioId : null, x };
         },
         { usuarioId },
       );
@@ -115,7 +117,8 @@ export async function cambiarMiPinDelClub(pedido: { usuarioId: unknown; pinActua
       console.warn("[club] SEG-019: cambio de PIN rechazado", { tenantId, userId: user.id, usuarioClub: usuarioId, codigo: r.codigo });
       await auditar("rechazo", r.codigo);
       // Si este fallo abrió la espera, se avisa ya (el mismo texto que la firma del dueño).
-      return { ok: false, error: r.codigo === "pin-actual" && esperaTrasElFallo > 0 ? textoDeEsperaDelServidor(esperaTrasElFallo) : r.motivo };
+      const abrioLaEspera = (r.codigo === "pin-actual" || r.codigo === "pin-en-uso") && esperaTrasElFallo > 0;
+      return { ok: false, error: abrioLaEspera ? textoDeEsperaDelServidor(esperaTrasElFallo) : r.motivo };
     }
     const g = await guardar(tenantId, r.texto, vigente.version, `user:${user.id}`);
     if (g.ok) {

@@ -343,3 +343,19 @@ test("9 · carrera: 12 «Mi PIN» mal a la vez no saltean el tope — se evalúa
   const bueno = valor(await ejecutarAccion(comoRecepcion(base.a), () => cambiarMiPinDelClub({ usuarioId: lu.A.id, pinActual: lu.A.pin, pinNuevo: "73" })));
   assert.ok(!bueno.ok && /esperá hasta las/.test(bueno.error));
 });
+
+test("10 · «Cambiar mi PIN» con un PIN nuevo que ya usa otra persona cuenta como fallo: al 5.º espera", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const { base } = p;
+  const { cambiarMiPinDelClub } = await import("@/app/admin/(dashboard)/club/pin-del-club-actions");
+  const probar = () => ejecutarAccion(comoDuenia(base.a), () => cambiarMiPinDelClub({ usuarioId: "u-rober", pinActual: PIN.A.rober, pinNuevo: PIN.A.majo })).then(valor);
+  for (let i = 1; i <= 4; i++) {
+    const r = await probar();
+    assert.ok(!r.ok && /ya lo usa otra persona/.test(r.error), `intento ${i}: ${JSON.stringify(r)}`);
+  }
+  const quinto = await probar();
+  assert.ok(!quinto.ok && /esperá hasta las/.test(quinto.error), "el 5.º avisa la espera");
+  const conUnoLibre = valor(await ejecutarAccion(comoDuenia(base.a), () => cambiarMiPinDelClub({ usuarioId: "u-rober", pinActual: PIN.A.rober, pinNuevo: "3719" })));
+  assert.ok(!conUnoLibre.ok && /esperá hasta las/.test(conUnoLibre.error), "en la espera no se evalúa nada");
+});

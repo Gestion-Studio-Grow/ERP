@@ -66,6 +66,16 @@ function arrancar() {
 }
 const estado = () => (JSON.parse(base!.texto) as { estado: M.EstadoClub }).estado;
 
+/** Le da a `u` un PIN válido (no de ejemplo ni fácil) y deja la foto con eso; devuelve el PIN. */
+function conPinValido(e: M.EstadoClub, u: M.Usuario, candidatos: readonly string[]): string {
+  for (const p of candidatos) if (M.cambiarMiPin(e, { usuarioId: u.id, pin: M.pinDeEjemplo(u) }, p).ok) {
+    base = { texto: JSON.stringify({ v: M.VERSION_ESTADO, estado: e, secuencia: M.secuenciaIds(), guardado: 1 }), version: 4 };
+    return p;
+  }
+  throw new Error("sin PIN válido");
+}
+const DE_2 = Array.from({ length: 90 }, (_, i) => String(i + 10));
+
 test("SEG-019 acción: recepción cambia su PIN sabiendo el actual → se guarda con su actor y queda auditado sin el PIN", async () => {
   const { lu, pin } = arrancar();
   sesion.rol = "RECEPTION";
@@ -165,18 +175,24 @@ test("acción: si falta algo, dice QUÉ falta (y no toca la base)", async () => 
 });
 
 // SEG-024: el tope de quien no es dueño, por persona, y el carril del dueño según la sesión del ERP.
-test("SEG-024 acción: recepción cuenta en el tope «equipo» de ESA persona; sólo un PIN actual mal es un fallo", async () => {
+test("SEG-024 acción: recepción cuenta en el tope «equipo» de ESA persona; fallan un PIN actual mal y un PIN nuevo en uso", async () => {
   const { e, lu, pin } = arrancar();
   sesion.rol = "RECEPTION";
   const { cambiarMiPinDelClub } = await import("./pin-del-club-actions");
   const otra = e.usuarios.filter((u) => u.rol === "recepcion")[1];
   assert.equal((await cambiarMiPinDelClub({ usuarioId: otra.id, pinActual: pin, pinNuevo: "73" })).ok, false);
   assert.equal((await cambiarMiPinDelClub({ usuarioId: lu.id, pinActual: pin, pinNuevo: pin })).ok, false, "PIN nuevo igual: rechazo");
+  const deOtra = conPinValido(e, otra, DE_2.filter((p) => p !== "73"));
+  const enUso = await cambiarMiPinDelClub({ usuarioId: lu.id, pinActual: pin, pinNuevo: deOtra });
+  assert.ok(!enUso.ok && /ya lo usa otra persona/.test(enUso.error));
   assert.deepEqual(await cambiarMiPinDelClub({ usuarioId: lu.id, pinActual: pin, pinNuevo: "73" }), { ok: true, version: 5 });
+  // «En uso» delata el PIN de otra persona: es un fallo. En el equipo ningún acierto limpia (la regla del motor para
+  // recepción), así un cambio bien hecho no reabre la puerta a seguir probando.
   assert.deepEqual(tope.llamadas, [
     { ambito: "equipo", usuarioId: otra.id, ok: false, limpia: null },
-    { ambito: "equipo", usuarioId: lu.id, ok: true, limpia: lu.id },
-    { ambito: "equipo", usuarioId: lu.id, ok: true, limpia: lu.id },
+    { ambito: "equipo", usuarioId: lu.id, ok: true, limpia: null },
+    { ambito: "equipo", usuarioId: lu.id, ok: false, limpia: null },
+    { ambito: "equipo", usuarioId: lu.id, ok: true, limpia: null },
   ]);
 });
 
@@ -200,6 +216,16 @@ test("SEG-024 acción: el PIN de un dueño desde un OWNER del ERP va al carril �
   assert.equal((await cambiarMiPinDelClub({ usuarioId: d.id, pinActual: "0000", pinNuevo: "8642" })).ok, false);
   assert.equal((await cambiarMiPinDelClub({ usuarioId: lu.id, pinActual: pin, pinNuevo: "73" })).ok, true);
   assert.deepEqual(tope.llamadas.map((l) => [l.ambito, l.usuarioId]), [["pin-owner", d.id], ["equipo", lu.id]]);
+  // El dueño, con su PIN: su acierto limpia sus fallos (SEG-020); «en uso» cuenta como fallo.
+  const otro = e.usuarios.find((u) => u.rol === "duenio" && u.id !== d.id);
+  assert.ok(otro, "la demo trae dos dueños");
+  {
+    tope.llamadas.length = 0;
+    const deOtro = conPinValido(e, otro!, ["2749", "3816", "5073", "6194", "8357"]);
+    const r = await cambiarMiPinDelClub({ usuarioId: d.id, pinActual: M.pinDeEjemplo(d), pinNuevo: deOtro });
+    assert.ok(!r.ok && /ya lo usa otra persona/.test(r.error), JSON.stringify(r));
+    assert.deepEqual(tope.llamadas, [{ ambito: "pin-owner", usuarioId: d.id, ok: false, limpia: null }]);
+  }
 });
 
 test("SEG-024 acción: en la espera no se toca la foto y se avisa hasta qué hora; el fallo que abre la espera ya la avisa", async () => {
