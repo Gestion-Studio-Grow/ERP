@@ -287,6 +287,13 @@ Calculadora: sección «La ganancia» del manual (https://claude.ai/artifact/Aa2
 - El consentimiento de MIA está dado según el dueño (constancia a adjuntar); igual no se usan datos reales antes de
   salir en vivo.
 - Equipo propio de GSG sobre el mismo producto: programador, PM, arquitecto de soluciones y testing. Diseño pendiente.
+- El equipo propio de GSG queda asignado a MIA y a todos los productos que se le venden: «lo que va a hacer el equipo
+  de agentes nuestro va a estar asignado a Mía y a todos los productos que le vamos a vender a Mía».
+- Orden de construir ya: «quiero que construyas ya el producto».
+- GSG entra como cliente real: «Lo nuestro también tiene que ir subido a la base de datos como corresponde, como si
+  fuera un cliente real. Nosotros somos nuestro propio cliente, así que debemos también probar el producto real con
+  métricas reales.» Implica dar de alta a GSG como negocio en la base, con el mismo interruptor y las mismas tablas que
+  MIA. Al 14/11 no se encontró un negocio GSG en `src`, `scripts` ni `prisma` (búsqueda por nombre, no concluyente).
 - Suscripción de Codex disponible para este producto: revisor y segundo constructor acotado.
 - ABIERTO: con qué IA corre la prueba. El dueño planteó dar servicio con suscripciones personales hasta 50 clientes;
   los términos de Anthropic leídos el 14/11 lo prohíben (code.claude.com/docs/en/legal-and-compliance). Sin resolver.
