@@ -1,5 +1,11 @@
 # Equipo de agentes de Administración · MIA — 10 · Plan de tandas v2 (el agente transacciona)
 
+> **REEMPLAZADO el 15/11/2026 por `13-plan-de-tandas-v3.md` (GSG-MIA-019).** El dictamen de MIA-016 dio NO CUMPLE:
+> la batería la escribía el constructor (H2), la tanda 4 no dependía de GSG-MIA-018 ni tenía briefs (H3, H23), 3A
+> extraía la rama del vencimiento (H5), la enmienda del esquema no tenía brief (H12) y la certificación no cubría los
+> 47 puntos (H18). Cada corrección, en `11-correcciones-mia019.md`. Este archivo queda sólo como historia: **no se
+> construye con estos briefs.**
+
 > Diseño del 14/11/2026 (noche). **Reemplaza las tandas 2 a 6 de `04`.** La tanda 1 sigue como está. Valen las «Reglas
 > comunes a todos los briefs» de `04` (Paso 0, tres fases, vigencia, sin SQL crudo en el motor, un push por brief,
 > verificar las citas al abrir). Construcción y certificación en Opus alto. Briefs de 2 KB como máximo.

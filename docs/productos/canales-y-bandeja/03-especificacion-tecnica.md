@@ -662,6 +662,18 @@ no existe en esta rama.
 **Si `09` no acepta P1 a P4:** ninguna tarea de canal escribe. C1 (bandeja) y C2 (sólo consulta) no dependen de
 esta lista; C3 en adelante sí.
 
+**Resultado (15/11/2026).** El desafío MIA-016 (`agentes/desafio-mia016/dictamen-p1-p12-canales.md`, rama
+`agentes/diseno-ejecucion`, commit `1506c9c0`) dio **cumple con cambios**, y GSG-MIA-019 lo adoptó en `09` §18:
+
+| # | Queda | Cómo |
+|---|---|---|
+| P1 | **Entra** en la enmienda de `agentes_base` | `AgentePropuesta_origen_check IN ('RUTINA','PEDIDO','CANAL')`. Ningún código escribe `CANAL` antes de C3 (test estático) |
+| P2 | **Entra sin la FK** | `canalOfertaId`, `solicitanteContactoId` y `AgentePropuesta_origen_solicitante_check` de tres orígenes (cierra el hueco MATCH SIMPLE); único parcial `AgentePropuesta_tenantId_canalOfertaId_viva_key` (con `RECHAZADA`); fuera del `GRANT UPDATE`. La FK `(tenantId, canalOfertaId, solicitanteContactoId) → CanalOferta(tenantId, id, contactoId)` va en la migración de canales, como ALTER aditivo |
+| P6 | **Entra** | `datosSensibles` Json `[]` por defecto; `textoHash` sobre `operaciones` + `topes` + `datosSensibles`; `canales` dentro de `operaciones` |
+| P3, P4, P5, P7 a P12 | **Esperan** a C3, sin cambio de esquema | Con las condiciones del dictamen: decisión del dueño sobre el cliente final como solicitante (excepción explícita a «un texto de un tercero no dispara una transacción»); clave del link de MP por pedido e importe (`src/lib/cobros/link-de-pedido.server.ts:30-48`, hoy una por oferta: doble cobro) y `modo: "persona"` hasta poder anularlo; el motor compara monto, moneda, contraparte y fuente contra la `CanalOferta` leída con `tx`; en la web, ninguna tarea que escriba y un cupo diario propio para visitantes; techo `RECEPTION` con trinquete (P5) |
+
+Nada se rechazó. C1 y C2 siguen sin depender de esta lista.
+
 ## 20. Cambios por el desafío del 14/11
 
 Veredicto del desafío adversarial: **sirve con correcciones**. Ningún hallazgo se descartó.
