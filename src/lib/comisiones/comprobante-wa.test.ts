@@ -25,7 +25,7 @@ test("pesos argentinos desde centavos enteros", () => {
 test("el texto dice período, turnos, cobrado, comisión, total, medio y fecha", () => {
   const t = textoDelComprobante(datos);
   assert.match(t, /^Hola Macarena,/);
-  for (const parte of ["Período: 01/10 al 31/10", "Turnos: 12", "Cobrado: $ 180.000", "Comisión: $ 72.000,50", "Total: $ 72.000,50", "Pagado por: Efectivo", "Fecha: 05/11/2026"]) {
+  for (const parte of ["Período: 01/10 al 31/10", "Turnos: 12", "Cobrado sin voucher: $ 180.000", "Comisión: $ 72.000,50", "Total: $ 72.000,50", "Pagado por: Efectivo", "Fecha: 05/11/2026"]) {
     assert.ok(t.includes(parte), parte);
   }
   assert.doesNotMatch(t, /Ajustes/, "T1 no tiene ajustes: no se muestra un renglón en cero");

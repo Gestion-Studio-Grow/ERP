@@ -69,6 +69,11 @@ export default async function MisComisionesPage() {
             </ul>
           </details>
         )}
+        {p && !p.detalleCuadra && (
+          <p role="alert" className="mt-2 rounded-md bg-danger-soft px-2 py-1 text-xs text-danger">
+            El detalle no suma lo mismo que el total. Vale el total de arriba; avisale a la dueña para que lo revise.
+          </p>
+        )}
       </section>
 
       <section aria-labelledby="liquidadas-titulo" className="rounded-lg border border-line p-4">

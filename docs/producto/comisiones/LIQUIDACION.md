@@ -51,3 +51,12 @@ todo lo que toca plata, DB o roles se eleva (§C / Gate 2). Calibración: ADR-01
 ## 6. Qué decide el dueño (todo «provisional a confirmar» hasta su OK)
 1. Período por defecto para CH: MES (asumido). 2. % general por profesional por defecto: el cargado hoy en catálogo; no se cambia nada.
 3. Base bruto vs. neto cobrado (pregunta abierta de siempre, `cobros.ts:233`): se mantiene **neto cobrado**. 4. ¿Los productos vendidos comisionan? Asumido NO (no hay vendedor en la venta). 5. ¿Adelantos/vales se descuentan de la comisión? Asumido SÍ, sólo con carga manual de Caro. 6. ¿La profesional ve su pendiente estimado o sólo lo liquidado? Asumido ambos. 7. Aplicar la migración de T2 (Gate 2).
+
+## 7. Deuda anotada (D5, 14/11/2026)
+- **«Esperan saldo» no coincide entre pantallas.** La vista previa y «Mi liquidación» (`armarVistaPrevia`,
+  `src/lib/comisiones/vista-previa.ts`) cuentan sólo turnos del corte con pago `APPROVED` (el `where` de la
+  liquidación); el aviso de Comisiones (`leerTurnosEsperandoSaldo`, `src/lib/reports/comisiones-lectura.ts`)
+  cuenta todos los terminados sin liquidar, también los sin cobro, sin corte de período ni filtro por profesional.
+  Reusarlo exige una segunda consulta acotada por profesional y período: se deja para una tanda propia.
+- **Comprobante WhatsApp:** la línea pasó de «Cobrado» a «Cobrado sin voucher» y usa `baseDeComision`, la
+  misma base que la comisión congelada, para que el «%» se pueda verificar a mano.

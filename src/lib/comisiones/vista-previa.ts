@@ -14,6 +14,7 @@
 import { montoComision, resolvePct } from "@/lib/comision-liquidacion";
 import { centavosDe } from "@/lib/dinero/redondeo";
 import { sePuedeLiquidar } from "@/lib/comision-liquidable";
+import { baseDeComision } from "./base";
 import { comisionesPendientes, type TurnoPendiente } from "@/lib/reports/comisiones";
 import { entraEnElCorte, esDeAntes, type PeriodoComision } from "./periodo";
 
@@ -25,7 +26,7 @@ export interface LineaDeVistaPrevia {
   startsAt: Date;
   servicio: string;
   clienta: string;
-  /** Lo cobrado del turno (la base), en centavos. */
+  /** La base del turno: lo cobrado menos lo pagado con voucher (`baseDeComision`), en centavos. */
   baseCents: number;
   pct: number;
   comisionCents: number;
@@ -49,7 +50,11 @@ export interface VistaPrevia {
   periodo: PeriodoComision;
   profesionales: VistaPreviaProfesional[];
   totalCents: number;
-  /** Turnos del período que esperan que se cobre el saldo (no entran todavía). */
+  /**
+   * Turnos del período que esperan que se cobre el saldo (no entran todavía). Cuenta sólo los que ya
+   * tienen un pago APPROVED (el `where` de la liquidación); el aviso de Comisiones
+   * (`leerTurnosEsperandoSaldo`) cuenta también los sin cobro. Deuda anotada en LIQUIDACION.md.
+   */
   esperandoSaldo: number;
   /** Turnos pendientes de DESPUÉS del corte: entran en el período siguiente. */
   despuesDelCorte: number;
@@ -81,15 +86,18 @@ export function armarVistaPrevia(
       esperandoSaldo += 1;
       continue;
     }
+    // La MISMA base que el total (reports/comisiones.ts → calcularLiquidacion): lo cobrado menos
+    // lo pagado con voucher. Con `payment.amount` crudo el renglón no cuadraba con un voucher.
+    const base = baseDeComision(t.payment.amount, t.cobros);
     const lista = lineasPorProfesional.get(t.professionalId) ?? [];
     lista.push({
       id: t.id,
       startsAt: t.startsAt,
       servicio: t.servicio ?? "Servicio",
       clienta: t.clienta ?? "",
-      baseCents: aCentavos(t.payment.amount),
+      baseCents: aCentavos(base),
       pct,
-      comisionCents: aCentavos(montoComision(t.payment.amount, pct)),
+      comisionCents: aCentavos(montoComision(base, pct)),
       deAntes: esDeAntes(t.startsAt, periodo),
     });
     lineasPorProfesional.set(t.professionalId, lista);

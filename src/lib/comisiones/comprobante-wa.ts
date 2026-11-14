@@ -15,7 +15,7 @@ export interface DatosDelComprobante {
   /** «01/10 al 31/10» o la etiqueta del período. */
   periodo: string;
   turnos: number;
-  /** Lo cobrado sobre lo que se calculó, en centavos. */
+  /** La base de la comisión: lo cobrado menos lo pagado con voucher (`baseDeComision`), en centavos. */
   baseCents: number;
   /** Lo liquidado (lo congelado en el payout), en centavos. */
   comisionCents: number;
@@ -45,7 +45,7 @@ export function textoDelComprobante(d: DatosDelComprobante): string {
     `Hola ${nombre}, te paso el comprobante de tu liquidación en ${d.negocio}.`,
     `Período: ${d.periodo}`,
     `Turnos: ${d.turnos}`,
-    `Cobrado: ${pesosDeCentavos(d.baseCents)}`,
+    `Cobrado sin voucher: ${pesosDeCentavos(d.baseCents)}`,
     `Comisión: ${pesosDeCentavos(d.comisionCents)}`,
   ];
   if (ajustes !== 0) lineas.push(`Ajustes: ${pesosDeCentavos(ajustes)}`);

@@ -8,6 +8,7 @@ import { businessWallTimeToUtc } from "@/lib/datetime";
 import { calcularLiquidacion, type TurnoParaComision } from "@/lib/comision-liquidacion";
 import { sePuedeLiquidar } from "@/lib/comision-liquidable";
 import type { TurnoPendiente } from "@/lib/reports/comisiones";
+import { baseDeComision } from "./base";
 import { entraEnElCorte, leerPeriodo } from "./periodo";
 import { aCentavos, armarVistaPrevia } from "./vista-previa";
 
@@ -34,7 +35,7 @@ function loQueCongela(turnos: TurnoPendiente[], pctGeneral: number, overrides: M
     if (!a.payment) continue;
     if (!entraEnElCorte(a.startsAt, periodo)) continue;
     if (!sePuedeLiquidar({ precio: a.precio, cobros: a.cobros, pagoLegado: a.payment })) continue;
-    liq.push({ id: a.id, serviceId: a.serviceId, base: a.payment.amount, startsAt: a.startsAt });
+    liq.push({ id: a.id, serviceId: a.serviceId, base: baseDeComision(a.payment.amount, a.cobros), startsAt: a.startsAt });
   }
   return calcularLiquidacion(liq, pctGeneral, overrides).amount;
 }
@@ -105,4 +106,23 @@ test("settleCommissions usa el MISMO corte (entraEnElCorte) cuando llega el per�
   const src = readFileSync(new URL("../commission-actions.ts", import.meta.url), "utf8");
   assert.match(src, /if \(periodo && !entraEnElCorte\(a\.startsAt, periodo\)\) continue;/);
   assert.match(src, /calcularLiquidacion\(liquidables, professional\.commissionPercent, overrideByService\)/);
+});
+
+test("voucher: el renglón usa la misma base que el total (lo cobrado menos el voucher)", () => {
+  // Turno de $10.000 pagado con $4.000 de voucher y $6.000 en efectivo, al 40 %: base $6.000 → $2.400.
+  const t = turno({
+    dia: "2026-10-10",
+    monto: 10000,
+    cobros: [
+      { amount: 4000, method: "VOUCHER" },
+      { amount: 6000, method: "EFECTIVO" },
+    ],
+  });
+  const v = armarVistaPrevia([t], new Map(), oct);
+  const p = v.profesionales[0];
+  assert.equal(p.totalCents, 240000);
+  assert.equal(p.lineas[0].baseCents, 600000);
+  assert.equal(p.lineas[0].comisionCents, 240000, "el renglón tiene que dar lo mismo que el total que se congela");
+  assert.equal(p.detalleCuadra, true);
+  assert.equal(p.totalCents, aCentavos(loQueCongela([t], 40, new Map())));
 });

@@ -21,6 +21,7 @@ import { isDemoSandbox } from "@/lib/demo-sandbox";
 import { dateStrInBusinessTz, todayInBusinessTz } from "@/lib/datetime";
 import { leerTurnosPendientes } from "@/lib/reports/comisiones-lectura";
 import { comisionMarker } from "@/lib/comision-liquidacion";
+import { baseDeComision } from "./base";
 import { periodoElegido, periodoQueContiene, type PeriodoComision } from "./periodo";
 import { aCentavos, armarVistaPrevia, type VistaPrevia, type VistaPreviaProfesional } from "./vista-previa";
 import { linkDelComprobante, nombreDelMedio, type DatosDelComprobante } from "./comprobante-wa";
@@ -75,7 +76,11 @@ async function comprobantesDe(tenantId: string, payouts: readonly PayoutLeido[])
     prisma.tenant.findFirst({ where: { id: tenantId }, select: { name: true } }),
     prisma.appointment.findMany({
       where: { tenantId, commissionPayoutId: { in: ids } },
-      select: { commissionPayoutId: true, payment: { select: { amount: true } } },
+      select: {
+        commissionPayoutId: true,
+        payment: { select: { amount: true } },
+        collections: { select: { amount: true, method: true } },
+      },
     }),
     prisma.cashMovement.findMany({
       where: { tenantId, createdBy: { in: ids.map(comisionMarker) } },
@@ -85,7 +90,10 @@ async function comprobantesDe(tenantId: string, payouts: readonly PayoutLeido[])
   const basePorPayout = new Map<string, number>();
   for (const t of turnos) {
     if (!t.commissionPayoutId) continue;
-    basePorPayout.set(t.commissionPayoutId, (basePorPayout.get(t.commissionPayoutId) ?? 0) + aCentavos(Number(t.payment?.amount ?? 0)));
+    // La MISMA base que la comisión congelada (commission-actions.ts): lo cobrado menos el voucher.
+    const cobros = (t.collections ?? []).map((c) => ({ amount: Number(c.amount), method: c.method }));
+    const base = baseDeComision(Number(t.payment?.amount ?? 0), cobros);
+    basePorPayout.set(t.commissionPayoutId, (basePorPayout.get(t.commissionPayoutId) ?? 0) + aCentavos(base));
   }
   const medioPorMarca = new Map(egresos.map((e) => [e.createdBy, e.method]));
   return payouts.map((p) => {
