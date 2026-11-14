@@ -113,6 +113,7 @@ const SIEMPRE_ABIERTAS = [
   "/operador",
   "/contador",
   "/facturita",
+  "/profeturnos",
   "/api",
 ];
 
