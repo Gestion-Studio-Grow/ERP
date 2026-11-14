@@ -16,8 +16,6 @@ import { describirStand, ESQUEMA_STAND, INSTRUCCIONES_STAND, leerStandPropuesto 
 import { normalizarDiseno, type DisenoStand } from "./stand";
 import { ESQUEMA_PIEZAS, INSTRUCCIONES_PIEZAS, leerPiezasPropuestas, type PiezaPropuesta } from "./ia-piezas-core";
 import { CAMPOS_BRIEF, ESTADOS_DATO, INSTRUCCIONES_CONSULTA, textoDeBrief, type BriefConsulta } from "./consulta-core";
-import { gastoALiquidar, tokensEntradaMaximos, type UsoIA } from "./ia-tope-core";
-import { anotarLlamadaGratis, liquidarGastoIA, reservarGastoIA } from "./ia-tope.server";
 import { recuadrosDeCuotas } from "./empresa.server";
 import { SIN_PREVISTAS_SIN_MARCAR } from "./cobranza-core";
 

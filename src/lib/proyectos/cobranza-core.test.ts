@@ -809,7 +809,7 @@ test("v5 F2 servidor: las lecturas de la cobranza usan la regla compartida; marc
   assert.match(acc, /proyectoCuota\.updateMany\(\{ where: \{ id, tenantId, pagadoEl: null, anuladoEl: null, prevista: false, monto: c\.monto, moneda: c\.moneda \}/);
   const gestion = leer("./gestion.server.ts");
   const plan = gestion.slice(gestion.indexOf("async function aplicarPlan("));
-  assert.match(plan, /tx\.proyectoCuota\.updateMany\(\{ where: \{ id: previa\.id, tenantId, pagadoEl: null \}, data: datos \}\)/);
+  assert.match(plan, /(?:tx|prisma)\.proyectoCuota\.updateMany\(\{ where: \{ id: previa\.id, tenantId, pagadoEl: null \}, data: datos \}\)/);
   assert.match(plan, /r\.count === 0/);
   assert.doesNotMatch(plan, /proyectoCuota\.update\(\{/);
 });

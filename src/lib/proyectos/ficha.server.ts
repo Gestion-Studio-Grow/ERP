@@ -194,7 +194,6 @@ export async function datosFinanzas(a: Actor, cab: Cabecera, vista: Vista) {
   // Pasados a pesos: un ítem en dólares no se puede comparar como si fueran pesos.
   const aprobadaEnPesos = aprobada?.items.map((i) => ({ rubro: i.rubro, cantidad: i.cantidad, costo: aPesos(i.costo, i.moneda, cab.tc), precio: i.cantidad > 0 ? ventaTotalItem(i, cab.tc, cab.config.margenPct) / i.cantidad : 0 })) ?? [];
   const totalesAprobada = aprobada ? totalesEnPesos(aprobada, cab.tc, cab.config.margenPct) : null;
-  // El presupuesto vivo (de donde salen las cuotas) suma IVA y el negocio factura C: se avisa.
   return {
     cuotas: visibles,
     flujo,

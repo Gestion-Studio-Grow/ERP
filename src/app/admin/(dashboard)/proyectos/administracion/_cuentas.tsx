@@ -7,8 +7,7 @@ import { proveedoresActivos, type CuotaDelNegocio, type SinCalendarioDelNegocio 
 import type { PagadoDeCuota } from "@/lib/proyectos/cobranza-core";
 import { anularCuotaEmpresa, crearPagoEmpresa } from "@/lib/proyectos/acciones-empresa";
 import { quitarMovimiento } from "@/lib/proyectos/acciones-ficha";
-import { facturasDeCuotas } from "@/lib/proyectos/facturar-cuota.server";
-import { textoCubierta, textoFacturaDeCuota } from "@/lib/proyectos/avisos-cuota";
+import { textoCubierta } from "@/lib/proyectos/avisos-cuota";
 import { campo, etiqueta, tarjeta } from "../_vista";
 import { BotonDosPasos, DatoCuota, FormAccion, MarcarCuota, VenceCuota } from "./_controles";
 
@@ -46,8 +45,6 @@ export async function TabCuentas({ tipo, estado, q, cuotas, sinCalendario = [], 
   // Lo aprobado que ninguna cuota espera: pendiente y sin fecha, así que sólo en «Pendientes» y «Todos».
   const faltantes = tipo === "COBRO" && (filtro === "pendientes" || filtro === "todos") ? sinCalendario.filter((f) => !busqueda || coincideSinCalendario(f, busqueda)) : [];
   const proveedores = tipo === "PAGO" && editaEmpresa ? await proveedoresActivos(tenantId) : [];
-  // La factura de ARCA de las cuotas de proyecto facturadas con «Facturar» (la columna `factura` queda para la carga a mano).
-  const facturas = tipo === "COBRO" ? await facturasDeCuotas(tenantId, filas.slice(0, MAX_FILAS).filter((c) => c.proyecto).map((c) => c.id)) : new Map();
   const enlace = (f: FiltroCuota) => `/admin/proyectos/administracion?tab=${tab}&estado=${f}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
 
   return (
@@ -100,7 +97,6 @@ export async function TabCuentas({ tipo, estado, q, cuotas, sinCalendario = [], 
                 // vale hoy (eso es del cashflow). «US$ 100 · $ 100.000», no «US$ 66,66».
                 const pagado = c.tipo === "COBRO" && c.pagadoEl ? (c.pagado ?? null) : null;
                 const referencia = pagado ? (pagado.pesos ?? pagado.monto) : aPesos(falta, c.moneda, tc);
-                const emitida = textoFacturaDeCuota(facturas.get(c.id));
                 return (
                   <tr key={c.id} className={cn("border-t border-line align-top", vencida && "bg-danger-soft")}>
                     <td className={cn("py-2 pr-3", vencida && "text-danger")}>
@@ -120,7 +116,7 @@ export async function TabCuentas({ tipo, estado, q, cuotas, sinCalendario = [], 
                       {(pagado ? pagado.moneda !== c.moneda || pagado.monto !== c.monto : falta !== c.monto) && <span className="block text-xs font-normal text-muted">de {plataEn(c.monto, c.moneda)}</span>}
                     </td>
                     <td className="whitespace-nowrap py-2 pr-3 text-right tabular-nums text-muted">{referencia > 0 ? pesos(referencia) : "—"}</td>
-                    <td className="py-2 pr-3">{emitida ? <span className="whitespace-nowrap">{emitida}</span> : editaEmpresa ? <DatoCuota id={c.id} dato="factura" valor={c.factura ?? ""} etiqueta="Factura" /> : (c.factura ?? "—")}</td>
+                    <td className="py-2 pr-3">{editaEmpresa ? <DatoCuota id={c.id} dato="factura" valor={c.factura ?? ""} etiqueta="Factura" /> : (c.factura ?? "—")}</td>
                     <td className={cn("whitespace-nowrap py-2 pr-3", vencida && "font-medium text-danger")}>{est === "PAGADA" && c.tipo === "COBRO" ? "Cobrada" : ESTADO_LABEL[est]}</td>
                     <td className="py-2 pr-3">
                       <div className="grid justify-items-start gap-1">

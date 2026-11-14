@@ -10,6 +10,7 @@ import { after } from "next/server";
 import { enviarMailInterno } from "@/lib/notifications";
 import { tenantTransaction } from "@/lib/rls";
 import { prisma } from "@/lib/prisma";
+import { logger } from "@/lib/logger";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
 import { roleHasCapability } from "@/lib/capabilities";
@@ -262,21 +263,37 @@ export async function regenerarCuotas(tenantId: string, proyectoId: string): Pro
           anticipoProveedor: Object.fromEntries(fichas.map((f) => [f.supplierId, f.anticipoPct])),
         })
       : [];
+  const prevista = cuotaPrevista(p.etapa, p.fechaEvento);
+  // Si una cuota se marca mientras se ajusta el plan, no se le pisa nada y el plan se vuelve a calcular con ella.
+  for (let vuelta = 0; vuelta < 3; vuelta++) {
+    if (!(await aplicarPlan(tenantId, proyectoId, planDeLaFicha, prevista))) return;
+  }
+  logger.warn("proyectos", "el plan de cobros no cerró: se marcaron cuotas mientras se ajustaba", { tenantId, proyectoId });
+}
+
+/**
+ * Una pasada de `regenerarCuotas`: lee las cuotas, ajusta el plan a lo marcado y lo escribe.
+ * Devuelve `true` si una cuota se marcó mientras tanto (el plan quedó calculado con lo viejo).
+ */
+async function aplicarPlan(tenantId: string, proyectoId: string, planDeLaFicha: ReturnType<typeof planDeCuotas>, prevista: boolean): Promise<boolean> {
   const actuales = await prisma.proyectoCuota.findMany({ where: { tenantId, proyectoId, auto: true }, select: { id: true, clave: true, monto: true, pagadoEl: true, anuladoEl: true, venceEl: true, venceManual: true, prevista: true } });
   const plan = ajustarAPagado(planDeLaFicha, actuales.filter((c) => c.pagadoEl && !c.anuladoEl).map((c) => ({ clave: c.clave ?? "", monto: c.monto })));
-  const prevista = cuotaPrevista(p.etapa, p.fechaEvento);
   const porClave = new Map(actuales.map((c) => [c.clave, c]));
   const vigentes = new Set(plan.map((c) => c.clave));
   const hoy = new Date();
+  let choco = false;
   for (const c of plan) {
     const previa = porClave.get(c.clave);
     if (previa?.pagadoEl) continue;
     const datos = { prevista, tipo: c.tipo, concepto: c.concepto, monto: c.monto, moneda: c.moneda, venceEl: venceDeLaCuota({ clave: c.clave, plan: c.venceEl, prevista, hoy, previa }), supplierId: c.supplierId, anuladoEl: null };
-    // Sólo si sigue sin marcar: una cuota marcada mientras se ajustaba queda congelada (no se le pisa monto ni `prevista`);
-    // la próxima regeneración recalcula el plan con ella. (El candado de factura de cuota y el reintento son de la Etapa 2.)
-    if (previa) await prisma.proyectoCuota.updateMany({ where: { id: previa.id, tenantId, pagadoEl: null }, data: datos });
-    else await prisma.proyectoCuota.create({ data: { ...datos, tenantId, proyectoId, auto: true, clave: c.clave } });
+    // Sólo si sigue sin marcar: una cuota marcada mientras se ajustaba queda congelada (no se le pisa monto ni `prevista`)
+    // y el plan se vuelve a calcular con ella. (El candado de la factura de cuota es de la Etapa 2 · T2.)
+    if (previa) {
+      const r = await prisma.proyectoCuota.updateMany({ where: { id: previa.id, tenantId, pagadoEl: null }, data: datos });
+      choco = r.count === 0 || choco;
+    } else await prisma.proyectoCuota.create({ data: { ...datos, tenantId, proyectoId, auto: true, clave: c.clave } });
   }
   const sobran = actuales.filter((c) => c.clave && !vigentes.has(c.clave) && !c.pagadoEl && !c.anuladoEl).map((c) => c.id);
-  if (sobran.length > 0) await prisma.proyectoCuota.updateMany({ where: { tenantId, id: { in: sobran } }, data: { anuladoEl: new Date() } });
+  if (sobran.length > 0) await prisma.proyectoCuota.updateMany({ where: { tenantId, id: { in: sobran }, pagadoEl: null, anuladoEl: null }, data: { anuladoEl: new Date() } });
+  return choco;
 }

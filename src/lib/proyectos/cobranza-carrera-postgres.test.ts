@@ -11,7 +11,7 @@
 //
 //  (a) dos cobros a la vez que sumados pasan el tope → entra uno solo; lo que falta cobrar nunca queda negativo.
 //  (b) cobro manual y «Marcar cobrado» de una cuota a la vez (en los dos órdenes) → la plata entra una sola vez.
-//  (c) T2 (#68) está en la rama: dos «Facturar» a la vez de la misma cuota → un solo comprobante y un solo envío.
+//  (La carrera de dos «Facturar» de la misma cuota es de la Etapa 2 · T2 y vive en su rama, no acá.)
 // ============================================================================
 
 import { test } from "node:test";
@@ -176,23 +176,3 @@ test("(b) cobro manual y «Marcar cobrado» de la misma cuota a la vez, en los d
   assert.deepEqual([cob2.cobrado, cob2.saldo, cob2.porCobrar], [1210, 0, 0]);
 });
 
-test("(c) T2: dos «Facturar» a la vez de la misma cuota → un solo comprobante y un solo envío", async (t) => {
-  const p = await preparar(t);
-  if (!p) return;
-  await p.duenio.outboxEvent.updateMany({ where: { processedAt: null }, data: { processedAt: new Date() } });
-  const id = await p.proyecto();
-  const q = await p.cuota(id);
-  const facturar = () => p.enSesion(() => p.ficha.facturarCuota(p.form({ id: q, proyectoId: id })));
-  // La escritura de la factura toma el candado de las facturas por cobro del negocio (`tomarCandadoFacturasDeCobro`).
-  const [f1, f2] = await enFila(p.base, `facturas-cobro:${p.a.id}`, [facturar, facturar]);
-  assert.equal(f1.ok, true, JSON.stringify(f1));
-  assert.equal(f2.ok, true, JSON.stringify(f2));
-  const ids = [f1, f2].map((r) => (r as { invoiceId?: string }).invoiceId);
-  assert.ok(ids[0] && ids[0] === ids[1], "los dos pedidos devuelven la MISMA factura");
-  const facturas = await p.duenio.invoice.findMany({ where: { proyectoCuotaId: q }, select: { id: true } });
-  assert.equal(facturas.length, 1, "un solo comprobante para la cuota");
-  const envios = (await p.duenio.outboxEvent.findMany({ where: { type: "InvoiceCreated" } })).filter((e) => (e.payload as { invoiceId?: string }).invoiceId === facturas[0].id);
-  assert.equal(envios.length, 1, "un solo envío a ARCA");
-  const historial = await p.duenio.proyectoCambio.count({ where: { tenantId: p.a.id, entidad: "ProyectoCuota", entidadId: q, campo: { startsWith: "Factura pedida" } } });
-  assert.equal(historial, 1, "una sola línea de historial");
-});
