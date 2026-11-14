@@ -6,6 +6,7 @@ import { isColumnMissing } from "@/lib/prisma-errors";
 import { businessWallTimeToUtc } from "@/lib/datetime";
 import { auditAdmin } from "@/lib/audit-core";
 import { getCurrentTenantId } from "@/lib/tenant";
+import { invalidarNegocio } from "@/lib/cache-negocio";
 import { tenantTransaction } from "@/lib/rls";
 import { requireCapability } from "@/lib/authz";
 import { isDemoSandbox } from "@/lib/demo-sandbox";
@@ -468,6 +469,7 @@ export async function createProduct(formData: FormData) {
     { tenantId },
   ).catch((e) => rechazarCodigoOcupado(e, tenantId, codigo, null));
   await writeProductExtras(created.id, extras);
+  invalidarNegocio(tenantId, "vidriera");
   revalidatePath(CATALOG_PATH);
   // El stock inicial es un movimiento del ledger: aparece en ajustes, compras y el POS.
   if (created.stock > 0) {
@@ -534,6 +536,7 @@ export async function updateProduct(formData: FormData) {
     ).catch((e) => rechazarCodigoOcupado(e, tenantId, codigo, id));
   }
   await writeProductExtras(id, extras);
+  invalidarNegocio(tenantId, "vidriera");
   revalidatePath(CATALOG_PATH);
 }
 
@@ -612,6 +615,7 @@ export async function toggleProductActive(formData: FormData) {
     { tenantId },
   );
   if (res.count === 0) throw new Error(PRODUCTO_NO_ENCONTRADO);
+  invalidarNegocio(tenantId, "vidriera");
   revalidatePath(CATALOG_PATH);
 }
 
@@ -632,6 +636,7 @@ export async function deleteProduct(formData: FormData) {
     { tenantId },
   );
   await auditAdmin({ action: "delete", entity: "Product", entityId: id });
+  invalidarNegocio(tenantId, "vidriera");
   revalidatePath(CATALOG_PATH);
 }
 
