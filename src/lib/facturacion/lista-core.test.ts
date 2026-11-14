@@ -155,3 +155,10 @@ test("en el CSV la nota de crédito va en negativo y la cabecera lo dice: la col
   assert.equal(campos[8], "-10000,00");
   assert.equal(CABECERA_CSV[8], "Total (las notas de crédito, en negativo)");
 });
+
+test("comprobante de prueba: el CAE simulado («STUB…») no es un autorizado con validez fiscal", async () => {
+  const { esComprobanteDePrueba } = await import("./lista-core");
+  assert.equal(esComprobanteDePrueba({ cae: "STUB00000001" }), true);
+  assert.equal(esComprobanteDePrueba({ cae: "74123456789012" }), false);
+  assert.equal(esComprobanteDePrueba({ cae: null }), false);
+});
