@@ -10,6 +10,7 @@ import { after } from "next/server";
 import { enviarMailInterno } from "@/lib/notifications";
 import { tenantTransaction } from "@/lib/rls";
 import { prisma } from "@/lib/prisma";
+import { logger } from "@/lib/logger";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
 import { roleHasCapability } from "@/lib/capabilities";
@@ -17,6 +18,7 @@ import type { SessionUser } from "@/lib/session";
 import type { Prisma } from "@/generated/prisma/client";
 import { configProyectos } from "./datos.server";
 import { venceDeLaCuota, ajustarAPagado, cambioDeVenta, COLUMNAS_OCULTAS_BASE, cuotaPrevista, rolDelActor, mailDeAviso, permisoDe, planDeCuotas, veTodosLosProyectos, type ItemFicha, type ModuloGestion, type RolGestion } from "./gestion-core";
+import { tiposDeCambio, trabarCobranza } from "./cobranza.server";
 
 export interface Actor {
   user: SessionUser;
@@ -73,10 +75,8 @@ export async function proyectoVisible(a: Actor, id: string) {
   return prisma.proyecto.findFirst({ where: { ...filtroDeProyectos(a), id }, select: { id: true } });
 }
 
-export async function tiposDeCambio(tenantId: string): Promise<Record<string, number>> {
-  const filas = await prisma.proyectoTipoCambio.findMany({ where: { tenantId }, select: { moneda: true, porUnidad: true } });
-  return Object.fromEntries(filas.map((f) => [f.moneda, f.porUnidad]));
-}
+// Vive en cobranza.server.ts (sólo Prisma) para que datos.server.ts la use sin ciclo de imports.
+export { tiposDeCambio };
 
 type Tx = Prisma.TransactionClient;
 
@@ -209,8 +209,8 @@ async function programarMails(d: { tenantId: string; tipo: string; texto: string
 }
 
 /** La última versión del presupuesto es la ficha viva: de ahí salen planilla, cuotas y deadlines. */
-export async function versionViva(tenantId: string, proyectoId: string) {
-  return prisma.proyectoPresupuesto.findFirst({ where: { tenantId, proyectoId }, orderBy: { version: "desc" }, include: { items: { orderBy: { posicion: "asc" }, include: { supplier: { select: { id: true, name: true } } } } } });
+export async function versionViva(tenantId: string, proyectoId: string, db: Prisma.TransactionClient = prisma) {
+  return db.proyectoPresupuesto.findFirst({ where: { tenantId, proyectoId }, orderBy: { version: "desc" }, include: { items: { orderBy: { posicion: "asc" }, include: { supplier: { select: { id: true, name: true } } } } } });
 }
 
 export const aItemFicha = (i: { id: string; descripcion: string; rubro: string; cantidad: number; costo: number; moneda: string; recargoPct: number | null; precio: number; fechaLimite: Date | null; supplierId: string | null }): ItemFicha => ({
@@ -237,45 +237,79 @@ export async function regenerarCuotasDe(tenantId: string, cuales: Prisma.Proyect
 }
 
 export async function regenerarCuotas(tenantId: string, proyectoId: string): Promise<void> {
-  const [p, viva, config, tc] = await Promise.all([
-    prisma.proyecto.findFirst({ where: { id: proyectoId, tenantId }, select: { id: true, nombre: true, moneda: true, etapa: true, fechaEvento: true, createdAt: true, anticipoClientePct: true, perdidoEl: true } }),
-    versionViva(tenantId, proyectoId),
-    configProyectos(tenantId),
-    tiposDeCambio(tenantId),
-  ]);
-  if (!p || !viva) return;
-  const items = viva.items.map(aItemFicha);
-  const proveedores = [...new Set(items.map((i) => i.supplierId).filter((s): s is string => !!s))];
-  const fichas = await prisma.proyectoProveedorFicha.findMany({ where: { tenantId, supplierId: { in: proveedores } }, select: { supplierId: true, anticipoPct: true } });
-  const planDeLaFicha =
-    !p.perdidoEl
-      ? planDeCuotas(items, {
-          proyectoId,
-          nombre: p.nombre,
-          fechaEvento: p.fechaEvento,
-          creado: p.createdAt,
-          anticipoClientePct: p.anticipoClientePct,
-          ivaPct: viva.ivaPct,
-          recargoGeneral: config.margenPct,
-          tiposDeCambio: tc,
-          monedaVenta: p.moneda,
-          cambioVenta: cambioDeVenta(p.moneda, viva.tcVenta, tc),
-          anticipoProveedor: Object.fromEntries(fichas.map((f) => [f.supplierId, f.anticipoPct])),
-        })
-      : [];
-  const actuales = await prisma.proyectoCuota.findMany({ where: { tenantId, proyectoId, auto: true }, select: { id: true, clave: true, monto: true, pagadoEl: true, anuladoEl: true, venceEl: true, venceManual: true, prevista: true } });
+  // En fila con los otros ajustes del plan del mismo proyecto y con la cobranza (la misma clave que `trabarCobranza`:
+  // «Marcar cobrado», cobros, cuotas a mano). La ficha se lee y el plan se calcula ADENTRO del candado: el último en
+  // entrar calcula con la ficha vigente y nadie revive una cuota que la ficha nueva ya no tiene. Ningún llamador lo
+  // invoca con el candado tomado en otra transacción (todos después de cerrar la suya), así que no se espera a sí mismo.
+  const cerro = await tenantTransaction(
+    async (tx) => {
+      await trabarCobranza(tx, tenantId, proyectoId);
+      const [p, viva, config, tc] = await Promise.all([
+        tx.proyecto.findFirst({ where: { id: proyectoId, tenantId }, select: { id: true, nombre: true, moneda: true, etapa: true, fechaEvento: true, createdAt: true, anticipoClientePct: true, perdidoEl: true } }),
+        versionViva(tenantId, proyectoId, tx),
+        configProyectos(tenantId, tx),
+        tiposDeCambio(tenantId, tx),
+      ]);
+      if (!p || !viva) return true;
+      const items = viva.items.map(aItemFicha);
+      const proveedores = [...new Set(items.map((i) => i.supplierId).filter((s): s is string => !!s))];
+      const fichas = await tx.proyectoProveedorFicha.findMany({ where: { tenantId, supplierId: { in: proveedores } }, select: { supplierId: true, anticipoPct: true } });
+      const planDeLaFicha =
+        !p.perdidoEl
+          ? planDeCuotas(items, {
+              proyectoId,
+              nombre: p.nombre,
+              fechaEvento: p.fechaEvento,
+              creado: p.createdAt,
+              anticipoClientePct: p.anticipoClientePct,
+              ivaPct: viva.ivaPct,
+              recargoGeneral: config.margenPct,
+              tiposDeCambio: tc,
+              monedaVenta: p.moneda,
+              cambioVenta: cambioDeVenta(p.moneda, viva.tcVenta, tc),
+              anticipoProveedor: Object.fromEntries(fichas.map((f) => [f.supplierId, f.anticipoPct])),
+            })
+          : [];
+      const prevista = cuotaPrevista(p.etapa, p.fechaEvento);
+      // Una cuota de pago se puede marcar sin este candado: si se marca mientras se ajusta el plan, no se le pisa nada y
+      // el plan se vuelve a ajustar con ella.
+      for (let vuelta = 0; vuelta < 3; vuelta++) {
+        if (!(await aplicarPlan(tx, tenantId, proyectoId, planDeLaFicha, prevista))) return true;
+      }
+      return false;
+    },
+    { tenantId, timeoutMs: 15_000 },
+  );
+  if (!cerro) logger.warn("proyectos", "el plan de cobros no cerró: se marcaron cuotas mientras se ajustaba", { tenantId, proyectoId });
+}
+
+/**
+ * Una pasada de `regenerarCuotas`: lee las cuotas, ajusta el plan a lo marcado y lo escribe.
+ * Devuelve `true` si una cuota se marcó mientras tanto (el plan quedó calculado con lo viejo).
+ */
+async function aplicarPlan(tx: Prisma.TransactionClient, tenantId: string, proyectoId: string, planDeLaFicha: ReturnType<typeof planDeCuotas>, prevista: boolean): Promise<boolean> {
+  const actuales = await tx.proyectoCuota.findMany({ where: { tenantId, proyectoId, auto: true }, select: { id: true, clave: true, monto: true, pagadoEl: true, anuladoEl: true, venceEl: true, venceManual: true, prevista: true } });
   const plan = ajustarAPagado(planDeLaFicha, actuales.filter((c) => c.pagadoEl && !c.anuladoEl).map((c) => ({ clave: c.clave ?? "", monto: c.monto })));
-  const prevista = cuotaPrevista(p.etapa, p.fechaEvento);
   const porClave = new Map(actuales.map((c) => [c.clave, c]));
   const vigentes = new Set(plan.map((c) => c.clave));
   const hoy = new Date();
+  let choco = false;
   for (const c of plan) {
     const previa = porClave.get(c.clave);
     if (previa?.pagadoEl) continue;
     const datos = { prevista, tipo: c.tipo, concepto: c.concepto, monto: c.monto, moneda: c.moneda, venceEl: venceDeLaCuota({ clave: c.clave, plan: c.venceEl, prevista, hoy, previa }), supplierId: c.supplierId, anuladoEl: null };
-    if (previa) await prisma.proyectoCuota.update({ where: { id: previa.id }, data: datos });
-    else await prisma.proyectoCuota.create({ data: { ...datos, tenantId, proyectoId, auto: true, clave: c.clave } });
+    // Sólo si sigue sin marcar: una cuota marcada mientras se ajustaba queda congelada (no se le pisa monto ni `prevista`)
+    // y el plan se vuelve a calcular con ella. (El candado de la factura de cuota es de la Etapa 2 · T2.)
+    if (previa) {
+      const r = await tx.proyectoCuota.updateMany({ where: { id: previa.id, tenantId, pagadoEl: null }, data: datos });
+      choco = r.count === 0 || choco;
+    } else await tx.proyectoCuota.create({ data: { ...datos, tenantId, proyectoId, auto: true, clave: c.clave } });
   }
   const sobran = actuales.filter((c) => c.clave && !vigentes.has(c.clave) && !c.pagadoEl && !c.anuladoEl).map((c) => c.id);
-  if (sobran.length > 0) await prisma.proyectoCuota.updateMany({ where: { tenantId, id: { in: sobran } }, data: { anuladoEl: new Date() } });
+  if (sobran.length > 0) {
+    const r = await tx.proyectoCuota.updateMany({ where: { tenantId, id: { in: sobran }, pagadoEl: null, anuladoEl: null }, data: { anuladoEl: new Date() } });
+    // Si una de las que sobran se marcó en el medio, el plan se calculó sin descontarla: otra pasada.
+    choco = r.count < sobran.length || choco;
+  }
+  return choco;
 }

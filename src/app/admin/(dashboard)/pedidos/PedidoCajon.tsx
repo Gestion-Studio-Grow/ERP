@@ -147,9 +147,10 @@ export default function PedidoCajon({
   const canal = pedido.canal === "ONLINE" ? "Pedido por la tienda o por teléfono" : "Pedido del mostrador";
   const conMas = puedeOperar && Boolean(extra?.ajustar || extra?.link || anulacion);
 
-  // Mostrador boutique: armar a pantalla completa mientras no esté cobrado ni Listo.
+  // Mostrador boutique: armar a pantalla completa mientras no esté cobrado ni Listo (el cobrado se
+  // ajusta en «Más acciones»: el armado todavía no sabe devolver ni dejar saldo).
   const armar =
-    boutique && comercio && puedeOperar && extra?.ajustar && pedido.status !== "READY" ? (
+    boutique && comercio && puedeOperar && extra?.ajustar && !pedido.cobrado && pedido.status !== "READY" ? (
       <Link
         href={`/admin/pedidos/${pedido.code}/armar`}
         className={buttonClasses("solid", "lg", "w-full")}
@@ -172,7 +173,7 @@ export default function PedidoCajon({
     else if (tecla.tipo === "cobrar")
       pie = (
         <div ref={cobroRef} className="w-full">
-          <CobroDelPedido id={pedido.id} code={pedido.code} total={pedido.total} cobrado={pedido.cobrado} modo="cobrar" />
+          <CobroDelPedido id={pedido.id} code={pedido.code} total={pedido.aCobrar ?? pedido.total} cobrado={pedido.cobrado} modo="cobrar" />
         </div>
       );
     else
@@ -213,7 +214,7 @@ export default function PedidoCajon({
               Recordarle por WhatsApp que lo pase a buscar
             </a>
           )}
-          <CobroDelPedido id={pedido.id} code={pedido.code} total={pedido.total} cobrado={pedido.cobrado} modo="entregar" />
+          <CobroDelPedido id={pedido.id} code={pedido.code} total={pedido.aCobrar ?? pedido.total} cobrado={pedido.cobrado} modo="entregar" />
         </div>
       );
   }
@@ -297,6 +298,13 @@ export default function PedidoCajon({
           ))}
           {pedido.descuento > 0 && <Renglon titulo="Descuento" plata={<Plata valor={-pedido.descuento} />} />}
           <Renglon titulo={<strong>Total</strong>} plata={<Plata valor={pedido.total} />} className="border-b-0 border-t-2 border-line-strong font-semibold" />
+          {pedido.aCobrar != null && (
+            <Renglon
+              titulo="Falta cobrar (ya pagó una parte antes de pesar)"
+              plata={<Plata valor={pedido.aCobrar} />}
+              className="border-b-0 font-semibold text-warning"
+            />
+          )}
         </section>
 
         {conMas && (
@@ -313,6 +321,7 @@ export default function PedidoCajon({
                   <AjustarPedidoForm
                     id={pedido.id}
                     code={pedido.code}
+                    cobrado={extra.ajustar.cobrado}
                     subtotal={extra.ajustar.subtotal}
                     descuento={extra.ajustar.descuento}
                     cupon={extra.ajustar.cupon}
@@ -326,7 +335,7 @@ export default function PedidoCajon({
                   <LinkDePagoPedido
                     id={pedido.id}
                     code={pedido.code}
-                    total={pedido.total}
+                    total={pedido.aCobrar ?? pedido.total}
                     cobrado={pedido.cobrado}
                     enviado={extra.link.enviado}
                     whatsappEnviado={extra.link.whatsappEnviado}
@@ -338,7 +347,7 @@ export default function PedidoCajon({
               {!pedido.cobrado && pedido.status !== "DELIVERED" && pedido.status !== "READY" && (
                 <section data-seccion="cobro-anticipado" aria-label="Ya pagó">
                   <p className="mb-2 text-sm text-muted">¿Ya pagó (por ejemplo, por transferencia) y retira más tarde?</p>
-                  <CobroDelPedido id={pedido.id} code={pedido.code} total={pedido.total} cobrado={false} modo="cobrar" />
+                  <CobroDelPedido id={pedido.id} code={pedido.code} total={pedido.aCobrar ?? pedido.total} cobrado={false} modo="cobrar" />
                 </section>
               )}
               {anulacion && (

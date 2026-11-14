@@ -385,6 +385,33 @@ const PREFIJO_PIN = "h1:";
 export const VUELTAS_PIN = 2000;
 /** ¿Lo guardado es un PIN con hash (y no el PIN en claro de antes)? */
 export const esPinConHash = (p) => typeof p === "string" && p.startsWith(PREFIJO_PIN);
+
+// ── el PIN que se verifica en el servidor (jornada real del ERP, SEG-020) ──
+// En la foto que baja del ERP, el PIN de un dueño llega como la marca `srv:` (con su `pinLargo`): el equipo no lo
+// tiene y no lo puede comprobar. Sólo coincide si quien lo verificó fue el servidor y lo avisa el verificador que
+// inyecta el ERP (`fijarVerificadorDelServidor`). Sin verificador (la demo, el piloto), un `srv:` no coincide nunca.
+// La marca no se pasa a hash ni sirve de clave para el código de aprobación.
+export const MARCA_PIN_SERVIDOR = "srv:";
+/** ¿El PIN de este usuario lo tiene sólo el servidor? */
+export const esPinEnServidor = (p) => typeof p === "string" && p.startsWith(MARCA_PIN_SERVIDOR);
+let verificadorDelServidor = null;
+/**
+ * Lo fija el ERP: `{ pin(usuarioId, pin) }` dice si el servidor confirmó ese PIN de ese usuario (con un pase vigente) y
+ * `{ codigo({ usuarioId, novedadId, codigo, monto }) }`, si confirmó ese código de aprobación. null lo saca.
+ */
+export function fijarVerificadorDelServidor(v) {
+  verificadorDelServidor = v && typeof v === "object" ? v : null;
+}
+function confirmadoPorElServidor(que, datos) {
+  const f = verificadorDelServidor?.[que];
+  if (typeof f !== "function") return false;
+  try {
+    return que === "pin" ? f(datos.usuarioId, datos.pin) === true : f(datos) === true;
+  } catch {
+    return false;
+  }
+}
+const pinDelServidorCoincide = (u, p) => !!u?.id && !!p && confirmadoPorElServidor("pin", { usuarioId: u.id, pin: p });
 /** El hash de un PIN con la sal del club: lo que queda guardado (y la clave del código de aprobación). */
 export function hashPin(pin, sal) {
   const te = new TextEncoder();
@@ -407,17 +434,18 @@ function guardarPin(estado, u, pin) {
 export function pinCoincide(estado, u, pin) {
   const p = String(pin ?? "").trim();
   if (!u?.pin || !p) return false;
+  if (esPinEnServidor(u.pin)) return pinDelServidorCoincide(u, p);
   if (!esPinConHash(u.pin)) return u.pin === p;
   return !!estado.salPin && hashPin(p, estado.salPin) === u.pin;
 }
 /** Cuántos números tiene el PIN guardado de un usuario (0 = no tiene). */
-export const largoDelPinGuardado = (u) => (!u?.pin ? 0 : esPinConHash(u.pin) ? Number(u.pinLargo) || 0 : u.pin.length);
+export const largoDelPinGuardado = (u) => (!u?.pin ? 0 : esPinConHash(u.pin) || esPinEnServidor(u.pin) ? Number(u.pinLargo) || 0 : u.pin.length);
 /** SÓLO DEMO: el PIN de ejemplo de un usuario de la demo (el guardado puede tener hash). "" si no es de la demo. */
-export const pinDeEjemplo = (u) => USUARIOS_DEMO.find((d) => d.id === u?.id)?.pin ?? (u?.pin && !esPinConHash(u.pin) ? u.pin : "");
-/** Pasa a hash los PIN que todavía estén en claro (lo llama el almacén de la jornada real al abrirla). Devuelve cuántos. */
+export const pinDeEjemplo = (u) => USUARIOS_DEMO.find((d) => d.id === u?.id)?.pin ?? (u?.pin && !esPinConHash(u.pin) && !esPinEnServidor(u.pin) ? u.pin : "");
+/** Pasa a hash los PIN que todavía estén en claro (lo llama el almacén de la jornada real al abrirla). Devuelve cuántos. La marca `srv:` no es un PIN en claro: queda igual. */
 export function pasarPinesAHash(estado) {
   let n = 0;
-  for (const u of estado.usuarios ?? []) if (u.pin && !esPinConHash(u.pin)) { guardarPin(estado, u, u.pin); n++; }
+  for (const u of estado.usuarios ?? []) if (u.pin && !esPinConHash(u.pin) && !esPinEnServidor(u.pin)) { guardarPin(estado, u, u.pin); n++; }
   return n;
 }
 
@@ -465,7 +493,8 @@ export function usuarioPorPin(estado, pin) {
   if (!String(pin ?? "").trim()) return null;
   const p = String(pin ?? "").trim();
   const conHash = estado.salPin ? hashPin(p, estado.salPin) : null;
-  const u = estado.usuarios.find((x) => x.activo !== false && x.pin && (esPinConHash(x.pin) ? x.pin === conHash : x.pin === p));
+  // Un PIN `srv:` no se resuelve acá: sólo si el servidor ya lo confirmó para ese usuario.
+  const u = estado.usuarios.find((x) => x.activo !== false && x.pin && (esPinEnServidor(x.pin) ? pinDelServidorCoincide(x, p) : esPinConHash(x.pin) ? x.pin === conHash : x.pin === p));
   return u ? { ok: true, usuario: u } : { ok: false, motivo: "PIN incorrecto." };
 }
 
@@ -641,7 +670,7 @@ export function pinDesactualizado(estado, usuarioId) {
 function pinEnUso(estado, pin, salvo) {
   const p = String(pin).trim();
   const conHash = estado.salPin ? hashPin(p, estado.salPin) : null;
-  return estado.usuarios.some((u) => u.activo !== false && u.id !== salvo && u.pin && (esPinConHash(u.pin) ? u.pin === conHash : u.pin === p));
+  return estado.usuarios.some((u) => u.activo !== false && u.id !== salvo && u.pin && (esPinEnServidor(u.pin) ? pinDelServidorCoincide(u, p) : esPinConHash(u.pin) ? u.pin === conHash : u.pin === p));
 }
 
 /** Un dueño da de alta a alguien directamente (sin pedido previo). El PIN lo genera el sistema y se ve una vez. */
@@ -1219,6 +1248,8 @@ export function codigoAprobacion({ pin, sal, novedadId, clienteId, monto, fecha 
   // La clave es el PIN con hash si el club tiene sal (`s` en el link del pedido): el celular lo calcula con el PIN
   // tipeado y el club con el que tiene guardado. Sin sal (un club que nunca pasó sus PIN a hash), el PIN como antes.
   const p = String(pin ?? "").trim();
+  // La marca `srv:` no es un PIN: no da código (el del dueño en la jornada real lo da el servidor).
+  if (esPinEnServidor(p)) return "";
   const clave = esPinConHash(p) ? p : sal ? hashPin(p, sal) : p;
   const base = `${clave}|${novedadId}|${clienteId}|${Math.round(Number(monto))}|${fecha ?? ""}`;
   let out = "";
@@ -1243,7 +1274,10 @@ export function aprobarPorCodigo(estado, novedadId, { codigo, monto }, auth, aho
   const m = Math.round(Number(monto ?? n.monto));
   const tipeado = normalizarCodigo(codigo);
   if (tipeado.length !== 6) return { ok: false, motivo: "El código tiene 6 letras y números (ej. ABC-DEF)." };
-  const duenio = estado.usuarios.find((u) => u.rol === "duenio" && u.activo !== false && u.pin && normalizarCodigo(codigoAprobacion({ pin: u.pin, sal: estado.salPin, novedadId: n.id, clienteId: n.clienteId, monto: m, fecha: n.fecha })) === tipeado);
+  // Un dueño con el PIN en el servidor: sólo si el servidor confirmó ESTE código para él, este pedido y este monto.
+  const duenio = estado.usuarios.find((u) => u.rol === "duenio" && u.activo !== false && u.pin && (esPinEnServidor(u.pin)
+    ? confirmadoPorElServidor("codigo", { usuarioId: u.id, novedadId: n.id, codigo: tipeado, monto: m })
+    : normalizarCodigo(codigoAprobacion({ pin: u.pin, sal: estado.salPin, novedadId: n.id, clienteId: n.clienteId, monto: m, fecha: n.fecha })) === tipeado));
   if (!duenio) {
     n.intentos = (n.intentos ?? 0) + 1;
     if (n.intentos >= 5) {

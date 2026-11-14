@@ -30,7 +30,7 @@ export function errorDeGratis(status: number, cuerpo: Sobre | null): string | nu
   if (status >= 200 && status < 300 && cuerpo?.success !== false) return null;
   if (status === 429 || cuerpo?.errors?.some((e) => e.code === 4006)) return CUPO_AGOTADO;
   // Con una cuenta inexistente, Cloudflare responde 404.
-  if (status === 401 || status === 403 || status === 404) return "La clave de la IA no es válida. Hay que revisar CLOUDFLARE_AI_TOKEN y CLOUDFLARE_ACCOUNT_ID.";
+  if (status === 401 || status === 403 || status === 404) return "La conexión con la IA no está andando. Avisale a quien administra el sistema.";
   return "La IA no pudo responder este pedido. Probá de nuevo.";
 }
 

@@ -17,6 +17,7 @@ import { CampoPin } from "./formulario-del-club";
 import { armarGoLive, duenioConPin, huellaDelElegido, respaldoAntesDeLimpiar, type DesenlaceLimpieza, type DuenioConPin, type RespaldoAntesDeLimpiar } from "./configuracion-core";
 import { Casilla, ErrorDeSeccion, Seccion, campoArchivo, conElTopeDelEquipo, descargarTexto, despuesDePintar, sinDesborde, textoElegido } from "./config-piezas";
 import { porFirma, useOperador, useSeleccion } from "./usar-almacen";
+import { firmaDeQuienOpera, useFirmaEnCurso } from "./firma-del-duenio";
 
 const seleccionarGoLive = (e: EstadoClub, a: Ahora) => armarGoLive(e, a);
 
@@ -32,6 +33,7 @@ export function LimpiezaGoLive({ almacen, negocio }: { almacen: Almacen; negocio
   const [bajado, setBajado] = useState<Pick<RespaldoAntesDeLimpiar, "huella" | "nombre"> | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState("");
+  const verificando = useFirmaEnCurso();
   const campo = useRef<HTMLInputElement>(null);
   const idCampo = useId();
 
@@ -46,10 +48,17 @@ export function LimpiezaGoLive({ almacen, negocio }: { almacen: Almacen; negocio
     setError("");
   };
 
-  const descargar = () => {
+  const descargar = async () => {
     setError("");
     if (almacen.rol() !== "OWNER") return setError("La limpieza la hace un dueño.");
-    const d: DuenioConPin = conElTopeDelEquipo(almacen, negocio, () => duenioConPin(almacen.estado(), almacen.auth(), pin, "La limpieza"));
+    // El PIN de un dueño que tiene el servidor se confirma ahí antes (firma-del-duenio.ts).
+    const d: DuenioConPin | null = await firmaDeQuienOpera(
+      almacen,
+      pin,
+      () => conElTopeDelEquipo(almacen, negocio, () => duenioConPin(almacen.estado(), almacen.auth(), pin, "La limpieza")),
+      setError,
+    );
+    if (!d) return;
     const duenioId = d.usuarioId;
     if (!d.ok || !duenioId) return setError(d.mensaje);
     const r = respaldoAntesDeLimpiar(almacen.estado(), duenioId, Date.now());
@@ -64,7 +73,7 @@ export function LimpiezaGoLive({ almacen, negocio }: { almacen: Almacen; negocio
     if (texto == null) return setError("Elegí el respaldo que descargaste (paso 2): sin eso no se limpia nada.");
     setOcupado(true);
     await despuesDePintar();
-    let r: DesenlaceLimpieza;
+    let r: DesenlaceLimpieza | null;
     try {
       // El archivo se mira acá (que sea un respaldo que se puede restaurar); el comando lleva sólo su huella, y al correr
       // (o al re-aplicarse sobre la base) mira que sea la de la jornada de ahora.
@@ -73,12 +82,21 @@ export function LimpiezaGoLive({ almacen, negocio }: { almacen: Almacen; negocio
         almacen.informar({ ok: false, mensaje: elegido.motivo });
         return;
       }
-      r = almacen.comando("golive", [{ conservarSaldos: saldos, conservarStock: stock, pin, descargado: bajado, huellaElegida: elegido.huella, rol: almacen.rol() }], {
-        envolver: (correr) => conElTopeDelEquipo(almacen, negocio, correr) as DesenlaceLimpieza,
-      });
+      // El paso 1 pudo ser hace rato: el PIN de un dueño que tiene el servidor se vuelve a confirmar ahí antes.
+      const huellaElegida = elegido.huella;
+      r = await firmaDeQuienOpera(
+        almacen,
+        pin,
+        () =>
+          almacen.comando("golive", [{ conservarSaldos: saldos, conservarStock: stock, pin, descargado: bajado, huellaElegida, rol: almacen.rol() }], {
+            envolver: (correr) => conElTopeDelEquipo(almacen, negocio, correr) as DesenlaceLimpieza,
+          }),
+        setError,
+      );
     } finally {
       setOcupado(false);
     }
+    if (!r) return;
     // El aviso de abajo dice qué pasó (y si salió mal, por qué).
     if (r.causa === "cambio") return olvidar();
     if (!r.ok) return;
@@ -124,7 +142,7 @@ export function LimpiezaGoLive({ almacen, negocio }: { almacen: Almacen; negocio
               <span>
                 <strong className="text-strong">Descargá el respaldo de ahora.</strong> Si algo sale mal, con ese archivo se vuelve atrás («Restaurar desde un archivo»).
               </span>
-              <Button variant={bajado ? "outline" : "solid"} size="md" className="self-start max-sm:h-auto max-sm:min-h-11 max-sm:w-full max-sm:py-2 max-sm:whitespace-normal" disabled={ocupado} onClick={descargar}>
+              <Button variant={bajado ? "outline" : "solid"} size="md" className="self-start max-sm:h-auto max-sm:min-h-11 max-sm:w-full max-sm:py-2 max-sm:whitespace-normal" disabled={ocupado || verificando} onClick={() => void descargar()}>
                 {bajado ? "Descargar de nuevo" : "Descargar el respaldo de antes de limpiar"}
               </Button>
               {bajado && (

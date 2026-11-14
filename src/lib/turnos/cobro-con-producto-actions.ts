@@ -41,6 +41,7 @@ import { dateStrInBusinessTz, todayInBusinessTz } from "@/lib/datetime";
 import { recordMovement } from "@/lib/stock/ledger";
 import { productosQuePuedenQuedarNegativos } from "@/lib/stock/pos-stock-rules";
 import { decidirAlta, insertarOrdenEnTx, motivoDelRechazoDelAlta, sellPrice, type OrderInput } from "@/lib/order-core";
+import { opcionLotesVencidos } from "@/lib/carniceria/schema-probe";
 import { tarjetaHabilitada } from "@/lib/caja-actions";
 import { isInvoicingEnabled } from "@/lib/fiscal";
 import { facturarAppointment } from "@/lib/invoice-from-appointment";
@@ -290,6 +291,10 @@ export async function cobrarTurnoConProductos(formData: FormData): Promise<Resul
   const permitirNegativoPorProducto = productosQuePuedenQuedarNegativos(productos, "COUNTER");
   const claveCobro = claveDelCobro(clave, appointmentId);
   const clavePedido = claveDelPedido(clave, appointmentId);
+  // Magra T3b: un corte con todos sus lotes vencidos no se vende tampoco con el turno (el canal
+  // vende cualquier producto del negocio: un rubro de perecederos con agenda llega acá). Sin Lotes
+  // listos (CH, y todo negocio que no vende perecederos), null: el alta de siempre, sin consulta.
+  const lotesVencidos = await opcionLotesVencidos(tenantId, hoy);
 
   type Hecho =
     | { dup: true }
@@ -350,7 +355,7 @@ export async function cobrarTurnoConProductos(formData: FormData): Promise<Resul
         const orden = await insertarOrdenEnTx(tx, {
           tenantId,
           alta,
-          opts: { imputarCajaActor: actor, permitirNegativoPorProducto, idempotencyKey: clavePedido },
+          opts: { imputarCajaActor: actor, permitirNegativoPorProducto, idempotencyKey: clavePedido, lotesVencidos },
           // La ficha del turno (leída con el tenantId): la venta queda en la ficha de la clienta.
           clientId: fila.clientId,
           writeKey: withSchema ? clavePedido : null,

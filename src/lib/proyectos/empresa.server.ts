@@ -10,6 +10,8 @@ import { configProyectos } from "./datos.server";
 import { aPesos, codigoProyecto, nivelDeCarga, pipelinePonderado, proyeccionDeCaja, resumenCuotas, totalesFicha, type NivelCarga } from "./gestion-core";
 import { desviosDelEvento, estaAbierto, estaActivo, estaConfirmado, finDeSemana, margenSobreVenta } from "./empresa-core";
 import { redondear, yaVencio } from "./core";
+import { conciliarConCobros, pagadoDeCuota, repartoDelNegocio, resumenConCobranza, sinCalendarioDelNegocio, SIN_PREVISTAS_SIN_MARCAR } from "./cobranza-core";
+import { cobranzasDelNegocio } from "./cobranza.server";
 
 const MESES_PROYECCION = 6;
 
@@ -17,7 +19,8 @@ const MESES_PROYECCION = 6;
 
 export async function cuotasDelNegocio(tenantId: string) {
   return prisma.proyectoCuota.findMany({
-    where: { tenantId, anuladoEl: null, prevista: false },
+    // Las previstas sin marcar no son plata; una marcada cuenta aunque haya sido prevista (la misma regla que la ficha).
+    where: { tenantId, anuladoEl: null, ...SIN_PREVISTAS_SIN_MARCAR },
     orderBy: { venceEl: "asc" },
     take: 3000,
     select: {
@@ -41,9 +44,34 @@ export async function cuotasDelNegocio(tenantId: string) {
 export type CuotaDelNegocio = Awaited<ReturnType<typeof cuotasDelNegocio>>[number];
 
 export async function recuadrosDeCuotas(tenantId: string) {
-  const [cuotas, tc] = await Promise.all([cuotasDelNegocio(tenantId), tiposDeCambio(tenantId)]);
-  return { cuotas, tc, resumen: resumenCuotas(cuotas, tc) };
+  const [cuotas, tc, config] = await Promise.all([cuotasDelNegocio(tenantId), tiposDeCambio(tenantId), configProyectos(tenantId)]);
+  // «A cobrar» de cada proyecto = lo aprobado menos lo cobrado (cobranza-core), igual que Rentabilidad y Clientes.
+  const cobranzas = await cobranzasDelNegocio(tenantId, tc, config.margenPct);
+  // Cada renglón con lo que le falta (los cobros manuales se descuentan de las cuotas más viejas): suman lo mismo que el total.
+  // Y con lo que entró por cada una (las cobradas, en pesos de hoy: el cashflow). «Pagados» muestra `pagado`: lo que se
+  // pagó tal como entró (el original y los pesos asentados), sacado de la misma cobranza, sin otra consulta.
+  const { pendiente, cobrado } = repartoDelNegocio(cuotas, tc, cobranzas);
+  // Lo aprobado que ninguna cuota espera (calendario corto o sin cuotas): un renglón «Sin calendario» por evento, para
+  // que la lista sume lo mismo que «A cobrar». Sin fecha: no entra a la proyección de caja.
+  const faltantes = sinCalendarioDelNegocio(cuotas, pendiente, tc, cobranzas);
+  const eventos = faltantes.length
+    ? await prisma.proyecto.findMany({
+        where: { tenantId, id: { in: faltantes.map((f) => f.proyectoId) } },
+        select: { id: true, numero: true, nombre: true, createdAt: true, client: { select: { name: true } } },
+      })
+    : [];
+  const porId = new Map(eventos.map((e) => [e.id, e]));
+  return {
+    cuotas: cuotas.map((c, i) => ({ ...c, pendiente: pendiente[i], cobrado: cobrado[i], pagado: pagadoDeCuota(c, c.proyectoId ? cobranzas.get(c.proyectoId) : null) })),
+    sinCalendario: faltantes.flatMap((f) => {
+      const proyecto = porId.get(f.proyectoId);
+      return proyecto ? [{ ...f, proyecto }] : [];
+    }),
+    tc,
+    resumen: resumenConCobranza(cuotas, tc, cobranzas),
+  };
 }
+export type SinCalendarioDelNegocio = Awaited<ReturnType<typeof recuadrosDeCuotas>>["sinCalendario"][number];
 
 export async function proveedoresActivos(tenantId: string) {
   return prisma.supplier.findMany({ where: { tenantId, active: true }, orderBy: { name: "asc" }, take: 500, select: { id: true, name: true } });
@@ -176,19 +204,21 @@ export async function proyectosConNumeros(tenantId: string) {
         client: { select: { name: true } },
         presupuestos: { orderBy: { version: "desc" }, take: 1, select: { items: { orderBy: { posicion: "asc" }, include: { supplier: { select: { name: true } } } } } },
         gastos: { where: { anuladoEl: null }, select: { rubro: true, neto: true, anuladoEl: true } },
-        cuotas: { where: { anuladoEl: null, prevista: false, tipo: "COBRO" }, select: { monto: true, moneda: true, venceEl: true, pagadoEl: true, tipo: true } },
+        cuotas: { where: { anuladoEl: null, ...SIN_PREVISTAS_SIN_MARCAR, tipo: "COBRO" }, select: { id: true, monto: true, moneda: true, venceEl: true, pagadoEl: true, tipo: true } },
       },
     }),
     configProyectos(tenantId),
     tiposDeCambio(tenantId),
   ]);
+  const cobranzas = await cobranzasDelNegocio(tenantId, tc, config.margenPct, proyectos.map((p) => p.id));
   const hoy = new Date();
   return proyectos.map((p) => {
     const items = p.presupuestos[0]?.items ?? [];
     const t = totalesFicha(items.map(aItemFicha), tc, config.margenPct);
     const d = desviosDelEvento(items.map((i) => ({ id: i.id, descripcion: i.descripcion, rubro: i.rubro, cantidad: i.cantidad, costo: i.costo, moneda: i.moneda, costoReal: i.costoReal, proveedor: i.supplier?.name ?? i.proveedor })), p.gastos, tc);
-    const r = resumenCuotas(p.cuotas, tc, hoy);
-    const aCobrarTotal = redondear(r.cobrado + r.aCobrar);
+    // Cobrado, avance y vencido en línea con los cobros registrados contra lo aprobado (cobranza-core).
+    const cob = cobranzas.get(p.id);
+    const r = cob ? conciliarConCobros(p.cuotas, tc, cob, hoy) : resumenCuotas(p.cuotas, tc, hoy);
     const estimado = p.presupuestoEstimado ? aPesos(p.presupuestoEstimado, p.moneda, tc) : 0;
     return {
       id: p.id,
@@ -215,7 +245,7 @@ export async function proyectosConNumeros(tenantId: string) {
       margenReal: d.conDatos ? redondear(t.venta - d.costoReal) : null,
       margenRealPct: d.conDatos ? margenSobreVenta(t.venta, d.costoReal) : null,
       cobrado: r.cobrado,
-      cobrosPct: aCobrarTotal > 0 ? redondear((r.cobrado / aCobrarTotal) * 100) : 0,
+      cobrosPct: cob ? cob.avancePct : 0,
       vencido: r.cobrosVencidos,
     };
   });

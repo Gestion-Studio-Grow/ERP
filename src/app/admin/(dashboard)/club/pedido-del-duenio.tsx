@@ -20,6 +20,7 @@ import { avisosAlDuenio } from "./aprobar-core";
 import { useNegocioDelClub } from "./negocio-del-club";
 import { codigoDeLaDemo, mensajeParaElDuenio, pedidosPendientes } from "./credito-core";
 import { useSeleccion } from "./usar-almacen";
+import { conCodigoDelDuenio, luego } from "./firma-del-duenio";
 import { BotonWhatsApp } from "./WhatsAppDelClub";
 
 interface VistaDelPedido {
@@ -72,8 +73,9 @@ export default function PedidoDelDuenio({ almacen, novedadId }: { almacen: Almac
         className="flex flex-col gap-2 sm:flex-row sm:items-end"
         onSubmit={(e) => {
           e.preventDefault();
-          const d = almacen.comando("fiado", [{ tipo: "aprobarCodigo", novedadId: pedido.id, codigo }]);
-          if (d.ok) setCodigo("");
+          // Con dueños que tienen el PIN en el servidor, el código lo valida el servidor antes (firma-del-duenio.ts).
+          const correr = () => almacen.comando("fiado", [{ tipo: "aprobarCodigo", novedadId: pedido.id, codigo }]);
+          luego(conCodigoDelDuenio(almacen, { novedadId: pedido.id, codigo }, correr, { ok: false, mensaje: "" }), (d) => d.ok && setCodigo(""));
         }}
       >
         <div className="flex flex-1 flex-col gap-1">

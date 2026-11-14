@@ -26,6 +26,7 @@ import { abrirElClub, armarArranque, ejecutarConfiguracion, type DuenioDelArranq
 import { subtarjeta, tarjeta } from "./config-piezas";
 import { CampoPinNuevo } from "./formulario-del-club";
 import { guardaDelPin } from "./tope-de-pin";
+import { conFirmaDelDuenio } from "./firma-del-duenio";
 import { porFirma, useOperador, useSeleccion } from "./usar-almacen";
 
 const seleccionar = (e: EstadoClub) => armarArranque(e);
@@ -73,17 +74,21 @@ function Entrar({ almacen, d, guarda }: { almacen: Almacen; d: DuenioDelArranque
       className="flex flex-col gap-2 sm:flex-row sm:items-end"
       onSubmit={(e) => {
         e.preventDefault();
-        const p = probarPin(almacen.estado(), d.id, pin, guarda.leer(), Date.now());
+        const tipeado = pin;
         setPin("");
-        if (p.tipo === "bueno") {
-          guarda.guardar(p.intentos);
-          almacen.cambiarOperador(p.usuario, { usuarioId: p.usuario.id, pin: p.pin });
-          almacen.informar({ ok: true, mensaje: `Hola, ${d.corto}. Cargá lo que quieras y, cuando esté, «Abrir el club».` });
-          enfocarTitulo();
-          return;
-        }
-        if (p.tipo === "malo") guarda.guardar(p.intentos);
-        almacen.informar({ ok: false, mensaje: p.mensaje });
+        // El PIN de un dueño que tiene el servidor se confirma ahí antes (firma-del-duenio.ts).
+        conFirmaDelDuenio(almacen, [{ usuarioId: d.id, pin: tipeado }], () => {
+          const p = probarPin(almacen.estado(), d.id, tipeado, guarda.leer(), Date.now());
+          if (p.tipo === "bueno") {
+            guarda.guardar(p.intentos);
+            almacen.cambiarOperador(p.usuario, { usuarioId: p.usuario.id, pin: p.pin });
+            almacen.informar({ ok: true, mensaje: `Hola, ${d.corto}. Cargá lo que quieras y, cuando esté, «Abrir el club».` });
+            enfocarTitulo();
+            return;
+          }
+          if (p.tipo === "malo") guarda.guardar(p.intentos);
+          almacen.informar({ ok: false, mensaje: p.mensaje });
+        });
       }}
     >
       <CampoPinNuevo label={`PIN de ${d.corto}`} largo={LARGO} value={pin} onChange={setPin} />

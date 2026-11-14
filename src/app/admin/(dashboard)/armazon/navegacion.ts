@@ -56,6 +56,17 @@ export function iconoDeEspacioNav(id: EspacioNavId, esMostrador: boolean): Nombr
   return ICONOS[id];
 }
 
+/**
+ * Una productora (panel de gestión de eventos) no tiene recepción: su primer espacio son sus proyectos y se llama
+ * «Gestión», como en la barra de abajo (BarraInferior). QA MIA #6. Los demás rubros siguen como siempre.
+ */
+const NOMBRE_GESTION = "Gestión";
+const APPS_DE_GESTION = new Set(["proyectos", "gestion-inicio"]);
+function nombreDelEspacio(id: EspacioNavId, apps: readonly { app: AppDeNav }[], esMostrador: boolean): string {
+  if (id === "mostrador" && apps.some((a) => APPS_DE_GESTION.has(a.app.id))) return NOMBRE_GESTION;
+  return nombreDeEspacioNav(id, { esMostrador });
+}
+
 function agrupar(
   entradas: readonly { espacio: EspacioNavId; orden: number; app: AppDeNav }[],
   esMostrador: boolean,
@@ -70,8 +81,8 @@ function agrupar(
     .sort(([a], [b]) => ordenDeEspacioNav(a) - ordenDeEspacioNav(b))
     .map(([id, apps]) => ({
       id,
-      nombre: nombreDeEspacioNav(id, { esMostrador }),
-      rotulo: espacioNav(id).rotulo ?? nombreDeEspacioNav(id, { esMostrador }),
+      nombre: nombreDelEspacio(id, apps, esMostrador),
+      rotulo: nombreDelEspacio(id, apps, esMostrador) === NOMBRE_GESTION ? NOMBRE_GESTION : (espacioNav(id).rotulo ?? nombreDeEspacioNav(id, { esMostrador })),
       icono: iconoDeEspacioNav(id, esMostrador),
       // Orden del espacio; a igual orden (dos no nombradas), el de llegada (estable).
       apps: apps

@@ -10,6 +10,8 @@
 // Prefijos: `chf-` el front (home, carta, ficha, encabezado, barra), `chm-` la piel del modal de reserva,
 // `chr-` la piel de /reserva. Todo con los tokens del tema (globals.css) y el acento del negocio
 // (`--accent`, que pone el layout): nada de colores escritos a mano salvo el negro del color-mix.
+// .chf-kicker: --text-muted mezclado 40 % hacia --text. Con --text-muted solo daba 4,33:1 sobre el sunken; la mezcla siempre
+// se acerca al color del cuerpo, así que sube el contraste en todo tema (claro u oscuro), cosa que --text-faint no garantiza.
 // Movimiento sólo con transform / clip-path; nunca la opacidad del H1 (el LCP).
 
 export const CSS_CH = `
@@ -33,7 +35,7 @@ export const CSS_CH = `
 .chf-env{max-width:1280px;margin:0 auto;padding-inline:var(--chf-margen)}
 .chf-bloque{padding-block:var(--chf-ritmo) 0}
 .chf-bloque:last-of-type{padding-bottom:var(--chf-ritmo)}
-.chf-kicker{font-family:var(--font-body),system-ui,sans-serif;text-transform:uppercase;letter-spacing:.2em;font-weight:600;font-size:var(--chf-kicker);color:var(--text-muted)}
+.chf-kicker{font-family:var(--font-body),system-ui,sans-serif;text-transform:uppercase;letter-spacing:.2em;font-weight:600;font-size:var(--chf-kicker);color:color-mix(in srgb,var(--text-muted) 60%,var(--text))}
 .chf-h1{font-family:var(--font-display),Georgia,serif;font-weight:400;font-size:clamp(3rem,2rem + 5.5vw,7rem);line-height:.98;letter-spacing:-.015em;margin-top:16px;text-wrap:balance;color:var(--text-strong)}
 .chf-h2{font-family:var(--font-display),Georgia,serif;font-weight:400;font-size:var(--chf-h2);line-height:1.04;letter-spacing:-.01em;margin-top:16px;text-wrap:balance}
 .chf-h2 em,.chf-h1 em{font-style:italic;font-weight:300}

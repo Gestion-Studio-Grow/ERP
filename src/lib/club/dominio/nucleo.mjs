@@ -518,7 +518,9 @@ export function crearTurnero({
     version++;
     emitir("staff", "pedido", { pedido: x.pedido, version });
     const { codigo, items: renglones, total, estado } = x.pedido;
-    return { ok: true, pedido: { codigo, items: renglones, total, nombre: x.pedido.nombre, estado }, mensaje: x.mensaje };
+    // Sin precios publicados (tiendaSinPrecios), el total no sale de acá: lo pone el club al entregar.
+    const sinPrecios = Boolean(E.config.tiendaSinPrecios);
+    return { ok: true, pedido: { codigo, items: sinPrecios ? renglones.map((r) => ({ productoId: r.productoId, nombre: r.nombre, cant: r.cant })) : renglones, total: sinPrecios ? null : total, nombre: x.pedido.nombre, estado }, mensaje: x.mensaje };
   }
 
   // ───────────── backoffice conectado (staff) ─────────────

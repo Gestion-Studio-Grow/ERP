@@ -635,7 +635,10 @@ describe("Vender en el navegador", { timeout: 240_000 }, () => {
     await page.getByRole("button", { name: "Guardar peso real" }).click();
     await page.waitForFunction(() => (window as unknown as Ventana).__envios.length >= 1);
     const envio = await page.evaluate(() => (window as unknown as Ventana).__envios[0]);
-    assert.deepEqual(envio, { id: ["ord_7"], productId: ["p_vacio"], quantity: ["1.24"] });
+    // `clave`: la de idempotencia de esta apertura (el doble clic manda la misma, ajuste-peso-cobrado.ts).
+    const { clave, ...resto } = envio as Record<string, string[]>;
+    assert.match(clave?.[0] ?? "", /^[A-Za-z0-9_-]{8,80}$/);
+    assert.deepEqual(resto, { id: ["ord_7"], productId: ["p_vacio"], quantity: ["1.24"] });
     assert.deepEqual(errores, []);
     await page.close();
   });

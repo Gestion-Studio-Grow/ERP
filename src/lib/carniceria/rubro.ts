@@ -32,10 +32,17 @@ export const getCurrentTenantRubro = cache(async (): Promise<TenantRubro> => {
     where: { id: tenantId },
     select: { blueprintId: true, slug: true },
   });
-  const blueprintId = t?.blueprintId ?? null;
-  const slug = t?.slug ?? null;
+  return rubroDeLaFila(t?.blueprintId ?? null, t?.slug ?? null);
+});
+
+/**
+ * El rubro de un negocio a partir de su fila (`blueprintId` primero, el slug de red). PURA. La usan
+ * `getCurrentTenantRubro` (el negocio del request) y los caminos sin sesión del backoffice (la
+ * tienda, la API externa), que conocen el `tenantId` pero no tienen "negocio del request".
+ */
+export function rubroDeLaFila(blueprintId: string | null, slug: string | null): TenantRubro {
   const rubro =
     (blueprintId ? getRetailRubro(blueprintId) : null) ??
     getRetailRubro(resolveRubroIdBySlug(slug) ?? "");
   return { blueprintId, slug, rubro, isRetail: rubro != null };
-});
+}

@@ -324,6 +324,7 @@ test("los textos: la espera se dice en segundos o minutos; la cuenta regresiva e
   assert.equal(relojDeEspera(30), "0:30");
   assert.equal(relojDeEspera(594), "9:54");
   assert.equal(textoDelMotivo("inactividad", 5), "Pasaron 5 minutos sin uso.");
+  assert.equal(textoDelMotivo("firma", 5), "Para firmar como dueño, poné tu PIN de nuevo.");
   assert.equal(textoDelMotivo("recarga", 5), "Se volvió a abrir el sistema: poné tu PIN.");
 });
 
