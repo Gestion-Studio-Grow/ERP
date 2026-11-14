@@ -54,3 +54,61 @@ literalmente), `ataques.sql`, `candado.mts`, `candado2.mts`, `cupo.mts`.
 ## Veredicto: NO CUMPLE
 H1 rompe la revocación y la pausa. H2, H3, H4, H6, H8, H10, H12 y H13 son correcciones concretas de esquema y diseño.
 Corregidas, la próxima vuelta se mira sólo eso.
+
+## Separación: diseño de agentes vs. defectos del ERP de hoy (agregado por MIA-016, 14/11)
+
+Cómo leer la columna «Evidencia»:
+- **Prueba:** la corrió el certificador en un Postgres 16 local descartable. El script está en `pruebas-certificacion/` y el resultado es el que informó en el dictamen.
+- **Lectura:** sale de leer el código. No se ejecutó.
+
+### 1. Del diseño de agentes: esquema de 1A y el insumo `07` / `03`
+
+No existen en producción. Se corrigen antes del Gate 2.
+
+| Hallazgo | Evidencia |
+|---|---|
+| H1, candado con `data:{}` | Prueba (`candado.mts`, `candado2.mts`): Prisma 7 emite sólo un SELECT y una pausa en paralelo no espera |
+| H2, revocar revive la anterior | Prueba (`ataques.sql` A2) |
+| H3, des-revocar y editar topes | Prueba (A3) |
+| H4, autofirma | Prueba (A1) |
+| H5, `textoVersion` como texto | Lectura |
+| H6, `solicitadoPor` falsificable | Prueba (F1) |
+| H7, origen | Lectura y F2 |
+| H8, REVERTIDA rehecha | Prueba (I1) |
+| H9, `clave` nula | Prueba (I2) |
+| H10, B2 misma cuota | Prueba (I3) |
+| H11, clave de la contra | Prueba (I4) |
+| H12, moneda y negativos | Prueba (M1, M2) |
+| H15 a H18 | Lectura |
+
+Cupo de `AgenteContador`: prueba (`cupo.mts`). De 12 tomas a la vez ganaron 2: sin carrera.
+
+### 2. Mixtos: el diseño se apoya en un comportamiento del ERP de hoy
+
+| Hallazgo | Evidencia |
+|---|---|
+| H13, deshacer C5/P6 | Lectura de `acciones-ficha.ts:793-822` y `acciones-empresa.ts:95-112`: marcar crea `ProyectoPago`/`ProyectoGasto`, `CashMovement` y saldo |
+| H14, respaldo exacto | Lectura: el extracto acepta movimientos de cualquier fecha (`controles-erp-faltantes.md` a) |
+
+### 3. Defectos del ERP de hoy (con o sin agentes)
+
+Todos salen de `controles-erp-faltantes.md`. **Son lectura de código: ninguno se probó en Postgres.** El certificador verificó 7 de esas referencias contra el código, también por lectura, y las 7 son exactas.
+
+- Cobrar no es idempotente: `src/app/admin/(dashboard)/proyectos/acciones.ts:212` crea un cobro nuevo en cada envío.
+- Conciliar comprueba y después actualiza, y no compara el importe (`acciones-empresa.ts:237-239`). `cuotaId` no es único (`prisma/schema.prisma:4082`).
+- El extracto bancario se deduplica sin índice único y sin transacción (`acciones-empresa.ts:216-220`).
+- Proyectos no usa la frontera de cierre de día y de mes (`src/lib/caja/frontera-cierre.ts:48-89`). La fecha de un gasto acepta cualquier día (`acciones.ts:290`).
+- No hay tope por monto ni separación de funciones fuera de rendiciones (`rendiciones/aprobacion.ts:8,19`).
+- `AuditLog` se purga a los 18 meses (`audit-retention.ts:70`), contra 10 años de conservación contable (a confirmar con la contadora).
+
+**Pendiente:** probar en Postgres local «cobrar dos veces» y «conciliar dos veces a la vez» antes de arreglarlos. Va como test de carrera escrito antes del arreglo.
+
+### 4. H1 en el código de producción
+
+**No aparece.** Se buscó el patrón `data:\s*\{\s*\}` en `src/` (en `main` local y en `agentes/tanda-1`): sólo sale en dos tests (`cartera-core.test.ts:279`, `guardia-negocio.test.ts:545`), y ninguno es un candado de plata.
+
+El código de plata que hoy está en producción toma la fila de dos maneras:
+- `FOR UPDATE` / `FOR SHARE` crudo: `invoice-core.ts:372,727`, `liquidacion-repo.ts:901`, `pin.server.ts:102`, `reparto/acciones.ts:160`.
+- Un `updateMany` que **sí cambia** el estado, con `count === 1`.
+
+H1 está sólo en el diseño: `03-especificacion-tecnica.md:484-486` (el candado de pausa) y el insumo `07`.
