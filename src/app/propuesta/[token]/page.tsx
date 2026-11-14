@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Work_Sans } from "next/font/google";
+import localFont from "next/font/local";
 import { notFound } from "next/navigation";
 import { propuestaPublica } from "@/lib/proyectos/datos.server";
 import { cambioDeVenta, ventaEn } from "@/lib/proyectos/gestion-core";
@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Propuesta", robots: { index: false, follow: false } };
 
 // La letra de la marca (MIA usa Work Sans en su sitio). Sólo la baja quien abre una propuesta.
-const letra = Work_Sans({ subsets: ["latin"], weight: ["300", "400", "500", "600"], preload: false });
+const letra = localFont({ src: [{ path: "../../../fonts/work-sans/work-sans-latin-300-normal.woff2", weight: "300", style: "normal" }, { path: "../../../fonts/work-sans/work-sans-latin-400-normal.woff2", weight: "400", style: "normal" }, { path: "../../../fonts/work-sans/work-sans-latin-500-normal.woff2", weight: "500", style: "normal" }, { path: "../../../fonts/work-sans/work-sans-latin-600-normal.woff2", weight: "600", style: "normal" }], preload: false });
 
 const ESTILOS = `
 .mia-boton{min-height:48px;padding:0 20px;border:0;border-radius:999px;font:inherit;font-weight:500;cursor:pointer}
