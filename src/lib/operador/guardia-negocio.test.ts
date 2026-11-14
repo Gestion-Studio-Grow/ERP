@@ -408,6 +408,7 @@ test("TRINQUETE: todo endpoint con privilegio de operador tiene PRIMERO la guard
     "src/app/operador/(console)/solicitudes/actions.ts#configurarSolicitudAction",
     "src/app/operador/(console)/solicitudes/actions.ts#descartarSolicitudAction",
     "src/app/operador/(console)/soporte/actions.ts#cambiarTicketAction",
+    "src/app/operador/(console)/soporte/actions.ts#prepararConIaAction",
     "src/app/operador/(console)/soporte/actions.ts#sugerirConIaAction",
     "src/app/operador/(console)/tenants/[id]/regimen-factura-a-actions.ts#corregirRegimenFacturaAAction",
     "src/app/profeturnos/alta/acciones.ts#altaProfeTurnos",
