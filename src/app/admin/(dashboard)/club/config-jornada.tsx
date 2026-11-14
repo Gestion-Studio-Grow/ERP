@@ -51,9 +51,11 @@ import {
 } from "./configuracion-core";
 import { ErrorDeSeccion, Seccion, campoArchivo, conElTopeDelEquipo, descargarTexto, despuesDePintar, sinDesborde, subtarjeta, textoElegido } from "./config-piezas";
 import { porFirma, useEstadoDelGuardado, useOperador, useSeleccion } from "./usar-almacen";
+import { firmaDeQuienOpera, useFirmaEnCurso } from "./firma-del-duenio";
 import { ParaResolverDeLosPuestos } from "./BandejaDelClub";
 
 const seleccionarArchivo = (e: EstadoClub, a: Ahora) => armarArchivo(e, a);
+
 
 /** `negocio` (en las tres): el PIN de quien opera cuenta en el tope del equipo (el del bloqueo). */
 function Restaurar({ almacen, quien, negocio }: { almacen: Almacen; quien: string | null; negocio?: string }) {
@@ -62,6 +64,7 @@ function Restaurar({ almacen, quien, negocio }: { almacen: Almacen; quien: strin
   const [previa, setPrevia] = useState<RespaldoParaRestaurar | null>(null);
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
+  const verificando = useFirmaEnCurso();
   const turnosAhora = almacen.estado().reservas.length;
 
   const elegir = async () => {
@@ -79,14 +82,17 @@ function Restaurar({ almacen, quien, negocio }: { almacen: Almacen; quien: strin
     setPin("");
     if (campo.current) campo.current.value = "";
   };
-  const restaurar = () => {
+  const restaurar = async () => {
     if (!previa) return;
     setError("");
     // El dueño que opera, con el PIN que tipeó ahora: el almacén lo vuelve a controlar (rol OWNER + PIN de un dueño).
     // Copia lo de ahora al lado, reemplaza, apaga «Deshacer», guarda en el acto y revisa a quien opera: si ya no existe
     // o cambió su PIN en lo restaurado, queda sin operador y el bloqueo pide el PIN solo. Con el tope del equipo.
-    const r = conElTopeDelEquipo(almacen, negocio, () => restaurarConPin(almacen, previa.foto, pin));
+    // Si el PIN es de un dueño que tiene el servidor, se confirma ahí antes (firma-del-duenio.ts).
+    const tipeado = pin;
     setPin("");
+    const r = await firmaDeQuienOpera(almacen, tipeado, () => conElTopeDelEquipo(almacen, negocio, () => restaurarConPin(almacen, previa.foto, tipeado)), setError);
+    if (!r) return;
     if (!r.ok) return setError(r.mensaje);
     const aviso = avisoDeRestaurado(previa.antesDeArchivar);
     if (aviso) almacen.informar({ ok: true, mensaje: aviso });
@@ -113,7 +119,7 @@ function Restaurar({ almacen, quien, negocio }: { almacen: Almacen; quien: strin
           className="flex flex-col gap-3 rounded-md border border-warning/40 bg-warning-soft p-3"
           onSubmit={(e) => {
             e.preventDefault();
-            restaurar();
+            void restaurar();
           }}
         >
           <p className="text-sm text-strong">
@@ -127,8 +133,8 @@ function Restaurar({ almacen, quien, negocio }: { almacen: Almacen; quien: strin
           {previa.antesDeArchivar && <p className="text-sm text-strong">Es la jornada de antes de archivar: vuelven los días archivados (si avisa que se llena, archivá de nuevo).</p>}
           <CampoPin quien={quien} value={pin} onChange={setPin} />
           <div className="flex flex-col gap-2 sm:flex-row">
-            <Button type="submit" variant="danger" size="md">
-              Restaurar este respaldo
+            <Button type="submit" variant="danger" size="md" disabled={verificando}>
+              {verificando ? "Verificando…" : "Restaurar este respaldo"}
             </Button>
             <Button variant="outline" size="md" onClick={cancelar}>
               Cancelar
@@ -174,8 +180,10 @@ function Archivar({ almacen, quien, bytes, negocio }: { almacen: Almacen; quien:
     setOcupado("preparando");
     await despuesDePintar();
     try {
-      // El PIN, con el tope del equipo; el almacén lo vuelve a controlar (rol OWNER + PIN de un dueño).
-      const d: ArchivoConPin = conElTopeDelEquipo(almacen, negocio, () => prepararArchivoConPin(almacen, pin));
+      // El PIN, con el tope del equipo; el almacén lo vuelve a controlar (rol OWNER + PIN de un dueño). El de un dueño
+      // que tiene el servidor se confirma ahí antes. El paso 2 ya no pide el PIN.
+      const d: ArchivoConPin | null = await firmaDeQuienOpera(almacen, pin, () => conElTopeDelEquipo(almacen, negocio, () => prepararArchivoConPin(almacen, pin)), setError);
+      if (!d) return;
       const r = d.resultado;
       if (!r || !r.ok) {
         if (r?.causa !== "repetido") setError(d.mensaje);
@@ -336,6 +344,7 @@ function EmpezarEnBlanco({ almacen, quien, negocio }: { almacen: Almacen; quien:
   const [bajado, setBajado] = useState<Pick<RespaldoParaVerificar, "huella" | "nombre"> | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState("");
+  const verificando = useFirmaEnCurso();
   const campo = useRef<HTMLInputElement>(null);
   const idCampo = useId();
   const idTitulo = useId();
@@ -351,10 +360,14 @@ function EmpezarEnBlanco({ almacen, quien, negocio }: { almacen: Almacen; quien:
     setError("");
   };
 
-  const descargar = () => {
+  const descargar = async () => {
     setError("");
     if (almacen.rol() !== "OWNER") return setError("Empezar en blanco lo hace un dueño.");
-    const d: DuenioConPin = conElTopeDelEquipo(almacen, negocio, () => duenioConPin(almacen.estado(), almacen.auth(), pin, "Empezar en blanco"));
+    const d: DuenioConPin | null = await firmaDeQuienOpera(almacen, pin, () =>
+      conElTopeDelEquipo(almacen, negocio, () => duenioConPin(almacen.estado(), almacen.auth(), pin, "Empezar en blanco")),
+      setError,
+    );
+    if (!d) return;
     const duenioId = d.usuarioId;
     if (!d.ok || !duenioId) return setError(d.mensaje);
     const r = respaldoAntesDeBlanco(almacen.estado(), duenioId, Date.now());
@@ -369,14 +382,16 @@ function EmpezarEnBlanco({ almacen, quien, negocio }: { almacen: Almacen; quien:
     if (texto == null) return setError("Elegí el respaldo que descargaste (paso 2): sin eso no se empieza nada.");
     setOcupado(true);
     await despuesDePintar();
-    let d: ReturnType<typeof empezarEnBlancoConPin>;
+    let d: ReturnType<typeof empezarEnBlancoConPin> | null;
     try {
       // Verificar y empezar en el mismo momento (sin nada en el medio): la jornada no puede cambiar entre una y otra.
-      // Con el tope del equipo: trabado no se verifica ni se empieza.
-      d = conElTopeDelEquipo(almacen, negocio, () => empezarEnBlancoConPin(almacen, { pin, descargado: bajado, textoElegido: texto }));
+      // Con el tope del equipo: trabado no se verifica ni se empieza. El PIN de un dueño que tiene el servidor se vuelve
+      // a confirmar ahí (el paso 1 pudo ser hace rato); sin conexión no se empieza nada.
+      d = await firmaDeQuienOpera(almacen, pin, () => conElTopeDelEquipo(almacen, negocio, () => empezarEnBlancoConPin(almacen, { pin, descargado: bajado, textoElegido: texto })), setError);
     } finally {
       setOcupado(false);
     }
+    if (!d) return;
     if (!d.ok) {
       if (d.causa === "cambio") olvidar();
       return setError(d.mensaje);
@@ -407,7 +422,7 @@ function EmpezarEnBlanco({ almacen, quien, negocio }: { almacen: Almacen; quien:
               <span>
                 <strong className="text-strong">Descargá el respaldo de ahora.</strong> Con ese archivo se vuelve a esta jornada («Restaurar desde un archivo»).
               </span>
-              <Button variant={bajado ? "outline" : "solid"} size="md" className="self-start max-sm:h-auto max-sm:min-h-11 max-sm:w-full max-sm:py-2 max-sm:whitespace-normal" disabled={ocupado} onClick={descargar}>
+              <Button variant={bajado ? "outline" : "solid"} size="md" className="self-start max-sm:h-auto max-sm:min-h-11 max-sm:w-full max-sm:py-2 max-sm:whitespace-normal" disabled={ocupado || verificando} onClick={() => void descargar()}>
                 {bajado ? "Descargar de nuevo" : "Descargar el respaldo de antes de empezar"}
               </Button>
               {bajado && (

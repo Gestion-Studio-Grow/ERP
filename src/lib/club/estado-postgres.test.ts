@@ -199,7 +199,19 @@ test("restaurar el respaldo de ejemplo reproduce la caja al centavo; la recepci�
   assert.equal(M.resumenCaja(e).ingresos, sumaPagos, "caja = Σ pagos sin monedero");
   for (const d of esperado.porDia) assert.deepEqual(M.resumenCaja(e, d.dia).ingresos, d.ingresos, `caja del ${d.dia}`);
   assert.deepEqual(resumenDelRespaldo(e), esperado);
-  assert.deepEqual(e.usuarios.map((u) => u.pin), ejemplo.estado.usuarios.map((u) => u.pin), "los PIN vuelven tal cual");
+  // SEG-020: los PIN de dueño no bajan (la marca); en la base quedan tal cual, y los de recepción bajan tal cual.
+  assert.deepEqual(
+    e.usuarios.map((u) => u.pin),
+    ejemplo.estado.usuarios.map((u) => (u.rol === "duenio" && u.pin ? "srv:" : u.pin)),
+    "los PIN de recepción vuelven tal cual; los de dueño, con la marca",
+  );
+  const { leerVigenteEnTx } = await import("./estado-repo");
+  const enLaBase = await leerVigenteEnTx(duenio, base.a.id);
+  assert.deepEqual(
+    (JSON.parse(enLaBase!.texto) as { estado: M.EstadoClub }).estado.usuarios.map((u) => u.pin),
+    ejemplo.estado.usuarios.map((u) => u.pin),
+    "en la base, los PIN tal cual",
+  );
   assert.equal(vuelta.sobre.guardado, ejemplo.sobre.guardado);
 
   // La foto de antes de restaurar sigue (época anterior).

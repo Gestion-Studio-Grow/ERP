@@ -118,3 +118,17 @@ test("SEG-019: el PIN que cambia por esta vía, después pasa por `conservarLoDe
   const quedo = conservarLoDelicado(r.texto, sobre(local));
   assert.deepEqual(estadoDe(quedo.texto).usuarios, estadoDe(r.texto).usuarios);
 });
+
+test("SEG-020: un dueño con el PIN guardado fuerte (h2) lo cambia desde un dueño del ERP; con otro PIN actual, no", async () => {
+  const { hashFuerte, pinDelDuenioCoincide } = await import("./pin-servidor");
+  const { e, d, pin } = club(true);
+  e.usuarios.find((u) => u.id === d.id)!.pin = hashFuerte(pin.d);
+  const mal = cambiarPinEnLaFoto(sobre(e), { usuarioId: d.id, pinActual: "9081", pinNuevo: "4826", esDuenioDelErp: true, ahora: AHORA });
+  assert.equal(!mal.ok && mal.codigo, "pin-actual");
+  const r = cambiarPinEnLaFoto(sobre(e), { usuarioId: d.id, pinActual: pin.d, pinNuevo: "4826", esDuenioDelErp: true, ahora: AHORA });
+  assert.ok(r.ok, r.ok ? "" : r.motivo);
+  const quedo = estadoDe(r.texto);
+  const u = quedo.usuarios.find((x) => x.id === d.id)!;
+  assert.ok(M.esPinConHash(u.pin));
+  assert.ok(pinDelDuenioCoincide(u.pin, "4826", quedo.salPin));
+});

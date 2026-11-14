@@ -17,6 +17,7 @@ import {
   leerPedidoDelLink,
   linkDelAprobador,
   pinesDeEjemplo,
+  pedirCodigoAlServidor,
   probarAprobacion,
   situacionDelPedido,
   textoDelPedido,
@@ -276,4 +277,35 @@ test("Break Point: el código que da el celular con el vanilla (el PIN y esos da
   const ok = aprobarConCodigo(f.e, n.id, bueno.toLowerCase().replace("-", ""), f.recep, AHORA);
   assert.equal(ok.ok, true, ok.mensaje);
   assert.match(ok.mensaje, new RegExp(`^Aprobado por ${rober.nombre}: ya podés pasar \\$ 4\\.000`));
+});
+
+test("SEG-020: en el real el código lo da el servidor con el PIN del dueño; el celular no lo calcula", async () => {
+  const pedido = { id: "n-1", c: "c-1", n: "Agustina Romero", m: 22100, t: "fiado" as const, p: "Lu", f: HOY };
+  const pedidos: unknown[] = [];
+  const pedir = async (x: { novedadId: string; pin: string; monto: number; usuarioId?: string }) => {
+    pedidos.push(x);
+    return { ok: true as const, codigo: "ABC-DEF", usuarioId: "u-rober", nombre: "Rober", monto: x.monto };
+  };
+  const r = await pedirCodigoAlServidor({ pedido, duenioId: "u-rober", pin: " 4321 ", monto: "$ 20.000", pedir });
+  assert.deepEqual(r, { tipo: "codigo", codigo: "ABC-DEF", monto: 20000, aprobo: "Rober", pinViejo: false });
+  assert.deepEqual(pedidos, [{ novedadId: "n-1", pin: "4321", monto: 20000, usuarioId: "u-rober" }]);
+  // Sin saber quién (el celular no tiene la jornada): el servidor busca de qué dueño es.
+  await pedirCodigoAlServidor({ pedido, duenioId: null, pin: "4321", monto: "22100", pedir });
+  assert.deepEqual(pedidos[1], { novedadId: "n-1", pin: "4321", monto: 22100 });
+  // Lo incompleto no llama.
+  assert.equal((await pedirCodigoAlServidor({ pedido, duenioId: null, pin: "4", monto: "22100", pedir })).tipo, "incompleto");
+  assert.equal((await pedirCodigoAlServidor({ pedido, duenioId: null, pin: "4321", monto: "0", pedir })).tipo, "incompleto");
+  assert.equal(pedidos.length, 2);
+});
+
+test("SEG-020: el celular sin red, con el PIN mal o con espera del servidor no muestra código", async () => {
+  const pedido = { id: "n-1", c: "c-1", n: "Agustina Romero", m: 22100, t: "fiado" as const, p: "Lu", f: HOY };
+  const caida = await pedirCodigoAlServidor({ pedido, duenioId: null, pin: "4321", monto: "22100", pedir: async () => Promise.reject(new Error("red")) });
+  assert.deepEqual(caida, { tipo: "malo", mensaje: "Para aprobar hace falta conexión. Probá de nuevo cuando tengas señal." });
+  const sinPuerta = await pedirCodigoAlServidor({ pedido, duenioId: null, pin: "4321", monto: "22100", pedir: null });
+  assert.equal(sinPuerta.tipo, "malo");
+  const mal = await pedirCodigoAlServidor({ pedido, duenioId: null, pin: "4321", monto: "22100", pedir: async () => ({ ok: false as const, error: "PIN incorrecto." }) });
+  assert.deepEqual(mal, { tipo: "malo", mensaje: "PIN incorrecto." });
+  const espera = await pedirCodigoAlServidor({ pedido, duenioId: null, pin: "4321", monto: "22100", pedir: async () => ({ ok: false as const, error: "Probá en 30 segundos.", esperaS: 30 }) });
+  assert.deepEqual(espera, { tipo: "espera", segundos: 30, mensaje: "Probá en 30 segundos." });
 });

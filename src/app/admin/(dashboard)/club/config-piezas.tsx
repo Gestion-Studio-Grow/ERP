@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/Button";
 import type { Almacen } from "./almacen";
 import { esDeshacible, llevaPinDeQuienOpera, type AccionConfig, type DesenlaceConfig } from "./configuracion-core";
 import { conTopeDePin, guardaDelPin, type DesenlaceConPin } from "./tope-de-pin";
+import { firmado, pinDeLaAccion, type EnElMomentoOLuego, type PinParaFirmar } from "./firma-del-duenio";
 
 export const tarjeta = "flex min-w-0 flex-col gap-3 rounded-lg border border-line bg-surface-raised p-4";
 export const subtarjeta = "flex min-w-0 flex-col gap-3 rounded-md border border-line-strong bg-surface p-3";
@@ -87,14 +88,20 @@ export function conElTopeDelEquipo<D extends DesenlaceConPin>(almacen: Almacen, 
 /**
  * Corre una acción de la solapa por el almacén, como el comando «config» (se re-aplica por nombre si la base avanzó);
  * lo que pide el PIN de quien opera, con el tope del equipo (sólo el toque: las re-aplicaciones no suman intentos).
+ * El PIN de un dueño que tiene el servidor se confirma ahí antes (firma-del-duenio.ts): el desenlace puede llegar después.
  */
 export function useHacerConfig(almacen: Almacen, negocio?: string) {
   return useCallback(
-    (a: AccionConfig): DesenlaceConfig =>
-      almacen.comando("config", [a], {
-        deshacible: esDeshacible(a),
-        ...(llevaPinDeQuienOpera(a) ? { envolver: (correr: () => DesenlaceConfig) => conElTopeDelEquipo(almacen, negocio, correr) as DesenlaceConfig } : {}),
-      }),
+    (a: AccionConfig): EnElMomentoOLuego<DesenlaceConfig> => {
+      const conPin = llevaPinDeQuienOpera(a);
+      const correr = () =>
+        almacen.comando("config", [a], {
+          deshacible: esDeshacible(a),
+          ...(conPin ? { envolver: (c: () => DesenlaceConfig) => conElTopeDelEquipo(almacen, negocio, c) as DesenlaceConfig } : {}),
+        });
+      const firmas: PinParaFirmar[] = !conPin ? [] : a.tipo === "cambiarMiPin" ? [{ usuarioId: almacen.operador()?.usuario.id ?? null, pin: a.actual }] : pinDeLaAccion(a as { pin?: string });
+      return firmado(almacen, firmas, correr, { ok: false, mensaje: "" } as DesenlaceConfig);
+    },
     [almacen, negocio],
   );
 }

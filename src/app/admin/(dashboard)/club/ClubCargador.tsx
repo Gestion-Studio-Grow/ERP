@@ -14,8 +14,9 @@ import dynamic from "next/dynamic";
 import { Esqueleto } from "@/components/ui/Esqueleto";
 import type { Role } from "@/lib/capabilities";
 import { guardarFotoDelClub, leerFotoDelClub, leerVersionDelClub } from "./estado-actions";
+import { aprobarConCodigo, codigoParaAprobar, firmarComoDuenio } from "./firma-del-duenio-actions";
 import { cambiarMiPinDelClub } from "./pin-del-club-actions";
-import { fijarPuertaDelPin } from "./puerta-del-pin";
+import { fijarPuertaDeLaFirma, fijarPuertaDelPin } from "./puerta-del-pin";
 
 function Cargando() {
   return (
@@ -38,6 +39,8 @@ const ClubDemo = dynamic(() => import("./ClubDemo"), { ssr: false, loading: Carg
 const BASE = { leer: leerFotoDelClub, guardar: guardarFotoDelClub, leerVersion: leerVersionDelClub };
 // «Cambiar mi PIN» de recepción va por su propia acción (SEG-019: la foto ya no lleva PIN sin un dueño del ERP).
 fijarPuertaDelPin(cambiarMiPinDelClub);
+// La firma de un dueño (SEG-020): su PIN no baja en la foto; lo verifica el servidor (firma-del-duenio.ts).
+fijarPuertaDeLaFirma({ firmar: firmarComoDuenio, codigoParaAprobar, aprobarConCodigo });
 
 export default function ClubCargador({ negocio, usuario, rol, reloj = "demo" }: { negocio: string; usuario: string; rol: Role; reloj?: "demo" | "real" }) {
   return <ClubDemo negocio={negocio} usuario={usuario} rol={rol} reloj={reloj} base={reloj === "real" ? BASE : undefined} />;
