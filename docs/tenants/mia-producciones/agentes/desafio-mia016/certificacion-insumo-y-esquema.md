@@ -94,7 +94,7 @@ Cupo de `AgenteContador`: prueba (`cupo.mts`). De 12 tomas a la vez ganaron 2: s
 
 Todos salen de `controles-erp-faltantes.md`. **Son lectura de código: ninguno se probó en Postgres.** El certificador verificó 7 de esas referencias contra el código, también por lectura, y las 7 son exactas.
 
-- Cobrar no es idempotente: `src/app/admin/(dashboard)/proyectos/acciones.ts:212` crea un cobro nuevo en cada envío.
+- Cobrar no es idempotente: `src/lib/proyectos/acciones.ts:212` crea un cobro nuevo en cada envío (`trabarCobranza` en :208 frena pasar el tope del presupuesto, no el doble envío).
 - Conciliar comprueba y después actualiza, y no compara el importe (`acciones-empresa.ts:237-239`). `cuotaId` no es único (`prisma/schema.prisma:4082`).
 - El extracto bancario se deduplica sin índice único y sin transacción (`acciones-empresa.ts:216-220`).
 - Proyectos no usa la frontera de cierre de día y de mes (`src/lib/caja/frontera-cierre.ts:48-89`). La fecha de un gasto acepta cualquier día (`acciones.ts:290`).
