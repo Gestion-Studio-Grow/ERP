@@ -8,8 +8,11 @@
 // hasta ahora no había botón para hacerlo: `updateOrderItems` existía sin pantalla. El pedido
 // de 0,5 kg que pesó 1,240 se cobraba 0,5 o se anotaba la diferencia en un papel.
 //
-// Sólo mientras el pedido NO está cobrado (la regla y el porqué, en `planEdicionDeLineas`):
-// si ya se cobró, se anula y se rehace. El precio por kilo es el del pedido, no el de hoy, y
+// Cobrado o no (src/lib/ajuste-peso-cobrado.ts). Si el pedido ya se cobró antes de pesar
+// (`cobrado`), el formulario anticipa la plata: pesó menos → la diferencia se devuelve HOY por el
+// mismo medio (Mercado Pago, a mano); pesó más → queda a cobrar. Un ajuste con plata por pedido; el
+// segundo se rechaza («anulá y rehacé»). Cada apertura lleva su `clave`: el doble clic manda la
+// misma y el servidor devuelve el mismo resultado sin asentar dos veces. El precio por kilo es el del pedido, no el de hoy, y
 // las líneas con precio a mano quedan como están (`lineasDelAjuste`). El stock se mueve por la
 // diferencia. El descuento a mano conserva su PORCENTAJE (`descuentoDelAjuste`): si conservara
 // los pesos, una pesada a la baja lo subiría hasta el 100 % y pasaría el tope de recepción. El
@@ -49,6 +52,11 @@ type Linea = {
   lineTotal: number;
 };
 
+function nuevaClave(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+}
+
 function isNextRedirect(e: unknown): boolean {
   const digest = (e as { digest?: unknown } | null)?.digest;
   return typeof digest === "string" && digest.startsWith("NEXT_REDIRECT");
@@ -64,9 +72,12 @@ export default function AjustarPedidoForm({
   etiqueta,
   conQuitar = false,
   guardar = updateOrderItems,
+  cobrado = null,
 }: {
   id: string;
   code: number;
+  /** Lo cobrado si el pedido ya está pago: el ajuste devuelve o deja a cobrar la diferencia. */
+  cobrado?: number | null;
   items: Linea[];
   /** Subtotal guardado del pedido: la base sobre la que se calculó el descuento. */
   subtotal: number;
@@ -85,6 +96,8 @@ export default function AjustarPedidoForm({
   const router = useRouter();
   const { showError, showSuccess } = useToast();
   const [abierto, setAbierto] = useState(false);
+  // Clave de idempotencia de ESTA apertura (el doble clic manda la misma; abrir de nuevo, otra).
+  const [clave, setClave] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const uid = useId();
@@ -112,6 +125,7 @@ export default function AjustarPedidoForm({
   const total = round2(subtotal - desc.descuento);
   const hayInvalida = leidas.some((l) => l.invalida);
   const sinLineas = !leidas.some((l) => l.qty > 0) && aMano.length === 0;
+  const dif = cobrado != null ? round2(total - cobrado) : 0;
 
   function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -144,7 +158,10 @@ export default function AjustarPedidoForm({
     return (
       <button
         type="button"
-        onClick={() => setAbierto(true)}
+        onClick={() => {
+          setClave(nuevaClave());
+          setAbierto(true);
+        }}
         aria-expanded={false}
         className="chip-btn text-xs h-11 sm:h-auto w-full sm:w-auto"
       >
@@ -161,6 +178,7 @@ export default function AjustarPedidoForm({
       className="flex w-80 max-w-full flex-col gap-2 whitespace-normal rounded-md border border-line bg-surface-sunken p-3"
     >
       <input type="hidden" name="id" value={id} />
+      <input type="hidden" name="clave" value={clave} />
       <p id={`${uid}-titulo`} className="text-xs font-medium text-strong">
         {rotulos.titulo} #{code}
       </p>
@@ -240,6 +258,19 @@ export default function AjustarPedidoForm({
         {textoDescuento && <>{textoDescuento} · </>}
         Total nuevo <strong className="tabular-nums text-strong">{fmtMoneyARS(total)}</strong>
       </p>
+      {cobrado != null && (
+        <p className="text-xs text-body" aria-live="polite">
+          Ya cobrado {fmtMoneyARS(cobrado)}:{" "}
+          {dif < 0 ? (
+            <strong className="text-strong">se devuelven {fmtMoneyARS(-dif)} hoy, por el mismo medio</strong>
+          ) : dif > 0 ? (
+            <strong className="text-strong">quedan {fmtMoneyARS(dif)} a cobrar</strong>
+          ) : (
+            "la plata no cambia"
+          )}
+          . Se ajusta una sola vez.
+        </p>
+      )}
       {sinLineas && (
         <p role="alert" className="text-xs text-danger">
           Dejá al menos un producto con cantidad. Si el pedido no va, anulalo.

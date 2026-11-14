@@ -29,11 +29,15 @@ import { cuandoDelPedido, listoDesdeAyer, type PedidoCerrado, type PedidoDelTabl
 import { recordatorioDePago } from "@/lib/clientes/fiado";
 import { textoPlata } from "@/lib/cobro/pie-de-cobro-core";
 import { ACCION_REPARTO, estadoDelReparto, estaEnReparto, zonaDelPedido } from "./reparto/reparto-core";
+import { ACCION_AJUSTE_PESO_COBRADO, explicacionDelAjuste, leerAjusteDeLaAuditoria, type AjusteParaElAviso } from "@/lib/ajuste-peso-cobrado";
+import { cobradoDeLosPedidos, saldoDelPedido } from "@/lib/settlement/saldo-del-pedido";
 
 /** Lo que el cajón del pedido necesita además de la fila (las acciones de «Más»). */
 export type ExtraDelPedido = {
   /** «Pesar y ajustar»: sólo comercio, sin cobrar y en curso (la regla de la bandeja de siempre). */
   ajustar: {
+    /** Lo cobrado si el pedido ya está pago (el ajuste devuelve o deja a cobrar la diferencia). */
+    cobrado: number | null;
     subtotal: number;
     descuento: number;
     cupon: CuponDelPedido | null;
@@ -171,7 +175,36 @@ export async function leerAvisados(ids: readonly string[], opciones: { boutique:
   return out;
 }
 
+/**
+ * La plata del peso de los pedidos abiertos (ajuste-peso-cobrado.ts): lo ya cobrado de los que
+ * tienen una parte paga (para cobrar sólo el SALDO) y el último ajuste de los cobrados (para que el
+ * aviso de «listo» explique el cambio). Dos lecturas chicas, filtradas por negocio y por ids.
+ */
+export type PlataDelPeso = { cobrados: ReadonlyMap<string, number>; ajustes: ReadonlyMap<string, AjusteParaElAviso> };
+
+export async function leerPlataDelPeso(ids: readonly string[]): Promise<PlataDelPeso> {
+  if (ids.length === 0) return { cobrados: new Map(), ajustes: new Map() };
+  const tenantId = await getCurrentTenantId();
+  const [cobrados, filas] = await Promise.all([
+    cobradoDeLosPedidos(prisma, tenantId, ids),
+    prisma.auditLog.findMany({
+      where: { tenantId, entity: "Order", action: ACCION_AJUSTE_PESO_COBRADO, entityId: { in: [...ids] } },
+      orderBy: { createdAt: "asc" },
+      select: { entityId: true, changes: true },
+    }),
+  ]);
+  const ajustes = new Map<string, AjusteParaElAviso>();
+  for (const f of filas) {
+    const a = leerAjusteDeLaAuditoria(f.changes);
+    // Manda el último ajuste con plata (uno «igual» posterior no la borra).
+    if (f.entityId && a && a.diferencia.tipo !== "igual") ajustes.set(f.entityId, a);
+  }
+  return { cobrados, ajustes };
+}
+
 export function armarTablero(e: {
+  /** Lo que devolvió `leerPlataDelPeso`. Ausente: ningún pedido tiene parte paga ni ajuste. */
+  plataDelPeso?: PlataDelPeso;
   abiertos: readonly OrdenAbierta[];
   cerrados: readonly OrdenCerrada[];
   comercio: boolean;
@@ -196,6 +229,9 @@ export function armarTablero(e: {
   const repartos = e.avisados.repartos ?? new Map<string, Date>();
   const abiertos = e.abiertos.map((o): PedidoDelTablero => {
     const entrega = e.entrega ?? ENTREGA_POR_DEFECTO;
+    const yaPago = e.plataDelPeso?.cobrados.get(o.id) ?? 0;
+    const aCobrar = !o.paid && yaPago > 0 ? saldoDelPedido(o.total, [yaPago]) : null;
+    const ajuste = e.plataDelPeso?.ajustes.get(o.id) ?? null;
     const horario = e.comercio && o.scheduledFor ? etiquetaDeHorario(o.scheduledFor, o.fulfillment, e.hoy, entrega.corto) : null;
     const avisoWa =
       e.local && o.status === "READY"
@@ -212,15 +248,20 @@ export function armarTablero(e: {
               direccionLocal: e.local.direccion,
               horarioLocal: e.local.horario,
               listoPara: entrega.listoPara,
+              aCobrar,
+              ajuste: ajuste ? explicacionDelAjuste(ajuste, { pagado: o.paid, aCobrar }) : null,
             }),
           )
         : null;
     const avisado = e.avisados.get(o.id);
     const enviado = e.links.get(o.id) ?? null;
     extras[o.id] = {
+      // Cobrado también (ajuste-peso-cobrado.ts): si pesó menos se devuelve la diferencia hoy y si
+      // pesó más queda a cobrar. `cobrado` es lo pagado, para que el formulario anticipe la cuenta.
       ajustar:
-        e.comercio && !o.paid && EN_CURSO.has(o.status)
+        e.comercio && EN_CURSO.has(o.status)
           ? {
+              cobrado: o.paid ? o.total : null,
               subtotal: o.subtotal,
               descuento: o.discount,
               cupon: e.cupones.get(o.id) ?? null,
@@ -278,6 +319,7 @@ export function armarTablero(e: {
       cobrado: o.paid,
       medio: o.paid && o.paymentMethod ? etiquetaDeMedio(o.paymentMethod) : o.paid ? "a cuenta" : null,
       total: o.total,
+      ...(aCobrar != null ? { aCobrar } : {}),
       subtotal: o.subtotal,
       descuento: o.discount,
       lineas: o.items.map((it) => ({
@@ -291,7 +333,7 @@ export function armarTablero(e: {
       })),
       avisoWa,
       avisado: avisado ? cuando(avisado, e.hoy) : null,
-      ...(boutique ? delMostradorBoutique(o, e.local, repartos.get(o.id) ?? null) : {}),
+      ...(boutique ? delMostradorBoutique(o, e.local, repartos.get(o.id) ?? null, aCobrar) : {}),
     };
   });
   const cerrados = e.cerrados.map(
@@ -323,6 +365,7 @@ function delMostradorBoutique(
   o: OrdenAbierta,
   local: { negocio: string; direccion: string | null; horario: string | null } | null,
   salioDesde: Date | null,
+  aCobrar: number | null = null,
 ): Pick<PedidoDelTablero, "zona" | "reparto" | "recordarle"> {
   const envio = o.fulfillment === "DELIVERY";
   const enReparto = o.status === "READY" && envio && salioDesde !== null;
@@ -336,7 +379,7 @@ function delMostradorBoutique(
     recordarle = waLinkClienta(
       o.customerPhone,
       // EL texto del recordatorio, uno solo con la ficha (2C + 2D unificados).
-      recordatorioDePago({ cliente: o.customerName, negocio: local.negocio, monto: textoPlata(o.total), pedido: o.code }),
+      recordatorioDePago({ cliente: o.customerName, negocio: local.negocio, monto: textoPlata(aCobrar ?? o.total), pedido: o.code }),
     );
   }
   return {

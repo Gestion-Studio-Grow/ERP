@@ -422,7 +422,7 @@ function TeclaGrande({ p, onAbrir }: { p: PedidoDelTablero; onAbrir: (id: string
   }
   return (
     <button type="button" data-tecla-de={p.id} className={TECLA_PRIMARIA} aria-label={etiqueta} onClick={() => onAbrir(p.id, "cobro")}>
-      {t.tipo === "cobrar" ? `Cobrar ${textoPlata(p.total)}` : t.texto}
+      {t.tipo === "cobrar" ? `Cobrar ${textoPlata(p.aCobrar ?? p.total)}` : t.texto}
     </button>
   );
 }

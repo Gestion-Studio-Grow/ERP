@@ -23,12 +23,14 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { AJUSTE_PESO_ACTOR_PREFIX } from "@/lib/caja/devolucion-por-peso";
 import { tenantTransaction } from "@/lib/rls";
 import { emitirCajaCerrada } from "@/eventos/del-core";
 import { Prisma } from "@/generated/prisma/client";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { canCurrentUser, requireCapability } from "@/lib/authz";
 import { isPrismaError } from "@/lib/prisma-errors";
+import { cobradoDeLosPedidos, sinCobrarDeLosPedidos } from "@/lib/settlement/saldo-del-pedido";
 import { estadoCobroTurno, type CobroTurno } from "@/lib/turnos/cobros";
 import { rangoDelDia, turnosSinCerrarDelDia } from "@/lib/turnos/turno-abierto";
 import { getCurrentUser } from "@/lib/session";
@@ -462,11 +464,7 @@ async function leerCierreDiario(
     // M1-C6: ventas del día sin cobrar y envíos sin rendir. Sólo la pantalla del cierre (la misma
     // opción que los turnos): el resumen de /admin/caja no las muestra y no las paga.
     opciones.conTurnosSinCerrar
-      ? prisma.order.aggregate({
-          where: { tenantId, createdAt: { gte: businessWallTimeToUtc(day, "00:00"), lt: end }, paid: false, status: { not: "CANCELLED" } },
-          _count: { _all: true },
-          _sum: { total: true },
-        })
+      ? leerVentasSinCobrar(tenantId, businessWallTimeToUtc(day, "00:00"), end)
       : Promise.resolve(null),
     opciones.conTurnosSinCerrar ? leerRepartoSinRendir(tenantId) : Promise.resolve(null),
     // Cert F7: ¿el negocio arquea a ciegas? Sólo donde el efectivo se puede blanquear (la pantalla
@@ -494,8 +492,13 @@ async function leerCierreDiario(
   // encendido). Acá sólo se marca; lo blanquea `diaALaVista` a la salida de `getCierreDiarioData`.
   const efectivoACiegas = arqueaACiegas && !abierto;
 
+  // El total de cada pedido al FINAL del período: el de hoy más lo devuelto por peso después (A8).
+  const devueltoDespues =
+    !sinCobrar || !repartoSinRendir
+      ? new Map<string, number>()
+      : await devueltoPorPesoDespues(tenantId, [...new Set(rows.flatMap((r) => (r.order && r.orderId ? [r.orderId] : [])))], end);
   const hechos: HechosDelCierre | null = !sinCobrar || !repartoSinRendir ? null : {
-    ventasSinCobrar: { cantidad: sinCobrar._count._all, monto: Number(sinCobrar._sum.total ?? 0) },
+    ventasSinCobrar: sinCobrar,
     repartoSinRendir,
     pagadosDeMas: pagadosDeMasDelPeriodo(
       rows.map((r) => ({
@@ -503,7 +506,9 @@ async function leerCierreDiario(
         total: r.order ? Number(r.order.total) : null,
         amount: r.amount,
         type: r.type,
+        createdBy: r.createdBy,
       })),
+      devueltoDespues,
     ),
     cuadernoConFechaVieja: rows.reduce(
       (acc, r) =>
@@ -555,11 +560,44 @@ async function leerCierreDiario(
 }
 
 /**
+ * Lo devuelto por peso DESPUÉS del período (EGRESO firmado `ajuste-peso:` con fecha desde `hasta`),
+ * por pedido, de los pedidos que se movieron en el período. Con esto `pagadosDeMasDelPeriodo`
+ * recompone el total del final del período (el de hoy ya bajó). SÓLO LECTURA; no exportada.
+ */
+async function devueltoPorPesoDespues(tenantId: string, orderIds: readonly string[], hasta: Date): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  if (orderIds.length === 0) return out;
+  const filas = await prisma.cashMovement.findMany({
+    where: { tenantId, orderId: { in: [...orderIds] }, type: "EGRESO", createdBy: { startsWith: AJUSTE_PESO_ACTOR_PREFIX }, occurredAt: { gte: hasta } },
+    select: { orderId: true, amount: true },
+  });
+  for (const f of filas) {
+    if (!f.orderId) continue;
+    out.set(f.orderId, round2((out.get(f.orderId) ?? 0) + Number(f.amount)));
+  }
+  return out;
+}
+
+/**
  * Envíos que salieron con el cadete y todavía no se rindieron: la ÚLTIMA marca de reparto del
  * pedido es «salió» (pedidos/reparto/reparto-core.ts, acción "reparto"). El monto es lo que falta
  * cobrar de ésos: si el cadete lo cobra en efectivo, esa plata todavía no está en el cajón.
  * SÓLO LECTURA; no exportada (recibe `tenantId`).
  */
+/**
+ * Pedidos creados en el día que siguen sin cobrar, con lo que FALTA cobrar de cada uno (su saldo):
+ * un pedido con una parte ya cobrada (el que pesó más, settlement/saldo-del-pedido.ts) se alertaba
+ * por el total entero, como si lo ya cobrado no hubiera entrado a la caja.
+ */
+async function leerVentasSinCobrar(tenantId: string, desde: Date, hasta: Date): Promise<{ cantidad: number; monto: number }> {
+  const pedidos = await prisma.order.findMany({
+    where: { tenantId, createdAt: { gte: desde, lt: hasta }, paid: false, status: { not: "CANCELLED" } },
+    select: { id: true, total: true },
+  });
+  const filas = pedidos.map((o) => ({ id: o.id, total: Number(o.total) }));
+  return sinCobrarDeLosPedidos(filas, await cobradoDeLosPedidos(prisma, tenantId, filas.map((o) => o.id)));
+}
+
 async function leerRepartoSinRendir(tenantId: string): Promise<{ cantidad: number; monto: number }> {
   const enCurso = await prisma.order.findMany({
     where: { tenantId, fulfillment: "DELIVERY", status: { notIn: ["DELIVERED", "CANCELLED"] } },
@@ -573,14 +611,11 @@ async function leerRepartoSinRendir(tenantId: string): Promise<{ cantidad: numbe
   });
   const ultima = new Map<string, unknown>();
   for (const m of marcas) if (m.entityId) ultima.set(m.entityId, (m.changes as { tipo?: unknown } | null)?.tipo);
-  let cantidad = 0;
-  let monto = 0;
-  for (const o of enCurso) {
-    if (ultima.get(o.id) !== "salio") continue;
-    cantidad += 1;
-    if (!o.paid) monto = round2(monto + Number(o.total));
-  }
-  return { cantidad, monto };
+  const enLaCalle = enCurso.filter((o) => ultima.get(o.id) === "salio");
+  // Lo que falta cobrar de ésos es su SALDO: una parte ya cobrada (pesó más) no se rinde otra vez.
+  const sinCobrar = enLaCalle.filter((o) => !o.paid).map((o) => ({ id: o.id, total: Number(o.total) }));
+  const cobrado = sinCobrar.length > 0 ? await cobradoDeLosPedidos(prisma, tenantId, sinCobrar.map((o) => o.id)) : new Map<string, number>();
+  return { cantidad: enLaCalle.length, monto: sinCobrarDeLosPedidos(sinCobrar, cobrado).monto };
 }
 
 /**

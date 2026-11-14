@@ -24,6 +24,7 @@ import { isUniqueViolation, isColumnMissing } from "@/lib/prisma-errors";
 import { buscarFichaPorTelefono } from "@/lib/clientes/ficha-por-telefono";
 import { logger } from "@/lib/logger";
 import { RechazoDeDominio } from "@/lib/rechazo-de-dominio";
+import { aCobrarDelPedido, cobradoDelPedido, cobrarSaldoDelPedidoEnTx, saldoDelPedido } from "@/lib/settlement/saldo-del-pedido";
 import { controlarLotesVencidosEnTx } from "@/lib/carniceria/lotes-registro";
 import { pedidoDelReintento, type PedidoDelReintento } from "@/lib/reintento-de-venta";
 import { shippingCost, type ShippingConfig } from "@/lib/storefront-shipping";
@@ -1278,10 +1279,41 @@ export class CobroDePedidoAnulado extends Error {
   }
 }
 
+/**
+ * El aviso de Mercado Pago llegó por un monto que NO es lo que hoy falta cobrar, mirado ADENTRO de
+ * la transacción con la fila del pedido tomada (D2): un ajuste por peso que entró entre la lectura
+ * del aviso y el cobro dejaba una VENTA por el total nuevo con Mercado Pago habiendo cobrado el viejo.
+ * Se lanza para que la transacción vuelva atrás entera (el `paid` también).
+ */
+export class CobroPorOtroMonto extends Error {
+  readonly code: number;
+  readonly aCobrar: number;
+  constructor(code: number, aCobrar: number) {
+    super(`El pedido #${code} ahora es de ${fmtMoneyARS(aCobrar)}: no se cobra por otro monto.`);
+    this.name = "CobroPorOtroMonto";
+    this.code = code;
+    this.aCobrar = aCobrar;
+  }
+}
+
 export type CobroDePedido =
   | { tipo: "cobrado"; order: { id: string; code: number; total: number } }
   | { tipo: "ya-cobrado"; code: number; medioRegistrado: string | null }
   | { tipo: "no-existe" };
+
+/** ¿Este pago (actor `mercadopago:<paymentId>`) ya dejó su VENTA o su cobro en el pedido? */
+async function pagoYaImputadoAlPedido(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  orderId: string,
+  actor: string,
+): Promise<boolean> {
+  const [venta, cobro] = await Promise.all([
+    tx.cashMovement.findFirst({ where: { tenantId, orderId, createdBy: actor }, select: { id: true } }),
+    tx.collection.findFirst({ where: { tenantId, orderId, collectedBy: actor }, select: { id: true } }),
+  ]);
+  return Boolean(venta || cobro);
+}
 
 /**
  * Marca cobrado y asienta en el libro, dentro de la transacción del llamador (I7, ADR-064).
@@ -1306,11 +1338,26 @@ export async function cobrarPedidoEnTx(
      * mostrador con varios medios. Sin asientos, el cobro de siempre.
      */
     asientos?: readonly AsientoDePago[] | null;
+    /**
+     * Lo que el pago trae (el aviso de Mercado Pago): tiene que ser, al centavo, lo que falta cobrar
+     * leído con la fila tomada —el saldo si hay una parte cobrada, si no el total—. Si no, se lanza
+     * `CobroPorOtroMonto` y no se escribe nada. Sin él (el botón «Cobrar»), lo de siempre.
+     */
+    montoEsperado?: number | null;
   },
 ): Promise<CobroDePedido> {
   const mixto = args.asientos && args.asientos.length > 0 ? args.asientos : null;
   if (mixto && medioPrincipal(mixto) !== args.method) {
     throw new RechazoDeDominio("El medio de la venta tiene que ser el principal del pago mixto.");
+  }
+  // EL MISMO PAGO NO COBRA DOS VECES (certificación del ajuste por peso, F1): el pedido cobrado que
+  // pesó más vuelve a `paid=false`, así que el `paid` ya no frena un aviso repetido del pago
+  // ORIGINAL de Mercado Pago (otro x-request-id, `payment.updated`). Se corta por el pago: si ese
+  // `paymentId` ya dejó su VENTA o su cobro en este pedido, es «ya-cobrado» y no se toca nada.
+  if (args.actor.startsWith("mercadopago:") && (await pagoYaImputadoAlPedido(tx, tenantId, args.orderId, args.actor))) {
+    const o = await tx.order.findFirst({ where: { id: args.orderId, tenantId }, select: { code: true, paymentMethod: true } });
+    if (!o) return { tipo: "no-existe" };
+    return { tipo: "ya-cobrado", code: o.code, medioRegistrado: o.paymentMethod };
   }
   const res = await tx.order.updateMany({
     where: { id: args.orderId, tenantId, paid: false },
@@ -1323,6 +1370,24 @@ export async function cobrarPedidoEnTx(
   if (!order) return { tipo: "no-existe" };
   if (order.status === "CANCELLED") throw new CobroDePedidoAnulado(order.code);
   if (res.count === 0) return { tipo: "ya-cobrado", code: order.code, medioRegistrado: order.paymentMethod };
+  // SALDO (settlement/saldo-del-pedido.ts): el pedido cobrado antes de pesar que pesó más ya tiene
+  // una parte cobrada y su VENTA en el libro. Se cobra SÓLO lo que falta, como un cobro del pedido
+  // con su asiento: cobrar el total le haría pagar dos veces a la clienta, y la VENTA con `orderId`
+  // ya existe (el cobro de siempre la daría por «ya asentada» y la diferencia no entraría al libro).
+  const yaCobrado = await cobradoDelPedido(tx, tenantId, order.id);
+  if (args.montoEsperado != null) {
+    const aCobrar = yaCobrado > 0 ? saldoDelPedido(order.total, [yaCobrado]) : round2(order.total);
+    if (Math.abs(round2(args.montoEsperado) - aCobrar) > 0.009) throw new CobroPorOtroMonto(order.code, aCobrar);
+  }
+  if (yaCobrado > 0) {
+    if (mixto) throw new RechazoDeDominio("Este pedido ya tiene una parte cobrada: la diferencia se cobra con un solo medio.");
+    const saldo = saldoDelPedido(order.total, [yaCobrado]);
+    if (saldo > 0) {
+      await cobrarSaldoDelPedidoEnTx(tx, tenantId, { orderId: order.id, orderCode: order.code, saldo, medio: args.method, actor: args.actor });
+    }
+    await emitirPedidoCobrado(tx, { tenantId, pedidoId: order.id, codigo: order.code, monto: saldo, medio: args.method, actor: args.actor }); // P2
+    return { tipo: "cobrado", order: { id: order.id, code: order.code, total: saldo } };
+  }
   if (mixto) {
     // Contra el total de la BASE, con la fila ya bloqueada por el update: si el pedido se pesó y
     // cambió mientras se cobraba, no cierra y la transacción vuelve atrás entera (el `paid` también).
@@ -1400,13 +1465,25 @@ export type DepsAvisoDePedido = {
   leerPedido: (tenantId: string, orderId: string) => Promise<{ code: number; total: number; paid: boolean; status: string } | null>;
   cerradoHasta: (tenantId: string) => Promise<string | null>;
   hoy: () => string;
-  cobrar: (tenantId: string, args: { orderId: string; method: OrderPaymentMethod; actor: string }) => Promise<CobroDePedido>;
+  cobrar: (tenantId: string, args: { orderId: string; method: OrderPaymentMethod; actor: string; montoEsperado: number }) => Promise<CobroDePedido>;
   auditar: (entry: { actor: string; action: string; entity: string; entityId: string; changes: unknown }) => Promise<void>;
 };
 
+/**
+ * El pedido que un aviso de pago tiene que igualar. Su «total» es lo que FALTA cobrar: un pedido
+ * con una parte ya cobrada (saldo-del-pedido.ts) se cobra por el saldo, nunca por el total entero,
+ * igual que el link de Mercado Pago (cobros-actions.ts, `aCobrarDelPedido`). Lo usan el simulador
+ * (`DEPS_AVISO`) y el webhook de producción (mercadopago-dispatch.ts): un solo lugar.
+ */
+export const leerPedidoParaAviso: DepsAvisoDePedido["leerPedido"] = async (tenantId, orderId) => {
+  const p = await prisma.order.findFirst({ where: { id: orderId, tenantId }, select: { id: true, code: true, total: true, paid: true, status: true } });
+  if (!p) return null;
+  const total = p.paid ? p.total : await aCobrarDelPedido(prisma, tenantId, p);
+  return { code: p.code, total, paid: p.paid, status: p.status };
+};
+
 const DEPS_AVISO: DepsAvisoDePedido = {
-  leerPedido: (tenantId, orderId) =>
-    prisma.order.findFirst({ where: { id: orderId, tenantId }, select: { code: true, total: true, paid: true, status: true } }),
+  leerPedido: leerPedidoParaAviso,
   cerradoHasta: (tenantId) => lastClosedDay(tenantId),
   hoy: () => dateStrInBusinessTz(new Date()),
   cobrar: (tenantId, args) => tenantTransaction((tx) => cobrarPedidoEnTx(tx, tenantId, args), { tenantId }),
@@ -1449,10 +1526,15 @@ export async function cobrarPedidoPorAvisoDePago(
   const actor = `mercadopago:${aviso.paymentId}`;
   let cobro: CobroDePedido;
   try {
-    cobro = await deps.cobrar(aviso.tenantId, { orderId: aviso.orderId, method: "MERCADOPAGO", actor });
+    // El monto se vuelve a mirar ADENTRO, con la fila tomada (D2): lo leído arriba puede haber cambiado.
+    cobro = await deps.cobrar(aviso.tenantId, { orderId: aviso.orderId, method: "MERCADOPAGO", actor, montoEsperado: aviso.monto });
   } catch (e) {
     if (e instanceof CobroDePedidoAnulado) {
       return { cobrado: false, motivo: "anulado", detalle: e.message, code: pedido!.code };
+    }
+    if (e instanceof CobroPorOtroMonto) {
+      const d = decidirCobroPorAviso({ pedido: { code: e.code, total: e.aCobrar, paid: false, status: "PENDING" }, monto: aviso.monto });
+      return { cobrado: false, motivo: "monto-distinto", detalle: d.cobrar ? e.message : d.detalle, code: e.code };
     }
     // Dos avisos simultáneos del mismo pago: el segundo choca el único asiento VENTA del pedido.
     if (isUniqueViolation(e, "orderId")) {

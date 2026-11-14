@@ -84,7 +84,9 @@ import { isUniqueViolation } from "@/lib/prisma-errors";
 import { cantidadOCero, formatearCantidad } from "@/lib/pos-peso";
 import { fmtMoneyARS } from "@/components/ui/format";
 import { textoPlata } from "@/lib/cobro/pie-de-cobro-core";
-import { lastClosedDay } from "@/lib/caja/frontera-cierre";
+import { lastClosedDay, lastClosedDayTx } from "@/lib/caja/frontera-cierre";
+import { ajustarPesoInTx, mensajeAjusteCobradoRechazado, mensajeDelAjuste, type ResultadoAjustePeso } from "@/lib/ajuste-peso-cobrado";
+import { negocioEnModoPrueba, notaDeCreditoPorPeso } from "@/lib/facturacion/nota-credito-por-peso";
 import { isFrozenDay } from "@/lib/caja/cierre-diario";
 import { dateStrInBusinessTz } from "@/lib/datetime";
 import { opcionLotesVencidos } from "@/lib/carniceria/schema-probe";
@@ -117,8 +119,6 @@ import {
   reglasDeAnulacion,
   fronteraDeVenta,
   laVentaEscribeEnCaja,
-  ajustarPedidoInTx,
-  type AjustarPedidoResult,
   wherePedidosAbiertos,
   wherePedidosCerrados,
   entregarPedidoGuarded,
@@ -1439,7 +1439,7 @@ export async function autorizarAnulacionVenta(formData: FormData): Promise<Resul
   return { ok: true, codigo, venceA };
 }
 
-// --- Editar las líneas de un pedido todavía no cobrado (el peso real) ---
+// --- Editar las líneas de un pedido (el peso real), cobrado o no ---
 //
 // La regla y el porqué están en `order-anulacion.ts` (`planEdicionDeLineas`, y el descuento en
 // `totalesDelAjuste`). La transacción entera vive en `ajustarPedidoInTx`: acá se autoriza, se
@@ -1462,11 +1462,19 @@ export async function updateOrderItems(
     ? await promosParaUnaVenta(tenantId, wanted.map((l) => l.productId), dateStrInBusinessTz(tomado.createdAt), null)
     : undefined;
 
-  let out: AjustarPedidoResult;
+  // Cobrado o no, la misma tecla (src/lib/ajuste-peso-cobrado.ts): sin cobrar, el reajuste de
+  // siempre; cobrado, además la plata —la devolución de hoy si pesó menos, el saldo si pesó más—,
+  // una sola vez, con la fila del pedido tomada y la clave del formulario contra el doble clic.
+  const clave = String(formData.get("clave") || "").trim() || null;
+  const ahora = new Date();
+  // Modo prueba (ARCA simulado): una venta con factura simulada se ajusta y su devolución lleva NC
+  // simulada. Falla cerrada: si no se pudo leer el modo, una venta facturada se rechaza como siempre.
+  const arcaSimulado = await negocioEnModoPrueba(tenantId).catch(() => false);
+  let out: ResultadoAjustePeso;
   try {
     out = await tenantTransaction(
-      (tx) =>
-        ajustarPedidoInTx(tx, tenantId, {
+      async (tx) =>
+        ajustarPesoInTx(tx, tenantId, {
           orderId: id,
           pedidas: wanted,
           actor: `user:${user.id}`,
@@ -1474,35 +1482,50 @@ export async function updateOrderItems(
           // MAG-4: el aumento de un corte por PESO sale aunque el stock quede en negativo (el
           // paquete ya está pesado en la mano). La regla es la de pos-stock-rules.ts.
           permiteNegativo: (saleUnit) => permiteVenderSinStock({ saleUnit, contexto: "EDICION_PESO_REAL" }),
+          clave,
+          // DB-5: la frontera del cierre, leída en ESTA transacción (la devolución escribe hoy).
+          cerradoHasta: await lastClosedDayTx(tx, tenantId),
+          hoy: dateStrInBusinessTz(ahora),
+          ahora,
+          arcaSimulado,
         }),
       { tenantId },
     );
   } catch (err) {
+    // Dos ajustes con plata a la vez que pasaron el candado (no debería: la fila está tomada): el
+    // índice único de la devolución o del cobro frena al segundo.
+    if (isUniqueViolation(err, "orderId") || isUniqueViolation(err, "idempotencyKey")) {
+      revalidarMostrador();
+      return { ok: false, error: mensajeAjusteCobradoRechazado("ya-ajustado") };
+    }
     return errorDeAccion(err, "No se pudo actualizar el pedido.");
   }
 
-  await auditAdmin({
-    action: "update",
-    entity: "Order",
-    entityId: id,
-    changes: {
-      total: { from: out.antes, to: out.total },
-      // El descuento acompaña al peso con el mismo %: queda escrito cuánto era y cuánto quedó.
-      ...(out.descuentoAntes !== out.descuento
-        ? { discount: { from: out.descuentoAntes, to: out.descuento } }
-        : {}),
-      lines: wanted.length,
-    },
-  });
+  // El ajuste de un pedido cobrado ya dejó su rastro en la transacción (es su clave del doble clic).
+  if (out.cobrado == null) {
+    await auditAdmin({
+      action: "update",
+      entity: "Order",
+      entityId: id,
+      changes: {
+        total: { from: out.antes, to: out.total },
+        // El descuento acompaña al peso con el mismo %: queda escrito cuánto era y cuánto quedó.
+        ...(out.descuentoAntes !== out.descuento
+          ? { discount: { from: out.descuentoAntes, to: out.descuento } }
+          : {}),
+        lines: wanted.length,
+      },
+    });
+  }
+  // La nota de crédito (simulada) de la devolución, en su propia tx: si falla, la devolución ya está
+  // en la caja y la nota queda pendiente (se reintenta; idempotente por pedido + ajuste).
+  if (out.notaDeCredito?.estado === "pendiente") {
+    const pendiente = out.notaDeCredito;
+    const nota = await notaDeCreditoPorPeso(tenantId, pendiente.clave).catch(() => null);
+    if (nota) out = { ...out, notaDeCredito: nota };
+  }
   revalidarMostrador();
-  const dif = round2(out.total - out.antes);
-  return {
-    ok: true,
-    mensaje:
-      dif === 0
-        ? `Pedido #${out.code} actualizado. El total no cambió: ${fmtMoneyARS(out.total)}.`
-        : `Pedido #${out.code} actualizado${out.conPeso ? " al peso real" : ""}: ${fmtMoneyARS(out.antes)} → ${fmtMoneyARS(out.total)} (${dif > 0 ? "+" : "−"}${fmtMoneyARS(Math.abs(dif))}).`,
-  };
+  return { ok: true, mensaje: mensajeDelAjuste(out) };
 }
 
 // --- Cliente por teléfono (Vender) ---
