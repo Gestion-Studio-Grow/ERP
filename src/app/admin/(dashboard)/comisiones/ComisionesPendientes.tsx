@@ -15,6 +15,7 @@ import { buttonClasses, fmtMoneyARS } from "@/components/ui";
 import type { VueltaDeLiquidacion } from "@/lib/reports/comisiones";
 import type { ComisionConCobroAnulado } from "@/lib/reports/comision-ya-pagada";
 import ComisionesConCobroAnulado from "./ComisionesConCobroAnulado";
+import { MEDIO_POR_DEFECTO_LIQUIDACION } from "@/lib/comisiones/medio-por-defecto";
 
 const money = (n: number) => fmtMoneyARS(n, 0);
 
@@ -76,7 +77,7 @@ export default function ComisionesPendientes({
                       dominante, y ahora se puede cambiar. */}
                   <select
                     name="method"
-                    defaultValue="EFECTIVO"
+                    defaultValue={MEDIO_POR_DEFECTO_LIQUIDACION}
                     aria-label="Cómo se le pagó"
                     className="h-11 rounded-md border border-line-strong bg-surface-raised px-2 text-sm text-strong focus:border-accent"
                   >

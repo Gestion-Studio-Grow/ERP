@@ -395,7 +395,26 @@ const FUERA_DE_LA_BARRA_DE_CH = new Set(["/admin/campania", "/admin/recordatorio
  */
 export function barraDeCH(menu: readonly ItemMenuDeHoy[], visibles: readonly AppDescriptor[], role?: string): ItemMenuDeHoy[] {
   const deCH = barraDeCHSinRol(menu, visibles);
-  return role === "RECEPTION" ? barraDeRecepcionDeCH(deCH) : deCH;
+  if (role === "RECEPTION") return barraDeRecepcionDeCH(deCH);
+  return role === "PROFESSIONAL" ? conMiLiquidacion(deCH, visibles) : deCH;
+}
+
+/**
+ * La profesional de CH ve «Mi liquidación» detrás de su Agenda (T1, docs/producto/comisiones/
+ * LIQUIDACION.md). Sólo si la app ya es visible para ella (`commissions:read-own`): la barra no es
+ * el permiso. La dueña y la recepción no la reciben en la barra. PURA.
+ */
+function conMiLiquidacion(menu: readonly ItemMenuDeHoy[], visibles: readonly AppDescriptor[]): ItemMenuDeHoy[] {
+  const app = visibles.find((a) => a.id === "mis-comisiones");
+  if (!app || menu.some((i) => i.href === app.ruta)) return [...menu];
+  const item: ItemMenuDeHoy = { href: app.ruta, label: app.nombre, icon: app.icono };
+  if (app.palabras) item.alias = app.palabras;
+  const i = menu.findIndex((m) => m.href === "/admin/turnos");
+  const grupo = i >= 0 ? menu[i].grupo : grupoDeHoy(app.ruta);
+  if (grupo) item.grupo = grupo;
+  const salida = [...menu];
+  salida.splice(i >= 0 ? i + 1 : salida.length, 0, item);
+  return salida;
 }
 
 /**

@@ -12,6 +12,7 @@ import type { VueltaDeLiquidacion } from "@/lib/reports/comisiones";
 import type { ComisionConCobroAnulado } from "@/lib/reports/comision-ya-pagada";
 import CajonPorUrl from "../CajonPorUrl";
 import ComisionesConCobroAnulado from "./ComisionesConCobroAnulado";
+import { MEDIO_POR_DEFECTO_LIQUIDACION } from "@/lib/comisiones/medio-por-defecto";
 
 const turnos = (n: number) => `${n} ${n === 1 ? "turno" : "turnos"}`;
 
@@ -72,7 +73,7 @@ export default function ComisionesRenglon({
               <input type="hidden" name="professionalId" value={c.professionalId} />
               <input type="hidden" name="volver" value={volver} />
               <Field label="Cómo se le pagó" htmlFor={`metodo-${c.professionalId}`}>
-                <Select id={`metodo-${c.professionalId}`} name="method" defaultValue="EFECTIVO">
+                <Select id={`metodo-${c.professionalId}`} name="method" defaultValue={MEDIO_POR_DEFECTO_LIQUIDACION}>
                   <option value="EFECTIVO">Efectivo</option>
                   <option value="MP">Mercado Pago</option>
                   <option value="TRANSFERENCIA">Transferencia</option>
