@@ -175,7 +175,7 @@ test("acción: si falta algo, dice QUÉ falta (y no toca la base)", async () => 
 });
 
 // SEG-024: el tope de quien no es dueño, por persona, y el carril del dueño según la sesión del ERP.
-test("SEG-024 acción: recepción cuenta en el tope «equipo» de ESA persona; fallan un PIN actual mal y un PIN nuevo en uso", async () => {
+test("SEG-024 acción: recepción cuenta en el tope «equipo» de ESA persona; gastan el PIN actual mal, el PIN nuevo en uso y el cambio hecho", async () => {
   const { e, lu, pin } = arrancar();
   sesion.rol = "RECEPTION";
   const { cambiarMiPinDelClub } = await import("./pin-del-club-actions");
@@ -186,13 +186,13 @@ test("SEG-024 acción: recepción cuenta en el tope «equipo» de ESA persona; f
   const enUso = await cambiarMiPinDelClub({ usuarioId: lu.id, pinActual: pin, pinNuevo: deOtra });
   assert.ok(!enUso.ok && /ya lo usa otra persona/.test(enUso.error));
   assert.deepEqual(await cambiarMiPinDelClub({ usuarioId: lu.id, pinActual: pin, pinNuevo: "73" }), { ok: true, version: 5 });
-  // «En uso» delata el PIN de otra persona: es un fallo. En el equipo ningún acierto limpia (la regla del motor para
-  // recepción), así un cambio bien hecho no reabre la puerta a seguir probando.
+  // «En uso» delata el PIN de otra persona, y si el cambio hecho no gastara, probar PIN libres sería gratis: los dos
+  // gastan (`ok: false` = gasta un intento). El PIN nuevo igual al actual no dice nada de nadie: no gasta. Nada limpia.
   assert.deepEqual(tope.llamadas, [
     { ambito: "equipo", usuarioId: otra.id, ok: false, limpia: null },
     { ambito: "equipo", usuarioId: lu.id, ok: true, limpia: null },
     { ambito: "equipo", usuarioId: lu.id, ok: false, limpia: null },
-    { ambito: "equipo", usuarioId: lu.id, ok: true, limpia: null },
+    { ambito: "equipo", usuarioId: lu.id, ok: false, limpia: null },
   ]);
 });
 
@@ -216,7 +216,7 @@ test("SEG-024 acción: el PIN de un dueño desde un OWNER del ERP va al carril �
   assert.equal((await cambiarMiPinDelClub({ usuarioId: d.id, pinActual: "0000", pinNuevo: "8642" })).ok, false);
   assert.equal((await cambiarMiPinDelClub({ usuarioId: lu.id, pinActual: pin, pinNuevo: "73" })).ok, true);
   assert.deepEqual(tope.llamadas.map((l) => [l.ambito, l.usuarioId]), [["pin-owner", d.id], ["equipo", lu.id]]);
-  // El dueño, con su PIN: su acierto limpia sus fallos (SEG-020); «en uso» cuenta como fallo.
+  // El dueño, con su PIN: «en uso» gasta un intento.
   const otro = e.usuarios.find((u) => u.rol === "duenio" && u.id !== d.id);
   assert.ok(otro, "la demo trae dos dueños");
   {

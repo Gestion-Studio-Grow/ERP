@@ -359,3 +359,22 @@ test("10 · «Cambiar mi PIN» con un PIN nuevo que ya usa otra persona cuenta c
   const conUnoLibre = valor(await ejecutarAccion(comoDuenia(base.a), () => cambiarMiPinDelClub({ usuarioId: "u-rober", pinActual: PIN.A.rober, pinNuevo: "3719" })));
   assert.ok(!conUnoLibre.ok && /esperá hasta las/.test(conUnoLibre.error), "en la espera no se evalúa nada");
 });
+
+test("11 · «Mi PIN»: cada cambio hecho también gasta un intento — probar PIN libres no sale gratis", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const { base, lu } = p;
+  const { cambiarMiPinDelClub } = await import("@/app/admin/(dashboard)/club/pin-del-club-actions");
+  const nuevos = ["37", "58", "62", "94", "71", "46"].filter((x) => x !== lu.A.pin);
+  let actual = lu.A.pin;
+  for (let i = 0; i < 4; i++) {
+    const r = valor(await ejecutarAccion(comoRecepcion(base.a), () => cambiarMiPinDelClub({ usuarioId: lu.A.id, pinActual: actual, pinNuevo: nuevos[i] })));
+    assert.ok(r.ok, `cambio ${i + 1}: ${JSON.stringify(r)}`);
+    actual = nuevos[i];
+  }
+  const quinto = valor(await ejecutarAccion(comoRecepcion(base.a), () => cambiarMiPinDelClub({ usuarioId: lu.A.id, pinActual: actual, pinNuevo: nuevos[4] })));
+  assert.ok(quinto.ok, "el 5.º se hace (y abre la espera)");
+  actual = nuevos[4];
+  const sexto = valor(await ejecutarAccion(comoRecepcion(base.a), () => cambiarMiPinDelClub({ usuarioId: lu.A.id, pinActual: actual, pinNuevo: nuevos[0] })));
+  assert.ok(!sexto.ok && /esperá hasta las/.test(sexto.error), JSON.stringify(sexto));
+});

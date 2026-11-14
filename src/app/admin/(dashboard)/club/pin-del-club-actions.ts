@@ -19,11 +19,11 @@
 //
 // SEG-024: el PIN actual de quien NO es dueño cuenta en su propio tope, por persona (ámbito «equipo»: 5 fallos y la
 // escalera 30 s, 2 min, 10 min), aparte del de los dueños: los fallos de uno no traban al otro. El de un dueño, desde
-// una sesión OWNER, va al carril «pin-owner». Cuentan como fallo un PIN actual mal y un PIN nuevo que ya usa otra
-// persona (delata un PIN ajeno). En el equipo ningún acierto limpia (la regla del motor para recepción: si no, un cambio
-// bien hecho reabre la puerta a seguir probando); el de un dueño limpia sólo con el cambio hecho. Los otros rechazos
-// del PIN nuevo (largo, fácil) no suman ni limpian. Si el usuario no existe o está inactivo, la regla lo rechaza sin
-// mirar el PIN y no se anota nada (`carrilDePin`).
+// una sesión OWNER, va al carril «pin-owner». Todo intento que llega a evaluarse GASTA un intento del tope: un PIN
+// actual mal, un PIN nuevo que ya usa otra persona y también el cambio hecho (si el cambio no gastara, probar PIN nuevos
+// libres sería gratis y el «en uso» delataría los ajenos: son pocos y el de recepción es de 2 números). Nada limpia el
+// tope desde acá. No gastan los rechazos que no dicen nada de otra persona (largo, fácil, igual al actual). Si el
+// usuario no existe o está inactivo, la regla lo rechaza sin mirar el PIN y no se anota nada (`carrilDePin`).
 //
 // — Elaborado por GSG
 
@@ -98,8 +98,8 @@ export async function cambiarMiPinDelClub(pedido: { usuarioId: unknown; pinActua
         ambito,
         () => {
           const x = cambiarPinEnLaFoto(vigente.texto, pedidoDeCambio);
-          const fallo = !x.ok && (x.codigo === "pin-actual" || x.codigo === "pin-en-uso");
-          return { ok: !fallo, limpia: x.ok && ambito !== "equipo" ? usuarioId : null, x };
+          const gasta = x.ok || x.codigo === "pin-actual" || x.codigo === "pin-en-uso";
+          return { ok: !gasta, limpia: null, x }; // `ok` es «no gasta» para el tope; el desenlace es `x`
         },
         { usuarioId },
       );
