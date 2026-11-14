@@ -11,14 +11,20 @@
 //   · si el servidor pide esperar o el PIN es el viejo, manda el servidor: no corre. Un PIN que no es, corre igual
 //     para que el motor lo rechace y sume al tope del equipo (tope-de-pin.ts).
 // El código de aprobación de un pedido sigue el mismo camino (`confirmarCodigoDelDuenio` → `aprobarConCodigo`).
+// Una confirmación a la vez: mientras una espera al servidor, otro envío (doble clic, Enter + el largo del PIN) no
+// llama ni corre, y no avisa nada (`repetido`); `useFirmaEnCurso` deja deshabilitar el botón mientras tanto.
+// Lo que firma con el PIN GUARDADO de quien opera (el Tablero) vale mientras dura el pase: después, se pide el PIN de
+// nuevo (`firmaGuardadaVencida`, `FIRMA_VENCIDA`) y no se hace nada.
 //
 // — Elaborado por GSG
 
+import { useSyncExternalStore } from "react";
 import { esPinEnServidor, fijarVerificadorDelServidor, pinAceptadoPara, usuario as usuarioDe, usuarioPorPin } from "@/lib/club/motor.mjs";
 import type { EstadoClub } from "@/lib/club/motor.mjs";
 import { puertaDeLaFirma } from "./puerta-del-pin";
 
 export const SIN_CONEXION_PARA_FIRMAR = "Para firmar como dueño hace falta conexión.";
+export const FIRMA_VENCIDA = "Para firmar como dueño, poné tu PIN de nuevo. No se hizo nada.";
 /**
  * Cuánto vale en este equipo lo que confirmó el servidor: un poco menos que el pase (120 s, pin-servidor.ts), contado
  * con el reloj de acá (el `vence` del servidor puede venir corrido).
@@ -77,8 +83,43 @@ export function pideAlServidor(estado: EstadoClub, { usuarioId, pin }: PinParaFi
   return !(local?.ok && !esPinEnServidor(local.usuario.pin));
 }
 
-/** `corta`: no se corre (sin conexión, espera del servidor, PIN viejo). Si no corta, el motor decide. */
-export type ResultadoDeLaFirma = { ok: true } | { ok: false; corta: boolean; mensaje: string; esperaS?: number };
+/**
+ * `corta`: no se corre (sin conexión, espera del servidor, PIN viejo). Si no corta, el motor decide. `repetido`: había
+ * otra confirmación en curso; no se corre ni se avisa.
+ */
+export type ResultadoDeLaFirma = { ok: true } | { ok: false; corta: boolean; mensaje: string; esperaS?: number; repetido?: true };
+
+const REPETIDO: ResultadoDeLaFirma = { ok: false, corta: true, mensaje: "", repetido: true };
+let enCurso = 0;
+const oyentes = new Set<() => void>();
+const avisarOyentes = () => {
+  for (const f of [...oyentes]) f();
+};
+
+/** ¿Hay una confirmación esperando al servidor? */
+export const firmaEnCurso = (): boolean => enCurso > 0;
+
+/** Avisa cada vez que empieza o termina una confirmación. Devuelve cómo dejar de escuchar. */
+export function alCambiarLaFirmaEnCurso(f: () => void): () => void {
+  oyentes.add(f);
+  return () => void oyentes.delete(f);
+}
+
+/** Para deshabilitar el botón de enviar mientras se verifica en el servidor. */
+export function useFirmaEnCurso(): boolean {
+  return useSyncExternalStore(alCambiarLaFirmaEnCurso, firmaEnCurso, () => false);
+}
+
+/** Corre `f` como LA confirmación en curso; si ya hay una, da `REPETIDO` sin llamar. */
+function unaALaVez(f: () => Promise<ResultadoDeLaFirma>): Promise<ResultadoDeLaFirma> {
+  if (enCurso > 0) return Promise.resolve(REPETIDO);
+  enCurso++;
+  avisarOyentes();
+  return f().finally(() => {
+    enCurso--;
+    avisarOyentes();
+  });
+}
 
 const sinConexion = (): ResultadoDeLaFirma => ({ ok: false, corta: true, mensaje: SIN_CONEXION_PARA_FIRMAR });
 
@@ -110,13 +151,25 @@ async function firmarUno(estado: EstadoClub, f: PinParaFirmar): Promise<Resultad
 export function firmarConElServidor(estado: EstadoClub, firmas: readonly PinParaFirmar[]): Promise<ResultadoDeLaFirma> | null {
   const hacen = firmas.filter((f) => pideAlServidor(estado, f));
   if (!hacen.length) return null;
-  return (async () => {
+  return unaALaVez(async () => {
     for (const f of hacen) {
       const r = await firmarUno(estado, f);
       if (!r.ok) return r;
     }
     return { ok: true } as const;
-  })();
+  });
+}
+
+/**
+ * ¿La firma GUARDADA de quien opera (su PIN de cuando entró) ya no vale en este equipo? Sólo para un dueño con el PIN
+ * en el servidor: su pase dura `VIDA_DEL_PASE_EN_EL_EQUIPO_MS`. La demo, la recepción o sin operador: nunca.
+ */
+export function firmaGuardadaVencida(estado: EstadoClub, auth: { usuarioId?: string | null; pin?: string | null } | null | undefined): boolean {
+  const usuarioId = auth?.usuarioId;
+  const pin = String(auth?.pin ?? "").trim();
+  if (!usuarioId || !pideAlServidor(estado, { usuarioId, pin })) return false;
+  const p = pases.get(usuarioId);
+  return !(p && p.pin === pin && reloj() < p.vence);
 }
 
 interface ConAvisos {
@@ -143,6 +196,7 @@ export function conFirmaDelDuenio<T>(
     return r;
   }
   void espera.then((f) => {
+    if (!f.ok && f.repetido) return;
     if (!f.ok && f.corta) {
       if (alCortar) alCortar(f.mensaje);
       else almacen.informar({ ok: false, mensaje: f.mensaje });
@@ -171,7 +225,7 @@ export function confirmarCodigoDelDuenio(
   if (!n || tipeado.length !== 6 || !hayDueniosEnServidor(estado)) return null;
   // El monto que aprobó el dueño (si se tipeó) o el del pedido: el mismo que mira el motor (`aprobarPorCodigo`).
   const monto = Math.round(Number(aprobado ?? n.monto));
-  return (async () => {
+  return unaALaVez(async () => {
     const puerta = puertaDeLaFirma();
     if (!puerta || !hayConexion()) return { ok: false, corta: true, mensaje: "Para validar el código del dueño hace falta conexión." };
     try {
@@ -185,7 +239,7 @@ export function confirmarCodigoDelDuenio(
     } catch {
       return { ok: false, corta: true, mensaje: "Para validar el código del dueño hace falta conexión." };
     }
-  })();
+  });
 }
 
 /** Lo que da algo que puede necesitar al servidor: en el momento o, si hubo que confirmar un PIN, después. */
@@ -205,6 +259,7 @@ export function firmado<T>(almacen: ConAvisos, firmas: readonly PinParaFirmar[],
   const espera = firmarConElServidor(almacen.estado(), firmas);
   if (espera === null) return correr();
   return espera.then((f) => {
+    if (!f.ok && f.repetido) return siCorta;
     if (!f.ok && f.corta) {
       if (alCortar) alCortar(f.mensaje);
       else almacen.informar({ ok: false, mensaje: f.mensaje });
@@ -212,6 +267,20 @@ export function firmado<T>(almacen: ConAvisos, firmas: readonly PinParaFirmar[],
     }
     return correr();
   });
+}
+
+/**
+ * Lo que firma quien opera con el PIN que tipeó recién (restaurar, archivar, empezar en blanco, la limpieza): como
+ * `firmado`, con el PIN como de quien opera. null: no se corrió (sin conexión, espera del servidor u otro envío en
+ * curso); el aviso, si hace falta, ya fue a `alCortar`.
+ */
+export async function firmaDeQuienOpera<T>(
+  almacen: ConAvisos & { auth(): { usuarioId?: string | null } },
+  pin: string,
+  correr: () => T,
+  alCortar: (mensaje: string) => void,
+): Promise<T | null> {
+  return firmado<T | null>(almacen, [{ usuarioId: almacen.auth().usuarioId ?? null, pin }], correr, null, alCortar);
 }
 
 /** Como `firmado`, para el código del dueño que tipea la recepción (`confirmarCodigoDelDuenio`). */
@@ -224,6 +293,7 @@ export function conCodigoDelDuenio<T>(
   const espera = confirmarCodigoDelDuenio(almacen.estado(), pedido);
   if (espera === null) return correr();
   return espera.then((f) => {
+    if (!f.ok && f.repetido) return siCorta;
     if (!f.ok && f.corta) {
       almacen.informar({ ok: false, mensaje: f.mensaje });
       return siCorta;

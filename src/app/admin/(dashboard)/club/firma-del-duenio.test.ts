@@ -6,7 +6,12 @@ import assert from "node:assert/strict";
 import * as M from "@/lib/club/motor.mjs";
 import { fijarPuertaDeLaFirma, type PuertaDeLaFirma } from "./puerta-del-pin";
 import {
+  FIRMA_VENCIDA,
   SIN_CONEXION_PARA_FIRMAR,
+  alCambiarLaFirmaEnCurso,
+  firmaEnCurso,
+  firmaGuardadaVencida,
+  firmado,
   VIDA_DEL_PASE_EN_EL_EQUIPO_MS,
   conFirmaDelDuenio,
   confirmarCodigoDelDuenio,
@@ -149,4 +154,53 @@ test("el código del dueño lo valida el servidor; sin red avisa", async () => {
   const ok = M.aprobarPorCodigo(e, n.id, { codigo: "QRS-TUV" }, { usuarioId: r.id, pin: pinDe[r.id] }, AHORA);
   assert.ok(ok.ok);
   assert.equal(confirmarCodigoDelDuenio(M.generarDemo(HOY, 19 * 60), { novedadId: n.id, codigo: "QRS-TUV" }), null);
+});
+
+test("una firma a la vez: un segundo envío mientras se verifica no vuelve a llamar ni corre dos veces", async () => {
+  const { d, pinDe, almacen, avisos } = clubReal();
+  let soltar: () => void = () => {};
+  const llamadas: unknown[] = [];
+  fijarPuertaDeLaFirma({
+    ...puertaFalsa(),
+    firmar: (x) => {
+      llamadas.push(x);
+      return new Promise((listo) => (soltar = () => listo({ ok: true, usuarioId: d.id, nombre: d.nombre, pase: "p", vence: 0 })));
+    },
+  });
+  const cambios: boolean[] = [];
+  const dejar = alCambiarLaFirmaEnCurso(() => cambios.push(firmaEnCurso()));
+  let corrio = 0;
+  conFirmaDelDuenio(almacen, [{ usuarioId: d.id, pin: pinDe[d.id] }], () => ++corrio);
+  assert.equal(firmaEnCurso(), true);
+  const segundo = firmado(almacen, [{ usuarioId: d.id, pin: pinDe[d.id] }], () => ++corrio, -1);
+  assert.equal(await segundo, -1, "el segundo no corre");
+  soltar();
+  await esperar();
+  await esperar();
+  dejar();
+  assert.equal(corrio, 1);
+  assert.equal(llamadas.length, 1);
+  assert.deepEqual(avisos, [], "el envío repetido no avisa nada");
+  assert.equal(firmaEnCurso(), false);
+  assert.deepEqual(cambios, [true, false]);
+});
+
+test("la firma guardada de quien opera vale 110 s; después hay que poner el PIN de nuevo", async () => {
+  const { e, d, r, pinDe, almacen } = clubReal();
+  fijarRelojDeLaFirma(() => ahoraMs);
+  puertaQueConfirma(d, pinDe[d.id]);
+  const auth = { usuarioId: d.id, pin: pinDe[d.id] };
+  assert.equal(firmaGuardadaVencida(e, auth), true, "sin pase todavía");
+  conFirmaDelDuenio(almacen, [auth], () => true);
+  await esperar();
+  assert.equal(firmaGuardadaVencida(e, auth), false);
+  ahoraMs += VIDA_DEL_PASE_EN_EL_EQUIPO_MS;
+  assert.equal(firmaGuardadaVencida(e, auth), true);
+  assert.match(FIRMA_VENCIDA, /PIN de nuevo/);
+  // La recepción, la demo y quien no opera: nunca.
+  assert.equal(firmaGuardadaVencida(e, { usuarioId: r.id, pin: pinDe[r.id] }), false);
+  assert.equal(firmaGuardadaVencida(e, {}), false);
+  const demo = M.generarDemo(HOY, 19 * 60);
+  const dd = demo.usuarios.find((u) => u.rol === "duenio")!;
+  assert.equal(firmaGuardadaVencida(demo, { usuarioId: dd.id, pin: M.pinDeEjemplo(dd) }), false);
 });

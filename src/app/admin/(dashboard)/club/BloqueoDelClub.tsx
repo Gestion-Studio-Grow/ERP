@@ -60,7 +60,7 @@ import {
   type QuienEntra,
 } from "./bloqueo-core";
 import { guardaDelPin } from "./tope-de-pin";
-import { firmarConElServidor } from "./firma-del-duenio";
+import { firmarConElServidor, useFirmaEnCurso } from "./firma-del-duenio";
 import type { PropsDePieza } from "./solapas-club";
 import { porFirma, useEstadoDelGuardado, useOperador, useSeleccion } from "./usar-almacen";
 
@@ -297,6 +297,8 @@ function usePruebaDePin(almacen: Almacen, guarda: GuardaDelBloqueo) {
       const espera = trabado ? null : firmarConElServidor(almacen.estado(), [{ usuarioId, pin }]);
       if (espera === null) return seguir(probar(usuarioId, pin, alPinViejo));
       void espera.then((f) => {
+        // Otro envío mientras se verificaba el primero: lo resuelve el primero.
+        if (!f.ok && f.repetido) return;
         if (!f.ok && f.corta) {
           setAnuncio(f.mensaje);
           setError(true);
@@ -472,6 +474,7 @@ function PantallaBloqueada({ almacen, datos, guarda, jornada }: { almacen: Almac
   const ids = useId();
   const dialogo = useRef<HTMLDialogElement>(null);
   const campo = useRef<HTMLInputElement>(null);
+  const verificando = useFirmaEnCurso();
   const [{ motivo, usuarioId: anterior }] = useState(() => ultimoBloqueo(almacen));
   const delAnterior = anterior && datos.quienes.some((u) => u.id === anterior) ? anterior : null;
   // Quien estaba sigue con su PIN; si no había nadie (recarga) y hay una sola persona con PIN, es ella.
@@ -627,8 +630,8 @@ function PantallaBloqueada({ almacen, datos, guarda, jornada }: { almacen: Almac
               </p>
             )}
             <AvisoDelPin id={aviso} anuncio={anuncio} segundos={segundos} error={error} />
-            <Button type="submit" variant="solid" size="md" disabled={segundos > 0}>
-              Desbloquear
+            <Button type="submit" variant="solid" size="md" disabled={segundos > 0 || verificando}>
+              {verificando ? "Verificando…" : "Desbloquear"}
             </Button>
           </form>
         )}
@@ -677,6 +680,7 @@ function CambioDeUsuario({ almacen, datos, guarda, onCerrar }: { almacen: Almace
   const [elegido, setElegido] = useState<string | null>(() => almacen.operador()?.usuario.id ?? null);
   const [pin, setPin] = useState("");
   const { probarFirmado, segundos, anuncio, error } = usePruebaDePin(almacen, guarda);
+  const verificando = useFirmaEnCurso();
   const quien = datos.quienes.find((u) => u.id === elegido) ?? null;
   useEffect(() => {
     if (segundos === 0) requestAnimationFrame(() => campo.current?.focus());
@@ -704,8 +708,8 @@ function CambioDeUsuario({ almacen, datos, guarda, onCerrar }: { almacen: Almace
           <Button variant="outline" size="md" onClick={onCerrar}>
             Cancelar
           </Button>
-          <Button variant="solid" size="md" type="submit" form={`${ids}-f`} disabled={segundos > 0}>
-            Entrar
+          <Button variant="solid" size="md" type="submit" form={`${ids}-f`} disabled={segundos > 0 || verificando}>
+            {verificando ? "Verificando…" : "Entrar"}
           </Button>
         </>
       }
