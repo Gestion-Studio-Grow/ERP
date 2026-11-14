@@ -13,7 +13,7 @@
 //  · Costo (PROFE-005, RLS): con RLS prendido no hay forma de pre-filtrar a los anotados entre
 //    negocios sin migración (PadelConfig tiene RLS). Los candidatos salen de `Tenant` (sin RLS):
 //    negocios activos con el módulo de clases, hasta TOPE_NEGOCIOS. A cada uno se le lee SÓLO el
-//    ajuste en su contexto (1 consulta); a los anotados, 3 más. Armado: 1 + N + 3·anotados, cada
+//    ajuste en su contexto (1 consulta); a los anotados, 3 lecturas más (~7 transacciones con RLS). Cada
 //    10 minutos por instancia.
 
 import type { DiaConLugar } from "@/lib/padel/datos.server";
@@ -37,8 +37,12 @@ export const DIAS_DEL_FILTRO = 7;
 export const HORARIOS_POR_TARJETA = 3;
 /** Cada cuánto se rearma el directorio (caché por instancia, directorio.server.ts). CERT 13/11: 10 min. */
 export const DIRECTORIO_TTL_MS = 10 * 60_000;
-/** Negocios que se leen a la vez (no ahogar el pool de conexiones). */
-export const EN_PARALELO = 6;
+/**
+ * Negocios que se leen a la vez (no ahogar el pool de conexiones). CERT PROFE-005: con RLS cada
+ * lectura es una transacción y un anotado abre ~7; con 6 a la vez había ~20 transacciones contra un
+ * pool de 5 (db-pool.ts). Con 2 quedan ≤ ~8 en cola, dentro del `maxWait`.
+ */
+export const EN_PARALELO = 2;
 
 export type Candidato = { tenantId: string; nombre: string; subdomain: string | null };
 
@@ -116,7 +120,7 @@ async function deA<T, R>(items: readonly T[], n: number, fn: (x: T) => Promise<R
  * Arma el directorio entero (sin filtros; se filtra con `filtrarDirectorio`). Un negocio que falla
  * al leerse se saltea (no tira la página de todos). Orden: con horarios primero, después por nombre.
  */
-export async function armarDirectorio(deps: DepsDirectorio, dominio: string): Promise<ProfePublico[]> {
+export async function armarDirectorio(deps: DepsDirectorio, dominio: string, alFallar: (tenantId: string) => void = () => {}): Promise<ProfePublico[]> {
   const candidatos = (await deps.candidatos(TOPE_NEGOCIOS))
     .slice(0, TOPE_NEGOCIOS)
     .map((c) => ({ ...c, turnero: turneroDe(c.subdomain, dominio) }))
@@ -130,6 +134,7 @@ export async function armarDirectorio(deps: DepsDirectorio, dominio: string): Pr
         const a = await deps.ajuste(c.tenantId);
         return a.directorio.visible && a.directorio.zona ? { c, a } : null;
       } catch {
+        alFallar(c.tenantId);
         return null;
       }
     })
@@ -153,6 +158,7 @@ export async function armarDirectorio(deps: DepsDirectorio, dominio: string): Pr
         turnero: c.turnero,
       };
     } catch {
+      alFallar(c.tenantId);
       return null;
     }
   });
@@ -201,7 +207,7 @@ export function zonasDe(profes: readonly ProfePublico[]): string[] {
 }
 
 /** Memoria corta del directorio armado (por instancia del servidor). PURO salvo el reloj inyectado. */
-export function memoriaCorta<T>(ttlMs: number, reloj: () => number = Date.now) {
+export function memoriaCorta<T>(ttlMs: number, reloj: () => number = Date.now, guardar: (v: T) => boolean = () => true) {
   let guardado: { hasta: number; valor: Promise<T> } | null = null;
   return (cargar: () => Promise<T>): Promise<T> => {
     const ahora = reloj();
@@ -209,9 +215,15 @@ export function memoriaCorta<T>(ttlMs: number, reloj: () => number = Date.now) {
     const valor = cargar();
     guardado = { hasta: ahora + ttlMs, valor };
     // Si falló, no se guarda el error: el próximo pedido vuelve a intentar.
-    valor.catch(() => {
-      if (guardado?.valor === valor) guardado = null;
-    });
+    // Tampoco se guarda un valor que `guardar` rechaza (un armado con negocios que fallaron).
+    valor.then(
+      (v) => {
+        if (!guardar(v) && guardado?.valor === valor) guardado = null;
+      },
+      () => {
+        if (guardado?.valor === valor) guardado = null;
+      },
+    );
     return valor;
   };
 }

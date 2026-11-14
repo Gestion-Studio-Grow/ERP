@@ -16,7 +16,8 @@
 // precios), la verificación de GSG, los horarios libres (`agendaPublica`, lo mismo que muestra su
 // turnero) y los nombres de sus clubes. Nunca alumnos, clases con dueño ni teléfonos.
 //
-// Costo (PROFE-005): 1 + 1 por negocio con el módulo (tope TOPE_NEGOCIOS) + 3 por anotado, cada 10
+// Costo (PROFE-005, medido por el certificador): 1 + 1 por negocio con el módulo (tope TOPE_NEGOCIOS)
+// + ~7 transacciones por anotado (con RLS cada lectura es una transacción), cada 10
 // minutos por instancia (`memoriaCorta`). Volver a 1 + 4·anotados pide sacar `_directorio` a una
 // columna o tabla sin RLS: migración, Gate 2 del dueño.
 // TODO(deuda): la caché es POR INSTANCIA. El repo no usa `unstable_cache`/"use cache" de Next en
@@ -47,6 +48,8 @@ export const depsDirectorio: DepsDirectorio = {
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       take: tope,
     });
+    // CERT PROFE-005 (MEDIA): al llegar al tope, los más nuevos quedan afuera. Que se vea en el log.
+    if (filas.length >= tope) console.warn(`[profeturnos/directorio] tope de ${tope} negocios alcanzado: los más nuevos no se miran (pasar _directorio a columna, Gate 2)`);
     return filas.map((t) => ({ tenantId: t.id, nombre: t.name, subdomain: t.subdomain }));
   },
   ajuste: (tenantId) =>
@@ -66,10 +69,17 @@ export const depsDirectorio: DepsDirectorio = {
   clubes: (tenantId) => enSuNegocio(tenantId, async () => (await clubesDe(tenantId)).map((c) => c.nombre)),
 };
 
-const memoria = memoriaCorta<ProfePublico[]>(DIRECTORIO_TTL_MS);
+type Armado = { profes: ProfePublico[]; completo: boolean };
+// Un armado con negocios que fallaron (p. ej. el pool esperando a Neon en frío) no se guarda 10 min.
+const memoria = memoriaCorta<Armado>(DIRECTORIO_TTL_MS, Date.now, (a) => a.completo);
 
 /** El directorio entero (sin filtrar), con caché de 10 minutos. */
 export function directorioDeProfes(): Promise<ProfePublico[]> {
   const dominio = process.env.APP_BASE_DOMAIN?.trim() || DOMINIO_POR_DEFECTO;
-  return memoria(() => armarDirectorio(depsDirectorio, dominio));
+  return memoria(async () => {
+    const fallas: string[] = [];
+    const profes = await armarDirectorio(depsDirectorio, dominio, (id) => fallas.push(id));
+    if (fallas.length) console.warn(`[profeturnos/directorio] ${fallas.length} negocio(s) no se pudieron leer; el armado no se guarda en caché`);
+    return { profes, completo: fallas.length === 0 };
+  }).then((a) => a.profes);
 }

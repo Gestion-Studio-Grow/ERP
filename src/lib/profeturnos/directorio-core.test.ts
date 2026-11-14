@@ -202,3 +202,24 @@ test("CERT 13/11 · caché de 10 minutos", async () => {
   ahora = DIRECTORIO_TTL_MS;
   assert.equal(await memo(async () => ++cargas), 2);
 });
+
+test("CERT PROFE-005 · un negocio que falla se avisa, y la memoria no guarda lo que `guardar` rechaza", async () => {
+  const { deps } = fake([neg("ana", dir(true)), neg("roto", dir(true), { romper: true })]);
+  const fallas: string[] = [];
+  const out = await armarDirectorio(deps, "gsgapp.com.ar", (id) => fallas.push(id));
+  assert.deepEqual(out.map((p) => p.clave), ["ana"]);
+  assert.deepEqual(fallas, ["roto"]);
+
+  let cargas = 0;
+  const memo = memoriaCorta<{ completo: boolean }>(60_000, () => 0, (v) => v.completo);
+  const incompleto = async () => (++cargas, { completo: false });
+  await memo(incompleto);
+  await new Promise((r) => setImmediate(r));
+  await memo(incompleto);
+  assert.equal(cargas, 2, "un armado incompleto no queda en caché");
+  const completo = async () => (++cargas, { completo: true });
+  await memo(completo);
+  await new Promise((r) => setImmediate(r));
+  await memo(completo);
+  assert.equal(cargas, 3, "uno completo sí");
+});
