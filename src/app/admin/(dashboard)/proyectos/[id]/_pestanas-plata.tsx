@@ -284,7 +284,11 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
                         {/* Lo que se pagó tal como entró (el original y los pesos asentados), no lo que vale hoy: eso va en el importe. */}
                         {c.pagado && (c.pagado.pesos !== null || c.pagado.moneda !== c.moneda || c.pagado.monto !== c.monto) && <span className="block text-xs text-muted">Pagó {textoPagado(c.pagado)}</span>}
                       </td>
-                      <td className={cn("hidden py-1.5 pr-2 text-right tabular-nums sm:table-cell", importe < 0 ? "text-danger" : "text-strong")}>{enCaja(importe)}</td>
+                      <td className={cn("hidden py-1.5 pr-2 text-right tabular-nums sm:table-cell", importe < 0 ? "text-danger" : "text-strong")}>
+                        {enCaja(importe)}
+                        {/* La línea es la cuota entera (como la de cobro: lo que entró más lo que falta); lo ya pagado en partes se dice. */}
+                        {c.tipo !== "COBRO" && !c.pagadoEl && !c.anuladoEl && c.cobrado > 0 && <span className="block text-xs text-muted">{plataEn(c.cobrado, c.moneda)} ya pagado en partes</span>}
+                      </td>
                       <td className={cn("hidden py-1.5 pr-2 text-right font-medium tabular-nums sm:table-cell", saldo < 0 && "text-danger")}>{enCaja(saldo)}</td>
                       <td className="col-span-2 py-1.5 pr-2">{c.prevista && !c.pagadoEl ? <Badge tone="neutral">Prevista</Badge> : <Badge tone={estado === "PAGADA" ? "success" : estado === "VENCIDA" ? "danger" : "neutral"}>{estado === "PAGADA" ? (c.tipo === "COBRO" ? "Cobrado" : "Pagado") : estado === "VENCIDA" ? "Vencido" : "Pendiente"}</Badge>}</td>
                       <td className="col-span-2 py-1">
@@ -301,7 +305,8 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
                         )}
                         {!c.pagadoEl && !c.prevista && vista.editaPagos && (c.tipo !== "COBRO" || c.pendiente > 0) && (
                           <div className="flex flex-wrap items-center gap-1 sm:justify-end">
-                            <FormAccion accion={marcarCuota} className="flex flex-wrap items-center gap-1">
+                            {/* `limpiar`: tras una parte que salió bien, el monto no queda escrito para un segundo clic. */}
+                            <FormAccion accion={marcarCuota} limpiar className="flex flex-wrap items-center gap-1">
                               <input type="hidden" name="id" value={c.id} />
                               <select name="medio" aria-label={`Medio de ${c.concepto}`} defaultValue="TRANSFERENCIA" className={campoEnLinea}>
                                 {MEDIOS.map((m) => <option key={m} value={m}>{MEDIO_LABEL[m]}</option>)}
@@ -375,6 +380,13 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
             <div><dt className="text-muted">Ganancia real</dt><dd className="font-bold text-strong">{d.real.gananciaReal === null ? "—" : `${pesos(d.real.gananciaReal)} (${porcentaje(d.real.margenReal ?? 0)})`}</dd></div>
             <div><dt className="text-muted">Por pagar</dt><dd className="font-medium text-strong">{pesos(d.real.porPagar)}</dd></div>
           </dl>
+          {/* Una rendición o un gasto aparte al mismo proveedor mientras quedan cuotas a proveedor por pagar: si pagó una de esas
+              cuotas, está contado dos veces. No hay enlace que lo diga, así que no se resta solo: se avisa hasta cuánto. */}
+          {d.enDuda > 0 && (
+            <p role="status" className="mb-3 rounded-md border border-warning/30 bg-warning-soft px-3 py-2.5 text-sm text-strong">
+              Ojo: hasta {pesos(d.enDuda)} pueden estar contados dos veces. Hay rendiciones o gastos cargados aparte al mismo proveedor mientras quedan cuotas a proveedores por pagar. Si alguno de esos gastos pagó una de esas cuotas, el costo real es hasta {pesos(d.enDuda)} menor y la ganancia real, hasta {pesos(d.enDuda)} mayor. Avisale a Administración para que lo revise.
+            </p>
+          )}
           {d.rubros.some((r) => r.real > 0) && (
             <div className="mb-3 overflow-x-auto">
               <table className="w-full min-w-[420px] text-sm">

@@ -38,6 +38,8 @@ export function avisoSaldoCambio(antes: number, ahora: number, moneda: string, e
   const que = esCobro ? "cobro" : "pago";
   // La causa no se conoce: también la mueve un cambio del plan (otro anticipo, otro costo). Se nombra la probable y esa.
   const porque = `${ahora > antes ? `se anuló un ${que}` : `entró otro ${que}`} o cambió el plan de cuotas`;
+  // Cubierta mientras tanto: «le faltan $ 0» no dice nada. Dice qué pasó y que ya no hay nada para asentar.
+  if (redondear(ahora) <= 0) return `No se asentó nada: a esta cuota le faltaban ${plataEn(redondear(antes), moneda)} y ya no le falta nada (${porque} mientras tanto). Recargá la página para verla al día.`;
   return `No se asentó nada: a esta cuota le faltaban ${plataEn(redondear(antes), moneda)} y ahora le faltan ${plataEn(redondear(ahora), moneda)} (${porque} mientras tanto). Si querés asentar lo que falta ahora, escribí el monto y confirmá, o recargá la página.`;
 }
 

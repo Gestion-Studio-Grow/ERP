@@ -20,7 +20,8 @@ import { configProyectos } from "./datos.server";
 import { cobranzaConCuotas, pendienteDeLaCuota, trabarCobranza } from "./cobranza.server";
 import { lugarParaCobroManual, pasaElTope } from "./cobranza-core";
 import { avisoMasQueLaCuota, avisoSaldoCambio, avisoTopeCuota, avisoTopeMarcar, listoAnulado, listoMarcada, listoParcial } from "./avisos-cuota";
-import { pendienteDelPago } from "./pago-parcial.server";
+import { pagosParcialesDeCuotas, pendienteDelPago } from "./pago-parcial.server";
+import { faltaDelPago, SALDADA_CON_PARTES } from "./pago-parcial-core";
 import { cambioDeVenta, aPesos, CHECKLIST_BASE, ESTADOS_ITEM, MONEDAS, RUBROS, TIPOS_EVENTO, veTodosLosProyectos } from "./gestion-core";
 import { avisar, columnasOcultas, exigirEditar, usuariosDelEquipo, usuariosDeDireccion, usuariosDeLaPlata, proyectoVisible, puede, regenerarCuotas, registrarCambio, tiposDeCambio, type Actor } from "./gestion.server";
 import { tipoDeArchivoSubido, clavesARenombrar, fechaAntesDe, fotoDeVersion, itemDeClave, linkSeguro, monedasSinCambio, numeroDe, PERDIDO, precioAlCambiarCambio, precioAlCopiar, precioAlEnviar, servicioDeTipo } from "./ficha-core";
@@ -482,7 +483,15 @@ export async function guardarCampoItem(d: { id: string; campo: string; valor: st
 
   const pierdeAprobacion = CAMPOS_DE_PRECIO.has(campo) && !!it.presupuesto.aprobadoInternoEl;
   const precioEnOtraMoneda = campo === "precio" && it.presupuesto.proyecto.moneda !== "ARS";
-  const grabado = await tenantTransaction(async (tx) => {
+  // Regla del dueño (14/11): con pagos asentados al proveedor de este ítem, su moneda no se cambia (lo pagado quedaría
+  // valuado al cambio de cada día e inventaría deuda). Se anula y se registra bien. `true` = no se graba.
+  const otraMoneda = campo === "moneda" && valor !== it.moneda;
+  const grabado = await tenantTransaction(async (tx): Promise<boolean | "conPagos"> => {
+    if (otraMoneda) {
+      // En fila con «Marcar pagado» (el mismo candado): un pago que entra mientras tanto no queda en la moneda vieja.
+      await trabarCobranza(tx, tenantId, proyectoId);
+      if (await itemConPagos(tx, tenantId, proyectoId, it.id)) return "conPagos";
+    }
     if (precioEnOtraMoneda) {
       // En fila con «Guardar textos» (que cambia el cambio de la versión): el precio se pasó a pesos con el cambio leído
       // afuera; si mientras tanto cambió, no se graba (quedaría a otro cambio que el que ve el cliente). Cert. F2.
@@ -496,10 +505,19 @@ export async function guardarCampoItem(d: { id: string; campo: string; valor: st
     if (congelarCambio) await tx.proyectoPresupuesto.updateMany({ where: { id: it.presupuesto.id, tenantId, tcVenta: null }, data: { tcVenta: congelarCambio } });
     return true;
   });
+  if (grabado === "conPagos") return mal(`La moneda de «${it.descripcion}» no se puede cambiar: ya hay pagos al proveedor asentados en ${it.moneda}. Para corregirla, anulá esos pagos (en Gastos), cambiá la moneda y registralos de nuevo.`);
   if (!grabado) return mal("El tipo de cambio de esta versión cambió mientras escribías. Recargá la página y volvé a cargar el precio.");
   if (!SIN_EFECTO_EN_CUOTAS.has(campo)) await regenerar(tenantId, proyectoId);
   refrescar(proyectoId);
   return { ok: true };
+}
+
+/** Si al proveedor de un ítem ya se le pagó algo por sus cuotas: una marcada o una parte viva (también de una que el plan sacó). */
+async function itemConPagos(tx: Prisma.TransactionClient, tenantId: string, proyectoId: string, itemId: string): Promise<boolean> {
+  const cuotas = await tx.proyectoCuota.findMany({ where: { tenantId, proyectoId, tipo: { not: "COBRO" }, clave: { startsWith: `${proyectoId}:${itemId}:` } }, select: { id: true, tipo: true, moneda: true, pagadoEl: true, anuladoEl: true } });
+  if (cuotas.some((c) => c.pagadoEl && !c.anuladoEl)) return true;
+  // Las partes se valúan en su moneda; acá sólo importa si hay alguna, así que el cambio no hace falta.
+  return (await pagosParcialesDeCuotas(tenantId, cuotas, {}, tx, true)).size > 0;
 }
 
 export async function agregarItemFicha(formData: FormData): Promise<ResultadoFicha> {
@@ -810,7 +828,9 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
   const leido = esCobro ? await pendienteDeLaCuota(tenantId, proyectoId, id, tc, margenPct) : { pendiente: await pendienteDelPago(tenantId, c, tc), cob: null };
   if (leido === null) return mal("Esa cuota ya estaba marcada.");
   const { pendiente } = leido;
-  if (!(pendiente > 0)) return mal(esCobro ? "Esta cuota ya quedó cubierta con cobros registrados aparte: no queda nada por cobrar." : "Esta cuota ya quedó pagada en partes: no queda nada por pagar.");
+  // Un pago que sus partes ya cubren (bajó el anticipo después de pagar una parte): se salda sin asentar nada más.
+  if (!esCobro && !(pendiente > 0)) return saldarConSusPartes(tenantId, proyectoId, c, a.nombre);
+  if (!(pendiente > 0)) return mal("Esta cuota ya quedó cubierta con cobros registrados aparte: no queda nada por cobrar.");
   // «Una parte»: `monto` en la moneda de la cuota, menor que lo que le falta. Vacío = todo lo que le falta (y la marca).
   const textoParte = txt(formData.get("monto"));
   const parte = textoParte ? numeroDe(textoParte) : null;
@@ -897,6 +917,35 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
   revalidatePath(`${RAIZ}/administracion`);
   if (!esCobro) revalidatePath(`${RAIZ}/proveedores`);
   return { ok: true, listo: parcial !== null ? listoParcial(importe, pendiente - parcial, c.moneda, esCobro) : listoMarcada(esCobro, importe) };
+}
+
+/**
+ * Marca como pagada una cuota a proveedor que lo pagado en partes ya cubre, sin asentar otro gasto ni mover caja ni banco:
+ * la plata ya salió en sus partes (recorrido del PR #166 · 2). En fila con los otros pagos del proyecto y releído adentro:
+ * si mientras tanto se anuló una parte, le vuelve a faltar y no se marca.
+ */
+async function saldarConSusPartes(tenantId: string, proyectoId: string, c: { id: string; tipo: string; monto: number; moneda: string; concepto: string; pagadoEl: Date | null; anuladoEl: Date | null }, autor: string): Promise<ResultadoFicha> {
+  const r = await tenantTransaction(async (tx): Promise<"ok" | "falta" | "marcada"> => {
+    await trabarCobranza(tx, tenantId, proyectoId);
+    const tc = await tiposDeCambio(tenantId, tx);
+    const pagado = (await pagosParcialesDeCuotas(tenantId, [c], tc, tx)).get(c.id) ?? 0;
+    if (!(pagado > 0) || faltaDelPago(c.monto, pagado) > 0) return "falta";
+    // Marcada vale lo que se pagó por ella (si las partes pasan el monto, ese monto): una marcada ya no descuenta sus partes
+    // del plan, y con el monto chico el saldo volvería a pedir el excedente ya pagado (certificación). Como `descontarPartes`.
+    const u = await tx.proyectoCuota.updateMany({
+      where: { id: c.id, tenantId, pagadoEl: null, anuladoEl: null, prevista: false, monto: c.monto, moneda: c.moneda },
+      data: { pagadoEl: new Date(), pagadoPor: SALDADA_CON_PARTES, monto: Math.max(c.monto, redondear(pagado)) },
+    });
+    if (u.count === 0) return "marcada";
+    await registrarCambio(tx, { tenantId, proyectoId, entidad: "ProyectoCuota", entidadId: c.id, campo: `Pagado · ${c.concepto}`, antes: "Pendiente", despues: SALDADA_CON_PARTES, autor });
+    return "ok";
+  });
+  if (r === "falta") return mal("Mientras tanto se anuló una parte: a esta cuota le vuelve a faltar plata. Recargá la página para ver cuánto.");
+  if (r === "marcada") return mal("Esa cuota ya estaba marcada.");
+  await auditAdmin({ action: "proyecto.cuota.saldar-con-partes", entity: "ProyectoCuota", entityId: c.id, changes: {} });
+  refrescar(proyectoId);
+  revalidatePath(`${RAIZ}/administracion`);
+  return { ok: true, listo: "Listo: lo pagado en partes ya cubría esta cuota. Quedó saldada, sin asentar otro pago." };
 }
 
 export async function crearMovimientoManual(formData: FormData): Promise<ResultadoFicha> {

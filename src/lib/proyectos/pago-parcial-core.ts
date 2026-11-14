@@ -7,6 +7,7 @@
 import { leerOriginal } from "./cobranza-core";
 import { redondear } from "./core";
 import { aPesos } from "./gestion-core";
+import { itemDeClave } from "./ficha-core";
 
 /** Lo que vale una parte pagada en la moneda de su cuota: el original del enlace o, si no lo tiene, los pesos al cambio de hoy. PURA. */
 export function parteEnSuMoneda(moneda: string, pesos: number, enlace: string | null | undefined, tc: Readonly<Record<string, number>>): number {
@@ -52,9 +53,42 @@ export function porPagarDeCuotas(
   return redondear(
     cuotas.reduce((s, q) => {
       if (q.tipo === "COBRO" || q.pagadoEl || q.anuladoEl || q.prevista) return s;
-      return s + aPesos(faltaDelPago(q.monto, (q.id && pagados.get(q.id)) || 0), q.moneda, tc);
+      // Cada cuota redondeada al centavo, como la tabla por rubro (`porPagarComoGastos`): las dos suman lo mismo.
+      return s + redondear(aPesos(faltaDelPago(q.monto, (q.id && pagados.get(q.id)) || 0), q.moneda, tc));
     }, 0),
   );
+}
+
+/**
+ * Lo mismo que `porPagarDeCuotas`, cuota por cuota y con el rubro de su ítem (`rubroDeItem`, por id; una cuota a mano o de un
+ * ítem que no está, «General», el rubro con que la asienta «Marcar pagado»): así la tabla por rubro de Costo real suma lo
+ * mismo que su Diferencia (recorrido del PR #166 · 5). Como gastos sin pagar, para `desvioPorRubro`. PURA.
+ */
+export function porPagarComoGastos(
+  cuotas: readonly (CuotaDePago & { clave?: string | null; moneda: string; prevista?: boolean | null })[],
+  pagados: ReadonlyMap<string, number>,
+  tc: Readonly<Record<string, number>>,
+  rubroDeItem: ReadonlyMap<string, string>,
+): { rubro: string; neto: number; iva: number; pagadoEl: null; anuladoEl: null }[] {
+  return cuotas.flatMap((q) => {
+    if (q.tipo === "COBRO" || q.pagadoEl || q.anuladoEl || q.prevista) return [];
+    const neto = redondear(aPesos(faltaDelPago(q.monto, (q.id && pagados.get(q.id)) || 0), q.moneda, tc));
+    if (!(neto > 0)) return [];
+    const item = itemDeClave(q.clave);
+    return [{ rubro: (item && rubroDeItem.get(item)) || "General", neto, iva: 0, pagadoEl: null, anuladoEl: null }];
+  });
+}
+
+/** Quién «pagó» una cuota que sus partes cubrieron: no hubo un pago más, se saldó con lo ya pagado. */
+export const SALDADA_CON_PARTES = "Saldada con sus partes";
+
+/**
+ * Las cuotas del plan que sus partes ya cubren (lo pagado en parte, en la moneda del plan, llega a su monto al centavo):
+ * quedan saldadas, no «Pendiente · Falta $ 0» con un «Marcar pagado» que no tiene nada que pagar (recorrido del PR #166 · 2).
+ * Pasa, por ejemplo, cuando el anticipo baja (50 % → 20 %) después de pagar una parte. PURA.
+ */
+export function cubiertasPorSusPartes(plan: readonly { clave: string; monto: number }[], partes: ReadonlyMap<string, number>): Set<string> {
+  return new Set(plan.filter((c) => (partes.get(c.clave) ?? 0) > 0 && faltaDelPago(c.monto, redondear(partes.get(c.clave)!)) === 0).map((c) => c.clave));
 }
 
 /**

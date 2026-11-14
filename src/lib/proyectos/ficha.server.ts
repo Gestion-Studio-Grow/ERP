@@ -12,9 +12,9 @@ import { columnasOcultas, filtroDeProyectos, puede, tiposDeCambio, versionViva, 
 import { configProyectos, datosDelNegocio } from "./datos.server";
 import { cobranza, conciliarConCobros, montoEnCashflow, pagadoDeCuota, repartoDeCobros, SIN_PREVISTAS_SIN_MARCAR, totalesEnPesos } from "./cobranza-core";
 import { cobranzasDelNegocio } from "./cobranza.server";
-import { conPagosParciales, conPartesComoPagadas, porPagarDeCuotas } from "./pago-parcial-core";
+import { conPagosParciales, conPartesComoPagadas, porPagarComoGastos } from "./pago-parcial-core";
 import { pagosParcialesDeCuotas } from "./pago-parcial.server";
-import { desvioPorRubro, fechaCorta, fechaParaInput, redondear, resultadoReal } from "./core";
+import { costoEnDuda, desvioPorRubro, fechaCorta, fechaParaInput, redondear, resultadoReal } from "./core";
 import { cambioDeVenta, costoSinProveedor, enMonedaDeVenta, ventaEn } from "./gestion-core";
 import { cambioVisible, columnaDe, filaDeFicha, iniciales, monedasSinCambio, planillaDeVenta } from "./ficha-core";
 
@@ -177,13 +177,15 @@ export async function datosCotizacion(a: Actor, proyectoId: string) {
 export async function datosFinanzas(a: Actor, cab: Cabecera, vista: Vista) {
   const proyectoId = cab.proyecto.id;
   const { tenantId } = a;
-  const [todas, pagos, gastos, aprobada, proveedores, cobranzas] = await Promise.all([
+  const [todas, pagos, gastos, aprobada, proveedores, cobranzas, asientos] = await Promise.all([
     prisma.proyectoCuota.findMany({ where: { tenantId, proyectoId }, include: { supplier: { select: { name: true } } }, orderBy: { venceEl: "asc" } }),
     prisma.proyectoPago.findMany({ where: { tenantId, proyectoId }, orderBy: { createdAt: "desc" } }),
     vista.costos ? prisma.proyectoGasto.findMany({ where: { tenantId, proyectoId }, orderBy: [{ fecha: "desc" }, { createdAt: "desc" }], include: { supplier: { select: { name: true } } } }) : [],
     prisma.proyectoPresupuesto.findFirst({ where: { tenantId, proyectoId, estado: "APROBADO" }, orderBy: { version: "desc" }, select: { ivaPct: true, items: true } }),
     vista.editaPagos ? prisma.supplier.findMany({ where: { tenantId, active: true }, orderBy: { name: "asc" }, take: 500, select: { id: true, name: true } }) : [],
     cobranzasDelNegocio(tenantId, cab.tc, cab.config.margenPct, [proyectoId]),
+    // Los gastos que salieron de una cuota (su pago o una parte): esos no pueden estar contados dos veces.
+    vista.costos ? prisma.proyectoCambio.findMany({ where: { tenantId, proyectoId, entidad: "ProyectoCuota", campo: "Asiento" }, select: { despues: true } }) : [],
   ]);
   // La fuente única de cobrado / saldo (cobranza-core): la misma cuenta que Estado financiero, clientes y reportes.
   const cob = cobranzas.get(proyectoId) ?? cobranza(0, []);
@@ -200,6 +202,12 @@ export async function datosFinanzas(a: Actor, cab: Cabecera, vista: Vista) {
   // Pasados a pesos: un ítem en dólares no se puede comparar como si fueran pesos.
   const aprobadaEnPesos = aprobada?.items.map((i) => ({ rubro: i.rubro, cantidad: i.cantidad, costo: aPesos(i.costo, i.moneda, cab.tc), precio: i.cantidad > 0 ? ventaTotalItem(i, cab.tc, cab.config.margenPct) / i.cantidad : 0 })) ?? [];
   const totalesAprobada = aprobada ? totalesEnPesos(aprobada, cab.tc, cab.config.margenPct) : null;
+  // D6: lo que falta pagar por cuotas a proveedor también es costo (y deuda): si no, la ganancia real queda inflada. Cuota
+  // por cuota con el rubro de su ítem, así la tabla por rubro suma lo mismo que la Diferencia.
+  const comprometidos = vista.costos ? porPagarComoGastos(todas, pagados, cab.tc, new Map((cab.viva?.items ?? []).map((i) => [i.id, i.rubro]))) : [];
+  const porPagarCuotas = redondear(comprometidos.reduce((s, c) => s + c.neto, 0));
+  const proveedoresConDeuda = new Set(todas.filter((c, i) => c.tipo !== "COBRO" && !c.pagadoEl && !c.anuladoEl && !c.prevista && reparto.pendiente[i] > 0 && c.supplierId).map((c) => c.supplierId!));
+  const enlazados = new Set(asientos.flatMap((x) => (x.despues ? [x.despues] : [])));
   return {
     cuotas: visibles,
     flujo,
@@ -210,9 +218,10 @@ export async function datosFinanzas(a: Actor, cab: Cabecera, vista: Vista) {
     totalAprobado: cob.total,
     cobrado: cob.cobrado,
     saldo: cob.saldo,
-    // D6: lo que falta pagar por cuotas a proveedor también es costo (y deuda): si no, la ganancia real queda inflada.
-    real: resultadoReal(totalesAprobada, gastos, vista.costos ? porPagarDeCuotas(todas, pagados, cab.tc) : 0),
-    rubros: desvioPorRubro(aprobadaEnPesos, gastos),
+    real: resultadoReal(totalesAprobada, gastos, porPagarCuotas),
+    // Una rendición o un gasto aparte al mismo proveedor puede haber pagado una de esas cuotas: hasta cuánto (aviso).
+    enDuda: costoEnDuda(gastos, enlazados, porPagarCuotas, proveedoresConDeuda),
+    rubros: desvioPorRubro(aprobadaEnPesos, [...gastos, ...comprometidos]),
     proveedores,
   };
 }

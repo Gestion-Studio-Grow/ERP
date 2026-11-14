@@ -2,7 +2,7 @@
 
 // Los pedazos con estado de Administración: marcar, guardar al salir del campo, confirmar en dos pasos, importar y editar.
 
-import { useEffect, useRef, useState, useTransition, type ChangeEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, useTransition, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { buttonClasses, cn } from "@/components/ui";
 import { marcarCuota } from "@/lib/proyectos/acciones-ficha";
@@ -35,6 +35,15 @@ function useAccion() {
   return { error, ocupado, correr };
 }
 
+/**
+ * `onSubmit` en vez de `action`: React 19 vacía un <form action> al terminar, también cuando falló, y el medio volvía a
+ * «Transferencia» con el monto y la cuenta borrados (recorrido del PR #166 · 4). Así lo cargado queda hasta que salga bien.
+ */
+const alEnviar = (enviar: (fd: FormData) => void) => (e: FormEvent<HTMLFormElement>) => {
+  e.preventDefault();
+  enviar(new FormData(e.currentTarget, (e.nativeEvent as SubmitEvent).submitter));
+};
+
 const Fallo = ({ texto }: { texto: string | null }) => (texto ? <p role="alert" className="text-sm text-danger">{texto}</p> : null);
 
 // ── Formularios ─────────────────────────────────────────────────────────────
@@ -46,11 +55,11 @@ export function FormAccion({ accion, children, boton, className, limpiar = true 
     <form
       ref={form}
       className={cn("grid gap-2", className)}
-      action={(fd) =>
+      onSubmit={alEnviar((fd) =>
         correr(accion, fd, () => {
           if (limpiar) form.current?.reset();
-        })
-      }
+        }),
+      )}
     >
       {children}
       <button type="submit" disabled={ocupado} className={cn(buttonClasses("solid", "md"), "min-h-11 justify-self-start")}>{ocupado ? "Guardando…" : boton}</button>
@@ -126,7 +135,7 @@ export function MarcarCuota({ id, deEmpresa, etiqueta, falta, moneda = "ARS", co
   return (
     <form
       className="grid min-w-44 gap-1"
-      action={(fd) => {
+      onSubmit={alEnviar((fd) => {
         fd.set("id", id);
         correr(deEmpresa ? marcarCuotaEmpresa : (marcarCuota as Accion), fd, (r) => {
           // El renglón pasa a «Cobrada»/«Pagada» al refrescar: el aviso flotante es lo que confirma que salió.
@@ -134,7 +143,7 @@ export function MarcarCuota({ id, deEmpresa, etiqueta, falta, moneda = "ARS", co
           setAbierto(false);
           router.refresh();
         });
-      }}
+      })}
     >
       <select name="medio" aria-label="Medio de pago" defaultValue="TRANSFERENCIA" className={campo}>
         {MEDIOS.map((m) => <option key={m} value={m}>{MEDIO_LABEL[m]}</option>)}

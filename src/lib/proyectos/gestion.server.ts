@@ -19,7 +19,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { configProyectos } from "./datos.server";
 import { venceDeLaCuota, ajustarAPagado, cambioDeVenta, COLUMNAS_OCULTAS_BASE, cuotaPrevista, rolDelActor, mailDeAviso, permisoDe, planDeCuotas, veTodosLosProyectos, type ItemFicha, type ModuloGestion, type RolGestion } from "./gestion-core";
 import { tiposDeCambio, trabarCobranza } from "./cobranza.server";
-import { descontarPartes, partesEnMonedaDelPlan } from "./pago-parcial-core";
+import { cubiertasPorSusPartes, descontarPartes, partesEnMonedaDelPlan, SALDADA_CON_PARTES } from "./pago-parcial-core";
 import { pagosParcialesDeCuotas } from "./pago-parcial.server";
 
 export interface Actor {
@@ -296,7 +296,11 @@ async function aplicarPlan(tx: Prisma.TransactionClient, tenantId: string, proye
   const partes = await pagosParcialesDeCuotas(tenantId, actuales, tc, tx, true);
   const ajustado = ajustarAPagado(planDeLaFicha, marcadas.map((c) => ({ clave: c.clave ?? "", monto: c.monto })));
   // En la moneda que el plan nuevo le da a cada ítem (el ítem pudo cambiar de pesos a dólares o al revés).
-  const plan = descontarPartes(ajustado, partesEnMonedaDelPlan(actuales, partes, ajustado, tc), new Set(marcadas.map((c) => c.clave ?? "")));
+  const partesDelPlan = partesEnMonedaDelPlan(actuales, partes, ajustado, tc);
+  const plan = descontarPartes(ajustado, partesDelPlan, new Set(marcadas.map((c) => c.clave ?? "")));
+  // La que sus partes ya cubren (bajó el anticipo después de pagar una parte) queda saldada: no «Falta $ 0» sin salida.
+  // No asienta nada: lo pagado ya está en sus partes; anular una parte la reabre (`reabrirCuotaTx`).
+  const cubiertas = cubiertasPorSusPartes(plan, partesDelPlan);
   const porClave = new Map(actuales.map((c) => [c.clave, c]));
   const vigentes = new Set(plan.map((c) => c.clave));
   const hoy = new Date();
@@ -304,12 +308,24 @@ async function aplicarPlan(tx: Prisma.TransactionClient, tenantId: string, proye
   for (const c of plan) {
     const previa = porClave.get(c.clave);
     if (previa?.pagadoEl) continue;
-    const datos = { prevista, tipo: c.tipo, concepto: c.concepto, monto: c.monto, moneda: c.moneda, venceEl: venceDeLaCuota({ clave: c.clave, plan: c.venceEl, prevista, hoy, previa }), supplierId: c.supplierId, anuladoEl: null };
+    const saldada = cubiertas.has(c.clave) && !!previa;
+    const datos = {
+      prevista,
+      tipo: c.tipo,
+      concepto: c.concepto,
+      monto: c.monto,
+      moneda: c.moneda,
+      venceEl: venceDeLaCuota({ clave: c.clave, plan: c.venceEl, prevista, hoy, previa }),
+      supplierId: c.supplierId,
+      anuladoEl: null,
+      ...(saldada && { pagadoEl: hoy, pagadoPor: SALDADA_CON_PARTES }),
+    };
     // Sólo si sigue sin marcar: una cuota marcada mientras se ajustaba queda congelada (no se le pisa monto ni `prevista`)
     // y el plan se vuelve a calcular con ella. (El candado de la factura de cuota es de la Etapa 2 · T2.)
     if (previa) {
       const r = await tx.proyectoCuota.updateMany({ where: { id: previa.id, tenantId, pagadoEl: null }, data: datos });
       choco = r.count === 0 || choco;
+      if (saldada && r.count > 0) await registrarCambio(tx, { tenantId, proyectoId, entidad: "ProyectoCuota", entidadId: previa.id, campo: `Pagado · ${c.concepto}`, antes: "Pendiente", despues: SALDADA_CON_PARTES, autor: "Sistema" });
     } else await tx.proyectoCuota.create({ data: { ...datos, tenantId, proyectoId, auto: true, clave: c.clave } });
   }
   const sobran = actuales.filter((c) => c.clave && !vigentes.has(c.clave) && !c.pagadoEl && !c.anuladoEl).map((c) => c.id);
