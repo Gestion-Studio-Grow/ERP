@@ -246,6 +246,8 @@ test("un solo rol decide también las apps de GSG", () => {
 test("cada rol ve su mapa y ninguna app de la barra le rebota", () => {
   assert.equal(appEnLaBarra("gestion-direccion", "DIRECCION"), true);
   assert.equal(appEnLaBarra("gestion-diseno", "DIRECCION"), false);
+  assert.equal(appEnLaBarra("caja-del-dia", "DIRECCION"), true); // QA MIA #6
+  assert.equal(appEnLaBarra("caja-del-dia", "COMERCIAL"), false);
   assert.equal(appEnLaBarra("clientes", "COMERCIAL"), true);
   assert.equal(appEnLaBarra("gestion-administracion", "PRODUCCION"), false);
   assert.equal(appEnLaBarra("gestion-propuesta-ia", "ADMINISTRACION"), false);

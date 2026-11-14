@@ -23,7 +23,8 @@ import { provisionTenant } from "../scripts/provision-tenant";
 import { computar, costosVigentes, disenoInicial, type DisenoStand } from "../src/lib/proyectos/stand";
 import { precioConMargen } from "../src/lib/proyectos/core";
 import { marcaDeGastoProyecto } from "../src/lib/proyectos/marcas";
-import { sembrarGestion } from "./seed-mia-gestion";
+import { cobroDeCuota, sembrarGestion } from "./seed-mia-gestion";
+import { planDeCuotas } from "../src/lib/proyectos/gestion-core";
 
 const guarda = baseLocalParaSeed(process.env.DATABASE_URL);
 if (!guarda.ok) {
@@ -162,12 +163,12 @@ async function main() {
     },
     include: { presupuestos: { include: { items: true } } },
   });
-  const neto = pBebidas.presupuestos[0].items.reduce((s, i) => s + i.cantidad * i.precio, 0);
-  const anticipo = Math.round(neto * 1.21 * 0.5);
-  const pago = await prisma.proyectoPago.create({ data: { tenantId, proyectoId: pBebidas.id, medio: "TRANSFERENCIA", monto: anticipo, nota: "Anticipo 50%", cobradoPor: "Dueño de MIA" } });
-  await prisma.cashMovement.create({
-    data: { tenantId, type: "VENTA", method: "TRANSFERENCIA", amount: anticipo, reason: "Proyecto #2 · Activación en festival · Anticipo 50%", proyectoPagoId: pago.id, createdBy: "Dueño de MIA" },
-  });
+  // Sus cuotas, como las arma la app (anticipo 50 % y saldo): suman el total aprobado. Se crean después de
+  // `sembrarGestion`, que borra las cuotas del negocio; el anticipo queda cobrado, con su cobro registrado.
+  const planBebidas = planDeCuotas(
+    pBebidas.presupuestos[0].items.map((i) => ({ id: i.id, descripcion: i.descripcion, rubro: i.rubro, cantidad: i.cantidad, costo: i.costo, moneda: i.moneda, recargoPct: i.recargoPct, precio: i.precio, fechaLimite: i.fechaLimite, supplierId: i.supplierId })),
+    { proyectoId: pBebidas.id, nombre: pBebidas.nombre, fechaEvento: pBebidas.fechaEvento, creado: pBebidas.createdAt, anticipoClientePct: 50, ivaPct: 21, recargoGeneral: MARGEN, tiposDeCambio: {}, anticipoProveedor: {} },
+  ).filter((c) => c.tipo === "COBRO");
 
   // Sus gastos reales: la carpintería salió más cara de lo presupuestado y el flete todavía se debe.
   const proveedor = async (name: string) =>
@@ -210,6 +211,13 @@ async function main() {
   });
 
   await sembrarGestion(prisma, tenantId, MARGEN);
+
+  for (const c of planBebidas) {
+    const cobrada = c.clave.endsWith(":cliente:anticipo");
+    const venceEl = cobrada ? en(-5) : c.venceEl;
+    const cuota = await prisma.proyectoCuota.create({ data: { tenantId, proyectoId: pBebidas.id, auto: true, ...c, venceEl, ...(cobrada && { pagadoEl: en(-5), pagadoPor: "Dueño de MIA", medio: "TRANSFERENCIA" }) } });
+    if (cobrada) await cobroDeCuota(prisma, tenantId, { proyectoId: pBebidas.id, numero: 2, cuotaId: cuota.id, concepto: c.concepto, monto: c.monto, cobradoEl: en(-5), autor: "Dueño de MIA" });
+  }
 
   console.log(`✅ MIA Producciones listo. Ingreso: admin@${SLUG}.demo`);
 }

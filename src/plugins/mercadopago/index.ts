@@ -47,6 +47,7 @@ export {
   sincronizarPagos,
   facturarPagoSiCorresponde,
   ErrorFacturacion,
+  CobroARevisar,
   type IngestaDeps,
   type ResumenIngesta,
   type FacturarPagoMP,

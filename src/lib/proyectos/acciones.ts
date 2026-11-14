@@ -18,9 +18,14 @@ import type { Prisma } from "@/generated/prisma/client";
 import { clientePuedeResponder, fechaCorta, leerNumero, MEDIO_LABEL, pesos, esEtapa, esServicio, etapaAlAprobar, etapaLabel, etapasDe, MEDIOS, metodoDeCaja, precioConMargen, redondear, sePuedeEditar, sumarDias, type MedioPago } from "./core";
 import { bloqueoDeEliminar, computar, costosVigentes, COSTO_LABEL, disenoInicial, normalizarDiseno, TIPOS_STAND, type ClaveCosto, type DisenoStand } from "./stand";
 import { configProyectos } from "./datos.server";
-import { actorActual, avisar, proyectoVisible, puede, regenerarCuotas, registrarCambio, tiposDeCambio, usuariosDelEquipo, usuariosDeLaPlata, type Actor } from "./gestion.server";
+import { cobranzasDelNegocio, hayColumnasCobroFijado, tiposDeCambio, trabarCobranza } from "./cobranza.server";
+import { pasaElTope, type Cobranza } from "./cobranza-core";
+import { avisoTopeCobro } from "./avisos-cuota";
+import { actorActual, avisar, proyectoVisible, puede, regenerarCuotas, registrarCambio, usuariosDelEquipo, usuariosDeLaPlata, type Actor } from "./gestion.server";
 import { cambioDelCobro, type ModuloGestion } from "./gestion-core";
 import { marcaDeGastoProyecto } from "./marcas";
+import { etapa2ActivaPara } from "./etapa2.server";
+import { MENSAJE_APAGADO } from "./etapa2-core";
 import { mensajeDeProveedor, validateSupplierInput } from "@/lib/suppliers/supplier";
 
 export type Resultado<T = object> = ({ ok: true } & T) | { ok: false; error: string };
@@ -186,21 +191,29 @@ export async function responderPropuesta(d: { token: string; aprueba: boolean; n
 
 // ── Cobros ──────────────────────────────────────────────────────────────────
 
-export async function registrarCobro(formData: FormData) {
+export async function registrarCobro(formData: FormData): Promise<Resultado> {
   const a = await actorCon(["pagos"]);
   const { user, tenantId } = a;
   const proyectoId = txt(formData.get("proyectoId"));
   const medio = txt(formData.get("medio")) as MedioPago;
   const monto = redondear(numero(formData.get("monto")));
-  if (!MEDIOS.includes(medio) || monto <= 0) return;
-  if (!(await proyectoDelActor(a, proyectoId))) return;
+  if (!MEDIOS.includes(medio)) return { ok: false, error: "Elegí el medio de cobro." };
+  if (!(monto > 0)) return { ok: false, error: "Escribí el monto del cobro." };
+  if (!(await proyectoDelActor(a, proyectoId))) return { ok: false, error: "Ese proyecto no existe." };
   const p = await prisma.proyecto.findFirst({ where: { id: proyectoId, tenantId }, select: { numero: true, nombre: true, moneda: true } });
-  if (!p) return;
+  if (!p) return { ok: false, error: "Ese proyecto ya no existe. Recargá la página." };
   const nota = txt(formData.get("nota")) || null;
-  // D13: un cobro en pesos de un proyecto en otra moneda queda fijado al tipo de cambio de hoy (sin cuota: es a mano).
-  const fijado = cambioDelCobro({ montoPesos: monto, moneda: p.moneda, tiposDeCambio: p.moneda === "ARS" ? {} : await tiposDeCambio(tenantId) });
+  const [config, tc, conColumnas] = await Promise.all([configProyectos(tenantId), tiposDeCambio(tenantId), hayColumnasCobroFijado()]);
+  // D13: un cobro en pesos de un proyecto en otra moneda queda fijado al tipo de cambio de hoy (sin cuota: es a mano). Sin
+  // la migración aplicada, no se escriben las columnas (el cobro entra igual, como antes).
+  const fijado = conColumnas ? cambioDelCobro({ montoPesos: monto, moneda: p.moneda, tiposDeCambio: tc }) : {};
   // El cobro y su asiento en el libro de caja van juntos: o entran los dos o ninguno.
-  const pago = await tenantTransaction(async (tx) => {
+  const pago = await tenantTransaction(async (tx): Promise<{ id: string } | { porCobrar: number; cob: Cobranza }> => {
+    // Tope: con presupuesto aprobado no entra más de lo que falta cobrar. En fila con «Marcar cobrado» y las cuotas
+    // cargadas a mano del mismo proyecto, y contado adentro de la transacción (dos cobros a la vez no pasan los dos).
+    await trabarCobranza(tx, tenantId, proyectoId);
+    const cob = (await cobranzasDelNegocio(tenantId, tc, config.margenPct, [proyectoId], tx)).get(proyectoId);
+    if (cob && pasaElTope(cob, monto)) return { porCobrar: cob.porCobrar, cob };
     const creado = await tx.proyectoPago.create({ data: { tenantId, proyectoId, medio, monto, nota, cobradoPor: user.name, ...fijado }, select: { id: true } });
     await registrarCambio(tx, { tenantId, proyectoId, entidad: "ProyectoPago", entidadId: creado.id, campo: "Cobro", despues: `${MEDIO_LABEL[medio]} · ${pesos(monto)}`, autor: user.name });
     const session = await tx.cashSession.findFirst({ where: { tenantId, status: "OPEN" }, select: { id: true } });
@@ -218,8 +231,11 @@ export async function registrarCobro(formData: FormData) {
     });
     return creado;
   });
+  // Pasaba lo que falta cobrar: no se graba nada.
+  if (!("id" in pago)) return { ok: false, error: avisoTopeCobro(pago.porCobrar, monto, pago.cob) };
   await auditAdmin({ action: "proyecto.cobro", entity: "ProyectoPago", entityId: pago.id, changes: { monto, medio } });
   refrescar(proyectoId);
+  return { ok: true };
 }
 
 // ── Gastos reales y proveedores ────────────────────────────────────────────
@@ -466,6 +482,7 @@ export async function responderEntregable(d: { token: string; versionId: string;
 export async function crearStand(formData: FormData): Promise<Resultado<{ id: string; proyectoId: string }>> {
   const a = await actorCon(["ficha", "diseno"]);
   const { tenantId } = a;
+  if (!(await etapa2ActivaPara(tenantId, "armador3d"))) return { ok: false, error: MENSAJE_APAGADO.armador3d };
   const proyectoId = txt(formData.get("proyectoId"));
   if (!(await proyectoDelActor(a, proyectoId))) return { ok: false, error: "Ese proyecto no existe." };
   const cuantos = await prisma.proyectoStand.count({ where: { tenantId, proyectoId } });
@@ -481,6 +498,7 @@ export async function crearStand(formData: FormData): Promise<Resultado<{ id: st
 export async function guardarStand(d: { id: string; nombre: string; diseno: DisenoStand }): Promise<Resultado> {
   const a = await actorCon(["ficha", "diseno"]);
   const { tenantId } = a;
+  if (!(await etapa2ActivaPara(tenantId, "armador3d"))) return { ok: false, error: MENSAJE_APAGADO.armador3d };
   const diseno = normalizarDiseno(d.diseno);
   if (!diseno) return { ok: false, error: "El diseño no es válido." };
   const s = await prisma.proyectoStand.findFirst({ where: { id: d.id, tenantId }, select: { proyectoId: true } });

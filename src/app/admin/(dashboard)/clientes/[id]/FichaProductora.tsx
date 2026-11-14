@@ -1,6 +1,6 @@
 // LA FICHA DE UN CLIENTE EN UNA PRODUCTORA: sus datos y sus proyectos. Un cliente de MIA es una marca que encarga
 // trabajos: «última visita», «faltó sin avisar» o «cumpleaños» (FichaUnica) no le dicen nada, y sus cobros están en
-// los proyectos, así que ahí su «Gastó en el último año» daba $0.
+// los proyectos, así que ahí su «Gastó en el último año» daba $0. Es una empresa: pide CUIT y razón social, no cumpleaños.
 
 import { enmascararContacto } from "@/lib/clientes/telefono";
 import { notFound } from "next/navigation";
@@ -15,6 +15,7 @@ import { claseBotonWhatsApp } from "../boton-whatsapp";
 import { contactoDeLaFicha } from "../contacto-ficha";
 import { tarjeta } from "../../proyectos/_vista";
 import EditarClienteForm from "./EditarClienteForm";
+import FichaFiscalForm from "./FichaFiscalForm";
 
 export default async function FichaProductora({ id, user }: { id: string; user: SessionUser }) {
   const [crudo, proyectos] = await Promise.all([getClient(id), proyectosDelCliente(id)]);
@@ -26,7 +27,8 @@ export default async function FichaProductora({ id, user }: { id: string; user: 
   const contacto = contactoDeLaFicha({ telefono: client.phone, noQuiere: false, puedeEditar });
   const vendido = redondear(proyectos.reduce((s, p) => s + (p.t?.total ?? 0), 0));
   const cobrado = redondear(proyectos.reduce((s, p) => s + p.cobrado, 0));
-  const porCobrar = redondear(proyectos.reduce((s, p) => s + (p.t ? Math.max(0, p.saldo) : 0), 0));
+  // `porCobrar` de cada proyecto sale de la cobranza (cobranza-core), igual que Clientes, Rentabilidad y Administración.
+  const porCobrar = redondear(proyectos.reduce((s, p) => s + p.porCobrar, 0));
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-8">
@@ -45,6 +47,11 @@ export default async function FichaProductora({ id, user }: { id: string; user: 
         )}
         {contacto.tipo === "sin-celular" && <p className="w-full text-sm text-warning">{contacto.texto}</p>}
       </div>
+      {(client.razonSocial || client.docNro) && (
+        <p className="-mt-4 mb-6 text-sm text-muted [overflow-wrap:anywhere]" data-qa="ficha-fiscal-resumen">
+          {[client.razonSocial, client.docNro ? `${client.docTipo === 80 ? "CUIT" : "Doc."} ${client.docNro}` : null].filter(Boolean).join(" · ")}
+        </p>
+      )}
 
       {conPlata && (
         <dl className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -95,8 +102,21 @@ export default async function FichaProductora({ id, user }: { id: string; user: 
               notes: client.notes,
               birthDate: client.birthDate ? client.birthDate.toISOString().slice(0, 10) : null,
             }}
+            sinCumpleanos
           />
         </div>
+      )}
+
+      {/* Un cliente de productora es una empresa: CUIT y razón social, no cumpleaños (QA MIA #8). Mismos campos y
+          acción que «Datos para facturar» (guardarFichaFiscal, con clients:manage y auditoría). */}
+      {puedeEditar && (
+        <section className="mb-6" aria-labelledby="ficha-fiscal">
+          <h2 id="ficha-fiscal" className="mb-2 text-lg font-medium text-strong">Datos para facturar</h2>
+          <FichaFiscalForm
+            clienteId={client.id}
+            ficha={{ docTipo: client.docTipo, docNro: client.docNro, razonSocial: client.razonSocial, condicionIva: client.condicionIva, domicilio: client.domicilio }}
+          />
+        </section>
       )}
 
       {client.notes && (

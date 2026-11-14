@@ -5,13 +5,17 @@ import Link from "next/link";
 import { Badge, buttonClasses, cn } from "@/components/ui";
 import SubmitButton from "@/components/SubmitButton";
 import { pagarGasto, registrarCobro } from "@/lib/proyectos/acciones";
-import { anularCobroFicha, anularGastoFicha, aprobarInterno, pedirAprobacion, crearMovimientoManual, enviarCotizacion, guardarTextos, marcarCuota, nuevaVersion, quitarMovimiento, recalcularCuotas, registrarRespuesta } from "@/lib/proyectos/acciones-ficha";
-import { fechaCorta, fechaParaInput, MEDIOS, MEDIO_LABEL, pesos, porcentaje, sePuedeEditar, totalDelGasto, waLink, type MedioPago } from "@/lib/proyectos/core";
+import { anularCobroFicha, anularGastoFicha, aprobarInterno, pedirAprobacion, crearMovimientoManual, enviarCotizacion, guardarTextos, marcarCuota, facturarCuota, nuevaVersion, quitarMovimiento, recalcularCuotas, registrarRespuesta } from "@/lib/proyectos/acciones-ficha";
+import { fechaCorta, fechaParaInput, MEDIOS, MEDIO_LABEL, pesos, porcentaje, redondear, sePuedeEditar, totalDelGasto, waLink, type MedioPago } from "@/lib/proyectos/core";
 import { esFoto, FILTROS_CASHFLOW, filtrarCashflow, fotoDeVersion, margenDeFoto, planillaDeVenta } from "@/lib/proyectos/ficha-core";
 import { aItemFicha } from "@/lib/proyectos/gestion.server";
 import { cambiosEntreVersiones, cambioDeVenta, estadoCuota, MONEDAS, plataEn, totalesFicha, ventaEn } from "@/lib/proyectos/gestion-core";
 import { datosCotizacion, datosFinanzas, type Cabecera, type Vista } from "@/lib/proyectos/ficha.server";
 import { veLaPlata } from "@/lib/proyectos/datos.server";
+import { textoPagado } from "@/lib/proyectos/cobranza-core";
+import { textoCubierta } from "@/lib/proyectos/avisos-cuota";
+import type { FacturaDeCuotaVista } from "@/lib/proyectos/facturar-cuota.server";
+import { nombreDelComprobante } from "@/lib/factura-de-prueba";
 import type { Actor } from "@/lib/proyectos/gestion.server";
 import { campo, etiqueta, tarjeta } from "../_vista";
 import { BotonConConfirmacion, FormAccion } from "./_cliente";
@@ -195,6 +199,27 @@ export async function PestanaCotizacion({ a, cab, vista, ver, cambios }: { a: Ac
 
 // ── Finanzas ────────────────────────────────────────────────────────────────
 
+/**
+ * Etapa 2 · T2 · La factura de ARCA de una cuota de cobro: el comprobante («Factura B 0001-…»),
+ * «en camino», o rechazada con su motivo y «Volver a facturar». Sin factura y con permiso de
+ * pagos: «Facturar» (pide confirmación: un comprobante autorizado sólo se anula con nota de crédito).
+ */
+function FacturaDeLaCuota({ cuota: c, factura: f, proyectoId, edita }: { cuota: { id: string; anuladoEl: Date | null; prevista: boolean; moneda: string; factura: string | null; concepto: string }; factura?: FacturaDeCuotaVista; proyectoId: string; edita: boolean }) {
+  if (f?.status === "AUTHORIZED") return <Badge tone="success">{nombreDelComprobante(f.tipoComprobante, f.puntoVenta, f.numero) ?? "Factura autorizada"}</Badge>;
+  if (f?.status === "PENDING") return <Badge tone="neutral">Factura en camino a ARCA</Badge>;
+  if (f?.status === "REJECTED") {
+    return (
+      <div className="mt-1 grid gap-1">
+        <Badge tone="danger">Factura rechazada por ARCA</Badge>
+        {f.rechazoMotivo && <p className="max-w-xs text-xs text-danger">{f.rechazoMotivo}</p>}
+        {edita && <BotonConConfirmacion accion={facturarCuota} ocultos={{ id: c.id, proyectoId }} texto="Volver a facturar" textoConfirma="Pedir CAE de nuevo" etiqueta={`Volver a facturar ${c.concepto}`} />}
+      </div>
+    );
+  }
+  if (!edita || c.anuladoEl || c.prevista || c.moneda !== "ARS" || (c.factura ?? "").trim() !== "") return null;
+  return <BotonConConfirmacion accion={facturarCuota} ocultos={{ id: c.id, proyectoId }} texto="Facturar" textoConfirma="Pedir CAE a ARCA" etiqueta={`Facturar ${c.concepto}`} />;
+}
+
 export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab: Cabecera; vista: Vista; filtro?: string }) {
   const cuentas = vista.editaPagos ? await prisma.proyectoCuentaBanco.findMany({ where: { tenantId: a.tenantId }, orderBy: { createdAt: "asc" }, select: { id: true, nombre: true, moneda: true } }) : [];
   const { proyecto: p, totales: t, faltanCambio } = cab;
@@ -212,8 +237,10 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
   // El cashflow se calcula al cambio de hoy, cuota por cuota: se muestra con ese mismo, no con el fijado al vender.
   const enCaja = (n: number) => ventaEn(n, p.moneda, cambioDeVenta(p.moneda, null, cab.tc));
 
+  // minmax(0,1fr): sin eso la columna de la grilla toma el ancho de la tabla (920 px) y en un celular la página
+  // entera desborda (QA MIA #7). Así la tabla se desliza adentro de su contenedor con overflow-x-auto.
   return (
-    <div className="grid gap-4">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
       {vista.costos && cab.sinProveedor.cuantos > 0 && (
         <p role="status" className="rounded-md border border-danger/30 bg-danger-soft px-3 py-2.5 text-sm text-danger">
           {cab.sinProveedor.cuantos === 1 ? "1 ítem con costo no tiene" : `${cab.sinProveedor.cuantos} ítems con costo no tienen`} proveedor: {pesos(cab.sinProveedor.monto)} no están en este cashflow, y el saldo se ve mejor de lo que es.
@@ -264,13 +291,29 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
                       <td className="py-1.5 pr-2 whitespace-nowrap">{c.prevista && !p.fechaEvento ? "Sin fecha" : fechaCorta(c.venceEl)}</td>
                       <td className="py-1.5 pr-2">{c.concepto}{c.auto && <span className="ml-1 text-xs text-muted">auto</span>}</td>
                       <td className="py-1.5 pr-2">{c.tipo === "COBRO" ? p.client.name : c.supplier?.name ?? "—"}</td>
-                      <td className="py-1.5 pr-2 text-right tabular-nums">{plataEn(c.monto, c.moneda)}</td>
+                      <td className="py-1.5 pr-2 text-right tabular-nums">
+                        {plataEn(c.monto, c.moneda)}
+                        {!c.pagadoEl && !c.anuladoEl && c.tipo === "COBRO" && redondear(c.pendiente) !== c.monto && <span className="block text-xs text-muted">Falta {plataEn(c.pendiente, c.moneda)}</span>}
+                        {/* Lo que se pagó tal como entró (el original y los pesos asentados), no lo que vale hoy: eso va en el importe. */}
+                        {c.pagado && (c.pagado.pesos !== null || c.pagado.moneda !== c.moneda || c.pagado.monto !== c.monto) && <span className="block text-xs text-muted">Pagó {textoPagado(c.pagado)}</span>}
+                      </td>
                       <td className={cn("py-1.5 pr-2 text-right tabular-nums", importe < 0 ? "text-danger" : "text-strong")}>{enCaja(importe)}</td>
                       <td className={cn("py-1.5 pr-2 text-right font-medium tabular-nums", saldo < 0 && "text-danger")}>{enCaja(saldo)}</td>
                       <td className="py-1.5 pr-2">{c.prevista && !c.pagadoEl ? <Badge tone="neutral">Prevista</Badge> : <Badge tone={estado === "PAGADA" ? "success" : estado === "VENCIDA" ? "danger" : "neutral"}>{estado === "PAGADA" ? (c.tipo === "COBRO" ? "Cobrado" : "Pagado") : estado === "VENCIDA" ? "Vencido" : "Pendiente"}</Badge>}</td>
                       <td className="py-1">
                         {c.pagadoEl && c.tipo === "COBRO" && !c.anuladoEl && <a href={`/admin/proyectos/imprimir/cobro/${c.id}`} className={buttonClasses("ghost", "sm")}>Constancia</a>}
-                        {!c.pagadoEl && !c.prevista && vista.editaPagos && (
+                        {d.facturaCuotas && c.tipo === "COBRO" && <FacturaDeLaCuota cuota={c} factura={d.facturas.get(c.id)} proyectoId={p.id} edita={vista.editaPagos} />}
+                        {!c.pagadoEl && !c.anuladoEl && c.tipo === "COBRO" && !(c.pendiente > 0) && (
+                          c.prevista ? (
+                            <span className="text-xs text-muted">Prevista (sin marcar)</span>
+                          ) : (
+                            <div className="grid justify-items-end gap-1">
+                              <span className="text-xs text-muted">{textoCubierta(c.auto)}</span>
+                              {!c.auto && vista.editaPagos && <BotonConConfirmacion accion={quitarMovimiento} ocultos={{ id: c.id, proyectoId: p.id }} texto="Quitar" textoConfirma="Quitar" etiqueta={`Quitar ${c.concepto}`} />}
+                            </div>
+                          )
+                        )}
+                        {!c.pagadoEl && !c.prevista && vista.editaPagos && (c.tipo !== "COBRO" || c.pendiente > 0) && (
                           <div className="flex flex-wrap items-center justify-end gap-1">
                             <FormAccion accion={marcarCuota} className="flex flex-wrap items-center gap-1">
                               <input type="hidden" name="id" value={c.id} />
@@ -411,7 +454,7 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
         )}
         {conCobros && <p className="text-sm text-muted">Los cobros de este evento se registran marcando su cuota, en la tabla de arriba.</p>}
         {cargaDirecta && !conCobros && (
-          <form action={registrarCobro} className="grid gap-2 sm:grid-cols-4">
+          <FormAccion accion={registrarCobro} limpiar className="grid gap-2 sm:grid-cols-4">
             <input type="hidden" name="proyectoId" value={p.id} />
             <input name="monto" required aria-label="Monto" placeholder="Monto" inputMode="decimal" className={campo} />
             <select name="medio" aria-label="Medio de cobro" defaultValue="TRANSFERENCIA" className={campo}>
@@ -419,9 +462,10 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
             </select>
             <input name="nota" aria-label="Nota del cobro" placeholder="Ej.: anticipo 50%" className={campo} />
             <SubmitButton className={buttonClasses("solid", "md")}>Registrar cobro</SubmitButton>
-          </form>
+          </FormAccion>
         )}
-        <p className="mt-2 text-sm text-muted">Cada cobro entra al libro de caja. La factura se emite desde Facturación.</p>
+        {d.avisoIva && <p role="status" className="mt-2 rounded-lg border border-warning bg-warning-soft px-3 py-2 text-sm text-strong">{d.avisoIva}</p>}
+        <p className="mt-2 text-sm text-muted">Cada cobro entra al libro de caja. {d.facturaCuotas ? "La factura de cada cuota se pide a ARCA con «Facturar», en la tabla de arriba." : "La factura se emite desde Facturación."}</p>
       </section>
     </div>
   );

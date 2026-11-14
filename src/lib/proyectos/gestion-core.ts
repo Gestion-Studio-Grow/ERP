@@ -259,13 +259,17 @@ export interface LineaCashflow<T> {
   saldo: number;
 }
 
-/** Cada movimiento por fecha y el saldo que deja. El máximo a financiar es lo más abajo de cero que llega ese saldo. */
-export function cashflowDelEvento<T extends CuotaLeida>(cuotas: readonly T[], tc: Readonly<Record<string, number>>): { lineas: LineaCashflow<T>[]; saldoFinal: number; maximoAFinanciar: number } {
+/**
+ * Cada movimiento por fecha y el saldo que deja. El máximo a financiar es lo más abajo de cero que llega ese saldo.
+ * `montoDe` (en la moneda de la cuota): lo que cuenta cada cuota; sin él, su monto. Una cuota de cobro ya cobrada debe
+ * contar lo que entró por ella, no su monto (ver `repartoDeCobros`).
+ */
+export function cashflowDelEvento<T extends CuotaLeida>(cuotas: readonly T[], tc: Readonly<Record<string, number>>, montoDe: (c: T) => number = (c) => c.monto): { lineas: LineaCashflow<T>[]; saldoFinal: number; maximoAFinanciar: number } {
   const orden = cuotas.filter((c) => !c.anuladoEl).slice().sort((a, b) => a.venceEl.getTime() - b.venceEl.getTime() || (a.tipo === "COBRO" ? -1 : 1));
   let saldo = 0;
   let minimo = 0;
   const lineas = orden.map((cuota) => {
-    const pesos = aPesos(cuota.monto, cuota.moneda, tc);
+    const pesos = aPesos(montoDe(cuota), cuota.moneda, tc);
     const importe = cuota.tipo === "COBRO" ? pesos : -pesos;
     saldo = redondear(saldo + importe);
     minimo = Math.min(minimo, saldo);
@@ -345,10 +349,14 @@ export interface MesProyectado {
 
 export const claveMes = (d: Date): string => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 
-/** Caja de hoy + lo previsto mes a mes. Lo vencido sin pagar cae en el mes actual: sigue pendiente de salir o de entrar. */
+/**
+ * Caja de hoy + lo previsto mes a mes. Lo vencido sin pagar cae en el mes actual: sigue pendiente de salir o de entrar.
+ * Una cuota de cobro con `pendiente` (lo que le falta, del reparto de la cobranza: `repartoDelNegocio`) entra por eso y no
+ * por su monto: un cobro registrado a mano por fuera ya está en la caja y no se cuenta dos veces.
+ */
 export function proyeccionDeCaja(d: {
   cajaHoy: number;
-  cuotas: readonly CuotaLeida[];
+  cuotas: readonly (CuotaLeida & { pendiente?: number })[];
   sueldosMes: number;
   fijos: readonly GastoFijoLeido[];
   tiposDeCambio: Readonly<Record<string, number>>;
@@ -368,7 +376,7 @@ export function proyeccionDeCaja(d: {
       if (c.pagadoEl || c.anuladoEl) continue;
       const t = c.venceEl.getTime();
       if (!(t < fin.getTime() && (n === 0 || t >= inicio.getTime()))) continue;
-      const pesos = aPesos(c.monto, c.moneda, d.tiposDeCambio);
+      const pesos = aPesos(c.tipo === "COBRO" && c.pendiente != null ? c.pendiente : c.monto, c.moneda, d.tiposDeCambio);
       if (c.tipo === "COBRO") cobros += pesos;
       else proveedores += pesos;
     }
@@ -716,7 +724,8 @@ const APPS_DEL_ERP: Partial<Record<RolGestion, readonly string[]>> = {
 
 /** Lo que cada rol tiene a la vista. Dirección puede abrir el resto; los demás, lo que permiten sus módulos. */
 const BARRA_DEL_ROL: Record<RolGestion, readonly string[]> = {
-  DIRECCION: ["gestion-inicio", "gestion-direccion", "gestion-administracion", "proyectos", "gestion-calendario", "gestion-equipo", "reportes"],
+  // Caja a la vista de Dirección (QA MIA #6): el rol del ERP sigue siendo el techo (`appsVisibles` pide orders:read).
+  DIRECCION: ["gestion-inicio", "gestion-direccion", "gestion-administracion", "proyectos", "gestion-calendario", "gestion-equipo", "caja-del-dia", "reportes"],
   ADMINISTRACION: ["gestion-inicio", "gestion-administracion", "gestion-proveedores", "caja-del-dia", "libro-de-caja", "cierre-del-dia", "facturacion", "gestion-mi-liquidacion"],
   COMERCIAL: ["gestion-inicio", "proyectos", "clientes", "gestion-propuesta-ia", "gestion-agentes", "gestion-calendario", "gestion-mi-liquidacion"],
   DISENO: ["gestion-inicio", "gestion-diseno", "proyectos", "gestion-propuesta-ia", "gestion-agentes", "gestion-calendario", "gestion-mi-liquidacion"],

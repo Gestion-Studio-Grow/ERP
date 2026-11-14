@@ -26,6 +26,8 @@ import {
 import { enviarPorMail } from "./consultas.server";
 import { datosDelNegocio } from "./datos.server";
 import { exigirEditar, puede, type Actor } from "./gestion.server";
+import { etapa2ActivaPara } from "./etapa2.server";
+import { MENSAJE_APAGADO } from "./etapa2-core";
 import { analizarConsultaConIA, FALTA_CLAVE, iaConectada } from "./ia.server";
 
 const RAIZ = "/admin/proyectos/consultas";
@@ -47,13 +49,14 @@ const delCliente = (mensajes: readonly { direccion: string; texto: string }[]): 
 export async function pedirBorradorConsulta(d: { id: string }): Promise<Resultado<{ problemas: string[] }>> {
   const a = await exigirEditar("pipeline");
   if (!puede(a, "ia", "editar")) return { ok: false, error: "Tu rol no puede usar la IA." };
+  if (!(await etapa2ActivaPara(a.tenantId, "ia"))) return { ok: false, error: MENSAJE_APAGADO.ia };
   if (!iaConectada()) return { ok: false, error: FALTA_CLAVE };
   const c = await cargar(a, d.id);
   if (!c) return { ok: false, error: SIN_CONSULTA };
   if (c.intencion === "NO_CLIENTE") return { ok: false, error: "Esta consulta no parece de un cliente: no se arma una respuesta." };
   const previo = (c.brief ?? {}) as BriefConsulta;
   const negocio = (await datosDelNegocio(a.tenantId)).nombre;
-  const r = await analizarConsultaConIA({ negocio, nombre: c.nombre, mensajes: c.mensajes.map((m) => ({ origen: m.origen, texto: m.texto })), brief: previo });
+  const r = await analizarConsultaConIA({ tenantId: a.tenantId, negocio, nombre: c.nombre, mensajes: c.mensajes.map((m) => ({ origen: m.origen, texto: m.texto })), brief: previo });
   if (!r.ok) return r;
   const cliente = delCliente(c.mensajes);
   const brief = mezclarBrief(previo, validarBriefDeModelo(r.brief, cliente));

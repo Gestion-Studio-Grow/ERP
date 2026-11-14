@@ -10,6 +10,7 @@ import { ayudaEspecificacion, ESTADO_ENTREGABLE_LABEL, estadoDelEntregable, fech
 import { datosArchivos, datosDiseno, type Cabecera } from "@/lib/proyectos/ficha.server";
 import type { Actor } from "@/lib/proyectos/gestion.server";
 import { puede } from "@/lib/proyectos/gestion.server";
+import { etapa2ActivaPara } from "@/lib/proyectos/etapa2.server";
 import { campo, tarjeta } from "../_vista";
 import { BotonConConfirmacion, FormAccion } from "./_cliente";
 import { BotonEliminarStand, BotonNuevoStand, BotonStandConIA, CopiarLink, ProponerPiezasConIA, SubirArchivo } from "./_piezas";
@@ -20,9 +21,11 @@ export async function ArmadorYPiezas({ a, cab }: { a: Actor; cab: Cabecera }) {
   const piezas = resumenEntregables(entregables);
   const waPiezas = waLink(p.client.phone, `Hola ${p.client.name}! Te compartimos las piezas de ${negocio.nombre} para "${p.nombre}", para que las revises:`);
   const edita = puede(a, "diseno", "editar");
+  // Etapa 2: armador 3D y asistentes con IA, prendidos por negocio (apagados por defecto).
+  const [con3d, conIA] = await Promise.all([etapa2ActivaPara(a.tenantId, "armador3d"), etapa2ActivaPara(a.tenantId, "ia")]);
   return (
     <div className="grid gap-4">
-      <section className={tarjeta} aria-label="Stands en 3D">
+      {con3d && <section className={tarjeta} aria-label="Stands en 3D">
         <h2 className="mb-3 font-semibold text-strong">Stands en 3D</h2>
         {stands.length === 0 && <p className="mb-3 text-sm text-muted">Todavía no hay opciones armadas.</p>}
         <ul className="mb-3 grid gap-2">
@@ -36,8 +39,8 @@ export async function ArmadorYPiezas({ a, cab }: { a: Actor; cab: Cabecera }) {
           ))}
         </ul>
         {edita && <BotonNuevoStand proyectoId={p.id} />}
-        {edita && <BotonStandConIA proyectoId={p.id} />}
-      </section>
+        {edita && conIA && <BotonStandConIA proyectoId={p.id} />}
+      </section>}
 
       <section className={tarjeta} aria-label="Piezas para aprobar">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -53,7 +56,7 @@ export async function ArmadorYPiezas({ a, cab }: { a: Actor; cab: Cabecera }) {
             </div>
           )}
         </div>
-        {edita && <ProponerPiezasConIA proyectoId={p.id} />}
+        {edita && conIA && <ProponerPiezasConIA proyectoId={p.id} />}
         {entregables.length === 0 && <p className="mb-3 text-sm text-muted">Cargá cada pieza que el cliente tiene que aprobar: una gráfica, una escenografía, un video.</p>}
         {entregables.length > 0 && (
           <ul className="mb-3 grid gap-2">
