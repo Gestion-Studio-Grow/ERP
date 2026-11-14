@@ -13,6 +13,7 @@ const sesion: { rol: "OWNER" | "RECEPTION" } = { rol: "RECEPTION" };
 let base: { texto: string; version: number } | null = null;
 const auditoria: { actor: string; action: string; entity: string; entityId?: string | null; changes?: unknown }[] = [];
 const actores: string[] = [];
+const tope = { espera: 0, esperaTrasFallo: 0, llamadas: [] as { ambito: string; usuarioId: string | null; ok: boolean; limpia: string | null }[] };
 
 const DOBLES: Record<string, unknown> = {
   "@/lib/require-app": {
@@ -33,8 +34,15 @@ const DOBLES: Record<string, unknown> = {
     },
   },
   // SEG-020: el tope sin base (contra Postgres: src/lib/club/firma-del-duenio-postgres.test.ts).
+  // SEG-024: el doble anota con qué ámbito y persona se llamó, y puede contestar «esperá» o abrir la espera tras el fallo.
   "@/lib/club/tope-pin-servidor": {
-    conTopeDePin: async (_tenantId: string, _ambito: string, verificar: () => unknown) => ({ espera: false, resultado: await verificar(), esperaS: 0 }),
+    ambitoDelPinDeDuenio: (rol: string) => (rol === "OWNER" ? "pin-owner" : "pin"),
+    conTopeDePin: async (_tenantId: string, ambito: string, verificar: () => { ok: boolean; limpia?: string | null }, opciones: { usuarioId?: string | null } = {}) => {
+      if (tope.espera) return { espera: true, esperaS: tope.espera };
+      const resultado = await verificar();
+      tope.llamadas.push({ ambito, usuarioId: opciones.usuarioId ?? null, ok: resultado.ok, limpia: resultado.limpia ?? null });
+      return { espera: false, resultado, esperaS: resultado.ok ? 0 : tope.esperaTrasFallo };
+    },
   },
 };
 const conCarga = Module as unknown as { _load: (pedido: string, padre: { filename?: string } | null, ...resto: unknown[]) => unknown };
@@ -50,10 +58,23 @@ function arrancar() {
   base = { texto: JSON.stringify({ v: M.VERSION_ESTADO, estado: e, secuencia: M.secuenciaIds(), guardado: 1 }), version: 4 };
   auditoria.length = 0;
   actores.length = 0;
+  tope.espera = 0;
+  tope.esperaTrasFallo = 0;
+  tope.llamadas.length = 0;
   const lu = e.usuarios.find((u) => u.rol === "recepcion")!;
   return { e, lu, pin: M.pinDeEjemplo(lu) };
 }
 const estado = () => (JSON.parse(base!.texto) as { estado: M.EstadoClub }).estado;
+
+/** Le da a `u` un PIN válido (no de ejemplo ni fácil) y deja la foto con eso; devuelve el PIN. */
+function conPinValido(e: M.EstadoClub, u: M.Usuario, candidatos: readonly string[]): string {
+  for (const p of candidatos) if (M.cambiarMiPin(e, { usuarioId: u.id, pin: M.pinDeEjemplo(u) }, p).ok) {
+    base = { texto: JSON.stringify({ v: M.VERSION_ESTADO, estado: e, secuencia: M.secuenciaIds(), guardado: 1 }), version: 4 };
+    return p;
+  }
+  throw new Error("sin PIN válido");
+}
+const DE_2 = Array.from({ length: 90 }, (_, i) => String(i + 10));
 
 test("SEG-019 acción: recepción cambia su PIN sabiendo el actual → se guarda con su actor y queda auditado sin el PIN", async () => {
   const { lu, pin } = arrancar();
@@ -151,4 +172,77 @@ test("acción: si falta algo, dice QUÉ falta (y no toca la base)", async () => 
   assert.match(!actual.ok ? actual.error : "", /PIN actual/);
   assert.match(!nuevo.ok ? nuevo.error : "", /PIN nuevo/);
   assert.equal(base!.version, 4);
+});
+
+// SEG-024: el tope de quien no es dueño, por persona, y el carril del dueño según la sesión del ERP.
+test("SEG-024 acción: recepción cuenta en el tope «equipo» de ESA persona; gastan el PIN actual mal, el PIN nuevo en uso y el cambio hecho", async () => {
+  const { e, lu, pin } = arrancar();
+  sesion.rol = "RECEPTION";
+  const { cambiarMiPinDelClub } = await import("./pin-del-club-actions");
+  const otra = e.usuarios.filter((u) => u.rol === "recepcion")[1];
+  assert.equal((await cambiarMiPinDelClub({ usuarioId: otra.id, pinActual: pin, pinNuevo: "73" })).ok, false);
+  assert.equal((await cambiarMiPinDelClub({ usuarioId: lu.id, pinActual: pin, pinNuevo: pin })).ok, false, "PIN nuevo igual: rechazo");
+  const deOtra = conPinValido(e, otra, DE_2.filter((p) => p !== "73"));
+  const enUso = await cambiarMiPinDelClub({ usuarioId: lu.id, pinActual: pin, pinNuevo: deOtra });
+  assert.ok(!enUso.ok && /ya lo usa otra persona/.test(enUso.error));
+  assert.deepEqual(await cambiarMiPinDelClub({ usuarioId: lu.id, pinActual: pin, pinNuevo: "73" }), { ok: true, version: 5 });
+  // «En uso» delata el PIN de otra persona, y si el cambio hecho no gastara, probar PIN libres sería gratis: los dos
+  // gastan (`ok: false` = gasta un intento). El PIN nuevo igual al actual no dice nada de nadie: no gasta. Nada limpia.
+  assert.deepEqual(tope.llamadas, [
+    { ambito: "equipo", usuarioId: otra.id, ok: false, limpia: null },
+    { ambito: "equipo", usuarioId: lu.id, ok: true, limpia: null },
+    { ambito: "equipo", usuarioId: lu.id, ok: false, limpia: null },
+    { ambito: "equipo", usuarioId: lu.id, ok: false, limpia: null },
+  ]);
+});
+
+test("SEG-024 acción: un usuario inexistente o inactivo, o un dueño desde recepción, no pasan por el tope (no gastan ni anotan)", async () => {
+  const { e, pin } = arrancar();
+  const otra = e.usuarios.filter((u) => u.rol === "recepcion")[1];
+  otra.activo = false;
+  base = { texto: JSON.stringify({ v: M.VERSION_ESTADO, estado: e, secuencia: M.secuenciaIds(), guardado: 1 }), version: 4 };
+  const d = e.usuarios.find((u) => u.rol === "duenio")!;
+  sesion.rol = "RECEPTION";
+  const { cambiarMiPinDelClub } = await import("./pin-del-club-actions");
+  for (const usuarioId of ["u-no-existe", otra.id, d.id]) assert.equal((await cambiarMiPinDelClub({ usuarioId, pinActual: pin, pinNuevo: "73" })).ok, false);
+  assert.deepEqual(tope.llamadas, []);
+});
+
+test("SEG-024 acción: el PIN de un dueño desde un OWNER del ERP va al carril «pin-owner»; el de recepción desde un OWNER, a «equipo»", async () => {
+  const { e, lu, pin } = arrancar();
+  const d = e.usuarios.find((u) => u.rol === "duenio")!;
+  sesion.rol = "OWNER";
+  const { cambiarMiPinDelClub } = await import("./pin-del-club-actions");
+  assert.equal((await cambiarMiPinDelClub({ usuarioId: d.id, pinActual: "0000", pinNuevo: "8642" })).ok, false);
+  assert.equal((await cambiarMiPinDelClub({ usuarioId: lu.id, pinActual: pin, pinNuevo: "73" })).ok, true);
+  assert.deepEqual(tope.llamadas.map((l) => [l.ambito, l.usuarioId]), [["pin-owner", d.id], ["equipo", lu.id]]);
+  // El dueño, con su PIN: «en uso» gasta un intento.
+  const otro = e.usuarios.find((u) => u.rol === "duenio" && u.id !== d.id);
+  assert.ok(otro, "la demo trae dos dueños");
+  {
+    tope.llamadas.length = 0;
+    const deOtro = conPinValido(e, otro!, ["2749", "3816", "5073", "6194", "8357"]);
+    const r = await cambiarMiPinDelClub({ usuarioId: d.id, pinActual: M.pinDeEjemplo(d), pinNuevo: deOtro });
+    assert.ok(!r.ok && /ya lo usa otra persona/.test(r.error), JSON.stringify(r));
+    assert.deepEqual(tope.llamadas, [{ ambito: "pin-owner", usuarioId: d.id, ok: false, limpia: null }]);
+  }
+});
+
+test("SEG-024 acción: en la espera no se toca la foto y se avisa hasta qué hora; el fallo que abre la espera ya la avisa", async () => {
+  const { e, lu, pin } = arrancar();
+  sesion.rol = "RECEPTION";
+  const { cambiarMiPinDelClub } = await import("./pin-del-club-actions");
+  tope.espera = 30;
+  const r = await cambiarMiPinDelClub({ usuarioId: lu.id, pinActual: pin, pinNuevo: "73" });
+  assert.ok(!r.ok && /^Demasiados intentos: esperá hasta las \d{2}:\d{2}/.test(r.error), JSON.stringify(r));
+  assert.equal(base!.version, 4);
+  assert.equal(auditoria.at(-1)?.action, "club_cambiar_pin:rechazo");
+  assert.deepEqual((auditoria.at(-1)?.changes as { codigo?: string }).codigo, "espera");
+  tope.espera = 0;
+  tope.esperaTrasFallo = 30;
+  const otra = e.usuarios.filter((u) => u.rol === "recepcion")[1];
+  const quinto = await cambiarMiPinDelClub({ usuarioId: otra.id, pinActual: pin, pinNuevo: "73" });
+  assert.ok(!quinto.ok && /esperá hasta las/.test(quinto.error));
+  assert.deepEqual((auditoria.at(-1)?.changes as { codigo?: string }).codigo, "pin-actual", "la auditoría dice qué pasó");
+  assert.ok(!JSON.stringify(auditoria).includes(`"${pin}"`));
 });

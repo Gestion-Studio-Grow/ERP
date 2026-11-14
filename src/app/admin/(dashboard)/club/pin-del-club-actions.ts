@@ -17,14 +17,22 @@
 // SEG-020: el PIN actual de un dueño del club cuenta en el tope de intentos del negocio (tope-pin-servidor.ts), el
 // mismo de `firmarComoDuenio`: durante la espera no se comprueba.
 //
+// SEG-024: el PIN actual de quien NO es dueño cuenta en su propio tope, por persona (ámbito «equipo»: 5 fallos y la
+// escalera 30 s, 2 min, 10 min), aparte del de los dueños: los fallos de uno no traban al otro. El de un dueño, desde
+// una sesión OWNER, va al carril «pin-owner». Todo intento que llega a evaluarse GASTA un intento del tope: un PIN
+// actual mal, un PIN nuevo que ya usa otra persona y también el cambio hecho (si el cambio no gastara, probar PIN nuevos
+// libres sería gratis y el «en uso» delataría los ajenos: son pocos y el de recepción es de 2 números). Nada limpia el
+// tope desde acá. No gastan los rechazos que no dicen nada de otra persona (largo, fácil, igual al actual). Si el
+// usuario no existe o está inactivo, la regla lo rechaza sin mirar el PIN y no se anota nada (`carrilDePin`).
+//
 // — Elaborado por GSG
 
 import { requireAppAccion, AppNoDisponibleError } from "@/lib/require-app";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { audit } from "@/lib/audit-core";
 import { guardar, leerVigente } from "@/lib/club/estado-repo";
-import { cambiarPinEnLaFoto, type CodigoDeRechazo } from "@/lib/club/cambiar-pin";
-import { conTopeDePin } from "@/lib/club/tope-pin-servidor";
+import { cambiarPinEnLaFoto, carrilDePin, type CodigoDeRechazo } from "@/lib/club/cambiar-pin";
+import { ambitoDelPinDeDuenio, conTopeDePin } from "@/lib/club/tope-pin-servidor";
 import { textoDeEsperaDelServidor } from "@/lib/club/espera-del-servidor";
 import type { Ahora } from "@/lib/club/motor.mjs";
 import type { RespuestaCambiarMiPin } from "./puerta-del-pin";
@@ -45,16 +53,6 @@ function ahoraDelClub(cuando: Date): Ahora {
 }
 
 const texto = (x: unknown, tope: number) => (typeof x === "string" && x.length <= tope ? x : null);
-
-/** ¿El usuario del club es dueño en la foto vigente? */
-function esDuenioEnLaFoto(textoVigente: string, usuarioId: string): boolean {
-  try {
-    const us = (JSON.parse(textoVigente) as { estado?: { usuarios?: { id?: unknown; rol?: unknown }[] } }).estado?.usuarios;
-    return Array.isArray(us) && us.some((u) => u?.id === usuarioId && u.rol === "duenio");
-  } catch {
-    return false;
-  }
-}
 
 export async function cambiarMiPinDelClub(pedido: { usuarioId: unknown; pinActual: unknown; pinNuevo: unknown }): Promise<RespuestaCambiarMiPin> {
   let user;
@@ -88,15 +86,20 @@ export async function cambiarMiPinDelClub(pedido: { usuarioId: unknown; pinActua
       return { ok: false, error: "Todavía no hay nada guardado del club en la base." };
     }
     const pedidoDeCambio = { usuarioId, pinActual, pinNuevo, esDuenioDelErp: user.role === "OWNER", ahora: ahoraDelClub(new Date()) };
+    // El tope: el de quien no es dueño (por persona) o, para un dueño desde un OWNER del ERP, el de su carril. Un dueño
+    // desde otra sesión sale rechazado sin mirar el PIN; un usuario inexistente o inactivo, también (no gasta intentos).
+    const carril = carrilDePin(vigente.texto, usuarioId);
+    const ambito = carril === "equipo" ? "equipo" : carril === "duenio" && pedidoDeCambio.esDuenioDelErp ? ambitoDelPinDeDuenio(user.role) : null;
     let r: ReturnType<typeof cambiarPinEnLaFoto>;
-    if (pedidoDeCambio.esDuenioDelErp && esDuenioEnLaFoto(vigente.texto, usuarioId)) {
+    let esperaTrasElFallo = 0;
+    if (ambito) {
       const t = await conTopeDePin(
         tenantId,
-        "pin",
+        ambito,
         () => {
           const x = cambiarPinEnLaFoto(vigente.texto, pedidoDeCambio);
-          const acerto = x.ok || x.codigo === "pin-nuevo"; // «pin-nuevo» sólo sale con el actual ya comprobado
-          return { ok: acerto, limpia: acerto ? usuarioId : null, x };
+          const gasta = x.ok || x.codigo === "pin-actual" || x.codigo === "pin-en-uso";
+          return { ok: !gasta, limpia: null, x }; // `ok` es «no gasta» para el tope; el desenlace es `x`
         },
         { usuarioId },
       );
@@ -105,6 +108,7 @@ export async function cambiarMiPinDelClub(pedido: { usuarioId: unknown; pinActua
         return { ok: false, error: textoDeEsperaDelServidor(t.esperaS) };
       }
       r = t.resultado.x;
+      esperaTrasElFallo = t.esperaS;
     } else {
       r = cambiarPinEnLaFoto(vigente.texto, pedidoDeCambio);
     }
@@ -112,7 +116,9 @@ export async function cambiarMiPinDelClub(pedido: { usuarioId: unknown; pinActua
       // Evento de seguridad (un PIN actual mal puede ser alguien probando): queda en la auditoría y en los logs.
       console.warn("[club] SEG-019: cambio de PIN rechazado", { tenantId, userId: user.id, usuarioClub: usuarioId, codigo: r.codigo });
       await auditar("rechazo", r.codigo);
-      return { ok: false, error: r.motivo };
+      // Si este fallo abrió la espera, se avisa ya (el mismo texto que la firma del dueño).
+      const abrioLaEspera = (r.codigo === "pin-actual" || r.codigo === "pin-en-uso") && esperaTrasElFallo > 0;
+      return { ok: false, error: abrioLaEspera ? textoDeEsperaDelServidor(esperaTrasElFallo) : r.motivo };
     }
     const g = await guardar(tenantId, r.texto, vigente.version, `user:${user.id}`);
     if (g.ok) {

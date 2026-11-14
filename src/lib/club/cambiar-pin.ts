@@ -31,7 +31,11 @@ export interface PedidoDeCambioDePin {
 }
 
 /** Por qué se rechazó (para la auditoría: nunca lleva el PIN). */
-export type CodigoDeRechazo = "ilegible" | "usuario" | "duenio" | "pin-actual" | "pin-nuevo";
+export type CodigoDeRechazo = "ilegible" | "usuario" | "duenio" | "pin-actual" | "pin-nuevo" | "pin-en-uso";
+
+/** El rechazo del motor cuando el PIN nuevo ya es de otra persona (`cambiarMiPin`, motor.mjs). SEG-024: delata un PIN
+ * ajeno, así que tiene su propio código y cuenta en el tope como un PIN actual mal. Un test cuida que siga igual. */
+const MOTIVO_PIN_EN_USO = "Ese PIN ya lo usa otra persona: elegí otro.";
 
 export type ResultadoDeCambioDePin =
   | { ok: true; texto: string; usuarioId: string }
@@ -59,6 +63,25 @@ function pinActualCoincide(estado: EstadoClub, guardado: string | undefined, pin
   return !!estado.salPin && igualesSinApuro(hashPin(p, estado.salPin), guardado);
 }
 
+/**
+ * SEG-024: en qué tope del servidor cuenta un «Cambiar mi PIN» contra `usuarioId`, con la MISMA lectura de la foto que
+ * `cambiarPinEnLaFoto`: «duenio» (tope del PIN de dueño), «equipo» (por persona) o null si la regla lo rechaza sin
+ * mirar el PIN (foto ilegible, usuario inexistente o inactivo): ese pedido no gasta intentos ni anota nada.
+ */
+export function carrilDePin(textoVigente: string, usuarioId: string): "duenio" | "equipo" | null {
+  let crudo: unknown;
+  try {
+    crudo = JSON.parse(textoVigente);
+  } catch {
+    return null;
+  }
+  const h = hidratarEstado(crudo);
+  if (!h.ok) return null;
+  const u = h.estado.usuarios.find((x) => x.id === usuarioId);
+  if (!u || u.activo === false) return null;
+  return u.rol === "duenio" ? "duenio" : "equipo";
+}
+
 export function cambiarPinEnLaFoto(textoVigente: string, pedido: PedidoDeCambioDePin): ResultadoDeCambioDePin {
   let crudo: unknown;
   try {
@@ -81,6 +104,6 @@ export function cambiarPinEnLaFoto(textoVigente: string, pedido: PedidoDeCambioD
   if (esPinFuerte(u.pin)) u.pin = pinActual.trim();
   const r = cambiarMiPin(estado, { usuarioId: u.id, pin: pinActual }, pinNuevo, pedido.ahora);
   // El actual ya se comprobó: si el motor dice que no, es por el nuevo (largo, fácil o en uso).
-  if (!r.ok) return { ok: false, codigo: "pin-nuevo", motivo: r.motivo };
+  if (!r.ok) return { ok: false, codigo: r.motivo === MOTIVO_PIN_EN_USO ? "pin-en-uso" : "pin-nuevo", motivo: r.motivo };
   return { ok: true, texto: JSON.stringify({ ...(crudo as object), estado }), usuarioId: u.id };
 }

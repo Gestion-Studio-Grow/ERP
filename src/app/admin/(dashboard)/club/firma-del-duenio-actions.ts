@@ -12,6 +12,8 @@
 // Guardia `requireAppAccion("club")`; el negocio sale de la sesión; los dueños, de la foto VIGENTE de la base.
 // Tope de intentos en la base (tope-pin-servidor.ts: por dueño, sin dueño y techo del negocio) y, además, uno por
 // instancia (rate-limit, 20 fallos cada 15 min; un acierto no lo limpia).
+// SEG-024: los dos topes del PIN van por carril según quién tipea: una sesión OWNER del ERP («pin-owner») y cualquier
+// otra («pin», la recepción). Los fallos tipeados en la recepción no traban la firma del dueño desde su sesión.
 // Nunca se devuelve ni se registra un PIN, un PIN guardado ni la sal.
 //
 // — Elaborado por GSG
@@ -33,7 +35,7 @@ import {
   pinDelDuenioCoincide,
   type UsoDePase,
 } from "@/lib/club/pin-servidor";
-import { anotarPinFuerte, claveAprobacion, clavePase, conTopeDePin, leerPinesFuertes, type AmbitoDelTope } from "@/lib/club/tope-pin-servidor";
+import { ambitoDelPinDeDuenio, anotarPinFuerte, claveAprobacion, clavePase, conTopeDePin, leerPinesFuertes, type AmbitoDelTope } from "@/lib/club/tope-pin-servidor";
 import { textoDeEsperaDelServidor } from "@/lib/club/espera-del-servidor";
 
 export type RespuestaFirmaDelDuenio =
@@ -148,10 +150,11 @@ async function verificarDuenio(c: Contexto, usuarioId: string | null, pin: strin
   if (!/^\d{2,8}$/.test(pin.trim())) return { ok: false, error: "Poné tu PIN.", codigo: "datos" };
   const candidatos = usuarioId ? c.duenios.filter((d) => d.id === usuarioId) : c.duenios;
   if (usuarioId && !candidatos.length) return { ok: false, error: "Ese usuario no es dueño o todavía no tiene PIN.", codigo: "usuario" };
-  const r = await conPorInstancia(c.tenantId, "pin", () =>
+  const carril = ambitoDelPinDeDuenio(c.rolErp);
+  const r = await conPorInstancia(c.tenantId, carril, () =>
     conTopeDePin(
       c.tenantId,
-      "pin",
+      carril,
       () => {
         const hit = candidatos.find((d) => pinDelDuenioCoincide(d.pin, pin, c.sal));
         // Sólo limpia los fallos de ese dueño un acierto que habilita (el PIN del largo viejo no firma ni limpia).

@@ -28,6 +28,17 @@
 // Claves: derivadas de AUTH_SECRET con su propio uso (patrón de src/lib/rendiciones/pin.server.ts). Sin AUTH_SECRET
 // en producción `authSecret()` tira: queda cerrado.
 //
+// SEG-024 — carriles separados (todos en la misma tabla, con otra clave; sin migración):
+//   · «pin»       (clave `<tenantId>`, la fila de antes): el PIN de dueño tipeado desde una sesión del ERP que NO es
+//     OWNER (la recepción). Cualquier rol que no sea OWNER cae acá, también uno desconocido.
+//   · «pin-owner» (clave `<tenantId>:pin-owner`): el PIN de dueño desde una sesión OWNER del ERP (el celular del dueño).
+//     Los fallos de la recepción no traban la firma del dueño desde su sesión, y al revés. Cada carril tiene sus 5 por
+//     dueño, 5 sin dueño y techo de 20: contra un mismo dueño entran hasta 5 + 5 antes de la primera espera, y el
+//     carril OWNER exige la credencial más fuerte del ERP.
+//   · «equipo»    (clave `<tenantId>:equipo`): el PIN de quien no es dueño («Cambiar mi PIN»), SÓLO por persona (balde
+//     en `porDuenio`, la escalera del motor). Sin techo del negocio ni balde sin usuario: un fallo contra una persona
+//     no traba a otra. Pide siempre la persona (sin ella, tira).
+//
 // — Elaborado por GSG
 //
 // design-lint-ignore: sin interfaz ni animación; el lint toma `Buffer.from(` por el `.from(` de gsap (reducedMotion N/A).
@@ -41,7 +52,10 @@ import type { PinesFuertes } from "./pin-servidor";
 export const ENTIDAD_PIN_INTENTO = "ClubPinIntento";
 export const ENTIDAD_PIN_FUERTE = "ClubPinFuerte";
 
-export type AmbitoDelTope = "pin" | "codigo";
+export type AmbitoDelTope = "pin" | "pin-owner" | "codigo" | "equipo";
+
+/** El carril del PIN de dueño según quién tipea: sólo una sesión OWNER del ERP va aparte (SEG-024). */
+export const ambitoDelPinDeDuenio = (rolErp: string | null | undefined): "pin" | "pin-owner" => (rolErp === "OWNER" ? "pin-owner" : "pin");
 
 type Db = Pick<Prisma.TransactionClient, "auditLog" | "$executeRaw">;
 
@@ -58,7 +72,7 @@ export const clavePase = (): Buffer => Buffer.from(hkdfSync("sha256", authSecret
 /** La clave del código de aprobación del servidor. */
 export const claveAprobacion = (): Buffer => Buffer.from(hkdfSync("sha256", authSecret(), "club-aprobacion", "codigo", 32));
 
-const claveDelTope = (tenantId: string, ambito: AmbitoDelTope) => (ambito === "pin" ? tenantId : `${tenantId}:codigo`);
+const claveDelTope = (tenantId: string, ambito: AmbitoDelTope) => (ambito === "pin" ? tenantId : `${tenantId}:${ambito}`);
 
 export type ResultadoDelTope<T> = { espera: true; esperaS: number } | { espera: false; resultado: T; esperaS: number };
 
@@ -126,8 +140,8 @@ function anotarFallo(t: IntentosPin, tope: number, ahora: number): IntentosPin {
  * Cuánto falta esperar para un intento contra `usuarioId` (o sin dueño): el techo, el de los intentos sin dueño (que
  * también se probaron contra ese dueño) y su balde. Sin dueño se prueba contra todos: cuentan los baldes de cada dueño.
  */
-function esperaDe(e: EstadoDelTope, usuarioId: string | null, ahora: number): number {
-  const baldes = [e.intentos, e.sinUsuario, ...(usuarioId ? [e.porDuenio.get(usuarioId)] : e.porDuenio.values())];
+function esperaDe(e: EstadoDelTope, usuarioId: string | null, ahora: number, conTecho = true): number {
+  const baldes = [...(conTecho ? [e.intentos, e.sinUsuario] : []), ...(usuarioId ? [e.porDuenio.get(usuarioId)] : e.porDuenio.values())];
   return Math.max(0, ...baldes.map((b) => (b ? esperaPin(b, ahora) : 0)));
 }
 
@@ -152,25 +166,28 @@ export async function conTopeDePin<T extends IntentoVerificado>(
 ): Promise<ResultadoDelTope<T>> {
   const correr = opciones.correr ?? correrConRls;
   const ahora = opciones.ahoraMs ?? Date.now();
-  const usuarioId = ambito === "pin" && typeof opciones.usuarioId === "string" && opciones.usuarioId ? opciones.usuarioId : null;
+  const usuarioId = ambito !== "codigo" && typeof opciones.usuarioId === "string" && opciones.usuarioId ? opciones.usuarioId : null;
+  // «equipo» es sólo por persona: sin persona no hay balde donde anotar (no se cuenta «a cualquiera»).
+  if (ambito === "equipo" && !usuarioId) throw new Error("conTopeDePin: el ámbito «equipo» pide la persona");
+  const conTecho = ambito !== "equipo";
   const clave = claveDelTope(tenantId, ambito);
   return correr(tenantId, async (db) => {
     await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`club-pin:${clave}`}))`;
     const donde = { tenantId, entity: ENTIDAD_PIN_INTENTO, entityId: clave };
     const fila = await db.auditLog.findFirst({ where: donde, orderBy: [{ createdAt: "desc" }, { id: "desc" }], select: { changes: true } });
     const estado = leerEstado(fila?.changes ?? null);
-    const espera = esperaDe(estado, usuarioId, ahora);
+    const espera = esperaDe(estado, usuarioId, ahora, conTecho);
     if (espera > 0) return { espera: true as const, esperaS: Math.ceil(espera / 1000) };
     const antes = JSON.stringify(guardable(estado));
     const resultado = await verificar();
     if (!resultado.ok) {
-      estado.intentos = anotarFallo(estado.intentos, TECHO_FALLOS_NEGOCIO, ahora);
+      if (conTecho) estado.intentos = anotarFallo(estado.intentos, TECHO_FALLOS_NEGOCIO, ahora);
       if (usuarioId) estado.porDuenio.set(usuarioId, anotarFallo(baldeDe(estado, usuarioId, ahora), TOPE_POR_BALDE, ahora));
       else {
         estado.sinUsuario = anotarFallo(estado.sinUsuario, TOPE_POR_BALDE, ahora);
         for (const [id, b] of estado.porDuenio) estado.porDuenio.set(id, anotarFallo(b, TOPE_POR_BALDE, ahora));
       }
-    } else if (ambito === "pin" && typeof resultado.limpia === "string") {
+    } else if (ambito !== "codigo" && typeof resultado.limpia === "string") {
       estado.porDuenio.delete(resultado.limpia);
     }
     podar(estado, ahora);
@@ -187,7 +204,7 @@ export async function conTopeDePin<T extends IntentoVerificado>(
         },
       });
     }
-    return { espera: false as const, resultado, esperaS: Math.ceil(esperaDe(estado, usuarioId, ahora) / 1000) };
+    return { espera: false as const, resultado, esperaS: Math.ceil(esperaDe(estado, usuarioId, ahora, conTecho) / 1000) };
   });
 }
 
