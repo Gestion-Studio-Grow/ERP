@@ -82,13 +82,13 @@ export default function GlobalError({
         }}
       >
         <main
-          role="alert"
           style={{
             maxWidth: "32rem",
             padding: "2.5rem 1.5rem",
             textAlign: "center",
           }}
         >
+          <div role="alert">
           <h1
             ref={titulo}
             tabIndex={-1}
@@ -121,6 +121,7 @@ export default function GlobalError({
               Código de referencia: <code>{error.digest}</code>
             </p>
           ) : null}
+          </div>
         </main>
       </body>
     </html>

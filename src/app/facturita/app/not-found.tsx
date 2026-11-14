@@ -11,7 +11,7 @@ export default function NoEncontradaFactoque() {
   return (
     <div className="fx" style={{ minHeight: "auto", background: "transparent" }}>
       <style dangerouslySetInnerHTML={{ __html: PIEL_FACTURITA }} />
-      <main className="fx-caja fx-caja--alta" style={{ paddingBlock: "48px" }}>
+      <section className="fx-caja fx-caja--alta" style={{ paddingBlock: "48px" }}>
         <p className="fx-ante">Error 404</p>
         <h1 className="fx-h3">No encontramos esa pantalla</h1>
         <p className="fx-bajada">
@@ -25,7 +25,7 @@ export default function NoEncontradaFactoque() {
             Ver mis facturas
           </Link>
         </div>
-      </main>
+      </section>
     </div>
   );
 }

@@ -2,7 +2,7 @@
 // - global-error: además de reintentar, un <a href="/"> común (reemplaza el layout: nada de <Link>).
 // - error del panel: con el diseño de siempre (CH) ya no relanza al global; muestra su tarjeta con
 //   «Probar de nuevo» y «Volver al inicio».
-// - /facturita/app: error, loading y not-found propios, y el comodín que manda lo inexistente al 404.
+// - /facturita/app: error y not-found propios (sin loading: el 404 tiene que responder 404), y el comodín que manda lo inexistente al 404.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -13,7 +13,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import GlobalError from "./global-error";
 import ErrorDelPanel from "./admin/(dashboard)/error";
 import ErrorDeFactoque from "./facturita/app/error";
-import CargandoFactoque from "./facturita/app/loading";
 import NoEncontradaFactoque from "./facturita/app/not-found";
 
 const APP = join(process.cwd(), "src/app");
@@ -38,12 +37,16 @@ test("error del panel, diseño de siempre: tarjeta propia (no relanza) con salid
   assert.match(html, />Probar de nuevo<\/button>/);
   assert.match(html, /<a [^>]*href="\/admin"[^>]*>Volver al inicio<\/a>/);
   assert.match(html, /min-h-11/);
+  assert.doesNotMatch(html, /interno/, "el mensaje interno no se muestra");
+  assert.match(html, /abc123/);
   const fuente = readFileSync(join(APP, "admin/(dashboard)/error.tsx"), "utf8");
   assert.doesNotMatch(fuente, /throw error/);
+  // Next 16: `retry` vuelve a pedir la pantalla al servidor; `reset` queda de respaldo.
+  assert.match(fuente, /retry \?\? reset/);
 });
 
 test("/facturita/app tiene error, loading y not-found con export default, y el comodín al 404", () => {
-  for (const f of ["error.tsx", "loading.tsx", "not-found.tsx", "[...resto]/page.tsx"]) {
+  for (const f of ["error.tsx", "not-found.tsx", "[...resto]/page.tsx"]) {
     const ruta = join(APP, "facturita/app", f);
     assert.ok(existsSync(ruta), `falta ${f}`);
     assert.match(readFileSync(ruta, "utf8"), /export default function/, `${f} sin export default`);
@@ -60,15 +63,16 @@ test("error de Factoque: role=alert, foco al título, «Probar de nuevo» y «Vo
   assert.match(html, /<a [^>]*href="\/facturita\/app"[^>]*>Volver al panel<\/a>/);
   assert.match(html, /class="fx"/);
   assert.doesNotMatch(html, /interno/);
+  assert.doesNotMatch(html, /<main/, "el <main> lo pone el layout");
 });
 
-test("loading y not-found de Factoque: esqueleto anunciado y 404 con salida al panel", () => {
-  const cargando = renderToStaticMarkup(createElement(CargandoFactoque));
-  assert.match(cargando, /role="status"/);
-  assert.match(cargando, /aria-busy="true"/);
-  assert.match(cargando, /Cargando/);
+test("not-found de Factoque: 404 con salida al panel, sin <main> propio ni loading.tsx", () => {
+  // Sin loading.tsx a propósito: con él la página se transmite por partes y el 404 sale con HTTP 200
+  // (docs de Next, loading.md «Status Codes»). Con este archivo ausente, notFound() responde 404.
+  assert.ok(!existsSync(join(APP, "facturita/app/loading.tsx")), "loading.tsx vuelve a dar 200 en el 404");
   const noEsta = renderToStaticMarkup(createElement(NoEncontradaFactoque));
   assert.match(noEsta, /No encontramos esa pantalla/);
   assert.match(noEsta, /href="\/facturita\/app"[^>]*>Volver al panel/);
-  assert.doesNotMatch(cargando + noEsta, /\bFacturita\b/);
+  assert.doesNotMatch(noEsta, /\bFacturita\b/);
+  assert.doesNotMatch(noEsta, /<main/, "el <main> lo pone el layout");
 });
