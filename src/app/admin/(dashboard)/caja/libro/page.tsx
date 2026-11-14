@@ -259,7 +259,7 @@ export default async function LibroCajaPage({
                       <td className="block pt-0.5 text-body sm:table-cell sm:px-4 sm:py-2 sm:pt-2">
                         {r.detail || <span className="text-faint">—</span>}
                         {origen !== "manual" && (
-                          <Badge tone="info" className="ml-2">{rotuloDeVenta(origen, r.detail)}</Badge>
+                          <Badge tone="info" className="ml-2">{rotuloDeVenta(origen, r.detail, r.deLaTienda)}</Badge>
                         )}
                         {r.type === "APERTURA" && (
                           <Badge tone="neutral" className="ml-2">Apertura de turno</Badge>

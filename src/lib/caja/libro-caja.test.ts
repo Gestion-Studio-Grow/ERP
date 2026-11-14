@@ -324,7 +324,7 @@ test("no se borra desde el libro lo que asentó el sistema; lo tipeado a mano, s
   assert.equal(a("EGRESO", "user:u1"), null);
 });
 
-import { rotuloContable, rotuloDeOrigen, rotuloDeVenta } from "./libro-caja";
+import { movimientoDelLedger, pedidoDelAsiento, rotuloContable, rotuloDeOrigen, rotuloDeVenta } from "./libro-caja";
 
 test("en el archivo, el cobro de un proyecto tampoco sale como turno", () => {
   assert.equal(rotuloContable("cobro-turno", "Proyecto #2 · Stand · Anticipo 50%"), "Cobro de proyecto");
@@ -338,6 +338,29 @@ test("el cobro de un proyecto no se rotula como turno; lo demás sigue igual", (
   assert.equal(rotuloDeVenta("turno", "Corte y color"), "Turno cobrado");
   assert.equal(rotuloDeVenta("turno", null), "Turno cobrado");
   assert.equal(rotuloDeVenta("pos", "Proyecto #12"), "Venta del mostrador");
+});
+
+// UAT Magra: el libro rotulaba «venta del mostrador» el cobro de un pedido que entró por la tienda.
+test("el cobro de un pedido de la tienda se rotula «Pedido de la tienda», no «venta del mostrador»", () => {
+  assert.equal(rotuloDeVenta("pos", "Venta #57", true), "Pedido de la tienda");
+  assert.equal(rotuloDeOrigen({ type: "VENTA", origin: "pos", detail: "Venta #57", deLaTienda: true }), "pedido de la tienda");
+  assert.equal(rotuloDeOrigen({ type: "VENTA", origin: "pos", detail: "Venta #58" }), "venta del mostrador");
+  // La marca sólo cuenta en una venta: un turno no pasa a ser de la tienda.
+  assert.equal(rotuloDeVenta("turno", "Corte", true), "Turno cobrado");
+});
+
+test("el loader pasa «de la tienda» a la fila sólo en un asiento de venta con pedido", () => {
+  const base = { id: "m1", occurredAt: new Date("2026-11-10T15:00:00Z"), method: "EFECTIVO" as const, amount: 1000, reason: "Venta #57", createdBy: "user:u1" };
+  assert.equal(movimientoDelLedger({ ...base, type: "VENTA", orderId: "o57", deLaTienda: true }).deLaTienda, true);
+  assert.equal(movimientoDelLedger({ ...base, type: "VENTA", orderId: "o58" }).deLaTienda, undefined);
+  assert.equal(movimientoDelLedger({ ...base, type: "INGRESO", orderId: null, deLaTienda: true }).deLaTienda, undefined);
+});
+
+test("el pedido de un asiento: su orderId o, en un cobro con varios medios, el de la marca", () => {
+  assert.equal(pedidoDelAsiento({ orderId: "o1", createdBy: "user:u" }), "o1");
+  assert.equal(pedidoDelAsiento({ orderId: null, createdBy: "venta-pago-mixto:o2" }), "o2");
+  assert.equal(pedidoDelAsiento({ orderId: null, createdBy: "user:u" }), null);
+  assert.equal(pedidoDelAsiento({ orderId: null, createdBy: "venta-pago-mixto:" }), null);
 });
 
 import { marcaDelPagoEnCaja, marcaDelRechazoEnCaja } from "@/lib/vouchers/acreditacion-core";

@@ -268,3 +268,11 @@ test("QA vuelta 6 · sin locales, sin facturas de prueba y sin facturas de prove
   const hoja = armarExportLibroIva(libro, { mes: "2026-08" });
   assert.doesNotMatch(hoja, /COMPROBANTES SIN VALIDEZ FISCAL|Locales del mismo CUIT|Percepciones y otros tributos|Comprobantes sin validez fiscal/);
 });
+
+// UAT Magra: un pedido de la tienda cobrado sin comprobante no es «Venta del mostrador».
+import { tipoDelPedidoSinComprobante } from "./libro-iva";
+test("el tipo de un pedido sin comprobante dice por dónde entró", () => {
+  assert.equal(tipoDelPedidoSinComprobante("ONLINE"), "Pedido de la tienda");
+  assert.equal(tipoDelPedidoSinComprobante("COUNTER"), "Venta del mostrador");
+  assert.equal(tipoDelPedidoSinComprobante(null), "Venta del mostrador");
+});

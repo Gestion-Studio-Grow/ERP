@@ -81,7 +81,7 @@ import { negocioConOfertas, promosParaUnaVenta } from "@/lib/supermercado/promos
 import { leerDatosFiscalesDeVenta, type DatosFiscalesDeVenta } from "@/lib/fiscal/datos-fiscales-de-venta";
 import { fechaFiscalDelDia } from "@/lib/libros/fecha-fiscal";
 import { isUniqueViolation } from "@/lib/prisma-errors";
-import { cantidadOCero, formatearCantidad } from "@/lib/pos-peso";
+import { cantidadOCero } from "@/lib/pos-peso";
 import { fmtMoneyARS } from "@/components/ui/format";
 import { textoPlata } from "@/lib/cobro/pie-de-cobro-core";
 import { lastClosedDay, lastClosedDayTx } from "@/lib/caja/frontera-cierre";
@@ -124,6 +124,7 @@ import {
   entregarPedidoGuarded,
   avanzarPedidoGuarded,
   horarioDelFormulario,
+  mensajeDeVentaAnulada,
 } from "@/lib/order-anulacion";
 import { MARCA_DEMO_GSG, contactoDeLaDemo, presentaComoDemoGsg } from "@/lib/marca-demo";
 import { avisoAnulacionConDevolucion, devolucionManualDeLaVenta } from "@/lib/caja/doble-salida";
@@ -1373,24 +1374,18 @@ async function anularVentaCore(
   });
   revalidarMostrador();
 
-  // El mensaje DICE lo que se movió. Una anulación que sólo contesta "listo" obliga a ir a
-  // mirar el libro y el stock para saber si hizo algo.
-  const partes: string[] = [`Venta #${resultado.code} anulada.`];
-  if (resultado.montoRevertido > 0) {
-    partes.push(`Se devolvieron ${fmtMoneyARS(resultado.montoRevertido)} en el libro de caja.`);
-  }
-  if (cuenta.anulada) {
-    partes.push(`Se sacaron ${fmtMoneyARS(cuenta.monto)} de la cuenta corriente del cliente.`);
-  }
-  if (resultado.stockDevuelto.length > 0) {
-    partes.push(
-      `Volvió al stock: ${resultado.stockDevuelto.map((d) => `${formatearCantidad(d.qty)} de ${d.name}`).join(", ")}.`,
-    );
-  }
-  if (resultado.cuponDevuelto) {
-    partes.push(`El cupón ${resultado.cuponDevuelto} recuperó el uso que había gastado esta venta.`);
-  }
-  return { ok: true, mensaje: partes.join(" ") };
+  // El mensaje DICE lo que se movió (texto en `mensajeDeVentaAnulada`, order-anulacion.ts).
+  return {
+    ok: true,
+    mensaje: mensajeDeVentaAnulada({
+      code: resultado.code,
+      esPedido: resultado.esPedido,
+      montoRevertido: resultado.montoRevertido,
+      stockDevuelto: resultado.stockDevuelto,
+      cuponDevuelto: resultado.cuponDevuelto,
+      cuentaAnulada: cuenta.anulada ? cuenta.monto : null,
+    }),
+  };
 }
 
 /**
