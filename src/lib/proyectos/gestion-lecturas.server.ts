@@ -18,6 +18,9 @@ import { claveDia, diasDelRango, enlaceSeguro, laminasPublicas, mediodia, pagina
 import { redondear } from "./core";
 import type { ModuloGestion, RolGestion } from "./gestion-core";
 import { SIN_COMPROBANTES } from "./rendiciones-core";
+import { etapa2ActivaPara } from "./etapa2.server";
+import { esTokenDePortal, etapaParaElCliente, type EventoDelCliente } from "./portal-cliente-core";
+import { faltaTablaPortalCliente, hayTablaPortalCliente } from "./portal-cliente.server";
 
 const DIA = 86_400_000;
 
@@ -553,4 +556,55 @@ export async function portalPublico(token: string) {
     tokenEntregables: p.tokenEntregables,
     archivos: p.archivos.map((a) => ({ id: a.id, nombre: a.nombre, tipo: a.tipo, imagen: enlaceSeguro(a.datos), url: enlaceSeguro(a.url) })).filter((a) => a.imagen || a.url),
   };
+}
+
+/**
+ * Etapa 2 · T5 — el link del cliente con TODOS sus eventos con la productora. Lista blanca campo por campo
+ * (CLAVES_EVENTO_DEL_CLIENTE): nombre, servicio, evento, lugar, fechas y la etapa traducida; del portal de cada proyecto
+ * sólo el token para armar el link. Nada de montos, cuotas, costos, proveedores, equipo ni notas. Falla cerrado: token
+ * con otra forma, sin tabla, token de otro negocio (el negocio sale del host) o portal apagado para el dueño del token
+ * → null (la página da 404).
+ */
+export async function portalClientePublico(token: string) {
+  if (!esTokenDePortal(token)) return null;
+  if (!(await hayTablaPortalCliente())) return null;
+  const tenantId = await getCurrentTenantId();
+  if (!tenantId) return null;
+  try {
+    const fila = await prisma.portalCliente.findFirst({ where: { tenantId, token }, select: { tenantId: true, clientId: true, client: { select: { name: true, tenantId: true } } } });
+    if (!fila || fila.tenantId !== tenantId) return null;
+    // Un cliente de otro negocio (o que RLS no deja ver) no abre nada: null limpio, nunca un TypeError.
+    if (!fila.client || fila.client.tenantId !== tenantId) return null;
+    // El interruptor, con el negocio dueño de la fila (nunca el de una sesión).
+    if (!(await etapa2ActivaPara(fila.tenantId, "portal"))) return null;
+    const proyectos = await prisma.proyecto.findMany({
+      where: { tenantId, clientId: fila.clientId, perdidoEl: null },
+      orderBy: { fechaEvento: "desc" },
+      take: 100,
+      select: { nombre: true, servicio: true, evento: true, tipoEvento: true, lugar: true, ciudad: true, fechaEvento: true, fechaFin: true, etapa: true, tokenPortal: true },
+    });
+    const eventos: EventoDelCliente[] = proyectos.map((p) => ({
+      nombre: p.nombre,
+      servicio: p.servicio,
+      evento: p.evento,
+      tipoEvento: p.tipoEvento,
+      lugar: p.lugar,
+      ciudad: p.ciudad,
+      fechaEvento: p.fechaEvento,
+      fechaFin: p.fechaFin,
+      etapa: etapaParaElCliente(p.etapa),
+      tokenPortal: p.tokenPortal,
+    }));
+    const { nombre, slug, whatsapp } = await datosDelNegocio(tenantId);
+    return {
+      // El negocio dueño del token. No se muestra.
+      tenantId,
+      negocio: { nombre, slug, whatsapp },
+      cliente: fila.client.name,
+      eventos,
+    };
+  } catch (e) {
+    if (faltaTablaPortalCliente(e)) return null;
+    throw e;
+  }
 }
