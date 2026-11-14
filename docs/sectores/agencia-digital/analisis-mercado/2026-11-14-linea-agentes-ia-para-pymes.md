@@ -220,3 +220,34 @@ Pedido del dueño: entender el dolor en la región, con Reddit como fuente. Dato
   acotadas con aprobación humana.
 - Dato faltante que cambia la decisión: entrevistas a 10 a 15 PyMEs argentinas sobre cuánto pagarían por mes por
   un puesto acotado, frente a Meta Business AI gratis y a lo que ya incluyen Xubio y Alegra.
+
+## 15. Qué se puede crear, cómo opera y primer cliente (14/11/2026)
+
+Cuadro completo y diagrama de flujo: secciones «Qué podemos crear», «Cómo opera» y «Primer cliente» del manual
+(https://claude.ai/artifact/Aa27VY7nXTKCNgia66fG3Y).
+
+**Orden propuesto**
+1. Base común (permisos, registro, tres memorias, derivación, informe, panel): se construye una vez.
+2. Seguimiento de clientes (ARM): cliente cero.
+3. Cobranza sin mover plata: primer cliente pago.
+4. Parte de la mañana: incluido en cada puesto.
+5. Después: recepción y turnos, conciliación propuesta.
+6. Tras prueba medida: carga de comprobantes y trabajo por pantalla.
+7. No primero: atención de consultas (Meta la da gratis). No crear: agente contador que cierre libros; asistente
+   general en WhatsApp.
+
+**Flujo de un puesto:** disparador → lee datos del sistema → revisa memorias → prepara → según nivel (1 pide
+aprobación; 2 el código vuelve a comparar y ejecuta; 3 deriva) → registra → si queda pendiente, compromiso con
+fecha que vuelve a disparar; si no, suma al informe.
+
+**Primer cliente**
+- Corrección: se había sugerido CH Estética por tener movimiento diario. El tablero del 14/11 dice que la dueña
+  todavía no ingresó (Factory-GSG `00-ESTADO/tablero/CH.md`, fila 3) y que MIA no está activada en producción
+  (`00-ESTADO/tablero/MIA.md`, encabezado). Hoy ningún cliente tiene operación diaria dentro del sistema.
+- Cliente cero: GSG. Puesto de seguimiento de los propios clientes (firma sin respuesta, ronda de preguntas sin
+  contestar, acceso sin usar), en nivel 1, con aprobación del dueño en la página de decisiones.
+- Primer cliente pago: MIA Producciones, como segunda etapa, con el sistema andando y datos reales. Primer puesto:
+  cobranza de cuotas (el agente Administrador ya prepara textos). Condición: consentimiento escrito de MIA.
+- En paralelo: entrevistas a 10 a 15 PyMEs para fijar precio y elegir el segundo cliente.
+
+**API de Reddit:** las páginas oficiales devolvieron 403 al lector; no hay fuente leída sobre cómo pedirla hoy.
