@@ -372,6 +372,11 @@ model Tenant {
   // `arcaCuit` es String (no Int como sugería el spec): un CUIT de 11 dígitos no entra
   // en Int32 de Postgres — mismo criterio que `Invoice.docNro`.
   arcaCuit         String? // CUIT del emisor (11 dígitos, sin guiones)
+  // D4 del dueño (09/11): columna `"cuitVerificadoEn" TIMESTAMP(3)` NULL, migración 20261110170000_tenant_cuit_verificado
+  // (aditiva, Gate 2). A PROPÓSITO fuera del modelo: con el campo acá, toda lectura de Tenant sin `select`
+  // falla con P2022 mientras la migración no esté aplicada (certificación 10/11). Se lee y se escribe sólo con
+  // SQL crudo, preguntando antes al catálogo (tenedores-del-cuit.server.ts). Guarda la versión (updatedAt) del
+  // certificado que ARCA de PRODUCCIÓN aceptó; verifica si es igual a la de la credencial vigente.
   arcaPuntoVenta   Int? // punto de venta habilitado en ARCA
   arcaHomologacion Boolean @default(true) // true = testing ARCA (seguro por default); false = producción
 

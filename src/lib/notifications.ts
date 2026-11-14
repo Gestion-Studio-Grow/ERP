@@ -1,5 +1,6 @@
 import { tenantTransaction } from "@/lib/rls";
 import { interpolarPlantilla, textoRecordatorio } from "@/lib/turnos/turno-abierto";
+import { htmlDePlataforma } from "@/lib/gsg/mail-gsg";
 
 // Envío de notificaciones al cliente. Hoy soporta email real (si se configura
 // RESEND_API_KEY) y deja el mismo punto de entrada listo para conectar
@@ -79,8 +80,12 @@ async function sendEmailReminder(payload: ReminderPayload) {
 
 export const mailConectado = (): boolean => !!process.env.RESEND_API_KEY && !!process.env.RESEND_FROM_EMAIL?.trim();
 
-/** Un mail de texto al equipo del negocio. Sin clave o sin remitente no sale: nunca un remitente inventado. */
-export async function enviarMailInterno(d: { tenantId: string; para: string; asunto: string; cuerpo: string }) {
+/**
+ * Un mail de texto al equipo del negocio. Sin clave o sin remitente no sale: nunca un remitente inventado.
+ * `marcaGsg`: sólo los mails de la PLATAFORMA (código para entrar, constancias de GSG) suman una versión HTML con el
+ * logo de GSG arriba (PNG de /gsg/logo-mail.png); el texto plano va igual. Sin `APP_BASE_DOMAIN`, sólo texto.
+ */
+export async function enviarMailInterno(d: { tenantId: string; para: string; asunto: string; cuerpo: string; marcaGsg?: boolean }) {
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.RESEND_FROM_EMAIL?.trim();
   if (!apiKey || !from) {
@@ -91,7 +96,7 @@ export async function enviarMailInterno(d: { tenantId: string; para: string; asu
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from, to: d.para, subject: d.asunto, text: d.cuerpo }),
+    body: JSON.stringify({ from, to: d.para, subject: d.asunto, text: d.cuerpo, ...htmlDePlataforma(d) }),
     signal: AbortSignal.timeout(15_000),
   });
   if (!res.ok) console.error(`[aviso-mail] el servicio respondió ${res.status}`);
