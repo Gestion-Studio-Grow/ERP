@@ -174,8 +174,9 @@ export async function reporteProyectos() {
   return proyectos.map((p) => {
     const a = p.presupuestos[0];
     const t = a ? totalesEnPesos(a, tc, config.margenPct) : null;
-    const { cobrado, saldo } = cobranzaDe(p, tc, config.margenPct, originales);
-    return { ...p, t, cobrado, saldo, real: resultadoReal(t, p.gastos) };
+    // `porCobrar` sale de la fuente única: la pantalla sólo lo suma, no lo recalcula del saldo.
+    const { cobrado, saldo, porCobrar } = cobranzaDe(p, tc, config.margenPct, originales);
+    return { ...p, t, cobrado, saldo, porCobrar, real: resultadoReal(t, p.gastos) };
   });
 }
 
@@ -266,8 +267,8 @@ export async function proyectosDelCliente(clientId: string) {
   return proyectos.map((p) => {
     const a = p.presupuestos[0];
     const t = a ? totalesEnPesos(a, tc, config.margenPct) : null;
-    const { cobrado, saldo } = cobranzaDe(p, tc, config.margenPct, originales);
-    return { ...p, t, cobrado, saldo };
+    const { cobrado, saldo, porCobrar } = cobranzaDe(p, tc, config.margenPct, originales);
+    return { ...p, t, cobrado, saldo, porCobrar };
   });
 }
 

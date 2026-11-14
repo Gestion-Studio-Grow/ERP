@@ -27,7 +27,8 @@ export default async function FichaProductora({ id, user }: { id: string; user: 
   const contacto = contactoDeLaFicha({ telefono: client.phone, noQuiere: false, puedeEditar });
   const vendido = redondear(proyectos.reduce((s, p) => s + (p.t?.total ?? 0), 0));
   const cobrado = redondear(proyectos.reduce((s, p) => s + p.cobrado, 0));
-  const porCobrar = redondear(proyectos.reduce((s, p) => s + (p.t ? Math.max(0, p.saldo) : 0), 0));
+  // `porCobrar` de cada proyecto sale de la cobranza (cobranza-core), igual que Clientes, Rentabilidad y Administración.
+  const porCobrar = redondear(proyectos.reduce((s, p) => s + p.porCobrar, 0));
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-8">

@@ -17,7 +17,8 @@ export default async function RentabilidadProyectos() {
   const ganancia = suma((f) => f.t!.ganancia);
   const gananciaReal = suma((f) => f.real.gananciaReal ?? 0);
   const conGastos = con.filter((f) => f.real.gananciaReal !== null).length;
-  const porCobrar = suma((f) => Math.max(0, f.saldo));
+  // Lo que falta cobrar de cada proyecto, tal cual lo da la cobranza (cobranza-core): la misma cifra que la ficha y Administración.
+  const porCobrar = redondear(filas.reduce((s, f) => s + f.porCobrar, 0));
   const porPagar = redondear(filas.reduce((s, f) => s + f.real.porPagar, 0));
 
   return (
