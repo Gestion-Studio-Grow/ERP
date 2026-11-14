@@ -8,6 +8,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { brandForSlug } from "@/lib/branding";
 import { nombreEnLaNoEncontrada, noEncontradaDeLaVidriera } from "../no-encontrada-core";
 import HojaNoEncontrada from "./HojaNoEncontrada";
+import { before as antesDeTodo } from "node:test";
+import { marcaPropiaEnPruebas } from "@/lib/marca-demo";
+// Magra se muestra como demo GSG (src/lib/marca-demo.ts); acá se sigue probando SU marca, la que vuelve al sacar la demo.
+antesDeTodo(() => marcaPropiaEnPruebas(true));
 
 const leer = (f: string) => readFileSync(join(process.cwd(), "src/app/(site)", f), "utf8");
 

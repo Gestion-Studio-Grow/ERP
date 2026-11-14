@@ -181,22 +181,25 @@ async function tomarCuota(tx: InvoiceTx, tenantId: string, cuotaId: string): Pro
  * si la tiene, devuelve `"facturada"` sin correr nada. Lo usan regenerar, quitar y el texto
  * `factura`: el mismo candado que toma la facturación, así nunca terminan las dos juntas. Sin la
  * columna corre `fn` directo (no hay facturas de cuotas que cuidar).
+ *
+ * Con `enTx` corre adentro de esa transacción (la de `regenerarCuotas`, que ya tiene el candado de la
+ * cobranza del proyecto): la fila queda tomada hasta que esa transacción cierre. Orden de candados:
+ * cobranza → fila de la cuota; la facturación toma facturas-cobro → fila de la cuota. No se cruzan.
  */
 export async function conCuotaSinFacturaViva<T>(
   tenantId: string,
   cuotaId: string,
   fn: (tx: InvoiceTx) => Promise<T>,
+  enTx?: InvoiceTx,
 ): Promise<T | "facturada"> {
-  if (!(await hayColumnaCuotaEnInvoice())) return tenantTransaction(fn, { tenantId });
-  return tenantTransaction(
-    async (tx) => {
-      await tomarCuota(tx, tenantId, cuotaId);
-      const viva = await tx.invoice.findFirst({ where: { tenantId, proyectoCuotaId: cuotaId, status: { in: ["PENDING", "AUTHORIZED"] } }, select: { id: true } });
-      if (viva) return "facturada" as const;
-      return fn(tx);
-    },
-    { tenantId },
-  );
+  const conCandado = async (tx: InvoiceTx): Promise<T | "facturada"> => {
+    await tomarCuota(tx, tenantId, cuotaId);
+    const viva = await tx.invoice.findFirst({ where: { tenantId, proyectoCuotaId: cuotaId, status: { in: ["PENDING", "AUTHORIZED"] } }, select: { id: true } });
+    if (viva) return "facturada" as const;
+    return fn(tx);
+  };
+  if (!(await hayColumnaCuotaEnInvoice())) return enTx ? fn(enTx) : tenantTransaction(fn, { tenantId });
+  return enTx ? conCandado(enTx) : tenantTransaction(conCandado, { tenantId });
 }
 
 /** La cuota cambió entre que se armó la factura y que se tomó su fila: no se factura con lo viejo. */

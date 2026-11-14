@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { nombreVisibleDelNegocio } from "@/lib/marca-demo";
 import { requireApp } from "@/lib/require-app";
 import { terminalDelEquipo } from "@/lib/terminal/terminal.server";
 import { isInvoicingEnabled } from "@/lib/fiscal";
@@ -134,11 +135,11 @@ export default async function VentasPage({
       take: LIMITE,
       select: { entityId: true, actor: true, changes: true },
     }),
-    prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true } }),
+    prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true, slug: true } }),
     prisma.user.findMany({ where: { tenantId }, select: { id: true, name: true } }),
   ]);
   const nombres = new Map(usuarios.map((u) => [u.id, u.name]));
-  const negocio = tenant?.name ?? "Mi negocio";
+  const negocio = nombreVisibleDelNegocio(tenant?.slug, tenant?.name, "Mi negocio");
 
   // El rastro de cada venta de la lista: quién la anuló y por qué (las anuladas), y con qué
   // descuento o precio a mano se cobró (el alta). Una sola lectura para toda la lista.

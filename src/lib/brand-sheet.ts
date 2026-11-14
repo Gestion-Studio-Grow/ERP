@@ -18,6 +18,7 @@ import { getCurrentTenantId, DireccionSinNegocioError } from "@/lib/tenant";
 import { logger, serializeError } from "@/lib/logger";
 import { ACCENT_PRESETS, invertTheme, resolveAccent, type AccentPreset, type Theme } from "@/lib/branding";
 import { themeIdForBlueprint, themePack, type ThemeId, type ThemePack } from "@/lib/theme-packs";
+import { MARCA_DEMO_GSG, presentaComoDemoGsg } from "@/lib/marca-demo";
 
 // Datos mínimos del Tenant que alimentan la ficha (los que ya existen en el schema).
 export type TenantBrandInput = {
@@ -87,9 +88,15 @@ export const getBrandSheet = cache(async (): Promise<BrandSheet> => {
     const id = await getCurrentTenantId();
     const t = await basePrisma.tenant.findUnique({
       where: { id },
-      select: { name: true, accentPreset: true, frontTheme: true, blueprintId: true },
+      select: { name: true, slug: true, accentPreset: true, frontTheme: true, blueprintId: true },
     });
-    return buildBrandSheet(t ?? { name: null, accentPreset: null, frontTheme: null, blueprintId: null });
+    if (!t) return buildBrandSheet({ name: null, accentPreset: null, frontTheme: null, blueprintId: null });
+    const { slug, ...fila } = t;
+    // DEMO GSG (src/lib/marca-demo.ts): nombre y acento de la demo aunque la fila diga los del cliente.
+    if (presentaComoDemoGsg(slug)) {
+      return buildBrandSheet({ ...fila, name: MARCA_DEMO_GSG.nombre, accentPreset: MARCA_DEMO_GSG.preset, frontTheme: MARCA_DEMO_GSG.frontTheme });
+    }
+    return buildBrandSheet(fila);
   } catch (err) {
     // Fail-open, pero que se vea: con la ficha neutra el negocio se presenta como «Mi negocio».
     if (!(err instanceof DireccionSinNegocioError)) logger.warn("brand-sheet", "no se pudo leer la ficha del negocio", { err: serializeError(err) });

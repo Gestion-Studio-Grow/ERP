@@ -15,8 +15,7 @@
 // acá está solo la parte SERVER (lee el tenant con Prisma + resuelve la variante).
 
 import { cache } from "react";
-import { prisma } from "@/lib/prisma";
-import { getCurrentTenantId } from "@/lib/tenant";
+import { filaDelNegocioDelPedido, getCurrentTenantId } from "@/lib/tenant";
 import { catalogo, moduleRegistryEnabled, resolverActivacion } from "@/modules";
 
 export { moduleGateAllows } from "@/modules/gating";
@@ -28,10 +27,9 @@ export { moduleGateAllows } from "@/modules/gating";
 export const getActiveModuleIds = cache(async (): Promise<Set<string> | null> => {
   if (!moduleRegistryEnabled()) return null;
   const tenantId = await getCurrentTenantId();
-  const tenant = await prisma.tenant.findUnique({
-    where: { id: tenantId },
-    select: { blueprintId: true, modules: true },
-  });
+  // La fila del pedido, compartida con el producto y el color del equipo (PLAT-005). Sin catch,
+  // como antes: una falla de lectura se propaga.
+  const tenant = await filaDelNegocioDelPedido();
   const res = resolverActivacion(
     {
       tenantId,

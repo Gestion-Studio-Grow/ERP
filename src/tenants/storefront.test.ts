@@ -23,6 +23,10 @@ import {
   sumarDias,
 } from "@/app/tienda/reglas-tienda";
 import { BARRIOS, CONFIG_MAGRA, EZEIZA } from "@/app/tienda/envio-de-la-tienda.fixture";
+import { before as antesDeTodo } from "node:test";
+import { marcaPropiaEnPruebas } from "@/lib/marca-demo";
+// Magra se muestra como demo GSG (src/lib/marca-demo.ts); acá se sigue probando SU marca, la que vuelve al sacar la demo.
+antesDeTodo(() => marcaPropiaEnPruebas(true));
 
 // --- Copy por tenant --------------------------------------------------------
 

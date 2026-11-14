@@ -50,7 +50,9 @@ import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import { roleHasCapability } from "@/lib/capabilities";
 import TableroPedidos from "./TableroPedidos";
 import AvisoDePedidosNuevos from "./AvisoDePedidosNuevos";
-import { armarTablero, leerAvisados } from "./tablero.server";
+import { armarTablero, leerAvisados, leerPlataDelPeso } from "./tablero.server";
+import { explicacionDelAjuste } from "@/lib/ajuste-peso-cobrado";
+import { saldoDelPedido } from "@/lib/settlement/saldo-del-pedido";
 import { LineaDeEstado, Plata } from "@/components/ui";
 import { lineaDelTablero, listoDesdeAyer, otrosPedidosDeLaClienta, textoDeLaTiendaEsperando, textoDeOtrosPedidos } from "./pedidos-core";
 import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
@@ -216,7 +218,7 @@ export default async function PedidosPage({ searchParams }: { searchParams?: Pro
   // guardar (`descuentoDelAjuste`). Sólo en comercio (en CH no hay nada que pesar) y sólo si
   // hay algún pedido con descuento: la bandeja de siempre no suma consultas.
   const conDescuento = comercio
-    ? abiertos.filter((o) => !o.paid && EN_CURSO.has(o.status) && o.discount > 0).map((o) => o.id)
+    ? abiertos.filter((o) => EN_CURSO.has(o.status) && o.discount > 0).map((o) => o.id)
     : [];
   const cupones = new Map<string, CuponDelPedido>();
   if (conDescuento.length) {
@@ -230,6 +232,10 @@ export default async function PedidosPage({ searchParams }: { searchParams?: Pro
       if (f.entityId && c) cupones.set(f.entityId, c);
     }
   }
+  // La plata del peso real (ajuste-peso-cobrado.ts): lo ya pagado de los que pesaron más (se cobra
+  // sólo el saldo) y el último ajuste de los cobrados (el aviso de «listo» explica el cambio).
+  // Sólo en comercio: en CH no se pesa nada y la bandeja no suma consultas.
+  const plataDelPeso = comercio ? await leerPlataDelPeso(abiertos.map((o) => o.id)) : undefined;
 
   // DISEÑO NUEVO («Renglón»): el tablero vivo. Los MISMOS pedidos, las MISMAS acciones y las
   // mismas reglas de arriba; cambia cómo se ven y cómo se opera (tabla densa con una tecla por
@@ -260,6 +266,7 @@ export default async function PedidosPage({ searchParams }: { searchParams?: Pro
       ofrecerLink,
       simulacion,
       alcance,
+      plataDelPeso,
     });
     const verPlata = permisoEfectivo(user, "reports:read");
     // El reloj sólo en comercio: los de la tienda esperando y los listos sin retirar (CH no tiene
@@ -493,7 +500,11 @@ export default async function PedidosPage({ searchParams }: { searchParams?: Pro
           // Comercio: el horario pedido (en la zona del negocio), pesar y ajustar mientras no
           // esté cobrado, y avisar por WhatsApp cuando está listo.
           const horario = comercio && o.scheduledFor ? etiquetaDeHorario(o.scheduledFor, o.fulfillment, hoy, entrega.corto) : null;
-          const sePuedeAjustar = comercio && !o.paid && EN_CURSO.has(o.status);
+          // Cobrado también: el ajuste devuelve la diferencia o la deja a cobrar (ajuste-peso-cobrado.ts).
+          const sePuedeAjustar = comercio && EN_CURSO.has(o.status);
+          const yaPago = plataDelPeso?.cobrados.get(o.id) ?? 0;
+          const saldo = !o.paid && yaPago > 0 ? saldoDelPedido(o.total, [yaPago]) : null;
+          const ajustePeso = plataDelPeso?.ajustes.get(o.id) ?? null;
           // El último link de pago que se le mandó (si hubo), para no generar otro sin necesidad.
           const enviado = links.get(o.id) ?? null;
           const avisoWa =
@@ -511,6 +522,8 @@ export default async function PedidosPage({ searchParams }: { searchParams?: Pro
                     direccionLocal: local.direccion,
                     horarioLocal: local.horario,
                     listoPara: entrega.listoPara,
+                    aCobrar: saldo,
+                    ajuste: ajustePeso ? explicacionDelAjuste(ajustePeso, { pagado: o.paid, aCobrar: saldo }) : null,
                   }),
                 )
               : null;
@@ -600,7 +613,8 @@ export default async function PedidosPage({ searchParams }: { searchParams?: Pro
                       className={`chip-btn text-xs min-h-8 w-full sm:w-auto${comercio ? " h-11 sm:h-auto" : ""}`}
                     />
                   )}
-                  {boutique && sePuedeAjustar && o.status !== "READY" && (
+                  {/* «Armar y pesar» todavía no ajusta un pedido cobrado: el cobrado se ajusta acá. */}
+                  {boutique && sePuedeAjustar && !o.paid && o.status !== "READY" && (
                     <Link
                       href={`/admin/pedidos/${o.code}/armar`}
                       className={buttonClasses("solid", "md", "w-full sm:w-auto")}
@@ -613,6 +627,7 @@ export default async function PedidosPage({ searchParams }: { searchParams?: Pro
                     <AjustarPedidoForm
                       id={o.id}
                       code={o.code}
+                      cobrado={o.paid ? o.total : null}
                       subtotal={o.subtotal}
                       descuento={o.discount}
                       cupon={cupones.get(o.id) ?? null}
@@ -630,18 +645,18 @@ export default async function PedidosPage({ searchParams }: { searchParams?: Pro
                   {avisoWa && <AvisarPorWhatsApp orderId={o.id} href={avisoWa} />}
                   {recordatorio && <AvisarPorWhatsApp orderId={o.id} href={recordatorio} tipo="recordatorio-retiro" />}
                   {/* Listo: entregar pide el cobro o «Queda a cobrar» (EntregarPedidoForm). */}
-                  {o.status === "READY" && <EntregarPedidoForm id={o.id} code={o.code} paid={o.paid} total={o.total} />}
+                  {o.status === "READY" && <EntregarPedidoForm id={o.id} code={o.code} paid={o.paid} total={saldo ?? o.total} />}
                   {/* Cobrar sin entregar sigue estando, también en Listo: el que pagó por
                       transferencia y retira más tarde. Sin medio por defecto y con el motivo
                       del rechazo en pantalla (antes era un select en EFECTIVO y un botón mudo). */}
-                  {!o.paid && <CobrarPedidoForm id={o.id} code={o.code} total={o.total} />}
+                  {!o.paid && <CobrarPedidoForm id={o.id} code={o.code} total={saldo ?? o.total} />}
                   {/* En el modo de prueba, un pedido ya cobrado por su link sigue ofreciendo repetir
                       el aviso: es como se ve que Mercado Pago reintentando no asienta dos veces. */}
                   {ofrecerLink && (!o.paid || (simulacion && enviado)) && (
                     <LinkDePagoPedido
                       id={o.id}
                       code={o.code}
-                      total={o.total}
+                      total={saldo ?? o.total}
                       cobrado={o.paid}
                       enviado={enviado}
                       whatsappEnviado={

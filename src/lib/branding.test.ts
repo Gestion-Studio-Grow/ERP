@@ -6,6 +6,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { brandForSlug, marcaDelNegocio, resolveAccent, invertTheme, resolveTenantLayout, DEFAULT_LAYOUT, resolveSectionOrder, DEFAULT_SECTION_ORDER, FONT_VAR } from "./branding";
+import { before as antesDeTodo } from "node:test";
+import { marcaPropiaEnPruebas } from "@/lib/marca-demo";
+// Magra se muestra como demo GSG (src/lib/marca-demo.ts); acá se sigue probando SU marca, la que vuelve al sacar la demo.
+antesDeTodo(() => marcaPropiaEnPruebas(true));
 
 test("brandForSlug: cada tenant real tiene su propia marca (no comparten identidad)", () => {
   const slugs = ["beauty-spa", "magra", "shinevelas", "adosmanos"];

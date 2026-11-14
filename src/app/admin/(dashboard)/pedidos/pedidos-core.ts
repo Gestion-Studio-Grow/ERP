@@ -48,6 +48,11 @@ export type PedidoDelTablero = {
   /** "Efectivo", "Mercado Pago"… si está cobrado con medio; null si no. */
   medio: string | null;
   total: number;
+  /**
+   * Lo que falta cobrar cuando el pedido ya tiene una parte paga (se cobró antes de pesar y pesó
+   * más: settlement/saldo-del-pedido.ts). Ausente o null: se cobra el total.
+   */
+  aCobrar?: number | null;
   subtotal: number;
   descuento: number;
   lineas: {
@@ -404,7 +409,7 @@ export function listoDesdeAyer(p: Pick<PedidoDelTablero, "status" | "creado">, h
  * retirar desde un día anterior (`listosDeAyer`). Sin reloj, los dos quedan vacíos.
  */
 export function lineaDelTablero(
-  pedidos: readonly Pick<PedidoDelTablero, "status" | "cobrado" | "horario" | "total" | "avisoWa" | "avisado" | "canal" | "creado">[],
+  pedidos: readonly Pick<PedidoDelTablero, "status" | "cobrado" | "horario" | "total" | "aCobrar" | "avisoWa" | "avisado" | "canal" | "creado">[],
   verPlata: boolean,
   reloj?: RelojDelTablero,
 ): {
@@ -422,7 +427,7 @@ export function lineaDelTablero(
   for (const p of pedidos) {
     if (p.horario?.esHoy && p.status !== "DELIVERED") paraHoy += 1;
     if (p.status === "READY" && p.avisoWa && !p.avisado) sinAvisar += 1;
-    if (!p.cobrado) porCobrar += p.total;
+    if (!p.cobrado) porCobrar += p.aCobrar ?? p.total;
     if (reloj && listoDesdeAyer(p, reloj.hoy)) listosDeAyer += 1;
   }
   return {

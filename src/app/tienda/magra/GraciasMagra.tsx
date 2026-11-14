@@ -3,6 +3,7 @@
 // (la página es pública y el número es correlativo). Los pasos son los mismos que dice la vidriera
 // nueva para MAGRA (vidriera/GraciasNueva.tsx); el WhatsApp, sólo si el local cargó uno de verdad.
 
+import type { ReactNode } from "react";
 import { OlvidarBolsa } from "../vidriera/OlvidarBolsa";
 import Link from "next/link";
 import { MAGRA } from "@/tenants/magra-content";
@@ -24,6 +25,8 @@ const CSS_GRACIAS = `
 .magra .mg-gr li b{font:700 17px/1.3 var(--f-c)}
 .magra .mg-gr li span{font-size:16px;color:var(--acero)}
 .magra .mg-gr-acc{display:flex;flex-wrap:wrap;gap:12px}
+.magra .mg-gr-pagar form{display:flex;flex-direction:column;align-items:flex-start;gap:8px}
+.magra .mg-gr-pagar .mg-gr-nota{margin:0;font-size:15px;color:var(--acero)}
 @media (prefers-reduced-motion:reduce){.magra .mg-gr h1{animation:none}}
 .magra :focus-visible{outline:2px solid var(--oro);outline-offset:3px}
 `;
@@ -33,6 +36,7 @@ export default function GraciasMagra({
   whatsapp,
   pago,
   tenantKey = "magra",
+  pagar,
 }: {
   /** El negocio (slug): con él se olvida la bolsa guardada si el pedido salió por «Enviar pedido» (ronda 2). */
   tenantKey?: string;
@@ -41,6 +45,8 @@ export default function GraciasMagra({
   /** Sólo dígitos y ya validado (resolveMagraLocal); "" sin WhatsApp de verdad. */
   whatsapp: string;
   pago: string;
+  /** «Pagar ahora con Mercado Pago» (Magra T6a): sólo si el negocio lo tiene disponible. */
+  pagar?: ReactNode;
 }) {
   const pasos: { t: string; d: string }[] = [
     { t: "Lo recibimos", d: pedido ? `Tu pedido #${pedido} ya está en el local.` : "Tu pedido ya está en el local." },
@@ -79,6 +85,7 @@ export default function GraciasMagra({
                 </li>
               ))}
             </ol>
+            {pagar && <div className="mg-gr-pagar">{pagar}</div>}
             <div className="mg-gr-acc">
               <Link href="/tienda" className="mg-btn mg-btn-oro">
                 Volver a la tienda

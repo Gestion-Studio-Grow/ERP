@@ -5,6 +5,7 @@
 
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@/generated/prisma/client";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability, requireCapabilityFueraDeLaAgenda } from "@/lib/authz";
 import { permisoFueraDeLaAgenda } from "@/lib/capabilities";
@@ -21,8 +22,8 @@ import { aPesos } from "./gestion-core";
 
 export const veLaPlata = (u: SessionUser): boolean => permisoFueraDeLaAgenda(u, "agenda:manage");
 
-export async function configProyectos(tenantId: string) {
-  const c = await prisma.proyectoConfig.findUnique({ where: { tenantId } });
+export async function configProyectos(tenantId: string, db: Prisma.TransactionClient = prisma) {
+  const c = await db.proyectoConfig.findUnique({ where: { tenantId } });
   return {
     margenPct: c?.margenPct ?? 35,
     validezDias: c?.validezDias ?? 15,

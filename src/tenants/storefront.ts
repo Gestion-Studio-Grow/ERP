@@ -15,6 +15,7 @@
 // catálogo son provisionales (rubro); estos textos/estructura son de su propia comunicación.
 
 import { tenantFamilySlug } from "@/blueprints/retail/rubros";
+import { presentaComoDemoGsg } from "@/lib/marca-demo";
 import type { ShippingConfig } from "@/lib/storefront-shipping";
 import type { ProductSectionId } from "@/lib/storefront-visual";
 
@@ -306,6 +307,8 @@ const COPY_BY_BRAND: Record<string, StorefrontCopy> = {
 export function resolveTenantBrandId(slug: string | null | undefined): string | null {
   const s = (slug ?? "").trim().toLowerCase();
   if (!s) return null;
+  // DEMO GSG (src/lib/marca-demo.ts): sin relato, front editorial ni JSON-LD del cliente → vidriera del rubro.
+  if (presentaComoDemoGsg(s)) return null;
   if (COPY_BY_BRAND[s]) return s;
   const family = tenantFamilySlug(s);
   return family && COPY_BY_BRAND[family] ? family : null;

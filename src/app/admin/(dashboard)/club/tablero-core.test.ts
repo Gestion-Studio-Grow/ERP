@@ -5,7 +5,9 @@ import assert from "node:assert/strict";
 import * as M from "@/lib/club/motor.mjs";
 import type { Ahora, Auth, EstadoClub } from "@/lib/club/motor.mjs";
 import { operadorDeLaDemo } from "./almacen";
-import { armarTablero, ejecutarTablero, fechaCorta, pedidosDeCreditoPendientes } from "./tablero-core";
+import { armarTablero, ejecutarTablero, fechaCorta, pedidosDeCreditoPendientes, pideFirmaDeNuevo } from "./tablero-core";
+import { fijarPuertaDeLaFirma } from "./puerta-del-pin";
+import { conFirmaDelDuenio, fijarRelojDeLaFirma, olvidarFirmasDelDuenio, VIDA_DEL_PASE_EN_EL_EQUIPO_MS } from "./firma-del-duenio";
 
 const HOY = "2026-10-17";
 const AHORA: Ahora = { fecha: HOY, min: 19 * 60 + 10 };
@@ -126,4 +128,40 @@ test("la firma cambia cuando cambia lo que se ve", () => {
   assert.equal(armarTablero(e, AHORA).firma, a);
   ejecutarTablero(e, { tipo: "rechazarAcceso", solicitudId: e.solicitudesAcceso[0].id }, AHORA, duenio);
   assert.notEqual(armarTablero(e, AHORA).firma, a);
+});
+
+test("SEG-020: autorizar, rechazar y dar acceso con el PIN guardado de un dueño del servidor piden el PIN de nuevo al vencer el pase", async () => {
+  const e = M.generarDemo(HOY, 19 * 60);
+  const pinDe = Object.fromEntries(e.usuarios.map((u) => [u.id, M.pinDeEjemplo(u)]));
+  M.pasarPinesAHash(e);
+  for (const u of e.usuarios) if (u.rol === "duenio") u.pin = M.MARCA_PIN_SERVIDOR;
+  const d = e.usuarios.find((u) => u.rol === "duenio")!;
+  const auth = { usuarioId: d.id, pin: pinDe[d.id] };
+  let ahora = 5_000_000;
+  fijarRelojDeLaFirma(() => ahora);
+  fijarPuertaDeLaFirma({
+    firmar: async () => ({ ok: true, usuarioId: d.id, nombre: d.nombre, pase: "p", vence: 0 }),
+    codigoParaAprobar: async () => ({ ok: false, error: "no" }),
+    aprobarConCodigo: async () => ({ ok: false, error: "no" }),
+  });
+  try {
+    await new Promise<void>((listo) => conFirmaDelDuenio({ estado: () => e, informar() {} }, [auth], () => listo()));
+    for (const tipo of ["autorizar", "rechazar", "otorgar", "rechazarAcceso"] as const) {
+      const a = tipo === "autorizar" ? { tipo, novedadId: "n", monto: "1" } : tipo === "rechazar" ? { tipo, novedadId: "n" } : tipo === "otorgar" ? { tipo, solicitudId: "s", rol: "recepcion" as const } : { tipo, solicitudId: "s" };
+      assert.equal(pideFirmaDeNuevo(e, a, auth), false, `${tipo} con el pase vigente`);
+    }
+    ahora += VIDA_DEL_PASE_EN_EL_EQUIPO_MS;
+    assert.equal(pideFirmaDeNuevo(e, { tipo: "autorizar", novedadId: "n", monto: "1" }, auth), true);
+    assert.equal(pideFirmaDeNuevo(e, { tipo: "rechazar", novedadId: "n" }, auth), true);
+    assert.equal(pideFirmaDeNuevo(e, { tipo: "otorgar", solicitudId: "s", rol: "recepcion" }, auth), true);
+    assert.equal(pideFirmaDeNuevo(e, { tipo: "rechazarAcceso", solicitudId: "s" }, auth), false, "rechazar un acceso no lleva PIN");
+    // La demo: nunca.
+    const demo = M.generarDemo(HOY, 19 * 60);
+    const dd = demo.usuarios.find((u) => u.rol === "duenio")!;
+    assert.equal(pideFirmaDeNuevo(demo, { tipo: "autorizar", novedadId: "n", monto: "1" }, { usuarioId: dd.id, pin: M.pinDeEjemplo(dd) }), false);
+  } finally {
+    fijarPuertaDeLaFirma(null);
+    olvidarFirmasDelDuenio();
+    fijarRelojDeLaFirma(null);
+  }
 });

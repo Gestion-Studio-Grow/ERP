@@ -32,6 +32,7 @@ import { isFrozenDay } from "@/lib/caja/cierre-diario";
 import { fronteraDeVenta } from "@/lib/order-anulacion";
 import { decidirAlta, insertOrder, motivoDelRechazoDelAlta, pedidoConClave } from "@/lib/order-core";
 import { productosQuePuedenQuedarNegativos } from "@/lib/stock/pos-stock-rules";
+import { opcionLotesVencidos } from "@/lib/carniceria/schema-probe";
 import { Prisma } from "@/generated/prisma/client";
 import type { VentaTicket } from "@/app/admin/(dashboard)/vender/reglas-venta";
 import { leerConfigCaja, leerPromociones, guardarConfigCajaEnTx } from "./config-repo";
@@ -126,6 +127,9 @@ export async function cobrarVentaDeCaja(entrada: unknown): Promise<EstadoCobroCa
   const frontera = fronteraDeVenta({ paid: true, paymentMethod, hoy, cerradoHasta, esDiaCerrado: isFrozenDay, contexto: "caja-con-lector" });
   if (frontera.bloquea) return { ok: false, error: frontera.error };
 
+  // Magra T3b: un corte con todos sus lotes vencidos no se cobra (sólo con Lotes listos; si no,
+  // null y el alta de siempre). El rechazo es de dominio: lo muestra `motivoDelRechazoDelAlta`.
+  const lotesVencidos = await opcionLotesVencidos(tenantId, hoy);
   let r;
   try {
     r = await insertOrder(
@@ -138,6 +142,7 @@ export async function cobrarVentaDeCaja(entrada: unknown): Promise<EstadoCobroCa
         permitirNegativoPorProducto: productosQuePuedenQuedarNegativos(productos, "COUNTER"),
         promociones,
         pagosMixtos: reparto.mixto ? { asientos: reparto.asientos } : null,
+        lotesVencidos,
       },
     );
   } catch (err) {

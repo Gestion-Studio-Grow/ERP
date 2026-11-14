@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { crearLote, cambiarEstadoDelLote, type EstadoLote } from "@/lib/carniceria/lotes-actions";
 import { AvisoError, Badge, EmptyState, Input, KpiTile, Select, buttonClasses, fmtMoneyARS, type BadgeProps } from "@/components/ui";
 import { Bloque, Marca, MenuMas, Plata, Renglon, Seccion, type TipoMarca } from "@/components/ui";
@@ -263,7 +264,12 @@ export default function LotesClient({
                       </span>
                     ) : undefined
                   }
-                  tecla={puedeCargar ? <CambiarEstado id={v.id} code={v.code} status={v.status} renglon /> : undefined}
+                  tecla={
+                    <span className="inline-flex flex-wrap items-center gap-2">
+                      <LinkEtiquetas id={v.id} code={v.code} />
+                      {puedeCargar && <CambiarEstado id={v.id} code={v.code} status={v.status} renglon />}
+                    </span>
+                  }
                 />
               ))}
             </ul>
@@ -336,6 +342,7 @@ export default function LotesClient({
                       <span className="sm:hidden text-xs uppercase tracking-wide text-faint mr-1.5">Lote:</span>
                       {v.code}
                       {v.supplierName && <span className="block text-xs text-faint">{v.supplierName}</span>}
+                      <LinkEtiquetas id={v.id} code={v.code} />
                     </td>
                     <td className="block sm:table-cell px-0 sm:px-4 py-1 sm:py-2.5 text-sm text-body">{v.productName}</td>
                     <td className="block sm:table-cell px-0 sm:px-4 py-1 sm:py-2.5 text-sm text-body">
@@ -392,5 +399,18 @@ export default function LotesClient({
         </section>
       )}
     </div>
+  );
+}
+
+/** Link a las etiquetas de los paquetes del lote (con lote, vencimiento y código de balanza). */
+function LinkEtiquetas({ id, code }: { id: string; code: string }) {
+  return (
+    <Link
+      href={`/admin/lotes/${encodeURIComponent(id)}/etiquetas`}
+      aria-label={`Etiquetas de los paquetes del lote ${code}`}
+      className="inline-flex min-h-11 items-center text-sm font-medium text-accent-ink underline underline-offset-2"
+    >
+      Etiquetas
+    </Link>
   );
 }

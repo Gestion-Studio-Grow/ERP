@@ -14,8 +14,7 @@
 // tumba el render ni colapsa un tenant por un problema cosmético/de derivación.
 
 import { cache } from "react";
-import { basePrisma } from "@/lib/prisma-base";
-import { getCurrentTenantId } from "@/lib/tenant";
+import { filaDelNegocioDelPedido } from "@/lib/tenant";
 import {
   derivarProducto,
   identidadProducto,
@@ -41,11 +40,8 @@ const VERTICAL_FALLBACK: ProductoContexto = {
 /** Contexto de producto del tenant actual (producto + identidad + módulos). Cacheado por request. */
 export const getProductoContexto = cache(async (): Promise<ProductoContexto> => {
   try {
-    const id = await getCurrentTenantId();
-    const t = await basePrisma.tenant.findUnique({
-      where: { id },
-      select: { blueprintId: true, modules: true },
-    });
+    // La fila del pedido, compartida con el color del equipo y el gate por módulo (PLAT-005).
+    const t = await filaDelNegocioDelPedido();
     const input = { blueprintId: t?.blueprintId ?? null, modules: t?.modules ?? [] };
     const producto = derivarProducto(input);
     return {

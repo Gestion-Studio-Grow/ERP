@@ -52,7 +52,34 @@ export async function listarLotes(tenantId: string, conCostos: boolean): Promise
     if (motivoDelError(err) === "sin-migracion") return [];
     throw err;
   }
-  return filas.map((r) => ({
+  return filas.map(aLote(conCostos));
+}
+
+/** Un lote del negocio por id (sin costo), o null si no existe, es de otro negocio o falta la tabla. */
+export async function leerLote(tenantId: string, id: string): Promise<Batch | null> {
+  let filas: Fila[];
+  try {
+    filas = await tenantTransaction(
+      (tx) => tx.$queryRaw<Fila[]>`
+        SELECT b."id", b."code", b."productId", b."netWeightKg", b."packages",
+               b."unitCost", b."status"::text AS "status", b."packedAt", b."expiresAt",
+               p."name" AS "productName", s."name" AS "supplierName"
+        FROM "ProductBatch" b
+        LEFT JOIN "Product" p ON p."id" = b."productId" AND p."tenantId" = ${tenantId}
+        LEFT JOIN "Supplier" s ON s."id" = b."supplierId" AND s."tenantId" = ${tenantId}
+        WHERE b."tenantId" = ${tenantId} AND b."id" = ${id}
+        LIMIT 1`,
+      { tenantId },
+    );
+  } catch (err) {
+    if (motivoDelError(err) === "sin-migracion") return null;
+    throw err;
+  }
+  return filas.length ? aLote(false)(filas[0]) : null;
+}
+
+function aLote(conCostos: boolean) {
+  return (r: Fila): Batch => ({
     id: r.id,
     code: r.code,
     productName: r.productName ?? "—",
@@ -64,5 +91,5 @@ export async function listarLotes(tenantId: string, conCostos: boolean): Promise
     packages: Number(r.packages ?? 1),
     unitCost: conCostos && r.unitCost !== null ? Number(r.unitCost) : null,
     status: (ESTADOS as readonly string[]).includes(r.status) ? (r.status as BatchStatus) : "AVAILABLE",
-  }));
+  });
 }

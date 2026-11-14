@@ -42,6 +42,8 @@ const ESCRITORES_PERMITIDOS: Record<string, string> = {
     "el QA de «Vender · buscar servicio o producto» de CH, SÓLO contra su base efímera local (entorno-ch.mjs → crearBaseEfimera): prende «agenda-interaccion» para recorrer el buscador",
   "src/tenants/ch/e2e/agenda-interaccion.e2e.mjs":
     "el QA de la Agenda interactiva de CH, SÓLO contra su base efímera local (entorno-ch.mjs → crearBaseEfimera): prende «agenda-practica» y «agenda-interaccion» para recorrer la barra y la grilla",
+  "src/tenants/ch/e2e/no-vino-hueco.e2e.mjs":
+    "el QA de CH-008 («No vino» libera el hueco), SÓLO contra su base efímera local (entorno-ch.mjs → crearBaseEfimera): prende «agenda-practica» y «agenda-interaccion» para recorrer la barra y la grilla",
   "src/tenants/ch/e2e/preparar-mostrador-ch.mjs":
     "los recorridos del mostrador de CH (npm run test:ch-mostrador-e2e), SÓLO contra su base efímera local (crearBaseEfimera): prende el diseño nuevo para recorrer el cajón",
   "src/tenants/magra/e2e/mostrador.e2e.mjs":
@@ -112,6 +114,19 @@ test("TRINQUETE: nadie fuera de la consola escribe entity 'Interruptor' ni 'AppO
   assert.deepEqual(intrusos, [], `escriben la entidad Interruptor fuera de la consola: ${intrusos.join(", ")}`);
   // Y el escritor de la consola sigue siendo detectado (si deja de serlo, el detector se rompió).
   assert.ok(escritores.includes("src/lib/operador/interruptores-escritura.server.ts"), escritores.join(", "));
+});
+
+test("TRINQUETE: los escritores de QA (scripts/qa, */e2e/*) sólo escriben contra una base efímera local o PGlite", () => {
+  // crearBaseEfimera se niega a un servidor que no sea local (guarda-base.ts); un cliente propio la saltearía.
+  const qa = Object.keys(ESCRITORES_PERMITIDOS).filter((a) => a.startsWith("scripts/qa/") || a.includes("/e2e/"));
+  assert.ok(qa.includes("src/tenants/ch/e2e/no-vino-hueco.e2e.mjs"), qa.join(", "));
+  for (const a of qa) {
+    const f = TODOS.find((t) => t.archivo === a);
+    assert.ok(f, `falta ${a}`);
+    const c = codigo(f.src);
+    assert.match(c, /base-efimera|PGlite/i, `${a} no pasa por la base efímera ni por PGlite`);
+    assert.doesNotMatch(c, /new\s+PrismaClient\b/, `${a} arma su propio PrismaClient (saltea la guarda de base local)`);
+  }
 });
 
 test("TRINQUETE: la escritura real sólo la importa la action (detrás de la guardia del negocio)", () => {
