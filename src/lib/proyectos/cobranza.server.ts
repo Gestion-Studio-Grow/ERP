@@ -9,8 +9,8 @@ import { cobranza, cobranzaEnMoneda, leerOriginal, pendientesDeCobro, totalAprob
 import { cambioDeVenta } from "./gestion-core";
 
 /** Pesos por unidad de cada moneda cargada en el negocio. */
-export async function tiposDeCambio(tenantId: string): Promise<Record<string, number>> {
-  const filas = await prisma.proyectoTipoCambio.findMany({ where: { tenantId }, select: { moneda: true, porUnidad: true } });
+export async function tiposDeCambio(tenantId: string, db: Db = prisma): Promise<Record<string, number>> {
+  const filas = await db.proyectoTipoCambio.findMany({ where: { tenantId }, select: { moneda: true, porUnidad: true } });
   return Object.fromEntries(filas.map((f) => [f.moneda, f.porUnidad]));
 }
 
