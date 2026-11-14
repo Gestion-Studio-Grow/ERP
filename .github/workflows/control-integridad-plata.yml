@@ -1,0 +1,108 @@
+# Control diario de integridad de plata — cobros contra caja, por negocio. SOLO LECTURA.
+#
+#   - Corre scripts/sre/control-integridad-plata.mts dentro de una transacción READ ONLY.
+#   - Si hay diferencias: abre el issue «🔴 Integridad de plata» o, si ya hay uno abierto, le comenta.
+#   - Si todo cuadra y hay un issue abierto: comenta «resuelto» y lo cierra.
+#   - Sin el secret INTEGRIDAD_DATABASE_URL queda INACTIVO (avisa y termina en verde): prenderlo es
+#     decisión del dueño — docs/runbooks/SLO-Y-CONFIABILIDAD.md §C.
+#
+# La URL nunca se imprime. El issue lleva ids de negocio, cantidades y montos; ningún dato de personas.
+name: Control de integridad de plata
+
+on:
+  schedule:
+    - cron: '41 7 * * *'   # 04:41 America/Argentina/Buenos_Aires, después de la copia diaria
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: control-integridad-plata
+  cancel-in-progress: false
+
+jobs:
+  control:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      TITULO: '🔴 Integridad de plata'
+    steps:
+      - name: Verificar secret
+        id: secrets
+        env:
+          INTEGRIDAD_DATABASE_URL: ${{ secrets.INTEGRIDAD_DATABASE_URL }}
+        run: |
+          if [ -z "${INTEGRIDAD_DATABASE_URL:-}" ]; then
+            echo "::warning::Control de integridad INACTIVO: falta el secret INTEGRIDAD_DATABASE_URL (docs/runbooks/SLO-Y-CONFIABILIDAD.md §C)."
+            echo "listo=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "listo=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.secrets.outputs.listo == 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.secrets.outputs.listo == 'true'
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Instalar dependencias (sin scripts de instalación)
+        if: steps.secrets.outputs.listo == 'true'
+        run: npm ci --ignore-scripts
+
+      - name: Correr el control (transacción de sólo lectura)
+        id: control
+        if: steps.secrets.outputs.listo == 'true'
+        env:
+          INTEGRIDAD_DATABASE_URL: ${{ secrets.INTEGRIDAD_DATABASE_URL }}
+        run: |
+          set -uo pipefail
+          npx tsx scripts/sre/control-integridad-plata.mts > informe.txt 2> error.txt
+          codigo=$?
+          cat informe.txt
+          cat error.txt >&2
+          echo "codigo=$codigo" >> "$GITHUB_OUTPUT"
+
+      - name: Buscar issue abierto
+        id: issue
+        if: steps.secrets.outputs.listo == 'true'
+        run: |
+          numero=$(gh issue list --state open --limit 100 --json number,title \
+            --jq "map(select(.title == \"$TITULO\")) | .[0].number // empty")
+          echo "numero=$numero" >> "$GITHUB_OUTPUT"
+
+      - name: Avisar (hay diferencias o el control no pudo correr)
+        if: steps.secrets.outputs.listo == 'true' && steps.control.outputs.codigo != '0'
+        env:
+          NUMERO: ${{ steps.issue.outputs.numero }}
+          CODIGO: ${{ steps.control.outputs.codigo }}
+        run: |
+          {
+            if [ "$CODIGO" = "1" ]; then echo "Los cobros y la caja NO coinciden (o un control no se pudo evaluar)."; else echo "El control NO pudo correr (código de salida $CODIGO)."; fi
+            echo
+            echo '```'
+            cat informe.txt error.txt
+            echo '```'
+            echo
+            echo "Qué hacer: docs/runbooks/SLO-Y-CONFIABILIDAD.md §5. Corrida: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          } > cuerpo.md
+          if [ -n "$NUMERO" ]; then
+            gh issue comment "$NUMERO" --body-file cuerpo.md
+          else
+            gh issue create --title "$TITULO" --body-file cuerpo.md
+          fi
+          exit 1
+
+      - name: Cerrar el aviso (todo cuadra)
+        if: steps.secrets.outputs.listo == 'true' && steps.control.outputs.codigo == '0' && steps.issue.outputs.numero != ''
+        env:
+          NUMERO: ${{ steps.issue.outputs.numero }}
+        run: |
+          gh issue comment "$NUMERO" --body "✅ Resuelto: el control de hoy no encontró diferencias entre cobros y caja."
+          gh issue close "$NUMERO" --reason completed
