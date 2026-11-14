@@ -11,7 +11,12 @@
 export const NIVELES_DE_CONSENTIMIENTO = ["n1", "n2"] as const;
 export type NivelDeConsentimiento = (typeof NIVELES_DE_CONSENTIMIENTO)[number];
 
-/** Cambiar el texto = subir la versión: cada fila guarda la versión que se aceptó. */
+/**
+ * Cambiar el texto = subir la versión: cada fila guarda la versión que se aceptó, y un permiso vale
+ * sólo si se aceptó la versión VIGENTE (tras un cambio de texto hay que volver a tildar). La misma
+ * constante está en prisma/pending-gate2/MANT_roles_soporte.sql (§4); consentimiento-core.test.ts
+ * comprueba que coincidan.
+ */
 export const TEXTO_CONSENTIMIENTO = {
   version: "2026-11-14-provisorio",
   provisorio: true,
@@ -25,6 +30,7 @@ export const TEXTO_CONSENTIMIENTO = {
 export interface FilaDeConsentimiento {
   nivel: string;
   aceptado: boolean;
+  versionTexto: string;
   createdAt: Date;
 }
 
@@ -36,20 +42,28 @@ export interface Consentimiento {
 export const SIN_CONSENTIMIENTO: Consentimiento = Object.freeze({ n1: false, n2: false });
 
 /**
- * El permiso vigente: la última fila de cada nivel. n2 sin n1 no vale (no se puede configurar lo que
- * no se puede leer). Filas con un nivel desconocido se ignoran. PURA.
+ * El permiso vigente: la última fila de cada nivel, y vale sólo si está tildada Y con la versión del
+ * texto vigente (`version`). n2 sin n1 no vale (no se puede configurar lo que no se puede leer). Filas
+ * con un nivel desconocido se ignoran. Igual que `gsg_permiso_n1_vigente()` en la base. PURA.
  */
-export function consentimientoVigente(filas: readonly FilaDeConsentimiento[]): Consentimiento {
+export function consentimientoVigente(
+  filas: readonly FilaDeConsentimiento[],
+  version: string = TEXTO_CONSENTIMIENTO.version,
+): Consentimiento {
+  const vale = (f: FilaDeConsentimiento | undefined) => f?.aceptado === true && f.versionTexto === version;
   const ultima: Partial<Record<NivelDeConsentimiento, FilaDeConsentimiento>> = {};
   for (const f of filas) {
     if (!(NIVELES_DE_CONSENTIMIENTO as readonly string[]).includes(f.nivel)) continue;
     const n = f.nivel as NivelDeConsentimiento;
     const prev = ultima[n];
-    // A igual hora, gana la revocación: ante la duda, sin permiso.
-    if (!prev || f.createdAt > prev.createdAt || (f.createdAt.getTime() === prev.createdAt.getTime() && !f.aceptado)) ultima[n] = f;
+    // A igual hora, gana la que NO vale (revocación o versión vieja): ante la duda, sin permiso.
+    if (!prev || f.createdAt > prev.createdAt || (f.createdAt.getTime() === prev.createdAt.getTime() && !vale(f))) ultima[n] = f;
   }
-  const n1 = ultima.n1?.aceptado === true;
-  return { n1, n2: n1 && ultima.n2?.aceptado === true };
+  const n1 = vale(ultima.n1);
+  // n2 vale sólo si se dio después de la última fila de n1: si el titular sacó n1 y lo volvió a dar,
+  // el n2 viejo no revive solo (MANT-003); hay que tildarlo de nuevo.
+  const n2 = n1 && vale(ultima.n2) && ultima.n2!.createdAt.getTime() >= ultima.n1!.createdAt.getTime();
+  return { n1, n2 };
 }
 
 /**
@@ -76,6 +90,13 @@ export function validarConsentimiento(p: { rol: unknown; nivel: unknown; aceptad
   }
   if (typeof p.aceptado !== "boolean") return { ok: false, error: "Falta si lo das o lo sacás." };
   return { ok: true, valor: { nivel: p.nivel as NivelDeConsentimiento, aceptado: p.aceptado } };
+}
+
+/** La copia por mail que quedó como borrador (no se envía: «Mails: sólo borradores»). */
+export interface CopiaEnBorrador {
+  para: string;
+  asunto: string;
+  cuerpo: string;
 }
 
 /** La copia por mail al titular (D4). Sin datos de clientes finales; con el texto aceptado y su versión. PURA. */

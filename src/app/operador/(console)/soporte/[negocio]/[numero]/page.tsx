@@ -8,6 +8,7 @@ import { linkWhatsapp } from "@/lib/fiscal/contador-arca";
 import { CANAL, ESTADO, PRIORIDAD, TIPO } from "@/lib/soporte/config";
 import { estadoLeido, prioridadLeida, semaforo, TEXTO_SEMAFORO } from "@/lib/soporte/tickets-core";
 import { fichaDeTicket, type EventoDeTicket } from "@/lib/soporte/tickets.server";
+import { quienApruebaElBorrador } from "@/lib/soporte/agentes-permisos";
 import { CambiarEstadoYPrioridad, NotaInterna, Respuesta } from "../../AccionesTicket";
 
 export const dynamic = "force-dynamic";
@@ -44,6 +45,10 @@ function queHizo(e: EventoDeTicket): string {
       return "Tomó el ticket";
     case "borrador_ia":
       return "Pidió una sugerencia a la IA (borrador)";
+    case "borrador_aprobado":
+      return `Aprobó el borrador de la IA como respuesta (no se envió)${typeof campo(e.datos, "aprobadoPor") === "string" ? ` · aprobó ${campo(e.datos, "aprobadoPor")}` : ""}`;
+    case "borrador_descartado":
+      return "Descartó el borrador de la IA";
     default:
       return e.tipo;
   }
@@ -133,7 +138,15 @@ export default async function FichaDeTicketPage({ params }: { params: Promise<{ 
 
       <Bloque titulo="Respuesta">
         <div className="py-3">
-          <Respuesta negocio={t.negocio.id} numero={t.numero} respuesta={t.respuesta} borrador={t.borradorIa} enlaceWhatsapp={enlace} />
+          <Respuesta
+            negocio={t.negocio.id}
+            numero={t.numero}
+            respuesta={t.respuesta}
+            borrador={t.borradorIa}
+            borradorVersion={t.borradorVersion}
+            puedeAprobar={quienApruebaElBorrador(t.negocio.slug) === "persona_gsg" || sesion.rol === "d"}
+            enlaceWhatsapp={enlace}
+          />
         </div>
       </Bloque>
 
