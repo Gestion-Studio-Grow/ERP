@@ -5,7 +5,7 @@
 // casilla se guarda sola, con su botón. Quien no es titular ve el estado sin poder cambiarlo; n2 sin
 // n1 queda deshabilitado. La pantalla no decide nada: la action vuelve a validar todo con la sesión.
 
-import { useActionState, useState } from "react";
+import { startTransition, useActionState, useState } from "react";
 import { Bloque, Button } from "@/components/ui";
 import { Franja } from "@/components/ui/Renglon";
 import { TEXTO_CONSENTIMIENTO, type Consentimiento, type CopiaEnBorrador, type NivelDeConsentimiento } from "@/lib/soporte/consentimiento-core";
@@ -40,7 +40,16 @@ function Casilla({ nivel, tildada, puede, motivo }: { nivel: NivelDeConsentimien
   const id = `permiso-soporte-${nivel}`;
   const cambio = puede && marcada !== tildada;
   return (
-    <form action={accion} className="grid gap-2 border-b border-line py-3">
+    <form
+      // Sin `action={...}`: React 19 resetea el form después de una acción de formulario y la casilla
+      // controlada se veía destildada aunque el permiso quedara dado (QA MANT-003).
+      onSubmit={(e) => {
+        e.preventDefault();
+        const datos = new FormData(e.currentTarget);
+        startTransition(() => accion(datos));
+      }}
+      className="grid gap-2 border-b border-line py-3"
+    >
       <input type="hidden" name="nivel" value={nivel} />
       <label htmlFor={id} className="flex min-h-11 items-start gap-3 text-sm">
         <input
