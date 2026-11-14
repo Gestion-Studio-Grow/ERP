@@ -449,3 +449,12 @@ test("cambioDelCobro: ningún campo del fijado es un number (plata en bigint, ti
   // 12.345.678 centavos ÷ 987,654321 → 12.499,99… USD; R8 en enteros.
   assert.equal(f.montoMonedaCentavos, (BigInt(2) * BigInt(12_345_678) * BigInt(1_000_000) + BigInt(987_654_321)) / (BigInt(2) * BigInt(987_654_321)));
 });
+
+test("cambioDelCobro (cert. D13 · R1): pesos con fracción de centavo no se fijan (un solo redondeo, el de R8)", () => {
+  // Una cuota en pesos cargada a mano sin redondear, en un proyecto en USD a 1000: redondear al centavo y después R8
+  // daría 1001 centavos; Postgres `round(10004.995 / 1000, 2)` da 10,00. No se fabrica el centavo: queda sin fijar.
+  const r = cambioDelCobro({ montoPesos: 10004.995, moneda: "USD", tiposDeCambio: { USD: 1000 }, cuota: { id: "c9", monto: 10004.995, moneda: "ARS" } });
+  assert.deepEqual(r, { cuotaId: "c9", moneda: null, montoMonedaCentavos: null, tipoCambio: null });
+  // 0,1 + 0,2 sí está al centavo (R7 lo lee 0,30): se fija.
+  assert.equal(cambioDelCobro({ montoPesos: 0.1 + 0.2, moneda: "USD", tiposDeCambio: { USD: 1 } }).montoMonedaCentavos, BigInt(30));
+});

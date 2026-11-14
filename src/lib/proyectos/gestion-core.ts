@@ -2,7 +2,7 @@
 // las alertas y la liquidación. Sin base ni React, para probarlas sin nada alrededor. Especificación funcional en
 // docs/benchmark/heka-especificacion.md.
 
-import { admiteCentavos, centavosDe, monedaCentavosDePesos, textoDeMicro, tipoCambioMicroDe } from "@/lib/dinero/redondeo";
+import { admiteCentavos, centavosDe, esAlCentavo, monedaCentavosDePesos, textoDeMicro, tipoCambioMicroDe } from "@/lib/dinero/redondeo";
 import { redondear, yaVencio } from "./core";
 
 const DIA = 86_400_000;
@@ -98,7 +98,8 @@ export function cambioDelCobro(entrada: {
     if (!admiteCentavos(entrada.cuota.monto)) return sinFijar;
     centavos = BigInt(centavosDe(entrada.cuota.monto));
   } else {
-    if (!admiteCentavos(entrada.montoPesos)) return sinFijar;
+    // Pesos con fracción de centavo (una cuota cargada a mano sin redondear): no se fija. Así R8 es el ÚNICO redondeo.
+    if (!esAlCentavo(entrada.montoPesos)) return sinFijar;
     centavos = monedaCentavosDePesos(BigInt(centavosDe(entrada.montoPesos)), tcMicro);
   }
   return { cuotaId, moneda: entrada.moneda, montoMonedaCentavos: centavos, tipoCambio: textoDeMicro(tcMicro) };

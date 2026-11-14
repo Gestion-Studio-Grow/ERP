@@ -165,6 +165,15 @@ export function admiteCentavos(importe: number): boolean {
 }
 
 /**
+ * ¿El importe ya está al centavo? Leído como lo lee R7 (`toPrecision(15)`): 0,1 + 0,2 sí (es 0,30); 10.004,995 no.
+ * Quien convierte con R8 lo exige antes, así no hay un redondeo previo al centavo además del de R8 (certificación D13).
+ */
+export function esAlCentavo(importe: number): boolean {
+  if (!admiteCentavos(importe)) return false;
+  return Number(importe.toPrecision(15)) === Number((centavosDe(importe) / 100).toPrecision(15));
+}
+
+/**
  * El importe como texto con dos decimales y punto, redondeado por esta regla:
  * 1,005 → "1.01"; −12,345 → "-12.35"; 0 → "0.00". Es el formato de WSFEv1.
  * Rechaza (RangeError) lo que no es un importe: nunca sale "NaN" ni "1e+21".

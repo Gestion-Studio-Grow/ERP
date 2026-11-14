@@ -89,9 +89,11 @@ export async function facturasDeCuotas(
   tenantId: string,
   cuotaIds: readonly string[],
   db: InvoiceTx | null = null,
+  /** Lo que ya respondió `hayColumnaCuotaEnInvoice()` AFUERA de la transacción `db` (adentro no se pide otra conexión). */
+  conColumna?: boolean,
 ): Promise<Map<string, FacturaDeCuotaVista>> {
   const salida = new Map<string, FacturaDeCuotaVista>();
-  if (cuotaIds.length === 0 || !(await hayColumnaCuotaEnInvoice())) return salida;
+  if (cuotaIds.length === 0 || !(conColumna ?? (await hayColumnaCuotaEnInvoice()))) return salida;
   const leer = (tx: InvoiceTx) =>
     tx.invoice.findMany({
       where: { tenantId, proyectoCuotaId: { in: [...cuotaIds] } },
@@ -183,14 +185,14 @@ async function tomarCuota(tx: InvoiceTx, tenantId: string, cuotaId: string): Pro
  * columna corre `fn` directo (no hay facturas de cuotas que cuidar).
  *
  * Con `enTx` corre adentro de esa transacción (la de `regenerarCuotas`, que ya tiene el candado de la
- * cobranza del proyecto): la fila queda tomada hasta que esa transacción cierre. Orden de candados:
+ * cobranza del proyecto y preguntó la sonda antes de abrirla): la fila queda tomada hasta que esa transacción cierre. Orden de candados:
  * cobranza → fila de la cuota; la facturación toma facturas-cobro → fila de la cuota. No se cruzan.
  */
 export async function conCuotaSinFacturaViva<T>(
   tenantId: string,
   cuotaId: string,
   fn: (tx: InvoiceTx) => Promise<T>,
-  enTx?: InvoiceTx,
+  enTx?: { tx: InvoiceTx; conColumna: boolean },
 ): Promise<T | "facturada"> {
   const conCandado = async (tx: InvoiceTx): Promise<T | "facturada"> => {
     await tomarCuota(tx, tenantId, cuotaId);
@@ -198,8 +200,11 @@ export async function conCuotaSinFacturaViva<T>(
     if (viva) return "facturada" as const;
     return fn(tx);
   };
-  if (!(await hayColumnaCuotaEnInvoice())) return enTx ? fn(enTx) : tenantTransaction(fn, { tenantId });
-  return enTx ? conCandado(enTx) : tenantTransaction(conCandado, { tenantId });
+  // Con `enTx`, la sonda ya se preguntó AFUERA de esa transacción (cert. D13 · R7): adentro, `basePrisma` pediría otra
+  // conexión del pool y, si no la consigue, la sonda daría `false` y la cuota se tocaría sin su candado.
+  if (enTx) return enTx.conColumna ? conCandado(enTx.tx) : fn(enTx.tx);
+  if (!(await hayColumnaCuotaEnInvoice())) return tenantTransaction(fn, { tenantId });
+  return tenantTransaction(conCandado, { tenantId });
 }
 
 /** La cuota cambió entre que se armó la factura y que se tomó su fila: no se factura con lo viejo. */

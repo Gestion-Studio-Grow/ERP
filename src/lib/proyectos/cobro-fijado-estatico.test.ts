@@ -133,3 +133,13 @@ test("D13 · todo UPDATE de ProyectoPago en src/ toca sólo anuladoEl/anuladoPor
   }
   assert.equal(fijar, 1, "un solo UPDATE crudo de ProyectoPago: el de fijarCobroTx");
 });
+
+test("cert. D13 · R7: regenerarCuotas pregunta la sonda de facturas ANTES de la transacción y la pasa adentro", () => {
+  const src = readFileSync(path.join(process.cwd(), "src/lib/proyectos/gestion.server.ts"), "utf8");
+  const cuerpo = src.slice(src.indexOf("export async function regenerarCuotas("), src.indexOf("async function aplicarPlan("));
+  const sonda = cuerpo.indexOf("await hayColumnaCuotaEnInvoice()");
+  assert.ok(sonda > 0 && sonda < cuerpo.indexOf("tenantTransaction("), "la sonda va antes de abrir la transacción");
+  const plan = src.slice(src.indexOf("async function aplicarPlan("));
+  assert.doesNotMatch(plan.slice(0, plan.indexOf("\n}\n")), /hayColumnaCuotaEnInvoice\(/, "adentro no se pregunta de nuevo");
+  assert.equal((plan.match(/\{ tx, conColumna \}\)/g) ?? []).length, 2, "las dos escrituras usan el candado con la sonda de afuera");
+});

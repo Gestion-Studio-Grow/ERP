@@ -8,7 +8,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { importeDeCentavos, monedaCentavosDePesos, textoDeMicro, tipoCambioMicroDe } from "./redondeo";
+import { esAlCentavo, importeDeCentavos, monedaCentavosDePesos, textoDeMicro, tipoCambioMicroDe } from "./redondeo";
 
 /** mulberry32: entero sin signo de 32 bits, reproducible con la misma semilla. */
 function mulberry32(semilla: number): () => number {
@@ -106,4 +106,9 @@ test("R8 · barrido de 10.000 casos: error ≤ medio centavo, empate sube, monó
     // Simétrica: −p da −q.
     assert.equal(monedaCentavosDePesos(-p, tc), -q);
   }
+});
+
+test("esAlCentavo (cert. D13 · R1): sólo importes que ya están al centavo, leídos como R7", () => {
+  for (const si of [0, 0.3, 0.1 + 0.2, 10004.99, 1234.5, 999999999.99, -12.34]) assert.equal(esAlCentavo(si), true, String(si));
+  for (const no of [10004.995, 1234.567, 1e-7, 0.005, Number.NaN, Number.POSITIVE_INFINITY, 1e16]) assert.equal(esAlCentavo(no), false, String(no));
 });

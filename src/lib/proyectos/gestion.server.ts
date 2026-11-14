@@ -17,7 +17,7 @@ import { roleHasCapability } from "@/lib/capabilities";
 import type { SessionUser } from "@/lib/session";
 import type { Prisma } from "@/generated/prisma/client";
 import { configProyectos } from "./datos.server";
-import { conCuotaSinFacturaViva, facturasDeCuotas } from "./facturar-cuota.server";
+import { conCuotaSinFacturaViva, facturasDeCuotas, hayColumnaCuotaEnInvoice } from "./facturar-cuota.server";
 import { esFacturaViva } from "./facturar-cuota-core";
 import { venceDeLaCuota, ajustarAPagado, cambioDeVenta, COLUMNAS_OCULTAS_BASE, cuotaPrevista, rolDelActor, mailDeAviso, permisoDe, planDeCuotas, veTodosLosProyectos, type ItemFicha, type ModuloGestion, type RolGestion } from "./gestion-core";
 import { tiposDeCambio, trabarCobranza } from "./cobranza.server";
@@ -254,6 +254,8 @@ export const AVISO_RECALCULAR_PLAN =
  * transacción, así que no se espera a sí mismo.
  */
 export async function regenerarCuotas(tenantId: string, proyectoId: string): Promise<string | null> {
+  // La sonda de la columna de facturas, ANTES de abrir la transacción (cert. D13 · R7): adentro pediría otra conexión.
+  const conColumna = await hayColumnaCuotaEnInvoice();
   const cerro = await tenantTransaction(
     async (tx) => {
       await trabarCobranza(tx, tenantId, proyectoId);
@@ -287,7 +289,7 @@ export async function regenerarCuotas(tenantId: string, proyectoId: string): Pro
       // Una cuota de pago se puede marcar sin el candado de la cobranza, y una cuota se puede facturar en el medio: en los
       // dos casos no se le pisa nada y el plan se vuelve a ajustar con ella congelada.
       for (let vuelta = 0; vuelta < 3; vuelta++) {
-        if (!(await aplicarPlan(tx, tenantId, proyectoId, planDeLaFicha, prevista))) return true;
+        if (!(await aplicarPlan(tx, tenantId, proyectoId, planDeLaFicha, prevista, conColumna))) return true;
       }
       return false;
     },
@@ -304,11 +306,11 @@ export async function regenerarCuotas(tenantId: string, proyectoId: string): Pro
  * Una pasada de `regenerarCuotas`: lee las cuotas y sus facturas, ajusta el plan a lo marcado o facturado y lo escribe.
  * Devuelve `true` si una cuota se marcó o se facturó mientras tanto (el plan quedó calculado con lo viejo).
  */
-async function aplicarPlan(tx: Prisma.TransactionClient, tenantId: string, proyectoId: string, planDeLaFicha: ReturnType<typeof planDeCuotas>, prevista: boolean): Promise<boolean> {
+async function aplicarPlan(tx: Prisma.TransactionClient, tenantId: string, proyectoId: string, planDeLaFicha: ReturnType<typeof planDeCuotas>, prevista: boolean, conColumna: boolean): Promise<boolean> {
   const actuales = await tx.proyectoCuota.findMany({ where: { tenantId, proyectoId, auto: true }, select: { id: true, clave: true, monto: true, pagadoEl: true, anuladoEl: true, venceEl: true, venceManual: true, prevista: true } });
   // Etapa 2 · T2: una cuota con factura viva (pedida o autorizada en ARCA) queda congelada como si estuviera pagada: no se
   // le cambia el monto, ni se anula, y el resto del plan se ajusta a ella.
-  const facturas = await facturasDeCuotas(tenantId, actuales.map((c) => c.id), tx);
+  const facturas = await facturasDeCuotas(tenantId, actuales.map((c) => c.id), tx, conColumna);
   const facturada = (id: string) => esFacturaViva(facturas.get(id)?.status);
   const congelada = (c: { id: string; pagadoEl: Date | null; anuladoEl: Date | null }) => (!!c.pagadoEl || facturada(c.id)) && !c.anuladoEl;
   const plan = ajustarAPagado(planDeLaFicha, actuales.filter(congelada).map((c) => ({ clave: c.clave ?? "", monto: c.monto })));
@@ -323,14 +325,14 @@ async function aplicarPlan(tx: Prisma.TransactionClient, tenantId: string, proye
     // Con el candado de la facturación (si se facturó recién, no se toca) y sólo si sigue sin marcar: una cuota marcada
     // mientras se ajustaba queda congelada (no se le pisa monto ni `prevista`) y el plan se vuelve a calcular con ella.
     if (previa) {
-      const r = await conCuotaSinFacturaViva(tenantId, previa.id, (tx) => tx.proyectoCuota.updateMany({ where: { id: previa.id, tenantId, pagadoEl: null }, data: datos }), tx);
+      const r = await conCuotaSinFacturaViva(tenantId, previa.id, (tx) => tx.proyectoCuota.updateMany({ where: { id: previa.id, tenantId, pagadoEl: null }, data: datos }), { tx, conColumna });
       choco = r === "facturada" || r.count === 0 || choco;
     } else await tx.proyectoCuota.create({ data: { ...datos, tenantId, proyectoId, auto: true, clave: c.clave } });
   }
   const sobran = actuales.filter((c) => c.clave && !vigentes.has(c.clave) && !c.pagadoEl && !c.anuladoEl && !facturada(c.id)).map((c) => c.id);
   for (const id of sobran) {
     // Si una de las que sobran se marcó o se facturó en el medio, el plan se calculó sin descontarla: otra pasada.
-    const r = await conCuotaSinFacturaViva(tenantId, id, (tx) => tx.proyectoCuota.updateMany({ where: { tenantId, id, pagadoEl: null, anuladoEl: null }, data: { anuladoEl: new Date() } }), tx);
+    const r = await conCuotaSinFacturaViva(tenantId, id, (tx) => tx.proyectoCuota.updateMany({ where: { tenantId, id, pagadoEl: null, anuladoEl: null }, data: { anuladoEl: new Date() } }), { tx, conColumna });
     choco = r === "facturada" || r.count === 0 || choco;
   }
   return choco;
