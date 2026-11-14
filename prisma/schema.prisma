@@ -3238,7 +3238,7 @@ model PadelClase {
   tipo                 String            @default("INDIVIDUAL") // INDIVIDUAL · GRUPAL
   personas             Int               @default(1)
   estado               String            @default("PEDIDA") // PEDIDA · CONFIRMADA · DADA · AUSENTE · RECHAZADA · CANCELADA
-  origen               String            @default("TURNERO") // TURNERO · ALUMNO_LINK · PROFE
+  origen               String            @default("TURNERO") // TURNERO · ALUMNO_LINK · PROFE · DIRECTORIO (del buscador de profes: avisa GSG, src/lib/padel/canal.ts)
   repiteDe             String? // id de la clase de la que salió ("la semana que viene")
   precio               Decimal           @default(0) @db.Decimal(14, 2)
   pagoEstado           String            @default("PENDIENTE") // PENDIENTE · EN_REVISION · PAGADO

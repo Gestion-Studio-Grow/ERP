@@ -27,7 +27,7 @@ export interface ResultadoPedido {
   porCookie: boolean;
 }
 
-export function Listo({ r, profe, nombreApp, onOtra }: { r: ResultadoPedido; profe: string; nombreApp: string; onOtra: () => void }) {
+export function Listo({ r, profe, avisaGsg = false, nombreApp, onOtra }: { r: ResultadoPedido; profe: string; avisaGsg?: boolean; nombreApp: string; onOtra: () => void }) {
   const confirmada = r.estado === "CONFIRMADA";
   // Al aparecer, el foco (y la vista) van al título: el turnero de arriba se achica y, sin esto, el
   // «¡Listo!» podía quedar cortado arriba de la pantalla en el celular.
@@ -68,7 +68,7 @@ export function Listo({ r, profe, nombreApp, onOtra }: { r: ResultadoPedido; pro
       ) : (
         !confirmada && (
           <p className="text-base" data-qa="sin-wa-profe">
-            {profe} ya lo ve en su agenda; te confirma por WhatsApp.
+            {avisaGsg ? `${profe} ya lo ve en su agenda; cuando confirme, te avisamos por WhatsApp.` : `${profe} ya lo ve en su agenda; te confirma por WhatsApp.`}
           </p>
         )
       )}
