@@ -7,6 +7,8 @@ import { PIEL_RENGLON } from "@/lib/diseno/diseno";
 import { ConDiseno } from "@/lib/diseno/ConDiseno";
 import AdminThemeScript from "@/app/admin/AdminThemeScript";
 import CabeceraConsola, { CapsulaConsola } from "./CabeceraConsola";
+import { MarcaDeAgua } from "@/components/marca/MarcaDeAgua";
+import SelloGSG from "@/components/marca/SelloGSG";
 
 // Consola GSG: título propio (no "CH Estética…" heredado) y sin indexar.
 // `generator` es el sello GSG invisible en el <head> (verificable en el HTML,
@@ -41,7 +43,9 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
   );
 
   return (
-    <div data-skin="fable" data-diseno={PIEL_RENGLON} data-theme="light" suppressHydrationWarning className="min-h-screen">
+    <div data-skin="fable" data-diseno={PIEL_RENGLON} data-theme="light" suppressHydrationWarning className="isolate min-h-screen">
+      {/* Marca de agua de GSG (mosaico de isotipos): la consola es de GSG. */}
+      <MarcaDeAgua />
       {/* Corrige el tema antes del primer paint (lo elegido a mano, o el del sistema). */}
       <AdminThemeScript nuevo />
       {/* Sin precarga de la letra: en la consola el navegador avisaba «precargada y sin usar» (QA-1,
@@ -63,7 +67,7 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
               {children}
             </main>
             {/* Sello de GSG, discreto: ADR-043/estandar-marca-gsg.md. */}
-            <p className="mx-auto max-w-[87.5rem] px-4 pb-6 text-xs text-muted lg:px-6">Hecho por Gestión Studio Grow</p>
+            <SelloGSG className="mx-auto max-w-[87.5rem] px-4 pb-6 lg:px-6" />
           </div>
           <Suspense fallback={null}>
             <CapsulaConsola conTablero={conTablero} />

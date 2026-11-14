@@ -27,7 +27,7 @@ test("el logo y su versión chica para la barra existen", () => {
 
 test("la letra se declara con next/font en un módulo propio y sólo la importa el layout del taller", () => {
   const fuentes = readFileSync(path.join(AQUI, "fuentes.ts"), "utf8");
-  for (const fam of ["Barlow_Condensed", "Barlow", "IBM_Plex_Mono"]) assert.match(fuentes, new RegExp(`\\b${fam}\\(`), fam);
+  for (const fam of ["barlow-condensed", "barlow", "ibm-plex-mono"]) assert.match(fuentes, new RegExp(`fonts/${fam}/`), fam);
   // Una sola familia precargada: la del H1.
   assert.equal((fuentes.match(/preload: true/g) ?? []).length, 1);
   const deAca = archivos(AQUI).filter((f) => /from "\.\.?\/fuentes"/.test(readFileSync(f, "utf8")));

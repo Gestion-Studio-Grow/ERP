@@ -22,7 +22,13 @@ import { randomUUID } from "node:crypto";
 import { enElNegocio, operatorPrisma } from "@/lib/operator-db";
 import { logger } from "@/lib/logger";
 import { masterKeyDesdeEnv, openSecret, sealSecret } from "@/lib/fiscal/cert-crypto";
-import { cargarCredencialTenant, credencialParaTenant } from "@/lib/fiscal/tenant-cert";
+import {
+  cargarCredencialTenant,
+  credencialParaTenant,
+  registrarPruebaArcaOk,
+  versionDeLaCredencial,
+  type CredencialProbada,
+} from "@/lib/fiscal/tenant-cert";
 import { huellaDeCertificado } from "@/lib/fiscal/arca-ta-store";
 import { leerFichaDelPase } from "@/lib/operador/pase-a-real.server";
 import type { FichaFiscalDelPase } from "@/lib/operador/pase-a-real";
@@ -314,12 +320,14 @@ async function ultimaPruebaOk(tenantId: string): Promise<string | null> {
 }
 
 /** «Probar con ARCA» salió bien: deja la marca (sin material) que hace «listo» al pedido de asistencia. */
-export async function registrarPruebaOk(tenantId: string, actor: string, entorno: string): Promise<void> {
-  await enElNegocio(tenantId, (tx) =>
-    tx.auditLog.create({
-      data: { tenantId, actor, action: ACCION_PRUEBA_OK, entity: "Tenant", entityId: tenantId, changes: { entorno } },
-    }),
-  );
+export async function registrarPruebaOk(tenantId: string, actor: string, entorno: string, probada: CredencialProbada | null): Promise<void> {
+  // Atada a la versión probada y, en altas web, con el candado del CUIT (tenant-cert.ts): verifica una sola por CUIT.
+  await registrarPruebaArcaOk(tenantId, actor, entorno, probada);
+}
+
+/** La versión del certificado ANTES de probarlo con ARCA (ver `registrarPruebaArcaOk`). */
+export function versionAntesDeProbar(tenantId: string): Promise<CredencialProbada | null> {
+  return versionDeLaCredencial(tenantId);
 }
 
 async function ultimaFilaContador(tenantId: string): Promise<FilaContador | null> {
