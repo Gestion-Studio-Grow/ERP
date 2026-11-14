@@ -61,7 +61,9 @@ Si algo no da lo esperado, se frena y se informa. No se sigue.
 
 ## Paso 2 — escritura (sólo en la rama, con los cambios 1–3 ya aprobados)
 
-1. `psql "<cadena de la rama>" -X -v ON_ERROR_STOP=1 -f prisma/pending-gate2/SEG021_contabilidad_funciones.sql`
+1. SEG021 (desde el 14/11 es la migración del lote): pegar `docs/runbooks/ensayo-neon/1-lote-en-branch.sql`
+   (la aplica y la registra en `_prisma_migrations`) o
+   `psql "<cadena de la rama>" -X -v ON_ERROR_STOP=1 -f prisma/migrations/20261114120000_seg021_contabilidad_funciones/migration.sql`
 2. Igual con `prisma/pending-gate2/MANT_roles_soporte.sql`.
 3. R1–R8 otra vez: R3 con `gsg_operador`/`gsg_agente` sin bypass; R4 con las dos tablas y 8 funciones `gsg_*`;
    R6 con otros md5, mismo dueño y sin `=X/` (PUBLIC) en `proacl`; R8 igual que antes; `NegocioProtegido` con 1 fila;
