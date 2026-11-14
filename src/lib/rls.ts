@@ -201,10 +201,13 @@ export async function tenantTransaction<T>(
       if (!RLS_ENFORCEMENT) {
         // Sin RLS el candado de la app es la ÚNICA muralla: el `tx` crudo no tiene
         // extensiones, así que se envuelve con el proxy que inyecta el tenant.
+        // El store ALS se carga igual que con RLS (SEG-021): adentro del callback el negocio
+        // resuelto es el de la transacción e `insideTx` evita que la extensión abra otra.
         const tenantId = opts?.tenantId ?? (await resolveTenantId());
-        return await basePrisma.$transaction(
-          (tx) => fn(scopeTxClient(tx, tenantId)),
-          txOptions,
+        return await runInTenantContext(
+          tenantId,
+          async () => basePrisma.$transaction((tx) => fn(scopeTxClient(tx, tenantId)), txOptions),
+          { insideTx: true },
         );
       }
 
