@@ -860,3 +860,24 @@ test("totalesEnPesos: un costo en dólares se pasa a pesos (Reportes: costo US$ 
   assert.equal(totalAprobado({ ivaPct: 21, items: [{ cantidad: 1, costo: 2000, precio: 15_124_793.39, moneda: "USD", recargoPct: null }, { cantidad: 2, costo: 100, precio: 0, moneda: "ARS", recargoPct: 50 }] }, { USD: 1000 }, 30), t.total);
 });
 const redondearT = (x: number) => Math.round(x * 100) / 100;
+
+test("D13: un cobro a mano fijado vale lo que valió en la moneda del proyecto, no sus pesos al cambio de hoy", () => {
+  // 121 USD vendidos a 1.000; $ 30.000 cobrados con el dólar a 1.000 (30 USD fijados); hoy el dólar está a 1.500.
+  const v = { moneda: "USD", cambioVenta: 1000, tcHoy: 1500 };
+  const fijado: CobroRegistrado = { monto: 30000, fijado: { monto: 30, moneda: "USD" } };
+  const c = cobranzaEnMoneda(121000, [fijado], v);
+  assert.deepEqual(c.enMoneda, { moneda: "USD", tc: 1500, total: 121, cobrado: 30, saldo: 91 });
+  assert.equal(c.porCobrar, 91 * 1500);
+  // Lo suelto se reparte en pesos de hoy, como lo cuenta la cobranza: 30 USD × 1.500.
+  assert.equal(c.sueltos, 45000);
+  const cuotas = [{ ...q(60, -5), moneda: "USD" }, { ...q(61, 20), moneda: "USD" }];
+  assert.deepEqual(pendientesDeCobro(cuotas, { USD: 1500 }, c), [30, 61]);
+  // Sin fijar (cobro viejo o interruptor apagado): como siempre, $ 30.000 / 1.500 = 20 USD.
+  const viejo = cobranzaEnMoneda(121000, [{ monto: 30000 }], v);
+  assert.equal(viejo.enMoneda?.saldo, 101);
+  assert.equal(viejo.sueltos, 30000);
+  // Fijado en otra moneda que la del proyecto: no se usa.
+  assert.equal(cobranzaEnMoneda(121000, [{ monto: 30000, fijado: { monto: 25, moneda: "EUR" } }], v).enMoneda?.saldo, 101);
+  // Proyecto en pesos: los pesos asentados, siempre.
+  assert.equal(cobranzaEnMoneda(121000, [{ monto: 30000, fijado: { monto: 30000, moneda: "ARS" } }], { moneda: "ARS", cambioVenta: 1, tcHoy: 1 }).porCobrar, 91000);
+});
