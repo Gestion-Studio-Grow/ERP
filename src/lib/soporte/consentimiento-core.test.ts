@@ -26,6 +26,16 @@ test("a igual hora gana la revocación; n2 sin n1 no vale; niveles desconocidos 
   assert.deepEqual(consentimientoVigente([f("n2", true, 10)]), { n1: false, n2: false });
   assert.deepEqual(consentimientoVigente([f("n1", true, 10), f("n2", true, 10)]), { n1: true, n2: true });
   assert.deepEqual(consentimientoVigente([f("n1", true, 10), f("n2", true, 10), f("n1", false, 12)]), { n1: false, n2: false }, "sacar n1 apaga n2");
+  assert.deepEqual(
+    consentimientoVigente([f("n1", true, 10), f("n2", true, 10), f("n1", false, 12), f("n1", true, 13)]),
+    { n1: true, n2: false },
+    "volver a dar n1 no revive el n2 viejo",
+  );
+  assert.deepEqual(
+    consentimientoVigente([f("n1", true, 10), f("n1", false, 12), f("n1", true, 13), f("n2", true, 14)]),
+    { n1: true, n2: true },
+    "n2 tildado de nuevo después de n1 vale",
+  );
   assert.deepEqual(consentimientoVigente([f("n3", true, 10), f("N1", true, 10), f("", true, 10)]), { n1: false, n2: false });
 });
 

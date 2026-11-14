@@ -30,9 +30,14 @@ const LISTO: Record<CambioDeTicket["que"], string> = {
   respuesta: "Listo: la respuesta quedó guardada. Mandásela al cliente por WhatsApp.",
   tomar: "Listo: el ticket quedó a tu nombre.",
   borrador: "",
+  aprobar_borrador: "Listo: el borrador quedó aprobado como respuesta. No se mandó nada: mandáselo vos al cliente por WhatsApp o mail.",
+  descartar_borrador: "Listo: descartaste el borrador. No se mandó nada.",
 };
 
-/** Estado, prioridad, nota interna, respuesta o «tomar». Un endpoint, el cambio dice `que`. */
+/**
+ * Estado, prioridad, nota interna, respuesta, «tomar», o aprobar/descartar el borrador de la IA. Un
+ * endpoint, el cambio dice `que`. Aprobar el borrador lo pasa a la respuesta guardada: NO lo envía.
+ */
 export async function cambiarTicketAction(_previo: ResultadoTicket | null, fd: FormData): Promise<ResultadoTicket> {
   const { tenantId, numero } = ref(fd);
   const g = await operadorParaNegocio({ id: tenantId });
@@ -42,6 +47,8 @@ export async function cambiarTicketAction(_previo: ResultadoTicket | null, fd: F
   if (que === "estado" || que === "prioridad") cambio = { que, valor: fd.get("valor") };
   else if (que === "nota" || que === "respuesta") cambio = { que, texto: fd.get("texto") };
   else if (que === "tomar") cambio = { que };
+  // El rol sale de la sesión (operator-auth: «d» = el dueño), nunca del formulario.
+  else if (que === "aprobar_borrador" || que === "descartar_borrador") cambio = { que, version: fd.get("version"), rolOperador: g.sesion.rol };
   else return { ok: false, error: "No entendimos qué cambio pediste." };
   const r = await cambiarTicket(operatorPrisma, { tenantId, numero, operador: g.sesion.nombre, cambio });
   if (!r.ok) return r;

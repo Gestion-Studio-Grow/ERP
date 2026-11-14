@@ -49,7 +49,10 @@ export function consentimientoVigente(filas: readonly FilaDeConsentimiento[]): C
     if (!prev || f.createdAt > prev.createdAt || (f.createdAt.getTime() === prev.createdAt.getTime() && !f.aceptado)) ultima[n] = f;
   }
   const n1 = ultima.n1?.aceptado === true;
-  return { n1, n2: n1 && ultima.n2?.aceptado === true };
+  // n2 vale sólo si se dio después de la última fila de n1: si el titular sacó n1 y lo volvió a dar,
+  // el n2 viejo no revive solo (MANT-003); hay que tildarlo de nuevo.
+  const n2 = n1 && ultima.n2?.aceptado === true && ultima.n2.createdAt.getTime() >= ultima.n1!.createdAt.getTime();
+  return { n1, n2 };
 }
 
 /**
@@ -76,6 +79,13 @@ export function validarConsentimiento(p: { rol: unknown; nivel: unknown; aceptad
   }
   if (typeof p.aceptado !== "boolean") return { ok: false, error: "Falta si lo das o lo sacás." };
   return { ok: true, valor: { nivel: p.nivel as NivelDeConsentimiento, aceptado: p.aceptado } };
+}
+
+/** La copia por mail que quedó como borrador (no se envía: «Mails: sólo borradores»). */
+export interface CopiaEnBorrador {
+  para: string;
+  asunto: string;
+  cuerpo: string;
 }
 
 /** La copia por mail al titular (D4). Sin datos de clientes finales; con el texto aceptado y su versión. PURA. */

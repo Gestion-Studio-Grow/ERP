@@ -97,4 +97,20 @@ export const APPS_ADMINISTRACION = [
     palabras: ["tema", "color", "modo oscuro", "marca"],
     menuDeHoy: { etiqueta: "Apariencia", orden: 240 },
   },
+  {
+    // MANT-003 (D4): el permiso del titular para que los asistentes de IA de Soporte GSG lean sus
+    // pedidos (n1) y propongan cambios de una lista cerrada (n2). La abre quien ve el tablero
+    // (OWNER y RECEPTION, `dashboard:read`) para VER el estado; cambiarlo es sólo del OWNER y lo
+    // valida la action en el servidor. PROFESSIONAL no la ve (sólo su agenda).
+    id: "permiso-soporte",
+    nombre: "Soporte GSG",
+    descripcion: "El permiso para que la IA de soporte lea tus pedidos y prepare respuestas.",
+    icono: "ajustes",
+    ruta: "/admin/ajustes/soporte",
+    espacio: "administracion",
+    capability: "dashboard:read",
+    modulo: null,
+    estado: "lista",
+    palabras: ["soporte", "ayuda", "ia", "inteligencia artificial", "permiso", "consentimiento", "gsg"],
+  },
 ] as const satisfies readonly AppDescriptor[];
