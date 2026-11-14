@@ -37,6 +37,8 @@
 //     migración, este archivo es el único que cambia.
 
 import { round2 } from "@/lib/round";
+import { devueltoPorPesoDelPedido } from "@/lib/caja/devolucion-por-peso";
+import { centavosDe } from "@/lib/dinero/redondeo";
 import { recordMovement, round3 } from "@/lib/stock/ledger";
 import {
   cashMethodFromPaymentMethod,
@@ -421,12 +423,14 @@ export async function anularVentaInTx(
     // Los asientos por medio sólo existen en una venta que nació cobrada (el alta de la caja con
     // lector): un pedido sin cobrar, o a cuenta, no los tiene y no se buscan.
     if (unico || !order?.paid) return unico ? [unico] : [];
-    return tx.cashMovement.findMany({
+    return asientosDeLosCobros();
+  };
+  const asientosDeLosCobros = () =>
+    tx.cashMovement.findMany({
       where: { tenantId, type: "VENTA", orderId: null, collection: { is: { tenantId, orderId: args.orderId, originType: "ORDER" } } },
       orderBy: { id: "asc" },
       select: { id: true, occurredAt: true, sessionId: true, method: true, amount: true, collectionId: true },
     });
-  };
   type Asiento = Awaited<ReturnType<typeof leerAsientos>>[number] | null;
   const leerAsiento = async (): Promise<Asiento> => (await leerAsientos())[0] ?? null;
 
@@ -495,29 +499,48 @@ export async function anularVentaInTx(
   // es un hecho histórico, y el par VENTA + EGRESO ya cuenta la historia completa.
   let reversaId: string | null = null;
   let montoRevertido = 0;
-  if (asiento && asiento.collectionId == null) {
-    const mov = await tx.cashMovement.create({
-      data: {
-        tenantId,
-        sessionId: asiento.sessionId,
-        type: "EGRESO",
-        method: asiento.method,
-        amount: round2(asiento.amount), // siempre > 0: el signo lo pone el tipo (`movementSign`)
-        reason: detalleReversaVenta(order!.code, args.motivo),
-        occurredAt: asiento.occurredAt,
-        orderId: args.orderId,
-        createdBy: `${ANULACION_VENTA_ACTOR_PREFIX}${args.actor}`,
-      },
-      select: { id: true },
-    });
-    reversaId = mov.id;
-    montoRevertido = round2(asiento.amount);
-  } else if (asiento) {
-    // PAGO MIXTO: una contrapartida por medio, colgada del MISMO cobro (`@@unique(tenantId,
-    // collectionId, type)` es el árbitro de la carrera, como el de `orderId` en la venta de un
-    // medio). Sin `orderId`: ése admite un solo EGRESO por pedido. La marca de la anulación la
-    // protege en el libro (libro-caja.ts, `motivoParaNoBorrar`).
-    for (const a of await leerAsientos()) {
+  // AJUSTE POR PESO de un pedido cobrado (ajuste-peso-cobrado.ts): el total del pedido dejó de ser
+  // lo que asentó la VENTA única. Pesó menos → la diferencia YA salió (la devolución, un EGRESO con
+  // `orderId`) y se revierte sólo lo que quedó, sin `orderId` (ese lugar es de la devolución:
+  // `@@unique(tenantId, orderId, type)`; el árbitro del doble clic es el compare-and-set del estado
+  // (1) y la marca de la anulación la protege en el libro, `motivoParaNoBorrar`). Pesó más → el
+  // saldo entró como un cobro con su VENTA, que se revierte también. El total se lee DESPUÉS del
+  // compare-and-set (un ajuste que entró en el medio ya se ve). Sin ajuste —el camino de todos
+  // los días— el total es lo asentado y no se lee nada más de la caja.
+  let asientos: NonNullable<Asiento>[] = [];
+  let devuelto = 0;
+  if (asiento && asiento.collectionId != null) asientos = await leerAsientos();
+  else if (asiento) {
+    const actual = await tx.order.findFirst({ where: { tenantId, id: args.orderId }, select: { total: true } });
+    const ajustado = actual?.total != null && centavosDe(Number(actual.total)) !== centavosDe(Number(asiento.amount));
+    asientos = ajustado ? [asiento, ...(await asientosDeLosCobros())] : [asiento];
+    if (ajustado) devuelto = await devueltoPorPesoDelPedido(tx, tenantId, args.orderId);
+  }
+  for (const a of asientos) {
+    if (a.collectionId == null) {
+      const monto = round2(a.amount - devuelto);
+      if (!(monto > 0)) continue;
+      const mov = await tx.cashMovement.create({
+        data: {
+          tenantId,
+          sessionId: a.sessionId,
+          type: "EGRESO",
+          method: a.method,
+          amount: monto, // siempre > 0: el signo lo pone el tipo (`movementSign`)
+          reason: detalleReversaVenta(order!.code, args.motivo),
+          occurredAt: a.occurredAt,
+          ...(devuelto > 0 ? {} : { orderId: args.orderId }),
+          createdBy: `${ANULACION_VENTA_ACTOR_PREFIX}${args.actor}`,
+        },
+        select: { id: true },
+      });
+      reversaId ??= mov.id;
+      montoRevertido = round2(montoRevertido + monto);
+    } else {
+      // PAGO MIXTO (o el saldo de un pedido que pesó más): una contrapartida por cobro, colgada
+      // del MISMO cobro (`@@unique(tenantId, collectionId, type)` es el árbitro de la carrera, como
+      // el de `orderId` en la venta de un medio). Sin `orderId`: ése admite un solo EGRESO por
+      // pedido. La marca de la anulación la protege en el libro (libro-caja.ts, `motivoParaNoBorrar`).
       const mov = await tx.cashMovement.create({
         data: {
           tenantId,
@@ -842,6 +865,12 @@ export type AjustarPedidoArgs = {
    * `undefined`: el negocio no usa Ofertas; ni se miran.
    */
   promociones?: { vigentes: readonly Promocion[]; contexto: ContextoDePromo; seccionPorProducto: Readonly<Record<string, string>> } | null;
+  /**
+   * Sólo lo pasa `ajustarPesoInTx` (src/lib/ajuste-peso-cobrado.ts), que ya decidió la plata de un
+   * pedido COBRADO (devolución o saldo) con la fila del pedido tomada: acá se reescriben líneas,
+   * totales y stock igual que en uno sin cobrar. Ausente: lo cobrado no se edita.
+   */
+  admiteCobrado?: true;
 };
 
 export type AjustarPedidoResult = {
@@ -896,7 +925,7 @@ export async function ajustarPedidoInTx(
 
   // La invariante dura: si el pedido ya tiene plata asentada, no se edita. Se chequea
   // contra el LIBRO, no contra el flag `paid` (ver `planEdicionDeLineas`).
-  const asiento = order
+  const asiento = order && !args.admiteCobrado
     ? await tx.cashMovement.findFirst({ where: { tenantId, orderId: id }, select: { id: true } })
     : null;
 
@@ -932,7 +961,7 @@ export async function ajustarPedidoInTx(
 
   const plan = planEdicionDeLineas({
     existe: Boolean(order),
-    paid: Boolean(order?.paid),
+    paid: Boolean(order?.paid) && !args.admiteCobrado,
     status: String(order?.status ?? ""),
     tieneAsientoDeCaja: Boolean(asiento),
     lineasValidas: lines.length + aMano.length,
@@ -1354,6 +1383,17 @@ export function avisoPedidoListo(p: {
   horarioLocal: string | null;
   /** Cómo sigue "ya está …" en un retiro, según el rubro. Por defecto, "listo para retirar". */
   listoPara?: string;
+  /**
+   * Lo que falta cobrar si el pedido ya tiene una parte paga (settlement/saldo-del-pedido.ts). Sin
+   * el dato, el total.
+   */
+  aCobrar?: number | null;
+  /**
+   * La frase del ajuste por peso de un pedido cobrado (`explicacionDelAjuste`,
+   * ajuste-peso-cobrado.ts): «Pesó 1,31 kg de Vacío en vez de 1,24 kg; te devolvemos $ 1.400.».
+   * Reemplaza la línea de la plata: ya dice si está pago o cuánto falta.
+   */
+  ajuste?: string | null;
 }): string {
   const nombre = p.cliente.trim().split(/\s+/)[0];
   const saludo = nombre && nombre !== "Mostrador" ? `Hola ${nombre}` : "Hola";
@@ -1361,7 +1401,13 @@ export function avisoPedidoListo(p: {
     p.fulfillment === "DELIVERY"
       ? `tu pedido #${p.code} de ${p.negocio} ya está listo y sale${p.direccionEnvio ? ` para ${p.direccionEnvio}` : ""}.`
       : `tu pedido #${p.code} de ${p.negocio} ya está ${p.listoPara ?? "listo para retirar"}.`;
-  const plata = p.pagado ? "Ya está pago." : `Total a pagar: ${fmtMoneyARS(p.total)}.`;
+  const plata = p.ajuste
+    ? p.ajuste
+    : p.pagado
+      ? "Ya está pago."
+      : p.aCobrar != null && p.aCobrar < p.total
+        ? `Falta pagar: ${fmtMoneyARS(p.aCobrar)}.`
+        : `Total a pagar: ${fmtMoneyARS(p.total)}.`;
   const local =
     p.fulfillment !== "DELIVERY" && p.direccionLocal
       ? ` Te esperamos en ${p.direccionLocal}${p.horarioLocal ? ` (${p.horarioLocal})` : ""}.`

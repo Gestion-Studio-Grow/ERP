@@ -15,9 +15,11 @@ import { pinCoincide, LARGO_PIN, largoPin, usuario as usuarioDe } from "@/lib/cl
 import type { EstadoClub, Rol } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
 import { Campo, CampoPin, CampoPinNuevo, Opciones } from "./formulario-del-club";
-import { armarUsuarios, type DesenlaceConfig, type FilaUsuario } from "./configuracion-core";
-import { PinDeUnaVez, Seccion, subtarjeta, useHacerConfig } from "./config-piezas";
+import { armarUsuarios, ejecutarConfiguracion, type DesenlaceConfig, type FilaUsuario } from "./configuracion-core";
+import { PinDeUnaVez, Seccion, conElTopeDelEquipo, subtarjeta, useHacerConfig } from "./config-piezas";
+import { puertaDelPin, type RespuestaCambiarMiPin } from "./puerta-del-pin";
 import { porFirma, useOperador, useSeleccion } from "./usar-almacen";
+import { luego } from "./firma-del-duenio";
 
 const ROLES_ALTA: readonly { valor: Rol; etiqueta: string }[] = [
   { valor: "recepcion", etiqueta: "Recepción" },
@@ -83,12 +85,13 @@ function FilaDeUsuario({ f, abierta, onAbrir, onCerrar, quien, rol, hacer, onPin
           className="flex flex-col gap-2 rounded-md border border-line-strong p-3 sm:flex-row sm:items-end"
           onSubmit={(e) => {
             e.preventDefault();
-            const r = hacer(accion === "pinNuevo" ? { tipo: "pinNuevo", usuarioId: f.id, pin } : { tipo: "sacarAcceso", usuarioId: f.id, pin });
+            const hecho = hacer(accion === "pinNuevo" ? { tipo: "pinNuevo", usuarioId: f.id, pin } : { tipo: "sacarAcceso", usuarioId: f.id, pin });
             setPin("");
-            if (r.ok) {
+            luego(hecho, (r) => {
+              if (!r.ok) return;
               onCerrar();
               onPin(r);
-            }
+            });
           }}
         >
           <p className="text-sm text-strong sm:max-w-56">{accion === "pinNuevo" ? `Se le arma un PIN nuevo a ${f.nombre}; el de ahora deja de andar.` : `${f.nombre} no va a poder entrar más.`}</p>
@@ -115,12 +118,13 @@ function AltaDeUsuario({ quien, rol: rolDeQuien, hacer, onPin }: { quien: string
       className={subtarjeta}
       onSubmit={(e) => {
         e.preventDefault();
-        const r = hacer({ tipo: "alta", nombre, rol, pin });
+        const hecho = hacer({ tipo: "alta", nombre, rol, pin });
         setPin("");
-        if (r.ok) {
+        luego(hecho, (r) => {
+          if (!r.ok) return;
           setNombre("");
           onPin(r);
-        }
+        });
       }}
     >
       <h3 id="club-config-t-alta" className="font-semibold text-strong">
@@ -139,24 +143,68 @@ function AltaDeUsuario({ quien, rol: rolDeQuien, hacer, onPin }: { quien: string
   );
 }
 
-function CambiarMiPin({ almacen, rol, hacer }: { almacen: Almacen; rol: Rol; hacer: ReturnType<typeof useHacerConfig> }) {
+/**
+ * SEG-019: sin un dueño del ERP, el guardado de la foto ya no lleva ningún PIN (el servidor no sabe quién opera la
+ * tablet). En la jornada contra la base, el cambio va por `cambiarMiPinDelClub` (puerta-del-pin.ts), que comprueba el
+ * PIN actual en el servidor; antes se revisa acá sobre una copia (mismos mensajes y el tope de PIN del equipo). Después
+ * se baja la base (`latir`) para que el puesto quede con el PIN nuevo. La demo, un solo equipo y el puesto del dueño,
+ * como siempre.
+ */
+async function cambiarEnLaBase(almacen: Almacen, negocio: string | undefined, accion: { tipo: "cambiarMiPin"; actual: string; nuevo: string; repetido: string }) {
+  const op = almacen.operador();
+  if (!op) return almacen.informar({ ok: false, mensaje: "Entrá con tu PIN para operar." });
+  const puerta = puertaDelPin();
+  if (!puerta) return almacen.informar({ ok: false, mensaje: "No se pudo cambiar el PIN desde acá: recargá la página y probá de nuevo." });
+  // Lo pendiente del puesto lleva el PIN de antes: se sube primero, para que el cambio no se adelante a la cola.
+  if (almacen.pendienteDeGuardar()) {
+    almacen.guardarYa();
+    return almacen.informar({ ok: false, mensaje: "Hay movimientos de este equipo subiendo. Esperá unos segundos y probá de nuevo." });
+  }
+  const previa = conElTopeDelEquipo(almacen, negocio, () => ejecutarConfiguracion(almacen.copia(), accion, almacen.ahora(), almacen.auth()));
+  if (!previa.ok) return almacen.informar(previa);
+  let r: RespuestaCambiarMiPin;
+  try {
+    r = await puerta({ usuarioId: op.usuario.id, pinActual: accion.actual.trim(), pinNuevo: accion.nuevo.trim() });
+  } catch {
+    // Sin respuesta no se sabe si el servidor llegó a guardarlo: se baja la base y se avisa sin afirmar nada.
+    almacen.latir();
+    r = { ok: false, error: "Se cortó la conexión y no sabemos si el PIN cambió. Probá entrar con el nuevo; si no anda, seguí con el de antes." };
+  }
+  if (!r.ok) return almacen.informar({ ok: false, mensaje: r.error });
+  // Quien opera sigue siendo el mismo, con su PIN nuevo; el estado lo trae la base en el latido.
+  almacen.cambiarOperador(op.usuario, { usuarioId: op.usuario.id, pin: accion.nuevo.trim() });
+  almacen.informar({ ok: true, mensaje: "Tu PIN cambió. Desde ahora entrás con el nuevo." });
+  almacen.latir();
+}
+
+function CambiarMiPin({ almacen, rol, hacer, negocio }: { almacen: Almacen; rol: Rol; hacer: ReturnType<typeof useHacerConfig>; negocio?: string }) {
   const largo = largoPin(rol);
   const [actual, setActual] = useState("");
   const [nuevo, setNuevo] = useState("");
   const [repetido, setRepetido] = useState("");
+  const [enviando, setEnviando] = useState(false);
   return (
     <form
       aria-labelledby="club-config-t-mipin"
+      aria-busy={enviando}
       className={subtarjeta}
       onSubmit={(e) => {
         e.preventDefault();
-        const r = hacer({ tipo: "cambiarMiPin", actual, nuevo, repetido });
-        const op = almacen.operador();
-        // Quien opera sigue siendo el mismo, ahora con su PIN nuevo (si no, lo próximo con PIN fallaría).
-        if (r.ok && op) almacen.cambiarOperador(usuarioDe(almacen.estado(), op.usuario.id) ?? op.usuario, { usuarioId: op.usuario.id, pin: nuevo.trim() });
+        const accion = { tipo: "cambiarMiPin", actual, nuevo, repetido } as const;
         setActual("");
         setNuevo("");
         setRepetido("");
+        if (almacen.confirmaLaBase() && !puestoDeDuenio(almacen)) {
+          setEnviando(true);
+          void cambiarEnLaBase(almacen, negocio, accion).finally(() => setEnviando(false));
+          return;
+        }
+        const nuevoLimpio = nuevo.trim();
+        luego(hacer(accion), (r) => {
+          const op = almacen.operador();
+          // Quien opera sigue siendo el mismo, ahora con su PIN nuevo (si no, lo próximo con PIN fallaría).
+          if (r.ok && op) almacen.cambiarOperador(usuarioDe(almacen.estado(), op.usuario.id) ?? op.usuario, { usuarioId: op.usuario.id, pin: nuevoLimpio });
+        });
       }}
     >
       <h3 id="club-config-t-mipin" className="font-semibold text-strong">
@@ -168,8 +216,8 @@ function CambiarMiPin({ almacen, rol, hacer }: { almacen: Almacen; rol: Rol; hac
         <CampoPinNuevo label={`PIN nuevo (${largo} números)`} largo={largo} value={nuevo} onChange={setNuevo} />
         <CampoPinNuevo label="Repetí el nuevo" largo={largo} value={repetido} onChange={setRepetido} />
       </div>
-      <Button type="submit" variant="outline" size="md" className="self-start max-sm:h-auto max-sm:min-h-11 max-sm:w-full max-sm:py-2 max-sm:whitespace-normal">
-        Cambiar mi PIN
+      <Button type="submit" variant="outline" size="md" disabled={enviando} className="self-start max-sm:h-auto max-sm:min-h-11 max-sm:w-full max-sm:py-2 max-sm:whitespace-normal">
+        {enviando ? "Cambiando…" : "Cambiar mi PIN"}
       </Button>
     </form>
   );
@@ -243,7 +291,7 @@ export function UsuariosDelClub({ almacen, irASolapa, negocio }: { almacen: Alma
       </ul>
       {puesto && <AltaDeUsuario quien={quien} rol={rolDeQuien} hacer={hacer} onPin={alPin} />}
       {/* Cada uno cambia su PIN; el de un dueño, desde su puesto (fuera de él, el servidor no lo deja pasar). */}
-      {operador && (puesto || operador.usuario.rol !== "duenio") && <CambiarMiPin almacen={almacen} rol={operador.usuario.rol} hacer={hacer} />}
+      {operador && (puesto || operador.usuario.rol !== "duenio") && <CambiarMiPin almacen={almacen} rol={operador.usuario.rol} hacer={hacer} negocio={negocio} />}
     </Seccion>
   );
 }

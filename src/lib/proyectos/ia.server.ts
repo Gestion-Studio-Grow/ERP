@@ -9,13 +9,15 @@ import { etapaLabel } from "./core";
 import { configProyectos, datosDelNegocio } from "./datos.server";
 import { bloqueDeDatos, type AgenteId, type MensajeAgente } from "./diseno-core";
 import { columnasOcultas, filtroDeProyectos, puede, tiposDeCambio, versionViva, aItemFicha, type Actor } from "./gestion.server";
-import { codigoProyecto, costoTotalItem, ESTADO_ITEM_LABEL, ESTADO_TAREA_LABEL, resumenCuotas, totalesFicha, ventaTotalItem, type ModuloGestion } from "./gestion-core";
+import { codigoProyecto, costoTotalItem, ESTADO_ITEM_LABEL, ESTADO_TAREA_LABEL, totalesFicha, ventaTotalItem, type ModuloGestion } from "./gestion-core";
 import { errorDeGratis, imagenDeGratis, MODELO_IMAGEN_GRATIS, MODELO_TEXTO_GRATIS, pedidoDeImagen, pedidoDeTexto, textoDeGratis, urlGratis } from "./ia-gratis-core";
 import { aDataUri, tipoDeImagen, urlPollinations } from "./ia-pollinations-core";
 import { describirStand, ESQUEMA_STAND, INSTRUCCIONES_STAND, leerStandPropuesto } from "./ia-stand-core";
 import { normalizarDiseno, type DisenoStand } from "./stand";
 import { ESQUEMA_PIEZAS, INSTRUCCIONES_PIEZAS, leerPiezasPropuestas, type PiezaPropuesta } from "./ia-piezas-core";
 import { CAMPOS_BRIEF, ESTADOS_DATO, INSTRUCCIONES_CONSULTA, textoDeBrief, type BriefConsulta } from "./consulta-core";
+import { recuadrosDeCuotas } from "./empresa.server";
+import { SIN_PREVISTAS_SIN_MARCAR } from "./cobranza-core";
 
 const API = "https://api.anthropic.com/v1/messages";
 const MODELO = "claude-opus-5-5";
@@ -23,7 +25,10 @@ const VERSION_API = "2026-10-21";
 const FALLBACK = "server-side-fallback-2026-07-01";
 const TIEMPO_MAX = 110_000;
 
-export const FALTA_CLAVE = "Falta conectar la IA: hay que cargar CLOUDFLARE_ACCOUNT_ID y CLOUDFLARE_AI_TOKEN (o ANTHROPIC_API_KEY) en la configuración del servidor.";
+/** Lo que ve la persona: sin nombres de variables del servidor (QA MIA #5). El detalle técnico va sólo a los logs. */
+export const FALTA_CLAVE = "Falta conectar la IA. Avisale a quien administra el sistema para que la active.";
+const FALTA_CLAVE_TECNICO = "[proyectos/ia] sin IA: faltan CLOUDFLARE_ACCOUNT_ID y CLOUDFLARE_AI_TOKEN (o ANTHROPIC_API_KEY) en el entorno del servidor.";
+let avisoFaltaClaveEnLog = false;
 
 function cuentaGratis(): { cuenta: string; token: string } | null {
   const cuenta = process.env.CLOUDFLARE_ACCOUNT_ID?.trim();
@@ -31,7 +36,14 @@ function cuentaGratis(): { cuenta: string; token: string } | null {
   return cuenta && token ? { cuenta, token } : null;
 }
 
-export const iaConectada = (): boolean => !!process.env.ANTHROPIC_API_KEY?.trim() || !!cuentaGratis();
+export const iaConectada = (): boolean => {
+  const ok = !!process.env.ANTHROPIC_API_KEY?.trim() || !!cuentaGratis();
+  if (!ok && !avisoFaltaClaveEnLog) {
+    avisoFaltaClaveEnLog = true;
+    console.warn(FALTA_CLAVE_TECNICO);
+  }
+  return ok;
+};
 /** Siempre hay imágenes: sin servicio propio ni cuenta de Cloudflare se usa Pollinations, que no pide clave. */
 export const imagenesConectadas = (): boolean => true;
 
@@ -52,7 +64,7 @@ async function llamarGratis(g: { cuenta: string; token: string }, modelo: string
   const leido = (await r.json().catch(() => null)) as Parameters<typeof textoDeGratis>[0];
   const error = errorDeGratis(r.status, leido);
   if (error) {
-    console.error(`[proyectos/ia] el servicio gratis respondió ${r.status}`);
+    console.error(`[proyectos/ia] el servicio gratis respondió ${r.status}${r.status === 401 || r.status === 403 || r.status === 404 ? " (revisar CLOUDFLARE_AI_TOKEN y CLOUDFLARE_ACCOUNT_ID)" : ""}`);
     return { error };
   }
   return { cuerpo: leido };
@@ -73,7 +85,10 @@ export async function pedirAlModelo(p: PedidoIA): Promise<RespuestaIA> {
   const clave = process.env.ANTHROPIC_API_KEY?.trim();
   if (!clave) {
     const g = cuentaGratis();
-    if (!g) return { ok: false, error: FALTA_CLAVE };
+    if (!g) {
+      console.warn(FALTA_CLAVE_TECNICO);
+      return { ok: false, error: FALTA_CLAVE };
+    }
     const maxTokens = p.maxTokens ?? 2000;
     const res = await llamarGratis(g, MODELO_TEXTO_GRATIS, pedidoDeTexto({ sistema: p.sistema, mensajes: p.mensajes, maxTokens, esquema: p.esquema }));
     if ("error" in res) return { ok: false, error: res.error };
@@ -101,7 +116,10 @@ export async function pedirAlModelo(p: PedidoIA): Promise<RespuestaIA> {
   }
   if (!r.ok) {
     console.error(`[proyectos/ia] la API respondió ${r.status}`);
-    if (r.status === 401 || r.status === 403) return { ok: false, error: "La clave de la IA no es válida. Hay que revisar ANTHROPIC_API_KEY." };
+    if (r.status === 401 || r.status === 403) {
+      console.error(`[proyectos/ia] Anthropic respondió ${r.status}: revisar ANTHROPIC_API_KEY`);
+      return { ok: false, error: "La conexión con la IA no está andando. Avisale a quien administra el sistema." };
+    }
     if (r.status === 429 || r.status === 529) return { ok: false, error: "La IA está saturada en este momento. Probá en unos minutos." };
     return { ok: false, error: "La IA no pudo responder este pedido. Probá de nuevo." };
   }
@@ -259,14 +277,11 @@ export async function contextoDeAgente(a: Actor, id: AgenteId, proyectoId: strin
       secciones.push({ titulo: a.personaId ? "Sus tareas abiertas" : "Tareas abiertas", lineas: tareas.map((t) => linea(t.proyecto.nombre, t.titulo, ESTADO_TAREA_LABEL[t.estado], `vence ${fechaDe(t.venceEl)}`, t.responsable)) });
     }
     if (alcance.plata && ve("empresa")) {
-      const [cuotas, tc] = await Promise.all([
-        prisma.proyectoCuota.findMany({ where: { tenantId, anuladoEl: null, pagadoEl: null, prevista: false }, select: { tipo: true, monto: true, moneda: true, venceEl: true, pagadoEl: true, anuladoEl: true }, take: 2000 }),
-        tiposDeCambio(tenantId),
-      ]);
-      const r = resumenCuotas(cuotas, tc);
+      // El mismo número que Administración, por construcción: la misma lectura (cobranza-core).
+      const r = (await recuadrosDeCuotas(tenantId)).resumen;
       secciones.push({
         titulo: "Cuentas de la empresa, en pesos",
-        lineas: [`A cobrar ${r.aCobrar} (en 7 días ${r.aCobrar7}); vencido ${r.cobrosVencidos} en ${r.cantCobrosVencidos} cobros`, `A pagar ${r.aPagar} (en 7 días ${r.aPagar7}); vencido ${r.pagosVencidos} en ${r.cantPagosVencidos} pagos`],
+        lineas: [`A cobrar ${r.aCobrar} (de eventos ${r.aCobrarDeEventos}, de la empresa ${r.aCobrarDeEmpresa}; en 7 días ${r.aCobrar7}); vencido ${r.cobrosVencidos} en ${r.cantCobrosVencidos} cobros`, `A pagar ${r.aPagar} (en 7 días ${r.aPagar7}); vencido ${r.pagosVencidos} en ${r.cantPagosVencidos} pagos`],
       });
     }
     return bloqueDeDatos(secciones);
@@ -338,7 +353,7 @@ export async function contextoDeAgente(a: Actor, id: AgenteId, proyectoId: strin
     if (totales.length > 0) secciones.push({ titulo: "Totales, en pesos", lineas: totales });
   }
   if (alcance.plata && ve("pagos")) {
-    const cuotas = await prisma.proyectoCuota.findMany({ where: { tenantId, proyectoId, anuladoEl: null, prevista: false }, orderBy: { venceEl: "asc" }, take: 60, select: { tipo: true, concepto: true, monto: true, moneda: true, venceEl: true, pagadoEl: true } });
+    const cuotas = await prisma.proyectoCuota.findMany({ where: { tenantId, proyectoId, anuladoEl: null, ...SIN_PREVISTAS_SIN_MARCAR }, orderBy: { venceEl: "asc" }, take: 60, select: { tipo: true, concepto: true, monto: true, moneda: true, venceEl: true, pagadoEl: true } });
     secciones.push({ titulo: "Cobros y pagos", lineas: cuotas.map((c) => linea(c.tipo === "COBRO" ? "Cobro" : "Pago", c.concepto, `${c.monto} ${c.moneda}`, `vence ${fechaDe(c.venceEl)}`, c.pagadoEl ? "hecho" : "pendiente")) });
   }
   if (alcance.checklist && ve("ficha")) {

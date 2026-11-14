@@ -4,6 +4,7 @@
 import { randomBytes } from "node:crypto";
 import type { PrismaClient } from "../src/generated/prisma/client";
 import { precioAlEnviar } from "../src/lib/proyectos/ficha-core";
+import { metodoDeCaja, type MedioPago } from "../src/lib/proyectos/core";
 import { CHECKLIST_BASE, planDeCuotas, type ItemFicha } from "../src/lib/proyectos/gestion-core";
 
 const DIA = 86_400_000;
@@ -12,6 +13,19 @@ const token = () => randomBytes(18).toString("base64url");
 const TC_USD = 1350;
 
 type Linea = { rubro: string; descripcion: string; prov?: string; cant: number; costo: number; moneda?: string; recargo: number; limite: number; estado: string };
+
+/** El cobro registrado de una cuota cobrada (en pesos), igual que lo asienta `marcarCuota` en la app. */
+export async function cobroDeCuota(
+  prisma: PrismaClient,
+  tenantId: string,
+  c: { proyectoId: string; numero: number; cuotaId: string; concepto: string; monto: number; cobradoEl: Date; autor: string; medio?: MedioPago },
+) {
+  const medio = c.medio ?? "TRANSFERENCIA";
+  const pago = await prisma.proyectoPago.create({ data: { tenantId, proyectoId: c.proyectoId, medio, monto: c.monto, nota: c.concepto.slice(0, 200), cobradoPor: c.autor, createdAt: c.cobradoEl } });
+  await prisma.cashMovement.create({ data: { tenantId, type: "VENTA", method: metodoDeCaja(medio, true), amount: c.monto, reason: `Proyecto #${c.numero} · ${c.concepto}`, proyectoPagoId: pago.id, createdBy: c.autor, occurredAt: c.cobradoEl } });
+  await prisma.proyectoCambio.create({ data: { tenantId, proyectoId: c.proyectoId, entidad: "ProyectoCuota", entidadId: c.cuotaId, campo: "Asiento", despues: pago.id, autor: c.autor } });
+  return pago;
+}
 
 export async function sembrarGestion(prisma: PrismaClient, tenantId: string, recargoGeneral: number) {
   await prisma.proyectoCuota.deleteMany({ where: { tenantId } });
@@ -96,7 +110,10 @@ export async function sembrarGestion(prisma: PrismaClient, tenantId: string, rec
       const plan = planDeCuotas(items, { proyectoId: p.id, nombre: d.nombre, fechaEvento: en(d.dias), creado, anticipoClientePct: 50, ivaPct: 21, recargoGeneral, tiposDeCambio: { USD: TC_USD }, anticipoProveedor });
       for (const c2 of plan) {
         const cobrada = d.cobrado && c2.clave.endsWith("cliente:anticipo");
-        await prisma.proyectoCuota.create({ data: { tenantId, proyectoId: p.id, auto: true, ...c2, ...(cobrada && { pagadoEl: en(-20), pagadoPor: "Rocío Medina", medio: "TRANSFERENCIA" }) } });
+        const cuota = await prisma.proyectoCuota.create({ data: { tenantId, proyectoId: p.id, auto: true, ...c2, ...(cobrada && { pagadoEl: en(-20), pagadoPor: "Rocío Medina", medio: "TRANSFERENCIA" }) } });
+        // Como `marcarCuota`: una cuota cobrada tiene su cobro registrado (la fuente de «cobrado», ver cobranza-core.ts),
+        // su movimiento de caja y el enlace que la reabre si se anula el cobro. Sin esto, las pantallas no coinciden.
+        if (cobrada) await cobroDeCuota(prisma, tenantId, { proyectoId: p.id, numero: d.numero, cuotaId: cuota.id, concepto: c2.concepto, monto: c2.monto, cobradoEl: en(-20), autor: "Rocío Medina" });
       }
     }
     await prisma.proyectoTarea.createMany({

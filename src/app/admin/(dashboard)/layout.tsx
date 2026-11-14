@@ -203,7 +203,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // equipo elegido > acento del producto > branding legado. Para el ERP vertical `identidad`
   // es null → todo cae al camino de siempre, byte-idéntico.
   const identidad = productoCtx.identidad;
-  const preset = teamPreset ?? identidad?.acento ?? brand.preset;
+  // DEMO GSG (src/lib/marca-demo.ts): el cobre de GSG manda sobre el color que haya elegido el cliente.
+  const preset = brand.demoGsg ? brand.preset : (teamPreset ?? identidad?.acento ?? brand.preset);
   const accentLight = sheet ? brandSheetAccent(sheet, "light") : resolveAccent(preset, "light");
   const accentDark = sheet ? brandSheetAccent(sheet, "dark") : resolveAccent(preset, "dark");
   const dataBrand = sheet ? sheet.themeId : undefined;

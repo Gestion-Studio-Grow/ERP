@@ -22,6 +22,12 @@ import { RechazoDeDominio } from "@/lib/rechazo-de-dominio";
 import { ENTIDAD_CONFIG_CAJA, ENTIDAD_LISTA_PROVEEDOR, ENTIDAD_PROMOCION } from "./marcas";
 import { promocionDesdeAfuera, type Promocion } from "./promociones";
 import { FORMATO_BALANZA_POR_DEFECTO, formatoDesdeAfuera, type FormatoBalanza } from "./balanza";
+import {
+  ETIQUETA_PAQUETE_POR_DEFECTO,
+  etiquetaPaqueteDesdeAfuera,
+  type EtiquetaPaqueteConfig,
+} from "@/lib/carniceria/etiqueta-paquete-config";
+import { RANGO_FRIO_POR_DEFECTO, rangoFrioDesdeAfuera, type RangoFrio } from "@/lib/carniceria/cadena-frio";
 
 type Db = Pick<Prisma.TransactionClient, "auditLog">;
 
@@ -113,19 +119,40 @@ export type ConfigCaja = {
    * súper es alguien de recepción que el dueño elige acá, sin inventar un rol nuevo.
    */
   encargados: string[];
+  /**
+   * Leyenda de conservación y alto (mm) de la etiqueta de paquete al vacío (carnicería).
+   * OPCIONAL: si no se manda al guardar, se conserva la que ya estaba guardada.
+   */
+  etiquetaPaquete?: EtiquetaPaqueteConfig;
+  /**
+   * Rango de temperatura de la cadena de frío (carnicería). OPCIONAL y tolerante como la
+   * etiqueta: si no se manda al guardar, se conserva el guardado; roto o ausente → el de fábrica.
+   */
+  rangoFrio?: RangoFrio;
 };
 
-export type ConfigCajaLeida = ConfigCaja & { version: string | null; porDefecto: boolean };
+export type ConfigCajaLeida = Omit<ConfigCaja, "etiquetaPaquete" | "rangoFrio"> & {
+  /** La guardada, o la de fábrica si nunca se configuró (o vino rota). */
+  etiquetaPaquete: EtiquetaPaqueteConfig;
+  /** El guardado, o el de fábrica (0 a 4 °C, provisional a confirmar). */
+  rangoFrio: RangoFrio;
+  version: string | null;
+  porDefecto: boolean;
+};
+
+type CambiosConfigCaja = { formato?: unknown; encargados?: unknown; etiquetaPaquete?: unknown; rangoFrio?: unknown };
 
 /** La configuración de la caja del negocio, o la de fábrica si nunca se configuró. */
 export async function leerConfigCaja(db: Db, tenantId: string): Promise<ConfigCajaLeida> {
   const [f] = await vigentes(db, tenantId, ENTIDAD_CONFIG_CAJA, tenantId);
-  const c = (f?.changes ?? null) as { formato?: unknown; encargados?: unknown } | null;
+  const c = (f?.changes ?? null) as CambiosConfigCaja | null;
   const formato = c ? formatoDesdeAfuera(c.formato) : null;
   const encargados = Array.isArray(c?.encargados) ? c!.encargados.filter((x): x is string => typeof x === "string") : [];
+  const etiquetaPaquete = etiquetaPaqueteDesdeAfuera(c?.etiquetaPaquete) ?? ETIQUETA_PAQUETE_POR_DEFECTO;
+  const rangoFrio = rangoFrioDesdeAfuera(c?.rangoFrio) ?? RANGO_FRIO_POR_DEFECTO;
   return formato
-    ? { formato, encargados, version: f!.id, porDefecto: false }
-    : { formato: FORMATO_BALANZA_POR_DEFECTO, encargados, version: f?.id ?? null, porDefecto: true };
+    ? { formato, encargados, etiquetaPaquete, rangoFrio, version: f!.id, porDefecto: false }
+    : { formato: FORMATO_BALANZA_POR_DEFECTO, encargados, etiquetaPaquete, rangoFrio, version: f?.id ?? null, porDefecto: true };
 }
 
 export async function guardarConfigCajaEnTx(
@@ -133,13 +160,71 @@ export async function guardarConfigCajaEnTx(
   tenantId: string,
   d: { config: ConfigCaja; actor: string; versionLeida: string | null },
 ): Promise<string> {
+  // Quien guarda formato/encargados sin tocar la etiqueta de paquete ni el rango de frío no los borra.
+  let etiquetaPaquete = d.config.etiquetaPaquete;
+  let rangoFrio = d.config.rangoFrio;
+  if (!etiquetaPaquete || !rangoFrio) {
+    const [f] = await vigentes(db, tenantId, ENTIDAD_CONFIG_CAJA, tenantId);
+    const previos = f?.changes as CambiosConfigCaja | null;
+    etiquetaPaquete ??= etiquetaPaqueteDesdeAfuera(previos?.etiquetaPaquete) ?? undefined;
+    rangoFrio ??= rangoFrioDesdeAfuera(previos?.rangoFrio) ?? undefined;
+  }
   return escribir(db, {
     tenantId,
     entity: ENTIDAD_CONFIG_CAJA,
     entityId: tenantId,
     action: "guardar",
     actor: d.actor,
-    changes: { formato: d.config.formato, encargados: [...new Set(d.config.encargados)] },
+    changes: {
+      formato: d.config.formato,
+      encargados: [...new Set(d.config.encargados)],
+      ...(etiquetaPaquete ? { etiquetaPaquete } : {}),
+      ...(rangoFrio ? { rangoFrio } : {}),
+    },
+    versionLeida: d.versionLeida,
+  });
+}
+
+/**
+ * Guarda SÓLO la etiqueta de paquete: copia tal cual lo demás de la fila vigente (formato y
+ * encargados, o su ausencia), así no pisa nada ni «configura» la balanza sin querer.
+ */
+export async function guardarEtiquetaPaqueteEnTx(
+  db: Db,
+  tenantId: string,
+  d: { etiquetaPaquete: EtiquetaPaqueteConfig; actor: string; versionLeida: string | null },
+): Promise<string> {
+  const [f] = await vigentes(db, tenantId, ENTIDAD_CONFIG_CAJA, tenantId);
+  const previos = f?.changes && typeof f.changes === "object" && !Array.isArray(f.changes) ? (f.changes as Record<string, unknown>) : {};
+  return escribir(db, {
+    tenantId,
+    entity: ENTIDAD_CONFIG_CAJA,
+    entityId: tenantId,
+    action: "guardar",
+    actor: d.actor,
+    changes: { ...previos, etiquetaPaquete: { leyenda: d.etiquetaPaquete.leyenda, altoMm: d.etiquetaPaquete.altoMm } },
+    versionLeida: d.versionLeida,
+  });
+}
+
+/**
+ * Guarda SÓLO el rango de la cadena de frío, como la etiqueta: copia tal cual lo demás de la fila
+ * vigente (no «configura» la balanza sin querer).
+ */
+export async function guardarRangoFrioEnTx(
+  db: Db,
+  tenantId: string,
+  d: { rangoFrio: RangoFrio; actor: string; versionLeida: string | null },
+): Promise<string> {
+  const [f] = await vigentes(db, tenantId, ENTIDAD_CONFIG_CAJA, tenantId);
+  const previos = f?.changes && typeof f.changes === "object" && !Array.isArray(f.changes) ? (f.changes as Record<string, unknown>) : {};
+  return escribir(db, {
+    tenantId,
+    entity: ENTIDAD_CONFIG_CAJA,
+    entityId: tenantId,
+    action: "guardar",
+    actor: d.actor,
+    changes: { ...previos, rangoFrio: { minC: d.rangoFrio.minC, maxC: d.rangoFrio.maxC } },
     versionLeida: d.versionLeida,
   });
 }

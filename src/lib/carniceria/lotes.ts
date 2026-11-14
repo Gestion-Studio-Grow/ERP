@@ -102,6 +102,81 @@ export function expiryState(expiresAt: Date | null, hoy: string, soonDays = DIAS
 }
 
 /**
+ * ALERTA DE VENCIMIENTO (T3): el semáforo de cuatro luces que pide el mostrador. Distingue
+ * "vence hoy" de "por vencer" (el de hoy se vende hoy o se retira a la noche; el de pasado
+ * mañana se pone adelante en la heladera). `dias` = el aviso "por vencer" (default
+ * DIAS_POR_VENCER; configurable por quien llama). `hoy` es el día del NEGOCIO
+ * (`todayInBusinessTz`), nunca el del servidor. Sin fecha → "sin-fecha". PURA.
+ */
+export type AlertaDeVencimiento = "sin-fecha" | "vencido" | "vence-hoy" | "por-vencer" | "ok";
+
+export function alertaDeVencimiento(expiresAt: Date | null, hoy: string, dias = DIAS_POR_VENCER): AlertaDeVencimiento {
+  const d = daysUntil(expiresAt, hoy);
+  if (d === null) return "sin-fecha";
+  if (d < 0) return "vencido";
+  if (d === 0) return "vence-hoy";
+  if (d <= Math.max(0, Math.floor(dias))) return "por-vencer";
+  return "ok";
+}
+
+export type ResumenDeAlertas = { vencidos: number; venceHoy: number; porVencer: number; dias: number };
+
+/**
+ * Cuántos lotes DISPONIBLES caen en cada alerta (lo agotado o retirado ya no está en la
+ * heladera). Es lo que muestra el aviso del inicio y la línea de estado de Lotes. PURA.
+ */
+export function resumenDeAlertas(
+  batches: readonly Pick<Batch, "status" | "expiresAt">[],
+  hoy: string,
+  dias = DIAS_POR_VENCER,
+): ResumenDeAlertas {
+  const r: ResumenDeAlertas = { vencidos: 0, venceHoy: 0, porVencer: 0, dias };
+  for (const b of batches) {
+    if (b.status !== "AVAILABLE") continue;
+    const a = alertaDeVencimiento(b.expiresAt, hoy, dias);
+    if (a === "vencido") r.vencidos++;
+    else if (a === "vence-hoy") r.venceHoy++;
+    else if (a === "por-vencer") r.porVencer++;
+  }
+  return r;
+}
+
+/** El aviso en criollo para el inicio del panel, o null si no hay nada que mirar. PURA. */
+export function textoDelAvisoDeVencimientos(r: ResumenDeAlertas): string | null {
+  const partes: string[] = [];
+  if (r.vencidos > 0) partes.push(r.vencidos === 1 ? "1 lote vencido en la heladera" : `${r.vencidos} lotes vencidos en la heladera`);
+  if (r.venceHoy > 0) partes.push(r.venceHoy === 1 ? "1 vence hoy" : `${r.venceHoy} vencen hoy`);
+  if (r.porVencer > 0) {
+    const plazo = r.dias === 1 ? "mañana" : `en ${r.dias} días o menos`;
+    partes.push(r.porVencer === 1 ? `1 vence ${plazo}` : `${r.porVencer} vencen ${plazo}`);
+  }
+  return partes.length ? `${partes.join(" · ")}.` : null;
+}
+
+/**
+ * VENTA DE UN LOTE VENCIDO (T3). La venta no elige lote (el mostrador vende el corte, no el
+ * paquete): se despacha por FEFO. Por eso la regla es por CORTE: si el corte tiene lotes
+ * DISPONIBLES y TODOS están vencidos, lo que hay en la heladera es mercadería vencida y la venta
+ * se frena. Si queda algún lote vendible (o el corte no tiene lotes cargados) se vende como
+ * siempre: un lote viejo sin retirar no frena la venta del paquete fresco. Devuelve el motivo
+ * para la pantalla, o null si se puede vender. PURA.
+ */
+export function motivoDeVentaVencida(
+  producto: string,
+  lotes: readonly { code: string; expiresAt: Date | null; status: BatchStatus }[],
+  hoy: string,
+): string | null {
+  const disponibles = lotes.filter((l) => l.status === "AVAILABLE");
+  if (disponibles.length === 0) return null;
+  if (disponibles.some((l) => expiryState(l.expiresAt, hoy) !== "expired")) return null;
+  // El que venció más tarde: el de fecha más cercana a hoy, para que la persona lo ubique.
+  const ultimo = [...disponibles].sort((x, y) => (y.expiresAt?.getTime() ?? 0) - (x.expiresAt?.getTime() ?? 0))[0];
+  const dia = diaDelLote(ultimo.expiresAt);
+  const cual = disponibles.length === 1 ? `su lote ${ultimo.code} venció el ${dia ? fmtDia(dia) : "—"}` : `sus ${disponibles.length} lotes en la heladera están vencidos (el último, ${ultimo.code}, venció el ${dia ? fmtDia(dia) : "—"})`;
+  return `No se puede vender "${producto.slice(0, 60)}": ${cual}. Sacalo de la venta y marcá el lote como retirado en Lotes y vencimientos.`;
+}
+
+/**
  * Peso promedio por paquete (kg) — el corazón del PESO VARIABLE: un vacío no pesa exacto,
  * así que se guarda el peso NETO del lote y su cantidad de paquetes; el promedio = neto /
  * paquetes. null si falta el peso o no hay paquetes. Puro.

@@ -24,6 +24,7 @@ import {
   type PedidoSugerido,
   type ProveedorHabitual,
 } from "./sugerido";
+import { nombreVisibleDelNegocio } from "@/lib/marca-demo";
 
 export type PedidoParaMandar = PedidoSugerido & { texto: string };
 
@@ -56,13 +57,13 @@ const HABITUAL = {
 export async function getSugeridoData(tenantId: string, ahora: Date, { semanaTipo = false }: { semanaTipo?: boolean } = {}): Promise<DatosDelSugerido> {
   const desde = desdeVentaReciente(ahora);
   const [tenant, leidos] = await Promise.all([
-    prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true } }),
+    prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true, slug: true } }),
     leerProductos(tenantId, desde),
   ]);
 
   const factor = semanaTipo ? factorDeLaSemana(leidos.productos, dateStrInBusinessTz(ahora), dateStrInBusinessTz) : 1;
   const grupos = agruparPorProveedor(lineasSugeridas(leidos.productos, factor), leidos.habitual);
-  const negocio = tenant?.name ?? "";
+  const negocio = nombreVisibleDelNegocio(tenant?.slug, tenant?.name, ""); // DEMO GSG: el nombre de la demo.
   return {
     pedidos: grupos.map((g) => ({ ...g, texto: textoDelPedido(negocio, g.proveedor?.nombre ?? null, g.lineas) })),
     productos: leidos.productos.length,

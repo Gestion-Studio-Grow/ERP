@@ -1,5 +1,5 @@
-// G8 en el servidor: un guardado de alguien que no es dueño del ERP no puede pisar ni borrar usuarios ni PIN; sólo
-// pasa el PIN propio de recepción (src/lib/club/delicado.ts).
+// G8 en el servidor: un guardado de alguien que no es dueño del ERP no puede pisar ni borrar usuarios ni PIN; desde
+// GSG-SEG-019 ningún PIN cambia por la foto (src/lib/club/delicado.ts; el propio va por src/lib/club/cambiar-pin.ts).
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as M from "./motor.mjs";
@@ -23,14 +23,17 @@ test("recepción guarda con los PIN cambiados, borrados o con un usuario nuevo: 
   assert.equal((JSON.parse(r.texto) as { estado: M.EstadoClub }).estado.clientes[0].nombre, "Ana Editada", "el resto del club se guarda");
 });
 
-test("el PIN propio de recepción sí pasa (válido para su rol); el de un dueño, nunca desde recepción; tampoco un cambio de rol", () => {
+// Antes de SEG-019 este test fijaba que el PIN «propio» de recepción pasaba por la foto. Ya no: el servidor no sabe
+// quién opera la tablet, así que por la foto no hay PIN propio. Cambiarlo es `cambiarPinEnLaFoto` (cambiar-pin.test.ts).
+test("ningún PIN de recepción pasa por la foto (ni válido para su rol); el de un dueño tampoco; tampoco un cambio de rol", () => {
   const vigente = M.generarDemo(HOY, 19 * 60);
   const tocado = structuredClone(vigente);
   const recep = tocado.usuarios.find((u) => u.rol === "recepcion")!;
   const nuevoPin = recep.pin === "47" ? "58" : "47";
   recep.pin = nuevoPin;
   const r = conservarLoDelicado(sobre(vigente), sobre(tocado));
-  assert.equal(usuarios(r.texto).find((u) => u.id === recep.id)!.pin, nuevoPin);
+  assert.equal(r.corregido, true);
+  assert.equal(usuarios(r.texto).find((u) => u.id === recep.id)!.pin, vigente.usuarios.find((u) => u.id === recep.id)!.pin);
   // Un PIN que no es del largo de su rol, no.
   const malo = structuredClone(vigente);
   malo.usuarios.find((u) => u.id === recep.id)!.pin = "123456";
@@ -48,7 +51,7 @@ test("sin cambios en los usuarios, el texto pasa tal cual; si algo no se puede l
   assert.deepEqual(conservarLoDelicado("{roto", t), { texto: t, corregido: false });
 });
 
-test("con PIN con hash (21/10): la sal del club no la cambia otro puesto; el PIN propio de recepción con hash pasa, el de un dueño no", () => {
+test("con PIN con hash (21/10): la sal del club no la cambia otro puesto; ni el PIN de recepción con hash ni el de un dueño pasan por la foto (SEG-019)", () => {
   const vigente = M.generarDemo(HOY, 19 * 60);
   M.pasarPinesAHash(vigente);
   const tocado = structuredClone(vigente);
@@ -60,7 +63,7 @@ test("con PIN con hash (21/10): la sal del club no la cambia otro puesto; el PIN
   const r = conservarLoDelicado(sobre(vigente), sobre(tocado));
   const quedo = JSON.parse(r.texto) as { estado: M.EstadoClub };
   assert.equal(r.corregido, true);
-  assert.ok(M.pinCoincide(quedo.estado, quedo.estado.usuarios.find((u) => u.id === lu.id)!, "58"), "el PIN propio de recepción pasa");
+  assert.equal(quedo.estado.usuarios.find((u) => u.id === lu.id)!.pin, vigente.usuarios.find((u) => u.id === lu.id)!.pin, "el PIN de recepción queda el vigente");
   const duenio = vigente.usuarios.find((u) => u.rol === "duenio")!;
   assert.equal(quedo.estado.usuarios.find((u) => u.id === duenio.id)!.pin, duenio.pin, "el del dueño queda como estaba");
   // Cambiar la sal: no pasa (invalidaría todos los PIN).
@@ -164,4 +167,34 @@ test("F5: un guardado de recepción con la configuración igual a la base pasa t
   tocado.clientes[0].nombre = "Ana Editada";
   const t = sobre(tocado);
   assert.deepEqual(conservarLoDelicado(sobre(vigente), t), { texto: t, corregido: false });
+});
+
+// ───── GSG-SEG-019: el guardado de la foto no cambia ningún PIN si no guarda un dueño del ERP ─────
+// El servidor no sabe qué usuario del club opera la tablet: por la foto no puede distinguir «mi PIN» del de otra
+// persona. El cambio del PIN propio va por su propia acción, que pide el PIN actual (src/lib/club/cambiar-pin.ts).
+
+test("SEG-019: un guardado sin dueño no cambia el PIN de ningún usuario (en claro): queda el vigente", () => {
+  const vigente = M.generarDemo(HOY, 19 * 60);
+  const [, otra] = vigente.usuarios.filter((u) => u.rol === "recepcion");
+  assert.ok(otra, "la demo trae dos usuarios de recepción");
+  const tocado = structuredClone(vigente);
+  const t = tocado.usuarios.find((u) => u.id === otra.id)!;
+  t.pin = t.pin === "70" ? "80" : "70";
+  const r = conservarLoDelicado(sobre(vigente), sobre(tocado));
+  assert.equal(r.corregido, true, "es un evento de seguridad: se corrige y queda en los logs");
+  assert.deepEqual(usuarios(r.texto), vigente.usuarios, "nadie cambió de PIN");
+});
+
+test("SEG-019: un guardado sin dueño no cambia el PIN de ningún usuario (con hash): queda el vigente", () => {
+  const vigente = M.generarDemo(HOY, 19 * 60);
+  M.pasarPinesAHash(vigente);
+  const [, otra] = vigente.usuarios.filter((u) => u.rol === "recepcion");
+  const tocado = structuredClone(vigente);
+  const t = tocado.usuarios.find((u) => u.id === otra.id)!;
+  t.pin = M.hashPin("70", vigente.salPin!);
+  t.pinLargo = 2;
+  const r = conservarLoDelicado(sobre(vigente), sobre(tocado));
+  assert.equal(r.corregido, true);
+  assert.deepEqual(usuarios(r.texto), vigente.usuarios);
+  assert.equal(M.usuarioPorPin(estadoDe(r.texto), "70")?.ok ?? false, false, "el PIN nuevo no abre la cuenta de nadie");
 });

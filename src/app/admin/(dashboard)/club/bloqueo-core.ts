@@ -247,7 +247,8 @@ export function vuelveDeLaPantallaApagada(ocultaDesdeMs: number | null, ahoraMs:
   return ocultaDesdeMs !== null && ahoraMs - ocultaDesdeMs >= OCULTA_MAX_MS;
 }
 
-export type MotivoDelBloqueo = "recarga" | "inactividad" | "pantalla" | "manual" | "cambio";
+/** `firma`: la firma guardada de un dueño con el PIN en el servidor venció (firma-del-duenio.ts, `FIRMA_VENCIDA`). */
+export type MotivoDelBloqueo = "recarga" | "inactividad" | "pantalla" | "manual" | "cambio" | "firma";
 
 /** La línea de abajo del título, en criollo. */
 export function textoDelMotivo(motivo: MotivoDelBloqueo, bloqueoMin: number): string {
@@ -260,6 +261,8 @@ export function textoDelMotivo(motivo: MotivoDelBloqueo, bloqueoMin: number): st
       return "Se bloqueó a mano.";
     case "cambio":
       return "Elegí quién entra y poné su PIN.";
+    case "firma":
+      return "Para firmar como dueño, poné tu PIN de nuevo.";
     default:
       return "Se volvió a abrir el sistema: poné tu PIN.";
   }

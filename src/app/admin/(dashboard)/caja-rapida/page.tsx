@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { nombreVisibleDelNegocio } from "@/lib/marca-demo";
 import { requireApp } from "@/lib/require-app";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { prisma } from "@/lib/prisma";
@@ -30,7 +31,7 @@ export default async function CajaRapidaPage() {
     leerPromociones(prisma, tenantId),
     leerConfigCaja(prisma, tenantId),
     prisma.cashSession.findFirst({ where: { tenantId, status: "OPEN" }, select: { openedAt: true } }),
-    prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true } }),
+    prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true, slug: true } }),
     // El perfil de este equipo vale sólo si el negocio tiene el módulo `terminal` (lo decide acá
     // el servidor, con la misma regla que «Este equipo»); sin el módulo, `null` = como siempre.
     terminalDelEquipo(user),
@@ -88,7 +89,7 @@ export default async function CajaRapidaPage() {
           formato={config.formato}
           hoy={hoy}
           diaSemana={diaSemana}
-          negocio={tenant?.name ?? "Mi negocio"}
+          negocio={nombreVisibleDelNegocio(tenant?.slug, tenant?.name, "Mi negocio")}
           cajero={user.name}
           anulaSolo={anulaSolo}
           terminal={terminal}

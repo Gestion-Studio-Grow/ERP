@@ -9,6 +9,8 @@
 // WhatsApp del club cargado en Configuración; en la demo, para elegir el chat). El PIN se prueba con el tope del
 // bloqueo (5 mal → 30 s, 2 min, 10 min; en el real, guardado por negocio en este equipo, como el bloqueo).
 // Las reglas están en ../aprobar-core.ts. Pensado para el celular: una columna, campos de 44 px, foco al resultado.
+// SEG-020: en la jornada real el PIN de un dueño lo tiene sólo el servidor; el código se le pide a `codigoParaAprobar`
+// (`pedirCodigo`, lo pasa AprobadorCargador) y el tope lo lleva el servidor. Sin red no hay código. La demo, como siempre.
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Button, ButtonLink } from "@/components/ui/Button";
@@ -18,7 +20,18 @@ import { LARGO_PIN, generarDemo } from "@/lib/club/motor.mjs";
 import type { DatosAprobacion, EstadoClub } from "@/lib/club/motor.mjs";
 import { descomprimir, leerSobre } from "@/lib/club/foto";
 import { MINUTO_DEMO, claveDeLaDemo, leerDemo } from "../almacen";
-import { duenosQueAprueban, enlaceDelCodigo, leerPedidoDelLink, pinesDeEjemplo, probarAprobacion, queSePide, situacionDelPedido, textoDelPedido } from "../aprobar-core";
+import {
+  duenosQueAprueban,
+  enlaceDelCodigo,
+  leerPedidoDelLink,
+  pedirCodigoAlServidor,
+  pinesDeEjemplo,
+  probarAprobacion,
+  queSePide,
+  situacionDelPedido,
+  textoDelPedido,
+  type PedirCodigo,
+} from "../aprobar-core";
 import { claveDeIntentosDelBloqueo, guardaDelBloqueo, type GuardaDelBloqueo } from "../bloqueo-core";
 import type { RespuestaLeerFoto } from "../estado-actions";
 import { fechaLocal } from "../reloj-del-club";
@@ -95,12 +108,14 @@ function FormularioDeAprobacion({
   estado,
   guarda,
   modo,
+  pedirCodigo,
   onCodigo,
 }: {
   pedido: DatosAprobacion;
   estado: EstadoClub | null;
   guarda: GuardaDelBloqueo;
   modo: "demo" | "real";
+  pedirCodigo: PedirCodigo | null;
   onCodigo: (r: Resultado) => void;
 }) {
   const duenos = duenosQueAprueban(estado);
@@ -108,6 +123,7 @@ function FormularioDeAprobacion({
   const [pin, setPin] = useState("");
   const [monto, setMonto] = useState(String(pedido.m));
   const [error, setError] = useState<string | null>(null);
+  const [enviando, setEnviando] = useState(false);
   const id = useId();
   // Input no reenvía `ref`: el PIN se enfoca por su id.
   const enfocarPin = useCallback(() => document.getElementById(`${id}-pin`)?.focus(), [id]);
@@ -120,6 +136,24 @@ function FormularioDeAprobacion({
       aria-labelledby={`${id}-t`}
       onSubmit={(ev) => {
         ev.preventDefault();
+        if (enviando) return;
+        if (modo === "real") {
+          // El servidor verifica el PIN y da el código; mientras tanto, un segundo toque no vuelve a pedir.
+          setEnviando(true);
+          void pedirCodigoAlServidor({ pedido, duenioId: quien, pin, monto, pedir: pedirCodigo })
+            .then((r) => {
+              if (r.tipo === "codigo") {
+                setError(null);
+                onCodigo({ codigo: r.codigo, monto: r.monto, aprobo: r.aprobo, pinViejo: r.pinViejo });
+                return;
+              }
+              setError(r.mensaje);
+              if (r.tipo === "malo") setPin("");
+              enfocarPin();
+            })
+            .finally(() => setEnviando(false));
+          return;
+        }
         const r = probarAprobacion({ estado, pedido, duenioId: quien, pin, monto, intentos: guarda.leer(), ahoraMs: Date.now() });
         if (r.tipo === "malo" || r.tipo === "codigo") guarda.guardar(r.intentos);
         if (r.tipo === "codigo") {
@@ -186,10 +220,10 @@ function FormularioDeAprobacion({
         </p>
       )}
       {ejemplo && <p className="text-sm text-body">En la demo, los PIN de ejemplo son: {ejemplo}.</p>}
-      {!estado && <p className="text-sm text-body">Este celular no tiene la jornada del club: tu PIN lo controla la compu del club cuando recepción tipea el código.</p>}
+      {!estado && modo !== "real" && <p className="text-sm text-body">Este celular no tiene la jornada del club: tu PIN lo controla la compu del club cuando recepción tipea el código.</p>}
       <div className="flex flex-wrap gap-2">
-        <Button type="submit" variant="solid" size="md" className="max-sm:w-full">
-          Aprobar y ver el código
+        <Button type="submit" variant="solid" size="md" className="max-sm:w-full" disabled={enviando}>
+          {enviando ? "Verificando…" : "Aprobar y ver el código"}
         </Button>
         <ButtonLink href="/admin/club" variant="ghost" size="md" className="max-sm:w-full">
           Ahora no
@@ -205,12 +239,15 @@ export default function AprobadorDelDuenio({
   usuario,
   modo,
   leerFoto,
+  pedirCodigo,
 }: {
   negocio: string;
   usuario: string;
   modo: "demo" | "real";
   /** Sólo en el real: la lectura de la jornada en la base (`leerFotoDelClub`). */
   leerFoto?: () => Promise<RespuestaLeerFoto>;
+  /** Sólo en el real: el código de aprobación lo da el servidor (`codigoParaAprobar`). */
+  pedirCodigo?: PedirCodigo;
 }) {
   // Esta pantalla baja sólo en el navegador (ssr: false): el fragmento se lee al montar.
   const [pedido] = useState<DatosAprobacion | null>(() => leerPedidoDelLink(window.location.hash));
@@ -266,7 +303,7 @@ export default function AprobadorDelDuenio({
       ) : resultado ? (
         <ElCodigo pedido={pedido} r={resultado} estado={estado} modo={modo} onOtroMonto={otroMonto} />
       ) : (
-        <FormularioDeAprobacion pedido={pedido} estado={estado} guarda={guarda} modo={modo} onCodigo={setResultado} />
+        <FormularioDeAprobacion pedido={pedido} estado={estado} guarda={guarda} modo={modo} pedirCodigo={pedirCodigo ?? null} onCodigo={setResultado} />
       )}
     </div>
   );

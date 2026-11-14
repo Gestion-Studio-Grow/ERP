@@ -15,6 +15,7 @@
 // No es una Server Action (sin "use server"): la llama la página, ya detrás de `requireApp`.
 
 import "server-only";
+import { nombreVisibleDelNegocio } from "@/lib/marca-demo";
 import { tenantTransaction } from "@/lib/rls";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
@@ -112,7 +113,7 @@ async function datosEnUnaTransaccion(tenantId: string, hoy: string, conApertura:
           orderBy: { _count: { productId: "desc" } },
           take: BOTONES_RAPIDOS * 2,
         }),
-        tx.tenant.findUnique({ where: { id: tenantId }, select: { name: true } }),
+        tx.tenant.findUnique({ where: { id: tenantId }, select: { name: true, slug: true } }),
         lastClosedDayTx(tx, tenantId),
         leerConfigEnvios(tx, tenantId),
         leerTeclasFijadasDelNegocio(tx, tenantId),
@@ -140,7 +141,7 @@ async function datosEnUnaTransaccion(tenantId: string, hoy: string, conApertura:
           return p;
         }),
         rapidos: masVendidos(grupos, new Set(conPrecio.map((p) => p.id))),
-        negocio: tenant?.name ?? "Mi negocio",
+        negocio: nombreVisibleDelNegocio(tenant?.slug, tenant?.name, "Mi negocio"),
         stockById,
         activos: filas.length,
         envios: config,

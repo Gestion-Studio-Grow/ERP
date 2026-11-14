@@ -275,6 +275,10 @@ test("el copy de marca llega a TODOS los locales, no sólo al del slug exacto", 
 // default es "Buenos Aires"— en vez de la dirección.
 
 import { promesaDeReparto, textoAbout, esElLocalDelCopy, MAGRA } from "@/tenants/magra-content";
+import { before as antesDeTodo } from "node:test";
+import { marcaPropiaEnPruebas } from "@/lib/marca-demo";
+// Magra se muestra como demo GSG (src/lib/marca-demo.ts); acá se sigue probando SU marca, la que vuelve al sacar la demo.
+antesDeTodo(() => marcaPropiaEnPruebas(true));
 
 const CANNING = {
   addressLine: "José Champagnat 4351 – Local 1, Sotavento Point, Canning",

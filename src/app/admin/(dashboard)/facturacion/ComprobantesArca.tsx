@@ -23,6 +23,7 @@ import {
   ESTADOS,
   POR_PAGINA,
   TIPOS,
+  esComprobanteDePrueba,
   mesDe,
   nombreDeTipo,
   nombreDelReceptor,
@@ -44,7 +45,10 @@ const dia = (iso: string) => fechaDeComprobante(iso.replaceAll("-", ""));
 
 /** El estado ante ARCA de un renglón (con el motivo, si lo rechazaron). */
 function EstadoAnteArca({ f, conMotivo }: { f: RenglonComprobante; conMotivo: boolean }) {
-  if (f.status === "AUTHORIZED") return <Marca tipo="hecho">Autorizado</Marca>;
+  if (f.status === "AUTHORIZED") {
+    if (esComprobanteDePrueba(f)) return <Marca tipo="info">Prueba (sin validez fiscal)</Marca>;
+    return <Marca tipo="hecho">Autorizado</Marca>;
+  }
   if (f.status === "REJECTED") {
     return (
       <span className="inline-flex flex-wrap items-baseline gap-x-2">
