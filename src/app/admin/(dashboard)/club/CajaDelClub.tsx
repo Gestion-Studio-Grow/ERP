@@ -31,6 +31,7 @@ import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
 import { MOVIMIENTOS_POR_PAGINA, armarCaja, movimientosALaVista, pinesDeEjemplo, puedeAjustarFondo, puedeFirmarCierres, type AccionCaja, type CierreDeHoy, type VistaCaja } from "./caja-core";
 import { conTopeDePin, guardaDelPin } from "./tope-de-pin";
+import { firmado, luego, pinDeLaAccion, type EnElMomentoOLuego } from "./firma-del-duenio";
 import CierreDeCaja, { ConFirma, CorregirMedio } from "./CierreDeCaja";
 import { porFirma, useOperador, useSeleccion } from "./usar-almacen";
 import { operadorActual } from "./operador-del-club";
@@ -46,7 +47,7 @@ const ddmm = (d: string) => `${Number(d.slice(8))}/${Number(d.slice(5, 7))}`;
  * turnos se cierra contando su turno abierto y consolidando (CierreDeCaja con ese día); uno sin turnos, contando el
  * efectivo A CIEGAS y con la firma de caja (D-16): con el PIN de 2 de recepción no se cierra.
  */
-function CajasAtrasadas({ almacen, atrasadas, hacer }: { almacen: Almacen; atrasadas: VistaCaja["atrasadas"]; hacer: (a: AccionCaja) => boolean }) {
+function CajasAtrasadas({ almacen, atrasadas, hacer }: { almacen: Almacen; atrasadas: VistaCaja["atrasadas"]; hacer: (a: AccionCaja) => EnElMomentoOLuego<boolean> }) {
   const [dia, setDia] = useState(atrasadas[0].dia);
   const [contado, setContado] = useState("");
   const id = useId();
@@ -80,9 +81,9 @@ function CajasAtrasadas({ almacen, atrasadas, hacer }: { almacen: Almacen; atras
           titulo={`Cerrar la caja del ${ddmm(elegida.dia)}`}
           boton="Cerrar esa caja"
           alMandar={(firmaId, pin) => {
-            const ok = hacer({ tipo: "cerrar", contado, dia: elegida.dia, pin, firmaId });
-            if (ok) setContado("");
-            return ok;
+            const hecho = hacer({ tipo: "cerrar", contado, dia: elegida.dia, pin, firmaId });
+            luego(hecho, (ok) => ok && setContado(""));
+            return hecho;
           }}
         >
           <label className="flex flex-col gap-1 text-sm font-medium text-strong">
@@ -119,7 +120,7 @@ function OperaComo({ almacen }: { almacen: Almacen }) {
 }
 
 /** El fondo de caja (el cambio del cajón): lo ajusta quien puede configurar, un dueño. */
-function FondoDeCaja({ almacen, fondo, hacer }: { almacen: Almacen; fondo: number; hacer: (a: AccionCaja) => boolean }) {
+function FondoDeCaja({ almacen, fondo, hacer }: { almacen: Almacen; fondo: number; hacer: (a: AccionCaja) => EnElMomentoOLuego<boolean> }) {
   const operador = useOperador(almacen);
   const [monto, setMonto] = useState(String(fondo));
   const id = useId();
@@ -149,7 +150,7 @@ function FondoDeCaja({ almacen, fondo, hacer }: { almacen: Almacen; fondo: numbe
  * Los movimientos de la caja. B4-C1: a quien no firma cierres (recepción con PIN de 2) los del turno abierto le van sin
  * importe (hora, concepto y medio sí): sumando la lista sacaría el esperado del arqueo a ciegas.
  */
-function Movimientos({ v, veImportes, onMas, hacer }: { v: VistaCaja; veImportes: boolean; onMas: () => void; hacer: (a: AccionCaja) => boolean }) {
+function Movimientos({ v, veImportes, onMas, hacer }: { v: VistaCaja; veImportes: boolean; onMas: () => void; hacer: (a: AccionCaja) => EnElMomentoOLuego<boolean> }) {
   const faltan = v.totalMovimientos - v.movimientos.length;
   const lista = movimientosALaVista(v.movimientos, veImportes);
   const aCiegas = lista.some((m) => m.monto === null);
@@ -293,10 +294,14 @@ export default function CajaDelClub({ almacen, negocio }: { almacen: Almacen; ne
   // Egreso, cierre y fondo NO se deshacen (como en vanilla: lo que pide PIN no tiene «Deshacer»).
   // El PIN de egreso y cierre pasa por el tope compartido del equipo: trabado, no se prueba (y el aviso dice cuánto
   // esperar). El fondo no lleva PIN: no se traba.
+  // La firma de un dueño con el PIN en el servidor se confirma ahí antes de correr (firma-del-duenio.ts).
   const hacer = useCallback(
-    (a: AccionCaja) =>
+    (a: AccionCaja): EnElMomentoOLuego<boolean> => {
+      const sinPin = a.tipo === "fondo" || a.tipo === "contarTurno" || a.tipo === "corregirMedio";
       // Por comando (re-aplicable en otro puesto); el tope de PIN cuenta sólo el toque, no las re-aplicaciones.
-      almacen.comando("caja", [a], a.tipo === "fondo" || a.tipo === "contarTurno" || a.tipo === "corregirMedio" ? {} : { envolver: (correr) => conTopeDePin(guardaDelPin(almacen, negocio), Date.now(), correr).desenlace }).ok,
+      const correr = () => almacen.comando("caja", [a], sinPin ? {} : { envolver: (c) => conTopeDePin(guardaDelPin(almacen, negocio), Date.now(), c).desenlace }).ok;
+      return firmado(almacen, sinPin ? [] : pinDeLaAccion(a as { pin?: string; firmaId?: string | null }), correr, false);
+    },
     [almacen, negocio],
   );
 

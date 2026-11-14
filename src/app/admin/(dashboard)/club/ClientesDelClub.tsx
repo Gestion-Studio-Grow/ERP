@@ -29,6 +29,8 @@ import { operadorActual } from "./operador-del-club";
 import { ComoPaga } from "./piezas";
 import type { PropsDeSolapa } from "./solapas-club";
 import { porFirma, useOperador, useSeleccion } from "./usar-almacen";
+import { conCodigoDelDuenio, luego } from "./firma-del-duenio";
+import { leerMonto } from "./caja-core";
 import { BotonWhatsApp } from "./WhatsAppDelClub";
 
 /** Lo que se puede deshacer en los 6 s del aviso. Lo del crédito no: es una decisión (o un intento de código). */
@@ -199,7 +201,10 @@ function EsperandoAlDuenio({ almacen, f, hacer }: { almacen: Almacen; f: VistaFi
         className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_9rem]"
         onSubmit={(e) => {
           e.preventDefault();
-          if (hacer({ tipo: "aprobarCodigo", novedadId: p.id, codigo, monto }).ok) setCodigo("");
+          // Con dueños que tienen el PIN en el servidor, el código lo valida el servidor antes (firma-del-duenio.ts).
+          const aprobado = monto.trim() === "" ? null : leerMonto(monto);
+          const correr = () => hacer({ tipo: "aprobarCodigo", novedadId: p.id, codigo, monto });
+          luego(conCodigoDelDuenio(almacen, { novedadId: p.id, codigo, monto: aprobado }, correr, { ok: false, mensaje: "" } as DesenlaceClientes), (d) => d.ok && setCodigo(""));
         }}
       >
         <Campo label="Código del dueño (ej. ABC-DEF)" autoCapitalize="characters" spellCheck={false} maxLength={7} value={codigo} onChange={(e) => setCodigo(e.target.value)} />

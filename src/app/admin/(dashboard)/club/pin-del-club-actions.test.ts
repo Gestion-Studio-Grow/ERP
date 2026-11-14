@@ -32,6 +32,10 @@ const DOBLES: Record<string, unknown> = {
       return { ok: true, version: base.version, podadas: 0 };
     },
   },
+  // SEG-020: el tope sin base (contra Postgres: src/lib/club/firma-del-duenio-postgres.test.ts).
+  "@/lib/club/tope-pin-servidor": {
+    conTopeDePin: async (_tenantId: string, _ambito: string, verificar: () => unknown) => ({ espera: false, resultado: await verificar(), esperaS: 0 }),
+  },
 };
 const conCarga = Module as unknown as { _load: (pedido: string, padre: { filename?: string } | null, ...resto: unknown[]) => unknown };
 const cargarOriginal = conCarga._load;

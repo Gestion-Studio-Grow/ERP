@@ -20,6 +20,7 @@ import type { VistaCuentaBuffet } from "./buffet-core";
 import { DESHACIBLE_MESA, pinesDeEjemplo, type AccionMesa, type DesenlaceMesa } from "./buffet-mesa-core";
 import { leerMonto } from "./montos-core";
 import { conTopeDePin, guardaDelPin } from "./tope-de-pin";
+import { firmado, luego, pinDeLaAccion } from "./firma-del-duenio";
 
 /**
  * Corre la acción por el almacén. El PIN de un descuento pasa por el tope compartido de TODO PIN del equipo (el del
@@ -106,13 +107,15 @@ function CargoManual({ almacen, cuenta, negocio }: { almacen: Almacen; cuenta: V
       onSubmit={(e) => {
         e.preventDefault();
         const accion: AccionMesa = { tipo: "cargoManual", cuentaId: cuenta.id, concepto, monto: leerMonto(monto), descuento, pin };
-        const d = correr(almacen, accion, negocio);
+        // El descuento lo firma un PIN: si es de un dueño que tiene el servidor, se confirma ahí antes (firma-del-duenio.ts).
+        const hecho = firmado(almacen, descuento ? pinDeLaAccion({ pin }) : [], () => correr(almacen, accion, negocio), { ok: false, mensaje: "" } as DesenlaceMesa);
         // El PIN no queda escrito después de probarlo, salga bien o mal.
         setPin("");
-        if (d.ok) {
+        luego(hecho, (d) => {
+          if (!d.ok) return;
           setConcepto("");
           setMonto("");
-        }
+        });
       }}
     >
       <h4 className="text-sm font-semibold text-strong">Cargo manual (excepción)</h4>
