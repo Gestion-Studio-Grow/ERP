@@ -31,6 +31,13 @@ test("disparador de WhatsApp: AYUDA o #ayuda al principio, sin importar mayúscu
   }
 });
 
+test("D1 (14/11): el mismo número nuevo hace soporte, verificación y avisos; «VERIFICAR <código>» no abre ticket", () => {
+  for (const t of ["VERIFICAR 482913", "verificar 482913", "  VERIFICAR ayuda", "Verificar: 123456"]) {
+    assert.equal(esDisparador("whatsapp", t), false, t);
+  }
+  assert.equal(esDisparador("whatsapp", "AYUDA no me llega el VERIFICAR"), true);
+});
+
 test("disparador de mail: [AYUDA] en el asunto o la etiqueta GSG/soporte", () => {
   assert.equal(esDisparador("mail", "", "[AYUDA] no anda la caja"), true);
   assert.equal(esDisparador("mail", "", "Re: [ayuda] factura"), true);

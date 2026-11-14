@@ -541,8 +541,8 @@ Con un operador `o` el dueño baja a la mitad; lo que no baja es CH y la revisi�
 
 **Lunes 23/11/2026, decidido por el dueño el 14/11** (D-7). Da dos semanas:
 alcanza para T-A, T-B y T-C con margen, y para T-D si el número y el secreto llegan a tiempo. El cliente
-que sale lo elige el dueño (candidatos: Magra, Shinevelas, Adosmanos; CH ya está en vivo y entra al
-régimen el mismo día).
+que sale lo elige el dueño (candidatos: Magra, Shinevelas, Adosmanos). **CH queda afuera del arranque**
+(D-7, 14/11); cuando entre, sólo con borrador que aprueba el dueño (D-5).
 
 **Para salir hace falta:** botón funcionando en `/admin`, migración aplicada, consola mostrando y
 moviendo tickets de ese negocio, acuse automático sin IA, tapado de contraseñas, base de conocimiento con al
@@ -601,15 +601,15 @@ dejan abajo las opciones para la historia; lo que manda es esta tabla y el códi
 
 | # | Decisión | Dónde quedó |
 |---|---|---|
-| D-1 | Número nuevo de GSG sólo para soporte; sin él, se sale sin WhatsApp | `decisiones-core.ts:22-34` (`SOPORTE_WHATSAPP_PHONE_NUMBER_ID`) |
+| D-1 | Número nuevo de GSG; sin él, se sale sin WhatsApp. Dato de COM-001 (D39, `ea7a2f4`): el mismo número hace soporte, verificación y avisos; la verificación usa «VERIFICAR <código>», que no abre ticket (sólo «AYUDA» al principio). Línea antes del 17/11, alta el 18/11, prueba 21–22/11 | `decisiones-core.ts:22-34` (`SOPORTE_WHATSAPP_PHONE_NUMBER_ID`); `canales-core.ts:39`; test en `canales-core.test.ts` |
 | D-2 | Guardia L–V 9–19 y sáb 9–13 (AR); P1 a toda hora sólo para negocios en vivo (`Tenant.status = ACTIVE`) | `decisiones-core.ts:37-117`; `tickets-core.ts` (`venceElPara`); `entrada.server.ts`, `tickets.server.ts` |
 | D-3 | Soporte ≤ ¼ del tope semanal; aviso al 80 % de eso, manual al 100 %; negocio que no paga = 0 | `decisiones-core.ts:119-150` |
 | D-4 | Casillas del titular en su panel, copia por mail, texto legal provisorio | `consentimiento-core.ts`, `consentimiento.server.ts`; tabla en `pending-gate2/MANT_roles_soporte.sql` |
 | D-5 | CH: sólo borrador que aprueba el dueño; nunca arreglos de fondo | `agentes-permisos.ts:51-92` (`borrador_al_duenio`) + candado de base (7.3) |
 | D-6 | Toda respuesta se revisa; a las 4 semanas, si 9 de 10 salen sin cambios, las P3 de consulta salen solas | `decisiones-core.ts:155-192`. **Con D-11 vigente (motor = plan) devuelve siempre «no»**: el automático sólo existe si se pasa a la API (sección 16) |
-| D-7 | Salida lunes 23/11/2026; primer cliente entre Magra, Shinevelas y Adosmanos (lo elige el dueño) | 11.1 |
+| D-7 | Salida lunes 23/11/2026; primer cliente entre Magra, Shinevelas y Adosmanos (lo elige el dueño); CH queda afuera del arranque | 11.1 |
 | D-8 | Cada cambio con un clic del dueño; tras 20 sin error, la lista verde reversible se aplica sola | `decisiones-core.ts:194-215`; mismo matiz que D-6 con D-11 |
-| D-9 | Dos usuarios de base nuevos con permisos por tabla y CH bloqueado; claves y variables las carga el dueño | `pending-gate2/MANT_roles_soporte.sql` (SIN aplicar, Gate 2) + `roles-soporte-postgres.test.ts` (7.3, 7.5) |
+| D-9 | Dos usuarios de base nuevos con permisos por tabla y CH bloqueado; claves y variables las carga el dueño | `pending-gate2/MANT_roles_soporte.sql` (SIN aplicar, Gate 2) + `roles-soporte-postgres.test.ts` (7.3, 7.5); tarjeta clic por clic: `TARJETA-D9-ROLES.md` |
 
 **D36 · Quién lee los tickets.** Hoy cualquier operador lee los tickets de todos los negocios, CH incluido
 (`consola-soporte-t1.md:9`).
