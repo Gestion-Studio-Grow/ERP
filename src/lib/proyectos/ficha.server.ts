@@ -12,6 +12,8 @@ import { columnasOcultas, filtroDeProyectos, puede, tiposDeCambio, versionViva, 
 import { configProyectos, datosDelNegocio } from "./datos.server";
 import { cobranza, conciliarConCobros, montoEnCashflow, pagadoDeCuota, repartoDeCobros, SIN_PREVISTAS_SIN_MARCAR, totalesEnPesos } from "./cobranza-core";
 import { cobranzasDelNegocio } from "./cobranza.server";
+import { conPagosParciales, conPartesComoPagadas, porPagarDeCuotas } from "./pago-parcial-core";
+import { pagosParcialesDeCuotas } from "./pago-parcial.server";
 import { desvioPorRubro, fechaCorta, fechaParaInput, redondear, resultadoReal } from "./core";
 import { cambioDeVenta, costoSinProveedor, enMonedaDeVenta, ventaEn } from "./gestion-core";
 import { cambioVisible, columnaDe, filaDeFicha, iniciales, monedasSinCambio, planillaDeVenta } from "./ficha-core";
@@ -145,7 +147,9 @@ export async function datosResumen(a: Actor, cab: Cabecera, vista: Vista) {
   ]);
   // Cobrado y a cobrar, de los cobros registrados contra lo aprobado (cobranza-core); las cuotas sólo dan los vencimientos.
   const cob = cobranzas?.get(cab.proyecto.id);
-  const finanzas = vista.pagos ? (cob ? conciliarConCobros(cuotas, cab.tc, cob) : resumenCuotas(cuotas, cab.tc)) : null;
+  // Lo pagado en parte a proveedor sale de «A pagar» y entra en «pagado» (pago-parcial-core).
+  const netas = vista.pagos ? conPartesComoPagadas(cuotas, await pagosParcialesDeCuotas(a.tenantId, cuotas, cab.tc)) : [];
+  const finanzas = vista.pagos ? (cob ? conciliarConCobros(netas, cab.tc, cob) : resumenCuotas(netas, cab.tc)) : null;
   return { personas, finanzas, cantCuotas: cuotas.length, cantChecklist };
 }
 
@@ -184,7 +188,9 @@ export async function datosFinanzas(a: Actor, cab: Cabecera, vista: Vista) {
   // La fuente única de cobrado / saldo (cobranza-core): la misma cuenta que Estado financiero, clientes y reportes.
   const cob = cobranzas.get(proyectoId) ?? cobranza(0, []);
   // Cada cuota con lo que le falta y lo que entró por ella: lo cobrado a mano ya se descontó de las más viejas.
-  const reparto = repartoDeCobros(todas, cab.tc, cob);
+  // Y cada cuota de pago con lo pagado en parte a proveedor: le queda su monto menos esas partes (pago-parcial-core).
+  const pagados = vista.costos ? await pagosParcialesDeCuotas(tenantId, todas, cab.tc) : new Map<string, number>();
+  const reparto = conPagosParciales(todas, repartoDeCobros(todas, cab.tc, cob), pagados);
   // `pagado`: lo que se pagó por una marcada tal como entró (original y pesos asentados), para mostrar; el cashflow usa `cobrado`.
   const cuotas = todas.map((c, i) => ({ ...c, pendiente: reparto.pendiente[i], cobrado: reparto.cobrado[i], pagado: pagadoDeCuota(c, cob) }));
   // Sin permiso de costos, un pago a proveedor delata el costo: sólo se ven los cobros.
@@ -197,14 +203,15 @@ export async function datosFinanzas(a: Actor, cab: Cabecera, vista: Vista) {
   return {
     cuotas: visibles,
     flujo,
-    resumen: conciliarConCobros(visibles, cab.tc, cob),
+    resumen: conciliarConCobros(conPartesComoPagadas(visibles, pagados), cab.tc, cob),
     pagos,
     gastos,
     totalesAprobada,
     totalAprobado: cob.total,
     cobrado: cob.cobrado,
     saldo: cob.saldo,
-    real: resultadoReal(totalesAprobada, gastos),
+    // D6: lo que falta pagar por cuotas a proveedor también es costo (y deuda): si no, la ganancia real queda inflada.
+    real: resultadoReal(totalesAprobada, gastos, vista.costos ? porPagarDeCuotas(todas, pagados, cab.tc) : 0),
     rubros: desvioPorRubro(aprobadaEnPesos, gastos),
     proveedores,
   };

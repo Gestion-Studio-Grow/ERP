@@ -55,3 +55,14 @@ test("cobro parcial: el cartel dice lo que entró y lo que le falta a la cuota; 
   assert.match(listoParcial(20_250, 40.75, "USD"), /se cobró una parte \(\$\s?20\.250\)\. A la cuota le faltan US\$\s?40,75/);
   assert.match(avisoMasQueLaCuota(210, "ARS"), /más de lo que le falta a la cuota \(\$\s?210\)/);
 });
+
+test("UAT-008: pago parcial, saldo que cambió (sin asentar nada, con la causa) y anulación con cartel", async () => {
+  const { listoParcial, avisoMasQueLaCuota, avisoSaldoCambio, listoAnulado } = await import("./avisos-cuota");
+  assert.match(listoParcial(250.4, 349.6, "ARS", false), /se pagó una parte \(\$\s?250,40\)\. A la cuota le faltan \$\s?349,60/);
+  assert.match(avisoMasQueLaCuota(400, "ARS", false), /No se puede pagar más.*\$\s?400.*Para pagar todo/);
+  const vieja = avisoSaldoCambio(15_730_000, 5_730_000, "ARS", true);
+  assert.match(vieja, /^No se asentó nada: .*faltaban \$\s?15\.730\.000 y ahora le faltan \$\s?5\.730\.000 \(entró otro cobro/);
+  assert.match(avisoSaldoCambio(200, 600, "ARS", false), /\(se anuló un pago o cambió el plan de cuotas mientras tanto\)/, "perder contra una anulación no dice «entró otro»");
+  assert.match(vieja, /entró otro cobro o cambió el plan de cuotas mientras tanto/, "sin saber la causa, no afirma una sola (el plan también mueve el saldo)");
+  assert.match(listoAnulado(true, 300), /^Listo: cobro de \$\s?300 anulado/);
+});

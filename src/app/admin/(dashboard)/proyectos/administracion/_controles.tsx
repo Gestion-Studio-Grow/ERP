@@ -8,6 +8,7 @@ import { buttonClasses, cn } from "@/components/ui";
 import { marcarCuota } from "@/lib/proyectos/acciones-ficha";
 import { cuentasParaMarcar, editarExtrasLiquidacion, generarLiquidaciones, guardarDatoCuota, importarExtracto, marcarCuotaEmpresa, marcarLiquidacionVista } from "@/lib/proyectos/acciones-empresa";
 import { MEDIOS, MEDIO_LABEL } from "@/lib/proyectos/core";
+import { plataEn } from "@/lib/proyectos/gestion-core";
 import { campo } from "../_vista";
 import { useToastSiHay } from "../../ToastProvider";
 
@@ -101,14 +102,25 @@ function ElegirCuenta() {
   );
 }
 
-export function MarcarCuota({ id, deEmpresa, etiqueta }: { id: string; deEmpresa: boolean; etiqueta: string }) {
+/**
+ * La de un proyecto, además, cobra o paga UNA PARTE (`monto`, en la moneda de la cuota; vacío = todo lo que falta) y manda
+ * lo que faltaba al cargar la pantalla (`visto`): si cambió mientras tanto, el servidor no asienta «todo» sin preguntar.
+ * `envio`, uno por apertura: el doble clic asienta una vez. Las de la empresa (y sin `falta`, la conciliación de Bancos) se
+ * marcan enteras.
+ */
+export function MarcarCuota({ id, deEmpresa, etiqueta, falta, moneda = "ARS", concepto = "la cuota", esCobro = true }: { id: string; deEmpresa: boolean; etiqueta: string; falta?: number; moneda?: string; concepto?: string; esCobro?: boolean }) {
   const { error, ocupado, correr } = useAccion();
   const [abierto, setAbierto] = useState(false);
+  const [envio, setEnvio] = useState("");
   const router = useRouter();
   const toast = useToastSiHay();
+  const abrir = () => {
+    setEnvio(crypto.randomUUID());
+    setAbierto(true);
+  };
   if (!abierto) {
     return (
-      <button type="button" onClick={() => setAbierto(true)} className={cn(buttonClasses("solid", "md"), "min-h-11 whitespace-nowrap")}>{etiqueta}</button>
+      <button type="button" onClick={abrir} className={cn(buttonClasses("solid", "md"), "min-h-11 whitespace-nowrap")}>{etiqueta}</button>
     );
   }
   return (
@@ -128,6 +140,13 @@ export function MarcarCuota({ id, deEmpresa, etiqueta }: { id: string; deEmpresa
         {MEDIOS.map((m) => <option key={m} value={m}>{MEDIO_LABEL[m]}</option>)}
       </select>
       <ElegirCuenta />
+      {!deEmpresa && falta !== undefined && (
+        <>
+          <input type="hidden" name="envio" value={envio} />
+          <input type="hidden" name="visto" value={String(falta)} />
+          <input name="monto" inputMode="decimal" aria-label={`Monto a ${esCobro ? "cobrar" : "pagar"} de ${concepto}, en ${moneda} (vacío: todo lo que falta)`} placeholder={`Todo: ${plataEn(falta, moneda)}`} className={campo} />
+        </>
+      )}
       <div className="flex gap-1">
         <button type="submit" disabled={ocupado} className={cn(buttonClasses("solid", "md"), "min-h-11 flex-1")}>{ocupado ? "…" : "Confirmar"}</button>
         <button type="button" disabled={ocupado} onClick={() => setAbierto(false)} className={cn(buttonClasses("ghost", "md"), "min-h-11")}>Volver</button>

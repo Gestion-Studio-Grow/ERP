@@ -249,8 +249,10 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
         ) : (
           <div className="mb-3 overflow-x-auto">
             {lineas.some((l) => l.cuota.prevista && !l.cuota.pagadoEl) && <p className="mb-2 text-sm text-muted">Las cuotas previstas son una proyección: no suman en Administración, agenda ni proveedores, y se pueden marcar recién con el evento confirmado y con fecha.</p>}
-            <table className="w-full min-w-[920px] text-sm">
-              <thead className="text-left text-xs text-muted">
+            {/* En el teléfono cada cuota es un bloque (concepto y monto arriba, la acción abajo): la tabla de 920 px dejaba
+                el monto y el botón fuera de la vista. Desde sm, la tabla de siempre. */}
+            <table className="block w-full text-sm sm:table sm:min-w-[920px]">
+              <thead className="hidden text-left text-xs text-muted sm:table-header-group">
                 <tr>
                   <th className="py-1 pr-2 font-medium">Fecha</th>
                   <th className="pr-2 font-medium">Concepto</th>
@@ -262,24 +264,30 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
                   <th aria-label="Acción" />
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="block sm:table-row-group">
                 {lineas.map(({ cuota: c, importe, saldo }) => {
                   const estado = estadoCuota(c);
+                  const fecha = c.prevista && !p.fechaEvento ? "Sin fecha" : fechaCorta(c.venceEl);
+                  const contraparte = c.tipo === "COBRO" ? p.client.name : c.supplier?.name ?? "—";
                   return (
-                    <tr key={c.id} className="border-t border-line align-top">
-                      <td className="py-1.5 pr-2 whitespace-nowrap">{c.prevista && !p.fechaEvento ? "Sin fecha" : fechaCorta(c.venceEl)}</td>
-                      <td className="py-1.5 pr-2">{c.concepto}{c.auto && <span className="ml-1 text-xs text-muted">auto</span>}</td>
-                      <td className="py-1.5 pr-2">{c.tipo === "COBRO" ? p.client.name : c.supplier?.name ?? "—"}</td>
+                    <tr key={c.id} className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 border-t border-line py-2 align-top sm:table-row sm:py-0">
+                      <td className="hidden py-1.5 pr-2 whitespace-nowrap sm:table-cell">{fecha}</td>
+                      <td className="py-1.5 pr-2">
+                        {c.concepto}{c.auto && <span className="ml-1 text-xs text-muted">auto</span>}
+                        <span className="block text-xs text-muted sm:hidden">{fecha} · {contraparte}</span>
+                      </td>
+                      <td className="hidden py-1.5 pr-2 sm:table-cell">{contraparte}</td>
                       <td className="py-1.5 pr-2 text-right tabular-nums">
                         {plataEn(c.monto, c.moneda)}
-                        {!c.pagadoEl && !c.anuladoEl && c.tipo === "COBRO" && redondear(c.pendiente) !== c.monto && <span className="block text-xs text-muted">Falta {plataEn(c.pendiente, c.moneda)}</span>}
+                        {/* Lo que le falta: a un cobro, después de lo cobrado aparte o en parte; a un pago, de lo pagado en parte. */}
+                        {!c.pagadoEl && !c.anuladoEl && redondear(c.pendiente) !== c.monto && <span className="block text-xs text-muted">Falta {plataEn(c.pendiente, c.moneda)}</span>}
                         {/* Lo que se pagó tal como entró (el original y los pesos asentados), no lo que vale hoy: eso va en el importe. */}
                         {c.pagado && (c.pagado.pesos !== null || c.pagado.moneda !== c.moneda || c.pagado.monto !== c.monto) && <span className="block text-xs text-muted">Pagó {textoPagado(c.pagado)}</span>}
                       </td>
-                      <td className={cn("py-1.5 pr-2 text-right tabular-nums", importe < 0 ? "text-danger" : "text-strong")}>{enCaja(importe)}</td>
-                      <td className={cn("py-1.5 pr-2 text-right font-medium tabular-nums", saldo < 0 && "text-danger")}>{enCaja(saldo)}</td>
-                      <td className="py-1.5 pr-2">{c.prevista && !c.pagadoEl ? <Badge tone="neutral">Prevista</Badge> : <Badge tone={estado === "PAGADA" ? "success" : estado === "VENCIDA" ? "danger" : "neutral"}>{estado === "PAGADA" ? (c.tipo === "COBRO" ? "Cobrado" : "Pagado") : estado === "VENCIDA" ? "Vencido" : "Pendiente"}</Badge>}</td>
-                      <td className="py-1">
+                      <td className={cn("hidden py-1.5 pr-2 text-right tabular-nums sm:table-cell", importe < 0 ? "text-danger" : "text-strong")}>{enCaja(importe)}</td>
+                      <td className={cn("hidden py-1.5 pr-2 text-right font-medium tabular-nums sm:table-cell", saldo < 0 && "text-danger")}>{enCaja(saldo)}</td>
+                      <td className="col-span-2 py-1.5 pr-2">{c.prevista && !c.pagadoEl ? <Badge tone="neutral">Prevista</Badge> : <Badge tone={estado === "PAGADA" ? "success" : estado === "VENCIDA" ? "danger" : "neutral"}>{estado === "PAGADA" ? (c.tipo === "COBRO" ? "Cobrado" : "Pagado") : estado === "VENCIDA" ? "Vencido" : "Pendiente"}</Badge>}</td>
+                      <td className="col-span-2 py-1">
                         {c.pagadoEl && c.tipo === "COBRO" && !c.anuladoEl && <a href={`/admin/proyectos/imprimir/cobro/${c.id}`} className={buttonClasses("ghost", "sm")}>Constancia</a>}
                         {!c.pagadoEl && !c.anuladoEl && c.tipo === "COBRO" && !(c.pendiente > 0) && (
                           c.prevista ? (
@@ -292,7 +300,7 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
                           )
                         )}
                         {!c.pagadoEl && !c.prevista && vista.editaPagos && (c.tipo !== "COBRO" || c.pendiente > 0) && (
-                          <div className="flex flex-wrap items-center justify-end gap-1">
+                          <div className="flex flex-wrap items-center gap-1 sm:justify-end">
                             <FormAccion accion={marcarCuota} className="flex flex-wrap items-center gap-1">
                               <input type="hidden" name="id" value={c.id} />
                               <select name="medio" aria-label={`Medio de ${c.concepto}`} defaultValue="TRANSFERENCIA" className={campoEnLinea}>
@@ -305,13 +313,11 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
                                   {cuentas.map((x) => <option key={x.id} value={x.id}>{x.nombre} ({x.moneda})</option>)}
                                 </select>
                               )}
-                              {/* Una parte: un monto menor que lo que falta (en la moneda de la cuota). Vacío: todo, y la cuota queda cobrada. */}
-                              {c.tipo === "COBRO" && (
-                                <>
-                                  <input type="hidden" name="envio" value={randomUUID()} />
-                                  <input name="monto" inputMode="decimal" aria-label={`Monto a cobrar de ${c.concepto}, en ${c.moneda} (vacío: todo lo que falta)`} placeholder={`Todo: ${plataEn(c.pendiente, c.moneda)}`} className={cn(campoEnLinea, "w-40")} />
-                                </>
-                              )}
+                              {/* Una parte (cobro o pago): un monto menor que lo que falta, en la moneda de la cuota. Vacío: todo, y la
+                                  cuota queda marcada. `visto`: lo que faltaba al cargar la pantalla; si cambió, «todo» no se asienta. */}
+                              <input type="hidden" name="envio" value={randomUUID()} />
+                              <input type="hidden" name="visto" value={String(c.pendiente)} />
+                              <input name="monto" inputMode="decimal" aria-label={`Monto a ${c.tipo === "COBRO" ? "cobrar" : "pagar"} de ${c.concepto}, en ${c.moneda} (vacío: todo lo que falta)`} placeholder={`Todo: ${plataEn(c.pendiente, c.moneda)}`} className={cn(campoEnLinea, "w-40")} />
                               <SubmitButton className={buttonClasses("outline", "md")}>{c.tipo === "COBRO" ? "Marcar cobrado" : "Marcar pagado"}</SubmitButton>
                             </FormAccion>
                             {!c.auto && <BotonConConfirmacion accion={quitarMovimiento} ocultos={{ id: c.id, proyectoId: p.id }} texto="Quitar" textoConfirma="Quitar" etiqueta={`Quitar ${c.concepto}`} />}

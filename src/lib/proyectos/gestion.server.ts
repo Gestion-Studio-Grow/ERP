@@ -19,6 +19,8 @@ import type { Prisma } from "@/generated/prisma/client";
 import { configProyectos } from "./datos.server";
 import { venceDeLaCuota, ajustarAPagado, cambioDeVenta, COLUMNAS_OCULTAS_BASE, cuotaPrevista, rolDelActor, mailDeAviso, permisoDe, planDeCuotas, veTodosLosProyectos, type ItemFicha, type ModuloGestion, type RolGestion } from "./gestion-core";
 import { tiposDeCambio, trabarCobranza } from "./cobranza.server";
+import { descontarPartes, partesEnMonedaDelPlan } from "./pago-parcial-core";
+import { pagosParcialesDeCuotas } from "./pago-parcial.server";
 
 export interface Actor {
   user: SessionUser;
@@ -274,7 +276,7 @@ export async function regenerarCuotas(tenantId: string, proyectoId: string): Pro
       // Una cuota de pago se puede marcar sin este candado: si se marca mientras se ajusta el plan, no se le pisa nada y
       // el plan se vuelve a ajustar con ella.
       for (let vuelta = 0; vuelta < 3; vuelta++) {
-        if (!(await aplicarPlan(tx, tenantId, proyectoId, planDeLaFicha, prevista))) return true;
+        if (!(await aplicarPlan(tx, tenantId, proyectoId, planDeLaFicha, prevista, tc))) return true;
       }
       return false;
     },
@@ -287,9 +289,14 @@ export async function regenerarCuotas(tenantId: string, proyectoId: string): Pro
  * Una pasada de `regenerarCuotas`: lee las cuotas, ajusta el plan a lo marcado y lo escribe.
  * Devuelve `true` si una cuota se marcó mientras tanto (el plan quedó calculado con lo viejo).
  */
-async function aplicarPlan(tx: Prisma.TransactionClient, tenantId: string, proyectoId: string, planDeLaFicha: ReturnType<typeof planDeCuotas>, prevista: boolean): Promise<boolean> {
-  const actuales = await tx.proyectoCuota.findMany({ where: { tenantId, proyectoId, auto: true }, select: { id: true, clave: true, monto: true, pagadoEl: true, anuladoEl: true, venceEl: true, venceManual: true, prevista: true } });
-  const plan = ajustarAPagado(planDeLaFicha, actuales.filter((c) => c.pagadoEl && !c.anuladoEl).map((c) => ({ clave: c.clave ?? "", monto: c.monto })));
+async function aplicarPlan(tx: Prisma.TransactionClient, tenantId: string, proyectoId: string, planDeLaFicha: ReturnType<typeof planDeCuotas>, prevista: boolean, tc: Readonly<Record<string, number>>): Promise<boolean> {
+  const actuales = await tx.proyectoCuota.findMany({ where: { tenantId, proyectoId, auto: true }, select: { id: true, clave: true, tipo: true, moneda: true, monto: true, pagadoEl: true, anuladoEl: true, venceEl: true, venceManual: true, prevista: true } });
+  const marcadas = actuales.filter((c) => c.pagadoEl && !c.anuladoEl);
+  // Lo pagado en parte (pago a proveedor) también es pagado: el plan nuevo no se lo vuelve a pedir (también si la cuota se va).
+  const partes = await pagosParcialesDeCuotas(tenantId, actuales, tc, tx, true);
+  const ajustado = ajustarAPagado(planDeLaFicha, marcadas.map((c) => ({ clave: c.clave ?? "", monto: c.monto })));
+  // En la moneda que el plan nuevo le da a cada ítem (el ítem pudo cambiar de pesos a dólares o al revés).
+  const plan = descontarPartes(ajustado, partesEnMonedaDelPlan(actuales, partes, ajustado, tc), new Set(marcadas.map((c) => c.clave ?? "")));
   const porClave = new Map(actuales.map((c) => [c.clave, c]));
   const vigentes = new Set(plan.map((c) => c.clave));
   const hoy = new Date();

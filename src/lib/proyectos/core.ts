@@ -132,13 +132,18 @@ export interface ResultadoReal {
   margenReal: number | null;
 }
 
-/** Lo que dejó el trabajo con los gastos cargados hasta ahora. Los anulados no cuentan. PURA. */
-export function resultadoReal(t: Totales | null, gastos: readonly GastoCalculable[]): ResultadoReal {
+/**
+ * Lo que dejó el trabajo con los gastos cargados hasta ahora. Los anulados no cuentan. `cuotasPorPagar`: lo que falta pagar
+ * a proveedores por cuotas (en pesos, sin las partes ya pagadas, que ya son gastos): es costo comprometido y deuda, y sin
+ * él la ganancia real queda inflada (GSG-UAT-008 · D6). PURA.
+ */
+export function resultadoReal(t: Totales | null, gastos: readonly GastoCalculable[], cuotasPorPagar = 0): ResultadoReal {
   const vivos = gastos.filter((g) => !g.anuladoEl);
-  const costoReal = redondear(vivos.reduce((s, g) => s + g.neto, 0));
+  const comprometido = Math.max(0, cuotasPorPagar);
+  const costoReal = redondear(vivos.reduce((s, g) => s + g.neto, 0) + comprometido);
   const pagado = redondear(vivos.filter((g) => g.pagadoEl).reduce((s, g) => s + g.neto + g.iva, 0));
-  const porPagar = redondear(vivos.filter((g) => !g.pagadoEl).reduce((s, g) => s + g.neto + g.iva, 0));
-  const conGastos = vivos.length > 0;
+  const porPagar = redondear(vivos.filter((g) => !g.pagadoEl).reduce((s, g) => s + g.neto + g.iva, 0) + comprometido);
+  const conGastos = vivos.length > 0 || comprometido > 0;
   if (!t || !conGastos) return { conGastos, costoReal, pagado, porPagar, desvio: null, gananciaReal: null, margenReal: null };
   const gananciaReal = redondear(t.neto - costoReal);
   return {
