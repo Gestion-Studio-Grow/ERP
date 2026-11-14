@@ -78,6 +78,8 @@ function makeTx(opts: { legacyPayment?: PayRow; enforceUnique?: boolean } = {}) 
       },
     },
     cashSession: { findFirst: async () => null },
+    // El destino del cobro (rendicion-repo): sin profesional que cobra aparte → caja, como siempre.
+    appointment: { findFirst: async () => null },
     cashMovement: {
       findFirst: async (args: { where: { collectionId?: string; paymentId?: string; type: string } }) => {
         const m = movements.find(

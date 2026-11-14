@@ -18,6 +18,9 @@ import { LineaDeEstado, PageHeader, Plata, fmtMoneyARS, fmtNumberAR } from "@/co
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import ComisionesPendientes from "./ComisionesPendientes";
 import ComisionesRenglon from "./ComisionesRenglon";
+import Rendiciones from "./Rendiciones";
+import { getRendiciones } from "@/lib/comisiones/rendicion-actions";
+import { mensajeRendicionRechazada, type MotivoRendicionRechazada } from "@/lib/comisiones/rendicion-core";
 
 export const dynamic = "force-dynamic";
 
@@ -27,14 +30,44 @@ const ESTADOS: Record<string, { texto: string; ok: boolean }> = {
   error_nada: { texto: "Ese profesional no tiene comisiones pendientes de liquidar.", ok: false },
   error_prof: { texto: "No se pudo identificar al profesional. Recargá la pantalla y volvé a intentar.", ok: false },
   error_medio: { texto: "Este negocio todavía no separa la transferencia en el libro. No se liquidó nada: elegí otro medio.", ok: false },
+  // La rendición de la profesional que cobra aparte (rendicion-actions.ts).
+  rendicion_ok: { texto: "Rendición registrada. Lo que entregó quedó en el libro de caja.", ok: true },
 };
+
+const MOTIVOS_RENDICION: readonly (MotivoRendicionRechazada | "dia-cerrado" | "sin-tabla" | "medio")[] = [
+  "sin-cobros",
+  "cobro-ajeno",
+  "entregado-invalido",
+  "entregado-de-mas",
+  "retencion-sin-permiso",
+  "dia-cerrado",
+  "sin-tabla",
+  "medio",
+];
+function estadoDe(status: string): { texto: string; ok: boolean } | undefined {
+  if (ESTADOS[status]) return ESTADOS[status];
+  const motivo = MOTIVOS_RENDICION.find((m) => status === `rendicion_${m}`);
+  return motivo ? { texto: mensajeRendicionRechazada(motivo), ok: false } : undefined;
+}
 
 export default async function ComisionesPage({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
   const user = await requireApp("comisiones");
-  const [{ status }, overview, nuevo] = await Promise.all([searchParams, getCommissionsOverview(), disenoNuevo()]);
+  const [{ status }, overview, nuevo, rendiciones] = await Promise.all([
+    searchParams,
+    getCommissionsOverview(),
+    disenoNuevo(),
+    getRendiciones(),
+  ]);
   const total = totalALiquidar(overview.pending);
   const canSettle = permisoEfectivo(user, "commissions:manage");
-  const banner = status ? ESTADOS[status] : undefined;
+  const banner = status ? estadoDe(status) : undefined;
+  const rendir = (
+    <Rendiciones
+      lectura={rendiciones}
+      canRegister={permisoEfectivo(user, "cash:manage")}
+      canRetain={permisoEfectivo(user, "commissions:manage")}
+    />
+  );
   const aviso = banner && (
     <p
       role="status"
@@ -67,6 +100,7 @@ export default async function ComisionesPage({ searchParams }: { searchParams: P
         />
         {aviso}
         <ComisionesRenglon overview={overview} canSettle={canSettle} volver="/admin/comisiones" />
+        {rendir}
       </main>
     );
   }
@@ -98,6 +132,7 @@ export default async function ComisionesPage({ searchParams }: { searchParams: P
       </div>
 
       <ComisionesPendientes overview={overview} canSettle={canSettle} volver="/admin/comisiones" />
+      {rendir}
     </main>
   );
 }
