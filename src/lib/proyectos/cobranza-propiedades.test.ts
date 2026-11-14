@@ -116,16 +116,35 @@ test("fuzz T1 tope doble: 0≤p≤monto, ΣH≤porCobrar, Σ en moneda≤saldo, 
       const p = pendientesDeCobro(cuotas, tc, c);
       for (let i = 0; i < n; i++) {
         if (!Number.isFinite(p[i]) || p[i] < 0 || p[i] > cuotas[i].monto + 1e-9) fallas.push(`k${k} saldo imposible c${i} ${p[i]} de ${cuotas[i].monto}`);
-        // Excepción declarada (cert. PR #110 F2, `pendienteDeCuota`): una cuota en otra moneda que no es el peso ni la del
-        // proyecto puede quedar sin redondear si así pasa a pesos JUSTO en lo que espera; lo que se asienta (los pesos) sí
-        // va al centavo. Fuera de ese caso, el pendiente va al centavo.
+        // Excepción declarada (cert. PR #110 F2, `pendienteDeCuota` en cobranza-core.ts): una cuota en una moneda que no es
+        // el peso ni la del tope puede quedar sin redondear SÓLO si es exactamente el crudo `monto × pendH / enPesos`, la cuota
+        // no está completa (`pendH < enPesos`), el centavo para abajo pasado a pesos no llegaba (`< pendH`) y el crudo pasa a
+        // pesos justo en `pendH`. Acá se reproduce esa condición, con el crudo calculado en el test (pendH = lo que asienta).
         const sinCentavos = Math.round(p[i] * 100) / 100 !== p[i] && Math.abs(Math.round(p[i] * 100) / 100 - p[i]) > 1e-9;
-        const h = aPesos(p[i], cuotas[i].moneda, tc);
-        const f2 = cuotas[i].moneda !== monedaP && cuotas[i].moneda !== "ARS" && Math.abs(Math.round(h * 100) / 100 - h) <= 1e-9;
-        if (sinCentavos && !f2) fallas.push(`k${k} no centavos ${p[i]}`);
+        if (sinCentavos) {
+          const mon = cuotas[i].moneda;
+          const pendH = aPesos(p[i], mon, tc);
+          const enP = aPesos(cuotas[i].monto, mon, tc);
+          const crudo = (cuotas[i].monto * pendH) / enP;
+          const f2 = mon !== (c.enMoneda?.moneda ?? "ARS") && mon !== "ARS" && pendH < enP && p[i] === crudo && aPesos(alCentavoAbajo(crudo), mon, tc) < pendH && aPesos(crudo, mon, tc) === pendH;
+          if (!f2) fallas.push(`k${k} no centavos ${p[i]}`);
+        }
       }
       const vivos = cuotas.map((x, i) => (!x.pagadoEl ? i : -1)).filter((i) => i >= 0);
       const sH = vivos.reduce((s, i) => s + aPesos(p[i], cuotas[i].moneda, tc), 0);
+      // Control de mínimo (cert. de 864e0bc, F1): sin plata suelta y sin recorte del tope, cada cuota real pendiente espera
+      // todos sus pesos; la suma de pendientes en pesos no baja de esa suma más que la tolerancia DECLARADA (el centavo para
+      // abajo en su moneda: hasta 0,01 × tc por cuota que no es en pesos, más un centavo y el épsilon). Atrapa un pendiente
+      // rebajado aunque quede al centavo.
+      if (c.total > 0 && cobros.every((x) => x.cuotaId)) {
+        const reales0 = vivos.filter((i) => !esPrevista(cuotas[i]) && aPesos(cuotas[i].monto, cuotas[i].moneda, tc) > 0);
+        const esperado = reales0.reduce((s, i) => s + aPesos(cuotas[i].monto, cuotas[i].moneda, tc), 0);
+        if (c.porCobrar >= esperado) {
+          const sR = reales0.reduce((s, i) => s + aPesos(p[i], cuotas[i].moneda, tc), 0);
+          const tolMin = reales0.reduce((s, i) => (cuotas[i].moneda === "ARS" ? s : s + 0.01 * (tc[cuotas[i].moneda] ?? 1)), 0.01) + EPS;
+          if (sR < esperado - tolMin) fallas.push(`k${k} mínimo: Σ pendientes ${sR} < ${esperado} − ${tolMin}`);
+        }
+      }
       if (c.total > 0 && sH > c.porCobrar + tolH(cuotas, vivos, monedaP, tc)) fallas.push(`k${k} I1 ΣH ${sH} > ${c.porCobrar}`);
       if (c.enMoneda) {
         const sM = vivos.reduce((s, i) => s + (cuotas[i].moneda === monedaP ? p[i] : aPesos(p[i], cuotas[i].moneda, tc) / tc[monedaP]), 0);
