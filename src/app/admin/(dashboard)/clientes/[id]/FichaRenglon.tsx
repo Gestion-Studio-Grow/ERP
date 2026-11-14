@@ -38,6 +38,7 @@ import { claseBotonWhatsApp } from "../boton-whatsapp";
 import { contactoDeLaFicha } from "../contacto-ficha";
 import { hrefNuevoTurno } from "../../turnos/pasos";
 import EditarClienteForm from "./EditarClienteForm";
+import FichaDeColor from "./FichaDeColor";
 import PermisoMensajes from "./PermisoMensajes";
 import MostradorDeLaFicha from "./MostradorDeLaFicha";
 import { comoVieneMostrador, detalleSinDeuda, estadoDeLaFicha, notaDelRitmo, pedidoSinCobrar, teclaPrincipal } from "./ficha-core";
@@ -337,6 +338,9 @@ export default async function FichaRenglon({
               )}
             </Bloque>
           )}
+
+          {/* Peluquería/barbería (T4): ficha técnica de color. En otros rubros no pinta nada. */}
+          <FichaDeColor clientId={client.id} />
 
           <Bloque titulo="Historial de la ficha" id="ficha-historial">
             <ul>
