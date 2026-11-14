@@ -143,3 +143,11 @@ test("cert. D13 · R7: regenerarCuotas pregunta la sonda de facturas ANTES de la
   assert.doesNotMatch(plan.slice(0, plan.indexOf("\n}\n")), /hayColumnaCuotaEnInvoice\(/, "adentro no se pregunta de nuevo");
   assert.equal((plan.match(/\{ tx, conColumna \}\)/g) ?? []).length, 2, "las dos escrituras usan el candado con la sonda de afuera");
 });
+
+test("cert. D13 · R7 (2ª vuelta): la sonda de facturas de cuota no confunde «no pude preguntar» con «no está la columna»", () => {
+  const src = readFileSync(path.join(process.cwd(), "src/lib/proyectos/facturar-cuota.server.ts"), "utf8");
+  const ini = src.indexOf("export async function hayColumnaCuotaEnInvoice(");
+  const sonda = src.slice(ini, src.indexOf("\n}\n", ini));
+  assert.doesNotMatch(sonda, /\.catch\(/, "un error de conexión no puede volverse `false` (sin candado)");
+  assert.match(sonda, /throw new Error\(SONDA_FACTURAS_SIN_RESPUESTA/, "sin respuesta, la operación no sigue");
+});

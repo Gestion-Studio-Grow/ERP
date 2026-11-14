@@ -53,15 +53,24 @@ import {
 // recuerda: apenas se aplica la migración, la próxima pregunta ya lo ve.
 let _columnaPresente = false;
 
-/** ¿La base tiene `Invoice.proyectoCuotaId`? Falla cerrado: sin poder preguntar, `false`. */
+/** Lo que se ve cuando la sonda no pudo preguntar (pool lleno, base caída): la operación no sigue sin el candado. */
+export const SONDA_FACTURAS_SIN_RESPUESTA = "No se pudo verificar la facturación de las cuotas. Probá de nuevo en unos segundos.";
+
+/**
+ * ¿La base tiene `Invoice.proyectoCuotaId`? Sin poder preguntar, TIRA (cert. D13 · R7, segunda vuelta): un `false` acá
+ * significa «no hay facturas de cuota» y los llamadores saltean el candado de la factura viva, así que con el pool lleno
+ * una cuota facturada se pisaba. «No está la columna» (`false`) y «no pude preguntar» (error) ya no se confunden.
+ */
 export async function hayColumnaCuotaEnInvoice(): Promise<boolean> {
   if (_columnaPresente) return true;
-  const filas = await basePrisma
-    .$queryRaw<unknown[]>`SELECT 1 FROM information_schema.columns
+  let filas: unknown[];
+  try {
+    filas = await basePrisma.$queryRaw<unknown[]>`SELECT 1 FROM information_schema.columns
       WHERE table_schema = 'public' AND table_name = 'Invoice' AND column_name = 'proyectoCuotaId'
-      LIMIT 1`
-    .catch(() => null);
-  if (filas === null) return false;
+      LIMIT 1`;
+  } catch (e) {
+    throw new Error(SONDA_FACTURAS_SIN_RESPUESTA, { cause: e });
+  }
   _columnaPresente = Array.isArray(filas) && filas.length > 0;
   return _columnaPresente;
 }
