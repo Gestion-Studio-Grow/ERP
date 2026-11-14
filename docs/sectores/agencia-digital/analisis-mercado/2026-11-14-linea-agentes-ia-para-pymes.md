@@ -134,3 +134,26 @@ Reglas: los límites van en el código y no en las instrucciones del agente; tod
 botón para frenarlo; se arranca en el nivel 1 y se sube de nivel por puesto cuando se midió sin errores.
 En el ERP ya hay un antecedente: los agentes de MIA se bloquean según los permisos del usuario
 (`src/lib/proyectos/diseno-core.ts:349`).
+
+## 11. Reglas de Meta para WhatsApp (leídas en fuente oficial el 14/11/2026)
+
+- **Foto y nombre por número:** la API de perfil del negocio permite foto por número; el nombre visible es
+  obligatorio y pasa por revisión (https://developers.facebook.com/documentation/business-messaging/whatsapp/business-profiles,
+  https://developers.facebook.com/documentation/business-messaging/whatsapp/display-names).
+- **Cantidad de números:** una cuenta nueva arranca con tope de 2; sube a 20 con verificación del negocio
+  (https://developers.facebook.com/docs/whatsapp/cloud-api/phone-numbers).
+- **IA (términos, sección 4.7, modificados el 23/09/2026):** prohibido usar la plataforma cuando la IA es la función
+  principal ofrecida; permitido el uso incidental o accesorio
+  (https://www.facebook.com/legal/Meta-Terms-for-WhatsApp-Business-Platform). Consecuencia de diseño: la
+  conversación larga con el agente va en el panel propio; WhatsApp queda para avisos, aprobaciones y mensajes del
+  negocio a sus clientes.
+- **Mensajes iniciados por el negocio:** fuera de la ventana de 24 horas, sólo plantillas aprobadas. El recordatorio
+  de pago figura como ejemplo de utilidad
+  (https://developers.facebook.com/documentation/business-messaging/whatsapp/templates/template-categorization).
+- **Sin fuente oficial:** si el nombre visible admite el nombre de un asistente; si el recordatorio de deuda vencida
+  cuenta como utilidad; tarifa de Argentina.
+
+## 12. Manual de arranque para el dueño
+
+Página con el flujo completo, el rol del dueño, la primera venta, la instalación, el mantenimiento y casos
+(MIA Producciones, estética, comercio, fábrica): https://claude.ai/artifact/Aa27VY7nXTKCNgia66fG3Y
