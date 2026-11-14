@@ -9,6 +9,8 @@ import {
   errorDeCargaEnCriollo,
   estadoDelAsistente,
   generarPedidoDeCertificado,
+  leerPedidoConEstado,
+  motivoParaNoReemplazarPedido,
   organizacionDelPedido,
   type EntradaAsistente,
 } from "./asistente-arca";
@@ -41,6 +43,7 @@ const CRED = (entorno: "produccion" | "homologacion", certCuit = CUIT) => ({
 const entrada = (f: Partial<FichaFiscalDelPase>, extra: Partial<EntradaAsistente> = {}): EntradaAsistente => ({
   ficha: { ...FICHA, ...f },
   pedidoPendiente: null,
+  pedidoIlegible: false,
   pedidoDePase: null,
   ...extra,
 });
@@ -90,6 +93,43 @@ test("el pedido de pase: uno solo, y no depende del modo de la plataforma ni de 
     comprobantesDePrueba: { esperandoCae: 2, enviosAbiertos: 0, autorizados: 0, desde: null },
   });
   assert.equal(estadoDelAsistente(conPruebas).puedePedirPase, true);
+});
+
+test("pedido que no se pudo leer: hay estado de error y NO se ofrece generar otro (invalidaría el .csr subido a ARCA)", () => {
+  const e = estadoDelAsistente(entrada({}, { pedidoIlegible: true }));
+  assert.equal(e.pedidoIlegible, true);
+  assert.equal(e.puedeGenerarPedido, false);
+  // Con certificado cargado tampoco: no sabemos si hay una renovación en curso.
+  const conCert = estadoDelAsistente(entrada({ credencial: CRED("produccion") }, { pedidoIlegible: true }));
+  assert.equal(conCert.puedeGenerarPedido, false);
+});
+
+test("pedido que se lee bien (o que no existe): igual que siempre, se puede generar", () => {
+  const sinPedido = estadoDelAsistente(entrada({}));
+  assert.equal(sinPedido.pedidoIlegible, false);
+  assert.equal(sinPedido.puedeGenerarPedido, true);
+  const pendiente = estadoDelAsistente(entrada({}, { pedidoPendiente: { creadoEn: "2026-11-05T10:00:00.000Z" } }));
+  assert.equal(pendiente.paso, "certificado");
+  assert.equal(pendiente.pedidoIlegible, false);
+  assert.equal(pendiente.puedeGenerarPedido, true);
+  // Sin datos del paso 1 no se genera (como hoy: la pantalla no muestra el botón).
+  assert.equal(estadoDelAsistente(entrada({ arcaCuit: null })).puedeGenerarPedido, false);
+});
+
+test("lectura del pedido: el error no se traga como «no hay pedido»", async () => {
+  const fallida = await leerPedidoConEstado(async () => {
+    throw new Error("descifrado");
+  });
+  assert.deepEqual(fallida, { estado: "ilegible" });
+  assert.deepEqual(await leerPedidoConEstado(async () => null), { estado: "ninguno" });
+  const ok = await leerPedidoConEstado(async () => ({ csrPem: "CSR", creadoEn: "2026-11-05T10:00:00.000Z" }));
+  assert.deepEqual(ok, { estado: "pendiente", csrPem: "CSR", creadoEn: "2026-11-05T10:00:00.000Z" });
+});
+
+test("servidor: con el pedido ilegible no se pisa; sin pedido o con uno legible, sí", () => {
+  assert.match(motivoParaNoReemplazarPedido({ estado: "ilegible" }) ?? "", /no pudimos leer/i);
+  assert.equal(motivoParaNoReemplazarPedido({ estado: "ninguno" }), null);
+  assert.equal(motivoParaNoReemplazarPedido({ estado: "pendiente", csrPem: "CSR", creadoEn: "2026-11-05T10:00:00.000Z" }), null);
 });
 
 test("confirmación tipeada: PRODUCCIÓN con o sin tilde, sin importar mayúsculas", () => {

@@ -2,7 +2,8 @@
 // Piezas del asistente ARCA que necesitan el navegador: copiar el pedido de certificado con un toque
 // (en el celular se pega en ARCA) y revisar al instante lo que se pega o sube como certificado. La
 // validación de verdad la hace el servidor; esto sólo avisa lo obvio, en criollo.
-import { useState } from "react";
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Button, Field, Input, Textarea } from "@/components/ui";
 import { revisarArchivoCertificado, revisarCertificadoPegado, type RevisionCertificado } from "@/lib/fiscal/certificado-pegado";
 
@@ -40,6 +41,17 @@ function Mensaje({ id, r }: { id: string; r: RevisionCertificado }) {
 }
 
 /** Pegar el certificado o subir el archivo, con aviso inmediato. Los nombres de campo son los del servidor. */
+/** «Reintentar»: vuelve a pedirle la vista al servidor (sin perder la dirección ni la pestaña). */
+export function Reintentar() {
+  const router = useRouter();
+  const [pendiente, startTransition] = useTransition();
+  return (
+    <Button type="button" variant="outline" disabled={pendiente} onClick={() => startTransition(() => router.refresh())}>
+      {pendiente ? "Reintentando…" : "Reintentar"}
+    </Button>
+  );
+}
+
 export function CampoCertificado() {
   const [pegado, setPegado] = useState<RevisionCertificado>({ ok: null });
   const [archivo, setArchivo] = useState<RevisionCertificado>({ ok: null });

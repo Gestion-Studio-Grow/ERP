@@ -36,7 +36,37 @@ export interface PedidoDePase {
 export interface EntradaAsistente {
   ficha: FichaFiscalDelPase;
   pedidoPendiente: PedidoPendiente | null;
+  /**
+   * La lectura del pedido falló (base o descifrado): NO es «no hay pedido». Puede haber un .csr ya
+   * subido a ARCA; generar otro lo invalidaría, así que la pantalla ofrece reintentar, no generar.
+   */
+  pedidoIlegible: boolean;
   pedidoDePase: PedidoDePase | null;
+}
+
+/** Lo que dio leer el pedido pendiente: discriminado para que un error no pase por «no hay». */
+export type LecturaDelPedido =
+  | { estado: "ninguno" }
+  | { estado: "pendiente"; csrPem: string; creadoEn: string }
+  | { estado: "ilegible" };
+
+/** Envuelve la lectura del pedido (inyectada: el servidor pasa la que abre la base y el cifrado). */
+export async function leerPedidoConEstado(
+  abrir: () => Promise<{ csrPem: string; creadoEn: string } | null>,
+): Promise<LecturaDelPedido> {
+  try {
+    const p = await abrir();
+    return p ? { estado: "pendiente", csrPem: p.csrPem, creadoEn: p.creadoEn } : { estado: "ninguno" };
+  } catch {
+    return { estado: "ilegible" };
+  }
+}
+
+/** Defensa del servidor (llamada directa, doble clic): un pedido que no se pudo leer no se pisa. */
+export function motivoParaNoReemplazarPedido(lectura: LecturaDelPedido): string | null {
+  return lectura.estado === "ilegible"
+    ? "No pudimos leer el pedido de certificado que ya generaste, así que no generamos otro (el anterior dejaría de servir). Reintentá en un rato y, si sigue, avisale a GSG."
+    : null;
 }
 
 export type EstadoDePaso = "hecho" | "actual" | "falta";
@@ -52,6 +82,10 @@ export interface EstadoDelAsistente {
   certificado: "ninguno" | "pruebas" | "produccion" | "con-problema";
   /** El cliente puede mandar el pedido de pase (todas las condiciones que dependen de él están). */
   puedePedirPase: boolean;
+  /** No se pudo leer el pedido pendiente: se muestra el aviso con «Reintentar». */
+  pedidoIlegible: boolean;
+  /** Se puede ofrecer generar un pedido: datos completos y el pedido anterior (si hay) se leyó bien. */
+  puedeGenerarPedido: boolean;
 }
 
 const TITULOS: Record<Exclude<PasoAsistente, "listo">, string> = {
@@ -102,7 +136,9 @@ export function estadoDelAsistente(e: EntradaAsistente): EstadoDelAsistente {
     e.ficha.arcaHomologacion &&
     !e.pedidoDePase &&
     precondiciones.filter((p) => DEL_NEGOCIO.has(p.id)).every((p) => p.ok);
-  return { paso, pasos, precondiciones, faltanDatos, certificado, puedePedirPase };
+  const pedidoIlegible = e.pedidoIlegible;
+  const puedeGenerarPedido = faltanDatos.length === 0 && !pedidoIlegible;
+  return { paso, pasos, precondiciones, faltanDatos, certificado, puedePedirPase, pedidoIlegible, puedeGenerarPedido };
 }
 
 // ── El pedido de certificado (CSR) ───────────────────────────────────────────

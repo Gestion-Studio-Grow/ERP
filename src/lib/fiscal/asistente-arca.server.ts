@@ -39,8 +39,11 @@ import {
   errorDeCargaEnCriollo,
   estadoDelAsistente,
   generarPedidoDeCertificado,
+  leerPedidoConEstado,
+  motivoParaNoReemplazarPedido,
   PALABRA_DEL_PASE,
   type EntradaAsistente,
+  type LecturaDelPedido,
   type EstadoDelAsistente,
   type PedidoDePase,
 } from "./asistente-arca";
@@ -92,29 +95,39 @@ async function abrirPedido(tenantId: string): Promise<PedidoAbierto | null> {
   return { keyPem, csrPem, creadoEn: fila.expiration };
 }
 
-/** El pedido pendiente para mostrar (sólo el .csr y la fecha; la clave no sale). */
-export async function leerPedidoPendiente(tenantId: string): Promise<{ csrPem: string; creadoEn: string } | null> {
-  try {
-    const p = await abrirPedido(tenantId);
-    return p && { csrPem: p.csrPem, creadoEn: p.creadoEn };
-  } catch (e) {
-    logger.warn("arca.asistente", "No se pudo abrir el pedido de certificado pendiente", {
-      tenantId,
-      err: e instanceof Error ? e.name : "error",
-    });
-    return null;
-  }
+/**
+ * El pedido pendiente para mostrar (sólo el .csr y la fecha; la clave no sale). Un error de lectura
+ * vuelve como «ilegible», nunca como «no hay pedido»: si no, la pantalla ofrecería generar otro y eso
+ * invalida el .csr que el dueño quizá ya subió a ARCA.
+ */
+export async function leerPedidoPendiente(tenantId: string): Promise<LecturaDelPedido> {
+  return leerPedidoConEstado(async () => {
+    try {
+      const p = await abrirPedido(tenantId);
+      return p && { csrPem: p.csrPem, creadoEn: p.creadoEn };
+    } catch (e) {
+      logger.warn("arca.asistente", "No se pudo abrir el pedido de certificado pendiente", {
+        tenantId,
+        err: e instanceof Error ? e.name : "error",
+      });
+      throw e;
+    }
+  });
 }
 
 /**
  * Paso 2: genera clave + CSR en el servidor y deja la clave cifrada y pendiente (reemplaza un pedido
- * anterior: el .csr viejo deja de servir). No toca el certificado cargado.
+ * anterior: el .csr viejo deja de servir). No toca el certificado cargado. Si el pedido anterior no se
+ * pudo leer, no lo reemplaza (ver `leerPedidoPendiente`).
  */
 export async function generarPedidoDelNegocio(tenantId: string, actor: string): Promise<Resultado> {
   const t = await enElNegocio(tenantId, (tx) =>
     tx.tenant.findUnique({ where: { id: tenantId }, select: { name: true, arcaCuit: true, arcaRazonSocial: true } }),
   );
   if (!t) return { ok: false, motivo: "No existe el negocio." };
+  // Un pedido que existe pero no se pudo leer no se pisa (llamada directa o doble clic con la pantalla vieja).
+  const noReemplazar = motivoParaNoReemplazarPedido(await leerPedidoPendiente(tenantId));
+  if (noReemplazar) return { ok: false, motivo: noReemplazar };
   const pedido = generarPedidoDeCertificado({ razonSocial: t.arcaRazonSocial || t.name, cuit: t.arcaCuit ?? "" });
   if (!pedido.ok) return pedido;
 
@@ -226,12 +239,14 @@ export async function leerAsistente(tenantId: string, fichaYaLeida?: FichaFiscal
   if (!ficha) return null;
   const entrada: EntradaAsistente = {
     ficha,
-    pedidoPendiente: pedido && { creadoEn: pedido.creadoEn },
+    pedidoPendiente: pedido.estado === "pendiente" ? { creadoEn: pedido.creadoEn } : null,
+    pedidoIlegible: pedido.estado === "ilegible",
     pedidoDePase,
   };
   const estado = estadoDelAsistente(entrada);
   const contador = pedidoAlContador(filaContador, {
-    pedidoPendiente: !!pedido,
+    // Ilegible cuenta como en curso: lo más probable es una fila que existe y no se pudo abrir.
+    pedidoPendiente: pedido.estado !== "ninguno",
     certificado: estado.certificado,
     certificadoDesde: ficha.credencial?.actualizada ?? null,
     pruebaOkEn,
@@ -241,7 +256,7 @@ export async function leerAsistente(tenantId: string, fichaYaLeida?: FichaFiscal
   const avisoAlContador = linkWhatsapp(numero, avisoAlEstudio({ negocio: nombreNegocio, cuit: ficha.arcaCuit }));
   const pasoActual = estado.pasos.find((p) => p.estado === "actual")?.titulo ?? "conectar con ARCA";
   const soporte = linkWhatsapp(process.env.WHATSAPP_GSG, mensajeASoporte({ negocio: nombreNegocio, cuit: ficha.arcaCuit, paso: pasoActual }));
-  return { entrada, estado, csrPem: pedido?.csrPem ?? null, contador, contadores, avisoAlContador, soporte };
+  return { entrada, estado, csrPem: pedido.estado === "pendiente" ? pedido.csrPem : null, contador, contadores, avisoAlContador, soporte };
 }
 
 /**

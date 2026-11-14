@@ -10,7 +10,7 @@ import { inflateSync } from "node:zlib";
 import { PDFDocument, PDFName, PDFNumber, PDFRawStream } from "pdf-lib";
 import {
   ambienteDelComprobante,
-  cuitValido,
+  cuitImprimible,
   detalleSinIva,
   faltantesDelComprobante,
   generarComprobantePdf,
@@ -323,11 +323,29 @@ test("la plata se escribe en pesos argentinos con el redondeo de src/lib/dinero"
 });
 
 test("CUIT: once números con dígito verificador", () => {
-  assert.equal(cuitValido(CUIT), true);
-  assert.equal(cuitValido("30712345671"), true);
-  assert.equal(cuitValido("20123456785"), false);
-  assert.equal(cuitValido("2012345678"), false);
-  assert.equal(cuitValido(null), false);
+  assert.equal(cuitImprimible(CUIT), true);
+  assert.equal(cuitImprimible("30712345671"), true);
+  assert.equal(cuitImprimible("20123456785"), false);
+  assert.equal(cuitImprimible("2012345678"), false);
+  assert.equal(cuitImprimible(null), false);
+  // Como antes: el comprobante exige los 11 números pelados (el guión lo pone la impresión).
+  assert.equal(cuitImprimible("20-12345678-6"), false);
+});
+
+// La copia local que había acá aceptaba el resto 10 y no miraba el prefijo; ahora manda @/lib/cuit.
+const CUIT_RESTO_10 = "20123456760"; // el verificador daría 10: ARCA nunca lo emite
+const CUIT_PREFIJO_99 = "99123456706"; // verificador correcto, prefijo que no es de CUIT
+
+test("CUIT: con resto 10 o prefijo inválido no es válido (ni del negocio ni del cliente)", () => {
+  for (const c of [CUIT_RESTO_10, CUIT_PREFIJO_99]) {
+    assert.equal(cuitImprimible(c), false, c);
+    const emisor = faltantesDelComprobante(factura({ emisor: { ...factura().emisor, cuit: c } }));
+    assert.ok(emisor.some((x) => x.campo === "emisor.cuit"), c);
+    const receptor = faltantesDelComprobante({ ...facturaA(), receptor: { ...facturaA().receptor, docNro: c } });
+    assert.ok(receptor.some((x) => x.campo === "receptor.docNro"), c);
+  }
+  // Los de los fixtures siguen valiendo.
+  for (const c of [CUIT, "30712345671", CUIT_MONOTRIBUTISTA]) assert.equal(cuitImprimible(c), true, c);
 });
 
 test("la vista y la descarga exigen la app de facturación y el permiso de facturar antes de leer", () => {

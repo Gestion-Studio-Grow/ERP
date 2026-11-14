@@ -8,7 +8,7 @@ import { INSTRUCCIONES_DEL_PEDIDO, PALABRA_DEL_PASE, type EstadoDePaso } from "@
 import type { VistaDelAsistente } from "@/lib/fiscal/asistente-arca.server";
 import { ANTES_DE_EMPEZAR, TEXTO_CERTIFICADO_PROPIO } from "@/lib/fiscal/contador-arca";
 import { ObtenerAsistencia } from "./ObtenerAsistencia";
-import { CampoCertificado, CopiarTexto } from "./PiezasArca";
+import { CampoCertificado, CopiarTexto, Reintentar } from "./PiezasArca";
 
 type Accion = (formData: FormData) => void | Promise<void>;
 
@@ -127,7 +127,15 @@ export function AsistenteArca({ vista, plano, tenantId, acciones, soloLectura = 
           <p className="text-muted">Primero hacen falta los datos del paso 1.</p>
         ) : (
           <>
-            {csrPem ? (
+            {estado.pedidoIlegible ? (
+              <div role="alert" className="space-y-2">
+                <Franja tono="atencion">
+                  No pudimos leer el pedido de certificado de este negocio. No generes otro: si ya lo subiste a ARCA, el
+                  nuevo dejaría sin efecto el anterior. Reintentá en un rato y, si sigue, avisale a nuestro equipo.
+                </Franja>
+                <Reintentar />
+              </div>
+            ) : csrPem ? (
               <>
                 <p>
                   Listo el pedido de certificado (generado el {fecha(entrada.pedidoPendiente!.creadoEn)}). Es un texto que
@@ -175,7 +183,7 @@ export function AsistenteArca({ vista, plano, tenantId, acciones, soloLectura = 
                     : "Generamos el pedido de certificado de este negocio. Lo bajás y lo cargás vos en ARCA con tu clave fiscal (o se lo pasás a tu contador)."}
               </p>
             )}
-            {puedeTocar && (
+            {puedeTocar && estado.puedeGenerarPedido && (
               <form action={acciones.generarPedido}>
                 {oculto}
                 {/* Rótulo corto: el botón no parte renglón y a 390 px el largo desbordaba la pantalla. */}
