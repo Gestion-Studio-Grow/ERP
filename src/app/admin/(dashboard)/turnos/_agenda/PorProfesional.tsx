@@ -60,6 +60,8 @@ import {
   columnasDeLaGrilla,
   enMinutos,
   estadoDeLaCelda,
+  liberaElHueco,
+  ocupadosDeLaColumna,
   horaDeMinuto,
   horasDeLaGrilla,
   leerVerPor,
@@ -540,7 +542,10 @@ export default function PorProfesional({
           ))}
 
           {columnas.map((c, ci) => {
-            const ocupados = (porColumna.get(c.clave) ?? []).filter((t) => t.estado !== "CANCELLED").map(enMinutos);
+            const deLaColumna = porColumna.get(c.clave) ?? [];
+            const ocupados = ocupadosDeLaColumna(deLaColumna);
+            // Cancelado / «No vino»: la celda es hueco, pero el bloque del turno sigue ahí (angosto, a la izquierda).
+            const liberados = deLaColumna.filter(liberaElHueco).map(enMinutos);
             return Array.from({ length: filas }, (_, f) => {
               const minuto = desde + f * PASO_MIN;
               const celda = estadoDeLaCelda({ dia, hoy, ahoraMin, minuto, columna: c, ocupados, bloqueos, puedeDarTurno: permisos.gestionar, nombreDe });
@@ -558,7 +563,7 @@ export default function PorProfesional({
                     href={celda.href}
                     prefetch={false}
                     aria-label={celda.etiqueta}
-                    className="group flex items-center justify-center border-b border-l border-line/60 text-xs text-accent-ink hover:bg-accent-soft focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
+                    className={`group flex items-center ${liberados.some((t) => t.desde < minuto + PASO_MIN && t.hasta > minuto) ? "justify-end pr-1" : "justify-center"} border-b border-l border-line/60 text-xs text-accent-ink hover:bg-accent-soft focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus`}
                   >
                     <span aria-hidden className={solo ? "text-muted group-hover:text-accent-ink" : "opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"}>
                       + {horaDeMinuto(minuto)}
@@ -655,7 +660,8 @@ export default function PorProfesional({
                 gridColumn: ci + 2,
                 gridRow: `${fila + 2} / span ${alto}`,
                 justifySelf: "start",
-                width: `calc(${100 / de}% - 4px)`,
+                // Si liberó el hueco, ocupa la mitad del carril: el «+ hora» de la otra mitad sigue tocable.
+                width: `calc(${(liberaElHueco(t) ? 50 : 100) / de}% - 4px)`,
                 margin: `2px 0 2px calc(${(100 * carril) / de}% + 2px)`,
               } as const;
               const bloque = (

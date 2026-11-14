@@ -27,6 +27,8 @@ import {
   columnasDeLaGrilla,
   enMinutos,
   estadoDeLaCelda,
+  liberaElHueco,
+  ocupadosDeLaColumna,
   hrefNuevoTurnoEnHueco,
   bloqueosPorHorario,
   ausenciaDeLaColumna,
@@ -253,4 +255,40 @@ test("turno corto en una línea: «16:00 Ana · Peeling», el resto en el títul
   assert.equal(esTurnoCorto({ ...corto, fin: iso("17:00") }), false);
   assert.equal(lineaDelTurno(corto), "16:00 Ana · Peeling");
   assert.equal(tituloDelTurno(corto, ["Confirmado", null, false, "seña pedida"]), "16:00–16:30 · Ana · Peeling · Confirmado · seña pedida");
+});
+
+// GSG-CH-008 · «No vino» libera el hueco, como el cancelado: la grilla ofrece dar un turno rápido ahí.
+const turnoDe = (id: string, estado: string, desde: string, hasta: string) => ({ id, estado, inicio: iso(desde), fin: iso(hasta) });
+const celdaCaro = (turnos: ReturnType<typeof turnoDe>[], minuto: number) =>
+  estadoDeLaCelda({
+    dia: DIA,
+    hoy: "2030-10-01",
+    ahoraMin: 0,
+    minuto,
+    columna: colDe(columnasDeLaGrilla("profesional", PROFES), "caro"),
+    ocupados: ocupadosDeLaColumna(turnos),
+    bloqueos: [],
+    puedeDarTurno: true,
+    nombreDe: (id) => PROFES.find((p) => p.id === id)?.nombre,
+  });
+
+test("CH-008 · un turno «No vino» libera el hueco: la celda ofrece dar un turno a esa hora", () => {
+  const celda = celdaCaro([turnoDe("t1", "NO_SHOW", "14:00", "15:00")], h(14));
+  assert.equal(celda.tipo, "hueco");
+  if (celda.tipo === "hueco") assert.equal(celda.etiqueta, "Dar un turno a las 14:00 con Caro");
+  assert.equal(celdaCaro([turnoDe("t1", "NO_SHOW", "14:00", "15:00")], h(14, 30)).tipo, "hueco");
+  assert.equal(liberaElHueco({ estado: "NO_SHOW" }), true);
+});
+
+test("CH-008 · el cancelado sigue liberando; reservado, confirmado y atendido siguen ocupando", () => {
+  assert.equal(celdaCaro([turnoDe("t1", "CANCELLED", "14:00", "15:00")], h(14)).tipo, "hueco");
+  for (const estado of ["PENDING", "CONFIRMED", "COMPLETED"]) {
+    assert.equal(celdaCaro([turnoDe("t1", estado, "14:00", "15:00")], h(14)).tipo, "ocupada", estado);
+    assert.equal(liberaElHueco({ estado }), false, estado);
+  }
+  // Un «No vino» y un vivo a la misma hora: manda el vivo, la celda sigue ocupada.
+  const mezcla = [turnoDe("t1", "NO_SHOW", "14:00", "15:00"), turnoDe("t2", "CONFIRMED", "14:30", "15:00")];
+  assert.equal(celdaCaro(mezcla, h(14)).tipo, "hueco");
+  assert.equal(celdaCaro(mezcla, h(14, 30)).tipo, "ocupada");
+  assert.deepEqual(ocupadosDeLaColumna(mezcla), [{ desde: h(14, 30), hasta: h(15) }]);
 });

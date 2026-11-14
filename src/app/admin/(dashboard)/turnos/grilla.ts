@@ -173,6 +173,23 @@ export function carrilesDeLaColumna(turnos: readonly TurnoConHorario[]): {
 
 // ── Los huecos: qué celda se toca para dar un turno ──────────────────────────
 
+/**
+ * Estados que LIBERAN el hueco: el turno sigue dibujado (se abre su cajón), pero la media hora se
+ * puede volver a dar. Cancelado y «No vino» (GSG-CH-008): igual que el servidor, que sólo cuenta como
+ * ocupado lo Reservado / Confirmado al buscar horarios y al dar el turno (actions.ts, booking-core.ts).
+ * La seña retenida de un «No vino» no cambia: eso sigue su propia regla (agenda-core, D9).
+ */
+const LIBERAN_EL_HUECO = new Set(["CANCELLED", "NO_SHOW"]);
+
+export function liberaElHueco(t: { estado: string }): boolean {
+  return LIBERAN_EL_HUECO.has(t.estado);
+}
+
+/** Los turnos de una columna que ocupan sus celdas (los que no liberan el hueco), en minutos. */
+export function ocupadosDeLaColumna(turnos: readonly TurnoConHorario[]): TurnoEnMinutos[] {
+  return turnos.filter((t) => !liberaElHueco(t)).map(enMinutos);
+}
+
 export type BloqueoDelDia = {
   profesionalId: string;
   desde: string;
