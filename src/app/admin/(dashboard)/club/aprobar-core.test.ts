@@ -301,7 +301,7 @@ test("SEG-020: en el real el código lo da el servidor con el PIN del dueño; el
 test("SEG-020: el celular sin red, con el PIN mal o con espera del servidor no muestra código", async () => {
   const pedido = { id: "n-1", c: "c-1", n: "Agustina Romero", m: 22100, t: "fiado" as const, p: "Lu", f: HOY };
   const caida = await pedirCodigoAlServidor({ pedido, duenioId: null, pin: "4321", monto: "22100", pedir: async () => Promise.reject(new Error("red")) });
-  assert.deepEqual(caida, { tipo: "malo", mensaje: "Para aprobar hace falta conexión. Probá de nuevo cuando tengas señal." });
+  assert.deepEqual(caida, { tipo: "malo", mensaje: "Hace falta conexión a internet y no la hay: revisá el wifi o los datos y probá de nuevo. No se hizo nada." });
   const sinPuerta = await pedirCodigoAlServidor({ pedido, duenioId: null, pin: "4321", monto: "22100", pedir: null });
   assert.equal(sinPuerta.tipo, "malo");
   const mal = await pedirCodigoAlServidor({ pedido, duenioId: null, pin: "4321", monto: "22100", pedir: async () => ({ ok: false as const, error: "PIN incorrecto." }) });

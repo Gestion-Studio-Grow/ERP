@@ -32,6 +32,7 @@ import { aprobadorExternoDe } from "./aprobador-externo";
 import { probarPin, segundosDeEspera, textoDeEspera, textoPinIncompleto, intentosVigentes, pinCompleto, type IntentosDelBloqueo } from "./bloqueo-core";
 import { celularDelDuenio, contactosDe } from "./configuracion-core";
 import { leerMonto } from "./montos-core";
+import { SIN_CONEXION } from "./sin-conexion";
 import { enlaceWhatsApp, type EnlaceWhatsApp, type ModoDelClub } from "./whatsapp-core";
 
 /** Dónde vive el aprobador en el ERP (dentro del panel: hace falta la sesión de un dueño). */
@@ -215,7 +216,8 @@ export type CodigoDelServidor =
   | { tipo: "espera"; segundos: number; mensaje: string }
   | { tipo: "codigo"; codigo: string; monto: number; aprobo: string; pinViejo: false };
 
-export const SIN_CONEXION_PARA_APROBAR = "Para aprobar hace falta conexión. Probá de nuevo cuando tengas señal.";
+/** El texto único de sin-conexion.ts (se mantiene el nombre para quien ya lo importa). */
+export const SIN_CONEXION_PARA_APROBAR = SIN_CONEXION;
 
 /**
  * SEG-020, la jornada real: el PIN de un dueño lo tiene sólo el servidor, así que el celular no calcula el código: se

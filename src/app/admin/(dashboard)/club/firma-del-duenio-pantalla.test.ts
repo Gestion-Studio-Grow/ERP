@@ -197,7 +197,7 @@ describe("La firma del dueño en pantalla (SEG-020)", { timeout: 180_000 }, () =
     // Sin red: el navegador no tiene conexión. No llama, avisa y no entra.
     await page.context().setOffline(true);
     await pin.fill("1111");
-    await bloqueo.getByRole("status").filter({ hasText: "Para firmar como dueño hace falta conexión." }).waitFor();
+    await bloqueo.getByRole("status").filter({ hasText: "Hace falta conexión a internet y no la hay" }).waitFor();
     assert.equal(await w("__operador"), null, "no entró");
     assert.deepEqual(await w("__llamadas"), [], "sin red no se llama");
     await page.context().setOffline(false);
@@ -253,7 +253,7 @@ describe("La firma del dueño en pantalla (SEG-020)", { timeout: 180_000 }, () =
     await w("__modo", "caida");
     await page.getByLabel(/^Tu PIN/).fill("1111");
     await page.getByRole("button", { name: "Aprobar y ver el código" }).click();
-    await page.getByRole("alert").filter({ hasText: "Para aprobar hace falta conexión." }).waitFor();
+    await page.getByRole("alert").filter({ hasText: "Hace falta conexión a internet y no la hay" }).waitFor();
     assert.equal(await page.getByText("QRS-TUV").count(), 0);
     // Lenta: el botón queda en «Verificando…» y deshabilitado; Enter no vuelve a pedir.
     await w("__modo", "lenta");

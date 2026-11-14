@@ -34,6 +34,7 @@ import {
   type UsoDePase,
 } from "@/lib/club/pin-servidor";
 import { anotarPinFuerte, claveAprobacion, clavePase, conTopeDePin, leerPinesFuertes, type AmbitoDelTope } from "@/lib/club/tope-pin-servidor";
+import { textoDeEsperaDelServidor } from "@/lib/club/espera-del-servidor";
 
 export type RespuestaFirmaDelDuenio =
   | { ok: true; usuarioId: string; nombre: string; pase: string; vence: number }
@@ -71,8 +72,8 @@ const MONTO_MAXIMO = 100_000_000;
 const porInstancia = createRateLimiter({ max: 20, windowMs: 15 * 60_000 });
 
 const texto = (x: unknown, tope: number) => (typeof x === "string" && x.length <= tope ? x : null);
-const esperaEnCriollo = (s: number) => (s >= 90 ? `${Math.ceil(s / 60)} minutos` : `${s} segundos`);
-const mensajeDeEspera = (s: number) => `Demasiados intentos: esperá ${esperaEnCriollo(s)} y probá de nuevo.`;
+// La hora hasta la que espera, no «X segundos» (el texto queda quieto en pantalla y se volvía falso).
+const mensajeDeEspera = (s: number) => textoDeEsperaDelServidor(s);
 
 async function contexto(): Promise<Contexto | { error: string }> {
   let user;
@@ -245,7 +246,7 @@ export async function aprobarConCodigo(pedido: { novedadId: unknown; codigo: unk
   const monto = montoValido(pedido?.monto);
   if (monto === null) return { ok: false, error: "Poné el monto que aprobó el dueño." };
   const tipeado = normalizarCodigo(texto(pedido?.codigo, 20) ?? "");
-  if (tipeado.length !== 6) return { ok: false, error: "El código tiene 6 letras y números (ej. ABC-DEF)." };
+  if (tipeado.length !== 6) return { ok: false, error: "El código tiene 6 letras y números (ej. K7M-4QX)." };
   const clave = claveAprobacion();
   const r = await conPorInstancia(c.tenantId, "codigo", () =>
     conTopeDePin(c.tenantId, "codigo", () => {

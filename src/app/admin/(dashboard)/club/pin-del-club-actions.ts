@@ -25,9 +25,13 @@ import { audit } from "@/lib/audit-core";
 import { guardar, leerVigente } from "@/lib/club/estado-repo";
 import { cambiarPinEnLaFoto, type CodigoDeRechazo } from "@/lib/club/cambiar-pin";
 import { conTopeDePin } from "@/lib/club/tope-pin-servidor";
+import { textoDeEsperaDelServidor } from "@/lib/club/espera-del-servidor";
 import type { Ahora } from "@/lib/club/motor.mjs";
 import type { RespuestaCambiarMiPin } from "./puerta-del-pin";
 
+const FALTA_QUIEN = "No sabemos quién está operando: bloqueá la pantalla, entrá con tu PIN y probá de nuevo.";
+const FALTA_ACTUAL = "Poné tu PIN actual (sólo números).";
+const FALTA_NUEVO = "Poné el PIN nuevo (sólo números).";
 const ERROR_DE_BASE = "No se pudo guardar el PIN nuevo: probá de nuevo en un rato. Tu PIN sigue siendo el de antes.";
 
 /** La hora del club para la línea del registro (el servidor corre en UTC; el club, en Argentina). */
@@ -75,7 +79,7 @@ export async function cambiarMiPinDelClub(pedido: { usuarioId: unknown; pinActua
     });
   if (!usuarioId || pinActual === null || pinNuevo === null) {
     await auditar("rechazo", "datos");
-    return { ok: false, error: "Faltan datos para cambiar el PIN." };
+    return { ok: false, error: !usuarioId ? FALTA_QUIEN : pinActual === null ? FALTA_ACTUAL : FALTA_NUEVO };
   }
   for (let vuelta = 0; vuelta < 2; vuelta++) {
     const vigente = await leerVigente(tenantId);
@@ -98,7 +102,7 @@ export async function cambiarMiPinDelClub(pedido: { usuarioId: unknown; pinActua
       );
       if (t.espera) {
         await auditar("rechazo", "espera");
-        return { ok: false, error: `Demasiados intentos: esperá ${t.esperaS >= 90 ? `${Math.ceil(t.esperaS / 60)} minutos` : `${t.esperaS} segundos`} y probá de nuevo.` };
+        return { ok: false, error: textoDeEsperaDelServidor(t.esperaS) };
       }
       r = t.resultado.x;
     } else {

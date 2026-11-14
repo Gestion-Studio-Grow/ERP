@@ -144,8 +144,10 @@ const SOLAPAS_DE_FABRICA: readonly { id: Solapa; etiqueta: string }[] = [
 // permisos de dueño en el motor, como las pestañas del vanilla con `puede`), no el login del puesto. En la demo, el
 // rol del ERP, como siempre. Son dos listas fijas: el snapshot es estable y sólo cambia si cambia «es dueño».
 type SolapaVisible = { id: Solapa; etiqueta: string };
-const CON_DUENOS: readonly SolapaVisible[] = [...SOLAPAS_DE_FABRICA, ...extras];
-const SIN_DUENOS: readonly SolapaVisible[] = extras.some((e) => e.soloDuenos) ? [...SOLAPAS_DE_FABRICA, ...extras.filter((e) => !e.soloDuenos)] : CON_DUENOS;
+// `soloRecepcion` (p. ej. «Mi PIN») va sólo en la de quien no es dueño.
+const CON_DUENOS: readonly SolapaVisible[] = [...SOLAPAS_DE_FABRICA, ...extras.filter((e) => !e.soloRecepcion)];
+// Si no hay solapas de un solo lado, es LA MISMA lista: cambiar de operador no cambia el snapshot ni repinta.
+const SIN_DUENOS: readonly SolapaVisible[] = extras.some((e) => e.soloDuenos || e.soloRecepcion) ? [...SOLAPAS_DE_FABRICA, ...extras.filter((e) => !e.soloDuenos)] : CON_DUENOS;
 const solapasVisibles = (almacen: Almacen) => (esDuenoQuienMira(almacen) ? CON_DUENOS : SIN_DUENOS);
 /** Las solapas que ve quien opera ahora. Repinta sólo a quien la usa, y sólo cuando cambia «es dueño». */
 function useSolapasVisibles(almacen: Almacen): readonly SolapaVisible[] {

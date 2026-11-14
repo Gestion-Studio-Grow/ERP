@@ -220,7 +220,7 @@ function FormularioDeAprobacion({
         </p>
       )}
       {ejemplo && <p className="text-sm text-body">En la demo, los PIN de ejemplo son: {ejemplo}.</p>}
-      {!estado && modo !== "real" && <p className="text-sm text-body">Este celular no tiene la jornada del club: tu PIN lo controla la compu del club cuando recepción tipea el código.</p>}
+      {!estado && modo !== "real" && <p className="text-sm text-body">En este celular no están los datos del club: tu PIN lo revisa la compu de recepción cuando cargan el código que les mandás.</p>}
       <div className="flex flex-wrap gap-2">
         <Button type="submit" variant="solid" size="md" className="max-sm:w-full" disabled={enviando}>
           {enviando ? "Verificando…" : "Aprobar y ver el código"}
