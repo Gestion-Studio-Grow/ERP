@@ -467,3 +467,22 @@ export async function leerRendicionesInTx(tx: RendicionTx, tenantId: string): Pr
     historial: historial.map((h) => ({ ...h, nombre: nombre.get(h.professionalId) ?? "Profesional", cantidad: Number(h.cantidad) })),
   };
 }
+
+/**
+ * Lo que falta rendir de cada turno (arriba), para que la pantalla y el cierre de mes excluyan lo mismo que
+ * `settleCommissions`. Sin las tablas: mapa vacío y nada cambia. El SQL crudo necesita el GUC del
+ * negocio (RLS): con el cliente suelto (`prisma`, no una transacción) se corre dentro de
+ * `tenantTransaction`, igual que el proxy hace con una operación de modelo suelta.
+ */
+export async function pendienteDeRendirDeLectura(
+  db: RendicionTx,
+  tenantId: string,
+  ids: readonly string[],
+): Promise<Map<string, number>> {
+  if (ids.length === 0 || !(await hayRendicionesInTx(db))) return new Map();
+  if (typeof (db as { $transaction?: unknown }).$transaction === "function") {
+    const { tenantTransaction } = await import("@/lib/rls");
+    return tenantTransaction((tx) => pendienteDeRendirPorTurnoInTx(tx, tenantId, ids), { tenantId });
+  }
+  return pendienteDeRendirPorTurnoInTx(db, tenantId, ids);
+}

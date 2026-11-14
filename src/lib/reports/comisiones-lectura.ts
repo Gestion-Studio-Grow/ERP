@@ -11,27 +11,8 @@
 
 import type { Prisma } from "@/generated/prisma/client";
 import { aNumero } from "@/lib/debts/resumen-cuentas";
-import { hayRendicionesInTx, pendienteDeRendirPorTurnoInTx } from "@/lib/comisiones/rendicion-repo";
+import { pendienteDeRendirDeLectura } from "@/lib/comisiones/rendicion-repo";
 import { comisionesPendientes, contarTurnosEsperandoSaldo, whereTurnosConComisionPendiente, type ComisionPendiente, type TurnoPendiente } from "./comisiones";
-
-/**
- * Lo que falta rendir de cada turno (rendicion-repo.ts), para que la pantalla excluya lo mismo que
- * `settleCommissions`. Sin las tablas: mapa vacío y nada cambia. El SQL crudo necesita el GUC del
- * negocio (RLS): con el cliente suelto (`prisma`, no una transacción) se corre dentro de
- * `tenantTransaction`, igual que el proxy hace con una operación de modelo suelta.
- */
-async function pendienteDeRendirDeLectura(
-  db: Prisma.TransactionClient,
-  tenantId: string,
-  ids: readonly string[],
-): Promise<Map<string, number>> {
-  if (ids.length === 0 || !(await hayRendicionesInTx(db))) return new Map();
-  if (typeof (db as { $transaction?: unknown }).$transaction === "function") {
-    const { tenantTransaction } = await import("@/lib/rls");
-    return tenantTransaction((tx) => pendienteDeRendirPorTurnoInTx(tx, tenantId, ids), { tenantId });
-  }
-  return pendienteDeRendirPorTurnoInTx(db, tenantId, ids);
-}
 
 async function leerTurnos(
   db: Prisma.TransactionClient,
