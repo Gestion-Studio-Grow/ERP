@@ -5,7 +5,7 @@
 // derivarla a una persona o negarla. Los límites viven acá, en el código; las instrucciones del
 // modelo sólo describen el trabajo (03 §1.1).
 
-import type { Clase, Equipo, Fila, Nivel, Puesto, PuestoId, Tarea, TareaId, TopeId, Vigencia, Vista } from "./tipos";
+import type { Clase, Equipo, Fila, Nivel, Puesto, PuestoId, RecorteGuardado, Tarea, TareaId, TopeId, Vigencia, Vista } from "./tipos";
 
 /** Catálogo de topes (provisional, 05 S5). `sujeto` dice de quién es el cupo. */
 export const TOPES: Readonly<Record<TopeId, { max: number; sujeto: "persona" | "puesto"; periodo: "dia" | "abiertos" }>> = {
@@ -127,4 +127,50 @@ export function recortarFilas(filas: readonly Fila[], vista: Pick<Vista, "proyec
     salida.push(cifras.length === f.cifras.length ? f : { ...f, cifras });
   }
   return { filas: salida, recortado };
+}
+
+// ── El recorte de quien dejó el pedido (06 C4): se guarda con el pedido, nunca se rearma ─────────
+
+/** Los módulos que nombra el catálogo de equipos (para ver el equipo y los de cada puesto). */
+export function modulosDelCatalogo(equipos: readonly Equipo[]): string[] {
+  const m = new Set<string>();
+  for (const e of equipos) {
+    for (const x of e.modulosParaVer) m.add(x);
+    for (const p of e.puestos) for (const x of p.modulos) m.add(x);
+  }
+  return [...m].sort();
+}
+
+/**
+ * Lo que veía la persona AL DEJAR el pedido, tomado de su `Vista` (armada con SU sesión). Sólo
+ * nombres de módulo y columna e ids de proyecto: ni tenantId, ni userId, ni datos de terceros.
+ */
+export function recorteDeLaVista(vista: Vista, equipos: readonly Equipo[]): RecorteGuardado {
+  return {
+    modulos: modulosDelCatalogo(equipos).filter((m) => vista.puedeVer(m)),
+    proyectos: vista.proyectos === "todos" ? "todos" : [...vista.proyectos].sort(),
+    veSinProyecto: vista.veSinProyecto,
+    columnasOcultas: [...vista.columnasOcultas].sort(),
+  };
+}
+
+const listaDeTextos = (x: unknown): x is string[] => Array.isArray(x) && x.every((v) => typeof v === "string");
+
+/**
+ * La restricción que sale de un `recorte` guardado, para aplicarla igual que una vista (capas 1 a 3).
+ * Cualquier forma que no sea la esperada (o un pedido viejo sin recorte) da `null`: quien la use
+ * muestra la ficha VACÍA, nunca sin recortar.
+ */
+export function restriccionDesdeRecorte(r: unknown): (Pick<Vista, "puedeVer" | "proyectos" | "veSinProyecto" | "columnasOcultas">) | null {
+  if (!r || typeof r !== "object" || Array.isArray(r)) return null;
+  const o = r as Record<string, unknown>;
+  if (!listaDeTextos(o.modulos) || !listaDeTextos(o.columnasOcultas) || typeof o.veSinProyecto !== "boolean") return null;
+  if (o.proyectos !== "todos" && !listaDeTextos(o.proyectos)) return null;
+  const modulos = new Set(o.modulos);
+  return {
+    puedeVer: (m) => modulos.has(m),
+    proyectos: o.proyectos === "todos" ? "todos" : new Set(o.proyectos as string[]),
+    veSinProyecto: o.veSinProyecto,
+    columnasOcultas: new Set(o.columnasOcultas),
+  };
 }

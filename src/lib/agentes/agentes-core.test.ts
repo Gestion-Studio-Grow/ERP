@@ -5,14 +5,14 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buscarPuesto, decidirLlamada, diaArgentina, equiposVisibles, nivelEfectivo, periodoDelTope, puestosVisibles, recortarFilas, TOPES } from "./permisos-core";
+import { buscarPuesto, decidirLlamada, diaArgentina, equiposVisibles, modulosDelCatalogo, nivelEfectivo, periodoDelTope, puestosVisibles, recortarFilas, recorteDeLaVista, restriccionDesdeRecorte, TOPES } from "./permisos-core";
 import { estadoMostrado, metricas, necesitaRescate, presupuestoDelIntento, respuestaDeLista, sePuedeTomar, venceElDe, objetivoDelNegocio } from "./buzon-core";
 import { controlarCifras, numeroDesdeTexto, textoImporte, totalesPorMoneda } from "./cifras-core";
 import { bloqueDeDatos, filtrarTexto } from "./texto-seguro-core";
 import { costoMicroUsd, estimadoMicroUsd, periodoDelGasto, precioDe, saldoMicroUsd } from "./gasto-core";
 import { armarRespuesta, sinTenant, validarArgumentos } from "./motor-core";
 import { EQUIPO_ADMINISTRACION } from "./puestos/administracion";
-import type { Fila, Vigencia } from "./tipos";
+import { TIPOS_ACCION, type Fila, type Vigencia, type Vista } from "./tipos";
 
 const T0 = new Date("2026-11-12T18:00:00.000Z");
 const cobranzas = buscarPuesto([EQUIPO_ADMINISTRACION], "administracion.cobranzas")!.puesto;
@@ -71,6 +71,36 @@ test("permisos: recorte en capas 2 y 3 (proyectos y columnas) con aviso de recor
   const sinMonto = recortarFilas(filas, { proyectos: "todos", veSinProyecto: true, columnasOcultas: new Set(["monto"]) });
   assert.ok(sinMonto.recortado && sinMonto.filas.every((f) => f.cifras.length === 0));
   assert.equal(recortarFilas(filas, { proyectos: "todos", veSinProyecto: true, columnasOcultas: new Set() }).recortado, false);
+});
+
+test("recorte guardado (06 C4): sólo módulos, proyectos y columnas; ida y vuelta; forma inválida → null", () => {
+  const modulos = modulosDelCatalogo([EQUIPO_ADMINISTRACION]);
+  assert.ok(modulos.length > 1);
+  const vista: Vista = {
+    tenantId: "negocio-a",
+    userId: "persona-a",
+    nombre: "Persona A",
+    puedeVer: (m) => m === modulos[0],
+    proyectos: new Set(["p2", "p1"]),
+    veSinProyecto: false,
+    columnasOcultas: new Set(["margen", "costoUnit"]),
+  };
+  const r = recorteDeLaVista(vista, [EQUIPO_ADMINISTRACION]);
+  assert.deepEqual(r, { modulos: [modulos[0]], proyectos: ["p1", "p2"], veSinProyecto: false, columnasOcultas: ["costoUnit", "margen"] });
+  assert.deepEqual(Object.keys(r).sort(), ["columnasOcultas", "modulos", "proyectos", "veSinProyecto"], "ni negocio, ni persona, ni nombre");
+  assert.ok(!JSON.stringify(r).includes("negocio-a") && !JSON.stringify(r).includes("persona-a") && !JSON.stringify(r).includes("Persona A"));
+
+  const de = restriccionDesdeRecorte(JSON.parse(JSON.stringify(r)));
+  assert.ok(de);
+  assert.equal(de.puedeVer(modulos[0]), true);
+  assert.equal(de.puedeVer(modulos[1]), false);
+  assert.deepEqual(recortarFilas([fila("1", "A", 1), fila("2", "B", 2, { proyectoId: "p9" })], de).filas.map((f) => f.id), ["1"]);
+  assert.equal(restriccionDesdeRecorte(recorteDeLaVista({ ...vista, proyectos: "todos" }, [EQUIPO_ADMINISTRACION]))?.proyectos, "todos");
+
+  for (const malo of [null, undefined, "x", [], {}, { ...r, modulos: "pagos" }, { ...r, proyectos: [1] }, { ...r, veSinProyecto: "no" }, { ...r, columnasOcultas: null }]) {
+    assert.equal(restriccionDesdeRecorte(malo), null, `forma inválida: ${JSON.stringify(malo)}`);
+  }
+  assert.ok((TIPOS_ACCION as readonly string[]).includes("COPIA_PARA_IA"), "06 C3: el registro admite la copia para IA");
 });
 
 test("buzón: plazo, presupuesto del intento, 30 s para tomar, rescate y estado mostrado", () => {

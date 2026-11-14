@@ -51,6 +51,25 @@ export async function vigencia(tx: Tx, p: { tenantId: string; puesto: string }):
   return { vigente: true, niveles };
 }
 
+/** La vigencia cayó en medio de una transacción que escribe: se lanza para deshacerla entera. */
+export class VigenciaCaida extends Error {
+  constructor(readonly vigencia: Extract<Vigencia, { vigente: false }>) {
+    super(`La vigencia cayó durante la transacción (${vigencia.motivo}).`);
+    this.name = "VigenciaCaida";
+  }
+}
+
+/**
+ * Segunda lectura, al FINAL de la transacción que escribe (después de sus escrituras). En READ
+ * COMMITTED cada sentencia ve lo confirmado hasta ese momento: una pausa o un apagado confirmados
+ * después de la primera lectura se ven acá y la transacción se deshace (hallazgo de certificación
+ * 1A). Sin bloqueos ni SQL crudo: gana sólo la escritura cuya última lectura fue anterior a la pausa.
+ */
+export async function exigirVigenciaAlFinal(tx: Tx, p: { tenantId: string; puesto: string }): Promise<void> {
+  const v = await vigencia(tx, p);
+  if (!v.vigente) throw new VigenciaCaida(v);
+}
+
 /** ¿Está cargada la clave propia del equipo? Mira SÓLO que exista: el valor nunca sale de acá. */
 export function hayClaveDeIa(env: Readonly<Record<string, string | undefined>> = process.env): boolean {
   return (env[VARIABLE_CLAVE_IA] ?? "").trim().length > 0;

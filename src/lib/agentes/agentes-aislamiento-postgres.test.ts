@@ -19,7 +19,7 @@ import pg from "pg";
 import { apuntarLaAppA, baseEfimeraParaElTest, prismaComoDuenio, urlDeRol, urlDelServidor } from "@/test/base-efimera";
 import { prepararAccionesDeServidor } from "@/test/accion-de-servidor";
 import { COBRANZAS, EQUIPOS_DE_PRUEBA, HERRAMIENTAS_DE_PRUEBA, T0, actorDePrueba, gastoDePrueba, relojFijo, vistaDe } from "@/test/agentes-de-prueba";
-import type { PrismaClient } from "@/generated/prisma/client";
+import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 
 let secuencia = 0;
 /** Prende (o apaga) un interruptor del negocio como lo deja la consola, sembrado como dueño de la base. */
@@ -111,6 +111,18 @@ test("agentes: aislamiento entre negocios, RLS de las 11 tablas y registro sólo
   const alta = await dejarPedido(vistaA, { puesto: COBRANZAS, tipo: "LISTA", frecuente: "cobranzas_pendientes", clave: "aislamiento-1" }, { equipos: EQUIPOS_DE_PRUEBA, ahora: r.reloj() });
   assert.ok(alta.ok && alta.nuevo);
   const idA = alta.pedido.id;
+  // 06 C4 · el recorte de quien pidió queda guardado: sólo módulos, proyectos y columnas; nada del negocio ni de terceros.
+  const guardado = (await duenio.agentePedido.findUniqueOrThrow({ where: { id: idA }, select: { recorte: true } })).recorte as Record<string, unknown>;
+  assert.deepEqual(Object.keys(guardado).sort(), ["columnasOcultas", "modulos", "proyectos", "veSinProyecto"]);
+  assert.equal(guardado.proyectos, "todos");
+  const textoRecorte = JSON.stringify(guardado);
+  for (const ajeno of [a.id, b.id, a.duenia.id, "Persona de prueba", "tenantId", "userId"]) assert.ok(!textoRecorte.includes(ajeno), `el recorte no lleva ${ajeno}`);
+  assert.equal(await tenantTransaction((tx) => tx.agentePedido.count({ where: { recorte: { not: Prisma.DbNull } } }), { tenantId: b.id }), 0, "la RLS del pedido cubre el recorte");
+  await assert.rejects(
+    duenio.$executeRawUnsafe(`UPDATE "AgentePedido" SET "recorte" = '[1]'::jsonb WHERE id = $1`, idA),
+    /AgentePedido_recorte_check/,
+    "el recorte es siempre un objeto",
+  );
   assert.equal(await tenantTransaction((tx) => tx.agentePedido.count(), { tenantId: b.id }), 0, "B no ve pedidos de A");
   assert.equal((await listarPedidos({ tenantId: b.id, userId: a.duenia.id, puestos: [COBRANZAS], ahora: r.reloj() })).length, 0);
   assert.deepEqual(await tomarPedido({ tenantId: b.id, id: idA, userId: a.duenia.id, ahora: r.reloj() }), { tomado: false, motivo: "no_existe" }, "desde B no se toma");
@@ -145,6 +157,9 @@ test("agentes: aislamiento entre negocios, RLS de las 11 tablas y registro sólo
   const textoLibre = (await duenio.agentePedido.findUniqueOrThrow({ where: { id: libre.pedido.id } })).respuesta ?? "";
   assert.ok(!textoLibre.includes("inventada"), "la «Fuente:» del modelo se descarta");
   assert.ok(textoLibre.includes("(Fuente: Clientes ·"), "los renglones con su origen los pone el código");
+
+  // 06 C3 · el registro admite la copia para IA (el CHECK del tipo la incluye).
+  await duenio.agenteAccion.create({ data: { tenantId: a.id, puesto: COBRANZAS, tipo: "COPIA_PARA_IA", actor: "operator:qa", pedidoId: idA, createdAt: T0 } });
 
   // ── 6) FK compuesta: el registro no se cuelga de un pedido de otro negocio (ni como dueño) ──
   await assert.rejects(

@@ -12,8 +12,8 @@ import { tenantTransaction } from "@/lib/rls";
 import type { Prisma } from "@/generated/prisma/client";
 import { exigirCupo, TopeAlcanzado } from "./contadores.server";
 import { registrar, type FilaDeRegistro } from "./registro.server";
-import { esMigracionPendiente, rutaDelTextoLibre, textoSinVigencia, vigencia } from "./estado.server";
-import { buscarPuesto, periodoDelTope, PUESTO_DE_LOS_PEDIDOS, puestosVisibles, TOPES } from "./permisos-core";
+import { esMigracionPendiente, exigirVigenciaAlFinal, rutaDelTextoLibre, textoSinVigencia, vigencia, VigenciaCaida } from "./estado.server";
+import { buscarPuesto, periodoDelTope, PUESTO_DE_LOS_PEDIDOS, puestosVisibles, recorteDeLaVista, TOPES } from "./permisos-core";
 import {
   COLGADO_RECIBIDO_MS,
   dentroDelObjetivo,
@@ -144,6 +144,8 @@ export async function dejarPedido(
               frecuente: frecuente?.id ?? null,
               argumentos: (entrada.tipo === "LISTA" ? (entrada.argumentos ?? {}) : undefined) as Prisma.InputJsonValue | undefined,
               texto,
+              // Lo que veía quien pidió, tomado de SU vista: la ficha de la bandeja lo respeta (06 C4).
+              recorte: recorteDeLaVista(vista, deps.equipos) as unknown as Prisma.InputJsonValue,
               clave: entrada.clave,
               estado,
               pedidoEl: ahora,
@@ -165,11 +167,13 @@ export async function dejarPedido(
           const t = TOPES[frecuente.tope];
           await exigirCupo(tx, { tenantId, puesto: puesto.id, tope: frecuente.tope, sujeto: t.sujeto === "persona" ? vista.userId : "*", periodo: periodoDelTope(frecuente.tope, ahora), max: t.max });
         }
+        await exigirVigenciaAlFinal(tx, { tenantId, puesto: puesto.id });
         return { ok: true, pedido: { ...pedido, estado: pedido.estado as EstadoPedido }, nuevo: true, procesar: estado === "RECIBIDO" };
       },
       { tenantId },
     );
   } catch (e) {
+    if (e instanceof VigenciaCaida) return rechazo(e.vigencia.motivo, textoSinVigencia(e.vigencia));
     if (e instanceof TopeAlcanzado) return rechazo("tope", e.tope === "pedidos_por_dia" ? "Llegaste al máximo de pedidos de hoy." : "Llegaste al máximo de hoy para este pedido.");
     if (esMigracionPendiente(e)) return rechazo("sin_tablas", "Falta activar el equipo.");
     throw e;
@@ -187,7 +191,19 @@ export type ResultadoToma =
  * con la toma vencida, y con 30 s o más de plazo. Sin vigencia no sale en silencio: lo cierra como
  * NECESITA_PERSONA con el motivo y su fila de registro.
  */
-export async function tomarPedido(p: { tenantId: string; id: string; userId: string; ahora: Date; maxDurationSeg?: number }): Promise<ResultadoToma> {
+export async function tomarPedido(p: { tenantId: string; id: string; userId: string; ahora: Date; maxDurationSeg?: number }, reintento = false): Promise<ResultadoToma> {
+  const { tenantId, id, userId, ahora } = p;
+  try {
+    return await tomarEnTx(p);
+  } catch (e) {
+    // La vigencia cayó entre la primera lectura y el final: la toma se deshizo; se repite una vez
+    // y esa vuelta ya lo cierra sin vigencia (con motivo y registro).
+    if (e instanceof VigenciaCaida && !reintento) return tomarPedido({ tenantId, id, userId, ahora, maxDurationSeg: p.maxDurationSeg }, true);
+    throw e;
+  }
+}
+
+function tomarEnTx(p: { tenantId: string; id: string; userId: string; ahora: Date; maxDurationSeg?: number }): Promise<ResultadoToma> {
   const { tenantId, id, userId, ahora } = p;
   return tenantTransaction(
     async (tx): Promise<ResultadoToma> => {
@@ -213,6 +229,7 @@ export async function tomarPedido(p: { tenantId: string; id: string; userId: str
         data: { estado: "EN_CURSO", tomadoHasta: presupuesto.hasta, intentos: { increment: 1 } },
       });
       if (r.count === 0) return { tomado: false, motivo: "ocupado" };
+      await exigirVigenciaAlFinal(tx, { tenantId, puesto: fila.puesto });
       return { tomado: true, pedido: aPedido({ ...fila, estado: "EN_CURSO", tomadoHasta: presupuesto.hasta, intentos: fila.intentos + 1 }), intento: fila.intentos + 1, hasta: presupuesto.hasta, vigencia: v };
     },
     { tenantId },
@@ -284,7 +301,18 @@ export async function cerrarPedido(p: {
   ahora: Date;
   resultado: ResultadoDelProceso;
   rastro: RastroDelProceso;
-}): Promise<{ cerrado: boolean; estado: EstadoPedido | null }> {
+}, reintento = false): Promise<{ cerrado: boolean; estado: EstadoPedido | null }> {
+  try {
+    return await cerrarEnTx(p);
+  } catch (e) {
+    // La vigencia cayó a mitad del cierre: se deshizo entero (ni respuesta ni registro) y la segunda
+    // vuelta lo cierra por el camino sin vigencia.
+    if (e instanceof VigenciaCaida && !reintento) return cerrarPedido(p, true);
+    throw e;
+  }
+}
+
+function cerrarEnTx(p: Parameters<typeof cerrarPedido>[0]): Promise<{ cerrado: boolean; estado: EstadoPedido | null }> {
   const { tenantId, id, userId, ahora } = p;
   return tenantTransaction(
     async (tx) => {
@@ -335,6 +363,7 @@ export async function cerrarPedido(p: {
         ...consumo,
         detalle: { estado, dentroDelObjetivo: !vencido && dentroDelObjetivo({ respondidoEl: ahora, venceEl: fila.venceEl }), respondio: "agente", motivo: p.resultado.motivo },
       });
+      await exigirVigenciaAlFinal(tx, { tenantId, puesto: p.puesto });
       return { cerrado: true, estado };
     },
     { tenantId },
