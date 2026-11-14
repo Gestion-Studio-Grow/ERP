@@ -1,6 +1,6 @@
 // D13 (opción a) — cada cobro de un proyecto guarda qué cuota pagó y queda fijado al tipo de cambio del momento.
 //
-// Contra una base migrada (incluye 20261110120000_proyecto_pago_cuota) y con las Server Actions REALES:
+// Contra una base migrada (incluye 20261114120000_proyecto_pago_cuota) y con las Server Actions REALES:
 //   · las tres columnas existen y son nulas (los cobros viejos no se tocan);
 //   · marcarCuota de una cuota en dólares guarda la cuota, los dólares y el cambio del momento;
 //   · cambiar el tipo de cambio después no cambia lo ya cobrado;
