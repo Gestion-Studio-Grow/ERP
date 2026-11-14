@@ -201,6 +201,11 @@ misma ficha (en un pedido ya cobrado, «Seguir armando» no deja pesar: se usa l
 
 ## Resultado
 
+**Recorrido automático al día (base local, 14/11/2026):** `npm run test:magra-uat` → **47/47 OK** dos corridas seguidas,
+cero errores de consola. El guion se puso al día con lo que hace hoy el sistema (presentación «demo GSG», PIN al entrar,
+Espacios, tablero de pedidos con cajón, cierre del turno por el cajero antes del cierre del día con el deslizador) sin
+sacar ningún paso; suma el 2.6 (pedido con retiro en el local por «Enviar pedido»).
+
 **Recorrido automático (base local, 18/10/2026):** `npm run test:magra-uat` → **46/46 OK**, cero errores de consola,
 capturas a 390 y 1440 px (8 pantallas por ancho, sin desplazamiento horizontal). Defectos que encontró y quedaron
 arreglados en la rama `claude/magra-nivel-bp`:

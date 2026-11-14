@@ -253,7 +253,7 @@ try {
     await p.getByRole("button", { name: `Preparar: Clienta UAT, pedido #${codigoWeb}` }).click();
     await fila().getByText("En preparación").waitFor();
     // El pedido entero en el cajón: «Pesar y ajustar» a la vista debajo de «Lo que lleva».
-    await fila().getByRole("button", { name: "Clienta UAT" }).click();
+    await fila().getByRole("button", { name: "Clienta UAT", exact: true }).click();
     const c = cajon(p);
     await c.getByRole("button", { name: "Pesar y ajustar" }).click();
     await c.getByRole("textbox", { name: /Ojo de bife/ }).fill("1,62");
@@ -261,6 +261,7 @@ try {
     await c.getByRole("button", { name: "Guardar peso real" }).click();
     // 1,62 × 16.900 + 6.500 = 33.878
     const pesado = await toast(p, /actualizado al peso real: \$31\.850,00 → \$33\.878,00/);
+    await fila().getByText("$33.878,00").first().waitFor({ timeout: 10000 }).catch(() => {});
     if (process.env.DEBUG) console.log("   [debug] cajón:", await c.innerText());
     ok("4.1", pesado && /1,62 kg/.test(await c.innerText()) && /\$33\.878,00/.test(await fila().innerText()), "pesar y ajustar: 1,62 kg reales → el pedido pasa a $33.878");
     await c.getByRole("button", { name: "Marcar listo" }).click();
@@ -372,13 +373,15 @@ try {
     await p.fill("#libro-amount", "2000");
     await p.getByRole("button", { name: "Agregar movimiento" }).click();
     ok("7.2", await toast(p, /Guardado: Hielo y bolsas/), "registrar un gasto en efectivo de $2.000");
-    const esperado = await efectivoEnCaja(p);
-    // El día se cierra después de cerrar el turno del cajero, con su conteo (justo lo esperado).
-    await p.getByRole("button", { name: "Cerrar el turno" }).click();
-    await p.fill("#counted", String(esperado));
-    await p.getByRole("button", { name: "Cerrar caja" }).click();
-    await p.getByRole("button", { name: "Sí, cerrar caja" }).click({ timeout: 5000 }).catch(() => {});
-    await p.getByRole("button", { name: "Cerrar el turno" }).waitFor({ state: "detached", timeout: 15000 }).catch(() => {});
+    // El día se cierra después de que el cajero cierra SU turno, con su conteo (justo lo esperado).
+    const m = mostrador.p;
+    await m.goto(`${BASE}/admin/caja`);
+    const esperado = await efectivoEnCaja(m);
+    await m.getByRole("button", { name: "Cerrar el turno" }).click();
+    await m.fill("#counted", String(esperado));
+    await m.getByRole("button", { name: "Cerrar caja" }).click();
+    await m.getByRole("button", { name: "Sí, cerrar caja" }).click({ timeout: 5000 }).catch(() => {});
+    await m.getByRole("button", { name: "Cerrar el turno" }).waitFor({ state: "detached", timeout: 15000 }).catch(() => {});
     await p.goto(`${BASE}/admin/caja/cierre`);
     const contado = esperado - 100;
     await textoDe(p);
@@ -388,7 +391,7 @@ try {
     if (process.env.DEBUG) console.log("   [debug] movimientos:", lista);
     ok("7.3a", /Apertura del turno: conteo del cajón de \$\s?10\.000,00, no suma/.test(lista),
       "la lista del cierre muestra la apertura como conteo del cajón, sin sumarla como ingreso");
-    await p.getByLabel(/^Efectivo/).first().fill(String(contado));
+    await p.locator('input[id$="-EFECTIVO"]').fill(String(contado));
     await p.getByLabel(/Qué pasó/i).fill("Faltan $100: vuelto mal dado a la tarde");
     await foto(p, "cierre-1440");
     // «Deslizá para cerrar»: con el teclado, End lo lleva hasta el final.
