@@ -12,7 +12,7 @@ import { columnasOcultas, filtroDeProyectos, puede, tiposDeCambio, versionViva, 
 import { configProyectos, datosDelNegocio } from "./datos.server";
 import { desvioPorRubro, fechaCorta, fechaParaInput, redondear, resultadoReal, totales } from "./core";
 import { cambioDeVenta, costoSinProveedor, enMonedaDeVenta, ventaEn } from "./gestion-core";
-import { cambioVisible, columnaDe, filaDeFicha, iniciales, monedasSinCambio, planillaDeVenta } from "./ficha-core";
+import { cambioLegible, cambioVisible, columnaDe, filaDeFicha, iniciales, monedasSinCambio, planillaDeVenta } from "./ficha-core";
 
 export interface TarjetaProyecto {
   id: string;
@@ -223,7 +223,7 @@ export async function datosArchivos(a: Actor, cab: Cabecera) {
 
 export async function datosHistorial(a: Actor, proyectoId: string, vista: Vista) {
   const filas = await prisma.proyectoCambio.findMany({ where: { tenantId: a.tenantId, proyectoId }, orderBy: { createdAt: "desc" }, take: 300 });
-  return filas.filter((c) => cambioVisible(c, { costos: vista.costos, pagos: vista.pagos }));
+  return filas.filter((c) => cambioVisible(c, { costos: vista.costos, pagos: vista.pagos })).map(cambioLegible);
 }
 
 /** Para las piezas y el armador, que siguen viviendo en la ficha. */

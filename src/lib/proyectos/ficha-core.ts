@@ -235,6 +235,15 @@ export function filtrarCashflow<T extends CuotaLeida>(lineas: readonly LineaCash
 
 const CAMPOS_DE_COSTO = ["Costo", "Recargo", "Moneda", "Plus"];
 
+/**
+ * La marca de idempotencia del importador (ProyectoCambio entidad «Importacion», campo «clave»; ver
+ * importador.server.ts) guarda un hash: en el historial se lee en criollo. Lo demás pasa igual.
+ */
+export function cambioLegible<T extends { entidad: string; campo: string; antes: string | null; despues: string | null }>(c: T): T {
+  if (c.entidad === "Importacion" && c.campo === "clave") return { ...c, campo: "Origen", antes: null, despues: "Importado de planilla" };
+  return c;
+}
+
 /** El historial no le muestra a nadie lo que su permiso le esconde en la ficha. */
 export function cambioVisible(c: { entidad: string; campo: string }, permisos: { costos: boolean; pagos: boolean }): boolean {
   if (c.campo === "Asiento") return false;
