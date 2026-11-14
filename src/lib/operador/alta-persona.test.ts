@@ -3,9 +3,15 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { altaPersonaCore, validarAltaPersona, type AltaPersonaPort } from "./alta-persona";
 import { CambioObligatorioInactivo } from "../must-change-password";
+import { ClaveNoEnviada } from "../clave-temporal-mail";
 
 function puerto(over: Partial<AltaPersonaPort> = {}) {
-  const log = { creados: [] as Array<Record<string, unknown>>, audits: [] as Array<Record<string, unknown>>, mustChange: [] as string[] };
+  const log = {
+    creados: [] as Array<Record<string, unknown>>,
+    audits: [] as Array<Record<string, unknown>>,
+    mustChange: [] as string[],
+    mails: [] as Array<{ email: string; nombre: string; clave: string }>,
+  };
   const p: AltaPersonaPort = {
     existeEmail: async () => false,
     decidirTope: async () => ({ ok: true }),
@@ -20,28 +26,42 @@ function puerto(over: Partial<AltaPersonaPort> = {}) {
     audit: async (e) => {
       log.audits.push(e);
     },
+    enviarClave: async (destino, clave) => {
+      log.mails.push({ ...destino, clave });
+      return { enviado: true };
+    },
     ...over,
   };
   return { p, log };
 }
 const entrada = { name: "  Caro Hapo ", email: " CAROHAPO@Mail.com ", role: "OWNER" };
 
-test("da de alta: normaliza, guarda sólo el hash, fuerza el cambio y audita sin la clave", async () => {
+test("da de alta: normaliza, guarda sólo el hash, fuerza el cambio, audita sin la clave y la manda por mail", async () => {
   const { p, log } = puerto();
   const r = await altaPersonaCore(p, { tenantId: "t1", operatorSubject: "dueño", entrada });
-  assert.equal(r.ok, true);
-  if (!r.ok) return;
-  assert.equal(r.email, "carohapo@mail.com");
-  assert.equal(r.name, "Caro Hapo");
-  assert.ok(r.password.length >= 12);
+  assert.deepEqual(r, { ok: true, email: "carohapo@mail.com", enviadaA: "c***@mail.com", name: "Caro Hapo", role: "OWNER" });
+  assert.equal(log.mails.length, 1);
+  const clave = log.mails[0].clave;
+  assert.ok(clave.length >= 12);
+  assert.equal(log.mails[0].email, "carohapo@mail.com");
+  assert.equal(log.mails[0].nombre, "Caro Hapo");
+  assert.ok(!JSON.stringify(r).includes(clave), "la clave no vuelve a la pantalla");
   assert.equal(log.creados.length, 1);
   const c = log.creados[0] as { passwordHash: string; email: string };
-  assert.notEqual(c.passwordHash, r.password, "el hash no puede ser la clave en claro");
+  assert.notEqual(c.passwordHash, clave, "el hash no puede ser la clave en claro");
   assert.equal(c.email, "carohapo@mail.com");
   assert.deepEqual(log.mustChange, ["u1"]);
   assert.equal(log.audits.length, 1);
-  assert.ok(!JSON.stringify(log.audits[0]).includes(r.password), "la auditoría no puede llevar la clave");
+  assert.ok(!JSON.stringify(log.audits[0]).includes(clave), "la auditoría no puede llevar la clave");
   assert.equal((log.audits[0] as { actor: string }).actor, "operator:dueño");
+});
+
+test("MAIL CAÍDO: tira ClaveNoEnviada para que la transacción deshaga el alta (no nace nadie con una clave que nadie tiene)", async () => {
+  const { p } = puerto({ enviarClave: async () => ({ enviado: false, motivo: "mail no configurado" }) });
+  await assert.rejects(
+    altaPersonaCore(p, { tenantId: "t1", operatorSubject: "x", entrada }),
+    (e: unknown) => e instanceof ClaveNoEnviada && e.destino === "c***@mail.com" && /mail no configurado/.test(e.message),
+  );
 });
 
 test("rechaza nombre vacío, email sin formato y rol desconocido, sin tocar nada", async () => {
@@ -80,6 +100,7 @@ test("FALLA CERRADO: sin la columna del cambio forzado tira CambioObligatorioIna
     altaPersonaCore(p, { tenantId: "t1", operatorSubject: "x", entrada }),
     (e: unknown) => e instanceof CambioObligatorioInactivo,
   );
-  // No se audita un alta que se va a deshacer.
+  // No se audita un alta que se va a deshacer, ni sale ningún mail.
   assert.equal(log.audits.length, 0);
+  assert.equal(log.mails.length, 0);
 });

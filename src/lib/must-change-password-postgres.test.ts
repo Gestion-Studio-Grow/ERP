@@ -100,7 +100,7 @@ test("sin la columna: el reset y el alta fallan cerrado (ninguna provisoria, nad
   const r = await enElNegocio(a.tenantId, (tx) =>
     resetOwnerPasswordCore(
       {
-        findOwner: async () => ({ id: a.id, email: a.email }),
+        findOwner: async () => ({ id: a.id, email: a.email, name: "Dueña" }),
         setPasswordHash: async (id, h) => {
           await tx.$executeRaw`UPDATE "User" SET "passwordHash" = ${h} WHERE id = ${id}`;
         },
@@ -108,6 +108,7 @@ test("sin la columna: el reset y el alta fallan cerrado (ninguna provisoria, nad
         audit: async () => {
           await tx.$executeRaw`INSERT INTO "AuditLog" (id) VALUES ('no-deberia')`;
         },
+        enviarClave: async () => assert.fail("sin el flag no sale ningún mail"),
       },
       { tenantId: a.tenantId, operatorSubject: "test" },
     ),
@@ -133,6 +134,7 @@ test("sin la columna: el reset y el alta fallan cerrado (ninguna provisoria, nad
           },
           setMustChange: (id, v) => mc.operatorSetMustChange(tx, { userId: id, tenantId: a.tenantId }, v),
           audit: async () => {},
+          enviarClave: async () => assert.fail("sin el flag no sale ningún mail"),
         },
         { tenantId: a.tenantId, operatorSubject: "test", entrada: { name: "Provisoria", email, role: "RECEPTION" } },
       ),

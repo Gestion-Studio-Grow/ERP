@@ -9,6 +9,7 @@
 //   · un `ownerId` de otro negocio, inactivo, borrado o de una recepcionista → se niega sin tocar nada;
 //   · el `ownerId` elegido (el MÁS NUEVO) → cambia sólo ése: hash, cambio obligatorio y auditoría suya;
 //   · un negocio con un solo dueño y sin `ownerId` → sale como siempre.
+// La provisoria sale por MAIL al elegido (GSG-SEG-014): el test la saca del mail que atrapa el doble de Resend.
 // La consola es `app_rls`, como en producción.
 
 import { test } from "node:test";
@@ -28,9 +29,22 @@ test("consola: con varios dueños activos hay que elegir; se resetea sólo al el
     OPERATOR_SECRET: "secreto-de-operador-qa",
     AUTH_SECRET: "secreto-de-auth-qa",
     OPERADOR_DUENIO: "tomas",
+    RESEND_API_KEY: "re_prueba",
+    RESEND_FROM_EMAIL: "GSG <no-responder@gsg.test>",
   });
+  // Doble del servicio de mail: guarda lo que se mandó.
+  const mails: { to: string | string[]; text: string; subject: string }[] = [];
+  const fetchOriginal = globalThis.fetch;
+  globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+    if (!String(url).startsWith("https://api.resend.com/")) return fetchOriginal(url, init);
+    mails.push(JSON.parse(String(init?.body)));
+    return new Response(JSON.stringify({ id: "m1" }), { status: 200 });
+  }) as typeof fetch;
+  const claveDelMail = (m: { text: string } | undefined) => /contraseña provisoria: (\S+)/.exec(m?.text ?? "")?.[1] ?? "";
+  const destinoDe = (m: { to: string | string[] } | undefined) => [m?.to ?? []].flat().join(",");
   t.after(() => {
-    for (const k of ["OPERATOR_DATABASE_URL", "OPERATOR_SECRET", "AUTH_SECRET", "OPERADOR_DUENIO"]) {
+    globalThis.fetch = fetchOriginal;
+    for (const k of ["OPERATOR_DATABASE_URL", "OPERATOR_SECRET", "AUTH_SECRET", "OPERADOR_DUENIO", "RESEND_API_KEY", "RESEND_FROM_EMAIL"]) {
       if (antes[k] === undefined) delete env[k];
       else env[k] = antes[k];
     }
@@ -80,6 +94,7 @@ test("consola: con varios dueños activos hay que elegir; se resetea sólo al el
     assert.match(String(r?.error), /más de un dueño activo/);
     assert.match(String(r?.error), /No se tocó nada/);
     assert.equal(await foto(), sinTocar);
+    assert.equal(mails.length, 0, "no sale ningún mail");
   });
 
   await t.test("la acción legada sin slug (`resetOwnerPassword`) no vuelve a existir", () => {
@@ -97,6 +112,7 @@ test("consola: con varios dueños activos hay que elegir; se resetea sólo al el
     // Slug mal tipeado con un dueño válido: tampoco.
     assert.equal((await intentar(() => resetOwnerPasswordDeTenant(a.id, base.b.slug, socia.id)))?.ok, false);
     assert.equal(await foto(), sinTocar);
+    assert.equal(mails.length, 0, "no sale ningún mail");
   });
 
   await t.test("el dueño elegido (el más nuevo): cambia sólo el suyo, con cambio obligatorio y auditoría", async () => {
@@ -104,9 +120,14 @@ test("consola: con varios dueños activos hay que elegir; se resetea sólo al el
     assert.equal(r.tipo, "respuesta");
     if (r.tipo !== "respuesta" || !r.valor.ok) return assert.fail(`el reset tenía que salir: ${JSON.stringify(r).slice(0, 300)}`);
     assert.equal(r.valor.email, socia.email);
+    assert.equal(mails.length, 1, "un solo mail");
+    assert.equal(destinoDe(mails[0]), socia.email, "el mail va al dueño elegido");
+    const clave = claveDelMail(mails[0]);
+    assert.ok(clave.length >= 12);
+    assert.ok(!JSON.stringify(r.valor).includes(clave), "la clave no vuelve a la pantalla");
 
     const s = await duenio.user.findUniqueOrThrow({ where: { id: socia.id }, select: { passwordHash: true, mustChangePassword: true } });
-    assert.equal(await verifyPassword(r.valor.password, s.passwordHash), true);
+    assert.equal(await verifyPassword(clave, s.passwordHash), true);
     assert.equal(await verifyPassword(CLAVE_DE_PRUEBA, s.passwordHash), false, "la vieja deja de valer");
     assert.equal(s.mustChangePassword, true);
 
@@ -119,7 +140,7 @@ test("consola: con varios dueños activos hay que elegir; se resetea sólo al el
     assert.equal(audits[0].tenantId, a.id);
     assert.equal(audits[0].entityId, socia.id);
     assert.equal(audits[0].actor, "operator:tomas");
-    assert.ok(!JSON.stringify(audits[0].changes).includes(r.valor.password), "la auditoría no lleva la contraseña");
+    assert.ok(!JSON.stringify(audits[0].changes).includes(clave), "la auditoría no lleva la contraseña");
 
     // Los demás usuarios (inactivo, borrado, recepción, el otro negocio) quedaron como estaban.
     const otros = await duenio.user.findMany({
@@ -135,8 +156,10 @@ test("consola: con varios dueños activos hay que elegir; se resetea sólo al el
     assert.equal(r.tipo, "respuesta");
     if (r.tipo !== "respuesta" || !r.valor.ok) return assert.fail("el reset con un solo dueño tenía que salir");
     assert.equal(r.valor.email, b.duenia.email);
+    assert.equal(mails.length, 2);
+    assert.equal(destinoDe(mails[1]), b.duenia.email);
     const u = await duenio.user.findUniqueOrThrow({ where: { id: b.duenia.id }, select: { passwordHash: true, mustChangePassword: true } });
-    assert.equal(await verifyPassword(r.valor.password, u.passwordHash), true);
+    assert.equal(await verifyPassword(claveDelMail(mails[1]), u.passwordHash), true);
     assert.equal(u.mustChangePassword, true);
     const audit = await duenio.auditLog.findFirstOrThrow({ where: { action: "owner.password.reset", tenantId: b.id } });
     assert.equal(audit.entityId, b.duenia.id);

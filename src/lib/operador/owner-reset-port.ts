@@ -20,17 +20,21 @@ export function ownersActivos(tx: Prisma.TransactionClient, tenantId: string): P
   });
 }
 
+//
+// `enviarClave` es por dónde sale la provisoria (GSG-SEG-014): la consola y el reseteo pendiente la
+// mandan por mail al titular (`clave-temporal-entrega.server.ts`); el script del responsable de
+// seguridad la deja en su archivo 0600 (`reset-owner-por-slug.ts`).
 export function operatorResetPort(
   tx: Prisma.TransactionClient,
   tenantId: string,
-  { ownerId }: { ownerId?: string } = {},
+  { ownerId, enviarClave }: { ownerId?: string; enviarClave: OwnerResetPort["enviarClave"] },
 ): OwnerResetPort {
   return {
     findOwner: (tid) =>
       tx.user.findFirst({
         where: { tenantId: tid, role: "OWNER", active: true, deletedAt: null, ...(ownerId ? { id: ownerId } : {}) },
         orderBy: { createdAt: "asc" },
-        select: { id: true, email: true },
+        select: { id: true, email: true, name: true },
       }),
     setPasswordHash: async (userId, passwordHash) => {
       await tx.user.update({ where: { id: userId }, data: { passwordHash } });
@@ -41,5 +45,6 @@ export function operatorResetPort(
         data: { ...entry, changes: entry.changes as Prisma.InputJsonValue },
       });
     },
+    enviarClave,
   };
 }

@@ -54,11 +54,22 @@ export async function resetOwnerPorSlug(
       }
       const ownerId = eleccion.ownerId;
 
-      const r = await resetOwnerPasswordCore(operatorResetPort(tx, tenantId, { ownerId }), {
-        tenantId,
-        operatorSubject: actor,
-      });
+      // Este camino NO manda mail: la provisoria va al archivo 0600 del responsable de seguridad
+      // (autorización del dueño, 08/11). El núcleo la entrega sólo por `enviarClave`; acá se la
+      // toma de ahí y vive únicamente en el retorno.
+      let password: string | null = null;
+      const r = await resetOwnerPasswordCore(
+        operatorResetPort(tx, tenantId, {
+          ownerId,
+          enviarClave: async (_destino, clave) => {
+            password = clave;
+            return { enviado: true };
+          },
+        }),
+        { tenantId, operatorSubject: actor, extra: { entrega: "archivo-seguridad" } },
+      );
       if (!r.ok) return r;
+      if (password === null) throw new Error("El reset no generó la provisoria: no se entrega.");
       const audit = await tx.auditLog.findFirst({
         where: { tenantId, action: AUDIT_ACTION_OWNER_RESET, entity: "User", entityId: ownerId, actor: `operator:${actor}` },
         orderBy: { createdAt: "desc" },
@@ -70,7 +81,7 @@ export async function resetOwnerPorSlug(
         select: { mustChangePassword: true },
       });
       if (owner?.mustChangePassword !== true) throw new Error("El cambio obligatorio no quedó marcado: no se entrega.");
-      return { ok: true, password: r.password, email: r.email, userId: ownerId, tenantId, auditId: audit.id };
+      return { ok: true, password, email: r.email, userId: ownerId, tenantId, auditId: audit.id };
     },
     db,
   );

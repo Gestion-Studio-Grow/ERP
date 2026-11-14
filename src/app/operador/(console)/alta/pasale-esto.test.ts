@@ -2,15 +2,17 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { LINEA_OTROS_LOCALES, pasaleEsto } from "./pasale-esto";
 
-const base = { negocio: "Estética Norte", usuario: "ana@norte.com", clave: "k3y-Segura" };
+const base = { negocio: "Estética Norte", usuario: "ana@norte.com", claveEnviadaA: "a***@norte.com" };
 
-test("con dirección: el mensaje lleva dirección, usuario y contraseña, y el WhatsApp no apunta a nadie fijo", () => {
+test("con dirección: el mensaje lleva dirección y usuario, avisa del mail (SIN la contraseña) y el WhatsApp no apunta a nadie fijo", () => {
   const p = pasaleEsto({ ...base, direccion: "https://norte.gsg.ar/admin" });
   assert.equal(p.estado, "con-direccion");
   assert.match(p.mensaje, /Estética Norte/);
   assert.match(p.mensaje, /Entrá en: https:\/\/norte\.gsg\.ar\/admin/);
   assert.match(p.mensaje, /Usuario: ana@norte\.com/);
-  assert.match(p.mensaje, /Contraseña: k3y-Segura/);
+  assert.match(p.mensaje, /te llegó por mail a a\*\*\*@norte\.com/);
+  assert.match(p.mensaje, /elijas una nueva/);
+  assert.doesNotMatch(p.mensaje, /Contraseña:/, "la clave no viaja por WhatsApp (GSG-SEG-014)");
   assert.ok(p.whatsapp.startsWith("https://wa.me/?text="));
   assert.equal(decodeURIComponent(p.whatsapp.split("?text=")[1]), p.mensaje);
 });
@@ -30,13 +32,13 @@ test("si todavía no se sabe la dirección, no afirma que no la tiene", () => {
 });
 
 test("sin contraseña nueva (el dueño ya existía) no promete una", () => {
-  const p = pasaleEsto({ ...base, clave: null, direccion: "https://x.gsg.ar/admin" });
-  assert.doesNotMatch(p.mensaje, /Contraseña:/);
+  const p = pasaleEsto({ ...base, claveEnviadaA: null, direccion: "https://x.gsg.ar/admin" });
+  assert.doesNotMatch(p.mensaje, /por mail/);
   assert.match(p.mensaje, /tu contraseña de siempre/);
 });
 
 test("refutador vuelta 4 · pidió varios locales: el mensaje dice que por ahora quedó el primero y los otros van aparte", () => {
-  const base = { negocio: "Autoservicio Red Sur", direccion: "https://redsur.gsgapp.com.ar/admin", usuario: "duenio@redsur.test", clave: "Clave-1234" };
+  const base = { negocio: "Autoservicio Red Sur", direccion: "https://redsur.gsgapp.com.ar/admin", usuario: "duenio@redsur.test", claveEnviadaA: "d***@redsur.test" };
   const conLocales = pasaleEsto({ ...base, otrosLocales: true });
   assert.equal(conLocales.mensaje.split("\n")[1], LINEA_OTROS_LOCALES, "va segunda, antes de la dirección");
   assert.ok(decodeURIComponent(conLocales.whatsapp).includes(LINEA_OTROS_LOCALES), "también en el WhatsApp");

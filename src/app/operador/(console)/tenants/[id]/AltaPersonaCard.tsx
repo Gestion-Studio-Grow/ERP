@@ -3,17 +3,16 @@
 // «Agregar una persona» en la pestaña Personas de la ficha (consola de GSG).
 //
 // Da de alta a UNA persona del negocio con su email (con el que entra) y le genera una contraseña
-// temporal que se muestra UNA vez (RevelarClave). Mismo molde que el reset del dueño: la action
+// temporal que le llega SOLA por mail (GSG-SEG-014); la pantalla sólo dice a dónde fue. Mismo molde que el reset del dueño: la action
 // (`altaPersonaDeTenant`, operator-actions.ts) repite la guardia (CH sólo con el dueño de GSG),
 // respeta el tope de usuarios del plan y deja el alta en la auditoría. El núcleo es alta-persona.ts.
 
 import { useState } from "react";
 import { Button, Input } from "@/components/ui";
 import { altaPersonaDeTenant } from "@/lib/operator-actions";
-import { RevelarClave } from "../../RevelarClave";
 
 type Resultado =
-  | { ok: true; password: string; email: string; name: string }
+  | { ok: true; email: string; enviadaA: string; name: string }
   | { ok: false; error: string };
 
 const ROLES = [
@@ -115,23 +114,17 @@ export function AltaPersonaCard({ tenantId, soloLectura }: { tenantId: string; s
             </Button>
           </div>
           <p className="text-[13px] text-muted sm:col-span-2">
-            Se le genera una contraseña temporal, que se muestra una sola vez, y tiene que cambiarla al entrar. Cuenta
+            Se le genera una contraseña temporal que le llega por mail, y tiene que cambiarla al entrar. Cuenta
             para el tope de usuarios del plan.
           </p>
         </form>
       )}
 
       {resultado?.ok && (
-        <>
-          <RevelarClave
-            clave={resultado.password}
-            para={
-              <>
-                {resultado.name} (<span className="font-mono">{resultado.email}</span>)
-              </>
-            }
-          />
-        </>
+        <p role="status" className="border-y border-line-strong bg-success-soft px-3 py-3 text-sm text-strong">
+          {resultado.name} quedó dada de alta. La contraseña provisoria salió por mail a{" "}
+          <b className="font-mono">{resultado.enviadaA}</b>; al entrar, el sistema le pide que elija una nueva.
+        </p>
       )}
       {resultado && !resultado.ok && (
         <p role="alert" className="text-sm text-danger">

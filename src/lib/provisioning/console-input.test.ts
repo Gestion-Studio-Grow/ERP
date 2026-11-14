@@ -15,7 +15,7 @@ import {
   type RawWizardForm,
 } from "./console-input";
 import { planProvision } from "./dry-run";
-import { runTenantProvisioning } from "./provision";
+import { runTenantProvisioning, sinClaveProvisoria } from "./provision";
 import {
   EMPRESA_MODULE_IDS,
   InMemoryIdempotencyStore,
@@ -151,7 +151,7 @@ test("flujo consola: commit idempotente por idempotencyKey (doble submit del mis
   const first = await runTenantProvisioning(buildProvisionInput(fullForm(), "commit"), deps);
   const second = await runTenantProvisioning(buildProvisionInput(fullForm(), "commit"), deps);
   assert.equal(first.state, "ACTIVE");
-  assert.deepEqual(second, first);
+  assert.deepEqual(second, sinClaveProvisoria(first), "la repetición no trae la provisoria (GSG-SEG-014)");
   assert.equal((deps.committer as EchoCommitter).commits.length, 1); // una sola escritura
 });
 
