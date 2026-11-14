@@ -23,7 +23,8 @@
 --      Más dos políticas RESTRICTIVAS sólo para `gsg_agente` (se suman a `tenant_isolation`, no la
 --      reemplazan): (a) nunca un negocio protegido (CH), ni por "tenantId" ni por "clienteTenantId";
 --      (b) sólo negocios con el permiso n1 VIGENTE (la última casilla n1 tildada; a igual hora gana la
---      revocación). Un evento se ve sólo si su ticket se ve.
+--      revocación); en un ticket de cartera, el del estudio Y el del cliente (función SECURITY DEFINER
+--      `gsg_permiso_n1_cliente_de_cartera`, §4 bis). Un evento se ve sólo si su ticket se ve.
 --   5. `gsg_operador`: por ahora, lo mismo que `app_rls` (la consola hoy usa `app_rls` por la caída de
 --      operator-db.ts; 58 archivos, inventario en el diseño §7.3), MENOS: AuditLog sin UPDATE/DELETE,
 --      SoporteConsentimiento sin UPDATE/DELETE, NegocioProtegido sólo lectura. Estrecharlo tabla por
@@ -119,6 +120,45 @@ CREATE TRIGGER soporte_consentimiento_titular BEFORE INSERT ON "SoporteConsentim
   FOR EACH ROW EXECUTE FUNCTION gsg_consentimiento_lo_firma_el_titular();
 REVOKE ALL ON FUNCTION gsg_consentimiento_lo_firma_el_titular() FROM PUBLIC;
 
+-- ── 4 bis. Permiso del CLIENTE de un ticket de cartera (SECURITY DEFINER, MANT-003) ──
+-- El ticket de cartera vive en el estudio ("tenantId") con el cliente en "clienteTenantId". Bajo el RLS
+-- del estudio, el permiso del cliente no se ve: por eso esta función corre como su dueño (neondb_owner,
+-- exento de RLS mientras no se aplique el FORCE opcional de prisma/rls/0003; con FORCE no ve el permiso
+-- del cliente y devuelve false: falla cerrado).
+-- SIN PARÁMETROS: los dos negocios salen del contexto de la transacción que fija agente-db.ts
+-- (`app.current_tenant_id` = el estudio, `app.cliente_tenant_id` = el cliente del ticket del despacho),
+-- nunca de un argumento. La política exige además que el "clienteTenantId" de la fila sea ESE cliente:
+-- una transacción del agente ve, como mucho, la cartera de un solo cliente.
+-- Devuelve true SÓLO si, todo a la vez y en cada llamada:
+--   · los dos negocios están fijados y ninguno está protegido (CH nunca, aunque tenga permiso cargado);
+--   · el estudio tiene al menos un ticket de cartera con ese cliente;
+--   · el permiso n1 vigente del estudio Y el del cliente: la última casilla n1 de cada uno tildada
+--     (a igual hora gana la revocación; la hora la pone la base, trigger del §4).
+-- Devuelve sólo un boolean (nunca filas, fechas ni ids). Esquema explícito y pg_temp al final del
+-- search_path (una tabla temporal de quien llama no tapa a la real). EXECUTE sólo para gsg_agente.
+-- Residual (diseño §7.3): parado en un estudio CON permiso y fijando un cliente de SU cartera, el agente
+-- puede saber si ese cliente dio el permiso n1: es lo mismo que ya revela ver o no su ticket. Sin ticket
+-- de cartera con ese cliente, o sin permiso del estudio, la respuesta es siempre false.
+CREATE OR REPLACE FUNCTION gsg_permiso_n1_cliente_de_cartera() RETURNS BOOLEAN
+  LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $f$
+  SELECT COALESCE((
+    SELECT s.estudio IS NOT NULL AND s.estudio <> '' AND s.cliente IS NOT NULL AND s.cliente <> ''
+      AND NOT EXISTS (SELECT 1 FROM public."NegocioProtegido" p WHERE p."negocioId" = s.estudio OR p."negocioId" = s.cliente)
+      AND EXISTS (SELECT 1 FROM public."SupportTicket" t WHERE t."tenantId" = s.estudio AND t."clienteTenantId" = s.cliente)
+      AND COALESCE((SELECT c."aceptado" FROM public."SoporteConsentimiento" c
+                    WHERE c."tenantId" = s.estudio AND c."nivel" = 'n1'
+                    ORDER BY c."createdAt" DESC, c."aceptado" ASC LIMIT 1), false)
+      AND COALESCE((SELECT c."aceptado" FROM public."SoporteConsentimiento" c
+                    WHERE c."tenantId" = s.cliente AND c."nivel" = 'n1'
+                    ORDER BY c."createdAt" DESC, c."aceptado" ASC LIMIT 1), false)
+    FROM (SELECT current_setting('app.current_tenant_id', true) AS estudio,
+                 current_setting('app.cliente_tenant_id', true) AS cliente) s
+  ), false)
+$f$;
+ALTER FUNCTION gsg_permiso_n1_cliente_de_cartera() OWNER TO neondb_owner;
+REVOKE ALL ON FUNCTION gsg_permiso_n1_cliente_de_cartera() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION gsg_permiso_n1_cliente_de_cartera() TO gsg_agente;
+
 REVOKE ALL ON FUNCTION gsg_negocio_protegido(TEXT) FROM PUBLIC;
 REVOKE ALL ON FUNCTION gsg_permiso_n1_vigente(TEXT) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION gsg_negocio_protegido(TEXT) TO gsg_agente;
@@ -135,20 +175,23 @@ GRANT SELECT ON "SoporteConsentimiento" TO gsg_agente;
 GRANT SELECT ON "NegocioProtegido" TO gsg_agente;
 
 -- Políticas RESTRICTIVAS sólo para gsg_agente (se combinan con AND con tenant_isolation).
--- Ticket de cartera (vive en el estudio, cliente en clienteTenantId): exige además el permiso del CLIENTE.
--- Como la función lee bajo RLS del negocio parado, el permiso del cliente no se ve → hoy el agente no ve
--- ningún ticket de cartera (falla cerrado; esos los atiende una persona). Abrirlo pide una función
--- SECURITY DEFINER propia, con su certificación.
+-- Ticket de cartera (vive en el estudio, cliente en clienteTenantId): exige además el permiso del CLIENTE,
+-- leído con la función SECURITY DEFINER del §4 bis (bajo el RLS del estudio no se vería), y sólo del
+-- cliente fijado en la transacción (`app.cliente_tenant_id`, lo pone agente-db.ts). Sin permiso del
+-- estudio o del cliente → no se ve; CH en cualquiera de los dos → nunca. La revocación vale desde la
+-- siguiente sentencia (cada sentencia toma su foto en READ COMMITTED).
 DROP POLICY IF EXISTS mant_agente_candado ON "SupportTicket";
 CREATE POLICY mant_agente_candado ON "SupportTicket" AS RESTRICTIVE FOR ALL TO gsg_agente
   USING (NOT gsg_negocio_protegido("tenantId")
          AND ("clienteTenantId" IS NULL OR NOT gsg_negocio_protegido("clienteTenantId"))
          AND gsg_permiso_n1_vigente("tenantId")
-         AND ("clienteTenantId" IS NULL OR gsg_permiso_n1_vigente("clienteTenantId")))
+         AND ("clienteTenantId" IS NULL OR ("clienteTenantId" = current_setting('app.cliente_tenant_id', true)
+                                             AND gsg_permiso_n1_cliente_de_cartera())))
   WITH CHECK (NOT gsg_negocio_protegido("tenantId")
          AND ("clienteTenantId" IS NULL OR NOT gsg_negocio_protegido("clienteTenantId"))
          AND gsg_permiso_n1_vigente("tenantId")
-         AND ("clienteTenantId" IS NULL OR gsg_permiso_n1_vigente("clienteTenantId")));
+         AND ("clienteTenantId" IS NULL OR ("clienteTenantId" = current_setting('app.cliente_tenant_id', true)
+                                             AND gsg_permiso_n1_cliente_de_cartera())));
 
 -- Un evento existe para el agente sólo si su ticket existe para el agente (hereda el candado).
 DROP POLICY IF EXISTS mant_agente_candado ON "SupportTicketEvento";
@@ -201,9 +244,25 @@ BEGIN
   IF has_table_privilege('gsg_operador', '"SoporteConsentimiento"', 'INSERT') OR has_table_privilege('gsg_agente', '"SoporteConsentimiento"', 'INSERT') THEN
     RAISE EXCEPTION 'MANT_roles_soporte: el permiso del cliente sólo lo escribe su panel (app_rls)';
   END IF;
-  IF EXISTS (SELECT 1 FROM pg_proc WHERE proname IN ('gsg_negocio_protegido', 'gsg_permiso_n1_vigente', 'gsg_consentimiento_lo_firma_el_titular')
-             AND (prosecdef OR NOT COALESCE(proconfig @> ARRAY['search_path=pg_catalog, public, pg_temp'], false))) THEN
+  IF EXISTS (SELECT 1 FROM pg_proc WHERE proname IN ('gsg_negocio_protegido', 'gsg_permiso_n1_vigente', 'gsg_consentimiento_lo_firma_el_titular', 'gsg_permiso_n1_cliente_de_cartera')
+             AND NOT COALESCE(proconfig @> ARRAY['search_path=pg_catalog, public, pg_temp'], false)) THEN
     RAISE EXCEPTION 'MANT_roles_soporte: una función del candado no fija search_path con pg_temp al final';
+  END IF;
+  -- Sólo la del permiso del cliente de cartera es SECURITY DEFINER; las demás corren como quien consulta.
+  IF EXISTS (SELECT 1 FROM pg_proc WHERE proname IN ('gsg_negocio_protegido', 'gsg_permiso_n1_vigente', 'gsg_consentimiento_lo_firma_el_titular') AND prosecdef)
+     OR (SELECT count(*) FROM pg_proc WHERE proname = 'gsg_permiso_n1_cliente_de_cartera') <> 1 THEN
+    RAISE EXCEPTION 'MANT_roles_soporte: SECURITY DEFINER fuera de lugar en el candado';
+  END IF;
+  -- La SECURITY DEFINER: del dueño de las tablas, sin parámetros (los negocios salen del contexto), devuelve
+  -- sólo boolean, EXECUTE sólo para gsg_agente (ni PUBLIC, ni app_rls, ni gsg_operador).
+  IF EXISTS (SELECT 1 FROM pg_proc p WHERE p.proname = 'gsg_permiso_n1_cliente_de_cartera'
+             AND (NOT p.prosecdef OR pg_get_userbyid(p.proowner) <> 'neondb_owner' OR p.prorettype <> 'boolean'::regtype
+                  OR p.proretset OR p.pronargs <> 0 OR p.proacl IS NULL
+                  OR EXISTS (SELECT 1 FROM aclexplode(p.proacl) a WHERE a.grantee = 0 AND a.privilege_type = 'EXECUTE')))
+     OR NOT has_function_privilege('gsg_agente', 'gsg_permiso_n1_cliente_de_cartera()', 'EXECUTE')
+     OR has_function_privilege('app_rls', 'gsg_permiso_n1_cliente_de_cartera()', 'EXECUTE')
+     OR has_function_privilege('gsg_operador', 'gsg_permiso_n1_cliente_de_cartera()', 'EXECUTE') THEN
+    RAISE EXCEPTION 'MANT_roles_soporte: la función del permiso del cliente de cartera quedó abierta o con otro dueño';
   END IF;
   IF EXISTS (SELECT 1 FROM "Tenant" WHERE slug = 'beauty-spa')
      AND NOT EXISTS (SELECT 1 FROM "NegocioProtegido" p JOIN "Tenant" t ON t.id = p."negocioId" WHERE t.slug = 'beauty-spa') THEN
@@ -223,6 +282,7 @@ COMMIT;
 --   DROP TABLE IF EXISTS "SoporteConsentimiento";
 --   DROP TABLE IF EXISTS "NegocioProtegido";
 --   DROP FUNCTION IF EXISTS gsg_consentimiento_lo_firma_el_titular() CASCADE;
+--   DROP FUNCTION IF EXISTS gsg_permiso_n1_cliente_de_cartera();
 --   DROP FUNCTION IF EXISTS gsg_permiso_n1_vigente(TEXT);
 --   DROP FUNCTION IF EXISTS gsg_negocio_protegido(TEXT);
 --   ALTER DEFAULT PRIVILEGES FOR ROLE neondb_owner IN SCHEMA public REVOKE ALL ON TABLES FROM gsg_operador;
