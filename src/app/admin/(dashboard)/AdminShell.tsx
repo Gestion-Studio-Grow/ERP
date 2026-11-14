@@ -87,6 +87,7 @@ export function NavLinks({ items, onNavigate }: { items: NavItem[]; onNavigate?:
           <Link
             key={item.href}
             href={item.href}
+            prefetch={false}
             onClick={onNavigate}
             data-nav-item
             data-active={active || undefined}
@@ -339,6 +340,7 @@ export function NavBuscable({
                   role="option"
                   aria-selected={i === seleccionado}
                   href={item.href}
+                  prefetch={false}
                   onClick={() => {
                     limpiar();
                     onNavigate?.();
@@ -400,6 +402,7 @@ export function NavFooter({
       {showPublicSite && (
         <Link
           href="/"
+          prefetch={false}
           onClick={onNavigate}
           className="block rounded-md px-2 py-1.5 text-xs text-muted hover:text-accent hover:bg-surface-sunken"
         >
