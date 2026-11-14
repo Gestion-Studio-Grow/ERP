@@ -152,6 +152,11 @@ async function cambiarEnLaBase(almacen: Almacen, negocio: string | undefined, ac
   if (!op) return almacen.informar({ ok: false, mensaje: "Entrá con tu PIN para operar." });
   const puerta = puertaDelPin();
   if (!puerta) return almacen.informar({ ok: false, mensaje: "No se pudo cambiar el PIN desde acá: recargá la página y probá de nuevo." });
+  // Lo pendiente del puesto lleva el PIN de antes: se sube primero, para que el cambio no se adelante a la cola.
+  if (almacen.pendienteDeGuardar()) {
+    almacen.guardarYa();
+    return almacen.informar({ ok: false, mensaje: "Hay movimientos de este equipo subiendo. Esperá unos segundos y probá de nuevo." });
+  }
   const previa = conElTopeDelEquipo(almacen, negocio, () => ejecutarConfiguracion(almacen.copia(), accion, almacen.ahora(), almacen.auth()));
   if (!previa.ok) return almacen.informar(previa);
   let r: RespuestaCambiarMiPin;
