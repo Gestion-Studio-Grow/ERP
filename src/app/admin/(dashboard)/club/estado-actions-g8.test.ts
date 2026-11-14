@@ -44,6 +44,12 @@ const DOBLES: Record<string, unknown> = {
       throw new Error("no se usa en este test");
     },
   },
+  // SEG-020: sin PIN fuertes pendientes (el tope y el re-hash contra la base están en firma-del-duenio-postgres.test.ts).
+  "@/lib/club/tope-pin-servidor": {
+    leerPinesFuertes: async () => new Map(),
+    borrarPinesFuertes: async () => {},
+    fuertesParaBorrar: () => [],
+  },
 };
 const conCarga = Module as unknown as { _load: (pedido: string, padre: { filename?: string } | null, ...resto: unknown[]) => unknown };
 const cargarOriginal = conCarga._load;

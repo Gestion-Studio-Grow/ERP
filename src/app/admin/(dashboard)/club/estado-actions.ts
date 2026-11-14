@@ -27,6 +27,12 @@
 // `restaurarRespaldoDelClub` no las usa hoy ninguna pantalla (sí los tests). Se cierra con los comandos / el back
 // separado (G10).
 //
+// SEG-020: el PIN guardado de un dueño del club no sale del servidor, para ninguna sesión. `leerFotoDelClub` lo baja
+// como la marca `"srv:"` (con su `pinLargo`) y `guardarFotoDelClub` lo repone de la foto vigente SIEMPRE, también
+// para un OWNER (src/lib/club/pin-servidor.ts); si guarda alguien que no es OWNER, después sigue `conservarLoDelicado`.
+// Restaurar un respaldo con la marca también la repone de la vigente. La firma de un dueño se verifica en
+// firma-del-duenio-actions.ts.
+//
 // — Elaborado por GSG
 
 import { gzipSync } from "node:zlib";
@@ -35,7 +41,8 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import type { SessionUser } from "@/lib/session";
 import { guardar, leerMetaVigente, leerVigente, restaurar, MENSAJE_CAMBIO_MIENTRAS_MIRABAS } from "@/lib/club/estado-repo";
 import { leerSobre, resumenDelRespaldo, type ResumenDelRespaldo } from "@/lib/club/foto";
-import { conservarLoDelicado } from "@/lib/club/delicado";
+import { huellaDePin, ocultarPinesDeDuenio, reponerPinesDeDuenio } from "@/lib/club/pin-servidor";
+import { borrarPinesFuertes, fuertesParaBorrar, leerPinesFuertes } from "@/lib/club/tope-pin-servidor";
 import { leerRespaldo } from "./configuracion-core";
 import { textoSubido } from "./estado-subida";
 
@@ -84,9 +91,11 @@ export async function leerFotoDelClub(): Promise<RespuestaLeerFoto> {
   if ("error" in q) return { ok: false, error: q.error };
   const foto = await leerVigente(q.tenantId);
   if (!foto) return { ok: true, foto: null };
+  const texto = ocultarPinesDeDuenio(foto.texto);
+  if (texto === null) return { ok: false, error: "No se pudo leer lo guardado del club: probá de nuevo en un rato." };
   return {
     ok: true,
-    foto: { gzip: gzipSync(foto.texto).toString("base64"), version: foto.version, guardado: foto.guardado, actualizada: foto.actualizada.toISOString() },
+    foto: { gzip: gzipSync(texto).toString("base64"), version: foto.version, guardado: foto.guardado, actualizada: foto.actualizada.toISOString() },
   };
 }
 
@@ -113,20 +122,38 @@ export async function guardarFotoDelClub(datos: FormData): Promise<RespuestaGuar
   // G8: si no guarda un dueño del ERP, los usuarios, los PIN y la configuración que mueve plata o permisos (firma de
   // caja, precios, seña, fondo, alias) quedan como en la foto vigente (ningún PIN cambia por acá: «Cambiar mi PIN» va por pin-del-club-actions.ts). Un guardado
   // de la tablet de recepción no puede pisar PIN ni bajar la firma de caja a 2 (src/lib/club/delicado.ts).
+  // SEG-020: los PIN de dueño llegan con la marca y se reponen de la vigente (o su h2 pendiente), para cualquier sesión.
   let texto = subido.texto;
-  if (q.user.role !== "OWNER") {
-    const vigente = await leerVigente(q.tenantId);
-    if (vigente) {
-      const c = conservarLoDelicado(vigente.texto, texto);
-      texto = c.texto;
-      // Es un evento de seguridad: alguien que no es dueño mandó usuarios, PIN o reglas distintos (queda en los logs).
-      if (c.corregido) console.warn("[club] G8: guardado sin dueño con usuarios/PIN/reglas distintos; se conservaron los de la base", { tenantId: q.tenantId, userId: q.user.id });
-    }
+  const vigente = await leerVigente(q.tenantId);
+  const fuertes = vigente ? await leerPinesFuertes(q.tenantId) : new Map<string, { de: string; h2: string }>();
+  if (vigente) {
+    const c = reponerPinesDeDuenio(vigente.texto, texto, { esOwner: q.user.role === "OWNER", fuertes });
+    texto = c.texto;
+    // Es un evento de seguridad: llegaron usuarios, PIN o reglas que esta sesión no puede cambiar (queda en los logs).
+    if (c.corregido) console.warn("[club] G8/SEG-020: guardado con usuarios/PIN/reglas que no se aceptan; se conservaron los de la base", { tenantId: q.tenantId, userId: q.user.id, rol: q.user.role });
   }
   const r = await guardar(q.tenantId, texto, version, `user:${q.user.id}`);
-  if (r.ok) return { ok: true, version: r.version };
+  if (r.ok) {
+    await limpiarFuertes(q.tenantId, fuertes, texto);
+    return { ok: true, version: r.version };
+  }
   if (r.motivo === "CAMBIO_MIENTRAS_MIRABAS") return { ok: false, motivo: "conflicto", version: r.version, error: MENSAJE_CAMBIO_MIENTRAS_MIRABAS };
   return { ok: false, motivo: "error", error: r.detalle };
+}
+
+/** Borra los h2 pendientes que ya quedaron aplicados (o viejos) en lo que se guardó. No frena el guardado. */
+async function limpiarFuertes(tenantId: string, fuertes: ReadonlyMap<string, { de: string; h2: string }>, guardado: string): Promise<void> {
+  if (!fuertes.size) return;
+  try {
+    const us = (JSON.parse(guardado) as { estado?: { usuarios?: { id?: unknown; pin?: unknown }[] } }).estado?.usuarios ?? [];
+    const pinDe = (id: string) => {
+      const p = us.find((u) => u?.id === id)?.pin;
+      return typeof p === "string" ? p : undefined;
+    };
+    await borrarPinesFuertes(tenantId, fuertesParaBorrar(fuertes, pinDe, huellaDePin));
+  } catch (e) {
+    console.warn("[club] SEG-020: no se pudieron limpiar los PIN fuertes aplicados", { tenantId, error: e instanceof Error ? e.message : "?" });
+  }
 }
 
 /** Lo que trae un respaldo, SIN guardarlo (para mirarlo antes de restaurar). Sólo un dueño. */
@@ -155,7 +182,11 @@ export async function restaurarRespaldoDelClub(datos: FormData): Promise<Respues
     const ajeno = await motivoDeRespaldoAjeno(q.tenantId, subido.texto);
     if (ajeno) return { ok: false, error: ajeno };
   }
-  const r = await restaurar(q.tenantId, subido.texto, { actor: `user:${q.user.id}`, rol: q.user.role });
+  // SEG-020: un respaldo bajado de la pantalla trae los PIN de dueño con la marca: se reponen de la vigente.
+  let texto = subido.texto;
+  const vigente = await leerVigente(q.tenantId);
+  if (vigente) texto = reponerPinesDeDuenio(vigente.texto, texto, { esOwner: true, fuertes: await leerPinesFuertes(q.tenantId) }).texto;
+  const r = await restaurar(q.tenantId, texto, { actor: `user:${q.user.id}`, rol: q.user.role });
   if (!r.ok) return { ok: false, error: r.detalle };
   return { ok: true, version: r.version, resumen: r.resumen };
 }

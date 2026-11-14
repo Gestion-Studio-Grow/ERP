@@ -19,6 +19,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { cambiarMiPin, esPinConHash, hashPin, hidratarEstado } from "./motor.mjs";
 import type { Ahora, EstadoClub } from "./motor.mjs";
+import { esPinFuerte, pinDelDuenioCoincide } from "./pin-servidor";
 
 export interface PedidoDeCambioDePin {
   usuarioId: string;
@@ -46,10 +47,14 @@ function igualesSinApuro(a: string, b: string): boolean {
   return x.length === y.length && timingSafeEqual(x, y);
 }
 
-/** ¿`pin` es el PIN guardado de `u`? La misma regla que `pinCoincide` del motor, con comparación de largo fijo. */
+/**
+ * ¿`pin` es el PIN guardado de `u`? La misma regla que `pinCoincide` del motor, con comparación de largo fijo. Un
+ * PIN guardado fuerte (h2, sólo de dueños: SEG-020) lo verifica pin-servidor.ts.
+ */
 function pinActualCoincide(estado: EstadoClub, guardado: string | undefined, pin: string): boolean {
   const p = pin.trim();
   if (!guardado || !p) return false;
+  if (esPinFuerte(guardado)) return pinDelDuenioCoincide(guardado, p, estado.salPin);
   if (!esPinConHash(guardado)) return igualesSinApuro(guardado, p);
   return !!estado.salPin && igualesSinApuro(hashPin(p, estado.salPin), guardado);
 }
@@ -71,6 +76,9 @@ export function cambiarPinEnLaFoto(textoVigente: string, pedido: PedidoDeCambioD
   if (u.rol === "duenio" && !pedido.esDuenioDelErp) return { ok: false, codigo: "duenio", motivo: "El PIN de un dueño se cambia desde el puesto del dueño." };
   if (!pinActualCoincide(estado, u.pin, pinActual)) return { ok: false, codigo: "pin-actual", motivo: "Tu PIN actual no es ese: revisalo." };
   if (pinNuevo === pinActual.trim()) return { ok: false, codigo: "pin-nuevo", motivo: "El PIN nuevo es igual al de ahora: elegí otro." };
+  // El motor no entiende el h2: ya comprobado, se le pasa el actual en claro SÓLO en memoria (cambiarMiPin lo
+  // reemplaza por el hash del nuevo; si el nuevo no pasa, este estado no se guarda).
+  if (esPinFuerte(u.pin)) u.pin = pinActual.trim();
   const r = cambiarMiPin(estado, { usuarioId: u.id, pin: pinActual }, pinNuevo, pedido.ahora);
   // El actual ya se comprobó: si el motor dice que no, es por el nuevo (largo, fácil o en uso).
   if (!r.ok) return { ok: false, codigo: "pin-nuevo", motivo: r.motivo };
