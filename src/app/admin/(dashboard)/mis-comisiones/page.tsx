@@ -43,6 +43,8 @@ export default async function MisComisionesPage() {
           {p ? `${p.lineas.length} ${p.lineas.length === 1 ? "turno realizado y cobrado" : "turnos realizados y cobrados"} hasta hoy.` : "Nada pendiente por ahora."}{" "}
           {mia.esperandoSaldo > 0 &&
             `${mia.esperandoSaldo} ${mia.esperandoSaldo === 1 ? "turno espera" : "turnos esperan"} que se cobre el saldo. `}
+          {mia.pendienteDeRendir &&
+            `Tenés ${plata(mia.pendienteDeRendir.pendienteDeRendirCents)} cobrados sin rendir: la comisión de esos turnos (${plata(mia.pendienteDeRendir.comisionCents)}) se suma cuando los rindas. `}
           Es una estimación: el número final lo fija la liquidación.
         </p>
         {p && p.lineas.length > 0 && (

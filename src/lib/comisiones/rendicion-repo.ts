@@ -289,6 +289,56 @@ export async function registrarRendicionInTx(
   };
 }
 
+// ── Lo que falta rendir de cada turno (para la liquidación de comisiones) ───
+
+/**
+ * Turno → suma de sus `CobroARendir` SIN rendir y SIN anular (mismo criterio que la pantalla y que
+ * `registrarRendicionInTx`). Un turno sin nada pendiente no aparece. Sin las tablas (o sin permisos):
+ * mapa vacío, todo sigue como hoy. La regla que decide con esto: comisiones/comision-no-rendida.ts.
+ *
+ * `bloquear` (lo usa `settleCommissions`, Serializable): toma los turnos FOR UPDATE y sus cobros a
+ * rendir FOR SHARE, en orden de id — el MISMO orden que la rendición (turnos, después cobros) y que
+ * la anulación de un cobro (turno FOR UPDATE, cobro FOR SHARE), así no hay abrazo mortal:
+ *  · si una rendición está en vuelo, la liquidación espera; al confirmar la rendición, el FOR SHARE
+ *    sobre la fila ya actualizada aborta con 40001 y `tenantTransaction` reintenta con foto nueva;
+ *  · si la liquidación va primero, la rendición espera, y la liquidación no paga lo que todavía no
+ *    estaba rendido. Nunca se paga comisión de un cobro no rendido.
+ */
+export async function pendienteDeRendirPorTurnoInTx(
+  tx: RendicionTx,
+  tenantId: string,
+  appointmentIds: readonly string[],
+  opts: { bloquear?: boolean } = {},
+): Promise<Map<string, number>> {
+  const ids = [...new Set(appointmentIds)].sort();
+  if (ids.length === 0 || !(await hayRendicionesInTx(tx))) return new Map();
+  if (opts.bloquear) {
+    await tx.$queryRaw`
+      SELECT a."id" FROM "Appointment" a
+      WHERE a."tenantId" = ${tenantId} AND a."id" IN (${Prisma.join(ids)})
+      ORDER BY a."id"
+      FOR UPDATE OF a`;
+    await tx.$queryRaw`
+      SELECT r."id" FROM "CobroARendir" r
+      WHERE r."tenantId" = ${tenantId} AND r."appointmentId" IN (${Prisma.join(ids)})
+      ORDER BY r."id"
+      FOR SHARE OF r`;
+  }
+  const filas = await tx.$queryRaw<{ appointmentId: string; monto: number }[]>`
+    SELECT r."appointmentId", SUM(r."monto")::float8 AS "monto"
+    FROM "CobroARendir" r
+    WHERE r."tenantId" = ${tenantId}
+      AND r."appointmentId" IN (${Prisma.join(ids)})
+      AND r."rendicionId" IS NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM "Collection" c
+        WHERE c."tenantId" = r."tenantId" AND c."appointmentId" = r."appointmentId"
+          AND c."note" LIKE ('ANULACION:' || r."collectionId" || '%')
+      )
+    GROUP BY r."appointmentId"`;
+  return new Map(filas.filter((f) => Number(f.monto) > 0).map((f) => [f.appointmentId, Number(f.monto)]));
+}
+
 /** ¿El error es el choque del `@@unique(tenantId, idempotencyKey)` de la rendición? */
 export function esChoqueDeClaveDeRendicion(e: unknown): boolean {
   const s = (() => {

@@ -11,11 +11,32 @@
 
 import type { Prisma } from "@/generated/prisma/client";
 import { aNumero } from "@/lib/debts/resumen-cuentas";
+import { hayRendicionesInTx, pendienteDeRendirPorTurnoInTx } from "@/lib/comisiones/rendicion-repo";
 import { comisionesPendientes, contarTurnosEsperandoSaldo, whereTurnosConComisionPendiente, type ComisionPendiente, type TurnoPendiente } from "./comisiones";
+
+/**
+ * Lo que falta rendir de cada turno (rendicion-repo.ts), para que la pantalla excluya lo mismo que
+ * `settleCommissions`. Sin las tablas: mapa vacío y nada cambia. El SQL crudo necesita el GUC del
+ * negocio (RLS): con el cliente suelto (`prisma`, no una transacción) se corre dentro de
+ * `tenantTransaction`, igual que el proxy hace con una operación de modelo suelta.
+ */
+async function pendienteDeRendirDeLectura(
+  db: Prisma.TransactionClient,
+  tenantId: string,
+  ids: readonly string[],
+): Promise<Map<string, number>> {
+  if (ids.length === 0 || !(await hayRendicionesInTx(db))) return new Map();
+  if (typeof (db as { $transaction?: unknown }).$transaction === "function") {
+    const { tenantTransaction } = await import("@/lib/rls");
+    return tenantTransaction((tx) => pendienteDeRendirPorTurnoInTx(tx, tenantId, ids), { tenantId });
+  }
+  return pendienteDeRendirPorTurnoInTx(db, tenantId, ids);
+}
 
 async function leerTurnos(
   db: Prisma.TransactionClient,
-  where: Prisma.AppointmentWhereInput,
+  where: Prisma.AppointmentWhereInput & { tenantId: string },
+  conRendicion = true,
 ): Promise<{ turnos: TurnoPendiente[]; overrides: Map<string, Map<string, number>> }> {
   const turnos = await db.appointment.findMany({
     where,
@@ -38,6 +59,9 @@ async function leerTurnos(
       client: { select: { name: true } },
     },
   });
+  const pendienteDeRendir = conRendicion
+    ? await pendienteDeRendirDeLectura(db, where.tenantId, turnos.map((t) => t.id))
+    : new Map<string, number>();
   const overrides = new Map<string, Map<string, number>>();
   for (const t of turnos) {
     if (overrides.has(t.professionalId)) continue;
@@ -60,6 +84,7 @@ async function leerTurnos(
       payment: t.payment ? { status: t.payment.status, amount: aNumero(t.payment.amount) } : null,
       servicio: t.service?.name,
       clienta: t.client?.name,
+      pendienteDeRendir: pendienteDeRendir.get(t.id) ?? 0,
     })),
   };
 }
@@ -88,6 +113,7 @@ export function leerTurnosPendientes(
 
 /** Los turnos terminados y sin liquidar que esperan a que se cobre el saldo, con o sin cobro todavía. */
 export async function leerTurnosEsperandoSaldo(db: Prisma.TransactionClient, tenantId: string): Promise<number> {
-  const { turnos, overrides } = await leerTurnos(db, { tenantId, status: "COMPLETED", commissionPayoutId: null });
+  // Sólo cuenta el saldo: lo pendiente de rendir no entra en esta cuenta.
+  const { turnos, overrides } = await leerTurnos(db, { tenantId, status: "COMPLETED", commissionPayoutId: null }, false);
   return contarTurnosEsperandoSaldo(turnos, overrides);
 }

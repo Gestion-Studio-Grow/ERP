@@ -46,9 +46,10 @@ export default function VistaPrevia({
       <h2 id="vista-previa-titulo" className="font-medium">
         Liquidar un período
       </h2>
+      {/* Período por defecto: el mes que cerró (provisional a confirmar con el dueño). */}
       <p className="mt-1 text-xs text-muted">
         Entran los turnos realizados y saldados hasta el último día del período (hora de Argentina). Lo de
-        antes que todavía no se liquidó entra también. Período por defecto: el mes que cerró (provisional a confirmar).
+        antes que todavía no se liquidó entra también. Período por defecto: el mes que cerró.
       </p>
 
       <div className="mt-3 flex flex-wrap items-center gap-1" role="group" aria-label="Tipo de período">
@@ -162,6 +163,57 @@ export default function VistaPrevia({
           </li>
         ))}
       </ul>
+
+      {vista.pendientesDeRendir.length > 0 && (
+        <section className="mt-5" aria-labelledby="pendiente-rendir-titulo">
+          <h3 id="pendiente-rendir-titulo" className="text-sm font-medium">
+            Pendiente de rendir
+          </h3>
+          {/* Regla provisional a confirmar con el dueño (opción A): comisiones/comision-no-rendida.ts. */}
+          <p className="text-xs text-muted">
+            Turnos que la profesional cobró y todavía no rindió. Su comisión se paga cuando rinda la plata.
+          </p>
+          <ul className="mt-2 space-y-2">
+            {vista.pendientesDeRendir.map((prof) => (
+              <li key={prof.professionalId} className="rounded-md border border-line">
+                <details>
+                  <summary className="flex min-h-11 cursor-pointer items-center justify-between gap-3 px-3 py-2 text-sm">
+                    <span>
+                      <span className="font-medium">{prof.professionalName}</span>
+                      <span className="block text-xs text-muted">
+                        {prof.lineas.length} {prof.lineas.length === 1 ? "turno" : "turnos"} · comisión al rendir {plata(prof.comisionCents)}
+                      </span>
+                    </span>
+                    <span className="text-right">
+                      <span className="block text-xs text-muted">Pendiente de rendir</span>
+                      <span className="font-semibold tabular-nums text-strong">{plata(prof.pendienteDeRendirCents)}</span>
+                    </span>
+                  </summary>
+                  <ul className="divide-y divide-line border-t border-line px-3 text-sm" aria-label={`Turnos sin rendir de ${prof.professionalName}`}>
+                    {prof.lineas.map((l) => (
+                      <li key={l.id} className="flex items-start justify-between gap-3 py-2">
+                        <span className="min-w-0">
+                          <span className="block truncate">{l.servicio}</span>
+                          <span className="block text-xs text-muted">
+                            {fmtShortDate(l.startsAt)}
+                            {l.clienta && <> · {l.clienta}</>} · sin rendir {plata(l.pendienteDeRendirCents)}
+                          </span>
+                        </span>
+                        <span className="shrink-0 text-right tabular-nums">
+                          <span className="block">{plata(l.comisionCents)}</span>
+                          <span className="block text-xs text-muted">
+                            {l.pct}% de {plata(l.baseCents)}
+                          </span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {comprobantes.length > 0 && (
         <div className="mt-5">

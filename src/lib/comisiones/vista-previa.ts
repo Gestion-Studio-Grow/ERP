@@ -15,6 +15,7 @@ import { montoComision, resolvePct } from "@/lib/comision-liquidacion";
 import { centavosDe } from "@/lib/dinero/redondeo";
 import { sePuedeLiquidar } from "@/lib/comision-liquidable";
 import { baseDeComision } from "./base";
+import { seLiquidaSegunRendicion } from "./comision-no-rendida";
 import { comisionesPendientes, type TurnoPendiente } from "@/lib/reports/comisiones";
 import { entraEnElCorte, esDeAntes, type PeriodoComision } from "./periodo";
 
@@ -46,6 +47,26 @@ export interface VistaPreviaProfesional {
   detalleCuadra: boolean;
 }
 
+/** Un turno que la profesional cobró y todavía no rindió: no se paga hasta que rinda. */
+export interface LineaPendienteDeRendir extends LineaDeVistaPrevia {
+  /** Lo que falta rendir de este turno (Σ de sus cobros a rendir pendientes), en centavos. */
+  pendienteDeRendirCents: number;
+}
+
+/**
+ * Lo que espera la rendición, por profesional (comisiones/comision-no-rendida.ts). Se muestra como
+ * «Pendiente de rendir», sin botón: NO entra en `totalCents` ni en lo que paga `settleCommissions`.
+ */
+export interface PendienteDeRendirProfesional {
+  professionalId: string;
+  professionalName: string;
+  lineas: LineaPendienteDeRendir[];
+  /** Lo que falta rendir, en centavos («pendiente de rendir $37.000»). */
+  pendienteDeRendirCents: number;
+  /** La comisión de esos turnos, que se va a pagar cuando rinda (sólo informativa), en centavos. */
+  comisionCents: number;
+}
+
 export interface VistaPrevia {
   periodo: PeriodoComision;
   profesionales: VistaPreviaProfesional[];
@@ -58,6 +79,8 @@ export interface VistaPrevia {
   esperandoSaldo: number;
   /** Turnos pendientes de DESPUÉS del corte: entran en el período siguiente. */
   despuesDelCorte: number;
+  /** Turnos del período saldados pero con cobros sin rendir: esperan la rendición (sin botón). */
+  pendientesDeRendir: PendienteDeRendirProfesional[];
 }
 
 /**
@@ -78,6 +101,7 @@ export function armarVistaPrevia(
 
   let esperandoSaldo = 0;
   const lineasPorProfesional = new Map<string, LineaDeVistaPrevia[]>();
+  const porRendir = new Map<string, PendienteDeRendirProfesional>();
   for (const t of enCorte) {
     if (!t.payment) continue;
     const pct = resolvePct(t.pctGeneral, overrides.get(t.professionalId) ?? sinOverrides, t.serviceId);
@@ -89,8 +113,7 @@ export function armarVistaPrevia(
     // La MISMA base que el total (reports/comisiones.ts → calcularLiquidacion): lo cobrado menos
     // lo pagado con voucher. Con `payment.amount` crudo el renglón no cuadraba con un voucher.
     const base = baseDeComision(t.payment.amount, t.cobros);
-    const lista = lineasPorProfesional.get(t.professionalId) ?? [];
-    lista.push({
+    const linea: LineaDeVistaPrevia = {
       id: t.id,
       startsAt: t.startsAt,
       servicio: t.servicio ?? "Servicio",
@@ -99,7 +122,22 @@ export function armarVistaPrevia(
       pct,
       comisionCents: aCentavos(montoComision(base, pct)),
       deAntes: esDeAntes(t.startsAt, periodo),
-    });
+    };
+    // La MISMA guarda que el total y que `settleCommissions`: con cobros sin rendir, espera.
+    if (!seLiquidaSegunRendicion(t.pendienteDeRendir)) {
+      let g = porRendir.get(t.professionalId);
+      if (!g) {
+        g = { professionalId: t.professionalId, professionalName: t.professionalName, lineas: [], pendienteDeRendirCents: 0, comisionCents: 0 };
+        porRendir.set(t.professionalId, g);
+      }
+      const pendienteDeRendirCents = aCentavos(t.pendienteDeRendir ?? 0);
+      g.lineas.push({ ...linea, pendienteDeRendirCents });
+      g.pendienteDeRendirCents += pendienteDeRendirCents;
+      g.comisionCents += linea.comisionCents;
+      continue;
+    }
+    const lista = lineasPorProfesional.get(t.professionalId) ?? [];
+    lista.push(linea);
     lineasPorProfesional.set(t.professionalId, lista);
   }
 
@@ -122,5 +160,8 @@ export function armarVistaPrevia(
     totalCents: profesionales.reduce((s, p) => s + p.totalCents, 0),
     esperandoSaldo,
     despuesDelCorte,
+    pendientesDeRendir: [...porRendir.values()]
+      .map((g) => ({ ...g, lineas: g.lineas.sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime()) }))
+      .sort((a, b) => b.pendienteDeRendirCents - a.pendienteDeRendirCents),
   };
 }

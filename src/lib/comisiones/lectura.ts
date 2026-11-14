@@ -23,10 +23,10 @@ import { leerTurnosPendientes } from "@/lib/reports/comisiones-lectura";
 import { comisionMarker } from "@/lib/comision-liquidacion";
 import { baseDeComision } from "./base";
 import { periodoElegido, periodoQueContiene, type PeriodoComision } from "./periodo";
-import { aCentavos, armarVistaPrevia, type VistaPrevia, type VistaPreviaProfesional } from "./vista-previa";
+import { aCentavos, armarVistaPrevia, type PendienteDeRendirProfesional, type VistaPrevia, type VistaPreviaProfesional } from "./vista-previa";
 import { linkDelComprobante, nombreDelMedio, type DatosDelComprobante } from "./comprobante-wa";
 
-const vacia = (periodo: PeriodoComision): VistaPrevia => ({ periodo, profesionales: [], totalCents: 0, esperandoSaldo: 0, despuesDelCorte: 0 });
+const vacia = (periodo: PeriodoComision): VistaPrevia => ({ periodo, profesionales: [], totalCents: 0, esperandoSaldo: 0, despuesDelCorte: 0, pendientesDeRendir: [] });
 
 /** «05/11/2026» de un día YYYY-MM-DD. */
 const diaAr = (dia: string) => dia.split("-").reverse().join("/");
@@ -151,6 +151,8 @@ export type MiLiquidacion =
       /** Lo pendiente estimado: todo lo liquidable hasta fin de este período (sin liquidar). */
       pendiente: VistaPreviaProfesional | null;
       esperandoSaldo: number;
+      /** Lo que cobró y todavía no rindió: su comisión se paga al rendir (no suma en `pendiente`). */
+      pendienteDeRendir: PendienteDeRendirProfesional | null;
       periodo: PeriodoComision;
       liquidaciones: ComprobanteDeLiquidacion[];
     };
@@ -186,6 +188,7 @@ export async function getMiLiquidacion(): Promise<MiLiquidacion> {
     nombre: profesional.name,
     pendiente: vista.profesionales.find((p) => p.professionalId === professionalId) ?? null,
     esperandoSaldo: vista.esperandoSaldo,
+    pendienteDeRendir: vista.pendientesDeRendir.find((p) => p.professionalId === professionalId) ?? null,
     periodo,
     liquidaciones,
   };
