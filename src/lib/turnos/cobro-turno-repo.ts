@@ -49,6 +49,9 @@ import {
 // importa `anulacion.ts` no arrastra el runtime de Prisma al bundle del browser.
 import { claseDeCobro, cobroAnuladoPor, desglosarCobros } from "./anulacion";
 import { claveDeSenia } from "./cobro-dividido";
+// La profesional que cobra aparte (`cobraEnMostrador = false`) cobra SU turno: esa plata no está
+// en el cajón. Queda «a rendir» y entra al libro con la rendición (docs/producto/comisiones/RENDICION.md).
+import { destinoDelCobroInTx, hayRendicionesInTx, marcarCobroARendirInTx } from "@/lib/comisiones/rendicion-repo";
 
 export type CobroTurnoTx = Prisma.TransactionClient;
 
@@ -88,7 +91,9 @@ export type AplicarCobroResult =
       monto: number;
       estado: EstadoCobroTurno; // DESPUÉS del cobro
       payment: { id: string; amount: number };
-      caja: RecordCobroTurnoResult | null; // null = sin puente (schema-ahead)
+      caja: RecordCobroTurnoResult | null; // null = sin puente (schema-ahead) o a rendir
+      /** El cobro lo hizo la profesional que cobra aparte: no entró al libro, queda a rendir. */
+      aRendir: { cobroARendirId: string; professionalId: string } | null;
     }
   | { applied: false; reason: "duplicate"; collectionId: string };
 
@@ -160,6 +165,7 @@ export function rastroLibroCaja(settled: {
 }): "sin-migrar" | { movementId: string; method: string } | string | null {
   if (settled.outcome === "degraded") return "sin-migrar";
   const v = settled.value;
+  if (v?.applied && v.aRendir) return "a-rendir";
   if (!v || !v.applied || !v.caja) return null;
   return v.caja.recorded ? { movementId: v.caja.movementId, method: v.caja.method } : v.caja.reason;
 }
@@ -330,8 +336,26 @@ export async function aplicarCobroTurnoInTx(
 
   const estado = estadoCobroTurno({ precio: args.precio, cobros: filas });
 
+  // ¿Caja o a rendir? Sólo se pregunta cuando puede ser la profesional (actor `user:`) y no es
+  // voucher. Sin las tablas de la rendición (Gate 2 sin aplicar) el cobro va al libro como hoy:
+  // un cobro nunca se rompe por una migración pendiente.
+  let aRendir: { cobroARendirId: string; professionalId: string } | null = null;
+  if (args.method !== MEDIO_VOUCHER && args.actor.startsWith("user:")) {
+    const d = await destinoDelCobroInTx(tx, tenantId, { appointmentId: args.appointmentId, actor: args.actor, method: args.method });
+    if (d.destino === "a-rendir" && d.professionalId && (await hayRendicionesInTx(tx))) {
+      const cobroARendirId = await marcarCobroARendirInTx(tx, tenantId, {
+        collectionId: created.id,
+        appointmentId: args.appointmentId,
+        professionalId: d.professionalId,
+        monto: v.monto,
+        method: args.method,
+      });
+      aRendir = { cobroARendirId, professionalId: d.professionalId };
+    }
+  }
+
   let caja: RecordCobroTurnoResult | null = null;
-  if (args.withSchema) {
+  if (args.withSchema && !aRendir) {
     caja = await recordCobroTurnoInTx(tx, tenantId, {
       collectionId: created.id,
       status: "APPROVED",
@@ -342,7 +366,7 @@ export async function aplicarCobroTurnoInTx(
     });
   }
 
-  return { applied: true, collectionId: created.id, monto: v.monto, estado, payment, caja };
+  return { applied: true, collectionId: created.id, monto: v.monto, estado, payment, caja, aRendir };
 }
 
 // ── Lectura para las pantallas ──────────────────────────────────────────────

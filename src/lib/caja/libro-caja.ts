@@ -33,6 +33,7 @@ import { PAGO_MIXTO_ACTOR_PREFIX, esAsientoDePagoMixto } from "@/lib/supermercad
 // al cargar el módulo.
 import { CUENTA_CORRIENTE_ACTOR_PREFIX, esAsientoDeCuentaCorriente } from "@/lib/settlement/asiento-libro";
 import { GASTO_PROYECTO_ACTOR_PREFIX } from "@/lib/proyectos/marcas";
+import { esAsientoDeRendicion } from "@/lib/comisiones/rendicion-core";
 
 // Orden CANÓNICO de los medios: es el orden de las columnas de la planilla y el de
 // las columnas de la pantalla. Un solo lugar para que tabla y resumen no se
@@ -338,6 +339,11 @@ export function motivoParaNoBorrar(m: { type: CashMovementType; orderId?: string
     return "Ese movimiento lo generó la caja del mostrador. Corregilo desde el turno, no desde el libro.";
   }
   const marca = String(m.createdBy ?? "");
+  // La plata que rindió la profesional que cobra aparte: los cobros que cubre quedaron marcados
+  // como rendidos; borrar el ingreso dejaría esa plata fuera del libro para siempre.
+  if (esAsientoDeRendicion(m)) {
+    return "Ese ingreso es la rendición de una profesional. No se borra desde el libro: si estuvo mal, cargá una corrección con la fecha de hoy.";
+  }
   if (marca.startsWith(GASTO_PROYECTO_ACTOR_PREFIX)) {
     return "Ese movimiento es el pago de un gasto de proyecto. Corregilo desde el proyecto: anular el gasto asienta la vuelta.";
   }
