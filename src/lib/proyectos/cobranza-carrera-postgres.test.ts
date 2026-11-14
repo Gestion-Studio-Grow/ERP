@@ -23,10 +23,23 @@ import { apuntarLaAppA, baseEfimeraDelArchivo, prismaComoDuenio, type BaseEfimer
 const laBase = baseEfimeraDelArchivo();
 const DIA = 86_400_000;
 const PLAZO_MS = 20_000;
+/** Fecha fija de los datos (vencimientos y evento): el resultado no depende del reloj. */
+const AHORA = Date.parse("2026-11-10T12:00:00Z");
 
-/** Cuántos pedidos esperan un candado consultivo en esta base. */
-async function trabados(c: pg.Client): Promise<number> {
-  const r = await c.query<{ n: number }>("SELECT count(*)::int AS n FROM pg_locks WHERE locktype = 'advisory' AND NOT granted AND database = (SELECT oid FROM pg_database WHERE datname = current_database())");
+/**
+ * Cuántos pedidos esperan ESTE candado consultivo (`clave`) en esta base. `pg_advisory_lock(bigint)` guarda la clave
+ * partida en dos: `classid` = 32 bits altos y `objid` = 32 bits bajos, con `objsubid` = 1. `hashtext` da un int4, que
+ * extendido a bigint deja `objid` = el hash como oid (sin signo) y `classid` = 0 o 4294967295 según el signo.
+ */
+async function trabados(c: pg.Client, clave: string): Promise<number> {
+  const r = await c.query<{ n: number }>(
+    `SELECT count(*)::int AS n FROM pg_locks
+      WHERE locktype = 'advisory' AND NOT granted AND objsubid = 1
+        AND database = (SELECT oid FROM pg_database WHERE datname = current_database())
+        AND objid = ((hashtext($1)::bigint & 4294967295)::text)::oid
+        AND classid = ((hashtext($1)::bigint >> 32) & 4294967295)::text::oid`,
+    [clave],
+  );
   return r.rows[0].n;
 }
 
@@ -38,7 +51,7 @@ async function enFila<T>(base: BaseEfimera, clave: string, pedidos: readonly (()
   const c = new pg.Client({ connectionString: base.urlDuenio });
   await c.connect();
   try {
-    assert.equal(await trabados(c), 0, "no queda nadie trabado de antes");
+    assert.equal(await trabados(c, clave), 0, "no queda nadie trabado de antes");
     await c.query("SELECT pg_advisory_lock(hashtext($1))", [clave]);
     const enCurso: Promise<T>[] = [];
     const terminados = new Set<number>();
@@ -50,14 +63,14 @@ async function enFila<T>(base: BaseEfimera, clave: string, pedidos: readonly (()
           () => terminados.add(i),
         );
         enCurso.push(p);
-        const hasta = Date.now() + PLAZO_MS;
+        const hasta = performance.now() + PLAZO_MS; // plazo de espera (monotónico), no un dato del test
         // Espera una CONDICIÓN (el pedido trabado en el candado), no un tiempo: la vuelta sólo cede el turno.
-        while ((await trabados(c)) < i + 1) {
+        while ((await trabados(c, clave)) < i + 1) {
           if (terminados.has(i)) {
             const r = await p.catch((e: unknown) => e);
             assert.fail(`el pedido ${i + 1} terminó sin trabarse en «${clave}»: ${JSON.stringify(r instanceof Error ? r.message : r)}`);
           }
-          if (Date.now() > hasta) assert.fail(`el pedido ${i + 1} no llegó al candado «${clave}» en ${PLAZO_MS} ms`);
+          if (performance.now() > hasta) assert.fail(`el pedido ${i + 1} no llegó al candado «${clave}» en ${PLAZO_MS} ms`);
           await new Promise((r) => setImmediate(r));
         }
       }
@@ -96,7 +109,7 @@ async function preparar(t: import("node:test").TestContext) {
   let numero = (await duenio.proyecto.count()) + 500;
   /** Proyecto de A confirmado, con fechas, aprobado por $ 1.210 (1.000 + IVA 21 %). */
   const proyecto = async () => {
-    const evento = new Date(Date.now() + 20 * DIA);
+    const evento = new Date(AHORA + 20 * DIA);
     const p = await duenio.proyecto.create({
       data: { tenantId: a.id, numero: ++numero, clientId: a.clientes[0], nombre: `Stand ${numero}`, servicio: "ARQUITECTURA", etapa: "APROBADO", fechaArmado: new Date(evento.getTime() - 2 * DIA), fechaEvento: evento, fechaDesarme: new Date(evento.getTime() + DIA) },
       select: { id: true },
@@ -106,7 +119,7 @@ async function preparar(t: import("node:test").TestContext) {
     return p.id;
   };
   const cuota = async (proyectoId: string, monto = 1210) =>
-    (await duenio.proyectoCuota.create({ data: { tenantId: a.id, proyectoId, tipo: "COBRO", concepto: "Anticipo", monto, moneda: "ARS", venceEl: new Date(Date.now() + 5 * DIA), auto: false }, select: { id: true } })).id;
+    (await duenio.proyectoCuota.create({ data: { tenantId: a.id, proyectoId, tipo: "COBRO", concepto: "Anticipo", monto, moneda: "ARS", venceEl: new Date(AHORA + 5 * DIA), auto: false }, select: { id: true } })).id;
   const form = (campos: Record<string, string>) => {
     const fd = new FormData();
     for (const [k, v] of Object.entries(campos)) fd.set(k, v);

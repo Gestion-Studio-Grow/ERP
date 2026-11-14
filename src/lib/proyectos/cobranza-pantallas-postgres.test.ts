@@ -38,7 +38,7 @@ test("QA MIA: con cuotas marcadas sin cobro, un cobro parcial y un proyecto en U
   await duenio.tenant.update({ where: { id: a.id }, data: { modules: [...new Set([...t0.modules, "proyectos"])] } });
   await duenio.proyectoTipoCambio.create({ data: { tenantId: a.id, moneda: "USD", porUnidad: 1200 } });
 
-  const ahora = Date.now();
+  const ahora = Date.parse("2026-11-10T12:00:00Z"); // fecha fija: el test no depende del reloj (no cambia el «por cobrar»)
   const proyecto = async (numero: number, clientId: string, moneda: string, tcVenta: number | null) => {
     const p = await duenio.proyecto.create({ data: { tenantId: a.id, numero, clientId, nombre: `Stand ${numero}`, servicio: "ARQUITECTURA", etapa: "APROBADO", moneda }, select: { id: true } });
     const pres = await duenio.proyectoPresupuesto.create({ data: { tenantId: a.id, proyectoId: p.id, version: 1, estado: "APROBADO", token: `tok-${p.id}`, ivaPct: 21, tcVenta } });
