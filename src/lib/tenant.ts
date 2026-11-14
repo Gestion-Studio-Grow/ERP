@@ -316,6 +316,53 @@ export const getCurrentTenantId = cache(async (): Promise<string> => (await nego
 export const slugResueltoDelPedido = cache(async (): Promise<string | null> => (await negocioDelPedido()).slug);
 
 /**
+ * PERFORMANCE (PLAT-005, perf 4): la fila `Tenant` del negocio del pedido, UNA lectura por pedido
+ * para los lectores de la ruta caliente (producto, color del equipo, gate por módulo), que antes
+ * pedían cada uno sus columnas con una consulta aparte sobre el mismo id ya resuelto.
+ *
+ * Sólo columnas propias de Tenant que esos lectores ya pedían (sin `profile`, que puede no estar
+ * migrada: si faltara, tumbaría la fila de todos; `getActiveProfile` la sigue leyendo aparte).
+ */
+export const COLUMNAS_FILA_DEL_NEGOCIO = {
+  id: true,
+  slug: true,
+  blueprintId: true,
+  modules: true,
+  accentPreset: true,
+} as const;
+
+export type FilaDelNegocio = {
+  id: string;
+  slug: string;
+  blueprintId: string | null;
+  modules: string[];
+  accentPreset: string | null;
+};
+
+/**
+ * Arma el lector de la fila del pedido. `memo` es React `cache()` en runtime: dedupe POR PEDIDO, nada
+ * persiste entre pedidos (sin mapas de módulo). Inyectable para testear sin request.
+ *
+ * Fail-closed (ADR-015): si el negocio no se resuelve, `tenantId()` tira y esto tira IGUAL (el error
+ * queda cacheado en ese pedido, como el de `getCurrentTenantId`); cada lector decide su fallback como
+ * hacía antes con su consulta propia. `null` = el id resolvió pero la fila no está (mismo caso que el
+ * `findUnique` de cada lector devolviendo null).
+ */
+export function crearFilaDelPedido(
+  tenantId: () => Promise<string>,
+  leer: (id: string) => Promise<FilaDelNegocio | null>,
+  memo: <F extends () => Promise<FilaDelNegocio | null>>(fn: F) => F = cache,
+): () => Promise<FilaDelNegocio | null> {
+  return memo(async () => leer(await tenantId()));
+}
+
+/** La fila `Tenant` del negocio del pedido (columnas: `COLUMNAS_FILA_DEL_NEGOCIO`). Cliente BASE: Tenant está fuera de RLS. */
+export const filaDelNegocioDelPedido = crearFilaDelPedido(
+  getCurrentTenantId,
+  (id) => basePrisma.tenant.findUnique({ where: { id }, select: COLUMNAS_FILA_DEL_NEGOCIO }),
+);
+
+/**
  * ¿La dirección de este pedido lleva a un negocio? `false` SÓLO si el host no resuelve
  * (`DireccionSinNegocioError`); cualquier otra falla (la base caída) se propaga: no se disfraza
  * de «dirección no habilitada». `resolver` inyectable para testear sin request.
