@@ -234,6 +234,7 @@ model Tenant {
   userPermissionOverrides   UserPermissionOverride[]
   userPins                  UserPin[]
   supportTickets            SupportTicket[] // consola de soporte GSG (T1)
+  portalesCliente           PortalCliente[] // MIA Etapa 2 · T5: link del cliente con todos sus eventos
   supportTicketEventos      SupportTicketEvento[]
   proyectos                 Proyecto[] // módulo proyectos
   proyectoCuotas            ProyectoCuota[]
@@ -275,6 +276,8 @@ model Tenant {
   voucherConciliaciones     VoucherConciliacion[]
   voucherLiquidaciones      VoucherLiquidacion[]
   voucherPagosAdministracion VoucherPagoAdministracion[]
+  iaTope                    IaTope? // tope mensual de IA paga (Etapa 2 · T4)
+  iaConsumos                IaConsumo[]
   cuentasContables          CuentaContable[] // contabilidad (ola 1)
   ejercicios                Ejercicio[]
   asientos                  Asiento[]
@@ -872,6 +875,7 @@ model Client {
   tallerCtaCte             Boolean             @default(false)
   // Módulo inmobiliaria: la misma persona puede ser propietaria, inquilina y haber consultado.
   proyectos                Proyecto[]
+  portalesCliente          PortalCliente[] // MIA Etapa 2 · T5 (uno por cliente: @@unique en PortalCliente)
   inmoPropiedades          InmoPropiedad[]     @relation("InmoPropietario")
   inmoConsultas            InmoConsulta[]
   inmoContratosInquilino   InmoContrato[]      @relation("InmoInquilino")
@@ -894,6 +898,7 @@ model Client {
 
   // N2: limiteCredito Decimal? @db.Decimal(14, 2) // N2_retail.sql (M7): tope de fiado; NULL = sin límite
 
+  @@unique([tenantId, id]) // destino de la llave foránea compuesta de PortalCliente (MIA Etapa 2 · T5)
   @@index([tenantId])
   @@index([tenantId, docNro])
 }
@@ -1354,6 +1359,14 @@ model Invoice {
   // R1 · los cobros que este comprobante factura (una factura por cobro; ver CobroFacturado).
   cobrosFacturados CobroFacturado[]
 
+  // Etapa 2 · T2 (20261110120000_invoice_proyecto_cuota, SIN APLICAR: Gate 2). Origen
+  // PROYECTO_CUOTA: la cuota de cobro de un proyecto que esta factura factura. Con el @@unique
+  // de abajo la BASE impide dos facturas de la misma cuota (carrera → P2002 → se devuelve la
+  // ganadora). Rastro débil (SetNull): borrar la cuota no rompe el histórico fiscal.
+  proyectoCuota   ProyectoCuota? @relation(fields: [proyectoCuotaId], references: [id], onDelete: SetNull)
+  proyectoCuotaId String?
+
+  @@unique([tenantId, proyectoCuotaId]) // 1 factura por cuota de proyecto; NULLs no colisionan
   @@unique([tenantId, abonoClave]) // 1 factura por (regla, mes); NULLs no colisionan
   @@unique([tenantId, id]) // destino de las llaves foráneas que incluyen el negocio
   @@unique([tenantId, puntoVenta, tipoComprobante, numero]) // guarda anti-duplicado de numeración fiscal (spec §1). NULLs (PENDING) no colisionan.
@@ -3905,6 +3918,7 @@ model ProyectoCuota {
   clave          String? // de qué ítem y tramo salió: regenerar no duplica
   anuladoEl      DateTime?
   conciliaciones ProyectoMovBanco[]
+  facturas       Invoice[] // Etapa 2 · T2: la factura ARCA de esta cuota (a lo sumo una, @@unique en Invoice)
   createdAt      DateTime           @default(now())
 
   @@unique([tenantId, clave])
@@ -4589,4 +4603,47 @@ model VencimientoFiscal {
 
   @@unique([tenantId, obligacionId, periodo, cuota])
   @@index([tenantId, fechaVencimiento])
+}
+
+// ── Tope mensual de gasto de IA por negocio (Etapa 2 de MIA · T4) ──────────────────────────────
+// Migración 20261110130000_ia_tope_y_consumo (aditiva, tablas NUEVAS: un campo en Tenant rompería
+// todo `tenant.findUnique` mientras la migración no esté aplicada). Montos en MICRO-DÓLARES BigInt.
+// El tope lo carga GSG desde la consola del operador; sin fila = tope 0 = nada pago.
+model IaTope {
+  tenant              Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId            String   @id
+  topeMensualMicroUsd BigInt   @default(0)
+  actualizadoPor      String?
+  updatedAt           DateTime @updatedAt
+}
+
+// Consumo de IA de un negocio en un mes ("YYYY-MM", hora de Buenos Aires). `reservado` es lo que
+// está en vuelo (costo máximo de las llamadas que todavía no volvieron); `gastado`, lo liquidado.
+model IaConsumo {
+  id                String @id @default(cuid())
+  tenant            Tenant @relation(fields: [tenantId], references: [id])
+  tenantId          String
+  mes               String // YYYY-MM (America/Argentina/Buenos_Aires)
+  llamadas          Int    @default(0)
+  llamadasGratis    Int    @default(0)
+  reservadoMicroUsd BigInt @default(0)
+  gastadoMicroUsd   BigInt @default(0)
+
+  @@unique([tenantId, mes])
+}
+
+// MIA Etapa 2 · T5 — el link del cliente (empresa) que reúne todos sus eventos con la productora. Sin login: la
+// llave es el token. Revocar = borrar la fila; generar otra vez = otro token. Migración 20261110140000_portal_cliente
+// (sin aplicar, Gate 2): el código pregunta si la tabla existe antes de tocarla.
+model PortalCliente {
+  id        String   @id @default(cuid())
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  client    Client   @relation(fields: [tenantId, clientId], references: [tenantId, id], onDelete: Cascade) // compuesta: nunca el cliente de otro negocio
+  clientId  String
+  token     String   @unique
+  creadoPor String?
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, clientId])
 }

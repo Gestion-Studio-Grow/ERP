@@ -10,13 +10,17 @@ import { after } from "next/server";
 import { enviarMailInterno } from "@/lib/notifications";
 import { tenantTransaction } from "@/lib/rls";
 import { prisma } from "@/lib/prisma";
+import { logger } from "@/lib/logger";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
 import { roleHasCapability } from "@/lib/capabilities";
 import type { SessionUser } from "@/lib/session";
 import type { Prisma } from "@/generated/prisma/client";
 import { configProyectos } from "./datos.server";
+import { conCuotaSinFacturaViva, facturasDeCuotas } from "./facturar-cuota.server";
+import { esFacturaViva } from "./facturar-cuota-core";
 import { venceDeLaCuota, ajustarAPagado, cambioDeVenta, COLUMNAS_OCULTAS_BASE, cuotaPrevista, rolDelActor, mailDeAviso, permisoDe, planDeCuotas, veTodosLosProyectos, type ItemFicha, type ModuloGestion, type RolGestion } from "./gestion-core";
+import { tiposDeCambio } from "./cobranza.server";
 
 export interface Actor {
   user: SessionUser;
@@ -73,10 +77,8 @@ export async function proyectoVisible(a: Actor, id: string) {
   return prisma.proyecto.findFirst({ where: { ...filtroDeProyectos(a), id }, select: { id: true } });
 }
 
-export async function tiposDeCambio(tenantId: string): Promise<Record<string, number>> {
-  const filas = await prisma.proyectoTipoCambio.findMany({ where: { tenantId }, select: { moneda: true, porUnidad: true } });
-  return Object.fromEntries(filas.map((f) => [f.moneda, f.porUnidad]));
-}
+// Vive en cobranza.server.ts (sólo Prisma) para que datos.server.ts la use sin ciclo de imports.
+export { tiposDeCambio };
 
 type Tx = Prisma.TransactionClient;
 
@@ -236,14 +238,23 @@ export async function regenerarCuotasDe(tenantId: string, cuales: Prisma.Proyect
   for (const p of abiertos) await regenerarCuotas(tenantId, p.id);
 }
 
-export async function regenerarCuotas(tenantId: string, proyectoId: string): Promise<void> {
+/** Lo que ve quien guardó cuando el plan no pudo cerrar porque se facturaron cuotas mientras se ajustaba. */
+export const AVISO_RECALCULAR_PLAN =
+  "Se facturó una cuota mientras se ajustaba el plan de cobros: recalculá el plan para que el saldo cierre.";
+
+/**
+ * Devuelve `null` si el plan quedó al día, o `AVISO_RECALCULAR_PLAN` si en las 3 pasadas siempre
+ * chocó con una cuota recién facturada (el plan puede haber quedado corto): queda registrado en
+ * el historial del proyecto y en el log, y la acción lo muestra.
+ */
+export async function regenerarCuotas(tenantId: string, proyectoId: string): Promise<string | null> {
   const [p, viva, config, tc] = await Promise.all([
     prisma.proyecto.findFirst({ where: { id: proyectoId, tenantId }, select: { id: true, nombre: true, moneda: true, etapa: true, fechaEvento: true, createdAt: true, anticipoClientePct: true, perdidoEl: true } }),
     versionViva(tenantId, proyectoId),
     configProyectos(tenantId),
     tiposDeCambio(tenantId),
   ]);
-  if (!p || !viva) return;
+  if (!p || !viva) return null;
   const items = viva.items.map(aItemFicha);
   const proveedores = [...new Set(items.map((i) => i.supplierId).filter((s): s is string => !!s))];
   const fichas = await prisma.proyectoProveedorFicha.findMany({ where: { tenantId, supplierId: { in: proveedores } }, select: { supplierId: true, anticipoPct: true } });
@@ -263,19 +274,51 @@ export async function regenerarCuotas(tenantId: string, proyectoId: string): Pro
           anticipoProveedor: Object.fromEntries(fichas.map((f) => [f.supplierId, f.anticipoPct])),
         })
       : [];
-  const actuales = await prisma.proyectoCuota.findMany({ where: { tenantId, proyectoId, auto: true }, select: { id: true, clave: true, monto: true, pagadoEl: true, anuladoEl: true, venceEl: true, venceManual: true, prevista: true } });
-  const plan = ajustarAPagado(planDeLaFicha, actuales.filter((c) => c.pagadoEl && !c.anuladoEl).map((c) => ({ clave: c.clave ?? "", monto: c.monto })));
   const prevista = cuotaPrevista(p.etapa, p.fechaEvento);
+  // Certificación T2 · vuelta 1: las facturas se leen ANTES de recorrer el plan. Si en el medio se
+  // confirma un «Facturar», el candado lo detecta (`"facturada"`) y el plan se recalcula con esa
+  // cuota congelada; si no, el saldo quedaba calculado contra el monto viejo y el plan, corto.
+  for (let vuelta = 0; vuelta < 3; vuelta++) {
+    if (!(await aplicarPlan(tenantId, proyectoId, planDeLaFicha, prevista))) return null;
+  }
+  // Tres pasadas y siempre chocó: no se sigue en silencio.
+  logger.warn("proyectos", "el plan de cobros no cerró: se facturaron cuotas mientras se ajustaba", { tenantId, proyectoId });
+  await registrarCambio(prisma, { tenantId, proyectoId, entidad: "Proyecto", entidadId: proyectoId, campo: "Plan de cobros", antes: null, despues: AVISO_RECALCULAR_PLAN, autor: "Sistema" });
+  return AVISO_RECALCULAR_PLAN;
+}
+
+/**
+ * Una pasada de `regenerarCuotas`: lee las cuotas y sus facturas, ajusta el plan y lo escribe.
+ * Devuelve `true` si una cuota se facturó mientras tanto (el plan quedó calculado con lo viejo).
+ */
+async function aplicarPlan(tenantId: string, proyectoId: string, planDeLaFicha: ReturnType<typeof planDeCuotas>, prevista: boolean): Promise<boolean> {
+  const actuales = await prisma.proyectoCuota.findMany({ where: { tenantId, proyectoId, auto: true }, select: { id: true, clave: true, monto: true, pagadoEl: true, anuladoEl: true, venceEl: true, venceManual: true, prevista: true } });
+  // Etapa 2 · T2: una cuota con factura viva (pedida o autorizada en ARCA) queda congelada como si
+  // estuviera pagada: no se le cambia el monto, ni se anula, y el resto del plan se ajusta a ella.
+  const facturas = await facturasDeCuotas(tenantId, actuales.map((c) => c.id));
+  const facturada = (id: string) => esFacturaViva(facturas.get(id)?.status);
+  const congelada = (c: { id: string; pagadoEl: Date | null; anuladoEl: Date | null }) => (!!c.pagadoEl || facturada(c.id)) && !c.anuladoEl;
+  const plan = ajustarAPagado(planDeLaFicha, actuales.filter(congelada).map((c) => ({ clave: c.clave ?? "", monto: c.monto })));
   const porClave = new Map(actuales.map((c) => [c.clave, c]));
   const vigentes = new Set(plan.map((c) => c.clave));
   const hoy = new Date();
+  let choco = false;
   for (const c of plan) {
     const previa = porClave.get(c.clave);
-    if (previa?.pagadoEl) continue;
+    if (previa?.pagadoEl || (previa && facturada(previa.id))) continue;
     const datos = { prevista, tipo: c.tipo, concepto: c.concepto, monto: c.monto, moneda: c.moneda, venceEl: venceDeLaCuota({ clave: c.clave, plan: c.venceEl, prevista, hoy, previa }), supplierId: c.supplierId, anuladoEl: null };
-    if (previa) await prisma.proyectoCuota.update({ where: { id: previa.id }, data: datos });
+    // Con el candado de la facturación: si se facturó recién (después de leer las facturas), no se toca.
+    // Y sólo si sigue sin marcar: una cuota marcada mientras se ajustaba queda congelada (no se le pisa monto ni `prevista`)
+    // y el plan se vuelve a calcular con ella, como con una factura.
+    if (previa) {
+      const r = await conCuotaSinFacturaViva(tenantId, previa.id, (tx) => tx.proyectoCuota.updateMany({ where: { id: previa.id, tenantId, pagadoEl: null }, data: datos }));
+      choco = r === "facturada" || r.count === 0 || choco;
+    }
     else await prisma.proyectoCuota.create({ data: { ...datos, tenantId, proyectoId, auto: true, clave: c.clave } });
   }
-  const sobran = actuales.filter((c) => c.clave && !vigentes.has(c.clave) && !c.pagadoEl && !c.anuladoEl).map((c) => c.id);
-  if (sobran.length > 0) await prisma.proyectoCuota.updateMany({ where: { tenantId, id: { in: sobran } }, data: { anuladoEl: new Date() } });
+  const sobran = actuales.filter((c) => c.clave && !vigentes.has(c.clave) && !c.pagadoEl && !c.anuladoEl && !facturada(c.id)).map((c) => c.id);
+  for (const id of sobran) {
+    choco = (await conCuotaSinFacturaViva(tenantId, id, (tx) => tx.proyectoCuota.updateMany({ where: { tenantId, id, pagadoEl: null, anuladoEl: null }, data: { anuladoEl: new Date() } }))) === "facturada" || choco;
+  }
+  return choco;
 }

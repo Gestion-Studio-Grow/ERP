@@ -1,0 +1,560 @@
+// ============================================================================
+// Etapa 2 · T2 · Facturar una cuota de cobro de un proyecto con ARCA — contra Postgres real
+// (app_rls + RLS, base efímera migrada con 20261110120000_invoice_proyecto_cuota) y el cliente SOAP
+// real hablando con el SIMULADOR de ARCA (nunca homologación ni real).
+//
+//  (a) 20 iteraciones: 5 «Facturar» a la vez (la acción real, con sesión, negocio B) → 1 factura, 1 envío, mismo id.
+//  (b) facturar + despachos a la vez, ARCA autoriza y la respuesta se pierde, reintento → 1 CAE.
+//  (c) rechazada → «Volver a facturar» (dos a la vez) reabre la MISMA fila → 1 CAE.
+//  (e) regenerar las cuotas después de facturar no toca la cuota facturada (ni la anula); quitar y
+//      escribir el texto `factura` se niegan.
+//  (f) otro negocio no ve ni factura la cuota (RLS + acción).
+//  (g) con `bancos` o un extracto importado → se niega sin escribir (doble CAE desde el extracto).
+//  (h) 15 iteraciones: «Facturar» y regenerar a la vez → el plan vivo suma el total del presupuesto.
+//  (i) facturar la cuota y DESPUÉS importar el extracto con ese cobro → la bandeja no emite otra
+//      factura: la propuesta pasa a revisión con el motivo (certificación vuelta 2, X6).
+//  (j) un negocio SIN facturas de cuota (beauty-spa) sigue emitiendo sus propuestas como antes.
+//  (k) carrera (vuelta 3, X7): el extracto se importa y se emite ENTRE el chequeo y la escritura de
+//      la cuota → la escritura, bajo el candado, lo ve y se niega: un solo CAE por cobro.
+//  (l) Mercado Pago conectado (vuelta 3): la cuota no se factura; desconectado, sí.
+//  (m) Mercado Pago automático en un negocio con facturas de cuota: el pago suelto queda en
+//      revisión con el motivo, sin factura; en beauty-spa (sin cuotas) se factura como antes.
+//  (d) sin la columna (migración sin aplicar) → se niega sin escribir y `getInvoice` lee. VA ÚLTIMO: borra la columna.
+// ============================================================================
+
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { ejecutarAccion, prepararAccionesDeServidor } from "@/test/accion-de-servidor";
+import { apuntarLaAppA, baseEfimeraDelArchivo, prismaComoDuenio } from "@/test/base-efimera";
+import { SimuladorArca } from "@/plugins/arca/afip/simulador";
+
+const laBase = baseEfimeraDelArchivo();
+const simuladores = new Map<string, SimuladorArca>();
+const simDe = (tenantId: string) => {
+  if (!simuladores.has(tenantId)) simuladores.set(tenantId, new SimuladorArca());
+  return simuladores.get(tenantId)!;
+};
+const DIA = 86_400_000;
+
+async function preparar(t: import("node:test").TestContext) {
+  const base = await laBase(t);
+  if (!base) return null;
+  apuntarLaAppA(base);
+  Object.assign(process.env as Record<string, string | undefined>, {
+    NODE_ENV: "development",
+    DB_CONNECTION_LIMIT: "12",
+    DB_CONNECT_TIMEOUT_MS: "5000",
+    ARCA_INVOICING_ENABLED: "true",
+  });
+  delete (process.env as Record<string, string | undefined>).ARCA_MODO; // stub: nunca homologación ni real
+  prepararAccionesDeServidor();
+  const duenio = await prismaComoDuenio(base);
+  const acciones = await import("./acciones-ficha");
+  const empresa = await import("./acciones-empresa");
+  const srv = await import("./facturar-cuota.server");
+  const dispatch = await import("@/lib/arca-dispatch");
+  const invoiceCore = await import("@/lib/invoice-core");
+  const fiscal = await import("@/lib/fiscal");
+  const { SoapAfipClient, FetchSoapTransport } = await import("@/plugins/arca/afip/soap");
+
+  // Lo que otro test dejó pendiente se da por procesado: cada test mira sólo lo suyo.
+  await duenio.outboxEvent.updateMany({ where: { processedAt: null }, data: { processedAt: new Date() } });
+
+  // Los dos negocios facturan cuotas: interruptor + ARCA + perfil fiscal de inscripto (homologación).
+  for (const n of [base.a, base.b]) {
+    const t0 = await duenio.tenant.findUniqueOrThrow({ where: { id: n.id }, select: { modules: true } });
+    const modules = [...new Set([...t0.modules, "proyectos", "proyectos-facturacion", "arca"])];
+    await duenio.tenant.update({ where: { id: n.id }, data: { modules, arcaCuit: "20111111112", arcaPuntoVenta: 1, arcaHomologacion: true, arcaCondicionIva: "RESPONSABLE_INSCRIPTO" } });
+  }
+
+  const simDeps = {
+    clientePara: async (tenantId: string) =>
+      new SoapAfipClient(
+        { cuit: 20111111112, homologacion: true },
+        {
+          transport: new FetchSoapTransport({ fetch: simDe(tenantId).fetch, timeoutMs: 200 }),
+          signer: { firmarCms: async () => "CMS-DE-PRUEBA" },
+        },
+      ),
+    numeroUsadoPorOtraFactura: invoiceCore.numeroUsadoPorOtraFactura,
+  };
+  const depsConSim = {
+    getFiscalProfile: fiscal.getFiscalProfile,
+    isInvoicingEnabled: () => true,
+    ahora: () => new Date(),
+    procesarEnviosDelNegocio: (tenantId: string) => dispatch.procesarEnviosDelNegocio(tenantId, 20, simDeps),
+  };
+  const pasoLaEspera = () => duenio.outboxEvent.updateMany({ where: { processedAt: null, muertoEn: null }, data: { proximoIntentoEn: null } });
+
+  let numero = (await duenio.proyecto.count()) + 100;
+  /** Proyecto de A confirmado, con fechas, presupuesto al 21 % y un ítem de $ 1.000. */
+  const proyecto = async (tenantId = base.a.id, clientId = base.a.clientes[0]) => {
+    const evento = new Date(Date.now() + 20 * DIA);
+    const p = await duenio.proyecto.create({
+      data: { tenantId, numero: ++numero, clientId, nombre: `Stand ${numero}`, servicio: "ARQUITECTURA", etapa: "APROBADO", fechaArmado: new Date(evento.getTime() - 2 * DIA), fechaEvento: evento, fechaDesarme: new Date(evento.getTime() + DIA) },
+      select: { id: true },
+    });
+    const pres = await duenio.proyectoPresupuesto.create({ data: { tenantId, proyectoId: p.id, version: 1, token: `tok-${p.id}`, ivaPct: 21 }, select: { id: true } });
+    await duenio.proyectoItem.create({ data: { tenantId, presupuestoId: pres.id, rubro: "General", descripcion: "Stand", cantidad: 1, precio: 1000 } });
+    return { id: p.id, presupuestoId: pres.id };
+  };
+  /** Un cobro manual de A por $ 1.210 (IVA incluido). */
+  const cuota = async (proyectoId: string, extra: Record<string, unknown> = {}, tenantId = base.a.id) =>
+    (await duenio.proyectoCuota.create({ data: { tenantId, proyectoId, tipo: "COBRO", concepto: "Anticipo", monto: 1210, moneda: "ARS", venceEl: new Date(Date.now() + 5 * DIA), auto: false, ...extra }, select: { id: true } })).id;
+
+  const form = (campos: Record<string, string>) => {
+    const fd = new FormData();
+    for (const [k, v] of Object.entries(campos)) fd.set(k, v);
+    return fd;
+  };
+  const comoDuenia = (negocio = base.a) => ({ negocio, usuario: { id: negocio.duenia.id } });
+  const accion = async <R>(fn: () => Promise<R>, negocio = base.a): Promise<R> => {
+    const r = await ejecutarAccion(comoDuenia(negocio), fn);
+    assert.equal(r.tipo, "respuesta", JSON.stringify(r));
+    return (r as { valor: R }).valor;
+  };
+  const facturasDe = (cuotaId: string) => duenio.invoice.findMany({ where: { proyectoCuotaId: cuotaId } });
+  const enviosDe = async (invoiceId: string) =>
+    (await duenio.outboxEvent.findMany({ where: { type: "InvoiceCreated" }, orderBy: { createdAt: "asc" } })).filter((e) => (e.payload as { invoiceId?: string }).invoiceId === invoiceId);
+  const pendientes = () => duenio.outboxEvent.count({ where: { processedAt: null, type: "InvoiceCreated" } });
+
+  return { base, duenio, acciones, empresa, srv, invoiceCore, dispatch, simDeps, depsConSim, pasoLaEspera, proyecto, cuota, form, accion, facturasDe, enviosDe, pendientes };
+}
+
+test("(a) 20 de 20: cinco «Facturar» a la vez de la misma cuota → 1 factura, 1 envío, el mismo id", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  // En el negocio B: la acción despacha con el stub del Core (ARCA_MODO sin setear), que numera su
+  // propia serie; los tests con el simulador usan la serie de A (dos «ARCA» sobre la misma serie chocan).
+  const b = p.base.b;
+  const malas: unknown[] = [];
+  for (let i = 0; i < 20; i++) {
+    const pr = await p.proyecto(b.id, b.clientes[0]);
+    const id = await p.cuota(pr.id, { concepto: `Anticipo ${i}` }, b.id);
+    const rs = await Promise.all(Array.from({ length: 5 }, () => p.accion(() => p.acciones.facturarCuota(p.form({ id, proyectoId: pr.id })), b)));
+    const facturas = await p.facturasDe(id);
+    const envios = facturas.length === 1 ? await p.enviosDe(facturas[0].id) : [];
+    const ids = new Set(rs.map((r) => (r.ok ? (r as { invoiceId?: string }).invoiceId : `error:${(r as { error: string }).error}`)));
+    const cambios = await p.duenio.proyectoCambio.count({ where: { entidadId: id, campo: { startsWith: "Factura pedida" } } });
+    const ok = facturas.length === 1 && envios.length === 1 && ids.size === 1 && ids.has(facturas[0].id) && cambios === 1 &&
+      facturas[0].total.toNumber() === 1210 && facturas[0].concepto === 2;
+    if (!ok) malas.push({ i, facturas: facturas.length, envios: envios.length, ids: [...ids], cambios });
+  }
+  assert.deepEqual(malas, []);
+});
+
+test("(b) facturar y despachar a la vez, ARCA autoriza y la respuesta se pierde, reintento → 1 CAE, el número de ARCA", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const a = p.base.a.id;
+  const pr = await p.proyecto();
+  const id = await p.cuota(pr.id);
+  const sim = simDe(a).fallarProximo("FECAESolicitar", "timeout-despues");
+  const caeAntes = sim.cantidadDeCae();
+  const facturar = () => p.srv.facturarCuotaDelProyecto({ tenantId: a, proyectoId: pr.id, cuotaId: id, autor: "test" }, p.depsConSim);
+  const [r1, r2] = await Promise.all([
+    facturar(),
+    facturar(),
+    p.dispatch.processArcaOutbox(20, p.simDeps),
+    p.dispatch.procesarEnviosDelNegocio(a, 20, p.simDeps),
+  ]);
+  assert.ok(r1.ok && r2.ok, JSON.stringify([r1, r2]));
+  assert.equal(r1.invoiceId, r2.invoiceId);
+  for (let k = 0; k < 6 && (await p.pendientes()) > 0; k++) {
+    await p.pasoLaEspera();
+    await p.dispatch.procesarEnviosDelNegocio(a, 20, p.simDeps);
+  }
+  // Un tercer pedido (doble clic tardío) no pide otro número.
+  const r3 = await facturar();
+  assert.ok(r3.ok && r3.invoiceId === r1.invoiceId && r3.yaEstaba);
+  const facturas = await p.facturasDe(id);
+  assert.equal(facturas.length, 1);
+  assert.equal(facturas[0].status, "AUTHORIZED");
+  assert.equal(sim.cantidadDeCae() - caeAntes, 1, "un solo CAE en ARCA");
+  const enArca = sim.comprobantesAutorizados().find((c) => c.cae === facturas[0].cae);
+  assert.equal(enArca?.numero, facturas[0].numero, "el número de la base es el que ARCA tiene");
+  assert.equal(enArca?.concepto, "2", "servicios");
+  assert.equal((await p.enviosDe(facturas[0].id)).length, 1, "un envío");
+});
+
+test("(c) rechazada por ARCA → «Volver a facturar» (dos a la vez) reabre la MISMA factura → 1 CAE", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const a = p.base.a.id;
+  const pr = await p.proyecto();
+  const id = await p.cuota(pr.id);
+  const sim = simDe(a).fallarProximo("FECAESolicitar", { rechazo: [{ codigo: 10015, mensaje: "DocNro invalido" }] });
+  const caeAntes = sim.cantidadDeCae();
+  const facturar = () => p.srv.facturarCuotaDelProyecto({ tenantId: a, proyectoId: pr.id, cuotaId: id, autor: "test" }, p.depsConSim);
+  const r0 = await facturar();
+  assert.ok(r0.ok);
+  let [f] = await p.facturasDe(id);
+  assert.equal(f.status, "REJECTED");
+  assert.equal(sim.cantidadDeCae(), caeAntes);
+
+  const [r1, r2] = await Promise.all([facturar(), facturar()]);
+  assert.ok(r1.ok && r2.ok);
+  assert.equal(r1.invoiceId, r0.invoiceId, "la misma fila");
+  assert.equal(r2.invoiceId, r0.invoiceId);
+  for (let k = 0; k < 6 && (await p.pendientes()) > 0; k++) {
+    await p.pasoLaEspera();
+    await p.dispatch.procesarEnviosDelNegocio(a, 20, p.simDeps);
+  }
+  const facturas = await p.facturasDe(id);
+  assert.equal(facturas.length, 1);
+  [f] = facturas;
+  assert.equal(f.status, "AUTHORIZED");
+  assert.equal(sim.cantidadDeCae() - caeAntes, 1, "un solo CAE");
+  const envios = await p.enviosDe(f.id);
+  assert.equal(envios.length, 2, "el del rechazo y UNO del reintento");
+  assert.equal(envios.filter((e) => e.processedAt === null).length, 0);
+  assert.equal(await p.duenio.proyectoCambio.count({ where: { entidadId: id, campo: { startsWith: "Factura reenviada" } } }), 1, "una sola reapertura");
+});
+
+test("(e) regenerar después de facturar no toca la cuota facturada; quitar y escribir el texto `factura` se niegan", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const a = p.base.a.id;
+  const pr = await p.proyecto();
+  // Las cuotas automáticas: anticipo y saldo del cliente.
+  assert.deepEqual(await p.accion(() => p.acciones.recalcularCuotas(p.form({ proyectoId: pr.id }))), { ok: true });
+  const auto = await p.duenio.proyectoCuota.findMany({ where: { proyectoId: pr.id, auto: true, tipo: "COBRO", anuladoEl: null }, orderBy: { clave: "asc" } });
+  const anticipo = auto.find((c) => c.clave?.endsWith(":anticipo"));
+  assert.ok(anticipo && !anticipo.prevista, JSON.stringify(auto));
+  const r = await p.srv.facturarCuotaDelProyecto({ tenantId: a, proyectoId: pr.id, cuotaId: anticipo.id, autor: "test" }, p.depsConSim);
+  assert.ok(r.ok, JSON.stringify(r));
+
+  // La ficha cambia: el precio sube y el anticipo baja a 0 % (el plan ya no trae anticipo).
+  await p.duenio.proyectoItem.updateMany({ where: { presupuestoId: pr.presupuestoId }, data: { precio: 3000 } });
+  await p.duenio.proyecto.update({ where: { id: pr.id }, data: { anticipoClientePct: 0 } });
+  assert.deepEqual(await p.accion(() => p.acciones.recalcularCuotas(p.form({ proyectoId: pr.id }))), { ok: true });
+  const despues = await p.duenio.proyectoCuota.findUniqueOrThrow({ where: { id: anticipo.id } });
+  assert.equal(despues.monto, anticipo.monto, "el monto facturado no se mueve");
+  assert.equal(despues.anuladoEl, null, "la cuota facturada no se anula");
+  const vivas = await p.duenio.proyectoCuota.findMany({ where: { proyectoId: pr.id, tipo: "COBRO", anuladoEl: null } });
+  const total = vivas.reduce((s, c) => s + c.monto, 0);
+  assert.equal(Math.round(total * 100), Math.round(3000 * 1.21 * 100), "el resto del plan se ajusta a lo facturado");
+
+  // Un cobro manual facturado no se quita; el texto `factura` no se escribe encima.
+  const manual = await p.cuota(pr.id, { concepto: "Extra" });
+  assert.ok((await p.srv.facturarCuotaDelProyecto({ tenantId: a, proyectoId: pr.id, cuotaId: manual, autor: "test" }, p.depsConSim)).ok);
+  const q = await p.accion(() => p.acciones.quitarMovimiento(p.form({ id: manual, proyectoId: pr.id })));
+  assert.equal(q.ok, false);
+  assert.equal((await p.duenio.proyectoCuota.findUniqueOrThrow({ where: { id: manual } })).anuladoEl, null);
+  const g = await p.accion(() => p.empresa.guardarDatoCuota(p.form({ id: manual, campo: "factura", valor: "FC B 0001-00000099" })));
+  assert.equal(g.ok, false);
+  assert.equal((await p.duenio.proyectoCuota.findUniqueOrThrow({ where: { id: manual } })).factura, null);
+
+  // Y al revés: una cuota con el texto ya cargado (facturada fuera del sistema) no se factura.
+  const afuera = await p.cuota(pr.id, { concepto: "Facturada afuera", factura: "FC A 0003-00000012" });
+  const r2 = await p.accion(() => p.acciones.facturarCuota(p.form({ id: afuera, proyectoId: pr.id })));
+  assert.equal(r2.ok, false);
+  assert.match((r2 as { error: string }).error, /fuera del sistema/);
+  assert.equal((await p.facturasDe(afuera)).length, 0);
+});
+
+test("(f) otro negocio no ve ni factura la cuota de A (RLS y acción)", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const { a, b } = p.base;
+  const pr = await p.proyecto();
+  const id = await p.cuota(pr.id);
+  const deA = await p.srv.facturarCuotaDelProyecto({ tenantId: a.id, proyectoId: pr.id, cuotaId: id, autor: "test" }, p.depsConSim);
+  assert.ok(deA.ok);
+
+  // B por la acción, con el proyecto y la cuota de A.
+  const r = await p.accion(() => p.acciones.facturarCuota(p.form({ id, proyectoId: pr.id })), b);
+  assert.equal(r.ok, false);
+  // B directo al núcleo con su negocio y los ids de A: RLS no le deja ver la cuota.
+  const r2 = await p.srv.facturarCuotaDelProyecto({ tenantId: b.id, proyectoId: pr.id, cuotaId: id, autor: "test" }, p.depsConSim);
+  assert.deepEqual(r2, { ok: false, error: "Esa cuota no existe." });
+  // B no ve la factura de A.
+  assert.equal((await p.srv.facturasDeCuotas(b.id, [id])).size, 0);
+  assert.equal((await p.srv.facturasDeCuotas(a.id, [id])).size, 1);
+  assert.equal(await p.duenio.invoice.count({ where: { tenantId: b.id, proyectoCuotaId: id } }), 0);
+  assert.equal((await p.facturasDe(id)).length, 1);
+});
+
+test("(g) con `bancos` (o un extracto importado) la cuota no se factura: se niega sin escribir", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const a = p.base.a.id;
+  const pr = await p.proyecto();
+  const id = await p.cuota(pr.id);
+  const sinEscribir = async (r: { ok: boolean; error?: string }) => {
+    assert.equal(r.ok, false);
+    assert.match(r.error ?? "", /extracto del banco/);
+    assert.equal((await p.facturasDe(id)).length, 0);
+    assert.equal(await p.duenio.proyectoCambio.count({ where: { entidadId: id } }), 0);
+  };
+  const { modules } = await p.duenio.tenant.findUniqueOrThrow({ where: { id: a }, select: { modules: true } });
+  try {
+    await p.duenio.tenant.update({ where: { id: a }, data: { modules: [...modules, "bancos"] } });
+    await sinEscribir(await p.accion(() => p.acciones.facturarCuota(p.form({ id, proyectoId: pr.id }))));
+    await sinEscribir(await p.srv.facturarCuotaDelProyecto({ tenantId: a, proyectoId: pr.id, cuotaId: id, autor: "test" }, p.depsConSim));
+  } finally {
+    await p.duenio.tenant.update({ where: { id: a }, data: { modules } });
+  }
+  // Sin el módulo pero con un extracto ya importado (registro de módulos apagado: la pantalla está abierta).
+  const imp = await p.duenio.importacionBancaria.create({ data: { tenantId: a, nombreArchivo: "extracto.csv", origen: "banco", archivo: Buffer.from("x"), mapeoJson: {} }, select: { id: true } });
+  try {
+    await p.duenio.movimientoImportado.create({ data: { tenantId: a, importacionId: imp.id, hash: `h-${id}`, fecha: "20261109", monto: 1210, descripcion: "Transferencia", clasificacion: "venta", estadoPropuesta: "auto" } });
+    await sinEscribir(await p.srv.facturarCuotaDelProyecto({ tenantId: a, proyectoId: pr.id, cuotaId: id, autor: "test" }, p.depsConSim));
+  } finally {
+    await p.duenio.importacionBancaria.delete({ where: { id: imp.id } });
+  }
+  // Sin ninguna de las dos, factura.
+  assert.ok((await p.srv.facturarCuotaDelProyecto({ tenantId: a, proyectoId: pr.id, cuotaId: id, autor: "test" }, p.depsConSim)).ok);
+});
+
+test("(h) 15 de 15: «Facturar» y regenerar con el precio cambiado a la vez → el plan vivo suma el total del presupuesto", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const b = p.base.b;
+  const malas: unknown[] = [];
+  for (let i = 0; i < 15; i++) {
+    const pr = await p.proyecto(b.id, b.clientes[0]);
+    assert.deepEqual(await p.accion((): ReturnType<typeof p.acciones.recalcularCuotas> => p.acciones.recalcularCuotas(p.form({ proyectoId: pr.id })), b), { ok: true });
+    const auto = await p.duenio.proyectoCuota.findMany({ where: { proyectoId: pr.id, auto: true, tipo: "COBRO", anuladoEl: null } });
+    const ant = auto.find((c) => c.clave?.endsWith(":anticipo"));
+    if (!ant) throw new Error(`sin anticipo: ${JSON.stringify(auto)}`);
+    await p.duenio.proyectoItem.updateMany({ where: { presupuestoId: pr.presupuestoId }, data: { precio: 3000 + i } });
+    const [f, r] = await Promise.all([
+      p.accion((): ReturnType<typeof p.acciones.facturarCuota> => p.acciones.facturarCuota(p.form({ id: ant.id, proyectoId: pr.id })), b),
+      p.accion((): ReturnType<typeof p.acciones.recalcularCuotas> => p.acciones.recalcularCuotas(p.form({ proyectoId: pr.id })), b),
+    ]);
+    const c = await p.duenio.proyectoCuota.findUniqueOrThrow({ where: { id: ant.id } });
+    const vivasF = (await p.facturasDe(ant.id)).filter((x) => x.status === "PENDING" || x.status === "AUTHORIZED");
+    const vivas = await p.duenio.proyectoCuota.findMany({ where: { proyectoId: pr.id, tipo: "COBRO", anuladoEl: null } });
+    const total = Math.round(vivas.reduce((s, x) => s + x.monto, 0) * 100);
+    const esperado = Math.round((3000 + i) * 1.21 * 100);
+    if (vivasF.length > 0 && (c.anuladoEl || Math.round(vivasF[0].total.toNumber() * 100) !== Math.round(c.monto * 100))) malas.push({ i, kind: "factura!=cuota", f, r });
+    if (total !== esperado) malas.push({ i, kind: "plan!=total", total, esperado, facturo: f.ok });
+  }
+  assert.deepEqual(malas, []);
+});
+
+test("(i) facturar la cuota y DESPUÉS importar el extracto (registro de módulos apagado): un solo CAE por cobro", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const a = p.base.a.id;
+  const pr = await p.proyecto();
+  const id = await p.cuota(pr.id);
+  const r = await p.srv.facturarCuotaDelProyecto({ tenantId: a, proyectoId: pr.id, cuotaId: id, autor: "test" }, p.depsConSim);
+  assert.ok(r.ok, JSON.stringify(r));
+  await p.pasoLaEspera();
+  await p.depsConSim.procesarEnviosDelNegocio(a);
+  const antes = await p.duenio.invoice.count({ where: { tenantId: a } });
+  // Al otro día la dueña sube el extracto: la transferencia del cliente por la misma cuota.
+  const imp = await p.duenio.importacionBancaria.create({ data: { tenantId: a, nombreArchivo: "extracto.csv", origen: "banco", archivo: Buffer.from("x"), mapeoJson: {} }, select: { id: true } });
+  try {
+    const mov = await p.duenio.movimientoImportado.create({ data: { tenantId: a, importacionId: imp.id, hash: `h-i-${id}`, fecha: "20261109", monto: 1210, descripcion: "Transferencia cliente anticipo stand", clasificacion: "venta", estadoPropuesta: "auto" }, select: { id: true } });
+    await p.duenio.tenant.update({ where: { id: a }, data: { bancosCapFacturasMes: 1000 } });
+    const glue = await import("@/lib/bancos-glue");
+    const res = await glue.emitirPropuestas(a, "auto");
+    // La cuota ya tiene CAE: el mismo cobro no abre otra factura; la propuesta queda en revisión, con el motivo.
+    assert.equal(await p.duenio.invoice.count({ where: { tenantId: a } }), antes, `doble factura del mismo cobro: ${JSON.stringify(res)}`);
+    assert.equal(res.emitidas, 0);
+    assert.equal(res.aRevisionPorCuotas, 1);
+    assert.match(res.mensaje ?? "", /facturala desde el proyecto/);
+    const fila = await p.duenio.movimientoImportado.findUniqueOrThrow({ where: { id: mov.id }, select: { estadoPropuesta: true, motivoRevision: true, invoiceId: true } });
+    assert.equal(fila.estadoPropuesta, "revision");
+    assert.match(fila.motivoRevision ?? "", /factura cuotas de proyectos/);
+    assert.equal(fila.invoiceId, null);
+    // Otra vuelta: no hay nada en `auto`, nada que emitir.
+    assert.equal((await glue.emitirPropuestas(a, "auto")).emitidas, 0);
+  } finally {
+    await p.duenio.importacionBancaria.delete({ where: { id: imp.id } });
+  }
+});
+
+test("(j) un negocio SIN facturas de cuota (beauty-spa) emite sus propuestas del extracto igual que antes", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const spa = await p.duenio.tenant.create({
+    data: { name: "Beauty Spa", slug: `beauty-spa-${Date.now()}`, modules: ["bancos", "arca"], arcaCuit: "20111111112", arcaPuntoVenta: 1, arcaHomologacion: true, arcaCondicionIva: "RESPONSABLE_INSCRIPTO", bancosCapFacturasMes: 1000 },
+    select: { id: true },
+  });
+  const imp = await p.duenio.importacionBancaria.create({ data: { tenantId: spa.id, nombreArchivo: "extracto.csv", origen: "banco", archivo: Buffer.from("x"), mapeoJson: {} }, select: { id: true } });
+  const mov = await p.duenio.movimientoImportado.create({ data: { tenantId: spa.id, importacionId: imp.id, hash: "h-spa-1", fecha: "20261109", monto: 1210, descripcion: "Transferencia clienta masajes", clasificacion: "venta", estadoPropuesta: "auto" }, select: { id: true } });
+  const glue = await import("@/lib/bancos-glue");
+  const res = await glue.emitirPropuestas(spa.id, "auto");
+  assert.equal(res.emitidas, 1, JSON.stringify({ ...res, despachoArca: undefined }));
+  assert.equal(res.aRevisionPorCuotas, undefined);
+  assert.deepEqual(res.errores, []);
+  const fila = await p.duenio.movimientoImportado.findUniqueOrThrow({ where: { id: mov.id }, select: { estadoPropuesta: true, motivoRevision: true, invoiceId: true } });
+  assert.equal(fila.estadoPropuesta, "emitida");
+  assert.equal(fila.motivoRevision, null);
+  assert.ok(fila.invoiceId);
+  const factura = await p.duenio.invoice.findUniqueOrThrow({ where: { id: fila.invoiceId! }, select: { tenantId: true, proyectoCuotaId: true } });
+  assert.equal(factura.tenantId, spa.id);
+  assert.equal(factura.proyectoCuotaId, null);
+});
+
+test("(k) carrera: el extracto se importa y se emite ENTRE el chequeo de la cuota y su factura → un solo CAE", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  // Un negocio nuevo, SIN facturas de cuota ni extracto: la bandeja emite su propuesta (no hay
+  // cuotas que mirar) y la cuota es la que tiene que verlo bajo el candado (X7, vuelta 3).
+  const k = await p.duenio.tenant.create({
+    data: { name: "Estudio K", slug: `estudio-k-${Date.now()}`, modules: ["proyectos", "proyectos-facturacion", "arca"], arcaCuit: "20111111112", arcaPuntoVenta: 1, arcaHomologacion: true, arcaCondicionIva: "RESPONSABLE_INSCRIPTO", bancosCapFacturasMes: 1000 },
+    select: { id: true },
+  });
+  const cliente = await p.duenio.client.create({ data: { tenantId: k.id, name: "Cliente K", phone: "1100000000" }, select: { id: true } });
+  const pr = await p.proyecto(k.id, cliente.id);
+  const id = await p.cuota(pr.id, {}, k.id);
+  const glue = await import("@/lib/bancos-glue");
+  const fiscal = await import("@/lib/fiscal");
+  let res: Awaited<ReturnType<typeof glue.emitirPropuestas>> | null = null;
+  const imp = await p.duenio.importacionBancaria.create({ data: { tenantId: k.id, nombreArchivo: "ext-k.csv", origen: "banco", archivo: Buffer.from("x"), mapeoJson: {} }, select: { id: true } });
+  const deps = {
+    ...p.depsConSim,
+    // getFiscalProfile corre DESPUÉS de motivoParaNoFacturarCuotas y ANTES de la tx de escritura.
+    getFiscalProfile: async (tid: string) => {
+      await p.duenio.movimientoImportado.create({ data: { tenantId: k.id, importacionId: imp.id, hash: `h-k-${id}`, fecha: "20261109", monto: 1210, descripcion: "Transferencia cliente anticipo stand", clasificacion: "venta", estadoPropuesta: "auto" } });
+      res = await glue.emitirPropuestas(k.id, "auto");
+      return fiscal.getFiscalProfile(tid);
+    },
+  };
+  const r = await p.srv.facturarCuotaDelProyecto({ tenantId: k.id, proyectoId: pr.id, cuotaId: id, autor: "t" }, deps);
+  const facturas = await p.duenio.invoice.count({ where: { tenantId: k.id } });
+  const detalle = JSON.stringify({ r, res: { ...(res ?? {}), despachoArca: undefined } });
+  assert.equal(facturas, 1, `dos facturas (o ninguna) para el mismo cobro de $ 1.210: ${detalle}`);
+  assert.equal((res as { emitidas?: number } | null)?.emitidas, 1, detalle);
+  assert.equal(r.ok, false);
+  assert.match((r as { error: string }).error, /extracto del banco/);
+  assert.equal((await p.facturasDe(id)).length, 0);
+  assert.equal(await p.duenio.proyectoCambio.count({ where: { entidadId: id } }), 0);
+});
+
+test("(l) con una conexión de Mercado Pago, en cualquier estado, la cuota no se factura; sin conexión, sí", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const a = p.base.a.id;
+  const pr = await p.proyecto();
+  const id = await p.cuota(pr.id);
+  await p.duenio.movimientoImportado.deleteMany({ where: { tenantId: a } });
+  await p.duenio.importacionBancaria.deleteMany({ where: { tenantId: a } });
+  const conexion = await p.duenio.integracionConexion.create({ data: { tenantId: a, conector: "mercadopago", cuentaExterna: `collector-l-${id}`, estado: "conectada" }, select: { id: true } });
+  try {
+    for (const estado of ["conectada", "pausada", "pendiente"] as const) {
+      await p.duenio.integracionConexion.update({ where: { id: conexion.id }, data: { estado } });
+      const r = await p.srv.facturarCuotaDelProyecto({ tenantId: a, proyectoId: pr.id, cuotaId: id, autor: "test" }, p.depsConSim);
+      assert.equal(r.ok, false, estado);
+      assert.match((r as { error: string }).error, /Mercado Pago/);
+      assert.equal((await p.facturasDe(id)).length, 0);
+    }
+    // Se conecta ENTRE el chequeo y la escritura: la escritura lo ve bajo el candado y se niega.
+    await p.duenio.integracionConexion.update({ where: { id: conexion.id }, data: { estado: "desconectada" } });
+    const fiscal = await import("@/lib/fiscal");
+    const r = await p.srv.facturarCuotaDelProyecto(
+      { tenantId: a, proyectoId: pr.id, cuotaId: id, autor: "test" },
+      {
+        ...p.depsConSim,
+        getFiscalProfile: async (tid: string) => {
+          await p.duenio.integracionConexion.update({ where: { id: conexion.id }, data: { estado: "conectada" } });
+          return fiscal.getFiscalProfile(tid);
+        },
+      },
+    );
+    assert.equal(r.ok, false);
+    assert.match((r as { error: string }).error, /Mercado Pago/);
+    assert.equal((await p.facturasDe(id)).length, 0);
+    // Desconectada también niega: un pago que ya pasó la barrera puede salir facturado igual (X10).
+    await p.duenio.integracionConexion.update({ where: { id: conexion.id }, data: { estado: "desconectada" } });
+    const rd = await p.srv.facturarCuotaDelProyecto({ tenantId: a, proyectoId: pr.id, cuotaId: id, autor: "test" }, p.depsConSim);
+    assert.equal(rd.ok, false);
+    assert.match((rd as { error: string }).error, /Mercado Pago/);
+    assert.equal((await p.facturasDe(id)).length, 0);
+  } finally {
+    await p.duenio.integracionConexion.delete({ where: { id: conexion.id } });
+  }
+  assert.ok((await p.srv.facturarCuotaDelProyecto({ tenantId: a, proyectoId: pr.id, cuotaId: id, autor: "test" }, p.depsConSim)).ok);
+});
+
+test("(m) Mercado Pago automático: con facturas de cuota el pago suelto queda en revisión; beauty-spa factura igual", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const a = p.base.a.id;
+  const pr = await p.proyecto();
+  await p.duenio.movimientoImportado.deleteMany({ where: { tenantId: a } });
+  await p.duenio.importacionBancaria.deleteMany({ where: { tenantId: a } });
+  // A factura una cuota (sin MP conectado todavía).
+  assert.ok((await p.srv.facturarCuotaDelProyecto({ tenantId: a, proyectoId: pr.id, cuotaId: await p.cuota(pr.id), autor: "test" }, p.depsConSim)).ok);
+
+  const { facturarPagoMP } = await import("@/lib/invoice-from-mp");
+  const { runInTenantContext } = await import("@/lib/tenant-context");
+  const { facturarPagoSiCorresponde } = await import("@/plugins/mercadopago");
+  const { getFiscalProfile } = await import("@/lib/fiscal");
+  const { createInvoice } = await import("@/lib/invoice-core");
+  const { facturarCobros } = await import("@/lib/facturacion/cobros-facturados");
+  const depsMP = { getFiscalProfile, createInvoice, facturarCobros, procesarEnviosDelNegocio: async () => ({}) as never, negocioFacturaCuotas: p.srv.negocioFacturaCuotas };
+  const pago = (n: string) => ({ id: `pago-m-${n}-${Date.now()}`, estado: "approved" as const, monto: 1210, externalReference: "", fechaAcreditacion: "20261109", tipoOperacionMP: "regular_payment" });
+
+  // La ingesta real (clasificador FACTURABLE): el pago va a revisión con el motivo, sin factura.
+  const marcas: { id: string; estado: string; motivo?: string }[] = [];
+  const reconciliacion = {
+    yaProcesado: async () => false,
+    marcarFacturado: async (id: string) => void marcas.push({ id, estado: "facturado" }),
+    marcarNoFacturable: async (id: string, motivo: string) => void marcas.push({ id, estado: "no_facturable", motivo }),
+    marcarRevisar: async (id: string, motivo: string) => void marcas.push({ id, estado: "revision", motivo }),
+    marcarRechazado: async (id: string, motivo: string) => void marcas.push({ id, estado: "rechazado", motivo }),
+    marcarError: async () => 1,
+    listar: async () => [],
+  };
+  const resumen = { leidos: 0, facturados: 0, noFacturables: 0, aRevisar: 0, rechazados: 0, saltados: 0, errores: 0 };
+  const antes = await p.duenio.invoice.count({ where: { tenantId: a } });
+  const pA = pago("a");
+  await runInTenantContext(a, () => facturarPagoSiCorresponde(pA as never, {
+    tenantId: a,
+    client: {} as never,
+    clasificador: { clasificar: async () => ({ clasificacion: "FACTURABLE" as const, motivo: "venta" }) },
+    reconciliacion: reconciliacion as never,
+    facturar: (pg, tid) => facturarPagoMP(pg, tid, depsMP),
+  }, resumen));
+  assert.equal(await p.duenio.invoice.count({ where: { tenantId: a } }), antes, "el pago suelto se facturó solo en un negocio con cuotas");
+  assert.deepEqual(marcas.map((m) => m.estado), ["revision"]);
+  assert.match(marcas[0].motivo ?? "", /factura cuotas de proyectos: si este cobro es de una cuota, facturala desde el proyecto/);
+  assert.equal(resumen.aRevisar, 1);
+  assert.equal(resumen.facturados, 0);
+
+  // Beauty-spa: sin facturas de cuota, el mismo pago se factura como antes.
+  const spa = await p.duenio.tenant.create({
+    data: { name: "Beauty Spa MP", slug: `beauty-spa-mp-${Date.now()}`, modules: ["arca"], arcaCuit: "20111111112", arcaPuntoVenta: 1, arcaHomologacion: true, arcaCondicionIva: "RESPONSABLE_INSCRIPTO" },
+    select: { id: true },
+  });
+  const invoiceId = await runInTenantContext(spa.id, () => facturarPagoMP(pago("spa") as never, spa.id, depsMP));
+  assert.ok(invoiceId);
+  const f = await p.duenio.invoice.findUniqueOrThrow({ where: { id: invoiceId! }, select: { tenantId: true, proyectoCuotaId: true } });
+  assert.equal(f.tenantId, spa.id);
+  assert.equal(f.proyectoCuotaId, null);
+});
+
+test("(d) sin la columna (migración sin aplicar): se niega sin escribir, regenerar y quitar siguen andando", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const pr = await p.proyecto();
+  const id = await p.cuota(pr.id);
+  // Una factura de cuota hecha ANTES de quitar la columna: `getInvoice` (sin select) la tiene que poder leer después.
+  const previa = await p.srv.facturarCuotaDelProyecto({ tenantId: p.base.a.id, proyectoId: pr.id, cuotaId: await p.cuota(pr.id, { concepto: "Previa" }), autor: "test" }, p.depsConSim);
+  assert.ok(previa.ok, JSON.stringify(previa));
+  // Sólo en ESTA base efímera: como Neon antes de aplicar 20261110120000.
+  await p.duenio.$executeRawUnsafe(`ALTER TABLE "Invoice" DROP COLUMN "proyectoCuotaId"`);
+  p.srv.olvidarColumnaCuotaParaTests();
+  assert.equal(await p.srv.hayColumnaCuotaEnInvoice(), false);
+  const facturasAntes = (await p.duenio.$queryRawUnsafe<{ n: bigint }[]>(`SELECT count(*)::bigint AS n FROM "Invoice"`))[0].n;
+  const enviosAntes = await p.duenio.outboxEvent.count();
+  const r = await p.accion(() => p.acciones.facturarCuota(p.form({ id, proyectoId: pr.id })));
+  assert.equal(r.ok, false);
+  assert.match((r as { error: string }).error, /espera su migración/);
+  assert.equal((await p.duenio.$queryRawUnsafe<{ n: bigint }[]>(`SELECT count(*)::bigint AS n FROM "Invoice"`))[0].n, facturasAntes);
+  assert.equal(await p.duenio.outboxEvent.count(), enviosAntes);
+  assert.equal(await p.duenio.proyectoCambio.count({ where: { entidadId: id } }), 0);
+  // Lo de siempre no se rompe: recalcular y quitar un movimiento.
+  assert.deepEqual(await p.accion(() => p.acciones.recalcularCuotas(p.form({ proyectoId: pr.id }))), { ok: true });
+  assert.deepEqual(await p.accion(() => p.acciones.quitarMovimiento(p.form({ id, proyectoId: pr.id }))), { ok: true });
+  // `getInvoice` no pide la columna que falta.
+  const { runInTenantContext } = await import("@/lib/tenant-context");
+  const leida = await runInTenantContext(p.base.a.id, () => p.invoiceCore.getInvoice(previa.invoiceId, p.base.a.id));
+  assert.equal(leida?.id, previa.invoiceId);
+});

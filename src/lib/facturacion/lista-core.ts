@@ -313,6 +313,15 @@ export function nombreDeTipo(tipo: number | null): string {
 }
 
 /** Quién recibe: el nombre si lo hay; si no, el documento; consumidor final sin identificar. */
+/**
+ * ¿El comprobante salió del modo de prueba (ARCA_MODO=stub)? El simulador autoriza con un CAE que
+ * empieza con «STUB» (plugins/arca/afip/stub.ts; mismo prefijo que `PREFIJO_CAE_SIMULADO`): eso no
+ * tiene validez fiscal y no se muestra como «Autorizado».
+ */
+export function esComprobanteDePrueba(r: Pick<RenglonComprobante, "cae">): boolean {
+  return typeof r.cae === "string" && r.cae.startsWith("STUB");
+}
+
 export function nombreDelReceptor(r: Pick<RenglonComprobante, "receptor" | "docTipo" | "docNro">): string {
   if (r.receptor?.trim()) return r.receptor.trim();
   if (r.docTipo === 99 || !r.docNro || r.docNro === "0") return "Consumidor final";

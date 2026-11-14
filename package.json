@@ -10,6 +10,7 @@
     "seed": "tsx prisma/seed.ts",
     "seed:magra": "tsx prisma/seed-magra.ts",
     "seed:qa-tenants": "tsx prisma/seed-qa-tenants.ts",
+    "seed:qa-etapa2": "tsx prisma/seed-qa-etapa2.ts",
     "flip:magra": "tsx prisma/flip-magra-profile.ts",
     "provision": "tsx scripts/provision-tenant.ts",
     "soporte:alta": "tsx scripts/soporte/alta-negocio.mts",

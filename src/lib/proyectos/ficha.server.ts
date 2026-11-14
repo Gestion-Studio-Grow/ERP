@@ -10,9 +10,13 @@ import { prisma } from "@/lib/prisma";
 import { aPesos, COLUMNAS_FICHA, cashflowDelEvento, codigoProyecto, resumenCuotas, totalesFicha, ventaTotalItem } from "./gestion-core";
 import { columnasOcultas, filtroDeProyectos, puede, tiposDeCambio, versionViva, aItemFicha, type Actor } from "./gestion.server";
 import { configProyectos, datosDelNegocio } from "./datos.server";
-import { desvioPorRubro, fechaCorta, fechaParaInput, redondear, resultadoReal, totales } from "./core";
+import { facturasDeCuotas, motivoParaNoFacturarCuotas, type FacturaDeCuotaVista } from "./facturar-cuota.server";
+import { avisoIvaEnFacturaC } from "./facturar-cuota-core";
+import { cobranza, conciliarConCobros, montoEnCashflow, pagadoDeCuota, repartoDeCobros, SIN_PREVISTAS_SIN_MARCAR, totalesEnPesos } from "./cobranza-core";
+import { cobranzasDelNegocio } from "./cobranza.server";
+import { desvioPorRubro, fechaCorta, fechaParaInput, redondear, resultadoReal } from "./core";
 import { cambioDeVenta, costoSinProveedor, enMonedaDeVenta, ventaEn } from "./gestion-core";
-import { cambioVisible, columnaDe, filaDeFicha, iniciales, monedasSinCambio, planillaDeVenta } from "./ficha-core";
+import { cambioLegible, cambioVisible, columnaDe, filaDeFicha, iniciales, monedasSinCambio, planillaDeVenta } from "./ficha-core";
 import { formulaDelNegocio, ventaDelProyecto } from "./precio-capas.server";
 
 export interface TarjetaProyecto {
@@ -146,12 +150,16 @@ export async function cabeceraFicha(a: Actor, id: string) {
 export type Cabecera = NonNullable<Awaited<ReturnType<typeof cabeceraFicha>>>;
 
 export async function datosResumen(a: Actor, cab: Cabecera, vista: Vista) {
-  const [personas, cuotas, cantChecklist] = await Promise.all([
+  const [personas, cuotas, cantChecklist, cobranzas] = await Promise.all([
     prisma.proyectoPersona.findMany({ where: { tenantId: a.tenantId, activa: true }, orderBy: { nombre: "asc" }, select: { id: true, nombre: true, puesto: true } }),
-    vista.pagos ? prisma.proyectoCuota.findMany({ where: { tenantId: a.tenantId, proyectoId: cab.proyecto.id, anuladoEl: null, prevista: false }, select: { tipo: true, monto: true, moneda: true, venceEl: true, pagadoEl: true, anuladoEl: true } }) : [],
+    vista.pagos ? prisma.proyectoCuota.findMany({ where: { tenantId: a.tenantId, proyectoId: cab.proyecto.id, anuladoEl: null, ...SIN_PREVISTAS_SIN_MARCAR }, select: { id: true, tipo: true, monto: true, moneda: true, venceEl: true, pagadoEl: true, anuladoEl: true } }) : [],
     prisma.proyectoChecklist.count({ where: { tenantId: a.tenantId, proyectoId: cab.proyecto.id } }),
+    vista.pagos ? cobranzasDelNegocio(a.tenantId, cab.tc, cab.config.margenPct, [cab.proyecto.id]) : null,
   ]);
-  return { personas, finanzas: vista.pagos ? resumenCuotas(cuotas, cab.tc) : null, cantCuotas: cuotas.length, cantChecklist };
+  // Cobrado y a cobrar, de los cobros registrados contra lo aprobado (cobranza-core); las cuotas sólo dan los vencimientos.
+  const cob = cobranzas?.get(cab.proyecto.id);
+  const finanzas = vista.pagos ? (cob ? conciliarConCobros(cuotas, cab.tc, cob) : resumenCuotas(cuotas, cab.tc)) : null;
+  return { personas, finanzas, cantCuotas: cuotas.length, cantChecklist };
 }
 
 export async function datosFicha(a: Actor, cab: Cabecera, vista: Vista) {
@@ -175,34 +183,57 @@ export async function datosCotizacion(a: Actor, proyectoId: string) {
   });
 }
 
+/** Aviso de IVA para facturar cuotas: condición del negocio + `ivaPct` del presupuesto vivo. */
+async function avisoIvaDeLaFactura(tenantId: string, proyectoId: string): Promise<string | null> {
+  const [negocio, viva] = await Promise.all([
+    prisma.tenant.findUnique({ where: { id: tenantId }, select: { arcaCondicionIva: true } }),
+    prisma.proyectoPresupuesto.findFirst({ where: { tenantId, proyectoId }, orderBy: { version: "desc" }, select: { ivaPct: true } }),
+  ]);
+  return avisoIvaEnFacturaC(negocio?.arcaCondicionIva, viva?.ivaPct);
+}
+
 export async function datosFinanzas(a: Actor, cab: Cabecera, vista: Vista) {
   const proyectoId = cab.proyecto.id;
   const { tenantId } = a;
-  const [cuotas, pagos, gastos, aprobada, proveedores] = await Promise.all([
+  const [todas, pagos, gastos, aprobada, proveedores, cobranzas] = await Promise.all([
     prisma.proyectoCuota.findMany({ where: { tenantId, proyectoId }, include: { supplier: { select: { name: true } } }, orderBy: { venceEl: "asc" } }),
     prisma.proyectoPago.findMany({ where: { tenantId, proyectoId }, orderBy: { createdAt: "desc" } }),
     vista.costos ? prisma.proyectoGasto.findMany({ where: { tenantId, proyectoId }, orderBy: [{ fecha: "desc" }, { createdAt: "desc" }], include: { supplier: { select: { name: true } } } }) : [],
     prisma.proyectoPresupuesto.findFirst({ where: { tenantId, proyectoId, estado: "APROBADO" }, orderBy: { version: "desc" }, select: { ivaPct: true, items: true } }),
     vista.editaPagos ? prisma.supplier.findMany({ where: { tenantId, active: true }, orderBy: { name: "asc" }, take: 500, select: { id: true, name: true } }) : [],
+    cobranzasDelNegocio(tenantId, cab.tc, cab.config.margenPct, [proyectoId]),
   ]);
+  // La fuente única de cobrado / saldo (cobranza-core): la misma cuenta que Estado financiero, clientes y reportes.
+  const cob = cobranzas.get(proyectoId) ?? cobranza(0, []);
+  // Cada cuota con lo que le falta y lo que entró por ella: lo cobrado a mano ya se descontó de las más viejas.
+  const reparto = repartoDeCobros(todas, cab.tc, cob);
+  // `pagado`: lo que se pagó por una marcada tal como entró (original y pesos asentados), para mostrar; el cashflow usa `cobrado`.
+  const cuotas = todas.map((c, i) => ({ ...c, pendiente: reparto.pendiente[i], cobrado: reparto.cobrado[i], pagado: pagadoDeCuota(c, cob) }));
   // Sin permiso de costos, un pago a proveedor delata el costo: sólo se ven los cobros.
   const visibles = vista.costos ? cuotas : cuotas.filter((c) => c.tipo === "COBRO");
-  const flujo = cashflowDelEvento(visibles, cab.tc);
+  // Una cuota de cobro cuenta lo que entró por ella más lo que le falta (pagada o no), nunca su monto: si no, se pasa del total.
+  const flujo = cashflowDelEvento(visibles, cab.tc, montoEnCashflow);
   // Pasados a pesos: un ítem en dólares no se puede comparar como si fueran pesos.
   const aprobadaEnPesos = aprobada?.items.map((i) => ({ rubro: i.rubro, cantidad: i.cantidad, costo: aPesos(i.costo, i.moneda, cab.tc), precio: i.cantidad > 0 ? ventaTotalItem(i, cab.tc, cab.config.margenPct) / i.cantidad : 0 })) ?? [];
-  const totalesAprobada = aprobada ? totales(aprobadaEnPesos, aprobada.ivaPct) : null;
-  const cobrado = redondear(pagos.filter((p) => !p.anuladoEl).reduce((s, p) => s + p.monto, 0));
-  const totalAprobado = totalesAprobada?.total ?? 0;
+  const totalesAprobada = aprobada ? totalesEnPesos(aprobada, cab.tc, cab.config.margenPct) : null;
+  // Etapa 2 · T2: la factura de ARCA de cada cobro, si el negocio factura cuotas (las cuatro llaves).
+  const facturaCuotas = (await motivoParaNoFacturarCuotas(tenantId)) === null;
+  const facturas = facturaCuotas ? await facturasDeCuotas(tenantId, visibles.filter((c) => c.tipo === "COBRO").map((c) => c.id)) : new Map<string, FacturaDeCuotaVista>();
+  // El presupuesto vivo (de donde salen las cuotas) suma IVA y el negocio factura C: se avisa.
+  const avisoIva = facturaCuotas ? await avisoIvaDeLaFactura(tenantId, proyectoId) : null;
   return {
+    facturaCuotas,
+    facturas,
+    avisoIva,
     cuotas: visibles,
     flujo,
-    resumen: resumenCuotas(visibles, cab.tc),
+    resumen: conciliarConCobros(visibles, cab.tc, cob),
     pagos,
     gastos,
     totalesAprobada,
-    totalAprobado,
-    cobrado,
-    saldo: redondear(totalAprobado - cobrado),
+    totalAprobado: cob.total,
+    cobrado: cob.cobrado,
+    saldo: cob.saldo,
     real: resultadoReal(totalesAprobada, gastos),
     rubros: desvioPorRubro(aprobadaEnPesos, gastos),
     proveedores,
@@ -215,7 +246,7 @@ export async function datosSeguimiento(a: Actor, cab: Cabecera, vista: Vista) {
   const [checklist, tareas, cuotas, pagos] = await Promise.all([
     prisma.proyectoChecklist.findMany({ where: { tenantId, proyectoId }, orderBy: [{ fecha: { sort: "asc", nulls: "last" } }, { createdAt: "asc" }] }),
     prisma.proyectoTarea.findMany({ where: { tenantId, proyectoId }, orderBy: [{ hechaEl: { sort: "asc", nulls: "first" } }, { venceEl: { sort: "asc", nulls: "last" } }, { createdAt: "asc" }] }),
-    vista.pagos ? prisma.proyectoCuota.findMany({ where: { tenantId, proyectoId, tipo: "COBRO", anuladoEl: null, prevista: false }, orderBy: { venceEl: "asc" } }) : [],
+    vista.pagos ? prisma.proyectoCuota.findMany({ where: { tenantId, proyectoId, tipo: "COBRO", anuladoEl: null, ...SIN_PREVISTAS_SIN_MARCAR }, orderBy: { venceEl: "asc" } }) : [],
     vista.pagos ? prisma.proyectoPago.findMany({ where: { tenantId, proyectoId, anuladoEl: null }, orderBy: { createdAt: "desc" } }) : [],
   ]);
   return { checklist, tareas, cuotas, pagos };
@@ -234,7 +265,7 @@ export async function datosArchivos(a: Actor, cab: Cabecera) {
 
 export async function datosHistorial(a: Actor, proyectoId: string, vista: Vista) {
   const filas = await prisma.proyectoCambio.findMany({ where: { tenantId: a.tenantId, proyectoId }, orderBy: { createdAt: "desc" }, take: 300 });
-  return filas.filter((c) => cambioVisible(c, { costos: vista.costos, pagos: vista.pagos }));
+  return filas.filter((c) => cambioVisible(c, { costos: vista.costos, pagos: vista.pagos })).map(cambioLegible);
 }
 
 /** Para las piezas y el armador, que siguen viviendo en la ficha. */

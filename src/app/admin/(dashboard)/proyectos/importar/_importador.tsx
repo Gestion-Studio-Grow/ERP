@@ -1,141 +1,168 @@
 "use client";
 
-// El importador en dos pasos: previsualizar (sólo lee) y confirmar (escribe lo previsualizado, con la misma huella).
+// Subir → vista previa con chips → contadores → «Cargar N proyectos». El File se conserva para confirmar: el servidor
+// vuelve a leerlo y a comparar la huella; nada se escribe con la vista previa.
 
-import { useState } from "react";
-import { buttonClasses, cn } from "@/components/ui";
-import { confirmarImportacion, previsualizarImportacion, type ResultadoPrevia } from "@/lib/proyectos/acciones-importar";
-import { etapaLabel } from "@/lib/proyectos/core";
+import Link from "next/link";
+import { useState, useTransition } from "react";
+import { Badge, buttonClasses, type BadgeTone } from "@/components/ui";
+import { confirmarImportacion, previsualizarImportacion, type ProyectoCreado, type VistaImportacion } from "@/lib/proyectos/acciones-importador";
+import type { EstadoFila } from "@/lib/proyectos/importador-core";
+import { tarjeta } from "../_vista";
 
-type Previa = Extract<ResultadoPrevia, { ok: true }>;
-
-const ESTADO: Record<string, { texto: string; clase: string }> = {
-  nueva: { texto: "Entra", clase: "text-strong" },
-  repetida: { texto: "Repetida", clase: "text-muted" },
-  existe: { texto: "Ya existe", clase: "text-muted" },
-  error: { texto: "Con error", clase: "text-danger" },
+const CHIP: Record<EstadoFila, { texto: string; tono: BadgeTone }> = {
+  carga: { texto: "Se carga", tono: "success" },
+  revisar: { texto: "Revisar", tono: "warning" },
+  repetida: { texto: "Repetida", tono: "neutral" },
+  yaEnBase: { texto: "Ya está en el ERP", tono: "info" },
+  error: { texto: "No se carga", tono: "danger" },
 };
 
+/** Sólo se lee .xlsx: un .xls viejo (formato binario de Excel 97) se frena antes de mandarlo al servidor. */
+const MENSAJE_XLS = "Ese archivo es .xls viejo; descargalo como .xlsx (en Google Sheets: Archivo → Descargar → Microsoft Excel) y subilo de nuevo.";
+const esXlsViejo = (f: File) => /\.xls$/i.test(f.name) || f.type === "application/vnd.ms-excel";
+/** Hasta cuántos proyectos se linkean uno por uno; con más, el link a la lista alcanza. */
+const MAX_LINKS = 20;
+
 export function Importador() {
-  const [csv, setCsv] = useState("");
-  const [archivo, setArchivo] = useState("");
-  const [previa, setPrevia] = useState<Previa | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [hecho, setHecho] = useState<string | null>(null);
-  const [ocupado, setOcupado] = useState(false);
+  const [archivo, setArchivo] = useState<File | null>(null);
+  const [vista, setVista] = useState<VistaImportacion | null>(null);
+  const [error, setError] = useState("");
+  const [hecho, setHecho] = useState("");
+  const [creados, setCreados] = useState<ProyectoCreado[]>([]);
+  const [pendiente, empezar] = useTransition();
 
-  async function correr<T>(fn: () => Promise<T>): Promise<T | null> {
-    setOcupado(true);
-    setError(null);
-    try {
-      return await fn();
-    } catch {
-      setError("No se pudo completar. Revisá la conexión y probá de nuevo.");
-      return null;
-    } finally {
-      setOcupado(false);
-    }
-  }
-
-  async function previsualizar() {
-    setHecho(null);
-    setPrevia(null);
+  const form = () => {
     const fd = new FormData();
-    fd.set("csv", csv);
-    const r = await correr(() => previsualizarImportacion(fd));
-    if (!r) return;
-    if (!r.ok) return setError(r.error);
-    setPrevia(r);
-  }
+    if (archivo) fd.set("archivo", archivo);
+    return fd;
+  };
+  const previsualizar = () =>
+    empezar(async () => {
+      setError("");
+      setHecho("");
+      setCreados([]);
+      setVista(null);
+      const r = await previsualizarImportacion(form());
+      if (r.ok) setVista(r.vista);
+      else setError(r.error);
+    });
+  const confirmar = () =>
+    empezar(async () => {
+      if (!vista) return;
+      setError("");
+      const r = await confirmarImportacion(form(), vista.huella);
+      if (r.ok) {
+        setVista(null);
+        setCreados(r.creados);
+        setHecho(r.cargados === 0 ? "No había proyectos nuevos para cargar: ya estaban en el ERP." : `Listo: se cargaron ${r.cargados} proyectos${r.clientesNuevos ? ` y ${r.clientesNuevos} clientes nuevos` : ""}.`);
+      } else {
+        setError(r.error);
+        if (r.vista) setVista(r.vista);
+      }
+    });
 
-  async function confirmar() {
-    if (!previa) return;
-    const fd = new FormData();
-    fd.set("csv", csv);
-    fd.set("huella", previa.huella);
-    fd.set("confirmo", "si");
-    const r = await correr(() => confirmarImportacion(fd));
-    if (!r) return;
-    if (!r.ok) return setError(r.error);
-    setPrevia(null);
-    setHecho(`Listo: ${r.creados} proyecto${r.creados === 1 ? "" : "s"} nuevo${r.creados === 1 ? "" : "s"}; ${r.salteados} fila${r.salteados === 1 ? "" : "s"} sin importar.`);
-  }
-
+  const c = vista?.conteo;
   return (
-    <div className="grid gap-4">
-      <div className="flex flex-wrap items-end gap-3">
-        <label className="grid gap-1 text-sm font-medium text-strong">
-          Archivo CSV
-          <input
-            type="file"
-            accept=".csv,text/csv"
-            className="min-h-11 text-sm"
-            onChange={async (e) => {
-              const f = e.target.files?.[0];
-              setPrevia(null);
-              setHecho(null);
-              setArchivo(f?.name ?? "");
-              setCsv(f ? await f.text() : "");
-            }}
-          />
-        </label>
-        <button type="button" disabled={!csv || ocupado} onClick={previsualizar} className={buttonClasses("outline", "md")}>
-          Previsualizar
-        </button>
-      </div>
+    <>
+      <section className={tarjeta} aria-label="Subir planilla">
+        <p className="mb-3 text-sm text-muted">Descargá la planilla de Google Sheets como Microsoft Excel (.xlsx) y subila. Primero vas a ver qué se carga; nada se guarda hasta que confirmes.</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="text-sm font-medium text-strong">
+            Planilla
+            <input
+              type="file"
+              accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              className="mt-1 block min-h-11 text-sm"
+              onChange={(e) => {
+                const f = e.target.files?.[0] ?? null;
+                setVista(null);
+                setHecho("");
+                setCreados([]);
+                if (f && esXlsViejo(f)) {
+                  setArchivo(null);
+                  setError(MENSAJE_XLS);
+                  e.target.value = "";
+                  return;
+                }
+                setArchivo(f);
+                setError("");
+              }}
+            />
+          </label>
+          <button type="button" disabled={!archivo || pendiente} onClick={previsualizar} className={buttonClasses("outline", "md")}>
+            {pendiente && !vista ? "Leyendo…" : "Ver qué se carga"}
+          </button>
+        </div>
+        {error && <p role="alert" className="mt-3 text-sm text-danger">{error}</p>}
+        {hecho && <p role="status" className="mt-3 text-sm font-medium text-strong">{hecho}</p>}
+        {hecho && (
+          <div className="mt-2 text-sm">
+            {creados.length > 0 && creados.length <= MAX_LINKS && (
+              <ul className="mb-2" aria-label="Proyectos cargados">
+                {creados.map((p) => (
+                  <li key={p.id}>
+                    <Link href={`/admin/proyectos/${p.id}`} className="inline-flex min-h-11 items-center text-strong underline">
+                      {p.cliente ? `${p.cliente} · ` : ""}{p.nombre || "Proyecto"}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <Link href="/admin/proyectos" className={buttonClasses("outline", "md")}>
+              Ver los proyectos
+            </Link>
+          </div>
+        )}
+      </section>
 
-      {error && <p role="alert" className="text-sm font-medium text-danger">{error}</p>}
-      {hecho && <p role="status" className="text-sm font-medium text-strong">{hecho}</p>}
-
-      {previa && (
-        <section aria-labelledby="titulo-previa" className="grid gap-3">
-          <h2 id="titulo-previa" className="font-semibold text-strong">Previsualización de {archivo || "el archivo"}</h2>
-          <p className="text-sm">
-            Entran <strong>{previa.resumen.nueva}</strong> · repetidas en el archivo {previa.resumen.repetida} · ya existen {previa.resumen.existe} · con error {previa.resumen.error}
-          </p>
-          <div className="overflow-x-auto rounded-2xl border border-line">
-            <table className="w-full text-left text-sm">
-              <caption className="sr-only">Filas del archivo y qué pasa con cada una</caption>
-              <thead className="bg-surface text-xs text-muted">
+      {vista && c && (
+        <section className={tarjeta} aria-label="Vista previa">
+          <h2 className="mb-2 font-semibold text-strong">Vista previa</h2>
+          <ul className="mb-3 flex flex-wrap gap-2 text-sm" aria-label="Contadores">
+            <li><Badge tone="success">{c.seCargan} se cargan</Badge></li>
+            <li><Badge tone="warning">{c.revisar} para revisar</Badge></li>
+            <li><Badge tone="neutral">{c.repetidas} repetidas</Badge></li>
+            <li><Badge tone="info">{c.yaEnBase} ya están</Badge></li>
+            <li><Badge tone="danger">{c.noSeCargan} no se cargan</Badge></li>
+            <li><Badge tone="accent">{c.clientesNuevos} clientes nuevos</Badge></li>
+          </ul>
+          {vista.avisosLibro.map((t) => <p key={t} className="text-sm text-muted">{t}</p>)}
+          {vista.avisos.filter((x) => x.fila === 0).map((x) => <p key={x.hoja} className="text-sm text-muted">Pestaña «{x.hoja}»: {x.motivo}</p>)}
+          <div className="mt-2 max-h-[60vh] overflow-auto">
+            <table className="w-full text-sm">
+              <thead className="text-xs text-muted">
                 <tr>
-                  <th scope="col" className="px-3 py-2">Línea</th>
-                  <th scope="col" className="px-3 py-2">Qué pasa</th>
-                  <th scope="col" className="px-3 py-2">Cliente</th>
-                  <th scope="col" className="px-3 py-2">Proyecto</th>
-                  <th scope="col" className="px-3 py-2">Productor · comercial</th>
-                  <th scope="col" className="px-3 py-2">Etapa</th>
-                  <th scope="col" className="px-3 py-2">Fecha del evento</th>
+                  <th className="py-1 pr-2 text-left font-medium">Pestaña · fila</th>
+                  <th className="px-2 text-left font-medium">Cliente</th>
+                  <th className="px-2 text-left font-medium">Proyecto</th>
+                  <th className="px-2 text-left font-medium">Etapa</th>
+                  <th className="px-2 text-left font-medium">Resultado</th>
                 </tr>
               </thead>
               <tbody>
-                {previa.filas.map((f) => (
-                  <tr key={f.linea} className="border-t border-line align-top">
-                    <td className="px-3 py-2 tabular-nums">{f.linea}</td>
-                    <td className={cn("px-3 py-2 font-medium", ESTADO[f.estado].clase)}>
-                      {ESTADO[f.estado].texto}
-                      {f.motivo && <span className="block text-xs font-normal">{f.motivo}</span>}
-                      {f.avisos.map((x) => <span key={x} className="block text-xs font-normal text-muted">{x}</span>)}
+                {vista.filas.map((f) => (
+                  <tr key={`${f.hoja}:${f.fila}`} className="border-t border-line align-top">
+                    <td className="py-1 pr-2 text-muted">{f.hoja} · {f.fila}</td>
+                    <td className="px-2 text-strong">{f.cliente}</td>
+                    <td className="px-2 text-strong">{f.proyecto}</td>
+                    <td className="px-2">{f.etapa}</td>
+                    <td className="px-2">
+                      <Badge tone={CHIP[f.estado].tono}>{CHIP[f.estado].texto}</Badge>
+                      {f.motivo && f.motivo.replace(/\.$/, "") !== CHIP[f.estado].texto && <p className="mt-1 text-xs text-muted">{f.motivo}</p>}
                     </td>
-                    <td className="px-3 py-2">{f.cliente}</td>
-                    <td className="px-3 py-2">{f.proyecto}</td>
-                    <td className="px-3 py-2">{[f.productor, f.comercial].filter(Boolean).join(" · ") || "—"}</td>
-                    <td className="px-3 py-2">{f.motivoPerdida ? "Perdido" : etapaLabel(f.etapa, "ARQUITECTURA")}</td>
-                    <td className="px-3 py-2">{f.fecha.fecha ? f.fecha.fecha.split("-").reverse().join("/") : f.fecha.texto ? `A confirmar: ${f.fecha.texto}` : "—"}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          <div className="flex flex-wrap gap-3">
-            <button type="button" disabled={ocupado || previa.resumen.nueva === 0} onClick={confirmar} className={buttonClasses("solid", "md")}>
-              Confirmar e importar {previa.resumen.nueva} proyecto{previa.resumen.nueva === 1 ? "" : "s"}
-            </button>
-            <button type="button" disabled={ocupado} onClick={() => setPrevia(null)} className={buttonClasses("outline", "md")}>
-              Cancelar
+          <div className="mt-3">
+            <button type="button" disabled={pendiente || c.seCargan === 0} onClick={confirmar} className={buttonClasses("solid", "md")}>
+              {pendiente ? "Cargando…" : `Cargar ${c.seCargan} proyectos`}
             </button>
           </div>
         </section>
       )}
-    </div>
+    </>
   );
 }
