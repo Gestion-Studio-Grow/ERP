@@ -544,7 +544,7 @@ export default function PorProfesional({
           {columnas.map((c, ci) => {
             const deLaColumna = porColumna.get(c.clave) ?? [];
             const ocupados = ocupadosDeLaColumna(deLaColumna);
-            // Cancelado / «No vino»: la celda es hueco, pero el bloque del turno sigue ahí (angosto, a la izquierda).
+            // «No vino» (y cancelado, si llegara: getAgendaDay ya lo excluye): la celda es hueco y el bloque queda angosto, a la izquierda.
             const liberados = deLaColumna.filter(liberaElHueco).map(enMinutos);
             return Array.from({ length: filas }, (_, f) => {
               const minuto = desde + f * PASO_MIN;
