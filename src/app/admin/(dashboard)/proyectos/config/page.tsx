@@ -9,7 +9,7 @@ import { COSTO_LABEL, type ClaveCosto } from "@/lib/proyectos/stand";
 import Link from "next/link";
 import { guardarFormulaPrecio } from "@/lib/proyectos/acciones-precio";
 import { formulaDelNegocio } from "@/lib/proyectos/precio-capas.server";
-import { CLAVES_PARAMETRO, ETIQUETA_PARAMETRO, textoDeBp } from "@/lib/proyectos/precio-capas-core";
+import { AVISO_PROVISIONAL, CLAVES_PARAMETRO, ETIQUETA_PARAMETRO, PARAMETROS_PROVISIONALES, textoDeBp } from "@/lib/proyectos/precio-capas-core";
 import { BarraProyectos, campo, etiqueta, tarjeta } from "../_vista";
 import { FormAccion } from "../[id]/_cliente";
 
@@ -51,7 +51,9 @@ export default async function ConfigProyectos() {
         <SubmitButton className={buttonClasses("solid", "lg")}>Guardar configuración</SubmitButton>
       </form>
 
-      {/* MIA T1: fórmula de precio por capas. Apagada por defecto: los negocios que no la prenden siguen con el recargo único. */}
+      {/* MIA T1: fórmula de precio por capas, tras el interruptor de la Etapa 2 `proyectos-precio-capas` (apagado por
+          defecto: la pantalla queda como en main). Prendido, la fórmula también arranca apagada hasta que Dirección la usa. */}
+      {formula.encendida && (
       <section className={`${tarjeta} mt-4`} aria-labelledby="titulo-formula">
         <h2 id="titulo-formula" className="font-semibold text-strong">Precio por capas y comisiones</h2>
         {!formula.disponible ? (
@@ -60,8 +62,9 @@ export default async function ConfigProyectos() {
           <FormAccion accion={guardarFormulaPrecio} className="grid gap-3">
             <p className="text-sm text-muted">
               Costo → + rentabilidad → + comisiones (un % de la rentabilidad) → + margen de error → + Ingresos Brutos y gastos sobre la venta → precio sugerido.
-              Los valores que vienen cargados son los de la planilla de MIA, provisionales a confirmar.
+              Los valores que vienen cargados son los de la planilla de MIA.
             </p>
+            {PARAMETROS_PROVISIONALES && <p role="note" className="text-sm font-medium text-strong">{AVISO_PROVISIONAL}</p>}
             <label className="flex min-h-11 items-center gap-2 text-sm font-medium text-strong">
               <input type="checkbox" name="activa" defaultChecked={formula.config.activa} className="size-5" />
               Usar esta fórmula en las fichas de los proyectos
@@ -80,6 +83,7 @@ export default async function ConfigProyectos() {
           </p>
         )}
       </section>
+      )}
     </main>
   );
 }

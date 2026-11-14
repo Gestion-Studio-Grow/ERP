@@ -64,10 +64,20 @@ export const proyectosImportadorModule: ModuleDescriptor = {
   scopeItems: [{ label: "Reservado" }],
 };
 
+export const proyectosPrecioCapasModule: ModuleDescriptor = {
+  ...base,
+  id: "proyectos-precio-capas",
+  nombre: "Proyectos · precio por capas y comisiones",
+  descripcion: "Precio sugerido por capas (rentabilidad, comisiones, margen de error e impuestos), comisión por productor y comercial, reparto del ahorro sobre el presupuesto e importador de la planilla de status. Porcentajes provisionales a confirmar.",
+  resumen: "El precio se arma por capas y cada persona ve su comisión.",
+  scopeItems: [{ label: "Precio por capas" }, { label: "Comisiones por persona" }, { label: "Importador de la planilla de status" }],
+};
+
 export const MODULOS_PROYECTOS_ETAPA2: readonly ModuleDescriptor[] = [
   proyectosIaModule,
   proyectosArmador3dModule,
   proyectosPortalModule,
   proyectosFacturacionModule,
   proyectosImportadorModule,
+  proyectosPrecioCapasModule,
 ];

@@ -24,6 +24,7 @@ import { exigirEditar, puede, type Actor } from "./gestion.server";
 import { fechaAntesDe } from "./ficha-core";
 import { faltaLaMigracion } from "./rendiciones-core";
 import { claveDeProyecto, normalizar, planDeImportacion, type FilaPlan, type EstadoFila, type PersonaDelNegocio } from "./importar-status-core";
+import { MENSAJE_APAGADO } from "./etapa2-core";
 import { SIN_MIGRACION_PRECIO } from "./precio-capas-core";
 import { formulaDelNegocio } from "./precio-capas.server";
 import { ultimoNumeroConCandado } from "./numero-proyecto.server";
@@ -58,10 +59,11 @@ async function entrar(): Promise<Actor | string> {
   return puede(a, "costos", "editar") ? a : SIN_COSTOS;
 }
 
-/** Null si se puede importar; si no, el motivo. Sin las tablas (Gate 2) o sin la fórmula vigente, no. */
+/** Null si se puede importar; si no, el motivo. Con el interruptor apagado, sin las tablas (Gate 2) o sin la fórmula vigente, no. */
 async function bloqueo(tenantId: string): Promise<string | null> {
-  if (!(await tablaDisponible(tenantId))) return SIN_MIGRACION_PRECIO;
   const formula = await formulaDelNegocio(tenantId);
+  if (!formula.encendida) return MENSAJE_APAGADO["precio-capas"];
+  if (!(await tablaDisponible(tenantId))) return SIN_MIGRACION_PRECIO;
   if (!formula.disponible) return SIN_MIGRACION_PRECIO;
   return formula.vigente ? null : SIN_FORMULA;
 }

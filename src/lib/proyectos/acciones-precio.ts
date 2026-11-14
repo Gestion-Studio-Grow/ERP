@@ -13,7 +13,9 @@ import { auditAdmin } from "@/lib/audit-core";
 import { exigirEditar, proyectoVisible, registrarCambio, type Actor } from "./gestion.server";
 import type { ModuloGestion } from "./gestion-core";
 import { faltaLaMigracion } from "./rendiciones-core";
-import { bpDeTexto, centavosDeTexto, CLAVES_PARAMETRO, desglosePrecio, dentroDelTope, ETIQUETA_PARAMETRO, formulaVigente, problemaDeParametros, rangoDelTope, SIN_MIGRACION_PRECIO, textoDeBp, type ParametrosPrecio } from "./precio-capas-core";
+import { MENSAJE_APAGADO } from "./etapa2-core";
+import { etapa2ActivaPara } from "./etapa2.server";
+import { bpDeTexto, centavosDeTexto, CLAVES_PARAMETRO, desglosePrecio, dentroDelTope, ETIQUETA_PARAMETRO, problemaDeParametros, rangoDelTope, SIN_MIGRACION_PRECIO, textoDeBp, type ParametrosPrecio } from "./precio-capas-core";
 import { costoVigenteCent, formulaDelNegocio } from "./precio-capas.server";
 
 export type ResultadoPrecio = { ok: true } | { ok: false; error: string };
@@ -42,6 +44,8 @@ export async function guardarFormulaPrecio(formData: FormData): Promise<Resultad
   const a = await entrar("direccion");
   if (typeof a === "string") return mal(a);
   const { tenantId } = a;
+  // Interruptor de la Etapa 2 (apagado por defecto): sin él, la fórmula no se guarda.
+  if (!(await etapa2ActivaPara(tenantId, "precio-capas"))) return mal(MENSAJE_APAGADO["precio-capas"]);
   const p = {} as ParametrosPrecio;
   for (const k of CLAVES_PARAMETRO) {
     const bp = bpDeTexto(txt(formData.get(k)));
@@ -81,8 +85,9 @@ export async function guardarVentaProyecto(formData: FormData): Promise<Resultad
   if (typeof a === "string") return mal(a);
   const { tenantId } = a;
   const formula = await formulaDelNegocio(tenantId);
+  if (!formula.encendida) return mal(MENSAJE_APAGADO["precio-capas"]);
   if (!formula.disponible) return mal(SIN_MIGRACION_PRECIO);
-  const parametros = formulaVigente(formula.config);
+  const parametros = formula.vigente;
   if (!parametros) return mal("Este negocio no usa la fórmula de precio por capas. Se prende en Configuración.");
 
   const [productor, comercial] = await Promise.all([personaDelNegocio(tenantId, txt(formData.get("productorId"))), personaDelNegocio(tenantId, txt(formData.get("comercialId")))]);

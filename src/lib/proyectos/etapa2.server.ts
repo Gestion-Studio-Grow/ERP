@@ -30,7 +30,7 @@ export async function etapa2ActivaActual(parte: ParteEtapa2): Promise<boolean> {
   return etapa2ActivaPara(await getCurrentTenantId(), parte);
 }
 
-/** Las cinco partes del negocio de la sesión (para la UI). */
+/** Todas las partes del negocio de la sesión (para la UI). */
 export async function etapa2EstadoActual(): Promise<Record<ParteEtapa2, boolean>> {
   return etapa2Estado(await modulosDe(await getCurrentTenantId()));
 }

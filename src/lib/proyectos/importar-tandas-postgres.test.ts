@@ -38,6 +38,8 @@ test("importador: tandas cortas sin frenar el alta, reintento sin duplicar, fór
     assert.equal(r.tipo, "respuesta", JSON.stringify(r));
     return (r as { valor: R }).valor;
   };
+  // El interruptor de la Etapa 2 (apagado por defecto) prendido en los dos: lo que se prueba acá es la fórmula y el permiso.
+  await duenio.tenant.updateMany({ where: { id: { in: [a.id, b.id] } }, data: { modules: { push: "proyectos-precio-capas" } } });
   const planilla = (prefijo: string, n: number) =>
     ["Cliente;Proyecto;Productor;Comercial;Status;Fecha del evento", ...Array.from({ length: n }, (_, i) => `Cli ${i % 40};${prefijo} ${i + 1};;;Cotizando;a confirmar`)].join("\n");
   const previsualizar = async (pedido: typeof enA, csv: string) => correr(pedido, () => previsualizarImportacion(form({ csv })));

@@ -7,11 +7,12 @@ import { faltaLaMigracion } from "./rendiciones-core";
 import { aItemFicha, tiposDeCambio, versionViva } from "./gestion.server";
 import { costoTotalItem, totalesFicha } from "./gestion-core";
 import { configProyectos } from "./datos.server";
+import { etapa2ActivaPara } from "./etapa2.server";
 import {
   centavosDePesos,
   comisionesDelProyecto,
   desglosePrecio,
-  formulaVigente,
+  formulaConInterruptor,
   PARAMETROS_MIA,
   precioFinal,
   rangoDelTope,
@@ -25,6 +26,8 @@ import {
 } from "./precio-capas-core";
 
 export interface FormulaDelNegocio {
+  /** El interruptor de la Etapa 2 `proyectos-precio-capas` (apagado por defecto). Apagado: nada de MIA T1 se ve. */
+  encendida: boolean;
   /** La tabla existe (la migración está aplicada). */
   disponible: boolean;
   /** Lo guardado, o los valores de MIA apagados si no hay fila: es lo que muestra el formulario. */
@@ -36,14 +39,16 @@ export interface FormulaDelNegocio {
 const APAGADA: ConfigPrecioGuardada = { activa: false, ...PARAMETROS_MIA };
 
 export async function formulaDelNegocio(tenantId: string): Promise<FormulaDelNegocio> {
+  // Interruptor primero: apagado, ni se consulta la tabla (y la migración sin aplicar no importa).
+  if (!(await etapa2ActivaPara(tenantId, "precio-capas"))) return { encendida: false, disponible: false, config: APAGADA, vigente: null };
   try {
     const fila = await prisma.proyectoPrecioConfig.findUnique({
       where: { tenantId },
       select: { activa: true, rentabilidadBp: true, comisionProductorBp: true, comisionComercialBp: true, margenErrorBp: true, impuestosBp: true, topeRedondeoBp: true, ahorroEmpresaBp: true },
     });
-    return { disponible: true, config: fila ?? APAGADA, vigente: formulaVigente(fila) };
+    return { encendida: true, disponible: true, config: fila ?? APAGADA, vigente: formulaConInterruptor(fila, true) };
   } catch (e) {
-    if (faltaLaMigracion(e)) return { disponible: false, config: APAGADA, vigente: null };
+    if (faltaLaMigracion(e)) return { encendida: true, disponible: false, config: APAGADA, vigente: null };
     throw e;
   }
 }

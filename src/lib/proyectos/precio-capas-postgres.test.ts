@@ -1,5 +1,6 @@
 // ============================================================================
 // MIA T1 contra Postgres (base efímera, src/test/base-efimera.ts), con la app como `app_rls` igual que producción:
+//   · interruptor de la Etapa 2 apagado: nada se guarda ni se importa;
 //   · la fórmula se prende por negocio: B sigue sin fórmula aunque A la prenda;
 //   · precio final: el tope se valida con el costo recalculado en el servidor; persona o proyecto de otro negocio, no;
 //   · la fecha «a confirmar» se guarda como texto con la fecha vacía;
@@ -49,6 +50,16 @@ test("MIA T1: fórmula por negocio, precio final con tope, fecha a confirmar e i
       { tenantId: a.id, presupuestoId: version.id, rubro: "Mobiliario", descripcion: "Muebles", cantidad: 1, costo: 200_000 },
     ],
   });
+
+  // ── 0) Interruptor de la Etapa 2 apagado (por defecto): nada de MIA T1, aunque se intente guardar la fórmula ──
+  const apagada = await correr(enA, () => formulaDelNegocio(a.id));
+  assert.equal(apagada.encendida, false);
+  assert.equal(apagada.vigente, null);
+  const formMia = form({ rentabilidadBp: "30", comisionProductorBp: "10", comisionComercialBp: "10", margenErrorBp: "5", impuestosBp: "7", topeRedondeoBp: "5", ahorroEmpresaBp: "75", activa: "on" });
+  assert.deepEqual(await correr(enA, () => guardarFormulaPrecio(formMia)), { ok: false, error: "El precio por capas y las comisiones no están activados para tu negocio. Pedile a GSG que los active." });
+  assert.equal(await duenio.proyectoPrecioConfig.count({ where: { tenantId: a.id } }), 0);
+  assert.equal((await correr(enA, () => previsualizarImportacion(form({ csv: "Cliente;Proyecto\nAcme;Stand" })))).ok, false);
+  await duenio.tenant.updateMany({ where: { id: { in: [a.id, b.id] } }, data: { modules: { push: "proyectos-precio-capas" } } });
 
   // ── 1) Sin fila: nadie usa la fórmula (los negocios de hoy no cambian) ──
   assert.equal((await correr(enA, () => formulaDelNegocio(a.id))).vigente, null);

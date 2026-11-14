@@ -7,7 +7,7 @@ import SubmitButton from "@/components/SubmitButton";
 import { guardarVentaProyecto } from "@/lib/proyectos/acciones-precio";
 import { prisma } from "@/lib/prisma";
 import { precioCapasDelProyecto } from "@/lib/proyectos/precio-capas.server";
-import { textoDeBp } from "@/lib/proyectos/precio-capas-core";
+import { AVISO_PROVISIONAL, PARAMETROS_PROVISIONALES, textoDeBp } from "@/lib/proyectos/precio-capas-core";
 import type { Cabecera } from "@/lib/proyectos/ficha.server";
 import { puede, type Actor } from "@/lib/proyectos/gestion.server";
 import { campo, etiqueta, tarjeta } from "../_vista";
@@ -44,6 +44,7 @@ export async function PestanaPrecio({ a, cab }: { a: Actor; cab: Cabecera }) {
       <section className={tarjeta} aria-labelledby="titulo-desglose">
         <h2 id="titulo-desglose" className="font-semibold text-strong">Cómo se arma el precio</h2>
         <p className="mb-2 text-sm text-muted">Sobre el costo de la versión vigente. Los porcentajes se cambian en Configuración.</p>
+        {PARAMETROS_PROVISIONALES && <p role="note" className="mb-2 text-sm font-medium text-strong">{AVISO_PROVISIONAL}</p>}
         {cab.faltanCambio.length > 0 && <p role="alert" className="mb-2 text-sm font-medium text-danger">Falta el tipo de cambio de {cab.faltanCambio.join(", ")}: el costo en esa moneda no está sumado.</p>}
         <dl>
           <Linea titulo="Costo" valor={plata(g.costo)} />
@@ -68,6 +69,7 @@ export async function PestanaPrecio({ a, cab }: { a: Actor; cab: Cabecera }) {
       <section className={tarjeta} aria-labelledby="titulo-comisiones">
         <h2 id="titulo-comisiones" className="font-semibold text-strong">Comisiones</h2>
         <p className="mb-2 text-sm text-muted">{d.comisionesSobre === "aprobada" ? "Sobre la versión aprobada." : "Sobre la versión vigente: todavía no hay una aprobada."}</p>
+        {PARAMETROS_PROVISIONALES && <p role="note" className="mb-2 text-sm font-medium text-strong">{AVISO_PROVISIONAL}</p>}
         <dl>
           {d.comisiones.map((c) => (
             <Linea

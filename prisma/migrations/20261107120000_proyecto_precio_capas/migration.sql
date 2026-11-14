@@ -1,9 +1,18 @@
 -- Proyectos · MIA T1: fórmula de precio por capas, comisiones por persona y fecha del evento «a confirmar».
 -- ADITIVA: sólo agrega dos tablas; no toca ninguna existente ni crea enums. Sin aplicar (Gate 2): el código tolera
 -- su ausencia (P2021 → la ficha sigue con el margen único, sin la pestaña de precio y sin el importador).
--- Sin fila en ProyectoPrecioConfig, o con "activa" = false, ningún negocio cambia.
+-- Sin fila en ProyectoPrecioConfig, o con "activa" = false, ningún negocio cambia. Y además todo va tras el interruptor
+-- de la Etapa 2 `proyectos-precio-capas` en Tenant.modules (apagado por defecto, etapa2-core.ts).
+-- IDEMPOTENTE: IF NOT EXISTS en tablas e índices y llaves foráneas dentro de DO $$ … pg_constraint; correrla dos
+-- veces no falla ni duplica nada.
+--
+-- VUELTA ATRÁS (manual, sólo con orden del dueño y respaldo de Neon; borra lo cargado en estas dos tablas):
+--   DROP TABLE IF EXISTS "ProyectoVenta";
+--   DROP TABLE IF EXISTS "ProyectoPrecioConfig";
+--   DELETE FROM "_prisma_migrations" WHERE migration_name = '20261107120000_proyecto_precio_capas';
+-- Las políticas RLS, los CHECK, los índices y las llaves caen con sus tablas; no se tocó ninguna otra tabla.
 
-CREATE TABLE "ProyectoPrecioConfig" (
+CREATE TABLE IF NOT EXISTS "ProyectoPrecioConfig" (
   "id" TEXT NOT NULL,
   "tenantId" TEXT NOT NULL,
   "activa" BOOLEAN NOT NULL DEFAULT false,
@@ -27,10 +36,14 @@ CREATE TABLE "ProyectoPrecioConfig" (
     "ahorroEmpresaBp" BETWEEN 0 AND 10000
   )
 );
-CREATE UNIQUE INDEX "ProyectoPrecioConfig_tenantId_key" ON "ProyectoPrecioConfig"("tenantId");
-ALTER TABLE "ProyectoPrecioConfig" ADD CONSTRAINT "ProyectoPrecioConfig_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+CREATE UNIQUE INDEX IF NOT EXISTS "ProyectoPrecioConfig_tenantId_key" ON "ProyectoPrecioConfig"("tenantId");
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ProyectoPrecioConfig_tenantId_fkey') THEN
+    ALTER TABLE "ProyectoPrecioConfig" ADD CONSTRAINT "ProyectoPrecioConfig_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
 
-CREATE TABLE "ProyectoVenta" (
+CREATE TABLE IF NOT EXISTS "ProyectoVenta" (
   "id" TEXT NOT NULL,
   "tenantId" TEXT NOT NULL,
   "proyectoId" TEXT NOT NULL,
@@ -44,15 +57,31 @@ CREATE TABLE "ProyectoVenta" (
   CONSTRAINT "ProyectoVenta_pkey" PRIMARY KEY ("id"),
   CONSTRAINT "ProyectoVenta_precioFinalCent_check" CHECK ("precioFinalCent" IS NULL OR "precioFinalCent" > 0)
 );
-CREATE UNIQUE INDEX "ProyectoVenta_proyectoId_key" ON "ProyectoVenta"("proyectoId");
-CREATE UNIQUE INDEX "ProyectoVenta_proyectoId_tenantId_key" ON "ProyectoVenta"("proyectoId", "tenantId");
-CREATE INDEX "ProyectoVenta_tenantId_idx" ON "ProyectoVenta"("tenantId");
+CREATE UNIQUE INDEX IF NOT EXISTS "ProyectoVenta_proyectoId_key" ON "ProyectoVenta"("proyectoId");
+CREATE UNIQUE INDEX IF NOT EXISTS "ProyectoVenta_proyectoId_tenantId_key" ON "ProyectoVenta"("proyectoId", "tenantId");
+CREATE INDEX IF NOT EXISTS "ProyectoVenta_tenantId_idx" ON "ProyectoVenta"("tenantId");
 
-ALTER TABLE "ProyectoVenta" ADD CONSTRAINT "ProyectoVenta_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ProyectoVenta_tenantId_fkey') THEN
+    ALTER TABLE "ProyectoVenta" ADD CONSTRAINT "ProyectoVenta_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
 -- Llaves compuestas (id, tenantId): ni el proyecto ni las personas pueden ser de otro negocio (la base lo impide, no sólo RLS).
-ALTER TABLE "ProyectoVenta" ADD CONSTRAINT "ProyectoVenta_proyectoId_tenantId_fkey" FOREIGN KEY ("proyectoId", "tenantId") REFERENCES "Proyecto"("id", "tenantId") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "ProyectoVenta" ADD CONSTRAINT "ProyectoVenta_productorId_tenantId_fkey" FOREIGN KEY ("productorId", "tenantId") REFERENCES "ProyectoPersona"("id", "tenantId") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "ProyectoVenta" ADD CONSTRAINT "ProyectoVenta_comercialId_tenantId_fkey" FOREIGN KEY ("comercialId", "tenantId") REFERENCES "ProyectoPersona"("id", "tenantId") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ProyectoVenta_proyectoId_tenantId_fkey') THEN
+    ALTER TABLE "ProyectoVenta" ADD CONSTRAINT "ProyectoVenta_proyectoId_tenantId_fkey" FOREIGN KEY ("proyectoId", "tenantId") REFERENCES "Proyecto"("id", "tenantId") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ProyectoVenta_productorId_tenantId_fkey') THEN
+    ALTER TABLE "ProyectoVenta" ADD CONSTRAINT "ProyectoVenta_productorId_tenantId_fkey" FOREIGN KEY ("productorId", "tenantId") REFERENCES "ProyectoPersona"("id", "tenantId") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ProyectoVenta_comercialId_tenantId_fkey') THEN
+    ALTER TABLE "ProyectoVenta" ADD CONSTRAINT "ProyectoVenta_comercialId_tenantId_fkey" FOREIGN KEY ("comercialId", "tenantId") REFERENCES "ProyectoPersona"("id", "tenantId") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- RLS en la misma migración (check-coverage.mjs): cada negocio ve sólo lo suyo.
 ALTER TABLE "ProyectoPrecioConfig" ENABLE ROW LEVEL SECURITY;

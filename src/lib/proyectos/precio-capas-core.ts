@@ -32,7 +32,10 @@ export interface ParametrosPrecio {
   ahorroEmpresaBp: number;
 }
 
-/** Los de la planilla de MIA (07/11/2026). PROVISIONAL A CONFIRMAR con Mariana. */
+/**
+ * Los de la planilla de MIA (07/11/2026). PROVISIONAL A CONFIRMAR con MIA (Mariana) y con Ale: ningún porcentaje de
+ * acá es definitivo. La UI los muestra con `AVISO_PROVISIONAL` mientras `PARAMETROS_PROVISIONALES` sea true.
+ */
 export const PARAMETROS_MIA: Readonly<ParametrosPrecio> = Object.freeze({
   rentabilidadBp: 3000,
   comisionProductorBp: 1000,
@@ -42,6 +45,12 @@ export const PARAMETROS_MIA: Readonly<ParametrosPrecio> = Object.freeze({
   topeRedondeoBp: 500,
   ahorroEmpresaBp: 7500,
 });
+
+/** Se baja a false sólo cuando MIA y Ale confirmen por escrito los porcentajes y las comisiones. */
+export const PARAMETROS_PROVISIONALES = true;
+
+/** El texto que acompaña cada porcentaje y comisión en pantalla mientras sean provisionales. */
+export const AVISO_PROVISIONAL = "Porcentajes y comisiones provisionales a confirmar con MIA y Ale: no son definitivos.";
 
 /** Topes de cada parámetro, en puntos básicos. Los mismos que el CHECK de la migración. */
 export const LIMITES_BP: Readonly<Record<keyof ParametrosPrecio, number>> = Object.freeze({
@@ -227,6 +236,15 @@ export interface ConfigPrecioGuardada extends ParametrosPrecio {
 }
 
 /** La fila de la base → parámetros, o null si el negocio no usa la fórmula (sin fila, apagada o con datos imposibles). */
+/**
+ * La fórmula que rige con el interruptor de la Etapa 2 (`proyectos-precio-capas`, etapa2-core.ts). Apagado (el valor
+ * por defecto) → null, aunque el negocio la haya prendido en Configuración: la ficha y el precio quedan como en main,
+ * con el margen único.
+ */
+export function formulaConInterruptor(fila: ConfigPrecioGuardada | null | undefined, interruptor: boolean): ParametrosPrecio | null {
+  return interruptor ? formulaVigente(fila) : null;
+}
+
 export function formulaVigente(fila: ConfigPrecioGuardada | null | undefined): ParametrosPrecio | null {
   if (!fila || !fila.activa) return null;
   const p: ParametrosPrecio = {

@@ -3,7 +3,12 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { etapa2Activa } from "./etapa2-core";
+import { totalesFicha, type ItemFicha } from "./gestion-core";
 import {
+  AVISO_PROVISIONAL,
+  formulaConInterruptor,
+  PARAMETROS_PROVISIONALES,
   bpDeTexto,
   centavosDePesos,
   centavosDeTexto,
@@ -183,4 +188,30 @@ test("formula vigente: sin fila o apagada, nada cambia; con datos imposibles, ta
   assert.equal(formulaVigente({ activa: false, ...PARAMETROS_MIA }), null);
   assert.deepEqual(formulaVigente({ activa: true, ...PARAMETROS_MIA }), { ...PARAMETROS_MIA });
   assert.equal(formulaVigente({ activa: true, ...PARAMETROS_MIA, impuestosBp: 20_000 }), null);
+});
+
+test("interruptor de la Etapa 2 apagado (por defecto): ninguna fórmula rige y el precio queda como en main", () => {
+  const prendidaEnConfig = { activa: true, ...PARAMETROS_MIA };
+  // Sin la clave `proyectos-precio-capas` en Tenant.modules, el interruptor da false…
+  for (const modules of [undefined, null, [], ["proyectos", "proyectos-importador"]]) {
+    const interruptor = etapa2Activa(modules, "precio-capas");
+    assert.equal(interruptor, false);
+    // …y la fórmula no rige aunque Dirección la haya prendido en Configuración.
+    assert.equal(formulaConInterruptor(prendidaEnConfig, interruptor), null);
+  }
+  // Prendido, rige lo de Configuración (y apagada en Configuración, tampoco).
+  assert.deepEqual(formulaConInterruptor(prendidaEnConfig, etapa2Activa(["proyectos-precio-capas"], "precio-capas")), formulaVigente(prendidaEnConfig));
+  assert.equal(formulaConInterruptor({ ...prendidaEnConfig, activa: false }, true), null);
+  // La cuenta de main (recargo único sobre el costo) no depende de la fórmula: $ 1.000.000 al 30 % → $ 1.300.000.
+  const items: ItemFicha[] = [{ id: "i1", descripcion: "Estructura", rubro: "Escenografía y stands", cantidad: 2, costo: 500_000, moneda: "ARS", recargoPct: null, precio: 0, fechaLimite: null, supplierId: null }];
+  const t = totalesFicha(items, { ARS: 1 }, 30);
+  assert.equal(t.costo, 1_000_000);
+  assert.equal(t.venta, 1_300_000);
+});
+
+test("porcentajes y comisiones de MIA: marcados provisionales a confirmar, nunca definitivos", () => {
+  assert.equal(PARAMETROS_PROVISIONALES, true);
+  assert.match(AVISO_PROVISIONAL, /provisionales a confirmar/);
+  assert.match(AVISO_PROVISIONAL, /MIA/);
+  assert.match(AVISO_PROVISIONAL, /Ale/);
 });
