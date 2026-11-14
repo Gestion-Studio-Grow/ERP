@@ -3,7 +3,7 @@ import { redirect, unstable_rethrow } from "next/navigation";
 import { requireApp } from "@/lib/require-app";
 import { gestionaClases, veLaPlataDelDia } from "@/lib/padel/plata-guardia";
 import { AvisoError, EmptyState, Esqueleto, Plata } from "@/components/ui";
-import { configPadel, franjas, hoy } from "@/lib/padel/datos.server";
+import { clubesDe, configPadel, franjas, hoy } from "@/lib/padel/datos.server";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { necesitaBienvenida, RUTA_BIENVENIDA } from "./bienvenida/necesita";
 import { MEDIO_LABEL, diaCorto, horaHumana, linkWhatsApp, sumarDias, type MedioPago } from "@/lib/padel/core";
@@ -28,13 +28,13 @@ const titulo = "mb-2 text-sm font-bold uppercase tracking-wide text-strong";
 // red, «Reintentar» (nunca pantalla en blanco).
 export default async function ClasesHoy() {
   const user = await requireApp("padel-clases");
-  // Profe que todavía no configuró nada (sin precio ni horarios): a la Bienvenida (M-083).
+  // Profe que todavía no configuró nada (sin precio, horarios ni club): a la Bienvenida (M-083 · T4).
   const tenantId = await getCurrentTenantId();
-  const [config, fr] = await Promise.all([configPadel(tenantId), franjas(tenantId)]);
+  const [config, fr, cl] = await Promise.all([configPadel(tenantId), franjas(tenantId), clubesDe(tenantId)]);
   // Sólo quien gestiona Clases: la Bienvenida guarda con acciones que exigen agenda:manage (y le
   // devuelve acá a quien no lo tiene: sin esta condición, el PROFESSIONAL rebotaría sin fin).
   const gestiona = gestionaClases(user);
-  if (gestiona && necesitaBienvenida({ vista: config.bienvenidaVista, precioIndividual: config.precioIndividual, franjas: fr })) redirect(RUTA_BIENVENIDA);
+  if (gestiona && necesitaBienvenida({ vista: config.bienvenidaVista, precioIndividual: config.precioIndividual, franjas: fr, clubes: cl })) redirect(RUTA_BIENVENIDA);
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-5">
       <Suspense fallback={<EsqueletoHoy />}>

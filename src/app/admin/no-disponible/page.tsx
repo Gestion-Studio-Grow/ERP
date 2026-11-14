@@ -19,6 +19,7 @@ import { cn } from "@/components/ui/cn";
 import HojaDeIngreso, { RAIZ_HOJA_DE_INGRESO } from "../login/HojaDeIngreso";
 import { folioDelDia } from "../login/login-core";
 import { etiquetaDeRol } from "../(dashboard)/usuarios/roles";
+import SelloGSG from "@/components/marca/SelloGSG";
 
 // "APP NO DISPONIBLE" — adonde manda `requireApp` cuando la persona no puede abrir una app.
 //
@@ -203,7 +204,7 @@ export default async function NoDisponiblePage({
             </div>
           </section>
 
-          <p className="mt-6 text-center text-xs text-faint">Con tecnología de Gestión Studio Grow</p>
+          <SelloGSG className="mt-6" />
         </div>
         )}
       </ConDiseno>

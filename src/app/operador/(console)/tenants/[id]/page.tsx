@@ -59,7 +59,10 @@ import { appOcultablePorId, INTERRUPTORES_DE_LA_CONSOLA, interruptorPorId } from
 import { todosApagados } from "@/cambios/interruptores-core";
 import { operadorDuenio } from "@/lib/operator-auth";
 import { ResetOwnerPasswordCard } from "./ResetOwnerPasswordCard";
+import { ownersActivos } from "@/lib/operador/owner-reset-port";
 import { AltaPersonaCard } from "./AltaPersonaCard";
+import { VerificacionProfeCard } from "./VerificacionProfeCard";
+import { leerVerificacionDeLaFicha } from "@/lib/operador/verificacion-profe.server";
 import { motivoFueraDelPlan } from "./modulos-y-plan";
 import {
   appsPorModulo,
@@ -304,7 +307,7 @@ export default async function FichaDelNegocio({
   // Todo lo que no depende de otra lectura, a la vez.
   const [
     credFiscal,
-    ownerYEstado,
+    owners,
     contacto,
     productos,
     usuariosActivos,
@@ -316,18 +319,18 @@ export default async function FichaDelNegocio({
     candidatosCasa,
     fichaDelPase,
     conteos,
+    verificacionProfe,
   ] = await Promise.all([
     credencialFiscalDe(t.id),
-    // Dueño del negocio + estado de su contraseña temporal (tolera la migración sin aplicar).
-    // Las filas del negocio se leen parado en él (`enElNegocio`): con RLS, sin eso la ficha
-    // mostraba el negocio sin dueño, sin usuarios y sin catálogo.
+    // Dueños activos del negocio + estado de la contraseña temporal de cada uno (tolera la migración
+    // sin aplicar). Con más de uno, la tarjeta obliga a elegir a cuál se le resetea. Las filas del
+    // negocio se leen parado en él (`enElNegocio`): con RLS, sin eso la ficha mostraba el negocio
+    // sin dueño, sin usuarios y sin catálogo.
     enElNegocio(t.id, async (tx) => {
-      const owner = await tx.user.findFirst({
-        where: { tenantId: t.id, role: "OWNER", active: true, deletedAt: null },
-        orderBy: { createdAt: "asc" },
-        select: { id: true, email: true },
-      });
-      return { owner, tempPending: owner ? await operatorReadMustChange(tx, owner.id) : (false as const) };
+      const activos = await ownersActivos(tx, t.id);
+      const conEstado = [];
+      for (const o of activos) conEstado.push({ ...o, tempPending: await operatorReadMustChange(tx, o.id) });
+      return conEstado;
     }),
     // Datos de apertura: contacto público y catálogo, tolerantes a que falten.
     enElNegocio(t.id, (tx) =>
@@ -393,9 +396,10 @@ export default async function FichaDelNegocio({
       personas: await tx.user.count({ where: { tenantId: t.id } }),
       clientes: await tx.client.count({ where: { tenantId: t.id } }),
     })).catch(() => ({ personas: 0, clientes: 0 })),
+    // Alta asistida de ProfeTurnos: ¿se dio de alta solo y falta verificarlo? (null: no se pudo leer).
+    leerVerificacionDeLaFicha(t.id),
   ]);
   if (!negocio) notFound();
-  const { owner, tempPending: ownerTempPending } = ownerYEstado;
   const enOtraRed = await candidatosEnOtraRed(
     candidatosCasa.map((x) => x.id),
     t.id,
@@ -548,6 +552,7 @@ export default async function FichaDelNegocio({
 
   const puesta = (
     <>
+      <VerificacionProfeCard tenantId={t.id} verificacion={verificacionProfe} soloLectura={soloLectura} />
       <Bloque
         id="listo"
         titulo="Listo para abrir"
@@ -1147,8 +1152,7 @@ export default async function FichaDelNegocio({
       <ResetOwnerPasswordCard
         tenantId={t.id}
         slug={t.slug}
-        ownerEmail={owner?.email ?? null}
-        tempPending={ownerTempPending}
+        owners={owners}
         soloLectura={soloLectura}
       />
       <AltaPersonaCard tenantId={t.id} soloLectura={soloLectura} />

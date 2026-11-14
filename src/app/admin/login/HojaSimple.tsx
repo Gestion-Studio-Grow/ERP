@@ -8,6 +8,7 @@ import { getTenantBrand, marcaDelNegocio, resolveAccent } from "@/lib/branding";
 import { esteticaBackoffice } from "@/lib/estetica-backoffice";
 import { claseDeFuentes } from "@/lib/estetica-backoffice-fuentes";
 import { getCurrentTenantSlug } from "@/lib/tenant-site";
+import SelloGSG from "@/components/marca/SelloGSG";
 
 export default async function HojaSimple({ titulo, children }: { titulo: string; children: ReactNode }) {
   const [brand, slug] = await Promise.all([getTenantBrand(), getCurrentTenantSlug()]);
@@ -35,7 +36,7 @@ export default async function HojaSimple({ titulo, children }: { titulo: string;
           <h1 id="hoja-titulo" className="text-xl font-semibold tracking-tight text-strong">{titulo}</h1>
           {children}
         </section>
-        <p className="mt-6 text-center text-xs text-faint">Con tecnología de Gestión Studio Grow</p>
+        <SelloGSG className="mt-6" />
       </div>
     </main>
   );

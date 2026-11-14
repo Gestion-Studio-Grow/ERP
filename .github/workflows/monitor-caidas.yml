@@ -7,15 +7,21 @@
 # Runbook: docs/runbooks/copia-y-monitor.md
 # Nota: horario (no cada 5 min) para no pasar los 2.000 min/mes gratis de Actions (5 min ≈ 8.600 min/mes).
 # El aviso fino de caída lo da UptimeRobot sobre /api/health; esto es la red de respaldo, de mejor esfuerzo.
+# Además, una vez por día (09:41 UTC = 06:41 hora Argentina, 3 h 24 min después de la copia de las 03:17),
+# el job «copia-reciente» mira por la API de GitHub la última corrida EXITOSA de copia-diaria-base.yml:
+#   - si no hay ninguna o tiene más de 26 h: abre (o comenta) el issue «🔴 Sin copia de la base en 26 h» y queda en ROJO;
+#   - si vuelve a haber copia y hay un issue abierto: comenta «resuelto» y lo cierra.
 name: monitor-caidas
 
 on:
   schedule:
     - cron: '23 * * * *'   # cada hora
+    - cron: '41 9 * * *'   # una vez por día: alerta «sin copia en 26 h» (job copia-reciente)
   workflow_dispatch: {}
 
 permissions:
   issues: write
+  actions: read   # copia-reciente lee las corridas de copia-diaria-base
 
 concurrency:
   group: monitor-caidas
@@ -23,6 +29,8 @@ concurrency:
 
 jobs:
   health:
+    # El cron diario es sólo para copia-reciente; el chequeo horario ya cubre esa hora.
+    if: github.event.schedule != '41 9 * * *'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
@@ -91,4 +99,73 @@ jobs:
         run: |
           set -euo pipefail
           gh issue comment "$NUMERO" --body "✅ Resuelto: \`/api/health\` vuelve a responder 200 a las ${HORA}."
+          gh issue close "$NUMERO" --reason completed
+
+  copia-reciente:
+    name: copia de la base en las últimas 26 h
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '41 9 * * *'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      TITULO: '🔴 Sin copia de la base en 26 h'
+      LIMITE_HORAS: '26'
+    steps:
+      - name: Buscar la última copia exitosa
+        id: copia
+        run: |
+          set -euo pipefail
+          ultima=$(gh api "repos/${GH_REPO}/actions/workflows/copia-diaria-base.yml/runs?status=success&per_page=1" \
+            --jq '.workflow_runs[0].updated_at // empty')
+          ahora=$(date -u +%s)
+          if [ -n "$ultima" ]; then
+            edad=$(( (ahora - $(date -u -d "$ultima" +%s)) / 60 ))
+            hora=$(TZ=America/Argentina/Buenos_Aires date -d "$ultima" '+%Y-%m-%d %H:%M')
+            detalle="última copia exitosa: ${hora} (hora Argentina), hace $((edad / 60)) h $((edad % 60)) min"
+            if [ "$edad" -le $(( LIMITE_HORAS * 60 )) ]; then ok=true; else ok=false; fi
+          else
+            ok=false
+            detalle="no hay ninguna copia exitosa registrada"
+          fi
+          echo "ok=$ok" >> "$GITHUB_OUTPUT"
+          echo "detalle=$detalle" >> "$GITHUB_OUTPUT"
+          echo "Resultado: ok=$ok · $detalle"
+
+      - name: Buscar issue abierto
+        id: issue
+        run: |
+          set -euo pipefail
+          numero=$(gh issue list --state open --limit 100 --json number,title \
+            --jq "[.[] | select(.title == env.TITULO)][0].number // empty")
+          echo "numero=${numero}" >> "$GITHUB_OUTPUT"
+
+      - name: Reportar falta de copia
+        if: steps.copia.outputs.ok != 'true'
+        env:
+          NUMERO: ${{ steps.issue.outputs.numero }}
+          DETALLE: ${{ steps.copia.outputs.detalle }}
+        run: |
+          set -euo pipefail
+          cuerpo="La copia diaria cifrada de la base no corrió bien en las últimas ${LIMITE_HORAS} h.
+          - Detalle: ${DETALLE}
+          - Corrida: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          if [ -n "${NUMERO}" ]; then
+            gh issue comment "$NUMERO" --body "$cuerpo"
+          else
+            gh issue create --title "$TITULO" --body "$cuerpo
+
+          Qué hacer: docs/runbooks/copia-y-monitor.md (sección «Si falta la copia»)."
+          fi
+          echo "::error::Sin copia de la base en ${LIMITE_HORAS} h (${DETALLE})"
+          exit 1
+
+      - name: Cerrar si volvió la copia
+        if: steps.copia.outputs.ok == 'true' && steps.issue.outputs.numero != ''
+        env:
+          NUMERO: ${{ steps.issue.outputs.numero }}
+          DETALLE: ${{ steps.copia.outputs.detalle }}
+        run: |
+          set -euo pipefail
+          gh issue comment "$NUMERO" --body "✅ Resuelto: ${DETALLE}."
           gh issue close "$NUMERO" --reason completed
