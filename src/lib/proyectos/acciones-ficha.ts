@@ -940,7 +940,7 @@ async function saldarConSusPartes(tenantId: string, proyectoId: string, c: { id:
     await registrarCambio(tx, { tenantId, proyectoId, entidad: "ProyectoCuota", entidadId: c.id, campo: `Pagado · ${c.concepto}`, antes: "Pendiente", despues: SALDADA_CON_PARTES, autor });
     return "ok";
   });
-  if (r === "falta") return mal("Mientras tanto se anuló una parte: a esta cuota le vuelve a faltar plata. Recargá la página para ver cuánto.");
+  if (r === "falta") return mal("A esta cuota todavía le falta plata (quizá se anuló una parte mientras tanto). Recargá la página para ver cuánto.");
   if (r === "marcada") return mal("Esa cuota ya estaba marcada.");
   await auditAdmin({ action: "proyecto.cuota.saldar-con-partes", entity: "ProyectoCuota", entityId: c.id, changes: {} });
   refrescar(proyectoId);
