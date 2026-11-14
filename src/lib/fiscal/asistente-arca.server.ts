@@ -22,7 +22,7 @@ import { randomUUID } from "node:crypto";
 import { enElNegocio, operatorPrisma } from "@/lib/operator-db";
 import { logger } from "@/lib/logger";
 import { isUniqueViolation } from "@/lib/prisma-errors";
-import { masterKeyDesdeEnv, openSecret, sealSecret } from "@/lib/fiscal/cert-crypto";
+import { elSobreAbre, masterKeyDesdeEnv, openSecret, sealSecret } from "@/lib/fiscal/cert-crypto";
 import {
   cargarCredencialTenant,
   credencialParaTenant,
@@ -42,8 +42,13 @@ import {
   generarPedidoDeCertificado,
   hayPedidoEnCurso,
   leerPedidoConEstado,
+  confirmaElDescarte,
+  MOTIVO_PEDIDO_EN_CURSO,
   MOTIVO_SIN_CONFIGURACION,
+  motivoParaNoDescartar,
   motivoParaNoReemplazarPedido,
+  PALABRA_DEL_DESCARTE,
+  pedidoCambioDesdeQueSeLeyo,
   problemaDelPedido,
   PALABRA_DEL_PASE,
   sinChoqueDePedido,
@@ -70,8 +75,16 @@ import {
 export const SERVICIO_PEDIDO = "pedido-csr";
 const huellaDelPedido = (tenantId: string) => `pedido-csr:${tenantId}`;
 
+type Tx = Parameters<Parameters<typeof enElNegocio>[1]>[0];
+
+/** El candado del pedido del negocio (hasta el fin de la transacción): guardar y descartar se turnan. */
+async function bloquearPedido(tx: Tx, tenantId: string): Promise<void> {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${huellaDelPedido(tenantId)}))`;
+}
+
 /** Acciones de AuditLog del asistente (metadata, nunca material). */
 export const ACCION_PEDIDO_CSR = "fiscal.csr.generado";
+export const ACCION_PEDIDO_DESCARTADO = "fiscal.csr.descartado";
 export const ACCION_PEDIDO_DE_PASE = "fiscal.pase-a-real.pedido";
 const ACCIONES_DEL_PASE = [ACCION_PEDIDO_DE_PASE, "fiscal.pase-a-real", "fiscal.vuelta-a-pruebas"];
 
@@ -92,7 +105,7 @@ async function leerFilaDelPedido(tenantId: string) {
   return enElNegocio(tenantId, (tx) =>
     tx.arcaAuthTicket.findFirst({
       where: { tenantId, certHuella: huellaDelPedido(tenantId), service: SERVICIO_PEDIDO },
-      select: { kekId: true, wrappedDek: true, sealed: true, expiration: true },
+      select: { id: true, kekId: true, wrappedDek: true, sealed: true, expiration: true },
     }),
   );
 }
@@ -104,10 +117,10 @@ function abrirFila(fila: FilaDelPedido, master: ReturnType<typeof masterKeyDesde
   return { keyPem, csrPem, creadoEn: fila.expiration };
 }
 
-async function abrirPedido(tenantId: string): Promise<PedidoAbierto | null> {
+async function abrirPedido(tenantId: string): Promise<(PedidoAbierto & { id: string }) | null> {
   const fila = await leerFilaDelPedido(tenantId);
   if (!fila) return null;
-  return abrirFila(fila, masterKeyDesdeEnv());
+  return { ...abrirFila(fila, masterKeyDesdeEnv()), id: fila.id };
 }
 
 /**
@@ -117,9 +130,13 @@ async function abrirPedido(tenantId: string): Promise<PedidoAbierto | null> {
  * puede generar otro). Nunca «no hay pedido» por un error: la pantalla ofrecería generar
  * otro y eso invalida el .csr que el dueño quizá ya subió a ARCA.
  */
-export async function leerPedidoPendiente(tenantId: string): Promise<LecturaDelPedido> {
+export async function leerPedidoPendiente(tenantId: string, alLeerFila?: (id: string | null) => void): Promise<LecturaDelPedido> {
   return leerPedidoConEstado({
-    leerFila: () => leerFilaDelPedido(tenantId),
+    leerFila: async () => {
+      const fila = await leerFilaDelPedido(tenantId);
+      alLeerFila?.(fila?.id ?? null);
+      return fila;
+    },
     clave: () => masterKeyDesdeEnv(),
     abrir: (fila, master) => {
       const p = abrirFila(fila, master);
@@ -135,19 +152,34 @@ export async function leerPedidoPendiente(tenantId: string): Promise<LecturaDelP
   });
 }
 
+/** Un pedido nuevo listo para guardar: el sobre cerrado y la fila de pedido que había al decidir. */
+export interface PedidoPreparado {
+  tenantId: string;
+  sobre: ReturnType<typeof sealSecret>;
+  subject: string;
+  /** El id de la fila de pedido que se leyó al preparar (null = no había). */
+  filaVista: string | null;
+}
+
 /**
- * Paso 2: genera clave + CSR en el servidor y deja la clave cifrada y pendiente (reemplaza un pedido
- * anterior: el .csr viejo deja de servir). No toca el certificado cargado. Si el pedido anterior no se
- * pudo leer por la base, falta la clave maestra o se guardó con otra clave que no lo abre, no lo
- * reemplaza; si está dañado, sí (ver `leerPedidoPendiente`).
+ * Paso 2, primera mitad: lee el pedido que hay, decide si se puede reemplazar y genera clave + CSR,
+ * cerrados con la master key. No escribe nada. Si el pedido anterior no se pudo leer por la base,
+ * falta la clave maestra o se guardó con otra clave que no lo abre, no sigue; si está dañado, sí
+ * (ver `leerPedidoPendiente`).
  */
-export async function generarPedidoDelNegocio(tenantId: string, actor: string): Promise<Resultado> {
+export async function prepararPedidoDelNegocio(
+  tenantId: string,
+): Promise<{ ok: true; pedido: PedidoPreparado } | { ok: false; motivo: string }> {
   const t = await enElNegocio(tenantId, (tx) =>
     tx.tenant.findUnique({ where: { id: tenantId }, select: { name: true, arcaCuit: true, arcaRazonSocial: true } }),
   );
   if (!t) return { ok: false, motivo: "No existe el negocio." };
   // Un pedido que no se pudo leer no se pisa (llamada directa o doble clic con la pantalla vieja).
-  const noReemplazar = motivoParaNoReemplazarPedido(await leerPedidoPendiente(tenantId));
+  let filaVista: string | null = null;
+  const lectura = await leerPedidoPendiente(tenantId, (id) => {
+    filaVista = id;
+  });
+  const noReemplazar = motivoParaNoReemplazarPedido(lectura);
   if (noReemplazar) return { ok: false, motivo: noReemplazar };
   const pedido = generarPedidoDeCertificado({ razonSocial: t.arcaRazonSocial || t.name, cuit: t.arcaCuit ?? "" });
   if (!pedido.ok) return pedido;
@@ -159,21 +191,43 @@ export async function generarPedidoDelNegocio(tenantId: string, actor: string): 
     return { ok: false, motivo: MOTIVO_SIN_CONFIGURACION };
   }
   const sobre = sealSecret(JSON.stringify({ keyPem: pedido.keyPem, csrPem: pedido.csrPem }), master);
+  return { ok: true, pedido: { tenantId, sobre, subject: pedido.subject, filaVista } };
+}
+
+/** Paso 2, segunda mitad: guarda el pedido preparado (reemplaza el anterior: el .csr viejo deja de servir). */
+export async function guardarPedidoDelNegocio(p: PedidoPreparado, actor: string): Promise<Resultado> {
+  const { tenantId, sobre, subject } = p;
   const creadoEn = new Date().toISOString();
-  // Doble clic: dos pedidos a la vez chocan con @@unique([certHuella, service]) (P2002). El que llegó
-  // primero queda; el segundo avisa en vez de terminar en una página de error.
+  // Doble clic: queda UNO y es el primero que se guarda. Con el candado del pedido del negocio se
+  // relee la fila: si ya no es la que se vio al preparar, otro pedido se guardó en el medio y este
+  // no la pisa (antes el segundo, si llegaba después, borraba el del primero). El índice único
+  // (@@unique([certHuella, service]), P2002) queda como segunda red.
   const choque = await sinChoqueDePedido(() => enElNegocio(tenantId, async (tx) => {
     const huella = huellaDelPedido(tenantId);
+    await bloquearPedido(tx, tenantId);
+    const actual = await tx.arcaAuthTicket.findFirst({
+      where: { tenantId, certHuella: huella, service: SERVICIO_PEDIDO },
+      select: { id: true },
+    });
+    if (pedidoCambioDesdeQueSeLeyo(p.filaVista, actual?.id ?? null)) return MOTIVO_PEDIDO_EN_CURSO;
     await tx.arcaAuthTicket.deleteMany({ where: { tenantId, certHuella: huella, service: SERVICIO_PEDIDO } });
     await tx.arcaAuthTicket.create({
       data: { id: randomUUID(), tenantId, certHuella: huella, service: SERVICIO_PEDIDO, ...sobre, expiration: creadoEn },
     });
     await tx.auditLog.create({
-      data: { tenantId, actor, action: ACCION_PEDIDO_CSR, entity: "Tenant", entityId: tenantId, changes: { subject: pedido.subject, creadoEn } },
+      data: { tenantId, actor, action: ACCION_PEDIDO_CSR, entity: "Tenant", entityId: tenantId, changes: { subject, creadoEn } },
     });
+    return null;
   }), (e) => isUniqueViolation(e));
   if (choque) return { ok: false, motivo: choque };
   return { ok: true, mensaje: "Pedido de certificado generado: bajá el archivo .csr y seguí las instrucciones." };
+}
+
+/** Paso 2: prepara y guarda (ver las dos mitades). No toca el certificado cargado. */
+export async function generarPedidoDelNegocio(tenantId: string, actor: string): Promise<Resultado> {
+  const r = await prepararPedidoDelNegocio(tenantId);
+  if (!r.ok) return r;
+  return guardarPedidoDelNegocio(r.pedido, actor);
 }
 
 /**
@@ -190,7 +244,7 @@ export async function cargarCertificadoDelPedido(
   if (!certPem) {
     return { ok: false, motivo: "Eso no parece un certificado. Pegá el texto que empieza con «-----BEGIN CERTIFICATE-----» o subí el .crt." };
   }
-  let pedido: PedidoAbierto | null;
+  let pedido: Awaited<ReturnType<typeof abrirPedido>>;
   try {
     pedido = await abrirPedido(tenantId);
   } catch (e) {
@@ -210,13 +264,63 @@ export async function cargarCertificadoDelPedido(
     return { ok: false, motivo: errorDeCargaEnCriollo(e) };
   }
   await enElNegocio(tenantId, (tx) =>
-    tx.arcaAuthTicket.deleteMany({ where: { tenantId, certHuella: huellaDelPedido(tenantId), service: SERVICIO_PEDIDO } }),
+    // Sólo la fila que se usó: si en el medio se generó otro pedido, ese queda.
+    tx.arcaAuthTicket.deleteMany({ where: { id: pedido.id, tenantId, certHuella: huellaDelPedido(tenantId), service: SERVICIO_PEDIDO } }),
   ).catch((e) => {
     // El certificado ya quedó: un pedido que no se borró sólo hace que el asistente lo siga mostrando.
     logger.warn("arca.asistente", "No se pudo borrar el pedido de certificado ya usado", { tenantId, err: e instanceof Error ? e.name : "error" });
   });
   const vence = r.certNotAfter ? ` Vence el ${fechaCorta(r.certNotAfter.toISOString())}.` : "";
   return { ok: true, mensaje: `Certificado ${r.rotada ? "renovado" : "cargado"}.${vence} Ahora probalo con ARCA.` };
+}
+
+// ── Descarte del pedido cerrado con otra clave (sólo el operador) ────────────
+
+/**
+ * El operador descarta el pedido que quedó cerrado con OTRA clave maestra (el asistente lo bloquea y
+ * el negocio no puede generar otro). Con la confirmación tipeada y el candado del pedido, relee la
+ * fila y la clasifica igual que la pantalla (`leerPedidoConEstado`): sólo si es «otra-clave» la borra
+ * y deja la fila de AuditLog. El material no sale de acá: para clasificar se usa `elSobreAbre` (no
+ * devuelve nada) y la auditoría lleva sólo la etiqueta de la clave y la fecha del pedido.
+ * La guardia (sesión de operador y candado de CH) la pone la action (src/lib/operator-actions.ts).
+ */
+export async function descartarPedidoDeOtraClave(tenantId: string, actor: string, confirmacion: unknown): Promise<Resultado> {
+  if (!confirmaElDescarte(confirmacion)) return { ok: false, motivo: `Para confirmar escribí ${PALABRA_DEL_DESCARTE}.` };
+  const r = await enElNegocio(tenantId, async (tx): Promise<Resultado> => {
+    await bloquearPedido(tx, tenantId);
+    let fila: { id: string; kekId: string; wrappedDek: string; sealed: string; expiration: string } | null = null;
+    const lectura = await leerPedidoConEstado({
+      leerFila: async () => {
+        fila = await tx.arcaAuthTicket.findFirst({
+          where: { tenantId, certHuella: huellaDelPedido(tenantId), service: SERVICIO_PEDIDO },
+          select: { id: true, kekId: true, wrappedDek: true, sealed: true, expiration: true },
+        });
+        return fila;
+      },
+      clave: () => masterKeyDesdeEnv(),
+      abrir: (f, master) => {
+        if (!elSobreAbre(f, master)) throw new Error("El pedido no abre con la clave actual.");
+        return { csrPem: "", creadoEn: f.expiration };
+      },
+    });
+    const motivo = motivoParaNoDescartar(lectura);
+    if (motivo || !fila) return { ok: false, motivo: motivo ?? "No hay un pedido de certificado para descartar." };
+    const { id, kekId, expiration } = fila as { id: string; kekId: string; expiration: string };
+    await tx.arcaAuthTicket.delete({ where: { id } });
+    await tx.auditLog.create({
+      data: {
+        tenantId,
+        actor,
+        action: ACCION_PEDIDO_DESCARTADO,
+        entity: "Tenant",
+        entityId: tenantId,
+        changes: { motivo: "otra-clave", kekIdDelPedido: kekId, creadoEn: expiration },
+      },
+    });
+    return { ok: true, mensaje: "Pedido de certificado descartado. Ya se puede generar uno nuevo." };
+  });
+  logger.info("arca.asistente", "Descarte del pedido de certificado de otra clave", { tenantId, ok: r.ok });
+  return r;
 }
 
 // ── Estado del asistente ─────────────────────────────────────────────────────

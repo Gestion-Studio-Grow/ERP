@@ -7,6 +7,8 @@ import {
   openCredential,
   sealSecret,
   openSecret,
+  elSobreAbre,
+  KEK_ID_POR_DEFECTO,
   type MasterKey,
 } from "./cert-crypto";
 
@@ -125,4 +127,47 @@ test("openSecret con master key equivocada → lanza (no devuelve el secreto)", 
 test("sealCredential sigue funcionando (delega en sealSecret)", () => {
   const sobre = sealCredential(plano, master());
   assert.deepEqual(openCredential(sobre, master()), plano);
+});
+
+// ── La etiqueta de la clave maestra (FISCAL_MASTER_KEY_ID): sin valor por defecto silencioso ──
+const CLAVE_32 = Buffer.alloc(32, 3).toString("base64");
+
+test("masterKeyDesdeEnv: sin FISCAL_MASTER_KEY_ID → etiqueta por defecto MARCADA y avisada una vez", () => {
+  const avisos: string[] = [];
+  const mk = masterKeyDesdeEnv({ FISCAL_MASTER_KEY: CLAVE_32 }, { avisar: (m) => avisos.push(m) });
+  assert.equal(mk.id, KEK_ID_POR_DEFECTO);
+  assert.equal(mk.idPorDefecto, true);
+  assert.equal(avisos.length, 1);
+  assert.match(avisos[0], /FISCAL_MASTER_KEY_ID/);
+  assert.ok(!avisos[0].includes(CLAVE_32), "el aviso no lleva el valor de la clave");
+});
+
+test("masterKeyDesdeEnv: FISCAL_MASTER_KEY_ID vacía o en blanco → como ausente (nunca una etiqueta vacía)", () => {
+  for (const vacia of ["", "   ", "\n"]) {
+    const avisos: string[] = [];
+    const mk = masterKeyDesdeEnv({ FISCAL_MASTER_KEY: CLAVE_32, FISCAL_MASTER_KEY_ID: vacia }, { avisar: (m) => avisos.push(m) });
+    assert.equal(mk.id, KEK_ID_POR_DEFECTO, JSON.stringify(vacia));
+    assert.equal(mk.idPorDefecto, true);
+    assert.equal(avisos.length, 1);
+  }
+});
+
+test("masterKeyDesdeEnv: FISCAL_MASTER_KEY_ID seteada → esa (recortada), sin aviso ni marca", () => {
+  const avisos: string[] = [];
+  const mk = masterKeyDesdeEnv({ FISCAL_MASTER_KEY: CLAVE_32, FISCAL_MASTER_KEY_ID: " kek:v2\n" }, { avisar: (m) => avisos.push(m) });
+  assert.equal(mk.id, "kek:v2");
+  assert.equal(mk.idPorDefecto, false);
+  assert.deepEqual(avisos, []);
+});
+
+test("elSobreAbre: dice si abre sin devolver el material (con la clave correcta, otra o un sobre roto)", () => {
+  const sobre = sealSecret("material-de-prueba", master());
+  assert.equal(elSobreAbre(sobre, master()), true);
+  assert.equal(elSobreAbre(sobre, otra()), false);
+  // Misma clave, otra etiqueta: abre (la etiqueta no decide).
+  assert.equal(elSobreAbre({ ...sobre, kekId: "otra-etiqueta" }, master()), true);
+  const [iv, tag, ct] = sobre.sealed.split(".");
+  const roto = { ...sobre, sealed: `${iv}.${tag}.${Buffer.from("x" + ct).toString("base64")}` };
+  assert.equal(elSobreAbre(roto, master()), false);
+  assert.equal(elSobreAbre({ ...sobre, wrappedDek: "no.es.valido" }, master()), false);
 });

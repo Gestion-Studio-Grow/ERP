@@ -1,0 +1,16 @@
+not ok 1 - doble clic: el segundo que llega después NO pisa al primero (queda uno, el primero)
+    + actual - expected
+    +   mensaje: 'Pedido de certificado generado: bajá el archivo .csr y seguí las instrucciones.',
+    +   ok: true
+    -   motivo: 'Ya se estaba generando un pedido de certificado: recargá la página para verlo.',
+    -   ok: false
+ok 2 - doble clic simultáneo: queda uno solo, el del pedido que respondió bien
+not ok 3 - generar otro pedido a propósito sigue reemplazando; uno preparado antes del reemplazo, no
+    + actual - expected
+    +   mensaje: 'Pedido de certificado generado: bajá el archivo .csr y seguí las instrucciones.',
+    +   ok: true
+    -   motivo: 'Ya se estaba generando un pedido de certificado: recargá la página para verlo.',
+    -   ok: false
+# tests 3
+# pass 1
+# fail 2

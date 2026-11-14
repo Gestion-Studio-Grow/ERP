@@ -5,7 +5,12 @@ import assert from "node:assert/strict";
 import forge from "node-forge";
 import {
   certificadoEnPem,
+  confirmaElDescarte,
   confirmaElPase,
+  motivoParaNoDescartar,
+  pedidoCambioDesdeQueSeLeyo,
+  PALABRA_DEL_DESCARTE,
+  type LecturaDelPedido,
   errorDeCargaEnCriollo,
   estadoDelAsistente,
   generarPedidoDeCertificado,
@@ -363,5 +368,38 @@ describe("doble clic al generar: el choque del índice único no termina en pág
       }, esChoque),
       /conexión/,
     );
+  });
+});
+
+describe("seguimiento del #147: doble clic y descarte del pedido de otra clave", () => {
+  test("compare-and-swap: sólo se guarda si la fila es la que se vio al preparar", () => {
+    assert.equal(pedidoCambioDesdeQueSeLeyo(null, null), false);
+    assert.equal(pedidoCambioDesdeQueSeLeyo("p1", "p1"), false);
+    assert.equal(pedidoCambioDesdeQueSeLeyo(null, "p1"), true, "otro pedido se guardó en el medio");
+    assert.equal(pedidoCambioDesdeQueSeLeyo("p1", "p2"), true, "otro lo reemplazó en el medio");
+    assert.equal(pedidoCambioDesdeQueSeLeyo("p1", null), true, "lo usaron o descartaron en el medio");
+  });
+
+  test("sinChoqueDePedido devuelve el motivo propio de guardar", async () => {
+    assert.equal(await sinChoqueDePedido(async () => "en curso", () => false), "en curso");
+    assert.equal(await sinChoqueDePedido(async () => null, () => false), null);
+  });
+
+  test("la confirmación del descarte es la palabra, sin importar mayúsculas ni bordes", () => {
+    assert.equal(PALABRA_DEL_DESCARTE, "DESCARTAR");
+    for (const ok of ["DESCARTAR", "descartar", "  Descartar\n"]) assert.equal(confirmaElDescarte(ok), true, ok);
+    for (const no of [undefined, null, 1, "", "DESCARTA", "DESCARTAR YA", "sí"]) assert.equal(confirmaElDescarte(no), false, String(no));
+  });
+
+  test("sólo se descarta «otra-clave»: el resto dice por qué no", () => {
+    const lecturas: LecturaDelPedido[] = [
+      { estado: "ninguno" },
+      { estado: "pendiente", csrPem: "x", creadoEn: "2026-11-01T00:00:00.000Z" },
+      { estado: "ilegible" },
+      { estado: "sin-configuracion", hayPedido: true },
+      { estado: "dañado" },
+    ];
+    assert.equal(motivoParaNoDescartar({ estado: "otra-clave" }), null);
+    for (const l of lecturas) assert.ok(motivoParaNoDescartar(l), l.estado);
   });
 });

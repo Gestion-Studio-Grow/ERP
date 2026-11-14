@@ -28,7 +28,11 @@ import { leerSubdominio } from "@/lib/provisioning/slug";
 import { cargarCredencialTenant } from "@/lib/fiscal/tenant-cert";
 import { verificarCertificadoDelNegocio } from "@/lib/operador/verificar-arca.server";
 import { mensajeDeVerificacion } from "@/lib/fiscal/verificar-con-arca";
-import { cargarCertificadoDelPedido, generarPedidoDelNegocio } from "@/lib/fiscal/asistente-arca.server";
+import {
+  cargarCertificadoDelPedido,
+  descartarPedidoDeOtraClave,
+  generarPedidoDelNegocio,
+} from "@/lib/fiscal/asistente-arca.server";
 import { TOPE_CERTIFICADO_BYTES } from "@/lib/fiscal/asistente-arca";
 import { CONDICIONES_DEL_EMISOR, interpretarCondicionIva } from "@/lib/fiscal/condicion-iva-emisor";
 import { interpretarCuitInput } from "@/lib/fiscal/cuit-input";
@@ -498,6 +502,17 @@ export async function cargarCertificadoDelPedidoArca(formData: FormData) {
   if (!conArchivo && !texto) redirect(vueltaAFiscal(tenantId, { error: "Pegá el certificado o subí el archivo .crt." }));
   const entrada = conArchivo ? new Uint8Array(await archivo.arrayBuffer()) : texto;
   const r = await cargarCertificadoDelPedido(tenantId, entrada, `operator:${op}`);
+  revalidatePath(`/operador/tenants/${tenantId}`);
+  redirect(vueltaAFiscal(tenantId, r.ok ? { ok: r.mensaje } : { error: r.motivo }));
+}
+
+// Descartar el pedido que quedó cerrado con OTRA clave maestra (sólo la consola): el asistente lo
+// bloquea y el negocio no puede generar otro. Confirmación tipeada; la decisión, el candado y la
+// auditoría viven en `descartarPedidoDeOtraClave`. No muestra ni toca material de clave.
+export async function descartarPedidoCertificadoArca(formData: FormData) {
+  const tenantId = String(formData.get("tenantId") || "").trim();
+  const { nombre: op } = await requireOperadorParaNegocio({ id: tenantId });
+  const r = await descartarPedidoDeOtraClave(tenantId, `operator:${op}`, formData.get("confirmacion"));
   revalidatePath(`/operador/tenants/${tenantId}`);
   redirect(vueltaAFiscal(tenantId, r.ok ? { ok: r.mensaje } : { error: r.motivo }));
 }

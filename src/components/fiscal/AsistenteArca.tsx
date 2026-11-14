@@ -4,7 +4,14 @@
 // La clave privada nunca llega acá: sólo el .csr (público) para descargarlo.
 import { Bloque, Button, Field, Franja, Input, Marca, Renglon, fmtCuit } from "@/components/ui";
 import { CONDICIONES_DEL_EMISOR, type CondicionDelEmisor } from "@/lib/fiscal/condicion-iva-emisor";
-import { INSTRUCCIONES_DEL_PEDIDO, MOTIVO_OTRA_CLAVE, MOTIVO_SIN_CONFIGURACION, PALABRA_DEL_PASE, type EstadoDePaso } from "@/lib/fiscal/asistente-arca";
+import {
+  INSTRUCCIONES_DEL_PEDIDO,
+  MOTIVO_OTRA_CLAVE,
+  MOTIVO_SIN_CONFIGURACION,
+  PALABRA_DEL_DESCARTE,
+  PALABRA_DEL_PASE,
+  type EstadoDePaso,
+} from "@/lib/fiscal/asistente-arca";
 import type { VistaDelAsistente } from "@/lib/fiscal/asistente-arca.server";
 import { ANTES_DE_EMPEZAR, TEXTO_CERTIFICADO_PROPIO } from "@/lib/fiscal/contador-arca";
 import { ObtenerAsistencia } from "./ObtenerAsistencia";
@@ -22,6 +29,8 @@ interface Props {
     cargarCertificado: Accion;
     probar: Accion;
     pedirPase?: Accion;
+    /** Descartar el pedido cerrado con otra clave maestra (sólo el operador). */
+    descartarPedido?: Accion;
     /** «Obtené asistencia» (sólo el cliente). */
     pedirAsistencia?: Accion;
     cancelarAsistencia?: Accion;
@@ -142,6 +151,21 @@ export function AsistenteArca({ vista, plano, tenantId, acciones, soloLectura = 
             ) : estado.problemaDelPedido === "otra-clave" ? (
               <div role="alert" className="space-y-2">
                 <Franja tono="atencion">{MOTIVO_OTRA_CLAVE}</Franja>
+                {plano === "operador" && puedeTocar && acciones.descartarPedido && (
+                  <form action={acciones.descartarPedido} className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+                    {oculto}
+                    <p className="text-[13px] text-muted sm:col-span-2">
+                      Si la clave con que se guardó no se puede recuperar, descartá el pedido: el negocio vuelve a
+                      generar uno y, si ya había subido el .csr a ARCA, tiene que subir el nuevo. Queda registrado.
+                    </p>
+                    <Field label={`Para descartar, escribí ${PALABRA_DEL_DESCARTE}`} htmlFor="asistente-descarte">
+                      <Input id="asistente-descarte" name="confirmacion" autoComplete="off" spellCheck={false} required />
+                    </Field>
+                    <Button type="submit" variant="danger">
+                      Descartar el pedido
+                    </Button>
+                  </form>
+                )}
                 {plano === "cliente" && vista.soporte && (
                   <a
                     href={vista.soporte}

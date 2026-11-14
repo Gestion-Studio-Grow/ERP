@@ -114,17 +114,52 @@ export const MOTIVO_PEDIDO_EN_CURSO = "Ya se estaba generando un pedido de certi
 /**
  * Guarda el pedido nuevo; si otro se guardó a la vez (doble clic: choque del índice único, que detecta
  * `esChoque`) devuelve el motivo para mostrar en vez de una página de error. Otro error se relanza.
+ * `guardar` también puede devolver su propio motivo para no guardar (el pedido cambió en el medio).
  */
 export async function sinChoqueDePedido(
-  guardar: () => Promise<void>,
+  guardar: () => Promise<string | null | void>,
   esChoque: (e: unknown) => boolean,
 ): Promise<string | null> {
   try {
-    await guardar();
-    return null;
+    return (await guardar()) ?? null;
   } catch (e) {
     if (esChoque(e)) return MOTIVO_PEDIDO_EN_CURSO;
     throw e;
+  }
+}
+
+/**
+ * Compare-and-swap del pedido: al guardar se reemplaza SÓLO la fila que se vio al preparar (o se
+ * crea si no había ninguna y sigue sin haber). Si cambió, otro pedido se guardó en el medio.
+ */
+export function pedidoCambioDesdeQueSeLeyo(filaVista: string | null, filaActual: string | null): boolean {
+  return filaVista !== filaActual;
+}
+
+// ── Descarte del pedido cerrado con otra clave (sólo el operador) ────────────
+
+export const PALABRA_DEL_DESCARTE = "DESCARTAR";
+
+/** La confirmación tipeada del descarte: «DESCARTAR», sin importar mayúsculas ni espacios de los bordes. */
+export function confirmaElDescarte(texto: unknown): boolean {
+  return typeof texto === "string" && texto.trim().toUpperCase() === PALABRA_DEL_DESCARTE;
+}
+
+/** Sólo se descarta un pedido «otra-clave»; cualquier otro estado devuelve por qué no. */
+export function motivoParaNoDescartar(lectura: LecturaDelPedido): string | null {
+  switch (lectura.estado) {
+    case "otra-clave":
+      return null;
+    case "ninguno":
+      return "No hay un pedido de certificado para descartar.";
+    case "pendiente":
+      return "El pedido abre con la clave actual: no se descarta.";
+    case "dañado":
+      return "El pedido está dañado, no cerrado con otra clave: se reemplaza generando uno nuevo desde el asistente.";
+    case "ilegible":
+      return "No pudimos leer el pedido: no se descartó nada. Reintentá en un rato.";
+    case "sin-configuracion":
+      return MOTIVO_SIN_CONFIGURACION;
   }
 }
 
