@@ -3,34 +3,42 @@
 // → Bebas/Open Sans; theme packs `servicios-spa`/`boutique-carne` → Playfair) y la vidriera genérica del rubro
 // (src/app/tienda/vidriera). Sin precarga: se bajan cuando una pantalla las pinta. Mismos nombres de variable que
 // antes, así globals.css no cambia.
-import { Bebas_Neue, Geist, Open_Sans, Playfair_Display } from "next/font/google";
+import localFont from "next/font/local";
 
 // Geist PRECARGADA sólo en el panel. La raíz la declara sin precarga (así las vidrieras, que pintan su propia letra, no
 // la bajan); acá la misma familia y las mismas opciones → el mismo archivo, que el panel pide de entrada.
-export const geistPanel = Geist({
+export const geistPanel = localFont({
+  src: [
+    { path: "../fonts/geist/geist-latin-wght-normal.woff2", weight: "100 900", style: "normal" },
+  ],
   variable: "--font-geist-sans",
-  subsets: ["latin"],
   preload: true,
 });
 
-export const playfair = Playfair_Display({
+export const playfair = localFont({
+  src: [
+    { path: "../fonts/playfair-display/playfair-display-latin-wght-normal.woff2", weight: "400 900", style: "normal" },
+  ],
   variable: "--font-spa-serif",
-  subsets: ["latin"],
+  adjustFontFallback: "Times New Roman",
   display: "swap",
   preload: false,
 });
 
-export const bebas = Bebas_Neue({
+export const bebas = localFont({
+  src: [
+    { path: "../fonts/bebas-neue/bebas-neue-latin-400-normal.woff2", weight: "400", style: "normal" },
+  ],
   variable: "--font-bebas",
-  subsets: ["latin"],
-  weight: "400",
   display: "swap",
   preload: false,
 });
 
-export const openSans = Open_Sans({
+export const openSans = localFont({
+  src: [
+    { path: "../fonts/open-sans/open-sans-latin-wght-normal.woff2", weight: "300 800", style: "normal" },
+  ],
   variable: "--font-open-sans",
-  subsets: ["latin"],
   display: "swap",
   preload: false,
 });

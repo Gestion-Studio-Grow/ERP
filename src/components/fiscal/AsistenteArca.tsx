@@ -4,11 +4,11 @@
 // La clave privada nunca llega acá: sólo el .csr (público) para descargarlo.
 import { Bloque, Button, Field, Franja, Input, Marca, Renglon, fmtCuit } from "@/components/ui";
 import { CONDICIONES_DEL_EMISOR, type CondicionDelEmisor } from "@/lib/fiscal/condicion-iva-emisor";
-import { INSTRUCCIONES_DEL_PEDIDO, PALABRA_DEL_PASE, type EstadoDePaso } from "@/lib/fiscal/asistente-arca";
+import { INSTRUCCIONES_DEL_PEDIDO, MOTIVO_OTRA_CLAVE, MOTIVO_SIN_CONFIGURACION, PALABRA_DEL_PASE, type EstadoDePaso } from "@/lib/fiscal/asistente-arca";
 import type { VistaDelAsistente } from "@/lib/fiscal/asistente-arca.server";
 import { ANTES_DE_EMPEZAR, TEXTO_CERTIFICADO_PROPIO } from "@/lib/fiscal/contador-arca";
 import { ObtenerAsistencia } from "./ObtenerAsistencia";
-import { CampoCertificado, CopiarTexto } from "./PiezasArca";
+import { CampoCertificado, CopiarTexto, Reintentar } from "./PiezasArca";
 
 type Accion = (formData: FormData) => void | Promise<void>;
 
@@ -127,7 +127,40 @@ export function AsistenteArca({ vista, plano, tenantId, acciones, soloLectura = 
           <p className="text-muted">Primero hacen falta los datos del paso 1.</p>
         ) : (
           <>
-            {csrPem ? (
+            {estado.problemaDelPedido === "ilegible" ? (
+              <div role="alert" className="space-y-2">
+                <Franja tono="atencion">
+                  No pudimos leer el pedido de certificado de este negocio. No generes otro: si ya lo subiste a ARCA, el
+                  nuevo dejaría sin efecto el anterior. Reintentá en un rato y, si sigue, avisale a nuestro equipo.
+                </Franja>
+                <Reintentar />
+              </div>
+            ) : estado.problemaDelPedido === "sin-configuracion" ? (
+              <div role="alert">
+                <Franja tono="atencion">{MOTIVO_SIN_CONFIGURACION}</Franja>
+              </div>
+            ) : estado.problemaDelPedido === "otra-clave" ? (
+              <div role="alert" className="space-y-2">
+                <Franja tono="atencion">{MOTIVO_OTRA_CLAVE}</Franja>
+                {plano === "cliente" && vista.soporte && (
+                  <a
+                    href={vista.soporte}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex min-h-11 items-center font-medium text-accent-ink underline underline-offset-4"
+                  >
+                    Escribirnos por WhatsApp
+                  </a>
+                )}
+              </div>
+            ) : estado.problemaDelPedido === "dañado" ? (
+              <div role="alert">
+                <Franja tono="atencion">
+                  El pedido de certificado anterior está dañado y no se puede recuperar. Generá uno nuevo: si ya habías
+                  subido el .csr anterior a ARCA, ese deja de servir y tenés que subir el nuevo.
+                </Franja>
+              </div>
+            ) : csrPem ? (
               <>
                 <p>
                   Listo el pedido de certificado (generado el {fecha(entrada.pedidoPendiente!.creadoEn)}). Es un texto que
@@ -175,11 +208,16 @@ export function AsistenteArca({ vista, plano, tenantId, acciones, soloLectura = 
                     : "Generamos el pedido de certificado de este negocio. Lo bajás y lo cargás vos en ARCA con tu clave fiscal (o se lo pasás a tu contador)."}
               </p>
             )}
-            {puedeTocar && (
+            {puedeTocar && estado.puedeGenerarPedido && (
               <form action={acciones.generarPedido}>
                 {oculto}
                 {/* Rótulo corto: el botón no parte renglón y a 390 px el largo desbordaba la pantalla. */}
-                {csrPem && <p className="pb-2 text-[13px] text-muted">Si generás otro pedido, el anterior deja de servir.</p>}
+                {csrPem && (
+                  <p className="pb-2 text-[13px] text-muted">
+                    Si generás otro pedido, el anterior deja de servir. Si ya lo subiste a ARCA, vas a tener que subir el
+                    nuevo y descargar otro certificado.
+                  </p>
+                )}
                 <Button type="submit" variant={csrPem || conCertificado ? "outline" : undefined}>
                   {csrPem ? "Generar otro pedido" : "Generar el pedido de certificado"}
                 </Button>
