@@ -19,6 +19,8 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { getStorefront } from "@/lib/order-actions";
 import { getTenantAccent, tenantFaviconDataUri, brandForSlug, resolveTenantLayout } from "@/lib/branding";
+import { presentaComoDemoGsg } from "@/lib/marca-demo";
+import { faviconGsg } from "@/lib/pestana";
 import { tenantFidelityEnabled, tenantBrandSheetEnabled } from "@/lib/identity";
 import { getBrandSheet, brandSheetAccent } from "@/lib/brand-sheet";
 import { editorialFrontFor, getTenantIdentity } from "@/lib/identidad-rubro";
@@ -112,7 +114,9 @@ export async function generateMetadata(): Promise<Metadata> {
         ? "/tenants/quebienoles/marca/favicon.svg"
         : identity.brandId === "adosmanos"
           ? "/tenants/adosmanos/marca/favicon.svg"
-          : tenantFaviconDataUri(tenantInitials(name), accent);
+          : presentaComoDemoGsg(data.slug)
+            ? faviconGsg() // DEMO GSG (src/lib/marca-demo.ts): el ícono de GSG.
+            : tenantFaviconDataUri(tenantInitials(name), accent);
   const suffix = data.copy?.tagline ?? data.branding?.city ?? null;
   const title = suffix ? `${name} · ${suffix}` : name;
   const raw =

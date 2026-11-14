@@ -12,6 +12,7 @@ import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import Etiquetas, { type ProductoEtiqueta } from "./Etiquetas";
 import { leerPromociones } from "@/lib/supermercado/config-repo";
 import { diaDeLaSemana, rotulosDePromoPorProducto } from "@/lib/supermercado/promociones";
+import { nombreVisibleDelNegocio } from "@/lib/marca-demo";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +27,7 @@ export default async function EtiquetasPage() {
     cargarProductosParaPrecios(tenantId),
     cargarEstadoEtiquetas(tenantId),
     getCurrentTenantRubro(),
-    prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true } }),
+    prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true, slug: true } }),
     leerPromociones(prisma, tenantId),
   ]);
   // La promo de cada producto va en el cartel ("2×1"), si tiene una que lo nombra.
@@ -95,7 +96,7 @@ export default async function EtiquetasPage() {
             </Link>
           </p>
         ) : (
-          <Etiquetas productos={conPrecio} negocio={tenant?.name ?? ""} hoy={todayInBusinessTz()} sustantivo={{ uno, varios }} secciones={secciones} renglon />
+          <Etiquetas productos={conPrecio} negocio={nombreVisibleDelNegocio(tenant?.slug, tenant?.name, "")} hoy={todayInBusinessTz()} sustantivo={{ uno, varios }} secciones={secciones} renglon />
         )}
       </main>
     );
@@ -137,7 +138,7 @@ export default async function EtiquetasPage() {
           }
         />
       ) : (
-        <Etiquetas productos={conPrecio} negocio={tenant?.name ?? ""} hoy={todayInBusinessTz()} sustantivo={{ uno, varios }} secciones={secciones} />
+        <Etiquetas productos={conPrecio} negocio={nombreVisibleDelNegocio(tenant?.slug, tenant?.name, "")} hoy={todayInBusinessTz()} sustantivo={{ uno, varios }} secciones={secciones} />
       )}
     </main>
   );

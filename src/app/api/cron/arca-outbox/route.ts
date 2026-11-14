@@ -3,6 +3,7 @@ import { authorizeCron } from "@/lib/cron-auth";
 import { isInvoicingEnabled } from "@/lib/fiscal";
 import { processArcaOutbox } from "@/lib/arca-dispatch";
 import { reintentarDevolucionesDeLosNegocios } from "@/lib/facturacion/devoluciones-mp";
+import { reintentarNotasPorPesoDeLosNegocios } from "@/lib/facturacion/nota-credito-por-peso";
 
 // Worker del outbox de ARCA (ADR-002 / ADR-022): drena los eventos `InvoiceCreated`
 // pendientes y los despacha al plugin (emisión del comprobante + registro del CAE, o
@@ -48,7 +49,14 @@ async function drenarOutbox(request: NextRequest) {
   } catch (e) {
     devoluciones = { error: e instanceof Error ? e.message : "falló" };
   }
-  return NextResponse.json({ ok: true, ...resumen, devoluciones });
+  // Las notas de crédito (simuladas) de las devoluciones por peso que quedaron pendientes.
+  let notasPorPeso: Awaited<ReturnType<typeof reintentarNotasPorPesoDeLosNegocios>> | { error: string };
+  try {
+    notasPorPeso = await reintentarNotasPorPesoDeLosNegocios();
+  } catch (e) {
+    notasPorPeso = { error: e instanceof Error ? e.message : "falló" };
+  }
+  return NextResponse.json({ ok: true, ...resumen, devoluciones, notasPorPeso });
 }
 
 export async function GET(request: NextRequest) {

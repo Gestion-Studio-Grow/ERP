@@ -103,6 +103,8 @@ const CSS_GRACIAS = `.gsg-gracias{min-height:100dvh;display:grid;place-items:cen
 .gsg-g-pasos{margin:24px 0 0;padding:0;list-style:none;counter-reset:p;display:grid;gap:12px}
 .gsg-g-pasos li{counter-increment:p;display:grid;grid-template-columns:32px 1fr;gap:12px;align-items:start;font-size:.9375rem;line-height:1.45}
 .gsg-g-pasos li::before{content:counter(p);width:32px;height:32px;border-radius:999px;display:grid;place-items:center;border:1px solid var(--g-linea);font-weight:600;font-variant-numeric:tabular-nums;color:var(--g-acento)}
+.gsg-g-nota{margin:8px 0 0;font-size:.9375rem;color:var(--g-tenue)}
+.gsg-gracias form .gsg-g-boton{width:100%;margin-top:24px;border:0;cursor:pointer;font-family:inherit}
 .gsg-g-acciones{margin-top:32px;display:flex;flex-wrap:wrap;gap:12px}
 .gsg-g-boton{flex:1 1 200px;min-height:56px;display:inline-flex;align-items:center;justify-content:center;padding:0 22px;border-radius:min(var(--g-radio),999px);font-weight:600;text-decoration:none;font-size:1rem;letter-spacing:.02em}
 .gsg-g-solido{background:var(--g-acento);color:var(--g-sobre)}

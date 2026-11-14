@@ -47,6 +47,7 @@ import { VentaAnuladaError } from "@/lib/invoice-core";
 import { getFiscalProfile, isInvoicingEnabled, PerfilFiscalIncompletoError } from "@/lib/fiscal";
 import { buildWhatsAppHref, whatsappCanonico } from "@/lib/whatsapp-cta";
 import { logger } from "@/lib/logger";
+import { tokenParaGracias } from "@/lib/cobros/pago-de-la-tienda.server";
 import { normalizarCodigoDeCupon, notaDeLaClientaDelFormulario, topeDePrecioAMano, ventaNaceEntregada, CUPON_NO_VALE } from "@/lib/venta-reglas";
 import type { VentaYaGrabada } from "@/lib/reintento-de-venta";
 import { pedidoDelFormulario, rechazoDelAltaConClave, respuestaAlReintento } from "@/lib/respuesta-al-reintento";
@@ -83,9 +84,13 @@ import { isUniqueViolation } from "@/lib/prisma-errors";
 import { cantidadOCero, formatearCantidad } from "@/lib/pos-peso";
 import { fmtMoneyARS } from "@/components/ui/format";
 import { textoPlata } from "@/lib/cobro/pie-de-cobro-core";
-import { lastClosedDay } from "@/lib/caja/frontera-cierre";
+import { lastClosedDay, lastClosedDayTx } from "@/lib/caja/frontera-cierre";
+import { ajustarPesoInTx, mensajeAjusteCobradoRechazado, mensajeDelAjuste, type ResultadoAjustePeso } from "@/lib/ajuste-peso-cobrado";
+import { negocioEnModoPrueba, notaDeCreditoPorPeso } from "@/lib/facturacion/nota-credito-por-peso";
 import { isFrozenDay } from "@/lib/caja/cierre-diario";
 import { dateStrInBusinessTz } from "@/lib/datetime";
+import { opcionLotesVencidos } from "@/lib/carniceria/schema-probe";
+import { LoteVencidoRechazado } from "@/lib/carniceria/lotes-registro";
 import { productosQuePuedenFaltarAFuturo } from "@/lib/pedidos/interpretar-whatsapp";
 import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
 import { mostradorBoutiquePrendido } from "@/cambios/interruptores";
@@ -114,14 +119,13 @@ import {
   reglasDeAnulacion,
   fronteraDeVenta,
   laVentaEscribeEnCaja,
-  ajustarPedidoInTx,
-  type AjustarPedidoResult,
   wherePedidosAbiertos,
   wherePedidosCerrados,
   entregarPedidoGuarded,
   avanzarPedidoGuarded,
   horarioDelFormulario,
 } from "@/lib/order-anulacion";
+import { MARCA_DEMO_GSG, contactoDeLaDemo, presentaComoDemoGsg } from "@/lib/marca-demo";
 import { avisoAnulacionConDevolucion, devolucionManualDeLaVenta } from "@/lib/caja/doble-salida";
 import {
   descuentoDelFormulario,
@@ -546,6 +550,9 @@ export async function createOrder(formData: FormData): Promise<OrderActionState>
         envioZona,
         clientId: clientIdElegido,
         ...(delCuaderno ? { occurredAt: delCuaderno.en } : {}),
+        // Magra T3: con Lotes listos (rubro de perecederos Y migración cárnica aplicada), un corte
+        // con todos sus lotes vencidos no se vende. Sin la migración (hoy) o en CH/Shine: null.
+        lotesVencidos: await opcionLotesVencidos(tenantId, delCuaderno?.dia ?? dateStrInBusinessTz(new Date())),
       },
     );
   } catch (err) {
@@ -817,18 +824,27 @@ export async function placeOnlineOrder(
       const subtotalDeLaBase = conZonas ? await subtotalDeLaBolsaEnBase(tenantId, items) : 0;
       const cotizacion = cotizarEnvio(configEnvios, { subtotal: subtotalDeLaBase, modo, zonaId });
       if (!cotizacion.ok) throw new RechazoDeDominio(cotizacion.motivo);
-      return insertOrder(tenantId, {
-        channel: "ONLINE",
-        fulfillment,
-        customerName,
-        customerPhone,
-        address,
-        notes,
-        scheduledFor: horario.scheduledFor,
-        paid: false,
-        paymentMethod: null,
-        items,
-      }, { idempotencyKey, envio, envioZona: cotizacion.zona, cupon, promociones });
+      // Magra T3b: un corte con todos sus lotes vencidos tampoco se vende por la tienda. Se decide
+      // ANTES de la transacción (sin Lotes listos, null: el alta de siempre, sin la consulta).
+      const lotesVencidos = await opcionLotesVencidos(tenantId, dateStrInBusinessTz(new Date()));
+      try {
+        return await insertOrder(tenantId, {
+          channel: "ONLINE",
+          fulfillment,
+          customerName,
+          customerPhone,
+          address,
+          notes,
+          scheduledFor: horario.scheduledFor,
+          paid: false,
+          paymentMethod: null,
+          items,
+        }, { idempotencyKey, envio, envioZona: cotizacion.zona, cupon, promociones, lotesVencidos });
+      } catch (err) {
+        // Al cliente, sin códigos de lote ni tareas del local: «no está disponible, sacalo».
+        if (err instanceof LoteVencidoRechazado) throw new RechazoDeDominio(err.paraElCliente);
+        throw err;
+      }
     },
   });
   if (toma.tipo === "cupon") {
@@ -872,10 +888,13 @@ export async function placeOnlineOrder(
     // El backoffice ve el pedido nuevo en su bandeja al revalidar.
     revalidarMostrador();
   }
-  if (!porWhatsApp) redirect(`/tienda/gracias?pedido=${result.code}`);
+  // `t`: el token que prueba en Gracias que el pedido es de quien lo hizo (el número es
+  // correlativo): sin él no se ofrece «Pagar ahora con Mercado Pago» (cobros/pago-de-la-tienda.ts).
+  if (!porWhatsApp) redirect(`/tienda/gracias?pedido=${result.code}&t=${tokenParaGracias(tenantId, result.id)}`);
   // El pedido YA está registrado: si armar el link del chat falla, no se dice "no pudimos tomar
   // el pedido" (sería mentira y el cliente lo repetiría): se contesta sin chat.
-  const whatsapp = await chatDelPedido(tenantId, result.id, tenant?.name ?? "el local").catch((err) => {
+  // DEMO GSG (src/lib/marca-demo.ts): un pedido de prueba nunca abre el chat del WhatsApp real del cliente.
+  const whatsapp = presentaComoDemoGsg(tenant?.slug) ? null : await chatDelPedido(tenantId, result.id, tenant?.name ?? "el local").catch((err) => {
     logger.warn("tienda", "pedido registrado sin link de WhatsApp", {
       tenantId,
       error: err instanceof Error ? err.message : String(err),
@@ -1421,7 +1440,7 @@ export async function autorizarAnulacionVenta(formData: FormData): Promise<Resul
   return { ok: true, codigo, venceA };
 }
 
-// --- Editar las líneas de un pedido todavía no cobrado (el peso real) ---
+// --- Editar las líneas de un pedido (el peso real), cobrado o no ---
 //
 // La regla y el porqué están en `order-anulacion.ts` (`planEdicionDeLineas`, y el descuento en
 // `totalesDelAjuste`). La transacción entera vive en `ajustarPedidoInTx`: acá se autoriza, se
@@ -1444,11 +1463,19 @@ export async function updateOrderItems(
     ? await promosParaUnaVenta(tenantId, wanted.map((l) => l.productId), dateStrInBusinessTz(tomado.createdAt), null)
     : undefined;
 
-  let out: AjustarPedidoResult;
+  // Cobrado o no, la misma tecla (src/lib/ajuste-peso-cobrado.ts): sin cobrar, el reajuste de
+  // siempre; cobrado, además la plata —la devolución de hoy si pesó menos, el saldo si pesó más—,
+  // una sola vez, con la fila del pedido tomada y la clave del formulario contra el doble clic.
+  const clave = String(formData.get("clave") || "").trim() || null;
+  const ahora = new Date();
+  // Modo prueba (ARCA simulado): una venta con factura simulada se ajusta y su devolución lleva NC
+  // simulada. Falla cerrada: si no se pudo leer el modo, una venta facturada se rechaza como siempre.
+  const arcaSimulado = await negocioEnModoPrueba(tenantId).catch(() => false);
+  let out: ResultadoAjustePeso;
   try {
     out = await tenantTransaction(
-      (tx) =>
-        ajustarPedidoInTx(tx, tenantId, {
+      async (tx) =>
+        ajustarPesoInTx(tx, tenantId, {
           orderId: id,
           pedidas: wanted,
           actor: `user:${user.id}`,
@@ -1456,35 +1483,50 @@ export async function updateOrderItems(
           // MAG-4: el aumento de un corte por PESO sale aunque el stock quede en negativo (el
           // paquete ya está pesado en la mano). La regla es la de pos-stock-rules.ts.
           permiteNegativo: (saleUnit) => permiteVenderSinStock({ saleUnit, contexto: "EDICION_PESO_REAL" }),
+          clave,
+          // DB-5: la frontera del cierre, leída en ESTA transacción (la devolución escribe hoy).
+          cerradoHasta: await lastClosedDayTx(tx, tenantId),
+          hoy: dateStrInBusinessTz(ahora),
+          ahora,
+          arcaSimulado,
         }),
       { tenantId },
     );
   } catch (err) {
+    // Dos ajustes con plata a la vez que pasaron el candado (no debería: la fila está tomada): el
+    // índice único de la devolución o del cobro frena al segundo.
+    if (isUniqueViolation(err, "orderId") || isUniqueViolation(err, "idempotencyKey")) {
+      revalidarMostrador();
+      return { ok: false, error: mensajeAjusteCobradoRechazado("ya-ajustado") };
+    }
     return errorDeAccion(err, "No se pudo actualizar el pedido.");
   }
 
-  await auditAdmin({
-    action: "update",
-    entity: "Order",
-    entityId: id,
-    changes: {
-      total: { from: out.antes, to: out.total },
-      // El descuento acompaña al peso con el mismo %: queda escrito cuánto era y cuánto quedó.
-      ...(out.descuentoAntes !== out.descuento
-        ? { discount: { from: out.descuentoAntes, to: out.descuento } }
-        : {}),
-      lines: wanted.length,
-    },
-  });
+  // El ajuste de un pedido cobrado ya dejó su rastro en la transacción (es su clave del doble clic).
+  if (out.cobrado == null) {
+    await auditAdmin({
+      action: "update",
+      entity: "Order",
+      entityId: id,
+      changes: {
+        total: { from: out.antes, to: out.total },
+        // El descuento acompaña al peso con el mismo %: queda escrito cuánto era y cuánto quedó.
+        ...(out.descuentoAntes !== out.descuento
+          ? { discount: { from: out.descuentoAntes, to: out.descuento } }
+          : {}),
+        lines: wanted.length,
+      },
+    });
+  }
+  // La nota de crédito (simulada) de la devolución, en su propia tx: si falla, la devolución ya está
+  // en la caja y la nota queda pendiente (se reintenta; idempotente por pedido + ajuste).
+  if (out.notaDeCredito?.estado === "pendiente") {
+    const pendiente = out.notaDeCredito;
+    const nota = await notaDeCreditoPorPeso(tenantId, pendiente.clave).catch(() => null);
+    if (nota) out = { ...out, notaDeCredito: nota };
+  }
   revalidarMostrador();
-  const dif = round2(out.total - out.antes);
-  return {
-    ok: true,
-    mensaje:
-      dif === 0
-        ? `Pedido #${out.code} actualizado. El total no cambió: ${fmtMoneyARS(out.total)}.`
-        : `Pedido #${out.code} actualizado${out.conPeso ? " al peso real" : ""}: ${fmtMoneyARS(out.antes)} → ${fmtMoneyARS(out.total)} (${dif > 0 ? "+" : "−"}${fmtMoneyARS(Math.abs(dif))}).`,
-  };
+  return { ok: true, mensaje: mensajeDelAjuste(out) };
 }
 
 // --- Cliente por teléfono (Vender) ---
@@ -1686,10 +1728,12 @@ export async function getStorefront() {
   // ambos resueltos por slug. `copy` es null para tenants sin copy → cae al wording.
   const wording = retailWordingForSlug(tenant?.slug);
   const copy = getStorefrontCopy(tenant?.slug);
+  // DEMO GSG (src/lib/marca-demo.ts): nombre de la demo y sin los datos de contacto del cliente.
+  const demo = presentaComoDemoGsg(tenant?.slug);
   return {
-    name: tenant?.name ?? "Tienda",
+    name: demo ? MARCA_DEMO_GSG.nombre : (tenant?.name ?? "Tienda"),
     slug: tenant?.slug ?? null,
-    branding: settings ?? null,
+    branding: demo ? contactoDeLaDemo(settings) : (settings ?? null),
     wording,
     copy,
     // El stock NO sale de acá: esto es público (lo lee cualquiera que abra /tienda) y cuántos

@@ -2,6 +2,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { esteticaBackoffice } from "./estetica-backoffice";
+import { before as antesDeTodo } from "node:test";
+import { marcaPropiaEnPruebas } from "@/lib/marca-demo";
+// Magra se muestra como demo GSG (src/lib/marca-demo.ts); acá se sigue probando SU marca, la que vuelve al sacar la demo.
+antesDeTodo(() => marcaPropiaEnPruebas(true));
 
 test("cada cliente con su estética; los locales de Magra, la de Magra; el resto, la del ERP", () => {
   assert.equal(esteticaBackoffice("breakpoint"), "breakpoint");

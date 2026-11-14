@@ -12,6 +12,8 @@ import { CASH_METHOD_LABEL } from "@/lib/caja/libro-caja";
 import { fmtMoneyARS } from "@/components/ui/format";
 import { dateStrInBusinessTz } from "@/lib/datetime";
 import type { CashMethod } from "@/lib/caja/cash-register";
+import { devueltoPorPesoDelPedido } from "@/lib/caja/devolucion-por-peso";
+import { round2 } from "@/lib/round";
 
 type Db = Pick<Prisma.TransactionClient, "cashMovement" | "order">;
 
@@ -65,7 +67,11 @@ export async function devolucionManualDeLaVenta(db: Db, tenantId: string, orderI
     select: { amount: true, occurredAt: true },
   });
   if (cobros.length === 0) return null;
-  const montos = [...new Set([...cobros.map((c) => Number(c.amount)), cobros.reduce((s, c) => s + Number(c.amount), 0)])];
+  // Si ya se devolvió una diferencia por peso (ajuste-peso-cobrado.ts), la anulación saca lo que
+  // QUEDÓ: una devolución a mano por ese neto también es la misma plata.
+  const devuelto = await devueltoPorPesoDelPedido(db, tenantId, orderId);
+  const total = cobros.reduce((s, c) => s + Number(c.amount), 0);
+  const montos = [...new Set([...cobros.map((c) => Number(c.amount)), total, ...(devuelto > 0 ? [round2(total - devuelto)] : [])])];
   const desde = cobros.reduce((d, c) => (c.occurredAt < d ? c.occurredAt : d), cobros[0].occurredAt);
   const desdeElDia = new Date(desde.getTime() - 86_400_000);
   const fila = await db.cashMovement.findFirst({

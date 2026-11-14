@@ -112,6 +112,9 @@ function base(pedidos: Fila[]) {
           copia.cobros.push({ ...data, amount: Number(data.amount) });
           return { id: `cobro-${copia.cobros.length}` };
         },
+        // Lo ya cobrado del pedido (el saldo de uno que pesó más, settlement/saldo-del-pedido.ts).
+        findMany: async ({ where }: { where: { tenantId: string; originId: string } }) =>
+          copia.cobros.filter((c) => c.tenantId === where.tenantId && (c as { originId?: string }).originId === where.originId),
       },
       cashMovement: {
         create: async ({ data }: { data: (typeof estado.asientos)[number] }) => {

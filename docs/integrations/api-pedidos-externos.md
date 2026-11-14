@@ -117,6 +117,7 @@ consultar el estado.
 | 401 | `missing_api_key` / `invalid_api_key` | Falta o es inválida la api-key. |
 | 403 | `tenant_mismatch` | El slug no coincide con el tenant habilitado. |
 | 422 | `unknown_items` | Algún producto no se pudo mapear en el tenant (se rechaza el pedido entero, no a medias). |
+| 422 | `expired_product` | Rubros con lotes (carnicería): todos los lotes disponibles de algún producto están vencidos. Se rechaza el pedido entero. |
 | 503 | `api_not_configured` | No hay api-key configurada en el server. |
 
 ---
