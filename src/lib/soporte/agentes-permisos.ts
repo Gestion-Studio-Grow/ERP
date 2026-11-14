@@ -51,6 +51,10 @@ export const SLUG_CH = "beauty-spa";
  * «borrador_al_duenio» (D5, 14/11): en CH el n1 puede leer el ticket y la base de conocimiento y
  * dejar UN borrador, que aprueba sólo el dueño. No es «permitido» a propósito: quien sólo mira
  * «permitido» lo trata como no permitido (falla cerrado) y el despacho lo maneja aparte.
+ * Coherente con el candado de la base (MANT_roles_soporte.sql): en CH el agente NO tiene acceso a la
+ * base (gsg_agente ve 0 filas). El ERP le pasa el texto tapado del ticket, el agente devuelve el
+ * borrador y la consola (gsg_operador) lo guarda para que lo apruebe el dueño. Los arreglos de fondo en
+ * CH los hace siempre una persona, nunca un agente (D5).
  */
 export type Decision = "permitido" | "borrador_al_duenio" | "escala_duenio" | "prohibido";
 

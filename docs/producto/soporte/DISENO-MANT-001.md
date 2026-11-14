@@ -323,10 +323,23 @@ aparta de la tabla de arriba:**
   58 archivos que usan `operatorPrisma`/`enElNegocio` (fiscal, cartera, consola); otorgar tabla por tabla
   sin probar la consola rompería producción. Se angosta después de probar la consola en una rama de Neon.
 - `NegocioProtegido`: nadie más que el owner la escribe (REVOKE a `app_rls` y `gsg_operador`).
-  `SoporteConsentimiento`: append-only (sin UPDATE/DELETE para nadie); la escriben `app_rls` y
-  `gsg_operador` dentro del negocio (RLS).
+  `SoporteConsentimiento`: append-only (sin UPDATE/DELETE para nadie); la escribe sólo `app_rls` (el panel
+  del titular) dentro del negocio (RLS); `gsg_operador` sólo la lee. Un trigger exige que `userId` sea el
+  OWNER del mismo negocio (también para el owner de la base).
+- **Refutación del 14/11 (corregida):** (1) las funciones del candado usan `public."…"` y
+  `search_path = pg_catalog, public, pg_temp`: una tabla temporal del agente no tapa a la real (no se le
+  sacó TEMP a PUBLIC porque toca roles vivos de producción); (2) el ticket de cartera exige también el
+  permiso del CLIENTE; como bajo RLS el permiso del cliente no se ve desde el estudio, hoy el agente no ve
+  ningún ticket de cartera (falla cerrado: los atiende una persona; abrirlo pide una función propia y su
+  certificación); (3) la consola no firma permisos; (4) el agente sólo escribe AuditLog con
+  `actor LIKE 'agente:%'`; (5) **D5 en CH no contradice el candado:** el agente no toca la base de CH; el ERP
+  le pasa el texto tapado, el agente devuelve el borrador y la consola (`gsg_operador`) lo guarda para que
+  el dueño lo apruebe (`agentes-permisos.ts`, `borrador_al_duenio`); (6) el `CREATE ROLE` del archivo corre
+  en el ensayo en rama de Neon (el owner local es NOCREATEROLE). Todo con test en
+  `roles-soporte-postgres.test.ts`.
 - Al final, un bloque `DO` aborta la migración si algún rol quedó con BYPASSRLS o superusuario, si el agente
-  puede leer `User`, si `NegocioProtegido` es escribible o si CH existe y no quedó protegido. En Neon el
+  puede leer `User`, si `NegocioProtegido` es escribible, si la consola o el agente pueden firmar permisos,
+  si una función del candado no fija `search_path` con `pg_temp` al final o si CH existe y no quedó protegido. En Neon el
   owner no puede poner `NOBYPASSRLS` explícito: se omite (es el valor por defecto) y se verifica ahí.
 - Pendiente de T-E: `agente-db.ts` (conexión sin caída con `AGENTE_DATABASE_URL`), `IaTope`, `SoporteContacto`
   y la lista verde por columna.

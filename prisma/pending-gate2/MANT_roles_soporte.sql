@@ -83,21 +83,40 @@ CREATE POLICY tenant_isolation ON "SoporteConsentimiento"
   WITH CHECK ("tenantId" = current_setting('app.current_tenant_id', true));
 
 -- ── 4. Funciones del candado (SECURITY INVOKER: corren con los permisos y el RLS de quien consulta) ──
+-- Tablas con esquema (public."…") y pg_temp AL FINAL del search_path: una tabla temporal con el mismo
+-- nombre, creada por quien consulta, NO tapa a la real (refutación del 14/11, hallazgo crítico).
 CREATE OR REPLACE FUNCTION gsg_negocio_protegido(negocio TEXT) RETURNS BOOLEAN
-  LANGUAGE sql STABLE SECURITY INVOKER SET search_path = public AS $f$
-  SELECT EXISTS (SELECT 1 FROM "NegocioProtegido" p WHERE p."negocioId" = negocio)
+  LANGUAGE sql STABLE SECURITY INVOKER SET search_path = pg_catalog, public, pg_temp AS $f$
+  SELECT EXISTS (SELECT 1 FROM public."NegocioProtegido" p WHERE p."negocioId" = negocio)
 $f$;
 -- La última casilla n1 del negocio está tildada. A igual hora, primero la revocación (false < true).
 -- Lee bajo el RLS de quien consulta: sin set_config del mismo negocio, no ve filas → false.
 CREATE OR REPLACE FUNCTION gsg_permiso_n1_vigente(negocio TEXT) RETURNS BOOLEAN
-  LANGUAGE sql STABLE SECURITY INVOKER SET search_path = public AS $f$
+  LANGUAGE sql STABLE SECURITY INVOKER SET search_path = pg_catalog, public, pg_temp AS $f$
   SELECT COALESCE((
-    SELECT c."aceptado" FROM "SoporteConsentimiento" c
+    SELECT c."aceptado" FROM public."SoporteConsentimiento" c
     WHERE c."tenantId" = negocio AND c."nivel" = 'n1'
     ORDER BY c."createdAt" DESC, c."aceptado" ASC
     LIMIT 1
   ), false)
 $f$;
+-- Sólo firma el titular (OWNER) de ESE negocio. INVOKER: con app_rls lee User bajo RLS del negocio parado;
+-- si no lo ve (otro negocio, inexistente, no titular), rechaza.
+CREATE OR REPLACE FUNCTION gsg_consentimiento_lo_firma_el_titular() RETURNS TRIGGER
+  LANGUAGE plpgsql SECURITY INVOKER SET search_path = pg_catalog, public, pg_temp AS $f$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM public."User" u
+                 WHERE u."id" = NEW."userId" AND u."tenantId" = NEW."tenantId" AND u."role"::text = 'OWNER') THEN
+    RAISE EXCEPTION 'SoporteConsentimiento: sólo lo firma el titular (OWNER) del negocio' USING ERRCODE = '42501';
+  END IF;
+  RETURN NEW;
+END
+$f$;
+DROP TRIGGER IF EXISTS soporte_consentimiento_titular ON "SoporteConsentimiento";
+CREATE TRIGGER soporte_consentimiento_titular BEFORE INSERT ON "SoporteConsentimiento"
+  FOR EACH ROW EXECUTE FUNCTION gsg_consentimiento_lo_firma_el_titular();
+REVOKE ALL ON FUNCTION gsg_consentimiento_lo_firma_el_titular() FROM PUBLIC;
+
 REVOKE ALL ON FUNCTION gsg_negocio_protegido(TEXT) FROM PUBLIC;
 REVOKE ALL ON FUNCTION gsg_permiso_n1_vigente(TEXT) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION gsg_negocio_protegido(TEXT) TO gsg_agente;
@@ -114,14 +133,20 @@ GRANT SELECT ON "SoporteConsentimiento" TO gsg_agente;
 GRANT SELECT ON "NegocioProtegido" TO gsg_agente;
 
 -- Políticas RESTRICTIVAS sólo para gsg_agente (se combinan con AND con tenant_isolation).
+-- Ticket de cartera (vive en el estudio, cliente en clienteTenantId): exige además el permiso del CLIENTE.
+-- Como la función lee bajo RLS del negocio parado, el permiso del cliente no se ve → hoy el agente no ve
+-- ningún ticket de cartera (falla cerrado; esos los atiende una persona). Abrirlo pide una función
+-- SECURITY DEFINER propia, con su certificación.
 DROP POLICY IF EXISTS mant_agente_candado ON "SupportTicket";
 CREATE POLICY mant_agente_candado ON "SupportTicket" AS RESTRICTIVE FOR ALL TO gsg_agente
   USING (NOT gsg_negocio_protegido("tenantId")
          AND ("clienteTenantId" IS NULL OR NOT gsg_negocio_protegido("clienteTenantId"))
-         AND gsg_permiso_n1_vigente("tenantId"))
+         AND gsg_permiso_n1_vigente("tenantId")
+         AND ("clienteTenantId" IS NULL OR gsg_permiso_n1_vigente("clienteTenantId")))
   WITH CHECK (NOT gsg_negocio_protegido("tenantId")
          AND ("clienteTenantId" IS NULL OR NOT gsg_negocio_protegido("clienteTenantId"))
-         AND gsg_permiso_n1_vigente("tenantId"));
+         AND gsg_permiso_n1_vigente("tenantId")
+         AND ("clienteTenantId" IS NULL OR gsg_permiso_n1_vigente("clienteTenantId")));
 
 -- Un evento existe para el agente sólo si su ticket existe para el agente (hereda el candado).
 DROP POLICY IF EXISTS mant_agente_candado ON "SupportTicketEvento";
@@ -132,7 +157,8 @@ CREATE POLICY mant_agente_candado ON "SupportTicketEvento" AS RESTRICTIVE FOR AL
 DROP POLICY IF EXISTS mant_agente_candado ON "AuditLog";
 CREATE POLICY mant_agente_candado ON "AuditLog" AS RESTRICTIVE FOR ALL TO gsg_agente
   USING (NOT gsg_negocio_protegido("tenantId") AND gsg_permiso_n1_vigente("tenantId"))
-  WITH CHECK (NOT gsg_negocio_protegido("tenantId") AND gsg_permiso_n1_vigente("tenantId"));
+  WITH CHECK (NOT gsg_negocio_protegido("tenantId") AND gsg_permiso_n1_vigente("tenantId")
+              AND "actor" LIKE 'agente:%');
 
 DROP POLICY IF EXISTS mant_agente_candado ON "SoporteConsentimiento";
 CREATE POLICY mant_agente_candado ON "SoporteConsentimiento" AS RESTRICTIVE FOR ALL TO gsg_agente
@@ -152,8 +178,10 @@ REVOKE UPDATE, DELETE ON "AuditLog" FROM gsg_operador;
 -- (los privilegios por defecto de 0002 le dan DML a app_rls, y el paso 6 a gsg_operador).
 REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON "NegocioProtegido" FROM app_rls, gsg_operador;
 GRANT SELECT ON "NegocioProtegido" TO app_rls, gsg_operador;
-REVOKE UPDATE, DELETE, TRUNCATE ON "SoporteConsentimiento" FROM app_rls, gsg_operador;
-GRANT SELECT, INSERT ON "SoporteConsentimiento" TO app_rls, gsg_operador;
+REVOKE UPDATE, DELETE, TRUNCATE ON "SoporteConsentimiento" FROM app_rls;
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON "SoporteConsentimiento" FROM gsg_operador;
+GRANT SELECT, INSERT ON "SoporteConsentimiento" TO app_rls;
+GRANT SELECT ON "SoporteConsentimiento" TO gsg_operador;
 
 -- ── 8. Verificación: si algo quedó mal, aborta y no queda nada ───────────────
 DO $$
@@ -166,6 +194,13 @@ BEGIN
   END IF;
   IF has_table_privilege('app_rls', '"NegocioProtegido"', 'INSERT') OR has_table_privilege('gsg_operador', '"NegocioProtegido"', 'DELETE') THEN
     RAISE EXCEPTION 'MANT_roles_soporte: NegocioProtegido quedó escribible';
+  END IF;
+  IF has_table_privilege('gsg_operador', '"SoporteConsentimiento"', 'INSERT') OR has_table_privilege('gsg_agente', '"SoporteConsentimiento"', 'INSERT') THEN
+    RAISE EXCEPTION 'MANT_roles_soporte: el permiso del cliente sólo lo escribe su panel (app_rls)';
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_proc WHERE proname IN ('gsg_negocio_protegido', 'gsg_permiso_n1_vigente', 'gsg_consentimiento_lo_firma_el_titular')
+             AND (prosecdef OR NOT (proconfig @> ARRAY['search_path=pg_catalog, public, pg_temp']))) THEN
+    RAISE EXCEPTION 'MANT_roles_soporte: una función del candado no fija search_path con pg_temp al final';
   END IF;
   IF EXISTS (SELECT 1 FROM "Tenant" WHERE slug = 'beauty-spa')
      AND NOT EXISTS (SELECT 1 FROM "NegocioProtegido" p JOIN "Tenant" t ON t.id = p."negocioId" WHERE t.slug = 'beauty-spa') THEN
@@ -181,8 +216,10 @@ COMMIT;
 --   DROP POLICY IF EXISTS mant_agente_candado ON "SupportTicket";
 --   DROP POLICY IF EXISTS mant_agente_candado ON "SupportTicketEvento";
 --   DROP POLICY IF EXISTS mant_agente_candado ON "AuditLog";
+--   DROP POLICY IF EXISTS mant_agente_candado ON "SoporteConsentimiento";
 --   DROP TABLE IF EXISTS "SoporteConsentimiento";
 --   DROP TABLE IF EXISTS "NegocioProtegido";
+--   DROP FUNCTION IF EXISTS gsg_consentimiento_lo_firma_el_titular() CASCADE;
 --   DROP FUNCTION IF EXISTS gsg_permiso_n1_vigente(TEXT);
 --   DROP FUNCTION IF EXISTS gsg_negocio_protegido(TEXT);
 --   ALTER DEFAULT PRIVILEGES FOR ROLE neondb_owner IN SCHEMA public REVOKE ALL ON TABLES FROM gsg_operador;
