@@ -58,8 +58,8 @@ del dueño). Acá digo cómo lo usa el motor.
 |---|---|---|---|
 | D1 | `AgentePedido`: `REVOKE UPDATE ("userId","clave","pedidoEl")` | **Adoptada en la enmienda, probada por MIA-016.** Escribirlo como `REVOKE UPDATE ON "AgentePedido" FROM app_rls` y después `GRANT UPDATE (<las columnas que sí cambian>)`: `estado`, `tomadoHasta`, `intentos`, `respondidoEl`, `respuesta`, `filas`, `motivo`, `conModelo`, `respondidoPor` | En Postgres, quitar un permiso de columna no tiene efecto si el rol tiene el permiso sobre la tabla entera, y `app_rls` lo tiene (`prisma/rls/0002_app_role.sql:58` y `:63-64`). Es la forma que el mismo esquema usa bien en `AgenteAutorizacion`. Probado: el REVOKE por columna no tiene efecto; esta forma sí. Se repite en `0002_app_role.sql`, que si no la deshace (X8) |
 | D2 | `AgentePedido.recorte` | Queda **fuera** de la lista de columnas que se pueden actualizar (sale gratis con D1) | Si la foto del permiso se pudiera reescribir después, se falsifica el permiso más chico |
-| D3 | `AgentePropuesta.fuenteTipo`, `.fuenteId` (text, anulables) | **Adoptada en la enmienda**, con `char_length("fuenteId") > 0` (X7); con `CHECK (NOT (modo = 'REGLA' AND "montoCentavos" IS NOT NULL) OR "fuenteId" IS NOT NULL)` | Documento fuente exigido por la base y no sólo por el código (lista de ataque, punto 5). Si no entra, el dato va en `argumentos` y lo exige sólo el código |
-| D4 | `AgentePropuesta.modo` | **Adoptada en la enmienda**, con CHECK de dominio de `modo` y FK a la versión (X7). `CHECK (modo IS DISTINCT FROM 'REGLA' OR "autorizacionId" IS NOT NULL)` y clave foránea compuesta (`tenantId`,`autorizacionId`) a `AgenteAutorizacion`, que necesita único (`tenantId`,`id`) | Que nada figure decidido por regla sin autorización |
+| D3 | `AgentePropuesta.fuenteTipo`, `.fuenteId` (text, anulables) | **Adoptada en la enmienda**, con `char_length("fuenteId") > 0` (X7); con `CHECK (NOT (modo = 'REGLA' AND "montoCentavos" IS NOT NULL) OR "fuenteId" IS NOT NULL)` | Documento fuente exigido por la base y no sólo por el código (lista de ataque, punto 5) |
+| D4 | `AgentePropuesta.modo` | **Adoptada en la enmienda**, con CHECK de dominio de `modo` y FK a la versión (X7). `CHECK (modo IS DISTINCT FROM 'REGLA' OR "autorizacionId" IS NOT NULL)` y la FK de versión del esquema final (`tenantId`,`autorizacionId`,`autorizacionVersion`) a los únicos de `AgenteAutorizacion` | Que nada figure decidido por regla sin autorización |
 | D5 | `AgenteAutorizacion.operaciones` | Cada entrada lleva `version` | Evita una columna de versión del catálogo |
 
 **Sin migración:** un interruptor más al final del catálogo (`src/cambios/interruptores.ts`, que cierra en `:213`):
@@ -70,13 +70,18 @@ del dueño). Acá digo cómo lo usa el motor.
 La contradicción entre el esquema y la lista §F.26 la resuelve el dueño (`11` §3, D1; `08` §4). Opción recomendada
 por el dictamen: (c) el titular firma en la app con **segundo factor**, y ampliar pide segunda confirmación por mail
 y entra vigente 24 h después, con aviso a todos los usuarios dueños de la cuenta y a GSG. Técnica de (c):
-- Firmar: sólo un usuario dueño de la cuenta (`gestion-core.ts:612-613`), regla fija del código y no un permiso de
+- Firmar: sólo un usuario dueño de la cuenta. La regla **no existe hoy**: la construye 2B sobre `rolDelActor` (`gestion-core.ts:612-613`, que sólo da el rol); es regla fija del código y no un permiso de
   `ProyectoPermiso` (lo edita el negocio: `acciones-gestion.ts:260`). `firmanteUserId` sale de la sesión.
 - Segundo factor: código de un solo uso al mail del titular, con vencimiento corto y un intento limitado; el ERP
   hoy no tiene «volver a pedir la contraseña» ni segundo factor: los construye 2B, sin dependencias nuevas.
 - Ampliar (v(n) con operaciones o topes mayores que v(n−1), lo compara `autorizacion-core.ts`): `vigenteDesde =
   firmadoEl + 24 h` lo pone el servidor; confirmación por el mail del titular; aviso a todos los OWNER y a GSG.
   Bajar y revocar: en el acto.
+- **Hueco al ampliar, declarado:** firmar pone `reemplazadaEl` en la anterior en la misma transacción (único parcial
+  «viva») y la nueva no vale hasta `vigenteDesde`: en esas 24 h la llave 2 no encuentra autorización vigente y todo va
+  a `PERSONA("sin_autorizacion")`. Falla cerrada, a propósito: mantener viva la anterior pide dos filas vivas.
+- **Revocación por parte** (la parte 4, por ejemplo): `lecturaOps` y `operaciones` no se actualizan; se firma una
+  versión nueva que achica (titular, vale en el acto). Revocar entera: `revocadaEl`, botón del titular o de Dirección.
 - El reset de la clave de un OWNER por GSG (`resetOwnerPorSlug`) revoca la autorización viva y deja `AgenteAccion`
   `AUTORIZACION` (no se purga; `AuditLog` sí, a los 18 meses).
 - Techo: los topes de `08` §2 son `Operacion.techo`; la firma sólo puede bajarlos (§6).
@@ -174,7 +179,7 @@ solicitante, y en una cadena vale siempre la misma persona.
 | 4 | Si el paso 3 falla | La transacción se deshace entera. Si fue por tope: segunda transacción corta que deja la propuesta `PENDIENTE` con el motivo (excepción). Si fue un error: `FALLIDA` condicional, como `03` §7 |
 
 Una regla **nunca** decide una propuesta que quedó `PENDIENTE` por tope, por respaldo o por falta de autorización:
-esas son de una persona (la única excepción es la diferida por horario, §6). Aprobar exige `exigirEditar` del módulo
+esas son de una persona, sin excepciones (la diferida por horario no crea propuesta, §6). Aprobar exige `exigirEditar` del módulo
 (`src/lib/proyectos/gestion.server.ts:56-60`) más el módulo `agentes` (`03` §5), y **quien pidió no aprueba su
 propio pedido** (`solicitadoPor ≠ decididaPor`). Límite, dicho: esa persona igual puede hacer la operación por la
 pantalla de siempre (`entrar(["pagos","empresa"])`, `acciones-ficha.ts:760`): el ERP no separa funciones entre
@@ -222,10 +227,13 @@ personas. **Provisional a confirmar por el dueño.**
   traben entre sí. `sujeto`: `*` o `contraparte:<id>`. `periodo`: el día en hora de Argentina.
 - Partir una operación para quedar bajo el tope por operación lo frena el tope por día y por contraparte.
 - Al deshacer, el cupo del día **no** se devuelve.
-- **Fuera de horario la operación se difiere, no va a una persona** (H15). Queda `PENDIENTE` sin decidir, con
-  `resultado.diferidaHasta`, y la respuesta dice «lo hago el {día} a las {hora}». La toma la primera corrida de la
-  rutina dentro del horario y **vuelve a pasar todo el control desde cero**. Es el único caso en que una regla decide
-  una propuesta que ya existía. Sin despertador por minuto, «la primera corrida» es la tarea diaria de las 9:00 (§9).
+- **Fuera de horario la operación se difiere, no va a una persona** (H15). **Diferir no crea propuesta**: `modo`,
+  `autorizacionId` y `autorizacionVersion` quedan fuera del `GRANT UPDATE` de `app_rls` (esquema final), así que
+  una propuesta no puede pasar de «sin decidir» a `REGLA` después. Pedido: el `AgentePedido` queda `PENDIENTE` con
+  `tomadoHasta` = el comienzo del próximo horario hábil y `respuesta` «lo hago el {día} a las {hora}» (columnas del
+  GRANT). Rutina: no se guarda nada; la corrida siguiente lo vuelve a detectar. Al llegar el horario, la primera
+  corrida toma el pedido, **vuelve a pasar todo el control desde cero** y recién ahí crea la propuesta. Ninguna regla
+  decide una propuesta que ya existía. Sin despertador por minuto, «la primera corrida» es la tarea diaria de las 9:00 (§9).
   Días hábiles: calendario de feriados nacionales en código (`feriados-core.ts`, tabla por año, actualizada a mano;
   provisional: verificar si el ERP ya trae uno).
 
@@ -336,8 +344,8 @@ Nada despierta cada minuto. La ruta de la tarea diaria ya dice por qué: «para 
    `empresa` y tiene la sesión de quien sube (`a`). Al terminar, crea un `AgentePedido` de la lista («Conciliar y
    registrar lo que coincide») **a nombre de esa persona** (`userId` y `recorte` de su sesión, clave por lote) y lo
    agenda con `after()`. Así B2 y C4 corren como `PEDIDO`: vale el permiso más chico (si a quien subió le falta
-   `pagos`, C4 no se ejecuta) y lo que vaya a una persona no lo aprueba quien subió. Un movimiento de un lote que
-   empieza con «PRUEBA GSG» no entra fuera del negocio de ensayo. La rutina diaria sobre la plata sólo avisa
+   `pagos`, C4 no se ejecuta) y lo que vaya a una persona no lo aprueba quien subió. Los movimientos de prueba quedan
+   atados a cuotas de prueba (`08` §8); el lote no sirve de marca porque lo pone el servidor (`acciones-empresa.ts:218`). La rutina diaria sobre la plata sólo avisa
    (candidatos pendientes), no ejecuta.
 3. **Rescate con el `recorte`:** un pedido colgado lo puede retomar cualquier proceso, porque el permiso de quien
    pidió quedó guardado. Reemplaza el límite «sólo lo propio» de `03` §4.3, punto 3.
@@ -389,8 +397,8 @@ que alguien abre el buzón.
 | Hueco | Estado, verificado | Qué hace este diseño |
 |---|---|---|
 | Sin cierre mensual de período contable | Cierto: `Ejercicio` es anual (`prisma/schema.prisma:4451-4464`) | El agente no crea ni confirma asientos (`08` §3) |
-| Proyectos no mira el cierre de día ni de mes de la caja | Cierto en el código: la frontera existe (`src/lib/caja/frontera-cierre.ts:48-82`) y en `src/lib/proyectos/` nadie la llama (búsqueda de `frontera`, `diaCerrado` y `cierreDiario`: 0 resultados). Si hay defensa en la base, **no la verifiqué** | Toda operación de etapa 2 llama a `lastClosedDayTx(tx, tenantId)` (`:73-82`) y no ejecuta en un día cerrado; fecha siempre hoy; movimiento del banco de más de 10 días → persona |
-| Sin documento fuente obligatorio | Cierto: `Asiento.origenTipo` es anulable y admite `MANUAL` (`schema.prisma:4475`); `ProyectoPago` no guarda respaldo (`:3653-3669`) | `fuenteId` exigido por el código y, si entra D3, por `CHECK` (§2.2) |
+| Proyectos no mira el cierre de día ni de mes de la caja | Cierto en el código: la frontera existe (`src/lib/caja/frontera-cierre.ts:48-82`) y en `src/lib/proyectos/` nadie la llama (búsqueda de `frontera`, `diaCerrado` y `cierreDiario`: 0 resultados). Si hay defensa en la base, **no la verifiqué** | Toda escritura del agente (etapas 1 y 2, y su «Deshacer») llama a `lastClosedDayTx(tx, tenantId)` (`:73-82`) y a `periodoAbiertoTx` (§8): no escribe en un día cerrado ni en un mes congelado; fecha siempre hoy; movimiento del banco de más de 10 días → persona |
+| Sin documento fuente obligatorio | Cierto: `Asiento.origenTipo` es anulable y admite `MANUAL` (`schema.prisma:4475`); `ProyectoPago` no guarda respaldo (`:3653-3669`) | `fuenteId` exigido por el código y por `CHECK` (D3 adoptada, §2.2) |
 | Sin tope de aprobación por monto | Cierto: `MAXIMO_CENTAVOS` es el máximo de la base (`src/lib/contabilidad/asiento.ts:100`); `pasaElTope` no es un tope de aprobación (`cobranza-core.ts:353-355`) | Topes de la autorización (§6). Para las personas sigue sin haber: fuera de alcance |
 | Sin separación de funciones | Cierto en parte: `ADMINISTRACION` aprueba rendiciones (`src/lib/rendiciones/aprobacion.ts:8`) y «nadie aprueba lo propio» (`:3`) | El agente hereda ese rol: por eso R3 es «persona» en el código. Una regla no decide excepciones |
 | Cobrar no es idempotente | Cierto para el cobro suelto (`acciones.ts:212`; `acciones.ts:192-238`) | El agente no lo usa (§7), pero comparte el pendiente (X4). Lo arregla **GSG-MIA-018** en el ERP de hoy; B2 y C4 no se liberan antes (X3) |
@@ -426,7 +434,7 @@ contra el modelo real, en el negocio de ensayo.
 | Toda operación «sola» tiene `deshacer`; ninguna de `08` §3 es «sola»; etapa 2 sin origen `libre`; la consola no importa la ejecución | Estático | `guardia-ejecucion.test.ts` |
 | Ninguna llamada con `<datos>` lleva herramientas que no sean de lectura | Unidad, con guion | `intencion.test.ts` |
 | Con `app_rls`: sobre `AgenteAutorizacion`, `DELETE` rechazado, `UPDATE` de `operaciones` y `topes` rechazado, retirar una revocación rechazado; dos vivas por negocio rechazado; `UPDATE` de `recorte` y `userId` en `AgentePedido` rechazado; todo también después de correr `0002_app_role.sql` dos veces; A no ve la autorización de B. Firma por un usuario que no es el titular: rechazada por el código | Postgres | `autorizacion-postgres.test.ts` |
-| La base rechaza: `REGLA` sin autorización; `modo` fuera de dominio; versión de autorización inexistente; plata por `REGLA` sin fuente o con `fuenteId` vacío; `solicitadoPor` distinto del dueño del pedido; `PEDIDO` sin `solicitadoPor`; `RUTINA` con `pedidoId`; `CANAL` sin oferta; monto en USD; misma clave tras `RECHAZADA`; `reemplazadaEl` puesto en nulo; `metodo` distinto de `APP_CON_SESION`; `decididaPor = solicitadoPor` (lo escribe el brief de la enmienda, `12`) | Postgres | `enmienda-postgres.test.ts` |
+| La base rechaza: `REGLA` sin autorización; `modo` fuera de dominio; versión de autorización inexistente; plata por `REGLA` sin fuente o con `fuenteId` vacío; `solicitadoPor` distinto del dueño del pedido; `PEDIDO` sin `solicitadoPor`; `RUTINA` con `pedidoId`; `CANAL` sin oferta; monto en USD; misma clave tras `RECHAZADA`; `reemplazadaEl` puesto en nulo; `metodo` distinto de `APP_CON_SESION`; `decididaPor = solicitadoPor`; segunda propuesta viva para la misma `canalOfertaId`; `app_rls` actualizando una columna de `AgentePropuesta` fuera del GRANT (`origen`, `montoCentavos`, `modo`, `autorizacionId`) (lo escribe el brief de la enmienda, `12`) | Postgres | `enmienda-postgres.test.ts` |
 | C4 consume el movimiento: M usado por A → B va a persona; con cobro suelto por el mismo importe → persona; persona marca cobrado a mano a la vez que el agente → un solo efecto (con GSG-MIA-018) | Postgres, carrera | `c4-respaldo-carrera-postgres.test.ts` |
 | Deshacer C4 deja **todas** las cuotas del proyecto, la conciliación, la caja y el saldo como estaban, y desata M si lo ató C4 | Postgres | `c4-ida-y-vuelta-postgres.test.ts` |
 | C5/P5 no pueden pasar `venceEl`; etapa 2 no tiene origen `rutina`; Zod rechaza `pedidoId`, `solicitadoPor`, `canalOfertaId` y `origen` en argumentos | Estático | `guardia-ejecucion.test.ts` |
@@ -556,8 +564,9 @@ dijo.
   Umbral: decisión del dueño (`11` §3, D3); recomendada **150 distintos con 0 críticas** para R2 y **300** para lo que
   mueva plata sin respaldo si alguna vez entra; graves ≤ 2 % por corrida.
 - **La escribe una sesión distinta** del constructor y de quien escribe las instrucciones, **antes** de ver la
-  implementación (brief L1 de `13`). **Reservados:** un tercio (provisional) queda fuera del repo, en poder de la
-  certificación; en el repo, sólo su sha256.
+  implementación (brief L1 de `13`). **Reservados:** un tercio (provisional) queda fuera del repo, en una carpeta de Drive
+  de GSG con acceso sólo de la certificación (provisional a confirmar; nunca sólo en un disco); en el repo, sólo su
+  sha256.
 - **La corre otra sesión distinta** (brief L2 de `13`), en el negocio de ensayo, con datos de prueba y con el modelo
   del plan de Claude (tema cerrado por el dueño). Nunca contra un negocio real.
 

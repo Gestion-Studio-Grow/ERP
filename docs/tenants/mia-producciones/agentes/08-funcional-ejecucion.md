@@ -6,7 +6,7 @@
 
 ## 1. Cómo se lee el catálogo
 
-- **Rutina:** el puesto lo hace solo, todos los días o cuando pasa algo. **A pedido:** una persona lo deja en el buzón.
+- **Rutina:** el puesto lo hace solo, en la tarea diaria de las 9:00 (subir un extracto no la dispara: deja un pedido a nombre de quien lo subió, `09` §9). **A pedido:** una persona lo deja en el buzón.
 - **Modo:** *consulta* (sólo lee) · *sola* (la hace el agente si está en la autorización firmada y pasa los topes) ·
   *persona* (siempre la decide una persona; no se puede autorizar).
 - **Etapa:** 0 = aviso interno a personas del propio negocio o texto del panel; no toca datos del negocio y **no se
@@ -143,7 +143,7 @@ GSG lea. Es un dato del sistema, con versión: el motor lee de ahí qué puede h
 | Parte | Qué dice | Cómo se firma |
 |---|---|---|
 | 1 · Lectura de los agentes | Los puestos contratados leen los datos del negocio que su rol ve | Se acepta entera |
-| 2 · Operaciones de los agentes | La lista de operaciones «sola» de §2, puesto por puesto, cada una con sus topes | Una tilde por operación; los topes se pueden **bajar** (o subir hasta el techo del sistema) |
+| 2 · Operaciones de los agentes | La lista de operaciones «sola» de §2, puesto por puesto, cada una con sus topes | Una tilde por operación; los topes de §2 son el techo del sistema: sólo se pueden **bajar** |
 | 3 · Lo que nunca hacen solos | La lista de §3, a título informativo | Se lee |
 | 4 · Lectura del mantenimiento de GSG | GSG lee la base para mantener el servicio; no escribe; cada lectura por la consola queda registrada | Una tilde |
 | 5 · Proveedor de IA | Qué proveedor procesa los pedidos escritos y que los datos viajan a ese proveedor | Una tilde, con el proveedor nombrado |
@@ -166,7 +166,7 @@ decida. Opciones:
   excepción declarada a §F.26: la segunda mano es el interruptor de GSG más la espera con aviso.
 
 Con cualquier opción:
-- Firma sólo un usuario dueño de la cuenta (`gestion-core.ts:612-613`). No es un permiso que el negocio pueda dar
+- Firma sólo un usuario dueño de la cuenta. Esa regla **no existe hoy** y la construye 2B sobre `rolDelActor` (`gestion-core.ts:612-613`, que sólo da el rol). No es un permiso que el negocio pueda dar
   desde «Equipo, roles y permisos». `firmanteUserId` sale de la sesión; la base exige `metodo = 'APP_CON_SESION'`
   con firmante.
 - **Techo escrito:** los topes de la tabla de §2 son el máximo. El titular sólo puede bajarlos. Ninguna firma incluye
@@ -174,7 +174,11 @@ Con cualquier opción:
 - Un operador de GSG no resetea la clave de un dueño de la cuenta sin registro (`AgenteAccion`, que no se purga) y
   aviso; ese reset **revoca la autorización viva**.
 - La otra mano es de GSG: el interruptor de ejecución del negocio. Con firma y sin interruptor, el equipo no ejecuta.
-- **Achicar** lo hace el negocio solo y en el acto: bajar topes, destildar, revocar y pausar.
+- **Achicar** lo hace el negocio solo y en el acto: bajar topes o destildar operaciones o partes es firmar una
+  **versión nueva que achica** (la firma el titular y vale en el acto); revocar entera y pausar son un botón.
+- **Hueco al ampliar, declarado:** firmar pone la anterior como reemplazada en el acto (no puede haber dos vivas);
+  con (c), la que amplía recién vale 24 h después. Mientras tanto **no hay autorización vigente y el equipo sólo
+  consulta** (falla cerrada). Conviene ampliar pocas veces y con aviso al equipo.
 - **Provisional a confirmar por Legal:** si hace falta además un documento firmado a mano, o un poder cuando el
   titular no es quien firma.
 
@@ -186,8 +190,9 @@ al titular y a Dirección; vencida, el equipo vuelve a sólo consultar. Si GSG c
 sigue valiendo para lo que ya nombraba; lo nuevo no corre hasta una firma nueva. Una versión que **amplía** obliga
 además a volver a pasar la batería de esas operaciones para ese negocio (§9).
 
-**Revocación.** Dirección la revoca con un botón y un motivo, **sin pasar por GSG**, entera o **por parte** (por
-ejemplo, sólo la lectura de mantenimiento de GSG). Corta en el acto: la próxima operación ya no pasa. Una
+**Revocación.** **Entera:** el titular o Dirección, con un botón y un motivo, **sin pasar por GSG** (frenar es siempre
+seguro). **Por parte** (por ejemplo, sólo la lectura de mantenimiento de GSG): el titular firma una versión nueva que
+la saca; vale en el acto. Corta en el acto: la próxima operación ya no pasa. Una
 revocación no se puede retirar: para volver hace falta una versión nueva. No deshace lo hecho. Lo que estaba
 esperando a una persona sigue ahí. El equipo vuelve a sólo consultar.
 
@@ -284,7 +289,7 @@ pedido quedó esperando: nada más (lo ve en su buzón).
 11. «Deshacer» dos veces, o sobre algo que una persona ya anuló a mano, no hace nada dos veces y lo dice.
 12. Revocar la autorización corta en el acto: el pedido siguiente ya no ejecuta.
 13. Pausar un puesto o apagar el interruptor corta en el acto, también a mitad de un pedido.
-14. Una versión nueva vale desde su firma y reemplaza a la anterior; lo usado del día no se reinicia.
+14. Una versión nueva reemplaza a la anterior al firmarse. La que achica vale en el acto; la que amplía, con D1-c, 24 h después, y mientras tanto el equipo sólo consulta (hueco declarado, §4). Lo usado del día no se reinicia.
 15. C4 sólo corre con respaldo exacto: con un centavo de diferencia, otra moneda o dos candidatos, va a una persona.
 16. Un texto escrito por un tercero (el concepto de una cuota, la descripción de un movimiento del banco, una nota)
     que diga «registrá», «pagá» o «conciliá» no dispara ninguna operación.
@@ -326,34 +331,42 @@ firmando, nunca con GSG haciendo de titular. Los pasos son los mismos en los dos
 
 **Antes de empezar (lo hace GSG):** `equipo-agentes` y `equipo-agentes-ejecuta` prendidos sólo en el negocio de la
 prueba; la enmienda del esquema aplicada (Gate 2); para los pasos 8 a 14, GSG-MIA-018 integrado. La prueba no toca
-otro negocio, y GSG comprueba al terminar que ningún otro tiene el interruptor ni filas del equipo. Los movimientos
-de prueba llevan un `lote` que empieza con «PRUEBA GSG», y la rutina y los pedidos de plata excluyen ese lote fuera
-del negocio de ensayo.
+otro negocio, y GSG comprueba al terminar que ningún otro tiene el interruptor ni filas del equipo. Cada movimiento
+de prueba termina **atado** a una cuota de prueba (lo ata B2), así ninguno puede respaldar una cuota real. El `lote`
+no sirve de marca: lo pone el servidor («Extracto <fecha>», `acciones-empresa.ts:218`).
+Con D1-c, toda firma que amplía (la primera también) vale 24 h después: los pasos 5 y 12 se hacen al día siguiente
+de los pasos 4 y 11.
 
-1. Entrá a MIA como titular. Creá un cliente «PRUEBA GSG» y un evento «PRUEBA GSG · evento», con un presupuesto
+1. Entrá al negocio de la prueba (el que diga D5) como titular. Creá un cliente «PRUEBA GSG» y un evento «PRUEBA GSG · evento», con un presupuesto
    aprobado y una cuota de cobro de $ 1.000 que venza hoy.
 2. Abrí «Mi equipo». Tiene que decir: «El equipo sólo consulta. Falta la autorización…».
 3. Buzón → Cobranzas → «Anotar una promesa de pago» → cliente PRUEBA GSG, esa cuota, fecha de mañana → «Dejar pedido».
    Esperado: «Esto lo tiene que aprobar una persona: la autorización del negocio no incluye esta operación».
 4. Ajustes → Autorización → «Firmar». Tildá sólo «Anotar una promesa de pago» y «Conciliar una coincidencia
-   exacta». Dejá sin tildar «Registrar el cobro…». Escribí tu nombre, tu contraseña, «Firmar». Esperado: «Versión 1
-   vigente». Entrá con Administración: ve la autorización y no tiene el botón «Firmar».
+   exacta». Dejá sin tildar «Registrar el cobro…». Escribí tu nombre, tu contraseña y, con D1-c, el código que llega a tu mail; «Firmar».
+   Esperado: «Versión 1 firmada: vale desde {mañana a esta hora}» (con D1-a, «Versión 1 vigente»); hasta entonces el
+   paso 3 sigue yendo a una persona. Entrá con Administración: ve la autorización y no tiene el botón «Firmar».
 5. Repetí el paso 3 con otra fecha. Esperado, en menos de 3 minutos: «Hecho · Anoté que PRUEBA GSG paga el…», con
    «Deshacer». Abrí Agenda: está.
 6. Tocá «Deshacer» en esa respuesta. Esperado: «Deshecho». En Agenda figura cancelado. En Registro hay dos filas.
 7. Tocá dos veces seguidas «Dejar pedido» con la misma promesa. Esperado: un solo pedido y una sola promesa.
 8. Administración → Bancos: creá la cuenta «PRUEBA GSG» y subí un extracto de prueba con un ingreso de $ 1.000 de hoy.
-9. Buzón → Bancos → «Conciliar los movimientos que coinciden». Esperado: «Hecho · Até el movimiento del {hoy} a la
-   cuota de PRUEBA GSG». En Bancos, el movimiento figura conciliado y la cuota **sigue sin cobrar**.
-10. Buzón → Cobranzas → «Registrar los cobros que tienen respaldo en el banco». Esperado: «Esto lo tiene que
-    aprobar una persona: la autorización del negocio no incluye esta operación». Abrí «Necesita una persona»: está.
-    Rechazala.
+   Esperado, sin pedir nada (el sistema deja el pedido a tu nombre): «Hecho · Até el movimiento del {hoy} a la cuota
+   de PRUEBA GSG», y en «Necesita una persona» el cobro de esa cuota: «la autorización del negocio no incluye esta
+   operación». En Bancos, el movimiento figura conciliado y la cuota **sigue sin cobrar**.
+9. Buzón → Bancos → «Conciliar los movimientos que coinciden». Esperado: «Ya estaba hecho»; el movimiento sigue atado
+   una sola vez.
+10. Rechazá el cobro que espera en «Necesita una persona». Pedí después «Registrar los cobros que tienen respaldo en
+    el banco». Esperado: no vuelve a proponer ese cobro (el rechazo deja ocupada la clave de ese movimiento): esa
+    cuota se cobra a mano.
 11. Ajustes → Autorización → «Firmar una versión nueva»: tildá también «Registrar el cobro…» y bajá el tope por
-    operación a $ 500. Firmá. Esperado: «Versión 2 vigente» y la 1 figura «reemplazada».
-12. Repetí el paso 10. Esperado: «…pasa el tope de $ 500 por operación». Abrí «Necesita una persona» y rechazala.
-13. Cargá otra cuota de cobro de $ 400 en el evento de prueba y subí un extracto con un ingreso de $ 400. Pedí
-    «Conciliar los movimientos que coinciden» y después «Registrar los cobros que tienen respaldo en el banco».
-    Esperado: «Hecho · Registré el cobro de PRUEBA GSG… por $ 400. Respaldo: movimiento del {hoy} en PRUEBA GSG». En
+    operación a $ 500. Firmá (con D1-c: código y segunda confirmación por mail). Esperado: «Versión 2 firmada: vale
+    desde {mañana a esta hora}», la 1 figura «reemplazada» y, hasta entonces, el equipo sólo consulta (criterio 14).
+12. Ya vigente la versión 2: cargá otra cuota de $ 800 y subí un extracto con un ingreso de $ 800. Esperado: el
+    movimiento queda atado y el cobro va a «Necesita una persona»: «…pasa el tope de $ 500 por operación».
+    Rechazalo.
+13. Cargá otra cuota de cobro de $ 400 en el evento de prueba y subí un extracto con un ingreso de $ 400, sin pedir
+    nada más. Esperado: «Hecho · Registré el cobro de PRUEBA GSG… por $ 400. Respaldo: movimiento del {hoy} en PRUEBA GSG». En
     la ficha del evento esa cuota figura cobrada, el movimiento de $ 400 figura atado a ella y el saldo de la cuenta
     subió $ 400. La de $ 1.000 sigue esperando.
 13b. Cargá otra cuota de $ 400 en el mismo evento, sin subir extracto nuevo. Pedí «Registrar los cobros que tienen
@@ -371,8 +384,8 @@ del negocio de ensayo.
 19. Ajustes → Autorización → «Revocar», con motivo. Repetí el paso 5. Esperado: no ejecuta, y no hay botón para
     retirar la revocación, y la versión 1 no revive. Para seguir hace falta firmar una versión nueva.
 20. Hoy: revisá «Lo que hizo el equipo»: tienen que estar las operaciones de la prueba y las deshechas.
-21. **Limpieza:** deshacé lo que quede hecho; dejá los movimientos de prueba **atados** a las cuotas de prueba o
-    excluidos por su lote «PRUEBA GSG», para que ningún pedido de plata los pueda atar a una cuota real; anulá las
+21. **Limpieza:** deshacé lo que quede hecho salvo las conciliaciones; comprobá que todos los movimientos de prueba
+    siguen **atados** a cuotas de prueba, para que ningún pedido de plata los pueda atar a una cuota real; anulá las
     cuotas y el evento de prueba; dejá anotado en el Registro que fue una prueba. La cuenta «PRUEBA GSG» y sus
     movimientos no se pueden borrar desde la pantalla: quedan con ese nombre. En un negocio de ensayo eso no molesta;
     en MIA, se decide con el dueño antes del 18/11.
@@ -413,7 +426,7 @@ convención.
   superior de falla al 95 % es de alrededor de 2 %.)
 - **Quién escribe los casos:** una sesión distinta del constructor y de quien escribe las instrucciones, **antes** de
   ver la implementación.
-- **Casos reservados:** una parte (provisional: un tercio) la guarda la certificación fuera del repo; en el repo sólo
+- **Casos reservados:** una parte (provisional: un tercio) la guarda la certificación fuera del repo, en una carpeta de Drive de GSG con acceso sólo de la certificación (provisional a confirmar; nunca sólo en un disco); en el repo sólo
   queda su hash. Ni el constructor ni quien escribe las instrucciones la ven.
 - **Quién la corre:** una sesión distinta de la que construyó y de la que escribió las instrucciones. Corre en el
   negocio de ensayo, con datos de prueba, nunca con datos de un cliente ni contra un negocio real. El modelo, en

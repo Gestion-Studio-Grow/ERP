@@ -22,7 +22,8 @@
 | **6** | Comprobantes y base para Dirección | 6 de `04`, al abrirla | 5 | Datos y permisos | A definir |
 
 - **Cadena:** E → 1·aj → 2 → 3 → 4 → 5 → 6, una tanda a la vez, con 1 o 2 constructores. L1 corre en paralelo con
-  2-3 (no lee código). Cada tanda abre su rama desde la anterior y cierra con `tsc`, tests y build verdes, ningún
+  2-3 (no lee código). **LT (o la decisión D2-a) va antes del primer prendido de cualquier operación**: sin fila de
+  liberación, la llave 4 la da por no liberada. Cada tanda abre su rama desde la anterior y cierra con `tsc`, tests y build verdes, ningún
   rojo nuevo por nombre, certificación con hallazgos corregidos, medición y un push.
 - **Dentro de la 4 no se avanza a la operación siguiente sin CUMPLE de la anterior.**
 - **Cobro y conciliación dependen de GSG-MIA-018** (corrige H3 y X3): 4A y 4B no abren hasta que MIA-018 esté
@@ -80,14 +81,15 @@ Diseño: 09 §3, §4, §5, §6, §7 y §8 (sólo «Deshacer»). Esquema: el de E
 Construí en src/lib/agentes/: ejecucion-core.ts (decidirEjecucion en el orden de 09 §4),
 ejecucion.server.ts (operar, revertir); decidirEnTx recibe REGLA o PERSONA; llaves en estado.server.ts.
 - Candado con ESCRITURA REAL (pausa: pausadoPor null; autorización: revocadaEl null). Nada de data {}.
-- Llaves 4 y 5: liberación vigente con la huella actual (09 §17.1) y partes 1 y 5 para la IA.
+- Llaves 4 y 5: liberación vigente con la huella actual (09 §17.1) y partes 1 y 5 para la IA. Mientras
+  no exista la fila de liberación (LT o D2-a), la llave 4 da «no liberada»: falla cerrada.
 - Constante B2/C4 = espera_mia018 (sólo la cambia 4A con MIA-018 en verde).
 - Alta createMany skipDuplicates por clave; reclamo PENDIENTE→EJECUTADA count===1; recalcular con tx
   monto, moneda, pendiente y respaldo (X9); DESPUÉS cupos por moneda, filas en orden fijo.
 - origen/pedidoId/solicitadoPor los pone el servidor. permisoVivo llega por parámetro desde
   src/lib/proyectos/agentes/actor-agente.server.ts. El motor no importa proyectos.
 - Etapa >= 1 desde libre: PERSONA(usar_lista). Etapa 2 desde rutina: RECHAZO.
-- Fuera de horario o feriado: DIFERIR. RECHAZADA y REVERTIDA ocupan la clave.
+- Fuera de horario o feriado: DIFERIR, sin crear propuesta (09 §6). RECHAZADA y REVERTIDA ocupan la clave.
 - Revertir: clave REV:<id>, exigirEditar, dentro de revertibleHasta; mira día y mes cerrados.
 - Operación de prueba sin plata (un compromiso) para los tests.
 ESCRIBÍ PRIMERO: ejecucion-carrera, llaves-carrera, reversion-carrera, permiso-minimo (Postgres,
@@ -106,12 +108,13 @@ Construí autorizacion-core.ts (vigente, vencida, nombra operación y versión, 
 amplía o achica frente a la anterior) y autorizacion.server.ts (firmar, revocar entera o por parte,
 leer); pantalla «Mi equipo → Ajustes → Autorización»; interruptor equipo-agentes-ejecuta al final de
 src/cambios/interruptores.ts (cambiaLasApps false).
-- Firma sólo un OWNER (gestion-core.ts:612-613), no un permiso de ProyectoPermiso. Segundo factor:
+- Firma sólo un OWNER: regla nueva sobre rolDelActor (gestion-core.ts:612-613); no ProyectoPermiso. Segundo factor:
   código de un uso al mail del titular. firmanteUserId de la sesión; metodo APP_CON_SESION.
 - textoHash del servidor sobre operaciones + topes + datosSensibles. reemplazadaEl en la anterior, en
   la misma transacción. venceEl obligatorio; aviso 15 días antes.
 - Ampliar: confirmación por mail, vigenteDesde = firmadoEl + 24 h, aviso a todos los OWNER y a GSG.
-  Bajar y revocar: en el acto.
+  Bajar, destildar y sacar una parte = versión nueva que achica (en el acto). Revocar entera: titular o
+  Dirección. Ampliar deja 24 h sin vigente: el equipo sólo consulta (09 §2.3).
 - Reset de clave de un OWNER por GSG revoca la autorización viva (AgenteAccion AUTORIZACION).
 - Trinquete: sólo autorizacion.server.ts escribe AgenteAutorizacion; el motor no lo importa.
 ESCRIBÍ PRIMERO autorizacion-postgres.test.ts y autorizacion-core.test.ts (09 §14).
@@ -178,7 +181,6 @@ etapas 0 y 1 (la rutina NUNCA corre etapa 2; sobre la plata sólo avisa candidat
 - importarExtracto (acciones-empresa.ts:206-225): al terminar crea un AgentePedido de la lista a
   nombre de quien subió (userId y recorte de su sesión, clave por lote) y lo agenda con after().
   En esta tanda, el gancho se prueba con una operación sin plata.
-- Lote «PRUEBA GSG»: fuera del negocio de ensayo, ningún pedido de plata lo toma.
 - Sin entradas nuevas en vercel.json (despertador: decisión del dueño); la función de rescate queda
   lista para una ruta.
 ESCRIBÍ PRIMERO: dos barridos a la vez → una ejecución por clave; lo REVERTIDO o RECHAZADO no se
@@ -200,8 +202,8 @@ Escribí, por operación y por camino con modelo (libre; más adelante canal), c
 paráfrasis y variantes de cada tipo de ataque, cada uno con su resultado esperado (operación ofrecida,
 derivación o rechazo, y qué no puede aparecer en la respuesta). Cantidad: la que fije D3 (recomendada
 150 por operación R2; 300 si mueve plata sin respaldo).
-- Un tercio (provisional) son RESERVADOS: van fuera del repo, a la carpeta de la certificación que
-  indique la orquestadora; en el repo, sólo su sha256 y el tipo de ataque.
+- Un tercio (provisional) son RESERVADOS: van fuera del repo, a la carpeta de Drive de la
+  certificación (provisional a confirmar); en el repo, sólo su sha256 y el tipo de ataque.
 - Lo público va en docs/tenants/mia-producciones/agentes/bateria/<operacion>-<camino>.md, con versión
   y hash de la lista completa (es la «versión de la batería» de la huella).
 - Los casos del camino código (sin modelo) se escriben como pedidos para los tests deterministas.
@@ -258,7 +260,8 @@ Requisito: el de 4A (GSG-MIA-018). Diseño: 08 §2.2 (C4 y sus condiciones), 09 
 - cobrarCuotaEnTx sobre la versión idempotente de MIA-018 (acciones-ficha.ts:748-830): autor
   agente:<puesto>, fecha inyectada, cuenta del movimiento, medio TRANSFERENCIA.
 - C4 CONSUME el movimiento en la misma transacción: updateMany ProyectoMovBanco where id=M and
-  (cuotaId null or = la cuota) → cuotaId = la cuota, count===1; si no, persona. Clave C4:mov:<id>.
+  (cuotaId null, o = la cuota CON B2:cuota:<id> EJECUTADA) → cuotaId = la cuota, count===1; si
+  no, persona (atado por una persona → persona, 08 §2.2). Clave C4:mov:<id>.
 - pendiente == cuota.monto y ningún ProyectoPago sin cuota del proyecto por el mismo importe en 10 días.
 - Recalcular con tx monto, moneda, pendiente y unicidad antes de escribir (X9). Sólo ARS.
 - Sólo cuotas de evento; pedido de lista o por extracto (permiso más chico de quien subió).
@@ -331,14 +334,14 @@ Medido sobre el texto entre las cercas de cada brief (UTF-8). Tope: 2048.
 |---|---|
 | Brief E · enmienda del esquema (≤ 2 KB) | 2014 |
 | Brief 1-AJ · ajustes a 1B, 1C y 1D | 1577 |
-| Brief 2A · motor de ejecución | 1610 |
-| Brief 2B · autorización (abre sólo con D1 decidida) | 1627 |
+| Brief 2A · motor de ejecución | 1743 |
+| Brief 2B · autorización (abre sólo con D1 decidida) | 1800 |
 | Brief 2C · pedido que ejecuta y respuesta con lo hecho | 1332 |
 | Brief 3A · operaciones sin plata, cuaderno y memoria | 1296 |
-| Brief 3B · rutina del puesto y pedido por extracto | 1560 |
-| Brief L1 · escribir los casos (antes de la implementación) | 1273 |
+| Brief 3B · rutina del puesto y pedido por extracto | 1475 |
+| Brief L1 · escribir los casos (antes de la implementación) | 1280 |
 | Brief L2 · correr la batería y armar el expediente | 1200 |
 | Brief 4A · B2 conciliar coincidencia exacta (+ 4C Cuentas a pagar) | 1335 |
-| Brief 4B · C4 registrar cobro con respaldo | 1508 |
+| Brief 4B · C4 registrar cobro con respaldo | 1584 |
 | Brief LT · tabla de liberación (sólo si el dueño elige D2-b) | 764 |
 | Brief 5 | 1019 |

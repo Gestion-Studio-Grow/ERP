@@ -672,6 +672,8 @@ esta lista; C3 en adelante sí.
 | P6 | **Entra** | `datosSensibles` Json `[]` por defecto; `textoHash` sobre `operaciones` + `topes` + `datosSensibles`; `canales` dentro de `operaciones` |
 | P3, P4, P5, P7 a P12 | **Esperan** a C3, sin cambio de esquema | Con las condiciones del dictamen: decisión del dueño sobre el cliente final como solicitante (excepción explícita a «un texto de un tercero no dispara una transacción»); clave del link de MP por pedido e importe (`src/lib/cobros/link-de-pedido.server.ts:30-48`, hoy una por oferta: doble cobro) y `modo: "persona"` hasta poder anularlo; el motor compara monto, moneda, contraparte y fuente contra la `CanalOferta` leída con `tx`; en la web, ninguna tarea que escriba y un cupo diario propio para visitantes; techo `RECEPTION` con trinquete (P5) |
 
+| H7, H8 | **Esperan** a C3, con su corrección | H7: al aprobar una persona una propuesta `CANAL`, se revisa el grado y el `clientId` del solicitante **sin** el vencimiento de 15 min de la oferta. H8: `permisoDeCanalVivo` hace una escritura real (conversación `estado='ASISTENTE'`; oferta `CONFIRMADA` con `agentePropuestaId IS NULL`), así «Tomar la conversación» entre la confirmación y `operar` no se cuela; `opcion` con 128 bits o más de entropía |
+
 Nada se rechazó. C1 y C2 siguen sin depender de esta lista.
 
 ## 20. Cambios por el desafío del 14/11

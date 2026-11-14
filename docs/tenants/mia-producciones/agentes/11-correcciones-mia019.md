@@ -31,7 +31,7 @@
 | H7 | ALTO | Lista completa de fallas críticas de §J.43 y graves ≤ 2 % | `08` §9 · `09` §17.4 |
 | H8 | ALTO | Huella = hash de los archivos del camino de plata + contrato + batería + modelo y versión + instrucciones; autorización que amplía invalida; regresión nocturna y muestreo con alerta | `08` §9 · `09` §4 (`archivos`), §17.1, §17.5 · `13` brief 5 |
 | H9 | ALTO | Quién firma = decisión del dueño (D1) **antes** de 2B; techo escrito (los topes de `08` §2, sólo se bajan); recomendada (c) | `08` §4 · `09` §2.3 · `13` brief 2B · §3 D1 |
-| H10 | ALTO | Guion primero en un negocio de ensayo; en MIA sólo con su titular real; movimientos de prueba atados o excluidos por lote «PRUEBA GSG» | `08` §8 (encabezado, paso 21) · `09` §9 · §3 D5 |
+| H10 | ALTO | Guion primero en un negocio de ensayo; en MIA sólo con su titular real; movimientos de prueba atados a cuotas de prueba (el lote lo pone el servidor; segunda vuelta, §5) | `08` §8 (encabezado, paso 21) · `09` §9 · §3 D5 |
 | H11 | ALTO | Llave en el código: sin partes 1 y 5 no hay llamada al proveedor ni lectura de GSG; parte 6 con Legal antes de la IA con datos reales | `07` §3 (fila 2) · `08` §4, criterio 38 · `09` §3 (llave 5), §10 · `13` brief 1-AJ |
 | H12 | ALTO | Brief propio de la enmienda, certificado antes del Gate 2; `07` y `13` dicen que 1A recibe la enmienda sin reabrirse; ajustes a 1B-1D | `12` · `07` encabezado · `13` §2 (brief 1-AJ) |
 | H13 | ALTO | Meta provisional (70 % solas a 30 días), métrica del panel, conteo sobre un extracto real antes de la etapa 2, criterio de aceptación | `07` §11 · `08` criterio 32 · `13` briefs 2C y 5 |
@@ -120,3 +120,24 @@ autorización y de los términos, el plazo de conservación con la contadora, y 
   (`acciones-empresa.ts:207`), que sí está.
 - Ley 25.326 en la fuente: va al frente legal.
 - Ventana de compactación: en esta sesión, `CLAUDE_CODE_AUTO_COMPACT_WINDOW=400000` (MIA-016 había visto 500000).
+
+## 5. Segunda vuelta: ataque de un agente distinto (15/11/2026)
+
+Un agente distinto (`gsg-certificador`, Opus alto) atacó el commit `9fb6a703` contra el dictamen. Su veredicto fue
+**cumple con cambios**: los 5 puntos de la orden están hechos, H1-H24, X1-X16 y P1/P2/P6 tienen cambio, y ningún
+hallazgo bloquea ni tiene riesgo de plata. Se corrigieron los diez hallazgos:
+
+| # | Hallazgo del ataque | Cambio | Dónde |
+|---|---|---|---|
+| 1 | Una diferida tendría que actualizar `modo` y `autorizacionId`, que están fuera del GRANT de `app_rls`: fallaría siempre | Diferir **no crea propuesta**: el pedido queda `PENDIENTE` con `tomadoHasta` en el próximo horario y la respuesta «lo hago el…»; la rutina lo vuelve a detectar. Ninguna regla decide una propuesta que ya existía | `09` §4 y §6 · brief 2A |
+| 2 | Ampliar deja 24 h sin autorización vigente | Hueco **declarado** (falla cerrada: el equipo sólo consulta); criterio 14 y guion lo dicen | `09` §2.3 · `08` §4, §7 (14), §8 (4, 11, 12) · brief 2B |
+| 3 | Revocación por parte sin mecanismo; titular contra Dirección | Por parte = versión nueva que achica, firmada por el titular, en el acto. Entera: el titular o Dirección, con un botón | `07` §7 · `08` §4 · `09` §2.3 · brief 2B |
+| 4 | El lote «PRUEBA GSG» no se puede poner: lo pone el servidor (`acciones-empresa.ts:218`) | Fuera la marca por lote; los movimientos de prueba quedan **atados** a cuotas de prueba | `08` §8 · `09` §9 · brief 3B |
+| 5 | Guion incoherente con X6, H4 y D1-c | Paso 1 en el negocio de D5; paso 4 con segundo factor y 24 h; paso 8 con el pedido automático; paso 9 «ya estaba hecho»; paso 10, rechazo que ocupa la clave; paso 12 con otro movimiento ($ 800); paso 13 sin pedir | `08` §8 |
+| 6 | Texto viejo | Diagrama de `07` §6 sin el extracto; `08` §1 (rutina a las 9:00); `08` §4 parte 2 (sólo bajar); `09` §2.2 D3/D4; `09` §11 (etapas 1 y 2, día y mes) | esos lugares |
+| 7 | Llave 4 sin fuente; LT fuera de la cadena | Sin fila de liberación, «no liberada»; LT o D2-a antes del primer prendido | brief 2A · `13` §1 |
+| 8 | Reservados sin lugar durable | Carpeta de Drive de GSG, sólo la certificación (provisional a confirmar) | `08` §9 · `09` §17.3 · brief L1 |
+| 9 | `gestion-core.ts:612-613` es `rolDelActor` | «La regla sólo-OWNER no existe: la construye 2B sobre `rolDelActor`» | `08` §4 · `09` §2.3 · brief 2B |
+| 10 | Tests y bordes | `09` §14: único por oferta y permisos de columna de `AgentePropuesta`; brief 4B: atado por una persona → persona (como `08`); H7 y H8 de canales en `03` §19 | `09` §14 · brief 4B · canales `03` §19 |
+
+Briefs medidos de nuevo (`13` §10): todos de 2048 bytes o menos (el más grande, E, 2014).

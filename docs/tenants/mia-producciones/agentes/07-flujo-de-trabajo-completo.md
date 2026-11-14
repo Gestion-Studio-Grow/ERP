@@ -137,7 +137,6 @@ propia fila (apunta a la que revierte): así queda quién deshizo, cuándo y con
 ```mermaid
 flowchart LR
   T[Tarea diaria 9:00] --> S[Regla del código elige<br/>sobre qué trabajar]
-  EV[Algo pasó<br/>ej.: se subió un extracto] --> S
   S --> C{Control<br/>autorización y topes}
   C -- pasa --> X[Ejecuta]
   C -- no pasa --> EX[Excepción a una persona]
@@ -161,8 +160,9 @@ el permiso del agente).
   **Sin registro no hay lectura** (corrige H17): la sesión de operación de sólo lectura sobre la base queda fuera
   hasta que exista una forma de anotar cada lectura; crear un rol en la base es decisión del dueño.
 - La lectura de GSG exige la parte 4 firmada y `lecturaOps` en la autorización viva.
-- **Revocación por parte:** el cliente puede revocar sólo la lectura de mantenimiento (parte 4) sin cortar las
-  operaciones, o todo junto. Revocar todo corta también la lectura (queda el soporte normal del sistema).
+- **Revocación por parte:** el titular saca sólo la lectura de mantenimiento (parte 4) firmando una **versión nueva
+  que achica** (vale en el acto); las operaciones siguen. **Revocar todo** (un botón, lo puede apretar el titular o
+  Dirección: frenar es siempre seguro) corta también la lectura; queda el soporte normal del sistema.
 - Frenos de GSG sin publicar nada: apagar `equipo-agentes-ejecuta` (deja de transaccionar; sigue consultando) o
   `equipo-agentes` (apaga todo).
 
