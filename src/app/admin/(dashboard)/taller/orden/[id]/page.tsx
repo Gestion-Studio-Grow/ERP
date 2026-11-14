@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { requireApp } from "@/lib/require-app";
 import { buttonClasses, cn, Input, Select, Textarea } from "@/components/ui";
@@ -32,6 +31,7 @@ import { BotonEnviar, CopiarLink, EnviarWhatsApp, SubirFotos } from "../../_piez
 import CobroForm from "./CobroForm";
 import AnularCobroTaller from "./AnularCobroTaller";
 import { anulacionDeCobro } from "@/lib/capabilities";
+import { origenPublicoDelPedido } from "@/lib/direccion-publica.server";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Taller · Orden" };
@@ -47,9 +47,7 @@ export default async function OrdenPage({ params, searchParams }: { params: Prom
   if (!data) notFound();
   const { orden, config, negocio, mecanicos, repuestos, totales: t, pagado, saldo, conPlata, user } = data;
 
-  const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "";
-  const base = `${host.startsWith("localhost") || host.endsWith(".localhost") || host.includes("localhost:") ? "http" : "https"}://${host}`;
+  const base = (await origenPublicoDelPedido()) ?? "";
   const link = `${base}/seguimiento/${orden.token}`;
   const estado = orden.estado as EstadoOrden;
   const entregado = estado === "ENTREGADO";

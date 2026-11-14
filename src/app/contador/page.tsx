@@ -19,6 +19,7 @@
 // operatorPrisma en este camino.
 
 import { notFound } from "next/navigation";
+import SelloGSG from "@/components/marca/SelloGSG";
 import { requireCapability } from "@/lib/authz";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { basePrisma } from "@/lib/prisma-base";
@@ -345,8 +346,8 @@ export default async function ContadorPage({ searchParams }: { searchParams: Pro
       {/* Alta de cliente */}
       <AltaCliente />
 
-      <footer className="mt-2xl border-t border-line pt-4 text-center text-xs text-faint">
-        Con tecnología de Gestión Studio Grow
+      <footer className="mt-2xl border-t border-line pt-4">
+        <SelloGSG />
       </footer>
     </PageContainer>
   );

@@ -15,7 +15,6 @@
 import "server-only";
 import { redondearAlCentavo } from "@/lib/dinero/redondeo";
 import { cache } from "react";
-import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { todayInBusinessTz } from "@/lib/datetime";
@@ -40,6 +39,7 @@ import {
 import { ACCION_CONTACTO, CRM_REGLAS, ENTIDAD_CONTACTO, ENTIDAD_PERMISO } from "./reglas";
 import type { Evaluacion } from "./segmentos";
 import { whereCancelacionesRecientes, whereEsperando } from "./wheres";
+import { origenPublicoDelPedido } from "@/lib/direccion-publica.server";
 
 // ¿Falta la tabla en la base (migración sin aplicar)? Por forma, como en turnos/anulacion.ts.
 function faltaLaTabla(e: unknown): boolean {
@@ -70,15 +70,7 @@ export const nombreDelNegocio = cache(async (): Promise<string> => {
  * `null` si no se puede saber: el texto sale sin link, no con uno roto.
  */
 export async function urlDelSitio(): Promise<string | null> {
-  try {
-    const h = await headers();
-    const host = (h.get("x-forwarded-host") ?? h.get("host"))?.split(",")[0]?.trim();
-    if (!host) return null;
-    const proto = h.get("x-forwarded-proto")?.split(",")[0]?.trim() || (host.startsWith("localhost") ? "http" : "https");
-    return `${proto}://${host}`;
-  } catch {
-    return null;
-  }
+  return origenPublicoDelPedido();
 }
 
 /** Nombre de cada usuario del negocio, para decir QUIÉN hizo algo ("user:<id>" → "Ana"). */

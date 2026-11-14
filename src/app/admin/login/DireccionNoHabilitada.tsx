@@ -13,24 +13,24 @@ export default function DireccionNoHabilitada({ whatsappGsg }: { whatsappGsg: st
     ? buildWhatsAppHref(whatsappGsg, "Hola, entro a la dirección de mi panel y me dice que todavía no abre ningún negocio.")
     : null;
   return (
-    <main className="isolate flex min-h-dvh flex-col bg-[#f4f5f4] text-[17px] leading-relaxed text-[#35363a]">
+    <main className="isolate flex min-h-dvh flex-col bg-[var(--gsg-papel)] text-[17px] leading-relaxed text-[var(--gsg-cuerpo)]">
       {/* Marca de agua de GSG (mosaico de isotipos), en lugar de la trama de puntos: la página es de GSG. */}
-      <MarcaDeAgua className="text-[#191b1c]" />
-      <header className="mx-auto flex h-16 w-full max-w-5xl items-center px-6 text-[#191b1c] sm:h-[72px]">
+      <MarcaDeAgua className="text-[var(--gsg-tinta)]" />
+      <header className="mx-auto flex h-16 w-full max-w-5xl items-center px-6 text-[var(--gsg-tinta)] sm:h-[72px]">
         <a href="/sin-negocio" className="inline-flex min-h-11 items-center" aria-label="GSG — Gestión Studio Grow">
           <LogoGSG alto={56} />
         </a>
       </header>
       <div className="mx-auto flex w-full max-w-xl flex-1 flex-col justify-center px-6 pb-16">
-        <div className="rounded-2xl border border-[#e2e2df] bg-white p-6 shadow-[0_1px_2px_rgba(25,27,28,.04),0_8px_24px_-12px_rgba(25,27,28,.12)] sm:p-8">
-          <h1 className="text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[#191b1c] [text-wrap:balance] sm:text-[32px]">
+        <div className="rounded-2xl border border-[var(--gsg-linea)] bg-[var(--gsg-tarjeta)] p-6 shadow-[0_1px_2px_color-mix(in_srgb,var(--gsg-tinta)_4%,transparent),0_8px_24px_-12px_color-mix(in_srgb,var(--gsg-tinta)_12%,transparent)] sm:p-8">
+          <h1 className="text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--gsg-tinta)] [text-wrap:balance] sm:text-[32px]">
             Esta dirección todavía no abre ningún panel
           </h1>
           <p className="mt-4">
             Puede estar mal escrita, o Gestión Studio Grow todavía no la publicó. Si te la acaban de pasar, puede tardar
             un rato en quedar activa. No hace falta que pongas tu contraseña: acá no entra.
           </p>
-          <p className="mt-3 text-[#5f6065]">
+          <p className="mt-3 text-[var(--gsg-apagado)]">
             Revisá que la dirección sea igual a la del mensaje que recibiste. Si es igual y sigue sin abrir, avisale a
             quien te la pasó: tu contadora o Gestión Studio Grow.
           </p>
@@ -40,21 +40,21 @@ export default function DireccionNoHabilitada({ whatsappGsg }: { whatsappGsg: st
                 href={ayuda}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex min-h-12 flex-1 items-center justify-center rounded-xl bg-[#191b1c] px-6 text-base font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-[#191b1c] sm:flex-none"
+                className="inline-flex min-h-12 flex-1 items-center justify-center rounded-xl bg-[var(--gsg-tinta)] px-6 text-base font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-[var(--gsg-tinta)] sm:flex-none"
               >
                 Escribirle a Gestión Studio Grow
               </a>
             )}
             <a
               href="/admin/login"
-              className="inline-flex min-h-12 flex-1 items-center justify-center rounded-xl border border-[#c9c9c4] px-6 text-base font-semibold text-[#191b1c] hover:border-[#191b1c] focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-[#191b1c] sm:flex-none"
+              className="inline-flex min-h-12 flex-1 items-center justify-center rounded-xl border border-[var(--gsg-borde)] px-6 text-base font-semibold text-[var(--gsg-tinta)] hover:border-[var(--gsg-tinta)] focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-[var(--gsg-tinta)] sm:flex-none"
             >
               Probar de nuevo
             </a>
           </div>
         </div>
       </div>
-      <footer className="mx-auto w-full max-w-5xl px-6 pb-8 text-[13px] text-[#5f6065]">powered by GSG</footer>
+      <footer className="mx-auto w-full max-w-5xl px-6 pb-8 text-[13px] text-[var(--gsg-apagado)]">powered by GSG</footer>
     </main>
   );
 }

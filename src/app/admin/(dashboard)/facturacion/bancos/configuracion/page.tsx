@@ -4,6 +4,7 @@
 // delega la edición al ConfigForm, que guarda con guardarConfigBancosAction.
 
 import type { Metadata } from "next";
+import SelloGSG from "@/components/marca/SelloGSG";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireCapability } from "@/lib/authz";
@@ -104,8 +105,8 @@ export default async function ConfiguracionBancosPage() {
         capDefault={CAP_FACTURAS_MES_DEFAULT}
       />
 
-      <footer className="mt-2xl border-t border-line pt-4 text-center text-xs text-faint">
-        Con tecnología de Gestión Studio Grow
+      <footer className="mt-2xl border-t border-line pt-4">
+        <SelloGSG />
       </footer>
     </PageContainer>
   );

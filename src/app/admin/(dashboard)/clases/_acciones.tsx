@@ -42,6 +42,7 @@ import { HojaSuspender } from "./_hojas/HojaSuspender";
 import { IntegrantesClase } from "./_integrantes";
 import type { ClaseDelDia } from "./_hojas/proponer";
 import { yaTermino, type ClaseAcciones } from "./_hojas/tipos";
+import { origenParaCompartir } from "@/lib/direccion-publica-cliente";
 
 export type { ClaseAcciones } from "./_hojas/tipos";
 
@@ -313,7 +314,7 @@ export function CompartirTurnero({ negocio }: { negocio: string }) {
   const [error, setError] = useState<string | null>(null);
   const compartir = async () => {
     setError(null);
-    const url = `${window.location.origin}/clases`;
+    const url = `${origenParaCompartir()}/clases`;
     const texto = `Pedí tu clase con ${negocio}: elegís el horario y te confirmo por WhatsApp.`;
     try {
       if (navigator.share) {

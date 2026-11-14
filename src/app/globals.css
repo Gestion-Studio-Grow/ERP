@@ -7,6 +7,15 @@
      de cada tenant van en luminosidades OPUESTAS — la resuelve src/lib/branding.ts
      y la aplica cada layout con `data-theme`. El acento de marca es POR TENANT:
      se inyecta `--accent` (+ `--text-on-accent`) ya afinado al tema. */
+  /* Hoja de GSG (páginas que son de GSG y de nadie más: dirección sin negocio, DireccionNoHabilitada). Mismos
+     valores que src/lib/gsg/pagina-sin-negocio.ts; siempre en claro, no siguen el tema del tenant. */
+  --gsg-papel: #f4f5f4; /* design-lint-ignore */
+  --gsg-tarjeta: #ffffff; /* design-lint-ignore */
+  --gsg-tinta: #191b1c; /* design-lint-ignore */
+  --gsg-cuerpo: #35363a; /* design-lint-ignore */
+  --gsg-apagado: #5f6065; /* design-lint-ignore */
+  --gsg-linea: #e2e2df; /* design-lint-ignore */
+  --gsg-borde: #c9c9c4; /* design-lint-ignore */
   --background: #f6f3ec;
   --foreground: #1f1b14;
 

@@ -111,7 +111,7 @@ nombre en letras y la paleta neutra de cancha.
 | Alias / titular | `ALIAS-DE-EJEMPLO` / "A confirmar" |
 | Celular de Matías | **vacío** a propósito (no se abre WhatsApp a un número que no es el suyo) |
 | Dónde da clases | sin cargar |
-| Slug / dominio | `matiasconsoli` · `matiasconsoli-erp.vercel.app` (demo) |
+| Slug / dominio | `matiasconsoli` · `matiasconsoli.gsgapp.com.ar` (oficial; `matiasconsoli-erp.vercel.app` sigue ruteando, no se comparte) |
 | Número para WhatsApp Business | a decidir (chip nuevo o migrar el suyo) |
 
 ## Cómo se da de alta (cuando se venda)
