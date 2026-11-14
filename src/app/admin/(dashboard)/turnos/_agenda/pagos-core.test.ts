@@ -1,7 +1,7 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { MARCA_ANULACION, notaDeCondonacion } from "@/lib/turnos/anulacion";
-import { etiquetaDelMedio, pagosDelTurno, tipoDelPago } from "./pagos-core";
+import { etiquetaDelMedio, pagosDelTurno, rotuloDeLoQueFalta, tipoDelPago } from "./pagos-core";
 
 const turno = (o: Partial<Parameters<typeof pagosDelTurno>[0]> = {}) => ({ cobros: [], cobrado: 0, precio: 20000, saldo: 20000, condonado: 0, ...o });
 
@@ -71,5 +71,37 @@ describe("pagos del turno", () => {
     assert.equal(etiquetaDelMedio("RARO"), "RARO");
     assert.equal(tipoDelPago("Seña al reservar"), "Seña");
     assert.equal(tipoDelPago(null), "Saldo");
+  });
+});
+
+describe("CH-011 · lo que falta con voucher", () => {
+  test("el voucher cubre una parte: «Falta cobrar aparte del voucher» y cuánto cubrió", () => {
+    const p = pagosDelTurno(
+      turno({
+        cobros: [{ id: "v1", amount: 10000, method: "VOUCHER", note: "Voucher 1234", createdAt: "2026-11-04T16:00:00.000Z" }],
+        cobrado: 10000,
+        saldo: 10000,
+      }),
+    );
+    assert.equal(p.voucher, 10000);
+    assert.deepEqual(rotuloDeLoQueFalta(p), {
+      titulo: "Falta cobrar aparte del voucher",
+      detalle: "El voucher cubre $10.000; el resto, con otro medio.",
+    });
+  });
+
+  test("sin voucher (o con el voucher anulado): «Falta cobrar» a secas; pagado: «Pagado ✓»", () => {
+    assert.deepEqual(rotuloDeLoQueFalta(pagosDelTurno(turno())), { titulo: "Falta cobrar" });
+    const anulado = pagosDelTurno(
+      turno({
+        cobros: [
+          { id: "v1", amount: 10000, method: "VOUCHER", note: "Voucher 1234", createdAt: "2026-11-04T16:00:00.000Z" },
+          { id: "v9", amount: -10000, method: "VOUCHER", note: `${MARCA_ANULACION} v1 — número equivocado`, createdAt: "2026-11-04T16:05:00.000Z" },
+        ],
+      }),
+    );
+    assert.equal(anulado.voucher, 0);
+    assert.deepEqual(rotuloDeLoQueFalta(anulado), { titulo: "Falta cobrar" });
+    assert.deepEqual(rotuloDeLoQueFalta({ falta: 0, voucher: 20000 }), { titulo: "Pagado ✓" });
   });
 });

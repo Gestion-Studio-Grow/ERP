@@ -20,7 +20,7 @@
 // seña» al lado; y «Recordar la seña» abre WhatsApp con el pedido armado y deja la marca «seña
 // pedida» (`marcarSeniaPedida`, CH-021), que se lee arriba junto al estado.
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
 import { hrefSumarProducto, turnoAdmiteProducto } from "../../pedidos/cobrar-una-venta";
 import { useRouter } from "next/navigation";
@@ -37,7 +37,7 @@ import { waLinkClienta } from "@/lib/whatsapp-cta";
 import { AVISO_CONTACTO_OCULTO, contactoOculto } from "@/lib/clientes/telefono";
 import { ALIAS_SENIA_PROVISIONAL, linkWhatsApp, mensajePedidoDeSenia, mensajeSaludo } from "@/lib/turnos/mensajes-whatsapp";
 import { puedeEditar } from "./barra-core";
-import { pagosDelTurno } from "./pagos-core";
+import { pagosDelTurno, rotuloDeLoQueFalta } from "./pagos-core";
 import { marcarSeniaPedida } from "@/lib/turnos/senia-actions";
 import { confirmarSinSenia } from "@/lib/turnos/sena-obligatoria-actions";
 import { MOTIVO_MINIMO_SIN_SENIA } from "@/lib/turnos/sena-obligatoria-core";
@@ -132,6 +132,7 @@ function ConMotivo({
   pideCodigo = false,
   minimo = MOTIVO_MIN,
   hacer,
+  extra,
 }: {
   etiqueta: string;
   pregunta: string;
@@ -143,6 +144,8 @@ function ConMotivo({
   /** Recepción: además del motivo, el código que la dueña sacó para este cobro. */
   pideCodigo?: boolean;
   hacer: (motivo: string, codigo: string) => Promise<ResultadoAccion>;
+  /** Lo que va debajo, ya abierto (la dueña: sacar el código para que anule recepción). */
+  extra?: ReactNode;
 }) {
   const [abierto, setAbierto] = useState(false);
   const [motivo, setMotivo] = useState("");
@@ -241,6 +244,7 @@ function ConMotivo({
           caja dentro de seis meses.
         </p>
       )}
+      {extra}
     </div>
   );
 }
@@ -388,6 +392,16 @@ export default function TurnoCajon({
           if (r.ok && r.aviso) setAvisoAlAnular({ turnoId: t.id, texto: r.aviso });
           return r;
         }}
+        // CH-011 · la dueña veía «Anular» y «Autorizar anulación» juntos en cada cobro. Ahora una sola
+        // tecla: «Anular»; el código para que anule recepción se saca adentro, ya abierta.
+        extra={
+          anular === "directa" ? (
+            <div className="space-y-1 border-t border-line pt-2">
+              <p className="text-xs text-muted">¿Lo anula recepción? Sacale el código acá, sin anular vos:</p>
+              <AutorizarAnulacion cobroId={cobroId} turnoId={t.id} />
+            </div>
+          ) : undefined
+        }
       />
     ) : undefined;
   // Agenda interactiva: WhatsApp arriba de todo y «Editar»; la plata como «Pagos».
@@ -704,11 +718,6 @@ export default function TurnoCajon({
                       }
                       tecla={r.anulado ? undefined : teclaAnular(r.clave, r.medio)}
                     />
-                    {!r.anulado && anulables.has(r.clave) && anular === "directa" && (
-                      <div className="flex justify-end border-b border-line pb-2">
-                        <AutorizarAnulacion cobroId={r.clave} turnoId={t.id} />
-                      </div>
-                    )}
                   </li>
                 ))}
               </ul>
@@ -730,7 +739,8 @@ export default function TurnoCajon({
             {pagos.falta > 0 ? (
               <Renglon
                 folio="Falta"
-                titulo="Falta cobrar"
+                titulo={rotuloDeLoQueFalta(pagos).titulo}
+                detalle={rotuloDeLoQueFalta(pagos).detalle}
                 plata={<Plata valor={pagos.falta} sinCentavos={Number.isInteger(pagos.falta)} tono={t.cuentaACobrar ? "peligro" : undefined} />}
               />
             ) : (
@@ -801,17 +811,9 @@ export default function TurnoCajon({
                 const clase = claseDeCobro(c.note);
                 const medio =
                   METODO_LABEL[c.method as MetodoDePago] ?? ETIQUETA_DE_TARJETA[c.method] ?? c.method;
-                // Debajo del renglón y no en su tecla: en el cajón de 480 px dos botones al lado
-                // del importe dejaban el medio en «E…».
-                const autoriza =
-                  clase === "cobro" &&
-                  !!c.id &&
-                  anulables.has(c.id) &&
-                  anular === "directa";
                 return (
                   <li key={c.id ?? i}>
                     <Renglon
-                      className={autoriza ? "border-b-0" : undefined}
                       folio={c.createdAt ? fmtTime(c.createdAt) : "—"}
                       titulo={
                         clase === "cobro"
@@ -837,11 +839,6 @@ export default function TurnoCajon({
                       }
                       tecla={clase === "cobro" ? teclaAnular(c.id, medio) : undefined}
                     />
-                    {autoriza && (
-                      <div className="flex justify-end border-b border-line pb-2">
-                        <AutorizarAnulacion cobroId={c.id!} turnoId={t.id} />
-                      </div>
-                    )}
                   </li>
                 );
               })}
