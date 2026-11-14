@@ -52,6 +52,8 @@ import { notificadorActual } from "./notificador";
 import { bloquearClaseDeIntegranteEnTx, cerrarIntegrantesEnTx } from "./grupal.server";
 import { conPisoDeTiempo, decidirPedidoDeLink, politicaDeToken } from "./sesion-alumno";
 import { escribirTokenCookie, leerTokenCookie } from "./sesion-alumno.server";
+import { turneroAbiertoDe } from "@/lib/profeturnos/verificacion.server";
+import { MENSAJE_TURNERO_EN_VERIFICACION } from "@/lib/profeturnos/verificacion-core";
 import {
   DIEZ_MIN,
   ErrorNegocio,
@@ -85,6 +87,15 @@ const PISO_PEDIR_LINK_MS = 800;
 const frenoDeRecordar = createRateLimiter({ max: 30, windowMs: DIEZ_MIN });
 
 const ACTIVAS = ["PEDIDA", "CONFIRMADA"];
+
+// ALTA ASISTIDA (src/lib/profeturnos/verificacion-core.ts): mientras GSG no verificó el WhatsApp de un
+// profe que se dio de alta solo, su turnero no toma pedidos, mensajes, reservas, cambios ni
+// comprobantes. Cancelar, «no voy» y recordar el dispositivo siguen andando: sólo liberan o no
+// escriben. Lectura fallida → cerrado (fail-closed). Negocios sin alta web: no se tocan.
+const EN_VERIFICACION = { ok: false as const, error: MENSAJE_TURNERO_EN_VERIFICACION };
+async function enVerificacion(tenantId: string): Promise<boolean> {
+  return !(await turneroAbiertoDe(tenantId));
+}
 
 // ════════════════════════════════════════════════════════════════════════════
 // TURNERO
@@ -124,6 +135,7 @@ export async function pedirClase(
   p: PedidoTurnero,
 ): Promise<Resultado<{ token: string | null; conocido: boolean; waProfe: string | null; cuando: string; claseId: string | null }> & { alternativas?: string[] }> {
   const tenantId = await getCurrentTenantId();
+  if (await enVerificacion(tenantId)) return EN_VERIFICACION;
   if (await frenadoPorIp("pedir", tenantId)) return { ok: false, error: FRENADO };
   const nombre = nombreValido(p.nombre);
   if (!nombre) return { ok: false, error: "Poné tu nombre (y apellido si querés)." };
@@ -207,6 +219,8 @@ export async function pedirClase(
 export async function pedirMiLink(telefonoRaw: string): Promise<Resultado<{ mensaje: string }>> {
   const telefono = telefonoAlumno(telefonoRaw);
   if (!telefono) return { ok: false, error: "Poné tu celular con código de área, por ejemplo 11 5555-1234." };
+  // Por negocio, no por celular: no dice si el número es de un alumno.
+  if (await enVerificacion(await getCurrentTenantId())) return EN_VERIFICACION;
   // O-2: la demora no tiene que decir si el celular es de un alumno. Las MISMAS lecturas en los dos
   // casos, lo que sólo pasa si existe (aviso, WhatsApp, registro) después de responder (`after`), y
   // un piso de tiempo por si la base contesta distinto.
@@ -278,6 +292,7 @@ export async function dejarMensaje(p: { token?: string | null; telefono?: string
   const texto = textoMensajeValido(p?.texto);
   if (!texto) return { ok: false, error: "Escribí tu mensaje (hasta 500 letras)." };
   const tenantId = await getCurrentTenantId();
+  if (await enVerificacion(tenantId)) return EN_VERIFICACION;
   if (await frenadoPorIp("mensaje", tenantId)) return { ok: false, error: FRENADO };
   if (p.token && !tokenValido(p.token)) return { ok: false, error: LINK_INVALIDO };
   const d = await alumnoDelLink(p.token ?? null);
@@ -335,6 +350,7 @@ export async function reservarDesdeLink(
   opciones?: { tipo?: string; personas?: number; nota?: string },
 ): Promise<Resultado<{ estado: string; cuando: string; pagadaConSaldo?: boolean; claseId: string }> & { alternativas?: string[] }> {
   const tenantIdFreno = await getCurrentTenantId();
+  if (await enVerificacion(tenantIdFreno)) return EN_VERIFICACION;
   if (await frenadoPorIp("link", tenantIdFreno)) return { ok: false, error: FRENADO };
   const d = await alumnoDelLink(token);
   if (!d) return { ok: false, error: LINK_INVALIDO };
@@ -410,6 +426,7 @@ export async function subirComprobanteVarias(token: string | null, claseIds: str
   const ids = [...new Set((Array.isArray(claseIds) ? claseIds : []).filter((x): x is string => typeof x === "string" && x.length > 0 && x.length <= 40))];
   if (!ids.length || ids.length > 30) return { ok: false, error: "Elegí qué clases pagás." };
   const tenantIdFreno = await getCurrentTenantId();
+  if (await enVerificacion(tenantIdFreno)) return EN_VERIFICACION;
   if (await frenadoPorIp("comprobante", tenantIdFreno)) return { ok: false, error: FRENADO };
   const d = await alumnoDelLink(token);
   if (!d) return { ok: false, error: LINK_INVALIDO };
@@ -454,6 +471,7 @@ export async function subirComprobanteIntegrante(token: string | null, integrant
   if (!comprobanteValido(dataUrl)) return { ok: false, error: "La imagen es muy pesada o no es una foto. Probá con una captura de pantalla." };
   if (typeof integranteId !== "string" || !/^[A-Za-z0-9_-]{1,40}$/.test(integranteId)) return { ok: false, error: "No encontramos esa clase." };
   const tenantIdFreno = await getCurrentTenantId();
+  if (await enVerificacion(tenantIdFreno)) return EN_VERIFICACION;
   if (await frenadoPorIp("comprobante", tenantIdFreno)) return { ok: false, error: FRENADO };
   const d = await alumnoDelLink(token);
   if (!d) return { ok: false, error: LINK_INVALIDO };
@@ -538,6 +556,7 @@ export async function cambiarHorarioDesdeLink(
   nuevaHoraIso: string,
 ): Promise<Resultado<{ estado: string; cuando: string; esperaAlProfe: boolean }> & { alternativas?: string[] }> {
   const tenantIdFreno = await getCurrentTenantId();
+  if (await enVerificacion(tenantIdFreno)) return EN_VERIFICACION;
   if (await frenadoPorIp("link", tenantIdFreno)) return { ok: false, error: FRENADO };
   const d = await alumnoDelLink(token);
   if (!d) return { ok: false, error: LINK_INVALIDO };

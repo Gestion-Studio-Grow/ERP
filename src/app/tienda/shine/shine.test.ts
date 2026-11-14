@@ -160,7 +160,7 @@ test("lo que baja la portada: trama ≤ 40 KB, logo ≤ 21 KB (el de estetica-ba
 
 test("las letras de Shine (next/font) se declaran en su módulo y sólo las importa la vidriera de Shine", () => {
   const fuentes = readFileSync(path.join(RAIZ, "src/app/tienda/shine/fuentes.ts"), "utf8");
-  assert.match(fuentes, /from "next\/font\/google"/);
+  assert.match(fuentes, /from "next\/font\/local"/);
   // Ninguna se precarga (ronda 2): /tienda la comparten cuatro marcas y lo precargado de una lo bajaban las otras tres.
   assert.equal((fuentes.match(/preload: true/g) ?? []).length, 0);
   const quienes: string[] = [];
