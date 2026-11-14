@@ -19,6 +19,7 @@ import { armarUsuarios, ejecutarConfiguracion, type DesenlaceConfig, type FilaUs
 import { PinDeUnaVez, Seccion, conElTopeDelEquipo, subtarjeta, useHacerConfig } from "./config-piezas";
 import { puertaDelPin, type RespuestaCambiarMiPin } from "./puerta-del-pin";
 import { porFirma, useOperador, useSeleccion } from "./usar-almacen";
+import { luego } from "./firma-del-duenio";
 
 const ROLES_ALTA: readonly { valor: Rol; etiqueta: string }[] = [
   { valor: "recepcion", etiqueta: "Recepción" },
@@ -84,12 +85,13 @@ function FilaDeUsuario({ f, abierta, onAbrir, onCerrar, quien, rol, hacer, onPin
           className="flex flex-col gap-2 rounded-md border border-line-strong p-3 sm:flex-row sm:items-end"
           onSubmit={(e) => {
             e.preventDefault();
-            const r = hacer(accion === "pinNuevo" ? { tipo: "pinNuevo", usuarioId: f.id, pin } : { tipo: "sacarAcceso", usuarioId: f.id, pin });
+            const hecho = hacer(accion === "pinNuevo" ? { tipo: "pinNuevo", usuarioId: f.id, pin } : { tipo: "sacarAcceso", usuarioId: f.id, pin });
             setPin("");
-            if (r.ok) {
+            luego(hecho, (r) => {
+              if (!r.ok) return;
               onCerrar();
               onPin(r);
-            }
+            });
           }}
         >
           <p className="text-sm text-strong sm:max-w-56">{accion === "pinNuevo" ? `Se le arma un PIN nuevo a ${f.nombre}; el de ahora deja de andar.` : `${f.nombre} no va a poder entrar más.`}</p>
@@ -116,12 +118,13 @@ function AltaDeUsuario({ quien, rol: rolDeQuien, hacer, onPin }: { quien: string
       className={subtarjeta}
       onSubmit={(e) => {
         e.preventDefault();
-        const r = hacer({ tipo: "alta", nombre, rol, pin });
+        const hecho = hacer({ tipo: "alta", nombre, rol, pin });
         setPin("");
-        if (r.ok) {
+        luego(hecho, (r) => {
+          if (!r.ok) return;
           setNombre("");
           onPin(r);
-        }
+        });
       }}
     >
       <h3 id="club-config-t-alta" className="font-semibold text-strong">
@@ -191,10 +194,12 @@ function CambiarMiPin({ almacen, rol, hacer, negocio }: { almacen: Almacen; rol:
           void cambiarEnLaBase(almacen, negocio, accion).finally(() => setEnviando(false));
           return;
         }
-        const r = hacer(accion);
-        const op = almacen.operador();
-        // Quien opera sigue siendo el mismo, ahora con su PIN nuevo (si no, lo próximo con PIN fallaría).
-        if (r.ok && op) almacen.cambiarOperador(usuarioDe(almacen.estado(), op.usuario.id) ?? op.usuario, { usuarioId: op.usuario.id, pin: nuevo.trim() });
+        const nuevoLimpio = nuevo.trim();
+        luego(hacer(accion), (r) => {
+          const op = almacen.operador();
+          // Quien opera sigue siendo el mismo, ahora con su PIN nuevo (si no, lo próximo con PIN fallaría).
+          if (r.ok && op) almacen.cambiarOperador(usuarioDe(almacen.estado(), op.usuario.id) ?? op.usuario, { usuarioId: op.usuario.id, pin: nuevoLimpio });
+        });
       }}
     >
       <h3 id="club-config-t-mipin" className="font-semibold text-strong">

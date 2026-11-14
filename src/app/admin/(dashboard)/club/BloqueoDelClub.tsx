@@ -60,6 +60,7 @@ import {
   type QuienEntra,
 } from "./bloqueo-core";
 import { guardaDelPin } from "./tope-de-pin";
+import { firmarConElServidor } from "./firma-del-duenio";
 import type { PropsDePieza } from "./solapas-club";
 import { porFirma, useEstadoDelGuardado, useOperador, useSeleccion } from "./usar-almacen";
 
@@ -285,7 +286,28 @@ function usePruebaDePin(almacen: Almacen, guarda: GuardaDelBloqueo) {
     },
     [almacen, guarda],
   );
-  return { probar, segundos, anuncio, error };
+  /**
+   * Como `probar`, pero el PIN de un dueño que tiene el servidor se confirma ahí antes (firma-del-duenio.ts). Sin
+   * conexión, o si el servidor pide esperar, no entra y lo dice. Trabado en este equipo: ni se pregunta.
+   */
+  const probarFirmado = useCallback(
+    (usuarioId: string | null, pin: string, alPinViejo: ((c: CambioDePinPendiente) => boolean) | undefined, seguir: (r: "entro" | "pinViejo" | "no") => void): void => {
+      const ya = Date.now();
+      const trabado = segundosDeEspera(intentosVigentes(guarda.leer(), ya), ya) > 0;
+      const espera = trabado ? null : firmarConElServidor(almacen.estado(), [{ usuarioId, pin }]);
+      if (espera === null) return seguir(probar(usuarioId, pin, alPinViejo));
+      void espera.then((f) => {
+        if (!f.ok && f.corta) {
+          setAnuncio(f.mensaje);
+          setError(true);
+          return seguir("no");
+        }
+        seguir(probar(usuarioId, pin, alPinViejo));
+      });
+    },
+    [almacen, guarda, probar],
+  );
+  return { probar, probarFirmado, segundos, anuncio, error };
 }
 
 // ───────────── el PIN viejo de un dueño: elegir uno nuevo antes de operar ─────────────
@@ -461,7 +483,7 @@ function PantallaBloqueada({ almacen, datos, guarda, jornada }: { almacen: Almac
   // Un dueño fuera de su puesto no cambia el PIN acá (G8): el título lo dice (PasoPinNuevo muestra dónde hacerlo).
   const cambioFueraDeSuPuesto = !!cambio && !puestoDeDuenio(almacen) && datos.quienes.find((u) => u.id === cambio.usuarioId)?.rol === "duenio";
   useEffect(() => olvidarCambioDePin(almacen), [almacen]);
-  const { probar, segundos, anuncio, error } = usePruebaDePin(almacen, guarda);
+  const { probarFirmado, segundos, anuncio, error } = usePruebaDePin(almacen, guarda);
   const quien = datos.quienes.find((u) => u.id === elegido) ?? null;
   const conLista = !quien;
 
@@ -505,11 +527,15 @@ function PantallaBloqueada({ almacen, datos, guarda, jornada }: { almacen: Almac
   }, [quien, segundos]);
 
   const intentar = (valor: string) => {
-    const r = probar(elegido, valor, (c) => {
-      setCambio(c);
-      return true;
-    });
-    if (r !== "entro") setPin("");
+    probarFirmado(
+      elegido,
+      valor,
+      (c) => {
+        setCambio(c);
+        return true;
+      },
+      (r) => r !== "entro" && setPin(""),
+    );
   };
 
   const titulo = `${ids}-t`;
@@ -650,7 +676,7 @@ function CambioDeUsuario({ almacen, datos, guarda, onCerrar }: { almacen: Almace
   const campo = useRef<HTMLInputElement>(null);
   const [elegido, setElegido] = useState<string | null>(() => almacen.operador()?.usuario.id ?? null);
   const [pin, setPin] = useState("");
-  const { probar, segundos, anuncio, error } = usePruebaDePin(almacen, guarda);
+  const { probarFirmado, segundos, anuncio, error } = usePruebaDePin(almacen, guarda);
   const quien = datos.quienes.find((u) => u.id === elegido) ?? null;
   useEffect(() => {
     if (segundos === 0) requestAnimationFrame(() => campo.current?.focus());
@@ -665,8 +691,7 @@ function CambioDeUsuario({ almacen, datos, guarda, onCerrar }: { almacen: Almace
     return false;
   };
   const intentar = (valor: string) => {
-    if (probar(elegido, valor, alPinViejo) !== "no") onCerrar();
-    else setPin("");
+    probarFirmado(elegido, valor, alPinViejo, (r) => (r !== "no" ? onCerrar() : setPin("")));
   };
   return (
     <Hoja

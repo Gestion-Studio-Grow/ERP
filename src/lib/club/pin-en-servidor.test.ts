@@ -20,6 +20,11 @@ function clubReal() {
   return { e, d, r, pinDe };
 }
 
+const quienEs = (e: M.EstadoClub, pin: string) => {
+  const r = M.usuarioPorPin(e, pin);
+  return r?.ok ? r.usuario.id : null;
+};
+
 afterEach(() => M.fijarVerificadorDelServidor(null));
 
 test("sin verificador, la marca no coincide con nada y no se resuelve el dueño localmente", () => {
@@ -30,7 +35,7 @@ test("sin verificador, la marca no coincide con nada y no se resuelve el dueño 
   assert.equal(M.usuarioPorPin(e, pinDe[d.id])?.ok, false);
   // La recepción sigue local.
   assert.equal(M.verificarPin(e, r.id, pinDe[r.id]).ok, true);
-  assert.equal(M.usuarioPorPin(e, pinDe[r.id])?.usuario?.id, r.id);
+  assert.equal(quienEs(e, pinDe[r.id]), r.id);
 });
 
 test("la marca no se pasa a hash y su largo es el guardado", () => {
@@ -48,7 +53,7 @@ test("con el pase del servidor coincide sólo ese PIN de ese usuario; un verific
   M.fijarVerificadorDelServidor({ pin: (usuarioId: string, pin: string) => usuarioId === d.id && pin === pinDe[d.id] });
   assert.equal(M.pinCoincide(e, d, pinDe[d.id]), true);
   assert.equal(M.verificarFirma(e, d.id, pinDe[d.id]).ok, true);
-  assert.equal(M.usuarioPorPin(e, pinDe[d.id])?.usuario?.id, d.id);
+  assert.equal(quienEs(e, pinDe[d.id]), d.id);
   assert.equal(M.pinCoincide(e, otro, pinDe[d.id]), false);
   assert.equal(M.pinCoincide(e, d, "9876"), false);
   M.fijarVerificadorDelServidor({
@@ -84,5 +89,5 @@ test("la demo (PIN de ejemplo, sin marca) sigue igual", () => {
   const pin = M.pinDeEjemplo(d);
   assert.equal(M.esPinEnServidor(d.pin), false);
   assert.equal(M.verificarFirma(e, d.id, pin).ok, true);
-  assert.equal(M.usuarioPorPin(e, pin)?.usuario?.id, d.id);
+  assert.equal(quienEs(e, pin), d.id);
 });

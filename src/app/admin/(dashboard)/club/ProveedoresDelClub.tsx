@@ -43,6 +43,7 @@ import {
 import { RegistrarRemito } from "./remito-del-club";
 import type { PropsDeSolapa } from "./solapas-club";
 import { porFirma, useOperador, useSeleccion } from "./usar-almacen";
+import { firmado, luego, pinDeLaAccion, type EnElMomentoOLuego } from "./firma-del-duenio";
 import "./piel/stock-proveedores.css";
 
 const tarjeta = "flex flex-col gap-3 rounded-lg border border-line bg-surface-raised p-4";
@@ -51,7 +52,9 @@ const OPCIONES_MEDIO = MEDIOS_PROVEEDOR.map((m) => ({ valor: m, etiqueta: ETIQUE
 function useHacer(almacen: Almacen) {
   // El pago lleva PIN: no se deshace (como el vanilla). Alta y edición, sí.
   return useCallback(
-    (a: AccionProveedores): DesenlaceProveedores => almacen.comando("proveedores", [a], { deshacible: a.tipo !== "pagar" }),
+    // El pago lo firma el PIN de quien opera: si es de un dueño que tiene el servidor, se confirma ahí antes.
+    (a: AccionProveedores): EnElMomentoOLuego<DesenlaceProveedores> =>
+      firmado(almacen, a.tipo === "pagar" ? pinDeLaAccion(a) : [], () => almacen.comando("proveedores", [a], { deshacible: a.tipo !== "pagar" }), { ok: false, mensaje: "" } as DesenlaceProveedores),
     [almacen],
   );
 }
@@ -147,7 +150,7 @@ function DatosDelProveedor({ titulo, valores, boton, onGuardar, children }: { ti
   );
 }
 
-function PagarAlProveedor({ almacen, f, puedePagar, hacer }: { almacen: Almacen; f: VistaFichaProveedor; puedePagar: boolean; hacer: (a: AccionProveedores) => DesenlaceProveedores }) {
+function PagarAlProveedor({ almacen, f, puedePagar, hacer }: { almacen: Almacen; f: VistaFichaProveedor; puedePagar: boolean; hacer: (a: AccionProveedores) => EnElMomentoOLuego<DesenlaceProveedores> }) {
   const operador = useOperador(almacen);
   const quien = operador ? operador.usuario.nombre.split(" ")[0] : null;
   const [medio, setMedio] = useState<MedioProveedor>("transferencia");
@@ -338,8 +341,7 @@ function AltaDeProveedor({ almacen, onListo, onCerrar }: { almacen: Almacen; onL
         valores={{ nombre: "", rubro: "", cuit: "", tel: "" }}
         boton="Dar de alta"
         onGuardar={(d) => {
-          const r = hacer({ tipo: "alta", ...d });
-          if (r.ok && r.proveedorId) onListo(r.proveedorId);
+          luego(hacer({ tipo: "alta", ...d }), (r) => r.ok && r.proveedorId && onListo(r.proveedorId));
         }}
       >
         <Button variant="outline" size="md" onClick={onCerrar}>

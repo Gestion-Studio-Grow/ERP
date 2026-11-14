@@ -25,10 +25,12 @@ import { cn } from "@/components/ui/cn";
 import { MEDIOS, pesos } from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub, Fecha } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
+import { luego, type EnElMomentoOLuego } from "./firma-del-duenio";
 import { BILLETES, CATEGORIAS_EGRESO, MEDIOS_DEL_TURNO, armarTurno, cajaVaSinInternet, firmantes, leerMonto, type AccionCaja, type VistaTurno } from "./caja-core";
 import { porFirma, useOperador, useSeleccion } from "./usar-almacen";
 
-type Hacer = (a: AccionCaja) => boolean;
+// La firma de un dueño puede pasar por el servidor (firma-del-duenio.ts): el resultado llega en el momento o después.
+type Hacer = (a: AccionCaja) => EnElMomentoOLuego<boolean>;
 
 const resultado = (d: number) => (d === 0 ? "cuadra" : `${d > 0 ? "sobran" : "faltan"} ${pesos(Math.abs(d))}`);
 
@@ -78,10 +80,11 @@ function ContarTurno({ v, dia, hacer }: { v: VistaTurno; dia: Fecha | null; hace
       onSubmit={(e) => {
         e.preventDefault();
         const contado = Object.fromEntries(MEDIOS_DEL_TURNO.filter((k) => k !== "efectivo").map((k) => [k, otros[k] ?? ""]));
-        if (hacer({ tipo: "contarTurno", dia, contado, billetes, movimientos: v.movimientos, medios: v.medios, numero: v.numero, huella: v.huella })) {
+        luego(hacer({ tipo: "contarTurno", dia, contado, billetes, movimientos: v.movimientos, medios: v.medios, numero: v.numero, huella: v.huella }), (ok) => {
+          if (!ok) return;
           setBilletes({});
           setOtros({});
-        }
+        });
       }}
     >
       <h3 id={`${id}-t`} className="font-semibold text-strong">
@@ -133,7 +136,7 @@ function FirmarTurno({ almacen, v, hacer }: { almacen: Almacen; v: VistaTurno; h
       className="flex flex-col gap-3"
       onSubmit={(e) => {
         e.preventDefault();
-        if (hacer({ tipo: "cerrarTurno", turnoId: p.turnoId, motivo, firmaId: firmaId || null, pin, medios: p.medios })) setMotivo("");
+        luego(hacer({ tipo: "cerrarTurno", turnoId: p.turnoId, motivo, firmaId: firmaId || null, pin, medios: p.medios }), (ok) => ok && setMotivo(""));
         setPin("");
       }}
     >
@@ -174,7 +177,7 @@ function FirmarTurno({ almacen, v, hacer }: { almacen: Almacen; v: VistaTurno; h
 }
 
 /** Formulario chico con firma: retiro a caja fuerte, egreso por categoría, cierre del día. */
-export function ConFirma({ almacen, largo, titulo, boton, children, alMandar }: { almacen: Almacen; largo: number; titulo: string; boton: string; children?: React.ReactNode; alMandar: (firmaId: string | null, pin: string) => boolean }) {
+export function ConFirma({ almacen, largo, titulo, boton, children, alMandar }: { almacen: Almacen; largo: number; titulo: string; boton: string; children?: React.ReactNode; alMandar: (firmaId: string | null, pin: string) => EnElMomentoOLuego<boolean> }) {
   const [firmaId, setFirmaId] = useState("");
   const [pin, setPin] = useState("");
   const id = useId();
@@ -205,9 +208,9 @@ function Retiro({ almacen, largo, hacer }: { almacen: Almacen; largo: number; ha
   const [comprobante, setComprobante] = useState("");
   return (
     <ConFirma almacen={almacen} largo={largo} titulo="Retiro a caja fuerte" boton="Anotar el retiro" alMandar={(firmaId, pin) => {
-      const ok = hacer({ tipo: "retiro", monto, comprobante, firmaId, pin });
-      if (ok) { setMonto(""); setComprobante(""); }
-      return ok;
+      const hecho = hacer({ tipo: "retiro", monto, comprobante, firmaId, pin });
+      luego(hecho, (ok) => { if (ok) { setMonto(""); setComprobante(""); } });
+      return hecho;
     }}>
       <label className="flex flex-col gap-1 text-sm font-medium text-strong">
         Monto
@@ -228,9 +231,9 @@ function EgresoPorCategoria({ almacen, largo, hacer }: { almacen: Almacen; largo
   const [comprobante, setComprobante] = useState("");
   return (
     <ConFirma almacen={almacen} largo={largo} titulo="Egreso en efectivo" boton="Anotar el egreso" alMandar={(firmaId, pin) => {
-      const ok = hacer({ tipo: "egresoCategoria", monto, categoria, concepto, comprobante, firmaId, pin });
-      if (ok) { setMonto(""); setConcepto(""); setComprobante(""); }
-      return ok;
+      const hecho = hacer({ tipo: "egresoCategoria", monto, categoria, concepto, comprobante, firmaId, pin });
+      luego(hecho, (ok) => { if (ok) { setMonto(""); setConcepto(""); setComprobante(""); } });
+      return hecho;
     }}>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <label className="flex flex-col gap-1 text-sm font-medium text-strong">
@@ -270,7 +273,7 @@ export function CorregirMedio({ movimientoId, medio, hacer }: { movimientoId: st
         className="flex flex-col gap-1 sm:flex-row sm:items-end"
         onSubmit={(e) => {
           e.preventDefault();
-          if (hacer({ tipo: "corregirMedio", movimientoId, medio: a, motivo })) setMotivo("");
+          luego(hacer({ tipo: "corregirMedio", movimientoId, medio: a, motivo }), (ok) => ok && setMotivo(""));
         }}
       >
         <label className="flex flex-col gap-1 text-xs text-body">
