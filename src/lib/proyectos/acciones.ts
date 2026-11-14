@@ -24,6 +24,8 @@ import { avisoTopeCobro } from "./avisos-cuota";
 import { actorActual, avisar, proyectoVisible, puede, regenerarCuotas, registrarCambio, usuariosDelEquipo, usuariosDeLaPlata, type Actor } from "./gestion.server";
 import type { ModuloGestion } from "./gestion-core";
 import { marcaDeGastoProyecto } from "./marcas";
+import { claveDeEnvio } from "./pago-columnas";
+import { esClaveRepetida, faltaLaMigracion } from "./rendiciones-core";
 import { mensajeDeProveedor, validateSupplierInput } from "@/lib/suppliers/supplier";
 
 export type Resultado<T = object> = ({ ok: true } & T) | { ok: false; error: string };
@@ -201,15 +203,22 @@ export async function registrarCobro(formData: FormData): Promise<Resultado> {
   const p = await prisma.proyecto.findFirst({ where: { id: proyectoId, tenantId }, select: { numero: true, nombre: true } });
   if (!p) return { ok: false, error: "Ese proyecto ya no existe. Recargá la página." };
   const nota = txt(formData.get("nota")) || null;
+  const clave = claveDeEnvio(formData.get("claveEnvio"));
   const [config, tc] = await Promise.all([configProyectos(tenantId), tiposDeCambio(tenantId)]);
   // El cobro y su asiento en el libro de caja van juntos: o entran los dos o ninguno.
-  const pago = await tenantTransaction(async (tx): Promise<{ id: string } | { porCobrar: number; cob: Cobranza }> => {
+  const grabar = (conClave: boolean) => tenantTransaction(async (tx): Promise<{ id: string; repetido?: true } | { porCobrar: number; cob: Cobranza } | { ajeno: true }> => {
     // Tope: con presupuesto aprobado no entra más de lo que falta cobrar. En fila con «Marcar cobrado» y las cuotas
     // cargadas a mano del mismo proyecto, y contado adentro de la transacción (dos cobros a la vez no pasan los dos).
     await trabarCobranza(tx, tenantId, proyectoId);
+    // El mismo envío otra vez (doble clic, reintento después de un corte): ya está grabado, se devuelve ése. Después
+    // del candado, así dos envíos iguales a la vez pasan de a uno y el segundo encuentra al primero.
+    if (conClave && clave) {
+      const previo = await tx.proyectoPago.findFirst({ where: { tenantId, claveEnvio: clave }, select: { id: true, proyectoId: true } });
+      if (previo) return previo.proyectoId === proyectoId ? { id: previo.id, repetido: true } : { ajeno: true };
+    }
     const cob = (await cobranzasDelNegocio(tenantId, tc, config.margenPct, [proyectoId], tx)).get(proyectoId);
     if (cob && pasaElTope(cob, monto)) return { porCobrar: cob.porCobrar, cob };
-    const creado = await tx.proyectoPago.create({ data: { tenantId, proyectoId, medio, monto, nota, cobradoPor: user.name }, select: { id: true } });
+    const creado = await tx.proyectoPago.create({ data: { tenantId, proyectoId, medio, monto, nota, cobradoPor: user.name, ...(conClave && clave && { claveEnvio: clave }) }, select: { id: true } });
     await registrarCambio(tx, { tenantId, proyectoId, entidad: "ProyectoPago", entidadId: creado.id, campo: "Cobro", despues: `${MEDIO_LABEL[medio]} · ${pesos(monto)}`, autor: user.name });
     const session = await tx.cashSession.findFirst({ where: { tenantId, status: "OPEN" }, select: { id: true } });
     await tx.cashMovement.create({
@@ -226,8 +235,22 @@ export async function registrarCobro(formData: FormData): Promise<Resultado> {
     });
     return creado;
   });
+  let pago: Awaited<ReturnType<typeof grabar>>;
+  try {
+    pago = await grabar(true);
+  } catch (e) {
+    // Sin la migración de la clave (Gate 2), el cobro se graba como antes. Clave repetida en el índice único: la grabó
+    // otro envío en el medio; la vuelta siguiente la encuentra.
+    if (!clave || !(faltaLaMigracion(e) || esClaveRepetida(e))) throw e;
+    pago = await grabar(!faltaLaMigracion(e));
+  }
+  if ("ajeno" in pago) return { ok: false, error: "Este formulario ya se usó para otro cobro. Recargá la página." };
   // Pasaba lo que falta cobrar: no se graba nada.
   if (!("id" in pago)) return { ok: false, error: avisoTopeCobro(pago.porCobrar, monto, pago.cob) };
+  if (pago.repetido) {
+    refrescar(proyectoId);
+    return { ok: true };
+  }
   await auditAdmin({ action: "proyecto.cobro", entity: "ProyectoPago", entityId: pago.id, changes: { monto, medio } });
   refrescar(proyectoId);
   return { ok: true };

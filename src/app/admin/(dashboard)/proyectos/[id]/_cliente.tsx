@@ -12,10 +12,22 @@ import { useToastSiHay } from "../../ToastProvider";
 
 const campoEnLinea = "min-h-11 min-w-0 rounded-lg border border-line bg-surface px-3 text-sm text-strong";
 
-/** Un <form> de acción de servidor que dice qué falló sin perder lo tipeado. Con `limpiar`, vacía los campos si salió bien. */
-export function FormAccion({ accion, className, children, limpiar, alGuardar }: { accion: (fd: FormData) => Promise<ResultadoFicha>; className?: string; children: ReactNode; limpiar?: boolean; alGuardar?: () => void }) {
+/** Clave aleatoria URL-safe (32 caracteres) para un envío. */
+function nuevaClave(): string {
+  const b = new Uint8Array(16);
+  crypto.getRandomValues(b);
+  return Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
+}
+
+/**
+ * Un <form> de acción de servidor que dice qué falló sin perder lo tipeado. Con `limpiar`, vacía los campos si salió bien.
+ * Con `claveDeEnvio`, cada envío lleva `claveEnvio`: la misma hasta que el servidor confirma (un doble clic o un reintento
+ * después de un corte repiten la clave y el servidor graba una sola vez); confirmado, el próximo envío lleva otra.
+ */
+export function FormAccion({ accion, className, children, limpiar, alGuardar, claveDeEnvio }: { accion: (fd: FormData) => Promise<ResultadoFicha>; className?: string; children: ReactNode; limpiar?: boolean; alGuardar?: () => void; claveDeEnvio?: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const form = useRef<HTMLFormElement>(null);
+  const clave = useRef<string | null>(null);
   const toast = useToastSiHay();
   return (
     <form
@@ -23,9 +35,11 @@ export function FormAccion({ accion, className, children, limpiar, alGuardar }: 
       className={className}
       action={async (fd) => {
         setError(null);
+        if (claveDeEnvio) fd.set("claveEnvio", (clave.current ??= nuevaClave()));
         try {
           const r = await accion(fd);
           if (!r.ok) return setError(r.error);
+          if (claveDeEnvio) clave.current = null;
           // El éxito va en un aviso flotante: el renglón que lo pidió (la cuota marcada) suele desaparecer al refrescar.
           if (r.listo) toast?.showSuccess(r.listo);
           if (limpiar) form.current?.reset();

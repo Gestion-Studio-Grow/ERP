@@ -1,17 +1,18 @@
 // ============================================================================
 // DOBLE ENVÍO de «Registrar cobro» y «Conciliar», contra Postgres (base efímera migrada, app_rls + RLS) y con las
-// Server Actions reales (sesión de la dueña). Estos tests FIJAN EL COMPORTAMIENTO DE HOY: cuando se cambie, se invierte
-// la aserción marcada «HOY» y el test pasa a cubrir el arreglo.
+// Server Actions reales (sesión de la dueña). Nacieron fijando el defecto (rama mia/pruebas-concurrencia-proyectos) y
+// se invirtieron con el arreglo: el cobro reconoce el mismo envío por su clave, y conciliar traba la cuota.
 //
 // Barreras deterministas, sin esperas arbitrarias:
 //  · cobro: el mismo candado consultivo que toma la acción (como `cobranza-carrera-postgres.test.ts`).
-//  · conciliar: la acción no toma candado; el test traba con FOR UPDATE las filas de los movimientos, lanza los pedidos
-//    de a uno y espera a VER cada uno esperando ese bloqueo (con su comprobación previa ya hecha). Después suelta.
+//  · conciliar: el test traba con FOR UPDATE las filas de los movimientos y lanza los pedidos de a uno; el primero queda
+//    esperando esa fila (con la cuota ya trabada) y el segundo, la fila de la cuota. Después suelta.
 // ============================================================================
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import pg from "pg";
+import { randomBytes } from "node:crypto";
 import { ejecutarAccion, prepararAccionesDeServidor } from "@/test/accion-de-servidor";
 import { apuntarLaAppA, baseEfimeraDelArchivo, prismaComoDuenio, type BaseEfimera } from "@/test/base-efimera";
 
@@ -144,8 +145,11 @@ async function preparar(t: import("node:test").TestContext) {
     assert.equal(r.tipo, "respuesta", JSON.stringify(r));
     return (r as { valor: R }).valor;
   };
-  /** El mismo formulario, tal cual: es lo que manda el navegador si se envía dos veces. */
-  const cobrar = (proyectoId: string, monto: number) => () => enSesion(() => acciones.registrarCobro(form({ proyectoId, medio: "TRANSFERENCIA", monto: String(monto), nota: "anticipo" })));
+  /** Una clave de envío nueva: la que el navegador genera para cada cobro. */
+  const clave = () => randomBytes(12).toString("hex");
+  /** El mismo formulario, tal cual (con su clave): es lo que manda el navegador si se envía dos veces. */
+  const cobrar = (proyectoId: string, monto: number, claveEnvio?: string) => () =>
+    enSesion(() => acciones.registrarCobro(form({ proyectoId, medio: "TRANSFERENCIA", monto: String(monto), nota: "anticipo", ...(claveEnvio && { claveEnvio }) })));
   const conciliar = (id: string, cuotaId: string) => () => enSesion(() => empresa.conciliarMovimiento(form({ id, cuotaId })));
   const plata = async (proyectoId: string) => {
     const pagos = await duenio.proyectoPago.findMany({ where: { proyectoId, anuladoEl: null }, select: { id: true, monto: true } });
@@ -154,39 +158,76 @@ async function preparar(t: import("node:test").TestContext) {
   };
   const atados = async (cuotaId: string) => duenio.proyectoMovBanco.count({ where: { cuotaId } });
   const claveCobranza = (proyectoId: string) => `cobranza-proyecto:${a.id}:${proyectoId}`;
-  return { base, proyecto, cuota, cuenta, movimiento, cobrar, conciliar, plata, atados, claveCobranza };
+  return { base, duenio, proyecto, cuota, cuenta, movimiento, clave, cobrar, conciliar, plata, atados, claveCobranza };
 }
 
 // ── H1 · Registrar cobro ────────────────────────────────────────────────────
 
-test("H1.a cobro enviado dos veces a la vez, proyecto sin presupuesto aprobado (sin tope): HOY entran los dos", async (t) => {
+test("H1.a cobro enviado dos veces a la vez con la misma clave, sin tope: entra uno y los dos responden bien", async (t) => {
   const p = await preparar(t);
   if (!p) return;
   const id = await p.proyecto(false);
-  const r = await enFilaDelCandado(p.base, p.claveCobranza(id), [p.cobrar(id, 1210), p.cobrar(id, 1210)]);
-  assert.deepEqual(r, [{ ok: true }, { ok: true }], "HOY: el candado los ordena pero no reconoce el repetido");
-  assert.deepEqual(await p.plata(id), { pagos: 2, suma: 2420, asientos: 2 }, "HOY: cobro y asiento de caja duplicados");
+  const k = p.clave();
+  const r = await enFilaDelCandado(p.base, p.claveCobranza(id), [p.cobrar(id, 1210, k), p.cobrar(id, 1210, k)]);
+  assert.deepEqual(r, [{ ok: true }, { ok: true }], "el repetido devuelve el cobro ya hecho, sin error");
+  assert.deepEqual(await p.plata(id), { pagos: 1, suma: 1210, asientos: 1 }, "un cobro y un asiento de caja");
+  // Otro cobro de verdad (clave nueva) sí entra.
+  assert.deepEqual(await p.cobrar(id, 1210, p.clave())(), { ok: true });
+  assert.deepEqual(await p.plata(id), { pagos: 2, suma: 2420, asientos: 2 });
 });
 
-test("H1.b cinco envíos a la vez del mismo cobro, con tope de $ 1.210: HOY entran los cinco mientras sumen menos que el tope", async (t) => {
+test("H1.b cinco envíos a la vez con tope de $ 1.210: el mismo envío entra una vez; cinco cobros distintos entran mientras no pasen el tope", async (t) => {
   const p = await preparar(t);
   if (!p) return;
   const id = await p.proyecto(true);
-  const r = await enFilaDelCandado(p.base, p.claveCobranza(id), Array.from({ length: 5 }, () => p.cobrar(id, 200)));
-  assert.ok(r.every((x) => x.ok), `HOY: el tope sólo frena lo que pasa el total (${JSON.stringify(r)})`);
+  const k = p.clave();
+  const iguales = await enFilaDelCandado(p.base, p.claveCobranza(id), Array.from({ length: 5 }, () => p.cobrar(id, 200, k)));
+  assert.ok(iguales.every((x) => x.ok), JSON.stringify(iguales));
+  assert.deepEqual(await p.plata(id), { pagos: 1, suma: 200, asientos: 1 });
+  const distintos = await enFilaDelCandado(p.base, p.claveCobranza(id), Array.from({ length: 4 }, () => p.cobrar(id, 200, p.clave())));
+  assert.ok(distintos.every((x) => x.ok), JSON.stringify(distintos));
   assert.deepEqual(await p.plata(id), { pagos: 5, suma: 1000, asientos: 5 });
-  // Y con tope, el sexto (que ya lo pasa) sí se frena: el tope funciona, lo que falta es reconocer el repetido.
-  const [sexto] = await enFilaDelCandado(p.base, p.claveCobranza(id), [p.cobrar(id, 400)]);
+  // El sexto ya pasa el tope: se frena, y no deja la clave usada (corregido el monto, el mismo formulario entra).
+  const k6 = p.clave();
+  const [sexto] = await enFilaDelCandado(p.base, p.claveCobranza(id), [p.cobrar(id, 400, k6)]);
   assert.equal(sexto.ok, false);
+  assert.deepEqual(await p.cobrar(id, 210, k6)(), { ok: true });
+  assert.deepEqual(await p.plata(id), { pagos: 6, suma: 1210, asientos: 6 });
 });
 
-test("H1.c reintento del mismo formulario después de terminar el primero: HOY se graba de nuevo", async (t) => {
+test("H1.c reintento del mismo formulario después de terminar el primero: devuelve el cobro ya hecho; con clave nueva entra", async (t) => {
   const p = await preparar(t);
   if (!p) return;
   const id = await p.proyecto(true);
-  assert.deepEqual(await p.cobrar(id, 500)(), { ok: true });
-  assert.deepEqual(await p.cobrar(id, 500)(), { ok: true }, "HOY: el reenvío no se reconoce");
+  const k = p.clave();
+  assert.deepEqual(await p.cobrar(id, 500, k)(), { ok: true });
+  assert.deepEqual(await p.cobrar(id, 500, k)(), { ok: true }, "el reenvío se reconoce, sin error");
+  assert.deepEqual(await p.plata(id), { pagos: 1, suma: 500, asientos: 1 });
+  assert.deepEqual(await p.cobrar(id, 500, p.clave())(), { ok: true });
   assert.deepEqual(await p.plata(id), { pagos: 2, suma: 1000, asientos: 2 });
+});
+
+test("H1.d la clave de un cobro, usada en otro proyecto: no graba nada", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const [uno, otro] = [await p.proyecto(false), await p.proyecto(false)];
+  const k = p.clave();
+  assert.deepEqual(await p.cobrar(uno, 300, k)(), { ok: true });
+  const r = await p.cobrar(otro, 300, k)();
+  assert.equal(r.ok, false);
+  assert.deepEqual(await p.plata(otro), { pagos: 0, suma: 0, asientos: 0 });
+  assert.deepEqual(await p.plata(uno), { pagos: 1, suma: 300, asientos: 1 });
+});
+
+test("H1.e sin clave (o con una que no tiene forma de clave) se graba como siempre", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const id = await p.proyecto(false);
+  assert.deepEqual(await p.cobrar(id, 100)(), { ok: true });
+  assert.deepEqual(await p.cobrar(id, 100)(), { ok: true });
+  assert.deepEqual(await p.cobrar(id, 100, "corta")(), { ok: true });
+  assert.deepEqual(await p.cobrar(id, 100, "corta")(), { ok: true });
+  assert.deepEqual(await p.plata(id), { pagos: 4, suma: 400, asientos: 4 });
 });
 
 // ── H2 · Conciliar ──────────────────────────────────────────────────────────
@@ -202,16 +243,18 @@ test("H2.a el mismo movimiento con la misma cuota, enviado dos veces a la vez: e
   assert.equal(await p.atados(q), 1);
 });
 
-test("H2.b dos movimientos distintos a la misma cuota, a la vez: HOY quedan los dos atados a la cuota", async (t) => {
+test("H2.b dos movimientos distintos a la misma cuota, a la vez: queda atado uno solo", async (t) => {
   const p = await preparar(t);
   if (!p) return;
   const q = await p.cuota(await p.proyecto(true));
   const cta = await p.cuenta();
   const [m1, m2] = [await p.movimiento(cta, 1210), await p.movimiento(cta, 1210)];
-  const r = await enFilaDeLasFilas(p.base, [m1, m2], [p.conciliar(m1, q), p.conciliar(m2, q)]);
-  assert.deepEqual(r, [{ ok: true }, { ok: true }], "HOY: los dos pasan la comprobación antes de que el otro grabe");
-  assert.equal(await p.atados(q), 2, "HOY: la cuota queda conciliada con dos movimientos");
-  // Uno detrás del otro, en cambio, la comprobación sí frena.
+  const [r1, r2] = await enFilaDeLasFilas(p.base, [m1, m2], [p.conciliar(m1, q), p.conciliar(m2, q)]);
+  assert.deepEqual(r1, { ok: true });
+  assert.deepEqual(r2, { ok: false, error: "Esa cuota ya está conciliada con otro movimiento." }, "el segundo vuelve a mirar con la cuota trabada");
+  assert.equal(await p.atados(q), 1, "la cuota queda conciliada con un solo movimiento");
+  assert.equal(await p.duenio.proyectoMovBanco.count({ where: { id: m2, cuotaId: null } }), 1, "el segundo movimiento queda libre");
+  // Uno detrás del otro, la comprobación también frena.
   const m3 = await p.movimiento(cta, 1210);
   assert.equal((await p.conciliar(m3, q)()).ok, false);
 });
@@ -223,4 +266,25 @@ test("H2.c conciliar no compara el importe (decisión de diseño: cobros partido
   const m = await p.movimiento(await p.cuenta(), 100);
   assert.deepEqual(await p.conciliar(m, q)(), { ok: true });
   assert.equal(await p.atados(q), 1);
+});
+
+// ── Sin la migración de la clave (Gate 2: el código llega a producción antes que la columna) ────────────────
+
+test("H1.f sin la columna claveEnvio, el cobro se graba como antes de la migración (no se cae)", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const id = await p.proyecto(false);
+  const c = new pg.Client({ connectionString: p.base.urlDuenio });
+  await c.connect();
+  // Se esconde la columna con un nombre que Prisma no conoce, y se devuelve al final (base efímera de este archivo).
+  await c.query(`ALTER TABLE "ProyectoPago" RENAME COLUMN "claveEnvio" TO "claveEnvioOculta"`);
+  try {
+    const k = p.clave();
+    assert.deepEqual(await p.cobrar(id, 250, k)(), { ok: true });
+    assert.deepEqual(await p.cobrar(id, 250, k)(), { ok: true }, "sin columna no hay cómo reconocer el repetido: entra, como antes");
+    assert.deepEqual(await p.plata(id), { pagos: 2, suma: 500, asientos: 2 });
+  } finally {
+    await c.query(`ALTER TABLE "ProyectoPago" RENAME COLUMN "claveEnvioOculta" TO "claveEnvio"`);
+    await c.end();
+  }
 });
