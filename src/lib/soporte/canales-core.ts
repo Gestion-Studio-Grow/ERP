@@ -426,7 +426,7 @@ function taparPorEtiquetas(s: string, n: string, contar: () => void): string {
     }
 
     // Lo pegado a la etiqueta: «clave_fiscal:», «pass":», «clave?», «pin:1234», «pass[X]».
-    let k = t + 1; // primera palabra después de la etiqueta
+    const k = t + 1; // primera palabra después de la etiqueta
     let tipo = 0; // el separador que trae la propia etiqueta
     let pendiente = false;
     const finFicha = L.b[t];
