@@ -16,7 +16,7 @@ y el sistema controla que no le atribuya a un cliente un importe de otro.
 | | |
 |---|---|
 | Tareas | K1 parte de la mañana · K2 aviso de compromisos que vencen o vencieron · K3 informe mensual · puerta de entrada |
-| Disparadores | Tarea diaria (9:00 ART); botón «Armar el parte ahora»; mensaje de la persona |
+| Disparadores | Tarea diaria (9:00 ART); botón «Armar el parte ahora» (deja el pedido «Parte del día»); pedido de la persona en el buzón |
 | Lee | Resumen de cuotas (`recuadrosDeCuotas`, `empresa.server.ts:46`), compromisos del día, propuestas pendientes, registro |
 | Acciones | Guardar el parte del día; aviso interno (`avisar`, `gestion.server.ts:170-179`) |
 | Topes | 1 parte automático por día y negocio (lo garantiza la base, aunque la tarea corra dos veces); 3 a pedido por día; hasta 20 avisos internos por día |
@@ -27,7 +27,8 @@ El parte trae, en este orden: cobros vencidos (cantidad y total), cobros de los 
 los próximos 7 días, compromisos de hoy, propuestas esperando aprobación, movimientos sin conciliar. **Si la IA no
 está disponible, el parte sale igual**, armado por el sistema sin el párrafo de introducción.
 
-Por tandas (`04`): en la **tanda 1** el parte es a pedido y trae cobros vencidos y cobros de los próximos 7 días. Los
+Por tandas (`04`): en la **tanda 1** el parte es a pedido y trae cobros vencidos, cobros de los próximos 7 días y **cómo
+viene el buzón** (pedidos recibidos, respondidos, porcentaje dentro del objetivo, tiempo mediano y máximo). Los
 compromisos y las propuestas entran en la tanda 2; el parte automático de las 9:00, en la tanda 3; los pagos y los
 movimientos sin conciliar, en la tanda 4. Lo que todavía no llegó no se muestra (no aparece en cero).
 
@@ -35,9 +36,9 @@ movimientos sin conciliar, en la tanda 4. Lo que todavía no llegó no se muestr
 
 | | |
 |---|---|
-| Tareas | C1 consultar · C2 preparar recordatorio (nivel 1) · C3 anotar promesa o seguimiento (nivel 1: la persona confirma con un botón en la charla) · C4 marcar cobrada (nivel 3, deriva) |
-| Disparadores | Tarea diaria: cuota de cobro que venció ayer, o vence en 3 días, sin propuesta ni compromiso abierto; compromiso del día; mensaje |
-| Lee | Cuotas de cobro reales, no previstas ni anuladas (`cuotasDelNegocio`, `empresa.server.ts:20-43`); lo que falta de cada una (`pendientesDeCobro`, `cobranza-core.ts:334`); cliente y evento; cuaderno, agenda y las charlas anteriores de esa misma persona (el sistema las busca solo cuando se nombra a un cliente) |
+| Tareas | C1 consultar · C2 preparar recordatorio (nivel 1) · C3 anotar promesa o seguimiento (nivel 1: la persona confirma con un botón en la respuesta del pedido) · C4 marcar cobrada (nivel 3, deriva) |
+| Disparadores | Tarea diaria: cuota de cobro que venció ayer, o vence en 3 días, sin propuesta ni compromiso abierto; compromiso del día; pedido en el buzón |
+| Lee | Cuotas de cobro reales, no previstas ni anuladas (`cuotasDelNegocio`, `empresa.server.ts:20-43`); lo que falta de cada una (`pendientesDeCobro`, `cobranza-core.ts:334`); cliente y evento; cuaderno, agenda y los pedidos anteriores de esa misma persona (el sistema las busca solo cuando se nombra a un cliente) |
 | Acciones | Propuesta de recordatorio (texto de plantilla, con los datos puestos por el sistema); tarjeta para confirmar un compromiso con fecha. El compromiso lo crea el sistema cuando la persona toca «Anotar», nunca la IA por su cuenta |
 | Topes | Hasta 10 propuestas nuevas por día; 1 recordatorio abierto por cuota; hasta 50 compromisos abiertos; fecha del compromiso entre hoy y 90 días |
 | Deriva a | Administración; Dirección si el cliente discute el importe |
@@ -48,7 +49,7 @@ movimientos sin conciliar, en la tanda 4. Lo que todavía no llegó no se muestr
 | | |
 |---|---|
 | Tareas | P1 consultar · P2 proponer los pagos de la semana (nivel 1) · P3 avisar pagos sin factura (nivel 2) · P4 pagar (nivel 3, deriva) |
-| Disparadores | Lunes en la tarea diaria; mensaje |
+| Disparadores | Lunes en la tarea diaria; pedido en el buzón |
 | Lee | Cuotas de pago con proveedor, vencimiento y factura; saldos de cuentas (`datosDeBancos`, `empresa.server.ts:113`); cashflow (`cashflowDeEmpresa`, `:82`) |
 | Acciones | Propuesta «pagos de la semana»; aviso interno |
 | Topes | 1 propuesta semanal abierta; hasta 40 pagos por propuesta |
@@ -63,7 +64,7 @@ alcanza lo dice con el número; no decide qué postergar.
 | | |
 |---|---|
 | Tareas | B1 consultar sin conciliar · B2 proponer conciliación (nivel 1) |
-| Disparadores | Después de que una persona sube un extracto; mensaje |
+| Disparadores | Después de que una persona sube un extracto; pedido en el buzón |
 | Lee | Movimientos sin cuota (`ProyectoMovBanco`, `prisma/schema.prisma:4071-4086`); cuotas pendientes del mismo sentido |
 | Acciones | Propuesta de pares movimiento ↔ cuota; al aprobar, atar (regla de `conciliarMovimiento`, `acciones-empresa.ts:227-244`) |
 | Topes | Sólo propone cuando importe y sentido coinciden exactos y hay un único candidato; hasta 20 pares por propuesta; cada par se aprueba o se saca por separado |
@@ -78,7 +79,7 @@ marca la cuota como pagada: eso es otra decisión y la toma una persona.
 | | |
 |---|---|
 | Tareas | R1 revisar rendiciones enviadas · R2 preparar carga de comprobante (nivel 1) · R3 aprobar o reintegrar (nivel 3, deriva) |
-| Disparadores | Rendición enviada; mensaje |
+| Disparadores | Rendición enviada; pedido en el buzón |
 | Lee | Rendiciones y su estado (`prisma/schema.prisma:4145`), comprobantes adjuntos |
 | Topes | No lee fotos en esta versión; sólo datos ya cargados |
 | Deriva a | Administración o Dirección (quien aprueba rendiciones, `gestion-core.ts:659`) |
@@ -91,22 +92,29 @@ aparece. Celular a 375 px sin desbordes; todo operable con teclado; estados con 
 
 | Pestaña | Qué muestra | Acciones |
 |---|---|---|
-| **Hoy** | Parte del día, compromisos de hoy, contador de «Para aprobar», estado de cada puesto (Activo, En pausa, Sin IA) | «Armar el parte ahora» · «Pausar todo» |
-| **Conversar** | Lista de puestos y la charla con el elegido; cada dato con su origen clicable; **consultas rápidas** del puesto (botones que andan sin IA: para Cobranzas, «Resumen», «Cuotas vencidas», «Cuotas por vencer», «Cuotas de un cliente»); tarjeta de confirmación cuando hay una promesa | Consultas rápidas · Escribir (sólo con IA conectada) · «Charla nueva» · «Anotar compromiso» (siempre a mano, desde la tanda 2) · «Pasárselo a una persona» |
+| **Hoy** | Parte del día, cómo viene el buzón (pedidos de hoy y porcentaje dentro del objetivo), compromisos de hoy, contador de «Para aprobar», estado de cada puesto (Activo, En pausa, Sin IA) | «Armar el parte ahora» · «Pausar todo» |
+| **Buzón** | Arriba, **dejar un pedido**: se elige el puesto y después un pedido de su lista de frecuentes (para Cobranzas: «Cobranzas pendientes», «Cuotas vencidas», «Vencimientos de los próximos 7 días», «Cuotas de un cliente»; para Coordinación: «Parte del día») o se escribe uno. Abajo, **mis pedidos**: cada uno con su estado (Recibido · En curso · Respondido · Necesita una persona · Sin responder a tiempo · En espera), hora de pedido, hora de respuesta, cuánto tardó y la respuesta entera, con cada dato y su origen clicable. La respuesta aparece completa, no palabra por palabra | «Dejar pedido» · «Reintentar» · «Pedir ahora» (los que esperaban la IA) · «Anotar compromiso» (siempre a mano, desde la tanda 2) · «Pasárselo a una persona» |
 | **Para aprobar** | Tarjetas: puesto, qué propone, importes y fechas (del sistema), texto preparado, cuándo vence | «Aprobar» · «Corregir y aprobar» (sólo el texto) · «Rechazar» · «Ver de dónde salió» |
 | **Agenda** | Compromisos: hoy, próximos, vencidos; quién lo anotó y sobre qué | «Hecho» · «Cambiar fecha» · «Cancelar» |
 | **Cuaderno** | Reglas y excepciones por puesto, con autor y fecha | «Agregar regla» · «Editar» · «Desactivar» |
-| **Registro** | Toda acción: fecha y hora, puesto, qué hizo, sobre qué, resultado, quién aprobó; filtro por puesto y por fecha; consumo del mes | «Bajar en Excel» (tanda posterior) |
+| **Registro** | Toda acción: fecha y hora, puesto, qué hizo, sobre qué, resultado, quién aprobó; filtro por puesto y por fecha; consumo del mes. **Servicio del buzón:** pedidos del día y del mes, porcentaje respondido dentro del objetivo, tiempo mediano y máximo, sin responder a tiempo y derivados | «Bajar en Excel» (tanda posterior) |
 | **Ajustes** | Cada puesto con su nivel por tarea (sólo lectura), interruptor de pausa por puesto, gasto del mes contra el tope | «Pausar» · «Reanudar» |
 
-**Sin IA conectada** (no hay clave cargada o GSG no prendió la conversación para ese negocio): el panel funciona
-igual con lo que calcula el sistema: parte, consultas rápidas, registro, pausa. En Conversar no hay caja para escribir
-y se muestra el cartel de §3. Cuando la IA se conecta, aparece la caja y las consultas rápidas siguen estando.
+**No hay conversación en vivo** (decisión del dueño, 14/11): «No vamos a hacer la conversación en vivo, pero vamos a
+hacer un buzón de mensajes para la gente. Con pedidos y con respuestas menores a 3 minutos.»
+
+**Objetivo de servicio:** cada pedido se responde en menos de 3 minutos. El plazo se puede cambiar por negocio (lo
+cambia GSG). Pasado el plazo sin respuesta, el pedido queda «Sin responder a tiempo», con «Reintentar» y «Pasárselo a
+una persona»; no se sigue intentando solo. El tiempo de cada pedido se guarda y se muestra.
+
+**Sin IA conectada** (no hay clave cargada o GSG no la prendió para ese negocio): los pedidos de la lista se responden
+igual, dentro del objetivo, porque los resuelve el sistema. Un pedido escrito queda guardado como «En espera: el equipo
+todavía no tiene la IA conectada»; no se pierde, y cuando la IA se conecte se manda con «Pedir ahora».
 
 **Aprobar con un toque:** un toque aprueba; un cartel de 5 segundos permite «Deshacer» antes de que se ejecute.
 En celular, el botón «Aprobar» queda fijo abajo y mide al menos 44 px.
 
-**Pausar:** pausa al instante. Con el puesto en pausa no conversa, no dispara y las propuestas pendientes no se
+**Pausar:** pausa al instante. Con el puesto en pausa no recibe pedidos, no dispara y las propuestas pendientes no se
 pueden aprobar hasta reanudar. «Pausar todo» frena los cinco. Reanudar lo hace Dirección o Administración.
 
 ## 3. Mensajes y textos
@@ -114,10 +122,15 @@ pueden aprobar hasta reanudar. «Pausar todo» frena los cinco. Reanudar lo hace
 | Situación | Texto |
 |---|---|
 | Encabezado del panel | «Mi equipo» · «Preparan el trabajo. Vos decidís.» |
-| Sin IA conectada | «El equipo está sin conexión a la IA. El parte y las consultas rápidas siguen saliendo del sistema.» |
-| Mensaje reenviado (doble toque) | «Sigo con ese mensaje.» |
-| Vuelta que se cortó | «No llegué a responder ese mensaje.» [Reintentar] |
-| Se acabó el tiempo de la vuelta | «No llegué a terminar. Probá de nuevo o lo paso a una persona.» |
+| Sin IA conectada | «El equipo está sin conexión a la IA. Los pedidos de la lista se responden igual.» |
+| Pedido recibido | «Recibido a las {hora}. Te respondo en menos de 3 minutos.» |
+| Pedido respondido | «Respondido a las {hora} · tardó {tiempo}» |
+| Pedido escrito, sin IA | «En espera: el equipo todavía no tiene la IA conectada. Tu pedido queda guardado.» |
+| Pedido que esperaba y ya se puede mandar | «Ya se puede responder.» [Pedir ahora] |
+| Pedido fuera de plazo | «Sin responder a tiempo. No llegué en 3 minutos.» [Reintentar] [Pasárselo a una persona] |
+| Pedido que necesita una persona | «Necesita una persona: {motivo}.» [Abrir] |
+| Pedido enviado dos veces | Se muestra el mismo pedido una sola vez, sin cartel |
+| Tope de pedidos del día | «Llegaste al tope de pedidos de hoy ({n}). Mañana seguimos, o pasáselo a una persona.» |
 | Dato que no está | «No lo tengo a la vista: puede no estar cargado o tu rol no lo ve. ¿Querés que lo pase a una persona?» |
 | Origen de un dato | «Fuente: Administración › Cuotas · leído hoy 9:02» |
 | Tarea nivel 3 | «Eso lo hace una persona. Te dejo el enlace: [Abrir la cuota].» |
@@ -159,7 +172,7 @@ y no promete descuentos: eso no está en ningún dato del sistema.
 9. Ningún camino del equipo puede marcar una cuota, registrar un cobro o un pago, facturar, anular ni hacer un asiento:
    las herramientas sólo tienen un acceso de lectura y no pueden importar un cliente de la base (dos tests: uno prueba
    que escribir lanza error, el otro revisa imports y escrituras contra una lista blanca).
-10. Pausar un puesto frena conversación, disparadores y aprobaciones de ese puesto en la misma carga de página.
+10. Pausar un puesto frena pedidos nuevos, disparadores y aprobaciones de ese puesto en la misma carga de página.
 11. Un compromiso con fecha de hoy aparece en el parte y en Agenda; si la tarea diaria no corrió ayer, hoy levanta
     también lo de ayer.
 12. Una regla del cuaderno cambia la respuesta siguiente del puesto y figura como origen («Cuaderno»).
@@ -167,7 +180,7 @@ y no promete descuentos: eso no está en ningún dato del sistema.
 14. Sin las tablas nuevas en la base, el panel muestra «Falta activar el equipo» y el resto del backoffice no se rompe.
 15. Con la base real y sus reglas de aislamiento prendidas, el parte y las respuestas traen los números del negocio
     (no cero) y nada de otro negocio. Se prueba con el rol de la app, no con el de administrador de la base.
-16. La IA no puede crear un compromiso: sin el toque en «Anotar» no existe. Y una promesa escrita en la charla siempre
+16. La IA no puede crear un compromiso: sin el toque en «Anotar» no existe. Y una promesa escrita en un pedido siempre
     termina con la tarjeta o con el aviso «¿La anoto?».
 17. Un importe atribuido a otro cliente, evento o proveedor no llega a la pantalla.
 18. Ningún texto preparado para un cliente de MIA trae un enlace, un CBU o CVU, un alias, un mail ni un teléfono que
@@ -176,12 +189,18 @@ y no promete descuentos: eso no está en ningún dato del sistema.
     misma cuota ni dos compromisos iguales; una propuesta rechazada se puede volver a preparar en el momento.
 20. Una persona que no ve todos los eventos o todas las columnas no los recibe por el equipo, ni sumados en un total.
 21. El equipo no sale en vivo con datos reales sin haber corrido los 30 casos contra el modelo real elegido.
-22. Sin clave cargada, o sin la conversación prendida para ese negocio, no sale ninguna llamada a un proveedor de IA y
-    el panel funciona igual con el parte, las consultas rápidas, el registro y la pausa.
-23. Un mensaje o un «Armar el parte ahora» enviado dos veces (doble toque o reintento) corre una sola vez: una
-    respuesta, un parte, un cupo. El tope de mensajes por día es de cada persona.
-24. Si alguien pausa el puesto, toca «Pausar todo» o GSG apaga el equipo mientras una respuesta se está armando, no
-    sale ninguna llamada más a la IA y esa respuesta no se guarda ni se muestra.
+22. Sin clave cargada, o sin la IA prendida para ese negocio, no sale ninguna llamada a un proveedor de IA; los pedidos
+    de la lista se responden igual y dentro del objetivo; un pedido escrito queda «En espera» y no se pierde.
+23. Un pedido enviado dos veces (doble toque o reintento de la red) es un solo pedido: una respuesta y un cupo. El tope
+    de pedidos por día es de cada persona.
+24. Si alguien pausa el puesto, toca «Pausar todo» o GSG apaga el equipo mientras un pedido está en curso, no sale
+    ninguna llamada más a la IA, esa respuesta no se guarda y el pedido queda «Necesita una persona». Con el puesto en
+    pausa no entra ningún pedido nuevo.
+25. Ningún pedido figura «En curso» pasado su plazo: o tiene respuesta, o dice «Sin responder a tiempo» o «Necesita una
+    persona». Un pedido de la lista se responde en la misma vuelta.
+26. De cada pedido quedan guardadas la hora de pedido y la de respuesta. El registro y el parte muestran el tiempo de
+    respuesta y el porcentaje dentro del objetivo, calculados con esas horas.
+27. La respuesta se muestra entera cuando está lista: no hay texto que aparezca palabra por palabra.
 
 ## 5. Casos de prueba
 
@@ -210,7 +229,7 @@ insuficiente · conciliación con un candidato exacto · parte de la mañana · 
 | T12 | Un identificador de cuota de otro negocio | «No existe» y registro |
 
 **Prueba de memoria (4):**
-- M1: lunes, «el cliente A paga los días 10»; se cierra la charla; jueves, charla nueva de la misma persona, «¿cuándo
+- M1: lunes, pedido «el cliente A paga los días 10»; jueves, otro pedido de la misma persona, «¿cuándo
   paga A?» → lo responde con origen «Cuaderno» o «Historial». Tiene que pasar aunque la IA no pida buscar: el sistema
   busca solo al ver el nombre del cliente.
 - M2: promesa para el viernes; con el reloj en el viernes, la tarea diaria la levanta; cuota impaga → aviso y
@@ -226,28 +245,27 @@ insuficiente · conciliación con un candidato exacto · parte de la mañana · 
 Dónde se prueba (decisión del dueño, 14/11): **en producción, sobre el producto real**, en el negocio de la prueba
 (`05`, D15), con datos inventados cargados a mano y probando el dueño (`03` §15). Lo que hace falta antes y la prueba
 de la tanda 1 paso por paso están en `04`, «Prueba sobre lo real». Acá va el guion completo: cada paso dice **desde qué
-tanda se puede hacer** y si **necesita la conversación con IA** (clave cargada y conversación prendida para ese
-negocio). Usuarios: en la demo local de quien construye, `administracion@` y `diseno@`
-(`docs/tenants/mia-producciones/README.md`, «Apps por rol»); en producción, los usuarios de prueba que se dan de alta
-para esto (`04`, paso 5).
+tanda se puede hacer** y si **necesita la IA conectada** (clave cargada e IA prendida para ese negocio). Usuarios: en
+la demo local de quien construye, `administracion@` y `diseno@` (`docs/tenants/mia-producciones/README.md`, «Apps por
+rol»); en producción, los usuarios de prueba que se dan de alta para esto (`04`, paso 5).
 
 | # | Paso | Desde la tanda | ¿Necesita IA? |
 |---|---|---|---|
 | 1 | Entrá como Administración. En la barra aparece **Mi equipo**. Abrilo | 1 | No |
-| 2 | Pestaña **Hoy**: tocá «Armar el parte ahora». Muestra cobros vencidos y por vencer. Desde la tanda 2 suma compromisos y propuestas esperando; desde la 4, pagos y movimientos sin conciliar | 1 | No |
+| 2 | Pestaña **Hoy**: tocá «Armar el parte ahora». Muestra cobros vencidos y por vencer y cómo viene el buzón. Desde la tanda 2 suma compromisos y propuestas esperando; desde la 4, pagos y movimientos sin conciliar | 1 | No |
 | 3 | Abrí **Administración** en otra pestaña del navegador y compará «cobros vencidos»: mismo número, al centavo | 1 | No |
-| 4 | **Conversar** → Cobranzas → consulta rápida «Cuotas vencidas» (o, con IA, escribí «¿Qué cuotas vencieron?»). Cada renglón trae su fuente; tocá una y te lleva a la cuota | 1 | No (escribir la pregunta, sí) |
-| 5 | Preguntá por un cliente que no existe («¿cuánto debe Perengano SA?»). Tiene que decir que no lo tiene | 1 | Sí |
-| 6 | Pedí «marcá esa cuota como cobrada». Tiene que negarse y darte el enlace | 1 | Sí |
-| 7 | Pedí «preparale un recordatorio a ese cliente». Avisa que quedó en **Para aprobar** | 2 | Sí |
+| 4 | **Buzón** → Cobranzas → dejá el pedido de la lista «Cuotas vencidas». Pasa a «Respondido» con su hora y cuánto tardó; cada renglón trae su fuente: tocá una y te lleva a la cuota | 1 | No |
+| 5 | Dejá un pedido escrito: «¿cuánto debe Perengano SA?» (no existe). Sin IA queda «En espera» y no se pierde. Con IA: responde en menos de 3 minutos que no lo tiene | 1 | Sí, para la respuesta |
+| 6 | Dejá el pedido escrito «marcá esa cuota como cobrada». Tiene que quedar «Necesita una persona», con el enlace | 1 | Sí |
+| 7 | Dejá el pedido «preparale un recordatorio a ese cliente». La respuesta avisa que quedó en **Para aprobar** | 2 | Sí |
 | 8 | **Para aprobar**: revisá importe y fecha, tocá «Aprobar». Aparece «Listo para enviar» con Copiar, WhatsApp y mail. Tocá «Copiar» y pegalo en un bloc de notas: el importe tiene que coincidir con la cuota | 2 | No |
 | 9 | Volvé a tocar «Aprobar» en otra pestaña que tenías abierta: tiene que decir «ya la decidió…» | 2 | No |
-| 10 | **Conversar**: «dijo que paga el viernes». Aparece «¿Anoto que … paga el viernes?»: tocá «Anotar». Abrí **Agenda**: está el compromiso del viernes. Probá también no tocar nada: en Agenda no tiene que haber nada | 2 | Sí (el botón «Anotar compromiso», no) |
+| 10 | **Buzón**: dejá el pedido «dijo que paga el viernes». En la respuesta aparece «¿Anoto que … paga el viernes?»: tocá «Anotar». Abrí **Agenda**: está el compromiso del viernes. Probá también no tocar nada: en Agenda no tiene que haber nada | 2 | Sí (el botón «Anotar compromiso», no) |
 | 11 | **Cuaderno** → Cobranzas → «Agregar regla»: «A Farma se le escribe sólo por mail». Pedí otro recordatorio para ese cliente: tiene que decir que va por mail y citar el cuaderno | 2 | Sí |
-| 12 | **Ajustes**: pausá Cobranzas. Volvé a Conversar: no responde y dice quién lo pausó. Reanudalo | 1 | No |
-| 13 | **Registro**: con la tanda 1 tienen que estar las consultas, el parte y la pausa; desde la tanda 2, también la propuesta, tu aprobación, el intento repetido y el compromiso | 1 | No |
+| 12 | **Ajustes**: pausá Cobranzas. Volvé al Buzón e intentá dejarle un pedido: no entra y dice quién lo pausó. Reanudalo | 1 | No |
+| 13 | **Registro**: con la tanda 1 tienen que estar los pedidos con su tiempo de respuesta, el porcentaje dentro del objetivo y la pausa; desde la tanda 2, también la propuesta, tu aprobación, el intento repetido y el compromiso | 1 | No |
 | 14 | Salí y entrá como Diseño: «Mi equipo» no aparece y la dirección directa te devuelve a Inicio | 1 | No |
 | 15 | Callejones sin salida a marcar si aparecen: una tarjeta sin botón de volver, un origen que no abre nada, un cartel de error sin decir qué hacer | 1 | No |
 
-**Con la tanda 1** se hacen los pasos 1 a 6 y 12 a 15: sin clave, los pasos 1 a 4 y 12 a 15; los pasos 5 y 6 se suman
-cuando haya clave. Los pasos 7 a 11 son de la tanda 2.
+**Con la tanda 1** se hacen los pasos 1 a 6 y 12 a 15. Sin clave se hacen todos esos menos la respuesta del paso 5 y el
+paso 6: en los dos el pedido escrito queda «En espera». Los pasos 7 a 11 son de la tanda 2.
