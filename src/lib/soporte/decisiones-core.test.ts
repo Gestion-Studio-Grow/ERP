@@ -8,6 +8,7 @@ import {
   avisarAlDuenioFueraDeHora,
   canalesDeSoporteActivos,
   enHorarioDeGuardia,
+  FERIADOS_NACIONALES,
   estadoDelTope,
   n1PuedeSalirSolo,
   n2SeAplicaSolo,
@@ -41,8 +42,8 @@ test("D2: horario de guardia L–V 9–19 y sábado 9–13, en hora argentina", 
 
 test("D2: el reloj sólo corre en guardia (pasa por sábado, domingo y feriados)", () => {
   assert.deepEqual(sumarHorasDeGuardia(ar("2026-11-20 18:00"), 3), ar("2026-11-21 11:00"), "viernes 1 h + sábado 2 h");
-  assert.deepEqual(sumarHorasDeGuardia(ar("2026-11-21 12:30"), 2), ar("2026-11-23 10:30"), "sábado 30 min + lunes 1 h 30");
-  assert.deepEqual(sumarHorasDeGuardia(ar("2026-11-22 10:00"), 1), ar("2026-11-23 10:00"), "domingo arranca el lunes");
+  assert.deepEqual(sumarHorasDeGuardia(ar("2026-11-21 12:30"), 2, new Set()), ar("2026-11-23 10:30"), "sábado 30 min + lunes 1 h 30");
+  assert.deepEqual(sumarHorasDeGuardia(ar("2026-11-22 10:00"), 1, new Set()), ar("2026-11-23 10:00"), "domingo arranca el lunes");
   assert.deepEqual(sumarHorasDeGuardia(ar("2026-11-22 10:00"), 1, new Set(["2026-11-23"])), ar("2026-11-24 10:00"), "lunes feriado");
   assert.deepEqual(sumarHorasDeGuardia(ar("2026-11-16 07:00"), 0), ar("2026-11-16 09:00"), "0 h fuera de hora = cuando abre");
   assert.throws(() => sumarHorasDeGuardia(ar("2026-11-16 10:00"), 1, new Set(Array.from({ length: 500 }, (_, i) => new Date(Date.UTC(2026, 10, 16 + i)).toISOString().slice(0, 10)))));
@@ -100,4 +101,16 @@ test("D8: cada cambio con un clic; tras 20 sin error, lo reversible se aplica so
   assert.equal(n2SeAplicaSolo({ ...base, cambiosSeguidosSinError: 19 }).solo, false);
   assert.equal(n2SeAplicaSolo({ ...base, reversible: false }).solo, false);
   assert.equal(n2SeAplicaSolo({ ...base, esCH: true }).solo, false);
+});
+
+test("D2: feriados nacionales oficiales por defecto (argentina.gob.ar, 2026)", () => {
+  assert.equal(FERIADOS_NACIONALES.size, 21);
+  for (const f of FERIADOS_NACIONALES) assert.match(f, /^\d{4}-\d{2}-\d{2}$/);
+  assert.ok(FERIADOS_NACIONALES.has("2026-11-23"), "Soberanía Nacional trasladado al lunes 23/11");
+  assert.ok(!FERIADOS_NACIONALES.has("2026-11-20"), "el 20/11 original no es feriado: se trasladó");
+  assert.ok(!FERIADOS_NACIONALES.has("2026-11-10"), "feriado sólo provincial: no entra");
+  assert.equal(enHorarioDeGuardia(ar("2026-11-23 10:00")), false, "23/11: sin guardia por defecto");
+  assert.equal(enHorarioDeGuardia(ar("2026-11-23 10:00"), new Set()), true, "con lista vacía explícita sí hay");
+  assert.deepEqual(sumarHorasDeGuardia(ar("2026-11-21 12:30"), 2), ar("2026-11-24 10:30"), "sábado 30 min + martes 1 h 30");
+  assert.deepEqual(vencimientoDeResolucion("P3", ar("2026-12-24 18:00")), sumarHorasDeGuardia(ar("2026-12-24 18:00"), 120, FERIADOS_NACIONALES));
 });
