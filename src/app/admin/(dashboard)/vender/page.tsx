@@ -13,7 +13,7 @@ import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import { cargarKpi } from "@/apps/kpis/index.server";
 import { LineaDeEstado } from "@/components/ui";
 import type { Role } from "@/lib/capabilities";
-import { reglaALaVista } from "@/lib/caja/reglas-a-la-vista";
+import { reglaDeVender } from "@/lib/caja/reglas-a-la-vista";
 import { mostradorBoutiqueDelNegocio } from "@/lib/clientes/fiado.server";
 import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
 import { VENTANA_DEL_CUADERNO } from "@/lib/cuaderno/hora-de-la-venta";
@@ -36,9 +36,9 @@ import MostradorBoutique from "./boutique/MostradorBoutique";
 async function EstadoDelMostrador({ role, mostrador, tenantId }: { role: Role; mostrador: boolean; tenantId: string }) {
   const [caja, vender] = await Promise.all([cargarKpi("caja-del-dia", role), cargarKpi("vender", role)]);
   const datos: React.ReactNode[] = [];
+  // Con hoy ya cerrado no se abre la caja: no se ofrece.
+  const diaCerrado = caja?.estado === "ok" && caja.valor === "Cerrada" && (await hoyEstaCerrado(tenantId).catch(() => false));
   if (caja?.estado === "ok") {
-    // Con hoy ya cerrado no se abre la caja: no se ofrece.
-    const diaCerrado = caja.valor === "Cerrada" && (await hoyEstaCerrado(tenantId).catch(() => false));
     datos.push(
       diaCerrado ? (
         <span key="caja">
@@ -60,8 +60,8 @@ async function EstadoDelMostrador({ role, mostrador, tenantId }: { role: Role; m
     );
   }
   if (vender?.estado === "ok") datos.push(`${vender.valor} ${vender.detalle ?? ""}`.trim());
-  // La regla del día cerrado, sólo en un mostrador (reglas-a-la-vista.ts).
-  datos.push(reglaALaVista("vender", mostrador));
+  // La regla del día cerrado, sólo en un mostrador y sólo con el día cerrado (reglas-a-la-vista.ts).
+  datos.push(reglaDeVender(mostrador, diaCerrado));
   return <LineaDeEstado datos={datos} className="mb-4" />;
 }
 

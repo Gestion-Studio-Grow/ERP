@@ -31,6 +31,7 @@ export default function UsuariosRenglon({
   users,
   roles,
   esMostrador,
+  stockDelEncargado = true,
   banner,
   fichas,
   matriz,
@@ -38,6 +39,8 @@ export default function UsuariosRenglon({
   users: Usuario[];
   roles: OpcionDeRol[];
   esMostrador: boolean;
+  /** ¿El Mostrador abre Stock, Recibir y Mermas? Sólo en un mostrador del piloto (permisos-core.ts). */
+  stockDelEncargado?: boolean;
   banner?: { text: string; ok: boolean };
   fichas: readonly { id: string; nombre: string; usuarioId: string | null }[];
   /** «Qué puede hacer cada persona» (MatrizDePermisos), ya armada por la página; `null` sin `users:manage`. */
@@ -46,7 +49,7 @@ export default function UsuariosRenglon({
   const activos = users.filter((u) => u.active);
   const bajas = users.length - activos.length;
   const nunca = activos.filter((u) => !u.lastLoginAt).length;
-  const tabla = tablaDePermisos(esMostrador);
+  const tabla = tablaDePermisos(esMostrador, { stockDelEncargado });
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
@@ -168,7 +171,7 @@ export default function UsuariosRenglon({
                       <input type="radio" name="role" value={r.valor} required defaultChecked={r.valor === "RECEPTION"} className="mt-0.5 size-5 shrink-0 accent-accent" />
                       <span className="min-w-0">
                         <span className="block font-medium text-strong">{etiquetaDeRol(r.valor, esMostrador)}</span>
-                        <span className="block text-[13px] text-muted first-letter:uppercase">{resumenDelRol(r.valor, esMostrador)}</span>
+                        <span className="block text-[13px] text-muted first-letter:uppercase">{resumenDelRol(r.valor, esMostrador, { stockDelEncargado })}</span>
                       </span>
                     </label>
                   ))}

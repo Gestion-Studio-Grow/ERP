@@ -201,8 +201,8 @@ export function mensajeVentaEnDiaCerrado(
   const abierto = nextDayKey(cerradoHasta);
   const salida =
     contexto === "alta"
-      ? `Destildá «Cobrado» para dejar la venta registrada y marcala cobrada el ${formatDayLabel(abierto)}, ` +
-        `cuando la caja vuelva a estar abierta.`
+      ? `Registrala sin cobrar (con «Registrar sin cobrar» o destildando «Cobrado») y marcala cobrada el ` +
+        `${formatDayLabel(abierto)}, cuando la caja vuelva a estar abierta.`
       : contexto === "caja-con-lector"
         ? `Esta caja vuelve a cobrar el ${formatDayLabel(abierto)}. Si hay que vender igual, cargá la venta en ` +
           `Vender sin tildar «Cobrado» y marcala cobrada el ${formatDayLabel(abierto)}.`
