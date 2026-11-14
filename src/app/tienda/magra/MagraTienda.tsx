@@ -833,11 +833,11 @@ function Vidriera({
                     </label>
                     <label className="mg-campo">
                       <span>WhatsApp *</span>
-                      <input name="customerPhone" required autoComplete="tel" inputMode="tel" placeholder="11 …" />
+                      <input type="tel" name="customerPhone" required autoComplete="tel" inputMode="tel" maxLength={30} placeholder="11 2345 6789" />
                     </label>
                     <label className="mg-campo">
                       <span>Nota (opcional)</span>
-                      <input name="notes" placeholder={PALABRAS.notaPlaceholder} />
+                      <input name="notes" maxLength={300} placeholder={PALABRAS.notaPlaceholder} />
                     </label>
                     <div className="mg-campo">
                       <label htmlFor="mg-cupon">Cupón (opcional)</label>

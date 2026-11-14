@@ -47,7 +47,7 @@ import { VentaAnuladaError } from "@/lib/invoice-core";
 import { getFiscalProfile, isInvoicingEnabled, PerfilFiscalIncompletoError } from "@/lib/fiscal";
 import { buildWhatsAppHref, whatsappCanonico } from "@/lib/whatsapp-cta";
 import { logger } from "@/lib/logger";
-import { normalizarCodigoDeCupon, topeDePrecioAMano, ventaNaceEntregada, CUPON_NO_VALE } from "@/lib/venta-reglas";
+import { normalizarCodigoDeCupon, notaDeLaClientaDelFormulario, topeDePrecioAMano, ventaNaceEntregada, CUPON_NO_VALE } from "@/lib/venta-reglas";
 import type { VentaYaGrabada } from "@/lib/reintento-de-venta";
 import { pedidoDelFormulario, rechazoDelAltaConClave, respuestaAlReintento } from "@/lib/respuesta-al-reintento";
 import { esEstetica } from "@/lib/palabras-del-negocio";
@@ -766,7 +766,8 @@ export async function placeOnlineOrder(
   const notes = notaDelPedido({
     zona: conZonas ? (zonaElegida?.nombre ?? null) : null,
     franja: horario.nota,
-    deLaClienta: String(formData.get("notes") || "").trim().slice(0, 500) || null,
+    // Tope por negocio (300 en Magra, 500 el resto): el `maxLength` de la pantalla no alcanza.
+    deLaClienta: notaDeLaClientaDelFormulario(formData.get("notes"), (await getTenantIdentity()).slug),
   });
 
   // A-1: clave de idempotencia del carrito (la genera el cliente por pedido). Con el doble
