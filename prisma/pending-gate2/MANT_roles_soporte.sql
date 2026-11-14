@@ -41,6 +41,11 @@
 
 BEGIN;
 
+-- Si otra transacción tiene tomada alguna tabla que esto toca (AuditLog, SupportTicket…), no se queda
+-- esperando: mientras espera, las lecturas de la app se encolan detrás. A los 3 s corta, revierte todo
+-- (una sola transacción) y se reintenta en otro momento (ensayo adversarial de la tanda 3, 14/11/2026).
+SET LOCAL lock_timeout = '3s';
+
 -- ── 1. Roles (sin contraseña, sin BYPASSRLS) ─────────────────────────────────
 DO $$
 BEGIN
@@ -411,6 +416,11 @@ BEGIN
      AND NOT EXISTS (SELECT 1 FROM "NegocioProtegido" p JOIN "Tenant" t ON t.id = p."negocioId" WHERE t.slug = 'beauty-spa') THEN
     RAISE EXCEPTION 'MANT_roles_soporte: CH no quedó protegido';
   END IF;
+  -- Sin CH en la base (otra base, o CH con otro slug) no hay nada que proteger y NegocioProtegido queda
+  -- vacío: no aborta (las bases de prueba no tienen CH), pero lo dice. En producción CH tiene que estar.
+  IF NOT EXISTS (SELECT 1 FROM "Tenant" WHERE slug = 'beauty-spa') THEN
+    RAISE WARNING 'MANT_roles_soporte: no hay negocio con slug beauty-spa (CH): NegocioProtegido quedó vacío. En producción, frenar y revisar antes de cargar AGENTE_DATABASE_URL';
+  END IF;
 END $$;
 
 COMMIT;
@@ -438,7 +448,19 @@ COMMIT;
 --   REVOKE ALL ON ALL TABLES IN SCHEMA public FROM gsg_operador, gsg_agente;
 --   REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM gsg_operador, gsg_agente;
 --   REVOKE USAGE ON SCHEMA public FROM gsg_operador, gsg_agente;
---   DROP ROLE IF EXISTS gsg_agente;
---   DROP ROLE IF EXISTS gsg_operador;
+--   -- Borrar un rol exige ADMIN sobre él: si los gsg_* existían de antes y los creó otro rol, o tienen
+--   -- permisos en otra base, el DROP falla. No tumba la reversa: el rol queda sin ningún permiso (los
+--   -- REVOKE de arriba) y el aviso dice cuál borrar a mano con el rol que lo creó.
+--   DO $$
+--   DECLARE r TEXT;
+--   BEGIN
+--     FOREACH r IN ARRAY ARRAY['gsg_agente', 'gsg_operador'] LOOP
+--       BEGIN
+--         EXECUTE format('DROP ROLE IF EXISTS %I', r);
+--       EXCEPTION WHEN insufficient_privilege OR dependent_objects_still_exist THEN
+--         RAISE WARNING 'Reversa MANT: no se borró el rol % (%); quedó sin permisos en esta base', r, SQLERRM;
+--       END;
+--     END LOOP;
+--   END $$;
 -- COMMIT;
 -- ============================================================================

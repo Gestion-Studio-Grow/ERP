@@ -2,10 +2,13 @@
 // SEG-021 · Endurecimiento de las funciones trigger de contabilidad (base efímera con RLS).
 // ============================================================================
 //
-// `prisma/pending-gate2/SEG021_contabilidad_funciones.sql` (preparada, sin aplicar) re-crea las 4
-// funciones SECURITY DEFINER de la ola 1 con las lecturas acotadas al negocio de la fila y al
-// negocio vigente, y les saca EXECUTE a PUBLIC (mínimo privilegio). Este archivo:
-//   1. documenta el estado de hoy (sin el SQL): `app_rls` tiene EXECUTE en las 4;
+// `prisma/migrations/20261114120000_seg021_contabilidad_funciones` re-crea las 4 funciones
+// SECURITY DEFINER de la ola 1 con las lecturas acotadas al negocio de la fila y al negocio
+// vigente, y les saca EXECUTE a PUBLIC (mínimo privilegio). La base efímera ya la trae aplicada
+// (`migrate deploy`). Este archivo:
+//   0. comprueba que `migrate deploy` la dejó aplicada (app_rls sin EXECUTE);
+//   1. corre la REVERSA del pie (funciones de la ola 1 + GRANT a PUBLIC) y documenta el estado
+//      anterior: `app_rls` tiene EXECUTE en las 4;
 //   2. aplica el SQL como el dueño (leído del archivo, dos veces: es idempotente) y comprueba que
 //      `app_rls` ya no tiene EXECUTE, que los controles siguen disparando para `app_rls` (el gestor
 //      de triggers no exige EXECUTE al que escribe), que una referencia a otro negocio termina en
@@ -22,7 +25,22 @@ import { apuntarLaAppA, baseEfimeraDelArchivo, prismaComoDuenio, ROL_APP, type B
 import type { LineaAsiento } from "./contabilidad/asiento";
 
 const laBase = baseEfimeraDelArchivo();
-const SQL = readFileSync(path.join(process.cwd(), "prisma/pending-gate2/SEG021_contabilidad_funciones.sql"), "utf8");
+const SQL = readFileSync(path.join(process.cwd(), "prisma/migrations/20261114120000_seg021_contabilidad_funciones/migration.sql"), "utf8");
+const OLA1 = readFileSync(path.join(process.cwd(), "prisma/migrations/20261104122000_contabilidad_ola1/migration.sql"), "utf8");
+
+/**
+ * La reversa del pie de SEG021: los 4 `CREATE OR REPLACE FUNCTION contabilidad_*` de la ola 1 (no
+ * los CREATE TRIGGER), su bloque DO de dueño y los GRANT EXECUTE a PUBLIC del pie, en una transacción.
+ */
+function reversaSeg021(): string {
+  const funciones = OLA1.match(/^CREATE OR REPLACE FUNCTION contabilidad_[\s\S]*?^END \$\$;/gm) ?? [];
+  const duenio = OLA1.match(/^DO \$\$\nBEGIN\n {2}IF EXISTS \(SELECT 1 FROM pg_roles WHERE rolname = 'neondb_owner'\) THEN\n {4}ALTER FUNCTION contabilidad_[\s\S]*?^END \$\$;/m)?.[0];
+  const grants = (SQL.slice(SQL.indexOf("-- REVERSA")).match(/^--\s+GRANT EXECUTE ON FUNCTION contabilidad_\w+\(\) TO PUBLIC;$/gm) ?? []).map((l) => l.replace(/^--\s+/, ""));
+  assert.equal(funciones.length, 4, "la reversa necesita las 4 funciones de la ola 1");
+  assert.ok(duenio, "la reversa necesita el bloque de dueño de la ola 1");
+  assert.equal(grants.length, 4, "la reversa necesita los 4 GRANT del pie de SEG021");
+  return ["BEGIN;", ...funciones, duenio, ...grants, "COMMIT;"].join("\n");
+}
 const FUNCIONES = [
   "contabilidad_controlar_cuadre",
   "contabilidad_asiento_inmutable",
@@ -108,10 +126,10 @@ async function privilegios(base: BaseEfimera): Promise<Record<string, boolean>> 
   }
 }
 
-async function aplicarSql(base: BaseEfimera): Promise<void> {
+async function aplicarSql(base: BaseEfimera, sql: string = SQL): Promise<void> {
   const c = await conectar(base.urlDuenio);
   try {
-    await c.query(SQL);
+    await c.query(sql);
   } finally {
     await c.end();
   }
@@ -124,10 +142,17 @@ function lineaDeAEn(base: BaseEfimera, e: Escenario, asientoId: string, id: stri
   );
 }
 
-test("SEG-021 · antes del SQL: app_rls tiene EXECUTE en las 4 funciones (estado de hoy)", async (t) => {
+test("SEG-021 · migrate deploy la deja aplicada: app_rls sin EXECUTE desde el arranque", async (t) => {
+  const base = await laBase(t);
+  if (!base) return;
+  assert.deepEqual(await privilegios(base), Object.fromEntries(FUNCIONES.map((f) => [f, false])));
+});
+
+test("SEG-021 · después de la reversa del pie: app_rls tiene EXECUTE en las 4 funciones (estado de la ola 1)", async (t) => {
   const base = await laBase(t);
   if (!base) return;
   const e = await preparar(base);
+  await aplicarSql(base, reversaSeg021());
   assert.deepEqual(await privilegios(base), Object.fromEntries(FUNCIONES.map((f) => [f, true])));
   // Línea de base del caso de FK que compara el paso 2.
   const err = await lineaDeAEn(base, e, e.bConfirmado, "seg021_pre");

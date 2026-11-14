@@ -1,6 +1,9 @@
 -- ============================================================================
 -- SEG021_contabilidad_funciones — endurecimiento de las funciones trigger de contabilidad
--- PREPARADA, NO APLICADA · Gate 2 (toca Neon prod → decisión del dueño) · ADR-018
+-- Gate 2 APROBADO por el dueño («Aplicar con la tanda, con copia antes», tanda 3 del 14/11/2026) · ADR-018
+-- Antes era prisma/pending-gate2/SEG021_contabilidad_funciones.sql. La aplica el build de producción
+-- (`prisma migrate deploy` con MIGRATE_DATABASE_URL, declarada en prisma/lote-deploy.txt).
+-- Ensayo: docs/runbooks/ENSAYO-NEON-TANDA3-2026-11-14.md.
 -- ============================================================================
 --
 -- QUÉ: re-crea las 4 funciones trigger de `20261104122000_contabilidad_ola1` con la MISMA lógica y
