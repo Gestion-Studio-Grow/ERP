@@ -25,6 +25,8 @@ import ReportesMostrador from "./ReportesMostrador";
 import { ContraAnterior } from "./ContraAnterior";
 import { GraficoTira, NOMBRE_UNIDAD } from "./GraficoTira";
 import { armarTira } from "./tira-core";
+import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
+import { muestraReporteDelRubro } from "@/lib/carniceria/reporte-rubro";
 
 export const dynamic = "force-dynamic";
 
@@ -103,7 +105,12 @@ export default async function ReportesPage({
   // exactamente la pantalla de siempre.
   const negocioDelReporte = await getNegocioApps(guardia.role);
   const { esMostrador } = negocioDelReporte;
-  if (esMostrador) return <ReportesMostrador periodo={periodo} hoy={hoy} role={guardia.role} />;
+  if (esMostrador) {
+    // Magra T7: el rubro que vende perecederos (carnicería) suma el link a su reporte propio.
+    // Cualquier otro negocio no lo ve (muestraReporteDelRubro, con su test de no-cambio).
+    const reporteDelRubro = muestraReporteDelRubro((await getCurrentTenantRubro()).rubro?.id);
+    return <ReportesMostrador periodo={periodo} hoy={hoy} role={guardia.role} reporteDelRubro={reporteDelRubro} />;
+  }
   // Una productora cobra proyectos, no turnos: lo de abajo le daría $0. Su reporte es la rentabilidad por proyecto.
   if (appDelPanelCerrado(negocioDelReporte)?.id === "proyectos") return <RentabilidadProyectos />;
 

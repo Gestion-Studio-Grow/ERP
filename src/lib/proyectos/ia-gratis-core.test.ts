@@ -22,8 +22,10 @@ test("el cupo agotado se distingue de una clave mala y de otros errores", () => 
   assert.equal(errorDeGratis(200, { success: true }), null);
   assert.equal(errorDeGratis(429, null), CUPO_AGOTADO);
   assert.equal(errorDeGratis(400, { success: false, errors: [{ code: 4006 }] }), CUPO_AGOTADO);
-  assert.match(errorDeGratis(403, null)!, /CLOUDFLARE_AI_TOKEN/);
-  assert.match(errorDeGratis(404, null)!, /CLOUDFLARE_ACCOUNT_ID/);
+  // Clave mala: mensaje para la persona, sin nombres de variables del servidor (QA MIA #5); el detalle va al log.
+  assert.match(errorDeGratis(403, null)!, /administra el sistema/);
+  assert.match(errorDeGratis(404, null)!, /administra el sistema/);
+  assert.doesNotMatch(errorDeGratis(403, null)!, /CLOUDFLARE|ANTHROPIC|_TOKEN|_KEY/);
   assert.match(errorDeGratis(500, null)!, /Probá de nuevo/);
   assert.match(errorDeGratis(200, { success: false })!, /Probá de nuevo/);
 });

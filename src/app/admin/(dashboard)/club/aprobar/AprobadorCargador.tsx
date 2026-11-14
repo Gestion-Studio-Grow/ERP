@@ -6,6 +6,7 @@
 import dynamic from "next/dynamic";
 import { Esqueleto } from "@/components/ui/Esqueleto";
 import { leerFotoDelClub } from "../estado-actions";
+import { codigoParaAprobar } from "../firma-del-duenio-actions";
 
 function Cargando() {
   return (
@@ -20,5 +21,5 @@ const AprobadorDelDuenio = dynamic(() => import("./AprobadorDelDuenio"), { ssr: 
 
 export default function AprobadorCargador({ negocio, usuario, modo }: { negocio: string; usuario: string; modo: "demo" | "real" }) {
   // En el real, los dueños (y sus PIN) salen de la jornada guardada en la base (BP-3): la misma lectura del club.
-  return <AprobadorDelDuenio negocio={negocio} usuario={usuario} modo={modo} leerFoto={modo === "real" ? leerFotoDelClub : undefined} />;
+  return <AprobadorDelDuenio negocio={negocio} usuario={usuario} modo={modo} leerFoto={modo === "real" ? leerFotoDelClub : undefined} pedirCodigo={modo === "real" ? codigoParaAprobar : undefined} />;
 }

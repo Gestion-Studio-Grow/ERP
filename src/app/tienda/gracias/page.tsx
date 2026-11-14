@@ -18,6 +18,9 @@ import GraciasMagra from "../magra/GraciasMagra";
 import GraciasAdosmanos from "../adosmanos/GraciasAdosmanos";
 import { marcaDeLaVidriera, usaVidrieraNueva } from "../vidriera/marcas";
 import { textoDeMediosDePago } from "../reglas-tienda";
+import { getCurrentTenantId } from "@/lib/tenant";
+import { pagoDeLaTiendaParaGracias } from "@/lib/cobros/pago-de-la-tienda.server";
+import PagarConMercadoPago from "@/components/vidriera/PagarConMercadoPago";
 
 export const dynamic = "force-dynamic";
 
@@ -26,21 +29,31 @@ const leerTienda = cache(getStorefront);
 
 // Título POR TENANT (no el "Panel de gestión" del layout raíz, que el CLIENTE veía en la pestaña
 // de su propia página de gracias). Sale del nombre del storefront, igual que /tienda.
+// referrer no-referrer: la URL lleva el token del pago (`&t=`) y no tiene que salir en el Referer
+// hacia Mercado Pago ni a ningún otro sitio (pedido de ORQ, deuda de la certificación T6a).
 export async function generateMetadata(): Promise<Metadata> {
   try {
     const { name } = await leerTienda();
-    return { title: `Pedido recibido · ${name}`, generator: "Gestión Studio Grow" };
+    return { title: `Pedido recibido · ${name}`, generator: "Gestión Studio Grow", referrer: "no-referrer" };
   } catch {
-    return { title: "Pedido recibido", generator: "Gestión Studio Grow" };
+    return { title: "Pedido recibido", generator: "Gestión Studio Grow", referrer: "no-referrer" };
   }
+}
+
+// «Pagar ahora con Mercado Pago» (Magra T6a): sólo con Mercado Pago disponible para el negocio y el
+// token del pedido en la dirección; si no, `null` y la confirmación queda como siempre.
+async function pagoDeGracias(pedido: string | undefined, t: string | undefined) {
+  if (!pedido || !t) return null;
+  const tenantId = await getCurrentTenantId().catch(() => null);
+  return tenantId ? pagoDeLaTiendaParaGracias(tenantId, pedido, t) : null;
 }
 
 export default async function GraciasPage({
   searchParams,
 }: {
-  searchParams: Promise<{ pedido?: string }>;
+  searchParams: Promise<{ pedido?: string; t?: string }>;
 }) {
-  const [{ pedido }, accent, nuevo, identity] = await Promise.all([
+  const [{ pedido, t }, accent, nuevo, identity] = await Promise.all([
     searchParams,
     getTenantAccent(),
     disenoNuevo(),
@@ -79,14 +92,24 @@ export default async function GraciasPage({
   // MAGRA: la confirmación con su marca (carbón y oro), los pasos de la casa (se pesa al envasar) y el
   // WhatsApp del local sólo si es de verdad (resolveMagraLocal oculta el relleno «0000 0000»).
   if (front === "magra") {
-    const tienda = await leerTienda();
+    const [tienda, mp] = await Promise.all([leerTienda(), pagoDeGracias(pedido, t)]);
     const medios = textoDeMediosDePago(tienda.copy?.paymentMethods ?? []);
     return (
       <GraciasMagra
         tenantKey={identity.slug ?? "magra"}
         pedido={pedido && /^\d{1,9}$/.test(pedido) ? pedido : null}
         whatsapp={resolveMagraLocal(tienda.branding).whatsapp}
-        pago={medios ? `Te lo llevamos o lo retirás. Pagás al recibir: ${medios.charAt(0).toLowerCase()}${medios.slice(1)}` : "Te lo llevamos o lo retirás. El medio de pago te lo confirmamos antes de cobrar."}
+        pago={
+          // Con el botón de Mercado Pago a la vista, no se dice sólo «pagás al recibir» (certificación T6a).
+          mp
+            ? `Te lo llevamos o lo retirás. Podés pagar ahora con Mercado Pago${medios ? ` o al recibir: ${medios.charAt(0).toLowerCase()}${medios.slice(1)}` : " o coordinar el pago con el local."}`
+            : medios
+              ? `Te lo llevamos o lo retirás. Pagás al recibir: ${medios.charAt(0).toLowerCase()}${medios.slice(1)}`
+              : "Te lo llevamos o lo retirás. El medio de pago te lo confirmamos antes de cobrar."
+        }
+        pagar={
+          mp && <PagarConMercadoPago pedido={mp.pedido} token={mp.token} prueba={mp.prueba} claseBoton="mg-btn mg-btn-oro" claseNota="mg-gr-nota" />
+        }
       />
     );
   }
@@ -157,7 +180,7 @@ export default async function GraciasPage({
   }
 
   // Cualquier otra tienda: la confirmación compartida (ronda 2), con el acento del negocio y sin emoji.
-  const { name } = await leerTienda();
+  const [{ name }, mp] = await Promise.all([leerTienda(), pagoDeGracias(pedido, t)]);
   return (
     <Gracias
       marca={name}
@@ -168,6 +191,7 @@ export default async function GraciasPage({
       pasos={[]}
       canal={null}
       volver={{ href: "/tienda", texto: "Volver a la tienda" }}
+      extra={mp && <PagarConMercadoPago pedido={mp.pedido} token={mp.token} prueba={mp.prueba} claseBoton="gsg-g-boton gsg-g-solido" claseNota="gsg-g-nota" />}
       piel={{ fondo: "#f4efe6", hoja: "#ffffff", tinta: "#2a211c", tenue: "#5f544b", linea: "#e3d9c8", acento: accent, sobreAcento: "#ffffff", letraTitulo: "system-ui, sans-serif", letraCuerpo: "system-ui, sans-serif", radio: 16 }}
     />
   );

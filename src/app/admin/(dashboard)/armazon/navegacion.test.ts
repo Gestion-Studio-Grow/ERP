@@ -78,3 +78,19 @@ test("la cajera de MAGRA aterriza en Vender y no ve Números ni Configuración",
   assert.ok(!ids.includes("numeros"));
   assert.ok(!ids.includes("administracion"));
 });
+
+test("productora (QA MIA #6): su primer espacio se llama «Gestión», no «Recepción», y la Caja tiene el suyo", () => {
+  const menu = [
+    { href: "/admin/proyectos/inicio", label: "Inicio", icon: "dashboard" as const },
+    { href: "/admin/proyectos", label: "Proyectos", icon: "pedidos" as const },
+    { href: "/admin/caja", label: "Caja", icon: "caja" as const },
+  ];
+  const n = armarNavegacion({ visibles: [], menu, modoApps: false, esMostrador: false, role: "OWNER" });
+  const primero = n.espacios.find((e) => e.id === "mostrador");
+  assert.equal(primero?.nombre, "Gestión");
+  assert.equal(primero?.rotulo, "Gestión");
+  assert.deepEqual(n.espacios.find((e) => e.id === "caja")?.apps.map((a) => a.ruta), ["/admin/caja"]);
+  // Otro negocio de servicios sin proyectos: sigue «Recepción».
+  const otro = armarNavegacion({ visibles: [], menu: [{ href: "/admin/turnos", label: "Agenda", icon: "agenda" as const }], modoApps: false, esMostrador: false, role: "OWNER" });
+  assert.equal(otro.espacios.find((e) => e.id === "mostrador")?.nombre, "Recepción");
+});

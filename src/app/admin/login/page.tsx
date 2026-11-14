@@ -69,7 +69,8 @@ export default async function LoginPage({
   // del tenant (nunca `--accent` inline: le ganaría al CSS y el tema no fliparía).
   // El color del equipo elegido en /admin/apariencia SIEMPRE gana; si no, el del
   // producto; si tampoco (vertical), el del branding del tenant.
-  const preset = (await getTeamAccentPreset()) ?? identidad?.acento ?? brand.preset;
+  // DEMO GSG (src/lib/marca-demo.ts): el cobre de GSG manda sobre el color que haya elegido el cliente.
+  const preset = brand.demoGsg ? brand.preset : ((await getTeamAccentPreset()) ?? identidad?.acento ?? brand.preset);
   const accentLight = resolveAccent(preset, "light");
   const accentDark = resolveAccent(preset, "dark");
 

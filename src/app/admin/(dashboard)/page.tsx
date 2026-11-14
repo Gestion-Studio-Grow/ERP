@@ -19,6 +19,7 @@ import type { KpisFacturacionBancaria } from "@/lib/bancos-glue";
 import { getFacturacion, type EstadoFiscal } from "@/lib/facturacion-actions";
 import ArcaPill from "./facturacion/bancos/ArcaPill";
 import InicioApps from "./inicio/InicioApps";
+import AvisoDeVencimientos from "./inicio/AvisoDeVencimientos";
 import InicioRenglon from "./inicio/InicioRenglon";
 import AtajosDelAlta from "./turnos/_agenda/AtajosDelAlta";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
@@ -189,6 +190,8 @@ async function RetailHome({
       </div>
 
       {!d.cashOpen && <AvisoCajaCerrada puedeAbrirCaja={canOpenCash} />}
+      {/* Magra T3: lotes vencidos / que vencen hoy / por vencer. Sin Lotes listos, nada. */}
+      <AvisoDeVencimientos />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         {/* Con la caja cerrada no se repite acá: lo dice la banda de arriba, que además

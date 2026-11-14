@@ -206,6 +206,46 @@ export function probarAprobacion(args: {
   return { tipo: "codigo", codigo: codigo(r.pin), monto, aprobo: r.usuario.nombre, intentos: r.intentos, pinViejo };
 }
 
+/** Lo que da el servidor al pedirle el código (`codigoParaAprobar`, firma-del-duenio-actions.ts). */
+export type RespuestaDelCodigo = { ok: true; codigo: string; nombre: string; monto: number } | { ok: false; error: string; esperaS?: number };
+export type PedirCodigo = (pedido: { novedadId: string; pin: string; monto: number; usuarioId?: string }) => Promise<RespuestaDelCodigo>;
+
+export type CodigoDelServidor =
+  | { tipo: "incompleto" | "malo"; mensaje: string }
+  | { tipo: "espera"; segundos: number; mensaje: string }
+  | { tipo: "codigo"; codigo: string; monto: number; aprobo: string; pinViejo: false };
+
+export const SIN_CONEXION_PARA_APROBAR = "Para aprobar hace falta conexión. Probá de nuevo cuando tengas señal.";
+
+/**
+ * SEG-020, la jornada real: el PIN de un dueño lo tiene sólo el servidor, así que el celular no calcula el código: se
+ * lo pide a `codigoParaAprobar` con el PIN y el monto (el servidor verifica y lleva el tope). Sin `duenioId` (el
+ * celular no tiene la jornada), el servidor busca de qué dueño es. Lo incompleto no llama. Sin red: no hay código.
+ */
+export async function pedirCodigoAlServidor(args: {
+  pedido: DatosAprobacion;
+  duenioId: string | null;
+  pin: string;
+  monto: string;
+  pedir: PedirCodigo | null;
+}): Promise<CodigoDelServidor> {
+  const monto = leerMonto(args.monto);
+  if (!(monto > 0) || monto > MONTO_MAXIMO) return { tipo: "incompleto", mensaje: "Poné el monto que aprobás." };
+  const pin = String(args.pin ?? "").trim();
+  if (!pinCompleto(pin, "duenio")) return { tipo: "incompleto", mensaje: textoPinIncompleto("duenio") };
+  if (!args.pedir) return { tipo: "malo", mensaje: SIN_CONEXION_PARA_APROBAR };
+  let r: RespuestaDelCodigo;
+  try {
+    r = await args.pedir({ novedadId: args.pedido.id, pin, monto, ...(args.duenioId ? { usuarioId: args.duenioId } : {}) });
+  } catch {
+    return { tipo: "malo", mensaje: SIN_CONEXION_PARA_APROBAR };
+  }
+  if (!r || typeof r !== "object") return { tipo: "malo", mensaje: SIN_CONEXION_PARA_APROBAR };
+  if (r.ok) return { tipo: "codigo", codigo: r.codigo, monto: r.monto, aprobo: r.nombre, pinViejo: false };
+  if (r.esperaS) return { tipo: "espera", segundos: r.esperaS, mensaje: r.error };
+  return { tipo: "malo", mensaje: r.error };
+}
+
 /** El texto con el código para recepción («Aprobado: Agustina Romero $ 22.100. Código ABC-DEF») y su link. */
 export function enlaceDelCodigo(estado: EstadoClub | null, pedido: DatosAprobacion, codigo: string, monto: number, modo: ModoDelClub): EnlaceWhatsApp {
   const texto = mensajeWhatsApp("aprobado", { cliente: pedido.n, monto: pesos(monto), codigo });

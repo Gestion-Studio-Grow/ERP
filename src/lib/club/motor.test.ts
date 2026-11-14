@@ -105,7 +105,7 @@ const FUNCIONES_PIN_POR_ROL = ["largoPin", "pinValidoPara", "pinAceptadoPara", "
 // Tope de intentos de PIN, uno por compu (SEC-5): lo usan el bloqueo, Configuración, la caja y el descuento.
 const FUNCIONES_TOPE_PIN = ["intentosPin", "esperaPin", "anotarIntentoPin"] as const satisfies readonly Funciones[];
 /** El PIN guardado con hash (21/10/2026). */
-const FUNCIONES_PIN_CON_HASH = ["esPinConHash", "hashPin", "pinCoincide", "largoDelPinGuardado", "pasarPinesAHash", "pinDeEjemplo"] as const satisfies readonly Funciones[];
+const FUNCIONES_PIN_CON_HASH = ["esPinConHash", "hashPin", "pinCoincide", "largoDelPinGuardado", "pasarPinesAHash", "pinDeEjemplo", "esPinEnServidor", "fijarVerificadorDelServidor"] as const satisfies readonly Funciones[];
 /** Reingeniería Break Point · tanda 1A: la seña del nuevo, el hueco donde no entra la duración, cobrar la seña y abrir. */
 const FUNCIONES_REING_BP_1A = ["turnosJugados", "motivoSena", "montoSena", "cuantoEntra", "cobrarSenaYAbrir"] as const satisfies readonly Funciones[];
 /** Reingeniería Break Point · tanda 2B: plata pendiente, bandeja en dos niveles, alertas de caja; H2/H4; lo de 2D. */
@@ -144,6 +144,7 @@ const CONSTANTES = [
   "TOPE_INTENTOS_PIN", "ESPERAS_PIN_S", "VUELTAS_PIN", "DIAS_ADELANTE_MAX", "ALERTAS_POSPONIBLES",
   "PAUSA_FIJO_MAX_DIAS", "MOTIVO_PAUSA_FIJO", "FERIADOS_MAX", "RUBROS_CAJA", "CATEGORIAS_EGRESO",
   "DENOMINACIONES", "CATEGORIAS_EGRESO_CAJA", "MEDIOS_CORREGIBLES", "LARGO_PIN_FIRMA_CAJA", "EVENTO_TURNO_CERRADO",
+  "MARCA_PIN_SERVIDOR",
 ] as const satisfies readonly Exclude<keyof Motor, Funciones>[];
 
 // Comprobación de tipos en los dos sentidos: ninguna función ni constante tipada queda afuera de las listas.

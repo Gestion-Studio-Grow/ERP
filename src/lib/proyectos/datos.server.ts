@@ -5,6 +5,7 @@
 
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@/generated/prisma/client";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability, requireCapabilityFueraDeLaAgenda } from "@/lib/authz";
 import { permisoFueraDeLaAgenda } from "@/lib/capabilities";
@@ -15,11 +16,14 @@ import { getLocation } from "@/lib/settings";
 import { desvioPorRubro, redondear, resultadoReal, totales, ultimaEnviada } from "./core";
 import { costosVigentes, normalizarDiseno } from "./stand";
 import { SIN_COMPROBANTES } from "./rendiciones-core";
+import { cobranzaDe, originalesDeCobros, SELECT_COBRANZA, tiposDeCambio } from "./cobranza.server";
+import { totalesEnPesos } from "./cobranza-core";
+import { aPesos } from "./gestion-core";
 
 export const veLaPlata = (u: SessionUser): boolean => permisoFueraDeLaAgenda(u, "agenda:manage");
 
-export async function configProyectos(tenantId: string) {
-  const c = await prisma.proyectoConfig.findUnique({ where: { tenantId } });
+export async function configProyectos(tenantId: string, db: Prisma.TransactionClient = prisma) {
+  const c = await db.proyectoConfig.findUnique({ where: { tenantId } });
   return {
     margenPct: c?.margenPct ?? 35,
     validezDias: c?.validezDias ?? 15,
@@ -92,18 +96,22 @@ export async function fichaProyecto(id: string) {
     },
   });
   if (!proyecto) return null;
-  const [config, negocio, proveedores] = await Promise.all([
+  const [config, negocio, proveedores, tc] = await Promise.all([
     configProyectos(tenantId),
     datosDelNegocio(tenantId),
     conPlata ? prisma.supplier.findMany({ where: { tenantId, active: true }, orderBy: { name: "asc" }, take: 500, select: { name: true } }) : [],
+    tiposDeCambio(tenantId),
   ]);
   const vigente = proyecto.presupuestos.find((p) => p.estado === "APROBADO") ?? null;
-  const totalesVigente = vigente ? totales(vigente.items, vigente.ivaPct) : null;
-  const totalAprobado = totalesVigente?.total ?? 0;
+  const totalesVigente = vigente ? totalesEnPesos(vigente, tc, config.margenPct) : null;
   const real = resultadoReal(totalesVigente, proyecto.gastos);
-  const rubros = desvioPorRubro(vigente?.items ?? [], proyecto.gastos);
-  const cobrado = redondear(proyecto.pagos.filter((p) => !p.anuladoEl).reduce((s, p) => s + p.monto, 0));
-  return { user, conPlata, proyecto, config, negocio, totalAprobado, cobrado, saldo: redondear(totalAprobado - cobrado), totalesVigente, real, rubros, proveedores: proveedores.map((s) => s.name) };
+  // El costo presupuestado por rubro, en pesos: así se compara contra los gastos.
+  const rubros = desvioPorRubro(vigente?.items.map((i) => ({ ...i, costo: aPesos(i.costo, i.moneda, tc) })) ?? [], proyecto.gastos);
+  // Cobrado y saldo: la fuente única (cobranza-core), igual que la caja «Cobros» y las listas.
+  const pagosVivos = proyecto.pagos.filter((x) => !x.anuladoEl);
+  const delProyecto = { moneda: proyecto.moneda, presupuestos: vigente ? [vigente] : [], pagos: pagosVivos };
+  const { total: totalAprobado, cobrado, saldo } = cobranzaDe(delProyecto, tc, config.margenPct, await originalesDeCobros(tenantId, [delProyecto]));
+  return { user, conPlata, proyecto, config, negocio, totalAprobado, cobrado, saldo, totalesVigente, real, rubros, proveedores: proveedores.map((s) => s.name) };
 }
 
 /** Una pieza con sus versiones. Las imágenes pesan: sólo baja la del borrador, la última enviada y la que se pidió ver. */
@@ -147,6 +155,7 @@ export async function clientesDelNegocio() {
 export async function reporteProyectos() {
   await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
+  const [config, tc] = await Promise.all([configProyectos(tenantId), tiposDeCambio(tenantId)]);
   const proyectos = await prisma.proyecto.findMany({
     where: { tenantId },
     orderBy: { numero: "desc" },
@@ -158,16 +167,17 @@ export async function reporteProyectos() {
       servicio: true,
       etapa: true,
       client: { select: { name: true } },
-      presupuestos: { where: { estado: "APROBADO" }, select: { ivaPct: true, items: { select: { cantidad: true, costo: true, precio: true } } } },
-      pagos: { where: { anuladoEl: null }, select: { monto: true } },
+      ...SELECT_COBRANZA,
       gastos: { where: { anuladoEl: null }, select: { rubro: true, neto: true, iva: true, pagadoEl: true, anuladoEl: true } },
     },
   });
+  const originales = await originalesDeCobros(tenantId, proyectos);
   return proyectos.map((p) => {
     const a = p.presupuestos[0];
-    const t = a ? totales(a.items, a.ivaPct) : null;
-    const cobrado = redondear(p.pagos.reduce((s, x) => s + x.monto, 0));
-    return { ...p, t, cobrado, saldo: redondear((t?.total ?? 0) - cobrado), real: resultadoReal(t, p.gastos) };
+    const t = a ? totalesEnPesos(a, tc, config.margenPct) : null;
+    // `porCobrar` sale de la fuente única: la pantalla sólo lo suma, no lo recalcula del saldo.
+    const { cobrado, saldo, porCobrar } = cobranzaDe(p, tc, config.margenPct, originales);
+    return { ...p, t, cobrado, saldo, porCobrar, real: resultadoReal(t, p.gastos) };
   });
 }
 
@@ -203,6 +213,7 @@ export async function proveedoresConGastos() {
 export async function clientesConProyectos(q: string) {
   const user = await requireCapability("clients:read");
   const tenantId = await getCurrentTenantId();
+  const [config, tc] = await Promise.all([configProyectos(tenantId), tiposDeCambio(tenantId)]);
   // Por teléfono o mail según la casilla 5 (helper único): sin `clients:contact`, sólo nombre o últimos 4.
   const clientes = await prisma.client.findMany({
     where: {
@@ -221,23 +232,17 @@ export async function clientesConProyectos(q: string) {
       proyectos: {
         select: {
           etapa: true,
-          presupuestos: { where: { estado: "APROBADO" }, select: { ivaPct: true, items: { select: { cantidad: true, costo: true, precio: true } } } },
-          pagos: { where: { anuladoEl: null }, select: { monto: true } },
+          ...SELECT_COBRANZA,
         },
       },
     },
   });
+  const originales = await originalesDeCobros(tenantId, clientes.flatMap((c) => c.proyectos));
   return clientes.map(({ proyectos, ...c }) => ({
     ...enmascararContacto(c, user),
     total: proyectos.length,
     abiertos: proyectos.filter((p) => p.etapa !== "CIERRE").length,
-    porCobrar: redondear(
-      proyectos.reduce((s, p) => {
-        const a = p.presupuestos[0];
-        if (!a) return s;
-        return s + Math.max(0, totales(a.items, a.ivaPct).total - p.pagos.reduce((x, y) => x + y.monto, 0));
-      }, 0),
-    ),
+    porCobrar: redondear(proyectos.reduce((s, p) => s + cobranzaDe(p, tc, config.margenPct, originales).porCobrar, 0)),
   }));
 }
 
@@ -245,6 +250,7 @@ export async function clientesConProyectos(q: string) {
 export async function proyectosDelCliente(clientId: string) {
   await requireCapability("agenda:read");
   const tenantId = await getCurrentTenantId();
+  const [config, tc] = await Promise.all([configProyectos(tenantId), tiposDeCambio(tenantId)]);
   const proyectos = await prisma.proyecto.findMany({
     where: { tenantId, clientId },
     orderBy: { numero: "desc" },
@@ -255,15 +261,15 @@ export async function proyectosDelCliente(clientId: string) {
       nombre: true,
       servicio: true,
       etapa: true,
-      presupuestos: { where: { estado: "APROBADO" }, select: { ivaPct: true, items: { select: { cantidad: true, costo: true, precio: true } } } },
-      pagos: { where: { anuladoEl: null }, select: { monto: true } },
+      ...SELECT_COBRANZA,
     },
   });
+  const originales = await originalesDeCobros(tenantId, proyectos);
   return proyectos.map((p) => {
     const a = p.presupuestos[0];
-    const t = a ? totales(a.items, a.ivaPct) : null;
-    const cobrado = redondear(p.pagos.reduce((s, x) => s + x.monto, 0));
-    return { ...p, t, cobrado, saldo: redondear((t?.total ?? 0) - cobrado) };
+    const t = a ? totalesEnPesos(a, tc, config.margenPct) : null;
+    const { cobrado, saldo, porCobrar } = cobranzaDe(p, tc, config.margenPct, originales);
+    return { ...p, t, cobrado, saldo, porCobrar };
   });
 }
 

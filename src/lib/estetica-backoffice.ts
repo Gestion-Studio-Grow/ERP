@@ -14,6 +14,8 @@
 //
 // — Elaborado por GSG
 
+import { presentaComoDemoGsg } from "./marca-demo";
+
 export type EsteticaBackoffice = "breakpoint" | "beauty-spa" | "magra" | "matiasconsoli" | "mia-producciones";
 
 const ESTETICA_POR_NEGOCIO: Readonly<Record<string, EsteticaBackoffice>> = {
@@ -26,5 +28,7 @@ const ESTETICA_POR_NEGOCIO: Readonly<Record<string, EsteticaBackoffice>> = {
 /** La estética del backoffice de este negocio, o `null` (la del ERP). PURA. */
 export function esteticaBackoffice(slug: string | null | undefined): EsteticaBackoffice | null {
   if (!slug) return null;
+  // DEMO GSG (marca-demo.ts): el panel con la piel del ERP, no la del cliente.
+  if (presentaComoDemoGsg(slug)) return null;
   return ESTETICA_POR_NEGOCIO[slug] ?? (slug.startsWith("magra-") ? "magra" : null);
 }

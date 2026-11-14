@@ -42,6 +42,10 @@ import {
   textoDeMediosDePago,
   type ProductoParaBolsa,
 } from "./reglas-tienda";
+import { before as antesDeTodo } from "node:test";
+import { marcaPropiaEnPruebas } from "@/lib/marca-demo";
+// Magra se muestra como demo GSG (src/lib/marca-demo.ts); acá se sigue probando SU marca, la que vuelve al sacar la demo.
+antesDeTodo(() => marcaPropiaEnPruebas(true));
 
 const VACIO: ProductoParaBolsa = {
   id: "p_vacio",

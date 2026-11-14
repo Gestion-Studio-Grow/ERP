@@ -9,6 +9,7 @@ import { marcarCuota } from "@/lib/proyectos/acciones-ficha";
 import { cuentasParaMarcar, editarExtrasLiquidacion, generarLiquidaciones, guardarDatoCuota, importarExtracto, marcarCuotaEmpresa, marcarLiquidacionVista } from "@/lib/proyectos/acciones-empresa";
 import { MEDIOS, MEDIO_LABEL } from "@/lib/proyectos/core";
 import { campo } from "../_vista";
+import { useToastSiHay } from "../../ToastProvider";
 
 type Salida = { ok: boolean; error?: string; [k: string]: unknown } | void;
 type Accion = (fd: FormData) => Promise<Salida>;
@@ -104,6 +105,7 @@ export function MarcarCuota({ id, deEmpresa, etiqueta }: { id: string; deEmpresa
   const { error, ocupado, correr } = useAccion();
   const [abierto, setAbierto] = useState(false);
   const router = useRouter();
+  const toast = useToastSiHay();
   if (!abierto) {
     return (
       <button type="button" onClick={() => setAbierto(true)} className={cn(buttonClasses("solid", "md"), "min-h-11 whitespace-nowrap")}>{etiqueta}</button>
@@ -114,7 +116,9 @@ export function MarcarCuota({ id, deEmpresa, etiqueta }: { id: string; deEmpresa
       className="grid min-w-44 gap-1"
       action={(fd) => {
         fd.set("id", id);
-        correr(deEmpresa ? marcarCuotaEmpresa : (marcarCuota as Accion), fd, () => {
+        correr(deEmpresa ? marcarCuotaEmpresa : (marcarCuota as Accion), fd, (r) => {
+          // El renglón pasa a «Cobrada»/«Pagada» al refrescar: el aviso flotante es lo que confirma que salió.
+          if (r && typeof r.listo === "string") toast?.showSuccess(r.listo);
           setAbierto(false);
           router.refresh();
         });

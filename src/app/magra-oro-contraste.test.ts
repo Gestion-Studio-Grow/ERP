@@ -17,6 +17,10 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { ACCENT_PRESETS, brandForSlug } from "@/lib/branding";
 import { componer, leerColor, oklchASrgb, razonContraste, type Rgb } from "@/design/color";
+import { before as antesDeTodo } from "node:test";
+import { marcaPropiaEnPruebas } from "@/lib/marca-demo";
+// Magra se muestra como demo GSG (src/lib/marca-demo.ts); acá se sigue probando SU marca, la que vuelve al sacar la demo.
+antesDeTodo(() => marcaPropiaEnPruebas(true));
 
 const CSS = readFileSync(fileURLToPath(new URL("./globals.css", import.meta.url)), "utf8");
 

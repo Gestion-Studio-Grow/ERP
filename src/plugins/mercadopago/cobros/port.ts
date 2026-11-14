@@ -31,6 +31,11 @@ export interface SolicitudCobro {
   cantidad?: number;
   /** Email del pagador (pre-carga el checkout; opcional). */
   emailPagador?: string;
+  /**
+   * Hasta cuándo se puede pagar (opcional). Pasado esto, Mercado Pago no acepta el pago: un link
+   * viejo (otro monto, pedido anulado o vencido) no junta plata que después haya que devolver.
+   */
+  venceEl?: Date;
 }
 
 /** Link de pago generado: lo que se le manda al cliente. */
