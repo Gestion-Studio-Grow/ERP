@@ -113,3 +113,12 @@ test("O-3: pago dividido Efectivo $25.000 (asentado $20.000) + MP $16.608 → «
   const sinEfectivo = { ...v, pagos: [{ medio: "MERCADOPAGO", monto: 20000 }, { medio: "TRANSFERENCIA", monto: 16608 }] };
   assert.equal(vueltoDelTicket(sinEfectivo, 50000), null);
 });
+
+test("Ticket: «Mercado Pago» se escribe como la marca; los medios comunes van en minúscula", () => {
+  const renglones = (medio: string) => renglonesDelTicket({ ...venta({}), medio }, { negocio: "MAGRA" }).map((r) => r.texto);
+  assert.ok(renglones("MERCADOPAGO").includes("Pagó con Mercado Pago"), renglones("MERCADOPAGO").join(" | "));
+  assert.ok(renglones("EFECTIVO").includes("Pagó con efectivo"));
+  assert.ok(renglones("TRANSFERENCIA").includes("Pagó con transferencia"));
+  assert.ok(renglones("DEBITO").includes("Pagó con tarjeta de débito"));
+  assert.doesNotMatch(textoDelTicket({ ...venta({}), medio: "MERCADOPAGO" }, { negocio: "MAGRA" }), /mercado pago/);
+});

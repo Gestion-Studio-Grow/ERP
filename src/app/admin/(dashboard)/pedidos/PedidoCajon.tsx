@@ -7,8 +7,9 @@
 // Se abre tocando el renglón (o Enter con el foco en él) y la lista queda a la vista y en su
 // lugar. Arriba, quién y para cuándo; en el medio, lo que lleva con la cuenta a la vista
 // (`1,280 kg × $28.600 = $36.608`: el cliente del otro lado del mostrador la puede controlar); al
-// pie, la tecla del paso que sigue, al alcance del pulgar. Lo demás (pesar y ajustar, link de
-// pago, anular) va en «Más acciones», plegado.
+// pie, la tecla del paso que sigue, al alcance del pulgar. Lo demás (link de pago, anular) va en
+// «Más acciones», plegado. «Pesar y ajustar» se busca donde están los kilos: su tecla queda a la
+// vista al lado de «Lo que lleva» y abre su sección (que sigue viviendo en «Más acciones»).
 //
 // Las acciones son las de siempre: los formularios viejos de pesar y de link de pago (tal cual) y
 // los nuevos de cobro y anulación, que mandan los mismos campos (formularios-del-pedido.ts).
@@ -33,11 +34,31 @@ import { guardarArmado } from "./[code]/armar/acciones";
 import AnularDelPedido from "./AnularDelPedido";
 import { rechazoDeAccion, sinRespuestaAlAvanzar } from "./avanzar-pedido";
 import { esRedirectDeNext } from "./formularios-del-pedido";
-import { quedoElPedido, rielDelPedido, teclaDelPedido, type PedidoDelTablero } from "./pedidos-core";
+import { quedoElPedido, rielDelPedido, teclaDelPedido, textoDeAjustar, type PedidoDelTablero } from "./pedidos-core";
 import type { ExtraDelPedido } from "./tablero.server";
 import { useVocabulario } from "../VocabularioDelNegocio";
 
 export type SeccionDelCajon = "cobro" | "ajustar" | "link" | "anular" | null;
+
+/**
+ * Abre «Más acciones», baja hasta la sección y le da el foco a su primer campo o botón. En «ajustar»
+ * abre también el formulario del peso y deja el foco en el primer kilo: quien toca «Pesar y
+ * ajustar» viene a escribir el peso, no a encontrar otro botón con el mismo nombre.
+ */
+function irASeccionDeMas(mas: HTMLDetailsElement | null, seccion: string): void {
+  if (!mas) return;
+  mas.open = true;
+  const destino = mas.querySelector<HTMLElement>(`[data-seccion="${seccion}"]`);
+  destino?.scrollIntoView({ block: "start" });
+  const plegado = seccion === "ajustar" ? destino?.querySelector<HTMLButtonElement>('button[aria-expanded="false"]') : null;
+  if (plegado) {
+    plegado.click();
+    // El formulario se arma con el clic: el foco va al primer peso en el cuadro siguiente.
+    requestAnimationFrame(() => destino?.querySelector<HTMLElement>('input:not([type="hidden"])')?.focus());
+    return;
+  }
+  destino?.querySelector<HTMLElement>("button, input")?.focus();
+}
 
 /** El riel con las palabras de cada paso (en el cajón hay lugar para decirlas). */
 function RielConPalabras({ pasos, hechos }: { pasos: readonly string[]; hechos: number }) {
@@ -131,10 +152,7 @@ export default function PedidoCajon({
         cobroRef.current?.querySelector<HTMLInputElement>("input")?.focus();
         return;
       }
-      if (masRef.current) masRef.current.open = true;
-      const destino = masRef.current?.querySelector<HTMLElement>(`[data-seccion="${seccion}"]`);
-      destino?.scrollIntoView({ block: "start" });
-      destino?.querySelector<HTMLElement>("button, input")?.focus();
+      irASeccionDeMas(masRef.current, seccion);
     }, 60);
     return () => clearTimeout(t);
   }, [pedido, seccion]);
@@ -275,9 +293,16 @@ export default function PedidoCajon({
         </section>
 
         <section aria-labelledby="cajon-lleva">
-          <Rotulo as="h3" className="mb-1">
-            <span id="cajon-lleva">Lo que lleva</span>
-          </Rotulo>
+          <div className="mb-1 flex items-center justify-between gap-3">
+            <Rotulo as="h3">
+              <span id="cajon-lleva">Lo que lleva</span>
+            </Rotulo>
+            {puedeOperar && extra?.ajustar && (
+              <Button type="button" variant="outline" size="sm" onClick={() => irASeccionDeMas(masRef.current, "ajustar")}>
+                {textoDeAjustar(extra.ajustar.items)}
+              </Button>
+            )}
+          </div>
           {pedido.lineas.map((l, i) => (
             <Renglon
               key={i}
@@ -317,7 +342,7 @@ export default function PedidoCajon({
             </summary>
             <div className="flex flex-col gap-5 pt-4">
               {extra?.ajustar && (
-                <section data-seccion="ajustar" aria-label="Pesar y ajustar">
+                <section data-seccion="ajustar" aria-label={textoDeAjustar(extra.ajustar.items)}>
                   <AjustarPedidoForm
                     id={pedido.id}
                     code={pedido.code}

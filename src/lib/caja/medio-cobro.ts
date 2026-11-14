@@ -60,6 +60,15 @@ export function etiquetaDeMedio(medio: string | null | undefined): string {
   return MEDIOS_DE_COBRO.find((m) => m.valor === medio)?.etiqueta ?? "un medio sin identificar";
 }
 
+/**
+ * El medio dentro de una frase («Pagó con efectivo», «Pagó con Mercado Pago»): en minúscula los
+ * nombres comunes, y «Mercado Pago» como se escribe, porque es una marca. PURA.
+ */
+export function medioEnFrase(medio: string | null | undefined): string {
+  const etiqueta = etiquetaDeMedio(medio);
+  return medio === "MERCADOPAGO" ? etiqueta : etiqueta.toLowerCase();
+}
+
 // ── Tarjeta: Débito y Crédito (N2 · M1-C1, decisión D-C01 del dueño) ─────────
 //
 // Con el posnet. D-C01 (28/10/2026): en `PaymentMethod` (el medio del pedido y del cobro) van

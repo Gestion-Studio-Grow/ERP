@@ -70,6 +70,7 @@ import {
   rielDelPedido,
   teclaDelPedido,
   textoDeLaTecla,
+  textoDeAjustar,
   textoDeOtrosPedidos,
   type PedidoCerrado,
   type PedidoDelTablero,
@@ -184,7 +185,7 @@ function TeclaDeFila({
         )}
         {puedeOperar && extra?.ajustar && (
           <button type="button" onClick={() => onAbrir(p.id, "ajustar")}>
-            {extra.ajustar.items.some((i) => i.saleUnit === "WEIGHT") ? "Pesar y ajustar" : "Ajustar el pedido"}
+            {textoDeAjustar(extra.ajustar.items)}
           </button>
         )}
         {puedeOperar && extra?.link && (
@@ -535,7 +536,7 @@ function TarjetaDelPedido({
               )}
               {extra?.ajustar && (
                 <button type="button" onClick={() => onAbrir(p.id, "ajustar")}>
-                  {extra.ajustar.items.some((i) => i.saleUnit === "WEIGHT") ? "Pesar y ajustar" : "Ajustar el pedido"}
+                  {textoDeAjustar(extra.ajustar.items)}
                 </button>
               )}
               {extra?.link && (

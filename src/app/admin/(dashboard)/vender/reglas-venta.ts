@@ -17,7 +17,7 @@
 import { centavosDe } from "@/lib/dinero/redondeo";
 import { round2 } from "@/lib/round";
 import { leerImporte, formatearCantidad } from "@/lib/pos-peso";
-import { etiquetaDeMedio } from "@/lib/caja/medio-cobro";
+import { etiquetaDeMedio, medioEnFrase } from "@/lib/caja/medio-cobro";
 import { fmtDateTimeAr } from "@/lib/datetime";
 import { fmtMoneyARS } from "@/components/ui/format";
 import { anchoSeguro, documentoImprimible, MEDIDAS, type AnchoDeTicket } from "@/lib/impresion/ticket-css-core";
@@ -695,7 +695,7 @@ export function renglonesDelTicket(
     });
   }
   r.push({ texto: "TOTAL", importe: fmtMoneyARS(v.total), fuerte: true });
-  if (v.medio) r.push({ texto: `Pagó con ${etiquetaDeMedio(v.medio).toLowerCase()}`, chico: true });
+  if (v.medio) r.push({ texto: `Pagó con ${medioEnFrase(v.medio)}`, chico: true });
   else if (v.pagos && v.pagos.length > 0) {
     r.push({ texto: "Pagó con:", chico: true });
     for (const p of v.pagos) r.push({ texto: `  ${etiquetaDeMedio(p.medio)}`, importe: fmtMoneyARS(p.monto), chico: true });
