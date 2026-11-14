@@ -50,7 +50,7 @@ export function panelInstalable(modulos: readonly string[]): boolean {
 /** Fondo de la pantalla de arranque: el hueso de la base (`--background`, globals.css:12). */
 export const FONDO_NEUTRO = "#f6f3ec";
 
-/** Ícono genérico (monograma neutro "•" sobre hueso) mientras el negocio no tenga el suyo. */
+/** Ícono genérico (isotipo GSG v10 sobre papel, rutas src/app/gsg/icon-*.png) mientras el negocio no tenga el suyo. */
 export const ICONOS_GENERICOS: readonly IconoManifest[] = [
   { src: "/gsg/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
   { src: "/gsg/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },

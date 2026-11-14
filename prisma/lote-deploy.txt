@@ -111,4 +111,11 @@
 # Sin ella el reset del OWNER y el alta desde la consola se niegan a emitir la provisoria. Independiente de
 # 20261108130000_user_pin (#50: tabla aparte). El lote se compara en orden de timestamp: al integrar con #50,
 # user_pin va arriba de ésta (o comentada, si #50 ya se publicó). #50, #48 y #53 ya publicadas el 09/11.
-20261109120000_must_change_password
+# (aplicada: el build de producción de main 4ddcd7e (#102, 10/11) dio «Lote: nada pendiente»; sale de la lista) 20261109120000_must_change_password
+#
+# 2026-11-10 · Factoque alta web, D4 del dueño (GSG-FACT-004, PR #45): CUIT sin verificar hasta conectar ARCA.
+# Aditiva: columna nullable "Tenant"."cuitVerificadoEn" TIMESTAMP(3), sin default ni backfill. No toca datos.
+# El código tolera que falte (verifica por la auditoría).
+# Owner-level: AUTORIZADA por el dueño en el tablero «Frentes GSG», tarjeta f45-g2 = a («respaldo Neon, autorizo la
+# migración, publicar»), 11/11/2026, registrada por GSG-ORQ-006. El build del merge la aplica (paso 1b + migrate deploy).
+20261110170000_tenant_cuit_verificado

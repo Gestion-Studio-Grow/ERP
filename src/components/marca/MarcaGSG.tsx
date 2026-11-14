@@ -1,24 +1,41 @@
-// La marca de GSG en React: el mismo dibujo que src/lib/gsg/marca-svg.ts (isotipo = el punto «hecho» con una hoja).
+// La marca de GSG en React: el mismo dibujo que src/lib/gsg/marca-svg.ts (marca madre v10 «Doble G», en curvas).
 // `IsotipoGSG` va en la firma «powered by GSG» del panel; `LogoGSG` en las pantallas que son de GSG y de nadie más
-// (la dirección sin negocio). Todo en `currentColor`.
+// (la dirección sin negocio). La forma en `currentColor`; el nudo y el ™ en cobre (`--gsg-cobre` sube en oscuro).
+// Tamaños mínimos: el logo con nombre desde 56 px de alto (debajo, isotipo solo); el isotipo cambia de grilla
+// debajo de 32 px (favicon 32) y de 24 px (favicon 16).
+import { GSG_COBRE, ISOTIPO_GSG, LOGO_GSG_ALTO_MINIMO, LOGO_GSG_V10, geometriaIsotipoGsg } from "@/lib/gsg/marca-svg";
 
-export function IsotipoGSG({ className, tamano = 16 }: { className?: string; tamano?: number }) {
+const COBRE = { fill: `var(--gsg-cobre, ${GSG_COBRE})` } as const;
+const NOMBRE = "Gestión Studio Grow™";
+
+export function IsotipoGSG({ className, tamano = 16, etiqueta }: { className?: string; tamano?: number; etiqueta?: string }) {
+  const g = geometriaIsotipoGsg(tamano);
   return (
-    <svg viewBox="0 0 36 36" width={tamano} height={tamano} aria-hidden="true" focusable="false" className={className}>
-      <circle cx="14" cy="23" r="11" fill="currentColor" />
-      <path d="M18.5 9.5C18.5 4.6 22.4 1.2 30 1.2C30 7.4 26.4 10.8 18.5 9.5Z" fill="currentColor" />
+    <svg
+      viewBox={g.viewBox}
+      width={tamano}
+      height={tamano}
+      shapeRendering={g === ISOTIPO_GSG ? undefined : "crispEdges"}
+      className={className}
+      {...(etiqueta ? { role: "img", "aria-label": etiqueta } : { "aria-hidden": true, focusable: "false" })}
+    >
+      <path fill="currentColor" d={g.forma} />
+      <path style={COBRE} d={g.nudo} />
     </svg>
   );
 }
 
-export function LogoGSG({ alto = 32, className }: { alto?: number; className?: string }) {
+export function LogoGSG({ alto = LOGO_GSG_ALTO_MINIMO, className }: { alto?: number; className?: string }) {
+  if (alto < LOGO_GSG_ALTO_MINIMO) return <IsotipoGSG tamano={alto} className={className} etiqueta={NOMBRE} />;
+  const L = LOGO_GSG_V10;
   return (
-    <svg viewBox="0 0 176 40" width={Math.round((alto * 176) / 40)} height={alto} role="img" aria-label="GSG — Gestión Studio Grow" className={className}>
-      <circle cx="14" cy="23" r="11" fill="currentColor" />
-      <path d="M18.5 9.5C18.5 4.6 22.4 1.2 30 1.2C30 7.4 26.4 10.8 18.5 9.5Z" fill="currentColor" />
-      <text x="44" y="30" fontFamily="var(--font-geist-sans), Geist, system-ui, sans-serif" fontSize="23" fontWeight="650" letterSpacing="-0.7" fill="currentColor">
-        GSG
-      </text>
+    <svg viewBox={L.viewBox} width={Math.round((alto * L.ancho) / L.alto)} height={alto} role="img" aria-label={NOMBRE} className={className}>
+      <g transform={L.isotipo}>
+        <path fill="currentColor" d={ISOTIPO_GSG.forma} />
+        <path style={COBRE} d={ISOTIPO_GSG.nudo} />
+      </g>
+      <path fill="currentColor" d={L.nombre} />
+      <path style={COBRE} d={L.tm} />
     </svg>
   );
 }
