@@ -131,6 +131,12 @@ export function rubroDeCaja(m: MovimientoDeCaja): RubroDeCaja {
     case "venta-mostrador":
     case "cobro-turno":
       return "venta";
+    // La rendición de la profesional que cobra aparte es el cobro DIFERIDO de sus turnos: esos
+    // cobros ya están en `turnos` (el mismo reloj que Reportes: la fecha del cobro), así que acá
+    // no suma de nuevo. Criterio PROVISIONAL A CONFIRMAR con la contadora (CH-011): venta del mes
+    // del cobro, no ingreso suelto del mes de la rendición. Ver docs/producto/comisiones/RENDICION.md.
+    case "rendicion-profesional":
+      return "venta";
     case "comision":
       return "comision";
     case "diferencia-caja":

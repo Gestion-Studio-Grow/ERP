@@ -349,3 +349,26 @@ test("cheque de la administración rechazado: su salida por MP dice «Cheque rec
   // El ingreso del pago sigue siendo un cobro de cuenta corriente.
   assert.equal(clasificarOrigen({ type: "INGRESO", createdBy: marcaDelPagoEnCaja("p1") }).origen, "cobro-cuenta-corriente");
 });
+
+test("CH-011 · la rendición de la profesional que cobra aparte tiene origen propio (no «cargado a mano»)", async () => {
+  const { clasificarOrigen, ORIGENES_CONTABLES, ORIGEN_CONTABLE_LABEL, movimientoDelLedger } = await import("./libro-caja");
+  assert.deepEqual(clasificarOrigen({ type: "INGRESO", createdBy: "rendicion:ren_1" }), { origen: "rendicion-profesional", referencia: "ren_1" });
+  assert.equal(ORIGEN_CONTABLE_LABEL["rendicion-profesional"], "Rendición de profesional");
+  assert.ok(ORIGENES_CONTABLES.includes("rendicion-profesional"));
+  // Cada origen en el orden canónico una vez, y con rótulo.
+  assert.equal(new Set(ORIGENES_CONTABLES).size, ORIGENES_CONTABLES.length);
+  assert.deepEqual(new Set(ORIGENES_CONTABLES), new Set(Object.keys(ORIGEN_CONTABLE_LABEL)));
+  const fila = movimientoDelLedger({
+    id: "r1",
+    occurredAt: new Date("2026-11-10T15:00:00.000Z"),
+    type: "INGRESO",
+    method: "EFECTIVO",
+    amount: 18000,
+    reason: "Rendición · Vero · 1 cobro",
+    orderId: null,
+    createdBy: "rendicion:ren_1",
+  });
+  assert.equal(rotuloDeOrigen(fila), "rendición de profesional");
+  // La vuelta de un cobro ya rendido al anularlo: «Anulación», como toda reversa de cobro.
+  assert.equal(rotuloDeOrigen({ type: "EGRESO", origenContable: clasificarOrigen({ type: "EGRESO", createdBy: "anulacion-turno:user:u1", collectionId: "c1" }).origen }), "anulación");
+});

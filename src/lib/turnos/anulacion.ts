@@ -51,6 +51,7 @@ import { facturaDeLaVenta, mensajeFacturaViva, type FacturaDeLaVenta } from "@/l
 import { claveCobroDelLibro, cobroDeLaClave } from "@/lib/facturacion/clave-cobro-del-libro";
 import { claveNotaDeCobroMP, coberturaMP, facturadoPropioPorCobro, saldosMPSinPareja } from "@/lib/facturacion/cobertura-mp";
 import { centavosDe } from "@/lib/dinero/redondeo";
+import { detalleDeCobroRendido } from "@/lib/comisiones/rendicion-core";
 
 export type AnulacionTx = Prisma.TransactionClient;
 
@@ -289,7 +290,7 @@ export function detalleReversa(detalleOriginal: string | null | undefined, motiv
 // ── Quién anula: los textos, para que la pantalla y el servidor digan lo mismo ──
 
 export const MENSAJE_SIN_ANULAR = "Anular un cobro lo hace la dueña. Pasale el turno a ella.";
-export const MENSAJE_FALTA_CODIGO = "Para anular hace falta el código de la dueña. Pedile que abra este cobro y toque «Autorizar anulación».";
+export const MENSAJE_FALTA_CODIGO = "Para anular hace falta el código de la dueña. Pedile que abra este cobro, toque «Anular» y saque el código con «Autorizar anulación».";
 export const MENSAJE_CODIGO_MALO = "Ese código no sirve: está mal escrito, venció o es de otro cobro. Pedile uno nuevo a la dueña.";
 export const MENSAJE_TOPE_DE_CODIGOS = "Demasiados intentos con el código. Esperá unos minutos y pedile uno nuevo a la dueña.";
 export const MENSAJE_NO_DESHACE = "La seña ya quedó registrada. Si estuvo mal, anular el cobro necesita a la dueña.";
@@ -699,8 +700,8 @@ export async function anularCobroTurnoInTx(
 }
 
 /**
- * ¿Este cobro quedó a rendir y ya se rindió? Devuelve el medio y el detalle del INGRESO de la
- * rendición (la plata entró por ahí). SQL crudo sobre las tablas de pending-gate2: se pregunta
+ * ¿Este cobro quedó a rendir y ya se rindió? Devuelve el INGRESO de la rendición y su medio (la
+ * plata entró por ahí) y el detalle de ESTE cobro para el EGRESO. SQL crudo sobre las tablas de pending-gate2: se pregunta
  * antes si existen y si este rol puede leerlas (una tabla ausente abortaría la anulación entera).
  * Sin `Prisma` en runtime: este módulo lo importan pantallas del navegador.
  */
@@ -732,17 +733,24 @@ async function cobroRendidoInTx(
       WHERE r."tenantId" = ${tenantId} AND r."collectionId" = ${collectionId}
       FOR SHARE OF r`;
   }
-  const filas = await tx.$queryRaw<{ cashMovementId: string | null; method: string; reason: string | null }[]>`
-    SELECT p."cashMovementId", p."method", m."reason"
+  // El detalle del EGRESO nombra ESTE cobro (servicio, clienta, profesional), no el INGRESO de la
+  // rendición: ese dice «Rendición · Vero · 3 cobros» y la devolución es de uno solo.
+  const filas = await tx.$queryRaw<
+    { cashMovementId: string | null; method: string; servicio: string | null; clienta: string | null; profesional: string | null }[]
+  >`
+    SELECT p."cashMovementId", p."method", s."name" AS "servicio", cl."name" AS "clienta", pr."name" AS "profesional"
     FROM "CobroARendir" r
     JOIN "RendicionProfesional" p ON p."id" = r."rendicionId" AND p."tenantId" = r."tenantId"
-    LEFT JOIN "CashMovement" m ON m."id" = p."cashMovementId" AND m."tenantId" = p."tenantId"
+    LEFT JOIN "Appointment" a ON a."id" = r."appointmentId" AND a."tenantId" = r."tenantId"
+    LEFT JOIN "Service" s ON s."id" = a."serviceId" AND s."tenantId" = a."tenantId"
+    LEFT JOIN "Client" cl ON cl."id" = a."clientId" AND cl."tenantId" = a."tenantId"
+    LEFT JOIN "Professional" pr ON pr."id" = r."professionalId" AND pr."tenantId" = r."tenantId"
     WHERE r."tenantId" = ${tenantId} AND r."collectionId" = ${collectionId}
     LIMIT 1`;
   const f = filas[0];
   // Sin asiento (rendición de $0, imposible con la retención apagada): nada entró, nada sale.
   if (!f || !f.cashMovementId) return null;
-  return { cashMovementId: f.cashMovementId, method: f.method, reason: f.reason };
+  return { cashMovementId: f.cashMovementId, method: f.method, reason: detalleDeCobroRendido(f) };
 }
 
 /**
