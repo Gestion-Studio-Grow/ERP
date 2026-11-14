@@ -143,10 +143,10 @@ async function ticketVisibleEnTx(tx: Prisma.TransactionClient, p: PedidoDeTicket
   }
   const v = agentePuedeEnTicket({ estudio: { slug: negocio.slug, n1: permiso?.estudio === true }, cliente });
   if (!v.puede) return null;
-  // El permiso DEL NIVEL (certificación MANT-004, hallazgo 1): n1 alcanza sólo para n1; n2 (y n3, que está
-  // por encima) exige además el n2 vigente del estudio y, si es de cartera, el del cliente. Se lee en esta
-  // misma transacción, en GET y en POST: una revocación vale desde la siguiente llamada.
-  if (nivel !== "n1") {
+  // El permiso DEL NIVEL (certificación MANT-004, hallazgo 1): n2 exige además el n2 vigente del estudio y,
+  // si es de cartera, el del cliente. n3 alcanza con el n1, como en `nivelesPermitidos` (consentimiento-core).
+  // Se lee en esta misma transacción, en GET y en POST: una revocación vale desde la siguiente llamada.
+  if (nivel === "n2") {
     const [n2] = await tx.$queryRaw<{ estudio: boolean; cliente: boolean }[]>`
       SELECT gsg_permiso_n2_vigente() AS estudio, gsg_permiso_n2_cliente_de_cartera() AS cliente`;
     if (n2?.estudio !== true || (t.clienteTenantId && n2?.cliente !== true)) return null;
