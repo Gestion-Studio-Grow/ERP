@@ -417,7 +417,11 @@ BEGIN
     RAISE EXCEPTION 'MANT_roles_soporte: CH no quedó protegido';
   END IF;
   -- Sin CH en la base (otra base, o CH con otro slug) no hay nada que proteger y NegocioProtegido queda
-  -- vacío: no aborta (las bases de prueba no tienen CH), pero lo dice. En producción CH tiene que estar.
+  -- vacío. En la base de Neon (`neondb`, producción y sus ramas) CH tiene que estar: aborta y no queda
+  -- nada (un WARNING puede no verse en el SQL Editor). En otras bases (las de prueba no tienen CH), avisa.
+  IF NOT EXISTS (SELECT 1 FROM "Tenant" WHERE slug = 'beauty-spa') AND current_database() = 'neondb' THEN
+    RAISE EXCEPTION 'MANT_roles_soporte: no hay negocio con slug beauty-spa (CH) en neondb: no se aplica sin el candado de CH';
+  END IF;
   IF NOT EXISTS (SELECT 1 FROM "Tenant" WHERE slug = 'beauty-spa') THEN
     RAISE WARNING 'MANT_roles_soporte: no hay negocio con slug beauty-spa (CH): NegocioProtegido quedó vacío. En producción, frenar y revisar antes de cargar AGENTE_DATABASE_URL';
   END IF;
@@ -449,16 +453,24 @@ COMMIT;
 --   REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM gsg_operador, gsg_agente;
 --   REVOKE USAGE ON SCHEMA public FROM gsg_operador, gsg_agente;
 --   -- Borrar un rol exige ADMIN sobre él: si los gsg_* existían de antes y los creó otro rol, o tienen
---   -- permisos en otra base, el DROP falla. No tumba la reversa: el rol queda sin ningún permiso (los
---   -- REVOKE de arriba) y el aviso dice cuál borrar a mano con el rol que lo creó.
+--   -- permisos fuera de lo que revocan los REVOKE de arriba (otra base, otro esquema), el DROP falla. No
+--   -- tumba la reversa: se intenta dejarlo sin poder entrar (NOLOGIN, sin contraseña) y el aviso trae el
+--   -- detalle de lo que lo retiene, para borrarlo a mano con el rol que lo creó.
 --   DO $$
---   DECLARE r TEXT;
+--   DECLARE r TEXT; v_error TEXT; v_detalle TEXT; v_login TEXT;
 --   BEGIN
 --     FOREACH r IN ARRAY ARRAY['gsg_agente', 'gsg_operador'] LOOP
 --       BEGIN
 --         EXECUTE format('DROP ROLE IF EXISTS %I', r);
 --       EXCEPTION WHEN insufficient_privilege OR dependent_objects_still_exist THEN
---         RAISE WARNING 'Reversa MANT: no se borró el rol % (%); quedó sin permisos en esta base', r, SQLERRM;
+--         GET STACKED DIAGNOSTICS v_error = MESSAGE_TEXT, v_detalle = PG_EXCEPTION_DETAIL;
+--         BEGIN
+--           EXECUTE format('ALTER ROLE %I NOLOGIN PASSWORD NULL', r);
+--           v_login := 'quedó sin poder entrar (NOLOGIN)';
+--         EXCEPTION WHEN insufficient_privilege THEN
+--           v_login := 'SIGUE PUDIENDO ENTRAR: sacarle LOGIN con el rol que lo creó';
+--         END;
+--         RAISE WARNING 'Reversa MANT: no se borró el rol % (%). %. Lo retiene: %', r, v_error, v_login, coalesce(nullif(v_detalle, ''), '(sin detalle)');
 --       END;
 --     END LOOP;
 --   END $$;
