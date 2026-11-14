@@ -37,12 +37,15 @@ export default function ReportesMostradorRenglon({
   hoy,
   totalAnterior,
   abribles,
+  reporteDelRubro = false,
 }: {
   r: ReporteMostrador & { desde: Date; hasta: Date };
   periodo: PeriodoReporte;
   hoy: string;
   totalAnterior: number;
   abribles: ReadonlySet<string>;
+  /** Magra T7: el link «Reporte de la carnicería», sólo para el rubro con perecederos. */
+  reporteDelRubro?: boolean;
 }) {
   const tira = armarTira(r.porDia, periodo.ultimoDia, periodo.dias, { cerrado: periodo.cerrado });
   // La semana tipo deja afuera el último día porque es hoy y no terminó. En un período cerrado sí
@@ -96,6 +99,14 @@ export default function ReportesMostradorRenglon({
           );
         })}
       </nav>
+
+      {reporteDelRubro && (
+        <p className="mb-6 text-sm">
+          <Link href="/admin/reportes/carniceria" className="inline-flex min-h-11 items-center underline underline-offset-4 hover:text-strong">
+            Reporte de la carnicería
+          </Link>
+        </p>
+      )}
 
       {r.cantidad === 0 ? (
         <EmptyState

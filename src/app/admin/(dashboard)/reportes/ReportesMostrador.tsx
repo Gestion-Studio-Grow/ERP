@@ -56,7 +56,18 @@ function Lista({ titulo, hint, filas }: { titulo: string; hint?: string; filas: 
   );
 }
 
-export default async function ReportesMostrador({ periodo, hoy, role }: { periodo: PeriodoReporte; hoy: string; role: Role }) {
+export default async function ReportesMostrador({
+  periodo,
+  hoy,
+  role,
+  reporteDelRubro = false,
+}: {
+  periodo: PeriodoReporte;
+  hoy: string;
+  role: Role;
+  /** Magra T7: el link «Reporte de la carnicería», sólo para el rubro con perecederos. */
+  reporteDelRubro?: boolean;
+}) {
   const tenantId = await getCurrentTenantId();
   const [r, totalAnterior, abribles, nuevo] = await Promise.all([
     leerVentasMostrador(prisma, tenantId, periodo.ultimoDia, periodo.dias),
@@ -65,7 +76,7 @@ export default async function ReportesMostrador({ periodo, hoy, role }: { period
     disenoNuevo(),
   ]);
   // Diseño nuevo («Renglón»): los mismos datos, con la tira y la semana tipo. Apagado, igual que siempre.
-  if (nuevo) return <ReportesMostradorRenglon r={r} periodo={periodo} hoy={hoy} totalAnterior={totalAnterior} abribles={abribles} />;
+  if (nuevo) return <ReportesMostradorRenglon r={r} periodo={periodo} hoy={hoy} totalAnterior={totalAnterior} abribles={abribles} reporteDelRubro={reporteDelRubro} />;
   const TOPE_PRODUCTOS = 25;
   const tira = armarTira(r.porDia, periodo.ultimoDia, periodo.dias, { cerrado: periodo.cerrado });
 
@@ -100,6 +111,14 @@ export default async function ReportesMostrador({ periodo, hoy, role }: { period
           ↓ Exportar CSV
         </a>
       </nav>
+
+      {reporteDelRubro && (
+        <p className="mb-6">
+          <Link href="/admin/reportes/carniceria" className={buttonClasses("outline", "md")}>
+            Reporte de la carnicería
+          </Link>
+        </p>
+      )}
 
       {r.cantidad === 0 ? (
         <EmptyState
