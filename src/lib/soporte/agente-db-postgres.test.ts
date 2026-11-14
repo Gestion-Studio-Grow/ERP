@@ -15,7 +15,9 @@
 //   · CH o slug vacío → no toca la base; el agente nunca escribe `respuesta`;
 //   · certificación adversarial ronda 1 (cada ataque, ahora rechazado): cerrar un ticket (estado), leer
 //     permisos de un negocio fijándose el contexto, listar negocios (Tenant), evento «borrador_aprobado»
-//     falso, borrador de mail falso en AuditLog, permiso dado a una versión vieja del texto.
+//     falso, borrador de mail falso en AuditLog, permiso dado a una versión vieja del texto;
+//   · ronda 2: slug y permiso de CH (como estudio o cliente) y de un estudio sin permiso → NULL/false;
+//     carrera en REPEATABLE READ / SERIALIZABLE → 0 filas; borrador en un ticket resuelto o cerrado → 0 filas.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -26,6 +28,7 @@ import type { PrismaClient } from "@/generated/prisma/client";
 import { baseEfimeraParaElTest, urlDeRol, urlDelServidor } from "@/test/base-efimera";
 import { prepararAccionesDeServidor } from "@/test/accion-de-servidor";
 import { TEXTO_CONSENTIMIENTO } from "./consentimiento-core";
+import { ESTADOS_ABIERTOS } from "./config";
 
 const SQL = readFileSync(path.join(process.cwd(), "prisma/pending-gate2/MANT_roles_soporte.sql"), "utf8");
 const CANDADO_DE_ROLES = 7_300_000_001; // el mismo de base-efimera.ts
@@ -95,6 +98,8 @@ test("agente-db: apagado sin variable, aislamiento, cartera con permiso del clie
   await ticket("tk-a4", A, 4, CH);
   await ticket("tk-b1", B, 1);
   await ticket("tk-ch1", CH, 1);
+  await ticket("tk-d1", D, 1, C); // estudio SIN permiso con cartera de C (ronda 2)
+  await ticket("tk-ch2", CH, 2, C); // CH como estudio, con cartera de C (ronda 2)
   let n = 0;
   // La hora del permiso la pone la base con milisegundos y, a igual hora, gana la revocación (falla
   // cerrado). Para que «revoca y vuelve a dar» no caiga en el mismo milisegundo, cada casilla espera 3 ms.
@@ -294,7 +299,7 @@ test("agente-db: apagado sin variable, aislamiento, cartera con permiso del clie
   const n1De = async (negocio: string) => (await comoAgente(negocio, "SELECT gsg_permiso_n1_vigente() AS v")).rows[0].v as boolean;
   assert.equal(await n1De(A), true);
   assert.equal(await n1De(D), false, "D sin permiso");
-  assert.equal(await n1De(CH), true, "CH con permiso cargado: la función dice true, pero el candado de la fila no lo deja ver");
+  assert.equal(await n1De(CH), false, "CH con permiso cargado: la función dice false (ronda 2, BAJO a)");
   await assert.rejects(agente.query("SELECT gsg_permiso_n1_vigente('x')"), /does not exist/, "no acepta parámetros");
   await assert.rejects(app.query("SELECT gsg_permiso_n1_vigente()"), denegado, "app_rls no la ejecuta");
   await agente.query(`CREATE TEMP TABLE "SoporteConsentimiento" ("tenantId" TEXT, nivel TEXT, aceptado BOOLEAN, "versionTexto" TEXT, "createdAt" TIMESTAMP);
@@ -307,7 +312,9 @@ test("agente-db: apagado sin variable, aislamiento, cartera con permiso del clie
   // A4: listar los negocios (CH incluido) desde Tenant.
   await assert.rejects(comoAgente(D, `SELECT slug FROM "Tenant"`), denegado, "A4: no lista negocios");
   assert.equal((await comoAgente(A, "SELECT gsg_slug_del_negocio() AS s")).rows[0].s, base.a.slug, "el slug del negocio fijado");
-  assert.equal((await comoAgente(A, "SELECT gsg_slug_del_cliente() AS s", [], C)).rows[0].s, C, "el del cliente de su cartera");
+  assert.equal((await comoAgente(A, "SELECT gsg_slug_del_cliente() AS s", [], C)).rows[0].s, null, "C revocado (carrera c): sin slug");
+  await permiso(C, true);
+  assert.equal((await comoAgente(A, "SELECT gsg_slug_del_cliente() AS s", [], C)).rows[0].s, C, "el del cliente de su cartera, con permiso");
   assert.equal((await comoAgente(B, "SELECT gsg_slug_del_cliente() AS s", [], CH)).rows[0].s, null, "un cliente que no es de su cartera: nada");
   await assert.rejects(app.query("SELECT gsg_slug_del_negocio()"), denegado, "app_rls no la ejecuta");
   // A5: evento de aprobación falso.
@@ -332,6 +339,53 @@ test("agente-db: apagado sin variable, aislamiento, cartera con permiso del clie
   assert.equal((await m.leerTicketComoAgente({ tenantId: B, slug: base.b.slug, nivel: "n1", numero: 1 })).ok, false);
   await permiso(B, true);
   assert.deepEqual(await ids(B), ["tk-b1"], "re-tildado con la versión vigente");
+
+  // ── Certificación adversarial, ronda 2: cada ataque, ahora rechazado ──
+  const slugDe = async (negocio: string, cliente: string | null = null) =>
+    (await comoAgente(negocio, "SELECT gsg_slug_del_negocio() AS n, gsg_slug_del_cliente() AS c", [], cliente)).rows[0] as { n: string | null; c: string | null };
+  // MEDIO: slug del cliente con un estudio SIN permiso (D tiene cartera con C) → nada.
+  assert.deepEqual(await slugDe(D, C), { n: null, c: null }, "MEDIO: estudio sin permiso: ni su slug ni el del cliente");
+  // BAJO a: CH, como estudio o como cliente, nunca da slug ni permiso (aunque tenga permiso cargado).
+  assert.deepEqual(await slugDe(CH), { n: null, c: null }, "BAJO a: slug de CH → NULL");
+  assert.deepEqual(await slugDe(CH, C), { n: null, c: null }, "MEDIO: CH como estudio con cartera → NULL");
+  assert.deepEqual(await slugDe(A, CH), { n: base.a.slug, c: null }, "MEDIO: CH como cliente de cartera → NULL");
+  assert.equal((await comoAgente(CH, "SELECT gsg_permiso_n1_vigente() AS v")).rows[0].v, false, "BAJO a: permiso de CH → false");
+  assert.equal((await comoAgente(A, "SELECT gsg_slug_del_cliente() AS s", [], D)).rows[0].s, null, "cliente sin permiso: tampoco su slug");
+  assert.equal((await m.leerTicketComoAgente({ tenantId: D, slug: D, nivel: "n1", numero: 1, clienteTenantId: C })).ok, false);
+  // BAJO b: REPEATABLE READ / SERIALIZABLE: la foto es la del comienzo; el candado exige READ COMMITTED.
+  for (const nivel of ["REPEATABLE READ", "SERIALIZABLE"]) {
+    await agente.query(`BEGIN ISOLATION LEVEL ${nivel}`);
+    try {
+      await agente.query("SELECT set_config('app.current_tenant_id', $1, true)", [A]);
+      assert.equal((await agente.query(`SELECT id FROM "SupportTicket"`)).rowCount, 0, `${nivel}: 0 filas antes de revocar`);
+      await permiso(A, false); // el titular revoca con la transacción abierta
+      assert.equal((await agente.query(`SELECT id FROM "SupportTicket"`)).rowCount, 0, `${nivel}: 0 filas después`);
+      assert.equal((await agente.query(`UPDATE "SupportTicket" SET "borradorIa" = '{"respuesta":"post-revocacion"}'::jsonb WHERE id = 'tk-a1'`)).rowCount, 0, `${nivel}: no escribe`);
+      await assert.rejects(
+        agente.query(`INSERT INTO "AuditLog" (id, "tenantId", actor, action, entity, "entityId", changes, channel) VALUES ('al-rr', $1, 'agente:n1', 'soporte.agente.x', 'x', 'x', '{}'::jsonb, 'agente')`, [A]),
+        denegado,
+        `${nivel}: ni AuditLog`,
+      );
+    } finally {
+      await agente.query("ROLLBACK");
+    }
+    await permiso(A, true);
+  }
+  assert.notEqual((await borradorDe("tk-a1"))?.respuesta, "post-revocacion");
+  assert.deepEqual(await ids(A), ["tk-a1"], "READ COMMITTED (el de agente-db.ts): se ve");
+  // BAJO c: borrador por SQL directo en un ticket resuelto o cerrado → 0 filas (y por el módulo, rechazo).
+  const sqlAbiertos = /mant_agente_abierto[\s\S]*?USING \("estado" IN \(([^)]*)\)\)/.exec(SQL)?.[1] ?? "";
+  assert.deepEqual([...sqlAbiertos.matchAll(/'([^']+)'/g)].map((x) => x[1]), [...ESTADOS_ABIERTOS], "el SQL usa ESTADOS_ABIERTOS de config.ts");
+  for (const estado of ["resuelto", "cerrado"]) {
+    await duenio.query(`UPDATE "SupportTicket" SET estado = $1 WHERE id = 'tk-a1'`, [estado]);
+    const previoCerrado = await borradorDe("tk-a1");
+    assert.equal((await comoAgente(A, `UPDATE "SupportTicket" SET "borradorIa" = '{"respuesta":"y"}'::jsonb WHERE id = 'tk-a1'`)).rowCount, 0, `BAJO c: ${estado}, 0 filas`);
+    assert.equal((await comoAgente(A, `SELECT id FROM "SupportTicket" WHERE id = 'tk-a1'`)).rowCount, 1, `${estado}: lo sigue pudiendo leer`);
+    assert.equal((await m.guardarBorradorComoAgente({ ...pA(1), borrador })).ok, false);
+    assert.deepEqual(await borradorDe("tk-a1"), previoCerrado, `${estado}: el borrador no cambió`);
+  }
+  await duenio.query(`UPDATE "SupportTicket" SET estado = 'nuevo' WHERE id = 'tk-a1'`);
+  assert.equal((await comoAgente(A, `UPDATE "SupportTicket" SET "updatedAt" = now() WHERE id = 'tk-a1'`)).rowCount, 1, "reabierto: vuelve a poder");
 
   // ── Revocación del ESTUDIO: tampoco ve lo suyo ──
   await permiso(A, false);

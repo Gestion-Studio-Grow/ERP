@@ -27,6 +27,8 @@
 --      (b) sólo negocios con el permiso n1 VIGENTE (la última casilla n1 tildada, con la versión del
 --      texto VIGENTE; a igual hora gana la que da menos); en un ticket de cartera, el del estudio Y el
 --      del cliente (`gsg_permiso_n1_cliente_de_cartera`, §4 bis). Un evento se ve sólo si su ticket se ve.
+--      Las dos, sólo en READ COMMITTED (en otro nivel la revocación no cortaría la transacción abierta);
+--      y (c) el borrador se escribe sólo en un ticket abierto (`mant_agente_abierto`, FOR UPDATE).
 --   5. `gsg_operador`: por ahora, lo mismo que `app_rls` (la consola hoy usa `app_rls` por la caída de
 --      operator-db.ts; 58 archivos, inventario en el diseño §7.3), MENOS: AuditLog sin UPDATE/DELETE,
 --      SoporteConsentimiento sin UPDATE/DELETE, NegocioProtegido sólo lectura. Estrecharlo tabla por
@@ -159,6 +161,7 @@ $f$;
 -- con la versión vigente; a igual hora gana la que NO vale (falla cerrado). Sin recursión: lee como su
 -- dueño (exento de RLS; con el FORCE opcional de 0003 lo filtra `tenant_isolation`, que coincide con el
 -- negocio fijado, y sigue andando) y SoporteConsentimiento no tiene políticas para gsg_agente.
+-- Un negocio protegido (CH) da SIEMPRE false, aunque tenga permiso cargado (ronda adversarial 2, BAJO a).
 -- Residual (diseño §7.3): fijando el id de un negocio, el agente sabe si ese negocio tiene el n1 vigente
 -- (sólo el boolean: ni filas, ni quién, ni cuándo); es lo mismo que revela ver o no sus tickets.
 CREATE OR REPLACE FUNCTION gsg_permiso_n1_vigente() RETURNS BOOLEAN
@@ -166,25 +169,33 @@ CREATE OR REPLACE FUNCTION gsg_permiso_n1_vigente() RETURNS BOOLEAN
   SELECT COALESCE((
     SELECT c."aceptado" AND c."versionTexto" = '2026-11-14-provisorio' FROM public."SoporteConsentimiento" c
     WHERE c."tenantId" = NULLIF(current_setting('app.current_tenant_id', true), '') AND c."nivel" = 'n1'
+      AND NOT EXISTS (SELECT 1 FROM public."NegocioProtegido" p WHERE p."negocioId" = c."tenantId")
     ORDER BY c."createdAt" DESC, (c."aceptado" AND c."versionTexto" = '2026-11-14-provisorio') ASC
     LIMIT 1
   ), false)
 $f$;
 
 -- Slug del negocio fijado y del cliente fijado (BAJO 6): el agente ya no lee `Tenant` (sin RLS: veía
--- id/slug/nombre de TODOS los negocios, CH incluido). El del cliente, sólo si el estudio fijado tiene un
--- ticket de cartera con él. Residual (diseño §7.3): sabiendo el id de un negocio (cuid, no se adivina),
--- el agente puede saber su slug fijándolo; los ids de NegocioProtegido sí los ve (para el candado).
+-- id/slug/nombre de TODOS los negocios, CH incluido). Ronda adversarial 2: el slug sale SÓLO con acceso
+-- (si no, NULL, y agente-db.ts lo trata como «sin acceso», falla cerrado):
+--   · el del negocio: no protegido Y con el n1 vigente (gsg_permiso_n1_vigente, que ya excluye CH);
+--   · el del cliente: gsg_permiso_n1_cliente_de_cartera() true (los dos fijados, ninguno protegido, un
+--     ticket de cartera entre los dos y el n1 vigente de AMBOS). CH nunca, ni como estudio ni como cliente.
+-- Residual (diseño §7.3): sabiendo el id de un negocio CON permiso (cuid, no se adivina), el agente puede
+-- saber su slug fijándolo; los ids de NegocioProtegido sí los ve (para el candado), su slug no.
 CREATE OR REPLACE FUNCTION gsg_slug_del_negocio() RETURNS TEXT
   LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $f$
-  SELECT t."slug" FROM public."Tenant" t WHERE t."id" = NULLIF(current_setting('app.current_tenant_id', true), '')
+  SELECT t."slug" FROM public."Tenant" t
+  WHERE t."id" = NULLIF(current_setting('app.current_tenant_id', true), '')
+    AND NOT EXISTS (SELECT 1 FROM public."NegocioProtegido" p WHERE p."negocioId" = t."id")
+    AND public.gsg_permiso_n1_vigente()
 $f$;
 CREATE OR REPLACE FUNCTION gsg_slug_del_cliente() RETURNS TEXT
   LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $f$
   SELECT t."slug" FROM public."Tenant" t
   WHERE t."id" = NULLIF(current_setting('app.cliente_tenant_id', true), '')
-    AND EXISTS (SELECT 1 FROM public."SupportTicket" s
-                WHERE s."tenantId" = NULLIF(current_setting('app.current_tenant_id', true), '') AND s."clienteTenantId" = t."id")
+    AND NOT EXISTS (SELECT 1 FROM public."NegocioProtegido" p WHERE p."negocioId" = t."id")
+    AND public.gsg_permiso_n1_cliente_de_cartera()
 $f$;
 
 ALTER FUNCTION gsg_permiso_n1_cliente_de_cartera() OWNER TO neondb_owner;
@@ -219,35 +230,52 @@ GRANT SELECT ON "NegocioProtegido" TO gsg_agente;
 -- leído con la función SECURITY DEFINER del §4 bis (bajo el RLS del estudio no se vería), y sólo del
 -- cliente fijado en la transacción (`app.cliente_tenant_id`, lo pone agente-db.ts). Sin permiso del
 -- estudio o del cliente → no se ve; CH en cualquiera de los dos → nunca. La revocación vale desde la
--- siguiente sentencia (cada sentencia toma su foto en READ COMMITTED).
+-- siguiente sentencia (cada sentencia toma su foto en READ COMMITTED). Por eso las tres políticas del
+-- agente exigen READ COMMITTED (ronda adversarial 2, BAJO b): en REPEATABLE READ o SERIALIZABLE la foto es
+-- la del comienzo de la transacción y una revocación posterior no se vería; ahí el agente no ve ni
+-- escribe nada (0 filas / rechazo). agente-db.ts usa el nivel por defecto (READ COMMITTED).
 DROP POLICY IF EXISTS mant_agente_candado ON "SupportTicket";
 CREATE POLICY mant_agente_candado ON "SupportTicket" AS RESTRICTIVE FOR ALL TO gsg_agente
-  USING (NOT gsg_negocio_protegido("tenantId")
+  USING (current_setting('transaction_isolation') = 'read committed'
+         AND NOT gsg_negocio_protegido("tenantId")
          AND ("clienteTenantId" IS NULL OR NOT gsg_negocio_protegido("clienteTenantId"))
          AND "tenantId" = current_setting('app.current_tenant_id', true) AND gsg_permiso_n1_vigente()
          AND ("clienteTenantId" IS NULL OR ("clienteTenantId" = current_setting('app.cliente_tenant_id', true)
                                              AND gsg_permiso_n1_cliente_de_cartera())))
-  WITH CHECK (NOT gsg_negocio_protegido("tenantId")
+  WITH CHECK (current_setting('transaction_isolation') = 'read committed'
+         AND NOT gsg_negocio_protegido("tenantId")
          AND ("clienteTenantId" IS NULL OR NOT gsg_negocio_protegido("clienteTenantId"))
          AND "tenantId" = current_setting('app.current_tenant_id', true) AND gsg_permiso_n1_vigente()
          AND ("clienteTenantId" IS NULL OR ("clienteTenantId" = current_setting('app.cliente_tenant_id', true)
                                              AND gsg_permiso_n1_cliente_de_cartera())));
 
+-- El borrador sólo en un ticket ABIERTO (ronda adversarial 2, BAJO c): los mismos estados que
+-- ESTADOS_ABIERTOS (src/lib/soporte/config.ts; lo comprueba agente-db-postgres.test.ts leyendo este
+-- archivo). Lista de permitidos, no de prohibidos: un estado nuevo o desconocido queda cerrado al agente.
+DROP POLICY IF EXISTS mant_agente_abierto ON "SupportTicket";
+CREATE POLICY mant_agente_abierto ON "SupportTicket" AS RESTRICTIVE FOR UPDATE TO gsg_agente
+  USING ("estado" IN ('nuevo', 'en_curso', 'esperando_cliente'))
+  WITH CHECK ("estado" IN ('nuevo', 'en_curso', 'esperando_cliente'));
+
 -- Un evento existe para el agente sólo si su ticket existe para el agente (hereda el candado). Escribe
 -- sólo su propio tipo ('borrador_ia'): nunca 'borrador_aprobado' ni otro evento de persona.
 DROP POLICY IF EXISTS mant_agente_candado ON "SupportTicketEvento";
 CREATE POLICY mant_agente_candado ON "SupportTicketEvento" AS RESTRICTIVE FOR ALL TO gsg_agente
-  USING (EXISTS (SELECT 1 FROM "SupportTicket" t WHERE t."tenantId" = "SupportTicketEvento"."tenantId" AND t."id" = "SupportTicketEvento"."ticketId"))
-  WITH CHECK (EXISTS (SELECT 1 FROM "SupportTicket" t WHERE t."tenantId" = "SupportTicketEvento"."tenantId" AND t."id" = "SupportTicketEvento"."ticketId")
+  USING (current_setting('transaction_isolation') = 'read committed'
+         AND EXISTS (SELECT 1 FROM "SupportTicket" t WHERE t."tenantId" = "SupportTicketEvento"."tenantId" AND t."id" = "SupportTicketEvento"."ticketId"))
+  WITH CHECK (current_setting('transaction_isolation') = 'read committed'
+              AND EXISTS (SELECT 1 FROM "SupportTicket" t WHERE t."tenantId" = "SupportTicketEvento"."tenantId" AND t."id" = "SupportTicketEvento"."ticketId")
               AND "actor" LIKE 'agente:%' AND "tipo" = 'borrador_ia');
 
 -- AuditLog: sólo acciones propias del agente ('soporte.agente.%'), con actor de agente. Así no puede
 -- dejar, por ejemplo, un «borrador de mail» falso que el panel del titular muestre como suyo.
 DROP POLICY IF EXISTS mant_agente_candado ON "AuditLog";
 CREATE POLICY mant_agente_candado ON "AuditLog" AS RESTRICTIVE FOR ALL TO gsg_agente
-  USING ("tenantId" = current_setting('app.current_tenant_id', true)
+  USING (current_setting('transaction_isolation') = 'read committed'
+         AND "tenantId" = current_setting('app.current_tenant_id', true)
          AND NOT gsg_negocio_protegido("tenantId") AND gsg_permiso_n1_vigente())
-  WITH CHECK ("tenantId" = current_setting('app.current_tenant_id', true)
+  WITH CHECK (current_setting('transaction_isolation') = 'read committed'
+              AND "tenantId" = current_setting('app.current_tenant_id', true)
               AND NOT gsg_negocio_protegido("tenantId") AND gsg_permiso_n1_vigente()
               AND "actor" LIKE 'agente:%' AND "action" LIKE 'soporte.agente.%');
 
@@ -317,6 +345,15 @@ BEGIN
                                 OR has_function_privilege('gsg_operador', p.oid, 'EXECUTE')))) THEN
     RAISE EXCEPTION 'MANT_roles_soporte: una función SECURITY DEFINER del candado quedó abierta, sobrecargada o con otro dueño';
   END IF;
+  -- Las tres políticas del agente exigen READ COMMITTED y el borrador va sólo a tickets abiertos.
+  IF (SELECT count(*) FROM pg_policies WHERE schemaname = 'public' AND policyname = 'mant_agente_candado'
+        AND tablename IN ('SupportTicket', 'SupportTicketEvento', 'AuditLog') AND permissive = 'RESTRICTIVE'
+        AND qual LIKE '%transaction_isolation%' AND with_check LIKE '%transaction_isolation%') <> 3
+     OR NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'SupportTicket'
+                    AND policyname = 'mant_agente_abierto' AND permissive = 'RESTRICTIVE' AND cmd = 'UPDATE'
+                    AND qual LIKE '%estado%' AND with_check LIKE '%estado%') THEN
+    RAISE EXCEPTION 'MANT_roles_soporte: falta READ COMMITTED en el candado del agente o el candado de ticket abierto';
+  END IF;
   IF EXISTS (SELECT 1 FROM "Tenant" WHERE slug = 'beauty-spa')
      AND NOT EXISTS (SELECT 1 FROM "NegocioProtegido" p JOIN "Tenant" t ON t.id = p."negocioId" WHERE t.slug = 'beauty-spa') THEN
     RAISE EXCEPTION 'MANT_roles_soporte: CH no quedó protegido';
@@ -329,6 +366,7 @@ COMMIT;
 -- REVERSA (a mano, como neondb_owner; borra los permisos registrados — respaldo antes):
 -- BEGIN;
 --   DROP POLICY IF EXISTS mant_agente_candado ON "SupportTicket";
+--   DROP POLICY IF EXISTS mant_agente_abierto ON "SupportTicket";
 --   DROP POLICY IF EXISTS mant_agente_candado ON "SupportTicketEvento";
 --   DROP POLICY IF EXISTS mant_agente_candado ON "AuditLog";
 --   DROP POLICY IF EXISTS mant_agente_candado ON "SoporteConsentimiento";

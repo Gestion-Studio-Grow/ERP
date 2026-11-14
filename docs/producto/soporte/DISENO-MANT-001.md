@@ -350,9 +350,19 @@ aparta de la tabla de arriba:**
   `app.current_tenant_id` él mismo; con eso `gsg_permiso_n1_vigente()` le dice, como mucho, si ESE negocio
   tiene el n1 vigente (un boolean: ni filas, ni quién firmó, ni cuándo, ni qué versión; antes leía las filas
   con SELECT), y sólo si conoce su id (cuid). Es lo mismo que ya revela ver o no sus tickets. Igual con
-  `gsg_slug_del_negocio()`: sabiendo un id, su slug; y los ids de `NegocioProtegido` los ve (los necesita
-  el candado). Parado en un estudio con permiso, sabe si un cliente de SU cartera dio el n1 (lo mismo que
-  revela ver su ticket); con el FORCE RLS opcional (0003) la función de cartera no ve el permiso del cliente
+  `gsg_slug_del_negocio()`: sabiendo el id de un negocio CON permiso, su slug; y los ids de
+  `NegocioProtegido` los ve (los necesita el candado). Parado en un estudio con permiso, sabe si un cliente
+  de SU cartera dio el n1 (lo mismo que revela ver su ticket). **Ronda adversarial 2 (14/11, corregida):**
+  (a) `gsg_permiso_n1_vigente()` da false y `gsg_slug_del_negocio()` NULL para un negocio protegido (CH),
+  y el slug exige además el n1 vigente; (b) `gsg_slug_del_cliente()` da el slug sólo si
+  `gsg_permiso_n1_cliente_de_cartera()` es true (permiso de los dos, ninguno protegido): un estudio sin
+  permiso, o CH como estudio o cliente, da NULL (`agente-db.ts` lo trata como sin acceso); (c) las tres
+  políticas `mant_agente_candado` exigen `transaction_isolation = 'read committed'`: en REPEATABLE READ o
+  SERIALIZABLE el agente ve 0 filas y no escribe (la revocación no podía cortar una foto ya tomada);
+  (d) `mant_agente_abierto` (RESTRICTIVE, FOR UPDATE) deja escribir el borrador sólo con `estado` en
+  `ESTADOS_ABIERTOS` (lista de permitidos; un test compara el SQL con `config.ts`). Queda: dentro de UNA
+  sentencia la revocación no corta (foto de la sentencia); las funciones-disparador de contabilidad
+  (SECURITY DEFINER, EXECUTE de PUBLIC) las puede invocar el agente, pero fuera de un disparador fallan; con el FORCE RLS opcional (0003) la función de cartera no ve el permiso del cliente
   y la cartera queda cerrada (falla cerrado); la del negocio fijado sigue andando (su `tenant_isolation`
   coincide con el negocio fijado). Prueba: `agente-db-postgres.test.ts`; (3) la consola no firma permisos; (4) el agente sólo escribe AuditLog con
   `actor LIKE 'agente:%'`; (5) **D5 en CH no contradice el candado:** el agente no toca la base de CH; el ERP
