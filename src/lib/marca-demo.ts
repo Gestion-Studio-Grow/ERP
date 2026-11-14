@@ -9,7 +9,8 @@
 //   · brand-sheet.ts `getBrandSheet`       → nombre y acento de la demo aunque la fila Tenant diga otra cosa.
 //   · order-actions.ts `getStorefront`     → nombre de la demo y SIN los datos de contacto del cliente (un pedido de
 //                                            prueba nunca llega al WhatsApp real del negocio).
-//   · LogoDelNegocio                       → el isotipo GSG con el nombre de la demo.
+//   · LogoDelNegocio                       → el logo tipográfico: loseta «GSG» en cobre, el nombre de la demo y la
+//                                            leyenda «Demo · comercio de carnes…». Sin el isotipo de GSG (guarda C12).
 //
 // REVERSIBLE: sacar la entrada de PRESENTACION_POR_MARCA devuelve al negocio su marca, byte-idéntico a antes (los
 // tests de marca-demo.test.ts lo fijan). No toca datos: la fila Tenant y BusinessSettings de producción quedan como
