@@ -5,8 +5,10 @@
 // de entrada y no había cómo. Esto cierra ese hueco SIN abrir uno nuevo:
 //   · mismo criterio que el alta del panel (`createUser`): nombre, email con arroba, rol de la lista;
 //   · respeta el TOPE de usuarios del plan, en la misma transacción que crea al usuario;
-//   · la contraseña se genera acá, se devuelve UNA vez y sólo se guarda su hash; nunca va a la
-//     auditoría (igual que `resetOwnerPasswordCore`, que es de donde sale este molde);
+//   · la contraseña se genera acá, sólo se guarda su hash y sale ÚNICAMENTE por mail al titular
+//     (GSG-SEG-014): no se devuelve ni va a la auditoría (mismo molde que `resetOwnerPasswordCore`).
+//     El mail es el último paso de la transacción: si no sale, se tira `ClaveNoEnviada` y el alta
+//     se deshace entera (no nace una persona con una clave que nadie tiene);
 //   · queda con cambio forzado en el primer ingreso (si la columna existe);
 //   · el email es único por negocio, también contra los dados de baja (así lo pide el schema).
 // PURO e INYECTABLE: recibe un puerto, así el test lo ejecuta sin base. La action real (operator-actions.ts)
@@ -15,6 +17,7 @@
 
 import { hashPassword, generateStrongPassword } from "@/lib/auth-password";
 import { CambioObligatorioInactivo } from "@/lib/must-change-password";
+import { ClaveNoEnviada, enmascararEmail, type EnvioClave } from "@/lib/clave-temporal-mail";
 
 export const ROLES_DE_ALTA = ["OWNER", "RECEPTION", "PROFESSIONAL"] as const;
 export type RolDeAlta = (typeof ROLES_DE_ALTA)[number];
@@ -29,10 +32,12 @@ export interface AltaPersonaPort {
   /** Marca el cambio forzado; `persisted:false` si la columna no existe en la base. */
   setMustChange(userId: string, value: boolean): Promise<{ persisted: boolean }>;
   audit(entry: { tenantId: string; actor: string; action: string; entity: string; entityId: string; changes: unknown }): Promise<void>;
+  /** Manda la provisoria por mail al titular. El único lugar por donde sale el claro. */
+  enviarClave(destino: { email: string; nombre: string }, clave: string): Promise<EnvioClave>;
 }
 
 export type AltaPersonaResult =
-  | { ok: true; password: string; email: string; name: string; role: RolDeAlta }
+  | { ok: true; email: string; enviadaA: string; name: string; role: RolDeAlta }
   | { ok: false; error: string };
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -78,8 +83,12 @@ export async function altaPersonaCore(
     action: "create",
     entity: "User",
     entityId: creado.id,
-    changes: { name: v.name, email: v.email, role: v.role, origen: "consola", forcedChangePersisted: true },
+    changes: { name: v.name, email: v.email, role: v.role, origen: "consola", forcedChangePersisted: true, entrega: "mail" },
   });
 
-  return { ok: true, password, email: v.email, name: v.name, role: v.role };
+  // Último paso, adentro de la transacción: sin mail, el alta se deshace entera.
+  const envio = await port.enviarClave({ email: v.email, nombre: v.name }, password);
+  if (!envio.enviado) throw new ClaveNoEnviada(envio.motivo, enmascararEmail(v.email));
+
+  return { ok: true, email: v.email, enviadaA: enmascararEmail(v.email), name: v.name, role: v.role };
 }
