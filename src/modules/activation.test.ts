@@ -179,3 +179,15 @@ test("asignacionSugerida filtra por compatibilidad de rubro (no infla)", () => {
   // Un id desconocido no se cuela.
   assert.deepEqual(asignacionSugerida("servicios", ["catalog", "ghost"], r), ["catalog"]);
 });
+
+// ── Paquete Peluquerías (T1): compatibilidad del descriptor REAL de comisiones ───
+test("comisiones (descriptor real): compatible con peluquería, barbería y servicios; no con carnicería ni sin rubro", async () => {
+  const { commissionsModule } = await import("./descriptors/nativos");
+  const { rubroCompatible } = await import("./registry");
+  for (const r of ["servicios", "peluqueria", "barberia"]) {
+    assert.ok(rubroCompatible(commissionsModule.rubros, r), `${r} debería poder activar comisiones`);
+  }
+  for (const r of ["carniceria", "estetica", null]) {
+    assert.ok(!rubroCompatible(commissionsModule.rubros, r), `${String(r)} no cambia: sigue sin comisiones por catálogo`);
+  }
+});
