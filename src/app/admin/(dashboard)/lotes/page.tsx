@@ -13,7 +13,9 @@ import {
   expiryState,
   fmtDia,
   plataEnRiesgo,
+  resumenDeAlertas,
   summarizeBatches,
+  DIAS_POR_VENCER,
 } from "@/lib/carniceria/lotes";
 import { whereProveedoresActivos } from "@/lib/suppliers/supplier";
 import { PageHeader, EmptyState, Marca, PageContainer, buttonClasses, fmtMoneyARS } from "@/components/ui";
@@ -88,7 +90,10 @@ export default async function LotesPage() {
   // tecla. La misma lectura, las mismas acciones.
   if (await disenoNuevo()) {
     const summary = summarizeBatches(batches, hoy);
+    // T3: "vence hoy" aparte de "por vencer" (el de hoy se vende hoy o se retira a la noche).
+    const alertas = resumenDeAlertas(batches, hoy, DIAS_POR_VENCER);
     const riesgo = conCostos ? plataEnRiesgo(batches, hoy) : null;
+    const textoRiesgo = riesgo && riesgo.lotes > 0 ? ` (${fmtMoneyARS(riesgo.pesos, 0)}${riesgo.sinCosto > 0 ? `, ${riesgo.sinCosto} sin costo` : ""})` : "";
     const kg = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 1 }).format(summary.totalKg);
     const puedeCargar = permisoEfectivo(user, "stock:receive");
     return (
@@ -104,10 +109,16 @@ export default async function LotesPage() {
                 {summary.expired === 1 ? "1 vencido en la heladera" : `${summary.expired} vencidos en la heladera`}
               </Marca>
             ) : null,
-            summary.soon > 0 ? (
+            alertas.venceHoy > 0 ? (
+              <Marca key="h" tipo="atencion">
+                {alertas.venceHoy === 1 ? "1 vence hoy" : `${alertas.venceHoy} vencen hoy`}
+                {alertas.porVencer === 0 ? textoRiesgo : ""}
+              </Marca>
+            ) : null,
+            alertas.porVencer > 0 ? (
               <Marca key="p" tipo="atencion">
-                {summary.soon === 1 ? "1 vence" : `${summary.soon} vencen`} en 3 días o menos
-                {riesgo && riesgo.lotes > 0 ? ` (${fmtMoneyARS(riesgo.pesos, 0)}${riesgo.sinCosto > 0 ? `, ${riesgo.sinCosto} sin costo` : ""})` : ""}
+                {alertas.porVencer === 1 ? "1 vence" : `${alertas.porVencer} vencen`} en {DIAS_POR_VENCER} días o menos
+                {textoRiesgo}
               </Marca>
             ) : null,
           ]}

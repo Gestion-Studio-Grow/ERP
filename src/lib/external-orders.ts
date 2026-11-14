@@ -22,6 +22,9 @@ import { isInvoicingEnabled } from "@/lib/fiscal";
 import { facturarOrden } from "@/lib/invoice-from-order";
 import { ApiError } from "@/lib/public-api-auth";
 import { logger } from "@/lib/logger";
+import { dateStrInBusinessTz } from "@/lib/datetime";
+import { opcionLotesVencidos } from "@/lib/carniceria/schema-probe";
+import { LoteVencidoRechazado } from "@/lib/carniceria/lotes-registro";
 
 /** Una línea del pedido tal como la manda el front externo. */
 export type ExternalOrderItem = {
@@ -214,6 +217,10 @@ export async function createExternalOrder(
   // baja de stock para los pedidos externos y, además, lo hacía sin la guarda `gte`
   // (podía dejar stock negativo) y sin filtro de `tenantId`. Se eliminó — la ingesta
   // externa hereda el mismo comportamiento de stock que el POS y la vidriera.
+  // Magra T3b: un corte con todos sus lotes vencidos no se vende tampoco por la API. Se decide
+  // antes de la transacción (sin Lotes listos —CH, Shine, Magra sin la migración— null: lo de
+  // siempre). El rechazo vuelve como 422 con el texto para el cliente, sin códigos de lote.
+  const lotesVencidos = await opcionLotesVencidos(tenantId, dateStrInBusinessTz(new Date()));
   const order = await insertOrder(tenantId, {
     channel: "ONLINE", // ingesta externa = canal online → cae PENDING en la bandeja
     fulfillment: input.fulfillment ?? "PICKUP",
@@ -225,7 +232,10 @@ export async function createExternalOrder(
     paid: input.payment?.paid === true,
     paymentMethod: input.payment?.method ?? null,
     items: lines,
-  }, { idempotencyKey });
+  }, { idempotencyKey, lotesVencidos }).catch((err: unknown) => {
+    if (err instanceof LoteVencidoRechazado) throw new ApiError(422, "expired_product", err.paraElCliente);
+    throw err;
+  });
 
   // Trigger del flujo secundario: facturación. Best-effort para no romper la toma
   // del pedido (ya persistido) si un paso secundario falla.
