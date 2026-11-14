@@ -286,7 +286,7 @@ test("CH-008 · el cancelado sigue liberando; reservado, confirmado y atendido s
     assert.equal(celdaCaro([turnoDe("t1", estado, "14:00", "15:00")], h(14)).tipo, "ocupada", estado);
     assert.equal(liberaElHueco({ estado }), false, estado);
   }
-  // Un «No vino» y un vivo a la misma hora: manda el vivo, la celda sigue ocupada.
+  // «No vino» 14:00-15:00 y un confirmado 14:30-15:00: 14:00 es hueco; 14:30 la ocupa el vivo.
   const mezcla = [turnoDe("t1", "NO_SHOW", "14:00", "15:00"), turnoDe("t2", "CONFIRMED", "14:30", "15:00")];
   assert.equal(celdaCaro(mezcla, h(14)).tipo, "hueco");
   assert.equal(celdaCaro(mezcla, h(14, 30)).tipo, "ocupada");

@@ -175,8 +175,9 @@ export function carrilesDeLaColumna(turnos: readonly TurnoConHorario[]): {
 
 /**
  * Estados que LIBERAN el hueco: el turno sigue dibujado (se abre su cajón), pero la media hora se
- * puede volver a dar. Cancelado y «No vino» (GSG-CH-008): igual que el servidor, que sólo cuenta como
- * ocupado lo Reservado / Confirmado al buscar horarios y al dar el turno (actions.ts, booking-core.ts).
+ * puede volver a dar. Cancelado y «No vino» (GSG-CH-008): el servidor tampoco los cuenta al buscar
+ * horarios ni al dar el turno (actions.ts, booking-core.ts: sólo Reservado / Confirmado). «Atendido»
+ * la grilla lo sigue mostrando ocupado a propósito (es pasado; no se ofrece encima).
  * La seña retenida de un «No vino» no cambia: eso sigue su propia regla (agenda-core, D9).
  */
 const LIBERAN_EL_HUECO = new Set(["CANCELLED", "NO_SHOW"]);
