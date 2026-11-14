@@ -137,8 +137,15 @@ jobs:
           vivas=$(docker exec ${{ job.services.postgres.id }} psql -U postgres -Atc "SELECT count(*) FROM pg_database WHERE datname LIKE 'erp\_test\_%'")
           echo "bases erp_test_ vivas: $vivas"
           test "$vivas" = "0"
+      # El log subido es diagnóstico, no veredicto: el veredicto lo dan los tres pasos de arriba (npm test con
+      # pipefail, ningún salteado, ninguna base viva); el resumen de abajo sólo imprime los fallidos. Por eso un tropiezo del servicio de artefactos de GitHub no
+      # pone el job en rojo: el 11/11 (run 43092727474, main c15c3f7) los 8659 tests pasaron y el job quedó rojo
+      # porque CreateArtifact devolvió una página HTML en vez de JSON 5 veces seguidas (10 minutos de reintentos).
+      # Con tope de 3 minutos para que una caída del servicio no se coma el timeout del job.
       - uses: actions/upload-artifact@v4
         if: always()
+        continue-on-error: true
+        timeout-minutes: 3
         with:
           name: npm-test-log
           path: npm-test.log
