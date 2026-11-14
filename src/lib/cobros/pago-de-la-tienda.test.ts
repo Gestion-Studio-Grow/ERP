@@ -9,13 +9,20 @@ import {
   VIGENCIA_PAGO_TIENDA_MS,
   botonDePagoVisible,
   decidirPagoDeLaTienda,
+  esNegocioDeComercio,
+  pagoDeLaTiendaDisponible,
   leerPedidoYToken,
   linkParaReusar,
   tokenDelPedido,
   tokenDelPedidoValido,
   type PedidoParaPagar,
 } from "./pago-de-la-tienda";
-import { ACCION_LINK_DE_PAGO, ultimosLinks } from "@/app/admin/(dashboard)/pedidos/link-de-pago";
+import {
+  ACCION_LINK_DE_PAGO,
+  simuladorDeAvisosEncendido,
+  tieneMercadoPago,
+  ultimosLinks,
+} from "@/app/admin/(dashboard)/pedidos/link-de-pago";
 
 const SECRETO = "secreto-de-prueba";
 const AHORA = Date.UTC(2026, 10, 10, 15, 0, 0);
@@ -137,11 +144,57 @@ test("reuso: con otro monto (se ajustó al peso), otro modo o sin link, se arma 
 
 test("botón: un negocio sin Mercado Pago no lo muestra; con módulo y conexión, sí", () => {
   const pedidoYToken = { code: 42, token: tokenDelPedido(SECRETO, "t_magra", "ord_1") };
-  assert.equal(botonDePagoVisible({ modo: "real", simulador: false, moduloMercadoPago: false, pedidoYToken }), false);
-  assert.equal(botonDePagoVisible({ modo: "stub", simulador: false, moduloMercadoPago: true, pedidoYToken }), false);
-  assert.equal(botonDePagoVisible({ modo: "test", simulador: false, moduloMercadoPago: true, pedidoYToken: null }), false);
-  assert.equal(botonDePagoVisible({ modo: "test", simulador: false, moduloMercadoPago: true, pedidoYToken }), true);
-  assert.equal(botonDePagoVisible({ modo: "real", simulador: false, moduloMercadoPago: true, pedidoYToken }), true);
+  const comercio = true;
+  assert.equal(botonDePagoVisible({ modo: "real", simulador: false, moduloMercadoPago: false, comercio, pedidoYToken }), false);
+  assert.equal(botonDePagoVisible({ modo: "stub", simulador: false, moduloMercadoPago: true, comercio, pedidoYToken }), false);
+  assert.equal(botonDePagoVisible({ modo: "test", simulador: false, moduloMercadoPago: true, comercio, pedidoYToken: null }), false);
+  assert.equal(botonDePagoVisible({ modo: "test", simulador: false, moduloMercadoPago: true, comercio, pedidoYToken }), true);
+  assert.equal(botonDePagoVisible({ modo: "real", simulador: false, moduloMercadoPago: true, comercio, pedidoYToken }), true);
+});
+
+test("comercio: rubro de retail conocido o rubro contable «comercio»; servicios, sin blueprint o desconocido, no", () => {
+  assert.equal(esNegocioDeComercio({ slug: "magra", blueprintId: "carniceria" }), true);
+  assert.equal(esNegocioDeComercio({ slug: "shinevelas", blueprintId: "velas" }), true);
+  // A Dos Manos es comercio por slug (contabilidad/config.ts), aunque su blueprint no lo diga.
+  assert.equal(esNegocioDeComercio({ slug: "adosmanos", blueprintId: null }), true);
+  assert.equal(esNegocioDeComercio({ slug: "beauty-spa", blueprintId: "servicios" }), false);
+  assert.equal(esNegocioDeComercio({ slug: "un-negocio", blueprintId: null }), false);
+  assert.equal(esNegocioDeComercio({ slug: "un-negocio", blueprintId: undefined }), false);
+  assert.equal(esNegocioDeComercio({ slug: "un-negocio", blueprintId: "generico" }), false);
+  assert.equal(esNegocioDeComercio({ slug: "un-negocio", blueprintId: "inventado" }), false);
+});
+
+// La demo de Magra tal como corre: MP_MODO sin setear (stub) y el simulador de avisos prendido.
+const ENV_DEMO: Record<string, string | undefined> = { MP_SIMULAR_AVISOS: "1" };
+
+test("A · demo Magra (carnicería, módulo mercadopago, stub + simulador, pedido y token válidos): el botón se muestra", () => {
+  const magra = { slug: "magra", blueprintId: "carniceria", modules: ["tienda", "mercadopago"] };
+  const token = tokenDelPedido(SECRETO, "t_magra", "ord_1");
+  assert.equal(tokenDelPedidoValido(SECRETO, "t_magra", "ord_1", token), true);
+  const visible = botonDePagoVisible({
+    modo: "stub",
+    simulador: simuladorDeAvisosEncendido(ENV_DEMO),
+    moduloMercadoPago: tieneMercadoPago(magra.modules),
+    comercio: esNegocioDeComercio(magra),
+    pedidoYToken: leerPedidoYToken("42", token),
+  });
+  assert.equal(visible, true);
+});
+
+test("B · un negocio de servicios (beauty-spa) con mercadopago y todo prendido: ni botón ni action", () => {
+  const spa = { slug: "beauty-spa", blueprintId: "servicios", modules: ["turnos", "mercadopago"] };
+  const pedidoYToken = leerPedidoYToken("42", tokenDelPedido(SECRETO, "t_spa", "ord_9"));
+  const base = { moduloMercadoPago: tieneMercadoPago(spa.modules), comercio: esNegocioDeComercio(spa) };
+  for (const cond of [
+    { modo: "real" as const, simulador: false },
+    { modo: "test" as const, simulador: false },
+    { modo: "stub" as const, simulador: simuladorDeAvisosEncendido(ENV_DEMO) },
+  ]) {
+    assert.equal(botonDePagoVisible({ ...base, ...cond, pedidoYToken }), false, `botón en ${cond.modo}`);
+    assert.equal(pagoDeLaTiendaDisponible({ ...base, ...cond }), false, `action en ${cond.modo}`);
+    // El mismo negocio, si fuera de comercio, sí: lo que lo apaga es el rubro.
+    assert.equal(pagoDeLaTiendaDisponible({ ...base, ...cond, comercio: true }), true, `control en ${cond.modo}`);
+  }
 });
 
 // ── Cableado ─────────────────────────────────────────────────────────────────
@@ -153,6 +206,17 @@ test("el alta online manda a Gracias con el token, y la action pública no conf�
   const action = readFileSync(join(raiz, "lib/cobros/pago-de-la-tienda-actions.ts"), "utf8");
   assert.doesNotMatch(action, /formData\.get\("(monto|total|importe)"\)/);
   assert.match(action, /where: \{ tenantId, code: leido\.code \}/);
+});
+
+test("el botón y la action usan la MISMA regla, comercio incluido (no queda un camino abierto sin botón)", () => {
+  const raiz = join(__dirname, "..", "..");
+  const action = readFileSync(join(raiz, "lib/cobros/pago-de-la-tienda-actions.ts"), "utf8");
+  assert.match(action, /pagoDeLaTiendaDisponible\(\{[^}]*comercio: tenant \? esNegocioDeComercio\(tenant\) : false/);
+  assert.match(action, /select: \{ name: true, slug: true, modules: true, blueprintId: true \}/);
+  assert.doesNotMatch(action, /linkDePagoDisponible/);
+  const server = readFileSync(join(raiz, "lib/cobros/pago-de-la-tienda.server.ts"), "utf8");
+  assert.match(server, /select: \{ modules: true, slug: true, blueprintId: true \}/);
+  assert.match(server, /comercio: tenant \? esNegocioDeComercio\(tenant\) : false/);
 });
 
 test("reuso: un link que vence (o ya venció) en Mercado Pago no se devuelve; uno fresco sí", () => {

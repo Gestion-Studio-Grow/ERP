@@ -56,7 +56,8 @@ test("tienda: clics simultáneos sobre el mismo pedido → una preferencia, una 
   const { authSecret } = await import("@/lib/auth");
   const { ACCION_LINK_DE_PAGO } = await import("@/app/admin/(dashboard)/pedidos/link-de-pago");
 
-  await duenio.tenant.update({ where: { id: a.id }, data: { modules: { push: "mercadopago" } } });
+  // Un comercio (carnicería, como Magra): a un negocio de servicios no se le ofrece el pago.
+  await duenio.tenant.update({ where: { id: a.id }, data: { modules: { push: "mercadopago" }, blueprintId: "carniceria" } });
 
   async function ronda(code: number, clics: number): Promise<void> {
     preferencias = 0;

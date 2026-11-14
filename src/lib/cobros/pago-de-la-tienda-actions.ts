@@ -16,7 +16,6 @@ import { modoCobrosDesdeEnv } from "@/lib/mercadopago-cobros-dispatch";
 import { armarLinkDePagoDePedido, VIGENCIA_LINK_DE_PEDIDO_MS } from "@/lib/cobros/link-de-pedido.server";
 import {
   ACCION_LINK_DE_PAGO,
-  linkDePagoDisponible,
   simuladorDeAvisosEncendido,
   tieneMercadoPago,
   ultimosLinks,
@@ -24,8 +23,10 @@ import {
 import {
   MENSAJE_SIN_PAGO,
   decidirPagoDeLaTienda,
+  esNegocioDeComercio,
   leerPedidoYToken,
   linkParaReusar,
+  pagoDeLaTiendaDisponible,
   tokenDelPedidoValido,
 } from "@/lib/cobros/pago-de-la-tienda";
 
@@ -44,10 +45,17 @@ export async function pagarPedidoDeLaTienda(
       where: { tenantId, code: leido.code },
       select: { id: true, code: true, tenantId: true, channel: true, status: true, paid: true, total: true, createdAt: true },
     }),
-    prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true, slug: true, modules: true } }),
+    prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true, slug: true, modules: true, blueprintId: true } }),
   ]);
+  // La MISMA regla que el botón (comercio incluido): un negocio de servicios no cobra por acá aunque
+  // alguien arme el formulario a mano.
   if (
-    !linkDePagoDisponible({ modo, simulador: simuladorDeAvisosEncendido(), moduloMercadoPago: tieneMercadoPago(tenant?.modules) })
+    !pagoDeLaTiendaDisponible({
+      modo,
+      simulador: simuladorDeAvisosEncendido(),
+      moduloMercadoPago: tieneMercadoPago(tenant?.modules),
+      comercio: tenant ? esNegocioDeComercio(tenant) : false,
+    })
   ) {
     return { ok: false, error: MENSAJE_SIN_PAGO["sin-mp"] };
   }

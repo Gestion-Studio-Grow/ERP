@@ -563,7 +563,9 @@
 .camino li[data-hecho] .caminoMarca { color: var(--ok); }
 .caminoTxt { display: block; font-size: 14px; color: var(--tinta-2); margin-top: 2px; }
 .segAcc { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
-@media (max-width: 719px) { .segAcc .btn { flex: 1 1 100%; } .cabVolver { display: none; } }
+.segPagar form { display: grid; justify-items: start; gap: 8px; }
+.segPagar .nota { margin-top: 0; }
+@media (max-width: 719px) { .segAcc .btn { flex: 1 1 100%; } .segPagar form { justify-items: stretch; } .cabVolver { display: none; } }
 .banda .condiciones { border-color: currentColor; }
 
 /* ── Ofertas de la semana (negocios con el módulo de Ofertas) ─────────────── */

@@ -17,6 +17,8 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { round2 } from "@/lib/round";
 import { linkDePagoDisponible, type LinkEnviado, type ModoLink } from "@/app/admin/(dashboard)/pedidos/link-de-pago";
+import { getRetailRubro } from "@/blueprints/retail/rubros";
+import { rubroContableSugerido } from "@/lib/contabilidad/config";
 
 const ETIQUETA_DE_LA_CLAVE = "gsg:pago-de-la-tienda:v1";
 
@@ -126,13 +128,32 @@ export function linkParaReusar(
   return ultimo;
 }
 
-/** ¿Se muestra «Pagar ahora con Mercado Pago» en Gracias? Misma regla que la bandeja, más el token. PURA. */
-export function botonDePagoVisible(input: {
-  modo: ModoLink;
-  simulador: boolean;
-  moduloMercadoPago: boolean;
-  pedidoYToken: { code: number; token: string } | null;
-}): boolean {
-  if (!input.pedidoYToken) return false;
+/**
+ * ¿El negocio vende mercadería (comercio)? El pago desde Gracias es para pedidos de la tienda: un
+ * negocio de servicios (estética, turnos) con el módulo `mercadopago` (que es de todos los rubros)
+ * no lo ofrece. Comercio = rubro de retail conocido (`rubros.ts`) o rubro contable «comercio»
+ * (incluye los negocios marcados por slug, como A Dos Manos). Sin blueprint o desconocido → false. PURA.
+ */
+export function esNegocioDeComercio(t: { slug: string; blueprintId: string | null | undefined }): boolean {
+  if (t.blueprintId && getRetailRubro(t.blueprintId)) return true;
+  return rubroContableSugerido({ slug: t.slug ?? "", blueprintId: t.blueprintId ?? null }) === "comercio";
+}
+
+type CondicionesDelPagoDeLaTienda = { modo: ModoLink; simulador: boolean; moduloMercadoPago: boolean; comercio: boolean };
+
+/**
+ * ¿La tienda puede cobrar con Mercado Pago desde Gracias? La regla de la bandeja (módulo + conexión
+ * o simulador) y además comercio. La usan el botón y la action: no queda un camino abierto sin botón. PURA.
+ */
+export function pagoDeLaTiendaDisponible(input: CondicionesDelPagoDeLaTienda): boolean {
+  if (!input.comercio) return false;
   return linkDePagoDisponible({ modo: input.modo, simulador: input.simulador, moduloMercadoPago: input.moduloMercadoPago });
+}
+
+/** ¿Se muestra «Pagar ahora con Mercado Pago» en Gracias? La regla de arriba, más el token. PURA. */
+export function botonDePagoVisible(
+  input: CondicionesDelPagoDeLaTienda & { pedidoYToken: { code: number; token: string } | null },
+): boolean {
+  if (!input.pedidoYToken) return false;
+  return pagoDeLaTiendaDisponible(input);
 }
