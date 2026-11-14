@@ -37,6 +37,7 @@ import { createCoupon, deleteCoupon, toggleCouponActive } from "@/lib/coupon-act
 import { fmtShortDate } from "@/lib/datetime";
 import { cuponAgotado } from "@/lib/venta-reglas";
 import { useToast } from "../ToastProvider";
+import { useLugarDeAtencion } from "../LugarDeAtencion";
 import { CamposDeLaFicha, FotosDelServicio } from "./FichaServicioCampos";
 import { MODALIDAD_ETIQUETA, TIPO_ETIQUETA, precioADefinir, type FichaDelServicio } from "@/lib/servicios/ficha";
 
@@ -464,6 +465,7 @@ export function BoxesRenglon({
   const { href, cerrar } = useCajon();
   const { correr, pendiente } = useAccion();
   const editando = editar ? (boxes.find((b) => b.id === editar) ?? null) : null;
+  const lugar = useLugarDeAtencion();
   const eliminar = (b: Box) => {
     if (!confirm(`¿Eliminar «${b.name}»? Si ya tiene turnos no se puede: pausalo.`)) return;
     correr(deleteBox, { id: b.id }, `«${b.name}» eliminado.`);
@@ -471,8 +473,8 @@ export function BoxesRenglon({
 
   return (
     <div aria-busy={pendiente || undefined}>
-      <Bloque titulo="Boxes" cuenta={boxes.filter((b) => b.active).length}>
-        {boxes.length === 0 && <Vacio>Todavía no hay boxes.</Vacio>}
+      <Bloque titulo={lugar.Plural} cuenta={boxes.filter((b) => b.active).length}>
+        {boxes.length === 0 && <Vacio>Todavía no hay {lugar.plural}.</Vacio>}
         <ul data-sin-folio>
           {boxes.map((b) => {
             const quienes = profesionalesPorBox[b.id] ?? [];
@@ -529,8 +531,8 @@ export function BoxesRenglon({
       <Cajon abierto={editando !== null} onCerrar={cerrar} titulo={editando?.name ?? ""}>
         {editando && <FichaDelBox key={editando.id} box={editando} />}
       </Cajon>
-      <Cajon abierto={agregar && editando === null} onCerrar={cerrar} titulo="Agregar un box">
-        {agregar && <FormularioNombre accion={createBox} ok="Box agregado." boton="Agregar box" alTerminar={cerrar} placeholder="Ej.: Box 4" />}
+      <Cajon abierto={agregar && editando === null} onCerrar={cerrar} titulo={`Agregar un ${lugar.singular}`}>
+        {agregar && <FormularioNombre accion={createBox} ok={`${lugar.Singular} agregado.`} boton={`Agregar ${lugar.singular}`} alTerminar={cerrar} placeholder={`Ej.: ${lugar.Singular} 4`} />}
       </Cajon>
     </div>
   );
@@ -570,7 +572,8 @@ function FormularioNombre({
 
 function FichaDelBox({ box: b }: { box: Box }) {
   const { correr } = useAccion();
-  const guardarBloqueo = useGuardar(() => {}, "Box bloqueado para esas fechas.");
+  const lugar = useLugarDeAtencion();
+  const guardarBloqueo = useGuardar(() => {}, `${lugar.Singular} bloqueado para esas fechas.`);
   return (
     <div className="flex flex-col gap-8">
       <Seccion titulo="Bloquear fechas" nivel="h3">
@@ -606,7 +609,7 @@ function FichaDelBox({ box: b }: { box: Box }) {
                     type="button"
                     className={buttonClasses("ghost", "sm")}
                     onClick={() => {
-                      if (!confirm("¿Quitar este bloqueo? El box vuelve a quedar libre esos días.")) return;
+                      if (!confirm(`¿Quitar este bloqueo? El ${lugar.singular} vuelve a quedar libre esos días.`)) return;
                       correr(deleteBoxBlock, { id: bl.id }, "Bloqueo quitado.");
                     }}
                   >

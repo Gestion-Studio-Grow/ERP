@@ -24,6 +24,9 @@ import BotonBuscar from "../armazon/BotonBuscar";
 import AtajosDelAlta from "./_agenda/AtajosDelAlta";
 import { esteticaBackoffice } from "@/lib/estetica-backoffice";
 import { getCurrentTenantSlug } from "@/lib/tenant-site";
+import { getBrandSheet } from "@/lib/brand-sheet";
+import { lugarDeAtencion } from "@/lib/palabras-del-negocio";
+import { LugarDeAtencionProvider } from "../LugarDeAtencion";
 import { enlaceCobrarUnaVenta } from "../pedidos/cobrar-una-venta";
 import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
 import { agendaInteraccionPrendida, ventaAgendaSimplePrendida, vouchersPrendidos } from "@/cambios/interruptores";
@@ -92,16 +95,20 @@ export default async function TurnosCalendarPage({
   // El profesional cobra sus turnos aunque no pueda gestionarlos (decisión del dueño).
   const canCollect = permisoEfectivo(user, "agenda:collect");
 
-  const [{ date: dateParam, vista }, nuevo] = await Promise.all([searchParams, disenoNuevo()]);
+  const [{ date: dateParam, vista }, nuevo, marca] = await Promise.all([searchParams, disenoNuevo(), getBrandSheet()]);
+  // «Box» o, en peluquería y barbería, «sillón» (sólo el texto; sin blueprint —CH— dice «box»).
+  const lugar = lugarDeAtencion(marca.blueprintId);
   // DISEÑO NUEVO («Renglón»): el libro del día (AgendaRenglon.tsx). Mismos datos, mismas acciones,
   // mismas guardias. Apagado (CH hoy), la agenda de abajo tal cual.
   if (nuevo) {
     return (
-      <AgendaRenglon
-        quien={user}
-        fecha={dateParam}
-        vista={vista === "profesionales" ? "profesionales" : vista === "lista" ? "lista" : undefined}
-      />
+      <LugarDeAtencionProvider valor={lugar}>
+        <AgendaRenglon
+          quien={user}
+          fecha={dateParam}
+          vista={vista === "profesionales" ? "profesionales" : vista === "lista" ? "lista" : undefined}
+        />
+      </LugarDeAtencionProvider>
     );
   }
   const today = todayInBusinessTz();
@@ -168,6 +175,7 @@ export default async function TurnosCalendarPage({
   const sinProfesionales = vacioSinProfesionales({
     esProfesional: user.role === "PROFESSIONAL",
     puedeCargarCatalogo: appPermitida(appPorId("catalogo"), negocio),
+    lugar: lugar.singular,
   });
   const diaVacio = vacioDiaSinTurnos({ fecha: date, hoy: today, puedeDarTurno: canManage });
 
@@ -236,7 +244,9 @@ export default async function TurnosCalendarPage({
 
       {manana && <MananaConfirmar dia={manana.dia} turnos={manana.turnos} />}
 
-      <CalendarGrid professionals={professionals} planilla={planilla} sinProfesionales={sinProfesionales} diaVacio={diaVacio} />
+      <LugarDeAtencionProvider valor={lugar}>
+        <CalendarGrid professionals={professionals} planilla={planilla} sinProfesionales={sinProfesionales} diaVacio={diaVacio} />
+      </LugarDeAtencionProvider>
     </main>
   );
 }

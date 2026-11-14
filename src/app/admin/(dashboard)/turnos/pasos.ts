@@ -169,9 +169,12 @@ export function hrefAlTerminarElAlta(fin: { dia: string; turnoId: string | null;
 export function vacioSinProfesionales({
   esProfesional,
   puedeCargarCatalogo,
+  lugar = "box",
 }: {
   esProfesional: boolean;
   puedeCargarCatalogo: boolean;
+  /** El nombre del lugar de atención (`lugarDeAtencion`): «box» salvo peluquería y barbería. */
+  lugar?: string;
 }): PasoVacio {
   if (esProfesional) {
     return {
@@ -184,7 +187,7 @@ export function vacioSinProfesionales({
   if (puedeCargarCatalogo) {
     return {
       titulo: "Todavía no hay profesionales",
-      descripcion: "Para dar turnos, cargá en el Catálogo quién atiende, qué servicios hace y en qué box.",
+      descripcion: `Para dar turnos, cargá en el Catálogo quién atiende, qué servicios hace y en qué ${lugar}.`,
       accion: { href: "/admin/catalogo", etiqueta: "Cargar profesionales" },
     };
   }

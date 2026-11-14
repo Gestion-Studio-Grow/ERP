@@ -38,3 +38,19 @@ export function sinVentasDelDia(texto: string): string {
     .replace(/queda marcado en Ventas del día/g, "queda registrado")
     .replace(/Ventas del día/g, "Vender, en «Cerrados»");
 }
+
+/** Cómo se llama el lugar donde se atiende (el modelo `Box`): en peluquería y barbería, «sillón». */
+export type LugarDeAtencion = { singular: string; Singular: string; plural: string; Plural: string };
+
+const BOX: LugarDeAtencion = { singular: "box", Singular: "Box", plural: "boxes", Plural: "Boxes" };
+const SILLON: LugarDeAtencion = { singular: "sillón", Singular: "Sillón", plural: "sillones", Plural: "Sillones" };
+const RUBROS_CON_SILLON = new Set(["peluqueria", "barberia"]);
+
+/**
+ * El nombre del lugar de atención según el rubro (`Tenant.blueprintId`). Sólo cambia lo que se
+ * lee: el dato sigue siendo un `Box`. Cualquier otro rubro, o un tenant sin blueprint (CH), dice
+ * «box» como siempre. PURA.
+ */
+export function lugarDeAtencion(blueprintId: string | null | undefined): LugarDeAtencion {
+  return blueprintId && RUBROS_CON_SILLON.has(blueprintId) ? SILLON : BOX;
+}

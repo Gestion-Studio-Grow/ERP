@@ -12,6 +12,7 @@ import {
 import { useToast } from "../ToastProvider";
 import { fmtShortDate } from "@/lib/datetime";
 import { buttonClasses } from "@/components/ui";
+import { useLugarDeAtencion } from "../LugarDeAtencion";
 
 type BoxBlock = { id: string; startsAt: Date; endsAt: Date; reason: string };
 type Box = { id: string; name: string; active: boolean; blocks: BoxBlock[] };
@@ -28,6 +29,7 @@ function BoxRow({ box }: { box: Box }) {
   const [confirmandoBloqueoId, setConfirmandoBloqueoId] = useState<string | null>(null);
   const [confirmandoEliminar, setConfirmandoEliminar] = useState(false);
   const { showError, showSuccess } = useToast();
+  const lugar = useLugarDeAtencion();
 
   return (
     <div className="rounded-lg border border-line px-4 py-2.5">
@@ -166,7 +168,7 @@ function BoxRow({ box }: { box: Box }) {
             try {
               await createBoxBlock(fd);
               setBlocking(false);
-              showSuccess("Box bloqueado para esas fechas.");
+              showSuccess(`${lugar.Singular} bloqueado para esas fechas.`);
             } catch (err) {
               showError(err instanceof Error ? err.message : "No se pudo crear el bloqueo.");
             }
@@ -193,7 +195,7 @@ function BoxRow({ box }: { box: Box }) {
           </div>
           <div className="col-span-2 flex gap-3">
             <button type="submit" className="text-sm font-medium max-sm:min-h-11 max-sm:min-w-11">
-              Bloquear box
+              Bloquear {lugar.singular}
             </button>
             <button type="button" onClick={() => setBlocking(false)} className="text-sm text-muted max-sm:min-h-11 max-sm:min-w-11">
               Cancelar
@@ -206,9 +208,10 @@ function BoxRow({ box }: { box: Box }) {
 }
 
 export default function BoxesSection({ boxes }: { boxes: Box[] }) {
+  const lugar = useLugarDeAtencion();
   return (
     <section>
-      <h2 className="text-lg font-medium mb-1">Boxes</h2>
+      <h2 className="text-lg font-medium mb-1">{lugar.Plural}</h2>
       <p className="text-sm text-muted mb-3">
         Cantidad de espacios físicos de atención. Podés agregar, editar, desactivar o bloquear
         fechas puntuales (Ej.: reservado para un servicio especial) sin reasignar profesionales.
@@ -218,18 +221,18 @@ export default function BoxesSection({ boxes }: { boxes: Box[] }) {
           <BoxRow key={b.id} box={b} />
         ))}
         {boxes.length === 0 && (
-          <p className="text-sm text-muted">No hay boxes cargados todavía.</p>
+          <p className="text-sm text-muted">No hay {lugar.plural} cargados todavía.</p>
         )}
       </div>
       <form action={createBox} className="flex gap-2">
         <input
           name="name"
           required
-          placeholder="Ej.: Box 4"
+          placeholder={`Ej.: ${lugar.Singular} 4`}
           className="flex-1 rounded-md border border-line-strong bg-surface-raised px-3 py-2 text-sm text-strong focus:border-accent"
         />
         <button type="submit" className={buttonClasses("solid", "md")}>
-          Agregar box
+          Agregar {lugar.singular}
         </button>
       </form>
     </section>
