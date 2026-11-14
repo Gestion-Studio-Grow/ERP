@@ -1,7 +1,7 @@
 // SEG-020 (servidor) CONTRA POSTGRES — el PIN de un dueño del club se verifica sólo en el servidor, con tope de
 // intentos en la base, con las acciones REALES (estado-actions.ts, firma-del-duenio-actions.ts) y RLS encendido.
 //   1. la foto que baja (OWNER y recepción) no trae credenciales de dueño (ni h1 ni h2);
-//   2. tope de intentos: al 5.º fallo contra un dueño espera; durante la espera ni su PIN correcto pasa (ni «¿de qué
+//   2. tope de intentos: al 5.º fallo contra un dueño (con y sin usuario cuentan juntos) espera; durante la espera ni su PIN correcto pasa (ni «¿de qué
 //      dueño es?»); otro dueño sigue firmando; un acierto limpia sólo los fallos de ese dueño, no el techo del negocio;
 //   3. aislamiento: el tope y el pase de A no valen en B;
 //   4. un código armado con `codigoAprobacion` del motor y lo guardado no aprueba; el del servidor sí;
@@ -108,15 +108,16 @@ test("1 · la foto que baja, para OWNER y para recepción, no trae credenciales 
   }
 });
 
-test("2 · tope de intentos: 5 fallos contra un dueño y espera; su PIN correcto también espera; otro dueño sigue", async (t) => {
+test("2 · tope de intentos: 5 fallos contra un dueño (con y sin usuario cuentan juntos) y espera; su PIN correcto también espera; otro dueño sigue", async (t) => {
   const p = await preparar(t);
   if (!p) return;
   const { base, duenio } = p;
   const { firmarComoDuenio } = await acciones();
   const firmar = (pedido: { usuarioId?: string; pin: string }) => ejecutarAccion(comoRecepcion(base.a), () => firmarComoDuenio(pedido)).then(valor);
 
+  // Con y sin usuario cuentan juntos contra un mismo dueño: 3 contra Rober + 2 sin dueño y el 5.º ya espera.
   for (let i = 1; i <= 4; i++) {
-    const r = await firmar({ usuarioId: "u-rober", pin: MAL });
+    const r = await firmar(i % 2 ? { usuarioId: "u-rober", pin: MAL } : { pin: MAL });
     assert.equal(r.ok, false);
     assert.ok(!r.ok && !r.esperaS, `intento ${i} todavía no espera`);
   }

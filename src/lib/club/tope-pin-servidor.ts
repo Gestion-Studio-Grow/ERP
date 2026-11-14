@@ -7,7 +7,10 @@
 //   · por dueño: 5 fallos dirigidos a ESE dueño; sólo un acierto de ese dueño los limpia;
 //   · sin dueño («¿de qué dueño es?»): 5 fallos; ningún acierto los limpia;
 //   · techo del negocio: 20 fallos de cualquiera; ningún acierto lo limpia.
-// Un intento espera si espera el techo o su balde (sin dueño: también si espera el de cualquier dueño). Un acierto que
+// Un intento sin dueño se prueba contra todos: su fallo cuenta en `sinUsuario` y en el balde de cada dueño anotado, y
+// el balde de un dueño nace con los fallos vigentes de `sinUsuario`. Así, contra un mismo dueño nunca se evalúan más
+// de 5 entre ambos tipos antes de la primera espera. Un intento espera si espera el techo, `sinUsuario` o su balde (sin
+// dueño: el de cualquier dueño). Un acierto que
 // no habilita (PIN del largo viejo) no limpia nada. Durante la espera no se verifica nada (ni se calcula ningún hash)
 // y se responde lo mismo, sea el PIN que sea. El código de aprobación tiene su propio tope (sin dueño + techo).
 //
@@ -93,6 +96,19 @@ function leerEstado(c: unknown): EstadoDelTope {
 const guardable = (e: EstadoDelTope) => ({ intentos: e.intentos, sinUsuario: e.sinUsuario, porDuenio: Object.fromEntries(e.porDuenio) });
 
 /** Un fallo más en un balde (la escalera del motor: 30 s, 2 min, 10 min), con `tope` fallos por tanda. */
+/** Los fallos de un balde que todavía cuentan para su próxima espera (ni olvidados ni de una tanda ya esperada). */
+function fallosVigentes(t: IntentosPin, tope: number, ahora: number): number {
+  const x = intentosPin(t);
+  if (x.ultimoFallo && ahora - x.ultimoFallo >= OLVIDO_MS) return 0;
+  if (x.fallos >= tope && ahora >= x.esperaHasta) return 0;
+  return x.fallos;
+}
+
+/** El balde de un dueño; si no hay, nace con los fallos sin dueño vigentes (también se probaron contra él). */
+function baldeDe(e: EstadoDelTope, usuarioId: string, ahora: number): IntentosPin {
+  return e.porDuenio.get(usuarioId) ?? { ...intentosPin(null), fallos: fallosVigentes(e.sinUsuario, TOPE_POR_BALDE, ahora) };
+}
+
 function anotarFallo(t: IntentosPin, tope: number, ahora: number): IntentosPin {
   let x = intentosPin(t);
   if (x.ultimoFallo && ahora - x.ultimoFallo >= OLVIDO_MS) x = intentosPin(null);
@@ -107,11 +123,11 @@ function anotarFallo(t: IntentosPin, tope: number, ahora: number): IntentosPin {
 }
 
 /**
- * Cuánto falta esperar para un intento contra `usuarioId` (o sin dueño): el techo y su balde. Sin dueño se prueba
- * contra todos, así que también cuentan los baldes de cada dueño.
+ * Cuánto falta esperar para un intento contra `usuarioId` (o sin dueño): el techo, el de los intentos sin dueño (que
+ * también se probaron contra ese dueño) y su balde. Sin dueño se prueba contra todos: cuentan los baldes de cada dueño.
  */
 function esperaDe(e: EstadoDelTope, usuarioId: string | null, ahora: number): number {
-  const baldes = [e.intentos, ...(usuarioId ? [e.porDuenio.get(usuarioId)] : [e.sinUsuario, ...e.porDuenio.values()])];
+  const baldes = [e.intentos, e.sinUsuario, ...(usuarioId ? [e.porDuenio.get(usuarioId)] : e.porDuenio.values())];
   return Math.max(0, ...baldes.map((b) => (b ? esperaPin(b, ahora) : 0)));
 }
 
@@ -125,7 +141,8 @@ function podar(e: EstadoDelTope, ahora: number): void {
 /**
  * Verifica con tope: si el intento tiene que esperar, no llama a `verificar`. Si no, la llama, anota el intento y
  * devuelve cuánto queda por esperar (0 si nada). `usuarioId`: el dueño contra el que se prueba (null = sin dueño).
- * Un fallo cuenta en el techo del negocio y en su balde; un acierto sólo limpia el balde del dueño de `limpia`.
+ * Un fallo cuenta en el techo del negocio y en su balde (sin dueño: también en el de cada dueño anotado); un acierto
+ * sólo limpia el balde del dueño de `limpia`.
  */
 export async function conTopeDePin<T extends IntentoVerificado>(
   tenantId: string,
@@ -148,8 +165,11 @@ export async function conTopeDePin<T extends IntentoVerificado>(
     const resultado = await verificar();
     if (!resultado.ok) {
       estado.intentos = anotarFallo(estado.intentos, TECHO_FALLOS_NEGOCIO, ahora);
-      if (usuarioId) estado.porDuenio.set(usuarioId, anotarFallo(estado.porDuenio.get(usuarioId) ?? intentosPin(null), TOPE_POR_BALDE, ahora));
-      else estado.sinUsuario = anotarFallo(estado.sinUsuario, TOPE_POR_BALDE, ahora);
+      if (usuarioId) estado.porDuenio.set(usuarioId, anotarFallo(baldeDe(estado, usuarioId, ahora), TOPE_POR_BALDE, ahora));
+      else {
+        estado.sinUsuario = anotarFallo(estado.sinUsuario, TOPE_POR_BALDE, ahora);
+        for (const [id, b] of estado.porDuenio) estado.porDuenio.set(id, anotarFallo(b, TOPE_POR_BALDE, ahora));
+      }
     } else if (ambito === "pin" && typeof resultado.limpia === "string") {
       estado.porDuenio.delete(resultado.limpia);
     }

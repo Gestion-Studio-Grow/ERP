@@ -165,3 +165,28 @@ test("una fila de antes (sólo `intentos`, en espera) se respeta", async () => {
   const r = await conTopeDePin(NEGOCIO, "pin", () => assert.fail("no se verifica en la espera"), { usuarioId: "u-rober", ahoraMs: 1_500_000, correr });
   assert.deepEqual(r, { espera: true, esperaS: 500 });
 });
+
+test("con y sin dueño cuentan juntos contra un mismo dueño: nunca más de 5 antes de la primera espera", async () => {
+  // 5 sin dueño: el primero con dueño ya espera (y no se verifica).
+  {
+    const t = tope();
+    for (let k = 0; k < 5; k++) assert.equal((await t.intento(null, false)).espera, false);
+    const antes = t.llamadas();
+    assert.deepEqual(await t.intento("u-rober", true), { espera: true, esperaS: 30 });
+    assert.equal(t.llamadas(), antes);
+  }
+  // 3 sin dueño + 2 contra Rober, y al revés: el siguiente contra Rober espera; otro dueño sin fallos propios no.
+  for (const orden of [[null, null, null, "u-rober", "u-rober"], ["u-rober", "u-rober", null, null, null]] as const) {
+    const t = tope();
+    const respuestas = [];
+    for (const quien of orden) respuestas.push(await t.intento(quien, false));
+    assert.ok(respuestas.every((r) => !r.espera), `${orden.join(",")}: ninguno de los 5 espera antes de evaluarse`);
+    assert.equal(respuestas.at(-1)?.esperaS, 30, `${orden.join(",")}: el 5.º avisa la espera`);
+    const antes = t.llamadas();
+    assert.ok((await t.intento("u-rober", true)).espera, `${orden.join(",")}: el 6.º contra Rober espera`);
+    assert.ok((await t.intento(null, true, "u-majo")).espera, `${orden.join(",")}: sin dueño también espera`);
+    assert.equal(t.llamadas(), antes);
+    const majo = await t.intento("u-majo", true);
+    assert.ok(!majo.espera && majo.resultado.ok, "otro dueño sigue firmando");
+  }
+});
