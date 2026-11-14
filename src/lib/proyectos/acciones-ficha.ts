@@ -10,6 +10,7 @@ import { MENSAJE_APAGADO } from "./etapa2-core";
 import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { cuentaParaCuota } from "./gestion-cuentas.server";
+import { conCuotaSinFacturaViva, facturarCuotaDelProyecto } from "./facturar-cuota.server";
 import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
 import { getCurrentTenantId } from "@/lib/tenant";
@@ -27,7 +28,8 @@ import { archivoAdmitido, claveDeArchivo, claveEsDelProyecto, MINUTOS_SUBIDA, ur
 import { borrarDeNube, configR2, tamanoEnNube } from "./r2.server";
 import type { ModuloGestion } from "./gestion-core";
 
-export type ResultadoFicha<T = object> = ({ ok: true } & T) | { ok: false; error: string };
+/** `aviso`: salió bien, pero hay algo que mirar (p. ej. «recalculá el plan» si se facturó una cuota en el medio). */
+export type ResultadoFicha<T = object> = ({ ok: true; aviso?: string } & T) | { ok: false; error: string };
 
 const RAIZ = "/admin/proyectos";
 const MAX_ARCHIVOS = 30; // los que viven en la base; los que están en la nube tienen su propio tope
@@ -66,13 +68,16 @@ async function entrar(modulos: ModuloGestion | readonly ModuloGestion[], proyect
 }
 
 /** Dos guardados casi juntos (dos pestañas) pueden chocar creando la misma cuota: el segundo intento ya la encuentra. */
-async function regenerar(tenantId: string, proyectoId: string) {
+/** Devuelve `{ aviso }` si el plan no cerró (se facturó una cuota en el medio), para sumarlo a la respuesta. */
+async function regenerar(tenantId: string, proyectoId: string): Promise<{ aviso?: string }> {
+  let aviso: string | null;
   try {
-    await regenerarCuotas(tenantId, proyectoId);
+    aviso = await regenerarCuotas(tenantId, proyectoId);
   } catch (e) {
     if ((e as { code?: string }).code !== "P2002") throw e;
-    await regenerarCuotas(tenantId, proyectoId);
+    aviso = await regenerarCuotas(tenantId, proyectoId);
   }
+  return aviso ? { aviso } : {};
 }
 
 // ── Pipeline ────────────────────────────────────────────────────────────────
@@ -178,10 +183,10 @@ export async function moverProyecto(d: { id: string; destino: string; motivo?: s
     await registrarCambio(tx, { tenantId, proyectoId: id, entidad: "Proyecto", entidadId: id, campo: "Etapa", antes, despues: motivo && d.destino === PERDIDO ? `Perdido: ${motivo}` : despues, autor: a.nombre });
     await avisar(tx, { tenantId, destinatarios: destinatarios0, tipo: "etapa", texto: `${p.nombre} pasó a ${despues}`, enlace: `${RAIZ}/${id}` });
   });
-  await regenerar(tenantId, id);
+  const plan = await regenerar(tenantId, id);
   await auditAdmin({ action: "proyecto.etapa", entity: "Proyecto", entityId: id, changes: { de: antes, a: despues } });
   refrescar(id);
-  return { ok: true };
+  return { ok: true, ...plan };
 }
 
 // ── Datos del proyecto ──────────────────────────────────────────────────────
@@ -273,9 +278,9 @@ export async function guardarDatos(formData: FormData): Promise<ResultadoFicha> 
       }
     }
   });
-  await regenerar(tenantId, id);
+  const plan = await regenerar(tenantId, id);
   refrescar(id);
-  return { ok: true };
+  return { ok: true, ...plan };
 }
 
 export async function guardarCarpeta(formData: FormData): Promise<ResultadoFicha> {
@@ -483,9 +488,9 @@ export async function guardarCampoItem(d: { id: string; campo: string; valor: st
     if (pierdeAprobacion) await tx.proyectoPresupuesto.updateMany({ where: { id: it.presupuesto.id, tenantId }, data: { aprobadoInternoEl: null, aprobadoInternoPor: null } });
     if (congelarCambio) await tx.proyectoPresupuesto.updateMany({ where: { id: it.presupuesto.id, tenantId }, data: { tcVenta: congelarCambio } });
   });
-  if (!SIN_EFECTO_EN_CUOTAS.has(campo)) await regenerar(tenantId, proyectoId);
+  const plan = !SIN_EFECTO_EN_CUOTAS.has(campo) ? await regenerar(tenantId, proyectoId) : {};
   refrescar(proyectoId);
-  return { ok: true };
+  return { ok: true, ...plan };
 }
 
 export async function agregarItemFicha(formData: FormData): Promise<ResultadoFicha> {
@@ -505,9 +510,9 @@ export async function agregarItemFicha(formData: FormData): Promise<ResultadoFic
     await registrarCambio(tx, { tenantId, proyectoId: pr.proyectoId, entidad: "ProyectoItem", entidadId: creado.id, campo: "Ítem agregado", despues: descripcion, autor: a.nombre });
     await tx.proyectoPresupuesto.updateMany({ where: { id: presupuestoId, tenantId }, data: { aprobadoInternoEl: null, aprobadoInternoPor: null } });
   });
-  await regenerar(tenantId, pr.proyectoId);
+  const plan = await regenerar(tenantId, pr.proyectoId);
   refrescar(pr.proyectoId);
-  return { ok: true };
+  return { ok: true, ...plan };
 }
 
 export async function borrarItemFicha(d: { id: string }): Promise<ResultadoFicha> {
@@ -524,9 +529,9 @@ export async function borrarItemFicha(d: { id: string }): Promise<ResultadoFicha
     await registrarCambio(tx, { tenantId, proyectoId, entidad: "ProyectoItem", entidadId: it.id, campo: "Ítem quitado", antes: it.descripcion, autor: a.nombre });
     await tx.proyectoPresupuesto.updateMany({ where: { id: it.presupuesto.id, tenantId }, data: { aprobadoInternoEl: null, aprobadoInternoPor: null } });
   });
-  await regenerar(tenantId, proyectoId);
+  const plan = await regenerar(tenantId, proyectoId);
   refrescar(proyectoId);
-  return { ok: true };
+  return { ok: true, ...plan };
 }
 
 // ── Cotización ──────────────────────────────────────────────────────────────
@@ -593,9 +598,9 @@ export async function nuevaVersion(formData: FormData): Promise<ResultadoFicha> 
     return true;
   });
   if (!r) return mal("Ya hay una versión en borrador: seguí con ésa.");
-  await regenerar(tenantId, proyectoId);
+  const plan = await regenerar(tenantId, proyectoId);
   refrescar(proyectoId);
-  return { ok: true };
+  return { ok: true, ...plan };
 }
 
 /** Sólo Dirección. Un cambio de precio posterior la borra: lo aprobado tiene que ser lo que se envía. */
@@ -666,10 +671,10 @@ export async function enviarCotizacion(formData: FormData): Promise<ResultadoFic
   });
   if (!enviada) return mal("No se pudo enviar: revisá que siga aprobada y en borrador.");
   if (avanzo) await avisarEtapa(tenantId, pr.proyectoId, a.user.id, etapaLabel("PROPUESTA"));
-  await regenerar(tenantId, pr.proyectoId);
+  const plan = await regenerar(tenantId, pr.proyectoId);
   await auditAdmin({ action: "proyecto.propuesta.enviar", entity: "ProyectoPresupuesto", entityId: id, changes: { version: pr.version } });
   refrescar(pr.proyectoId);
-  return { ok: true };
+  return { ok: true, ...plan };
 }
 
 /** Cuando el cliente responde por otro lado (teléfono, mail): queda igual que si hubiera usado su link. */
@@ -701,9 +706,9 @@ export async function registrarRespuesta(formData: FormData): Promise<ResultadoF
   });
   if (!ganada) return mal("Esta versión ya fue respondida o reemplazada.");
   if (aprueba) await avisarEtapa(tenantId, pr.proyectoId, a.user.id, etapaLabel(etapaAlAprobar(pr.proyecto.servicio, pr.proyecto.etapa), pr.proyecto.servicio));
-  await regenerar(tenantId, pr.proyectoId);
+  const plan = await regenerar(tenantId, pr.proyectoId);
   refrescar(pr.proyectoId);
-  return { ok: true };
+  return { ok: true, ...plan };
 }
 
 /** La etapa también cambia sola, al enviar o aprobar una versión: el equipo se entera igual que cuando se mueve la tarjeta. */
@@ -730,9 +735,9 @@ export async function guardarTextos(formData: FormData): Promise<ResultadoFicha>
   // Otro IVA u otro cambio es otro total para el cliente: la aprobación de precios ya no vale y las cuotas se recalculan.
   await registrarCambio(prisma, { tenantId, proyectoId: pr.proyectoId, entidad: "Versión", entidadId: id, campo: "IVA %", antes: pr.ivaPct, despues: iva, autor: a.nombre });
   await registrarCambio(prisma, { tenantId, proyectoId: pr.proyectoId, entidad: "Versión", entidadId: id, campo: "Cambio de venta", antes: pr.tcVenta, despues: tcVenta, autor: a.nombre });
-  if (cambiaTotal) await regenerar(tenantId, pr.proyectoId);
+  const plan = cambiaTotal ? await regenerar(tenantId, pr.proyectoId) : {};
   refrescar(pr.proyectoId);
-  return { ok: true };
+  return { ok: true, ...plan };
 }
 
 // ── Finanzas ────────────────────────────────────────────────────────────────
@@ -838,11 +843,33 @@ export async function quitarMovimiento(formData: FormData): Promise<ResultadoFic
   if (typeof a === "string") return mal(a);
   const { tenantId } = a;
   const id = txt(formData.get("id"));
-  const r = await prisma.proyectoCuota.updateMany({ where: { id, tenantId, proyectoId, auto: false, pagadoEl: null, anuladoEl: null }, data: { anuladoEl: new Date() } });
+  // Con el candado de la facturación (T2): un cobro con factura viva no se quita (se anula con nota de crédito).
+  const r = await conCuotaSinFacturaViva(tenantId, id, (tx) => tx.proyectoCuota.updateMany({ where: { id, tenantId, proyectoId, auto: false, pagadoEl: null, anuladoEl: null }, data: { anuladoEl: new Date() } }));
+  if (r === "facturada") return mal("Ese cobro ya tiene factura: no se quita. Para dejarlo sin efecto hace falta una nota de crédito desde Facturación.");
   if (r.count === 0) return mal("Ese movimiento ya no se puede quitar.");
   await registrarCambio(prisma, { tenantId, proyectoId, entidad: "ProyectoCuota", entidadId: id, campo: "Movimiento quitado", despues: id, autor: a.nombre });
   refrescar(proyectoId);
   return { ok: true };
+}
+
+/**
+ * Etapa 2 · T2 · «Facturar» una cuota de cobro con ARCA (interruptor `facturacion-proyectos` + módulo
+ * `arca`). Permiso de pagos y proyecto visible; lo demás (llaves del negocio, la cuota, la escritura
+ * idempotente con la fila tomada) está en facturar-cuota.server.ts. Sirve también de «Volver a
+ * facturar» una rechazada: reabre la misma factura.
+ */
+export async function facturarCuota(formData: FormData): Promise<ResultadoFicha<{ invoiceId?: string }>> {
+  const proyectoId = txt(formData.get("proyectoId"));
+  const a = await entrar("pagos", proyectoId);
+  if (typeof a === "string") return mal(a);
+  const cuotaId = txt(formData.get("id"));
+  if (!cuotaId) return mal("Esa cuota no existe.");
+  const r = await facturarCuotaDelProyecto({ tenantId: a.tenantId, proyectoId, cuotaId, autor: a.nombre });
+  if (!r.ok) return mal(r.error);
+  if (!r.yaEstaba) await auditAdmin({ action: "proyecto.cuota.facturar", entity: "ProyectoCuota", entityId: cuotaId, changes: { invoiceId: r.invoiceId } });
+  refrescar(proyectoId);
+  revalidatePath("/admin/facturacion");
+  return { ok: true, invoiceId: r.invoiceId };
 }
 
 /** La aprobación desde el link del cliente mueve la etapa sin pasar por acá: este botón pone las cuotas al día. */
@@ -850,9 +877,9 @@ export async function recalcularCuotas(formData: FormData): Promise<ResultadoFic
   const proyectoId = txt(formData.get("proyectoId"));
   const a = await entrar("pagos", proyectoId);
   if (typeof a === "string") return mal(a);
-  await regenerar(a.tenantId, proyectoId);
+  const plan = await regenerar(a.tenantId, proyectoId);
   refrescar(proyectoId);
-  return { ok: true };
+  return { ok: true, ...plan };
 }
 
 async function reabrirCuotaTx(tx: Prisma.TransactionClient, tenantId: string, proyectoId: string, asiento: string, autor: string) {
@@ -883,10 +910,10 @@ export async function anularCobroFicha(formData: FormData): Promise<ResultadoFic
     await registrarCambio(tx, { tenantId, proyectoId: pago.proyectoId, entidad: "ProyectoPago", entidadId: id, campo: "Cobro anulado", antes: pago.monto, autor: a.nombre });
     await reabrirCuotaTx(tx, tenantId, pago.proyectoId, id, a.nombre);
   });
-  await regenerar(tenantId, pago.proyectoId);
+  const plan = await regenerar(tenantId, pago.proyectoId);
   await auditAdmin({ action: "proyecto.cobro.anular", entity: "ProyectoPago", entityId: id, changes: { monto: pago.monto } });
   refrescar(pago.proyectoId);
-  return { ok: true };
+  return { ok: true, ...plan };
 }
 
 /**
@@ -924,11 +951,11 @@ export async function anularGastoFicha(formData: FormData): Promise<ResultadoFic
     await registrarCambio(tx, { tenantId, proyectoId: g.proyectoId, entidad: "ProyectoGasto", entidadId: id, campo: "Gasto anulado", antes: redondear(g.neto + g.iva), autor: a.nombre });
     await reabrirCuotaTx(tx, tenantId, g.proyectoId, id, a.nombre);
   });
-  await regenerar(tenantId, g.proyectoId);
+  const plan = await regenerar(tenantId, g.proyectoId);
   await auditAdmin({ action: "proyecto.gasto.anular", entity: "ProyectoGasto", entityId: id, changes: { neto: g.neto, iva: g.iva } });
   refrescar(g.proyectoId);
   revalidatePath(`${RAIZ}/proveedores`);
-  return { ok: true };
+  return { ok: true, ...plan };
 }
 
 // ── Seguimiento ─────────────────────────────────────────────────────────────

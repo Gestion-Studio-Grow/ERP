@@ -29,6 +29,18 @@ export class ErrorFacturacion extends Error {
   }
 }
 
+/**
+ * El facturador NO factura solo este cobro: va a la cola de revisión con el motivo (decisión
+ * humana), sin contar como rechazo de ARCA ni como fallo transitorio. Lo lanza el host (p. ej. un
+ * negocio que factura cuotas de proyecto: el cobro puede ser de una cuota ya facturada).
+ */
+export class CobroARevisar extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CobroARevisar";
+  }
+}
+
 export interface IngestaDeps {
   tenantId: string;
   client: MercadoPagoClient;
@@ -119,6 +131,11 @@ export async function facturarPagoSiCorresponde(
       await registrarFalloTransitorio(pago, "facturación devolvió null", deps, resumen);
     }
   } catch (err) {
+    if (err instanceof CobroARevisar) {
+      await deps.reconciliacion.marcarRevisar(pago.id, err.message);
+      resumen.aRevisar++;
+      return;
+    }
     const retriable = !(err instanceof ErrorFacturacion) || err.retriable;
     const motivo = err instanceof Error ? err.message : String(err);
     if (!retriable) {

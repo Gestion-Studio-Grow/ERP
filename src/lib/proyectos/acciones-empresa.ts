@@ -6,6 +6,7 @@
 // ============================================================================
 
 import { cuentaParaCuota } from "./gestion-cuentas.server";
+import { conCuotaSinFacturaViva } from "./facturar-cuota.server";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
@@ -172,7 +173,14 @@ export async function guardarDatoCuota(formData: FormData): Promise<Resultado> {
   const valor = txt(formData.get("valor")).slice(0, campo === "factura" ? 60 : 300) || null;
   const c = await prisma.proyectoCuota.findFirst({ where: { id, tenantId: a.tenantId }, select: { proyectoId: true, factura: true, comentario: true } });
   if (!c) return { ok: false, error: "Esa cuota no existe." };
-  await prisma.proyectoCuota.updateMany({ where: { id, tenantId: a.tenantId }, data: { [campo]: valor } });
+  if (campo === "factura") {
+    // T2: con la factura de ARCA enlazada, el número sale de ella; el texto libre no se escribe (con
+    // el candado de la facturación, así no queda una cuota con las dos).
+    const r = await conCuotaSinFacturaViva(a.tenantId, id, (tx) => tx.proyectoCuota.updateMany({ where: { id, tenantId: a.tenantId }, data: { factura: valor } }));
+    if (r === "facturada") return { ok: false, error: "Esa cuota ya tiene su factura de ARCA: el número sale de ahí." };
+  } else {
+    await prisma.proyectoCuota.updateMany({ where: { id, tenantId: a.tenantId }, data: { [campo]: valor } });
+  }
   await registrarCambio(prisma, { tenantId: a.tenantId, proyectoId: c.proyectoId, entidad: "cuota", entidadId: id, campo, antes: c[campo], despues: valor, autor: a.nombre });
   revalidatePath(ADMIN);
   return { ok: true };

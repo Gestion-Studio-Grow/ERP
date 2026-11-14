@@ -14,6 +14,7 @@ const campoEnLinea = "min-h-11 min-w-0 rounded-lg border border-line bg-surface 
 /** Un <form> de acción de servidor que dice qué falló sin perder lo tipeado. Con `limpiar`, vacía los campos si salió bien. */
 export function FormAccion({ accion, className, children, limpiar, alGuardar }: { accion: (fd: FormData) => Promise<ResultadoFicha>; className?: string; children: ReactNode; limpiar?: boolean; alGuardar?: () => void }) {
   const [error, setError] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
   const form = useRef<HTMLFormElement>(null);
   return (
     <form
@@ -21,9 +22,11 @@ export function FormAccion({ accion, className, children, limpiar, alGuardar }: 
       className={className}
       action={async (fd) => {
         setError(null);
+        setAviso(null);
         try {
           const r = await accion(fd);
           if (!r.ok) return setError(r.error);
+          if (r.aviso) setAviso(r.aviso);
           if (limpiar) form.current?.reset();
           alGuardar?.();
         } catch {
@@ -33,6 +36,7 @@ export function FormAccion({ accion, className, children, limpiar, alGuardar }: 
     >
       {children}
       {error && <p role="alert" className="col-span-full basis-full text-sm font-medium text-danger">{error}</p>}
+      {aviso && <p role="status" className="col-span-full basis-full rounded-lg border border-warning bg-warning-soft px-3 py-2 text-sm text-strong">{aviso}</p>}
     </form>
   );
 }
@@ -68,6 +72,7 @@ export function ControlEtapa({ id, etapa, perdido, motivo, siguiente, etapas }: 
       setError(null);
       const r = await moverProyecto({ id, destino, motivo: motivoPerdida });
       if (!r.ok) return setError(r.error);
+      if (r.aviso) setError(r.aviso);
       setAbierto(false);
       setTexto("");
     });
