@@ -155,8 +155,10 @@ export function AsistenteArca({ vista, plano, tenantId, acciones, soloLectura = 
                   <form action={acciones.descartarPedido} className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
                     {oculto}
                     <p className="text-[13px] text-muted sm:col-span-2">
-                      Si la clave con que se guardó no se puede recuperar, descartá el pedido: el negocio vuelve a
-                      generar uno y, si ya había subido el .csr a ARCA, tiene que subir el nuevo. Queda registrado.
+                      Antes de descartar, revisá que la clave de cifrado del entorno sea la correcta: si se cambió por
+                      error, restaurarla recupera el pedido. Si la clave con que se guardó no se puede recuperar,
+                      descartá el pedido: el negocio vuelve a generar uno y, si ya había subido el .csr a ARCA, tiene
+                      que subir el nuevo. Queda registrado.
                     </p>
                     <Field label={`Para descartar, escribí ${PALABRA_DEL_DESCARTE}`} htmlFor="asistente-descarte">
                       <Input id="asistente-descarte" name="confirmacion" autoComplete="off" spellCheck={false} required />

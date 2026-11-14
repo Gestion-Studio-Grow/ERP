@@ -160,8 +160,14 @@ function decryptWith(key: Buffer, packed: string): Buffer {
   const ct = Buffer.from(ctB64, "base64");
   const decipher = createDecipheriv(ALGO, key, iv);
   decipher.setAuthTag(tag);
-  // Si el material fue tampereado (o la clave es incorrecta), `final()` lanza. Fail-closed.
-  return Buffer.concat([decipher.update(ct), decipher.final()]);
+  // Si el material fue tampereado (o la clave es incorrecta), `final()` lanza. Fail-closed. Lo
+  // descifrado a medias se pisa con ceros (sólo sale la copia de `concat`, y sólo si autenticó).
+  const parcial = decipher.update(ct);
+  try {
+    return Buffer.concat([parcial, decipher.final()]);
+  } finally {
+    parcial.fill(0);
+  }
 }
 
 // --- API de envelope ----------------------------------------------------------
