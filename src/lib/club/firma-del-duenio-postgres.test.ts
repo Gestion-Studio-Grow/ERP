@@ -1,8 +1,8 @@
 // SEG-020 (servidor) CONTRA POSTGRES — el PIN de un dueño del club se verifica sólo en el servidor, con tope de
 // intentos en la base, con las acciones REALES (estado-actions.ts, firma-del-duenio-actions.ts) y RLS encendido.
 //   1. la foto que baja (OWNER y recepción) no trae credenciales de dueño (ni h1 ni h2);
-//   2. tope de intentos: al 5.º fallo espera; durante la espera ni el PIN correcto pasa; «con» y «sin» usuario
-//      cuentan juntos;
+//   2. tope de intentos: al 5.º fallo contra un dueño espera; durante la espera ni su PIN correcto pasa (ni «¿de qué
+//      dueño es?»); otro dueño sigue firmando; un acierto limpia sólo los fallos de ese dueño, no el techo del negocio;
 //   3. aislamiento: el tope y el pase de A no valen en B;
 //   4. un código armado con `codigoAprobacion` del motor y lo guardado no aprueba; el del servidor sí;
 //   5. guardar con la marca (recepción y OWNER) conserva el PIN; el re-hash h2 se aplica al guardar y sigue firmando.
@@ -108,7 +108,7 @@ test("1 · la foto que baja, para OWNER y para recepción, no trae credenciales 
   }
 });
 
-test("2 · tope de intentos: 5 fallos y espera; el PIN correcto también espera; con y sin usuario cuentan juntos", async (t) => {
+test("2 · tope de intentos: 5 fallos contra un dueño y espera; su PIN correcto también espera; otro dueño sigue", async (t) => {
   const p = await preparar(t);
   if (!p) return;
   const { base, duenio } = p;
@@ -116,30 +116,38 @@ test("2 · tope de intentos: 5 fallos y espera; el PIN correcto también espera;
   const firmar = (pedido: { usuarioId?: string; pin: string }) => ejecutarAccion(comoRecepcion(base.a), () => firmarComoDuenio(pedido)).then(valor);
 
   for (let i = 1; i <= 4; i++) {
-    const r = await firmar(i % 2 ? { usuarioId: "u-rober", pin: MAL } : { pin: MAL });
+    const r = await firmar({ usuarioId: "u-rober", pin: MAL });
     assert.equal(r.ok, false);
     assert.ok(!r.ok && !r.esperaS, `intento ${i} todavía no espera`);
   }
-  const quinto = await firmar({ pin: MAL });
+  const quinto = await firmar({ usuarioId: "u-rober", pin: MAL });
   assert.ok(!quinto.ok && quinto.esperaS === 30);
-  for (const pedido of [{ usuarioId: "u-rober", pin: PIN.A.rober }, { pin: PIN.A.majo }]) {
+  for (const pedido of [{ usuarioId: "u-rober", pin: PIN.A.rober }, { pin: PIN.A.rober }]) {
     const r = await firmar(pedido);
     assert.ok(!r.ok && (r.esperaS ?? 0) > 0, "durante la espera no pasa ni el PIN correcto");
   }
+  const otra = await firmar({ usuarioId: "u-majo", pin: PIN.A.majo });
+  assert.ok(otra.ok, "otro dueño sigue firmando");
   const fila = await duenio.auditLog.findFirst({ where: { tenantId: base.a.id, entity: ENTIDAD_PIN_INTENTO } });
   assert.ok(fila);
   assert.ok(!JSON.stringify(fila.changes).includes(PIN.A.rober));
 
   // Pasada la espera (se adelanta en la base), el PIN correcto firma con un pase y limpia el tope.
-  await duenio.auditLog.updateMany({ where: { id: fila.id }, data: { changes: { intentos: { fallos: 5, tandas: 1, esperaHasta: 1, ultimoFallo: Date.now() } } } });
-  const ok = await firmar({ pin: PIN.A.majo });
+  const vencido = { fallos: 5, tandas: 1, esperaHasta: 1, ultimoFallo: Date.now() };
+  await duenio.auditLog.updateMany({ where: { id: fila.id }, data: { changes: { intentos: vencido, porDuenio: { "u-rober": vencido } } } });
+  const ok = await firmar({ usuarioId: "u-rober", pin: PIN.A.rober });
   assert.ok(ok.ok, JSON.stringify(ok));
-  assert.equal(ok.usuarioId, "u-majo");
+  assert.equal(ok.usuarioId, "u-rober");
   const pase = verificarPase(ok.pase, clavePase(), Date.now(), { tenantId: base.a.id, uso: "firma" });
-  assert.ok(pase.ok && pase.usuarioId === "u-majo");
+  assert.ok(pase.ok && pase.usuarioId === "u-rober");
   assert.ok(ok.vence > Date.now());
-  const limpio = await duenio.auditLog.findFirst({ where: { tenantId: base.a.id, entity: ENTIDAD_PIN_INTENTO } });
-  assert.equal((limpio?.changes as { intentos?: { fallos?: number } } | null)?.intentos?.fallos ?? 0, 0);
+  // El acierto limpia los fallos de ese dueño; el techo del negocio no lo limpia ningún acierto.
+  const limpio = (await duenio.auditLog.findFirst({ where: { tenantId: base.a.id, entity: ENTIDAD_PIN_INTENTO } }))?.changes as {
+    intentos?: { fallos?: number };
+    porDuenio?: Record<string, unknown>;
+  } | null;
+  assert.equal(limpio?.porDuenio?.["u-rober"], undefined);
+  assert.equal(limpio?.intentos?.fallos, 5);
   // Ninguna respuesta lleva lo guardado.
   assert.ok(!JSON.stringify(ok).includes("h1:"));
 });
@@ -233,7 +241,7 @@ test("5 · guardar con la marca conserva el PIN (recepción y OWNER); el h2 se a
   assert.equal(pinDe((await vigenteDe(duenio, base.a.id)).usuarios, "u-rober"), pinDe(despues.usuarios, "u-rober"));
 });
 
-test("6 · «Cambiar mi PIN» de un dueño cuenta en el mismo tope del negocio", async (t) => {
+test("6 · «Cambiar mi PIN» de un dueño cuenta en el mismo tope de ese dueño", async (t) => {
   const p = await preparar(t);
   if (!p) return;
   const { base } = p;
@@ -245,6 +253,8 @@ test("6 · «Cambiar mi PIN» de un dueño cuenta en el mismo tope del negocio",
   }
   const espera = valor(await ejecutarAccion(comoDuenia(base.a), () => cambiarMiPinDelClub({ usuarioId: "u-rober", pinActual: PIN.A.rober, pinNuevo: "3719" })));
   assert.ok(!espera.ok && /esperá/.test(espera.error));
-  const firma = valor(await ejecutarAccion(comoRecepcion(base.a), () => firmarComoDuenio({ usuarioId: "u-majo", pin: PIN.A.majo })));
-  assert.ok(!firma.ok && (firma.esperaS ?? 0) > 0);
+  for (const pedido of [{ usuarioId: "u-rober", pin: PIN.A.rober }, { pin: PIN.A.majo }]) {
+    const firma = valor(await ejecutarAccion(comoRecepcion(base.a), () => firmarComoDuenio(pedido)));
+    assert.ok(!firma.ok && (firma.esperaS ?? 0) > 0);
+  }
 });

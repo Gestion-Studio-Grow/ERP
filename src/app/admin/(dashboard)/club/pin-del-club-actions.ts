@@ -86,11 +86,16 @@ export async function cambiarMiPinDelClub(pedido: { usuarioId: unknown; pinActua
     const pedidoDeCambio = { usuarioId, pinActual, pinNuevo, esDuenioDelErp: user.role === "OWNER", ahora: ahoraDelClub(new Date()) };
     let r: ReturnType<typeof cambiarPinEnLaFoto>;
     if (pedidoDeCambio.esDuenioDelErp && esDuenioEnLaFoto(vigente.texto, usuarioId)) {
-      const t = await conTopeDePin(tenantId, "pin", () => {
-        const x = cambiarPinEnLaFoto(vigente.texto, pedidoDeCambio);
-        const acerto = x.ok || x.codigo === "pin-nuevo"; // «pin-nuevo» sólo sale con el actual ya comprobado
-        return { ok: acerto, duenio: acerto, x };
-      });
+      const t = await conTopeDePin(
+        tenantId,
+        "pin",
+        () => {
+          const x = cambiarPinEnLaFoto(vigente.texto, pedidoDeCambio);
+          const acerto = x.ok || x.codigo === "pin-nuevo"; // «pin-nuevo» sólo sale con el actual ya comprobado
+          return { ok: acerto, limpia: acerto ? usuarioId : null, x };
+        },
+        { usuarioId },
+      );
       if (t.espera) {
         await auditar("rechazo", "espera");
         return { ok: false, error: `Demasiados intentos: esperá ${t.esperaS >= 90 ? `${Math.ceil(t.esperaS / 60)} minutos` : `${t.esperaS} segundos`} y probá de nuevo.` };

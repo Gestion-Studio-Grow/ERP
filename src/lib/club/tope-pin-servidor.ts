@@ -2,13 +2,18 @@
 // TOPE DE INTENTOS DEL PIN DE DUEÑO EN LA BASE (GSG-SEG-020) — sin migración, en AuditLog.
 // ============================================================================
 //
-// El PIN de un dueño del club se verifica sólo en el servidor (pin-servidor.ts). Los intentos cuentan POR NEGOCIO
-// (no por dueño): las reglas son las del motor (`anotarIntentoPin`: 5 fallos → espera de 30 s, 2 min, 10 min; se
-// olvidan a las 8 h sin fallos; sólo un acierto de dueño los limpia). Durante la espera no se verifica nada (ni se
-// calcula ningún hash) y se responde lo mismo, sea el PIN que sea.
+// El PIN de un dueño del club se verifica sólo en el servidor (pin-servidor.ts). La escalera es la del motor (espera
+// de 30 s, 2 min, 10 min; los fallos se olvidan a las 8 h sin fallos), en tres baldes:
+//   · por dueño: 5 fallos dirigidos a ESE dueño; sólo un acierto de ese dueño los limpia;
+//   · sin dueño («¿de qué dueño es?»): 5 fallos; ningún acierto los limpia;
+//   · techo del negocio: 20 fallos de cualquiera; ningún acierto lo limpia.
+// Un intento espera si espera el techo o su balde (sin dueño: también si espera el de cualquier dueño). Un acierto que
+// no habilita (PIN del largo viejo) no limpia nada. Durante la espera no se verifica nada (ni se calcula ningún hash)
+// y se responde lo mismo, sea el PIN que sea. El código de aprobación tiene su propio tope (sin dueño + techo).
 //
 // Dónde: una fila de `AuditLog` por negocio y ámbito (`entity: "ClubPinIntento"`, `entityId: <tenantId>` para el
-// PIN y `<tenantId>:codigo` para los códigos de aprobación), con el estado del tope en `changes.intentos`. Cada
+// PIN y `<tenantId>:codigo` para los códigos de aprobación), con el estado del tope en `changes` (`intentos` = techo,
+// `sinUsuario`, `porDuenio`). Cada
 // intento reemplaza la fila (queda una sola). Todo en `tenantTransaction` (RLS) con un candado de transacción
 // (`pg_advisory_xact_lock`) por negocio y ámbito: dos intentos a la vez no se saltean el tope. La purga de la
 // auditoría puede borrarla: la ventana del tope es de 8 h.
@@ -27,7 +32,7 @@
 import { hkdfSync } from "node:crypto";
 import type { Prisma } from "@/generated/prisma/client";
 import { authSecret } from "@/lib/auth";
-import { anotarIntentoPin, esperaPin, intentosPin, type IntentosPin } from "./motor.mjs";
+import { ESPERAS_PIN_S, TOPE_INTENTOS_PIN, esperaPin, intentosPin, type IntentosPin } from "./motor.mjs";
 import type { PinesFuertes } from "./pin-servidor";
 
 export const ENTIDAD_PIN_INTENTO = "ClubPinIntento";
@@ -54,41 +59,115 @@ const claveDelTope = (tenantId: string, ambito: AmbitoDelTope) => (ambito === "p
 
 export type ResultadoDelTope<T> = { espera: true; esperaS: number } | { espera: false; resultado: T; esperaS: number };
 
+/** Fallos por balde (un dueño, o los intentos sin dueño) antes de cada espera: los del motor. */
+const TOPE_POR_BALDE = TOPE_INTENTOS_PIN;
+/** Fallos de todo el negocio (cualquier dueño o sin dueño) antes de cada espera. Ningún acierto lo limpia. */
+export const TECHO_FALLOS_NEGOCIO = 20;
+/** Los fallos se olvidan después de 8 h sin fallos (como en el motor). */
+const OLVIDO_MS = 8 * 60 * 60 * 1000;
+
+/** Lo que dice `verificar`: si acertó y, si el acierto limpia, el dueño cuyos fallos limpia. */
+export interface IntentoVerificado {
+  ok: boolean;
+  limpia?: string | null;
+}
+
+interface EstadoDelTope {
+  /** Techo del negocio: todos los fallos. */
+  intentos: IntentosPin;
+  /** Los intentos que no dicen de qué dueño son (y todo el ámbito «codigo»). */
+  sinUsuario: IntentosPin;
+  /** Los dirigidos a un dueño. */
+  porDuenio: Map<string, IntentosPin>;
+}
+
+function leerEstado(c: unknown): EstadoDelTope {
+  const x = (c && typeof c === "object" ? c : {}) as { intentos?: unknown; sinUsuario?: unknown; porDuenio?: unknown };
+  const porDuenio = new Map<string, IntentosPin>();
+  if (x.porDuenio && typeof x.porDuenio === "object" && !Array.isArray(x.porDuenio)) {
+    for (const [id, t] of Object.entries(x.porDuenio)) porDuenio.set(id, intentosPin(t));
+  }
+  return { intentos: intentosPin(x.intentos ?? null), sinUsuario: intentosPin(x.sinUsuario ?? null), porDuenio };
+}
+
+const guardable = (e: EstadoDelTope) => ({ intentos: e.intentos, sinUsuario: e.sinUsuario, porDuenio: Object.fromEntries(e.porDuenio) });
+
+/** Un fallo más en un balde (la escalera del motor: 30 s, 2 min, 10 min), con `tope` fallos por tanda. */
+function anotarFallo(t: IntentosPin, tope: number, ahora: number): IntentosPin {
+  let x = intentosPin(t);
+  if (x.ultimoFallo && ahora - x.ultimoFallo >= OLVIDO_MS) x = intentosPin(null);
+  if (x.fallos >= tope && ahora >= x.esperaHasta) x.fallos = 0; // ya esperó: arranca otra tanda
+  x.fallos += 1;
+  x.ultimoFallo = ahora;
+  if (x.fallos >= tope) {
+    x.tandas += 1;
+    x.esperaHasta = ahora + ESPERAS_PIN_S[Math.min(x.tandas, ESPERAS_PIN_S.length) - 1] * 1000;
+  }
+  return x;
+}
+
 /**
- * Verifica con tope: si el negocio está esperando, no llama a `verificar`. Si no, la llama, anota el intento y
- * devuelve cuánto queda por esperar (0 si nada). `verificar` dice si acertó y si quien acertó es un dueño.
+ * Cuánto falta esperar para un intento contra `usuarioId` (o sin dueño): el techo y su balde. Sin dueño se prueba
+ * contra todos, así que también cuentan los baldes de cada dueño.
  */
-export async function conTopeDePin<T extends { ok: boolean; duenio?: boolean }>(
+function esperaDe(e: EstadoDelTope, usuarioId: string | null, ahora: number): number {
+  const baldes = [e.intentos, ...(usuarioId ? [e.porDuenio.get(usuarioId)] : [e.sinUsuario, ...e.porDuenio.values()])];
+  return Math.max(0, ...baldes.map((b) => (b ? esperaPin(b, ahora) : 0)));
+}
+
+/** Saca los baldes de dueño que ya no cuentan (olvidados y sin espera). */
+function podar(e: EstadoDelTope, ahora: number): void {
+  for (const [id, b] of e.porDuenio) {
+    if (!b.fallos || (ahora - b.ultimoFallo >= OLVIDO_MS && esperaPin(b, ahora) === 0)) e.porDuenio.delete(id);
+  }
+}
+
+/**
+ * Verifica con tope: si el intento tiene que esperar, no llama a `verificar`. Si no, la llama, anota el intento y
+ * devuelve cuánto queda por esperar (0 si nada). `usuarioId`: el dueño contra el que se prueba (null = sin dueño).
+ * Un fallo cuenta en el techo del negocio y en su balde; un acierto sólo limpia el balde del dueño de `limpia`.
+ */
+export async function conTopeDePin<T extends IntentoVerificado>(
   tenantId: string,
   ambito: AmbitoDelTope,
   verificar: () => T | Promise<T>,
-  opciones: { ahoraMs?: number; correr?: CorrerEnElNegocio } = {},
+  opciones: { usuarioId?: string | null; ahoraMs?: number; correr?: CorrerEnElNegocio } = {},
 ): Promise<ResultadoDelTope<T>> {
   const correr = opciones.correr ?? correrConRls;
   const ahora = opciones.ahoraMs ?? Date.now();
+  const usuarioId = ambito === "pin" && typeof opciones.usuarioId === "string" && opciones.usuarioId ? opciones.usuarioId : null;
   const clave = claveDelTope(tenantId, ambito);
   return correr(tenantId, async (db) => {
     await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`club-pin:${clave}`}))`;
     const donde = { tenantId, entity: ENTIDAD_PIN_INTENTO, entityId: clave };
     const fila = await db.auditLog.findFirst({ where: donde, orderBy: [{ createdAt: "desc" }, { id: "desc" }], select: { changes: true } });
-    const antes = intentosPin((fila?.changes as { intentos?: Partial<IntentosPin> } | null)?.intentos ?? null);
-    const espera = esperaPin(antes, ahora);
+    const estado = leerEstado(fila?.changes ?? null);
+    const espera = esperaDe(estado, usuarioId, ahora);
     if (espera > 0) return { espera: true as const, esperaS: Math.ceil(espera / 1000) };
+    const antes = JSON.stringify(guardable(estado));
     const resultado = await verificar();
-    const despues = anotarIntentoPin(antes, { ok: resultado.ok, duenio: !!resultado.duenio }, ahora);
-    if (JSON.stringify(despues) !== JSON.stringify(antes)) {
+    if (!resultado.ok) {
+      estado.intentos = anotarFallo(estado.intentos, TECHO_FALLOS_NEGOCIO, ahora);
+      if (usuarioId) estado.porDuenio.set(usuarioId, anotarFallo(estado.porDuenio.get(usuarioId) ?? intentosPin(null), TOPE_POR_BALDE, ahora));
+      else estado.sinUsuario = anotarFallo(estado.sinUsuario, TOPE_POR_BALDE, ahora);
+    } else if (ambito === "pin" && typeof resultado.limpia === "string") {
+      estado.porDuenio.delete(resultado.limpia);
+    }
+    podar(estado, ahora);
+    const despues = guardable(estado);
+    if (JSON.stringify(despues) !== antes) {
       await db.auditLog.deleteMany({ where: donde });
       await db.auditLog.create({
         data: {
           ...donde,
           actor: "sistema:club-pin",
-          action: resultado.ok ? "acierto-duenio" : "fallo",
-          changes: { intentos: despues } as unknown as Prisma.InputJsonValue,
+          action: resultado.ok ? "acierto" : "fallo",
+          changes: despues as unknown as Prisma.InputJsonValue,
           channel: "admin",
         },
       });
     }
-    return { espera: false as const, resultado, esperaS: Math.ceil(esperaPin(despues, ahora) / 1000) };
+    return { espera: false as const, resultado, esperaS: Math.ceil(esperaDe(estado, usuarioId, ahora) / 1000) };
   });
 }
 

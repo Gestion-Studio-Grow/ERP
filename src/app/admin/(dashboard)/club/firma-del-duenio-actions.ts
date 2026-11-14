@@ -10,7 +10,8 @@
 //   · `codigoParaAprobar` — el celular del dueño pide el código de un pedido (PIN verificado);
 //   · `aprobarConCodigo`  — la recepción tipea el código; si es el de un dueño, devuelve un pase de aprobación.
 // Guardia `requireAppAccion("club")`; el negocio sale de la sesión; los dueños, de la foto VIGENTE de la base.
-// Tope de intentos por negocio en la base (tope-pin-servidor.ts) y, además, uno por instancia (rate-limit).
+// Tope de intentos en la base (tope-pin-servidor.ts: por dueño, sin dueño y techo del negocio) y, además, uno por
+// instancia (rate-limit, 20 fallos cada 15 min; un acierto no lo limpia).
 // Nunca se devuelve ni se registra un PIN, un PIN guardado ni la sal.
 //
 // — Elaborado por GSG
@@ -147,10 +148,16 @@ async function verificarDuenio(c: Contexto, usuarioId: string | null, pin: strin
   const candidatos = usuarioId ? c.duenios.filter((d) => d.id === usuarioId) : c.duenios;
   if (usuarioId && !candidatos.length) return { ok: false, error: "Ese usuario no es dueño o todavía no tiene PIN.", codigo: "usuario" };
   const r = await conPorInstancia(c.tenantId, "pin", () =>
-    conTopeDePin(c.tenantId, "pin", () => {
-      const hit = candidatos.find((d) => pinDelDuenioCoincide(d.pin, pin, c.sal));
-      return { ok: !!hit, duenio: !!hit, hit };
-    }),
+    conTopeDePin(
+      c.tenantId,
+      "pin",
+      () => {
+        const hit = candidatos.find((d) => pinDelDuenioCoincide(d.pin, pin, c.sal));
+        // Sólo limpia los fallos de ese dueño un acierto que habilita (el PIN del largo viejo no firma ni limpia).
+        return { ok: !!hit, limpia: hit && largoDe(hit) === LARGO_PIN.duenio ? hit.id : null, hit };
+      },
+      { usuarioId },
+    ),
   );
   if ("limitado" in r) return { ok: false, error: mensajeDeEspera(r.esperaS), esperaS: r.esperaS, codigo: "espera" };
   if (r.espera) return { ok: false, error: mensajeDeEspera(r.esperaS), esperaS: r.esperaS, codigo: "espera" };
@@ -170,10 +177,7 @@ async function conPorInstancia<T extends { espera: boolean; resultado?: { ok: bo
   const clave = `${tenantId}:${ambito}`;
   if (porInstancia.blocked(clave)) return { limitado: true, esperaS: Math.max(1, Math.ceil(porInstancia.retryAfterMs(clave) / 1000)) };
   const r = await fn();
-  if (!r.espera && r.resultado) {
-    if (r.resultado.ok) porInstancia.reset(clave);
-    else porInstancia.fail(clave);
-  }
+  if (!r.espera && r.resultado && !r.resultado.ok) porInstancia.fail(clave); // un acierto no lo limpia
   return r;
 }
 
@@ -249,7 +253,7 @@ export async function aprobarConCodigo(pedido: { novedadId: unknown; codigo: unk
         const esperado = normalizarCodigo(codigoDeAprobacionServidor({ tenantId: c.tenantId, usuarioId: d.id, novedadId: n.id, clienteId: n.clienteId, monto, fecha: n.fecha }, clave));
         return esperado === tipeado;
       });
-      return { ok: !!hit, duenio: !!hit, hit };
+      return { ok: !!hit, hit }; // un acierto no limpia el tope de los códigos
     }),
   );
   if ("limitado" in r || r.espera) {
