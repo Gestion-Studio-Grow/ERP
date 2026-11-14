@@ -126,6 +126,58 @@ test("guardar desde un dueño del ERP: la marca repone; un h1 nuevo válido se a
   }
 });
 
+test("un dueño que pasa a otro rol queda sin PIN: lo guardado no se repone ni baja, y volver a dueño no lo recupera", () => {
+  const { e } = club();
+  const vigente = sobre(e);
+  const guardado = e.usuarios.find((u) => u.id === "u-majo")!.pin;
+  const h2 = hashFuerte(PIN_MAJO);
+  const fuertes = new Map([["u-majo", { de: huellaDePin(guardado), h2 }]]);
+  for (const esOwner of [true, false]) {
+    for (const llega of [MARCA_PIN_SERVIDOR, guardado, M.hashPin("7391", e.salPin!), ""]) {
+      const x = JSON.parse(ocultarPinesDeDuenio(vigente)!);
+      Object.assign(x.estado.usuarios.find((u: U) => u.id === "u-majo"), { rol: "recepcion", pin: llega, pinLargo: 4 });
+      const r = reponerPinesDeDuenio(vigente, JSON.stringify(x), { esOwner, fuertes });
+      const majo = usuariosDe(r.texto).find((u) => u.id === "u-majo")!;
+      if (esOwner) {
+        // Un dueño del ERP sí cambia el rol: el PIN queda anulado (tiene que definir uno nuevo).
+        assert.equal(majo.rol, "recepcion");
+        assert.equal(majo.pin, "");
+        assert.equal(majo.pinLargo, undefined);
+      } else {
+        // Desde otro puesto el rol no cambia (G8): sigue siendo dueño y su PIN sigue sin bajar.
+        assert.equal(majo.rol, "duenio");
+      }
+      if (esOwner) assert.ok(!r.texto.includes(h2), "el h2 pendiente no se aplica a quien ya no es dueño");
+      const leida = ocultarPinesDeDuenio(r.texto)!;
+      assert.ok(!leida.includes(guardado), "lo guardado del ex dueño no baja");
+      assert.ok(!leida.includes("h2:"));
+      const enLaFoto = usuariosDe(leida).find((u) => u.id === "u-majo")!;
+      assert.ok(!String(enLaFoto.pin).startsWith("h1:") && !String(enLaFoto.pin).startsWith("h2:"));
+
+      if (!esOwner) continue;
+      // Volver a ser dueño con la marca no trae el PIN de antes.
+      const despues = r.texto;
+      const y = JSON.parse(ocultarPinesDeDuenio(despues)!);
+      Object.assign(y.estado.usuarios.find((u: U) => u.id === "u-majo"), { rol: "duenio", pin: MARCA_PIN_SERVIDOR });
+      const otra = reponerPinesDeDuenio(despues, JSON.stringify(y), { esOwner: true, fuertes });
+      const vuelta = usuariosDe(otra.texto).find((u) => u.id === "u-majo")!;
+      assert.equal(vuelta.rol, "duenio");
+      assert.equal(vuelta.pin, "");
+      assert.ok(!otra.texto.includes(guardado) && !otra.texto.includes(h2));
+      assert.equal(pinDelDuenioCoincide(vuelta.pin, PIN_MAJO, e.salPin), false);
+    }
+  }
+});
+
+test("ocultar: cualquier h2 se oculta, sea cual sea el rol (también sin rol)", () => {
+  const { e, recepcion } = club();
+  const r = e.usuarios.find((u) => u.id === recepcion.id)! as unknown as Record<string, unknown>;
+  r.pin = hashFuerte("33");
+  delete r.rol;
+  const oculta = ocultarPinesDeDuenio(sobre(e))!;
+  assert.ok(!oculta.includes("h2:"));
+});
+
 test("re-hash: el h2 pendiente reemplaza al h1 vigente al guardar (cualquier sesión) y sigue verificando", () => {
   const { e } = club();
   const vigente = sobre(e);

@@ -11,7 +11,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import Module from "node:module";
-import { comprimir } from "@/lib/club/foto";
+import { comprimir, descomprimir } from "@/lib/club/foto";
 import * as M from "@/lib/club/motor.mjs";
 import type { RespuestaGuardarFoto } from "./estado-actions";
 
@@ -120,4 +120,42 @@ test("F5: la dueña del ERP sí cambia la firma de caja por la misma acción (la
   const version = base!.version;
   assert.deepEqual(await guardarComo("OWNER", club, version), { ok: true, version: version + 1 });
   assert.equal(M.largoFirmaCaja(estadoDeLaBase()), 2);
+});
+
+test("SEG-020: la dueña del ERP pasa un dueño a recepción con la marca: su PIN queda anulado y no baja a ninguna sesión", async () => {
+  const club = M.crearClubReal(HOY);
+  const ahora = { fecha: HOY, min: 10 * 60 };
+  assert.ok(M.definirPinInicial(club, "u-rober", "4826", ahora).ok);
+  assert.ok(M.definirPinInicial(club, "u-majo", "5937", ahora).ok);
+  const guardado = club.usuarios.find((u) => u.id === "u-majo")!.pin!;
+  base = { texto: JSON.stringify({ v: M.VERSION_ESTADO, estado: club, secuencia: 0 }), version: 7 };
+
+  const { leerFotoDelClub } = await import("./estado-actions");
+  const leer = async (rol: Rol) => {
+    sesion.rol = rol;
+    const r = await leerFotoDelClub();
+    assert.ok(r.ok && r.foto);
+    return descomprimir(Buffer.from(r.foto.gzip, "base64"));
+  };
+  const enPantalla = JSON.parse(await leer("OWNER")) as { estado: M.EstadoClub };
+  const majo = enPantalla.estado.usuarios.find((u) => u.id === "u-majo")!;
+  majo.rol = "recepcion";
+  assert.deepEqual(await guardarComo("OWNER", enPantalla.estado, 7), { ok: true, version: 8 });
+
+  for (const rol of ["OWNER", "RECEPTION"] as const) {
+    const texto = await leer(rol);
+    assert.ok(!texto.includes(guardado), `${rol}: baja lo guardado del ex dueño`);
+    assert.ok(!texto.includes("h2:"));
+    const exDuenio = (JSON.parse(texto) as { estado: M.EstadoClub }).estado.usuarios.find((u) => u.id === "u-majo")!;
+    assert.equal(exDuenio.rol, "recepcion");
+    assert.equal(exDuenio.pin, "");
+  }
+  assert.ok(!base!.texto.includes(guardado), "en la base tampoco queda");
+
+  // Volver a hacerlo dueño no recupera el PIN de antes.
+  const otra = JSON.parse(await leer("OWNER")) as { estado: M.EstadoClub };
+  Object.assign(otra.estado.usuarios.find((u) => u.id === "u-majo")!, { rol: "duenio", pin: "srv:" });
+  assert.deepEqual(await guardarComo("OWNER", otra.estado, 8), { ok: true, version: 9 });
+  assert.ok(!base!.texto.includes(guardado));
+  assert.equal(estadoDeLaBase().usuarios.find((u) => u.id === "u-majo")!.pin, "");
 });

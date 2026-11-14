@@ -4,7 +4,8 @@
 //
 // Regla: el PIN guardado de un usuario del club con rol «duenio» no sale del servidor, para ninguna sesión (tampoco
 // la de un OWNER del ERP). La foto que baja lleva `pin: "srv:"` (`MARCA_PIN_SERVIDOR`) y conserva `pinLargo`; al
-// guardar, el servidor repone el PIN de la foto vigente. Los PIN de recepción siguen como antes (h1 en la foto,
+// guardar, el servidor repone el PIN de la foto vigente. Un dueño que pasa a otro rol queda sin PIN (define uno
+// nuevo): lo guardado de un dueño nunca queda bajo un rol cuyo PIN baja. Ningún h2 baja, sea cual sea el rol. Los PIN de recepción siguen como antes (h1 en la foto,
 // verificación en el puesto, sin conexión). La sal del club (`salPin`) sigue en la foto: la usan los PIN de
 // recepción, y sin el PIN guardado del dueño no alcanza para nada de lo del dueño.
 //
@@ -120,7 +121,8 @@ function pinNuevoAceptable(pin: unknown, pinLargo: unknown, sal: unknown): boole
 export type PinesFuertes = ReadonlyMap<string, { de: string; h2: string }>;
 
 /**
- * Lo que se guarda: la marca vuelve a ser el PIN vigente (o su h2 pendiente). Si guarda un OWNER del ERP, un PIN de
+ * Lo que se guarda: la marca vuelve a ser el PIN vigente (o su h2 pendiente). Un usuario que en la vigente es dueño y
+ * llega con otro rol queda sin PIN (no se repone el suyo, ni se acepta otro en el mismo guardado). Si guarda un OWNER del ERP, un PIN de
  * dueño nuevo bien formado (`pinNuevoAceptable`) se acepta; cualquier otra cosa en el PIN de un
  * dueño queda como el vigente. Si no es OWNER, después se aplica `conservarLoDelicado` (G8) sin aflojarlo.
  * `corregido`: hubo que revertir algo que no venía como la marca (evento de seguridad, para los logs).
@@ -149,6 +151,14 @@ export function reponerPinesDeDuenio(
   for (const u of ahora) {
     if (!u || typeof u !== "object") continue;
     const v = porId.get(u.id);
+    if (v?.rol === "duenio" && u.rol !== "duenio") {
+      // Deja de ser dueño: su PIN se anula (define uno nuevo). Lo guardado de un dueño nunca pasa a otro rol, porque
+      // los PIN de los otros roles bajan al navegador. Si no es OWNER, G8 deja el rol y el PIN como en la vigente.
+      if (opciones.esOwner && typeof u.pin === "string" && u.pin !== "" && !esMarcaDeServidor(u.pin)) corregido = true;
+      u.pin = "";
+      delete u.pinLargo;
+      continue;
+    }
     if (esMarcaDeServidor(u.pin)) {
       reponer(u, v);
       continue;
