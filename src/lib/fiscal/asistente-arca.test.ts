@@ -12,6 +12,7 @@ import {
   hayPedidoEnCurso,
   leerPedidoConEstado,
   motivoParaNoReemplazarPedido,
+  sinChoqueDePedido,
   problemaDelPedido,
   organizacionDelPedido,
   type EntradaAsistente,
@@ -129,16 +130,17 @@ test("pedido que se lee bien (o que no existe): igual que siempre, se puede gene
 });
 
 describe("lectura del pedido: cada causa de falla tiene su estado", () => {
-  const FILA = { sellado: "x", creadoEn: "2026-11-05T10:00:00.000Z" };
+  const FILA = { kekId: "env:FISCAL_MASTER_KEY:v1", sellado: "x", creadoEn: "2026-11-05T10:00:00.000Z" };
+  const CLAVE = { id: "env:FISCAL_MASTER_KEY:v1" };
   const abrirOk = (f: typeof FILA) => ({ csrPem: "CSR", creadoEn: f.creadoEn });
-  const sinClave = () => {
+  const sinClave = (): typeof CLAVE => {
     throw new Error("FISCAL_MASTER_KEY no está seteada");
   };
-  const lectura = (p: Partial<Parameters<typeof leerPedidoConEstado<typeof FILA, string>>[0]>) => {
+  const lectura = (p: Partial<Parameters<typeof leerPedidoConEstado<typeof FILA, typeof CLAVE>>[0]>) => {
     const fallas: string[] = [];
-    const r = leerPedidoConEstado<typeof FILA, string>({
+    const r = leerPedidoConEstado<typeof FILA, typeof CLAVE>({
       leerFila: async () => FILA,
-      clave: () => "K",
+      clave: () => CLAVE,
       abrir: abrirOk,
       alFallar: (causa) => fallas.push(causa),
       ...p,
@@ -184,6 +186,32 @@ describe("lectura del pedido: cada causa de falla tiene su estado", () => {
     const json = await lectura({ abrir: () => JSON.parse("{roto") });
     assert.deepEqual(json.l, { estado: "dañado" });
     assert.equal(estadoDelAsistente(entrada({}, { problemaDelPedido: problemaDelPedido(json.l) })).puedeGenerarPedido, true);
+  });
+
+  test("(d) la fila se cerró con OTRA clave maestra → sin-configuracion (no dañado): no se borra ni se regenera", async () => {
+    let abrio = false;
+    const { l, fallas } = await lectura({
+      clave: () => ({ id: "env:FISCAL_MASTER_KEY:v2" }),
+      abrir: () => {
+        abrio = true;
+        throw new Error("Unsupported state or unable to authenticate data");
+      },
+    });
+    assert.deepEqual(l, { estado: "sin-configuracion", hayPedido: true });
+    assert.deepEqual(fallas, ["sin-configuracion"]);
+    assert.equal(abrio, false, "no se intenta abrir con una clave que no es la del sobre");
+    assert.notEqual(motivoParaNoReemplazarPedido(l), null);
+    assert.equal(estadoDelAsistente(entrada({}, { problemaDelPedido: problemaDelPedido(l) })).puedeGenerarPedido, false);
+  });
+
+  test("(e) misma clave maestra y el descifrado falla → dañado (como siempre)", async () => {
+    const { l } = await lectura({
+      clave: () => ({ id: FILA.kekId }),
+      abrir: () => {
+        throw new Error("Unsupported state or unable to authenticate data");
+      },
+    });
+    assert.deepEqual(l, { estado: "dañado" });
   });
 
   test("lo que bloquea es lo mismo en la pantalla y en el servidor", async () => {
@@ -305,4 +333,25 @@ test("pedido de punta a punta: CSR con el subject de ARCA → certificado → ca
 
 test("los errores no reconocidos no muestran el texto crudo", () => {
   assert.doesNotMatch(errorDeCargaEnCriollo(new Error("-----BEGIN PRIVATE KEY----- xyz")), /BEGIN/);
+});
+
+describe("doble clic al generar: el choque del índice único no termina en página de error", () => {
+  const esChoque = (e: unknown) => (e as { code?: string })?.code === "P2002";
+  test("guardó bien → null", async () => {
+    assert.equal(await sinChoqueDePedido(async () => {}, esChoque), null);
+  });
+  test("otro pedido se guardó a la vez (P2002) → motivo en criollo", async () => {
+    const motivo = await sinChoqueDePedido(async () => {
+      throw Object.assign(new Error("Unique constraint failed"), { code: "P2002" });
+    }, esChoque);
+    assert.match(motivo ?? "", /recarg/i);
+  });
+  test("cualquier otro error se relanza", async () => {
+    await assert.rejects(
+      sinChoqueDePedido(async () => {
+        throw Object.assign(new Error("conexión"), { code: "P1001" });
+      }, esChoque),
+      /conexión/,
+    );
+  });
 });

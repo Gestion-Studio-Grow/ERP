@@ -65,9 +65,10 @@ export const MOTIVO_SIN_CONFIGURACION = "Falta la configuración para guardar ce
 /**
  * Lee el pedido separando las causas de falla (pasos inyectados: el servidor pasa la base, la clave
  * maestra y el descifrado). `alFallar` recibe la causa y el error para el log (sin material sensible).
- * La clave se pide aunque no haya fila: sin ella generar fallaría igual.
+ * La clave se pide aunque no haya fila: sin ella generar fallaría igual. Una fila cerrada con otra
+ * clave maestra (`kekId` ≠ `clave.id`) es «sin-configuracion», no «dañado».
  */
-export async function leerPedidoConEstado<F, K>(pasos: {
+export async function leerPedidoConEstado<F extends { kekId: string }, K extends { id: string }>(pasos: {
   leerFila: () => Promise<F | null>;
   clave: () => K;
   abrir: (fila: F, clave: K) => { csrPem: string; creadoEn: string };
@@ -88,12 +89,37 @@ export async function leerPedidoConEstado<F, K>(pasos: {
     return { estado: "sin-configuracion", hayPedido: fila !== null };
   }
   if (fila === null) return { estado: "ninguno" };
+  // Cerrada con otra clave maestra (rotación o FISCAL_MASTER_KEY_ID cambiado): es configuración, no
+  // daño. Si se tomara por «dañado» se borraría una clave privada que abre al corregir la config.
+  if (fila.kekId !== clave.id) {
+    pasos.alFallar?.("sin-configuracion", new Error("La fila se cerró con otra clave maestra"));
+    return { estado: "sin-configuracion", hayPedido: true };
+  }
   try {
     const p = pasos.abrir(fila, clave);
     return { estado: "pendiente", csrPem: p.csrPem, creadoEn: p.creadoEn };
   } catch (e) {
     pasos.alFallar?.("dañado", e);
     return { estado: "dañado" };
+  }
+}
+
+export const MOTIVO_PEDIDO_EN_CURSO = "Ya se estaba generando un pedido de certificado: recargá la página para verlo.";
+
+/**
+ * Guarda el pedido nuevo; si otro se guardó a la vez (doble clic: choque del índice único, que detecta
+ * `esChoque`) devuelve el motivo para mostrar en vez de una página de error. Otro error se relanza.
+ */
+export async function sinChoqueDePedido(
+  guardar: () => Promise<void>,
+  esChoque: (e: unknown) => boolean,
+): Promise<string | null> {
+  try {
+    await guardar();
+    return null;
+  } catch (e) {
+    if (esChoque(e)) return MOTIVO_PEDIDO_EN_CURSO;
+    throw e;
   }
 }
 

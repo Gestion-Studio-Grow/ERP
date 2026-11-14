@@ -21,6 +21,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { enElNegocio, operatorPrisma } from "@/lib/operator-db";
 import { logger } from "@/lib/logger";
+import { isUniqueViolation } from "@/lib/prisma-errors";
 import { masterKeyDesdeEnv, openSecret, sealSecret } from "@/lib/fiscal/cert-crypto";
 import {
   cargarCredencialTenant,
@@ -45,6 +46,7 @@ import {
   motivoParaNoReemplazarPedido,
   problemaDelPedido,
   PALABRA_DEL_PASE,
+  sinChoqueDePedido,
   type EntradaAsistente,
   type LecturaDelPedido,
   type EstadoDelAsistente,
@@ -157,7 +159,9 @@ export async function generarPedidoDelNegocio(tenantId: string, actor: string): 
   }
   const sobre = sealSecret(JSON.stringify({ keyPem: pedido.keyPem, csrPem: pedido.csrPem }), master);
   const creadoEn = new Date().toISOString();
-  await enElNegocio(tenantId, async (tx) => {
+  // Doble clic: dos pedidos a la vez chocan con @@unique([certHuella, service]) (P2002). El que llegó
+  // primero queda; el segundo avisa en vez de terminar en una página de error.
+  const choque = await sinChoqueDePedido(() => enElNegocio(tenantId, async (tx) => {
     const huella = huellaDelPedido(tenantId);
     await tx.arcaAuthTicket.deleteMany({ where: { tenantId, certHuella: huella, service: SERVICIO_PEDIDO } });
     await tx.arcaAuthTicket.create({
@@ -166,7 +170,8 @@ export async function generarPedidoDelNegocio(tenantId: string, actor: string): 
     await tx.auditLog.create({
       data: { tenantId, actor, action: ACCION_PEDIDO_CSR, entity: "Tenant", entityId: tenantId, changes: { subject: pedido.subject, creadoEn } },
     });
-  });
+  }), (e) => isUniqueViolation(e));
+  if (choque) return { ok: false, motivo: choque };
   return { ok: true, mensaje: "Pedido de certificado generado: bajá el archivo .csr y seguí las instrucciones." };
 }
 
