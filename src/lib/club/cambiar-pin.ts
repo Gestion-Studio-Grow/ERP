@@ -59,6 +59,25 @@ function pinActualCoincide(estado: EstadoClub, guardado: string | undefined, pin
   return !!estado.salPin && igualesSinApuro(hashPin(p, estado.salPin), guardado);
 }
 
+/**
+ * SEG-024: en qué tope del servidor cuenta un «Cambiar mi PIN» contra `usuarioId`, con la MISMA lectura de la foto que
+ * `cambiarPinEnLaFoto`: «duenio» (tope del PIN de dueño), «equipo» (por persona) o null si la regla lo rechaza sin
+ * mirar el PIN (foto ilegible, usuario inexistente o inactivo): ese pedido no gasta intentos ni anota nada.
+ */
+export function carrilDePin(textoVigente: string, usuarioId: string): "duenio" | "equipo" | null {
+  let crudo: unknown;
+  try {
+    crudo = JSON.parse(textoVigente);
+  } catch {
+    return null;
+  }
+  const h = hidratarEstado(crudo);
+  if (!h.ok) return null;
+  const u = h.estado.usuarios.find((x) => x.id === usuarioId);
+  if (!u || u.activo === false) return null;
+  return u.rol === "duenio" ? "duenio" : "equipo";
+}
+
 export function cambiarPinEnLaFoto(textoVigente: string, pedido: PedidoDeCambioDePin): ResultadoDeCambioDePin {
   let crudo: unknown;
   try {

@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as M from "./motor.mjs";
-import { cambiarPinEnLaFoto } from "./cambiar-pin";
+import { cambiarPinEnLaFoto, carrilDePin } from "./cambiar-pin";
 
 const HOY = "2026-10-17";
 const AHORA = { fecha: HOY, min: 19 * 60 };
@@ -131,4 +131,19 @@ test("SEG-020: un dueño con el PIN guardado fuerte (h2) lo cambia desde un due�
   const u = quedo.usuarios.find((x) => x.id === d.id)!;
   assert.ok(M.esPinConHash(u.pin));
   assert.ok(pinDelDuenioCoincide(u.pin, "4826", quedo.salPin));
+});
+
+test("SEG-024: el carril del tope sale de la foto vigente — dueño, equipo o ninguno (ese no gasta intentos)", () => {
+  const e = M.generarDemo(HOY, 19 * 60);
+  const duenio = e.usuarios.find((u) => u.rol === "duenio")!;
+  const lu = e.usuarios.find((u) => u.rol === "recepcion")!;
+  const inactiva = e.usuarios.filter((u) => u.rol === "recepcion")[1];
+  inactiva.activo = false;
+  const t = sobre(e);
+  assert.equal(carrilDePin(t, duenio.id), "duenio");
+  assert.equal(carrilDePin(t, lu.id), "equipo");
+  assert.equal(carrilDePin(t, inactiva.id), null, "inactiva: la regla la rechaza sin mirar el PIN");
+  assert.equal(carrilDePin(t, "u-no-existe"), null);
+  assert.equal(carrilDePin("{no es json", lu.id), null);
+  assert.equal(carrilDePin(JSON.stringify({ v: 1 }), lu.id), null);
 });

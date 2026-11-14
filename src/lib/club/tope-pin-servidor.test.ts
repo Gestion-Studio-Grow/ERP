@@ -5,7 +5,7 @@
 // limpia. Durante la espera no se llama a `verificar`.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { TECHO_FALLOS_NEGOCIO, conTopeDePin, type CorrerEnElNegocio } from "./tope-pin-servidor";
+import { TECHO_FALLOS_NEGOCIO, ambitoDelPinDeDuenio, conTopeDePin, type CorrerEnElNegocio } from "./tope-pin-servidor";
 
 const NEGOCIO = "negocio-tope";
 const DUENIOS = ["u-rober", "u-majo", "u-d3", "u-d4", "u-d5", "u-d6", "u-d7", "u-d8"];
@@ -189,4 +189,91 @@ test("con y sin dueño cuentan juntos contra un mismo dueño: nunca más de 5 an
     const majo = await t.intento("u-majo", true);
     assert.ok(!majo.espera && majo.resultado.ok, "otro dueño sigue firmando");
   }
+});
+
+// SEG-024: el PIN de quien no es dueño (ámbito «equipo», por persona) y la firma del dueño partida por origen (sesión
+// OWNER del ERP: «pin-owner»; cualquier otra: «pin», la fila de antes).
+test("equipo: 5 fallos contra una persona y espera; en la espera no se verifica; otra persona sigue; un acierto limpia", async () => {
+  const { correr } = baseEnMemoria();
+  let ahoraMs = 7_000_000;
+  let llamadas = 0;
+  const intento = (usuarioId: string, ok: boolean) =>
+    conTopeDePin(NEGOCIO, "equipo", () => (llamadas++, { ok, limpia: ok ? usuarioId : null }), { usuarioId, ahoraMs, correr });
+  for (let k = 0; k < 4; k++) assert.equal((await intento("u-lu", false)).esperaS, 0);
+  assert.equal((await intento("u-lu", false)).esperaS, 30, "el 5.º avisa la espera");
+  const antes = llamadas;
+  assert.deepEqual(await intento("u-lu", true), { espera: true, esperaS: 30 });
+  assert.equal(llamadas, antes, "durante la espera no se verifica");
+  const otra = await intento("u-sofi", true);
+  assert.ok(!otra.espera && otra.resultado.ok, "otra persona del equipo sigue");
+  ahoraMs += 30_000;
+  for (let k = 0; k < 4; k++) await intento("u-lu", false);
+  assert.ok(!(await intento("u-lu", true)).espera);
+  assert.equal((await intento("u-lu", false)).esperaS, 0, "el acierto limpió sus fallos");
+});
+
+test("equipo: sin techo del negocio — fallos contra muchas personas no traban a otra", async () => {
+  const { correr } = baseEnMemoria();
+  const ahoraMs = 8_000_000;
+  for (let p = 0; p < 6; p++) {
+    for (let k = 0; k < 4; k++) {
+      const r = await conTopeDePin(NEGOCIO, "equipo", () => ({ ok: false }), { usuarioId: `u-${p}`, ahoraMs, correr });
+      assert.equal(r.espera, false);
+    }
+  }
+  const r = await conTopeDePin(NEGOCIO, "equipo", () => ({ ok: true, limpia: "u-lu" }), { usuarioId: "u-lu", ahoraMs, correr });
+  assert.ok(!r.espera && r.resultado.ok);
+});
+
+test("equipo sin persona no se anota (no hay balde «sin usuario»)", async () => {
+  const { correr } = baseEnMemoria();
+  await assert.rejects(conTopeDePin(NEGOCIO, "equipo", () => ({ ok: false }), { usuarioId: null, ahoraMs: 1, correr }));
+});
+
+test("equipo y PIN de dueño no se mezclan, en ninguno de los dos sentidos", async () => {
+  const { correr } = baseEnMemoria();
+  const ahoraMs = 9_000_000;
+  const equipo = (ok: boolean) => conTopeDePin(NEGOCIO, "equipo", () => ({ ok, limpia: ok ? "u-lu" : null }), { usuarioId: "u-lu", ahoraMs, correr });
+  const duenio = (ambito: "pin" | "pin-owner", ok: boolean, usuarioId: string | null = null) =>
+    conTopeDePin(NEGOCIO, ambito, () => ({ ok, limpia: ok ? "u-rober" : null }), { usuarioId, ahoraMs, correr });
+  for (let k = 0; k < 25; k++) await duenio("pin", false);
+  for (let k = 0; k < 25; k++) await duenio("pin-owner", false);
+  const e = await equipo(true);
+  assert.ok(!e.espera && e.resultado.ok, "los fallos del PIN de dueño no traban el de recepción");
+  for (let k = 0; k < 5; k++) await equipo(false);
+  assert.ok((await equipo(true)).espera);
+  const { correr: correr2 } = baseEnMemoria();
+  for (let k = 0; k < 6; k++) await conTopeDePin(NEGOCIO, "equipo", () => ({ ok: false }), { usuarioId: "u-lu", ahoraMs, correr: correr2 });
+  for (const ambito of ["pin", "pin-owner"] as const) {
+    const r = await conTopeDePin(NEGOCIO, ambito, () => ({ ok: true, limpia: "u-rober" }), { usuarioId: "u-rober", ahoraMs, correr: correr2 });
+    assert.ok(!r.espera && r.resultado.ok, `${ambito}: los fallos de recepción no traban la firma del dueño`);
+  }
+});
+
+test("firma por origen: el techo de 20 desde una sesión que no es OWNER no traba la firma desde una sesión OWNER, y al revés", async () => {
+  for (const [hostil, propio] of [["pin", "pin-owner"], ["pin-owner", "pin"]] as const) {
+    const { correr } = baseEnMemoria();
+    let ahoraMs = 10_000_000;
+    for (let k = 0; k < TECHO_FALLOS_NEGOCIO; k++) {
+      ahoraMs += 11 * 60_000; // ninguna espera por dueño queda en pie: sólo cuenta el techo
+      await conTopeDePin(NEGOCIO, hostil, () => ({ ok: false }), { usuarioId: DUENIOS[k % DUENIOS.length], ahoraMs, correr });
+    }
+    assert.ok((await conTopeDePin(NEGOCIO, hostil, () => ({ ok: true, limpia: "u-rober" }), { usuarioId: "u-rober", ahoraMs, correr })).espera, `${hostil}: techo`);
+    for (const usuarioId of ["u-rober", null]) {
+      const r = await conTopeDePin(NEGOCIO, propio, () => ({ ok: true, limpia: "u-rober" }), { usuarioId, ahoraMs, correr });
+      assert.ok(!r.espera && r.resultado.ok, `${propio} (${usuarioId ?? "sin dueño"}) sigue firmando`);
+    }
+  }
+});
+
+test("la fila de antes (clave = negocio) queda para las sesiones que no son OWNER", async () => {
+  const { correr } = baseEnMemoria();
+  await correr(NEGOCIO, (db) =>
+    db.auditLog.create({ data: { entityId: NEGOCIO, changes: { intentos: { fallos: 20, tandas: 1, esperaHasta: 2_000_000, ultimoFallo: 1_000_000 } } } as never }),
+  );
+  assert.ok((await conTopeDePin(NEGOCIO, "pin", () => assert.fail("espera"), { usuarioId: null, ahoraMs: 1_500_000, correr })).espera);
+  const owner = await conTopeDePin(NEGOCIO, "pin-owner", () => ({ ok: true, limpia: "u-rober" }), { usuarioId: "u-rober", ahoraMs: 1_500_000, correr });
+  assert.ok(!owner.espera);
+  assert.equal(ambitoDelPinDeDuenio("OWNER"), "pin-owner");
+  for (const rol of ["RECEPTION", "ADMIN", "STAFF", "", undefined]) assert.equal(ambitoDelPinDeDuenio(rol as string), "pin");
 });
