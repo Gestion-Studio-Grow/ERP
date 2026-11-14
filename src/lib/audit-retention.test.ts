@@ -77,3 +77,10 @@ test("purgeAuditLogs filtra por un corte cercano a la ventana `months` pedida", 
   // Tolerancia amplia por el tiempo entre `antes` y el `new Date()` interno.
   assert.ok(Math.abs(where.createdAt.lt.getTime() - esperado.getTime()) < 60_000);
 });
+
+test("purgeAuditLogs nunca borra las filas profeturnos.* (alta, verificación, revocación, plan)", async () => {
+  const { client, calls } = makeMockClient(0);
+  await purgeAuditLogs(client, { dryRun: false });
+  const where = calls.lastWhere as { NOT: { OR: Array<{ action: { startsWith: string } }> } };
+  assert.deepEqual(where.NOT.OR, [{ action: { startsWith: "profeturnos." } }]);
+});

@@ -6,19 +6,24 @@
 // Hoy la importa el layout raíz SÓLO por Facturita (otra sesión la está moviendo a src/app/facturin: no se toca esa
 // carpeta desde esta rama). Pedido cruzado: que el layout de facturin ponga `FUENTES_CH` en su raíz; con eso, este
 // import sale del layout raíz y la raíz queda sólo con Geist.
-import { Fraunces, Hanken_Grotesk } from "next/font/google";
+import localFont from "next/font/local";
 
-export const fraunces = Fraunces({
+export const fraunces = localFont({
+  src: [
+    { path: "../fonts/fraunces/fraunces-latin-wght-normal.woff2", weight: "100 900", style: "normal" },
+    { path: "../fonts/fraunces/fraunces-latin-wght-italic.woff2", weight: "100 900", style: "italic" },
+  ],
   variable: "--font-fraunces",
-  subsets: ["latin"],
-  style: ["normal", "italic"],
+  adjustFontFallback: "Times New Roman",
   display: "swap",
   preload: false,
 });
 
-export const hanken = Hanken_Grotesk({
+export const hanken = localFont({
+  src: [
+    { path: "../fonts/hanken-grotesk/hanken-grotesk-latin-wght-normal.woff2", weight: "100 900", style: "normal" },
+  ],
   variable: "--font-hanken",
-  subsets: ["latin"],
   display: "swap",
   preload: false,
 });

@@ -53,6 +53,7 @@ jobs:
     name: tren de releases (núcleo + sello GSG)
     if: github.event_name == 'push' || github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -69,6 +70,7 @@ jobs:
     name: Gate de Excelencia declarado en el PR
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -81,6 +83,7 @@ jobs:
     name: notas de versión (borrador)
     if: github.event_name == 'push' || github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.accion == 'notas')
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
@@ -105,6 +108,7 @@ jobs:
       (github.event_name == 'deployment_status' && github.event.deployment_status.state == 'success') ||
       (github.event_name == 'workflow_dispatch' && inputs.accion == 'smoke')
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

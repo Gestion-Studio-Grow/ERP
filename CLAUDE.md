@@ -76,9 +76,9 @@ del gasto es relectura), no el modelo.
 
 ## Límite de contexto y compactación automática (09/11/2026 · orden del dueño)
 Metodología completa: Factory-GSG `CLAUDE.md`, sección «Metodología: límite de contexto y compactación automática».
-- Toda sesión compacta sola a ~200k: `.claude/settings.json` lleva `"env": {"CLAUDE_CODE_AUTO_COMPACT_WINDOW": "270000"}`. Sin eso, la ventana de fábrica (980k) relee todo en cada turno.
+- Toda sesión compacta sola a ~300-320k: `.claude/settings.json` lleva `"env": {"CLAUDE_CODE_AUTO_COMPACT_WINDOW": "400000"}`. Sin eso, la ventana de fábrica (980k) relee todo en cada turno.
 - Sólo aplica con el directorio de trabajo dentro del repo. Lo que lo cubre siempre es la misma variable cargada por el dueño en el entorno Default de claude.ai.
-- **Paso 0 de toda sesión:** `get_session` sin id, o `env | grep AUTO_COMPACT`. Tiene que dar ventana 270000. Si no, avisá a la orquestadora.
+- **Paso 0 de toda sesión:** `get_session` sin id, o `env | grep AUTO_COMPACT`. Tiene que dar ventana 400000. Si no, avisá a la orquestadora.
 
 ## Autorizaciones del dueño (resumen · fuente: Factory-GSG `CLAUDE.md` en `main`, commit `b1cfe0e`)
 Esto es un índice, no la norma: la prueba es Factory-GSG `CLAUDE.md`, leído de primera mano (`get_file_contents`

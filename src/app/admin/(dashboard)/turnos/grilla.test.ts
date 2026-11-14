@@ -27,6 +27,8 @@ import {
   columnasDeLaGrilla,
   enMinutos,
   estadoDeLaCelda,
+  liberaElHueco,
+  ocupadosDeLaColumna,
   hrefNuevoTurnoEnHueco,
   bloqueosPorHorario,
   ausenciaDeLaColumna,
@@ -253,4 +255,59 @@ test("turno corto en una línea: «16:00 Ana · Peeling», el resto en el títul
   assert.equal(esTurnoCorto({ ...corto, fin: iso("17:00") }), false);
   assert.equal(lineaDelTurno(corto), "16:00 Ana · Peeling");
   assert.equal(tituloDelTurno(corto, ["Confirmado", null, false, "seña pedida"]), "16:00–16:30 · Ana · Peeling · Confirmado · seña pedida");
+});
+
+// GSG-CH-008 · «No vino» libera el hueco, como el cancelado: la grilla ofrece dar un turno rápido ahí.
+const turnoDe = (id: string, estado: string, desde: string, hasta: string) => ({ id, estado, inicio: iso(desde), fin: iso(hasta) });
+const celdaCaro = (turnos: ReturnType<typeof turnoDe>[], minuto: number) =>
+  estadoDeLaCelda({
+    dia: DIA,
+    hoy: "2030-10-01",
+    ahoraMin: 0,
+    minuto,
+    columna: colDe(columnasDeLaGrilla("profesional", PROFES), "caro"),
+    ocupados: ocupadosDeLaColumna(turnos),
+    bloqueos: [],
+    puedeDarTurno: true,
+    nombreDe: (id) => PROFES.find((p) => p.id === id)?.nombre,
+  });
+
+test("CH-008 · un turno «No vino» libera el hueco: la celda ofrece dar un turno a esa hora", () => {
+  const celda = celdaCaro([turnoDe("t1", "NO_SHOW", "14:00", "15:00")], h(14));
+  assert.equal(celda.tipo, "hueco");
+  if (celda.tipo === "hueco") assert.equal(celda.etiqueta, "Dar un turno a las 14:00 con Caro");
+  assert.equal(celdaCaro([turnoDe("t1", "NO_SHOW", "14:00", "15:00")], h(14, 30)).tipo, "hueco");
+  assert.equal(liberaElHueco({ estado: "NO_SHOW" }), true);
+});
+
+test("CH-008 · el cancelado sigue liberando; reservado, confirmado y atendido siguen ocupando", () => {
+  assert.equal(celdaCaro([turnoDe("t1", "CANCELLED", "14:00", "15:00")], h(14)).tipo, "hueco");
+  for (const estado of ["PENDING", "CONFIRMED", "COMPLETED"]) {
+    assert.equal(celdaCaro([turnoDe("t1", estado, "14:00", "15:00")], h(14)).tipo, "ocupada", estado);
+    assert.equal(liberaElHueco({ estado }), false, estado);
+  }
+  // «No vino» 14:00-15:00 y un confirmado 14:30-15:00: 14:00 es hueco; 14:30 la ocupa el vivo.
+  const mezcla = [turnoDe("t1", "NO_SHOW", "14:00", "15:00"), turnoDe("t2", "CONFIRMED", "14:30", "15:00")];
+  assert.equal(celdaCaro(mezcla, h(14)).tipo, "hueco");
+  assert.equal(celdaCaro(mezcla, h(14, 30)).tipo, "ocupada");
+  assert.deepEqual(ocupadosDeLaColumna(mezcla), [{ desde: h(14, 30), hasta: h(15) }]);
+});
+
+test("CH-008 · celular (tope 2): un «No vino» nunca manda un turno vivo al «+N»; si sobra un carril, lo usa", () => {
+  // «No vino» 14:00-15:00 y dos vivos a las 14:00: se ven los dos vivos; el liberado va al «+N».
+  const lleno = [turnoDe("ns", "NO_SHOW", "14:00", "15:00"), turnoDe("v1", "CONFIRMED", "14:00", "14:45"), turnoDe("v2", "PENDING", "14:00", "15:00")];
+  const r = carrilesConTope(lleno, 2);
+  assert.deepEqual([...r.ocultos], ["ns"]);
+  assert.deepEqual(r.carriles.get("v1"), { carril: 0, de: 2 });
+  assert.deepEqual(r.carriles.get("v2"), { carril: 1, de: 2 });
+  assert.deepEqual(r.desbordes, [{ desde: h(14), ids: ["ns"] }]);
+  // El cancelado igual: tampoco desplaza a un vivo.
+  assert.deepEqual([...carrilesConTope(lleno.map((t) => (t.id === "ns" ? { ...t, estado: "CANCELLED" } : t)), 2).ocultos], ["ns"]);
+  // Con un solo vivo, el liberado entra al lado (aunque haya arrancado antes).
+  const conLugar = carrilesConTope([turnoDe("ns", "NO_SHOW", "13:30", "14:30"), turnoDe("v1", "CONFIRMED", "14:00", "15:00")], 2);
+  assert.equal(conLugar.ocultos.size, 0);
+  assert.deepEqual(conLugar.carriles.get("v1"), { carril: 0, de: 2 });
+  assert.deepEqual(conLugar.carriles.get("ns"), { carril: 1, de: 2 });
+  // Solo, el liberado ocupa su carril entero (de: 1).
+  assert.deepEqual(carrilesConTope([turnoDe("ns", "NO_SHOW", "14:00", "15:00")], 2).carriles.get("ns"), { carril: 0, de: 1 });
 });
