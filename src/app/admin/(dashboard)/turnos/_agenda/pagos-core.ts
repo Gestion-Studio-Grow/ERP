@@ -16,6 +16,7 @@ import { claseDeCobro, cobroAnuladoPor } from "@/lib/turnos/anulacion";
 import { METODO_LABEL, type MetodoDePago } from "@/lib/turnos/cobros";
 import { ETIQUETA_DE_TARJETA } from "@/lib/turnos/cobro-con-producto";
 import { MEDIO_VOUCHER } from "@/lib/comisiones/base";
+import { sumarAlCentavo } from "@/lib/dinero/redondeo";
 import { fmtMoneyARS } from "@/components/ui/format";
 import type { TurnoDelDia } from "../agenda-core";
 
@@ -86,12 +87,11 @@ export function pagosDelTurno(t: Pick<TurnoDelDia, "cobros" | "cobrado" | "preci
 }
 
 function sumarVoucher(cobros: TurnoDelDia["cobros"], anulados: ReadonlySet<string>): number {
-  let cent = 0;
-  for (const c of cobros) {
-    if (c.method !== MEDIO_VOUCHER || claseDeCobro(c.note) !== "cobro" || (c.id && anulados.has(c.id))) continue;
-    cent += Math.round(c.amount * 100);
-  }
-  return cent / 100;
+  return sumarAlCentavo(
+    cobros
+      .filter((c) => c.method === MEDIO_VOUCHER && claseDeCobro(c.note) === "cobro" && !(c.id && anulados.has(c.id)))
+      .map((c) => c.amount),
+  );
 }
 
 const pesos = (n: number) => fmtMoneyARS(n, Number.isInteger(n) ? 0 : 2);

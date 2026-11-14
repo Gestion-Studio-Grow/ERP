@@ -480,7 +480,11 @@ export async function pendienteDeRendirDeLectura(
   ids: readonly string[],
 ): Promise<Map<string, number>> {
   if (ids.length === 0 || !(await hayRendicionesInTx(db))) return new Map();
-  if (typeof (db as { $transaction?: unknown }).$transaction === "function") {
+  // El `tx` de tenantTransaction también expone `$transaction`: lo que distingue la transacción es el
+  // contexto ALS (`insideTx`). Adentro se usa el `tx` tal cual (mismo GUC, misma conexión).
+  const { getTenantStore } = await import("@/lib/tenant-context");
+  const dentroDeTx = getTenantStore()?.insideTx === true;
+  if (!dentroDeTx && typeof (db as { $transaction?: unknown }).$transaction === "function") {
     const { tenantTransaction } = await import("@/lib/rls");
     return tenantTransaction((tx) => pendienteDeRendirPorTurnoInTx(tx, tenantId, ids), { tenantId });
   }

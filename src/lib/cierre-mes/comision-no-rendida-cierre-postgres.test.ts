@@ -51,5 +51,12 @@ test("CH-011: el cierre de mes con el cliente suelto (prisma, app_rls) ve lo pen
   const deB = await tenantTransaction((tx) => leerHechosCierreMes(tx, base.b.id, "2026-10", { esMostrador: false }), { tenantId: base.b.id });
   console.log("TENANT-B comisiones=", JSON.stringify(deB.comisiones));
   assert.deepEqual(enTx.comisiones, { pendientes: 0, esperanSaldo: 0, esperanRendicion: 1 }, "en tx");
+  // Dentro de una transacción se lee con ESE tx (su GUC), no con otra transacción: con el GUC de B,
+  // los ids de A no devuelven nada aunque se pase el tenantId de A (certificador, vuelta 3).
+  const { pendienteDeRendirDeLectura } = await import("@/lib/comisiones/rendicion-repo");
+  const cruzado = await tenantTransaction((tx) => pendienteDeRendirDeLectura(tx, A, [a.id]), { tenantId: base.b.id });
+  assert.equal(cruzado.size, 0, "dentro de la tx de B no se ve lo de A");
+  const propio = await tenantTransaction((tx) => pendienteDeRendirDeLectura(tx, A, [a.id]), { tenantId: A });
+  assert.equal(propio.get(a.id), PRECIO, "dentro de la tx de A, lo pendiente de A");
   assert.deepEqual(suelto.comisiones, { pendientes: 0, esperanSaldo: 0, esperanRendicion: 1 }, "con el cliente de produccion");
 });
