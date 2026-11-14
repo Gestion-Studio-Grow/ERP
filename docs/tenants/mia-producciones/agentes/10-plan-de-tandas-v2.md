@@ -32,14 +32,20 @@
   anterior y se cierra con `tsc`, tests y build verdes, ningún rojo nuevo por nombre, certificación con hallazgos
   corregidos, medición y push.
 - **Dentro de la 4 no se avanza a la operación siguiente sin el veredicto CUMPLE de la anterior.**
-- **Qué se puede prender y cuándo:** con la tanda 3 cerrada, la ejecución de etapa 1 en MIA (no usa IA si los pedidos
+- **Liberación, paso obligatorio de las tandas 3 y 4 (decisión del dueño, 14/11 noche):** construir y certificar no
+  alcanza para prender. Cada operación pasa su batería de ataque (`09` §17) y la libera el dueño, con el expediente a
+  la vista, **antes** de habilitarla en un negocio. Orden: construir → certificación adversarial CUMPLE → batería (3
+  corridas completas seguidas, 0 fallas críticas, 50 casos o más; umbral provisional a confirmar por el dueño) →
+  expediente → liberación → recién ahí se prende. La cuarta llave y su lectura las construye 2A; cada brief de
+  operación entrega sus 50 casos junto con el código.
+- **Qué se puede prender y cuándo (siempre operación por operación, ya liberada):** con la tanda 3 cerrada, la ejecución de etapa 1 en MIA (no usa IA si los pedidos
   son de la lista). La etapa 2, operación por operación, al cerrar cada certificación de la 4. El texto libre que
   ejecuta, sólo después de la tanda 5.
 - **Fuera de este plan:** enviar mensajes a clientes del negocio (espera el módulo de canales), el equipo de
   Dirección, el de GSG y el de mantenimiento (otros diseños).
 
 **Lo que espera al dueño, sin frenar la construcción:** la clave de la API (gasto); el despertador por minuto (plan
-de Vercel y cómputo de Neon, `09` §9); los topes (`08` §2); quién firma frente a la alternativa dura (`09` §2.3); si
+de Vercel y cómputo de Neon, `09` §9); los topes (`08` §2); el umbral de excelencia y cada liberación (`09` §17); quién firma frente a la alternativa dura (`09` §2.3); si
 quien pide puede aprobar; el texto legal de la autorización; Gate 2.
 
 ## 3. Briefs de la tanda 2
@@ -60,6 +66,7 @@ decide (REGLA o PERSONA). Sumá Operacion al contrato de tipos.ts y `llaves` a e
 - permisoVivo llega por parámetro desde src/lib/proyectos/agentes/actor-agente.server.ts
   (gestion.server.ts:33-42, gestion-core.ts:725-732). El motor no importa proyectos.
 - Fuera de horario: DIFERIR. Quien pidió no aprueba. Revertir: clave REV:<id>, exigirEditar.
+- Cuarta llave: operación liberada para el negocio en su huella actual (09 §17.1); sin eso, PERSONA.
 - Operación de prueba sin plata (un compromiso) para los tests; las reales llegan en la tanda 3.
 ESCRIBÍ PRIMERO: ejecucion-carrera-postgres, llaves-carrera-postgres, reversion-carrera-postgres y
 permiso-minimo-postgres (09 §14). Además ejecucion-core.test.ts y guardia-ejecucion.test.ts.

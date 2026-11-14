@@ -24,7 +24,8 @@ el cliente firmó y de los topes; una persona entra sólo cuando la operación q
 2. **Tres llaves para que el agente haga algo solo:** (a) GSG prendió el interruptor de ejecución en ese negocio,
    (b) el cliente tiene una autorización firmada y vigente que nombra esa operación para ese puesto, y (c) el código
    permite que esa operación se ejecute sola (hay operaciones que no lo permiten nunca: `08` §3). Falta una: va a una
-   persona.
+   persona. **Y una cuarta, del 14/11 (noche):** la operación tiene que estar **liberada** para ese negocio, después
+   de pasar su batería de ataque (`08` §9, `09` §17). Sin liberar, tampoco se ejecuta sola.
 3. **Todo lo que el agente hace solo se puede deshacer con un toque**, queda en el registro que el cliente ve y
    respeta los topes. Lo que no se puede deshacer queda siempre con una persona.
 
