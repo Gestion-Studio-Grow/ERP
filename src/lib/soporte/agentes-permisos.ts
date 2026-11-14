@@ -5,7 +5,7 @@
 // Los agentes de soporte trabajan por niveles: n1 lee y redacta borradores, n2 además ordena el
 // ticket, n3 además abre issues y PR. Todo lo que toca plata, ARCA, secretos, permisos, la marca,
 // la base o producción ESCALA AL DUEÑO, sea cual sea el nivel. Lo mismo cualquier cosa sobre el
-// negocio de CH («beauty-spa»). Una acción que esta lista no conoce está PROHIBIDA (fail-closed).
+// negocio de CH («beauty-spa»), salvo el borrador del n1 que aprueba el dueño (D5). Una acción que esta lista no conoce está PROHIBIDA (fail-closed).
 // PURO: lo prueba agentes-permisos.test.ts.
 
 export const NIVELES_DE_AGENTE = ["n1", "n2", "n3"] as const;
@@ -47,7 +47,15 @@ export const PERMITIDAS: Readonly<Record<NivelDeAgente, readonly AccionDeAgente[
 /** El negocio de CH: cualquier acción sobre él la decide el dueño. */
 export const SLUG_CH = "beauty-spa";
 
-export type Decision = "permitido" | "escala_duenio" | "prohibido";
+/**
+ * «borrador_al_duenio» (D5, 14/11): en CH el n1 puede leer el ticket y la base de conocimiento y
+ * dejar UN borrador, que aprueba sólo el dueño. No es «permitido» a propósito: quien sólo mira
+ * «permitido» lo trata como no permitido (falla cerrado) y el despacho lo maneja aparte.
+ */
+export type Decision = "permitido" | "borrador_al_duenio" | "escala_duenio" | "prohibido";
+
+/** Lo que el n1 hace en CH (D5): leer el texto del ticket y la base, y redactar. Nada más. */
+const ACCIONES_N1_EN_CH: readonly AccionDeAgente[] = ACCIONES_N1;
 
 const sinTildes = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().trim();
 const esNivel = (x: unknown): x is NivelDeAgente => typeof x === "string" && (NIVELES_DE_AGENTE as readonly string[]).includes(x);
@@ -77,7 +85,11 @@ export function decidirAccionDeAgente(
   const nucleo = slug ? nucleoDeSlug(slug) : "";
   if (!nucleo) return { decision: "escala_duenio", motivo: "No se sabe de qué negocio es: lo decide el dueño." };
   if (slug === SLUG_CH || nucleo === NUCLEO_CH) {
-    return { decision: "escala_duenio", motivo: "Es el negocio de CH: cualquier acción la decide el dueño." };
+    // D5: sólo el n1, sólo leer y redactar; el borrador lo aprueba el dueño. n2 y n3, nunca.
+    if (nivel === "n1" && ACCIONES_N1_EN_CH.includes(a)) {
+      return { decision: "borrador_al_duenio", motivo: "Es CH: sólo un borrador, que aprueba el dueño (D5)." };
+    }
+    return { decision: "escala_duenio", motivo: "Es el negocio de CH: cualquier otra acción la decide el dueño." };
   }
   if ((ACCIONES_DEL_DUENIO as readonly string[]).includes(a)) {
     return { decision: "escala_duenio", motivo: `«${a}» la decide siempre el dueño.` };
@@ -86,7 +98,13 @@ export function decidirAccionDeAgente(
   return { decision: "prohibido", motivo: `«${a}» no está permitido para ${nivel}.` };
 }
 
-/** La etiqueta del ticket para una decisión: lo que escala va a «mant:duenio». PURA. */
+/** La etiqueta del ticket para una decisión: lo que escala, y el borrador de CH, van a «mant:duenio». PURA. */
 export function etiquetaDeDecision(nivel: NivelDeAgente, decision: Decision): EtiquetaMant {
-  return decision === "escala_duenio" ? ETIQUETAS_MANT.duenio : ETIQUETAS_MANT[nivel];
+  return decision === "escala_duenio" || decision === "borrador_al_duenio" ? ETIQUETAS_MANT.duenio : ETIQUETAS_MANT[nivel];
+}
+
+/** Quién aprueba un borrador de este negocio (D5 y D6): en CH sólo el dueño; si no se sabe el negocio, también. PURA. */
+export function quienApruebaElBorrador(negocioSlug: string | null | undefined): "duenio" | "persona_gsg" {
+  const nucleo = typeof negocioSlug === "string" ? nucleoDeSlug(negocioSlug) : "";
+  return !nucleo || nucleo === NUCLEO_CH ? "duenio" : "persona_gsg";
 }

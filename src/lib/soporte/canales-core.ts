@@ -12,6 +12,7 @@
 
 import { TIPO, type Canal } from "./config";
 import { venceElPara, type DatosTicketNuevo, type Validacion } from "./tickets-core";
+import type { ContextoDeReloj } from "./decisiones-core";
 
 /** Los canales por los que entra un mensaje del cliente (los otros nacen adentro del sistema). */
 export const CANALES_DE_ENTRADA = ["whatsapp", "mail", "erp"] as const satisfies readonly Canal[];
@@ -685,9 +686,9 @@ const ASUNTO_POR_DEFECTO: Readonly<Record<CanalDeEntrada, string>> = {
 /**
  * El ticket que nace de un mensaje, o el motivo por el que no nace. Los secretos se tapan ANTES de
  * recortar (un número cortado a la mitad ya no se reconoce). El tipo sale de palabras simples del
- * texto crudo y la prioridad, del tipo. PURA.
+ * texto crudo y la prioridad, del tipo. El vencimiento sigue D2 (`reloj`: si el negocio está en vivo). PURA.
  */
-export function ticketDesdeMensaje(m: MensajeEntrante, ahora: Date): ResultadoMensaje {
+export function ticketDesdeMensaje(m: MensajeEntrante, ahora: Date, reloj: ContextoDeReloj = {}): ResultadoMensaje {
   if (!esCanalDeEntrada(m.canal)) return { ok: false, motivo: "Ese canal no recibe mensajes de clientes." };
   const canal = m.canal;
   const origen = origenDeCanal(canal, m.idExterno);
@@ -735,7 +736,7 @@ export function ticketDesdeMensaje(m: MensajeEntrante, ahora: Date): ResultadoMe
       origenId: origen.valor,
       clienteTenantId: null,
       creadoPor: `cliente:${canal}`,
-      venceEl: venceElPara(prioridad, ahora),
+      venceEl: venceElPara(prioridad, ahora, reloj),
     },
   };
 }

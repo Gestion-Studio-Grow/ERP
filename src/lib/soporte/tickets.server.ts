@@ -14,6 +14,7 @@
 // ficha no existe. Nada de esto rompe la pantalla de la contadora.
 
 import "server-only";
+import { negocioEnVivo } from "./decisiones-core";
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import { crearTicketEnTx, esTablaAusente, hayTablaDeTickets } from "./alta.server";
 import { enElNegocio } from "@/lib/operator-db";
@@ -285,7 +286,9 @@ export async function cambiarTicket(
             const v = validarCambioDePrioridad(prioridadLeida(t.prioridad), c.valor);
             if (!v.ok) throw new Rechazo(v.error);
             // El vencimiento se recalcula desde que entró el ticket, con el tiempo de la prioridad nueva.
-            await tx.supportTicket.update({ where: { id: t.id }, data: { prioridad: v.valor, venceEl: venceElPara(v.valor, t.createdAt) } });
+            const negocio = await tx.tenant.findUnique({ where: { id: p.tenantId }, select: { status: true } });
+            const venceEl = venceElPara(v.valor, t.createdAt, { enVivo: negocioEnVivo(negocio?.status) });
+            await tx.supportTicket.update({ where: { id: t.id }, data: { prioridad: v.valor, venceEl } });
             await evento("prioridad", null, { de: t.prioridad, a: v.valor });
             break;
           }

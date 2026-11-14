@@ -8,6 +8,7 @@ import {
   ETIQUETAS_MANT,
   NIVELES_DE_AGENTE,
   SLUG_CH,
+  quienApruebaElBorrador,
   decidirAccionDeAgente,
   etiquetaDeDecision,
   type Decision,
@@ -36,14 +37,25 @@ test("todas las acciones × todos los niveles, en un negocio cualquiera", () => 
   }
 });
 
-test("CH (beauty-spa): cualquier acción conocida escala al dueño, en todo nivel", () => {
+test("CH (beauty-spa, D5): el n1 sólo lee y redacta un borrador para el dueño; todo lo demás escala, en todo nivel", () => {
+  const N1_EN_CH = ["leer_ticket", "leer_base_conocimiento", "borrador_respuesta"];
   for (const slug of [SLUG_CH, " Beauty-Spa ", "BEAUTY-SPA"]) {
     for (const nivel of NIVELES_DE_AGENTE) {
       for (const accion of ACCIONES_DE_AGENTE) {
-        assert.equal(decidirAccionDeAgente(nivel, accion, slug).decision, "escala_duenio", `${slug} ${nivel} ${accion}`);
+        const esperado = nivel === "n1" && N1_EN_CH.includes(accion) ? "borrador_al_duenio" : "escala_duenio";
+        assert.equal(decidirAccionDeAgente(nivel, accion, slug).decision, esperado, `${slug} ${nivel} ${accion}`);
       }
     }
   }
+  // n2 y n3 heredan las acciones del n1, pero en CH nunca: D5 «N2 y N3 nunca».
+  assert.equal(decidirAccionDeAgente("n2", "borrador_respuesta", SLUG_CH).decision, "escala_duenio");
+  assert.equal(decidirAccionDeAgente("n3", "leer_ticket", SLUG_CH).decision, "escala_duenio");
+  assert.equal(decidirAccionDeAgente("n1", "cambiar_estado", SLUG_CH).decision, "escala_duenio");
+  assert.equal(etiquetaDeDecision("n1", "borrador_al_duenio"), "mant:duenio");
+  assert.equal(quienApruebaElBorrador(SLUG_CH), "duenio");
+  assert.equal(quienApruebaElBorrador("beauty_spa"), "duenio");
+  assert.equal(quienApruebaElBorrador(null), "duenio", "sin negocio: el dueño (puede ser CH)");
+  assert.equal(quienApruebaElBorrador("magra"), "persona_gsg");
   assert.equal(decidirAccionDeAgente("n1", "leer_ticket", "beauty-spa-2").decision, "permitido", "otro slug parecido no es CH");
 });
 
@@ -73,6 +85,7 @@ test("mayúsculas, tildes y espacios no esquivan la regla", () => {
 test("sin negocio (null, vacío, espacios): escala al dueño (fail-closed: no se sabe si es CH)", () => {
   for (const slug of [null, undefined, "", "   ", "\t"]) {
     assert.equal(decidirAccionDeAgente("n1", "leer_ticket", slug).decision, "escala_duenio", JSON.stringify(slug));
+    assert.equal(decidirAccionDeAgente("n2", "nota_interna", slug).decision, "escala_duenio", JSON.stringify(slug));
     assert.equal(decidirAccionDeAgente("n3", "deploy", slug).decision, "escala_duenio", JSON.stringify(slug));
   }
   // Acción o nivel desconocidos siguen prohibidos aunque falte el negocio.
@@ -80,9 +93,10 @@ test("sin negocio (null, vacío, espacios): escala al dueño (fail-closed: no se
   assert.equal(decidirAccionDeAgente("n9", "leer_ticket", null).decision, "prohibido");
 });
 
-test("variantes del slug de CH (guion bajo, espacio, otro guion, invisibles) escalan igual", () => {
+test("variantes del slug de CH (guion bajo, espacio, otro guion, invisibles) son CH igual", () => {
   for (const slug of ["beauty_spa", "beauty spa", "beauty\u2010spa", "beauty-spa\u200b", "beautyspa", "BEAUTY–SPA", "Beauty-Spa\n"]) {
-    assert.equal(decidirAccionDeAgente("n1", "leer_ticket", slug).decision, "escala_duenio", JSON.stringify(slug));
+    assert.equal(decidirAccionDeAgente("n1", "leer_ticket", slug).decision, "borrador_al_duenio", JSON.stringify(slug));
+    assert.equal(decidirAccionDeAgente("n2", "nota_interna", slug).decision, "escala_duenio", JSON.stringify(slug));
   }
 });
 

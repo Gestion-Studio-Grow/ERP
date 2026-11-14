@@ -13,6 +13,7 @@ import type { PrismaClient } from "@/generated/prisma/client";
 import { enElNegocio } from "@/lib/operator-db";
 import { crearTicketEnTx, esTablaAusente } from "./alta.server";
 import { ticketDesdeMensaje, type MensajeEntrante } from "./canales-core";
+import { negocioEnVivo } from "./decisiones-core";
 
 export type ResultadoEntrada = { numero: number; nuevo: boolean } | { rechazado: true; motivo: string } | { sinTabla: true };
 
@@ -29,7 +30,10 @@ export async function crearTicketDesdeCanal(
   ahora: Date = new Date(),
 ): Promise<ResultadoEntrada> {
   if (typeof tenantId !== "string" || !tenantId.trim()) return { rechazado: true, motivo: "Falta el negocio." };
-  const r = ticketDesdeMensaje(mensaje, ahora);
+  // D2: el reloj de un P1 corre a toda hora sólo si el negocio está en vivo. `Tenant` no tiene RLS.
+  const negocio = await db.tenant.findUnique({ where: { id: tenantId }, select: { status: true } });
+  if (!negocio) return { rechazado: true, motivo: "Ese negocio no existe." };
+  const r = ticketDesdeMensaje(mensaje, ahora, { enVivo: negocioEnVivo(negocio.status) });
   if (!r.ok) return { rechazado: true, motivo: r.motivo };
   const { datos, tapados } = r;
   try {

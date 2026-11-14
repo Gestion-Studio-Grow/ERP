@@ -301,12 +301,35 @@ ni privilegios por defecto: cada tabla se otorga a mano.
 | Tablas de la lista verde N2 (agenda, servicios, avisos, plantillas, categorías) | Como hoy | Como hoy (lo que la consola ya usa) | SELECT + UPDATE **por columna** de lo que la lista verde cambia | `tenant_isolation` |
 | Plata, ARCA, caja, pagos, comprobantes, certificados, credenciales | Como hoy | Sólo lo que la consola ya usa hoy (a relevar) | **Nada** | `tenant_isolation` |
 
-**Candado de CH en la base (defensa extra):** tabla `NegocioProtegido(tenantId)` sin RLS, que sólo escribe
-`neondb_owner`, y en cada tabla otorgada a `gsg_agente` una política
-`AS RESTRICTIVE FOR ALL TO gsg_agente USING (NOT EXISTS (SELECT 1 FROM "NegocioProtegido" p WHERE
-p."tenantId" = current_setting('app.current_tenant_id', true)))`. Así un agente no ve ni escribe CH aunque
-el código se equivoque. A `gsg_operador` no se le pone: la guardia de CH para humanos sigue en código
-(el dueño también usa la consola).
+**Candado de CH en la base (defensa extra):** tabla `NegocioProtegido(negocioId)` sin RLS, que sólo escribe
+`neondb_owner`, y en cada tabla otorgada a `gsg_agente` una política `AS RESTRICTIVE … TO gsg_agente`.
+Así un agente no ve ni escribe CH aunque el código se equivoque. A `gsg_operador` no se le pone: la guardia
+de CH para humanos sigue en código (el dueño también usa la consola y aprueba los borradores de CH).
+
+**Lo que se escribió el 14/11 (`prisma/pending-gate2/MANT_roles_soporte.sql`, SIN aplicar) y en qué se
+aparta de la tabla de arriba:**
+- **El candado mira la fila, no `current_setting`:** `NOT gsg_negocio_protegido("tenantId")` y, en
+  `SupportTicket`, también `clienteTenantId` (los tickets de cartera viven en el negocio del estudio con el
+  cliente en `clienteTenantId`: un ticket de cartera sobre CH tampoco se ve).
+- **Permiso del cliente en la base (D-4, defensa extra):** la misma política restrictiva exige
+  `gsg_permiso_n1_vigente("tenantId")` (la última casilla N1 del titular, tildada). Sin permiso o en CH el
+  agente no ve filas; el ERP le pasa sólo el texto tapado.
+- **`gsg_agente`, mínimo privilegio** (más chico que la tabla): `Tenant` SELECT de `id, slug, name, status`
+  (sin `modules`); `SupportTicket` SELECT + UPDATE de `estado, borradorIa, updatedAt` (ni INSERT ni
+  `prioridad`: eso lo decide el triage del ERP); `SupportTicketEvento` SELECT, INSERT; `AuditLog` INSERT
+  sólo (con SQL crudo: un `create` de Prisma usa `RETURNING` y pide SELECT); consentimiento y
+  `NegocioProtegido` SELECT. Nada más: plata, `User`, `Payment`, `CashMovement` → *permission denied*.
+- **`gsg_operador` = espejo de `app_rls` menos UPDATE/DELETE de AuditLog. DEUDA ANOTADA:** el inventario dio
+  58 archivos que usan `operatorPrisma`/`enElNegocio` (fiscal, cartera, consola); otorgar tabla por tabla
+  sin probar la consola rompería producción. Se angosta después de probar la consola en una rama de Neon.
+- `NegocioProtegido`: nadie más que el owner la escribe (REVOKE a `app_rls` y `gsg_operador`).
+  `SoporteConsentimiento`: append-only (sin UPDATE/DELETE para nadie); la escriben `app_rls` y
+  `gsg_operador` dentro del negocio (RLS).
+- Al final, un bloque `DO` aborta la migración si algún rol quedó con BYPASSRLS o superusuario, si el agente
+  puede leer `User`, si `NegocioProtegido` es escribible o si CH existe y no quedó protegido. En Neon el
+  owner no puede poner `NOBYPASSRLS` explícito: se omite (es el valor por defecto) y se verifica ahí.
+- Pendiente de T-E: `agente-db.ts` (conexión sin caída con `AGENTE_DATABASE_URL`), `IaTope`, `SoporteContacto`
+  y la lista verde por columna.
 
 **Antes de escribir los GRANT de `gsg_operador`** hay que inventariar qué tablas usa hoy `operatorPrisma`
 (un `grep` de `operatorPrisma.` y de `enElNegocio(`). Lo que no esté en el inventario no se otorga; si
@@ -336,6 +359,14 @@ líneas.
 
 ### 7.5 Cómo se prueba sin tocar Neon
 
+**Hecho el 14/11:** `src/lib/soporte/roles-soporte-postgres.test.ts` corre la migración real (dos veces:
+idempotencia) en un Postgres local efímero (`src/test/base-efimera.ts`), con dos negocios y el segundo
+marcado protegido en lugar de CH. Cubre: sin BYPASSRLS; agente sin `User`/`Payment`/`CashMovement`/
+`Tenant.modules`; sin permiso o sin `set_config` → 0 filas; aislamiento entre negocios; CH → 0 filas y
+escrituras rechazadas (también el ticket de cartera sobre CH); revocar/volver a dar/empate; nadie escribe
+`NegocioProtegido`; consentimiento append-only; `consentimiento.server.ts` de punta a punta con su AuditLog.
+El plan original de abajo queda como referencia (el `.sql` vive en `pending-gate2/`, no en `prisma/rls/`).
+
 1. Script `prisma/rls/0004_roles_consola.sql` (crear roles sin contraseña, GRANT, REVOKE, políticas
    restrictivas, función de contacto), idempotente, con su `0004_rollback.sql`.
 2. Suite `prisma/rls/verify-roles-consola.mjs` contra **Postgres local efímero** (el contenedor de CI o la
@@ -356,8 +387,8 @@ líneas.
 
 1. El dueño aprueba D-9.
 2. Orquestadora: respaldo Neon (rotación de 4 en `old-frost-91078346`).
-3. Orquestadora: `migrate deploy` de `20261106120000_support_ticket` (**hoy sin aplicar**) y de las
-   aditivas de MANT; después `0004_roles_consola.sql` como owner.
+3. Orquestadora: `migrate deploy` de `20261106120000_support_ticket` (**ya aplicada** el 07/11 con el merge de #36,
+   `prisma/lote-deploy.txt:79`) y de las aditivas de MANT; después `pending-gate2/MANT_roles_soporte.sql` como owner.
 4. El dueño pone las contraseñas de `gsg_operador` y `gsg_agente` en la consola de Neon y pega
    `OPERATOR_DATABASE_URL` y `AGENTE_DATABASE_URL` en Vercel. Nadie más las ve.
 5. PR que saca la caída de `operator-db.ts`, por la fila de publicación.
@@ -403,13 +434,22 @@ Pruebas de las certificaciones: scratchpad de MANT-001 (`cert2`, `cert3`, `cert4
   sólo como borrador interno sobre el texto del ticket.
 - **Revocable** en la misma pantalla, con efecto inmediato.
 - Texto legal: provisional a confirmar por el dueño (D-4).
+- **Decidido el 14/11 (D-4 = a).** Reglas en `consentimiento-core.ts`: vale la última casilla de cada nivel;
+  a igual hora gana la revocación; N2 sin N1 no vale; sólo `OWNER`; texto versionado
+  (`2026-11-14-provisorio`). Guardado en `consentimiento.server.ts` (fila + AuditLog en la misma transacción;
+  sin la tabla, lee «sin permiso» y no guarda). **Pendiente T-B:** la pantalla con las casillas y el envío del
+  mail (el cuerpo ya lo arma `mailDeCopiaDeConsentimiento`).
 
 ---
 
 ## 9. SLA por prioridad y nivel
 
-Base: `config.ts:23`. Propuesta: P1 corre las 24 h sólo para clientes en vivo; P2 y P3 en horario de
-guardia (D-2).
+Base: `config.ts:23`. **Decidido el 14/11 (D-2 = b):** P1 corre las 24 h sólo para negocios en vivo
+(`Tenant.status = ACTIVE`); el resto, y P1 de un negocio que no está en vivo, en horario de guardia
+(L–V 9–19, sáb 9–13, hora argentina, sin feriados). Código: `decisiones-core.ts`. Feriados: lista
+provisoria a confirmar (hoy vacía). **Hueco anotado:** el alta desde cartera (`ticketDesdePedido`) todavía no
+sabe si el cliente está en vivo y cuenta P1 en horas de guardia (lo más conservador para la promesa).
+**D-3:** el gasto de IA del soporte se corta con `estadoDelTope` (¼ del tope semanal, aviso al 80 %).
 
 | | Acuse | Primera respuesta | Resolución | Por nivel |
 |---|---|---|---|---|
@@ -499,7 +539,7 @@ Con un operador `o` el dueño baja a la mitad; lo que no baja es CH y la revisi�
 
 ### 11.1 Fecha
 
-No hay fecha registrada. Propuesta: **lunes 23/11/2026, provisional a confirmar** (D-7). Da dos semanas:
+**Lunes 23/11/2026, decidido por el dueño el 14/11** (D-7). Da dos semanas:
 alcanza para T-A, T-B y T-C con margen, y para T-D si el número y el secreto llegan a tiempo. El cliente
 que sale lo elige el dueño (candidatos: Magra, Shinevelas, Adosmanos; CH ya está en vivo y entra al
 régimen el mismo día).
@@ -555,6 +595,21 @@ la orquestadora lo toma en su fila normal.
 ---
 
 ## 13. Decisiones abiertas para el dueño
+
+**D-1 a D-9 RESUELTAS por el dueño el 14/11/2026** («MANT-OK · OK a las 9 recomendadas», vía ORQ-007). Se
+dejan abajo las opciones para la historia; lo que manda es esta tabla y el código que la lleva.
+
+| # | Decisión | Dónde quedó |
+|---|---|---|
+| D-1 | Número nuevo de GSG sólo para soporte; sin él, se sale sin WhatsApp | `decisiones-core.ts:22-34` (`SOPORTE_WHATSAPP_PHONE_NUMBER_ID`) |
+| D-2 | Guardia L–V 9–19 y sáb 9–13 (AR); P1 a toda hora sólo para negocios en vivo (`Tenant.status = ACTIVE`) | `decisiones-core.ts:37-117`; `tickets-core.ts` (`venceElPara`); `entrada.server.ts`, `tickets.server.ts` |
+| D-3 | Soporte ≤ ¼ del tope semanal; aviso al 80 % de eso, manual al 100 %; negocio que no paga = 0 | `decisiones-core.ts:119-150` |
+| D-4 | Casillas del titular en su panel, copia por mail, texto legal provisorio | `consentimiento-core.ts`, `consentimiento.server.ts`; tabla en `pending-gate2/MANT_roles_soporte.sql` |
+| D-5 | CH: sólo borrador que aprueba el dueño; nunca arreglos de fondo | `agentes-permisos.ts:51-92` (`borrador_al_duenio`) + candado de base (7.3) |
+| D-6 | Toda respuesta se revisa; a las 4 semanas, si 9 de 10 salen sin cambios, las P3 de consulta salen solas | `decisiones-core.ts:155-192`. **Con D-11 vigente (motor = plan) devuelve siempre «no»**: el automático sólo existe si se pasa a la API (sección 16) |
+| D-7 | Salida lunes 23/11/2026; primer cliente entre Magra, Shinevelas y Adosmanos (lo elige el dueño) | 11.1 |
+| D-8 | Cada cambio con un clic del dueño; tras 20 sin error, la lista verde reversible se aplica sola | `decisiones-core.ts:194-215`; mismo matiz que D-6 con D-11 |
+| D-9 | Dos usuarios de base nuevos con permisos por tabla y CH bloqueado; claves y variables las carga el dueño | `pending-gate2/MANT_roles_soporte.sql` (SIN aplicar, Gate 2) + `roles-soporte-postgres.test.ts` (7.3, 7.5) |
 
 **D36 · Quién lee los tickets.** Hoy cualquier operador lee los tickets de todos los negocios, CH incluido
 (`consola-soporte-t1.md:9`).
