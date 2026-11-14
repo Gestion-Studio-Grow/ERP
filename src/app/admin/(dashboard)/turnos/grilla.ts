@@ -405,18 +405,43 @@ export function carrilesConTope(
   carrilesMax: number;
 } {
   const max = Math.max(1, Math.floor(tope));
-  const { carriles: todos, choques } = carrilesDeLaColumna(turnos);
-  const carriles = new Map<string, { carril: number; de: number }>();
+  // Los vivos (y atendidos) se reparten primero; un cancelado / «No vino» sólo toma un carril que
+  // quede libre: nunca manda un turno vivo al «+N» (CH-008: en el celular hay 2 carriles).
+  const vivos = turnos.filter((t) => !liberaElHueco(t));
+  const { carriles: todos, choques } = carrilesDeLaColumna(vivos);
   const ocultos = new Set<string>();
-  let carrilesMax = turnos.length > 0 ? 1 : 0;
-  for (const [id, c] of todos) {
-    if (c.carril >= max) ocultos.add(id);
-    else {
-      const de = Math.min(c.de, max);
-      carriles.set(id, { carril: c.carril, de });
-      carrilesMax = Math.max(carrilesMax, de);
-    }
+  const visibles: { id: string; desde: number; hasta: number; carril: number; de: number }[] = [];
+  for (const t of vivos) {
+    const c = todos.get(t.id) ?? { carril: 0, de: 1 };
+    if (c.carril >= max) ocultos.add(t.id);
+    else visibles.push({ id: t.id, ...enMinutos(t), carril: c.carril, de: Math.min(c.de, max) });
   }
+  const liberados = turnos.filter(liberaElHueco).sort((a, b) => enMinutos(a).desde - enMinutos(b).desde || enMinutos(a).hasta - enMinutos(b).hasta);
+  for (const t of liberados) {
+    const m = enMinutos(t);
+    let carril = 0;
+    while (carril < max && visibles.some((v) => v.carril === carril && v.desde < m.hasta && m.desde < v.hasta)) carril++;
+    if (carril >= max) ocultos.add(t.id);
+    else visibles.push({ id: t.id, ...m, carril, de: 1 });
+  }
+  // Cuántos carriles tiene cada grupo de turnos visibles que se pisan (los liberados pueden sumar uno).
+  const carriles = new Map<string, { carril: number; de: number }>();
+  let carrilesMax = turnos.length > 0 ? 1 : 0;
+  const enFila = [...visibles].sort((a, b) => a.desde - b.desde || a.hasta - b.hasta);
+  let grupo: typeof visibles = [];
+  let finDelGrupo = -1;
+  const cerrar = () => {
+    const de = Math.min(max, Math.max(1, ...grupo.map((g) => Math.max(g.de, g.carril + 1))));
+    for (const g of grupo) carriles.set(g.id, { carril: g.carril, de });
+    carrilesMax = Math.max(carrilesMax, grupo.length > 0 ? de : 0);
+    grupo = [];
+  };
+  for (const v of enFila) {
+    if (v.desde >= finDelGrupo) cerrar();
+    grupo.push(v);
+    finDelGrupo = Math.max(finDelGrupo, v.hasta);
+  }
+  cerrar();
   const desbordes: DesbordeDeCarriles[] = [];
   let actual: (DesbordeDeCarriles & { hasta: number }) | null = null;
   const enOrden = turnos.filter((t) => ocultos.has(t.id)).sort((a, b) => enMinutos(a).desde - enMinutos(b).desde);

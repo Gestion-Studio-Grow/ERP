@@ -292,3 +292,22 @@ test("CH-008 · el cancelado sigue liberando; reservado, confirmado y atendido s
   assert.equal(celdaCaro(mezcla, h(14, 30)).tipo, "ocupada");
   assert.deepEqual(ocupadosDeLaColumna(mezcla), [{ desde: h(14, 30), hasta: h(15) }]);
 });
+
+test("CH-008 · celular (tope 2): un «No vino» nunca manda un turno vivo al «+N»; si sobra un carril, lo usa", () => {
+  // «No vino» 14:00-15:00 y dos vivos a las 14:00: se ven los dos vivos; el liberado va al «+N».
+  const lleno = [turnoDe("ns", "NO_SHOW", "14:00", "15:00"), turnoDe("v1", "CONFIRMED", "14:00", "14:45"), turnoDe("v2", "PENDING", "14:00", "15:00")];
+  const r = carrilesConTope(lleno, 2);
+  assert.deepEqual([...r.ocultos], ["ns"]);
+  assert.deepEqual(r.carriles.get("v1"), { carril: 0, de: 2 });
+  assert.deepEqual(r.carriles.get("v2"), { carril: 1, de: 2 });
+  assert.deepEqual(r.desbordes, [{ desde: h(14), ids: ["ns"] }]);
+  // El cancelado igual: tampoco desplaza a un vivo.
+  assert.deepEqual([...carrilesConTope(lleno.map((t) => (t.id === "ns" ? { ...t, estado: "CANCELLED" } : t)), 2).ocultos], ["ns"]);
+  // Con un solo vivo, el liberado entra al lado (aunque haya arrancado antes).
+  const conLugar = carrilesConTope([turnoDe("ns", "NO_SHOW", "13:30", "14:30"), turnoDe("v1", "CONFIRMED", "14:00", "15:00")], 2);
+  assert.equal(conLugar.ocultos.size, 0);
+  assert.deepEqual(conLugar.carriles.get("v1"), { carril: 0, de: 2 });
+  assert.deepEqual(conLugar.carriles.get("ns"), { carril: 1, de: 2 });
+  // Solo, el liberado ocupa su carril entero (de: 1).
+  assert.deepEqual(carrilesConTope([turnoDe("ns", "NO_SHOW", "14:00", "15:00")], 2).carriles.get("ns"), { carril: 0, de: 1 });
+});
