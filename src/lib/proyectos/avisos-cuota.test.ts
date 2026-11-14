@@ -49,3 +49,9 @@ test("cuota cubierta: la del plan explica que no hay nada que hacer; la manual s
   assert.match(textoCubierta(true), /no hace falta marcarla/);
   assert.match(textoCubierta(false), /quitala/);
 });
+
+test("cobro parcial: el cartel dice lo que entró y lo que le falta a la cuota; el de sobrecobro, cuánto se puede", async () => {
+  const { listoParcial, avisoMasQueLaCuota } = await import("./avisos-cuota");
+  assert.match(listoParcial(20_250, 40.75, "USD"), /se cobró una parte \(\$\s?20\.250\)\. A la cuota le faltan US\$\s?40,75/);
+  assert.match(avisoMasQueLaCuota(210, "ARS"), /más de lo que le falta a la cuota \(\$\s?210\)/);
+});

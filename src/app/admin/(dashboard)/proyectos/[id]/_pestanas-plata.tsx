@@ -1,5 +1,6 @@
 // Las pestañas Cotización y Finanzas, y lo que viene de antes y sigue vivo: costo real, cobros, propuesta con su link.
 
+import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { Badge, buttonClasses, cn } from "@/components/ui";
@@ -303,6 +304,13 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
                                   <option value="ninguna">No mueve ninguna cuenta</option>
                                   {cuentas.map((x) => <option key={x.id} value={x.id}>{x.nombre} ({x.moneda})</option>)}
                                 </select>
+                              )}
+                              {/* Una parte: un monto menor que lo que falta (en la moneda de la cuota). Vacío: todo, y la cuota queda cobrada. */}
+                              {c.tipo === "COBRO" && (
+                                <>
+                                  <input type="hidden" name="envio" value={randomUUID()} />
+                                  <input name="monto" inputMode="decimal" aria-label={`Monto a cobrar de ${c.concepto}, en ${c.moneda} (vacío: todo lo que falta)`} placeholder={`Todo: ${plataEn(c.pendiente, c.moneda)}`} className={cn(campoEnLinea, "w-40")} />
+                                </>
                               )}
                               <SubmitButton className={buttonClasses("outline", "md")}>{c.tipo === "COBRO" ? "Marcar cobrado" : "Marcar pagado"}</SubmitButton>
                             </FormAccion>
