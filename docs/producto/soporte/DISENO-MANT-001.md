@@ -462,8 +462,10 @@ Pruebas de las certificaciones: scratchpad de MANT-001 (`cert2`, `cert3`, `cert4
 
 Base: `config.ts:23`. **Decidido el 14/11 (D-2 = b):** P1 corre las 24 h sólo para negocios en vivo
 (`Tenant.status = ACTIVE`); el resto, y P1 de un negocio que no está en vivo, en horario de guardia
-(L–V 9–19, sáb 9–13, hora argentina, sin feriados). Código: `decisiones-core.ts`. Feriados: lista
-provisoria a confirmar (hoy vacía). **Hueco anotado:** el alta desde cartera (`ticketDesdePedido`) todavía no
+(L–V 9–19, sáb 9–13, hora argentina, sin feriados). Código: `decisiones-core.ts`. Feriados (MANT-003): `FERIADOS_NACIONALES`
+con la fuente oficial (argentina.gob.ar, `holidays-2026-es.json`); criterio provisorio a confirmar: inamovibles,
+trasladables y puente turístico; quedan fuera los no laborables por credo y los provinciales. 2027 sin publicar.
+Ojo: el lunes 23/11 es feriado (Soberanía Nacional). **Hueco anotado:** el alta desde cartera (`ticketDesdePedido`) todavía no
 sabe si el cliente está en vivo y cuenta P1 en horas de guardia (lo más conservador para la promesa).
 **D-3:** el gasto de IA del soporte se corta con `estadoDelTope` (¼ del tope semanal, aviso al 80 %).
 
