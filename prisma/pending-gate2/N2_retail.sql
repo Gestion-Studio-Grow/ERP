@@ -5,8 +5,8 @@
 --
 -- QUIÉN LA USA: M7 (Client.limiteCredito: «queda a cobrar» por encima del límite frena con
 -- «pedile al encargado») · M2 (Order.cobroVerificadoEn/Por: la transferencia del pedido con
--- delivery queda «a verificar» hasta que alguien la ve en la cuenta) · M10 (RegistroFrio,
--- CONDICIONAL: queda comentada hasta la respuesta M-8 de §7.1 del plan).
+-- delivery queda «a verificar» hasta que alguien la ve en la cuenta) · M10 (RegistroFrio:
+-- movida a CadenaDeFrio.sql).
 --
 -- ADITIVA: 3 columnas NULLABLE en tablas vivas (Client, Order), sin DEFAULT → Postgres no
 -- reescribe la tabla y las filas existentes quedan en NULL (= sin límite / sin verificar).
@@ -32,9 +32,8 @@ ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "cobroVerificadoPor" TEXT;
 COMMIT;
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- CONDICIONAL M10 · RegistroFrio (cadena de frío) — COMENTADA hasta la respuesta M-8 (§7.1).
--- Si el cliente dice que sí, se descomenta en una tanda propia (M10), se suma a este paquete
--- o al siguiente y se re-corre el paso 7 (0001) para su RLS. Sin descomentar no existe.
+-- M10 · RegistroFrio (cadena de frío) — movida a CadenaDeFrio.sql (tanda propia, Magra T5).
+-- Lo de abajo queda como referencia histórica: NO se descomenta acá.
 --
 -- CREATE TABLE IF NOT EXISTS "RegistroFrio" (
 --     "id" TEXT NOT NULL,
