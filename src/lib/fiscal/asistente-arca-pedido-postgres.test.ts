@@ -190,6 +190,17 @@ test("descartar: no se descarta lo que abre, lo dañado ni lo que no existe", as
   assert.equal((await srv.descartarPedidoDeOtraClave(base.a.id, "operator:x", palabra)).ok, false);
   assert.equal((await filasDelPedido(c, base.a.id)).length, 1);
 
+  // Abre con la clave actual pero el contenido no es un pedido, con otra etiqueta (p. ej. la vacía que
+  // se guardaba con FISCAL_MASTER_KEY_ID en blanco): «dañado» en la pantalla y en el descarte; generar
+  // lo reemplaza (antes la pantalla decía «otra-clave» y el descarte lo rechazaba: quedaba trabado).
+  await limpiar(c, base);
+  await c.comoDuenio.arcaAuthTicket.create({
+    data: { tenantId: base.a.id, certHuella: huella(base.a.id), service: c.srv.SERVICIO_PEDIDO, ...sealSecret("no es json", actual), kekId: "", expiration: CREADO_EN },
+  });
+  assert.equal((await srv.leerPedidoPendiente(base.a.id)).estado, "dañado");
+  assert.equal((await srv.descartarPedidoDeOtraClave(base.a.id, "operator:x", palabra)).ok, false);
+  assert.equal((await srv.generarPedidoDelNegocio(base.a.id, "user:a")).ok, true);
+
   // Misma etiqueta, no abre: «dañado» (el cliente ya puede generar otro; no es de otra clave).
   await limpiar(c, base);
   await sembrarPedido(c, base.a.id, CLAVE_VIEJA, KEK_ACTUAL);

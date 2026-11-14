@@ -142,6 +142,7 @@ export async function leerPedidoPendiente(tenantId: string, alLeerFila?: (id: st
       const p = abrirFila(fila, master);
       return { csrPem: p.csrPem, creadoEn: p.creadoEn };
     },
+    sobreAbre: elSobreAbre,
     // Sólo la causa y el nombre del error: el mensaje podría traer datos del entorno o del sobre.
     alFallar: (causa, e) =>
       logger.warn("arca.asistente", "No se pudo abrir el pedido de certificado pendiente", {
@@ -302,6 +303,7 @@ export async function descartarPedidoDeOtraClave(tenantId: string, actor: string
         if (!elSobreAbre(f, master)) throw new Error("El pedido no abre con la clave actual.");
         return { csrPem: "", creadoEn: f.expiration };
       },
+      sobreAbre: elSobreAbre,
     });
     const motivo = motivoParaNoDescartar(lectura);
     if (motivo || !fila) return { ok: false, motivo: motivo ?? "No hay un pedido de certificado para descartar." };

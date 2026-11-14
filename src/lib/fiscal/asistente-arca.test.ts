@@ -217,6 +217,21 @@ describe("lectura del pedido: cada causa de falla tiene su estado", () => {
     assert.equal(e.puedeGenerarPedido, false);
   });
 
+  test("(d3) etiqueta distinta, el sobre abre con la clave actual pero el contenido está roto → dañado, no otra-clave", async () => {
+    // Certificación del seguimiento: la pantalla decía «otra-clave» y el descarte «abre con la clave
+    // actual» → nadie podía destrabarlo. Si el sobre abre, la clave es la actual: el daño es del contenido.
+    const { l, fallas } = await lectura({
+      clave: () => ({ id: "env:FISCAL_MASTER_KEY:v2" }),
+      abrir: () => JSON.parse("{roto"),
+      sobreAbre: () => true,
+    });
+    assert.deepEqual(l, { estado: "dañado" });
+    assert.deepEqual(fallas, ["dañado"]);
+    // Y si el sobre no abre, sigue siendo «otra-clave».
+    const otra = await lectura({ clave: () => ({ id: "env:FISCAL_MASTER_KEY:v2" }), abrir: () => JSON.parse("{roto"), sobreAbre: () => false });
+    assert.deepEqual(otra.l, { estado: "otra-clave" });
+  });
+
   test("(e) misma clave maestra y el descifrado falla → dañado (como siempre)", async () => {
     const { l } = await lectura({
       clave: () => ({ id: FILA.kekId }),

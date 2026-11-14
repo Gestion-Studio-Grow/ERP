@@ -74,12 +74,15 @@ export const MOTIVO_OTRA_CLAVE =
  * La clave se pide aunque no haya fila: sin ella generar fallaría igual. Se intenta abrir siempre: el
  * descifrado no mira `kekId` (cert-crypto.ts `openSecret`), así que si sólo cambió la etiqueta
  * (FISCAL_MASTER_KEY_ID) la fila abre y es «pendiente», igual que al cargar el certificado. Si no abre,
- * el `kekId` distinto la vuelve «otra-clave» (recuperable) y el igual, «dañado».
+ * el `kekId` distinto la vuelve «otra-clave» (recuperable) y el igual, «dañado»; si el sobre abre
+ * (`sobreAbre`) y lo que falló es el contenido, «dañado».
  */
 export async function leerPedidoConEstado<F extends { kekId: string }, K extends { id: string }>(pasos: {
   leerFila: () => Promise<F | null>;
   clave: () => K;
   abrir: (fila: F, clave: K) => { csrPem: string; creadoEn: string };
+  /** ¿El sobre abre (cripto) con esta clave? Si abre y `abrir` falló, el daño es del contenido. */
+  sobreAbre?: (fila: F, clave: K) => boolean;
   alFallar?: (causa: ProblemaDelPedido, error: unknown) => void;
 }): Promise<LecturaDelPedido> {
   let fila: F | null;
@@ -102,8 +105,10 @@ export async function leerPedidoConEstado<F extends { kekId: string }, K extends
     return { estado: "pendiente", csrPem: p.csrPem, creadoEn: p.creadoEn };
   } catch (e) {
     // Cerrada con otra clave maestra (rotación): no es daño. Tomarla por «dañado» dejaría pisar una
-    // clave privada que vuelve a abrir al restaurar esa clave.
-    const causa = fila.kekId !== clave.id ? "otra-clave" : "dañado";
+    // clave privada que vuelve a abrir al restaurar esa clave. Pero si el sobre abre con la clave
+    // actual, la clave es esta y lo roto es el contenido: «dañado» aunque la etiqueta difiera (si no,
+    // la pantalla diría «otra-clave» y el descarte, que verifica el sobre, no lo destrabaría).
+    const causa = pasos.sobreAbre?.(fila, clave) ? "dañado" : fila.kekId !== clave.id ? "otra-clave" : "dañado";
     pasos.alFallar?.(causa, e);
     return { estado: causa };
   }
@@ -153,7 +158,7 @@ export function motivoParaNoDescartar(lectura: LecturaDelPedido): string | null 
     case "ninguno":
       return "No hay un pedido de certificado para descartar.";
     case "pendiente":
-      return "El pedido abre con la clave actual: no se descarta.";
+      return "El pedido abre con la clave actual: no se descarta (si el asistente lo muestra dañado, se genera otro desde ahí).";
     case "dañado":
       return "El pedido está dañado, no cerrado con otra clave: se reemplaza generando uno nuevo desde el asistente.";
     case "ilegible":
