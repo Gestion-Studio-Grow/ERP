@@ -212,7 +212,12 @@ export function AsistenteArca({ vista, plano, tenantId, acciones, soloLectura = 
               <form action={acciones.generarPedido}>
                 {oculto}
                 {/* Rótulo corto: el botón no parte renglón y a 390 px el largo desbordaba la pantalla. */}
-                {csrPem && <p className="pb-2 text-[13px] text-muted">Si generás otro pedido, el anterior deja de servir.</p>}
+                {csrPem && (
+                  <p className="pb-2 text-[13px] text-muted">
+                    Si generás otro pedido, el anterior deja de servir. Si ya lo subiste a ARCA, vas a tener que subir el
+                    nuevo y descargar otro certificado.
+                  </p>
+                )}
                 <Button type="submit" variant={csrPem || conCertificado ? "outline" : undefined}>
                   {csrPem ? "Generar otro pedido" : "Generar el pedido de certificado"}
                 </Button>
