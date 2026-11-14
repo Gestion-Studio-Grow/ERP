@@ -4,10 +4,12 @@
  * Una fila por cobro (fecha, hora, alumno, medio, monto) y el total: lo que el profe le pasa al
  * contador o mira en el Excel. Mismo período y mismo filtro que la pantalla de Plata.
  *
- * Guardia: la de la app (requireApp, como la pantalla) y la lectura va acotada por el negocio.
+ * Guardia: la de la pantalla (app + `reports:read`, UAT 11/2026); sin el permiso, 403 y no el
+ * archivo. La lectura va acotada por el negocio.
  */
 
 import { requireApp } from "@/lib/require-app";
+import { veLaPlata } from "@/lib/padel/plata-guardia";
 import { logger } from "@/lib/logger";
 import { CSV_BOM, csvCobros, nombreArchivo, periodoDe } from "../periodo";
 import { cobrosDelPeriodo } from "../datos.server";
@@ -16,7 +18,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
-  await requireApp("padel-clases");
+  const user = await requireApp("padel-clases");
+  if (!veLaPlata(user)) return new Response("No tenés permiso para ver la plata del negocio.", { status: 403 });
   try {
     const periodo = periodoDe(new URL(request.url).searchParams.get("periodo"));
     const { hoy, filas } = await cobrosDelPeriodo(periodo);

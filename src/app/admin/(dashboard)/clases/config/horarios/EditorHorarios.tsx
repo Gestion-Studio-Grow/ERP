@@ -20,6 +20,7 @@ import {
   agregarOtro,
   aTramos,
   alternarBloque,
+  cambiarClub,
   cambiarTramo,
   copiarA,
   erroresDe,
@@ -40,9 +41,12 @@ export function EditorHorarios({
   duracionMin,
   textoGuardar = "Guardar horarios",
   alGuardar,
+  clubes = [],
 }: {
   inicial: Semana;
   duracionMin: number;
+  /** E4 · Los clubes del profe: con alguno, cada horario elige en qué club es. Sin clubes, no se ve. */
+  clubes?: { id: string; nombre: string; activo: boolean }[];
   textoGuardar?: string;
   /** Después de guardar bien (la Bienvenida pasa al paso siguiente). */
   alGuardar?: () => void;
@@ -119,6 +123,29 @@ export function EditorHorarios({
                     </div>
                   );
                 })}
+                {clubes.length > 0 && tramos.length > 0 && (
+                  <div className="grid gap-2 rounded-xl bg-surface-sunken p-2" data-qa={`clubes-${dia}`}>
+                    {tramos.map((t, i) => {
+                      const idClub = `club-${dia}-${i}`;
+                      // Uno desactivado sólo aparece si ese horario ya lo tenía.
+                      const opciones = clubes.filter((c) => c.activo || c.id === t.clubId);
+                      return (
+                        <div key={i} className="flex items-center gap-2">
+                          <label htmlFor={idClub} className="shrink-0 text-sm tabular-nums text-strong">
+                            {horaCorta(t.desde)}–{horaCorta(t.hasta)} en
+                          </label>
+                          <select id={idClub} value={t.clubId ?? ""} onChange={(ev) => setSemana((s) => cambiarClub(s, dia, i, ev.target.value || null))} className={selector}>
+                            <option value="">Sin club</option>
+                            {opciones.map((c) => (
+                              <option key={c.id} value={c.id}>{c.nombre}</option>
+                            ))}
+                          </select>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
                 {/* Un tramo que coincide con un chip puede igual pisarse con uno «Otro»: se avisa acá. */}
                 {tramos.some((t, i) => errores[dia][i] && BLOQUES.some((b) => b.desde === t.desde && b.hasta === t.hasta)) && (
                   <p role="alert" className="text-sm font-semibold text-danger">Un horario se pisa con otro de este día.</p>

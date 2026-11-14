@@ -71,6 +71,12 @@ export async function cobrarSeniaYConfirmar(fd) { anotar("senia", fd); return { 
 export async function cobrarVariosTurnos(fd) { anotar("cobrar-varios", fd); return { ok: true }; }
 export async function deudaViejaDelTurno() { return []; }
 export async function deshacerCierre(fd) { anotar("deshacer", fd); return { ok: true }; }`;
+// Seña obligatoria: «Confirmar sin seña» (la dueña); el cajón la importa aunque el interruptor esté apagado.
+const SIN_SENIA_FALSO = `
+export async function confirmarSinSenia(appointmentId, motivo) {
+  (window.__enviado ??= []).push({ accion: "sin-senia", appointmentId, motivo });
+  return { ok: true };
+}`;
 // Venta y agenda simples (T1): el cajón la importa aunque el interruptor esté apagado.
 const CON_PRODUCTO_FALSO = `
 export async function productosParaElTurno() { return { ok: true, productos: [], conTarjeta: false }; }
@@ -247,6 +253,7 @@ describe("La planilla del día en el navegador", { timeout: 240_000 }, () => {
       "@/lib/turnos/mover-actions": MOVER_FALSO,
       "@/lib/turnos/cobro-actions": COBRO_FALSO,
       "@/lib/turnos/senia-actions": SENIA_FALSA,
+      "@/lib/turnos/sena-obligatoria-actions": SIN_SENIA_FALSO,
       "@/lib/servicios/precio-a-definir-actions": PRECIO_FALSO,
       "@/lib/turnos/duracion-actions": DURACION_FALSA,
       "@/lib/turnos/editar-actions": EDITAR_FALSO,
@@ -269,7 +276,7 @@ describe("La planilla del día en el navegador", { timeout: 240_000 }, () => {
         {
           name: "falsos",
           setup(b) {
-            b.onResolve({ filter: /^(@\/lib\/actions|@\/lib\/turnos\/(mover|cobro|senia|cobro-con-producto|duracion|editar)-actions|@\/lib\/vouchers\/voucher-actions|@\/lib\/servicios\/precio-a-definir-actions|next\/navigation|next\/link)$/ }, (a) => ({ path: a.path, namespace: "falso" }));
+            b.onResolve({ filter: /^(@\/lib\/actions|@\/lib\/turnos\/(mover|cobro|senia|sena-obligatoria|cobro-con-producto|duracion|editar)-actions|@\/lib\/vouchers\/voucher-actions|@\/lib\/servicios\/precio-a-definir-actions|next\/navigation|next\/link)$/ }, (a) => ({ path: a.path, namespace: "falso" }));
             b.onLoad({ filter: /.*/, namespace: "falso" }, (a) => ({ contents: falsos[a.path], loader: "js", resolveDir: RAIZ }));
           },
         },
@@ -442,6 +449,35 @@ describe("La planilla del día en el navegador", { timeout: 240_000 }, () => {
     await page.waitForFunction(() => ((window as unknown as Ventana).__enviado ?? []).some((x) => x.accion === "deshacer"));
     const deshacer = (await page.evaluate(() => (window as unknown as Ventana).__enviado ?? [])).find((x) => x.accion === "deshacer")!;
     assert.deepEqual([deshacer.appointmentId, deshacer.que, deshacer.cobroId], ["paula", "senia", "cobro-1"]);
+    assert.deepEqual(errores, []);
+  });
+
+  test("Seña por Mercado Pago que pide una persona: marca en el bloque y los avisos en criollo en el cajón", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const rocio = {
+      ...turno("rocio", "Rocío Díaz", "lu", "14:00", "15:00"),
+      senia: 5000,
+      cobrado: 2000,
+      saldo: 12000,
+      cobros: [{ id: "c-mp", amount: 2000, method: "MERCADOPAGO", note: "Seña por Mercado Pago · pago 9001" }],
+      avisosMP: [
+        { tipo: "parcial" as const, pagado: 2000, senia: 5000 },
+        { tipo: "devuelta-sin-anular" as const, cobroId: "c-mp" },
+        { tipo: "no-registrada" as const, pagoId: "9002", monto: 3000, cajaCerrada: true },
+      ],
+    };
+    const { page, errores } = await montar(1280, { turnos: [...TURNOS, rocio] });
+    const bloque = page.getByRole("button", { name: /14:00, Rocío Díaz.*Mercado Pago: revisar la seña.*abrir el turno/ });
+    await bloque.click();
+    const cajon = page.getByRole("dialog", { name: /Rocío Díaz/ });
+    await cajon.waitFor();
+    const texto = await cajon.innerText();
+    assert.match(texto, /Seña parcial por Mercado Pago: pagó \$\s?2\.000 de \$\s?5\.000/);
+    assert.match(texto, /Mercado Pago devolvió la seña pero el cobro sigue en caja: revisalo/);
+    assert.match(texto, /Entró la seña por Mercado Pago \(\$\s?3\.000\) pero la caja estaba cerrada: registrala a mano/);
+    // Otro turno sin avisos no los muestra.
+    assert.equal(await page.getByRole("button", { name: /Ana Paz.*Mercado Pago/ }).count(), 0);
+    await foto(page, "cajon-avisos-mp");
     assert.deepEqual(errores, []);
   });
 

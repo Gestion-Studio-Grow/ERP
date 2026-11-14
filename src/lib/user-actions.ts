@@ -78,10 +78,16 @@ export async function createUser(formData: FormData) {
   const passwordHash = await hashPassword(password);
   // Tope de usuarios del plan (R3-F3): se cuenta y se crea en la misma transacción, con candado.
   // Sin plan del catálogo, o en CH, no hay tope. Quien choca va a "Tu plan", que dice el porqué.
+  // La clave la fija la dueña, así que es PROVISORIA (la conoce quien la fijó): la persona la cambia al entrar
+  // (regla del dueño, GSG-SEG-013). En la misma escritura que el hash, como `resetUserPassword`. Sin la columna en
+  // la base (Gate 2) el alta falla CERRADA: no se crea un usuario con una provisoria que valdría para siempre.
   let resultado: ResultadoAltaDeUsuario;
   try {
-    resultado = await crearUsuarioSiEntra({ data: { tenantId, name, email, role, passwordHash } });
-  } catch {
+    resultado = await crearUsuarioSiEntra({
+      data: { tenantId, name, email, role, passwordHash, mustChangePassword: true },
+    });
+  } catch (e) {
+    if (esTablaAusente(e)) backWith("error_sin_cambio_obligatorio");
     // P2002 u otro conflicto de unicidad que se coló entre el chequeo y el create.
     backWith("error_email_taken");
   }
@@ -175,7 +181,7 @@ export async function setUserActive(formData: FormData) {
 }
 
 export async function resetUserPassword(formData: FormData) {
-  await requireCapability("users:manage");
+  const actor = await requireCapability("users:manage");
   const tenantId = await getCurrentTenantId();
   const userId = String(formData.get("userId") || "");
   const password = String(formData.get("password") || "");
@@ -186,7 +192,12 @@ export async function resetUserPassword(formData: FormData) {
   if (!target) backWith("error_not_found");
 
   const passwordHash = await hashPassword(password);
-  await prisma.user.update({ where: { id: userId }, data: { passwordHash } });
+  // La clave que fija otro es PROVISORIA (la conoce quien la fijó): la persona la tiene que cambiar al entrar
+  // (regla del dueño, GSG-SEG-013). En la misma escritura que el hash. La propia, no: ya la conoce sólo ella.
+  await prisma.user.update({
+    where: { id: userId },
+    data: { passwordHash, ...(userId !== actor.id ? { mustChangePassword: true } : {}) },
+  });
 
   // Se audita el reset, NUNCA la contraseña en sí.
   await auditAdmin({ action: "reset_password", entity: "User", entityId: userId });

@@ -5,6 +5,7 @@
 // voz que la página de una dirección sin negocio (src/lib/gsg/pagina-sin-negocio.ts) — papel, tinta y el logo de GSG.
 
 import { buildWhatsAppHref } from "@/lib/whatsapp-cta";
+import { MarcaDeAgua } from "@/components/marca/MarcaDeAgua";
 import { LogoGSG } from "@/components/marca/MarcaGSG";
 
 export default function DireccionNoHabilitada({ whatsappGsg }: { whatsappGsg: string | null }) {
@@ -12,10 +13,12 @@ export default function DireccionNoHabilitada({ whatsappGsg }: { whatsappGsg: st
     ? buildWhatsAppHref(whatsappGsg, "Hola, entro a la dirección de mi panel y me dice que todavía no abre ningún negocio.")
     : null;
   return (
-    <main className="flex min-h-dvh flex-col bg-[#f4f5f4] text-[17px] leading-relaxed text-[#35363a] [background-image:radial-gradient(rgba(25,27,28,.07)_.8px,transparent_.9px)] [background-size:24px_24px]">
+    <main className="isolate flex min-h-dvh flex-col bg-[#f4f5f4] text-[17px] leading-relaxed text-[#35363a]">
+      {/* Marca de agua de GSG (mosaico de isotipos), en lugar de la trama de puntos: la página es de GSG. */}
+      <MarcaDeAgua className="text-[#191b1c]" />
       <header className="mx-auto flex h-16 w-full max-w-5xl items-center px-6 text-[#191b1c] sm:h-[72px]">
         <a href="/sin-negocio" className="inline-flex min-h-11 items-center" aria-label="GSG — Gestión Studio Grow">
-          <LogoGSG alto={30} />
+          <LogoGSG alto={56} />
         </a>
       </header>
       <div className="mx-auto flex w-full max-w-xl flex-1 flex-col justify-center px-6 pb-16">

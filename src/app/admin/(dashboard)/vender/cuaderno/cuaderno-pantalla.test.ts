@@ -129,6 +129,7 @@ test("cargar ventas del cuaderno en el celular: dos ventas, su resultado, trabad
   // Venta 1: 11:20 · Vacío 1,1 kg · Efectivo.
   await page.getByLabel("Hora").first().fill("1120");
   await page.getByRole("combobox", { name: "Corte 1 de la venta 1" }).fill("vac");
+  await page.getByRole("option", { name: /^Vac/ }).waitFor();
   await page.keyboard.press("Enter");
   await page.getByLabel("Peso (kg)").first().fill("1,1");
   await page.getByRole("group", { name: "Cómo pagó la venta 1" }).getByRole("button", { name: "Efectivo" }).click();
@@ -136,8 +137,16 @@ test("cargar ventas del cuaderno en el celular: dos ventas, su resultado, trabad
 
   // Venta 2 incompleta → no se manda nada y dice qué falta.
   await page.getByRole("button", { name: "+ Otra venta" }).click();
-  await page.getByRole("combobox", { name: "Corte 1 de la venta 2" }).fill("chor");
-  await page.keyboard.press("Enter");
+  // «+ Otra venta» manda el foco a la hora de la venta nueva en el PRÓXIMO cuadro
+  // (requestAnimationFrame en CargarCuaderno). Con la máquina cargada ese cuadro llegaba entre
+  // el `fill` del corte y el Enter: el foco saltaba a la hora, el Enter no elegía nada y no
+  // aparecía «Cantidad» (timeout en CI). Se espera a que el foco llegue antes de tocar el corte.
+  const horaNueva = page.getByLabel("Hora").nth(1);
+  await page.waitForFunction((el) => document.activeElement === el, await horaNueva.elementHandle());
+  const corte2 = page.getByRole("combobox", { name: "Corte 1 de la venta 2" });
+  await corte2.fill("chor");
+  await page.getByRole("option", { name: /^Chorizo/ }).waitFor();
+  await corte2.press("Enter");
   await page.getByLabel("Cantidad").fill("6");
   await page.getByRole("button", { name: "Cargar 2 ventas del 23/10/2026" }).click();
   await page.getByText("Falta la hora (como está en el cuaderno, por ejemplo 11:20).").waitFor();

@@ -10,12 +10,12 @@ import { useRouter } from "next/navigation";
 import { buttonClasses, cn, Hoja, type HojaProps } from "@/components/ui";
 import { plataTexto } from "../_plata";
 import { useColaAvisos, type ItemAviso } from "../_aviso";
-import { primerNombre } from "../_cola";
+import { primerNombre, textoAFavorIntegrantes } from "../_cola";
 import { altoTeclado } from "../_agenda-core";
 
 /** Lo que devuelven las acciones de un toque del motor (lib/padel/acciones.ts). */
 export type ResultadoUI =
-  | { ok: true; wa?: string | null; enviado?: boolean; avisoId?: string | null; cuando?: string; aFavor?: number; comprobanteNoAplica?: boolean; linkNuevo?: boolean }
+  | { ok: true; wa?: string | null; enviado?: boolean; avisoId?: string | null; cuando?: string; aFavor?: number; aFavorIntegrantes?: number; comprobanteNoAplica?: boolean; linkNuevo?: boolean }
   | { ok: false; error: string };
 
 export const SIN_CONEXION = "No pudimos conectarnos. Fijate la señal y probá de nuevo: no cambió nada.";
@@ -25,6 +25,8 @@ export function textoResultado(listo: string, r: Extract<ResultadoUI, { ok: true
   const partes = [r.cuando ? `${listo}: ${r.cuando}` : listo];
   // Clase pagada que se cancela: la plata no se pierde, queda a favor del alumno.
   if (r.aFavor) partes.push(`${plataTexto(r.aFavor)} quedan a favor de ${primerNombre(nombre)}`);
+  // Grupal con partes de integrantes pagadas: cada parte queda a favor de quien la pagó.
+  if (r.aFavorIntegrantes) partes.push(textoAFavorIntegrantes(plataTexto(r.aFavorIntegrantes)));
   // «No vino, no se cobra» con un comprobante por revisar (O-3c): deja de esperar en la Bandeja.
   if (r.comprobanteNoAplica) partes.push(`el comprobante de ${primerNombre(nombre)} quedó sin efecto (si ya te transfirió, devolvéselo)`);
   // Primera vez que lo reconocés: su link se renovó y el mensaje ya lleva el nuevo.

@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import { requireApp } from "@/lib/require-app";
 import { buttonClasses, cn, Plata } from "@/components/ui";
 import { badgePendientes, ficha } from "@/lib/padel/datos.server";
-import { MEDIO_LABEL, PAGO_LABEL, diaHumano, horaHumana, linkWhatsApp, type EstadoClase, type EstadoPago, type MedioPago } from "@/lib/padel/core";
+import { gestionaClases, veLaPlataDelDia } from "@/lib/padel/plata-guardia";
+import { MEDIO_LABEL, PAGO_LABEL, diaHumano, horaHumana, linkWhatsApp, textoSerie, type EstadoClase, type EstadoPago, type MedioPago } from "@/lib/padel/core";
 import { ChipEstado, tarjeta } from "../../_vista";
 import { Cabecera } from "../../_cabecera";
 import { CobrarTodo, LeDevolvi, Recordarle } from "../../plata/_acciones-plata";
@@ -24,7 +25,12 @@ const titulo = "mb-2 text-sm font-bold uppercase tracking-wide text-strong";
 // Agendar), las próximas, lo que debe con «Cobrar todo», lo que tiene a favor, las últimas 10 con
 // su pago y las notas. Todo de ESTE negocio: un id de otro negocio da «No encontramos» (404).
 export default async function FichaAlumno({ params }: { params: Promise<{ id: string }> }) {
-  await requireApp("padel-clases");
+  const user = await requireApp("padel-clases");
+  // El PROFESSIONAL no ve montos ni cobra, ni ve acciones que exigen agenda:manage (certificación
+  // vueltas 3 y 4 del arreglo UAT 11/2026).
+  const conPlata = veLaPlataDelDia(user);
+  // Agendar y guardar las notas exigen agenda:manage: sin él, las notas se leen y no se editan.
+  const gestiona = gestionaClases(user);
   const { id } = await params;
   if (!/^[A-Za-z0-9_-]{1,40}$/.test(id)) notFound();
   const [a, numero] = await Promise.all([ficha(id), badgePendientes()]);
@@ -51,15 +57,21 @@ export default async function FichaAlumno({ params }: { params: Promise<{ id: st
           ) : (
             <span className="flex h-12 items-center justify-center rounded-xl border border-dashed border-line px-2 text-center text-sm text-muted">Sin celular</span>
           )}
-          <Link href={`/admin/clases/agendar?alumno=${encodeURIComponent(a.id)}`} className={cn(buttonClasses("solid", "lg"), "h-12 w-full justify-center")} data-qa="agendar-alumno">
-            Agendar
-          </Link>
-          <div className="col-span-2 sm:col-span-1">
-            <MandarLink alumnoId={a.id} nombre={a.nombre} />
-          </div>
-          <div className="col-span-2 sm:col-span-1">
-            <EditarAlumno alumnoId={a.id} nombre={a.nombre} telefono={a.telefono} nivel={a.nivel} />
-          </div>
+          {gestiona && (
+            <Link href={`/admin/clases/agendar?alumno=${encodeURIComponent(a.id)}`} className={cn(buttonClasses("solid", "lg"), "h-12 w-full justify-center")} data-qa="agendar-alumno">
+              Agendar
+            </Link>
+          )}
+          {conPlata && (
+            <>
+              <div className="col-span-2 sm:col-span-1">
+                <MandarLink alumnoId={a.id} nombre={a.nombre} />
+              </div>
+              <div className="col-span-2 sm:col-span-1">
+                <EditarAlumno alumnoId={a.id} nombre={a.nombre} telefono={a.telefono} nivel={a.nivel} />
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -73,23 +85,45 @@ export default async function FichaAlumno({ params }: { params: Promise<{ id: st
               <li key={c.id} className={cn(tarjeta, "flex flex-wrap items-center justify-between gap-2 py-3")} data-qa="proxima-alumno">
                 <span className="font-semibold capitalize text-strong">
                   {diaHumano(c.empiezaEn)} · <span className="tabular-nums">{horaHumana(c.empiezaEn)}</span>
+                  {c.club && <span className="font-normal normal-case text-muted"> · {c.club.nombre}</span>}
                 </span>
-                <ChipEstado estado={c.estado as EstadoClase} pago={c.pagoEstado as EstadoPago} />
+                <ChipEstado estado={c.estado as EstadoClase} pago={conPlata ? (c.pagoEstado as EstadoPago) : undefined} />
               </li>
             ))}
           </ul>
         )}
       </section>
 
-      <section className={cn(tarjeta, seccion, "grid gap-3")} aria-labelledby="t-plata">
+      {a.series.length > 0 && (
+        <section className={seccion} aria-labelledby="t-fijas">
+          <h2 id="t-fijas" className={titulo}>Clases fijas</h2>
+          <ul className="grid gap-2">
+            {a.series.map((x) => (
+              <li key={x.id} className={cn(tarjeta, "flex flex-wrap items-center justify-between gap-2 py-3")} data-qa="serie-alumno">
+                <span className="font-semibold text-strong">
+                  {textoSerie(x)}
+                  {x.club && <span className="font-normal text-muted"> · {x.club}</span>}
+                </span>
+                <span className={cn("text-sm", x.activa ? "font-semibold text-success" : "text-muted")}>
+                  {x.activa ? "Activa" : x.hasta ? `Terminó el ${x.hasta.split("-").reverse().join("/")}` : "Terminada"}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-sm text-muted">Para cortar una, cancelá una de sus clases y elegí «Esta y las que siguen».</p>
+        </section>
+      )}
+
+      {conPlata && (
+        <section className={cn(tarjeta, seccion, "grid gap-3")} aria-labelledby="t-plata">
         <h2 id="t-plata" className="text-sm font-bold uppercase tracking-wide text-strong">Plata</h2>
         {a.debe > 0 ? (
           <>
             <p className="text-base font-semibold text-danger" data-qa="ficha-debe">
-              Debe <Plata valor={a.debe} sinCentavos tono="peligro" /> · {a.deudas.length} clase{a.deudas.length === 1 ? "" : "s"}
+              Debe <Plata valor={a.debe} sinCentavos tono="peligro" /> · {a.deudas.length + a.partesDeudas.length} clase{a.deudas.length + a.partesDeudas.length === 1 ? "" : "s"}
             </p>
             <div className="grid gap-2 sm:grid-cols-2">
-              <CobrarTodo alumnoId={a.id} nombre={a.nombre} total={a.debe} cantidad={a.deudas.length} />
+              <CobrarTodo alumnoId={a.id} nombre={a.nombre} total={a.debe} cantidad={a.deudas.length + a.partesDeudas.length} />
               <Recordarle alumnoId={a.id} nombre={a.nombre} />
             </div>
           </>
@@ -109,7 +143,8 @@ export default async function FichaAlumno({ params }: { params: Promise<{ id: st
             {a.devolverId && <LeDevolvi claseId={a.devolverId} nombre={a.nombre} monto={a.devolverMonto} />}
           </>
         )}
-      </section>
+        </section>
+      )}
 
       <section className={seccion} aria-labelledby="t-ultimas">
         <h2 id="t-ultimas" className={titulo}>Últimas clases</h2>
@@ -124,14 +159,14 @@ export default async function FichaAlumno({ params }: { params: Promise<{ id: st
                 </span>
                 <span className="text-muted">
                   <ChipEstado estado={c.estado as EstadoClase} />
-                  {c.estado === "DADA" || c.pagoEstado !== "PENDIENTE" ? (
+                  {conPlata && (c.estado === "DADA" || c.pagoEstado !== "PENDIENTE") ? (
                     <>
                       {" · "}
                       {PAGO_LABEL[c.pagoEstado as EstadoPago] ?? c.pagoEstado}
                       {c.pagoEstado === "PAGADO" && c.pagoMedio && ` ${MEDIO_LABEL[c.pagoMedio as MedioPago]?.toLowerCase() ?? ""}`}
                     </>
                   ) : null}
-                  {c.precio > 0 && (
+                  {conPlata && c.precio > 0 && (
                     <>
                       {" · "}
                       <Plata valor={c.precio} sinCentavos />
@@ -144,12 +179,21 @@ export default async function FichaAlumno({ params }: { params: Promise<{ id: st
         )}
       </section>
 
-      <section className={seccion} aria-labelledby="t-notas">
-        <h2 id="t-notas" className={titulo}>Notas</h2>
-        <NotasAlumno alumnoId={a.id} nombre={a.nombre} notas={a.notas} />
-      </section>
+      {gestiona ? (
+        <section className={seccion} aria-labelledby="t-notas">
+          <h2 id="t-notas" className={titulo}>Notas</h2>
+          <NotasAlumno alumnoId={a.id} nombre={a.nombre} notas={a.notas} />
+        </section>
+      ) : (
+        a.notas.trim() && (
+          <section className={seccion} aria-labelledby="t-notas">
+            <h2 id="t-notas" className={titulo}>Notas</h2>
+            <p className="whitespace-pre-line text-sm text-strong" data-qa="notas-solo-lectura">{a.notas}</p>
+          </section>
+        )
+      )}
 
-      <RegenerarLink alumnoId={a.id} nombre={a.nombre} />
+      {conPlata && <RegenerarLink alumnoId={a.id} nombre={a.nombre} />}
     </main>
   );
 }

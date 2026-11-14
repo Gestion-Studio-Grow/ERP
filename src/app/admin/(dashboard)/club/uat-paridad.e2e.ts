@@ -249,7 +249,7 @@ async function principal() {
   // El sitio público (turnero y tienda), servido por el MISMO manejador del ERP que usa producción (como el vanilla).
   const srv = createServer(async (req, res) => {
     const segs = new URL(req.url ?? "/", "http://x").pathname.split("/").filter(Boolean);
-    const rta = await responderSitioEstatico("breakpoint", segs, async (rel) => new Uint8Array(await readFile(join(RAIZ, rel))));
+    const rta = await responderSitioEstatico("breakpoint", segs, async (rel) => new Uint8Array(await readFile(join(RAIZ, rel))), { conSesion: async () => true }); // el ensayo hace de puesto logueado
     res.writeHead(rta.status, Object.fromEntries(rta.headers));
     res.end(Buffer.from(await rta.arrayBuffer()));
   });

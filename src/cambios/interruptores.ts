@@ -169,6 +169,22 @@ export const INTERRUPTORES = [
     incorporado: true,
   },
   {
+    // Seña obligatoria para confirmar (src/lib/turnos/sena-obligatoria-core.ts): prendido, un turno
+    // cuyo servicio pide seña no pasa a Confirmado sin un cobro vigente (no anulado). Lo exige UNA
+    // guarda del servidor dentro de la transacción de cada camino que escribe CONFIRMED
+    // (`exigirSeniaParaConfirmar`). La excepción es «Confirmar sin seña», sólo de la dueña, con motivo
+    // auditado. Es plata: no es una mejora incorporada; lo prende GSG cuando el dueño lo decide.
+    // Apagado, todo como siempre.
+    id: "sena-obligatoria",
+    nombre: "Seña obligatoria",
+    queCambia:
+      "Un turno de un servicio con seña no se puede confirmar hasta que entra la seña; la agenda lo marca «Pendiente de seña» con su vencimiento. Sólo la dueña puede confirmarlo sin seña, con un motivo que queda en la auditoría. Apagado, se confirma como siempre.",
+    alPrender:
+      "No cambia qué apps ve cada persona. Sí cambia una regla: recepción ya no confirma turnos con seña sin cobrarla. El vencimiento sale de SENA_VENCE_HORAS (sin cargar, vence 2 h antes del turno) y no cancela nada.",
+    enAuditoria: "la seña obligatoria",
+    cambiaLasApps: false,
+  },
+  {
     // Vouchers de La Alameda (CH Estética, docs/tenants/ch/VOUCHERS-OPENKEY.md): el voucher del
     // vecino cubre el saldo del turno (baja el precio como un cupón, la caja no se entera) y la
     // foto de OpenKey se concilia contra lo usado. Va AL FINAL del array. Apagado, toda acción de
@@ -176,8 +192,22 @@ export const INTERRUPTORES = [
     id: "vouchers",
     nombre: "Vouchers",
     queCambia:
-      "El turno se puede cubrir con un voucher del vecino (La Alameda): se carga el número, baja lo que falta cobrar y queda el reporte para conciliar con OpenKey. Apagado, no hay vouchers.",
+      "El turno se puede cubrir con un voucher del vecino (La Alameda): se carga el número, baja lo que falta cobrar y queda el reporte para conciliar con la administración del country. Apagado, no hay vouchers.",
     enAuditoria: "los vouchers",
+    cambiaLasApps: false,
+  },
+  {
+    // Contabilidad + Control de gestión (GSG-CTRL-001, T0): src/lib/contabilidad. Apagado por
+    // defecto: el negocio no ve rastro del módulo y nada lee sus tablas. Prendido sin la migración
+    // de la ola 2, la pantalla dice «migración pendiente» (estadoModuloContable, config.ts). Toca
+    // datos contables: no es una mejora incorporada. Va AL FINAL del array.
+    id: "contabilidad",
+    nombre: "Contabilidad y control de gestión",
+    queCambia:
+      "Aparece el módulo de contabilidad y control de gestión: plan de cuentas, borradores para el contador y el tablero del dueño. Apagado, no se ve nada del módulo.",
+    alPrender:
+      "No cambia qué apps ve cada persona ni toca ventas, cobros o caja: el módulo sólo lee. Si la migración de contabilidad no está aplicada, el negocio ve «migración pendiente».",
+    enAuditoria: "la contabilidad y el control de gestión",
     cambiaLasApps: false,
   },
 ] as const satisfies readonly Interruptor[];
@@ -219,6 +249,16 @@ export function ventaAgendaSimplePrendida(
   return esIncorporado(VENTA_AGENDA_SIMPLE) || estado[VENTA_AGENDA_SIMPLE]?.encendido === true;
 }
 
+/** Seña obligatoria para confirmar (lo lee `exigirSeniaParaConfirmar`, src/lib/turnos/sena-obligatoria.ts). */
+export const SENA_OBLIGATORIA: InterruptorId = "sena-obligatoria";
+
+/** ¿El negocio exige la seña para confirmar? Un estado sin la entrada cuenta como apagado. PURA. */
+export function senaObligatoriaPrendida(
+  estado: Readonly<Partial<Record<InterruptorId, { encendido: boolean }>>>,
+): boolean {
+  return estado[SENA_OBLIGATORIA]?.encendido === true;
+}
+
 /** Agenda interactiva (docs/producto/venta-agenda/AGENDA-INTERACCION.md). */
 export const AGENDA_INTERACCION: InterruptorId = "agenda-interaccion";
 
@@ -237,6 +277,16 @@ export function vouchersPrendidos(
   estado: Readonly<Partial<Record<InterruptorId, { encendido: boolean }>>>,
 ): boolean {
   return estado[VOUCHERS]?.encendido === true;
+}
+
+/** Contabilidad + Control de gestión (src/lib/contabilidad, GSG-CTRL-001). */
+export const CONTABILIDAD_HABILITADA: InterruptorId = "contabilidad";
+
+/** ¿El negocio ve el módulo de contabilidad? Un estado sin la entrada cuenta como apagado. PURA. */
+export function contabilidadPrendida(
+  estado: Readonly<Partial<Record<InterruptorId, { encendido: boolean }>>>,
+): boolean {
+  return estado[CONTABILIDAD_HABILITADA]?.encendido === true;
 }
 
 /**

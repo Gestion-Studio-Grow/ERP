@@ -8,6 +8,8 @@ import { folioDelDia } from "@/app/admin/login/login-core";
 import AdminThemeScript from "@/app/admin/AdminThemeScript";
 import { PIEL_RENGLON } from "@/lib/diseno/diseno";
 import { ConDiseno } from "@/lib/diseno/ConDiseno";
+import { MarcaDeAgua } from "@/components/marca/MarcaDeAgua";
+import { IsotipoGSG } from "@/components/marca/MarcaGSG";
 import { operadorDuenio } from "@/lib/operator-auth";
 import { avisoDeIngreso, leerMinutos, pistaDelUsuario } from "./aviso-ingreso";
 
@@ -42,8 +44,14 @@ export default async function OperatorLoginPage({
       {/* Corrige el tema antes del primer paint (lo elegido a mano, o el del sistema). */}
       <AdminThemeScript nuevo />
       <ConDiseno nuevo>
-        <main className={RAIZ_HOJA_DE_INGRESO}>
-          <HojaDeIngreso marcaNombre="Consola GSG" marcaMonograma="G" hoy={folioDelDia(new Date())} lema="Gestión Studio Grow">
+        <main className={`isolate ${RAIZ_HOJA_DE_INGRESO}`}>
+          {/* La consola es de GSG: isotipo madre y marca de agua en mosaico. */}
+          <MarcaDeAgua />
+          <HojaDeIngreso
+            marcaNombre="Consola GSG"
+            marcaMonograma="G"
+            isotipo={<IsotipoGSG tamano={36} className="shrink-0 text-strong" />}
+            hoy={folioDelDia(new Date())} lema="Gestión Studio Grow">
             <div className="mt-8">
               <Rotulo className="mb-1">Plataforma · operadores</Rotulo>
               <h1 id="login-titulo" className="text-[26px] font-semibold leading-tight text-strong">

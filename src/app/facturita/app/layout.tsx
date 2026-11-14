@@ -14,6 +14,8 @@ import ThemeToggle from "../../admin/(dashboard)/ThemeToggle";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import { PIEL_RENGLON } from "@/lib/diseno/diseno";
 import { ConDiseno } from "@/lib/diseno/ConDiseno";
+import { requireUser } from "@/lib/authz";
+import SelloGSG from "@/components/marca/SelloGSG";
 
 export const metadata: Metadata = {
   title: "Factoque",
@@ -29,6 +31,9 @@ const TABS = [
 ];
 
 export default async function FacturitaLayout({ children }: { children: React.ReactNode }) {
+  // Portón de la app: sin sesión, al ingreso; con la contraseña provisoria pendiente de cambio, a cambiarla
+  // (ENG-104, GSG-SEG-013). Las acciones repiten su propio guard; acá se corta antes de pintar nada.
+  await requireUser();
   // Diseño nuevo del negocio (interruptor "Diseño nuevo"): se larga ya y se espera al final, en
   // paralelo con las lecturas de abajo. Nunca rechaza: si falla, el de siempre.
   const disenoP = disenoNuevo();
@@ -86,8 +91,8 @@ export default async function FacturitaLayout({ children }: { children: React.Re
         {/* Diseño nuevo: sus hojas y `useDiseno()`. Apagado devuelve lo de adentro tal cual. */}
         <ConDiseno nuevo={nuevo}>{children}</ConDiseno>
       </main>
-      <footer className="mx-auto max-w-3xl border-t border-line px-4 pb-6 pt-4 text-center text-xs text-faint">
-        Con tecnología de Gestión Studio Grow
+      <footer className="mx-auto max-w-3xl border-t border-line px-4 pb-6 pt-4">
+        <SelloGSG />
       </footer>
     </div>
   );

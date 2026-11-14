@@ -2,7 +2,7 @@
 // RENDER REAL — reset de contraseña con revelado único (evidencia visual)
 // ============================================================================
 // Levanta la app buildeada sobre una base EFÍMERA en RAM (PGlite), aplica migraciones
-// + la migración Gate-2 `MustChangePassword.sql` (para que la columna exista), siembra
+// (incluida 20261109120000_must_change_password, la de la columna del flag), siembra
 // los tenants QA, arranca `next start` con secretos fijos e inyecta sesión, y captura
 // con Playwright las DOS pantallas nuevas + el flujo completo:
 //   01  ficha del tenant (operador) — tarjeta "Contraseña del OWNER", estado inicial
@@ -78,9 +78,8 @@ async function applyMigrations(pg) {
     try { sql = readFileSync(path.join(dir, m, "migration.sql"), "utf8"); } catch { continue; }
     await pg.exec(sql); n++;
   }
-  // Gate-2: la columna del flag (fuera de prisma/migrations, se aplica a mano acá).
-  await pg.exec(readFileSync(path.join(ROOT, "prisma", "pending-gate2", "MustChangePassword.sql"), "utf8"));
-  log(`migraciones aplicadas: ${n} + MustChangePassword (Gate-2)`);
+  // La columna del flag llega con 20261109120000_must_change_password (antes era un SQL de pending-gate2).
+  log(`migraciones aplicadas: ${n}`);
 }
 function runAsync(cmd, args, env, useShell = isWin) {
   return new Promise((resolve, reject) => {
@@ -98,7 +97,13 @@ function killTree(child) {
   if (isWin && child.pid) spawnSync("taskkill", ["/F", "/T", "/PID", String(child.pid)], { stdio: "ignore", shell: true });
   else child.kill("SIGTERM");
 }
-const adminCookie = (userId) => `${userId}.${createHmac("sha256", AUTH_SECRET).update(userId).digest("hex")}`;
+// Formato v3 de src/lib/auth.ts (ingreso y última actividad firmados; activa 15 min sin uso).
+const adminCookie = (userId) => {
+  const ahora = Date.now();
+  const t = String(ahora).padStart(13, "0");
+  const payload = `v3|${userId}|${t}|${t}`;
+  return `${payload}.${createHmac("sha256", AUTH_SECRET).update(`gsg-sesion-v3|${payload}`).digest("hex")}`;
+};
 const operatorCookie = () => `operator.${createHmac("sha256", OPERATOR_SECRET).update("operator").digest("hex")}`;
 
 async function main() {

@@ -93,3 +93,10 @@ export function resumenFinal(e: EstadoCola): string {
   if (e.despues > 0) partes.push(`${e.despues} ${e.despues === 1 ? "quedó" : "quedaron"} en «Sin avisar»`);
   return partes.join(" · ");
 }
+
+/**
+ * Grupal cancelada con partes pagadas (QA E7): el resultado lo dice. `montoTexto` viene ya formateado
+ * («$25.000», plataTexto) para que este archivo siga puro.
+ */
+export const textoAFavorIntegrantes = (montoTexto: string): string =>
+  `las partes que ya pagaron los integrantes (${montoTexto} en total) quedan a favor de cada uno`;

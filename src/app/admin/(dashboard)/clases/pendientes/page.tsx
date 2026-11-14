@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireApp } from "@/lib/require-app";
 import { chipLinkAtributos, cn, EmptyState, Plata } from "@/components/ui";
 import { badgePendientes, bandeja } from "@/lib/padel/datos.server";
+import { veLaPlataDelDia } from "@/lib/padel/plata-guardia";
 import { diaHumano, horaHumana } from "@/lib/padel/core";
 import { TarjetaClase } from "../_vista";
 import { Cabecera } from "../_cabecera";
@@ -34,29 +35,36 @@ const titulo = "mb-2 text-sm font-bold uppercase tracking-wide text-strong";
 // Un comprobante para varias clases (mismo alumno, misma foto, mismo momento) es una tarjeta con
 // el total: el profe lo revisa una vez.
 export default async function ClasesBandeja({ searchParams }: { searchParams: Promise<{ ver?: string }> }) {
-  await requireApp("padel-clases");
+  const user = await requireApp("padel-clases");
+  // El PROFESSIONAL no ve montos ni actúa (todo exige agenda:manage): sin Comprobantes, Sin avisar
+  // (el WhatsApp lleva el precio), avisos de comprobante (llevan el monto), precios ni botones
+  // (certificación del arreglo UAT 11/2026, vueltas 4 y 5).
+  const conPlata = veLaPlataDelDia(user);
+  const secciones = conPlata ? SECCIONES : SECCIONES.filter((s) => s.id !== "comprobantes" && s.id !== "sinAvisar");
   const verRaw = (await searchParams).ver;
-  const ver: Seccion | null = SECCIONES.some((s) => s.id === verRaw) ? (verRaw as Seccion) : null;
-  const [b, numero] = await Promise.all([bandeja(), badgePendientes()]);
+  const ver: Seccion | null = secciones.some((s) => s.id === verRaw) ? (verRaw as Seccion) : null;
+  const [completa, numero] = await Promise.all([bandeja(), badgePendientes()]);
+  const b = conPlata ? completa : sinPlataBandeja(completa);
   const mostrar = (s: Seccion) => ver === null || ver === s;
 
-  const grupos = new Map<string, { ids: string[]; nombre: string; total: number; comprobante: string | null; enviadoEl: Date | null; clases: { empiezaEn: Date; precio: number }[] }>();
-  for (const c of b.comprobantes) {
+  const grupos = new Map<string, { ids: string[]; nombre: string; total: number; comprobante: string | null; enviadoEl: Date | null; clases: { empiezaEn: Date; precio: number; caida: boolean }[] }>();
+  for (const c of conPlata ? b.comprobantes : []) {
     const clave = `${c.token}|${c.enviadoEl?.getTime() ?? c.id}`;
     const g = grupos.get(clave) ?? { ids: [], nombre: c.nombre, total: 0, comprobante: c.comprobante, enviadoEl: c.enviadoEl, clases: [] };
     g.ids.push(c.id);
     g.total += c.precio;
-    g.clases.push({ empiezaEn: c.empiezaEn, precio: c.precio });
+    // UAT 11/2026 (C2): el alumno canceló con el comprobante mandado. Se revisa igual (`revisionEnClaseCaida`).
+    g.clases.push({ empiezaEn: c.empiezaEn, precio: c.precio, caida: c.estado === "CANCELADA" || c.estado === "RECHAZADA" });
     grupos.set(clave, g);
   }
-  const nada = b.pedidos.length === 0 && b.comprobantes.length === 0 && b.contadores.avisos === 0 && b.sinAvisar.length === 0;
+  const nada = b.pedidos.length === 0 && grupos.size === 0 && b.contadores.avisos === 0 && b.sinAvisar.length === 0;
 
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-5">
       <Cabecera titulo="Bandeja" detalle="Lo que espera tu respuesta. Cada cosa se resuelve con un toque." pendientes={numero} actual="pendientes" />
 
       <nav aria-label="Qué ver de la bandeja" className="-mx-4 mb-4 flex gap-2 overflow-x-auto px-4 pb-1">
-        {SECCIONES.map((s) => (
+        {secciones.map((s) => (
           <Link
             key={s.id}
             href={ver === s.id ? "/admin/clases/pendientes" : `/admin/clases/pendientes?ver=${s.id}`}
@@ -81,7 +89,7 @@ export default async function ClasesBandeja({ searchParams }: { searchParams: Pr
                 <li key={c.id}>
                   <TarjetaClase
                     estado={c.estado}
-                    pago={c.pagoEstado}
+                    pago={conPlata ? c.pagoEstado : undefined}
                     hora={horaHumana(c.empiezaEn)}
                     nombre={c.nombre}
                     qa="pedido"
@@ -95,7 +103,7 @@ export default async function ClasesBandeja({ searchParams }: { searchParams: Pr
                       </>
                     }
                   >
-                    <AccionesClase c={c} conProxima={false} />
+                    {conPlata && <AccionesClase c={c} conProxima={false} />}
                   </TarjetaClase>
                 </li>
               ))}
@@ -123,9 +131,15 @@ export default async function ClasesBandeja({ searchParams }: { searchParams: Pr
                       <span key={i} className="capitalize">
                         {i > 0 && ", "}
                         {diaHumano(c.empiezaEn)} {horaHumana(c.empiezaEn)}
+                        {c.caida && <span className="font-semibold normal-case text-strong"> (cancelada)</span>}
                       </span>
                     ))}
                   </p>
+                  {g.clases.some((c) => c.caida) && (
+                    <p className="rounded-lg bg-surface-sunken p-3 text-sm text-strong" data-qa="comprobante-clase-caida">
+                      {g.clases.every((c) => c.caida) ? "La clase se canceló" : "Una de las clases se canceló"} y el comprobante quedó mandado. Si la plata entró, «Está bien» se la deja a favor para otra clase o para devolvérsela; si no es válido, se descarta y no se cobra.
+                    </p>
+                  )}
                   {g.comprobante && (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={g.comprobante} alt={`Comprobante que mandó ${g.nombre}`} className="max-h-96 w-full rounded-lg border border-line bg-surface-sunken object-contain" />
@@ -150,7 +164,7 @@ export default async function ClasesBandeja({ searchParams }: { searchParams: Pr
         <section aria-labelledby="t-avisos">
           <div className="mb-2 flex items-center justify-between gap-2">
             <h2 id="t-avisos" className="text-sm font-bold uppercase tracking-wide text-strong">Avisos de los últimos días</h2>
-            {b.avisos.some((a) => !a.leidoEl) && <MarcarLeidos />}
+            {conPlata && b.avisos.some((a) => !a.leidoEl) && <MarcarLeidos />}
           </div>
           {b.avisos.length === 0 ? (
             <p className="text-sm text-muted">No pasó nada en los últimos días.</p>
@@ -169,4 +183,20 @@ export default async function ClasesBandeja({ searchParams }: { searchParams: Pr
       )}
     </main>
   );
+}
+
+/**
+ * La bandeja del PROFESSIONAL: sin comprobantes ni Sin avisar, sin los avisos de comprobante (el
+ * texto lleva el monto de la parte) y con los pedidos sin precio, en el servidor.
+ */
+function sinPlataBandeja(b: Awaited<ReturnType<typeof bandeja>>): Awaited<ReturnType<typeof bandeja>> {
+  const avisos = b.avisos.filter((a) => a.tipo !== "comprobante");
+  return {
+    ...b,
+    pedidos: b.pedidos.map((c) => ({ ...c, precio: 0, comprobante: null, integrantes: [] })),
+    comprobantes: [],
+    sinAvisar: [],
+    avisos,
+    contadores: { ...b.contadores, avisos: avisos.filter((a) => !a.leidoEl).length },
+  };
 }

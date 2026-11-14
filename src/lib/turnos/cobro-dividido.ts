@@ -28,6 +28,7 @@ import {
   METODO_LABEL,
   claveCobroTurno,
   esMetodoDePago,
+  faltanteDeSenia,
   seniaDelServicio,
   type MetodoDePago,
 } from "./cobros";
@@ -182,9 +183,7 @@ export const AYUDA_LLEGO_LA_SENIA = "Tocalo cuando la veas en el banco o en Merc
 
 /** La seña que FALTA cobrar: la del servicio (acotada al precio) menos la plata que ya entró. */
 export function seniaQueFalta(p: { depositAmount: number | null | undefined; precio: number; cobradoReal: number }): number {
-  const senia = seniaDelServicio({ depositAmount: p.depositAmount, precio: p.precio });
-  if (!(senia > 0)) return 0;
-  return Math.max(0, centavosDe(senia) - centavosDe(Math.max(0, p.cobradoReal))) / 100;
+  return faltanteDeSenia(seniaDelServicio({ depositAmount: p.depositAmount, precio: p.precio }), p.cobradoReal);
 }
 
 export type PlanDeSenia =

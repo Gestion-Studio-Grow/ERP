@@ -19,11 +19,14 @@ export const HOSTS_DE_PRODUCTO: Readonly<Record<string, string>> = {
   "factoque.gsgapp.com.ar": "/facturita",
   // El link viejo sigue andando: lo que ya se compartió no se rompe.
   "facturita-gsg.vercel.app": "/facturita",
+  // ProfeTurnos (app para profes de pádel): su vidriera con el alta sola.
+  "profeturnos.gsgapp.com.ar": "/profeturnos",
 };
 
 /** La vidriera a la que va la raíz de este host, o `null` si el host no es de un producto. */
 export function vidrieraDelHost(host: string | null | undefined): string | null {
   if (!host) return null;
   const h = host.split(",")[0].trim().toLowerCase().split(":")[0];
-  return HOSTS_DE_PRODUCTO[h] ?? null;
+  // Propia, no heredada: un Host `constructor` o `__proto__` no puede volverse destino de la reescritura.
+  return Object.hasOwn(HOSTS_DE_PRODUCTO, h) ? HOSTS_DE_PRODUCTO[h] : null;
 }

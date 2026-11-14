@@ -303,7 +303,7 @@ export default async function CierreCajaPage({
         {!yaCerrado && data.vouchersACobrar && (
           <p className="border-t border-line px-4 py-3 text-sm text-muted" data-testid="cierre-vouchers">
             <span className="font-medium text-strong">{ETIQUETA_VOUCHER_DEL_CIERRE}</span>: {data.vouchersACobrar.cantidad} por{" "}
-            <span className="tabular-nums">{fmtMoneyARS(data.vouchersACobrar.monto)}</span>, a cobrar a OpenKey.
+            <span className="tabular-nums">{fmtMoneyARS(data.vouchersACobrar.monto)}</span>, a cobrar a la administración del country (no entra al cajón).
             {data.vouchersACobrar.anulados.cantidad > 0 && (
               <>
                 {" "}

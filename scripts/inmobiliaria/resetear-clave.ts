@@ -25,7 +25,9 @@ async function main() {
   if (!u) throw new Error(`No existe ${email} en ${slug}.`);
   const clave = generateStrongPassword();
   const passwordHash = await hashPassword(clave);
-  await prisma.user.updateMany({ where: { id: u.id, tenantId: t.id }, data: { passwordHash } });
+  // Clave provisoria: nunca sin cambio obligatorio (GSG-SEG-013).
+  const r = await prisma.user.updateMany({ where: { id: u.id, tenantId: t.id }, data: { passwordHash, mustChangePassword: true } });
+  if (r.count !== 1) throw new Error("No se pudo fijar la clave con cambio obligatorio: no se entrega.");
   const guardado = await prisma.user.findUniqueOrThrow({ where: { id: u.id }, select: { passwordHash: true } });
   if (!(await verifyPassword(clave, guardado.passwordHash))) throw new Error("La clave guardada no verifica: no se entrega.");
   console.log(`✅ ${email} (${u.role}) en ${slug} · clave nueva (se muestra UNA vez): ${clave}`);

@@ -77,3 +77,45 @@
 # 2026-11-07 · PR #36 consola de soporte T1. Aditiva: tabla "SupportTicket" con RLS adentro. No toca
 # tablas existentes.
 # (aplicada por el build de producción del merge de #36 el 2026-11-07: sale de la lista) 20261106120000_support_ticket
+#
+# 2026-11-08 · ProfeTurnos (padel-clases): clubes (E4), clase fija semanal (E8) y grupal con
+# integrantes y cobro por persona (E7). Aditiva: tablas "PadelClub", "PadelSerie", "PadelIntegrante"
+# con RLS adentro y tres columnas nulables ("PadelDisponibilidad"."clubId", "PadelClase"."clubId",
+# "PadelClase"."serieId"). Orden del dueño del 08/11; respaldo de Neon antes del merge.
+# (aplicada por el build de producción del merge de #43; #47 publicó READY el 08/11 sobre esa base: sale de la lista) 20261108120000_profeturnos_clubes_serie_grupal
+#
+# 2026-11-08 · PR #50 (seguridad): PIN de desbloqueo de la sesión del panel (orden del dueño del 08/11: «a lo sumo
+# diseñaríamos un ingreso por PIN cuando el usuario ya está logueado»). Aditiva: tabla "UserPin" con RLS adentro y
+# claves foráneas a "Tenant" y "User". No toca columnas ni datos. Sin aplicar, el código pide la contraseña.
+# Orden de publicación: #44 → #50 → #48 → #53 (#48 y #53 agregan las suyas debajo de ésta).
+# (aplicada en Neon el 09/11 07:18, antes de este merge: sale de la lista) 20261108130000_user_pin
+#
+# 2026-11-08 · Vouchers de CH: liquidación del lunes y cuenta corriente de la administración del country
+# (orden del dueño del 08/11, 00-ESTADO/VOUCHERS-CH-2026-11-08.md). Aditiva: tablas "VoucherLiquidacion"
+# y "VoucherPagoAdministracion" con RLS adentro y dos columnas NULLABLE en "Voucher"
+# ("liquidacionSemanalId", "resultadoLiquidacion"), sin default ni backfill. No toca enums ni datos.
+# NO ADITIVA para el detector de publicar.yml (scripts/publicar/lib/sql.mjs): dos CHECK sobre "Voucher" que sólo
+# miran las columnas nuevas y NULL («RESTRICCIÓN EN TABLA EXISTENTE», calibrado en scripts/publicar/sql.test.mjs).
+# Owner-level: AUTORIZADA por escrito por el dueño — «Autorizo las migraciones 48 y 53.» (ORQ-005, 09/11 02:41, D40).
+# No se publica con la etiqueta gsg:publicar: la orquestadora mergea con esa orden y el build la aplica (paso 1b + migrate deploy).
+# (aplicada por el build de producción del merge de #48 el 09/11 09:01:53, deploy READY: sale de la lista) 20261108140000_voucher_liquidacion_semanal
+#
+# 2026-11-08 · Contabilidad ola 2 = T0 de Control de gestión (GSG-CTRL-001). Aditiva: 7 columnas
+# nulables en "CuentaContable", 1 en "AsientoLinea" ("fechaOrigen"), tablas "CuentaRol" y
+# "ConfigContable" con RLS adentro, CHECKs sólo sobre columnas nuevas. No toca datos. Requiere la ola 1.
+# Owner-level: AUTORIZADA por escrito por el dueño — «Autorizo las migraciones 48 y 53.» (ORQ-005, 09/11 02:41, D40).
+# (aplicada por el build de producción del merge de #53 el 09/11 12:26:27, deploy READY: sale de la lista) 20261108150000_contabilidad_ola2_roles
+#
+# 2026-11-09 · seguridad (GSG-SEG-008): cambio obligatorio de contraseña en el próximo ingreso. Aditiva: columna
+# "User"."mustChangePassword" BOOLEAN NOT NULL DEFAULT false (antes prisma/pending-gate2/MustChangePassword.sql).
+# Sin ella el reset del OWNER y el alta desde la consola se niegan a emitir la provisoria. Independiente de
+# 20261108130000_user_pin (#50: tabla aparte). El lote se compara en orden de timestamp: al integrar con #50,
+# user_pin va arriba de ésta (o comentada, si #50 ya se publicó). #50, #48 y #53 ya publicadas el 09/11.
+# (aplicada: el build de producción de main 4ddcd7e (#102, 10/11) dio «Lote: nada pendiente»; sale de la lista) 20261109120000_must_change_password
+#
+# 2026-11-10 · Factoque alta web, D4 del dueño (GSG-FACT-004, PR #45): CUIT sin verificar hasta conectar ARCA.
+# Aditiva: columna nullable "Tenant"."cuitVerificadoEn" TIMESTAMP(3), sin default ni backfill. No toca datos.
+# El código tolera que falte (verifica por la auditoría).
+# Owner-level: AUTORIZADA por el dueño en el tablero «Frentes GSG», tarjeta f45-g2 = a («respaldo Neon, autorizo la
+# migración, publicar»), 11/11/2026, registrada por GSG-ORQ-006. El build del merge la aplica (paso 1b + migrate deploy).
+20261110170000_tenant_cuit_verificado

@@ -150,7 +150,11 @@ test("alta por pedido: misma respuesta con cualquier CUIT, y Soporte lo configur
   );
   // El arnés define APP_BASE_DOMAIN: la dirección es la que ese ruteo sirve (el caso «sin dirección» va en el punto 9).
   assert.equal(hecho.direccion, `https://tornillo.${process.env.APP_BASE_DOMAIN}/admin`);
-  assert.deepEqual(hecho.pendientes, { condicionIva: false, cambioDeClave: true }, "M1 medida: condición escrita; cambio obligatorio pendiente");
+  // Con la columna User.mustChangePassword (migración 20261109120000) el cambio obligatorio ya no queda pendiente:
+  // el alta lo marca en la misma transacción, y se verifica en la base, no sólo en la respuesta.
+  assert.deepEqual(hecho.pendientes, { condicionIva: false, cambioDeClave: false }, "M1 medida: condición escrita; cambio obligatorio activo");
+  const duenioNuevo = await duenio.user.findFirstOrThrow({ where: { tenantId: creado.id }, select: { mustChangePassword: true } });
+  assert.equal(duenioNuevo.mustChangePassword, true, "la clave temporal del dueño exige cambio en el primer ingreso");
   assert.equal(
     (await duenio.carteraCliente.findFirst({ where: { tenantId: base.a.id, clienteTenantId: creado.id } }))?.estado,
     "activa",

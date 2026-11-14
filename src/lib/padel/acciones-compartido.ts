@@ -27,7 +27,7 @@ import { requestIp } from "@/lib/audit-core";
 import { createRateLimiter } from "@/lib/rate-limit";
 import { tenantTransaction } from "@/lib/rls";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { ESTADOS_QUE_OCUPAN, armarMensaje, diaHumano, horaHumana, pesos, plantillaConfirmada, saldoAFavor, saldoCubre, tokenValido, type ClavePlantilla } from "./core";
+import { ESTADOS_QUE_OCUPAN, armarMensaje, diaHumano, horaHumana, pesos, plantillaConClub, plantillaConfirmada, saldoAFavor, saldoCubre, tokenValido, type ClavePlantilla } from "./core";
 import type { ConfigPadel } from "./datos.server";
 import { notificadorActual } from "./notificador";
 import { regenerarAlReconocer } from "./sesion-alumno";
@@ -167,7 +167,8 @@ export async function alumnoPorTelefono(tx: Tx, tenantId: string, telefono: stri
 
 /**
  * O-1: ¿el profe ya reconoció a este alumno? Le confirmó una clase, se la agendó él o se la marcó
- * dada o ausente. Es el mismo criterio que `claseReconoce` (sesion-alumno.ts). `excluir`: la clase
+ * dada o ausente, o lo sumó como integrante de una grupal. Para las clases propias es el mismo
+ * criterio que `claseReconoce` (sesion-alumno.ts). `excluir`: la clase
  * que se está moviendo ahora (lo que importa es si estaba reconocido ANTES).
  */
 export async function alumnoReconocido(tx: Tx, tenantId: string, alumnoId: string, excluir?: string): Promise<boolean> {
@@ -180,7 +181,14 @@ export async function alumnoReconocido(tx: Tx, tenantId: string, alumnoId: strin
     },
     select: { id: true },
   });
-  return Boolean(c);
+  if (c) return true;
+  // QA O-1: que el profe lo haya sumado como integrante de una grupal también es reconocerlo; si no,
+  // cada WhatsApp de integrante (tokenParaMandar) le regeneraba el link y mataba el anterior.
+  const i = await tx.padelIntegrante.findFirst({
+    where: { tenantId, alumnoId, ...(excluir ? { claseId: { not: excluir } } : {}) },
+    select: { id: true },
+  });
+  return Boolean(i);
 }
 
 /** Link nuevo. Hay un solo token por alumno: el viejo deja de andar en la misma escritura. */
@@ -232,7 +240,17 @@ export async function saldoEnTx(tx: Tx, tenantId: string, alumnoId: string, excl
     },
     select: { estado: true, pagoEstado: true, pagoMedio: true, precio: true },
   });
-  return saldoAFavor(filas.map((f) => ({ ...f, precio: Number(f.precio) })));
+  // E7 · Lo que quedó a favor del alumno como INTEGRANTE de una grupal (su parte pagada de una clase
+  // que se canceló) también es saldo suyo. Su parte nunca se paga con saldo, pero si algún día se
+  // paga, se descuenta con la misma regla.
+  const partes = await tx.padelIntegrante.findMany({
+    where: { tenantId, alumnoId, OR: [{ pagoEstado: "ACREDITADO" }, { pagoEstado: "PAGADO", pagoMedio: "SALDO_A_FAVOR" }] },
+    select: { pagoEstado: true, pagoMedio: true, monto: true, clase: { select: { estado: true } } },
+  });
+  return saldoAFavor([
+    ...filas.map((f) => ({ ...f, precio: Number(f.precio) })),
+    ...partes.map((i) => ({ estado: i.clase.estado, pagoEstado: i.pagoEstado, pagoMedio: i.pagoMedio, precio: Number(i.monto) })),
+  ]);
 }
 
 /** Si el saldo cubre la clase entera, nace (o queda) pagada con «Saldo a favor». Un saldo parcial no se aplica. */
@@ -296,6 +314,11 @@ export async function avisarAlAlumno(p: {
 }): Promise<ConAviso & { avisoId: string }> {
   const base = await origen();
   const precio = p.clase ? Number(p.clase.precio) : 0;
+  // E4 · El club de la clase (si tiene) va en el texto: `{club}` donde el profe lo puso, o « en <club>»
+  // después de la hora (plantillaConClub). Sin club, el mensaje es el de siempre.
+  const club = p.clase
+    ? (await prisma.padelClase.findFirst({ where: { tenantId: p.tenantId, id: p.clase.id }, select: { club: { select: { nombre: true } } } }))?.club?.nombre ?? ""
+    : "";
   const vars: Record<string, string> = {
     nombre: p.alumno.nombre.split(" ")[0],
     dia: p.clase ? diaHumano(p.clase.empiezaEn) : "",
@@ -305,12 +328,15 @@ export async function avisarAlAlumno(p: {
     alias: p.config.aliasCbu || "(te lo paso por acá)",
     link: `${base}/alumno/${p.alumno.token}`,
     turnero: `${base}/clases`,
+    club,
     ...(p.vars ?? {}),
   };
-  const plantilla =
+  const plantilla = plantillaConClub(
     p.clave === "confirmada"
       ? plantillaConfirmada(p.config.plantillas.confirmada, { hayPrecio: precio > 0, hayAlias: Boolean(p.config.aliasCbu) })
-      : p.config.plantillas[p.clave];
+      : p.config.plantillas[p.clave],
+    Boolean(club),
+  );
   const texto = [armarMensaje(plantilla, vars), p.extra].filter(Boolean).join(" ");
   const meta = META_DE[p.clave];
   const r = await notificadorActual().enviar({

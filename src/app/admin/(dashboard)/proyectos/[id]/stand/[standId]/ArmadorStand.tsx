@@ -347,7 +347,7 @@ export default function ArmadorStand({
                     className={cn("flex min-h-11 w-full items-center justify-between gap-2 rounded-lg border px-3 text-left text-sm", sel === p.id ? "border-accent bg-surface-raised font-semibold text-strong" : "border-line text-strong", enAviso.has(p.id) && "border-danger")}
                   >
                     <span className="min-w-0 truncate">{PIEZAS[p.tipo].label}{enAviso.has(p.id) ? " ⚠" : ""}</span>
-                    <span className="shrink-0 text-xs font-normal text-muted">{String(p.x.toFixed(2)).replace(".", ",")} · {String(p.z.toFixed(2)).replace(".", ",")} m</span>
+                    <span className="shrink-0 text-xs font-normal text-muted">{String(p.x.toFixed(2)).replace(".", ",")} · {String(p.z.toFixed(2)).replace(".", ",")} m{/* no-es-plata: coordenadas de la pieza en metros */}</span>
                   </button>
                 </li>
               ))}

@@ -65,13 +65,18 @@ export default function PantallaEmitir({
   // F4: el tope del mes, dicho claro y con la salida.
   const tope = bloqueado
     ? {
-        titulo: "Llegaste al tope de facturas gratis de este mes",
+        // El mensaje sale de `estadoLimite` con el cupo del plan: Gratis dice «gratis», Plus/Pro «de tu plan».
+        titulo: /de tu plan/.test(motivoBloqueo ?? "")
+          ? "Llegaste al tope de facturas de tu plan este mes"
+          : "Llegaste al tope de facturas gratis de este mes",
         motivo:
-          (motivoBloqueo ?? "Usaste las facturas gratis de este mes.").replace(
-            /^Llegaste al tope de (\d+) facturas gratis de este mes\.\s*/,
-            "Ya usaste las $1 facturas gratis. ",
+          (motivoBloqueo ?? "Usaste las facturas de este mes.").replace(
+            /^Llegaste al tope de (\d+) facturas (gratis de este mes|de tu plan .+? este mes)\.\s*/,
+            (_, n: string, cual: string) =>
+              cual.startsWith("gratis") ? `Ya usaste las ${n} facturas gratis. ` : `Ya usaste las ${n} facturas ${cual.replace(/ este mes$/, "")}. `,
           ) +
-          " Las que ya emitiste siguen valiendo. Si no cambiás de plan, el mes que viene volvés a tener las gratis.",
+          " Las que ya emitiste siguen valiendo." +
+          (/se renueva/.test(motivoBloqueo ?? "") ? "" : " El mes que viene el cupo se renueva."),
         accion: { href: "/facturita/planes", etiqueta: "Ver los planes" },
       }
     : null;

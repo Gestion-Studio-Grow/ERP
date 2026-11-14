@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { PLANTILLAS_DEFAULT } from "./core";
-import { errorDeTramo, plantillasConCambio, validarCampoConfig, validarTramos } from "./config-campos";
+import { errorDeTramo, plantillasConCambio, puedeCambiarAjuste, validarCampoConfig, validarTramos } from "./config-campos";
 
 const valor = (clave: unknown, v: unknown) => {
   const r = validarCampoConfig(clave, v);
@@ -89,4 +89,13 @@ test("horarios: la grilla entera en un guardado, ordenada; un tramo malo frena t
   assert.ok(validarTramos([]).ok, "sin horarios = no da clases (se puede)");
   const v = validarCampoConfig("horarios", [{ diaSemana: 1, desde: "08:00", hasta: "12:00" }]);
   assert.ok(v.ok && v.v.tipo === "horarios" && v.v.tramos.length === 1);
+});
+
+test("UAT 11/2026 — la cuenta de cobro, el celular y los textos los cambia sólo el dueño; el resto, quien gestiona", () => {
+  for (const clave of ["aliasCbu", "titularCuenta", "whatsappProfe", "plantilla.confirmada", "plantilla.pagoOk"]) {
+    assert.equal(puedeCambiarAjuste("OWNER", clave), true);
+    assert.equal(puedeCambiarAjuste("RECEPTION", clave), false);
+    assert.equal(puedeCambiarAjuste("PROFESSIONAL", clave), false);
+  }
+  for (const clave of ["precioIndividual", "precioGrupal", "duracionMin", "horarios", "bienvenidaVista"]) assert.equal(puedeCambiarAjuste("RECEPTION", clave), true);
 });

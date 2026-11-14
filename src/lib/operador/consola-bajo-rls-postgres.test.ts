@@ -80,7 +80,7 @@ test("consola con la conexión sujeta a RLS: alta, reset del dueño, certificado
   const { operatorPrisma, enElNegocio } = await import("@/lib/operator-db");
   const { createOperatorToken } = await import("@/lib/operator-auth");
   const { commitTenantAction } = await import("@/lib/operator-provisioning-actions");
-  const { resetOwnerPassword, setTenantArcaCuit, setTenantArcaPuntoVenta } = await import("@/lib/operator-actions");
+  const { resetOwnerPasswordDeTenant, setTenantArcaCuit, setTenantArcaPuntoVenta } = await import("@/lib/operator-actions");
   const { cargarCredencialTenant, credencialParaTenant } = await import("@/lib/fiscal/tenant-cert");
   const operador = { cookies: { operator_session: await createOperatorToken("tomas") } };
 
@@ -153,7 +153,7 @@ test("consola con la conexión sujeta a RLS: alta, reset del dueño, certificado
     const antesA = await hash(base.a.duenia.id);
     const antesB = await hash(base.b.duenia.id);
 
-    const r = await ejecutarAccion(operador, () => resetOwnerPassword(base.a.id));
+    const r = await ejecutarAccion(operador, () => resetOwnerPasswordDeTenant(base.a.id, base.a.slug));
     assert.equal(r.tipo, "respuesta");
     if (r.tipo !== "respuesta") return;
     assert.equal(r.valor.ok, true, `el reset tiene que salir: ${JSON.stringify(r.valor)}`);

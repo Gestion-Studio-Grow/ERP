@@ -137,6 +137,8 @@ export type CierreDiarioData = {
     origin: "manual" | "pos" | "turno";
     /** Para decir de dónde salió una fila del sistema (`rotuloDeOrigen`). */
     origenContable?: OrigenContable;
+    /** La referencia de la fila del sistema (`clasificarOrigen`): p. ej. `voucher-pago:<id>` del pago de la administración. */
+    referencia?: string;
   }[];
   yaCerrado: boolean;
   enElFuturo: boolean;
@@ -178,6 +180,11 @@ export type CierreDiarioData = {
    * ausente = el negocio no tiene el valor del enum o no hubo vouchers.
    */
   vouchersACobrar?: VouchersDelCierre | null;
+  /**
+   * CH · cheques de la administración en «valores a depositar»: NO están en ninguna columna del libro
+   * hasta que se confirma el depósito (entonces entran a Mercado Pago). `null` o ausente = no hay.
+   */
+  chequesADepositar?: { cantidad: number; monto: number } | null;
   /** Reabrir el día (M1-C7): sólo para la dueña o el dueño en un día cerrado. `null` = no se ofrece. */
   reabrir: { puede: true } | { puede: false; porque: string } | null;
 };
@@ -267,6 +274,19 @@ async function vouchersDelPeriodo(tenantId: string, start: Date, end: Date): Pro
     });
     const r = vouchersDelCierre(filas.map((f) => ({ amount: f.amount.toNumber() })));
     return r.cantidad === 0 && r.anulados.cantidad === 0 ? null : r;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Cheques de la administración sin depositar al cierre de `day` (el de un día pasado no muestra los
+ * recibidos después). Tolera que la tabla de vouchers no exista todavía (Gate 2).
+ */
+async function chequesDeLaAdministracion(tenantId: string, day: string): Promise<{ cantidad: number; monto: number } | null> {
+  try {
+    const { chequesADepositar } = await import("@/lib/vouchers/liquidacion-repo");
+    return await chequesADepositar(tenantId, day);
   } catch {
     return null;
   }
@@ -509,7 +529,9 @@ async function leerCierreDiario(
       amount: r.amount,
       detail: r.reason ?? "",
       origin: libroOrigin({ type: r.type as CashMovementType, orderId: r.orderId, createdBy: r.createdBy }),
-      origenContable: clasificarOrigen({ type: r.type as CashMovementType, createdBy: r.createdBy, orderId: r.orderId, collectionId: r.collectionId }).origen,
+      ...(({ origen, referencia }) => ({ origenContable: origen, referencia }))(
+        clasificarOrigen({ type: r.type as CashMovementType, createdBy: r.createdBy, orderId: r.orderId, collectionId: r.collectionId }),
+      ),
     })),
     yaCerrado: false,
     enElFuturo: compareDayKeys(day, today) > 0,
@@ -527,6 +549,7 @@ async function leerCierreDiario(
     }),
     hechos,
     vouchersACobrar: await vouchersDelPeriodo(tenantId, start, end),
+    chequesADepositar: await chequesDeLaAdministracion(tenantId, day),
     reabrir: null,
   };
 }

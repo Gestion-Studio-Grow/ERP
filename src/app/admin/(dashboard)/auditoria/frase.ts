@@ -279,6 +279,8 @@ function turno(f: FilaParaDescribir, c: Obj | null): Frase | null {
     }
     case "confirm":
       return { frase: "Confirmó un turno" };
+    case "confirm_sin_senia":
+      return { frase: "Confirmó un turno sin seña", detalle: motivo ? [`Motivo: ${motivo}`] : [] };
     case "confirm_payment":
       return { frase: `Confirmó el pago de un turno${monto ? ` · ${plata(monto)}` : ""}${m ? ` ${m}` : ""}` };
     case "collect_payment":

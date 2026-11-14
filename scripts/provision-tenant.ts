@@ -91,6 +91,13 @@ export interface ProvisionParams {
   skipCatalog?: boolean;
   branding?: TenantBranding;
   /**
+   * Opt-in: el llamador sólo acepta un negocio NUEVO. Si el slug no existía, se usa `create` en vez
+   * de `upsert`: si otra superficie confirma el mismo slug entre la búsqueda y la escritura, sale
+   * P2002 en lugar de devolver el negocio ajeno (lo usa el alta pública de ProfeTurnos). Sin la
+   * opción, el comportamiento es el histórico (idempotente por slug).
+   */
+  soloNuevo?: boolean;
+  /**
    * Metadata de plataforma (control-plane, ADR-021). La setea el alta desde la
    * consola de operador. Solo se persiste al CREAR el tenant; en re-provisioning
    * no se pisa (la config existente se cambia desde la consola, no re-corriendo el alta).
@@ -212,26 +219,27 @@ export async function provisionTenant(prisma: PrismaClient, params: ProvisionPar
     // plataforma (control-plane, ADR-021) solo al crear — la config existente se
     // cambia desde la consola de operador, no re-corriendo el alta.
     const plat = params.platform ?? {};
-    const tenant = await tx.tenant.upsert({
-      where: { slug },
-      update: {},
-      create: {
-        name,
-        slug,
-        timezone,
-        blueprintId: blueprint.id,
-        ...(plat.status ? { status: plat.status } : {}),
-        ...(plat.plan !== undefined ? { plan: plat.plan } : {}),
-        ...(plat.subdomain !== undefined ? { subdomain: plat.subdomain } : {}),
-        // OP-2: si el alta no pasa `modules` explícito, no se deja en `[]` — se
-        // deriva del blueprint (mismo default que ve el consultor/demo, ver
-        // src/blueprints/presets-meta.ts). Así la consola de operador no vuelve a
-        // mostrar "0 módulos" en un tenant nuevo por falta de dato, no por bug real.
-        modules: plat.modules ?? defaultModulesForBlueprint(blueprint.id),
-        ...(plat.accentPreset !== undefined ? { accentPreset: plat.accentPreset } : {}),
-        ...(plat.frontTheme !== undefined ? { frontTheme: plat.frontTheme } : {}),
-      },
-    });
+    const datosNuevos = {
+      name,
+      slug,
+      timezone,
+      blueprintId: blueprint.id,
+      ...(plat.status ? { status: plat.status } : {}),
+      ...(plat.plan !== undefined ? { plan: plat.plan } : {}),
+      ...(plat.subdomain !== undefined ? { subdomain: plat.subdomain } : {}),
+      // OP-2: si el alta no pasa `modules` explícito, no se deja en `[]` — se
+      // deriva del blueprint (mismo default que ve el consultor/demo, ver
+      // src/blueprints/presets-meta.ts). Así la consola de operador no vuelve a
+      // mostrar "0 módulos" en un tenant nuevo por falta de dato, no por bug real.
+      modules: plat.modules ?? defaultModulesForBlueprint(blueprint.id),
+      ...(plat.accentPreset !== undefined ? { accentPreset: plat.accentPreset } : {}),
+      ...(plat.frontTheme !== undefined ? { frontTheme: plat.frontTheme } : {}),
+    };
+    // soloNuevo + negocio inexistente: `create` (un choque de carrera da P2002, nunca el negocio ajeno).
+    const tenant =
+      params.soloNuevo && isNewTenant
+        ? await tx.tenant.create({ data: datosNuevos, select: { id: true } })
+        : await tx.tenant.upsert({ where: { slug }, update: {}, create: datosNuevos });
     const tenantId = tenant.id;
     // Desde acá todo es del negocio nuevo: se para la transacción en él (ADR-018). Con RLS, sin
     // esto el OWNER no pasa la policy («new row violates row-level security policy for table
@@ -250,7 +258,11 @@ export async function provisionTenant(prisma: PrismaClient, params: ProvisionPar
     if (!existingOwner) {
       const passwordHash = await hashPassword(ownerPassword);
       await tx.user.create({
-        data: { tenantId, name: ownerName, email: ownerEmail, passwordHash, role: "OWNER" },
+        // La contraseña del alta es PROVISORIA siempre (la generó el sistema o la eligió quien da el alta: la conoce
+        // otro). Regla del dueño: nunca una provisoria sin cambio obligatorio (GSG-SEG-013). Va en la MISMA escritura:
+        // si la columna no está, el alta entera vuelve atrás en vez de dejar una provisoria eterna.
+        data: { tenantId, name: ownerName, email: ownerEmail, passwordHash, role: "OWNER", mustChangePassword: true },
+        select: { id: true },
       });
       ownerCreated = true;
     }

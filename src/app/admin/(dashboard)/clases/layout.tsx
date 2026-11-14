@@ -1,7 +1,13 @@
 import { badgePendientes } from "@/lib/padel/datos.server";
+import { getCurrentUser } from "@/lib/session";
+import { gestionaClases, veLaPlata } from "@/lib/padel/plata-guardia";
 import { marcarAvisado } from "@/lib/padel/acciones";
 import { BarraInferior } from "./_barra-inferior";
 import { ColaAvisos } from "./_aviso";
+import { Franja } from "@/components/ui/Renglon";
+import { getCurrentTenantId } from "@/lib/tenant";
+import { estadoDeVerificacionDe } from "@/lib/profeturnos/verificacion.server";
+import { AVISO_PANEL_EN_VERIFICACION, panelMuestraAviso } from "@/lib/profeturnos/verificacion-core";
 
 // Sello GSG del backoffice (estándar de marca): metadata + crédito discreto al pie. El negocio
 // conserva su nombre visible; esto es la firma de calidad detrás.
@@ -20,7 +26,15 @@ export const metadata = { generator: "Gestión Studio Grow" };
 // re-renderizan al navegar. El globito de pendientes se refresca con cada router.refresh() de las
 // acciones; si la lectura falla, la barra sale sin número (nunca rompe la pantalla).
 export default async function ClasesLayout({ children }: { children: React.ReactNode }) {
-  const pendientes = await badgePendientes().catch(() => 0);
+  // Alta asistida: el aviso sólo si el profe se dio de alta solo y GSG todavía no lo verificó. Si la
+  // lectura falla, sin aviso: el panel nunca se bloquea ni se ensucia por eso (verificacion-core.ts).
+  const [pendientes, user, verificacion] = await Promise.all([
+    badgePendientes().catch(() => 0),
+    getCurrentUser().catch(() => null),
+    getCurrentTenantId()
+      .then((id) => estadoDeVerificacionDe(id))
+      .catch(() => null),
+  ]);
   return (
     <div
       data-density="lite"
@@ -29,10 +43,15 @@ export default async function ClasesLayout({ children }: { children: React.React
       <style href="padel-clases-barra" precedence="default">{`body:has([data-barra-clases]) nav[aria-label="Espacios"]{display:none}`}</style>
       {/* M-034: al tocar el link, el aviso queda con `enviadoEl` (Tanda 2A). */}
       <ColaAvisos marcarAvisado={marcarAvisado}>
+        {panelMuestraAviso(verificacion) && (
+          <Franja tono="atencion" className="mb-3">
+            <b>{AVISO_PANEL_EN_VERIFICACION}</b> Mientras tanto tu turnero no toma pedidos; tu panel anda igual.
+          </Franja>
+        )}
         {children}
         <p className="pb-6 pt-2 text-center text-xs text-muted">Con tecnología de Gestión Studio Grow</p>
       </ColaAvisos>
-      <BarraInferior pendientes={pendientes} />
+      <BarraInferior pendientes={pendientes} conPlata={user ? veLaPlata(user) : false} conAgendar={user ? gestionaClases(user) : false} />
     </div>
   );
 }

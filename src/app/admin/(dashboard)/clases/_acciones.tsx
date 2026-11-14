@@ -39,6 +39,7 @@ import { HojaEditar } from "./_hojas/HojaEditar";
 import { HojaMover } from "./_hojas/HojaMover";
 import { HojaNoVino } from "./_hojas/HojaNoVino";
 import { HojaSuspender } from "./_hojas/HojaSuspender";
+import { IntegrantesClase } from "./_integrantes";
 import type { ClaseDelDia } from "./_hojas/proponer";
 import { yaTermino, type ClaseAcciones } from "./_hojas/tipos";
 
@@ -124,6 +125,11 @@ export function AccionesClase({
 
       {c.pagoEstado === "EN_REVISION" && (
         <div className="grid gap-2 rounded-xl border border-line bg-warning-soft p-2">
+          {["CANCELADA", "RECHAZADA"].includes(c.estado) && (
+            <p className="text-sm text-strong" data-qa="comprobante-clase-caida">
+              La clase se canceló pero mandó el comprobante. Si está bien, le queda a favor (o se lo devolvés).
+            </p>
+          )}
           {c.comprobante && (
             <button type="button" className="min-h-12 text-left text-sm font-semibold text-strong underline" onClick={() => setVerComprobante((v) => !v)} aria-expanded={verComprobante} data-qa="ver-comprobante">
               {verComprobante ? "Ocultar comprobante" : "Ver comprobante"}
@@ -160,11 +166,13 @@ export function AccionesClase({
         </div>
       )}
 
+      <IntegrantesClase c={c} />
+
       {fila3.length > 0 && (
         <div className={cn("grid gap-2", fila3.length === 3 ? "grid-cols-3" : fila3.length === 2 ? "grid-cols-2" : "grid-cols-1")}>
           {fila3.includes("cobrar") && (
             <button type="button" disabled={pendiente} className={grande("outline")} onClick={() => setHoja("cobrar")} data-qa="cobre">
-              Cobré <span aria-hidden>▾</span>
+              {c.integrantes?.length ? `Cobré a ${c.nombre.split(/\s+/)[0]}` : "Cobré"} <span aria-hidden>▾</span>
             </button>
           )}
           {fila3.includes("mover") && (

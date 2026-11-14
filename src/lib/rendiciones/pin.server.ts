@@ -92,7 +92,8 @@ export interface MailDelPin {
 }
 
 /** Por defecto, el mail sale después de responder: el tiempo de respuesta no delata si se mandó o no. */
-const enviarDespues = (m: MailDelPin): void => after(() => enviarMailInterno(m).then(() => undefined));
+// Es un mail de ingreso de la plataforma: lleva el logo de GSG (marcaGsg), no la marca del negocio.
+const enviarDespues = (m: MailDelPin): void => after(() => enviarMailInterno({ ...m, marcaGsg: true }).then(() => undefined));
 
 type Fila = NonNullable<Awaited<ReturnType<typeof prisma.proyectoPinIngreso.findFirst>>>;
 

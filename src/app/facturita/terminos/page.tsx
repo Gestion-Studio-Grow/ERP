@@ -1,4 +1,4 @@
-// FACTURITA · Términos y condiciones — BORRADOR (ver DocumentoLegal). Pública y estática.
+// FACTOQUE · Términos y condiciones (ver DocumentoLegal). Pública y estática.
 // Marco: Ley 24.240 de Defensa del Consumidor (arts. 4, 10 ter, 34 y 37), Código Civil y Comercial
 // (arts. 1107 y 1110), Res. SCI 424/2020 (botón de arrepentimiento) y Res. 316/2018 (botón de baja).
 // Lo que no se pudo afirmar con certeza va entre corchetes (PENDIENTES en ../legales).
@@ -6,7 +6,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import DocumentoLegal from "../DocumentoLegal";
-import { PENDIENTES, RESPONSABLE, VIGENCIA_BORRADOR } from "../legales";
+import { PENDIENTES, RESPONSABLE, VIGENCIA } from "../legales";
 import { LIMITE_FACTURAS_FACTURITA } from "@/lib/facturita-core";
 
 export const dynamic = "force-static";
@@ -15,15 +15,13 @@ export const metadata: Metadata = {
   title: "Términos y condiciones — Factoque",
   description: "Las reglas de uso de Factoque, el emisor de facturas electrónicas de Gestión Studio Grow.",
   generator: "Gestión Studio Grow",
-  // Borrador «todavía no vigente»: fuera de los buscadores hasta que el dueño lo apruebe.
-  robots: { index: false, follow: false },
 };
 
 export default function TerminosPage() {
   return (
     <DocumentoLegal
       titulo="Términos y condiciones"
-      vigencia={VIGENCIA_BORRADOR}
+      vigencia={VIGENCIA}
       secciones={[
         {
           titulo: "Quiénes somos",
@@ -43,23 +41,25 @@ export default function TerminosPage() {
           parrafos: [
             `El plan gratuito no tiene costo y te deja emitir hasta ${LIMITE_FACTURAS_FACTURITA} facturas por mes calendario. Cuando llegás al tope, no podés emitir más con Factoque hasta el mes siguiente, salvo que pases a un plan pago. No te pedimos tarjeta.`,
             "No incluye importar extractos bancarios, conciliación ni cobros con Mercado Pago: eso está en los planes de Comerciante.",
-            "Para emitir necesitás tu CUIT, tu condición frente al IVA, un punto de venta habilitado en ARCA para facturar por web services y la delegación del servicio de facturación electrónica que se explica abajo.",
+            "Para emitir necesitás tu CUIT, tu condición frente al IVA, un punto de venta habilitado en ARCA para facturar por web services y tu propio certificado digital de ARCA, que se explica abajo.",
             "Si alguna vez cambiamos lo que incluye el plan gratuito, te avisamos antes de que rija.",
           ],
         },
         {
-          titulo: "Delegación en ARCA",
+          titulo: "Tu certificado de ARCA",
           parrafos: [
-            "Para emitir por vos, tenés que delegar el servicio de facturación electrónica de ARCA a Gestión Studio Grow desde el Administrador de Relaciones de Clave Fiscal. Con esa delegación sólo podemos emitir comprobantes electrónicos a tu nombre: no vemos ni tocamos ningún otro servicio de tu clave fiscal.",
-            "Podés revocar la delegación cuando quieras, desde el mismo Administrador de Relaciones. Desde ese momento no vamos a poder emitir por vos, y las facturas que estuvieran pendientes de enviar no van a salir: las vas a ver como rechazadas o pendientes en «Mis facturas».",
+            "Para emitir, Factoque usa tu propio certificado digital de ARCA, a tu nombre y de tu CUIT. El certificado es tuyo: lo sacás vos en ARCA con tu clave fiscal y lo asociás al servicio de facturación electrónica. Gestión Studio Grow no saca certificados por vos ni emite con un certificado propio.",
+            "En «Mi cuenta» → «Conectar con ARCA» te guiamos en 4 pasos. El sistema genera el pedido del certificado y guarda la clave privada cifrada, separada de las demás cuentas: nadie la ve. Antes de usar el certificado verificamos que sea de tu CUIT; si no coincide, no se emite.",
+            "Podés revocar tu certificado cuando quieras desde ARCA, en «Administración de Certificados Digitales». Desde ese momento Factoque no puede emitir por vos, y las facturas que estuvieran pendientes de enviar no van a salir: las vas a ver como rechazadas o pendientes en «Mis facturas».",
+            "Si necesitás ayuda con el trámite, desde la app podés encontrar a los contadores que usan nuestro sistema.",
             "Nunca te vamos a pedir tu clave fiscal. Si alguien te la pide en nombre de Factoque, no la des y avisanos.",
           ],
         },
         {
-          titulo: "Certificado digital",
+          titulo: "Factoque es una herramienta",
           parrafos: [
-            "Con la delegación, Factoque se conecta con ARCA usando el certificado digital de Gestión Studio Grow, sólo para el servicio que nos delegaste y sólo para emitir a tu nombre.",
-            `Si preferís usar tu propio certificado digital, lo cargamos nosotros a partir de lo que nos mandes por ${PENDIENTES.canalCertificado}. Lo guardamos cifrado, separado de las demás cuentas, y sólo lo usamos para firmar tus comprobantes. Antes de usarlo verificamos que sea de tu CUIT; si no coincide, no se emite. Podés revocarlo cuando quieras desde ARCA, en «Administración de Certificados Digitales».`,
+            "Factoque es una herramienta para emitir tus comprobantes. Vos, como contribuyente, sos responsable de lo que emitís, de tu clave fiscal y de tu certificado digital.",
+            "La responsabilidad de Gestión Studio Grow se limita, en total, a lo que nos hayas pagado por Factoque en los últimos 3 meses. Esto no limita los derechos que la Ley 24.240 de Defensa del Consumidor te da cuando sos consumidor.",
           ],
         },
         {
@@ -92,15 +92,15 @@ export default function TerminosPage() {
         {
           titulo: "Planes pagos: arrepentimiento y baja",
           parrafos: [
-            "Hoy Factoque es gratis y no cobramos nada. Si más adelante pasás a un plan pago, antes de contratar te vamos a mostrar el precio final en pesos con IVA incluido, qué incluye, cada cuánto se cobra y con qué medio de pago.",
-            "Cuando contrates un plan pago a distancia, vas a tener 10 días corridos para arrepentirte, sin costo y sin dar explicaciones (art. 34 de la Ley 24.240 y art. 1110 del Código Civil y Comercial). Para eso, en la portada vas a tener un «Botón de arrepentimiento» que no te pide registrarte, y te vamos a mandar un código de tu pedido dentro de las 24 horas (Res. SCI 424/2020). [Botón de arrepentimiento — a implementar antes de habilitar planes pagos.]",
-            "También vas a poder dar de baja el plan pago cuando quieras, por el mismo medio con el que lo contrataste, sin costo y con un «Botón de baja» visible; te mandamos la constancia de la baja dentro de las 72 horas (art. 10 ter de la Ley 24.240 y Res. 316/2018). [Botón de baja — a implementar antes de habilitar planes pagos.]",
+            "Además del plan gratuito, Factoque tiene planes pagos (Plus y Pro). Si pasás a uno, antes de contratar te vamos a mostrar el precio final en pesos con IVA incluido, qué incluye, cada cuánto se cobra y con qué medio de pago.",
+            "Cuando contrates un plan pago a distancia, vas a tener 10 días corridos para arrepentirte, sin costo y sin dar explicaciones (art. 34 de la Ley 24.240 y art. 1110 del Código Civil y Comercial). Para eso tenés el «Botón de arrepentimiento», que no te pide registrarte: te da un número de trámite en el momento y te mandamos la constancia dentro de las 24 horas (Res. SCI 424/2020). Está abajo de todo en cada página de Factoque y en «Mi cuenta».",
+            "También podés dar de baja el plan pago cuando quieras, sin costo, con el «Botón de baja»: te da un número de trámite y te mandamos la constancia dentro de las 72 horas (art. 10 ter de la Ley 24.240 y Res. 316/2018). Está abajo de todo en cada página de Factoque («Darme de baja») y en «Mi cuenta», donde la baja del plan pago es inmediata.",
           ],
         },
         {
           titulo: "Baja de la cuenta",
           parrafos: [
-            `Podés darte de baja de Factoque cuando quieras y sin costo, por el mismo medio con el que te diste de alta o escribiendo a ${RESPONSABLE.email}. Acordate de revocar también la delegación en ARCA.`,
+            `Podés darte de baja de Factoque cuando quieras y sin costo, por el mismo medio con el que te diste de alta o escribiendo a ${RESPONSABLE.email}. Si querés, revocá también tu certificado en ARCA.`,
           ],
         },
         {

@@ -103,8 +103,9 @@ test("filtrosFacturacionMes: facturado = sólo AUTHORIZED por fecha fiscal; el c
   assert.deepEqual(Object.keys(f.emitido), ["createdAt"]);
   assert.equal(f.emitido.createdAt.gte.toISOString(), "2026-08-01T03:00:00.000Z");
   assert.equal(f.emitido.createdAt.lt.toISOString(), "2026-09-01T03:00:00.000Z");
-  // El cupo: el mismo reloj, sin lo que ARCA rechazó (un rechazo no gasta un lugar del plan).
-  assert.deepEqual(f.cupo, { createdAt: f.emitido.createdAt, status: { not: "REJECTED" } });
+  // El cupo: el mismo reloj, sin lo que ARCA rechazó (un rechazo no gasta un lugar del plan) y sin
+  // las notas de crédito (anular no gasta un lugar del plan, §1 #9b).
+  assert.deepEqual(f.cupo, { createdAt: f.emitido.createdAt, status: { not: "REJECTED" }, comprobanteAsociadoId: null });
   // Los rechazados van con el reloj de EMISIÓN, el mismo del cupo.
   assert.deepEqual(f.rechazado, { createdAt: f.emitido.createdAt, status: "REJECTED" });
 });

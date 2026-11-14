@@ -24,7 +24,7 @@
 import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { getCurrentUser } from "@/lib/session";
+import { getSesionDelPanel } from "@/lib/session";
 import { logger } from "@/lib/logger";
 import { entidadReservadaDeLaConsola } from "@/cambios/interruptores";
 
@@ -81,7 +81,8 @@ export async function auditAdmin(entry: {
   entityId?: string | null;
   changes?: unknown;
 }) {
-  const user = await getCurrentUser();
+  // El actor es quien es aunque tenga el cambio obligatorio pendiente (el cambio mismo se audita con su nombre).
+  const user = (await getSesionDelPanel())?.user ?? null;
   const actor = user ? `user:${user.id}` : "admin";
   return audit({ ...entry, actor, channel: "admin" });
 }
