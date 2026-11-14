@@ -200,7 +200,7 @@ async function main() {
   await prisma.user.create({
     data: {
       tenantId,
-      name: "Dueña — Magra DEMO",
+      name: "Dueña — demo",
       email: OWNER_EMAIL,
       passwordHash: await hashPassword(OWNER_PASSWORD),
       role: "OWNER",
@@ -210,7 +210,7 @@ async function main() {
   await prisma.user.create({
     data: {
       tenantId,
-      name: "Mostrador — Magra DEMO",
+      name: "Mostrador — demo",
       email: COUNTER_EMAIL,
       passwordHash: await hashPassword(OWNER_PASSWORD),
       role: "RECEPTION",
