@@ -27,7 +27,8 @@
 // DÓNDE CORRE. NUNCA Neon ni producción.
 //   · AISLAMIENTO_DATABASE_URL: superusuario en la base de mantenimiento de un Postgres LOCAL (la
 //     misma forma que ERP_TEST_PG_URL; pasa por la guarda de src/test/base-efimera.ts, que rechaza
-//     cualquier servidor que no sea de esta máquina). Sin ella el test se SALTEA y lo dice.
+//     cualquier servidor que no sea de esta máquina). Sin ella usa ERP_TEST_PG_URL (la de CI); sin
+//     ninguna de las dos, en CI falla y fuera de CI se SALTEA y lo dice.
 //       AISLAMIENTO_DATABASE_URL='postgresql://postgres@localhost:5433/postgres?host=/tmp/pgrun'
 //   · AISLAMIENTO_PGBOUNCER (opcional): `host:puerto` de un PgBouncer LOCAL en modo transacción
 //     delante del mismo Postgres (como el pooler de Neon). Con ella, todo corre además a través de
@@ -482,11 +483,15 @@ function negocio(nombre: "A" | "B", n: BaseEfimera["a"]): Negocio {
 }
 
 async function correrTest(t: TestContext): Promise<void> {
-  const servidor = process.env.AISLAMIENTO_DATABASE_URL?.trim();
+  // AISLAMIENTO_DATABASE_URL manda; si no está, el mismo Postgres de los tests (ERP_TEST_PG_URL), que
+  // en CI ya existe (gates.yml): así el test corre en CI en vez de saltearse.
+  const servidor = process.env.AISLAMIENTO_DATABASE_URL?.trim() || process.env.ERP_TEST_PG_URL?.trim();
   if (!servidor) {
     const aviso =
-      "AISLAMIENTO_DATABASE_URL no está puesta: el aislamiento de los flags del pool queda SIN verificar. " +
+      "Ni AISLAMIENTO_DATABASE_URL ni ERP_TEST_PG_URL están puestas: el aislamiento de los flags del pool queda SIN verificar. " +
       "Apuntala a un Postgres LOCAL (nunca Neon), p. ej. postgresql://postgres@localhost:5433/postgres?host=/tmp/pgrun";
+    // En CI no se saltea en silencio (misma regla que src/test/base-efimera.ts).
+    if (process.env.CI) assert.fail(aviso);
     console.warn(`[aislamiento-flags-pool] ${aviso}`);
     t.skip(aviso);
     return;
