@@ -12,6 +12,9 @@ import { PIEL_RENGLON } from "@/lib/diseno/diseno";
 import { ConDiseno } from "@/lib/diseno/ConDiseno";
 import HojaDeIngreso, { RAIZ_HOJA_DE_INGRESO } from "../login/HojaDeIngreso";
 import { folioDelDia } from "../login/login-core";
+import SelloGSG from "@/components/marca/SelloGSG";
+import { IsotipoProducto } from "@/components/marca/IsotipoProducto";
+import { MarcaDeAgua } from "@/components/marca/MarcaDeAgua";
 
 // Vive FUERA de (dashboard) a propósito (como /admin/login): el proxy exige sesión válida para
 // llegar, pero NO hereda el layout del dashboard → el portón de cambio forzado que redirige acá
@@ -40,6 +43,8 @@ export default async function CambiarPasswordPage({
   const accentDark = resolveAccent(preset, "dark");
   const { nombre: marcaNombre, monograma: marcaMonograma } = marcaDelNegocio(brand, identidad);
   const nuevo = await disenoP;
+  // Marca de agua de GSG SÓLO en un producto de GSG; en un negocio cliente `identidad` es null.
+  const marcaDeAgua = identidad != null;
 
   return (
     <main
@@ -57,13 +62,14 @@ export default async function CambiarPasswordPage({
         } as CSSProperties
       }
       // Diseño nuevo: la misma hoja que el ingreso, anclada arriba. Apagado, la clase de siempre.
-      className={
+      className={`${marcaDeAgua ? "isolate " : ""}${
         nuevo
           ? `${RAIZ_HOJA_DE_INGRESO} ${FUENTES_PANEL}`
           : `min-h-screen flex flex-col items-center justify-center bg-surface text-body px-4 py-10 sm:px-6 ${FUENTES_PANEL}`
-      }
+      }`}
     >
       <AdminThemeScript nuevo={nuevo} />
+      {marcaDeAgua && <MarcaDeAgua />}
 
       {/* Diseño nuevo: sus hojas y `useDiseno()`. Apagado devuelve este único hijo tal cual. */}
       <ConDiseno nuevo={nuevo}>
@@ -71,6 +77,7 @@ export default async function CambiarPasswordPage({
           <HojaDeIngreso
             marcaNombre={marcaNombre}
             marcaMonograma={marcaMonograma}
+            producto={identidad?.producto}
             hoy={folioDelDia(new Date())}
             lema={identidad?.tagline}
           >
@@ -90,6 +97,9 @@ export default async function CambiarPasswordPage({
         ) : (
         <div className="w-full max-w-sm">
           <div className="mb-6 flex flex-col items-center text-center">
+            {identidad ? (
+              <IsotipoProducto producto={identidad.producto} tamano={48} className="text-strong" />
+            ) : (
             <span className="relative grid h-12 w-12 place-items-center">
               <span aria-hidden className="absolute inset-0 rounded-xl bg-accent opacity-20 blur-lg" />
               <span
@@ -99,6 +109,7 @@ export default async function CambiarPasswordPage({
                 {marcaMonograma}
               </span>
             </span>
+            )}
             <p className="mt-3 text-sm font-medium text-muted">{marcaNombre}</p>
           </div>
 
@@ -117,7 +128,7 @@ export default async function CambiarPasswordPage({
             <ChangePasswordForm status={status} />
           </section>
 
-          <p className="mt-6 text-center text-xs text-faint">Con tecnología de Gestión Studio Grow</p>
+          <SelloGSG className="mt-6" />
         </div>
         )}
       </ConDiseno>

@@ -103,7 +103,7 @@ const IDENTIDADES: Record<ProductoConMarca, ProductoIdentidad> = {
     producto: "facturita",
     nombre: "Factoque",
     monograma: "F",
-    acento: "monte",
+    acento: "cobre", // marca F06-A (09/11/2026): el cobre de GSG; antes «monte», el verde del carpincho
     tagline: "Emití tu factura en tres clics, con validez de ARCA.",
     home: "/facturita/app",
     login: {

@@ -22,6 +22,7 @@ import { folioDelDia } from "./admin/login/login-core";
 import { getCurrentTenantSlug } from "@/lib/tenant-site";
 import { noEncontradaDeLaVidriera, noEncontradaPara } from "./no-encontrada-core";
 import { chConDisenoNuevo } from "./(site)/_ch/diseno-ch.server";
+import { IsotipoGSG } from "@/components/marca/MarcaGSG";
 
 export default async function NoEncontrada() {
   const ruta = (await headers()).get("x-pathname");
@@ -80,6 +81,8 @@ export default async function NoEncontrada() {
         <HojaDeIngreso
           marcaNombre={brand ? brand.name : "Consola GSG"}
           marcaMonograma={brand ? brand.monogram : "G"}
+          // Sin negocio la página es de GSG: el isotipo madre en vez de la «G».
+          isotipo={brand ? undefined : <IsotipoGSG tamano={36} className="shrink-0 text-strong" />}
           hoy={folioDelDia(new Date())}
           lema={brand ? undefined : "Gestión Studio Grow"}
         >

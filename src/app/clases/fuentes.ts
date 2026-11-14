@@ -5,19 +5,23 @@
 // común ni a otras vidrieras. Se precarga sólo la condensada (la del H1, candidato a LCP); el
 // respaldo con métricas ajustadas que arma Next sobre Arial deja el CLS en 0 mientras llegan.
 
-import { Barlow, Barlow_Condensed } from "next/font/google";
+import localFont from "next/font/local";
 
-export const barlowCondensada = Barlow_Condensed({
-  subsets: ["latin"],
-  weight: ["700", "800"],
+export const barlowCondensada = localFont({
+  src: [
+    { path: "../../fonts/barlow-condensed/barlow-condensed-latin-700-normal.woff2", weight: "700", style: "normal" },
+    { path: "../../fonts/barlow-condensed/barlow-condensed-latin-800-normal.woff2", weight: "800", style: "normal" },
+  ],
   display: "swap",
   preload: true,
   variable: "--pz-fuente-display",
 });
 
-export const barlow = Barlow({
-  subsets: ["latin"],
-  weight: ["400", "600"],
+export const barlow = localFont({
+  src: [
+    { path: "../../fonts/barlow/barlow-latin-400-normal.woff2", weight: "400", style: "normal" },
+    { path: "../../fonts/barlow/barlow-latin-600-normal.woff2", weight: "600", style: "normal" },
+  ],
   display: "swap",
   preload: false,
   variable: "--pz-fuente-cuerpo",

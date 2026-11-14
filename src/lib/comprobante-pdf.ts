@@ -668,6 +668,8 @@ export async function generarComprobantePdf(d: DatosComprobanteImpreso): Promise
       lz.texto(h, "ORIGINAL", ANCHO / 2, 808, { tam: 10, negrita: true, alinear: "centro" });
     }
     lz.texto(h, `Hoja ${i + 1} de ${hojas.length}`, ANCHO / 2, 24, { tam: 8, color: GRIS, alinear: "centro" });
+    // Respaldo de la plataforma, chico y al costado: la marca y los datos fiscales del comprobante son del negocio.
+    lz.texto(h, "Hecho con Gestión Studio Grow", ANCHO - M, 24, { tam: 6.5, color: GRIS, alinear: "der" });
     if (!valida) {
       lz.texto(h, "SIN AUTORIZACIÓN DE ARCA EN PRODUCCIÓN: ESTE COMPROBANTE NO TIENE VALIDEZ FISCAL", ANCHO / 2, 826, { tam: 9, negrita: true, color: ROJO, alinear: "centro" });
     }

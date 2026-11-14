@@ -15,6 +15,7 @@ import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import { PIEL_RENGLON } from "@/lib/diseno/diseno";
 import { ConDiseno } from "@/lib/diseno/ConDiseno";
 import { requireUser } from "@/lib/authz";
+import SelloGSG from "@/components/marca/SelloGSG";
 
 export const metadata: Metadata = {
   title: "Factoque",
@@ -90,8 +91,8 @@ export default async function FacturitaLayout({ children }: { children: React.Re
         {/* Diseño nuevo: sus hojas y `useDiseno()`. Apagado devuelve lo de adentro tal cual. */}
         <ConDiseno nuevo={nuevo}>{children}</ConDiseno>
       </main>
-      <footer className="mx-auto max-w-3xl border-t border-line px-4 pb-6 pt-4 text-center text-xs text-faint">
-        Con tecnología de Gestión Studio Grow
+      <footer className="mx-auto max-w-3xl border-t border-line px-4 pb-6 pt-4">
+        <SelloGSG />
       </footer>
     </div>
   );
