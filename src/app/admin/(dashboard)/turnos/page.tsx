@@ -190,10 +190,10 @@ export default async function TurnosCalendarPage({
       </div>
       {/* Pestañas: en el celular llevan el alto táctil (44 px) sin cambiar cómo se ven en la PC. */}
       <div className="flex gap-4 text-sm mb-6 border-b border-line">
-        <Link href="/admin/turnos" className="px-1 pb-2 border-b-2 border-accent text-strong font-medium max-sm:inline-flex max-sm:min-h-11 max-sm:items-end">
+        <Link href="/admin/turnos" className="px-1 pb-2 border-b-2 border-accent text-strong font-medium max-sm:inline-flex max-sm:min-h-11 max-sm:min-w-11 max-sm:items-end max-sm:justify-center">
           Calendario
         </Link>
-        <Link href="/admin/turnos/lista" className="px-1 pb-2 text-muted hover:text-strong max-sm:inline-flex max-sm:min-h-11 max-sm:items-end">
+        <Link href="/admin/turnos/lista" className="px-1 pb-2 text-muted hover:text-strong max-sm:inline-flex max-sm:min-h-11 max-sm:min-w-11 max-sm:items-end max-sm:justify-center">
           Lista
         </Link>
       </div>
