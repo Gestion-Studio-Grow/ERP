@@ -148,12 +148,17 @@ export async function auditarAvisoMPEnTx(
 
 /**
  * Como `auditarAvisoMPEnTx`, pero una sola fila por pago: si ya hay una con esa acción para ese turno y
- * ese pago de MP (`changes.pagoMP.id`), no agrega otra. MP reenvía el mismo aviso varias veces.
+ * ese pago de MP (`changes.pagoMP.id`), no agrega otra. MP reenvía el mismo aviso varias veces, y a
+ * veces A LA VEZ (#T7): el árbitro es la base. Antes de mirar se toma un candado transaccional por
+ * (negocio, turno, acción, pago); la segunda transacción espera a que la primera termine y ya ve su
+ * fila. Sin el candado, en READ COMMITTED las dos leían «no hay» y las dos escribían.
  */
 export async function auditarAvisoMPUnaVezEnTx(
-  tx: Pick<Tx, "auditLog">,
+  tx: Pick<Tx, "auditLog" | "$executeRaw">,
   e: { tenantId: string; appointmentId: string; action: string; pagoId: string; changes: Record<string, unknown> },
 ): Promise<boolean> {
+  const clave = `aviso-mp:${e.tenantId}:${e.appointmentId}:${e.action}:${e.pagoId}`;
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${clave}, 0))`;
   const ya = await tx.auditLog.findFirst({
     where: { tenantId: e.tenantId, entity: "Appointment", entityId: e.appointmentId, action: e.action, changes: { path: ["pagoMP", "id"], equals: e.pagoId } },
     select: { id: true },
@@ -243,7 +248,7 @@ export async function aplicarPagoMPDelTurnoEnTx(
       } catch (e) {
         if (!(e instanceof CobroTurnoRechazado)) throw e;
         // Nada se escribió (la validación y el día cerrado van antes de crear): queda el aviso.
-        await auditarAvisoMPEnTx(tx, { tenantId, appointmentId, action: ACCION_SENIA_MP_NO_REGISTRADA, changes: { pagoMP, motivo: e.message } });
+        await auditarAvisoMPUnaVezEnTx(tx, { tenantId, appointmentId, action: ACCION_SENIA_MP_NO_REGISTRADA, pagoId: pago.id, changes: { pagoMP, motivo: e.message } });
         return { accion: "rechazado", motivo: e.message };
       }
       if (!r.applied) return { accion: "ya-registrado" };

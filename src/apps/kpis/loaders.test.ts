@@ -73,8 +73,10 @@ function ctx(db: DbKpi, extra: Partial<ContextoLoader> = {}): ContextoLoader {
  * excepciones, aceptadas por plataforma, cada una con su porqué en el loader:
  *   · cierre-del-dia, 2: la frontera del cierre es el corte inicial Y el último cierre, las dos
  *     lecturas de la pantalla (frontera-cierre.ts); ver finanzas.server.ts.
- *   · facturacion, 2: el total y los rechazados salen de un groupBy por estado, y "anuladas con
- *     factura" es un filtro por relación que un groupBy no expresa; ver finanzas.server.ts.
+ *   · facturacion, 3: el total y los rechazados salen de un groupBy por estado, y "anuladas con
+ *     factura" es un filtro por relación que un groupBy no expresa; ver finanzas.server.ts. La
+ *     tercera (#T7) son las notas de crédito rechazadas por ARCA, de cualquier mes; sólo si hay
+ *     alguna se lee una cuarta (la marca de «ya se volvió a emitir»): su test, abajo.
  *   · mermas, 3: los ajustes del mes, quiénes son recepción ("N por recepción") y, sólo con
  *     plata, la venta cobrada del mes ("% de la venta"), en paralelo; ver logistica.server.ts.
  *   · etiquetas-de-precio, 2: los cambios salen de la auditoría y "sigue en el catálogo con
@@ -87,7 +89,7 @@ function ctx(db: DbKpi, extra: Partial<ContextoLoader> = {}): ContextoLoader {
  */
 const CONSULTAS_ESPERADAS: Record<string, number> = {
   "cierre-del-dia": 2,
-  facturacion: 2,
+  facturacion: 3,
   mermas: 3,
   "etiquetas-de-precio": 2,
   "para-contactar-hoy": 2,
@@ -287,6 +289,32 @@ test("Facturación: el mes de la facturación automática y del contador, con lo
     detalle: "comprobantes este mes · 1 rechazado por ARCA",
   });
   assert.deepEqual(llamadas[0].args.where, { tenantId: "t-qa", ...filtrosFacturacionMes(ahora).emitido });
+});
+
+test("Facturación (#T7): una nota de crédito rechazada por ARCA sin volver a emitir es la alerta; 5 consultas, todas del negocio", async () => {
+  const rechazada = (id: string) => ({
+    id,
+    total: 5000,
+    rechazoMotivo: "10016: fecha",
+    createdAt: new Date("2026-09-20T10:00:00Z"),
+    comprobanteAsociado: { id: `f-${id}`, puntoVenta: 2, numero: 123, total: 18000, notasAsociadas: [] },
+  });
+  const { db, llamadas } = dbFalsa({
+    "invoice.groupBy": [{ status: "AUTHORIZED", _count: { _all: 3 } }],
+    "invoice.count": 2,
+    "invoice.findMany": [rechazada("nc-1"), rechazada("nc-2")],
+    // nc-2 ya se volvió a emitir: no cuenta.
+    "auditLog.findMany": [{ entityId: "nc-2" }],
+  });
+  assert.deepEqual(await facturacion(ctx(db)), {
+    valor: "3",
+    detalle: "comprobantes este mes",
+    alerta: { valor: "1", texto: "nota de crédito rechazada por ARCA · y 2 ventas anuladas con factura sin nota de crédito" },
+  });
+  // ids de las rechazadas → marcas de cerradas → detalle de las abiertas (tope de 50 DESPUÉS de filtrar).
+  assert.equal(llamadas.length, CONSULTAS_ESPERADAS.facturacion + 2);
+  for (const l of llamadas) assert.equal(l.args.where?.tenantId, "t-qa");
+  assert.deepEqual(llamadas.at(-1)?.args.where?.id, { in: ["nc-1"] });
 });
 
 test("Campañas: si la tabla no está en la base, '—' con el motivo; cualquier otro error sube", async () => {

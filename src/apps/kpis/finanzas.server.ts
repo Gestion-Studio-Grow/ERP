@@ -28,6 +28,8 @@ import { businessWallTimeToUtc, dateStrInBusinessTz, fmtTime } from "@/lib/datet
 import { lastClosedDayTx } from "@/lib/caja/frontera-cierre";
 import { formatDayLabel } from "@/lib/caja/cierre-diario";
 import { filtrosFacturacionMes } from "@/lib/bancos-glue";
+import { notasDeCreditoRechazadasSinReemitir } from "@/lib/facturacion/nc-rechazadas.server";
+import { TEXTO_NC_RECHAZADA } from "@/lib/facturacion/nc-rechazadas-core";
 import { bordesDelPeriodo } from "@/lib/report-ingresos";
 import { DEFAULT_REPORT_RANGE_DAYS } from "@/lib/report-config";
 import { saldoIvaDesdeGrupos, whereAnuladasConFactura, whereComprobantesDelMes } from "@/lib/libros/libro-iva";
@@ -136,13 +138,15 @@ function diasEntre(desde: string, hasta: string): number {
  */
 export const facturacion: LoaderKpi = async ({ db, tenantId, ahora }) => {
   const { emitido } = filtrosFacturacionMes(ahora);
-  const [grupos, anuladas] = await Promise.all([
+  const [grupos, anuladas, ncRechazadas] = await Promise.all([
     db.invoice.groupBy({
       by: ["status"],
       where: { tenantId, ...emitido },
       _count: { _all: true },
     }),
     db.invoice.count({ where: whereAnuladasConFactura(tenantId, emitido) }),
+    // #T7 · de cualquier mes: una nota rechazada no se va sola cuando termina el mes.
+    notasDeCreditoRechazadasSinReemitir(db, tenantId),
   ]);
   const total = grupos.reduce((s, g) => s + g._count._all, 0);
   const rechazados = grupos.find((g) => g.status === "REJECTED")?._count._all ?? 0;
@@ -150,6 +154,17 @@ export const facturacion: LoaderKpi = async ({ db, tenantId, ahora }) => {
   const valor = fmtNumberAR(total);
   const detalle =
     rechazados > 0 ? `${base} · ${fmtNumberAR(rechazados)} ${plural(rechazados, "rechazado", "rechazados")} por ARCA` : base;
+  if (ncRechazadas.length > 0) {
+    const n = ncRechazadas.length;
+    return {
+      valor,
+      detalle,
+      alerta: {
+        valor: fmtNumberAR(n),
+        texto: `${plural(n, TEXTO_NC_RECHAZADA.uno, TEXTO_NC_RECHAZADA.varias)}${anuladas > 0 ? ` · y ${fmtNumberAR(anuladas)} ${plural(anuladas, "venta anulada", "ventas anuladas")} con factura sin nota de crédito` : ""}`,
+      },
+    };
+  }
   if (anuladas === 0) return { valor, detalle };
   return {
     valor,

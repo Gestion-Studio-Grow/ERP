@@ -27,7 +27,6 @@ import {
   DEPS_SENIA_MP,
   SeniaMPRechazada,
   aplicarPagoMPDelTurnoEnTx,
-  auditarAvisoMPEnTx,
   auditarAvisoMPUnaVezEnTx,
   netoDelPagoMP,
   type DepsSeniaMPTx,
@@ -97,10 +96,11 @@ export async function aplicarPagoMPDelTurno(
     // El ajuste de una devolución parcial no se pudo completar: la tx se deshizo entera; queda el aviso.
     await deps.transaccion(
       (tx) =>
-        auditarAvisoMPEnTx(tx, {
+        auditarAvisoMPUnaVezEnTx(tx, {
           tenantId,
           appointmentId,
           action: ACCION_SENIA_MP_NO_REGISTRADA,
+          pagoId: pago.id,
           changes: { pagoMP: { id: pago.id, estado: pago.estado, monto: pago.monto }, motivo: e.motivo },
         }),
       { tenantId },
@@ -150,7 +150,8 @@ export async function avisarSeniaMPFallida(
     await deps.transaccion(
       async (tx) => {
         if (!devuelto) {
-          await auditarAvisoMPEnTx(tx, { tenantId, appointmentId, action: ACCION_SENIA_MP_NO_REGISTRADA, changes: { pagoMP, motivo: `error inesperado: ${motivo}` } });
+          // Una sola fila por pago, también en carrera (#T7): MP reintenta y a veces manda dos a la vez.
+          await auditarAvisoMPUnaVezEnTx(tx, { tenantId, appointmentId, action: ACCION_SENIA_MP_NO_REGISTRADA, pagoId: pago.id, changes: { pagoMP, motivo: `error inesperado: ${motivo}` } });
           return;
         }
         const sinLeer = regla === null ? { reglaSinLeer: true } : {};

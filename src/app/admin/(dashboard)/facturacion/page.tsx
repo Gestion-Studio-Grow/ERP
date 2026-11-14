@@ -28,6 +28,10 @@ import { leerPuestaAPunto } from "@/lib/facturacion/puesta-a-punto.server";
 import { serviciosParaFacturar } from "@/lib/facturacion/servicios-del-negocio.server";
 import PuestaAPunto, { CabeceraDePuesta } from "@/components/facturacion/PuestaAPunto";
 import FacturaDePrueba from "./FacturaDePrueba";
+import NotasRechazadas from "./NotasRechazadas";
+import { tenantTransaction } from "@/lib/rls";
+import { logger } from "@/lib/logger";
+import { notasDeCreditoRechazadasSinReemitir } from "@/lib/facturacion/nc-rechazadas.server";
 import {
   cargarCertificadoArcaAction,
   generarPedidoArcaAction,
@@ -77,6 +81,8 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
   const conLista = !conLink && !conArca && !conEmitir;
   const asistente = conArca || (conLista && negocioId) ? await leerAsistenteDelCliente(sp, estado.facturaDePrueba, conArca) : null;
   const banner = conLista && asistente && !asistente.puesta.listo ? <div className="mb-4"><CabeceraDePuesta puesta={asistente.puesta} comoBanner /></div> : null;
+  // #T7: las notas de crédito que ARCA rechazó y nadie resolvió (cualquier mes), arriba de la lista.
+  const rechazadas = conLista && estado.hayComprobantes ? await notasRechazadasDelNegocio(negocioId ?? (await getCurrentTenantId())) : [];
   const links = linksPedidos ?? (conLink ? await getLinksDeCobro(sp) : null);
   const listaDeLinks = links && <LinksDeCobro pagina={links.pagina} filtros={links.filtros} fallo={links.fallo} />;
   const hoy = todayInBusinessTz();
@@ -103,6 +109,7 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
   ) : (
     <>
       {banner}
+      <NotasRechazadas notas={rechazadas} />
       <ComprobantesArca lista={lista} filtros={filtros} estado={estado} hoy={hoy} fallo={fallo} />
     </>
   );
@@ -166,6 +173,17 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
       {aviso}
     </PageContainer>
   );
+}
+
+/** Sin la lista no se cae la página: el aviso del Inicio sigue avisando. */
+async function notasRechazadasDelNegocio(tenantId: string) {
+  try {
+    const notas = await tenantTransaction((tx) => notasDeCreditoRechazadasSinReemitir(tx, tenantId), { tenantId });
+    return notas.map(({ notaId, factura, importe, saldoDeLaFactura, motivoArca }) => ({ notaId, factura, importe, saldoDeLaFactura, motivoArca }));
+  } catch (e) {
+    logger.error("facturacion", "no se pudo leer las notas de crédito rechazadas", e, { tenantId });
+    return [];
+  }
 }
 
 const primero = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);

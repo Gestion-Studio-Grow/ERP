@@ -15,6 +15,7 @@
 import type { AppDescriptor } from "@/apps/contract";
 // Mayúscula inicial en código, no en CSS: «Jueves 24 De Septiembre» fue un defecto.
 import { mayuscula } from "@/lib/texto";
+import { TEXTO_NC_RECHAZADA } from "@/lib/facturacion/nc-rechazadas-core";
 import type { ResultadoKpi } from "@/apps/kpis/nucleo.server";
 
 export type Objetivo = "cobrar" | "preparar" | "cerrar" | "reponer" | "facturar" | "revisar";
@@ -255,7 +256,10 @@ const REGLAS: Record<string, (r: Ok, app: AppMin, destinos: ReadonlyMap<string, 
             app: app.id,
             folio: r.alerta.valor,
             titulo: mayuscula(r.alerta.texto),
-            detalle: "La nota de crédito todavía no se emite desde el sistema: hacela en ARCA",
+            // #T7 · la nota rechazada se vuelve a emitir desde Facturación (con un botón).
+            detalle: r.alerta.texto.startsWith(TEXTO_NC_RECHAZADA.uno) || r.alerta.texto.startsWith(TEXTO_NC_RECHAZADA.varias)
+              ? "ARCA no la aceptó y la factura sigue vigente: volvé a emitirla desde Facturación"
+              : "La nota de crédito todavía no se emite desde el sistema: hacela en ARCA",
             tecla: { texto: "Ver las facturas", href: app.ruta },
           },
         ]
