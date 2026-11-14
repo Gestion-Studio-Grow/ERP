@@ -9,17 +9,17 @@
 | # | Invariante | Quién lo garantiza (base, no sólo código) |
 |---|---|---|
 | **I1** | **Un movimiento, a lo sumo una factura viva.** | Índice único `CobroFacturado(tenantId, clave)` + candado por clave (`tomarClaves`) + claim `lista → emitida`. Una factura RECHAZADA no cuenta (se puede volver a emitir y la fila apunta a la nueva, regla vigente). |
-| **I2** | **El mismo extracto dos veces no duplica.** | Único `ImportacionBancaria(tenantId, sha256)` (archivo) + único `MovimientoImportado(tenantId, clave)` con ordinal (movimiento). Solapes resueltos por la clave (`02-diseno.md` §3). |
-| **I3** | **Dos cobros legítimos iguales dan dos facturas.** | Ordinal `#n` en la clave. Arregla H1 (hoy se pierde el segundo). |
-| **I4** | **Un pago de MP, una factura**, venga por el aviso, por la conexión o por el CSV de actividad. | Clave `mp:<id de operación>` en los tres caminos; la de banco que liquida MP se clasifica «no es venta». |
+| **I2** | **El mismo extracto dos veces no duplica** (ni en otro formato, ni pasado por Excel, ni solapado). | Único `ImportacionBancaria(tenantId, sha256)` (archivo) + clave sin leyenda ni referencia y recuento por (cuenta, día, importe): lo que excede a lo cargado va a revisar, nunca solo (`02-diseno.md` §3). En la base, `hash = clave` sobre el único `MovimientoImportado(tenantId, hash)` existente. |
+| **I3** | **Dos cobros legítimos iguales dan dos facturas.** | Ordinal `#n` en la clave y deduplicación de `reglas.ts` por clave (B2). Arregla H1 (hoy se pierde el segundo). Si el día ya estaba cargado, el de más va a revisar: no se pierde. |
+| **I4** | **Un pago de MP, una factura, por el bruto**, venga por el aviso, por la conexión o por el CSV de actividad. | Clave `mp:<id de operación>` en los tres caminos (sólo en cuentas de MP); del CSV sólo el id, importe bruto de la operación. En Factoque, una sola vía de emisión automática (03 §5.1). La liquidación de MP en el banco es «no es venta» sólo con MP del período cargado. |
 | **I5** | **Lo emitido sólo se deshace con nota de crédito.** | Comprobante autorizado inmutable (test existente `comprobante-autorizado-inmutable-postgres.test.ts`). El agente no tiene la tarea `anular` (techo 3). Ningún `DELETE` sobre `Invoice` ni `CobroFacturado` en el camino del agente. |
 | **I6** | **El cupo del plan no se pasa nunca**, ni con lotes en paralelo ni con manual + lote. | Candado `facturita-cupo:` y recuento **dentro** de la transacción en el camino del agente. Arregla H2 también para el producto A. |
 | **I7** | **Los topes de la autorización no se pasan.** | Contador atómico `UPDATE ... WHERE monto + x <= tope` en la misma transacción que la factura. |
-| **I8** | **Sin autorización viva, el agente no emite.** | La autorización se lee dentro de la transacción de emisión; disparador `irreversible` (revocar no se deshace). |
+| **I8** | **Sin autorización viva, el agente no emite.** | La autorización se lee dentro de la transacción de emisión con `FOR SHARE`, junto con los frenos; disparador `irreversible` (revocar no se deshace). |
 | **I9** | **El importe de la factura es el del movimiento**, al centavo. | Lo copia el código; IVA con `calcularImpuestos`; redondeos con `@/lib/dinero/redondeo`. La IA no escribe importes. |
 | **I10** | **Ninguna factura sale con fecha fuera de lo que ARCA acepta.** | Fecha = cobro, o la más vieja permitida (ventana 5/10 días) y nunca anterior a la última autorizada del punto de venta y tipo. *A verificar en homologación.* |
 | **I11** | **Aislamiento por negocio.** | RLS `tenant_isolation` en las tablas nuevas; FK de dos columnas `(tenantId, conceptoId)`; nada con `operatorPrisma`. |
-| **I12** | **Un archivo con columnas mal leídas no emite.** | Prueba de saldos antes de proponer; si no cierra, todo a «Para revisar». |
+| **I12** | **Un archivo con columnas mal leídas no emite.** | Prueba de saldos por día y en el sentido del archivo; si no cierra, todo a «Para revisar». Un archivo sin saldo no emite solo (nivel 1). |
 | **I13** | **Debajo del umbral de identificación, solo; arriba, persona.** | `UMBRAL_IDENTIFICACION_CONSUMIDOR_FINAL` (vigencias) y el tope `importe_max_por_factura` por debajo. |
 
 ## 2. Orden de candados (anti abrazo mortal)
@@ -50,6 +50,14 @@ Si se les suma el cupo (arreglo de H2), tiene que ir **antes**. Lo verifica el t
 | C14 | El plan vence (o baja) a mitad del mes con un lote corriendo | Rige el cupo nuevo desde la transacción siguiente. |
 | C15 | Aviso de MP + lote + manual, los tres a la vez | Sin abrazo mortal (timeout del test = falla); orden de candados del §2. |
 | C16 | Negocio A sube un extracto con una contraparte que es regla del negocio B | No coincide; RLS probada con el rol de la app (no con el dueño de las tablas). |
+| C17 | El mismo período en dos formatos (leyenda recortada, referencia en notación científica de Excel) | Cero facturas nuevas en la segunda subida. |
+| C18 | Primero un archivo que corta el día a la mañana; después el día completo con un cobro igual a la tarde | El de la tarde va a «Para revisar» (`posible_repetido`): ni perdido ni duplicado. |
+| C19 | CSV de MP con varias filas del mismo id (cobro, comisión, retención) | Una factura por el bruto; si no cierra, a revisar. |
+| C20 | Negocio Factoque Gratis con MP en modo `automatico` y 5 facturas ya emitidas | Ninguna factura más por `mercadopago-auto`; el pago entra como movimiento y el lote lo frena por cupo (5). |
+| C21 | Extracto por WhatsApp de un teléfono que no es de un usuario con permiso | Propuestas en nivel 1; nada sale solo. |
+| C22 | Dos cuotas iguales en días seguidos y una factura manual del mismo importe | Una sola va a `posible_duplicado`; la otra sigue. Las cuotas no se marcan entre sí. |
+| C23 | Un freno (tope menor) cargado a mitad de un lote | Rige desde la transacción siguiente. |
+| C24 | ARCA rechaza una factura emitida por el agente | Los contadores de la autorización devuelven el lugar (o se cuentan sólo las no rechazadas); el cobro puede volver a emitirse una vez. |
 
 **Determinismo:** fechas con reloj inyectado, sin `sleep`; las carreras se fuerzan con dos conexiones y un candado
 de prueba (patrón `topes-carrera-postgres.test.ts` de `agentes/tanda-1`).

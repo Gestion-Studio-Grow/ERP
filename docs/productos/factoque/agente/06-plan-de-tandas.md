@@ -9,7 +9,7 @@
 |---|---|---|---|---|
 | 1 | Núcleo determinista: conceptos y reglas (puro), clave con ordinal, prueba de saldos, migración aditiva escrita | — | plata | sí |
 | 2a | Emisión del lote de Factoque con cupo, fecha y libro de cobros + tests de carrera | 1 | plata, concurrencia | sí |
-| 2b | Arreglo de H2 en el producto A (`emitirPropuestas`, MP automático) | — | plata, concurrencia | sí |
+| 2b | Arreglo de H2, H7 y H8 en el producto A (`emitirPropuestas`, MP automático) | — | plata, concurrencia | sí |
 | 3 | Pantallas de Factoque detrás de interruptor (conceptos, subir, «Para revisar», lote) en nivel 1 | 1, 2a, D0, D2 | visual | revisión liviana + QA clic por clic |
 | 4 | Encaje en el motor: puesto, `emitir_por_regla`, topes, autorización (nivel 2) | 2a, enmienda del motor, MIA-019, D1, D5 | plata, seguridad | sí |
 | 5 | IA: sugerencia en «Para revisar», mapeo asistido, redactar regla; batería de 300 casos con reservados | 4, D3 | datos | sí |
@@ -26,13 +26,15 @@ Hacé, en src/lib/factoque/agente/ (archivos *-core.ts, puros, sin Prisma):
    {tipo:"concepto",conceptoId,version} | {tipo:"sin_concepto"} | {tipo:"ambiguo",ids}. Todas las reglas se
    evalúan; nunca gana por orden. Validación de regla: rechaza regla vacía, sólo-importe "cualquiera" y débitos.
    Normalizá con normalizarTexto (src/plugins/bancos/domain/valores.ts:27). CUIT con dígito verificador (src/lib/cuit).
-2. clave-core.ts: clave "mov:<cuenta>:<sha256>#n" con n = ocurrencia de la base en (cuenta, fecha) en orden
-   del archivo; con referencia de MP, "mp:<id>". Importes en centavos (@/lib/dinero/redondeo).
-3. saldos-core.ts: prueba saldo anterior + movimientos = saldo de cada renglón; tolerancia 0 centavos.
+2. clave-core.ts: base = cuenta|fecha|importe en centavos (SIN leyenda ni referencia); clave
+   "mov:<cuenta>:<sha256>#n". Recuento por (cuenta,día,importe): k cargadas, m en el archivo; k=0 nuevas,
+   m<=k nada, m>k el excedente a revisar ("posible_repetido"). "mp:<id>" sólo en cuenta de MP.
+   Importes con @/lib/dinero/redondeo. En reglas.ts:147 y :160, deduplicar por clave; filas nuevas hash=clave.
+3. saldos-core.ts: detecta el sentido del archivo y prueba saldos por día, tolerancia 0; sin saldo -> nivel 1.
 4. Migración aditiva SIN aplicar en prisma/migrations/<timestamp>_factoque_conceptos/ con las tablas de §7,
    RLS tenant_isolation, FK de dos columnas, únicos parciales. Revisá colisión de timestamp. Schema.prisma acorde.
-Tests (node --import tsx --test): ambiguo, sin concepto, dos cobros iguales -> #1 y #2, mismo archivo -> mismas
-claves, solape con día cortado -> sólo el nuevo, saldos que no cierran, regla inválida.
+Tests puros: ambiguo, sin concepto, regla inválida, saldos al revés, C17, C18. En Postgres: dos cobros iguales
+-> dos filas (hash único existente), mismo archivo -> cero.
 Verificación: npx tsc --noEmit y los tests, sólo el resumen n/n. Commit por pathspec, trailer GSG, sin push.
 Informe ≤300 palabras: qué, n/n, archivo:línea, pendientes.
 ```
@@ -50,7 +52,9 @@ claim lista->emitida -> facturarCobrosInTx con concepto/receptor/alícuota del c
 Fecha: la del cobro dentro de ventanaDeFechaArca; si no, la más vieja permitida y nunca anterior a la última
 factura del punto de venta y tipo (marcá la regla "a verificar en homologación"). Despacho fuera de la tx.
 Sin agentes todavía: el lote lo dispara una persona (nivel 1).
-Tests *-postgres.test.ts con dos conexiones: C1-C7, C10, C11, C13-C16 de 04-plata-y-fiscal.md §3. Reloj inyectado,
+Vencimiento = máx(cobro, factura); "última fecha" = última factura no rechazada (con pendientes del outbox).
+posible_duplicado sólo contra facturas fuera del libro, cada una una vez. MP de un Factoque entra acá (03 §5.1).
+Tests Postgres dos conexiones: C1-C7, C10, C11, C13-C16, C19, C20, C22 de 04 §3. Reloj inyectado,
 sin sleep. Verificación: tsc + tests, sólo resumen n/n. Commit por pathspec, sin push. Informe ≤300 palabras.
 ```
 
@@ -62,7 +66,9 @@ Problema (docs/productos/factoque/agente/01-relevamiento.md §6, H2): emitirProp
 una vez y fuera de candado (src/lib/bancos-glue.ts:686, :711-715) y mercadopago-auto.ts:284 igual. Dos lotes, o un
 lote y una manual, pasan el tope del plan.
 Hacé: en cada emisión automática, dentro de la tenantTransaction de la factura, tomar facturita-cupo:<tenant>
-ANTES de cualquier cobro-facturado:<clave>, y recontar el cupo ahí (mismo where que contarFacturasDelMes). Si no
+ANTES de cualquier cobro-facturado:<clave>, y recontar el cupo ahí (mismo where que contarFacturasDelMes). Tope:
+planFactoqueEnTx si el negocio es Factoque (molde cartera-abonos.ts:275-276), si no capFacturasMesDelNegocioEnTx
+(limites-del-negocio-en-tx.ts:33, hoy da 159 para Factoque: H7). "mp:" sólo en cuentas de MP (bancos-glue.ts:744). Si no
 entra, la propuesta queda en revisión con el motivo del tope de hoy. No cambies textos ni pantallas.
 Revisá que ningún camino tome cobro-facturado antes que facturita-cupo (lista los llamadores de tomarClaves).
 Tests Postgres con dos conexiones: dos emitirPropuestas a la vez en tope-1; emitirPropuestas + emitirComprobanteManual
@@ -80,8 +86,8 @@ Hacé, en src/app/facturita/app/, detrás de un interruptor en src/cambios/inter
 1. Conceptos: lista y alta desde «Mis productos» (src/app/facturita/app/MisProductos.tsx); reglas con ejemplo en
    vivo sobre el último extracto. 2. Subir extracto (reusá src/plugins/bancos/handler.ts:97). 3. «Para revisar»:
    tarjetas de a una, tres toques (molde src/app/admin/(dashboard)/facturacion/bancos/PropuestaTresToques.tsx).
-4. Lote: «Facturar N por $X», llama a emitir-lote.server.ts. Server components por defecto; acciones con
-   requireTenantFacturita (src/lib/facturita-actions.ts).
+4. Lote: «Facturar N por $X», llama a emitir-lote.server.ts. Server components por defecto; acciones con la
+   barrera de Factoque (requireTenantFacturita, src/lib/facturita-actions.ts:59, hoy no exportada: exportala).
 Verificación: tsc + tests de lógica de pantalla (patrón *-pantalla.test.ts) resumen n/n; QA clic por clic escrito
 (celular 390 px y compu) en el informe; capturas con visual-verifier al scratchpad, nada binario en Git.
 Commit por pathspec, sin push. Informe ≤300 palabras.
@@ -96,10 +102,10 @@ Lee: docs/productos/factoque/agente/03-encaje-motor.md §2, §3, §5, §6. Del m
 Hacé: puesto facturacion.factoque (src/lib/agentes/puestos/factoque.ts) con las tareas y techos de §2; operación
 factoque.emitir_por_regla; topes facturas_auto_por_dia, facturas_auto_por_mes (min con el cupo del plan),
 importe_max_por_factura, importe_auto_por_mes (contador monto, atómico). En emitir-lote: con nivel 2 y
-autorización viva leída EN la tx, crea AgentePropuesta modo REGLA con autorizacionId+version, fuenteTipo
-'movimiento', fuenteId = clave. Ampliar un concepto lo baja a nivel 1 hasta la firma nueva; achicar rige ya.
-Origen PEDIDO toma el permiso menor entre persona y autorización.
-Tests Postgres dos conexiones: C8, C9, C12 de 04-plata-y-fiscal.md §3; nivel guardado > techo se ignora.
+autorización viva leída EN la tx con FOR SHARE + frenos (tabla propia, vale el menor), crea AgentePropuesta
+clave 'factoque:'+clave, modo REGLA, autorizacionId+version, fuenteTipo 'movimiento'. Ampliar o despausar baja a
+nivel 1 hasta la firma; achicar rige ya. Archivo subido (app o WhatsApp) = PEDIDO con solicitadoPor; RUTINA sólo
+MP. Tests Postgres dos conexiones: C8, C9, C12, C21, C23, C24 de 04 §3; nivel guardado > techo se ignora.
 Verificación: tsc + tests resumen n/n. Commit por pathspec, sin push. Informe ≤300 palabras.
 ```
 
@@ -121,4 +127,4 @@ otro negocio. Verificación: tsc + tests resumen n/n. Commit por pathspec, sin p
 
 ---
 
-Medición de los briefs (bytes, `wc -c` de cada bloque): ver `README.md`.
+Medición de los briefs (bytes de cada bloque, después de las correcciones del dictamen): ver `README.md`.

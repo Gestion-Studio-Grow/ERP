@@ -45,8 +45,8 @@ Un nivel guardado mayor que el techo se ignora y se registra.
 
 | Origen | Cuándo | Permiso |
 |---|---|---|
-| `RUTINA` | MP avisó un pago aprobado; llegó un extracto por WhatsApp; corte diario | El de la autorización. |
-| `PEDIDO` | La persona sube el extracto en la app y toca «Facturar» | El **más chico** entre el de la persona y el de la autorización (dictamen, punto 5: quien sube un extracto no dispara con el permiso del agente). |
+| `RUTINA` | **Sólo** eventos sin una persona detrás: MP avisó un pago aprobado (conexión del negocio); corte diario de lo ya cargado | El de la autorización. |
+| `PEDIDO` | **Todo archivo subido**, por la app o por WhatsApp, y el «Facturar» de la persona. `solicitadoPor` = quien lo subió (por WhatsApp, el usuario atado al teléfono verificado; si el teléfono no es de un usuario con permiso de facturación, nivel 1) | El **más chico** entre el de la persona y el de la autorización (dictamen 1506c9c0, punto 5: quien sube un extracto no dispara con el permiso del agente). |
 | `CANAL` | No aplica en Factoque (no hay cliente final pidiendo factura en esta etapa). | — |
 
 ## 3. Autorización firmada por el cliente
@@ -82,7 +82,9 @@ La huella de cada concepto entra en `textoHash`. Por eso:
   origen nuevo) → versión nueva de la autorización, con **segunda confirmación por otro canal** (dictamen,
   decisión 1 recomendada (c)). Hasta que se firma, ese concepto vuelve a nivel 1 (la persona confirma).
 - **Achicar** (pausar un concepto, bajar un tope, sacar un origen) → rige al instante, sin firma: siempre se
-  puede frenar. Se registra.
+  puede frenar. Como la autorización es inmutable, los frenos van en una **tabla propia** (`FrenoAgenteFactoque`:
+  concepto pausado, tope menor, origen apagado); lo que vale es el **menor** entre lo firmado y el freno. Se registra.
+- **Despausar** un concepto o **levantar** un freno cuenta como **ampliar**: pide la confirmación de ampliar.
 - **Revocar** → el agente deja de emitir en la transacción siguiente (§5, paso 2).
 
 El cambio de una regla **no** afecta propuestas ya armadas: cada propuesta guarda `conceptoId` + `version`. Si al
@@ -116,19 +118,28 @@ entero ni movimientos de otros días.** IA con el plan de Claude en prueba (tema
 Por cada propuesta del lote, **en orden de fecha**, una transacción de negocio (`tenantTransaction`):
 
 1. `facturita-cupo:<tenant>` (candado del cupo, el mismo de la emisión manual y la anulación).
-2. Leer la autorización viva **dentro** de la transacción; si está revocada o reemplazada y la propuesta no es de
-   la versión vigente → `PERSONA`, no emite.
+2. Leer la autorización viva **dentro** de la transacción con `SELECT … FOR SHARE` (una revocación que llega
+   después espera al commit de esta factura; una que llegó antes se ve) y los frenos del negocio; si está revocada o
+   reemplazada, o la propuesta no es de la versión vigente → `PERSONA`, no emite.
 3. Tomar las claves del cobro (`tomarClaves`, orden fijo) y mirar el libro: si ya hay factura viva → vincular, no emite.
 4. Contar el cupo del plan **en la transacción** (`planFactoqueEnTx` + facturas del mes) y los contadores de la
    autorización (`UPDATE ... SET monto = monto + x WHERE monto + x <= tope`, atómico). Si no entra → `tope`, no emite.
 5. Claim de la propuesta (`lista → emitida`, `updateMany` con el estado viejo en el `where`).
-6. Crear la factura (`facturarCobrosInTx` con las claves) y la `AgentePropuesta` con `modo = 'REGLA'`,
+6. Crear la factura (`facturarCobrosInTx` con las claves) y la `AgentePropuesta` con `clave = 'factoque:' + clave del
+   movimiento` (el único de clave viva impide dos propuestas del mismo cobro), `modo = 'REGLA'`,
    `autorizacionId` + `version`, `fuenteTipo = 'movimiento'`, `fuenteId = clave`, `montoCentavos`, `origen`.
 7. Commit. Fuera de la transacción: despacho a ARCA (outbox).
 
 Orden de candados (sin abrazo mortal): `lote-factoque:<tenant>` (si corre un lote) → `facturita-cupo:` →
 `cobro-facturado:<clave>` (ordenadas). Nadie los toma al revés; la emisión manual ya toma `facturita-emision` →
 `facturita-cupo`.
+
+### 5.1 Una sola vía de emisión automática en Factoque (dictamen B3)
+
+En un negocio Factoque (`blueprintId = facturita`), **ningún** camino automático emite fuera de este: el modo
+`automatico` de `mercadopago-auto` no corre (el pago de MP entra como movimiento y sale por el lote), y el
+tope de cualquier camino automático sale de `planFactoqueEnTx` (molde `cartera-abonos.ts:275-276`), nunca de
+`capFacturasMesDelNegocioEnTx`, que para Factoque da 159 (H7). Test C20.
 
 ## 6. «Deshacer»
 
