@@ -39,7 +39,7 @@ const RAMA = env.RAMA_BASE || "main";
 const ETIQUETA = env.ETIQUETA || "gsg:publicar";
 const INFORME = env.PUBLICAR_INFORME || "publicar-informe.md";
 const MODO = (env.PUBLICAR_MODO || "").trim().toLowerCase() === "real" ? "real" : "simulacion";
-const PROD_URL = (env.PROD_URL || "https://chestetica-erp.vercel.app").replace(/\/+$/, "");
+const PROD_URL = (env.PROD_URL || "https://chestetica.gsgapp.com.ar").replace(/\/+$/, "");
 const WORKFLOWS_CI = (env.CI_WORKFLOWS || "gates.yml,release.yml")
   .split(",")
   .map((s) => s.trim())

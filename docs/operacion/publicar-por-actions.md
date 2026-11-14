@@ -70,7 +70,7 @@ Además el workflow sólo arranca para PR **contra main** (`branches: [main]`).
 |---|---|---|
 | `PUBLICAR_MODO` | `real` para publicar de verdad; vacía = simulación | no (default simulación) |
 | `VERCEL_TEAM_ID` | `team_…` si el proyecto está en un team | sí si el proyecto es de un team |
-| `PROD_URL` | dominio de producción (ya la usa `monitor-caidas.yml`; default `https://chestetica-erp.vercel.app`) | no |
+| `PROD_URL` | dominio de producción (ya la usa `monitor-caidas.yml`; default `https://chestetica.gsgapp.com.ar`) | no |
 | `NEON_BRANCH_ID` | `br-…` de la rama de producción, si no es la rama por defecto del proyecto | no |
 | `PUBLICAR_QUIENES` | lista de usuarios de GitHub separados por coma que pueden publicar con la etiqueta | no (default: cualquiera con write) |
 | `PUBLICAR_PAUSADO` | `1` para frenar toda publicación automática | no |
