@@ -52,6 +52,9 @@ import { diaContableDelEgreso } from "@/lib/stock/purchase-egreso";
 import { leerComisionesPendientes, leerTurnosEsperandoSaldo } from "@/lib/reports/comisiones-lectura";
 import { leerComisionesConCobroAnulado, type ComisionConCobroAnulado } from "@/lib/reports/comision-ya-pagada";
 import { baseDeComision } from "@/lib/comisiones/base";
+// F1: no se paga comisión de un cobro que la profesional todavía no rindió (regla en un solo lugar).
+import { seLiquidaSegunRendicion } from "@/lib/comisiones/comision-no-rendida";
+import { pendienteDeRendirPorTurnoInTx } from "@/lib/comisiones/rendicion-repo";
 import {
   vueltaDeLiquidacion,
   whereTurnosConComisionPendiente,
@@ -195,7 +198,7 @@ export async function settleCommissions(formData: FormData) {
 
     const overrideByService = new Map(overrides.map((o) => [o.serviceId, o.commissionPercent]));
 
-    const liquidables: TurnoParaComision[] = [];
+    const candidatos: TurnoParaComision[] = [];
     for (const a of appointments) {
       if (!a.payment) continue;
       if (periodo && !entraEnElCorte(a.startsAt, periodo)) continue;
@@ -205,8 +208,15 @@ export async function settleCommissions(formData: FormData) {
       // La base es lo COBRADO (`payment.amount`) MENOS lo pagado con voucher (regla del dueño,
       // comisiones/base.ts), no el precio de lista. Los cobros ya vienen en esta misma consulta.
       const cobros = a.collections.map((c) => ({ amount: c.amount.toNumber(), method: c.method }));
-      liquidables.push({ id: a.id, serviceId: a.serviceId, base: baseDeComision(a.payment.amount, cobros), startsAt: a.startsAt });
+      candidatos.push({ id: a.id, serviceId: a.serviceId, base: baseDeComision(a.payment.amount, cobros), startsAt: a.startsAt });
     }
+
+    // F1 · Lo que la profesional cobró y todavía no rindió, leído EN ESTA tx con candado (turnos FOR
+    // UPDATE, cobros a rendir FOR SHARE: el orden de la rendición y de la anulación). Con algo
+    // pendiente el turno no se paga todavía; la MISMA guarda que el listado, el Inicio y la vista
+    // previa (comisiones/comision-no-rendida.ts). Sin las tablas el mapa viene vacío: como siempre.
+    const pendienteDeRendir = await pendienteDeRendirPorTurnoInTx(tx, tenantId, candidatos.map((c) => c.id), { bloquear: true });
+    const liquidables = candidatos.filter((c) => seLiquidaSegunRendicion(pendienteDeRendir.get(c.id)));
 
     // MISMA función que el listado de pendientes: la fórmula dejó de estar duplicada a mano
     // y el monto pasa por `round2`, la regla única del dinero. `CommissionPayout.amount` es

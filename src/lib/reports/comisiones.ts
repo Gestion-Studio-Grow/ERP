@@ -19,6 +19,7 @@ import { sePuedeLiquidar } from "@/lib/comision-liquidable";
 import { calcularLiquidacion, resolvePct, type TurnoParaComision } from "@/lib/comision-liquidacion";
 import { round2 } from "@/lib/round";
 import { baseDeComision } from "@/lib/comisiones/base";
+import { seLiquidaSegunRendicion } from "@/lib/comisiones/comision-no-rendida";
 
 /**
  * Los turnos con comisión pendiente: realizados, cobrados y sin liquidar. El MISMO `where` que
@@ -49,6 +50,11 @@ export interface TurnoPendiente {
   /** Para el detalle de la vista previa (comisiones/vista-previa.ts). No entra en ningún cálculo. */
   servicio?: string;
   clienta?: string;
+  /**
+   * Lo que la profesional cobró de este turno y todavía no rindió (Σ `CobroARendir` pendientes; 0 o
+   * ausente: nada). Con algo pendiente el turno no se paga todavía (comisiones/comision-no-rendida.ts).
+   */
+  pendienteDeRendir?: number;
 }
 
 export interface ComisionPendiente {
@@ -65,7 +71,7 @@ export interface ComisionPendiente {
 
 /**
  * Lo pendiente por profesional, de mayor a menor. Un turno con saldo pendiente espera (no se
- * liquida sobre una seña: se perdería la comisión del resto). `overrides` es el % por servicio
+ * liquida sobre una seña: se perdería la comisión del resto); uno con cobros sin rendir, también. `overrides` es el % por servicio
  * de cada profesional. PURA.
  */
 export function comisionesPendientes(
@@ -76,6 +82,8 @@ export function comisionesPendientes(
   for (const t of turnos) {
     if (!t.payment) continue;
     if (!sePuedeLiquidar({ precio: t.precio, cobros: t.cobros, pagoLegado: t.payment })) continue;
+    // La misma guarda que `settleCommissions`: no se paga comisión de plata que no se rindió.
+    if (!seLiquidaSegunRendicion(t.pendienteDeRendir)) continue;
     let g = porProfesional.get(t.professionalId);
     if (!g) {
       g = { nombre: t.professionalName, pctGeneral: t.pctGeneral, turnos: [] };
