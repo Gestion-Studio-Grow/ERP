@@ -12,16 +12,42 @@
 // src/lib/logger.ts). `error.digest` es el id que Next asigna al error del server
 // y que también aparece en los logs → sirve para cruzar el reporte del usuario con
 // la línea de log exacta.
+//
+// Salida (PLAT-005): además de reintentar, «Volver al inicio» con un <a href> común — acá no hay
+// layout ni router confiable, así que nada de <Link>. `retry` (Next 16) vuelve a pedir la página al
+// servidor; `reset` sólo limpia el estado. Accesibilidad: role="alert", foco al título, botones de 44 px.
 
-import { useEffect } from "react";
+import { useEffect, useRef, type CSSProperties } from "react";
+
+const BOTON: CSSProperties = {
+  appearance: "none",
+  boxSizing: "border-box",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: "44px",
+  cursor: "pointer",
+  borderRadius: "0.625rem",
+  padding: "0.75rem 1.5rem",
+  fontSize: "0.95rem",
+  fontWeight: 600,
+  fontFamily: "inherit",
+  textDecoration: "none",
+};
 
 export default function GlobalError({
   error,
   reset,
+  retry,
 }: {
   error: Error & { digest?: string };
   reset: () => void;
+  retry?: () => void;
 }) {
+  const titulo = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    titulo.current?.focus();
+  }, []);
   useEffect(() => {
     // Best-effort: si esto también falla, no queremos re-tirar dentro del boundary.
     try {
@@ -56,37 +82,42 @@ export default function GlobalError({
         }}
       >
         <main
+          role="alert"
           style={{
             maxWidth: "32rem",
             padding: "2.5rem 1.5rem",
             textAlign: "center",
           }}
         >
-          <h1 style={{ fontSize: "1.375rem", fontWeight: 600, margin: "0 0 0.5rem" }}>
+          <h1
+            ref={titulo}
+            tabIndex={-1}
+            style={{ fontSize: "1.375rem", fontWeight: 600, margin: "0 0 0.5rem", outline: "none" }}
+          >
             Se produjo un error inesperado
           </h1>
           <p style={{ color: "#5c5c5c", lineHeight: 1.6, margin: "0 0 2rem" }}>
-            Ya quedó registrado y lo estamos viendo. Podés reintentar; si sigue
-            fallando, volvé a entrar en unos minutos.
+            Ya quedó registrado y lo estamos viendo. Podés reintentar o volver al
+            inicio; si sigue fallando, volvé a entrar en unos minutos.
           </p>
-          <button
-            onClick={() => reset()}
-            style={{
-              appearance: "none",
-              border: "none",
-              cursor: "pointer",
-              borderRadius: "0.625rem",
-              padding: "0.75rem 1.5rem",
-              fontSize: "0.95rem",
-              fontWeight: 600,
-              color: "#fff",
-              background: "#1a1a1a",
-            }}
-          >
-            Reintentar
-          </button>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem", justifyContent: "center" }}>
+            <button
+              type="button"
+              onClick={() => (retry ?? reset)()}
+              style={{ ...BOTON, border: "none", color: "#fff", background: "#1a1a1a" }}
+            >
+              Reintentar
+            </button>
+            {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- global-error reemplaza el layout: carga completa a propósito */}
+            <a
+              href="/"
+              style={{ ...BOTON, border: "1.5px solid #d4d1cb", color: "#1a1a1a", background: "#fff" }}
+            >
+              Volver al inicio
+            </a>
+          </div>
           {error.digest ? (
-            <p style={{ marginTop: "1.5rem", fontSize: "0.75rem", color: "#9a9a9a" }}>
+            <p style={{ marginTop: "1.5rem", fontSize: "0.75rem", color: "#6b6b6b" }}>
               Código de referencia: <code>{error.digest}</code>
             </p>
           ) : null}
