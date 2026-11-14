@@ -12,8 +12,8 @@ export const metadata: Metadata = {
   generator: "Gestión Studio Grow",
 };
 
-// SOPORTE GSG — el permiso del titular para la IA de soporte (MANT-003, D4). Lo VEN el OWNER y
-// RECEPTION (`dashboard:read` en el registro); lo CAMBIA sólo el OWNER, y eso lo decide la action en el
+// SOPORTE GSG — el permiso del titular para la IA de soporte (MANT-003, D4). La app es sólo del
+// titular (`users:manage` en el registro); lo CAMBIA sólo el OWNER, y eso lo vuelve a decidir la action en el
 // servidor con la sesión, no esta pantalla. El negocio es el de la sesión. Sin la tabla (Gate 2 sin
 // aplicar) se dice claro y no se ofrece guardar.
 export default async function SoportePage() {
