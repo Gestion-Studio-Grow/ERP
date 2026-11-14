@@ -34,6 +34,13 @@ cobra SUS turnos (`src/lib/turnos/cobro-mostrador.ts`). Ese cobro entraba al lib
 ## 3. Libro de caja y cierre
 - El cobro a rendir **no** escribe en el libro. Al **rendir**, y no antes, se asienta un `INGRESO` por lo entregado,
   con la marca `rendicion:<id>` (no se borra a mano desde el libro), enganchado al turno de caja abierto si lo hay.
+- **Origen contable propio: «Rendición de profesional»** (`rendicion-profesional` en `libro-caja.ts`), en la
+  pantalla del libro, en el CSV de la contadora (columna Origen, referencia = id de la rendición) y en el cierre.
+  No es «Ingreso manual»: lo asentó el sistema y tiene respaldo (los cobros rendidos).
+- **Resultado del mes: cuenta como venta**, la del cobro del turno (que ya suma en «turnos cobrados» por la fecha
+  del cobro), así que el INGRESO de la rendición no se suma de nuevo ni cae en «ingresos cargados a mano».
+  **Criterio provisional a confirmar con la contadora (CH-011)**: la alternativa sería reconocer la venta el mes de
+  la rendición.
 - Frontera del cierre obligatoria (lección DB-5): con el día ya cerrado, la rendición se rechaza y se registra al
   día siguiente. El cierre del día cuenta sólo lo que está en el cajón; lo pendiente de rendir no lo desarma.
 - Concurrencia: candado del turno (el mismo de la anulación) y de los cobros, reclamo condicionado con conteo
@@ -45,7 +52,9 @@ cobra SUS turnos (`src/lib/turnos/cobro-mostrador.ts`). Ese cobro entraba al lib
 - Cobro **ya rendido**: la devolución sale del cajón **hoy**: un `EGRESO` con fecha de hoy, en el medio de la
   rendición, enganchado al turno de caja abierto, contra el `collectionId` del cobro (el `@@unique(tenantId,
   collectionId, type)` es la clave idempotente, como toda reversa) y firmado `anulacion-turno:<actor>` (no se
-  borra a mano). Con el día de hoy cerrado, la anulación se rechaza (DB-5).
+  borra a mano). Con el día de hoy cerrado, la anulación se rechaza (DB-5). Origen contable «Anulación», y el
+  detalle nombra **el cobro anulado** (`detalleDeCobroRendido`: servicio, clienta, profesional), no la rendición
+  entera que lo trajo.
 - Carrera rendir ‖ anular: las dos toman el mismo candado del turno; gane cuál gane, el libro neto da 0.
 
 ### Cobro con producto
@@ -55,7 +64,11 @@ cobra SUS turnos (`src/lib/turnos/cobro-mostrador.ts`). Ese cobro entraba al lib
 
 ## 4. Comisiones (la pantalla y la liquidación)
 - `/admin/comisiones` muestra, por profesional que cobra aparte: lo que tiene a rendir (cobros tildables), el
-  formulario «Registrar rendición» (siempre por el total) y las últimas rendiciones.
+  formulario «Registrar rendición» (siempre por el total) y las últimas rendiciones. Sólo figuran las profesionales
+  con algo pendiente; el historial sigue.
+- Quien rinde es la caja (`cash:manage`), no quien ve reportes: la recepción no tiene `reports:read` y no entra a
+  Comisiones. Por eso hay **`/admin/caja/rendiciones`** (con `cash:manage`): muestra sólo las rendiciones
+  (cobros, montos entregados) y nunca comisiones. La lectura (`getRendiciones`) pide `cash:manage` o `reports:read`.
 - La comisión se sigue calculando igual (sobre `Payment.amount`): el cobro a rendir es plata cobrada.
 
 ## 5. Deuda

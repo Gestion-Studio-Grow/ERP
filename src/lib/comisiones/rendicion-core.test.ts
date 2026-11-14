@@ -83,3 +83,51 @@ test("detalle del asiento", () => {
   assert.equal(detalleDeRendicion("Vero", 1, 0), "Rendición · Vero · 1 cobro");
   assert.match(detalleDeRendicion("Vero", 3, 5400), /^Rendición · Vero · 3 cobros \(retuvo \$5\.400\)$/);
 });
+
+// ── CH-011 ───────────────────────────────────────────────────────────────────
+
+test("CH-011 · quién ve las rendiciones: la recepción rinde por la Caja sin ver Comisiones ni reportes", async () => {
+  const { CAPACIDADES_PARA_VER_RENDICIONES } = await import("./rendicion-core");
+  const { roleHasCapability } = await import("@/lib/capabilities");
+  const ve = (r: "OWNER" | "RECEPTION" | "PROFESSIONAL") => CAPACIDADES_PARA_VER_RENDICIONES.some((c) => roleHasCapability(r, c));
+  assert.equal(ve("OWNER"), true);
+  assert.equal(ve("RECEPTION"), true, "la recepción rinde (cash:manage)");
+  assert.equal(ve("PROFESSIONAL"), false, "la profesional no ve las rendiciones de nadie");
+  // La recepción NO entra a Comisiones (reports:read): ve la rendición, no las comisiones.
+  assert.equal(roleHasCapability("RECEPTION", "reports:read"), false);
+  assert.equal(roleHasCapability("RECEPTION", "cash:manage"), true);
+});
+
+test("CH-011 · a qué pantalla vuelve la rendición: sólo Comisiones o la Caja, nunca afuera", async () => {
+  const { volverDeLaRendicion } = await import("./rendicion-core");
+  assert.equal(volverDeLaRendicion("/admin/caja/rendiciones"), "/admin/caja/rendiciones");
+  assert.equal(volverDeLaRendicion("/admin/comisiones"), "/admin/comisiones");
+  for (const malo of [null, "", "https://otro.sitio", "//otro.sitio", "/admin/caja/rendiciones/../usuarios", 42]) {
+    assert.equal(volverDeLaRendicion(malo), "/admin/comisiones", String(malo));
+  }
+});
+
+test("CH-011 · el aviso de la vuelta: ok, rechazos con su texto, y lo ajeno no es suyo", async () => {
+  const { avisoDeRendicion, mensajeRendicionRechazada } = await import("./rendicion-core");
+  assert.deepEqual(avisoDeRendicion("rendicion_ok"), { texto: "Rendición registrada. Lo que entregó quedó en el libro de caja.", ok: true });
+  assert.deepEqual(avisoDeRendicion("rendicion_dia-cerrado"), { texto: mensajeRendicionRechazada("dia-cerrado"), ok: false });
+  assert.deepEqual(avisoDeRendicion("rendicion_clave-reusada"), { texto: mensajeRendicionRechazada("clave-reusada"), ok: false });
+  assert.equal(avisoDeRendicion("ok_settled"), undefined);
+  assert.equal(avisoDeRendicion("rendicion_otra-cosa"), undefined);
+  assert.equal(avisoDeRendicion(undefined), undefined);
+});
+
+test("CH-011 · el egreso de anular un cobro ya rendido nombra ESE cobro, no la rendición", async () => {
+  const { detalleDeCobroRendido } = await import("./rendicion-core");
+  const { detalleReversa } = await import("@/lib/turnos/anulacion");
+  const d = detalleDeCobroRendido({ servicio: "Esculpidas", clienta: "Ana", profesional: "Vero" });
+  assert.equal(d, "Turno · Esculpidas — Ana (cobrado por Vero, ya rendido)");
+  assert.equal(detalleReversa(d, "medio equivocado"), "Anulación de cobro · Turno · Esculpidas — Ana (cobrado por Vero, ya rendido) — medio equivocado");
+  assert.equal(detalleDeCobroRendido({ servicio: null, clienta: "  ", profesional: null }), "Turno · Turno (cobrado por la profesional, ya rendido)");
+});
+
+test("CH-011 · el enlace de la Caja a las rendiciones", async () => {
+  const { textoARendir } = await import("./rendicion-core");
+  assert.equal(textoARendir(1), "Rendiciones: 1 cobro a rendir");
+  assert.equal(textoARendir(3), "Rendiciones: 3 cobros a rendir");
+});

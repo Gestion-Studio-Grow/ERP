@@ -9,13 +9,13 @@
 
 import { randomUUID } from "node:crypto";
 import { registrarRendicion } from "@/lib/comisiones/rendicion-actions";
+import type { PantallaDeRendicion } from "@/lib/comisiones/rendicion-core";
 import type { LecturaRendiciones } from "@/lib/comisiones/rendicion-repo";
 import { fmtShortDate } from "@/lib/datetime";
 import { textoAlCentavo } from "@/lib/dinero/redondeo";
 import SubmitButton from "@/components/SubmitButton";
-import { buttonClasses, fmtMoneyARS } from "@/components/ui";
+import { Plata, buttonClasses } from "@/components/ui";
 
-const money = (n: number) => fmtMoneyARS(n, 2);
 const MEDIO: Record<string, string> = {
   EFECTIVO: "Efectivo",
   MERCADOPAGO: "Mercado Pago",
@@ -32,10 +32,13 @@ const montoEditable = (n: number) => textoAlCentavo(n).replace(".", ",");
 export default function Rendiciones({
   lectura,
   canRegister,
+  volver = "/admin/comisiones",
 }: {
   lectura: LecturaRendiciones;
   /** `cash:manage`: registrar la plata que entra. */
   canRegister: boolean;
+  /** Adónde vuelve el formulario (Comisiones o la Caja). */
+  volver?: PantallaDeRendicion;
 }) {
   if (!lectura.habilitada) return null;
   const { profesionales, historial } = lectura;
@@ -55,14 +58,15 @@ export default function Rendiciones({
         {profesionales.map((p) => (
           <div key={p.professionalId} className="rounded-md border border-line p-3">
             <p className="font-medium text-strong">
-              {p.nombre} · a rendir {money(p.cobradoPendiente)}
+              {p.nombre} · a rendir <Plata valor={p.cobradoPendiente} />
               <span className="font-normal text-muted">
                 {" "}
                 ({p.pendientes.length} {p.pendientes.length === 1 ? "cobro" : "cobros"})
               </span>
             </p>
-            {p.pendientes.length > 0 && canRegister && (
+            {canRegister && (
               <form action={registrarRendicion} className="mt-3 space-y-3">
+                <input type="hidden" name="volver" value={volver} />
                 <input type="hidden" name="professionalId" value={p.professionalId} />
                 <input type="hidden" name="idempotencyKey" value={randomUUID()} />
                 <fieldset>
@@ -77,7 +81,7 @@ export default function Rendiciones({
                             {c.clienta ? ` — ${c.clienta}` : ""}
                             <span className="text-muted"> · {medio(c.method)}</span>
                           </span>
-                          <span className="tabular-nums">{money(c.monto)}</span>
+                          <Plata valor={c.monto} />
                         </label>
                       </li>
                     ))}
@@ -140,7 +144,7 @@ export default function Rendiciones({
                   {fmtShortDate(h.createdAt)} · {h.nombre} · {h.cantidad} {h.cantidad === 1 ? "cobro" : "cobros"}
                 </span>
                 <span className="tabular-nums text-muted">
-                  entregó {money(h.entregado)} ({medio(h.method)})
+                  entregó <Plata valor={h.entregado} /> ({medio(h.method)})
                 </span>
               </li>
             ))}

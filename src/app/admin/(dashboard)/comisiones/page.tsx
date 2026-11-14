@@ -24,7 +24,7 @@ import VistaPrevia from "./VistaPrevia";
 import { getComprobantesRecientes, getVistaPreviaDeComisiones } from "@/lib/comisiones/lectura";
 import Rendiciones from "./Rendiciones";
 import { getRendiciones } from "@/lib/comisiones/rendicion-actions";
-import { mensajeRendicionRechazada, type MotivoRendicionRechazada } from "@/lib/comisiones/rendicion-core";
+import { avisoDeRendicion } from "@/lib/comisiones/rendicion-core";
 
 export const dynamic = "force-dynamic";
 
@@ -35,25 +35,11 @@ const ESTADOS: Record<string, { texto: string; ok: boolean }> = {
   error_prof: { texto: "No se pudo identificar al profesional. Recargá la pantalla y volvé a intentar.", ok: false },
   error_medio: { texto: "Este negocio todavía no separa la transferencia en el libro. No se liquidó nada: elegí otro medio.", ok: false },
   error_periodo: { texto: "No se entendió el período elegido. No se liquidó nada: volvé a elegirlo.", ok: false },
-  // La rendición de la profesional que cobra aparte (rendicion-actions.ts).
-  rendicion_ok: { texto: "Rendición registrada. Lo que entregó quedó en el libro de caja.", ok: true },
 };
 
-const MOTIVOS_RENDICION: readonly (MotivoRendicionRechazada | "dia-cerrado" | "sin-tabla" | "medio")[] = [
-  "sin-cobros",
-  "cobro-ajeno",
-  "entregado-invalido",
-  "entregado-de-mas",
-  "retencion-apagada",
-  "clave-reusada",
-  "dia-cerrado",
-  "sin-tabla",
-  "medio",
-];
 function estadoDe(status: string): { texto: string; ok: boolean } | undefined {
-  if (ESTADOS[status]) return ESTADOS[status];
-  const motivo = MOTIVOS_RENDICION.find((m) => status === `rendicion_${m}`);
-  return motivo ? { texto: mensajeRendicionRechazada(motivo), ok: false } : undefined;
+  // La vuelta de la rendición de la profesional que cobra aparte (rendicion-actions.ts).
+  return ESTADOS[status] ?? avisoDeRendicion(status);
 }
 
 export default async function ComisionesPage({ searchParams }: { searchParams: Promise<{ status?: string; periodo?: string }> }) {

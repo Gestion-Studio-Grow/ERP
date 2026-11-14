@@ -9,7 +9,9 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireCapability } from "@/lib/authz";
+import { requireAlgunaCapability, requireCapability } from "@/lib/authz";
+import { getCurrentUser } from "@/lib/session";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { auditAdmin } from "@/lib/audit-core";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { tenantTransaction } from "@/lib/rls";
@@ -19,8 +21,10 @@ import { lastClosedDay } from "@/lib/caja/frontera-cierre";
 import { transferenciaEnElLibroTx } from "@/lib/caja/transferencia-en-el-libro";
 import { parseMedioDeLiquidacion } from "@/lib/comision-liquidacion";
 import { leerImporte } from "@/lib/pos-peso";
+import { CAPACIDADES_PARA_VER_RENDICIONES, volverDeLaRendicion } from "./rendicion-core";
 import {
   RendicionRechazada,
+  contarCobrosARendirInTx,
   esChoqueDeClaveDeRendicion,
   leerRendicionesInTx,
   registrarRendicionInTx,
@@ -29,23 +33,35 @@ import {
 } from "./rendicion-repo";
 
 const COMISIONES_PATH = "/admin/comisiones";
+const RENDICIONES_PATH = "/admin/caja/rendiciones";
 const LIBRO_PATH = "/admin/caja/libro";
 const CAJA_PATH = "/admin/caja";
 
-function volverCon(status: string): never {
-  redirect(`${COMISIONES_PATH}?status=${encodeURIComponent(status)}`);
-}
-
-/** Lo que cada profesional que cobra aparte tiene a rendir, y las últimas rendiciones. */
+/**
+ * Lo que cada profesional que cobra aparte tiene a rendir, y las últimas rendiciones. La ve quien
+ * rinde (`cash:manage`, la recepción desde la Caja) o quien ve reportes (Comisiones): son cobros y
+ * lo entregado, ningún monto de comisión.
+ */
 export async function getRendiciones(): Promise<LecturaRendiciones> {
-  await requireCapability("reports:read");
+  await requireAlgunaCapability(CAPACIDADES_PARA_VER_RENDICIONES);
   if (isDemoSandbox()) return { habilitada: false };
   const tenantId = await getCurrentTenantId();
   return tenantTransaction((tx) => leerRendicionesInTx(tx, tenantId), { tenantId });
 }
 
+/** Para el aviso de la Caja del día: cuántos cobros esperan rendición. 0 sin `cash:manage`. */
+export async function getCobrosARendir(): Promise<number> {
+  const user = await getCurrentUser();
+  if (!user || !permisoEfectivo(user, "cash:manage") || isDemoSandbox()) return 0;
+  const tenantId = await getCurrentTenantId();
+  return tenantTransaction((tx) => contarCobrosARendirInTx(tx, tenantId), { tenantId });
+}
+
 export async function registrarRendicion(formData: FormData) {
   const user = await requireCapability("cash:manage");
+  // Vuelve a la pantalla desde donde se rindió (Comisiones o la Caja), nunca a una URL de afuera.
+  const volver = volverDeLaRendicion(formData.get("volver"));
+  const volverCon: (status: string) => never = (status) => redirect(`${volver}?status=${encodeURIComponent(status)}`);
   if (isDemoSandbox()) volverCon("rendicion_sin-tabla");
   const tenantId = await getCurrentTenantId();
 
@@ -113,5 +129,6 @@ export async function registrarRendicion(formData: FormData) {
     revalidatePath(CAJA_PATH);
   }
   revalidatePath(COMISIONES_PATH);
+  revalidatePath(RENDICIONES_PATH);
   volverCon("rendicion_ok");
 }

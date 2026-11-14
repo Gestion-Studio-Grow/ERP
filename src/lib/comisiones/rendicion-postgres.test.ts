@@ -340,8 +340,15 @@ test("anular un cobro YA rendido: EGRESO de hoy contra el cobro, idempotente; co
   const an = await m.anular({ collectionId: r.collectionId, appointmentId });
   assert.ok(an.applied);
   assert.equal(an.libro.asentada, true, JSON.stringify(an.libro));
-  const egresos = await m.duenio.cashMovement.findMany({ where: { collectionId: r.collectionId }, select: { type: true, amount: true, method: true, occurredAt: true, createdBy: true } });
+  const egresos = await m.duenio.cashMovement.findMany({ where: { collectionId: r.collectionId }, select: { type: true, amount: true, method: true, occurredAt: true, createdBy: true, reason: true } });
   assert.equal(egresos.length, 1);
+  // CH-011 · el detalle nombra EL COBRO anulado (servicio, clienta, quién lo cobró), no la rendición entera.
+  assert.match(String(egresos[0].reason), /^Anulación de cobro · Turno · Esculpidas — Clienta \d+ \(cobrado por Vero, ya rendido\) — la clienta pidió devolución$/);
+  assert.doesNotMatch(String(egresos[0].reason), /Rendición/);
+  // CH-011 · en el libro: el ingreso es «Rendición de profesional» (no «Ingreso manual») y la vuelta, «Anulación».
+  const { clasificarOrigen } = await import("@/lib/caja/libro-caja");
+  assert.equal(clasificarOrigen({ type: "EGRESO", createdBy: egresos[0].createdBy, collectionId: r.collectionId }).origen, "anulacion");
+  assert.deepEqual(clasificarOrigen({ type: "INGRESO", createdBy: `rendicion:${rend.rendicionId}` }), { origen: "rendicion-profesional", referencia: rend.rendicionId });
   assert.deepEqual([egresos[0].type, Number(egresos[0].amount), egresos[0].method], ["EGRESO", 18000, "EFECTIVO"]);
   assert.ok(egresos[0].occurredAt.getTime() >= antes - 60_000, "fecha de hoy, no la del cobro");
   assert.match(String(egresos[0].createdBy), /^anulacion-turno:/);
@@ -502,6 +509,13 @@ test("aislamiento: el negocio B no ve ni rinde los cobros a rendir de A", async 
   const luz = await m.duenio.professional.findFirstOrThrow({ where: { tenantId: B, name: "Luz" } });
   await assert.rejects(m.rendir({ tenantId: B, professionalId: luz.id, cobroIds: [id], entregado: 18000 }), { motivo: "cobro-ajeno" });
   assert.ok((await m.pendientesDe()).some((p) => p.id === id), "en A sigue a rendir");
+  // CH-011 · Luz (cobra aparte) no tiene nada pendiente en B: no figura con «a rendir $0,00 (0 cobros)».
+  const lecturaB = await (await import("@/lib/rls")).tenantTransaction(
+    async (tx) => (await import("./rendicion-repo")).leerRendicionesInTx(tx, B),
+    { tenantId: B },
+  );
+  assert.ok(lecturaB.habilitada);
+  if (lecturaB.habilitada) assert.deepEqual(lecturaB.profesionales, [], "sin pendientes, sin fila");
 });
 
 test("sin las tablas el cobro entra a la caja como hoy (caso 1 del refutador)", async (t) => {

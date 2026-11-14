@@ -15,6 +15,13 @@
 import { round2 } from "@/lib/round";
 import { centavosDe } from "@/lib/dinero/redondeo";
 
+/**
+ * Quién VE las rendiciones: quien las registra (la caja, `cash:manage`: dueña y recepción) o quien
+ * ve reportes (Comisiones). La recepción no tiene `reports:read`: entra por la Caja
+ * (`/admin/caja/rendiciones`) y ve cobros y lo entregado, nunca comisiones.
+ */
+export const CAPACIDADES_PARA_VER_RENDICIONES = ["cash:manage", "reports:read"] as const;
+
 /** Marca del asiento de la rendición en `CashMovement.createdBy` (lo protege de borrarse a mano). */
 export const RENDICION_ACTOR_PREFIX = "rendicion:";
 export const marcaDeRendicion = (rendicionId: string): string => `${RENDICION_ACTOR_PREFIX}${rendicionId}`;
@@ -141,4 +148,49 @@ export function detalleDeRendicion(profesional: string, cantidad: number, reteni
   const quien = profesional.trim() || "profesional";
   const base = `Rendición · ${quien} · ${cantidad} ${cantidad === 1 ? "cobro" : "cobros"}`;
   return retenido > 0 ? `${base} (retuvo $${retenido.toLocaleString("es-AR")})` : base;
+}
+
+/**
+ * Detalle del EGRESO que devuelve un cobro YA RENDIDO al anularlo (turnos/anulacion.ts): nombra EL
+ * COBRO anulado (servicio, clienta, quién lo cobró), no la rendición entera que lo trajo al libro
+ * —esa puede cubrir varios cobros y la contadora buscaría una devolución de todos—. PURA.
+ */
+export function detalleDeCobroRendido(c: { servicio?: string | null; clienta?: string | null; profesional?: string | null }): string {
+  const servicio = String(c.servicio ?? "").trim() || "Turno";
+  const clienta = String(c.clienta ?? "").trim();
+  const quien = String(c.profesional ?? "").trim() || "la profesional";
+  return `Turno · ${servicio}${clienta ? ` — ${clienta}` : ""} (cobrado por ${quien}, ya rendido)`;
+}
+
+/** Las pantallas desde donde se registra una rendición. La primera es la de siempre. */
+export const PANTALLAS_DE_RENDICION = ["/admin/comisiones", "/admin/caja/rendiciones"] as const;
+export type PantallaDeRendicion = (typeof PANTALLAS_DE_RENDICION)[number];
+
+/** A qué pantalla vuelve la rendición: sólo una de la lista (nada de redirigir afuera). PURA. */
+export function volverDeLaRendicion(v: unknown): PantallaDeRendicion {
+  return PANTALLAS_DE_RENDICION.find((p) => p === v) ?? PANTALLAS_DE_RENDICION[0];
+}
+
+const MOTIVOS_DE_VUELTA: readonly Parameters<typeof mensajeRendicionRechazada>[0][] = [
+  "sin-cobros",
+  "cobro-ajeno",
+  "entregado-invalido",
+  "entregado-de-mas",
+  "retencion-apagada",
+  "clave-reusada",
+  "dia-cerrado",
+  "sin-tabla",
+  "medio",
+];
+
+/** El aviso de la vuelta de `registrarRendicion` (`?status=rendicion_*`), o `undefined` si no es suyo. PURA. */
+export function avisoDeRendicion(status: string | null | undefined): { texto: string; ok: boolean } | undefined {
+  if (status === "rendicion_ok") return { texto: "Rendición registrada. Lo que entregó quedó en el libro de caja.", ok: true };
+  const motivo = MOTIVOS_DE_VUELTA.find((m) => status === `rendicion_${m}`);
+  return motivo ? { texto: mensajeRendicionRechazada(motivo), ok: false } : undefined;
+}
+
+/** El enlace de la Caja del día a las rendiciones. PURA. */
+export function textoARendir(cobros: number): string {
+  return `Rendiciones: ${cobros} ${cobros === 1 ? "cobro" : "cobros"} a rendir`;
 }

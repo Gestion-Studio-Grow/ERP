@@ -303,6 +303,24 @@ export function esChoqueDeClaveDeRendicion(e: unknown): boolean {
 
 // ── Lectura para la pantalla de Comisiones ─────────────────────────────────
 
+/**
+ * Cuántos cobros hay a rendir (sin rendir y sin anular), para el aviso de la Caja del día. Una
+ * sola consulta liviana: la Caja la abre toda la recepción todo el día. Sin las tablas, 0.
+ */
+export async function contarCobrosARendirInTx(tx: RendicionTx, tenantId: string): Promise<number> {
+  if (!(await hayRendicionesInTx(tx))) return 0;
+  const filas = await tx.$queryRaw<{ n: bigint | number }[]>`
+    SELECT COUNT(*) AS "n"
+    FROM "CobroARendir" r
+    WHERE r."tenantId" = ${tenantId} AND r."rendicionId" IS NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM "Collection" c
+        WHERE c."tenantId" = r."tenantId" AND c."appointmentId" = r."appointmentId"
+          AND c."note" LIKE ('ANULACION:' || r."collectionId" || '%')
+      )`;
+  return Number(filas[0]?.n ?? 0);
+}
+
 export type CobroARendirFila = {
   id: string;
   monto: number;
@@ -342,7 +360,7 @@ export async function leerRendicionesInTx(tx: RendicionTx, tenantId: string): Pr
   const [pros, cobros, historial] = await Promise.all([
     tx.professional.findMany({
       where: { tenantId, deletedAt: null },
-      select: { id: true, name: true, cobraEnMostrador: true },
+      select: { id: true, name: true },
     }),
     tx.$queryRaw<(Omit<CobroARendirFila, "serviceId"> & { serviceId: string | null; professionalId: string })[]>`
       SELECT r."id", r."professionalId", r."monto"::float8 AS "monto", r."method", r."createdAt",
@@ -372,7 +390,9 @@ export async function leerRendicionesInTx(tx: RendicionTx, tenantId: string): Pr
   const profesionales: ProfesionalARendir[] = [];
   for (const p of pros) {
     const suyos = cobros.filter((c) => c.professionalId === p.id);
-    if (p.cobraEnMostrador !== false && suyos.length === 0) continue;
+    // Sólo quien tiene algo pendiente: una fila «a rendir $0,00 (0 cobros)» no dice nada (CH-011).
+    // Lo ya rendido sigue en el historial.
+    if (suyos.length === 0) continue;
     const pendientes: CobroARendirFila[] = suyos.map((c) => ({
       id: c.id,
       monto: Number(c.monto),
