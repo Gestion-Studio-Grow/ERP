@@ -1,11 +1,13 @@
 # Canales y bandeja · 01 · Alcance por módulo
 
-**Fecha:** 14/11/2026 · **Estado:** diseño, sin código · **Nombre:** «Canales y bandeja» es un nombre en clave y
-provisional; el nombre comercial lo define el estudio de diseño.
+**Fecha:** 14/11/2026 · **Estado:** diseño, sin código, **corregido por el desafío adversarial del 14/11** (`03`
+§20) · **Nombre:** «Canales y bandeja» es un nombre en clave y provisional; el nombre comercial lo define el estudio
+de diseño.
 
 **Qué es.** Un módulo transversal del sistema: los canales por los que el cliente final le escribe al negocio
 (WhatsApp primero) y una bandeja compartida donde el equipo ve todo. Sobre esa base trabaja un agente que **contesta
-con la tarea hecha** en el módulo que corresponda (turnos, tienda, cobranzas…). Es un puesto de la capa 2 («agentes
+con la tarea hecha, con la confirmación del propio cliente** (muestra lo que va a hacer y la ejecuta cuando el
+cliente toca «Confirmar»), en el módulo que corresponda (turnos, tienda, cobranzas…). Es un puesto de la capa 2 («agentes
 como servicio») montado sobre el motor de agentes en construcción.
 
 **Órdenes del dueño que mandan (14/11/2026).** «que pienses, razones e investigues qué otros módulos pueden ser
@@ -15,8 +17,9 @@ abarcados por este producto, no solamente el de ventas» · «que sería tambié
 **Método.** Todo lo que se afirma del sistema lleva `archivo:línea` leído el 14/11/2026 en la rama
 `ccr-2ca0bd20-2lovs8`. No se consultó Neon ni Vercel. Lo que no se pudo verificar está en la sección 6.
 
-**Depende de.** El camino de ejecución general y la autorización firmada los diseña otro agente en `07` a `10` de
-`docs/tenants/mia-producciones/agentes/`. Este documento no los redefine: dice qué necesita de ellos.
+**Depende de.** El camino de ejecución general, la autorización firmada y la liberación por pruebas están en `07` a
+`10` de `docs/tenants/mia-producciones/agentes/` (otro agente; van a certificación). Este módulo **usa** ese camino y
+no lo redefine: cómo entra un cliente final está en `03` §3 y lo que se le pide al motor, en `03` §19.
 
 ---
 
@@ -120,4 +123,9 @@ turno reservado») con menos riesgo y con más código ya hecho.
   (`prisma/pending-gate2/README.md:3-7`).
 - El motor de agentes en código: `src/lib/agentes/` no está en esta rama. Trabajé con su diseño.
 - Qué negocios tienen el módulo `whatsapp` prendido o una conexión cargada: es un dato de la base.
-- Los documentos `07` a `10` de la autorización: todavía no están en la rama.
+- **Corregido el 14/11:** los documentos `07` a `10` **sí están en la rama**. De `09-tecnica-ejecucion.md` leí las
+  secciones 2 a 7, 10 y 17. No leí `07`, `08` ni `10` enteros, ni el esquema unificado al que `09` §2 remite (está
+  en otra rama).
+- Si `09` acepta la lista de `03` §19. Hasta entonces, ninguna tarea de canal escribe en el negocio.
+- Lo que el desafío afirma de Meta y de la ley sin dar la dirección (pasar a una persona sin demora, respetar la
+  baja, no entrenar modelos con sus datos, datos que salen del país): está marcado «a leer en la fuente».

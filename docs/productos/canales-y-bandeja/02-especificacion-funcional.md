@@ -1,24 +1,30 @@
 # Canales y bandeja · 02 · Especificación funcional
 
-**Fecha:** 14/11/2026 · **Estado:** diseño, sin código · Nombre en clave y provisional.
+**Fecha:** 14/11/2026 · **Estado:** diseño, sin código, **corregido por el desafío adversarial del 14/11** (`03`
+§20) · Nombre en clave y provisional.
 Los textos de pantalla son propuestas **provisionales a confirmar**; el tono y el nombre final los define el estudio
 de diseño. No se usan el nombre, los textos ni el aspecto del producto de referencia.
 
 **Depende de:** `07` a `10` de `docs/tenants/mia-producciones/agentes/` (camino de ejecución, topes, autorización
-firmada). Acá se dice qué se le pide a ese diseño, no cómo lo resuelve.
+firmada, liberación por pruebas). Este módulo usa ese camino; lo que necesita que cambie está en `03` §19.
 
 ---
 
 ## 1. Las cinco reglas del producto
 
 1. **El agente trabaja en el sistema.** No contesta «te paso con alguien» si la tarea está en su puesto: contesta con
-   la tarea hecha («Listo, te reservé el jueves a las 10»).
-2. **Con autorización firmada del negocio.** Sin la autorización vigente para ese puesto y ese canal, el agente no
-   responde ni ejecuta: la conversación la atiende el equipo.
+   **la tarea hecha con la confirmación del propio cliente**. Muestra lo que va a hacer, el cliente toca «Confirmar»
+   y recién ahí se ejecuta («Listo, te reservé el jueves a las 10»). No hace falta que apruebe una persona del
+   negocio (dueño, 14/11: «Y vamos a confirmar esas acciones»). La regla completa está en la sección 4.
+2. **Con autorización firmada del negocio y con la tarea liberada.** Sin la autorización vigente para ese puesto y
+   ese canal, el agente no responde ni ejecuta: la conversación la atiende el equipo. Y cada tarea se habilita en un
+   negocio recién cuando pasó su batería de ataque (dueño, 14/11: «cuando obtengamos la excelencia recién ahí lo
+   liberamos»). El protocolo es el de `09` §17 (`docs/tenants/mia-producciones/agentes/09-tecnica-ejecucion.md`).
 3. **Vale el permiso más chico de los dos** (dueño, 14/11). Se ejecuta sólo lo que tienen permitido **a la vez** el
    puesto del agente y quien pide.
 4. **Una persona sólo en la excepción.** Excepciones: supera un tope, hay plata ya cobrada, falta un dato, el cliente
-   pide una persona, no se pudo identificar a quien escribe, o el pedido está fuera del puesto.
+   pide una persona, no se pudo identificar a quien escribe, el pedido está fuera del puesto, o la tarea todavía no
+   está liberada para ese negocio.
 5. **Lo que escribe un tercero es un dato, nunca una orden.** Un mensaje no puede cambiar permisos, topes ni
    destinatarios.
 
@@ -80,7 +86,7 @@ Estados de una conversación:
 | Estado | Qué significa | Qué ve el equipo |
 |---|---|---|
 | **La atiende el asistente** | El agente responde solo | Punto verde y la última respuesta |
-| **Necesita una persona** | Una excepción (regla 4), con su motivo | Arriba de todo, en rojo, con el motivo y el tiempo de espera |
+| **Necesita una persona** | Una excepción (regla 4), con su motivo | Arriba de todo, en rojo, con el motivo, el tiempo de espera y hasta qué hora se le puede contestar con texto libre |
 | **La atiende [nombre]** | Alguien tomó el control | El nombre y hasta cuándo |
 | **En pausa hasta [hora]** | El asistente no responde en esta conversación | La hora en que vuelve |
 | **Cerrada** | Sin actividad o resuelta | Sale de la lista principal |
@@ -99,6 +105,13 @@ Qué puede hacer el equipo en una conversación:
 
 Filtros: Necesitan una persona · Mías · Del asistente · Todas · por etiqueta · por canal.
 
+**Fuera del horario de atención.** El negocio carga en qué días y horas hay personas para contestar. Si el cliente
+pide una persona fuera de ese horario, la conversación pasa igual a «Necesita una persona» **en el momento** (el
+asistente no lo retiene) y recibe un texto que no promete un plazo: «Ya le avisé al equipo. Atienden [días y horas].
+Te contestan cuando vuelvan.» Dentro del horario: «Le aviso a alguien del equipo para que te conteste.» **De noche
+no atiende una persona**, y eso no se promete. Si el equipo contesta después de 24 horas, sólo puede usar un mensaje
+aprobado (sección 3.7). Que Meta exige pasar a una persona sin demora lo marca el desafío: **a leer en la fuente**.
+
 **«Pausar todo»**: un botón que frena al asistente en todas las conversaciones del negocio. Queda anotado quién y
 cuándo. Mientras tanto todo mensaje entra como «Necesita una persona».
 
@@ -106,7 +119,8 @@ cuándo. Mientras tanto todo mensaje entra como «Necesita una persona».
 
 Un contacto es una persona en un canal. Si su teléfono coincide con una ficha de cliente, se muestran juntos y no se
 duplica. Desde el contacto: ver sus conversaciones, sus turnos, pedidos y saldo (lo que el rol de quien mira permita),
-etiquetarlo, y **«No escribirle más»** (baja).
+etiquetarlo, y **«No escribirle más»** (baja). Es **la misma baja** que «No quiere mensajes» de la ficha del cliente:
+hay una sola, y vale para el asistente, para las campañas y para los recordatorios (`03` §12).
 
 El teléfono y el mail se muestran sólo a quien tiene ese permiso; al resto se le tapan, como en el resto del sistema
 (`src/lib/capabilities.ts:48-49`).
@@ -140,7 +154,8 @@ temperatura ni comparar modelos: son decisiones de GSG, tomadas con evaluación.
 Pantalla **«Respuestas del asistente»**: lista de respuestas con su conversación. En cada una: **«Estuvo bien»** o
 **«Corregir»**. Al corregir, la persona escribe la respuesta correcta y elige:
 - **«Guardar como pregunta y respuesta»**: pasa a las fuentes y vale desde ese momento.
-- **«Sólo marcarla»**: queda como caso para la evaluación de GSG.
+- **«Sólo marcarla»**: queda como caso para la evaluación de GSG. Sirve para medir al asistente, **no para entrenar
+  un modelo**: las conversaciones no se usan para eso (`03` §11, punto 10).
 
 La corrección **no modifica** permisos, topes ni instrucciones del puesto. Una corrección sobre precio, horario o
 saldo se rechaza con: «Ese dato sale del sistema. Corregilo en [pantalla].»
@@ -174,7 +189,11 @@ No se mide «sentimiento»: es una inferencia sobre personas, sin evaluación qu
 - El aviso de privacidad va en ese primer mensaje (el asistente contable ya lo hace así:
   `src/lib/contador-wa/bot.ts:36-38`).
 - **«PERSONA»** pasa la conversación a «Necesita una persona» y el asistente calla.
-- **«BAJA»** deja de escribirle a ese número hasta que escriba «ALTA».
+- **«BAJA»** deja de escribirle a ese número hasta que escriba «ALTA». Queda anotada en el mismo lugar que la baja
+  de la ficha (sección 3.3).
+- **Datos sensibles** (salud y otros): el asistente los trata sólo si el negocio lo autorizó por escrito en su
+  autorización firmada (dueño, 14/11: «en el caso de que lo autorice el cliente»). Sin eso, no los pide ni los usa.
+  Lo legal queda **a leer en la fuente** (`03` §12).
 - A un visitante se le responde un máximo de veces por día (tope provisional: 8), para que un número desconocido no
   consuma el servicio.
 
@@ -184,14 +203,24 @@ Cada módulo declara, en el código, dos listas. El negocio las ve en **«Qué h
 cualquier renglón. Encender algo que el código no trae no es posible.
 
 - **Consultas:** lecturas, cada una con qué grado de cliente la puede pedir.
-- **Tareas:** operaciones, cada una con su grado mínimo, su tope, si pide confirmación y qué pasa si se supera el
-  tope.
+- **Tareas:** operaciones, cada una con su grado mínimo, su tope y qué pasa si se supera el tope.
+
+**La regla de la confirmación** (una sola; es la misma del criterio 15 de la sección 7). Decisión del dueño, 14/11:
+«Y vamos a confirmar esas acciones.»
+- **Pide botón toda tarea que escribe en un módulo del negocio:** reservar, cancelar o cambiar un turno, anotarse en
+  lista de espera, armar un pedido, generar un link de pago, anotar una promesa de pago, registrar una aprobación.
+  Sin excepción por tipo ni por importe.
+- **No pide botón:** las consultas (sólo leen); las palabras exactas PERSONA, BAJA y ALTA; y lo que sólo ordena la
+  propia conversación (etiquetarla, pasarla a una persona).
+- Vale **sólo el toque de «Confirmar» de esa misma propuesta**, mientras no venció. Un «dale», un «sí» o cualquier
+  texto escrito **no ejecuta ninguna tarea**: el asistente vuelve a mostrar los botones.
+- Confirma **el propio cliente**. No aprueba una persona del negocio, salvo en las excepciones de la regla 4. Eso es
+  «la tarea hecha con la confirmación del propio cliente».
 
 Toda tarea sigue el mismo recorrido:
 1. El asistente reúne los datos y **muestra lo que va a hacer** con datos del sistema («Turno de Manicura, jueves 20
    a las 10:00, con Laura, $ 12.000»).
-2. El cliente **confirma tocando un botón** («Confirmar» / «Cambiar»). Un «dale» escrito no ejecuta nada que mueva
-   plata o cancele algo.
+2. El cliente **confirma tocando el botón** («Confirmar» / «Cambiar»), según la regla de arriba.
 3. El sistema ejecuta, y el asistente contesta **con el resultado real** (número de turno, link, estado).
 4. Si no se pudo, lo dice y pasa a una persona. Nunca dice «listo» sin que el sistema lo haya confirmado.
 
@@ -263,8 +292,13 @@ qué pasó), etiquetarlo y pasarlo a una persona con todo junto. El asistente **
 |---|---|
 | Fuentes, preguntas y respuestas, etiquetas | Modelo, instrucciones del puesto, evaluación |
 | Apagar renglones de «Qué hace el asistente» | Qué renglones existen y sus techos |
-| Bajar topes | El tope máximo |
+| Bajar topes · firmar la autorización, que fija los topes de cada tarea | El techo de cada tope |
 | Pausar, tomar el control, corregir | Prender el módulo y la IA para ese negocio, con la autorización firmada |
+| El horario en que hay personas para contestar | **Liberar cada tarea** para ese negocio, con su expediente de pruebas (`09` §17) |
+
+**Qué garantiza cada uno** (dueño, 14/11): GSG da la evidencia de las pruebas, que es el expediente de cada tarea
+liberada. El negocio se hace cargo de lo que autorizó. La redacción legal de esa cláusula está pendiente (`09`
+§17.3): este documento no afirma que sea válida.
 
 ## 7. Criterios de aceptación
 
@@ -289,7 +323,9 @@ qué pasó), etiquetarlo y pasarlo a una persona con todo junto. El asistente **
     nada, y queda registrado como intento.
 
 **Tareas**
-15. Ninguna tarea que escribe se ejecuta sin la confirmación por botón de esa misma propuesta.
+15. Ninguna tarea que escribe en un módulo del negocio se ejecuta sin el toque de «Confirmar» de esa misma
+    propuesta, hecho por el propio cliente y antes de que venza. Un texto escrito («dale», «sí») no ejecuta ninguna
+    tarea. Las consultas y las palabras PERSONA, BAJA y ALTA no piden botón. (Es la regla de la sección 4.)
 16. Si el dato cambió entre la propuesta y la confirmación (el horario se ocupó, el precio cambió), no se ejecuta:
     se vuelve a proponer.
 17. El asistente no afirma un resultado que el sistema no devolvió.
@@ -311,6 +347,15 @@ qué pasó), etiquetarlo y pasarlo a una persona con todo junto. El asistente **
 **Métricas**
 27. «Cómo viene» coincide con las conversaciones y tareas registradas, incluidas las que siguen abiertas.
 28. El uso del mes muestra los mensajes enviados y el gasto de IA, y avisa al 80 % de cada tope.
+
+**Agregados por el desafío del 14/11**
+29. Una tarea que no está liberada para ese negocio no se ofrece ni se ejecuta; si el cliente la pide, pasa a una
+    persona.
+30. Quien pide una persona fuera del horario de atención pasa a «Necesita una persona» en el momento y recibe un
+    texto que no promete un plazo.
+31. La baja es una sola: marcada en la ficha frena al asistente, y «BAJA» por WhatsApp frena campañas y
+    recordatorios.
+32. El asistente no pide ni usa datos sensibles si la autorización firmada del negocio no los nombra.
 
 ## 8. Fuera de alcance de esta especificación
 
