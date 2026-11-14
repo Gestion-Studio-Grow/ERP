@@ -155,7 +155,12 @@ export async function crearDespacho(
         if (!decision.puede) return { ok: false, motivo: decision.motivo };
         const eventos = await eventosDelDespacho(tx, p.tenantId, t.id);
         const actual = despachoActual(eventos, p.nivel);
-        if (abierto(actual)) return { ok: true, creado: false, despacho: actual!, ticketId: t.id };
+        if (abierto(actual)) {
+          // Un disparado de más de 30 min se vence ACÁ, en el mismo paso y con el candado (certificación,
+          // hallazgo 2): no depende de que el drenaje lo vea (mira sólo 48 h). Después se crea uno nuevo.
+          if (accionDelDrenaje(actual, ahora()) !== "vencer") return { ok: true, creado: false, despacho: actual!, ticketId: t.id };
+          await anotar(tx, { tenantId: p.tenantId, ticketId: t.id }, p.nivel, "vencido", { despachoId: actual!.id, el: ahora().toISOString(), aviso: true }, AVISO_SIN_IA);
+        }
         const el = ahora().toISOString();
         const datos = { despachoId: randomUUID(), intento: 0, el, proximoEn: el, prioridad: t.prioridad, clienteTenantId: cliente, origen: p.origen };
         await anotar(tx, { tenantId: p.tenantId, ticketId: t.id }, p.nivel, "pendiente", datos);
@@ -198,22 +203,37 @@ export async function intentarDisparo(
       await candadoDelDespacho(tx, p.ticketId, p.nivel);
       const t = await ticketEnTx(tx, p.tenantId, { id: p.ticketId });
       const actual = despachoActual(t ? await eventosDelDespacho(tx, p.tenantId, p.ticketId) : [], p.nivel);
-      if (!t || !actual || accionDelDrenaje(actual, ahora()) !== "disparar") return { tipo: "nada" as const, estado: actual?.estado };
+      const accion = t && actual ? accionDelDrenaje(actual, ahora()) : "nada";
+      if (accion === "vencer") {
+        // Mismo paso que el drenaje, sin depender de su ventana de 48 h (hallazgo 2).
+        await anotar(tx, donde, p.nivel, "vencido", { despachoId: actual!.id, el: ahora().toISOString(), aviso: true }, AVISO_SIN_IA);
+        return { tipo: "nada" as const, estado: "vencido" as const };
+      }
+      if (!t || !actual || accion !== "disparar") return { tipo: "nada" as const, estado: actual?.estado };
       const el = ahora().toISOString();
       if (!(ESTADOS_ABIERTOS as readonly string[]).includes(t.estado) || quienApruebaElBorrador(slug) === "duenio") {
         await anotar(tx, donde, p.nivel, "fallido", { despachoId: actual.id, el, error: "Ticket cerrado o de CH: no se dispara." });
         return { tipo: "nada" as const, estado: "fallido" as const };
       }
       const nonce = nonceNuevo();
+      // El texto se arma (y se valida: slug, número, nonce) ANTES de reclamar (hallazgo 9): si no sirve,
+      // el despacho queda fallido con aviso, nunca «disparado» sin /fire.
+      let texto: string;
+      try {
+        texto = textoDelDisparo(p.nivel, slug ?? "", t.numero, nonce);
+      } catch {
+        await anotar(tx, donde, p.nivel, "fallido", { despachoId: actual.id, el, error: "El negocio no tiene un slug válido: no se dispara.", aviso: true }, AVISO_SIN_IA);
+        return { tipo: "nada" as const, estado: "fallido" as const };
+      }
       const intento = actual.intento + 1;
       await anotar(tx, donde, p.nivel, "disparado", { despachoId: actual.id, intento, el, nonceHash: huellaDelNonce(nonce) });
-      return { tipo: "reclamado" as const, despacho: actual, numero: t.numero, nonce, intento };
+      return { tipo: "reclamado" as const, despacho: actual, texto, intento };
     },
     db,
   );
   if (reclamo.tipo === "nada") return { ok: true, disparado: false, motivo: "No le toca disparar.", estado: reclamo.estado };
 
-  const r = await dispararRutina(rutina, textoDelDisparo(p.nivel, slug ?? "", reclamo.numero, reclamo.nonce), fetch);
+  const r = await dispararRutina(rutina, reclamo.texto, fetch);
   const id = reclamo.despacho.id;
   await enElNegocio(
     p.tenantId,
@@ -281,7 +301,8 @@ export type ResultadoDelDrenaje =
  * El cron: recorre los negocios y, en cada uno, dispara los pendientes a los que les toca y vence los
  * disparados de más de 30 min sin borrador. Motor apagado → no toca la base. Un negocio que falla no
  * frena a los demás. Deuda anotada: una transacción por negocio por corrida (la consola está sujeta a
- * RLS y no puede listar eventos de todos los negocios de una vez).
+ * RLS y no puede listar eventos de todos los negocios de una vez). Mira sólo 48 h: un disparado más viejo
+ * (cron caído) lo vencen crearDespacho e intentarDisparo en el mismo paso, sin depender de esta ventana.
  */
 export async function drenarCola(deps: DependenciasDelDespacho = {}): Promise<ResultadoDelDrenaje> {
   const { db, env, ahora } = resolver(deps);

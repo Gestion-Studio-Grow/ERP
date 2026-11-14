@@ -127,7 +127,7 @@ function antesDeLaBase(p: PedidoDeTicket, accion: "leer_ticket" | "borrador_resp
  */
 async function ticketVisibleEnTx(tx: Prisma.TransactionClient, p: PedidoDeTicket, nivel: NivelDeAgente, accion: "leer_ticket" | "borrador_respuesta"): Promise<TicketParaElAgente | null> {
   // El agente no lee `Tenant` ni `SoporteConsentimiento` (MANT_roles_soporte.sql §5): el slug y el
-  // permiso salen de funciones SECURITY DEFINER sin parámetros, sobre el negocio FIJADO en la transacción.
+  // permiso (de cada nivel) salen de funciones SECURITY DEFINER sin parámetros, sobre el negocio FIJADO.
   const [negocio] = await tx.$queryRaw<{ slug: string | null }[]>`SELECT gsg_slug_del_negocio() AS slug`;
   if (!negocio?.slug || negocio.slug !== p.slug || decidirAccionDeAgente(nivel, accion, negocio.slug).decision !== "permitido") return null;
   const [t] = await tx.$queryRaw<TicketParaElAgente[]>`
@@ -142,7 +142,16 @@ async function ticketVisibleEnTx(tx: Prisma.TransactionClient, p: PedidoDeTicket
     cliente = { slug: c?.slug ?? null, n1: permiso?.cliente === true };
   }
   const v = agentePuedeEnTicket({ estudio: { slug: negocio.slug, n1: permiso?.estudio === true }, cliente });
-  return v.puede ? t : null;
+  if (!v.puede) return null;
+  // El permiso DEL NIVEL (certificación MANT-004, hallazgo 1): n1 alcanza sólo para n1; n2 (y n3, que está
+  // por encima) exige además el n2 vigente del estudio y, si es de cartera, el del cliente. Se lee en esta
+  // misma transacción, en GET y en POST: una revocación vale desde la siguiente llamada.
+  if (nivel !== "n1") {
+    const [n2] = await tx.$queryRaw<{ estudio: boolean; cliente: boolean }[]>`
+      SELECT gsg_permiso_n2_vigente() AS estudio, gsg_permiso_n2_cliente_de_cartera() AS cliente`;
+    if (n2?.estudio !== true || (t.clienteTenantId && n2?.cliente !== true)) return null;
+  }
+  return t;
 }
 
 type Opciones = {
@@ -179,7 +188,7 @@ export async function leerTicketComoAgente(p: PedidoDeTicket, opciones: Opciones
  */
 export async function guardarBorradorEnTx(
   tx: Prisma.TransactionClient,
-  p: PedidoDeTicket & { borrador: unknown },
+  p: PedidoDeTicket & { borrador: unknown; despachoId?: string | null },
 ): Promise<{ ticketId: string }> {
   const nivel = p.nivel as NivelDeAgente;
   const v = validarBorradorDeAgente(p.borrador);
@@ -189,23 +198,27 @@ export async function guardarBorradorEnTx(
   if (!(ESTADOS_ABIERTOS as readonly string[]).includes(t.estado)) throw new Rechazo("El ticket ya está resuelto o cerrado.");
   const actor = `agente:${nivel}`;
   const borrador = { ...v.valor, el: new Date().toISOString(), autor: actor };
+  // Las horas, en UTC explícito (certificación, hallazgo 3): las columnas son sin zona y su DEFAULT
+  // depende de la zona de la sesión; con otra zona el borrador_ia quedaba «antes» del disparo y no lo
+  // cerraba. Además el evento lleva el despacho que cierra (despachoActual lo exige si viene).
   const filas = await tx.$executeRaw`
-    UPDATE "SupportTicket" SET "borradorIa" = ${JSON.stringify(borrador)}::jsonb, "updatedAt" = now()
+    UPDATE "SupportTicket" SET "borradorIa" = ${JSON.stringify(borrador)}::jsonb, "updatedAt" = (clock_timestamp() AT TIME ZONE 'UTC')
     WHERE id = ${t.id} AND "tenantId" = ${p.tenantId}`;
   if (filas !== 1) throw new Rechazo("El ticket dejó de estar disponible para el agente (¿se sacó el permiso?).");
+  const datos = { tipo: v.valor.tipo, prioridad: v.valor.prioridad, ...(p.despachoId ? { despachoId: p.despachoId } : {}) };
   await tx.$executeRaw`
-    INSERT INTO "SupportTicketEvento" (id, "tenantId", "ticketId", tipo, actor, datos)
-    VALUES (${randomUUID()}, ${p.tenantId}, ${t.id}, 'borrador_ia', ${actor}, ${JSON.stringify({ tipo: v.valor.tipo, prioridad: v.valor.prioridad })}::jsonb)`;
+    INSERT INTO "SupportTicketEvento" (id, "tenantId", "ticketId", tipo, actor, datos, "createdAt")
+    VALUES (${randomUUID()}, ${p.tenantId}, ${t.id}, 'borrador_ia', ${actor}, ${JSON.stringify(datos)}::jsonb, (clock_timestamp() AT TIME ZONE 'UTC'))`;
   await tx.$executeRaw`
-    INSERT INTO "AuditLog" (id, "tenantId", actor, action, entity, "entityId", changes, channel)
+    INSERT INTO "AuditLog" (id, "tenantId", actor, action, entity, "entityId", changes, channel, "createdAt")
     VALUES (${randomUUID()}, ${p.tenantId}, ${actor}, 'soporte.agente.borrador', 'SupportTicket', ${t.id},
-            ${JSON.stringify({ numero: t.numero, nivel })}::jsonb, 'agente')`;
+            ${JSON.stringify({ numero: t.numero, nivel })}::jsonb, 'agente', (clock_timestamp() AT TIME ZONE 'UTC'))`;
   return { ticketId: t.id };
 }
 
 /** Guarda el borrador de un agente (acción «borrador_respuesta»). CH o slug vacío → no toca la base. */
 export async function guardarBorradorComoAgente(
-  p: PedidoDeTicket & { borrador: unknown },
+  p: PedidoDeTicket & { borrador: unknown; despachoId?: string | null },
   opciones: Opciones = {},
 ): Promise<ResultadoDelAgente<{ ticketId: string }>> {
   const corte = antesDeLaBase(p, "borrador_respuesta");

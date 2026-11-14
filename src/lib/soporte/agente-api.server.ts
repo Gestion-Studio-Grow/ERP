@@ -12,8 +12,24 @@
 //   · Cualquier falla después de autenticar (ref de otro negocio, nonce de otro nivel o inventado, sin
 //     permiso, CH, ticket cerrado, despacho cerrado o vencido) → el MISMO 404. Credencial mala → 401.
 //   · Límites: por credencial (en memoria, por proceso) y tope de llamadas por despacho (en AuditLog).
-//   · Rastro: cada llamada autenticada con negocio conocido deja un AuditLog (actor agente:<nivel>, ticket,
-//     endpoint, sesión de Claude, resultado), escrito por la consola parada en ese negocio.
+//   · Rastro: cada llamada autenticada con negocio conocido deja un AuditLog `soporte.agente.llamada`
+//     (actor agente:<nivel>, ticket, endpoint, sesión de Claude; `resultado` = sin_despacho | tope |
+//     autorizado), escrito por la consola parada en ese negocio con el candado del despacho: es el que
+//     cuenta para el tope. Si pasó al rol de los agentes, deja además `soporte.agente.resultado` con lo que
+//     se respondió de verdad (ok | no_disponible | apagado | error), con el mismo despachoId.
+//   · Cuerpo: se corta por Content-Length y leyendo de a pedazos hasta el máximo (413), nunca entero.
+//
+// DEUDA ANOTADA (certificación adversarial MANT-004, hallazgos 5 y 6; se dejan porque cerrarlos pide infra):
+//   5. El límite por credencial vive en memoria de cada proceso: con N instancias de Vercel el techo real
+//      es N × 60/min. Arreglarlo pide un almacén compartido (Redis/KV: gasto, regla DEMO→VENTA). Acota el
+//      daño el tope por despacho, que vive en la BASE (AuditLog contado bajo el candado del despacho): a lo
+//      sumo TOPE_DE_LLAMADAS_POR_DESPACHO llamadas por despacho, sin importar cuántas instancias haya, y
+//      sin un nonce vigente (2 h, huella sha-256 de 24 bytes al azar) no se llega a la base del agente.
+//   6. Oráculo de tiempos: una ref con slug inexistente responde 404 sin abrir transacción; una con slug
+//      real, después de una transacción. Con la credencial (requisito previo), se podría saber qué slugs
+//      existen. Igualar tiempos pide trabajo de relleno o una cola. Acota el daño: el slug no es secreto
+//      (es el subdominio público del negocio), el 404 es el mismo cuerpo, y sin el nonce del despacho no se
+//      lee ni escribe nada; cada intento con slug real queda en AuditLog y consume el tope del despacho.
 //   · Lee y escribe con el rol `gsg_agente` (agente-db.ts: permiso del titular, candado de CH y de ticket
 //     abierto). Sin AGENTE_DATABASE_URL o sin claves → 503 { apagado: true, motivo }.
 // Lo prueba despacho-postgres.test.ts.
@@ -42,7 +58,8 @@ import { anotarListo, candadoDelDespacho, eventosDelDespacho, type DependenciasD
 const limitadorPorCredencial = createRateLimiter({ max: 60, windowMs: 60_000 });
 /** Credenciales malas por IP en 15 min. */
 const fallasPorIp = createRateLimiter({ max: 10, windowMs: 15 * 60_000 });
-const LARGO_MAXIMO_DEL_PEDIDO = 16_384;
+/** Bytes. 4000 + 1000 caracteres de borrador (hasta 3 bytes cada uno en UTF-8) más el JSON, con holgura. */
+const LARGO_MAXIMO_DEL_PEDIDO = 32_768;
 export const RUTA_DEL_AGENTE = "/api/soporte/agente";
 
 export interface DependenciasDeLaApi extends DependenciasDelDespacho {
@@ -62,6 +79,7 @@ export interface Respuesta {
 const NO_DISPONIBLE: Respuesta = { status: 404, body: { error: "no_disponible" } };
 const NO_AUTORIZADO: Respuesta = { status: 401, body: { error: "no_autorizado" } };
 const apagado = (motivo: string): Respuesta => ({ status: 503, body: { apagado: true, motivo } });
+const GRANDE: Respuesta = { status: 413, body: { error: "pedido_grande" } };
 const demasiadas = (segundos: number): Respuesta => ({ status: 429, body: { error: "demasiadas_llamadas" }, headers: { "retry-after": String(Math.max(1, segundos)) } });
 
 interface ContextoDelDespacho {
@@ -115,7 +133,8 @@ async function resolverDespacho(
         await rastro(t.id, { despachoId: d.id, sesion: d.sesionId, resultado: "tope" });
         return { ok: false as const, respuesta: demasiadas(60) };
       }
-      await rastro(t.id, { despachoId: d.id, sesion: d.sesionId, resultado: "ok" });
+      // «autorizado», no «ok»: lo que se respondió de verdad lo anota `soporte.agente.resultado` (hallazgo 4).
+      await rastro(t.id, { despachoId: d.id, sesion: d.sesionId, resultado: "autorizado" });
       return {
         ok: true as const,
         ctx: { tenantId, slug: negocio.slug, ticketId: t.id, numero: p.numero, clienteTenantId: d.clienteTenantId /* el del despacho: si el ticket cambió de cliente, agente-db no lo ve */, despachoId: d.id, sesionId: d.sesionId },
@@ -125,10 +144,96 @@ async function resolverDespacho(
   );
 }
 
-async function leerCuerpo(req: Request): Promise<Record<string, unknown> | null> {
-  const texto = await req.text();
-  if (texto.length > LARGO_MAXIMO_DEL_PEDIDO) return null;
+/**
+ * Lo que se respondió de verdad, después de pasar al rol de los agentes (hallazgo 4): un AuditLog aparte
+ * (la consola no edita AuditLog). Si no se puede escribir, la respuesta sale igual: el
+ * `soporte.agente.llamada` «autorizado» ya quedó, con el mismo despachoId.
+ */
+async function anotarResultado(ctx: ContextoDelDespacho, nivel: NivelDeDespacho, endpoint: string, resultado: "ok" | "no_disponible" | "apagado" | "error", db: PrismaClient): Promise<void> {
   try {
+    await enElNegocio(
+      ctx.tenantId,
+      (tx) =>
+        tx.auditLog.create({
+          data: {
+            tenantId: ctx.tenantId, actor: `agente:${nivel}`, action: "soporte.agente.resultado", entity: "SupportTicket", entityId: ctx.ticketId, channel: "agente",
+            changes: { endpoint, numero: ctx.numero, despachoId: ctx.despachoId, sesion: ctx.sesionId, resultado },
+          },
+        }),
+      db,
+    );
+  } catch (e) {
+    console.error("[soporte-agente] no se pudo anotar el resultado:", e instanceof Error ? e.name : "error");
+  }
+}
+
+/** Paso 5: con el rol de los agentes. Devuelve la respuesta; el resultado lo anota quien llama. */
+async function conElRolDelAgente(
+  metodo: "GET" | "POST",
+  ctx: ContextoDelDespacho,
+  nivel: NivelDeDespacho,
+  nonce: string,
+  cuerpo: Record<string, unknown> | null,
+  agente: PrismaClient,
+  deps: DependenciasDeLaApi & { db: PrismaClient },
+  ahora: () => Date,
+): Promise<Respuesta> {
+  const pedido = { tenantId: ctx.tenantId, slug: ctx.slug, nivel, numero: ctx.numero, clienteTenantId: ctx.clienteTenantId };
+  if (metodo === "GET") {
+    const leido = await leerTicketComoAgente(pedido, { db: agente });
+    if (!leido.ok) return leido.apagado ? apagado(leido.motivo) : NO_DISPONIBLE;
+    const t = leido.ticket;
+    return {
+      status: 200,
+      body: { ref: `${ctx.slug}#${t.numero}`, numero: t.numero, tipo: t.tipo, prioridad: t.prioridad, estado: t.estado, canal: t.canal, creado: t.createdAt, texto: bloqueDelCliente(t), valores: { tipos: TIPOS_TICKET, prioridades: PRIORIDADES } },
+    };
+  }
+  const guardado = await guardarBorradorComoAgente(
+    // El borrador_ia lleva el despacho que cierra (hallazgo 3).
+    { ...pedido, borrador: cuerpo?.borrador, despachoId: ctx.despachoId },
+    {
+      db: agente,
+      // En la transacción del agente, con el mismo candado: el despacho sigue abierto y es el mismo.
+      // El `borrador_ia` que escribe guardarBorradorEnTx lo cierra (listo) en esa misma transacción.
+      antesDeGuardar: async (tx) => {
+        await candadoDelDespacho(tx, ctx.ticketId, nivel);
+        const d = despachoActual(await eventosDelDespacho(tx, ctx.tenantId, ctx.ticketId), nivel);
+        return d?.id === ctx.despachoId && vigenteParaElAgente(d, nonce, ahora()) ? null : "El despacho ya no está abierto.";
+      },
+    },
+  );
+  if (!guardado.ok) return guardado.apagado ? apagado(guardado.motivo) : NO_DISPONIBLE;
+  try {
+    await anotarListo({ tenantId: ctx.tenantId, ticketId: ctx.ticketId, nivel, despachoId: ctx.despachoId }, deps);
+  } catch {
+    // El despacho ya quedó listo por el borrador_ia; el evento de métricas se puede perder sin daño.
+  }
+  return { status: 200, body: { ok: true, ref: `${ctx.slug}#${ctx.numero}` } };
+}
+
+/**
+ * El cuerpo JSON, sin leer de más (hallazgo 7): Content-Length declarado de más → "grande" sin leer nada;
+ * si no, se lee de a pedazos y al pasar el máximo se corta la lectura. null = no es un objeto JSON.
+ */
+async function leerCuerpo(req: Request): Promise<Record<string, unknown> | null | "grande"> {
+  const declarado = req.headers.get("content-length");
+  if (declarado !== null && !(Number(declarado) <= LARGO_MAXIMO_DEL_PEDIDO)) return "grande";
+  if (!req.body) return null;
+  const lector = req.body.getReader();
+  const partes: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await lector.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > LARGO_MAXIMO_DEL_PEDIDO) {
+      await lector.cancel().catch(() => {});
+      return "grande";
+    }
+    partes.push(value);
+  }
+  try {
+    const texto = new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(partes));
     const x = JSON.parse(texto);
     return typeof x === "object" && x !== null && !Array.isArray(x) ? (x as Record<string, unknown>) : null;
   } catch {
@@ -169,8 +274,10 @@ export async function atenderAgente(req: Request, deps: DependenciasDeLaApi = {}
   const nonce = req.headers.get(HEADER_DEL_NONCE)?.trim() ?? "";
   let cuerpo: Record<string, unknown> | null = null;
   if (metodo === "POST") {
-    cuerpo = await leerCuerpo(req);
-    if (!cuerpo) return { status: 400, body: { error: "pedido_invalido" } };
+    const leido = await leerCuerpo(req);
+    if (leido === "grande") return GRANDE;
+    if (!leido) return { status: 400, body: { error: "pedido_invalido" } };
+    cuerpo = leido;
   }
   const ref = leerRef(metodo === "GET" ? new URL(req.url).searchParams.get("ref") : cuerpo?.ref);
   if (!ref) return { status: 400, body: { error: "ref_invalida", formato: "slug#numero" } };
@@ -185,38 +292,16 @@ export async function atenderAgente(req: Request, deps: DependenciasDeLaApi = {}
     const r = await resolverDespacho({ nivel, slug: ref.slug, numero: ref.numero, nonce, endpoint: `${metodo} ${RUTA_DEL_AGENTE}` }, db, ahora, deps.tope ?? TOPE_DE_LLAMADAS_POR_DESPACHO);
     if (!r.ok) return r.respuesta;
     const { ctx } = r;
-    const pedido = { tenantId: ctx.tenantId, slug: ctx.slug, nivel, numero: ctx.numero, clienteTenantId: ctx.clienteTenantId };
-
-    // 5. Con el rol de los agentes.
-    if (metodo === "GET") {
-      const leido = await leerTicketComoAgente(pedido, { db: agente });
-      if (!leido.ok) return leido.apagado ? apagado(leido.motivo) : NO_DISPONIBLE;
-      const t = leido.ticket;
-      return {
-        status: 200,
-        body: { ref: `${ctx.slug}#${t.numero}`, numero: t.numero, tipo: t.tipo, prioridad: t.prioridad, estado: t.estado, canal: t.canal, creado: t.createdAt, texto: bloqueDelCliente(t), valores: { tipos: TIPOS_TICKET, prioridades: PRIORIDADES } },
-      };
-    }
-    const guardado = await guardarBorradorComoAgente(
-      { ...pedido, borrador: cuerpo?.borrador },
-      {
-        db: agente,
-        // En la transacción del agente, con el mismo candado: el despacho sigue abierto y es el mismo.
-        // El `borrador_ia` que escribe guardarBorradorEnTx lo cierra (listo) en esa misma transacción.
-        antesDeGuardar: async (tx) => {
-          await candadoDelDespacho(tx, ctx.ticketId, nivel);
-          const d = despachoActual(await eventosDelDespacho(tx, ctx.tenantId, ctx.ticketId), nivel);
-          return d?.id === ctx.despachoId && vigenteParaElAgente(d, nonce, ahora()) ? null : "El despacho ya no está abierto.";
-        },
-      },
-    );
-    if (!guardado.ok) return guardado.apagado ? apagado(guardado.motivo) : NO_DISPONIBLE;
+    const endpoint = `${metodo} ${RUTA_DEL_AGENTE}`;
+    let respuesta: Respuesta;
     try {
-      await anotarListo({ tenantId: ctx.tenantId, ticketId: ctx.ticketId, nivel, despachoId: ctx.despachoId }, { ...deps, db });
-    } catch {
-      // El despacho ya quedó listo por el borrador_ia; el evento de métricas se puede perder sin daño.
+      respuesta = await conElRolDelAgente(metodo, ctx, nivel, nonce, cuerpo, agente, { ...deps, db }, ahora);
+    } catch (e) {
+      await anotarResultado(ctx, nivel, endpoint, "error", db);
+      throw e;
     }
-    return { status: 200, body: { ok: true, ref: `${ctx.slug}#${ctx.numero}` } };
+    await anotarResultado(ctx, nivel, endpoint, respuesta.status === 200 ? "ok" : respuesta.status === 503 ? "apagado" : "no_disponible", db);
+    return respuesta;
   } catch (e) {
     if (esTablaAusente(e)) return apagado("Todavía no está la tabla de tickets (falta aplicar la migración).");
     throw e;

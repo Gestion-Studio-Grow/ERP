@@ -209,7 +209,11 @@ test("despacho y API del agente: idempotencia, aislamiento, permisos, niveles, r
     assert.equal(llamadas[0].actor, "agente:n1");
     assert.equal(llamadas[0].changes.endpoint, "GET /api/soporte/agente");
     assert.equal(llamadas[0].changes.sesion, "ses_1");
-    assert.equal(llamadas[0].changes.resultado, "ok");
+    assert.equal(llamadas[0].changes.resultado, "autorizado", "la llamada cuenta para el tope; el resultado va aparte");
+    const resultado = (await duenio.query(`SELECT changes FROM "AuditLog" WHERE "entityId" = $1 AND action = 'soporte.agente.resultado'`, [tk(A, 1)])).rows;
+    assert.equal(resultado.length, 1);
+    assert.equal(resultado[0].changes.resultado, "ok");
+    assert.equal(resultado[0].changes.despachoId, llamadas[0].changes.despachoId);
 
     const mal = await atender(pedir({ ref: `${slugA}#1`, nonce: nonceA1, metodo: "POST", borrador: { ...borrador, tipo: "inventado" } }));
     assert.equal(mal.status, 400);
@@ -342,5 +346,141 @@ test("despacho y API del agente: idempotencia, aislamiento, permisos, niveles, r
     const r2 = await api.atenderAgente(pedir({ ref: `${slugA}#1`, nonce: "x" }), { db: bomba, env: sinClaves, agente, ...limites() });
     assert.equal(r2.status, 503);
     assert.match((r2.body as { motivo: string }).motivo, /MANT_AGENTE_N1_CLAVE/);
+  });
+  // ── Certificación adversarial (MANT-004, ronda 1): ataques reproducibles, ahora tests ──
+  await t.test("ADV1 permiso n2 revocado (n1 sigue) entre el despacho y la llamada → 404 en GET y POST", async () => {
+    await ticket(A, 8);
+    const nonce = await despachar(A, 8, "n2");
+    assert.equal((await atender(pedir({ ref: `${slugA}#8`, nonce, clave: K2 }))).status, 200, "con n2 vigente, sí");
+    await permiso(A, "n2", false);
+    assert.equal((await atender(pedir({ ref: `${slugA}#8`, nonce, clave: K2 }))).status, 404);
+    assert.equal((await atender(pedir({ ref: `${slugA}#8`, nonce, clave: K2, metodo: "POST", borrador }))).status, 404);
+    const fila = (await duenio.query(`SELECT "borradorIa" FROM "SupportTicket" WHERE id = $1`, [tk(A, 8)])).rows[0];
+    assert.equal(fila.borradorIa, null);
+    await permiso(A, "n2", true);
+  });
+
+  await t.test("ADV1 cartera: n2 del cliente revocado → 404; la función por nivel exige el n2 de los dos", async () => {
+    await duenio.query(
+      `INSERT INTO "SupportTicket" (id, "tenantId", numero, tipo, prioridad, estado, asunto, detalle, canal, "creadoPor", "clienteTenantId", "updatedAt")
+       VALUES ($1, $2, 9, 'consulta', 'P3', 'nuevo', 'Cartera', 'd', 'erp', 'test', $3, now())`,
+      [tk(A, 9), A, B],
+    );
+    const n2Cliente = async () => {
+      const c = await conectar(urlAgente);
+      try {
+        await c.query("BEGIN");
+        await c.query("SELECT set_config('app.current_tenant_id', $1, true), set_config('app.cliente_tenant_id', $2, true)", [A, B]);
+        return (await c.query("SELECT gsg_permiso_n2_cliente_de_cartera() AS v, gsg_permiso_n2_vigente() AS e")).rows[0] as { v: boolean; e: boolean };
+      } finally {
+        await c.query("ROLLBACK").catch(() => {});
+        await c.end();
+      }
+    };
+    assert.deepEqual(await n2Cliente(), { v: false, e: true }, "B sin n2 → la cartera no tiene n2");
+    await permiso(B, "n2", true);
+    assert.deepEqual(await n2Cliente(), { v: true, e: true });
+    const nonce = await despachar(A, 9, "n2");
+    assert.equal((await atender(pedir({ ref: `${slugA}#9`, nonce, clave: K2 }))).status, 200);
+    await permiso(B, "n2", false);
+    assert.equal((await atender(pedir({ ref: `${slugA}#9`, nonce, clave: K2 }))).status, 404);
+    assert.equal((await atender(pedir({ ref: `${slugA}#9`, nonce, clave: K2, metodo: "POST", borrador }))).status, 404);
+    await permiso(B, "n2", true);
+    await permiso(B, "n1", false);
+    await permiso(B, "n1", true);
+    assert.equal((await n2Cliente()).v, false, "n2 dado antes del último n1 no revive solo");
+  });
+
+  await t.test("ADV2 despacho disparado de hace 49 h (fuera del drenaje): volver a despachar lo vence y dispara uno nuevo", async () => {
+    await ticket(B, 3);
+    await despachar(B, 3, "n1");
+    await duenio.query(`UPDATE "SupportTicketEvento" SET "createdAt" = "createdAt" - interval '49 hours',
+      datos = CASE WHEN datos ? 'el' THEN jsonb_set(datos, '{el}', to_jsonb(to_char(((datos->>'el')::timestamptz - interval '49 hours') AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))) ELSE datos END
+      WHERE "ticketId" = $1`, [tk(B, 3)]);
+    const antes = disparos.length;
+    const re = await despacho.despacharTicket({ tenantId: B, numero: 3, nivel: "n1", origen: "manual" }, deps);
+    assert.ok(re.ok && re.creado, "crea uno nuevo");
+    assert.ok(re.ok && re.disparo.ok && re.disparo.disparado);
+    assert.equal(disparos.length, antes + 1);
+    const tipos = (await eventos(tk(B, 3))).map((e) => e.tipo);
+    assert.ok(tipos.includes("despacho:n1:vencido"), tipos.join(","));
+  });
+
+  await t.test("ADV2 intentarDisparo vence en el mismo paso un disparado de más de 30 min", async () => {
+    await ticket(B, 5);
+    await despachar(B, 5, "n1");
+    const disparo = Date.now();
+    const r = await despacho.intentarDisparo({ tenantId: B, ticketId: tk(B, 5), nivel: "n1" }, { ...deps, ahora: () => new Date(disparo + 31 * MIN) });
+    assert.ok(r.ok && !r.disparado && r.estado === "vencido");
+    assert.equal((await eventos(tk(B, 5))).at(-1).tipo, "despacho:n1:vencido");
+  });
+
+  await t.test("ADV3 sesión del agente con TimeZone ≠ UTC: el borrador cierra el despacho; un segundo POST da 404", async () => {
+    await ticket(A, 10);
+    const su = await conectar(urlDeRol(servidor, null, base.nombre));
+    await su.query(`ALTER ROLE gsg_agente IN DATABASE "${base.nombre}" SET timezone = 'America/Argentina/Buenos_Aires'`);
+    const agente2 = new PrismaClient({ adapter: new PrismaPg({ connectionString: urlAgente }) });
+    try {
+      const nonce = await despachar(A, 10, "n1");
+      const a = await atender(pedir({ ref: `${slugA}#10`, nonce, metodo: "POST", borrador }), { agente: agente2 });
+      assert.equal(a.status, 200, JSON.stringify(a.body));
+      const b = await atender(pedir({ ref: `${slugA}#10`, nonce, metodo: "POST", borrador: { ...borrador, respuesta: "segundo" } }), { agente: agente2 });
+      assert.equal(b.status, 404, "el despacho quedó cerrado por el borrador");
+      const ev = await eventos(tk(A, 10));
+      const bi = ev.filter((e) => e.tipo === "borrador_ia");
+      assert.equal(bi.length, 1);
+      assert.ok(bi[0].datos.despachoId, "el borrador_ia lleva el despacho que cierra");
+      assert.deepEqual(ev.map((e) => e.tipo).slice(-2), ["borrador_ia", "despacho:n1:listo"], "orden por hora UTC");
+    } finally {
+      await su.query(`ALTER ROLE gsg_agente IN DATABASE "${base.nombre}" RESET timezone`);
+      await su.end();
+      await agente2.$disconnect();
+    }
+  });
+
+  await t.test("ADV4 el AuditLog anota el resultado real: permiso revocado → no_disponible, nunca ok", async () => {
+    await ticket(B, 4);
+    const nonce = await despachar(B, 4, "n1");
+    await permiso(B, "n1", false);
+    assert.equal((await atender(pedir({ ref: `${slugB}#4`, nonce }))).status, 404);
+    await permiso(B, "n1", true);
+    const filas = (await duenio.query(`SELECT action, changes FROM "AuditLog" WHERE "entityId" = $1 AND action LIKE 'soporte.agente.%' ORDER BY "createdAt", id`, [tk(B, 4)])).rows;
+    assert.ok(!filas.some((f) => f.changes.resultado === "ok"), JSON.stringify(filas.map((f) => f.changes.resultado)));
+    const res = filas.find((f) => f.action === "soporte.agente.resultado");
+    assert.equal(res?.changes.resultado, "no_disponible");
+    assert.ok(res?.changes.despachoId);
+  });
+
+  await t.test("ADV7 cuerpo grande: se corta por Content-Length y por lectura acotada sin leerlo entero", async () => {
+    // El largo se mira antes de buscar el despacho: un nonce cualquiera alcanza.
+    const headers = { authorization: `Bearer ${K1}`, "x-mant-despacho": "z".repeat(32), "content-type": "application/json" };
+    const grande = await atender(new Request("https://erp.test/api/soporte/agente", { method: "POST", headers, body: "x".repeat(40_000) }));
+    assert.equal(grande.status, 413);
+    let leidos = 0;
+    const infinito = new ReadableStream<Uint8Array>({
+      pull(c) {
+        leidos++;
+        c.enqueue(new Uint8Array(4096).fill(32));
+      },
+    });
+    const sinLargo = await atender(new Request("https://erp.test/api/soporte/agente", { method: "POST", headers, body: infinito, duplex: "half" } as RequestInit));
+    assert.equal(sinLargo.status, 413);
+    assert.ok(leidos < 20, `leyó ${leidos} pedazos`);
+  });
+
+  await t.test("ADV9 negocio con slug inválido: no se reclama el despacho ni se llama al /fire; queda fallido", async () => {
+    const MAL = `${A}-mal`;
+    await duenio.query(`INSERT INTO "Tenant" (id, name, slug, subdomain, "updatedAt") VALUES ($1, 'Mal', 'Mal_Slug', 'mal-slug', now())`, [MAL]);
+    await duenio.query(`INSERT INTO "User" (id, "tenantId", name, email, "passwordHash", role, "updatedAt") VALUES ($1, $2, 'T', 'mal@x.test', 'x', 'OWNER', now())`, [`${MAL}-t`, MAL]);
+    titular[MAL] = `${MAL}-t`;
+    await permiso(MAL, "n1", true);
+    await ticket(MAL, 1);
+    const antes = disparos.length;
+    const r = await despacho.despacharTicket({ tenantId: MAL, numero: 1, nivel: "n1", origen: "manual" }, deps);
+    assert.ok(r.ok && r.disparo.ok && !r.disparo.disparado, JSON.stringify(r));
+    assert.equal(disparos.length, antes, "sin /fire");
+    const tipos = (await eventos(tk(MAL, 1))).map((e) => e.tipo);
+    assert.ok(!tipos.includes("despacho:n1:disparado"), tipos.join(","));
+    assert.equal(tipos.at(-1), "despacho:n1:fallido");
   });
 });

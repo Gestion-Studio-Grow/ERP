@@ -86,7 +86,8 @@ export function rutinaDelNivel(env: Record<string, string | undefined>, nivel: N
   } catch {
     return { ok: false, motivo: `MANT_RUTINA_${N}_URL no es una URL: apagado.` };
   }
-  if (u.protocol !== "https:" || u.hostname !== HOST_DE_RUTINAS || !/^\/v1\/claude_code\/routines\/[^/]+\/fire$/.test(u.pathname)) {
+  // Sólo el 443 (URL normaliza «:443» a vacío) y sin usuario ni clave en la URL (certificación, hallazgo 8).
+  if (u.protocol !== "https:" || u.hostname !== HOST_DE_RUTINAS || u.port !== "" || u.username || u.password || !/^\/v1\/claude_code\/routines\/[^/]+\/fire$/.test(u.pathname)) {
     return { ok: false, motivo: `MANT_RUTINA_${N}_URL no es el /fire de ${HOST_DE_RUTINAS}: apagado (el token no sale a otro lado).` };
   }
   return { ok: true, url, token };
@@ -172,7 +173,10 @@ export function despachoActual(eventos: readonly EventoCrudo[], nivel: NivelDeDe
   let d = null as Despacho | null;
   for (const e of orden) {
     if (e.tipo === "borrador_ia") {
-      if (d?.estado === "disparado" && e.actor === `agente:${nivel}`) d = { ...d, estado: "listo" };
+      // Atado al despacho (certificación, hallazgo 3): si el borrador dice qué despacho cierra, tiene que
+      // ser éste; uno sin id (viejo) cierra por orden de hora, como antes.
+      const de = typeof e.datos === "object" && e.datos !== null ? texto((e.datos as Record<string, unknown>).despachoId) : null;
+      if (d?.estado === "disparado" && e.actor === `agente:${nivel}` && (!de || de === d.id)) d = { ...d, estado: "listo" };
       continue;
     }
     const t = leerTipoDeEvento(e.tipo);
@@ -287,7 +291,7 @@ export function nivelDeLaCredencial(
 
 export type FetchDeRutina = (
   url: string,
-  init: { method: string; headers: Record<string, string>; body: string; signal?: AbortSignal },
+  init: { method: string; headers: Record<string, string>; body: string; signal?: AbortSignal; redirect?: "manual" },
 ) => Promise<{ status: number; ok: boolean; json(): Promise<unknown> }>;
 
 export type ResultadoDelDisparo =
@@ -316,6 +320,8 @@ export async function dispararRutina(
       },
       body: JSON.stringify({ text }),
       signal: AbortSignal.timeout(timeoutMs),
+      // Nunca seguir una redirección: el token iría a otro host. Un 3xx es falla sin reintento (hallazgo 8).
+      redirect: "manual",
     });
   } catch (e) {
     const nombre = e instanceof Error ? e.name : "error";

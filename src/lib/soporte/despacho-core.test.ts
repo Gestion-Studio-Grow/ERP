@@ -48,6 +48,11 @@ test("rutinaDelNivel: sin URL o token → apagado y lo dice; sólo https://api.a
   const ok = rutinaDelNivel({ MANT_RUTINA_N1_URL: URL_OK, MANT_RUTINA_N1_TOKEN: " tok " }, "n1");
   assert.ok(ok.ok && ok.token === "tok" && ok.url === URL_OK);
   assert.equal(rutinaDelNivel({ MANT_RUTINA_N1_URL: URL_OK, MANT_RUTINA_N1_TOKEN: "t" }, "n2").ok, false, "la de n1 no sirve para n2");
+  // Sólo el puerto 443 y sin credenciales en la URL (certificación adversarial, hallazgo 8).
+  const con = (u: string) => rutinaDelNivel({ MANT_RUTINA_N1_URL: u, MANT_RUTINA_N1_TOKEN: "t" }, "n1").ok;
+  assert.equal(con("https://api.anthropic.com:8443/v1/claude_code/routines/x/fire"), false, "otro puerto");
+  assert.equal(con("https://u:p@api.anthropic.com/v1/claude_code/routines/x/fire"), false, "credenciales en la URL");
+  assert.equal(con("https://api.anthropic.com:443/v1/claude_code/routines/x/fire"), true, "443 explícito es el mismo");
 });
 
 test("puedeDespachar: motor, origen, CH, ticket cerrado y permiso", () => {
@@ -110,6 +115,9 @@ test("despachoActual: reconstruye pendiente → disparado → listo con el borra
   assert.equal(tarde?.sesionId, "s1");
   // Un borrador_ia del agente ANTERIOR al disparo no cierra el despacho nuevo.
   assert.equal(despachoActual([ev("borrador_ia", {}, -5, "agente:n1"), ...eventos], "n1")?.estado, "disparado");
+  // Atado al despacho (hallazgo 3): un borrador_ia con el id de OTRO despacho no cierra; con el suyo, sí.
+  assert.equal(despachoActual([...conSesion, ev("borrador_ia", { despachoId: "otro" }, 3, "agente:n1")], "n1")?.estado, "disparado");
+  assert.equal(despachoActual([...conSesion, ev("borrador_ia", { despachoId: id }, 3, "agente:n1")], "n1")?.estado, "listo");
   // Un despacho nuevo después de uno cerrado arranca de cero.
   const nuevo = despachoActual([...eventos, ev(tipoDeEvento("n1", "vencido"), { despachoId: id }, 40), ev(tipoDeEvento("n1", "pendiente"), { despachoId: "d2", intento: 0, el: mas(50).toISOString(), proximoEn: mas(50).toISOString() }, 50)], "n1");
   assert.equal(nuevo?.id, "d2");
@@ -200,6 +208,9 @@ test("dispararRutina: headers del §15.2, cuerpo sólo con text, sesión de la r
   assert.equal(llamadas[0].init.headers["anthropic-beta"], BETA_DE_RUTINAS);
   assert.equal(llamadas[0].init.headers["anthropic-version"], "2023-06-01");
   assert.deepEqual(JSON.parse(llamadas[0].init.body), { text: "mant n1 magra#1 d=x" });
+  assert.equal((llamadas[0].init as { redirect?: string }).redirect, "manual", "no sigue redirecciones (el token no sale a otro host)");
+  const r302 = await dispararRutina({ url: URL_OK, token: "tok" }, "t", async () => ({ status: 302, ok: false, json: async () => ({}) }));
+  assert.ok(!r302.ok && !r302.reintentable && r302.status === 302, "una redirección es falla, sin reintento");
 
   const raro = await dispararRutina({ url: URL_OK, token: "tok" }, "t", async () => ({ status: 200, ok: true, json: async () => ({ claude_code_session_id: "<script>", claude_code_session_url: "javascript:x" }) }));
   assert.deepEqual(raro, { ok: true, sesionId: null, sesionUrl: null }, "lo que no cierra no se guarda");
