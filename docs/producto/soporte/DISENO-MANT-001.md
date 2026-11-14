@@ -329,9 +329,14 @@ aparta de la tabla de arriba:**
 - **Refutación del 14/11 (corregida):** (1) las funciones del candado usan `public."…"` y
   `search_path = pg_catalog, public, pg_temp`: una tabla temporal del agente no tapa a la real (no se le
   sacó TEMP a PUBLIC porque toca roles vivos de producción); (2) el ticket de cartera exige también el
-  permiso del CLIENTE; como bajo RLS el permiso del cliente no se ve desde el estudio, hoy el agente no ve
-  ningún ticket de cartera (falla cerrado: los atiende una persona; abrirlo pide una función propia y su
-  certificación); (3) la consola no firma permisos; (4) el agente sólo escribe AuditLog con
+  permiso del CLIENTE; como bajo RLS el permiso del cliente no se ve desde el estudio, se lee con
+  `gsg_permiso_n1_cliente_de_cartera()` (MANT-003, 14/11): SECURITY DEFINER sin parámetros (estudio y cliente
+  salen de `app.current_tenant_id` y `app.cliente_tenant_id`, que fija `agente-db.ts` desde el despacho),
+  `search_path` fijo con `pg_temp` al final, sólo boolean, EXECUTE sólo a `gsg_agente`; exige permiso n1
+  vigente del estudio Y del cliente, un ticket de cartera entre los dos y ninguno protegido. La política sólo
+  deja ver cartera del cliente fijado. Residual: parado en un estudio con permiso, el agente sabe si un cliente
+  de SU cartera dio el n1 (lo mismo que revela ver su ticket); con el FORCE RLS opcional (0003) la función
+  no ve el permiso y la cartera queda cerrada (falla cerrado). Prueba: `agente-db-postgres.test.ts`; (3) la consola no firma permisos; (4) el agente sólo escribe AuditLog con
   `actor LIKE 'agente:%'`; (5) **D5 en CH no contradice el candado:** el agente no toca la base de CH; el ERP
   le pasa el texto tapado, el agente devuelve el borrador y la consola (`gsg_operador`) lo guarda para que
   el dueño lo apruebe (`agentes-permisos.ts`, `borrador_al_duenio`); (6) el `CREATE ROLE` del archivo corre
