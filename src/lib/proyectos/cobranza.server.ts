@@ -30,27 +30,27 @@ export const SELECT_COBRANZA = {
 type Original = { monto: number; moneda: string };
 
 // ── D13: cobros fijados al tipo de cambio de su momento ─────────────────────────────────────────
-// `ProyectoPago.cuotaId/montoMoneda/tipoCambio` llegan con la migración 20261114120000_proyecto_pago_cuota, que puede no
+// `ProyectoPago.cuotaId/montoMoneda/tipoCambio/moneda` llegan con la migración 20261114120000_proyecto_pago_cuota, que puede no
 // estar aplicada. Mismo patrón que `hayColumnaCuotaEnInvoice` (facturar-cuota.server.ts) y must-change-password.ts: se
 // pregunta al catálogo SIN transacción (leer una columna que falta aborta la transacción en la que corre) y se recuerda
 // sólo el sí; apenas se aplica la migración, la próxima pregunta ya lo ve.
 let _columnasCobroFijado = false;
 
-/** ¿La base tiene las tres columnas D13 de `ProyectoPago`? Falla cerrado: sin poder preguntar, `false`. */
+/** ¿La base tiene las cuatro columnas D13 de `ProyectoPago`? Falla cerrado: sin poder preguntar, `false`. */
 export async function hayColumnasCobroFijado(): Promise<boolean> {
   if (_columnasCobroFijado) return true;
   const filas = await basePrisma
     .$queryRaw<{ n: bigint | number }[]>`SELECT count(*) AS n FROM information_schema.columns
-      WHERE table_schema = 'public' AND table_name = 'ProyectoPago' AND column_name IN ('cuotaId', 'montoMoneda', 'tipoCambio')`
+      WHERE table_schema = 'public' AND table_name = 'ProyectoPago' AND column_name IN ('cuotaId', 'montoMoneda', 'tipoCambio', 'moneda')`
     .catch(() => null);
   if (filas === null) return false;
-  _columnasCobroFijado = Number(filas[0]?.n ?? 0) === 3;
+  _columnasCobroFijado = Number(filas[0]?.n ?? 0) === 4;
   return _columnasCobroFijado;
 }
 
 /**
  * Las columnas de `ProyectoPago` que existen con o sin la migración D13. Toda lectura de cobros enteros va con este
- * `select`: sin él, Prisma pide también las tres columnas nuevas y la consulta falla en una base sin migrar.
+ * `select`: sin él, Prisma pide también las cuatro columnas nuevas y la consulta falla en una base sin migrar.
  */
 export const COLUMNAS_PAGO = { id: true, tenantId: true, proyectoId: true, medio: true, monto: true, nota: true, cobradoPor: true, anuladoEl: true, anuladoPor: true, createdAt: true } as const;
 
@@ -99,8 +99,8 @@ export async function originalesDeCobros(tenantId: string, proyectos: readonly {
 
 /**
  * D13, por id de cobro: los cobros a mano (sin cuota) fijados al tipo de cambio de su momento, con lo que valieron en la
- * moneda del proyecto (`montoMoneda`; `registrarCobro` lo calcula con la moneda del proyecto). Vacío si el interruptor
- * está apagado, si falta la migración o en proyectos en pesos. Los de «Marcar cobrado» se quedan afuera: su valor en la
+ * moneda del proyecto (`montoMoneda`; `registrarCobro` lo calcula con la moneda del proyecto y la graba en `moneda`). Vacío si
+ * el interruptor está apagado, si falta la migración o en proyectos en pesos; se omite el cobro fijado en otra moneda. Los de «Marcar cobrado» se quedan afuera: su valor en la
  * moneda de la cuota ya viaja en el enlace «Asiento».
  */
 async function fijadosDeCobros(tenantId: string, proyectos: readonly { moneda?: string; pagos: readonly { id: string }[] }[], db: Db): Promise<Map<string, Original>> {
@@ -110,9 +110,14 @@ async function fijadosDeCobros(tenantId: string, proyectos: readonly { moneda?: 
   if (monedaDe.size === 0 || !cobroFijadoActivo() || !(await hayColumnasCobroFijado())) return salida;
   const filas = await db.proyectoPago.findMany({
     where: { tenantId, id: { in: [...monedaDe.keys()] }, cuotaId: null, tipoCambio: { gt: 0 }, montoMoneda: { not: null } },
-    select: { id: true, montoMoneda: true },
+    select: { id: true, montoMoneda: true, moneda: true },
   });
-  for (const f of filas) if (f.montoMoneda !== null && Number.isFinite(f.montoMoneda)) salida.set(f.id, { monto: f.montoMoneda, moneda: monedaDe.get(f.id)! });
+  // Sólo si se fijó en la moneda que el proyecto tiene HOY: un cobro fijado en otra (el proyecto cambió de moneda después)
+  // o de antes de la columna `moneda` (NULL) se valúa como siempre, con el tipo de cambio de hoy.
+  for (const f of filas) {
+    const moneda = monedaDe.get(f.id)!;
+    if (f.moneda === moneda && f.montoMoneda !== null && Number.isFinite(f.montoMoneda)) salida.set(f.id, { monto: f.montoMoneda, moneda });
+  }
   return salida;
 }
 

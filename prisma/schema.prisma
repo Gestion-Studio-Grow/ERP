@@ -3682,9 +3682,12 @@ model ProyectoPago {
   // `cuotaId` sin clave foránea a propósito: la migración no toca restricciones de tablas existentes (sólo aditiva).
   // `cuotaId` lo escribe sólo marcarCuota, con una cuota del mismo negocio; si la cuota después se borra, queda como rastro.
   // Las lecturas de cobros enteros van con `COLUMNAS_PAGO` (cobranza.server.ts): así no fallan sin la migración aplicada.
+  // `moneda` = la del proyecto AL MOMENTO del cobro, en la que está `montoMoneda`; el fijado se lee sólo si coincide con
+  // la moneda que el proyecto tiene hoy (si no, o si es NULL, el cobro se valúa con el tipo de cambio de hoy).
   cuotaId     String?
   montoMoneda Float?
   tipoCambio  Float?
+  moneda      String?
 
   @@index([tenantId, proyectoId])
   @@index([tenantId, cuotaId])

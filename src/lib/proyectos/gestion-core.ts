@@ -64,23 +64,30 @@ export function aPesos(monto: number, moneda: string, tiposDeCambio: Readonly<Re
 /**
  * D13: qué guarda un cobro de proyecto además de los pesos que entraron a la caja. Fija el tipo de cambio del MOMENTO del
  * cobro, así ese cobro no cambia de valor cuando después se actualiza el tipo de cambio del negocio.
- * - Con cuota: la cuota y su monto en su moneda (un cobro en pesos de una cuota en dólares guarda los dólares que pagó).
+ * - Todo en la moneda del PROYECTO (`moneda`), que queda grabada junto al monto: si el proyecto cambia de moneda después,
+ *   la lectura no toma el monto viejo como si fuera de la moneda nueva.
+ * - Con cuota en la moneda del proyecto: la cuota y lo que pagó de ella (un cobro en pesos de una cuota en dólares guarda
+ *   los dólares que pagó). Con cuota en OTRA moneda (una cuota en pesos de un proyecto en dólares): los pesos que entraron
+ *   pasados a la moneda del proyecto al cambio del día.
  * - Sin cuota (cobro cargado a mano, en pesos): el monto pasado a la moneda del proyecto al cambio del día.
- * - `tipoCambio` es pesos por unidad de la moneda: 1 en pesos. Si falta, quedan nulos los dos: nunca frena el cobro.
+ * - `tipoCambio` es pesos por unidad de la moneda del proyecto: 1 en pesos. Si falta, quedan nulos los tres (monto, cambio
+ *   y moneda): nunca frena el cobro.
  */
-export type CambioDelCobro = { cuotaId: string | null; montoMoneda: number | null; tipoCambio: number | null };
+export type CambioDelCobro = { cuotaId: string | null; montoMoneda: number | null; tipoCambio: number | null; moneda: string | null };
 
 export function cambioDelCobro(entrada: {
   montoPesos: number;
+  /** La moneda del proyecto en este momento. */
   moneda: string;
   tiposDeCambio: Readonly<Record<string, number>>;
-  cuota?: { id: string; monto: number } | null;
+  /** `monto` en la moneda de la cuota (`moneda`). */
+  cuota?: { id: string; monto: number; moneda: string } | null;
 }): CambioDelCobro {
   const cuotaId = entrada.cuota?.id ?? null;
   const tipoCambio = entrada.moneda === "ARS" ? 1 : entrada.tiposDeCambio[entrada.moneda];
-  if (!(typeof tipoCambio === "number" && Number.isFinite(tipoCambio) && tipoCambio > 0)) return { cuotaId, montoMoneda: null, tipoCambio: null };
-  const montoMoneda = entrada.cuota ? entrada.cuota.monto : redondear(entrada.montoPesos / tipoCambio);
-  return { cuotaId, montoMoneda, tipoCambio };
+  if (!(typeof tipoCambio === "number" && Number.isFinite(tipoCambio) && tipoCambio > 0)) return { cuotaId, montoMoneda: null, tipoCambio: null, moneda: null };
+  const montoMoneda = entrada.cuota && entrada.cuota.moneda === entrada.moneda ? entrada.cuota.monto : redondear(entrada.montoPesos / tipoCambio);
+  return { cuotaId, montoMoneda, tipoCambio, moneda: entrada.moneda };
 }
 
 export function plataEn(monto: number, moneda: string): string {

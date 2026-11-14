@@ -28,8 +28,8 @@ test("D13 sin migrar: cobrar, marcar y leer las pantallas no rompe y valúa como
   const duenio = await prismaComoDuenio(base);
   const { a } = base;
 
-  // La base «atrás del schema»: sin las tres columnas (el índice se va con `cuotaId`).
-  await duenio.$executeRawUnsafe(`ALTER TABLE "ProyectoPago" DROP COLUMN "cuotaId", DROP COLUMN "montoMoneda", DROP COLUMN "tipoCambio"`);
+  // La base «atrás del schema»: sin las cuatro columnas (el índice se va con `cuotaId`).
+  await duenio.$executeRawUnsafe(`ALTER TABLE "ProyectoPago" DROP COLUMN "cuotaId", DROP COLUMN "montoMoneda", DROP COLUMN "tipoCambio", DROP COLUMN "moneda"`);
   const { hayColumnasCobroFijado } = await import("./cobranza.server");
   assert.equal(await hayColumnasCobroFijado(), false);
 

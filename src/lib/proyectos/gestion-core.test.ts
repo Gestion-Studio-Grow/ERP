@@ -394,27 +394,37 @@ test("Rendí: matriz de rendiciones (plan MIA §2)", async () => {
 // ── D13: el cobro queda fijado a su cuota y al tipo de cambio del momento ──────────────────────────────────────────────
 test("cambioDelCobro: cuota en dólares cobrada en pesos guarda los dólares y el cambio del momento", () => {
   const tc = { USD: 1200 };
-  const fijado = cambioDelCobro({ montoPesos: aPesos(500, "USD", tc), moneda: "USD", tiposDeCambio: tc, cuota: { id: "c1", monto: 500 } });
-  assert.deepEqual(fijado, { cuotaId: "c1", montoMoneda: 500, tipoCambio: 1200 });
+  const fijado = cambioDelCobro({ montoPesos: aPesos(500, "USD", tc), moneda: "USD", tiposDeCambio: tc, cuota: { id: "c1", monto: 500, moneda: "USD" } });
+  assert.deepEqual(fijado, { cuotaId: "c1", montoMoneda: 500, tipoCambio: 1200, moneda: "USD" });
   // Cambia el tipo de cambio después: lo ya fijado no se recalcula (es un valor, no una referencia).
   tc.USD = 1500;
-  assert.deepEqual(fijado, { cuotaId: "c1", montoMoneda: 500, tipoCambio: 1200 });
+  assert.deepEqual(fijado, { cuotaId: "c1", montoMoneda: 500, tipoCambio: 1200, moneda: "USD" });
 });
 
 test("cambioDelCobro: en pesos el cambio es 1 y el monto en moneda es el de la cuota", () => {
-  assert.deepEqual(cambioDelCobro({ montoPesos: 80000, moneda: "ARS", tiposDeCambio: {}, cuota: { id: "c2", monto: 80000 } }), { cuotaId: "c2", montoMoneda: 80000, tipoCambio: 1 });
+  assert.deepEqual(cambioDelCobro({ montoPesos: 80000, moneda: "ARS", tiposDeCambio: {}, cuota: { id: "c2", monto: 80000, moneda: "ARS" } }), { cuotaId: "c2", montoMoneda: 80000, tipoCambio: 1, moneda: "ARS" });
 });
 
 test("cambioDelCobro: cobro a mano (sin cuota) de un proyecto en dólares pasa los pesos a dólares al cambio del día", () => {
-  assert.deepEqual(cambioDelCobro({ montoPesos: 250000, moneda: "USD", tiposDeCambio: { USD: 1000 } }), { cuotaId: null, montoMoneda: 250, tipoCambio: 1000 });
-  assert.deepEqual(cambioDelCobro({ montoPesos: 100000, moneda: "USD", tiposDeCambio: { USD: 3 } }), { cuotaId: null, montoMoneda: 33333.33, tipoCambio: 3 });
-  assert.deepEqual(cambioDelCobro({ montoPesos: 1500, moneda: "ARS", tiposDeCambio: {} }), { cuotaId: null, montoMoneda: 1500, tipoCambio: 1 });
+  assert.deepEqual(cambioDelCobro({ montoPesos: 250000, moneda: "USD", tiposDeCambio: { USD: 1000 } }), { cuotaId: null, montoMoneda: 250, tipoCambio: 1000, moneda: "USD" });
+  assert.deepEqual(cambioDelCobro({ montoPesos: 100000, moneda: "USD", tiposDeCambio: { USD: 3 } }), { cuotaId: null, montoMoneda: 33333.33, tipoCambio: 3, moneda: "USD" });
+  assert.deepEqual(cambioDelCobro({ montoPesos: 1500, moneda: "ARS", tiposDeCambio: {} }), { cuotaId: null, montoMoneda: 1500, tipoCambio: 1, moneda: "ARS" });
 });
 
 test("cambioDelCobro: sin tipo de cambio (o inválido) quedan nulos y no frena el cobro", () => {
   for (const malo of [undefined, 0, -5, Number.NaN, Number.POSITIVE_INFINITY]) {
     const tc: Record<string, number> = malo === undefined ? {} : { USD: malo };
-    assert.deepEqual(cambioDelCobro({ montoPesos: 1000, moneda: "USD", tiposDeCambio: tc, cuota: { id: "c3", monto: 1 } }), { cuotaId: "c3", montoMoneda: null, tipoCambio: null });
-    assert.deepEqual(cambioDelCobro({ montoPesos: 1000, moneda: "USD", tiposDeCambio: tc }), { cuotaId: null, montoMoneda: null, tipoCambio: null });
+    assert.deepEqual(cambioDelCobro({ montoPesos: 1000, moneda: "USD", tiposDeCambio: tc, cuota: { id: "c3", monto: 1, moneda: "USD" } }), { cuotaId: "c3", montoMoneda: null, tipoCambio: null, moneda: null });
+    assert.deepEqual(cambioDelCobro({ montoPesos: 1000, moneda: "USD", tiposDeCambio: tc }), { cuotaId: null, montoMoneda: null, tipoCambio: null, moneda: null });
   }
+});
+
+test("cambioDelCobro: cuota en otra moneda que el proyecto guarda el monto en la moneda del PROYECTO", () => {
+  const tc = { USD: 1000, EUR: 1100 };
+  // Cuota en pesos de un proyecto en dólares: $50.000 al cambio del día son 50 USD.
+  assert.deepEqual(cambioDelCobro({ montoPesos: 50000, moneda: "USD", tiposDeCambio: tc, cuota: { id: "c4", monto: 50000, moneda: "ARS" } }), { cuotaId: "c4", montoMoneda: 50, tipoCambio: 1000, moneda: "USD" });
+  // Cuota en euros de un proyecto en dólares: 100 EUR = $110.000 = 110 USD (no 100).
+  assert.deepEqual(cambioDelCobro({ montoPesos: aPesos(100, "EUR", tc), moneda: "USD", tiposDeCambio: tc, cuota: { id: "c5", monto: 100, moneda: "EUR" } }), { cuotaId: "c5", montoMoneda: 110, tipoCambio: 1000, moneda: "USD" });
+  // Cuota en dólares de un proyecto en pesos: los pesos que entraron.
+  assert.deepEqual(cambioDelCobro({ montoPesos: 120000, moneda: "ARS", tiposDeCambio: tc, cuota: { id: "c6", monto: 120, moneda: "USD" } }), { cuotaId: "c6", montoMoneda: 120000, tipoCambio: 1, moneda: "ARS" });
 });

@@ -23,14 +23,15 @@ test("D13: el cobro guarda su cuota y el tipo de cambio del momento, aislado por
   const { marcarCuota } = await import("./acciones-ficha");
   const { registrarCobro } = await import("./acciones");
 
-  // Las tres columnas existen y son nulas.
+  // Las cuatro columnas existen y son nulas.
   const columnas = await duenio.$queryRaw<{ column_name: string; is_nullable: string; data_type: string }[]>`
     SELECT column_name, is_nullable, data_type FROM information_schema.columns
-    WHERE table_name = 'ProyectoPago' AND column_name IN ('cuotaId', 'montoMoneda', 'tipoCambio') ORDER BY column_name`;
+    WHERE table_name = 'ProyectoPago' AND column_name IN ('cuotaId', 'montoMoneda', 'tipoCambio', 'moneda') ORDER BY column_name`;
   assert.deepEqual(
     columnas.map((c) => [c.column_name, c.is_nullable, c.data_type]),
     [
       ["cuotaId", "YES", "text"],
+      ["moneda", "YES", "text"],
       ["montoMoneda", "YES", "double precision"],
       ["tipoCambio", "YES", "double precision"],
     ],
@@ -69,7 +70,7 @@ test("D13: el cobro guarda su cuota y el tipo de cambio del momento, aislado por
   // A la marca: 500 USD a 1200 = 600.000 pesos a la caja, fijado a 1200.
   assert.equal((await marcar(enA, cuota.id)).ok, true);
   const cobro = await duenio.proyectoPago.findFirstOrThrow({ where: { tenantId: a.id, cuotaId: cuota.id } });
-  assert.deepEqual([cobro.monto, cobro.cuotaId, cobro.montoMoneda, cobro.tipoCambio], [600000, cuota.id, 500, 1200]);
+  assert.deepEqual([cobro.monto, cobro.cuotaId, cobro.montoMoneda, cobro.tipoCambio, cobro.moneda], [600000, cuota.id, 500, 1200, "USD"]);
   assert.equal(await duenio.cashMovement.count({ where: { proyectoPagoId: cobro.id, amount: 600000 } }), 1, "el asiento sigue en pesos");
 
   // Sube el dólar: lo ya cobrado no cambia.
@@ -81,13 +82,13 @@ test("D13: el cobro guarda su cuota y el tipo de cambio del momento, aislado por
   const r = await ejecutarAccion(enA, () => registrarCobro(form({ proyectoId: pUsd.id, medio: "EFECTIVO", monto: "300000" })));
   assert.notEqual(r.tipo, "error");
   const aMano = await duenio.proyectoPago.findFirstOrThrow({ where: { tenantId: a.id, proyectoId: pUsd.id, monto: 300000 } });
-  assert.deepEqual([aMano.cuotaId, aMano.montoMoneda, aMano.tipoCambio], [null, 200, 1500]);
+  assert.deepEqual([aMano.cuotaId, aMano.montoMoneda, aMano.tipoCambio, aMano.moneda], [null, 200, 1500, "USD"]);
 
   // Cobro a mano en un proyecto en pesos: cambio 1.
   const pArs = await proyecto(2, "ARS");
   await ejecutarAccion(enA, () => registrarCobro(form({ proyectoId: pArs.id, medio: "EFECTIVO", monto: "45000" })));
   const enPesos = await duenio.proyectoPago.findFirstOrThrow({ where: { tenantId: a.id, proyectoId: pArs.id } });
-  assert.deepEqual([enPesos.cuotaId, enPesos.montoMoneda, enPesos.tipoCambio], [null, 45000, 1]);
+  assert.deepEqual([enPesos.cuotaId, enPesos.montoMoneda, enPesos.tipoCambio, enPesos.moneda], [null, 45000, 1, "ARS"]);
 
   // Borrar la cuota no se traba ni se lleva el cobro: el id queda como rastro.
   await duenio.proyectoCuota.delete({ where: { id: cuota.id } });
