@@ -106,3 +106,31 @@ En el ERP ya existe un módulo con dos proveedores de IA (Claude y uno alternati
 3. Validación sin gasto: 3 pilotos, midiendo plata cobrada y costo por conversación.
 4. Método de implementación en etapas (relevamiento, diseño del puesto, construcción, prueba con casos, salida en
    vivo, soporte), escrito una vez y reutilizado.
+
+## 9. Cómo se vende frente a ChatGPT y a los asistentes generales (ampliación del 14/11, pedido del dueño)
+
+- **Mensaje:** «ChatGPT te contesta; el agente te lo hace».
+- El asistente general no conoce el negocio salvo que le peguen los datos; el agente está conectado al sistema.
+- El asistente general espera la pregunta; el agente trabaja solo, de noche, por horario o cuando pasa algo.
+- El agente tiene un puesto: tareas definidas, permisos, límites, registro de lo que hizo y soporte detrás.
+- Se mide en resultado del negocio (plata cobrada, turnos recuperados), no en respuestas.
+- Advertencia: los asistentes generales ya suman conectores y modo agente. Lo que defiende es lo local (ARCA,
+  Mercado Pago, WhatsApp, sistemas argentinos), el método de implementación y el soporte.
+- «ARM» (confirmado por el dueño): seguimiento de clientes que lleva el agente, en vez de una persona cargando un CRM.
+
+## 10. El agente ejecuta: escalera de permisos por puesto
+
+El dueño pidió que el agente ejecute por el cliente, con permisos. Se diseña como los roles y autorizaciones de un
+sistema de gestión: cada agente tiene su propio usuario y su rol, nunca la clave del dueño.
+
+| Nivel | Qué puede | Ejemplo |
+|---|---|---|
+| 0 · Consulta | Sólo lee | Responder cuánto se debe, qué turnos hay |
+| 1 · Prepara | Deja listo y una persona aprueba con un toque | Lista de recordatorios, factura en borrador |
+| 2 · Ejecuta con límites | Hace solo dentro de topes fijos en el código | Mandar recordatorios, reprogramar turnos, facturar hasta un monto |
+| 3 · Siempre con persona | Lo irreversible | Pagos salientes, notas de crédito, cambios masivos de precio, borrar |
+
+Reglas: los límites van en el código y no en las instrucciones del agente; toda acción queda registrada; hay un
+botón para frenarlo; se arranca en el nivel 1 y se sube de nivel por puesto cuando se midió sin errores.
+En el ERP ya hay un antecedente: los agentes de MIA se bloquean según los permisos del usuario
+(`src/lib/proyectos/diseno-core.ts:349`).
