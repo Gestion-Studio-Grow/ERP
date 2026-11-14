@@ -4,13 +4,13 @@
 // Next no le pasa params a not-found: la marca sale del host (el negocio ya lo dice la dirección, no el token).
 
 import type { Metadata } from "next";
-import { Work_Sans } from "next/font/google";
+import localFont from "next/font/local";
 import { marcaProductora } from "@/lib/proyectos/marca";
 import { getCurrentTenantSlug } from "@/lib/tenant-site";
 
 export const metadata: Metadata = { title: "Este link ya no está disponible", robots: { index: false, follow: false } };
 
-const letra = Work_Sans({ subsets: ["latin"], weight: ["300", "400", "500"], preload: false });
+const letra = localFont({ src: [{ path: "../../fonts/work-sans/work-sans-latin-300-normal.woff2", weight: "300", style: "normal" }, { path: "../../fonts/work-sans/work-sans-latin-400-normal.woff2", weight: "400", style: "normal" }, { path: "../../fonts/work-sans/work-sans-latin-500-normal.woff2", weight: "500", style: "normal" }], preload: false });
 
 export default async function LinkNoDisponible() {
   const slug = await getCurrentTenantSlug().catch(() => null);
