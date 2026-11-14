@@ -210,6 +210,31 @@ export const INTERRUPTORES = [
     enAuditoria: "la contabilidad y el control de gestión",
     cambiaLasApps: false,
   },
+  {
+    // Equipo de agentes (src/lib/agentes, docs/tenants/mia-producciones/agentes/03 §12): el panel
+    // «Mi equipo», el buzón de pedidos y lo que calcula el código. No manda datos a ningún
+    // proveedor. Suma una app y no quita ninguna: `cambiaLasApps: false` (03 §12). Va AL FINAL.
+    id: "equipo-agentes",
+    nombre: "Equipo de agentes",
+    queCambia:
+      "Aparece «Mi equipo»: la persona deja pedidos a los puestos del equipo y los ve en su buzón con su estado, sus horas y la respuesta. Apagado, no se ve nada y no entra ningún pedido.",
+    alPrender:
+      'Suma la app Mi equipo a Dirección y Administración; no le quita apps a nadie. Sin IA, los pedidos escritos los lee y los contesta una persona de GSG desde la bandeja. Sin la migración aplicada, el negocio ve "Falta activar el equipo".',
+    enAuditoria: "el equipo de agentes",
+    cambiaLasApps: false,
+  },
+  {
+    // Responder con IA los pedidos de texto libre (ruta 1, 03 §10). Sólo cuenta con
+    // `equipo-agentes` prendido y la clave propia del equipo cargada en el despliegue.
+    id: "equipo-agentes-ia",
+    nombre: "Equipo de agentes con IA",
+    queCambia:
+      "Los pedidos escritos del equipo de agentes los responde la IA, con la clave propia del equipo y dentro del tope de gasto. Apagado, los contesta una persona de GSG desde la bandeja.",
+    alPrender:
+      "Los datos de este negocio viajan al proveedor de IA. Con datos reales exige el consentimiento escrito del cliente, con el proveedor nombrado, y los 30 casos contra el modelo real.",
+    enAuditoria: "las respuestas con IA del equipo de agentes",
+    cambiaLasApps: false,
+  },
 ] as const satisfies readonly Interruptor[];
 
 export type InterruptorId = (typeof INTERRUPTORES)[number]["id"];
@@ -278,6 +303,12 @@ export function vouchersPrendidos(
 ): boolean {
   return estado[VOUCHERS]?.encendido === true;
 }
+
+/** Equipo de agentes: panel «Mi equipo» y buzón (src/lib/agentes/estado.server.ts lo lee sin caché). */
+export const EQUIPO_AGENTES: InterruptorId = "equipo-agentes";
+
+/** Respuestas con IA del equipo de agentes (ruta 1; además hace falta la clave propia del equipo). */
+export const EQUIPO_AGENTES_IA: InterruptorId = "equipo-agentes-ia";
 
 /** Contabilidad + Control de gestión (src/lib/contabilidad, GSG-CTRL-001). */
 export const CONTABILIDAD_HABILITADA: InterruptorId = "contabilidad";
