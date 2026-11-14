@@ -111,7 +111,7 @@ export async function guardarFotoDelClub(datos: FormData): Promise<RespuestaGuar
   const subido = await textoSubido(datos, "foto");
   if ("error" in subido) return { ok: false, motivo: "error", error: subido.error };
   // G8: si no guarda un dueño del ERP, los usuarios, los PIN y la configuración que mueve plata o permisos (firma de
-  // caja, precios, seña, fondo, alias) quedan como en la foto vigente (salvo el PIN propio de recepción). Un guardado
+  // caja, precios, seña, fondo, alias) quedan como en la foto vigente (ningún PIN cambia por acá: «Cambiar mi PIN» va por pin-del-club-actions.ts). Un guardado
   // de la tablet de recepción no puede pisar PIN ni bajar la firma de caja a 2 (src/lib/club/delicado.ts).
   let texto = subido.texto;
   if (q.user.role !== "OWNER") {
