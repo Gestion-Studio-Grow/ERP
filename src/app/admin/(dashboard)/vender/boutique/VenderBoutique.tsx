@@ -24,6 +24,7 @@ import { ConBalanzaEnVivo, PesoEnVivoDelRenglon } from "../TicketQueCrece";
 import RenglonBoutique, { TicketBoutique } from "./RenglonBoutique";
 import { PieDeCobroPlegable } from "./PieDeCobro";
 import { etiquetaDeReintento } from "../cobro-sin-conexion";
+import { CHIP_ELEGIDO } from "../elegido";
 import { useNucleoDeVenta, sinSuscripcion, ConfirmarPeso, precioDe, type BoutiqueDeVender, type PropsDeVender } from "../nucleo-de-venta";
 
 
@@ -574,10 +575,11 @@ function FormularioBoutique(props: PropsDeVender & { enNavegador: boolean }) {
         )}
 
         {/* La grilla del mostrador: elegir (buscador, teclas, atajos) a la izquierda y el ticket a la
-            derecha en la PC; en el celular, uno abajo del otro. El <form> es `contents`: sólo envuelve
+            derecha desde la tablet (768 px: el mostrador se usa parado, con la tablet apoyada); en el
+            celular, uno abajo del otro. El <form> es `contents`: sólo envuelve
             lo que viaja (el ticket y el cobro), así los atajos —que tienen sus propios formularios
             (la caja) y campos (el pedido de WhatsApp)— quedan fuera de la venta. */}
-        <div data-vender="grilla-boutique" className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,28rem)] lg:items-start">
+        <div data-vender="grilla-boutique" className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(19rem,22rem)] md:items-start lg:grid-cols-[minmax(0,1fr)_minmax(22rem,28rem)]">
           <div data-vender="elegir" className="min-w-0 space-y-4">
             <CampoUnico
               productos={productosConCodigo}
@@ -666,7 +668,7 @@ function FormularioBoutique(props: PropsDeVender & { enNavegador: boolean }) {
                     setIsOrder(false);
                     setPaid(true);
                   }}
-                  className={cn("chip-btn h-11 text-sm", !isOrder && "!border-accent !bg-accent !text-on-accent")}
+                  className={cn("chip-btn h-11 text-sm", !isOrder && CHIP_ELEGIDO)}
                 >
                   Venta
                 </button>
@@ -680,7 +682,7 @@ function FormularioBoutique(props: PropsDeVender & { enNavegador: boolean }) {
                     setACuenta(false);
                     setConCliente(true);
                   }}
-                  className={cn("chip-btn h-11 text-sm", isOrder && "!border-accent !bg-accent !text-on-accent")}
+                  className={cn("chip-btn h-11 text-sm", isOrder && CHIP_ELEGIDO)}
                 >
                   Pedido (retiro / envío)
                 </button>
@@ -733,7 +735,7 @@ function FormularioBoutique(props: PropsDeVender & { enNavegador: boolean }) {
                     type="button"
                     aria-pressed={puesto}
                     onClick={() => ponerDescuento("porcentaje", String(pct))}
-                    className={cn("chip-btn h-11 text-sm", puesto && "!border-accent !bg-accent !text-on-accent")}
+                    className={cn("chip-btn h-11 text-sm", puesto && CHIP_ELEGIDO)}
                   >
                     {pct} %
                   </button>
@@ -843,7 +845,7 @@ function FormularioBoutique(props: PropsDeVender & { enNavegador: boolean }) {
 
           {/* El cobro, fijo abajo en el celular (encima de la barra de espacios) y a lo ancho en la PC.
               Vacío no ocupa lugar; con algo cargado es una barra con el total y «Cobrar $X» (V-2). */}
-          <div data-vender="cobro-boutique" className="sticky bottom-[var(--alto-barra-inferior,0px)] z-20 space-y-2 lg:col-span-2">
+          <div data-vender="cobro-boutique" className="sticky bottom-[var(--alto-barra-inferior,0px)] z-20 space-y-2 md:col-span-2">
             <div className="space-y-2 rounded-lg border border-line bg-surface-sunken p-3 empty:hidden">{bloqueAviso}</div>
             {puedeReintentar && (
               <div className="rounded-lg border border-line bg-surface-sunken p-3">

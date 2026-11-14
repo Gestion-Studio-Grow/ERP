@@ -42,7 +42,7 @@ import ThemeToggle from "../ThemeToggle";
 import FormCerrarSesion from "../../FormCerrarSesion";
 import { cambiarMiModoSimple } from "@/lib/modo-simple-actions";
 import { ROLE_LABEL, type PropsDelArmazon } from "../AdminShell";
-import { dondeEstoy, espacioPedido, hrefDelEspacio, iniciales, tituloDePantalla, type EspacioDeNav } from "./armazon-core";
+import { dondeEstoy, espacioPedido, hrefDelEspacio, iniciales, nombreEnLaCabecera, tituloDePantalla, type EspacioDeNav } from "./armazon-core";
 import type { NavDelArmazon } from "./navegacion";
 import { EVENTO_BUSCAR, esAtajoDeBuscar, veLaAgenda } from "./buscar-global";
 import dynamic from "next/dynamic";
@@ -182,6 +182,7 @@ export default function ArmazonNuevo({
   userName,
   brandName,
   monogram,
+  logo,
   activeProfile = null,
   showPublicSite = true,
   nav,
@@ -242,6 +243,7 @@ export default function ArmazonNuevo({
   const idEspacio = (id: string) => `${base}-esp-${id}`;
   const idPersona = `${base}-persona`;
   const roleLabel = rolVisible ?? ROLE_LABEL[role];
+  const nombreVisible = nombreEnLaCabecera(userName, brandName);
   const casa = conInicio ? "/admin" : (rubro?.ruta ?? "/admin");
 
   // La cápsula: el Inicio (si es su casa) y los primeros espacios, hasta 4 lugares.
@@ -264,10 +266,19 @@ export default function ArmazonNuevo({
       <header data-ui="cabecera">
         <div data-parte="fila-1">
           <Link href={casa} data-parte="negocio" aria-label={`${brandName}: ${conInicio ? "Inicio" : "tu puesto"}`}>
-            <span data-parte="monograma" aria-hidden>
-              {monogram}
-            </span>
-            <span data-parte="nombre">{brandName}</span>
+            {logo ? (
+              // El logo real del negocio (LogoDelNegocio, el mismo del armazón de siempre), en chico.
+              <span data-parte="logo" aria-hidden>
+                {logo}
+              </span>
+            ) : (
+              <>
+                <span data-parte="monograma" aria-hidden>
+                  {monogram}
+                </span>
+                <span data-parte="nombre">{brandName}</span>
+              </>
+            )}
           </Link>
           {activeProfile && <ProfileBadge profile={activeProfile} />}
           <nav data-parte="espacios" aria-label="Espacios">
@@ -293,8 +304,14 @@ export default function ArmazonNuevo({
               {iniciales(userName)}
             </span>
             <span data-parte="quien" aria-hidden>
-              <b>{userName}</b>
-              <small>{roleLabel}</small>
+              {nombreVisible ? (
+                <>
+                  <b>{nombreVisible}</b>
+                  <small>{roleLabel}</small>
+                </>
+              ) : (
+                <b>{roleLabel}</b>
+              )}
             </span>
           </button>
         </div>
@@ -328,11 +345,19 @@ export default function ArmazonNuevo({
       {/* Celular: arriba, la persona, el título de la app y la lupa. */}
       <header data-ui="barra-movil">
         <button type="button" popoverTarget={idPersona} aria-label={`${userName}, ${roleLabel}: tu cuenta`}>
-          <span data-parte="monograma" aria-hidden>
-            {monogram}
-          </span>
+          {/* Con el logo del negocio al lado, el monograma lo repetiría: va la persona, como en la PC. */}
+          {logo ? (
+            <span data-parte="iniciales" aria-hidden>
+              {iniciales(userName)}
+            </span>
+          ) : (
+            <span data-parte="monograma" aria-hidden>
+              {monogram}
+            </span>
+          )}
         </button>
-        <p data-parte="titulo">{titulo}</p>
+        {/* Sin app que nombrar, el título era el nombre del negocio: ahí va su logo. */}
+        <p data-parte="titulo">{logo && titulo === brandName ? <span data-parte="logo">{logo}</span> : titulo}</p>
         <button type="button" onClick={abrirPaleta} aria-haspopup="dialog" aria-label="Buscar: ¿qué querés hacer?">
           <Icono nombre="buscar" />
         </button>

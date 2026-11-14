@@ -22,6 +22,8 @@ import {
   teclaDeProducto,
   type GondolaDeTeclas,
 } from "./reglas-venta";
+import { CHIP_ELEGIDO } from "./elegido";
+import { nombresSinRepetir } from "./nombres-de-tecla";
 
 type ProductoDeTecla = {
   id: string;
@@ -90,9 +92,12 @@ export default function TeclasPorGondola({
 
   // En la pestaña principal, mientras se eligen, se ven las que van quedando fijas.
   const ids = eligiendo && actual.id === "principal" ? eligiendo : actual.ids;
+  const visibles = ids.flatMap((id) => byId.get(id) ?? []);
+  // El proveedor que se repite en las teclas de la góndola, una sola vez (nombres-de-tecla.ts).
+  const nombres = nombresSinRepetir(visibles.map((p) => p.name));
 
   return (
-    <section aria-label="Teclas de productos" data-vender="teclas-boutique" className="space-y-2">
+    <section aria-label="Teclas de productos" data-vender="teclas-boutique" className="@container space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div
           role="tablist"
@@ -124,7 +129,7 @@ export default function TeclasPorGondola({
                 aria-controls={`${base}-panel`}
                 tabIndex={elegida ? 0 : -1}
                 onClick={() => setActiva(p.id)}
-                className={cn("chip-btn h-11 text-sm", elegida && "!border-accent !bg-accent !text-on-accent")}
+                className={cn("chip-btn h-11 text-sm", elegida && CHIP_ELEGIDO)}
               >
                 {p.rotulo}
               </button>
@@ -134,7 +139,7 @@ export default function TeclasPorGondola({
         {fijar && !eligiendo && (
           <button
             type="button"
-            className="h-11 px-2 text-sm text-muted underline"
+            className="-mx-2 h-11 px-2 text-sm text-muted underline"
             onClick={() => {
               setEligiendo([...fijar.fijadas]);
               setError(null);
@@ -164,15 +169,19 @@ export default function TeclasPorGondola({
         </div>
       )}
 
-      <div id={`${base}-panel`} role="tabpanel" aria-labelledby={`${base}-tab-${actual.id}`} className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
+      <div id={`${base}-panel`} role="tabpanel" aria-labelledby={`${base}-tab-${actual.id}`} className="grid grid-cols-2 gap-2 @md:grid-cols-3 @3xl:grid-cols-4">
         {ids.length === 0 && (
           <p className="col-span-full text-sm text-muted">
             {eligiendo ? "Todavía no elegiste ninguna: andá a una góndola y tocá las que quieras." : "No hay productos en esta góndola."}
           </p>
         )}
-        {ids.map((id) => {
-          const p = byId.get(id);
-          if (!p) return null;
+        {nombres.comun && (
+          <p data-vender="proveedor-de-la-gondola" className="col-span-full text-xs text-muted">
+            Todo de {nombres.comun}
+          </p>
+        )}
+        {visibles.map((p, i) => {
+          const id = p.id;
           const t = teclaDeProducto(p, stockById[id]);
           const fija = eligiendo?.includes(id) ?? false;
           return (
@@ -180,13 +189,14 @@ export default function TeclasPorGondola({
               key={id}
               type="button"
               data-vender="tecla"
+              title={nombres.cortos[i] === t.nombre ? undefined : t.nombre}
               data-agotado={t.agotado ? "" : undefined}
               aria-pressed={eligiendo ? fija : undefined}
               // Agotada: gris y no carga (la de kilo se puede vender igual desde el aviso: MAG-4).
               aria-disabled={!eligiendo && t.agotado ? true : undefined}
               onClick={() => (eligiendo ? setEligiendo((e) => alternarTeclaFijada(e ?? [], id)) : onTocar(id))}
               className={cn(
-                "flex min-h-16 min-w-0 flex-col items-start justify-center gap-0.5 rounded-lg border px-3 py-2 text-left",
+                "flex min-h-16 min-w-0 flex-col items-start justify-start gap-0.5 rounded-lg border px-3 py-2 text-left",
                 "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus",
                 t.agotado && !eligiendo
                   ? "cursor-not-allowed border-line bg-surface-sunken text-muted"
@@ -194,8 +204,8 @@ export default function TeclasPorGondola({
                 fija && "!border-accent ring-2 ring-accent",
               )}
             >
-              <span className={cn("w-full truncate text-sm font-semibold uppercase", t.agotado && !eligiendo ? "text-muted" : "text-strong")}>
-                {t.nombre}
+              <span className={cn("line-clamp-2 w-full text-sm font-semibold uppercase leading-tight [overflow-wrap:break-word]", t.agotado && !eligiendo ? "text-muted" : "text-strong")}>
+                {nombres.cortos[i]}
               </span>
               <span className={cn("text-sm tabular-nums", t.agotado && !eligiendo ? "text-muted" : "text-body")}>{t.precio}</span>
               <span className={cn("text-xs tabular-nums", t.agotado ? "font-semibold text-muted" : "text-muted")}>

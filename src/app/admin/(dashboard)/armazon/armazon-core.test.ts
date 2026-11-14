@@ -1,7 +1,7 @@
 // El armazón nuevo sin DOM: la tecla del rubro, dónde aterriza cada rol, dónde estoy y el título.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { accionDelRubro, dondeEstoy, espacioPedido, hrefDelEspacio, iniciales, puestoDe, tituloDePantalla, type EspacioDeNav } from "./armazon-core";
+import { accionDelRubro, dondeEstoy, espacioPedido, hrefDelEspacio, iniciales, nombreEnLaCabecera, puestoDe, tituloDePantalla, type EspacioDeNav } from "./armazon-core";
 
 const VENDER = { id: "vender", ruta: "/admin/vender" as const, icono: "vender" as const };
 const AGENDA = { id: "agenda", ruta: "/admin/turnos" as const, icono: "agenda" as const };
@@ -61,4 +61,14 @@ test("un espacio de una sola app es un acceso directo; el resto abre su página"
   assert.equal(iniciales("Martín Aguirre"), "MA");
   assert.equal(iniciales("Cecilia"), "CE");
   assert.equal(iniciales("  "), "·");
+});
+
+test("nombreEnLaCabecera: no repite el negocio al lado del logo", () => {
+  assert.equal(nombreEnLaCabecera("Dueño Magra", "Magra"), null);
+  assert.equal(nombreEnLaCabecera("Dueña — Magra DEMO", "MAGRA"), null);
+  assert.equal(nombreEnLaCabecera("Ana Estética", "CH Estética"), "Ana Estética");
+  assert.equal(nombreEnLaCabecera("Martín Aguirre", "Magra"), "Martín Aguirre");
+  // Una palabra que sólo empieza igual no cuenta.
+  assert.equal(nombreEnLaCabecera("Magrassi Juan", "Magra"), "Magrassi Juan");
+  assert.equal(nombreEnLaCabecera("   ", "Magra"), null);
 });

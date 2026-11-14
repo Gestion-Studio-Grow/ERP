@@ -112,6 +112,12 @@ export default function RenglonBoutique({
   children?: ReactNode;
 }) {
   const unidad = porKilo ? "kg" : "u";
+  // El peso es lo que más se toca y se lee en el mostrador (con guantes, de lejos): campo y pasos de
+  // 56 px y la cifra grande. Por unidad queda como estaba.
+  const campo = porKilo
+    ? "!h-14 !w-40 !pr-11 text-right !text-2xl font-semibold tabular-nums"
+    : "h-11 w-28 pr-7 text-right text-base tabular-nums";
+  const paso = porKilo ? "h-14 w-14 text-xl" : "h-11 w-11 text-base";
   // Por unidad, «−/+» con cantidades enteras; por kilo, de a 100 g (PASO_KG).
   const conPasos = porKilo ? !invalida : !invalida && Number.isInteger(linea.qty);
   const abierto = teclado?.abierto ?? false;
@@ -152,7 +158,7 @@ export default function RenglonBoutique({
           {conPasos && (
             <button
               type="button"
-              className="chip-btn h-11 w-11 justify-center text-base"
+              className={cn("chip-btn justify-center", paso)}
               aria-label={porKilo ? `100 gramos menos de ${nombre}` : `Una ${nombre} menos`}
               disabled={porKilo ? !(linea.qty > 0.1) : linea.qty <= 1}
               onClick={() => onPaso(-1)}
@@ -181,16 +187,16 @@ export default function RenglonBoutique({
               aria-invalid={marcarInvalida ? true : undefined}
               // Una ráfaga del lector que cae acá vuelve el campo a su valor (CampoUnico).
               data-tipo={porKilo ? "peso" : "cantidad"}
-              className="h-11 w-28 pr-7 text-right text-base tabular-nums"
+              className={campo}
             />
-            <span aria-hidden className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted">
+            <span aria-hidden className={cn("pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted", porKilo ? "text-base font-semibold" : "text-xs")}>
               {unidad}
             </span>
           </label>
           {conPasos && (
             <button
               type="button"
-              className="chip-btn h-11 w-11 justify-center text-base"
+              className={cn("chip-btn justify-center", paso)}
               aria-label={porKilo ? `100 gramos más de ${nombre}` : `Una ${nombre} más`}
               onClick={() => onPaso(1)}
             >
@@ -203,6 +209,8 @@ export default function RenglonBoutique({
             {abierto ? "Cerrar teclado" : "Teclado"}
           </button>
         )}
+        {/* La balanza (ícono de estado o peso en vivo) va en la misma fila que el peso y su total. */}
+        {pesoEnVivo}
         <span className="ml-auto text-right text-base font-semibold tabular-nums text-strong">{total > 0 ? fmtMoneyARS(total) : "—"}</span>
       </div>
       {cambioDePrecio && (
@@ -211,7 +219,6 @@ export default function RenglonBoutique({
         </p>
       )}
       {children}
-      {pesoEnVivo}
       {teclado && abierto && <TecladoDelRenglon nombre={nombre} kg={linea.qty} onPeso={teclado.onPeso} />}
     </li>
   );
