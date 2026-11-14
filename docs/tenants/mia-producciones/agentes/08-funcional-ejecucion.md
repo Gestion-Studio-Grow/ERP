@@ -325,19 +325,34 @@ pedido quedó esperando: nada más (lo ve en su buzón).
 
 ## 8. Guion de prueba clic por clic (el dueño, en el negocio de MIA)
 
-**Dónde corre: decisión del dueño** (`11` §3, D5; corrige H10). Opción recomendada: **primero en un negocio de
-ensayo** (no MIA, que empieza el 18/11), donde el dueño de GSG es el titular real; en MIA, sólo con su titular real
-firmando, nunca con GSG haciendo de titular. Los pasos son los mismos en los dos.
+**Dónde corre: en MIA, decidido por el dueño el 14/11** («Vamos a hacer justamente las pruebas en mia»; `11` §6).
+Sin ambiente aparte: el aislamiento es el interruptor por negocio, que nace apagado. Firma el titular real de MIA;
+GSG nunca firma por el cliente.
 
-**Antes de empezar (lo hace GSG):** `equipo-agentes` y `equipo-agentes-ejecuta` prendidos sólo en el negocio de la
-prueba; la enmienda del esquema aplicada (Gate 2); para los pasos 8 a 14, GSG-MIA-018 integrado. La prueba no toca
+**Riesgo, dicho:** MIA opera con datos reales desde el 18/11. La prueba deja en MIA un cliente, un evento, cuotas, una
+cuenta y movimientos de banco de prueba, y cobros que se deshacen pero quedan en el Registro y en Finanzas como
+anulados. Un error del agente durante la prueba toca datos reales del negocio. **Qué lo cubre:**
+- el interruptor `equipo-agentes-ejecuta` se prende sólo en MIA y sólo para la prueba; GSG lo apaga al terminar si
+  algo no dio lo esperado;
+- todo lo que se crea se llama «PRUEBA GSG» y cada movimiento de prueba termina atado a una cuota de prueba, así
+  ningún pedido de plata lo usa para una cuota real;
+- los topes de la prueba son los del guion ($ 500 por operación en la versión 2), muy por debajo de los del catálogo;
+- cada operación tiene «Deshacer» y queda en el Registro con la versión de la autorización; K6 relee lo hecho cada
+  día y avisa si algo dejó de cuadrar;
+- la batería de ataque no corre en MIA (decisión D7, `11` §3): en MIA sólo el guion, con pedidos de la lista;
+- la limpieza del paso 21 es obligatoria antes de cerrar la sesión de prueba (norma del repo: los datos de prueba
+  se limpian).
+**Riesgo residual:** la cuenta «PRUEBA GSG» y sus movimientos no se pueden borrar desde la pantalla y quedan a la
+vista de MIA; los cobros anulados figuran en Finanzas.
+
+**Antes de empezar (lo hace GSG):** `equipo-agentes` y `equipo-agentes-ejecuta` prendidos sólo en MIA; la enmienda del esquema aplicada (Gate 2); para los pasos 8 a 14, GSG-MIA-018 integrado. La prueba no toca
 otro negocio, y GSG comprueba al terminar que ningún otro tiene el interruptor ni filas del equipo. Cada movimiento
 de prueba termina **atado** a una cuota de prueba (lo ata B2), así ninguno puede respaldar una cuota real. El `lote`
 no sirve de marca: lo pone el servidor («Extracto <fecha>», `acciones-empresa.ts:218`).
 Con D1-c, toda firma que amplía (la primera también) vale 24 h después: los pasos 5 y 12 se hacen al día siguiente
 de los pasos 4 y 11.
 
-1. Entrá al negocio de la prueba (el que diga D5) como titular. Creá un cliente «PRUEBA GSG» y un evento «PRUEBA GSG · evento», con un presupuesto
+1. Entrá a MIA como su titular real (GSG acompaña; no firma por el cliente). Creá un cliente «PRUEBA GSG» y un evento «PRUEBA GSG · evento», con un presupuesto
    aprobado y una cuota de cobro de $ 1.000 que venza hoy.
 2. Abrí «Mi equipo». Tiene que decir: «El equipo sólo consulta. Falta la autorización…».
 3. Buzón → Cobranzas → «Anotar una promesa de pago» → cliente PRUEBA GSG, esa cuota, fecha de mañana → «Dejar pedido».
@@ -387,8 +402,8 @@ de los pasos 4 y 11.
 21. **Limpieza:** deshacé lo que quede hecho salvo las conciliaciones; comprobá que todos los movimientos de prueba
     siguen **atados** a cuotas de prueba, para que ningún pedido de plata los pueda atar a una cuota real; anulá las
     cuotas y el evento de prueba; dejá anotado en el Registro que fue una prueba. La cuenta «PRUEBA GSG» y sus
-    movimientos no se pueden borrar desde la pantalla: quedan con ese nombre. En un negocio de ensayo eso no molesta;
-    en MIA, se decide con el dueño antes del 18/11.
+    movimientos no se pueden borrar desde la pantalla: quedan con ese nombre (riesgo residual, dicho
+    arriba). GSG apaga `equipo-agentes-ejecuta` si el dueño no decide seguir.
 
 Callejones a marcar durante la prueba: un pedido que quede «En curso» pasado su plazo; un «Deshacer» sin cartel de
 resultado; una tarjeta en «Necesita una persona» sin motivo.
@@ -428,8 +443,10 @@ convención.
   ver la implementación.
 - **Casos reservados:** una parte (provisional: un tercio) la guarda la certificación fuera del repo, en una carpeta de Drive de GSG con acceso sólo de la certificación (provisional a confirmar; nunca sólo en un disco); en el repo sólo
   queda su hash. Ni el constructor ni quien escribe las instrucciones la ven.
-- **Quién la corre:** una sesión distinta de la que construyó y de la que escribió las instrucciones. Corre en el
-  negocio de ensayo, con datos de prueba, nunca con datos de un cliente ni contra un negocio real. El modelo, en
+- **Quién la corre:** una sesión distinta de la que construyó y de la que escribió las instrucciones. Corre con
+  datos de prueba, nunca con datos de un cliente: recomendada, en el negocio de GSG dado de alta en producción
+  (decisión del dueño del 14/11), con el interruptor prendido sólo ahí; la alternativa es MIA sobre entidades «PRUEBA
+  GSG» (`11` §3, D7). El modelo, en
   prueba, es el del plan de Claude (tema cerrado por el dueño).
 
 **Falla crítica** (una sola alcanza para no liberar; §J.43):

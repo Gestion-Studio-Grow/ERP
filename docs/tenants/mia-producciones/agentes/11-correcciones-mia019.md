@@ -10,7 +10,7 @@
 | Documento | Veredicto MIA-016 | Qué se hizo |
 |---|---|---|
 | `07` flujo | CUMPLE CON CAMBIOS | Corregido punto por punto (tabla §2) y §11 nueva (meta de lo que sale solo) |
-| `08` funcional | NO CUMPLE | C4 reescrito (consume el movimiento); §4 autorización reescrita; §9 reescrita contra §J; criterios 32-40; guion en negocio de ensayo |
+| `08` funcional | NO CUMPLE | C4 reescrito (consume el movimiento); §4 autorización reescrita; §9 reescrita contra §J; criterios 32-40; guion en MIA (decisión del dueño del 14/11, §6) |
 | `09` técnica | NO CUMPLE | X1-X16 aplicados; esquema = `esquema-final-enmienda.md`; §17 reescrita contra §J; §18 nueva (canales) |
 | `10` plan v2 | NO CUMPLE | Reemplazado por `13-plan-de-tandas-v3.md`; `10` queda como historia con un aviso arriba |
 | Canales `03` §19 | CUMPLE CON CAMBIOS | Resultado registrado: entran P1, P2 sin la FK y P6; lo demás espera, con las condiciones del dictamen |
@@ -31,7 +31,7 @@
 | H7 | ALTO | Lista completa de fallas críticas de §J.43 y graves ≤ 2 % | `08` §9 · `09` §17.4 |
 | H8 | ALTO | Huella = hash de los archivos del camino de plata + contrato + batería + modelo y versión + instrucciones; autorización que amplía invalida; regresión nocturna y muestreo con alerta | `08` §9 · `09` §4 (`archivos`), §17.1, §17.5 · `13` brief 5 |
 | H9 | ALTO | Quién firma = decisión del dueño (D1) **antes** de 2B; techo escrito (los topes de `08` §2, sólo se bajan); recomendada (c) | `08` §4 · `09` §2.3 · `13` brief 2B · §3 D1 |
-| H10 | ALTO | Guion primero en un negocio de ensayo; en MIA sólo con su titular real; movimientos de prueba atados a cuotas de prueba (el lote lo pone el servidor; segunda vuelta, §5) | `08` §8 (encabezado, paso 21) · `09` §9 · §3 D5 |
+| H10 | ALTO | Guion en MIA con su titular real (el dueño lo decidió el 14/11, §6; la versión anterior lo ponía en un negocio de ensayo), riesgo y cobertura escritos; movimientos de prueba atados a cuotas de prueba (el lote lo pone el servidor; segunda vuelta, §5) | `08` §8 (encabezado, paso 21) · `09` §9 · §3 D5 |
 | H11 | ALTO | Llave en el código: sin partes 1 y 5 no hay llamada al proveedor ni lectura de GSG; parte 6 con Legal antes de la IA con datos reales | `07` §3 (fila 2) · `08` §4, criterio 38 · `09` §3 (llave 5), §10 · `13` brief 1-AJ |
 | H12 | ALTO | Brief propio de la enmienda, certificado antes del Gate 2; `07` y `13` dicen que 1A recibe la enmienda sin reabrirse; ajustes a 1B-1D | `12` · `07` encabezado · `13` §2 (brief 1-AJ) |
 | H13 | ALTO | Meta provisional (70 % solas a 30 días), métrica del panel, conteo sobre un extracto real antes de la etapa 2, criterio de aceptación | `07` §11 · `08` criterio 32 · `13` briefs 2C y 5 |
@@ -105,8 +105,11 @@ El diseño está escrito con la recomendada, marcada provisional. Lo que cada un
 | D2 | Dónde vive el expediente y la fila de liberación | (a) `AuditLog` con exención de la purga. (b) Tabla propia `AgenteLiberacion` que no se purga, escrita sólo por operaciones de GSG | **(b).** Es la prueba de la garantía de GSG; tiene que durar lo que los registros contables (plazo a confirmar con la contadora) y no la puede forjar `app_rls`. Migración aditiva propia (brief LT). **Frena L2** |
 | D3 | Umbral de liberación | (a) 3 × 50 sobre los mismos casos. (b) Casos distintos: 150 con 0 críticas (R2), 300 para plata sin respaldo; graves ≤ 2 %; lo del código al 100 % determinista | **(b).** Con 0 de 150 la cota superior de falla es de alrededor de 2 %; 3 × 50 iguales mide estabilidad, no cobertura (§J.42). **Frena L2** |
 | D4 | El cliente final como solicitante (canales) | (a) Aceptarlo: confirma con un botón y la operación sale de la oferta, no de su texto. (b) Prohibirlo | **(a)**, registrada como excepción explícita a «un texto de un tercero no dispara una transacción». **Frena C3 de canales** |
-| D5 | Dónde corre el guion de prueba | (a) En MIA real, con el dueño de GSG firmando como titular. (b) Primero en un negocio de ensayo; en MIA sólo con su titular real | **(b).** MIA empieza el 18/11 y en (a) GSG firma por el cliente y deja movimientos de prueba que B2 podría atar a cuotas reales (H10). **Frena el QA desde 2B** |
+| D5 | Dónde corre el guion de prueba | — | **Decidida por el dueño el 14/11: en MIA**, con su titular real (§6). Riesgo y cobertura en `08` §8 |
 | D6 | Moneda | (a) Sólo ARS hasta que haya topes en USD (el CHECK lo limita). (b) Abrir USD ya | **(a).** `cobrarCuota` asienta en pesos con el tipo de cambio y el cupo contaría en la moneda de la cuota (X10): abrir USD pide diseño propio |
+
+| D7 | Dónde corre la batería de ataque (L2) | (a) En el negocio de GSG dado de alta en producción (decisión del 14/11), interruptor prendido sólo ahí. (b) En MIA, sobre entidades «PRUEBA GSG» | **(a).** La batería son 150 a 300 casos de ataque por operación, con ejecuciones reales: en MIA llenaría de pruebas el Registro y Finanzas de un negocio que opera desde el 18/11. Con (a), en MIA corre sólo el guion. **Frena L2** |
+| D8 | «Todo desde el inicio» frente a la lista «nunca solos» (`08` §3: pagar o transferir, facturar o nota de crédito ante ARCA, anular, cambiar datos bancarios, borrar) | (a) «Todo» son las operaciones autorizables de `08` §2; `08` §3 sigue con una persona. (b) Sumar alguna de §3 | **(a).** Así lo dejó el dueño hasta nuevo aviso; por texto no chocan, porque §3 no es autorizable (techo escrito, `08` §4). Si el dueño quiso decir también §3, es esta decisión: no la resuelve el diseño |
 
 **Tema cerrado, no se reabre:** la IA corre con el plan de Claude en prueba (orden del dueño).
 **Siguen abiertas sin cambio:** el despertador por minuto (gasto), los topes de `08` §2, el texto legal de la
@@ -141,3 +144,17 @@ hallazgo bloquea ni tiene riesgo de plata. Se corrigieron los diez hallazgos:
 | 10 | Tests y bordes | `09` §14: único por oferta y permisos de columna de `AgentePropuesta`; brief 4B: atado por una persona → persona (como `08`); H7 y H8 de canales en `03` §19 | `09` §14 · brief 4B · canales `03` §19 |
 
 Briefs medidos de nuevo (`13` §10): todos de 2048 bytes o menos (el más grande, E, 2014).
+
+## 6. Decisiones del dueño del 14/11 (20:52-20:53, transmitidas por GSG-ORQ-007)
+
+| Decisión | Qué eligió | Cómo quedó en el diseño | Dónde |
+|---|---|---|---|
+| AGENTES-ETAPAS | **B · Todo desde el inicio** («Vamos a hacer justamente las pruebas en mia») | Sin plan de prendido por etapas: se prende una vez con todo lo autorizado; cada operación sale sola al tener su liberación (y B2/C4, MIA-018). Etapa 0/1/2 queda como clase de riesgo. El guion corre en MIA: D5 decidida, riesgo y cobertura escritos | `13` §1 · `08` §8 · `07` §4 y §11 · D5, D8 |
+| AGENTES-AISLAMIENTO | **A · Producción con interruptor** | El aislamiento es el interruptor por negocio, apagado de fábrica; sin ambiente aparte | `13` §1 · `08` §8 |
+| AGENTES-ALTA-GSG | **A · Sí, en producción** | Alta de GSG como negocio después del Gate 2 de E, con interruptores apagados; recomendada para correr la batería (D7) | `13` §1 · `08` §9 · `09` §12 y §17 |
+| AGENTES-FIRMA | **Abierta** («Mañana ale») | D1 sigue abierta y sigue frenando 2B | §3 D1 |
+
+No cambia: el dictamen de MIA-016 corregido punto por punto; cobro y conciliación dependen de GSG-MIA-018; cada
+operación se libera sólo con la batería corrida por una sesión distinta; las tres piezas previas a confirmar plata
+(cierre de mes, comprobante obligatorio, tope por monto); la lista «nunca solos» con una persona (D8); Gate 2 y
+publicación, del dueño.

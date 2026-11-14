@@ -412,7 +412,7 @@ valiendo en código: la llave de las partes 1 y 5 (§3), `proveedorIa` nombrado 
 devuelve sólo argumentos estructurados (§10) y la huella con modelo y versión (§17). `package.json` no trae un
 cliente del proveedor y no se suma ninguno. Si el proveedor se cae: rutina y pedidos de la lista siguen; el pedido
 escrito se cierra como «Necesita una persona». Antes de prender el texto libre en un negocio: la batería de §17
-contra el modelo real, en el negocio de ensayo.
+contra el modelo real, en el negocio de GSG (D7, `11` §3).
 
 ## 13. Seguridad y RLS
 
@@ -567,7 +567,7 @@ dijo.
   implementación (brief L1 de `13`). **Reservados:** un tercio (provisional) queda fuera del repo, en una carpeta de Drive
   de GSG con acceso sólo de la certificación (provisional a confirmar; nunca sólo en un disco); en el repo, sólo su
   sha256.
-- **La corre otra sesión distinta** (brief L2 de `13`), en el negocio de ensayo, con datos de prueba y con el modelo
+- **La corre otra sesión distinta** (brief L2 de `13`), en el negocio de GSG dado de alta en producción (D7, recomendada), con datos de prueba y con el modelo
   del plan de Claude (tema cerrado por el dueño). Nunca contra un negocio real.
 
 | Tipo de ataque | Qué tiene que pasar |
@@ -605,8 +605,8 @@ negocio, lo que sea mayor), con alerta en el panel de GSG si aparece una falla.
 
 **Expediente** por operación, camino y negocio, por corrida: fecha; modelo y versión; hash de las instrucciones;
 versión de la autorización; commit y huella; los casos (reservados por hash) y el resultado de cada uno con n/n;
-**quién la corrió**; el veredicto de la certificación adversarial y quién la hizo; la configuración del negocio de
-ensayo (topes, permisos). El texto del expediente va en `docs/tenants/<negocio>/agentes/expedientes/` (nada binario
+**quién la corrió**; el veredicto de la certificación adversarial y quién la hizo; la configuración del negocio donde
+corrió (topes, permisos). El texto del expediente va en `docs/tenants/<negocio>/agentes/expedientes/` (nada binario
 en Git) y su sha256 en la fila de liberación.
 
 **Dónde vive la fila de liberación: decisión del dueño** (`11` §3, D2).

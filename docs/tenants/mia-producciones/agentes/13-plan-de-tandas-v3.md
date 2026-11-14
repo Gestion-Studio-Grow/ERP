@@ -11,6 +11,7 @@
 | Paso | Qué deja | Briefs | Depende de | Certificación adversarial (sobre el diff) | Migración |
 |---|---|---|---|---|---|
 | **E** | La enmienda del esquema (única) | E (`12`) | 1A cerrada | Datos y seguridad: el esquema final y X1-X8 | La de 1A, enmendada · Gate 2 |
+| **Alta GSG** | GSG como negocio en producción, interruptores apagados | Operaciones, alta normal | Gate 2 de E | — | No |
 | **1·aj** | Ajustes a 1B, 1C y 1D | 1-AJ | E escrita (no hace falta aplicada) | Seguridad: Zod de argumentos, llave de la IA | No |
 | **2** | Camino de ejecución, sin plata: motor, llaves, topes, deshacer; firma y revocación; pedido que ejecuta | 2A y 2B a la vez (2B **sólo** con D1 decidida); después 2C | E con Gate 2 | Seguridad, concurrencia y datos | No |
 | **3** | Operaciones sin plata y rutina | 3A y 3B | 2 cerrada | Concurrencia, datos, inyección | No |
@@ -34,15 +35,22 @@
   modelo) batería L2 sobre los casos de L1 → expediente → el dueño libera → recién ahí se prende. **La batería la
   escribe L1 y la corre L2, sesiones distintas del constructor y entre sí** (corrige H2); los casos reservados los
   guarda la certificación fuera del repo.
-- **Qué se prende y cuándo** (operación por operación, ya liberada): con la 3 cerrada, la etapa 1 en el negocio de
-  ensayo y después en MIA con su titular real; la etapa 2 al cerrar cada certificación de la 4, **con despertador por
-  minuto** (`09` §9); el texto libre que ejecuta, después de la 5.
+- **Qué se prende y cuándo: todo desde el inicio, sin etapas** (decisión del dueño del 14/11, `11` §6). Las tandas
+  son el orden de **construcción**, no un plan de prendido. En MIA se prende el equipo una vez, con todas las
+  operaciones que el titular autorizó; cada una sale sola en cuanto tiene su liberación (llave 4) y, B2 y C4, además
+  GSG-MIA-018. Mientras tanto la misma operación va a una persona: lo frena el código, no un calendario. Etapa 0, 1 y
+  2 siguen siendo la clase de riesgo de cada operación, no fases. Las de etapa 2 salen solas sólo con el
+  despertador por minuto (`09` §9). Lo de `08` §3 («nunca solos») no es autorizable y queda con una persona (D8).
+- **Aislamiento:** producción con interruptor por negocio, que nace apagado; sin ambiente aparte (decisión del dueño).
+- **Alta de GSG como negocio** en producción (decisión del dueño): la hace operaciones con el alta normal **después
+  del Gate 2 de E** (tablas publicadas), con los interruptores apagados. Ahí corre L2 si el dueño confirma D7.
+- **Las pruebas (guion `08` §8) se hacen en MIA**, con su titular real; el riesgo y lo que lo cubre están en `08` §8.
 - **Fuera de este plan:** mensajes a clientes del negocio (canales), el equipo de Dirección, el de GSG y el de
   mantenimiento.
 
 **Lo que espera al dueño** (`11` §3): D1 quién firma (frena 2B), D2 dónde vive el expediente (frena L2), D3 umbral
-(frena L2), D4 cliente final (frena C3 de canales), D5 dónde corre el guion (frena el QA de 2B en adelante), D6 sólo
-ARS; además el despertador por minuto (gasto), los topes, el texto legal y cada Gate 2. La IA en prueba con el plan de
+(frena L2), D4 cliente final (frena C3 de canales), D6 sólo ARS, D7 dónde corre la batería (frena L2), D8 «todo
+desde el inicio» frente a la lista «nunca solos»; D5 quedó decidida (en MIA); además el despertador por minuto (gasto), los topes, el texto legal y cada Gate 2. La IA en prueba con el plan de
 Claude es tema cerrado.
 
 ## 2. Ajustes a la tanda 1 (1B, 1C, 1D)
@@ -118,7 +126,7 @@ src/cambios/interruptores.ts (cambiaLasApps false).
 - Reset de clave de un OWNER por GSG revoca la autorización viva (AgenteAccion AUTORIZACION).
 - Trinquete: sólo autorizacion.server.ts escribe AgenteAutorizacion; el motor no lo importa.
 ESCRIBÍ PRIMERO autorizacion-postgres.test.ts y autorizacion-core.test.ts (09 §14).
-QA: 08 §8 pasos 2, 4, 11, 19, en el negocio que diga D5. No toques ejecucion*.ts.
+QA: 08 §8 pasos 2, 4, 11, 19, en MIA (decidido). No toques ejecucion*.ts.
 Verificación: tsc · tests (n/n) · build. Informe ≤ 300 palabras, formato fijo.
 ```
 
@@ -218,7 +226,7 @@ Rol: certificador de GSG (Opus alto). Sesión distinta del constructor, de quien
 instrucciones y de L1.
 Requisitos: la operación tiene certificación adversarial CUMPLE; D2 y D3 decididas; casos de L1.
 Fuente: 09 §17 entero; 08 §9.
-Corré, en el negocio de ensayo (nunca en un negocio real) y con datos de prueba:
+Corré en el negocio que fije D7 (recomendada: el de GSG en producción), con datos de prueba:
 - camino código: los tests deterministas y de carrera de 09 §14 sobre el commit de la huella: 100 %.
 - camino con modelo: la batería completa (públicos + reservados que te pase la certificación) con el
   modelo del plan de Claude (tema cerrado). Corrida completa = toda la batería sobre un commit.
@@ -335,12 +343,12 @@ Medido sobre el texto entre las cercas de cada brief (UTF-8). Tope: 2048.
 | Brief E · enmienda del esquema (≤ 2 KB) | 2014 |
 | Brief 1-AJ · ajustes a 1B, 1C y 1D | 1577 |
 | Brief 2A · motor de ejecución | 1743 |
-| Brief 2B · autorización (abre sólo con D1 decidida) | 1800 |
+| Brief 2B · autorización (abre sólo con D1 decidida) | 1792 |
 | Brief 2C · pedido que ejecuta y respuesta con lo hecho | 1332 |
 | Brief 3A · operaciones sin plata, cuaderno y memoria | 1296 |
 | Brief 3B · rutina del puesto y pedido por extracto | 1475 |
 | Brief L1 · escribir los casos (antes de la implementación) | 1280 |
-| Brief L2 · correr la batería y armar el expediente | 1200 |
+| Brief L2 · correr la batería y armar el expediente | 1213 |
 | Brief 4A · B2 conciliar coincidencia exacta (+ 4C Cuentas a pagar) | 1335 |
 | Brief 4B · C4 registrar cobro con respaldo | 1584 |
 | Brief LT · tabla de liberación (sólo si el dueño elige D2-b) | 764 |

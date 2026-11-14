@@ -111,7 +111,7 @@ El plazo es de 180 segundos, **condicionado** (corrige H15 del dictamen): vale p
 respuesta a un pedido escrito, con el proceso sin cortes, el proveedor respondiendo y dentro del horario. No vale
 para lo diferido por horario (espera a la próxima corrida), ni para un proceso cortado mientras no haya despertador
 por minuto (se retoma cuando alguien abre el buzón o en la tarea diaria), ni para lo que va a una persona. El p95
-se mide en la batería (`09` §17) y el despertador es requisito para prender la etapa 2 (`09` §9). Un pedido
+se mide en la batería (`09` §17) y el despertador es requisito para que una operación de etapa 2 salga sola (`09` §9). Un pedido
 escrito que pide escribir algo **no ejecuta**: responde con el pedido de la lista ya armado, que la persona
 confirma con un toque (`08` §2.2).
 
@@ -212,10 +212,10 @@ No se reescriben. Donde digan otra cosa, vale este diseño.
 La orden del dueño es que la persona en el medio sea la excepción. Se mide, no se supone:
 - **Métrica del panel:** de las operaciones de etapa 1 y 2 que entran al motor, qué parte sale sola (`REGLA`), qué
   parte va a una persona y por qué motivo, por semana y por puesto.
-- **Objetivo provisional a confirmar por el dueño:** 70 % solas a los 30 días de prender cada etapa. Si queda abajo,
+- **Objetivo provisional a confirmar por el dueño:** 70 % solas a los 30 días de prender el equipo en el negocio. Si queda abajo,
   se revisa la condición que más deriva (por ejemplo, el nombre o CUIT del cliente en la descripción del banco, que
   no se verificó para MIA) antes de ampliar nada.
-- **Antes de prender la etapa 2 en MIA:** con un extracto real de MIA que el negocio cargue (sin consultas extra a
+- **Antes de que C4 salga solo en MIA:** con un extracto real de MIA que el negocio cargue (sin consultas extra a
   la base), se cuenta cuántos movimientos cumplirían el respaldo exacto. Ese número va al expediente y al criterio
   de aceptación (`08` §7, criterio 32).
 - Lo que siempre va a una persona por diseño (`08` §3) no cuenta como falla de la meta: se informa aparte.
