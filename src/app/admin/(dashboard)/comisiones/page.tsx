@@ -18,6 +18,10 @@ import { LineaDeEstado, PageHeader, Plata, fmtMoneyARS, fmtNumberAR } from "@/co
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import ComisionesPendientes from "./ComisionesPendientes";
 import ComisionesRenglon from "./ComisionesRenglon";
+// T1 (docs/producto/comisiones/LIQUIDACION.md): el período, el detalle por turno y el comprobante
+// por WhatsApp, ARRIBA de lo de siempre. Lo de abajo no cambia.
+import VistaPrevia from "./VistaPrevia";
+import { getComprobantesRecientes, getVistaPreviaDeComisiones } from "@/lib/comisiones/lectura";
 
 export const dynamic = "force-dynamic";
 
@@ -27,11 +31,18 @@ const ESTADOS: Record<string, { texto: string; ok: boolean }> = {
   error_nada: { texto: "Ese profesional no tiene comisiones pendientes de liquidar.", ok: false },
   error_prof: { texto: "No se pudo identificar al profesional. Recargá la pantalla y volvé a intentar.", ok: false },
   error_medio: { texto: "Este negocio todavía no separa la transferencia en el libro. No se liquidó nada: elegí otro medio.", ok: false },
+  error_periodo: { texto: "No se entendió el período elegido. No se liquidó nada: volvé a elegirlo.", ok: false },
 };
 
-export default async function ComisionesPage({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
+export default async function ComisionesPage({ searchParams }: { searchParams: Promise<{ status?: string; periodo?: string }> }) {
   const user = await requireApp("comisiones");
-  const [{ status }, overview, nuevo] = await Promise.all([searchParams, getCommissionsOverview(), disenoNuevo()]);
+  const { status, periodo } = await searchParams;
+  const [overview, nuevo, vista, comprobantes] = await Promise.all([
+    getCommissionsOverview(),
+    disenoNuevo(),
+    getVistaPreviaDeComisiones(periodo),
+    getComprobantesRecientes(),
+  ]);
   const total = totalALiquidar(overview.pending);
   const canSettle = permisoEfectivo(user, "commissions:manage");
   const banner = status ? ESTADOS[status] : undefined;
@@ -66,6 +77,7 @@ export default async function ComisionesPage({ searchParams }: { searchParams: P
           ]}
         />
         {aviso}
+        <VistaPrevia vista={vista} comprobantes={comprobantes} canSettle={canSettle} />
         <ComisionesRenglon overview={overview} canSettle={canSettle} volver="/admin/comisiones" />
       </main>
     );
@@ -97,6 +109,7 @@ export default async function ComisionesPage({ searchParams }: { searchParams: P
         </p>
       </div>
 
+      <VistaPrevia vista={vista} comprobantes={comprobantes} canSettle={canSettle} />
       <ComisionesPendientes overview={overview} canSettle={canSettle} volver="/admin/comisiones" />
     </main>
   );

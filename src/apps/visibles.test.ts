@@ -333,9 +333,9 @@ test("el buscador encuentra lo que la persona sí ve, por nombre, palabra o rót
   // "Ajustes" era el rótulo de Mermas: quien lo busca así la sigue encontrando.
   assert.ok(ids(buscarApps(owner, "ajustes")).includes("mermas"));
   assert.deepEqual(buscarApps(owner, "   "), []);
-  // PROFESSIONAL sólo ve su agenda.
+  // PROFESSIONAL sólo ve su agenda y su liquidación (T1 comisiones: `commissions:read-own`, sólo la suya).
   const prof = appsVisibles(negocio({ role: "PROFESSIONAL" }));
-  assert.deepEqual(ids(prof), ["agenda"]);
+  assert.deepEqual(ids(prof), ["agenda", "mis-comisiones"]);
   assert.deepEqual(buscarApps(prof, "fact"), []);
 });
 

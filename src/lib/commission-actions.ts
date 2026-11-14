@@ -58,6 +58,9 @@ import {
   type ComisionPendiente,
   type VueltaDeLiquidacion,
 } from "@/lib/reports/comisiones";
+// El período elegido en la vista previa (T1, docs/producto/comisiones/LIQUIDACION.md): la MISMA
+// regla de corte que la vista previa, así lo que Caro vio es lo que se congela.
+import { entraEnElCorte, leerPeriodo } from "@/lib/comisiones/periodo";
 
 const REPORTES_PATH = "/admin/reportes";
 // La app Comisiones: liquida con el mismo formulario y vuelve a su pantalla.
@@ -70,8 +73,9 @@ const CAJA_PATH = "/admin/caja";
 // Vuelve a la pantalla desde la que se liquidó (Reportes o Comisiones) con un código de
 // feedback (banner). No filtra detalle crudo. El destino llega del formulario y se valida
 // contra las dos pantallas (`vueltaDeLiquidacion`): nunca un redirect a una URL cualquiera.
-function backWith(status: string, volver: VueltaDeLiquidacion = REPORTES_PATH): never {
-  redirect(`${volver}?status=${encodeURIComponent(status)}`);
+function backWith(status: string, volver: VueltaDeLiquidacion = REPORTES_PATH, periodo?: string): never {
+  const p = periodo ? `&periodo=${encodeURIComponent(periodo)}` : "";
+  redirect(`${volver}?status=${encodeURIComponent(status)}${p}`);
 }
 
 // Lo pendiente por profesional (comisión, base "sobre $X", turnos y período).
@@ -150,6 +154,12 @@ export async function settleCommissions(formData: FormData) {
   const professionalId = String(formData.get("professionalId") ?? "").trim();
   if (!professionalId) backWith("error_prof", volver);
   const note = String(formData.get("note") ?? "").trim() || null;
+  // Período elegido en la vista previa (opcional). Sin el campo, como siempre: todo lo pendiente
+  // hasta hoy. Con el campo, sólo lo de antes del corte (`entraEnElCorte`); una clave que no se
+  // entiende no liquida nada (no se adivina un período con plata de por medio).
+  const conPeriodo = formData.has("periodo");
+  const periodo = conPeriodo ? leerPeriodo(formData.get("periodo")) : null;
+  if (conPeriodo && !periodo) backWith("error_periodo", volver);
   // Por qué medio se le pagó. El formulario AHORA lo pregunta (`<select name="method">` en
   // /admin/reportes, con efectivo preseleccionado). `null` sigue siendo un caso posible —un
   // submit sin JS, un llamador que no es ese formulario— y ahí el egreso asume EFECTIVO y lo
@@ -188,6 +198,7 @@ export async function settleCommissions(formData: FormData) {
     const liquidables: TurnoParaComision[] = [];
     for (const a of appointments) {
       if (!a.payment) continue;
+      if (periodo && !entraEnElCorte(a.startsAt, periodo)) continue;
       // Misma guarda que el listado de pendientes: sin esto, la pantalla mostraría un
       // total y la liquidación escribiría otro.
       if (!sePuedeLiquidar({ precio: a.priceAtBooking ?? a.service.price, cobros: a.collections.map((c) => ({ amount: c.amount.toNumber(), method: c.method })), pagoLegado: a.payment })) continue;
@@ -296,7 +307,7 @@ export async function settleCommissions(formData: FormData) {
     };
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
-  if (result.count === 0) backWith("error_nada", volver);
+  if (result.count === 0) backWith("error_nada", volver, periodo?.clave);
 
   await auditAdmin({
     action: "settle",
@@ -308,6 +319,7 @@ export async function settleCommissions(formData: FormData) {
       amount: result.amount,
       appointmentCount: result.count,
       note,
+      periodo: periodo?.clave ?? null,
       // El egreso queda en el audit igual que en el libro: es la única forma de saber
       // después por qué medio se pagó y si el medio fue asumido.
       egresoMetodo: result.egreso?.method ?? null,
@@ -322,5 +334,5 @@ export async function settleCommissions(formData: FormData) {
     revalidatePath(LIBRO_PATH);
     revalidatePath(CAJA_PATH);
   }
-  backWith("ok_settled", volver);
+  backWith("ok_settled", volver, periodo?.clave);
 }

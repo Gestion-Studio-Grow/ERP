@@ -79,6 +79,10 @@ export type Capability =
   | "users:manage"
   | "location:manage" // editar ubicación/contacto del negocio (módulo Localización)
   | "commissions:manage" // liquidar comisiones a profesionales (marcar período como pagado)
+  // Ver SU liquidación («Mi liquidación», /admin/mis-comisiones): lo pendiente estimado y lo ya
+  // liquidado de la profesional de la sesión, y nada más (el scoping a `User.professionalId` lo hace
+  // el loader, comisiones/lectura.ts). Sin botones de plata. Spec: docs/producto/comisiones/LIQUIDACION.md.
+  | "commissions:read-own"
   | "modules:manage" // activar/desactivar los módulos (apps) del negocio — vidriera de módulos
   | "billing:manage" // emitir facturas y procesar la facturación electrónica ARCA (módulo ARCA)
   | "payments:manage" // generar links de cobro por Mercado Pago (módulo Cobros)
@@ -171,6 +175,7 @@ const DEL_DUENIO: Record<Exclude<Capability, keyof typeof NO_SON_DEL_DUENIO>, tr
   "users:manage": true,
   "location:manage": true,
   "commissions:manage": true,
+  "commissions:read-own": true,
   "billing:manage": true,
   "payments:manage": true,
   "cash:manage": true,
@@ -238,7 +243,8 @@ export const ROLE_CAPABILITIES: Record<Role, Capability[]> = {
   // El profesional ve y cierra SU agenda, y cobra SUS turnos (decisión del dueño: cobra y
   // rinde la comisión después). No puede crear, cancelar ni reprogramar: eso es
   // `agenda:manage`, y sigue siendo de OWNER y RECEPCIÓN.
-  PROFESSIONAL: ["agenda:read", "booking:online", "agenda:complete", "agenda:collect"],
+  // Ve SU liquidación (sólo la suya: el loader la acota a su `professionalId`), sin tocar plata.
+  PROFESSIONAL: ["agenda:read", "booking:online", "agenda:complete", "agenda:collect", "commissions:read-own"],
 };
 
 export function roleHasCapability(role: Role, cap: Capability): boolean {

@@ -325,4 +325,21 @@ export const APPS_FINANZAS = [
     kpi: { id: "comisiones", mide: "Lo que falta liquidar y a cuántos profesionales.", capability: "reports:read" },
     palabras: ["liquidar", "liquidacion", "profesionales", "porcentaje", "pagar comision"],
   },
+  // «Mi liquidación» de la profesional (T1, docs/producto/comisiones/LIQUIDACION.md): lo suyo y
+  // nada más, sin botones de plata. Mismo módulo y rubro que Comisiones. Vive en el espacio de la
+  // agenda (es lo que la profesional ya abre); en la barra de CH entra sólo para PROFESSIONAL
+  // (`barraDeCH`), la dueña la sigue viendo todo en Comisiones.
+  {
+    id: "mis-comisiones",
+    nombre: "Mi liquidación",
+    descripcion: "Lo que te toca de comisión y lo que ya te liquidaron.",
+    icono: "usuarios",
+    ruta: "/admin/mis-comisiones",
+    espacio: "mostrador",
+    capability: "commissions:read-own",
+    modulo: "reports",
+    rubro: "servicios",
+    estado: "lista",
+    palabras: ["mi comision", "mis comisiones", "liquidacion", "cuanto cobro"],
+  },
 ] as const satisfies readonly AppDescriptor[];
