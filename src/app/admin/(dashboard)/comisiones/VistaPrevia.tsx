@@ -13,6 +13,7 @@ import { buttonClasses, fmtMoneyARS } from "@/components/ui";
 import { periodoAnterior, periodoQueContiene, periodoSiguiente, type TipoPeriodo } from "@/lib/comisiones/periodo";
 import type { VistaPrevia as Vista } from "@/lib/comisiones/vista-previa";
 import type { ComprobanteDeLiquidacion } from "@/lib/comisiones/lectura";
+import { MEDIO_POR_DEFECTO_LIQUIDACION } from "@/lib/comisiones/medio-por-defecto";
 
 const plata = (cents: number) => fmtMoneyARS(cents / 100, cents % 100 === 0 ? 0 : 2);
 const TIPOS: { tipo: TipoPeriodo; texto: string }[] = [
@@ -136,7 +137,7 @@ export default function VistaPrevia({
                     <input type="hidden" name="periodo" value={p.clave} />
                     <select
                       name="method"
-                      defaultValue="EFECTIVO"
+                      defaultValue={MEDIO_POR_DEFECTO_LIQUIDACION}
                       aria-label={`Cómo se le paga a ${prof.professionalName}`}
                       className="h-11 rounded-md border border-line-strong bg-surface-raised px-2 text-sm text-strong focus:border-accent"
                     >
