@@ -5,7 +5,8 @@
 
 ## Qué es
 
-**Una sola enmienda**, y es ésta: `desafio-mia016/esquema-final-enmienda.md` (rama `agentes/diseno-ejecucion`,
+**Una sola enmienda**, y es ésta (con **una desviación**, por decisión del dueño del 14/11: `AgentePropuesta_monto_check`
+admite cualquier código ISO de tres letras en vez de sólo `'ARS'`, `09` §6): `desafio-mia016/esquema-final-enmienda.md` (rama `agentes/diseno-ejecucion`,
 commit `1506c9c0`). Se suma a la migración `20261115120000_agentes_base` de la tanda 1A (rama `agentes/tanda-1`,
 490d2048), que todavía no está aplicada: un solo Gate 2. **1A no se reabre**: esta es una tarea nueva, con su rama,
 su certificación y su Gate. No hay segunda enmienda: lo que el esquema final deja afuera (único de `cuotaId` →
@@ -27,7 +28,7 @@ entra acá.
 ```
 Rol: ingeniero del ERP (Opus alto; superficie: datos y seguridad). Rama nueva desde agentes/tanda-1.
 Única fuente: desafio-mia016/esquema-final-enmienda.md (agentes/diseno-ejecucion, 1506c9c0).
-Antes: confirmá por docs (sin Neon) que 20261115120000_agentes_base NO está aplicada.
+Antes: confirmá por docs (sin Neon) que agentes_base NO está aplicada.
 Si lo está: frená y reportá; no escribas otra migración.
 Hacé, en ESA migración y en schema.prisma:
 - AgentePedido: REVOKE UPDATE de tabla + GRANT de las 9 columnas; único (tenantId,id,userId);
@@ -36,7 +37,7 @@ Hacé, en ESA migración y en schema.prisma:
   REVOKE UPDATE/DELETE + GRANT de 4 columnas, disparador _irreversible (revocadaEl y reemplazadaEl).
 - AgenteContador: monto >= 0, moneda en la PK.
 - AgentePropuesta: columnas; origen_check con CANAL; origen_solicitante_check; modo_check; regla_check;
-  monto_check con ARS; fuente_check; no_aprueba_lo_propio; FK de versión y de pedido; estado REVERTIDA;
+  monto_check con moneda ~ '^[A-Z]{3}$' (no sólo ARS, 09 §6); fuente_check; no_aprueba_lo_propio; FK de versión y de pedido; estado REVERTIDA;
   únicos clave_viva y canalOfertaId_viva (con RECHAZADA); GRANT sólo de columnas de estado.
   Verificá que el único de 1A (herr_entidad_pendiente) no choque con clave: si choca, avisá.
 - AgenteAccion.tipo + REVERSION, AUTORIZACION, CONTROL.
@@ -47,6 +48,6 @@ Hacé, en ESA migración y en schema.prisma:
 ESCRIBÍ PRIMERO enmienda-postgres.test.ts (base efímera, app_rls): un caso por CHECK, único, FK y
 disparador, incluidos X1, X2, X5, X6, X7 y P2; privilegios tras correr 0002 dos veces.
 No toques ProyectoMovBanco, CanalOferta ni AuditLog. Sin Neon, sin migrate deploy, sin push a main.
-Verificación: tsc · tests (n/n con scripts/ci/resumen-tests.mjs) · build. Informe ≤ 300 palabras:
+Verificación: tsc · tests (n/n, scripts/ci/resumen-tests.mjs) · build. Informe ≤ 300 palabras:
 qué, n/n, archivo:línea, pendientes. Un push a tu rama.
 ```

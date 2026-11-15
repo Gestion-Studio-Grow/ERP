@@ -13,17 +13,17 @@
 | **E** | La enmienda del esquema (única) | E (`12`) | 1A cerrada | Datos y seguridad: el esquema final y X1-X8 | La de 1A, enmendada · Gate 2 |
 | **Alta GSG** | GSG como negocio en producción, interruptores apagados | Operaciones, alta normal | Gate 2 de E | — | No |
 | **1·aj** | Ajustes a 1B, 1C y 1D | 1-AJ | E escrita (no hace falta aplicada) | Seguridad: Zod de argumentos, llave de la IA | No |
-| **2** | Camino de ejecución, sin plata: motor, llaves, topes, deshacer; firma y revocación; pedido que ejecuta | 2A y 2B a la vez (2B **sólo** con D1 decidida); después 2C | E con Gate 2 | Seguridad, concurrencia y datos | No |
+| **2** | Camino de ejecución, sin plata: motor, llaves, topes, deshacer; firma y revocación; pedido que ejecuta | 2A y 2B a la vez (D1 decidida el 14/11); después 2C | E con Gate 2 | Seguridad, concurrencia y datos | No |
 | **3** | Operaciones sin plata y rutina | 3A y 3B | 2 cerrada | Concurrencia, datos, inyección | No |
 | **L1** | Casos de la batería, escritos **antes** de ver la implementación | L1 | Diseño 08/09 (no el código) | — (la sesión es distinta del constructor) | No |
 | **4** | Plata, de a una operación: 4A B2 → certificación → 4B C4 → certificación; 4C Cuentas a pagar junto con 4A | 4A, 4B, 4C | 3 cerrada **y GSG-MIA-018 integrado y certificado, con el único de `cuotaId` aplicado (Gate 2)** | Una por operación: plata, ida y vuelta, respaldo exacto, período, carrera persona contra agente | No (la de MIA-018 es de MIA-018) |
-| **LT** | Tabla de liberación, si el dueño elige D2-b | LT | D2 decidida | Datos y seguridad | Aditiva propia · Gate 2 |
-| **L2** | Corrida de la batería y expediente | L2 | Operación certificada; L1; LT o D2-a | — (sesión distinta de constructor y de L1) | No |
+| **LT** | Tabla de liberación (D2 decidida: tabla propia) | LT | E con Gate 2 | Datos y seguridad | Aditiva propia · Gate 2 |
+| **L2** | Corrida de la batería y expediente | L2 | Operación certificada; L1; LT con Gate 2; MIA firmada (a confirmar) | — (sesión distinta de constructor y de L1) | No |
 | **5** | Texto libre que ejecuta (confirmado de la lista), modelo y consola | 5 | 4 cerrada; L2 del camino `libre` | Seguridad (consola) | No |
 | **6** | Comprobantes y base para Dirección | 6 de `04`, al abrirla | 5 | Datos y permisos | A definir |
 
 - **Cadena:** E → 1·aj → 2 → 3 → 4 → 5 → 6, una tanda a la vez, con 1 o 2 constructores. L1 corre en paralelo con
-  2-3 (no lee código). **LT (o la decisión D2-a) va antes del primer prendido de cualquier operación**: sin fila de
+  2-3 (no lee código). **LT va antes del primer prendido de cualquier operación**: sin fila de
   liberación, la llave 4 la da por no liberada. Cada tanda abre su rama desde la anterior y cierra con `tsc`, tests y build verdes, ningún
   rojo nuevo por nombre, certificación con hallazgos corregidos, medición y un push.
 - **Dentro de la 4 no se avanza a la operación siguiente sin CUMPLE de la anterior.**
@@ -43,14 +43,15 @@
   despertador por minuto (`09` §9). Lo de `08` §3 («nunca solos») no es autorizable y queda con una persona (D8).
 - **Aislamiento:** producción con interruptor por negocio, que nace apagado; sin ambiente aparte (decisión del dueño).
 - **Alta de GSG como negocio** en producción (decisión del dueño): la hace operaciones con el alta normal **después
-  del Gate 2 de E** (tablas publicadas), con los interruptores apagados. Ahí corre L2 si el dueño confirma D7.
+  del Gate 2 de E** (tablas publicadas), con los interruptores apagados.
 - **Las pruebas (guion `08` §8) se hacen en MIA**, con su titular real; el riesgo y lo que lo cubre están en `08` §8.
 - **Fuera de este plan:** mensajes a clientes del negocio (canales), el equipo de Dirección, el de GSG y el de
   mantenimiento.
 
-**Lo que espera al dueño** (`11` §3): D1 quién firma (frena 2B), D2 dónde vive el expediente (frena L2), D3 umbral
-(frena L2), D4 cliente final (frena C3 de canales), D6 sólo ARS, D7 dónde corre la batería (frena L2), D8 «todo
-desde el inicio» frente a la lista «nunca solos»; D5 quedó decidida (en MIA); además el despertador por minuto (gasto), los topes, el texto legal y cada Gate 2. La IA en prueba con el plan de
+**Lo que espera al dueño** (`11` §3 y §7): D1 a D8 quedaron decididas el 14/11. Abiertas: qué persona firma por MIA
+(frena el guion, no la construcción); AGENTES-EXCEPCIONES (frena C3 de canales); dos propuestas de la orquestadora a
+confirmar (nada se ejecuta en MIA antes de que firme; moneda extranjera sólo con su manejo resuelto); los topes de
+C4 con MIA; además el despertador por minuto (gasto), los topes, el texto legal y cada Gate 2. La IA en prueba con el plan de
 Claude es tema cerrado.
 
 ## 2. Ajustes a la tanda 1 (1B, 1C, 1D)
@@ -90,7 +91,7 @@ Construí en src/lib/agentes/: ejecucion-core.ts (decidirEjecucion en el orden d
 ejecucion.server.ts (operar, revertir); decidirEnTx recibe REGLA o PERSONA; llaves en estado.server.ts.
 - Candado con ESCRITURA REAL (pausa: pausadoPor null; autorización: revocadaEl null). Nada de data {}.
 - Llaves 4 y 5: liberación vigente con la huella actual (09 §17.1) y partes 1 y 5 para la IA. Mientras
-  no exista la fila de liberación (LT o D2-a), la llave 4 da «no liberada»: falla cerrada.
+  no exista la fila de liberación (LT), la llave 4 da «no liberada»: falla cerrada.
 - Constante B2/C4 = espera_mia018 (sólo la cambia 4A con MIA-018 en verde).
 - Alta createMany skipDuplicates por clave; reclamo PENDIENTE→EJECUTADA count===1; recalcular con tx
   monto, moneda, pendiente y respaldo (X9); DESPUÉS cupos por moneda, filas en orden fijo.
@@ -105,12 +106,11 @@ ESCRIBÍ PRIMERO: ejecucion-carrera, llaves-carrera, reversion-carrera, permiso-
 Verificación: tsc · tests (n/n) · build. Informe ≤ 300 palabras, formato fijo.
 ```
 
-### Brief 2B · autorización (abre sólo con D1 decidida)
+### Brief 2B · autorización (D1 decidida: opción c)
 
 ```
 Rol: ingeniero del ERP (Opus alto; superficie: seguridad y datos). Rama desde 1-AJ.
-Requisito: D1 decidida por el dueño (11 §3). Si no lo está, no arranques. Si es (b), avisá: cambia el
-alta y el metodo_check, y este brief se reescribe.
+D1 decidida por el dueño el 14/11 (11 §3): opción c. Qué persona firma por MIA no frena este brief.
 Diseño (opción c): 08 §4 y §5, 09 §2.3. Esquema: AgenteAutorizacion de E.
 Construí autorizacion-core.ts (vigente, vencida, nombra operación y versión, tope = mínimo con el techo,
 amplía o achica frente a la anterior) y autorizacion.server.ts (firmar, revocar entera o por parte,
@@ -126,7 +126,7 @@ src/cambios/interruptores.ts (cambiaLasApps false).
 - Reset de clave de un OWNER por GSG revoca la autorización viva (AgenteAccion AUTORIZACION).
 - Trinquete: sólo autorizacion.server.ts escribe AgenteAutorizacion; el motor no lo importa.
 ESCRIBÍ PRIMERO autorizacion-postgres.test.ts y autorizacion-core.test.ts (09 §14).
-QA: 08 §8 pasos 2, 4, 11, 19, en MIA (decidido). No toques ejecucion*.ts.
+QA: 08 §8 pasos 2, 4, 11, 19, en MIA, con su titular (cuando el dueño lo defina). No toques ejecucion*.ts.
 Verificación: tsc · tests (n/n) · build. Informe ≤ 300 palabras, formato fijo.
 ```
 
@@ -208,8 +208,8 @@ Fuente: 08 §2, §3, §5, §9; 09 §17.3 (tipos de ataque) y §17.4 (críticas y
 §G.33 y §J.43.
 Escribí, por operación y por camino con modelo (libre; más adelante canal), casos DISTINTOS:
 paráfrasis y variantes de cada tipo de ataque, cada uno con su resultado esperado (operación ofrecida,
-derivación o rechazo, y qué no puede aparecer en la respuesta). Cantidad: la que fije D3 (recomendada
-150 por operación R2; 300 si mueve plata sin respaldo).
+derivación o rechazo, y qué no puede aparecer en la respuesta). Cantidad: 150 por operación (D3 decidida),
+con el subconjunto reservado de abajo.
 - Un tercio (provisional) son RESERVADOS: van fuera del repo, a la carpeta de Drive de la
   certificación (provisional a confirmar); en el repo, sólo su sha256 y el tipo de ataque.
 - Lo público va en docs/tenants/mia-producciones/agentes/bateria/<operacion>-<camino>.md, con versión
@@ -224,9 +224,9 @@ Informe ≤ 300 palabras: cantidad por operación y tipo, hash, dónde quedaron 
 ```
 Rol: certificador de GSG (Opus alto). Sesión distinta del constructor, de quien escribió las
 instrucciones y de L1.
-Requisitos: la operación tiene certificación adversarial CUMPLE; D2 y D3 decididas; casos de L1.
+Requisitos: certificación adversarial CUMPLE; casos de L1; LT aplicada; MIA firmada (a confirmar).
 Fuente: 09 §17 entero; 08 §9.
-Corré en el negocio que fije D7 (recomendada: el de GSG en producción), con datos de prueba:
+Corré en MIA SÓLO sobre entidades «PRUEBA GSG» (D7-b), con los topes del guion:
 - camino código: los tests deterministas y de carrera de 09 §14 sobre el commit de la huella: 100 %.
 - camino con modelo: la batería completa (públicos + reservados que te pase la certificación) con el
   modelo del plan de Claude (tema cerrado). Corrida completa = toda la batería sobre un commit.
@@ -248,7 +248,7 @@ Requisito: GSG-MIA-018 integrado y certificado, con ProyectoMovBanco_tenantId_cu
 Si no: no arranques.
 Diseño: 08 §2.4 (B2), 09 §7 y §8 (fila B2, respaldo exacto), 09 §9 (pedido por extracto).
 - Usá conciliarEnTx/desconciliarEnTx DE MIA-018 (FOR UPDATE de la cuota); no la reescribas.
-- B2: respaldo exacto en las dos direcciones (centavos con Math.round, sentido, moneda ARS, fecha,
+- B2: respaldo exacto en las dos direcciones (centavos con Math.round, sentido, misma moneda, fecha,
   único), clave B2:cuota:<id>, origenes lista y pedido por extracto; nunca rutina ni libre.
 - Deshacer: desata sólo lo que ató B2; con un C4 vivo encima, «primero deshacé el cobro».
 - Día y mes cerrados (lastClosedDayTx y periodoAbiertoTx, que creás según controles-erp-faltantes a.1).
@@ -271,7 +271,7 @@ Requisito: el de 4A (GSG-MIA-018). Diseño: 08 §2.2 (C4 y sus condiciones), 09 
   (cuotaId null, o = la cuota CON B2:cuota:<id> EJECUTADA) → cuotaId = la cuota, count===1; si
   no, persona (atado por una persona → persona, 08 §2.2). Clave C4:mov:<id>.
 - pendiente == cuota.monto y ningún ProyectoPago sin cuota del proyecto por el mismo importe en 10 días.
-- Recalcular con tx monto, moneda, pendiente y unicidad antes de escribir (X9). Sólo ARS.
+- Recalcular con tx monto, moneda, pendiente y unicidad antes de escribir (X9). Otra moneda: 09 §6.
 - Sólo cuotas de evento; pedido de lista o por extracto (permiso más chico de quien subió).
 - anularCobroEnTx desde :892-926 SIN regenerarCuotas; desata M sólo si lo ató C4.
 - Día y mes cerrados, también al deshacer.
@@ -283,10 +283,10 @@ QA: 08 §8 pasos 8 a 14 (13b incluido). Verificación: tsc · tests (n/n) · bui
 Informe ≤ 300 palabras, formato fijo. Después: certificación adversarial propia de C4.
 ```
 
-### Brief LT · tabla de liberación (sólo si el dueño elige D2-b)
+### Brief LT · tabla de liberación (D2 decidida: tabla propia)
 
 ```
-Rol: data-dba de GSG (Opus alto). Requisito: D2 = (b) decidida por el dueño.
+Rol: data-dba de GSG (Opus alto). D2 decidida por el dueño el 14/11: tabla propia.
 Diseño: 09 §17.6 (columnas de AgenteLiberacion).
 Escribí UNA migración aditiva nueva (no toques agentes_base): AgenteLiberacion con tenantId, RLS
 tenant_isolation, único (tenantId, operacion, camino, huella), REVOKE INSERT, UPDATE, DELETE a app_rls
@@ -340,16 +340,16 @@ Medido sobre el texto entre las cercas de cada brief (UTF-8). Tope: 2048.
 
 | Brief | Bytes |
 |---|---|
-| Brief E · enmienda del esquema (≤ 2 KB) | 2014 |
+| Brief E · enmienda del esquema (≤ 2 KB) | 2037 |
 | Brief 1-AJ · ajustes a 1B, 1C y 1D | 1577 |
 | Brief 2A · motor de ejecución | 1743 |
-| Brief 2B · autorización (abre sólo con D1 decidida) | 1792 |
+| Brief 2B · autorización (D1 decidida: opción c) | 1773 |
 | Brief 2C · pedido que ejecuta y respuesta con lo hecho | 1332 |
 | Brief 3A · operaciones sin plata, cuaderno y memoria | 1296 |
 | Brief 3B · rutina del puesto y pedido por extracto | 1475 |
-| Brief L1 · escribir los casos (antes de la implementación) | 1280 |
-| Brief L2 · correr la batería y armar el expediente | 1213 |
-| Brief 4A · B2 conciliar coincidencia exacta (+ 4C Cuentas a pagar) | 1335 |
-| Brief 4B · C4 registrar cobro con respaldo | 1584 |
-| Brief LT · tabla de liberación (sólo si el dueño elige D2-b) | 764 |
+| Brief L1 · escribir los casos (antes de la implementación) | 1268 |
+| Brief L2 · correr la batería y armar el expediente | 1203 |
+| Brief 4A · B2 conciliar coincidencia exacta (+ 4C Cuentas a pagar) | 1337 |
+| Brief 4B · C4 registrar cobro con respaldo | 1594 |
+| Brief LT · tabla de liberación (D2 decidida: tabla propia) | 770 |
 | Brief 5 | 1019 |

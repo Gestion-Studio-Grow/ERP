@@ -60,7 +60,7 @@
 | X7 | ALTO | CHECK de dominio de `modo`, `fuenteId` no vacío, FK a la versión de la autorización | `09` §2.1, §2.2 · `12` |
 | X8 | ALTO | REVOKE/GRANT repetidos en `0002`, aserción `DO … RAISE EXCEPTION`, los 4 scripts corren `0002`; `data-dba` verifica el rol de producción | `09` §2.2, §15 · `12` |
 | X9 | MEDIO | Paso 3 recalcula con `tx` monto, moneda, pendiente, unicidad y tipo de cambio; si difiere, persona | `08` §2.2 · `09` §4 (tabla de `operar`) · `13` briefs 2A y 4B |
-| X10 | MEDIO | Sólo ARS en la base (`monto_check`); otra moneda, decisión D6 y diseño propio | `08` §2.2 · `09` §2.1, §6 · §3 D6 |
+| X10 | MEDIO | Primero sólo ARS; el dueño eligió pesos y otras monedas (D6-b, §7): tope y cupo por moneda, techo por moneda, tipo de cambio de una persona | `08` §2.2 · `09` §2.1, §6 · §3 D6 |
 | X11 | MEDIO | Respaldo exacto en las dos direcciones también en B2 | `08` §2.4 · `09` §8 · `13` brief 4A |
 | X12 | MEDIO | Expediente fuera de la purga: tabla propia recomendada (D2-b) o exención en `PURGE_EXEMPT_ENTITIES` | `09` §17.6 · `13` brief LT · §3 D2 |
 | X13 | MEDIO | `origenPedidoId` + FK con el mismo `userId` | `09` §2.1, §4 · `12` · `13` brief 3A |
@@ -101,15 +101,14 @@ El diseño está escrito con la recomendada, marcada provisional. Lo que cada un
 
 | # | Tema | Opciones | Recomendada y por qué |
 |---|---|---|---|
-| D1 | Quién firma la autorización | (a) El titular en la app con su sesión. (b) Alta por OPS de GSG con evidencia, sin `INSERT` para `app_rls` (cumple la letra de §F.26). (c) (a) con **segundo factor** (código al mail), y ampliar pide segunda confirmación por mail y entra a las 24 h, con aviso a todos los OWNER y a GSG; el reset de la clave del OWNER revoca | **(c).** Con (a) sola, ampliar topes queda en una mano (X5). (c) es excepción declarada a §F.26: la segunda mano es el interruptor de GSG más la espera con aviso. **Frena 2B** |
-| D2 | Dónde vive el expediente y la fila de liberación | (a) `AuditLog` con exención de la purga. (b) Tabla propia `AgenteLiberacion` que no se purga, escrita sólo por operaciones de GSG | **(b).** Es la prueba de la garantía de GSG; tiene que durar lo que los registros contables (plazo a confirmar con la contadora) y no la puede forjar `app_rls`. Migración aditiva propia (brief LT). **Frena L2** |
-| D3 | Umbral de liberación | (a) 3 × 50 sobre los mismos casos. (b) Casos distintos: 150 con 0 críticas (R2), 300 para plata sin respaldo; graves ≤ 2 %; lo del código al 100 % determinista | **(b).** Con 0 de 150 la cota superior de falla es de alrededor de 2 %; 3 × 50 iguales mide estabilidad, no cobertura (§J.42). **Frena L2** |
-| D4 | El cliente final como solicitante (canales) | (a) Aceptarlo: confirma con un botón y la operación sale de la oferta, no de su texto. (b) Prohibirlo | **(a)**, registrada como excepción explícita a «un texto de un tercero no dispara una transacción». **Frena C3 de canales** |
-| D5 | Dónde corre el guion de prueba | — | **Decidida por el dueño el 14/11: en MIA**, con su titular real (§6). Riesgo y cobertura en `08` §8 |
-| D6 | Moneda | (a) Sólo ARS hasta que haya topes en USD (el CHECK lo limita). (b) Abrir USD ya | **(a).** `cobrarCuota` asienta en pesos con el tipo de cambio y el cupo contaría en la moneda de la cuota (X10): abrir USD pide diseño propio |
-
-| D7 | Dónde corre la batería de ataque (L2) | (a) En el negocio de GSG dado de alta en producción (decisión del 14/11), interruptor prendido sólo ahí. (b) En MIA, sobre entidades «PRUEBA GSG» | **(a).** La batería son 150 a 300 casos de ataque por operación, con ejecuciones reales: en MIA llenaría de pruebas el Registro y Finanzas de un negocio que opera desde el 18/11. Con (a), en MIA corre sólo el guion. **Frena L2** |
-| D8 | «Todo desde el inicio» frente a la lista «nunca solos» (`08` §3: pagar o transferir, facturar o nota de crédito ante ARCA, anular, cambiar datos bancarios, borrar) | (a) «Todo» son las operaciones autorizables de `08` §2; `08` §3 sigue con una persona. (b) Sumar alguna de §3 | **(a).** Así lo dejó el dueño hasta nuevo aviso; por texto no chocan, porque §3 no es autorizable (techo escrito, `08` §4). Si el dueño quiso decir también §3, es esta decisión: no la resuelve el diseño |
+| D1 | Quién firma la autorización | (a) El titular en la app con su sesión. (b) Alta por OPS de GSG con evidencia. (c) (a) con **segundo factor** (código al mail), y ampliar con segunda confirmación y 24 h de espera, aviso a todos los OWNER y a GSG | **Decidida el 14/11: (c)** (la recomendada). Abierto: **qué persona firma por MIA** (el dueño lo habla con Ale el 15/11); frena el guion, no 2B |
+| D2 | Dónde vive el expediente y la fila de liberación | (a) `AuditLog` con exención de la purga. (b) Tabla propia que no se purga | **Decidida el 14/11: (b)**, tabla propia de evidencia (la recomendada). Brief LT ya no es condicional |
+| D3 | Umbral de liberación | (a) 3 × 50 sobre los mismos casos. (b) Casos distintos | **Decidida el 14/11: 150 casos distintos, subconjunto reservado, 0 críticas** (la recomendada). Graves ≤ 2 %, provisional del diseño |
+| D4 | El cliente final como solicitante (canales) | (a) Confirma con un botón, excepción registrada. (b) Prohibirlo | **Decidida el 14/11: (a)** (la recomendada). Tiene que quedar coherente con **AGENTES-EXCEPCIONES**, que sigue abierta (A, B o C, no descriptas en las fuentes de esta sesión): C3 de canales no abre hasta que se cierre |
+| D5 | Dónde corre el guion de prueba | — | **Decidida el 14/11: en MIA**, con su titular real (§6). Riesgo y cobertura en `08` §8 |
+| D6 | Moneda | (a) Sólo ARS. (b) Pesos y otras monedas desde el inicio | **Decidida el 14/11: (b)** (no era la recomendada). Diseño en `09` §6: tope y cupo en la moneda de la operación, techo por moneda, tipo de cambio del día cargado por una persona; el CHECK admite ISO de 3 letras (desviación declarada del esquema final, `12`). **Resguardo de la orquestadora, a confirmar:** ninguna moneda extranjera en un negocio hasta resolver su manejo (`monedasHabilitadas`) |
+| D7 | Dónde corre la batería (L2) | (a) Negocio de GSG en producción. (b) MIA sobre «PRUEBA GSG» | **Decidida el 14/11: (b)** (no era la recomendada). Riesgo: cientos de filas de prueba en el Registro y Finanzas de MIA (`08` §8). **Propuesta de la orquestadora, a confirmar:** ninguna ejecución real en MIA hasta que MIA firme |
+| D8 | «Todo desde el inicio» frente a «nunca solos» | (a) `08` §3 sigue con una persona. (b) Sumar alguna | **Decidida el 14/11: (a)** |
 
 **Tema cerrado, no se reabre:** la IA corre con el plan de Claude en prueba (orden del dueño).
 **Siguen abiertas sin cambio:** el despertador por minuto (gasto), los topes de `08` §2, el texto legal de la
@@ -151,10 +150,27 @@ Briefs medidos de nuevo (`13` §10): todos de 2048 bytes o menos (el más grande
 |---|---|---|---|
 | AGENTES-ETAPAS | **B · Todo desde el inicio** («Vamos a hacer justamente las pruebas en mia») | Sin plan de prendido por etapas: se prende una vez con todo lo autorizado; cada operación sale sola al tener su liberación (y B2/C4, MIA-018). Etapa 0/1/2 queda como clase de riesgo. El guion corre en MIA: D5 decidida, riesgo y cobertura escritos | `13` §1 · `08` §8 · `07` §4 y §11 · D5, D8 |
 | AGENTES-AISLAMIENTO | **A · Producción con interruptor** | El aislamiento es el interruptor por negocio, apagado de fábrica; sin ambiente aparte | `13` §1 · `08` §8 |
-| AGENTES-ALTA-GSG | **A · Sí, en producción** | Alta de GSG como negocio después del Gate 2 de E, con interruptores apagados; recomendada para correr la batería (D7) | `13` §1 · `08` §9 · `09` §12 y §17 |
+| AGENTES-ALTA-GSG | **A · Sí, en producción** | Alta de GSG como negocio después del Gate 2 de E, con interruptores apagados (la batería corre en MIA, D7-b, §7) | `13` §1 · `08` §9 · `09` §12 y §17 |
 | AGENTES-FIRMA | **Abierta** («Mañana ale») | D1 sigue abierta y sigue frenando 2B | §3 D1 |
 
 No cambia: el dictamen de MIA-016 corregido punto por punto; cobro y conciliación dependen de GSG-MIA-018; cada
 operación se libera sólo con la batería corrida por una sesión distinta; las tres piezas previas a confirmar plata
 (cierre de mes, comprobante obligatorio, tope por monto); la lista «nunca solos» con una persona (D8); Gate 2 y
 publicación, del dueño.
+
+## 7. Decisiones del dueño del 14/11 (21:17-21:27, transmitidas por GSG-ORQ-007)
+
+| Decisión | Qué eligió | Cómo quedó | Dónde |
+|---|---|---|---|
+| D7 batería | B · en MIA sobre «PRUEBA GSG» | L2 en MIA, sólo entidades de prueba y topes del guion; riesgo residual escrito | `08` §8 y §9 · `09` §12, §17.3 · brief L2 |
+| D8 nunca solos | A | `08` §3 con una persona | §3 |
+| Umbral | A · 150 distintos, reservados, 0 críticas | Umbral fijo; L1 escribe 150 por operación | `08` §9 · `09` §17.3 · brief L1 |
+| Expediente | A · tabla propia | `AgenteLiberacion`; LT obligatoria antes del primer prendido | `08` §9 · `09` §17.6 · `13` §1, brief LT |
+| Firma | A · app + segundo factor + 24 h al ampliar | D1-c; 2B ya puede construirse | `07` §3 y §8 · `08` §4 · brief 2B |
+| Cliente final | A · botón, excepción registrada | Condicionado a AGENTES-EXCEPCIONES (abierta) | canales `03` §19 · `09` §18 |
+| Monedas | B · pesos y otras desde el inicio | Diseño por moneda en `09` §6; CHECK ISO; tests de moneda en `09` §14 | `08` §2 · `09` §2.1, §6, §14 · `12` · briefs E, 4A, 4B |
+| Tope de C4 | Configurable, provisional a confirmar con MIA | Interpreté «tope del cobro a cuenta» como los topes de C4 (cobro registrado por el agente) | `08` §2 (C4) |
+
+**Sigue abierto:** qué persona firma por MIA; AGENTES-EXCEPCIONES; las dos propuestas de la orquestadora (nada se
+ejecuta en MIA antes de que firme; moneda extranjera sólo con su manejo resuelto); los topes de C4 con MIA; el techo
+del código para cada moneda que no sea pesos; despertador por minuto, texto legal y cada Gate 2.

@@ -45,7 +45,7 @@ del dueño). Acá digo cómo lo usa el motor.
 | `modo` (`REGLA`/`PERSONA`, CHECK de dominio), `autorizacionId`, `autorizacionVersion` (FK a `(tenantId,id,version)`), `AgentePropuesta_regla_check` | Con qué se decidió cada operación; `REGLA` sin autorización, o con una versión que no existe, lo rechaza la base (X7) |
 | `fuenteTipo`, `fuenteId` (no vacío) | Documento fuente (§11) |
 | `AgentePropuesta_no_aprueba_lo_propio_check` | Quien pidió no aprueba lo suyo, también en la base (X14) |
-| `montoCentavos`, `moneda` (sólo `'ARS'` mientras no haya topes en USD), `contraparte` | Topes de plata (§6, X10) |
+| `montoCentavos`, `moneda` (código ISO de tres letras; pesos y otras monedas, decisión del dueño del 14/11), `contraparte` | Topes de plata (§6, X10) |
 | `AgentePedido.origenPedidoId` y su FK al pedido original con el mismo `userId` | Un pedido derivado (K5) queda atado al original y a la misma persona (X13) |
 | `revierteA`, `revertibleHasta` | Deshacer (§8) |
 | `AgenteContador.monto` y `.moneda` (en la clave, `'ARS'` por defecto) | Cupos de plata por moneda. Los topes de cantidad usan siempre el valor por defecto |
@@ -214,9 +214,21 @@ personas. **Provisional a confirmar por el dueño.**
   { ARS: n }, horario: { dias, desde, hasta } }`, en centavos enteros. **Tope efectivo = mínimo entre el techo del
   código y el de la autorización.** Un valor firmado mayor al techo se ignora y se registra. Nunca sale de un texto
   ni del modelo.
-- **Sólo pesos en esta versión (X10):** la base rechaza una propuesta con monto en otra moneda
-  (`AgentePropuesta_monto_check`). Abrir otra moneda es decisión del dueño (`11` §3, D6) y pide un diseño propio,
-  porque `cobrarCuota` asienta en pesos con el tipo de cambio mientras el cupo contaría en la moneda de la cuota.
+- **Pesos y otras monedas desde el inicio** (decisión del dueño del 14/11, D6-b; corrige X10 de otra forma que la
+  recomendada). La base admite cualquier código ISO de tres letras (`AgentePropuesta_monto_check` con
+  `moneda ~ '^[A-Z]{3}$'`; única desviación del esquema final, `12`). Reglas:
+  - **Tope y cupo en la moneda de la operación**, nunca convertidos: `topes.porOperacion.USD`, fila de
+    `AgenteContador` con `moneda = 'USD'`. El cupo de pesos y el de dólares son independientes.
+  - **Techo del código por moneda:** el catálogo de `08` §2 está en pesos. Una moneda sin techo en el código va a
+    una persona aunque la firma tenga tope (el techo de otra moneda es provisional a confirmar por el dueño).
+  - **Asiento:** `cobrarCuota` asienta en pesos con el tipo de cambio del día **cargado por una persona**
+    (`guardarTipoCambio`, `acciones-empresa.ts:259`). Sin tipo de cambio de hoy para esa moneda → persona. El agente
+    nunca elige ni calcula un tipo de cambio. El tope se mide en la moneda de la cuota; el asiento en pesos no lo toca.
+  - Respaldo exacto: la moneda de la cuota igual a la de la cuenta del movimiento.
+  - **Resguardo propuesto por la orquestadora, a confirmar por el dueño:** ninguna moneda extranjera en un negocio
+    hasta que ese negocio tenga resuelto su manejo (cuentas en esa moneda, tipo de cambio diario a cargo de una
+    persona, cómo se asienta). En el código: una lista `monedasHabilitadas` por negocio que escribe sólo la consola de
+    GSG; fuera de la lista → persona.
 - **Por moneda.** La moneda de un movimiento del banco es la de su cuenta (`ProyectoCuentaBanco.moneda`,
   `prisma/schema.prisma:4063`; el movimiento no la tiene, `:4071-4086`). Sin tope para esa moneda → una persona. No se
   convierte por tipo de cambio: lo carga una persona (`guardarTipoCambio`, `acciones-empresa.ts:259`).
@@ -412,7 +424,7 @@ valiendo en código: la llave de las partes 1 y 5 (§3), `proveedorIa` nombrado 
 devuelve sólo argumentos estructurados (§10) y la huella con modelo y versión (§17). `package.json` no trae un
 cliente del proveedor y no se suma ninguno. Si el proveedor se cae: rutina y pedidos de la lista siguen; el pedido
 escrito se cierra como «Necesita una persona». Antes de prender el texto libre en un negocio: la batería de §17
-contra el modelo real, en el negocio de GSG (D7, `11` §3).
+contra el modelo real, en MIA sobre entidades «PRUEBA GSG» (D7-b, `11` §3).
 
 ## 13. Seguridad y RLS
 
@@ -434,13 +446,14 @@ contra el modelo real, en el negocio de GSG (D7, `11` §3).
 | Toda operación «sola» tiene `deshacer`; ninguna de `08` §3 es «sola»; etapa 2 sin origen `libre`; la consola no importa la ejecución | Estático | `guardia-ejecucion.test.ts` |
 | Ninguna llamada con `<datos>` lleva herramientas que no sean de lectura | Unidad, con guion | `intencion.test.ts` |
 | Con `app_rls`: sobre `AgenteAutorizacion`, `DELETE` rechazado, `UPDATE` de `operaciones` y `topes` rechazado, retirar una revocación rechazado; dos vivas por negocio rechazado; `UPDATE` de `recorte` y `userId` en `AgentePedido` rechazado; todo también después de correr `0002_app_role.sql` dos veces; A no ve la autorización de B. Firma por un usuario que no es el titular: rechazada por el código | Postgres | `autorizacion-postgres.test.ts` |
-| La base rechaza: `REGLA` sin autorización; `modo` fuera de dominio; versión de autorización inexistente; plata por `REGLA` sin fuente o con `fuenteId` vacío; `solicitadoPor` distinto del dueño del pedido; `PEDIDO` sin `solicitadoPor`; `RUTINA` con `pedidoId`; `CANAL` sin oferta; monto en USD; misma clave tras `RECHAZADA`; `reemplazadaEl` puesto en nulo; `metodo` distinto de `APP_CON_SESION`; `decididaPor = solicitadoPor`; segunda propuesta viva para la misma `canalOfertaId`; `app_rls` actualizando una columna de `AgentePropuesta` fuera del GRANT (`origen`, `montoCentavos`, `modo`, `autorizacionId`) (lo escribe el brief de la enmienda, `12`) | Postgres | `enmienda-postgres.test.ts` |
+| La base rechaza: `REGLA` sin autorización; `modo` fuera de dominio; versión de autorización inexistente; plata por `REGLA` sin fuente o con `fuenteId` vacío; `solicitadoPor` distinto del dueño del pedido; `PEDIDO` sin `solicitadoPor`; `RUTINA` con `pedidoId`; `CANAL` sin oferta; moneda que no es un código ISO de tres letras; misma clave tras `RECHAZADA`; `reemplazadaEl` puesto en nulo; `metodo` distinto de `APP_CON_SESION`; `decididaPor = solicitadoPor`; segunda propuesta viva para la misma `canalOfertaId`; `app_rls` actualizando una columna de `AgentePropuesta` fuera del GRANT (`origen`, `montoCentavos`, `modo`, `autorizacionId`) (lo escribe el brief de la enmienda, `12`) | Postgres | `enmienda-postgres.test.ts` |
 | C4 consume el movimiento: M usado por A → B va a persona; con cobro suelto por el mismo importe → persona; persona marca cobrado a mano a la vez que el agente → un solo efecto (con GSG-MIA-018) | Postgres, carrera | `c4-respaldo-carrera-postgres.test.ts` |
 | Deshacer C4 deja **todas** las cuotas del proyecto, la conciliación, la caja y el saldo como estaban, y desata M si lo ató C4 | Postgres | `c4-ida-y-vuelta-postgres.test.ts` |
 | C5/P5 no pueden pasar `venceEl`; etapa 2 no tiene origen `rutina`; Zod rechaza `pedidoId`, `solicitadoPor`, `canalOfertaId` y `origen` en argumentos | Estático | `guardia-ejecucion.test.ts` |
 | Subir un extracto deja el pedido a nombre de quien subió; sin `pagos`, C4 no corre; lo que va a persona no lo aprueba quien subió | Postgres | `pedido-por-extracto-postgres.test.ts` |
 | Sin partes 1 y 5, ninguna llamada al proveedor; el envoltorio lanza si una llamada con `<datos>` lleva herramientas que escriben | Unidad | `llave-ia.test.ts` |
 | Misma operación N veces a la vez → una ejecución y un cupo; pedido y rutina sobre la misma cuota → gana uno; pedido retomado tras un corte → no repite; N operaciones a la vez no pasan el tope de monto ni el de cantidad; tope por contraparte; otra moneda no gasta el tope en pesos | Postgres, carrera | `ejecucion-carrera-postgres.test.ts` |
+| Moneda: USD sin techo del código, sin tope firmado, sin tipo de cambio de hoy o fuera de `monedasHabilitadas` → persona; cupo de USD independiente del de pesos; el asiento usa el tipo de cambio cargado por una persona | Unidad y Postgres | `moneda-core.test.ts`, `cupos-moneda-postgres.test.ts` |
 | Revocar, pausar o apagar a la vez que se ejecuta → o ejecuta antes o no ejecuta; nunca después | Postgres, carrera | `llaves-carrera-postgres.test.ts` |
 | Deshacer dos veces a la vez → una; deshacer algo que una persona ya cambió → no pisa; después de deshacer se puede volver a hacer por pedido; la rutina no rehace lo revertido | Postgres, carrera | `reversion-carrera-postgres.test.ts` |
 | Permiso más chico: persona sin `editar`, persona que no ve el proyecto, permiso quitado entre el pedido y la ejecución | Postgres | `permiso-minimo-postgres.test.ts` |
@@ -561,13 +574,13 @@ adversarial CUMPLE.
 Sólo para los caminos con modelo. Mide qué operación interpretó, qué pedido de la lista ofreció, cuándo derivó y qué
 dijo.
 - **Casos distintos** por operación (paráfrasis y variantes por tipo de ataque de la tabla de abajo), no repeticiones.
-  Umbral: decisión del dueño (`11` §3, D3); recomendada **150 distintos con 0 críticas** para R2 y **300** para lo que
-  mueva plata sin respaldo si alguna vez entra; graves ≤ 2 % por corrida.
+  Umbral decidido por el dueño el 14/11 (`11` §3, D3): **150 distintos, subconjunto reservado, 0 críticas**.
+  Provisional del diseño: graves ≤ 2 % por corrida; plata sin respaldo, si alguna vez entra, umbral propio.
 - **La escribe una sesión distinta** del constructor y de quien escribe las instrucciones, **antes** de ver la
   implementación (brief L1 de `13`). **Reservados:** un tercio (provisional) queda fuera del repo, en una carpeta de Drive
   de GSG con acceso sólo de la certificación (provisional a confirmar; nunca sólo en un disco); en el repo, sólo su
   sha256.
-- **La corre otra sesión distinta** (brief L2 de `13`), en el negocio de GSG dado de alta en producción (D7, recomendada), con datos de prueba y con el modelo
+- **La corre otra sesión distinta** (brief L2 de `13`), en MIA, sólo sobre entidades «PRUEBA GSG» (D7-b, decidida; a confirmar: no antes de que MIA firme), con datos de prueba y con el modelo
   del plan de Claude (tema cerrado por el dueño). Nunca contra un negocio real.
 
 | Tipo de ataque | Qué tiene que pasar |
@@ -609,15 +622,13 @@ versión de la autorización; commit y huella; los casos (reservados por hash) y
 corrió (topes, permisos). El texto del expediente va en `docs/tenants/<negocio>/agentes/expedientes/` (nada binario
 en Git) y su sha256 en la fila de liberación.
 
-**Dónde vive la fila de liberación: decisión del dueño** (`11` §3, D2).
-- **(b) Recomendada:** tabla propia `AgenteLiberacion` (`tenantId`, `operacion`, `camino`, `huella`,
+**Dónde vive la fila de liberación: decidido por el dueño el 14/11 (`11` §3, D2): tabla propia de evidencia.**
+- **Decidida:** tabla propia `AgenteLiberacion` (`tenantId`, `operacion`, `camino`, `huella`,
   `autorizacionVersion`, `expedienteSha256`, `commit`, `liberadoPor`, `liberadoEl`, `retiradaEl`), con RLS,
   `REVOKE INSERT, UPDATE, DELETE` a `app_rls` y escrita sólo por un script de operaciones de GSG (Gate). No se purga.
   **No va en la enmienda de `agentes_base`** (el esquema final la deja afuera): es una migración aditiva propia, con
   su Gate 2, antes de la primera liberación.
-- (a) Fila de `AuditLog` `entity "LiberacionOperacion"` con el patrón de los interruptores, sumada a
-  `PURGE_EXEMPT_ENTITIES` (`src/lib/audit-retention.ts:31`) y al rechazo de `audit()` desde la app. Sin migración,
-  pero la forja cualquier código con `app_rls` y sólo la frena el código.
+- (descartada) Fila de `AuditLog` con exención de la purga: la forja cualquier código con `app_rls`.
 
 En las dos, el código no prende la operación sin una fila vigente cuya huella sea la actual y cuyo
 `expedienteSha256` exista. **Quién libera:** el dueño, con el expediente a la vista; la fila la escribe GSG.
@@ -639,7 +650,7 @@ del esquema, ahora:
   `operaciones`.
 
 Esperan, sin cambio de esquema, a que canales llegue a C3 (P3, P4, P5, P7, P8, P9, P10, P11, P12), con las
-condiciones del dictamen: decisión del dueño sobre el cliente final como solicitante (`11` §3, D4); clave del link
+condiciones del dictamen: cliente final como solicitante, decidido por el dueño el 14/11 (`11` §3, D4: confirma con un botón, excepción registrada), coherente con AGENTES-EXCEPCIONES, que sigue abierta; clave del link
 de MP por pedido e importe (`link-de-pedido.server.ts:30-48`) y `modo: "persona"` hasta poder anularlo; el motor
 compara monto, moneda, contraparte y fuente contra la `CanalOferta` leída con `tx`; en la web, ninguna tarea que
 escriba y un cupo diario propio para visitantes. Nada se rechazó.
