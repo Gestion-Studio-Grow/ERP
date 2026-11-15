@@ -17,7 +17,7 @@
 import type { AppDescriptor, NombreIcono } from "@/apps/contract";
 import { appPermitida, type ItemMenuDeHoy, type NegocioApps } from "@/apps/visibles";
 import { appPorId } from "@/apps/registro";
-import { vouchersPrendidos, type InterruptorId } from "@/cambios/interruptores";
+import { eventosSponsorsPrendido, vouchersPrendidos, type InterruptorId } from "@/cambios/interruptores";
 import {
   espacioNav,
   espacioNavDeApp,
@@ -125,17 +125,19 @@ export function espaciosDelMenu(menu: readonly ItemMenuDeHoy[], esMostrador: boo
 
 /**
  * Las apps que el registro no ofrece en el lanzador (`enLanzador: false`) porque dependen de un
- * interruptor del negocio que el registro no sabe leer. Hoy: «Vouchers de La Alameda» (CH), sólo con
- * el interruptor «vouchers» prendido Y si la persona puede abrirla (la misma regla que `requireApp`).
+ * interruptor del negocio que el registro no sabe leer. Hoy: «Vouchers de La Alameda» (CH) con el
+ * interruptor «vouchers» y «Eventos y sponsors» con «eventos-sponsors», cada una sólo con su interruptor
+ * prendido Y si la persona puede abrirla (la misma regla que `requireApp`).
  * Apagado o sin permiso: lista vacía y la navegación queda idéntica. PURA.
  */
 export function appsDeInterruptores(
   interruptores: Readonly<Partial<Record<InterruptorId, { encendido: boolean }>>>,
   negocio: NegocioApps,
 ): AppDescriptor[] {
-  if (!vouchersPrendidos(interruptores)) return [];
-  const app = appPorId("vouchers");
-  return appPermitida(app, negocio) ? [app] : [];
+  const ids: ("vouchers" | "eventos-sponsors")[] = [];
+  if (vouchersPrendidos(interruptores)) ids.push("vouchers");
+  if (eventosSponsorsPrendido(interruptores)) ids.push("eventos-sponsors");
+  return ids.map((id) => appPorId(id)).filter((app) => appPermitida(app, negocio));
 }
 
 /** Suma `extras` a sus espacios (sin duplicar una ruta que ya está), con el mismo orden de siempre. */
