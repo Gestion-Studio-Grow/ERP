@@ -2,7 +2,7 @@
 // en criollo, que se apaga solo cuando el turno ya lo resolvió.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { avisoMPDeFila, avisosMPPorTurno, type FilaAvisoMP } from "./avisos-mp";
+import { ACCION_SENIA_MP_NO_REGISTRADA, avisoMPDeFila, avisosMPPorTurno, type FilaAvisoMP } from "./avisos-mp";
 import { leerAvisosMP, type LectorAvisosMP } from "./avisos-mp.server";
 import { textosAvisoMP } from "@/app/admin/(dashboard)/turnos/agenda-core";
 import { notaDeAnulacion } from "./anulacion";
@@ -118,4 +118,15 @@ test("baja: la seña parcial NO se apaga al cancelar el turno (la plata parcial 
   assert.match(textosAvisoMP({ ...base, estado: "NO_SHOW", avisosMP })[0], /quedó sin venir/);
   // Si la plata ya se devolvió (cobro anulado → cobrado 0), se apaga.
   assert.deepEqual(textosAvisoMP({ ...base, estado: "CANCELLED", cobrado: 0, avisosMP }), []);
+});
+
+test("GSG-FACT-012: el pago de MP que excede el turno ya cobrado se avisa para revisar (no «registrala a mano»)", () => {
+  const fila = (changes: unknown) => ({ entityId: "t1", action: ACCION_SENIA_MP_NO_REGISTRADA, changes, createdAt: new Date() });
+  const aviso = avisoMPDeFila(fila({ pagoMP: { id: "77", monto: 5000 }, motivo: "x", revision: "turno-cobrado" }));
+  assert.deepEqual(aviso, { tipo: "no-registrada", pagoId: "77", monto: 5000, cajaCerrada: false, excedeElTurno: true });
+  // La seña que la recepción no pudo asentar por exceder el saldo es el mismo caso.
+  assert.equal(avisoMPDeFila(fila({ pagoMP: { id: "78" }, motivo: "Este turno ya está cobrado por completo." }))?.tipo, "no-registrada");
+  assert.equal((avisoMPDeFila(fila({ pagoMP: { id: "78" }, motivo: "Este turno ya está cobrado por completo." })) as { excedeElTurno?: true }).excedeElTurno, true);
+  const textos = textosAvisoMP({ estado: "COMPLETED", senia: 0, cobrado: 15000, cobros: [], avisosMP: [aviso!] });
+  assert.match(textos[0], /con el turno ya saldado: no se facturó\. Revisá si hay que devolverlo$/);
 });

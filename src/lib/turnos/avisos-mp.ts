@@ -6,7 +6,8 @@
 //   · `senia_parcial_mp`             → pagó menos que la seña;
 //   · `senia_mp_devuelta_sin_anular` → MP devolvió la plata pero el cobro no se pudo anular (factura
 //                                      emitida o día cerrado): el cobro sigue en la caja;
-//   · `senia_mp_no_registrada`       → entró la plata pero no se pudo asentar (caja cerrada u otro).
+//   · `senia_mp_no_registrada`       → entró la plata pero no se pudo asentar (caja cerrada u otro), o
+//                                      el pago excede el turno ya cobrado y no se facturó (GSG-FACT-012).
 // Acá se leen esas filas (PURO: sin base, sirve en el navegador) para que la agenda las muestre.
 // Cuándo deja de mostrarse cada una lo decide la agenda con el turno a la vista (agenda-core.ts).
 
@@ -25,7 +26,14 @@ export const ACCIONES_AVISO_MP = [ACCION_SENIA_PARCIAL_MP, ACCION_SENIA_MP_DEVUE
 export type AvisoMP =
   | { tipo: "parcial"; pagado: number; senia: number }
   | { tipo: "devuelta-sin-anular"; cobroId: string | null }
-  | { tipo: "no-registrada"; pagoId: string | null; monto: number | null; cajaCerrada: boolean };
+  | {
+      tipo: "no-registrada";
+      pagoId: string | null;
+      monto: number | null;
+      cajaCerrada: boolean;
+      /** GSG-FACT-012: el pago excede el turno (ya cobrado por otro medio): no se factura, se revisa. */
+      excedeElTurno?: true;
+    };
 
 export type FilaAvisoMP = { entityId: string; action: string; changes: unknown; createdAt: Date | string };
 
@@ -48,7 +56,8 @@ export function avisoMPDeFila(f: Pick<FilaAvisoMP, "action" | "changes">): Aviso
     case ACCION_SENIA_MP_NO_REGISTRADA: {
       const pago = obj(c.pagoMP);
       const motivo = str(c.motivo) ?? "";
-      return { tipo: "no-registrada", pagoId: str(pago.id), monto: num(pago.monto), cajaCerrada: /cerrad/i.test(motivo) };
+      const excede = str(c.revision) === "turno-cobrado" || /cobrado por completo|supera lo que falta/i.test(motivo);
+      return { tipo: "no-registrada", pagoId: str(pago.id), monto: num(pago.monto), cajaCerrada: /cerrad/i.test(motivo), ...(excede ? { excedeElTurno: true as const } : {}) };
     }
     default:
       return null;

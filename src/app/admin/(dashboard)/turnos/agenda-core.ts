@@ -561,6 +561,10 @@ export function textosAvisoMP(t: Pick<TurnoDelDia, "estado" | "senia" | "cobrado
       const nota = a.pagoId ? notaSeniaMP(a.pagoId) : null;
       if (nota && t.cobros.some((c) => c.note === nota)) continue;
       const monto = a.monto !== null && a.monto > 0 ? ` (${pesos(a.monto)})` : "";
+      if (a.excedeElTurno) {
+        textos.push(`Entró un pago por Mercado Pago${monto} con el turno ya saldado: no se facturó. Revisá si hay que devolverlo`);
+        continue;
+      }
       textos.push(
         a.cajaCerrada
           ? `Entró la seña por Mercado Pago${monto} pero la caja estaba cerrada: registrala a mano`

@@ -68,3 +68,28 @@ test("el aviso de una factura que no salió al cobrar habla del cobro, no del tu
   assert.match(avisoDeFacturaDelTurno({ tipo: "fallo" }, "cobro") ?? "", /^El cobro quedó registrado, pero la factura no se pudo emitir/);
   assert.match(avisoDeFacturaDelTurno({ tipo: "fallo" }) ?? "", /^El turno quedó terminado/);
 });
+
+// ── GSG-FACT-012 · ¿el pago de MP excede el turno? ─────────────────────────────
+test("pagoMPExcedeElTurno: sólo con plata de otro medio (o condonada) en el libro; MP y lo anulado no restan", async () => {
+  const { pagoMPExcedeElTurno } = await import("./factura-por-cobro");
+  const f = (id: string, amount: number, method: string, note: string | null = null) => ({ id, amount, method, note });
+  const ex = (precio: number, monto: number, filas: ReturnType<typeof f>[]) => pagoMPExcedeElTurno({ precio, monto, filas });
+  // Sin otro medio no se bloquea: turno sin cobros, precio a definir (0), link por más que el precio.
+  assert.equal(ex(15000, 5000, []), false);
+  assert.equal(ex(0, 20000, []), false);
+  assert.equal(ex(15000, 18000, []), false);
+  // Cerrado en efectivo: no cabe. Efectivo por el saldo: la seña cabe justo; un centavo más, no.
+  assert.equal(ex(15000, 5000, [f("e", 15000, "EFECTIVO")]), true);
+  assert.equal(ex(15000, 5000, [f("e", 10000, "EFECTIVO")]), false);
+  assert.equal(ex(15000, 5000.01, [f("e", 10000, "EFECTIVO")]), true);
+  assert.equal(ex(15000, 5000, [f("e", 12000, "TRANSFERENCIA")]), true);
+  // El cobro de MP del libro es esta misma plata: no resta.
+  assert.equal(ex(15000, 5000, [f("m", 5000, "MERCADOPAGO"), f("e", 10000, "EFECTIVO")]), false);
+  // Un efectivo anulado vuelve a dejar lugar (y deja de haber otro medio).
+  assert.equal(ex(15000, 5000, [f("e", 15000, "EFECTIVO"), f("x", -15000, "EFECTIVO", notaDeAnulacion("e", "error"))]), false);
+  // Lo condonado cierra el turno aunque su medio sea MP.
+  assert.equal(ex(15000, 5000, [f("e", 10000, "EFECTIVO"), f("c", 5000, "MERCADOPAGO", notaDeCondonacion("perdonado"))]), true);
+  // Otro pago de MP ya facturado ocupa su parte (sólo si hay otro medio: sin él no se decide).
+  assert.equal(pagoMPExcedeElTurno({ precio: 15000, monto: 5000, filas: [f("e", 10000, "EFECTIVO")], otrosPagosMP: 5000 }), true);
+  assert.equal(pagoMPExcedeElTurno({ precio: 15000, monto: 5000, filas: [], otrosPagosMP: 15000 }), false);
+});
