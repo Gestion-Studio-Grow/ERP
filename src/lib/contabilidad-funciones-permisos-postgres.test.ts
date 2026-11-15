@@ -182,6 +182,42 @@ test("SEG-021 · después del SQL: sin EXECUTE para app_rls, controles vigentes 
     assert.match(err?.message ?? "", /descuadrado/);
   });
 
+  // SQL directo como app_rls (sin el repo): el cuadre diferido y los BEFORE corren sin EXECUTE en las
+  // funciones. Confirmado y cuadrado → queda grabado; confirmado y descuadrado → 23514 al COMMIT y no
+  // queda nada (ni la cabecera ni las líneas).
+  await t.test("como app_rls con SQL directo: confirmado cuadrado se graba; descuadrado no deja nada", async () => {
+    const [a1, a2] = e.cuentasA;
+    const ej = await (await prismaComoDuenio(base)).ejercicio.findFirst({ where: { tenantId: base.a.id }, select: { id: true } });
+    assert.ok(ej);
+    const asiento = (id: string, numero: number, haber: number) =>
+      comoApp(base, base.a.id, async (c) => {
+        await c.query(`INSERT INTO "Asiento"(id,"tenantId","ejercicioId",fecha,descripcion,"updatedAt") VALUES ($1,$2,$3,'2026-05-04','sql directo',now())`, [id, base.a.id, ej.id]);
+        await c.query(
+          `INSERT INTO "AsientoLinea"(id,"tenantId","asientoId","cuentaId",debe,haber,"updatedAt") VALUES ($1||'_d',$2,$1,$3,100,0,now()), ($1||'_h',$2,$1,$4,0,$5,now())`,
+          [id, base.a.id, a1, a2, haber],
+        );
+        await c.query(`UPDATE "Asiento" SET estado = 'CONFIRMADO', numero = $2 WHERE id = $1`, [id, numero]);
+      });
+    const quedan = async (id: string) => {
+      const d = await prismaComoDuenio(base);
+      return { cab: await d.asiento.count({ where: { id } }), lineas: await d.asientoLinea.count({ where: { asientoId: id } }) };
+    };
+
+    assert.equal(await asiento("seg021_sql_ok", 951, 100), null, "el confirmado cuadrado se graba");
+    assert.deepEqual(await quedan("seg021_sql_ok"), { cab: 1, lineas: 2 });
+    const d = await prismaComoDuenio(base);
+    assert.equal((await d.asiento.findUnique({ where: { id: "seg021_sql_ok" }, select: { estado: true } }))?.estado, "CONFIRMADO");
+
+    const err = await asiento("seg021_sql_desc", 952, 90);
+    assert.equal(err?.code, "23514", err?.message);
+    assert.match(err?.message ?? "", /descuadrado/);
+    assert.deepEqual(await quedan("seg021_sql_desc"), { cab: 0, lineas: 0 }, "el descuadrado no deja nada");
+
+    // Y el confirmado recién grabado ya no se toca, también como app_rls.
+    const tocar = await comoApp(base, base.a.id, (c) => c.query(`UPDATE "AsientoLinea" SET haber = 90 WHERE "asientoId" = 'seg021_sql_ok' AND haber > 0`));
+    assert.equal(tocar?.code, "23514", tocar?.message);
+  });
+
   await t.test("un asiento confirmado sigue inmutable (cabecera y líneas)", async () => {
     const [a1, a2] = e.cuentasA;
     const r = await e.repo.registrarAsiento(base.a.id, { fecha: dia("2026-04-02"), descripcion: "conf A", lineas: [L(a1, 100, 0), L(a2, 0, 100)], confirmar: true });
