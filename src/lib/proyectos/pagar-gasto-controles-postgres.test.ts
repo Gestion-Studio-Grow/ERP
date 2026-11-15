@@ -8,6 +8,7 @@
 //  (3) Sin ver la plata (`agenda:manage` apagado en su matriz) no se paga.
 //  (4) Otro negocio no paga nada de éste.
 //  (5) Doble envío y cinco pagos a la vez del mismo gasto: un solo pago y un solo asiento.
+//  (6) «Registrar gasto» con «Ya está pagado» también mueve caja: sin ver la plata, tampoco (lo encontró la certificación).
 // En cada caso se mira el efecto en la base (gasto y caja), no la respuesta: lo que importa es que la plata no se mueva.
 // ============================================================================
 
@@ -71,7 +72,7 @@ async function preparar(t: import("node:test").TestContext) {
   };
   const SIN_PAGAR = { pagado: false, asientos: 0, egreso: 0 };
   const PAGADO_UNA_VEZ = { pagado: true, asientos: 1, egreso: 1210 };
-  return { duenio, a, b, gastoSinPagar, ficha, alEquipo, pagar, plata, SIN_PAGAR, PAGADO_UNA_VEZ };
+  return { duenio, a, b, acciones, gastoSinPagar, ficha, alEquipo, pagar, plata, SIN_PAGAR, PAGADO_UNA_VEZ };
 }
 
 test("(1) proyecto ajeno: quien no ve el proyecto no paga su gasto aunque conozca el id; dentro del equipo, sí", async (t) => {
@@ -140,4 +141,31 @@ test("(5) doble envío y cinco pagos a la vez del mismo gasto: un solo pago y un
   const r = await Promise.all(Array.from({ length: 5 }, () => p.pagar(p.a.duenia, p.a, dos.gastoId)));
   assert.deepEqual(r, ["ok", "ok", "ok", "ok", "ok"]);
   assert.deepEqual(await p.plata(dos.gastoId), p.PAGADO_UNA_VEZ, "cinco pedidos a la vez: una sola salida de caja");
+});
+
+test("(6) «Registrar gasto» ya pagado, sin ver la plata: no graba el gasto ni mueve la caja; con la plata, sí", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  await p.ficha("ADMINISTRACION"); // ve todos los proyectos y edita Pagos
+  const { proyectoId } = await p.gastoSinPagar();
+  const registrar = async () => {
+    const fd = new FormData();
+    for (const [k, v] of Object.entries({ proyectoId, descripcion: "Flete", neto: "500", iva: "105", pagado: "on", medio: "TRANSFERENCIA" })) fd.set(k, v);
+    const r = await ejecutarAccion({ negocio: p.a, usuario: p.a.recepcion }, () => p.acciones.registrarGasto(fd));
+    return r.tipo === "respuesta" ? r.valor : r.tipo;
+  };
+  const fletes = async () => {
+    const gastos = await p.duenio.proyectoGasto.findMany({ where: { proyectoId, descripcion: "Flete" }, select: { id: true } });
+    return { gastos: gastos.length, asientos: await p.duenio.cashMovement.count({ where: { proyectoGastoId: { in: gastos.map((g) => g.id) } } }) };
+  };
+  const override = await p.duenio.userPermissionOverride.create({ data: { tenantId: p.a.id, userId: p.a.recepcion.id, capability: "agenda:manage", allowed: false } });
+  try {
+    assert.equal((await registrar() as { ok: boolean }).ok, false);
+    assert.deepEqual(await fletes(), { gastos: 0, asientos: 0 }, "sin ver la plata no se graba el gasto ni sale plata de la caja");
+  } finally {
+    await p.duenio.userPermissionOverride.delete({ where: { id: override.id } });
+  }
+  // Control: el mismo usuario, con la plata a la vista, lo registra pagado.
+  assert.deepEqual(await registrar(), { ok: true });
+  assert.deepEqual(await fletes(), { gastos: 1, asientos: 1 });
 });

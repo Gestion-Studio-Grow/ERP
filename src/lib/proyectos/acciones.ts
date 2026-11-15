@@ -257,6 +257,8 @@ async function asentarPagoDeGastoTx(tx: Prisma.TransactionClient, tenantId: stri
 export async function registrarGasto(formData: FormData): Promise<Resultado> {
   const a = await actorCon(["pagos"]);
   const { user, tenantId } = a;
+  // El formulario sólo se muestra a quien ve la plata (`cargaDirecta`, `_pestanas-plata.tsx`): con «Ya está pagado» mueve caja.
+  if (!veLaPlata(user)) return { ok: false, error: "No tenés permiso para hacer esto." };
   const proyectoId = txt(formData.get("proyectoId"));
   if (!(await proyectoDelActor(a, proyectoId))) return { ok: false, error: "Ese proyecto no existe." };
   const p = await prisma.proyecto.findFirst({ where: { id: proyectoId, tenantId }, select: { numero: true, nombre: true } });
