@@ -13,7 +13,7 @@
 import { createHash } from "node:crypto";
 import { tenantTransaction } from "@/lib/rls";
 import { isPrismaError } from "@/lib/prisma-errors";
-import { diaADate, PUESTOS, ROLES, VERIFICACIONES, type AccionDeLote, type EventoDeLote, type FiltrosEventos, type Puesto, type Rol, type Verificacion } from "./core";
+import { diaADate, PUESTOS, ROLES, VERIFICACIONES, type AccionDeLote, type EventoDeLote, type FiltrosEventos, type PedidoValido, type Puesto, type Rol, type Verificacion } from "./core";
 
 export const FALTA_MIGRACION = { faltaMigracion: true } as const;
 type ConBase<T> = typeof FALTA_MIGRACION | ({ faltaMigracion: false } & T);
@@ -265,6 +265,11 @@ export function importarLote(tenantId: string, eventos: readonly EventoDeLote[])
   return conBase(() =>
     tenantTransaction(
       async (tx): Promise<ResultadoImportacion> => {
+        // 0) Una importación a la vez por negocio: dos lotes en paralelo se trababan (deadlock) o vencían el tope de
+        //    5 s esperándose. La segunda no espera: avisa y se reintenta. El candado se suelta solo al cerrar la transacción.
+        const [candado] = await tx.$queryRaw<{ ok: boolean }[]>`SELECT pg_try_advisory_xact_lock(hashtext(${`eventos-sponsors:importar:${tenantId}`})) AS ok`;
+        if (!candado?.ok) throw new ImportacionEnCurso();
+
         // 1) Eventos.
         const clavesEv = eventos.map((e) => e.clave);
         const nuevosEv = await tx.eventoRelevado.createMany({
@@ -374,6 +379,9 @@ export interface Pedido {
   id: string;
   puesto: string;
   pedido: string;
+  region: string | null;
+  desde: Date | null;
+  hasta: Date | null;
   estado: string;
   createdAt: Date;
 }
@@ -404,7 +412,7 @@ export function resumenDelEquipo(tenantId: string) {
             take: 50,
             select: { id: true, nombre: true, verificacion: true, urlFuente: true },
           }),
-          tx.pedidoAlEquipo.findMany({ where: { tenantId }, orderBy: { createdAt: "desc" }, take: 30, select: { id: true, puesto: true, pedido: true, estado: true, createdAt: true } }),
+          tx.pedidoAlEquipo.findMany({ where: { tenantId }, orderBy: { createdAt: "desc" }, take: 30, select: { id: true, puesto: true, pedido: true, region: true, desde: true, hasta: true, estado: true, createdAt: true } }),
         ]);
         return {
           eventos,
@@ -428,10 +436,25 @@ export function resumenDelEquipo(tenantId: string) {
 }
 
 /** Un pedido del negocio al equipo. Entra en cola; lo toma una sesión de GSG (acá no se ejecuta nada). */
-export function crearPedido(tenantId: string, datos: { puesto: string; pedido: string; creadoPor: string | null }) {
+/** Otra importación del mismo negocio está corriendo: la acción le pide a la persona que pruebe en un rato. */
+export class ImportacionEnCurso extends Error {
+  constructor() {
+    super("ya hay una importación de eventos en curso en este negocio");
+  }
+}
+
+export function crearPedido(tenantId: string, datos: PedidoValido & { creadoPor: string | null }) {
   return conBase(() =>
     tenantTransaction(
-      async (tx) => ({ pedido: await tx.pedidoAlEquipo.create({ data: { tenantId, puesto: datos.puesto, pedido: datos.pedido, creadoPor: datos.creadoPor }, select: { id: true } }) }),
+      async (tx) => ({ pedido: await tx.pedidoAlEquipo.create({ data: {
+            tenantId,
+            puesto: datos.puesto,
+            pedido: datos.pedido,
+            region: datos.region,
+            desde: datos.desde ? diaADate(datos.desde) : null,
+            hasta: datos.hasta ? diaADate(datos.hasta) : null,
+            creadoPor: datos.creadoPor,
+          }, select: { id: true } }) }),
       { tenantId },
     ),
   );

@@ -1,7 +1,7 @@
 import { requireApp } from "@/lib/require-app";
 import Link from "next/link";
 import { Badge, EmptyState } from "@/components/ui";
-import { ETIQUETA_PUESTO } from "@/lib/eventos-sponsors/core";
+import { ETIQUETA_PUESTO, rangoDeFechas } from "@/lib/eventos-sponsors/core";
 import { resumenDelEquipo } from "@/lib/eventos-sponsors/repo";
 import { abrirEventos, Encabezado, FaltaMigracion, LinkFuente, SelloVerificacion } from "../comun";
 import { FormularioPedido } from "./FormularioPedido";
@@ -11,6 +11,14 @@ export const dynamic = "force-dynamic";
 // EVENTOS Y SPONSORS · «Equipo»: el CRM es el equipo de agentes. Qué relevó, cuánto está verificado,
 // qué hizo cada puesto, qué quedó en duda y los pedidos del negocio (entran en cola; los toma una sesión
 // de GSG: acá no corre ningún modelo ni se llama a ninguna API).
+
+const DIA = (d: Date) => d.toLocaleDateString("es-AR", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+
+/** «Córdoba · 1 al 31 de mar de 2027», «Buenos Aires · desde 1 de mar de 2027». */
+function dondeYCuando(p: { region: string | null; desde: Date | null; hasta: Date | null }): string {
+  const cuando = p.desde ? (p.hasta ? rangoDeFechas(p.desde, p.hasta) : `desde ${DIA(p.desde)}`) : p.hasta ? `hasta ${DIA(p.hasta)}` : null;
+  return [p.region, cuando].filter(Boolean).join(" · ");
+}
 
 const FECHA = new Intl.DateTimeFormat("es-AR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "America/Argentina/Buenos_Aires" });
 const ESTADO_PEDIDO: Record<string, string> = { EN_COLA: "En cola", EN_CURSO: "En curso", HECHO: "Hecho", DESCARTADO: "Descartado" };
@@ -113,6 +121,7 @@ export default async function EquipoPage() {
                   {r.pedidos.map((p) => (
                     <li key={p.id} className="flex flex-col gap-1 px-4 py-3">
                       <span className="break-words text-strong">{p.pedido}</span>
+                      {(p.region || p.desde || p.hasta) && <span className="text-sm text-muted">{dondeYCuando(p)}</span>}
                       <span className="flex flex-wrap items-center gap-2 text-sm text-muted">
                         <Badge tone={p.estado === "HECHO" ? "success" : p.estado === "EN_CURSO" ? "info" : "neutral"}>{ESTADO_PEDIDO[p.estado] ?? p.estado}</Badge>
                         {ETIQUETA_PUESTO[p.puesto as keyof typeof ETIQUETA_PUESTO] ?? p.puesto} · {FECHA.format(p.createdAt)}

@@ -60,9 +60,9 @@ export const MAX_TEXTO = 300;
 export const MAX_URL = 1000;
 export const MAX_BYTES_LOTE = 2_000_000;
 /** Tope de marcas-en-evento por lote: mantiene la importación (una transacción) muy lejos del timeout. */
-export const MAX_RELACIONES = 2_000;
+export const MAX_RELACIONES = 1_000;
 /** Tope de líneas de registro por lote (las que pasan de acá no se guardan; se avisa). */
-export const MAX_ACCIONES = 4_000;
+export const MAX_ACCIONES = 2_000;
 
 /** Minúsculas, sin acentos, sin signos y con un solo espacio. «Expo  Agro, 2026» → «expo agro 2026». */
 export function normalizar(texto: string): string {
@@ -135,8 +135,18 @@ const PARECE_MAIL = /[^\s@]+@[^\s@]+\.[a-z]{2,}/i;
 const PARECE_MAIL_OFUSCADO = /[a-z0-9._%+-]+\s*(?:@|\(at\)|\[at\]|\{at\})\s*[a-z0-9-]+\s*(?:\.|\(dot\)|\[dot\])\s*[a-z]{2,}/i;
 // Un tramo de dígitos con espacios, guiones, puntos, barras, guiones bajos o paréntesis entre medio.
 const TRAMO_NUMERICO = /\+?\d[\d\s\-().\/_]{6,}\d/g;
+// Antes de buscar: dígitos de ancho completo a normales (NFKC), invisibles afuera y guiones largos a «-». Una coma, «·» o
+// «|» PEGADOS entre dígitos («11,5512,3456») unen el número; con espacio («2027 | 12, 13 y 14») son una lista y cortan.
+function paraBuscarTelefonos(texto: string): string {
+  return texto
+    .normalize("NFKC")
+    .replace(/[\u00AD\u200B-\u200F\u2060\uFEFF]/g, "")
+    .replace(/[\u2010-\u2015\u2212]/g, "-")
+    .replace(/(?<=\d)[,·•|](?=\d)/g, "-")
+    .replace(/[·•|]/g, ";");
+}
 // Lo que parece número pero no es teléfono: un día real (2026-11-14, 14/11/2026, «20-22/05/2025») o años
-// seguidos con separador (2026-2027, «2026 2027»), cada uno entre 1990 y 2039. «2033-2044» o «20262027» sí cuentan.
+// seguidos con separador (2026-2027, «2026 2027»), entre 1990 y 2039 y crecientes. «2033-2044» o «20262027» sí cuentan.
 const ANIO = /^(?:199\d|20[0-3]\d)$/;
 function esDiaArgentino(t: string): boolean {
   const m = /^(\d{1,2})(?:\s?-\s?(\d{1,2}))?\/(\d{1,2})\/(\d{4})$/.exec(t);
@@ -145,10 +155,10 @@ function esDiaArgentino(t: string): boolean {
   return ANIO.test(m[4]) && mes >= 1 && mes <= 12 && d1 >= 1 && d1 <= 31 && d2 >= d1 && d2 <= 31;
 }
 function noEsTelefono(tramo: string): boolean {
-  // Una fecha con forma de día y año creíble, aunque el día no exista («2027-13-01»): es un error de fecha, no un teléfono.
-  if (esDia(tramo as unknown) || esDiaArgentino(tramo) || /^(?:199\d|20[0-3]\d)-\d{2}-\d{2}$/.test(tramo)) return true;
-  const anios = tramo.split(/[\s\-/_]+/);
-  return anios.length > 0 && anios.every((a) => ANIO.test(a));
+  if (esDia(tramo as unknown) || esDiaArgentino(tramo)) return true;
+  // Años seguidos de verdad: cada uno después del anterior y a 5 o menos («2026-2027» sí; «2019-2031», un fijo, no).
+  const anios = tramo.split(/[\s\-/_,]+/);
+  return anios.every((a, i) => ANIO.test(a) && (i === 0 || (Number(a) > Number(anios[i - 1]) && Number(a) - Number(anios[i - 1]) <= 5)));
 }
 
 // Días dentro de un texto: se sacan antes de buscar teléfonos («2025 (20-22/05/2025)» no es un número), pero
@@ -160,11 +170,11 @@ function sinDias(texto: string): string {
 }
 
 function hayTelefono(texto: string): boolean {
-  for (const m of sinDias(texto).match(TRAMO_NUMERICO) ?? []) {
+  // Sin tope de dígitos: dos teléfonos seguidos o uno con relleno («… 0000») suman más de 15 y siguen siendo contacto.
+  for (const m of sinDias(paraBuscarTelefonos(texto)).match(TRAMO_NUMERICO) ?? []) {
     const tramo = m.trim();
     if (noEsTelefono(tramo)) continue;
-    const digitos = tramo.replace(/\D/g, "").length;
-    if (digitos >= 8 && digitos <= 15) return true;
+    if (tramo.replace(/\D/g, "").length >= 8) return true;
   }
   return false;
 }
@@ -192,18 +202,26 @@ export function urlConContacto(url: string): boolean {
   return false;
 }
 
+/** Decodifica lo que se pueda: un «%» suelto no deja el resto codificado (los %20 pasan a espacio igual). */
 function decodeURIComponentSeguro(s: string): string {
   try {
     return decodeURIComponent(s);
   } catch {
-    return s;
+    return s.replace(/(?:%[0-9a-f]{2})+/gi, (m) => {
+      try {
+        return decodeURIComponent(m);
+      } catch {
+        return " ";
+      }
+    });
   }
 }
 
 /** ¿El texto trae un mail (también disfrazado) o un teléfono (8 a 15 dígitos en un tramo)? Días y años no cuentan. */
 export function traeContacto(texto: string): boolean {
-  if (PARECE_MAIL.test(texto) || PARECE_MAIL_OFUSCADO.test(texto) || /^(mailto|tel):/i.test(texto)) return true;
-  return hayTelefono(texto);
+  const t = paraBuscarTelefonos(texto);
+  if (PARECE_MAIL.test(t) || PARECE_MAIL_OFUSCADO.test(t) || /^(mailto|tel):/i.test(t.trim())) return true;
+  return hayTelefono(t);
 }
 
 // ── Validación del lote ──────────────────────────────────────────────────────
@@ -326,7 +344,9 @@ function buscarContacto(v: unknown, ruta: string): string | null {
   if (v && typeof v === "object") {
     for (const [k, val] of Object.entries(v)) {
       if (campoProhibido(k)) return `${ruta}.${k}`;
-      if ((k === "fecha" || k === "fechaHasta" || k === "fechaFin" || k === "hora") && (esDia(val) || esHora(val))) continue;
+      // Los campos de fecha con forma de fecha no se miran como teléfono: si el día no existe («2027-13-01») lo rechaza
+      // la validación de ESE evento, no el lote entero. En texto libre, en cambio, «2027-55-12» sí cuenta como número.
+      if ((k === "fecha" || k === "fechaHasta" || k === "fechaFin" || k === "hora") && typeof val === "string" && (/^\d{4}-\d{2}-\d{2}$/.test(val) || esHora(val))) continue;
       // Las URLs: mail, WhatsApp o teléfono en la query (la ruta trae ids largos que no son teléfonos). Sólo si de
       // verdad es una URL: «notaWeb: "Juan 11 5512 3456"» es texto y se revisa como texto.
       if (typeof val === "string" && /url|web|link|sitio/i.test(k) && esUrl(val)) {
@@ -504,15 +524,44 @@ export function diaADate(dia: string): Date {
 export const PUESTOS_PEDIBLES = ["descubridor", "identificador", "verificador"] as const satisfies readonly Puesto[];
 export const MAX_PEDIDO = 500;
 
-/** Un pedido válido («buscá ferias de alimentos en Córdoba para marzo»): puesto conocido, texto corto, sin datos de personas. */
-export function validarPedido(puesto: unknown, pedido: unknown): { ok: true; puesto: Puesto; pedido: string } | { ok: false; motivo: string } {
+export const MAX_REGION_PEDIDO = 80;
+export const REGION_POR_DEFECTO = "Buenos Aires";
+
+export interface PedidoValido {
+  puesto: Puesto;
+  pedido: string;
+  /** Dónde buscar. El Descubridor siempre lleva una (por defecto «Buenos Aires»); los demás, si la pidieron. */
+  region: string | null;
+  desde: string | null;
+  hasta: string | null;
+}
+
+/**
+ * Un pedido válido («buscá ferias de alimentos en Córdoba para marzo»): puesto conocido, texto corto, sin datos de
+ * personas. La región y las fechas se eligen en cada encargo (decisión del dueño, 14/11), no quedan fijas.
+ */
+export function validarPedido(
+  puesto: unknown,
+  pedido: unknown,
+  donde: { region?: unknown; desde?: unknown; hasta?: unknown } = {},
+): ({ ok: true } & PedidoValido) | { ok: false; motivo: string } {
   const p = typeof puesto === "string" ? normalizar(puesto) : "";
   if (!(PUESTOS_PEDIBLES as readonly string[]).includes(p)) return { ok: false, motivo: "Elegí a qué puesto del equipo va el pedido." };
   const t = typeof pedido === "string" ? pedido.trim().replace(/\s+/g, " ") : "";
   if (t.length < 5) return { ok: false, motivo: "Escribí qué tiene que hacer el equipo (por ejemplo, «buscá ferias de alimentos en Córdoba»)." };
   if (t.length > MAX_PEDIDO) return { ok: false, motivo: `El pedido es muy largo: hasta ${MAX_PEDIDO} caracteres.` };
   if (traeContacto(t)) return { ok: false, motivo: "El pedido trae datos de contacto de personas: este módulo no los guarda." };
-  return { ok: true, puesto: p as Puesto, pedido: t };
+
+  const r = typeof donde.region === "string" ? donde.region.trim().replace(/\s+/g, " ") : "";
+  if (r.length > MAX_REGION_PEDIDO) return { ok: false, motivo: `La región es muy larga: hasta ${MAX_REGION_PEDIDO} caracteres.` };
+  if (traeContacto(r)) return { ok: false, motivo: "La región trae datos de contacto de personas: este módulo no los guarda." };
+  const region = r || (p === "descubridor" ? REGION_POR_DEFECTO : null);
+  const dia = (v: unknown): string | null | undefined => (v === undefined || v === null || v === "" ? null : esDia(v) ? v : undefined);
+  const desde = dia(donde.desde);
+  const hasta = dia(donde.hasta);
+  if (desde === undefined || hasta === undefined) return { ok: false, motivo: "Una de las fechas no es un día válido." };
+  if (desde && hasta && hasta < desde) return { ok: false, motivo: "La fecha «hasta» no puede ser anterior a «desde»." };
+  return { ok: true, puesto: p as Puesto, pedido: t, region, desde, hasta };
 }
 
 export const ETIQUETA_VERIFICACION: Record<Verificacion, string> = {

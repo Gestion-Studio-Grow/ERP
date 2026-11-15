@@ -81,6 +81,9 @@ CREATE TABLE "PedidoAlEquipo" (
     "tenantId" TEXT NOT NULL,
     "puesto" TEXT NOT NULL DEFAULT 'descubridor',
     "pedido" TEXT NOT NULL,
+    "region" TEXT,
+    "desde" DATE,
+    "hasta" DATE,
     "estado" TEXT NOT NULL DEFAULT 'EN_COLA',
     "creadoPor" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -163,6 +166,8 @@ ALTER TABLE "AccionDelEquipo" ADD CONSTRAINT "AccionDelEquipo_url_check" CHECK (
 ALTER TABLE "PedidoAlEquipo" ADD CONSTRAINT "PedidoAlEquipo_puesto_check" CHECK ("puesto" IN ('descubridor', 'identificador', 'verificador'));
 ALTER TABLE "PedidoAlEquipo" ADD CONSTRAINT "PedidoAlEquipo_estado_check" CHECK ("estado" IN ('EN_COLA', 'EN_CURSO', 'HECHO', 'DESCARTADO'));
 ALTER TABLE "PedidoAlEquipo" ADD CONSTRAINT "PedidoAlEquipo_pedido_check" CHECK (length(btrim("pedido")) > 0 AND length("pedido") <= 500);
+ALTER TABLE "PedidoAlEquipo" ADD CONSTRAINT "PedidoAlEquipo_region_check" CHECK ("region" IS NULL OR (length(btrim("region")) > 0 AND length("region") <= 80));
+ALTER TABLE "PedidoAlEquipo" ADD CONSTRAINT "PedidoAlEquipo_fechas_check" CHECK ("desde" IS NULL OR "hasta" IS NULL OR "hasta" >= "desde");
 
 -- RLS: aislamiento por negocio (mismo molde que 20261105122000_vouchers).
 ALTER TABLE "EventoRelevado" ENABLE ROW LEVEL SECURITY;

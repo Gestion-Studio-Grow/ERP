@@ -137,12 +137,15 @@ test("importar un lote: entra entero y reimportarlo no duplica nada", async (t) 
   assert.ok(!r3.faltaMigracion && r3.eventosNuevos === 0);
 });
 
-test("dos importaciones a la vez del mismo lote: ni un duplicado", async (t) => {
+test("dos importaciones a la vez del mismo lote: ni un duplicado ni un deadlock (la que choca avisa)", async (t) => {
   const p = await preparar(t);
   if (!p) return;
   const { base, repo } = p;
   const lote = eventos({ eventos: [{ nombre: "Feria Carrera", fecha: "2027-07-01", lugar: "Rural", region: "Mendoza", marcas: [{ nombre: "Marca Carrera", rol: "sponsor", urlFuente: "https://carrera.example" }] }] });
-  const rs = await Promise.all([1, 2, 3, 4].map(() => repo.importarLote(base.a.id, lote)));
+  const todas = await Promise.allSettled([1, 2, 3, 4].map(() => repo.importarLote(base.a.id, lote)));
+  for (const x of todas) if (x.status === "rejected") assert.ok(x.reason instanceof repo.ImportacionEnCurso, String(x.reason));
+  const rs = todas.flatMap((x) => (x.status === "fulfilled" ? [x.value] : []));
+  assert.ok(rs.length >= 1, "al menos una entra");
   const nuevos = rs.reduce((s, r) => s + (r.faltaMigracion ? 0 : r.eventosNuevos), 0);
   const rel = rs.reduce((s, r) => s + (r.faltaMigracion ? 0 : r.relacionesNuevas), 0);
   assert.equal(nuevos, 1);
@@ -219,7 +222,7 @@ test("aislamiento por SQL crudo (app_rls): RLS en lectura y escritura, y la FK c
   }));
 
   // B no lee nada de A, ni por id.
-  await repo.crearPedido(base.a.id, { puesto: "descubridor", pedido: "Buscá ferias en Córdoba", creadoPor: null });
+  await repo.crearPedido(base.a.id, { puesto: "descubridor", pedido: "Buscá ferias en Córdoba", region: "Córdoba", desde: null, hasta: null, creadoPor: null });
   await repo.importarLote(base.a.id, eventos({ eventos: [{ ...CON_REGISTRO.eventos[0], nombre: "Festival Aislamiento Demo" }] }));
   for (const tabla of ["EventoRelevado", "MarcaRelevada", "EventoMarca", "AccionDelEquipo", "PedidoAlEquipo"]) {
     const r = await comoApp(base, base.b.id, (c) => c.query(`SELECT count(*)::int AS n FROM "${tabla}" WHERE "tenantId" = $1`, [base.a.id]));
@@ -365,10 +368,11 @@ test("pedido al equipo: la acción valida, guarda en la cola del negocio y B no 
   if (!p) return;
   const { base, repo } = p;
   const { pedirAlEquipo } = await import("./acciones");
-  const pedir = async (negocio: BaseEfimera["a"], puesto: string, texto: string) => {
+  const pedir = async (negocio: BaseEfimera["a"], puesto: string, texto: string, donde: Record<string, string> = {}) => {
     const f = new FormData();
     f.set("puesto", puesto);
     f.set("pedido", texto);
+    for (const [k, v] of Object.entries(donde)) f.set(k, v);
     const r = await ejecutarAccion({ negocio, usuario: negocio.duenia }, () => pedirAlEquipo({ estado: "inicial" }, f));
     assert.equal(r.tipo, "respuesta", JSON.stringify(r));
     return r.tipo === "respuesta" ? r.valor : null;
@@ -378,7 +382,9 @@ test("pedido al equipo: la acción valida, guarda en la cola del negocio y B no 
   const { EVENTOS_SPONSORS } = await import("@/cambios/interruptores");
   await duenio.auditLog.create({ data: filaDeInterruptor({ tenantId: base.a.id, interruptor: EVENTOS_SPONSORS, accion: "encender", operador: "test" }) });
 
-  assert.equal((await pedir(base.a, "descubridor", "Buscá congresos en Mendoza para abril"))?.estado, "ok");
+  assert.equal((await pedir(base.a, "descubridor", "Buscá congresos en Mendoza para abril", { region: "Mendoza", desde: "2027-04-01", hasta: "2027-04-30" }))?.estado, "ok");
+  assert.equal((await pedir(base.a, "descubridor", "Buscá ferias de alimentos"))?.estado, "ok", "sin región: Buenos Aires por defecto");
+  assert.equal((await pedir(base.a, "descubridor", "Buscá ferias de diseño", { desde: "2027-05-10", hasta: "2027-05-01" }))?.estado, "error", "hasta antes que desde");
   assert.equal((await pedir(base.a, "redactor", "Escribile a todos"))?.estado, "error", "el Redactor no recibe pedidos todavía");
   assert.equal((await pedir(base.a, "descubridor", "Llamá al 11 4567 8901"))?.estado, "error", "sin datos de contacto");
   assert.equal((await pedir(base.b, "descubridor", "Buscá ferias en Salta"))?.estado, "error", "B tiene el interruptor apagado");
@@ -387,6 +393,11 @@ test("pedido al equipo: la acción valida, guarda en la cola del negocio y B no 
   const b = await repo.resumenDelEquipo(base.b.id);
   assert.ok(!a.faltaMigracion && !b.faltaMigracion);
   if (a.faltaMigracion || b.faltaMigracion) return;
-  assert.ok(a.pedidos.some((x) => x.pedido === "Buscá congresos en Mendoza para abril" && x.estado === "EN_COLA"));
+  const mendoza = a.pedidos.find((x) => x.pedido === "Buscá congresos en Mendoza para abril");
+  assert.equal(mendoza?.estado, "EN_COLA");
+  assert.equal(mendoza?.region, "Mendoza");
+  assert.equal(mendoza?.desde?.toISOString().slice(0, 10), "2027-04-01");
+  assert.equal(mendoza?.hasta?.toISOString().slice(0, 10), "2027-04-30");
+  assert.equal(a.pedidos.find((x) => x.pedido === "Buscá ferias de alimentos")?.region, "Buenos Aires");
   assert.ok(!b.pedidos.some((x) => x.pedido.includes("Mendoza")));
 });

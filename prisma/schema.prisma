@@ -4647,6 +4647,10 @@ model PedidoAlEquipo {
   tenantId  String
   puesto    String   @default("descubridor")
   pedido    String
+  // Dónde y cuándo buscar: se elige en cada encargo (decisión del dueño, 14/11). Descubridor: región por defecto «Buenos Aires».
+  region    String?
+  desde     DateTime? @db.Date
+  hasta     DateTime? @db.Date
   estado    String   @default("EN_COLA") // EN_COLA · EN_CURSO · HECHO · DESCARTADO
   creadoPor String? // id del usuario que lo pidió
   createdAt DateTime @default(now())

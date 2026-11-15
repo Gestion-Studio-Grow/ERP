@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { claveEvento, claveMarca, esDia, esUrl, leerFiltros, leerLote, normalizar, rangoDeFechas, rolDe, traeContacto, urlConContacto, validarLote, diaADate } from "./core";
+import { claveEvento, claveMarca, esDia, esUrl, leerFiltros, leerLote, normalizar, rangoDeFechas, rolDe, traeContacto, urlConContacto, validarLote, validarPedido, diaADate } from "./core";
 
 const marca = (o: Record<string, unknown> = {}) => ({ nombre: "Banco Uno", rol: "SPONSOR", urlFuente: "https://expo.example/sponsors", ...o });
 const evento = (o: Record<string, unknown> = {}) => ({
@@ -186,7 +186,7 @@ test("tope de relaciones por lote", () => {
 });
 
 test("traeContacto: teléfonos disfrazados de fecha entran como teléfono (certificación en contra)", () => {
-  for (const t of ["cel 1155-12-3456", "visto 2026-11-14T5491155123456", "llamar 11-55/12/3456", "tel 2033-2044", "20262027", "2026-11-14 1155123456"]) assert.ok(traeContacto(t), t);
+  for (const t of ["cel 1155-12-3456", "visto 2026-11-14T5491155123456", "llamar 11-55/12/3456", "tel 2033-2044", "Juan 2019-2031", "nota 2027-55-12", "20262027", "2026-11-14 1155123456"]) assert.ok(traeContacto(t), t);
   for (const t of ["2025 (20-22/05/2025)", "2026-2027", "del 2026-11-14 al 2026-11-16", "2026-11-14T23:14:46Z", "10/03/2027", "edición 2026 2027"]) assert.ok(!traeContacto(t), t);
 });
 
@@ -194,4 +194,34 @@ test("urlConContacto: un teléfono escondido después del # se rechaza; un ancla
   assert.ok(urlConContacto("https://x.example/#Juan cel 1155123456"));
   assert.ok(urlConContacto("https://x.example/sponsors#juan%40empresa.com"));
   assert.ok(!urlConContacto("https://x.example/sponsors#partners"));
+});
+
+test("validarPedido: la región y las fechas se eligen en cada encargo; el Descubridor va a Buenos Aires por defecto", () => {
+  const def = validarPedido("descubridor", "Buscá ferias de alimentos");
+  assert.ok(def.ok && def.region === "Buenos Aires" && def.desde === null && def.hasta === null);
+  const cba = validarPedido("descubridor", "Buscá congresos", { region: "  Córdoba ", desde: "2027-03-01", hasta: "2027-05-31" });
+  assert.ok(cba.ok && cba.region === "Córdoba" && cba.desde === "2027-03-01" && cba.hasta === "2027-05-31");
+  const ver = validarPedido("verificador", "Revisá lo que quedó en duda");
+  assert.ok(ver.ok && ver.region === null, "el Verificador no necesita región");
+  assert.equal(validarPedido("descubridor", "Buscá ferias", { desde: "2027-05-10", hasta: "2027-05-01" }).ok, false);
+  assert.equal(validarPedido("descubridor", "Buscá ferias", { desde: "2027-02-30" }).ok, false);
+  assert.equal(validarPedido("descubridor", "Buscá ferias", { region: "Córdoba, llamar al 351 456 7890" }).ok, false);
+  assert.equal(validarPedido("descubridor", "Buscá ferias", { region: "x".repeat(81) }).ok, false);
+});
+
+test("traeContacto: dos teléfonos seguidos, relleno, guiones largos e invisibles también cuentan (segunda certificación)", () => {
+  for (const t of [
+    "Juan 11 5512 3456 / 11 4433 2211",
+    "+54 9 11 5512-3456 0000",
+    "11 5512 3456 / 14-11-2026",
+    "11–5512–3456",
+    "11​5512​3456",
+    "11·5512·3456",
+    "11|5512|3456",
+    "11,5512,3456",
+    "１１５５１２３４５６",
+  ]) assert.ok(traeContacto(t), t);
+  for (const t of ["2025, 2026 y 2027", "Temporada 2026–2027", "precio $ 3.100.000", "Lollapalooza Argentina 2027 | 12, 13 y 14 de Marzo", "Pabellones 1, 2, 3, 4, 5, 6, 7 y 8"]) assert.ok(!traeContacto(t), t);
+  assert.ok(urlConContacto("https://x.example/s#Juan 11 5512 3456 %"));
+  assert.ok(urlConContacto("https://x.example/s#Juan%2011%205512%203456%"));
 });

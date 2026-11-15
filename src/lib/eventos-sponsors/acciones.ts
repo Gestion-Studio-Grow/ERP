@@ -21,7 +21,7 @@ import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
 import { eventosSponsorsPrendido } from "@/cambios/interruptores";
 import { rolDeGestionPermiteEventos } from "./acceso.server";
 import { leerLote, MAX_BYTES_LOTE, validarPedido, type Rechazo } from "./core";
-import { crearPedido, importarLote, esFaltaDeTabla, type ResultadoImportacion } from "./repo";
+import { crearPedido, importarLote, esFaltaDeTabla, ImportacionEnCurso, type ResultadoImportacion } from "./repo";
 
 export type EstadoImportacion =
   | { estado: "inicial" }
@@ -65,6 +65,7 @@ export async function importarEventos(_prev: EstadoImportacion, formData: FormDa
   } catch (e) {
     unstable_rethrow(e);
     if (esFaltaDeTabla(e)) return { estado: "error", mensaje: MIGRACION_PENDIENTE, rechazos: [] };
+    if (e instanceof ImportacionEnCurso) return { estado: "error", mensaje: "Ya se están cargando resultados en este negocio. Esperá un momento y volvé a subir el archivo: lo que ya entró no se duplica.", rechazos: [] };
     logger.warn("eventos-sponsors", "no se pudo importar el lote", { error: e instanceof Error ? e.message : String(e) });
     return { estado: "error", mensaje: "No se pudo importar. Probá de nuevo en un rato.", rechazos: [] };
   }
@@ -81,10 +82,10 @@ export async function pedirAlEquipo(_prev: EstadoPedido, formData: FormData): Pr
   if (!permisoFueraDeLaAgenda(user, "clients:manage") || !(await rolDeGestionPermiteEventos(user))) return { estado: "error", mensaje: "Tu usuario no puede pedirle trabajo al equipo. Pedíselo a quien administra el negocio." };
   if (!eventosSponsorsPrendido(await interruptoresDelNegocio())) return { estado: "error", mensaje: "Eventos y sponsors no está activado en este negocio." };
   if (isDemoSandbox()) return { estado: "error", mensaje: "En la demo pública no se cargan pedidos." };
-  const v = validarPedido(formData.get("puesto"), formData.get("pedido"));
+  const v = validarPedido(formData.get("puesto"), formData.get("pedido"), { region: formData.get("region"), desde: formData.get("desde"), hasta: formData.get("hasta") });
   if (!v.ok) return { estado: "error", mensaje: v.motivo };
   try {
-    const r = await crearPedido(await getCurrentTenantId(), { puesto: v.puesto, pedido: v.pedido, creadoPor: user.id });
+    const r = await crearPedido(await getCurrentTenantId(), { puesto: v.puesto, pedido: v.pedido, region: v.region, desde: v.desde, hasta: v.hasta, creadoPor: user.id });
     if (r.faltaMigracion) return { estado: "error", mensaje: MIGRACION_PENDIENTE };
     revalidatePath("/admin/eventos/equipo");
     return { estado: "ok" };
