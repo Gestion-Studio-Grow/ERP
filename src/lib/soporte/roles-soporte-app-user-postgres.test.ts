@@ -98,7 +98,8 @@ test("MANT_roles_soporte: app_user (BYPASSRLS, privilegios por defecto) no hered
      DO $$ BEGIN
        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_user') THEN CREATE ROLE app_user LOGIN BYPASSRLS; END IF;
        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${ROL_HEREDADO}') THEN CREATE ROLE ${ROL_HEREDADO} NOLOGIN; END IF;
-     END $$`,
+     END $$;
+     REVOKE ${ROL_HEREDADO} FROM app_user`, // por si una corrida interrumpida dejó la pertenencia (los roles son del servidor)
   );
   const duenio = await conectar(base.urlDuenio);
   base.alBorrar(() => duenio.end().catch(() => {}));
@@ -180,6 +181,24 @@ test("MANT_roles_soporte: app_user (BYPASSRLS, privilegios por defecto) no hered
       await duenio.query(`REVOKE ALL ON "NegocioProtegido" FROM ${ROL_HEREDADO}`);
     }
     await duenio.query(SQL); // sin la herencia, aplica
+    assert.deepEqual(await privilegiosDeAppUser(duenio), []);
+  });
+
+  // Certificación: una pertenencia con INHERIT FALSE no pasa por has_*_privilege('app_user', …) pero deja hacer
+  // SET ROLE a un rol con permisos. El §8 mira cada rol al que app_user pertenece.
+  await t.test("negativo: una pertenencia con INHERIT FALSE (sólo SET ROLE) también hace abortar el SQL", async () => {
+    await duenio.query(`GRANT SELECT ON "SoporteConsentimiento" TO ${ROL_HEREDADO}`);
+    await comoAdmin(base.nombre, `GRANT ${ROL_HEREDADO} TO app_user WITH INHERIT FALSE, SET TRUE`);
+    try {
+      const sinHerencia = await duenio.query(`SELECT has_table_privilege('app_user', '"SoporteConsentimiento"', 'SELECT') AS ve`);
+      assert.equal(sinHerencia.rows[0].ve, false, "has_table_privilege no lo ve (por eso el control mira las pertenencias)");
+      await assert.rejects(duenio.query(SQL), /app_user/);
+      await duenio.query("ROLLBACK").catch(() => {});
+    } finally {
+      await comoAdmin(base.nombre, `REVOKE ${ROL_HEREDADO} FROM app_user`);
+      await duenio.query(`REVOKE ALL ON "SoporteConsentimiento" FROM ${ROL_HEREDADO}`);
+    }
+    await duenio.query(SQL);
     assert.deepEqual(await privilegiosDeAppUser(duenio), []);
   });
 });

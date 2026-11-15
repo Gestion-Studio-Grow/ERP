@@ -40,8 +40,9 @@
 --      docs/runbooks/fase1-ops-seguridad.md §b): si existe, sin NINGÚN permiso en las dos tablas nuevas ni
 --      en las funciones del candado (los privilegios por defecto viejos se los darían, y con BYPASSRLS eso
 --      es leer y firmar permisos de cualquier negocio; ensayo de la tanda 3 en una copia, 15/11/2026). El
---      control del §8 lo verifica con los permisos HEREDADOS incluidos: si los recibe por pertenecer a otro
---      rol, aborta y no queda nada (hay que sacarle esa pertenencia antes). Sin `app_user`, no hace nada.
+--      control del §8 lo verifica también en cada rol al que pertenece (heredado o sólo por SET ROLE): si
+--      alguno tiene permisos, aborta y no queda nada (hay que sacarle esa pertenencia antes). Sin
+--      `app_user`, no hace nada.
 --
 -- Reversa: al pie.
 
@@ -391,19 +392,22 @@ BEGIN
   IF has_table_privilege('app_rls', '"NegocioProtegido"', 'INSERT') OR has_table_privilege('gsg_operador', '"NegocioProtegido"', 'DELETE') THEN
     RAISE EXCEPTION 'MANT_roles_soporte: NegocioProtegido quedó escribible';
   END IF;
-  -- app_user (BYPASSRLS): ningún permiso, tampoco heredado (has_*_privilege cuenta la pertenencia a roles).
-  -- Anidado: con el rol ausente, has_*_privilege('app_user', …) daría error.
+  -- app_user (BYPASSRLS): ningún permiso, ni propio ni de un rol al que pertenezca por cualquier camino
+  -- (pg_has_role MEMBER cuenta también las pertenencias con INHERIT FALSE, que has_*_privilege no ve pero
+  -- sirven para SET ROLE). Anidado: con el rol ausente, pg_has_role('app_user', …) daría error.
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_user') THEN
-    IF has_table_privilege('app_user', '"NegocioProtegido"', 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
-       OR has_any_column_privilege('app_user', '"NegocioProtegido"', 'SELECT,INSERT,UPDATE,REFERENCES')
-       OR has_table_privilege('app_user', '"SoporteConsentimiento"', 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
-       OR has_any_column_privilege('app_user', '"SoporteConsentimiento"', 'SELECT,INSERT,UPDATE,REFERENCES')
-       OR EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace
-                    AND p.proname IN ('gsg_negocio_protegido', 'gsg_consentimiento_lo_firma_el_titular',
-                                      'gsg_permiso_n1_cliente_de_cartera', 'gsg_permiso_n1_vigente', 'gsg_slug_del_negocio',
-                                      'gsg_slug_del_cliente', 'gsg_permiso_n2_vigente', 'gsg_permiso_n2_cliente_de_cartera')
-                    AND has_function_privilege('app_user', p.oid, 'EXECUTE')) THEN
-      RAISE EXCEPTION 'MANT_roles_soporte: app_user (BYPASSRLS) tiene permisos sobre NegocioProtegido, SoporteConsentimiento o el candado (directos o heredados de otro rol): sacárselos antes de aplicar';
+    IF EXISTS (SELECT 1 FROM pg_roles r
+               WHERE pg_has_role('app_user', r.oid, 'MEMBER')
+                 AND (has_table_privilege(r.oid, '"NegocioProtegido"', 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
+                   OR has_any_column_privilege(r.oid, '"NegocioProtegido"', 'SELECT,INSERT,UPDATE,REFERENCES')
+                   OR has_table_privilege(r.oid, '"SoporteConsentimiento"', 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
+                   OR has_any_column_privilege(r.oid, '"SoporteConsentimiento"', 'SELECT,INSERT,UPDATE,REFERENCES')
+                   OR EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace
+                                AND p.proname IN ('gsg_negocio_protegido', 'gsg_consentimiento_lo_firma_el_titular',
+                                                  'gsg_permiso_n1_cliente_de_cartera', 'gsg_permiso_n1_vigente', 'gsg_slug_del_negocio',
+                                                  'gsg_slug_del_cliente', 'gsg_permiso_n2_vigente', 'gsg_permiso_n2_cliente_de_cartera')
+                                AND has_function_privilege(r.oid, p.oid, 'EXECUTE')))) THEN
+      RAISE EXCEPTION 'MANT_roles_soporte: app_user (BYPASSRLS) tiene permisos sobre NegocioProtegido, SoporteConsentimiento o el candado (directos o por pertenecer a otro rol): sacárselos antes de aplicar';
     END IF;
   END IF;
   IF has_table_privilege('gsg_operador', '"SoporteConsentimiento"', 'INSERT') OR has_table_privilege('gsg_agente', '"SoporteConsentimiento"', 'INSERT') THEN
