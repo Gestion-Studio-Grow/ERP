@@ -32,7 +32,7 @@ function escenario(cambios = {}) {
       mergeable_state: "clean",
       title: "Módulo nuevo [sin-deploy]",
       base: { ref: "main" },
-      head: { sha: HEAD, repo: { full_name: "gsg/erp" } },
+      head: { sha: HEAD, ref: "tanda/2026-11-15", repo: { full_name: "gsg/erp" } },
       labels: [{ name: "gsg:publicar" }],
     },
     behind: 0,
@@ -225,6 +225,14 @@ test("simulación: revisa todo pero NO crea respaldo ni mergea", async () => {
   assert.match(e.comentario, /SIMULACIÓN OK/);
 });
 
+test("arreglo urgente (rama urgente/…): se publica solo y el informe pide anotarlo en la bitácora", async () => {
+  const e = escenario({ pr: { ...escenario().pr, head: { sha: HEAD, ref: "urgente/caja-ch", repo: { full_name: "gsg/erp" } } } });
+  const r = await recorrer(e, "simulacion");
+  assert.equal(r.frenoEn, null, r.informe);
+  assert.match(r.informe, /urgente/i);
+  assert.match(r.informe, /bitácora/);
+});
+
 const sinMerge = (e) => {
   assert.equal(e.mergeBody, undefined, "no debía mergear");
   assert.equal(e.respaldo, undefined, "no debía crear respaldo");
@@ -248,7 +256,9 @@ for (const [nombre, cambios, pasoEsperado] of [
   ["rama atrás de main", { behind: 2 }, "precondiciones"],
   ["etiqueta puesta por alguien sin write", { permiso: { permission: "read", role_name: "triage" } }, "precondiciones"],
   ["PR borrador", { pr: { ...escenario().pr, draft: true } }, "precondiciones"],
-  ["PR de un fork", { pr: { ...escenario().pr, head: { sha: HEAD, repo: { full_name: "otro/erp" } } } }, "precondiciones"],
+  ["PR de un fork", { pr: { ...escenario().pr, head: { sha: HEAD, ref: "tanda/2026-11-15", repo: { full_name: "otro/erp" } } } }, "precondiciones"],
+  ["rama que no es tanda/ ni urgente/", { pr: { ...escenario().pr, head: { sha: HEAD, ref: "claude/suelta", repo: { full_name: "gsg/erp" } } } }, "precondiciones"],
+  ["PR sin nombre de rama", { pr: { ...escenario().pr, head: { sha: HEAD, repo: { full_name: "gsg/erp" } } } }, "precondiciones"],
   ["producción con rojo vigente", { deploysAntes: [{ uid: "d2", state: "ERROR", created: 2 }, { uid: "d1", state: "READY", created: 1 }] }, "precondiciones"],
   ["deploy en curso (uno a la vez)", { deploysAntes: [{ uid: "d2", state: "BUILDING", created: 2 }] }, "precondiciones"],
 ]) {

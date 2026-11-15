@@ -29,6 +29,7 @@ import {
   estadoDeploy,
   saludOk,
   puedePublicar,
+  ramaPublicable,
 } from "./lib/util.mjs";
 
 const env = process.env;
@@ -206,6 +207,9 @@ const pasos = {
     if (pr.draft) frenar("el PR es borrador.");
     if (pr.base.ref !== RAMA) frenar(`el PR apunta a \`${pr.base.ref}\`, no a \`${RAMA}\`.`);
     if (pr.head.repo?.full_name !== REPO) frenar("el PR viene de un fork: no se publica automáticamente.");
+    const rama = ramaPublicable(pr.head.ref);
+    if (!rama.ok) frenar(`${rama.motivo}.`);
+    anotar(`- Rama: ${rama.motivo}.`);
     if (!(pr.labels ?? []).some((l) => l.name === ETIQUETA)) frenar(`el PR ya no tiene la etiqueta ${ETIQUETA}.`);
     if (pr.mergeable !== true) frenar(`GitHub no lo puede mergear (mergeable=${pr.mergeable}, estado=${pr.mergeable_state}).`);
 

@@ -9,7 +9,7 @@
     "deploymentEnabled": {
       "**": false,
       "main": true,
-      "tanda/**": true
+      "tanda/**": false
     }
   },
   "crons": [
