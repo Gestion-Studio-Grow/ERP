@@ -6,7 +6,7 @@
 #
 #   bash .claude/scripts/preparar-nube.sh                         # el repo: Postgres + dependencias + Prisma
 #   bash .claude/scripts/preparar-nube.sh --worktree <ruta> <rama> <base>   # además, el worktree de la tanda
-#   bash .claude/scripts/preparar-nube.sh --si-es-nube            # (SessionStart) no hace nada fuera de la nube
+#   bash .claude/scripts/preparar-nube.sh --si-es-nube            # (SessionStart) fuera de la nube sólo instala el control de push
 #
 # Qué deja:
 #   · Postgres local como lo espera el arnés (src/test/base-efimera.ts): puerto 5433, socket en /tmp/pgrun,
@@ -16,6 +16,8 @@
 #     a como estaban: el repo no cambia.
 #   · Worktree con node_modules por enlaces duros (cp -al) y su propio `prisma generate`.
 #   · /tmp/factory-gsg apuntando al clon de Factory-GSG si está en /home/user/factory-gsg.
+#   · El control de push en .git/hooks (scripts/git-hooks/pre-push.mjs): una rama sin el vercel.json de
+#     fbf64d7 no se empuja (plan gratis de Vercel; docs/operacion/control-de-push.md). También fuera de la nube.
 # Salida: una línea por paso. El detalle va a /tmp/preparar-nube.log, nunca al contexto.
 # ============================================================================
 set -u
@@ -23,6 +25,11 @@ LOG=/tmp/preparar-nube.log
 : >"$LOG"
 REPO="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 paso() { echo "preparar-nube · $*"; }
+
+# ── Control de push (antes del corte de --si-es-nube: también protege las sesiones locales) ─────
+if [ -f "$REPO/scripts/git-hooks/pre-push.mjs" ]; then
+  (cd "$REPO" && node scripts/git-hooks/pre-push.mjs --instalar 2>>"$LOG") | sed 's/^/preparar-nube · /'
+fi
 
 if [ "${1:-}" = "--si-es-nube" ]; then
   [ "${CLAUDE_CODE_REMOTE:-}" = "true" ] || exit 0
