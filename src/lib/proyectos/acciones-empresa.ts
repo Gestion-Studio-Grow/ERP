@@ -224,23 +224,32 @@ export async function importarExtracto(formData: FormData): Promise<Resultado<{ 
   return { ok: true, importadas: nuevas.length, repetidas: lineas.length - nuevas.length, ilegibles };
 }
 
-/** Conciliar sólo ata el movimiento a la cuota: marcarla pagada es otra decisión, que la pantalla ofrece después. */
+/**
+ * Conciliar sólo ata el movimiento a la cuota: marcarla pagada es otra decisión, que la pantalla ofrece después.
+ * Una cuota, un movimiento: la fila de la cuota se traba (FOR UPDATE) y todo se vuelve a mirar adentro de la misma
+ * transacción, así dos movimientos distintos a la misma cuota a la vez no pasan los dos.
+ */
 export async function conciliarMovimiento(formData: FormData): Promise<Resultado> {
   const a = await exigirEditar("empresa");
   const id = txt(formData.get("id"));
   const cuotaId = txt(formData.get("cuotaId"));
-  const [m, c] = await Promise.all([
-    prisma.proyectoMovBanco.findFirst({ where: { id, tenantId: a.tenantId }, select: { importe: true } }),
-    prisma.proyectoCuota.findFirst({ where: { id: cuotaId, tenantId: a.tenantId, anuladoEl: null }, select: { tipo: true, concepto: true, proyectoId: true } }),
-  ]);
-  if (!m || !c) return { ok: false, error: "Ese movimiento o esa cuota ya no existen." };
-  if ((c.tipo === "COBRO") !== m.importe > 0) return { ok: false, error: "El movimiento y la cuota van en sentidos opuestos." };
-  if (await prisma.proyectoMovBanco.findFirst({ where: { tenantId: a.tenantId, cuotaId }, select: { id: true } })) return { ok: false, error: "Esa cuota ya está conciliada con otro movimiento." };
-  const r = await prisma.proyectoMovBanco.updateMany({ where: { id, tenantId: a.tenantId, cuotaId: null }, data: { cuotaId } });
-  if (r.count === 0) return { ok: false, error: "Ese movimiento ya estaba conciliado." };
-  await registrarCambio(prisma, { tenantId: a.tenantId, proyectoId: c.proyectoId, entidad: "movimiento", entidadId: id, campo: "conciliación", despues: c.concepto, autor: a.nombre });
-  revalidatePath(ADMIN);
-  return { ok: true };
+  const r = await tenantTransaction(async (tx): Promise<Resultado> => {
+    // El candado de la cuota va primero: el segundo envío espera acá y, al entrar, ve lo que grabó el primero.
+    const [c] = await tx.$queryRaw<{ tipo: string; concepto: string; proyectoId: string }[]>`
+      SELECT "tipo", "concepto", "proyectoId" FROM "ProyectoCuota"
+       WHERE "id" = ${cuotaId} AND "tenantId" = ${a.tenantId} AND "anuladoEl" IS NULL
+       FOR UPDATE`;
+    const m = await tx.proyectoMovBanco.findFirst({ where: { id, tenantId: a.tenantId }, select: { importe: true } });
+    if (!m || !c) return { ok: false, error: "Ese movimiento o esa cuota ya no existen." };
+    if ((c.tipo === "COBRO") !== m.importe > 0) return { ok: false, error: "El movimiento y la cuota van en sentidos opuestos." };
+    if (await tx.proyectoMovBanco.findFirst({ where: { tenantId: a.tenantId, cuotaId }, select: { id: true } })) return { ok: false, error: "Esa cuota ya está conciliada con otro movimiento." };
+    const u = await tx.proyectoMovBanco.updateMany({ where: { id, tenantId: a.tenantId, cuotaId: null }, data: { cuotaId } });
+    if (u.count === 0) return { ok: false, error: "Ese movimiento ya estaba conciliado." };
+    await registrarCambio(tx, { tenantId: a.tenantId, proyectoId: c.proyectoId, entidad: "movimiento", entidadId: id, campo: "conciliación", despues: c.concepto, autor: a.nombre });
+    return { ok: true };
+  });
+  if (r.ok) revalidatePath(ADMIN);
+  return r;
 }
 
 export async function desconciliarMovimiento(formData: FormData): Promise<Resultado> {
