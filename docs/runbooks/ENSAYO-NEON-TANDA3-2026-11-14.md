@@ -53,6 +53,12 @@ SELECT pg_get_userbyid(defaclrole), defaclobjtype::text, defaclacl FROM pg_defau
 SELECT (SELECT count(*) FROM "Asiento") asientos, (SELECT count(*) FROM "AsientoLinea") lineas,
        (SELECT count(*) FROM "Ejercicio") ejercicios, (SELECT count(*) FROM "SupportTicket") tickets,
        (SELECT count(*) FROM "AuditLog") auditoria, (SELECT count(*) FROM "Tenant") negocios;
+-- R9 app_user (legacy, BYPASSRLS): de qué roles es miembro (lo que hereda) y sus privilegios por defecto.
+--   Si es miembro de un rol con permisos sobre las tablas nuevas, el control del §8 de MANT aborta: se frena
+--   y se informa (sacarle la pertenencia es una decisión aparte).
+SELECT r.rolname AS app_user_es_miembro_de FROM pg_auth_members m JOIN pg_roles r ON r.oid = m.roleid
+ WHERE m.member = (SELECT oid FROM pg_roles WHERE rolname = 'app_user');
+SELECT defaclobjtype::text, defaclacl FROM pg_default_acl WHERE defaclacl::text LIKE '%app_user%';
 ```
 
 Más: `node prisma/rls/check-rls-live.mjs` con `RLS_AUDIT_DATABASE_URL` = la cadena de la rama → «SIN DRIFT».
@@ -67,7 +73,11 @@ Si algo no da lo esperado, se frena y se informa. No se sigue.
 2. Igual con `prisma/pending-gate2/MANT_roles_soporte.sql`.
 3. R1–R8 otra vez: R3 con `gsg_operador`/`gsg_agente` sin bypass; R4 con las dos tablas y 8 funciones `gsg_*`;
    R6 con otros md5, mismo dueño y sin `=X/` (PUBLIC) en `proacl`; R8 igual que antes; `NegocioProtegido` con 1 fila;
-   `check-rls-live` sin drift.
+   `check-rls-live` sin drift. Y `app_user` sin nada en lo nuevo (todo `f`; lo prueba
+   `src/lib/soporte/roles-soporte-app-user-postgres.test.ts` en local):
+   `SELECT has_table_privilege('app_user','"NegocioProtegido"','SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'),
+   has_table_privilege('app_user','"SoporteConsentimiento"','SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'),
+   has_function_privilege('app_user','gsg_permiso_n1_vigente()','EXECUTE');`
 4. Los dos archivos otra vez (idempotencia): OK y R8 igual.
 5. Prueba de la app en la rama (sólo si hay deploy de preview apuntado a la rama): un OWNER entra a
    Configuración → «Soporte GSG», ve las dos casillas habilitadas; un asiento confirmado nuevo cuadra.

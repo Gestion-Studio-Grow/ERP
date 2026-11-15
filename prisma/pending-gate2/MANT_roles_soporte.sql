@@ -36,6 +36,12 @@
 --      variable. El candado de CH NO va a `gsg_operador`: el dueño aprueba el borrador de CH en la consola.
 --   6. `app_rls`: NO se le saca nada de lo que ya tiene (lo usa la app de los negocios). En las dos
 --      tablas nuevas se corrige lo que le dan los privilegios por defecto (0002:62-65).
+--   7. `app_user` (rol legacy de producción con BYPASSRLS, que `neondb_owner` no puede corregir: 0002 y
+--      docs/runbooks/fase1-ops-seguridad.md §b): si existe, sin NINGÚN permiso en las dos tablas nuevas ni
+--      en las funciones del candado (los privilegios por defecto viejos se los darían, y con BYPASSRLS eso
+--      es leer y firmar permisos de cualquier negocio; ensayo de la tanda 3 en una copia, 15/11/2026). El
+--      control del §8 lo verifica con los permisos HEREDADOS incluidos: si los recibe por pertenecer a otro
+--      rol, aborta y no queda nada (hay que sacarle esa pertenencia antes). Sin `app_user`, no hace nada.
 --
 -- Reversa: al pie.
 
@@ -354,6 +360,19 @@ REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON "SoporteConsentimiento" FROM gsg_oper
 GRANT SELECT, INSERT ON "SoporteConsentimiento" TO app_rls;
 GRANT SELECT ON "SoporteConsentimiento" TO gsg_operador;
 
+-- app_user (legacy, BYPASSRLS): nada en lo nuevo, ni lo que le darían los privilegios por defecto (§7 del
+-- encabezado). Con el nombre en una variable: en una base sin ese rol no se ejecuta nada.
+DO $$
+DECLARE v_rol CONSTANT TEXT := 'app_user';
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = v_rol) THEN
+    EXECUTE format('REVOKE ALL ON TABLE public."NegocioProtegido", public."SoporteConsentimiento" FROM %I', v_rol);
+    EXECUTE format('REVOKE ALL ON FUNCTION gsg_negocio_protegido(TEXT), gsg_consentimiento_lo_firma_el_titular(), '
+                   'gsg_permiso_n1_cliente_de_cartera(), gsg_permiso_n1_vigente(), gsg_permiso_n2_vigente(), '
+                   'gsg_permiso_n2_cliente_de_cartera(), gsg_slug_del_negocio(), gsg_slug_del_cliente() FROM %I', v_rol);
+  END IF;
+END $$;
+
 -- ── 8. Verificación: si algo quedó mal, aborta y no queda nada ───────────────
 DO $$
 BEGIN
@@ -371,6 +390,21 @@ BEGIN
   END IF;
   IF has_table_privilege('app_rls', '"NegocioProtegido"', 'INSERT') OR has_table_privilege('gsg_operador', '"NegocioProtegido"', 'DELETE') THEN
     RAISE EXCEPTION 'MANT_roles_soporte: NegocioProtegido quedó escribible';
+  END IF;
+  -- app_user (BYPASSRLS): ningún permiso, tampoco heredado (has_*_privilege cuenta la pertenencia a roles).
+  -- Anidado: con el rol ausente, has_*_privilege('app_user', …) daría error.
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_user') THEN
+    IF has_table_privilege('app_user', '"NegocioProtegido"', 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
+       OR has_any_column_privilege('app_user', '"NegocioProtegido"', 'SELECT,INSERT,UPDATE,REFERENCES')
+       OR has_table_privilege('app_user', '"SoporteConsentimiento"', 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
+       OR has_any_column_privilege('app_user', '"SoporteConsentimiento"', 'SELECT,INSERT,UPDATE,REFERENCES')
+       OR EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace
+                    AND p.proname IN ('gsg_negocio_protegido', 'gsg_consentimiento_lo_firma_el_titular',
+                                      'gsg_permiso_n1_cliente_de_cartera', 'gsg_permiso_n1_vigente', 'gsg_slug_del_negocio',
+                                      'gsg_slug_del_cliente', 'gsg_permiso_n2_vigente', 'gsg_permiso_n2_cliente_de_cartera')
+                    AND has_function_privilege('app_user', p.oid, 'EXECUTE')) THEN
+      RAISE EXCEPTION 'MANT_roles_soporte: app_user (BYPASSRLS) tiene permisos sobre NegocioProtegido, SoporteConsentimiento o el candado (directos o heredados de otro rol): sacárselos antes de aplicar';
+    END IF;
   END IF;
   IF has_table_privilege('gsg_operador', '"SoporteConsentimiento"', 'INSERT') OR has_table_privilege('gsg_agente', '"SoporteConsentimiento"', 'INSERT') THEN
     RAISE EXCEPTION 'MANT_roles_soporte: el permiso del cliente sólo lo escribe su panel (app_rls)';
