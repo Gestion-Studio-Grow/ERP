@@ -88,13 +88,17 @@ function Casilla({ nivel, tildada, puede, motivo }: { nivel: NivelDeConsentimien
   );
 }
 
-export default function PermisoSoporte({ habilitado, vigente, esTitular, ultimaCopia }: {
+export default function PermisoSoporte({ habilitado, vigente, esTitular, enPausa = false, ultimaCopia }: {
   habilitado: boolean;
   vigente: Consentimiento;
   esTitular: boolean;
+  /** Soporte GSG apagado en el negocio: sólo se puede SACAR lo que está dado (dar lo rechaza el servidor). */
+  enPausa?: boolean;
   ultimaCopia: CopiaEnBorrador | null;
 }) {
   const puede = habilitado && esTitular;
+  // En pausa, una casilla sin tildar no se ofrece: lo único posible es destildar una tildada.
+  const puedeEn = (tildada: boolean) => puede && (!enPausa || tildada);
   return (
     <div className="grid gap-6">
       {TEXTO_CONSENTIMIENTO.provisorio && (
@@ -107,16 +111,21 @@ export default function PermisoSoporte({ habilitado, vigente, esTitular, ultimaC
           Este permiso todavía no está habilitado en tu negocio, así que no se guarda nada. Mientras tanto, tus pedidos los atiende una persona de GSG.
         </Franja>
       )}
+      {enPausa && (
+        <Franja tono="atencion">
+          Soporte GSG está en pausa en tu negocio: la IA no recibe tus pedidos. Si diste el permiso antes, lo podés sacar acá; darlo de nuevo se puede cuando se vuelva a activar.
+        </Franja>
+      )}
       {habilitado && !esTitular && (
         <Franja>Sólo el titular del negocio puede dar o sacar este permiso. Acá ves cómo está hoy.</Franja>
       )}
       <Bloque titulo="Permiso a la IA de soporte">
-        <Casilla nivel="n1" tildada={vigente.n1} puede={puede} motivo={null} />
+        <Casilla nivel="n1" tildada={vigente.n1} puede={puedeEn(vigente.n1)} motivo={enPausa && !vigente.n1 ? "en pausa" : null} />
         <Casilla
           nivel="n2"
           tildada={vigente.n2}
-          puede={puede && vigente.n1}
-          motivo={vigente.n1 ? null : "primero hace falta el permiso de lectura"}
+          puede={puedeEn(vigente.n2) && vigente.n1}
+          motivo={enPausa && !vigente.n2 ? "en pausa" : vigente.n1 ? null : "primero hace falta el permiso de lectura"}
         />
       </Bloque>
       <Bloque titulo="Lo que nunca hacen">

@@ -29,6 +29,8 @@ import { catalogo } from "@/modules/catalog";
 import { moduleRegistryEnabled } from "@/modules/flags";
 import { appsOcultasDelNegocio, enInicioPorAppsDelNegocio, interruptoresDelNegocio } from "@/cambios/interruptores.server";
 import { ocultasParaElPanel } from "@/cambios/interruptores-core";
+import { soporteGsgPrendido, type InterruptorId } from "@/cambios/interruptores";
+import { leerConsentimiento } from "@/lib/soporte/consentimiento.server";
 import {
   resolverContextoApps,
   type ContextoApps,
@@ -102,6 +104,26 @@ export const getNegocioApps = cache(async (role: Role, overrides?: ReadonlyArray
     // tampoco: no hay contra qué slug probarlo.
     ocultas: ocultasParaElPanel(t?.slug, ocultas),
     interruptores,
+    ...((await soporteSoloParaRevocar(role, t?.id, interruptores)) && { soporteSoloRevocar: true }),
     ...(overrides !== undefined && { overrides }),
   };
 });
+
+/**
+ * Soporte GSG apagado y el titular con un permiso a la IA vigente: la app del permiso tiene que seguir a
+ * mano para que lo pueda sacar (si no, volvería a valer al prender; certificación de la tanda 3). Sólo
+ * OWNER y sólo con el interruptor apagado (una consulta más, únicamente en ese caso). Error → no.
+ */
+async function soporteSoloParaRevocar(
+  role: Role,
+  tenantId: string | undefined,
+  interruptores: Readonly<Partial<Record<InterruptorId, { encendido: boolean }>>>,
+): Promise<boolean> {
+  if (role !== "OWNER" || !tenantId || soporteGsgPrendido(interruptores)) return false;
+  try {
+    const vigente = await leerConsentimiento(tenantId);
+    return vigente.n1 || vigente.n2;
+  } catch {
+    return false;
+  }
+}

@@ -11,15 +11,13 @@
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/authz";
 import { registrarConsentimientoConCopia, type CopiaEnBorrador } from "@/lib/soporte/consentimiento.server";
-import { soporteGsgPrendidoEn } from "@/lib/soporte/interruptor.server";
 
 export type ResultadoPermiso = { ok: true; mensaje: string; copia: CopiaEnBorrador } | { ok: false; error: string };
 
 export async function cambiarPermisoSoporteAction(_previo: ResultadoPermiso | null, fd: FormData): Promise<ResultadoPermiso> {
   const user = await requireUser();
-  // Interruptor «Soporte GSG» apagado en el negocio de la sesión: no se guarda nada (mismo texto que sin
-  // pantalla; decisión del dueño 14/11/2026).
-  if (!(await soporteGsgPrendidoEn(user.tenantId))) return { ok: false, error: "Esta opción no está disponible en tu negocio." };
+  // Interruptor «Soporte GSG» apagado: registrarConsentimientoConCopia rechaza DAR y deja SACAR (siempre se
+  // puede sacar un permiso dado antes del apagado). La regla está en el servidor, no acá.
   const r = await registrarConsentimientoConCopia({
     tenantId: user.tenantId,
     userId: user.id,

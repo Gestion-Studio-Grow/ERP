@@ -55,3 +55,16 @@ test("las demás apps no dependen del interruptor de Soporte GSG", () => {
   const con = appsVisibles(negocio("OWNER", PRENDIDO)).map((a) => a.id);
   assert.deepEqual(con.filter((id) => id !== "permiso-soporte"), sin);
 });
+
+// Certificación de la tanda 3: apagado, el titular con un permiso vigente tiene que poder sacarlo.
+test("apagado con permiso vigente del titular: la app sigue a mano, sólo para sacarlo", () => {
+  const n = { ...negocio("OWNER", APAGADO), soporteSoloRevocar: true };
+  assert.equal(motivoNoDisponible(app, n), null);
+  assert.ok(appsVisibles(n).some((a) => a.id === "permiso-soporte"), "está en el menú");
+  // Negativo: la marca no abre la app a otro rol (la capability sigue mandando) ni prende otras apps.
+  assert.equal(motivoNoDisponible(app, { ...negocio("RECEPTION", APAGADO), soporteSoloRevocar: true }), "rol");
+  const sin = appsVisibles(negocio("OWNER", APAGADO)).map((a) => a.id);
+  assert.deepEqual(appsVisibles(n).map((a) => a.id).filter((id) => id !== "permiso-soporte"), sin);
+  // Sin la marca (o en false), apagado sigue siendo «no existe».
+  assert.equal(motivoNoDisponible(app, { ...negocio("OWNER", APAGADO), soporteSoloRevocar: false }), "apagada");
+});
