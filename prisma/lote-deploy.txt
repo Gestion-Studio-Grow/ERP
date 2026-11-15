@@ -128,4 +128,14 @@
 # una transacción, reversa al pie. Owner-level: AUTORIZADA por el dueño («Aplicar con la tanda, con copia antes»),
 # transmitida por GSG-ORQ-007 el 14/11/2026. Ensayo: docs/runbooks/ENSAYO-NEON-TANDA3-2026-11-14.md.
 # Es la única del lote: con la de cuit todavía declarada, el paso 1b frenaba (certificación de la tanda 3).
-20261114120000_seg021_contabilidad_funciones
+# (aplicada por el build de producción del merge de #174, dpl_5xaiPCMbTdmk9VTgtqxVjz3jTAJF READY 15/11 09:16 ART,
+# registro de GSG-PLAT-013 en Factory-GSG 00-ESTADO/SESIONES.md: sale de la lista) 20261114120000_seg021_contabilidad_funciones
+#
+# 2026-11-16 · tanda/2026-11-16 · PR #170 (MIA, un cobro por envío): clave de envío en "ProyectoPago". Aditiva: una
+# columna nullable "claveEnvio" TEXT, sin default ni backfill, y un índice único ("tenantId", "claveEnvio"); los cobros
+# existentes quedan en NULL y no chocan. Idempotente (IF NOT EXISTS). RLS: viaja en la fila de "ProyectoPago", que ya
+# tiene su policy. Sin ella, registrarCobro graba como hoy (P2022 → reintento sin la columna).
+# Owner-level: AUTORIZADA por el dueño, tarjeta MIA-PAGO-CLAVE-BASE (15/11), transmitida por GSG-ORQ-007 a GSG-PLAT-014.
+# Ensayo en copia de Neon OK (rama ensayo-tanda3-20261114: la columna existe y "ProyectoPago" es de neondb_owner, el rol
+# dueño con el que corre la migración del build). Vuelta atrás: al pie de la migración.
+20261114230000_proyecto_pago_clave_envio
