@@ -151,8 +151,10 @@ async function preparar(t: import("node:test").TestContext) {
   /** Una clave de envío nueva: la que el navegador genera para cada cobro. */
   const clave = () => randomBytes(12).toString("hex");
   /** El mismo formulario, tal cual (con su clave): es lo que manda el navegador si se envía dos veces. */
-  const cobrar = (proyectoId: string, monto: number, claveEnvio?: string) => () =>
-    enSesion(() => acciones.registrarCobro(form({ proyectoId, medio: "TRANSFERENCIA", monto: String(monto), nota: "anticipo", ...(claveEnvio && { claveEnvio }) })));
+  const cobrar = (proyectoId: string, monto: number, claveEnvio?: string, extra: Record<string, string> = {}) => () =>
+    enSesion(() => acciones.registrarCobro(form({ proyectoId, medio: "TRANSFERENCIA", monto: String(monto), nota: "anticipo", ...(claveEnvio && { claveEnvio }), ...extra })));
+  /** El sí explícito a un cobro igual a uno de recién (sin tope, ver `cobro-carrera-extra-postgres.test.ts` 7). */
+  const otroIgual = { confirmaRepetido: "1" };
   const conciliar = (id: string, cuotaId: string) => () => enSesion(() => empresa.conciliarMovimiento(form({ id, cuotaId })));
   const plata = async (proyectoId: string) => {
     const pagos = await duenio.proyectoPago.findMany({ where: { proyectoId, anuladoEl: null }, select: { id: true, monto: true } });
@@ -161,7 +163,7 @@ async function preparar(t: import("node:test").TestContext) {
   };
   const atados = async (cuotaId: string) => duenio.proyectoMovBanco.count({ where: { cuotaId } });
   const claveCobranza = (proyectoId: string) => `cobranza-proyecto:${a.id}:${proyectoId}`;
-  return { base, duenio, enSesion, datos, ficha, gestion, proyecto, cuota, cuenta, movimiento, clave, cobrar, conciliar, plata, atados, claveCobranza };
+  return { base, duenio, enSesion, datos, ficha, gestion, proyecto, cuota, cuenta, movimiento, clave, cobrar, otroIgual, conciliar, plata, atados, claveCobranza };
 }
 
 // ── H1 · Registrar cobro ────────────────────────────────────────────────────
@@ -174,8 +176,9 @@ test("H1.a cobro enviado dos veces a la vez con la misma clave, sin tope: entra 
   const r = await enFilaDelCandado(p.base, p.claveCobranza(id), [p.cobrar(id, 1210, k), p.cobrar(id, 1210, k)]);
   assert.deepEqual(r, [{ ok: true }, { ok: true }], "el repetido devuelve el cobro ya hecho, sin error");
   assert.deepEqual(await p.plata(id), { pagos: 1, suma: 1210, asientos: 1 }, "un cobro y un asiento de caja");
-  // Otro cobro de verdad (clave nueva) sí entra.
-  assert.deepEqual(await p.cobrar(id, 1210, p.clave())(), { ok: true });
+  // Otro cobro de verdad (clave nueva) igual al de recién, sin tope: pide el sí explícito, y con él entra.
+  assert.equal((await p.cobrar(id, 1210, p.clave())()).ok, false);
+  assert.deepEqual(await p.cobrar(id, 1210, p.clave(), p.otroIgual)(), { ok: true });
   assert.deepEqual(await p.plata(id), { pagos: 2, suma: 2420, asientos: 2 });
 });
 
@@ -310,7 +313,11 @@ test("H1.f sin la columna claveEnvio, el cobro se graba como antes de la migraci
   try {
     const k = p.clave();
     assert.deepEqual(await p.cobrar(id, 250, k)(), { ok: true });
-    assert.deepEqual(await p.cobrar(id, 250, k)(), { ok: true }, "sin columna no hay cómo reconocer el repetido: entra, como antes");
+    // Sin columna no hay cómo reconocer el repetido por su clave; lo frena la regla del cobro igual de recién (no usa la
+    // columna), y con el sí explícito entra.
+    const r = await p.cobrar(id, 250, k)();
+    assert.equal(r.ok, false, JSON.stringify(r));
+    assert.deepEqual(await p.cobrar(id, 250, k, p.otroIgual)(), { ok: true });
     assert.deepEqual(await p.plata(id), { pagos: 2, suma: 500, asientos: 2 });
     // Y las pantallas que listan cobros leen sin la columna.
     const leidos = await p.enSesion(async () => {
