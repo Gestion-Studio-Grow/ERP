@@ -28,13 +28,16 @@ import { claveDeEnvio } from "./pago-columnas";
 import { esClaveRepetida, faltaLaMigracion } from "./rendiciones-core";
 import { mensajeDeProveedor, validateSupplierInput } from "@/lib/suppliers/supplier";
 
-export type Resultado<T = object> = ({ ok: true } & T) | { ok: false; error: string };
+/** `confirmar`: el servidor no grabó porque necesita un sí explícito; es el texto de la casilla que lo da (ver `FormAccion`). */
+export type Resultado<T = object> = ({ ok: true } & T) | { ok: false; error: string; confirmar?: string };
 
 const RAIZ = "/admin/proyectos";
 const MAX_ARCHIVOS = 30;
 const MAX_IMAGEN = 1_400_000; // caracteres del data URL (~1 MB de imagen)
 const MAX_ENTREGABLES = 60;
 const MAX_VERSIONES = 12; // cada imagen ocupa la base: un tope, como los archivos
+/** Un cobro igual (monto y medio) del mismo proyecto dentro de esta ventana pide confirmación: dos pestañas, mismo cobro. */
+const VENTANA_REPETIDO_MS = 10 * 60_000;
 
 const txt = (v: FormDataEntryValue | null): string => String(v ?? "").trim();
 const numero = (v: FormDataEntryValue | null | undefined): number => leerNumero(String(v ?? ""));
@@ -204,9 +207,10 @@ export async function registrarCobro(formData: FormData): Promise<Resultado> {
   if (!p) return { ok: false, error: "Ese proyecto ya no existe. Recargá la página." };
   const nota = txt(formData.get("nota")) || null;
   const clave = claveDeEnvio(formData.get("claveEnvio"));
+  const confirmaRepetido = txt(formData.get("confirmaRepetido")) === "1";
   const [config, tc] = await Promise.all([configProyectos(tenantId), tiposDeCambio(tenantId)]);
   // El cobro y su asiento en el libro de caja van juntos: o entran los dos o ninguno.
-  const grabar = (conClave: boolean) => tenantTransaction(async (tx): Promise<{ id: string; repetido?: true } | { porCobrar: number; cob: Cobranza } | { ajeno: true } | { otroMonto: number } | { anulado: number }> => {
+  const grabar = (conClave: boolean) => tenantTransaction(async (tx): Promise<{ id: string; repetido?: true } | { porCobrar: number; cob: Cobranza } | { ajeno: true } | { otroMonto: number } | { anulado: number } | { parecido: Date }> => {
     // Tope: con presupuesto aprobado no entra más de lo que falta cobrar. En fila con «Marcar cobrado» y las cuotas
     // cargadas a mano del mismo proyecto, y contado adentro de la transacción (dos cobros a la vez no pasan los dos).
     await trabarCobranza(tx, tenantId, proyectoId);
@@ -223,6 +227,18 @@ export async function registrarCobro(formData: FormData): Promise<Resultado> {
     }
     const cob = (await cobranzasDelNegocio(tenantId, tc, config.margenPct, [proyectoId], tx)).get(proyectoId);
     if (cob && pasaElTope(cob, monto)) return { porCobrar: cob.porCobrar, cob };
+    // Sin presupuesto aprobado no hay tope: el mismo cobro cargado desde dos pestañas (cada una con su clave) entraba
+    // dos veces. Ya en fila, si hace poco entró uno igual (mismo monto y medio, no anulado), no se graba sin un sí
+    // explícito. Sólo con clave: el navegador que la manda es el que sabe mostrar la casilla. No usa `claveEnvio`:
+    // funciona también sin esa migración.
+    if (clave && !confirmaRepetido && !(cob && cob.total > 0)) {
+      const igual = await tx.proyectoPago.findFirst({
+        where: { tenantId, proyectoId, anuladoEl: null, medio, monto: { gte: monto - 0.005, lte: monto + 0.005 }, createdAt: { gte: new Date(Date.now() - VENTANA_REPETIDO_MS) } },
+        orderBy: { createdAt: "desc" },
+        select: { createdAt: true },
+      });
+      if (igual) return { parecido: igual.createdAt };
+    }
     const creado = await tx.proyectoPago.create({ data: { tenantId, proyectoId, medio, monto, nota, cobradoPor: user.name, ...(conClave && clave && { claveEnvio: clave }) }, select: { id: true } });
     await registrarCambio(tx, { tenantId, proyectoId, entidad: "ProyectoPago", entidadId: creado.id, campo: "Cobro", despues: `${MEDIO_LABEL[medio]} · ${pesos(monto)}`, autor: user.name });
     const session = await tx.cashSession.findFirst({ where: { tenantId, status: "OPEN" }, select: { id: true } });
@@ -257,6 +273,12 @@ export async function registrarCobro(formData: FormData): Promise<Resultado> {
   if ("otroMonto" in pago) {
     refrescar(proyectoId); // el cobro que sí quedó grabado tiene que verse en la lista
     return { ok: false, error: `Con este formulario ya quedó registrado un cobro de ${pesos(pago.otroMonto)} (se había cortado la conexión). Si éste es otro cobro, envialo de nuevo.` };
+  }
+  if ("parecido" in pago) {
+    refrescar(proyectoId); // el cobro igual tiene que verse en la lista
+    const minutos = Math.round((Date.now() - pago.parecido.getTime()) / 60_000);
+    const cuando = minutos < 1 ? "Hace menos de un minuto" : minutos === 1 ? "Hace 1 minuto" : `Hace ${minutos} minutos`;
+    return { ok: false, error: `${cuando} ya se registró un cobro igual en este proyecto: ${pesos(monto)} por ${MEDIO_LABEL[medio]}. No se grabó. Si es otro cobro, tildá la casilla y envialo de nuevo.`, confirmar: "Es otro cobro: registrarlo igual" };
   }
   // Pasaba lo que falta cobrar: no se graba nada.
   if (!("id" in pago)) return { ok: false, error: avisoTopeCobro(pago.porCobrar, monto, pago.cob) };
