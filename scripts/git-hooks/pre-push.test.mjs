@@ -8,7 +8,7 @@ import { mkdtempSync, writeFileSync, existsSync, readFileSync, rmSync } from "no
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { configFrenaRamas, revisarPush } from "./pre-push.mjs";
+import { despliega, revisarPush } from "./pre-push.mjs";
 
 const HOOK = fileURLToPath(new URL("./pre-push.mjs", import.meta.url));
 const VERCEL_JSON = readFileSync(new URL("../../vercel.json", import.meta.url), "utf8");
@@ -19,15 +19,29 @@ const CEROS = "0".repeat(40);
 const NUEVO = JSON.stringify({ git: { deploymentEnabled: { "**": false, main: true, "tanda/**": false } } });
 const VIEJO = JSON.stringify({ framework: "nextjs", buildCommand: "node scripts/vercel-build.mjs" });
 
-test("configFrenaRamas: sólo cuenta si las ramas comunes NO despliegan", () => {
-  assert.equal(configFrenaRamas(JSON.parse(NUEVO)), true);
-  assert.equal(configFrenaRamas({ git: { deploymentEnabled: false } }), true);
-  assert.equal(configFrenaRamas({ github: { enabled: false } }), true);
-  assert.equal(configFrenaRamas(JSON.parse(VIEJO)), false);
-  assert.equal(configFrenaRamas({ git: { deploymentEnabled: { dev: false } } }), false);
-  assert.equal(configFrenaRamas({ git: { deploymentEnabled: { "**": true } } }), false);
-  assert.equal(configFrenaRamas({ git: { deploymentEnabled: true } }), false);
-  assert.equal(configFrenaRamas(null), false);
+// vercel.json de fbf64d7 (el main antes de este PR): las tandas todavía desplegaban.
+const DE_FBF64D7 = JSON.stringify({ git: { deploymentEnabled: { "**": false, main: true, "tanda/**": true } } });
+
+test("despliega: semántica de Vercel (alguna regla que cubre la rama en true, o ninguna la cubre)", () => {
+  const n = JSON.parse(NUEVO);
+  assert.equal(despliega(n, "main"), true);
+  assert.equal(despliega(n, "tanda/2026-11-16"), false);
+  assert.equal(despliega(n, "claude/x"), false);
+  const f = JSON.parse(DE_FBF64D7);
+  assert.equal(despliega(f, "tanda/2026-11-16"), true, "fbf64d7 todavía despliega tandas");
+  assert.equal(despliega(f, "claude/x"), false);
+  assert.equal(despliega({ git: { deploymentEnabled: { "**": false, "*": true } } }, "claude-x"), true);
+  assert.equal(despliega({ git: { deploymentEnabled: { "**": false, "*": true } } }, "claude/x"), false, "* no cruza /");
+  assert.equal(despliega({ git: { deploymentEnabled: { "experiment-*": false, "*-dev": true } } }, "experiment-my-branch-dev"), true);
+  assert.equal(despliega({ git: { deploymentEnabled: { dev: false } } }, "claude/x"), true, "sin regla que la cubra: despliega");
+  assert.equal(despliega({ git: { deploymentEnabled: false } }, "main"), false);
+  assert.equal(despliega({ git: { deploymentEnabled: true } }, "x"), true);
+  assert.equal(despliega({ github: { enabled: false } }, "x"), false);
+  assert.equal(despliega(JSON.parse(VIEJO), "x"), true);
+  assert.equal(despliega(null, "x"), true);
+  // Patrón que no sabemos evaluar (llaves, clases, negación): si está en true, se supone que cubre.
+  assert.equal(despliega({ git: { deploymentEnabled: { "**": false, "{a,b}/**": true } } }, "c/x"), true);
+  assert.equal(despliega({ git: { deploymentEnabled: { "**": false, "{a,b}/**": false } } }, "c/x"), false);
 });
 
 test("vercel.json del repo: sólo main despliega (\"**\" y \"tanda/**\" en false, ninguna otra regla en true)", () => {
@@ -38,7 +52,8 @@ test("vercel.json del repo: sólo main despliega (\"**\" y \"tanda/**\" en false
   // (https://vercel.com/docs/project-configuration/git-configuration). Por eso ninguna otra en true.
   assert.equal(d["tanda/**"], false);
   assert.deepEqual(Object.entries(d).filter(([, v]) => v === true).map(([k]) => k), ["main"]);
-  assert.equal(configFrenaRamas(JSON.parse(VERCEL_JSON)), true);
+  assert.equal(despliega(JSON.parse(VERCEL_JSON), "main"), true);
+  assert.equal(despliega(JSON.parse(VERCEL_JSON), "tanda/2026-11-16"), false);
 });
 
 test("revisarPush: frena la rama vieja, deja pasar la nueva, el borrado y los tags", () => {
@@ -52,7 +67,16 @@ test("revisarPush: frena la rama vieja, deja pasar la nueva, el borrado y los ta
   ].join("\n");
   const r = revisarPush(entrada, leer);
   assert.deepEqual(r.map((x) => x.rama), ["claude/vieja"]);
-  assert.match(r[0].motivo, /deploymentEnabled/);
+  assert.match(r[0].motivo, /crearía un despliegue/);
+});
+
+test("revisarPush: una tanda cortada con el vercel.json de fbf64d7 se rechaza; main con él, no", () => {
+  const leer = () => DE_FBF64D7;
+  const r = revisarPush(
+    [`refs/heads/t ${SHA_A} refs/heads/tanda/2026-11-16 ${CEROS}`, `HEAD ${SHA_A} refs/heads/main ${SHA_B}`].join("\n"),
+    leer,
+  );
+  assert.deepEqual(r.map((x) => x.rama), ["tanda/2026-11-16"]);
 });
 
 test("revisarPush: sin vercel.json o con JSON roto también frena (sin él, Vercel despliega toda rama)", () => {

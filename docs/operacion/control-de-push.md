@@ -15,8 +15,14 @@ cumple varias reglas, despliega cuando al menos una es `true`
 ¿Por qué `tanda/**` pasó a `false`? `scripts/vercel-ignore.mjs` cancela toda rama que no sea main y no
 traiga «[preview]», y nadie usa «[preview]» (no aparece en `docs/` ni en `.claude/`). Cada push a una rama
 `tanda/` gastaba un despliegue cancelado. El smoke de `release.yml` sólo corre cuando Vercel avisa de un
-despliegue terminado bien (`deployment_status` = success): sobre una tanda nunca corría. Lo que verifica
-una tanda hoy:
+despliegue terminado bien (`deployment_status` = success), así que sobre una tanda no corría.
+
+**Sin verificar:** eso supone que el proyecto tiene cargado `node scripts/vercel-ignore.mjs` en Settings →
+Git → Ignored Build Step. El repo no lo muestra, y la lectura del proyecto por el conector de Vercel
+(15/11) tampoco trae ese campo. Si no estuviera cargado, las tandas sí construían su vista previa y se
+pierde el smoke de esa vista (`release.yml:110-136`). Lo confirma el dueño mirando esa pantalla.
+
+Lo que verifica una tanda hoy:
 
 - el CI del PR de la tanda (`gates.yml`, con build);
 - `npm run release:preparar` en local;
@@ -27,9 +33,15 @@ Si alguna vez hace falta una vista previa real de una tanda, la decide el dueño
 ## 2. El control de push
 
 `scripts/git-hooks/pre-push.mjs` es un gancho `pre-push` de git. Frena **antes de que el push salga de la
-máquina**, así que GitHub no lo recibe y Vercel tampoco. Rechaza el push si el `vercel.json` del commit
-empujado no trae `git.deploymentEnabled` con `"**": false`. Es lo mismo que «la rama no trae `fbf64d7`»,
-pero sirve también en clones superficiales, como los de la nube.
+máquina**, así que GitHub no lo recibe y Vercel tampoco. Para cada rama que no es `main`, lee el
+`vercel.json` del commit empujado y aplica la regla de Vercel: una rama despliega si alguna regla que la
+cubre está en `true`, o si ninguna la cubre. Si despliega, rechaza el push. Frena dos casos:
+
+- una rama anterior a `fbf64d7`, sin `deploymentEnabled`;
+- una `tanda/` cortada de main antes de este cambio, con `"tanda/**": true`.
+
+Sirve también en clones superficiales, como los de la nube. Un patrón que no sabe evaluar (llaves, clases,
+negación) cuenta como que cubre la rama si está en `true`: ante la duda, rechaza.
 
 - **Se instala solo** en cada sesión de Claude Code, nube o local: lo hace el SessionStart
   (`.claude/scripts/preparar-nube.sh`). A mano: `node scripts/git-hooks/pre-push.mjs --instalar`.

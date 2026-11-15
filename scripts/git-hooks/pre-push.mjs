@@ -9,10 +9,11 @@
 // push a esa rama crea un despliegue que el filtro cancela, y lo cancelado CUENTA para el tope de 100
 // por día (https://vercel.com/docs/project-configuration/project-settings).
 //
-// Qué revisa: para cada rama que se empuja, el vercel.json DEL COMMIT EMPUJADO tiene que tener
-// `git.deploymentEnabled` con "**": false (o deploymentEnabled: false, o github.enabled: false).
-// Es lo mismo que «trae fbf64d7», pero sirve en clones superficiales (los de la nube lo son) y sigue
-// sirviendo si mañana el vercel.json cambia. Deja pasar: borrados de rama y tags.
+// Qué revisa: para cada rama que no es main, el vercel.json DEL COMMIT EMPUJADO no tiene que hacer
+// desplegar a esa rama (git.deploymentEnabled con la semántica de Vercel). Así frena tanto una rama
+// anterior a fbf64d7 como una `tanda/` cortada con el vercel.json de fbf64d7 ("tanda/**": true). Sirve
+// en clones superficiales (los de la nube lo son) y si mañana el vercel.json cambia.
+// Deja pasar: main, borrados de rama y tags.
 //
 // Dónde corre: es un gancho `pre-push` de git, del lado de quien empuja. GitHub.com no admite
 // ganchos del lado del servidor (pre-receive es sólo de GitHub Enterprise Server), así que no hay
@@ -33,13 +34,43 @@ import { fileURLToPath } from "node:url";
 const MARCA = "gsg-control-de-push";
 const CEROS = /^0+$/;
 
-/** ¿Este vercel.json deja SIN desplegar a las ramas comunes? */
-export function configFrenaRamas(cfg) {
-  if (!cfg || typeof cfg !== "object") return false;
-  if (cfg.github?.enabled === false) return true;
+/** Patrón minimatch de rama → RegExp, o null si trae sintaxis que no evaluamos (llaves, clases, negación). */
+function patron(glob) {
+  if (/[{}[\]!+@()\\,]/.test(glob)) return null;
+  let re = "";
+  for (let i = 0; i < glob.length; i++) {
+    const c = glob[i];
+    if (c === "*" && glob[i + 1] === "*") {
+      re += ".*";
+      i++;
+    } else if (c === "*") re += "[^/]*";
+    else if (c === "?") re += "[^/]";
+    else re += c.replace(/[.^$|]/g, "\\$&");
+  }
+  return new RegExp(`^${re}$`);
+}
+
+/**
+ * ¿Vercel crea un despliegue para un push a `rama` con este vercel.json? Semántica oficial
+ * (https://vercel.com/docs/project-configuration/git-configuration): las ramas sin regla despliegan,
+ * y si una rama cumple varias reglas despliega cuando al menos una es true. Un patrón que no sabemos
+ * evaluar cuenta como que cubre la rama si está en true (ante la duda, despliega).
+ */
+export function despliega(cfg, rama) {
+  if (!cfg || typeof cfg !== "object") return true;
+  if (cfg.github?.enabled === false) return false;
   const d = cfg.git?.deploymentEnabled;
-  if (d === false) return true;
-  return !!d && typeof d === "object" && d["**"] === false;
+  if (d === false) return false;
+  if (!d || typeof d !== "object") return true;
+  let cubierta = false;
+  for (const [glob, valor] of Object.entries(d)) {
+    const re = patron(glob);
+    if (re ? re.test(rama) : valor === true) {
+      cubierta = true;
+      if (valor === true) return true;
+    }
+  }
+  return !cubierta;
 }
 
 /**
@@ -72,8 +103,9 @@ export function revisarPush(entrada, leerVercelJson) {
       rechazos.push({ rama, motivo: "su vercel.json no es JSON válido" });
       continue;
     }
-    if (!configFrenaRamas(cfg))
-      rechazos.push({ rama, motivo: 'su vercel.json no trae git.deploymentEnabled con "**": false (le falta fbf64d7)' });
+    // main despliega a propósito (producción); cualquier otra rama que despliegue gasta cupo.
+    if (rama !== "main" && despliega(cfg, rama))
+      rechazos.push({ rama, motivo: "con el vercel.json de ese commit, Vercel crearía un despliegue para esta rama (le falta el vercel.json de main)" });
   }
   return rechazos;
 }
@@ -114,7 +146,7 @@ function instalar() {
   // Un archivo sin extensión no siempre lo carga Node como módulo: el gancho es un sh que llama al .mjs.
   writeFileSync(gancho, `#!/bin/sh\n# ${MARCA}: ver scripts/git-hooks/pre-push.mjs\nexec node "$(dirname "$0")/${MARCA}.mjs" "$@"\n`);
   chmodSync(gancho, 0o755);
-  console.log("control de push: instalado (una rama sin el vercel.json de fbf64d7 no se empuja).");
+  console.log("control de push: instalado (no se empuja una rama que Vercel desplegaría, salvo main).");
 }
 
 function comoGancho() {
