@@ -86,6 +86,15 @@ test("despacho y API del agente: idempotencia, aislamiento, permisos, niveles, r
   await permiso(A, "n2", true);
   await permiso(B, "n1", true);
   await permiso(CH, "n1", true);
+  // Interruptor «Soporte GSG» (apagado por defecto, decisión del dueño 14/11/2026): lo prende la consola.
+  const interruptor = async (tenantId: string, prendido: boolean) => {
+    await new Promise((r) => setTimeout(r, 3));
+    await duenio.query(
+      `INSERT INTO "AuditLog" (id, "tenantId", actor, action, entity, "entityId", channel) VALUES ($1, $2, 'operator:qa', $3, 'Interruptor', 'soporte-gsg', 'operador')`,
+      [`int-${++n}`, tenantId, prendido ? "interruptor.encender" : "interruptor.apagar"],
+    );
+  };
+  for (const x of [A, B, CH]) await interruptor(x, true);
 
   const tk = (tenantId: string, numero: number) => `${tenantId}-t${numero}`;
   const ticket = (tenantId: string, numero: number, estado = "nuevo", prioridad = "P3") =>
@@ -474,6 +483,7 @@ test("despacho y API del agente: idempotencia, aislamiento, permisos, niveles, r
     await duenio.query(`INSERT INTO "User" (id, "tenantId", name, email, "passwordHash", role, "updatedAt") VALUES ($1, $2, 'T', 'mal@x.test', 'x', 'OWNER', now())`, [`${MAL}-t`, MAL]);
     titular[MAL] = `${MAL}-t`;
     await permiso(MAL, "n1", true);
+    await interruptor(MAL, true);
     await ticket(MAL, 1);
     const antes = disparos.length;
     const r = await despacho.despacharTicket({ tenantId: MAL, numero: 1, nivel: "n1", origen: "manual" }, deps);
@@ -482,5 +492,96 @@ test("despacho y API del agente: idempotencia, aislamiento, permisos, niveles, r
     const tipos = (await eventos(tk(MAL, 1))).map((e) => e.tipo);
     assert.ok(!tipos.includes("despacho:n1:disparado"), tipos.join(","));
     assert.equal(tipos.at(-1), "despacho:n1:fallido");
+  });
+  await t.test("SOPORTE GSG APAGADO: no se despacha; prenderlo en un negocio no lo prende en otro; apagarlo frena el pendiente", async () => {
+    const nuevo = async (sufijo: string) => {
+      const id = `${A}-${sufijo}`;
+      await duenio.query(`INSERT INTO "Tenant" (id, name, slug, subdomain, "updatedAt") VALUES ($1, $2, $3, $3, now())`, [id, sufijo, `qa-${sufijo}`]);
+      await duenio.query(`INSERT INTO "User" (id, "tenantId", name, email, "passwordHash", role, "updatedAt") VALUES ($1, $2, 'T', $3, 'x', 'OWNER', now())`, [`${id}-t`, id, `${sufijo}@x.test`]);
+      titular[id] = `${id}-t`;
+      await permiso(id, "n1", true);
+      await ticket(id, 1);
+      await ticket(id, 2);
+      return id;
+    };
+    const C = await nuevo("sopc");
+    const D = await nuevo("sopd");
+    const antes = disparos.length;
+    // Sin fila del interruptor (nunca se tocó): apagado.
+    const r0 = await despacho.despacharTicket({ tenantId: C, numero: 1, nivel: "n1", origen: "manual" }, deps);
+    assert.deepEqual(r0, { ok: false, motivo: despacho.SOPORTE_APAGADO });
+    const auto = await despacho.crearDespacho({ tenantId: C, numero: 1, nivel: "n1", origen: "automatico" }, deps);
+    assert.deepEqual(auto, { ok: false, motivo: despacho.SOPORTE_APAGADO });
+    assert.equal(disparos.length, antes, "sin /fire");
+    assert.deepEqual((await eventos(tk(C, 1))).map((e) => e.tipo).filter((x) => x.startsWith("despacho:")), []);
+
+    // Prendido en C: despacha en C; D sigue apagado.
+    await interruptor(C, true);
+    const r1 = await despacho.despacharTicket({ tenantId: C, numero: 1, nivel: "n1", origen: "manual" }, deps);
+    assert.ok(r1.ok && r1.disparo.ok && r1.disparo.disparado, JSON.stringify(r1));
+    const nonceC = nonceDe(disparos.at(-1)!.text);
+    assert.equal((await atender(pedir({ ref: "qa-sopc#1", nonce: nonceC }))).status, 200, "prendido: el agente lee");
+    assert.deepEqual(await despacho.crearDespacho({ tenantId: D, numero: 1, nivel: "n1", origen: "manual" }, deps), { ok: false, motivo: despacho.SOPORTE_APAGADO });
+
+    // Cartera: ticket de C con cliente D (apagado) → no se despacha.
+    await duenio.query(
+      `INSERT INTO "SupportTicket" (id, "tenantId", numero, tipo, prioridad, estado, asunto, detalle, canal, "creadoPor", "clienteTenantId", "updatedAt")
+       VALUES ($1, $2, 3, 'consulta', 'P3', 'nuevo', 'Cartera', 'd', 'erp', 'test', $3, now())`,
+      [tk(C, 3), C, D],
+    );
+    assert.deepEqual(await despacho.crearDespacho({ tenantId: C, numero: 3, nivel: "n1", origen: "manual" }, deps), { ok: false, motivo: despacho.SOPORTE_APAGADO });
+
+    // Pendiente creado con el interruptor prendido; se apaga antes del disparo → fallido, sin /fire.
+    const c2 = await despacho.crearDespacho({ tenantId: C, numero: 2, nivel: "n1", origen: "manual" }, deps);
+    assert.ok(c2.ok && c2.creado, JSON.stringify(c2));
+    await interruptor(C, false);
+    // Un despacho que ya salió deja de valer al apagar (mismo 404 que «no existe»).
+    assert.equal((await atender(pedir({ ref: "qa-sopc#1", nonce: nonceC }))).status, 404, "apagado: el agente no lee");
+    const n0 = disparos.length;
+    const intento = await despacho.intentarDisparo({ tenantId: C, ticketId: c2.ticketId, nivel: "n1" }, deps);
+    assert.ok(intento.ok && !intento.disparado, JSON.stringify(intento));
+    assert.equal(disparos.length, n0, "sin /fire");
+    assert.equal((await eventos(tk(C, 2))).map((e) => e.tipo).at(-1), "despacho:n1:fallido");
+    // Una fila forjada desde el negocio (actor no operador) no lo vuelve a prender.
+    await duenio.query(
+      `INSERT INTO "AuditLog" (id, "tenantId", actor, action, entity, "entityId", channel) VALUES ($1, $2, 'user:x', 'interruptor.encender', 'Interruptor', 'soporte-gsg', 'erp')`,
+      [`int-forjada-${++n}`, C],
+    );
+    assert.deepEqual(await despacho.crearDespacho({ tenantId: C, numero: 1, nivel: "n1", origen: "manual" }, deps), { ok: false, motivo: despacho.SOPORTE_APAGADO });
+  });
+  await t.test("SOPORTE GSG APAGADO en cartera: el cliente lo apaga entre crear y disparar → sin /fire; el agente no lee", async () => {
+    const nuevo = async (sufijo: string) => {
+      const id = `${A}-${sufijo}`;
+      await duenio.query(`INSERT INTO "Tenant" (id, name, slug, subdomain, "updatedAt") VALUES ($1, $2, $3, $3, now())`, [id, sufijo, `qa-${sufijo}`]);
+      await duenio.query(`INSERT INTO "User" (id, "tenantId", name, email, "passwordHash", role, "updatedAt") VALUES ($1, $2, 'T', $3, 'x', 'OWNER', now())`, [`${id}-t`, id, `${sufijo}@x.test`]);
+      titular[id] = `${id}-t`;
+      await permiso(id, "n1", true);
+      await interruptor(id, true);
+      return id;
+    };
+    const E = await nuevo("sope");
+    const F = await nuevo("sopf");
+    for (const numero of [1, 2]) {
+      await duenio.query(
+        `INSERT INTO "SupportTicket" (id, "tenantId", numero, tipo, prioridad, estado, asunto, detalle, canal, "creadoPor", "clienteTenantId", "updatedAt")
+         VALUES ($1, $2, $3, 'consulta', 'P3', 'nuevo', 'Cartera', 'd', 'erp', 'test', $4, now())`,
+        [tk(E, numero), E, numero, F],
+      );
+    }
+    // Ticket 1: creado con los dos prendidos; el cliente apaga antes del disparo.
+    const c = await despacho.crearDespacho({ tenantId: E, numero: 1, nivel: "n1", origen: "manual" }, deps);
+    assert.ok(c.ok && c.creado, JSON.stringify(c));
+    // Ticket 2: disparado con los dos prendidos (el agente lee); después el cliente apaga.
+    const r2 = await despacho.despacharTicket({ tenantId: E, numero: 2, nivel: "n1", origen: "manual" }, deps);
+    assert.ok(r2.ok && r2.disparo.ok && r2.disparo.disparado, JSON.stringify(r2));
+    const nonce2 = nonceDe(disparos.at(-1)!.text);
+    assert.equal((await atender(pedir({ ref: "qa-sope#2", nonce: nonce2 }))).status, 200, "prendidos: el agente lee");
+    await interruptor(F, false);
+    const n0 = disparos.length;
+    const r = await despacho.intentarDisparo({ tenantId: E, ticketId: c.ticketId, nivel: "n1" }, deps);
+    assert.ok(r.ok && !r.disparado, JSON.stringify(r));
+    assert.equal(disparos.length, n0, "sin /fire");
+    assert.equal((await eventos(tk(E, 1))).map((e) => e.tipo).at(-1), "despacho:n1:fallido");
+    assert.equal((await atender(pedir({ ref: "qa-sope#2", nonce: nonce2 }))).status, 404, "cliente apagado: el agente no lee");
   });
 });

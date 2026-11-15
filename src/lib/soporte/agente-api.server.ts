@@ -53,6 +53,7 @@ import {
   type NivelDeDespacho,
 } from "./despacho-core";
 import { anotarListo, candadoDelDespacho, eventosDelDespacho, type DependenciasDelDespacho } from "./despacho.server";
+import { soporteGsgPrendidoEn, soporteGsgPrendidoEnTx } from "./interruptor.server";
 
 /** Llamadas por credencial (por nivel) por minuto. Provisional a confirmar. */
 const limitadorPorCredencial = createRateLimiter({ max: 60, windowMs: 60_000 });
@@ -106,7 +107,7 @@ async function resolverDespacho(
   if (!negocio?.slug) return { ok: false, respuesta: NO_DISPONIBLE };
   const tenantId = negocio.id;
   const actor = `agente:${p.nivel}`;
-  return enElNegocio(
+  const r = await enElNegocio(
     tenantId,
     async (tx) => {
       const rastro = (entityId: string | null, cambios: Record<string, unknown>) =>
@@ -123,6 +124,11 @@ async function resolverDespacho(
       const d = despachoActual(await eventosDelDespacho(tx, tenantId, t.id), p.nivel);
       if (!d || !vigenteParaElAgente(d, p.nonce, ahora())) {
         await rastro(t.id, { resultado: "sin_despacho" });
+        return { ok: false as const, respuesta: NO_DISPONIBLE };
+      }
+      // Interruptor «Soporte GSG» apagado en el negocio: un despacho que ya salió deja de valer (mismo 404).
+      if (!(await soporteGsgPrendidoEnTx(tx, tenantId))) {
+        await rastro(t.id, { despachoId: d.id, resultado: "soporte_apagado" });
         return { ok: false as const, respuesta: NO_DISPONIBLE };
       }
       const [{ n }] = await tx.$queryRaw<{ n: number }[]>`
@@ -142,6 +148,9 @@ async function resolverDespacho(
     },
     db,
   );
+  // Cartera: el interruptor del CLIENTE vive en su negocio (RLS): se lee parado en él. Apagado → mismo 404.
+  if (r.ok && r.ctx.clienteTenantId && !(await soporteGsgPrendidoEn(r.ctx.clienteTenantId, db))) return { ok: false, respuesta: NO_DISPONIBLE };
+  return r;
 }
 
 /**

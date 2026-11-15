@@ -35,7 +35,7 @@ import type { AppDescriptor, NombreIcono } from "./contract";
 import { ordenDeEspacio, ordenDentroDelEspacio } from "./espacios";
 import { REGISTRO_APPS } from "./registro";
 import { appDeRuta } from "./rutas";
-import { esAppOcultable } from "@/cambios/interruptores";
+import { esAppOcultable, type InterruptorId } from "@/cambios/interruptores";
 
 // ── Contexto del gate por módulo ─────────────────────────────────────────────
 
@@ -117,6 +117,11 @@ export interface NegocioApps {
    */
   ocultas?: ReadonlySet<string>;
   /**
+   * El estado de los interruptores del negocio (src/cambios/interruptores.server.ts). Una app con
+   * `interruptor` sólo existe si ese interruptor está prendido acá: ausente = apagado (fail-closed).
+   */
+  interruptores?: Readonly<Partial<Record<InterruptorId, { encendido: boolean }>>>;
+  /**
    * Las excepciones de la matriz de permisos de QUIEN MIRA (`SessionUser.overrides`). Sólo RESTAN: una casilla
    * apagada («Mover stock», «Abrir y cerrar caja», …) cierra la app aunque el rol la abriera; una prendida no
    * abre nada que el rol no abra (seguridad, 08/11/2026). Ausente = rige el rol, como antes.
@@ -134,8 +139,15 @@ export interface NegocioApps {
  *   edicion        → es de la edición por perfiles y el negocio no la tiene.
  *   oculta         → GSG la ocultó en este negocio (consola, «Apps ocultas»): se la vuelve a mostrar GSG.
  *   panel          → el panel de este negocio es cerrado y no la incluye (`panelCerrado`).
+ *   apagada        → su interruptor (`app.interruptor`) está apagado en este negocio: la app no existe para él.
+ *                    Va PRIMERO: no se le dice a nadie, ni por su rol, que la app existe.
  */
-export type MotivoNoDisponible = "rol" | "en-preparacion" | "modulo" | "rubro" | "edicion" | "oculta" | "panel";
+export type MotivoNoDisponible = "rol" | "en-preparacion" | "modulo" | "rubro" | "edicion" | "oculta" | "panel" | "apagada";
+
+/** ¿La app depende de un interruptor que en este negocio no está prendido? Ausente = apagado. PURA. */
+export function appApagadaPorInterruptor(app: AppDescriptor, n: Pick<NegocioApps, "interruptores">): boolean {
+  return app.interruptor !== undefined && n.interruptores?.[app.interruptor]?.encendido !== true;
+}
 
 /**
  * ¿El rol alcanza para entrar? `capability: null` = alcanza con la sesión. En un local de
@@ -235,6 +247,7 @@ export function rutaFueraDelPanel(path: string, panel: AppDescriptor, apps: read
 
 /** Por qué la persona no puede abrir la app, o `null` si puede. */
 export function motivoNoDisponible(app: AppDescriptor, n: NegocioApps): MotivoNoDisponible | null {
+  if (appApagadaPorInterruptor(app, n)) return "apagada";
   if (!rolPuedeEntrar(app, n.role, n)) return "rol";
   const panel = appDelPanelCerrado(n);
   if (panel && !entraEnElPanel(panel, app)) return "panel";
@@ -456,7 +469,8 @@ export function explicarNoDisponible(
   motivo: MotivoNoDisponible | null,
   n: Pick<NegocioApps, "role" | "esMostrador">,
 ): ExplicacionNoDisponible {
-  if (!app) {
+  // Apagada por su interruptor: como si no existiera (mismo texto que una dirección desconocida).
+  if (!app || motivo === "apagada") {
     return {
       titulo: "Esta pantalla no está disponible",
       porque: "La dirección que abriste no corresponde a ninguna app de tu negocio.",
