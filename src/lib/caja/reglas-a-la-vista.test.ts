@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { REGLAS_A_LA_VISTA, reglaALaVista } from "./reglas-a-la-vista";
+import { REGLAS_A_LA_VISTA, reglaALaVista, reglaDeVender } from "./reglas-a-la-vista";
 import { fronteraDeVenta, mensajeVentaEnDiaCerrado, planAnulacionVenta } from "@/lib/order-anulacion";
 import { mensajeFacturaViva } from "@/lib/factura-viva";
 
@@ -30,8 +30,15 @@ test("vender: con el día cerrado la venta cobrada se bloquea y la salida es dej
   const base = { paymentMethod: "EFECTIVO", hoy: "2026-10-18", cerradoHasta: "2026-10-18", esDiaCerrado: cerrado };
   assert.equal(fronteraDeVenta({ ...base, paid: true }).bloquea, true);
   assert.equal(fronteraDeVenta({ ...base, paid: false }).bloquea, false, "sin cobrar se registra");
-  assert.match(mensajeVentaEnDiaCerrado("2026-10-18", "2026-10-18"), /Destildá «Cobrado»/);
+  // UAT Magra 07-08/11: Vender no tiene la casilla «Cobrado» (tiene «Registrar sin cobrar»); el mensaje nombra las dos.
+  assert.match(mensajeVentaEnDiaCerrado("2026-10-18", "2026-10-18"), /«Registrar sin cobrar» o destildando «Cobrado»/);
   assert.match(REGLAS_A_LA_VISTA.vender, /se registra sin cobrar y se marca cobrada cuando la caja vuelve a abrir/);
+});
+
+test("vender: la regla del día cerrado se muestra sólo con el día cerrado (UAT Magra: decía que la venta no entraba cuando sí entró)", () => {
+  assert.equal(reglaDeVender(true, false), null, "día abierto: no se dice");
+  assert.equal(reglaDeVender(true, true), REGLAS_A_LA_VISTA.vender);
+  assert.equal(reglaDeVender(false, true), null, "CH no cambia");
 });
 
 test("caja: el arqueo del turno cuenta sólo el efectivo", () => {

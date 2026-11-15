@@ -38,7 +38,7 @@ import { todayInBusinessTz, fmtTime, dateStrInBusinessTz } from "@/lib/datetime"
 import { getDashboardData } from "@/lib/actions";
 import { COOKIE_FIJADAS, fijadasVisibles, leerFijadas } from "@/lib/apps-fijadas";
 import { getNegocioApps } from "@/apps/contexto.server";
-import { appsVisibles, proyectarMenuDeHoy } from "@/apps/visibles";
+import { appsVisibles, conMostradorEnLaBarra, proyectarMenuDeHoy } from "@/apps/visibles";
 import { espacioNav } from "@/apps/espacios";
 import type { AppDescriptor } from "@/apps/contract";
 import { cargarKpi, llevaNumero, type ResultadoKpi } from "@/apps/kpis/index.server";
@@ -86,7 +86,7 @@ async function contexto(): Promise<Contexto> {
   const [negocio, modoApps, interruptores] = await Promise.all([getNegocioApps(user.role, user.overrides), enInicioPorApps(), interruptoresDelNegocio()]);
   const visibles = appsVisibles(negocio);
   // Modo simple: el Inicio («Hoy») ofrece las mismas pantallas que la barra recortada.
-  const deHoy = proyectarMenuDeHoy(visibles);
+  const deHoy = conMostradorEnLaBarra(proyectarMenuDeHoy(visibles), visibles);
   const menu = (await modoSimpleDeLaSesion()).activo ? menuDeModoSimple(deHoy) : deHoy;
   // Las mismas apps que el menú del layout, incluida «Vouchers de La Alameda» con su interruptor prendido.
   const extras = appsDeInterruptores(interruptores, negocio);

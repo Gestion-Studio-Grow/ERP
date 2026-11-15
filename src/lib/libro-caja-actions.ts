@@ -35,6 +35,7 @@ import {
   formatMonthLabel,
   motivoParaNoBorrar,
   movimientoDelLedger,
+  pedidoDelAsiento,
   leerSinColumnasFaltantes,
   flagPossibleDuplicates,
   CASH_METHOD_LABEL,
@@ -221,6 +222,7 @@ type FilaLibroDb = {
   createdBy: string;
   collectionId: string | null;
   paymentId: string | null;
+  deLaTienda?: boolean;
 };
 
 // Las filas del mes. `collectionId` y `paymentId` son la referencia de un cobro de turno y
@@ -255,7 +257,21 @@ async function filasDelMes(tenantId: string, start: Date, end: Date): Promise<Fi
     },
     (err, columna) => isColumnMissing(err, columna),
   );
-  return filas;
+  return marcarPedidosDeLaTienda(tenantId, filas);
+}
+
+// El rótulo de una venta dice de dónde vino: un pedido de la tienda no es una venta del mostrador.
+// Una sola consulta por mes, sólo con los pedidos de los asientos de venta (`pedidoDelAsiento`).
+async function marcarPedidosDeLaTienda(tenantId: string, filas: FilaLibroDb[]): Promise<FilaLibroDb[]> {
+  const ids = [...new Set(filas.filter((f) => f.type === "VENTA").map(pedidoDelAsiento).filter((id): id is string => id !== null))];
+  if (ids.length === 0) return filas;
+  const deLaTienda = new Set(
+    (await prisma.order.findMany({ where: { tenantId, id: { in: ids }, channel: "ONLINE" }, select: { id: true } })).map((o) => o.id),
+  );
+  return filas.map((f) => {
+    const pedido = f.type === "VENTA" ? pedidoDelAsiento(f) : null;
+    return pedido && deLaTienda.has(pedido) ? { ...f, deLaTienda: true } : f;
+  });
 }
 
 // --- Cargar un asiento del libro ---

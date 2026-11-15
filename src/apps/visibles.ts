@@ -551,6 +551,38 @@ export function aterrizajeDelPanel(n: NegocioApps, apps: readonly AppDescriptor[
 }
 
 /**
+ * Vender (antes de Pedidos) y Ventas del día (después) en la barra, sólo para quien ya puede abrirlas
+ * (`appsVisibles`: módulo `pos` duro, así que CH y los negocios sin `pos` asignado no las reciben y su
+ * barra queda idéntica). UAT Magra 07-08/11: Vender sólo se alcanzaba desde Pedidos y Ventas del día
+ * (donde se anula y factura) sólo por URL; el puesto del Mostrador (`puestoDe` → Vender) tampoco estaba
+ * en su navegación. Mismo criterio que Proyectos: no entra a `menuDeHoy` (paridad dorada). PURA.
+ */
+export function conMostradorEnLaBarra(menu: readonly ItemMenuDeHoy[], visibles: readonly AppDescriptor[]): ItemMenuDeHoy[] {
+  const nueva = (id: string) => visibles.find((a) => a.id === id && !menu.some((i) => i.href === a.ruta));
+  const vender = nueva("vender");
+  const ventas = nueva("ventas-del-dia");
+  if (!vender && !ventas) return [...menu];
+  const i = menu.findIndex((m) => m.href === "/admin/pedidos");
+  const grupo = (i >= 0 ? menu[i].grupo : undefined) ?? grupoDeHoy("/admin/pedidos");
+  const item = (app: AppDescriptor): ItemMenuDeHoy => {
+    const it: ItemMenuDeHoy = { href: app.ruta, label: app.nombre, icon: app.icono };
+    if (app.palabras) it.alias = app.palabras;
+    if (grupo) it.grupo = grupo;
+    return it;
+  };
+  const salida = [...menu];
+  if (i >= 0) {
+    if (ventas) salida.splice(i + 1, 0, item(ventas));
+    if (vender) salida.splice(i, 0, item(vender));
+  } else {
+    // Sin Pedidos en la barra: detrás del Inicio (o primeras).
+    const inicio = salida.findIndex((m) => m.href === "/admin");
+    salida.splice(inicio + 1, 0, ...[vender, ventas].filter((a): a is AppDescriptor => !!a).map(item));
+  }
+  return salida;
+}
+
+/**
  * Proyectos en la barra, antes de la Agenda o primero si no hay, sólo para quien ve la app (`appsVisibles`:
  * módulo duro, así que CH y los demás negocios no la reciben y su barra queda idéntica). Mismo criterio que el
  * Cierre del mes: no entra a `menuDeHoy`, que ata la barra al menú viejo sin mirar la asignación del módulo. PURA.

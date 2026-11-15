@@ -201,8 +201,8 @@ export function mensajeVentaEnDiaCerrado(
   const abierto = nextDayKey(cerradoHasta);
   const salida =
     contexto === "alta"
-      ? `Destildá «Cobrado» para dejar la venta registrada y marcala cobrada el ${formatDayLabel(abierto)}, ` +
-        `cuando la caja vuelva a estar abierta.`
+      ? `Registrala sin cobrar (con «Registrar sin cobrar» o destildando «Cobrado») y marcala cobrada el ` +
+        `${formatDayLabel(abierto)}, cuando la caja vuelva a estar abierta.`
       : contexto === "caja-con-lector"
         ? `Esta caja vuelve a cobrar el ${formatDayLabel(abierto)}. Si hay que vender igual, cargá la venta en ` +
           `Vender sin tildar «Cobrado» y marcala cobrada el ${formatDayLabel(abierto)}.`
@@ -349,14 +349,45 @@ export type AnularVentaArgs = {
   soloSinPlata?: boolean;
 };
 
+/** Una línea que volvió al stock al anular. `saleUnit` es la de la LÍNEA (snapshot de la venta). */
+export type StockDevuelto = { productId: string; name: string; qty: number; saleUnit: "UNIT" | "WEIGHT" };
+
+/** «1,24 kg de Vacío» o «2 u. de Coca». PURA. */
+export function textoDeStockDevuelto(d: Pick<StockDevuelto, "name" | "qty" | "saleUnit">): string {
+  return `${formatearCantidad(d.qty)} ${d.saleUnit === "WEIGHT" ? "kg" : "u."} de ${d.name}`;
+}
+
+/**
+ * El aviso de una anulación hecha: nombra lo que se anuló (el pedido de la tienda o la venta del
+ * mostrador) y DICE lo que se movió —plata, cuenta, stock con su unidad, cupón—, para que nadie
+ * tenga que ir a mirar el libro y el stock para saber si hizo algo. Sólo texto: no decide nada. PURA.
+ */
+export function mensajeDeVentaAnulada(r: {
+  code: number;
+  esPedido: boolean;
+  montoRevertido: number;
+  stockDevuelto: readonly Pick<StockDevuelto, "name" | "qty" | "saleUnit">[];
+  cuponDevuelto: string | null;
+  cuentaAnulada: number | null;
+}): string {
+  const partes: string[] = [r.esPedido ? `Pedido #${r.code} anulado.` : `Venta #${r.code} anulada.`];
+  if (r.montoRevertido > 0) partes.push(`Se devolvieron ${fmtMoneyARS(r.montoRevertido)} en el libro de caja.`);
+  if (r.cuentaAnulada !== null) partes.push(`Se sacaron ${fmtMoneyARS(r.cuentaAnulada)} de la cuenta corriente del cliente.`);
+  if (r.stockDevuelto.length > 0) partes.push(`Volvió al stock: ${r.stockDevuelto.map(textoDeStockDevuelto).join(", ")}.`);
+  if (r.cuponDevuelto) partes.push(`El cupón ${r.cuponDevuelto} recuperó el uso que había gastado ${r.esPedido ? "este pedido" : "esta venta"}.`);
+  return partes.join(" ");
+}
+
 export type AnularVentaResult =
   | {
       applied: true;
       code: number;
       /** Plata devuelta al libro (0 si la venta no estaba cobrada: no había asiento). */
       montoRevertido: number;
-      /** Kilos/unidades que volvieron al stock, por producto. */
-      stockDevuelto: { productId: string; name: string; qty: number }[];
+      /** Del canal: un pedido de la tienda (ONLINE) se nombra «pedido»; el del mostrador, «venta». */
+      esPedido: boolean;
+      /** Kilos/unidades que volvieron al stock, por producto, con la unidad de la línea vendida. */
+      stockDevuelto: StockDevuelto[];
       reversaId: string | null;
       /** Código del cupón cuyo uso volvió a quedar disponible, o null si la venta no tenía. */
       cuponDevuelto: string | null;
@@ -398,10 +429,13 @@ export async function anularVentaInTx(
       status: true,
       paid: true,
       createdAt: true,
+      // Sólo para el aviso: «Pedido #N anulado» si vino de la tienda, «Venta #N» si del mostrador.
+      channel: true,
       items: {
         select: {
           productId: true,
           name: true,
+          saleUnit: true,
           quantity: true,
           product: { select: { trackStock: true } },
         },
@@ -561,7 +595,7 @@ export async function anularVentaInTx(
   }
 
   // (3) Los kilos vuelven. Sólo de los productos con control de stock, igual que la venta.
-  const stockDevuelto: { productId: string; name: string; qty: number }[] = [];
+  const stockDevuelto: StockDevuelto[] = [];
   if (args.devuelveStock) {
     for (const it of order!.items) {
       if (!it.productId || !it.product?.trackStock) continue;
@@ -577,7 +611,7 @@ export async function anularVentaInTx(
         reason: detalleStockDevuelto(order!.code, it.name),
         label: it.name,
       });
-      stockDevuelto.push({ productId: it.productId, name: it.name, qty });
+      stockDevuelto.push({ productId: it.productId, name: it.name, qty, saleUnit: it.saleUnit === "WEIGHT" ? "WEIGHT" : "UNIT" });
     }
   }
 
@@ -588,7 +622,7 @@ export async function anularVentaInTx(
   // P2 · pedido.cancelado@1 en ESTA transacción: si no se puede emitir, la anulación vuelve atrás.
   await emitirPedidoCancelado(tx, { tenantId, pedidoId: args.orderId, codigo: order!.code, motivo: args.motivo, reintegro: montoRevertido });
 
-  return { applied: true, code: order!.code, montoRevertido, stockDevuelto, reversaId, cuponDevuelto };
+  return { applied: true, code: order!.code, esPedido: order!.channel === "ONLINE", montoRevertido, stockDevuelto, reversaId, cuponDevuelto };
 }
 
 /**

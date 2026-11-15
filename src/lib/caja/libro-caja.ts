@@ -79,6 +79,9 @@ export type LibroMovement = {
   amount: number; // siempre > 0; el signo lo aplica `movementSign`
   detail: string;
   origin?: LibroOrigin; // ausente = "manual" (compatibilidad con las filas demo y los fixtures)
+  // El asiento es de un pedido que entró por la TIENDA (Order.channel ONLINE): no es una venta del
+  // mostrador aunque su origen técnico sea "pos". Lo completa el loader del libro; ausente = no.
+  deLaTienda?: boolean;
   // Clase CONTABLE de la fila y su referencia (ver `clasificarOrigen`). Las completa el
   // loader del libro, que es el único que lee `createdBy`; ausentes en demo y fixtures, y
   // el CSV las deriva de `type` y `origin` (`origenDeFila`).
@@ -105,11 +108,24 @@ export const LIBRO_ORIGIN_LABEL: Record<Exclude<LibroOrigin, "manual">, string> 
   turno: "Turno cobrado",
 };
 
+/** El rótulo del cobro de un pedido que entró por la tienda (origen "pos" con `deLaTienda`). */
+export const ROTULO_PEDIDO_DE_LA_TIENDA = "Pedido de la tienda";
+
+/**
+ * El pedido al que pertenece un asiento de venta: el `orderId` o, en un cobro con varios medios
+ * (que va sin `orderId`), el que dice su marca `venta-pago-mixto:<orderId>`. PURA.
+ */
+export function pedidoDelAsiento(m: { orderId?: string | null; createdBy?: string | null }): string | null {
+  if (m.orderId) return m.orderId;
+  return esAsientoDePagoMixto(m) ? String(m.createdBy).slice(PAGO_MIXTO_ACTOR_PREFIX.length) || null : null;
+}
+
 /**
  * El rótulo de una fila. Los cobros de Proyectos también son una VENTA sin pedido, y decir «Turno
  * cobrado» de un stand confunde: el detalle que asienta `registrarCobro` los identifica. PURA.
  */
-export function rotuloDeVenta(origen: Exclude<LibroOrigin, "manual">, detalle: string | null | undefined): string {
+export function rotuloDeVenta(origen: Exclude<LibroOrigin, "manual">, detalle: string | null | undefined, deLaTienda = false): string {
+  if (origen === "pos" && deLaTienda) return ROTULO_PEDIDO_DE_LA_TIENDA;
   return origen === "turno" && esDetalleDeProyecto(detalle) ? "Cobro de proyecto" : LIBRO_ORIGIN_LABEL[origen];
 }
 
@@ -406,6 +422,8 @@ export type FilaLedger = {
   collectionId?: string | null;
   paymentId?: string | null;
   tallerPagoId?: string | null;
+  /** El pedido del asiento entró por la tienda (lo resuelve el loader con `pedidoDelAsiento`). */
+  deLaTienda?: boolean;
 };
 
 // --- Columnas de REFERENCIA que pueden faltar en la base ---
@@ -463,6 +481,7 @@ export function movimientoDelLedger(r: FilaLedger): LibroMovement {
     amount: r.amount,
     detail: r.reason ?? "",
     origin: libroOrigin(r),
+    ...(r.deLaTienda && libroOrigin(r) === "pos" ? { deLaTienda: true } : {}),
     origenContable: origen,
     referencia,
     borrable: motivoParaNoBorrar(r) === null,
@@ -478,7 +497,8 @@ export function origenDeFila(m: LibroMovement): OrigenContable {
  * De dónde salió una fila, para leer en pantalla. `libroOrigin` llama «manual» a todo lo que no es
  * una venta: una anulación o un faltante de arqueo no los cargó nadie a mano. PURA.
  */
-export function rotuloDeOrigen(m: { type: CashMovementType; origin?: LibroOrigin; origenContable?: OrigenContable; detail?: string | null }): string {
+export function rotuloDeOrigen(m: { type: CashMovementType; origin?: LibroOrigin; origenContable?: OrigenContable; detail?: string | null; deLaTienda?: boolean }): string {
+  if (m.origin === "pos" && m.deLaTienda) return ROTULO_PEDIDO_DE_LA_TIENDA.toLowerCase();
   if (m.origin === "turno" && esDetalleDeProyecto(m.detail)) return "cobro de proyecto";
   if (m.origin === "pos" || m.origin === "turno") return LIBRO_ORIGIN_LABEL[m.origin].toLowerCase();
   const origen = m.origenContable ?? origenContable({ type: m.type, origin: m.origin });
