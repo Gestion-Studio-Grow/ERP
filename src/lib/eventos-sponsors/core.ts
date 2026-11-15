@@ -259,8 +259,9 @@ function motivoDeContacto(fila: Record<string, unknown>, textos: Record<string, 
     const motivo = motivoDeTexto(v);
     if (motivo) return `el campo «${campo}» ${motivo}: la fila no se guarda`;
   }
-  // Las cifras se suman en toda la fila: un teléfono partido entre «nombre» y «lugar» suma igual.
-  const juntos = Object.values(textos).filter((v): v is string => typeof v === "string").join(" · ");
+  // Las cifras se suman en toda la fila: un teléfono partido entre «nombre» y «lugar» suma igual. El «¶» que los une no
+  // arma ninguna forma declarada. (Las URL no entran en esta suma: su ruta se guarda con hasta 5 cifras sueltas.)
+  const juntos = Object.values(textos).filter((v): v is string => typeof v === "string").join(" ¶ ");
   if (motivoDeTexto(juntos, MAX_CIFRAS_SUELTAS_FILA)) return "entre sus campos trae números que pueden ser un teléfono: la fila no se guarda";
   return null;
 }
@@ -463,6 +464,7 @@ export function validarPedido(
   const r = typeof donde.region === "string" ? donde.region.trim().replace(/\s+/g, " ") : "";
   if (r.length > MAX_REGION_PEDIDO) return { ok: false, motivo: `La región es muy larga: hasta ${MAX_REGION_PEDIDO} caracteres.` };
   if (motivoDeTexto(r)) return { ok: false, motivo: "La región trae un mail o números que pueden ser un teléfono: este módulo no guarda datos de contacto de personas." };
+  if (motivoDeTexto(`${t} ¶ ${r}`, MAX_CIFRAS_SUELTAS_FILA)) return { ok: false, motivo: "Entre el pedido y la región hay números que pueden ser un teléfono: este módulo no guarda datos de contacto de personas." };
   const region = r || (p === "descubridor" ? REGION_POR_DEFECTO : null);
   const dia = (v: unknown): string | null | undefined => (v === undefined || v === null || v === "" ? null : esDia(v) ? v : undefined);
   const desde = dia(donde.desde);

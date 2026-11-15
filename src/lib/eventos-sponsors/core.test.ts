@@ -170,6 +170,8 @@ const TELEFONOS_Y_MAILS = [
   "Teléf. 2034-5678 hs", "Teléf. 421.234 Juan", "Telef. 2019-2031", "Telf 2034-5678", "Tél. 2034-5678", "Celu 2034-5678", "Whats 2034-5678", "WA 2034-5678", "Mov. 2034-5678", "Contacto 2034-5678", "421.234 Juan", "421,234 Juan", "421.234 personas", "Stand 421.234 visitantes", "421.234 - 567.890 Juan", "2034-5678ㅤ", "11ㅤ2019-2031", "Tel 4567-12 al 30 de mayo", "4567-12 al 30 de mayo", "11.23.12.30", "x -45.678901 y", "Olivars 456-789", "Exp. 2034-56789", "ISSN 4567-8901 Juan", "ver https://ferias.com:11456/78901", "ver http://4567.ar/8901", "ver https://expo४५६७८९०१.com/",
   // Tercera certificación (15/11): mails con «arroba/punto/at/dot», fechas y horas en pares, palabras, formas cortas.
   "Organiza Juan Pérez (juan.perez arroba gmail punto com)", "info arroba expo punto com punto ar", "juan.perez AT gmail DOT com", "josé @ gmail.com", "https://f.com/juan＠gmail.com", "15-30-12-34", "Ana 23-07-24", "Ana 21.45.32", "Ana 12:34:56", "Comuníquese al 23-07-24", "Número 2019-2031", "Nro 2019-2031", "Línea 2019-2031", "Escribí al 2019-2031", "Ana 4567, 12 y 30 de mayo", "Juan 421 – 56 – 12, 18 y 19 de noviembre", "Expte 11456, Ana 78901", "11.456 - 78.901 asistentes", "$ 11.456 / 78.901", "Expte 1145-67, Ana 8901", "Ley 785.887 de lunes a viernes", "Ana 28-29-07 en 2026", "La Rural · 30–10–11", "Juan 15.19 1974", "1960-241 sponsors",
+  // Cuarta certificación (15/11, CERTIFICA) — observaciones cerradas igual: mails sin dominio o con «[@]», fechas de a pares.
+  "juan@hotmail", "juan [@] gmail.com", "juan(a)gmail.com", "juan@gmail,com", "juan@gmail。com", "https://expo.example/contacto/juan%2540gmail.com", "Ana 21-02-20-02", "Juan 25-08-17/02", "Coordinadora: 30.11 12.05", "Ana 21/02 20/02", "Coordinadora: 21/02/20/02 Juan", "Ana 28-03-15-06",
 ];
 
 const TEXTO_REAL_QUE_ENTRA = [
@@ -255,6 +257,16 @@ test("validarLote: un teléfono partido entre dos campos de la fila la deja afue
   if (!r.ok) return;
   assert.deepEqual(r.eventos.map((e) => e.nombre), ["Open 2027 (ATP 250)"]);
   assert.ok(r.rechazos.some((x) => /entre sus campos/.test(x.motivo) && !/4567|8901/.test(JSON.stringify(x))));
+});
+
+test("validarLote: el «·» con que se unen los campos no arma un año y una cifra", () => {
+  const r = validarLote({ eventos: [evento({ nombre: "Feria 4567 en 2026", lugar: "8901 expositores" })] });
+  assert.equal(r.ok, false);
+});
+
+test("validarPedido: un teléfono partido entre el pedido y la región no entra", () => {
+  assert.equal(validarPedido("descubridor", "Buscá ferias 4567", { region: "Zona 8901" }).ok, false);
+  assert.equal(validarPedido("descubridor", "Buscá ferias de 2027", { region: "Córdoba" }).ok, true);
 });
 
 test("validarLote: una línea del registro con un teléfono no se guarda y se cuenta", () => {

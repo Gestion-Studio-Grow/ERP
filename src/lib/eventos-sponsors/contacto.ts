@@ -13,7 +13,8 @@
 // del AMBA partido entre «nombre» y «lugar» no entra. Formas declaradas:
 //   · Fechas, horas y años (1950-2049), solos o en lista: «2026», «2015-2026», «14/11/2026», «20-22/05», «10.00-18.00»,
 //     ISO «2026-11-14T23:14:46Z». Una lista hecha SÓLO de años tiene que crecer («2024-2019» no es un rango). Sin año de
-//     2 cifras («23-07-24») y horas sin segundos, con minutos de a 5 («12:34:56», «15.19» no).
+//     2 cifras («23-07-24») y horas sin segundos, con minutos de a 5 («12:34:56», «15.19» no). Una fecha sin año va sola
+//     (o con un año adelante): «21/02 20/02» no.
 //   · Hasta 3 días crecientes de un mes («18, 19 y 20 de noviembre», «10 al 13 de marzo») y horarios en horas enteras
 //     («14 a 20hs»), si no vienen pegados a otro número que no sea un año.
 //   · Un año y una cifra de hasta 4 dígitos con su unidad: «En 2026: 1500 expositores» (no «1960-241», no «4567 · 2026»).
@@ -28,7 +29,8 @@
 // Si el texto nombra un teléfono (palabras que empiezan con tel, cel, whats, mov, llam; wa, fax, contacto, informes,
 // consultas, número, nro, línea, escribí, interno…), ninguna forma vale: 6 cifras o más en todo el texto (incluidos
 // días y horarios) lo dejan afuera.
-// Mails, también disfrazados: «juan @ gmail.com», «juan(at)gmail.com», «juan arroba gmail punto com», «＠».
+// Mails, también disfrazados: «juan @ gmail.com», «juan(at)gmail.com», «juan [@] gmail,com», «juan arroba gmail punto
+// com», «juan@hotmail», «＠», y codificados una o más veces («%2540»).
 //
 // Rechazar de más se acepta y se ve en «Quedaron afuera»: «Stand 1210/1211», «$ 15000-25000», «Pabellones 1 a 8» en
 // lista, «Matrícula 1234-5678», una cantidad sin unidad o de 6 cifras no redonda, «123.456 visitantes».
@@ -39,6 +41,9 @@
 //   · Un número con año después de Ley/Expte. («Expte. 97-2019») o dos importes redondos tras «$»: sólo con esa palabra
 //     o ese signo adelante.
 //   · Cifras escritas con letras («4S67-89OI», «cuatro cinco…»): fuera de alcance de una revisión de dígitos.
+//   · Un teléfono partido entre filas (evento y marca, dos líneas del registro) o entre un texto y la ruta de una URL
+//     (cada parte con 5 cifras o menos), y un local de 7 cifras partido entre dos campos de la misma fila (tope 7).
+//     Son formas artificiales; sumarlas dejaba afuera eventos reales («133° Abierto…» con su URL «/detalle/9326»).
 //
 // URLs: http(s), sin enlaces de contacto (mailto:, tel:, WhatsApp, Telegram) ni mails. Se guardan sin la query ni el
 // fragmento; si la ruta trae números no declarados se guarda sólo el dominio; si el dominio los trae, no se guarda.
@@ -69,16 +74,19 @@ const MES = "(?:0?[1-9]|1[0-2])";
 const ISO_HORA = "(?:T\\d{2}:\\d{2}(?::\\d{2}(?:\\.\\d+)?)?(?:Z|[+-]\\d{2}:?\\d{2})?)?";
 const FECHA = [
   `${ANIO}[-/.]${MES}[-/.]${DIA}${ISO_HORA}`, // 2026-11-14, 2026/11/14
-  `${DIA}[-./]${MES}(?:[-./]${ANIO})?`, // 14/11/2026, 14-11-2026, 14/11 (el año de 2 cifras no: «23-07-24» puede ser un fijo)
-  `${DIA}\\s?-\\s?${DIA}/${MES}(?:/${ANIO})?`, // 20-22/05/2025, 20-22/05 (un rango de días, sólo con barra)
+  `${DIA}[-./]${MES}[-./]${ANIO}`, // 14/11/2026, 14-11-2026 (el año de 2 cifras no: «23-07-24» puede ser un fijo)
+  `${DIA}\\s?-\\s?${DIA}/${MES}/${ANIO}`, // 20-22/05/2025 (un rango de días, sólo con barra)
   `${MES}/${DIA}/${ANIO}`, // 11/14/2026
 ].join("|");
+// Sin año, una sola por corrida y como mucho con un año adelante («14/11», «2027 (20-22/05)»): dos seguidas
+// («21-02-20-02», «21/02 20/02») son un fijo escrito de a pares.
+const FECHA_SIN_ANIO = `(?:${DIA}[-./]${MES}|${DIA}\\s?-\\s?${DIA}/${MES})`;
 // Sin segundos y con minutos de a 5 («10.00», «14:30», «18:45»): «12:34:56» o «15.19» pueden ser parte de un teléfono.
 const HORA = "(?:[01]?\\d|2[0-3])[:.][0-5][05]";
 const TEMPORAL = `(?:${FECHA}|${HORA}|${ANIO})(?!\\d)`;
 // Entre dos fechas u horas, un separador de un solo signo no puede ser «.» ni «:» («11.23.12.30» no es una lista).
 const ENTRE_TEMPORALES = "(?:[^\\p{L}\\p{N}.:]|[^\\p{L}\\p{N}]{2,4})";
-const LISTA_TEMPORAL = new RegExp(`^${TEMPORAL}(?:${ENTRE_TEMPORALES}${TEMPORAL})*$`, "u");
+const LISTA_TEMPORAL = new RegExp(`^${TEMPORAL}(?:${ENTRE_TEMPORALES}${TEMPORAL})*$|^(?:${ANIO}${ENTRE_TEMPORALES})?${FECHA_SIN_ANIO}$`, "u");
 const SOLO_ANIOS = new RegExp(`^${ANIO}(?:[^\\p{L}\\p{N}]{1,4}${ANIO})+$`, "u");
 // Un año y DESPUÉS una cifra de hasta 4 dígitos con su unidad en letras («En 2026: 1500 expositores»). Al revés no:
 // «4567 · 2026» tiene la forma de un fijo del AMBA.
@@ -224,14 +232,27 @@ function numerosNoDeclarados(crudo: string, maxSueltas = MAX_CIFRAS_SUELTAS): bo
 const PARECE_MAIL = /[^\s@]+@[^\s@]+\.\p{L}{2,}/iu;
 // Disfrazados: «josé @ gmail.com», «juan(at)gmail.com», «juan [arroba] gmail . com», «juan arroba gmail punto com»,
 // «juan AT gmail DOT com».
-const ARROBA = "(?:@|[([{]\\s*(?:at|arroba)\\s*[)\\]}]|\\s(?:at|arroba)\\s)";
-const PUNTO = "(?:\\.|[([{]\\s*(?:dot|punto)\\s*[)\\]}]|\\s(?:dot|punto)\\s)";
+const ARROBA = "(?:@|[([{]\\s*(?:at|arroba|@|a)\\s*[)\\]}]|\\s(?:at|arroba)\\s)";
+const PUNTO = "(?:[.,。｡]|[([{]\\s*(?:dot|punto)\\s*[)\\]}]|\\s(?:dot|punto)\\s)";
+// Una arroba pegada a un usuario y a un dominio, aunque falte el «.com»: «juan@hotmail». («@expo» suelto no.)
+const ARROBA_PEGADA = /[\p{L}\p{N}._%+-]@[\p{L}\p{N}]/u;
 const PARECE_MAIL_OFUSCADO = new RegExp(`[\\p{L}\\p{N}._%+-]+\\s*${ARROBA}\\s*[\\p{L}\\p{N}-]+\\s*${PUNTO}\\s*\\p{L}{2,}`, "iu");
 const ESQUEMA_DE_CONTACTO = /^\s*(?:mailto|tel|sms|whatsapp|callto|skype):/i;
 const HOST_DE_CONTACTO = /^(?:wa\.me|wa\.link|t\.me|telegram\.me|(?:[a-z0-9-]+\.)*whatsapp\.(?:com|net))$/;
 
 /** Decodifica lo que se pueda: un «%» suelto no deja el resto codificado. */
+/** Decodifica hasta que no cambie: «%2540» es «%40», que es «@». */
 function decodificar(s: string): string {
+  let actual = s;
+  for (let i = 0; i < 5; i++) {
+    const siguiente = decodificarUnaVez(actual);
+    if (siguiente === actual) break;
+    actual = siguiente;
+  }
+  return actual;
+}
+
+function decodificarUnaVez(s: string): string {
   try {
     return decodeURIComponent(s);
   } catch {
@@ -247,7 +268,7 @@ function decodificar(s: string): string {
 
 function traeMail(t: string): boolean {
   const d = paraRevisar(decodificar(t)); // «＠» de ancho completo, también codificado, es una arroba
-  return PARECE_MAIL.test(d) || PARECE_MAIL_OFUSCADO.test(d);
+  return PARECE_MAIL.test(d) || PARECE_MAIL_OFUSCADO.test(d) || ARROBA_PEGADA.test(d);
 }
 
 export type UrlRevisada =
@@ -276,7 +297,9 @@ export function revisarUrl(crudo: unknown, maximo = 1000): UrlRevisada | null {
   const dominio = paraRevisar(host.replace(/\./g, " "));
   if (/^\d+(?:\.\d+){3}$/.test(host) || numerosNoDeclarados(dominio)) return { ok: false, motivo: "el dominio trae números que pueden ser un teléfono" };
   // Dominio y ruta se cuentan juntos: «4567.ar/8901» es un teléfono partido entre los dos.
-  const soloDominio = numerosNoDeclarados(`${dominio} / ${paraRevisar(decodificar(u.pathname))}`);
+  // La ruta se mira cruda, decodificada una vez y del todo: «45%2567%8901» esconde cifras en cada lectura.
+  const lecturas = [u.pathname, decodificarUnaVez(u.pathname), decodificar(u.pathname)];
+  const soloDominio = lecturas.some((ruta) => numerosNoDeclarados(`${dominio} / ${paraRevisar(ruta)}`));
   const url = soloDominio ? `${u.origin}/` : `${u.origin}${u.pathname}`;
   if (url.length > maximo) return null;
   return { ok: true, url, soloDominio };
