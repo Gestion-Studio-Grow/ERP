@@ -36,6 +36,8 @@ async function trabadosEnCandado(c: pg.Client, clave: string): Promise<number> {
 
 /** Conexiones de esta base (menos la del test) esperando un bloqueo de fila. `pg_locks`, no `wait_event`: éste se ve sólo con el mismo rol. */
 async function esperandoFila(c: pg.Client): Promise<number> {
+  // Adentro de la transacción del test, la vista de conexiones queda congelada: sin limpiarla, una conexión nueva del pool no aparece.
+  await c.query("SELECT pg_stat_clear_snapshot()");
   const r = await c.query<{ n: number }>(
     `SELECT count(DISTINCT pid)::int AS n FROM pg_locks
       WHERE NOT granted AND locktype IN ('transactionid', 'tuple') AND pid <> pg_backend_pid()

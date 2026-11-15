@@ -18,8 +18,13 @@ const DIA = 86_400_000;
 const PLAZO_MS = 20_000;
 const AHORA = Date.parse("2026-11-10T12:00:00Z");
 
-/** Conexiones de esta base (menos la del test) esperando un bloqueo de fila. `pg_locks`, no `wait_event`: éste se ve sólo con el mismo rol. */
+/**
+ * Conexiones de esta base (menos la del test) esperando un bloqueo de fila. `pg_locks`, no `wait_event`: éste se ve sólo
+ * con el mismo rol. Se limpia la foto de estadísticas antes de mirar: adentro de la transacción del test,
+ * `pg_stat_activity` queda congelada en la primera consulta y una conexión que el pool abre después no aparecería nunca.
+ */
 async function esperandoFila(c: pg.Client): Promise<number> {
+  await c.query("SELECT pg_stat_clear_snapshot()");
   const r = await c.query<{ n: number }>(
     `SELECT count(DISTINCT pid)::int AS n FROM pg_locks
       WHERE NOT granted AND locktype IN ('transactionid', 'tuple') AND pid <> pg_backend_pid()
