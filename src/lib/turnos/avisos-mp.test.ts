@@ -128,5 +128,5 @@ test("GSG-FACT-012: el pago de MP que excede el turno ya cobrado se avisa para r
   assert.equal(avisoMPDeFila(fila({ pagoMP: { id: "78" }, motivo: "Este turno ya está cobrado por completo." }))?.tipo, "no-registrada");
   assert.equal((avisoMPDeFila(fila({ pagoMP: { id: "78" }, motivo: "Este turno ya está cobrado por completo." })) as { excedeElTurno?: true }).excedeElTurno, true);
   const textos = textosAvisoMP({ estado: "COMPLETED", senia: 0, cobrado: 15000, cobros: [], avisosMP: [aviso!] });
-  assert.match(textos[0], /con el turno ya cobrado: no se facturó\. Revisá si hay que devolverlo$/);
+  assert.match(textos[0], /con el turno ya saldado: no se facturó\. Revisá si hay que devolverlo$/);
 });

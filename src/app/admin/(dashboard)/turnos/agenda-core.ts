@@ -562,7 +562,7 @@ export function textosAvisoMP(t: Pick<TurnoDelDia, "estado" | "senia" | "cobrado
       if (nota && t.cobros.some((c) => c.note === nota)) continue;
       const monto = a.monto !== null && a.monto > 0 ? ` (${pesos(a.monto)})` : "";
       if (a.excedeElTurno) {
-        textos.push(`Entró un pago por Mercado Pago${monto} con el turno ya cobrado: no se facturó. Revisá si hay que devolverlo`);
+        textos.push(`Entró un pago por Mercado Pago${monto} con el turno ya saldado: no se facturó. Revisá si hay que devolverlo`);
         continue;
       }
       textos.push(

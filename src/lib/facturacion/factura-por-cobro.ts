@@ -430,13 +430,30 @@ async function pagoMPExcedeElTurnoInTx(tx: InvoiceTx, tenantId: string, cobro: C
     }),
     tx.cobroFacturado.findMany({
       where: { tenantId, appointmentId: cobro.appointmentId, invoice: { status: { not: "REJECTED" } } },
-      select: { clave: true, importe: true },
+      select: { clave: true, importe: true, invoiceId: true },
     }),
   ]);
   if (!turno) return false;
   const precio = Number(turno.priceAtBooking ?? turno.service.price);
   const filas = libro.map((c) => ({ id: c.id, amount: Number(c.amount), method: c.method, note: c.note }));
-  const otrosPagosMP = facturadas.filter((f) => esPagoMP(f.clave) && f.clave !== cobro.clave).reduce((a, f) => a + Number(f.importe), 0);
+  // Lo facturado por otros pagos de MP, por factura, menos sus notas de crédito vivas (una seña de MP
+  // anulada con su nota de crédito ya no ocupa lugar en el turno).
+  const porFactura = new Map<string, number>();
+  for (const f of facturadas) {
+    if (!esPagoMP(f.clave) || f.clave === cobro.clave) continue;
+    porFactura.set(f.invoiceId, (porFactura.get(f.invoiceId) ?? 0) + centavosDe(Number(f.importe)));
+  }
+  const notas = porFactura.size
+    ? await tx.invoice.findMany({
+        where: { tenantId, comprobanteAsociadoId: { in: [...porFactura.keys()] }, status: { not: "REJECTED" } },
+        select: { comprobanteAsociadoId: true, total: true },
+      })
+    : [];
+  for (const nc of notas) {
+    const id = nc.comprobanteAsociadoId;
+    if (id && porFactura.has(id)) porFactura.set(id, (porFactura.get(id) ?? 0) - centavosDe(Number(nc.total)));
+  }
+  const otrosPagosMP = [...porFactura.values()].reduce((a, c) => a + Math.max(0, c), 0) / 100;
   return pagoMPExcedeElTurno({ precio, monto: cobro.importe, filas, otrosPagosMP });
 }
 
