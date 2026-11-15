@@ -115,6 +115,9 @@ async function preparar(t: import("node:test").TestContext) {
 
   const acciones = await import("./acciones");
   const empresa = await import("./acciones-empresa");
+  const datos = await import("./datos.server");
+  const ficha = await import("./ficha.server");
+  const gestion = await import("./gestion.server");
 
   let numero = (await duenio.proyecto.count()) + 700;
   /** Proyecto confirmado de A; con `aprobado`, presupuesto aprobado por $ 1.210 (tope del cobro). */
@@ -158,7 +161,7 @@ async function preparar(t: import("node:test").TestContext) {
   };
   const atados = async (cuotaId: string) => duenio.proyectoMovBanco.count({ where: { cuotaId } });
   const claveCobranza = (proyectoId: string) => `cobranza-proyecto:${a.id}:${proyectoId}`;
-  return { base, duenio, proyecto, cuota, cuenta, movimiento, clave, cobrar, conciliar, plata, atados, claveCobranza };
+  return { base, duenio, enSesion, datos, ficha, gestion, proyecto, cuota, cuenta, movimiento, clave, cobrar, conciliar, plata, atados, claveCobranza };
 }
 
 // ── H1 · Registrar cobro ────────────────────────────────────────────────────
@@ -232,6 +235,19 @@ test("H1.g la misma clave con otro monto (se cortó y se tipeó otro cobro): avi
   assert.deepEqual(await p.plata(id), { pagos: 2, suma: 1200, asientos: 2 });
 });
 
+test("H1.h el mismo envío, reintentado después de que alguien anuló ese cobro: avisa y no lo da por hecho", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const id = await p.proyecto(false);
+  const k = p.clave();
+  assert.deepEqual(await p.cobrar(id, 400, k)(), { ok: true });
+  await p.duenio.proyectoPago.updateMany({ where: { proyectoId: id }, data: { anuladoEl: new Date(), anuladoPor: "QA" } });
+  const r = await p.cobrar(id, 400, k)();
+  assert.equal(r.ok, false);
+  assert.deepEqual(await p.plata(id), { pagos: 0, suma: 0, asientos: 0 }, "no graba de nuevo con la clave vieja");
+  assert.deepEqual(await p.cobrar(id, 400, p.clave())(), { ok: true }, "con clave nueva (el navegador la renueva al recibir respuesta) entra");
+});
+
 test("H1.e sin clave (o con una que no tiene forma de clave) se graba como siempre", async (t) => {
   const p = await preparar(t);
   if (!p) return;
@@ -296,6 +312,18 @@ test("H1.f sin la columna claveEnvio, el cobro se graba como antes de la migraci
     assert.deepEqual(await p.cobrar(id, 250, k)(), { ok: true });
     assert.deepEqual(await p.cobrar(id, 250, k)(), { ok: true }, "sin columna no hay cómo reconocer el repetido: entra, como antes");
     assert.deepEqual(await p.plata(id), { pagos: 2, suma: 500, asientos: 2 });
+    // Y las pantallas que listan cobros leen sin la columna.
+    const leidos = await p.enSesion(async () => {
+      const f = await p.datos.fichaProyecto(id);
+      const a = await p.gestion.actorActual();
+      const cab = await p.ficha.cabeceraFicha(a, id);
+      assert.ok(cab, "la cabecera de la ficha");
+      const vista = p.ficha.vistaDe(a);
+      const fin = await p.ficha.datosFinanzas(a, cab, vista);
+      const seg = await p.ficha.datosSeguimiento(a, cab, vista);
+      return [f?.proyecto?.pagos?.length, fin.pagos.length, seg.pagos.length];
+    });
+    assert.deepEqual(leidos, [2, 2, 2], "ficha, finanzas y seguimiento muestran los dos cobros");
   } finally {
     await c.query(`ALTER TABLE "ProyectoPago" RENAME COLUMN "claveEnvioOculta" TO "claveEnvio"`);
     await c.end();
