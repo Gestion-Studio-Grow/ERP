@@ -159,6 +159,14 @@ export async function facturarCobrosInTx(
    * el cobro ya tenía una factura viva, con ésa. Si lanza, se deshace todo.
    */
   alFacturar?: (tx: InvoiceTx, invoiceId: string) => Promise<void>,
+  /**
+   * GSG-FACT-011 · X1 · La factura viva que OTRO camino ya emitió para este mismo cobro con OTRA
+   * clave (el extracto del banco con `banco:<hash>` y el aviso de MP con `mp:<id>`: el índice único
+   * no los arbitra), o `null`. Se mira ACÁ, con el candado del cupo tomado por el llamador (los dos
+   * caminos lo toman): con READ COMMITTED, esta lectura ve lo que el otro confirmó mientras éste
+   * esperaba. Si devuelve una factura, los cobros se ATAN a ella y no se emite otra.
+   */
+  facturaPrevia?: (tx: InvoiceTx) => Promise<string | null>,
 ): Promise<string> {
   if (cobros.length === 0) throw new Error("facturarCobros: sin cobros no hay factura.");
   await tomarClaves(tx, input.tenantId, cobros.map((c) => c.clave));
@@ -166,6 +174,12 @@ export async function facturarCobrosInTx(
   if (vivo) {
     if (alFacturar) await alFacturar(tx, vivo.invoiceId);
     return vivo.invoiceId;
+  }
+  const previa = facturaPrevia ? await facturaPrevia(tx) : null;
+  if (previa) {
+    for (const c of cobros) await vincularCobroInTx(tx, input.tenantId, c, previa);
+    if (alFacturar) await alFacturar(tx, previa);
+    return previa;
   }
   if (verificarCupo) await verificarCupo(tx);
   const comprobante = ajustarComprobante ? await ajustarComprobante(tx, input) : input;
@@ -197,14 +211,19 @@ export async function facturarCobros(
     ajustarComprobante?: (tx: InvoiceTx, input: CreateInvoiceInput) => Promise<CreateInvoiceInput>;
     /** GSG-FACT-011 · R4 · Escritura del llamador en la misma transacción que la factura. */
     alFacturar?: (tx: InvoiceTx, invoiceId: string) => Promise<void>;
+    /**
+     * GSG-FACT-011 · X1 · La factura del mismo cobro emitida por otro camino con otra clave, leída bajo
+     * el candado del cupo (lo toma también si no hay `verificarCupo`). Ver `facturarCobrosInTx`.
+     */
+    facturaPrevia?: (tx: InvoiceTx) => Promise<string | null>;
   } = {},
 ): Promise<string> {
-  const { verificarCupo, ajustarComprobante, alFacturar } = opciones;
+  const { verificarCupo, ajustarComprobante, alFacturar, facturaPrevia } = opciones;
   const correr = () =>
     tenantTransaction(
       async (tx) => {
-        if (verificarCupo || ajustarComprobante) await tomarCandadoDelCupo(tx, input.tenantId);
-        return facturarCobrosInTx(tx, input, cobros, verificarCupo, ajustarComprobante, alFacturar);
+        if (verificarCupo || ajustarComprobante || facturaPrevia) await tomarCandadoDelCupo(tx, input.tenantId);
+        return facturarCobrosInTx(tx, input, cobros, verificarCupo, ajustarComprobante, alFacturar, facturaPrevia);
       },
       { tenantId: input.tenantId },
     );

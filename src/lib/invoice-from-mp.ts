@@ -43,6 +43,12 @@ export interface DepsFacturarPagoMP {
    * referencia del pago y factura viva), o `null`. Opcional.
    */
   facturaDelExtracto?: (tenantId: string, paymentId: string, pago?: { importe: number; fecha: string }) => Promise<string | null>;
+  /**
+   * GSG-FACT-011 · X1 · La misma mirada, dentro de la transacción de la factura y con el candado del
+   * cupo tomado (`facturarCobros(…, { facturaPrevia })`): el lote del extracto factura el mismo pago
+   * con otra clave (`banco:<hash>`), y el índice único no los arbitra. Opcional (dobles de test).
+   */
+  facturaDelExtractoEnTx?: typeof facturaDelExtractoEnTx;
   vincularCobro?: typeof vincularCobro;
   /**
    * Pago de un TURNO: decide (factura del turno, factura del cobro del libro o factura propia) y
@@ -64,26 +70,31 @@ async function facturaDelExtractoPrisma(
   paymentId: string,
   pago?: { importe: number; fecha: string },
 ): Promise<string | null> {
-  return tenantTransaction(
-    async (tx) => {
-      const movs = await tx.movimientoImportado.findMany({
-        where: { tenantId, referencia: paymentId, invoiceId: { not: null } },
-        select: { invoiceId: true, monto: true, fecha: true, importacion: { select: { origen: true } } },
-        orderBy: { createdAt: "asc" },
-        take: 20,
-      });
-      for (const mov of movs) {
-        const esElPago =
-          mov.importacion.origen === "mercadopago" ||
-          (pago != null && mismoCobroQueElPagoMP({ importe: Number(mov.monto), fecha: mov.fecha }, pago));
-        if (!esElPago || !mov.invoiceId) continue;
-        const f = await tx.invoice.findFirst({ where: { tenantId, id: mov.invoiceId, status: { not: "REJECTED" } }, select: { id: true } });
-        if (f) return f.id;
-      }
-      return null;
-    },
-    { tenantId },
-  );
+  return tenantTransaction((tx) => facturaDelExtractoEnTx(tx, tenantId, paymentId, pago), { tenantId });
+}
+
+/** `facturaDelExtractoPrisma` dentro de la transacción del llamador (X1: bajo el candado del cupo). */
+export async function facturaDelExtractoEnTx(
+  tx: Pick<InvoiceTx, "movimientoImportado" | "invoice">,
+  tenantId: string,
+  paymentId: string,
+  pago?: { importe: number; fecha: string },
+): Promise<string | null> {
+  const movs = await tx.movimientoImportado.findMany({
+    where: { tenantId, referencia: paymentId, invoiceId: { not: null } },
+    select: { invoiceId: true, monto: true, fecha: true, importacion: { select: { origen: true } } },
+    orderBy: { createdAt: "asc" },
+    take: 20,
+  });
+  for (const mov of movs) {
+    const esElPago =
+      mov.importacion.origen === "mercadopago" ||
+      (pago != null && mismoCobroQueElPagoMP({ importe: Number(mov.monto), fecha: mov.fecha }, pago));
+    if (!esElPago || !mov.invoiceId) continue;
+    const f = await tx.invoice.findFirst({ where: { tenantId, id: mov.invoiceId, status: { not: "REJECTED" } }, select: { id: true } });
+    if (f) return f.id;
+  }
+  return null;
 }
 
 const DEPS: DepsFacturarPagoMP = {
@@ -92,6 +103,7 @@ const DEPS: DepsFacturarPagoMP = {
   procesarEnviosDelNegocio,
   facturarCobros,
   facturaDelExtracto: facturaDelExtractoPrisma,
+  facturaDelExtractoEnTx,
   vincularCobro,
   facturarPagoDelTurno: facturarPagoMPDelTurno,
 };
@@ -168,11 +180,22 @@ export async function facturarPagoMP(
   const turno = cobro.appointmentId;
   const invoiceId =
     turno && deps.facturarPagoDelTurno
-      ? await deps.facturarPagoDelTurno(comprobante, { ...cobro, appointmentId: turno })
+      ? await deps.facturarPagoDelTurno(comprobante, { ...cobro, appointmentId: turno }, {
+          // X1-T · La mirada de arriba, repetida bajo el candado del cupo (turno → cupo): si el lote
+          // del extracto facturó este pago mientras el aviso esperaba el turno, se ata a esa factura.
+          ...(deps.facturaDelExtractoEnTx
+            ? { facturaPrevia: (tx: InvoiceTx) => deps.facturaDelExtractoEnTx!(tx, tenantId, pago.id, { importe: pago.monto, fecha }) }
+            : {}),
+        })
       : deps.facturarCobros
         ? await deps.facturarCobros(comprobante, [cobro], {
             ...(opciones.verificarCupo ? { verificarCupo: opciones.verificarCupo } : {}),
             ...(opciones.ahora ? { ajustarComprobante: ajustarConVentana(fecha, fechaFiscalDelDia(opciones.ahora)) } : {}),
+            // X1 · La mirada de arriba (`facturaDelExtracto`), repetida bajo el candado del cupo: si el
+            // lote del extracto facturó este pago mientras éste esperaba, se ata a esa factura.
+            ...(deps.facturaDelExtractoEnTx
+              ? { facturaPrevia: (tx: InvoiceTx) => deps.facturaDelExtractoEnTx!(tx, tenantId, pago.id, { importe: pago.monto, fecha }) }
+              : {}),
           })
         : await deps.createInvoice(comprobante);
 

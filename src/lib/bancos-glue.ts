@@ -625,15 +625,25 @@ export async function pagoMPQueCoincide(
   origen: string | null | undefined,
 ): Promise<string | null> {
   if (!mov.referencia || origen === "mercadopago" || pagoDeLaPropuesta(mov.hash)) return null;
-  const referencia = mov.referencia;
-  const cobro = await tenantTransaction(
-    (tx) =>
-      tx.cobroFacturado.findFirst({
-        where: { tenantId, clave: claveCobroMP(referencia) },
-        select: { importe: true, invoiceId: true, invoice: { select: { status: true, fecha: true } } },
-      }),
-    { tenantId },
-  );
+  return tenantTransaction((tx) => pagoMPQueCoincideEnTx(tx, tenantId, mov, origen), { tenantId });
+}
+
+/**
+ * `pagoMPQueCoincide` dentro de la transacción del llamador. GSG-FACT-011 · X1: la emisión del lote
+ * la repite como `facturaPrevia` de `facturarCobros`, con el candado del cupo tomado, porque el aviso
+ * de MP del mismo pago factura con otra clave (`mp:<id>`) y el índice único no los arbitra.
+ */
+export async function pagoMPQueCoincideEnTx(
+  tx: Pick<InvoiceTx, "cobroFacturado">,
+  tenantId: string,
+  mov: { hash: string; referencia: string | null; monto: unknown; fecha: string },
+  origen: string | null | undefined,
+): Promise<string | null> {
+  if (!mov.referencia || origen === "mercadopago" || pagoDeLaPropuesta(mov.hash)) return null;
+  const cobro = await tx.cobroFacturado.findFirst({
+    where: { tenantId, clave: claveCobroMP(mov.referencia) },
+    select: { importe: true, invoiceId: true, invoice: { select: { status: true, fecha: true } } },
+  });
   if (!cobro || cobro.invoice.status === "REJECTED") return null;
   return mismoCobroQueElPagoMP({ importe: toNum(mov.monto), fecha: mov.fecha }, { importe: toNum(cobro.importe), fecha: cobro.invoice.fecha })
     ? cobro.invoiceId
@@ -1032,6 +1042,11 @@ export async function emitirPropuestas(
       // Todas las claves de este cobro (ver `clavesDelMovimiento`): fuera del try, porque el catch
       // las usa para saber si la factura llegó a confirmarse.
       const { claveBanco, claves: clavesDelCobro } = clavesDelMovimiento(mov, mov.importacion.origen);
+      // X1 · Si el aviso de MP del mismo pago facturó mientras éste esperaba el candado del cupo,
+      // el movimiento se ata a esa factura (se cuenta como ya facturado, no como emitida). Fuera del
+      // try: si la transacción se confirmó atando y se perdió la respuesta, el catch tampoco la
+      // cuenta como emitida (no infla el tope local de esta corrida).
+      let atadoAlPagoMP = false;
       try {
         // El monto del banco es TOTAL IVA-incluido; el Core calcula neto/IVA (ADR-006).
         const montoTotal = Math.abs(toNum(mov.monto));
@@ -1098,6 +1113,12 @@ export async function emitirPropuestas(
         }, clavesDelCobro.map((clave) => ({ clave, importe: total })), {
           verificarCupo,
           ajustarComprobante: ajustarFechaAutomatica(mov.fecha),
+          // X1 · La misma mirada de arriba (`pagoMPQueCoincide`), repetida bajo el candado del cupo.
+          facturaPrevia: async (tx) => {
+            const previa = await pagoMPQueCoincideEnTx(tx, tenantId, mov, mov.importacion.origen);
+            atadoAlPagoMP = previa != null;
+            return previa;
+          },
           // R4 · El invoiceId del movimiento se escribe en la MISMA transacción que la factura: si
           // esa escritura falla, no queda factura (antes quedaba la factura y el catch soltaba el
           // claim). Si el movimiento ya no está `emitida` (un re-proceso lo borró mientras tanto),
@@ -1110,14 +1131,16 @@ export async function emitirPropuestas(
             if (atado.count !== 1) throw new Error("El movimiento cambió mientras se facturaba (se volvió a procesar el extracto): no se emitió.");
           },
         });
-        emitidas++;
+        if (atadoAlPagoMP) yaFacturadas++;
+        else emitidas++;
       } catch (err) {
         // R4 · Soltar el claim SÓLO si el cobro no quedó facturado: si la transacción de la factura
         // se confirmó y el error vino después (respuesta perdida, corte de conexión), el libro ya
         // tiene su clave y la fila se ata a esa factura en vez de volver a `auto`.
         const resuelto = await resolverClaimTrasFalla(tenantId, mov.id, clavesDelCobro, soltarClaim);
         if (resuelto === "facturado") {
-          emitidas++;
+          if (atadoAlPagoMP) yaFacturadas++;
+          else emitidas++;
           continue;
         }
         if (err instanceof CupoAutomaticoAgotadoError) {

@@ -20,6 +20,7 @@
 
 import type { CreateInvoiceInput, InvoiceTx } from "@/lib/invoice-core";
 import { ventanaDeFechaArca } from "@/lib/facturita-core";
+import { centavosDe } from "@/lib/dinero/redondeo";
 import { diaLegible, diasDelMes, restarDiasFiscal } from "@/lib/libros/fecha-fiscal";
 
 export type ConceptoArca = 1 | 2 | 3;
@@ -89,7 +90,7 @@ export function mismoCobroQueElPagoMP(
   mov: { importe: number; fecha: string },
   pago: { importe: number; fecha: string },
 ): boolean {
-  if (Math.round(Math.abs(mov.importe) * 100) !== Math.round(Math.abs(pago.importe) * 100)) return false;
+  if (centavosDe(Math.abs(mov.importe)) !== centavosDe(Math.abs(pago.importe))) return false;
   if (!/^\d{8}$/.test(mov.fecha) || !/^\d{8}$/.test(pago.fecha)) return false;
   return Math.abs(diaUTC(mov.fecha) - diaUTC(pago.fecha)) <= DIAS_TOLERANCIA_PAGO_MP * 86_400_000;
 }
