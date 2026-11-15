@@ -22,11 +22,13 @@ function puerto(opts: { negocios?: Record<string, string>; mailFalla?: () => boo
   return { p, resets };
 }
 
-test("la entrada de Carolina está declarada, con clave única y el slug de CH Estética", () => {
-  const ch = RESETEOS_PENDIENTES.find((x) => x.slug === "beauty-spa");
-  assert.ok(ch);
-  assert.equal(ch.clave, "2026-11-10-beauty-spa-owner");
-  assert.equal(new Set(RESETEOS_PENDIENTES.map((x) => x.clave)).size, RESETEOS_PENDIENTES.length);
+test("APAGADO (decisión del dueño 14/11): no hay reseteos declarados, el cron no resetea ni manda mails", async () => {
+  assert.equal(RESETEOS_PENDIENTES.length, 0);
+  assert.equal(RESETEOS_PENDIENTES.find((x) => x.slug === "beauty-spa"), undefined);
+  const { p, resets } = puerto();
+  // Con la lista por defecto (la que usa el cron) no se toca ningún negocio.
+  assert.deepEqual(await correrResetsPendientes(p), []);
+  assert.deepEqual(resets, []);
 });
 
 test("IDEMPOTENTE: la primera corrida resetea; las siguientes no vuelven a resetear", async () => {
