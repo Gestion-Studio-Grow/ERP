@@ -30,7 +30,7 @@
 | H6 | ALTO | Lo del código, 100 % por construcción y sin tasa; la batería mide sólo el juicio del modelo, con casos distintos | `08` §9 · `09` §17.2, §17.3 |
 | H7 | ALTO | Lista completa de fallas críticas de §J.43 y graves ≤ 2 % | `08` §9 · `09` §17.4 |
 | H8 | ALTO | Huella = hash de los archivos del camino de plata + contrato + batería + modelo y versión + instrucciones; autorización que amplía invalida; regresión nocturna y muestreo con alerta | `08` §9 · `09` §4 (`archivos`), §17.1, §17.5 · `13` brief 5 |
-| H9 | ALTO | Quién firma = decisión del dueño (D1) **antes** de 2B; techo escrito (los topes de `08` §2, sólo se bajan); recomendada (c) | `08` §4 · `09` §2.3 · `13` brief 2B · §3 D1 |
+| H9 | ALTO | Quién firma: decidido (D1-c, 14/11, §7); techo escrito (los topes de `08` §2, sólo se bajan) | `08` §4 · `09` §2.3 · `13` brief 2B · §3 D1 |
 | H10 | ALTO | Guion en MIA con su titular real (el dueño lo decidió el 14/11, §6; la versión anterior lo ponía en un negocio de ensayo), riesgo y cobertura escritos; movimientos de prueba atados a cuotas de prueba (el lote lo pone el servidor; segunda vuelta, §5) | `08` §8 (encabezado, paso 21) · `09` §9 · §3 D5 |
 | H11 | ALTO | Llave en el código: sin partes 1 y 5 no hay llamada al proveedor ni lectura de GSG; parte 6 con Legal antes de la IA con datos reales | `07` §3 (fila 2) · `08` §4, criterio 38 · `09` §3 (llave 5), §10 · `13` brief 1-AJ |
 | H12 | ALTO | Brief propio de la enmienda, certificado antes del Gate 2; `07` y `13` dicen que 1A recibe la enmienda sin reabrirse; ajustes a 1B-1D | `12` · `07` encabezado · `13` §2 (brief 1-AJ) |
@@ -62,7 +62,7 @@
 | X9 | MEDIO | Paso 3 recalcula con `tx` monto, moneda, pendiente, unicidad y tipo de cambio; si difiere, persona | `08` §2.2 · `09` §4 (tabla de `operar`) · `13` briefs 2A y 4B |
 | X10 | MEDIO | Primero sólo ARS; el dueño eligió pesos y otras monedas (D6-b, §7): tope y cupo por moneda, techo por moneda, tipo de cambio de una persona | `08` §2.2 · `09` §2.1, §6 · §3 D6 |
 | X11 | MEDIO | Respaldo exacto en las dos direcciones también en B2 | `08` §2.4 · `09` §8 · `13` brief 4A |
-| X12 | MEDIO | Expediente fuera de la purga: tabla propia recomendada (D2-b) o exención en `PURGE_EXEMPT_ENTITIES` | `09` §17.6 · `13` brief LT · §3 D2 |
+| X12 | MEDIO | Expediente fuera de la purga: tabla propia (D2 decidida el 14/11, §7) | `09` §17.6 · `13` brief LT · §3 D2 |
 | X13 | MEDIO | `origenPedidoId` + FK con el mismo `userId` | `09` §2.1, §4 · `12` · `13` brief 3A |
 | X14 | BAJO | `no_aprueba_lo_propio_check` en la base | `09` §2.1 · `12` |
 | X15 | BAJO | La comprobación del día cerrado toma el candado del cierre, o la etapa 2 corre antes de la hora de cierre | `09` §8 |
@@ -106,7 +106,7 @@ El diseño está escrito con la recomendada, marcada provisional. Lo que cada un
 | D3 | Umbral de liberación | (a) 3 × 50 sobre los mismos casos. (b) Casos distintos | **Decidida el 14/11: 150 casos distintos, subconjunto reservado, 0 críticas** (la recomendada). Graves ≤ 2 %, provisional del diseño |
 | D4 | El cliente final como solicitante (canales) | (a) Confirma con un botón, excepción registrada. (b) Prohibirlo | **Decidida el 14/11: (a)** (la recomendada). Tiene que quedar coherente con **AGENTES-EXCEPCIONES**, que sigue abierta (A, B o C, no descriptas en las fuentes de esta sesión): C3 de canales no abre hasta que se cierre |
 | D5 | Dónde corre el guion de prueba | — | **Decidida el 14/11: en MIA**, con su titular real (§6). Riesgo y cobertura en `08` §8 |
-| D6 | Moneda | (a) Sólo ARS. (b) Pesos y otras monedas desde el inicio | **Decidida el 14/11: (b)** (no era la recomendada). Diseño en `09` §6: tope y cupo en la moneda de la operación, techo por moneda, tipo de cambio del día cargado por una persona; el CHECK admite ISO de 3 letras (desviación declarada del esquema final, `12`). **Resguardo de la orquestadora, a confirmar:** ninguna moneda extranjera en un negocio hasta resolver su manejo (`monedasHabilitadas`) |
+| D6 | Moneda | (a) Sólo ARS. (b) Pesos y otras monedas desde el inicio | **Decidida el 14/11: (b)** (no era la recomendada). Diseño en `09` §6: tope y cupo en la moneda de la operación, techo por moneda, tipo de cambio del día cargado por una persona; el CHECK admite ISO de 3 letras (desviación declarada del esquema final, `12`). **Resguardo de la orquestadora, a confirmar:** ninguna moneda extranjera en un negocio hasta resolver su manejo (interruptor por moneda). Hoy la plata en otra moneda va a una persona hasta que el tipo de cambio tenga fecha (migración propia, §8) |
 | D7 | Dónde corre la batería (L2) | (a) Negocio de GSG en producción. (b) MIA sobre «PRUEBA GSG» | **Decidida el 14/11: (b)** (no era la recomendada). Riesgo: cientos de filas de prueba en el Registro y Finanzas de MIA (`08` §8). **Propuesta de la orquestadora, a confirmar:** ninguna ejecución real en MIA hasta que MIA firme |
 | D8 | «Todo desde el inicio» frente a «nunca solos» | (a) `08` §3 sigue con una persona. (b) Sumar alguna | **Decidida el 14/11: (a)** |
 
@@ -137,7 +137,7 @@ hallazgo bloquea ni tiene riesgo de plata. Se corrigieron los diez hallazgos:
 | 4 | El lote «PRUEBA GSG» no se puede poner: lo pone el servidor (`acciones-empresa.ts:218`) | Fuera la marca por lote; los movimientos de prueba quedan **atados** a cuotas de prueba | `08` §8 · `09` §9 · brief 3B |
 | 5 | Guion incoherente con X6, H4 y D1-c | Paso 1 en el negocio de D5; paso 4 con segundo factor y 24 h; paso 8 con el pedido automático; paso 9 «ya estaba hecho»; paso 10, rechazo que ocupa la clave; paso 12 con otro movimiento ($ 800); paso 13 sin pedir | `08` §8 |
 | 6 | Texto viejo | Diagrama de `07` §6 sin el extracto; `08` §1 (rutina a las 9:00); `08` §4 parte 2 (sólo bajar); `09` §2.2 D3/D4; `09` §11 (etapas 1 y 2, día y mes) | esos lugares |
-| 7 | Llave 4 sin fuente; LT fuera de la cadena | Sin fila de liberación, «no liberada»; LT o D2-a antes del primer prendido | brief 2A · `13` §1 |
+| 7 | Llave 4 sin fuente; LT fuera de la cadena | Sin fila de liberación, «no liberada»; LT antes del primer prendido (D2 decidida) | brief 2A · `13` §1 |
 | 8 | Reservados sin lugar durable | Carpeta de Drive de GSG, sólo la certificación (provisional a confirmar) | `08` §9 · `09` §17.3 · brief L1 |
 | 9 | `gestion-core.ts:612-613` es `rolDelActor` | «La regla sólo-OWNER no existe: la construye 2B sobre `rolDelActor`» | `08` §4 · `09` §2.3 · brief 2B |
 | 10 | Tests y bordes | `09` §14: único por oferta y permisos de columna de `AgentePropuesta`; brief 4B: atado por una persona → persona (como `08`); H7 y H8 de canales en `03` §19 | `09` §14 · brief 4B · canales `03` §19 |
@@ -151,7 +151,7 @@ Briefs medidos de nuevo (`13` §10): todos de 2048 bytes o menos (el más grande
 | AGENTES-ETAPAS | **B · Todo desde el inicio** («Vamos a hacer justamente las pruebas en mia») | Sin plan de prendido por etapas: se prende una vez con todo lo autorizado; cada operación sale sola al tener su liberación (y B2/C4, MIA-018). Etapa 0/1/2 queda como clase de riesgo. El guion corre en MIA: D5 decidida, riesgo y cobertura escritos | `13` §1 · `08` §8 · `07` §4 y §11 · D5, D8 |
 | AGENTES-AISLAMIENTO | **A · Producción con interruptor** | El aislamiento es el interruptor por negocio, apagado de fábrica; sin ambiente aparte | `13` §1 · `08` §8 |
 | AGENTES-ALTA-GSG | **A · Sí, en producción** | Alta de GSG como negocio después del Gate 2 de E, con interruptores apagados (la batería corre en MIA, D7-b, §7) | `13` §1 · `08` §9 · `09` §12 y §17 |
-| AGENTES-FIRMA | **Abierta** («Mañana ale») | D1 sigue abierta y sigue frenando 2B | §3 D1 |
+| AGENTES-FIRMA | Abierta a las 20:53; **decidida a las 21:2x: (c)** (§7) | Queda abierto sólo qué persona firma por MIA | §3 D1 |
 
 No cambia: el dictamen de MIA-016 corregido punto por punto; cobro y conciliación dependen de GSG-MIA-018; cada
 operación se libera sólo con la batería corrida por una sesión distinta; las tres piezas previas a confirmar plata
@@ -169,8 +169,26 @@ publicación, del dueño.
 | Firma | A · app + segundo factor + 24 h al ampliar | D1-c; 2B ya puede construirse | `07` §3 y §8 · `08` §4 · brief 2B |
 | Cliente final | A · botón, excepción registrada | Condicionado a AGENTES-EXCEPCIONES (abierta) | canales `03` §19 · `09` §18 |
 | Monedas | B · pesos y otras desde el inicio | Diseño por moneda en `09` §6; CHECK ISO; tests de moneda en `09` §14 | `08` §2 · `09` §2.1, §6, §14 · `12` · briefs E, 4A, 4B |
-| Tope de C4 | Configurable, provisional a confirmar con MIA | Interpreté «tope del cobro a cuenta» como los topes de C4 (cobro registrado por el agente) | `08` §2 (C4) |
+| Tope de C4 | Configurable, provisional a confirmar con MIA | Interpreté «tope del cobro a cuenta» como los topes de C4. «Configurable» = techo en el código (cambia con un commit) que la firma sólo baja. **A confirmar:** si «a cuenta» quiso decir pago parcial, eso es C6 y va con una persona (`08` §2) | `08` §2 (C4) |
 
 **Sigue abierto:** qué persona firma por MIA; AGENTES-EXCEPCIONES; las dos propuestas de la orquestadora (nada se
 ejecuta en MIA antes de que firme; moneda extranjera sólo con su manejo resuelto); los topes de C4 con MIA; el techo
 del código para cada moneda que no sea pesos; despertador por minuto, texto legal y cada Gate 2.
+
+## 8. Segunda corrida de ataque, antes de construir (15/11/2026)
+
+Un agente distinto del que diseñó (`gsg-certificador`, Opus alto) atacó `1b0c9d31`: **cumple con cambios** (E, 1·aj y
+2B podían arrancar; 2A, 4B, L1 y L2 pedían cambios). Corregido:
+
+| # | Hallazgo | Cambio | Dónde |
+|---|---|---|---|
+| 1 | ALTO · el freno de cobro suelto compara pesos contra USD; pendiente en USD con tipo de cambio leído fuera de la transacción | Tipo de cambio leído con `tx` y freno en pesos; además, como `ProyectoTipoCambio` no tiene fecha, **toda plata en moneda extranjera va a una persona** hasta una migración propia (fuera de E, Gate 2 del dueño) | `09` §6, §14, §17.3 · brief 4B |
+| 2 | ALTO · batería en MIA: el cerco «PRUEBA GSG» era convención y la liberación caía al subir topes | Cerco en el código: versión de prueba de la autorización con `soloContrapartes`; L2 deshace al final. Subir topes dentro del techo ya no invalida la liberación (los topes los prueban los tests al 100 %); sumar operaciones o caminos, sí | `08` §8, §9 (criterio 30) · `09` §17 · brief L2 |
+| 3 | MEDIO · texto viejo (D1, D2, «otra moneda no se admite») | Al día | `08` §8 paso 4 · `09` §2.3, fila 26, §17.3 · §2 H9, X12 · §5 fila 7 · §6 |
+| 4 | MEDIO · `monedasHabilitadas` sin dónde guardarse ni test en un brief | Si se confirma: interruptor por moneda del catálogo (sin migración); tests `moneda-core` y `cupos-moneda` en brief 2A | `09` §6 · brief 2A |
+| 5 | MEDIO · «configurables» choca con el techo fijo | Techo del código, a confirmar con MIA; cambiarlo es un commit antes de prender. «A cuenta» = ¿pago parcial? Si sí, es C6 (persona): a confirmar | `08` §2 · §7 |
+| 6 | BAJO · brief E sin «los dos nulos o los dos» | Agregado; brief recortado | `12` |
+
+**Cambio de regla que el dueño tiene que ver:** la liberación ya no cae por subir topes dentro del techo (antes caía
+con cualquier versión que ampliara). Es lo que permite que la batería corrida en MIA con topes chicos valga después.
+No hubo tercera corrida.

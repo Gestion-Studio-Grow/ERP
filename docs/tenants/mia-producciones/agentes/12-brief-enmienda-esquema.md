@@ -26,7 +26,7 @@ entra acá.
 ## Brief E · enmienda del esquema (≤ 2 KB)
 
 ```
-Rol: ingeniero del ERP (Opus alto; superficie: datos y seguridad). Rama nueva desde agentes/tanda-1.
+Rol: ingeniero ERP (Opus alto; datos y seguridad). Rama nueva desde agentes/tanda-1.
 Única fuente: desafio-mia016/esquema-final-enmienda.md (agentes/diseno-ejecucion, 1506c9c0).
 Antes: confirmá por docs (sin Neon) que agentes_base NO está aplicada.
 Si lo está: frená y reportá; no escribas otra migración.
@@ -37,7 +37,7 @@ Hacé, en ESA migración y en schema.prisma:
   REVOKE UPDATE/DELETE + GRANT de 4 columnas, disparador _irreversible (revocadaEl y reemplazadaEl).
 - AgenteContador: monto >= 0, moneda en la PK.
 - AgentePropuesta: columnas; origen_check con CANAL; origen_solicitante_check; modo_check; regla_check;
-  monto_check con moneda ~ '^[A-Z]{3}$' (no sólo ARS, 09 §6); fuente_check; no_aprueba_lo_propio; FK de versión y de pedido; estado REVERTIDA;
+  monto_check (los 2 nulos o los 2; monto > 0; moneda ~ '^[A-Z]{3}$', 09 §6); fuente_check; no_aprueba_lo_propio; FK de versión y de pedido; estado REVERTIDA;
   únicos clave_viva y canalOfertaId_viva (con RECHAZADA); GRANT sólo de columnas de estado.
   Verificá que el único de 1A (herr_entidad_pendiente) no choque con clave: si choca, avisá.
 - AgenteAccion.tipo + REVERSION, AUTORIZACION, CONTROL.

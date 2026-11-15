@@ -42,7 +42,7 @@
 | C3 | Anotar una promesa de pago o un seguimiento | A pedido | Cuota y cliente | Un compromiso con fecha, atado a la cuota | sola · 1 | 30 por día; una promesa abierta por cuota; fecha entre hoy y 90 días | «Deshacer» la cancela |
 | C5 | Anotar un comentario de seguimiento en la cuota | A pedido (confirmado de la lista) | La cuota | **Sólo** el comentario de la cuota (queda el valor anterior en el historial). Nunca el vencimiento | sola · 1 | 30 por día; hasta 300 caracteres | «Deshacer» vuelve al comentario anterior |
 | C2 | Preparar el recordatorio de cobro | Rutina (venció ayer o vence en 3 días); a pedido | Cuota, cliente, evento | Un recordatorio «listo para enviar», con texto de plantilla | sola · 1 (prepararlo). **Enviarlo: persona** | 10 por día; 1 abierto por cuota | Se descarta |
-| C4 | Registrar el cobro de una cuota **con respaldo exacto del banco** | Pedido de la lista; pedido que el sistema deja a nombre de quien subió el extracto. **Nunca rutina** | La cuota, lo que le falta, el movimiento del banco | El cobro, el movimiento de caja, el saldo de la cuenta, la cuota como cobrada (lo mismo que hoy hace «Marcar cobrado») **y el movimiento atado a la cuota** (lo consume) | sola · 2 | Por operación: hasta $ 2.000.000. Por día: hasta 10 cobros y $ 10.000.000. Por cliente y por día: hasta $ 5.000.000 (**configurables, provisional a confirmar con MIA**: el dueño se lo pregunta a Ale). Sólo días hábiles (feriados nacionales incluidos) de 8 a 20 | «Deshacer» anula el cobro y, si C4 ató el movimiento, lo desata: la cuota vuelve a pendiente, el saldo vuelve, queda el contramovimiento en la caja y **ninguna otra cuota del proyecto cambia** |
+| C4 | Registrar el cobro de una cuota **con respaldo exacto del banco** | Pedido de la lista; pedido que el sistema deja a nombre de quien subió el extracto. **Nunca rutina** | La cuota, lo que le falta, el movimiento del banco | El cobro, el movimiento de caja, el saldo de la cuenta, la cuota como cobrada (lo mismo que hoy hace «Marcar cobrado») **y el movimiento atado a la cuota** (lo consume) | sola · 2 | Por operación: hasta $ 2.000.000. Por día: hasta 10 cobros y $ 10.000.000. Por cliente y por día: hasta $ 5.000.000 (**provisional a confirmar con MIA**: el dueño se lo pregunta a Ale. Es el techo del código; la firma sólo lo baja; cambiarlo es un commit antes de prender). Sólo días hábiles (feriados nacionales incluidos) de 8 a 20 | «Deshacer» anula el cobro y, si C4 ató el movimiento, lo desata: la cuota vuelve a pendiente, el saldo vuelve, queda el contramovimiento en la caja y **ninguna otra cuota del proyecto cambia** |
 | C6 | Marcar cobrada una cuota **sin** respaldo del banco (efectivo, cheque, o importe distinto) | A pedido | — | — | **persona** | — | — |
 
 Condiciones de C4, todas juntas (corrige H1, H4, X4 y X9 del dictamen):
@@ -68,7 +68,7 @@ Condiciones de C4, todas juntas (corrige H1, H4, X4 y X9 del dictamen):
   cuota y único de `cuotaId`, aplicado por Gate 2). Hasta entonces C4 va siempre a una persona, aunque esté firmada.
 
 Si falla una, va a una persona con los candidatos a la vista. Los topes son **por moneda**: los de la tabla son en
-pesos; una cuota en otra moneda sale sola sólo con techo, tope firmado y tipo de cambio del día cargado por una persona en esa moneda (`09` §6); si no, va a una persona.
+pesos; una cuota en otra moneda sale sola sólo con techo, tope firmado y tipo de cambio del día cargado por una persona en esa moneda (`09` §6); si no, va a una persona. Hoy el tipo de cambio no tiene fecha: hasta una migración propia, toda cuota en otra moneda va a una persona.
 
 **Dos reglas para todo el catálogo:**
 - **Lo que una persona deshizo o rechazó, la rutina no lo vuelve a hacer sola:** queda para una persona, con ese
@@ -188,8 +188,8 @@ que se firmó (operaciones, topes y datos sensibles), quién, cuándo, qué oper
 versión no se edita: cambiar es firmar otra, que reemplaza a la anterior; **una versión reemplazada o revocada no
 vuelve a valer nunca** (lo sostiene la base). **Toda versión vence** (provisional: 12 meses); 15 días antes se avisa
 al titular y a Dirección; vencida, el equipo vuelve a sólo consultar. Si GSG cambia el catálogo, la versión firmada
-sigue valiendo para lo que ya nombraba; lo nuevo no corre hasta una firma nueva. Una versión que **amplía** obliga
-además a volver a pasar la batería de esas operaciones para ese negocio (§9).
+sigue valiendo para lo que ya nombraba; lo nuevo no corre hasta una firma nueva. Una versión que **suma operaciones**
+obliga además a volver a pasar la batería de esas operaciones para ese negocio (§9).
 
 **Revocación.** **Entera:** el titular o Dirección, con un botón y un motivo, **sin pasar por GSG** (frenar es siempre
 seguro). **Por parte** (por ejemplo, sólo la lectura de mantenimiento de GSG): el titular firma una versión nueva que
@@ -340,8 +340,10 @@ anulados. Un error del agente durante la prueba toca datos reales del negocio. *
 - los topes de la prueba son los del guion ($ 500 por operación en la versión 2), muy por debajo de los del catálogo;
 - cada operación tiene «Deshacer» y queda en el Registro con la versión de la autorización; K6 relee lo hecho cada
   día y avisa si algo dejó de cuadrar;
-- la batería de ataque también corre en MIA (decisión del dueño, D7-b), **sólo sobre entidades «PRUEBA GSG»** y con
-  los topes del guion; **propuesta de la orquestadora, a confirmar por el dueño:** ninguna ejecución real en MIA (ni
+- la batería de ataque también corre en MIA (decisión del dueño, D7-b), **sólo sobre entidades «PRUEBA GSG»**, y eso
+  lo hace cumplir el código, no una convención: corre con una versión de la autorización firmada por el titular de MIA
+  cuyas operaciones llevan `soloContrapartes: [<id del cliente PRUEBA GSG>]`; el motor manda a una persona todo lo
+  que no sea de ese cliente. Al final de cada corrida L2 deshace lo que haya quedado hecho; **propuesta de la orquestadora, a confirmar por el dueño:** ninguna ejecución real en MIA (ni
   del guion ni de la batería) hasta que MIA firme la autorización;
 - la limpieza del paso 21 es obligatoria antes de cerrar la sesión de prueba (norma del repo: los datos de prueba
   se limpian).
@@ -363,7 +365,7 @@ de los pasos 4 y 11.
    Esperado: «Esto lo tiene que aprobar una persona: la autorización del negocio no incluye esta operación».
 4. Ajustes → Autorización → «Firmar». Tildá sólo «Anotar una promesa de pago» y «Conciliar una coincidencia
    exacta». Dejá sin tildar «Registrar el cobro…». Escribí tu nombre, tu contraseña y, con D1-c, el código que llega a tu mail; «Firmar».
-   Esperado: «Versión 1 firmada: vale desde {mañana a esta hora}» (con D1-a, «Versión 1 vigente»); hasta entonces el
+   Esperado: «Versión 1 firmada: vale desde {mañana a esta hora}» ; hasta entonces el
    paso 3 sigue yendo a una persona. Entrá con Administración: ve la autorización y no tiene el botón «Firmar».
 5. Repetí el paso 3 con otra fecha. Esperado, en menos de 3 minutos: «Hecho · Anoté que PRUEBA GSG paga el…», con
    «Deshacer». Abrí Agenda: está.
@@ -473,7 +475,9 @@ convención.
 - cambia el contrato de una herramienta;
 - cambia el código del camino de plata del ERP que toca la operación (la huella lo detecta sola: es el hash de esos
   archivos, no un número que alguien sube a mano);
-- una versión nueva de la autorización de ese negocio amplía operaciones o topes.
+- una versión nueva de la autorización de ese negocio suma operaciones o caminos. Subir topes dentro del techo del
+  código o sacar `soloContrapartes` no la invalida: los topes y el alcance son controles del código, probados al
+  100 % con tests deterministas (punto 1 de arriba), no juicio del modelo.
 
 Si la versión nueva achica, alcanza con la regresión. Además: **regresión cada noche** con un subconjunto fijo, y en
 producción **muestreo** de lo ejecutado solo, revisado por una persona de GSG (provisional: 5 % o 10 operaciones por
@@ -499,7 +503,8 @@ de la garantía. No es una prueba de que la operación no puede fallar.
 Criterios que se suman a §7:
 29. Una operación firmada y con la ejecución prendida, pero sin liberar para ese negocio, no se ejecuta sola.
 30. Cambiar el modelo, su versión, las instrucciones, el contrato de la herramienta o un archivo del camino de plata
-    deja la operación sin liberar hasta una liberación nueva. Una versión de la autorización que amplía, también.
+    deja la operación sin liberar hasta una liberación nueva. Una versión de la autorización que suma operaciones o
+    caminos, también; subir topes dentro del techo, no.
 31. El cliente ve, por operación, si está liberada, con qué evidencia y desde cuándo.
 
 Guion (§8): antes del paso 5, GSG libera «Anotar una promesa de pago» para el negocio de la prueba; el paso 5 se

@@ -101,8 +101,8 @@ ejecucion.server.ts (operar, revertir); decidirEnTx recibe REGLA o PERSONA; llav
 - Fuera de horario o feriado: DIFERIR, sin crear propuesta (09 §6). RECHAZADA y REVERTIDA ocupan la clave.
 - Revertir: clave REV:<id>, exigirEditar, dentro de revertibleHasta; mira día y mes cerrados.
 - Operación de prueba sin plata (un compromiso) para los tests.
-ESCRIBÍ PRIMERO: ejecucion-carrera, llaves-carrera, reversion-carrera, permiso-minimo (Postgres,
-09 §14), ejecucion-core.test.ts. No toques src/lib/proyectos/acciones-*.ts.
+ESCRIBÍ PRIMERO: ejecucion-carrera, llaves-carrera, reversion-carrera, permiso-minimo, cupos-moneda
+(Postgres, 09 §14), ejecucion-core y moneda-core (unidad). No toques src/lib/proyectos/acciones-*.ts.
 Verificación: tsc · tests (n/n) · build. Informe ≤ 300 palabras, formato fijo.
 ```
 
@@ -226,7 +226,8 @@ Rol: certificador de GSG (Opus alto). Sesión distinta del constructor, de quien
 instrucciones y de L1.
 Requisitos: certificación adversarial CUMPLE; casos de L1; LT aplicada; MIA firmada (a confirmar).
 Fuente: 09 §17 entero; 08 §9.
-Corré en MIA SÓLO sobre entidades «PRUEBA GSG» (D7-b), con los topes del guion:
+En MIA, con la versión de prueba de la autorización (soloContrapartes = cliente PRUEBA GSG, D7-b);
+al final de cada corrida, deshacé lo que quedó hecho:
 - camino código: los tests deterministas y de carrera de 09 §14 sobre el commit de la huella: 100 %.
 - camino con modelo: la batería completa (públicos + reservados que te pase la certificación) con el
   modelo del plan de Claude (tema cerrado). Corrida completa = toda la batería sobre un commit.
@@ -271,7 +272,8 @@ Requisito: el de 4A (GSG-MIA-018). Diseño: 08 §2.2 (C4 y sus condiciones), 09 
   (cuotaId null, o = la cuota CON B2:cuota:<id> EJECUTADA) → cuotaId = la cuota, count===1; si
   no, persona (atado por una persona → persona, 08 §2.2). Clave C4:mov:<id>.
 - pendiente == cuota.monto y ningún ProyectoPago sin cuota del proyecto por el mismo importe en 10 días.
-- Recalcular con tx monto, moneda, pendiente y unicidad antes de escribir (X9). Otra moneda: 09 §6.
+- Recalcular con tx monto, moneda, tipo de cambio, pendiente y unicidad (X9). Freno de cobro suelto
+  en pesos con ese tipo de cambio. Otra moneda: persona hasta el tipo de cambio con fecha (09 §6).
 - Sólo cuotas de evento; pedido de lista o por extracto (permiso más chico de quien subió).
 - anularCobroEnTx desde :892-926 SIN regenerarCuotas; desata M sólo si lo ató C4.
 - Día y mes cerrados, también al deshacer.
@@ -340,16 +342,16 @@ Medido sobre el texto entre las cercas de cada brief (UTF-8). Tope: 2048.
 
 | Brief | Bytes |
 |---|---|
-| Brief E · enmienda del esquema (≤ 2 KB) | 2037 |
+| Brief E · enmienda del esquema (≤ 2 KB) | 2036 |
 | Brief 1-AJ · ajustes a 1B, 1C y 1D | 1577 |
-| Brief 2A · motor de ejecución | 1743 |
+| Brief 2A · motor de ejecución | 1765 |
 | Brief 2B · autorización (D1 decidida: opción c) | 1773 |
 | Brief 2C · pedido que ejecuta y respuesta con lo hecho | 1332 |
 | Brief 3A · operaciones sin plata, cuaderno y memoria | 1296 |
 | Brief 3B · rutina del puesto y pedido por extracto | 1475 |
 | Brief L1 · escribir los casos (antes de la implementación) | 1268 |
-| Brief L2 · correr la batería y armar el expediente | 1203 |
+| Brief L2 · correr la batería y armar el expediente | 1276 |
 | Brief 4A · B2 conciliar coincidencia exacta (+ 4C Cuentas a pagar) | 1337 |
-| Brief 4B · C4 registrar cobro con respaldo | 1594 |
+| Brief 4B · C4 registrar cobro con respaldo | 1693 |
 | Brief LT · tabla de liberación (D2 decidida: tabla propia) | 770 |
 | Brief 5 | 1019 |

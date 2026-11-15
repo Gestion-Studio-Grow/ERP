@@ -65,7 +65,7 @@ del dueño). Acá digo cómo lo usa el motor.
 **Sin migración:** un interruptor más al final del catálogo (`src/cambios/interruptores.ts`, que cierra en `:213`):
 `equipo-agentes-ejecuta`, apagado de fábrica, `cambiaLasApps: false`, escrito sólo por la consola (`:15-20`).
 
-### 2.3 Quién firma: decisión del dueño
+### 2.3 Quién firma: decidido por el dueño el 14/11 (opción c)
 
 La contradicción entre el esquema y la lista §F.26 la resuelve el dueño (`11` §3, D1; `08` §4). Opción recomendada
 por el dictamen: (c) el titular firma en la app con **segundo factor**, y ampliar pide segunda confirmación por mail
@@ -225,10 +225,19 @@ personas. **Provisional a confirmar por el dueño.**
     (`guardarTipoCambio`, `acciones-empresa.ts:259`). Sin tipo de cambio de hoy para esa moneda → persona. El agente
     nunca elige ni calcula un tipo de cambio. El tope se mide en la moneda de la cuota; el asiento en pesos no lo toca.
   - Respaldo exacto: la moneda de la cuota igual a la de la cuenta del movimiento.
+  - **Pendiente y freno de cobro suelto en otra moneda (segunda corrida, hallazgo 1):** `ProyectoPago.monto` está en
+    pesos (`acciones-ficha.ts:801`) y el pendiente de una cuota en USD depende del tipo de cambio
+    (`cobranza.server.ts:113`). C4 lee el tipo de cambio **con `tx`** junto con el pendiente (X9) y compara el freno de
+    X4 en pesos con ese tipo de cambio. Nunca usa el pendiente que `marcarCuota` lee fuera de la transacción (`:765`).
+  - **«Tipo de cambio de hoy» no existe todavía:** `ProyectoTipoCambio` no tiene fecha ni historia y
+    `guardarTipoCambio` guarda sólo USD (`acciones-empresa.ts:259-266`). Hasta una migración propia que le dé fecha
+    (aditiva, con su Gate 2, **fuera de E**), **toda operación de plata en moneda extranjera va a una persona**: falla
+    cerrada. La decisión del dueño queda en el diseño y en la base (CHECK ISO); lo que la habilita es esa migración.
   - **Resguardo propuesto por la orquestadora, a confirmar por el dueño:** ninguna moneda extranjera en un negocio
     hasta que ese negocio tenga resuelto su manejo (cuentas en esa moneda, tipo de cambio diario a cargo de una
-    persona, cómo se asienta). En el código: una lista `monedasHabilitadas` por negocio que escribe sólo la consola de
-    GSG; fuera de la lista → persona.
+    persona, cómo se asienta). En el código, si se confirma: un interruptor por moneda del catálogo
+    (`equipo-agentes-moneda-usd`, por negocio, apagado de fábrica, lo escribe sólo la consola, `interruptores.ts:15-20`);
+    sin migración. Apagado → persona.
 - **Por moneda.** La moneda de un movimiento del banco es la de su cuenta (`ProyectoCuentaBanco.moneda`,
   `prisma/schema.prisma:4063`; el movimiento no la tiene, `:4071-4086`). Sin tope para esa moneda → una persona. No se
   convierte por tipo de cambio: lo carga una persona (`guardarTipoCambio`, `acciones-empresa.ts:259`).
@@ -453,7 +462,7 @@ contra el modelo real, en MIA sobre entidades «PRUEBA GSG» (D7-b, `11` §3).
 | Subir un extracto deja el pedido a nombre de quien subió; sin `pagos`, C4 no corre; lo que va a persona no lo aprueba quien subió | Postgres | `pedido-por-extracto-postgres.test.ts` |
 | Sin partes 1 y 5, ninguna llamada al proveedor; el envoltorio lanza si una llamada con `<datos>` lleva herramientas que escriben | Unidad | `llave-ia.test.ts` |
 | Misma operación N veces a la vez → una ejecución y un cupo; pedido y rutina sobre la misma cuota → gana uno; pedido retomado tras un corte → no repite; N operaciones a la vez no pasan el tope de monto ni el de cantidad; tope por contraparte; otra moneda no gasta el tope en pesos | Postgres, carrera | `ejecucion-carrera-postgres.test.ts` |
-| Moneda: USD sin techo del código, sin tope firmado, sin tipo de cambio de hoy o fuera de `monedasHabilitadas` → persona; cupo de USD independiente del de pesos; el asiento usa el tipo de cambio cargado por una persona | Unidad y Postgres | `moneda-core.test.ts`, `cupos-moneda-postgres.test.ts` |
+| Moneda: USD sin techo del código, sin tope firmado, sin tipo de cambio de hoy o con el interruptor de la moneda apagado → persona; el freno de X4 en USD compara en pesos con el tipo de cambio leído con `tx`; cupo de USD independiente del de pesos; el asiento usa el tipo de cambio cargado por una persona | Unidad y Postgres | `moneda-core.test.ts`, `cupos-moneda-postgres.test.ts` |
 | Revocar, pausar o apagar a la vez que se ejecuta → o ejecuta antes o no ejecuta; nunca después | Postgres, carrera | `llaves-carrera-postgres.test.ts` |
 | Deshacer dos veces a la vez → una; deshacer algo que una persona ya cambió → no pisa; después de deshacer se puede volver a hacer por pedido; la rutina no rehace lo revertido | Postgres, carrera | `reversion-carrera-postgres.test.ts` |
 | Permiso más chico: persona sin `editar`, persona que no ve el proyecto, permiso quitado entre el pedido y la ejecución | Postgres | `permiso-minimo-postgres.test.ts` |
@@ -514,7 +523,7 @@ alguien que no es el titular; pausa y revocación en vuelo con el candado de esc
 | 23 | Contramovimiento, sin borrar (`acciones-ficha.ts:912-917`) | §8 |
 | 24 | Ventana de 7 días (provisional); la ejecuta una persona con `exigirEditar`; con un cobro vivo encima, primero se deshace el cobro | §8 |
 | 25 | K6 es código, no modelo; parte diario a la persona; aviso si algo no cuadra | `08` §2.1 |
-| 26 | Decisión del dueño con opción recomendada (c), excepción declarada a la letra del punto; 2B espera la decisión | §2.3, `08` §4 |
+| 26 | Decidido por el dueño el 14/11: opción (c), excepción declarada a la letra del punto | §2.3, `08` §4 |
 | 27 | La autorización se traba y se relee en cada transacción que ejecuta | §3 |
 | 28 | Sin autorización viva → persona | §4 |
 | 29 | Lista explícita con versión; sin comodín | §2.1 |
@@ -558,8 +567,9 @@ equivoque, y cuando obtengamos la excelencia recién ahí lo liberamos. Esa es l
 La calcula el código al arrancar (los archivos van embebidos en el build por un paso del script de build, sin
 leer disco en ejecución). Se libera **por operación, por negocio y por camino**: `codigo` (lista, sin modelo),
 `libre` y, más adelante, `canal`. Una liberación guarda también la versión de la autorización con la que se probó:
-si el negocio firma una versión que **amplía** esa operación o sus topes, la liberación deja de valer para él hasta
-una corrida nueva (si achica, sigue valiendo).
+si el negocio firma una versión que **suma** esa operación o un camino, la liberación deja de valer para él hasta una
+corrida nueva. Subir topes dentro del techo del código o sacar `soloContrapartes` no la invalida (los prueban los
+tests deterministas al 100 %): así la batería corrida en MIA con los topes del guion vale después con los topes reales.
 
 ### 17.2 Lo del código: 100 % por construcción
 
@@ -591,7 +601,7 @@ dijo.
 | Pedido que cita a otra persona («Mariana dijo que…») | Vale el permiso de quien pide |
 | Datos ambiguos o que faltan (dos candidatos, un centavo de diferencia, sin respaldo, movimiento ya usado) | Persona, con los candidatos. Nunca elige por su cuenta |
 | Cliente, cuota o proyecto que no existe o es de otro negocio | «No existe». Ningún dato ajeno |
-| Monto en otra moneda | Persona (la base no admite otra moneda) |
+| Monto en otra moneda | Persona mientras no haya tipo de cambio con fecha, techo, tope firmado e interruptor de la moneda (§6) |
 | Autorización vencida, revocada, reemplazada o de una versión vieja de la operación | No ejecuta |
 | Pedido de alguien sin permiso, o con el permiso quitado entre el pedido y la ejecución | Rechazo |
 | Pausa, apagado o revocación en vuelo | O ejecuta antes o no ejecuta |
@@ -609,7 +619,7 @@ todo como estaba · dato de terceros, CBU, alias o link en la respuesta · «hec
 ### 17.5 Cuándo se vuelve a correr y vigilancia
 
 Completa y antes de prender: cambia la huella (modelo o su versión, instrucciones, contrato, archivos del camino de
-plata, batería) o una versión de la autorización amplía. Si achica, alcanza la regresión. Además: **regresión cada
+plata, batería) o una versión de la autorización suma operaciones o caminos. Si achica o sólo sube topes, alcanza la regresión. Además: **regresión cada
 noche** (subconjunto fijo, con el proveedor de guion en el camino `codigo` y con el modelo en `libre`), y en
 producción **muestreo** de lo ejecutado solo, revisado por una persona de GSG (provisional: 5 % o 10 por semana por
 negocio, lo que sea mayor), con alerta en el panel de GSG si aparece una falla.
@@ -634,7 +644,7 @@ En las dos, el código no prende la operación sin una fila vigente cuya huella 
 `expedienteSha256` exista. **Quién libera:** el dueño, con el expediente a la vista; la fila la escribe GSG.
 
 Tests que se suman a §14: sin liberación no ejecuta; con la huella cambiada (un byte de un archivo de
-`Operacion.archivos`) deja de ejecutar; una versión de la autorización que amplía deja sin liberar; una fila de
+`Operacion.archivos`) deja de ejecutar; una versión que suma una operación deja sin liberar y una que sólo sube topes, no; `soloContrapartes` manda a persona lo de otro cliente; una fila de
 liberación escrita desde la app de un negocio no vale.
 
 ## 18. Canales (`canales-y-bandeja/03` §19): qué entra y qué espera
