@@ -192,7 +192,8 @@ test("H1.b cinco envíos a la vez con tope de $ 1.210: el mismo envío entra una
   const iguales = await enFilaDelCandado(p.base, p.claveCobranza(id), Array.from({ length: 5 }, () => p.cobrar(id, 200, k)));
   assert.ok(iguales.every((x) => x.ok), JSON.stringify(iguales));
   assert.deepEqual(await p.plata(id), { pagos: 1, suma: 200, asientos: 1 });
-  const distintos = await enFilaDelCandado(p.base, p.claveCobranza(id), Array.from({ length: 4 }, () => p.cobrar(id, 200, p.clave())));
+  // Cobros distintos e iguales entre sí (claves nuevas, mismo monto y medio): son a propósito, van con el sí explícito.
+  const distintos = await enFilaDelCandado(p.base, p.claveCobranza(id), Array.from({ length: 4 }, () => p.cobrar(id, 200, p.clave(), p.otroIgual)));
   assert.ok(distintos.every((x) => x.ok), JSON.stringify(distintos));
   assert.deepEqual(await p.plata(id), { pagos: 5, suma: 1000, asientos: 5 });
   // El sexto ya pasa el tope: se frena, y no deja la clave usada (corregido el monto, el mismo formulario entra).
@@ -211,7 +212,9 @@ test("H1.c reintento del mismo formulario después de terminar el primero: devue
   assert.deepEqual(await p.cobrar(id, 500, k)(), { ok: true });
   assert.deepEqual(await p.cobrar(id, 500, k)(), { ok: true }, "el reenvío se reconoce, sin error");
   assert.deepEqual(await p.plata(id), { pagos: 1, suma: 500, asientos: 1 });
-  assert.deepEqual(await p.cobrar(id, 500, p.clave())(), { ok: true });
+  // Otro cobro igual con clave nueva: pide el sí explícito (cobro igual de recién), y con él entra.
+  assert.equal((await p.cobrar(id, 500, p.clave())()).ok, false);
+  assert.deepEqual(await p.cobrar(id, 500, p.clave(), p.otroIgual)(), { ok: true });
   assert.deepEqual(await p.plata(id), { pagos: 2, suma: 1000, asientos: 2 });
 });
 

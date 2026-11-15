@@ -187,12 +187,20 @@ test("7.d no confunde cobros distintos: otro monto, otro medio, uno anulado, uno
   assert.deepEqual(await p.plata(id), { pagos: 4, suma: 2002, asientos: 4 });
 });
 
-test("7.e con presupuesto aprobado manda el tope: dos cobros iguales dentro del saldo entran sin preguntar", async (t) => {
+test("7.e con presupuesto aprobado también: dos pestañas con el mismo cobro dentro del saldo, entra uno y el otro pide confirmación", async (t) => {
   const p = await preparar(t);
   if (!p) return;
   const id = await p.proyecto(true);
-  const r = await enFilaDelCandado(p.base, p.claveCobranza(id), [p.cobrar(id, 600, p.clave()), p.cobrar(id, 600, p.clave())]);
-  assert.deepEqual(r, [{ ok: true }, { ok: true }]);
+  const [r1, r2] = await enFilaDelCandado(p.base, p.claveCobranza(id), [p.cobrar(id, 600, p.clave()), p.cobrar(id, 600, p.clave())]);
+  assert.deepEqual(r1, { ok: true });
+  assert.equal(r2.ok, false, "el tope no lo frena (entra en el saldo): lo frena el cobro igual de recién");
+  assert.ok(r2.confirmar, JSON.stringify(r2));
+  assert.deepEqual(await p.plata(id), { pagos: 1, suma: 600, asientos: 1 });
+  // Confirmado entra, mientras no pase el tope; el tope se controla primero (no se pide un sí para algo que no entra).
+  assert.deepEqual(await p.cobrar(id, 600, p.clave(), { confirmaRepetido: "1" })(), { ok: true });
+  const pasado = await p.cobrar(id, 600, p.clave())();
+  assert.equal(pasado.ok, false);
+  assert.equal(pasado.confirmar, undefined, "pasa el tope: avisa el tope, no pide confirmación");
   assert.deepEqual(await p.plata(id), { pagos: 2, suma: 1200, asientos: 2 });
 });
 

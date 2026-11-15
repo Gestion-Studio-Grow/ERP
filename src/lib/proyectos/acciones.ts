@@ -227,11 +227,11 @@ export async function registrarCobro(formData: FormData): Promise<Resultado> {
     }
     const cob = (await cobranzasDelNegocio(tenantId, tc, config.margenPct, [proyectoId], tx)).get(proyectoId);
     if (cob && pasaElTope(cob, monto)) return { porCobrar: cob.porCobrar, cob };
-    // Sin presupuesto aprobado no hay tope: el mismo cobro cargado desde dos pestañas (cada una con su clave) entraba
-    // dos veces. Ya en fila, si hace poco entró uno igual (mismo monto y medio, no anulado), no se graba sin un sí
-    // explícito. Sólo con clave: el navegador que la manda es el que sabe mostrar la casilla. No usa `claveEnvio`:
-    // funciona también sin esa migración.
-    if (clave && !confirmaRepetido && !(cob && cob.total > 0)) {
+    // El mismo cobro cargado desde dos pestañas (cada una con su clave) entraba dos veces: sin presupuesto no hay tope, y
+    // con presupuesto el tope sólo frena lo que pasa del saldo. Ya en fila y pasado el tope, si hace poco entró uno igual
+    // (mismo monto y medio, no anulado), no se graba sin un sí explícito. Sólo con clave: el navegador que la manda es el
+    // que sabe mostrar la casilla. No usa `claveEnvio`: funciona también sin esa migración.
+    if (clave && !confirmaRepetido) {
       const igual = await tx.proyectoPago.findFirst({
         where: { tenantId, proyectoId, anuladoEl: null, medio, monto: { gte: monto - 0.005, lte: monto + 0.005 }, createdAt: { gte: new Date(Date.now() - VENTANA_REPETIDO_MS) } },
         orderBy: { createdAt: "desc" },
