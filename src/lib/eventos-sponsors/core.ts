@@ -151,24 +151,39 @@ const NO_TELEFONOS: readonly RegExp[] = [
   /\bhttps?:\/\/\S+/gi, // URLs: se revisan aparte con urlConContacto
   // Días: 2026-11-14 (con hora), 14-11-2026, 14.11.2026, 14/11/2026 y rangos «20-22/05/2025».
   new RegExp(`(?<!\\d)${ANIO_TXT}${SEP_FECHA}(?:0?[1-9]|1[0-2])${SEP_FECHA}(?:0?[1-9]|[12]\\d|3[01])(?:T\\d{2}:\\d{2}(?::\\d{2}(?:\\.\\d+)?)?(?:Z|[+-]\\d{2}:?\\d{2})?)?(?![\\d:])`, "g"),
-  new RegExp(`(?<!\\d)(?:0?[1-9]|[12]\\d|3[01])(?:\\s?-\\s?(?:0?[1-9]|[12]\\d|3[01]))?${SEP_FECHA}(?:0?[1-9]|1[0-2])${SEP_FECHA}${ANIO_TXT}(?!\\d)`, "g"),
+  new RegExp(`(?<!\\d)(?:0?[1-9]|[12]\\d|3[01])(?:\\s?-\\s?(?:0?[1-9]|[12]\\d|3[01]))?${SEP_FECHA}(?:0?[1-9]|[12]\\d|3[01])${SEP_FECHA}${ANIO_TXT}(?!\\d)`, "g"), // también 11/14/2026
+  // Días con año corto, sólo con barra: 14/11/26.
+  /(?<!\d)(?:0?[1-9]|[12]\d|3[01])\/(?:0?[1-9]|1[0-2])\/\d{2}(?![\d/])/g,
   // Horas: 10:00, 10.00 hs, «10.00-18.00».
   /(?<!\d)(?:[01]?\d|2[0-3])[:.][0-5]\d(?:\s?-\s?(?:[01]?\d|2[0-3])[:.][0-5]\d)?(?!\d)/g,
+  // CUIT de una empresa (30-71234567-8) y coordenadas con decimales (-34.603722).
+  /(?<!\d)(?:20|23|24|27|30|33|34)-\d{8}-\d(?!\d)|\bCUIT\s*:?\s*(?:20|23|24|27|30|33|34)\d{9}(?!\d)/gi,
+  /(?<![\d.])-?\d{1,3}\.\d{4,}(?![\d.])/g,
   // Plata y cantidades con miles: $ 150.000.000, 12,500,000 visitantes, 1.250,50.
   /\$\s?\d[\d.,]*/g,
   /(?<![\d.,])\d{1,3}(?:([.,])\d{3})(?:\1\d{3})*(?:[.,]\d{1,2})?(?![\d.,])/g,
   // Años y rangos de años, crecientes: 2026, 2015-2024, (2016-2026), 2019/2026, «2025, 2026 y 2027».
   // (No si sigue «-55-12»: eso no es un año suelto, es un número.)
-  new RegExp(`(?<!\\d)${ANIO_TXT}(?:\\s*(?:-|/|,|y|a|al)\\s*${ANIO_TXT})*(?!\\d|[-./]\\d)`, "g"),
+  new RegExp(`(?<!\\d)${ANIO_TXT}(?:(?:\\s*(?:-|/|,|y|a|al)\\s*|\\s+)${ANIO_TXT})*(?!\\d|[-./]\\d)`, "g"),
 ];
+
+// Un AÑO pegado a otros dígitos por un espacio, un guion, un punto o una barra es parte de algo más largo
+// («Cel 11 5512-2030», «+54 9 11 2023 4567»): no se saca, se mira entero. Un paréntesis sí separa («2025 (20-22/05)»).
+// Días y horas tienen forma propia y se sacan siempre (por eso los años van al final, cuando ya no están).
+const PEGADO_ANTES = /\d[\s\-./]{0,3}$/;
+const PEGADO_DESPUES = /^[\s\-./]{0,3}\d/;
 
 function sinNoTelefonos(texto: string): string {
   let t = texto;
   for (const re of NO_TELEFONOS) {
-    t = t.replace(re, (m) => {
-      const anios = m.match(new RegExp(`${ANIO_TXT}`, "g"));
+    const esAnio = re === NO_TELEFONOS[NO_TELEFONOS.length - 1];
+    t = t.replace(re, (m: string, ...resto: unknown[]) => {
+      const desde = resto.find((x) => typeof x === "number") as number;
+      const todo = resto.find((x) => typeof x === "string" && x.length >= m.length) as string;
+      if (esAnio && (PEGADO_ANTES.test(todo.slice(Math.max(0, desde - 4), desde)) || PEGADO_DESPUES.test(todo.slice(desde + m.length, desde + m.length + 4)))) return m;
       // Un rango de años sólo vale si crece («2024-2019» no es un rango: queda como número).
-      if (re === NO_TELEFONOS[NO_TELEFONOS.length - 1] && anios && anios.some((a, i) => i > 0 && Number(a) <= Number(anios[i - 1]))) return m;
+      const anios = esAnio ? m.match(new RegExp(ANIO_TXT, "g")) : null;
+      if (anios && anios.some((a, i) => i > 0 && Number(a) <= Number(anios[i - 1]))) return m;
       return " CORTE ";
     });
   }
@@ -177,25 +192,27 @@ function sinNoTelefonos(texto: string): string {
 
 // Lo que queda: dígitos unidos por hasta 3 signos que no son letras (espacio, guion, punto, barra, «·», «|», «:»,
 // «*»…). Una coma con espacio separa una lista («12, 13 y 14») y corta, igual que un salto de línea o una letra.
-// 8 dígitos o más = teléfono, salvo una lista de números de 1 o 2 cifras («pabellones 1 · 2 · 3 · 4…»).
+// 8 dígitos o más = teléfono, salvo una lista de números chicos con alguno de 1 cifra («pabellones 1 · 2 · 3 · 4…»).
 const TRAMO_NUMERICO = /\+?\d(?:(?:(?!,\s)[^\p{L}\p{N}\n]){0,3}\d)+/gu;
 
 function hayTelefono(texto: string): boolean {
   for (const tramo of sinNoTelefonos(paraBuscarTelefonos(texto)).match(TRAMO_NUMERICO) ?? []) {
     const grupos = tramo.match(/\d+/g) ?? [];
-    if (grupos.join("").length >= 8 && grupos.some((g) => g.length > 2)) return true;
+    const lista = !tramo.startsWith("+") && grupos.every((g) => g.length <= 2) && grupos.some((g) => g.length === 1); // «1 · 2 · 3 · 4…»
+    if (grupos.join("").length >= 8 && !lista) return true;
   }
   return false;
 }
 
-/** En la query de una URL: un valor (o una clave) hecho sólo de dígitos, espacios, guiones, paréntesis o «+», con 8
- *  dígitos o más, es un teléfono (o varios). No cuentan un id de una sola tirada de más de 13 dígitos (perfiles) ni
- *  lo que lleva puntos o comas (seguimiento _ga=2.123456789…, coordenadas -34.60,-58.38). */
-function esTelefonoSolo(v: string): boolean {
+/** En la query de una URL, cada valor (y cada clave) se revisa como texto, salvo lo que es claramente un id: una sola
+ *  tirada de 14 dígitos o más (perfiles), el seguimiento de sitios (_ga=2.123456789.987654321) y un número pelado en
+ *  una clave de id o de fecha (?id=12345678, ?fecha=20261114). */
+const CLAVE_DE_ID = /^(?:.*id|p|page|post|nota|articulo|article|fecha|date|ts|t|v|ver|version|_ga|_gl)$/i;
+function queryConTelefono(k: string, v: string): boolean {
   const t = paraBuscarTelefonos(v).trim();
-  if (!/^\+?[\d\s\-()]+$/.test(t)) return false;
-  const n = t.replace(/\D/g, "").length;
-  return n >= 8 && !/^\d{14,}$/.test(t);
+  const seguimiento = /^\d+(?:[.-]\d+){2,}$/.test(t) && t.split(/[.-]/).some((g) => g.length >= 7); // 2.123456789.1698765432-…
+  if (/^\d{14,}$/.test(t) || seguimiento || (CLAVE_DE_ID.test(k) && /^\d+$/.test(t))) return false;
+  return hayTelefono(k) || hayTelefono(v);
 }
 
 /**
@@ -214,7 +231,7 @@ export function urlConContacto(url: string): boolean {
   }
   const host = u.hostname.toLowerCase().replace(/^www\./, "");
   if (host === "wa.me" || host === "wa.link" || /(^|\.)whatsapp\.(com|net)$/.test(host)) return true;
-  for (const [k, v] of u.searchParams) if (campoProhibido(k) || esTelefonoSolo(k) || esTelefonoSolo(v)) return true;
+  for (const [k, v] of u.searchParams) if (campoProhibido(k) || queryConTelefono(k, v)) return true;
   // Lo que va después del # no lo usa el sitio: si trae un mail o un teléfono, es una nota escondida.
   const fragmento = decodeURIComponentSeguro(u.hash.slice(1));
   if (fragmento && traeContacto(fragmento)) return true;
@@ -240,6 +257,8 @@ function decodeURIComponentSeguro(s: string): string {
 export function traeContacto(texto: string): boolean {
   const t = paraBuscarTelefonos(texto);
   if (PARECE_MAIL.test(t) || PARECE_MAIL_OFUSCADO.test(t) || /^(mailto|tel):/i.test(t.trim())) return true;
+  // Las URLs dentro del texto no se miran como número (traen ids largos) pero sí como URL: query y fragmento.
+  if ((t.match(/\bhttps?:\/\/\S+/gi) ?? []).some((u) => urlConContacto(u))) return true;
   return hayTelefono(t);
 }
 

@@ -237,3 +237,16 @@ test("detector de teléfonos (tercera certificación): separadores con espacio e
   ]) assert.ok(!urlConContacto(u), u);
   assert.ok(!traeContacto("ver https://maps.google.com/maps?q=-34.6037222,-58.3815704 y https://x.example/?_ga=2.123456789.987654321"));
 });
+
+test("detector de teléfonos (cuarta certificación): años pegados a un teléfono, URLs dentro del texto y query con letras", () => {
+  for (const t of ["Cel 11 5512-2030", "0800-555-2010", "(011) 4567-1999", "+54 9 11 2023 4567", "Tel 2025 4567", "Fuente: https://x.example/?ref=1155123456", "ver https://x.example/#11-5512-3456"]) assert.ok(traeContacto(t), t);
+  for (const u of ["https://x.example/?q=llamar+al+11+5512-3456", "https://x.example/?q=11·5512·3456", "https://x.example/?q=11.5512.3456"]) assert.ok(urlConContacto(u), u);
+  for (const t of ["CUIT 30-71234567-8", "en -34.603722, -58.381570", "2025 (20-22/05/2025)", "Temporada 2026-2027"]) assert.ok(!traeContacto(t), t);
+  for (const u of ["https://x.example/nota?id=12345678", "https://x.example/agenda?fecha=20261114"]) assert.ok(!urlConContacto(u), u);
+});
+
+test("detector de teléfonos: texto real que tiene que entrar (horarios, fechas US, CUIT, seguimiento, ids)", () => {
+  for (const t of ["Biodiagnostico · «19/11/2026 – 13:00 – 14:30 ... From QC Materials»", "Relevado 2026-11-14 10:30", "Starts 11/14/2026", "CUIT 30712345678", "Pabellones 1 · 2 · 3 · 4 · 5 · 6 · 7 · 8"]) assert.ok(!traeContacto(t), t);
+  for (const u of ["https://expo.example/?_ga=2.123456789.1234567890.1698765432-987654321.1698765432", "https://www.linkedin.com/jobs/view/?currentJobId=3712345678"]) assert.ok(!urlConContacto(u), u);
+  assert.ok(traeContacto("11 55 12 34 56"), "de a pares también es teléfono");
+});
