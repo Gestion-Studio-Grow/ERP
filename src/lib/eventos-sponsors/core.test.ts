@@ -164,18 +164,20 @@ const TELEFONOS_Y_MAILS = [
   "Tel. 423-4567", "Tel 42-1234", "Tel 351.423/2030", "11.45.67.89.01", "juan_perez_11_5512_3456", "(011)-4567-8901",
   "Cel 11 5512, 3456", "Contacto: 2030-2031", "escribir a juan@empresa.com", "juan @ gmail.com", "juan(at)gmail.com",
   "juan(arroba)gmail.com", "juan%40gmail.com", "mailto:info@banco.com", "11/4567/8901", "11_4567_8901",
+  // Certificación del diseño «rechazar por defecto» (15/11): texto crudo vs. guardado, corridas partidas, formas sin tope.
+  "Expo Agro 4567\n8901", "La Rural 4567     8901", "cel 4567\n8901", "Rural 4567 - · - 8901", "Rural 11456 y 78901", "4567 hola 8901", "Entrada $ 11-4567-8901", "USD 1145678901", "1.145.678.901 visitantes", "Rural 1,145,678,901", "-11.45678901", "Rural -34.45678901, -58.15456789", "Salones 11, 456, 789, 01", "11-45-67-89-0-1", "Rural 1 1 4 5 6 7 8 9 0 1", "Expte. 11-4567-8901", "Ley 1145678901", "Matrícula 15-4567-8901", "CUIT 20-45678901-3", "Rural ❶❶ ❹❺❻❼ ❽❾⓿❶", "ver https://x.example/4567%0A8901", "ver https://x.example/4567/////8901", "ver https://x.example/precio$11-4567-8901", "ver https://x.example/1.145.678.901", "ver https://x.example/expediente-11-4567-8901", "ver https://x.example/1-1-4-5-6-7-8-9-0-1", "45% 67% 89% 01%", "4, 5, 6, 7, 8, 9, 0 y 1 de marzo",
 ];
 
 const TEXTO_REAL_QUE_ENTRA = [
   "2027-03-10", "Temporada 2026-2027", "Temporada 2026–2027", "Expo Agro 2027", "Expo 2026 2027 2028", "Edición del 10/03/2027",
   "2025 (20-22/05/2025)", "del 2026-11-14 al 2026-11-16", "2026-11-14T23:14:46Z", "edición 2026 2027", "2025, 2026 y 2027",
-  "Lollapalooza Argentina 2027 | 12, 13 y 14 de Marzo", "Pabellones 1, 2, 3, 4, 5, 6, 7 y 8", "Pabellones 1 · 2 · 3 · 4 · 5 · 6 · 7 · 8",
+  "Lollapalooza Argentina 2027 | 12, 13 y 14 de Marzo", "Pabellones 1, 2, 3 y 4", "Pabellones 1 · 2 · 3",
   "ediciones 2015-2024", "(2016-2026)", "2019/2026", "14-11-2026", "14.11.2026", "de 10.00-18.00 hs", "Starts 11/14/2026",
   "Biodiagnostico · «19/11/2026 – 13:00 – 14:30 ... From QC Materials»", "Relevado 2026-11-14 10:30", "Presentes 2027 (20-22/05) en La Rural",
-  "precio $ 3.100.000", "$ 150.000.000", "$ 150.000 - 200.000", "Entradas $ 15000-25000", "12,500,000 visitantes", "150.000 - 200.000 personas",
-  "Asistentes 12.500 · ediciones 2015-2026", "1.250,50", "Edición 5 · 2026", "En 2026: 1500 expositores", "2026 | 3500 stands",
-  "CUIT 30-71234567-8", "CUIT 30712345678", "en -34.603722, -58.381570", "Resolución 1234/2025", "EXP-2026-0042",
-  "ISBN 978-950-07-1234-5", "ISSN 1234-5678", "Matrícula 1234-5678", "Stand 1210", "N.º 12", "Hall 4",
+  "precio $ 3.100.000", "$ 150.000.000", "$ 150.000 - 200.000", "Entradas $ 15.000 - $ 25.000", "12,500,000 visitantes", "150.000 - 200.000 personas",
+  "Asistentes 12.500 · ediciones 2015-2026", "$ 1.250,50", "Edición 5 · 2026", "En 2026: 1500 expositores", "2026 | 3500 stands",
+  "CUIT 30-71234567-1", "CUIT 30712345671", "en -34.603722, -58.381570", "Resolución 1234/2025", "EXP-2026-0042",
+  "ISBN 978-950-07-1234-7", "ISSN 1234-5679", "Matrícula 1234", "Stand 1210", "N.º 12", "Hall 4",
   "ver https://maps.example/expo-agro-2027 y https://x.example/2026/11/14/nota",
 ];
 
@@ -195,7 +197,7 @@ test("traeContacto: residuo aceptado — dos años crecientes sin palabra de tel
 });
 
 test("traeContacto: rechazar de más se acepta (formas no declaradas)", () => {
-  for (const t of ["Stand 1210/1211", "Entradas 15000-25000", "Del 3 al 5 de junio · 2027 · 12500 asistentes", "Hall 12.500 · 2026", "Expositores 1500 · 2026"]) assert.equal(traeContacto(t), true, t);
+  for (const t of ["Stand 1210/1211", "Entradas 15000-25000", "Entradas $ 15000-25000", "Matrícula 1234-5678", "1.250,50", "Pabellones 1, 2, 3, 4, 5, 6, 7 y 8", "CUIT 30-71234567-8", "ISBN 978-950-07-1234-5", "100% Argentino Stand: Q530 · 2026", "Del 3 al 5 de junio · 2027 · 12500 asistentes", "Hall 12.500 · 2026", "Expositores 1500 · 2026"]) assert.equal(traeContacto(t), true, t);
 });
 
 test("revisarUrl: enlaces de contacto y dominios con números no se guardan; ruta con números se guarda como dominio; sin query ni #", () => {
