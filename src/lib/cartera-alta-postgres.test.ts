@@ -228,9 +228,11 @@ test("alta por pedido: misma respuesta con cualquier CUIT, y Soporte lo configur
   assert.ok(claveMartina && claveDuenio2 && claveMartina !== claveDuenio2);
   const msj = confReglas.mensajeParaLaContadora({
     cliente: conNueva.nombre, cuit: conNueva.cuit, puntoVenta: conNueva.puntoVenta,
-    direccionCartera: conNueva.estudio.direccionCartera, acceso: { usuario: "martina@estudio.test", clave: claveMartina! },
+    direccionCartera: conNueva.estudio.direccionCartera, acceso: { usuario: "martina@estudio.test", enviadaA: "m***@estudio.test" },
   });
-  assert.ok(msj.includes(claveMartina!) && !msj.includes(claveDuenio2!), "el mensaje de la contadora no lleva la clave del dueño");
+  // GSG-SEG-014: ninguna clave viaja en el mensaje; la suya le llega por mail.
+  assert.ok(!msj.includes(claveMartina!) && !msj.includes(claveDuenio2!), "el mensaje de la contadora no lleva ninguna clave");
+  assert.match(msj, /te llegó por mail a m\*\*\*@estudio\.test/);
   assert.equal(
     await duenio.auditLog.count({ where: { tenantId: base.a.id, action: "usuario.alta", actor: "operator:soporte" } }),
     1,

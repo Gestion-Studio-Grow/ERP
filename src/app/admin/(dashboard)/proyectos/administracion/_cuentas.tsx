@@ -36,7 +36,7 @@ function vence(d: Date, vencida: boolean) {
   );
 }
 
-export async function TabCuentas({ tipo, estado, q, cuotas, sinCalendario = [], tc, tenantId, editaEmpresa, editaPagos }: { tipo: "COBRO" | "PAGO"; estado?: string; q?: string; cuotas: readonly (CuotaDelNegocio & { pendiente?: number; cobrado?: number; pagado?: PagadoDeCuota | null })[]; sinCalendario?: readonly SinCalendarioDelNegocio[]; tc: Readonly<Record<string, number>>; tenantId: string; editaEmpresa: boolean; editaPagos: boolean }) {
+export async function TabCuentas({ tipo, estado, q, cuotas, sinCalendario = [], tc, tenantId, editaEmpresa, editaPagos, veClientes = false }: { tipo: "COBRO" | "PAGO"; estado?: string; q?: string; cuotas: readonly (CuotaDelNegocio & { pendiente?: number; cobrado?: number; pagado?: PagadoDeCuota | null })[]; sinCalendario?: readonly SinCalendarioDelNegocio[]; tc: Readonly<Record<string, number>>; tenantId: string; editaEmpresa: boolean; editaPagos: boolean; veClientes?: boolean }) {
   const filtro: FiltroCuota = (FILTROS_CUOTA as readonly string[]).includes(estado ?? "") ? (estado as FiltroCuota) : "pendientes";
   const busqueda = (q ?? "").trim().toLowerCase();
   const tab = tipo === "COBRO" ? "cobrar" : "pagar";
@@ -67,7 +67,7 @@ export async function TabCuentas({ tipo, estado, q, cuotas, sinCalendario = [], 
         <p className={cn(tarjeta, "text-sm text-muted")}>{busqueda ? "Nada coincide con esa búsqueda." : tipo === "COBRO" ? "No hay cobros en este filtro." : "No hay pagos en este filtro."}</p>
       ) : (
         <div className={cn(tarjeta, "overflow-x-auto")}>
-          <table className="w-full min-w-[1180px] text-sm">
+          <table className="w-full min-w-[1080px] text-sm">
             <thead className="text-left text-xs text-muted">
               <tr>
                 <th className="py-1 pr-3 font-medium">Vence</th>
@@ -90,7 +90,8 @@ export async function TabCuentas({ tipo, estado, q, cuotas, sinCalendario = [], 
                 const puedeMarcar = deEmpresa ? editaEmpresa : editaPagos;
                 // Lo cobrado a mano por fuera ya se descontó de las cuotas más viejas: el renglón muestra lo que falta. Una
                 // cuota de cobro ya cobrada muestra lo que entró por ella (su cobro y lo suelto que la cubrió), no su monto.
-                const deCobro = c.tipo === "COBRO" ? (c.pagadoEl ? c.cobrado : c.pendiente) : undefined;
+                // Una de pago sin marcar, lo que le falta después de lo pagado en parte (pago-parcial-core).
+                const deCobro = c.tipo === "COBRO" ? (c.pagadoEl ? c.cobrado : c.pendiente) : c.pagadoEl ? undefined : c.pendiente;
                 const falta = deCobro ?? c.monto;
                 const cubierta = !c.pagadoEl && !(falta > 0);
                 // Una cobrada con su cobro: lo que se pagó tal como entró (el original y los pesos asentados), no lo que
@@ -106,7 +107,9 @@ export async function TabCuentas({ tipo, estado, q, cuotas, sinCalendario = [], 
                     <td className="py-2 pr-3">
                       {c.proyecto ? <Link href={`/admin/proyectos/${c.proyecto.id}`} className="underline">{codigoProyecto(c.proyecto.numero, c.proyecto.createdAt)} {c.proyecto.nombre}</Link> : <span className="text-muted">Empresa</span>}
                     </td>
-                    <td className="py-2 pr-3">{contraparte(c)}</td>
+                    <td className="py-2 pr-3">
+                      {c.tipo === "COBRO" && c.proyecto && veClientes ? <Link href={`/admin/clientes/${c.proyecto.client.id}`} className="underline">{c.proyecto.client.name}</Link> : contraparte(c)}
+                    </td>
                     <td className="py-2 pr-3">
                       {c.concepto}
                       {c.auto && <span className="ml-1 rounded border border-line px-1 text-xs text-muted">auto</span>}
@@ -122,7 +125,7 @@ export async function TabCuentas({ tipo, estado, q, cuotas, sinCalendario = [], 
                       <div className="grid justify-items-start gap-1">
                         {cubierta && <span className="max-w-56 text-xs text-muted">{textoCubierta(c.auto)}</span>}
                         {cubierta && !deEmpresa && !c.auto && editaPagos && c.proyecto && <BotonDosPasos accion={quitarMovimiento} campos={{ id: c.id, proyectoId: c.proyecto.id }} etiqueta="Quitar" pregunta="¿Quitar esta cuota? Lo cobrado sigue registrado." />}
-                        {est !== "PAGADA" && !cubierta && puedeMarcar && <MarcarCuota id={c.id} deEmpresa={deEmpresa} etiqueta={tipo === "COBRO" ? "Cobrado" : "Pagar"} />}
+                        {est !== "PAGADA" && !cubierta && puedeMarcar && <MarcarCuota id={c.id} deEmpresa={deEmpresa} etiqueta={tipo === "COBRO" ? "Cobrado" : "Pagar"} falta={falta} moneda={c.moneda} concepto={c.concepto} esCobro={c.tipo === "COBRO"} />}
                         {est === "PAGADA" && <span className="whitespace-nowrap text-xs text-muted">{fechaCorta(c.pagadoEl)}{c.medio ? ` · ${c.medio.toLowerCase().replace("_", " ")}` : ""}</span>}
                         {deEmpresa && editaEmpresa && <BotonDosPasos accion={anularCuotaEmpresa} campos={{ id: c.id }} etiqueta="Anular" pregunta={est === "PAGADA" ? "¿Anular? La plata vuelve al libro." : "¿Anular?"} />}
                       </div>

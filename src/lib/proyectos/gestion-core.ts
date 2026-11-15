@@ -354,7 +354,7 @@ export function proyeccionDeCaja(d: {
       if (c.pagadoEl || c.anuladoEl) continue;
       const t = c.venceEl.getTime();
       if (!(t < fin.getTime() && (n === 0 || t >= inicio.getTime()))) continue;
-      const pesos = aPesos(c.tipo === "COBRO" && c.pendiente != null ? c.pendiente : c.monto, c.moneda, d.tiposDeCambio);
+      const pesos = aPesos(c.pendiente != null ? c.pendiente : c.monto, c.moneda, d.tiposDeCambio);
       if (c.tipo === "COBRO") cobros += pesos;
       else proveedores += pesos;
     }

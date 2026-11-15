@@ -17,7 +17,7 @@ import { formatearPesos } from "@/lib/rendiciones/dinero";
 import type { Prisma } from "@/generated/prisma/client";
 import { actorActual, avisar, proyectoVisible, registrarCambio, usuariosDeLaPlata, type Actor } from "./gestion.server";
 import { cierreDeAnticipo, leerMontoArgentino, motivoNoMuevePlata, rendicionDelMotor } from "./rendiciones-core";
-import { MEDIOS, metodoDeCaja, type MedioPago } from "./core";
+import { COMPROBANTE_DE_RENDICION, MEDIOS, metodoDeCaja, type MedioPago } from "./core";
 import { marcaDeGastoProyecto } from "./marcas";
 import { transferenciaEnElLibroTx } from "@/lib/caja/transferencia-en-el-libro";
 import type { RolActor } from "@/lib/rendiciones/tipos";
@@ -119,7 +119,7 @@ export async function rendirGasto(formData: FormData): Promise<ResultadoRendicio
             neto,
             iva: 0,
             fecha: d.fecha ? new Date(`${d.fecha}T12:00:00-03:00`) : ahora,
-            comprobante: "Rendición",
+            comprobante: COMPROBANTE_DE_RENDICION,
             cargadoPor: a.nombre,
             // Pagado por la persona, no por la caja: así «Pagar» no lo vuelve a asentar. Sin CashMovement.
             pagadoEl: ahora,

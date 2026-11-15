@@ -89,7 +89,7 @@ export default async function DetalleProveedor({ params }: { params: Promise<{ i
                     {c.concepto}
                     <span className="block text-xs text-muted">{c.proyecto?.nombre ?? "Empresa"} · vence {fechaCorta(c.venceEl)}</span>
                   </span>
-                  <strong className="whitespace-nowrap text-strong">{plataEn(c.monto, c.moneda)}</strong>
+                  <strong className="whitespace-nowrap text-strong">{plataEn(c.falta, c.moneda)}{c.falta !== c.monto && <span className="block text-xs font-normal text-muted">de {plataEn(c.monto, c.moneda)}</span>}</strong>
                 </li>
               ))}
             </ul>

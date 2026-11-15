@@ -76,6 +76,9 @@ export async function cuentasParaMarcar(): Promise<{ id: string; nombre: string;
   return prisma.proyectoCuentaBanco.findMany({ where: { tenantId: a.tenantId }, orderBy: { createdAt: "asc" }, select: { id: true, nombre: true, moneda: true } });
 }
 
+/** Aborta la transacción de marcar: el mensaje es para la persona. */
+class NoSeMarca extends Error {}
+
 /** Marca pagada una cuota de la empresa y asienta el movimiento. El `where` con `pagadoEl: null` es lo que frena el doble clic. */
 export async function marcarCuotaEmpresa(formData: FormData): Promise<Resultado<{ listo?: string }>> {
   const a = await exigirEditar("empresa");
@@ -87,33 +90,47 @@ export async function marcarCuotaEmpresa(formData: FormData): Promise<Resultado<
     select: { id: true, tipo: true, concepto: true, monto: true, moneda: true, supplier: { select: { name: true } } },
   });
   if (!c) return { ok: false, error: "Esa cuota no existe." };
-  const amount = aPesos(c.monto, c.moneda, await tiposDeCambio(a.tenantId));
-  if (!(amount > 0)) return { ok: false, error: "Falta el tipo de cambio: cargalo en Monedas y gastos fijos." };
-  const cuenta = await cuentaParaCuota(a.tenantId, formData, { tipo: c.tipo, monto: c.monto, moneda: c.moneda, importeEnPesos: amount });
-  if (typeof cuenta === "string") return { ok: false, error: cuenta };
-  const hecho = await tenantTransaction(async (tx) => {
-    const r = await tx.proyectoCuota.updateMany({ where: { id, tenantId: a.tenantId, proyectoId: null, pagadoEl: null, anuladoEl: null }, data: { pagadoEl: new Date(), pagadoPor: a.nombre, medio } });
-    if (r.count === 0) return false;
-    if (cuenta) {
-      await tx.proyectoCuota.updateMany({ where: { id, tenantId: a.tenantId }, data: { cuentaId: cuenta.id, cuentaMovido: cuenta.movido } });
-      await tx.proyectoCuentaBanco.updateMany({ where: { id: cuenta.id, tenantId: a.tenantId }, data: { saldo: { increment: cuenta.movido } } });
-    }
-    const session = await tx.cashSession.findFirst({ where: { tenantId: a.tenantId, status: "OPEN" }, select: { id: true } });
-    await tx.cashMovement.create({
-      data: {
-        tenantId: a.tenantId,
-        sessionId: session?.id ?? null,
-        type: c.tipo === "COBRO" ? "INGRESO" : "EGRESO",
-        method: metodoDeCaja(medio, await transferenciaEnElLibroTx(tx)),
-        amount,
-        reason: `Empresa · ${c.concepto}${c.supplier ? ` · ${c.supplier.name}` : ""}${medio === "CHEQUE" ? " · Cheque" : ""}`,
-        createdBy: marcaDeCuota(id),
-      },
+  let hecho: "marcada" | "cambio" | { amount: number };
+  try {
+    hecho = await tenantTransaction(async (tx): Promise<"marcada" | "cambio" | { amount: number }> => {
+      // Condicionado a lo leído afuera: si en el medio cambiaron el monto, la moneda o el tipo, no se asienta lo viejo.
+      const r = await tx.proyectoCuota.updateMany({ where: { id, tenantId: a.tenantId, proyectoId: null, pagadoEl: null, anuladoEl: null, tipo: c.tipo, monto: c.monto, moneda: c.moneda }, data: { pagadoEl: new Date(), pagadoPor: a.nombre, medio } });
+      if (r.count === 0) {
+        const sigue = await tx.proyectoCuota.findFirst({ where: { id, tenantId: a.tenantId, proyectoId: null, pagadoEl: null, anuladoEl: null }, select: { id: true } });
+        return sigue ? "cambio" : "marcada";
+      }
+      // Con la cuota ya tomada: el cambio y la cuenta se leen acá, así el libro y el banco usan lo vigente al marcar.
+      const amount = aPesos(c.monto, c.moneda, await tiposDeCambio(a.tenantId, tx));
+      if (!(amount > 0)) throw new NoSeMarca("Falta el tipo de cambio: cargalo en Monedas y gastos fijos.");
+      const cuenta = await cuentaParaCuota(a.tenantId, formData, { tipo: c.tipo, monto: c.monto, moneda: c.moneda, importeEnPesos: amount }, tx);
+      if (typeof cuenta === "string") throw new NoSeMarca(cuenta);
+      if (cuenta) {
+        await tx.proyectoCuota.updateMany({ where: { id, tenantId: a.tenantId }, data: { cuentaId: cuenta.id, cuentaMovido: cuenta.movido } });
+        await tx.proyectoCuentaBanco.updateMany({ where: { id: cuenta.id, tenantId: a.tenantId }, data: { saldo: { increment: cuenta.movido } } });
+      }
+      const session = await tx.cashSession.findFirst({ where: { tenantId: a.tenantId, status: "OPEN" }, select: { id: true } });
+      await tx.cashMovement.create({
+        data: {
+          tenantId: a.tenantId,
+          sessionId: session?.id ?? null,
+          type: c.tipo === "COBRO" ? "INGRESO" : "EGRESO",
+          method: metodoDeCaja(medio, await transferenciaEnElLibroTx(tx)),
+          amount,
+          reason: `Empresa · ${c.concepto}${c.supplier ? ` · ${c.supplier.name}` : ""}${medio === "CHEQUE" ? " · Cheque" : ""}`,
+          createdBy: marcaDeCuota(id),
+        },
+      });
+      await registrarCambio(tx, { tenantId: a.tenantId, entidad: "cuota", entidadId: id, campo: c.tipo === "COBRO" ? "cobro de empresa" : "pago de empresa", antes: "pendiente", despues: `${c.tipo === "COBRO" ? "cobrada" : "pagada"} · ${medio} · $ ${amount}`, autor: a.nombre });
+      return { amount };
     });
-    await registrarCambio(tx, { tenantId: a.tenantId, entidad: "cuota", entidadId: id, campo: c.tipo === "COBRO" ? "cobro de empresa" : "pago de empresa", antes: "pendiente", despues: `${c.tipo === "COBRO" ? "cobrada" : "pagada"} · ${medio} · $ ${amount}`, autor: a.nombre });
-    return true;
-  });
-  if (!hecho) return { ok: false, error: "Esa cuota ya estaba marcada." };
+  } catch (e) {
+    // Deshace la marca: sin cambio o sin cuenta válida no queda nada a medias.
+    if (e instanceof NoSeMarca) return { ok: false, error: e.message };
+    throw e;
+  }
+  if (hecho === "marcada") return { ok: false, error: "Esa cuota ya estaba marcada." };
+  if (hecho === "cambio") return { ok: false, error: "Esa cuota cambió mientras la marcabas (monto, moneda o tipo). Recargá la página y volvé a marcarla." };
+  const { amount } = hecho;
   await auditAdmin({ action: "proyecto.cuota-empresa.pagar", entity: "ProyectoCuota", entityId: id, changes: { amount, medio } });
   refrescar();
   return { ok: true, listo: listoMarcada(c.tipo === "COBRO", amount) };
@@ -161,11 +178,20 @@ export async function guardarDatoCuota(formData: FormData): Promise<Resultado> {
   if (campo === "venceEl") {
     const texto = txt(formData.get("valor"));
     if (!/^\d{4}-\d{2}-\d{2}$/.test(texto)) return { ok: false, error: "Elegí una fecha." };
-    const q = await prisma.proyectoCuota.findFirst({ where: { id, tenantId: a.tenantId, pagadoEl: null, anuladoEl: null }, select: { proyectoId: true, venceEl: true } });
-    if (!q) return { ok: false, error: "Esa cuota ya se pagó o ya no corre." };
     const venceEl = new Date(`${texto}T12:00:00-03:00`);
-    await prisma.proyectoCuota.updateMany({ where: { id, tenantId: a.tenantId }, data: { venceEl, venceManual: true } });
-    await registrarCambio(prisma, { tenantId: a.tenantId, proyectoId: q.proyectoId, entidad: "cuota", entidadId: id, campo: "vencimiento", antes: q.venceEl.toISOString().slice(0, 10), despues: texto, autor: a.nombre });
+    // Adentro y con la fila trabada: si en el medio la pagaron o la anularon, no se le cambia el vencimiento.
+    const hecho = await tenantTransaction(async (tx) => {
+      const [q] = await tx.$queryRaw<{ proyectoId: string | null; venceEl: Date }[]>`
+        SELECT "proyectoId", "venceEl" FROM "ProyectoCuota"
+         WHERE "id" = ${id} AND "tenantId" = ${a.tenantId} AND "pagadoEl" IS NULL AND "anuladoEl" IS NULL
+         FOR UPDATE`;
+      if (!q) return false;
+      const u = await tx.proyectoCuota.updateMany({ where: { id, tenantId: a.tenantId, pagadoEl: null, anuladoEl: null }, data: { venceEl, venceManual: true } });
+      if (u.count === 0) return false;
+      await registrarCambio(tx, { tenantId: a.tenantId, proyectoId: q.proyectoId, entidad: "cuota", entidadId: id, campo: "vencimiento", antes: new Date(q.venceEl).toISOString().slice(0, 10), despues: texto, autor: a.nombre });
+      return true;
+    });
+    if (!hecho) return { ok: false, error: "Esa cuota ya se pagó o ya no corre." };
     revalidatePath(ADMIN);
     return { ok: true };
   }
@@ -252,23 +278,39 @@ export async function conciliarMovimiento(formData: FormData): Promise<Resultado
   return r;
 }
 
+/**
+ * Suelta sólo la conciliación que se leyó: el update va condicionado a esa cuota, así un pedido viejo no suelta la que
+ * otro hizo recién con otra cuota. Mismo orden de candados que conciliar (cuota primero, después el movimiento).
+ */
 export async function desconciliarMovimiento(formData: FormData): Promise<Resultado> {
   const a = await exigirEditar("empresa");
   const id = txt(formData.get("id"));
-  const m = await prisma.proyectoMovBanco.findFirst({ where: { id, tenantId: a.tenantId }, select: { cuota: { select: { concepto: true, proyectoId: true } } } });
-  if (!m?.cuota) return { ok: false, error: "Ese movimiento no está conciliado." };
-  await prisma.proyectoMovBanco.updateMany({ where: { id, tenantId: a.tenantId }, data: { cuotaId: null } });
-  await registrarCambio(prisma, { tenantId: a.tenantId, proyectoId: m.cuota.proyectoId, entidad: "movimiento", entidadId: id, campo: "conciliación", antes: m.cuota.concepto, autor: a.nombre });
-  revalidatePath(ADMIN);
-  return { ok: true };
+  const r = await tenantTransaction(async (tx): Promise<Resultado> => {
+    const m = await tx.proyectoMovBanco.findFirst({ where: { id, tenantId: a.tenantId }, select: { cuotaId: true } });
+    if (!m?.cuotaId) return { ok: false, error: "Ese movimiento no está conciliado." };
+    // Sin filtrar por anulada: una cuota anulada también se puede soltar.
+    const [c] = await tx.$queryRaw<{ concepto: string; proyectoId: string | null }[]>`
+      SELECT "concepto", "proyectoId" FROM "ProyectoCuota"
+       WHERE "id" = ${m.cuotaId} AND "tenantId" = ${a.tenantId}
+       FOR UPDATE`;
+    const u = await tx.proyectoMovBanco.updateMany({ where: { id, tenantId: a.tenantId, cuotaId: m.cuotaId }, data: { cuotaId: null } });
+    if (u.count === 0) return { ok: false, error: "Ese movimiento cambió mientras tanto (alguien lo desconcilió o lo concilió con otra cuota). Recargá la página." };
+    await registrarCambio(tx, { tenantId: a.tenantId, proyectoId: c?.proyectoId ?? null, entidad: "movimiento", entidadId: id, campo: "conciliación", antes: c?.concepto ?? "cuota", autor: a.nombre });
+    return { ok: true };
+  });
+  if (r.ok) revalidatePath(ADMIN);
+  return r;
 }
 
 // ── Monedas y gastos fijos ──────────────────────────────────────────────────
 
 export async function guardarTipoCambio(formData: FormData): Promise<Resultado> {
   const a = await exigirEditar("empresa");
-  const porUnidad = redondear(numero(formData.get("porUnidad")));
+  const leido = numero(formData.get("porUnidad"));
+  const porUnidad = redondear(leido);
   if (!(porUnidad > 0)) return { ok: false, error: "Escribí cuántos pesos vale un dólar." };
+  // Sin redondear en silencio (UAT-008): el cambio pasa a pesos cada cuota en dólares; con más de dos decimales, se pide.
+  if (Math.abs(leido - porUnidad) > 1e-9) return { ok: false, error: `El tipo de cambio se guarda con hasta 2 decimales. Escribilo así, por ejemplo ${String(porUnidad).replace(".", ",")}.` };
   const previo = await prisma.proyectoTipoCambio.findFirst({ where: { tenantId: a.tenantId, moneda: "USD" }, select: { porUnidad: true } });
   await prisma.proyectoTipoCambio.upsert({ where: { tenantId_moneda: { tenantId: a.tenantId, moneda: "USD" } }, create: { tenantId: a.tenantId, moneda: "USD", porUnidad }, update: { porUnidad } });
   await registrarCambio(prisma, { tenantId: a.tenantId, entidad: "tipoCambio", entidadId: "USD", campo: "pesos por dólar", antes: previo?.porUnidad, despues: porUnidad, autor: a.nombre });

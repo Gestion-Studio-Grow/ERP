@@ -52,9 +52,26 @@ test("QA vuelta 7 · con otro CUIT, la prueba en seco dice que no y «Dar de alt
   if (!base) return;
   apuntarLaAppA(base);
   const e = process.env as Record<string, string | undefined>;
-  const antes = { AUTH_SECRET: e.AUTH_SECRET, OPERATOR_SECRET: e.OPERATOR_SECRET, OPERADOR_DUENIO: e.OPERADOR_DUENIO };
-  Object.assign(e, { AUTH_SECRET: "secreto-de-auth-qa7", OPERATOR_SECRET: "secreto-de-consola-qa7", OPERADOR_DUENIO: "tomas" });
+  const antes = {
+    AUTH_SECRET: e.AUTH_SECRET,
+    OPERATOR_SECRET: e.OPERATOR_SECRET,
+    OPERADOR_DUENIO: e.OPERADOR_DUENIO,
+    RESEND_API_KEY: e.RESEND_API_KEY,
+    RESEND_FROM_EMAIL: e.RESEND_FROM_EMAIL,
+  };
+  // El alta sale con la provisoria por mail (GSG-SEG-014): un Resend de prueba que siempre acepta.
+  Object.assign(e, {
+    AUTH_SECRET: "secreto-de-auth-qa7",
+    OPERATOR_SECRET: "secreto-de-consola-qa7",
+    OPERADOR_DUENIO: "tomas",
+    RESEND_API_KEY: "re_prueba",
+    RESEND_FROM_EMAIL: "GSG <no-responder@gsg.test>",
+  });
+  const fetchOriginal = globalThis.fetch;
+  globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) =>
+    String(url).startsWith("https://api.resend.com/") ? new Response("{}", { status: 200 }) : fetchOriginal(url, init)) as typeof fetch;
   t.after(() => {
+    globalThis.fetch = fetchOriginal;
     for (const [k, v] of Object.entries(antes)) {
       if (v === undefined) delete e[k];
       else e[k] = v;

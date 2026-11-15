@@ -63,6 +63,8 @@ jobs:
         run: node --test scripts/release/lib.test.mjs
       - name: tests del pipeline de publicación (scripts/publicar)
         run: node --test scripts/publicar/*.test.mjs
+      - name: tests del control de push y del vercel.json (scripts/git-hooks)
+        run: node --test scripts/git-hooks/*.test.mjs
       - name: sello GSG en el backoffice (metadata.generator)
         run: node scripts/release/sello-gsg.mjs
 

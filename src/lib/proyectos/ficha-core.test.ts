@@ -145,3 +145,18 @@ test("se sube una imagen o un PDF de verdad, con su tope", () => {
   assert.equal(tipoDeArchivoSubido("data:image/png;base64,AAAA", 5, 100), null);
   assert.equal(tipoDeArchivoSubido("data:application/pdf;base64,JVBERi0x", 100, 5), null);
 });
+
+// ── Defecto 2 (QA de saldos MIA, GSG-UAT-007): el precio tipeado en dólares manda al cambiar el cambio de la versión ──
+test("precioAlCambiarCambio: US$ 4.033,33 tipeados a 1.350 siguen siendo US$ 4.033,33 a 1.400 (antes 3.889,28)", async () => {
+  const { precioAlCambiarCambio } = await import("./ficha-core");
+  const { enMonedaDeVenta } = await import("./gestion-core");
+  const aMil350 = 5_444_995.5; // 4.033,33 × 1.350
+  assert.equal(enMonedaDeVenta(aMil350, 1400), 3889.28, "el defecto: los pesos quietos con otro cambio");
+  const aMil400 = precioAlCambiarCambio(aMil350, 1350, 1400);
+  assert.equal(aMil400, 5_646_662);
+  assert.equal(enMonedaDeVenta(aMil400, 1400), 4033.33);
+  assert.equal(enMonedaDeVenta(3 * aMil400, 1400), 12_099.99);
+  assert.equal(precioAlCambiarCambio(aMil400, 1400, 1350), aMil350, "ida y vuelta vuelve al mismo precio");
+  assert.equal(precioAlCambiarCambio(0, 1350, 1400), 0, "sin precio a mano (sale del recargo) no se toca");
+  assert.equal(precioAlCambiarCambio(1000, 0, 1400), 1000, "sin cambio viejo no se inventa");
+});

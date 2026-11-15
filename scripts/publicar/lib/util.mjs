@@ -79,3 +79,23 @@ export function puedePublicar(permiso, usuario, permitidos) {
   if (!alcanza) return { ok: false, motivo: `${usuario} tiene permiso «${rol ?? "ninguno"}» en el repo (hace falta write o más)` };
   return { ok: true, motivo: `${usuario} (${rol})` };
 }
+
+/**
+ * Rama del PR (head.ref) que se puede publicar por etiqueta. Factory-GSG 10-GOBIERNO/despliegues-vercel.md §3:
+ * a main se llega por una tanda (`tanda/…`, regla 1: muchos PR, un solo despliegue de producción) o por
+ * un arreglo urgente de producción o de seguridad que sale solo (`urgente/…`, regla 6). Cualquier otra
+ * rama sería un despliegue de producción por PR suelto: el atajo que gasta el cupo del plan gratis.
+ */
+export function ramaPublicable(ref) {
+  const r = typeof ref === "string" ? ref : "";
+  const m = /^(tanda|urgente)\/\S+$/.exec(r);
+  if (!m)
+    return {
+      ok: false,
+      urgente: false,
+      motivo: `la rama \`${r || "(sin nombre)"}\` no es \`tanda/…\` ni \`urgente/…\`: a main se llega por la tanda (un despliegue para varios PR) o, si es un arreglo urgente de producción o de seguridad, desde una rama \`urgente/…\``,
+    };
+  return m[1] === "urgente"
+    ? { ok: true, urgente: true, motivo: `arreglo urgente desde \`${r}\`: sale solo; anotalo en la bitácora de despliegues (regla 6)` }
+    : { ok: true, urgente: false, motivo: `tanda \`${r}\`` };
+}

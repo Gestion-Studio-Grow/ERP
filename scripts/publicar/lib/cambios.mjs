@@ -13,6 +13,7 @@ export const RUTAS_SENSIBLES = [
   { prefijo: "scripts/release/", motivo: "vallas del CI (tren de releases y checklist del Gate)" },
   { exacta: "scripts/vercel-build.mjs", motivo: "el build de producción (migra la base)" },
   { exacta: "scripts/vercel-ignore.mjs", motivo: "decide si Vercel construye" },
+  { prefijo: "scripts/git-hooks/", motivo: "control de push que frena ramas viejas antes de Vercel" },
   { exacta: "scripts/predeploy-check.mts", motivo: "frenos del build de producción" },
   { exacta: "scripts/preview-base.mjs", motivo: "build de producción/preview" },
   { exacta: "scripts/verify-gates.mjs", motivo: "vallas del CI" },
