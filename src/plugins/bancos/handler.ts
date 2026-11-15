@@ -28,9 +28,11 @@ import {
 import {
   configConDefaults,
   generarPropuestas,
+  marcarBordesPartidos,
   type AlertaBancos,
   type ConfigBancos,
   type DeteccionCruzadaPort,
+  type RangoDeImportacionPrevia,
 } from "./domain/reglas";
 import { parsearCsv } from "./parser/csv";
 import { esXlsx, parsearXlsx } from "./parser/xlsx";
@@ -55,6 +57,11 @@ export interface BancosHandlerDeps {
   deteccionCruzada?: DeteccionCruzadaPort;
   /** Idempotencia entre importaciones: ¿este movimiento ya se procesó? Opcional. */
   yaProcesado?: (movimientoId: string) => boolean | Promise<boolean>;
+  /**
+   * Rango de fechas de la importación anterior que ya guarda un movimiento (null = nuevo). Con él,
+   * un cobro igual en el día de corte entre dos extractos va a revisión en vez de perderse. Opcional.
+   */
+  rangoDeImportacionPrevia?: RangoDeImportacionPrevia;
   /** Mapeador asistido (IA), consultado SOLO si la heurística no llega a 0.8. */
   mapeadorAsistido?: MapeadorAsistido;
   /**
@@ -151,8 +158,12 @@ export async function procesarExtracto(
         ]
       : [];
 
-  // 3) Normalizar movimientos (hash idempotente incluido).
-  const movimientos = normalizarMovimientos(matriz, mapeo);
+  // 3) Normalizar movimientos (hash idempotente + ordinal de los iguales) y re-clavear los cobros
+  //    del día de corte entre extractos que chocan con uno ya guardado (van a revisión).
+  const { movimientos, posiblesRepetidos } = await marcarBordesPartidos(
+    normalizarMovimientos(matriz, mapeo),
+    deps.rangoDeImportacionPrevia,
+  );
 
   // 4) Clasificar cada movimiento.
   const clasificaciones = new Map<string, ResultadoClasificacionBanco>();
@@ -167,6 +178,7 @@ export async function procesarExtracto(
     facturasEmitidasEsteMes: deps.facturasEmitidasEsteMes ?? 0,
     deteccionCruzada: deps.deteccionCruzada,
     yaProcesado: deps.yaProcesado,
+    posiblesRepetidos,
   });
 
   return { movimientos, propuestas, mapeo, alertas: [...alertasMapeo, ...alertas], clasificaciones };

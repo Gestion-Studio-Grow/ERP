@@ -27,7 +27,8 @@ export type OrigenMovimiento = "banco" | "mercadopago";
  */
 export interface MovimientoBancario {
   /**
-   * Id IDEMPOTENTE: hash de (fecha, monto, descripción normalizada). Importar
+   * Id IDEMPOTENTE: hash de (fecha, monto, descripción normalizada), con ordinal
+   * para el 2º y siguientes iguales del mismo archivo (`hashMovimientoOrdinal`). Importar
    * el mismo extracto dos veces produce los mismos ids → la deduplicación es
    * gratis (misma idea que el `payment_id` de MP en ADR-025 §3).
    */

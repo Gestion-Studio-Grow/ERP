@@ -44,6 +44,11 @@ import {
   contarFacturasDelMes,
   crearDeteccionCruzadaInvoices,
   crearYaProcesado,
+  crearRangoDeImportacionPrevia,
+  huellaDelArchivo,
+  candadoDelArchivoEnTx,
+  importacionConMismoArchivoEnTx,
+  MENSAJE_ARCHIVO_YA_SUBIDO,
   emitirPropuestas,
   kpisFacturacionBancaria,
   resumirPropuestas,
@@ -190,6 +195,16 @@ async function procesarYPersistir(
   });
   if (!tenant) return { ok: false, error: "No se encontró el negocio.", alertas: [] };
 
+  // H3 (GSG-FACT-011): el mismo archivo ya subido → no se procesa ni se crea nada. Esta mirada sin
+  // candado ahorra el pipeline; la que decide es la de la transacción de abajo, con candado.
+  if (!reproceso) {
+    const previa = await tenantTransaction(
+      (tx) => importacionConMismoArchivoEnTx(tx, tenantId, archivo.contenido),
+      { tenantId },
+    );
+    if (previa) return { ok: false, error: MENSAJE_ARCHIVO_YA_SUBIDO, alertas: [] };
+  }
+
   // El tope del plan (o la excepción de GSG), que la columna del negocio sólo baja (R3-F3).
   const capDelPlan = await tenantTransaction(
     (tx) => capFacturasMesDelNegocioEnTx(tx, tenantId, tenant.bancosCapFacturasMes),
@@ -208,6 +223,7 @@ async function procesarYPersistir(
     facturasEmitidasEsteMes,
     deteccionCruzada: crearDeteccionCruzadaInvoices(tenantId),
     yaProcesado: crearYaProcesado(tenantId, reproceso?.importacionId),
+    rangoDeImportacionPrevia: crearRangoDeImportacionPrevia(tenantId, reproceso?.importacionId),
     mapeoConfirmado: reproceso?.mapeoConfirmado,
   });
 
@@ -223,7 +239,7 @@ async function procesarYPersistir(
   const mapeo = resultado.mapeo;
 
   const importacionId = await tenantTransaction(
-    async (tx) => {
+    async (tx): Promise<string | null> => {
       let id: string;
       if (reproceso) {
         // Re-proceso: lo provisional se borra y se recrea con el mapeo confirmado.
@@ -233,6 +249,10 @@ async function procesarYPersistir(
         });
         id = reproceso.importacionId;
       } else {
+        // H3: candado por (negocio, huella del archivo) y recién ahí la mirada que decide. Dos
+        // subidas simultáneas del mismo archivo: la segunda espera, ve la de la primera y sale.
+        await candadoDelArchivoEnTx(tx, tenantId, huellaDelArchivo(archivo.contenido));
+        if (await importacionConMismoArchivoEnTx(tx, tenantId, archivo.contenido)) return null;
         const creada = await tx.importacionBancaria.create({
           data: {
             tenantId,
@@ -266,6 +286,7 @@ async function procesarYPersistir(
     },
     { tenantId },
   );
+  if (importacionId === null) return { ok: false, error: MENSAJE_ARCHIVO_YA_SUBIDO, alertas: [] };
 
   revalidatePath(FACTURACION_PATH);
   return {

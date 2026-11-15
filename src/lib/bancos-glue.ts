@@ -23,6 +23,7 @@
  */
 
 import { facturadoConSigno } from "@/lib/facturacion/lista-core";
+import { createHash } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
 import { capFacturasMesDelNegocioEnTx } from "@/lib/limites-del-negocio-en-tx";
@@ -45,6 +46,8 @@ import {
   type ConfigBancos,
   type CorreccionBanco,
   type DeteccionCruzadaPort,
+  type RangoDeImportacionPrevia,
+  type RangoImportacion,
   type MovimientoBancario,
   type PropuestaFactura,
   type ResultadoClasificacionBanco,
@@ -522,6 +525,76 @@ export function crearYaProcesado(
     });
     return visto !== null;
   };
+}
+
+/**
+ * Rango de fechas de la importación anterior que ya guarda un hash (GSG-FACT-011 · H1, día
+ * partido entre extractos): min/max de `fecha` de las filas de ESA importación. null si el hash
+ * es nuevo. Mismo `excluirImportacionId` que `crearYaProcesado` (re-proceso). Memoiza el rango
+ * por importación: sólo se consulta para créditos del primer/último día del archivo.
+ */
+export function crearRangoDeImportacionPrevia(
+  tenantId: string,
+  excluirImportacionId?: string,
+): RangoDeImportacionPrevia {
+  const rangos = new Map<string, RangoImportacion | null>();
+  return async (hash: string) => {
+    const fila = await prisma.movimientoImportado.findFirst({
+      where: {
+        tenantId,
+        hash,
+        ...(excluirImportacionId ? { importacionId: { not: excluirImportacionId } } : {}),
+      },
+      select: { importacionId: true },
+    });
+    if (!fila) return null;
+    if (!rangos.has(fila.importacionId)) {
+      const agg = await prisma.movimientoImportado.aggregate({
+        where: { tenantId, importacionId: fila.importacionId },
+        _min: { fecha: true },
+        _max: { fecha: true },
+      });
+      rangos.set(
+        fila.importacionId,
+        agg._min.fecha && agg._max.fecha ? { desde: agg._min.fecha, hasta: agg._max.fecha } : null,
+      );
+    }
+    return rangos.get(fila.importacionId) ?? null;
+  };
+}
+
+// ── El mismo archivo dos veces (GSG-FACT-011 · H3) ───────────────────────────
+// `ImportacionBancaria` no guarda huella (sin migración): se compara el archivo crudo guardado,
+// byte a byte (bytea `=` compara largo y bytes). El candado transaccional por (negocio, sha-256
+// del archivo) serializa dos subidas simultáneas del mismo archivo: la segunda espera, ve la
+// importación de la primera y no crea nada.
+
+type TxBancos = Parameters<Parameters<typeof tenantTransaction>[0]>[0];
+
+export const MENSAJE_ARCHIVO_YA_SUBIDO =
+  "Ya subiste este archivo: no se importó de nuevo ni se creó nada. Si es otro extracto, revisá que sea el archivo correcto.";
+
+/** sha-256 (hex) del archivo crudo. PURA. */
+export function huellaDelArchivo(contenido: Uint8Array): string {
+  return createHash("sha256").update(contenido).digest("hex");
+}
+
+/** Candado transaccional por (negocio, huella del archivo): se suelta solo al cerrar la transacción. */
+export async function candadoDelArchivoEnTx(tx: TxBancos, tenantId: string, huella: string): Promise<void> {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`bancos-archivo:${tenantId}:${huella}`}, 0))`;
+}
+
+/** Id de una importación del negocio con exactamente este archivo (mismo largo y bytes), o null. */
+export async function importacionConMismoArchivoEnTx(
+  tx: TxBancos,
+  tenantId: string,
+  contenido: Uint8Array,
+): Promise<string | null> {
+  const previa = await tx.importacionBancaria.findFirst({
+    where: { tenantId, archivo: { equals: new Uint8Array(contenido) } },
+    select: { id: true },
+  });
+  return previa?.id ?? null;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

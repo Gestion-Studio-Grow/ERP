@@ -9,7 +9,9 @@
  *      BLOQUEA la emisión automática (las auto restantes bajan a revisión: solo
  *      manual con confirmación).
  *   4. Deduplicación: por el hash idempotente del movimiento (mismo archivo dos
- *      veces / extractos solapados) + detección CRUZADA (ya hay una factura, por
+ *      veces / extractos solapados; los cobros iguales de un mismo archivo llevan
+ *      ordinal y son ventas distintas; el día de corte entre extractos va a
+ *      revisión, ver `marcarBordesPartidos`) + detección CRUZADA (ya hay una factura, por
  *      cualquier vía, con el mismo monto y fecha de hasta 3 días antes de la
  *      acreditación → posible duplicado, REVISION; ver `whereYaFacturadaPorOtraVia`,
  *      bancos-glue.ts).
@@ -21,6 +23,7 @@
 import { fmtMoneyARS } from "@/components/ui/format"; // formato canonico de moneda (puro, sin React)
 import type { MovimientoBancario, PropuestaFactura } from "../core-contract";
 import type { ResultadoClasificacionBanco } from "./clasificador";
+import { hashBordePartido } from "./valores";
 
 /**
  * Umbral de identificación por defecto (pesos): regla COMERCIAL del dueño.
@@ -116,6 +119,72 @@ export interface ContextoReglas {
   deteccionCruzada?: DeteccionCruzadaPort;
   /** ¿Este movimiento ya fue procesado en una corrida anterior? (idempotencia entre importaciones). */
   yaProcesado?: (movimientoId: string) => boolean | Promise<boolean>;
+  /** Ids (ya re-claveados) de cobros en un día partido entre extractos: van a revisión (`marcarBordesPartidos`). */
+  posiblesRepetidos?: ReadonlySet<string>;
+}
+
+/** Rango de fechas (AAAAMMDD, min y max de sus filas) de una importación ya guardada. */
+export interface RangoImportacion {
+  desde: string;
+  hasta: string;
+}
+
+/**
+ * ¿Qué importación anterior ya guarda este movimiento? Devuelve el rango de fechas de SUS filas,
+ * o null si el movimiento es nuevo. Lo cablea el glue contra la DB; en tests, un Map.
+ */
+export type RangoDeImportacionPrevia = (movimientoId: string) => Promise<RangoImportacion | null>;
+
+/**
+ * Día PARTIDO entre dos extractos (GSG-FACT-011 · H1). Un banco puede cortar un extracto a mitad
+ * de día: el cobro de la tarde del día 15 llega en el extracto siguiente con la misma fecha,
+ * monto y descripción que el de la mañana, ya guardado → el hash coincide y se perdería como
+ * «ya procesado».
+ *
+ * Regla: un CRÉDITO cuyo id choca con una fila de otra importación, en un día que es el BORDE
+ * que comparten los dos extractos (primer día del nuevo = último día del viejo, o último del
+ * nuevo = primero del viejo), no se descarta: se le da una clave distinta y estable
+ * (`hashBordePartido`) y va a REVISIÓN (nunca sale solo). Si el día estaba ADENTRO de alguno de
+ * los dos rangos, sigue «ya procesado» (el día está completo en ese archivo y el ordinal ya
+ * distingue los cobros iguales). El borde del MISMO lado (los dos arrancan o terminan ese día) no
+ * es un corte entre extractos: es el mismo período subido de nuevo, y sigue «ya procesado».
+ * Los débitos quedan fuera: nunca se facturan.
+ */
+export async function marcarBordesPartidos(
+  movimientos: MovimientoBancario[],
+  rangoPrevio?: RangoDeImportacionPrevia,
+): Promise<{ movimientos: MovimientoBancario[]; posiblesRepetidos: Set<string> }> {
+  const posiblesRepetidos = new Set<string>();
+  if (!rangoPrevio || movimientos.length === 0) return { movimientos, posiblesRepetidos };
+
+  let desde = movimientos[0].fecha;
+  let hasta = movimientos[0].fecha;
+  for (const m of movimientos) {
+    if (m.fecha < desde) desde = m.fecha;
+    if (m.fecha > hasta) hasta = m.fecha;
+  }
+
+  const salida: MovimientoBancario[] = [];
+  for (const mov of movimientos) {
+    if (mov.monto > 0 && (mov.fecha === desde || mov.fecha === hasta)) {
+      const previo = await rangoPrevio(mov.id);
+      const partido =
+        previo !== null &&
+        ((mov.fecha === desde && mov.fecha === previo.hasta) || (mov.fecha === hasta && mov.fecha === previo.desde));
+      if (partido) {
+        const id = hashBordePartido(mov.id);
+        posiblesRepetidos.add(id);
+        salida.push({ ...mov, id });
+        continue;
+      }
+    }
+    salida.push(mov);
+  }
+  return { movimientos: salida, posiblesRepetidos };
+}
+
+function fechaLegible(aaaammdd: string): string {
+  return `${aaaammdd.slice(6, 8)}/${aaaammdd.slice(4, 6)}/${aaaammdd.slice(0, 4)}`;
 }
 
 export interface ResultadoReglas {
@@ -164,6 +233,19 @@ export async function generarPropuestas(
         requiereIdentificacion: false,
         estado: "descartado",
         motivo: "Movimiento ya procesado en una importación anterior.",
+      });
+      continue;
+    }
+
+    // 4b') Día partido entre dos extractos con un cobro igual a uno ya guardado: puede ser otro
+    //      cobro o el mismo. No se pierde ni sale solo: decide un humano (REVISION).
+    if (ctx.posiblesRepetidos?.has(mov.id)) {
+      propuestas.push({
+        movimientoId: mov.id,
+        montoTotal,
+        requiereIdentificacion: montoTotal >= config.umbralIdentificacion,
+        estado: "revision",
+        motivo: `Posible cobro repetido: el ${fechaLegible(mov.fecha)} es el día de corte entre este extracto y otro que ya subiste, y ya hay un cobro igual (mismo monto y descripción). Fijate si es otro cobro o el mismo antes de facturarlo.`,
       });
       continue;
     }
