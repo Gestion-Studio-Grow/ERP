@@ -239,6 +239,20 @@ export const INTERRUPTORES = [
     enAuditoria: "eventos y sponsors",
     cambiaLasApps: false,
   },
+  {
+    // Derivación MIA Taller / MIA Agencia (GSG-CRM-010): en el armador de stands aparece «¿Quién lo
+    // hace?», que deriva el stand al Taller (estandarizable, flujo automático) o a la Agencia (todo lo
+    // demás; ante la duda, Agencia), con la orden para el taller sin precios. Reglas puras en
+    // src/lib/proyectos/derivacion-core.ts. Apagado por defecto. Va AL FINAL.
+    id: "derivacion-taller",
+    nombre: "Derivación Taller / Agencia",
+    queCambia:
+      "En el armador de stands aparece «¿Quién lo hace?»: dice si el stand va al Taller (automático) o queda en la Agencia, con los motivos, y arma la orden para el taller sin precios. Apagado, no se ve.",
+    alPrender:
+      "No cambia qué apps ve cada persona ni toca ventas, cobros, caja ni presupuestos: sólo muestra la derivación y la orden para el taller, sin guardar nada.",
+    enAuditoria: "la derivación Taller / Agencia",
+    cambiaLasApps: false,
+  },
 ] as const satisfies readonly Interruptor[];
 
 export type InterruptorId = (typeof INTERRUPTORES)[number]["id"];
@@ -336,6 +350,16 @@ export function eventosSponsorsPrendido(
   estado: Readonly<Partial<Record<InterruptorId, { encendido: boolean }>>>,
 ): boolean {
   return estado[EVENTOS_SPONSORS]?.encendido === true;
+}
+
+/** Derivación MIA Taller / MIA Agencia en el armador de stands (src/lib/proyectos/derivacion-core.ts, GSG-CRM-010). */
+export const DERIVACION_TALLER: InterruptorId = "derivacion-taller";
+
+/** ¿El negocio ve «¿Quién lo hace?» en el armador de stands? Un estado sin la entrada cuenta como apagado. PURA. */
+export function derivacionTallerPrendido(
+  estado: Readonly<Partial<Record<InterruptorId, { encendido: boolean }>>>,
+): boolean {
+  return estado[DERIVACION_TALLER]?.encendido === true;
 }
 
 /**
