@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { requireApp } from "@/lib/require-app";
+import { requireUser } from "@/lib/authz";
+import { soporteGsgPrendidoEn } from "@/lib/soporte/interruptor.server";
 import { PageContainer, PageHeader } from "@/components/ui";
 import { leerEstadoDelPermiso, ultimaCopiaEnBorrador } from "@/lib/soporte/consentimiento.server";
 import PermisoSoporte from "./PermisoSoporte";
@@ -16,7 +19,13 @@ export const metadata: Metadata = {
 // titular (`users:manage` en el registro); lo CAMBIA sólo el OWNER, y eso lo vuelve a decidir la action en el
 // servidor con la sesión, no esta pantalla. El negocio es el de la sesión. Sin la tabla (Gate 2 sin
 // aplicar) se dice claro y no se ofrece guardar.
+//
+// Detrás del interruptor «Soporte GSG» (apagado por defecto, decisión del dueño 14/11/2026): apagado
+// en el negocio de la sesión, la ruta responde «no encontrado» ANTES de la guardia de la app, para no
+// contar a nadie que la pantalla existe.
 export default async function SoportePage() {
+  const sesion = await requireUser();
+  if (!(await soporteGsgPrendidoEn(sesion.tenantId))) notFound();
   const user = await requireApp("permiso-soporte");
   const esTitular = user.role === "OWNER";
   // La copia lleva el mail del titular: sólo la ve él.

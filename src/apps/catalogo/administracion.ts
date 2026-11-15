@@ -109,6 +109,8 @@ export const APPS_ADMINISTRACION = [
     ruta: "/admin/ajustes/soporte",
     espacio: "administracion",
     capability: "users:manage",
+    // Detrás del interruptor «Soporte GSG», apagado por defecto (decisión del dueño 14/11/2026).
+    interruptor: "soporte-gsg",
     modulo: null,
     estado: "lista",
     palabras: ["soporte", "ayuda", "ia", "inteligencia artificial", "permiso", "consentimiento", "gsg"],

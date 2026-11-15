@@ -21,6 +21,7 @@ import { enElNegocio, operatorPrisma } from "@/lib/operator-db";
 import { esTablaAusente } from "./alta.server";
 import { consentimientoVigente, SIN_CONSENTIMIENTO, type Consentimiento, type FilaDeConsentimiento } from "./consentimiento-core";
 import { leerConsentimiento } from "./consentimiento.server";
+import { soporteGsgPrendidoEn, soporteGsgPrendidoEnTx } from "./interruptor.server";
 import { quienApruebaElBorrador } from "./agentes-permisos";
 import { ESTADOS_ABIERTOS } from "./config";
 import {
@@ -119,6 +120,9 @@ async function permisoEnTx(tx: Tx, tenantId: string): Promise<Consentimiento> {
 
 const slugDe = async (db: PrismaClient, id: string | null) => (id ? ((await db.tenant.findUnique({ where: { id }, select: { slug: true } }))?.slug ?? null) : null);
 
+/** El motivo cuando el interruptor «Soporte GSG» está apagado (decisión del dueño 14/11/2026). */
+export const SOPORTE_APAGADO = "Soporte GSG está apagado en este negocio: no se despacha a la IA.";
+
 export type ResultadoDeCrear = { ok: true; creado: boolean; despacho: Despacho; ticketId: string } | { ok: false; motivo: string };
 
 /**
@@ -141,6 +145,11 @@ export async function crearDespacho(
     const previo = await enElNegocio(p.tenantId, (tx) => ticketEnTx(tx, p.tenantId, { numero: p.numero }), db);
     if (!previo) return { ok: false, motivo: "No existe el ticket." };
     const cliente = previo.clienteTenantId;
+    // Interruptor «Soporte GSG» (apagado por defecto): sin él prendido en el negocio del ticket y, si es de
+    // cartera, también en el del cliente, no se despacha nada a la IA.
+    if (!(await soporteGsgPrendidoEn(p.tenantId, db)) || (cliente && !(await soporteGsgPrendidoEn(cliente, db)))) {
+      return { ok: false, motivo: SOPORTE_APAGADO };
+    }
     const permisoCliente = cliente ? await leerConsentimiento(cliente, db) : null;
     const slugCliente = await slugDe(db, cliente);
     return await enElNegocio(
@@ -196,6 +205,11 @@ export async function intentarDisparo(
   if (!rutina.ok) return { ok: false, apagado: true, motivo: rutina.motivo };
   const slug = await slugDe(db, p.tenantId);
   const donde = { tenantId: p.tenantId, ticketId: p.ticketId };
+  // Cartera (certificación, hallazgo 1): el interruptor del CLIENTE vive en su negocio (RLS) y se lee
+  // parado en él, antes. Adentro se confirma que el ticket sigue con ese mismo cliente.
+  const previo = await enElNegocio(p.tenantId, (tx) => ticketEnTx(tx, p.tenantId, { id: p.ticketId }), db);
+  const clientePrevio = previo?.clienteTenantId ?? null;
+  const clientePrendido = clientePrevio ? await soporteGsgPrendidoEn(clientePrevio, db) : true;
 
   const reclamo = await enElNegocio(
     p.tenantId,
@@ -213,6 +227,11 @@ export async function intentarDisparo(
       const el = ahora().toISOString();
       if (!(ESTADOS_ABIERTOS as readonly string[]).includes(t.estado) || quienApruebaElBorrador(slug) === "duenio") {
         await anotar(tx, donde, p.nivel, "fallido", { despachoId: actual.id, el, error: "Ticket cerrado o de CH: no se dispara." });
+        return { tipo: "nada" as const, estado: "fallido" as const };
+      }
+      // El interruptor se pudo apagar entre la creación y el disparo (un pendiente que reintenta el cron).
+      if (!(await soporteGsgPrendidoEnTx(tx, p.tenantId)) || t.clienteTenantId !== clientePrevio || !clientePrendido) {
+        await anotar(tx, donde, p.nivel, "fallido", { despachoId: actual.id, el, error: SOPORTE_APAGADO });
         return { tipo: "nada" as const, estado: "fallido" as const };
       }
       const nonce = nonceNuevo();
