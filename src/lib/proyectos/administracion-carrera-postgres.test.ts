@@ -188,6 +188,25 @@ test("2.b marcar dos veces a la vez: un asiento solo (el segundo avisa que ya es
   assert.equal(await p.duenio.cashMovement.count({ where: { createdBy: { contains: q } } }), 1);
 });
 
+test("2.d marcar una cuota en dólares mientras cambia el tipo de cambio: asienta con el cambio vigente al marcar", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const { a } = p.base;
+  await p.duenio.proyectoTipoCambio.upsert({ where: { tenantId_moneda: { tenantId: a.id, moneda: "USD" } }, create: { tenantId: a.id, moneda: "USD", porUnidad: 1000 }, update: { porUnidad: 1000 } });
+  const q = (await p.duenio.proyectoCuota.create({ data: { tenantId: a.id, proyectoId: null, tipo: "PAGO", concepto: "Licencia", monto: 100, moneda: "USD", venceEl: new Date(AHORA + 5 * DIA), auto: false }, select: { id: true } })).id;
+  const cta = await p.cuenta();
+  // La pantalla leyó el cambio a $ 1.000; mientras el pedido espera la cuota, el cambio pasa a $ 1.200.
+  const [r] = await enFilaDeLasFilas(p.base, "ProyectoCuota", [q], [p.marcar(q, cta)], async (c) => {
+    await c.query(`UPDATE "ProyectoTipoCambio" SET "porUnidad" = 1200 WHERE "tenantId" = $1 AND "moneda" = 'USD'`, [a.id]);
+  });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const [asiento] = await p.duenio.cashMovement.findMany({ where: { createdBy: { contains: q } }, select: { amount: true } });
+  assert.equal(asiento.amount, 120_000, "el libro, con el cambio de ahora");
+  const fila = await p.duenio.proyectoCuota.findUniqueOrThrow({ where: { id: q }, select: { cuentaMovido: true } });
+  assert.equal(fila.cuentaMovido, -120_000);
+  assert.equal((await p.duenio.proyectoCuentaBanco.findUniqueOrThrow({ where: { id: cta }, select: { saldo: true } })).saldo, -120_000, "el banco, con el mismo importe");
+});
+
 test("2.c cambiar el vencimiento de una cuota que en el medio se pagó: no la toca", async (t) => {
   const p = await preparar(t);
   if (!p) return;
