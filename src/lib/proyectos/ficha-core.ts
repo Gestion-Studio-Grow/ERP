@@ -27,6 +27,13 @@ export function iniciales(nombre: string): string {
 export function numeroDe(texto: string): number | null {
   const s = texto.trim().replace(/^\$\s*/, "");
   if (!/^\d[\d.,]*$/.test(s)) return null;
+  // «1,234.50» (una planilla en inglés): el último separador es el de los decimales y las comas, de miles.
+  if (s.includes(",") && s.lastIndexOf(".") > s.lastIndexOf(",")) {
+    // Sólo con los miles bien agrupados («1,234.50»): «1,2.3» no se adivina.
+    return /^\d{1,3}(,\d{3})+\.\d+$/.test(s) ? Number(s.replace(/,/g, "")) : null;
+  }
+  // Varias comas sin punto no se adivinan («1,2,3»): mejor pedirlo bien que guardar un cero callado.
+  if ((s.match(/,/g) ?? []).length > 1) return null;
   return leerNumero(s);
 }
 
