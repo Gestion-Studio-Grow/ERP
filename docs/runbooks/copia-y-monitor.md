@@ -20,7 +20,7 @@ GitHub → repo `Gestion-Studio-Grow/erp` → **Settings → Secrets and variabl
 Sin estos dos, la copia termina en **ROJO** (`exit 1`) y GitHub avisa por mail: una copia que no se hizo no puede
 parecer hecha. Al día siguiente también salta la alerta «sin copia en 26 h».
 
-Opcional: en la pestaña **Variables**, `PROD_URL` (por ejemplo `https://chestetica-erp.vercel.app`). Sin ella el
+Opcional: en la pestaña **Variables**, `PROD_URL` (por ejemplo `https://chestetica.gsgapp.com.ar`). Sin ella el
 monitor usa ese dominio por defecto.
 
 Para recibir el aviso de caída por mail: tener activadas las notificaciones del repo (Watch → All activity o
