@@ -13,11 +13,12 @@
 //     Una lista hecha SÓLO de años tiene que crecer («2024-2019» no es un rango).
 //   · Hasta 3 días crecientes de un mes: «18, 19 y 20 de noviembre», «10 al 13 de marzo».
 //   · Un año y una cifra de hasta 4 dígitos con su unidad en letras: «En 2026: 1500 expositores».
-//   · Cantidades con miles, de hasta 9 cifras, una o dos, con unidad en letras o «$» antes: «12.500 asistentes».
+//   · Cantidades con miles, de hasta 9 cifras (redondas desde 6: «150.000»), una o dos, con unidad de una lista o «$»
+//     antes: «12.500 asistentes».
 //   · Importes después de «$», «US$» o «USD»: cifras de hasta 3 o con miles, uno o dos («$ 350», «$ 1.500 - $ 2.500»).
-//   · Coordenadas de Argentina: «-34.603722, -58.381592».
+//   · Coordenadas de Argentina, de a pares: «-34.603722, -58.381592».
 //   · CUIT de empresa (30, 33, 34) con dígito verificador válido; el de una persona lleva su DNI adentro.
-//   · Después de su palabra y con su forma: ISBN-13 e ISSN (con verificador), Resolución/Ley/Decreto/Disposición/
+//   · Después de su palabra y con su forma: ISBN-13 (con verificador), Resolución/Ley/Decreto/Disposición/
 //     Expediente («1234/2025», «EXP-2026-0042», «27.430»), Matrícula/Legajo (hasta 5 cifras).
 // Un número escrito con otro alfabeto que no se puede llevar a 0-9 («❶») deja la fila afuera.
 // Si el texto nombra un teléfono (tel, cel, WhatsApp, fax, móvil, llamar, «contacto:», «informes:»…), ninguna forma
@@ -37,7 +38,7 @@
 export function paraRevisar(texto: string): string {
   return texto
     .normalize("NFKC")
-    .replace(/[\p{Cf}\p{Mn}᠎]/gu, "")
+    .replace(/[\p{Cf}\p{Mn}᠎\u115F\u1160\u3164\uFFA0]/gu, "") // también los «rellenos» hangul, que cuentan como letra
     .replace(/[\p{Pd}−]/gu, "-")
     .replace(/\p{Nd}/gu, digitoLatino);
 }
@@ -64,7 +65,9 @@ const FECHA = [
 ].join("|");
 const HORA = "(?:[01]?\\d|2[0-3])[:.][0-5]\\d(?:[:.][0-5]\\d)?";
 const TEMPORAL = `(?:${FECHA}|${HORA}|${ANIO})(?!\\d)`;
-const LISTA_TEMPORAL = new RegExp(`^${TEMPORAL}(?:[^\\p{L}\\p{N}]{1,4}${TEMPORAL})*$`, "u");
+// Entre dos fechas u horas, un separador de un solo signo no puede ser «.» ni «:» («11.23.12.30» no es una lista).
+const ENTRE_TEMPORALES = "(?:[^\\p{L}\\p{N}.:]|[^\\p{L}\\p{N}]{2,4})";
+const LISTA_TEMPORAL = new RegExp(`^${TEMPORAL}(?:${ENTRE_TEMPORALES}${TEMPORAL})*$`, "u");
 const SOLO_ANIOS = new RegExp(`^${ANIO}(?:[^\\p{L}\\p{N}]{1,4}${ANIO})+$`, "u");
 // Un año y DESPUÉS una cifra de hasta 4 dígitos con su unidad en letras («En 2026: 1500 expositores»). Al revés no:
 // «4567 · 2026» tiene la forma de un fijo del AMBA.
@@ -77,22 +80,23 @@ const LISTA_CANTIDAD = new RegExp(`^${CANTIDAD}(?:\\s*-\\s*${CANTIDAD})?$`);
 // Importes después de «$», «US$» o «USD»: cifras de hasta 3 o con miles, una o dos («$ 1.500 - $ 2.500», «$ 350»).
 const IMPORTE = "(?:\\d{1,3}(?:[.,]\\d{3}){0,2}(?:,\\d{2})?)";
 const LISTA_IMPORTE = new RegExp(`^${IMPORTE}(?:\\s*[-/]\\s*(?:\\$|US\\$|U\\$S)?\\s*${IMPORTE})?$`);
-const ANTES_DE_IMPORTE = /(?:\$|US\$|U\$S|USD|ARS)\s*$/i;
+const ANTES_DE_IMPORTE = /(?:\$|(?<!\p{L})(?:USD|ARS))\s*$/iu;
 // Coordenadas de Argentina: «-34.603722, -58.381592» (latitud y longitud entre -20 y -79).
-const LISTA_COORDENADAS = /^[2-7]\d\.\d{4,7}(?:\s*,?\s*-[2-7]\d\.\d{4,7})?$/;
+// Siempre de a pares (latitud -21 a -55, longitud -53 a -73) y con hasta 6 decimales.
+const LISTA_COORDENADAS = /^(?:2[1-9]|[34]\d|5[0-5])\.\d{4,6}\s*,?\s*-(?:5[3-9]|6\d|7[0-3])\.\d{4,6}$/;
 // CUIT de empresa (30, 33, 34): el de una persona (20, 23, 24, 27) lleva su DNI adentro.
 const CUIT = /^3[034]-\d{8}-\d$/;
 const CUIT_SIN_GUIONES = /^3[034]\d{9}$/;
-const DESPUES_UNIDAD = /^\s*\p{L}/u;
+// La unidad, de una lista cerrada (con ordinal si viene: «35ª edición»): «421.234 Juan» no es una cantidad.
+const DESPUES_UNIDAD = /^(?:[ao°]\.?)?\s*(?:edici[oó]n|personas|asistentes|visitantes|expositores|stands?|empresas|marcas|entradas|participantes|espectadores|invitados|inscriptos|compradores|profesionales|asientos|butacas|lugares|plazas|metros|mts|m2|hect[aá]reas|km|kil[oó]metros|millones|ediciones|charlas|conferencias|actividades|pabellones|sponsors|auspiciantes)(?!\p{L})/iu;
 
 // Números después de una palabra que los declara, cada uno con su forma.
 const PALABRAS_QUE_DECLARAN: { palabra: RegExp; forma: RegExp; valida?: (cifras: string) => boolean }[] = [
   { palabra: /isbn(?:-13)?/, forma: /^97[89](?:[- ]?\d){10}$/, valida: isbnValido },
-  { palabra: /issn/, forma: /^\d{4}-\d{4}$/, valida: issnValido },
   { palabra: /cuit/, forma: CUIT_SIN_GUIONES, valida: cuitValido },
   {
     palabra: /resoluci[oó]n|res\.|ley|decreto|disposici[oó]n|expediente|expte\.?|exp\.?/,
-    forma: new RegExp(`^(?:(?:\\d{1,4}|\\d{1,3}\\.\\d{3})(?:[-/](?:${ANIO}|\\d{2}))?|${ANIO}[-/]\\d{1,5})$`),
+    forma: new RegExp(`^(?:(?:\\d{1,4}|\\d{1,3}\\.\\d{3})(?:[-/](?:${ANIO}|\\d{2}))?|${ANIO}[-/]\\d{1,4})$`),
   },
   { palabra: /matr[ií]cula|legajo/, forma: /^\d{1,5}$/ },
 ];
@@ -102,11 +106,6 @@ function isbnValido(c: string): boolean {
   const d = c.replace(/\D/g, "");
   const suma = [...d].reduce((s, x, i) => s + Number(x) * (i % 2 ? 3 : 1), 0);
   return d.length === 13 && suma % 10 === 0;
-}
-function issnValido(c: string): boolean {
-  const d = c.replace(/\D/g, "");
-  const verificador = (11 - ([...d.slice(0, 7)].reduce((s, x, i) => s + Number(x) * (8 - i), 0) % 11)) % 11;
-  return d.length === 8 && verificador === Number(d[7]);
 }
 function cuitValido(c: string): boolean {
   const d = c.replace(/\D/g, "");
@@ -124,12 +123,22 @@ function declaradaPorPalabra(corrida: string, antes: string): boolean {
 }
 
 /** Palabras que nombran un teléfono: con ellas, ninguna forma declarada vale. */
-const NOMBRA_TELEFONO = /(?:^|[^\p{L}])(?:tel|tels|tel[eé]fonos?|cel|cels|celular(?:es)?|whats?app|wsp|wpp|fax|m[oó]vil(?:es)?|llamar|llam[aá]|llam[aá]nos|phone|(?:contacto|informes|consultas)\s*:)(?=[^\p{L}]|$)/iu;
+// Cualquier palabra que EMPIECE así (tel, cel, whats, mov, llam…) o sea wa/wsp/fax: «Teléf.», «Celu», «Mov.», «Contacto».
+// Sobre-rechaza «Telecom 2026 4567» y parecidos: se acepta.
+const NOMBRA_TELEFONO = /(?:^|[^\p{L}])(?:t[eé]l\p{L}*|cel\p{L}*|whats?\p{L}*|m[oó]v\p{L}*|llam\p{L}*|phone\p{L}*|fono|wa|wsp|wpp|fax|contacto|informes|consultas|comunicarse)(?=[^\p{L}]|$)/iu;
 
 const CORRIDA = /\d(?:[^\p{L}\p{N}]{0,4}\d)*/gu;
 /** Cifras sueltas (fuera de las formas declaradas) que admite un campo entero: un teléfono local tiene 6 o más. */
 const MAX_CIFRAS_SUELTAS = 5;
 const NUMERO_RARO = /[^\P{N}0-9]/u;
+
+/** Una cantidad o importe de 6 cifras o más tiene que ser redonda («150.000», «1.250.000»): «421.234» es un fijo. */
+function redondas(corrida: string): boolean {
+  return corrida.split(/\s*[-/]\s*/).every((n) => {
+    const entero = n.replace(/[.,]\d{1,2}$/, "").replace(/\D/g, "");
+    return entero.length < 6 || entero.endsWith("00");
+  });
+}
 
 function corridaDeclarada(corrida: string, antes: string, despues: string): boolean {
   if (LISTA_TEMPORAL.test(corrida)) {
@@ -140,8 +149,8 @@ function corridaDeclarada(corrida: string, antes: string, despues: string): bool
   const conUnidad = DESPUES_UNIDAD.test(despues);
   const trasImporte = ANTES_DE_IMPORTE.test(antes);
   if (ANIO_Y_CIFRA.test(corrida) && conUnidad) return true;
-  if (LISTA_CANTIDAD.test(corrida) && (conUnidad || trasImporte)) return true;
-  if (trasImporte && LISTA_IMPORTE.test(corrida)) return true;
+  if (LISTA_CANTIDAD.test(corrida) && (conUnidad || trasImporte) && redondas(corrida)) return true;
+  if (trasImporte && LISTA_IMPORTE.test(corrida) && redondas(corrida)) return true;
   if (antes.endsWith("-") && LISTA_COORDENADAS.test(corrida)) return true;
   if (CUIT.test(corrida) && cuitValido(corrida)) return true;
   return declaradaPorPalabra(corrida, antes);
@@ -153,7 +162,7 @@ function corridaDeclarada(corrida: string, antes: string, despues: string): bool
  */
 // Días de un mes: hasta 3, crecientes («18, 19 y 20 de noviembre», «10 al 13 de marzo»). Se sacan antes de contar.
 const MESES = "enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre";
-const DIAS_DE_MES = new RegExp(`(?<!\\d)${DIA}(?:\\s*(?:,|y|al|a|-)\\s*${DIA}){0,2}\\s+de\\s+(?:${MESES})(?!\\p{L})`, "giu");
+const DIAS_DE_MES = new RegExp(`(?<!\\d[\\s\\-./_]{0,2})${DIA}(?:\\s*(?:,|y|al|a|-)\\s*${DIA}){0,2}\\s+de\\s+(?:${MESES})(?!\\p{L})`, "giu");
 function sinDiasDeMes(t: string): string {
   return t.replace(DIAS_DE_MES, (m) => {
     const dias = m.match(/\d+/g)!.map(Number);
@@ -161,10 +170,15 @@ function sinDiasDeMes(t: string): string {
   });
 }
 
+// Un horario en horas enteras: «14 a 20hs», «de 10 a 18 h». Se saca antes de contar.
+const HORARIO = /(?<!\d[\s\-./_]{0,2})(?:[01]?\d|2[0-3])(?:\s*(?:a|-|y)\s*(?:[01]?\d|2[0-3]))?\s*(?:hs|h|horas)(?!\p{L})/giu;
+
 function numerosNoDeclarados(crudo: string): boolean {
-  const t = sinDiasDeMes(crudo.replace(/\s+/g, " "));
-  if (NUMERO_RARO.test(t)) return true;
-  if (NOMBRA_TELEFONO.test(t)) return (t.match(/\d/g)?.length ?? 0) > MAX_CIFRAS_SUELTAS;
+  const colapsado = crudo.replace(/\s+/g, " ");
+  if (NUMERO_RARO.test(colapsado)) return true;
+  // Con una palabra de teléfono no vale ninguna forma, ni los días ni los horarios: cuentan todas las cifras.
+  if (NOMBRA_TELEFONO.test(colapsado)) return (colapsado.match(/\d/g)?.length ?? 0) > MAX_CIFRAS_SUELTAS;
+  const t = sinDiasDeMes(colapsado).replace(HORARIO, " ");
   let sueltas = 0;
   for (const m of t.matchAll(CORRIDA)) {
     const corrida = m[0];
@@ -225,9 +239,12 @@ export function revisarUrl(crudo: unknown, maximo = 1000): UrlRevisada | null {
   if ((u.protocol !== "http:" && u.protocol !== "https:") || !u.hostname) return null;
   const host = u.hostname.toLowerCase().replace(/^www\./, "");
   if (HOST_DE_CONTACTO.test(host)) return { ok: false, motivo: "es un enlace de contacto (WhatsApp o Telegram)" };
-  if (/^\d+(?:\.\d+){3}$/.test(host) || numerosNoDeclarados(paraRevisar(host.replace(/\./g, " ")))) return { ok: false, motivo: "el dominio trae números que pueden ser un teléfono" };
-  const ruta = paraRevisar(decodificar(u.pathname));
-  const soloDominio = numerosNoDeclarados(ruta);
+  // Un dominio con letras de otro alfabeto llega en punycode («xn--…»), que esconde sus dígitos; un puerto es un número más.
+  if (u.port || /(?:^|\.)xn--/.test(host)) return { ok: false, motivo: "el dominio trae números o letras que no se pueden revisar" };
+  const dominio = paraRevisar(host.replace(/\./g, " "));
+  if (/^\d+(?:\.\d+){3}$/.test(host) || numerosNoDeclarados(dominio)) return { ok: false, motivo: "el dominio trae números que pueden ser un teléfono" };
+  // Dominio y ruta se cuentan juntos: «4567.ar/8901» es un teléfono partido entre los dos.
+  const soloDominio = numerosNoDeclarados(`${dominio} / ${paraRevisar(decodificar(u.pathname))}`);
   const url = soloDominio ? `${u.origin}/` : `${u.origin}${u.pathname}`;
   if (url.length > maximo) return null;
   return { ok: true, url, soloDominio };

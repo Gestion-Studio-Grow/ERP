@@ -166,6 +166,8 @@ const TELEFONOS_Y_MAILS = [
   "juan(arroba)gmail.com", "juan%40gmail.com", "mailto:info@banco.com", "11/4567/8901", "11_4567_8901",
   // Certificación del diseño «rechazar por defecto» (15/11): texto crudo vs. guardado, corridas partidas, formas sin tope.
   "Expo Agro 4567\n8901", "La Rural 4567     8901", "cel 4567\n8901", "Rural 4567 - · - 8901", "Rural 11456 y 78901", "4567 hola 8901", "Entrada $ 11-4567-8901", "USD 1145678901", "1.145.678.901 visitantes", "Rural 1,145,678,901", "-11.45678901", "Rural -34.45678901, -58.15456789", "Salones 11, 456, 789, 01", "11-45-67-89-0-1", "Rural 1 1 4 5 6 7 8 9 0 1", "Expte. 11-4567-8901", "Ley 1145678901", "Matrícula 15-4567-8901", "CUIT 20-45678901-3", "Rural ❶❶ ❹❺❻❼ ❽❾⓿❶", "ver https://x.example/4567%0A8901", "ver https://x.example/4567/////8901", "ver https://x.example/precio$11-4567-8901", "ver https://x.example/1.145.678.901", "ver https://x.example/expediente-11-4567-8901", "ver https://x.example/1-1-4-5-6-7-8-9-0-1", "45% 67% 89% 01%", "4, 5, 6, 7, 8, 9, 0 y 1 de marzo",
+  // Segunda certificación del diseño endurecido (15/11): palabras de teléfono abreviadas, unidad cerrada, invisibles, URLs.
+  "Teléf. 2034-5678 hs", "Teléf. 421.234 Juan", "Telef. 2019-2031", "Telf 2034-5678", "Tél. 2034-5678", "Celu 2034-5678", "Whats 2034-5678", "WA 2034-5678", "Mov. 2034-5678", "Contacto 2034-5678", "421.234 Juan", "421,234 Juan", "421.234 personas", "Stand 421.234 visitantes", "421.234 - 567.890 Juan", "2034-5678ㅤ", "11ㅤ2019-2031", "Tel 4567-12 al 30 de mayo", "4567-12 al 30 de mayo", "11.23.12.30", "x -45.678901 y", "Olivars 456-789", "Exp. 2034-56789", "ISSN 4567-8901 Juan", "ver https://ferias.com:11456/78901", "ver http://4567.ar/8901", "ver https://expo४५६७८९०१.com/",
 ];
 
 const TEXTO_REAL_QUE_ENTRA = [
@@ -177,7 +179,7 @@ const TEXTO_REAL_QUE_ENTRA = [
   "precio $ 3.100.000", "$ 150.000.000", "$ 150.000 - 200.000", "Entradas $ 15.000 - $ 25.000", "12,500,000 visitantes", "150.000 - 200.000 personas",
   "Asistentes 12.500 · ediciones 2015-2026", "$ 1.250,50", "Edición 5 · 2026", "En 2026: 1500 expositores", "2026 | 3500 stands",
   "CUIT 30-71234567-1", "CUIT 30712345671", "en -34.603722, -58.381570", "Resolución 1234/2025", "EXP-2026-0042",
-  "ISBN 978-950-07-1234-7", "ISSN 1234-5679", "Matrícula 1234", "Stand 1210", "N.º 12", "Hall 4",
+  "ISBN 978-950-07-1234-7", "Matrícula 1234", "Stand 1210", "N.º 12", "Hall 4",
   "ver https://maps.example/expo-agro-2027 y https://x.example/2026/11/14/nota",
 ];
 
@@ -197,7 +199,7 @@ test("traeContacto: residuo aceptado — dos años crecientes sin palabra de tel
 });
 
 test("traeContacto: rechazar de más se acepta (formas no declaradas)", () => {
-  for (const t of ["Stand 1210/1211", "Entradas 15000-25000", "Entradas $ 15000-25000", "Matrícula 1234-5678", "1.250,50", "Pabellones 1, 2, 3, 4, 5, 6, 7 y 8", "CUIT 30-71234567-8", "ISBN 978-950-07-1234-5", "100% Argentino Stand: Q530 · 2026", "Del 3 al 5 de junio · 2027 · 12500 asistentes", "Hall 12.500 · 2026", "Expositores 1500 · 2026"]) assert.equal(traeContacto(t), true, t);
+  for (const t of ["Stand 1210/1211", "Entradas 15000-25000", "Entradas $ 15000-25000", "Matrícula 1234-5678", "1.250,50", "Pabellones 1, 2, 3, 4, 5, 6, 7 y 8", "CUIT 30-71234567-8", "ISBN 978-950-07-1234-5", "ISSN 1234-5679", "Telecom 2026 4567", "123.456 visitantes", "100% Argentino Stand: Q530 · 2026", "Del 3 al 5 de junio · 2027 · 12500 asistentes", "Hall 12.500 · 2026", "Expositores 1500 · 2026"]) assert.equal(traeContacto(t), true, t);
 });
 
 test("revisarUrl: enlaces de contacto y dominios con números no se guardan; ruta con números se guarda como dominio; sin query ni #", () => {
