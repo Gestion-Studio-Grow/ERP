@@ -248,7 +248,10 @@ export async function registrarCobro(formData: FormData): Promise<Resultado> {
     pago = await grabar(!faltaLaMigracion(e));
   }
   if ("ajeno" in pago) return { ok: false, error: "Este formulario ya se usó para otro cobro. Recargá la página." };
-  if ("otroMonto" in pago) return { ok: false, error: `Con este formulario ya quedó registrado un cobro de ${pesos(pago.otroMonto)} (se había cortado la conexión). Si éste es otro cobro, envialo de nuevo.` };
+  if ("otroMonto" in pago) {
+    refrescar(proyectoId); // el cobro que sí quedó grabado tiene que verse en la lista
+    return { ok: false, error: `Con este formulario ya quedó registrado un cobro de ${pesos(pago.otroMonto)} (se había cortado la conexión). Si éste es otro cobro, envialo de nuevo.` };
+  }
   // Pasaba lo que falta cobrar: no se graba nada.
   if (!("id" in pago)) return { ok: false, error: avisoTopeCobro(pago.porCobrar, monto, pago.cob) };
   if (pago.repetido) {
