@@ -28,7 +28,7 @@ las reglas para reconocer el cobro.
 | Campo | Ejemplo | Para qué |
 |---|---|---|
 | Detalle de la factura | «Clase de yoga mensual» | Va en el renglón del comprobante. Del `Product`. |
-| Concepto ARCA | servicios | 1/2/3 (`CONCEPTO_ARCA`). Con servicios: el período es **el mes del cobro** (desde el 1 hasta el último día) y el vencimiento, la fecha del cobro. |
+| Concepto ARCA | servicios | 1/2/3 (`CONCEPTO_ARCA`). Con servicios: el período es **el mes del cobro** (desde el 1 hasta el último día) y el vencimiento, la más tardía entre la fecha del cobro y la de la factura (§4.1). |
 | Alícuota (sólo RI) | 21 % | Como hoy (`ALICUOTA_ARCA`). |
 | Receptor | consumidor final · o un cliente fijo (CUIT, condición frente al IVA) | Un concepto «abono de Fulano SRL» factura siempre a ese CUIT. Factura A: no sale desde Factoque hoy (va a excepciones). |
 | **Reglas de reconocimiento** | ver 1.2 | Cómo el código ata un movimiento a este concepto. |
@@ -95,44 +95,60 @@ pregunta, después se reconoce por plantilla y encabezado. La cuenta entra en la
    Si no cierra, el archivo entero va a «Para revisar» con motivo `saldos_no_cierran`. Así un mapeo de
    columnas equivocado (débito leído como crédito, un separador de miles mal tomado) no emite una sola factura.
 3. **Período**: fecha mínima y máxima. Si se solapa con un archivo anterior de la misma cuenta, se avisa y se
-   sigue: el recuento por día de §3 resuelve el solape, y lo que no cierra va a revisar, nunca solo.
+   sigue: la cobertura por día de §3.2 resuelve el solape, y lo que no coincide va a revisar, nunca solo.
 
-## 3. La clave del movimiento (arregla H1, H3 y H8) · corregida tras el dictamen B1/B2
+## 3. La clave del movimiento · v3 (tras los dictámenes 07 y 08)
 
-**Banco y genérico:**
-```
-base   = cuenta | fecha | importe en centavos            (sin leyenda, contraparte ni referencia)
-clave  = "mov:" + cuenta + ":" + sha256(base) + "#" + n
-```
-La leyenda, la contraparte y la referencia **no** entran en la clave: cambian entre formatos del mismo banco,
-Excel las rompe (una referencia de 22 dígitos queda `2,85059E+21`) y algunos exportes recortan la leyenda. Se
-usan para **reconocer el concepto**, no para identificar el cobro.
+Un extracto bancario no trae un id por movimiento. Ninguna clave es estable entre exportes (leyendas recortadas,
+Excel, re-fechado de un día a otro). Por eso la regla no depende sólo de la clave: **lo que cae en días ya cargados
+nunca se emite solo**. Se compara el día entero y, ante cualquier diferencia, decide una persona.
 
-**Recuento por (cuenta, día, importe)** al cargar un archivo: `m` = veces que aparece en este archivo, `k` = veces
-ya cargadas.
-- `k = 0` → los `m` son nuevos, con `#1…#m`, y pueden emitirse según las reglas.
-- `m ≤ k` → nada nuevo (es el mismo cobro visto otra vez, venga del mismo archivo, de otro formato o de un solape).
-- `m > k` → las `m − k` de más se cargan con `#k+1…#m` y van a **«Para revisar»** (`posible_repetido`), **nunca
-  solas**: pueden ser cobros nuevos de un día que el archivo anterior traía cortado, o un exporte que repite
-  renglones. Las `k` se emparejan con las ya cargadas por contraparte y leyenda; las que sobran son las nuevas.
+### 3.1 Cuenta, base y clave
+- **Cuenta** = `CuentaExtracto.id`, única por CBU (o banco + últimos 4 + **moneda**). Una cuenta que no es en
+  pesos va entera a «Para revisar» (Factoque factura en pesos). Dos cuentas del mismo banco no se confunden (N3).
+- `base = cuenta | fecha | importe en centavos CON signo` (N4). Sin leyenda, contraparte ni referencia (B1).
+- `clave = "mov:" + cuenta + ":" + sha256(base) + "#" + n`, con `n` = ocurrencia en el día, en el orden del archivo.
+- **Mercado Pago:** `mp:<id de operación>`, sólo en cuentas de MP; en un banco, la `referencia` nunca es `mp:` (H8).
 
-Así:
-- dos cobros legítimos iguales el mismo día, primera vez → `#1` y `#2`: **dos** facturas (hoy da una, H1);
-- el mismo archivo otra vez, o el mismo período en otro formato o pasado por Excel → `m ≤ k`: **cero** nuevas;
-- un archivo que empieza a mitad del día (k = 1 de la mañana, m = 2 con la tarde) → la de la tarde va a revisar:
-  **no se pierde y no se duplica**;
-- un archivo cortado con menos renglones que el anterior → `m ≤ k`: nada.
+### 3.2 Cobertura por día
+Cada importación registra, por cuenta, el **período** que cubre y, por día, el **saldo de cierre** si el archivo
+trae saldo. El **primer y el último día** de cada archivo quedan marcados **parciales** (el archivo pudo cortar a
+mitad del día). Al cargar un archivo, el recuento toma el candado `extracto:<tenant>:<cuenta>` (N8) y, por día D:
 
-**Mercado Pago:** clave `mp:<id de operación>`, **sólo** cuando la cuenta es de Mercado Pago. En una cuenta de
-banco, la columna `referencia` nunca se convierte en `mp:` (arregla H8, `bancos-glue.ts:744`).
+| Caso | Qué pasa |
+|---|---|
+| (a) D **nunca** cargado | Los renglones son nuevos (`#1…#m`). Pueden emitirse según las reglas, **salvo** el control de re-fechado (§3.3). |
+| (b) D cargado, **no parcial**, y el día coincide: mismo saldo de cierre (o, sin saldo, el mismo conjunto de importes con signo) | Nada nuevo: es el mismo día visto otra vez. |
+| (c) Cualquier otro caso (D parcial, o el día no coincide) | El **día entero** va a «Para revisar» (`dia_distinto`), con las dos versiones lado a lado. Nada sale solo. Los renglones nuevos se cargan (`#k+1…`) sólo cuando la persona los confirma. |
 
-**En la base** (B2): `MovimientoImportado.hash` es NOT NULL y único (`schema.prisma:1493`, `:1528`) y
-`generarPropuestas` descarta el segundo igual (`reglas.ts:147`, `:160`). Por eso las filas nuevas guardan
-**`hash = clave`** (el único existente pasa a ser el de la clave, sin migración que lo toque) y la deduplicación de
-`reglas.ts` compara claves, no la `base`. Las filas viejas quedan con su hash viejo. El test es en Postgres, no puro.
+Emparejar renglones viejos y nuevos se hace **por saldo** de cada renglón (N6); sin saldo, se muestra el grupo
+del mismo importe **sin marcar cuál es el nuevo**, para que la persona no descarte el equivocado.
 
-La clave va al libro `CobroFacturado` (índice único `[tenantId, clave]`), que ya es el árbitro de «una factura
-por cobro» entre caminos (`cobros-facturados.ts`).
+Así: el mismo archivo, otro formato o un exporte pasado por Excel → (b), cero nuevas. Un archivo que corta a la
+mañana y otro que sigue a la tarde con el mismo importe (N2) → el día es parcial → (c), revisar: no se pierde.
+Dos cobros legítimos iguales en un día nuevo → (a), `#1` y `#2`, dos facturas (H1).
+
+### 3.3 Control de re-fechado (N1)
+Un banco puede fechar el mismo cobro D en un exporte y D+1 en otro. En el caso (a), si hay un crédito **ya cargado**
+del mismo importe en la misma cuenta a ±3 días y el archivo nuevo cubre ese día **sin** ese renglón, el renglón
+va a «Para revisar» (`posible_repetido`). Además, el control `posible_duplicado` (§5) mira también el libro de cobros
+para los cobros que **no** están en el archivo nuevo, de a uno.
+
+### 3.4 Filas viejas (producto A, formato anterior) (N5)
+Las filas cargadas con el hash viejo (`fecha|monto|descripción`, sin cuenta) **cuentan como cobertura** del negocio
+para esas fechas: un día con filas viejas se trata como parcial (caso c). Antes de emitir, se calcula también el hash
+viejo del renglón (`hashMovimiento`, `valores.ts:143`) y se busca `banco:<hash viejo>` en el libro: si está, es «ya
+facturado».
+
+### 3.5 En la base (B2)
+`MovimientoImportado.hash` es NOT NULL y único (`schema.prisma:1493`, `:1528`). Las filas nuevas guardan
+**`hash = clave`** y la deduplicación de `reglas.ts:147`/`:160` compara claves. Es el plugin compartido: el cambio
+arregla H1 **también en el producto A** (brief 2b lo prueba allá). La clave va al libro `CobroFacturado`.
+
+### 3.6 Origen de la propuesta (N7)
+Cada propuesta **hereda** el origen y el `solicitadoPor` de la importación que la trajo. El corte diario (`RUTINA`)
+sólo emite propuestas de origen `RUTINA` (pagos de MP de la conexión); las de un archivo subido (`PEDIDO`) esperan a
+esa persona o se emiten con el permiso menor.
 
 ## 4. Movimiento → concepto → propuesta → lote → factura
 
@@ -173,8 +189,9 @@ Todo lo que el código no resuelve con certeza. Nada de esto se emite solo, nunc
 | `identificar` | importe ≥ umbral de identificación: pide CUIT/DNI y nombre | Nada: el dato lo pone la persona (o el padrón, si ya está la integración). |
 | `factura_a` | el receptor del concepto es RI | Nada: Factura A no sale de Factoque hoy. |
 | `fecha_vieja` | cobro fuera de la ventana | Nada. |
-| `posible_duplicado` | el mismo importe ya se facturó ±3 días **en una factura que no está en el libro de cobros** (manual, abono del estudio). Se compara sólo contra esas, y cada una se usa **una sola vez** (si hay dos cobros iguales y una manual, uno solo va a revisar). Así no choca con I3 (cuotas iguales no se marcan entre sí). Obligatorio para emitir solo. | Nada. |
-| `posible_repetido` | el día ya estaba cargado y este archivo trae más renglones de ese importe (§3) | Nada. |
+| `posible_duplicado` | el mismo importe ya se facturó ±3 días **en una factura que no está en el libro de cobros** (manual, abono del estudio). Se compara contra esas y, además, contra las del libro cuyo cobro **no** está en el archivo nuevo (re-fechado, §3.3); cada una se usa **una sola vez** (si hay dos cobros iguales y una manual, uno solo va a revisar). Así no choca con I3 (cuotas iguales del mismo archivo no se marcan entre sí). Obligatorio para emitir solo. | Nada. |
+| `dia_distinto` | el día ya estaba cargado (o era parcial) y no coincide (§3.2) | Nada: se muestran las dos versiones. |
+| `posible_repetido` | crédito igual ya cargado a ±3 días que falta en el archivo nuevo (§3.3) | Nada. |
 | `falta_mp` | liquidación de MP en el banco sin MP de ese período cargado (§1.3) | Nada. |
 | `saldos_no_cierran` / `mapeo` | el archivo entero | Mapeo propuesto (columnas), que la persona confirma. |
 | `tope` | se llegó al tope del plan o de la autorización | Nada: ofrece pasar de plan. |

@@ -45,7 +45,7 @@ Un nivel guardado mayor que el techo se ignora y se registra.
 
 | Origen | Cuándo | Permiso |
 |---|---|---|
-| `RUTINA` | **Sólo** eventos sin una persona detrás: MP avisó un pago aprobado (conexión del negocio); corte diario de lo ya cargado | El de la autorización. |
+| `RUTINA` | **Sólo** eventos sin una persona detrás: MP avisó un pago aprobado (conexión del negocio). El corte diario sólo emite propuestas de origen `RUTINA`; las de un archivo heredan `PEDIDO` y su `solicitadoPor` (`02-diseno.md` §3.6) | El de la autorización. |
 | `PEDIDO` | **Todo archivo subido**, por la app o por WhatsApp, y el «Facturar» de la persona. `solicitadoPor` = quien lo subió (por WhatsApp, el usuario atado al teléfono verificado; si el teléfono no es de un usuario con permiso de facturación, nivel 1) | El **más chico** entre el de la persona y el de la autorización (dictamen 1506c9c0, punto 5: quien sube un extracto no dispara con el permiso del agente). |
 | `CANAL` | No aplica en Factoque (no hay cliente final pidiendo factura en esta etapa). | — |
 

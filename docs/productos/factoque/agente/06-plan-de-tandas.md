@@ -9,7 +9,7 @@
 |---|---|---|---|---|
 | 1 | Núcleo determinista: conceptos y reglas (puro), clave con ordinal, prueba de saldos, migración aditiva escrita | — | plata | sí |
 | 2a | Emisión del lote de Factoque con cupo, fecha y libro de cobros + tests de carrera | 1 | plata, concurrencia | sí |
-| 2b | Arreglo de H2, H7 y H8 en el producto A (`emitirPropuestas`, MP automático) | — | plata, concurrencia | sí |
+| 2b | Arreglo de H2, H7 y H8 en el producto A (`emitirPropuestas`, MP automático) y prueba de H1 allá | 1 (sólo la parte de H1) | plata, concurrencia | sí |
 | 3 | Pantallas de Factoque detrás de interruptor (conceptos, subir, «Para revisar», lote) en nivel 1 | 1, 2a, D0, D2 | visual | revisión liviana + QA clic por clic |
 | 4 | Encaje en el motor: puesto, `emitir_por_regla`, topes, autorización (nivel 2) | 2a, enmienda del motor, MIA-019, D1, D5 | plata, seguridad | sí |
 | 5 | IA: sugerencia en «Para revisar», mapeo asistido, redactar regla; batería de 300 casos con reservados | 4, D3 | datos | sí |
@@ -20,21 +20,20 @@
 
 ```
 Rol: gsg-ingeniero. Worktree nuevo desde main, rama factoque/agente-t1. Sin Neon, sin ARCA, sin aplicar migraciones.
-Lee: docs/productos/factoque/agente/02-diseno.md §1.2, §2.3, §3, §7 (sólo esas secciones).
+Lee: docs/productos/factoque/agente/02-diseno.md §1.2, §2.3, §3 (v3), §7 (sólo esas secciones).
 Hacé, en src/lib/factoque/agente/ (archivos *-core.ts, puros, sin Prisma):
 1. reconocer-core.ts: dado un movimiento (crédito) y una lista de reglas activas, devuelve
    {tipo:"concepto",conceptoId,version} | {tipo:"sin_concepto"} | {tipo:"ambiguo",ids}. Todas las reglas se
    evalúan; nunca gana por orden. Validación de regla: rechaza regla vacía, sólo-importe "cualquiera" y débitos.
    Normalizá con normalizarTexto (src/plugins/bancos/domain/valores.ts:27). CUIT con dígito verificador (src/lib/cuit).
-2. clave-core.ts: base = cuenta|fecha|importe en centavos (SIN leyenda ni referencia); clave
-   "mov:<cuenta>:<sha256>#n". Recuento por (cuenta,día,importe): k cargadas, m en el archivo; k=0 nuevas,
-   m<=k nada, m>k el excedente a revisar ("posible_repetido"). "mp:<id>" sólo en cuenta de MP.
-   Importes con @/lib/dinero/redondeo. En reglas.ts:147 y :160, deduplicar por clave; filas nuevas hash=clave.
+2. clave-core.ts y cobertura-core.ts: §3.1-§3.4 tal cual (cuenta con moneda, importe con signo, días
+   parciales, casos a/b/c por día, emparejar por saldo, re-fechado ±3 días, filas viejas como cobertura).
+   Importes con @/lib/dinero/redondeo. reglas.ts:147 y :160 deduplican por clave; filas nuevas hash=clave.
 3. saldos-core.ts: detecta el sentido del archivo y prueba saldos por día, tolerancia 0; sin saldo -> nivel 1.
 4. Migración aditiva SIN aplicar en prisma/migrations/<timestamp>_factoque_conceptos/ con las tablas de §7,
    RLS tenant_isolation, FK de dos columnas, únicos parciales. Revisá colisión de timestamp. Schema.prisma acorde.
-Tests puros: ambiguo, sin concepto, regla inválida, saldos al revés, C17, C18. En Postgres: dos cobros iguales
--> dos filas (hash único existente), mismo archivo -> cero.
+Tests puros: ambiguo, sin concepto, regla inválida, saldos al revés, C17, C18, C25-C28. En Postgres (candado
+extracto:<t>:<cuenta>): dos cobros iguales -> dos filas (hash único existente), mismo archivo -> cero.
 Verificación: npx tsc --noEmit y los tests, sólo el resumen n/n. Commit por pathspec, trailer GSG, sin push.
 Informe ≤300 palabras: qué, n/n, archivo:línea, pendientes.
 ```
@@ -53,7 +52,8 @@ Fecha: la del cobro dentro de ventanaDeFechaArca; si no, la más vieja permitida
 factura del punto de venta y tipo (marcá la regla "a verificar en homologación"). Despacho fuera de la tx.
 Sin agentes todavía: el lote lo dispara una persona (nivel 1).
 Vencimiento = máx(cobro, factura); "última fecha" = última factura no rechazada (con pendientes del outbox).
-posible_duplicado sólo contra facturas fuera del libro, cada una una vez. MP de un Factoque entra acá (03 §5.1).
+posible_duplicado: facturas fuera del libro + libro sin el cobro en el archivo, de a una. falta_mp (02 §1.3).
+Guarda en mercadopago-auto: en Factoque no emite, el pago entra como movimiento (03 §5.1). Origen heredado.
 Tests Postgres dos conexiones: C1-C7, C10, C11, C13-C16, C19, C20, C22 de 04 §3. Reloj inyectado,
 sin sleep. Verificación: tsc + tests, sólo resumen n/n. Commit por pathspec, sin push. Informe ≤300 palabras.
 ```
@@ -68,7 +68,8 @@ lote y una manual, pasan el tope del plan.
 Hacé: en cada emisión automática, dentro de la tenantTransaction de la factura, tomar facturita-cupo:<tenant>
 ANTES de cualquier cobro-facturado:<clave>, y recontar el cupo ahí (mismo where que contarFacturasDelMes). Tope:
 planFactoqueEnTx si el negocio es Factoque (molde cartera-abonos.ts:275-276), si no capFacturasMesDelNegocioEnTx
-(limites-del-negocio-en-tx.ts:33, hoy da 159 para Factoque: H7). "mp:" sólo en cuentas de MP (bancos-glue.ts:744). Si no
+(limites-del-negocio-en-tx.ts:33, hoy da 159 para Factoque: H7). "mp:" sólo en cuentas de MP (bancos-glue.ts:744).
+Probá que el cambio de reglas.ts de la tanda 1 arregla H1 en el producto A (dos cobros iguales, dos facturas). Si no
 entra, la propuesta queda en revisión con el motivo del tope de hoy. No cambies textos ni pantallas.
 Revisá que ningún camino tome cobro-facturado antes que facturita-cupo (lista los llamadores de tomarClaves).
 Tests Postgres con dos conexiones: dos emitirPropuestas a la vez en tope-1; emitirPropuestas + emitirComprobanteManual
@@ -105,7 +106,7 @@ importe_max_por_factura, importe_auto_por_mes (contador monto, atómico). En emi
 autorización viva leída EN la tx con FOR SHARE + frenos (tabla propia, vale el menor), crea AgentePropuesta
 clave 'factoque:'+clave, modo REGLA, autorizacionId+version, fuenteTipo 'movimiento'. Ampliar o despausar baja a
 nivel 1 hasta la firma; achicar rige ya. Archivo subido (app o WhatsApp) = PEDIDO con solicitadoPor; RUTINA sólo
-MP. Tests Postgres dos conexiones: C8, C9, C12, C21, C23, C24 de 04 §3; nivel guardado > techo se ignora.
+MP; la propuesta hereda origen. Tests Postgres dos conexiones: C8, C9, C12, C21, C23, C24 de 04 §3; nivel guardado > techo se ignora.
 Verificación: tsc + tests resumen n/n. Commit por pathspec, sin push. Informe ≤300 palabras.
 ```
 
