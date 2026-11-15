@@ -139,3 +139,12 @@
 # Ensayo en copia de Neon OK (rama ensayo-tanda3-20261114: la columna existe y "ProyectoPago" es de neondb_owner, el rol
 # dueño con el que corre la migración del build). Vuelta atrás: al pie de la migración.
 20261114230000_proyecto_pago_clave_envio
+#
+# 2026-11-15 · PR #171 · CRM «Eventos y sponsors» (GSG-CRM-009, MIA). Aditiva: cinco tablas nuevas ("EventoRelevado",
+# "MarcaRelevada", "EventoMarca", "AccionDelEquipo", "PedidoAlEquipo") con RLS tenant_isolation adentro, claves foráneas
+# a "Tenant" y CHECK sólo sobre las tablas nuevas. No toca tablas, columnas ni datos existentes; sin enum ni backfill.
+# Owner-level: AUTORIZADA por el dueño (15/11 ~11:20 ART, textual: «yo te autorizo para que puedas pasar a producción
+# el CRM [...] necesito que lo publiques ahora mismo»), transmitida por GSG-ORQ-007 a GSG-PLAT-014; publicación sola
+# por excepción. El módulo nace apagado (interruptor «eventos-sponsors»).
+# (aplicada por el build de producción del merge de #171, main 170e56f, dpl READY 15/11 16:17Z: sale de la lista)
+# 20261114231500_eventos_y_sponsors

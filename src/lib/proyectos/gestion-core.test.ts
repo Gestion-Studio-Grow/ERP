@@ -247,6 +247,13 @@ test("cada rol ve su mapa y ninguna app de la barra le rebota", () => {
   assert.equal(appEnLaBarra("caja-del-dia", "DIRECCION"), true); // QA MIA #6
   assert.equal(appEnLaBarra("caja-del-dia", "COMERCIAL"), false);
   assert.equal(appEnLaBarra("clientes", "COMERCIAL"), true);
+  // Eventos y sponsors (GSG-CRM-009): Comercial y Dirección la abren y la ven; Diseño y Producción no.
+  assert.equal(appDeGestionVisible("eventos-sponsors", "COMERCIAL", []), true);
+  assert.equal(appDeGestionVisible("eventos-sponsors", "DIRECCION", []), true);
+  assert.equal(appDeGestionVisible("eventos-sponsors", "DISENO", []), false);
+  assert.equal(appDeGestionVisible("eventos-sponsors", "SIN_FICHA", []), false);
+  assert.equal(appEnLaBarra("eventos-sponsors", "COMERCIAL"), true);
+  assert.equal(appEnLaBarra("eventos-sponsors", "PRODUCCION"), false);
   assert.equal(appEnLaBarra("gestion-administracion", "PRODUCCION"), false);
   assert.equal(appEnLaBarra("gestion-propuesta-ia", "ADMINISTRACION"), false);
   const barra: Record<string, string[]> = {

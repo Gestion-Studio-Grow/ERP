@@ -9,7 +9,7 @@
 -- UNA transacción, lo registra en _prisma_migrations con el checksum de Prisma y frena si ya
 -- estaba. Si algo falla no queda nada a medias y el error dice cuál.
 -- El pase del 23/09 (las 4 migraciones de caja) quedó en el historial de git de este archivo
--- y en respaldo-2026-09-23.md; el de la SEG021 (14-15/11), en el historial de git.
+-- y en respaldo-2026-09-23.md; el de la SEG021 (14-15/11) y el del CRM eventos_y_sponsors (#171, 15/11), en el historial de git.
 --
 -- Después: pegá 2-rls-despues-del-lote.sql (el aislamiento entre negocios de las tablas nuevas).
 BEGIN;

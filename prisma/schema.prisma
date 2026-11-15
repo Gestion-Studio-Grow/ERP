@@ -283,6 +283,11 @@ model Tenant {
   configContable            ConfigContable?
   obligacionesFiscales      ObligacionFiscal[]
   vencimientosFiscales      VencimientoFiscal[]
+  eventosRelevados          EventoRelevado[]
+  marcasRelevadas           MarcaRelevada[]
+  eventoMarcas              EventoMarca[]
+  accionesDelEquipo         AccionDelEquipo[]
+  pedidosAlEquipo           PedidoAlEquipo[]
   proyectoConfig            ProyectoConfig?
   inmoPropiedades           InmoPropiedad[] // módulo inmobiliaria
   inmoFotos                 InmoFoto[]
@@ -4545,4 +4550,113 @@ model VencimientoFiscal {
 
   @@unique([tenantId, obligacionId, periodo, cuota])
   @@index([tenantId, fechaVencimiento])
+}
+
+// ── Eventos y sponsors (GSG-CRM-009, pedido de MIA Producciones 14/11/2026) ──────────────────────
+// Lo que relevó el equipo de agentes: los eventos de una región y las marcas que van a cada uno, con
+// la URL donde se vio. Sólo hechos públicos de empresas: NINGÚN dato de contacto de personas.
+// Atrás del interruptor «eventos-sponsors» (src/cambios/interruptores.ts), apagado por defecto.
+// Migración ADITIVA 20261114231500_eventos_y_sponsors (sin aplicar: Gate 2). RLS por negocio y FK
+// compuesta (id, tenantId): una marca de otro negocio no se puede colgar de un evento propio.
+
+model EventoRelevado {
+  id          String        @id @default(cuid())
+  tenant      Tenant        @relation(fields: [tenantId], references: [id])
+  tenantId    String
+  clave       String // nombre normalizado + fecha + región: la llave que impide duplicar al importar
+  nombre      String
+  fecha       DateTime      @db.Date
+  fechaHasta  DateTime?     @db.Date
+  lugar       String
+  region      String
+  organizador String?
+  urlFuente   String?
+  tipo        String? // «feria B2B», «festival», «congreso»… tal como lo trae el equipo de agentes
+  verificacion String       @default("sin verificar") // confirmado · en duda · falla · sin verificar
+  origen      String        @default("IMPORTACION") // IMPORTACION · MANUAL
+  marcas      EventoMarca[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@unique([tenantId, clave])
+  @@unique([id, tenantId])
+  @@index([tenantId, region, fecha])
+  @@index([tenantId, fecha])
+}
+
+model MarcaRelevada {
+  id        String        @id @default(cuid())
+  tenant    Tenant        @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  clave     String // nombre normalizado
+  nombre    String
+  rubro     String?
+  web       String?
+  eventos   EventoMarca[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@unique([tenantId, clave])
+  @@unique([id, tenantId])
+}
+
+model EventoMarca {
+  id        String         @id @default(cuid())
+  tenant    Tenant         @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  evento    EventoRelevado @relation(fields: [eventoId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  eventoId  String
+  marca     MarcaRelevada  @relation(fields: [marcaId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  marcaId   String
+  rol       String // SPONSOR_PRINCIPAL · SPONSOR · AUSPICIANTE · MEDIA_PARTNER · EXPOSITOR · ORGANIZADOR · OTRO
+  nivel     String? // «Oro», «Plata»… tal como lo publica el evento
+  urlFuente String // dónde se vio la marca en ese evento (obligatoria)
+  edicion   String? // «2027», «anterior (2025)»: de qué edición es el dato
+  verificacion String      @default("sin verificar") // confirmado · en duda · falla · sin verificar
+  createdAt DateTime       @default(now())
+
+  @@unique([tenantId, eventoId, marcaId, rol])
+  @@index([tenantId, marcaId])
+}
+
+// Registro del equipo de agentes: qué puesto hizo qué, cuándo y con qué fuente. Se ata al evento o a la
+// marca-en-evento por sus claves (sin FK: la línea sobrevive aunque se reimporte el evento).
+model AccionDelEquipo {
+  id          String   @id @default(cuid())
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId    String
+  clave       String // huella de la línea: la misma línea importada dos veces no se duplica
+  puesto      String // descubridor · identificador · verificador · contactos · redactor · seguidor
+  accion      String
+  hora        DateTime
+  url         String?
+  detalle     String?
+  eventoClave String
+  marcaClave  String? // null = la línea es del evento
+  rol         String?
+  createdAt   DateTime @default(now())
+
+  @@unique([tenantId, clave])
+  @@index([tenantId, eventoClave])
+  @@index([tenantId, puesto, hora])
+}
+
+// Pedidos del negocio al equipo de agentes («buscá eventos en Córdoba»): entran en cola y los toma una
+// sesión de GSG. Sin clave de API: acá no se ejecuta nada.
+model PedidoAlEquipo {
+  id        String   @id @default(cuid())
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  puesto    String   @default("descubridor")
+  pedido    String
+  // Dónde y cuándo buscar: se elige en cada encargo (decisión del dueño, 14/11). Descubridor: región por defecto «Buenos Aires».
+  region    String?
+  desde     DateTime? @db.Date
+  hasta     DateTime? @db.Date
+  estado    String   @default("EN_COLA") // EN_COLA · EN_CURSO · HECHO · DESCARTADO
+  creadoPor String? // id del usuario que lo pidió
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId, estado, createdAt])
 }

@@ -225,6 +225,20 @@ export const INTERRUPTORES = [
     enAuditoria: "Soporte GSG",
     cambiaLasApps: false,
   },
+  {
+    // Eventos y sponsors (GSG-CRM-009, pedido de MIA Producciones del 14/11/2026): los eventos de una
+    // región y las marcas que van a cada uno, cargados desde lo que relevó el equipo de agentes.
+    // Apagado por defecto: el negocio no ve la app y toda acción de src/lib/eventos-sponsors rechaza.
+    // Es un módulo que se cobra aparte: se prende sólo si el cliente lo contrata. Va AL FINAL.
+    id: "eventos-sponsors",
+    nombre: "Eventos y sponsors",
+    queCambia:
+      "Aparece la app «Eventos y sponsors»: los eventos por región y fecha, las marcas que van a cada uno con el link a la fuente y la carga de lo que relevó el equipo de agentes. Apagado, no se ve nada.",
+    alPrender:
+      "No cambia qué apps ve cada persona ni toca ventas, cobros o caja. Guarda sólo eventos y marcas (nunca datos de contacto de personas). Si la migración del módulo no está aplicada, el negocio ve «falta un paso de base de datos».",
+    enAuditoria: "eventos y sponsors",
+    cambiaLasApps: false,
+  },
 ] as const satisfies readonly Interruptor[];
 
 export type InterruptorId = (typeof INTERRUPTORES)[number]["id"];
@@ -312,6 +326,16 @@ export function soporteGsgPrendido(
   estado: Readonly<Partial<Record<InterruptorId, { encendido: boolean }>>>,
 ): boolean {
   return estado[SOPORTE_GSG]?.encendido === true;
+}
+
+/** Eventos y sponsors (src/lib/eventos-sponsors, GSG-CRM-009). */
+export const EVENTOS_SPONSORS: InterruptorId = "eventos-sponsors";
+
+/** ¿El negocio ve «Eventos y sponsors»? Un estado sin la entrada cuenta como apagado. PURA. */
+export function eventosSponsorsPrendido(
+  estado: Readonly<Partial<Record<InterruptorId, { encendido: boolean }>>>,
+): boolean {
+  return estado[EVENTOS_SPONSORS]?.encendido === true;
 }
 
 /**
