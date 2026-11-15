@@ -207,6 +207,30 @@ test("2.d marcar una cuota en dólares mientras cambia el tipo de cambio: asient
   assert.equal((await p.duenio.proyectoCuentaBanco.findUniqueOrThrow({ where: { id: cta }, select: { saldo: true } })).saldo, -120_000, "el banco, con el mismo importe");
 });
 
+test("2.e marcar sin tipo de cambio o con una cuenta de otra moneda: vuelve atrás entero (ni marca, ni libro, ni banco)", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const { a } = p.base;
+  const intacta = async (q: string, cta: string, saldo: number) => {
+    assert.equal((await p.duenio.proyectoCuota.findUniqueOrThrow({ where: { id: q }, select: { pagadoEl: true } })).pagadoEl, null, "la cuota sigue sin marcar");
+    assert.equal(await p.duenio.cashMovement.count({ where: { createdBy: { contains: q } } }), 0, "sin asiento en el libro");
+    assert.equal((await p.duenio.proyectoCuentaBanco.findUniqueOrThrow({ where: { id: cta }, select: { saldo: true } })).saldo, saldo, "el banco no se movió");
+  };
+  // Cuota en dólares sin cambio cargado: el error sale adentro, después de tomar la cuota.
+  await p.duenio.proyectoTipoCambio.deleteMany({ where: { tenantId: a.id, moneda: "USD" } });
+  const enDolares = (await p.duenio.proyectoCuota.create({ data: { tenantId: a.id, proyectoId: null, tipo: "PAGO", concepto: "Licencia", monto: 100, moneda: "USD", venceEl: new Date(AHORA + 5 * DIA), auto: false }, select: { id: true } })).id;
+  const enPesos = await p.cuenta();
+  assert.deepEqual(await p.marcar(enDolares, enPesos)(), { ok: false, error: "Falta el tipo de cambio: cargalo en Monedas y gastos fijos." });
+  await intacta(enDolares, enPesos, 0);
+  // Cuota en pesos con una cuenta en dólares: no hay cómo moverla.
+  const q = await p.cuota(null, { tipo: "PAGO", monto: 1000 });
+  const ctaUsd = (await p.duenio.proyectoCuentaBanco.create({ data: { tenantId: a.id, nombre: "Banco USD", moneda: "USD", saldo: 50 }, select: { id: true } })).id;
+  assert.deepEqual(await p.marcar(q, ctaUsd)(), { ok: false, error: "Esa cuenta está en USD y la cuota en ARS: elegí otra o dejala sin cuenta." });
+  await intacta(q, ctaUsd, 50);
+  // Después de la vuelta atrás, sin cuenta se marca.
+  assert.equal((await p.marcar(q)()).ok, true);
+});
+
 test("2.c cambiar el vencimiento de una cuota que en el medio se pagó: no la toca", async (t) => {
   const p = await preparar(t);
   if (!p) return;
