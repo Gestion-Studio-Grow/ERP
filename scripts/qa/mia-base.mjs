@@ -1,22 +1,37 @@
 // Piezas del recorrido de MIA contra la demo local: entrar con un rol y leer una pantalla en pocas líneas.
 import { createHmac } from "node:crypto";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { chromium } from "playwright";
 
 export const BASE = process.env.MIA_URL ?? "http://mia-producciones.localhost:3218";
 const CLAVE = process.env.MIA_DEMO_PASSWORD ?? "mia-demo-2026";
+// La semilla deja al dueño con «cambiá tu clave»: se cambia por esta, sólo en la base local de la demo.
+const CLAVE_NUEVA = process.env.MIA_DEMO_PASSWORD_NUEVA ?? `${CLAVE}-local`;
+// Sesiones, secretos y claves cambiadas son de UNA demo: el nombre lleva el puerto, y `olvidar()` los borra al resembrar.
+const MARCA = new URL(BASE).port || "80";
+const archivo = (nombre) => path.join(tmpdir(), `mia-demo-${MARCA}-${nombre}`);
+const CHROMIUM_LOCAL = "/opt/pw-browsers/chromium";
 
+/** Las pantallas del QA de plata: escritorio (1366) y teléfono (375). */
+export const VISTAS = { escritorio: { width: 1366, height: 900 }, telefono: { width: 375, height: 812 } };
+
+/** Si el chromium de la versión de Playwright del repo no está instalado (nube de Claude), usa el de la máquina. */
 export async function abrir() {
-  const navegador = await chromium.launch();
-  return navegador;
+  const ruta = process.env.PW_CHROMIUM ?? (existsSync(CHROMIUM_LOCAL) ? CHROMIUM_LOCAL : undefined);
+  return chromium.launch(ruta ? { executablePath: ruta, args: ["--headless", "--no-sandbox"] } : {});
 }
 
-/** Una sesión por rol, con los errores del navegador y del servidor a la vista. */
-export async function entrar(navegador, rol, errores = []) {
-  const sesion = path.join(tmpdir(), `mia-demo-sesion-${rol}.json`);
-  const contexto = await navegador.newContext({ baseURL: BASE, acceptDownloads: true, viewport: { width: 1280, height: 900 }, ...(existsSync(sesion) ? { storageState: sesion } : {}) });
+/** Después de resembrar: las sesiones y los secretos de doble factor guardados ya no valen. */
+export function olvidar() {
+  for (const f of readdirSync(tmpdir())) if (f.startsWith(`mia-demo-${MARCA}-`)) rmSync(path.join(tmpdir(), f), { force: true });
+}
+
+/** Una sesión por rol, con los errores del navegador y del servidor a la vista. `vista`: VISTAS.escritorio o VISTAS.telefono. */
+export async function entrar(navegador, rol, errores = [], vista = VISTAS.escritorio) {
+  const sesion = archivo(`sesion-${rol}.json`);
+  const contexto = await navegador.newContext({ baseURL: BASE, acceptDownloads: true, viewport: vista, ...(existsSync(sesion) ? { storageState: sesion } : {}) });
   const page = await contexto.newPage();
   page.setDefaultTimeout(15000);
   page.on("pageerror", (e) => /Transition was skipped/.test(e.message) || errores.push(`[${rol}] error de página: ${e.message.slice(0, 160)}`));
@@ -27,17 +42,29 @@ export async function entrar(navegador, rol, errores = []) {
   await page.goto("/admin/proyectos/inicio");
   if (!page.url().includes("/login")) return page;
   await page.goto("/admin/login");
-  await page.getByPlaceholder("tu@email.com").fill(`${rol}@mia-producciones.demo`);
-  await page.locator('input[type="password"]').fill(CLAVE);
-  await page.keyboard.press("Enter");
+  const cambiada = archivo(`clave-cambiada-${rol}`);
+  // El campo ya no tiene el texto de ayuda «tu@email.com»: se busca por tipo.
+  await page.locator('input[type="email"]').fill(`${rol}@mia-producciones.demo`);
+  await page.locator('input[type="password"]').fill(existsSync(cambiada) ? CLAVE_NUEVA : CLAVE);
+  await page.getByRole("button", { name: "Ingresar" }).click();
   await page.waitForURL((u) => !u.pathname.endsWith("/login"));
   if (page.url().includes("segundo-paso")) await segundoPaso(page, rol);
+  // Orden real: clave → doble factor → cambio de clave obligatorio (el dueño de la semilla lo tiene).
+  if (page.url().includes("cambiar-password")) {
+    const campos = page.locator('input[type="password"]');
+    await campos.nth(0).fill(CLAVE);
+    await campos.nth(1).fill(CLAVE_NUEVA);
+    await campos.nth(2).fill(CLAVE_NUEVA);
+    await page.getByRole("button", { name: "Guardar y entrar" }).click();
+    await page.waitForURL((u) => !u.pathname.includes("cambiar-password"));
+    writeFileSync(cambiada, "1");
+  }
   await contexto.storageState({ path: sesion });
   return page;
 }
 
 // Hace de app del teléfono, independiente del código del producto. Los secretos duran lo que dura la demo: se siembra de nuevo en cada arranque.
-const SECRETOS = path.join(tmpdir(), "mia-demo-secretos.json");
+const SECRETOS = archivo("secretos.json");
 
 function codigo(secreto, salto = 0) {
   const B = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
