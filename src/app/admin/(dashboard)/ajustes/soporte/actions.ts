@@ -16,6 +16,8 @@ export type ResultadoPermiso = { ok: true; mensaje: string; copia: CopiaEnBorrad
 
 export async function cambiarPermisoSoporteAction(_previo: ResultadoPermiso | null, fd: FormData): Promise<ResultadoPermiso> {
   const user = await requireUser();
+  // Interruptor «Soporte GSG» apagado: registrarConsentimientoConCopia rechaza DAR y deja SACAR (siempre se
+  // puede sacar un permiso dado antes del apagado). La regla está en el servidor, no acá.
   const r = await registrarConsentimientoConCopia({
     tenantId: user.tenantId,
     userId: user.id,

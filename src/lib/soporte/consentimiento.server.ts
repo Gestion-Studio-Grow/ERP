@@ -15,6 +15,7 @@ export type { CopiaEnBorrador } from "./consentimiento-core";
 import { randomUUID } from "node:crypto";
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import { enElNegocio } from "@/lib/operator-db";
+import { soporteGsgPrendidoEnTx } from "./interruptor.server";
 import {
   SIN_CONSENTIMIENTO,
   TEXTO_CONSENTIMIENTO,
@@ -48,6 +49,24 @@ export async function leerConsentimiento(tenantId: string, db?: PrismaClient): P
   );
 }
 
+/**
+ * ¿El titular dio el permiso alguna vez (n1 o n2), aunque hoy esté sacado? Con «Soporte GSG» apagado decide
+ * si la pantalla sigue a mano EN PAUSA: para sacar lo dado o para ver que quedó sacado (sin esto, sacar el
+ * último permiso dejaba la pantalla en «no encontrado» en vez de confirmarlo). Sin tabla: no.
+ */
+export async function permisoDadoAlgunaVez(tenantId: string, db?: PrismaClient): Promise<boolean> {
+  return enElNegocio(
+    tenantId,
+    async (tx) => {
+      if (!(await hayTablaDeConsentimiento(tx))) return false;
+      const r = await tx.$queryRaw<{ si: boolean }[]>`
+        SELECT EXISTS (SELECT 1 FROM "SoporteConsentimiento" WHERE "tenantId" = ${tenantId} AND aceptado) AS si`;
+      return r[0]?.si === true;
+    },
+    db,
+  );
+}
+
 /** Para la pantalla: si la tabla ya está (Gate 2) y el permiso vigente. Sin tabla: deshabilitado, sin permiso. */
 export async function leerEstadoDelPermiso(tenantId: string, db?: PrismaClient): Promise<{ habilitado: boolean; vigente: Consentimiento }> {
   return enElNegocio(
@@ -74,12 +93,18 @@ export const ENTIDAD_MAIL_BORRADOR = "MailBorrador";
 export const ACCION_COPIA_DE_PERMISO = "soporte.permiso.copia_borrador";
 
 const NO_ES_EL_TITULAR = "Sólo el titular del negocio puede dar o sacar este permiso.";
+export const SOPORTE_NO_DISPONIBLE = "Esta opción no está disponible en tu negocio.";
 
 /**
  * Registra una casilla tildada o destildada. Sólo el titular (OWNER): el rol y el usuario los pasa
  * quien llama, leídos de la sesión, nunca del formulario; además el usuario tiene que ser un OWNER
  * activo DE ESTE negocio en la base (un id de otro negocio no escribe acá). Fila + AuditLog + borrador
  * de la copia por mail, todo en la misma transacción.
+ *
+ * Interruptor «Soporte GSG» (src/lib/soporte/interruptor.server.ts) apagado en el negocio: DAR no se
+ * guarda; SACAR sí, siempre. Un permiso dado antes del apagado tiene que poder sacarse, o volvería a
+ * valer al prender (certificación de la tanda 3, 15/11/2026). La regla vive acá y no sólo en la action:
+ * vale para cualquiera que llame al servidor.
  */
 export async function registrarConsentimientoConCopia(
   p: { tenantId: string; userId: string; rol: unknown; nivel: unknown; aceptado: unknown },
@@ -91,6 +116,8 @@ export async function registrarConsentimientoConCopia(
   return enElNegocio(
     p.tenantId,
     async (tx): Promise<ResultadoConCopia> => {
+      // Antes que la tabla: apagado, dar se rechaza igual con o sin tabla (mismo texto que sin pantalla).
+      if (v.valor.aceptado && !(await soporteGsgPrendidoEnTx(tx, p.tenantId))) return { ok: false, error: SOPORTE_NO_DISPONIBLE };
       if (!(await hayTablaDeConsentimiento(tx))) {
         return { ok: false, error: "Este permiso todavía no está habilitado. Avisanos y lo activamos." };
       }
@@ -101,6 +128,11 @@ export async function registrarConsentimientoConCopia(
       if (!titular) return { ok: false, error: NO_ES_EL_TITULAR };
       // Candado por negocio: dos clics a la vez no leen el mismo «antes».
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`soporte-permiso:${p.tenantId}`}))`;
+      // Dar: el interruptor se vuelve a leer con el candado tomado (lectura nueva, READ COMMITTED), así un
+      // apagado que entró mientras esperaba el candado también lo frena. El apagado de la consola no toma
+      // este candado: queda una ventana de milisegundos entre esta lectura y el COMMIT; lo dado ahí no se
+      // usa con el interruptor apagado (el despacho lo vuelve a mirar) y el titular lo puede sacar.
+      if (v.valor.aceptado && !(await soporteGsgPrendidoEnTx(tx, p.tenantId))) return { ok: false, error: SOPORTE_NO_DISPONIBLE };
       if (v.valor.nivel === "n2" && v.valor.aceptado) {
         const antes = await tx.$queryRaw<FilaDeConsentimiento[]>`
           SELECT nivel, aceptado, "versionTexto", "createdAt" FROM "SoporteConsentimiento" WHERE "tenantId" = ${p.tenantId}`;

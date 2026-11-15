@@ -252,6 +252,11 @@ test("roles de soporte: aislamiento por negocio, CH bloqueado desde la base y pe
   const { operatorPrisma } = await import("@/lib/operator-db");
   const { registrarConsentimiento, leerConsentimiento } = await import("./consentimiento.server");
   base.alBorrar(() => operatorPrisma.$disconnect());
+  // Dar exige «Soporte GSG» prendido en el negocio (sacar no): lo prende la consola en B.
+  await duenio.query(
+    `INSERT INTO "AuditLog" (id, "tenantId", actor, action, entity, "entityId", channel) VALUES ('int-b', $1, 'operator:qa', 'interruptor.encender', 'Interruptor', 'soporte-gsg', 'operador')`,
+    [B],
+  );
   const negada = await registrarConsentimiento({ tenantId: base.b.id, userId: base.b.recepcion.id, rol: "RECEPTION", nivel: "n1", aceptado: true });
   assert.equal(negada.ok, false, "recepción no da permiso");
   assert.deepEqual(await leerConsentimiento(base.b.id), { n1: true, n2: false }, "B ya tenía n1 (sembrado)");

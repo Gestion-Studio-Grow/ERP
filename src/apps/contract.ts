@@ -25,6 +25,7 @@ import type { Capability } from "@/lib/capabilities";
 import type { Perfil } from "@/modules/perfil";
 import type { ModuleId } from "@/modules/contract";
 import type { EspacioId } from "./espacios";
+import type { InterruptorId } from "@/cambios/interruptores";
 
 /**
  * Íconos disponibles. El dibujo de cada uno vive en src/components/iconos-apps.tsx, que
@@ -158,6 +159,12 @@ export interface AppDescriptor {
    * hoy no cambia (paridad dorada). Ausente = sólo `capability`.
    */
   capabilityEnMostrador?: Capability;
+  /**
+   * Interruptor por negocio (src/cambios/interruptores.ts) que la habilita. Apagado, o sin el estado
+   * de los interruptores a mano, la app NO EXISTE para ese negocio: ni menú, ni buscador, ni ruta
+   * (`motivoNoDisponible` → "apagada"; la página además responde «no encontrado»). Ausente = no depende de ninguno.
+   */
+  interruptor?: InterruptorId;
   /** Módulo que la habilita, o `null` si es del núcleo (no se apaga). */
   modulo: ModuleId | null;
   /**

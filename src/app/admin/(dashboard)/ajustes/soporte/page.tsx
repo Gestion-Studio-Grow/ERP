@@ -1,5 +1,9 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { requireApp } from "@/lib/require-app";
+import { requireUser } from "@/lib/authz";
+import { soporteGsgPrendidoEn } from "@/lib/soporte/interruptor.server";
+import { soporteEnPausaAMano } from "@/apps/contexto.server";
 import { PageContainer, PageHeader } from "@/components/ui";
 import { leerEstadoDelPermiso, ultimaCopiaEnBorrador } from "@/lib/soporte/consentimiento.server";
 import PermisoSoporte from "./PermisoSoporte";
@@ -16,7 +20,17 @@ export const metadata: Metadata = {
 // titular (`users:manage` en el registro); lo CAMBIA sólo el OWNER, y eso lo vuelve a decidir la action en el
 // servidor con la sesión, no esta pantalla. El negocio es el de la sesión. Sin la tabla (Gate 2 sin
 // aplicar) se dice claro y no se ofrece guardar.
+//
+// Detrás del interruptor «Soporte GSG» (apagado por defecto, decisión del dueño 14/11/2026): apagado
+// en el negocio de la sesión, la ruta responde «no encontrado» ANTES de la guardia de la app, para no
+// contar a nadie que la pantalla existe. EXCEPCIÓN: el titular que alguna vez dio el permiso entra EN
+// PAUSA, para sacarlo o ver que quedó sacado; el servidor rechaza dar con el interruptor apagado.
 export default async function SoportePage() {
+  const sesion = await requireUser();
+  const prendido = await soporteGsgPrendidoEn(sesion.tenantId);
+  // Una falla al leer el permiso cuenta como «nunca lo dio» (no encontrado), no como error.
+  if (!prendido && !(sesion.role === "OWNER" && (await soporteEnPausaAMano(sesion.tenantId)))) notFound();
+  const enPausa = !prendido;
   const user = await requireApp("permiso-soporte");
   const esTitular = user.role === "OWNER";
   // La copia lleva el mail del titular: sólo la ve él.
@@ -31,6 +45,7 @@ export default async function SoportePage() {
         habilitado={estado.habilitado}
         vigente={estado.vigente}
         esTitular={esTitular}
+        enPausa={enPausa}
         ultimaCopia={copia ? { para: copia.para, asunto: copia.asunto, cuerpo: copia.cuerpo } : null}
       />
     </PageContainer>
