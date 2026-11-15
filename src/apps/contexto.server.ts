@@ -27,7 +27,7 @@ import { lotesYDespieceListos } from "@/lib/carniceria/schema-probe";
 import { resolveRubroId } from "@/blueprints/retail/rubros";
 import { catalogo } from "@/modules/catalog";
 import { moduleRegistryEnabled } from "@/modules/flags";
-import { appsOcultasDelNegocio, enInicioPorAppsDelNegocio } from "@/cambios/interruptores.server";
+import { appsOcultasDelNegocio, enInicioPorAppsDelNegocio, interruptoresDelNegocio } from "@/cambios/interruptores.server";
 import { ocultasParaElPanel } from "@/cambios/interruptores-core";
 import {
   resolverContextoApps,
@@ -78,12 +78,14 @@ export const getContextoApps = cache(async (): Promise<ContextoApps | null> => {
  * (`rolPuedeEntrar`); lo usan `requireApp`/`requireAppAccion`, la barra y el Inicio.
  */
 export const getNegocioApps = cache(async (role: Role, overrides?: ReadonlyArray<PermisoOverride>): Promise<NegocioApps> => {
-  const [t, contexto, perfil, carniceriaLista, ocultas] = await Promise.all([
+  const [t, contexto, perfil, carniceriaLista, ocultas, interruptores] = await Promise.all([
     leerTenant(),
     getContextoApps(),
     getActiveProfile(),
     lotesYDespieceListos(),
     appsOcultasDelNegocio(),
+    // La misma lectura cacheada del request (una consulta): decide las apps con `interruptor`.
+    interruptoresDelNegocio(),
   ]);
   return {
     role,
@@ -99,6 +101,7 @@ export const getNegocioApps = cache(async (role: Role, overrides?: ReadonlyArray
     // hubiera una fila, su menú queda como siempre (paridad-menu.test.ts). Sin la fila del negocio,
     // tampoco: no hay contra qué slug probarlo.
     ocultas: ocultasParaElPanel(t?.slug, ocultas),
+    interruptores,
     ...(overrides !== undefined && { overrides }),
   };
 });
