@@ -118,4 +118,14 @@
 # El código tolera que falte (verifica por la auditoría).
 # Owner-level: AUTORIZADA por el dueño en el tablero «Frentes GSG», tarjeta f45-g2 = a («respaldo Neon, autorizo la
 # migración, publicar»), 11/11/2026, registrada por GSG-ORQ-006. El build del merge la aplica (paso 1b + migrate deploy).
-20261110170000_tenant_cuit_verificado
+# (en main desde el 10/11 con MIGRATE_DATABASE_URL en Production: la aplicó el build del merge; sale de la lista el 14/11,
+# GSG-OPS-008 — CONFIRMAR con la consulta R2 de docs/runbooks/ENSAYO-NEON-TANDA3-2026-11-14.md antes de publicar. Si
+# no estuviera aplicada, el paso 1b frena sin tocar la base y se la vuelve a declarar acá) 20261110170000_tenant_cuit_verificado
+#
+# 2026-11-14 · tanda 3 (#161) · SEG-021: endurecimiento de las 4 funciones trigger SECURITY DEFINER de contabilidad
+# (antes prisma/pending-gate2/SEG021_contabilidad_funciones.sql). CREATE OR REPLACE con la misma lógica y mensajes,
+# lecturas acotadas al negocio de la fila y REVOKE EXECUTE FROM PUBLIC. No toca datos, tablas ni triggers. Idempotente,
+# una transacción, reversa al pie. Owner-level: AUTORIZADA por el dueño («Aplicar con la tanda, con copia antes»),
+# transmitida por GSG-ORQ-007 el 14/11/2026. Ensayo: docs/runbooks/ENSAYO-NEON-TANDA3-2026-11-14.md.
+# Es la única del lote: con la de cuit todavía declarada, el paso 1b frenaba (certificación de la tanda 3).
+20261114120000_seg021_contabilidad_funciones

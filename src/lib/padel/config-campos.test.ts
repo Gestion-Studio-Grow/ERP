@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { PLANTILLAS_DEFAULT } from "./core";
-import { errorDeTramo, plantillasConCambio, puedeCambiarAjuste, validarCampoConfig, validarTramos } from "./config-campos";
+import { readFileSync } from "node:fs";
+import { AJUSTE_DIRECTORIO, errorDeTramo, plantillasConCambio, puedeCambiarAjuste, validarCampoConfig, validarTramos } from "./config-campos";
 
 const valor = (clave: unknown, v: unknown) => {
   const r = validarCampoConfig(clave, v);
@@ -98,4 +99,15 @@ test("UAT 11/2026 — la cuenta de cobro, el celular y los textos los cambia só
     assert.equal(puedeCambiarAjuste("PROFESSIONAL", clave), false);
   }
   for (const clave of ["precioIndividual", "precioGrupal", "duracionMin", "horarios", "bienvenidaVista"]) assert.equal(puedeCambiarAjuste("RECEPTION", clave), true);
+});
+
+test("CERT 13/11 — publicar el negocio en el buscador de profes lo decide sólo el dueño", () => {
+  assert.equal(puedeCambiarAjuste("OWNER", AJUSTE_DIRECTORIO), true);
+  for (const rol of ["RECEPTION", "PROFESSIONAL", "ADMIN", "", "owner"]) assert.equal(puedeCambiarAjuste(rol, AJUSTE_DIRECTORIO), false, rol);
+  // La acción pregunta ANTES de leer el negocio o escribir: el control vive en guardarDirectorio.
+  const fuente = readFileSync(new URL("./acciones-config.ts", import.meta.url), "utf8");
+  const cuerpo = fuente.slice(fuente.indexOf("export async function guardarDirectorio"));
+  const control = cuerpo.indexOf("puedeCambiarAjuste(user.role, AJUSTE_DIRECTORIO)");
+  assert.ok(control > 0, "guardarDirectorio controla el rol");
+  assert.ok(control < cuerpo.indexOf("tenantTransaction"), "el control va antes de escribir");
 });

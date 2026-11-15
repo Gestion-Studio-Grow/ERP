@@ -12,12 +12,13 @@ import { resolveMagraLocal } from "@/tenants/magra-content";
 import { sanitizePhone, whatsappCanonico } from "@/lib/whatsapp-cta";
 import Gracias from "@/components/vidriera/Gracias";
 import { CLASES_DE_FUENTES as FUENTES_SHINE } from "../shine/fuentes";
-import GraciasNueva from "../vidriera/GraciasNueva";
+import GraciasNueva, { CLASES_PAGAR_NUEVA } from "../vidriera/GraciasNueva";
 import GraciasQuebienoles from "../quebienoles/GraciasQuebienoles";
 import GraciasMagra from "../magra/GraciasMagra";
 import GraciasAdosmanos from "../adosmanos/GraciasAdosmanos";
 import { marcaDeLaVidriera, usaVidrieraNueva } from "../vidriera/marcas";
 import { textoDeMediosDePago } from "../reglas-tienda";
+import { textoDePagoDeGracias } from "./texto-de-pago";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { pagoDeLaTiendaParaGracias } from "@/lib/cobros/pago-de-la-tienda.server";
 import PagarConMercadoPago from "@/components/vidriera/PagarConMercadoPago";
@@ -65,18 +66,11 @@ export default async function GraciasPage({
   const front = editorialFrontFor(identity);
   // El rubro que declara su vidriera (rubros.ts `vidriera`) sigue con la nueva también acá.
   if (usaVidrieraNueva(nuevo || (!front && identity.rubro?.vidriera != null), identity, front)) {
-    const tienda = await leerTienda();
+    // El pago con Mercado Pago también acá: la demo Magra (marca GSG, sin `front`) cae en esta rama.
+    const [tienda, mp] = await Promise.all([leerTienda(), pagoDeGracias(pedido, t)]);
     const marca = marcaDeLaVidriera(front, identity.brandId);
     const whatsapp = marca === "magra" ? resolveMagraLocal(tienda.branding).whatsapp : whatsappCanonico(tienda.branding?.whatsapp);
     const medios = textoDeMediosDePago(tienda.copy?.paymentMethods ?? []);
-    const pago =
-      marca === "magra"
-        ? medios
-          ? `Te lo llevamos o lo retirás. Pagás al recibir: ${medios.charAt(0).toLowerCase()}${medios.slice(1)}`
-          : "Te lo llevamos o lo retirás. El medio de pago te lo confirmamos antes de cobrar."
-        : marca === "shinevelas" && medios
-          ? `Te lo mandamos o lo retirás. El pago se coordina al confirmar: ${medios.charAt(0).toLowerCase()}${medios.slice(1)}`
-          : "Te lo mandamos o lo retirás. El medio de pago y el envío te los confirmamos antes de cobrar.";
     return (
       <GraciasNueva
         marca={marca}
@@ -84,7 +78,18 @@ export default async function GraciasPage({
         nombre={tienda.name}
         pedido={pedido && /^\d{1,9}$/.test(pedido) ? pedido : null}
         whatsapp={whatsapp}
-        pago={pago}
+        pago={textoDePagoDeGracias({ marca, medios, conMercadoPago: mp != null })}
+        pagar={
+          mp && (
+            <PagarConMercadoPago
+              pedido={mp.pedido}
+              token={mp.token}
+              prueba={mp.prueba}
+              claseBoton={CLASES_PAGAR_NUEVA.boton}
+              claseNota={CLASES_PAGAR_NUEVA.nota}
+            />
+          )
+        }
       />
     );
   }
@@ -99,14 +104,8 @@ export default async function GraciasPage({
         tenantKey={identity.slug ?? "magra"}
         pedido={pedido && /^\d{1,9}$/.test(pedido) ? pedido : null}
         whatsapp={resolveMagraLocal(tienda.branding).whatsapp}
-        pago={
-          // Con el botón de Mercado Pago a la vista, no se dice sólo «pagás al recibir» (certificación T6a).
-          mp
-            ? `Te lo llevamos o lo retirás. Podés pagar ahora con Mercado Pago${medios ? ` o al recibir: ${medios.charAt(0).toLowerCase()}${medios.slice(1)}` : " o coordinar el pago con el local."}`
-            : medios
-              ? `Te lo llevamos o lo retirás. Pagás al recibir: ${medios.charAt(0).toLowerCase()}${medios.slice(1)}`
-              : "Te lo llevamos o lo retirás. El medio de pago te lo confirmamos antes de cobrar."
-        }
+        // Con el botón de Mercado Pago a la vista, no se dice sólo «pagás al recibir» (certificación T6a).
+        pago={textoDePagoDeGracias({ marca: "magra", medios, conMercadoPago: mp != null })}
         pagar={
           mp && <PagarConMercadoPago pedido={mp.pedido} token={mp.token} prueba={mp.prueba} claseBoton="mg-btn mg-btn-oro" claseNota="mg-gr-nota" />
         }

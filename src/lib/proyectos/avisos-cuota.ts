@@ -19,6 +19,16 @@ export function listoMarcada(esCobro: boolean, importeEnPesos: number): string {
   return `Listo: cuota marcada como ${esCobro ? "cobrada" : "pagada"} (${pesos(importeEnPesos)}).`;
 }
 
+/** El cartel de éxito de «Cobrar una parte»: lo que entró y lo que le sigue faltando a la cuota, en su moneda. */
+export function listoParcial(importeEnPesos: number, falta: number, moneda: string): string {
+  return `Listo: se cobró una parte (${pesos(importeEnPesos)}). A la cuota le faltan ${plataEn(redondear(falta), moneda)}.`;
+}
+
+/** «Cobrar una parte» por más de lo que le falta a la cuota: nunca se cobra de más. */
+export function avisoMasQueLaCuota(falta: number, moneda: string): string {
+  return `No se puede cobrar más de lo que le falta a la cuota (${plataEn(redondear(falta), moneda)}). Para cobrar todo, dejá el monto vacío.`;
+}
+
 /** Lo que se sabe de la factura de una cuota, en el formato de facturar-cuota.server.ts (`FacturaDeCuotaVista`). */
 export interface FacturaDeCuotaTexto {
   status: string;

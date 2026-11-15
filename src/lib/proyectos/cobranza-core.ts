@@ -203,8 +203,28 @@ export function repartoDeCobros(cuotas: readonly CuotaDeCobranza[], tc: Readonly
   const deCobro = vivas.filter((i) => !esPrevista(cuotas[i]));
   // Suelto: sin cuota, o con una que no está marcada entre las vivas (huérfano: cuota reabierta, anulada o de otro lado).
   const marcadas = new Set(deCobro.filter((i) => cuotas[i].pagadoEl && cuotas[i].id).map((i) => cuotas[i].id!));
-  const huerfanos = Object.entries(c.deCuotas ?? {}).reduce((s, [id, x]) => (marcadas.has(id) ? s : s + (x.hoy ?? x.pesos)), 0);
+  // Cobro parcial («Cobrar una parte»): enlazado a una cuota real, viva y SIN marcar. Es de esa cuota, no plata suelta.
+  const conParcial = new Set(deCobro.filter((i) => !cuotas[i].pagadoEl && cuotas[i].id && c.deCuotas?.[cuotas[i].id!]).map((i) => cuotas[i].id!));
+  const huerfanos = Object.entries(c.deCuotas ?? {}).reduce((s, [id, x]) => (marcadas.has(id) || conParcial.has(id) ? s : s + (x.hoy ?? x.pesos)), 0);
   let suelta = redondear((c.sueltos ?? 0) + huerfanos);
+  // 0) Las que tienen parciales: les queda su monto menos lo que pagó el cliente por ellas, en su moneda. Si el plan
+  // achicó la cuota por debajo de lo ya cobrado, lo que sobra (en H) vuelve a la plata suelta: cada peso cuenta una vez.
+  const resto = new Map<number, number>();
+  for (const i of deCobro) {
+    const q = cuotas[i];
+    if (q.pagadoEl || !q.id || !conParcial.has(q.id)) continue;
+    const propio = c.deCuotas![q.id];
+    const enSu = enlazadoDe(q, propio, tc);
+    let valeH = propio.hoy ?? propio.pesos;
+    if (enSu > q.monto && enSu > 0) {
+      const sobraH = redondear((valeH * (enSu - q.monto)) / enSu);
+      suelta = redondear(suelta + sobraH);
+      valeH = redondear(valeH - sobraH);
+    }
+    resto.set(i, Math.max(0, redondear(q.monto - enSu)));
+    pendiente[i] = resto.get(i)!;
+    cobrado[i] = !(enPesos[i] > 0) ? Math.min(enSu, q.monto) : q.moneda === "ARS" ? valeH : alCentavoAbajo((q.monto * valeH) / enPesos[i]);
+  }
   // 1) Las marcadas: su cobro propio y, lo que les faltó, de la plata suelta. Completa o no, en su moneda; lo que vale, en H.
   for (const i of deCobro) {
     const q = cuotas[i];
@@ -226,10 +246,12 @@ export function repartoDeCobros(cuotas: readonly CuotaDeCobranza[], tc: Readonly
   // 2) Lo suelto que sobra, contra las pendientes más viejas: lo que les queda, en H.
   const bruto = new Map<number, number>();
   for (const i of pendientes) {
-    const aplicado = Math.min(enPesos[i], Math.max(0, suelta));
+    // Con parciales, espera sólo su resto (en H); sin, la cuota entera.
+    const espera = resto.has(i) ? aPesos(resto.get(i)!, cuotas[i].moneda, tc) : enPesos[i];
+    const aplicado = Math.min(espera, Math.max(0, suelta));
     suelta = redondear(suelta - aplicado);
-    bruto.set(i, redondear(enPesos[i] - aplicado));
-    cobrado[i] = redondear((cuotas[i].monto * aplicado) / enPesos[i]);
+    bruto.set(i, redondear(espera - aplicado));
+    cobrado[i] = redondear((resto.has(i) ? cobrado[i] : 0) + (cuotas[i].monto * aplicado) / enPesos[i]);
   }
   // 3) Tope: lo que quedan esperando no pasa de lo que falta cobrar; lo que sobra se recorta de las más nuevas. El tope
   // corre en H (`restoH`) y, en paralelo, en la moneda del proyecto (`queda`): ahí el pendiente puede ser exacto.

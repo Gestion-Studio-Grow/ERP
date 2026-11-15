@@ -7,7 +7,8 @@
 // El arnés apunta la consola al dueño de las tablas (exento de RLS), por eso nunca se vio. Acá se la
 // apunta a `app_rls`, como en producción, y se recorre lo que el dueño hace en la consola:
 //   · dar de alta un negocio con el asistente (negocio, dueño, datos, catálogo y auditoría);
-//   · resetear la contraseña del dueño de un negocio (y sólo la de ese);
+//   · resetear la contraseña del dueño de un negocio (y sólo la de ese), con la provisoria por mail
+//     (GSG-SEG-014): si el mail sale, cambia; si no sale, el hash viejo queda y la falla se audita;
 //   · cargar el certificado de ARCA de un negocio y que la facturación lo encuentre;
 //   · cargar el CUIT y el punto de venta del emisor (auditados, con el candado del talonario).
 // Y que parado en un negocio no se ve nada de otro.
@@ -68,9 +69,24 @@ test("consola con la conexión sujeta a RLS: alta, reset del dueño, certificado
     OPERATOR_SECRET: "secreto-de-operador-qa",
     AUTH_SECRET: "secreto-de-auth-qa",
     OPERADOR_DUENIO: "tomas",
+    // El mail del sistema (GSG-SEG-014): valores de prueba; el envío lo atrapa el doble de abajo.
+    RESEND_API_KEY: "re_prueba",
+    RESEND_FROM_EMAIL: "GSG <no-responder@gsg.test>",
   });
+  // Doble del servicio de mail: guarda lo que se mandó, o responde 503 si `mailCaido`.
+  const mails: { to: string; text: string; subject: string }[] = [];
+  let mailCaido = false;
+  const fetchOriginal = globalThis.fetch;
+  globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+    if (!String(url).startsWith("https://api.resend.com/")) return fetchOriginal(url, init);
+    if (mailCaido) return new Response("{}", { status: 503 });
+    mails.push(JSON.parse(String(init?.body)));
+    return new Response(JSON.stringify({ id: "m1" }), { status: 200 });
+  }) as typeof fetch;
+  const claveDelMail = (m: { text: string }) => /contraseña provisoria: (\S+)/.exec(m.text)?.[1] ?? "";
   t.after(() => {
-    for (const k of ["OPERATOR_DATABASE_URL", "FISCAL_MASTER_KEY", "OPERATOR_SECRET", "AUTH_SECRET", "OPERADOR_DUENIO"]) {
+    globalThis.fetch = fetchOriginal;
+    for (const k of ["OPERATOR_DATABASE_URL", "FISCAL_MASTER_KEY", "OPERATOR_SECRET", "AUTH_SECRET", "OPERADOR_DUENIO", "RESEND_API_KEY", "RESEND_FROM_EMAIL"]) {
       if (antes[k] === undefined) delete process.env[k];
       else process.env[k] = antes[k];
     }
@@ -82,6 +98,7 @@ test("consola con la conexión sujeta a RLS: alta, reset del dueño, certificado
   const { commitTenantAction } = await import("@/lib/operator-provisioning-actions");
   const { resetOwnerPasswordDeTenant, setTenantArcaCuit, setTenantArcaPuntoVenta } = await import("@/lib/operator-actions");
   const { cargarCredencialTenant, credencialParaTenant } = await import("@/lib/fiscal/tenant-cert");
+  const { verifyPassword } = await import("@/lib/auth-password");
   const operador = { cookies: { operator_session: await createOperatorToken("tomas") } };
 
   await t.test("la conexión de la consola está de verdad sujeta a RLS (sin negocio no ve filas)", async () => {
@@ -116,6 +133,24 @@ test("consola con la conexión sujeta a RLS: alta, reset del dueño, certificado
     assert.equal(r.valor.ok, true, `el alta tiene que salir: ${JSON.stringify(r.valor).slice(0, 400)}`);
     const tenantId = r.valor.tenantId!;
     assert.ok(tenantId);
+    // La provisoria salió por mail al dueño, y NO vuelve a la pantalla.
+    assert.equal(r.valor.claveEnviadaA, "d***@circuito-wpe.test");
+    assert.equal(r.valor.claveNoEnviada, undefined);
+    const mail = mails.find((m) => m.to === "duenio@circuito-wpe.test");
+    assert.ok(mail, "salió el mail del alta");
+    const clave = claveDelMail(mail);
+    assert.ok(clave.length >= 12);
+    assert.ok(!JSON.stringify(r.valor).includes(clave), "la clave no viaja en la respuesta de la acción");
+    assert.ok(!mail.subject.includes(clave), "ni en el asunto");
+    assert.equal(
+      await uno(base, `SELECT count(*) AS n FROM "AuditLog" WHERE "tenantId" = $1 AND action = 'clave_temporal.mail_enviado'`, [tenantId]),
+      1,
+    );
+    assert.equal(
+      await uno(base, `SELECT count(*) AS n FROM "AuditLog" WHERE "tenantId" = $1 AND changes::text LIKE '%' || $2 || '%'`, [tenantId, clave]),
+      0,
+      "ninguna auditoría lleva la clave",
+    );
 
     const fila = await comoDuenio(base, async (c) =>
       (await c.query(`SELECT slug, subdomain FROM "Tenant" WHERE id = $1`, [tenantId])).rows[0],
@@ -158,13 +193,46 @@ test("consola con la conexión sujeta a RLS: alta, reset del dueño, certificado
     if (r.tipo !== "respuesta") return;
     assert.equal(r.valor.ok, true, `el reset tiene que salir: ${JSON.stringify(r.valor)}`);
     if (!r.valor.ok) return;
-    assert.ok(r.valor.password.length >= 12);
     assert.equal(r.valor.email, base.a.duenia.email);
+    assert.ok(!("password" in r.valor), "la clave no vuelve a la pantalla");
+    const mail = mails.at(-1)!;
+    assert.equal(mail.to, base.a.duenia.email);
+    const clave = claveDelMail(mail);
 
-    assert.notEqual(await hash(base.a.duenia.id), antesA);
+    const despues = await hash(base.a.duenia.id);
+    assert.notEqual(despues, antesA);
+    assert.equal(await verifyPassword(clave, despues), true, "la clave del mail es la que quedó");
     assert.equal(await hash(base.b.duenia.id), antesB, "el dueño del otro negocio no se toca");
     assert.equal(
       await uno(base, `SELECT count(*) AS n FROM "AuditLog" WHERE "tenantId" = $1 AND action = 'owner.password.reset'`, [base.a.id]),
+      1,
+    );
+  });
+
+  await t.test("reset con el MAIL CAÍDO: el hash viejo queda, no hay auditoría de reset y la falla queda auditada", async () => {
+    const hashAntes = await comoDuenio(base, async (c) =>
+      (await c.query(`SELECT "passwordHash" AS h, "mustChangePassword" AS m FROM "User" WHERE id = $1`, [base.b.duenia.id])).rows[0],
+    );
+    mailCaido = true;
+    try {
+      const r = await ejecutarAccion(operador, () => resetOwnerPasswordDeTenant(base.b.id, base.b.slug));
+      assert.equal(r.tipo, "respuesta");
+      if (r.tipo !== "respuesta") return;
+      assert.equal(r.valor.ok, false);
+      if (!r.valor.ok) assert.match(r.valor.error, /503.*No se cambió nada/);
+    } finally {
+      mailCaido = false;
+    }
+    const hashDespues = await comoDuenio(base, async (c) =>
+      (await c.query(`SELECT "passwordHash" AS h, "mustChangePassword" AS m FROM "User" WHERE id = $1`, [base.b.duenia.id])).rows[0],
+    );
+    assert.deepEqual(hashDespues, hashAntes, "ni la contraseña ni el flag cambiaron");
+    assert.equal(
+      await uno(base, `SELECT count(*) AS n FROM "AuditLog" WHERE "tenantId" = $1 AND action = 'owner.password.reset'`, [base.b.id]),
+      0,
+    );
+    assert.equal(
+      await uno(base, `SELECT count(*) AS n FROM "AuditLog" WHERE "tenantId" = $1 AND action = 'clave_temporal.mail_fallido'`, [base.b.id]),
       1,
     );
   });
