@@ -31,7 +31,9 @@ export async function entrar(navegador, rol, errores = []) {
     return page;
   }
   // La clave cambiada en esta demo y, si la demo se reinició (base nueva), la de la siembra.
+  let usada = CLAVE;
   for (const clave of [...new Set([leerClaves()[rol], CLAVE].filter(Boolean))]) {
+    usada = clave;
     await page.goto("/admin/login");
     // Por id: el renglón de ingreso del negocio no tiene placeholder (los dos formularios comparten #login-email y #login-password).
     await page.locator("#login-email").fill(`${rol}@mia-producciones.demo`);
@@ -42,7 +44,7 @@ export async function entrar(navegador, rol, errores = []) {
   }
   if (enElIngreso(page)) throw new Error(`No se pudo entrar como ${rol}: reiniciá la demo.`);
   if (page.url().includes("segundo-paso")) await segundoPaso(page, rol);
-  if (page.url().includes("cambiar-password")) await cambiarClave(page, rol);
+  if (page.url().includes("cambiar-password")) await cambiarClave(page, rol, usada);
   await contexto.storageState({ path: sesion });
   return page;
 }
@@ -54,8 +56,7 @@ const enElIngreso = (page) => new URL(page.url()).pathname === "/admin/login";
 const CLAVES = path.join(tmpdir(), "mia-demo-claves.json");
 const leerClaves = () => (existsSync(CLAVES) ? JSON.parse(readFileSync(CLAVES, "utf8")) : {});
 
-async function cambiarClave(page, rol) {
-  const actual = leerClaves()[rol] ?? CLAVE;
+async function cambiarClave(page, rol, actual = leerClaves()[rol] ?? CLAVE) {
   const nueva = `${CLAVE}-qa-${Date.now().toString(36)}`;
   await page.locator("#cp-current").fill(actual);
   await page.locator("#cp-new").fill(nueva);
