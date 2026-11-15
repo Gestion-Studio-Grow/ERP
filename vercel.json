@@ -5,6 +5,13 @@
   ],
   "framework": "nextjs",
   "buildCommand": "node scripts/vercel-build.mjs",
+  "git": {
+    "deploymentEnabled": {
+      "**": false,
+      "main": true,
+      "tanda/**": false
+    }
+  },
   "crons": [
     {
       "path": "/api/cron/reminders",
@@ -13,6 +20,10 @@
     {
       "path": "/api/cron/arca-outbox",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/claves-pendientes",
+      "schedule": "0 13 * * *"
     }
   ]
 }

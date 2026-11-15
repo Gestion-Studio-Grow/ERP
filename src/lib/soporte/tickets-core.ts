@@ -8,6 +8,7 @@
 
 import { redactarTextoLibre } from "@/eventos/esquema";
 import { esTipoPedido, TEXTO_PEDIDO, type PedidoValido } from "@/app/contador/pedido-soporte";
+import { vencimientoDeResolucion, type ContextoDeReloj } from "./decisiones-core";
 import {
   AVISO_POR_VENCER,
   CANALES,
@@ -26,7 +27,6 @@ import {
   type TipoTicket,
 } from "./config";
 
-const HORA = 60 * 60 * 1000;
 
 export const esPrioridad = (x: unknown): x is Prioridad => typeof x === "string" && (PRIORIDADES as readonly string[]).includes(x);
 export const esEstado = (x: unknown): x is EstadoTicket => typeof x === "string" && (ESTADOS as readonly string[]).includes(x);
@@ -38,9 +38,12 @@ export const tipoLeido = (x: unknown): TipoTicket => (esTipoTicket(x) ? x : "otr
 export const prioridadLeida = (x: unknown): Prioridad => (esPrioridad(x) ? x : "P3");
 export const estadoLeido = (x: unknown): EstadoTicket => (esEstado(x) ? x : "nuevo");
 
-/** El vencimiento de la resolución según la prioridad, contado desde que entró. */
-export function venceElPara(prioridad: Prioridad, desde: Date): Date {
-  return new Date(desde.getTime() + PRIORIDAD[prioridad].resolucionHoras * HORA);
+/**
+ * El vencimiento de la resolución según la prioridad, contado desde que entró. D2 (14/11): P1 de un
+ * negocio en vivo corre a toda hora; lo demás, en horario de guardia (decisiones-core.ts).
+ */
+export function venceElPara(prioridad: Prioridad, desde: Date, ctx: ContextoDeReloj = {}): Date {
+  return vencimientoDeResolucion(prioridad, desde, ctx);
 }
 
 export type Semaforo = "a_tiempo" | "por_vencer" | "vencido" | "sin_reloj";

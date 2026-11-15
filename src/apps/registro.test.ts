@@ -14,6 +14,7 @@ import { REGISTRO_APPS, appPorId, buscarApp } from "./registro";
 import { ESPACIOS } from "./espacios";
 import type { AppDescriptor } from "./contract";
 import { catalogo } from "@/modules/catalog";
+import { esIncorporado, esInterruptorId } from "@/cambios/interruptores";
 
 const RE_KEBAB = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
 
@@ -58,7 +59,7 @@ test("ninguna app declara scopeItems ni campos fuera del contrato", () => {
   // la declara: el contrato de app es cerrado y se verifica en tiempo de ejecución, por si
   // alguien castea un objeto a AppDescriptor.
   const CAMPOS = new Set<keyof AppDescriptor>([
-    "id", "nombre", "descripcion", "icono", "ruta", "exacta", "espacio", "capability", "capabilityEnMostrador", "modulo",
+    "id", "nombre", "descripcion", "icono", "ruta", "exacta", "espacio", "capability", "capabilityEnMostrador", "interruptor", "modulo",
     "moduloDuro", "casa", "panelCerrado", "rubro", "perfilMin", "estado", "kpi", "palabras", "menuDeHoy", "enLanzador",
   ]);
   for (const app of REGISTRO_APPS) {
@@ -66,6 +67,17 @@ test("ninguna app declara scopeItems ni campos fuera del contrato", () => {
       assert.ok(CAMPOS.has(campo as keyof AppDescriptor), `${app.id}: campo "${campo}" fuera del contrato`);
     }
   }
+});
+
+test("toda app con `interruptor` apunta a un interruptor real de la consola (no incorporado)", () => {
+  for (const app of REGISTRO_APPS) {
+    const id = (app as AppDescriptor).interruptor;
+    if (id === undefined) continue;
+    assert.ok(esInterruptorId(id), `${app.id}: interruptor "${id}" no existe`);
+    // Uno incorporado está prendido siempre: no apagaría nada.
+    assert.equal(esIncorporado(id), false, `${app.id}: interruptor "${id}" incorporado no protege nada`);
+  }
+  assert.equal((REGISTRO_APPS.find((a) => a.id === "permiso-soporte") as AppDescriptor | undefined)?.interruptor, "soporte-gsg");
 });
 
 test("trinquete: ningún módulo NUEVO declara scopeItems[].ruta", () => {

@@ -3,7 +3,8 @@
 // Piezas de cliente de la ficha: el formulario que muestra por qué no se pudo, confirmar en dos pasos, el cambio de etapa con su
 // motivo y el botón de la carpeta.
 
-import { useRef, useState, useTransition, type ReactNode } from "react";
+import { useRef, useState, useTransition, type FormEvent, type ReactNode } from "react";
+import { EnvioEnCurso } from "@/components/envio-en-curso";
 import { buttonClasses, cn, Dialogo } from "@/components/ui";
 import { guardarCarpeta, moverProyecto, type ResultadoFicha } from "@/lib/proyectos/acciones-ficha";
 import { MOTIVOS_PERDIDA } from "@/lib/proyectos/gestion-core";
@@ -21,38 +22,45 @@ function nuevaClave(): string {
 
 /**
  * Un <form> de acción de servidor que dice qué falló sin perder lo tipeado. Con `limpiar`, vacía los campos si salió bien.
+ * Se envía con `onSubmit` y no con `action`: React 19 vacía un <form action> al terminar, también cuando falló, y el medio
+ * volvía a «Transferencia» con el monto borrado: un pago en efectivo podía quedar como transferencia (recorrido del PR #166 · 4).
  * Con `claveDeEnvio`, cada envío lleva `claveEnvio`: la misma hasta que el servidor contesta (un doble clic o un reintento
  * después de un corte repiten la clave y el servidor graba una sola vez); con respuesta, el próximo envío lleva otra.
  */
 export function FormAccion({ accion, className, children, limpiar, alGuardar, claveDeEnvio }: { accion: (fd: FormData) => Promise<ResultadoFicha>; className?: string; children: ReactNode; limpiar?: boolean; alGuardar?: () => void; claveDeEnvio?: boolean }) {
   const [error, setError] = useState<string | null>(null);
+  const [enCurso, iniciar] = useTransition();
   const form = useRef<HTMLFormElement>(null);
   const clave = useRef<string | null>(null);
   const toast = useToastSiHay();
+  const enviar = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (enCurso) return;
+    const fd = new FormData(e.currentTarget, (e.nativeEvent as SubmitEvent).submitter);
+    iniciar(async () => {
+      setError(null);
+      if (claveDeEnvio) fd.set("claveEnvio", (clave.current ??= nuevaClave()));
+      try {
+        const r = await accion(fd);
+        // El servidor contestó (bien o mal): el próximo envío es otro. Si la llamada se cortó, la clave queda.
+        if (claveDeEnvio) clave.current = null;
+        if (!r.ok) return setError(r.error);
+        // El éxito va en un aviso flotante: el renglón que lo pidió (la cuota marcada) suele desaparecer al refrescar.
+        if (r.listo) toast?.showSuccess(r.listo);
+        if (limpiar) form.current?.reset();
+        alGuardar?.();
+      } catch {
+        setError("No se pudo guardar. Revisá la conexión y probá de nuevo.");
+      }
+    });
+  };
   return (
-    <form
-      ref={form}
-      className={className}
-      action={async (fd) => {
-        setError(null);
-        if (claveDeEnvio) fd.set("claveEnvio", (clave.current ??= nuevaClave()));
-        try {
-          const r = await accion(fd);
-          // El servidor contestó (bien o mal): el próximo envío es otro. Si la llamada se cortó, la clave queda.
-          if (claveDeEnvio) clave.current = null;
-          if (!r.ok) return setError(r.error);
-          // El éxito va en un aviso flotante: el renglón que lo pidió (la cuota marcada) suele desaparecer al refrescar.
-          if (r.listo) toast?.showSuccess(r.listo);
-          if (limpiar) form.current?.reset();
-          alGuardar?.();
-        } catch {
-          setError("No se pudo guardar. Revisá la conexión y probá de nuevo.");
-        }
-      }}
-    >
-      {children}
-      {error && <p role="alert" className="col-span-full basis-full text-sm font-medium text-danger">{error}</p>}
-    </form>
+    <EnvioEnCurso.Provider value={enCurso}>
+      <form ref={form} className={className} onSubmit={enviar} aria-busy={enCurso || undefined}>
+        {children}
+        {error && <p role="alert" className="col-span-full basis-full text-sm font-medium text-danger">{error}</p>}
+      </form>
+    </EnvioEnCurso.Provider>
   );
 }
 

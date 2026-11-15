@@ -267,8 +267,11 @@ export async function desconciliarMovimiento(formData: FormData): Promise<Result
 
 export async function guardarTipoCambio(formData: FormData): Promise<Resultado> {
   const a = await exigirEditar("empresa");
-  const porUnidad = redondear(numero(formData.get("porUnidad")));
+  const leido = numero(formData.get("porUnidad"));
+  const porUnidad = redondear(leido);
   if (!(porUnidad > 0)) return { ok: false, error: "Escribí cuántos pesos vale un dólar." };
+  // Sin redondear en silencio (UAT-008): el cambio pasa a pesos cada cuota en dólares; con más de dos decimales, se pide.
+  if (Math.abs(leido - porUnidad) > 1e-9) return { ok: false, error: `El tipo de cambio se guarda con hasta 2 decimales. Escribilo así, por ejemplo ${String(porUnidad).replace(".", ",")}.` };
   const previo = await prisma.proyectoTipoCambio.findFirst({ where: { tenantId: a.tenantId, moneda: "USD" }, select: { porUnidad: true } });
   await prisma.proyectoTipoCambio.upsert({ where: { tenantId_moneda: { tenantId: a.tenantId, moneda: "USD" } }, create: { tenantId: a.tenantId, moneda: "USD", porUnidad }, update: { porUnidad } });
   await registrarCambio(prisma, { tenantId: a.tenantId, entidad: "tipoCambio", entidadId: "USD", campo: "pesos por dólar", antes: previo?.porUnidad, despues: porUnidad, autor: a.nombre });

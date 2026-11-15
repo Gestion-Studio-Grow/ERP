@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { clasificarArchivos, leerLote, cambioDeScripts, rutaSensible } from "./lib/cambios.mjs";
-import { nombreRespaldo, tituloMerge, evaluarProduccion, deployDelCommit, estadoDeploy, saludOk, puedePublicar } from "./lib/util.mjs";
+import { nombreRespaldo, tituloMerge, evaluarProduccion, deployDelCommit, estadoDeploy, saludOk, puedePublicar, ramaPublicable } from "./lib/util.mjs";
 
 const EN_MAIN = ["20261106120000_support_ticket", "20261108120000_profeturnos_clubes_serie_grupal"];
 const f = (filename, status = "modified", previous_filename) => ({ filename, status, previous_filename });
@@ -114,4 +114,16 @@ test("puedePublicar: write o más, y la lista PUBLICAR_QUIENES si está", () => 
   assert.equal(puedePublicar({ permission: "admin", role_name: "admin" }, "Ana", "ana, beto").ok, true);
   assert.equal(puedePublicar({ permission: "read", role_name: "triage" }, "ana", "").ok, false);
   assert.equal(puedePublicar({ permission: "admin", role_name: "admin" }, "carla", "ana,beto").ok, false);
+});
+
+test("ramaPublicable: sólo tanda/… (regla 1) o urgente/… (regla 6); el resto no se publica por etiqueta", () => {
+  assert.deepEqual(
+    ["tanda/2026-11-15", "tanda/2026-11-15-b", "urgente/caja-ch"].map((r) => ramaPublicable(r).ok),
+    [true, true, true],
+  );
+  assert.equal(ramaPublicable("tanda/2026-11-15").urgente, false);
+  assert.equal(ramaPublicable("urgente/caja-ch").urgente, true);
+  for (const r of ["claude/algo", "main", "tanda", "tanda/", "urgente/", "xtanda/1", "feat/tanda/1", "", undefined, null, "tanda/a b"])
+    assert.equal(ramaPublicable(r).ok, false, `«${r}» no tenía que pasar`);
+  assert.match(ramaPublicable("claude/algo").motivo, /tanda\//);
 });

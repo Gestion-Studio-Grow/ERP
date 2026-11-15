@@ -27,6 +27,13 @@ export function iniciales(nombre: string): string {
 export function numeroDe(texto: string): number | null {
   const s = texto.trim().replace(/^\$\s*/, "");
   if (!/^\d[\d.,]*$/.test(s)) return null;
+  // «1,234.50» (una planilla en inglés): el último separador es el de los decimales y las comas, de miles.
+  if (s.includes(",") && s.lastIndexOf(".") > s.lastIndexOf(",")) {
+    // Sólo con los miles bien agrupados («1,234.50»): «1,2.3» no se adivina.
+    return /^\d{1,3}(,\d{3})+\.\d+$/.test(s) ? Number(s.replace(/,/g, "")) : null;
+  }
+  // Varias comas sin punto no se adivinan («1,2,3»): mejor pedirlo bien que guardar un cero callado.
+  if ((s.match(/,/g) ?? []).length > 1) return null;
   return leerNumero(s);
 }
 
@@ -68,6 +75,17 @@ export function precioAlEnviar(i: ItemVenta, tc: Readonly<Record<string, number>
   if (i.precio > 0) return null;
   const unitario = i.cantidad > 0 ? redondear(ventaTotalItem(i, tc, recargoGeneral) / i.cantidad) : 0;
   return { precio: unitario, recargoPct: i.recargoPct ?? recargoGeneral };
+}
+
+/**
+ * En un evento en otra moneda, el precio a mano se TIPEA en esa moneda y se guarda en pesos al cambio de la versión
+ * (`guardarCampoItem`): lo que vale es lo tipeado. Si cambia el cambio de la versión, se recupera lo tipeado (pesos ÷
+ * cambio viejo, al centavo) y se vuelve a pasar a pesos con el nuevo: el cliente sigue viendo US$ 4.033,33. Sin precio a
+ * mano (sale del recargo sobre costos en pesos), no se toca. PURA.
+ */
+export function precioAlCambiarCambio(precio: number, viejo: number, nuevo: number): number {
+  if (!(precio > 0) || !(viejo > 0) || !(nuevo > 0)) return precio;
+  return redondear(redondear(precio / viejo) * nuevo);
 }
 
 /** Con recargo, el precio se recalcula en la versión nueva; sin recargo, alguien lo fijó a mano y se respeta. */
@@ -237,7 +255,7 @@ const CAMPOS_DE_COSTO = ["Costo", "Recargo", "Moneda", "Plus"];
 
 /** El historial no le muestra a nadie lo que su permiso le esconde en la ficha. */
 export function cambioVisible(c: { entidad: string; campo: string }, permisos: { costos: boolean; pagos: boolean }): boolean {
-  if (c.campo === "Asiento") return false;
+  if (c.campo === "Asiento" || c.campo === "Cuenta movida" || c.campo === "Envío") return false;
   if (!permisos.pagos && (c.entidad === "ProyectoCuota" || c.entidad === "ProyectoPago" || c.entidad === "ProyectoGasto")) return false;
   if (!permisos.costos && CAMPOS_DE_COSTO.some((k) => c.campo.startsWith(k))) return false;
   return true;

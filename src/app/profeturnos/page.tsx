@@ -34,6 +34,16 @@ export default function ProfeTurnosVidriera() {
 
       <Cta abierta={abierta} />
 
+      <p className="mt-6 text-body">
+        ¿Buscás profe?{" "}
+        <Link
+          href="/profeturnos/profes"
+          className="inline-flex min-h-12 items-center font-semibold text-accent-ink underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+        >
+          Mirá los profes y sus horarios libres
+        </Link>
+      </p>
+
       <section aria-labelledby="como-funciona" className="mt-16">
         <h2 id="como-funciona" className="text-2xl font-bold text-strong">
           Cómo funciona

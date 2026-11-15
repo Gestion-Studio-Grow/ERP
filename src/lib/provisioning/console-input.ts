@@ -20,8 +20,13 @@ export interface CommitActionResult {
   ok: boolean;
   outcome?: ProvisionOutcome;
   tenantId?: string;
-  /** Password de bootstrap del OWNER — se devuelve una vez para mostrarla fuera de la URL (P10). */
-  generatedPassword?: string;
+  /**
+   * La contraseña de bootstrap del OWNER YA NO vuelve al cliente (GSG-SEG-014): sale sola por mail al
+   * titular. Acá va sólo a dónde fue, enmascarado («c***@dominio.com»), o por qué no salió.
+   */
+  claveEnviadaA?: string;
+  /** El mail no salió después del alta: texto para el operador, con cómo recuperarlo. */
+  claveNoEnviada?: string;
   /** Mensaje legible si el commit se bloqueó/falló (colisiones, gate RLS de ADR-018, etc.). */
   error?: string;
 }

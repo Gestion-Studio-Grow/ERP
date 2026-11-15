@@ -5,6 +5,8 @@
 # cuentas» y «Autorización del dueño: publicar PR»), siempre igual y auditado acá:
 #
 #   1. precondiciones  quien etiqueta tiene write+, PR abierto/no borrador/no fork/al día con main,
+#                      rama del PR `tanda/…` o `urgente/…` (nada de PR sueltos: cada merge es un
+#                      despliegue de producción y el plan gratis de Vercel da 100 por día; 15/11/2026),
 #                      producción sana (último deploy READY y /api/health OK)
 #   2. ci              los jobs del CI del PR no tienen rojos que main no tenga (job por job)
 #   3. cambios         nada sensible (workflows, build, vallas) y migraciones nuevas sólo aditivas

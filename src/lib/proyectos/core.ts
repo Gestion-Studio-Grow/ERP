@@ -132,13 +132,18 @@ export interface ResultadoReal {
   margenReal: number | null;
 }
 
-/** Lo que dejó el trabajo con los gastos cargados hasta ahora. Los anulados no cuentan. PURA. */
-export function resultadoReal(t: Totales | null, gastos: readonly GastoCalculable[]): ResultadoReal {
+/**
+ * Lo que dejó el trabajo con los gastos cargados hasta ahora. Los anulados no cuentan. `cuotasPorPagar`: lo que falta pagar
+ * a proveedores por cuotas (en pesos, sin las partes ya pagadas, que ya son gastos): es costo comprometido y deuda, y sin
+ * él la ganancia real queda inflada (GSG-UAT-008 · D6). PURA.
+ */
+export function resultadoReal(t: Totales | null, gastos: readonly GastoCalculable[], cuotasPorPagar = 0): ResultadoReal {
   const vivos = gastos.filter((g) => !g.anuladoEl);
-  const costoReal = redondear(vivos.reduce((s, g) => s + g.neto, 0));
+  const comprometido = Math.max(0, cuotasPorPagar);
+  const costoReal = redondear(vivos.reduce((s, g) => s + g.neto, 0) + comprometido);
   const pagado = redondear(vivos.filter((g) => g.pagadoEl).reduce((s, g) => s + g.neto + g.iva, 0));
-  const porPagar = redondear(vivos.filter((g) => !g.pagadoEl).reduce((s, g) => s + g.neto + g.iva, 0));
-  const conGastos = vivos.length > 0;
+  const porPagar = redondear(vivos.filter((g) => !g.pagadoEl).reduce((s, g) => s + g.neto + g.iva, 0) + comprometido);
+  const conGastos = vivos.length > 0 || comprometido > 0;
   if (!t || !conGastos) return { conGastos, costoReal, pagado, porPagar, desvio: null, gananciaReal: null, margenReal: null };
   const gananciaReal = redondear(t.neto - costoReal);
   return {
@@ -150,6 +155,29 @@ export function resultadoReal(t: Totales | null, gastos: readonly GastoCalculabl
     gananciaReal,
     margenReal: t.neto > 0 ? redondear((gananciaReal / t.neto) * 100) : 0,
   };
+}
+
+/** El comprobante con que una rendición carga su gasto (acciones-rendiciones.ts): así se la distingue de un gasto a mano. */
+export const COMPROBANTE_DE_RENDICION = "Rendición";
+
+/**
+ * Hasta cuánto del costo real puede estar contado dos veces (recorrido del PR #166 · 1). Un gasto que no salió de una cuota
+ * (no está en `enlazados`, los gastos que el «Asiento» une a una cuota: su pago o una parte) y que es una rendición o se cargó
+ * aparte al MISMO proveedor que todavía tiene cuotas por pagar (`proveedoresConDeuda`): si pagó parte de esas cuotas, suma una
+ * vez como gasto y otra como deuda. No hay enlace que diga si fue así, así que no se resta nada a ciegas: se avisa con el tope,
+ * lo menor entre esos gastos y lo que falta pagar por cuotas (`comprometido`). Qué hacer con eso es regla de negocio. PURA.
+ */
+export function costoEnDuda(
+  gastos: readonly (GastoCalculable & { id: string; supplierId: string | null; comprobante: string | null })[],
+  enlazados: ReadonlySet<string>,
+  comprometido: number,
+  proveedoresConDeuda: ReadonlySet<string>,
+): number {
+  if (!(comprometido > 0)) return 0;
+  const dudosos = gastos.filter(
+    (g) => !g.anuladoEl && !enlazados.has(g.id) && (g.comprobante === COMPROBANTE_DE_RENDICION || (!!g.supplierId && proveedoresConDeuda.has(g.supplierId))),
+  );
+  return redondear(Math.min(comprometido, dudosos.reduce((s, g) => s + g.neto, 0)));
 }
 
 export interface DesvioDeRubro {

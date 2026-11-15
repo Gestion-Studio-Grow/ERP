@@ -16,6 +16,8 @@ import { aPesos, generaCuotas } from "./gestion-core";
 import { filtroDeProyectos, puede, tiposDeCambio, type Actor } from "./gestion.server";
 import { claveDia, diasDelRango, enlaceSeguro, laminasPublicas, mediodia, paginacion, tokenDeCalendario, usuarioDelToken, versionesVivas, type EntradaCalendario, type TipoCalendario } from "./gestion-lecturas-core";
 import { redondear } from "./core";
+import { faltaDelPago } from "./pago-parcial-core";
+import { pagosParcialesDeCuotas } from "./pago-parcial.server";
 import type { ModuloGestion, RolGestion } from "./gestion-core";
 import { SIN_COMPROBANTES } from "./rendiciones-core";
 
@@ -274,7 +276,7 @@ export async function listaDeProveedores(a: Actor, f: { rubro?: string; q?: stri
   const ids = proveedores.map((p) => p.id);
   const [eventos, cuotas, gastos, tc] = await Promise.all([
     eventosPorProveedor(a, ids),
-    verPlata ? prisma.proyectoCuota.findMany({ where: { tenantId, tipo: "PAGO", pagadoEl: null, anuladoEl: null, prevista: false, supplierId: { in: ids }, ...filtroCuotasVisibles(a) }, select: { supplierId: true, monto: true, moneda: true }, take: 5000 }) : [],
+    verPlata ? prisma.proyectoCuota.findMany({ where: { tenantId, tipo: "PAGO", pagadoEl: null, anuladoEl: null, prevista: false, supplierId: { in: ids }, ...filtroCuotasVisibles(a) }, select: { id: true, tipo: true, supplierId: true, monto: true, moneda: true }, take: 5000 }) : [],
     verPlata
       ? prisma.proyectoGasto.findMany({
           where: { tenantId, anuladoEl: null, pagadoEl: null, proyecto: filtroDeProyectos(a) },
@@ -289,13 +291,16 @@ export async function listaDeProveedores(a: Actor, f: { rubro?: string; q?: stri
   const sumar = (id: string | null, monto: number) => {
     if (id) deuda.set(id, redondear((deuda.get(id) ?? 0) + monto));
   };
-  for (const c of cuotas) sumar(c.supplierId, aPesos(c.monto, c.moneda, tc));
+  // Una cuota pagada en parte debe sólo lo que le falta (pago-parcial-core).
+  const pagados = await pagosParcialesDeCuotas(tenantId, cuotas, tc);
+  const falta = (c: (typeof cuotas)[number]) => aPesos(faltaDelPago(c.monto, pagados.get(c.id) ?? 0), c.moneda, tc);
+  for (const c of cuotas) sumar(c.supplierId, falta(c));
   for (const g of gastos) sumar(g.supplierId, g.neto + g.iva);
   return {
     verPlata,
     pendientes: gastos,
     porPagar: redondear(gastos.reduce((s, g) => s + g.neto + g.iva, 0)),
-    porPagarCuotas: redondear(cuotas.reduce((s, c) => s + aPesos(c.monto, c.moneda, tc), 0)),
+    porPagarCuotas: redondear(cuotas.reduce((s, c) => s + falta(c), 0)),
     proveedores: proveedores.map((p) => ({ ...p, eventos: eventos.get(p.id) ?? 0, debe: deuda.get(p.id) ?? 0 })),
   };
 }
@@ -329,7 +334,7 @@ export async function detalleDeProveedor(a: Actor, id: string) {
           where: { tenantId, supplierId: id, tipo: "PAGO", pagadoEl: null, anuladoEl: null, prevista: false, ...filtroCuotasVisibles(a) },
           orderBy: { venceEl: "asc" },
           take: 200,
-          select: { id: true, concepto: true, monto: true, moneda: true, venceEl: true, proyectoId: true, proyecto: { select: { nombre: true } } },
+          select: { id: true, tipo: true, concepto: true, monto: true, moneda: true, venceEl: true, proyectoId: true, proyecto: { select: { nombre: true } } },
         })
       : [],
     verPlata ? prisma.proyectoCuota.findMany({ where: { tenantId, supplierId: id, tipo: "PAGO", pagadoEl: { not: null }, anuladoEl: null, ...filtroCuotasVisibles(a) }, select: { monto: true, moneda: true }, take: 2000 }) : [],
@@ -348,15 +353,18 @@ export async function detalleDeProveedor(a: Actor, id: string) {
     .filter((i) => i.presupuesto.version === vivas.get(i.presupuesto.proyectoId))
     // El costo sólo sale del servidor con permiso de costos.
     .map(({ costo, moneda, presupuesto, ...i }) => ({ ...i, proyecto: presupuesto.proyecto, precioUnitario: verCostos ? costo : null, moneda: verCostos ? moneda : null }));
+  // Una cuota pagada en parte debe sólo lo que le falta (pago-parcial-core): `falta`, en su moneda.
+  const pagados = await pagosParcialesDeCuotas(tenantId, cuotas, tc);
+  const conFalta = cuotas.map((c) => ({ ...c, falta: faltaDelPago(c.monto, pagados.get(c.id) ?? 0) }));
   return {
     proveedor,
     verPlata,
     verCostos,
     historial,
     eventos: new Set(historial.map((h) => h.proyecto.id)).size,
-    cuotas,
+    cuotas: conFalta,
     gastosPorPagar: gastos.filter((g) => !g.pagadoEl),
-    debe: redondear(cuotas.reduce((s, c) => s + aPesos(c.monto, c.moneda, tc), 0) + gastos.filter((g) => !g.pagadoEl).reduce((s, g) => s + g.neto + g.iva, 0)),
+    debe: redondear(conFalta.reduce((s, c) => s + aPesos(c.falta, c.moneda, tc), 0) + gastos.filter((g) => !g.pagadoEl).reduce((s, g) => s + g.neto + g.iva, 0)),
     gastado: redondear(pagadas.reduce((s, c) => s + aPesos(c.monto, c.moneda, tc), 0) + gastos.reduce((s, g) => s + g.neto, 0)),
   };
 }

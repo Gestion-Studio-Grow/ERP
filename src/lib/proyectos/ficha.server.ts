@@ -12,7 +12,9 @@ import { columnasOcultas, filtroDeProyectos, puede, tiposDeCambio, versionViva, 
 import { configProyectos, datosDelNegocio } from "./datos.server";
 import { cobranza, conciliarConCobros, montoEnCashflow, pagadoDeCuota, repartoDeCobros, SIN_PREVISTAS_SIN_MARCAR, totalesEnPesos } from "./cobranza-core";
 import { cobranzasDelNegocio } from "./cobranza.server";
-import { desvioPorRubro, fechaCorta, fechaParaInput, redondear, resultadoReal } from "./core";
+import { conPagosParciales, conPartesComoPagadas, porPagarComoGastos } from "./pago-parcial-core";
+import { pagosParcialesDeCuotas } from "./pago-parcial.server";
+import { costoEnDuda, desvioPorRubro, fechaCorta, fechaParaInput, redondear, resultadoReal } from "./core";
 import { cambioDeVenta, costoSinProveedor, enMonedaDeVenta, ventaEn } from "./gestion-core";
 import { cambioVisible, columnaDe, filaDeFicha, iniciales, monedasSinCambio, planillaDeVenta } from "./ficha-core";
 import { COLUMNAS_PAGO } from "./pago-columnas";
@@ -146,7 +148,9 @@ export async function datosResumen(a: Actor, cab: Cabecera, vista: Vista) {
   ]);
   // Cobrado y a cobrar, de los cobros registrados contra lo aprobado (cobranza-core); las cuotas sólo dan los vencimientos.
   const cob = cobranzas?.get(cab.proyecto.id);
-  const finanzas = vista.pagos ? (cob ? conciliarConCobros(cuotas, cab.tc, cob) : resumenCuotas(cuotas, cab.tc)) : null;
+  // Lo pagado en parte a proveedor sale de «A pagar» y entra en «pagado» (pago-parcial-core).
+  const netas = vista.pagos ? conPartesComoPagadas(cuotas, await pagosParcialesDeCuotas(a.tenantId, cuotas, cab.tc)) : [];
+  const finanzas = vista.pagos ? (cob ? conciliarConCobros(netas, cab.tc, cob) : resumenCuotas(netas, cab.tc)) : null;
   return { personas, finanzas, cantCuotas: cuotas.length, cantChecklist };
 }
 
@@ -174,18 +178,22 @@ export async function datosCotizacion(a: Actor, proyectoId: string) {
 export async function datosFinanzas(a: Actor, cab: Cabecera, vista: Vista) {
   const proyectoId = cab.proyecto.id;
   const { tenantId } = a;
-  const [todas, pagos, gastos, aprobada, proveedores, cobranzas] = await Promise.all([
+  const [todas, pagos, gastos, aprobada, proveedores, cobranzas, asientos] = await Promise.all([
     prisma.proyectoCuota.findMany({ where: { tenantId, proyectoId }, include: { supplier: { select: { name: true } } }, orderBy: { venceEl: "asc" } }),
     prisma.proyectoPago.findMany({ where: { tenantId, proyectoId }, orderBy: { createdAt: "desc" }, select: COLUMNAS_PAGO }),
     vista.costos ? prisma.proyectoGasto.findMany({ where: { tenantId, proyectoId }, orderBy: [{ fecha: "desc" }, { createdAt: "desc" }], include: { supplier: { select: { name: true } } } }) : [],
     prisma.proyectoPresupuesto.findFirst({ where: { tenantId, proyectoId, estado: "APROBADO" }, orderBy: { version: "desc" }, select: { ivaPct: true, items: true } }),
     vista.editaPagos ? prisma.supplier.findMany({ where: { tenantId, active: true }, orderBy: { name: "asc" }, take: 500, select: { id: true, name: true } }) : [],
     cobranzasDelNegocio(tenantId, cab.tc, cab.config.margenPct, [proyectoId]),
+    // Los gastos que salieron de una cuota (su pago o una parte): esos no pueden estar contados dos veces.
+    vista.costos ? prisma.proyectoCambio.findMany({ where: { tenantId, proyectoId, entidad: "ProyectoCuota", campo: "Asiento" }, select: { despues: true } }) : [],
   ]);
   // La fuente única de cobrado / saldo (cobranza-core): la misma cuenta que Estado financiero, clientes y reportes.
   const cob = cobranzas.get(proyectoId) ?? cobranza(0, []);
   // Cada cuota con lo que le falta y lo que entró por ella: lo cobrado a mano ya se descontó de las más viejas.
-  const reparto = repartoDeCobros(todas, cab.tc, cob);
+  // Y cada cuota de pago con lo pagado en parte a proveedor: le queda su monto menos esas partes (pago-parcial-core).
+  const pagados = vista.costos ? await pagosParcialesDeCuotas(tenantId, todas, cab.tc) : new Map<string, number>();
+  const reparto = conPagosParciales(todas, repartoDeCobros(todas, cab.tc, cob), pagados);
   // `pagado`: lo que se pagó por una marcada tal como entró (original y pesos asentados), para mostrar; el cashflow usa `cobrado`.
   const cuotas = todas.map((c, i) => ({ ...c, pendiente: reparto.pendiente[i], cobrado: reparto.cobrado[i], pagado: pagadoDeCuota(c, cob) }));
   // Sin permiso de costos, un pago a proveedor delata el costo: sólo se ven los cobros.
@@ -195,18 +203,26 @@ export async function datosFinanzas(a: Actor, cab: Cabecera, vista: Vista) {
   // Pasados a pesos: un ítem en dólares no se puede comparar como si fueran pesos.
   const aprobadaEnPesos = aprobada?.items.map((i) => ({ rubro: i.rubro, cantidad: i.cantidad, costo: aPesos(i.costo, i.moneda, cab.tc), precio: i.cantidad > 0 ? ventaTotalItem(i, cab.tc, cab.config.margenPct) / i.cantidad : 0 })) ?? [];
   const totalesAprobada = aprobada ? totalesEnPesos(aprobada, cab.tc, cab.config.margenPct) : null;
+  // D6: lo que falta pagar por cuotas a proveedor también es costo (y deuda): si no, la ganancia real queda inflada. Cuota
+  // por cuota con el rubro de su ítem, así la tabla por rubro suma lo mismo que la Diferencia.
+  const comprometidos = vista.costos ? porPagarComoGastos(todas, pagados, cab.tc, new Map((cab.viva?.items ?? []).map((i) => [i.id, i.rubro]))) : [];
+  const porPagarCuotas = redondear(comprometidos.reduce((s, c) => s + c.neto, 0));
+  const proveedoresConDeuda = new Set(todas.filter((c, i) => c.tipo !== "COBRO" && !c.pagadoEl && !c.anuladoEl && !c.prevista && reparto.pendiente[i] > 0 && c.supplierId).map((c) => c.supplierId!));
+  const enlazados = new Set(asientos.flatMap((x) => (x.despues ? [x.despues] : [])));
   return {
     cuotas: visibles,
     flujo,
-    resumen: conciliarConCobros(visibles, cab.tc, cob),
+    resumen: conciliarConCobros(conPartesComoPagadas(visibles, pagados), cab.tc, cob),
     pagos,
     gastos,
     totalesAprobada,
     totalAprobado: cob.total,
     cobrado: cob.cobrado,
     saldo: cob.saldo,
-    real: resultadoReal(totalesAprobada, gastos),
-    rubros: desvioPorRubro(aprobadaEnPesos, gastos),
+    real: resultadoReal(totalesAprobada, gastos, porPagarCuotas),
+    // Una rendición o un gasto aparte al mismo proveedor puede haber pagado una de esas cuotas: hasta cuánto (aviso).
+    enDuda: costoEnDuda(gastos, enlazados, porPagarCuotas, proveedoresConDeuda),
+    rubros: desvioPorRubro(aprobadaEnPesos, [...gastos, ...comprometidos]),
     proveedores,
   };
 }

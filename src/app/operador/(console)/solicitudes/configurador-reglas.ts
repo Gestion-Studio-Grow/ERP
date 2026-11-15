@@ -183,20 +183,28 @@ export function usuarioDelActor(actor: string): string | null {
   return m ? m[1] : null;
 }
 
-/** Mensaje para la contadora al terminar. PURO. Nunca lleva la contraseña del dueño del negocio. */
+/**
+ * Mensaje para la contadora al terminar. PURO. No lleva NINGUNA contraseña: la suya, si se le creó
+ * un acceso, le llega sola por mail (GSG-SEG-014); el mensaje sólo le dice dónde buscarla.
+ */
 export function mensajeParaLaContadora(x: {
   cliente: string;
   cuit: string;
   puntoVenta: number | null;
   direccionCartera: string | null;
-  acceso: { usuario: string; clave: string } | null;
+  acceso: { usuario: string; enviadaA: string } | null;
 }): string {
   const cuit = x.cuit.length === 11 ? `${x.cuit.slice(0, 2)}-${x.cuit.slice(2, 10)}-${x.cuit.slice(10)}` : x.cuit;
   const lineas = [
     `¡Hola! Ya está ${x.cliente} en tu cartera: CUIT ${cuit}${x.puntoVenta ? `, punto de venta ${x.puntoVenta}` : ""}.`,
     x.direccionCartera ? `Entrá en: ${x.direccionCartera}` : "Entrá a tu cartera como siempre.",
   ];
-  if (x.acceso) lineas.push(`Usuario: ${x.acceso.usuario}`, `Contraseña: ${x.acceso.clave}`);
+  if (x.acceso) {
+    lineas.push(
+      `Usuario: ${x.acceso.usuario}`,
+      `La contraseña provisoria te llegó por mail a ${x.acceso.enviadaA}. Al entrar, el sistema te pide que elijas una nueva.`,
+    );
+  }
   return lineas.join("\n");
 }
 

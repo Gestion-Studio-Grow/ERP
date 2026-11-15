@@ -12,6 +12,9 @@
 //                            cambió sea documentación o configuración de .claude/ (nada que la app use).
 //
 // Ante cualquier duda o error se construye: es lo que pasaba antes de que existiera este control.
+// Desde fbf64d7 el vercel.json (git.deploymentEnabled) deja desplegar sólo a main: una rama común ya no
+// crea despliegue y no llega acá. Ojo: lo que este filtro cancela CUENTA para el tope de despliegues por
+// día de Vercel (https://vercel.com/docs/project-configuration/project-settings); no ahorra cupo.
 // SÓLO tiene efecto si el proyecto de Vercel lo tiene cargado en Settings → Git → Ignored Build Step
 // como `node scripts/vercel-ignore.mjs`. Sin eso, este archivo no hace nada.
 import { execFileSync } from "node:child_process";
