@@ -387,18 +387,27 @@ export async function facturarPagoMPDelTurno(
 }
 
 /**
- * Cuánto de un pago de Mercado Pago cabe en el turno, en centavos. PURA. Lo que ya cubre plata que NO es
- * de MP (cobros vivos de otro medio y condonaciones del libro) es del turno: un pago de MP que no está
- * anotado en el libro sólo cabe en lo que queda del precio. Los cobros de MP del libro no restan (son
- * esta misma plata u otro pago de MP, que ya se reparten por `coberturaMP`).
+ * ¿Un pago de Mercado Pago que no está en el libro excede el turno? PURA. Sólo decide cuando el libro
+ * ya tiene plata de OTRO medio o una condonación (el turno cerrado en efectivo de GSG-FACT-012): lo que
+ * eso cubre es del turno y el pago sólo cabe en lo que queda del precio. Sin eso no bloquea nada: un
+ * turno «precio a definir» (precio 0) o un link por más que el precio (turno + producto) se facturan
+ * como siempre. Los cobros de MP del libro no restan (son esta misma plata u otro pago de MP, que ya
+ * se reparten por `coberturaMP`); lo que ya facturaron otros pagos de MP del turno, sí.
  */
-export function lugarParaPagoMP(x: { precio: number; filas: readonly Pick<FilaDelLibro, "id" | "amount" | "method" | "note">[] }): number {
+export function pagoMPExcedeElTurno(x: {
+  precio: number;
+  monto: number;
+  filas: readonly Pick<FilaDelLibro, "id" | "amount" | "method" | "note">[];
+  /** Lo que ya facturaron OTROS pagos de MP de este turno (`mp:<pago>` vivos), en pesos. */
+  otrosPagosMP?: number;
+}): boolean {
   const anulados = new Set(x.filas.map((f) => cobroAnuladoPor(f.note)).filter((id): id is string => id != null));
   const deOtroMedio = x.filas
     .filter((f) => claseDeCobro(f.note) !== "anulacion" && !anulados.has(f.id) && centavosDe(f.amount) > 0)
     .filter((f) => claseDeCobro(f.note) === "condonacion" || f.method !== "MERCADOPAGO")
     .reduce((a, f) => a + centavosDe(f.amount), 0);
-  return Math.max(0, centavosDe(x.precio) - deOtroMedio);
+  if (deOtroMedio <= 0) return false;
+  return centavosDe(x.monto) > Math.max(0, centavosDe(x.precio) - deOtroMedio - centavosDe(x.otrosPagosMP ?? 0));
 }
 
 /**
@@ -410,7 +419,7 @@ async function pagoMPExcedeElTurnoInTx(tx: InvoiceTx, tenantId: string, cobro: C
   // Un pago que ya tiene su fila sigue el camino de siempre (`facturarCobrosInTx` devuelve esa factura).
   const propia = await tx.cobroFacturado.findFirst({ where: { tenantId, clave: cobro.clave }, select: { invoiceId: true } });
   if (propia) return false;
-  const [turno, libro] = await Promise.all([
+  const [turno, libro, facturadas] = await Promise.all([
     tx.appointment.findFirst({
       where: { id: cobro.appointmentId, tenantId },
       select: { priceAtBooking: true, service: { select: { price: true } } },
@@ -419,11 +428,16 @@ async function pagoMPExcedeElTurnoInTx(tx: InvoiceTx, tenantId: string, cobro: C
       where: { tenantId, originType: "APPOINTMENT", originId: cobro.appointmentId },
       select: { id: true, amount: true, method: true, note: true },
     }),
+    tx.cobroFacturado.findMany({
+      where: { tenantId, appointmentId: cobro.appointmentId, invoice: { status: { not: "REJECTED" } } },
+      select: { clave: true, importe: true },
+    }),
   ]);
   if (!turno) return false;
   const precio = Number(turno.priceAtBooking ?? turno.service.price);
   const filas = libro.map((c) => ({ id: c.id, amount: Number(c.amount), method: c.method, note: c.note }));
-  return centavosDe(cobro.importe) > lugarParaPagoMP({ precio, filas });
+  const otrosPagosMP = facturadas.filter((f) => esPagoMP(f.clave) && f.clave !== cobro.clave).reduce((a, f) => a + Number(f.importe), 0);
+  return pagoMPExcedeElTurno({ precio, monto: cobro.importe, filas, otrosPagosMP });
 }
 
 /** El id del pago de MP del comprobante (origen MP_PAYMENT), o la clave del cobro si no lo trae. */

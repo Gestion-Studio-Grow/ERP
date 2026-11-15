@@ -43,7 +43,7 @@ async function preparar(t: import("node:test").TestContext, cual: "a" | "b") {
   const prof = await duenio.professional.create({ data: { tenantId: n.id, name: "Lucía" } });
   const serv = await duenio.service.create({ data: { tenantId: n.id, name: "Limpieza facial", durationMin: 60, price: 15000 } });
 
-  const crearTurno = () =>
+  const crearTurno = (precio = 15000) =>
     duenio.appointment.create({
       data: {
         tenantId: n.id,
@@ -54,7 +54,7 @@ async function preparar(t: import("node:test").TestContext, cual: "a" | "b") {
         startsAt: new Date(Date.now() - 2 * 3600_000),
         endsAt: new Date(Date.now() - 3600_000),
         status: "COMPLETED",
-        priceAtBooking: 15000,
+        priceAtBooking: precio,
       },
     });
   /** Un cobro en el libro del turno (y el `Payment` agregado con lo cobrado). */
@@ -177,4 +177,16 @@ test("control: efectivo por el saldo ($10.000) + seña por MP ($5.000) → dos f
   const totales = (await p.facturasDelTurno(turno.id)).map((f) => Number(f.total)).sort((a, b) => a - b);
   assert.deepEqual(totales, [5000, 10000]);
   assert.equal((await p.avisos(turno.id)).length, 0);
+});
+
+test("control (certificación): sin otro medio en el libro el aviso factura como siempre — precio a definir y link mayor al precio", async (t) => {
+  const p = await preparar(t, "a");
+  if (!p) return;
+  const aDefinir = await p.crearTurno(0);
+  await p.avisoDeMP(p.pagoMP(20000, aDefinir.id));
+  assert.deepEqual((await p.facturasDelTurno(aDefinir.id)).map((f) => Number(f.total)), [20000]);
+  const conProducto = await p.crearTurno();
+  await p.avisoDeMP(p.pagoMP(18000, conProducto.id));
+  assert.deepEqual((await p.facturasDelTurno(conProducto.id)).map((f) => Number(f.total)), [18000]);
+  assert.equal((await p.avisos(aDefinir.id)).length + (await p.avisos(conProducto.id)).length, 0);
 });
