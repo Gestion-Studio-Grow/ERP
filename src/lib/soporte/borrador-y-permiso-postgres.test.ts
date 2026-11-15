@@ -64,6 +64,19 @@ test("permiso del titular (D4) y borrador aprobado (D5/D6): aislamiento, carrera
   const filasDe = (tenantId: string) => duenio.$queryRaw<{ n: number }[]>`SELECT count(*)::int AS n FROM "SoporteConsentimiento" WHERE "tenantId" = ${tenantId}`.then((r) => r[0].n);
   const borradoresDe = (tenantId: string) => duenio.auditLog.count({ where: { tenantId, entity: "MailBorrador" } });
 
+  // ── PERMISO 0) Interruptor «Soporte GSG» apagado (por defecto, decisión del dueño 14/11/2026): la action no
+  //    guarda nada. Después la consola lo prende SÓLO en A. ──
+  const { soporteGsgPrendidoEn } = await import("./interruptor.server");
+  assert.equal(await soporteGsgPrendidoEn(A.id), false, "apagado por defecto");
+  const apagado = await ejecutarAccion({ negocio: A, usuario: A.duenia }, () => cambiarPermisoSoporteAction(null, fd({ nivel: "n1", aceptado: "on" })));
+  assert.ok(apagado.tipo === "respuesta" && !apagado.valor.ok && /no está disponible/.test(apagado.valor.error), "apagado: no se guarda");
+  assert.equal(await duenio.auditLog.count({ where: { tenantId: A.id, entity: { in: ["SoporteConsentimiento", "MailBorrador"] } } }), 0, "apagado no deja rastro");
+  await duenio.auditLog.create({
+    data: { tenantId: A.id, actor: "operator:qa", action: "interruptor.encender", entity: "Interruptor", entityId: "soporte-gsg", channel: "operador" },
+  });
+  assert.equal(await soporteGsgPrendidoEn(A.id), true, "prendido en A");
+  assert.equal(await soporteGsgPrendidoEn(B.id), false, "prenderlo en A no lo prende en B");
+
   // ── PERMISO 1) Sin la tabla: mensaje claro, nada guardado ──
   const sinTabla = await ejecutarAccion({ negocio: A, usuario: A.duenia }, () => cambiarPermisoSoporteAction(null, fd({ nivel: "n1", aceptado: "on" })));
   assert.ok(sinTabla.tipo === "respuesta" && !sinTabla.valor.ok && /todavía no está habilitado/.test(sinTabla.valor.error), "sin tabla: lo dice");
@@ -71,6 +84,11 @@ test("permiso del titular (D4) y borrador aprobado (D5/D6): aislamiento, carrera
   assert.equal(await duenio.auditLog.count({ where: { tenantId: A.id, entity: { in: ["SoporteConsentimiento", "MailBorrador"] } } }), 0, "sin tabla no queda rastro");
 
   for (const sql of TABLA_MINIMA) await duenio.$executeRawUnsafe(sql);
+
+  // ── PERMISO 1 bis) El titular de B, con Soporte GSG apagado en B, no guarda aunque la tabla ya esté ──
+  const titularB = await ejecutarAccion({ negocio: B, usuario: B.duenia }, () => cambiarPermisoSoporteAction(null, fd({ nivel: "n1", aceptado: "on" })));
+  assert.ok(titularB.tipo === "respuesta" && !titularB.valor.ok && /no está disponible/.test(titularB.valor.error), "B apagado: no se guarda");
+  assert.equal(await filasDe(B.id), 0);
 
   // ── PERMISO 2) Rol no OWNER: rechazado, nada guardado ──
   const recepcion = await ejecutarAccion({ negocio: A, usuario: A.recepcion }, () => cambiarPermisoSoporteAction(null, fd({ nivel: "n1", aceptado: "on" })));
