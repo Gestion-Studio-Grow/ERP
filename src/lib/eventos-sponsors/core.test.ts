@@ -177,9 +177,9 @@ const TELEFONOS_Y_MAILS = [
 const TEXTO_REAL_QUE_ENTRA = [
   "2027-03-10", "Temporada 2026-2027", "Temporada 2026–2027", "Expo Agro 2027", "Expo 2026 2027 2028", "Edición del 10/03/2027",
   "2025 (20-22/05/2025)", "del 2026-11-14 al 2026-11-16", "2026-11-14T23:14:46Z", "edición 2026 2027", "2025, 2026 y 2027",
-  "Lollapalooza Argentina 2027 | 12, 13 y 14 de Marzo", "Pabellones 1, 2, 3 y 4", "Pabellones 1 · 2 · 3",
+  "Festival Demo 2027 | 12, 13 y 14 de Marzo", "Pabellones 1, 2, 3 y 4", "Pabellones 1 · 2 · 3",
   "ediciones 2015-2024", "(2016-2026)", "2019/2026", "14-11-2026", "14.11.2026", "de 10.00-18.00 hs", "Starts 11/14/2026",
-  "Biodiagnostico · «19/11/2026 – 13:00 – 14:30 ... From QC Materials»", "Relevado 2026-11-14 10:30", "Presentes 2027 (20-22/05) en La Rural",
+  "Marca Demo · «19/11/2026 – 13:00 – 14:30 ... charla técnica»", "Relevado 2026-11-14 10:30", "Expo Demo 2027 (20-22/05) en el predio",
   "precio $ 3.100.000", "$ 150.000.000", "$ 150.000 - 200.000", "Entradas $ 15.000 - $ 25.000", "12,500,000 visitantes", "150.000 - 200.000 personas",
   "Asistentes 12.500 · ediciones 2015-2026", "$ 1.250,50", "Edición 5 · 2026", "En 2026: 1500 expositores", "2026 | 3500 stands",
   "CUIT 30-71234567-1", "CUIT 30712345671", "en -34.603722, -58.381570", "Resolución 1234/2025", "EXP-2026-0042",
@@ -203,7 +203,7 @@ test("traeContacto: residuo aceptado — dos años crecientes sin palabra de tel
 });
 
 test("traeContacto: rechazar de más se acepta (formas no declaradas)", () => {
-  for (const t of ["Stand 1210/1211", "Entradas 15000-25000", "Entradas $ 15000-25000", "Matrícula 1234-5678", "1.250,50", "Pabellones 1, 2, 3, 4, 5, 6, 7 y 8", "CUIT 30-71234567-8", "ISBN 978-950-07-1234-5", "ISSN 1234-5679", "Telecom 2026 4567", "123.456 visitantes", "100% Argentino Stand: Q530 · 2026", "Del 3 al 5 de junio · 2027 · 12500 asistentes", "Hall 12.500 · 2026", "Expositores 1500 · 2026"]) assert.equal(traeContacto(t), true, t);
+  for (const t of ["Stand 1210/1211", "Entradas 15000-25000", "Entradas $ 15000-25000", "Matrícula 1234-5678", "1.250,50", "Pabellones 1, 2, 3, 4, 5, 6, 7 y 8", "CUIT 30-71234567-8", "ISBN 978-950-07-1234-5", "ISSN 1234-5679", "Telecom 2026 4567", "123.456 visitantes", "100% Demo Stand: K410 · 2026", "Del 3 al 5 de junio · 2027 · 12500 asistentes", "Hall 12.500 · 2026", "Expositores 1500 · 2026"]) assert.equal(traeContacto(t), true, t);
 });
 
 test("revisarUrl: enlaces de contacto y dominios con números no se guardan; ruta con números se guarda como dominio; sin query ni #", () => {
@@ -252,10 +252,10 @@ test("validarLote: nombres de campo de contacto dejan afuera la fila; «hotel» 
 });
 
 test("validarLote: un teléfono partido entre dos campos de la fila la deja afuera; la altura de la calle no", () => {
-  const r = validarLote({ eventos: [evento({ nombre: "Expo 4567", lugar: "Ana 8901" }), evento({ nombre: "Open 2027 (ATP 250)", lugar: "Olleros 1510, CABA" })] });
+  const r = validarLote({ eventos: [evento({ nombre: "Expo 4567", lugar: "Ana 8901" }), evento({ nombre: "Torneo Demo 2027 (categoría 250)", lugar: "Calle Demo 1510, CABA" })] });
   assert.equal(r.ok, true);
   if (!r.ok) return;
-  assert.deepEqual(r.eventos.map((e) => e.nombre), ["Open 2027 (ATP 250)"]);
+  assert.deepEqual(r.eventos.map((e) => e.nombre), ["Torneo Demo 2027 (categoría 250)"]);
   assert.ok(r.rechazos.some((x) => /entre sus campos/.test(x.motivo) && !/4567|8901/.test(JSON.stringify(x))));
 });
 

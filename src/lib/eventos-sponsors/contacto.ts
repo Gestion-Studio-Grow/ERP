@@ -43,7 +43,7 @@
 //   · Cifras escritas con letras («4S67-89OI», «cuatro cinco…»): fuera de alcance de una revisión de dígitos.
 //   · Un teléfono partido entre filas (evento y marca, dos líneas del registro) o entre un texto y la ruta de una URL
 //     (cada parte con 5 cifras o menos), y un local de 7 cifras partido entre dos campos de la misma fila (tope 7).
-//     Son formas artificiales; sumarlas dejaba afuera eventos reales («133° Abierto…» con su URL «/detalle/9326»).
+//     Son formas artificiales; sumarlas dejaba afuera eventos reales (un nombre con «133°» y su URL «/detalle/1234»).
 //
 // URLs: http(s), sin enlaces de contacto (mailto:, tel:, WhatsApp, Telegram) ni mails. Se guardan sin la query ni el
 // fragmento; si la ruta trae números no declarados se guarda sólo el dominio; si el dominio los trae, no se guarda.
@@ -151,7 +151,7 @@ const CORRIDA = /\d(?:[^\p{L}\p{N}]{0,4}\d)*/gu;
 const MAX_CIFRAS_SUELTAS = 5;
 /**
  * Las que admite una fila entera, sumando sus campos: un fijo del AMBA (8) partido entre «nombre» y «lugar» no entra.
- * Más alto que el de un campo para no perder eventos por la altura de la calle («Olleros 1510» y «ATP 250»).
+ * Más alto que el de un campo para no perder eventos por la altura de la calle («Calle 1510» y «categoría 250»).
  */
 export const MAX_CIFRAS_SUELTAS_FILA = 7;
 const NUMERO_RARO = /[^\P{N}0-9]/u;
