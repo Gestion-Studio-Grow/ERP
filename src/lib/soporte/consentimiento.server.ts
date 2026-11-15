@@ -49,6 +49,24 @@ export async function leerConsentimiento(tenantId: string, db?: PrismaClient): P
   );
 }
 
+/**
+ * ¿El titular dio el permiso alguna vez (n1 o n2), aunque hoy esté sacado? Con «Soporte GSG» apagado decide
+ * si la pantalla sigue a mano EN PAUSA: para sacar lo dado o para ver que quedó sacado (sin esto, sacar el
+ * último permiso dejaba la pantalla en «no encontrado» en vez de confirmarlo). Sin tabla: no.
+ */
+export async function permisoDadoAlgunaVez(tenantId: string, db?: PrismaClient): Promise<boolean> {
+  return enElNegocio(
+    tenantId,
+    async (tx) => {
+      if (!(await hayTablaDeConsentimiento(tx))) return false;
+      const r = await tx.$queryRaw<{ si: boolean }[]>`
+        SELECT EXISTS (SELECT 1 FROM "SoporteConsentimiento" WHERE "tenantId" = ${tenantId} AND aceptado) AS si`;
+      return r[0]?.si === true;
+    },
+    db,
+  );
+}
+
 /** Para la pantalla: si la tabla ya está (Gate 2) y el permiso vigente. Sin tabla: deshabilitado, sin permiso. */
 export async function leerEstadoDelPermiso(tenantId: string, db?: PrismaClient): Promise<{ habilitado: boolean; vigente: Consentimiento }> {
   return enElNegocio(

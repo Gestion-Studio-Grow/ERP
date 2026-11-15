@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { requireApp } from "@/lib/require-app";
 import { requireUser } from "@/lib/authz";
 import { soporteGsgPrendidoEn } from "@/lib/soporte/interruptor.server";
-import { permisoSoporteVigente } from "@/apps/contexto.server";
+import { soporteEnPausaAMano } from "@/apps/contexto.server";
 import { PageContainer, PageHeader } from "@/components/ui";
 import { leerEstadoDelPermiso, ultimaCopiaEnBorrador } from "@/lib/soporte/consentimiento.server";
 import PermisoSoporte from "./PermisoSoporte";
@@ -23,13 +23,13 @@ export const metadata: Metadata = {
 //
 // Detrás del interruptor «Soporte GSG» (apagado por defecto, decisión del dueño 14/11/2026): apagado
 // en el negocio de la sesión, la ruta responde «no encontrado» ANTES de la guardia de la app, para no
-// contar a nadie que la pantalla existe. EXCEPCIÓN: el titular con un permiso vigente (dado antes del
-// apagado) entra EN PAUSA, sólo para sacarlo; el servidor rechaza dar con el interruptor apagado.
+// contar a nadie que la pantalla existe. EXCEPCIÓN: el titular que alguna vez dio el permiso entra EN
+// PAUSA, para sacarlo o ver que quedó sacado; el servidor rechaza dar con el interruptor apagado.
 export default async function SoportePage() {
   const sesion = await requireUser();
   const prendido = await soporteGsgPrendidoEn(sesion.tenantId);
-  // Una falla al leer el permiso cuenta como «sin permiso» (no encontrado), no como error.
-  if (!prendido && !(sesion.role === "OWNER" && (await permisoSoporteVigente(sesion.tenantId)))) notFound();
+  // Una falla al leer el permiso cuenta como «nunca lo dio» (no encontrado), no como error.
+  if (!prendido && !(sesion.role === "OWNER" && (await soporteEnPausaAMano(sesion.tenantId)))) notFound();
   const enPausa = !prendido;
   const user = await requireApp("permiso-soporte");
   const esTitular = user.role === "OWNER";

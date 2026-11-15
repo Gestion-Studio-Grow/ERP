@@ -53,7 +53,7 @@ test("Soporte GSG apagado: sacar el permiso se guarda siempre, darlo no", async 
 
   const { operatorPrisma } = await import("@/lib/operator-db");
   const { cambiarPermisoSoporteAction } = await import("@/app/admin/(dashboard)/ajustes/soporte/actions");
-  const { registrarConsentimientoConCopia, leerConsentimiento } = await import("./consentimiento.server");
+  const { registrarConsentimientoConCopia, leerConsentimiento, permisoDadoAlgunaVez } = await import("./consentimiento.server");
   base.alBorrar(() => operatorPrisma.$disconnect());
   const duenio = await prismaComoDuenio(base);
   const A = base.a;
@@ -69,6 +69,7 @@ test("Soporte GSG apagado: sacar el permiso se guarda siempre, darlo no", async 
   const filas = (tenantId: string) =>
     duenio.$queryRaw<{ nivel: string; aceptado: boolean }[]>`SELECT nivel, aceptado FROM "SoporteConsentimiento" WHERE "tenantId" = ${tenantId} ORDER BY "createdAt", id`;
 
+  assert.equal(await permisoDadoAlgunaVez(A.id), false, "sin filas: nunca lo dio (la pantalla en pausa no aparece)");
   // ── Prendido en A y en B: los titulares dan n1 y n2 ──
   await interruptor(A.id, true);
   await interruptor(B.id, true);
@@ -124,6 +125,7 @@ test("Soporte GSG apagado: sacar el permiso se guarda siempre, darlo no", async 
       else assert.ok(r.ok, `sacada ${i} guardada: ${r.ok ? "" : r.error}`);
     });
     assert.deepEqual(await leerConsentimiento(A.id), { n1: false, n2: false });
+    assert.equal(await permisoDadoAlgunaVez(A.id), true, "sacado todo, la pantalla en pausa sigue a mano para verlo");
     const dadasDespues = (await filas(A.id)).slice(4).filter((f) => f.aceptado);
     assert.equal(dadasDespues.length, 0, "ninguna fila «dada» después del apagado");
   });
@@ -152,7 +154,8 @@ test("Soporte GSG apagado: sacar el permiso se guarda siempre, darlo no", async 
       const dar = registrarConsentimientoConCopia({ tenantId: B.id, userId: B.duenia.id, rol: "OWNER", nivel: "n1", aceptado: true }, operatorPrisma);
       let esperando = false;
       for (let i = 0; i < 250 && !esperando; i++) {
-        const r = await duenio.$queryRaw<{ n: number }[]>`SELECT count(*)::int AS n FROM pg_locks WHERE locktype = 'advisory' AND NOT granted`;
+        const r = await duenio.$queryRaw<{ n: number }[]>`SELECT count(*)::int AS n FROM pg_locks
+          WHERE locktype = 'advisory' AND NOT granted AND database = (SELECT oid FROM pg_database WHERE datname = current_database())`;
         esperando = r[0]!.n > 0;
         if (!esperando) await new Promise((ok) => setTimeout(ok, 20));
       }

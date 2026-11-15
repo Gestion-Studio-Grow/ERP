@@ -122,8 +122,8 @@ export interface NegocioApps {
    */
   interruptores?: Readonly<Partial<Record<InterruptorId, { encendido: boolean }>>>;
   /**
-   * Soporte GSG apagado, pero el TITULAR tiene un permiso a la IA vigente (dado antes del apagado): la app
-   * del permiso existe para él, sólo para sacarlo (la pantalla entra en pausa y el servidor rechaza dar).
+   * Soporte GSG apagado, pero el TITULAR dio alguna vez el permiso a la IA: la app del permiso existe para
+   * él, en pausa, para sacarlo o ver que quedó sacado (el servidor rechaza dar).
    * Lo calcula getNegocioApps (src/apps/contexto.server.ts) sólo para OWNER. Ausente = no.
    */
   soporteSoloRevocar?: boolean;

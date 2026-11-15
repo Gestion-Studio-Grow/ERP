@@ -59,6 +59,10 @@ SELECT (SELECT count(*) FROM "Asiento") asientos, (SELECT count(*) FROM "Asiento
 SELECT r.rolname AS app_user_es_miembro_de FROM pg_auth_members m JOIN pg_roles r ON r.oid = m.roleid
  WHERE m.member = (SELECT oid FROM pg_roles WHERE rolname = 'app_user');
 SELECT defaclobjtype::text, defaclacl FROM pg_default_acl WHERE defaclacl::text LIKE '%app_user%';
+--   Los roles a los que llega por cualquier camino (con o sin herencia; es lo que mira el §8). Si aparece
+--   neon_superuser, pg_read_all_data o pg_write_all_data, el §8 va a abortar a propósito: esos roles leen y
+--   escriben toda tabla y un REVOKE no lo corrige. Se frena y se eleva al dueño (qué hacer con app_user).
+SELECT r.rolname FROM pg_roles r WHERE pg_has_role('app_user', r.oid, 'MEMBER') ORDER BY 1;
 ```
 
 Más: `node prisma/rls/check-rls-live.mjs` con `RLS_AUDIT_DATABASE_URL` = la cadena de la rama → «SIN DRIFT».

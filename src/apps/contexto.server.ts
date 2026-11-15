@@ -31,7 +31,7 @@ import { appsOcultasDelNegocio, enInicioPorAppsDelNegocio, interruptoresDelNegoc
 import { ocultasParaElPanel } from "@/cambios/interruptores-core";
 import { SOPORTE_GSG } from "@/cambios/interruptores";
 import type { EstadoInterruptores } from "@/cambios/interruptores-core";
-import { leerConsentimiento } from "@/lib/soporte/consentimiento.server";
+import { permisoDadoAlgunaVez } from "@/lib/soporte/consentimiento.server";
 import {
   resolverContextoApps,
   type ContextoApps,
@@ -111,27 +111,27 @@ export const getNegocioApps = cache(async (role: Role, overrides?: ReadonlyArray
 });
 
 /**
- * ¿El negocio tiene un permiso a la IA de soporte vigente (n1 o n2)? Una lectura por request y por negocio
- * (`react.cache`), la compartan las distintas llaves de `getNegocioApps` y la pantalla del permiso. Si la
- * lectura falla, no (la pantalla en pausa responde «no encontrado» y el menú no la ofrece).
+ * ¿El titular de este negocio dio alguna vez el permiso a la IA de soporte? Con el interruptor apagado, decide
+ * si la pantalla del permiso sigue a mano EN PAUSA (para sacarlo o ver que quedó sacado). Una lectura por
+ * request y por negocio (`react.cache`), la compartan las distintas llaves de `getNegocioApps` y la pantalla.
+ * Si la lectura falla, no (la pantalla responde «no encontrado» y el menú no la ofrece).
  */
-export const permisoSoporteVigente = cache(async (tenantId: string): Promise<boolean> => {
+export const soporteEnPausaAMano = cache(async (tenantId: string): Promise<boolean> => {
   try {
-    const vigente = await leerConsentimiento(tenantId);
-    return vigente.n1 || vigente.n2;
+    return await permisoDadoAlgunaVez(tenantId);
   } catch {
     return false;
   }
 });
 
 /**
- * Soporte GSG apagado y el titular con un permiso a la IA vigente: la app del permiso tiene que seguir a
- * mano para que lo pueda sacar (si no, volvería a valer al prender; certificación de la tanda 3). Sólo
+ * Soporte GSG apagado y el titular que alguna vez dio el permiso a la IA: la app del permiso sigue a mano,
+ * en pausa, para que lo pueda sacar (si no, volvería a valer al prender; certificación de la tanda 3). Sólo
  * OWNER y sólo si el interruptor se prendió alguna vez y hoy está apagado: un negocio que nunca lo tocó
  * (casi todos) no pudo dar el permiso y no paga la consulta.
  */
 async function soporteSoloParaRevocar(role: Role, tenantId: string | undefined, interruptores: EstadoInterruptores): Promise<boolean> {
   const s = interruptores[SOPORTE_GSG];
   if (role !== "OWNER" || !tenantId || !s || s.encendido || s.cuando == null) return false;
-  return permisoSoporteVigente(tenantId);
+  return soporteEnPausaAMano(tenantId);
 }
