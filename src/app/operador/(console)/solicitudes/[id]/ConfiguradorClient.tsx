@@ -21,9 +21,9 @@ import {
   type SolicitudAlta,
 } from "@/lib/cartera-alta-reglas";
 import { pasaleEsto } from "../../alta/pasale-esto";
-import { RevelarClave } from "../../RevelarClave";
 import { NOMBRE_RUBRO, YA_EN_LA_CARTERA, esRubro, mensajeParaLaContadora, modulosDelAlta, sugerirPlan } from "../configurador-reglas";
-import type { CierreDelPedido, ResultadoConfigurador, ResultadoDescarte } from "../configurador.server";
+import type { CierreDelPedido, ResultadoDescarte } from "../configurador.server";
+import type { ResultadoConfiguradorConsola, UsuarioInformado } from "../entrega-de-claves";
 import { MOTIVOS_DE_DESCARTE, MOTIVOS_DE_DESCARTE_EN_ORDEN, NOTA_INTERNA_MAX, type MotivoDeDescarte } from "@/lib/soporte/avisos-a-la-contadora";
 import {
   CAMPO_CONFIRMA_FACTURA_A_FUERA,
@@ -131,8 +131,8 @@ export function ConfiguradorClient({ operador, cerrada, cierre, pedido }: Props)
   const elegido = que.tipo === "cargar-cuit" ? pedido.parecidos.find((x) => x.id === que.tenantId) : undefined;
   const cuitLindo = formatearCuit(f.cuit) ?? f.cuit;
 
-  const [r, accion, pendiente] = useActionState<ResultadoConfigurador | null, FormData>(async (previo, fd) => {
-    // Si ya hay un resultado con contraseñas, una segunda respuesta no lo pisa.
+  const [r, accion, pendiente] = useActionState<ResultadoConfiguradorConsola | null, FormData>(async (previo, fd) => {
+    // Si ya hay un resultado (con el aviso de los mails), una segunda respuesta no lo pisa.
     if (previo?.ok && !previo.yaConfigurada) return previo;
     return configurarSolicitudAction(previo, fd);
   }, null);
@@ -482,18 +482,29 @@ function DescartarPedido({
   );
 }
 
-function PasaleEsto({ r, operador }: { r: Extract<ResultadoConfigurador, { ok: true }>; operador: string }) {
+/** A dónde salió la provisoria por mail, o por qué no salió (GSG-SEG-014). Nunca la clave. */
+function EntregaPorMail({ u }: { u: UsuarioInformado }) {
+  if (u.noEnviada) return <Franja tono="atencion">{u.noEnviada}</Franja>;
+  if (!u.enviadaA) return null;
+  return (
+    <p role="status" className="text-sm text-strong">
+      La contraseña provisoria salió por mail a <b className="font-mono">{u.enviadaA}</b>. Al entrar, el sistema le pide que elija una nueva.
+    </p>
+  );
+}
+
+function PasaleEsto({ r, operador }: { r: Extract<ResultadoConfiguradorConsola, { ok: true }>; operador: string }) {
   const cliente = r.usuarios.find((u) => u.quien === "cliente");
   const contadora = r.usuarios.find((u) => u.quien === "contadora");
   const alDuenio = cliente
-    ? pasaleEsto({ negocio: r.nombre, direccion: r.direccion, usuario: cliente.email, clave: cliente.clave, otrosLocales: r.otrosLocales, facturaAFuera: r.facturaAFuera })
+    ? pasaleEsto({ negocio: r.nombre, direccion: r.direccion, usuario: cliente.email, claveEnviadaA: cliente.enviadaA, otrosLocales: r.otrosLocales, facturaAFuera: r.facturaAFuera })
     : null;
   const aLaContadora = mensajeParaLaContadora({
     cliente: r.nombre,
     cuit: r.cuit,
     puntoVenta: r.puntoVenta,
     direccionCartera: r.estudio.direccionCartera,
-    acceso: contadora?.clave ? { usuario: contadora.email, clave: contadora.clave } : null,
+    acceso: contadora?.enviadaA ? { usuario: contadora.email, enviadaA: contadora.enviadaA } : null,
   });
   const cuando = new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short", hourCycle: "h23", timeZone: "America/Argentina/Buenos_Aires" }).format(new Date(r.auditoria.cuando));
 
@@ -503,8 +514,8 @@ function PasaleEsto({ r, operador }: { r: Extract<ResultadoConfigurador, { ok: t
         <div className="space-y-4 pt-3">
           {r.yaConfigurada && (
             <Franja>
-              Este cliente ya se había configurado con este mismo pedido. Las contraseñas se muestran una sola vez: si no las tenés,
-              generá una nueva en la ficha, en Personas.
+              Este cliente ya se había configurado con este mismo pedido. Las contraseñas provisorias ya salieron por mail: si no
+              le llegó, mandale una nueva desde la ficha, en Personas.
             </Franja>
           )}
           {r.avisos.map((a) => (
@@ -515,11 +526,11 @@ function PasaleEsto({ r, operador }: { r: Extract<ResultadoConfigurador, { ok: t
               <h3 className="text-sm font-semibold text-strong">Para el dueño del negocio</h3>
               {alDuenio.estado !== "con-direccion" && (
                 <Franja tono="atencion">
-                  Este negocio todavía no tiene dirección para entrar. Hasta que la tenga, no le mandes la contraseña: el mensaje ya dice
+                  Este negocio todavía no tiene dirección para entrar. Hasta que la tenga, no le mandes el mensaje: ya dice
                   que la dirección se la pasás cuando esté lista.
                 </Franja>
               )}
-              {cliente?.clave && <RevelarClave clave={cliente.clave} para={cliente.email} />}
+              {cliente && <EntregaPorMail u={cliente} />}
               <pre className="whitespace-pre-wrap break-words rounded bg-surface-sunken p-3 text-sm">{alDuenio.mensaje}</pre>
               <div className="flex flex-wrap gap-2">
                 <Copiar texto={alDuenio.mensaje} etiqueta={alDuenio.estado === "con-direccion" ? "Copiar" : "Copiar igual"} />
@@ -536,7 +547,7 @@ function PasaleEsto({ r, operador }: { r: Extract<ResultadoConfigurador, { ok: t
           )}
           <section className="space-y-2">
             <h3 className="text-sm font-semibold text-strong">Para la contadora</h3>
-            {contadora?.clave && <RevelarClave clave={contadora.clave} para={contadora.email} />}
+            {contadora && <EntregaPorMail u={contadora} />}
             <pre className="whitespace-pre-wrap break-words rounded bg-surface-sunken p-3 text-sm">{aLaContadora}</pre>
             <div className="flex flex-wrap gap-2">
               <Copiar texto={aLaContadora} etiqueta="Copiar" />

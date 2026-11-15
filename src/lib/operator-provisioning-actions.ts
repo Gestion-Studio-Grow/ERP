@@ -21,10 +21,12 @@ import { enElNegocio, operatorPrisma } from "@/lib/operator-db";
 import { operadorParaNegocio } from "@/lib/operador/guardia-negocio";
 import { requestIp } from "@/lib/audit-core";
 import { logger } from "@/lib/logger";
+import { MAIL_NO_CONECTADO, enmascararEmail, mailDeClavesConectado } from "@/lib/clave-temporal-mail";
+import { entregarClaveDeAlta, recuperarClaveNoEnviada } from "@/lib/clave-temporal-entrega.server";
 import { planProvision } from "@/lib/provisioning/dry-run";
 import { marcarAltaParaLaRedEnTx, revisarAltaEnRedEnTx, type RevisionAltaEnRed } from "@/lib/multilocal/multilocal-core";
 import { requiereOkDelDuenio } from "@/app/operador/(console)/tenants/[id]/apps-del-negocio";
-import { runTenantProvisioning, ProvisionBlockedError } from "@/lib/provisioning/provision";
+import { runTenantProvisioning, ProvisionBlockedError, sinClaveProvisoria } from "@/lib/provisioning/provision";
 import { operatorPlanDeps, operatorSagaDeps } from "@/lib/provisioning/runtime";
 import {
   buildProvisionInput,
@@ -71,6 +73,8 @@ export async function commitTenantAction(raw: RawWizardForm): Promise<CommitActi
     if (!gc.ok) return { ok: false, error: gc.motivo };
   }
   const actor = g.sesion.nombre;
+  // La contraseña del dueño sólo viaja por mail (GSG-SEG-014): sin mail conectado no se crea nada.
+  if (!mailDeClavesConectado()) return { ok: false, error: `No se creó ningún negocio. ${MAIL_NO_CONECTADO}` };
   const input = buildProvisionInput(raw, "commit");
   const ip = (await requestIp()) ?? undefined;
 
@@ -175,11 +179,43 @@ export async function commitTenantAction(raw: RawWizardForm): Promise<CommitActi
     }
   }
 
+  // La provisoria del dueño (si ESTE alta lo creó) sale SOLA por mail al titular y NUNCA vuelve al
+  // cliente: se saca del resultado antes de devolverlo (GSG-SEG-014). Una repetición del alta (cache
+  // de idempotencia) ya no trae la clave. El destino es el OWNER que quedó en la base con ese email,
+  // no lo que dice el formulario: si no coincide, no sale ningún mail.
+  let claveEnviadaA: string | undefined;
+  let claveNoEnviada: string | undefined;
+  if (commit?.tenantId && commit.ownerCreated && commit.generatedPassword) {
+    const tenantId = commit.tenantId;
+    const duenio = await enElNegocio(tenantId, (tx) =>
+      tx.user.findFirst({
+        where: { tenantId, role: "OWNER", active: true, deletedAt: null, email: { equals: input.admin.email.trim(), mode: "insensitive" } },
+        select: { id: true, email: true, name: true },
+      }),
+    );
+    if (!duenio) {
+      logger.error("operator.provisioning", "el dueño recién creado no aparece: no se manda la provisoria", undefined, { actor, tenantId });
+      claveNoEnviada = recuperarClaveNoEnviada("no se encontró al dueño recién creado", enmascararEmail(input.admin.email));
+    } else {
+      const entrega = await entregarClaveDeAlta(tenantId, {
+        actor: `operator:${actor}`,
+        destino: { email: duenio.email, nombre: duenio.name || input.name },
+        clave: commit.generatedPassword,
+        origen: "alta-negocio",
+        userId: duenio.id,
+      });
+      if (entrega.enviada) claveEnviadaA = entrega.enviadaA;
+      else claveNoEnviada = recuperarClaveNoEnviada(entrega.motivo, entrega.enviadaA);
+    }
+  }
+  const outcomeSinClave: ProvisionOutcome = sinClaveProvisoria(outcome);
+
   return {
     ok: outcome.state === "ACTIVE",
-    outcome,
+    outcome: outcomeSinClave,
     tenantId: commit?.tenantId,
-    generatedPassword: commit?.generatedPassword,
+    claveEnviadaA,
+    claveNoEnviada,
     error: outcome.state === "FAILED_COMPENSATED" ? outcome.failure?.reason : undefined,
   };
 }

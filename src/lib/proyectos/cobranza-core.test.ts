@@ -860,3 +860,61 @@ test("totalesEnPesos: un costo en dólares se pasa a pesos (Reportes: costo US$ 
   assert.equal(totalAprobado({ ivaPct: 21, items: [{ cantidad: 1, costo: 2000, precio: 15_124_793.39, moneda: "USD", recargoPct: null }, { cantidad: 2, costo: 100, precio: 0, moneda: "ARS", recargoPct: 50 }] }, { USD: 1000 }, 30), t.total);
 });
 const redondearT = (x: number) => Math.round(x * 100) / 100;
+
+// ── Cobro parcial de una cuota (QA de saldos MIA, GSG-UAT-007) ───────────────
+// Un cobro enlazado a una cuota viva SIN marcar es una parte de ESA cuota: le baja su saldo, no el de la más vieja.
+
+const cuotaQ = (id: string, monto: number, moneda: string, d: number, extra: Partial<CuotaLeida> = {}): CuotaLeida & { id: string } => ({ id, tipo: "COBRO", monto, moneda, venceEl: dias(d), pagadoEl: null, anuladoEl: null, ...extra });
+
+test("parcial en pesos: la parte va a SU cuota (la nueva), la vieja queda entera y el por cobrar baja la parte", () => {
+  const cuotas = [cuotaQ("vieja", 605, "ARS", 5), cuotaQ("nueva", 605, "ARS", 15)];
+  const c = cobranza(1210, [{ monto: 200.5, cuotaId: "nueva" }]);
+  const r = repartoDeCobros(cuotas, {}, c);
+  assert.deepEqual(r.pendiente, [605, 404.5]);
+  assert.deepEqual(r.cobrado, [0, 200.5]);
+  assert.equal(r.pendiente.reduce((s, x) => s + x, 0), c.porCobrar, "lo que esperan las cuotas es el por cobrar");
+});
+
+test("parcial en USD (proyecto en USD): el saldo de la cuota y el del proyecto quedan exactos en dólares", () => {
+  const tc = { USD: 1000 };
+  const cuotas = [cuotaQ("q1", 60, "USD", 5), cuotaQ("q2", 61, "USD", 15)];
+  const c = cobranzaEnMoneda(121_000, [{ monto: 20_250, original: { monto: 20.25, moneda: "USD" }, cuotaId: "q2" }], { moneda: "USD", cambioVenta: 1000, tcHoy: 1000 });
+  assert.deepEqual(repartoDeCobros(cuotas, tc, c).pendiente, [60, 40.75]);
+  assert.equal(c.enMoneda?.saldo, 100.75);
+  // Con el dólar en 1.200, la cuota sigue debiendo 40,75 USD (el cliente pagó dólares, no pesos).
+  const c12 = cobranzaEnMoneda(121_000, [{ monto: 20_250, original: { monto: 20.25, moneda: "USD" }, cuotaId: "q2" }], { moneda: "USD", cambioVenta: 1000, tcHoy: 1200 });
+  assert.deepEqual(repartoDeCobros(cuotas, { USD: 1200 }, c12).pendiente, [60, 40.75]);
+});
+
+test("parcial sin presupuesto aprobado: la cuota espera su monto menos la parte", () => {
+  const r = repartoDeCobros([cuotaQ("q", 1000, "ARS", 5)], {}, cobranza(0, [{ monto: 300, cuotaId: "q" }]));
+  assert.deepEqual(r.pendiente, [700]);
+});
+
+test("parcial mayor que la cuota (el plan la achicó): lo que sobra vuelve a lo suelto, a la más vieja; cada peso cuenta una vez", () => {
+  const cuotas = [cuotaQ("vieja", 500, "ARS", 5), cuotaQ("chica", 300, "ARS", 15)];
+  const c = cobranza(1000, [{ monto: 400, cuotaId: "chica" }]);
+  const r = repartoDeCobros(cuotas, {}, c);
+  assert.deepEqual(r.pendiente, [400, 0]);
+  assert.deepEqual(r.cobrado, [100, 300]);
+  assert.equal(r.pendiente.reduce((s, x) => s + x, 0), c.porCobrar - 200, "las cuotas esperan menos que el por cobrar: 200 quedan sin calendario");
+});
+
+test("parcial + plata suelta: la suelta completa primero la más vieja y lo que sobra, el resto de la cobrada en parte", () => {
+  const cuotas = [cuotaQ("vieja", 605, "ARS", 5), cuotaQ("nueva", 605, "ARS", 15)];
+  const c = cobranza(1210, [{ monto: 205, cuotaId: "nueva" }, { monto: 700 }]);
+  const r = repartoDeCobros(cuotas, {}, c);
+  assert.deepEqual(r.pendiente, [0, 305]);
+  assert.equal(r.pendiente.reduce((s, x) => s + x, 0), c.porCobrar);
+});
+
+test("parcial anulado: deja de contar y la cuota vuelve a esperar entera", () => {
+  const r = repartoDeCobros([cuotaQ("q", 605, "ARS", 5)], {}, cobranza(605, [{ monto: 200, cuotaId: "q", anuladoEl: HOY }]));
+  assert.deepEqual(r.pendiente, [605]);
+});
+
+test("cobro enlazado a una cuota anulada o prevista: sigue siendo plata suelta (como antes)", () => {
+  const cuotas = [cuotaQ("viva", 605, "ARS", 5), cuotaQ("anulada", 605, "ARS", 15, { anuladoEl: HOY })];
+  const r = repartoDeCobros(cuotas, {}, cobranza(1210, [{ monto: 300, cuotaId: "anulada" }]));
+  assert.deepEqual(r.pendiente.slice(0, 1), [305]);
+});

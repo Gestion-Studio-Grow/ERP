@@ -27,7 +27,6 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Card, Field, Input, Select, Button, Badge, buttonClasses } from "@/components/ui";
-import { RevelarClave } from "../RevelarClave";
 import { pasaleEsto } from "./pasale-esto";
 import { planTenantAction, commitTenantAction } from "@/lib/operator-provisioning-actions";
 import { revisarAltaEnRedAction, sumarAltaALaRedAction, type RevisionAltaEnRed } from "@/lib/operador/red-locales-actions";
@@ -962,14 +961,24 @@ function ResultPanel({
         </div>
       )}
 
-      {/* La contraseña del dueño: fuera de la URL, se copia, se muestra una sola vez. */}
-      {result.generatedPassword && <RevelarClave clave={result.generatedPassword} para="el dueño" />}
+      {/* La contraseña del dueño ya no se muestra: salió sola por mail al titular (GSG-SEG-014). */}
+      {result.claveEnviadaA && (
+        <p role="status" className="rounded-md border border-line px-3 py-2 text-sm">
+          La contraseña provisoria del dueño salió por mail a <b className="font-mono">{result.claveEnviadaA}</b>. Al
+          entrar, el sistema le pide que elija una nueva.
+        </p>
+      )}
+      {result.claveNoEnviada && (
+        <p role="alert" className="rounded-md bg-warning-soft px-3 py-2 text-sm text-warning">
+          {result.claveNoEnviada}
+        </p>
+      )}
 
       {result.ok && (
         <PasaleEsto
           negocio={negocio}
           usuario={usuario}
-          clave={result.generatedPassword ?? null}
+          claveEnviadaA={result.claveEnviadaA ?? null}
           // Con dominio propio la dirección se sabe al crear; si no, la que agregue el alta del servidor
           // (console-input.ts) y, mientras no venga, «sin saber».
           direccion={direccion ?? (result as CommitActionResult & { direccion?: string | null }).direccion}
@@ -1010,7 +1019,7 @@ function ResultPanel({
 }
 
 /** «Pasale esto»: el mensaje para el dueño, con Copiar y WhatsApp (GSG-02/GSG-07). */
-function PasaleEsto(props: { negocio: string; usuario: string; clave: string | null; direccion: string | null | undefined }) {
+function PasaleEsto(props: { negocio: string; usuario: string; claveEnviadaA: string | null; direccion: string | null | undefined }) {
   const p = pasaleEsto(props);
   const [copiado, setCopiado] = useState(false);
   return (

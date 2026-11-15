@@ -45,13 +45,15 @@ test("F1 cobro suelto parcial (aprobado 100, cuotas 50+50, cobro manual 30): la 
   assert.deepEqual(r.sinCal, []);
 });
 
-test("F1 proyección: sin `pendiente` (cuota de la empresa o pago) sigue usando el monto", () => {
+// UAT-008 · D2: con el pago parcial a proveedor, el `pendiente` de un pago es lo que le falta (antes era siempre el monto).
+test("F1 proyección: sin `pendiente` (cuota de la empresa) sigue usando el monto; un pago usa lo que le falta", () => {
   const m = proyeccionDeCaja({
     cajaHoy: 0,
     cuotas: [
       { tipo: "COBRO", monto: 25, moneda: "ARS", venceEl: d(1), pagadoEl: null },
       { tipo: "COBRO", monto: 50, moneda: "ARS", venceEl: d(1), pagadoEl: null, pendiente: 0 },
       { tipo: "PAGO", monto: 10, moneda: "ARS", venceEl: d(1), pagadoEl: null, pendiente: 3 },
+      { tipo: "PAGO", monto: 7, moneda: "ARS", venceEl: d(1), pagadoEl: null },
     ],
     sueldosMes: 0,
     fijos: [],
@@ -59,7 +61,7 @@ test("F1 proyección: sin `pendiente` (cuota de la empresa o pago) sigue usando 
     meses: 1,
     hoy,
   });
-  assert.deepEqual([m[0].cobros, m[0].proveedores], [25, 10]);
+  assert.deepEqual([m[0].cobros, m[0].proveedores], [25, 3 + 7]);
 });
 
 test("F2 proyecto en USD con calendario corto: «Sin calendario» en dólares y la lista suma el KPI", () => {

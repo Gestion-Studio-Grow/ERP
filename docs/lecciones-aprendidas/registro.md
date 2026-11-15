@@ -19,7 +19,7 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
 - **MT** — MT-1 `findFirst` sin `where` · MT-2 home con acción admin-gated · MT-3 resolución fail-closed · MT-4 ruteo por hostname · MT-5 RLS = aislamiento + performance · MT-6 hosts en código (variable sensible)
 - **DX** — DX-8 demo pública en host serverless: back con estado no corre → dominio isomórfico + adaptador local · DX-1 backoffice-demo sin password · DX-2 falta sello GSG · DX-3 previews estáticos · DX-4 CTA WhatsApp roto · DX-5 réplica exacta a ojo vs. relevada · DX-6 relación seedeada uniforme = front miente por entidad · DX-7 fix de dato de prod sin seed/deleteMany (dry-run→apply→verify) · DX-10 lector que suma durante el cobro en vuelo · DX-11 suite verde ≠ pantalla bien: recorrido E2E contra next start + la cifra de plata sale de la regla compartida · DX-12 una etiqueta de balanza se lee de dos maneras: detectar con dos etiquetas o el PLU · DX-13 barra sticky que no se pega (padre corto) y lista del buscador que la tapa · DX-14 paridad por formulario, no por pantalla (CH: profesional/seña/cupón eran de «Servicios»)
 - **MP** — MP-1 sync file-tool↔bash · MP-2 tree compartido / commit-race · MP-3 congestión ≤4 · MP-4 subagentes en Opus · MP-5 FASE 0 · MP-6 `npm install` por worktree · MP-7 higiene de contexto · MP-8 sin tests · MP-9 modelo mal etiquetado · MP-10 reconciliar rama vieja = selectivo (no `git merge`) · MP-11 conflicto en tabla de irreversibles = dividir la fila (no pisar) · MP-12 drift INTERNO de ESTADO-ACTUAL (HANDOFF al día, §1/§8 stale) → reconciliar contra git, no contra el doc · MP-13 fundación gateada sin consumidor real = % engañoso (construido ≠ consumido) · MP-14 gating por redirect = riesgo de loop si el destino se gatea (esconder > redirigir)
-- **SEC** — SEC-1 secretos nunca en chat + rotación · SEC-2 rol con BYPASSRLS · SEC-3 firma de webhook + rate-limit · SEC-4 superficie pública: límite por IP sólo con fallos + motivos del dominio que nombran a terceros · SEC-6 sesión que vence en el servidor + la matriz que resta en la puerta de la app + gestión pública sin login
+- **SEC** — SEC-1 secretos nunca en chat + rotación · SEC-2 rol con BYPASSRLS · SEC-3 firma de webhook + rate-limit · SEC-4 superficie pública: límite por IP sólo con fallos + motivos del dominio que nombran a terceros · SEC-6 sesión que vence en el servidor + la matriz que resta en la puerta de la app + gestión pública sin login · SEC-7 clave provisoria sólo por mail al titular + reseteo declarado en código que corre el cron
 
 ---
 
@@ -605,6 +605,26 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
 - **Guardarraíl:** una credencial que el servidor no vence no vence; toda casilla de la matriz se prueba en la
   acción, en la puerta de la app Y en la tecla que la ofrece; una pantalla con botones de plata nunca es «estática».
 - **Refs:** SEC-3, SEC-5, ENG-013 (falta revocación: logout y cambio de clave, Gate 2).
+
+**[SEC-7] La clave provisoria que el operador veía y nadie mandaba (GSG-SEG-014, 10/11/2026)**
+- **Síntoma:** el alta y el reseteo de la consola mostraban la contraseña provisoria en pantalla para que el
+  operador la «pasara» (WhatsApp, copiar y pegar). Para resetear a la dueña de CH había que pedirle al dueño de
+  GSG que lo hiciera a mano en la consola de producción.
+- **Causa raíz:** la entrega de la clave dependía de una persona en el medio: la clave viajaba por manos y
+  canales que no se auditan, y cada reseteo pedía intervención humana en prod.
+- **Fix:** la provisoria sale SÓLO por mail al titular (`src/lib/clave-temporal-mail.ts`), nunca en pantalla,
+  log, URL, auditoría ni base en claro. En el reseteo y el alta de persona el mail es el último paso de la
+  transacción (si no sale, se deshace todo y se audita la falla); en el alta de negocio va después del commit
+  y la pantalla dice cómo recuperarla. Los reseteos que pide el dueño se declaran en código
+  (`RESETEOS_PENDIENTES`) y los corre el cron diario de prod, idempotente por clave en la auditoría + candado.
+  Detalle: `docs/seguridad/clave-temporal-por-mail.md`.
+- **Guardarraíl:** una credencial nunca pasa por la pantalla del operador; una operación que hoy pide «hacelo a
+  mano en prod» se declara en código y la corre el servidor con sus propios secretos, idempotente y auditada.
+  Dos trampas que encontró el refutador: (1) un cache de idempotencia que guarda un resultado con un secreto lo
+  re-entrega a quien repita el pedido (el alta repetida con otro email recibía la clave del dueño): el cache
+  guarda el resultado SIN el secreto; (2) la idempotencia apoyada en la auditoría dura lo que dura la fila: la
+  purga de 18 meses la borra, así que cada reseteo declarado lleva `vence` (≤ 90 días).
+- **Refs:** SEC-1, SEC-6; `mustChangePassword` (#55).
 
 **[MP-15] Deviación de una decisión de ADR citando una autoridad no trazable en el repo**
 - **Síntoma:** en el Gate de PR-2/M2, S4 renombró los 5 grupos de nav de las etiquetas **criollas** que fija

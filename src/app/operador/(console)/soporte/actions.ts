@@ -3,7 +3,7 @@
 // CONSOLA DE SOPORTE GSG (T1) — las acciones de los tickets.
 // ============================================================================
 //
-// "use server" publica cada export como endpoint: tres, con FormData y la sesión de operador como
+// "use server" publica cada export como endpoint: cuatro, con FormData y la sesión de operador como
 // primera línea (sin sesión → login de la consola). Antes de tocar un ticket va la guardia del
 // negocio (CH sólo la toca el dueño de GSG, guardia-negocio-core). Del formulario llegan el negocio,
 // el número y el cambio; quién lo hace sale de la sesión.
@@ -16,6 +16,9 @@ import { decidirOperadorParaNegocios } from "@/lib/operador/guardia-negocio-core
 import { pedirAlModelo } from "@/lib/proyectos/ia.server";
 import { cambiarTicket, fichaDeTicket, traerPedidosSinTicket, type CambioDeTicket } from "@/lib/soporte/tickets.server";
 import { datosParaLaIa, ESQUEMA_SUGERENCIA, INSTRUCCIONES_SUGERENCIA, leerSugerencia } from "@/lib/soporte/tickets-core";
+import { despacharTicket } from "@/lib/soporte/despacho.server";
+import { modoDelMotor } from "@/lib/soporte/despacho-core";
+import { mensajeDelDespacho, TEXTO_APAGADA } from "@/lib/soporte/vista-despacho-core";
 
 export type ResultadoTicket = { ok: true; mensaje: string } | { ok: false; error: string };
 
@@ -30,9 +33,14 @@ const LISTO: Record<CambioDeTicket["que"], string> = {
   respuesta: "Listo: la respuesta quedó guardada. Mandásela al cliente por WhatsApp.",
   tomar: "Listo: el ticket quedó a tu nombre.",
   borrador: "",
+  aprobar_borrador: "Listo: el borrador quedó aprobado como respuesta. No se mandó nada: mandáselo vos al cliente por WhatsApp o mail.",
+  descartar_borrador: "Listo: descartaste el borrador. No se mandó nada.",
 };
 
-/** Estado, prioridad, nota interna, respuesta o «tomar». Un endpoint, el cambio dice `que`. */
+/**
+ * Estado, prioridad, nota interna, respuesta, «tomar», o aprobar/descartar el borrador de la IA. Un
+ * endpoint, el cambio dice `que`. Aprobar el borrador lo pasa a la respuesta guardada: NO lo envía.
+ */
 export async function cambiarTicketAction(_previo: ResultadoTicket | null, fd: FormData): Promise<ResultadoTicket> {
   const { tenantId, numero } = ref(fd);
   const g = await operadorParaNegocio({ id: tenantId });
@@ -42,6 +50,8 @@ export async function cambiarTicketAction(_previo: ResultadoTicket | null, fd: F
   if (que === "estado" || que === "prioridad") cambio = { que, valor: fd.get("valor") };
   else if (que === "nota" || que === "respuesta") cambio = { que, texto: fd.get("texto") };
   else if (que === "tomar") cambio = { que };
+  // El rol sale de la sesión (operator-auth: «d» = el dueño), nunca del formulario.
+  else if (que === "aprobar_borrador" || que === "descartar_borrador") cambio = { que, version: fd.get("version"), rolOperador: g.sesion.rol };
   else return { ok: false, error: "No entendimos qué cambio pediste." };
   const r = await cambiarTicket(operatorPrisma, { tenantId, numero, operador: g.sesion.nombre, cambio });
   if (!r.ok) return r;
@@ -72,6 +82,29 @@ export async function sugerirConIaAction(_previo: ResultadoTicket | null, fd: Fo
   if (!r.ok) return r;
   revalidatePath("/operador/soporte");
   return { ok: true, mensaje: "Listo: la sugerencia quedó como borrador. Revisala antes de usarla." };
+}
+
+/**
+ * «Preparar con IA» (MANT-004): despacha el ticket a la tarea n1 de Claude, que deja un BORRADOR. El
+ * negocio del formulario NO se usa a ciegas: pasa primero la guardia (sesión de operador + CH sólo el
+ * dueño) y el despacho lo busca parado en ese negocio (RLS): un número de otro negocio no existe ahí.
+ * Idempotente: un segundo clic con el pedido en curso no abre otra sesión (despacharTicket, candado
+ * por ticket y nivel); sólo cambia el mensaje. Motor apagado → «respondé a mano», sin tocar la base.
+ */
+export async function prepararConIaAction(_previo: ResultadoTicket | null, fd: FormData): Promise<ResultadoTicket> {
+  const { tenantId, numero } = ref(fd);
+  const g = await operadorParaNegocio({ id: tenantId });
+  if (!g.ok) return { ok: false, error: g.motivo };
+  if (!Number.isInteger(numero) || numero < 1) return { ok: false, error: "Ese ticket no existe." };
+  if (modoDelMotor(process.env).modo === "apagado") return { ok: false, error: `${TEXTO_APAGADA}.` };
+  try {
+    const r = await despacharTicket({ tenantId, numero, nivel: "n1", origen: "manual" });
+    revalidatePath("/operador/soporte");
+    return mensajeDelDespacho(r);
+  } catch (e) {
+    console.error("[soporte] «Preparar con IA» falló:", e instanceof Error ? e.name : "error");
+    return { ok: false, error: "No se pudo pedir a la IA. Respondé a mano." };
+  }
 }
 
 /**

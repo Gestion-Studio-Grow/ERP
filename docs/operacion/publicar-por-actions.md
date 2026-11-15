@@ -9,7 +9,11 @@ publicar PR»), siempre igual y auditada en el PR.
 ## Cómo se usa
 
 1. El PR apunta a `main`, no es borrador, viene de una rama del mismo repo y está **al día con `main`**
-   (si quedó atrás: «Update branch» y esperar el CI).
+   (si quedó atrás: traer `main` en local y empujar una sola vez; «Update branch» de GitHub es un push más,
+   Factory-GSG `10-GOBIERNO/despliegues-vercel.md` §3 regla 4).
+   La rama del PR es **`tanda/…`** (la tanda: varios PR, un solo despliegue de producción) o **`urgente/…`**
+   (arreglo urgente de producción o de seguridad, que sale solo y se anota en la bitácora). Cualquier otra
+   rama frena en «precondiciones» (15/11/2026, plan gratis de Vercel: 100 despliegues por día).
 2. Se le pone la etiqueta **`gsg:publicar`**.
 3. El workflow comenta «en cola» y, cuando le toca (uno a la vez), corre:
 

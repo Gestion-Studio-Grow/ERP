@@ -211,6 +211,21 @@ export const INTERRUPTORES = [
     cambiaLasApps: false,
   },
   {
+    // Soporte GSG (MANT-001/003/004): la app «Soporte GSG» de Configuración, donde el titular da o
+    // saca el permiso a la IA de soporte, y el despacho a las rutinas. Apagado por defecto (decisión
+    // del dueño 14/11/2026, TANDA3-SOPORTE · B: se prende el 23/11): el titular no ve el botón, la
+    // ruta responde «no encontrado», la action no guarda y no se despacha ningún ticket del negocio.
+    // Prenderlo sólo SUMA una app (a nadie le quita ninguna): no se frena por apps. Va AL FINAL.
+    id: "soporte-gsg",
+    nombre: "Soporte GSG",
+    queCambia:
+      "Aparece «Soporte GSG» en Configuración, sólo para el titular: ahí da o saca el permiso para que la IA de soporte prepare respuestas a sus pedidos. Apagado, no se ve y no se despacha nada a la IA.",
+    alPrender:
+      "No le quita apps a nadie: suma «Soporte GSG» al titular. La IA no lee nada hasta que el titular da el permiso desde esa pantalla.",
+    enAuditoria: "Soporte GSG",
+    cambiaLasApps: false,
+  },
+  {
     // Eventos y sponsors (GSG-CRM-009, pedido de MIA Producciones del 14/11/2026): los eventos de una
     // región y las marcas que van a cada uno, cargados desde lo que relevó el equipo de agentes.
     // Apagado por defecto: el negocio no ve la app y toda acción de src/lib/eventos-sponsors rechaza.
@@ -301,6 +316,16 @@ export function contabilidadPrendida(
   estado: Readonly<Partial<Record<InterruptorId, { encendido: boolean }>>>,
 ): boolean {
   return estado[CONTABILIDAD_HABILITADA]?.encendido === true;
+}
+
+/** Soporte GSG: la app del permiso del titular y el despacho a la IA (src/lib/soporte). */
+export const SOPORTE_GSG: InterruptorId = "soporte-gsg";
+
+/** ¿El negocio tiene Soporte GSG? Un estado sin la entrada cuenta como apagado. PURA. */
+export function soporteGsgPrendido(
+  estado: Readonly<Partial<Record<InterruptorId, { encendido: boolean }>>>,
+): boolean {
+  return estado[SOPORTE_GSG]?.encendido === true;
 }
 
 /** Eventos y sponsors (src/lib/eventos-sponsors, GSG-CRM-009). */

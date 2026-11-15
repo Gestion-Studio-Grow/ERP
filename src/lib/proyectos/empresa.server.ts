@@ -12,6 +12,8 @@ import { desviosDelEvento, estaAbierto, estaActivo, estaConfirmado, finDeSemana,
 import { redondear, yaVencio } from "./core";
 import { conciliarConCobros, pagadoDeCuota, repartoDelNegocio, resumenConCobranza, sinCalendarioDelNegocio, SIN_PREVISTAS_SIN_MARCAR } from "./cobranza-core";
 import { cobranzasDelNegocio } from "./cobranza.server";
+import { conPagosParciales, conPartesComoPagadas } from "./pago-parcial-core";
+import { pagosParcialesDeCuotas } from "./pago-parcial.server";
 
 const MESES_PROYECCION = 6;
 
@@ -37,7 +39,7 @@ export async function cuotasDelNegocio(tenantId: string) {
       comentario: true,
       auto: true,
       supplier: { select: { name: true } },
-      proyecto: { select: { id: true, numero: true, nombre: true, createdAt: true, client: { select: { name: true } } } },
+      proyecto: { select: { id: true, numero: true, nombre: true, createdAt: true, client: { select: { id: true, name: true } } } },
     },
   });
 }
@@ -50,7 +52,9 @@ export async function recuadrosDeCuotas(tenantId: string) {
   // Cada renglón con lo que le falta (los cobros manuales se descuentan de las cuotas más viejas): suman lo mismo que el total.
   // Y con lo que entró por cada una (las cobradas, en pesos de hoy: el cashflow). «Pagados» muestra `pagado`: lo que se
   // pagó tal como entró (el original y los pesos asentados), sacado de la misma cobranza, sin otra consulta.
-  const { pendiente, cobrado } = repartoDelNegocio(cuotas, tc, cobranzas);
+  // Y las de pago con lo pagado en parte a proveedor (pago-parcial-core): les queda su monto menos esas partes.
+  const partes = await pagosParcialesDeCuotas(tenantId, cuotas, tc);
+  const { pendiente, cobrado } = conPagosParciales(cuotas, repartoDelNegocio(cuotas, tc, cobranzas), partes);
   // Lo aprobado que ninguna cuota espera (calendario corto o sin cuotas): un renglón «Sin calendario» por evento, para
   // que la lista sume lo mismo que «A cobrar». Sin fecha: no entra a la proyección de caja.
   const faltantes = sinCalendarioDelNegocio(cuotas, pendiente, tc, cobranzas);
@@ -68,7 +72,7 @@ export async function recuadrosDeCuotas(tenantId: string) {
       return proyecto ? [{ ...f, proyecto }] : [];
     }),
     tc,
-    resumen: resumenConCobranza(cuotas, tc, cobranzas),
+    resumen: resumenConCobranza(conPartesComoPagadas(cuotas, partes), tc, cobranzas),
   };
 }
 export type SinCalendarioDelNegocio = Awaited<ReturnType<typeof recuadrosDeCuotas>>["sinCalendario"][number];

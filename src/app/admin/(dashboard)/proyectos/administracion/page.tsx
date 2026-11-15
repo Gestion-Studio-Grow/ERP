@@ -1,6 +1,9 @@
 import { redirect } from "next/navigation";
 import { KpiTile, Pestanas } from "@/components/ui";
 import { requireApp } from "@/lib/require-app";
+import { appPorId } from "@/apps/registro";
+import { motivoNoDisponible } from "@/apps/visibles";
+import { getNegocioApps } from "@/apps/contexto.server";
 import { actorActual, puede } from "@/lib/proyectos/gestion.server";
 import { faltaCambio, recuadrosDeCuotas } from "@/lib/proyectos/empresa.server";
 import { pesos } from "@/lib/proyectos/core";
@@ -24,8 +27,10 @@ const DE_EMPRESA = [
 type Busqueda = { tab?: string; estado?: string; q?: string; mes?: string };
 
 export default async function Administracion({ searchParams }: { searchParams: Promise<Busqueda> }) {
-  await requireApp("gestion-administracion");
+  const user = await requireApp("gestion-administracion");
   const a = await actorActual();
+  // El cliente de cada cobro abre su ficha sólo si quien mira tiene Clientes (la misma regla que el menú).
+  const veClientes = motivoNoDisponible(appPorId("clientes"), await getNegocioApps(user.role, user.overrides)) === null;
   const veEmpresa = puede(a, "empresa", "ver");
   const veLiquidaciones = puede(a, "liquidaciones", "ver");
   if (!veEmpresa && !veLiquidaciones) redirect("/admin/proyectos/inicio");
@@ -67,7 +72,7 @@ export default async function Administracion({ searchParams }: { searchParams: P
       )}
       <Pestanas pestanas={pestanas} etiqueta="Vistas de Administración" conRaya className="mb-4" />
       {(tab === "cobrar" || tab === "pagar") && datos && (
-        <TabCuentas tipo={tab === "cobrar" ? "COBRO" : "PAGO"} estado={sp.estado} q={sp.q} cuotas={datos.cuotas} sinCalendario={tab === "cobrar" ? datos.sinCalendario : []} tc={datos.tc} tenantId={a.tenantId} editaEmpresa={editaEmpresa} editaPagos={editaPagos} />
+        <TabCuentas tipo={tab === "cobrar" ? "COBRO" : "PAGO"} estado={sp.estado} q={sp.q} cuotas={datos.cuotas} sinCalendario={tab === "cobrar" ? datos.sinCalendario : []} tc={datos.tc} tenantId={a.tenantId} editaEmpresa={editaEmpresa} editaPagos={editaPagos} veClientes={veClientes} />
       )}
       {tab === "cashflow" && <TabCashflow tenantId={a.tenantId} />}
       {tab === "bancos" && <TabBancos tenantId={a.tenantId} editaEmpresa={editaEmpresa} editaPagos={editaPagos} />}

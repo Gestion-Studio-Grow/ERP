@@ -95,7 +95,7 @@ export const ESPACIOS: readonly EspacioMeta[] = [
     nombre: "Administración",
     enInicio: true,
     // `terminal` («Este equipo», módulo terminal): el perfil de cada equipo del mostrador (plan T-1).
-    apps: ["usuarios", "auditoria", "datos-del-negocio", "apariencia", "terminal"],
+    apps: ["usuarios", "auditoria", "datos-del-negocio", "apariencia", "terminal", "permiso-soporte"],
   },
   // Sólo en la casa de una marca con varios locales: sus apps exigen el módulo
   // `multilocal` aun con el gate apagado (`moduloDuro`), así que en un negocio suelto
@@ -277,7 +277,7 @@ export const ESPACIOS_NAV: readonly EspacioNav[] = [
     id: "administracion",
     nombre: "Configuración",
     objetivo: "Dejar el negocio andando",
-    apps: ["datos-del-negocio", "usuarios", "auditoria", "apariencia", "terminal", "tu-plan", "integraciones", "traer-datos"],
+    apps: ["datos-del-negocio", "usuarios", "auditoria", "apariencia", "terminal", "permiso-soporte", "tu-plan", "integraciones", "traer-datos"],
   },
 ];
 
