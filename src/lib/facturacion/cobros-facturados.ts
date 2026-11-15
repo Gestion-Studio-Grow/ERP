@@ -23,6 +23,7 @@ import { tenantTransaction } from "@/lib/rls";
 import { centavosDe } from "@/lib/dinero/redondeo";
 import { createInvoiceInTx, type CreateInvoiceInput, type InvoiceTx } from "@/lib/invoice-core";
 import { claveAlmacenada, origenAdmitidoPorElLibro, type OrigenFacturable } from "@/lib/facturacion/clave-origen";
+import { tomarCandadoDelCupo } from "@/lib/facturacion/candado-cupo";
 
 // ─── Claves ─────────────────────────────────────────────────────────────────────
 
@@ -142,11 +143,17 @@ export async function facturarCobrosInTx(
   tx: InvoiceTx,
   input: CreateInvoiceInput,
   cobros: readonly CobroAFacturar[],
+  /**
+   * GSG-FACT-011 · H2: ¿hay lugar en el cupo? Se llama con el cobro todavía sin factura viva y
+   * con el candado del cupo YA tomado por el llamador (antes de las claves): si no hay lugar, lanza.
+   */
+  verificarCupo?: (tx: InvoiceTx) => Promise<void>,
 ): Promise<string> {
   if (cobros.length === 0) throw new Error("facturarCobros: sin cobros no hay factura.");
   await tomarClaves(tx, input.tenantId, cobros.map((c) => c.clave));
   const [vivo] = await cobrosYaFacturadosInTx(tx, input.tenantId, cobros.map((c) => c.clave));
   if (vivo) return vivo.invoiceId;
+  if (verificarCupo) await verificarCupo(tx);
   const invoiceId = await createInvoiceInTx(tx, input);
   for (const c of cobros) await vincularCobroInTx(tx, input.tenantId, c, invoiceId);
   return invoiceId;
@@ -157,8 +164,27 @@ export async function facturarCobrosInTx(
  * la carrera por el mismo cobro (o por el mismo origen), el índice único corta a éste (P2002):
  * se vuelve a intentar UNA vez y ahí se encuentra la factura del ganador.
  */
-export async function facturarCobros(input: CreateInvoiceInput, cobros: readonly CobroAFacturar[]): Promise<string> {
-  const correr = () => tenantTransaction((tx) => facturarCobrosInTx(tx, input, cobros), { tenantId: input.tenantId });
+export async function facturarCobros(
+  input: CreateInvoiceInput,
+  cobros: readonly CobroAFacturar[],
+  opciones: {
+    /**
+     * GSG-FACT-011 · H2 · La emisión AUTOMÁTICA cuenta el cupo DENTRO de esta transacción: toma el
+     * candado del cupo ANTES de las claves del cobro (orden `facturita-cupo` → `cobro-facturado`) y,
+     * si el cobro no tiene factura viva, `verificarCupo` relee el tope y cuenta; sin lugar, lanza.
+     */
+    verificarCupo?: (tx: InvoiceTx) => Promise<void>;
+  } = {},
+): Promise<string> {
+  const { verificarCupo } = opciones;
+  const correr = () =>
+    tenantTransaction(
+      async (tx) => {
+        if (verificarCupo) await tomarCandadoDelCupo(tx, input.tenantId);
+        return facturarCobrosInTx(tx, input, cobros, verificarCupo);
+      },
+      { tenantId: input.tenantId },
+    );
   try {
     return await correr();
   } catch (e) {

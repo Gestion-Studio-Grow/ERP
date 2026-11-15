@@ -131,13 +131,14 @@ async function conFilasTomadas<T>(base: BaseEfimera, ids: string[], esperando: n
     let vistos = 0;
     // Tope de espera generoso (la primera corrida compila los módulos); no es un sleep: se sale apenas se ven.
     for (const hasta = Date.now() + 60_000; Date.now() < hasta && vistos < esperando && !termino; ) {
+      // Las conexiones de la app (app_rls) no se ven en pg_stat_activity desde el dueño: se cuentan
+      // las que esperan a ESTA conexión (pg_blocking_pids), sin mirar otras bases del servidor.
       const r = await c.query(
-        `SELECT count(*)::int AS n FROM pg_locks l JOIN pg_stat_activity a ON a.pid = l.pid
-          WHERE NOT l.granted AND a.datname = current_database() AND l.locktype IN ('transactionid', 'tuple')`,
+        `SELECT count(DISTINCT l.pid)::int AS n FROM pg_locks l
+          WHERE NOT l.granted AND pg_backend_pid() = ANY(pg_blocking_pids(l.pid))`,
       );
       vistos = r.rows[0].n;
     }
-    if (vistos < esperando) console.log('DIAG', JSON.stringify((await c.query(`SELECT pid, usename, state, wait_event_type, wait_event, left(query, 120) q FROM pg_stat_activity WHERE datname = current_database()`)).rows), JSON.stringify((await c.query(`SELECT locktype, granted, mode, pid FROM pg_locks WHERE NOT granted`)).rows));
     if (termino) await enCurso; // si falló antes de trabarse, que se vea el error
     assert.ok(vistos >= esperando, `esperaba ${esperando} conexiones trabadas en la fila; vi ${vistos}`);
     await c.query("COMMIT");
@@ -198,7 +199,7 @@ async function avisoMP(tenantId: string, pago: PagoMP, opciones: { forzarFactura
       {
         ...deps,
         client: cuenta,
-        ...(opciones.forzarFacturable ? { clasificador: { clasificar: async () => ({ clasificacion: "FACTURABLE" as const }) } } : {}),
+        ...(opciones.forzarFacturable ? { clasificador: { clasificar: async () => ({ clasificacion: "FACTURABLE" as const, motivo: "forzado por el test" }) } } : {}),
       },
       resumen,
     );
@@ -287,7 +288,8 @@ test("C20 · el tope bajo el candado: aunque la clasificación lo deje pasar, la
 });
 
 // ── C15 · aviso de MP + lote + manual a la vez ─────────────────────────────────
-test("C15 · aviso de MP, lote y emisión manual a la vez: sin abrazo mortal, las tres salen", async (t) => {
+// Con tope propio: un abrazo mortal que Postgres no detecta (cola en el pool) es una FALLA, no un cuelgue.
+test("C15 · aviso de MP, lote y emisión manual a la vez: sin abrazo mortal, las tres salen", { timeout: 120_000 }, async (t) => {
   const p = await preparar(t);
   if (!p) return;
   const id = await negocio(p, { blueprintId: "facturita", plan: "factoque-plus" });

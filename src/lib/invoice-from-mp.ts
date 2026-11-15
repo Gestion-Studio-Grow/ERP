@@ -8,7 +8,7 @@
  * está aplicada). El Core es dueño del impuesto; el plugin MP solo detecta.
  */
 
-import { createInvoice } from "@/lib/invoice-core";
+import { createInvoice, type InvoiceTx } from "@/lib/invoice-core";
 import { calcularImpuestos, getFiscalProfile } from "@/lib/fiscal";
 import { procesarEnviosDelNegocio } from "@/lib/arca-dispatch";
 import type { PagoMP } from "@/plugins/mercadopago";
@@ -80,7 +80,15 @@ export async function facturarPagoMP(
   pago: PagoMP,
   tenantId: string,
   deps: DepsFacturarPagoMP = DEPS,
-  opciones: { appointmentId?: string } = {},
+  opciones: {
+    appointmentId?: string;
+    /**
+     * GSG-FACT-011 · H2 · La emisión AUTOMÁTICA cuenta el cupo dentro de la transacción de la factura,
+     * bajo su candado (`facturarCobros(…, { verificarCupo })`). Sólo para el pago suelto: el de un turno
+     * no pasa por acá desde la ingesta automática (se marca no facturable antes).
+     */
+    verificarCupo?: (tx: InvoiceTx) => Promise<void>;
+  } = {},
 ): Promise<string | null> {
   if (pago.estado !== "approved" || !(pago.monto > 0)) return null;
   const cobro = { clave: claveCobroMP(pago.id), importe: pago.monto, appointmentId: opciones.appointmentId ?? null };
@@ -122,7 +130,7 @@ export async function facturarPagoMP(
     turno && deps.facturarPagoDelTurno
       ? await deps.facturarPagoDelTurno(comprobante, { ...cobro, appointmentId: turno })
       : deps.facturarCobros
-        ? await deps.facturarCobros(comprobante, [cobro])
+        ? await deps.facturarCobros(comprobante, [cobro], opciones.verificarCupo ? { verificarCupo: opciones.verificarCupo } : {})
         : await deps.createInvoice(comprobante);
 
   await deps.procesarEnviosDelNegocio(tenantId);
