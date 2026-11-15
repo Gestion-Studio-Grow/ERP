@@ -54,6 +54,10 @@ Ya llevan el cambio obligatorio.
 
 Se usan cuando el dueño pide resetear a alguien y nadie debe tocar la consola de producción.
 
+> **Estado al 14/11/2026: lista vacía.** Por decisión del dueño (TANDA3-CLAVES · B) el aviso automático de
+> claves queda apagado y no se manda ningún mail; lo acuerda con el titular. El reseteo manual de la consola
+> sigue disponible. Para volver a usarlo se declara una entrada nueva con otra clave, por PR.
+
 1. Se suma una entrada a `RESETEOS_PENDIENTES` con:
    - una `clave` **única** para siempre (fecha + negocio + quién);
    - el `slug` del negocio;

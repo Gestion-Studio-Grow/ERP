@@ -34,8 +34,8 @@ export type ResetPendiente = {
 export const VENCE_MAXIMO_DIAS = 90;
 
 export const RESETEOS_PENDIENTES: readonly ResetPendiente[] = [
-  // CH Estética (Carolina Haponiuk): orden del dueño del 10/11/2026, sin intervención manual.
-  { clave: "2026-11-10-beauty-spa-owner", slug: "beauty-spa", motivo: "orden del dueño 10/11/2026 (GSG-SEG-014)", vence: "2027-02-08" },
+  // Vacía por decisión del dueño (14/11/2026, TANDA3-CLAVES · B): el aviso automático de claves queda
+  // apagado; lo acuerda con el titular. El reseteo manual de la consola sigue disponible.
 ];
 
 export type EstadoPendiente =
