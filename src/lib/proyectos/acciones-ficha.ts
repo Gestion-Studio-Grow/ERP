@@ -35,7 +35,8 @@ import type { ModuloGestion } from "./gestion-core";
 
 /** `aviso`: salió bien, pero hay algo que mirar (p. ej. «recalculá el plan» si se facturó una cuota en el medio). */
 /** `listo`: el cartel de éxito (se muestra aparte, porque el renglón que lo pidió suele desaparecer al refrescar). */
-export type ResultadoFicha<T = object> = ({ ok: true; aviso?: string; listo?: string } & T) | { ok: false; error: string };
+/** `confirmar`: no se grabó porque hace falta un sí explícito; es el texto de la casilla que `FormAccion` muestra. */
+export type ResultadoFicha<T = object> = ({ ok: true; aviso?: string; listo?: string } & T) | { ok: false; error: string; confirmar?: string };
 
 const RAIZ = "/admin/proyectos";
 const MAX_ARCHIVOS = 30; // los que viven en la base; los que están en la nube tienen su propio tope
@@ -1083,32 +1084,37 @@ async function gastoEnRendicionViva(tenantId: string, gastoId: string): Promise<
 export async function anularGastoFicha(formData: FormData): Promise<ResultadoFicha> {
   const tenantId = await getCurrentTenantId();
   const id = txt(formData.get("id"));
-  const g = await prisma.proyectoGasto.findFirst({ where: { id, tenantId }, select: { proyectoId: true, neto: true, iva: true, proyecto: { select: { numero: true } } } });
+  // Afuera sólo lo que sirve para el permiso y el candado (el proyecto de un gasto no cambia). Lo que se asienta o se
+  // registra (importe, número del proyecto) se lee adentro, ya en fila: es lo que tenía el gasto al anularlo.
+  const g = await prisma.proyectoGasto.findFirst({ where: { id, tenantId }, select: { proyectoId: true } });
   if (!g) return mal("Ese gasto no existe.");
   const a = await entrar("pagos", g.proyectoId);
   if (typeof a === "string") return mal(a);
   if (await gastoEnRendicionViva(tenantId, id)) return mal(GASTO_EN_RENDICION);
-  const anulo = await tenantTransaction(async (tx) => {
+  const anulo = await tenantTransaction(async (tx): Promise<{ neto: number; iva: number } | false> => {
     // En fila con «Marcar pagado» (también una parte): anular reabre la cuota y cambia lo que le falta.
     await trabarCobranza(tx, tenantId, g.proyectoId);
     const r = await tx.proyectoGasto.updateMany({ where: { id, tenantId, anuladoEl: null }, data: { anuladoEl: new Date(), anuladoPor: a.nombre } });
     if (r.count === 0) return false;
+    // Después del UPDATE: la fila queda trabada por esta transacción, nadie la cambia hasta el commit.
+    const leido = await tx.proyectoGasto.findFirst({ where: { id, tenantId }, select: { neto: true, iva: true, proyecto: { select: { numero: true } } } });
+    if (!leido) throw new Error("El gasto anulado no se pudo releer.");
     const pago = await tx.cashMovement.findFirst({ where: { tenantId, proyectoGastoId: id, type: "EGRESO" }, select: { amount: true, method: true } });
     if (pago) {
       const session = await tx.cashSession.findFirst({ where: { tenantId, status: "OPEN" }, select: { id: true } });
-      await tx.cashMovement.create({ data: { tenantId, sessionId: session?.id ?? null, type: "INGRESO", method: pago.method, amount: pago.amount, reason: `Anulación de gasto · Proyecto #${g.proyecto.numero}`, proyectoGastoId: id, createdBy: marcaDeGastoProyecto(id) } });
+      await tx.cashMovement.create({ data: { tenantId, sessionId: session?.id ?? null, type: "INGRESO", method: pago.method, amount: pago.amount, reason: `Anulación de gasto · Proyecto #${leido.proyecto.numero}`, proyectoGastoId: id, createdBy: marcaDeGastoProyecto(id) } });
     }
-    await registrarCambio(tx, { tenantId, proyectoId: g.proyectoId, entidad: "ProyectoGasto", entidadId: id, campo: "Gasto anulado", antes: redondear(g.neto + g.iva), autor: a.nombre });
+    await registrarCambio(tx, { tenantId, proyectoId: g.proyectoId, entidad: "ProyectoGasto", entidadId: id, campo: "Gasto anulado", antes: redondear(leido.neto + leido.iva), autor: a.nombre });
     await reabrirCuotaTx(tx, tenantId, g.proyectoId, id, a.nombre);
-    return true;
+    return { neto: leido.neto, iva: leido.iva };
   });
   if (!anulo) return { ok: true, listo: "Ese gasto ya estaba anulado: no se movió nada. Recargá la página para verlo." };
   await regenerar(tenantId, g.proyectoId);
-  await auditAdmin({ action: "proyecto.gasto.anular", entity: "ProyectoGasto", entityId: id, changes: { neto: g.neto, iva: g.iva } });
+  await auditAdmin({ action: "proyecto.gasto.anular", entity: "ProyectoGasto", entityId: id, changes: { neto: anulo.neto, iva: anulo.iva } });
   refrescar(g.proyectoId);
   revalidatePath(`${RAIZ}/proveedores`);
   revalidatePath(`${RAIZ}/administracion`);
-  return { ok: true, listo: listoAnulado(false, redondear(g.neto + g.iva)) };
+  return { ok: true, listo: listoAnulado(false, redondear(anulo.neto + anulo.iva)) };
 }
 
 // ── Seguimiento ─────────────────────────────────────────────────────────────
