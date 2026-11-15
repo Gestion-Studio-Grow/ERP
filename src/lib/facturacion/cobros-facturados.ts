@@ -148,13 +148,19 @@ export async function facturarCobrosInTx(
    * con el candado del cupo YA tomado por el llamador (antes de las claves): si no hay lugar, lanza.
    */
   verificarCupo?: (tx: InvoiceTx) => Promise<void>,
+  /**
+   * GSG-FACT-011 · H4 · Ajusta el comprobante (fecha correlativa del punto de venta, fechas de
+   * servicio) con lo que se lee ACÁ, bajo el candado del cupo: se llama justo antes de crearlo.
+   */
+  ajustarComprobante?: (tx: InvoiceTx, input: CreateInvoiceInput) => Promise<CreateInvoiceInput>,
 ): Promise<string> {
   if (cobros.length === 0) throw new Error("facturarCobros: sin cobros no hay factura.");
   await tomarClaves(tx, input.tenantId, cobros.map((c) => c.clave));
   const [vivo] = await cobrosYaFacturadosInTx(tx, input.tenantId, cobros.map((c) => c.clave));
   if (vivo) return vivo.invoiceId;
   if (verificarCupo) await verificarCupo(tx);
-  const invoiceId = await createInvoiceInTx(tx, input);
+  const comprobante = ajustarComprobante ? await ajustarComprobante(tx, input) : input;
+  const invoiceId = await createInvoiceInTx(tx, comprobante);
   for (const c of cobros) await vincularCobroInTx(tx, input.tenantId, c, invoiceId);
   return invoiceId;
 }
@@ -174,14 +180,19 @@ export async function facturarCobros(
      * si el cobro no tiene factura viva, `verificarCupo` relee el tope y cuenta; sin lugar, lanza.
      */
     verificarCupo?: (tx: InvoiceTx) => Promise<void>;
+    /**
+     * GSG-FACT-011 · H4 · Ajuste del comprobante dentro de la transacción y bajo el candado del cupo
+     * (lo toma también si no hay `verificarCupo`): la fecha correlativa se lee con el candado tomado.
+     */
+    ajustarComprobante?: (tx: InvoiceTx, input: CreateInvoiceInput) => Promise<CreateInvoiceInput>;
   } = {},
 ): Promise<string> {
-  const { verificarCupo } = opciones;
+  const { verificarCupo, ajustarComprobante } = opciones;
   const correr = () =>
     tenantTransaction(
       async (tx) => {
-        if (verificarCupo) await tomarCandadoDelCupo(tx, input.tenantId);
-        return facturarCobrosInTx(tx, input, cobros, verificarCupo);
+        if (verificarCupo || ajustarComprobante) await tomarCandadoDelCupo(tx, input.tenantId);
+        return facturarCobrosInTx(tx, input, cobros, verificarCupo, ajustarComprobante);
       },
       { tenantId: input.tenantId },
     );

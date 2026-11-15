@@ -37,6 +37,8 @@ import { procesarEnviosDelNegocio, type DispatchResumen } from "@/lib/arca-dispa
 import { logger } from "@/lib/logger";
 import { businessWallTimeToUtc, dateStrInBusinessTz } from "@/lib/datetime";
 import { fechaFiscalDelDia, ventanaYaFacturada } from "@/lib/libros/fecha-fiscal";
+import { ajustarFechaAutomatica, conceptoDeLaEmision, motivoFueraDeVentanaArca } from "@/lib/facturacion/fecha-emision-automatica";
+import { configFacturacionMPDelNegocio } from "@/lib/facturita-mp.server";
 import {
   CAP_FACTURAS_MES_DEFAULT,
   cuitValido,
@@ -719,6 +721,11 @@ export interface ResultadoEmision {
    * factura. Sólo aparece si es mayor a 0.
    */
   yaFacturadas?: number;
+  /**
+   * GSG-FACT-011 · H4 · Movimientos que pasaron a revisión porque el cobro cae fuera de la ventana
+   * de fechas de ARCA (5 días productos, 10 servicios). Sólo aparece si es mayor a 0.
+   */
+  aRevision?: number;
   /** Resumen del despacho a ARCA (solo si ARCA_INVOICING_ENABLED está prendido). */
   despachoArca?: DispatchResumen;
 }
@@ -762,6 +769,8 @@ export async function emitirPropuestas(
         ...(seleccion === "auto" ? {} : { id: { in: seleccion } }),
       },
       orderBy: [{ fecha: "asc" }, { createdAt: "asc" }],
+      // H8 · De dónde viene el extracto: sólo el de Mercado Pago trae ids de pago en la referencia.
+      include: { importacion: { select: { origen: true } } },
     });
     if (movimientos.length === 0) {
       return { emitidas: 0, bloqueadasPorCap: 0, capAlcanzado: false, errores: [] };
@@ -772,9 +781,18 @@ export async function emitirPropuestas(
     const perfil = await getFiscalProfile(tenantId);
     const puntoVenta = perfil.puntoVenta;
 
+    // H4 · La ventana de ARCA se cuenta desde hoy (el reloj inyectado).
+    const hoy = fechaFiscalDelDia(ahora);
+    // H5 · El concepto habitual del negocio, si el movimiento no trae el suyo. Hoy la única fuente
+    // guardada es la config de la facturación de Mercado Pago (`ConfigFacturacionMP.concepto`; el
+    // `conceptoDefault` del motor fiscal no lo carga nadie todavía). Provisional a confirmar.
+    let conceptoDelNegocio: number | null | undefined;
+    const conceptoHabitual = async () => (conceptoDelNegocio ??= (await configFacturacionMPDelNegocio(tenantId)).concepto ?? null);
+
     let emitidas = 0;
     let bloqueadas = 0;
     let yaFacturadas = 0;
+    let aRevision = 0;
     const errores: { movimientoId: string; error: string }[] = [];
 
     for (const [indice, mov] of movimientos.entries()) {
@@ -811,7 +829,10 @@ export async function emitirPropuestas(
         // Todas las claves de este cobro, y la factura las TOMA a todas (candado + índice único):
         // la del pago de MP (`mp:<referencia>`) y la `banco:<hash>` que la bandeja escribía antes
         // para una propuesta de MP. Así ni un extracto CSV de MP ni una fila vieja abren otra factura.
-        const clavesDelCobro = [...new Set([claveBanco, claveCobroBanco(mov.hash), ...(mov.referencia ? [claveCobroMP(mov.referencia)] : [])])];
+        // H8 · La referencia es el id de un pago de MP SÓLO si el extracto es de Mercado Pago: la de
+        // un banco («123» de una transferencia) no puede atarse a la factura del pago de MP «123».
+        const referenciaMP = mov.referencia && mov.importacion.origen === "mercadopago" ? mov.referencia : null;
+        const clavesDelCobro = [...new Set([claveBanco, claveCobroBanco(mov.hash), ...(referenciaMP ? [claveCobroMP(referenciaMP)] : [])])];
         const [yaFacturado] = await cobrosYaFacturados(tenantId, clavesDelCobro);
         if (yaFacturado) {
           await vincularCobro(tenantId, { clave: claveBanco, importe: montoTotal }, yaFacturado.invoiceId);
@@ -827,12 +848,30 @@ export async function emitirPropuestas(
           continue;
         }
 
+        // H5 · Concepto: el del movimiento; si no, el habitual del negocio; si no, productos (1).
+        const concepto = conceptoDeLaEmision(mov.concepto, mov.concepto == null ? await conceptoHabitual() : null);
+        // H4 · Fuera de la ventana de ARCA no se emite solo: revisión con motivo (provisional a
+        // confirmar con la contadora: la ventana se cuenta desde la fecha del COBRO).
+        const fueraDeVentana = motivoFueraDeVentanaArca(mov.fecha, hoy, concepto);
+        if (fueraDeVentana) {
+          await tenantTransaction(
+            (tx) =>
+              tx.movimientoImportado.updateMany({
+                where: { id: mov.id, tenantId, estadoPropuesta: "emitida", invoiceId: null },
+                data: { estadoPropuesta: "revision", motivoRevision: fueraDeVentana },
+              }),
+            { tenantId },
+          );
+          aRevision++;
+          continue;
+        }
+
         const { neto, iva, total } = calcularImpuestos(perfil.condicionIva, montoTotal);
         const invoiceId = await facturarCobros({
           tenantId,
-          // Concepto 1 (productos/venta directa), mismo criterio que invoice-from-mp:
-          // concepto 2 (servicios) exigiría fechas de servicio que el extracto no trae.
-          concepto: 1,
+          concepto,
+          // La fecha del cobro; `ajustarFechaAutomatica` la corre a la de la última factura del punto
+          // de venta si es posterior (H4) y agrega período y vencimiento con servicios (H5).
           fecha: mov.fecha,
           emisor: { cuit: perfil.cuit, condicionIva: perfil.condicionIva, puntoVenta },
           receptor: {
@@ -845,7 +884,7 @@ export async function emitirPropuestas(
           total,
           // PR5 · C4: lo que entra por el banco o por Mercado Pago no es efectivo.
           medioDePago: "otro",
-        }, clavesDelCobro.map((clave) => ({ clave, importe: total })), { verificarCupo });
+        }, clavesDelCobro.map((clave) => ({ clave, importe: total })), { verificarCupo, ajustarComprobante: ajustarFechaAutomatica(mov.fecha) });
         await tenantTransaction(
           (tx) =>
             tx.movimientoImportado.updateMany({
@@ -884,6 +923,7 @@ export async function emitirPropuestas(
     return {
       emitidas,
       ...(yaFacturadas > 0 ? { yaFacturadas } : {}),
+      ...(aRevision > 0 ? { aRevision } : {}),
       bloqueadasPorCap: bloqueadas,
       capAlcanzado,
       ...(capAlcanzado

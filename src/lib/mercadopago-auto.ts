@@ -23,6 +23,7 @@ import { tenantTransaction } from "@/lib/rls";
 import { logger } from "@/lib/logger";
 import { configCobrosPorDefecto, estadoCobrosMP, gatewayCobrosPara } from "@/lib/pagos-dispatch";
 import { facturarPagoMP } from "@/lib/invoice-from-mp";
+import { configFacturacionMPDelNegocio } from "@/lib/facturita-mp.server";
 import {
   ClasificadorPorReglas,
   AprendizajeEnMemoria,
@@ -303,6 +304,7 @@ export async function crearEntornoReal(tenantId: string, opciones: { ahora?: Dat
     },
   );
 
+  let conceptoMP: number | null | undefined;
   const deps: IngestaDeps = {
     tenantId,
     client: await gatewayCobrosPara(tenantId),
@@ -310,7 +312,9 @@ export async function crearEntornoReal(tenantId: string, opciones: { ahora?: Dat
     reconciliacion,
     facturar: async (pago, tid) => {
       try {
-        const invoiceId = await facturarPagoMP(pago, tid, undefined, { verificarCupo: verificarCupoAutomatico(tid, ahora) });
+        // H5 · El concepto habitual del negocio (config de la facturación de MP), leído una vez.
+        conceptoMP ??= (await configFacturacionMPDelNegocio(tid)).concepto ?? null;
+        const invoiceId = await facturarPagoMP(pago, tid, undefined, { verificarCupo: verificarCupoAutomatico(tid, ahora), concepto: conceptoMP });
         if (invoiceId) facturasMes = (facturasMes ?? 0) + 1;
         return invoiceId;
       } catch (e) {
