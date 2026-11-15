@@ -1,6 +1,6 @@
 -- =============================================================================
 -- PASE A PRODUCCIÓN — el lote vigente de prisma/lote-deploy.txt (hoy: 1 migración,
--- 20261114120000_seg021_contabilidad_funciones; la aplica el build con MIGRATE_DATABASE_URL, este
+-- 20261114231500_eventos_y_sponsors; la aplica el build con MIGRATE_DATABASE_URL, este
 -- archivo es el camino manual equivalente). Se pega en
 -- PRODUCCIÓN, DESPUÉS de crear un branch de respaldo con la fecha del día
 -- (Branches → Create branch → "respaldo-AAAA-MM-DD"). Gate 2: sólo con OK del dueño.
@@ -12,228 +12,221 @@
 -- y en respaldo-2026-09-23.md.
 --
 -- Después: pegá 2-rls-despues-del-lote.sql (el aislamiento entre negocios de las tablas nuevas).
--- OJO (14/11/2026): la SEG021 abre y cierra su propia transacción. Postgres avisa «ya hay una transacción»
--- y su COMMIT cierra la de arriba: la migración entra entera o nada, pero el INSERT de registro corre
--- aparte. Si ese INSERT fallara, no pasa nada grave: la SEG021 es idempotente y `migrate deploy` la
--- volvería a aplicar y registrar.
 BEGIN;
 DO $$
 BEGIN
-  IF EXISTS (SELECT 1 FROM _prisma_migrations WHERE migration_name IN ('20261114120000_seg021_contabilidad_funciones')) THEN
+  IF EXISTS (SELECT 1 FROM _prisma_migrations WHERE migration_name IN ('20261114231500_eventos_y_sponsors')) THEN
     RAISE EXCEPTION 'Alguna migración del lote ya figura en _prisma_migrations: no se vuelve a aplicar encima.';
   END IF;
 END $$;
 
--- ─── 20261114120000_seg021_contabilidad_funciones · checksum c25ad8dbadfcde94984ec5d44bf976b142d040c2de06a236901919218b1df68c ───
--- ============================================================================
--- SEG021_contabilidad_funciones — endurecimiento de las funciones trigger de contabilidad
--- Gate 2 APROBADO por el dueño («Aplicar con la tanda, con copia antes», tanda 3 del 14/11/2026) · ADR-018
--- Antes era prisma/pending-gate2/SEG021_contabilidad_funciones.sql. La aplica el build de producción
--- (`prisma migrate deploy` con MIGRATE_DATABASE_URL, declarada en prisma/lote-deploy.txt).
--- Ensayo: docs/runbooks/ENSAYO-NEON-TANDA3-2026-11-14.md.
--- ============================================================================
---
--- QUÉ: re-crea las 4 funciones trigger de `20261104122000_contabilidad_ola1` con la MISMA lógica y
--- los MISMOS mensajes, y tres cambios de endurecimiento:
---   1. Las lecturas de otras filas (Asiento, AsientoLinea, Ejercicio) quedan acotadas al negocio de
---      la fila (`"tenantId" = NEW."tenantId"`, u OLD en DELETE y en la fila vieja de un UPDATE).
---   2. Los controles que corren ANTES de grabar (triggers BEFORE) exigen, si hay negocio vigente
---      (`app.current_tenant_id` puesto y no vacío), que la fila sea de ese negocio; si no, cortan
---      con un error genérico (42501) antes de leer nada. Sin negocio vigente (dueño, scripts) no
---      cambia nada. El cuadre diferido (AFTER, al COMMIT) no lleva este corte: la fila ya pasó la
---      policy al grabarse.
---   3. `REVOKE EXECUTE ... FROM PUBLIC`: mínimo privilegio; son funciones SECURITY DEFINER que sólo
---      se usan como trigger. El gestor de triggers no verifica EXECUTE del rol que escribe, así que
---      los controles siguen disparando para `app_rls` (lo prueba
---      src/lib/contabilidad-funciones-permisos-postgres.test.ts).
---   Para filas del negocio vigente el resultado es el mismo que en la ola 1.
---
--- POR QUÉ: hallazgo SEG-021 (auditoría de permisos de funciones). Mínimo privilegio y lecturas
--- acotadas al negocio de la fila y al negocio vigente.
---
--- La validación en sí no depende de `app.current_tenant_id` (ver el comentario de la ola 1: el
--- cuadre diferido corre con el negocio vigente al COMMIT); el negocio sale de la fila misma.
---
--- Dueño: el de las tablas (`neondb_owner`), como en la ola 1. CREATE OR REPLACE conserva dueño y
--- permisos; el bloque DO sólo lo deja explícito. Si el archivo lo corriera un rol que no es el
--- dueño, el primer CREATE OR REPLACE ya falla y la transacción revierte entera.
---
--- ADITIVA · IDEMPOTENTE (CREATE OR REPLACE + REVOKE) · una transacción. No toca datos ni triggers.
--- Correr como el dueño de las funciones (MIGRATE_DATABASE_URL). Reversa al pie.
--- ============================================================================
+-- ─── 20261114231500_eventos_y_sponsors · checksum 95ae5523bbef3f20a28f8e370161eb2c262e126af2e25e2d7cbe9754f803068e ───
+-- Eventos y sponsors (GSG-CRM-009 · pedido de MIA Producciones, 14/11/2026): el CRM que lleva el equipo de
+-- agentes. Los eventos de una región, las marcas que van a cada uno con la URL de la fuente, el registro de
+-- qué puesto del equipo hizo qué y los pedidos del negocio al equipo. Sólo hechos públicos de empresas:
+-- ningún dato de contacto de personas.
+-- ADITIVA: cinco tablas nuevas con RLS. No toca tablas, datos ni enums existentes.
+-- SIN APLICAR (Gate 2): el código la tolera ausente (la pantalla dice «falta un paso de base de datos»).
+-- Vuelta atrás: DROP de las cinco tablas (EventoMarca primero).
 
-BEGIN;
+-- CreateTable
+CREATE TABLE "EventoRelevado" (
+    "id" TEXT NOT NULL,
+    "tenantId" TEXT NOT NULL,
+    "clave" TEXT NOT NULL,
+    "nombre" TEXT NOT NULL,
+    "fecha" DATE NOT NULL,
+    "fechaHasta" DATE,
+    "lugar" TEXT NOT NULL,
+    "region" TEXT NOT NULL,
+    "organizador" TEXT,
+    "urlFuente" TEXT,
+    "tipo" TEXT,
+    "verificacion" TEXT NOT NULL DEFAULT 'sin verificar',
+    "origen" TEXT NOT NULL DEFAULT 'IMPORTACION',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
 
--- Un asiento CONFIRMADO cuadra: ≥ 2 líneas, Σ debe = Σ haber, total > 0 (diferido al COMMIT).
-CREATE OR REPLACE FUNCTION contabilidad_controlar_cuadre() RETURNS trigger
-  LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
-DECLARE
-  v_asiento TEXT;
-  v_tenant TEXT;
-  v_estado TEXT;
-  v_n INTEGER;
-  v_debe NUMERIC;
-  v_haber NUMERIC;
-BEGIN
-  IF TG_TABLE_NAME = 'Asiento' THEN
-    v_asiento := NEW."id";
-    v_tenant := NEW."tenantId";
-  ELSIF TG_OP = 'DELETE' THEN
-    v_asiento := OLD."asientoId";
-    v_tenant := OLD."tenantId";
-  ELSE
-    v_asiento := NEW."asientoId";
-    v_tenant := NEW."tenantId";
-  END IF;
-  SELECT "estado" INTO v_estado FROM "Asiento"
-    WHERE "id" = v_asiento AND "tenantId" = v_tenant FOR SHARE;
-  IF v_estado IS DISTINCT FROM 'CONFIRMADO' THEN
-    RETURN NULL;
-  END IF;
-  SELECT COUNT(*), COALESCE(SUM("debe"), 0), COALESCE(SUM("haber"), 0)
-    INTO v_n, v_debe, v_haber
-    FROM "AsientoLinea" WHERE "asientoId" = v_asiento AND "tenantId" = v_tenant;
-  IF v_n < 2 OR v_debe <> v_haber OR v_debe = 0 THEN
-    RAISE EXCEPTION 'Asiento % descuadrado: % líneas, debe %, haber %', v_asiento, v_n, v_debe, v_haber
-      USING ERRCODE = '23514';
-  END IF;
-  RETURN NULL;
-END $$;
+    CONSTRAINT "EventoRelevado_pkey" PRIMARY KEY ("id")
+);
 
--- Un asiento CONFIRMADO no se edita ni se borra (se contra-asienta), y sus líneas tampoco.
--- Si un UPDATE cambia el negocio de la línea, la fila vieja se controla también (como al cambiar
--- de asiento): el resultado para el negocio dueño de la línea es el mismo que antes.
-CREATE OR REPLACE FUNCTION contabilidad_asiento_inmutable() RETURNS trigger
-  LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
-DECLARE
-  v_estado TEXT;
-  v_vigente TEXT := NULLIF(current_setting('app.current_tenant_id', true), '');
-BEGIN
-  IF v_vigente IS NOT NULL THEN
-    IF TG_OP IN ('INSERT', 'UPDATE') AND NEW."tenantId" IS DISTINCT FROM v_vigente THEN
-      RAISE EXCEPTION 'El registro no pertenece al negocio vigente' USING ERRCODE = '42501';
-    END IF;
-    IF TG_OP IN ('UPDATE', 'DELETE') AND OLD."tenantId" IS DISTINCT FROM v_vigente THEN
-      RAISE EXCEPTION 'El registro no pertenece al negocio vigente' USING ERRCODE = '42501';
-    END IF;
-  END IF;
-  IF TG_TABLE_NAME = 'Asiento' THEN
-    IF OLD."estado" = 'CONFIRMADO' THEN
-      RAISE EXCEPTION 'El asiento % está confirmado: no se edita ni se borra, se contra-asienta', OLD."id"
-        USING ERRCODE = '23514';
-    END IF;
-  ELSE
-    SELECT "estado" INTO v_estado FROM "Asiento"
-      WHERE "id" = CASE WHEN TG_OP = 'DELETE' THEN OLD."asientoId" ELSE NEW."asientoId" END
-        AND "tenantId" = CASE WHEN TG_OP = 'DELETE' THEN OLD."tenantId" ELSE NEW."tenantId" END
-      FOR SHARE;
-    IF v_estado = 'CONFIRMADO' THEN
-      RAISE EXCEPTION 'Las líneas de un asiento confirmado no se modifican' USING ERRCODE = '23514';
-    END IF;
-    IF TG_OP = 'UPDATE' AND (OLD."asientoId" <> NEW."asientoId" OR OLD."tenantId" <> NEW."tenantId") THEN
-      SELECT "estado" INTO v_estado FROM "Asiento"
-        WHERE "id" = OLD."asientoId" AND "tenantId" = OLD."tenantId" FOR SHARE;
-      IF v_estado = 'CONFIRMADO' THEN
-        RAISE EXCEPTION 'Las líneas de un asiento confirmado no se modifican' USING ERRCODE = '23514';
-      END IF;
-    END IF;
-  END IF;
-  IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
-  RETURN NEW;
-END $$;
+-- CreateTable
+CREATE TABLE "MarcaRelevada" (
+    "id" TEXT NOT NULL,
+    "tenantId" TEXT NOT NULL,
+    "clave" TEXT NOT NULL,
+    "nombre" TEXT NOT NULL,
+    "rubro" TEXT,
+    "web" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
 
--- Todo asiento que se escribe cae en un ejercicio ABIERTO del mismo negocio y con la fecha adentro.
-CREATE OR REPLACE FUNCTION contabilidad_asiento_en_ejercicio() RETURNS trigger
-  LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
-DECLARE
-  v_ej RECORD;
-  v_vigente TEXT := NULLIF(current_setting('app.current_tenant_id', true), '');
-BEGIN
-  IF v_vigente IS NOT NULL THEN
-    IF NEW."tenantId" IS DISTINCT FROM v_vigente THEN
-      RAISE EXCEPTION 'El registro no pertenece al negocio vigente' USING ERRCODE = '42501';
-    END IF;
-    IF TG_OP = 'UPDATE' AND OLD."tenantId" IS DISTINCT FROM v_vigente THEN
-      RAISE EXCEPTION 'El registro no pertenece al negocio vigente' USING ERRCODE = '42501';
-    END IF;
-  END IF;
-  SELECT "tenantId", "estado", "fechaInicio", "fechaCierre" INTO v_ej
-    FROM "Ejercicio" WHERE "id" = NEW."ejercicioId" AND "tenantId" = NEW."tenantId" FOR SHARE;
-  IF NOT FOUND OR v_ej."tenantId" <> NEW."tenantId" THEN
-    RAISE EXCEPTION 'El asiento % no tiene un ejercicio válido', NEW."id" USING ERRCODE = '23514';
-  END IF;
-  IF v_ej."estado" <> 'ABIERTO' THEN
-    RAISE EXCEPTION 'El ejercicio del asiento % está cerrado', NEW."id" USING ERRCODE = '23514';
-  END IF;
-  IF NEW."fecha" < v_ej."fechaInicio" OR NEW."fecha" > v_ej."fechaCierre" THEN
-    RAISE EXCEPTION 'La fecha % del asiento % queda fuera de su ejercicio (% a %)',
-      NEW."fecha", NEW."id", v_ej."fechaInicio", v_ej."fechaCierre" USING ERRCODE = '23514';
-  END IF;
-  RETURN NEW;
-END $$;
+    CONSTRAINT "MarcaRelevada_pkey" PRIMARY KEY ("id")
+);
 
--- Un ejercicio con borradores no se cierra, y no se le achican las fechas dejando asientos afuera.
--- Los asientos se buscan en el negocio de la fila vieja (BEFORE UPDATE: todavía no cambió).
-CREATE OR REPLACE FUNCTION contabilidad_controlar_ejercicio() RETURNS trigger
-  LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
-DECLARE
-  v_vigente TEXT := NULLIF(current_setting('app.current_tenant_id', true), '');
-BEGIN
-  IF v_vigente IS NOT NULL
-     AND (OLD."tenantId" IS DISTINCT FROM v_vigente OR NEW."tenantId" IS DISTINCT FROM v_vigente) THEN
-    RAISE EXCEPTION 'El registro no pertenece al negocio vigente' USING ERRCODE = '42501';
-  END IF;
-  IF NEW."estado" = 'CERRADO' AND OLD."estado" <> 'CERRADO'
-     AND EXISTS (SELECT 1 FROM "Asiento" WHERE "ejercicioId" = OLD."id" AND "tenantId" = OLD."tenantId"
-                 AND "estado" = 'BORRADOR') THEN
-    RAISE EXCEPTION 'El ejercicio % tiene asientos en borrador: confirmalos o borralos antes de cerrarlo', OLD."id"
-      USING ERRCODE = '23514';
-  END IF;
-  IF (NEW."fechaInicio" > OLD."fechaInicio" OR NEW."fechaCierre" < OLD."fechaCierre")
-     AND EXISTS (SELECT 1 FROM "Asiento" WHERE "ejercicioId" = OLD."id" AND "tenantId" = OLD."tenantId"
-                 AND ("fecha" < NEW."fechaInicio" OR "fecha" > NEW."fechaCierre")) THEN
-    RAISE EXCEPTION 'El ejercicio % tiene asientos fuera de las fechas nuevas', OLD."id" USING ERRCODE = '23514';
-  END IF;
-  RETURN NEW;
-END $$;
+-- CreateTable
+CREATE TABLE "EventoMarca" (
+    "id" TEXT NOT NULL,
+    "tenantId" TEXT NOT NULL,
+    "eventoId" TEXT NOT NULL,
+    "marcaId" TEXT NOT NULL,
+    "rol" TEXT NOT NULL,
+    "nivel" TEXT,
+    "urlFuente" TEXT NOT NULL,
+    "edicion" TEXT,
+    "verificacion" TEXT NOT NULL DEFAULT 'sin verificar',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
--- Dueño explícito: el de las tablas (como en la ola 1).
-DO $$
-BEGIN
-  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'neondb_owner') THEN
-    ALTER FUNCTION contabilidad_controlar_cuadre() OWNER TO neondb_owner;
-    ALTER FUNCTION contabilidad_asiento_inmutable() OWNER TO neondb_owner;
-    ALTER FUNCTION contabilidad_asiento_en_ejercicio() OWNER TO neondb_owner;
-    ALTER FUNCTION contabilidad_controlar_ejercicio() OWNER TO neondb_owner;
-  END IF;
-END $$;
+    CONSTRAINT "EventoMarca_pkey" PRIMARY KEY ("id")
+);
 
--- Sólo como trigger: nadie las llama directo. Los triggers siguen disparando sin EXECUTE.
-REVOKE EXECUTE ON FUNCTION contabilidad_controlar_cuadre() FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION contabilidad_asiento_inmutable() FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION contabilidad_asiento_en_ejercicio() FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION contabilidad_controlar_ejercicio() FROM PUBLIC;
+-- CreateTable
+CREATE TABLE "AccionDelEquipo" (
+    "id" TEXT NOT NULL,
+    "tenantId" TEXT NOT NULL,
+    "clave" TEXT NOT NULL,
+    "puesto" TEXT NOT NULL,
+    "accion" TEXT NOT NULL,
+    "hora" TIMESTAMP(3) NOT NULL,
+    "url" TEXT,
+    "detalle" TEXT,
+    "eventoClave" TEXT NOT NULL,
+    "marcaClave" TEXT,
+    "rol" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-COMMIT;
+    CONSTRAINT "AccionDelEquipo_pkey" PRIMARY KEY ("id")
+);
 
--- ─────────────────────────────────────────────────────────────────────────────
--- REVERSA (sin pérdida de datos: no hay datos), como el dueño:
---   1. Re-ejecutar, en una transacción, el tramo de funciones de
---      prisma/migrations/20261104122000_contabilidad_ola1/migration.sql: los 4
---      `CREATE OR REPLACE FUNCTION contabilidad_*` y el bloque DO de dueño (NO los CREATE TRIGGER,
---      que ya existen y no cambian).
---   2. Devolver el permiso por defecto:
---   BEGIN;
---   GRANT EXECUTE ON FUNCTION contabilidad_controlar_cuadre() TO PUBLIC;
---   GRANT EXECUTE ON FUNCTION contabilidad_asiento_inmutable() TO PUBLIC;
---   GRANT EXECUTE ON FUNCTION contabilidad_asiento_en_ejercicio() TO PUBLIC;
---   GRANT EXECUTE ON FUNCTION contabilidad_controlar_ejercicio() TO PUBLIC;
---   COMMIT;
+-- CreateTable
+CREATE TABLE "PedidoAlEquipo" (
+    "id" TEXT NOT NULL,
+    "tenantId" TEXT NOT NULL,
+    "puesto" TEXT NOT NULL DEFAULT 'descubridor',
+    "pedido" TEXT NOT NULL,
+    "region" TEXT,
+    "desde" DATE,
+    "hasta" DATE,
+    "estado" TEXT NOT NULL DEFAULT 'EN_COLA',
+    "creadoPor" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "PedidoAlEquipo_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE INDEX "EventoRelevado_tenantId_region_fecha_idx" ON "EventoRelevado"("tenantId", "region", "fecha");
+
+-- CreateIndex
+CREATE INDEX "EventoRelevado_tenantId_fecha_idx" ON "EventoRelevado"("tenantId", "fecha");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "EventoRelevado_tenantId_clave_key" ON "EventoRelevado"("tenantId", "clave");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "EventoRelevado_id_tenantId_key" ON "EventoRelevado"("id", "tenantId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "MarcaRelevada_tenantId_clave_key" ON "MarcaRelevada"("tenantId", "clave");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "MarcaRelevada_id_tenantId_key" ON "MarcaRelevada"("id", "tenantId");
+
+-- CreateIndex
+CREATE INDEX "EventoMarca_tenantId_marcaId_idx" ON "EventoMarca"("tenantId", "marcaId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "EventoMarca_tenantId_eventoId_marcaId_rol_key" ON "EventoMarca"("tenantId", "eventoId", "marcaId", "rol");
+
+-- CreateIndex
+CREATE INDEX "AccionDelEquipo_tenantId_eventoClave_idx" ON "AccionDelEquipo"("tenantId", "eventoClave");
+
+-- CreateIndex
+CREATE INDEX "AccionDelEquipo_tenantId_puesto_hora_idx" ON "AccionDelEquipo"("tenantId", "puesto", "hora");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "AccionDelEquipo_tenantId_clave_key" ON "AccionDelEquipo"("tenantId", "clave");
+
+-- CreateIndex
+CREATE INDEX "PedidoAlEquipo_tenantId_estado_createdAt_idx" ON "PedidoAlEquipo"("tenantId", "estado", "createdAt");
+
+-- AddForeignKey
+ALTER TABLE "EventoRelevado" ADD CONSTRAINT "EventoRelevado_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "MarcaRelevada" ADD CONSTRAINT "MarcaRelevada_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "EventoMarca" ADD CONSTRAINT "EventoMarca_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "EventoMarca" ADD CONSTRAINT "EventoMarca_eventoId_tenantId_fkey" FOREIGN KEY ("eventoId", "tenantId") REFERENCES "EventoRelevado"("id", "tenantId") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "EventoMarca" ADD CONSTRAINT "EventoMarca_marcaId_tenantId_fkey" FOREIGN KEY ("marcaId", "tenantId") REFERENCES "MarcaRelevada"("id", "tenantId") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "AccionDelEquipo" ADD CONSTRAINT "AccionDelEquipo_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "PedidoAlEquipo" ADD CONSTRAINT "PedidoAlEquipo_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- Valores cerrados (TEXT + CHECK: un enum en Neon es irreversible).
+ALTER TABLE "EventoRelevado" ADD CONSTRAINT "EventoRelevado_origen_check" CHECK ("origen" IN ('IMPORTACION', 'MANUAL'));
+ALTER TABLE "EventoRelevado" ADD CONSTRAINT "EventoRelevado_fechas_check" CHECK ("fechaHasta" IS NULL OR "fechaHasta" >= "fecha");
+ALTER TABLE "EventoRelevado" ADD CONSTRAINT "EventoRelevado_textos_check" CHECK (length(btrim("nombre")) > 0 AND length(btrim("lugar")) > 0 AND length(btrim("region")) > 0 AND length(btrim("clave")) > 0);
+ALTER TABLE "EventoRelevado" ADD CONSTRAINT "EventoRelevado_urlFuente_check" CHECK ("urlFuente" IS NULL OR "urlFuente" ~* '^https?://');
+ALTER TABLE "EventoRelevado" ADD CONSTRAINT "EventoRelevado_verificacion_check" CHECK ("verificacion" IN ('confirmado', 'en duda', 'falla', 'sin verificar'));
+ALTER TABLE "MarcaRelevada" ADD CONSTRAINT "MarcaRelevada_textos_check" CHECK (length(btrim("nombre")) > 0 AND length(btrim("clave")) > 0);
+ALTER TABLE "MarcaRelevada" ADD CONSTRAINT "MarcaRelevada_web_check" CHECK ("web" IS NULL OR "web" ~* '^https?://');
+ALTER TABLE "EventoMarca" ADD CONSTRAINT "EventoMarca_rol_check" CHECK ("rol" IN ('SPONSOR_PRINCIPAL', 'SPONSOR', 'AUSPICIANTE', 'MEDIA_PARTNER', 'EXPOSITOR', 'ORGANIZADOR', 'OTRO'));
+ALTER TABLE "EventoMarca" ADD CONSTRAINT "EventoMarca_urlFuente_check" CHECK ("urlFuente" ~* '^https?://');
+ALTER TABLE "EventoMarca" ADD CONSTRAINT "EventoMarca_verificacion_check" CHECK ("verificacion" IN ('confirmado', 'en duda', 'falla', 'sin verificar'));
+ALTER TABLE "AccionDelEquipo" ADD CONSTRAINT "AccionDelEquipo_puesto_check" CHECK ("puesto" IN ('descubridor', 'identificador', 'verificador', 'contactos', 'redactor', 'seguidor'));
+ALTER TABLE "AccionDelEquipo" ADD CONSTRAINT "AccionDelEquipo_textos_check" CHECK (length(btrim("accion")) > 0 AND length(btrim("clave")) > 0 AND length(btrim("eventoClave")) > 0);
+ALTER TABLE "AccionDelEquipo" ADD CONSTRAINT "AccionDelEquipo_url_check" CHECK ("url" IS NULL OR "url" ~* '^https?://');
+ALTER TABLE "PedidoAlEquipo" ADD CONSTRAINT "PedidoAlEquipo_puesto_check" CHECK ("puesto" IN ('descubridor', 'identificador', 'verificador'));
+ALTER TABLE "PedidoAlEquipo" ADD CONSTRAINT "PedidoAlEquipo_estado_check" CHECK ("estado" IN ('EN_COLA', 'EN_CURSO', 'HECHO', 'DESCARTADO'));
+ALTER TABLE "PedidoAlEquipo" ADD CONSTRAINT "PedidoAlEquipo_pedido_check" CHECK (length(btrim("pedido")) > 0 AND length("pedido") <= 500);
+ALTER TABLE "PedidoAlEquipo" ADD CONSTRAINT "PedidoAlEquipo_region_check" CHECK ("region" IS NULL OR (length(btrim("region")) > 0 AND length("region") <= 80));
+ALTER TABLE "PedidoAlEquipo" ADD CONSTRAINT "PedidoAlEquipo_fechas_check" CHECK ("desde" IS NULL OR "hasta" IS NULL OR "hasta" >= "desde");
+
+-- RLS: aislamiento por negocio (mismo molde que 20261105122000_vouchers).
+ALTER TABLE "EventoRelevado" ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON "EventoRelevado";
+CREATE POLICY tenant_isolation ON "EventoRelevado"
+  USING ("tenantId" = current_setting('app.current_tenant_id', true))
+  WITH CHECK ("tenantId" = current_setting('app.current_tenant_id', true));
+
+ALTER TABLE "MarcaRelevada" ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON "MarcaRelevada";
+CREATE POLICY tenant_isolation ON "MarcaRelevada"
+  USING ("tenantId" = current_setting('app.current_tenant_id', true))
+  WITH CHECK ("tenantId" = current_setting('app.current_tenant_id', true));
+
+ALTER TABLE "EventoMarca" ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON "EventoMarca";
+CREATE POLICY tenant_isolation ON "EventoMarca"
+  USING ("tenantId" = current_setting('app.current_tenant_id', true))
+  WITH CHECK ("tenantId" = current_setting('app.current_tenant_id', true));
+
+ALTER TABLE "AccionDelEquipo" ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON "AccionDelEquipo";
+CREATE POLICY tenant_isolation ON "AccionDelEquipo"
+  USING ("tenantId" = current_setting('app.current_tenant_id', true))
+  WITH CHECK ("tenantId" = current_setting('app.current_tenant_id', true));
+
+ALTER TABLE "PedidoAlEquipo" ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON "PedidoAlEquipo";
+CREATE POLICY tenant_isolation ON "PedidoAlEquipo"
+  USING ("tenantId" = current_setting('app.current_tenant_id', true))
+  WITH CHECK ("tenantId" = current_setting('app.current_tenant_id', true));
 
 INSERT INTO _prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count)
-VALUES (gen_random_uuid()::text, 'c25ad8dbadfcde94984ec5d44bf976b142d040c2de06a236901919218b1df68c', now(), '20261114120000_seg021_contabilidad_funciones', NULL, NULL, now(), 1);
+VALUES (gen_random_uuid()::text, '95ae5523bbef3f20a28f8e370161eb2c262e126af2e25e2d7cbe9754f803068e', now(), '20261114231500_eventos_y_sponsors', NULL, NULL, now(), 1);
 
 COMMIT;
 
 -- Verificación (sólo lectura): 1 filas, todas con finished_at.
-SELECT migration_name, finished_at FROM _prisma_migrations WHERE migration_name IN ('20261114120000_seg021_contabilidad_funciones') ORDER BY migration_name;
+SELECT migration_name, finished_at FROM _prisma_migrations WHERE migration_name IN ('20261114231500_eventos_y_sponsors') ORDER BY migration_name;

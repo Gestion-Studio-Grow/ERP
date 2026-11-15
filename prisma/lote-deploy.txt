@@ -128,4 +128,13 @@
 # una transacción, reversa al pie. Owner-level: AUTORIZADA por el dueño («Aplicar con la tanda, con copia antes»),
 # transmitida por GSG-ORQ-007 el 14/11/2026. Ensayo: docs/runbooks/ENSAYO-NEON-TANDA3-2026-11-14.md.
 # Es la única del lote: con la de cuit todavía declarada, el paso 1b frenaba (certificación de la tanda 3).
-20261114120000_seg021_contabilidad_funciones
+# (aplicada por el build de producción del merge de #174, dpl_5xaiPCMbTdmk9VTgtqxVjz3jTAJF READY 15/11 09:16 ART,
+# registro de GSG-PLAT-013 en Factory-GSG 00-ESTADO/SESIONES.md: sale de la lista) 20261114120000_seg021_contabilidad_funciones
+#
+# 2026-11-15 · PR #171 · CRM «Eventos y sponsors» (GSG-CRM-009, MIA). Aditiva: cinco tablas nuevas ("EventoRelevado",
+# "MarcaRelevada", "EventoMarca", "AccionDelEquipo", "PedidoAlEquipo") con RLS tenant_isolation adentro, claves foráneas
+# a "Tenant" y CHECK sólo sobre las tablas nuevas. No toca tablas, columnas ni datos existentes; sin enum ni backfill.
+# Owner-level: AUTORIZADA por el dueño (15/11 ~11:20 ART, textual: «yo te autorizo para que puedas pasar a producción
+# el CRM [...] necesito que lo publiques ahora mismo»), transmitida por GSG-ORQ-007 a GSG-PLAT-014; publicación sola
+# por excepción. El módulo nace apagado (interruptor «eventos-sponsors»).
+20261114231500_eventos_y_sponsors

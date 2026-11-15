@@ -697,15 +697,16 @@ const APPS_DE_TODO_EL_EQUIPO: readonly string[] = ["gestion-calendario", "gestio
 /** Las apps de GSG son del mismo rol: Caja, Clientes y Facturación no se duplican, se abren a quien le toca. El rol del ERP sigue siendo el techo. */
 const APPS_DEL_ERP: Partial<Record<RolGestion, readonly string[]>> = {
   ADMINISTRACION: ["caja-del-dia", "libro-de-caja", "cierre-del-dia", "facturacion"],
-  COMERCIAL: ["clientes"],
+  // Eventos y sponsors (GSG-CRM-009): sólo con su interruptor prendido llega acá (el layout la suma aparte).
+  COMERCIAL: ["clientes", "eventos-sponsors"],
 };
 
 /** Lo que cada rol tiene a la vista. Dirección puede abrir el resto; los demás, lo que permiten sus módulos. */
 const BARRA_DEL_ROL: Record<RolGestion, readonly string[]> = {
   // Caja a la vista de Dirección (QA MIA #6): el rol del ERP sigue siendo el techo (`appsVisibles` pide orders:read).
-  DIRECCION: ["gestion-inicio", "gestion-direccion", "gestion-administracion", "proyectos", "gestion-calendario", "gestion-equipo", "caja-del-dia", "reportes"],
+  DIRECCION: ["gestion-inicio", "gestion-direccion", "gestion-administracion", "proyectos", "gestion-calendario", "gestion-equipo", "caja-del-dia", "reportes", "eventos-sponsors"],
   ADMINISTRACION: ["gestion-inicio", "gestion-administracion", "gestion-proveedores", "caja-del-dia", "libro-de-caja", "cierre-del-dia", "facturacion", "gestion-mi-liquidacion"],
-  COMERCIAL: ["gestion-inicio", "proyectos", "clientes", "gestion-propuesta-ia", "gestion-agentes", "gestion-calendario", "gestion-mi-liquidacion"],
+  COMERCIAL: ["gestion-inicio", "proyectos", "clientes", "eventos-sponsors", "gestion-propuesta-ia", "gestion-agentes", "gestion-calendario", "gestion-mi-liquidacion"],
   DISENO: ["gestion-inicio", "gestion-diseno", "proyectos", "gestion-propuesta-ia", "gestion-agentes", "gestion-calendario", "gestion-mi-liquidacion"],
   PRODUCCION: ["gestion-inicio", "proyectos", "gestion-proveedores", "gestion-calendario", "gestion-agentes", "gestion-mi-liquidacion"],
   SIN_FICHA: ["gestion-inicio"],

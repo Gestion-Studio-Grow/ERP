@@ -273,7 +273,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   }
   // Apps de gestión de eventos: la barra muestra lo que el rol de esa persona puede abrir.
   const actor = panel?.id === "proyectos" ? await actorActual() : null;
-  const abribles = actor ? visiblesDelNegocio.filter((a) => appDeGestionVisible(a.id, actor.rol, actor.permisos)) : visiblesDelNegocio;
+  // Las apps de un interruptor (Eventos y sponsors) no están en el lanzador: con el interruptor prendido se suman
+  // acá y pasan por la misma regla del rol. Apagado, `appsDeInterruptores` no devuelve nada y todo queda igual.
+  const delPanel = actor ? [...visiblesDelNegocio, ...appsDeInterruptores(interruptores, negocioApps).filter((x) => !visiblesDelNegocio.some((v) => v.id === x.id))] : visiblesDelNegocio;
+  const abribles = actor ? delPanel.filter((a) => appDeGestionVisible(a.id, actor.rol, actor.permisos)) : visiblesDelNegocio;
   const visibles = actor ? abribles.filter((a) => appEnLaBarra(a.id, actor.rol)) : abribles;
   let barraFuera: React.ReactNode = null;
   if (actor) {
@@ -306,8 +309,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         role: user.role,
         overrides: user.overrides,
         // CH · «Vouchers de La Alameda»: con el interruptor prendido y permiso, entra al menú (sin
-        // pantalla en el lanzador de siempre). Panel de gestión (`actor`): no se suma.
-        extras: actor ? [] : appsDeInterruptores(interruptores, negocioApps),
+        // pantalla en el lanzador de siempre). Panel de gestión (`actor`): sólo las que su rol tiene en la
+        // barra (`visibles` ya pasó por `appEnLaBarra`; hoy, «Eventos y sponsors» para Comercial y Dirección).
+        extras: actor ? visibles.filter((a) => a.enLanzador === false) : appsDeInterruptores(interruptores, negocioApps),
       })
     : undefined;
 

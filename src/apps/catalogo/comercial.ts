@@ -215,10 +215,29 @@ export const APPS_COMERCIAL = [
     // Una productora no usa agenda, catálogo ni recordatorios: su panel es esto (pedido del dueño, 01/11/2026).
     panelCerrado: {
       blueprint: "productora",
-      apps: ["gestion-inicio", "gestion-diseno", "gestion-calendario", "gestion-proveedores", "gestion-administracion", "gestion-direccion", "gestion-agentes", "gestion-propuesta-ia", "gestion-mi-liquidacion", "gestion-equipo", "clientes", "caja-del-dia", "libro-de-caja", "cierre-del-dia", "facturacion", "reportes", "usuarios"],
+      apps: ["gestion-inicio", "gestion-diseno", "gestion-calendario", "gestion-proveedores", "gestion-administracion", "gestion-direccion", "gestion-agentes", "gestion-propuesta-ia", "gestion-mi-liquidacion", "gestion-equipo", "eventos-sponsors", "clientes", "caja-del-dia", "libro-de-caja", "cierre-del-dia", "facturacion", "reportes", "usuarios"],
     },
     estado: "lista",
     palabras: ["stand", "stands", "evento", "render", "3d", "propuesta", "presupuesto", "armado", "productora", "activacion", "escenografia"],
+  },
+  {
+    // Eventos y sponsors (GSG-CRM-009, MIA Producciones): los eventos de una región y las marcas que
+    // van a cada uno. Atrás del interruptor «eventos-sponsors» del negocio, que el registro no sabe
+    // leer: por eso NO se ofrece en el Inicio, la barra ni el buscador del registro (`enLanzador:
+    // false`). Con el interruptor prendido y el rol que la abre, el menú la suma (`appsDeInterruptores`,
+    // armazon/navegacion.ts). Apagado, la página da 404. Leer pide clients:read; importar, clients:manage.
+    id: "eventos-sponsors",
+    nombre: "Eventos y sponsors",
+    descripcion: "Los eventos de cada región y las marcas que van a cada uno, con el link a la fuente.",
+    icono: "clientes",
+    ruta: "/admin/eventos",
+    // Al lado de Proyectos: para una productora es parte del mismo circuito (buscar el próximo trabajo).
+    espacio: "mostrador",
+    capability: "clients:read",
+    modulo: null,
+    estado: "lista",
+    enLanzador: false,
+    palabras: ["eventos", "sponsors", "marcas", "auspiciantes", "expositores", "ferias", "region", "prospectos"],
   },
   {
     id: "gestion-inicio",
