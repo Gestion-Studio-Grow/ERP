@@ -20,14 +20,15 @@
  */
 
 import { tenantTransaction } from "@/lib/rls";
-import { capFacturasMesDelNegocioEnTx } from "@/lib/limites-del-negocio-en-tx";
 import { logger } from "@/lib/logger";
 import { configCobrosPorDefecto, estadoCobrosMP, gatewayCobrosPara } from "@/lib/pagos-dispatch";
 import { facturarPagoMP } from "@/lib/invoice-from-mp";
+import { configFacturacionMPDelNegocio } from "@/lib/facturita-mp.server";
 import {
   ClasificadorPorReglas,
   AprendizajeEnMemoria,
   facturarPagoSiCorresponde,
+  PagoARevisarError,
   sincronizarPagos,
   type ClasificadorPort,
   type ConfigClasificacion,
@@ -40,6 +41,9 @@ import {
 import {
   configBancosDesdeTenant,
   contarFacturasDelMes,
+  CupoAutomaticoAgotadoError,
+  topeAutomaticoEnTx,
+  verificarCupoAutomatico,
   type ClasificacionMovimientoDb,
   type EstadoPropuestaDb,
 } from "@/lib/bancos-glue";
@@ -251,7 +255,8 @@ export interface EntornoIngestaReal {
 }
 
 /** Arma las dependencias REALES de la ingesta MP para un tenant. */
-export async function crearEntornoReal(tenantId: string): Promise<EntornoIngestaReal> {
+export async function crearEntornoReal(tenantId: string, opciones: { ahora?: Date } = {}): Promise<EntornoIngestaReal> {
+  const ahora = opciones.ahora ?? new Date();
   const { tenant, capDelPlan } = await tenantTransaction(
     async (tx) => {
       const t = await tx.tenant.findUnique({
@@ -264,8 +269,10 @@ export async function crearEntornoReal(tenantId: string): Promise<EntornoIngesta
           arcaCuit: true,
         },
       });
-      // El tope del plan (o la excepción de GSG), que la columna del negocio sólo baja (R3-F3).
-      return { tenant: t, capDelPlan: await capFacturasMesDelNegocioEnTx(tx, tenantId, t?.bancosCapFacturasMes) };
+      // El tope del plan (o la excepción de GSG), que la columna del negocio sólo baja (R3-F3); en
+      // Factoque, también el de su plan (H7). Esta lectura sólo clasifica temprano: el que manda es
+      // el conteo bajo el candado del cupo, dentro de la transacción de la factura (H2).
+      return { tenant: t, capDelPlan: (await topeAutomaticoEnTx(tx, tenantId, ahora)).tope };
     },
     { tenantId },
   );
@@ -281,8 +288,8 @@ export async function crearEntornoReal(tenantId: string): Promise<EntornoIngesta
   );
 
   const reconciliacion = new ReconciliacionMovimientosMP(tenantId);
-  // El conteo del tope se consulta una vez por corrida (suficiente: la ventana
-  // de carrera la cierra el claim de emisión del lado de Invoice).
+  // El conteo del tope se consulta una vez por corrida para CLASIFICAR (temprano); la carrera la
+  // cierra `verificarCupo`, que cuenta de nuevo bajo el candado del cupo al crear la factura (H2).
   let facturasMes: number | null = null;
   const facturasDelMes = async () => (facturasMes ??= await contarFacturasDelMes(tenantId));
 
@@ -297,15 +304,24 @@ export async function crearEntornoReal(tenantId: string): Promise<EntornoIngesta
     },
   );
 
+  let conceptoMP: number | null | undefined;
   const deps: IngestaDeps = {
     tenantId,
     client: await gatewayCobrosPara(tenantId),
     clasificador,
     reconciliacion,
     facturar: async (pago, tid) => {
-      const invoiceId = await facturarPagoMP(pago, tid);
-      if (invoiceId) facturasMes = (facturasMes ?? 0) + 1;
-      return invoiceId;
+      try {
+        // H5 · El concepto habitual del negocio (config de la facturación de MP), leído una vez.
+        conceptoMP ??= (await configFacturacionMPDelNegocio(tid)).concepto ?? null;
+        const invoiceId = await facturarPagoMP(pago, tid, undefined, { verificarCupo: verificarCupoAutomatico(tid, ahora), concepto: conceptoMP });
+        if (invoiceId) facturasMes = (facturasMes ?? 0) + 1;
+        return invoiceId;
+      } catch (e) {
+        // H2 · Sin lugar en el cupo (contado bajo el candado): el pago va a revisión, sin reintento.
+        if (e instanceof CupoAutomaticoAgotadoError) throw new PagoARevisarError(e.message);
+        throw e;
+      }
     },
     // PR5 · C1: devolución → nota de crédito (o pendiente hasta la factura / el CAE); contracargo → caso sin NC.
     aplicarPosteriores: async (pago, tid) => {

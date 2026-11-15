@@ -28,12 +28,17 @@ import { tenantTransaction } from "@/lib/rls";
 import { capFacturasMesDelNegocioEnTx } from "@/lib/limites-del-negocio-en-tx";
 import { runInTenantContext } from "@/lib/tenant-context";
 import { pagoDeLaPropuesta } from "@/lib/facturacion/propuesta-mp";
+import { planFactoqueEnTx } from "@/lib/facturacion/plan-factoque-en-tx";
+import { estadoLimite, type CupoDelPlan } from "@/lib/facturita-core";
+import type { InvoiceTx } from "@/lib/invoice-core";
 import { claveCobroBanco, claveCobroMP, cobrosYaFacturados, facturarCobros, vincularCobro } from "@/lib/facturacion/cobros-facturados";
 import { calcularImpuestos, getFiscalProfile, isInvoicingEnabled } from "@/lib/fiscal";
 import { procesarEnviosDelNegocio, type DispatchResumen } from "@/lib/arca-dispatch";
 import { logger } from "@/lib/logger";
 import { businessWallTimeToUtc, dateStrInBusinessTz } from "@/lib/datetime";
 import { fechaFiscalDelDia, ventanaYaFacturada } from "@/lib/libros/fecha-fiscal";
+import { ajustarFechaAutomatica, conceptoDeLaEmision, motivoFueraDeVentanaArca } from "@/lib/facturacion/fecha-emision-automatica";
+import { configFacturacionMPDelNegocio } from "@/lib/facturita-mp.server";
 import {
   CAP_FACTURAS_MES_DEFAULT,
   cuitValido,
@@ -648,6 +653,65 @@ export async function contarFacturasDelMes(tenantId: string): Promise<number> {
   );
 }
 
+// ── GSG-FACT-011 · H2+H7 · el cupo de la emisión AUTOMÁTICA, contado bajo el candado ─────────
+
+/**
+ * Sin lugar en el cupo del mes, contado DENTRO de la transacción de la factura y con el candado del
+ * cupo: la factura automática no sale. El lote deja la propuesta bloqueada (vuelve a `auto`) y corta;
+ * Mercado Pago pasa el pago a revisión, sin reintento.
+ */
+export class CupoAutomaticoAgotadoError extends Error {
+  constructor(
+    readonly tope: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = "CupoAutomaticoAgotadoError";
+  }
+}
+
+export interface TopeAutomatico {
+  /** El tope que rige este mes para la emisión automática. */
+  tope: number;
+  /** El cupo del plan de Factoque si el negocio es Factoque (rige junto con el del negocio). */
+  factoque: CupoDelPlan | null;
+}
+
+/**
+ * El tope de la emisión automática: el del negocio (plan del catálogo o excepción de GSG, que la
+ * columna sólo baja, R3-F3) y, en un negocio Factoque, TAMBIÉN el de su plan (Gratis 5, Plus 40…),
+ * el mismo que la emisión manual (H7). Rige el menor. Leído en la transacción que se le pase.
+ */
+export async function topeAutomaticoEnTx(tx: InvoiceTx, tenantId: string, ahora: Date = new Date()): Promise<TopeAutomatico> {
+  const t = await tx.tenant.findUnique({ where: { id: tenantId }, select: { bancosCapFacturasMes: true } });
+  const delNegocio = await capFacturasMesDelNegocioEnTx(tx, tenantId, t?.bancosCapFacturasMes);
+  const plan = await planFactoqueEnTx(tx, tenantId, fechaFiscalDelDia(ahora));
+  return { tope: plan ? Math.min(delNegocio, plan.cupo.tope) : delNegocio, factoque: plan?.cupo ?? null };
+}
+
+/** Lo que lee la persona cuando el cupo no deja emitir automáticamente. */
+export function mensajeDelTopeAutomatico(t: TopeAutomatico, usadas: number): string {
+  const delPlan = t.factoque && t.factoque.tope <= t.tope ? estadoLimite(usadas, t.factoque).mensaje : null;
+  return (
+    delPlan ??
+    `Se alcanzó el tope de ${t.tope} facturas automáticas del mes: esta venta se emite solo a mano, con tu confirmación.`
+  );
+}
+
+/**
+ * El control del cupo para `facturarCobros(…, { verificarCupo })`: con el candado del cupo tomado
+ * (lo toma `facturarCobros` antes de las claves del cobro), relee el tope y cuenta lo usado del mes
+ * con el mismo filtro que la manual (`filtrosFacturacionMes().cupo`). Sin lugar, lanza
+ * `CupoAutomaticoAgotadoError`.
+ */
+export function verificarCupoAutomatico(tenantId: string, ahora: Date = new Date()): (tx: InvoiceTx) => Promise<void> {
+  return async (tx) => {
+    const tope = await topeAutomaticoEnTx(tx, tenantId, ahora);
+    const usadas = await tx.invoice.count({ where: { tenantId, ...filtrosFacturacionMes(ahora).cupo } });
+    if (usadas >= tope.tope) throw new CupoAutomaticoAgotadoError(tope.tope, mensajeDelTopeAutomatico(tope, usadas));
+  };
+}
+
 export interface ImportacionVista {
   id: string;
   nombreArchivo: string;
@@ -756,6 +820,11 @@ export interface ResultadoEmision {
    * factura. Sólo aparece si es mayor a 0.
    */
   yaFacturadas?: number;
+  /**
+   * GSG-FACT-011 · H4 · Movimientos que pasaron a revisión porque el cobro cae fuera de la ventana
+   * de fechas de ARCA (5 días productos, 10 servicios). Sólo aparece si es mayor a 0.
+   */
+  aRevision?: number;
   /** Resumen del despacho a ARCA (solo si ARCA_INVOICING_ENABLED está prendido). */
   despachoArca?: DispatchResumen;
 }
@@ -771,18 +840,26 @@ export interface ResultadoEmision {
 export async function emitirPropuestas(
   tenantId: string,
   seleccion: string[] | "auto",
+  opciones: { ahora?: Date } = {},
 ): Promise<ResultadoEmision> {
+  const ahora = opciones.ahora ?? new Date();
   return runInTenantContext(tenantId, async () => {
-    const tenant = await prisma.tenant.findUnique({
-      where: { id: tenantId },
-      select: { bancosCapFacturasMes: true },
-    });
-    // El tope del plan (o la excepción de GSG), que la columna del negocio sólo baja (R3-F3).
-    const cap = await tenantTransaction(
-      (tx) => capFacturasMesDelNegocioEnTx(tx, tenantId, tenant?.bancosCapFacturasMes),
-      { tenantId },
-    );
+    // El tope del plan (o la excepción de GSG), que la columna del negocio sólo baja (R3-F3); en
+    // Factoque, también el de su plan (H7). Esta lectura frena temprano; el que manda es el conteo
+    // bajo el candado del cupo, dentro de la transacción de cada factura (H2).
+    let cap = (await tenantTransaction((tx) => topeAutomaticoEnTx(tx, tenantId, ahora), { tenantId })).tope;
     const facturasMes = await contarFacturasDelMes(tenantId);
+    const verificarCupo = verificarCupoAutomatico(tenantId, ahora);
+    // Soltar el claim (auto ← emitida) de un movimiento que no llegó a tener factura.
+    const soltarClaim = (movimientoId: string) =>
+      tenantTransaction(
+        (tx) =>
+          tx.movimientoImportado.updateMany({
+            where: { id: movimientoId, tenantId, invoiceId: null },
+            data: { estadoPropuesta: "auto" },
+          }),
+        { tenantId },
+      );
 
     const movimientos = await prisma.movimientoImportado.findMany({
       where: {
@@ -791,6 +868,8 @@ export async function emitirPropuestas(
         ...(seleccion === "auto" ? {} : { id: { in: seleccion } }),
       },
       orderBy: [{ fecha: "asc" }, { createdAt: "asc" }],
+      // H8 · De dónde viene el extracto: sólo el de Mercado Pago trae ids de pago en la referencia.
+      include: { importacion: { select: { origen: true } } },
     });
     if (movimientos.length === 0) {
       return { emitidas: 0, bloqueadasPorCap: 0, capAlcanzado: false, errores: [] };
@@ -801,12 +880,21 @@ export async function emitirPropuestas(
     const perfil = await getFiscalProfile(tenantId);
     const puntoVenta = perfil.puntoVenta;
 
+    // H4 · La ventana de ARCA se cuenta desde hoy (el reloj inyectado).
+    const hoy = fechaFiscalDelDia(ahora);
+    // H5 · El concepto habitual del negocio, si el movimiento no trae el suyo. Hoy la única fuente
+    // guardada es la config de la facturación de Mercado Pago (`ConfigFacturacionMP.concepto`; el
+    // `conceptoDefault` del motor fiscal no lo carga nadie todavía). Provisional a confirmar.
+    let conceptoDelNegocio: number | null | undefined;
+    const conceptoHabitual = async () => (conceptoDelNegocio ??= (await configFacturacionMPDelNegocio(tenantId)).concepto ?? null);
+
     let emitidas = 0;
     let bloqueadas = 0;
     let yaFacturadas = 0;
+    let aRevision = 0;
     const errores: { movimientoId: string; error: string }[] = [];
 
-    for (const mov of movimientos) {
+    for (const [indice, mov] of movimientos.entries()) {
       // Cap de facturas del mes (regla comercial del dueño): al 100% se BLOQUEA.
       if (facturasMes + emitidas >= cap) {
         bloqueadas++;
@@ -840,7 +928,10 @@ export async function emitirPropuestas(
         // Todas las claves de este cobro, y la factura las TOMA a todas (candado + índice único):
         // la del pago de MP (`mp:<referencia>`) y la `banco:<hash>` que la bandeja escribía antes
         // para una propuesta de MP. Así ni un extracto CSV de MP ni una fila vieja abren otra factura.
-        const clavesDelCobro = [...new Set([claveBanco, claveCobroBanco(mov.hash), ...(mov.referencia ? [claveCobroMP(mov.referencia)] : [])])];
+        // H8 · La referencia es el id de un pago de MP SÓLO si el extracto es de Mercado Pago: la de
+        // un banco («123» de una transferencia) no puede atarse a la factura del pago de MP «123».
+        const referenciaMP = mov.referencia && mov.importacion.origen === "mercadopago" ? mov.referencia : null;
+        const clavesDelCobro = [...new Set([claveBanco, claveCobroBanco(mov.hash), ...(referenciaMP ? [claveCobroMP(referenciaMP)] : [])])];
         const [yaFacturado] = await cobrosYaFacturados(tenantId, clavesDelCobro);
         if (yaFacturado) {
           await vincularCobro(tenantId, { clave: claveBanco, importe: montoTotal }, yaFacturado.invoiceId);
@@ -856,12 +947,30 @@ export async function emitirPropuestas(
           continue;
         }
 
+        // H5 · Concepto: el del movimiento; si no, el habitual del negocio; si no, productos (1).
+        const concepto = conceptoDeLaEmision(mov.concepto, mov.concepto == null ? await conceptoHabitual() : null);
+        // H4 · Fuera de la ventana de ARCA no se emite solo: revisión con motivo (provisional a
+        // confirmar con la contadora: la ventana se cuenta desde la fecha del COBRO).
+        const fueraDeVentana = motivoFueraDeVentanaArca(mov.fecha, hoy, concepto);
+        if (fueraDeVentana) {
+          await tenantTransaction(
+            (tx) =>
+              tx.movimientoImportado.updateMany({
+                where: { id: mov.id, tenantId, estadoPropuesta: "emitida", invoiceId: null },
+                data: { estadoPropuesta: "revision", motivoRevision: fueraDeVentana },
+              }),
+            { tenantId },
+          );
+          aRevision++;
+          continue;
+        }
+
         const { neto, iva, total } = calcularImpuestos(perfil.condicionIva, montoTotal);
         const invoiceId = await facturarCobros({
           tenantId,
-          // Concepto 1 (productos/venta directa), mismo criterio que invoice-from-mp:
-          // concepto 2 (servicios) exigiría fechas de servicio que el extracto no trae.
-          concepto: 1,
+          concepto,
+          // La fecha del cobro; `ajustarFechaAutomatica` la corre a la de la última factura del punto
+          // de venta si es posterior (H4) y agrega período y vencimiento con servicios (H5).
           fecha: mov.fecha,
           emisor: { cuit: perfil.cuit, condicionIva: perfil.condicionIva, puntoVenta },
           receptor: {
@@ -874,7 +983,7 @@ export async function emitirPropuestas(
           total,
           // PR5 · C4: lo que entra por el banco o por Mercado Pago no es efectivo.
           medioDePago: "otro",
-        }, clavesDelCobro.map((clave) => ({ clave, importe: total })));
+        }, clavesDelCobro.map((clave) => ({ clave, importe: total })), { verificarCupo, ajustarComprobante: ajustarFechaAutomatica(mov.fecha) });
         await tenantTransaction(
           (tx) =>
             tx.movimientoImportado.updateMany({
@@ -886,14 +995,14 @@ export async function emitirPropuestas(
         emitidas++;
       } catch (err) {
         // Falló la creación: soltar el claim para que se pueda reintentar.
-        await tenantTransaction(
-          (tx) =>
-            tx.movimientoImportado.updateMany({
-              where: { id: mov.id, tenantId, invoiceId: null },
-              data: { estadoPropuesta: "auto" },
-            }),
-          { tenantId },
-        );
+        await soltarClaim(mov.id);
+        if (err instanceof CupoAutomaticoAgotadoError) {
+          // H2 · El cupo, contado bajo su candado, ya no tiene lugar (otro lote, la manual o Mercado
+          // Pago ganaron el último): ésta y las que siguen quedan bloqueadas y el lote corta.
+          bloqueadas += movimientos.length - indice;
+          cap = err.tope;
+          break;
+        }
         const mensaje = err instanceof Error ? err.message : String(err);
         errores.push({ movimientoId: mov.id, error: mensaje });
         logger.error("bancos", "no se pudo emitir la factura del movimiento", err, {
@@ -913,6 +1022,7 @@ export async function emitirPropuestas(
     return {
       emitidas,
       ...(yaFacturadas > 0 ? { yaFacturadas } : {}),
+      ...(aRevision > 0 ? { aRevision } : {}),
       bloqueadasPorCap: bloqueadas,
       capAlcanzado,
       ...(capAlcanzado

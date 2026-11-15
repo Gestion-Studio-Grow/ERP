@@ -29,6 +29,18 @@ export class ErrorFacturacion extends Error {
   }
 }
 
+/**
+ * La factura no sale por una regla del negocio que una persona tiene que mirar (p. ej. el cupo
+ * automático del mes se llenó bajo su candado, GSG-FACT-011 · H2): el pago pasa a REVISAR con
+ * este motivo, sin reintento (no es un fallo transitorio ni un rechazo).
+ */
+export class PagoARevisarError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PagoARevisarError";
+  }
+}
+
 export interface IngestaDeps {
   tenantId: string;
   client: MercadoPagoClient;
@@ -119,6 +131,11 @@ export async function facturarPagoSiCorresponde(
       await registrarFalloTransitorio(pago, "facturación devolvió null", deps, resumen);
     }
   } catch (err) {
+    if (err instanceof PagoARevisarError) {
+      await deps.reconciliacion.marcarRevisar(pago.id, err.message);
+      resumen.aRevisar++;
+      return;
+    }
     const retriable = !(err instanceof ErrorFacturacion) || err.retriable;
     const motivo = err instanceof Error ? err.message : String(err);
     if (!retriable) {
