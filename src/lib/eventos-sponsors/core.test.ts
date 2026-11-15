@@ -186,7 +186,7 @@ test("tope de relaciones por lote", () => {
 });
 
 test("traeContacto: teléfonos disfrazados de fecha entran como teléfono (certificación en contra)", () => {
-  for (const t of ["cel 1155-12-3456", "visto 2026-11-14T5491155123456", "llamar 11-55/12/3456", "tel 2033-2044", "Juan 2019-2031", "nota 2027-55-12", "20262027", "2026-11-14 1155123456"]) assert.ok(traeContacto(t), t);
+  for (const t of ["cel 1155-12-3456", "visto 2026-11-14T5491155123456", "llamar 11-55/12/3456", "nota 2027-55-12", "20262027", "2026-11-14 1155123456"]) assert.ok(traeContacto(t), t);
   for (const t of ["2025 (20-22/05/2025)", "2026-2027", "del 2026-11-14 al 2026-11-16", "2026-11-14T23:14:46Z", "10/03/2027", "edición 2026 2027"]) assert.ok(!traeContacto(t), t);
 });
 
@@ -221,7 +221,19 @@ test("traeContacto: dos teléfonos seguidos, relleno, guiones largos e invisible
     "11,5512,3456",
     "１１５５１２３４５６",
   ]) assert.ok(traeContacto(t), t);
-  for (const t of ["2025, 2026 y 2027", "Temporada 2026–2027", "precio $ 3.100.000", "Lollapalooza Argentina 2027 | 12, 13 y 14 de Marzo", "Pabellones 1, 2, 3, 4, 5, 6, 7 y 8"]) assert.ok(!traeContacto(t), t);
+  for (const t of ["2025, 2026 y 2027", "Temporada 2026–2027", "precio $ 3.100.000", "Lollapalooza Argentina 2027 | 12, 13 y 14 de Marzo", "Pabellones 1, 2, 3, 4, 5, 6, 7 y 8", "ediciones 2015-2024", "(2016-2026)", "2019/2026", "12,500,000 visitantes", "$ 150.000.000", "14-11-2026", "14.11.2026", "de 10.00-18.00 hs"]) assert.ok(!traeContacto(t), t);
   assert.ok(urlConContacto("https://x.example/s#Juan 11 5512 3456 %"));
   assert.ok(urlConContacto("https://x.example/s#Juan%2011%205512%203456%"));
+});
+
+test("detector de teléfonos (tercera certificación): separadores con espacio e invisibles sí; ids y coordenadas de URL no", () => {
+  for (const t of ["11⁦5512⁩3456", "11‪5512‬3456", "11 · 5512 · 3456", "11 | 5512 | 3456", "11 5512 3456 / 14-11-2026"]) assert.ok(traeContacto(t), t);
+  assert.ok(urlConContacto("https://x.example/?1155123456"));
+  assert.ok(urlConContacto("https://x.example/?tel=11%204567-8901"));
+  for (const u of [
+    "https://x.example/sponsors?_ga=2.123456789.987654321.1700000000",
+    "https://www.facebook.com/profile.php?id=100012345678901",
+    "https://maps.google.com/maps?q=-34.6037222,-58.3815704",
+  ]) assert.ok(!urlConContacto(u), u);
+  assert.ok(!traeContacto("ver https://maps.google.com/maps?q=-34.6037222,-58.3815704 y https://x.example/?_ga=2.123456789.987654321"));
 });
