@@ -176,9 +176,40 @@ function aPropuestaVista(m: {
 
 /** Otra importación del negocio entró mientras se procesaba este extracto (F3): se procesa de nuevo. */
 class CambioConcurrenteBancos extends Error {}
+/** El re-proceso encontró, ya con el candado, una fila facturada: se deshace todo y no se toca nada. */
+class ImportacionYaFacturada extends Error {}
 const MAX_INTENTOS_IMPORTACION = 3;
 const MENSAJE_IMPORTACION_SIMULTANEA =
   "Se estaban importando otros extractos de este negocio al mismo tiempo y no se guardó nada de este. Subilo de nuevo en un momento.";
+const MENSAJE_IMPORTACION_YA_FACTURADA =
+  "Esta importación ya tiene facturas emitidas: no se puede reprocesar con otro mapeo.";
+/**
+ * Tiempos de la transacción que guarda el lote (baja de la recertificación R): el candado por
+ * negocio espera hasta 10 s (`lock_timeout`, vale para candados advisory) y la transacción entera
+ * hasta 30 s, en vez de los 5 s por defecto de Prisma. Con carga sale el aviso de importación
+ * simultánea, no un error crudo.
+ */
+const ESPERA_CANDADO_IMPORTACION = "10s";
+const TOPE_TX_IMPORTACION_MS = 30_000;
+
+/** Facturadas de una importación: `emitida` o ya atadas a una factura (`invoiceId`). */
+function filasFacturadasDe(tenantId: string, importacionId: string) {
+  return {
+    tenantId,
+    importacionId,
+    OR: [{ estadoPropuesta: "emitida" as const }, { invoiceId: { not: null } }],
+  };
+}
+
+/** ¿El error es la espera del candado vencida (`lock_timeout`, SQLSTATE 55P03)? */
+function esEsperaDeCandadoVencida(e: unknown): boolean {
+  const meta = (e as { meta?: { code?: unknown; driverAdapterError?: { cause?: { originalCode?: unknown } } } })?.meta;
+  if (meta?.code === "55P03" || meta?.driverAdapterError?.cause?.originalCode === "55P03") return true;
+  const cause = (e as { cause?: { code?: unknown; originalCode?: unknown } })?.cause;
+  if (cause?.code === "55P03" || cause?.originalCode === "55P03") return true;
+  const msg = e instanceof Error ? e.message : String(e);
+  return /55P03|lock timeout|lock_not_available/i.test(msg);
+}
 
 /**
  * Corre el pipeline del plugin y persiste el lote. Compartido por la
@@ -250,12 +281,23 @@ async function procesarYPersistir(
     }
     const mapeo = resultado.mapeo;
 
-    let salida: { tipo: "ok"; id: string } | { tipo: "mismo-archivo" } | { tipo: "cambio" };
+    let salida:
+      | { tipo: "ok"; id: string }
+      | { tipo: "mismo-archivo" }
+      | { tipo: "cambio" }
+      | { tipo: "ya-facturada" };
     try {
       salida = await tenantTransaction(
         async (tx): Promise<typeof salida> => {
           // Candado por negocio y recién ahí las miradas que deciden (H3 y F3).
+          await tx.$executeRawUnsafe(`SET LOCAL lock_timeout = '${ESPERA_CANDADO_IMPORTACION}'`);
           await candadoDeImportacionesEnTx(tx, tenantId);
+          // R (recertificación FACT-011): la mirada «nada facturado» del re-proceso se hace ACÁ, con
+          // el candado y en cada intento. La de confirmarMapeoAction es sólo un atajo: una emisión
+          // pudo entrar mientras se esperaba el candado.
+          if (reproceso && (await tx.movimientoImportado.count({ where: filasFacturadasDe(tenantId, reproceso.importacionId) })) > 0) {
+            return { tipo: "ya-facturada" };
+          }
           if (!reproceso && (await importacionConMismoArchivoEnTx(tx, tenantId, archivo.contenido))) {
             return { tipo: "mismo-archivo" };
           }
@@ -263,11 +305,22 @@ async function procesarYPersistir(
 
           let id: string;
           if (reproceso) {
-            // Re-proceso: lo provisional se borra y se recrea con el mapeo confirmado.
-            // (El guard de "nada emitido" lo hizo confirmarMapeoAction antes de llegar acá.)
+            // Re-proceso: lo provisional se borra y se recrea con el mapeo confirmado. Nunca se borra
+            // una fila facturada: el claim auto→emitida de emitirPropuestas no toma este candado y
+            // pudo confirmarse después del conteo de arriba. Con READ COMMITTED el DELETE vuelve a
+            // mirar la fila que otro acaba de tocar; si quedó alguna, se deshace todo.
             await tx.movimientoImportado.deleteMany({
+              where: {
+                tenantId,
+                importacionId: reproceso.importacionId,
+                estadoPropuesta: { not: "emitida" },
+                invoiceId: null,
+              },
+            });
+            const quedaron = await tx.movimientoImportado.count({
               where: { tenantId, importacionId: reproceso.importacionId },
             });
+            if (quedaron > 0) throw new ImportacionYaFacturada();
             id = reproceso.importacionId;
           } else {
             const creada = await tx.importacionBancaria.create({
@@ -302,14 +355,16 @@ async function procesarYPersistir(
           });
           return { tipo: "ok", id };
         },
-        { tenantId },
+        { tenantId, timeoutMs: TOPE_TX_IMPORTACION_MS },
       );
     } catch (e) {
-      if (!(e instanceof CambioConcurrenteBancos)) throw e;
-      salida = { tipo: "cambio" };
+      if (e instanceof ImportacionYaFacturada) salida = { tipo: "ya-facturada" };
+      else if (e instanceof CambioConcurrenteBancos || esEsperaDeCandadoVencida(e)) salida = { tipo: "cambio" };
+      else throw e;
     }
 
     if (salida.tipo === "mismo-archivo") return { ok: false, error: MENSAJE_ARCHIVO_YA_SUBIDO, alertas: [] };
+    if (salida.tipo === "ya-facturada") return { ok: false, error: MENSAJE_IMPORTACION_YA_FACTURADA, alertas: [] };
     if (salida.tipo === "cambio") {
       if (intento < MAX_INTENTOS_IMPORTACION) continue;
       return { ok: false, error: MENSAJE_IMPORTACION_SIMULTANEA, alertas: [] };
@@ -387,16 +442,13 @@ export async function confirmarMapeoAction(
   if (!importacion) {
     return { ok: false, error: "No se encontró la importación.", alertas: [] };
   }
+  // Atajo sin candado (ahorra el pipeline). La mirada que decide es la de procesarYPersistir,
+  // dentro de la transacción y con el candado por negocio (R, recertificación FACT-011).
   const emitidas = await prisma.movimientoImportado.count({
-    where: { tenantId, importacionId, estadoPropuesta: "emitida" },
+    where: filasFacturadasDe(tenantId, importacionId),
   });
   if (emitidas > 0) {
-    return {
-      ok: false,
-      error:
-        "Esta importación ya tiene facturas emitidas: no se puede reprocesar con otro mapeo.",
-      alertas: [],
-    };
+    return { ok: false, error: MENSAJE_IMPORTACION_YA_FACTURADA, alertas: [] };
   }
 
   return procesarYPersistir(
