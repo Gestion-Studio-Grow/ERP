@@ -6,8 +6,11 @@
 // con la URL donde se vio. Acá vive lo que no toca la base: la llave que impide duplicar, la
 // validación del lote que se importa y los filtros de la pantalla.
 //
-// REGLA DURA: sólo hechos públicos de EMPRESAS. Ningún dato de contacto de personas: un lote que
-// trae mails, teléfonos o campos de contacto se rechaza entero, no se «limpia» en silencio.
+// REGLA DURA: sólo hechos públicos de EMPRESAS. Ningún dato de contacto de personas: la fila que trae un
+// mail, un enlace de contacto, un campo de contacto o números que no son una forma declarada queda afuera
+// con su motivo y sin guardar el dato («rechazar por defecto», ver contacto.ts).
+
+import { MAX_CIFRAS_SUELTAS_FILA, motivoDeTexto, revisarUrl } from "./contacto";
 
 /** Roles de una marca en un evento. Mismo set que el CHECK de la migración. */
 export const ROLES = ["SPONSOR_PRINCIPAL", "SPONSOR", "AUSPICIANTE", "MEDIA_PARTNER", "EXPOSITOR", "ORGANIZADOR", "OTRO"] as const;
@@ -130,137 +133,8 @@ export function campoProhibido(nombre: string): boolean {
   return PEDAZOS_PROHIBIDOS.some((p) => junto.includes(p));
 }
 
-const PARECE_MAIL = /[^\s@]+@[^\s@]+\.[a-z]{2,}/i;
-// Mails disfrazados: «juan @ gmail.com», «juan(at)gmail.com», «juan [at] gmail . com».
-const PARECE_MAIL_OFUSCADO = /[a-z0-9._%+-]+\s*(?:@|\(at\)|\[at\]|\{at\})\s*[a-z0-9-]+\s*(?:\.|\(dot\)|\[dot\])\s*[a-z]{2,}/i;
-// ── Teléfonos de personas ────────────────────────────────────────────────────
-// Amenaza que se cubre: un teléfono que se cuela SIN QUERER (lo copió un agente o lo pegó alguien) en los formatos
-// en que la gente escribe números. No es un filtro contra quien lo esconde a propósito (eso no lo para ningún
-// patrón). Primero se sacan los números que claramente son otra cosa y después se busca el resto.
-
-// Dígitos de ancho completo a normales (NFKC), invisibles afuera (\p{Cf}: formato y direccionalidad; \p{Mn}: marcas
-// sueltas) y cualquier guion a «-».
-function paraBuscarTelefonos(texto: string): string {
-  return texto.normalize("NFKC").replace(/[\p{Cf}\p{Mn}᠎]/gu, "").replace(/[\p{Pd}−]/gu, "-");
-}
-
-const ANIO_TXT = "(?:199\\d|20[0-3]\\d)";
-const SEP_FECHA = "[-./]";
-// Lo que NO es teléfono, en el orden en que se saca (cada tramo se cambia por un corte «;»):
-const NO_TELEFONOS: readonly RegExp[] = [
-  /\bhttps?:\/\/\S+/gi, // URLs: se revisan aparte con urlConContacto
-  // Días: 2026-11-14 (con hora), 14-11-2026, 14.11.2026, 14/11/2026 y rangos «20-22/05/2025».
-  new RegExp(`(?<!\\d)${ANIO_TXT}${SEP_FECHA}(?:0?[1-9]|1[0-2])${SEP_FECHA}(?:0?[1-9]|[12]\\d|3[01])(?:T\\d{2}:\\d{2}(?::\\d{2}(?:\\.\\d+)?)?(?:Z|[+-]\\d{2}:?\\d{2})?)?(?![\\d:])`, "g"),
-  new RegExp(`(?<!\\d)(?:0?[1-9]|[12]\\d|3[01])(?:\\s?-\\s?(?:0?[1-9]|[12]\\d|3[01]))?${SEP_FECHA}(?:0?[1-9]|[12]\\d|3[01])${SEP_FECHA}${ANIO_TXT}(?!\\d)`, "g"), // también 11/14/2026
-  // Días con año corto, sólo con barra: 14/11/26.
-  /(?<!\d)(?:0?[1-9]|[12]\d|3[01])\/(?:0?[1-9]|1[0-2])\/\d{2}(?![\d/])/g,
-  // Horas: 10:00, 10.00 hs, «10.00-18.00».
-  /(?<!\d)(?:[01]?\d|2[0-3])[:.][0-5]\d(?:\s?-\s?(?:[01]?\d|2[0-3])[:.][0-5]\d)?(?!\d)/g,
-  // CUIT de una empresa (30-71234567-8) y coordenadas con decimales (-34.603722).
-  /(?<!\d)(?:20|23|24|27|30|33|34)-\d{8}-\d(?!\d)|\bCUIT\s*:?\s*(?:20|23|24|27|30|33|34)\d{9}(?!\d)/gi,
-  /(?<![\d.])-?\d{1,3}\.\d{4,}(?![\d.])/g,
-  // Plata y cantidades con miles: $ 150.000.000, 12,500,000 visitantes, 1.250,50.
-  /\$\s?\d[\d.,]*/g,
-  /(?<![\d.,])\d{1,3}(?:([.,])\d{3})(?:\1\d{3})*(?:[.,]\d{1,2})?(?![\d.,])/g,
-  // Años y rangos de años, crecientes: 2026, 2015-2024, (2016-2026), 2019/2026, «2025, 2026 y 2027».
-  // (No si sigue «-55-12»: eso no es un año suelto, es un número.)
-  new RegExp(`(?<!\\d)${ANIO_TXT}(?:(?:\\s*(?:-|/|,|y|a|al)\\s*|\\s+)${ANIO_TXT})*(?!\\d|[-./]\\d)`, "g"),
-];
-
-// Un AÑO pegado a otros dígitos por un espacio, un guion, un punto o una barra es parte de algo más largo
-// («Cel 11 5512-2030», «+54 9 11 2023 4567»): no se saca, se mira entero. Un paréntesis sí separa («2025 (20-22/05)»).
-// Días y horas tienen forma propia y se sacan siempre (por eso los años van al final, cuando ya no están).
-const PEGADO_ANTES = /\d[\s\-./]{0,3}$/;
-const PEGADO_DESPUES = /^[\s\-./]{0,3}\d/;
-
-function sinNoTelefonos(texto: string): string {
-  let t = texto;
-  for (const re of NO_TELEFONOS) {
-    const esAnio = re === NO_TELEFONOS[NO_TELEFONOS.length - 1];
-    t = t.replace(re, (m: string, ...resto: unknown[]) => {
-      const desde = resto.find((x) => typeof x === "number") as number;
-      const todo = resto.find((x) => typeof x === "string" && x.length >= m.length) as string;
-      if (esAnio && (PEGADO_ANTES.test(todo.slice(Math.max(0, desde - 4), desde)) || PEGADO_DESPUES.test(todo.slice(desde + m.length, desde + m.length + 4)))) return m;
-      // Un rango de años sólo vale si crece («2024-2019» no es un rango: queda como número).
-      const anios = esAnio ? m.match(new RegExp(ANIO_TXT, "g")) : null;
-      if (anios && anios.some((a, i) => i > 0 && Number(a) <= Number(anios[i - 1]))) return m;
-      return " CORTE ";
-    });
-  }
-  return t;
-}
-
-// Lo que queda: dígitos unidos por hasta 3 signos que no son letras (espacio, guion, punto, barra, «·», «|», «:»,
-// «*»…). Una coma con espacio separa una lista («12, 13 y 14») y corta, igual que un salto de línea o una letra.
-// 8 dígitos o más = teléfono, salvo una lista de números chicos con alguno de 1 cifra («pabellones 1 · 2 · 3 · 4…»).
-const TRAMO_NUMERICO = /\+?\d(?:(?:(?!,\s)[^\p{L}\p{N}\n]){0,3}\d)+/gu;
-
-function hayTelefono(texto: string): boolean {
-  for (const tramo of sinNoTelefonos(paraBuscarTelefonos(texto)).match(TRAMO_NUMERICO) ?? []) {
-    const grupos = tramo.match(/\d+/g) ?? [];
-    const lista = !tramo.startsWith("+") && grupos.every((g) => g.length <= 2) && grupos.some((g) => g.length === 1); // «1 · 2 · 3 · 4…»
-    if (grupos.join("").length >= 8 && !lista) return true;
-  }
-  return false;
-}
-
-/** En la query de una URL, cada valor (y cada clave) se revisa como texto, salvo lo que es claramente un id: una sola
- *  tirada de 14 dígitos o más (perfiles), el seguimiento de sitios (_ga=2.123456789.987654321) y un número pelado en
- *  una clave de id o de fecha (?id=12345678, ?fecha=20261114). */
-const CLAVE_DE_ID = /^(?:.*id|p|page|post|nota|articulo|article|fecha|date|ts|t|v|ver|version|_ga|_gl)$/i;
-function queryConTelefono(k: string, v: string): boolean {
-  const t = paraBuscarTelefonos(v).trim();
-  const seguimiento = /^\d+(?:[.-]\d+){2,}$/.test(t) && t.split(/[.-]/).some((g) => g.length >= 7); // 2.123456789.1698765432-…
-  if (/^\d{14,}$/.test(t) || seguimiento || (CLAVE_DE_ID.test(k) && /^\d+$/.test(t))) return false;
-  return hayTelefono(k) || hayTelefono(v);
-}
-
-/**
- * ¿Una URL lleva a una persona? mailto:/tel:, un mail en cualquier parte, links de WhatsApp
- * (wa.me, api.whatsapp.com, chat.whatsapp.com) o un parámetro de la query que nombra un contacto o
- * trae un teléfono. La RUTA no se mira por números: las fuentes traen ids largos (noticias/12345678).
- */
-export function urlConContacto(url: string): boolean {
-  const t = url.trim();
-  if (/^(mailto|tel|sms|whatsapp):/i.test(t) || PARECE_MAIL.test(t) || PARECE_MAIL_OFUSCADO.test(decodeURIComponentSeguro(t))) return true;
-  let u: URL;
-  try {
-    u = new URL(t);
-  } catch {
-    return false;
-  }
-  const host = u.hostname.toLowerCase().replace(/^www\./, "");
-  if (host === "wa.me" || host === "wa.link" || /(^|\.)whatsapp\.(com|net)$/.test(host)) return true;
-  for (const [k, v] of u.searchParams) if (campoProhibido(k) || queryConTelefono(k, v)) return true;
-  // Lo que va después del # no lo usa el sitio: si trae un mail o un teléfono, es una nota escondida.
-  const fragmento = decodeURIComponentSeguro(u.hash.slice(1));
-  if (fragmento && traeContacto(fragmento)) return true;
-  return false;
-}
-
-/** Decodifica lo que se pueda: un «%» suelto no deja el resto codificado (los %20 pasan a espacio igual). */
-function decodeURIComponentSeguro(s: string): string {
-  try {
-    return decodeURIComponent(s);
-  } catch {
-    return s.replace(/(?:%[0-9a-f]{2})+/gi, (m) => {
-      try {
-        return decodeURIComponent(m);
-      } catch {
-        return " ";
-      }
-    });
-  }
-}
-
-/** ¿El texto trae un mail (también disfrazado) o un teléfono (8 a 15 dígitos en un tramo)? Días y años no cuentan. */
-export function traeContacto(texto: string): boolean {
-  const t = paraBuscarTelefonos(texto);
-  if (PARECE_MAIL.test(t) || PARECE_MAIL_OFUSCADO.test(t) || /^(mailto|tel):/i.test(t.trim())) return true;
-  // Las URLs dentro del texto no se miran como número (traen ids largos) pero sí como URL: query y fragmento.
-  if ((t.match(/\bhttps?:\/\/\S+/gi) ?? []).some((u) => urlConContacto(u))) return true;
-  return hayTelefono(t);
-}
+// Mails, teléfonos y números que podrían serlo: `contacto.ts` (rechazar por defecto).
+export { motivoDeTexto, revisarUrl, traeContacto } from "./contacto";
 
 // ── Validación del lote ──────────────────────────────────────────────────────
 
@@ -358,9 +232,12 @@ function leerRegistro(v: unknown): { registro: AccionDeLote[]; invalidas: number
     const puesto = o && typeof o.puesto === "string" ? normalizar(o.puesto) : "";
     const accion = o ? texto(o.accion, 120) : null;
     const detalle = o ? opcional(o.detalle) : undefined;
-    const url = o && o.url !== undefined && o.url !== null && o.url !== "" ? urlLimpia(o.url) : null;
-    const urlMala = o && o.url !== undefined && o.url !== null && o.url !== "" && !url;
-    if (!o || !(PUESTOS as readonly string[]).includes(puesto) || !accion || !esHora(o.hora) || detalle === undefined || urlMala) {
+    const conUrl = o && o.url !== undefined && o.url !== null && o.url !== "";
+    const revisada = conUrl ? revisarUrl(o.url, MAX_URL) : null;
+    const url = revisada?.ok ? revisada.url : null;
+    const urlMala = conUrl && !url;
+    const contacto = o && motivoDeContacto(o, { accion: o.accion, detalle: o.detalle });
+    if (!o || !(PUESTOS as readonly string[]).includes(puesto) || !accion || !esHora(o.hora) || detalle === undefined || urlMala || contacto) {
       invalidas++;
       continue;
     }
@@ -369,32 +246,23 @@ function leerRegistro(v: unknown): { registro: AccionDeLote[]; invalidas: number
   return { registro, invalidas: invalidas + Math.max(0, v.length - MAX_REGISTRO_POR_ITEM) };
 }
 
-/** Recorre claves y valores buscando datos de personas. Devuelve dónde, o null. */
-function buscarContacto(v: unknown, ruta: string): string | null {
-  if (typeof v === "string") return traeContacto(v) ? ruta : null;
-  if (Array.isArray(v)) {
-    for (let i = 0; i < v.length; i++) {
-      const r = buscarContacto(v[i], `${ruta}[${i}]`);
-      if (r) return r;
-    }
-    return null;
+const SOLO_DOMINIO = "de la URL se guardó sólo el dominio: la ruta traía números que pueden ser un teléfono";
+
+/**
+ * ¿La fila trae un dato de contacto? Un campo que lo nombra (email, telefono, whatsapp…) o un texto libre con un mail,
+ * un enlace de contacto o números no declarados. Devuelve el motivo SIN el dato (no se muestra ni se guarda).
+ */
+function motivoDeContacto(fila: Record<string, unknown>, textos: Record<string, unknown>): string | null {
+  if (Object.keys(fila).some((k) => k !== "marcas" && k !== "registro" && campoProhibido(k))) return "trae un campo de datos de contacto de personas: la fila no se guarda";
+  for (const [campo, v] of Object.entries(textos)) {
+    if (typeof v !== "string") continue;
+    const motivo = motivoDeTexto(v);
+    if (motivo) return `el campo «${campo}» ${motivo}: la fila no se guarda`;
   }
-  if (v && typeof v === "object") {
-    for (const [k, val] of Object.entries(v)) {
-      if (campoProhibido(k)) return `${ruta}.${k}`;
-      // Los campos de fecha con forma de fecha no se miran como teléfono: si el día no existe («2027-13-01») lo rechaza
-      // la validación de ESE evento, no el lote entero. En texto libre, en cambio, «2027-55-12» sí cuenta como número.
-      if ((k === "fecha" || k === "fechaHasta" || k === "fechaFin" || k === "hora") && typeof val === "string" && (/^\d{4}-\d{2}-\d{2}$/.test(val) || esHora(val))) continue;
-      // Las URLs: mail, WhatsApp o teléfono en la query (la ruta trae ids largos que no son teléfonos). Sólo si de
-      // verdad es una URL: «notaWeb: "Juan 11 5512 3456"» es texto y se revisa como texto.
-      if (typeof val === "string" && /url|web|link|sitio/i.test(k) && esUrl(val)) {
-        if (urlConContacto(val)) return `${ruta}.${k}`;
-        continue;
-      }
-      const r = buscarContacto(val, `${ruta}.${k}`);
-      if (r) return r;
-    }
-  }
+  // Las cifras se suman en toda la fila: un teléfono partido entre «nombre» y «lugar» suma igual. El «¶» que los une no
+  // arma ninguna forma declarada. (Las URL no entran en esta suma: su ruta se guarda con hasta 5 cifras sueltas.)
+  const juntos = Object.values(textos).filter((v): v is string => typeof v === "string").join(" ¶ ");
+  if (motivoDeTexto(juntos, MAX_CIFRAS_SUELTAS_FILA)) return "entre sus campos trae números que pueden ser un teléfono: la fila no se guarda";
   return null;
 }
 
@@ -403,8 +271,8 @@ function buscarContacto(v: unknown, ruta: string): string | null {
  *   { "eventos": [ { nombre, fecha "AAAA-MM-DD", fechaHasta?, lugar, region, organizador?, urlFuente?,
  *                    marcas: [ { nombre, rol, urlFuente, nivel?, rubro?, web? } ] } ] }
  * También acepta el array de eventos suelto. Un evento inválido se rechaza con su motivo y el resto
- * entra; una marca inválida se rechaza sola. Si el lote trae datos de contacto de personas, se
- * rechaza ENTERO. Duplicados dentro del mismo lote se unen (misma llave).
+ * entra; una marca inválida se rechaza sola. Datos de contacto de personas (o números que podrían serlo, ver
+ * `contacto.ts`): esa fila queda afuera con su motivo y sin guardar el dato. Duplicados dentro del lote se unen.
  */
 export function validarLote(entrada: unknown): LoteValidado {
   const rechazos: Rechazo[] = [];
@@ -413,20 +281,13 @@ export function validarLote(entrada: unknown): LoteValidado {
   if (crudo.length === 0) return { ok: false, motivo: "La lista de eventos está vacía.", rechazos };
   if (crudo.length > MAX_EVENTOS) return { ok: false, motivo: `Son ${crudo.length} eventos: el tope por importación es ${MAX_EVENTOS}.`, rechazos };
 
-  const conContacto = buscarContacto(crudo, "eventos");
-  if (conContacto) {
-    return {
-      ok: false,
-      motivo: `El lote trae datos de contacto de personas (${conContacto}). No se importa nada: este módulo guarda sólo eventos y marcas.`,
-      rechazos,
-    };
-  }
-
   const porClave = new Map<string, EventoDeLote>();
   crudo.forEach((e, i) => {
     const donde = `evento ${i + 1}`;
     if (!e || typeof e !== "object") return void rechazos.push({ donde, motivo: "no es un evento" });
     const o = e as Record<string, unknown>;
+    const contacto = motivoDeContacto(o, { nombre: o.nombre, lugar: o.lugar, región: o.region, organizador: o.organizador, tipo: o.tipo });
+    if (contacto) return void rechazos.push({ donde, motivo: contacto });
     const nombre = texto(o.nombre);
     const lugar = texto(o.lugar);
     const region = texto(o.region, 120);
@@ -445,13 +306,16 @@ export function validarLote(entrada: unknown): LoteValidado {
     const verificacion = verificacionDe(o.verificacion);
     if (tipo === undefined || !verificacion) return void rechazos.push({ donde: `${donde} (${nombre})`, motivo: "el tipo o la verificación no son válidos" });
     const reg = leerRegistro(o.registro);
-    if (reg.invalidas) rechazos.push({ donde: `${donde} (${nombre})`, motivo: `${reg.invalidas} línea(s) del registro no se guardan (puesto, hora o URL inválidos)` });
+    if (reg.invalidas) rechazos.push({ donde: `${donde} (${nombre})`, motivo: `${reg.invalidas} línea(s) del registro no se guardan (puesto, hora o URL inválidos, o datos de contacto)` });
     const organizador = opcional(o.organizador);
     if (organizador === undefined) return void rechazos.push({ donde: `${donde} (${nombre})`, motivo: "el organizador no es válido" });
     let urlFuente: string | null = null;
     if (o.urlFuente !== undefined && o.urlFuente !== null && o.urlFuente !== "") {
-      urlFuente = urlLimpia(o.urlFuente);
-      if (!urlFuente) return void rechazos.push({ donde: `${donde} (${nombre})`, motivo: "la URL de la fuente no es http(s)" });
+      const r = revisarUrl(o.urlFuente, MAX_URL);
+      if (!r) return void rechazos.push({ donde: `${donde} (${nombre})`, motivo: "la URL de la fuente no es http(s)" });
+      if (!r.ok) return void rechazos.push({ donde: `${donde} (${nombre})`, motivo: `la URL de la fuente ${r.motivo}: no se guarda` });
+      if (r.soloDominio) rechazos.push({ donde: `${donde} (${nombre})`, motivo: SOLO_DOMINIO });
+      urlFuente = r.url;
     }
     if (!normalizar(nombre) || !normalizar(region)) return void rechazos.push({ donde: `${donde} (${nombre})`, motivo: "el nombre o la región no tienen letras ni números" });
     // «marcas» se valida ANTES de sumar el evento: un evento rechazado no entra.
@@ -469,25 +333,32 @@ export function validarLote(entrada: unknown): LoteValidado {
       const dm = `${donde} · marca ${j + 1}`;
       if (!m || typeof m !== "object") return void rechazos.push({ donde: dm, motivo: "no es una marca" });
       const mo = m as Record<string, unknown>;
+      const mContacto = motivoDeContacto(mo, { nombre: mo.nombre, nivel: mo.nivel, rubro: mo.rubro, edición: mo.edicion });
+      if (mContacto) return void rechazos.push({ donde: dm, motivo: mContacto });
       const mNombre = texto(mo.nombre, 160);
       if (!mNombre || !claveMarca(mNombre)) return void rechazos.push({ donde: dm, motivo: "falta el nombre de la marca" });
       const rol = rolDe(mo.rol);
       if (!rol) return void rechazos.push({ donde: `${dm} (${mNombre})`, motivo: "el rol no es uno de los conocidos" });
-      const mUrl = urlLimpia(mo.urlFuente);
-      if (!mUrl) return void rechazos.push({ donde: `${dm} (${mNombre})`, motivo: "falta la URL de la fuente (http/https)" });
+      const mRevisada = revisarUrl(mo.urlFuente, MAX_URL);
+      if (!mRevisada) return void rechazos.push({ donde: `${dm} (${mNombre})`, motivo: "falta la URL de la fuente (http/https)" });
+      if (!mRevisada.ok) return void rechazos.push({ donde: `${dm} (${mNombre})`, motivo: `la URL de la fuente ${mRevisada.motivo}: no se guarda` });
+      if (mRevisada.soloDominio) rechazos.push({ donde: `${dm} (${mNombre})`, motivo: SOLO_DOMINIO });
+      const mUrl = mRevisada.url;
       const nivel = opcional(mo.nivel, 60);
       const rubro = opcional(mo.rubro, 120);
       if (nivel === undefined || rubro === undefined) return void rechazos.push({ donde: `${dm} (${mNombre})`, motivo: "nivel o rubro inválido" });
       let web: string | null = null;
       if (mo.web !== undefined && mo.web !== null && mo.web !== "") {
-        web = urlLimpia(mo.web);
-        if (!web) return void rechazos.push({ donde: `${dm} (${mNombre})`, motivo: "la web no es http(s)" });
+        const w = revisarUrl(mo.web, MAX_URL);
+        if (!w) return void rechazos.push({ donde: `${dm} (${mNombre})`, motivo: "la web no es http(s)" });
+        if (!w.ok) return void rechazos.push({ donde: `${dm} (${mNombre})`, motivo: `la web ${w.motivo}: no se guarda` });
+        web = w.url;
       }
       const edicion = opcional(mo.edicion, 40);
       const mVerif = verificacionDe(mo.verificacion);
       if (edicion === undefined || !mVerif) return void rechazos.push({ donde: `${dm} (${mNombre})`, motivo: "la edición o la verificación no son válidas" });
       const mReg = leerRegistro(mo.registro);
-      if (mReg.invalidas) rechazos.push({ donde: `${dm} (${mNombre})`, motivo: `${mReg.invalidas} línea(s) del registro no se guardan (puesto, hora o URL inválidos)` });
+      if (mReg.invalidas) rechazos.push({ donde: `${dm} (${mNombre})`, motivo: `${mReg.invalidas} línea(s) del registro no se guardan (puesto, hora o URL inválidos, o datos de contacto)` });
       const mClave = claveMarca(mNombre);
       if (evento.marcas.some((x) => x.clave === mClave && x.rol === rol)) return; // repetida en el lote
       // El tope vale también después de unir copias del mismo evento.
@@ -588,11 +459,12 @@ export function validarPedido(
   const t = typeof pedido === "string" ? pedido.trim().replace(/\s+/g, " ") : "";
   if (t.length < 5) return { ok: false, motivo: "Escribí qué tiene que hacer el equipo (por ejemplo, «buscá ferias de alimentos en Córdoba»)." };
   if (t.length > MAX_PEDIDO) return { ok: false, motivo: `El pedido es muy largo: hasta ${MAX_PEDIDO} caracteres.` };
-  if (traeContacto(t)) return { ok: false, motivo: "El pedido trae datos de contacto de personas: este módulo no los guarda." };
+  if (motivoDeTexto(t)) return { ok: false, motivo: "El pedido trae un mail o números que pueden ser un teléfono: este módulo no guarda datos de contacto de personas. Los años, fechas y cantidades sí van." };
 
   const r = typeof donde.region === "string" ? donde.region.trim().replace(/\s+/g, " ") : "";
   if (r.length > MAX_REGION_PEDIDO) return { ok: false, motivo: `La región es muy larga: hasta ${MAX_REGION_PEDIDO} caracteres.` };
-  if (traeContacto(r)) return { ok: false, motivo: "La región trae datos de contacto de personas: este módulo no los guarda." };
+  if (motivoDeTexto(r)) return { ok: false, motivo: "La región trae un mail o números que pueden ser un teléfono: este módulo no guarda datos de contacto de personas." };
+  if (motivoDeTexto(`${t} ¶ ${r}`, MAX_CIFRAS_SUELTAS_FILA)) return { ok: false, motivo: "Entre el pedido y la región hay números que pueden ser un teléfono: este módulo no guarda datos de contacto de personas." };
   const region = r || (p === "descubridor" ? REGION_POR_DEFECTO : null);
   const dia = (v: unknown): string | null | undefined => (v === undefined || v === null || v === "" ? null : esDia(v) ? v : undefined);
   const desde = dia(donde.desde);

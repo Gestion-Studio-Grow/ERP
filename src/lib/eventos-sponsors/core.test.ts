@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { claveEvento, claveMarca, esDia, esUrl, leerFiltros, leerLote, normalizar, rangoDeFechas, rolDe, traeContacto, urlConContacto, validarLote, validarPedido, diaADate } from "./core";
+import { claveEvento, claveMarca, esDia, esUrl, leerFiltros, leerLote, normalizar, rangoDeFechas, revisarUrl, rolDe, traeContacto, validarLote, validarPedido, diaADate } from "./core";
 
 const marca = (o: Record<string, unknown> = {}) => ({ nombre: "Banco Uno", rol: "SPONSOR", urlFuente: "https://expo.example/sponsors", ...o });
 const evento = (o: Record<string, unknown> = {}) => ({
@@ -35,15 +35,6 @@ test("rolDe: mayúsculas, minúsculas y sinónimos", () => {
   assert.equal(rolDe("Media Partner"), "MEDIA_PARTNER");
   assert.equal(rolDe("patrocinador"), "SPONSOR");
   assert.equal(rolDe("cualquiera"), null);
-});
-
-test("traeContacto: mails y teléfonos sí; días, años y precios no", () => {
-  assert.ok(traeContacto("escribir a juan@empresa.com"));
-  assert.ok(traeContacto("+54 9 11 4567-8901"));
-  assert.ok(traeContacto("(0351) 456-7890"));
-  assert.ok(!traeContacto("2027-03-10"));
-  assert.ok(!traeContacto("Temporada 2026-2027"));
-  assert.ok(!traeContacto("Expo Agro 2027"));
 });
 
 test("validarLote: lote sano entra con sus marcas", () => {
@@ -90,20 +81,6 @@ test("validarLote: duplicados dentro del lote se unen (evento por llave, marca p
   assert.deepEqual(r.eventos[0].marcas.map((m) => m.nombre), ["Banco Uno", "Agro SA"]);
 });
 
-test("validarLote: datos de contacto de personas rechazan el lote ENTERO", () => {
-  for (const malo of [
-    evento({ marcas: [marca({ email: "x@y.com" })] }),
-    evento({ contacto: "Juan" }),
-    evento({ organizador: "Cámara (tel 11 4567 8901)" }),
-    evento({ marcas: [marca({ nombre: "info@banco.com" })] }),
-    evento({ marcas: [marca({ web: "mailto:info@banco.com" })] }),
-  ]) {
-    const r = validarLote({ eventos: [evento({ nombre: "Sano" }), malo] });
-    assert.equal(r.ok, false, JSON.stringify(malo));
-    if (!r.ok) assert.match(r.motivo, /contacto/);
-  }
-});
-
 test("validarLote: vacíos, topes y formas raras", () => {
   assert.equal(validarLote({}).ok, false);
   assert.equal(validarLote({ eventos: [] }).ok, false);
@@ -133,31 +110,6 @@ test("rangoDeFechas", () => {
 
 // ── Regresión de la certificación adversarial (GSG-CRM-009) ──────────────────
 
-test("cert A1: URLs que llevan a una persona (WhatsApp, teléfono en la query, mail) rechazan el lote", () => {
-  for (const malo of [
-    evento({ marcas: [marca({ web: "https://wa.me/5491112345678" })] }),
-    evento({ marcas: [marca({ urlFuente: "https://api.whatsapp.com/send?phone=5491112345678" })] }),
-    evento({ urlFuente: "https://expo.example/contacto?tel=1145678901" }),
-    evento({ marcas: [marca({ urlFuente: "https://expo.example/x?mail=juan%40gmail.com" })] }),
-  ]) {
-    const r = validarLote({ eventos: [malo] });
-    assert.equal(r.ok, false, JSON.stringify(malo));
-  }
-  // Un id largo en la RUTA de la fuente no es un teléfono.
-  assert.equal(validarLote({ eventos: [evento({ urlFuente: "https://diario.example/noticias/123456789/expo" })] }).ok, true);
-});
-
-test("cert A2: nombres de campo y valores disfrazados", () => {
-  for (const k of ["e-mail", "e_mail", "emails", "telefonos", "phone", "celulares", "mobile", "contactoComercial", "whatsapp_url", "tel"]) {
-    assert.equal(validarLote({ eventos: [evento({ [k]: "x" })] }).ok, false, k);
-  }
-  for (const v of ["11/4567/8901", "juan @ gmail.com", "juan(at)gmail.com", "11_4567_8901"]) {
-    assert.equal(validarLote({ eventos: [evento({ organizador: v })] }).ok, false, v);
-  }
-  // Lo que no es de persona sigue entrando: «hotel», «cartel».
-  assert.equal(validarLote({ eventos: [evento({ hotel: "Hotel Demo", cartel: "sí" })] }).ok, true);
-});
-
 test("cert A3: un evento rechazado por sus marcas no entra; el tope vale después de unir copias", () => {
   const r = validarLote({ eventos: [evento({ nombre: "Bueno" }), evento({ nombre: "Malo", marcas: "no" })] });
   assert.ok(r.ok && r.eventos.length === 1 && r.eventos[0].nombre === "Bueno");
@@ -174,26 +126,10 @@ test("cert A4: URL con espacios alrededor se guarda limpia (pasa el CHECK de la 
   assert.match(r.eventos[0].marcas[0].urlFuente, /^https:\/\//);
 });
 
-test("cert A5: años seguidos y fechas con barra no son teléfonos", () => {
-  assert.ok(!traeContacto("Expo 2026 2027 2028"));
-  assert.ok(!traeContacto("Edición del 10/03/2027"));
-});
-
 test("tope de relaciones por lote", () => {
   const ev = Array.from({ length: 26 }, (_, i) => evento({ nombre: `E${i}`, marcas: Array.from({ length: 200 }, (_, j) => marca({ nombre: `M${j}` })) }));
   const r = validarLote({ eventos: ev });
   assert.equal(r.ok, false);
-});
-
-test("traeContacto: teléfonos disfrazados de fecha entran como teléfono (certificación en contra)", () => {
-  for (const t of ["cel 1155-12-3456", "visto 2026-11-14T5491155123456", "llamar 11-55/12/3456", "nota 2027-55-12", "20262027", "2026-11-14 1155123456"]) assert.ok(traeContacto(t), t);
-  for (const t of ["2025 (20-22/05/2025)", "2026-2027", "del 2026-11-14 al 2026-11-16", "2026-11-14T23:14:46Z", "10/03/2027", "edición 2026 2027"]) assert.ok(!traeContacto(t), t);
-});
-
-test("urlConContacto: un teléfono escondido después del # se rechaza; un ancla común no", () => {
-  assert.ok(urlConContacto("https://x.example/#Juan cel 1155123456"));
-  assert.ok(urlConContacto("https://x.example/sponsors#juan%40empresa.com"));
-  assert.ok(!urlConContacto("https://x.example/sponsors#partners"));
 });
 
 test("validarPedido: la región y las fechas se eligen en cada encargo; el Descubridor va a Buenos Aires por defecto", () => {
@@ -209,44 +145,135 @@ test("validarPedido: la región y las fechas se eligen en cada encargo; el Descu
   assert.equal(validarPedido("descubridor", "Buscá ferias", { region: "x".repeat(81) }).ok, false);
 });
 
-test("traeContacto: dos teléfonos seguidos, relleno, guiones largos e invisibles también cuentan (segunda certificación)", () => {
-  for (const t of [
-    "Juan 11 5512 3456 / 11 4433 2211",
-    "+54 9 11 5512-3456 0000",
-    "11 5512 3456 / 14-11-2026",
-    "11–5512–3456",
-    "11​5512​3456",
-    "11·5512·3456",
-    "11|5512|3456",
-    "11,5512,3456",
-    "１１５５１２３４５６",
-  ]) assert.ok(traeContacto(t), t);
-  for (const t of ["2025, 2026 y 2027", "Temporada 2026–2027", "precio $ 3.100.000", "Lollapalooza Argentina 2027 | 12, 13 y 14 de Marzo", "Pabellones 1, 2, 3, 4, 5, 6, 7 y 8", "ediciones 2015-2024", "(2016-2026)", "2019/2026", "12,500,000 visitantes", "$ 150.000.000", "14-11-2026", "14.11.2026", "de 10.00-18.00 hs"]) assert.ok(!traeContacto(t), t);
-  assert.ok(urlConContacto("https://x.example/s#Juan 11 5512 3456 %"));
-  assert.ok(urlConContacto("https://x.example/s#Juan%2011%205512%203456%"));
+// ── Datos de contacto: rechazar por defecto (contacto.ts) ────────────────────
+// Cada teléfono de abajo lo encontró alguna de las 8 rondas de certificación en contra contra el diseño anterior
+// (lista de formatos prohibidos). Con «rechazar por defecto» tienen que quedar todos afuera.
+
+const TELEFONOS_Y_MAILS = [
+  "+54 9 11 4567-8901", "(0351) 456-7890", "cel 1155-12-3456", "visto 2026-11-14T5491155123456", "llamar 11-55/12/3456",
+  "nota 2027-55-12", "20262027", "2026-11-14 1155123456", "Juan 11 5512 3456 / 11 4433 2211", "11–5512–3456",
+  "11​5512​3456", "11·5512·3456", "11|5512|3456", "11,5512,3456", "１１５５１２３４５６", "11⁦5512⁩3456",
+  "Cel 11 5512-2030", "0800-555-2010", "(011) 4567-1999", "+54 9 11 2023 4567", "Tel 2025 4567", "11 55 12 34 56",
+  "Fuente: https://x.example/?ref=1155123456", "ver https://x.example/#11-5512-3456", "https://x.example/?q=11·5512·3456",
+  "Tel. 011.4567-8901", "Cel 15.4567-8901", "Tel/Fax: 011.4312-5566", "11.4567 8901", "Tel 351.423-4567",
+  "Cel 11 5512 · 2030", "(011) 4567 | 2025", "(011) 2020-2021", "Tel 2024-2025", "WhatsApp: 2024 2025",
+  "٠١١ ٤٥٦٧-٨٩٠١", "०११ ४५६७-८९०१", "(0351)-423.4567", "+54 (351)-423.4567", "https://expo.com.arTel:011-4567-8901",
+  "https://expo.com.ar011-4567-8901", "Tel 351.423-2030", "Cel 351.423 2030", "Córdoba 351.423-2019", "351.423-45-67",
+  "351.423 · 4567", "11_2030_4567", "4567*2030", "11 · 2030 · 4567", "11 | 2030 | 4567", "Tel 351.423-4567.",
+  "Informes: Tel. 351.423-4567.", "Cel 351.423-4567, Juan", "Llamar al 351.423-4567.", "Cel 15.423-4567.",
+  "Tel. 423-4567", "Tel 42-1234", "Tel 351.423/2030", "11.45.67.89.01", "juan_perez_11_5512_3456", "(011)-4567-8901",
+  "Cel 11 5512, 3456", "Contacto: 2030-2031", "escribir a juan@empresa.com", "juan @ gmail.com", "juan(at)gmail.com",
+  "juan(arroba)gmail.com", "juan%40gmail.com", "mailto:info@banco.com", "11/4567/8901", "11_4567_8901",
+  // Certificación del diseño «rechazar por defecto» (15/11): texto crudo vs. guardado, corridas partidas, formas sin tope.
+  "Expo Agro 4567\n8901", "La Rural 4567     8901", "cel 4567\n8901", "Rural 4567 - · - 8901", "Rural 11456 y 78901", "4567 hola 8901", "Entrada $ 11-4567-8901", "USD 1145678901", "1.145.678.901 visitantes", "Rural 1,145,678,901", "-11.45678901", "Rural -34.45678901, -58.15456789", "Salones 11, 456, 789, 01", "11-45-67-89-0-1", "Rural 1 1 4 5 6 7 8 9 0 1", "Expte. 11-4567-8901", "Ley 1145678901", "Matrícula 15-4567-8901", "CUIT 20-45678901-3", "Rural ❶❶ ❹❺❻❼ ❽❾⓿❶", "ver https://x.example/4567%0A8901", "ver https://x.example/4567/////8901", "ver https://x.example/precio$11-4567-8901", "ver https://x.example/1.145.678.901", "ver https://x.example/expediente-11-4567-8901", "ver https://x.example/1-1-4-5-6-7-8-9-0-1", "45% 67% 89% 01%", "4, 5, 6, 7, 8, 9, 0 y 1 de marzo",
+  // Segunda certificación del diseño endurecido (15/11): palabras de teléfono abreviadas, unidad cerrada, invisibles, URLs.
+  "Teléf. 2034-5678 hs", "Teléf. 421.234 Juan", "Telef. 2019-2031", "Telf 2034-5678", "Tél. 2034-5678", "Celu 2034-5678", "Whats 2034-5678", "WA 2034-5678", "Mov. 2034-5678", "Contacto 2034-5678", "421.234 Juan", "421,234 Juan", "421.234 personas", "Stand 421.234 visitantes", "421.234 - 567.890 Juan", "2034-5678ㅤ", "11ㅤ2019-2031", "Tel 4567-12 al 30 de mayo", "4567-12 al 30 de mayo", "11.23.12.30", "x -45.678901 y", "Olivars 456-789", "Exp. 2034-56789", "ISSN 4567-8901 Juan", "ver https://ferias.com:11456/78901", "ver http://4567.ar/8901", "ver https://expo४५६७८९०१.com/",
+  // Tercera certificación (15/11): mails con «arroba/punto/at/dot», fechas y horas en pares, palabras, formas cortas.
+  "Organiza Juan Pérez (juan.perez arroba gmail punto com)", "info arroba expo punto com punto ar", "juan.perez AT gmail DOT com", "josé @ gmail.com", "https://f.com/juan＠gmail.com", "15-30-12-34", "Ana 23-07-24", "Ana 21.45.32", "Ana 12:34:56", "Comuníquese al 23-07-24", "Número 2019-2031", "Nro 2019-2031", "Línea 2019-2031", "Escribí al 2019-2031", "Ana 4567, 12 y 30 de mayo", "Juan 421 – 56 – 12, 18 y 19 de noviembre", "Expte 11456, Ana 78901", "11.456 - 78.901 asistentes", "$ 11.456 / 78.901", "Expte 1145-67, Ana 8901", "Ley 785.887 de lunes a viernes", "Ana 28-29-07 en 2026", "La Rural · 30–10–11", "Juan 15.19 1974", "1960-241 sponsors",
+  // Cuarta certificación (15/11, CERTIFICA) — observaciones cerradas igual: mails sin dominio o con «[@]», fechas de a pares.
+  "juan@hotmail", "juan [@] gmail.com", "juan(a)gmail.com", "juan@gmail,com", "juan@gmail。com", "https://expo.example/contacto/juan%2540gmail.com", "Ana 21-02-20-02", "Juan 25-08-17/02", "Coordinadora: 30.11 12.05", "Ana 21/02 20/02", "Coordinadora: 21/02/20/02 Juan", "Ana 28-03-15-06",
+];
+
+const TEXTO_REAL_QUE_ENTRA = [
+  "2027-03-10", "Temporada 2026-2027", "Temporada 2026–2027", "Expo Agro 2027", "Expo 2026 2027 2028", "Edición del 10/03/2027",
+  "2025 (20-22/05/2025)", "del 2026-11-14 al 2026-11-16", "2026-11-14T23:14:46Z", "edición 2026 2027", "2025, 2026 y 2027",
+  "Festival Demo 2027 | 12, 13 y 14 de Marzo", "Pabellones 1, 2, 3 y 4", "Pabellones 1 · 2 · 3",
+  "ediciones 2015-2024", "(2016-2026)", "2019/2026", "14-11-2026", "14.11.2026", "de 10.00-18.00 hs", "Starts 11/14/2026",
+  "Marca Demo · «19/11/2026 – 13:00 – 14:30 ... charla técnica»", "Relevado 2026-11-14 10:30", "Expo Demo 2027 (20-22/05) en el predio",
+  "precio $ 3.100.000", "$ 150.000.000", "$ 150.000 - 200.000", "Entradas $ 15.000 - $ 25.000", "12,500,000 visitantes", "150.000 - 200.000 personas",
+  "Asistentes 12.500 · ediciones 2015-2026", "$ 1.250,50", "Edición 5 · 2026", "En 2026: 1500 expositores", "2026 | 3500 stands",
+  "CUIT 30-71234567-1", "CUIT 30712345671", "en -34.603722, -58.381570", "Resolución 1234/2025", "EXP-2026-0042",
+  "ISBN 978-950-07-1234-7", "Matrícula 1234", "Stand 1210", "N.º 12", "Hall 4",
+  "ver https://maps.example/expo-agro-2027 y https://x.example/2026/11/14/nota",
+];
+
+test("traeContacto: rechazar por defecto deja afuera cada teléfono y mail que encontraron las 8 rondas de certificación", () => {
+  for (const t of TELEFONOS_Y_MAILS) assert.equal(traeContacto(t), true, t);
 });
 
-test("detector de teléfonos (tercera certificación): separadores con espacio e invisibles sí; ids y coordenadas de URL no", () => {
-  for (const t of ["11⁦5512⁩3456", "11‪5512‬3456", "11 · 5512 · 3456", "11 | 5512 | 3456", "11 5512 3456 / 14-11-2026"]) assert.ok(traeContacto(t), t);
-  assert.ok(urlConContacto("https://x.example/?1155123456"));
-  assert.ok(urlConContacto("https://x.example/?tel=11%204567-8901"));
-  for (const u of [
-    "https://x.example/sponsors?_ga=2.123456789.987654321.1700000000",
-    "https://www.facebook.com/profile.php?id=100012345678901",
-    "https://maps.google.com/maps?q=-34.6037222,-58.3815704",
-  ]) assert.ok(!urlConContacto(u), u);
-  assert.ok(!traeContacto("ver https://maps.google.com/maps?q=-34.6037222,-58.3815704 y https://x.example/?_ga=2.123456789.987654321"));
+test("traeContacto: los años, fechas, horas, cantidades, importes, coordenadas y números declarados siguen entrando", () => {
+  for (const t of TEXTO_REAL_QUE_ENTRA) assert.equal(traeContacto(t), false, t);
 });
 
-test("detector de teléfonos (cuarta certificación): años pegados a un teléfono, URLs dentro del texto y query con letras", () => {
-  for (const t of ["Cel 11 5512-2030", "0800-555-2010", "(011) 4567-1999", "+54 9 11 2023 4567", "Tel 2025 4567", "Fuente: https://x.example/?ref=1155123456", "ver https://x.example/#11-5512-3456"]) assert.ok(traeContacto(t), t);
-  for (const u of ["https://x.example/?q=llamar+al+11+5512-3456", "https://x.example/?q=11·5512·3456", "https://x.example/?q=11.5512.3456"]) assert.ok(urlConContacto(u), u);
-  for (const t of ["CUIT 30-71234567-8", "en -34.603722, -58.381570", "2025 (20-22/05/2025)", "Temporada 2026-2027"]) assert.ok(!traeContacto(t), t);
-  for (const u of ["https://x.example/nota?id=12345678", "https://x.example/agenda?fecha=20261114"]) assert.ok(!urlConContacto(u), u);
+test("traeContacto: residuo aceptado — dos años crecientes sin palabra de teléfono entran como rango de años", () => {
+  // Un fijo de 8 cifras con esa forma tendría que empezar con 19 o 20; los del AMBA empiezan con 4, 5 o 6.
+  assert.equal(traeContacto("Juan 2019-2031"), false);
+  assert.equal(traeContacto("Tel 2019-2031"), true, "con la palabra, no");
+  assert.equal(traeContacto("Juan 2031-2019"), true, "decreciente no es rango");
 });
 
-test("detector de teléfonos: texto real que tiene que entrar (horarios, fechas US, CUIT, seguimiento, ids)", () => {
-  for (const t of ["Biodiagnostico · «19/11/2026 – 13:00 – 14:30 ... From QC Materials»", "Relevado 2026-11-14 10:30", "Starts 11/14/2026", "CUIT 30712345678", "Pabellones 1 · 2 · 3 · 4 · 5 · 6 · 7 · 8"]) assert.ok(!traeContacto(t), t);
-  for (const u of ["https://expo.example/?_ga=2.123456789.1234567890.1698765432-987654321.1698765432", "https://www.linkedin.com/jobs/view/?currentJobId=3712345678"]) assert.ok(!urlConContacto(u), u);
-  assert.ok(traeContacto("11 55 12 34 56"), "de a pares también es teléfono");
+test("traeContacto: rechazar de más se acepta (formas no declaradas)", () => {
+  for (const t of ["Stand 1210/1211", "Entradas 15000-25000", "Entradas $ 15000-25000", "Matrícula 1234-5678", "1.250,50", "Pabellones 1, 2, 3, 4, 5, 6, 7 y 8", "CUIT 30-71234567-8", "ISBN 978-950-07-1234-5", "ISSN 1234-5679", "Telecom 2026 4567", "123.456 visitantes", "100% Demo Stand: K410 · 2026", "Del 3 al 5 de junio · 2027 · 12500 asistentes", "Hall 12.500 · 2026", "Expositores 1500 · 2026"]) assert.equal(traeContacto(t), true, t);
+});
+
+test("revisarUrl: enlaces de contacto y dominios con números no se guardan; ruta con números se guarda como dominio; sin query ni #", () => {
+  for (const u of ["mailto:info@banco.com", "tel:+541145678901", "https://wa.me/5491112345678", "https://api.whatsapp.com/send?phone=5491112345678", "https://t.me/+5491155123456", "https://expo.example/x?mail=juan%40gmail.com", "https://11-5512-3456.example.com/", "https://200.45.123.45/expo"]) {
+    const r = revisarUrl(u);
+    assert.equal(r?.ok, false, u);
+  }
+  for (const u of ["https://diario.example/noticias/123456789/expo", "https://x.example/contacto/1145678901", "https://x.example/11.5512.3456", "https://x.example/eventos-011-4567-8901", "https://x.example/llamar/11-5512-3456", "https://x.example/juan-perez-1155123456"]) {
+    assert.deepEqual(revisarUrl(u), { ok: true, url: `${new URL(u).origin}/`, soloDominio: true }, u);
+  }
+  assert.deepEqual(revisarUrl("https://x.example/sponsors?_ga=2.123456789&tel=1145678901#Juan 11 5512 3456"), { ok: true, url: "https://x.example/sponsors", soloDominio: false });
+  for (const u of ["https://x.example/2026/11/14/expo-agro", "https://x.example/expo-agro-2027", "https://www.expo2027.com.ar/sponsors"]) {
+    const r = revisarUrl(u);
+    assert.equal(r?.ok === true && !r.soloDominio, true, u);
+  }
+  assert.equal(revisarUrl("javascript:alert(1)"), null);
+});
+
+test("validarLote: la fila con datos de contacto queda afuera con su motivo y SIN el dato; el resto entra", () => {
+  const r = validarLote({
+    eventos: [
+      evento({ nombre: "Sano", marcas: [marca(), marca({ nombre: "Con Mail", email: "x@y.com" }), marca({ nombre: "info@banco.com" }), marca({ nombre: "Web Mailto", web: "mailto:info@banco.com" })] }),
+      evento({ nombre: "Con organizador", organizador: "Cámara (tel 11 4567 8901)" }),
+      evento({ nombre: "Con campo", contacto: "Juan" }),
+      evento({ nombre: "Con fuente WhatsApp", urlFuente: "https://wa.me/5491112345678" }),
+      evento({ nombre: "Con fuente numerada", urlFuente: "https://diario.example/noticias/123456789?tel=1145678901" }),
+    ],
+  });
+  assert.equal(r.ok, true);
+  if (!r.ok) return;
+  assert.deepEqual(r.eventos.map((e) => e.nombre), ["Sano", "Con fuente numerada"]);
+  assert.deepEqual(r.eventos[0].marcas.map((m) => m.nombre), ["Banco Uno"]);
+  assert.equal(r.eventos[1].urlFuente, "https://diario.example/");
+  const texto = JSON.stringify(r.rechazos);
+  for (const dato of ["x@y.com", "info@banco.com", "4567 8901", "5491112345678", "Juan"]) assert.ok(!texto.includes(dato), `el motivo no repite «${dato}»`);
+  assert.ok(r.rechazos.some((x) => x.donde === "evento 2" && /organizador/.test(x.motivo)), texto);
+  assert.ok(r.rechazos.some((x) => /sólo el dominio/.test(x.motivo)), texto);
+});
+
+test("validarLote: nombres de campo de contacto dejan afuera la fila; «hotel» y «cartel» no", () => {
+  for (const k of ["e-mail", "e_mail", "emails", "telefonos", "phone", "celulares", "mobile", "contactoComercial", "whatsapp_url", "tel"]) {
+    const r = validarLote({ eventos: [evento({ nombre: "Sano" }), evento({ nombre: "Con campo", [k]: "x" })] });
+    assert.equal(r.ok && r.eventos.length, 1, k);
+  }
+  assert.equal(validarLote({ eventos: [evento({ hotel: "Hotel Demo", cartel: "sí" })] }).ok, true);
+});
+
+test("validarLote: un teléfono partido entre dos campos de la fila la deja afuera; la altura de la calle no", () => {
+  const r = validarLote({ eventos: [evento({ nombre: "Expo 4567", lugar: "Ana 8901" }), evento({ nombre: "Torneo Demo 2027 (categoría 250)", lugar: "Calle Demo 1510, CABA" })] });
+  assert.equal(r.ok, true);
+  if (!r.ok) return;
+  assert.deepEqual(r.eventos.map((e) => e.nombre), ["Torneo Demo 2027 (categoría 250)"]);
+  assert.ok(r.rechazos.some((x) => /entre sus campos/.test(x.motivo) && !/4567|8901/.test(JSON.stringify(x))));
+});
+
+test("validarLote: el «·» con que se unen los campos no arma un año y una cifra", () => {
+  const r = validarLote({ eventos: [evento({ nombre: "Feria 4567 en 2026", lugar: "8901 expositores" })] });
+  assert.equal(r.ok, false);
+});
+
+test("validarPedido: un teléfono partido entre el pedido y la región no entra", () => {
+  assert.equal(validarPedido("descubridor", "Buscá ferias 4567", { region: "Zona 8901" }).ok, false);
+  assert.equal(validarPedido("descubridor", "Buscá ferias de 2027", { region: "Córdoba" }).ok, true);
+});
+
+test("validarLote: una línea del registro con un teléfono no se guarda y se cuenta", () => {
+  const linea = (detalle: string) => ({ puesto: "descubridor", accion: "Encontró el evento", hora: "2026-11-14T10:00:00Z", detalle });
+  const r = validarLote({ eventos: [evento({ registro: [linea("Visto en la web oficial 2027"), linea("Llamé al 11 4567 8901")] })] });
+  assert.equal(r.ok, true);
+  if (!r.ok) return;
+  assert.deepEqual(r.eventos[0].registro.map((l) => l.detalle), ["Visto en la web oficial 2027"]);
+  assert.ok(r.rechazos.some((x) => /1 línea/.test(x.motivo)));
 });

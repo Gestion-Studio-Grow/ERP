@@ -8,7 +8,7 @@
  *     por el repo y por SQL crudo como `app_rls` (RLS + FK compuesta (id, tenantId));
  *   · sin negocio en la conexión: cero filas; los CHECK de la migración frenan rol y URL inválidos;
  *   · la Server Action: apagada (default) rechaza sin escribir; prendida en A importa; B sigue apagado;
- *     un lote con datos de contacto de personas se rechaza entero.
+ *     una fila con datos de contacto de personas (o números que pueden serlo) queda afuera sin guardar el dato.
  *
  * Sin Postgres local se saltea diciendo por qué (en CI falla), como los demás `*-postgres.test.ts`.
  */
@@ -311,11 +311,25 @@ test("la Server Action: apagada rechaza, prendida importa, el interruptor es por
   assert.equal(enB?.estado, "error", "B sigue apagado");
   assert.equal(await cuantos(base.b.id), 0);
 
-  const conMail = await correr(base.a, { eventos: [{ ...lote.eventos[0], nombre: "Con mail", marcas: [{ nombre: "M", rol: "SPONSOR", urlFuente: "https://x.example", email: "alguien@empresa.com" }] }] });
-  assert.equal(conMail?.estado, "error");
-  assert.match(conMail?.estado === "error" ? conMail.mensaje : "", /contacto/);
-  const conMailFilas = await comoApp(base, base.a.id, (c) => c.query(`SELECT count(*)::int AS n FROM "EventoRelevado" WHERE nombre = 'Con mail'`));
-  assert.equal(conMailFilas.rows[0].n, 0);
+  // Rechazar por defecto: la fila con un dato de contacto (o números que pueden serlo) queda afuera con su motivo y sin
+  // guardar el dato; el resto del lote entra.
+  const conContacto = await correr(base.a, {
+    eventos: [
+      { ...lote.eventos[0], nombre: "Con mail en una marca", marcas: [{ nombre: "Marca Con Mail", rol: "SPONSOR", urlFuente: "https://x.example", email: "alguien@empresa.com" }, { nombre: "Marca Sana", rol: "SPONSOR", urlFuente: "https://x.example/noticias/12345678?id=9" }] },
+      { ...lote.eventos[0], nombre: "Expo Tel. 351.423-4567", marcas: [] },
+    ],
+  });
+  assert.equal(conContacto?.estado, "ok", JSON.stringify(conContacto));
+  const rechazos = conContacto?.estado === "ok" ? conContacto.rechazos : [];
+  assert.ok(rechazos.some((r) => /contacto/.test(r.motivo) && /marca 1/.test(r.donde)), JSON.stringify(rechazos));
+  assert.ok(rechazos.some((r) => /teléfono/.test(r.motivo) && r.donde === "evento 2"), JSON.stringify(rechazos));
+  assert.ok(!JSON.stringify(rechazos).includes("351.423") && !JSON.stringify(rechazos).includes("alguien@"), "el motivo no repite el dato");
+  const filas = await comoApp(base, base.a.id, (c) =>
+    c.query(`SELECT (SELECT count(*)::int FROM "EventoRelevado" WHERE nombre LIKE 'Expo Tel%') AS tel, (SELECT count(*)::int FROM "MarcaRelevada" WHERE nombre = 'Marca Con Mail') AS mail, (SELECT "urlFuente" FROM "EventoMarca" em JOIN "MarcaRelevada" m ON m.id = em."marcaId" WHERE m.nombre = 'Marca Sana') AS url`),
+  );
+  assert.equal(filas.rows[0].tel, 0);
+  assert.equal(filas.rows[0].mail, 0);
+  assert.equal(filas.rows[0].url, "https://x.example/", "la ruta con un número largo se guarda sólo como dominio, sin la query");
 });
 
 test("el lote del equipo de agentes: verificación, edición y registro; reimportar actualiza la verificación sin duplicar pasos", async (t) => {
