@@ -1,6 +1,6 @@
-# Facturita como app — Gate de Excelencia (4 bloques)
+# Factoque como app — Gate de Excelencia (4 bloques)
 
-Frente: «facturación automática» · célula Facturita como app · rama
+Frente: «facturación automática» · célula Factoque como app · rama
 `claude/facturacion-automatica-facturita` (desde `origin/claude/facturacion-automatica`).
 Fecha: 2026-10-22. Sin deploy, sin migraciones, sin Neon, sin credenciales ARCA, sin datos reales.
 
@@ -28,7 +28,7 @@ Fecha: 2026-10-22. Sin deploy, sin migraciones, sin Neon, sin credenciales ARCA,
 ## 2. Sello GSG
 
 - [x] `metadata.generator = "Gestión Studio Grow"` en el layout de producto, la vidriera, alta, planes, y `<meta name="generator">` en la página sin conexión.
-- [x] Crédito discreto: pie de la vidriera en `text-xs text-faint` («Un producto de Gestión Studio Grow» — Facturita es producto propio de GSG); el crédito del backoffice ya estaba en `app/layout.tsx`.
+- [x] Crédito discreto: pie de la vidriera en `text-xs text-faint` («Un producto de Gestión Studio Grow» — Factoque es producto propio de GSG); el crédito del backoffice ya estaba en `app/layout.tsx`.
 - [x] Commit con trailer del equipo GSG. Docs firmados.
 
 ## 3. Excelencia de Arquitectura
@@ -41,7 +41,7 @@ Fecha: 2026-10-22. Sin deploy, sin migraciones, sin Neon, sin credenciales ARCA,
 ## 4. Confiabilidad de Producción
 
 - [x] `npx tsc --noEmit` verde (exit 0). `eslint` de lo tocado: 0 problemas.
-- [x] `npm test`: 5812 tests, 5802 pasan, 10 fallan — **ninguno de Facturita** y todos en áreas que este
+- [x] `npm test`: 5812 tests, 5802 pasan, 10 fallan — **ninguno de Factoque** y todos en áreas que este
   frente no toca (pruebas de navegador de /vender e ingreso, pie pegado del admin, fila de KPIs, escala de
   clientes/links de cobro, cron con RLS, búsqueda sin tildes, guardia de redondeos con archivos de `club/`).
   Los 27 tests de `src/lib/facturita-*.test.ts` + `guardia-bundle-cliente`, `site-gate` y
@@ -51,7 +51,7 @@ Fecha: 2026-10-22. Sin deploy, sin migraciones, sin Neon, sin credenciales ARCA,
   igual que `/demo` (pedido P-6).
 - [x] QA clic por clic con Playwright (Chromium) en 360/768/1280: sin scroll horizontal; alta completa
   con error de campo vacío, CUIT con verificador mal y camino feliz; el SW se registra con alcance
-  `/facturita/`, controla `/facturita/planes` y sin red muestra «Sin conexión · Facturita».
+  `/facturita/`, controla `/facturita/planes` y sin red muestra «Sin conexión · Factoque».
 - [x] No rompe prod: sin schema, sin migraciones, sin cambios en `src/proxy.ts`, `next.config`, `/api/pwa/admin.webmanifest` intacto.
 - [x] Errores: registro del SW con `catch` silencioso (la app anda sin él); portapapeles con `try/catch`; sin número de WhatsApp no aparece el botón (no se inventa).
 
@@ -67,13 +67,13 @@ Fecha: 2026-10-22. Sin deploy, sin migraciones, sin Neon, sin credenciales ARCA,
 | C3 | Descripción no se guardaba | Se pasa `descripcion` a `createInvoice` (PDF y lista). | `facturita-actions.ts` |
 | C4 | Concepto fijo en productos | Productos / Servicios / Ambos (`Segmented`). Con servicios: período desde/hasta y vencimiento del pago (hoy por defecto; se valida hasta ≥ desde y vencimiento ≥ hoy), que el motor manda como FchServDesde/Hasta/FchVtoPago. El placeholder del detalle sigue al concepto. | `facturita-core.ts`, `EmitirForm.tsx` |
 | C5 | «Factura emitida» siempre | La acción lee la factura después del despacho y responde el estado real: autorizada (con N.º y CAE, o «de prueba»), pendiente («sale apenas ARCA responda» / «la conexión con ARCA todavía no está activa»), o rechazada con el motivo. | `facturita-actions.ts`, `mensajeDeEmision` |
-| M | «sin límite» / «para siempre» | Fuera: el tope del aviso nombra 159 (plan Solo, lo vigila un test); Facturita dice «Sin tarjeta». | `facturita-core.ts`, `facturita-planes.ts`, `cuenta/page.tsx` |
+| M | «sin límite» / «para siempre» | Fuera: el tope del aviso nombra 159 (plan Solo, lo vigila un test); Factoque dice «Sin tarjeta». | `facturita-core.ts`, `facturita-planes.ts`, `cuenta/page.tsx` |
 | M | Stub mostraba «Autorizada» | `esDePrueba(modo, homologación)`: en stub u homologación, «Autorizada de prueba» + aviso de que no tiene validez fiscal; en Mi cuenta, «Simulado». | `facturas/page.tsx`, `cuenta/page.tsx` |
 | M | Fecha de «Mis facturas» un día antes | `fechaFiscalLegible` formatea AAAAMMDD como texto, sin `Date`. | `facturas/page.tsx` |
 | M | CUIT real en el placeholder y en tests | Placeholder genérico («11 números, con o sin guiones»; DNI «7 u 8 números»); tests con CUIT inventados (20-11111111-2, 30-11111111-8). | `EmitirForm.tsx`, `facturita-core.test.ts` |
 | M | `CUIT_GSG_DELEGACION` | Superado 05/11/2026 (decisión del dueño): sin delegación al CUIT de GSG; `PASOS_CERTIFICADO_PROPIO` (certificado del propio usuario, clave fiscal nivel 3). | `facturita-onboarding.ts` |
 
-**Verificación vuelta 2:** `tsc` verde; eslint 0; 56 tests puros de Facturita verdes; nuevo
+**Verificación vuelta 2:** `tsc` verde; eslint 0; 56 tests puros de Factoque verdes; nuevo
 `src/lib/facturita-emision-postgres.test.ts` (4 casos, Server Action real contra base efímera con RLS
 y ARCA en stub): monotributo → servicio a empresa RI (C, concepto 2, fechas, condición real en el
 envío, descripción guardada); CUIT sin condición no crea factura; inscripto 10,5 % → B con desglose
@@ -89,7 +89,7 @@ esperaba el texto viejo «ARCA no autorizó la factura:» para un rechazo que es
 la RG 5700). Con C1b el texto correcto es «No la mandamos a ARCA…»: se actualizó la aserción.
 
 **Limitaciones que quedan (anotadas):**
-- Inscripto → inscripto (Factura A) necesita la clase de Factura A que asignó ARCA (RG 1575); Facturita
+- Inscripto → inscripto (Factura A) necesita la clase de Factura A que asignó ARCA (RG 1575); Factoque
   no la deja cargar: hoy la carga Soporte GSG. Sin ella, la A se frena con ese motivo, en criollo.
 - Una alícuota por factura (la vidriera lo dice). Varias alícuotas en una venta → Comerciante.
 - `descripcion` necesita la migración `20261022140000_invoice_abono_descripcion` (**Gate 2, sin
@@ -103,7 +103,7 @@ la RG 5700). Con C1b el texto correcto es «No la mandamos a ARCA…»: se actua
 |---|---|---|---|
 | CRÍTICO | El PDF no salía: faltaban razón social, domicilio, inicio de actividades e IIBB del emisor | «Datos para tus facturas» en Mi cuenta: graba en los MISMOS campos que lee el PDF (`arcaRazonSocial`, `arcaDomicilioFiscal`, `arcaInicioActividades` AAAAMMDD, `arcaIibb` con «Exento»/«Convenio Multilateral»), en `tenantTransaction` del propio negocio, con auditoría. Escritura propia y mínima: `multilocal-core.ts` no se tocó. | `facturita-emisor.ts`, `cuenta/DatosParaFacturas.tsx`, `guardarDatosParaFacturasAction` |
 | CRÍTICO | El PDF pedía el nombre del comprador con documento | Emitir pide nombre (obligatorio con documento) y domicilio (opcional, con CUIT). Invoice no tiene columnas: se guarda una copia en `AuditLog` (`comprobante.receptor`, `entityId` = factura, misma transacción que la factura) y el lector del PDF la usa cuando no hay venta, turno ni movimiento. Mismo patrón que la clase de Factura A. | `facturita-actions.ts`, `comprobante-pdf-datos.ts` |
-| CRÍTICO | El 409 mandaba a pantallas que Facturita no tiene | `respuestaPdfDeComprobante` acepta `volverA` como objeto (`texto`, `href`, `completarEmisor`, `reescribir`): página HTML con lo que falta, dicho para Facturita, y enlaces a «Mi cuenta» y «Mis facturas». El backoffice sigue con el texto de siempre (mismo `string`). | `comprobante-pdf-respuesta.ts`, ruta del PDF |
+| CRÍTICO | El 409 mandaba a pantallas que Factoque no tiene | `respuestaPdfDeComprobante` acepta `volverA` como objeto (`texto`, `href`, `completarEmisor`, `reescribir`): página HTML con lo que falta, dicho para Factoque, y enlaces a «Mi cuenta» y «Mis facturas». El backoffice sigue con el texto de siempre (mismo `string`). | `comprobante-pdf-respuesta.ts`, ruta del PDF |
 | CRÍTICO | El PDF no leía `descripcion` | El renglón usa `Invoice.descripcion` si existe; se lee en una consulta aparte que tolera P2021/P2022, así el PDF del backoffice sigue saliendo en una base sin la migración del motor. | `comprobante-pdf-datos.ts` |
 | CRÍTICO | Facturas sin PDF sin aviso | En Emitir, aviso amable con lo que falta y enlace a Mi cuenta; no bloquea (ARCA no lo exige). | `app/page.tsx` |
 | ALTO | Textos que prometían de más | Vidriera: la letra se explica (C, o B del inscripto a consumidor final/exento; la A desde ARCA); «Va a ARCA» con autorización si responde, pendiente si no; «Se autoriza en ARCA, con CAE»; ejemplo «Autorizada · CAE» y «PDF para tu cliente»; cierre «cinco pasos cortos… la activamos nosotros» (sin «en el día» ni «cinco minutos»). Planes, manifiesto, alta, Mis facturas y Mi cuenta alineados. | `page.tsx`, `facturita-planes.ts`, `facturita-pwa.ts`, `alta/*`, `facturas/page.tsx`, `cuenta/page.tsx`, `facturita-onboarding.ts` |
@@ -113,8 +113,8 @@ la RG 5700). Con C1b el texto correcto es «No la mandamos a ARCA…»: se actua
 | MEDIO | Sin notas de crédito | «Anular» en las autorizadas con saldo: pide el motivo y confirma; `crearNotaDeCredito` del motor (toma la factura con bloqueo, nunca anula más de lo facturado) y despacho. La lista muestra la nota y «Anulada con nota de crédito». | `anularFacturitaAction`, `facturas/AnularFactura.tsx` |
 | MEDIO | CUIT 30/33/34 como monotributista | Se rechaza: una persona jurídica no puede ser monotributista (`claseDelPrefijo` del Core). | `validarEmision` |
 
-**Verificación vuelta 3:** `tsc` verde; eslint 0; tests puros de Facturita + `comprobante-pdf.test.ts`
-verdes (3 casos nuevos de Facturita en el del PDF: faltantes del emisor dichos sin pantallas del
+**Verificación vuelta 3:** `tsc` verde; eslint 0; tests puros de Factoque + `comprobante-pdf.test.ts`
+verdes (3 casos nuevos de Factoque en el del PDF: faltantes del emisor dichos sin pantallas del
 backoffice, C con comprador y descripción impresos, comprador sin nombre guardado → ARCA).
 `facturita-emision-postgres.test.ts`: 5 casos verdes, el nuevo hace el circuito entero (409 HTML con
 enlace a Mi cuenta → guardar datos en los campos del PDF → 200 `application/pdf` con el comprador
@@ -126,7 +126,7 @@ solo, 7/7 verdes: carga). `npm run build` verde.
 **Decisiones / pendientes para el dueño:**
 - La nota de crédito ocupa un lugar del cupo de 5 del mes (el cupo cuenta todo lo no rechazado,
   `filtrosFacturacionMes` en bancos-glue). ¿Las notas tienen que quedar fuera del cupo? Es un cambio
-  fuera de Facturita.
+  fuera de Factoque.
 - Columnas en Invoice para la copia del receptor (nombre, condición, domicilio) y el ambiente de ARCA
   (migración, Gate 2): hoy viven en `AuditLog` y en la deducción del PDF.
 - Las facturas emitidas antes de esta vuelta no guardaron el nombre del comprador: su PDF manda a
@@ -156,7 +156,7 @@ Base: 8b67f3b6 (la copia del comprador ya va con la entidad `ComprobanteReceptor
 | 7 | «Ya podés descargar tus facturas» | Acotado a las autorizadas con el comprador guardado (las de consumidor final, siempre). |
 | 8 | Punto de venta 4 cifras en la app, 5 en el PDF | 5 cifras en todo (formato del PDF de ARCA): `00002-00000015`. |
 
-**Verificación vuelta 4:** `tsc` verde; eslint 0; 89 tests puros verdes (Facturita + `comprobante-pdf.test.ts`,
+**Verificación vuelta 4:** `tsc` verde; eslint 0; 89 tests puros verdes (Factoque + `comprobante-pdf.test.ts`,
 con los nuevos de domicilio de la A, umbral RG 5700, aviso de CUIT jurídico, estado de anulación, cupo,
 NC rechazada, formato del número y CAE simulado). `facturita-emision-postgres.test.ts` 5/5: el circuito
 del PDF ahora sigue con la NC (ficha copiada a la nota, PDF 200 de la nota, «en curso» → «anulada», número
@@ -170,7 +170,7 @@ dictamen completo en `docs/producto/X0-integracion-facturacion.md`):**
   navegador que no arranca en Windows (`browserType.launch: spawn UNKNOWN`), rutas `C:\C:\…`, guardia de
   redondeos con archivos de `club/`, contrato de ARCA y los de siempre. `src/tenants/breakpoint/turnero/demo-local.test.ts`
   se cuelga en los dos y se cortó a mano. **Cero rojos nuevos.**
-- Tests puros de Facturita, consola, cartera, motor y PDF (56 archivos) con `CI=1`: **605/605**.
+- Tests puros de Factoque, consola, cartera, motor y PDF (56 archivos) con `CI=1`: **605/605**.
 - Tests de base del frente sobre PGlite (Postgres 17 en memoria, superusuario, una sola sesión):
   `facturita-emision-postgres` 5/5, `umbral-en-los-seis-caminos-postgres` 7/7, `comprobante-pdf-postgres` 2/3
   (el que falta es la afirmación de RLS, que PGlite no puede cumplir). RLS y concurrencia real: **sin verificar**.

@@ -1,7 +1,7 @@
 # 🏗️ Plan de construcción — completar la suite para go-live
 
 **Pedido del dueño (2026-07-11):** construir lo que falta en Fable, con foco en (1) auto-facturar TODO lo
-que entra por Mercado Pago o banco en Comerciante + Facturita, (2) completar el tier Pyme "con la
+que entra por Mercado Pago o banco en Comerciante + Factoque, (2) completar el tier Pyme "con la
 perfección de un reloj suizo" (ahí destacamos), (3) probar, publicar cada uno con su URL, y entregar un
 PDF + manual de uso por producto.
 
@@ -9,7 +9,7 @@ Este doc es el spec para ejecutar apenas se libere el clasificador de permisos d
 
 ---
 
-## Frente 1 — Auto-facturado total desde Mercado Pago + Banco (Comerciante + Facturita)
+## Frente 1 — Auto-facturado total desde Mercado Pago + Banco (Comerciante + Factoque)
 
 **Estado hoy:** el importador de extracto bancario está construido (A). La ingesta de Mercado Pago +
 conciliación + clasificador existen a nivel dominio (ADR-025) pero con glue SIMULADO (stub), sin OAuth
@@ -23,14 +23,14 @@ real por tenant.
 3. Backfill histórico (`sincronizarPagos`) para facturar lo ya cobrado.
 4. Unificar la vista: banco + MP en una sola cola/tablero, con dedup cruzado (ya existe la detección
    cruzada banco↔MP).
-5. Que Facturita también reciba MP (versión mínima: cobros → factura, sin extracto bancario).
+5. Que Factoque también reciba MP (versión mínima: cobros → factura, sin extracto bancario).
 
 **Definición de terminado:** todo cobro que entra por MP o por banco se convierte en propuesta de factura
 sin intervención; el usuario solo revisa las que superan el umbral. Verde + test + runtime.
 
 ---
 
-## Frente 2 — Facturita (construir de cero)
+## Frente 2 — Factoque (construir de cero)
 
 Ver spec completo en el prompt de build (ADR-076). Empaquetado de módulos liviano (arca + clients),
 signup público `/facturita`, emisión manual en 3 clics, tope 5 facturas/mes con gancho de upgrade,
@@ -75,7 +75,7 @@ disponible — va como "en el plan" / tier premium. No prometer lo que no está 
 ## Orden de ejecución sugerido (apenas vuelva el clasificador)
 
 1. Frente 1 (auto-facturado MP+banco) — hace sólidos los productos vendibles YA.
-2. Frente 2 (Facturita) — el más chico, sale rápido.
+2. Frente 2 (Factoque) — el más chico, sale rápido.
 3. Verificar + Gate + deploy + URLs de A, B, C + manuales/PDF de esos tres → **UAT del dueño puede
    arrancar con 3 productos**.
 4. Frente 3 (pyme reloj suizo) por módulos, en paralelo/después — es el build grande; nómina y CM son

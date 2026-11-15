@@ -12,13 +12,13 @@ import type { Blueprint } from "./types";
 
 export const facturitaBlueprint: Blueprint = {
   id: "facturita",
-  label: "Facturita",
+  label: "Factoque",
   description:
     "Emisor de facturas simple y gratuito: emitís tu factura con CAE en tres clics. " +
     "Sin catálogo, sin agenda, sin caja — la puerta de entrada a la suite de facturación.",
   capabilities: ["billing:manage", "clients:manage"],
   brandingDefaults: {
-    shortLabel: "Facturita",
+    shortLabel: "Factoque",
     contactNote: "Facturá simple: emitida en tres clics, con validez de ARCA.",
   },
   // Facturita no siembra nada: no hay catálogo que mostrar. Idempotente trivial.
