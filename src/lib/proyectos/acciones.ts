@@ -17,7 +17,7 @@ import { transferenciaEnElLibroTx } from "@/lib/caja/transferencia-en-el-libro";
 import type { Prisma } from "@/generated/prisma/client";
 import { clientePuedeResponder, fechaCorta, leerNumero, MEDIO_LABEL, pesos, esEtapa, esServicio, etapaAlAprobar, etapaLabel, etapasDe, MEDIOS, metodoDeCaja, precioConMargen, redondear, sePuedeEditar, sumarDias, type MedioPago } from "./core";
 import { bloqueoDeEliminar, computar, costosVigentes, COSTO_LABEL, disenoInicial, normalizarDiseno, TIPOS_STAND, type ClaveCosto, type DisenoStand } from "./stand";
-import { configProyectos } from "./datos.server";
+import { configProyectos, veLaPlata } from "./datos.server";
 import { cobranzasDelNegocio, tiposDeCambio, trabarCobranza } from "./cobranza.server";
 import { pasaElTope, type Cobranza } from "./cobranza-core";
 import { avisoTopeCobro } from "./avisos-cuota";
@@ -257,6 +257,8 @@ async function asentarPagoDeGastoTx(tx: Prisma.TransactionClient, tenantId: stri
 export async function registrarGasto(formData: FormData): Promise<Resultado> {
   const a = await actorCon(["pagos"]);
   const { user, tenantId } = a;
+  // El formulario sólo se muestra a quien ve la plata (`cargaDirecta`, `_pestanas-plata.tsx`): con «Ya está pagado» mueve caja.
+  if (!veLaPlata(user)) return { ok: false, error: "No tenés permiso para hacer esto." };
   const proyectoId = txt(formData.get("proyectoId"));
   if (!(await proyectoDelActor(a, proyectoId))) return { ok: false, error: "Ese proyecto no existe." };
   const p = await prisma.proyecto.findFirst({ where: { id: proyectoId, tenantId }, select: { numero: true, nombre: true } });
@@ -304,9 +306,11 @@ export async function registrarGasto(formData: FormData): Promise<Resultado> {
   return { ok: true };
 }
 
+/** Lo mismo que pide el botón (`_pestanas-plata.tsx`, `proveedores/page.tsx`): editar Pagos, ver la plata y ver el proyecto. */
 export async function pagarGasto(formData: FormData) {
-  const a = await actorCon(["pagos", "proveedores"]);
+  const a = await actorCon(["pagos"]);
   const { user, tenantId } = a;
+  if (!veLaPlata(user)) throw new Error("No tenés permiso para hacer esto.");
   const id = txt(formData.get("id"));
   const medio = txt(formData.get("medio")) as MedioPago;
   if (!MEDIOS.includes(medio)) return;
@@ -314,7 +318,7 @@ export async function pagarGasto(formData: FormData) {
     where: { id, tenantId },
     select: { id: true, neto: true, iva: true, descripcion: true, proyectoId: true, proyecto: { select: { numero: true } }, supplier: { select: { name: true } } },
   });
-  if (!g) return;
+  if (!g || !(await proyectoDelActor(a, g.proyectoId))) return;
   await tenantTransaction(async (tx) => {
     // Dos clics, o dos pestañas, no pagan dos veces.
     const r = await tx.proyectoGasto.updateMany({ where: { id, tenantId, pagadoEl: null, anuladoEl: null }, data: { pagadoEl: new Date(), medio, pagadoPor: user.name } });
