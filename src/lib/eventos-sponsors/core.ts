@@ -141,7 +141,20 @@ const PARECE_MAIL_OFUSCADO = /[a-z0-9._%+-]+\s*(?:@|\(at\)|\[at\]|\{at\})\s*[a-z
 // Dígitos de ancho completo a normales (NFKC), invisibles afuera (\p{Cf}: formato y direccionalidad; \p{Mn}: marcas
 // sueltas) y cualquier guion a «-».
 function paraBuscarTelefonos(texto: string): string {
-  return texto.normalize("NFKC").replace(/[\p{Cf}\p{Mn}᠎]/gu, "").replace(/[\p{Pd}−]/gu, "-");
+  return texto
+    .normalize("NFKC")
+    .replace(/[\p{Cf}\p{Mn}᠎]/gu, "")
+    .replace(/[\p{Pd}−]/gu, "-")
+    .replace(/\p{Nd}/gu, digitoLatino);
+}
+
+// Un dígito de otra escritura (árabe ٤٥٦٧, devanagari ४५६७…) a 0-9: los dígitos Unicode van en tiradas de 10 seguidas.
+function digitoLatino(c: string): string {
+  if (c >= "0" && c <= "9") return c;
+  const cp = c.codePointAt(0)!;
+  let desde = cp;
+  while (/\p{Nd}/u.test(String.fromCodePoint(desde - 1))) desde--;
+  return String((cp - desde) % 10);
 }
 
 const ANIO_TXT = "(?:199\\d|20[0-3]\\d)";
@@ -156,22 +169,32 @@ const NO_TELEFONOS: readonly RegExp[] = [
   /(?<!\d)(?:0?[1-9]|[12]\d|3[01])\/(?:0?[1-9]|1[0-2])\/\d{2}(?![\d/])/g,
   // Horas: 10:00, 10.00 hs, «10.00-18.00».
   /(?<!\d)(?:[01]?\d|2[0-3])[:.][0-5]\d(?:\s?-\s?(?:[01]?\d|2[0-3])[:.][0-5]\d)?(?!\d)/g,
-  // CUIT de una empresa (30-71234567-8) y coordenadas con decimales (-34.603722).
+  // CUIT de una empresa (30-71234567-8) y coordenadas con decimales (-34.603722). En Argentina latitud y longitud
+  // son negativas: sin el «-» no es coordenada («Tel. 011.4567-8901», «351.423-4567» son teléfonos).
   /(?<!\d)(?:20|23|24|27|30|33|34)-\d{8}-\d(?!\d)|\bCUIT\s*:?\s*(?:20|23|24|27|30|33|34)\d{9}(?!\d)/gi,
-  /(?<![\d.])-?\d{1,3}\.\d{4,}(?![\d.])/g,
+  /(?<![\d.)][\s]?)-\d{1,3}\.\d{4,}(?![\d.])/g, // «(0351)-423.4567» no es coordenada
   // Plata y cantidades con miles: $ 150.000.000, 12,500,000 visitantes, 1.250,50.
   /\$\s?\d[\d.,]*/g,
-  /(?<![\d.,])\d{1,3}(?:([.,])\d{3})(?:\1\d{3})*(?:[.,]\d{1,2})?(?![\d.,])/g,
+  // (No si sigue un bloque de 4 cifras: «351.423-4567», «351.423-2030» y, salvo que sea un año, «351.423 · 4567» son
+  // teléfonos.)
+  new RegExp(`(?<![\\d.,])\\d{1,3}(?:([.,])\\d{3})(?:\\1\\d{3})*(?:[.,]\\d{1,2})?(?![\\d.,])(?![\\s-]{1,3}\\d{4}(?![\\d.,]))(?![\\s-]{1,3}\\d{2}[\\s-]\\d{2}(?!\\d))(?![^\\p{L}\\p{N}\\n]{1,3}(?!${ANIO_TXT})\\d{4}(?![\\d.,]))`, "gu"),
   // Años y rangos de años, crecientes: 2026, 2015-2024, (2016-2026), 2019/2026, «2025, 2026 y 2027».
   // (No si sigue «-55-12»: eso no es un año suelto, es un número.)
   new RegExp(`(?<!\\d)${ANIO_TXT}(?:(?:\\s*(?:-|/|,|y|a|al)\\s*|\\s+)${ANIO_TXT})*(?!\\d|[-./]\\d)`, "g"),
 ];
 
-// Un AÑO pegado a otros dígitos por un espacio, un guion, un punto o una barra es parte de algo más largo
-// («Cel 11 5512-2030», «+54 9 11 2023 4567»): no se saca, se mira entero. Un paréntesis sí separa («2025 (20-22/05)»).
-// Días y horas tienen forma propia y se sacan siempre (por eso los años van al final, cuando ya no están).
-const PEGADO_ANTES = /\d[\s\-./]{0,3}$/;
-const PEGADO_DESPUES = /^[\s\-./]{0,3}\d/;
+// Un AÑO pegado DETRÁS de otros dígitos por los mismos signos que une TRAMO_NUMERICO (espacio, guion, punto, barra,
+// «·», «|», «*», «)»…) es parte de algo más largo («Cel 11 5512 · 2030», «(011) 2020-2021»): no se saca, se mira
+// entero. DELANTE de otros dígitos sólo lo pegan espacio, guion, punto o barra («+54 9 11 2023 4567»): «En 2026: 1500
+// expositores» y «2026 | 3500 stands» no son teléfonos. Un paréntesis que abre sí separa («2025 (20-22/05)»). Días y horas tienen forma propia y se sacan siempre (por eso
+// los años van al final, cuando ya no están). Tampoco se saca un año que sigue a «Tel», «Cel», «WhatsApp»…
+const PEGADO_ANTES = /\d[\s\-./_]{0,3}$/;
+// Con «·», «|», «*» o «)» el bloque de antes tiene que ser de 3 cifras o más, no un año y parte de un número más
+// largo: «Hall 4 · 2026», «Expositores 1500 · 2026» y «Edición 2025-2026 · 2026-2027» no son teléfonos; «Cel 11 5512 ·
+// 2030», «(011) 4567 | 2025», «(011) 2020-2021» y «(11) 2030-2031» sí (una característica entre paréntesis pega).
+const PEGADO_ANTES_ANCHO = new RegExp(`(?:\\d(?:(?!,\\s)[^\\p{L}\\p{N}\\n]){1,3}(?!${ANIO_TXT}(?!\\d))\\d{3,}(?:(?!,\\s)[^\\p{L}\\p{N}\\n(]){1,3}|(?<!\\d)\\d{1,4}\\)\\s?-?\\s?)$`, "u");
+const PEGADO_DESPUES = /^[\s\-./_]{0,3}\d/;
+const PALABRA_DE_TELEFONO = /(?:^|[^\p{L}])(?:tel|tel[eé]fono|tel[eé]fonos|cel|celular|whats?app|wsp|fax|m[oó]vil|llamar(?:\s+al)?)\.?\s*[:/]?\s*$/iu;
 
 function sinNoTelefonos(texto: string): string {
   let t = texto;
@@ -180,7 +203,7 @@ function sinNoTelefonos(texto: string): string {
     t = t.replace(re, (m: string, ...resto: unknown[]) => {
       const desde = resto.find((x) => typeof x === "number") as number;
       const todo = resto.find((x) => typeof x === "string" && x.length >= m.length) as string;
-      if (esAnio && (PEGADO_ANTES.test(todo.slice(Math.max(0, desde - 4), desde)) || PEGADO_DESPUES.test(todo.slice(desde + m.length, desde + m.length + 4)))) return m;
+      if (esAnio && (PEGADO_ANTES.test(todo.slice(Math.max(0, desde - 4), desde)) || PEGADO_ANTES_ANCHO.test(todo.slice(Math.max(0, desde - 24), desde)) || PEGADO_DESPUES.test(todo.slice(desde + m.length, desde + m.length + 4)) || PALABRA_DE_TELEFONO.test(todo.slice(Math.max(0, desde - 20), desde)))) return m;
       // Un rango de años sólo vale si crece («2024-2019» no es un rango: queda como número).
       const anios = esAnio ? m.match(new RegExp(ANIO_TXT, "g")) : null;
       if (anios && anios.some((a, i) => i > 0 && Number(a) <= Number(anios[i - 1]))) return m;
@@ -195,8 +218,43 @@ function sinNoTelefonos(texto: string): string {
 // 8 dígitos o más = teléfono, salvo una lista de números chicos con alguno de 1 cifra («pabellones 1 · 2 · 3 · 4…»).
 const TRAMO_NUMERICO = /\+?\d(?:(?:(?!,\s)[^\p{L}\p{N}\n]){0,3}\d)+/gu;
 
+// Si el texto nombra un teléfono («Cel 11 5512, 3456»), la coma con espacio también une, pero sólo entre bloques de 3
+// cifras o más y uno de 4 («Salones 101, 102, 103 (info por tel)» es una lista): «Expo Móvil 2026, 10, 11, 12 de agosto» y «Stands 10, 12, 14 · consultas por WhatsApp» siguen siendo listas.
+const TRAMO_CON_COMA = /\+?\d(?:(?:(?:(?!,\s)[^\p{L}\p{N}\n]){0,3}|(?<=\d{3}),\s+(?=\d{4}))\d)+/gu;
+const NOMBRA_TELEFONO = /(?:^|[^\p{L}])(?:tel|tel[eé]fono|tel[eé]fonos|cel|celular|whats?app|wsp|fax|m[oó]vil)(?:[^\p{L}]|$)/iu;
+
+// Un texto largo se mira en trozos de 1.000 caracteres que se pisan 60 (un teléfono entra entero en alguno): el detector
+// no es lineal y un campo de 40.000 dígitos no puede trabar la importación.
+const TROZO = 1_000;
+const SOLAPE = 60;
+// Los cortes caen en un espacio cuando se puede (no parten una URL, un CUIT ni una coordenada) y el trozo siguiente
+// arranca al menos SOLAPE caracteres antes del corte, en el comienzo de una palabra.
+function enTrozos(texto: string, mirar: (trozo: string) => boolean): boolean {
+  if (texto.length <= TROZO) return mirar(texto);
+  let i = 0;
+  for (;;) {
+    let fin = Math.min(texto.length, i + TROZO);
+    if (fin < texto.length) {
+      const espacio = texto.lastIndexOf(" ", fin);
+      if (espacio > i + TROZO / 2) fin = espacio;
+    }
+    if (mirar(texto.slice(i, fin))) return true;
+    if (fin >= texto.length) return false;
+    const atras = fin - SOLAPE;
+    const palabra = texto.lastIndexOf(" ", atras);
+    i = palabra > i ? palabra + 1 : atras;
+  }
+}
+
+// Si el texto nombra un teléfono en cualquier parte (aunque caiga en otro trozo), la coma con espacio une.
 function hayTelefono(texto: string): boolean {
-  for (const tramo of sinNoTelefonos(paraBuscarTelefonos(texto)).match(TRAMO_NUMERICO) ?? []) {
+  const nombra = NOMBRA_TELEFONO.test(texto);
+  return enTrozos(texto, (trozo) => hayTelefonoEnTrozo(trozo, nombra));
+}
+
+function hayTelefonoEnTrozo(texto: string, nombra: boolean): boolean {
+  const limpio = sinNoTelefonos(paraBuscarTelefonos(texto));
+  for (const tramo of limpio.match(nombra ? TRAMO_CON_COMA : TRAMO_NUMERICO) ?? []) {
     const grupos = tramo.match(/\d+/g) ?? [];
     const lista = !tramo.startsWith("+") && grupos.every((g) => g.length <= 2) && grupos.some((g) => g.length === 1); // «1 · 2 · 3 · 4…»
     if (grupos.join("").length >= 8 && !lista) return true;
@@ -218,7 +276,7 @@ function queryConTelefono(k: string, v: string): boolean {
 /**
  * ¿Una URL lleva a una persona? mailto:/tel:, un mail en cualquier parte, links de WhatsApp
  * (wa.me, api.whatsapp.com, chat.whatsapp.com) o un parámetro de la query que nombra un contacto o
- * trae un teléfono. La RUTA no se mira por números: las fuentes traen ids largos (noticias/12345678).
+ * trae un teléfono. La RUTA sólo se mira donde nombra un teléfono (ver rutaConTelefono): las fuentes traen ids largos.
  */
 export function urlConContacto(url: string): boolean {
   const t = url.trim();
@@ -227,15 +285,42 @@ export function urlConContacto(url: string): boolean {
   try {
     u = new URL(t);
   } catch {
-    return false;
+    // Una URL que no se puede leer suele ser texto pegado («https://expo.com.arTel:011-4567-8901»): se mira como texto.
+    return hayTelefono(t.replace(/^[a-z][a-z0-9+.-]*:\/\//i, ""));
   }
   const host = u.hostname.toLowerCase().replace(/^www\./, "");
   if (host === "wa.me" || host === "wa.link" || /(^|\.)whatsapp\.(com|net)$/.test(host)) return true;
+  if (rutaConTelefono(u.pathname) || (!/^\d+(?:\.\d+){3}$/.test(host) && hayTelefono(host))) return true; // «expo.com.ar011-4567-8901», «11-5512-3456.example.com»
   for (const [k, v] of u.searchParams) if (campoProhibido(k) || queryConTelefono(k, v)) return true;
   // Lo que va después del # no lo usa el sitio: si trae un mail o un teléfono, es una nota escondida.
   const fragmento = decodeURIComponentSeguro(u.hash.slice(1));
   if (fragmento && traeContacto(fragmento)) return true;
   return false;
+}
+
+/**
+ * La ruta trae ids largos (noticias/12345678) y no se mira entera. Sí se mira un tramo que arranca con «+» y dígitos
+ * (t.me/+5491155123456), uno que nombra un teléfono («/Tel.011-4567-8901», «/whatsapp-11-5512-3456»), el que
+ * sigue a «/contacto/», «/tel/», «/llamar/»… y el que tiene forma de teléfono («/11-5512-3456»; también en el host).
+ */
+function rutaConTelefono(ruta: string): boolean {
+  const tramos = ruta.split("/").map(decodeURIComponentSeguro);
+  return tramos.some((tramo, i) => {
+    const anterior = (tramos[i - 1] ?? "").toLowerCase();
+    const nombraTelefono = /^\+\s?\d/.test(tramo) || NOMBRA_TELEFONO.test(tramo) || NOMBRA_CONTACTO.test(tramo) || NOMBRA_TELEFONO.test(anterior) || NOMBRA_CONTACTO.test(anterior);
+    return (nombraTelefono && hayTelefono(tramo)) || conFormaDeTelefono(tramo) || TELEFONO_EN_TRAMO.test(paraBuscarTelefonos(tramo));
+  });
+}
+
+const NOMBRA_CONTACTO = /(?:^|[^\p{L}])(?:contact(?:o|os|anos|enos|us|ar)?|phone|llam(?:a|ar|anos|enos|ános)|ll[aá]manos)(?:[^\p{L}]|$)/iu;
+// Un teléfono con su forma completa dentro de un tramo («eventos-011-4567-8901», «11.5512.3456», «x|11-5512-3456»).
+const TELEFONO_EN_TRAMO = /(?<!\d)(?:\+?54[-.]?)?(?:9[-.]?)?0?\d{2,4}[-.]\d{3,4}[-.]\d{4}(?!\d)/;
+
+/** Un tramo de ruta hecho sólo de dígitos con dos cortes o más («11-5512-3456», «11_5512_3456»). Un id es una tirada
+ *  sin cortes o con uno («20261114-123456», «12345-67890»); un punto tampoco corta («v/1.2.3456789»). */
+function conFormaDeTelefono(tramo: string): boolean {
+  const t = paraBuscarTelefonos(tramo);
+  return /^\+?[\d\s()_-]+$/.test(t) && (t.match(/\d[\s()_-]+(?=\d)/g) ?? []).length >= 2 && hayTelefono(t.replace(/_/g, "-"));
 }
 
 /** Decodifica lo que se pueda: un «%» suelto no deja el resto codificado (los %20 pasan a espacio igual). */
@@ -256,7 +341,7 @@ function decodeURIComponentSeguro(s: string): string {
 /** ¿El texto trae un mail (también disfrazado) o un teléfono (8 a 15 dígitos en un tramo)? Días y años no cuentan. */
 export function traeContacto(texto: string): boolean {
   const t = paraBuscarTelefonos(texto);
-  if (PARECE_MAIL.test(t) || PARECE_MAIL_OFUSCADO.test(t) || /^(mailto|tel):/i.test(t.trim())) return true;
+  if (enTrozos(t, (trozo) => PARECE_MAIL.test(trozo) || PARECE_MAIL_OFUSCADO.test(trozo)) || /^(mailto|tel):/i.test(t.trim())) return true;
   // Las URLs dentro del texto no se miran como número (traen ids largos) pero sí como URL: query y fragmento.
   if ((t.match(/\bhttps?:\/\/\S+/gi) ?? []).some((u) => urlConContacto(u))) return true;
   return hayTelefono(t);

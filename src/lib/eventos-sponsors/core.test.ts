@@ -250,3 +250,84 @@ test("detector de teléfonos: texto real que tiene que entrar (horarios, fechas 
   for (const u of ["https://expo.example/?_ga=2.123456789.1234567890.1698765432-987654321.1698765432", "https://www.linkedin.com/jobs/view/?currentJobId=3712345678"]) assert.ok(!urlConContacto(u), u);
   assert.ok(traeContacto("11 55 12 34 56"), "de a pares también es teléfono");
 });
+
+test("detector de teléfonos (quinta certificación): característica con punto, separadores «·|*», dos años, ruta de URL y otras escrituras", () => {
+  for (const t of [
+    "Tel. 011.4567-8901", "Cel 15.4567-8901", "Tel/Fax: 011.4312-5566", "11.4567 8901", "Tel 351.423-4567",
+    "Cel 11 5512 · 2030", "(011) 4567 | 2025",
+    "(011) 2020-2021", "Tel 2024-2025", "Tel 2025/2026", "WhatsApp: 2024 2025",
+    "٠١١ ٤٥٦٧-٨٩٠١", "०११ ४५६७-८९०१",
+  ]) assert.equal(traeContacto(t), true, t);
+  for (const u of [
+    "https://expo.example/?q=11.4567-8901", "https://t.me/+5491155123456", "https://expo.example/contacto/1145678901",
+    "https://expo.example/Tel.011-4567-8901", "https://expo.example/whatsapp-11-5512-3456",
+  ]) assert.equal(urlConContacto(u), true, u);
+  assert.equal(traeContacto("Web: https://expo.example/Tel.011-4567-8901"), true);
+  // Lo que tiene que seguir entrando.
+  for (const t of [
+    "Coordenadas -34.603722, -58.381592", "Asistentes 12.500 · ediciones 2015-2026", "Presentes 2027 (20-22/05) en La Rural",
+    "Edición 5 · 2026", "Hotel 2026-2027 sede", "Excel 2025 2026", "$ 150.000 - 200.000", "150.000 - 200.000 personas",
+  ]) assert.equal(traeContacto(t), false, t);
+  for (const u of ["https://expo.example/noticias/12345678", "https://expo.example/celebracion/2026/12345678", "https://expo.example/hotel-2026-12345678"])
+    assert.equal(urlConContacto(u), false, u);
+});
+
+test("detector de teléfonos (quinta certificación): coma con espacio si nombra un teléfono, ruta y host con forma de teléfono", () => {
+  assert.equal(traeContacto("Cel 11 5512, 3456"), true);
+  assert.equal(traeContacto("Pabellones 12, 13 y 14 · edición 2026"), false);
+  for (const u of ["https://x.example/llamar/11-5512-3456", "https://x.example/a/11-5512-3456", "https://11-5512-3456.example.com/"])
+    assert.equal(urlConContacto(u), true, u);
+  for (const u of ["https://x.example/2026/11/14/nota", "https://x.example/expo-2026-1-2", "https://x.example/12345678901"])
+    assert.equal(urlConContacto(u), false, u);
+});
+
+test("detector de teléfonos (sexta certificación): paréntesis antes del guion, URL pegada a un teléfono, rutas de contacto y textos largos", () => {
+  for (const t of ["(0351)-423.4567", "Tel (0351)-423.4567", "+54 (351)-423.4567", "https://expo.com.arTel:011-4567-8901", "https://expo.com.ar,Tel:011-4567-8901", "https://expo.com.ar011-4567-8901"])
+    assert.equal(traeContacto(t), true, t);
+  for (const u of ["https://x.example/contacto-11-5512-3456", "https://x.example/phone/1145678901", "https://x.example/11_5512_3456", "https://x.example/contactanos/1145678901"])
+    assert.equal(urlConContacto(u), true, u);
+  // Lo que tiene que seguir entrando.
+  for (const t of ["En 2026: 1500 expositores", "2026 | 3500 stands", "1990-2026: 36 años", "Del 3 al 5 de junio · 2027 · 12500 asistentes", "Expo Móvil 2026, 10, 11, 12, 13 de agosto", "Expo Tel Aviv 2026: halls 10, 11, 12, 13", "Stands 10, 12, 14, 16 · consultas por WhatsApp"])
+    assert.equal(traeContacto(t), false, t);
+  for (const u of ["https://x.example/noticias/20261114-123456", "https://x.example/p/12345-67890", "https://x.example/v/1.2.3456789"])
+    assert.equal(urlConContacto(u), false, u);
+  // Un texto enorme no traba y un teléfono en el medio se encuentra igual.
+  const largo = "Expo 2027 ".repeat(4000);
+  const inicio = Date.now();
+  assert.equal(traeContacto(largo), false);
+  assert.equal(traeContacto(largo + " Cel 11 5512 3456 " + largo), true);
+  assert.equal(traeContacto("1".repeat(40_000).replace(/1/g, (_, i: number) => (i % 3 ? "1" : " "))), true);
+  assert.ok(Date.now() - inicio < 3_000, `tardó ${Date.now() - inicio} ms`);
+});
+
+test("detector de teléfonos (sexta certificación, ajustes): miles con «·» o «/», WhatsApp en la ruta y listas que no son teléfonos", () => {
+  for (const t of ["351.423 · 4567", "351.423/4567", "Cel 11 5512 · 2030", "(011) 2020-2021", "+54 (11) 2020-2021", "Tel (11) 2030-2031"]) assert.equal(traeContacto(t), true, t);
+  assert.equal(urlConContacto("https://expo.com.ar/WhatsApp/5491155123456"), true);
+  for (const t of ["Salones 101, 102, 103 (info por tel)", "Edición 2025-2026 · 2026-2027", "Hall 4 · 2026 · 4567 visitantes", "Hall 12.500 · 2026"])
+    assert.equal(traeContacto(t), false, t);
+});
+
+test("detector de teléfonos (séptima certificación): miles seguidos de un año, palabra de teléfono lejos en un texto largo y costo acotado", () => {
+  for (const t of ["Tel 351.423-2030", "Cel 351.423 2030", "Tel. 341.423-2025", "Córdoba 351.423-2019", "Teléfono " + "a".repeat(1500) + " 4567, 8901"])
+    assert.equal(traeContacto(t), true, t.slice(0, 40));
+  assert.equal(traeContacto("Hall 12.500 · 2026"), false);
+  const inicio = Date.now();
+  assert.equal(traeContacto("a".repeat(40_000)), false);
+  assert.equal(traeContacto("a".repeat(20_000) + " juan@x.com " + "a".repeat(20_000)), true);
+  assert.ok(Date.now() - inicio < 3_000, `tardó ${Date.now() - inicio} ms`);
+});
+
+test("detector de teléfonos (séptima certificación, menores): pares, guion bajo, teléfono dentro de la ruta y falsos positivos de URL", () => {
+  for (const t of ["351.423-45-67", "11_2030_4567", "11 · 5512 · 2030"]) assert.equal(traeContacto(t), true, t);
+  for (const u of ["https://expo.com.ar/eventos-011-4567-8901", "https://expo.com.ar/11.5512.3456", "https://expo.com.ar/eventos)011-4567-8901"])
+    assert.equal(urlConContacto(u), true, u);
+  for (const u of ["https://www.expo.com.ar/llamado-a-expositores/20261114", "https://compras.gob.ar/llamado-licitacion-publica-2051-1234-lpu26", "https://200.45.123.45/expo", "https://expo.com.ar/contactless/123456789"])
+    assert.equal(urlConContacto(u), false, u);
+  for (const t of ["Expositores 1500 · 2026", "Visitantes 25000 | 2026"]) assert.equal(traeContacto(t), false, t);
+  // Un corte de trozo no parte una URL, un CUIT ni una coordenada.
+  for (let n = 900; n <= 1_000; n += 7) {
+    const relleno = "Expo ".repeat(Math.floor(n / 5));
+    for (const cola of [" https://expo.example/noticias/123456789012 fin", " CUIT 30-71234567-8 fin", " -34.603722, -58.381592 fin"])
+      assert.equal(traeContacto(relleno + cola + " " + relleno), false, `${n}${cola}`);
+  }
+});
