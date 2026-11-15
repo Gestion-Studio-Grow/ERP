@@ -6,6 +6,7 @@ import {
   conceptoDeLaEmision,
   fechaDelComprobante,
   fechasDeServicio,
+  mismoCobroQueElPagoMP,
   motivoFueraDeVentanaArca,
   tipoFacturaAConsumidorFinal,
 } from "@/lib/facturacion/fecha-emision-automatica";
@@ -51,6 +52,22 @@ test("H4 · ventana de ARCA: 5 días con productos, 10 con servicios (contados d
   assert.equal(motivoFueraDeVentanaArca("20261105", hoy, 3), null); // justo 10 días
   assert.match(motivoFueraDeVentanaArca("20261104", hoy, 2) ?? "", /ARCA.*10 días/);
   assert.equal(motivoFueraDeVentanaArca(hoy, hoy, 1), null);
+});
+
+test("FACT-011 · R5 · un cobro con fecha posterior a hoy no sale solo: va a revisión con motivo", () => {
+  const hoy = "20261115";
+  assert.match(motivoFueraDeVentanaArca("20261116", hoy, 1) ?? "", /fecha posterior a hoy/);
+  assert.match(motivoFueraDeVentanaArca("20261201", hoy, 2) ?? "", /fecha posterior a hoy/);
+});
+
+test("FACT-011 · R8 · un movimiento de banco es el pago de MP de su referencia sólo con el mismo importe y fecha cercana", () => {
+  const pago = { importe: 1500, fecha: "20261110" };
+  assert.equal(mismoCobroQueElPagoMP({ importe: 1500, fecha: "20261110" }, pago), true);
+  assert.equal(mismoCobroQueElPagoMP({ importe: 1500.0, fecha: "20261113" }, pago), true); // acreditado 3 días después
+  assert.equal(mismoCobroQueElPagoMP({ importe: 1500, fecha: "20261107" }, { importe: 1500, fecha: "20261110" }), true); // factura corrida hacia adelante (H4)
+  assert.equal(mismoCobroQueElPagoMP({ importe: 1499.99, fecha: "20261110" }, pago), false);
+  assert.equal(mismoCobroQueElPagoMP({ importe: 1500, fecha: "20261125" }, pago), false);
+  assert.equal(mismoCobroQueElPagoMP({ importe: 1500, fecha: "20261020" }, pago), false);
 });
 
 test("H4 · el tipo de factura a consumidor final, por la condición del emisor", () => {

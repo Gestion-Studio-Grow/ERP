@@ -11,12 +11,18 @@
 import { createInvoice, type InvoiceTx } from "@/lib/invoice-core";
 import { calcularImpuestos, getFiscalProfile } from "@/lib/fiscal";
 import { procesarEnviosDelNegocio } from "@/lib/arca-dispatch";
-import type { PagoMP } from "@/plugins/mercadopago";
+import { PagoARevisarError, type PagoMP } from "@/plugins/mercadopago";
 import { fechaFiscalDelDia } from "@/lib/libros/fecha-fiscal";
 import { tenantTransaction } from "@/lib/rls";
 import { claveCobroMP, facturarCobros, vincularCobro } from "@/lib/facturacion/cobros-facturados";
 import { facturarPagoMPDelTurno } from "@/lib/facturacion/factura-por-cobro";
-import { conceptoDeLaEmision, fechasDeServicio } from "@/lib/facturacion/fecha-emision-automatica";
+import {
+  ajustarFechaAutomatica,
+  conceptoDeLaEmision,
+  fechasDeServicio,
+  mismoCobroQueElPagoMP,
+  motivoFueraDeVentanaArca,
+} from "@/lib/facturacion/fecha-emision-automatica";
 
 // Códigos de catálogo ARCA (ver src/plugins/arca/domain/catalogos.ts).
 const DOC_CONSUMIDOR_FINAL = 99;
@@ -36,7 +42,7 @@ export interface DepsFacturarPagoMP {
    * R1 · La factura que el EXTRACTO del banco ya emitió para este pago (movimiento con la
    * referencia del pago y factura viva), o `null`. Opcional.
    */
-  facturaDelExtracto?: (tenantId: string, paymentId: string) => Promise<string | null>;
+  facturaDelExtracto?: (tenantId: string, paymentId: string, pago?: { importe: number; fecha: string }) => Promise<string | null>;
   vincularCobro?: typeof vincularCobro;
   /**
    * Pago de un TURNO: decide (factura del turno, factura del cobro del libro o factura propia) y
@@ -47,20 +53,34 @@ export interface DepsFacturarPagoMP {
 }
 
 /**
- * El extracto DE MERCADO PAGO ya facturó un crédito con la referencia de este pago (y la factura
- * sigue viva). GSG-FACT-011 · H8: sólo una importación de Mercado Pago trae ids de pago en la
- * referencia; la de un banco («123» de una transferencia) no es el pago «123» de MP.
+ * El extracto ya facturó un crédito con la referencia de este pago (y la factura sigue viva).
+ * GSG-FACT-011 · H8: una importación de Mercado Pago trae ids de pago en la referencia; la de un
+ * banco («123» de una transferencia) no es el pago «123» de MP. R8: salvo que coincidan el importe y
+ * la fecha con el pago (`mismoCobroQueElPagoMP`): un export de MP con una columna de más cae en la
+ * heurística del mapeador y queda «banco», y sin esto el aviso lo facturaba otra vez.
  */
-async function facturaDelExtractoPrisma(tenantId: string, paymentId: string): Promise<string | null> {
+async function facturaDelExtractoPrisma(
+  tenantId: string,
+  paymentId: string,
+  pago?: { importe: number; fecha: string },
+): Promise<string | null> {
   return tenantTransaction(
     async (tx) => {
-      const mov = await tx.movimientoImportado.findFirst({
-        where: { tenantId, referencia: paymentId, invoiceId: { not: null }, importacion: { origen: "mercadopago" } },
-        select: { invoiceId: true },
+      const movs = await tx.movimientoImportado.findMany({
+        where: { tenantId, referencia: paymentId, invoiceId: { not: null } },
+        select: { invoiceId: true, monto: true, fecha: true, importacion: { select: { origen: true } } },
+        orderBy: { createdAt: "asc" },
+        take: 20,
       });
-      if (!mov?.invoiceId) return null;
-      const f = await tx.invoice.findFirst({ where: { tenantId, id: mov.invoiceId, status: { not: "REJECTED" } }, select: { id: true } });
-      return f?.id ?? null;
+      for (const mov of movs) {
+        const esElPago =
+          mov.importacion.origen === "mercadopago" ||
+          (pago != null && mismoCobroQueElPagoMP({ importe: Number(mov.monto), fecha: mov.fecha }, pago));
+        if (!esElPago || !mov.invoiceId) continue;
+        const f = await tx.invoice.findFirst({ where: { tenantId, id: mov.invoiceId, status: { not: "REJECTED" } }, select: { id: true } });
+        if (f) return f.id;
+      }
+      return null;
     },
     { tenantId },
   );
@@ -98,6 +118,13 @@ export async function facturarPagoMP(
      * período = mes del cobro y vencimiento = máx(cobro, factura). Provisional a confirmar.
      */
     concepto?: number | null;
+    /**
+     * GSG-FACT-011 · H4 en Mercado Pago · El reloj de la emisión automática (aviso y sincronización).
+     * Con él, la factura del pago suelto se fecha como el lote: máx(acreditación, última factura no
+     * rechazada del punto de venta y tipo), leída bajo el candado del cupo; y si la acreditación cae
+     * fuera de la ventana de ARCA, no se emite: el pago va a revisión (`PagoARevisarError`).
+     */
+    ahora?: Date;
   } = {},
 ): Promise<string | null> {
   if (pago.estado !== "approved" || !(pago.monto > 0)) return null;
@@ -105,14 +132,14 @@ export async function facturarPagoMP(
 
   // R1 · Si el extracto del banco ya facturó este mismo pago (por su referencia), no se emite otra:
   // el cobro queda anotado contra esa factura.
-  const delExtracto = deps.facturaDelExtracto ? await deps.facturaDelExtracto(tenantId, pago.id) : null;
+  // Sin fecha de acreditación de MP, el día del NEGOCIO (no el del servidor, que a las 21
+  // argentinas ya está en el día siguiente): ver libros/fecha-fiscal.ts.
+  const fecha = pago.fechaAcreditacion ?? fechaFiscalDelDia();
+  const delExtracto = deps.facturaDelExtracto ? await deps.facturaDelExtracto(tenantId, pago.id, { importe: pago.monto, fecha }) : null;
   if (delExtracto && deps.vincularCobro) return deps.vincularCobro(tenantId, cobro, delExtracto);
 
   const perfil = await deps.getFiscalProfile(tenantId);
   const { neto, iva, total } = calcularImpuestos(perfil.condicionIva, pago.monto);
-  // Sin fecha de acreditación de MP, el día del NEGOCIO (no el del servidor, que a las 21
-  // argentinas ya está en el día siguiente): ver libros/fecha-fiscal.ts.
-  const fecha = pago.fechaAcreditacion ?? fechaFiscalDelDia();
   // H5 · El pago de MP no trae concepto: el del negocio, o productos.
   const concepto = conceptoDeLaEmision(opciones.concepto);
 
@@ -143,9 +170,27 @@ export async function facturarPagoMP(
     turno && deps.facturarPagoDelTurno
       ? await deps.facturarPagoDelTurno(comprobante, { ...cobro, appointmentId: turno })
       : deps.facturarCobros
-        ? await deps.facturarCobros(comprobante, [cobro], opciones.verificarCupo ? { verificarCupo: opciones.verificarCupo } : {})
+        ? await deps.facturarCobros(comprobante, [cobro], {
+            ...(opciones.verificarCupo ? { verificarCupo: opciones.verificarCupo } : {}),
+            ...(opciones.ahora ? { ajustarComprobante: ajustarConVentana(fecha, fechaFiscalDelDia(opciones.ahora)) } : {}),
+          })
         : await deps.createInvoice(comprobante);
 
   await deps.procesarEnviosDelNegocio(tenantId);
   return invoiceId;
+}
+
+/**
+ * H4 en Mercado Pago · Dentro de la transacción de la factura y con el candado del cupo tomado (sólo
+ * se llama si el pago todavía no tiene factura viva): fuera de la ventana de ARCA corta con
+ * `PagoARevisarError` (se deshace todo y el pago va a revisión con el motivo); si no, la fecha
+ * correlativa del punto de venta y, con servicios, período y vencimiento.
+ */
+function ajustarConVentana(fechaCobro: string, hoy: string) {
+  const ajustar = ajustarFechaAutomatica(fechaCobro);
+  return async (tx: InvoiceTx, input: Parameters<typeof ajustar>[1]) => {
+    const fuera = motivoFueraDeVentanaArca(fechaCobro, hoy, input.concepto);
+    if (fuera) throw new PagoARevisarError(fuera);
+    return ajustar(tx, input);
+  };
 }

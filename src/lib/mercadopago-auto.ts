@@ -314,7 +314,7 @@ export async function crearEntornoReal(tenantId: string, opciones: { ahora?: Dat
       try {
         // H5 · El concepto habitual del negocio (config de la facturación de MP), leído una vez.
         conceptoMP ??= (await configFacturacionMPDelNegocio(tid)).concepto ?? null;
-        const invoiceId = await facturarPagoMP(pago, tid, undefined, { verificarCupo: verificarCupoAutomatico(tid, ahora), concepto: conceptoMP });
+        const invoiceId = await facturarPagoMP(pago, tid, undefined, { verificarCupo: verificarCupoAutomatico(tid, ahora), concepto: conceptoMP, ahora });
         if (invoiceId) facturasMes = (facturasMes ?? 0) + 1;
         return invoiceId;
       } catch (e) {

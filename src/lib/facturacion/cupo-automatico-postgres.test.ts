@@ -365,12 +365,14 @@ test("H8 · un extracto BANCARIO con referencia igual a un id de MP no se ata a 
   assert.equal(r.emitidas, 1);
   const fila = await p.duenio.movimientoImportado.findUniqueOrThrow({ where: { id: mov.id }, select: { invoiceId: true } });
   assert.notEqual(fila.invoiceId, deMP);
-  // 2. Al revés: un crédito del banco con referencia «456» facturado; el aviso del pago de MP «456» factura el suyo.
+  // 2. Al revés: un crédito del banco con referencia «456» facturado; el aviso del pago de MP «456» (otro
+  //    importe) factura el suyo. R8: con el MISMO importe y fecha cercana sí es el mismo cobro (un export
+  //    de MP mal reconocido) y se ata: ver certif-fact011-postgres.test.ts F3/F3b.
   const ref2 = `${(Date.now() + 1) % 1_000_000}9`;
   const mov2 = await movimiento(p, id, imp.id, { referencia: ref2, monto: 900 });
   await lote(id, "auto");
   const delBanco = (await p.duenio.movimientoImportado.findUniqueOrThrow({ where: { id: mov2.id }, select: { invoiceId: true } })).invoiceId;
   assert.ok(delBanco);
-  const propio = await runInTenantContext(id, () => facturarPagoMP(pagoMP(ref2, 900), id));
+  const propio = await runInTenantContext(id, () => facturarPagoMP(pagoMP(ref2, 950), id));
   assert.ok(propio && propio !== delBanco, "el pago de MP no se ata a la factura de un crédito bancario");
 });

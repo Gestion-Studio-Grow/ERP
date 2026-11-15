@@ -53,6 +53,14 @@ export function fechaDelComprobante(fechaCobro: string, ultimaFactura: string | 
 
 /** H4 · `null` si el cobro está dentro de la ventana de ARCA; si no, el motivo para la revisión. */
 export function motivoFueraDeVentanaArca(fechaCobro: string, hoy: string, concepto: number): string | null {
+  // R5 · Un cobro con fecha posterior a hoy (reloj inyectado) no sale solo: un dato raro del
+  // extracto o del pago no se convierte en una factura con fecha futura.
+  if (fechaCobro > hoy) {
+    return (
+      `El cobro tiene fecha posterior a hoy (${diaLegible(`${fechaCobro.slice(0, 4)}-${fechaCobro.slice(4, 6)}-${fechaCobro.slice(6, 8)}`)}): ` +
+      `no se emitió solo. Revisá la fecha del movimiento y emitila a mano si corresponde.`
+    );
+  }
   const dias = ventanaDeFechaArca(concepto);
   if (fechaCobro >= restarDiasFiscal(hoy, dias)) return null;
   const que = concepto === 1 ? "productos" : "servicios";
@@ -60,6 +68,30 @@ export function motivoFueraDeVentanaArca(fechaCobro: string, hoy: string, concep
     `El cobro es del ${diaLegible(`${fechaCobro.slice(0, 4)}-${fechaCobro.slice(4, 6)}-${fechaCobro.slice(6, 8)}`)} y ARCA acepta facturas de ${que} con hasta ${dias} días de atraso: ` +
     `no se emitió solo. Emitila a mano con la fecha que corresponda o consultalo con tu contador.`
   );
+}
+
+/**
+ * R8 · Tolerancia (en días) entre la fecha de un movimiento de banco y la del pago de Mercado Pago
+ * de su referencia para tomarlos como el mismo cobro: la ventana más ancha de ARCA (servicios), que
+ * cubre la acreditación unos días después y la factura de MP corrida hacia adelante (H4).
+ */
+export const DIAS_TOLERANCIA_PAGO_MP = 10;
+
+const diaUTC = (aaaammdd: string) => Date.UTC(Number(aaaammdd.slice(0, 4)), Number(aaaammdd.slice(4, 6)) - 1, Number(aaaammdd.slice(6, 8)));
+
+/**
+ * R8 · ¿Un movimiento de un extracto que NO es de Mercado Pago (o que no se reconoció como tal) es
+ * el pago de MP cuyo id trae en la referencia? Sólo con el MISMO importe (al centavo) y fechas a no
+ * más de `DIAS_TOLERANCIA_PAGO_MP` días. Una referencia de banco que choca con un id de pago por
+ * casualidad no ata dos cobros distintos; un export de MP mal reconocido no factura dos veces.
+ */
+export function mismoCobroQueElPagoMP(
+  mov: { importe: number; fecha: string },
+  pago: { importe: number; fecha: string },
+): boolean {
+  if (Math.round(Math.abs(mov.importe) * 100) !== Math.round(Math.abs(pago.importe) * 100)) return false;
+  if (!/^\d{8}$/.test(mov.fecha) || !/^\d{8}$/.test(pago.fecha)) return false;
+  return Math.abs(diaUTC(mov.fecha) - diaUTC(pago.fecha)) <= DIAS_TOLERANCIA_PAGO_MP * 86_400_000;
 }
 
 /** El tipo de factura a consumidor final según el emisor: C (11) monotributo/exento, B (6) inscripto. */

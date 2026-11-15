@@ -47,6 +47,7 @@ import {
   crearRangoDeImportacionPrevia,
   crearCobrosBancoYaFacturados,
   candadoDeImportacionesEnTx,
+  importacionFacturadaEnTx,
   fotoDeMovimientosEnTx,
   importacionConMismoArchivoEnTx,
   MENSAJE_ARCHIVO_YA_SUBIDO,
@@ -192,14 +193,6 @@ const MENSAJE_IMPORTACION_YA_FACTURADA =
 const ESPERA_CANDADO_IMPORTACION = "10s";
 const TOPE_TX_IMPORTACION_MS = 30_000;
 
-/** Facturadas de una importación: `emitida` o ya atadas a una factura (`invoiceId`). */
-function filasFacturadasDe(tenantId: string, importacionId: string) {
-  return {
-    tenantId,
-    importacionId,
-    OR: [{ estadoPropuesta: "emitida" as const }, { invoiceId: { not: null } }],
-  };
-}
 
 /** ¿El error es la espera del candado vencida (`lock_timeout`, SQLSTATE 55P03)? */
 function esEsperaDeCandadoVencida(e: unknown): boolean {
@@ -295,7 +288,8 @@ async function procesarYPersistir(
           // R (recertificación FACT-011): la mirada «nada facturado» del re-proceso se hace ACÁ, con
           // el candado y en cada intento. La de confirmarMapeoAction es sólo un atajo: una emisión
           // pudo entrar mientras se esperaba el candado.
-          if (reproceso && (await tx.movimientoImportado.count({ where: filasFacturadasDe(tenantId, reproceso.importacionId) })) > 0) {
+          // R4 · Facturada = atada a una factura, o `emitida` con su cobro en el libro (CobroFacturado).
+          if (reproceso && (await importacionFacturadaEnTx(tx, tenantId, reproceso.importacionId))) {
             return { tipo: "ya-facturada" };
           }
           if (!reproceso && (await importacionConMismoArchivoEnTx(tx, tenantId, archivo.contenido))) {
@@ -306,14 +300,15 @@ async function procesarYPersistir(
           let id: string;
           if (reproceso) {
             // Re-proceso: lo provisional se borra y se recrea con el mapeo confirmado. Nunca se borra
-            // una fila facturada: el claim auto→emitida de emitirPropuestas no toma este candado y
-            // pudo confirmarse después del conteo de arriba. Con READ COMMITTED el DELETE vuelve a
-            // mirar la fila que otro acaba de tocar; si quedó alguna, se deshace todo.
+            // una fila atada a una factura: la emisión no toma este candado y pudo confirmarse después
+            // de la mirada de arriba. Con READ COMMITTED el DELETE vuelve a mirar la fila que otro
+            // acaba de tocar; si quedó alguna, se deshace todo. R4 · Una `emitida` sin factura ni
+            // libro sí se borra: si su emisión sigue en vuelo, su `alFacturar` no encuentra la fila
+            // `emitida` y deshace la factura (misma transacción).
             await tx.movimientoImportado.deleteMany({
               where: {
                 tenantId,
                 importacionId: reproceso.importacionId,
-                estadoPropuesta: { not: "emitida" },
                 invoiceId: null,
               },
             });
@@ -444,10 +439,8 @@ export async function confirmarMapeoAction(
   }
   // Atajo sin candado (ahorra el pipeline). La mirada que decide es la de procesarYPersistir,
   // dentro de la transacción y con el candado por negocio (R, recertificación FACT-011).
-  const emitidas = await prisma.movimientoImportado.count({
-    where: filasFacturadasDe(tenantId, importacionId),
-  });
-  if (emitidas > 0) {
+  const facturada = await tenantTransaction((tx) => importacionFacturadaEnTx(tx, tenantId, importacionId), { tenantId });
+  if (facturada) {
     return { ok: false, error: MENSAJE_IMPORTACION_YA_FACTURADA, alertas: [] };
   }
 
