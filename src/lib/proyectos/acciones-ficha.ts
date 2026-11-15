@@ -804,19 +804,24 @@ export async function guardarTextos(formData: FormData): Promise<ResultadoFicha>
  * encuentra sin pagar. Las cuotas de la empresa, sin proyecto, tienen su propia acción en acciones-empresa.ts.
  */
 export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
-  const tenantId = await getCurrentTenantId();
+  // Lo mismo que el botón: «Pagos: editar» (ficha) o «Empresa: editar» (Administración). Antes de leer la cuota: sin permiso
+  // no se averigua si un id existe, si es de la empresa ni si está prevista.
+  const a = await entrar(["pagos", "empresa"]);
+  if (typeof a === "string") return mal(a);
+  const { tenantId } = a;
   const id = txt(formData.get("id"));
   const medio = txt(formData.get("medio")) as MedioPago;
   const c = await prisma.proyectoCuota.findFirst({
     where: { id, tenantId },
     include: { supplier: { select: { name: true } }, proyecto: { select: { numero: true, nombre: true } } },
   });
-  if (!c) return mal("Esa cuota ya no existe. Recargá la página.");
+  const noExiste = "Esa cuota ya no existe. Recargá la página.";
+  if (!c) return mal(noExiste);
   const { proyectoId, proyecto } = c;
-  if (!proyectoId || !proyecto) return mal("Esa cuota es de la empresa: se marca desde Administración.");
+  // La de la empresa sólo se nombra a quien ve Empresa; la de un proyecto que no ve, como si no existiera.
+  if (!proyectoId || !proyecto) return mal(puede(a, "empresa", "ver") ? "Esa cuota es de la empresa: se marca desde Administración." : noExiste);
+  if (!(await proyectoVisible(a, proyectoId))) return mal(noExiste);
   if (c.prevista) return mal("Esta cuota todavía es una previsión: confirmá el evento y cargale la fecha para poder marcarla.");
-  const a = await entrar(["pagos", "empresa"], proyectoId);
-  if (typeof a === "string") return mal(a);
   if (!MEDIOS.includes(medio)) return mal("Elegí el medio de pago.");
   if (c.anuladoEl) return mal("Esa cuota ya no corre: la ficha la dejó afuera.");
   if (c.pagadoEl) return mal("Esa cuota ya estaba marcada.");
