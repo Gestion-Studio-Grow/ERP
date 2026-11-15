@@ -139,6 +139,8 @@ test("(4) el permiso es el del botón: Empresa sin Pagos marca; ninguno de los d
   const p = await preparar(t);
   if (!p) return;
   await p.conFicha("ADMINISTRACION"); // ve todos los proyectos, edita Pagos y Empresa
+  // Quien ve Empresa sí se entera de que la cuota es de la empresa (se marca con su propia acción, en Administración).
+  assert.equal(await p.marcar(p.a.recepcion, p.a, await p.cuotaDeEmpresa()), "Esa cuota es de la empresa: se marca desde Administración.");
   const sinPagos = await p.duenio.proyectoPermiso.create({ data: { tenantId: p.a.id, rol: "ADMINISTRACION", modulo: "pagos", ver: true, editar: false } });
   try {
     // Administración: el botón se muestra con «Empresa: editar» aunque no edite Pagos.

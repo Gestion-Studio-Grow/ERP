@@ -23,7 +23,7 @@ import { avisoMasQueLaCuota, avisoSaldoCambio, avisoTopeCuota, avisoTopeMarcar, 
 import { pagosParcialesDeCuotas, pendienteDelPago } from "./pago-parcial.server";
 import { faltaDelPago, SALDADA_CON_PARTES } from "./pago-parcial-core";
 import { cambioDeVenta, aPesos, CHECKLIST_BASE, ESTADOS_ITEM, MONEDAS, RUBROS, TIPOS_EVENTO, veTodosLosProyectos } from "./gestion-core";
-import { avisar, columnasOcultas, exigirEditar, usuariosDelEquipo, usuariosDeDireccion, usuariosDeLaPlata, proyectoVisible, puede, regenerarCuotas, registrarCambio, tiposDeCambio, type Actor } from "./gestion.server";
+import { avisar, columnasOcultas, exigirEditar, filtroDeProyectos, usuariosDelEquipo, usuariosDeDireccion, usuariosDeLaPlata, proyectoVisible, puede, regenerarCuotas, registrarCambio, tiposDeCambio, type Actor } from "./gestion.server";
 import { tipoDeArchivoSubido, clavesARenombrar, fechaAntesDe, fotoDeVersion, itemDeClave, linkSeguro, monedasSinCambio, numeroDe, PERDIDO, precioAlCambiarCambio, precioAlCopiar, precioAlEnviar, servicioDeTipo } from "./ficha-core";
 import { marcaDeGastoProyecto } from "./marcas";
 import { GASTO_EN_RENDICION, SIN_COMPROBANTES, faltaLaMigracion } from "./rendiciones-core";
@@ -811,16 +811,15 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
   const { tenantId } = a;
   const id = txt(formData.get("id"));
   const medio = txt(formData.get("medio")) as MedioPago;
+  // La de un proyecto que no ve, como si no existiera (en la misma consulta); la de la empresa sólo se nombra a quien ve Empresa.
   const c = await prisma.proyectoCuota.findFirst({
-    where: { id, tenantId },
+    where: { id, tenantId, OR: [{ proyectoId: null }, { proyecto: filtroDeProyectos(a) }] },
     include: { supplier: { select: { name: true } }, proyecto: { select: { numero: true, nombre: true } } },
   });
   const noExiste = "Esa cuota ya no existe. Recargá la página.";
   if (!c) return mal(noExiste);
   const { proyectoId, proyecto } = c;
-  // La de la empresa sólo se nombra a quien ve Empresa; la de un proyecto que no ve, como si no existiera.
   if (!proyectoId || !proyecto) return mal(puede(a, "empresa", "ver") ? "Esa cuota es de la empresa: se marca desde Administración." : noExiste);
-  if (!(await proyectoVisible(a, proyectoId))) return mal(noExiste);
   if (c.prevista) return mal("Esta cuota todavía es una previsión: confirmá el evento y cargale la fecha para poder marcarla.");
   if (!MEDIOS.includes(medio)) return mal("Elegí el medio de pago.");
   if (c.anuladoEl) return mal("Esa cuota ya no corre: la ficha la dejó afuera.");
