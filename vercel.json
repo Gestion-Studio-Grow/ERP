@@ -5,6 +5,13 @@
   ],
   "framework": "nextjs",
   "buildCommand": "node scripts/vercel-build.mjs",
+  "git": {
+    "deploymentEnabled": {
+      "**": false,
+      "main": true,
+      "tanda/**": true
+    }
+  },
   "crons": [
     {
       "path": "/api/cron/reminders",
