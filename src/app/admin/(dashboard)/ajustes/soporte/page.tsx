@@ -3,8 +3,9 @@ import { notFound } from "next/navigation";
 import { requireApp } from "@/lib/require-app";
 import { requireUser } from "@/lib/authz";
 import { soporteGsgPrendidoEn } from "@/lib/soporte/interruptor.server";
+import { permisoSoporteVigente } from "@/apps/contexto.server";
 import { PageContainer, PageHeader } from "@/components/ui";
-import { leerConsentimiento, leerEstadoDelPermiso, ultimaCopiaEnBorrador } from "@/lib/soporte/consentimiento.server";
+import { leerEstadoDelPermiso, ultimaCopiaEnBorrador } from "@/lib/soporte/consentimiento.server";
 import PermisoSoporte from "./PermisoSoporte";
 
 export const dynamic = "force-dynamic";
@@ -27,10 +28,8 @@ export const metadata: Metadata = {
 export default async function SoportePage() {
   const sesion = await requireUser();
   const prendido = await soporteGsgPrendidoEn(sesion.tenantId);
-  if (!prendido) {
-    const vigente = sesion.role === "OWNER" ? await leerConsentimiento(sesion.tenantId) : null;
-    if (!vigente || !(vigente.n1 || vigente.n2)) notFound();
-  }
+  // Una falla al leer el permiso cuenta como «sin permiso» (no encontrado), no como error.
+  if (!prendido && !(sesion.role === "OWNER" && (await permisoSoporteVigente(sesion.tenantId)))) notFound();
   const enPausa = !prendido;
   const user = await requireApp("permiso-soporte");
   const esTitular = user.role === "OWNER";

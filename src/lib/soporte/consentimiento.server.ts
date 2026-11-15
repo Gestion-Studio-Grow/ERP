@@ -110,6 +110,11 @@ export async function registrarConsentimientoConCopia(
       if (!titular) return { ok: false, error: NO_ES_EL_TITULAR };
       // Candado por negocio: dos clics a la vez no leen el mismo «antes».
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`soporte-permiso:${p.tenantId}`}))`;
+      // Dar: el interruptor se vuelve a leer con el candado tomado (lectura nueva, READ COMMITTED), así un
+      // apagado que entró mientras esperaba el candado también lo frena. El apagado de la consola no toma
+      // este candado: queda una ventana de milisegundos entre esta lectura y el COMMIT; lo dado ahí no se
+      // usa con el interruptor apagado (el despacho lo vuelve a mirar) y el titular lo puede sacar.
+      if (v.valor.aceptado && !(await soporteGsgPrendidoEnTx(tx, p.tenantId))) return { ok: false, error: SOPORTE_NO_DISPONIBLE };
       if (v.valor.nivel === "n2" && v.valor.aceptado) {
         const antes = await tx.$queryRaw<FilaDeConsentimiento[]>`
           SELECT nivel, aceptado, "versionTexto", "createdAt" FROM "SoporteConsentimiento" WHERE "tenantId" = ${p.tenantId}`;

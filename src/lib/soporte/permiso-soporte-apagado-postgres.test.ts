@@ -10,7 +10,8 @@
 //   · al volver a prender, lo sacado sigue sacado;
 //   · negativos: recepción no saca; el titular de otro negocio no saca el de éste;
 //   · carrera: con el interruptor apagado, sacadas y dadas a la vez → todas las sacadas se guardan,
-//     ninguna dada, y el resultado final es «sin permiso».
+//     ninguna dada, y el resultado final es «sin permiso»;
+//   · carrera con el apagado: un «dar» que esperaba el candado relee el interruptor y no da.
 // La tabla mínima es la de borrador-y-permiso-postgres.test.ts (el archivo entero lo prueba
 // roles-soporte-postgres.test.ts).
 
@@ -137,5 +138,34 @@ test("Soporte GSG apagado: sacar el permiso se guarda siempre, darlo no", async 
   await t.test("B no se enteró: su permiso sigue y su interruptor sigue prendido", async () => {
     assert.equal(await soporteGsgPrendidoEn(B.id), true);
     assert.deepEqual(await leerConsentimiento(B.id), { n1: true, n2: true });
+  });
+
+  await t.test("carrera con el apagado: un «dar» que esperaba el candado se frena si el apagado entró antes", async () => {
+    const pg = (await import("pg")).default;
+    const otro = new pg.Client({ connectionString: base.urlDuenio });
+    await otro.connect();
+    try {
+      // Otro clic de B tiene el candado del permiso; mientras, el «dar» ya pasó la primera lectura (prendido).
+      await otro.query("BEGIN");
+      await otro.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`soporte-permiso:${B.id}`]);
+      const antesN = (await filas(B.id)).length;
+      const dar = registrarConsentimientoConCopia({ tenantId: B.id, userId: B.duenia.id, rol: "OWNER", nivel: "n1", aceptado: true }, operatorPrisma);
+      let esperando = false;
+      for (let i = 0; i < 250 && !esperando; i++) {
+        const r = await duenio.$queryRaw<{ n: number }[]>`SELECT count(*)::int AS n FROM pg_locks WHERE locktype = 'advisory' AND NOT granted`;
+        esperando = r[0]!.n > 0;
+        if (!esperando) await new Promise((ok) => setTimeout(ok, 20));
+      }
+      assert.ok(esperando, "el «dar» quedó esperando el candado");
+      await new Promise((ok) => setTimeout(ok, 5));
+      await interruptor(B.id, false); // GSG apaga B y se confirma mientras el «dar» espera
+      await otro.query("COMMIT");
+      const r = await dar;
+      assert.ok(!r.ok && /no está disponible/.test(r.error), "con el candado tomado relee el interruptor: apagado, no da");
+      assert.equal((await filas(B.id)).length, antesN, "nada guardado");
+    } finally {
+      await otro.query("ROLLBACK").catch(() => {});
+      await otro.end().catch(() => {});
+    }
   });
 });
