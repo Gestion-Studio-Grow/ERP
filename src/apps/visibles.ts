@@ -35,7 +35,7 @@ import type { AppDescriptor, NombreIcono } from "./contract";
 import { ordenDeEspacio, ordenDentroDelEspacio } from "./espacios";
 import { REGISTRO_APPS } from "./registro";
 import { appDeRuta } from "./rutas";
-import { esAppOcultable, type InterruptorId } from "@/cambios/interruptores";
+import { esAppOcultable, SOPORTE_GSG, type InterruptorId } from "@/cambios/interruptores";
 
 // ── Contexto del gate por módulo ─────────────────────────────────────────────
 
@@ -122,6 +122,12 @@ export interface NegocioApps {
    */
   interruptores?: Readonly<Partial<Record<InterruptorId, { encendido: boolean }>>>;
   /**
+   * Soporte GSG apagado, pero el TITULAR dio alguna vez el permiso a la IA: la app del permiso existe para
+   * él, en pausa, para sacarlo o ver que quedó sacado (el servidor rechaza dar).
+   * Lo calcula getNegocioApps (src/apps/contexto.server.ts) sólo para OWNER. Ausente = no.
+   */
+  soporteSoloRevocar?: boolean;
+  /**
    * Las excepciones de la matriz de permisos de QUIEN MIRA (`SessionUser.overrides`). Sólo RESTAN: una casilla
    * apagada («Mover stock», «Abrir y cerrar caja», …) cierra la app aunque el rol la abriera; una prendida no
    * abre nada que el rol no abra (seguridad, 08/11/2026). Ausente = rige el rol, como antes.
@@ -145,7 +151,8 @@ export interface NegocioApps {
 export type MotivoNoDisponible = "rol" | "en-preparacion" | "modulo" | "rubro" | "edicion" | "oculta" | "panel" | "apagada";
 
 /** ¿La app depende de un interruptor que en este negocio no está prendido? Ausente = apagado. PURA. */
-export function appApagadaPorInterruptor(app: AppDescriptor, n: Pick<NegocioApps, "interruptores">): boolean {
+export function appApagadaPorInterruptor(app: AppDescriptor, n: Pick<NegocioApps, "interruptores" | "soporteSoloRevocar">): boolean {
+  if (app.interruptor === SOPORTE_GSG && n.soporteSoloRevocar === true) return false; // sólo para sacar el permiso
   return app.interruptor !== undefined && n.interruptores?.[app.interruptor]?.encendido !== true;
 }
 
