@@ -35,6 +35,7 @@ import { claveCobroTurno, facturarCobrosInTx, tomarClaves, vincularCobroInTx, ty
 import { claveCobroDelLibro, cobroDeLaClave } from "@/lib/facturacion/clave-cobro-del-libro";
 import { coberturaMP, esPagoMP, facturadoPropioPorCobro, saldosMPSinPareja } from "@/lib/facturacion/cobertura-mp";
 import { MARCA_ANULACION, claseDeCobro, cobroAnuladoPor } from "@/lib/turnos/anulacion";
+import { ACCION_SENIA_MP_NO_REGISTRADA } from "@/lib/turnos/avisos-mp";
 
 // Códigos de catálogo ARCA (ver src/plugins/arca/domain/catalogos.ts).
 const CONCEPTO_SERVICIOS = 2;
@@ -365,7 +366,7 @@ export async function facturaDeCobroParaPagoMPInTx(
 export async function facturarPagoMPDelTurno(
   input: CreateInvoiceInput,
   cobro: CobroAFacturar & { appointmentId: string },
-): Promise<string> {
+): Promise<string | null> {
   const { tenantId } = input;
   return enElNegocio(tenantId, async (tx) => {
     await bloquearTurnoInTx(tx, tenantId, cobro.appointmentId);
@@ -376,7 +377,83 @@ export async function facturarPagoMPDelTurno(
     if (delTurno) return vincularCobroInTx(tx, tenantId, cobro, delTurno.id);
     const delCobro = await facturaDeCobroParaPagoMPInTx(tx, tenantId, cobro.appointmentId, cobro.importe);
     if (delCobro) return vincularCobroInTx(tx, tenantId, cobro, delCobro);
+    // GSG-FACT-012: el turno ya cobrado por otro medio (o el pago excede lo que falta) → a revisión.
+    if (await pagoMPExcedeElTurnoInTx(tx, tenantId, cobro)) {
+      await avisarPagoMPSinFacturarInTx(tx, tenantId, cobro, pagoDelComprobante(input, cobro));
+      return null;
+    }
     return facturarCobrosInTx(tx, input, [cobro]);
+  });
+}
+
+/**
+ * Cuánto de un pago de Mercado Pago cabe en el turno, en centavos. PURA. Lo que ya cubre plata que NO es
+ * de MP (cobros vivos de otro medio y condonaciones del libro) es del turno: un pago de MP que no está
+ * anotado en el libro sólo cabe en lo que queda del precio. Los cobros de MP del libro no restan (son
+ * esta misma plata u otro pago de MP, que ya se reparten por `coberturaMP`).
+ */
+export function lugarParaPagoMP(x: { precio: number; filas: readonly Pick<FilaDelLibro, "id" | "amount" | "method" | "note">[] }): number {
+  const anulados = new Set(x.filas.map((f) => cobroAnuladoPor(f.note)).filter((id): id is string => id != null));
+  const deOtroMedio = x.filas
+    .filter((f) => claseDeCobro(f.note) !== "anulacion" && !anulados.has(f.id) && centavosDe(f.amount) > 0)
+    .filter((f) => claseDeCobro(f.note) === "condonacion" || f.method !== "MERCADOPAGO")
+    .reduce((a, f) => a + centavosDe(f.amount), 0);
+  return Math.max(0, centavosDe(x.precio) - deOtroMedio);
+}
+
+/**
+ * GSG-FACT-012 · Bajo el candado del turno: ¿el pago de MP (todavía sin factura propia) excede lo que el
+ * turno admite? El turno cerrado en efectivo tiene su factura por el cobro del libro, SIN
+ * `appointmentId`: el aviso no la veía y emitía otra. Sin turno (otro negocio), no decide: `false`.
+ */
+async function pagoMPExcedeElTurnoInTx(tx: InvoiceTx, tenantId: string, cobro: CobroAFacturar & { appointmentId: string }): Promise<boolean> {
+  // Un pago que ya tiene su fila sigue el camino de siempre (`facturarCobrosInTx` devuelve esa factura).
+  const propia = await tx.cobroFacturado.findFirst({ where: { tenantId, clave: cobro.clave }, select: { invoiceId: true } });
+  if (propia) return false;
+  const [turno, libro] = await Promise.all([
+    tx.appointment.findFirst({
+      where: { id: cobro.appointmentId, tenantId },
+      select: { priceAtBooking: true, service: { select: { price: true } } },
+    }),
+    tx.collection.findMany({
+      where: { tenantId, originType: "APPOINTMENT", originId: cobro.appointmentId },
+      select: { id: true, amount: true, method: true, note: true },
+    }),
+  ]);
+  if (!turno) return false;
+  const precio = Number(turno.priceAtBooking ?? turno.service.price);
+  const filas = libro.map((c) => ({ id: c.id, amount: Number(c.amount), method: c.method, note: c.note }));
+  return centavosDe(cobro.importe) > lugarParaPagoMP({ precio, filas });
+}
+
+/** El id del pago de MP del comprobante (origen MP_PAYMENT), o la clave del cobro si no lo trae. */
+const pagoDelComprobante = (input: CreateInvoiceInput, cobro: CobroAFacturar): string =>
+  input.origin?.type === "MP_PAYMENT" ? input.origin.id : cobro.clave;
+
+/**
+ * El aviso de revisión (`senia_mp_no_registrada`, el que la agenda ya muestra), UNA vez por pago: si la
+ * seña de este pago ya se rechazó por exceder el saldo, esa fila es el aviso y no se agrega otra.
+ */
+async function avisarPagoMPSinFacturarInTx(
+  tx: InvoiceTx,
+  tenantId: string,
+  cobro: CobroAFacturar & { appointmentId: string },
+  pagoId: string,
+): Promise<void> {
+  const base = { tenantId, entity: "Appointment", entityId: cobro.appointmentId, action: ACCION_SENIA_MP_NO_REGISTRADA };
+  const ya = await tx.auditLog.findFirst({ where: { ...base, changes: { path: ["pagoMP", "id"], equals: pagoId } }, select: { id: true } });
+  if (ya) return;
+  await tx.auditLog.create({
+    data: {
+      ...base,
+      actor: "Mercado Pago",
+      channel: "webhook",
+      changes: {
+        pagoMP: { id: pagoId, monto: cobro.importe },
+        motivo: "El turno ya está cobrado por otro medio: el pago de Mercado Pago no se facturó. Revisá si hay que devolverlo.",
+        revision: "turno-cobrado",
+      },
+    },
   });
 }
 

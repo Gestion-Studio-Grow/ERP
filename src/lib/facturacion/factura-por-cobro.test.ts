@@ -68,3 +68,22 @@ test("el aviso de una factura que no salió al cobrar habla del cobro, no del tu
   assert.match(avisoDeFacturaDelTurno({ tipo: "fallo" }, "cobro") ?? "", /^El cobro quedó registrado, pero la factura no se pudo emitir/);
   assert.match(avisoDeFacturaDelTurno({ tipo: "fallo" }) ?? "", /^El turno quedó terminado/);
 });
+
+// ── GSG-FACT-012 · cuánto de un pago de MP cabe en el turno ─────────────────────
+test("lugarParaPagoMP: lo cobrado por otro medio (y lo condonado) achica el lugar; MP y lo anulado no", async () => {
+  const { lugarParaPagoMP } = await import("./factura-por-cobro");
+  const f = (id: string, amount: number, method: string, note: string | null = null) => ({ id, amount, method, note });
+  assert.equal(lugarParaPagoMP({ precio: 15000, filas: [] }), 1_500_000);
+  assert.equal(lugarParaPagoMP({ precio: 15000, filas: [f("e", 15000, "EFECTIVO")] }), 0);
+  assert.equal(lugarParaPagoMP({ precio: 15000, filas: [f("e", 10000, "EFECTIVO")] }), 500_000);
+  // El cobro de MP del libro es esta misma plata: no resta.
+  assert.equal(lugarParaPagoMP({ precio: 15000, filas: [f("m", 5000, "MERCADOPAGO"), f("e", 10000, "EFECTIVO")] }), 500_000);
+  // Un efectivo anulado vuelve a dejar lugar; la fila de anulación no cuenta.
+  assert.equal(
+    lugarParaPagoMP({ precio: 15000, filas: [f("e", 15000, "EFECTIVO"), f("x", -15000, "EFECTIVO", notaDeAnulacion("e", "error"))] }),
+    1_500_000,
+  );
+  // Lo condonado cierra el turno aunque su medio sea MP.
+  assert.equal(lugarParaPagoMP({ precio: 15000, filas: [f("e", 10000, "EFECTIVO"), f("c", 5000, "MERCADOPAGO", notaDeCondonacion("perdonado"))] }), 0);
+  assert.equal(lugarParaPagoMP({ precio: 15000, filas: [f("e", 16000, "TRANSFERENCIA")] }), 0);
+});
