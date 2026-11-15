@@ -1,6 +1,8 @@
 "use client";
 
+import { useContext } from "react";
 import { useFormStatus } from "react-dom";
+import { EnvioEnCurso } from "@/components/envio-en-curso";
 import { useDiseno } from "@/lib/diseno/DisenoProvider";
 import { atributosBoton } from "@/components/ui/Button";
 
@@ -25,7 +27,10 @@ export default function SubmitButton({
   variant?: "solid" | "outline" | "ghost" | "danger" | "subtle";
   size?: "sm" | "md" | "lg";
 }) {
-  const { pending } = useFormStatus();
+  // `EnvioEnCurso`: el formulario que se envía con `onSubmit` para no perder lo cargado si falla (no lo ve `useFormStatus`).
+  const { pending: deLaAccion } = useFormStatus();
+  const enCurso = useContext(EnvioEnCurso);
+  const pending = deLaAccion || enCurso;
   const nuevo = useDiseno();
   if (!nuevo) {
     return (

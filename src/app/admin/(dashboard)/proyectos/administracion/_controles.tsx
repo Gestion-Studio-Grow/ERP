@@ -2,12 +2,13 @@
 
 // Los pedazos con estado de Administración: marcar, guardar al salir del campo, confirmar en dos pasos, importar y editar.
 
-import { useEffect, useRef, useState, useTransition, type ChangeEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, useTransition, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { buttonClasses, cn } from "@/components/ui";
 import { marcarCuota } from "@/lib/proyectos/acciones-ficha";
 import { cuentasParaMarcar, editarExtrasLiquidacion, generarLiquidaciones, guardarDatoCuota, importarExtracto, marcarCuotaEmpresa, marcarLiquidacionVista } from "@/lib/proyectos/acciones-empresa";
 import { MEDIOS, MEDIO_LABEL } from "@/lib/proyectos/core";
+import { plataEn } from "@/lib/proyectos/gestion-core";
 import { campo } from "../_vista";
 import { useToastSiHay } from "../../ToastProvider";
 
@@ -34,22 +35,30 @@ function useAccion() {
   return { error, ocupado, correr };
 }
 
+/**
+ * `onSubmit` en vez de `action`: React 19 vacía un <form action> al terminar, también cuando falló, y el medio volvía a
+ * «Transferencia» con el monto y la cuenta borrados (recorrido del PR #166 · 4). Así lo cargado queda hasta que salga bien.
+ */
+const alEnviar = (enviar: (fd: FormData, form: HTMLFormElement) => void) => (e: FormEvent<HTMLFormElement>) => {
+  e.preventDefault();
+  const form = e.currentTarget;
+  enviar(new FormData(form, (e.nativeEvent as SubmitEvent).submitter), form);
+};
+
 const Fallo = ({ texto }: { texto: string | null }) => (texto ? <p role="alert" className="text-sm text-danger">{texto}</p> : null);
 
 // ── Formularios ─────────────────────────────────────────────────────────────
 
 export function FormAccion({ accion, children, boton, className, limpiar = true }: { accion: Accion; children?: ReactNode; boton: string; className?: string; limpiar?: boolean }) {
   const { error, ocupado, correr } = useAccion();
-  const form = useRef<HTMLFormElement>(null);
   return (
     <form
-      ref={form}
       className={cn("grid gap-2", className)}
-      action={(fd) =>
+      onSubmit={alEnviar((fd, form) =>
         correr(accion, fd, () => {
-          if (limpiar) form.current?.reset();
-        })
-      }
+          if (limpiar) form.reset();
+        }),
+      )}
     >
       {children}
       <button type="submit" disabled={ocupado} className={cn(buttonClasses("solid", "md"), "min-h-11 justify-self-start")}>{ocupado ? "Guardando…" : boton}</button>
@@ -101,20 +110,31 @@ function ElegirCuenta() {
   );
 }
 
-export function MarcarCuota({ id, deEmpresa, etiqueta }: { id: string; deEmpresa: boolean; etiqueta: string }) {
+/**
+ * La de un proyecto, además, cobra o paga UNA PARTE (`monto`, en la moneda de la cuota; vacío = todo lo que falta) y manda
+ * lo que faltaba al cargar la pantalla (`visto`): si cambió mientras tanto, el servidor no asienta «todo» sin preguntar.
+ * `envio`, uno por apertura: el doble clic asienta una vez. Las de la empresa (y sin `falta`, la conciliación de Bancos) se
+ * marcan enteras.
+ */
+export function MarcarCuota({ id, deEmpresa, etiqueta, falta, moneda = "ARS", concepto = "la cuota", esCobro = true }: { id: string; deEmpresa: boolean; etiqueta: string; falta?: number; moneda?: string; concepto?: string; esCobro?: boolean }) {
   const { error, ocupado, correr } = useAccion();
   const [abierto, setAbierto] = useState(false);
+  const [envio, setEnvio] = useState("");
   const router = useRouter();
   const toast = useToastSiHay();
+  const abrir = () => {
+    setEnvio(crypto.randomUUID());
+    setAbierto(true);
+  };
   if (!abierto) {
     return (
-      <button type="button" onClick={() => setAbierto(true)} className={cn(buttonClasses("solid", "md"), "min-h-11 whitespace-nowrap")}>{etiqueta}</button>
+      <button type="button" onClick={abrir} className={cn(buttonClasses("solid", "md"), "min-h-11 whitespace-nowrap")}>{etiqueta}</button>
     );
   }
   return (
     <form
       className="grid min-w-44 gap-1"
-      action={(fd) => {
+      onSubmit={alEnviar((fd) => {
         fd.set("id", id);
         correr(deEmpresa ? marcarCuotaEmpresa : (marcarCuota as Accion), fd, (r) => {
           // El renglón pasa a «Cobrada»/«Pagada» al refrescar: el aviso flotante es lo que confirma que salió.
@@ -122,12 +142,19 @@ export function MarcarCuota({ id, deEmpresa, etiqueta }: { id: string; deEmpresa
           setAbierto(false);
           router.refresh();
         });
-      }}
+      })}
     >
       <select name="medio" aria-label="Medio de pago" defaultValue="TRANSFERENCIA" className={campo}>
         {MEDIOS.map((m) => <option key={m} value={m}>{MEDIO_LABEL[m]}</option>)}
       </select>
       <ElegirCuenta />
+      {!deEmpresa && falta !== undefined && (
+        <>
+          <input type="hidden" name="envio" value={envio} />
+          <input type="hidden" name="visto" value={String(falta)} />
+          <input name="monto" inputMode="decimal" aria-label={`Monto a ${esCobro ? "cobrar" : "pagar"} de ${concepto}, en ${moneda} (vacío: todo lo que falta)`} placeholder={`Todo: ${plataEn(falta, moneda)}`} className={campo} />
+        </>
+      )}
       <div className="flex gap-1">
         <button type="submit" disabled={ocupado} className={cn(buttonClasses("solid", "md"), "min-h-11 flex-1")}>{ocupado ? "…" : "Confirmar"}</button>
         <button type="button" disabled={ocupado} onClick={() => setAbierto(false)} className={cn(buttonClasses("ghost", "md"), "min-h-11")}>Volver</button>

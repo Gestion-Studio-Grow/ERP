@@ -88,8 +88,16 @@ export async function runTenantProvisioning(
     outcome.failure = { atState: state, reason, compensated };
   }
 
-  await deps.idempotency.set(input.idempotencyKey, outcome);
+  // El cache guarda el outcome SIN la provisoria (GSG-SEG-014): una repetición con la misma clave no
+  // la devuelve, así nadie la vuelve a entregar (un reenvío del alta con OTRO email le mandaba la
+  // clave del dueño a ese otro). Tampoco queda una contraseña en claro viva en la memoria del proceso.
+  await deps.idempotency.set(input.idempotencyKey, sinClaveProvisoria(outcome));
   return outcome;
+}
+
+/** El outcome sin la provisoria del dueño (para el cache y para lo que vuelve al navegador). */
+export function sinClaveProvisoria(outcome: ProvisionOutcome): ProvisionOutcome {
+  return outcome.commit ? { ...outcome, commit: { ...outcome.commit, generatedPassword: undefined } } : { ...outcome };
 }
 
 /**

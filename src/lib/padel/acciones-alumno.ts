@@ -17,6 +17,7 @@
 // Las altas de clase van en `bookingTransaction` (Serializable con reintento): dos alumnos que
 // tocan la misma franja a la vez no quedan los dos adentro (ADR-004/023).
 
+import { origenDeReservaConLink, origenDelPedido } from "./canal";
 import { after } from "next/server";
 import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
@@ -109,6 +110,8 @@ export interface PedidoTurnero {
   personas: number;
   /** T3C: «¿Algo que el profe tenga que saber?» (opcional). Va en el aviso al profe, no en la clase. */
   nota?: string;
+  /** `?desde=` del turnero: «directorio» si vino del buscador de profes (canal.ts). Otro valor = TURNERO. */
+  desde?: string;
 }
 
 /** T3C: la nota opcional del turnero, ya validada, como cola del aviso al profe (vacío si no hay). */
@@ -169,7 +172,7 @@ export async function pedirClase(
         throw new ErrorNegocio(`Ya tenés ${pendientes} clase${pendientes > 1 ? "s" : ""} esperando que el profe confirme. Cuando te conteste, pedí la próxima.`);
       }
       const clase = await tx.padelClase.create({
-        data: { tenantId, alumnoId: alumno.id, clientId: alumno.clientId, empiezaEn, terminaEn, tipo, personas, origen: "TURNERO", precio: precioDe(config, tipo, personas), clubId },
+        data: { tenantId, alumnoId: alumno.id, clientId: alumno.clientId, empiezaEn, terminaEn, tipo, personas, origen: origenDelPedido(p.desde), precio: precioDe(config, tipo, personas), clubId },
         select: { id: true },
       });
       // ¿Este dispositivo es el dueño del link? Si no lo es y el profe todavía no reconoció al alumno,
@@ -347,7 +350,7 @@ export async function reservarDesdeLink(
   horaIso: string,
   repiteDe?: string,
   /** T3C: el turnero con la cookie del alumno pide por acá (sin tipear): tipo, personas y nota. */
-  opciones?: { tipo?: string; personas?: number; nota?: string },
+  opciones?: { tipo?: string; personas?: number; nota?: string; desde?: string },
 ): Promise<Resultado<{ estado: string; cuando: string; pagadaConSaldo?: boolean; claseId: string }> & { alternativas?: string[] }> {
   const tenantIdFreno = await getCurrentTenantId();
   if (await enVerificacion(tenantIdFreno)) return EN_VERIFICACION;
@@ -391,7 +394,7 @@ export async function reservarDesdeLink(
         data: {
           tenantId, alumnoId: alumno.id, clientId: alumno.clientId, empiezaEn, terminaEn, tipo, personas: base.personas,
           estado: confirmada ? "CONFIRMADA" : "PEDIDA", confirmadaEl: confirmada ? new Date() : null,
-          origen: "ALUMNO_LINK", repiteDe: repiteDe ?? null, precio, clubId, ...(conSaldo ?? {}),
+          origen: origenDeReservaConLink(opciones?.desde), repiteDe: repiteDe ?? null, precio, clubId, ...(conSaldo ?? {}),
         },
         select: { id: true, pagoMedio: true },
       });

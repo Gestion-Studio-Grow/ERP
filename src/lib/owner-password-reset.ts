@@ -1,22 +1,26 @@
-// Núcleo PURO e INYECTABLE del reset de contraseña del OWNER (revelado único). Separado del
-// Server Action (`operator-actions.ts`) para poder testearlo sin tocar la DB: recibe un PORT con
-// las 4 operaciones que necesita, así los tests le pasan un doble en memoria y el action real le
-// pasa uno armado sobre `operatorPrisma`.
+// Núcleo PURO e INYECTABLE del reset de contraseña del OWNER. Separado del Server Action
+// (`operator-actions.ts`) para poder testearlo sin tocar la DB ni la red: recibe un PORT con las
+// operaciones que necesita (incluido el envío del mail), así los tests le pasan un doble en memoria
+// y el action real le pasa uno armado sobre la transacción del negocio y Resend.
 //
 // INVARIANTES que garantiza (y que los tests verifican):
-//   - la contraseña en claro se GENERA acá (alta entropía) y se devuelve UNA vez; NUNCA se pasa a
-//     `audit()` ni a `setPasswordHash` en claro (solo su hash);
-//   - `audit()` recibe la acción canónica y un `changes` SIN el valor;
-//   - FALLA CERRADO: marca el cambio forzado ANTES de tocar la contraseña; si la base no tiene la
-//     columna (migración sin aplicar), devuelve error y la contraseña vieja queda intacta. Nunca
-//     se entrega una provisoria que no obligue a cambiarse.
+//   - la contraseña en claro se GENERA acá (alta entropía) y sale SÓLO por `enviarClave` (el mail al
+//     titular, GSG-SEG-014). No se devuelve: la pantalla muestra a dónde fue, enmascarado;
+//   - nunca se pasa a `audit()` ni a `setPasswordHash` en claro (sólo su hash);
+//   - FALLA CERRADO dos veces:
+//       · marca el cambio forzado ANTES de tocar la contraseña; si la base no tiene la columna,
+//         devuelve error y la contraseña vieja queda intacta;
+//       · el mail es el ÚLTIMO paso: si no sale, TIRA `ClaveNoEnviada` para que la transacción del
+//         llamador se deshaga entera (hash anterior intacto, sin flag, sin auditoría de reset). El
+//         llamador deja la auditoría de la falla en otra transacción.
 
 import { hashPassword, generateStrongPassword } from "@/lib/auth-password";
 import { AUDIT_ACTION_OWNER_RESET, CAMBIO_OBLIGATORIO_INACTIVO } from "@/lib/must-change-password";
+import { ClaveNoEnviada, enmascararEmail, type EnvioClave } from "@/lib/clave-temporal-mail";
 
 export interface OwnerResetPort {
   // OWNER activo más antiguo del tenant (el dueño original), o null si no hay.
-  findOwner(tenantId: string): Promise<{ id: string; email: string } | null>;
+  findOwner(tenantId: string): Promise<{ id: string; email: string; name: string } | null>;
   // Persiste SOLO el hash (nunca el claro).
   setPasswordHash(userId: string, passwordHash: string): Promise<void>;
   // Marca/limpia el cambio forzado; `persisted:false` si la columna no existe (Gate 2 sin aplicar).
@@ -30,15 +34,29 @@ export interface OwnerResetPort {
     entityId: string;
     changes: unknown;
   }): Promise<void>;
+  // Manda la provisoria por mail al titular. El único lugar por donde sale el claro.
+  enviarClave(destino: { email: string; nombre: string }, clave: string): Promise<EnvioClave>;
 }
 
 export type OwnerResetResult =
-  | { ok: true; password: string; email: string }
+  | { ok: true; email: string; enviadaA: string }
   | { ok: false; error: string };
 
 export async function resetOwnerPasswordCore(
   port: OwnerResetPort,
-  { tenantId, operatorSubject }: { tenantId: string; operatorSubject: string },
+  {
+    tenantId,
+    operatorSubject,
+    actor,
+    extra,
+  }: {
+    tenantId: string;
+    operatorSubject: string;
+    /** Actor de la auditoría; por defecto `operator:<sujeto>`. El reseteo pendiente usa `system:…`. */
+    actor?: string;
+    /** Campos extra para la auditoría (p. ej. la clave del reseteo pendiente). Nunca la contraseña. */
+    extra?: Record<string, string>;
+  },
 ): Promise<OwnerResetResult> {
   if (!tenantId) return { ok: false, error: "Falta el tenant." };
 
@@ -55,44 +73,19 @@ export async function resetOwnerPasswordCore(
   const passwordHash = await hashPassword(password);
   await port.setPasswordHash(owner.id, passwordHash);
 
+  const enviadaA = enmascararEmail(owner.email);
   await port.audit({
     tenantId,
-    actor: `operator:${operatorSubject}`,
+    actor: actor ?? `operator:${operatorSubject}`,
     action: AUDIT_ACTION_OWNER_RESET,
     entity: "User",
     entityId: owner.id,
-    changes: { forcedChangePersisted: true },
+    changes: { forcedChangePersisted: true, entrega: "mail", enviadaA, ...(extra ?? {}) },
   });
 
-  return { ok: true, password, email: owner.email };
-}
+  // Último paso, adentro de la transacción: si el mail no sale, se deshace todo lo anterior.
+  const envio = await port.enviarClave({ email: owner.email, nombre: owner.name }, password);
+  if (!envio.enviado) throw new ClaveNoEnviada(envio.motivo, enviadaA);
 
-// --- Reset MASIVO (primer uso de los 8 tenants) ------------------------------
-// Una fila por tenant, para mostrar la tabla "tenant → email → temporal" con revelado único. El
-// claro vive sólo en el retorno (nunca se persiste ni se loguea). Los tenants sin OWNER activo no
-// abortan el lote: se listan con `error` y sin contraseña.
-export type OwnerResetRow = {
-  tenantId: string;
-  tenantName: string;
-  email: string | null;
-  password: string | null;
-  error?: string;
-};
-
-export async function resetManyOwnerPasswordsCore(
-  port: OwnerResetPort,
-  tenants: { id: string; name: string }[],
-  operatorSubject: string,
-): Promise<OwnerResetRow[]> {
-  const rows: OwnerResetRow[] = [];
-  // Secuencial a propósito: no saturar la conexión y mantener el orden estable de la tabla.
-  for (const t of tenants) {
-    const r = await resetOwnerPasswordCore(port, { tenantId: t.id, operatorSubject });
-    rows.push(
-      r.ok
-        ? { tenantId: t.id, tenantName: t.name, email: r.email, password: r.password }
-        : { tenantId: t.id, tenantName: t.name, email: null, password: null, error: r.error },
-    );
-  }
-  return rows;
+  return { ok: true, email: owner.email, enviadaA };
 }

@@ -19,6 +19,8 @@ import { SIN_COMPROBANTES } from "./rendiciones-core";
 import { cobranzaDe, originalesDeCobros, SELECT_COBRANZA, tiposDeCambio } from "./cobranza.server";
 import { totalesEnPesos } from "./cobranza-core";
 import { aPesos } from "./gestion-core";
+import { porPagarDeCuotas } from "./pago-parcial-core";
+import { pagosParcialesDeCuotas } from "./pago-parcial.server";
 
 export const veLaPlata = (u: SessionUser): boolean => permisoFueraDeLaAgenda(u, "agenda:manage");
 
@@ -169,15 +171,18 @@ export async function reporteProyectos() {
       client: { select: { name: true } },
       ...SELECT_COBRANZA,
       gastos: { where: { anuladoEl: null }, select: { rubro: true, neto: true, iva: true, pagadoEl: true, anuladoEl: true } },
+      cuotas: { where: { tipo: "PAGO", pagadoEl: null, anuladoEl: null, prevista: false }, select: { id: true, tipo: true, monto: true, moneda: true, pagadoEl: true, anuladoEl: true, prevista: true } },
     },
   });
   const originales = await originalesDeCobros(tenantId, proyectos);
+  // D6: lo que falta pagar por cuotas a proveedor (menos lo pagado en parte) entra al costo real y a «Por pagar».
+  const pagados = await pagosParcialesDeCuotas(tenantId, proyectos.flatMap((p) => p.cuotas), tc);
   return proyectos.map((p) => {
     const a = p.presupuestos[0];
     const t = a ? totalesEnPesos(a, tc, config.margenPct) : null;
     // `porCobrar` sale de la fuente única: la pantalla sólo lo suma, no lo recalcula del saldo.
     const { cobrado, saldo, porCobrar } = cobranzaDe(p, tc, config.margenPct, originales);
-    return { ...p, t, cobrado, saldo, porCobrar, real: resultadoReal(t, p.gastos) };
+    return { ...p, t, cobrado, saldo, porCobrar, real: resultadoReal(t, p.gastos, porPagarDeCuotas(p.cuotas, pagados, tc)) };
   });
 }
 

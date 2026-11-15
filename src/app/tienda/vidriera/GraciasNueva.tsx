@@ -17,6 +17,10 @@ import { buildWhatsAppHref } from "@/lib/whatsapp-cta";
 import type { MarcaId } from "./marcas";
 import { IconoWhatsApp } from "./Iconos";
 import { OlvidarBolsa } from "./OlvidarBolsa";
+import type { ReactNode } from "react";
+
+/** Las clases del kit de esta vista para «Pagar ahora con Mercado Pago» (lo arma la página). */
+export const CLASES_PAGAR_NUEVA = { boton: `${s.btn} ${s.btnPri}`, nota: s.nota } as const;
 
 export default function GraciasNueva({
   marca,
@@ -24,6 +28,7 @@ export default function GraciasNueva({
   pedido,
   whatsapp,
   pago,
+  pagar,
   tenantKey,
 }: {
   tenantKey: string;
@@ -34,6 +39,8 @@ export default function GraciasNueva({
   /** Sólo dígitos; "" sin WhatsApp publicado. */
   whatsapp: string;
   pago: string;
+  /** «Pagar ahora con Mercado Pago» (sólo con MP disponible y el token del pedido); va junto a cómo se paga. */
+  pagar?: ReactNode;
 }) {
   const pasos: { t: string; d: string }[] = [
     { t: "Lo recibimos", d: pedido ? `Tu pedido #${pedido} ya está en el local.` : "Tu pedido ya está en el local." },
@@ -99,6 +106,7 @@ export default function GraciasNueva({
                 </li>
               ))}
             </ol>
+            {pagar && <div className={s.segPagar}>{pagar}</div>}
           </>
         ) : (
           <>

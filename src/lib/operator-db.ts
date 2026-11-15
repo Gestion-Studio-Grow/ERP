@@ -38,9 +38,12 @@ export function enElNegocio<T>(
   tenantId: string,
   fn: (tx: Prisma.TransactionClient) => Promise<T>,
   db: PrismaClient = operatorPrisma,
+  // Para las transacciones que esperan algo de afuera (el mail de la clave provisoria, GSG-SEG-014):
+  // el límite de fábrica de Prisma (5 s) es menor que la espera del servicio de mail.
+  opciones?: { timeout?: number; maxWait?: number },
 ): Promise<T> {
   return db.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`;
     return fn(tx);
-  });
+  }, opciones);
 }

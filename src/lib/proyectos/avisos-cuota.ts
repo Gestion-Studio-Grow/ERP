@@ -19,6 +19,35 @@ export function listoMarcada(esCobro: boolean, importeEnPesos: number): string {
   return `Listo: cuota marcada como ${esCobro ? "cobrada" : "pagada"} (${pesos(importeEnPesos)}).`;
 }
 
+/** El cartel de éxito de «una parte» (cobro o pago a proveedor): lo que se asentó y lo que le sigue faltando a la cuota, en su moneda. */
+export function listoParcial(importeEnPesos: number, falta: number, moneda: string, esCobro = true): string {
+  return `Listo: se ${esCobro ? "cobró" : "pagó"} una parte (${pesos(importeEnPesos)}). A la cuota le faltan ${plataEn(redondear(falta), moneda)}.`;
+}
+
+/** «Una parte» por más de lo que le falta a la cuota: nunca se cobra ni se paga de más. */
+export function avisoMasQueLaCuota(falta: number, moneda: string, esCobro = true): string {
+  const verbo = esCobro ? "cobrar" : "pagar";
+  return `No se puede ${verbo} más de lo que le falta a la cuota (${plataEn(redondear(falta), moneda)}). Para ${verbo} todo, dejá el monto vacío.`;
+}
+
+/**
+ * Lo que le falta a la cuota cambió entre que se cargó la pantalla (o se leyó) y el clic: no se asentó nada. Dice cuánto
+ * faltaba, cuánto falta ahora y por qué (entró otro cobro o pago, o se anuló uno), y cómo seguir.
+ */
+export function avisoSaldoCambio(antes: number, ahora: number, moneda: string, esCobro: boolean): string {
+  const que = esCobro ? "cobro" : "pago";
+  // La causa no se conoce: también la mueve un cambio del plan (otro anticipo, otro costo). Se nombra la probable y esa.
+  const porque = `${ahora > antes ? `se anuló un ${que}` : `entró otro ${que}`} o cambió el plan de cuotas`;
+  // Cubierta mientras tanto: «le faltan $ 0» no dice nada. Dice qué pasó y que ya no hay nada para asentar.
+  if (redondear(ahora) <= 0) return `No se asentó nada: a esta cuota le faltaban ${plataEn(redondear(antes), moneda)} y ya no le falta nada (${porque} mientras tanto). Recargá la página para verla al día.`;
+  return `No se asentó nada: a esta cuota le faltaban ${plataEn(redondear(antes), moneda)} y ahora le faltan ${plataEn(redondear(ahora), moneda)} (${porque} mientras tanto). Si querés asentar lo que falta ahora, escribí el monto y confirmá, o recargá la página.`;
+}
+
+/** El cartel de éxito al anular un cobro o un pago: la plata vuelve y la cuota, si salió de una, recupera su saldo. */
+export function listoAnulado(esCobro: boolean, enPesos: number): string {
+  return `Listo: ${esCobro ? "cobro" : "pago"} de ${pesos(enPesos)} anulado. La caja y la cuenta quedaron como antes, y su cuota volvió a esperar ese importe.`;
+}
+
 /** Lo que se sabe de la factura de una cuota, en el formato de facturar-cuota.server.ts (`FacturaDeCuotaVista`). */
 export interface FacturaDeCuotaTexto {
   status: string;
