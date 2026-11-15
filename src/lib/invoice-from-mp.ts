@@ -180,7 +180,13 @@ export async function facturarPagoMP(
   const turno = cobro.appointmentId;
   const invoiceId =
     turno && deps.facturarPagoDelTurno
-      ? await deps.facturarPagoDelTurno(comprobante, { ...cobro, appointmentId: turno })
+      ? await deps.facturarPagoDelTurno(comprobante, { ...cobro, appointmentId: turno }, {
+          // X1-T · La mirada de arriba, repetida bajo el candado del cupo (turno → cupo): si el lote
+          // del extracto facturó este pago mientras el aviso esperaba el turno, se ata a esa factura.
+          ...(deps.facturaDelExtractoEnTx
+            ? { facturaPrevia: (tx: InvoiceTx) => deps.facturaDelExtractoEnTx!(tx, tenantId, pago.id, { importe: pago.monto, fecha }) }
+            : {}),
+        })
       : deps.facturarCobros
         ? await deps.facturarCobros(comprobante, [cobro], {
             ...(opciones.verificarCupo ? { verificarCupo: opciones.verificarCupo } : {}),

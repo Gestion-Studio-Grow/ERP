@@ -1042,6 +1042,11 @@ export async function emitirPropuestas(
       // Todas las claves de este cobro (ver `clavesDelMovimiento`): fuera del try, porque el catch
       // las usa para saber si la factura llegó a confirmarse.
       const { claveBanco, claves: clavesDelCobro } = clavesDelMovimiento(mov, mov.importacion.origen);
+      // X1 · Si el aviso de MP del mismo pago facturó mientras éste esperaba el candado del cupo,
+      // el movimiento se ata a esa factura (se cuenta como ya facturado, no como emitida). Fuera del
+      // try: si la transacción se confirmó atando y se perdió la respuesta, el catch tampoco la
+      // cuenta como emitida (no infla el tope local de esta corrida).
+      let atadoAlPagoMP = false;
       try {
         // El monto del banco es TOTAL IVA-incluido; el Core calcula neto/IVA (ADR-006).
         const montoTotal = Math.abs(toNum(mov.monto));
@@ -1088,9 +1093,6 @@ export async function emitirPropuestas(
         }
 
         const { neto, iva, total } = calcularImpuestos(perfil.condicionIva, montoTotal);
-        // X1 · Si el aviso de MP del mismo pago facturó mientras éste esperaba el candado del cupo,
-        // el movimiento se ata a esa factura (se cuenta como ya facturado, no como emitida).
-        let atadoAlPagoMP = false;
         await facturarCobros({
           tenantId,
           concepto,
@@ -1137,7 +1139,8 @@ export async function emitirPropuestas(
         // tiene su clave y la fila se ata a esa factura en vez de volver a `auto`.
         const resuelto = await resolverClaimTrasFalla(tenantId, mov.id, clavesDelCobro, soltarClaim);
         if (resuelto === "facturado") {
-          emitidas++;
+          if (atadoAlPagoMP) yaFacturadas++;
+          else emitidas++;
           continue;
         }
         if (err instanceof CupoAutomaticoAgotadoError) {
