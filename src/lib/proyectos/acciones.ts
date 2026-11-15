@@ -206,15 +206,18 @@ export async function registrarCobro(formData: FormData): Promise<Resultado> {
   const clave = claveDeEnvio(formData.get("claveEnvio"));
   const [config, tc] = await Promise.all([configProyectos(tenantId), tiposDeCambio(tenantId)]);
   // El cobro y su asiento en el libro de caja van juntos: o entran los dos o ninguno.
-  const grabar = (conClave: boolean) => tenantTransaction(async (tx): Promise<{ id: string; repetido?: true } | { porCobrar: number; cob: Cobranza } | { ajeno: true }> => {
+  const grabar = (conClave: boolean) => tenantTransaction(async (tx): Promise<{ id: string; repetido?: true } | { porCobrar: number; cob: Cobranza } | { ajeno: true } | { otroMonto: number }> => {
     // Tope: con presupuesto aprobado no entra más de lo que falta cobrar. En fila con «Marcar cobrado» y las cuotas
     // cargadas a mano del mismo proyecto, y contado adentro de la transacción (dos cobros a la vez no pasan los dos).
     await trabarCobranza(tx, tenantId, proyectoId);
     // El mismo envío otra vez (doble clic, reintento después de un corte): ya está grabado, se devuelve ése. Después
     // del candado, así dos envíos iguales a la vez pasan de a uno y el segundo encuentra al primero.
     if (conClave && clave) {
-      const previo = await tx.proyectoPago.findFirst({ where: { tenantId, claveEnvio: clave }, select: { id: true, proyectoId: true } });
-      if (previo) return previo.proyectoId === proyectoId ? { id: previo.id, repetido: true } : { ajeno: true };
+      const previo = await tx.proyectoPago.findFirst({ where: { tenantId, claveEnvio: clave }, select: { id: true, proyectoId: true, monto: true, medio: true } });
+      if (previo && previo.proyectoId !== proyectoId) return { ajeno: true };
+      // Misma clave con otros datos: no es el mismo envío (se cortó y se tipeó otro). No se graba ni se da por hecho.
+      if (previo && (Math.abs(previo.monto - monto) > 0.005 || previo.medio !== medio)) return { otroMonto: previo.monto };
+      if (previo) return { id: previo.id, repetido: true };
     }
     const cob = (await cobranzasDelNegocio(tenantId, tc, config.margenPct, [proyectoId], tx)).get(proyectoId);
     if (cob && pasaElTope(cob, monto)) return { porCobrar: cob.porCobrar, cob };
@@ -245,6 +248,7 @@ export async function registrarCobro(formData: FormData): Promise<Resultado> {
     pago = await grabar(!faltaLaMigracion(e));
   }
   if ("ajeno" in pago) return { ok: false, error: "Este formulario ya se usó para otro cobro. Recargá la página." };
+  if ("otroMonto" in pago) return { ok: false, error: `Con este formulario ya quedó registrado un cobro de ${pesos(pago.otroMonto)} (se había cortado la conexión). Si éste es otro cobro, envialo de nuevo.` };
   // Pasaba lo que falta cobrar: no se graba nada.
   if (!("id" in pago)) return { ok: false, error: avisoTopeCobro(pago.porCobrar, monto, pago.cob) };
   if (pago.repetido) {

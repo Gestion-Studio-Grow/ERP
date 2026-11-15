@@ -21,8 +21,8 @@ function nuevaClave(): string {
 
 /**
  * Un <form> de acción de servidor que dice qué falló sin perder lo tipeado. Con `limpiar`, vacía los campos si salió bien.
- * Con `claveDeEnvio`, cada envío lleva `claveEnvio`: la misma hasta que el servidor confirma (un doble clic o un reintento
- * después de un corte repiten la clave y el servidor graba una sola vez); confirmado, el próximo envío lleva otra.
+ * Con `claveDeEnvio`, cada envío lleva `claveEnvio`: la misma hasta que el servidor contesta (un doble clic o un reintento
+ * después de un corte repiten la clave y el servidor graba una sola vez); con respuesta, el próximo envío lleva otra.
  */
 export function FormAccion({ accion, className, children, limpiar, alGuardar, claveDeEnvio }: { accion: (fd: FormData) => Promise<ResultadoFicha>; className?: string; children: ReactNode; limpiar?: boolean; alGuardar?: () => void; claveDeEnvio?: boolean }) {
   const [error, setError] = useState<string | null>(null);
@@ -38,8 +38,9 @@ export function FormAccion({ accion, className, children, limpiar, alGuardar, cl
         if (claveDeEnvio) fd.set("claveEnvio", (clave.current ??= nuevaClave()));
         try {
           const r = await accion(fd);
-          if (!r.ok) return setError(r.error);
+          // El servidor contestó (bien o mal): el próximo envío es otro. Si la llamada se cortó, la clave queda.
           if (claveDeEnvio) clave.current = null;
+          if (!r.ok) return setError(r.error);
           // El éxito va en un aviso flotante: el renglón que lo pidió (la cuota marcada) suele desaparecer al refrescar.
           if (r.listo) toast?.showSuccess(r.listo);
           if (limpiar) form.current?.reset();

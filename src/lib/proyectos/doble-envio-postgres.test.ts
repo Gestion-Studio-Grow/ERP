@@ -219,6 +219,19 @@ test("H1.d la clave de un cobro, usada en otro proyecto: no graba nada", async (
   assert.deepEqual(await p.plata(uno), { pagos: 1, suma: 300, asientos: 1 });
 });
 
+test("H1.g la misma clave con otro monto (se cortó y se tipeó otro cobro): avisa y no graba; con clave nueva entra", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const id = await p.proyecto(false);
+  const k = p.clave();
+  assert.deepEqual(await p.cobrar(id, 500, k)(), { ok: true });
+  const r = await p.cobrar(id, 700, k)();
+  assert.equal(r.ok, false, "no se da por hecho un cobro que no es el mismo");
+  assert.deepEqual(await p.plata(id), { pagos: 1, suma: 500, asientos: 1 });
+  assert.deepEqual(await p.cobrar(id, 700, p.clave())(), { ok: true });
+  assert.deepEqual(await p.plata(id), { pagos: 2, suma: 1200, asientos: 2 });
+});
+
 test("H1.e sin clave (o con una que no tiene forma de clave) se graba como siempre", async (t) => {
   const p = await preparar(t);
   if (!p) return;
