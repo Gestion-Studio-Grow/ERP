@@ -44,7 +44,7 @@ export function FormularioImportar() {
           <Textarea id="lote" name="lote" rows={8} spellCheck={false} className="font-mono text-xs" placeholder={EJEMPLO} />
         </div>
         <p className="text-sm text-muted">
-          Cada marca necesita el link donde se la vio en ese evento. No se guardan datos de contacto de personas: un archivo con mails o teléfonos se rechaza entero.
+          Cada marca necesita el link donde se la vio en ese evento. No se guardan datos de contacto de personas: la fila que trae un mail o números que no son un año, una fecha, una cantidad o un importe queda afuera, con el motivo y sin guardar el dato.
         </p>
         <div>
           <button type="submit" disabled={enviando} className={buttonClasses("solid", "md")}>
