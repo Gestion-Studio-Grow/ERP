@@ -13,15 +13,26 @@
  * bytes por operación, vía `node:crypto` puro (sin dependencias). Formato serializado:
  * `base64(iv) . base64(tag) . base64(ciphertext)` (3 campos separados por punto).
  *
- * Este módulo NO toca la DB ni Next: es una unidad pura y testeable offline.
+ * Este módulo NO toca la DB ni Next: es una unidad pura y testeable offline (el único efecto es el
+ * aviso de la etiqueta por defecto, inyectable).
  */
 
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
+import { logger } from "@/lib/logger";
 
 const ALGO = "aes-256-gcm";
 const IV_BYTES = 12;
 const KEY_BYTES = 32; // AES-256
-const DEFAULT_KEK_ID = "env:FISCAL_MASTER_KEY:v1";
+/**
+ * La etiqueta de la KEK cuando `FISCAL_MASTER_KEY_ID` no está seteada (o está en blanco). Es la que
+ * llevan las filas cerradas antes de existir la variable: cambiarla las haría ver «de otra clave».
+ * No es silenciosa: `masterKeyDesdeEnv` la marca (`idPorDefecto`) y avisa una vez por proceso.
+ */
+export const KEK_ID_POR_DEFECTO = "env:FISCAL_MASTER_KEY:v1";
+
+export const AVISO_KEK_ID_POR_DEFECTO =
+  "FISCAL_MASTER_KEY_ID no está seteada: se usa la etiqueta por defecto de la clave maestra. " +
+  "Seteala en el entorno para poder rotar la clave sin confundir pedidos y certificados de cada clave.";
 
 /** La master key (KEK) resuelta + su id (para rotación). */
 export interface MasterKey {
@@ -29,6 +40,17 @@ export interface MasterKey {
   key: Buffer;
   /** Identificador/versión de esta KEK — se persiste en `kekId` para saber con cuál desenvolver. */
   id: string;
+  /** true = `id` es `KEK_ID_POR_DEFECTO` porque `FISCAL_MASTER_KEY_ID` falta o está en blanco. */
+  idPorDefecto?: boolean;
+}
+
+let avisoPorDefectoDado = false;
+
+/** El aviso de fábrica: una línea de log por proceso (sin valores: sólo el nombre de la variable). */
+function avisarUnaVez(mensaje: string): void {
+  if (avisoPorDefectoDado) return;
+  avisoPorDefectoDado = true;
+  logger.warn("fiscal.cert-crypto", mensaje);
 }
 
 /** Sobre cerrado listo para persistir (nada legible sin la master key). */
@@ -81,6 +103,7 @@ function fingerprintEntornoRuntime(env: Record<string, string | undefined>): str
  */
 export function masterKeyDesdeEnv(
   env: Record<string, string | undefined> = process.env,
+  opciones: { avisar?: (mensaje: string) => void } = {},
 ): MasterKey {
   // `.trim()`: robusto ante el pegado con newline/espacios finales (evita un decode a 33
   // bytes que confundiría "mal seteada" con "no seteada").
@@ -108,7 +131,14 @@ export function masterKeyDesdeEnv(
       `FISCAL_MASTER_KEY debe decodificar a ${KEY_BYTES} bytes (AES-256); tiene ${key.length}.`,
     );
   }
-  return { key, id: env.FISCAL_MASTER_KEY_ID ?? DEFAULT_KEK_ID };
+  // La etiqueta: recortada (pegado con newline) y, si falta o está en blanco, la de por defecto
+  // MARCADA y avisada. Nunca una etiqueta vacía: `""` antes pasaba por `??` y quedaba persistida.
+  const id = env.FISCAL_MASTER_KEY_ID?.trim();
+  if (!id) {
+    (opciones.avisar ?? avisarUnaVez)(AVISO_KEK_ID_POR_DEFECTO);
+    return { key, id: KEK_ID_POR_DEFECTO, idPorDefecto: true };
+  }
+  return { key, id, idPorDefecto: false };
 }
 
 // --- Primitivas AES-256-GCM (formato "iv.tag.ct" en base64) -------------------
@@ -130,8 +160,14 @@ function decryptWith(key: Buffer, packed: string): Buffer {
   const ct = Buffer.from(ctB64, "base64");
   const decipher = createDecipheriv(ALGO, key, iv);
   decipher.setAuthTag(tag);
-  // Si el material fue tampereado (o la clave es incorrecta), `final()` lanza. Fail-closed.
-  return Buffer.concat([decipher.update(ct), decipher.final()]);
+  // Si el material fue tampereado (o la clave es incorrecta), `final()` lanza. Fail-closed. Lo
+  // descifrado a medias se pisa con ceros (sólo sale la copia de `concat`, y sólo si autenticó).
+  const parcial = decipher.update(ct);
+  try {
+    return Buffer.concat([parcial, decipher.final()]);
+  } finally {
+    parcial.fill(0);
+  }
 }
 
 // --- API de envelope ----------------------------------------------------------
@@ -155,6 +191,48 @@ export function openSecret(sealed: SealedCredential, master: MasterKey): string 
   const dek = decryptWith(master.key, sealed.wrappedDek);
   const payload = decryptWith(dek, sealed.sealed);
   return payload.toString("utf8");
+}
+
+/**
+ * ¿Abre este sobre con esta KEK? Verifica las dos capas (GCM) sin devolver nada: lo descifrado se
+ * pisa con ceros antes de salir. Para decidir sobre una fila (p. ej. si quedó cerrada con otra
+ * clave maestra) sin que el material salga de acá. La etiqueta (`kekId`) no decide.
+ */
+export function elSobreAbre(sealed: SealedCredential, master: MasterKey): boolean {
+  return comoAbreElSobre(sealed, master) === "abre";
+}
+
+/**
+ * Qué capa del sobre abre con esta KEK, sin devolver nada (lo descifrado se pisa con ceros):
+ *   - «abre»: las dos capas.
+ *   - «no-abre-con-esta-clave»: la DEK no se desenvuelve. Es lo que da un sobre cerrado con OTRA KEK
+ *     aunque la etiqueta (`kekId`) sea la misma (rotación sin cambiar `FISCAL_MASTER_KEY_ID`): puede
+ *     volver a abrir restaurando esa clave. GCM no distingue esto de una DEK envuelta alterada, así que
+ *     se trata como recuperable (no se pisa sin una decisión humana).
+ *   - «contenido-dañado»: la DEK se desenvuelve (GCM: la KEK es esta y la DEK es auténtica) pero el
+ *     contenido no descifra. Irrecuperable con cualquier clave.
+ */
+export type AperturaDelSobre = "abre" | "no-abre-con-esta-clave" | "contenido-dañado";
+
+export function comoAbreElSobre(sealed: SealedCredential, master: MasterKey): AperturaDelSobre {
+  let dek: Buffer | null = null;
+  let payload: Buffer | null = null;
+  try {
+    try {
+      dek = decryptWith(master.key, sealed.wrappedDek);
+    } catch {
+      return "no-abre-con-esta-clave";
+    }
+    try {
+      payload = decryptWith(dek, sealed.sealed);
+    } catch {
+      return "contenido-dañado";
+    }
+    return "abre";
+  } finally {
+    dek?.fill(0);
+    payload?.fill(0);
+  }
 }
 
 /**

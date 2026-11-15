@@ -17,6 +17,7 @@ import {
   cargarCredencialFiscal,
   verificarCertificadoArca,
   generarPedidoCertificadoArca,
+  descartarPedidoCertificadoArca,
   cargarCertificadoDelPedidoArca,
 } from "@/lib/operator-actions";
 import {
@@ -726,6 +727,7 @@ export default async function FichaDelNegocio({
             generarPedido: generarPedidoCertificadoArca,
             cargarCertificado: cargarCertificadoDelPedidoArca,
             probar: verificarCertificadoArca,
+            descartarPedido: descartarPedidoCertificadoArca,
           }}
         />
       )}
