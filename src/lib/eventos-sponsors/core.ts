@@ -10,7 +10,7 @@
 // mail, un enlace de contacto, un campo de contacto o números que no son una forma declarada queda afuera
 // con su motivo y sin guardar el dato («rechazar por defecto», ver contacto.ts).
 
-import { motivoDeTexto, revisarUrl } from "./contacto";
+import { MAX_CIFRAS_SUELTAS_FILA, motivoDeTexto, revisarUrl } from "./contacto";
 
 /** Roles de una marca en un evento. Mismo set que el CHECK de la migración. */
 export const ROLES = ["SPONSOR_PRINCIPAL", "SPONSOR", "AUSPICIANTE", "MEDIA_PARTNER", "EXPOSITOR", "ORGANIZADOR", "OTRO"] as const;
@@ -259,6 +259,9 @@ function motivoDeContacto(fila: Record<string, unknown>, textos: Record<string, 
     const motivo = motivoDeTexto(v);
     if (motivo) return `el campo «${campo}» ${motivo}: la fila no se guarda`;
   }
+  // Las cifras se suman en toda la fila: un teléfono partido entre «nombre» y «lugar» suma igual.
+  const juntos = Object.values(textos).filter((v): v is string => typeof v === "string").join(" · ");
+  if (motivoDeTexto(juntos, MAX_CIFRAS_SUELTAS_FILA)) return "entre sus campos trae números que pueden ser un teléfono: la fila no se guarda";
   return null;
 }
 
