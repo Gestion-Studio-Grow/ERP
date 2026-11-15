@@ -23,7 +23,6 @@
  */
 
 import { facturadoConSigno } from "@/lib/facturacion/lista-core";
-import { createHash } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
 import { capFacturasMesDelNegocioEnTx } from "@/lib/limites-del-negocio-en-tx";
@@ -48,6 +47,7 @@ import {
   type DeteccionCruzadaPort,
   type RangoDeImportacionPrevia,
   type RangoImportacion,
+  type CobrosBancoYaFacturados,
   type MovimientoBancario,
   type PropuestaFactura,
   type ResultadoClasificacionBanco,
@@ -563,25 +563,51 @@ export function crearRangoDeImportacionPrevia(
   };
 }
 
-// ── El mismo archivo dos veces (GSG-FACT-011 · H3) ───────────────────────────
-// `ImportacionBancaria` no guarda huella (sin migración): se compara el archivo crudo guardado,
-// byte a byte (bytea `=` compara largo y bytes). El candado transaccional por (negocio, sha-256
-// del archivo) serializa dos subidas simultáneas del mismo archivo: la segunda espera, ve la
-// importación de la primera y no crea nada.
+/**
+ * De esos hashes ya guardados, cuáles tienen factura viva en el libro de cobros (`banco:<hash>`,
+ * GSG-FACT-011 · F2): el motivo de revisión del día de corte lo dice, para que nadie apruebe dos
+ * veces el mismo cobro.
+ */
+export function crearCobrosBancoYaFacturados(tenantId: string): CobrosBancoYaFacturados {
+  return async (hashes) => {
+    if (hashes.length === 0) return new Set<string>();
+    const vivas = new Set((await cobrosYaFacturados(tenantId, hashes.map(claveCobroBanco))).map((c) => c.clave));
+    return new Set(hashes.filter((h) => vivas.has(claveCobroBanco(h))));
+  };
+}
+
+// ── Importaciones del mismo negocio, de a una (GSG-FACT-011 · H3 y F3) ────────
+// El pipeline lee lo ya guardado FUERA de la transacción (puede tardar: mapeo asistido, IA), así
+// que dos extractos subidos a la vez no se veían entre sí y `skipDuplicates` se tragaba el cobro
+// del borde. Ahora: foto de lo guardado antes del pipeline; al persistir, candado transaccional por
+// negocio y la foto de nuevo. Si cambió, otra importación entró en el medio → se descarta lo hecho y
+// se procesa otra vez (lo que decide ya lo ve). Toda importación y re-proceso del negocio pasan por
+// el mismo candado: la lectura que decide y la inserción quedan serializadas.
+// `ImportacionBancaria` no guarda huella (sin migración): el mismo archivo se reconoce comparando el
+// archivo crudo guardado, byte a byte (bytea `=` compara largo y bytes), bajo el mismo candado.
 
 type TxBancos = Parameters<Parameters<typeof tenantTransaction>[0]>[0];
 
 export const MENSAJE_ARCHIVO_YA_SUBIDO =
   "Ya subiste este archivo: no se importó de nuevo ni se creó nada. Si es otro extracto, revisá que sea el archivo correcto.";
 
-/** sha-256 (hex) del archivo crudo. PURA. */
-export function huellaDelArchivo(contenido: Uint8Array): string {
-  return createHash("sha256").update(contenido).digest("hex");
+/** Candado transaccional por negocio para importar extractos: se suelta solo al cerrar la transacción. */
+export async function candadoDeImportacionesEnTx(tx: TxBancos, tenantId: string): Promise<void> {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`bancos-importacion:${tenantId}`}, 0))`;
 }
 
-/** Candado transaccional por (negocio, huella del archivo): se suelta solo al cerrar la transacción. */
-export async function candadoDelArchivoEnTx(tx: TxBancos, tenantId: string, huella: string): Promise<void> {
-  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`bancos-archivo:${tenantId}:${huella}`}, 0))`;
+/**
+ * Foto de los movimientos guardados del negocio: cantidad + el alta más reciente. Una inserción la
+ * cambia (cantidad) y un re-proceso que borra y recrea, también (alta más reciente). No mira
+ * `updatedAt`: emitir o editar una propuesta no cambia lo que decide la deduplicación.
+ */
+export async function fotoDeMovimientosEnTx(tx: TxBancos, tenantId: string): Promise<string> {
+  const agg = await tx.movimientoImportado.aggregate({
+    where: { tenantId },
+    _count: { _all: true },
+    _max: { createdAt: true },
+  });
+  return `${agg._count._all}|${agg._max.createdAt?.toISOString() ?? "-"}`;
 }
 
 /** Id de una importación del negocio con exactamente este archivo (mismo largo y bytes), o null. */

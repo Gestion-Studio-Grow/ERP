@@ -54,6 +54,7 @@ export {
 export {
   generarPropuestas,
   marcarBordesPartidos,
+  motivoPosibleRepetido,
   configConDefaults,
   DeteccionCruzadaEnMemoria,
   UMBRAL_IDENTIFICACION_DEFAULT,
@@ -67,6 +68,8 @@ export {
   type ResultadoReglas,
   type RangoImportacion,
   type RangoDeImportacionPrevia,
+  type PosibleRepetido,
+  type CobrosBancoYaFacturados,
 } from "./domain/reglas";
 export {
   parsearNumeroAR,

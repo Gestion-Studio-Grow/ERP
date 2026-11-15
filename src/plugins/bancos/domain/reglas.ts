@@ -120,8 +120,25 @@ export interface ContextoReglas {
   /** ¿Este movimiento ya fue procesado en una corrida anterior? (idempotencia entre importaciones). */
   yaProcesado?: (movimientoId: string) => boolean | Promise<boolean>;
   /** Ids (ya re-claveados) de cobros en un día partido entre extractos: van a revisión (`marcarBordesPartidos`). */
-  posiblesRepetidos?: ReadonlySet<string>;
+  posiblesRepetidos?: ReadonlyMap<string, PosibleRepetido>;
 }
+
+/** Lo que se sabe de un cobro del día de corte que choca con uno ya guardado (para el motivo). */
+export interface PosibleRepetido {
+  /** Cuántos cobros iguales (misma fecha, monto y descripción) ya están cargados de otros extractos. */
+  igualesCargados: number;
+  /** Cuántos de esos ya tienen factura viva en el libro de cobros (`banco:<hash>`). */
+  igualesFacturados: number;
+}
+
+/**
+ * De esos ids de movimientos ya guardados, cuáles tienen factura viva en el libro de cobros
+ * (`banco:<hash>`). Lo cablea el glue; sin él, el motivo no dice si ya se facturó.
+ */
+export type CobrosBancoYaFacturados = (movimientoIds: readonly string[]) => Promise<ReadonlySet<string>>;
+
+/** Tope de claves de borde por cobro: inalcanzable en la práctica; pasarlo es un error, nunca un descarte. */
+const MAX_CLAVES_BORDE = 1000;
 
 /** Rango de fechas (AAAAMMDD, min y max de sus filas) de una importación ya guardada. */
 export interface RangoImportacion {
@@ -143,18 +160,22 @@ export type RangoDeImportacionPrevia = (movimientoId: string) => Promise<RangoIm
  *
  * Regla: un CRÉDITO cuyo id choca con una fila de otra importación, en un día que es el BORDE
  * que comparten los dos extractos (primer día del nuevo = último día del viejo, o último del
- * nuevo = primero del viejo), no se descarta: se le da una clave distinta y estable
- * (`hashBordePartido`) y va a REVISIÓN (nunca sale solo). Si el día estaba ADENTRO de alguno de
- * los dos rangos, sigue «ya procesado» (el día está completo en ese archivo y el ordinal ya
- * distingue los cobros iguales). El borde del MISMO lado (los dos arrancan o terminan ese día) no
- * es un corte entre extractos: es el mismo período subido de nuevo, y sigue «ya procesado».
- * Los débitos quedan fuera: nunca se facturan.
+ * nuevo = primero del viejo), no se descarta: se le da una clave de borde (`hashBordePartido`) y
+ * va a REVISIÓN (nunca sale solo). Si el día se cortó tres veces o más, la 1ª clave de borde ya
+ * puede estar guardada por un corte anterior: se toma la SIGUIENTE LIBRE (F1). Un cobro de borde
+ * nunca se descarta en silencio; el precio es ruido en revisión (re-bajar el mismo extracto con
+ * otros bytes vuelve a pedir revisión, y el motivo avisa que puede ser un cobro ya cargado).
+ * Si el día estaba ADENTRO de alguno de los dos rangos, sigue «ya procesado» (el día está completo
+ * en ese archivo y el ordinal ya distingue los cobros iguales). El borde del MISMO lado (los dos
+ * arrancan o terminan ese día) no es un corte entre extractos: es el mismo período subido de
+ * nuevo, y sigue «ya procesado». Los débitos quedan fuera: nunca se facturan.
  */
 export async function marcarBordesPartidos(
   movimientos: MovimientoBancario[],
   rangoPrevio?: RangoDeImportacionPrevia,
-): Promise<{ movimientos: MovimientoBancario[]; posiblesRepetidos: Set<string> }> {
-  const posiblesRepetidos = new Set<string>();
+  yaFacturados?: CobrosBancoYaFacturados,
+): Promise<{ movimientos: MovimientoBancario[]; posiblesRepetidos: Map<string, PosibleRepetido> }> {
+  const posiblesRepetidos = new Map<string, PosibleRepetido>();
   if (!rangoPrevio || movimientos.length === 0) return { movimientos, posiblesRepetidos };
 
   let desde = movimientos[0].fecha;
@@ -172,8 +193,21 @@ export async function marcarBordesPartidos(
         previo !== null &&
         ((mov.fecha === desde && mov.fecha === previo.hasta) || (mov.fecha === hasta && mov.fecha === previo.desde));
       if (partido) {
-        const id = hashBordePartido(mov.id);
-        posiblesRepetidos.add(id);
+        // La original y las claves de borde ya guardadas son cobros iguales ya cargados.
+        const cargados = [mov.id];
+        let id = hashBordePartido(mov.id, 1);
+        for (let n = 2; (await rangoPrevio(id)) !== null; n++) {
+          if (n > MAX_CLAVES_BORDE) {
+            throw new Error(`Demasiados cobros iguales en el día de corte ${fechaLegible(mov.fecha)}: revisá el extracto.`);
+          }
+          cargados.push(id);
+          id = hashBordePartido(mov.id, n);
+        }
+        const facturados = yaFacturados ? await yaFacturados(cargados) : new Set<string>();
+        posiblesRepetidos.set(id, {
+          igualesCargados: cargados.length,
+          igualesFacturados: cargados.filter((c) => facturados.has(c)).length,
+        });
         salida.push({ ...mov, id });
         continue;
       }
@@ -181,6 +215,23 @@ export async function marcarBordesPartidos(
     salida.push(mov);
   }
   return { movimientos: salida, posiblesRepetidos };
+}
+
+/** Motivo de revisión de un cobro del día de corte (F2): fecha, importe y si ya se facturó. */
+export function motivoPosibleRepetido(mov: MovimientoBancario, info: PosibleRepetido): string {
+  const fecha = fechaLegible(mov.fecha);
+  const importe = fmtMoneyARS(Math.abs(mov.monto));
+  const cargados =
+    info.igualesCargados === 1
+      ? `ya cargaste un cobro igual (${importe}, misma descripción) de otro extracto`
+      : `ya cargaste ${info.igualesCargados} cobros iguales (${importe}, misma descripción) de otros extractos`;
+  const facturados =
+    info.igualesFacturados === 0
+      ? ""
+      : info.igualesFacturados === 1
+        ? ` Ese cobro ya está facturado: si es el mismo, no lo apruebes o lo vas a facturar dos veces.`
+        : ` ${info.igualesFacturados} de ellos ya están facturados: si es uno de esos, no lo apruebes o lo vas a facturar dos veces.`;
+  return `Posible cobro repetido del ${fecha} por ${importe}: puede ser un cobro que ya cargaste. Ese día es el corte entre este extracto y otro que ya subiste, y ${cargados}.${facturados} Aprobalo sólo si es otro cobro.`;
 }
 
 function fechaLegible(aaaammdd: string): string {
@@ -239,13 +290,14 @@ export async function generarPropuestas(
 
     // 4b') Día partido entre dos extractos con un cobro igual a uno ya guardado: puede ser otro
     //      cobro o el mismo. No se pierde ni sale solo: decide un humano (REVISION).
-    if (ctx.posiblesRepetidos?.has(mov.id)) {
+    const repetido = ctx.posiblesRepetidos?.get(mov.id);
+    if (repetido) {
       propuestas.push({
         movimientoId: mov.id,
         montoTotal,
         requiereIdentificacion: montoTotal >= config.umbralIdentificacion,
         estado: "revision",
-        motivo: `Posible cobro repetido: el ${fechaLegible(mov.fecha)} es el día de corte entre este extracto y otro que ya subiste, y ya hay un cobro igual (mismo monto y descripción). Fijate si es otro cobro o el mismo antes de facturarlo.`,
+        motivo: motivoPosibleRepetido(mov, repetido),
       });
       continue;
     }

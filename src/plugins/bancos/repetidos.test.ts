@@ -5,7 +5,8 @@
 //     guardado y con la clave `banco:<hash>` del libro); el n-ésimo lleva `#n`.
 //   · El mismo archivo dos veces no suma nada.
 //   · Día partido entre dos extractos (último de uno, primero del otro) con un cobro igual a uno
-//     ya guardado: no se pierde ni sale solo → revisión, con una clave distinta y estable.
+//     ya guardado: no se pierde ni sale solo → revisión, con una clave distinta y determinista
+//     (la siguiente libre si el día se cortó más de una vez: ver ataque-borde.test.ts).
 // Puro: la "base" de importaciones anteriores es un Map en memoria (sin DB, sin reloj, sin azar).
 
 import { test } from "node:test";
@@ -121,10 +122,14 @@ test("H1: día partido entre dos extractos → el cobro igual va a REVISIÓN con
   // Estable: procesar el mismo archivo otra vez da la misma clave…
   const otraVez = await procesarExtracto(archivoNuevo, db.deps());
   assert.equal(otraVez.propuestas[0].movimientoId, borde.movimientoId);
-  // …y una vez guardado, re-subirlo no suma nada (ni siquiera otra revisión).
+  // …y una vez guardado, volver a bajarlo (otros bytes: el mismo archivo lo frena H3 antes) no se
+  // distingue de un 3er corte del mismo día (F1): el cobro del borde vuelve a REVISIÓN con la
+  // siguiente clave libre, avisando que puede ser uno ya cargado; nada sale solo.
   db.guardar("imp-2", nuevo);
   const tercera = await procesarExtracto(archivoNuevo, db.deps());
-  assert.equal(nuevas(tercera).length, 0, JSON.stringify(tercera.propuestas));
+  assert.deepEqual(nuevas(tercera).map((p) => p.estado), ["revision"], JSON.stringify(tercera.propuestas));
+  assert.notEqual(tercera.propuestas[0].movimientoId, borde.movimientoId, "siguiente clave libre, no pisa la guardada");
+  assert.match(tercera.propuestas[0].motivo ?? "", /ya cargaste 2 cobros iguales/);
 });
 
 test("H1: el borde al revés (extracto anterior subido después) también va a revisión", async () => {

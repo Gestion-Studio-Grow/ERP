@@ -45,8 +45,9 @@ import {
   crearDeteccionCruzadaInvoices,
   crearYaProcesado,
   crearRangoDeImportacionPrevia,
-  huellaDelArchivo,
-  candadoDelArchivoEnTx,
+  crearCobrosBancoYaFacturados,
+  candadoDeImportacionesEnTx,
+  fotoDeMovimientosEnTx,
   importacionConMismoArchivoEnTx,
   MENSAJE_ARCHIVO_YA_SUBIDO,
   emitirPropuestas,
@@ -173,6 +174,12 @@ function aPropuestaVista(m: {
   };
 }
 
+/** Otra importación del negocio entró mientras se procesaba este extracto (F3): se procesa de nuevo. */
+class CambioConcurrenteBancos extends Error {}
+const MAX_INTENTOS_IMPORTACION = 3;
+const MENSAJE_IMPORTACION_SIMULTANEA =
+  "Se estaban importando otros extractos de este negocio al mismo tiempo y no se guardó nada de este. Subilo de nuevo en un momento.";
+
 /**
  * Corre el pipeline del plugin y persiste el lote. Compartido por la
  * importación inicial y el re-proceso con mapeo confirmado (`reproceso`
@@ -213,90 +220,112 @@ async function procesarYPersistir(
   const cfg = configBancosDesdeTenant(tenant, capDelPlan);
   const facturasEmitidasEsteMes = await contarFacturasDelMes(tenantId);
 
-  const resultado = await procesarExtracto(archivo, {
-    tenantId,
-    clasificador: new ClasificadorBancarioPorReglas({
-      config: { cuitsPropios: cfg.cuitsPropios },
-      aprendizaje: new AprendizajeBancoPrisma(tenantId),
-    }),
-    config: cfg.config,
-    facturasEmitidasEsteMes,
-    deteccionCruzada: crearDeteccionCruzadaInvoices(tenantId),
-    yaProcesado: crearYaProcesado(tenantId, reproceso?.importacionId),
-    rangoDeImportacionPrevia: crearRangoDeImportacionPrevia(tenantId, reproceso?.importacionId),
-    mapeoConfirmado: reproceso?.mapeoConfirmado,
-  });
+  // F3 (GSG-FACT-011): foto → pipeline → candado por negocio → la foto de nuevo. Si otra importación
+  // entró en el medio, lo hecho se descarta y se procesa de nuevo (ya la ve). Ver bancos-glue.ts.
+  for (let intento = 1; ; intento++) {
+    const foto = await tenantTransaction((tx) => fotoDeMovimientosEnTx(tx, tenantId), { tenantId });
+    const resultado = await procesarExtracto(archivo, {
+      tenantId,
+      clasificador: new ClasificadorBancarioPorReglas({
+        config: { cuitsPropios: cfg.cuitsPropios },
+        aprendizaje: new AprendizajeBancoPrisma(tenantId),
+      }),
+      config: cfg.config,
+      facturasEmitidasEsteMes,
+      deteccionCruzada: crearDeteccionCruzadaInvoices(tenantId),
+      yaProcesado: crearYaProcesado(tenantId, reproceso?.importacionId),
+      rangoDeImportacionPrevia: crearRangoDeImportacionPrevia(tenantId, reproceso?.importacionId),
+      cobrosBancoYaFacturados: crearCobrosBancoYaFacturados(tenantId),
+      mapeoConfirmado: reproceso?.mapeoConfirmado,
+    });
 
-  if (!resultado.mapeo) {
+    if (!resultado.mapeo) {
+      return {
+        ok: false,
+        error:
+          resultado.alertas[0]?.mensaje ??
+          "No se pudo reconocer la tabla del extracto. Revisá el archivo.",
+        alertas: resultado.alertas,
+      };
+    }
+    const mapeo = resultado.mapeo;
+
+    let salida: { tipo: "ok"; id: string } | { tipo: "mismo-archivo" } | { tipo: "cambio" };
+    try {
+      salida = await tenantTransaction(
+        async (tx): Promise<typeof salida> => {
+          // Candado por negocio y recién ahí las miradas que deciden (H3 y F3).
+          await candadoDeImportacionesEnTx(tx, tenantId);
+          if (!reproceso && (await importacionConMismoArchivoEnTx(tx, tenantId, archivo.contenido))) {
+            return { tipo: "mismo-archivo" };
+          }
+          if ((await fotoDeMovimientosEnTx(tx, tenantId)) !== foto) return { tipo: "cambio" };
+
+          let id: string;
+          if (reproceso) {
+            // Re-proceso: lo provisional se borra y se recrea con el mapeo confirmado.
+            // (El guard de "nada emitido" lo hizo confirmarMapeoAction antes de llegar acá.)
+            await tx.movimientoImportado.deleteMany({
+              where: { tenantId, importacionId: reproceso.importacionId },
+            });
+            id = reproceso.importacionId;
+          } else {
+            const creada = await tx.importacionBancaria.create({
+              data: {
+                tenantId,
+                nombreArchivo: archivo.nombre,
+                origen: mapeo.origen,
+                // Copia a un Uint8Array "puro": Prisma tipa Bytes como Uint8Array<ArrayBuffer>.
+                archivo: new Uint8Array(archivo.contenido),
+                mapeoJson: mapeo as unknown as object,
+                estado: "procesada",
+              },
+              select: { id: true },
+            });
+            id = creada.id;
+          }
+
+          const filas = armarFilasMovimientos(tenantId, id, resultado);
+          if (filas.length > 0) {
+            // Con el candado y la foto, nada choca. Si igual una fila no entra (unique [tenantId,
+            // hash]), el resumen ya no sería lo insertado: se deshace todo y se procesa de nuevo.
+            const { count } = await tx.movimientoImportado.createMany({ data: filas, skipDuplicates: true });
+            if (count !== filas.length) throw new CambioConcurrenteBancos();
+          }
+          await tx.importacionBancaria.updateMany({
+            where: { id, tenantId },
+            data: {
+              totalMovimientos: filas.length,
+              mapeoJson: mapeo as unknown as object,
+              ...(reproceso ? { estado: "confirmada" } : {}),
+            },
+          });
+          return { tipo: "ok", id };
+        },
+        { tenantId },
+      );
+    } catch (e) {
+      if (!(e instanceof CambioConcurrenteBancos)) throw e;
+      salida = { tipo: "cambio" };
+    }
+
+    if (salida.tipo === "mismo-archivo") return { ok: false, error: MENSAJE_ARCHIVO_YA_SUBIDO, alertas: [] };
+    if (salida.tipo === "cambio") {
+      if (intento < MAX_INTENTOS_IMPORTACION) continue;
+      return { ok: false, error: MENSAJE_IMPORTACION_SIMULTANEA, alertas: [] };
+    }
+
+    revalidatePath(FACTURACION_PATH);
+    // Todas las filas no descartadas entraron (count === filas): el resumen es lo insertado.
     return {
-      ok: false,
-      error:
-        resultado.alertas[0]?.mensaje ??
-        "No se pudo reconocer la tabla del extracto. Revisá el archivo.",
+      ok: true,
+      importacionId: salida.id,
+      resumen: resumirPropuestas(resultado.propuestas),
       alertas: resultado.alertas,
+      mapeo,
+      requiereConfirmacionMapeo: mapeo.requiereConfirmacion,
     };
   }
-  const mapeo = resultado.mapeo;
-
-  const importacionId = await tenantTransaction(
-    async (tx): Promise<string | null> => {
-      let id: string;
-      if (reproceso) {
-        // Re-proceso: lo provisional se borra y se recrea con el mapeo confirmado.
-        // (El guard de "nada emitido" lo hizo confirmarMapeoAction antes de llegar acá.)
-        await tx.movimientoImportado.deleteMany({
-          where: { tenantId, importacionId: reproceso.importacionId },
-        });
-        id = reproceso.importacionId;
-      } else {
-        // H3: candado por (negocio, huella del archivo) y recién ahí la mirada que decide. Dos
-        // subidas simultáneas del mismo archivo: la segunda espera, ve la de la primera y sale.
-        await candadoDelArchivoEnTx(tx, tenantId, huellaDelArchivo(archivo.contenido));
-        if (await importacionConMismoArchivoEnTx(tx, tenantId, archivo.contenido)) return null;
-        const creada = await tx.importacionBancaria.create({
-          data: {
-            tenantId,
-            nombreArchivo: archivo.nombre,
-            origen: mapeo.origen,
-            // Copia a un Uint8Array "puro": Prisma tipa Bytes como Uint8Array<ArrayBuffer>.
-            archivo: new Uint8Array(archivo.contenido),
-            mapeoJson: mapeo as unknown as object,
-            estado: "procesada",
-          },
-          select: { id: true },
-        });
-        id = creada.id;
-      }
-
-      const filas = armarFilasMovimientos(tenantId, id, resultado);
-      if (filas.length > 0) {
-        // skipDuplicates: el unique [tenantId, hash] es la red ante carreras
-        // (dos importaciones simultáneas del mismo extracto).
-        await tx.movimientoImportado.createMany({ data: filas, skipDuplicates: true });
-      }
-      await tx.importacionBancaria.updateMany({
-        where: { id, tenantId },
-        data: {
-          totalMovimientos: filas.length,
-          mapeoJson: mapeo as unknown as object,
-          ...(reproceso ? { estado: "confirmada" } : {}),
-        },
-      });
-      return id;
-    },
-    { tenantId },
-  );
-  if (importacionId === null) return { ok: false, error: MENSAJE_ARCHIVO_YA_SUBIDO, alertas: [] };
-
-  revalidatePath(FACTURACION_PATH);
-  return {
-    ok: true,
-    importacionId,
-    resumen: resumirPropuestas(resultado.propuestas),
-    alertas: resultado.alertas,
-    mapeo,
-    requiereConfirmacionMapeo: mapeo.requiereConfirmacion,
-  };
 }
 
 // ── Actions ──────────────────────────────────────────────────────────────────

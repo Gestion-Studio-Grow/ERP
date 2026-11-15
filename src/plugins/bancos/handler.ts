@@ -33,6 +33,7 @@ import {
   type ConfigBancos,
   type DeteccionCruzadaPort,
   type RangoDeImportacionPrevia,
+  type CobrosBancoYaFacturados,
 } from "./domain/reglas";
 import { parsearCsv } from "./parser/csv";
 import { esXlsx, parsearXlsx } from "./parser/xlsx";
@@ -62,6 +63,8 @@ export interface BancosHandlerDeps {
    * un cobro igual en el día de corte entre dos extractos va a revisión en vez de perderse. Opcional.
    */
   rangoDeImportacionPrevia?: RangoDeImportacionPrevia;
+  /** Cuáles de esos movimientos ya guardados tienen factura viva (`banco:<hash>`): lo dice el motivo. Opcional. */
+  cobrosBancoYaFacturados?: CobrosBancoYaFacturados;
   /** Mapeador asistido (IA), consultado SOLO si la heurística no llega a 0.8. */
   mapeadorAsistido?: MapeadorAsistido;
   /**
@@ -163,6 +166,7 @@ export async function procesarExtracto(
   const { movimientos, posiblesRepetidos } = await marcarBordesPartidos(
     normalizarMovimientos(matriz, mapeo),
     deps.rangoDeImportacionPrevia,
+    deps.cobrosBancoYaFacturados,
   );
 
   // 4) Clasificar cada movimiento.

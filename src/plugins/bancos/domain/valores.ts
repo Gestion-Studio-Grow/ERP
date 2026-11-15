@@ -165,10 +165,11 @@ export function hashMovimientoOrdinal(fecha: string, monto: number, descripcion:
 }
 
 /**
- * Clave del cobro que cae en el BORDE entre dos extractos (día partido) y choca con una fila ya
- * guardada: distinta de la original (no la pisa ni la descarta) y estable (el mismo renglón da
- * siempre la misma clave → re-subirlo no crea otra revisión).
+ * n-ésima clave de BORDE de un cobro que cae en el día partido entre dos extractos y choca con una
+ * fila ya guardada: distinta de la original (no la pisa ni la descarta) y determinista. Si el día
+ * se corta tres veces o más, la 1ª clave de borde ya puede estar guardada por un corte anterior:
+ * se usa la siguiente libre (`n` = 2, 3, …), nunca se descarta (GSG-FACT-011 · F1).
  */
-export function hashBordePartido(movimientoId: string): string {
-  return sha256(`${movimientoId}#borde`);
+export function hashBordePartido(movimientoId: string, n = 1): string {
+  return sha256(n <= 1 ? `${movimientoId}#borde` : `${movimientoId}#borde#${n}`);
 }

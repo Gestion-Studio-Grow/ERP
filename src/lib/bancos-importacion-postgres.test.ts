@@ -4,7 +4,9 @@
 //   · C11: dos cobros legítimos iguales el mismo día → dos filas (dos ventas). La segunda subida
 //     del mismo archivo responde «ya subiste este archivo» y no crea nada.
 //   · H3: dos subidas SIMULTÁNEAS del mismo archivo (dos transacciones, dos conexiones del pool)
-//     → una sola importación (candado por negocio + huella del archivo).
+//     → una sola importación (candado por negocio + el archivo crudo comparado byte a byte).
+//   · F3: dos extractos DISTINTOS a la vez con el mismo día de corte → la segunda ve a la primera
+//     (candado por negocio + foto de lo guardado; si cambió, se procesa de nuevo).
 // Determinista: sin sleep ni azar; la carrera la resuelve el candado, no el reloj.
 
 import { test } from "node:test";
@@ -119,4 +121,43 @@ test("H1: día partido entre dos extractos → el cobro del borde queda en REVIS
   assert.equal(del15[0].estadoPropuesta, "auto");
   assert.equal(del15[1].estadoPropuesta, "revision", "nunca sale solo");
   assert.match(del15[1].motivoRevision ?? "", /posible cobro repetido/i);
+});
+
+test("F3: dos extractos DISTINTOS con el mismo día de corte, subidos a la vez → no se pierde el cobro y el resumen es lo insertado", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const { base, acciones, duenio } = p;
+  const neg = base.a;
+  const subir = (nombre: string, lineas: string[]) =>
+    ejecutarAccion({ negocio: neg, usuario: neg.duenia }, () =>
+      acciones.procesarExtractoAction(formulario(nombre, ["Fecha;Descripción;Débito;Crédito;Saldo", ...lineas])),
+    );
+  const valor = (r: Awaited<ReturnType<typeof subir>>) =>
+    (r as { valor: Awaited<ReturnType<typeof acciones.procesarExtractoAction>> }).valor;
+
+  // Mañana del 15 (en el extracto del 1 al 15) y tarde del 15 (en el del 15 al 20): dos cobros.
+  const [r1, r2] = await Promise.all([
+    subir("simul-1a15.csv", ["01/09/2026;Acreditación ventas;;1.000,00;1.000,00", "15/09/2026;Transferencia recibida CBU 321;;5.000,00;6.000,00"]),
+    subir("simul-15a20.csv", ["15/09/2026;Transferencia recibida CBU 321;;5.000,00;5.000,00", "20/09/2026;Acreditación ventas;;2.000,00;7.000,00"]),
+  ]);
+  const valores = [valor(r1), valor(r2)];
+  for (const v of valores) assert.ok(v.ok, JSON.stringify(v));
+
+  const del15 = await duenio.movimientoImportado.findMany({
+    where: { tenantId: neg.id, fecha: "20260915" },
+    select: { estadoPropuesta: true },
+  });
+  assert.deepEqual(del15.map((f) => f.estadoPropuesta).sort(), ["auto", "revision"], "ninguno se traga al otro");
+
+  // El resumen de cada subida sale de lo que de verdad quedó guardado.
+  for (const v of valores) {
+    if (!v.ok) continue;
+    const filas = await duenio.movimientoImportado.findMany({
+      where: { tenantId: neg.id, importacionId: v.importacionId },
+      select: { estadoPropuesta: true },
+    });
+    assert.equal(v.resumen.importados, filas.length, JSON.stringify(v.resumen));
+    assert.equal(v.resumen.autos, filas.filter((f) => f.estadoPropuesta === "auto").length);
+    assert.equal(v.resumen.aRevisar, filas.filter((f) => f.estadoPropuesta === "revision").length);
+  }
 });
