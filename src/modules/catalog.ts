@@ -22,6 +22,7 @@
 //   - Caja con lector y Ofertas (mostrador de supermercado): src/modules/descriptors/supermercado.ts.
 //   - Equipos del mostrador (perfil de terminal, lector, ticket): src/modules/descriptors/terminal.ts.
 //   - Club de pádel (agenda de canchas y cuenta del turno): src/modules/descriptors/club.ts.
+//   - Torneo de pádel (zonas, llave y resultados en la base): src/modules/descriptors/torneo.ts.
 
 import { ModuleRegistry } from "./registry";
 import { MODULOS_NATIVOS } from "./descriptors/nativos";
@@ -34,6 +35,7 @@ import { proyectosModule } from "./descriptors/proyectos";
 import { inmobiliariaModule } from "./descriptors/inmobiliaria";
 import { terminalModule } from "./descriptors/terminal";
 import { clubModule } from "./descriptors/club";
+import { torneoModule } from "./descriptors/torneo";
 import { padelClasesModule } from "./descriptors/padel-clases";
 import { arcaModule } from "@/plugins/arca/module";
 import { bancosModule } from "@/plugins/bancos/module";
@@ -59,6 +61,8 @@ export const DESCRIPTORES_CATALOGO = [
   terminalModule,
   // Club de pádel (src/modules/descriptors/club.ts). Al final, como los anteriores.
   clubModule,
+  // Torneo de pádel (src/modules/descriptors/torneo.ts, GSG-PLAT-016). Al final, como los anteriores.
+  torneoModule,
   // Clases de pádel (src/modules/descriptors/padel-clases.ts). Al final, como los anteriores.
   padelClasesModule,
   // WhatsApp (plugin; conector de la suite E3, Tanda P1): src/plugins/whatsapp/module.ts. Al final.

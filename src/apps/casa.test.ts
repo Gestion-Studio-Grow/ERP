@@ -43,3 +43,20 @@ test("rutas: el club y Usuarios pasan; el Inicio y lo demás rebotan a la casa",
   for (const ok of ["/admin/club", "/admin/club?demo=1", "/admin/usuarios"]) assert.equal(rutaDeLaCasa(ok, casa), true, ok);
   for (const no of ["/admin", "/admin/turnos", "/admin/caja", "/admin/pedidos", "/admin/clientes", "/admin/lo-que-sea"]) assert.equal(rutaDeLaCasa(no, casa), false, no);
 });
+
+test("conLaCasa (GSG-PLAT-016): sólo el torneo; con su módulo se ve y se abre junto al club; sin él, nada cambia", () => {
+  assert.deepEqual(REGISTRO_APPS.filter((a) => a.conLaCasa).map((a) => a.id), ["torneo"]);
+  for (const a of REGISTRO_APPS.filter((x) => x.conLaCasa)) assert.equal(a.moduloDuro, true, `${a.id}: conLaCasa sin moduloDuro`);
+  const casa = appPorId("club");
+  // Break Point (club sin torneo): ni el torneo se ve.
+  const bp = negocio({ modulosAsignados: ["agenda", "clients", "pos", "club"] });
+  assert.ok(!appsDeLaCasa(casa, appsVisibles(bp)).some((a) => a.id === "torneo"));
+  // El ambiente de pruebas de WPE (club + torneo): el torneo se ve al lado del club y su ruta no rebota.
+  const wpe = negocio({ modulosAsignados: ["clients", "pos", "club", "torneo"] });
+  assert.equal(appCasa(wpe)?.id, "club");
+  const ids = appsDeLaCasa(casa, appsVisibles(wpe)).map((a) => a.id);
+  assert.ok(ids.includes("club") && ids.includes("torneo"), ids.join(", "));
+  assert.equal(rutaDeLaCasa("/admin/torneo", casa), true);
+  // Lo demás sigue rebotando.
+  assert.equal(rutaDeLaCasa("/admin/turnos", casa), false);
+});

@@ -308,15 +308,16 @@ export function appCasa(n: NegocioApps, apps: readonly AppDescriptor[] = REGISTR
   return apps.find((a) => a.casa && a.modulo !== null && asignados.has(a.modulo)) ?? null;
 }
 
-/** Con casa, lo que se ve: la casa y las apps de cuenta que esta persona puede abrir. PURA. */
+/** Con casa, lo que se ve: la casa, las apps de cuenta y las `conLaCasa` que esta persona puede abrir. PURA. */
 export function appsDeLaCasa(casa: AppDescriptor, visibles: readonly AppDescriptor[]): AppDescriptor[] {
-  return visibles.filter((a) => a.id === casa.id || APPS_DE_CUENTA.has(a.id));
+  return visibles.filter((a) => a.id === casa.id || APPS_DE_CUENTA.has(a.id) || a.conLaCasa === true);
 }
 
 /** ¿`path` es de la casa o de una app de cuenta? Lo demás del backoffice rebota a la casa. PURA. */
 export function rutaDeLaCasa(path: string, casa: AppDescriptor, apps: readonly AppDescriptor[] = REGISTRO_APPS): boolean {
   const app = appDeRuta(path, apps);
-  return !!app && (app.id === casa.id || APPS_DE_CUENTA.has(app.id));
+  // `conLaCasa`: la ruta se deja pasar; su página exige su módulo (`requireApp`, `moduloDuro`), así que sin él rebota igual.
+  return !!app && (app.id === casa.id || APPS_DE_CUENTA.has(app.id) || app.conLaCasa === true);
 }
 
 // ── El número del botón: qué parte ve cada rol ───────────────────────────────

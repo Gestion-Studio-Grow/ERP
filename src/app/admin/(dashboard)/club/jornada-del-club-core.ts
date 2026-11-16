@@ -10,9 +10,33 @@
 //
 // — Elaborado por GSG
 
-export const NEGOCIOS_CON_JORNADA_REAL: readonly string[] = ["breakpoint"];
+// «wpe-pruebas» (nombre provisional a confirmar): el ambiente de pruebas de WPE con la administración del club guardada
+// en la base, como un cliente real (orden del dueño, 16/11/2026, GSG-PLAT-016). Su jornada es SUYA (la foto va por
+// negocio: entidad `ClubEstado` con su tenantId); no toca la de Break Point.
+export const NEGOCIOS_CON_JORNADA_REAL: readonly string[] = ["breakpoint", "wpe-pruebas"];
 
 export type RelojDelClub = "real" | "demo";
+
+/** Un dueño de arranque de la jornada real (la forma de `Usuario` del motor del club, sin PIN). */
+export interface DuenioDeArranque {
+  id: string;
+  nombre: string;
+  rol: "duenio";
+  pin: "";
+  activo: true;
+}
+
+// Los dueños con que arranca la jornada real de cada negocio, si no son los de Break Point (los del motor;
+// los cambia `clubRealEnBlanco` en almacen.ts, porque el motor es una copia sellada).
+// wpe-pruebas: un dueño de prueba (nombre provisional a confirmar); nunca los nombres de otro cliente.
+const DUENIOS_DE_ARRANQUE: Readonly<Record<string, readonly DuenioDeArranque[]>> = {
+  "wpe-pruebas": [{ id: "u-duenio", nombre: "Dueño de prueba", rol: "duenio", pin: "", activo: true }],
+};
+
+/** Los dueños de arranque del negocio; `undefined` = los de siempre (Break Point). */
+export function dueniosDelClub(slug: string): readonly DuenioDeArranque[] | undefined {
+  return Object.hasOwn(DUENIOS_DE_ARRANQUE, slug) ? DUENIOS_DE_ARRANQUE[slug] : undefined;
+}
 
 /**
  * `slug`: el negocio de la sesión (null si no se resolvió: demo). `sandbox`: el sandbox de preventa. `demo`: el

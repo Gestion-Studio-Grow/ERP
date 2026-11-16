@@ -180,6 +180,12 @@ export interface AppDescriptor {
    */
   casa?: true;
   /**
+   * Convive con el panel dedicado (`casa`): si su módulo está asignado, se ve y se abre al lado de la casa (Panel de
+   * casa y layout). Hoy sólo el torneo, para el ambiente de pruebas de WPE con club + torneo (GSG-PLAT-016). Sin su
+   * módulo no aparece y su página lo rechaza igual (`moduloDuro`): un negocio con casa y sin este módulo no cambia.
+   */
+  conLaCasa?: true;
+  /**
    * Panel cerrado: en un negocio de ESTE rubro con el módulo asignado, del backoffice sólo se abren esta app y las
    * que nombra `apps`, con el menú de siempre. Va por rubro y no sólo por módulo: otro negocio que sume este módulo
    * como un agregado no pierde el resto de su panel. Es regla de disponibilidad (`motivoNoDisponible`), así que vale

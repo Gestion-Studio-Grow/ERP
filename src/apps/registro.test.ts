@@ -60,7 +60,7 @@ test("ninguna app declara scopeItems ni campos fuera del contrato", () => {
   // alguien castea un objeto a AppDescriptor.
   const CAMPOS = new Set<keyof AppDescriptor>([
     "id", "nombre", "descripcion", "icono", "ruta", "exacta", "espacio", "capability", "capabilityEnMostrador", "interruptor", "modulo",
-    "moduloDuro", "casa", "panelCerrado", "rubro", "perfilMin", "estado", "kpi", "palabras", "menuDeHoy", "enLanzador",
+    "moduloDuro", "casa", "conLaCasa", "panelCerrado", "rubro", "perfilMin", "estado", "kpi", "palabras", "menuDeHoy", "enLanzador",
   ]);
   for (const app of REGISTRO_APPS) {
     for (const campo of Object.keys(app)) {

@@ -407,6 +407,25 @@ export const APPS_COMERCIAL = [
     palabras: ["padel", "pádel", "canchas", "club", "turnos de cancha", "jugadores", "a cargo de", "cuenta del turno", "buffet"],
   },
   {
+    // El torneo de pádel de un circuito (GSG-PLAT-016): el motor del sitio de Circuito WPE corriendo en el
+    // servidor y el estado en la base (src/lib/torneo-wpe). Entran todos (agenda:read: el jugador mira); qué puede
+    // cambiar cada uno lo decide src/lib/torneo-wpe/permisos.ts en cada acción. Módulo propio: sin `torneo`
+    // asignado no se abre ni por URL; nadie lo recibe por defecto.
+    id: "torneo",
+    nombre: "Torneo",
+    descripcion: "El torneo en curso: zonas, llave y resultados. El organizador carga; los jugadores miran.",
+    icono: "agenda",
+    ruta: "/admin/torneo",
+    espacio: "mostrador",
+    capability: "agenda:read",
+    modulo: "torneo",
+    moduloDuro: true,
+    // Convive con el club (casa) en el ambiente de pruebas de WPE: sin esto, la casa lo rebotaría.
+    conLaCasa: true,
+    estado: "lista",
+    palabras: ["torneo", "padel", "pádel", "zonas", "llave", "resultados", "walkover", "w.o.", "circuito", "partidos"],
+  },
+  {
     // El circuito del profe de pádel: la próxima clase, los pedidos del turnero por confirmar,
     // los comprobantes por revisar, la semana y la configuración. Una sola app con sus
     // pantallas adentro (/admin/clases/...). La plata la piden aparte las acciones con

@@ -50,8 +50,9 @@ test("«Facturas e impuestos» tiene exactamente las apps de los módulos argent
 });
 
 // Los circuitos verticales (taller, inmobiliaria, club de pádel, clases del profe) son excluyentes: un negocio tiene uno
-// solo, con su módulo propio y `moduloDuro`. En un espacio ocupan UN lugar, no uno cada uno.
-const VERTICALES: ReadonlySet<string> = new Set(["taller", "inmobiliaria", "proyectos", "gestion-inicio", "gestion-diseno", "gestion-calendario", "gestion-proveedores", "gestion-administracion", "gestion-direccion", "gestion-agentes", "gestion-propuesta-ia", "gestion-mi-liquidacion", "gestion-equipo", "club", "padel-clases"]);
+// solo, con su módulo propio y `moduloDuro`. En un espacio ocupan UN lugar, no uno cada uno. Excepción a sabiendas: el
+// ambiente de pruebas de WPE (GSG-PLAT-016) tiene club y torneo juntos.
+const VERTICALES: ReadonlySet<string> = new Set(["taller", "inmobiliaria", "proyectos", "gestion-inicio", "gestion-diseno", "gestion-calendario", "gestion-proveedores", "gestion-administracion", "gestion-direccion", "gestion-agentes", "gestion-propuesta-ia", "gestion-mi-liquidacion", "gestion-equipo", "club", "torneo", "padel-clases"]);
 
 test("ningún espacio pasa de 8 apps por rubro con el registro de hoy", () => {
   for (const rubro of ["mostrador", "servicios"] as const) {

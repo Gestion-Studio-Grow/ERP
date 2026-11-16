@@ -55,6 +55,10 @@ const nextConfig: NextConfig = {
     "/sitio-buscatufoto/**": [`./${CARPETA_BUSCATUFOTO}/**/*`],
     // El club crudo de Break Point: lo sirve su manejador, sólo a un usuario de breakpoint (src/lib/club-crudo.ts).
     "/club-crudo/**": [`./${CARPETA_CLUB_CRUDO}/**/*`],
+    // El torneo en la base (GSG-PLAT-016): el servidor corre el motor que vive adentro del sitio de WPE
+    // (src/lib/torneo-wpe/motor.server.ts lee el archivo; el archivo no se toca).
+    "/admin/torneo": ["./src/tenants/circuito-wpe/sitio/index.html"],
+    "/admin/torneo/**": ["./src/tenants/circuito-wpe/sitio/index.html"],
   },
   images: {
     remotePatterns: [

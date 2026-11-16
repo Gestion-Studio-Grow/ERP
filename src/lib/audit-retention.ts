@@ -17,6 +17,7 @@ import { ENTIDAD_INTERRUPTOR } from "../cambios/interruptores";
 import { ENTIDAD_REGIMEN_FACTURA_A } from "./fiscal/regimen-factura-a";
 import { ENTIDAD_CONFIG_CAJA, ENTIDAD_LISTA_PROVEEDOR, ENTIDAD_PROMOCION } from "./supermercado/marcas";
 import { ENTIDAD_CLUB_ESTADO } from "./club/marcas";
+import { ENTIDAD_TORNEO_ESTADO } from "./torneo-wpe/marcas";
 import { ENTIDAD_CONFIG_ENVIOS } from "./envios/marcas";
 import { ENTIDAD_TECLAS_FIJADAS } from "./vender/marcas";
 import { ENTIDAD_RECEPTOR_DEL_COMPROBANTE } from "./comprobante-receptor-marca";
@@ -46,6 +47,7 @@ export const PURGE_EXEMPT_ENTITIES = [
   // el PDF de una factura de hace más de 18 meses saldría sin comprador.
   ENTIDAD_RECEPTOR_DEL_COMPROBANTE,
   ENTIDAD_CLUB_ESTADO, // la foto del club (club/estado-repo.ts): purgada, el club perdería turnos, cuentas y caja; la poda es suya
+  ENTIDAD_TORNEO_ESTADO, // la foto del torneo (torneo-wpe/estado-repo.ts): purgada, el negocio perdería el torneo; la poda es suya
 ] as const;
 
 // Acciones que la purga nunca borra, por prefijo, aunque su entidad no esté exenta.

@@ -200,6 +200,16 @@ export const AVISO_LLENO = 2_500_000;
 /** `suscribirGuardado` avisa por `bytes` sólo al cruzar esta cuadrícula (64 KB), o al archivar o restaurar. */
 export const CUADRICULA_DE_BYTES = 64 * 1024;
 
+/**
+ * El club en blanco de la jornada real con los dueños de arranque del negocio. Sin `duenios`, los del motor (Break
+ * Point), sin cambios. El motor es una copia sellada (ORIGEN.json): los dueños se cambian acá, no en él (GSG-PLAT-016).
+ */
+export function clubRealEnBlanco(hoy: Fecha, duenios?: readonly Usuario[]): EstadoClub {
+  const e = crearClubReal(hoy);
+  if (duenios) e.usuarios = structuredClone([...duenios]);
+  return e;
+}
+
 /** La clave del guardado de la demo en este equipo. Sin negocio o sin persona no hay clave «de todos». */
 export function claveDeLaDemo(negocio: string, usuario: string): string {
   if (!negocio.trim() || !usuario.trim()) throw new Error("La demo del club necesita el negocio y la persona para guardar.");
@@ -571,6 +581,8 @@ export interface OpcionesAlmacen {
   cerrojos?: CerrojosDelNavegador | null;
   /** El rol del ERP de quien mira: decide con qué usuario del club opera la demo. */
   rol?: RolDelPanel;
+  /** Los dueños con que arranca una jornada real en blanco (default: los de `crearClubReal`). */
+  duenios?: readonly Usuario[];
   /** Cuánto se espera para agrupar el guardado (después, se escribe cuando el navegador está libre). 0 = guardar en el acto. */
   demoraGuardadoMs?: number;
   /** Para correr algo cuando el navegador está libre (`requestIdleCallback`); sin él, no se adelanta nada. */
@@ -769,7 +781,7 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
           ? "Lo guardado en este equipo no se pudo leer y no hay lugar para apartarlo: no se guarda nada para no pisarlo. Avisá a soporte."
           : "Lo guardado en este equipo no se pudo leer: arrancó en blanco (lo guardado quedó apartado en este equipo, no se borró).";
       }
-      estado = crearClubReal(fechaLocal(new Date(relojMs())));
+      estado = clubRealEnBlanco(fechaLocal(new Date(relojMs())), opciones.duenios);
       sucioAlAbrir = true;
     }
   } else if (abierto?.ok && abierto.hoy === hoyDemo) {
@@ -2097,7 +2109,7 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
     if (!copiado)
       return { ok: false, causa: "sin-lugar", motivo: "No hay lugar en este equipo para guardar una copia de la jornada de ahora: no se empezó nada. Descargá un respaldo y archivá los días cerrados." };
     // La jornada nueva: el club en blanco, sin configurar (sale la consola de arranque) y sin nadie operando.
-    reemplazar(crearClubReal(fechaLocal(new Date(relojMs()))));
+    reemplazar(clubRealEnBlanco(fechaLocal(new Date(relojMs())), opciones.duenios));
     retomo = false;
     archivoPendiente = null;
     operadorElegido = null;
