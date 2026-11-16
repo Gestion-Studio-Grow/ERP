@@ -23,6 +23,7 @@ import {
   PAPELES,
   sinSeguimiento,
   huellasDeContacto,
+  normalizarEmail,
   identidadPorDominio,
   mismaMarca,
   pasoVencido,
@@ -426,4 +427,10 @@ test("GSG-CRM-011: los papeles del motor y el CHECK de la migración dicen lo mi
   const m = /"OportunidadContacto_papel_check" CHECK \("papel" IN \(([^)]*)\)\)/.exec(sql);
   assert.ok(m, "falta el CHECK de papel");
   assert.deepEqual(m[1].split(",").map((x) => x.trim().replace(/'/g, "")), [...PAPELES]);
+});
+
+test("A11 · un mail más largo que el CHECK de la base (254) no es válido", () => {
+  assert.equal(normalizarEmail(`${"a".repeat(241)}@marca.example`), null, "255 caracteres");
+  assert.equal(normalizarEmail(`${"a".repeat(240)}@marca.example`), `${"a".repeat(240)}@marca.example`, "254 entra");
+  assert.equal(normalizarEmail(" Ana@Marca.Example "), "ana@marca.example");
 });

@@ -581,7 +581,8 @@ export function linkWhatsappSinNumero(texto: string): string {
 
 export function normalizarEmail(e: string): string | null {
   const s = e.trim().toLowerCase();
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s) ? s : null;
+  // ≤ 254: igual al CHECK de `ContactoComercial.email` (si no, la base lo frena con un error sin explicar).
+  return s.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s) ? s : null;
 }
 export function normalizarTelefono(t: string): string | null {
   const d = t.replace(/\D/g, "").replace(/^54(9)?/, "").replace(/^0/, "");

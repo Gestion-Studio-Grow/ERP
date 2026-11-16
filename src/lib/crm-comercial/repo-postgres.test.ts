@@ -565,7 +565,8 @@ test("E9 · E23 · E14 · propuestas que decide una persona: sin datos → DESCA
   ok(await repo.aplicarPase(dir, sinDatos.id, "EN_CONVERSACION", {}, AHORA));
   ok(await repo.aplicarPase(dir, sinDatos.id, "FALTAN_DATOS", {}, AHORA));
   assert.equal(ok(await repo.registrarPedidoDeDatos(dir, sinDatos.id, AHORA)).propuesta, null);
-  assert.equal(ok(await repo.registrarPedidoDeDatos(dir, sinDatos.id, AHORA)).propuesta, "DESCARTADA");
+  // El segundo pedido es otro día (el mismo día es el mismo pedido: A7).
+  assert.equal(ok(await repo.registrarPedidoDeDatos(dir, sinDatos.id, new Date(AHORA.getTime() + 86_400_000))).propuesta, "DESCARTADA");
   assert.equal((await duenio.oportunidad.findUniqueOrThrow({ where: { id: sinDatos.id }, select: { etapa: true } })).etapa, "FALTAN_DATOS", "sólo propone");
   ok(await repo.aprobarPasePropuesto(dir, sinDatos.id, {}, AHORA));
   assert.deepEqual(await duenio.oportunidad.findUniqueOrThrow({ where: { id: sinDatos.id }, select: { etapa: true, motivo: true } }), { etapa: "DESCARTADA", motivo: "SIN_DATOS" });
@@ -736,8 +737,8 @@ test("GSG-CRM-011 · días en etapa, última actividad, cierre esperado y monto 
   ok(await repo.actualizarDatos(dir, op.id, { cierreEsperadoEl: cierre, monto: 1_000_000, moneda: "ARS" }, despues));
   const calif = ctxA(f, u.calif);
   await duenio.tareaComercial.create({ data: { tenantId: base.a.id, oportunidadId: op.id, para: "calificador", tipo: "CALIFICAR", estado: "EN_CURSO", tomadaPor: u.calif, tomadaEl: AHORA, creadaPor: u.dir } });
-  rechaza(await repo.actualizarDatos(calif, op.id, { datos: { encaje: true }, cierreEsperadoEl: new Date("2027-05-01") }, despues), /no cambia la plata ni el cierre/);
-  rechaza(await repo.actualizarDatos(calif, op.id, { datos: { encaje: true }, monto: 1 }, despues), /no cambia la plata ni el cierre/);
+  rechaza(await repo.actualizarDatos(calif, op.id, { datos: { encaje: true }, cierreEsperadoEl: new Date("2027-05-01") }, despues), /no cambia el próximo paso, la plata ni el cierre/);
+  rechaza(await repo.actualizarDatos(calif, op.id, { datos: { encaje: true }, monto: 1 }, despues), /no cambia el próximo paso, la plata ni el cierre/);
 
   const ahora = new Date("2026-11-23T16:00:00Z");
   const fila = ok(await repo.listarOportunidades(dir, {}, ahora)).filas.find((x) => x.id === op.id);
@@ -757,4 +758,122 @@ test("GSG-CRM-011 · días en etapa, última actividad, cierre esperado y monto 
   assert.equal(repo.esFaltaDeTabla(new Error('relation "OportunidadContacto" does not exist')), true);
   assert.equal(repo.esFaltaDeTabla(new Error('column "etapaDesde" does not exist')), true);
   assert.equal(repo.esFaltaDeTabla(new Error("column Oportunidad.cierreEsperadoEl does not exist in the current database.")), true);
+});
+
+// ── Veredicto T1 de la certificación (Factory-GSG 00-ESTADO/certificacion/GSG-CRM-010.md) ──────────────────
+
+/** Un prospecto de Dirección ya en SIN_CONTACTO, con la marca confirmada en el evento. */
+async function prospectoSinContacto(f: Fixture, nombre: string, dominio: string): Promise<string> {
+  const { repo, u, base } = f;
+  const dir = ctxA(f, u.dir);
+  const duenio = await prismaComoDuenio(base);
+  const op = ok(await repo.proponerOportunidad(dir, { tipo: "PROSPECTO", marca: { nombre, dominio }, eventoId: f.ev2, ...PASO }, AHORA), "prospecto");
+  const { marcaId } = await duenio.oportunidad.findUniqueOrThrow({ where: { id: op.id }, select: { marcaId: true } });
+  await duenio.eventoMarca.create({ data: { tenantId: base.a.id, eventoId: f.ev2, marcaId: marcaId as string, rol: "SPONSOR", urlFuente: `https://${dominio}/sponsor`, verificacion: "confirmado" } });
+  ok(await repo.aplicarPase(dir, op.id, "VERIFICADA", {}, AHORA), "verificada");
+  ok(await repo.aplicarPase(dir, op.id, "SIN_CONTACTO", {}, AHORA), "sin contacto");
+  return op.id;
+}
+
+test("A8 · un borrador escrito sin contacto no le llega a una persona dada de baja y vuelta a cargar", async (t) => {
+  const f = await preparar(t);
+  if (!f) return;
+  const { repo, u } = f;
+  const dir = ctxA(f, u.dir);
+  // La persona pidió la baja desde otra ficha.
+  const otra = ok(await repo.proponerOportunidad(dir, { tipo: "CONSULTA", marca: { nombre: "Baja Previa SA", dominio: "bajaprevia.example" }, ...PASO }, AHORA));
+  const c = ok(await repo.crearContacto(dir, { oportunidadId: otra.id, nombre: "Persona Baja", email: "baja@bajaprevia.example" }, AHORA));
+  ok(await repo.suprimirContacto(dir, c.id, AHORA));
+
+  const id = await prospectoSinContacto(f, "Borrador Viejo SA", "borradorviejo.example");
+  const enviado = ok(await repo.escribirBorrador(dir, { oportunidadId: id, canal: "MAIL", cuerpo: "Hola" }, AHORA), "sin contacto todavía");
+  const aprobado = ok(await repo.escribirBorrador(dir, { oportunidadId: id, canal: "MAIL", cuerpo: "Hola otra vez" }, AHORA));
+  const pendiente = ok(await repo.escribirBorrador(dir, { oportunidadId: id, canal: "MAIL", cuerpo: "Hola de nuevo" }, AHORA));
+  ok(await repo.aprobarBorrador(dir, enviado.id, undefined, AHORA));
+  ok(await repo.marcarEnviado(dir, enviado.id, AHORA));
+  ok(await repo.aprobarBorrador(dir, aprobado.id, undefined, AHORA));
+
+  // La vuelven a cargar en esta ficha (otro formato del mismo mail): queda marcada.
+  const vuelta = ok(await repo.crearContacto(dir, { oportunidadId: id, nombre: "Persona Baja", email: "BAJA@bajaprevia.example" }, AHORA));
+  assert.equal(vuelta.suprimido, true);
+  rechaza(await repo.aprobarBorrador(dir, pendiente.id, undefined, AHORA), /pidió que no le escriban más/, "aprobar el viejo");
+  rechaza(await repo.marcarEnviado(dir, aprobado.id, AHORA), /pidió que no le escriban más/, "marcar enviado el viejo");
+  rechaza(await repo.aplicarPase(dir, id, "CONTACTADA", {}, AHORA), /pidió que no le escriban más/, "CONTACTADA con el enviado previo");
+});
+
+test("A4 · un puesto no cambia plata ni próximo paso aunque mande datos; un comercial no da de baja contactos ajenos", async (t) => {
+  const f = await preparar(t);
+  if (!f) return;
+  const { repo, u, base } = f;
+  const dir = ctxA(f, u.dir);
+  const duenio = await prismaComoDuenio(base);
+  const id = await consultaCalificable(f, "Plata Demo SA", "platademo.example");
+  ok(await repo.crearTarea(dir, { oportunidadId: id, para: "calificador", tipo: "PUNTUAR" }, AHORA));
+  ok(await repo.tomarTarea(ctxA(f, u.calif), {}, AHORA));
+  const antes = await duenio.oportunidad.findUniqueOrThrow({ where: { id }, select: { monto: true, moneda: true, proximoPaso: true, proximoPasoEl: true, fechaLimite: true } });
+  const calif = ctxA(f, u.calif);
+  rechaza(await repo.actualizarDatos(calif, id, { monto: 1, moneda: "USD" }, AHORA), /no cambia el próximo paso, la plata/, "sólo plata");
+  rechaza(await repo.actualizarDatos(calif, id, { datos: { encaje: true }, monto: 1, moneda: "USD" }, AHORA), /no cambia el próximo paso, la plata/, "plata con datos");
+  rechaza(await repo.actualizarDatos(calif, id, { datos: { encaje: true }, proximoPaso: "Otro", proximoPasoEl: new Date("2026-12-01T12:00:00Z") }, AHORA), /no cambia el próximo paso/, "paso con datos");
+  rechaza(await repo.actualizarDatos(calif, id, { datos: { encaje: true }, fechaLimite: new Date("2026-12-01T12:00:00Z") }, AHORA), /no cambia el próximo paso/, "fecha límite con datos");
+  ok(await repo.actualizarDatos(calif, id, { datos: { encaje: true } }, AHORA), "sólo datos sigue andando");
+  assert.deepEqual(await duenio.oportunidad.findUniqueOrThrow({ where: { id }, select: { monto: true, moneda: true, proximoPaso: true, proximoPasoEl: true, fechaLimite: true } }), antes, "la fila no cambió");
+
+  // Menor privilegio (fijado por ORQ-007): el comercial no da de baja el contacto de una ficha que no le toca.
+  const ajena = ok(await repo.proponerOportunidad(dir, { tipo: "CONSULTA", marca: { nombre: "Ajena Baja SA", dominio: "ajenabaja.example" }, ...PASO }, AHORA));
+  const c = ok(await repo.crearContacto(dir, { oportunidadId: ajena.id, nombre: "Persona Ajena", email: "p@ajenabaja.example" }, AHORA));
+  rechaza(await repo.suprimirContacto(ctxA(f, u.com1), c.id, AHORA), /no te toca/, "comercial ajeno");
+  assert.equal((await duenio.contactoComercial.findUniqueOrThrow({ where: { id: c.id }, select: { suprimidoEl: true } })).suprimidoEl, null);
+  // Su comercial sí, y la baja queda registrada con la oportunidad (A10).
+  await duenio.oportunidad.update({ where: { id: ajena.id }, data: { duenoUserId: u.com2 } });
+  ok(await repo.suprimirContacto(ctxA(f, u.com2), c.id, AHORA), "su comercial");
+  const baja = await duenio.actividadComercial.findFirstOrThrow({ where: { tenantId: base.a.id, tipo: "BAJA", usuarioId: u.com2 }, select: { oportunidadId: true } });
+  assert.equal(baja.oportunidadId, ajena.id);
+});
+
+test("A7 · registrar el pedido de datos dos veces (reintento) cuenta uno, también a la vez", async (t) => {
+  const f = await preparar(t);
+  if (!f) return;
+  const { repo, u, base } = f;
+  const dir = ctxA(f, u.dir);
+  const duenio = await prismaComoDuenio(base);
+  const op = ok(await repo.proponerOportunidad(dir, { tipo: "CONSULTA", marca: { nombre: "Reintento Datos SA", dominio: "reintentodatos.example" }, ...PASO }, AHORA));
+  ok(await repo.comprobarIdentidad(dir, op.id, { confirmadaPorPersona: true }, AHORA));
+  ok(await repo.aplicarPase(dir, op.id, "EN_CONVERSACION", {}, AHORA));
+  ok(await repo.aplicarPase(dir, op.id, "FALTAN_DATOS", {}, AHORA));
+  const pedidos = async () => (await duenio.oportunidad.findUniqueOrThrow({ where: { id: op.id }, select: { pedidosDeDatos: true, pasePropuesto: true } }));
+
+  assert.equal(ok(await repo.registrarPedidoDeDatos(dir, op.id, AHORA)).propuesta, null);
+  const otra = ok(await repo.registrarPedidoDeDatos(dir, op.id, AHORA));
+  assert.equal(otra.repetido, true);
+  assert.deepEqual(await pedidos(), { pedidosDeDatos: 1, pasePropuesto: null }, "el reintento no cuenta ni propone DESCARTADA");
+
+  // Con la clave del agente, dos a la vez: entra uno.
+  const manana = new Date(AHORA.getTime() + 86_400_000);
+  const rs = await Promise.all([1, 2].map(() => repo.registrarPedidoDeDatos(dir, op.id, manana, "agente-pedido-2")));
+  assert.ok(rs.every((r) => r.ok), JSON.stringify(rs));
+  assert.equal((await pedidos()).pedidosDeDatos, 2);
+  assert.equal(await duenio.actividadComercial.count({ where: { tenantId: base.a.id, oportunidadId: op.id, tipo: "PEDIDO_DE_DATOS" } }), 2);
+});
+
+test("Omisión T1 · el pase a SIN_CONTACTO deja la tarea «cargar a quién escribirle»; ponerAlDia registra sus tareas; el próximo paso entra en el CHECK", async (t) => {
+  const f = await preparar(t);
+  if (!f) return;
+  const { repo, u, base } = f;
+  const dir = ctxA(f, u.dir);
+  const duenio = await prismaComoDuenio(base);
+  const id = await prospectoSinContacto(f, "Sin Contacto SA", "sincontacto.example");
+  const tareas = await duenio.tareaComercial.findMany({ where: { tenantId: base.a.id, oportunidadId: id }, select: { para: true, tipo: true, estado: true } });
+  assert.deepEqual(tareas, [{ para: "PERSONA", tipo: "CARGAR_CONTACTO", estado: "EN_COLA" }]);
+  assert.equal(await duenio.actividadComercial.count({ where: { tenantId: base.a.id, oportunidadId: id, tipo: "TAREA" } }), 1);
+
+  // A10: la tarea de seguimiento que crea ponerAlDia deja su fila de registro (y una sola, aunque se corra dos veces).
+  const vencida = ok(await repo.proponerOportunidad(dir, { tipo: "CONSULTA", marca: { nombre: "Vencida Registro SA", dominio: "vencidareg.example" }, proximoPaso: "x".repeat(400), proximoPasoEl: new Date("2026-11-17T12:00:00Z") }, AHORA));
+  // A11: el próximo paso se guarda dentro de los 300 caracteres del CHECK.
+  assert.equal((await duenio.oportunidad.findUniqueOrThrow({ where: { id: vencida.id }, select: { proximoPaso: true } })).proximoPaso?.length, 300);
+  const despues = new Date("2026-11-18T12:00:00Z");
+  ok(await repo.ponerAlDia(dir, despues));
+  ok(await repo.ponerAlDia(dir, despues));
+  assert.equal(await duenio.tareaComercial.count({ where: { tenantId: base.a.id, oportunidadId: vencida.id, tipo: "SEGUIMIENTO" } }), 1);
+  assert.equal(await duenio.actividadComercial.count({ where: { tenantId: base.a.id, oportunidadId: vencida.id, tipo: "TAREA" } }), 1);
 });

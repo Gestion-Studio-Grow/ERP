@@ -109,8 +109,8 @@ export async function rechazarPasePropuesto(id: string, motivo: string) {
 export async function confirmarDestino(id: string, destino: string) {
   return con(true, (ctx) => repo.confirmarDestino(ctx, id, destino));
 }
-export async function registrarPedidoDeDatos(id: string) {
-  return con(true, (ctx) => repo.registrarPedidoDeDatos(ctx, id));
+export async function registrarPedidoDeDatos(id: string, idempotencia?: string | null) {
+  return con(true, (ctx) => repo.registrarPedidoDeDatos(ctx, id, new Date(), idempotencia));
 }
 export async function registrarRespuesta(id: string, texto: string) {
   return con(true, (ctx) => repo.registrarRespuesta(ctx, id, texto));

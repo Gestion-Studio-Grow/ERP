@@ -170,6 +170,9 @@ async function miembroDe(tx: Tx, ctx: Ctx): Promise<Miembro | null> {
 }
 
 /** Comienzo del día en Argentina (UTC−3, sin horario de verano). */
+/** Igual al CHECK `Oportunidad_textos_check` (`proximoPaso` ≤ 300) de la migración. */
+export const MAX_PROXIMO_PASO = 300;
+
 export function inicioDelDiaAR(ahora: Date): Date {
   const MS_DIA = 86_400_000;
   const OFF = 3 * 3_600_000;
@@ -324,7 +327,7 @@ async function vistaDe(tx: Tx, ctx: Ctx, o: FilaOp): Promise<{ vista: VistaPase;
   const [marca, evento, contacto, relacion, enviados, respuestas, brief] = await Promise.all([
     o.marcaId ? tx.marcaRelevada.findFirst({ where: { id: o.marcaId, tenantId: ctx.tenantId }, select: { nombre: true } }) : null,
     o.eventoId ? tx.eventoRelevado.findFirst({ where: { id: o.eventoId, tenantId: ctx.tenantId }, select: { nombre: true, verificacion: true, urlFuente: true } }) : null,
-    o.contactoId ? tx.contactoComercial.findFirst({ where: { id: o.contactoId, tenantId: ctx.tenantId }, select: { origen: true, suprimidoEl: true } }) : null,
+    o.contactoId ? tx.contactoComercial.findFirst({ where: { id: o.contactoId, tenantId: ctx.tenantId }, select: { origen: true, suprimidoEl: true, email: true, telefono: true } }) : null,
     o.marcaId && o.eventoId
       ? tx.eventoMarca.findFirst({
           where: { tenantId: ctx.tenantId, eventoId: o.eventoId, marcaId: o.marcaId },
@@ -338,6 +341,7 @@ async function vistaDe(tx: Tx, ctx: Ctx, o: FilaOp): Promise<{ vista: VistaPase;
   ]);
   // La marca se verifica EN el evento (EventoMarca: rol, fuente y verificación; «confirmado» ordena primero).
   const confirmada = relacion;
+  const contactoSuprimido = contacto ? !!contacto.suprimidoEl || (await huellaSuprimida(tx, ctx, contacto)) : false;
   const campos = briefDe(o, marca?.nombre ?? null, evento?.nombre ?? null, brief?.campos);
   return {
     marcaNombre: marca?.nombre ?? null,
@@ -348,7 +352,7 @@ async function vistaDe(tx: Tx, ctx: Ctx, o: FilaOp): Promise<{ vista: VistaPase;
       etapaPrevia: (o.etapaPrevia ?? null) as Etapa | null,
       marca: confirmada ? { verificacion: confirmada.verificacion, urlFuente: confirmada.urlFuente } : null,
       evento: evento ? { verificacion: evento.verificacion, urlFuente: evento.urlFuente } : null,
-      contacto: contacto ? { cargadoPorPersona: ["DIRECCION", "COMERCIAL", "CONSULTA_ENTRANTE"].includes(contacto.origen), suprimido: !!contacto.suprimidoEl } : null,
+      contacto: contacto ? { cargadoPorPersona: ["DIRECCION", "COMERCIAL", "CONSULTA_ENTRANTE"].includes(contacto.origen), suprimido: contactoSuprimido } : null,
       borradoresEnviadosPorPersona: enviados,
       respuestasDelCliente: respuestas,
       identidadComprobada: o.identidadComprobada,
@@ -560,7 +564,7 @@ export async function proponerOportunidad(ctx: Ctx, n: NuevaOportunidad, ahora =
           puntaje: p.puntaje,
           puntajeDetalle: p.detalle as unknown as Prisma.InputJsonValue,
           consultaTexto: consulta,
-          proximoPaso: n.proximoPaso.trim().slice(0, 500),
+          proximoPaso: n.proximoPaso.trim().slice(0, MAX_PROXIMO_PASO),
           proximoPasoEl: n.proximoPasoEl,
           fechaLimite: n.fechaLimite ?? null,
           creadaPor: ctx.userId,
@@ -617,11 +621,8 @@ export async function actualizarDatos(ctx: Ctx, id: string, d: PedidoDeDatos, ah
       const r = puede(miembro, "editar_brief", { oportunidad: await contextoDe(tx, ctx, o) });
       if (!r.ok) no(r.motivo, o.id);
     }
-    if (miembro.rol === "PUESTO" && op === "ver_oportunidad") no("Un puesto del equipo no cambia el próximo paso ni la plata: lo hace una persona.", o.id);
-    // También cuando vienen junto con datos que el puesto sí puede cargar (puntuar): la plata y el cierre, no.
-    if (miembro.rol === "PUESTO" && (d.monto !== undefined || d.moneda !== undefined || d.cierreEsperadoEl !== undefined)) {
-      no("Un puesto del equipo no cambia la plata ni el cierre esperado: lo hace una persona.", o.id);
-    }
+    const tocaPasoOPlata = d.proximoPaso !== undefined || d.proximoPasoEl !== undefined || d.fechaLimite !== undefined || d.monto !== undefined || d.moneda !== undefined || d.cierreEsperadoEl !== undefined;
+    if (miembro.rol === "PUESTO" && tocaPasoOPlata) no("Un puesto del equipo no cambia el próximo paso, la plata ni el cierre esperado: lo hace una persona.", o.id);
     if (d.version !== undefined && d.version !== o.version) no(CAMBIO_CONCURRENTE, o.id);
     const etapa = o.etapa as Etapa;
     if (esTerminal(etapa)) no(`La oportunidad está cerrada («${ETIQUETA_ETAPA[etapa]}»).`, o.id);
@@ -657,7 +658,7 @@ export async function actualizarDatos(ctx: Ctx, id: string, d: PedidoDeDatos, ah
       const el = d.proximoPasoEl ?? o.proximoPasoEl;
       const v = validarProximoPaso((data.etapa as Etapa | undefined) ?? etapa, paso, el);
       if (!v.ok) no(v.motivo, o.id);
-      data.proximoPaso = paso?.trim().slice(0, 500) ?? null;
+      data.proximoPaso = paso?.trim().slice(0, MAX_PROXIMO_PASO) ?? null;
       data.proximoPasoEl = el;
     }
     if (d.fechaLimite !== undefined) data.fechaLimite = d.fechaLimite;
@@ -726,7 +727,7 @@ async function aplicar(tx: Tx, ctx: Ctx, m: Miembro | null, o: FilaOp, destino: 
     const el = ev.proximoPasoEl ?? o.proximoPasoEl;
     const r = validarProximoPaso(destino, paso, el);
     if (!r.ok) no(r.motivo, o.id);
-    data.proximoPaso = paso?.trim().slice(0, 500);
+    data.proximoPaso = paso?.trim().slice(0, MAX_PROXIMO_PASO);
     data.proximoPasoEl = el;
   }
   if (destino === "DORMIDA") {
@@ -743,6 +744,16 @@ async function aplicar(tx: Tx, ctx: Ctx, m: Miembro | null, o: FilaOp, destino: 
     data.proyectoId = await crearProyecto(tx, ctx, o, marcaNombre, brief, ahora);
   }
   await escribirOp(tx, ctx, o, data);
+  if (destino === "SIN_CONTACTO") {
+    // §2: SIN_CONTACTO deja la tarea «cargar a quién escribirle» en la cola de personas (un puesto no carga
+    // contactos). Una por oportunidad y entrada a la etapa: el reintento no la duplica.
+    const clave = `CARGAR_CONTACTO:${o.id}:${o.version}`;
+    const ya = await tx.tareaComercial.findFirst({ where: { tenantId: ctx.tenantId, idempotencia: clave }, select: { id: true } });
+    if (!ya) {
+      await tx.tareaComercial.create({ data: { tenantId: ctx.tenantId, oportunidadId: o.id, para: "PERSONA", tipo: "CARGAR_CONTACTO", venceEl: ev.proximoPasoEl ?? o.proximoPasoEl ?? null, creadaPor: ctx.userId, idempotencia: clave }, select: { id: true } });
+      await registrar(tx, ctx, m, { oportunidadId: o.id, tipo: "TAREA", texto: "Sin contacto: nueva tarea CARGAR_CONTACTO para una persona (cargar a quién escribirle)." });
+    }
+  }
   await registrar(tx, ctx, m, {
     oportunidadId: o.id,
     tipo: "PASE",
@@ -756,7 +767,8 @@ async function aplicar(tx: Tx, ctx: Ctx, m: Miembro | null, o: FilaOp, destino: 
 /**
  * ASIGNADA: nace el proyecto en «Lead / brief» con el brief armado (cliente nuevo con el nombre de la marca).
  * Mínimo y sin tocar Proyectos: proyecto + presupuesto v1, como el alta de Proyectos. (Desvío: no llama a
- * `crearLead`, que exige FormData y la sesión de Proyectos; el checklist base lo suma Proyectos al abrirlo.)
+ * `crearLead`, que exige FormData y la sesión de Proyectos.) Sin lista de tareas base: en Proyectos la crea el alta
+ * (`src/lib/proyectos/acciones-ficha.ts`) o el botón manual de la ficha; acá queda pendiente para T2.
  */
 async function crearProyecto(tx: Tx, ctx: Ctx, o: FilaOp, marcaNombre: string | null, brief: CamposBrief, ahora: Date): Promise<string> {
   const nombreCliente = (marcaNombre ?? "Cliente de consulta").slice(0, 120);
@@ -864,9 +876,19 @@ export async function confirmarDestino(ctx: Ctx, id: string, destino: string, ah
 }
 
 /** E9: pedir los datos que faltan. A los N pedidos sin brief completo se propone DESCARTADA «sin datos». */
-export async function registrarPedidoDeDatos(ctx: Ctx, id: string, ahora = new Date()): Promise<Res<{ propuesta: Etapa | null }>> {
-  return correr(ctx, async (tx) => {
+export async function registrarPedidoDeDatos(ctx: Ctx, id: string, ahora = new Date(), idempotencia?: string | null): Promise<Res<{ propuesta: Etapa | null; repetido?: true }>> {
+  // A7: un reintento no cuenta como un segundo pedido al cliente. Sin clave del agente, la clave es una por
+  // oportunidad y día (dos pedidos de datos el mismo día son el mismo pedido).
+  const clave = (idempotencia?.trim() || `PEDIDO_DATOS:${id}:${inicioDelDiaAR(ahora).toISOString().slice(0, 10)}`).slice(0, 200);
+  const intento = () => correr<{ propuesta: Etapa | null; repetido?: true }>(ctx, async (tx) => {
+    // Dos reintentos a la vez: el segundo espera al primero y después ve su clave (en vez de chocar por versión).
+    await tx.$queryRaw`SELECT id FROM "Oportunidad" WHERE id = ${id} AND "tenantId" = ${ctx.tenantId} FOR UPDATE`;
     const { o, miembro } = await sobre(tx, ctx, id, "marcar_faltantes", ahora);
+    const ya = await tx.actividadComercial.findFirst({ where: { tenantId: ctx.tenantId, idempotencia: clave }, select: { oportunidadId: true } });
+    if (ya) {
+      if (ya.oportunidadId !== o.id) no("Esa clave ya se usó en otra oportunidad.", o.id);
+      return { ok: true, propuesta: (o.pasePropuesto ?? null) as Etapa | null, repetido: true };
+    }
     const { brief } = await vistaDe(tx, ctx, o);
     const pedidos = o.pedidosDeDatos + 1;
     const prop = propuestaPorFaltaDeDatos({ etapa: o.etapa as Etapa, pedidosDeDatos: pedidos, brief }, VARA);
@@ -874,10 +896,17 @@ export async function registrarPedidoDeDatos(ctx: Ctx, id: string, ahora = new D
       pedidosDeDatos: pedidos,
       ...(prop && !o.pasePropuesto ? { pasePropuesto: prop.destino, pasePropuestoPor: ctx.userId, pasePropuestoEl: ahora, pasePropuestoDatos: { motivo: prop.motivo, nota: prop.explicacion } } : {}),
     });
-    await registrar(tx, ctx, miembro, { oportunidadId: o.id, tipo: "PEDIDO_DE_DATOS", texto: `Se pidieron los datos que faltan (pedido ${pedidos}).` });
+    await registrar(tx, ctx, miembro, { oportunidadId: o.id, tipo: "PEDIDO_DE_DATOS", texto: `Se pidieron los datos que faltan (pedido ${pedidos}).`, idempotencia: clave });
     if (prop) await registrar(tx, ctx, miembro, { oportunidadId: o.id, tipo: "PASE_PROPUESTO", texto: `${prop.explicacion} Se propone «${ETIQUETA_ETAPA[prop.destino]}» (${prop.motivo}); decide una persona.` });
     return { ok: true, propuesta: prop?.destino ?? null };
   });
+  try {
+    return await intento();
+  } catch (e) {
+    // Dos reintentos a la vez con la misma clave: la base frena el segundo; se vuelve a leer y se ve el primero.
+    if (isPrismaError(e, "P2002")) return intento();
+    throw e;
+  }
 }
 
 /** La persona que recibió la respuesta del cliente la registra (evidencia de EN_CONVERSACION). El texto es dato. */
@@ -1031,10 +1060,27 @@ export async function desvincularContacto(ctx: Ctx, v: VinculoContacto, ahora = 
  */
 export async function suprimirContacto(ctx: Ctx, contactoId: string, ahora = new Date()): Promise<Res<{ huellas: number }>> {
   return correr(ctx, async (tx) => {
-    const c = await tx.contactoComercial.findFirst({ where: { id: contactoId, tenantId: ctx.tenantId }, select: { id: true, email: true, telefono: true, suprimidoEl: true } });
+    const c = await tx.contactoComercial.findFirst({ where: { id: contactoId, tenantId: ctx.tenantId }, select: { id: true, email: true, telefono: true, suprimidoEl: true, cargadoPor: true } });
     const miembro = await guardia(tx, ctx, "suprimir_contacto", {}, ahora);
     if (!c) no("Ese contacto no existe.");
     const fila = c as NonNullable<typeof c>;
+    // Menor privilegio: fuera de Dirección, sólo se da de baja el contacto de una ficha que te toca (o uno suelto
+    // que cargaste vos). La baja queda registrada con su oportunidad.
+    const fichas = await tx.oportunidad.findMany({ where: { tenantId: ctx.tenantId, contactoId: fila.id }, orderBy: { createdAt: "asc" }, select: { id: true, duenoUserId: true, creadaPor: true, tipo: true } });
+    let oportunidadId: string | null = fichas[0]?.id ?? null;
+    if (miembro.rol !== "DIRECCION") {
+      let propia: string | null = null;
+      for (const f of fichas) {
+        if (puede(miembro, "ver_oportunidad", { oportunidad: await contextoDe(tx, ctx, f) }).ok) {
+          propia = f.id;
+          break;
+        }
+      }
+      if (fichas.length ? !propia : fila.cargadoPor !== ctx.userId) {
+        no("Ese contacto es de una oportunidad que no te toca: la baja la registra su comercial o Dirección.", oportunidadId);
+      }
+      oportunidadId = propia;
+    }
     const huellas = huellasDeContacto(fila);
     const tipos = [...(fila.email && normalizarEmail(fila.email) ? ["EMAIL"] : []), ...(fila.telefono && normalizarTelefono(fila.telefono) ? ["TELEFONO"] : [])];
     if (huellas.length) {
@@ -1048,9 +1094,16 @@ export async function suprimirContacto(ctx: Ctx, contactoId: string, ahora = new
       where: { tenantId: ctx.tenantId, contactoId: fila.id, estado: { in: ["BORRADOR", "APROBADO"] } },
       data: { estado: "RECHAZADO", motivoRechazo: "La persona pidió que no le escriban más.", version: { increment: 1 } },
     });
-    await registrar(tx, ctx, miembro, { tipo: "BAJA", texto: "Un contacto pidió que no le escriban más: se anonimizó y quedó su huella." });
+    await registrar(tx, ctx, miembro, { oportunidadId, tipo: "BAJA", texto: "Un contacto pidió que no le escriban más: se anonimizó y quedó su huella." });
     return { ok: true, huellas: huellas.length };
   });
+}
+
+async function huellaSuprimida(tx: Tx, ctx: Ctx, c: { email: string | null; telefono: string | null }): Promise<boolean> {
+  const huellas = huellasDeContacto(c);
+  if (!huellas.length) return false;
+  const sup = await tx.supresionComercial.findMany({ where: { tenantId: ctx.tenantId, huella: { in: huellas } }, select: { huella: true } });
+  return !puedeEscribirle(huellas, new Set(sup.map((s) => s.huella))).ok;
 }
 
 async function chequearSupresion(tx: Tx, ctx: Ctx, contactoId: string | null, oportunidadId: string): Promise<void> {
@@ -1126,7 +1179,12 @@ async function cambiarBorrador(
     if (extra.version !== undefined && extra.version !== fila.version) no("Otra persona cambió ese borrador recién. Recargá y miralo de nuevo.", o.id);
     const v = validarPaseBorrador(fila.estado as EstadoBorrador, hacia, extra.motivo);
     if (!v.ok) no(v.motivo, o.id);
-    if (hacia !== "RECHAZADO") await chequearSupresion(tx, ctx, fila.contactoId, o.id);
+    if (hacia !== "RECHAZADO") {
+      // A8: el mensaje le llega a quien hoy es el contacto de la ficha, aunque el borrador se haya escrito antes
+      // (sin contacto o con otro). Se miran los dos: el del borrador y el actual de la oportunidad.
+      await chequearSupresion(tx, ctx, fila.contactoId, o.id);
+      if (o.contactoId && o.contactoId !== fila.contactoId) await chequearSupresion(tx, ctx, o.contactoId, o.id);
+    }
     const data: Prisma.BorradorMensajeUpdateManyMutationInput = { estado: hacia, version: { increment: 1 } };
     if (hacia === "APROBADO") Object.assign(data, { aprobadoPor: ctx.userId, aprobadoEl: ahora });
     if (hacia === "RECHAZADO") data.motivoRechazo = (extra.motivo ?? "").trim().slice(0, 1000);
@@ -1321,14 +1379,20 @@ export async function ponerAlDia(ctx: Ctx, ahora = new Date()): Promise<Res<{ ta
       where: { tenantId: ctx.tenantId, etapa: { notIn: [...TERMINALES, "DORMIDA"] }, proximoPasoEl: { lt: ahora } },
       select: { id: true, proximoPasoEl: true },
     });
-    const tareas = vencidas.length
+    const conClave = vencidas.map((o) => ({ ...o, clave: claveTareaVencida(o.id, o.proximoPasoEl as Date) }));
+    const yaEstan = conClave.length
+      ? new Set((await tx.tareaComercial.findMany({ where: { tenantId: ctx.tenantId, idempotencia: { in: conClave.map((o) => o.clave) } }, select: { idempotencia: true } })).map((t) => t.idempotencia))
+      : new Set<string | null>();
+    const nuevas = conClave.filter((o) => !yaEstan.has(o.clave));
+    const tareas = nuevas.length
       ? (
           await tx.tareaComercial.createMany({
-            data: vencidas.map((o) => ({ tenantId: ctx.tenantId, oportunidadId: o.id, para: "seguidor", tipo: "SEGUIMIENTO", venceEl: o.proximoPasoEl, creadaPor: ctx.userId, idempotencia: claveTareaVencida(o.id, o.proximoPasoEl as Date) })),
+            data: nuevas.map((o) => ({ tenantId: ctx.tenantId, oportunidadId: o.id, para: "seguidor", tipo: "SEGUIMIENTO", venceEl: o.proximoPasoEl, creadaPor: ctx.userId, idempotencia: o.clave })),
             skipDuplicates: true,
           })
         ).count
       : 0;
+    for (const o of nuevas) await registrar(tx, ctx, m, { oportunidadId: o.id, tipo: "TAREA", texto: "El próximo paso venció: nueva tarea SEGUIMIENTO para seguidor." });
 
     let despertadas = 0;
     const dormidas = await tx.oportunidad.findMany({ where: { tenantId: ctx.tenantId, etapa: "DORMIDA", despertarEl: { lte: ahora } }, select: SEL_OP });
