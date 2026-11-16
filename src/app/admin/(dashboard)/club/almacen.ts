@@ -88,6 +88,7 @@ import type { Ahora, AnexoJornada, Auth, ConteosArchivo, EstadoClub, Fecha, Foto
 import type { Role } from "@/lib/capabilities";
 import { crearGuardadoLocal, esGuardadoLocal, separarVersion, type AlmacenamientoLocal, type GuardadoDelClub, type GuardadoLocal, type MarcaDelEspejo, type ResultadoDelGuardado } from "./guardado-del-club";
 import { fechaLocal, mismoAhora, relojReal } from "./reloj-del-club";
+import type { ArranqueDelClub } from "./jornada-del-club-core";
 import { comandoSinPin, correrComando, correrDeterminista, queHizo, rechazoSinInternet, REGISTRO, type ArgsDe, type Comando, type NombreDeComando, type ResultadoDe } from "./comandos-core";
 import {
   altaEquivalente,
@@ -201,12 +202,17 @@ export const AVISO_LLENO = 2_500_000;
 export const CUADRICULA_DE_BYTES = 64 * 1024;
 
 /**
- * El club en blanco de la jornada real con los dueños de arranque del negocio. Sin `duenios`, los del motor (Break
- * Point), sin cambios. El motor es una copia sellada (ORIGEN.json): los dueños se cambian acá, no en él (GSG-PLAT-016).
+ * El club en blanco de la jornada real con el arranque del negocio (`arranqueDelClub`): su nombre, sus canchas, sus
+ * dueños y sin productos de otro cliente. Sin arranque, el del motor (Break Point), sin cambios. El motor es una copia
+ * sellada (ORIGEN.json): esto se pisa acá, no en él (GSG-PLAT-016).
  */
-export function clubRealEnBlanco(hoy: Fecha, duenios?: readonly Usuario[]): EstadoClub {
+export function clubRealEnBlanco(hoy: Fecha, arranque?: ArranqueDelClub): EstadoClub {
   const e = crearClubReal(hoy);
-  if (duenios) e.usuarios = structuredClone([...duenios]);
+  if (!arranque) return e;
+  e.config.nombre = arranque.nombre;
+  e.canchas = structuredClone([...arranque.canchas]);
+  e.usuarios = structuredClone([...arranque.duenios]);
+  e.productos = [];
   return e;
 }
 
@@ -581,8 +587,8 @@ export interface OpcionesAlmacen {
   cerrojos?: CerrojosDelNavegador | null;
   /** El rol del ERP de quien mira: decide con qué usuario del club opera la demo. */
   rol?: RolDelPanel;
-  /** Los dueños con que arranca una jornada real en blanco (default: los de `crearClubReal`). */
-  duenios?: readonly Usuario[];
+  /** Con qué arranca una jornada real en blanco (default: el del motor, Break Point). */
+  arranque?: ArranqueDelClub;
   /** Cuánto se espera para agrupar el guardado (después, se escribe cuando el navegador está libre). 0 = guardar en el acto. */
   demoraGuardadoMs?: number;
   /** Para correr algo cuando el navegador está libre (`requestIdleCallback`); sin él, no se adelanta nada. */
@@ -781,7 +787,7 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
           ? "Lo guardado en este equipo no se pudo leer y no hay lugar para apartarlo: no se guarda nada para no pisarlo. Avisá a soporte."
           : "Lo guardado en este equipo no se pudo leer: arrancó en blanco (lo guardado quedó apartado en este equipo, no se borró).";
       }
-      estado = clubRealEnBlanco(fechaLocal(new Date(relojMs())), opciones.duenios);
+      estado = clubRealEnBlanco(fechaLocal(new Date(relojMs())), opciones.arranque);
       sucioAlAbrir = true;
     }
   } else if (abierto?.ok && abierto.hoy === hoyDemo) {
@@ -2109,7 +2115,7 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
     if (!copiado)
       return { ok: false, causa: "sin-lugar", motivo: "No hay lugar en este equipo para guardar una copia de la jornada de ahora: no se empezó nada. Descargá un respaldo y archivá los días cerrados." };
     // La jornada nueva: el club en blanco, sin configurar (sale la consola de arranque) y sin nadie operando.
-    reemplazar(clubRealEnBlanco(fechaLocal(new Date(relojMs())), opciones.duenios));
+    reemplazar(clubRealEnBlanco(fechaLocal(new Date(relojMs())), opciones.arranque));
     retomo = false;
     archivoPendiente = null;
     operadorElegido = null;

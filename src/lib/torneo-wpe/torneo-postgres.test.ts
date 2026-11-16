@@ -9,6 +9,8 @@
 //   · C4 auditoría: cada mutación deja su fila con quién y qué (antes → después);
 //   · C1 aislamiento: B (con el módulo) no ve el torneo de A, ni leyendo con el tenantId de A, ni puede escribirle;
 //     sin el módulo, B no entra.
+//   · C10 (con C1, C3, C4) el club del ambiente de pruebas: «Gran Willy» con 7 canchas guardado en la base de A; el
+//     jugador y el agente no lo leen ni lo guardan; queda la fila con quién; B no lo lee.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -18,6 +20,10 @@ import { ejecutarAccion, prepararAccionesDeServidor, type SalidaDeAccion } from 
 import { ENTIDAD_TORNEO_ESTADO, ENTIDAD_TORNEO_MUTACION } from "./marcas";
 import { EXCEPCION_RESULTADOS } from "./permisos";
 import { FOTOS_ANTERIORES } from "./estado-repo";
+import { comprimir, descomprimir } from "@/lib/club/foto";
+import { ENTIDAD_CLUB_ESTADO } from "@/lib/club/marcas";
+import { clubRealEnBlanco } from "@/app/admin/(dashboard)/club/almacen";
+import { arranqueDelClub } from "@/app/admin/(dashboard)/club/jornada-del-club-core";
 
 const laBase = baseEfimeraDelArchivo();
 
@@ -227,4 +233,48 @@ test("poda: con muchas mutaciones quedan la vigente, las anteriores del tope y l
   assert.equal(versiones[versiones.length - 1], version);
   // El rastro no se poda.
   assert.equal((await filas(base, ENTIDAD_TORNEO_MUTACION, base.a.id)).length, FOTOS_ANTERIORES + 5);
+});
+
+test("C10: el club de wpe-pruebas («Gran Willy», 7 canchas) en la base de SU negocio, con permisos, auditoría y aislamiento", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const { base, duenio, jugador, agente } = p;
+  await duenio.tenant.update({ where: { id: base.a.id }, data: { modules: ["torneo", "club"] } });
+  await duenio.tenant.update({ where: { id: base.b.id }, data: { modules: ["club"] } });
+  await duenio.auditLog.deleteMany({ where: { entity: ENTIDAD_CLUB_ESTADO } });
+  const C = await import("@/app/admin/(dashboard)/club/estado-actions");
+  const organizador = { negocio: base.a, usuario: base.a.recepcion };
+
+  const estado = clubRealEnBlanco("2026-11-16", arranqueDelClub("wpe-pruebas"));
+  const foto = async (version: number) => {
+    const fd = new FormData();
+    fd.set("foto", await comprimir(JSON.stringify({ v: 1, estado, secuencia: 0 })), "foto.json.gz");
+    fd.set("version", String(version));
+    return fd;
+  };
+
+  // C3: el jugador y el agente (PROFESSIONAL, sin agenda:manage) no leen ni guardan el club.
+  for (const u of [jugador, agente]) {
+    const lee = valor(await ejecutarAccion({ negocio: base.a, usuario: u }, () => C.leerFotoDelClub()));
+    assert.equal(lee.ok, false);
+    const guarda = valor(await ejecutarAccion({ negocio: base.a, usuario: u }, async () => C.guardarFotoDelClub(await foto(0))));
+    assert.ok(!guarda.ok && guarda.motivo === "error");
+  }
+
+  // El organizador abre la jornada y la guarda; la dueña la lee: «Gran Willy», C1…C7.
+  const g = valor(await ejecutarAccion(organizador, async () => C.guardarFotoDelClub(await foto(0))));
+  assert.deepEqual(g, { ok: true, version: 1 });
+  const leida = valor(await ejecutarAccion({ negocio: base.a, usuario: base.a.duenia }, () => C.leerFotoDelClub()));
+  assert.ok(leida.ok && leida.foto);
+  const e = JSON.parse(await descomprimir(leida.foto.gzip)) as { estado: { config: { nombre: string }; canchas: { nombre: string }[] } };
+  assert.equal(e.estado.config.nombre, "Gran Willy");
+  assert.deepEqual(e.estado.canchas.map((c) => c.nombre), ["C1", "C2", "C3", "C4", "C5", "C6", "C7"]);
+
+  // C4: la fila dice quién guardó.
+  const deA = await filas(base, ENTIDAD_CLUB_ESTADO, base.a.id);
+  assert.deepEqual(deA.map((f) => [f.entityId, f.actor]), [[base.a.id, `user:${base.a.recepcion.id}`]]);
+
+  // C1: B, con el módulo club, no ve el club de A (arranca vacío).
+  const deB = valor(await ejecutarAccion({ negocio: base.b, usuario: base.b.duenia }, () => C.leerFotoDelClub()));
+  assert.deepEqual(deB, { ok: true, foto: null });
 });

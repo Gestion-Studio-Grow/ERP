@@ -32,6 +32,7 @@ import { EXCEPCION_RESULTADOS } from "../src/lib/torneo-wpe/permisos";
 import { provisionTenant } from "./provision-tenant";
 
 export const SLUG_PRUEBAS = "wpe-pruebas";
+export const NOMBRE_PRUEBAS = "Gran Willy · pruebas WPE";
 export const MODULOS_PRUEBAS = ["torneo", "club", "clients", "pos"] as const;
 
 type Rol = "OWNER" | "RECEPTION" | "PROFESSIONAL";
@@ -71,7 +72,8 @@ export async function altaWpePruebas(
   const claves: Record<string, string> = {};
   const claveDuenio = generateStrongPassword();
   const r = await provisionTenant(prisma, {
-    name: "WPE · ambiente de pruebas",
+    // El club del ambiente de pruebas se llama «Gran Willy» (dato del dueño, 16/11/2026); el negocio es `wpe-pruebas`.
+    name: NOMBRE_PRUEBAS,
     slug: SLUG_PRUEBAS,
     owner: { name: duenio.nombre, email: duenio.email, password: claveDuenio },
     blueprint: "generico",

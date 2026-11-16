@@ -37,7 +37,7 @@ import { cn } from "@/components/ui/cn";
 import { Button } from "@/components/ui/Button";
 import { alertas, hhmm, pesos, reserva as reservaDe, resumenCaja, sumarDias } from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
-import { dueniosDelClub } from "./jornada-del-club-core";
+import { arranqueDelClub } from "./jornada-del-club-core";
 import { candadoDeLaJornada, claveDeLaDemo, claveDeLaJornada, crearAlmacen, type Almacen, type AlmacenamientoLocal, type GuardadoDelClub, type RolDelPanel } from "./almacen";
 import CintaDelClub from "./CintaDelClub";
 import EnLaCabecera from "./EnLaCabecera";
@@ -551,7 +551,7 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
   const [enLaBase] = useState(() => (reloj === "real" && !guardado && base ? crearGuardadoEnLaBase({ negocio, base, espejo: null }) : null));
   const [almacen] = useState(() =>
     reloj === "real"
-      ? crearAlmacen({ reloj, clave: claveDeLaJornada(negocio), candado: candadoDeLaJornada(negocio), almacenamiento: guardadoDelEquipo(), guardado: guardado ?? enLaBase ?? undefined, rol, duenios: dueniosDelClub(negocio) })
+      ? crearAlmacen({ reloj, clave: claveDeLaJornada(negocio), candado: candadoDeLaJornada(negocio), almacenamiento: guardadoDelEquipo(), guardado: guardado ?? enLaBase ?? undefined, rol, arranque: arranqueDelClub(negocio) })
       : crearAlmacen({ hoy: fechaLocal(new Date()), clave: claveDeLaDemo(negocio, usuario), almacenamiento: guardadoDelEquipo(), guardado, rol }),
   );
   // Mientras el club no está configurado (jornada real recién abierta), la recepción abre en Configuración: ahí sigue
