@@ -897,6 +897,7 @@ export async function crearContacto(ctx: Ctx, c: NuevoContacto, ahora = new Date
     const tel = c.telefono?.trim() ? c.telefono.trim().slice(0, 40) : null;
     if (tel && !normalizarTelefono(tel)) no("El teléfono no es válido.");
     if (!email && !tel) no("Cargá al menos un mail o un teléfono.");
+    if (o && c.marcaId && c.marcaId !== o.marcaId) no("El contacto es de otra marca que la de la oportunidad.", o.id);
     const marcaId = c.marcaId ?? o?.marcaId ?? null;
     if (marcaId) {
       const m = await tx.marcaRelevada.findFirst({ where: { id: marcaId, tenantId: ctx.tenantId }, select: { id: true } });
@@ -992,6 +993,11 @@ export async function escribirBorrador(ctx: Ctx, b: NuevoBorrador, ahora = new D
       const cuerpo = txt(b.cuerpo, 10_000);
       if (!cuerpo) no("El borrador está vacío.", o.id);
       const contactoId = b.contactoId ?? o.contactoId;
+      if (b.contactoId && b.contactoId !== o.contactoId) {
+        // Pericia punto 4: cada id que llega se comprueba contra la ficha, no sólo contra el negocio.
+        const c = await tx.contactoComercial.findFirst({ where: { id: b.contactoId, tenantId: ctx.tenantId }, select: { marcaId: true } });
+        if (!c || c.marcaId !== o.marcaId) no("Ese contacto no es de la marca de esta oportunidad.", o.id);
+      }
       await chequearSupresion(tx, ctx, contactoId, o.id);
       const fila = await tx.borradorMensaje.create({
         data: { tenantId: ctx.tenantId, oportunidadId: o.id, contactoId, canal: b.canal as Canal, asunto: txt(b.asunto, 300), cuerpo: cuerpo as string, redactadoPor: ctx.userId, idempotencia: b.idempotencia ?? null },

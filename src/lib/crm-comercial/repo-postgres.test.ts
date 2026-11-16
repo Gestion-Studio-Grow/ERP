@@ -460,6 +460,13 @@ test("E8 · A8 · baja = supresión: anonimiza, deja la huella y nunca más un b
   rechaza(await repo.escribirBorrador(dir, { oportunidadId: op.id, contactoId: otra.id, canal: "MAIL", cuerpo: "Hola de nuevo" }, AHORA), /pidió que no le escriban más/);
   const porTel = ok(await repo.crearContacto(dir, { oportunidadId: op.id, nombre: "Otro nombre", telefono: "11 5555-0000" }, AHORA));
   rechaza(await repo.escribirBorrador(dir, { oportunidadId: op.id, contactoId: porTel.id, canal: "WHATSAPP", cuerpo: "Hola" }, AHORA), /pidió que no le escriban más/, "también por teléfono");
+
+  // Pericia punto 4: un contacto de OTRA marca (mismo negocio) no se cuelga de esta oportunidad.
+  const op2 = ok(await repo.proponerOportunidad(dir, { tipo: "CONSULTA", marca: { nombre: "Ajena Demo SA", dominio: "ajena.example" }, ...PASO }, AHORA));
+  const ajeno = ok(await repo.crearContacto(dir, { oportunidadId: op2.id, nombre: "Persona Ajena", email: "ajena@ajena.example" }, AHORA));
+  rechaza(await repo.escribirBorrador(dir, { oportunidadId: op.id, contactoId: ajeno.id, canal: "MAIL", cuerpo: "Hola" }, AHORA), /no es de la marca de esta oportunidad/);
+  const marcaOp2 = await duenio.oportunidad.findUniqueOrThrow({ where: { id: op2.id }, select: { marcaId: true } });
+  rechaza(await repo.crearContacto(dir, { oportunidadId: op.id, marcaId: marcaOp2.marcaId, nombre: "Cruzado", email: "cruzado@ajena.example" }, AHORA), /otra marca/);
 });
 
 test("E1 · E18 · la misma marca se une por dominio o CUIT; una sola abierta por marca × evento; no se unen solas", async (t) => {
