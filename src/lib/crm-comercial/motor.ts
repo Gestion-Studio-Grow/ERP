@@ -584,9 +584,71 @@ export function normalizarEmail(e: string): string | null {
   // ≤ 254: igual al CHECK de `ContactoComercial.email` (si no, la base lo frena con un error sin explicar).
   return s.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s) ? s : null;
 }
+/**
+ * Clave del teléfono para la huella de la baja (A8): el mismo número escrito de cualquier forma usual da la misma
+ * clave, y dos números distintos nunca dan la misma. Devuelve el número en E.164 sin «+» (Argentina: «54» + los 10
+ * dígitos de área + abonado, sin el 9 ni el 15, que sólo son marcas de discado del celular) o null si no se puede
+ * saber de qué número se trata.
+ *
+ * Reglas (plan de numeración argentino): el área mide 2 (sólo el 11), 3 o 4 dígitos, empieza con 1, 2 o 3, y área
+ * más abonado suman siempre 10. Así, «+54 9 11 5555-0102», «011 15 5555-0102», «11 5555-0102» y «15 5555 0102»
+ * dan «541155550102».
+ *
+ * CRITERIO PARA EL NÚMERO SIN CÓDIGO DE ÁREA (decidido acá, a propósito sin segunda huella):
+ *   - 8 dígitos de abonado (con o sin el 15 adelante): sólo existen en el área 11, la única de 2 dígitos. Se le
+ *     pone el 11 y es la misma clave que el número completo. No es una suposición: no hay otra área posible.
+ *   - 6 o 7 dígitos de abonado: puede ser de cualquier área de 3 o 4 dígitos. Una huella por sufijo (p. ej. los
+ *     últimos 7 u 8) haría chocar números distintos de áreas distintas («351 555-0102» y «341 555-0102» comparten
+ *     los últimos 8), y adivinar el área haría que la baja no frene. Por eso no se acepta: se pide el área al
+ *     cargarlo (`validarTelefono`). Un contacto sin área no entra, así que nunca se le escribe sin chequear la baja.
+ * Del exterior («+» u «00» y otro código de país) se compara el número entero, con su código: nunca empieza con 54,
+ * así que no choca con uno argentino.
+ */
 export function normalizarTelefono(t: string): string | null {
-  const d = t.replace(/\D/g, "").replace(/^54(9)?/, "").replace(/^0/, "");
-  return d.length >= 8 && d.length <= 13 ? d : null;
+  const crudo = t.trim();
+  let d = crudo.replace(/\D/g, "");
+  const internacional = crudo.startsWith("+") || d.startsWith("00");
+  if (d.startsWith("00")) d = d.slice(2);
+  if (internacional && !d.startsWith("54")) return d.length >= 8 && d.length <= 15 ? d : null;
+  // Ningún número nacional empieza con 5 (las áreas empiezan con 1, 2 o 3): un 54 adelante es el código de país.
+  if (d.startsWith("54")) {
+    d = d.slice(2);
+    if (d.startsWith("9")) d = d.slice(1); // el 9 del celular en formato internacional
+  } else if (d.startsWith("9") && d.length === 11) {
+    d = d.slice(1); // «9 11 5555-0102»: el 9 sin el 54
+  }
+  if (d.startsWith("0")) d = d.slice(1); // el 0 de larga distancia
+  if (d.length === 12) d = sinQuinceDespuesDelArea(d) ?? d;
+  // Sin área: 8 dígitos (con o sin 15) sólo pueden ser del área 11. Con 6 o 7 no se adivina.
+  if (d.length === 10 && d.startsWith("15")) d = `11${d.slice(2)}`;
+  else if (d.length === 8 && /^[2-9]/.test(d)) d = `11${d}`;
+  return /^(11|[23]\d)\d{8}$/.test(d) ? `54${d}` : null;
+}
+
+/** «área 15 abonado» (12 dígitos) → «área abonado». El área se reconoce sin ambigüedad: 11, o 3-4 dígitos que empiezan con 2 o 3. */
+function sinQuinceDespuesDelArea(d: string): string | null {
+  for (const largo of [2, 3, 4]) {
+    const area = d.slice(0, largo);
+    const areaPosible = largo === 2 ? area === "11" : /^[23]/.test(area);
+    if (areaPosible && d.slice(largo, largo + 2) === "15") return area + d.slice(largo + 2);
+  }
+  return null;
+}
+
+/**
+ * Validación del teléfono al cargarlo. Es la del CHECK de `ContactoComercial.telefono` (6 a 15 dígitos y hasta 40
+ * caracteres, A11) más que se pueda saber de qué número se trata (`normalizarTelefono`): si no, la baja no lo frena.
+ */
+export function validarTelefono(t: string): Resultado {
+  const crudo = t.trim();
+  const digitos = crudo.replace(/\D/g, "").length;
+  if (crudo.length > 40) return no("El teléfono es demasiado largo: escribilo sin texto extra, sólo el número.");
+  if (digitos > 15) return no("El teléfono tiene más de 15 dígitos. Escribilo sin el 0 y sin el 15, por ejemplo +54 9 11 5555-0102.");
+  if (digitos < 6) return no("El teléfono tiene muy pocos dígitos.");
+  if (!normalizarTelefono(crudo)) {
+    return no("Escribí el teléfono con código de área, por ejemplo 351 15 555-0102 o +54 9 351 555-0102. Sin el área no se puede saber si esa persona pidió la baja.");
+  }
+  return { ok: true };
 }
 
 /** Huellas del contacto: sha256 del mail normalizado y del teléfono en dígitos. No guarda el dato. */

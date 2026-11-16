@@ -801,6 +801,44 @@ test("A8 · un borrador escrito sin contacto no le llega a una persona dada de b
   rechaza(await repo.aplicarPase(dir, id, "CONTACTADA", {}, AHORA), /pidió que no le escriban más/, "CONTACTADA con el enviado previo");
 });
 
+test("A8 · H1 · baja con un formato del celular, recarga con otro: aprobar, «enviado» y CONTACTADA se frenan; otro número no", async (t) => {
+  const f = await preparar(t);
+  if (!f) return;
+  const { repo, u } = f;
+  const dir = ctxA(f, u.dir);
+  const previa = ok(await repo.proponerOportunidad(dir, { tipo: "CONSULTA", marca: { nombre: "Baja Celular SA", dominio: "bajacelular.example" }, ...PASO }, AHORA));
+  const c = ok(await repo.crearContacto(dir, { oportunidadId: previa.id, nombre: "Persona Celular", telefono: "+54 9 11 5555-0102" }, AHORA));
+  ok(await repo.suprimirContacto(dir, c.id, AHORA));
+
+  for (const [i, forma] of ["011 15 5555-0102", "15 5555 0102"].entries()) {
+    const id = await prospectoSinContacto(f, `Celular Recargado ${i} SA`, `celular${i}.example`);
+    const aprobado = ok(await repo.escribirBorrador(dir, { oportunidadId: id, canal: "WHATSAPP", cuerpo: "Hola" }, AHORA));
+    const pendiente = ok(await repo.escribirBorrador(dir, { oportunidadId: id, canal: "WHATSAPP", cuerpo: "Hola de nuevo" }, AHORA));
+    ok(await repo.aprobarBorrador(dir, aprobado.id, undefined, AHORA));
+    const vuelta = ok(await repo.crearContacto(dir, { oportunidadId: id, nombre: "Persona Celular", telefono: forma }, AHORA));
+    assert.equal(vuelta.suprimido, true, `«${forma}» es la misma persona`);
+    rechaza(await repo.aprobarBorrador(dir, pendiente.id, undefined, AHORA), /pidió que no le escriban más/, `aprobar · ${forma}`);
+    rechaza(await repo.marcarEnviado(dir, aprobado.id, AHORA), /pidió que no le escriban más/, `enviado · ${forma}`);
+    rechaza(await repo.aplicarPase(dir, id, "CONTACTADA", {}, AHORA), /pidió que no le escriban más/, `CONTACTADA · ${forma}`);
+  }
+
+  // Otro número (último dígito distinto) no queda bloqueado.
+  const id = await prospectoSinContacto(f, "Celular Distinto SA", "celulardistinto.example");
+  const distinto = ok(await repo.crearContacto(dir, { oportunidadId: id, nombre: "Otra Persona", telefono: "011 15 5555-0103" }, AHORA));
+  assert.equal(distinto.suprimido, false);
+  ok(await repo.escribirBorrador(dir, { oportunidadId: id, contactoId: distinto.id, canal: "WHATSAPP", cuerpo: "Hola" }, AHORA), "otro número");
+});
+
+test("A11 · H2 · un teléfono de 16 dígitos se rechaza con motivo, no con el error del CHECK", async (t) => {
+  const f = await preparar(t);
+  if (!f) return;
+  const { repo, u } = f;
+  const dir = ctxA(f, u.dir);
+  const op = ok(await repo.proponerOportunidad(dir, { tipo: "CONSULTA", marca: { nombre: "Telefono Largo SA", dominio: "tellargo.example" }, ...PASO }, AHORA));
+  rechaza(await repo.crearContacto(dir, { oportunidadId: op.id, nombre: "Largo", telefono: "+54 9 011 15 5555-0102" }, AHORA), /15 dígitos/);
+  rechaza(await repo.crearContacto(dir, { oportunidadId: op.id, nombre: "Sin área", telefono: "15 555 0102" }, AHORA), /código de área/);
+});
+
 test("A4 · un puesto no cambia plata ni próximo paso aunque mande datos; un comercial no da de baja contactos ajenos", async (t) => {
   const f = await preparar(t);
   if (!f) return;

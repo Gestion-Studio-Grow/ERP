@@ -50,6 +50,7 @@ import {
   linkWhatsappSinNumero,
   normalizarEmail,
   normalizarTelefono,
+  validarTelefono,
   propuestaPorFaltaDeDatos,
   propuestaPorSilencio,
   proponerDestino,
@@ -961,8 +962,11 @@ export async function crearContacto(ctx: Ctx, c: NuevoContacto, ahora = new Date
     if (!nombre) no("Falta el nombre del contacto.");
     const email = c.email?.trim() ? normalizarEmail(c.email) : null;
     if (c.email?.trim() && !email) no("El mail no es válido.");
-    const tel = c.telefono?.trim() ? c.telefono.trim().slice(0, 40) : null;
-    if (tel && !normalizarTelefono(tel)) no("El teléfono no es válido.");
+    const tel = c.telefono?.trim() ? c.telefono.trim() : null;
+    if (tel) {
+      const v = validarTelefono(tel);
+      if (!v.ok) no(v.motivo);
+    }
     if (!email && !tel) no("Cargá al menos un mail o un teléfono.");
     if (o && c.marcaId && c.marcaId !== o.marcaId) no("El contacto es de otra marca que la de la oportunidad.", o.id);
     if (c.papel != null && !esPapel(c.papel)) no("El papel tiene que ser DECIDE, PIDE o PAGA.", o?.id ?? null);

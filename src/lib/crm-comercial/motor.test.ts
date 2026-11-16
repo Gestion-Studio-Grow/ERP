@@ -24,6 +24,8 @@ import {
   sinSeguimiento,
   huellasDeContacto,
   normalizarEmail,
+  normalizarTelefono,
+  validarTelefono,
   identidadPorDominio,
   mismaMarca,
   pasoVencido,
@@ -288,6 +290,45 @@ test("E8 · la huella sobrevive al anonimizado: el mismo mail (escrito distinto)
   assert.ok(puedeEscribirle(huellasDeContacto({ email: "otra@marca.example" }), suprimidas).ok);
   // La huella no es el dato: no se puede leer el mail desde ella.
   assert.ok(!h.some((x) => x.includes("ana")));
+});
+
+test("A8 · H1 · el mismo celular escrito de las formas usuales da la misma huella; otro número no se bloquea", () => {
+  const formas = ["+54 9 11 5555-0102", "011 15 5555-0102", "15 5555 0102", "11 5555 0102", "5491155550102", "+54 11 5555-0102", "0054 9 11 5555 0102"];
+  const claves = formas.map((f) => [f, normalizarTelefono(f)] as const);
+  for (const [f, k] of claves) assert.equal(k, claves[0][1], `«${f}» tiene que dar la misma clave`);
+  const suprimidas = new Set(huellasDeContacto({ telefono: "+54 9 11 5555-0102" }));
+  for (const f of formas) assert.equal(puedeEscribirle(huellasDeContacto({ telefono: f }), suprimidas).ok, false, `«${f}» queda bloqueado`);
+  // Otro número (un dígito distinto) y el mismo número local de otra área no se bloquean.
+  for (const otro of ["+54 9 11 5555-0103", "011 15 5555-0103", "15 5555 0103", "+54 9 351 555-0102", "+54 9 2202 55-0102"]) {
+    assert.ok(puedeEscribirle(huellasDeContacto({ telefono: otro }), suprimidas).ok, `«${otro}» no es la misma persona`);
+  }
+  // Interior: área de 3 y de 4 dígitos, con 15 y con 9.
+  const cba = ["+54 9 351 555-1234", "0351 15 555-1234", "351 555 1234", "351 15 555 1234"].map(normalizarTelefono);
+  assert.ok(cba.every((k) => k && k === cba[0]), JSON.stringify(cba));
+  const rafaela = ["+54 9 3492 55-1234", "03492 15 55-1234", "3492 551234"].map(normalizarTelefono);
+  assert.ok(rafaela.every((k) => k && k === rafaela[0]), JSON.stringify(rafaela));
+  assert.notEqual(cba[0], rafaela[0]);
+});
+
+test("A8 · H1 · sin código de área: 8 dígitos sólo pueden ser del área 11; con 6 o 7 se pide el área (no se adivina)", () => {
+  assert.equal(normalizarTelefono("4555-0102"), normalizarTelefono("011 4555-0102"));
+  for (const sinArea of ["15 555 0102", "555-0102", "15 55 0102"]) assert.equal(normalizarTelefono(sinArea), null, sinArea);
+  const r = validarTelefono("15 555 0102");
+  assert.equal(r.ok, false);
+  if (!r.ok) assert.match(r.motivo, /código de área/);
+  // El exterior se compara entero, con su código de país, y nunca choca con uno argentino.
+  assert.equal(normalizarTelefono("+1 415 555 0100"), normalizarTelefono("001 415 555 0100"));
+  assert.notEqual(normalizarTelefono("+1 415 555 0100"), normalizarTelefono("+54 9 11 5555-0100"));
+});
+
+test("A11 · H2 · la validación del teléfono es la del CHECK de la base: de 6 a 15 dígitos y hasta 40 caracteres", () => {
+  const largo = validarTelefono("+54 9 011 15 5555-0102"); // 16 dígitos: el CHECK lo frena
+  assert.equal(largo.ok, false);
+  if (!largo.ok) assert.match(largo.motivo, /15 dígitos/);
+  const muchos = validarTelefono(`+54 9 11 5555-0102 ${"-".repeat(30)}`);
+  assert.equal(muchos.ok, false, "más de 40 caracteres");
+  assert.ok(validarTelefono("+54 9 11 5555-0102").ok);
+  assert.ok(validarTelefono("+1 415 555 0100").ok);
 });
 
 // ── E1, E18: la misma marca ──────────────────────────────────────────────────
