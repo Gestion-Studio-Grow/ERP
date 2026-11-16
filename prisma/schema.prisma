@@ -268,6 +268,12 @@ model Tenant {
   proyectoEntregableVers    ProyectoEntregableVersion[]
   proyectoArchivos          ProyectoArchivo[]
   proyectoStands            ProyectoStand[]
+  tallerPiezas              TallerPieza[]
+  tallerDespieces           TallerDespiece[]
+  tallerValoresHora         TallerValorHora[]
+  tallerHoras               TallerHora[]
+  tallerPedidos             TallerPedido[]
+  tallerConsumos            TallerConsumo[]
   consultas                 Consulta[]
   consultaMensajes          ConsultaMensaje[]
   voucherLotes              VoucherLote[]
@@ -826,10 +832,15 @@ model Product {
   // Null = sin cargar (hoy: 21 % parejo y el inscripto no emite, iva-por-producto.ts).
   alicuotaIva Int?
 
+  // Taller de stands T6: piezas que salen de este producto y su consumo (FKs compuestas).
+  tallerPiezas   TallerPieza[]
+  tallerConsumos TallerConsumo[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([tenantId, codigo])
+  @@unique([id, tenantId]) // T6: destino de las FKs compuestas del taller (no cambia datos: "id" ya es único)
   @@index([tenantId])
 }
 
@@ -1979,11 +1990,13 @@ model Supplier {
   itemsDeProyecto  ProyectoItem[]
   cuotasDeProyecto ProyectoCuota[]
   fichaDeProyecto  ProyectoProveedorFicha?
+  tallerPedidos    TallerPedido[] // taller de stands T4: pedidos de materiales
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([tenantId, taxId]) // un CUIT único por tenant (NULLs no colisionan)
+  @@unique([id, tenantId]) // taller T4: destino de la FK compuesta del pedido de materiales
   @@index([tenantId])
 }
 
@@ -3561,6 +3574,10 @@ model Proyecto {
   anticipos           ProyectoAnticipo[]
   archivos            ProyectoArchivo[]
   stands              ProyectoStand[]
+  despiece            TallerDespiece[]
+  tallerHoras         TallerHora[]
+  tallerPedidos       TallerPedido[]
+  tallerConsumos      TallerConsumo[]
   consultas           Consulta[]
   entregables         ProyectoEntregable[]
   cuotas              ProyectoCuota[]
@@ -3697,6 +3714,7 @@ model ProyectoGasto {
   cargadoPor  String?
   asientos    CashMovement[]
   rendiciones ProyectoRendicion[]
+  tallerPedidos TallerPedido[] // taller T4: el pedido que lo generó (gastoId es único: a lo sumo uno)
   createdAt   DateTime            @default(now())
 
   @@unique([id, tenantId]) // Rendí: destino de FKs compuestas (id, tenantId)
@@ -3782,6 +3800,147 @@ model ProyectoStand {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
+  @@index([tenantId, proyectoId])
+}
+
+// TALLER DE STANDS (GSG-MIA-004 · T2). Catálogo de piezas con costo interno del taller: nunca viaja a la productora.
+// `productId` queda suelto hasta T6 (stock real): sin FK para no tocar el catálogo de productos.
+model TallerPieza {
+  id        String           @id @default(cuid())
+  tenant    Tenant           @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  nombre    String
+  unidad    String           @default("u")
+  costoUnit Float            @default(0)
+  horasStd  Float            @default(0)
+  // T6: producto del negocio del que sale el material. FK compuesta (productId, tenantId) → Product: nunca de otro
+  // negocio. RESTRICT y no SET NULL: SET NULL anularía también tenantId (Prisma no admite `SET NULL (productId)`);
+  // los productos se dan de baja lógica (`deletedAt`), así que borrar uno vinculado es un error que conviene ver.
+  product   Product?         @relation(fields: [productId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  productId String?
+  activa    Boolean          @default(true)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  despieces TallerDespiece[]
+  consumos  TallerConsumo[]
+
+  @@unique([id, tenantId]) // destino de la FK compuesta del despiece: una pieza no cruza de negocio
+  @@index([tenantId, activa])
+}
+
+// Despiece de un stand (= Proyecto): cuántas de cada pieza, con el costo congelado al cargarlas.
+model TallerDespiece {
+  id            String      @id @default(cuid())
+  tenant        Tenant      @relation(fields: [tenantId], references: [id])
+  tenantId      String
+  // FKs compuestas (id, tenantId): la base rechaza un despiece con proyecto o pieza de otro negocio.
+  proyecto      Proyecto    @relation(fields: [proyectoId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  proyectoId    String
+  pieza         TallerPieza @relation(fields: [piezaId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  piezaId       String
+  cantidad      Float       @default(1)
+  costoUnitSnap Float       @default(0)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@unique([proyectoId, piezaId])
+  @@index([tenantId, proyectoId])
+}
+
+// TALLER DE STANDS (GSG-MIA-004 · T3). Valor hora POR PERSONA (decisión del dueño), con vigencia: el vigente en
+// una fecha es el último con `vigenteDesde` <= esa fecha. FK compuesta (personaId, tenantId): la base no deja
+// apuntar a una persona de otro negocio. ProyectoPersona NO lleva columnas nuevas (modelo compartido con MIA).
+model TallerValorHora {
+  id           String          @id @default(cuid())
+  tenant       Tenant          @relation(fields: [tenantId], references: [id])
+  tenantId     String
+  persona      ProyectoPersona @relation(fields: [personaId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  personaId    String
+  valorHora    Float
+  vigenteDesde DateTime
+  createdAt    DateTime        @default(now())
+
+  @@unique([tenantId, personaId, vigenteDesde])
+  @@index([tenantId, personaId])
+}
+
+// Horas cargadas a un stand (= Proyecto), con el valor hora congelado al cargarlas (`valorHoraSnap`).
+model TallerHora {
+  id            String          @id @default(cuid())
+  tenant        Tenant          @relation(fields: [tenantId], references: [id])
+  tenantId      String
+  proyecto      Proyecto        @relation(fields: [proyectoId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  proyectoId    String
+  persona       ProyectoPersona @relation(fields: [personaId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  personaId     String
+  fecha         DateTime
+  horas         Float
+  valorHoraSnap Float
+  nota          String?
+  /// Token del formulario: el doble clic manda el mismo y la base deja una sola carga.
+  envioId       String?
+  createdAt     DateTime        @default(now())
+
+  @@unique([tenantId, envioId])
+  @@index([tenantId, proyectoId])
+  @@index([tenantId, personaId])
+}
+
+/// Taller de stands T4: pedido de materiales a un proveedor para un stand (= Proyecto). PEDIDO → RECIBIDO | ANULADO.
+/// Al recibirlo se crea UN `ProyectoGasto` rubro «Materiales» (impago) y queda en `gastoId` (único: un gasto por pedido).
+model TallerPedido {
+  id              String         @id @default(cuid())
+  tenant          Tenant         @relation(fields: [tenantId], references: [id])
+  tenantId        String
+  // FKs compuestas (x, tenantId): la base rechaza proyecto, proveedor o gasto de otro negocio.
+  proyecto        Proyecto       @relation(fields: [proyectoId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  proyectoId      String
+  supplier        Supplier?      @relation(fields: [supplierId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  supplierId      String?
+  proveedorNombre String
+  descripcion     String
+  estado          String         @default("PEDIDO") // PEDIDO · RECIBIDO · ANULADO
+  total           Float // neto, sin IVA
+  iva             Float          @default(0)
+  pedidoEl        DateTime       @default(now())
+  recibidoEl      DateTime?
+  gasto           ProyectoGasto? @relation(fields: [gastoId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  gastoId         String?        @unique
+  anuladoEl       DateTime?
+  cargadoPor      String?
+  /// Token del formulario: el doble clic manda el mismo y la base deja un solo pedido.
+  envioId         String?
+  createdAt       DateTime       @default(now())
+
+  @@unique([id, tenantId])
+  @@unique([tenantId, envioId])
+  @@index([tenantId, proyectoId])
+}
+
+/// Taller de stands T6: material del despiece descontado del stock real. Una fila por proyecto y pieza con la cantidad
+/// NETA descontada (0 = devuelta); el movimiento va por el ledger (`recordMovement`) y `movementId` es el último (rastro
+/// débil, sin FK, como los del ledger). `productId` es el producto del que salió: la devolución vuelve a ése.
+model TallerConsumo {
+  id         String      @id @default(cuid())
+  tenant     Tenant      @relation(fields: [tenantId], references: [id])
+  tenantId   String
+  proyecto   Proyecto    @relation(fields: [proyectoId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  proyectoId String
+  pieza      TallerPieza @relation(fields: [piezaId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  piezaId    String
+  product    Product     @relation(fields: [productId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  productId  String
+  cantidad   Float       @default(0)
+  /// Costo de lo descontado NETO (suma de cantidad × costo estampado en cada CONSUMO; 0 = devuelto). La devolución
+  /// vuelve a este costo (REPOSICION con unitCost = costoTotal / cantidad) para que descontar y devolver neteen 0.
+  costoTotal Float       @default(0)
+  /// Cuánto de `cantidad` salió CON costo estampado (lo que vuelve a costoTotal / cantidadConCosto; el resto, sin costo).
+  cantidadConCosto Float @default(0)
+  movementId String
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  @@unique([proyectoId, piezaId])
   @@index([tenantId, proyectoId])
 }
 
@@ -3925,6 +4084,9 @@ model ProyectoPersona {
   liquidaciones ProyectoLiquidacion[]
   rendiciones   ProyectoRendicion[]
   anticipos     ProyectoAnticipo[]
+  // Taller de stands T3: relaciones virtuales (sin columnas en esta tabla, que es compartida con MIA).
+  tallerValoresHora TallerValorHora[]
+  tallerHoras       TallerHora[]
   createdAt     DateTime              @default(now())
 
   @@unique([tenantId, userId])

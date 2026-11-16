@@ -25,6 +25,7 @@ import { precioConMargen } from "../src/lib/proyectos/core";
 import { marcaDeGastoProyecto } from "../src/lib/proyectos/marcas";
 import { cobroDeCuota, sembrarGestion } from "./seed-mia-gestion";
 import { planDeCuotas } from "../src/lib/proyectos/gestion-core";
+import { faltaLaTabla } from "../src/lib/taller-stands/core";
 
 const guarda = baseLocalParaSeed(process.env.DATABASE_URL);
 if (!guarda.ok) {
@@ -68,6 +69,16 @@ async function main() {
   await prisma.cashMovement.deleteMany({ where: { tenantId, proyectoPagoId: { not: null } } });
   await prisma.cashMovement.deleteMany({ where: { tenantId, proyectoGastoId: { not: null } } });
   await prisma.proyectoPago.deleteMany({ where: { tenantId } });
+  // Un pedido del taller recibido apunta a su gasto (FK RESTRICT): se borra antes. FORCE RLS: parado en el negocio.
+  // Sin la migración del taller la tabla no existe y no hay nada que borrar.
+  await prisma
+    .$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`;
+      await tx.tallerPedido.deleteMany({ where: { tenantId } });
+    })
+    .catch((e: unknown) => {
+      if (!faltaLaTabla(e)) throw e;
+    });
   await prisma.proyectoGasto.deleteMany({ where: { tenantId } });
   await prisma.proyecto.deleteMany({ where: { tenantId } });
 
