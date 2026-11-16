@@ -65,7 +65,7 @@ export function AccionesHoy({ acciones, href }: { acciones: readonly AccionHoy[]
               );
             case "cerrar_tarea":
               return (
-                <Button key={i} size="sm" variant="outline" disabled={pendiente} onClick={() => correr(() => cerrarTarea(a.tareaId, { estado: "HECHA" }), { listo: "Tarea cerrada." })}>
+                <Button key={i} size="sm" variant="outline" disabled={pendiente} onClick={() => (!a.aviso || window.confirm(a.aviso)) && correr(() => cerrarTarea(a.tareaId, { estado: "HECHA" }), { listo: "Tarea cerrada." })}>
                   Marcar hecha
                 </Button>
               );

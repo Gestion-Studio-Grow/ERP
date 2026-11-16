@@ -20,7 +20,7 @@ import { randomBytes } from "node:crypto";
 import { Prisma } from "@/generated/prisma/client";
 import { tenantTransaction } from "@/lib/rls";
 import { isPrismaError } from "@/lib/prisma-errors";
-import { claveMarca } from "@/lib/eventos-sponsors/core";
+import { claveMarca, ROLES as ROLES_EN_EVENTO, VERIFICACIONES } from "@/lib/eventos-sponsors/core";
 import { VARA } from "./vara";
 import { PRONOSTICO } from "./pronostico";
 import {
@@ -64,6 +64,13 @@ import {
   validarPase,
   validarPaseBorrador,
   validarProximoPaso,
+  urlWeb,
+  etiquetaTarea,
+  ETIQUETA_PARA,
+  ETIQUETA_DESTINO,
+  ETIQUETA_PUESTO_CRM,
+  ETIQUETA_PAPEL,
+  MOTIVOS,
   type CamposBrief,
   type Canal,
   type DatosComerciales,
@@ -147,6 +154,9 @@ async function registrarRechazo(ctx: Ctx, e: RechazoCrm): Promise<void> {
     { tenantId: ctx.tenantId },
   );
 }
+
+/** El motivo del catálogo en criollo (el valor interno sólo si no está en el catálogo). */
+const etiquetaMotivo = (m: string): string => (MOTIVOS as Record<string, string>)[m] ?? m;
 
 const no = (motivo: string, oportunidadId: string | null = null): never => {
   throw new RechazoCrm(motivo, oportunidadId);
@@ -308,11 +318,13 @@ export function datosLimpios(x: unknown): DatosComerciales {
 }
 
 /** El brief: lo que ya sabe la oportunidad (marca, evento, datos) + lo que se escribió aparte (objetivo). */
-function briefDe(o: { datos: unknown }, marca: string | null, evento: string | null, guardado: unknown): CamposBrief {
+function briefDe(o: { datos: unknown; moneda?: string | null }, marca: string | null, evento: string | null, guardado: unknown): CamposBrief {
   const d = datosLimpios(o.datos);
   const g = (guardado && typeof guardado === "object" ? guardado : {}) as Record<string, unknown>;
+  // GSG-CRM-011: en plata, como se lee («$ 3.000.000 a $ 5.000.000»), en la moneda de la oportunidad.
+  const plata = new Intl.NumberFormat("es-AR", { style: "currency", currency: o.moneda === "USD" ? "USD" : "ARS", maximumFractionDigits: 0 });
   const presupuesto =
-    d.presupuestoMin != null || d.presupuestoMax != null ? [d.presupuestoMin, d.presupuestoMax].filter((x) => x != null).join(" a ") : null;
+    d.presupuestoMin != null || d.presupuestoMax != null ? [d.presupuestoMin, d.presupuestoMax].filter((x): x is number => x != null).map((x) => plata.format(x)).join(" a ") : null;
   return {
     marca,
     evento,
@@ -410,7 +422,7 @@ export async function guardarMiembro(ctx: Ctx, d: DatosMiembro, opts: { esDuenio
     // Nadie se queda afuera: el CRM no queda sin una persona activa en Dirección (sacarse a uno mismo incluido).
     const quedan = await tx.miembroCrmComercial.count({ where: { tenantId: ctx.tenantId, rol: "DIRECCION", activo: true } });
     if (quedan === 0) no("El CRM no puede quedar sin nadie en Dirección: primero sumá a otra persona en Dirección.");
-    await registrar(tx, ctx, m, { tipo: "MIEMBRO", texto: `Alta o cambio de miembro: ${d.rol}${puesto ? ` · ${puesto}` : ""}${datos.activo ? "" : " (inactivo)"}.` });
+    await registrar(tx, ctx, m, { tipo: "MIEMBRO", texto: `Alta o cambio de miembro: ${d.rol === "DIRECCION" ? "Dirección" : d.rol === "COMERCIAL" ? "Comercial" : "Puesto del equipo"}${puesto ? ` · ${ETIQUETA_PUESTO_CRM[puesto] ?? puesto}` : ""}${datos.activo ? "" : " (dado de baja)"}.` });
     return { ok: true, id: fila.id };
   });
 }
@@ -433,7 +445,11 @@ async function resolverMarca(tx: Tx, ctx: Ctx, p: MarcaPedida): Promise<{ id: st
     if (!m) no("Esa marca no existe.");
     return m as { id: string; nombre: string; rubro: string | null };
   }
-  const dominio = dominioDe(p.dominio ?? p.web ?? null);
+  // GSG-CRM-011: «bodega.com.ar» se guarda como «https://bodega.com.ar» (el CHECK de la base pide el protocolo);
+  // lo que no es una web se rechaza con el motivo, en vez de romper en Postgres.
+  const web = p.web?.trim() ? urlWeb(p.web) : null;
+  if (p.web?.trim() && !web) no("La web de la marca no es una dirección válida: escribila como marca.com.ar o https://marca.com.ar (o dejala vacía).");
+  const dominio = dominioDe(p.dominio ?? web ?? null);
   const cuit = p.cuit ? cuitValido(p.cuit) : null;
   if (p.cuit && !cuit) no("El CUIT no es válido (revisá los 11 números).");
   const porDominio = dominio ? await tx.marcaRelevada.findFirst({ where: { tenantId: ctx.tenantId, dominio }, select: SEL }) : null;
@@ -452,7 +468,7 @@ async function resolverMarca(tx: Tx, ctx: Ctx, p: MarcaPedida): Promise<{ id: st
       m = porNombre;
     } else {
       const creada = await tx.marcaRelevada.create({
-        data: { tenantId: ctx.tenantId, clave: claveMarca(nombre as string), nombre: nombre as string, web: txt(p.web, 300), dominio, cuit, rubro: txt(p.rubro, 120) },
+        data: { tenantId: ctx.tenantId, clave: claveMarca(nombre as string), nombre: nombre as string, web: web ? web.slice(0, 300) : null, dominio, cuit, rubro: txt(p.rubro, 120) },
         select: SEL,
       });
       return creada;
@@ -582,6 +598,17 @@ export async function proponerOportunidad(ctx: Ctx, n: NuevaOportunidad, ahora =
       });
       if (instruccion.nota) await registrar(tx, ctx, m, { oportunidadId: op.id, tipo: "INSTRUCCION_ANOTADA", texto: instruccion.nota });
       if (aviso) await registrar(tx, ctx, m, { oportunidadId: op.id, tipo: "AVISO_EXCLUSIVIDAD", texto: aviso });
+      if (tipo === "PROSPECTO" && m.rol !== "PUESTO") {
+        // GSG-CRM-011: el prospecto que carga una persona deja su tarea al Verificador (como la carga de prueba):
+        // sin ella ningún puesto lo ve y queda trancado en «Detectada». Misma clave que usa la carga de prueba,
+        // así el reintento no la duplica. Los puestos que proponen dejan la tarea por su lado (carga, comandos).
+        const clave = n.idempotencia ? `${n.idempotencia}-primera` : null;
+        await tx.tareaComercial.create({
+          data: { tenantId: ctx.tenantId, oportunidadId: op.id, para: "verificador", tipo: "VERIFICAR", venceEl: n.proximoPasoEl, creadaPor: ctx.userId, idempotencia: clave },
+          select: { id: true },
+        });
+        await registrar(tx, ctx, m, { oportunidadId: op.id, tipo: "TAREA", texto: `Nueva tarea «${etiquetaTarea("VERIFICAR")}» para ${ETIQUETA_PARA("verificador")}.` });
+      }
       return { ok: true, id: op.id, aviso };
     });
   try {
@@ -681,7 +708,7 @@ export async function actualizarDatos(ctx: Ctx, id: string, d: PedidoDeDatos, ah
     const evento = o.eventoId ? await tx.eventoRelevado.findFirst({ where: { id: o.eventoId, tenantId: ctx.tenantId }, select: { nombre: true } }) : null;
     const previo = await tx.briefComercial.findFirst({ where: { tenantId: ctx.tenantId, oportunidadId: o.id }, select: { campos: true } });
     const guardado = { ...((previo?.campos as Record<string, unknown> | null) ?? {}), ...(d.objetivo !== undefined ? { objetivo: txt(d.objetivo, 2000) } : {}) };
-    const brief = briefDe({ datos }, marca?.nombre ?? null, evento?.nombre ?? null, guardado);
+    const brief = briefDe({ datos, moneda: (data.moneda as string | undefined) ?? o.moneda }, marca?.nombre ?? null, evento?.nombre ?? null, guardado);
     await tx.briefComercial.upsert({
       where: { oportunidadId_tenantId: { oportunidadId: o.id, tenantId: ctx.tenantId } },
       create: { tenantId: ctx.tenantId, oportunidadId: o.id, campos: guardado as Prisma.InputJsonValue, faltantes: faltantesDelBrief(brief) },
@@ -745,6 +772,13 @@ async function aplicar(tx: Tx, ctx: Ctx, m: Miembro | null, o: FilaOp, destino: 
     data.proyectoId = await crearProyecto(tx, ctx, o, marcaNombre, brief, ahora);
   }
   await escribirOp(tx, ctx, o, data);
+  if (o.etapa === "DETECTADA") {
+    // GSG-CRM-011: salió de «Detectada» → la verificación que nadie tomó ya no hace falta (no ensucia la cola).
+    await tx.tareaComercial.updateMany({
+      where: { tenantId: ctx.tenantId, oportunidadId: o.id, tipo: "VERIFICAR", estado: "EN_COLA" },
+      data: { estado: "DESCARTADA", cerradaEl: ahora, notaCierre: `Ya no hace falta: pasó a «${ETIQUETA_ETAPA[destino]}».` },
+    });
+  }
   if (destino === "SIN_CONTACTO") {
     // §2: SIN_CONTACTO deja la tarea «cargar a quién escribirle» en la cola de personas (un puesto no carga
     // contactos). Una por oportunidad y entrada a la etapa: el reintento no la duplica.
@@ -752,14 +786,14 @@ async function aplicar(tx: Tx, ctx: Ctx, m: Miembro | null, o: FilaOp, destino: 
     const ya = await tx.tareaComercial.findFirst({ where: { tenantId: ctx.tenantId, idempotencia: clave }, select: { id: true } });
     if (!ya) {
       await tx.tareaComercial.create({ data: { tenantId: ctx.tenantId, oportunidadId: o.id, para: "PERSONA", tipo: "CARGAR_CONTACTO", venceEl: ev.proximoPasoEl ?? o.proximoPasoEl ?? null, creadaPor: ctx.userId, idempotencia: clave }, select: { id: true } });
-      await registrar(tx, ctx, m, { oportunidadId: o.id, tipo: "TAREA", texto: "Sin contacto: nueva tarea CARGAR_CONTACTO para una persona (cargar a quién escribirle)." });
+      await registrar(tx, ctx, m, { oportunidadId: o.id, tipo: "TAREA", texto: "Sin contacto: nueva tarea «Cargar un contacto» para una persona (cargar a quién escribirle)." });
     }
   }
   await registrar(tx, ctx, m, {
     oportunidadId: o.id,
     tipo: "PASE",
     // Quién aprobó el pase y cuándo = esta fila (usuarioId, createdAt); quién lo propuso, la PASE_PROPUESTO anterior.
-    texto: `Pasó de «${ETIQUETA_ETAPA[o.etapa as Etapa]}» a «${ETIQUETA_ETAPA[destino]}».${data.motivo ? ` Motivo: ${data.motivo}.` : ""}${ev.desdeProyecto ? " Lo puso el cierre del proyecto." : ""}${aprobada ? " Pase propuesto, aprobado." : ""}`,
+    texto: `Pasó de «${ETIQUETA_ETAPA[o.etapa as Etapa]}» a «${ETIQUETA_ETAPA[destino]}».${data.motivo ? ` Motivo: ${etiquetaMotivo(String(data.motivo))}.` : ""}${ev.desdeProyecto ? " Lo puso el cierre del proyecto." : ""}${aprobada ? " Pase propuesto, aprobado." : ""}`,
     fuenteUrl: ev.fuenteUrl,
     costoUsd: ev.costoUsd,
   });
@@ -823,7 +857,7 @@ export async function proponerPase(ctx: Ctx, id: string, destino: string, ev: Pe
     if (!v.ok) no(v.motivo, o.id);
     const datos = { motivo: ev.motivo ?? null, nota: ev.nota ?? null, despertarEl: ev.despertarEl ?? null, comercialUserId: ev.comercialUserId ?? null };
     await escribirOp(tx, ctx, o, { pasePropuesto: destino, pasePropuestoPor: ctx.userId, pasePropuestoEl: ahora, pasePropuestoDatos: datos as Prisma.InputJsonValue });
-    await registrar(tx, ctx, miembro, { oportunidadId: o.id, tipo: "PASE_PROPUESTO", texto: `Propone pasar a «${ETIQUETA_ETAPA[destino as Etapa]}»${ev.motivo ? ` (motivo ${ev.motivo})` : ""}. Lo decide Dirección.`, fuenteUrl: ev.fuenteUrl, costoUsd: ev.costoUsd });
+    await registrar(tx, ctx, miembro, { oportunidadId: o.id, tipo: "PASE_PROPUESTO", texto: `Propone pasar a «${ETIQUETA_ETAPA[destino as Etapa]}»${ev.motivo ? ` (motivo: ${etiquetaMotivo(ev.motivo)})` : ""}. Lo decide Dirección.`, fuenteUrl: ev.fuenteUrl, costoUsd: ev.costoUsd });
     return { ok: true };
   });
 }
@@ -870,8 +904,8 @@ export async function confirmarDestino(ctx: Ctx, id: string, destino: string, ah
     if (destino !== "AGENCIA" && destino !== "TALLER") no("El destino tiene que ser Agencia o Taller.", o.id);
     if (esTerminal(o.etapa as Etapa)) no("La oportunidad está cerrada.", o.id);
     await escribirOp(tx, ctx, o, { destino, destinoConfirmado: true });
-    const corrige = o.destino && o.destino !== destino ? ` (corrige la propuesta: ${o.destino})` : "";
-    await registrar(tx, ctx, miembro, { oportunidadId: o.id, tipo: "DESTINO", texto: `Dirección confirmó el destino ${destino}${corrige}.` });
+    const corrige = o.destino && o.destino !== destino ? ` (corrige la propuesta: ${ETIQUETA_DESTINO[o.destino] ?? o.destino})` : "";
+    await registrar(tx, ctx, miembro, { oportunidadId: o.id, tipo: "DESTINO", texto: `Dirección confirmó el destino ${ETIQUETA_DESTINO[destino] ?? destino}${corrige}.` });
     return { ok: true };
   });
 }
@@ -898,7 +932,7 @@ export async function registrarPedidoDeDatos(ctx: Ctx, id: string, ahora = new D
       ...(prop && !o.pasePropuesto ? { pasePropuesto: prop.destino, pasePropuestoPor: ctx.userId, pasePropuestoEl: ahora, pasePropuestoDatos: { motivo: prop.motivo, nota: prop.explicacion } } : {}),
     });
     await registrar(tx, ctx, miembro, { oportunidadId: o.id, tipo: "PEDIDO_DE_DATOS", texto: `Se pidieron los datos que faltan (pedido ${pedidos}).`, idempotencia: clave });
-    if (prop) await registrar(tx, ctx, miembro, { oportunidadId: o.id, tipo: "PASE_PROPUESTO", texto: `${prop.explicacion} Se propone «${ETIQUETA_ETAPA[prop.destino]}» (${prop.motivo}); decide una persona.` });
+    if (prop) await registrar(tx, ctx, miembro, { oportunidadId: o.id, tipo: "PASE_PROPUESTO", texto: `${prop.explicacion} Se propone «${ETIQUETA_ETAPA[prop.destino]}» (${etiquetaMotivo(prop.motivo)}); decide una persona.` });
     return { ok: true, propuesta: prop?.destino ?? null };
   });
   try {
@@ -935,6 +969,60 @@ export async function comprobarIdentidad(ctx: Ctx, id: string, d: { emailDeQuien
     }
     await escribirOp(tx, ctx, o, { identidadComprobada: true });
     await registrar(tx, ctx, miembro, { oportunidadId: o.id, tipo: "IDENTIDAD", texto: porDominio ? "Identidad comprobada: el dominio del mail coincide con la marca." : "Identidad confirmada por una persona." });
+    return { ok: true };
+  });
+}
+
+// ── Verificación de la fuente (evidencia del pase a VERIFICADA, diseño §2) ──
+
+export interface PedidoDeVerificacion {
+  /** «marca»: la marca EN el evento (EventoMarca). «evento»: el evento relevado. */
+  que: string;
+  /** «confirmado», «en duda» o «falla». */
+  verificacion: string;
+  urlFuente: string;
+  /** Rol de la marca en el evento (sólo la primera vez que se registra). Sin él: el que ya tenía, o «EXPOSITOR». */
+  rol?: string | null;
+}
+
+/**
+ * GSG-CRM-011: marcar la marca en el evento o el evento como «confirmado» (o «en duda», «falla») con la URL de
+ * la fuente. Permiso «verificar» sobre ESA oportunidad (Verificador con la tarea, Dirección, el comercial que la
+ * tiene). Los ids de marca y evento salen de la oportunidad, nunca del pedido. La URL es dato: se guarda, no se
+ * abre ni se sigue (E10). Va con su fila en la línea de tiempo, en la misma transacción.
+ */
+export async function verificarFuente(ctx: Ctx, id: string, d: PedidoDeVerificacion, ahora = new Date()): Promise<Res> {
+  return correr(ctx, async (tx) => {
+    const { o, miembro } = await sobre(tx, ctx, id, "verificar", ahora);
+    if (esTerminal(o.etapa as Etapa)) no("La oportunidad está cerrada.", o.id);
+    if (d.que !== "marca" && d.que !== "evento") no("Decí si verificás la marca en el evento o el evento.", o.id);
+    if (!(VERIFICACIONES as readonly string[]).includes(d.verificacion) || d.verificacion === "sin verificar") {
+      no("La verificación tiene que ser «confirmado», «en duda» o «falla».", o.id);
+    }
+    const url = urlWeb(d.urlFuente);
+    if (!url) no("Falta la URL de la fuente (dónde se ve): escribila como evento.com.ar/sponsors o con https://.", o.id);
+    if (!o.eventoId) no("Esta oportunidad no tiene evento: la marca se verifica en el evento donde se la vio.", o.id);
+    const fuente = (url as string).slice(0, 1000);
+    if (d.que === "evento") {
+      await tx.eventoRelevado.updateMany({ where: { id: o.eventoId as string, tenantId: ctx.tenantId }, data: { verificacion: d.verificacion, urlFuente: fuente } });
+    } else {
+      if (!o.marcaId) no("Esta oportunidad no tiene marca para verificar.", o.id);
+      if (d.rol != null && !(ROLES_EN_EVENTO as readonly string[]).includes(d.rol)) no("Ese rol de la marca en el evento no existe.", o.id);
+      const donde = { tenantId: ctx.tenantId, eventoId: o.eventoId as string, marcaId: o.marcaId as string };
+      const ya = await tx.eventoMarca.findMany({ where: donde, orderBy: [{ verificacion: "asc" }, { createdAt: "asc" }], select: { id: true, rol: true } });
+      const fila = (d.rol ? ya.find((x) => x.rol === d.rol) : ya[0]) ?? null;
+      if (fila) {
+        await tx.eventoMarca.updateMany({ where: { id: fila.id, tenantId: ctx.tenantId }, data: { verificacion: d.verificacion, urlFuente: fuente } });
+      } else {
+        await tx.eventoMarca.create({ data: { ...donde, rol: d.rol ?? "EXPOSITOR", urlFuente: fuente, verificacion: d.verificacion }, select: { id: true } });
+      }
+    }
+    await registrar(tx, ctx, miembro, {
+      oportunidadId: o.id,
+      tipo: "VERIFICACION",
+      texto: `${d.que === "marca" ? "La marca en el evento" : "El evento"} quedó como «${d.verificacion}», con la fuente.`,
+      fuenteUrl: fuente,
+    });
     return { ok: true };
   });
 }
@@ -1036,7 +1124,7 @@ export async function vincularContacto(ctx: Ctx, v: VinculoContacto, ahora = new
       const repetido = await tx.oportunidadContacto.findFirst({ where: { tenantId: ctx.tenantId, oportunidadId: o.id, contactoId: fila.id, papel }, select: { id: true } });
       if (repetido) return { ok: true, id: repetido.id, repetido: true };
       const nuevo = await tx.oportunidadContacto.create({ data: { tenantId: ctx.tenantId, oportunidadId: o.id, contactoId: fila.id, papel, vinculadoPor: ctx.userId }, select: { id: true } });
-      await registrar(tx, ctx, miembro, { oportunidadId: o.id, tipo: "CONTACTO_PAPEL", texto: `Un contacto quedó con el papel «${papel}».` });
+      await registrar(tx, ctx, miembro, { oportunidadId: o.id, tipo: "CONTACTO_PAPEL", texto: `Un contacto quedó con el papel «${ETIQUETA_PAPEL[papel]}».` });
       return { ok: true, id: nuevo.id };
     });
   try {
@@ -1053,7 +1141,7 @@ export async function desvincularContacto(ctx: Ctx, v: VinculoContacto, ahora = 
     const { o, miembro } = await sobre(tx, ctx, v.oportunidadId, "crear_contacto", ahora);
     if (!esPapel(v.papel)) no("El papel tiene que ser DECIDE, PIDE o PAGA.", o.id);
     const r = await tx.oportunidadContacto.deleteMany({ where: { tenantId: ctx.tenantId, oportunidadId: o.id, contactoId: v.contactoId, papel: v.papel } });
-    if (r.count) await registrar(tx, ctx, miembro, { oportunidadId: o.id, tipo: "CONTACTO_PAPEL", texto: `Un contacto dejó el papel «${v.papel}».` });
+    if (r.count) await registrar(tx, ctx, miembro, { oportunidadId: o.id, tipo: "CONTACTO_PAPEL", texto: `Un contacto dejó el papel «${ETIQUETA_PAPEL[v.papel as Papel] ?? v.papel}».` });
     return { ok: true, quitados: r.count };
   });
 }
@@ -1209,7 +1297,7 @@ async function cambiarBorrador(
           seguimientosSinRespuesta: seguimientos,
           ...(prop && !o.pasePropuesto ? { pasePropuesto: prop.destino, pasePropuestoPor: ctx.userId, pasePropuestoEl: ahora, pasePropuestoDatos: { motivo: prop.motivo, nota: prop.explicacion } } : {}),
         });
-        if (prop) await registrar(tx, ctx, miembro, { oportunidadId: o.id, tipo: "PASE_PROPUESTO", texto: `${prop.explicacion} Se propone «${ETIQUETA_ETAPA[prop.destino]}» (${prop.motivo}); decide una persona.` });
+        if (prop) await registrar(tx, ctx, miembro, { oportunidadId: o.id, tipo: "PASE_PROPUESTO", texto: `${prop.explicacion} Se propone «${ETIQUETA_ETAPA[prop.destino]}» (${etiquetaMotivo(prop.motivo)}); decide una persona.` });
       }
       return { ok: true, link: fila.canal === "WHATSAPP" ? linkWhatsappSinNumero(fila.cuerpo) : null };
     }
@@ -1239,7 +1327,7 @@ export async function crearTarea(ctx: Ctx, t: { oportunidadId: string; para: str
       data: { tenantId: ctx.tenantId, oportunidadId: o.id, para: t.para, tipo: t.tipo, venceEl: t.venceEl ?? null, creadaPor: ctx.userId, idempotencia: t.idempotencia ?? null },
       select: { id: true },
     });
-    await registrar(tx, ctx, miembro, { oportunidadId: o.id, tipo: "TAREA", texto: `Nueva tarea ${t.tipo} para ${t.para}.` });
+    await registrar(tx, ctx, miembro, { oportunidadId: o.id, tipo: "TAREA", texto: `Nueva tarea «${etiquetaTarea(t.tipo)}» para ${ETIQUETA_PARA(t.para)}.` });
     return { ok: true, id: fila.id };
   });
 }
@@ -1290,7 +1378,7 @@ export async function tomarTarea(ctx: Ctx, d: { tareaId?: string | null } = {}, 
       const o = await cargarOportunidad(tx, ctx, tomada.oportunidadId);
       await guardia(tx, ctx, "tomar_tarea", { oportunidad: await contextoDe(tx, ctx, o), tareaPara: tomada.para }, ahora, 0, o.id);
     }
-    await registrar(tx, ctx, yo, { oportunidadId: tomada.oportunidadId, tipo: "TAREA_TOMADA", texto: `Tomó la tarea ${tomada.tipo}.` });
+    await registrar(tx, ctx, yo, { oportunidadId: tomada.oportunidadId, tipo: "TAREA_TOMADA", texto: `Tomó la tarea «${etiquetaTarea(tomada.tipo)}».` });
     return { ok: true, tarea: tomada };
   });
 }
@@ -1309,7 +1397,7 @@ export async function cerrarTarea(ctx: Ctx, tareaId: string, d: { estado: string
       data: { estado: d.estado, cerradaEl: ahora, notaCierre: txt(d.nota, 1000) },
     });
     if (r.count !== 1) no("Esa tarea no está en curso a tu nombre.", fila.oportunidadId);
-    await registrar(tx, ctx, m, { oportunidadId: fila.oportunidadId, tipo: "TAREA_CERRADA", texto: `Cerró la tarea ${fila.tipo} como ${d.estado}.${d.nota ? ` ${txt(d.nota, 500)}` : ""}` });
+    await registrar(tx, ctx, m, { oportunidadId: fila.oportunidadId, tipo: "TAREA_CERRADA", texto: `Cerró la tarea «${etiquetaTarea(fila.tipo)}» como ${d.estado === "HECHA" ? "hecha" : "descartada"}.${d.nota ? ` ${txt(d.nota, 500)}` : ""}` });
     return { ok: true };
   });
 }
@@ -1364,7 +1452,7 @@ export async function cerrarPedido(ctx: Ctx, pedidoId: string, d: { estado: stri
       data: { estado: d.estado, cerradoEl: ahora, notaCierre: txt(d.nota, 1000) },
     });
     if (r.count !== 1) no("Ese pedido no está en curso a tu nombre.");
-    await registrar(tx, ctx, m, { tipo: "PEDIDO_CERRADO", texto: `Cerró un pedido al equipo como ${d.estado}.` });
+    await registrar(tx, ctx, m, { tipo: "PEDIDO_CERRADO", texto: `Cerró un pedido al equipo como ${d.estado === "HECHO" ? "hecho" : d.estado.toLowerCase()}.` });
     return { ok: true };
   });
 }
@@ -1396,7 +1484,7 @@ export async function ponerAlDia(ctx: Ctx, ahora = new Date()): Promise<Res<{ ta
           })
         ).count
       : 0;
-    for (const o of nuevas) await registrar(tx, ctx, m, { oportunidadId: o.id, tipo: "TAREA", texto: "El próximo paso venció: nueva tarea SEGUIMIENTO para seguidor." });
+    for (const o of nuevas) await registrar(tx, ctx, m, { oportunidadId: o.id, tipo: "TAREA", texto: "El próximo paso venció: nueva tarea «Seguimiento» para el Seguidor." });
 
     let despertadas = 0;
     const dormidas = await tx.oportunidad.findMany({ where: { tenantId: ctx.tenantId, etapa: "DORMIDA", despertarEl: { lte: ahora } }, select: SEL_OP });
@@ -1542,16 +1630,22 @@ export async function ficha(ctx: Ctx, id: string, ahora = new Date()) {
   return correr(ctx, async (tx) => {
     const { o } = await sobre(tx, ctx, id, "ver_oportunidad", ahora);
     const { vista, brief } = await vistaDe(tx, ctx, o);
-    const [actividades, borradores, vinculos] = await Promise.all([
+    const [actividades, borradores, vinculos, principal] = await Promise.all([
       tx.actividadComercial.findMany({ where: { tenantId: ctx.tenantId, oportunidadId: o.id }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], take: 500, select: { id: true, usuarioId: true, puesto: true, tipo: true, texto: true, fuenteUrl: true, createdAt: true } }),
       tx.borradorMensaje.findMany({ where: { tenantId: ctx.tenantId, oportunidadId: o.id }, orderBy: { createdAt: "asc" }, select: { id: true, canal: true, asunto: true, cuerpo: true, estado: true, motivoRechazo: true, version: true } }),
       tx.oportunidadContacto.findMany({ where: { tenantId: ctx.tenantId, oportunidadId: o.id }, ...SEL_VINCULOS }),
+      o.contactoId ? tx.contactoComercial.findFirst({ where: { id: o.contactoId, tenantId: ctx.tenantId }, select: { id: true, nombre: true, cargo: true, suprimidoEl: true } }) : null,
     ]);
+    // GSG-CRM-011: el contacto principal sin papel también es de la ficha (se le escribe y se le da un papel).
+    const contactos = contactosConPapel(vinculos);
+    if (principal && !contactos.some((c) => c.contactoId === principal.id)) {
+      contactos.unshift({ contactoId: principal.id, nombre: principal.nombre, cargo: principal.cargo, papeles: [], suprimido: !!principal.suprimidoEl });
+    }
     const p = puntuar(vista.datos, ahora, VARA);
     return {
       ok: true as const,
       oportunidad: { ...o, monto: o.monto == null ? null : Number(o.monto), ...pronosticoDe(o, ahora) },
-      contactos: contactosConPapel(vinculos),
+      contactos,
       brief,
       puntaje: p,
       actividades,

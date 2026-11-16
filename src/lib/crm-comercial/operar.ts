@@ -86,6 +86,10 @@ export const COMANDOS: Record<string, { ayuda: string; correr: Comando }> = {
     ayuda: "{id, emailDeQuienEscribe?, confirmadaPorPersona?}",
     correr: (ctx, d) => repo.comprobarIdentidad(ctx, str(d.id), { emailDeQuienEscribe: strOpc(d.emailDeQuienEscribe), confirmadaPorPersona: d.confirmadaPorPersona === true }),
   },
+  "verificar-fuente": {
+    ayuda: "{id, que: marca|evento, verificacion: confirmado|en duda|falla, urlFuente, rol?}",
+    correr: (ctx, d) => repo.verificarFuente(ctx, str(d.id), { que: str(d.que), verificacion: str(d.verificacion), urlFuente: str(d.urlFuente), rol: strOpc(d.rol) }),
+  },
   "crear-contacto": { ayuda: "{oportunidadId?, marcaId?, nombre, email?, telefono?, cargo?, deConsultaEntrante?, papel?}", correr: (ctx, d) => repo.crearContacto(ctx, d as unknown as repo.NuevoContacto) },
   "vincular-contacto": { ayuda: "{oportunidadId, contactoId, papel}", correr: (ctx, d) => repo.vincularContacto(ctx, d as unknown as repo.VinculoContacto) },
   "desvincular-contacto": { ayuda: "{oportunidadId, contactoId, papel}", correr: (ctx, d) => repo.desvincularContacto(ctx, d as unknown as repo.VinculoContacto) },

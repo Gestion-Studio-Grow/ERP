@@ -590,7 +590,7 @@ test("E9 · E23 · E14 · propuestas que decide una persona: sin datos → DESCA
   assert.equal((await duenio.oportunidad.findUniqueOrThrow({ where: { id: est }, select: { destino: true } })).destino, "TALLER");
   ok(await repo.confirmarDestino(dir, est, "AGENCIA", AHORA));
   const reg = await duenio.actividadComercial.findFirst({ where: { tenantId: base.a.id, oportunidadId: est, tipo: "DESTINO" }, select: { texto: true } });
-  assert.match(reg?.texto ?? "", /corrige la propuesta: TALLER/);
+  assert.match(reg?.texto ?? "", /corrige la propuesta: Taller/);
 });
 
 test("E11 · E17 · E21 · topes del puesto, marca que ya es cliente y exclusividad de rubro", async (t) => {
@@ -901,9 +901,13 @@ test("Omisión T1 · el pase a SIN_CONTACTO deja la tarea «cargar a quién escr
   const dir = ctxA(f, u.dir);
   const duenio = await prismaComoDuenio(base);
   const id = await prospectoSinContacto(f, "Sin Contacto SA", "sincontacto.example");
-  const tareas = await duenio.tareaComercial.findMany({ where: { tenantId: base.a.id, oportunidadId: id }, select: { para: true, tipo: true, estado: true } });
-  assert.deepEqual(tareas, [{ para: "PERSONA", tipo: "CARGAR_CONTACTO", estado: "EN_COLA" }]);
-  assert.equal(await duenio.actividadComercial.count({ where: { tenantId: base.a.id, oportunidadId: id, tipo: "TAREA" } }), 1);
+  const tareas = await duenio.tareaComercial.findMany({ where: { tenantId: base.a.id, oportunidadId: id }, orderBy: { createdAt: "asc" }, select: { para: true, tipo: true, estado: true } });
+  // GSG-CRM-011: el prospecto que cargó Dirección dejó su verificación; al pasar a «Verificada» se descartó sola.
+  assert.deepEqual(tareas, [
+    { para: "verificador", tipo: "VERIFICAR", estado: "DESCARTADA" },
+    { para: "PERSONA", tipo: "CARGAR_CONTACTO", estado: "EN_COLA" },
+  ]);
+  assert.equal(await duenio.actividadComercial.count({ where: { tenantId: base.a.id, oportunidadId: id, tipo: "TAREA", texto: { contains: "Cargar un contacto" } } }), 1);
 
   // A10: la tarea de seguimiento que crea ponerAlDia deja su fila de registro (y una sola, aunque se corra dos veces).
   const vencida = ok(await repo.proponerOportunidad(dir, { tipo: "CONSULTA", marca: { nombre: "Vencida Registro SA", dominio: "vencidareg.example" }, proximoPaso: "x".repeat(400), proximoPasoEl: new Date("2026-11-17T12:00:00Z") }, AHORA));
@@ -914,4 +918,55 @@ test("Omisión T1 · el pase a SIN_CONTACTO deja la tarea «cargar a quién escr
   ok(await repo.ponerAlDia(dir, despues));
   assert.equal(await duenio.tareaComercial.count({ where: { tenantId: base.a.id, oportunidadId: vencida.id, tipo: "SEGUIMIENTO" } }), 1);
   assert.equal(await duenio.actividadComercial.count({ where: { tenantId: base.a.id, oportunidadId: vencida.id, tipo: "TAREA" } }), 1);
+});
+
+test("GSG-CRM-011 · la ficha verifica marca y evento con la fuente (permiso «verificar»), la web sin https:// entra, la carga de Dirección deja la tarea al Verificador y el contacto sin papel se ve", async (t) => {
+  const f = await preparar(t);
+  if (!f) return;
+  const { repo, u, base } = f;
+  const dir = ctxA(f, u.dir);
+  const duenio = await prismaComoDuenio(base);
+
+  // La web como la escribe la gente: se guarda con https://. Lo que no es una web, se rechaza con el motivo.
+  rechaza(await repo.proponerOportunidad(dir, { tipo: "PROSPECTO", marca: { nombre: "Web Rota Demo", web: "no es una web" }, eventoId: f.ev2, ...PASO }, AHORA), /web de la marca no es una dirección válida/);
+  const op = ok(await repo.proponerOportunidad(dir, { tipo: "PROSPECTO", marca: { nombre: "Verifica Demo SA", web: "verifica-demo.example" }, eventoId: f.ev2, ...PASO }, AHORA), "prospecto");
+  const { marcaId } = await duenio.oportunidad.findUniqueOrThrow({ where: { id: op.id }, select: { marcaId: true } });
+  const marca = await duenio.marcaRelevada.findUniqueOrThrow({ where: { id: marcaId as string }, select: { web: true, dominio: true } });
+  assert.deepEqual(marca, { web: "https://verifica-demo.example", dominio: "verifica-demo.example" });
+
+  // La carga de Dirección deja la tarea al Verificador (si no, ningún puesto la ve y queda en «Detectada»).
+  const tareas = await duenio.tareaComercial.findMany({ where: { tenantId: base.a.id, oportunidadId: op.id }, select: { id: true, para: true, tipo: true, estado: true } });
+  assert.deepEqual(tareas.map(({ para, tipo, estado }) => ({ para, tipo, estado })), [{ para: "verificador", tipo: "VERIFICAR", estado: "EN_COLA" }]);
+
+  const verif = ctxA(f, u.verif);
+  const pedido = { que: "marca", verificacion: "confirmado", urlFuente: "feria.example/sponsors/verifica" };
+  // Sin la tarea, el Verificador no la ve; un comercial ajeno tampoco; otro negocio, menos.
+  rechaza(await repo.verificarFuente(verif, op.id, pedido, AHORA), /no tiene esa oportunidad/, "verificador sin tarea");
+  rechaza(await repo.verificarFuente(ctxA(f, u.com2), op.id, pedido, AHORA), /no es tuya/, "comercial ajeno");
+  rechaza(await repo.verificarFuente({ tenantId: base.b.id, userId: u.dirB }, op.id, pedido, AHORA), /no existe/, "otro negocio");
+  // Un puesto con una tarea en curso pero sin el permiso «verificar» (el Redactor) no verifica.
+  const redactar = ok(await repo.crearTarea(dir, { oportunidadId: op.id, para: "redactor", tipo: "REDACTAR" }, AHORA));
+  ok(await repo.tomarTarea(ctxA(f, u.redac), { tareaId: redactar.id }, AHORA));
+  rechaza(await repo.verificarFuente(ctxA(f, u.redac), op.id, pedido, AHORA), /no es tarea del puesto redactor/, "redactor");
+
+  ok(await repo.tomarTarea(verif, { tareaId: tareas[0].id }, AHORA), "toma la verificación");
+  rechaza(await repo.aplicarPase(verif, op.id, "VERIFICADA", {}, AHORA), /falta la marca verificada como «confirmado»/);
+  rechaza(await repo.verificarFuente(verif, op.id, { ...pedido, urlFuente: "nada" }, AHORA), /URL de la fuente/);
+  rechaza(await repo.verificarFuente(verif, op.id, { ...pedido, verificacion: "sin verificar" }, AHORA), /«confirmado», «en duda» o «falla»/);
+  ok(await repo.verificarFuente(verif, op.id, pedido, AHORA), "marca");
+  ok(await repo.verificarFuente(verif, op.id, { que: "evento", verificacion: "confirmado", urlFuente: "https://feria.example/2027" }, AHORA), "evento");
+  const rel = await duenio.eventoMarca.findMany({ where: { tenantId: base.a.id, eventoId: f.ev2, marcaId: marcaId as string }, select: { rol: true, verificacion: true, urlFuente: true } });
+  assert.deepEqual(rel, [{ rol: "EXPOSITOR", verificacion: "confirmado", urlFuente: "https://feria.example/sponsors/verifica" }]);
+  assert.equal((await duenio.eventoRelevado.findUniqueOrThrow({ where: { id: f.ev2 }, select: { urlFuente: true } })).urlFuente, "https://feria.example/2027");
+  ok(await repo.aplicarPase(verif, op.id, "VERIFICADA", {}, AHORA), "verificada");
+  const linea = await duenio.actividadComercial.findMany({ where: { tenantId: base.a.id, oportunidadId: op.id, tipo: "VERIFICACION" }, select: { usuarioId: true, puesto: true, fuenteUrl: true } });
+  assert.deepEqual(linea.map((x) => x.puesto), ["verificador", "verificador"]);
+  assert.ok(linea.every((x) => x.usuarioId === u.verif && x.fuenteUrl?.startsWith("https://")));
+  // Ninguna rechazada dejó rastro de escritura: la relación es una sola.
+
+  // El contacto cargado sin papel aparece en la ficha (y se le puede escribir).
+  const c = ok(await repo.crearContacto(dir, { oportunidadId: op.id, nombre: "Sin Papel Demo", email: "sinpapel@verifica-demo.example" }, AHORA));
+  const fi = ok(await repo.ficha(dir, op.id, AHORA));
+  assert.deepEqual(fi.contactos.map((x) => ({ id: x.contactoId, papeles: x.papeles })), [{ id: c.id, papeles: [] }]);
+  ok(await repo.escribirBorrador(dir, { oportunidadId: op.id, contactoId: c.id, canal: "MAIL", asunto: "Hola", cuerpo: "Hola, vimos que van a Feria Demo." }, AHORA), "borrador para el contacto sin papel");
 });

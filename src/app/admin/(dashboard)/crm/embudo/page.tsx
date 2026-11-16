@@ -10,7 +10,7 @@ import { Tablero, type Columna, type Tarjeta } from "./Tablero";
 export const dynamic = "force-dynamic";
 
 // CRM COMERCIAL · «Embudo»: una columna por etapa con su monto ponderado; cada tarjeta con el próximo paso y
-// los días sin movimiento (diseño §4.2). En el celular las columnas van una debajo de otra; en la PC, en fila
+// los días sin movimiento (diseño §4.2). En el celular se ve una etapa por vez (selector); en la PC, 4 en fila
 // con scroll DENTRO del tablero (la página nunca se corre de costado).
 
 export default async function EmbudoPage() {

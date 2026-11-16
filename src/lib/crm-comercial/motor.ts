@@ -57,6 +57,33 @@ export const ETIQUETA_ETAPA: Record<Etapa, string> = {
   DERIVADA_AL_TALLER: "Derivada al Taller",
 };
 
+// GSG-CRM-011: lo que se escribe en la línea de tiempo va en criollo, nunca con el valor interno
+// («VERIFICAR», «armador_brief», «AGENCIA»). Las pantallas usan las mismas etiquetas (crm-core.ts).
+export const ETIQUETA_PUESTO_CRM: Record<string, string> = {
+  descubridor: "Descubridor",
+  identificador: "Identificador de marcas",
+  verificador: "Verificador",
+  contactos: "Buscador de contactos",
+  redactor: "Redactor",
+  seguidor: "Seguidor",
+  calificador: "Calificador",
+  armador_brief: "Armador de brief",
+};
+export const ETIQUETA_TAREA: Record<string, string> = {
+  SEGUIMIENTO: "Seguimiento",
+  CARGAR_CONTACTO: "Cargar un contacto",
+  PUNTUAR: "Puntuar",
+  VERIFICAR: "Verificar la fuente",
+  ARMAR_BRIEF: "Armar el brief",
+  REDACTAR: "Escribir un borrador",
+};
+/** «Verificar la fuente»; un tipo nuevo sin etiqueta sale en minúsculas y sin guiones bajos. */
+export const etiquetaTarea = (t: string): string => ETIQUETA_TAREA[t] ?? t.replaceAll("_", " ").toLowerCase();
+/** A quién va una tarea: un puesto, «una persona» o «Dirección». */
+export const ETIQUETA_PARA = (p: string): string =>
+  p === "PERSONA" ? "una persona (comercial o Dirección)" : p === "DIRECCION" ? "Dirección" : (ETIQUETA_PUESTO_CRM[p] ?? p.replaceAll("_", " "));
+export const ETIQUETA_DESTINO: Record<string, string> = { AGENCIA: "Agencia", TALLER: "Taller" };
+
 export const TIPOS = ["PROSPECTO", "CONSULTA"] as const;
 export type TipoOportunidad = (typeof TIPOS)[number];
 export const DESTINOS = ["AGENCIA", "TALLER"] as const;
@@ -677,6 +704,26 @@ export function dominioDe(s: string | null | undefined): string | null {
   if (t.includes("@")) t = t.split("@").pop() ?? "";
   t = t.replace(/^https?:\/\//, "").replace(/^www\./, "").split(/[/?#:]/)[0];
   return /^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(t) ? t : null;
+}
+
+/**
+ * GSG-CRM-011: una web o una fuente escrita como la escribe la gente («bodega.com.ar», «www.x.com/sponsors»)
+ * queda con `https://` adelante, como piden los CHECK de la base (`MarcaRelevada_web_check`,
+ * `EventoRelevado_urlFuente_check`). Lo que no es una dirección web (espacios, sin punto, otro protocolo) → null.
+ */
+export function urlWeb(s: string | null | undefined): string | null {
+  const t = (s ?? "").trim();
+  if (!t || /\s/.test(t) || t.length > 1000) return null;
+  const conProtocolo = /^[a-z][a-z0-9+.-]*:/i.test(t) ? t : `https://${t.replace(/^\/+/, "")}`;
+  let u: URL;
+  try {
+    u = new URL(conProtocolo);
+  } catch {
+    return null;
+  }
+  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+  if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(u.hostname)) return null;
+  return conProtocolo;
 }
 
 /** CUIT con su dígito verificador (11 dígitos, sin guiones). */

@@ -10,8 +10,8 @@
 // arrastre que tiene NextCRM (pericia, punto 3).
 
 import Link from "next/link";
-import { useState } from "react";
-import { Badge } from "@/components/ui";
+import { useRef, useState } from "react";
+import { Badge, Select } from "@/components/ui";
 import { aplicarPase } from "@/lib/crm-comercial/acciones";
 import type { OpcionPase } from "../crm-core";
 import { Resultado } from "../Avisos";
@@ -51,6 +51,14 @@ export function Tablero({ columnas, tarjetas, comerciales }: { columnas: readonl
   const [arrastrada, setArrastrada] = useState<string | null>(null);
 
   const etapaDe = (t: Tarjeta) => (movidas[t.id] && movidas[t.id].version === t.version ? movidas[t.id].etapa : t.etapa);
+  const cuantas = (etapa: string) => tarjetas.filter((t) => etapaDe(t) === etapa).length;
+  // En el celular se ve UNA etapa por vez (las diez apiladas medían ~5900 px): arranca en la primera con tarjetas.
+  const [enVista, setEnVista] = useState<string>(() => columnas.find((c) => tarjetas.some((t) => t.etapa === c.etapa))?.etapa ?? columnas[0]?.etapa ?? "");
+  const tablero = useRef<HTMLDivElement>(null);
+  function irA(etapa: string) {
+    setEnVista(etapa);
+    tablero.current?.querySelector(`#col-${CSS.escape(etapa)}`)?.closest("section")?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
+  }
   const deshacer = (id: string) => setMovidas((m) => Object.fromEntries(Object.entries(m).filter(([k]) => k !== id)));
 
   function mover(t: Tarjeta, destino: string) {
@@ -69,8 +77,27 @@ export function Tablero({ columnas, tarjetas, comerciales }: { columnas: readonl
       <div aria-live="polite">
         <Resultado motivo={motivo} hecho={hecho} />
       </div>
-      <div className="mt-3 overflow-x-auto pb-2">
-        <div className="grid grid-cols-1 gap-4 lg:auto-cols-[18rem] lg:grid-flow-col lg:grid-cols-none">
+      <div className="mt-3 lg:hidden">
+        <label htmlFor="etapa-en-vista" className="mb-1 block text-sm font-medium text-strong">Etapa</label>
+        <Select id="etapa-en-vista" value={enVista} onChange={(e) => setEnVista(e.target.value)}>
+          {columnas.map((c) => (
+            <option key={c.etapa} value={c.etapa}>
+              {c.etiqueta} ({cuantas(c.etapa)})
+            </option>
+          ))}
+        </Select>
+      </div>
+      <nav aria-label="Ir a una etapa" className="mt-3 hidden flex-wrap gap-2 lg:flex">
+        {columnas.map((c) => (
+          <button key={c.etapa} type="button" onClick={() => irA(c.etapa)} className="rounded-full border border-line px-3 py-1 text-xs text-body hover:border-accent focus-visible:outline-2 focus-visible:outline-focus">
+            {c.etiqueta} <span className="tabular-nums text-muted">{cuantas(c.etapa)}</span>
+          </button>
+        ))}
+      </nav>
+      {columnas.length > 4 && <p className="mt-2 hidden text-xs text-muted lg:block">Se ven 4 de {columnas.length} etapas: deslizá el tablero de costado o elegí una etapa arriba.</p>}
+      {/* En la PC entran 4 columnas justas (ninguna queda cortada) y el scroll de costado frena en el borde de cada una. */}
+      <div ref={tablero} className="mt-3 overflow-x-auto pb-2 lg:snap-x lg:snap-mandatory">
+        <div className="grid grid-cols-1 gap-4 lg:auto-cols-[calc((100%-3rem)/4)] lg:grid-flow-col lg:grid-cols-none">
           {columnas.map((c) => {
             const lista = tarjetas.filter((t) => etapaDe(t) === c.etapa);
             const recibe = arrastrada ? tarjetas.find((t) => t.id === arrastrada)?.opciones.some((o) => o.destino === c.etapa) : false;
@@ -78,7 +105,7 @@ export function Tablero({ columnas, tarjetas, comerciales }: { columnas: readonl
               <section
                 key={c.etapa}
                 aria-labelledby={`col-${c.etapa}`}
-                className={`flex min-w-0 flex-col rounded-lg border bg-surface-sunken p-2 ${recibe ? "border-accent" : "border-line"}`}
+                className={`${c.etapa === enVista ? "flex" : "hidden"} min-w-0 snap-start flex-col rounded-lg border bg-surface-sunken p-2 lg:flex ${recibe ? "border-accent" : "border-line"}`}
                 onDragOver={(e) => {
                   if (recibe) e.preventDefault();
                 }}

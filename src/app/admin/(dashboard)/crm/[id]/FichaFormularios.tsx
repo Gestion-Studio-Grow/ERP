@@ -18,6 +18,7 @@ import {
   registrarPedidoDeDatos,
   registrarRespuesta,
   suprimirContacto,
+  verificarFuente,
   vincularContacto,
 } from "@/lib/crm-comercial/acciones";
 import type { OpcionPase } from "../crm-core";
@@ -119,6 +120,46 @@ export function ConfirmarDestino({ oportunidadId, actual }: { oportunidadId: str
       </div>
       <Resultado motivo={motivo} hecho={hecho} />
     </div>
+  );
+}
+
+// ── Verificación de la fuente (evidencia del pase a «Verificada») ──────────
+
+const VERIFICACION = [
+  { valor: "confirmado", etiqueta: "Confirmado: se ve en la fuente" },
+  { valor: "en duda", etiqueta: "En duda" },
+  { valor: "falla", etiqueta: "Falla: la fuente no lo muestra" },
+] as const;
+
+/**
+ * La marca en el evento y el evento, cada uno con la URL donde se ve y si quedó confirmado. El servidor pide
+ * el permiso «verificar» sobre esta oportunidad y guarda la URL con https:// si se escribió sin él.
+ */
+export function VerificarFuente({ oportunidadId, que, actual }: { oportunidadId: string; que: "marca" | "evento"; actual: { verificacion: string; urlFuente: string | null } | null }) {
+  const { correr, pendiente, motivo, hecho } = useAccion();
+  const [f, setF] = useState({ urlFuente: actual?.urlFuente ?? "", verificacion: "confirmado" });
+  const id = `v-${que}`;
+  return (
+    <form
+      className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-end"
+      onSubmit={(e) => {
+        e.preventDefault();
+        correr(() => verificarFuente(oportunidadId, { que, verificacion: f.verificacion, urlFuente: f.urlFuente }), { listo: `Listo: ${que === "marca" ? "la marca en el evento" : "el evento"} quedó «${f.verificacion}».` });
+      }}
+    >
+      <div className="min-w-0">
+        <label htmlFor={`${id}-url`} className={ROTULO}>{que === "marca" ? "Dónde se ve la marca en el evento (URL)" : "Dónde se ve el evento (URL)"}</label>
+        <Input id={`${id}-url`} value={f.urlFuente} onChange={(e) => setF((x) => ({ ...x, urlFuente: e.target.value }))} required maxLength={1000} placeholder={que === "marca" ? "evento.com.ar/sponsors" : "evento.com.ar"} inputMode="url" />
+      </div>
+      <div>
+        <label htmlFor={`${id}-estado`} className={ROTULO}>Resultado</label>
+        <Select id={`${id}-estado`} value={f.verificacion} onChange={(e) => setF((x) => ({ ...x, verificacion: e.target.value }))}>
+          {VERIFICACION.map((v) => <option key={v.valor} value={v.valor}>{v.etiqueta}</option>)}
+        </Select>
+      </div>
+      <div><Button type="submit" size="sm" disabled={pendiente}>Guardar</Button></div>
+      <div className="sm:col-span-3"><Resultado motivo={motivo} hecho={hecho} /></div>
+    </form>
   );
 }
 
@@ -337,7 +378,7 @@ export function Contactos({ oportunidadId, contactos, puedeCargar, puedeBaja, de
   return (
     <div className="grid gap-3">
       {contactos.length === 0 ? (
-        <p className="text-sm text-muted">Todavía no hay contactos con papel en esta oportunidad.</p>
+        <p className="text-sm text-muted">Todavía no hay contactos en esta oportunidad.</p>
       ) : (
         <ul className="divide-y divide-line rounded-lg border border-line bg-surface">
           {contactos.map((c) => (
@@ -347,6 +388,7 @@ export function Contactos({ oportunidadId, contactos, puedeCargar, puedeBaja, de
                 {c.cargo && <span className="block text-sm text-muted">{c.cargo}</span>}
               </span>
               <span className="flex flex-wrap items-center gap-2">
+                {c.papeles.length === 0 && <span className="text-xs text-muted">Sin papel todavía (decide, pide o paga)</span>}
                 {c.papeles.map((p) => (
                   <span key={p} className="inline-flex items-center gap-1 rounded-full border border-line px-2 py-0.5 text-xs">
                     {PAPELES.find((x) => x.valor === p)?.etiqueta ?? p}
@@ -376,7 +418,7 @@ export function Contactos({ oportunidadId, contactos, puedeCargar, puedeBaja, de
           }}
         >
           <label className="min-w-0 flex-1 text-sm">
-            <span className={ROTULO}>Darle otro papel a</span>
+            <span className={ROTULO}>Darle un papel a</span>
             <Select value={vinculo.contactoId} onChange={(e) => setVinculo((v) => ({ ...v, contactoId: e.target.value }))} required>
               <option value="">Elegí el contacto</option>
               {contactos.filter((c) => !c.suprimido).map((c) => <option key={c.contactoId} value={c.contactoId}>{c.nombre}</option>)}

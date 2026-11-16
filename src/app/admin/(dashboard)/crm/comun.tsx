@@ -64,7 +64,8 @@ export function Encabezado({ vista, miembro, descripcion }: { vista: Vista; miem
     <>
       <PageHeader title={TITULO} description={descripcion} />
       {miembro && <p className="-mt-2 mb-3 text-sm text-muted">Entraste como {quienEs(miembro)}.</p>}
-      <Pestanas pestanas={pestanas} etiqueta="Vistas del CRM comercial" conRaya className="mb-6" />
+      {/* A 390 px las cinco pestañas entran sin cortarse: menos aire a los costados en el celular. */}
+      <Pestanas pestanas={pestanas} etiqueta="Vistas del CRM comercial" conRaya className="mb-6 [&>a]:px-2 sm:[&>a]:px-3" />
     </>
   );
 }
@@ -74,6 +75,8 @@ export function Marco({ vista, miembro, descripcion, children, ancho = "max-w-6x
     <main className={`mx-auto w-full min-w-0 ${ancho} px-4 py-6 sm:px-6 sm:py-8`}>
       <Encabezado vista={vista} miembro={miembro} descripcion={descripcion} />
       {children}
+      {/* Sello GSG (Gate de Excelencia 2): el negocio conserva su marca; GSG firma discreto, como Facturación. */}
+      <footer className="mt-2xl border-t border-line pt-4 text-center text-xs text-faint">Con tecnología de Gestión Studio Grow</footer>
     </main>
   );
 }

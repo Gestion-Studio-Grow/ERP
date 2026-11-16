@@ -4,6 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
+  urlWeb,
   alCambiarFechaDelEvento,
   asignacionVencida,
   avisoDeExclusividad,
@@ -474,4 +475,14 @@ test("A11 · un mail más largo que el CHECK de la base (254) no es válido", ()
   assert.equal(normalizarEmail(`${"a".repeat(241)}@marca.example`), null, "255 caracteres");
   assert.equal(normalizarEmail(`${"a".repeat(240)}@marca.example`), `${"a".repeat(240)}@marca.example`, "254 entra");
   assert.equal(normalizarEmail(" Ana@Marca.Example "), "ana@marca.example");
+});
+
+test("GSG-CRM-011 · urlWeb: la web como la escribe la gente queda con https:// (el CHECK de la base la pide); lo que no es web, null", () => {
+  assert.equal(urlWeb("bodega.com.ar"), "https://bodega.com.ar");
+  assert.equal(urlWeb("  www.bodega.com.ar/sponsors "), "https://www.bodega.com.ar/sponsors");
+  assert.equal(urlWeb("http://bodega.com.ar"), "http://bodega.com.ar");
+  assert.equal(urlWeb("HTTPS://Bodega.com.ar"), "HTTPS://Bodega.com.ar");
+  for (const malo of ["", "   ", "bodega", "no es una web", "javascript:alert(1)", "ftp://bodega.com.ar", "mailto:a@b.com", null, undefined]) {
+    assert.equal(urlWeb(malo), null, String(malo));
+  }
 });

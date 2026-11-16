@@ -118,6 +118,10 @@ export async function registrarRespuesta(id: string, texto: string) {
 export async function comprobarIdentidad(id: string, d: { emailDeQuienEscribe?: string | null; confirmadaPorPersona?: boolean }) {
   return con(true, (ctx) => repo.comprobarIdentidad(ctx, id, d));
 }
+/** GSG-CRM-011: la marca en el evento o el evento, «confirmado» (o en duda, falla) con la URL de la fuente. */
+export async function verificarFuente(id: string, d: repo.PedidoDeVerificacion) {
+  return con(true, (ctx) => repo.verificarFuente(ctx, id, d));
+}
 
 // ── Contactos ───────────────────────────────────────────────────────────────
 

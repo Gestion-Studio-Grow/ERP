@@ -10,6 +10,7 @@ import { tenantTransaction } from "../../src/lib/rls";
 import { filaDeInterruptor, estadoDesdeFilas, filtroDeFilasValidas } from "../../src/cambios/interruptores-core";
 import { CRM_COMERCIAL, crmComercialPrendido } from "../../src/cambios/interruptores";
 import { PUESTOS } from "../../src/lib/crm-comercial/permisos";
+import { ETIQUETA_PUESTO_CRM } from "../../src/lib/crm-comercial/motor";
 import * as repo from "../../src/lib/crm-comercial/repo";
 import { cargarPrueba, guardaDeBase, LOTE_POR_DEFECTO, negocioPorSlug } from "../../src/lib/crm-comercial/carga-prueba";
 import { leerArchivos, NEGOCIO_POR_DEFECTO, salir, texto } from "./comun";
@@ -23,7 +24,7 @@ export const USUARIOS: Alta[] = [
   { email: `direccion@${DOMINIO}`, nombre: "Dirección (prueba)", role: "OWNER", rol: "DIRECCION" },
   { email: `comercial1@${DOMINIO}`, nombre: "Comercial Uno (prueba)", role: "RECEPTION", rol: "COMERCIAL" },
   { email: `comercial2@${DOMINIO}`, nombre: "Comercial Dos (prueba)", role: "RECEPTION", rol: "COMERCIAL" },
-  ...PUESTOS.map((p): Alta => ({ email: `puesto-${p.replace("_", "-")}@${DOMINIO}`, nombre: `Puesto ${p} (prueba)`, role: "RECEPTION", rol: "PUESTO", puesto: p })),
+  ...PUESTOS.map((p): Alta => ({ email: `puesto-${p.replace("_", "-")}@${DOMINIO}`, nombre: `${ETIQUETA_PUESTO_CRM[p] ?? p} (prueba)`, role: "RECEPTION", rol: "PUESTO", puesto: p })),
 ];
 
 async function main() {

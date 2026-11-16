@@ -8,6 +8,9 @@
 import {
   ETAPAS,
   ETIQUETA_ETAPA,
+  ETIQUETA_PUESTO_CRM,
+  ETIQUETA_TAREA,
+  etiquetaTarea,
   MOTIVOS,
   MOTIVOS_DORMIDA,
   esTerminal,
@@ -21,16 +24,7 @@ import { PUESTOS } from "@/lib/crm-comercial/permisos";
 import type { UsuarioYMiembro } from "@/lib/crm-comercial/repo";
 
 export const ETIQUETA_ROL: Record<Rol, string> = { DIRECCION: "Dirección", COMERCIAL: "Comercial", PUESTO: "Puesto del equipo" };
-export const ETIQUETA_PUESTO: Record<Puesto, string> = {
-  descubridor: "Descubridor",
-  identificador: "Identificador de marcas",
-  verificador: "Verificador",
-  contactos: "Buscador de contactos",
-  redactor: "Redactor",
-  seguidor: "Seguidor",
-  calificador: "Calificador",
-  armador_brief: "Armador de brief",
-};
+export const ETIQUETA_PUESTO = ETIQUETA_PUESTO_CRM as Record<Puesto, string>;
 
 /** «Dirección», «Comercial» o «Verificador (puesto del equipo)». */
 export function quienEs(m: Pick<Miembro, "rol" | "puesto">): string {
@@ -206,7 +200,7 @@ export type AccionHoy =
   | { tipo: "ir_a_borradores" }
   | { tipo: "pedido_de_datos"; oportunidadId: string }
   | { tipo: "tomar_tarea"; tareaId: string }
-  | { tipo: "cerrar_tarea"; tareaId: string }
+  | { tipo: "cerrar_tarea"; tareaId: string; aviso: string | null }
   | { tipo: "tomar_pedido"; pedidoId: string }
   | { tipo: "cerrar_pedido"; pedidoId: string };
 
@@ -222,9 +216,21 @@ export interface ItemBandeja {
 const nombreDe = (x: { marca: string | null; evento: string | null }, tipo?: string) =>
   [x.marca ?? (tipo === "CONSULTA" ? "Consulta sin marca" : "Sin marca"), x.evento].filter(Boolean).join(" · ");
 const DIA_MS = 86_400_000;
-const TIPO_TAREA: Record<string, string> = { SEGUIMIENTO: "Seguimiento", CARGAR_CONTACTO: "Cargar un contacto", PUNTUAR: "Puntuar", VERIFICAR: "Verificar la fuente", ARMAR_BRIEF: "Armar el brief", REDACTAR: "Escribir un borrador" };
-export const etiquetaTarea = (t: string): string => TIPO_TAREA[t] ?? t.replaceAll("_", " ").toLowerCase();
-export const TIPOS_DE_TAREA = Object.keys(TIPO_TAREA);
+export { etiquetaTarea };
+export const TIPOS_DE_TAREA = Object.keys(ETIQUETA_TAREA);
+
+/**
+ * Qué se le avisa a quien toca «Marcar hecha». Un puesto sólo ve lo que creó o lo que tiene en curso: al cerrar
+ * la tarea pierde la ficha. Si es la verificación y la oportunidad sigue en «Detectada», queda sin verificar.
+ * Una persona no pierde nada: sin aviso.
+ */
+export function avisoAlCerrarTarea(m: Pick<Miembro, "rol">, tipoTarea: string, etapa: string | null): string | null {
+  if (m.rol !== "PUESTO") return null;
+  if (tipoTarea === "VERIFICAR" && etapa === "DETECTADA") {
+    return "La oportunidad sigue sin verificar. Si marcás la tarea como hecha, sale de tu cola, dejás de ver la ficha y nadie la verifica. Primero cargá la verificación de la marca y del evento en la ficha y pasala a «Verificada». ¿La marcás hecha igual?";
+  }
+  return "Al marcarla hecha dejás de ver esta oportunidad (un puesto ve sólo lo que tiene en curso). ¿Seguro?";
+}
 
 /**
  * «Hoy»: todo lo que pide una acción, en UNA lista, lo más urgente arriba. Las razones de la oportunidad las
@@ -289,7 +295,8 @@ export function armarBandeja(d: {
 
   for (const t of d.enCurso) {
     const f = porId.get(t.oportunidadId);
-    items.set(`ta-${t.id}`, { clave: `ta-${t.id}`, urgencia: 55, titulo: f ? nombreDe(f, f.tipo) : "Tarea tomada", por: [`Tenés en curso: ${etiquetaTarea(t.tipo)}`], href: `/admin/crm/${t.oportunidadId}`, acciones: [{ tipo: "cerrar_tarea", tareaId: t.id }] });
+    const aviso = avisoAlCerrarTarea(m, t.tipo, f?.etapa ?? null);
+    items.set(`ta-${t.id}`, { clave: `ta-${t.id}`, urgencia: 55, titulo: f ? nombreDe(f, f.tipo) : "Tarea tomada", por: [`Tenés en curso: ${etiquetaTarea(t.tipo)}`], href: `/admin/crm/${t.oportunidadId}`, acciones: [{ tipo: "cerrar_tarea", tareaId: t.id, aviso }] });
   }
   for (const t of d.enCola) {
     const vencida = t.venceEl ? new Date(t.venceEl).getTime() < d.ahora.getTime() : false;

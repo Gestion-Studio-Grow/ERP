@@ -11,7 +11,7 @@ import type { Role } from "@/lib/capabilities";
 import { appsDeInterruptores } from "../armazon/navegacion";
 import { appDeGestionVisible, appEnLaBarra } from "@/lib/proyectos/gestion-core";
 import type { Miembro } from "@/lib/crm-comercial/permisos";
-import { armarBandeja, opcionesDePase, ponderadoDe, puedeEn, textoPonderado, type FilaParaHoy } from "./crm-core";
+import { armarBandeja, avisoAlCerrarTarea, etiquetaTarea, opcionesDePase, ponderadoDe, puedeEn, textoPonderado, type FilaParaHoy } from "./crm-core";
 
 const DIR: Miembro = { userId: "u-dir", rol: "DIRECCION", puesto: null, activo: true };
 const COM: Miembro = { userId: "u-com", rol: "COMERCIAL", puesto: null, activo: true };
@@ -155,4 +155,28 @@ test("Miembros del CRM: la pestaña es sólo de Dirección; papel en criollo, or
   assert.equal(puestos.length, 8);
   assert.match(puestos.find((x) => x.valor === "contactos")?.etiqueta ?? "", /apagado/);
   assert.equal(puestos.find((x) => x.valor === "armador_brief")?.etiqueta, "Armador de brief");
+});
+
+test("GSG-CRM-011 · «Marcar hecha» avisa al puesto que pierde la ficha, y más fuerte si la oportunidad sigue sin verificar", () => {
+  const VERIF: Miembro = { userId: "v", rol: "PUESTO", puesto: "verificador", activo: true };
+  assert.match(avisoAlCerrarTarea(VERIF, "VERIFICAR", "DETECTADA") ?? "", /sigue sin verificar.*dejás de ver la ficha/);
+  assert.match(avisoAlCerrarTarea(VERIF, "VERIFICAR", "VERIFICADA") ?? "", /dejás de ver esta oportunidad/);
+  assert.equal(avisoAlCerrarTarea(DIR, "VERIFICAR", "DETECTADA"), null, "una persona no pierde la ficha");
+  const hoy = armarBandeja({
+    miembro: VERIF,
+    entradas: [],
+    filas: [fila("p", { etapa: "DETECTADA" })],
+    borradores: [],
+    enCola: [],
+    enCurso: [{ id: "t9", oportunidadId: "p", tipo: "VERIFICAR", venceEl: null, createdAt: AHORA }],
+    pedidosEnCola: [],
+    pedidosEnCurso: [],
+    ahora: AHORA,
+  });
+  const cerrar = hoy.find((i) => i.clave === "ta-t9")?.acciones[0];
+  assert.equal(cerrar?.tipo, "cerrar_tarea");
+  assert.match(cerrar && cerrar.tipo === "cerrar_tarea" ? (cerrar.aviso ?? "") : "", /sin verificar/);
+  // Las tareas en criollo, nunca el valor interno.
+  assert.equal(etiquetaTarea("VERIFICAR"), "Verificar la fuente");
+  assert.equal(etiquetaTarea("ALGO_NUEVO"), "algo nuevo");
 });

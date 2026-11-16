@@ -9,7 +9,7 @@ import { detalleDeFicha, ficha, personasDelCrm } from "@/lib/crm-comercial/accio
 import { abrirCrm, Marco, NoSePudo } from "../comun";
 import { ETIQUETA_PUESTO, ETIQUETA_ROL, TIPOS_DE_TAREA, dia, diaYHora, etiquetaTarea, opcionesDePase, paraInputFecha, plata, puedeEn } from "../crm-core";
 import { BorradorTarjeta } from "../BorradorTarjeta";
-import { ComprobarIdentidad, ConfirmarDestino, Contactos, DecidirPropuesta, FormularioDatos, NuevaTarea, NuevoBorrador, PanelPases, PedidoDeDatos, RegistrarRespuesta } from "./FichaFormularios";
+import { ComprobarIdentidad, ConfirmarDestino, Contactos, DecidirPropuesta, FormularioDatos, NuevaTarea, NuevoBorrador, PanelPases, PedidoDeDatos, RegistrarRespuesta, VerificarFuente } from "./FichaFormularios";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +42,22 @@ const TIPO_ACTIVIDAD: Record<string, string> = {
   DESPERTO: "Despertó",
   ALTA: "Alta",
   UNION: "Unión",
+  CREADA: "Alta",
+  UNIDA: "Se sumó otra vez la misma marca",
+  VERIFICACION: "Verificación de la fuente",
+  AVISO_EXCLUSIVIDAD: "Aviso de exclusividad",
+  MIEMBRO: "Miembros del CRM",
+  BAJA: "Pidió la baja",
+  PEDIDO_TOMADO: "Pedido al equipo tomado",
+  PEDIDO_CERRADO: "Pedido al equipo cerrado",
+};
+/** Un tipo sin etiqueta todavía: en minúsculas y sin guiones bajos, nunca en mayúsculas crudas. */
+const tipoActividad = (t: string): string => TIPO_ACTIVIDAD[t] ?? (t.charAt(0) + t.slice(1).toLowerCase()).replaceAll("_", " ");
+const VERIFICACION: Record<string, { texto: string; tono: "success" | "warning" | "danger" | "neutral" }> = {
+  confirmado: { texto: "confirmado", tono: "success" },
+  "en duda": { texto: "en duda", tono: "warning" },
+  falla: { texto: "falla", tono: "danger" },
+  "sin verificar": { texto: "sin verificar", tono: "neutral" },
 };
 
 const motivo = (m: string | null | undefined): string | null => (m ? (MOTIVOS[m as keyof typeof MOTIVOS] ?? m) : null);
@@ -137,11 +153,16 @@ export default async function FichaPage({ params }: { params: Promise<{ id: stri
             ) : (
               <PanelPases oportunidadId={o.id} version={o.version} opciones={opciones} comerciales={comerciales} />
             )}
-            {puedeEn(miembro, "confirmar_destino", vista) && o.etapa !== "ASIGNADA" && (
-              <div className="mt-4">
-                <p className="mb-2 text-sm text-muted">Destino {o.destino ? `propuesto: ${o.destino === "AGENCIA" ? "Agencia" : "Taller"}` : "sin proponer"}. Lo confirma Dirección.</p>
-                <ConfirmarDestino oportunidadId={o.id} actual={o.destinoConfirmado ? o.destino : null} />
-              </div>
+            {o.destinoConfirmado && o.destino ? (
+              <p className="mt-4 text-sm text-muted">Destino confirmado por Dirección: <span className="font-medium text-strong">{o.destino === "AGENCIA" ? "Agencia" : "Taller"}</span>.</p>
+            ) : (
+              puedeEn(miembro, "confirmar_destino", vista) &&
+              o.etapa !== "ASIGNADA" && (
+                <div className="mt-4">
+                  <p className="mb-2 text-sm text-muted">Destino {o.destino ? `propuesto: ${o.destino === "AGENCIA" ? "Agencia" : "Taller"}` : "sin proponer"}. Lo confirma Dirección.</p>
+                  <ConfirmarDestino oportunidadId={o.id} actual={null} />
+                </div>
+              )
             )}
           </section>
         )}
@@ -161,6 +182,37 @@ export default async function FichaPage({ params }: { params: Promise<{ id: stri
           </section>
         )}
 
+        {(o.tipo === "PROSPECTO" || d?.evento) && (
+          <section aria-labelledby="t-verificacion">
+            <h3 id="t-verificacion" className="mb-1 text-lg font-semibold text-strong">Verificación de la fuente</h3>
+            <p className="mb-3 text-sm text-muted">Para pasar a «Verificada» hacen falta la marca en el evento y el evento como «confirmado», cada uno con la URL donde se ve.</p>
+            {!d?.evento ? (
+              <p className="text-sm text-muted">Esta oportunidad no tiene evento: la marca se verifica en el evento donde se la vio.</p>
+            ) : (
+              <div className="grid gap-4">
+                {([
+                  ["marca", "La marca en el evento", d.marcaEnEvento ?? null],
+                  ["evento", "El evento", { verificacion: d.evento.verificacion, urlFuente: d.evento.urlFuente }],
+                ] as const).map(([que, rotulo, actual]) => {
+                  const v = VERIFICACION[actual?.verificacion ?? "sin verificar"] ?? VERIFICACION["sin verificar"];
+                  return (
+                    <div key={que} className="rounded-lg border border-line bg-surface p-3">
+                      <p className="flex flex-wrap items-center gap-2 text-sm">
+                        <span className="font-medium text-strong">{rotulo}:</span>
+                        <Badge tone={v.tono}>{actual ? v.texto : "sin verificar"}</Badge>
+                        {actual?.urlFuente && <a href={actual.urlFuente} target="_blank" rel="noopener noreferrer nofollow" className="break-all text-accent underline underline-offset-2">ver la fuente</a>}
+                      </p>
+                      {!cerrada && puedeEn(miembro, "verificar", vista) && (
+                        <div className="mt-3"><VerificarFuente oportunidadId={o.id} que={que} actual={actual} /></div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        )}
+
         <section aria-labelledby="t-brief" className="grid gap-4 sm:grid-cols-2">
           <div>
             <h3 id="t-brief" className="mb-2 text-lg font-semibold text-strong">Brief</h3>
@@ -173,12 +225,6 @@ export default async function FichaPage({ params }: { params: Promise<{ id: stri
               ))}
             </dl>
             {faltan.length > 0 && !cerrada && puedeEn(miembro, "marcar_faltantes", vista) && <div className="mt-3"><PedidoDeDatos oportunidadId={o.id} /></div>}
-            {d?.evento?.urlFuente && (
-              <p className="mt-2 text-sm text-muted">
-                Fuente del evento ({d.evento.verificacion}): <a href={d.evento.urlFuente} target="_blank" rel="noopener noreferrer nofollow" className="text-accent underline underline-offset-2">abrir</a>
-              </p>
-            )}
-            {d?.marcaEnEvento && <p className="text-sm text-muted">La marca en el evento: {d.marcaEnEvento.verificacion}{d.marcaEnEvento.urlFuente && <> · <a href={d.marcaEnEvento.urlFuente} target="_blank" rel="noopener noreferrer nofollow" className="text-accent underline underline-offset-2">fuente</a></>}</p>}
           </div>
           <div>
             <h3 className="mb-2 text-lg font-semibold text-strong">Puntaje: {f.puntaje.puntaje}</h3>
@@ -260,7 +306,7 @@ export default async function FichaPage({ params }: { params: Promise<{ id: stri
                     <p className="flex flex-wrap items-center gap-x-2">
                       <span className="font-medium text-strong">{q.nombre}</span>
                       {q.papel && <Badge tone={q.esPuesto ? "info" : "neutral"}>{q.papel}</Badge>}
-                      <span className="text-muted">· {diaYHora(a.createdAt)} · {TIPO_ACTIVIDAD[a.tipo] ?? a.tipo}</span>
+                      <span className="text-muted">· {diaYHora(a.createdAt)} · {tipoActividad(a.tipo)}</span>
                     </p>
                     <p className={`mt-0.5 whitespace-pre-wrap break-words ${a.tipo === "ACCION_RECHAZADA" ? "text-danger" : "text-body"}`}>{a.texto}</p>
                     {a.fuenteUrl && <a href={a.fuenteUrl} target="_blank" rel="noopener noreferrer nofollow" className="text-accent underline underline-offset-2">Ver fuente</a>}
