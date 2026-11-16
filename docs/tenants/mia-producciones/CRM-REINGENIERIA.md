@@ -3,6 +3,27 @@
 _16/11/2026 · diseño de Fable 5.2 (sesión session_01BtqRUMARmM81G83cj5a6UH) · método: skill `ingenieria-reversa`._
 _Etapa comercial: MIA sin firma ni activación → **prueba interna de GSG, datos ficticios, sin envíos a terceros**._
 _Versión 2: incorpora el desafío de un agente distinto (§10). La versión 1 no se construye._
+_**Versión 3 (16/11, orden del dueño):** el CRM NO es un módulo dentro del negocio de MIA Producciones. Es un negocio
+propio (`arm-mia`), adelante de MIA Producciones y MIA Taller, y se vende a otros clientes como `arm-<cliente>`._
+_Decisión y tandas: `Factory-GSG/00-ESTADO/DECISION-ARM-MIA-2026-11-16.md`. Criterios V1–V9:
+`Factory-GSG/00-ESTADO/certificacion/GSG-CRM-010.md`. **Donde este documento dice «el negocio», es el ARM; lo que cambia
+está marcado «v3».**_
+
+## v3 · Qué cambia respecto de la versión 2 (manda sobre el resto del documento)
+- **Dónde vive:** motor, modelo, permisos por puesto y pantallas son por negocio: no cambian. El interruptor
+  `crm-comercial` se prende en el negocio ARM y NO en los negocios de destino. El ARM no tiene Proyectos ni administración.
+- **`ASIGNADA` (reemplaza el párrafo de §2):** Dirección elige destino (Producciones o Taller) y comercial. El proyecto,
+  el cliente y el brief nacen **en el negocio de destino**, por una operación entre negocios vinculados (dos fases, cada
+  una dentro de su negocio, patrón `trasladoTransaction`; sin saltear RLS; idempotente; registro en los dos lados). Lo
+  que T1 hace hoy (crear todo en el mismo negocio) queda sólo para un ARM de un cliente con un único negocio.
+- **`DERIVADA_AL_TALLER`** deja de ser un final sin destino: es `ASIGNADA` con destino Taller.
+- **`GANADA` / `PERDIDA`:** vuelven del destino por el vínculo: sólo el estado y el motivo, sin montos ni datos personales.
+- **E17 «ya es cliente» y exclusividad de rubro:** se consultan en los negocios vinculados con una lectura acotada
+  (existe o no existe).
+- **Entrada única:** la consulta entrante se concilia con `Consulta` y el clasificador de derivación (#179); un solo embudo.
+- **Vínculo:** tabla ARM → negocios de destino, cargada sólo por GSG. Sin vínculo no hay asignación.
+- **Tandas nuevas:** T4 vínculo y asignación entre negocios · T5 MIA Taller como negocio propio · T6 ficha de stand y
+  check Taller/Producciones · T3 (la corrida) pasa a correr sobre `arm-mia` con los tres negocios, después de T4 y T5.
 
 **Órdenes del dueño que cubre (citas):**
 - 16/11: «enfocarnos solamente en el CRM de MIA Producciones y […] ponerlo en funcionamiento, al menos en prueba para
