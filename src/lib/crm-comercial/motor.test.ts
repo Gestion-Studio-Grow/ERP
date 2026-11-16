@@ -16,6 +16,7 @@ import {
   despertar,
   detectarInstruccion,
   huellasDeContacto,
+  normalizarEmail,
   identidadPorDominio,
   mismaMarca,
   pasoVencido,
@@ -362,4 +363,10 @@ test("E2 · los estados del borrador: rechazar pide motivo; sólo el aprobado se
 test("E3 · la clave de idempotencia es la misma para el mismo reintento", () => {
   assert.equal(claveIdempotencia("redactor", "o1", "MAIL", "Hola"), claveIdempotencia("redactor", "o1", "MAIL", "Hola"));
   assert.notEqual(claveIdempotencia("redactor", "o1", "MAIL", "Hola"), claveIdempotencia("redactor", "o1", "MAIL", "Hola!"));
+});
+
+test("A11 · un mail más largo que el CHECK de la base (254) no es válido", () => {
+  assert.equal(normalizarEmail(`${"a".repeat(241)}@marca.example`), null, "255 caracteres");
+  assert.equal(normalizarEmail(`${"a".repeat(240)}@marca.example`), `${"a".repeat(240)}@marca.example`, "254 entra");
+  assert.equal(normalizarEmail(" Ana@Marca.Example "), "ana@marca.example");
 });
