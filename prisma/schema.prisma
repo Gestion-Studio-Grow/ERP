@@ -290,6 +290,7 @@ model Tenant {
   pedidosAlEquipo           PedidoAlEquipo[]
   miembrosCrmComercial      MiembroCrmComercial[] // CRM comercial (GSG-CRM-010)
   contactosComerciales      ContactoComercial[]
+  oportunidadContactos      OportunidadContacto[]
   supresionesComerciales    SupresionComercial[]
   oportunidades             Oportunidad[]
   actividadesComerciales    ActividadComercial[]
@@ -4732,12 +4733,32 @@ model ContactoComercial {
   suprimidoEl   DateTime?
   oportunidades Oportunidad[]
   borradores    BorradorMensaje[]
+  vinculos      OportunidadContacto[]
   createdAt     DateTime            @default(now())
   updatedAt     DateTime            @updatedAt
 
   @@unique([id, tenantId])
   @@index([tenantId, marcaId])
   @@index([tenantId, email])
+}
+
+// GSG-CRM-011: varios contactos por oportunidad, cada uno con su papel (DECIDE · PIDE · PAGA). El contacto
+// es de la misma marca que la oportunidad (pertenencia contra la ficha, E8). Sólo lo vincula una persona.
+model OportunidadContacto {
+  id            String            @id @default(cuid())
+  tenant        Tenant            @relation(fields: [tenantId], references: [id])
+  tenantId      String
+  oportunidad   Oportunidad       @relation(fields: [oportunidadId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  oportunidadId String
+  contacto      ContactoComercial @relation(fields: [contactoId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  contactoId    String
+  papel         String // DECIDE · PIDE · PAGA
+  vinculadoPor  String // id del usuario (persona)
+  createdAt     DateTime          @default(now())
+
+  @@unique([id, tenantId])
+  @@unique([tenantId, oportunidadId, contactoId, papel], map: "OportunidadContacto_vinculo_key")
+  @@index([tenantId, contactoId])
 }
 
 // Huella de quien pidió que no le escriban más (E8): sha256 hex del email normalizado o del teléfono en
@@ -4799,6 +4820,9 @@ model Oportunidad {
   pedidosDeDatos           Int                @default(0) // E9
   seguimientosSinRespuesta Int                @default(0) // E23
   calificadaEl             DateTime? // E7: desde cuándo espera asignación
+  etapaDesde               DateTime? // GSG-CRM-011: entró a la etapa actual (en cada pase, misma escritura) → «días en esta etapa»
+  ultimaActividadEl        DateTime? // GSG-CRM-011: createdAt de su última ActividadComercial (no cuenta ACCION_RECHAZADA)
+  cierreEsperadoEl         DateTime? // GSG-CRM-011: lo carga una persona
   version                  Int                @default(0)
   creadaPor                String
   idempotencia             String? // E3
@@ -4806,6 +4830,7 @@ model Oportunidad {
   brief                    BriefComercial?
   borradores               BorradorMensaje[]
   tareas                   TareaComercial[]
+  contactos                OportunidadContacto[]
   createdAt                DateTime           @default(now())
   updatedAt                DateTime           @updatedAt
 

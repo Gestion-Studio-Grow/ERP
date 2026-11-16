@@ -615,3 +615,146 @@ test("E11 · E17 · E21 · topes del puesto, marca que ya es cliente y exclusivi
   const competidor = ok(await repo.proponerOportunidad(ctxA(f, u.desc), { tipo: "PROSPECTO", marca: { nombre: "Bebidas Competidor Demo", rubro: "bebidas" }, eventoId: f.ev2, ...PASO }, AHORA));
   assert.match(competidor.aviso ?? "", /exclusividad de rubro: Bebidas Cliente Demo/);
 });
+
+// ─── GSG-CRM-011 ─────────────────────────────────────────────────────────────
+
+test("B7 · E12 · el comercial ve y opera la consulta que cargó él mientras no esté asignada a otro; la de otro, no", async (t) => {
+  const f = await preparar(t);
+  if (!f) return;
+  const { repo, u, base } = f;
+  const com1 = ctxA(f, u.com1);
+  const com2 = ctxA(f, u.com2);
+  const duenio = await prismaComoDuenio(base);
+
+  const mia = ok(await repo.proponerOportunidad(com1, { tipo: "CONSULTA", marca: { nombre: "Propia Com Demo SA", dominio: "propiacom.example" }, ...PASO }, AHORA), "com1 carga");
+  const ajena = ok(await repo.proponerOportunidad(com2, { tipo: "CONSULTA", marca: { nombre: "Ajena Com Demo SA", dominio: "ajenacom.example" }, ...PASO }, AHORA), "com2 carga");
+
+  // Lista y ficha dicen lo mismo (filtroVisible ↔ verOportunidad).
+  const ids1 = ok(await repo.listarOportunidades(com1, {}, AHORA)).filas.map((x) => x.id);
+  assert.ok(ids1.includes(mia.id), "ve la suya en la lista");
+  assert.ok(!ids1.includes(ajena.id), "no ve la de otro en la lista");
+  assert.ok(ok(await repo.hoy(com1, AHORA)).entradas.every((e) => e.id !== ajena.id));
+  ok(await repo.ficha(com1, mia.id, AHORA));
+  rechaza(await repo.ficha(com1, ajena.id, AHORA), /no es tuya/);
+  rechaza(await repo.registrarRespuesta(com1, ajena.id, "Hola", AHORA), /no es tuya/);
+
+  // Opera como persona: comprueba identidad, pasa a EN_CONVERSACION, carga datos y propone CALIFICADA.
+  ok(await repo.comprobarIdentidad(com1, mia.id, { emailDeQuienEscribe: "ana@propiacom.example" }, AHORA));
+  ok(await repo.aplicarPase(com1, mia.id, "EN_CONVERSACION", {}, AHORA));
+  ok(await repo.actualizarDatos(com1, mia.id, { datos: DATOS_OK }, AHORA));
+  rechaza(await repo.aplicarPase(com1, mia.id, "CALIFICADA", {}, AHORA), /lo aprueba Dirección/);
+  ok(await repo.proponerPase(com1, mia.id, "CALIFICADA", {}, AHORA));
+
+  // Dirección aprueba: quién y cuándo queda en la fila PASE (no se duplica en la oportunidad).
+  ok(await repo.aprobarPasePropuesto(ctxA(f, u.dir), mia.id, {}, AHORA));
+  const pase = await duenio.actividadComercial.findFirstOrThrow({ where: { tenantId: base.a.id, oportunidadId: mia.id, tipo: "PASE" }, orderBy: { createdAt: "desc" }, select: { usuarioId: true, texto: true, createdAt: true } });
+  assert.equal(pase.usuarioId, u.dir);
+  assert.match(pase.texto, /Calificada.*aprobado/i);
+
+  // Asignada a otro: deja de verla, por la lista y por la ficha.
+  await duenio.oportunidad.update({ where: { id: mia.id }, data: { duenoUserId: u.com2 } });
+  assert.ok(!ok(await repo.listarOportunidades(com1, {}, AHORA)).filas.some((x) => x.id === mia.id));
+  rechaza(await repo.ficha(com1, mia.id, AHORA), /no es tuya/);
+  ok(await repo.ficha(com2, mia.id, AHORA));
+  await duenio.oportunidad.update({ where: { id: mia.id }, data: { duenoUserId: null } });
+  ok(await repo.ficha(com1, mia.id, AHORA), "sin dueño otra vez: la vuelve a ver");
+});
+
+test("GSG-CRM-011 · E8 · varios contactos por oportunidad con su papel: sólo personas, misma marca, sin duplicar", async (t) => {
+  const f = await preparar(t);
+  if (!f) return;
+  const { repo, u, base } = f;
+  const dir = ctxA(f, u.dir);
+  const duenio = await prismaComoDuenio(base);
+
+  const op = ok(await repo.proponerOportunidad(dir, { tipo: "CONSULTA", marca: { nombre: "Papeles Demo SA", dominio: "papeles.example" }, ...PASO }, AHORA));
+  const otra = ok(await repo.proponerOportunidad(dir, { tipo: "CONSULTA", marca: { nombre: "Otra Papeles Demo SA", dominio: "otrapapeles.example" }, ...PASO }, AHORA));
+  const ana = ok(await repo.crearContacto(dir, { oportunidadId: op.id, nombre: "Ana Decide", email: "ana@papeles.example", papel: "DECIDE" }, AHORA));
+  const beto = ok(await repo.crearContacto(dir, { oportunidadId: op.id, nombre: "Beto Pide", email: "beto@papeles.example" }, AHORA));
+  const ajeno = ok(await repo.crearContacto(dir, { oportunidadId: otra.id, nombre: "Ajeno", email: "ajeno@otrapapeles.example" }, AHORA));
+  rechaza(await repo.crearContacto(dir, { oportunidadId: op.id, nombre: "Mal Papel", email: "mal@papeles.example", papel: "FIRMA" }, AHORA), /DECIDE, PIDE o PAGA/);
+
+  ok(await repo.vincularContacto(dir, { oportunidadId: op.id, contactoId: beto.id, papel: "PIDE" }, AHORA));
+  ok(await repo.vincularContacto(dir, { oportunidadId: op.id, contactoId: ana.id, papel: "PAGA" }, AHORA));
+  const rep = ok(await repo.vincularContacto(dir, { oportunidadId: op.id, contactoId: ana.id, papel: "PAGA" }, AHORA));
+  assert.equal(rep.repetido, true, "el reintento no duplica");
+  rechaza(await repo.vincularContacto(dir, { oportunidadId: op.id, contactoId: ajeno.id, papel: "PAGA" }, AHORA), /no es de la marca/);
+  rechaza(await repo.vincularContacto(dir, { oportunidadId: op.id, contactoId: "no-existe", papel: "PAGA" }, AHORA), /no existe/);
+  rechaza(await repo.vincularContacto(dir, { oportunidadId: op.id, contactoId: beto.id, papel: "JEFE" }, AHORA), /DECIDE, PIDE o PAGA/);
+  // Un puesto no vincula (ni aunque tenga la oportunidad en curso); otro negocio tampoco.
+  rechaza(await repo.vincularContacto(ctxA(f, u.calif), { oportunidadId: op.id, contactoId: beto.id, papel: "DECIDE" }, AHORA), /no carga contactos/);
+  rechaza(await repo.vincularContacto({ tenantId: base.b.id, userId: u.dirB }, { oportunidadId: op.id, contactoId: beto.id, papel: "DECIDE" }, AHORA), /no existe/);
+
+  const fi = ok(await repo.ficha(dir, op.id, AHORA));
+  const porNombre = Object.fromEntries(fi.contactos.map((c) => [c.nombre, c.papeles]));
+  assert.deepEqual(porNombre, { "Ana Decide": ["DECIDE", "PAGA"], "Beto Pide": ["PIDE"] });
+  const fila = ok(await repo.listarOportunidades(dir, {}, AHORA)).filas.find((x) => x.id === op.id);
+  assert.equal(fila?.contactos.length, 2);
+
+  // Sacar un papel: queda el otro.
+  assert.equal(ok(await repo.desvincularContacto(dir, { oportunidadId: op.id, contactoId: ana.id, papel: "PAGA" }, AHORA)).quitados, 1);
+  assert.deepEqual(ok(await repo.ficha(dir, op.id, AHORA)).contactos.find((c) => c.nombre === "Ana Decide")?.papeles, ["DECIDE"]);
+  // Quien pidió la baja no recibe un papel.
+  ok(await repo.suprimirContacto(dir, beto.id, AHORA));
+  rechaza(await repo.vincularContacto(dir, { oportunidadId: op.id, contactoId: beto.id, papel: "DECIDE" }, AHORA), /no le escriban/);
+
+  // La base frena lo que el repo no dejaría: papel fuera de catálogo y contacto de otro negocio (FK compuesta, RLS).
+  await assert.rejects(duenio.oportunidadContacto.create({ data: { tenantId: base.a.id, oportunidadId: op.id, contactoId: ana.id, papel: "JEFE", vinculadoPor: u.dir } }));
+  await assert.rejects(
+    comoApp(base, base.b.id, (c) => c.query(`INSERT INTO "OportunidadContacto" (id, "tenantId", "oportunidadId", "contactoId", papel, "vinculadoPor") VALUES ('x-papel', $1, $2, $3, 'DECIDE', 'x')`, [base.a.id, op.id, ana.id])),
+  );
+  const visto = await comoApp(base, base.b.id, (c) => c.query(`SELECT count(*)::int AS n FROM "OportunidadContacto"`));
+  assert.equal(visto.rows[0].n, 0, "RLS: otro negocio no ve los vínculos");
+});
+
+test("GSG-CRM-011 · días en etapa, última actividad, cierre esperado y monto ponderado (lista y ficha)", async (t) => {
+  const f = await preparar(t);
+  if (!f) return;
+  const { repo, u, base } = f;
+  const dir = ctxA(f, u.dir);
+  const duenio = await prismaComoDuenio(base);
+
+  const op = ok(await repo.proponerOportunidad(dir, { tipo: "CONSULTA", marca: { nombre: "Pronostico Demo SA", dominio: "pronostico.example" }, ...PASO }, AHORA));
+  let o = await duenio.oportunidad.findUniqueOrThrow({ where: { id: op.id }, select: { etapaDesde: true, ultimaActividadEl: true } });
+  assert.equal(o.etapaDesde?.toISOString(), AHORA.toISOString(), "entra a la etapa al crearse");
+  const ultima = await duenio.actividadComercial.findFirstOrThrow({ where: { tenantId: base.a.id, oportunidadId: op.id }, orderBy: { createdAt: "desc" }, select: { createdAt: true } });
+  assert.equal(o.ultimaActividadEl?.toISOString(), ultima.createdAt.toISOString(), "última actividad = la fila de la línea de tiempo");
+
+  // Un pase (aun por el motor) vuelve a fechar la etapa, en la misma escritura.
+  const despues = new Date("2026-11-18T15:00:00Z");
+  ok(await repo.comprobarIdentidad(dir, op.id, { emailDeQuienEscribe: "ana@pronostico.example" }, despues));
+  ok(await repo.aplicarPase(dir, op.id, "EN_CONVERSACION", {}, despues));
+  o = await duenio.oportunidad.findUniqueOrThrow({ where: { id: op.id }, select: { etapaDesde: true, ultimaActividadEl: true } });
+  assert.equal(o.etapaDesde?.toISOString(), despues.toISOString());
+  // Un rechazo no cuenta como actividad.
+  const antes = o.ultimaActividadEl?.toISOString();
+  rechaza(await repo.aplicarPase(dir, op.id, "CALIFICADA", {}, despues), /falta el brief/);
+  assert.equal((await duenio.oportunidad.findUniqueOrThrow({ where: { id: op.id }, select: { ultimaActividadEl: true } })).ultimaActividadEl?.toISOString(), antes);
+
+  // Cierre esperado y monto: los carga una persona; un puesto no, ni mezclado con datos.
+  const cierre = new Date("2027-02-01T12:00:00Z");
+  ok(await repo.actualizarDatos(dir, op.id, { cierreEsperadoEl: cierre, monto: 1_000_000, moneda: "ARS" }, despues));
+  const calif = ctxA(f, u.calif);
+  await duenio.tareaComercial.create({ data: { tenantId: base.a.id, oportunidadId: op.id, para: "calificador", tipo: "CALIFICAR", estado: "EN_CURSO", tomadaPor: u.calif, tomadaEl: AHORA, creadaPor: u.dir } });
+  rechaza(await repo.actualizarDatos(calif, op.id, { datos: { encaje: true }, cierreEsperadoEl: new Date("2027-05-01") }, despues), /no cambia la plata ni el cierre/);
+  rechaza(await repo.actualizarDatos(calif, op.id, { datos: { encaje: true }, monto: 1 }, despues), /no cambia la plata ni el cierre/);
+
+  const ahora = new Date("2026-11-23T16:00:00Z");
+  const fila = ok(await repo.listarOportunidades(dir, {}, ahora)).filas.find((x) => x.id === op.id);
+  assert.ok(fila);
+  assert.equal(fila.diasEnEtapa, 5);
+  assert.equal(fila.cierreEsperadoEl?.toISOString(), cierre.toISOString());
+  assert.equal(fila.monto, 1_000_000);
+  assert.equal(fila.montoPonderado, (1_000_000 * fila.probabilidad) / 100);
+  assert.ok(fila.ultimaActividadEl instanceof Date);
+  const fi = ok(await repo.ficha(dir, op.id, ahora));
+  assert.equal(fi.oportunidad.diasEnEtapa, 5);
+  assert.equal(fi.oportunidad.montoPonderado, fila.montoPonderado);
+  assert.equal(fi.oportunidad.cierreEsperadoEl?.toISOString(), cierre.toISOString());
+  ok(await repo.actualizarDatos(dir, op.id, { cierreEsperadoEl: null }, despues));
+  assert.equal((await duenio.oportunidad.findUniqueOrThrow({ where: { id: op.id }, select: { cierreEsperadoEl: true } })).cierreEsperadoEl, null);
+
+  assert.equal(repo.esFaltaDeTabla(new Error('relation "OportunidadContacto" does not exist')), true);
+  assert.equal(repo.esFaltaDeTabla(new Error('column "etapaDesde" does not exist')), true);
+  assert.equal(repo.esFaltaDeTabla(new Error("column Oportunidad.cierreEsperadoEl does not exist in the current database.")), true);
+});

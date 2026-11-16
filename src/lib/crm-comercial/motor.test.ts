@@ -2,6 +2,7 @@
 // (CRM-REINGENIERIA.md §5) o del criterio de certificación (A2, A3, A9) que prueba.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
   alCambiarFechaDelEvento,
   asignacionVencida,
@@ -15,6 +16,12 @@ import {
   dentroDelTope,
   despertar,
   detectarInstruccion,
+  diasEnEtapa,
+  ETAPAS,
+  esPapel,
+  montoPonderado,
+  PAPELES,
+  sinSeguimiento,
   huellasDeContacto,
   identidadPorDominio,
   mismaMarca,
@@ -362,4 +369,61 @@ test("E2 · los estados del borrador: rechazar pide motivo; sólo el aprobado se
 test("E3 · la clave de idempotencia es la misma para el mismo reintento", () => {
   assert.equal(claveIdempotencia("redactor", "o1", "MAIL", "Hola"), claveIdempotencia("redactor", "o1", "MAIL", "Hola"));
   assert.notEqual(claveIdempotencia("redactor", "o1", "MAIL", "Hola"), claveIdempotencia("redactor", "o1", "MAIL", "Hola!"));
+});
+
+// ─── GSG-CRM-011 · pronóstico y contactos con papel ──────────────────────────
+
+test("GSG-CRM-011: monto ponderado = monto × probabilidad de la etapa, al centavo; sin monto es null, no cero", () => {
+  const conf = Object.fromEntries(ETAPAS.map((e) => [e, { probabilidad: 0, seguimientoDias: null }])) as Parameters<typeof montoPonderado>[2] & object;
+  conf.CALIFICADA = { probabilidad: 40, seguimientoDias: 2 };
+  conf.GANADA = { probabilidad: 100, seguimientoDias: null };
+  conf.ASIGNADA = { probabilidad: 33, seguimientoDias: 5 };
+  assert.equal(montoPonderado(1_000_000, "CALIFICADA", conf), 400_000);
+  assert.equal(montoPonderado(1_000_000, "GANADA", conf), 1_000_000);
+  assert.equal(montoPonderado(1_000_000, "PERDIDA", conf), 0);
+  assert.equal(montoPonderado(100.01, "ASIGNADA", conf), 33);
+  assert.equal(montoPonderado(1234.57, "ASIGNADA", conf), 407.41);
+  assert.equal(montoPonderado(null, "CALIFICADA", conf), null);
+  assert.equal(montoPonderado(-5, "CALIFICADA", conf), null);
+  assert.equal(montoPonderado(Number.NaN, "CALIFICADA", conf), null);
+  // Una probabilidad mal cargada en la configuración no da más que el monto ni menos que cero.
+  assert.equal(montoPonderado(100, "CALIFICADA", { ...conf, CALIFICADA: { probabilidad: 150, seguimientoDias: 2 } }), 100);
+  // La configuración real (provisional) tiene todas las etapas, en 0..100; cerradas sin plazo.
+  for (const e of ETAPAS) {
+    const p = montoPonderado(100, e);
+    assert.ok(p !== null && p >= 0 && p <= 100, e);
+  }
+  assert.equal(montoPonderado(100, "GANADA"), 100);
+});
+
+test("GSG-CRM-011: días en esta etapa y «sin seguimiento» según el plazo de la etapa", () => {
+  const ahora = new Date("2026-11-16T15:00:00Z");
+  assert.equal(diasEnEtapa(new Date("2026-11-10T16:00:00Z"), ahora), 5);
+  assert.equal(diasEnEtapa(new Date("2026-11-16T14:00:00Z"), ahora), 0);
+  assert.equal(diasEnEtapa(new Date("2026-11-20T00:00:00Z"), ahora), 0, "nunca negativo");
+  assert.equal(diasEnEtapa(null, ahora), null, "fila sin la fecha");
+  // EN_CONVERSACION: plazo 3 días (provisional). Cuenta desde la última actividad; si no hay, desde la etapa.
+  assert.equal(sinSeguimiento({ etapa: "EN_CONVERSACION", ultimaActividadEl: new Date("2026-11-12T15:00:00Z") }, ahora).atrasada, true);
+  assert.equal(sinSeguimiento({ etapa: "EN_CONVERSACION", ultimaActividadEl: new Date("2026-11-14T15:00:00Z"), etapaDesde: new Date("2026-10-01") }, ahora).atrasada, false);
+  assert.equal(sinSeguimiento({ etapa: "EN_CONVERSACION", etapaDesde: new Date("2026-11-01") }, ahora).atrasada, true);
+  assert.equal(sinSeguimiento({ etapa: "EN_CONVERSACION" }, ahora).atrasada, false, "sin fechas no se inventa");
+  assert.equal(sinSeguimiento({ etapa: "DORMIDA", ultimaActividadEl: new Date("2026-01-01") }, ahora).atrasada, false, "DORMIDA la despierta su fecha");
+  assert.equal(sinSeguimiento({ etapa: "GANADA", ultimaActividadEl: new Date("2026-01-01") }, ahora).atrasada, false);
+  // En «Hoy»: entra con su porqué; sin las fechas nuevas, «Hoy» queda igual que antes.
+  const base = { id: "x", etapa: "EN_CONVERSACION" as const, proximoPasoEl: new Date("2026-12-01"), fechaLimite: null, calificadaEl: null, despertarEl: null, pasePropuesto: null };
+  assert.deepEqual(bandejaHoy([base], ahora), []);
+  const h = bandejaHoy([{ ...base, ultimaActividadEl: new Date("2026-11-06T15:00:00Z") }], ahora);
+  assert.equal(h.length, 1);
+  assert.match(h[0].por[0], /Sin actividad hace 10 días/);
+});
+
+test("GSG-CRM-011: los papeles del motor y el CHECK de la migración dicen lo mismo", () => {
+  assert.deepEqual([...PAPELES], ["DECIDE", "PIDE", "PAGA"]);
+  assert.equal(esPapel("DECIDE"), true);
+  assert.equal(esPapel("decide"), false);
+  assert.equal(esPapel("FIRMA"), false);
+  const sql = readFileSync(new URL("../../../prisma/migrations/20261116160000_crm_comercial_pronostico/migration.sql", import.meta.url), "utf8");
+  const m = /"OportunidadContacto_papel_check" CHECK \("papel" IN \(([^)]*)\)\)/.exec(sql);
+  assert.ok(m, "falta el CHECK de papel");
+  assert.deepEqual(m[1].split(",").map((x) => x.trim().replace(/'/g, "")), [...PAPELES]);
 });

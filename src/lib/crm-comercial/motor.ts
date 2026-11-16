@@ -12,6 +12,7 @@
 
 import { createHash } from "node:crypto";
 import { VARA, type Vara } from "./vara";
+import { PRONOSTICO, type Pronostico } from "./pronostico";
 
 // ── Etapas ──────────────────────────────────────────────────────────────────
 
@@ -445,6 +446,44 @@ export function despertar(o: { etapa: Etapa; etapaPrevia: Etapa | null; desperta
   return { ok: true, etapa };
 }
 
+// ── Pronóstico y contactos con papel (GSG-CRM-011) ──────────────────────────
+
+/** Papel de un contacto en la oportunidad. Los mismos valores que el CHECK de `OportunidadContacto`. */
+export const PAPELES = ["DECIDE", "PIDE", "PAGA"] as const;
+export type Papel = (typeof PAPELES)[number];
+export const esPapel = (v: unknown): v is Papel => typeof v === "string" && (PAPELES as readonly string[]).includes(v);
+export const ETIQUETA_PAPEL: Record<Papel, string> = { DECIDE: "Decide", PIDE: "Pide", PAGA: "Paga" };
+
+/** Días enteros desde `desde` hasta `ahora` (nunca negativo). Sin fecha (fila anterior a la migración) = null. */
+export function diasDesde(desde: Date | null | undefined, ahora: Date): number | null {
+  if (!desde) return null;
+  return Math.max(0, Math.floor((ahora.getTime() - desde.getTime()) / MS_DIA));
+}
+
+/** «Días en esta etapa». */
+export const diasEnEtapa = (etapaDesde: Date | null | undefined, ahora: Date): number | null => diasDesde(etapaDesde, ahora);
+
+/** Monto × probabilidad de la etapa, redondeado al centavo. Sin monto = null (no es cero: falta el dato). */
+export function montoPonderado(monto: number | null | undefined, etapa: Etapa, pronostico: Pronostico = PRONOSTICO): number | null {
+  if (monto == null || !Number.isFinite(monto) || monto < 0) return null;
+  const p = Math.min(100, Math.max(0, pronostico[etapa].probabilidad));
+  return Math.round(monto * p) / 100;
+}
+
+/**
+ * ¿Se pasó del plazo de seguimiento de la etapa? Cuenta desde la última actividad (o, si no hay, desde que
+ * entró a la etapa). Etapa sin plazo (cerrada, DORMIDA) o sin fechas = no.
+ */
+export function sinSeguimiento(
+  o: { etapa: Etapa; ultimaActividadEl?: Date | null; etapaDesde?: Date | null },
+  ahora: Date,
+  pronostico: Pronostico = PRONOSTICO,
+): { atrasada: boolean; dias: number | null; plazo: number | null } {
+  const plazo = pronostico[o.etapa].seguimientoDias;
+  const dias = diasDesde(o.ultimaActividadEl ?? o.etapaDesde ?? null, ahora);
+  return { atrasada: plazo != null && dias != null && dias > plazo, dias, plazo };
+}
+
 // ── «Hoy»: la urgencia (E7, E19, E20) ───────────────────────────────────────
 
 export interface ItemHoy {
@@ -455,6 +494,9 @@ export interface ItemHoy {
   calificadaEl: Date | null;
   despertarEl: Date | null;
   pasePropuesto: Etapa | null;
+  /** GSG-CRM-011: para «sin seguimiento» (opcionales: sin ellas no se evalúa). */
+  ultimaActividadEl?: Date | null;
+  etapaDesde?: Date | null;
 }
 
 export interface EntradaHoy {
@@ -485,6 +527,11 @@ export function bandejaHoy(items: readonly ItemHoy[], ahora: Date, vara: Vara = 
     if (pasoVencido(o, ahora)) {
       por.push("El próximo paso está vencido");
       urgencia += 50;
+    }
+    const seg = sinSeguimiento(o, ahora);
+    if (seg.atrasada) {
+      por.push(`Sin actividad hace ${seg.dias} días (el plazo de la etapa es ${seg.plazo})`);
+      urgencia += 20;
     }
     if (o.fechaLimite) {
       const dias = Math.ceil((o.fechaLimite.getTime() - ahora.getTime()) / MS_DIA);

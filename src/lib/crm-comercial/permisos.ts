@@ -87,6 +87,8 @@ export type Miembro = {
 export type ContextoOportunidad = {
   duenoUserId: string | null;
   creadaPor: string;
+  /** PROSPECTO · CONSULTA. Sin él, el comercial sólo ve lo asignado (falla cerrada). */
+  tipo?: string;
   /** userIds que tienen una TareaComercial EN_CURSO sobre esta oportunidad. */
   tomadoresEnCurso: readonly string[];
 };
@@ -162,7 +164,11 @@ function esEtapa(x: unknown): x is Etapa {
 function verOportunidad(m: Miembro, o: ContextoOportunidad): Resultado {
   if (m.rol === "DIRECCION") return SI;
   if (m.rol === "COMERCIAL") {
-    return o.duenoUserId === m.userId ? SI : no("Esa oportunidad no es tuya: la tiene asignada otro comercial o todavía no se asignó.");
+    if (o.duenoUserId === m.userId) return SI;
+    // GSG-CRM-011 (B7): la consulta entrante que cargó él, mientras nadie más la tenga asignada.
+    // Lo mismo dice `filtroVisible` en repo.ts: si cambia uno, cambia el otro.
+    if (o.duenoUserId == null && o.tipo === "CONSULTA" && o.creadaPor === m.userId) return SI;
+    return no("Esa oportunidad no es tuya: la tiene asignada otro comercial o todavía no se asignó.");
   }
   return o.creadaPor === m.userId || o.tomadoresEnCurso.includes(m.userId)
     ? SI

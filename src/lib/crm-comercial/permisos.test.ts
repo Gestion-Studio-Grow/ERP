@@ -183,3 +183,31 @@ test("E11: sin tope (null) no frena; las personas no tienen tope", () => {
   assert.deepEqual(dentroDeTopes({ ...direccion, topeAccionesDia: 0 }, { accionesHoy: 50, costoHoyUsd: 50 }), { ok: true });
   assert.deepEqual(dentroDeTopes({ ...comercial, topeCostoDiaUsd: 0 }, { accionesHoy: 0, costoHoyUsd: 50 }, 1), { ok: true });
 });
+
+// ─── GSG-CRM-011 · B7: la consulta que cargó el comercial ───────────────────
+
+test("B7: el comercial ve y opera la consulta entrante que cargó él mientras no esté asignada a otro", () => {
+  const suya = { oportunidad: { duenoUserId: null, creadaPor: "com1", tipo: "CONSULTA", tomadoresEnCurso: [] } };
+  ok(comercial, "ver_oportunidad", suya);
+  ok(comercial, "registrar_respuesta", suya);
+  ok(comercial, "comprobar_identidad", suya);
+  ok(comercial, "crear_contacto", suya);
+  ok(comercial, "aplicar_pase", { ...suya, etapaDestino: "EN_CONVERSACION" });
+  rechaza(comercial, "aplicar_pase", { ...suya, etapaDestino: "CALIFICADA" }, /lo aprueba Dirección/);
+  // Asignada a otro (comercial o Dirección): ya no.
+  rechaza(comercial, "ver_oportunidad", { oportunidad: { ...suya.oportunidad, duenoUserId: "com2" } }, /no es tuya/);
+  rechaza(comercial, "ver_oportunidad", { oportunidad: { ...suya.oportunidad, duenoUserId: "ale" } }, /no es tuya/);
+  // La que cargó otro comercial: no.
+  rechaza(comercial, "ver_oportunidad", { oportunidad: { ...suya.oportunidad, creadaPor: "com2" } }, /no es tuya/);
+  rechaza({ ...comercial, userId: "com2" }, "ver_oportunidad", suya, /no es tuya/);
+  // Un prospecto (no consulta), o sin tipo en el contexto: falla cerrada.
+  rechaza(comercial, "ver_oportunidad", { oportunidad: { ...suya.oportunidad, tipo: "PROSPECTO" } }, /no es tuya/);
+  rechaza(comercial, "ver_oportunidad", { oportunidad: { duenoUserId: null, creadaPor: "com1", tomadoresEnCurso: [] } }, /no es tuya/);
+});
+
+test("GSG-CRM-011: vincular un contacto con su papel (crear_contacto) lo hace una persona, nunca un puesto", () => {
+  const o = { oportunidad: { duenoUserId: null, creadaPor: "ag-calificador", tipo: "CONSULTA", tomadoresEnCurso: ["ag-calificador"] } };
+  rechaza(puesto("calificador"), "crear_contacto", o, /no carga contactos/);
+  rechaza(puesto("armador_brief"), "crear_contacto", o, /no carga contactos/);
+  ok(direccion, "crear_contacto", o);
+});

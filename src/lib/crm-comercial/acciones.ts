@@ -78,8 +78,17 @@ export async function proponerOportunidad(n: NuevaOportunidadEntrada) {
   });
 }
 
-export async function actualizarDatosOportunidad(id: string, d: Omit<repo.PedidoDeDatos, "proximoPasoEl" | "fechaLimite"> & { proximoPasoEl?: string | Date | null; fechaLimite?: string | Date | null }) {
-  return con(true, (ctx) => repo.actualizarDatos(ctx, id, { ...d, proximoPasoEl: fechaOpcional(d.proximoPasoEl), fechaLimite: fechaOpcional(d.fechaLimite) }));
+export async function actualizarDatosOportunidad(
+  id: string,
+  d: Omit<repo.PedidoDeDatos, "proximoPasoEl" | "fechaLimite" | "cierreEsperadoEl"> & { proximoPasoEl?: string | Date | null; fechaLimite?: string | Date | null; cierreEsperadoEl?: string | Date | null },
+) {
+  return con(true, (ctx) => {
+    // Cierre esperado: vacío o null lo borra; una fecha que no se entiende se rechaza (no se borra en silencio).
+    const vacio = d.cierreEsperadoEl === null || (typeof d.cierreEsperadoEl === "string" && !d.cierreEsperadoEl.trim());
+    const cierre = d.cierreEsperadoEl === undefined ? undefined : vacio ? null : fecha(d.cierreEsperadoEl);
+    if (cierre === null && !vacio) return Promise.resolve(no("La fecha de cierre esperado no es válida."));
+    return repo.actualizarDatos(ctx, id, { ...d, proximoPasoEl: fechaOpcional(d.proximoPasoEl), fechaLimite: fechaOpcional(d.fechaLimite), cierreEsperadoEl: cierre });
+  });
 }
 
 type PaseEntrada = EvidenciaPase & { proximoPaso?: string | null; proximoPasoEl?: string | Date | null; version?: number; fuenteUrl?: string | null; costoUsd?: number | null };
@@ -114,6 +123,12 @@ export async function comprobarIdentidad(id: string, d: { emailDeQuienEscribe?: 
 
 export async function crearContacto(c: repo.NuevoContacto) {
   return con(true, (ctx) => repo.crearContacto(ctx, c));
+}
+export async function vincularContacto(v: repo.VinculoContacto) {
+  return con(true, (ctx) => repo.vincularContacto(ctx, v));
+}
+export async function desvincularContacto(v: repo.VinculoContacto) {
+  return con(true, (ctx) => repo.desvincularContacto(ctx, v));
 }
 export async function suprimirContacto(contactoId: string) {
   return con(true, (ctx) => repo.suprimirContacto(ctx, contactoId));
