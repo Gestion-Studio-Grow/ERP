@@ -288,6 +288,14 @@ model Tenant {
   eventoMarcas              EventoMarca[]
   accionesDelEquipo         AccionDelEquipo[]
   pedidosAlEquipo           PedidoAlEquipo[]
+  miembrosCrmComercial      MiembroCrmComercial[] // CRM comercial (GSG-CRM-010)
+  contactosComerciales      ContactoComercial[]
+  supresionesComerciales    SupresionComercial[]
+  oportunidades             Oportunidad[]
+  actividadesComerciales    ActividadComercial[]
+  briefsComerciales         BriefComercial[]
+  borradoresMensaje         BorradorMensaje[]
+  tareasComerciales         TareaComercial[]
   proyectoConfig            ProyectoConfig?
   inmoPropiedades           InmoPropiedad[] // módulo inmobiliaria
   inmoFotos                 InmoFoto[]
@@ -3572,6 +3580,7 @@ model Proyecto {
   presentaciones      ProyectoPresentacion[]
   createdAt           DateTime               @default(now())
   updatedAt           DateTime               @updatedAt
+  oportunidadesComerciales Oportunidad[] // CRM comercial (GSG-CRM-010): sólo relación, ninguna columna nueva
 
   @@unique([tenantId, numero])
   @@unique([id, tenantId]) // Rendí: destino de FKs compuestas (id, tenantId), que no cruzan de negocio
@@ -4573,6 +4582,7 @@ model EventoRelevado {
   verificacion String       @default("sin verificar") // confirmado · en duda · falla · sin verificar
   origen      String        @default("IMPORTACION") // IMPORTACION · MANUAL
   marcas      EventoMarca[]
+  oportunidades Oportunidad[] // CRM comercial (GSG-CRM-010): sólo relación, ninguna columna nueva
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
@@ -4590,7 +4600,16 @@ model MarcaRelevada {
   nombre    String
   rubro     String?
   web       String?
+  // CRM comercial (GSG-CRM-010, migración 20261116150000_crm_comercial, ADITIVA): llaves para unir la misma
+  // marca que llega dos veces (E1). Únicos PARCIALES por negocio (WHERE … IS NOT NULL) que viven sólo en SQL.
+  // OJO Gate 2: con la migración sin aplicar, toda lectura de MarcaRelevada lleva `select` (sin él, Prisma
+  // pide estas columnas y falla).
+  dominio   String? // «marca.example»: minúsculas, sin protocolo ni «www.»
+  cuit      String? // 11 dígitos, sin guiones
   eventos   EventoMarca[]
+  oportunidades          Oportunidad[]       @relation("OportunidadMarca")
+  oportunidadesIntermedia Oportunidad[]      @relation("OportunidadCompraAtravesDe")
+  contactos              ContactoComercial[]
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 
@@ -4653,8 +4672,242 @@ model PedidoAlEquipo {
   hasta     DateTime? @db.Date
   estado    String   @default("EN_COLA") // EN_COLA · EN_CURSO · HECHO · DESCARTADO
   creadoPor String? // id del usuario que lo pidió
+  // Quién lo tomó y cómo se cerró (GSG-CRM-010, ADITIVA). Tomar es atómico (E22):
+  // UPDATE … SET estado='EN_CURSO', tomadoPor=… WHERE id=… AND estado='EN_COLA' (o FOR UPDATE SKIP LOCKED).
+  // OJO Gate 2: con la migración sin aplicar, toda lectura de PedidoAlEquipo lleva `select`.
+  tomadoPor  String? // id del usuario (puesto o persona) que lo tomó
+  tomadoEl   DateTime?
+  cerradoEl  DateTime?
+  notaCierre String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([tenantId, estado, createdAt])
+}
+
+// ─── CRM COMERCIAL (GSG-CRM-010 · diseño docs/tenants/mia-producciones/CRM-REINGENIERIA.md §2-§3) ─────
+// La oportunidad (marca × evento, o consulta entrante) desde que se detecta hasta que se asigna a un
+// comercial y toma el cierre del proyecto. Migración ADITIVA 20261116150000_crm_comercial (sin aplicar:
+// Gate 2). Valores cerrados en TEXT + CHECK (nunca enum), FK compuestas (x, tenantId) que no cruzan de
+// negocio, RLS tenant_isolation. Lo que sólo vive en SQL (Prisma no lo modela): CHECKs, el único parcial
+// de oportunidad abierta por marca × evento (E1) y los únicos parciales de dominio/CUIT de MarcaRelevada.
+// Los ids de usuario (userId, duenoUserId, cargadoPor…) van sin FK, como `PedidoAlEquipo.creadoPor`:
+// User no tiene @@unique([id, tenantId]) y sumarlo tocaría su tabla.
+
+// Quién trabaja en el CRM y con qué rol. EL PERMISO DEL CRM SALE DE ACÁ, no de `clients:manage` (E16):
+// sin fila activa no se hace nada. PUESTO = usuario propio de un puesto del equipo de agentes.
+model MiembroCrmComercial {
+  id              String   @id @default(cuid())
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId        String
+  userId          String
+  rol             String // DIRECCION · COMERCIAL · PUESTO
+  puesto          String? // sólo PUESTO: descubridor · identificador · verificador · contactos · redactor · seguidor · calificador · armador_brief
+  topeAccionesDia Int? // E11: null = sin tope
+  topeCostoDiaUsd Decimal? @db.Decimal(10, 4) // E11: null = sin tope
+  activo          Boolean  @default(true)
+  creadoPor       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([tenantId, userId])
+  @@unique([id, tenantId])
+}
+
+// Persona de una marca. La cargan SÓLO personas (origen DIRECCION · COMERCIAL · CONSULTA_ENTRANTE); nunca un
+// agente (E16). Baja = supresión (E8): se anonimiza (nombre «(baja)», email y teléfono en null) y queda la
+// huella en SupresionComercial. No se borra: los borradores y la oportunidad lo siguen nombrando.
+model ContactoComercial {
+  id            String              @id @default(cuid())
+  tenant        Tenant              @relation(fields: [tenantId], references: [id])
+  tenantId      String
+  marca         MarcaRelevada?      @relation(fields: [marcaId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  marcaId       String?
+  nombre        String
+  email         String? // normalizado en minúsculas
+  telefono      String? // tal como lo da la persona; la huella usa sólo los dígitos
+  cargo         String?
+  origen        String // DIRECCION · COMERCIAL · CONSULTA_ENTRANTE
+  cargadoPor    String // id del usuario (persona) que lo cargó
+  suprimidoEl   DateTime?
+  oportunidades Oportunidad[]
+  borradores    BorradorMensaje[]
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  @@unique([id, tenantId])
+  @@index([tenantId, marcaId])
+  @@index([tenantId, email])
+}
+
+// Huella de quien pidió que no le escriban más (E8): sha256 hex del email normalizado o del teléfono en
+// dígitos. NUNCA se borra: aunque vuelvan a cargar el contacto, ningún borrador nuevo para él.
+model SupresionComercial {
+  id            String   @id @default(cuid())
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId      String
+  huella        String
+  tipo          String // EMAIL · TELEFONO
+  registradaPor String
+  createdAt     DateTime @default(now())
+
+  @@unique([tenantId, huella])
+}
+
+// La entidad central. Etapas (TEXT + CHECK): DETECTADA VERIFICADA SIN_CONTACTO CONTACTADA RECIBIDA
+// EN_CONVERSACION FALTAN_DATOS CALIFICADA ASIGNADA DORMIDA · terminales GANADA PERDIDA DESCARTADA
+// DERIVADA_AL_TALLER. Una sola abierta por marca × evento: índice único PARCIAL sólo en SQL (E1).
+// Abierta (no terminal ni DORMIDA) ⇒ próximo paso y su fecha (E5, CHECK). `version` para el control
+// optimista (E2). `consultaTexto` es dato, nunca instrucción, y no suma puntaje (E10, E24).
+model Oportunidad {
+  id                       String             @id @default(cuid())
+  tenant                   Tenant             @relation(fields: [tenantId], references: [id])
+  tenantId                 String
+  tipo                     String // PROSPECTO · CONSULTA
+  marca                    MarcaRelevada?     @relation("OportunidadMarca", fields: [marcaId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  marcaId                  String?
+  evento                   EventoRelevado?    @relation(fields: [eventoId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  eventoId                 String?
+  contacto                 ContactoComercial? @relation(fields: [contactoId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  contactoId               String?
+  etapa                    String
+  etapaPrevia              String? // a dónde vuelve al despertar de DORMIDA
+  duenoUserId              String? // el comercial asignado
+  puntaje                  Int?
+  puntajeDetalle           Json? // qué sumó y qué faltó: el puntaje se explica
+  datos                    Json               @default("{}") // campos estructurados y verificados: fechaEvento, tipoTrabajo, presupuesto, quienDecide, encaje
+  consultaTexto            String? // texto libre de la consulta entrante: dato, nunca instrucción
+  identidadComprobada      Boolean            @default(false)
+  destino                  String? // AGENCIA · TALLER (lo propone el Calificador)
+  destinoConfirmado        Boolean            @default(false) // lo confirma Dirección (E14)
+  monto                    Decimal?           @db.Decimal(14, 2)
+  moneda                   String             @default("ARS") // ARS · USD
+  proximoPaso              String?
+  proximoPasoEl            DateTime?
+  fechaLimite              DateTime? // licitación entre agencias (E20)
+  compraAtravesDe          MarcaRelevada?     @relation("OportunidadCompraAtravesDe", fields: [compraAtravesDeMarcaId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  compraAtravesDeMarcaId   String? // holding o agencia intermediaria (E18)
+  despertarEl              DateTime? // DORMIDA (E19)
+  motivo                   String? // de catálogo (provisional a confirmar): DORMIDA, PERDIDA, DESCARTADA
+  nota                     String?
+  proyecto                 Proyecto?          @relation(fields: [proyectoId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  proyectoId               String? // nace al ASIGNAR; la oportunidad toma su cierre
+  pasePropuesto            String? // el agente PROPONE el pase; lo aplica Dirección
+  pasePropuestoPor         String?
+  pasePropuestoEl          DateTime?
+  pasePropuestoDatos       Json?
+  pedidosDeDatos           Int                @default(0) // E9
+  seguimientosSinRespuesta Int                @default(0) // E23
+  calificadaEl             DateTime? // E7: desde cuándo espera asignación
+  version                  Int                @default(0)
+  creadaPor                String
+  idempotencia             String? // E3
+  actividades              ActividadComercial[]
+  brief                    BriefComercial?
+  borradores               BorradorMensaje[]
+  tareas                   TareaComercial[]
+  createdAt                DateTime           @default(now())
+  updatedAt                DateTime           @updatedAt
+
+  @@unique([tenantId, idempotencia])
+  @@unique([id, tenantId])
+  @@index([tenantId, etapa])
+  @@index([tenantId, duenoUserId, etapa])
+  @@index([tenantId, proximoPasoEl])
+  @@index([tenantId, marcaId])
+}
+
+// Línea de tiempo y registro por puesto (A10): quién (persona o puesto), qué, con qué fuente, cuánto costó.
+// Se suma acá y no en AccionDelEquipo: aquella exige evento y su CHECK de puesto no admite los dos nuevos.
+model ActividadComercial {
+  id            String       @id @default(cuid())
+  tenant        Tenant       @relation(fields: [tenantId], references: [id])
+  tenantId      String
+  oportunidad   Oportunidad? @relation(fields: [oportunidadId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  oportunidadId String? // null = acción del puesto sin oportunidad (p. ej. relevar)
+  usuarioId     String
+  puesto        String? // null = lo hizo una persona
+  tipo          String // MAYÚSCULAS_CON_GUION_BAJO (PASE, PASE_PROPUESTO, RESPUESTA_CLIENTE, NOTA, …): lo define el motor
+  texto         String
+  fuenteUrl     String?
+  costoUsd      Decimal?     @db.Decimal(10, 4)
+  idempotencia  String?
+  createdAt     DateTime     @default(now())
+
+  @@unique([tenantId, idempotencia])
+  @@index([tenantId, oportunidadId, createdAt])
+  @@index([tenantId, usuarioId, createdAt]) // topes del día por puesto (E11)
+}
+
+// Lo que recibe el comercial: campos fijos + la lista de lo que falta. Uno por oportunidad.
+model BriefComercial {
+  id            String      @id @default(cuid())
+  tenant        Tenant      @relation(fields: [tenantId], references: [id])
+  tenantId      String
+  oportunidad   Oportunidad @relation(fields: [oportunidadId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  oportunidadId String
+  campos        Json        @default("{}")
+  faltantes     String[]    @default([])
+  version       Int         @default(0)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@unique([oportunidadId, tenantId])
+}
+
+// Mail o WhatsApp preparado. BORRADOR → APROBADO → ENVIADO_POR_PERSONA · RECHAZADO (con motivo). Lo manda
+// SIEMPRE una persona fuera del sistema y es ella quien lo marca enviado (E16). `version` para E2.
+model BorradorMensaje {
+  id            String             @id @default(cuid())
+  tenant        Tenant             @relation(fields: [tenantId], references: [id])
+  tenantId      String
+  oportunidad   Oportunidad        @relation(fields: [oportunidadId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  oportunidadId String
+  contacto      ContactoComercial? @relation(fields: [contactoId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  contactoId    String?
+  canal         String // MAIL · WHATSAPP
+  asunto        String?
+  cuerpo        String
+  estado        String             @default("BORRADOR") // BORRADOR · APROBADO · ENVIADO_POR_PERSONA · RECHAZADO
+  motivoRechazo String?
+  redactadoPor  String
+  aprobadoPor   String?
+  aprobadoEl    DateTime?
+  enviadoPor    String?
+  enviadoEl     DateTime?
+  version       Int                @default(0)
+  idempotencia  String?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@unique([tenantId, idempotencia])
+  @@index([tenantId, estado, createdAt])
+  @@index([tenantId, oportunidadId])
+}
+
+// Cola del CRM: «cargar a quién escribirle» (para PERSONA), seguimiento vencido (seguidor), puntuar
+// (calificador)… Tomar es atómico (E22). `idempotencia`: la misma tarea vencida no se duplica.
+model TareaComercial {
+  id            String      @id @default(cuid())
+  tenant        Tenant      @relation(fields: [tenantId], references: [id])
+  tenantId      String
+  oportunidad   Oportunidad @relation(fields: [oportunidadId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  oportunidadId String
+  para          String // un puesto, PERSONA o DIRECCION
+  tipo          String // MAYÚSCULAS_CON_GUION_BAJO (CARGAR_CONTACTO, SEGUIMIENTO, PUNTUAR, …): lo define el motor
+  estado        String      @default("EN_COLA") // EN_COLA · EN_CURSO · HECHA · DESCARTADA
+  venceEl       DateTime?
+  tomadaPor     String?
+  tomadaEl      DateTime?
+  cerradaEl     DateTime?
+  notaCierre    String?
+  creadaPor     String
+  idempotencia  String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@unique([tenantId, idempotencia])
+  @@index([tenantId, para, estado, createdAt])
+  @@index([tenantId, oportunidadId])
+  @@index([tenantId, tomadaPor, estado])
 }

@@ -550,7 +550,7 @@ export function huellasDeContacto(c: { email?: string | null; telefono?: string 
 }
 
 /** Lo que queda del contacto después de la baja: nada que identifique a la persona. */
-export const CONTACTO_ANONIMO = { nombre: "(pidió la baja)", email: null, telefono: null, cargo: null } as const;
+export const CONTACTO_ANONIMO = { nombre: "(baja)", email: null, telefono: null, cargo: null } as const;
 
 export function puedeEscribirle(huellas: readonly string[], suprimidas: ReadonlySet<string>): Resultado {
   return huellas.some((h) => suprimidas.has(h)) ? no("Esa persona pidió que no le escriban más. No se le prepara ningún mensaje, nunca.") : { ok: true };
