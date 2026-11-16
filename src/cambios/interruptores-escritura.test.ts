@@ -30,6 +30,8 @@ const RAIZ = process.cwd();
 const ESCRITORES_PERMITIDOS: Record<string, string> = {
   "src/lib/operador/interruptores-escritura.server.ts": "la escritura condicional de la consola",
   "scripts/provision-tenant.ts": "el alta integrada (todavía no la escribe)",
+  "scripts/crm-comercial/preparar-local.ts":
+    "la prueba local del CRM comercial (GSG-CRM-011), SÓLO contra una base de esta máquina (baseLocalParaSeed + guarda de Neon; la llama prueba-local.mjs con PGlite): prende «crm-comercial»",
   "scripts/soporte/alta-negocio.mts": "el alta por comando de Soporte",
   "scripts/qa/visual-audit-gate.mjs": "el gate visual, SÓLO contra su PGlite en memoria (prende el piloto para medirlo)",
   "scripts/qa/facturacion-escala-e2e.mjs":

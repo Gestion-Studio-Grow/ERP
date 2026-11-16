@@ -297,6 +297,7 @@ model Tenant {
   briefsComerciales         BriefComercial[]
   borradoresMensaje         BorradorMensaje[]
   tareasComerciales         TareaComercial[]
+  filasDePruebaCrm          FilaDePruebaCrm[]
   proyectoConfig            ProyectoConfig?
   inmoPropiedades           InmoPropiedad[] // módulo inmobiliaria
   inmoFotos                 InmoFoto[]
@@ -4935,4 +4936,24 @@ model TareaComercial {
   @@index([tenantId, para, estado, createdAt])
   @@index([tenantId, oportunidadId])
   @@index([tenantId, tomadaPor, estado])
+}
+
+// GSG-CRM-011 · parte 3: qué filas cargó la PRUEBA del CRM (los 20 leads ficticios y los clientes activos).
+// La marca «de prueba» vive acá y no como columna en cada tabla: así no se toca MarcaRelevada ni
+// EventoRelevado, que ya están en producción (una columna nueva ahí obliga a `select` en cada lectura).
+// La limpieza (scripts/crm-comercial/limpiar-prueba.ts) borra SÓLO lo anotado acá, de UN negocio.
+// Migración ADITIVA 20261116170000_crm_comercial_filas_de_prueba, sin aplicar (Gate 2).
+model FilaDePruebaCrm {
+  id        String   @id @default(cuid())
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  entidad   String // LEAD · CLIENTE · MARCA · EVENTO · EVENTO_MARCA · OPORTUNIDAD · CONTACTO
+  clave     String // LEAD/CLIENTE: el id del archivo (L01, C01); el resto: el id de la fila
+  filaId    String? // la fila anotada (para LEAD/CLIENTE: la oportunidad que quedó, si quedó una)
+  nota      String? // LEAD: cómo entró (CREADA · UNIDA · FRENADA) y el motivo
+  lote      String
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, entidad, clave])
+  @@index([tenantId, entidad])
 }
