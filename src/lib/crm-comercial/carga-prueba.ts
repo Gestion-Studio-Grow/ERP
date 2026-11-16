@@ -19,13 +19,14 @@
 //     puestos tengan qué tomar (un puesto sólo ve lo que creó o lo que tomó).
 //
 // Todo acceso a la base de un negocio va por `tenantTransaction`. La única lectura fuera es la fila de `Tenant`
-// por slug (no es dato de un negocio). Nunca contra Neon: `guardaDeBase` corta antes de conectar.
+// por slug (no es dato de un negocio). Contra Neon sólo con las dos llaves de `guardaDeBase`, que corta antes de conectar.
 
 import { tenantTransaction } from "@/lib/rls";
 import { basePrisma } from "@/lib/prisma-base";
 import { claveEvento, claveMarca, normalizar } from "@/lib/eventos-sponsors/core";
 import { dominioDe } from "./motor";
 import * as repo from "./repo";
+import { guardaDeBase, type PermisoProduccion } from "./guarda-base";
 
 type Tx = Parameters<Parameters<typeof tenantTransaction>[0]>[0];
 
@@ -34,14 +35,8 @@ const DIA = 86_400_000;
 
 // ── Guardas ─────────────────────────────────────────────────────────────────
 
-export type Guarda = { ok: true } | { ok: false; motivo: string };
-
-/** La prueba nunca corre contra Neon desde un script. */
-export function guardaDeBase(url: string | undefined): Guarda {
-  if (!url?.trim()) return { ok: false, motivo: "DATABASE_URL está vacía: no se sabe a qué base ir." };
-  if (/neon\.tech/i.test(url)) return { ok: false, motivo: "DATABASE_URL apunta a Neon: la carga y la limpieza de la prueba no corren contra Neon desde un script." };
-  return { ok: true };
-}
+// `guardaDeBase` vive aparte (guarda-base.ts) para probarla sin importar la base.
+export { guardaDeBase, type Guarda, type PermisoProduccion } from "./guarda-base";
 
 export class SinMigracionDePrueba extends Error {
   constructor() {
@@ -231,7 +226,11 @@ export interface PedidoDeCarga {
   clientes: ClienteDePrueba[];
   lote?: string;
   ahora?: Date;
+  /** `--produccion`: habilita Neon sólo si además `CRM_PRUEBA_CONFIRMO_NEGOCIO` es este slug (`guardaDeBase`). */
+  produccion?: boolean;
 }
+
+const permisoDe = (slug: string, produccion?: boolean): PermisoProduccion => ({ produccion: produccion === true, negocio: slug, confirmo: process.env.CRM_PRUEBA_CONFIRMO_NEGOCIO });
 
 function textoDelLead(l: LeadDePrueba): string {
   const partes: string[] = [];
@@ -381,7 +380,7 @@ async function cargarLead(tenantId: string, lote: string, l: LeadDePrueba, quien
  * orden en que llegaron (fecha de detección o de recepción). Idempotente.
  */
 export async function cargarPrueba(p: PedidoDeCarga): Promise<InformeCarga> {
-  const g = guardaDeBase(process.env.DATABASE_URL);
+  const g = guardaDeBase(process.env.DATABASE_URL, permisoDe(p.slug, p.produccion));
   if (!g.ok) throw new Error(g.motivo);
   const lote = p.lote ?? LOTE_POR_DEFECTO;
   const ahora = p.ahora ?? new Date();
@@ -438,8 +437,8 @@ class Simulacro extends Error {
  * Borra SÓLO lo anotado de prueba en el negocio `slug` y lo que cuelga de sus oportunidades (actividad, tareas,
  * borradores, brief, vínculos). `aplicar: false` (por defecto) corre lo mismo y lo deshace: las cifras son reales.
  */
-export async function limpiarPrueba(p: { slug: string; aplicar?: boolean }): Promise<InformeLimpieza> {
-  const g = guardaDeBase(process.env.DATABASE_URL);
+export async function limpiarPrueba(p: { slug: string; aplicar?: boolean; produccion?: boolean }): Promise<InformeLimpieza> {
+  const g = guardaDeBase(process.env.DATABASE_URL, permisoDe(p.slug, p.produccion));
   if (!g.ok) throw new Error(g.motivo);
   const negocio = await negocioPorSlug(p.slug);
   if (!negocio) throw new Error(`No hay un negocio con el slug «${p.slug}».`);

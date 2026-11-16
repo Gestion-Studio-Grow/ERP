@@ -193,6 +193,10 @@ export async function registroPorPuesto() {
 export async function miMembresia() {
   return con(false, (ctx) => repo.miMembresia(ctx));
 }
+/** Pantalla «Miembros del CRM»: sólo Dirección (`configurar`, lo decide el repo). */
+export async function usuariosYMiembros() {
+  return con(false, (ctx) => repo.usuariosYMiembros(ctx));
+}
 export async function personasDelCrm() {
   return con(false, (ctx) => repo.personasDelCrm(ctx));
 }

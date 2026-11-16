@@ -384,6 +384,8 @@ export async function guardarMiembro(ctx: Ctx, d: DatosMiembro, opts: { esDuenio
     if (!(ROLES as readonly string[]).includes(d.rol)) no("Ese rol no existe en el CRM.");
     const puesto = d.rol === "PUESTO" ? d.puesto ?? null : null;
     if (d.rol === "PUESTO" && !(PUESTOS as readonly string[]).includes(puesto ?? "")) no("Elegí el puesto del equipo para ese usuario.");
+    if (d.topeAccionesDia != null && !Number.isInteger(d.topeAccionesDia)) no("El tope de acciones por día va en número entero (o vacío, sin tope).");
+    if (d.topeCostoDiaUsd != null && !Number.isFinite(d.topeCostoDiaUsd)) no("El tope de gasto por día va en número (o vacío, sin tope).");
     if ((d.topeAccionesDia ?? 0) < 0 || (d.topeCostoDiaUsd ?? 0) < 0) no("Los topes no pueden ser negativos.");
     const usuario = await tx.user.findFirst({ where: { id: d.userId, tenantId: ctx.tenantId }, select: { id: true } });
     if (!usuario) no("Ese usuario no es de este negocio.");
@@ -400,6 +402,9 @@ export async function guardarMiembro(ctx: Ctx, d: DatosMiembro, opts: { esDuenio
       update: datos,
       select: { id: true },
     });
+    // Nadie se queda afuera: el CRM no queda sin una persona activa en Dirección (sacarse a uno mismo incluido).
+    const quedan = await tx.miembroCrmComercial.count({ where: { tenantId: ctx.tenantId, rol: "DIRECCION", activo: true } });
+    if (quedan === 0) no("El CRM no puede quedar sin nadie en Dirección: primero sumá a otra persona en Dirección.");
     await registrar(tx, ctx, m, { tipo: "MIEMBRO", texto: `Alta o cambio de miembro: ${d.rol}${puesto ? ` · ${puesto}` : ""}${datos.activo ? "" : " (inactivo)"}.` });
     return { ok: true, id: fila.id };
   });
@@ -1535,6 +1540,51 @@ export async function personasDelCrm(ctx: Ctx): Promise<Res<{ personas: PersonaC
     return {
       ok: true,
       personas: filas.map((f) => ({ userId: f.userId, nombre: nombre.get(f.userId) ?? "Usuario sin nombre", rol: f.rol as Rol, puesto: (f.puesto ?? null) as Puesto | null, activo: f.activo })),
+    };
+  });
+}
+
+/** Un usuario del negocio y su lugar en el CRM (o null: sin acceso). Pantalla «Miembros del CRM». */
+export interface UsuarioYMiembro {
+  userId: string;
+  nombre: string;
+  email: string;
+  /** Activo en el ERP (un usuario dado de baja en el panel no entra, tenga el papel que tenga en el CRM). */
+  activoEnErp: boolean;
+  miembro: { rol: Rol; puesto: Puesto | null; activo: boolean; topeAccionesDia: number | null; topeCostoDiaUsd: number | null } | null;
+}
+
+/**
+ * Los usuarios del negocio con su papel en el CRM. Sólo Dirección (`configurar`): el resto lo rechaza el servidor
+ * y el rechazo queda registrado. El usuario del ERP no se crea acá (alta de usuarios del panel).
+ */
+export async function usuariosYMiembros(ctx: Ctx, ahora = new Date()): Promise<Res<{ usuarios: UsuarioYMiembro[] }>> {
+  return correr(ctx, async (tx) => {
+    await guardia(tx, ctx, "configurar", {}, ahora);
+    const usuarios = await tx.user.findMany({
+      where: { tenantId: ctx.tenantId, deletedAt: null },
+      select: { id: true, name: true, email: true, active: true },
+      orderBy: { name: "asc" },
+    });
+    const filas = await tx.miembroCrmComercial.findMany({
+      where: { tenantId: ctx.tenantId },
+      select: { userId: true, rol: true, puesto: true, activo: true, topeAccionesDia: true, topeCostoDiaUsd: true },
+    });
+    const de = new Map(filas.map((f) => [f.userId, f]));
+    return {
+      ok: true,
+      usuarios: usuarios.map((u) => {
+        const f = de.get(u.id);
+        return {
+          userId: u.id,
+          nombre: u.name,
+          email: u.email,
+          activoEnErp: u.active,
+          miembro: f
+            ? { rol: f.rol as Rol, puesto: (f.puesto ?? null) as Puesto | null, activo: f.activo, topeAccionesDia: f.topeAccionesDia, topeCostoDiaUsd: f.topeCostoDiaUsd == null ? null : Number(f.topeCostoDiaUsd) }
+            : null,
+        };
+      }),
     };
   });
 }

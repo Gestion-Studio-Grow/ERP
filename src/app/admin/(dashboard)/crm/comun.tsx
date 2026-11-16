@@ -20,7 +20,7 @@ import { puedeEn, quienEs } from "./crm-core";
 import { DarmeDeAlta } from "./DarmeDeAlta";
 
 export const TITULO = "CRM comercial";
-export type Vista = "hoy" | "embudo" | "borradores" | "nueva" | "ficha";
+export type Vista = "hoy" | "embudo" | "borradores" | "nueva" | "ficha" | "miembros";
 
 /** Apagado → 404. Prendido → la membresía del CRM de quien entra (o por qué no puede entrar). */
 export async function abrirCrm(user: SessionUser): Promise<{ user: SessionUser; tenantId: string; miembro: Miembro | null; bloqueo: React.ReactNode | null }> {
@@ -57,6 +57,8 @@ export function Encabezado({ vista, miembro, descripcion }: { vista: Vista; miem
     { href: "/admin/crm/embudo", etiqueta: "Embudo", actual: vista === "embudo" },
     { href: "/admin/crm/borradores", etiqueta: "Borradores", actual: vista === "borradores" },
     ...(puedeEn(miembro, "proponer_oportunidad") ? [{ href: "/admin/crm/nueva", etiqueta: "Cargar", actual: vista === "nueva" }] : []),
+    // Sólo Dirección (operación «configurar»); el servidor igual rechaza a cualquier otro.
+    ...(puedeEn(miembro, "configurar") ? [{ href: "/admin/crm/miembros", etiqueta: "Miembros", actual: vista === "miembros" }] : []),
   ];
   return (
     <>

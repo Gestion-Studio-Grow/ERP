@@ -36,17 +36,25 @@ npm run crm:operar -- --como puesto-calificador@crm-prueba.example proponer-pase
   permiso por puesto, los topes y el registro de cada rechazo los pone el repo. Salida JSON; código 1 si rechaza.
 - Se niega a correr contra una base que no sea de esta máquina (y contra Neon).
 
-## 4. Carga y limpieza en otra base (nunca Neon desde un script)
-```
-npm run crm:cargar-prueba -- --negocio <slug>           # idempotente: dos veces no duplica
-npm run crm:limpiar-prueba -- --negocio <slug>          # simulacro (por defecto): cifras reales, nada borrado
-npm run crm:limpiar-prueba -- --negocio <slug> --aplicar
-```
-Todo lo cargado queda anotado en `FilaDePruebaCrm` (migración `20261116170000_crm_comercial_filas_de_prueba`). La
-limpieza borra SÓLO lo anotado de ESE negocio y lo que cuelga de sus oportunidades; lo que usa algo que no es de la
-prueba se queda y se informa. Los proyectos nacidos al ASIGNAR se informan y se borran desde Proyectos.
+## 4. Carga y limpieza en otra base
+`npm run crm:cargar-prueba -- --negocio <slug>` (idempotente) · `npm run crm:limpiar-prueba -- --negocio <slug>`
+(simulacro: cifras reales, nada borrado) · igual con `--aplicar` para borrar. Todo queda anotado en `FilaDePruebaCrm`;
+la limpieza borra SÓLO lo anotado de ESE negocio y lo que cuelga de sus oportunidades; lo que usa algo ajeno a la
+prueba se queda y se informa; los proyectos nacidos al ASIGNAR se borran desde Proyectos. Neon se rechaza siempre,
+salvo las dos llaves del §5 (`src/lib/crm-comercial/guarda-base.ts`).
 
-## 5. En la app PUBLICADA
-Sin credenciales de base y sin la interfaz de comandos: cada sesión de puesto entra por el login del ERP del negocio
-con su usuario propio (alta por Dirección en Equipo, con `mustChangePassword`) y opera en `/admin/crm`. Las claves
-provisorias van por mail aparte al titular, nunca en informes ni commits.
+## 5. Dejar la prueba lista en PRODUCCIÓN (en orden; cada paso, quien corresponde)
+1. **Migraciones (Gate 2, las aplica el rol autorizado, no quien construye):** `20261116150000_crm_comercial`,
+   `…160000_crm_comercial_pronostico`, `…170000_crm_comercial_filas_de_prueba`. Sin ellas el CRM dice «falta un paso».
+2. **Interruptor:** consola del operador → ficha del negocio → «CRM comercial» → encender. Apagado = 404 y toda acción rechaza.
+3. **Usuarios:** en `/admin/usuarios` del negocio, un usuario por persona y uno propio por puesto (rol Recepción,
+   contraseña provisoria con `mustChangePassword`, por mail aparte al titular; nunca en informes ni commits).
+4. **Miembros:** la dueña entra a `/admin/crm` y se da de alta en Dirección (sólo si no hay nadie); después, en
+   `/admin/crm/miembros`, da a cada usuario su papel (Comercial o el puesto, con topes por día si quiere).
+5. **Carga** (con la `DATABASE_URL` de la app publicada; nunca se imprime):
+   `CRM_PRUEBA_CONFIRMO_NEGOCIO=<slug> npm run crm:cargar-prueba -- --negocio <slug> --produccion`
+   Sin `--produccion`, o con la variable vacía o de otro negocio, corta antes de conectar.
+6. **Deshacer:** misma variable y `npm run crm:limpiar-prueba -- --negocio <slug> --produccion` (simulacro) → revisar
+   cifras → repetir con `--aplicar`. Después, apagar el interruptor si la prueba terminó.
+Las sesiones de puesto entran por el login del negocio con su usuario y operan en `/admin/crm`; la interfaz de
+comandos (§3) no corre contra producción.

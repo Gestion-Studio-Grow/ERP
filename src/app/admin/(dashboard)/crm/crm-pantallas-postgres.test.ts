@@ -145,3 +145,83 @@ test("Mirada del puesto: entra por la misma puerta, ve lo suyo y el servidor le 
   const personas = await como(u.dirA, () => acc.personasDelCrm());
   assert.ok(personas.ok && personas.personas.some((p) => p.userId === u.redac && p.puesto === "redactor"));
 });
+
+test("Miembros del CRM: sólo Dirección lista y da de alta, cambia o desactiva; a un comercial o a un puesto el servidor le rechaza, y el CRM no queda sin Dirección", async (t) => {
+  const f = await preparar(t);
+  if (!f) return;
+  const { base, acc, u } = f;
+  const como = async <R>(userId: string, fn: () => Promise<R>) => valor<R>(await ejecutarAccion({ negocio: base.a, usuario: { id: userId } }, fn));
+  const com = "crm-p-com";
+  const nuevo = "crm-p-nuevo";
+  const c = new pg.Client({ connectionString: base.urlDuenio });
+  await c.connect();
+  try {
+    for (const id of [com, nuevo]) {
+      await c.query(`INSERT INTO "User" (id, "tenantId", name, email, "passwordHash", role, "updatedAt") VALUES ($1, $2, $3, $4, 'x', 'RECEPTION'::"UserRole", now()) ON CONFLICT DO NOTHING`, [id, base.a.id, `Usuario ${id}`, `${id}@crm-p.example`]);
+    }
+  } finally {
+    await c.end();
+  }
+  const d = await prismaComoDuenio(base);
+  const alta = await como(u.dirA, () => acc.guardarMiembroCrm({ userId: com, rol: "COMERCIAL" }));
+  assert.equal(alta.ok, true, JSON.stringify(alta));
+
+  // Comercial y puesto: ni la lista ni el alta (aunque llamen a la acción a mano).
+  const miembrosAntes = await d.miembroCrmComercial.findMany({ where: { tenantId: base.a.id }, orderBy: { userId: "asc" } });
+  const rechazosAntes = await d.actividadComercial.count({ where: { tenantId: base.a.id, tipo: "ACCION_RECHAZADA" } });
+  for (const quien of [com, u.redac]) {
+    const lista = await como(quien, () => acc.usuariosYMiembros());
+    assert.equal(lista.ok, false, `${quien} no ve la lista de miembros`);
+    for (const intento of [
+      () => acc.guardarMiembroCrm({ userId: u.ajeno, rol: "DIRECCION" }),
+      () => acc.guardarMiembroCrm({ userId: quien, rol: "DIRECCION" }),
+      () => acc.guardarMiembroCrm({ userId: u.dirA, rol: "DIRECCION", activo: false }),
+    ]) {
+      const r = await como(quien, intento);
+      assert.equal(r.ok, false, `${quien} no cambia membresías`);
+    }
+  }
+  assert.deepEqual(await d.miembroCrmComercial.findMany({ where: { tenantId: base.a.id }, orderBy: { userId: "asc" } }), miembrosAntes, "nada cambió");
+  assert.ok((await d.actividadComercial.count({ where: { tenantId: base.a.id, tipo: "ACCION_RECHAZADA" } })) >= rechazosAntes + 8, "cada rechazo queda registrado");
+
+  // Dirección: ve a todos los usuarios del negocio (con y sin acceso), y sólo los de su negocio.
+  const lista = await como(u.dirA, () => acc.usuariosYMiembros());
+  assert.ok(lista.ok, JSON.stringify(lista));
+  const de = (id: string) => lista.usuarios.find((x) => x.userId === id);
+  assert.equal(de(u.ajeno)?.miembro, null, "sin acceso");
+  assert.equal(de(nuevo)?.miembro, null);
+  assert.deepEqual([de(u.redac)?.miembro?.rol, de(u.redac)?.miembro?.puesto], ["PUESTO", "redactor"]);
+  assert.equal(de(com)?.miembro?.rol, "COMERCIAL");
+  assert.equal(de(u.dirB), undefined, "un usuario de otro negocio no aparece");
+
+  // Alta de un puesto con topes; las reglas del servidor (puesto válido, topes) se cumplen.
+  const sinPuesto = await como(u.dirA, () => acc.guardarMiembroCrm({ userId: nuevo, rol: "PUESTO", puesto: null }));
+  assert.equal(sinPuesto.ok, false);
+  const topeRaro = await como(u.dirA, () => acc.guardarMiembroCrm({ userId: nuevo, rol: "PUESTO", puesto: "calificador", topeAccionesDia: 2.5 }));
+  assert.equal(topeRaro.ok, false, "acciones por día, entero");
+  const otroNegocio = await como(u.dirA, () => acc.guardarMiembroCrm({ userId: u.dirB, rol: "COMERCIAL" }));
+  assert.equal(otroNegocio.ok, false, "no se da de alta a un usuario de otro negocio");
+  const puesto = await como(u.dirA, () => acc.guardarMiembroCrm({ userId: nuevo, rol: "PUESTO", puesto: "calificador", topeAccionesDia: 5, topeCostoDiaUsd: 1.5 }));
+  assert.equal(puesto.ok, true, JSON.stringify(puesto));
+  const conTopes = await como(u.dirA, () => acc.usuariosYMiembros());
+  assert.ok(conTopes.ok);
+  assert.deepEqual(conTopes.usuarios.find((x) => x.userId === nuevo)?.miembro, { rol: "PUESTO", puesto: "calificador", activo: true, topeAccionesDia: 5, topeCostoDiaUsd: 1.5 });
+
+  // Cambio y desactivación.
+  const cambio = await como(u.dirA, () => acc.guardarMiembroCrm({ userId: nuevo, rol: "COMERCIAL" }));
+  assert.equal(cambio.ok, true, JSON.stringify(cambio));
+  const baja = await como(u.dirA, () => acc.guardarMiembroCrm({ userId: nuevo, rol: "COMERCIAL", activo: false }));
+  assert.equal(baja.ok, true, JSON.stringify(baja));
+  const suPuerta = await como(nuevo, () => acc.miMembresia());
+  assert.ok(suPuerta.ok && suPuerta.miembro?.activo === false, "dado de baja: no entra");
+  assert.equal((await como(nuevo, () => acc.listarOportunidades())).ok, false);
+
+  // La única Dirección no puede sacarse a sí misma (ni pasarse a comercial): el CRM no queda sin Dirección.
+  for (const intento of [{ userId: u.dirA, rol: "DIRECCION", activo: false }, { userId: u.dirA, rol: "COMERCIAL" }]) {
+    const r = await como(u.dirA, () => acc.guardarMiembroCrm(intento));
+    assert.equal(r.ok, false, JSON.stringify(intento));
+    assert.match(r.ok ? "" : r.motivo, /sin nadie en Dirección/);
+  }
+  const yo = await d.miembroCrmComercial.findUnique({ where: { tenantId_userId: { tenantId: base.a.id, userId: u.dirA } } });
+  assert.deepEqual([yo?.rol, yo?.activo], ["DIRECCION", true]);
+});

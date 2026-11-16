@@ -129,3 +129,30 @@ test("menú: «CRM comercial» entra sólo con el interruptor prendido; en el pa
   assert.equal(appEnLaBarra("crm-comercial", "PRODUCCION"), false);
   assert.equal(appDeGestionVisible("eventos-sponsors", "SIN_FICHA", []), false, "lo demás del panel no cambia");
 });
+
+test("Miembros del CRM: la pestaña es sólo de Dirección; papel en criollo, orden y puestos para elegir", async () => {
+  const { papelEnCrm, ordenarUsuarios, opcionesDePuesto } = await import("./crm-core");
+  assert.equal(puedeEn(DIR, "configurar"), true);
+  for (const m of [COM, CALIF, VERIF, REDAC]) assert.equal(puedeEn(m, "configurar"), false, `${m.rol} ${m.puesto ?? ""} no ve Miembros`);
+  assert.equal(puedeEn({ ...DIR, activo: false }, "configurar"), false, "Dirección dada de baja tampoco");
+
+  const p = (rol: "DIRECCION" | "COMERCIAL" | "PUESTO", puesto: "redactor" | null, activo = true) => ({ rol, puesto, activo, topeAccionesDia: null, topeCostoDiaUsd: null });
+  assert.equal(papelEnCrm(null), "Sin acceso");
+  assert.equal(papelEnCrm(p("DIRECCION", null)), "Dirección");
+  assert.equal(papelEnCrm(p("PUESTO", "redactor")), "Redactor (puesto del equipo)");
+  assert.equal(papelEnCrm(p("COMERCIAL", null, false)), "Comercial · dado de baja");
+
+  const orden = ordenarUsuarios([
+    { nombre: "Zoe", miembro: null },
+    { nombre: "Bruno", miembro: p("PUESTO", "redactor") },
+    { nombre: "Ana", miembro: p("COMERCIAL", null, false) },
+    { nombre: "Carla", miembro: p("COMERCIAL", null) },
+    { nombre: "Dario", miembro: p("DIRECCION", null) },
+  ]).map((x) => x.nombre);
+  assert.deepEqual(orden, ["Dario", "Carla", "Bruno", "Ana", "Zoe"]);
+
+  const puestos = opcionesDePuesto();
+  assert.equal(puestos.length, 8);
+  assert.match(puestos.find((x) => x.valor === "contactos")?.etiqueta ?? "", /apagado/);
+  assert.equal(puestos.find((x) => x.valor === "armador_brief")?.etiqueta, "Armador de brief");
+});

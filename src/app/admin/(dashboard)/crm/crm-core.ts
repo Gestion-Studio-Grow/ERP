@@ -17,6 +17,8 @@ import {
 } from "@/lib/crm-comercial/motor";
 import { sumarAlCentavo } from "@/lib/dinero/redondeo";
 import { puede, type ContextoOportunidad, type Miembro, type Operacion, type Puesto, type Rol } from "@/lib/crm-comercial/permisos";
+import { PUESTOS } from "@/lib/crm-comercial/permisos";
+import type { UsuarioYMiembro } from "@/lib/crm-comercial/repo";
 
 export const ETIQUETA_ROL: Record<Rol, string> = { DIRECCION: "Dirección", COMERCIAL: "Comercial", PUESTO: "Puesto del equipo" };
 export const ETIQUETA_PUESTO: Record<Puesto, string> = {
@@ -34,6 +36,25 @@ export const ETIQUETA_PUESTO: Record<Puesto, string> = {
 export function quienEs(m: Pick<Miembro, "rol" | "puesto">): string {
   if (m.rol === "PUESTO") return `${m.puesto ? ETIQUETA_PUESTO[m.puesto] : "Puesto"} (puesto del equipo)`;
   return ETIQUETA_ROL[m.rol];
+}
+
+// ── Miembros del CRM (sólo Dirección; el servidor decide con «configurar») ─
+
+/** El papel de un usuario en el CRM, en criollo: «Sin acceso», «Comercial», «Redactor (puesto del equipo) · dado de baja». */
+export function papelEnCrm(m: UsuarioYMiembro["miembro"]): string {
+  if (!m) return "Sin acceso";
+  return m.activo ? quienEs(m) : `${quienEs(m)} · dado de baja`;
+}
+
+/** Los puestos para elegir. El Buscador de contactos se puede asignar, pero está apagado en esta versión. */
+export function opcionesDePuesto(): { valor: Puesto; etiqueta: string }[] {
+  return PUESTOS.map((p) => ({ valor: p, etiqueta: p === "contactos" ? `${ETIQUETA_PUESTO[p]} (apagado en esta versión)` : ETIQUETA_PUESTO[p] }));
+}
+
+/** Orden de la lista: con acceso primero (Dirección, Comercial, puestos), después dados de baja y sin acceso; por nombre. */
+export function ordenarUsuarios<U extends Pick<UsuarioYMiembro, "nombre" | "miembro">>(us: readonly U[]): U[] {
+  const peso = (u: U) => (!u.miembro ? 9 : !u.miembro.activo ? 8 : u.miembro.rol === "DIRECCION" ? 0 : u.miembro.rol === "COMERCIAL" ? 1 : 2);
+  return [...us].sort((a, b) => peso(a) - peso(b) || a.nombre.localeCompare(b.nombre, "es"));
 }
 
 /**
