@@ -148,6 +148,10 @@ export async function rechazarBorrador(id: string, motivo: string, version?: num
 export async function marcarEnviado(id: string) {
   return con(true, (ctx) => repo.marcarEnviado(ctx, id));
 }
+/** GSG-CRM-011: corregir el texto antes de aprobar (lo hace quien revisa; con versión). */
+export async function editarBorrador(id: string, d: { asunto?: string | null; cuerpo: string; version?: number }) {
+  return con(true, (ctx) => repo.editarBorrador(ctx, id, d));
+}
 
 // ── Colas ───────────────────────────────────────────────────────────────────
 
@@ -183,4 +187,24 @@ export async function ficha(id: string) {
 }
 export async function registroPorPuesto() {
   return con(false, (ctx) => repo.registroPorPuesto(ctx));
+}
+
+// GSG-CRM-011 · lecturas de las pantallas (misma puerta: interruptor, negocio y membresía en el repo).
+export async function miMembresia() {
+  return con(false, (ctx) => repo.miMembresia(ctx));
+}
+export async function personasDelCrm() {
+  return con(false, (ctx) => repo.personasDelCrm(ctx));
+}
+export async function listarBorradores(f: { estados?: string[] } = {}) {
+  return con(false, (ctx) => repo.listarBorradores(ctx, f));
+}
+export async function colaDeTrabajo() {
+  return con(false, (ctx) => repo.colaDeTrabajo(ctx));
+}
+export async function detalleDeFicha(id: string) {
+  return con(false, (ctx) => repo.detalleDeFicha(ctx, id));
+}
+export async function eventosParaElegir() {
+  return con(false, (ctx) => repo.eventosParaElegir(ctx));
 }

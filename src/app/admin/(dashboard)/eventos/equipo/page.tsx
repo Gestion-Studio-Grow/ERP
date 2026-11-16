@@ -3,6 +3,9 @@ import Link from "next/link";
 import { Badge, EmptyState } from "@/components/ui";
 import { ETIQUETA_PUESTO, rangoDeFechas } from "@/lib/eventos-sponsors/core";
 import { resumenDelEquipo } from "@/lib/eventos-sponsors/repo";
+import { tomasDePedidos, type TomaDePedido } from "@/lib/crm-comercial/repo";
+import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
+import { crmComercialPrendido } from "@/cambios/interruptores";
 import { abrirEventos, Encabezado, FaltaMigracion, LinkFuente, SelloVerificacion } from "../comun";
 import { FormularioPedido } from "./FormularioPedido";
 
@@ -31,9 +34,17 @@ const QUE_HACE: Record<string, string> = {
   seguidor: "Lleva el estado de cada marca.",
 };
 
+/** «Lo tomó Ana · verificador el 16 nov 10:20 · cerrado el …». Sin toma, nada. */
+function textoToma(t: TomaDePedido | undefined): string | null {
+  if (!t?.tomadoPor) return null;
+  return [`Lo tomó ${t.tomadoPor}${t.tomadoEl ? ` el ${FECHA.format(t.tomadoEl)}` : ""}`, t.cerradoEl ? `cerrado el ${FECHA.format(t.cerradoEl)}` : null, t.notaCierre].filter(Boolean).join(" · ");
+}
+
 export default async function EquipoPage() {
   const { tenantId, puedeCargar } = await abrirEventos(await requireApp("eventos-sponsors"));
   const r = await resumenDelEquipo(tenantId);
+  // GSG-CRM-011: con el CRM comercial prendido, quién tomó cada pedido y cuándo (apagado, la pantalla queda igual).
+  const tomas = !r.faltaMigracion && crmComercialPrendido(await interruptoresDelNegocio()) ? await tomasDePedidos(tenantId, r.pedidos.map((p) => p.id)) : new Map<string, TomaDePedido>();
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
@@ -126,6 +137,7 @@ export default async function EquipoPage() {
                         <Badge tone={p.estado === "HECHO" ? "success" : p.estado === "EN_CURSO" ? "info" : "neutral"}>{ESTADO_PEDIDO[p.estado] ?? p.estado}</Badge>
                         {ETIQUETA_PUESTO[p.puesto as keyof typeof ETIQUETA_PUESTO] ?? p.puesto} · {FECHA.format(p.createdAt)}
                       </span>
+                      {textoToma(tomas.get(p.id)) && <span className="text-sm text-muted">{textoToma(tomas.get(p.id))}</span>}
                     </li>
                   ))}
                 </ul>

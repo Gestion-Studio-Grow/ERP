@@ -2,8 +2,19 @@
 
 Hasta 5 líneas por sesión: fecha · código de sesión · qué · `archivo:línea`. Lo más nuevo, arriba.
 
+- 16/11/2026 · GSG-CRM-011 p3 (session_01BtqRUKyvT9XeagEzXz6HWX) · `mapa-codigo.mjs --a <ruta>` ESCRIBE el mapa en esa ruta: nunca le pases un archivo de código (pisó `repo.ts` y `motor.ts`). Usalo sin `--a` o con `--a` al scratchpad (`.claude/scripts/mapa-codigo.mjs:15`).
+- 16/11/2026 · GSG-CRM-011 p3 · E21 compara el rubro EXACTO (`motor.ts:691`): «alimentos: lácteos (quesos y leches)» no choca con «alimentos: lácteos (quesos, yogures…)». Con rubros en texto libre la trampa de exclusividad de la prueba (L17 vs C02) no salta sola.
+- 16/11/2026 · GSG-CRM-011 p3 · E1 une sólo marca × evento exacto (`repo.ts:509`): una consulta que nombra el evento sin fecha queda sin evento y no se une al prospecto de la misma marca en ese evento (L03 vs L16 quedan dos).
+- 16/11/2026 · GSG-CRM-011 p3 · Un puesto sólo ve lo que creó o la tarea que tomó (`permisos.ts` → `verOportunidad`): sin una tarea en su cola no tiene nada que operar. La carga de la prueba deja la primera tarea de cada oportunidad (`carga-prueba.ts` → `cargarLead`).
+- 16/11/2026 · GSG-CRM-011 p3 · El repo no tiene cómo marcar «confirmado» una marca o un evento: el pase a VERIFICADA depende de la importación de eventos-sponsors (`eventos-sponsors/repo.ts:296`). El Verificador por comandos no puede verificar todavía.
+
 - 16/11/2026 · GSG-CRM-010 (session_01BtqRUJWsjqZ6cGejBtMq2b) · Un CHECK de la migración y una constante del motor tienen que decir lo mismo: el contacto anonimizado se llama «(baja)» en los dos (`src/lib/crm-comercial/motor.ts:553` ↔ CHECK de `ContactoComercial` en `prisma/migrations/20261116150000_crm_comercial/migration.sql`). Si no coinciden, la baja falla recién en Postgres.
 - 16/11/2026 · GSG-CRM-010 · En un cambio de estado con versión, comprobá la versión ANTES de validar el estado: si no, la carrera que pierde contesta «estado inválido» en vez de «otro lo cambió» (`src/lib/crm-comercial/repo.ts` → `cambiarBorrador`).
 - 16/11/2026 · GSG-CRM-010 · Topes por día del puesto: `createdAt` usa el reloj de la base, así que el test usa `new Date()` real y no una fecha fija (`src/lib/crm-comercial/repo.ts:172` `guardia`).
 - 16/11/2026 · GSG-CRM-010 · La pertenencia se comprueba contra la ficha, no sólo contra el negocio: un contacto de otra marca del mismo negocio no se usa en un borrador ni se cuelga de la oportunidad (`repo.ts` → `escribirBorrador`, `crearContacto`; test E8 en `repo-postgres.test.ts`).
 - 16/11/2026 · GSG-CRM-010 · Cola atómica: `UPDATE … WHERE id = (SELECT … FOR UPDATE SKIP LOCKED)` en un solo `$queryRaw`; dos sesiones nunca toman lo mismo (`repo.ts` → `tomarTarea`/`tomarPedido`; test E22).
+
+- 16/11/2026 · GSG-CRM-011 p2 (session_01BtqRUKyvT9XeagEzXz6HWX) · `node .claude/scripts/mapa-codigo.mjs <carpeta> --a <archivo>` ESCRIBE el mapa en `<archivo>`: con un `.ts` del repo lo pisa (pasó con `motor.ts` y `repo.ts`; se restauraron de HEAD). `--a` sólo hacia el scratchpad.
+- 16/11/2026 · GSG-CRM-011 p2 · Un componente de cliente no importa `motor.ts` (usa `node:crypto`): `src/app/admin/(dashboard)/crm/crm-core.ts` arma en el servidor qué botones y pases ve cada uno; el cliente recibe datos y `import type`.
+- 16/11/2026 · GSG-CRM-011 p2 · La app «crm-comercial» pide `clients:read` (registro.test: sólo «App no disponible» va sin capability): el usuario de puesto se crea con rol Recepción. En el panel de la productora la abre todo rol, incluso sin ficha (`src/lib/proyectos/gestion-core.ts` → `appDeGestionVisible`); manda la membresía.
+- 16/11/2026 · GSG-CRM-011 p2 · Tope de 8 apps por espacio: «Eventos y sponsors» y «CRM comercial» (sólo con interruptor) cuentan como un lugar (`src/apps/espacios-nav.test.ts` → `DE_INTERRUPTOR`).

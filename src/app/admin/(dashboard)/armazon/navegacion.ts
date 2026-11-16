@@ -17,7 +17,7 @@
 import type { AppDescriptor, NombreIcono } from "@/apps/contract";
 import { appPermitida, type ItemMenuDeHoy, type NegocioApps } from "@/apps/visibles";
 import { appPorId } from "@/apps/registro";
-import { eventosSponsorsPrendido, vouchersPrendidos, type InterruptorId } from "@/cambios/interruptores";
+import { crmComercialPrendido, eventosSponsorsPrendido, vouchersPrendidos, type InterruptorId } from "@/cambios/interruptores";
 import {
   espacioNav,
   espacioNavDeApp,
@@ -126,7 +126,7 @@ export function espaciosDelMenu(menu: readonly ItemMenuDeHoy[], esMostrador: boo
 /**
  * Las apps que el registro no ofrece en el lanzador (`enLanzador: false`) porque dependen de un
  * interruptor del negocio que el registro no sabe leer. Hoy: «Vouchers de La Alameda» (CH) con el
- * interruptor «vouchers» y «Eventos y sponsors» con «eventos-sponsors», cada una sólo con su interruptor
+ * interruptor «vouchers», «Eventos y sponsors» con «eventos-sponsors» y «CRM comercial» con «crm-comercial», cada una sólo con su interruptor
  * prendido Y si la persona puede abrirla (la misma regla que `requireApp`).
  * Apagado o sin permiso: lista vacía y la navegación queda idéntica. PURA.
  */
@@ -134,9 +134,10 @@ export function appsDeInterruptores(
   interruptores: Readonly<Partial<Record<InterruptorId, { encendido: boolean }>>>,
   negocio: NegocioApps,
 ): AppDescriptor[] {
-  const ids: ("vouchers" | "eventos-sponsors")[] = [];
+  const ids: ("vouchers" | "eventos-sponsors" | "crm-comercial")[] = [];
   if (vouchersPrendidos(interruptores)) ids.push("vouchers");
   if (eventosSponsorsPrendido(interruptores)) ids.push("eventos-sponsors");
+  if (crmComercialPrendido(interruptores)) ids.push("crm-comercial");
   return ids.map((id) => appPorId(id)).filter((app) => appPermitida(app, negocio));
 }
 

@@ -1500,3 +1500,222 @@ export async function registroPorPuesto(ctx: Ctx, d: { desde?: Date } = {}, ahor
     return { ok: true as const, filas: filas.map((f) => ({ usuarioId: f.usuarioId, puesto: f.puesto, acciones: f._count._all, costoUsd: Number(f._sum.costoUsd ?? 0) })) };
   });
 }
+
+// ── GSG-CRM-011 · lecturas de las pantallas y edición del borrador ──────────
+//
+// Las pantallas (src/app/admin/(dashboard)/crm) sólo esconden lo que no le toca a cada uno: el rechazo vive
+// acá, igual que en el resto del repo (E12). Todo pasa por `correr` (tenantTransaction + tenantId a mano).
+
+/** Una persona del CRM con su nombre (línea de tiempo, elegir comercial). */
+export interface PersonaCrm {
+  userId: string;
+  nombre: string;
+  rol: Rol;
+  puesto: Puesto | null;
+  activo: boolean;
+}
+
+/** Quién soy en el CRM. La pantalla decide qué botones mostrar con `puede`; el servidor igual rechaza. */
+export async function miMembresia(ctx: Ctx): Promise<Res<{ miembro: Miembro | null; hayDireccion: boolean }>> {
+  return correr(ctx, async (tx) => {
+    const miembro = await miembroDe(tx, ctx);
+    const hayDireccion = (await tx.miembroCrmComercial.count({ where: { tenantId: ctx.tenantId, rol: "DIRECCION", activo: true } })) > 0;
+    return { ok: true, miembro, hayDireccion };
+  });
+}
+
+/** Las personas y puestos del CRM, con su nombre. Hace falta estar dado de alta (activo). */
+export async function personasDelCrm(ctx: Ctx): Promise<Res<{ personas: PersonaCrm[] }>> {
+  return correr(ctx, async (tx) => {
+    const m = await miembroDe(tx, ctx);
+    if (!m || !m.activo) no("No estás dado de alta en el CRM comercial. Pedíselo a Dirección.");
+    const filas = await tx.miembroCrmComercial.findMany({ where: { tenantId: ctx.tenantId }, select: { userId: true, rol: true, puesto: true, activo: true } });
+    const usuarios = await tx.user.findMany({ where: { tenantId: ctx.tenantId, id: { in: filas.map((f) => f.userId) } }, select: { id: true, name: true } });
+    const nombre = new Map(usuarios.map((u) => [u.id, u.name]));
+    return {
+      ok: true,
+      personas: filas.map((f) => ({ userId: f.userId, nombre: nombre.get(f.userId) ?? "Usuario sin nombre", rol: f.rol as Rol, puesto: (f.puesto ?? null) as Puesto | null, activo: f.activo })),
+    };
+  });
+}
+
+export interface BorradorEnLista {
+  id: string;
+  oportunidadId: string;
+  canal: string;
+  asunto: string | null;
+  cuerpo: string;
+  estado: string;
+  motivoRechazo: string | null;
+  version: number;
+  createdAt: Date;
+  redactadoPor: string;
+  marca: string | null;
+  evento: string | null;
+  contacto: string | null;
+}
+
+/** Los borradores de las oportunidades que la persona ve (E12), los más viejos primero. */
+export async function listarBorradores(ctx: Ctx, f: { estados?: readonly string[] } = {}, ahora = new Date()): Promise<Res<{ borradores: BorradorEnLista[] }>> {
+  return correr(ctx, async (tx) => {
+    const m = await guardia(tx, ctx, "ver_oportunidad", { oportunidad: { duenoUserId: ctx.userId, creadaPor: ctx.userId, tomadoresEnCurso: [] } }, ahora);
+    const estados = (f.estados ?? ["BORRADOR", "APROBADO"]).filter((e) => (["BORRADOR", "APROBADO", "ENVIADO_POR_PERSONA", "RECHAZADO"] as readonly string[]).includes(e));
+    const filas = await tx.borradorMensaje.findMany({
+      where: { tenantId: ctx.tenantId, estado: { in: estados }, oportunidad: filtroVisible(ctx, m) },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      take: 300,
+      select: {
+        id: true, oportunidadId: true, canal: true, asunto: true, cuerpo: true, estado: true, motivoRechazo: true, version: true, createdAt: true, redactadoPor: true,
+        oportunidad: { select: { marca: { select: { nombre: true } }, evento: { select: { nombre: true } } } },
+        contacto: { select: { nombre: true } },
+      },
+    });
+    return {
+      ok: true,
+      borradores: filas.map(({ oportunidad, contacto, ...b }) => ({ ...b, marca: oportunidad.marca?.nombre ?? null, evento: oportunidad.evento?.nombre ?? null, contacto: contacto?.nombre ?? null })),
+    };
+  });
+}
+
+/**
+ * Corregir el texto de un borrador ANTES de aprobarlo. Lo hace quien lo revisa (una persona: la misma regla
+ * que aprobar). Control de versión: si otro lo cambió, aviso (E2). Queda en la línea de tiempo (sirve para
+ * medir «borradores aprobados sin editar», diseño §4.6).
+ */
+export async function editarBorrador(ctx: Ctx, id: string, d: { asunto?: string | null; cuerpo: string; version?: number }, ahora = new Date()): Promise<Res<{ version: number }>> {
+  return correr<{ version: number }>(ctx, async (tx) => {
+    const b = await tx.borradorMensaje.findFirst({ where: { id, tenantId: ctx.tenantId }, select: { id: true, oportunidadId: true, estado: true, version: true } });
+    if (!b) no("Ese borrador no existe.");
+    const fila = b as NonNullable<typeof b>;
+    const { o, miembro } = await sobre(tx, ctx, fila.oportunidadId, "aprobar_borrador", ahora);
+    if (d.version !== undefined && d.version !== fila.version) no("Otra persona cambió ese borrador recién. Recargá y miralo de nuevo.", o.id);
+    if (fila.estado !== "BORRADOR") no("Sólo se corrige un borrador que todavía no se aprobó.", o.id);
+    const cuerpo = txt(d.cuerpo, 10_000);
+    if (!cuerpo) no("El borrador está vacío.", o.id);
+    const r = await tx.borradorMensaje.updateMany({
+      where: { id: fila.id, tenantId: ctx.tenantId, estado: "BORRADOR", version: fila.version },
+      data: { cuerpo: cuerpo as string, asunto: txt(d.asunto, 300), version: { increment: 1 } },
+    });
+    if (r.count !== 1) no("Otra persona cambió ese borrador recién. Recargá y miralo de nuevo.", o.id);
+    await registrar(tx, ctx, miembro, { oportunidadId: o.id, tipo: "BORRADOR_EDITADO", texto: "Borrador corregido antes de aprobarlo." });
+    return { ok: true, version: fila.version + 1 };
+  });
+}
+
+export interface TareaEnLista {
+  id: string;
+  oportunidadId: string;
+  tipo: string;
+  para: string;
+  venceEl: Date | null;
+  createdAt: Date;
+}
+export interface PedidoEnLista {
+  id: string;
+  puesto: string;
+  pedido: string;
+  region: string | null;
+  estado: string;
+}
+
+/**
+ * La cola de cada uno: lo que espera en SU cola (un puesto, la de su puesto; Dirección, la de Dirección y la
+ * de personas; un comercial, la de personas sobre lo suyo) y lo que tiene en curso. Un puesto ve además los
+ * pedidos al equipo de su puesto. Sin el detalle de la oportunidad: eso se ve al tomarla.
+ */
+export async function colaDeTrabajo(ctx: Ctx): Promise<Res<{ enCola: TareaEnLista[]; enCurso: TareaEnLista[]; pedidosEnCola: PedidoEnLista[]; pedidosEnCurso: PedidoEnLista[] }>> {
+  return correr(ctx, async (tx) => {
+    const m = await miembroDe(tx, ctx);
+    if (!m || !m.activo) no("No estás dado de alta en el CRM comercial. Pedíselo a Dirección.");
+    const yo = m as Miembro;
+    const paras = yo.rol === "PUESTO" ? [yo.puesto as string] : yo.rol === "DIRECCION" ? ["DIRECCION", "PERSONA"] : ["PERSONA"];
+    const SEL = { id: true, oportunidadId: true, tipo: true, para: true, venceEl: true, createdAt: true } as const;
+    const [enCola, enCurso] = await Promise.all([
+      tx.tareaComercial.findMany({
+        where: { tenantId: ctx.tenantId, estado: "EN_COLA", para: { in: paras }, ...(yo.rol === "COMERCIAL" ? { oportunidad: { duenoUserId: ctx.userId } } : {}) },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        take: 100,
+        select: SEL,
+      }),
+      tx.tareaComercial.findMany({ where: { tenantId: ctx.tenantId, estado: "EN_CURSO", tomadaPor: ctx.userId }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], take: 100, select: SEL }),
+    ]);
+    let pedidosEnCola: PedidoEnLista[] = [];
+    let pedidosEnCurso: PedidoEnLista[] = [];
+    if (yo.rol === "PUESTO") {
+      const SELP = { id: true, puesto: true, pedido: true, region: true, estado: true } as const;
+      [pedidosEnCola, pedidosEnCurso] = await Promise.all([
+        tx.pedidoAlEquipo.findMany({ where: { tenantId: ctx.tenantId, estado: "EN_COLA", puesto: yo.puesto as string }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], take: 50, select: SELP }),
+        tx.pedidoAlEquipo.findMany({ where: { tenantId: ctx.tenantId, estado: "EN_CURSO", tomadoPor: ctx.userId }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], take: 50, select: SELP }),
+      ]);
+    }
+    return { ok: true, enCola, enCurso, pedidosEnCola, pedidosEnCurso };
+  });
+}
+
+export interface TomaDePedido {
+  tomadoPor: string | null;
+  tomadoEl: Date | null;
+  cerradoEl: Date | null;
+  notaCierre: string | null;
+}
+
+/**
+ * Para la pantalla «Equipo» de Eventos y sponsors: quién tomó cada pedido y cuándo. Esa página ya pasó su
+ * guardia (interruptor, rol de gestión y negocio) y la llama sólo con el CRM prendido. Sin la migración de las
+ * columnas de toma (Gate 2) devuelve vacío: la pantalla queda como estaba.
+ */
+export async function tomasDePedidos(tenantId: string, ids: readonly string[]): Promise<Map<string, TomaDePedido>> {
+  if (ids.length === 0) return new Map();
+  try {
+    return await tenantTransaction(
+      async (tx) => {
+        const filas = await tx.pedidoAlEquipo.findMany({ where: { tenantId, id: { in: [...ids] } }, select: { id: true, tomadoPor: true, tomadoEl: true, cerradoEl: true, notaCierre: true } });
+        const quienes = [...new Set(filas.map((f) => f.tomadoPor).filter((x): x is string => !!x))];
+        const usuarios = quienes.length ? await tx.user.findMany({ where: { tenantId, id: { in: quienes } }, select: { id: true, name: true } }) : [];
+        const miembros = quienes.length ? await tx.miembroCrmComercial.findMany({ where: { tenantId, userId: { in: quienes } }, select: { userId: true, puesto: true } }) : [];
+        const nombre = new Map(usuarios.map((u) => [u.id, u.name]));
+        const puesto = new Map(miembros.map((x) => [x.userId, x.puesto]));
+        return new Map(
+          filas.map((f) => [
+            f.id,
+            {
+              tomadoPor: f.tomadoPor ? [nombre.get(f.tomadoPor) ?? "Alguien del equipo", puesto.get(f.tomadoPor)].filter(Boolean).join(" · ") : null,
+              tomadoEl: f.tomadoEl,
+              cerradoEl: f.cerradoEl,
+              notaCierre: f.notaCierre,
+            },
+          ]),
+        );
+      },
+      { tenantId },
+    );
+  } catch (e) {
+    if (esFaltaDeTabla(e)) return new Map();
+    throw e;
+  }
+}
+
+/** Lo que la ficha muestra además de `ficha`: la consulta (como dato), la licitación, el motivo y la verificación de la fuente. */
+export async function detalleDeFicha(ctx: Ctx, id: string, ahora = new Date()) {
+  return correr(ctx, async (tx) => {
+    const { o } = await sobre(tx, ctx, id, "ver_oportunidad", ahora);
+    const [extra, marca, evento, relacion] = await Promise.all([
+      tx.oportunidad.findFirst({ where: { id: o.id, tenantId: ctx.tenantId }, select: { consultaTexto: true, fechaLimite: true, motivo: true, nota: true, createdAt: true } }),
+      o.marcaId ? tx.marcaRelevada.findFirst({ where: { id: o.marcaId, tenantId: ctx.tenantId }, select: { id: true, nombre: true, dominio: true, rubro: true } }) : null,
+      o.eventoId ? tx.eventoRelevado.findFirst({ where: { id: o.eventoId, tenantId: ctx.tenantId }, select: { id: true, nombre: true, fecha: true, lugar: true, verificacion: true, urlFuente: true } }) : null,
+      o.marcaId && o.eventoId
+        ? tx.eventoMarca.findFirst({ where: { tenantId: ctx.tenantId, eventoId: o.eventoId, marcaId: o.marcaId }, orderBy: [{ verificacion: "asc" }], select: { verificacion: true, urlFuente: true } })
+        : null,
+    ]);
+    return { ok: true as const, ...extra, marca, evento, marcaEnEvento: relacion };
+  });
+}
+
+/** Los eventos relevados, para elegir al cargar un prospecto. Pide poder proponer oportunidades. */
+export async function eventosParaElegir(ctx: Ctx, ahora = new Date()): Promise<Res<{ eventos: { id: string; nombre: string; fecha: Date; region: string }[] }>> {
+  return correr(ctx, async (tx) => {
+    await guardia(tx, ctx, "proponer_oportunidad", {}, ahora);
+    const eventos = await tx.eventoRelevado.findMany({ where: { tenantId: ctx.tenantId }, orderBy: [{ fecha: "asc" }, { id: "asc" }], take: 300, select: { id: true, nombre: true, fecha: true, region: true } });
+    return { ok: true, eventos };
+  });
+}

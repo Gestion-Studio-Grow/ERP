@@ -215,7 +215,7 @@ export const APPS_COMERCIAL = [
     // Una productora no usa agenda, catálogo ni recordatorios: su panel es esto (pedido del dueño, 01/11/2026).
     panelCerrado: {
       blueprint: "productora",
-      apps: ["gestion-inicio", "gestion-diseno", "gestion-calendario", "gestion-proveedores", "gestion-administracion", "gestion-direccion", "gestion-agentes", "gestion-propuesta-ia", "gestion-mi-liquidacion", "gestion-equipo", "eventos-sponsors", "clientes", "caja-del-dia", "libro-de-caja", "cierre-del-dia", "facturacion", "reportes", "usuarios"],
+      apps: ["gestion-inicio", "gestion-diseno", "gestion-calendario", "gestion-proveedores", "gestion-administracion", "gestion-direccion", "gestion-agentes", "gestion-propuesta-ia", "gestion-mi-liquidacion", "gestion-equipo", "eventos-sponsors", "crm-comercial", "clientes", "caja-del-dia", "libro-de-caja", "cierre-del-dia", "facturacion", "reportes", "usuarios"],
     },
     estado: "lista",
     palabras: ["stand", "stands", "evento", "render", "3d", "propuesta", "presupuesto", "armado", "productora", "activacion", "escenografia"],
@@ -238,6 +238,24 @@ export const APPS_COMERCIAL = [
     estado: "lista",
     enLanzador: false,
     palabras: ["eventos", "sponsors", "marcas", "auspiciantes", "expositores", "ferias", "region", "prospectos"],
+  },
+  {
+    // CRM comercial (GSG-CRM-011): Hoy, Embudo, ficha de la oportunidad y borradores. Atrás del interruptor
+    // «crm-comercial», que el registro no sabe leer: `enLanzador: false` y el menú la suma con el interruptor
+    // prendido (`appsDeInterruptores`). Apagado, la página da 404.
+    id: "crm-comercial",
+    nombre: "CRM comercial",
+    descripcion: "Qué hacer hoy, el embudo por etapa, cada oportunidad con su historia y los mensajes por aprobar.",
+    icono: "clientes",
+    ruta: "/admin/crm",
+    espacio: "mostrador",
+    // Techo del rol del ERP, como «Eventos y sponsors»: el usuario de puesto se da de alta con Recepción (o
+    // dueña). Lo que puede adentro lo decide la membresía del CRM (E16), en la página y en cada acción.
+    capability: "clients:read",
+    modulo: null,
+    estado: "lista",
+    enLanzador: false,
+    palabras: ["crm", "oportunidades", "embudo", "consultas", "prospectos", "borradores", "seguimiento", "ventas"],
   },
   {
     id: "gestion-inicio",

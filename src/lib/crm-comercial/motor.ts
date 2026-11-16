@@ -13,6 +13,7 @@
 import { createHash } from "node:crypto";
 import { VARA, type Vara } from "./vara";
 import { PRONOSTICO, type Pronostico } from "./pronostico";
+import { proporcionAlCentavo } from "@/lib/dinero/redondeo";
 
 // ── Etapas ──────────────────────────────────────────────────────────────────
 
@@ -467,7 +468,8 @@ export const diasEnEtapa = (etapaDesde: Date | null | undefined, ahora: Date): n
 export function montoPonderado(monto: number | null | undefined, etapa: Etapa, pronostico: Pronostico = PRONOSTICO): number | null {
   if (monto == null || !Number.isFinite(monto) || monto < 0) return null;
   const p = Math.min(100, Math.max(0, pronostico[etapa].probabilidad));
-  return Math.round(monto * p) / 100;
+  // Probabilidad entera (pronostico.ts): la cuenta va en centavos enteros, una sola vez al centavo (src/lib/dinero).
+  return proporcionAlCentavo(monto, p, 100);
 }
 
 /**

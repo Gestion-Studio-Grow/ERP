@@ -53,6 +53,10 @@ test("«Facturas e impuestos» tiene exactamente las apps de los módulos argent
 // solo, con su módulo propio y `moduloDuro`. En un espacio ocupan UN lugar, no uno cada uno.
 const VERTICALES: ReadonlySet<string> = new Set(["taller", "inmobiliaria", "proyectos", "gestion-inicio", "gestion-diseno", "gestion-calendario", "gestion-proveedores", "gestion-administracion", "gestion-direccion", "gestion-agentes", "gestion-propuesta-ia", "gestion-mi-liquidacion", "gestion-equipo", "club", "padel-clases"]);
 
+// Las apps comerciales de la productora que sólo existen con su interruptor (se venden aparte, `enLanzador: false`):
+// van juntas, al lado de Proyectos, y en el tope cuentan como UN lugar (GSG-CRM-011). Sin el interruptor no se ven.
+const DE_INTERRUPTOR: ReadonlySet<string> = new Set(["eventos-sponsors", "crm-comercial"]);
+
 test("ningún espacio pasa de 8 apps por rubro con el registro de hoy", () => {
   for (const rubro of ["mostrador", "servicios"] as const) {
     for (const e of ESPACIOS_NAV) {
@@ -60,7 +64,8 @@ test("ningún espacio pasa de 8 apps por rubro con el registro de hoy", () => {
         (a) => espacioNavDeApp(a) === e.id && (!a.rubro || a.rubro === rubro || (rubro === "mostrador" && a.rubro === "carniceria")),
       );
       const verticales = delRubro.filter((a) => a.moduloDuro && a.modulo !== null && VERTICALES.has(a.modulo)).length;
-      const n = delRubro.length - verticales + Math.min(1, verticales);
+      const deInterruptor = delRubro.filter((a) => DE_INTERRUPTOR.has(a.id) && a.enLanzador === false).length;
+      const n = delRubro.length - verticales + Math.min(1, verticales) - deInterruptor + Math.min(1, deInterruptor);
       assert.ok(n <= 8, `${e.nombre} en ${rubro}: ${n} apps`);
     }
   }
