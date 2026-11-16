@@ -70,6 +70,12 @@ columnas nuevas aditivas** porque así como están no alcanzan (desafío, punto 
 | `BriefComercial` | Lo que recibe el comercial | campos fijos + `faltantes[]` |
 | `BorradorMensaje` | Mail o WhatsApp preparado | BORRADOR → APROBADO → ENVIADO_POR_PERSONA · RECHAZADO (con motivo); `idempotencia` |
 
+**Campos que suma la lectura de código abierto (16/11; `docs/crm-comercial/pericia/NEXTCRM.md` punto 1):** en la
+oportunidad, fecha de entrada a la etapa (para «días en esta etapa»), última actividad, cierre esperado, quién aprobó
+cada pase y cuándo, y **varios contactos por oportunidad** (el que decide, el que pide, el que paga). Por etapa, en
+configuración: probabilidad (para el monto ponderado) y plazo de seguimiento. Queda fuera del CRM, para el presupuesto
+del proyecto: el tipo de cambio congelado.
+
 **Ciclo de la oportunidad (etapa 1 de los proyectos de MIA: «donde trabaja el CRM»):**
 - **Prospecto** (marca × evento): `DETECTADA → VERIFICADA → SIN_CONTACTO → CONTACTADA → EN_CONVERSACION`
 - **Consulta entrante:** `RECIBIDA → EN_CONVERSACION` (recién cuando se comprobó quién escribe)
