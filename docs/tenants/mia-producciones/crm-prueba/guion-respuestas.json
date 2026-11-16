@@ -1,0 +1,149 @@
+{
+  "_nota": "Lo que contesta el «cliente» cuando el sistema le pide datos o lo contacta. Quien conduce la prueba usa estas respuestas tal cual, en orden: la respuesta 1 al primer pedido, la 2 al segundo. Si el lead dice «no contesta», no se responde nada, se pregunte lo que se pregunte. Todo ficticio.",
+  "guion": [
+    {
+      "id": "L01",
+      "comportamiento": "contesta completo",
+      "respuestas": [
+        { "n": 1, "texto": "Hola, gracias por la respuesta. El lote es el 214, 6x8 en esquina, con frente a dos pasillos. Les adjunto el manual de marca y la ficha técnica del predio. Armado 11 al 13 de abril, desarme el 18. Podemos hacer la reunión el jueves 19/11 a las 15 por videollamada." },
+        { "n": 2, "texto": "Sí, el presupuesto de USD 45.000 es final e incluye todo. La decisión la tomo yo con el gerente comercial; queremos cerrar agencia antes del 18/12." }
+      ]
+    },
+    {
+      "id": "L02",
+      "comportamiento": "contesta a medias",
+      "respuestas": [
+        { "n": 1, "texto": "es la expo belleza sur, del 5 al 7 de febrero, el lote es 3x3. el logo lo tengo en pdf. lo del armado no se, eso lo ven ustedes no?" }
+      ]
+    },
+    {
+      "id": "L03",
+      "comportamiento": "contesta completo",
+      "respuestas": [
+        { "n": 1, "texto": "Ya nos asignaron el lote 31, de 6x4. La feria es del 10 al 12 de marzo, armado el 8 y el 9. El presupuesto que tenemos en mente anda en USD 22.000 con todo." },
+        { "n": 2, "texto": "Decidimos con el enólogo y la dueña; la idea es definir agencia en diciembre. Si nos mandan dos o tres ideas en boceto, mejor." }
+      ]
+    },
+    {
+      "id": "L04",
+      "comportamiento": "contesta completo",
+      "respuestas": [
+        { "n": 1, "texto": "No no, no represento a ninguna empresa, es para la facu. Si me pueden pasar aunque sea un rango de precios me salvan!" }
+      ]
+    },
+    {
+      "id": "L05",
+      "comportamiento": "contesta completo",
+      "respuestas": [
+        { "n": 1, "texto": "No tenemos ningún evento, la idea es que nos sumen como proveedor de impresión. ¿Con quién de compras puedo hablar? Les mando lista de precios." }
+      ]
+    },
+    {
+      "id": "L06",
+      "comportamiento": "contesta a medias",
+      "respuestas": [
+        { "n": 1, "texto": "Esta semana no puedo escribir desde el correo de la empresa por un tema de sistemas, confíen. Lo importante es que me manden la propuesta y la tabla de costos por proveedor antes del viernes, sin eso no puedo presentarlo." },
+        { "n": 2, "texto": "Ahora no puedo hacer llamadas ni videollamadas, sigamos por mail. Mi jefe tampoco puede escribirles." }
+      ]
+    },
+    {
+      "id": "L07",
+      "comportamiento": "no contesta",
+      "respuestas": []
+    },
+    {
+      "id": "L08",
+      "comportamiento": "contesta completo",
+      "respuestas": [
+        { "n": 1, "texto": "Sí, es este jueves 19. El predio nos deja armar desde el miércoles a la noche. Si no llegan con algo único no nos sirve, no queremos modular." }
+      ]
+    },
+    {
+      "id": "L09",
+      "comportamiento": "contesta a medias",
+      "respuestas": [
+        { "n": 1, "texto": "Las condiciones son las del pliego. No hay prórroga ni presupuesto de referencia. Las consultas se reciben por escrito hasta el miércoles 18/11 a las 12:00 hs." }
+      ]
+    },
+    {
+      "id": "L10",
+      "comportamiento": "contesta completo",
+      "respuestas": [
+        { "n": 1, "texto": "La feria es del 18 al 20 de mayo en Posadas. El lote es 2x3, contra pared. El logo se los mando en alta." },
+        { "n": 2, "texto": "El presupuesto es ese, $1.200.000, no tenemos más. Si se puede con eso, avanzamos." }
+      ]
+    },
+    {
+      "id": "L11",
+      "comportamiento": "contesta a medias",
+      "respuestas": [
+        { "n": 1, "texto": "Hola, sí, este año pasamos a isla y nos interesa. El año pasado el stand nos quedó chico de imagen. El presupuesto lo define gerencia, les aviso. Me llamo Agustina Prieto, soy de marketing." },
+        { "n": 2, "texto": "Gerencia aprobó hasta USD 32.000. Queremos ver ideas en diciembre." }
+      ]
+    },
+    {
+      "id": "L12",
+      "comportamiento": "contesta completo",
+      "respuestas": [
+        { "n": 1, "texto": "Sí, vamos a la Feria Emprende. Queremos algo simple pero que se vea más profesional que el roll-up: el panel con gráfica, un mostrador chico con estante y una luz. Tenemos hasta $1.800.000. Soy Nicolás, el dueño." }
+      ]
+    },
+    {
+      "id": "L13",
+      "comportamiento": "contesta completo",
+      "respuestas": [
+        { "n": 1, "texto": "Queremos algo en la línea del año pasado, que funcionó bien, pero con un exhibidor especial para la línea inalámbrica nueva, que llame la atención, con una pantalla. Presupuesto total ARS 9.500.000. Habla Rodrigo Saavedra, jefe de producto." },
+        { "n": 2, "texto": "No necesitamos renders elaborados ni concepto creativo. Lo importante es que esté a tiempo y que no se pase del número." }
+      ]
+    },
+    {
+      "id": "L14",
+      "comportamiento": "contesta completo",
+      "respuestas": [
+        { "n": 1, "texto": "Hola, ¿esto no lo estamos hablando ya con Paula, de su equipo? Me confunde que me escriba otra persona de la misma agencia." }
+      ]
+    },
+    {
+      "id": "L15",
+      "comportamiento": "contesta a medias",
+      "respuestas": [
+        { "n": 1, "texto": "Hola, gracias. Estamos armando el plan de marketing 2027 y todavía no hay presupuesto aprobado para la maratón. Escribime después del 1 de febrero. Mariela Costas, marketing." }
+      ]
+    },
+    {
+      "id": "L16",
+      "comportamiento": "contesta completo",
+      "respuestas": [
+        { "n": 1, "texto": "Hola, ya les escribí la semana pasada por esto mismo, ¿no les llegó? Soy Ignacio." }
+      ]
+    },
+    {
+      "id": "L17",
+      "comportamiento": "contesta completo",
+      "respuestas": [
+        { "n": 1, "texto": "Sí, nos interesa mucho, es nuestra primera vez en Agro Pampa y queremos hacer ruido. Tenemos USD 40.000. Me llamo Gabriel Ortúzar, gerente de marca." },
+        { "n": 2, "texto": "Queremos arrancar ya, ¿cuándo nos pueden mostrar algo?" }
+      ]
+    },
+    {
+      "id": "L18",
+      "comportamiento": "no contesta",
+      "respuestas": []
+    },
+    {
+      "id": "L19",
+      "comportamiento": "contesta completo",
+      "respuestas": [
+        { "n": 1, "texto": "Sí, la expo se suspendió. Por ahora no tenemos otro evento previsto en 2027." }
+      ]
+    },
+    {
+      "id": "L20",
+      "comportamiento": "contesta completo",
+      "respuestas": [
+        { "n": 1, "texto": "Sí, lanzamos el modelo de 300 cc ahí. Buscamos agencia para el stand con un escenario para la presentación a prensa. El rango es USD 55.000 a 65.000. Soy Federico Ansaldi, gerente de marketing." },
+        { "n": 2, "texto": "¿Podemos reunirnos la semana del 30/11? Queremos cerrar agencia en enero." }
+      ]
+    }
+  ]
+}
