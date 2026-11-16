@@ -207,7 +207,7 @@ function EsperandoAlDuenio({ almacen, f, hacer }: { almacen: Almacen; f: VistaFi
           luego(conCodigoDelDuenio(almacen, { novedadId: p.id, codigo, monto: aprobado }, correr, { ok: false, mensaje: "" } as DesenlaceClientes), (d) => d.ok && setCodigo(""));
         }}
       >
-        <Campo label="Código del dueño (ej. ABC-DEF)" autoCapitalize="characters" spellCheck={false} maxLength={7} value={codigo} onChange={(e) => setCodigo(e.target.value)} />
+        <Campo label="Código del dueño (ej. K7M-4QX)" autoCapitalize="characters" spellCheck={false} maxLength={7} value={codigo} onChange={(e) => setCodigo(e.target.value)} />
         <Campo label="Monto aprobado" inputMode="numeric" importe value={monto} onChange={(e) => setMonto(e.target.value)} />
         <Button type="submit" variant="solid" size="md" className="sm:col-span-2" disabled={p.trabado !== null}>
           Aprobar con el código

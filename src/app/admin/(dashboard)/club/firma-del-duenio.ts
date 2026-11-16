@@ -7,7 +7,7 @@
 //   · si ningún PIN es de un dueño con la marca (la demo, la recepción), corre como siempre, en el momento;
 //   · si lo es, lo manda a `firmarComoDuenio` (puerta-del-pin.ts) y, con el pase, el motor lo acepta por un rato
 //     (`fijarVerificadorDelServidor`). Una re-aplicación de la cola sin pase vigente, el motor la rechaza;
-//   · sin conexión (o con la llamada caída): «Para firmar como dueño hace falta conexión.» y NO corre ni se encola;
+//   · sin conexión (o con la llamada caída): `SIN_CONEXION` (sin-conexion.ts) y NO corre ni se encola;
 //   · si el servidor pide esperar o el PIN es el viejo, manda el servidor: no corre. Un PIN que no es, corre igual
 //     para que el motor lo rechace y sume al tope del equipo (tope-de-pin.ts).
 // El código de aprobación de un pedido sigue el mismo camino (`confirmarCodigoDelDuenio` → `aprobarConCodigo`).
@@ -22,8 +22,10 @@ import { useSyncExternalStore } from "react";
 import { esPinEnServidor, fijarVerificadorDelServidor, pinAceptadoPara, usuario as usuarioDe, usuarioPorPin } from "@/lib/club/motor.mjs";
 import type { EstadoClub } from "@/lib/club/motor.mjs";
 import { puertaDeLaFirma } from "./puerta-del-pin";
+import { SIN_CONEXION } from "./sin-conexion";
 
-export const SIN_CONEXION_PARA_FIRMAR = "Para firmar como dueño hace falta conexión.";
+/** El texto único de sin-conexion.ts (se mantiene el nombre para quien ya lo importa). */
+export const SIN_CONEXION_PARA_FIRMAR = SIN_CONEXION;
 export const FIRMA_VENCIDA = "Para firmar como dueño, poné tu PIN de nuevo. No se hizo nada.";
 /**
  * Cuánto vale en este equipo lo que confirmó el servidor: un poco menos que el pase (120 s, pin-servidor.ts), contado
@@ -227,7 +229,7 @@ export function confirmarCodigoDelDuenio(
   const monto = Math.round(Number(aprobado ?? n.monto));
   return unaALaVez(async () => {
     const puerta = puertaDeLaFirma();
-    if (!puerta || !hayConexion()) return { ok: false, corta: true, mensaje: "Para validar el código del dueño hace falta conexión." };
+    if (!puerta || !hayConexion()) return { ok: false, corta: true, mensaje: SIN_CONEXION };
     try {
       const r = await puerta.aprobarConCodigo({ novedadId, codigo: tipeado, monto });
       if (r?.ok) {
@@ -237,7 +239,7 @@ export function confirmarCodigoDelDuenio(
       // Un código que no es, sigue al motor (cuenta sus intentos del pedido); una espera del servidor, corta.
       return { ok: false, corta: !!r?.esperaS, mensaje: String(r?.error ?? "Ese código no sirve."), ...(r?.esperaS ? { esperaS: r.esperaS } : {}) };
     } catch {
-      return { ok: false, corta: true, mensaje: "Para validar el código del dueño hace falta conexión." };
+      return { ok: false, corta: true, mensaje: SIN_CONEXION };
     }
   });
 }

@@ -177,7 +177,8 @@ async function cambiarEnLaBase(almacen: Almacen, negocio: string | undefined, ac
   almacen.latir();
 }
 
-function CambiarMiPin({ almacen, rol, hacer, negocio }: { almacen: Almacen; rol: Rol; hacer: ReturnType<typeof useHacerConfig>; negocio?: string }) {
+/** También lo usa la solapa «Mi PIN» de recepción (MiPinDelClub.tsx), sola, sin el resto de Usuarios y accesos. */
+export function CambiarMiPin({ almacen, rol, hacer, negocio }: { almacen: Almacen; rol: Rol; hacer: ReturnType<typeof useHacerConfig>; negocio?: string }) {
   const largo = largoPin(rol);
   const [actual, setActual] = useState("");
   const [nuevo, setNuevo] = useState("");

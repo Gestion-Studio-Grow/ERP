@@ -597,6 +597,13 @@ describe("El bloqueo del club en el navegador", { timeout: 240_000 }, () => {
       const deLu = await solapas();
       t.diagnostic(`puesto ${rolDelPuesto} · Lu ve: ${deLu.join(", ")}`);
       for (const d of deDuenos) assert.ok(!deLu.includes(d), `puesto ${rolDelPuesto}: Lu no ve «${d}»`);
+      assert.ok(deLu.includes("Mi PIN"), `puesto ${rolDelPuesto}: Lu ve «Mi PIN»`);
+      await irASolapa(page, "Mi PIN");
+      await page.getByRole("heading", { name: "Mi PIN", exact: true }).waitFor();
+      assert.equal(await page.getByRole("heading", { name: "Cambiar mi PIN" }).count(), 1, "trae el formulario de su PIN");
+      assert.equal(await page.getByRole("list", { name: "Usuarios con acceso" }).count(), 0, "sin la lista de usuarios");
+      assert.equal(await page.getByRole("button", { name: /^PIN nuevo/ }).count(), 0, "sin PIN para otros");
+      await irASolapa(page, "Agenda");
       // Abre la cuenta de un turno…
       await page.getByRole("button", { name: /^Martín Ríos, Cancha 1,/ }).click();
       await page.getByRole("region", { name: "Martín Ríos" }).waitFor();
@@ -608,6 +615,7 @@ describe("El bloqueo del club en el navegador", { timeout: 240_000 }, () => {
       const deMajo = await solapas();
       t.diagnostic(`puesto ${rolDelPuesto} · Majo ve: ${deMajo.join(", ")}`);
       for (const d of deDuenos) assert.ok(deMajo.includes(d), `puesto ${rolDelPuesto}: Majo ve «${d}»`);
+      assert.ok(!deMajo.includes("Mi PIN"), `puesto ${rolDelPuesto}: Majo no ve «Mi PIN» (lo tiene en Configuración)`);
       await irASolapa(page, "Configuración");
       await page.getByRole("tab", { name: "Configuración", selected: true }).waitFor();
 

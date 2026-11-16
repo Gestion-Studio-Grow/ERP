@@ -80,7 +80,7 @@ export default function PedidoDelDuenio({ almacen, novedadId }: { almacen: Almac
       >
         <div className="flex flex-1 flex-col gap-1">
           <label htmlFor={id} className="text-xs font-medium text-muted">
-            Código del dueño (6 letras, ej. ABC-DEF)
+            Código del dueño (6 letras y números, ej. K7M-4QX)
           </label>
           <Input id={id} value={codigo} autoComplete="off" autoCapitalize="characters" maxLength={7} onChange={(e) => setCodigo(e.target.value)} />
         </div>

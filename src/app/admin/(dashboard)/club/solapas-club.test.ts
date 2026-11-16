@@ -62,3 +62,10 @@ test("el bloqueo con PIN es la PRIMERA pieza global (antes que el aviso del due�
   assert.ok(ids.indexOf("bloqueo") < ids.indexOf("aviso-del-duenio"));
   assert.ok(!SOLAPAS_DEL_CLUB.some((s) => s.id === "bloqueo"));
 });
+
+test("«Mi PIN» es sólo para quien no es dueño (el dueño lo tiene en Configuración) y no es de dueños", () => {
+  const por = Object.fromEntries(SOLAPAS_DEL_CLUB.map((s) => [s.id, s]));
+  assert.equal(por["mi-pin"]?.soloRecepcion, true);
+  assert.equal(por["mi-pin"]?.soloDuenos ?? false, false);
+  assert.ok(!SOLAPAS_DEL_CLUB.some((s) => s.soloDuenos && s.soloRecepcion), "ninguna es de los dos lados a la vez");
+});

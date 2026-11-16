@@ -13,7 +13,8 @@
 // avisos funcionan solos), el día elegido en la agenda, el rol del panel y `onVerTurno` para abrir la
 // cuenta de un turno en la Agenda.
 //
-// `soloDuenos`: la solapa no se muestra a quien no es OWNER (p. ej. Configuración o el Tablero).
+// `soloDuenos`: la solapa no se muestra a quien no es OWNER (p. ej. Configuración o el Tablero). `soloRecepcion`: al
+// revés, sólo a quien no es dueño (p. ej. «Mi PIN»).
 // Ojo: esconder no es seguridad; lo sensible lo sigue validando el motor (PIN / autorización).
 
 import type { ComponentType } from "react";
@@ -37,6 +38,8 @@ export interface SolapaDelClub {
   etiqueta: string;
   cargar: () => Promise<{ default: ComponentType<PropsDeSolapa> }>;
   soloDuenos?: boolean;
+  /** Al revés: sólo para quien opera sin ser dueño (p. ej. «Mi PIN»; el dueño lo tiene adentro de Configuración). */
+  soloRecepcion?: boolean;
 }
 
 export const SOLAPAS_DEL_CLUB: readonly SolapaDelClub[] = [
@@ -50,6 +53,9 @@ export const SOLAPAS_DEL_CLUB: readonly SolapaDelClub[] = [
   { id: "novedades", etiqueta: "Novedades y redes", cargar: () => import("./NovedadesDelClub"), soloDuenos: true },
   // «configuracion» es el id al que lleva la cinta cuando lo guardado se llena (archivar días cerrados): no se cambia.
   { id: "configuracion", etiqueta: "Configuración", cargar: () => import("./ConfiguracionDelClub"), soloDuenos: true },
+  // Recepción no ve Configuración (usuarios, PIN ajenos, reglas): para cambiar SU PIN tiene esta solapa, que trae sólo
+  // ese formulario. El cambio lo comprueba el servidor (pin-del-club-actions.ts), no esta pantalla.
+  { id: "mi-pin", etiqueta: "Mi PIN", cargar: () => import("./MiPinDelClub"), soloRecepcion: true },
 ];
 
 // ============================================================================
