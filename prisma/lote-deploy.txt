@@ -142,10 +142,14 @@
 # 2026-11-17 · tanda/mia-publicacion · GSG-PLAT-020 · MIA: CRM comercial (CRM-010/017/018) + Taller (MIA-045).
 # Orden del dueño (17/11 02:41Z): «los vamos a publicar ahora». Siete migraciones ADITIVAS: tablas nuevas con RLS
 # tenant_isolation adentro, columnas nullable o con default, CHECK sólo sobre lo nuevo; sin enum, sin DROP de datos,
-# sin backfill. Ensayadas con `prisma migrate deploy` sobre una copia de Neon (informe PLAT-020 en Factory-GSG).
+# sin backfill. Ensayo (17/11, copia de Neon br-snowy-pine-acoouvrq, informe PLAT-020 en Factory-GSG): NO fue con
+# `prisma migrate deploy` (el contenedor no tiene TCP a Postgres). Fue el SQL de los siete migration.sql, sin
+# cambios, en UNA sentencia DO por el driver HTTPS de Neon, que además registró cada una en _prisma_migrations
+# con el mismo checksum sha256 que calcula Prisma (7/7 iguales, certificado en GSG-PLAT-020). El `migrate deploy`
+# real lo corre el build de producción (scripts/vercel-build.mjs, pasos 1b y 2), que frena sin publicar si algo falla.
 # La tabla de apoyo de la prueba del CRM ("FilaDePruebaCrm") NO viaja: no tiene migración.
-# Gate 2: se aplican sólo con el clic del dueño. Si #175 sale antes, su 20261114230000_proyecto_pago_clave_envio
-# ya estará aplicada y no va en esta lista.
+# Gate 2: orden del dueño del 17/11 03:35:53Z («te autorizo a publicar y modificar»). Si #175 sale antes, su
+# 20261114230000_proyecto_pago_clave_envio ya estará aplicada y no va en esta lista.
 20261116150000_crm_comercial
 20261116160000_crm_comercial_pronostico
 20261116200000_taller_piezas_despiece
