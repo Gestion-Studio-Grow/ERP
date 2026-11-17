@@ -5,7 +5,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import pg from "pg";
 import { apuntarLaAppA, baseEfimeraDelArchivo, prismaComoDuenio, type BaseEfimera } from "@/test/base-efimera";
@@ -39,6 +39,9 @@ async function preparar(t: import("node:test").TestContext): Promise<Fixture | n
     await c.connect();
     const usuarios: [string, string, string][] = [];
     try {
+      // GSG-CRM-018: la tabla de apoyo no viene en las migraciones (no va a producción): se aplica como en el
+      // ambiente local, como dueño de las tablas (los privilegios por defecto se la dan a app_rls, con su RLS).
+      await c.query(readFileSync(path.join(process.cwd(), "scripts", "crm-comercial", "local", "filas-de-prueba.sql"), "utf8"));
       for (const n of [base.a, base.b]) {
         for (const k of ["com1", "com2", "desc"]) {
           const id = `carga-${n.slug}-${k}`;
@@ -76,7 +79,7 @@ async function conteo(f: Fixture, tenantId: string) {
     d.contactoComercial.count({ where: { tenantId } }),
     d.tareaComercial.count({ where: { tenantId } }),
     d.actividadComercial.count({ where: { tenantId } }),
-    d.filaDePruebaCrm.count({ where: { tenantId } }),
+    d.$queryRaw<{ n: number }[]>`SELECT count(*)::int AS n FROM "FilaDePruebaCrm" WHERE "tenantId" = ${tenantId}`.then((r) => r[0].n),
   ]);
   return { ops, marcas, eventos, contactos, tareas, actividades, filas };
 }
@@ -172,4 +175,15 @@ test("carga P2: consulta → RECIBIDA, prospecto → DETECTADA, clientes → GAN
   // Se puede volver a cargar después de limpiar (las claves de idempotencia se fueron con lo borrado).
   const r3 = await carga.cargarPrueba({ slug: a.slug, leads: LEADS, clientes: CLIENTES, ahora: AHORA });
   assert.equal(r3.oportunidadesDePrueba, r1.oportunidadesDePrueba);
+});
+
+test("GSG-CRM-018 · la tabla de apoyo de la prueba no va a producción: ninguna migración ni el modelo la crean; el ambiente local sí", () => {
+  const raiz = process.cwd();
+  const dir = path.join(raiz, "prisma", "migrations");
+  const conLaTabla = readdirSync(dir)
+    .filter((m) => existsSync(path.join(dir, m, "migration.sql")))
+    .filter((m) => /FilaDePruebaCrm/.test(readFileSync(path.join(dir, m, "migration.sql"), "utf8")));
+  assert.deepEqual(conLaTabla, []);
+  assert.doesNotMatch(readFileSync(path.join(raiz, "prisma", "schema.prisma"), "utf8"), /model FilaDePruebaCrm\b/);
+  assert.match(readFileSync(path.join(raiz, "scripts", "crm-comercial", "prueba-local.mjs"), "utf8"), /local", "filas-de-prueba\.sql"/);
 });

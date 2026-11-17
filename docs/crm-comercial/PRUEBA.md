@@ -38,14 +38,19 @@ npm run crm:operar -- --como puesto-calificador@crm-prueba.example proponer-pase
 
 ## 4. Carga y limpieza en otra base
 `npm run crm:cargar-prueba -- --negocio <slug>` (idempotente) · `npm run crm:limpiar-prueba -- --negocio <slug>`
-(simulacro: cifras reales, nada borrado) · igual con `--aplicar` para borrar. Todo queda anotado en `FilaDePruebaCrm`;
+(simulacro: cifras reales, nada borrado) · igual con `--aplicar` para borrar. Todo queda anotado en `FilaDePruebaCrm`,
+una tabla de apoyo que NO es una migración (GSG-CRM-018): existe sólo donde se aplicó
+`scripts/crm-comercial/local/filas-de-prueba.sql` (el ambiente local y los tests). Sin ella, la carga contesta «falta
+la tabla de apoyo» y no escribe nada;
 la limpieza borra SÓLO lo anotado de ESE negocio y lo que cuelga de sus oportunidades; lo que usa algo ajeno a la
 prueba se queda y se informa; los proyectos nacidos al ASIGNAR se borran desde Proyectos. Neon se rechaza siempre,
 salvo las dos llaves del §5 (`src/lib/crm-comercial/guarda-base.ts`).
 
 ## 5. Dejar la prueba lista en PRODUCCIÓN (en orden; cada paso, quien corresponde)
 1. **Migraciones (Gate 2, las aplica el rol autorizado, no quien construye):** `20261116150000_crm_comercial`,
-   `…160000_crm_comercial_pronostico`, `…170000_crm_comercial_filas_de_prueba`. Sin ellas el CRM dice «falta un paso».
+   `…160000_crm_comercial_pronostico` y `20261117010000_crm_vinculo_negocios`. Sin ellas el CRM dice «falta un paso».
+   La tabla de apoyo de la carga ya no es una migración (GSG-CRM-018): la carga con datos ficticios en una base
+   publicada queda frenada hasta que el dueño decida otra forma de marcar «de prueba».
 2. **Interruptor:** consola del operador → ficha del negocio → «CRM comercial» → encender. Apagado = 404 y toda acción rechaza.
 3. **Usuarios:** en `/admin/usuarios` del negocio, un usuario por persona y uno propio por puesto (rol Recepción,
    contraseña provisoria con `mustChangePassword`, por mail aparte al titular; nunca en informes ni commits).

@@ -297,7 +297,6 @@ model Tenant {
   briefsComerciales          BriefComercial[]
   borradoresMensaje          BorradorMensaje[]
   tareasComerciales          TareaComercial[]
-  filasDePruebaCrm           FilaDePruebaCrm[]
   vinculosArm                VinculoNegocio[]                @relation("VinculoDelArm") // GSG-CRM-017: este negocio es el ARM
   vinculosComoDestino        VinculoNegocio[]                @relation("VinculoAlDestino") // GSG-CRM-017: este negocio recibe del ARM
   asignacionesRecibidas      AsignacionRecibida[] // GSG-CRM-017
@@ -4948,25 +4947,8 @@ model TareaComercial {
   @@index([tenantId, tomadaPor, estado])
 }
 
-// GSG-CRM-011 · parte 3: qué filas cargó la PRUEBA del CRM (los 20 leads ficticios y los clientes activos).
-// La marca «de prueba» vive acá y no como columna en cada tabla: así no se toca MarcaRelevada ni
-// EventoRelevado, que ya están en producción (una columna nueva ahí obliga a `select` en cada lectura).
-// La limpieza (scripts/crm-comercial/limpiar-prueba.ts) borra SÓLO lo anotado acá, de UN negocio.
-// Migración ADITIVA 20261116170000_crm_comercial_filas_de_prueba, sin aplicar (Gate 2).
-model FilaDePruebaCrm {
-  id        String   @id @default(cuid())
-  tenant    Tenant   @relation(fields: [tenantId], references: [id])
-  tenantId  String
-  entidad   String // LEAD · CLIENTE · MARCA · EVENTO · EVENTO_MARCA · OPORTUNIDAD · CONTACTO
-  clave     String // LEAD/CLIENTE: el id del archivo (L01, C01); el resto: el id de la fila
-  filaId    String? // la fila anotada (para LEAD/CLIENTE: la oportunidad que quedó, si quedó una)
-  nota      String? // LEAD: cómo entró (CREADA · UNIDA · FRENADA) y el motivo
-  lote      String
-  createdAt DateTime @default(now())
-
-  @@unique([tenantId, entidad, clave])
-  @@index([tenantId, entidad])
-}
+// GSG-CRM-018: la tabla de apoyo de la prueba (`FilaDePruebaCrm`) NO es parte del modelo: vive sólo en el ambiente
+// local (scripts/crm-comercial/local/filas-de-prueba.sql) y la carga la usa con SQL. Nunca va a producción.
 
 // ── ARM como negocio propio (GSG-CRM-017 · decisión del dueño del 16/11) ─────────────────────────────────
 // El ARM (CRM comercial de un cliente, p. ej. `arm-mia`) asigna oportunidades a SUS negocios vinculados. El vínculo lo

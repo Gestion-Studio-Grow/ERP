@@ -61,6 +61,9 @@ for (const m of readdirSync(dir).filter((d) => !d.startsWith("migration_lock")).
   n++;
 }
 log(`migraciones aplicadas: ${n}`);
+// GSG-CRM-018: la tabla de apoyo de la prueba no es una migración (no va a producción); sólo existe acá.
+await db.exec(readFileSync(path.join(ROOT, "scripts", "crm-comercial", "local", "filas-de-prueba.sql"), "utf8"));
+log("tabla de apoyo de la prueba: lista (sólo en esta base)");
 
 const fin = async (code) => {
   await server.stop().catch(() => {});

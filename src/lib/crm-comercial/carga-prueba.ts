@@ -21,6 +21,8 @@
 // Todo acceso a la base de un negocio va por `tenantTransaction`. La única lectura fuera es la fila de `Tenant`
 // por slug (no es dato de un negocio). Contra Neon sólo con las dos llaves de `guardaDeBase`, que corta antes de conectar.
 
+import { randomUUID } from "node:crypto";
+import { Prisma } from "@/generated/prisma/client";
 import { tenantTransaction } from "@/lib/rls";
 import { basePrisma } from "@/lib/prisma-base";
 import { claveEvento, claveMarca, normalizar } from "@/lib/eventos-sponsors/core";
@@ -40,13 +42,13 @@ export { guardaDeBase, type Guarda, type PermisoProduccion } from "./guarda-base
 
 export class SinMigracionDePrueba extends Error {
   constructor() {
-    super("Falta la migración 20261116170000_crm_comercial_filas_de_prueba (y las del CRM): sin ella la prueba no se carga.");
+    super("Falta la tabla de apoyo de la prueba (scripts/crm-comercial/local/filas-de-prueba.sql, sólo del ambiente local) o una migración del CRM: sin ellas la prueba no se carga.");
   }
 }
 
 function esFaltaDeTablaDePrueba(e: unknown): boolean {
   const msg = e instanceof Error ? e.message : String(e);
-  return /FilaDePruebaCrm/.test(msg) && /does not exist|no existe|P2021/.test(msg);
+  return /FilaDePruebaCrm/.test(msg) && /does not exist|no existe|P2021|42P01/.test(msg);
 }
 
 /** El negocio por su slug. Es la única lectura fuera de `tenantTransaction` (la tabla Tenant no es de un negocio). */
@@ -131,13 +133,26 @@ const momento = (l: LeadDePrueba) => (esConsulta(l) ? l.recibido : l.detectado) 
 
 type Entidad = "LEAD" | "CLIENTE" | "MARCA" | "EVENTO" | "EVENTO_MARCA" | "OPORTUNIDAD" | "CONTACTO";
 
-async function anotado(tx: Tx, tenantId: string, entidad: Entidad, clave: string) {
-  return tx.filaDePruebaCrm.findUnique({ where: { tenantId_entidad_clave: { tenantId, entidad, clave } }, select: { filaId: true, nota: true } });
+// GSG-CRM-018: `FilaDePruebaCrm` no está en el modelo (no va a producción): se lee y escribe con SQL, siempre
+// dentro de `tenantTransaction` y con `tenantId` explícito (además de la política RLS de la tabla).
+interface Anotacion {
+  id: string;
+  entidad: string;
+  filaId: string | null;
+  nota: string | null;
+}
+
+async function anotaciones(tx: Tx, tenantId: string, entidad?: Entidad): Promise<Anotacion[]> {
+  return tx.$queryRaw<Anotacion[]>`SELECT "id", "entidad", "filaId", "nota" FROM "FilaDePruebaCrm" WHERE "tenantId" = ${tenantId} ${entidad ? Prisma.sql`AND "entidad" = ${entidad}` : Prisma.empty} ORDER BY "createdAt", "id"`;
+}
+
+async function anotado(tx: Tx, tenantId: string, entidad: Entidad, clave: string): Promise<{ filaId: string | null; nota: string | null } | null> {
+  const filas = await tx.$queryRaw<{ filaId: string | null; nota: string | null }[]>`SELECT "filaId", "nota" FROM "FilaDePruebaCrm" WHERE "tenantId" = ${tenantId} AND "entidad" = ${entidad} AND "clave" = ${clave} LIMIT 1`;
+  return filas[0] ?? null;
 }
 
 async function anotar(tx: Tx, tenantId: string, lote: string, entidad: Entidad, clave: string, filaId: string | null, nota: string | null = null): Promise<void> {
-  if (await anotado(tx, tenantId, entidad, clave)) return;
-  await tx.filaDePruebaCrm.create({ data: { tenantId, entidad, clave, filaId, nota: nota?.slice(0, 2000) ?? null, lote }, select: { id: true } });
+  await tx.$executeRaw`INSERT INTO "FilaDePruebaCrm" ("id", "tenantId", "entidad", "clave", "filaId", "nota", "lote") VALUES (${randomUUID()}, ${tenantId}, ${entidad}, ${clave}, ${filaId}, ${nota?.slice(0, 2000) ?? null}, ${lote}) ON CONFLICT ("tenantId", "entidad", "clave") DO NOTHING`;
 }
 
 /** El evento por nombre (cualquier fecha) o, si no está y la fecha se entiende, uno nuevo anotado de prueba. */
@@ -388,7 +403,7 @@ export async function cargarPrueba(p: PedidoDeCarga): Promise<InformeCarga> {
   if (!negocio) throw new Error(`No hay un negocio con el slug «${p.slug}».`);
   const tenantId = negocio.id;
   try {
-    await tenantTransaction((tx) => tx.filaDePruebaCrm.count({ where: { tenantId } }), { tenantId });
+    await tenantTransaction((tx) => tx.$queryRaw`SELECT 1 FROM "FilaDePruebaCrm" WHERE "tenantId" = ${tenantId} LIMIT 1`, { tenantId });
   } catch (e) {
     if (esFaltaDeTablaDePrueba(e) || repo.esFaltaDeTabla(e)) throw new SinMigracionDePrueba();
     throw e;
@@ -405,7 +420,7 @@ export async function cargarPrueba(p: PedidoDeCarga): Promise<InformeCarga> {
 
   const resumen = await tenantTransaction(
     async (tx) => {
-      const ids = (await tx.filaDePruebaCrm.findMany({ where: { tenantId, entidad: "OPORTUNIDAD" }, select: { filaId: true } })).map((f) => f.filaId).filter((x): x is string => !!x);
+      const ids = (await anotaciones(tx, tenantId, "OPORTUNIDAD")).map((f) => f.filaId).filter((x): x is string => !!x);
       const grupos = await tx.oportunidad.groupBy({ by: ["etapa"], where: { tenantId, id: { in: ids } }, _count: { _all: true } });
       return { total: ids.length, porEtapa: Object.fromEntries(grupos.map((g) => [g.etapa, g._count._all])) };
     },
@@ -447,7 +462,7 @@ export async function limpiarPrueba(p: { slug: string; aplicar?: boolean; produc
   try {
     return await tenantTransaction(
       async (tx) => {
-        const filas = await tx.filaDePruebaCrm.findMany({ where: { tenantId }, select: { id: true, entidad: true, filaId: true } });
+        const filas = await anotaciones(tx, tenantId);
         const de = (e: Entidad) => [...new Set(filas.filter((f) => f.entidad === e && f.filaId).map((f) => f.filaId as string))];
         const ops = await tx.oportunidad.findMany({ where: { tenantId, id: { in: de("OPORTUNIDAD") } }, select: { id: true, proyectoId: true, contactoId: true } });
         const opIds = ops.map((o) => o.id);
@@ -502,7 +517,8 @@ export async function limpiarPrueba(p: { slug: string; aplicar?: boolean; produc
 
         // Las anotaciones de lo que se quedó siguen (una limpieza posterior lo reintenta); el resto se va.
         const siguen = new Set([...marcasQuedan, ...eventosQuedan, ...contactosQuedan]);
-        borradas.anotaciones = (await tx.filaDePruebaCrm.deleteMany({ where: { tenantId, id: { in: filas.filter((f) => !(f.filaId && siguen.has(f.filaId) && ["MARCA", "EVENTO", "CONTACTO"].includes(f.entidad))).map((f) => f.id) } } })).count;
+        const anotacionesBorrar = filas.filter((f) => !(f.filaId && siguen.has(f.filaId) && ["MARCA", "EVENTO", "CONTACTO"].includes(f.entidad))).map((f) => f.id);
+        borradas.anotaciones = await tx.$executeRaw`DELETE FROM "FilaDePruebaCrm" WHERE "tenantId" = ${tenantId} AND "id" = ANY(${anotacionesBorrar}::text[])`;
 
         const informe: InformeLimpieza = {
           ok: true,
