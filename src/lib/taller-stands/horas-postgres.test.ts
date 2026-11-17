@@ -1,5 +1,5 @@
 // ============================================================================
-// HORAS DEL TALLER EN LA BASE (T3 · taller de Ale): la base misma rechaza una carga de horas o un valor hora con la
+// HORAS DEL TALLER EN LA BASE (T3 · MIA Taller): la base misma rechaza una carga de horas o un valor hora con la
 // persona o el proyecto de otro negocio (FK compuestas), y el doble clic (mismo token de formulario) deja UNA sola
 // carga. Corre contra una base efímera local (saltea sin Postgres fuera de CI).
 // ============================================================================

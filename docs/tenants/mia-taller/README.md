@@ -15,7 +15,7 @@ Plan hecho con Fable el 09/11/2026. Lo construido está marcado.
 ## Tandas
 | Tanda | Alcance | Estado |
 |---|---|---|
-| T1 (S) | Rubro, preset, descriptor `taller-stands` sin pantallas, flag `TALLER_STANDS_ENABLED` (apagado), alta idempotente sin usuarios (`scripts/taller-stands/alta-taller-ale.ts`), tests | **Hecha** |
+| T1 (S) | Rubro, preset, descriptor `taller-stands` sin pantallas, flag `TALLER_STANDS_ENABLED` (apagado), alta idempotente sin usuarios (`scripts/taller-stands/alta-mia-taller.ts`), tests | **Hecha** |
 | T2 (M) | `TallerPieza` (catálogo con costo interno) + `TallerDespiece` por stand + core + pantalla «Despiece» → pasa a presupuesto + papel para la productora sin costo ni margen | **Hecha** (migración `20261116200000_taller_piezas_despiece` escrita, sin aplicar: Gate 2) |
 | T3 (M) | `TallerHora` (mano de obra); costo teórico contra real por rubro | **Hecha** (migración `20261116201000_taller_horas`, sin aplicar: Gate 2) |
 | T4 (M) | `TallerPedido`: compra de materiales que, recibida, entra como `ProyectoGasto` «Materiales» | **Hecha** (migración `20261116202000_taller_pedidos`, sin aplicar: Gate 2) |
@@ -32,8 +32,8 @@ sin bypass de RLS, con rate limit y auditoría de los dos lados.
 
 ## Cómo correr el alta (local o rama de Neon, nunca producción)
 ```
-TALLER_STANDS_ENABLED=1 npx tsx scripts/taller-stands/alta-taller-ale.ts                 # base local
-TALLER_STANDS_ENABLED=1 npx tsx scripts/taller-stands/alta-taller-ale.ts --rama-neon ep-… # rama de prueba
+TALLER_STANDS_ENABLED=1 npx tsx scripts/taller-stands/alta-mia-taller.ts                 # base local
+TALLER_STANDS_ENABLED=1 npx tsx scripts/taller-stands/alta-mia-taller.ts --rama-neon ep-… # rama de prueba
 ```
 Frena si el flag está apagado, si el host no es local ni el endpoint nombrado, o si RLS no está activo.
 

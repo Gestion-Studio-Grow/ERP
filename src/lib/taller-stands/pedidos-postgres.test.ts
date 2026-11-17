@@ -1,5 +1,5 @@
 // ============================================================================
-// PEDIDOS DE MATERIALES EN LA BASE (T4 · taller de Ale): la base rechaza un pedido con proyecto, proveedor o gasto de
+// PEDIDOS DE MATERIALES EN LA BASE (T4 · MIA Taller): la base rechaza un pedido con proyecto, proveedor o gasto de
 // otro negocio (FK compuestas); recibir dos veces a la vez deja UN solo gasto (FOR UPDATE + transición condicional +
 // único de gastoId); anular un recibido no borra el gasto; RLS forzada. Base efímera local (saltea sin Postgres).
 // ============================================================================

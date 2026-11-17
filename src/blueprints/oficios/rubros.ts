@@ -258,7 +258,7 @@ export const OFICIOS_RUBROS: OficiosRubro[] = [
     // redirect del sitio). Su circuito: proyectos (un stand = un proyecto) + stock de materiales +
     // el módulo `taller-stands` (despiece y costo por stand, detrás de TALLER_STANDS_ENABLED).
     // SIN palabras clave a propósito: el onboarding por texto libre no cae acá; se asigna sólo
-    // con --blueprint explícito (alta en scripts/taller-stands/alta-taller-ale.ts).
+    // con --blueprint explícito (alta en scripts/taller-stands/alta-mia-taller.ts).
     id: "taller-stands",
     label: "Taller de stands",
     keywords: [],

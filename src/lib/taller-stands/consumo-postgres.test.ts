@@ -1,5 +1,5 @@
 // ============================================================================
-// STOCK REAL DE MATERIALES EN LA BASE (T6 · taller de Ale): una pieza no puede apuntar al producto de otro negocio
+// STOCK REAL DE MATERIALES EN LA BASE (T6 · MIA Taller): una pieza no puede apuntar al producto de otro negocio
 // (FK compuesta); descontar dos veces a la vez deja UN juego de movimientos (FOR UPDATE del proyecto + único
 // proyecto/pieza); si cambia el despiece sólo se descuenta la diferencia; un faltante no deja nada escrito; devolver
 // dos veces = una sola devolución; otro negocio no ve los consumos (FORCE RLS). Base efímera local (saltea sin Postgres).

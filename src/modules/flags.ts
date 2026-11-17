@@ -95,7 +95,7 @@ export function upgradeTeaserEnabled(
 // ============================================================================
 //
 // Apaga todo lo nuevo del taller de stands (módulo `taller-stands`): mientras esté OFF, el alta
-// del tenant (scripts/taller-stands/alta-taller-ale.ts) se niega a correr y las pantallas que
+// del tenant (scripts/taller-stands/alta-mia-taller.ts) se niega a correr y las pantallas que
 // sumen las tandas siguientes no se muestran. Ningún otro negocio lo lee. Reversible sin datos.
 
 /** ¿Está prendido el taller de stands? Default OFF. PURA (env inyectable). */

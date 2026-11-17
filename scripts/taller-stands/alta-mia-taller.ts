@@ -2,7 +2,7 @@
 // ALTA DEL TENANT DEL TALLER DE STANDS (GSG-MIA-004) — idempotente, sin usuarios.
 // ============================================================================
 //
-// Crea el negocio del taller de Ale como un tenant aparte del motor (rubro `taller-stands`), con
+// Crea MIA Taller (el taller de stands de Ale, socio de MIA) como un tenant aparte del motor (rubro `taller-stands`), con
 // los módulos de su preset. NO comparte nada con MIA Producciones: cada uno ve sólo su base (RLS).
 //
 // Qué hace y qué no:
@@ -17,7 +17,7 @@
 //   2. La base tiene que ser local (localhost/127.0.0.1) o una rama de Neon nombrada a mano con
 //      --rama-neon <id-de-endpoint>, que tiene que aparecer en el host. Nunca producción.
 //
-// Uso:  TALLER_STANDS_ENABLED=1 npx tsx scripts/taller-stands/alta-taller-ale.ts [--rama-neon ep-xxxx]
+// Uso:  TALLER_STANDS_ENABLED=1 npx tsx scripts/taller-stands/alta-mia-taller.ts [--rama-neon ep-xxxx]
 
 import "dotenv/config";
 import type { PrismaClient } from "../../src/generated/prisma/client";
@@ -25,8 +25,8 @@ import { defaultModulesForBlueprint } from "../../src/blueprints/presets-meta";
 import { tallerStandsEnabled } from "../../src/modules/flags";
 import { isRlsActive } from "../provision-tenant";
 
-export const SLUG_TALLER = "taller-ale"; // provisional a confirmar
-export const NOMBRE_TALLER = "Taller de Ale (provisional a confirmar)";
+export const SLUG_TALLER = "mia-taller"; // provisional a confirmar (antes `taller-ale`; modelo B del 15/11, GSG-MIA-045)
+export const NOMBRE_TALLER = "MIA Taller (provisional a confirmar)";
 export const RUBRO_TALLER = "taller-stands";
 
 export interface AltaTallerResult {
@@ -66,7 +66,7 @@ export function motivoFreno(
 }
 
 /** Core del alta: idempotente por slug, transaccional, sin usuarios. Prisma inyectado. */
-export async function altaTallerAle(prisma: PrismaClient): Promise<AltaTallerResult> {
+export async function altaMiaTaller(prisma: PrismaClient): Promise<AltaTallerResult> {
   const modules = defaultModulesForBlueprint(RUBRO_TALLER);
   return prisma.$transaction(async (tx) => {
     const existente = await tx.tenant.findUnique({ where: { slug: SLUG_TALLER }, select: { id: true, modules: true } });
@@ -76,7 +76,9 @@ export async function altaTallerAle(prisma: PrismaClient): Promise<AltaTallerRes
       throw new Error("GATE ADR-018: RLS no está activo; no se crea un tenant nuevo.");
     }
     const tenant = await tx.tenant.create({
-      data: { name: NOMBRE_TALLER, slug: SLUG_TALLER, blueprintId: RUBRO_TALLER, status: "TRIAL", modules },
+      // `subdomain` es el link propio (V9): el negocio se resuelve por subdominio (src/lib/tenant.ts), y sin él
+      // MIA Taller no tendría dirección. Dominio público y CUIT: provisionales a confirmar (no se cargan acá).
+      data: { name: NOMBRE_TALLER, slug: SLUG_TALLER, subdomain: SLUG_TALLER, blueprintId: RUBRO_TALLER, status: "TRIAL", modules },
       select: { id: true },
     });
     return { tenantId: tenant.id, creado: true, modules };
@@ -95,7 +97,7 @@ async function main() {
   const { PrismaPg } = await import("@prisma/adapter-pg");
   const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }) });
   try {
-    const r = await altaTallerAle(prisma);
+    const r = await altaMiaTaller(prisma);
     console.log(`${r.creado ? "✔ creado" : "= ya existía"} · slug ${SLUG_TALLER} · módulos: ${r.modules.join(", ")}`);
     console.log("Sin usuarios: el acceso de Ale lo decide el dueño.");
   } finally {
@@ -103,7 +105,7 @@ async function main() {
   }
 }
 
-if (process.argv[1] && /alta-taller-ale\.ts$/.test(process.argv[1])) {
+if (process.argv[1] && /alta-mia-taller\.ts$/.test(process.argv[1])) {
   main().catch((e) => {
     console.error(e instanceof Error ? e.message : e);
     process.exit(1);

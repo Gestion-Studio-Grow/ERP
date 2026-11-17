@@ -1,5 +1,5 @@
 // ============================================================================
-// AISLAMIENTO DEL DESPIECE EN LA BASE (T2 · taller de Ale): la base misma, con FKs compuestas
+// AISLAMIENTO DEL DESPIECE EN LA BASE (T2 · MIA Taller): la base misma, con FKs compuestas
 // (id, tenantId), rechaza un despiece que mezcle la pieza o el proyecto de otro negocio, aunque un bug
 // del servidor se saltee el filtro por tenantId. Corre contra una base efímera local (saltea sin Postgres
 // fuera de CI).

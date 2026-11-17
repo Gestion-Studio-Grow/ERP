@@ -8,7 +8,7 @@ import { construirCatalogo } from "./catalog";
 import { resolverActivacion } from "./activation";
 import { tallerStandsEnabled } from "./flags";
 import { appDelPanelCerrado } from "@/apps/visibles";
-import { altaTallerAle, motivoFreno, SLUG_TALLER } from "../../scripts/taller-stands/alta-taller-ale";
+import { altaMiaTaller, motivoFreno, SLUG_TALLER } from "../../scripts/taller-stands/alta-mia-taller";
 
 test("beauty-spa (servicios) y mia-producciones (productora) conservan sus módulos por defecto", () => {
   assert.deepEqual(defaultModulesForBlueprint("servicios"), ["agenda", "catalog", "clients", "waitlist", "reminders", "reports", "commissions"]);
@@ -76,21 +76,23 @@ function baseFalsa(existe: boolean, rls = true) {
 
 test("alta idempotente y sin usuarios", async () => {
   const nueva = baseFalsa(false);
-  const r = await altaTallerAle(nueva.prisma);
+  const r = await altaMiaTaller(nueva.prisma);
   assert.equal(r.creado, true);
   const create = nueva.ops.find((o) => o.startsWith("create:"))!;
   assert.match(create, new RegExp(`"slug":"${SLUG_TALLER}"`));
   assert.match(create, /"blueprintId":"taller-stands"/);
+  assert.match(create, new RegExp(`"subdomain":"${SLUG_TALLER}"`), "MIA Taller tiene su propio link (V9)");
+  assert.equal(SLUG_TALLER, "mia-taller");
   assert.ok(!nueva.ops.includes("user.create"));
 
   const rerun = baseFalsa(true);
-  const r2 = await altaTallerAle(rerun.prisma);
+  const r2 = await altaMiaTaller(rerun.prisma);
   assert.equal(r2.creado, false);
   assert.deepEqual(rerun.ops, ["findUnique"]);
 });
 
 test("alta: sin RLS activo no crea el tenant", async () => {
-  await assert.rejects(altaTallerAle(baseFalsa(false, false).prisma), /ADR-018/);
+  await assert.rejects(altaMiaTaller(baseFalsa(false, false).prisma), /ADR-018/);
 });
 
 // GSG-MIA-004 · T2 — el despiece no se le muestra a nadie más.
