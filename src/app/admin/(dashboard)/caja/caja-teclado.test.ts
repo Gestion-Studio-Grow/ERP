@@ -264,6 +264,9 @@ describe("Caja en el navegador", { timeout: 120_000 }, () => {
     await page.getByRole("button", { name: "Sí, cerrar el día" }).click();
     await page.getByRole("alert").filter({ hasText: "No se pudo confirmar el cierre" }).waitFor();
     assert.equal(await page.inputValue("#declarado-EFECTIVO"), "48500");
+    // El foco vuelve en un efecto, cuando el envío terminó (CierreForm `volverFoco`): puede llegar un render después
+    // que la alerta. Se espera esa CONDICIÓN, con plazo; si no llega, la aserción de abajo falla igual.
+    await page.waitForFunction(() => document.activeElement?.textContent?.trim() === "Cerrar el día", null, { timeout: 5000 }).catch(() => {});
     assert.equal(await foco(page), "Cerrar el día", "el foco vuelve al botón para reintentar");
     assert.deepEqual(errores, []);
     await page.close();
