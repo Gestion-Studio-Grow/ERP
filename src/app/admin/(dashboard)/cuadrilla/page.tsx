@@ -101,7 +101,7 @@ export default async function CuadrillaPanelPage({ searchParams }: { searchParam
           </ol>
           <form action={panelHablar} className="space-y-2">
             <input type="hidden" name="hilo" value={hiloDeAgente(actor.agenteId)} />
-            <label className="grid gap-1 text-sm">
+            <label className="grid min-w-0 max-w-full gap-1 text-sm">
               <span className="text-muted">Responder</span>
               <textarea name="texto" required maxLength={2000} rows={3} className="rounded border border-line bg-surface p-3" />
             </label>
@@ -129,7 +129,7 @@ export default async function CuadrillaPanelPage({ searchParams }: { searchParam
               <form action={panelAvanzarPedido} className="grid gap-2">
                 <input type="hidden" name="pedidoId" value={p.id} />
                 <input type="hidden" name="ancla" value="pedidos" />
-                <label className="grid gap-1 text-sm">
+                <label className="grid min-w-0 max-w-full gap-1 text-sm">
                   <span className="text-muted">Qué avanzaste (usa un turno)</span>
                   <input name="texto" required maxLength={2000} className="min-h-11 rounded border border-line bg-surface px-3" />
                 </label>
@@ -141,7 +141,7 @@ export default async function CuadrillaPanelPage({ searchParams }: { searchParam
                 <input type="hidden" name="pedidoId" value={p.id} />
                 <input type="hidden" name="salida" value="HECHO" />
                 <input type="hidden" name="ancla" value="pedidos" />
-                <label className="grid gap-1 text-sm">
+                <label className="grid min-w-0 max-w-full gap-1 text-sm">
                   <span className="text-muted">Qué hiciste</span>
                   <input name="respuesta" required maxLength={2000} className="min-h-11 rounded border border-line bg-surface px-3" />
                 </label>
@@ -153,11 +153,11 @@ export default async function CuadrillaPanelPage({ searchParams }: { searchParam
                 <input type="hidden" name="pedidoId" value={p.id} />
                 <input type="hidden" name="salida" value="AJENO" />
                 <input type="hidden" name="ancla" value="pedidos" />
-                <label className="grid gap-1 text-sm">
+                <label className="grid min-w-0 max-w-full gap-1 text-sm">
                   <span className="text-muted">{manual ? `Regla de tu manual: «${manual.nombre} §n», de §1 a §${manual.ultimo}` : "Tu puesto no tiene manual cargado: traspasalo a GSG"}</span>
                   <input name="regla" required maxLength={120} className="min-h-11 rounded border border-line bg-surface px-3" />
                 </label>
-                <label className="grid gap-1 text-sm">
+                <label className="grid min-w-0 max-w-full gap-1 text-sm">
                   <span className="text-muted">Lo que sí podés hacer</span>
                   <input name="queSi" required minLength={10} maxLength={600} className="min-h-11 rounded border border-line bg-surface px-3" />
                 </label>
@@ -182,9 +182,9 @@ export default async function CuadrillaPanelPage({ searchParams }: { searchParam
             Levantar una excepción
           </h2>
           <form action={panelLevantar} className="grid gap-2">
-            <label className="grid gap-1 text-sm">
+            <label className="grid min-w-0 max-w-full gap-1 text-sm">
               <span className="text-muted">Qué pasa</span>
-              <select name="tipo" className="min-h-11 rounded border border-line bg-surface px-2">
+              <select name="tipo" className="min-h-11 w-full min-w-0 max-w-full rounded border border-line bg-surface px-2">
                 {Object.entries(TIPO).map(([k, v]) => (
                   <option key={k} value={k}>
                     {v}
@@ -192,19 +192,19 @@ export default async function CuadrillaPanelPage({ searchParams }: { searchParam
                 ))}
               </select>
             </label>
-            <label className="grid gap-1 text-sm">
+            <label className="grid min-w-0 max-w-full gap-1 text-sm">
               <span className="text-muted">Toca plata o un envío a terceros</span>
-              <select name="categoria" className="min-h-11 rounded border border-line bg-surface px-2">
+              <select name="categoria" className="min-h-11 w-full min-w-0 max-w-full rounded border border-line bg-surface px-2">
                 <option value="OTRA">No</option>
                 <option value="PLATA">Plata</option>
                 <option value="ENVIO_TERCEROS">Envío a terceros</option>
               </select>
             </label>
-            <label className="grid gap-1 text-sm">
+            <label className="grid min-w-0 max-w-full gap-1 text-sm">
               <span className="text-muted">Título</span>
               <input name="titulo" required maxLength={160} className="min-h-11 rounded border border-line bg-surface px-3" />
             </label>
-            <label className="grid gap-1 text-sm">
+            <label className="grid min-w-0 max-w-full gap-1 text-sm">
               <span className="text-muted">Contenido completo (lo que se va a hacer)</span>
               <textarea name="contenido" required maxLength={4000} rows={4} className="rounded border border-line bg-surface p-3" />
             </label>

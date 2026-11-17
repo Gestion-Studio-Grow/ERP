@@ -149,7 +149,7 @@ function Decision({ e, negocio, props, ancla }: { e: ExcepcionVista; negocio: st
           <input type="hidden" name="tenantId" value={e.tenantId} />
           <input type="hidden" name="huella" value={e.huella} />
           <input type="hidden" name="ancla" value={ancla} />
-          <label className="grid gap-1 text-sm">
+          <label className="grid min-w-0 max-w-full gap-1 text-sm">
             <span className="text-muted">Motivo o indicación (opcional, le llega al agente)</span>
             <input name="motivo" maxLength={500} className="min-h-11 rounded border border-line bg-surface px-3" />
           </label>
@@ -239,18 +239,18 @@ function Hilo({ props }: { props: PropsTablero }) {
         <input type="hidden" name="hilo" value={h.clave} />
         <input type="hidden" name="tenantId" value={h.tenantId} />
         <input type="hidden" name="ancla" value="hilo" />
-        <label className="grid gap-1 text-sm">
+        <label className="grid min-w-0 max-w-full gap-1 text-sm">
           <span className="text-muted">Escribile a {h.clave.startsWith("equipo:") ? "todo el equipo" : "este agente"}</span>
           <textarea name="texto" required maxLength={2000} rows={3} className="rounded border border-line bg-surface p-3" />
         </label>
         {h.clave.startsWith("agente:") ? (
           <fieldset className="flex flex-wrap items-end gap-3">
             <legend className="text-xs text-muted">Es un pedido: si el agente llega al tope, se frena y te lo pasa.</legend>
-            <label className="grid gap-1 text-sm">
+            <label className="grid min-w-0 max-w-full gap-1 text-sm">
               <span className="text-muted">Tope (minutos)</span>
               <input type="number" name="topeMinutos" min={TOPE.minutos.min} max={TOPE.minutos.max} defaultValue={TOPE.minutos.porDefecto} className="min-h-11 w-24 rounded border border-line bg-surface px-2" />
             </label>
-            <label className="grid gap-1 text-sm">
+            <label className="grid min-w-0 max-w-full gap-1 text-sm">
               <span className="text-muted">Tope (turnos)</span>
               <input type="number" name="topeTurnos" min={TOPE.turnos.min} max={TOPE.turnos.max} defaultValue={TOPE.turnos.porDefecto} className="min-h-11 w-24 rounded border border-line bg-surface px-2" />
             </label>
@@ -372,7 +372,7 @@ function AccesosDelAgente({ props, negocio, agente }: { props: PropsTablero; neg
             <input type="hidden" name="agenteId" value={agente.id} />
             <label className="grid min-w-0 gap-1">
               <span className="text-muted">Mismos accesos que</span>
-              <select name="personaId" defaultValue={e.como?.id ?? ""} required className="min-h-11 max-w-full rounded border border-line bg-surface px-2">
+              <select name="personaId" defaultValue={e.como?.id ?? ""} required className="min-h-11 w-full min-w-0 max-w-full rounded border border-line bg-surface px-2">
                 <option value="" disabled>
                   Elegí a la persona del puesto
                 </option>
@@ -448,9 +448,9 @@ export function TableroCuadrilla(props: PropsTablero) {
       <form method="get" action={base} className="flex flex-wrap items-end gap-3 rounded-lg border border-line bg-surface p-3" aria-label="Filtros">
         {filtros.pedidos ? <input type="hidden" name="pedidos" value={filtros.pedidos} /> : null}
         {props.modo === "operador" ? (
-          <label className="grid gap-1 text-sm">
+          <label className="grid min-w-0 max-w-full gap-1 text-sm">
             <span className="text-muted">Negocio</span>
-            <select name="negocio" defaultValue={filtros.negocio ?? ""} className="min-h-11 rounded border border-line bg-surface px-2">
+            <select name="negocio" defaultValue={filtros.negocio ?? ""} className="min-h-11 w-full min-w-0 max-w-full rounded border border-line bg-surface px-2">
               <option value="">Todos</option>
               {negocios.map((n) => (
                 <option key={n.id} value={n.id}>
@@ -460,9 +460,9 @@ export function TableroCuadrilla(props: PropsTablero) {
             </select>
           </label>
         ) : null}
-        <label className="grid gap-1 text-sm">
+        <label className="grid min-w-0 max-w-full gap-1 text-sm">
           <span className="text-muted">Agente</span>
-          <select name="agente" defaultValue={filtros.agente ?? ""} className="min-h-11 rounded border border-line bg-surface px-2">
+          <select name="agente" defaultValue={filtros.agente ?? ""} className="min-h-11 w-full min-w-0 max-w-full rounded border border-line bg-surface px-2">
             <option value="">Todos</option>
             {agentes.map(({ a, negocio }) => (
               <option key={a.id} value={a.id}>
@@ -472,16 +472,16 @@ export function TableroCuadrilla(props: PropsTablero) {
             ))}
           </select>
         </label>
-        <label className="grid gap-1 text-sm">
+        <label className="grid min-w-0 max-w-full gap-1 text-sm">
           <span className="text-muted">Estado</span>
-          <select name="estado" defaultValue={filtros.estado ?? "PENDIENTE"} className="min-h-11 rounded border border-line bg-surface px-2">
+          <select name="estado" defaultValue={filtros.estado ?? "PENDIENTE"} className="min-h-11 w-full min-w-0 max-w-full rounded border border-line bg-surface px-2">
             <option value="PENDIENTE">Esperan decisión</option>
             <option value="TODAS">Todas (también decididas)</option>
           </select>
         </label>
-        <label className="grid gap-1 text-sm">
+        <label className="grid min-w-0 max-w-full gap-1 text-sm">
           <span className="text-muted">Tipo</span>
-          <select name="tipo" defaultValue={filtros.tipo ?? ""} className="min-h-11 rounded border border-line bg-surface px-2">
+          <select name="tipo" defaultValue={filtros.tipo ?? ""} className="min-h-11 w-full min-w-0 max-w-full rounded border border-line bg-surface px-2">
             <option value="">Todos</option>
             {Object.entries(TIPO).map(([k, v]) => (
               <option key={k} value={k}>
@@ -495,7 +495,7 @@ export function TableroCuadrilla(props: PropsTablero) {
         </button>
       </form>
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
         <div className="space-y-5">
           {props.seleccion ? (
             <section id="decision" aria-label="Excepción abierta" className="scroll-mt-20 space-y-2">
@@ -560,9 +560,9 @@ export function TableroCuadrilla(props: PropsTablero) {
                     </button>
                   </div>
                   <div className="flex flex-wrap items-end gap-2">
-                    <label className="grid gap-1 text-sm">
+                    <label className="grid min-w-0 max-w-full gap-1 text-sm">
                       <span className="text-muted">Pasarlas a</span>
-                      <select name="destino" className="min-h-11 rounded border border-line bg-surface px-2">
+                      <select name="destino" className="min-h-11 w-full min-w-0 max-w-full rounded border border-line bg-surface px-2">
                         {agentes.map(({ a, negocio }) => (
                           <option key={a.id} value={`${negocio.id}:${a.id}`}>
                             {a.nombre}
