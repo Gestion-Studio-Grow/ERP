@@ -219,7 +219,11 @@ export async function TabCuentas({ tipo, estado, q, vista: vistaId, guardada = f
       <details className={tarjeta} open={guardada}>
         <summary className="flex min-h-11 cursor-pointer items-center font-semibold text-strong">Guardar una vista de esta lista</summary>
         <p className="mb-3 mt-1 text-sm text-muted">Elegí qué columnas ver, qué filtrar y cómo ordenar. Lo que tu rol no puede ver no aparece aunque la vista lo pida.</p>
-        <GuardarVista accion={guardarVista} tab={tab} guardada={guardada}>
+        <GuardarVista
+          accion={guardarVista}
+          tab={tab}
+          aviso={!guardada ? null : actual.id === vistaId ? "Vista guardada: ya está elegida arriba." : "Vista guardada para el rol elegido: la ven quienes tienen ese rol en esta lista."}
+        >
           <input type="hidden" name="lista" value={lista} />
           <label className={etiqueta}>Nombre<input name="nombre" required maxLength={60} defaultValue={actual.alcance === "SISTEMA" ? "" : actual.nombre} className={campo} /></label>
           {a.rol === "DIRECCION" ? (

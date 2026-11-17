@@ -1,13 +1,13 @@
 "use client";
 
-// Guardar una vista (O46): no vacía lo elegido si falla, y al guardar abre la lista con la vista nueva y lo dice.
+// Guardar una vista (O46): no vacía lo elegido si falla, y al guardar abre la lista con la vista nueva y dice dónde quedó.
 
 import { useState, useTransition, type FormEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { buttonClasses, cn } from "@/components/ui";
 import type { Resultado } from "@/lib/proyectos/acciones-vistas";
 
-export function GuardarVista({ accion, tab, guardada, children }: { accion: (fd: FormData) => Promise<Resultado>; tab: string; guardada: boolean; children: ReactNode }) {
+export function GuardarVista({ accion, tab, aviso, children }: { accion: (fd: FormData) => Promise<Resultado>; tab: string; aviso: string | null; children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [ocupado, iniciar] = useTransition();
   const router = useRouter();
@@ -27,7 +27,7 @@ export function GuardarVista({ accion, tab, guardada, children }: { accion: (fd:
       <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
         <button type="submit" disabled={ocupado} className={cn(buttonClasses("solid", "md"), "min-h-11")}>{ocupado ? "Guardando…" : "Guardar vista"}</button>
         {error && <p role="alert" className="text-sm text-danger">{error}</p>}
-        {!error && guardada && <p role="status" className="text-sm text-strong">Vista guardada: ya está elegida arriba.</p>}
+        {!error && aviso && <p role="status" className="text-sm text-strong">{aviso}</p>}
       </div>
     </form>
   );

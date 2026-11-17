@@ -176,11 +176,11 @@ export const CATALOGO: readonly DefParametro[] = [
   { clave: "reparto.matriz", grupo: "reparto", nombre: "Matriz inicial por función %", seNota: "La rendición: cuánto va a la empresa y cuánto a cada función", usa: "T07, T10, T12", def: { tipo: "matriz", filasDe: "reparto.conceptos", columnasDe: "equipo.funciones" }, rubro: { DEFENSA: { [EMPRESA]: 75, PRODUCTOR: 25 } }, provisional: true, fuente: "Diseño del módulo" },
   {
     clave: "reparto.defensaNegativa", grupo: "reparto", nombre: "Defensa negativa", seNota: "La rendición cuando la defensa da negativa", usa: "T10, T12",
-    def: { tipo: "opcion", opciones: [{ id: "DESCUENTA", label: "Descuenta" }, { id: "PISO_CERO", label: "Piso cero" }] }, rubro: "DESCUENTA", provisional: true, fuente: "Decisión 4, pendiente",
+    def: { tipo: "opcion", opciones: [{ id: "DESCUENTA", label: "Descuenta" }, { id: "PISO_CERO", label: "Piso cero" }] }, rubro: "DESCUENTA", provisional: true, fuente: "Pendiente: a decidir con el negocio",
   },
   {
     clave: "reparto.cuandoSePaga", grupo: "reparto", nombre: "Cuándo se paga", seNota: "La liquidación del equipo", usa: "T10, T12",
-    def: { tipo: "opcion", opciones: [{ id: "AL_COBRAR_TODO", label: "Cuando el cliente pagó todo" }, { id: "AL_APROBAR", label: "Al aprobar la liquidación" }] }, rubro: "AL_COBRAR_TODO", provisional: true, fuente: "Decisión 6, pendiente",
+    def: { tipo: "opcion", opciones: [{ id: "AL_COBRAR_TODO", label: "Cuando el cliente pagó todo" }, { id: "AL_APROBAR", label: "Al aprobar la liquidación" }] }, rubro: "AL_COBRAR_TODO", provisional: true, fuente: "Pendiente: a decidir con el negocio",
   },
   // ── Equipo ──
   { clave: "equipo.funciones", grupo: "equipo", nombre: "Funciones del proyecto", seNota: "El equipo de la ficha", usa: "T07", def: { tipo: "conId", min: 1, max: 10 }, rubro: FUNCIONES, provisional: false, fuente: "Diseño del módulo" },
