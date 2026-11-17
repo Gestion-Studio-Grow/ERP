@@ -12,7 +12,7 @@
 
 import { randomBytes } from "node:crypto";
 import type { TxTraslado } from "@/lib/rls";
-import { cierreEntreNegocios, type Motivo } from "./motor";
+import { cierreEntreNegocios, esDominioDeCorreoGenerico, type Motivo } from "./motor";
 import { criterioDeContacto, wherePorContacto } from "@/lib/clientes/busqueda-por-contacto";
 
 /** Un tipo de destino del ARM (el que propone el Calificador y confirma Dirección). */
@@ -148,7 +148,8 @@ export interface Huella {
 
 /**
  * ¿Existe ya como cliente en este negocio? Lectura ACOTADA (V7): devuelve sólo sí o no, nunca la fila. Corre en la
- * FASE DE DESTINO. Mira el nombre exacto (sin mayúsculas), un mail conocido o un mail con el dominio de la marca.
+ * FASE DE DESTINO. Mira el nombre exacto (sin mayúsculas), un mail conocido o un mail con el dominio de la marca
+ * (salvo que sea de correo genérico).
  */
 export async function existeClienteEnDestino(tx: TxTraslado, destinoTenantId: string, h: Huella): Promise<boolean> {
   const nombre = h.nombre?.trim();
@@ -156,7 +157,8 @@ export async function existeClienteEnDestino(tx: TxTraslado, destinoTenantId: st
   const o = [
     ...(nombre ? [{ name: { equals: nombre, mode: "insensitive" as const } }] : []),
     ...h.emails.filter(Boolean).map((e) => ({ email: { equals: e, mode: "insensitive" as const } })),
-    ...(dominio ? [{ email: { endsWith: `@${dominio}`, mode: "insensitive" as const } }] : []),
+    // GSG-CRM-018c: con un dominio de correo genérico (gmail, hotmail…) no se compara por dominio: daba falso «ya es cliente».
+    ...(dominio && !esDominioDeCorreoGenerico(dominio) ? [{ email: { endsWith: `@${dominio}`, mode: "insensitive" as const } }] : []),
   ];
   if (o.length === 0) return false;
   const c = await tx.client.findFirst({ where: { tenantId: destinoTenantId, OR: o }, select: { id: true } });

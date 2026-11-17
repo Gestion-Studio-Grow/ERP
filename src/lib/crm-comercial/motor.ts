@@ -718,6 +718,23 @@ export function dominioDe(s: string | null | undefined): string | null {
 }
 
 /**
+ * GSG-CRM-018c (V7): proveedores de correo genérico. Un dominio así no identifica a una marca: dos personas con
+ * Gmail no son la misma empresa. Se reconoce el proveedor con cualquier terminación de país («hotmail.com.ar»,
+ * «outlook.es», «yahoo.co.uk»), no un dominio que sólo lo contiene («gmailshop.com»).
+ */
+const PROVEEDORES_DE_CORREO = new Set([
+  "gmail", "googlemail", "hotmail", "outlook", "live", "msn", "windowslive", "yahoo", "ymail", "rocketmail", "icloud", "me", "mac",
+  "protonmail", "proton", "pm", "tutanota", "tuta", "aol", "gmx", "zoho", "yandex", "mail", "hey", "fastmail",
+  "fibertel", "arnet", "speedy", "ciudad", "sinectis", "uolsinectis",
+]);
+export function esDominioDeCorreoGenerico(dominio: string | null | undefined): boolean {
+  const d = dominio?.trim().toLowerCase().replace(/^www\./, "");
+  if (!d) return false;
+  const [primero, ...resto] = d.split(".");
+  return PROVEEDORES_DE_CORREO.has(primero) && /^[a-z]{2,3}(\.[a-z]{2})?$/.test(resto.join("."));
+}
+
+/**
  * GSG-CRM-011: una web o una fuente escrita como la escribe la gente («bodega.com.ar», «www.x.com/sponsors»)
  * queda con `https://` adelante, como piden los CHECK de la base (`MarcaRelevada_web_check`,
  * `EventoRelevado_urlFuente_check`). Lo que no es una dirección web (espacios, sin punto, otro protocolo) → null.

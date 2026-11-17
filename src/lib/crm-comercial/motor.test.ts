@@ -12,6 +12,7 @@ import {
   cierreDesdeProyecto,
   cierreEntreNegocios,
   esMotivo,
+  esDominioDeCorreoGenerico,
   MOTIVO_DEL_PROYECTO,
   claveIdempotencia,
   claveTareaVencida,
@@ -540,4 +541,11 @@ test("GSG-CRM-018 · el brief se lee: fecha en criollo (sin correrse un día) y 
   assert.equal(tipoDeTrabajoLegible(" stand a medida 4x4 "), "stand a medida 4x4");
   const p = puntuar({ fechaEvento: "2027-08-20", tipoTrabajo: "stand_modular" }, new Date("2026-11-17T12:00:00Z"), VARA);
   assert.ok(p.detalle.some((d) => d.explicacion === "Sabemos qué trabajo pide (stand modular)."), "la explicación del puntaje también en criollo");
+});
+
+test("V7 · dominios de correo genérico: no identifican a una marca", () => {
+  for (const d of ["gmail.com", "googlemail.com", "hotmail.com", "hotmail.com.ar", "yahoo.com", "yahoo.com.ar", "outlook.com", "outlook.es", "live.com", "live.com.ar", "msn.com", "icloud.com", "me.com", "protonmail.com", "proton.me", "pm.me", "aol.com", "fibertel.com.ar", "WWW.GMAIL.COM"]) {
+    assert.equal(esDominioDeCorreoGenerico(d), true, d);
+  }
+  for (const d of ["bodegavieja.example", "gmailshop.com", "mi-hotmail.com.ar", "yahoo.example", null, ""]) assert.equal(esDominioDeCorreoGenerico(d), false, String(d));
 });

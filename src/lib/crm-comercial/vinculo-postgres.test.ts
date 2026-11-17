@@ -448,6 +448,29 @@ test("V7 · «ya es cliente» y exclusividad consultan los vinculados con un sí
   assert.doesNotMatch(conAviso.aviso ?? "", /Otro nombre en el Taller|pagos@/);
 });
 
+test("V7 · con un dominio de correo genérico (gmail, hotmail, yahoo…) no se compara por dominio: sin falso «ya es cliente»", async (t) => {
+  const f = await preparar(t);
+  if (!f) return;
+  const { repo, base } = f;
+  const d = await prismaComoDuenio(base);
+  const genericos = ["gmail.com", "hotmail.com", "hotmail.com.ar", "yahoo.com.ar", "outlook.com", "outlook.es", "live.com", "icloud.com", "protonmail.com", "proton.me"];
+  for (const [i, dom] of genericos.entries()) {
+    await d.client.create({ data: { tenantId: f.prod, name: `Cliente genérico ${i}`, email: `alguien${i}@${dom}`, phone: `54911000010${String(i).padStart(2, "0")}` } });
+  }
+  const si = await repo.clienteEnVinculados(ctx(f, f.dir), [
+    ...genericos.map((dom) => ({ nombre: `Marca nueva ${dom}`, dominio: dom, emails: [] })),
+    { nombre: null, dominio: "WWW.Gmail.com", emails: [] },
+    // Un mail conocido exacto sigue contando, aunque sea de Gmail.
+    { nombre: null, dominio: "gmail.com", emails: ["alguien0@gmail.com"] },
+  ]);
+  assert.deepEqual(si, [...genericos.map(() => false), false, true]);
+  // La marca nueva con mail de Gmail se puede proponer.
+  ok(await repo.proponerOportunidad(ctx(f, f.dir), { tipo: "PROSPECTO", marca: { nombre: "Marca Gmail Demo", dominio: "gmail.com" }, ...PASO }, AHORA), "marca nueva con dominio genérico");
+  // Un dominio propio sigue comparándose por dominio.
+  await d.client.create({ data: { tenantId: f.prod, name: "Propia SA", email: "pagos@propia.example", phone: "5491100000199" } });
+  assert.deepEqual(await repo.clienteEnVinculados(ctx(f, f.dir), [{ nombre: null, dominio: "propia.example", emails: [] }]), [true]);
+});
+
 /** Un pedido como si viniera del negocio `slug` (host del subdominio). */
 const negocio = (slug: string) => ({ host: `${slug}.${DOMINIO_DE_PRUEBA}` }) as unknown as NegocioDePrueba;
 
