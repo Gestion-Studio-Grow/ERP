@@ -504,10 +504,13 @@ export function origenDeFila(m: LibroMovement): OrigenContable {
  * De dónde salió una fila, para leer en pantalla. `libroOrigin` llama «manual» a todo lo que no es
  * una venta: una anulación o un faltante de arqueo no los cargó nadie a mano. PURA.
  */
-export function rotuloDeOrigen(m: { type: CashMovementType; origin?: LibroOrigin; origenContable?: OrigenContable; detail?: string | null }): string {
+export function rotuloDeOrigen(m: { type: CashMovementType; origin?: LibroOrigin; origenContable?: OrigenContable; detail?: string | null; borrable?: boolean }): string {
   if (m.origin === "turno" && esDetalleDeProyecto(m.detail)) return "cobro de proyecto";
   if (m.origin === "pos" || m.origin === "turno") return LIBRO_ORIGIN_LABEL[m.origin].toLowerCase();
   const origen = m.origenContable ?? origenContable({ type: m.type, origin: m.origin });
+  // A-06: lo que asentó Proyectos (la anulación de un cobro) no lo cargó nadie a mano y no se borra; uno tipeado a mano
+  // con el mismo texto sí se borra y sigue diciendo «cargado a mano».
+  if ((origen === "ingreso-manual" || origen === "egreso-manual") && m.borrable === false && /^(Anulación · )?Proyecto #[0-9]/.test(m.detail ?? "")) return "de un proyecto";
   if (origen === "ingreso-manual" || origen === "egreso-manual") return "cargado a mano";
   return ORIGEN_CONTABLE_LABEL[origen].toLowerCase();
 }

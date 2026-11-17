@@ -359,3 +359,10 @@ test("A-06 · lo que nació en Proyectos (cobro, su anulación, pago de gasto, r
   assert.match(motivoParaNoBorrar({ ...base, proyectoAnticipoId: "a1" }) ?? "", /Rendiciones|anticipo/);
   assert.equal(motivoParaNoBorrar({ ...base, proyectoPagoId: null, proyectoGastoId: null }), null, "uno cargado a mano se sigue borrando");
 });
+
+test("A-06 · la anulación de un cobro de proyecto no dice «cargado a mano»; uno tipeado a mano con el mismo texto, sí", () => {
+  const anulacion = { type: "EGRESO" as const, origin: "manual" as const, detail: "Anulación · Proyecto #1 · Stand", borrable: false };
+  assert.equal(rotuloDeOrigen(anulacion), "de un proyecto");
+  assert.equal(rotuloDeOrigen({ ...anulacion, borrable: true }), "cargado a mano");
+  assert.equal(rotuloDeOrigen({ type: "INGRESO", origin: "manual", detail: "Aporte del socio", borrable: true }), "cargado a mano");
+});
