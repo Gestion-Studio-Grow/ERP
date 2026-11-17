@@ -3,7 +3,7 @@
 Análisis técnico de sólo lectura. 17/11/2026. Pedido del dueño (17/11), despachado por GSG-ORQ-007.
 Sin cambios de código, sin Neon, sin datos reales.
 
-- **Sesión (get_session):** modelo `claude-opus-5-5` (servido: `claude-opus-5-5`), esfuerzo `high`, ventana 500k. `CLAUDE_CODE_AUTO_COMPACT_WINDOW=500000` en el entorno: no son los 400000 que pide `CLAUDE.md`, aviso a la orquestadora.
+- **Sesión (get_session):** modelo `claude-opus-5-5` (servido: `claude-opus-5-5`), esfuerzo `high`, ventana 500k (compactación efectiva 480k, umbral 384k). **Desvío:** `CLAUDE_CODE_AUTO_COMPACT_WINDOW=500000` en el entorno, por encima del tope de 400k de la transición que pide `CLAUDE.md`. Costo de la sesión según `get_session` (`usage.cost_usd`): **US$ 2,41** al recibir la revisión.
 - **Base leída:** `main` en `59a71e3`, más las ramas `origin/mia-50/t01-plata` (`c9ded35`) y
   `origin/mia-062/consola-cuadrilla` (`3a64a7c`). Las citas de rama llevan el prefijo `[t01]` o `[cuadrilla]`.
 - **Criterio:** cada hallazgo sale de un error del anexo o de un `archivo:línea`. Lo que no pude ver en este repo
@@ -30,13 +30,35 @@ Sin cambios de código, sin Neon, sin datos reales.
   con Serializable o Repeatable Read, la foto de la transacción se toma en la primera sentencia. Por eso la foto es
   anterior a `pg_advisory_xact_lock` (`:790`).
 - Sin RLS (`rls.ts:209`) pasa lo mismo: si el candado es la primera sentencia, igual toma la foto antes de esperar.
-  El candado de transacción no sirve para ordenar lecturas en Serializable; hace falta Read Committed en la lectura
-  que cuenta, o tomar el candado en una transacción previa.
+  El candado de transacción solo no ordena lecturas en Serializable.
 - Consecuencia: el asiento toma el candado y confirma. El cierre esperaba el candado, pero lee con su foto vieja
   (`:812` `cashMovement.findMany`), así que no ve la venta y cuenta 0. SSI no lo aborta, porque hay una sola arista
   rw y no se forma ciclo.
 - El mismo archivo deja otro hueco abierto (`[t01] periodo-cerrado.server.ts:15-17`): `libro-caja-actions.ts:321` y
   `:519` leen `lastClosedDay` antes de la transacción (`:357`, `:523`) y sin candado.
+- **Cura (corregida tras la refutación, probada con dos conexiones en Postgres 16):** que **los asientos también corran en
+  Serializable**, con reintento. Así asiento (lee frontera, escribe `CashMovement`) y cierre (lee `CashMovement`,
+  escribe la frontera) forman un ciclo lectura↔escritura y SSI aborta a uno; en el reintento ve al otro confirmado.
+  Es el patrón que el repo ya usa y explica en `src/lib/cierre-mes/acciones.ts:103-108`.
+  - **No sirve** pasar el cierre a Read Committed: la apertura de turno (`src/lib/caja-actions.ts:249-329`) depende del
+    ciclo SSI frontera↔turno (`:252`), y sin él puede quedar un día cerrado con un turno abierto.
+  - **No sirve** tomar el candado en una transacción previa: `pg_advisory_xact_lock` se suelta al confirmar esa
+    transacción.
+- **El test que ya existe no lo cubre:** `[t01] src/lib/proyectos/t01-plata-postgres.test.ts:314-342` prueba sólo el
+  orden «el cierre toma el candado primero», y simula el cierre con un `BEGIN` plano (Read Committed), no con la
+  transacción Serializable de `cerrarDia`. Falta el orden «el asiento primero» contra el `cerrarDia` real.
+- **Superficie:** en `[t01]` sólo 4 archivos toman `cierre-dia:` (`caja-actions.ts`, `cierre-diario-actions.ts`,
+  `cierre-mes/acciones.ts`, `proyectos/periodo-cerrado.server.ts`). Otros **14 escriben en `CashMovement` sin ese
+  candado**:
+  - Sin Serializable: `ajuste-peso-cobrado.ts`, `caja/cash-sale.ts`, `caja/cobro-turno.ts`, `libro-caja-actions.ts`,
+    `order-anulacion.ts`, `settlement/saldo-del-pedido.ts`, `stock/purchase-core.ts`, `supermercado/pago-mixto-tx.ts`,
+    `taller/caja.ts`.
+  - Con Serializable en algún camino: `turnos/anulacion.ts`, `vouchers/liquidacion-repo.ts`, `commission-actions.ts`,
+    `stock/supplier-return.ts`, `settlement/collection-repo.ts`.
+  - Se excluye `reset-golive-db.ts` (script de reinicio).
+  - Comando: archivos de `src/lib` con `cashMovement.(create|createMany|update|updateMany|delete|deleteMany|upsert)(`,
+    sin tests, y para cada uno `grep -c "cierre-dia:"` y `grep -c Serializable`. Que un archivo tenga Serializable en
+    algún camino no prueba que su asiento lo use.
 - **Patrón:** la propiedad («el candado ordena asiento y cierre») se afirmó en prosa y la certificación la aceptó sin
   un test de dos conexiones que la rompa.
 
@@ -52,7 +74,7 @@ Sin cambios de código, sin Neon, sin datos reales.
   (un operador que no es el dueño no toca `beauty-spa`).
 - Por qué no lo atajó el trinquete: `src/lib/operador/guardia-negocio.test.ts:312` y `:343-346` sólo encuentran
   endpoints con `"use server"`. **El render de un `page.tsx` que escribe no es un endpoint para el test.**
-- El hueco es de clase, no de caso. Hay 252 archivos con `"use server"`, y cada uno pone a mano su guardia y su
+- El hueco es de clase, no de caso. Hay 123 archivos con `"use server"` y 0 acciones en línea (`git grep -lE "^[\"']use server[\"'];?$" -- src ':!*.test.ts' | wc -l`), y cada uno pone a mano su guardia y su
   auditoría.
 
 ### C3 · Rol del agente y permiso del puesto
@@ -62,8 +84,14 @@ Sin cambios de código, sin Neon, sin datos reales.
   ERP lo trata por su `role` (`src/lib/capabilities.ts:11`, `OWNER | RECEPTION | PROFESSIONAL`).
 - Nada impide que el usuario de un agente tenga `OWNER` y, por `requireCapability`, cierre el día o condone saldos.
   La consola lo frena dentro de la consola (`:15`, «un agente nunca supervisa»), pero no frena el resto del ERP.
-- Hay chequeos de rol por fuera del mapa de capacidades, por ejemplo `src/lib/caja/cierre-diario.ts:716-718`
+- Hay **69 chequeos de rol** por fuera de `capabilities.ts`, por ejemplo `src/lib/caja/cierre-diario.ts:716-718`
   (`puedeCerrarElDia` compara strings). Así el mapa deja de ser la única fuente.
+  - Cuenta: `git grep -nE 'role === "(OWNER|RECEPTION|PROFESSIONAL|ENCARGADO)"|role !== "(OWNER|RECEPTION|PROFESSIONAL)"' -- src ':!*.test.ts' ':!src/lib/capabilities.ts'`.
+- Ya hay piezas que este análisis había omitido:
+  - Una matriz por usuario: `UserPermissionOverride` (`prisma/schema.prisma:562`), con las casillas que se pueden pisar
+    fijadas en código (`CAPACIDADES_POR_USUARIO`).
+  - Un guardián: `src/lib/permisos/matriz-permisos.test.ts:149`. Impide resolver una casilla de la matriz con
+    `roleHasCapability(x.role, …)`, pero no mira las comparaciones directas `role === "..."`.
 
 ### C4 · OK de palabra
 - `.claude/settings.json:67-78` tiene un solo gancho de herramienta: `PostToolUse` → `design-lint.js`. No hay gancho
@@ -72,8 +100,10 @@ Sin cambios de código, sin Neon, sin datos reales.
 - No hay `CODEOWNERS` (verificado: no existe).
 - Lo que sí está bien y sirve de modelo: `.github/workflows/gates.yml:126-131` falla si se salteó un test, porque lo
   comprueba una herramienta y no la palabra del agente.
-- `registro-agente.mjs` no está en este repo; su control por palabras no se verificó acá. La conclusión vale igual:
-  una lista de palabras compara texto, no hechos.
+- **Límite:** `registro-agente.mjs` está en Factory-GSG, que esta sesión no puede leer. Su control por palabras no se
+  verificó, y **ninguna mejora de este documento lo toca**. La conclusión vale igual: una lista de palabras compara
+  texto, no hechos. Las mejoras 1, 2 y 7 lo reemplazan por comprobaciones de herramienta, pero la decisión de
+  retirarlo se toma en Factory-GSG.
 
 ### C5 · Recorridos y UAT
 - `scripts/qa/mia-recorrido.mjs:669` sale con 1 si algo falla, así que es comprobable por herramienta. Pero su último
@@ -90,7 +120,7 @@ Escala: **impide** > **registra** > **revisa**.
 
 | Causa | a) Agentes que operan el ERP | b) Agentes que lo construyen |
 |---|---|---|
-| C1 | — | **Impide:** hacer el cierre en Read Committed con candado, o tomar el candado antes de abrir la foto Serializable. Dentro de la misma transacción Serializable no alcanza. **Impide:** un test Postgres de dos conexiones (asiento en curso + `cerrarDia`) que hoy debe fallar; patrón de los `*-postgres.test.ts`. **Impide:** prohibir comentarios de concurrencia sin test que los cite (trinquete de forma). |
+| C1 | — | **Impide:** asientos en Serializable con reintento, para que SSI aborte el ciclo con el cierre (patrón de `cierre-mes/acciones.ts:103-108`). Read Committed en el cierre no: rompe la apertura de turno. **Impide:** un test Postgres de dos conexiones con el orden «asiento primero» contra el `cerrarDia` real, que hoy debe fallar; patrón de los `*-postgres.test.ts`. **Impide:** prohibir comentarios de concurrencia sin test que los cite (trinquete de forma). |
 | C2 | **Impide:** las lecturas de la consola corren con un cliente de sólo lectura (transacción `READ ONLY`): un GET que escribe revienta. | **Impide:** extender el trinquete de `guardia-negocio.test.ts` a todo `page.tsx` y `route.ts` bajo `/operador` que use `enElNegocio` u `operatorPrisma`. **Registra:** `vencerPedidos` pasa a cron o a acción explícita. |
 | C3 | **Impide:** `Capability` del agente = intersección (capacidades del puesto que ocupa) ∩ (operaciones del agente), calculada en `requireCapability` cuando el usuario es de agente. Plata y envíos a terceros, nunca directos. | **Impide:** test de que todo chequeo de rol pase por `capabilities.ts` (sin `role === "OWNER"` sueltos). |
 | C4 | **Registra:** toda acción del agente deja `AuditLog` con `actor=agente:<id>` y el puesto, automático y no opcional. | **Impide:** gancho `Stop`/`SubagentStop` que corre `tsc` + tests de la zona y rechaza el cierre si fallan. **Impide:** `PreToolUse` que niega `Edit`/`Write` sobre `*.test.ts` existentes en tareas de arreglo. **Registra:** el informe cita la salida de la herramienta (n/n, hash de captura vista), no el adjetivo. |
@@ -109,7 +139,7 @@ Escala: **impide** > **registra** > **revisa**.
 
 | Qué | Dónde | Efecto |
 |---|---|---|
-| Zona horaria única | `src/lib/business-config.ts:22` (`BUSINESS_TIMEZONE`, «TODO (G1): pasar a columna por-tenant») | Un negocio fuera de Buenos Aires tiene días de caja corridos. 33 usos en `src/`. |
+| Zona horaria única | `src/lib/business-config.ts:22` (`BUSINESS_TIMEZONE`, «TODO (G1): pasar a columna por-tenant») | Un negocio fuera de Buenos Aires tiene días de caja corridos. 20 usos de la constante y **82 literales** `"America/Argentina/Buenos_Aires"` fuera de ella (`git grep -n "America/Argentina/Buenos_Aires" -- src ':!*.test.ts' ':!src/lib/business-config.ts' \| wc -l`): pasar la constante a dato no alcanza. |
 | Margen entre turnos | `business-config.ts:15` (`BUFFER_MIN = 10`) | Igual para todos los rubros. |
 | Mapa rol→capacidad y roles fijos | `src/lib/capabilities.ts:7-11`; `schema.prisma:93-99` (3 roles; `ENCARGADO` y `REPARTIDOR` comentados) | Un puesto nuevo (encargado, agente) exige migración y código. No hay «puesto» configurable. |
 | Corte por slug de CH | `palabras-del-negocio.ts:5`, `settings.ts:46`, `(site)/layout.tsx:69`, `apps-del-negocio.ts:87` (`"beauty-spa"`) | El vocabulario y la protección de CH dependen del nombre en la URL, no de un dato. Es el mismo error que `identidad-rubro.ts:6-10` ya corrigió para MAGRA. |
@@ -125,7 +155,7 @@ igual que una persona. Así C3 se resuelve en el mismo cambio.
 **Por dónde actúa hoy un agente sobre el ERP:**
 1. Navegador sobre la demo, con Playwright (`scripts/qa/mia-*.mjs`): clic por clic, sin tipos y con el OK en texto.
 2. Consola de la cuadrilla `[cuadrilla]`: hilo, excepciones y pedidos, con permisos propios (`permisos.ts`).
-3. Código: los agentes que construyen editan el repo, con 252 server actions que se escriben a mano.
+3. Código: los agentes que construyen editan el repo, con 123 archivos de server actions que se escriben a mano.
 
 No hay API ni MCP para agentes: en `src/app/api` no hay nada para ellos, y `src/lib/proyectos/ia.server.ts` es IA de
 producto.
@@ -188,7 +218,7 @@ Ralph multiplica el control por palabras que ya se eludió 9 veces.
    como cualquier otro diff.
 
 **Dónde sí:** arreglos con test rojo ya escrito por otra persona o agente. Por ejemplo, el test de dos conexiones de
-C1 una vez escrito, o poner verdes `tsc` o `lint` en una zona, o ajustar `mia-recorrido` a la UI actual, con el
+C1 una vez escrito (el arreglo de plata va igual con certificación), o poner verdes `tsc` o `lint` en una zona, o ajustar `mia-recorrido` a la UI actual, con el
 recorrido como condición de fin.
 
 **Dónde no:**
@@ -206,16 +236,18 @@ recorrido como condición de fin.
 |---|---|---|---|---|
 | 1 | Gancho `Stop`/`SubagentStop` que corre `tsc` + tests de la zona y bloquea el cierre si no da n/n verde; el informe pega esa salida | C4 (informes inflados, OK de palabra) | S | Bajo: más tiempo por cierre |
 | 2 | `PreToolUse` que niega editar `*.test.ts` existentes en tareas de arreglo, más un hash de tests en el gancho de fin | C4, atajo de Ralph | S | Bajo: un test legítimo nuevo va en otro archivo |
-| 3 | Test Postgres de dos conexiones (asiento + `cerrarDia`) y corregir el comentario de `periodo-cerrado.server.ts:10-12`; cierre en Read Committed con candado (o foto posterior al candado) | C1 (plata) | M | Alto: plata, va con certificación |
+| 3 | Test Postgres de dos conexiones con orden «asiento primero» contra el `cerrarDia` real (completa `t01-plata-postgres.test.ts:314-342`); asientos en Serializable con reintento; corregir el comentario de `periodo-cerrado.server.ts:10-12` | C1 (plata) | M | Alto: plata, va con certificación |
 | 4 | Trinquete de `guardia-negocio.test.ts` extendido a `page.tsx` y `route.ts` de `/operador`, más lecturas de consola en transacción `READ ONLY`; `vencerPedidos` fuera del render | C2 | S-M | Medio: puede marcar páginas existentes |
 | 5 | `mia-recorrido` y las UAT por rubro en un CI nocturno contra la demo, con incidencia si fallan | C5 (guion viejo, callejones sin salida) | M | Bajo: costo de minutos de CI |
-| 6 | Libro de caja a mano dentro del mismo candado (`libro-caja-actions.ts:321,519`) | C1 (hueco declarado) | S | Alto: plata, con certificación |
+| 6 | Los 14 archivos que escriben en caja sin candado (lista en C1, empezando por `libro-caja-actions.ts:321,519`) pasan por un único camino de asiento, con candado y Serializable. El candado solo no cierra la carrera | C1 | M-L | Alto: plata, con certificación |
 | 7 | Captura «mirada» = hash de captura + archivo de veredicto que escribe el verificador visual; el informe sin hash no pasa | C4 (166/214 sin mirar) | S | Bajo |
-| 8 | Prohibir chequeos de rol fuera de `capabilities.ts` (test de forma) | C3 | S | Bajo |
+| 8 | Extender el guardián de `matriz-permisos.test.ts:149` a las comparaciones `role === "..."` como trinquete: congela los 69 actuales, impide nuevos y se migran de a poco a capacidades | C3 | M | Medio: 69 sitios, varios de plata |
 | 9 | **A** · «Puesto» como dato por negocio, y el agente ocupa un puesto; capacidad del agente = puesto ∩ operaciones del agente; `BUSINESS_TIMEZONE`/`BUFFER_MIN` y corte `beauty-spa` pasan a datos | C3, adaptabilidad | L | Alto: migración (Gate 2) y permisos |
 | 10 | **A** · Capa de acciones tipadas para agentes que operan (guardia + permiso del puesto + candado + `audit()` adentro), empezando por la consola | C2, C3, C4 (operación), UAT | L | Medio: superficie nueva, necesita certificación de seguridad |
 
 Ralph entra **después de 1 y 2**: sin ellos es un amplificador de C4.
+
+**Límite:** ninguna mejora toca `registro-agente.mjs` (está en Factory-GSG; ver C4).
 
 ---
 
@@ -225,10 +257,13 @@ Ralph entra **después de 1 y 2**: sin ellos es un amplificador de C4.
    `cierre-diario-actions.ts:786-812`. La foto queda antes del candado, así que la afirmación «lo cuenta» no se
    sostiene con Serializable. Confirmado.
 2. **Camino de C2:** seguí `page.tsx:30 → :51 → cargar.ts:25 → pedidos-core.ts:121-133 → :100-116` y busqué
-   `requireOperadorParaNegocio` en la rama: no aparece en la página. Confirmado. Las líneas del anexo (29/42) están
+   `requireOperadorParaNegocio`.
+   - **Corrección del vigilante:** la primera búsqueda había corrido sobre `main`. Rehecha sobre la rama
+     (`git grep OperadorParaNegocio origin/mia-062/consola-cuadrilla` en `3a64a7c`): 0 apariciones en `page.tsx`, y sí
+     en `actions.ts:40,62,93,109`. Las acciones tienen la guardia; el render que escribe, no. Confirmado. Las líneas del anexo (29/42) están
    corridas 1 respecto de la rama.
 3. **Ralph:** el fin es `<promise>` comparado como texto en `stop-hook.sh`, el defecto es ilimitado y no hay tope de
    US$, según la fuente oficial. Confirmado. El nombre del anexo (`ralph-wiggum`) ya no existe en el repo oficial.
 
-**No verificado en este repo:** `registro-agente.mjs`, las cifras de capturas y costos, y los cinco hallazgos de UAT
+**No verificado en este repo:** `registro-agente.mjs` (Factory-GSG, fuera de alcance), las cifras de capturas y costos, y los cinco hallazgos de UAT
 de MIA (no están en `main`).
