@@ -17,7 +17,10 @@ const CHROMIUM_LOCAL = "/opt/pw-browsers/chromium";
 /** Las pantallas del QA de plata: escritorio (1366) y teléfono (375). */
 export const VISTAS = { escritorio: { width: 1366, height: 900 }, telefono: { width: 375, height: 812 } };
 
-/** Si el chromium de la versión de Playwright del repo no está instalado (nube de Claude), usa el de la máquina. */
+/**
+ * Con `PW_CHROMIUM` (p. ej. /opt/pw-browsers/chromium en la nube), usa ese navegador en vez del que trae Playwright.
+ * Sin la variable, si el chromium de la versión de Playwright del repo no está instalado (nube de Claude), usa el de la máquina.
+ */
 export async function abrir() {
   const ruta = process.env.PW_CHROMIUM ?? (existsSync(CHROMIUM_LOCAL) ? CHROMIUM_LOCAL : undefined);
   return chromium.launch(ruta ? { executablePath: ruta, args: ["--headless", "--no-sandbox"] } : {});
@@ -40,27 +43,48 @@ export async function entrar(navegador, rol, errores = [], vista = VISTAS.escrit
   });
   page.on("dialog", (d) => d.accept());
   await page.goto("/admin/proyectos/inicio");
-  if (!page.url().includes("/login")) return page;
-  await page.goto("/admin/login");
-  const cambiada = archivo(`clave-cambiada-${rol}`);
-  // El campo ya no tiene el texto de ayuda «tu@email.com»: se busca por tipo.
-  await page.locator('input[type="email"]').fill(`${rol}@mia-producciones.demo`);
-  await page.locator('input[type="password"]').fill(existsSync(cambiada) ? CLAVE_NUEVA : CLAVE);
-  await page.getByRole("button", { name: "Ingresar" }).click();
-  await page.waitForURL((u) => !u.pathname.endsWith("/login"));
-  if (page.url().includes("segundo-paso")) await segundoPaso(page, rol);
-  // Orden real: clave → doble factor → cambio de clave obligatorio (el dueño de la semilla lo tiene).
-  if (page.url().includes("cambiar-password")) {
-    const campos = page.locator('input[type="password"]');
-    await campos.nth(0).fill(CLAVE);
-    await campos.nth(1).fill(CLAVE_NUEVA);
-    await campos.nth(2).fill(CLAVE_NUEVA);
-    await page.getByRole("button", { name: "Guardar y entrar" }).click();
-    await page.waitForURL((u) => !u.pathname.includes("cambiar-password"));
-    writeFileSync(cambiada, "1");
+  if (!page.url().includes("/login")) {
+    if (page.url().includes("cambiar-password")) await cambiarClave(page, rol);
+    return page;
   }
+  // La clave cambiada en esta demo, la nueva por defecto (una corrida anterior pudo dejarla sin registrarla) y,
+  // si la demo se reinició (base nueva), la de la siembra.
+  let usada = CLAVE;
+  for (const clave of [...new Set([leerClaves()[rol], CLAVE_NUEVA, CLAVE].filter(Boolean))]) {
+    usada = clave;
+    await page.goto("/admin/login");
+    // Por id: el renglón de ingreso del negocio no tiene placeholder (los dos formularios comparten #login-email y #login-password).
+    await page.locator("#login-email").fill(`${rol}@mia-producciones.demo`);
+    await page.locator("#login-password").fill(clave);
+    await page.keyboard.press("Enter");
+    await page.waitForURL((u) => !u.pathname.endsWith("/login") || u.search.includes("error")).catch(() => {});
+    if (!enElIngreso(page)) break;
+  }
+  if (enElIngreso(page)) throw new Error(`No se pudo entrar como ${rol}: reiniciá la demo.`);
+  // Orden real: clave → doble factor → cambio de clave obligatorio (el dueño de la semilla lo tiene).
+  if (page.url().includes("segundo-paso")) await segundoPaso(page, rol);
+  if (page.url().includes("cambiar-password")) await cambiarClave(page, rol, usada);
   await contexto.storageState({ path: sesion });
   return page;
+}
+
+/** Todavía en la hoja de ingreso (el segundo paso vive en /admin/login/segundo-paso y ya es otra cosa). */
+const enElIngreso = (page) => new URL(page.url()).pathname === "/admin/login";
+
+// La siembra deja la clave como provisoria (cambio obligatorio al primer ingreso): se cambia una vez y se recuerda,
+// por demo (el nombre lleva el puerto y `olvidar()` lo borra al resembrar).
+const CLAVES = archivo("claves.json");
+const leerClaves = () => (existsSync(CLAVES) ? JSON.parse(readFileSync(CLAVES, "utf8")) : {});
+
+async function cambiarClave(page, rol, actual = leerClaves()[rol] ?? CLAVE) {
+  // La nueva no puede ser igual a la actual: si ya era CLAVE_NUEVA, se le suma un sufijo.
+  const nueva = actual === CLAVE_NUEVA ? `${CLAVE_NUEVA}-${Date.now().toString(36)}` : CLAVE_NUEVA;
+  await page.locator("#cp-current").fill(actual);
+  await page.locator("#cp-new").fill(nueva);
+  await page.locator("#cp-confirm").fill(nueva);
+  await page.keyboard.press("Enter");
+  await page.waitForURL((u) => !u.pathname.includes("cambiar-password"));
+  writeFileSync(CLAVES, JSON.stringify({ ...leerClaves(), [rol]: nueva }));
 }
 
 // Hace de app del teléfono, independiente del código del producto. Los secretos duran lo que dura la demo: se siembra de nuevo en cada arranque.

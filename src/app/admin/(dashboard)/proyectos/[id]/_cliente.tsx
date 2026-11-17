@@ -29,6 +29,8 @@ function nuevaClave(): string {
  */
 export function FormAccion({ accion, className, children, limpiar, alGuardar, claveDeEnvio }: { accion: (fd: FormData) => Promise<ResultadoFicha>; className?: string; children: ReactNode; limpiar?: boolean; alGuardar?: () => void; claveDeEnvio?: boolean }) {
   const [error, setError] = useState<string | null>(null);
+  // El servidor no grabó y pide un sí explícito (p. ej. un cobro igual a uno de recién): el texto de la casilla.
+  const [confirmar, setConfirmar] = useState<string | null>(null);
   const [enCurso, iniciar] = useTransition();
   const form = useRef<HTMLFormElement>(null);
   const clave = useRef<string | null>(null);
@@ -44,7 +46,11 @@ export function FormAccion({ accion, className, children, limpiar, alGuardar, cl
         const r = await accion(fd);
         // El servidor contestó (bien o mal): el próximo envío es otro. Si la llamada se cortó, la clave queda.
         if (claveDeEnvio) clave.current = null;
-        if (!r.ok) return setError(r.error);
+        if (!r.ok) {
+          setConfirmar(r.confirmar ?? null);
+          return setError(r.error);
+        }
+        setConfirmar(null);
         // El éxito va en un aviso flotante: el renglón que lo pidió (la cuota marcada) suele desaparecer al refrescar.
         if (r.listo) toast?.showSuccess(r.listo);
         if (limpiar) form.current?.reset();
@@ -59,6 +65,12 @@ export function FormAccion({ accion, className, children, limpiar, alGuardar, cl
       <form ref={form} className={className} onSubmit={enviar} aria-busy={enCurso || undefined}>
         {children}
         {error && <p role="alert" className="col-span-full basis-full text-sm font-medium text-danger">{error}</p>}
+        {confirmar && (
+          <label className="col-span-full flex min-h-11 basis-full items-center gap-2 text-sm text-strong">
+            <input type="checkbox" name="confirmaRepetido" value="1" className="size-5" />
+            {confirmar}
+          </label>
+        )}
       </form>
     </EnvioEnCurso.Provider>
   );

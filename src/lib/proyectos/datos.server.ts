@@ -19,9 +19,9 @@ import { SIN_COMPROBANTES } from "./rendiciones-core";
 import { cobranzaDe, originalesDeCobros, SELECT_COBRANZA, tiposDeCambio } from "./cobranza.server";
 import { totalesEnPesos } from "./cobranza-core";
 import { aPesos } from "./gestion-core";
+import { COLUMNAS_PAGO } from "./pago-columnas";
 import { porPagarDeCuotas } from "./pago-parcial-core";
 import { pagosParcialesDeCuotas } from "./pago-parcial.server";
-import { COLUMNAS_PAGO } from "./pago-columnas";
 
 export const veLaPlata = (u: SessionUser): boolean => permisoFueraDeLaAgenda(u, "agenda:manage");
 
