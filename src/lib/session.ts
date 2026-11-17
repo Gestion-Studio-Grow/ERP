@@ -13,7 +13,9 @@ import { getSessionCookieName, readSessionToken } from "@/lib/auth";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { isDemoSandbox, DEMO_SESSION_USER } from "@/lib/demo-sandbox";
 import type { PermisoOverride } from "@/lib/capabilities";
-import { leerOverridesTolerante } from "@/lib/permisos-overrides";
+import { esTablaAusente, leerOverridesTolerante } from "@/lib/permisos-overrides";
+import { tenantTransaction } from "@/lib/rls";
+import { agenteDelUsuario } from "@/lib/cuadrilla/consola-core";
 
 export type SessionUser = {
   id: string;
@@ -36,7 +38,9 @@ export type SessionUser = {
 // auditAdmin) comparten un solo lookup a la base en vez de repetirlo.
 export type SesionDelPanel = { user: SessionUser; mustChangePassword: boolean };
 
-export const getSesionDelPanel = cache(async (): Promise<SesionDelPanel | null> => {
+// La sesión de la cookie, SIN la guardia del agente OWNER: sólo la usan `getSesionDelPanel` y
+// `esSesionDeAgenteDuenio`, acá abajo. No se exporta: toda lectura de la sesión pasa por la guardia.
+const leerSesionDeLaCookie = cache(async (): Promise<SesionDelPanel | null> => {
   // Modo SANDBOX de preventa (docs/preventa/plan-acceso-sandbox-sin-password.md):
   // identidad ficticia fija, SIN leer cookie ni tocar Prisma/User en absoluto.
   if (isDemoSandbox()) return { user: DEMO_SESSION_USER, mustChangePassword: false };
@@ -74,6 +78,40 @@ export const getSesionDelPanel = cache(async (): Promise<SesionDelPanel | null> 
     }),
   );
   return { user: { ...user, overrides }, mustChangePassword: mustChangePassword === true };
+});
+
+// GUARDIA DEL AGENTE OWNER (GSG-MIA-080, seguridad). El usuario de un agente de la Cuadrilla con rol OWNER (cargado
+// antes del techo de GSG-MIA-076 o a mano en la base) es un estado anómalo: un agente nunca es dueño. Para ese
+// usuario NO HAY SESIÓN DEL PANEL: ni escribe ni lee, por ninguna ruta. Se decide ACÁ, en el punto común que usan
+// `requireUser`, `requireUserConCambioPendiente`, `requireCapability` y sus variantes, `getCurrentUser`
+// (`canCurrentUser` y las lecturas directas) y la auditoría; así ninguna ruta depende de acordarse de chequearlo.
+// La dueña lo ve como alerta en la consola (`accesos.ts`) y lo arregla corrigiendo el rol del usuario del agente.
+//
+// - Sólo cuesta una consulta cuando el rol es OWNER (el agente con rol del puesto sigue como hasta hoy).
+// - La consulta corre parada en el negocio de la sesión (`tenantTransaction`, RLS con `app_rls`).
+// - Sin la tabla de la Cuadrilla en la base (Gate 2) no hay agentes: nadie es agente. Cualquier otro error se
+//   relanza: si no se puede saber, el pedido no sigue (falla cerrado).
+async function esUsuarioDeAgenteDuenio(user: SessionUser): Promise<boolean> {
+  if (user.role !== "OWNER" || isDemoSandbox()) return false;
+  try {
+    return (await tenantTransaction((tx) => agenteDelUsuario(tx, user.tenantId, user.id), { tenantId: user.tenantId })) !== null;
+  } catch (e) {
+    if (esTablaAusente(e)) return false;
+    throw e;
+  }
+}
+
+/** ¿La cookie es de un usuario de agente con rol OWNER? Sólo para elegir el aviso del rechazo (`authz.ts`). */
+export const esSesionDeAgenteDuenio = cache(async (): Promise<boolean> => {
+  const sesion = await leerSesionDeLaCookie();
+  return sesion !== null && (await esUsuarioDeAgenteDuenio(sesion.user));
+});
+
+export const getSesionDelPanel = cache(async (): Promise<SesionDelPanel | null> => {
+  const sesion = await leerSesionDeLaCookie();
+  if (!sesion) return null;
+  if (await esSesionDeAgenteDuenio()) return null;
+  return sesion;
 });
 
 // PORTÓN DEL CAMBIO OBLIGATORIO (ENG-104, GSG-SEG-013): con la contraseña provisoria pendiente de cambio, para el

@@ -56,7 +56,7 @@ export function alertaDelTecho(agente: { role: string; rolProyectos: string | nu
       ? "Dirección en Proyectos"
       : null;
   if (!pasa) return null;
-  return `Su usuario es ${pasa}, y un agente nunca lo es: no cambia claves ni da de baja en Usuarios. Igualalo con alguien del puesto.`;
+  return `Su usuario es ${pasa}, y un agente nunca lo es: no entra al panel (tampoco a Usuarios) y no se puede reanudar a ningún agente. Igualalo con alguien del puesto.`;
 }
 
 /** De la matriz de la persona, lo que se copia: sólo las casillas que se dan por usuario. */

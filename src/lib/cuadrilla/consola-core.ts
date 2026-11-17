@@ -283,9 +283,27 @@ export async function decidirLote(
   return n;
 }
 
+/**
+ * ALERTA QUE IMPIDE PRENDER (G5, GSG-MIA-080): mientras el usuario de algún agente del negocio tenga rol OWNER, no se
+ * reanuda a NINGÚN agente (reanudar es lo único que prende la Cuadrilla en la app: los agentes se dan de alta a mano).
+ * Vale para la dueña desde el panel y para el operador GSG desde su consola, porque los dos pasan por acá. Pausar
+ * sigue andando: es lo seguro. Se arregla igualando a ese agente con alguien del puesto.
+ */
+async function exigirSinAgenteDuenio(tx: Tx, tenantId: string): Promise<void> {
+  const conRolDeDuenia = await tx.agenteCuadrilla.findMany({ where: { tenantId, userId: { not: null } }, select: { nombre: true, userId: true } });
+  if (conRolDeDuenia.length === 0) return;
+  const duenios = await tx.user.findMany({ where: { tenantId, role: "OWNER", id: { in: conRolDeDuenia.map((a) => a.userId!) } }, select: { id: true } });
+  if (duenios.length === 0) return;
+  const nombres = conRolDeDuenia.filter((a) => duenios.some((u) => u.id === a.userId)).map((a) => a.nombre);
+  throw new NoPermitido(
+    `No se puede reanudar: el usuario de ${nombres.join(", ")} tiene rol de Dueño/a, y un agente nunca lo es. Igualalo con alguien del puesto y después reanudá.`,
+  );
+}
+
 /** Pausar o reanudar agentes (uno o varios). */
 export async function cambiarEstadoDeAgentes(tx: Tx, actor: Actor, tenantId: string, agenteIds: string[], estado: "PAUSADO" | "ACTIVO"): Promise<number> {
   exigir(puede(actor, estado === "PAUSADO" ? "pausar" : "reanudar", { tenantId }));
+  if (estado === "ACTIVO") await exigirSinAgenteDuenio(tx, tenantId);
   const ids = [...new Set(agenteIds)].slice(0, 50);
   const agentes = await tx.agenteCuadrilla.findMany({ where: { tenantId, id: { in: ids } }, select: { id: true } });
   if (agentes.length !== ids.length) throw new NoPermitido("Algún agente elegido no es de este negocio.");

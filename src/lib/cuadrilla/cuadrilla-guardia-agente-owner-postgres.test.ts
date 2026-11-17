@@ -161,11 +161,12 @@ test("guardia del agente OWNER: sin sesión del panel, no escribe ni lee; los de
     const inicial = await foto();
     const r = await ejecutarAccion(laDuenia, () => cambiarPermisoSoporteAction(null, fd({ nivel: "n1" })));
     assert.ok(r.tipo === "respuesta" && (r.valor as { ok: boolean }).ok === true, `soporte: ${JSON.stringify(r)}`);
-    for (const accion of [
+    const escrituras: (() => Promise<unknown>)[] = [
       () => inmobiliaria.guardarConfigRecibo(fd({ prefijo: "DUE" })),
       () => inmobiliaria.guardarConfigInmo(fd({ prefijoCodigo: "DUE" })),
       () => taller.guardarConfig(fd({})),
-    ]) {
+    ];
+    for (const accion of escrituras) {
       const s = await ejecutarAccion(laDuenia, accion);
       assert.ok(s.tipo !== "redireccion" || !/\/admin\/login/.test(s.destino), JSON.stringify(s));
     }

@@ -43,7 +43,9 @@ test("cuadrilla C1(f): el usuario de un agente que ya es OWNER es alerta en la c
   const agente = await duenio.agenteCuadrilla.create({ data: { tenantId: a.id, nombre: "Joaquín", puesto: "caja", equipo: "Caja", userId: delAgente.id } });
   const comoAgente = { negocio: a, usuario: delAgente };
   const laDuenia = { negocio: a, usuario: a.duenia };
-  const conError = (r: { tipo: string; destino?: string }) => r.tipo === "redireccion" && /status=error_/.test(r.destino ?? "");
+  // Desde GSG-MIA-080 el rechazo sale ANTES, de la guardia central (`getSesionDelPanel`): el agente OWNER no tiene
+  // sesión del panel y va al login con su aviso. El `error_agente` de Usuarios queda como segunda capa.
+  const conError = (r: { tipo: string; destino?: string }) => r.tipo === "redireccion" && /^\/admin\/login\?error=agente_duenio$/.test(r.destino ?? "");
 
   const { resetUserPassword, setUserActive, createUser, setUserPermission, vincularProfesional } = await import("@/lib/user-actions");
 
@@ -80,7 +82,7 @@ test("cuadrilla C1(f): el usuario de un agente que ya es OWNER es alerta en la c
     assert.ok(conError(await ejecutarAccion(comoAgente, () => createUser(fd({ name: "Nueva", email: "nueva@negocio.test", role: "OWNER", password: "una-clave-nueva-123" })))), "dar de alta");
     assert.ok(conError(await ejecutarAccion(comoAgente, () => vincularProfesional(fd({ userId: persona.id, professionalId: "" })))), "tocar la ficha");
     const r = await ejecutarAccion(comoAgente, () => setUserPermission(fd({ userId: persona.id, capability: "clients:contact", allowed: "false" })));
-    assert.ok(r.tipo === "respuesta" && (r.valor as { ok: boolean }).ok === false, `tocar un permiso: ${JSON.stringify(r)}`);
+    assert.ok(conError(r), `tocar un permiso: ${JSON.stringify(r)}`);
     assert.equal(await foto(), inicial, "nada escrito");
     assert.equal(await duenio.user.count({ where: { tenantId: a.id, email: "nueva@negocio.test" } }), 0);
   });
