@@ -3,7 +3,7 @@
 // (`tenantTransaction` o `enElNegocio`, RLS con `app_rls`), cada consulta filtra tenantId, y antes de escribir se
 // pregunta a `permisos.ts`. Igualar lo hace una persona (supervisión del negocio u operador GSG), nunca un agente.
 import type { Prisma } from "@/generated/prisma/client";
-import { diferenciasDeAccesos, nombreDelRol, type Accesos } from "./accesos";
+import { diferenciasDeAccesos, fueraDelTecho, nombreDelRol, overridesQueSeCopian, ROLES_DE_PROYECTOS_FUERA_DEL_TECHO, ROLES_FUERA_DEL_TECHO, type Accesos } from "./accesos";
 import { NoPermitido, hiloDeAgente } from "./consola-core";
 import { puede, type Actor } from "./permisos";
 
@@ -32,11 +32,17 @@ async function accesosDe(tx: Tx, tenantId: string, userId: string): Promise<(Acc
   return { nombre: u.name, role: u.role, overrides: u.permissionOverrides, rolProyectos: pp?.rol ?? null, conFichaProfesional: !!u.professionalId };
 }
 
-/** Las personas del negocio que pueden ser «la persona del puesto»: usuarios activos que NO son de un agente. */
+/**
+ * Las personas del negocio que pueden ser «la persona del puesto»: usuarios activos que NO son de un agente y que no
+ * pasan el techo (ni Dueño/a ni Dirección en Proyectos: GSG-MIA-076).
+ */
 export async function personasDelNegocio(tx: Tx, tenantId: string): Promise<PersonaDelNegocio[]> {
   const deAgentes = (await tx.agenteCuadrilla.findMany({ where: { tenantId, userId: { not: null } }, select: { userId: true } })).map((a) => a.userId!);
+  const deDireccion = (
+    await tx.proyectoPersona.findMany({ where: { tenantId, rol: { in: [...ROLES_DE_PROYECTOS_FUERA_DEL_TECHO] }, userId: { not: null } }, select: { userId: true } })
+  ).map((p) => p.userId!);
   const us = await tx.user.findMany({
-    where: { tenantId, active: true, deletedAt: null, id: { notIn: deAgentes } },
+    where: { tenantId, active: true, deletedAt: null, id: { notIn: [...deAgentes, ...deDireccion] }, role: { notIn: [...ROLES_FUERA_DEL_TECHO] as ("OWNER" | "RECEPTION" | "PROFESSIONAL")[] } },
     orderBy: { name: "asc" },
     take: 200,
     select: { id: true, name: true, role: true },
@@ -57,7 +63,7 @@ export async function estadoDeAccesos(tx: Tx, tenantId: string, agentes: { id: s
     out.set(a.id, {
       sinUsuario: !delAgente,
       como: persona && a.comoUserId ? { id: a.comoUserId, nombre: persona.nombre, rol: nombreDelRol(persona.role) } : null,
-      diferencias: delAgente && persona ? diferenciasDeAccesos(delAgente, persona) : [],
+      diferencias: delAgente && persona ? [...diferenciasDeAccesos(delAgente, persona), ...(fueraDelTecho(persona) ? [`${persona.nombre} pasó el techo: no se puede volver a igualar con esa persona`] : [])] : [],
       rolDelAgente: delAgente ? nombreDelRol(delAgente.role) : null,
     });
   }
@@ -83,15 +89,19 @@ export async function igualarAccesos(tx: Tx, actor: Actor, tenantId: string, age
     select: { name: true, role: true, permissionOverrides: { select: { capability: true, allowed: true } } },
   });
   if (!persona) throw new NoPermitido("Esa persona no está en este negocio.");
+  // TECHO (GSG-MIA-076): todo se lee y se valida ANTES de la primera escritura; si la persona lo pasa, no se toca nada.
+  const ppPersona = await tx.proyectoPersona.findFirst({ where: { tenantId, userId: personaUserId }, select: { rol: true } });
+  const techo = fueraDelTecho({ role: persona.role, rolProyectos: ppPersona?.rol ?? null });
+  if (techo) throw new NoPermitido(techo);
+  const copiados = overridesQueSeCopian(persona.permissionOverrides);
 
   await tx.user.updateMany({ where: { id: agente.userId, tenantId }, data: { role: persona.role } });
   await tx.userPermissionOverride.deleteMany({ where: { tenantId, userId: agente.userId } });
-  if (persona.permissionOverrides.length) {
+  if (copiados.length) {
     await tx.userPermissionOverride.createMany({
-      data: persona.permissionOverrides.map((o) => ({ tenantId, userId: agente.userId!, capability: o.capability, allowed: o.allowed })),
+      data: copiados.map((o) => ({ tenantId, userId: agente.userId!, capability: o.capability, allowed: o.allowed })),
     });
   }
-  const ppPersona = await tx.proyectoPersona.findFirst({ where: { tenantId, userId: personaUserId }, select: { rol: true } });
   if (ppPersona) await tx.proyectoPersona.updateMany({ where: { tenantId, userId: agente.userId }, data: { rol: ppPersona.rol } });
   await tx.agenteCuadrilla.updateMany({ where: { id: agente.id, tenantId }, data: { comoUserId: personaUserId } });
 
@@ -102,7 +112,7 @@ export async function igualarAccesos(tx: Tx, actor: Actor, tenantId: string, age
       hilo: hiloDeAgente(agente.id),
       autorTipo: "SISTEMA",
       autor: "Sistema",
-      texto: `${quien} dejó los accesos de ${agente.nombre} iguales a los de ${persona.name} (rol ${nombreDelRol(persona.role)}, ${persona.permissionOverrides.length} permisos propios).`,
+      texto: `${quien} dejó los accesos de ${agente.nombre} iguales a los de ${persona.name} (rol ${nombreDelRol(persona.role)}, ${copiados.length} ${copiados.length === 1 ? "permiso propio" : "permisos propios"}).`,
     },
   });
   return (await estadoDeAccesos(tx, tenantId, [{ id: agente.id, userId: agente.userId, comoUserId: personaUserId }])).get(agente.id)!.diferencias;

@@ -149,6 +149,7 @@ test("cuadrilla: el usuario del agente queda con los mismos accesos que la perso
     // El operador GSG dueño tampoco pasa el techo.
     assert.ok(conError(await ejecutarAccion(tomas, () => operadorAccesos(fd({ tenantId: a.id, agenteId: agente.id, personaId: a.duenia.id })))), "operador con la dueña");
     assert.deepEqual(await foto(), inicial, "nada escrito por el operador");
+    await duenio.proyectoPersona.deleteMany({ where: { tenantId: a.id, userId: delAgente.id } }); // la cajera no está en Proyectos
   });
 
   await t.test("techo: la lista no ofrece a la dueña ni a Dirección", async () => {

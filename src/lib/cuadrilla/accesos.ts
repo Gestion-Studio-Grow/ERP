@@ -11,7 +11,13 @@
 //
 // Lo que sigue igual para el agente aunque tenga el rol de la dueña: en la consola es AGENTE (habla en su hilo y
 // levanta excepciones) y nunca aprueba (`permisos.ts`, criterio 4 de MIA-062: plata y envíos los aprueba una persona).
+//
+// TECHO (GSG-MIA-076, seguridad): el usuario de un agente NUNCA queda OWNER ni Dirección en Proyectos. Igualar con
+// una persona así se rechaza entero, y de la matriz sólo se copian las casillas que se dan por usuario
+// (`CAPACIDADES_POR_USUARIO`): un override de otra capability no se copia aunque la persona lo tenga cargado.
 // PURO: sin base. Las lecturas y la escritura viven en `accesos-core.ts`.
+
+import { esCapacidadPorUsuario } from "@/lib/capabilities";
 
 export type Accesos = {
   role: string;
@@ -23,13 +29,31 @@ export type Accesos = {
 const ROL: Record<string, string> = { OWNER: "Dueño/a", RECEPTION: "Recepción", PROFESSIONAL: "Profesional" };
 export const nombreDelRol = (r: string): string => ROL[r] ?? r;
 
+/** Roles que el usuario de un agente no puede tener nunca. */
+export const ROLES_FUERA_DEL_TECHO: readonly string[] = ["OWNER"];
+export const ROLES_DE_PROYECTOS_FUERA_DEL_TECHO: readonly string[] = ["DIRECCION"];
+
+/** Por qué no se puede igualar con esa persona (pasa el techo), o null si se puede. */
+export function fueraDelTecho(persona: { role: string; rolProyectos: string | null }): string | null {
+  if (ROLES_FUERA_DEL_TECHO.includes(persona.role)) {
+    return `Esa persona es ${nombreDelRol(persona.role)}: el usuario de un agente nunca queda con ese rol. Elegí a alguien del puesto.`;
+  }
+  if (persona.rolProyectos && ROLES_DE_PROYECTOS_FUERA_DEL_TECHO.includes(persona.rolProyectos)) {
+    return "Esa persona es Dirección en Proyectos: el usuario de un agente nunca queda con ese rol. Elegí a alguien del puesto.";
+  }
+  return null;
+}
+
+/** De la matriz de la persona, lo que se copia: sólo las casillas que se dan por usuario. */
+export const overridesQueSeCopian = <T extends { capability: string }>(xs: readonly T[]): T[] => xs.filter((o) => esCapacidadPorUsuario(o.capability));
+
 /** Lo que el agente tiene distinto de la persona, en criollo. Vacío = mismos accesos, ni más ni menos. */
 export function diferenciasDeAccesos(agente: Accesos, persona: Accesos): string[] {
   const out: string[] = [];
   if (agente.role !== persona.role) out.push(`rol ${nombreDelRol(agente.role)} (la persona: ${nombreDelRol(persona.role)})`);
   const del = (xs: Accesos["overrides"]) => new Map(xs.map((o) => [o.capability, o.allowed]));
   const a = del(agente.overrides);
-  const p = del(persona.overrides);
+  const p = del(overridesQueSeCopian(persona.overrides)); // lo que no se copia no cuenta como diferencia
   for (const cap of [...new Set([...a.keys(), ...p.keys()])].sort()) {
     const va = a.get(cap);
     const vp = p.get(cap);
