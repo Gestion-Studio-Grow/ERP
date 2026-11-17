@@ -248,6 +248,11 @@ export interface ComprobanteRow {
   anuladaSinNotaDeCredito: boolean;
 }
 
+/** El «Tipo» de un pedido cobrado sin comprobante, según por dónde entró. PURA. */
+export function tipoDelPedidoSinComprobante(channel: "COUNTER" | "ONLINE" | null | undefined): string {
+  return channel === "ONLINE" ? "Pedido de la tienda" : "Venta del mostrador";
+}
+
 /** Una venta cobrada sin comprobante con CAE. CONTROL: no lleva IVA. */
 export interface VentaSinComprobanteRow {
   /**

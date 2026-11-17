@@ -33,6 +33,7 @@ import {
   fronteraDeVenta,
   mensajeVentaEnDiaCerrado,
   esEgresoDeAnulacionDeVenta,
+  mensajeDeVentaAnulada,
   ANULACION_VENTA_ACTOR_PREFIX,
   type AnulacionVentaTx,
 } from "./order-anulacion";
@@ -72,6 +73,7 @@ function nuevoMundo(opts: {
         {
           productId: "prod_vacio",
           name: "Vacío al vacío",
+          saleUnit: "WEIGHT",
           quantity: 1.24,
           product: { trackStock: opts.trackStock ?? true },
         },
@@ -230,7 +232,8 @@ test("anular una venta cobrada asienta el EGRESO y devuelve los kilos", async ()
   assert.equal(mundo.stockMovements[0].orderId, "ord_1");
   if (r.applied) {
     assert.equal(r.montoRevertido, 23436);
-    assert.deepEqual(r.stockDevuelto, [{ productId: "prod_vacio", name: "Vacío al vacío", qty: 1.24 }]);
+    assert.deepEqual(r.stockDevuelto, [{ productId: "prod_vacio", name: "Vacío al vacío", qty: 1.24, saleUnit: "WEIGHT" }]);
+    assert.equal(r.esPedido, false, "sin canal de la tienda es una venta del mostrador");
   }
 });
 
@@ -640,4 +643,45 @@ test("el rastro dice quién autorizó sólo si anuló otra persona", () => {
   assert.equal(leerAnulacion(fila("user:juan")).autorizo, "Caro");
   assert.equal(leerAnulacion(fila("user:caro")).autorizo, undefined);
   assert.equal(leerAnulacion({ actor: "user:juan", changes: { por: "Juan" } }).autorizo, undefined, "las filas viejas no lo traen");
+});
+
+// UAT Magra: «Venta #N anulada… Volvió al stock: 1 de Vacío» cuando era un PEDIDO de la tienda
+// por kilo. El aviso nombra lo que se anuló y la cantidad va con su unidad.
+test("el aviso de un PEDIDO por kilo anulado dice «Pedido» y los kilos con su unidad", () => {
+  const m = mensajeDeVentaAnulada({
+    code: 57,
+    esPedido: true,
+    montoRevertido: 0,
+    stockDevuelto: [{ name: "Vacío", qty: 1.24, saleUnit: "WEIGHT" }],
+    cuponDevuelto: null,
+    cuentaAnulada: null,
+  });
+  assert.equal(m, "Pedido #57 anulado. Volvió al stock: 1,24 kg de Vacío.");
+  assert.doesNotMatch(m, /Venta/);
+});
+
+test("el aviso de una VENTA del mostrador sigue diciendo «Venta» y nombra la unidad de cada línea", () => {
+  const m = mensajeDeVentaAnulada({
+    code: 42,
+    esPedido: false,
+    montoRevertido: 23436,
+    stockDevuelto: [
+      { name: "Vacío", qty: 1, saleUnit: "WEIGHT" },
+      { name: "Chorizo", qty: 3, saleUnit: "UNIT" },
+    ],
+    cuponDevuelto: "VERANO10",
+    cuentaAnulada: 1500,
+  });
+  assert.match(m, /^Venta #42 anulada\. Se devolvieron \$\s?23\.436(,00)? en el libro de caja\. /);
+  assert.match(m, /Se sacaron \$\s?1\.500(,00)? de la cuenta corriente del cliente\./);
+  assert.match(m, /Volvió al stock: 1 kg de Vacío, 3 u\. de Chorizo\./);
+  assert.match(m, /El cupón VERANO10 recuperó el uso que había gastado esta venta\.$/);
+});
+
+test("anular un pedido de la tienda devuelve esPedido (del canal) para el aviso", async () => {
+  const mundo = nuevoMundo({});
+  (mundo.order as Record<string, unknown>).channel = "ONLINE";
+  const r = await anularVentaInTx(txDe(mundo), "t1", { ...ARGS_BASE, diaCerradoHasta: null });
+  assert.ok(r.applied);
+  if (r.applied) assert.equal(r.esPedido, true);
 });

@@ -271,8 +271,16 @@ export const RUTAS_DEL_MODO_SIMPLE = ["/admin", "/admin/turnos", "/admin/cliente
 /** Rótulo de mostrador del Inicio en modo simple. */
 export const ROTULO_HOY = "Hoy";
 
+/**
+ * El modo simple de un MOSTRADOR (UAT Magra 07-08/11): la tarea del día es vender y preparar pedidos,
+ * no la Agenda que no tiene. Se usa sólo si Vender está en la barra de la persona (módulo `pos` duro:
+ * CH nunca la tiene, así que su modo simple no cambia).
+ */
+export const RUTAS_DEL_MODO_SIMPLE_MOSTRADOR = ["/admin", "/admin/vender", "/admin/pedidos", "/admin/clientes", "/admin/caja"] as const;
+
 export function menuDeModoSimple<T extends { href: string; label: string }>(menu: readonly T[]): T[] {
-  return RUTAS_DEL_MODO_SIMPLE.flatMap((href) =>
+  const rutas: readonly string[] = menu.some((i) => i.href === "/admin/vender") ? RUTAS_DEL_MODO_SIMPLE_MOSTRADOR : RUTAS_DEL_MODO_SIMPLE;
+  return rutas.flatMap((href) =>
     menu.filter((i) => i.href === href).map((i) => (href === "/admin" ? { ...i, label: ROTULO_HOY } : i)),
   );
 }

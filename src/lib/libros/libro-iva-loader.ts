@@ -42,6 +42,7 @@ import {
   type FilasDelLibro,
   type LibroIva,
   type VentaSinComprobanteRow,
+  tipoDelPedidoSinComprobante,
   whereComprobantesDePruebaDelMes,
   whereAutorizadosDespues,
   whereAutorizadosHasta,
@@ -120,7 +121,7 @@ export async function leerFilasLibroIva(
         createdAt: enElMes,
         invoices: sinComprobanteConCae,
       },
-      select: { id: true, code: true, total: true, createdAt: true, customerName: true },
+      select: { id: true, code: true, total: true, createdAt: true, customerName: true, channel: true },
     }),
     db.payment.findMany({
       where: {
@@ -179,7 +180,7 @@ export async function leerFilasLibroIva(
     ...orders.map((o) => ({
       clave: `pedido:${o.id}`,
       fecha: dateToIso(o.createdAt),
-      tipo: "Venta del mostrador",
+      tipo: tipoDelPedidoSinComprobante(o.channel),
       numero: `Pedido ${o.code}`,
       cliente: o.customerName?.trim() || "Consumidor final",
       total: o.total,

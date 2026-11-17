@@ -203,6 +203,17 @@ export function armarHoy(l: LecturaDelHoy): TarjetaHoy {
   };
 }
 
+/** Lo que es de la Agenda en la tarjeta: sin agenda (una carnicería) no se lee ni se nombra. */
+const PARTES_DE_LA_AGENDA = new Set(["los turnos", "las señas"]);
+
+/**
+ * La tarjeta de un negocio SIN agenda (UAT Magra 07-08/11, callejón C1): sin Turnos ni Señas, que no
+ * son de un mostrador, y sin avisar que «no se pudieron leer». PURA.
+ */
+export function hoySinAgenda(t: TarjetaHoy): TarjetaHoy {
+  return { ...t, turnos: null, senias: null, sinLeer: t.sinLeer.filter((p) => !PARTES_DE_LA_AGENDA.has(p)) };
+}
+
 /** Pesos a la argentina: sin centavos salvo que los haya («$ 12.500», «$ 1.234,50»). PURA. */
 export function pesosDelHoy(n: number): string {
   const conCentavos = centavosDe(n) % 100 !== 0;
