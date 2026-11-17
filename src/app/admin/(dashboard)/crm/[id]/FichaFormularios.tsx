@@ -18,6 +18,7 @@ import {
   registrarPedidoDeDatos,
   registrarRespuesta,
   suprimirContacto,
+  traerCierreDelProyecto,
   verificarFuente,
   vincularContacto,
 } from "@/lib/crm-comercial/acciones";
@@ -563,5 +564,29 @@ export function NuevaTarea({ oportunidadId, colas, tipos }: { oportunidadId: str
         <Resultado motivo={motivo} hecho={hecho} />
       </form>
     </Plegable>
+  );
+}
+
+/** B2 (provisional a confirmar): la asignada se cierra en su proyecto, en el negocio destino; esto trae ese cierre ya. */
+export function TraerCierreDelProyecto({ oportunidadId }: { oportunidadId: string }) {
+  const { correr, pendiente, motivo, hecho } = useAccion();
+  const [sigue, setSigue] = useState(false);
+  return (
+    <div className="grid gap-2">
+      <div>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={pendiente}
+          onClick={() => {
+            setSigue(false);
+            correr(() => traerCierreDelProyecto(oportunidadId), { alTerminar: (r) => setSigue(!r.cerrada) });
+          }}
+        >
+          {pendiente ? "Mirando el proyecto…" : "Traer cómo terminó el proyecto"}
+        </Button>
+      </div>
+      <Resultado motivo={motivo} hecho={sigue ? "El proyecto sigue en curso: todavía no se ganó ni se perdió." : hecho} />
+    </div>
   );
 }

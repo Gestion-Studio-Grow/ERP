@@ -13,6 +13,7 @@
 import { randomBytes } from "node:crypto";
 import type { TxTraslado } from "@/lib/rls";
 import { cierreDesdeProyecto, type Motivo } from "./motor";
+import { criterioDeContacto, wherePorContacto } from "@/lib/clientes/busqueda-por-contacto";
 
 /** Un tipo de destino del ARM (el que propone el Calificador y confirma Dirección). */
 export type DestinoArm = "AGENCIA" | "TALLER";
@@ -63,7 +64,8 @@ export async function crearEnDestino(tx: TxTraslado, destinoTenantId: string, p:
       ? await tx.client.findFirst({
           where: {
             tenantId: destinoTenantId,
-            OR: [...(p.cliente.email ? [{ email: { equals: p.cliente.email, mode: "insensitive" as const } }] : []), ...(telefono ? [{ phone: { endsWith: telefono.slice(-10) } }] : [])],
+            // El teléfono, con el criterio común de búsqueda por contacto (lo mira el sistema: ve el contacto completo).
+            OR: [...(p.cliente.email ? [{ email: { equals: p.cliente.email, mode: "insensitive" as const } }] : []), ...wherePorContacto(criterioDeContacto(telefono, true))],
           },
           select: { id: true },
         })

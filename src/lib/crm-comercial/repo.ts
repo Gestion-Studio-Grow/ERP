@@ -1748,6 +1748,41 @@ async function cerrarDesdeDestinos(ctx: Ctx, ahora: Date): Promise<Res<{ cerrada
   return { ok: true, cerradas };
 }
 
+/**
+ * GSG-CRM-017 · B2 (PROVISIONAL a confirmar por el dueño): una asignada se gana o se pierde en SU PROYECTO, en el
+ * negocio destino (lo cierra quien ve todos los proyectos allá). Desde la ficha del ARM, Dirección o el comercial que la
+ * atiende traen ese cierre al momento, sin esperar a «poner al día»: misma lectura acotada que `cerrarDesdeDestinos`
+ * (V6), sólo para esta oportunidad. Si el proyecto sigue en curso, no cambia nada y lo dice.
+ */
+export async function traerCierreDelProyecto(ctx: Ctx, oportunidadId: string, ahora = new Date()): Promise<Res<{ etapa: string; cerrada: boolean }>> {
+  const pre = await correr<{ destinoTenantId: string }>(ctx, async (tx) => {
+    const m = await miembroDe(tx, ctx);
+    const o = await tx.oportunidad.findFirst({ where: { tenantId: ctx.tenantId, id: oportunidadId }, select: { etapa: true, destinoTenantId: true, proyectoDestinoId: true, duenoUserId: true } });
+    if (!o) throw new RechazoCrm("No existe esa oportunidad.");
+    if (!m || !m.activo || (m.rol !== "DIRECCION" && o.duenoUserId !== ctx.userId)) throw new RechazoCrm("Lo trae Dirección o el comercial que la atiende.", oportunidadId);
+    if (o.etapa !== "ASIGNADA" || !o.destinoTenantId || !o.proyectoDestinoId) throw new RechazoCrm("Sólo una oportunidad asignada a un negocio vinculado trae el cierre de su proyecto.", oportunidadId);
+    return { ok: true, destinoTenantId: o.destinoTenantId };
+  });
+  if (!pre.ok) return pre;
+  const { destinoTenantId } = pre;
+  try {
+    return await trasladoTransaction({ origen: ctx.tenantId, destino: destinoTenantId }, async (fases: FasesDeTraslado) => {
+      const o = await fases.enOrigen((tx) => tx.oportunidad.findFirst({ where: { tenantId: ctx.tenantId, id: oportunidadId, etapa: "ASIGNADA", destinoTenantId }, select: SEL_OP }));
+      if (!o) return { ok: true as const, etapa: "ASIGNADA", cerrada: false }; // otro la cerró recién
+      const [estado] = await fases.enDestino((tx) => estadosEnDestino(tx, destinoTenantId, ctx.tenantId, [o.proyectoDestinoId as string]));
+      if (!estado?.cierre) return { ok: true as const, etapa: "ASIGNADA", cerrada: false };
+      const c = estado.cierre;
+      return fases.enOrigen(async (tx) => {
+        const m = await miembroDe(tx, ctx);
+        await aplicar(tx, ctx, m, o, c.destino, { motivo: c.motivo, nota: c.nota, desdeProyecto: true }, ahora);
+        return { ok: true as const, etapa: c.destino, cerrada: true };
+      });
+    });
+  } catch (e) {
+    return rechazoEntreNegocios(ctx, e);
+  }
+}
+
 async function ponerAlDiaEnElArm(ctx: Ctx, ahora: Date): Promise<Res<{ tareas: number; despertadas: number; cerradas: number }>> {
   return correr(ctx, async (tx) => {
     const m = await guardia(tx, ctx, "configurar", {}, ahora);
@@ -1927,13 +1962,19 @@ export async function ficha(ctx: Ctx, id: string, ahora = new Date()) {
     }
     const p = puntuar(vista.datos, ahora, VARA);
     // GSG-CRM-017: en qué negocio nació (o nacería) el proyecto. Sólo el nombre, del vínculo del ARM.
+    // Para una asignada, también la dirección del negocio (su subdominio) para enlazar al proyecto (B2).
+    const asignadaA = o.destinoTenantId
+      ? (await tx.vinculoNegocio.findFirst({ where: { tenantId: ctx.tenantId, destinoTenantId: o.destinoTenantId }, select: { destinoTenant: { select: { name: true, subdomain: true } } } }))?.destinoTenant
+      : null;
     const negocioDestino = o.destinoTenantId
-      ? ((await tx.vinculoNegocio.findFirst({ where: { tenantId: ctx.tenantId, destinoTenantId: o.destinoTenantId }, select: { destinoTenant: { select: { name: true } } } }))?.destinoTenant.name ?? "el negocio vinculado")
+      ? (asignadaA?.name ?? "el negocio vinculado")
       : ((await vinculoActivo(tx, ctx, o.destinoConfirmado ? o.destino : null))?.destinoNombre ?? null);
+    const subdominioDestino = asignadaA?.subdomain ?? null;
     return {
       ok: true as const,
       oportunidad: { ...o, monto: o.monto == null ? null : Number(o.monto), ...pronosticoDe(o, ahora) },
       negocioDestino,
+      subdominioDestino,
       contactos,
       brief,
       puntaje: p,

@@ -174,6 +174,9 @@ export async function tomarPedido(d: { pedidoId?: string | null } = {}) {
 export async function cerrarPedido(pedidoId: string, d: { estado: string; nota?: string | null }) {
   return con(true, (ctx) => repo.cerrarPedido(ctx, pedidoId, d));
 }
+export async function traerCierreDelProyecto(oportunidadId: string) {
+  return con(true, (ctx) => repo.traerCierreDelProyecto(ctx, String(oportunidadId)));
+}
 export async function ponerAlDia() {
   return con(true, (ctx) => repo.ponerAlDia(ctx));
 }

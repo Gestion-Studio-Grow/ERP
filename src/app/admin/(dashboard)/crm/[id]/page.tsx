@@ -1,5 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { headers } from "next/headers";
+import { mapaDeHostsVigente } from "@/lib/tenant";
+import { enlaceAlProyectoDestino } from "@/lib/crm-comercial/arm";
 import { requireApp } from "@/lib/require-app";
 import { Badge } from "@/components/ui";
 import { ETIQUETA_CAMPO, ETIQUETA_ETAPA, CAMPOS_BRIEF, MOTIVOS, faltantesDelBrief, type Etapa } from "@/lib/crm-comercial/motor";
@@ -9,7 +12,7 @@ import { detalleDeFicha, ficha, personasDelCrm } from "@/lib/crm-comercial/accio
 import { abrirCrm, Marco, NoSePudo } from "../comun";
 import { ETIQUETA_PUESTO, ETIQUETA_ROL, TIPOS_DE_TAREA, dia, diaYHora, etiquetaTarea, opcionesDePase, paraInputFecha, plata, puedeEn } from "../crm-core";
 import { BorradorTarjeta } from "../BorradorTarjeta";
-import { ComprobarIdentidad, ConfirmarDestino, Contactos, DecidirPropuesta, FormularioDatos, NuevaTarea, NuevoBorrador, PanelPases, PedidoDeDatos, RegistrarRespuesta, VerificarFuente } from "./FichaFormularios";
+import { ComprobarIdentidad, ConfirmarDestino, Contactos, DecidirPropuesta, FormularioDatos, NuevaTarea, NuevoBorrador, PanelPases, PedidoDeDatos, RegistrarRespuesta, TraerCierreDelProyecto, VerificarFuente } from "./FichaFormularios";
 
 export const dynamic = "force-dynamic";
 
@@ -76,6 +79,15 @@ export default async function FichaPage({ params }: { params: Promise<{ id: stri
   const nombre = new Map(personas.map((q) => [q.userId, q]));
   const comerciales = personas.filter((q) => q.activo && (q.rol === "COMERCIAL" || q.rol === "DIRECCION")).map((q) => ({ userId: q.userId, nombre: q.nombre }));
   const ahora = new Date();
+  const h = await headers();
+  const enlaceProyecto = enlaceAlProyectoDestino({
+    subdominio: f.subdominioDestino,
+    proyectoId: o.proyectoDestinoId,
+    hostActual: h.get("x-forwarded-host") ?? h.get("host"),
+    https: (h.get("x-forwarded-proto") ?? "https") !== "http",
+    dominioPropio: process.env.APP_BASE_DOMAIN?.trim() || null,
+    mapaDeHosts: mapaDeHostsVigente(),
+  });
 
   const titulo = [f.brief.marca ?? (o.tipo === "CONSULTA" ? "Consulta sin marca" : "Sin marca"), f.brief.evento].filter(Boolean).join(" · ");
   const etapa = o.etapa as Etapa;
@@ -147,7 +159,20 @@ export default async function FichaPage({ params }: { params: Promise<{ id: stri
           <section aria-labelledby="t-pases">
             <h3 id="t-pases" className="mb-2 text-lg font-semibold text-strong">Mover de etapa</h3>
             {o.etapa === "ASIGNADA" ? (
-              <p className="text-sm text-muted">Ya es un proyecto en <span className="font-medium text-strong">{f.negocioDestino ?? "el negocio vinculado"}</span>: se gana o se pierde desde su proyecto, allá. Acá se ve sólo cómo terminó.</p>
+              <div className="grid gap-3">
+                <p className="text-sm text-strong">
+                  Ya es un proyecto en <span className="font-medium">{f.negocioDestino ?? "el negocio vinculado"}</span>: se gana o se pierde en su proyecto, allá (lo cierra quien ve todos los proyectos de ese negocio). Acá se ve cómo terminó.
+                </p>
+                {enlaceProyecto ? (
+                  <p className="text-sm">
+                    <a href={enlaceProyecto} target="_blank" rel="noopener noreferrer" className="font-medium text-strong underline underline-offset-4">Abrir el proyecto en {f.negocioDestino ?? "el negocio vinculado"}</a>
+                    <span className="text-muted"> · entrás con tu usuario de ese negocio.</span>
+                  </p>
+                ) : o.proyectoDestinoId ? (
+                  <p className="text-sm text-muted">No hay una dirección para abrir ese negocio desde acá: pedile el enlace a GSG.</p>
+                ) : null}
+                {o.proyectoDestinoId && (o.duenoUserId === miembro.userId || miembro.rol === "DIRECCION") && <TraerCierreDelProyecto oportunidadId={o.id} />}
+              </div>
             ) : opciones.length === 0 ? (
               <p className="text-sm text-muted">{o.pasePropuesto ? "Primero hay que decidir la propuesta de arriba." : "Desde tu puesto no movés esta oportunidad."}</p>
             ) : (

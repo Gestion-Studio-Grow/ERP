@@ -309,6 +309,32 @@ test("V6 · el estado se lee sólo de proyectos que nacieron de este ARM", async
   assert.equal((await d.oportunidad.findUniqueOrThrow({ where: { id: forzada.id }, select: { etapa: true } })).etapa, "ASIGNADA", "no se cerró con un proyecto que no es suyo");
 });
 
+test("B2 · la asignada trae el cierre de SU proyecto desde la ficha: en curso no cambia; ganada en el destino, ganada acá; sólo Dirección o su comercial", async (t) => {
+  const f = await preparar(t);
+  if (!f) return;
+  const { repo, base } = f;
+  const d = await prismaComoDuenio(base);
+  const id = await lista(f, "Cierre Demo", "cierre.example");
+  ok(await repo.aplicarPase(ctx(f, f.dir), id, "ASIGNADA", { comercialUserId: f.dir2, ...PASO }, AHORA), "asignar");
+  // El comercial que NO la atiende no la trae (la atiende dir2).
+  const ajeno = await repo.traerCierreDelProyecto(ctx(f, f.com1), id, AHORA);
+  assert.equal(ajeno.ok, false);
+  assert.match((ajeno as { motivo: string }).motivo, /Dirección o el comercial que la atiende/);
+  // En curso: no cambia nada.
+  assert.deepEqual(ok(await repo.traerCierreDelProyecto(ctx(f, f.dir2), id, AHORA)), { ok: true, etapa: "ASIGNADA", cerrada: false });
+  const op = await d.oportunidad.findUniqueOrThrow({ where: { id }, select: { proyectoDestinoId: true, etapa: true } });
+  assert.equal(op.etapa, "ASIGNADA");
+  // Se gana en el destino (lo cierra quien ve todos los proyectos allá) y se trae.
+  await d.proyecto.update({ where: { id: op.proyectoDestinoId! }, data: { etapa: "APROBADO" } });
+  assert.deepEqual(ok(await repo.traerCierreDelProyecto(ctx(f, f.dir2), id, AHORA)), { ok: true, etapa: "GANADA", cerrada: true });
+  assert.equal((await d.oportunidad.findUniqueOrThrow({ where: { id }, select: { etapa: true } })).etapa, "GANADA");
+  // Ya cerrada: no se trae de nuevo.
+  assert.equal((await repo.traerCierreDelProyecto(ctx(f, f.dir), id, AHORA)).ok, false);
+  // Una que no es asignada no trae nada.
+  const otra = await lista(f, "Cierre Demo Dos", "cierre2.example");
+  assert.equal((await repo.traerCierreDelProyecto(ctx(f, f.dir), otra, AHORA)).ok, false);
+});
+
 test("V7 · «ya es cliente» y exclusividad consultan los vinculados con un sí o no, sin traer datos del cliente ajeno", async (t) => {
   const f = await preparar(t);
   if (!f) return;
