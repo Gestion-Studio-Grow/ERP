@@ -385,9 +385,9 @@ test("§ 2.2 bis A-06 · cobro de $ 2.000.000, anular, borrar contraasiento y ve
   const asientos = await p.duenio.cashMovement.findMany({ where: { proyectoPagoId: pago.id }, orderBy: { type: "asc" }, select: { id: true, type: true } });
   const errores: string[] = [];
   for (const m of asientos) {
-    const r = await p.enSesion(() => p.libro.deleteLibroEntry(null, p.form({ id: m.id })));
+    const r: { ok: boolean; error?: string } | null | undefined = await p.enSesion((): Promise<{ ok: boolean; error?: string } | null | undefined> => p.libro.deleteLibroEntry(null, p.form({ id: m.id })));
     assert.equal(r?.ok, false, `${m.type}: rechazo`);
-    errores.push(String((r as { error: string }).error));
+    errores.push(String(r?.error));
   }
   assert.equal(await p.duenio.cashMovement.count({ where: { proyectoPagoId: pago.id } }), 2, "las dos filas siguen");
   for (const e of errores) {
@@ -454,11 +454,11 @@ test("§ 2.2 bis O41 · el mismo envío 5 veces a la vez: 1 cobro; 5 cobros dist
     // (4 × 3.500.000 = 14.000.000); con 1 ya adentro entran 3 y se rechazan 2. Para el caso tal como lo escribe el plan
     // (sobre 14.701.500 sin cobros) va un proyecto nuevo.
     const limpio = await p.proyecto(12_150_000);
-    const distinto = (n: number) => p.enSesion(() => p.acciones.registrarCobro(p.form({ proyectoId: limpio, medio: "TRANSFERENCIA", monto: "3500000", envio: `d-${ronda}-${n}` })));
+    const distinto = (n: number): Promise<{ ok: boolean }> => p.enSesion(() => p.acciones.registrarCobro(p.form({ proyectoId: limpio, medio: "TRANSFERENCIA", monto: "3500000", envio: `d-${ronda}-${n}` })));
     const rs = await Promise.all([1, 2, 3, 4, 5].map(distinto));
     assert.equal(rs.filter((r) => r.ok).length, 4, `ronda ${ronda}: entran 4 · ${JSON.stringify(rs)}`);
     assert.equal(rs.filter((r) => !r.ok).length, 1, `ronda ${ronda}: se rechaza 1`);
-    const pagos = await p.duenio.proyectoPago.findMany({ where: { proyectoId: limpio }, select: { id: true, monto: true } });
+    const pagos: { id: string; monto: number }[] = await p.duenio.proyectoPago.findMany({ where: { proyectoId: limpio }, select: { id: true, monto: true } });
     assert.equal(pagos.reduce((s, x) => s + x.monto, 0), 14_000_000);
     assert.equal(await p.duenio.cashMovement.count({ where: { proyectoPagoId: { in: pagos.map((x) => x.id) } } }), 4, "4 asientos");
   }
