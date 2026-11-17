@@ -11,6 +11,7 @@ import { enElNegocio } from "@/lib/operator-db";
 import { requireOperadorParaNegocio } from "@/lib/operador/guardia-negocio";
 import { NoPermitido, cambiarEstadoDeAgentes, decidir, decidirLote, reasignar } from "@/lib/cuadrilla/consola-core";
 import { hablarOPedir, vencerPedidos } from "@/lib/cuadrilla/pedidos-core";
+import { igualarAccesos } from "@/lib/cuadrilla/accesos-core";
 import { elegidasPorNegocio, motivoDelError, texto, volverA } from "@/lib/cuadrilla/formulario";
 import type { Actor } from "@/lib/cuadrilla/permisos";
 
@@ -134,6 +135,22 @@ export async function operadorVencer(fd: FormData) {
     if (!tenantId) throw new NoPermitido("Elegí el negocio.");
     const n = await enElNegocio(tenantId, (tx) => vencerPedidos(tx, actor, tenantId));
     destino = volverA(BASE, fd, { ok: n === 0 ? "No había pedidos vencidos." : `Escalados por tope: ${n}.` });
+  } catch (e) {
+    destino = volverA(BASE, fd, { error: motivoDelError(e) });
+  }
+  revalidatePath(BASE);
+  redirect(destino);
+}
+
+/** Deja al usuario de un agente con los mismos accesos que la persona de su puesto (GSG-MIA-072). En CH, sólo el dueño. */
+export async function operadorAccesos(fd: FormData) {
+  const tenantId = campo(fd, "tenantId");
+  const sesion = await requireOperadorParaNegocio({ id: tenantId });
+  const actor: Actor = { tipo: "operador", nombre: sesion.nombre };
+  let destino: string;
+  try {
+    const quedan = await enElNegocio(tenantId, (tx) => igualarAccesos(tx, actor, tenantId, texto(fd, "agenteId"), texto(fd, "personaId")));
+    destino = volverA(BASE, fd, quedan.length ? { error: `Quedan diferencias: ${quedan.join("; ")}.` } : { ok: "Accesos iguales a los de la persona del puesto." });
   } catch (e) {
     destino = volverA(BASE, fd, { error: motivoDelError(e) });
   }

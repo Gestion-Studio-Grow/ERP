@@ -7,6 +7,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { huellaDe, leerHilo, leerTablero, mensajesRecientes, tiemposDeRespuesta, type ExcepcionVista, type Filtros, type MensajeVista, type Tablero } from "./consola-core";
 import { leerPedidos, type PedidoVista } from "./pedidos-core";
+import { estadoDeAccesos, personasDelNegocio, type EstadoDeAccesos, type PersonaDelNegocio } from "./accesos-core";
 
 type Tx = Prisma.TransactionClient;
 
@@ -17,6 +18,10 @@ export type CargaDelNegocio = {
   tiempos: number[];
   /** Pedidos de este negocio según la vista elegida (criterio 8): negados y oportunidades, filtrables. */
   pedidos: PedidoVista[];
+  /** Accesos del usuario de cada agente frente a la persona de su puesto (GSG-MIA-072), por id de agente. */
+  accesos: Record<string, EstadoDeAccesos>;
+  /** Las personas del negocio que pueden ser «la persona del puesto» (no son usuarios de agente). */
+  personas: PersonaDelNegocio[];
 };
 
 const ID = /^[a-z0-9_-]{4,64}$/i;
@@ -62,5 +67,7 @@ export async function cargarNegocio(
     }
   }
   const pedidos = await leerPedidos(tx, tenantId, { vista: filtros.pedidos ?? "todos", agenteId: filtros.agenteId });
-  return { tablero, seleccion, hilo, tiempos: tiemposDeRespuesta(await mensajesRecientes(tx, tenantId)), pedidos };
+  const usuarios = await tx.agenteCuadrilla.findMany({ where: { tenantId }, select: { id: true, userId: true, comoUserId: true } });
+  const accesos = Object.fromEntries(await estadoDeAccesos(tx, tenantId, usuarios));
+  return { tablero, seleccion, hilo, tiempos: tiemposDeRespuesta(await mensajesRecientes(tx, tenantId)), pedidos, accesos, personas: await personasDelNegocio(tx, tenantId) };
 }

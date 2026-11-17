@@ -44,6 +44,8 @@ export const OPERACIONES = [
   "cerrar_pedido",
   // Escalar los pedidos que pasaron su tope de minutos (GSG-MIA-072): una acción de una persona, nunca una lectura.
   "vencer_pedidos",
+  // Igualar los accesos del usuario de un agente a los de la persona de su puesto (GSG-MIA-072): una persona.
+  "igualar_accesos",
   "enviar_a_terceros",
 ] as const;
 export type Operacion = (typeof OPERACIONES)[number];
@@ -92,6 +94,7 @@ const DE_PERSONA: ReadonlySet<Operacion> = new Set([
   "reasignar",
   "pedir",
   "vencer_pedidos",
+  "igualar_accesos",
 ]);
 
 function alcance(actor: Actor, tenantId: string | undefined): Resultado {
@@ -170,6 +173,7 @@ export function puede(actor: Actor | null | undefined, operacion: Operacion, ctx
       return alcance(actor, ctx.tenantId);
     case "pedir":
     case "vencer_pedidos":
+    case "igualar_accesos":
       return alcance(actor, ctx.tenantId);
     case "cerrar_pedido": {
       const p = ctx.pedido;

@@ -16,7 +16,7 @@ import { RESPUESTA_OPORTUNIDAD, VISTAS_PEDIDOS, type VistaPedidos } from "@/lib/
 import { clavePuesto, MANUALES } from "@/lib/cuadrilla/manuales";
 import { PedidoDelMensaje, TableroCuadrilla, horaAR } from "@/components/cuadrilla/TableroCuadrilla";
 import { atributosBoton, buttonClasses } from "@/components/ui/Button";
-import { panelAgente, panelAvanzarPedido, panelCerrarPedido, panelDecidir, panelHablar, panelLevantar, panelLote, panelVencer } from "./actions";
+import { panelAgente, panelAvanzarPedido, panelCerrarPedido, panelDecidir, panelHablar, panelLevantar, panelLote, panelVencer, panelAccesos } from "./actions";
 
 export const metadata: Metadata = { title: "Cuadrilla", generator: "Gestión Studio Grow" };
 export const dynamic = "force-dynamic";
@@ -253,13 +253,13 @@ export default async function CuadrillaPanelPage({ searchParams }: { searchParam
     <TableroCuadrilla
       modo="supervisor"
       base="/admin/cuadrilla"
-      negocios={[{ id: tenantId, nombre: "Tu negocio", tablero: carga?.tablero ?? null, falla, pedidos: carga?.pedidos }]}
+      negocios={[{ id: tenantId, nombre: "Tu negocio", tablero: carga?.tablero ?? null, falla, pedidos: carga?.pedidos, accesos: carga?.accesos, personas: carga?.personas }]}
       filtros={filtros}
       seleccion={carga?.seleccion ? { excepcion: carga.seleccion, negocio: "Tu negocio" } : null}
       hilo={carga?.hilo ? { ...carga.hilo, tenantId } : null}
       respuestaMedianaSeg={mediana(carga?.tiempos ?? [])}
       aviso={aviso}
-      acciones={{ decidir: panelDecidir, lote: panelLote, agente: panelAgente, hablar: panelHablar, vencer: panelVencer }}
+      acciones={{ decidir: panelDecidir, lote: panelLote, agente: panelAgente, hablar: panelHablar, vencer: panelVencer, accesos: panelAccesos }}
     />
   );
 }

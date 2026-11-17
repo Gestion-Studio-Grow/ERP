@@ -35,6 +35,11 @@ const CASOS: Caso[] = [
   ["supervisor NO escala los de otro negocio", supA, "vencer_pedidos", { tenantId: B }, false],
   ["operador escala los vencidos", operador, "vencer_pedidos", { tenantId: B }, true],
   ["agente NO escala los vencidos", agenteA, "vencer_pedidos", { tenantId: A }, false],
+  // Igualar los accesos de un agente a los de la persona del puesto (GSG-MIA-072).
+  ["supervisor iguala accesos en su negocio", supA, "igualar_accesos", { tenantId: A }, true],
+  ["supervisor NO iguala accesos en otro negocio", supA, "igualar_accesos", { tenantId: B }, false],
+  ["operador iguala accesos", operador, "igualar_accesos", { tenantId: A }, true],
+  ["agente NO se toca los accesos", agenteA, "igualar_accesos", { tenantId: A }, false],
   // Ver la consola.
   ["operador ve la consola", operador, "ver_consola", {}, true],
   ["supervisor ve la de su negocio", supA, "ver_consola", { tenantId: A }, true],

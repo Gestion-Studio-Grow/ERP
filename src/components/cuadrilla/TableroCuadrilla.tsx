@@ -14,11 +14,21 @@ import { atributosBoton, buttonClasses } from "@/components/ui/Button";
 import { esNivel0 } from "@/lib/cuadrilla/permisos";
 import type { ExcepcionVista, MensajeVista, Tablero } from "@/lib/cuadrilla/consola-core";
 import type { PedidoVista } from "@/lib/cuadrilla/pedidos-core";
+import type { EstadoDeAccesos, PersonaDelNegocio } from "@/lib/cuadrilla/accesos-core";
 import { cierreDelPedido, TOPE, VISTAS_PEDIDOS } from "@/lib/cuadrilla/pedidos";
 
 type Accion = (fd: FormData) => Promise<void>;
 
-export type NegocioDelTablero = { id: string; nombre: string; tablero: Tablero | null; falla?: string; pedidos?: PedidoVista[] };
+export type NegocioDelTablero = {
+  id: string;
+  nombre: string;
+  tablero: Tablero | null;
+  falla?: string;
+  pedidos?: PedidoVista[];
+  /** GSG-MIA-072: accesos del usuario de cada agente frente a la persona de su puesto, y quiénes pueden serlo. */
+  accesos?: Record<string, EstadoDeAccesos>;
+  personas?: PersonaDelNegocio[];
+};
 
 export type PropsTablero = {
   modo: "operador" | "supervisor";
@@ -335,6 +345,54 @@ function Pedidos({ props, pedidos }: { props: PropsTablero; pedidos: { p: Pedido
   );
 }
 
+/**
+ * Los accesos del usuario del agente frente a la persona de su puesto (GSG-MIA-072: «mismos accesos que una persona»,
+ * ni más ni menos). Muestra si son iguales y, si no, qué difiere; una persona los iguala acá.
+ */
+function AccesosDelAgente({ props, negocio, agente }: { props: PropsTablero; negocio: NegocioDelTablero; agente: { id: string; nombre: string } }) {
+  const e = negocio.accesos?.[agente.id];
+  if (!e) return null;
+  if (e.sinUsuario) return <p className="w-full text-xs text-muted">Sin usuario propio: no entra al sistema.</p>;
+  const iguales = !!e.como && e.diferencias.length === 0;
+  return (
+    <div className="w-full space-y-1" data-accesos={iguales ? "iguales" : e.como ? "distintos" : "sin-persona"}>
+      <p className={`text-xs ${iguales ? "text-success" : "text-warning"}`}>
+        {iguales
+          ? `Accesos: iguales a los de ${e.como!.nombre} (${e.como!.rol}).`
+          : e.como
+            ? `Accesos distintos de ${e.como.nombre}: ${e.diferencias.join("; ")}.`
+            : `Accesos: rol ${e.rolDelAgente ?? "—"}, sin persona del puesto con quien comparar.`}
+      </p>
+      {props.acciones.accesos && (negocio.personas?.length ?? 0) > 0 ? (
+        <details className="text-sm">
+          <summary className="min-h-11 cursor-pointer content-center text-accent underline">{iguales ? "Cambiar la persona del puesto" : "Igualar los accesos"}</summary>
+          <form action={props.acciones.accesos} className="mt-2 flex flex-wrap items-end gap-2">
+            <FiltrosOcultos filtros={props.filtros} />
+            <input type="hidden" name="tenantId" value={negocio.id} />
+            <input type="hidden" name="agenteId" value={agente.id} />
+            <label className="grid min-w-0 gap-1">
+              <span className="text-muted">Mismos accesos que</span>
+              <select name="personaId" defaultValue={e.como?.id ?? ""} required className="min-h-11 max-w-full rounded border border-line bg-surface px-2">
+                <option value="" disabled>
+                  Elegí a la persona del puesto
+                </option>
+                {negocio.personas!.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.nombre} · {p.rol}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button type="submit" className={buttonClasses("outline", "sm")} {...atributosBoton("outline", "sm")}>
+              Igualar
+            </button>
+          </form>
+        </details>
+      ) : null}
+    </div>
+  );
+}
+
 export function TableroCuadrilla(props: PropsTablero) {
   const { negocios, filtros, base } = props;
   const conTablero = negocios.filter((n) => n.tablero);
@@ -554,6 +612,7 @@ export function TableroCuadrilla(props: PropsTablero) {
                       {a.estado === "ACTIVO" ? "Pausar" : "Reanudar"}
                     </button>
                   </form>
+                  <AccesosDelAgente props={props} negocio={negocio} agente={a} />
                 </li>
               ))}
             </ul>

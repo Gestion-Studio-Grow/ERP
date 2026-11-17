@@ -406,6 +406,7 @@ test("TRINQUETE: todo endpoint con privilegio de operador tiene PRIMERO la guard
   }
   assert.deepEqual(faltan, [], `endpoints sin la guardia del negocio:\n${faltan.join("\n")}`);
   assert.deepEqual(cubiertas.sort(), [
+    "src/app/operador/(console)/cuadrilla/actions.ts#operadorAccesos",
     "src/app/operador/(console)/cuadrilla/actions.ts#operadorAgente",
     "src/app/operador/(console)/cuadrilla/actions.ts#operadorDecidir",
     "src/app/operador/(console)/cuadrilla/actions.ts#operadorHablar",

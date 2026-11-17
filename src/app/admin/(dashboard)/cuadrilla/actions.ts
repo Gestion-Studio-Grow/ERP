@@ -13,6 +13,7 @@ import { avanzarPedido, cerrarPedido, hablarOPedir, vencerPedidos } from "@/lib/
 import type { CierrePedido } from "@/lib/cuadrilla/pedidos";
 import { motivoDelError, texto, volverA } from "@/lib/cuadrilla/formulario";
 import { CATEGORIAS, TIPOS } from "@/lib/cuadrilla/permisos";
+import { igualarAccesos } from "@/lib/cuadrilla/accesos-core";
 
 const BASE = "/admin/cuadrilla";
 
@@ -104,6 +105,15 @@ export async function panelVencer(fd: FormData) {
     fd,
     (n: number) => ({ ok: n === 0 ? "No había pedidos vencidos." : `Escalados por tope: ${n}.` }),
     ({ actor, tenantId }) => tenantTransaction((tx) => vencerPedidos(tx, actor!, tenantId), { tenantId }),
+  );
+}
+
+/** La supervisión deja al usuario de un agente con los mismos accesos que la persona de su puesto (GSG-MIA-072). */
+export async function panelAccesos(fd: FormData) {
+  await correr(
+    fd,
+    (quedan: string[]) => (quedan.length ? { error: `Quedan diferencias: ${quedan.join("; ")}.` } : { ok: "Accesos iguales a los de la persona del puesto." }),
+    ({ actor, tenantId }) => tenantTransaction((tx) => igualarAccesos(tx, actor!, tenantId, texto(fd, "agenteId"), texto(fd, "personaId")), { tenantId }),
   );
 }
 

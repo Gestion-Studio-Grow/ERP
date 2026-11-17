@@ -11,7 +11,7 @@ import { mediana } from "@/lib/cuadrilla/consola-core";
 import { avisoDeLaUrl, motivoDelError } from "@/lib/cuadrilla/formulario";
 import { VISTAS_PEDIDOS, type VistaPedidos } from "@/lib/cuadrilla/pedidos";
 import { TableroCuadrilla, type NegocioDelTablero } from "@/components/cuadrilla/TableroCuadrilla";
-import { operadorAgente, operadorDecidir, operadorHablar, operadorLote, operadorVencer } from "./actions";
+import { operadorAgente, operadorDecidir, operadorHablar, operadorLote, operadorVencer, operadorAccesos } from "./actions";
 
 export const metadata: Metadata = { title: "Cuadrilla · Consola GSG", generator: "Gestión Studio Grow" };
 export const dynamic = "force-dynamic";
@@ -62,7 +62,7 @@ export default async function CuadrillaOperadorPage({ searchParams }: { searchPa
 
   // Sólo los negocios que tienen cuadrilla (o los que fallaron, para avisar).
   const visibles = cargas.filter((c) => (c.carga && c.carga.tablero.agentes.length > 0) || c.falla);
-  const negocios: NegocioDelTablero[] = visibles.map((c) => ({ id: c.t.id, nombre: c.t.name, tablero: c.carga?.tablero ?? null, falla: c.falla, pedidos: c.carga?.pedidos }));
+  const negocios: NegocioDelTablero[] = visibles.map((c) => ({ id: c.t.id, nombre: c.t.name, tablero: c.carga?.tablero ?? null, falla: c.falla, pedidos: c.carga?.pedidos, accesos: c.carga?.accesos, personas: c.carga?.personas }));
 
   let seleccion = null;
   for (const c of visibles) if (c.carga?.seleccion) seleccion = { excepcion: c.carga.seleccion, negocio: c.t.name };
@@ -85,7 +85,7 @@ export default async function CuadrillaOperadorPage({ searchParams }: { searchPa
       hilo={hilo}
       respuestaMedianaSeg={mediana(visibles.flatMap((c) => c.carga?.tiempos ?? []))}
       aviso={avisoDeLaUrl({ ok: uno(sp.ok), error: uno(sp.error), f: uno(sp.f) })}
-      acciones={{ decidir: operadorDecidir, lote: operadorLote, agente: operadorAgente, hablar: operadorHablar, vencer: operadorVencer }}
+      acciones={{ decidir: operadorDecidir, lote: operadorLote, agente: operadorAgente, hablar: operadorHablar, vencer: operadorVencer, accesos: operadorAccesos }}
     />
   );
 }
