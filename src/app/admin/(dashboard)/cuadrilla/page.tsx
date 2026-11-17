@@ -105,6 +105,19 @@ export default async function CuadrillaPanelPage({ searchParams }: { searchParam
               <span className="text-muted">Responder</span>
               <textarea name="texto" required maxLength={2000} rows={3} className="rounded border border-line bg-surface p-3" />
             </label>
+            {datos?.pedidos.length ? (
+              <label className="grid min-w-0 max-w-full gap-1 text-sm">
+                <span className="text-muted">A qué pedido contestás</span>
+                <select name="pedidoId" defaultValue={datos.pedidos[0].id} className="min-h-11 w-full min-w-0 max-w-full rounded border border-line bg-surface px-2">
+                  {datos.pedidos.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.texto.length > 60 ? `${p.texto.slice(0, 59)}…` : p.texto} · {horaAR(p.createdAt)}
+                    </option>
+                  ))}
+                  <option value="">Ninguno: es un mensaje general</option>
+                </select>
+              </label>
+            ) : null}
             <button type="submit" className={buttonClasses("solid", "md")} {...atributosBoton("solid", "md")}>
               Mandar
             </button>

@@ -75,8 +75,9 @@ export async function hablarOPedir(
   hilo: string,
   texto: string,
   topes: { minutos?: unknown; turnos?: unknown } = {},
+  respondeA?: string,
 ): Promise<string | null> {
-  const mensajeId = await hablar(tx, actor, tenantId, hilo, texto);
+  const mensajeId = await hablar(tx, actor, tenantId, hilo, texto, { pedidoId: respondeA });
   if (actor.tipo === "agente" || !hilo.startsWith("agente:")) return null;
   exigir(puede(actor, "pedir", { tenantId }));
   const agenteId = hilo.slice("agente:".length);

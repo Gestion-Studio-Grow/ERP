@@ -95,7 +95,7 @@ export async function panelHablar(fd: FormData) {
   await correr(
     fd,
     (pedido: string | null) => (pedido ? { ok: "Pedido enviado, con su tope." } : {}),
-    ({ actor, tenantId }) => tenantTransaction((tx) => hablarOPedir(tx, actor!, tenantId, texto(fd, "hilo"), texto(fd, "texto"), topes), { tenantId }),
+    ({ actor, tenantId }) => tenantTransaction((tx) => hablarOPedir(tx, actor!, tenantId, texto(fd, "hilo"), texto(fd, "texto"), topes, texto(fd, "pedidoId") || undefined), { tenantId }),
   );
 }
 

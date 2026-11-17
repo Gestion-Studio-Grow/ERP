@@ -309,8 +309,12 @@ export async function reasignar(tx: Tx, actor: Actor, tenantId: string, excepcio
   return r.count;
 }
 
-/** Escribir en un hilo (de un agente o de un equipo). */
-export async function hablar(tx: Tx, actor: Actor, tenantId: string, hilo: string, texto: string): Promise<string> {
+/**
+ * Escribir en un hilo (de un agente o de un equipo). El agente puede atar su mensaje a un pedido (`pedidoId`,
+ * GSG-MIA-076): el servidor exige que el pedido sea SUYO y de SU negocio antes de escribir; si no, no escribe nada.
+ * Una persona no ata: su mensaje en el hilo de un agente ABRE un pedido (`hablarOPedir`).
+ */
+export async function hablar(tx: Tx, actor: Actor, tenantId: string, hilo: string, texto: string, opciones: { pedidoId?: string } = {}): Promise<string> {
   const limpio = texto.trim().slice(0, 2000);
   if (!limpio) throw new NoPermitido("Escribí algo antes de mandar.");
   let hiloAgenteId: string | null = null;
@@ -326,6 +330,12 @@ export async function hablar(tx: Tx, actor: Actor, tenantId: string, hilo: strin
     throw new NoPermitido("Ese hilo no existe.");
   }
   exigir(puede(actor, "hablar", { tenantId, hiloAgenteId }));
+  let pedidoId: string | null = null;
+  if (actor.tipo === "agente" && opciones.pedidoId?.trim()) {
+    const p = await tx.pedidoCuadrilla.findFirst({ where: { id: opciones.pedidoId.trim(), tenantId, agenteId: actor.agenteId }, select: { id: true } });
+    if (!p) throw new NoPermitido("Ese pedido no es tuyo o no es de este negocio.");
+    pedidoId = p.id;
+  }
   const m = await tx.mensajeCuadrilla.create({
     data: {
       tenantId,
@@ -334,6 +344,7 @@ export async function hablar(tx: Tx, actor: Actor, tenantId: string, hilo: strin
       autor: nombreDe(actor),
       autorUserId: actor.tipo === "operador" ? null : actor.userId,
       agenteId: actor.tipo === "agente" ? actor.agenteId : null,
+      pedidoId,
       texto: limpio,
     },
     select: { id: true },

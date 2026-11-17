@@ -208,4 +208,27 @@ test("cuadrilla bajo RLS: pedidos fuera de alcance (negado u oportunidad) y tope
     await assert.rejects(duenio.pedidoCuadrilla.create({ data: { ...fila, estado: "ESCALADO", salida: "OPORTUNIDAD", duenio: "OPS" } }));
     await assert.rejects(duenio.pedidoCuadrilla.create({ data: { ...fila, topeTurnos: 0 } }));
   });
+
+  await t.test("el mensaje libre del agente se guarda con su pedido y muestra la cita; un pedido ajeno se rechaza sin escribir (GSG-MIA-076)", async () => {
+    const p = await pedir(a1, "Pasame los turnos libres del jueves");
+    const deOtro = await pedir(a2, "Redactá el aviso de feriado");
+    const pB = await duenio.pedidoCuadrilla.create({ data: { tenantId: b.id, agenteId: b1, texto: "Pedido de B", pedidoPor: "test" } });
+    const hilo = `agente:${a1}`;
+    const contar = () => duenio.mensajeCuadrilla.count({ where: { tenantId: a.id, hilo, autorTipo: "AGENTE" } });
+    const antes = await contar();
+    assert.ok(conError(await ejecutarAccion(agenteA, () => panelHablar(fd({ hilo, texto: "Contesto uno ajeno", pedidoId: deOtro.id })))), "pedido de otro agente");
+    assert.ok(conError(await ejecutarAccion(agenteA, () => panelHablar(fd({ hilo, texto: "Contesto uno de B", pedidoId: pB.id })))), "pedido de otro negocio");
+    assert.equal(await contar(), antes, "nada escrito");
+    assert.ok(sinError(await ejecutarAccion(agenteA, () => panelHablar(fd({ hilo, texto: "Jueves libres: 10 y 16 h", pedidoId: p.id })))));
+    const m = await duenio.mensajeCuadrilla.findFirstOrThrow({ where: { tenantId: a.id, hilo, texto: "Jueves libres: 10 y 16 h" } });
+    assert.equal(m.pedidoId, p.id);
+    assert.equal(m.autorTipo, "AGENTE");
+    assert.equal(await duenio.pedidoCuadrilla.count({ where: { texto: "Jueves libres: 10 y 16 h" } }), 0, "el agente no abre pedidos");
+    const { leerHilo } = await import("@/lib/cuadrilla/consola-core");
+    const leido = await tenantTransaction((tx) => leerHilo(tx, a.id, hilo), { tenantId: a.id });
+    assert.equal(leido.find((x) => x.id === m.id)?.pedido?.texto, "Pasame los turnos libres del jueves");
+    // Sin pedido elegido sigue siendo un mensaje general.
+    assert.ok(sinError(await ejecutarAccion(agenteA, () => panelHablar(fd({ hilo, texto: "Mensaje general del agente" })))));
+    assert.equal((await duenio.mensajeCuadrilla.findFirstOrThrow({ where: { tenantId: a.id, texto: "Mensaje general del agente" } })).pedidoId, null);
+  });
 });
