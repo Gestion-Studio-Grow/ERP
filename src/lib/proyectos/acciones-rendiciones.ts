@@ -18,7 +18,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { actorActual, avisar, proyectoVisible, registrarCambio, usuariosDeLaPlata, type Actor } from "./gestion.server";
 import { cierreDeAnticipo, leerMontoArgentino, motivoNoMuevePlata, rendicionDelMotor } from "./rendiciones-core";
 import { COMPROBANTE_DE_RENDICION, MEDIOS, metodoDeCaja, type MedioPago } from "./core";
-import { asentarEnCajaTx, PeriodoCerradoError } from "./periodo-cerrado.server";
+import { asentarEnCajaTx, PeriodoCerradoError, transaccionQueAsienta } from "./periodo-cerrado.server";
 import { marcaDeGastoProyecto } from "./marcas";
 import { transferenciaEnElLibroTx } from "@/lib/caja/transferencia-en-el-libro";
 import type { RolActor } from "@/lib/rendiciones/tipos";
@@ -259,7 +259,7 @@ export async function reintegrarDirecto(formData: FormData): Promise<ResultadoRe
     const ahora = new Date();
     const res = aplicarAccion(rendicionDelMotor(f), "reintegrar", { fecha: ahora.toISOString(), actorId: actorDelMotor({ personaId: a.personaId, userId: user.id }), rolActor: a.rol as RolActor, comentario: "Reintegro directo" });
     if (!res.ok) return { ok: false, error: `${res.motivo}.` };
-    const hecho = await tenantTransaction(async (tx) => {
+    const hecho = await transaccionQueAsienta(async (tx) => {
       // El claim compartido con la liquidación: si una la reclamó (o otro clic la reintegró), acá no pasa nada.
       const r = await tx.proyectoRendicion.updateMany({
         where: { id, tenantId, medio: "PROPIO", estado: "aprobada", liquidacionId: null, reintegradoEl: null },
@@ -301,7 +301,7 @@ export async function entregarAnticipo(formData: FormData): Promise<ResultadoRen
     if (proyectoId && !(await prisma.proyecto.findFirst({ where: { id: proyectoId, tenantId }, select: { id: true } }))) return { ok: false, error: "Ese proyecto no existe." };
     if (await prisma.proyectoAnticipo.findFirst({ where: { id, tenantId }, select: { id: true } })) return { ok: true, repetida: true };
     try {
-      await tenantTransaction(async (tx) => {
+      await transaccionQueAsienta(async (tx) => {
         await tx.proyectoAnticipo.create({ data: { id, tenantId, personaId: p.id, proyectoId, montoCentavos } });
         await asentarTx(tx, tenantId, { type: "EGRESO", medio, centavos: montoCentavos, reason: `Anticipo · ${p.nombre}`, marca: `anticipo-${id}`, proyectoAnticipoId: id });
         await registrarCambio(tx, { tenantId, proyectoId, entidad: "ProyectoAnticipo", entidadId: id, campo: "Anticipo", despues: `${p.nombre} · ${formatearPesos(montoCentavos)} · entregado`, autor: a.nombre });
@@ -334,7 +334,7 @@ export async function cerrarAnticipo(formData: FormData): Promise<ResultadoRendi
     const noMueve = motivoNoMuevePlata(a.rol, { personaId: a.personaId, userId: user.id }, { personaId: an.personaId, userId: an.persona.userId });
     if (noMueve) return { ok: false, error: noMueve };
     if (an.estado === "CERRADO") return { ok: false, error: "Este anticipo ya está cerrado." };
-    const resultado = await tenantTransaction(async (tx) => {
+    const resultado = await transaccionQueAsienta(async (tx) => {
       // Toma el anticipo: mientras tanto nadie rinde contra él ni lo cierra otra vez.
       const r = await tx.proyectoAnticipo.updateMany({ where: { id, tenantId, estado: { not: "CERRADO" } }, data: { estado: "CERRADO" } });
       if (r.count === 0) return { ok: false as const, error: "Este anticipo ya está cerrado." };

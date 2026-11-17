@@ -18,7 +18,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { clientePuedeResponder, fechaCorta, leerNumero, MEDIO_LABEL, pesos, esEtapa, esServicio, etapaAlAprobar, etapaLabel, etapasDe, MEDIOS, metodoDeCaja, precioConMargen, redondear, sePuedeEditar, sumarDias, type MedioPago } from "./core";
 import { bloqueoDeEliminar, computar, costosVigentes, COSTO_LABEL, disenoInicial, normalizarDiseno, TIPOS_STAND, type ClaveCosto, type DisenoStand } from "./stand";
 import { configProyectos, veLaPlata } from "./datos.server";
-import { asentarEnCajaTx, rechazoDePeriodo } from "./periodo-cerrado.server";
+import { asentarEnCajaTx, rechazoDePeriodo, transaccionQueAsienta } from "./periodo-cerrado.server";
 import { cobranzasDelNegocio, tiposDeCambio, trabarCobranza } from "./cobranza.server";
 import { pasaElTope, type Cobranza } from "./cobranza-core";
 import { avisoTopeCobro } from "./avisos-cuota";
@@ -209,7 +209,7 @@ export async function registrarCobro(formData: FormData): Promise<Resultado<{ li
   // El cobro y su asiento en el libro de caja van juntos: o entran los dos o ninguno.
   let pago: { id: string } | { porCobrar: number; cob: Cobranza } | "repetido";
   try {
-    pago = await tenantTransaction(async (tx): Promise<{ id: string } | { porCobrar: number; cob: Cobranza } | "repetido"> => {
+    pago = await transaccionQueAsienta(async (tx): Promise<{ id: string } | { porCobrar: number; cob: Cobranza } | "repetido"> => {
       // Tope: con presupuesto aprobado no entra más de lo que falta cobrar. En fila con «Marcar cobrado» y las cuotas
       // cargadas a mano del mismo proyecto, y contado adentro de la transacción (dos cobros a la vez no pasan los dos).
       await trabarCobranza(tx, tenantId, proyectoId);
@@ -285,7 +285,7 @@ export async function registrarGasto(formData: FormData): Promise<Resultado> {
   const proveedor = txt(formData.get("proveedor")).slice(0, 120);
   let gasto: { id: string };
   try {
-    gasto = await tenantTransaction(async (tx) => {
+    gasto = await transaccionQueAsienta(async (tx) => {
     // El proveedor se escribe como se lo conoce: si ya está, es ése; si no, queda sumado.
     const existente = proveedor
       ? await tx.supplier.findFirst({ where: { tenantId, name: { equals: proveedor, mode: "insensitive" } }, select: { id: true, name: true } })
@@ -343,7 +343,7 @@ export async function pagarGasto(formData: FormData): Promise<Resultado> {
   if (!g || !(await proyectoDelActor(a, g.proyectoId))) return { ok: false, error: "Ese gasto no existe o es de un proyecto que no ves." };
   let pagado: boolean;
   try {
-    pagado = await tenantTransaction(async (tx) => {
+    pagado = await transaccionQueAsienta(async (tx) => {
       // Dos clics, o dos pestañas, no pagan dos veces.
       const r = await tx.proyectoGasto.updateMany({ where: { id, tenantId, pagadoEl: null, anuladoEl: null }, data: { pagadoEl: new Date(), medio, pagadoPor: user.name } });
       if (r.count === 0) return false;

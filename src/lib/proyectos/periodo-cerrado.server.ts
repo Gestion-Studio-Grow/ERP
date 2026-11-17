@@ -21,6 +21,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { lastClosedDayTx } from "@/lib/caja/frontera-cierre";
 import { ACCION_CONGELAR, consultaUltimoEstadoCierre } from "@/lib/cierre-mes/cierre-mes";
 import { dateStrInBusinessTz } from "@/lib/datetime";
+import { tenantTransaction } from "@/lib/rls";
 import { motivoPeriodoCerrado, type QueSeAsienta } from "./periodo-cerrado-core";
 
 /** El rechazo viaja como excepción para deshacer todo lo que la transacción ya escribió. */
@@ -49,6 +50,11 @@ export async function asentarEnCajaTx(tx: Prisma.TransactionClient, que: QueSeAs
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`cierre-dia:${data.tenantId}`}))`;
   await exigirPeriodoAbiertoTx(tx, data.tenantId, que, data.occurredAt instanceof Date ? data.occurredAt : new Date());
   return tx.cashMovement.create({ data, select: { id: true } });
+}
+
+/** La transacción de toda acción de Proyectos que asienta en la caja (el único lugar que fija cómo corre). */
+export function transaccionQueAsienta<T>(fn: Parameters<typeof tenantTransaction<T>>[0]): Promise<T> {
+  return tenantTransaction(fn);
 }
 
 /** Corre la transacción y devuelve el rechazo del candado como valor (para `if (r instanceof PeriodoCerradoError)`). */

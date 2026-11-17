@@ -25,7 +25,7 @@ import { faltaDelPago, SALDADA_CON_PARTES } from "./pago-parcial-core";
 import { cambioDeVenta, aPesos, CHECKLIST_BASE, ESTADOS_ITEM, MONEDAS, RUBROS, TIPOS_EVENTO, veTodosLosProyectos } from "./gestion-core";
 import { avisar, columnasOcultas, exigirEditar, usuariosDelEquipo, usuariosDeDireccion, usuariosDeLaPlata, proyectoVisible, puede, regenerarCuotas, registrarCambio, tiposDeCambio, type Actor } from "./gestion.server";
 import { tipoDeArchivoSubido, clavesARenombrar, fechaAntesDe, fotoDeVersion, itemDeClave, linkSeguro, monedasSinCambio, numeroDe, PERDIDO, precioAlCambiarCambio, precioAlCopiar, precioAlEnviar, servicioDeTipo } from "./ficha-core";
-import { asentarEnCajaTx, oPeriodoCerrado, PeriodoCerradoError } from "./periodo-cerrado.server";
+import { asentarEnCajaTx, oPeriodoCerrado, PeriodoCerradoError, transaccionQueAsienta } from "./periodo-cerrado.server";
 import { marcaDeGastoProyecto } from "./marcas";
 import { GASTO_EN_RENDICION, SIN_COMPROBANTES, faltaLaMigracion } from "./rendiciones-core";
 import { archivoAdmitido, claveDeArchivo, claveEsDelProyecto, MINUTOS_SUBIDA, urlFirmada } from "./r2-core";
@@ -854,7 +854,7 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
   const cuenta = await cuentaParaCuota(tenantId, formData, { tipo: c.tipo, monto: cobra, moneda: c.moneda, importeEnPesos: importe });
   if (typeof cuenta === "string") return mal(cuenta);
   let faltaAhora = pendiente;
-  const ganada = await oPeriodoCerrado(() => tenantTransaction(async (tx): Promise<boolean | "cambio" | "tope" | "repetido"> => {
+  const ganada = await oPeriodoCerrado(() => transaccionQueAsienta(async (tx): Promise<boolean | "cambio" | "tope" | "repetido"> => {
     // En fila con los otros cobros y pagos del proyecto (y sus anulaciones), y el pendiente leído de nuevo ADENTRO: si
     // entró o se anuló algo mientras tanto, se asentaría otro importe. Si cambió, no se graba nada (la cuenta y el importe
     // salieron del de afuera).
@@ -1041,7 +1041,7 @@ export async function anularCobroFicha(formData: FormData): Promise<ResultadoFic
   if (!pago) return mal("Ese cobro no existe.");
   const a = await entrar("pagos", pago.proyectoId);
   if (typeof a === "string") return mal(a);
-  const anulo = await oPeriodoCerrado(() => tenantTransaction(async (tx) => {
+  const anulo = await oPeriodoCerrado(() => transaccionQueAsienta(async (tx) => {
     // En fila con «Marcar cobrado» y los cobros del proyecto: anular reabre la cuota y cambia lo que falta cobrar.
     await trabarCobranza(tx, tenantId, pago.proyectoId);
     const r = await tx.proyectoPago.updateMany({ where: { id, tenantId, anuladoEl: null }, data: { anuladoEl: new Date(), anuladoPor: a.nombre } });
@@ -1089,7 +1089,7 @@ export async function anularGastoFicha(formData: FormData): Promise<ResultadoFic
   const a = await entrar("pagos", g.proyectoId);
   if (typeof a === "string") return mal(a);
   if (await gastoEnRendicionViva(tenantId, id)) return mal(GASTO_EN_RENDICION);
-  const anulo = await oPeriodoCerrado(() => tenantTransaction(async (tx) => {
+  const anulo = await oPeriodoCerrado(() => transaccionQueAsienta(async (tx) => {
     // En fila con «Marcar pagado» (también una parte): anular reabre la cuota y cambia lo que le falta.
     await trabarCobranza(tx, tenantId, g.proyectoId);
     const r = await tx.proyectoGasto.updateMany({ where: { id, tenantId, anuladoEl: null }, data: { anuladoEl: new Date(), anuladoPor: a.nombre } });

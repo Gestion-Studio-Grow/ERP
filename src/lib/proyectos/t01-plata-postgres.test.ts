@@ -311,40 +311,131 @@ test("C-O40 · con el día de caja cerrado ninguna acción de Proyectos asienta;
   assert.equal(await duenio.cashMovement.count({ where: { tenantId: a.id, OR: [{ proyectoGastoId: gastoRendido.id }, { proyectoAnticipoId: anticipo.id }] } }), 2, "un egreso de $ 60 y un ingreso de $ 100");
 });
 
-test("C-O40 · carrera: un cobro que arranca antes de que confirme el cierre del día espera su candado y se rechaza; 0 filas", async (t) => {
+/**
+ * Carrera con el cierre (O40, cert. MIA-064 fila 1): un tercero (`h`) toma el candado `cierre-dia:<negocio>` y las dos
+ * transacciones reales (la acción de Proyectos y el cierre) arrancan, sacan su foto y quedan en fila detrás de él, en el
+ * orden que fija el test. Postgres despierta a las que esperan un candado en el orden en que llegaron, así que al soltar
+ * `h` la primera de la fila corre y confirma, y la segunda corre después con la foto que sacó ANTES de esperar.
+ */
+async function filaDelCandado(p: P, t: import("node:test").TestContext) {
+  const abrir = async () => {
+    const c = new pg.Client({ connectionString: p.base.urlDuenio });
+    await c.connect();
+    t.after(() => c.end().catch(() => {}));
+    return c;
+  };
+  const h = await abrir();
+  const espia = await abrir();
+  await h.query("BEGIN");
+  await h.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`cierre-dia:${p.a.id}`]);
+  const esperando = async () =>
+    (await espia.query(`SELECT count(*)::int AS n FROM pg_locks WHERE locktype = 'advisory' AND NOT granted AND database = (SELECT oid FROM pg_database WHERE datname = current_database())`)).rows[0].n as number;
+  /** Arranca `fn` y vuelve cuando ya está esperando el candado (en la fila hay `enLaFila` transacciones). */
+  const ponerEnLaFila = async <R>(enLaFila: number, que: string, fn: () => Promise<R>): Promise<{ corrida: Promise<R> }> => {
+    let termino = false;
+    const corrida = fn().finally(() => (termino = true));
+    corrida.catch(() => {});
+    for (let i = 0; i < 400 && !termino; i++) {
+      // En un objeto: una función async que devuelve una promesa la espera, y ésta espera al candado de `h`.
+      if ((await esperando()) >= enLaFila) return { corrida };
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    await h.query("ROLLBACK");
+    assert.fail(`${que} no quedó esperando el candado del negocio (terminó: ${termino}): ${JSON.stringify(termino ? await corrida.catch((e) => String(e)) : null)}`);
+  };
+  return { ponerEnLaFila, soltar: () => h.query("COMMIT") };
+}
+
+/** El libro de A vacío y la caja abierta: el cierre del día cuenta sólo lo que asienta la carrera. */
+async function cajaVacia(p: P) {
+  await p.reabrirTodo();
+  await p.duenio.cashMovement.deleteMany({ where: { tenantId: p.a.id } });
+  await p.duenio.cashSession.updateMany({ where: { tenantId: p.a.id, status: "OPEN" }, data: { status: "CLOSED", closedAt: new Date(AHORA) } });
+}
+
+const cierreDelDia = (p: P, dia = HOY) =>
+  p.duenio.auditLog.findFirst({ where: { tenantId: p.a.id, action: "caja.cierre-diario", entity: "CierreDiario", entityId: dia }, select: { changes: true } });
+
+test("C-O40 · carrera, asiento primero: el cobro toma el candado, el cierre del día real espera y lo cuenta (1 movimiento, $ 300 de efectivo esperado)", async (t) => {
   const p = await preparar(t);
   if (!p) return;
+  await cajaVacia(p);
   const id = await p.proyecto();
-  const antes = await p.caja();
-  // El «cierre» corre por una conexión propia, como `cerrarDia` (cierre-diario-actions.ts:790): toma el MISMO candado
-  // `pg_advisory_xact_lock(hashtext('cierre-dia:<negocio>'))` y escribe el cierre, sin confirmar todavía.
-  const cierre = new pg.Client({ connectionString: p.base.urlDuenio });
-  await cierre.connect();
-  t.after(() => cierre.end().catch(() => {}));
-  await cierre.query("BEGIN");
-  await cierre.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`cierre-dia:${p.a.id}`]);
-  await cierre.query(`INSERT INTO "AuditLog" (id, "tenantId", actor, action, entity, "entityId") VALUES ($1, $2, 'test', 'caja.cierre-diario', 'CierreDiario', $3)`, [`carrera-${Date.now()}-${Math.random()}`, p.a.id, HOY]);
-  // El cobro arranca mientras el cierre está abierto.
-  let termino = false;
-  const cobro = p.enSesion(() => p.acciones.registrarCobro(p.form({ proyectoId: id, medio: "EFECTIVO", monto: "300" }))).finally(() => (termino = true));
-  // Tiene que quedar esperando ese candado (sin él, leería «abierto» y confirmaría antes que el cierre).
-  const espia = new pg.Client({ connectionString: p.base.urlDuenio });
-  await espia.connect();
-  t.after(() => espia.end().catch(() => {}));
-  let espera = false;
-  for (let i = 0; i < 200 && !espera && !termino; i++) {
-    const { rows } = await espia.query(`SELECT count(*)::int AS n FROM pg_locks WHERE locktype = 'advisory' AND NOT granted AND database = (SELECT oid FROM pg_database WHERE datname = current_database())`);
-    espera = rows[0].n > 0;
-    if (!espera) await new Promise((r) => setTimeout(r, 25));
-  }
-  if (!espera) await cierre.query("ROLLBACK");
-  assert.ok(espera, `el cobro no esperó el candado del cierre (terminó: ${termino}): ${JSON.stringify(termino ? await cobro : null)}`);
-  await cierre.query("COMMIT");
+  const { cerrarDia } = await import("@/lib/cierre-diario-actions");
+  const fila = await filaDelCandado(p, t);
+  const { corrida: cobro } = await fila.ponerEnLaFila(1, "el cobro", () => p.enSesion(() => p.acciones.registrarCobro(p.form({ proyectoId: id, medio: "EFECTIVO", monto: "300" }))));
+  const { corrida: cierre } = await fila.ponerEnLaFila(2, "el cierre del día", () => p.enSesion(() => cerrarDia(p.form({ day: HOY, declarado_EFECTIVO: "300", note: "Carrera T01" }))));
+  await fila.soltar();
+  assert.deepEqual(await cobro, { ok: true }, "el cobro llegó primero: asienta");
+  const r = await cierre;
+  assert.equal(r?.ok, true, JSON.stringify(r));
+  const c = (await cierreDelDia(p))?.changes as { movimientos: number; porMedio: { EFECTIVO: { esperado: number; declarado: number; diferencia: number } } } | undefined;
+  // A mano: el día tiene un solo movimiento, la VENTA de $ 300 en efectivo; se contaron $ 300 → esperado 300, diferencia 0.
+  assert.equal(c?.movimientos, 1, `el cierre cuenta el cobro que confirmó mientras esperaba: ${JSON.stringify(c)}`);
+  assert.deepEqual(c?.porMedio.EFECTIVO, { esperado: 300, declarado: 300, diferencia: 0 });
+  const filas = await p.duenio.cashMovement.findMany({ where: { tenantId: p.a.id }, select: { type: true, method: true, amount: true } });
+  assert.deepEqual(filas, [{ type: "VENTA", method: "EFECTIVO", amount: 300 }], "el libro: la venta de $ 300 y ningún ajuste (lo contado cuadra)");
+});
+
+test("C-O40 · carrera, cierre primero: el cierre del día real confirma y el cobro que esperaba su candado se rechaza; 0 filas", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  await cajaVacia(p);
+  const id = await p.proyecto();
+  const { cerrarDia } = await import("@/lib/cierre-diario-actions");
+  const fila = await filaDelCandado(p, t);
+  const { corrida: cierre } = await fila.ponerEnLaFila(1, "el cierre del día", () => p.enSesion(() => cerrarDia(p.form({ day: HOY, declarado_EFECTIVO: "0" }))));
+  const { corrida: cobro } = await fila.ponerEnLaFila(2, "el cobro", () => p.enSesion(() => p.acciones.registrarCobro(p.form({ proyectoId: id, medio: "EFECTIVO", monto: "300" }))));
+  await fila.soltar();
+  const rc = await cierre;
+  assert.equal(rc?.ok, true, JSON.stringify(rc));
   const r = await cobro;
   assert.equal(r.ok, false, JSON.stringify(r));
   assert.match(String((r as { error?: string }).error), /17\/11\/2026 ya está cerrada.*Cierre del día/, "el rechazo dice qué hacer");
-  assert.deepEqual(await p.caja(), antes, "0 filas en el libro");
+  assert.equal(await p.duenio.cashMovement.count({ where: { tenantId: p.a.id } }), 0, "0 filas en el libro");
   assert.equal(await p.duenio.proyectoPago.count({ where: { proyectoId: id } }), 0, "0 cobros");
+  assert.equal(((await cierreDelDia(p))?.changes as { movimientos?: number } | undefined)?.movimientos, 0, "el cierre no contó nada: el cobro no estaba");
+});
+
+/** Octubre de 2026: ya terminó, así que se puede congelar (el 17/11). Su último día de caja es el 31/10. */
+const OCTUBRE = "2026-10";
+const EL_31_10 = new Date("2026-10-31T20:00:00Z"); // 17:00 en Buenos Aires
+
+test("C-O40 · carrera, asiento primero: un asiento del 31/10 toma el candado y congelar octubre (real) espera; no congela un mes con plata sin cerrar", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  await cajaVacia(p);
+  const { congelarMesAction } = await import("@/lib/cierre-mes/acciones");
+  const { asentarEnCajaTx, transaccionQueAsienta } = await import("./periodo-cerrado.server");
+  const fila = await filaDelCandado(p, t);
+  const { corrida: asiento } = await fila.ponerEnLaFila(1, "el asiento", () => p.enSesion(() => transaccionQueAsienta((tx) => asentarEnCajaTx(tx, "cobro", { tenantId: p.a.id, type: "VENTA", method: "EFECTIVO", amount: 300, reason: "Carrera T01 · octubre", occurredAt: EL_31_10, createdBy: "test" }))));
+  const { corrida: congelar } = await fila.ponerEnLaFila(2, "congelar el mes", () => p.enSesion(() => congelarMesAction(null, p.form({ mes: OCTUBRE, confirmo: "1" }))));
+  await fila.soltar();
+  await asiento;
+  assert.equal(await p.duenio.cashMovement.count({ where: { tenantId: p.a.id, occurredAt: EL_31_10 } }), 1, "el asiento llegó primero: entra");
+  const r = await congelar;
+  assert.equal(r?.ok, false, `congelar ve el movimiento que confirmó mientras esperaba: ${JSON.stringify(r)}`);
+  assert.match(String((r as { error?: string }).error), /Entró un movimiento de caja en un día sin cerrar/);
+  assert.equal(await p.duenio.auditLog.count({ where: { tenantId: p.a.id, entity: "CierreMes", entityId: OCTUBRE } }), 0, "octubre no quedó congelado");
+  assert.equal(await p.duenio.auditLog.count({ where: { tenantId: p.a.id, entity: "CierreDiario" } }), 0, "ni cerrado el 31/10 como «sin movimientos»");
+});
+
+test("C-O40 · carrera, congelar primero: congelar octubre (real) confirma y el asiento del 31/10 que esperaba su candado se rechaza; 0 filas", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  await cajaVacia(p);
+  const { congelarMesAction } = await import("@/lib/cierre-mes/acciones");
+  const { asentarEnCajaTx, transaccionQueAsienta, rechazoDePeriodo } = await import("./periodo-cerrado.server");
+  const fila = await filaDelCandado(p, t);
+  const { corrida: congelar } = await fila.ponerEnLaFila(1, "congelar el mes", () => p.enSesion(() => congelarMesAction(null, p.form({ mes: OCTUBRE, confirmo: "1" }))));
+  const { corrida: asiento } = await fila.ponerEnLaFila(2, "el asiento", () =>
+    p.enSesion(() => transaccionQueAsienta((tx) => asentarEnCajaTx(tx, "cobro", { tenantId: p.a.id, type: "VENTA", method: "EFECTIVO", amount: 300, reason: "Carrera T01 · octubre", occurredAt: EL_31_10, createdBy: "test" })).then(() => null, (e: unknown) => rechazoDePeriodo(e) ?? `otro error: ${String(e)}`)),
+  );
+  await fila.soltar();
+  const rc = await congelar;
+  assert.equal(rc?.ok, true, JSON.stringify(rc));
+  assert.match(String(await asiento), /octubre de 2026 está congelado.*Cierre del mes/, "el asiento se rechaza y dice qué hacer");
+  assert.equal(await p.duenio.cashMovement.count({ where: { tenantId: p.a.id } }), 0, "0 filas en el libro");
 });
 
 test("Dos negocios · cada acción de T01 con ids del otro negocio se rechaza y no mueve su plata; tampoco la ve", async (t) => {

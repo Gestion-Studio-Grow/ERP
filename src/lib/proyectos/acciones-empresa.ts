@@ -16,7 +16,7 @@ import { leerNumero, MEDIOS, metodoDeCaja, redondear, type MedioPago } from "./c
 import { aPesos, extrasDelPeriodo, leerExtracto, MONEDAS } from "./gestion-core";
 import { actorActual, avisar, exigirEditar, puede, regenerarCuotasDe, registrarCambio, tiposDeCambio } from "./gestion.server";
 import { marcaDeGastoProyecto } from "./marcas";
-import { asentarEnCajaTx, oPeriodoCerrado, PeriodoCerradoError } from "./periodo-cerrado.server";
+import { asentarEnCajaTx, oPeriodoCerrado, PeriodoCerradoError, transaccionQueAsienta } from "./periodo-cerrado.server";
 import { actorDelMotor, faltaLaMigracion, rendicionDelMotor, SIN_MIGRACION } from "./rendiciones-core";
 import { puedeReintegrarRendicion } from "./gestion-core";
 import { aplicarAccion } from "@/lib/rendiciones/rendicion";
@@ -92,7 +92,7 @@ export async function marcarCuotaEmpresa(formData: FormData): Promise<Resultado<
   if (!(amount > 0)) return { ok: false, error: "Falta el tipo de cambio: cargalo en Monedas y gastos fijos." };
   const cuenta = await cuentaParaCuota(a.tenantId, formData, { tipo: c.tipo, monto: c.monto, moneda: c.moneda, importeEnPesos: amount });
   if (typeof cuenta === "string") return { ok: false, error: cuenta };
-  const hecho = await oPeriodoCerrado(() => tenantTransaction(async (tx) => {
+  const hecho = await oPeriodoCerrado(() => transaccionQueAsienta(async (tx) => {
     const r = await tx.proyectoCuota.updateMany({ where: { id, tenantId: a.tenantId, proyectoId: null, pagadoEl: null, anuladoEl: null }, data: { pagadoEl: new Date(), pagadoPor: a.nombre, medio } });
     if (r.count === 0) return false;
     if (cuenta) {
@@ -132,7 +132,7 @@ export async function anularCuotaEmpresa(formData: FormData): Promise<Resultado<
   // pendiente no la anula por error. La pantalla de Cuentas lo va a mandar con la parte visual de A-05, que va en la
   // tanda T05 (no en T03); sin él, como antes.
   const visto = txt(formData.get("visto"));
-  const hecho = await oPeriodoCerrado(() => tenantTransaction(async (tx): Promise<"pago" | "cuota" | false> => {
+  const hecho = await oPeriodoCerrado(() => transaccionQueAsienta(async (tx): Promise<"pago" | "cuota" | false> => {
     const c = await tx.proyectoCuota.findFirst({ where: { id, tenantId: a.tenantId, proyectoId: null, anuladoEl: null }, select: { concepto: true, tipo: true, monto: true, moneda: true, pagadoEl: true, cuentaId: true, cuentaMovido: true } });
     if (!c) return false;
     if (!c.pagadoEl && visto === "PAGADA") return false;
@@ -449,7 +449,7 @@ export async function pagarLiquidacion(formData: FormData): Promise<Resultado> {
     if (l.estado === "PAGADA") return { ok: false, error: "Esta liquidación ya está pagada." };
     if (l.estado !== "PUBLICADA") return { ok: false, error: "Primero publicala: se paga lo que la persona ya vio." };
     const ahora = new Date();
-    const hecho = await tenantTransaction(async (tx) => {
+    const hecho = await transaccionQueAsienta(async (tx) => {
       // El claim: dos clics o dos pestañas pagan una sola vez.
       const r = await tx.proyectoLiquidacion.updateMany({ where: { id, tenantId: a.tenantId, estado: "PUBLICADA" }, data: { estado: "PAGADA", pagadaEl: ahora, pagadaPor: a.nombre } });
       if (r.count === 0) return false;
