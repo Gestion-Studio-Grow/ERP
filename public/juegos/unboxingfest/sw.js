@@ -1,7 +1,7 @@
 // Unboxing Fest: deja los juegos y Three.js guardados para jugar sin señal (el 4G colapsa en los festivales).
-const V = 'unboxingfest-v1';
+const V = 'unboxingfest-v2';
 const BASE = new URL('./', self.location).pathname;
-const LOCAL = ['', 'index.html', 'farmaonline-abrilo-vos.html', 'farmaonline-ruta-del-pedido.html', 'farmaonline-cuidado-en-el-festi.html'].map(f => BASE + f);
+const LOCAL = ['', 'index.html', 'farmaonline-abrilo-vos.html', 'farmaonline-ruta-del-pedido.html', 'farmaonline-cuidado-en-el-festi.html', 'activar.html'].map(f => BASE + f);
 const REMOTE = ['https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js', 'https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&display=swap'];
 self.addEventListener('install', e => e.waitUntil(caches.open(V).then(c => Promise.all([...LOCAL, ...REMOTE].map(u => c.add(u).catch(() => null)))).then(() => self.skipWaiting())));
 self.addEventListener('activate', e => e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== V).map(k => caches.delete(k)))).then(() => self.clients.claim())));

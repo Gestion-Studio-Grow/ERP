@@ -12,7 +12,7 @@
 
 **5. Premios y stock.** [a confirmar: productos y cantidad de unidades de cada uno]. Se entregan por orden de llegada al canje. Agotado el stock físico, el premio es un cupón de descuento digital para la tienda online de Farmaonline [a confirmar: porcentaje o monto, tope, vencimiento (mínimo 30 días), compra mínima, si se acumula]. No se cambian por dinero ni por otros productos. Ningún premio es un medicamento.
 
-**6. Cómo se retira.** Al completar el formulario, la pantalla muestra un código personal, de un solo uso, canjeable sólo en forma presencial en el stand hasta su cierre y sujeto a stock (si el premio físico se agotó, se entrega un cupón online [a confirmar]). Para entregarlo, el personal del stand valida el código contra el registro central, pide el nombre con el que se registró y marca la mano de quien retira con un sello del stand. Quien quiera puede además enviar su código desde su propio WhatsApp al número oficial de Farmaonline [a confirmar]: el sistema lo verifica en forma automática y suma un cupón online extra [a confirmar]. Es opcional y no condiciona el premio. Si no se retiró, el premio físico caduca y se envía el cupón digital al email registrado [a confirmar].
+**6. Cómo se retira.** Al completar el formulario, la pantalla muestra un código personal, de un solo uso. El premio de ese código se activa sólo en el stand: escaneando con el celular el código QR de la pantalla del stand (cambia cada minuto), con una tarjeta de un solo uso entregada por el organizador [a confirmar] o por el personal en el mostrador. Se canjea sólo en forma presencial en el stand hasta su cierre y está sujeto a stock (si el premio físico se agotó, se entrega un cupón online [a confirmar]). Para entregarlo, el personal valida el código contra el registro central, pide el nombre con el que se registró y marca la mano de quien retira con un sello del stand. Jugar fuera del stand no da premios ni beneficios canjeables online. Si no se retiró, el premio físico caduca y se envía el cupón digital al email registrado [a confirmar].
 
 **7. Límite.** Un premio por persona, por email y por número de WhatsApp, aunque juegue varias veces o en varios dispositivos.
 
@@ -30,7 +30,7 @@
 
 **Encargados** (por cuenta del responsable, sólo para esta activación, con contrato según el art. 25, Ley 25.326): MIA Producciones (producción y canje) y Gestión Studio Grow (tecnología). Subencargado: Google, que aloja la planilla.
 
-**Datos:** nombre, email, WhatsApp (opcional), fecha, dispositivo y código. Ni DNI ni datos de salud.
+**Datos:** nombre, email, WhatsApp (opcional), fecha, dispositivo y código. Ni DNI ni datos de salud. Si escribís al WhatsApp del juego para recibir el link, tu número y tu mensaje quedan en el teléfono de WhatsApp Business que opera MIA Producciones para Farmaonline [a confirmar: rol de MIA como encargada del tratamiento], sólo para el juego, y se eliminan [a confirmar: plazo] después del evento.
 
 **Finalidades, separadas:**
 1. *Premio* (necesaria): validar el código, entregar premio o cupón, evitar duplicados y atender reclamos.

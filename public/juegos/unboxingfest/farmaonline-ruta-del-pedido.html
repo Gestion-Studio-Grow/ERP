@@ -22,7 +22,7 @@ button{font:inherit;cursor:pointer;border:0}
 .k-chip small{font-weight:600;opacity:.7;font-size:.72em;letter-spacing:.06em;text-transform:uppercase}
 .k-icon{width:44px;height:44px;border-radius:50%;background:var(--card);box-shadow:var(--shadow);display:grid;place-items:center;color:var(--ink)}
 .k-icon svg{width:20px;height:20px}
-.k-screen{position:fixed;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;padding:max(16px,env(safe-area-inset-top)) 16px max(16px,env(safe-area-inset-bottom));overflow:auto;touch-action:pan-y}
+.k-screen{position:fixed;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;padding:max(16px,env(safe-area-inset-top)) 16px max(26px,env(safe-area-inset-bottom));overflow:auto;touch-action:pan-y}
 .k-veil{background:var(--veil)}
 .k-panel{background:var(--card);border-radius:28px;box-shadow:var(--shadow-lg);padding:clamp(20px,4vh,40px) clamp(20px,4vw,44px);width:min(560px,100%);max-height:100%;overflow:auto;text-align:center}
 .k-kicker{font-size:13px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:var(--brand)}
@@ -107,7 +107,7 @@ window.CONFIG = Object.assign({
   colors: { ink: '#1D1D1B', night: '#11181A', magenta: '#C23776', violet: '#A476C2', orange: '#E1934E', red: '#E0475B', blue: '#55A8D4', teal: '#42BFBA', bone: '#F4F1EC' },
   fontCanvas: 'Montserrat, Arial, sans-serif',
   bgDim: .3,
-  pin: '2468', // provisional a confirmar: se cambia antes del evento
+  pin: '2468', // sólo para la demo sin planilla; con planilla, la clave del equipo vive en la planilla (STAFF_KEY) y no en la página
   codePrefix: 'FO', codeSalt: 'popfest-2026', // la sal se cambia antes del evento
   // Planilla de leads: URL del Apps Script publicado (vacía = sólo se guarda en el equipo y se exporta CSV)
   endpoint: '', endpointToken: '',
@@ -115,7 +115,8 @@ window.CONFIG = Object.assign({
   waMarca: '', // número de WhatsApp de la marca, formato 54911…; vacío = no se muestra el botón (a confirmar)
   // Ventana de juego (hora de Buenos Aires). Antes de «abre»: cuenta regresiva. Después de «cierra»: gracias.
   // Provisional a confirmar: abre 6 h antes del evento, cierra al cierre del stand.
-  ventana: { abre: '2026-12-05T10:00:00-03:00', cierra: '2026-12-06T02:00:00-03:00', evento: 'POP FEST 101.5 · sábado 5 de diciembre · Parque Norte', stand: 'Stand de Farmaonline' },
+  ventana: { abre: '2026-12-05T14:00:00-03:00', // provisional a confirmar: 2 h antes del evento (orden del dueño, 17/11)
+    cierra: '2026-12-06T02:00:00-03:00', evento: 'POP FEST 101.5 · sábado 5 de diciembre · Parque Norte', stand: 'Stand de Farmaonline' },
   tycVersion: 'TyC-POPFEST-2026-v1-borrador',
   lead: {
     kicker: 'Tu premio te espera', title: 'Dejanos tus datos y <em>retiralo en el stand</em>', cta: 'Quiero mi premio',
@@ -138,6 +139,7 @@ window.CONFIG = Object.assign({
     text: 'Mostrá este código en el mostrador del stand de Farmaonline y retirá tu premio (sujeto a stock; si se agotó, te damos un cupón online).',
     cupon: 'Tu premio es un cupón de descuento para tu próxima compra en Farmaonline (beneficio a confirmar). Guardá este código:',
     menor: 'Mostrá este código en el stand y retirá tu premio. No te pedimos ningún dato.',
+    activarStand: '<b>Último paso, en el stand:</b> escaneá con la cámara de tu celular el QR de la pantalla de Farmaonline. Así se activa tu premio. Si ya estás jugando en casa, hacelo cuando llegues.',
     foot: 'Premio seguro sujeto a stock; agotado, se entrega un cupón online. Sin sorteo ni compra obligatoria.',
   },
   legal: `<p><b>Borrador: requiere revisión de un abogado matriculado y la confirmación de Farmaonline antes de publicarse.</b></p><h3>Términos y condiciones</h3><p><b>1. Organizador.</b> [a confirmar: razón social de Farmaonline], CUIT [a confirmar], domicilio [a confirmar] («Farmaonline»). Producción: MIA Producciones [a confirmar: razón social y CUIT]. Tecnología: Gestión Studio Grow. Consultas: [a confirmar: email o WhatsApp].</p>
@@ -145,14 +147,14 @@ window.CONFIG = Object.assign({
 <p><b>3. Quiénes participan.</b> Cualquier asistente puede jugar. Para dejar datos y recibir el premio hay que ser mayor de 18 años. Los menores juegan sin dejar datos; si están con su madre, padre o tutor, el adulto puede registrarse a su nombre y retirar el premio. No participa el personal afectado a la activación.</p>
 <p><b>4. Mecánica.</b> Se juega en la tablet del stand, en las de los promotores o en el celular propio vía código QR. El puntaje no influye en el premio: todo el que termina un juego y completa el formulario aceptando estos términos recibe un premio, sujeto a stock. No hay sorteo ni azar, y no hace falta comprar nada.</p>
 <p><b>5. Premios y stock.</b> [a confirmar: productos y cantidad de unidades de cada uno]. Se entregan por orden de llegada al canje. Agotado el stock físico, el premio es un cupón de descuento digital para la tienda online de Farmaonline [a confirmar: porcentaje o monto, tope, vencimiento (mínimo 30 días), compra mínima, si se acumula]. No se cambian por dinero ni por otros productos. Ningún premio es un medicamento.</p>
-<p><b>6. Cómo se retira.</b> Al completar el formulario, la pantalla muestra un código personal, de un solo uso, canjeable sólo en forma presencial en el stand hasta su cierre y sujeto a stock (si el premio físico se agotó, se entrega un cupón online [a confirmar]). Para entregarlo, el personal del stand valida el código contra el registro central, pide el nombre con el que se registró y marca la mano de quien retira con un sello del stand. Quien quiera puede además enviar su código desde su propio WhatsApp al número oficial de Farmaonline [a confirmar]: el sistema lo verifica en forma automática y suma un cupón online extra [a confirmar]. Es opcional y no condiciona el premio. Si no se retiró, el premio físico caduca y se envía el cupón digital al email registrado [a confirmar].</p>
+<p><b>6. Cómo se retira.</b> Al completar el formulario, la pantalla muestra un código personal, de un solo uso. El premio de ese código se activa sólo en el stand: escaneando con el celular el código QR de la pantalla del stand (cambia cada minuto), con una tarjeta de un solo uso entregada por el organizador [a confirmar] o por el personal en el mostrador. Se canjea sólo en forma presencial en el stand hasta su cierre y está sujeto a stock (si el premio físico se agotó, se entrega un cupón online [a confirmar]). Para entregarlo, el personal valida el código contra el registro central, pide el nombre con el que se registró y marca la mano de quien retira con un sello del stand. Jugar fuera del stand no da premios ni beneficios canjeables online. Si no se retiró, el premio físico caduca y se envía el cupón digital al email registrado [a confirmar].</p>
 <p><b>7. Límite.</b> Un premio por persona, por email y por número de WhatsApp, aunque juegue varias veces o en varios dispositivos. Se puede volver a jugar todas las veces que se quiera, pero sólo la primera participación registrada da premio; las siguientes son sin premio. Si una misma persona obtiene más de un código, vale sólo el primero. Quien ya tiene el sello del stand no puede retirar otro premio.</p>
 <p><b>8. Descalificación.</b> Se anula el código ante datos falsos o de terceros, registros múltiples, programas automáticos o manipulación del juego, falsedad sobre la edad o conductas que afecten la seguridad del stand.</p>
 <p><b>9. Responsabilidad.</b> Farmaonline responde por la entrega del premio; no por fallas de conectividad o del celular del participante ajenas a su control. Nada de esto limita los derechos que la Ley 24.240 de Defensa del Consumidor reconoce al participante.</p>
 <p><b>10. Modificaciones.</b> Por causas ajenas (clima, organización del festival, fuerza mayor) pueden cambiar aspectos operativos, sin afectar premios ya asignados; se informa en el stand y en [a confirmar: link].</p>
 <p><b>11. Aceptación y jurisdicción.</b> Participar implica aceptar estos términos, disponibles en el stand y en [a confirmar: link]. Rige la ley argentina. Ante un conflicto, tribunales ordinarios de la Ciudad Autónoma de Buenos Aires, sin perjuicio de la jurisdicción que la Ley 24.240 permita elegir al consumidor.</p><h3>Política de privacidad</h3><p><b>Responsable:</b> [razón social de Farmaonline], CUIT y domicilio [a confirmar], contacto de privacidad [a confirmar].</p>
 <p><b>Encargados</b> (por cuenta del responsable, sólo para esta activación, con contrato según el art. 25, Ley 25.326): MIA Producciones (producción y canje) y Gestión Studio Grow (tecnología). Subencargado: Google, que aloja la planilla.</p>
-<p><b>Datos:</b> nombre, email, WhatsApp (opcional), fecha, dispositivo y código. Ni DNI ni datos de salud.</p>
+<p><b>Datos:</b> nombre, email, WhatsApp (opcional), fecha, dispositivo y código. Ni DNI ni datos de salud. Si escribís al WhatsApp del juego para recibir el link, tu número y tu mensaje quedan en el teléfono de WhatsApp Business que opera MIA Producciones para Farmaonline [a confirmar: rol de MIA como encargada del tratamiento], sólo para el juego, y se eliminan [a confirmar: plazo] después del evento.</p>
 <p><b>Finalidades, separadas:</b> 1. <i>Premio</i> (necesaria): validar el código, entregar premio o cupón, evitar duplicados y atender reclamos. 2. <i>Novedades por email</i> (opcional, casilla 2). 3. <i>Novedades por WhatsApp</i> (opcional, casilla 3).</p>
 <p>No marcar 2 o 3 no afecta el premio.</p>
 <p><b>Base:</b> tu consentimiento libre, expreso e informado (arts. 5 y 6, Ley 25.326), revocable en cualquier momento.</p>
@@ -323,6 +325,7 @@ window.QR = (() => {
     <div class="k-panel">
       <div class="k-kicker">¡Listo!</div>
       <h2 class="k-h1" style="font-size:clamp(26px,4.4vh,40px)" id="k-tname"></h2>
+      <p class="k-p" id="k-stand" role="status" hidden style="border:2px dashed var(--accent);border-radius:14px;padding:10px 14px;margin:2px 0 8px"></p>
       <p class="k-p" id="k-tprize">${C.thanks.text}</p>
       <div class="k-code" id="k-code"></div>
       <div id="k-act" hidden style="margin:4px 0 8px">
@@ -425,8 +428,8 @@ window.QR = (() => {
     },
     ALF: 'ABCDEFGHJKMNPQRSTUVWXYZ23456789',
     chk(s) { let h = 7; for (const ch of s + (C.codeSalt || '')) h = (h * 31 + ch.charCodeAt(0)) % 1000003; return K.ALF[h % K.ALF.length]; },
-    code() { const a = K.ALF; let s = ''; const r = new Uint32Array(4); try { crypto.getRandomValues(r); } catch (e) { r.forEach((_, i) => r[i] = Math.random() * 1e9); } r.forEach(x => s += a[x % a.length]); return (DEMO_PUB ? 'DEMO' : C.codePrefix) + '-' + s + K.chk(s); },
-    validCode(c) { const m = /^([A-Z]{2})-?([A-Z2-9]{4})([A-Z2-9])$/.exec(String(c).toUpperCase().replace(/\s/g, '')); return !!m && m[1] === C.codePrefix && K.chk(m[2]) === m[3]; },
+    code() { const a = K.ALF; let s = ''; const r = new Uint32Array(6); try { crypto.getRandomValues(r); } catch (e) { r.forEach((_, i) => r[i] = Math.random() * 1e9); } r.forEach(x => s += a[x % a.length]); return (DEMO_PUB ? 'DEMO' : C.codePrefix) + '-' + s + K.chk(s); },
+    validCode(c) { const m = /^([A-Z]{2})-?([A-Z2-9]{6})([A-Z2-9])$/.exec(String(c).toUpperCase().replace(/\s/g, '')); return !!m && m[1] === C.codePrefix && K.chk(m[2]) === m[3]; },
     uid() { try { return crypto.randomUUID(); } catch (e) { return Date.now().toString(36) + Math.random().toString(36).slice(2); } },
     // número argentino real: 10 dígitos con característica que empieza en 1, 2 o 3; sin 0 ni 15; sin repetidos ni escaleras
     telAR(raw) {
@@ -452,7 +455,7 @@ window.QR = (() => {
       const all = store.get(LKEY, []); const pend = all.filter(l => !l.enviado); if (!pend.length) { K.paintSync(); return; }
       K.syncing = true;
       try {
-        const r = await fetch(C.endpoint, { method: 'POST', body: JSON.stringify({ token: C.endpointToken, accion: 'leads', leads: pend.slice(0, 50) }), redirect: 'follow' });
+        const r = await fetch(C.endpoint, { method: 'POST', body: JSON.stringify({ token: C.endpointToken, accion: 'leads', equipo: K.equipo, staff: K.staffKey(), leads: pend.slice(0, 50) }), redirect: 'follow' });
         const j = await r.json();
         if (j && j.ok && Array.isArray(j.recibidos)) { const got = new Set(j.recibidos); const now = store.get(LKEY, []); now.forEach(l => { if (got.has(l.id)) { l.enviado = true; if (K.modo === 'qr') { l.nombre = ''; l.email = l.email ? 'enviado' : ''; l.whatsapp = l.whatsapp ? 'enviado' : ''; } } }); store.set(LKEY, now); }
       } catch (e) { K.lastSyncError = String(e); }
@@ -472,6 +475,17 @@ window.QR = (() => {
       if (enTablet) $('#k-actqr').innerHTML = QR.svg(location.origin + location.pathname + '?activar=' + code + (K.demo ? '&demo=1' : '') + '#qr');
       else K.vigilar(code);
       $('#k-wanum').textContent = 'Se envía a WhatsApp de Farmaonline' + (C.waMarca ? '' : ' (número provisional de demo, a confirmar)') + '.';
+    },
+    // Llave por persona: el premio se activa en el stand (QR en vivo de la pantalla o tarjeta de un solo uso).
+    async standActivar(lead) {
+      const box = $('#k-stand'); box.hidden = true;
+      if (!C.endpoint || DEMO_PUB || K.modo !== 'qr') return;
+      box.hidden = false; const tarjeta = store.get('gsg_tarjeta', '');
+      if (!tarjeta) { box.innerHTML = C.thanks.activarStand; return; }
+      box.textContent = 'Activando tu premio con tu tarjeta…';
+      const r = await K.api('activar', { codigo: lead.codigo, c: tarjeta, lead }, 8000);
+      if (r && r.ok && r.estado === 'ok') { store.set('gsg_tarjeta', ''); box.innerHTML = '<b>✓ Premio activado con tu tarjeta.</b> Mostrá el código en el mostrador.'; }
+      else box.innerHTML = r && r.estado === 'tarjeta_usada' ? 'Esa tarjeta ya se usó. ' + C.thanks.activarStand : r && r.estado === 'tarjeta_invalida' ? 'Esa tarjeta no es válida. ' + C.thanks.activarStand : 'No pudimos activar con tu tarjeta ahora. ' + C.thanks.activarStand;
     },
     premioDelMostrador() {
       const st = store.get('gsg_stand_stock', null);
@@ -523,7 +537,7 @@ window.QR = (() => {
       all.push(lead); const ok = store.set(LKEY, all);
       K.state = 'thanks'; $('#k-tname').textContent = '¡Gracias, ' + v.nombre.split(' ')[0] + '!';
       $('#k-tprize').innerHTML = DEMO_PUB ? 'Esto es una demostración: el código no tiene premio. El juego con premio se abre el día del evento.' : C.thanks.text; $('#k-code').textContent = code; $('#k-code').hidden = false;
-      K.showActivar(code);
+      K.showActivar(code); K.standActivar(lead);
       K.show('k-thanks'); K.sfx('win');
       K.sync();
       if (!ok) K.toast('Aviso: no se pudo guardar en este equipo', 2500);
@@ -533,7 +547,7 @@ window.QR = (() => {
       if (DEMO_PUB) return null;
       if (!C.endpoint || !navigator.onLine) return null;
       const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), ms);
-      try { const r = await fetch(C.endpoint, { method: 'POST', body: JSON.stringify({ token: C.endpointToken, accion, equipo: K.equipo, ...datos }), signal: ctl.signal, redirect: 'follow' }); return await r.json(); }
+      try { const r = await fetch(C.endpoint, { method: 'POST', body: JSON.stringify({ token: C.endpointToken, accion, equipo: K.equipo, staff: K.staffKey(), ...datos }), signal: ctl.signal, redirect: 'follow' }); return await r.json(); }
       catch (e) { return null; } finally { clearTimeout(t); }
     },
     reset() { K.state = 'attract'; K.hooks.reset && K.hooks.reset(); K.toAttract(); },
@@ -552,8 +566,17 @@ window.QR = (() => {
     // ---- inactividad ----
     bumpIdle() { K.idleAt = performance.now(); },
     // ---- panel del stand ----
-    opOpen() {
-      const pin = prompt('PIN del stand'); if (pin == null) return; if (pin !== C.pin) { alert('PIN incorrecto'); return; }
+    staffKey() { return K.modo === 'qr' ? '' : (store.get('gsg_staff', '') || ''); },
+    async opOpen() {
+      const pin = prompt(C.endpoint ? 'Clave del equipo' : 'PIN del stand'); if (pin == null) return;
+      if (!C.endpoint) { if (pin !== C.pin) { alert('PIN incorrecto'); return; } }
+      else if (pin !== store.get('gsg_staff', '')) {
+        // la primera vez se valida con la planilla; después sirve también sin señal en este equipo
+        const r = await K.api('staff', { staff: pin }, 6000);
+        if (!r) { alert('Sin conexión: la clave se valida con señal la primera vez.'); return; }
+        if (!r.ok) { alert('Clave incorrecta'); return; }
+        store.set('gsg_staff', pin); K.sync();
+      }
       K.prevState = K.state; K.state = 'op'; K.renderOp(); K.show('k-op');
     },
     renderOp() {
@@ -562,7 +585,8 @@ window.QR = (() => {
         Leads en este equipo: <b>${all.length}</b> · sin enviar a la planilla: <b>${C.endpoint ? pend : 'sin planilla configurada'}</b> · menores sin datos: <b>${store.get('gsg_stand_menores', 0) || 0}</b><br>
         Premios entregados: <b>${all.filter(l => l.entregado).length}</b> · stock físico: <b>${stock == null ? 'sin control' : stock}</b></p>
         <div class="k-form" style="grid-template-columns:1fr auto;align-items:end">
-          <label class="f">Validar código de premio<input type="text" id="op-code" placeholder="FO-XXXXX" autocomplete="off" autocapitalize="characters"></label><button class="k-btn" style="min-height:52px" id="op-check">Validar</button>
+          <label class="f">Validar código de premio<input type="text" id="op-code" placeholder="FO-XXXXXXX" autocomplete="off" autocapitalize="characters"></label><button class="k-btn" style="min-height:52px" id="op-check">Validar</button>
+          <button class="k-btn alt" id="op-act" hidden style="grid-column:1/-1">Activar en el mostrador (está acá)</button>
 
           <label class="f">¿Perdió su código? Email o WhatsApp<input type="text" id="op-q" autocomplete="off"></label><button class="k-btn" style="min-height:52px" id="op-find">Buscar</button>
           <label class="f">Stock de premios físicos<input type="tel" id="op-stock" inputmode="numeric" placeholder="vacío = sin control" value="${stock ?? ''}"></label><button class="k-btn" style="min-height:52px" id="op-setstock">Guardar</button>
@@ -572,27 +596,30 @@ window.QR = (() => {
         <div class="k-row"><button class="k-btn alt" id="op-sol">${document.documentElement.classList.contains('sol') ? 'Modo sol: sí' : 'Modo sol: no'}</button><button class="k-btn alt" id="op-clear">Borrar leads</button><button class="k-btn alt" id="op-close">Cerrar</button></div>`;
       const msg = t => { $('#op-msg').textContent = t; };
       $('#op-check').onclick = async () => {
-        const c = $('#op-code').value.toUpperCase().replace(/\s/g, '').replace(/^([A-Z]{2})([A-Z2-9]{5})$/, '$1-$2');
+        const c = $('#op-code').value.toUpperCase().replace(/\s/g, '').replace(/^([A-Z]{2})([A-Z2-9]{7})$/, '$1-$2');
         if (/^DEMO/.test(c)) { msg('✗ Código de demostración: no tiene premio. No entregues nada.'); return; }
         if (!K.validCode(c)) { msg('✗ Código inválido: no lo generó este juego. No entregues el premio.'); return; }
-        const now = store.get(LKEY, []); const l = now.find(x => x.codigo === c);
+        $('#op-act').hidden = true; const now = store.get(LKEY, []); const l = now.find(x => x.codigo === c);
         if (l && !l.enviado) await K.sync(); // si es de este equipo y no salió, primero se manda
         msg('Consultando la planilla…');
         const r = await K.api('canjear', { codigo: c }, 5000);
         const pila = n => (n || '').split(' ')[0];
+        if (r && !r.ok && r.error === 'staff') { msg('✗ La clave del equipo cambió: cerrá el panel y volvé a entrar con la clave nueva.'); store.set('gsg_staff', ''); return; }
         if (r && r.ok) {
           const marca = () => { const n2 = store.get(LKEY, []); const x = n2.find(y => y.codigo === c); if (x) { x.entregado = true; x.entregado_en = new Date().toISOString(); store.set(LKEY, n2); } };
           if (r.estado === 'ok') { marca(); msg('✓ ' + K.premioDelMostrador() + ' y sellale la mano. Nombre registrado: «' + pila(r.nombre) + '».' + (r.verificado ? ' WhatsApp verificado ✓' : '')); }
           else if (r.estado === 'ya_canjeado') msg('✗ Ese código YA se canjeó (' + (r.cuando || '') + '). No entregues otro premio.');
           else if (r.estado === 'duplicado') msg('✗ Esa persona ya tenía premio con otro código (mismo email o WhatsApp). No corresponde otro.');
+          else if (r.estado === 'sin_activar') { msg('⚠ Premio sin activar («' + pila(r.nombre) + '»). Si la persona está acá, activalo y validá de nuevo.'); $('#op-act').hidden = false; $('#op-act').onclick = async () => { $('#op-act').hidden = true; msg('Activando…'); const a = await K.api('activar', { codigo: c }, 5000); if (a && a.ok && a.estado === 'ok') $('#op-check').click(); else msg('✗ No se pudo activar' + (a && a.estado ? ' (' + a.estado + ')' : ' (sin conexión)') + '.'); }; }
           else msg('⚠ El código no figura en la planilla: el celular puede no haber enviado. Pedile que abra el juego con señal y reintentá en 1 minuto.');
           return;
         }
-        // sin conexión: verificación local, queda anotada para auditar
+        // la planilla respondió con un error (ocupada, caída): no es «sin conexión» y no se entrega nada a ciegas
+        if (r && !r.ok) { msg('⚠ La planilla no respondió bien (' + String(r.error || 'error').slice(0, 40) + '). No entregues todavía: reintentá en unos segundos.'); return; }
+        // sin conexión: sólo vale un código jugado en ESTE equipo del stand (ya está acá en persona); queda para auditar
         if (l && l.entregado) { msg('✗ Sin conexión · ese código YA se entregó en este equipo.'); return; }
-        if (l) { l.entregado = true; l.entregado_en = new Date().toISOString(); l.canje_sin_central = true; store.set(LKEY, now); msg('✓ Sin conexión · válido en este equipo. ' + K.premioDelMostrador() + ' y sellale la mano. Nombre registrado: «' + pila(l.nombre) + '». Queda para auditar.'); return; }
-        const used = store.get('gsg_stand_codigos_ext', []); if (used.includes(c)) { msg('✗ Sin conexión · ese código ya se canjeó en este equipo.'); return; }
-        used.push(c); store.set('gsg_stand_codigos_ext', used); msg('⚠ Sin conexión · el formato es válido pero no se puede verificar en la planilla. Si la mano no tiene sello: ' + K.premioDelMostrador().toLowerCase() + '. Queda para auditar.');
+        if (l && !l.externo && (!C.endpoint || K.staffKey())) { l.entregado = true; l.entregado_en = new Date().toISOString(); l.canje_sin_central = true; store.set(LKEY, now); msg('✓ Sin conexión · válido en este equipo. ' + K.premioDelMostrador() + ' y sellale la mano. Nombre registrado: «' + pila(l.nombre) + '». Queda para auditar.'); return; }
+        msg('✗ Sin conexión · este código no se jugó en este equipo y no se puede verificar en la planilla. No lo entregues: reintentá cuando vuelva la señal.');
       };
       $('#op-find').onclick = async () => {
         const q = $('#op-q').value.trim(); if (!q) return; msg('Buscando…');
@@ -650,7 +677,7 @@ window.QR = (() => {
   const act = (new URLSearchParams(location.search).get('activar') || '').toUpperCase();
   if (act && K.validCode(act)) {
     K.ready = () => { $('#k-loading').hidden = true; K.state = 'thanks'; K.hud(false);
-      const all = store.get(LKEY, []); if (!all.some(l => l.codigo === act)) { all.push({ id: K.uid(), fecha: new Date().toISOString(), codigo: act, premio: 'activacion', enviado: true }); store.set(LKEY, all); }
+      const all = store.get(LKEY, []); if (!all.some(l => l.codigo === act)) { all.push({ id: K.uid(), fecha: new Date().toISOString(), codigo: act, premio: 'activacion', enviado: true, externo: true }); store.set(LKEY, all); }
       $('#k-tname').textContent = 'Tu código del stand'; $('#k-tprize').innerHTML = C.lead.activarCel; $('#k-code').textContent = act; $('#k-code').hidden = false;
       $('#k-again').hidden = true; K.show('k-thanks'); K.showActivar(act); };
   }

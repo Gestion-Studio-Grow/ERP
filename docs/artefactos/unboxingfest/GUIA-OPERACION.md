@@ -1,52 +1,68 @@
 # Unboxing Fest · guía de operación
 
 Activación: stand de Farmaonline en POP FEST 101.5 (5/12/2026, Parque Norte). Producción: MIA Producciones. Tecnología: Gestión Studio Grow.
-Estado: **demo lista para mostrar.** Publicarla en el dominio de GSG y salir a redes necesita las confirmaciones de la sección 7.
+Estado: **publicado en `unboxingfest.gsgapp.com.ar` (fase 1: cuenta regresiva).** La fase 2 (planilla conectada, clave del equipo, llave en vivo) se publica antes del evento; falta lo de la sección 7.
 
 ## 1. Links (nombre + dominio de GSG)
 
 | Para qué | Link |
 |---|---|
-| Portada con los 3 juegos | `https://unboxingfest.gsgapp.com.ar` |
+| Portada con los 3 juegos (público) | `https://unboxingfest.gsgapp.com.ar` |
+| Probar los juegos sin premio, fuera de horario | `https://unboxingfest.gsgapp.com.ar/?demo=1` |
+| Pantalla del stand con el QR en vivo | `…/juegos/unboxingfest/pantalla.html` |
 | Tablet fija del stand | `…/juegos/unboxingfest/farmaonline-abrilo-vos.html#stand` |
 | Tablet o celular del promotor que recorre la fila | `…#promotor` |
-| Celular del visitante (QR, invitados, redes) | `https://unboxingfest.gsgapp.com.ar/?o=<origen>#qr` |
+| Celular del visitante (QR, invitados, redes) | `https://unboxingfest.gsgapp.com.ar/?o=<origen>` |
 | Horas pico (partida de 30 s) | agregar `rapido` al final: `#stand-rapido` |
 | Pantalla a pleno sol | agregar `sol`: `#stand-sol` (también se prende desde el panel) |
-| Demo fuera de la ventana horaria | agregar `?demo=1` (muestra la marca «DEMO») |
 
-**Origen** (`?o=`) dice de dónde vino cada lead: `redes`, `invitados`, `qr-bano`, `qr-barra`, `qr-grada`, `promotor1`… Un QR distinto por lugar permite medir cuál rinde.
+**Origen** (`?o=`) dice de dónde vino cada lead: `redes`, `invitados`, `whatsapp`, `qr-bano`, `qr-barra`, `promotor1`… Un QR distinto por lugar permite medir cuál rinde.
 
-## 2. Antes del evento: invitados y redes
-- El link se puede compartir días antes. Hasta que se abre la ventana muestra una cuenta regresiva, cuándo se abre y un botón «Agendalo» que baja el evento al calendario.
-- **Ventana provisional a confirmar:** abre el 5/12 a las 10:00 (6 h antes) y cierra el 6/12 a las 02:00. Se cambia en la configuración (`ventana`).
-- Quien juega desde su casa recibe el código igual, pero **el premio se retira sólo en el stand** (lo dicen las bases): así el juego trae gente al stand.
+**Demo:** con `?demo=1` se juega fuera de horario, el código sale `DEMO-…`, no tiene premio, el mostrador lo rechaza y no se manda nada a la planilla.
+
+## 2. Antes del evento: apertura online
+- El link se puede compartir antes. Hasta que se abre la ventana muestra una cuenta regresiva, cuándo se abre y un botón «Agendalo».
+- **Ventana provisional a confirmar:** se abre 1 o 2 horas antes del evento (decisión del dueño, 17/11) y cierra al terminar. Se cambia en la configuración (`ventana`).
+- **Online no se gana nada que se pueda usar online.** Quien juega desde su casa recibe un código que vale recién cuando lo **activa en el stand** (sección 3 bis). Así el juego trae gente al stand.
+- **Entrada por WhatsApp (celular de MIA):** en redes se publica el QR de WhatsApp Business del celular de MIA con un mensaje ya escrito («Quiero jugar al Unboxing Fest»). El mensaje de bienvenida automático de la app responde con el link `https://unboxingfest.gsgapp.com.ar/?o=whatsapp`. La app lo manda la primera vez que alguien escribe o después de 14 días sin chatear ([ayuda de WhatsApp](https://faq.whatsapp.com/501866148528310/?cms_platform=android)). Los números reales quedan en ese celular.
+  - Texto sugerido para la bienvenida: «¡Hola! Gracias por sumarte al Unboxing Fest de Farmaonline 🎁. Jugá acá: https://unboxingfest.gsgapp.com.ar/?o=whatsapp. Tu premio se retira en el stand de Farmaonline en POP FEST. Este número es sólo para el juego.»
 
 ## 3. Durante el evento
-**Panel del stand:** mantené apretado el logo 3 segundos (en PC, Ctrl+Shift+L) y poné el PIN. Permite:
-- validar el código que muestra la persona y marcarlo entregado (avisa si ya se usó, si está duplicado o si es falso);
-- cargar el stock de premios físicos del mostrador: cada canje descuenta uno y, en cero, el panel indica entregar el cupón online;
+**Pantalla del stand:** un equipo (tablet, notebook o TV con navegador) abre `pantalla.html`, se carga la clave del equipo con señal, y queda mostrando el QR en vivo. El QR cambia cada minuto; si se corta la señal, la pantalla sigue funcionando. La pantalla no guarda la clave del equipo: guarda una clave que sirve sólo para ese día y el siguiente, así que cada día del evento se vuelve a cargar.
+
+**Panel del stand:** mantené apretado el logo 3 segundos (en PC, Ctrl+Shift+L) y poné la **clave del equipo**. La clave la valida la planilla (no está escrita en la página) y queda guardada en esa tablet. Permite:
+- validar el código que muestra la persona y marcarlo entregado (avisa si ya se usó, si está duplicado, si es falso o si falta activarlo);
+- activar en el mostrador el premio de alguien que no pudo escanear la pantalla (la persona está ahí);
+- cargar el stock de premios físicos del mostrador: cada canje descuenta uno y, en cero, el panel indica entregar el cupón;
 - enviar los pendientes a la planilla y descargar el CSV de respaldo;
 - prender el modo sol.
 
 **Reglas que ya trae el juego:**
-- un premio por persona (por email o WhatsApp en el equipo, y marca de duplicado en la planilla);
+- un premio por persona (por email o WhatsApp, con la planilla central);
 - los menores juegan y retiran el premio sin dejar datos;
 - sin uso, la tablet vuelve sola al inicio.
 
-## 3 bis. Reglas de juego limpio (un premio por persona)
+## 3 bis. Juego limpio: llave por persona
 
-**Se juega todas las veces que quieras; premio, uno solo.** Desde la segunda vez se juega sin premio: en el celular no aparece el botón de premio, y en la tablet el formulario responde «ya participaste».
+**Se juega todas las veces que quieras; premio, uno solo.** Desde la segunda vez se juega sin premio.
 
-El control tiene tres capas. Ninguna depende de que la persona diga la verdad, y **ninguna le pide al equipo del stand que revise mensajes**: el equipo sólo valida el código y sella la mano.
+**El premio de cada código vale recién cuando se activa EN el stand.** Cada persona activa el suyo, de una de estas formas, todas automáticas:
 
-**Por qué los datos falsos no rinden:** inventar un email no da un segundo premio (la mano ya tiene sello) y el premio sólo se retira en persona. Lo que sí rinde es el WhatsApp real: suma un cupón extra. El incentivo está puesto del lado de la verdad, y la planilla separa los contactos comprobados (`whatsapp_real`) de los que no.
-
-| Capa | Qué frena | Cómo |
+| Forma | Cómo | Quién hace algo |
 |---|---|---|
-| 1. **Sello en la mano al retirar** | Al que inventa datos para sacar varios códigos | El premio se entrega sólo en el mostrador. Al entregar se sella la mano; con sello no hay otro premio. Es el control de fondo del stock. |
-| 2. **Planilla central** | Repetir con el mismo email o WhatsApp en otra tablet, y cobrar dos veces el mismo código | Antes de dar un código, el equipo consulta la planilla. Cada canje se valida ahí una sola vez, aunque haya varias tablets. Si sin señal se coló un segundo código, la planilla lo marca duplicado y el canje lo rechaza. |
-| 3. **WhatsApp verificado, automático y opcional** | Números falsos en la base | Al terminar aparece un QR (tablet) o un botón (celular) que abre WhatsApp con «Mi código es FO-XXXXX» para el número de Farmaonline. La API de WhatsApp le avisa a la planilla, que marca `verificado_wa` y `whatsapp_real` sola; el celular de la persona muestra «✓ WhatsApp verificado» y el cupón extra. Nadie del stand lee mensajes. Un número falso no puede mandarlo: la base distingue los WhatsApp comprobados de los no comprobados. |
+| **QR en vivo** (la principal) | Jugó en su celular → escanea con la cámara el QR de la pantalla del stand → su celular muestra «✓ Premio activado» con su código. | Nadie del equipo. |
+| **Tablet del stand** | Lo que se juega en una tablet con la clave del equipo cargada queda activado solo. | Nadie (la tablet se prepara el día anterior). |
+| **Tarjeta única** (opcional, a confirmar con Ale) | MIA entrega una tarjeta con un QR propio. La persona la escanea antes o después de jugar y su premio queda activado. Cada tarjeta sirve una sola vez. | Imprenta, antes del evento. |
+| **Mostrador** | Si alguien no pudo escanear (sin batería, sin cámara), el equipo lo activa desde el panel. | El equipo, un toque. |
+
+**Por qué es seguro:**
+- El QR en vivo sólo lo puede dibujar la pantalla del stand: se firma con una clave que vive en la planilla, no en la página. Una foto del QR vence a los 3 minutos.
+- Con la clave de la pantalla no se pueden fabricar tarjetas: las tarjetas se firman con el secreto del stand, que nunca sale de la planilla.
+- Canjear y buscar códigos exige la clave del equipo, validada por la planilla.
+- El premio se retira en persona y se sella la mano. Online no hay nada canjeable.
+- El premio no depende del puntaje: hacer trampa en el juego no da nada.
+- La llave en vivo prueba que la persona está frente al stand, no quién es: durante 3 minutos alguien podría reenviarla. El tope de un premio por persona lo dan la planilla (email o WhatsApp) y el sello en la mano.
+- Las tablets del equipo guardan la clave del equipo: van bloqueadas en modo kiosco (sección 5) y la clave se cambia después del evento.
 
 **Filtros automáticos en el formulario:**
 - teléfonos imposibles (repetidos, escaleras, sin característica válida);
@@ -56,43 +72,42 @@ El control tiene tres capas. Ninguna depende de que la persona diga la verdad, y
 
 **El canje, paso a paso (unos 10 segundos):**
 1. La persona muestra el código.
-2. «Validar» en el panel: responde verde (con el nombre de pila y qué entregar según el stock), ya canjeado, duplicado o falso.
-3. Si está verde, se le pregunta el nombre: tiene que coincidir.
-4. Se mira la mano: sin sello, se sella y se entrega.
-
-Si el panel dice «WhatsApp verificado», además se le entrega el cupón extra. Si no lo verificó, igual retira su premio: la verificación es opcional.
+2. «Validar» en el panel: responde verde (con el nombre de pila y qué entregar según el stock), ya canjeado, duplicado, falso o **sin activar**.
+3. Si dice «sin activar» y la persona está ahí: «Activar en el mostrador» y vuelve a validar solo.
+4. Se le pregunta el nombre: tiene que coincidir.
+5. Se mira la mano: sin sello, se sella y se entrega.
 
 **Menores:** juegan y retiran sin dejar datos. El control es el sello, y en un mismo celular no se puede repetir.
 
 **Perdió el código:** en el panel, «¿Perdió su código?», se busca por email o WhatsApp.
 
-**Hace falta en el stand:** un sello o tinta UV, el panel en cada tablet y señal (o el modo sin conexión, que queda para auditar). No hace falta un celular para leer WhatsApp.
+**Hace falta en el stand:** la pantalla con el QR en vivo (a la vista de la fila, cerca del mostrador), un sello o tinta UV, el panel en cada tablet y **señal estable** (un router o un celular dedicado como módem). Sin señal sólo se entregan los códigos jugados en esa misma tablet; los de los celulares se entregan cuando vuelve la señal, porque no hay forma segura de verificarlos.
 
-**Verificación automática de WhatsApp, cómo se arma** (una vez, la hace quien administre la cuenta de WhatsApp de Farmaonline):
-1. Número de WhatsApp de la marca en la plataforma de WhatsApp Business de Meta (API de la nube).
-2. En el Apps Script, propiedades `WA_VERIFY_TOKEN` (cualquier clave) y `WA_WEBHOOK_KEY` (una clave larga).
-3. En Meta, webhook = la URL de la planilla con `?k=<WA_WEBHOOK_KEY>`, token de verificación = `WA_VERIFY_TOKEN`, suscripción al campo `messages`.
-4. En la configuración del juego, `waMarca` = el número de la marca.
-5. Prueba: mandar «Mi código es FO-…» de un código de prueba y ver que la fila pasa a `verificado_wa`.
-
-**Costo:** el sistema no responde mensajes, sólo los lee; recibir mensajes no tiene costo en la API. Si la marca quisiera contestar, desde el 1/10/2026 las respuestas de servicio se cobran por mensaje, con 1.000 gratis por mes por número (fuentes: developers.facebook.com/documentation/business-messaging/whatsapp/pricing y …/pricing/non-template-messages).
-
-**Si la API no está lista para el evento:** el juego funciona igual. El botón de WhatsApp queda como canal de contacto y nadie del stand tiene que revisarlo; sólo no se marca `whatsapp_real` automáticamente.
+**Verificación por la API de WhatsApp (opcional, no hace falta):** el script ya trae el webhook por si más adelante se usa la API de WhatsApp de la marca (propiedades `WA_VERIFY_TOKEN` y `WA_WEBHOOK_KEY`). Sin eso, el juego funciona igual.
 
 ## 4. Los datos llegan a la marca
 - Cada lead se guarda en el equipo y se envía a una planilla de Google. Sin señal queda en cola y se reenvía solo; arriba se ve «N sin enviar».
-- En el celular del visitante, una vez enviado, no queda nada personal en el teléfono.
+- En el celular del visitante, una vez enviado, no queda nada personal en el teléfono (sólo el código).
+- Los números de quienes escriban al WhatsApp de la entrada quedan en el celular de MIA: las bases lo informan.
 - **Instalar la planilla** (una vez, desde la cuenta corporativa que va a ser dueña de los datos):
   1. Planilla → Extensiones → Apps Script → pegar `apps-script-leads.gs`.
-  2. Propiedades del script → `TOKEN` = una clave larga.
-  3. Implementar como aplicación web (ejecutar como yo; acceso: cualquier usuario).
-  4. Copiar la URL y la clave en la configuración del juego (`endpoint`, `endpointToken`).
+  2. Configuración del proyecto → Propiedades del script:
+     - `TOKEN` = una clave larga al azar (va dentro de la página; sólo frena el ruido);
+     - `STAFF_KEY` = la clave del equipo del stand, **de 12 caracteres o más, generada al azar** (por ejemplo, con un gestor de contraseñas; nada de «farmaonline26»; con menos de 12 la planilla no la acepta); no va en la página. Se cambia después del evento;
+     - `STAND_SECRET` = otra clave larga al azar, de 16 caracteres o más (no va en la página).
+  3. Implementar → Aplicación web · ejecutar como: yo · acceso: cualquier usuario.
+  4. Copiar la URL y el `TOKEN` en la configuración del juego (`endpoint`, `endpointToken`).
+  5. Si se usan tarjetas: en el editor, ejecutar `generarTarjetas` (por defecto, 500). Llena la hoja «tarjetas» con serie, clave y link para la imprenta.
+- **Capacidad:** Google permite 30 ejecuciones a la vez por cuenta ([cuotas de Apps Script](https://developers.google.com/apps-script/guides/services/quotas)). Alcanza para el stand; si hay un pico, el juego guarda en cola y reintenta.
 - Respaldo: cada hora, CSV desde el panel a un segundo equipo.
 - Al cierre, cuando la planilla tiene todo, se borran los leads de las tablets (las bases dicen 48 h como máximo).
 
 ## 5. Checklist del día anterior
-- [ ] Cambiar el PIN y la sal de los códigos (`pin`, `codeSalt`).
-- [ ] Planilla instalada y probada con un lead de prueba (después borrarlo).
+- [ ] Planilla instalada con `TOKEN`, `STAFF_KEY` y `STAND_SECRET`, y probada con un lead de prueba (después borrarlo).
+- [ ] Cambiar la sal de los códigos (`codeSalt`) y cargar `endpoint` y `endpointToken`; publicar la fase 2.
+- [ ] Entrar una vez al panel de **cada tablet** con la clave del equipo (queda guardada).
+- [ ] Pantalla del stand: abrir `pantalla.html`, cargar la clave y probar con un celular que el QR activa un código de prueba.
+- [ ] WhatsApp de MIA: mensaje de bienvenida y QR de la app cargados; probar desde un celular que nunca escribió.
 - [ ] Stock de premios cargado en cada tablet.
 - [ ] Abrir una vez cada juego con señal, para que quede guardado sin conexión; después probar en modo avión.
 - [ ] Fijar la pantalla: iPad con «Acceso guiado»; Android con «Fijar pantalla».
@@ -100,9 +115,13 @@ Si el panel dice «WhatsApp verificado», además se le entrega el cupón extra.
 - [ ] QR impresos con su `?o=` y una prueba de cada uno.
 
 ## 6. Qué se probó (17/11/2026)
-Un bot jugó como una persona: mouse en PC y toques reales en celular y tablet. Además se corrieron 38 pruebas de operación (planilla, cola sin señal, un premio por persona, stock del mostrador, menores, panel, CSV, ventana horaria, modo QR, filtros de datos falsos y verificación automática de WhatsApp) contra el Apps Script real, ejecutado en una planilla simulada. El 3D corrió por software, sin placa de video; falta probar en los equipos reales.
+- Un bot jugó como una persona: mouse en PC y toques reales en celular y tablet.
+- 38 pruebas de operación (planilla, cola sin señal, un premio por persona, stock, menores, panel, CSV, ventana horaria, modo celular, filtros de datos falsos) contra el Apps Script real, ejecutado en una planilla simulada.
+- 36 pruebas de la llave por persona, con ataques: QR viejo o del futuro, llave inventada, tarjeta falsa o reusada, tarjeta fabricada con la clave de la pantalla, canje sin la clave del equipo, segundo código de la misma persona, fórmulas en los datos; y el recorrido completo en el navegador (pantalla → celular → mostrador).
+- 5 pruebas de la demo en el dominio público.
+- El 3D corrió por software, sin placa de video; falta probar en los equipos reales y con la planilla real (Apps Script) instalada.
 
 ## 7. Falta confirmar (no lo decide GSG)
-- **Farmaonline / MIA:** autorización registrada para usar la marca en el dominio de GSG; datos legales (razón social, CUIT, contacto); premios y unidades; condiciones del cupón; número de WhatsApp de la marca y alta en la API de WhatsApp (sección 3 bis); cupón extra por WhatsApp verificado; horario de la ventana.
+- **Farmaonline / MIA:** datos legales (razón social, CUIT, contacto); premios y unidades; condiciones del cupón; horario de la ventana; celular de MIA para el WhatsApp de entrada; tarjetas únicas sí o no (Ale).
 - **Legal:** revisión de las bases y la privacidad por un abogado matriculado, y la inscripción de la base ante la AAIP.
-- **Dueño de GSG:** publicar en producción (tanda de PR) y en qué cuenta vive la planilla (recomendado: una cuenta corporativa de Farmaonline o de MIA, no una personal).
+- **Dueño de GSG:** en qué cuenta vive la planilla (recomendado: una cuenta corporativa de Farmaonline o de MIA, no una personal) y publicar la fase 2.

@@ -52,7 +52,7 @@ footer a{color:inherit}
 // cada juego hereda el modo y el origen del link (por ejemplo ?o=redes#qr)
 // en unboxingfest.gsgapp.com.ar la portada se sirve en «/» (reescritura): los juegos viven en /juegos/unboxingfest/
 const BASE = /\/juegos\/unboxingfest\//.test(location.pathname) || location.hostname === 'localhost' ? '' : '/juegos/unboxingfest/';
-document.querySelectorAll('a.card').forEach(a => { a.href = BASE + a.dataset.g + location.search + location.hash; });
+document.querySelectorAll('a.card').forEach(a => { a.href = BASE + a.dataset.g + location.search + (location.hash || '#qr'); });
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register(BASE + 'sw.js', { scope: BASE || './' }).catch(() => {});
 </script>
 </body></html>
