@@ -1,9 +1,20 @@
 /**
  * O40 · un solo candado de «período cerrado» para todo lo de Proyectos que asienta en la caja: cobros, cuotas, pagos,
  * anulaciones, pagos de la empresa, pagos de liquidación y rendiciones. Ningún módulo de `src/lib/proyectos/` crea un
- * movimiento de caja por otro camino que `asentarEnCajaTx` (lo vigila periodo-cerrado.test.ts con una búsqueda en el
- * código). Se lee ADENTRO de la transacción que asienta: si el día o el mes se cerraron, la transacción entera se
- * deshace y la acción devuelve el texto del rechazo (`rechazoDePeriodo`).
+ * movimiento de caja por otro camino que `asentarEnCajaTx` (lo vigila la búsqueda en el código de
+ * t01-plata-postgres.test.ts, «C-O40 · búsqueda en el código»). Se lee ADENTRO de la transacción que asienta: si el día
+ * o el mes se cerraron, la transacción entera se deshace y la acción devuelve el texto del rechazo (`rechazoDePeriodo`).
+ *
+ * Carrera con el cierre: el candado `cierre-dia:<negocio>` es el MISMO que toman cerrar el día
+ * (`cierre-diario-actions.ts`), congelar el mes (`cierre-mes/acciones.ts`) y abrir un turno (`caja-actions.ts`). Con él,
+ * un asiento y un cierre van uno detrás del otro: si el cierre lo tomó primero, el asiento espera y, al leer la frontera
+ * (Read Committed: cada sentencia ve lo confirmado), ve el día cerrado y se rechaza; si lo tomó el asiento, el cierre
+ * espera a que confirme y lo cuenta. Sin él, un cobro que leyó «abierto» podía confirmar después del cierre, en un día
+ * que el arqueo ya no lo incluye.
+ *
+ * Hueco previo, fuera de T01 (no se toca acá): el libro de caja a mano (`libro-caja-actions.ts`, `addLibroEntry` y
+ * `deleteLibroEntry`) lee la frontera con `lastClosedDay` ANTES de su transacción y sin este candado, así que la misma
+ * carrera sigue abierta para los asientos manuales.
  */
 import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
@@ -35,6 +46,7 @@ export async function exigirPeriodoAbiertoTx(tx: Prisma.TransactionClient, tenan
 
 /** El único camino de Proyectos para crear un movimiento de caja: primero el candado, después el asiento. */
 export async function asentarEnCajaTx(tx: Prisma.TransactionClient, que: QueSeAsienta, data: Prisma.CashMovementUncheckedCreateInput) {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`cierre-dia:${data.tenantId}`}))`;
   await exigirPeriodoAbiertoTx(tx, data.tenantId, que, data.occurredAt instanceof Date ? data.occurredAt : new Date());
   return tx.cashMovement.create({ data, select: { id: true } });
 }

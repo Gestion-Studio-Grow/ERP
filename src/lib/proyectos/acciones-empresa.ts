@@ -129,7 +129,8 @@ export async function anularCuotaEmpresa(formData: FormData): Promise<Resultado<
   const a = await exigirEditar("empresa");
   const id = txt(formData.get("id"));
   // Lo que la pantalla mostraba («PAGADA»): con eso, un segundo clic (u otra pestaña) sobre una cuota que ya volvió a
-  // pendiente no la anula por error. La pantalla de Cuentas lo manda desde T03; sin él, como antes.
+  // pendiente no la anula por error. La pantalla de Cuentas lo va a mandar con la parte visual de A-05, que va en la
+  // tanda T05 (no en T03); sin él, como antes.
   const visto = txt(formData.get("visto"));
   const hecho = await oPeriodoCerrado(() => tenantTransaction(async (tx): Promise<"pago" | "cuota" | false> => {
     const c = await tx.proyectoCuota.findFirst({ where: { id, tenantId: a.tenantId, proyectoId: null, anuladoEl: null }, select: { concepto: true, tipo: true, monto: true, moneda: true, pagadoEl: true, cuentaId: true, cuentaMovido: true } });

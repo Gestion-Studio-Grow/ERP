@@ -7,8 +7,12 @@
 //  C-P06  un borrador encima de la versión aprobada no mueve cuotas ni cabecera; cobrar todo suma lo aprobado.
 //  C-O41  `registrarCobro` con clave de envío: doble envío, 10 a la vez y reintento, en 3 rondas → 1 cobro, 1 asiento.
 //  C-O42  `pagarGasto`: Producción de otro proyecto, sólo «proveedores», sin ver la plata → 0 cambios; Administración ×1.
-//  C-O40  día de caja cerrado (y mes congelado): cada acción que asienta rechaza con 0 filas nuevas; abierto, entran.
+//  C-O40  día de caja cerrado (y mes congelado): cada acción que asienta rechaza con 0 filas nuevas (rendiciones
+//         incluidas); abierto, entran. Carrera: un cobro que arranca antes del cierre y confirma después se rechaza.
 //  A-05   anular un pago de la empresa: la cuota vuelve a pendiente y la caja al saldo de antes; ×1.
+//  2 negocios  cada acción de T01 con ids del otro negocio: rechazo y 0 cambios en su plata; tampoco la ve.
+//  O37    corregido tras el primer rojo: no es sólo «verifica». En main 170e56f daba rojo (PR #185, «Rojos antes y
+//         verdes después») y pasa con los arreglos de esta tanda.
 //
 // Reloj fijado: `Date` vale AHORA en todo el archivo (el día de caja y los vencimientos no dependen de cuándo corre).
 // ============================================================================
@@ -18,7 +22,8 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { ejecutarAccion, prepararAccionesDeServidor } from "@/test/accion-de-servidor";
-import { apuntarLaAppA, baseEfimeraDelArchivo, prismaComoDuenio } from "@/test/base-efimera";
+import pg from "pg";
+import { apuntarLaAppA, baseEfimeraDelArchivo, prismaComoDuenio, type NegocioDePrueba } from "@/test/base-efimera";
 
 const laBase = baseEfimeraDelArchivo();
 const DIA = 86_400_000;
@@ -36,10 +41,14 @@ async function preparar(t: import("node:test").TestContext) {
   prepararAccionesDeServidor();
   const duenio = await prismaComoDuenio(base);
   const { a } = base;
-  const t0 = await duenio.tenant.findUniqueOrThrow({ where: { id: a.id }, select: { modules: true } });
-  await duenio.tenant.update({ where: { id: a.id }, data: { modules: [...new Set([...t0.modules, "proyectos"])] } });
+  const { b } = base;
+  for (const n of [a, b]) {
+    const t0 = await duenio.tenant.findUniqueOrThrow({ where: { id: n.id }, select: { modules: true } });
+    await duenio.tenant.update({ where: { id: n.id }, data: { modules: [...new Set([...t0.modules, "proyectos"])] } });
+  }
 
   const acciones = await import("./acciones");
+  const rendiciones = await import("./acciones-rendiciones");
   const ficha = await import("./acciones-ficha");
   const empresa = await import("./acciones-empresa");
   const libro = await import("@/lib/libro-caja-actions");
@@ -48,14 +57,14 @@ async function preparar(t: import("node:test").TestContext) {
 
   let numero = (await duenio.proyecto.count()) + 700;
   /** Proyecto confirmado con fecha, v1 APROBADA: 1 ítem de `precio` ($ 1.000 por defecto) con IVA 21 % → venta con IVA $ 1.210. */
-  const proyecto = async (precio = 1000) => {
+  const proyecto = async (precio = 1000, n: NegocioDePrueba = a) => {
     const evento = new Date(AHORA + 30 * DIA);
     const p = await duenio.proyecto.create({
-      data: { tenantId: a.id, numero: ++numero, clientId: a.clientes[0], nombre: `Stand T01 ${numero}`, servicio: "ARQUITECTURA", etapa: "APROBADO", fechaArmado: new Date(evento.getTime() - 2 * DIA), fechaEvento: evento, fechaDesarme: new Date(evento.getTime() + DIA) },
+      data: { tenantId: n.id, numero: ++numero, clientId: n.clientes[0], nombre: `Stand T01 ${numero}`, servicio: "ARQUITECTURA", etapa: "APROBADO", fechaArmado: new Date(evento.getTime() - 2 * DIA), fechaEvento: evento, fechaDesarme: new Date(evento.getTime() + DIA) },
       select: { id: true },
     });
-    const pres = await duenio.proyectoPresupuesto.create({ data: { tenantId: a.id, proyectoId: p.id, version: 1, estado: "APROBADO", token: `t01-${p.id}`, ivaPct: 21 }, select: { id: true } });
-    await duenio.proyectoItem.create({ data: { tenantId: a.id, presupuestoId: pres.id, rubro: "General", descripcion: "Stand", cantidad: 1, precio } });
+    const pres = await duenio.proyectoPresupuesto.create({ data: { tenantId: n.id, proyectoId: p.id, version: 1, estado: "APROBADO", token: `t01-${p.id}`, ivaPct: 21 }, select: { id: true } });
+    await duenio.proyectoItem.create({ data: { tenantId: n.id, presupuestoId: pres.id, rubro: "General", descripcion: "Stand", cantidad: 1, precio } });
     return p.id;
   };
   const form = (campos: Record<string, string>) => {
@@ -63,24 +72,24 @@ async function preparar(t: import("node:test").TestContext) {
     for (const [k, v] of Object.entries(campos)) fd.set(k, v);
     return fd;
   };
-  const como = async <R>(usuarioId: string, fn: () => Promise<R>): Promise<R> => {
-    const r = await ejecutarAccion({ negocio: a, usuario: { id: usuarioId } }, fn);
+  const como = async <R>(usuarioId: string, fn: () => Promise<R>, negocio: NegocioDePrueba = a): Promise<R> => {
+    const r = await ejecutarAccion({ negocio, usuario: { id: usuarioId } }, fn);
     assert.equal(r.tipo, "respuesta", JSON.stringify(r));
     return (r as { valor: R }).valor;
   };
   const enSesion = <R>(fn: () => Promise<R>) => como(a.duenia.id, fn);
   /** Saldo del libro del negocio: lo que entró menos lo que salió, y cuántas filas tiene. */
-  const caja = async () => {
-    const filas = await duenio.cashMovement.findMany({ where: { tenantId: a.id }, select: { type: true, amount: true } });
+  const caja = async (n: NegocioDePrueba = a) => {
+    const filas = await duenio.cashMovement.findMany({ where: { tenantId: n.id }, select: { type: true, amount: true } });
     const saldo = filas.reduce((s, m) => s + (m.type === "EGRESO" ? -m.amount : m.amount), 0);
     return { filas: filas.length, saldo: Math.round(saldo * 100) / 100 };
   };
   const cerrarDia = (dia = HOY) => duenio.auditLog.create({ data: { tenantId: a.id, actor: "test", action: "caja.cierre-diario", entity: "CierreDiario", entityId: dia } });
-  const reabrirTodo = () => duenio.auditLog.deleteMany({ where: { tenantId: a.id, entity: { in: ["CierreDiario", "CierreMes"] } } });
+  const reabrirTodo = () => duenio.auditLog.deleteMany({ where: { tenantId: { in: [a.id, b.id] }, entity: { in: ["CierreDiario", "CierreMes"] } } });
   const congelarMes = (mes = HOY.slice(0, 7)) => duenio.auditLog.create({ data: { tenantId: a.id, actor: "test", action: "cierre-mes.congelar", entity: "CierreMes", entityId: mes, changes: { por: "test" } } });
   // La base es del archivo entero: cada caso arranca con la caja abierta, aunque el anterior la haya dejado cerrada.
   await reabrirTodo();
-  return { base, duenio, a, acciones, ficha, empresa, libro, gestion, fichaServer, proyecto, form, como, enSesion, caja, cerrarDia, reabrirTodo, congelarMes };
+  return { base, duenio, a, b, acciones, rendiciones, ficha, empresa, libro, gestion, fichaServer, proyecto, form, como, enSesion, caja, cerrarDia, reabrirTodo, congelarMes };
 }
 
 type P = NonNullable<Awaited<ReturnType<typeof preparar>>>;
@@ -238,6 +247,11 @@ test("C-O40 · con el día de caja cerrado ninguna acción de Proyectos asienta;
   const gastoSinPagar = await duenio.proyectoGasto.create({ data: { tenantId: a.id, proyectoId: id, rubro: "General", descripcion: "Luces", neto: 150, iva: 0, cargadoPor: "test" }, select: { id: true } });
   const persona = await duenio.proyectoPersona.create({ data: { tenantId: a.id, nombre: "Freelance T01", rol: "PRODUCCION" }, select: { id: true } });
   const liquidacion = await duenio.proyectoLiquidacion.create({ data: { tenantId: a.id, personaId: persona.id, periodo: "2026-10", total: 400, estado: "PUBLICADA", publicadaEl: new Date(AHORA - DIA) }, select: { id: true } });
+  // Rendiciones (acciones-rendiciones.ts, `asentarTx`): un anticipo de $ 100 sin rendir (cerrarlo devuelve $ 100) y una
+  // rendición de su bolsillo de $ 60 aprobada (reintegrarla es un egreso de $ 60).
+  const anticipo = await duenio.proyectoAnticipo.create({ data: { tenantId: a.id, personaId: persona.id, proyectoId: id, montoCentavos: 10_000 }, select: { id: true } });
+  const gastoRendido = await duenio.proyectoGasto.create({ data: { tenantId: a.id, proyectoId: id, rubro: "General", descripcion: "Taxi T01", neto: 60, iva: 0, cargadoPor: "test" }, select: { id: true } });
+  const rendicion = await duenio.proyectoRendicion.create({ data: { tenantId: a.id, proyectoId: id, gastoId: gastoRendido.id, personaId: persona.id, medio: "PROPIO", montoCentavos: 6_000, estado: "aprobada" }, select: { id: true } });
   // Con el día abierto: un cobro, un gasto pagado y un pago de la empresa, para tener qué anular después.
   assert.deepEqual(await p.enSesion(() => p.acciones.registrarCobro(p.form({ proyectoId: id, medio: "EFECTIVO", monto: "50" }))), { ok: true });
   const cobroVivo = await duenio.proyectoPago.findFirstOrThrow({ where: { proyectoId: id }, select: { id: true } });
@@ -258,8 +272,17 @@ test("C-O40 · con el día de caja cerrado ninguna acción de Proyectos asienta;
     ["pago de la empresa", () => p.enSesion(() => p.empresa.marcarCuotaEmpresa(p.form({ id: cuotaEmpresa.id, medio: "EFECTIVO" })))],
     ["anulación de un pago de la empresa", () => p.enSesion(() => p.empresa.anularCuotaEmpresa(p.form({ id: pagadaEmpresa.id })))],
     ["pago de liquidación", () => p.enSesion(() => p.empresa.pagarLiquidacion(p.form({ id: liquidacion.id, medio: "EFECTIVO" })))],
+    ["entrega de un anticipo", () => p.enSesion(() => p.rendiciones.entregarAnticipo(p.form({ personaId: persona.id, proyectoId: id, medio: "EFECTIVO", monto: "70", clave: "t01-anticipo-dia-cerrado" })))],
+    ["cierre de un anticipo", () => p.enSesion(() => p.rendiciones.cerrarAnticipo(p.form({ id: anticipo.id, medio: "EFECTIVO" })))],
+    ["reintegro de una rendición", () => p.enSesion(() => p.rendiciones.reintegrarDirecto(p.form({ id: rendicion.id, medio: "EFECTIVO" })))],
   ];
-  const filas = async () => ({ caja: await p.caja(), pagos: await duenio.proyectoPago.count({ where: { tenantId: a.id } }), gastos: await duenio.proyectoGasto.count({ where: { tenantId: a.id, pagadoEl: { not: null }, anuladoEl: null } }) });
+  const filas = async () => ({
+    caja: await p.caja(),
+    pagos: await duenio.proyectoPago.count({ where: { tenantId: a.id } }),
+    gastos: await duenio.proyectoGasto.count({ where: { tenantId: a.id, pagadoEl: { not: null }, anuladoEl: null } }),
+    anticipos: await duenio.proyectoAnticipo.findMany({ where: { tenantId: a.id }, orderBy: { id: "asc" }, select: { id: true, estado: true, devueltoCentavos: true } }),
+    rendicion: await duenio.proyectoRendicion.findUniqueOrThrow({ where: { id: rendicion.id }, select: { estado: true, reintegradoEl: true } }),
+  });
   for (const cierre of ["día", "mes"] as const) {
     if (cierre === "mes") {
       await p.reabrirTodo();
@@ -281,6 +304,121 @@ test("C-O40 · con el día de caja cerrado ninguna acción de Proyectos asienta;
     assert.equal(r?.ok, true, `abierto · ${que}: ${JSON.stringify(r)}`);
   }
   assert.ok((await p.caja()).filas > antes.filas, "con el día abierto asientan");
+  const despues = await filas();
+  assert.deepEqual(despues.rendicion.estado, "reintegrada", "abierto: la rendición se reintegra");
+  assert.deepEqual(despues.anticipos.find((x) => x.id === anticipo.id), { id: anticipo.id, estado: "CERRADO", devueltoCentavos: 10_000 }, "abierto: el anticipo se cierra y devuelve $ 100");
+  assert.equal(despues.anticipos.length, 2, "abierto: se entrega el anticipo nuevo");
+  assert.equal(await duenio.cashMovement.count({ where: { tenantId: a.id, OR: [{ proyectoGastoId: gastoRendido.id }, { proyectoAnticipoId: anticipo.id }] } }), 2, "un egreso de $ 60 y un ingreso de $ 100");
+});
+
+test("C-O40 · carrera: un cobro que arranca antes de que confirme el cierre del día espera su candado y se rechaza; 0 filas", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const id = await p.proyecto();
+  const antes = await p.caja();
+  // El «cierre» corre por una conexión propia, como `cerrarDia` (cierre-diario-actions.ts:790): toma el MISMO candado
+  // `pg_advisory_xact_lock(hashtext('cierre-dia:<negocio>'))` y escribe el cierre, sin confirmar todavía.
+  const cierre = new pg.Client({ connectionString: p.base.urlDuenio });
+  await cierre.connect();
+  t.after(() => cierre.end().catch(() => {}));
+  await cierre.query("BEGIN");
+  await cierre.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`cierre-dia:${p.a.id}`]);
+  await cierre.query(`INSERT INTO "AuditLog" (id, "tenantId", actor, action, entity, "entityId") VALUES ($1, $2, 'test', 'caja.cierre-diario', 'CierreDiario', $3)`, [`carrera-${Date.now()}-${Math.random()}`, p.a.id, HOY]);
+  // El cobro arranca mientras el cierre está abierto.
+  let termino = false;
+  const cobro = p.enSesion(() => p.acciones.registrarCobro(p.form({ proyectoId: id, medio: "EFECTIVO", monto: "300" }))).finally(() => (termino = true));
+  // Tiene que quedar esperando ese candado (sin él, leería «abierto» y confirmaría antes que el cierre).
+  const espia = new pg.Client({ connectionString: p.base.urlDuenio });
+  await espia.connect();
+  t.after(() => espia.end().catch(() => {}));
+  let espera = false;
+  for (let i = 0; i < 200 && !espera && !termino; i++) {
+    const { rows } = await espia.query(`SELECT count(*)::int AS n FROM pg_locks WHERE locktype = 'advisory' AND NOT granted AND database = (SELECT oid FROM pg_database WHERE datname = current_database())`);
+    espera = rows[0].n > 0;
+    if (!espera) await new Promise((r) => setTimeout(r, 25));
+  }
+  if (!espera) await cierre.query("ROLLBACK");
+  assert.ok(espera, `el cobro no esperó el candado del cierre (terminó: ${termino}): ${JSON.stringify(termino ? await cobro : null)}`);
+  await cierre.query("COMMIT");
+  const r = await cobro;
+  assert.equal(r.ok, false, JSON.stringify(r));
+  assert.match(String((r as { error?: string }).error), /17\/11\/2026 ya está cerrada.*Cierre del día/, "el rechazo dice qué hacer");
+  assert.deepEqual(await p.caja(), antes, "0 filas en el libro");
+  assert.equal(await p.duenio.proyectoPago.count({ where: { proyectoId: id } }), 0, "0 cobros");
+});
+
+test("Dos negocios · cada acción de T01 con ids del otro negocio se rechaza y no mueve su plata; tampoco la ve", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const { duenio, a, b } = p;
+  // La plata de B, cargada como dueño de la base: proyecto con cuotas, un cobro asentado, un gasto sin pagar y otro
+  // pagado, cuotas de la empresa (una pagada), una liquidación, un anticipo y una rendición aprobada.
+  const idB = await p.proyecto(1000, b);
+  const cuotaCobroB = await duenio.proyectoCuota.create({ data: { tenantId: b.id, proyectoId: idB, tipo: "COBRO", concepto: "Anticipo B", monto: 605, moneda: "ARS", venceEl: new Date(AHORA + 5 * DIA), auto: false }, select: { id: true } });
+  const cuotaPagoB = await duenio.proyectoCuota.create({ data: { tenantId: b.id, proyectoId: idB, tipo: "PAGO", concepto: "Proveedor B", monto: 200, moneda: "ARS", venceEl: new Date(AHORA + 5 * DIA), auto: false }, select: { id: true } });
+  const empresaB = await duenio.proyectoCuota.create({ data: { tenantId: b.id, proyectoId: null, tipo: "PAGO", concepto: "Alquiler B", monto: 250, moneda: "ARS", venceEl: new Date(AHORA + 5 * DIA) }, select: { id: true } });
+  const empresaPagadaB = await duenio.proyectoCuota.create({ data: { tenantId: b.id, proyectoId: null, tipo: "PAGO", concepto: "Luz B", monto: 90, moneda: "ARS", venceEl: new Date(AHORA + 5 * DIA), pagadoEl: new Date(AHORA - DIA) }, select: { id: true } });
+  const pagoB = await duenio.proyectoPago.create({ data: { tenantId: b.id, proyectoId: idB, medio: "EFECTIVO", monto: 400, cobradoPor: "B" }, select: { id: true } });
+  const asientoB = await duenio.cashMovement.create({ data: { tenantId: b.id, type: "VENTA", method: "EFECTIVO", amount: 400, reason: "Proyecto B", proyectoPagoId: pagoB.id, createdBy: "B" }, select: { id: true } });
+  const gastoB = await duenio.proyectoGasto.create({ data: { tenantId: b.id, proyectoId: idB, rubro: "General", descripcion: "Luces B", neto: 150, iva: 0, cargadoPor: "test" }, select: { id: true } });
+  const gastoPagadoB = await duenio.proyectoGasto.create({ data: { tenantId: b.id, proyectoId: idB, rubro: "General", descripcion: "Flete B", neto: 80, iva: 0, cargadoPor: "test", pagadoEl: new Date(AHORA - DIA) }, select: { id: true } });
+  const personaB = await duenio.proyectoPersona.create({ data: { tenantId: b.id, nombre: "Freelance B", rol: "PRODUCCION" }, select: { id: true } });
+  const liquidacionB = await duenio.proyectoLiquidacion.create({ data: { tenantId: b.id, personaId: personaB.id, periodo: "2026-10", total: 400, estado: "PUBLICADA", publicadaEl: new Date(AHORA - DIA) }, select: { id: true } });
+  const anticipoB = await duenio.proyectoAnticipo.create({ data: { tenantId: b.id, personaId: personaB.id, proyectoId: idB, montoCentavos: 10_000 }, select: { id: true } });
+  const gastoRendidoB = await duenio.proyectoGasto.create({ data: { tenantId: b.id, proyectoId: idB, rubro: "General", descripcion: "Taxi B", neto: 60, iva: 0, cargadoPor: "test" }, select: { id: true } });
+  const rendicionB = await duenio.proyectoRendicion.create({ data: { tenantId: b.id, proyectoId: idB, gastoId: gastoRendidoB.id, personaId: personaB.id, medio: "PROPIO", montoCentavos: 6_000, estado: "aprobada" }, select: { id: true } });
+
+  /** Todo lo de plata de un negocio, fila por fila. */
+  const foto = async (tenantId: string) => ({
+    caja: await duenio.cashMovement.findMany({ where: { tenantId }, orderBy: { id: "asc" }, select: { id: true, type: true, amount: true } }),
+    pagos: await duenio.proyectoPago.findMany({ where: { tenantId }, orderBy: { id: "asc" }, select: { id: true, monto: true, anuladoEl: true } }),
+    cuotas: await duenio.proyectoCuota.findMany({ where: { tenantId }, orderBy: { id: "asc" }, select: { id: true, pagadoEl: true, anuladoEl: true } }),
+    gastos: await duenio.proyectoGasto.findMany({ where: { tenantId }, orderBy: { id: "asc" }, select: { id: true, pagadoEl: true, anuladoEl: true } }),
+    liquidaciones: await duenio.proyectoLiquidacion.findMany({ where: { tenantId }, orderBy: { id: "asc" }, select: { id: true, estado: true } }),
+    anticipos: await duenio.proyectoAnticipo.findMany({ where: { tenantId }, orderBy: { id: "asc" }, select: { id: true, estado: true, devueltoCentavos: true } }),
+    rendiciones: await duenio.proyectoRendicion.findMany({ where: { tenantId }, orderBy: { id: "asc" }, select: { id: true, estado: true, reintegradoEl: true } }),
+  });
+  const fotoB = await foto(b.id);
+  const fotoA = await foto(a.id);
+
+  // La dueña de A, con todos los permisos de A, apunta a los ids de B.
+  const acciones: [string, () => Promise<{ ok: boolean; error?: string } | null | undefined>][] = [
+    ["cobro", () => p.enSesion(() => p.acciones.registrarCobro(p.form({ proyectoId: idB, medio: "EFECTIVO", monto: "20" })))],
+    ["cuota de cobro", () => p.enSesion(() => p.ficha.marcarCuota(p.form({ id: cuotaCobroB.id, medio: "EFECTIVO" })))],
+    ["cuota de pago", () => p.enSesion(() => p.ficha.marcarCuota(p.form({ id: cuotaPagoB.id, medio: "EFECTIVO" })))],
+    ["gasto pagado al cargarlo", () => p.enSesion(() => p.acciones.registrarGasto(p.form({ proyectoId: idB, descripcion: "Otro", neto: "10", pagado: "on", medio: "EFECTIVO" })))],
+    ["pago de un gasto", () => p.enSesion(() => p.acciones.pagarGasto(p.form({ id: gastoB.id, medio: "EFECTIVO" })))],
+    ["anulación de un cobro", () => p.enSesion(() => p.ficha.anularCobroFicha(p.form({ id: pagoB.id })))],
+    ["anulación de un gasto", () => p.enSesion(() => p.ficha.anularGastoFicha(p.form({ id: gastoPagadoB.id })))],
+    ["pago de la empresa", () => p.enSesion(() => p.empresa.marcarCuotaEmpresa(p.form({ id: empresaB.id, medio: "EFECTIVO" })))],
+    ["anulación de un pago de la empresa", () => p.enSesion(() => p.empresa.anularCuotaEmpresa(p.form({ id: empresaPagadaB.id, visto: "PAGADA" })))],
+    ["pago de liquidación", () => p.enSesion(() => p.empresa.pagarLiquidacion(p.form({ id: liquidacionB.id, medio: "EFECTIVO" })))],
+    ["borrar el asiento del libro", () => p.enSesion((): Promise<{ ok: boolean; error?: string } | null | undefined> => p.libro.deleteLibroEntry(null, p.form({ id: asientoB.id })))],
+    ["entrega de un anticipo", () => p.enSesion(() => p.rendiciones.entregarAnticipo(p.form({ personaId: personaB.id, proyectoId: idB, medio: "EFECTIVO", monto: "70", clave: "t01-anticipo-de-otro-negocio" })))],
+    ["cierre de un anticipo", () => p.enSesion(() => p.rendiciones.cerrarAnticipo(p.form({ id: anticipoB.id, medio: "EFECTIVO" })))],
+    ["reintegro de una rendición", () => p.enSesion(() => p.rendiciones.reintegrarDirecto(p.form({ id: rendicionB.id, medio: "EFECTIVO" })))],
+  ];
+  for (const [que, accion] of acciones) {
+    const r = await accion();
+    assert.equal(r?.ok, false, `A sobre B · ${que}: ${JSON.stringify(r)}`);
+    // El rechazo es porque para A eso no existe, no por un dato mal cargado en el formulario.
+    assert.match(String(r?.error), /no existe|no está en el equipo|no ves|ya estaba anulado/, `A sobre B · ${que}: «${r?.error}»`);
+  }
+  assert.deepEqual(await foto(b.id), fotoB, "la plata de B, fila por fila, igual que antes");
+  assert.deepEqual(await foto(a.id), fotoA, "y en A tampoco se escribió nada");
+
+  // Tampoco la ve: la cabecera del proyecto de B desde la sesión de A no existe.
+  assert.equal(await p.enSesion(async () => p.fichaServer.cabeceraFicha(await p.gestion.actorActual(), idB)), null, "A no ve el proyecto de B");
+
+  // Y al revés: la dueña de B cobra en su proyecto (entra en SU caja) y no puede cobrar en uno de A.
+  const idA = await p.proyecto();
+  const cajaA = await p.caja();
+  const comoB = <R>(fn: () => Promise<R>) => p.como(b.duenia.id, fn, b);
+  assert.deepEqual(await comoB(() => p.acciones.registrarCobro(p.form({ proyectoId: idB, medio: "EFECTIVO", monto: "100" }))), { ok: true }, "B cobra en lo suyo");
+  const otro = await comoB(() => p.acciones.registrarCobro(p.form({ proyectoId: idA, medio: "EFECTIVO", monto: "100" })));
+  assert.equal(otro.ok, false, JSON.stringify(otro));
+  assert.deepEqual(await p.caja(), cajaA, "la caja de A no se movió");
+  assert.equal((await p.caja(b)).filas, fotoB.caja.length + 1, "el cobro de B quedó en la caja de B");
 });
 
 test("C-O40 · búsqueda en el código: ningún módulo de proyectos crea un movimiento de caja sin pasar por el candado", () => {
@@ -337,7 +475,7 @@ test("O32 (verifica) · el plan de cuotas: cobros = venta con IVA, pagos = costo
   assert.equal(suma("PAGO"), 600);
 });
 
-test("O37 (verifica) · todo cobro y pago de T01 asienta ×1 y la suma del libro = cobros − pagos, a mano", async (t) => {
+test("O37 (corregido tras el primer rojo) · todo cobro y pago de T01 asienta ×1 y la suma del libro = cobros − pagos, a mano", async (t) => {
   const p = await preparar(t);
   if (!p) return;
   const { duenio, a } = p;
