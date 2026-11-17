@@ -8,9 +8,10 @@
 // deploy` (nunca `dev`) → conteo después → segunda corrida (repetible) → rollback escrito y probado →
 // vuelta a aplicar. Imprime la evidencia en Markdown para el cuerpo del PR.
 //
-// La base es una efímera del arnés de tests (`erp_test_*`, dos negocios sembrados): se crea con todas
-// las migraciones, se le cargan parámetros y vistas, y se la lleva al estado «antes de M7a» con el
-// propio rollback. Al final se borra. Usa `ERP_TEST_PG_URL` o el Postgres local por defecto.
+// La base es una efímera del arnés de tests (`erp_test_*`, dos negocios sembrados) más la productora de
+// demo entera (`prisma/seed-mia-producciones.ts`): se crea con todas las migraciones, se le cargan
+// parámetros y vistas, y se la lleva al estado «antes de M7a» con el propio rollback. Al final se borra.
+// Usa `ERP_TEST_PG_URL` o el Postgres local por defecto.
 
 import { execFile } from "node:child_process";
 import { readFile } from "node:fs/promises";
@@ -60,6 +61,14 @@ async function main() {
   const paso = (afirmacion: string, salida: string) => log.push(`| ${afirmacion} | ${salida.replace(/\|/g, "\\|").replace(/\n+/g, " ").trim()} |`);
   const neg = { [base.a.id]: "A", [base.b.id]: "B" } as Record<string, string>;
   try {
+    // La copia con datos: además de los dos negocios del arnés, la productora de demo entera (proyectos, cuotas,
+    // gastos, caja), sembrada como superusuario en esta base efímera.
+    const siembra = await new Promise<{ codigo: number; salida: string }>((ok) =>
+      execFile(process.execPath, ["--import", "tsx", path.resolve(__dirname, "..", "..", "prisma", "seed-mia-producciones.ts")], { env: { ...process.env, DATABASE_URL: urlDeRol(urlDelServidor(), null, base.nombre), SEED_DB_MAX: "1" }, maxBuffer: 16 << 20 }, (err, out, errOut) =>
+        ok({ codigo: err ? 1 : 0, salida: `${out}${errOut}` }),
+      ),
+    );
+    if (siembra.codigo !== 0) throw new Error(`falló la siembra:\n${siembra.salida.slice(-600)}`);
     // Datos en las tablas de M7a, para que el rollback y la vuelta tengan algo que mover.
     for (const [t, letra] of [[base.a.id, "A"], [base.b.id, "B"]]) {
       await admin.query(`INSERT INTO "ProyectoParametro" (id, "tenantId", clave, valor, provisional, "actualizadoPor", "actualizadoNombre") VALUES ($1, $2, 'cierre.dia', '6', true, 'u', 'Dirección')`, [`p-${letra}`, t]);
