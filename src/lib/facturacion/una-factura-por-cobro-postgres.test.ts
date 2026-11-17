@@ -131,10 +131,15 @@ async function preparar(t: import("node:test").TestContext, cual: "a" | "b") {
       return sincronizarPagos({ ...deps, client: cuenta });
     });
   }
-  /** 4. El extracto del banco: créditos listos para emitir y la emisión real. */
+  /**
+   * 4. El extracto: créditos listos para emitir y la emisión real. GSG-FACT-011 · H8: la referencia
+   * es el id de un pago de MP sólo en un extracto DE MERCADO PAGO (`origen = mercadopago`); con
+   * referencias de pago, el extracto es el export de actividad de MP, no el del banco.
+   */
   async function extracto(creditos: { monto: number; referencia?: string }[]) {
+    const origen = creditos.some((c) => c.referencia) ? "mercadopago" : "banco";
     const imp = await duenio.importacionBancaria.create({
-      data: { tenantId: n.id, nombreArchivo: "extracto.csv", mapeoJson: {}, origen: "banco", archivo: Buffer.from("fecha;monto\n") },
+      data: { tenantId: n.id, nombreArchivo: "extracto.csv", mapeoJson: {}, origen, archivo: Buffer.from("fecha;monto\n") },
     });
     const hashes: string[] = [];
     for (const c of creditos) {

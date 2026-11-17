@@ -53,6 +53,8 @@ export {
 } from "./domain/clasificador";
 export {
   generarPropuestas,
+  marcarBordesPartidos,
+  motivoPosibleRepetido,
   configConDefaults,
   DeteccionCruzadaEnMemoria,
   UMBRAL_IDENTIFICACION_DEFAULT,
@@ -64,12 +66,18 @@ export {
   type AlertaBancos,
   type ContextoReglas,
   type ResultadoReglas,
+  type RangoImportacion,
+  type RangoDeImportacionPrevia,
+  type PosibleRepetido,
+  type CobrosBancoYaFacturados,
 } from "./domain/reglas";
 export {
   parsearNumeroAR,
   parsearFecha,
   normalizarTexto,
   hashMovimiento,
+  hashMovimientoOrdinal,
+  hashBordePartido,
   redondear2,
 } from "./domain/valores";
 export { cuitValido, normalizarCuit } from "./domain/cuit";

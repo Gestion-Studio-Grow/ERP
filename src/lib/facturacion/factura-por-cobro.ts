@@ -33,6 +33,7 @@ import { fechaFiscalDelDia } from "@/lib/libros/fecha-fiscal";
 import { createInvoiceInTx, crearNotaDeCreditoInTx, type CreateInvoiceInput, type InvoiceTx, type ResultadoNotaDeCredito } from "@/lib/invoice-core";
 import { claveCobroTurno, facturarCobrosInTx, tomarClaves, vincularCobroInTx, type CobroAFacturar } from "@/lib/facturacion/cobros-facturados";
 import { claveCobroDelLibro, cobroDeLaClave } from "@/lib/facturacion/clave-cobro-del-libro";
+import { tomarCandadoDelCupo } from "@/lib/facturacion/candado-cupo";
 import { coberturaMP, esPagoMP, facturadoPropioPorCobro, saldosMPSinPareja } from "@/lib/facturacion/cobertura-mp";
 import { MARCA_ANULACION, claseDeCobro, cobroAnuladoPor } from "@/lib/turnos/anulacion";
 
@@ -359,16 +360,28 @@ export async function facturaDeCobroParaPagoMPInTx(
  * UNA transacción, bajo el candado del turno (`bloquearTurnoInTx`), RELEYENDO adentro:
  *   · si el turno ya tiene su factura del camino de antes, el pago se ata a ella;
  *   · si la recepción ya anotó y facturó ese pago como cobro del libro, se ata a esa factura;
+ *   · si el lote del extracto ya facturó este pago (`opciones.facturaPrevia`, bajo el candado del
+ *     cupo, tomado después del del turno), se ata a esa factura;
  *   · si no, se factura el pago (`mp:<pago>`, idempotente por su clave).
  * Así el aviso y la factura del cobro (`facturarCobrosDelTurno`) se ordenan: el segundo ve al primero.
  */
 export async function facturarPagoMPDelTurno(
   input: CreateInvoiceInput,
   cobro: CobroAFacturar & { appointmentId: string },
+  opciones: {
+    /**
+     * GSG-FACT-011 · X1-T · La factura que el lote del EXTRACTO ya emitió para este mismo pago (otra
+     * clave: `banco:<hash>`; el índice único no los arbitra), leída bajo el candado del cupo, que el
+     * lote también toma. Si devuelve una, el pago se ATA a ella y no se emite otra.
+     */
+    facturaPrevia?: (tx: InvoiceTx) => Promise<string | null>;
+  } = {},
 ): Promise<string> {
   const { tenantId } = input;
   return enElNegocio(tenantId, async (tx) => {
     await bloquearTurnoInTx(tx, tenantId, cobro.appointmentId);
+    // X1-T · Orden fijo: turno → cupo → cobro-facturado. Nadie toma el del cupo y después el turno.
+    await tomarCandadoDelCupo(tx, tenantId);
     const delTurno = await tx.invoice.findFirst({
       where: { tenantId, appointmentId: cobro.appointmentId, status: { not: "REJECTED" } },
       select: { id: true },
@@ -376,7 +389,7 @@ export async function facturarPagoMPDelTurno(
     if (delTurno) return vincularCobroInTx(tx, tenantId, cobro, delTurno.id);
     const delCobro = await facturaDeCobroParaPagoMPInTx(tx, tenantId, cobro.appointmentId, cobro.importe);
     if (delCobro) return vincularCobroInTx(tx, tenantId, cobro, delCobro);
-    return facturarCobrosInTx(tx, input, [cobro]);
+    return facturarCobrosInTx(tx, input, [cobro], undefined, undefined, undefined, opciones.facturaPrevia);
   });
 }
 

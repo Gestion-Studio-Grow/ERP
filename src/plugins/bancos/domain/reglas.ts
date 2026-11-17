@@ -9,7 +9,9 @@
  *      BLOQUEA la emisión automática (las auto restantes bajan a revisión: solo
  *      manual con confirmación).
  *   4. Deduplicación: por el hash idempotente del movimiento (mismo archivo dos
- *      veces / extractos solapados) + detección CRUZADA (ya hay una factura, por
+ *      veces / extractos solapados; los cobros iguales de un mismo archivo llevan
+ *      ordinal y son ventas distintas; el día de corte entre extractos va a
+ *      revisión, ver `marcarBordesPartidos`) + detección CRUZADA (ya hay una factura, por
  *      cualquier vía, con el mismo monto y fecha de hasta 3 días antes de la
  *      acreditación → posible duplicado, REVISION; ver `whereYaFacturadaPorOtraVia`,
  *      bancos-glue.ts).
@@ -21,6 +23,7 @@
 import { fmtMoneyARS } from "@/components/ui/format"; // formato canonico de moneda (puro, sin React)
 import type { MovimientoBancario, PropuestaFactura } from "../core-contract";
 import type { ResultadoClasificacionBanco } from "./clasificador";
+import { hashBordePartido } from "./valores";
 
 /**
  * Umbral de identificación por defecto (pesos): regla COMERCIAL del dueño.
@@ -116,6 +119,123 @@ export interface ContextoReglas {
   deteccionCruzada?: DeteccionCruzadaPort;
   /** ¿Este movimiento ya fue procesado en una corrida anterior? (idempotencia entre importaciones). */
   yaProcesado?: (movimientoId: string) => boolean | Promise<boolean>;
+  /** Ids (ya re-claveados) de cobros en un día partido entre extractos: van a revisión (`marcarBordesPartidos`). */
+  posiblesRepetidos?: ReadonlyMap<string, PosibleRepetido>;
+}
+
+/** Lo que se sabe de un cobro del día de corte que choca con uno ya guardado (para el motivo). */
+export interface PosibleRepetido {
+  /** Cuántos cobros iguales (misma fecha, monto y descripción) ya están cargados de otros extractos. */
+  igualesCargados: number;
+  /** Cuántos de esos ya tienen factura viva en el libro de cobros (`banco:<hash>`). */
+  igualesFacturados: number;
+}
+
+/**
+ * De esos ids de movimientos ya guardados, cuáles tienen factura viva en el libro de cobros
+ * (`banco:<hash>`). Lo cablea el glue; sin él, el motivo no dice si ya se facturó.
+ */
+export type CobrosBancoYaFacturados = (movimientoIds: readonly string[]) => Promise<ReadonlySet<string>>;
+
+/** Tope de claves de borde por cobro: inalcanzable en la práctica; pasarlo es un error, nunca un descarte. */
+const MAX_CLAVES_BORDE = 1000;
+
+/** Rango de fechas (AAAAMMDD, min y max de sus filas) de una importación ya guardada. */
+export interface RangoImportacion {
+  desde: string;
+  hasta: string;
+}
+
+/**
+ * ¿Qué importación anterior ya guarda este movimiento? Devuelve el rango de fechas de SUS filas,
+ * o null si el movimiento es nuevo. Lo cablea el glue contra la DB; en tests, un Map.
+ */
+export type RangoDeImportacionPrevia = (movimientoId: string) => Promise<RangoImportacion | null>;
+
+/**
+ * Día PARTIDO entre dos extractos (GSG-FACT-011 · H1). Un banco puede cortar un extracto a mitad
+ * de día: el cobro de la tarde del día 15 llega en el extracto siguiente con la misma fecha,
+ * monto y descripción que el de la mañana, ya guardado → el hash coincide y se perdería como
+ * «ya procesado».
+ *
+ * Regla: un CRÉDITO cuyo id choca con una fila de otra importación, en un día que es el BORDE
+ * que comparten los dos extractos (primer día del nuevo = último día del viejo, o último del
+ * nuevo = primero del viejo), no se descarta: se le da una clave de borde (`hashBordePartido`) y
+ * va a REVISIÓN (nunca sale solo). Si el día se cortó tres veces o más, la 1ª clave de borde ya
+ * puede estar guardada por un corte anterior: se toma la SIGUIENTE LIBRE (F1). Un cobro de borde
+ * nunca se descarta en silencio; el precio es ruido en revisión (re-bajar el mismo extracto con
+ * otros bytes vuelve a pedir revisión, y el motivo avisa que puede ser un cobro ya cargado).
+ * Si el día estaba ADENTRO de alguno de los dos rangos, sigue «ya procesado» (el día está completo
+ * en ese archivo y el ordinal ya distingue los cobros iguales). El borde del MISMO lado (los dos
+ * arrancan o terminan ese día) no es un corte entre extractos: es el mismo período subido de
+ * nuevo, y sigue «ya procesado». Los débitos quedan fuera: nunca se facturan.
+ */
+export async function marcarBordesPartidos(
+  movimientos: MovimientoBancario[],
+  rangoPrevio?: RangoDeImportacionPrevia,
+  yaFacturados?: CobrosBancoYaFacturados,
+): Promise<{ movimientos: MovimientoBancario[]; posiblesRepetidos: Map<string, PosibleRepetido> }> {
+  const posiblesRepetidos = new Map<string, PosibleRepetido>();
+  if (!rangoPrevio || movimientos.length === 0) return { movimientos, posiblesRepetidos };
+
+  let desde = movimientos[0].fecha;
+  let hasta = movimientos[0].fecha;
+  for (const m of movimientos) {
+    if (m.fecha < desde) desde = m.fecha;
+    if (m.fecha > hasta) hasta = m.fecha;
+  }
+
+  const salida: MovimientoBancario[] = [];
+  for (const mov of movimientos) {
+    if (mov.monto > 0 && (mov.fecha === desde || mov.fecha === hasta)) {
+      const previo = await rangoPrevio(mov.id);
+      const partido =
+        previo !== null &&
+        ((mov.fecha === desde && mov.fecha === previo.hasta) || (mov.fecha === hasta && mov.fecha === previo.desde));
+      if (partido) {
+        // La original y las claves de borde ya guardadas son cobros iguales ya cargados.
+        const cargados = [mov.id];
+        let id = hashBordePartido(mov.id, 1);
+        for (let n = 2; (await rangoPrevio(id)) !== null; n++) {
+          if (n > MAX_CLAVES_BORDE) {
+            throw new Error(`Demasiados cobros iguales en el día de corte ${fechaLegible(mov.fecha)}: revisá el extracto.`);
+          }
+          cargados.push(id);
+          id = hashBordePartido(mov.id, n);
+        }
+        const facturados = yaFacturados ? await yaFacturados(cargados) : new Set<string>();
+        posiblesRepetidos.set(id, {
+          igualesCargados: cargados.length,
+          igualesFacturados: cargados.filter((c) => facturados.has(c)).length,
+        });
+        salida.push({ ...mov, id });
+        continue;
+      }
+    }
+    salida.push(mov);
+  }
+  return { movimientos: salida, posiblesRepetidos };
+}
+
+/** Motivo de revisión de un cobro del día de corte (F2): fecha, importe y si ya se facturó. */
+export function motivoPosibleRepetido(mov: MovimientoBancario, info: PosibleRepetido): string {
+  const fecha = fechaLegible(mov.fecha);
+  const importe = fmtMoneyARS(Math.abs(mov.monto));
+  const cargados =
+    info.igualesCargados === 1
+      ? `ya cargaste un cobro igual (${importe}, misma descripción) de otro extracto`
+      : `ya cargaste ${info.igualesCargados} cobros iguales (${importe}, misma descripción) de otros extractos`;
+  const facturados =
+    info.igualesFacturados === 0
+      ? ""
+      : info.igualesFacturados === 1
+        ? ` Ese cobro ya está facturado: si es el mismo, no lo apruebes o lo vas a facturar dos veces.`
+        : ` ${info.igualesFacturados} de ellos ya están facturados: si es uno de esos, no lo apruebes o lo vas a facturar dos veces.`;
+  return `Posible cobro repetido del ${fecha} por ${importe}: puede ser un cobro que ya cargaste. Ese día es el corte entre este extracto y otro que ya subiste, y ${cargados}.${facturados} Aprobalo sólo si es otro cobro.`;
+}
+
+function fechaLegible(aaaammdd: string): string {
+  return `${aaaammdd.slice(6, 8)}/${aaaammdd.slice(4, 6)}/${aaaammdd.slice(0, 4)}`;
 }
 
 export interface ResultadoReglas {
@@ -164,6 +284,20 @@ export async function generarPropuestas(
         requiereIdentificacion: false,
         estado: "descartado",
         motivo: "Movimiento ya procesado en una importación anterior.",
+      });
+      continue;
+    }
+
+    // 4b') Día partido entre dos extractos con un cobro igual a uno ya guardado: puede ser otro
+    //      cobro o el mismo. No se pierde ni sale solo: decide un humano (REVISION).
+    const repetido = ctx.posiblesRepetidos?.get(mov.id);
+    if (repetido) {
+      propuestas.push({
+        movimientoId: mov.id,
+        montoTotal,
+        requiereIdentificacion: montoTotal >= config.umbralIdentificacion,
+        estado: "revision",
+        motivo: motivoPosibleRepetido(mov, repetido),
       });
       continue;
     }

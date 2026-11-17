@@ -22,7 +22,7 @@
 import type { MovimientoBancario, OrigenMovimiento } from "../core-contract";
 import type { Celda } from "../parser/xlsx";
 import { buscarTemplate, normalizarHeaders, type ColumnasTemplate } from "./templates";
-import { hashMovimiento, normalizarTexto, parsearFecha, parsearNumeroAR, redondear2 } from "./valores";
+import { hashMovimiento, hashMovimientoOrdinal, normalizarTexto, parsearFecha, parsearNumeroAR, redondear2 } from "./valores";
 
 export type { Celda };
 
@@ -330,6 +330,8 @@ export function mapearColumnas(matriz: Celda[][]): MapeoColumnas | null {
 export function normalizarMovimientos(matriz: Celda[][], mapeo: MapeoColumnas): MovimientoBancario[] {
   const inicio = mapeo.filaHeaders + 1; // con filaHeaders = -1 arranca en 0
   const movimientos: MovimientoBancario[] = [];
+  // Ocurrencias de cada (fecha, monto, descripción normalizada) en el orden del archivo (H1).
+  const ocurrencias = new Map<string, number>();
 
   for (let i = inicio; i < matriz.length; i++) {
     const fila = matriz[i];
@@ -358,8 +360,12 @@ export function normalizarMovimientos(matriz: Celda[][], mapeo: MapeoColumnas): 
     const celdaRef = mapeo.columnas.referencia !== undefined ? fila[mapeo.columnas.referencia] : null;
     const celdaContra = mapeo.columnas.contraparte !== undefined ? fila[mapeo.columnas.contraparte] : null;
 
+    const base = hashMovimiento(fecha, monto, descripcion);
+    const ordinal = (ocurrencias.get(base) ?? 0) + 1;
+    ocurrencias.set(base, ordinal);
+
     movimientos.push({
-      id: hashMovimiento(fecha, monto, descripcion),
+      id: hashMovimientoOrdinal(fecha, monto, descripcion, ordinal),
       fecha,
       monto,
       descripcion,
