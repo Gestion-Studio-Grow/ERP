@@ -18,6 +18,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { actorActual, avisar, proyectoVisible, registrarCambio, usuariosDeLaPlata, type Actor } from "./gestion.server";
 import { cierreDeAnticipo, leerMontoArgentino, motivoNoMuevePlata, rendicionDelMotor } from "./rendiciones-core";
 import { COMPROBANTE_DE_RENDICION, MEDIOS, metodoDeCaja, type MedioPago } from "./core";
+import { asentarEnCajaTx, PeriodoCerradoError } from "./periodo-cerrado.server";
 import { marcaDeGastoProyecto } from "./marcas";
 import { transferenciaEnElLibroTx } from "@/lib/caja/transferencia-en-el-libro";
 import type { RolActor } from "@/lib/rendiciones/tipos";
@@ -52,6 +53,8 @@ async function conMigracion(fn: () => Promise<ResultadoRendicion>): Promise<Resu
     return await fn();
   } catch (e) {
     if (faltaLaMigracion(e)) return { ok: false, error: SIN_MIGRACION };
+    // O40: el día de caja cerrado (o el mes congelado) deshizo la transacción entera; se dice qué hacer.
+    if (e instanceof PeriodoCerradoError) return { ok: false, error: e.message };
     throw e;
   }
 }
@@ -224,18 +227,16 @@ const medioDelForm = (v: FormDataEntryValue | null): MedioPago | null => {
 
 async function asentarTx(tx: Prisma.TransactionClient, tenantId: string, d: { type: "EGRESO" | "INGRESO"; medio: MedioPago; centavos: number; reason: string; marca: string; proyectoGastoId?: string; proyectoAnticipoId?: string }) {
   const session = await tx.cashSession.findFirst({ where: { tenantId, status: "OPEN" }, select: { id: true } });
-  await tx.cashMovement.create({
-    data: {
-      tenantId,
-      sessionId: session?.id ?? null,
-      type: d.type,
-      method: metodoDeCaja(d.medio, await transferenciaEnElLibroTx(tx)),
-      amount: d.centavos / 100,
-      reason: d.reason,
-      createdBy: marcaDeGastoProyecto(d.marca),
-      ...(d.proyectoGastoId ? { proyectoGastoId: d.proyectoGastoId } : {}),
-      ...(d.proyectoAnticipoId ? { proyectoAnticipoId: d.proyectoAnticipoId } : {}),
-    },
+  await asentarEnCajaTx(tx, "rendición", {
+    tenantId,
+    sessionId: session?.id ?? null,
+    type: d.type,
+    method: metodoDeCaja(d.medio, await transferenciaEnElLibroTx(tx)),
+    amount: d.centavos / 100,
+    reason: d.reason,
+    createdBy: marcaDeGastoProyecto(d.marca),
+    ...(d.proyectoGastoId ? { proyectoGastoId: d.proyectoGastoId } : {}),
+    ...(d.proyectoAnticipoId ? { proyectoAnticipoId: d.proyectoAnticipoId } : {}),
   });
 }
 

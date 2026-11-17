@@ -8,7 +8,7 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { aPesos, COLUMNAS_FICHA, cashflowDelEvento, codigoProyecto, resumenCuotas, totalesFicha, ventaTotalItem } from "./gestion-core";
-import { columnasOcultas, filtroDeProyectos, puede, tiposDeCambio, versionViva, aItemFicha, type Actor } from "./gestion.server";
+import { columnasOcultas, filtroDeProyectos, puede, tiposDeCambio, versionViva, versionDeLaPlata, aItemFicha, type Actor } from "./gestion.server";
 import { configProyectos, datosDelNegocio } from "./datos.server";
 import { cobranza, conciliarConCobros, montoEnCashflow, pagadoDeCuota, repartoDeCobros, SIN_PREVISTAS_SIN_MARCAR, totalesEnPesos } from "./cobranza-core";
 import { cobranzasDelNegocio } from "./cobranza.server";
@@ -121,17 +121,23 @@ export async function cabeceraFicha(a: Actor, id: string) {
     },
   });
   if (!proyecto) return null;
-  const [viva, config, tc, negocio] = await Promise.all([versionViva(a.tenantId, id), configProyectos(a.tenantId), tiposDeCambio(a.tenantId), datosDelNegocio(a.tenantId)]);
+  const [viva, base, config, tc, negocio] = await Promise.all([versionViva(a.tenantId, id), versionDeLaPlata(a.tenantId, id), configProyectos(a.tenantId), tiposDeCambio(a.tenantId), datosDelNegocio(a.tenantId)]);
   const items = (viva?.items ?? []).map(aItemFicha);
+  // P-06: la cabecera y las finanzas cuentan la versión aprobada; la pestaña Ficha, el borrador que se está editando.
+  const borradorSobreAprobada = !!viva && !!base && viva.id !== base.id;
+  const itemsPlata = borradorSobreAprobada ? base.items.map(aItemFicha) : items;
   return {
     proyecto,
     viva,
+    base,
+    borradorSobreAprobada,
     config,
     tc,
     negocio,
     codigo: codigoProyecto(proyecto.numero, proyecto.createdAt),
-    totales: totalesFicha(items, tc, config.margenPct),
-    sinProveedor: costoSinProveedor(items, tc),
+    totales: totalesFicha(itemsPlata, tc, config.margenPct),
+    totalesViva: totalesFicha(items, tc, config.margenPct),
+    sinProveedor: costoSinProveedor(itemsPlata, tc),
     faltanCambio: monedasSinCambio(viva?.items ?? [], tc),
   };
 }

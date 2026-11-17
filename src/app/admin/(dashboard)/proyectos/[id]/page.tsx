@@ -73,7 +73,7 @@ export default async function FichaProyecto({ params, searchParams }: { params: 
           {wa && <a href={wa} target="_blank" rel="noopener noreferrer" className={buttonClasses("outline", "md")}>WhatsApp</a>}
         </div>
         <dl className="mt-3 grid grid-cols-2 gap-3 border-t border-line pt-3 text-sm sm:grid-cols-3">
-          <Numero titulo="Venta" valor={p.moneda === "ARS" ? pesos(t.venta) : `${ventaEn(t.venta, p.moneda, cambioDeVenta(p.moneda, cab.viva?.tcVenta, tc))} (≈ ${pesos(t.venta)})`} />
+          <Numero titulo="Venta" valor={p.moneda === "ARS" ? pesos(t.venta) : `${ventaEn(t.venta, p.moneda, cambioDeVenta(p.moneda, cab.base?.tcVenta, tc))} (≈ ${pesos(t.venta)})`} />
           {verCosto && <Numero titulo="Costo" valor={pesos(t.costo)} />}
           {verMargen && <Numero titulo="Margen" valor={`${pesos(t.margen)} (${porcentaje(t.margenPct)})`} alerta={t.margen < 0} />}
         </dl>

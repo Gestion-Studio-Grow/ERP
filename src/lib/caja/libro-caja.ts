@@ -301,6 +301,27 @@ export function origenContable(m: FilaParaOrigen): OrigenContable {
   return clasificarOrigen(m).origen;
 }
 
+/** Las claves con que un asiento de caja apunta a lo que lo originó en Proyectos (schema: `CashMovement`). */
+export type OrigenProyecto = {
+  proyectoPagoId?: string | null;
+  proyectoGastoId?: string | null;
+  proyectoLiquidacionId?: string | null;
+  proyectoAnticipoId?: string | null;
+};
+
+function motivoDeProyecto(m: OrigenProyecto): string | null {
+  if (m.proyectoPagoId) {
+    return "Ese movimiento lo asentó un cobro de un proyecto (o su anulación). No se borra desde el libro: corregilo desde la ficha del proyecto, en Cobros (anular el cobro asienta la vuelta).";
+  }
+  if (m.proyectoGastoId) {
+    return "Ese movimiento lo asentó el pago de un gasto de un proyecto (o su anulación). No se borra desde el libro: corregilo desde la ficha del proyecto, en Gastos.";
+  }
+  if (m.proyectoLiquidacionId || m.proyectoAnticipoId) {
+    return "Ese movimiento lo asentó una liquidación o un anticipo de Rendiciones. No se borra desde el libro: corregilo desde Proyectos › Administración.";
+  }
+  return null;
+}
+
 // --- Qué NO se borra desde el libro ---
 //
 // Lo que escribió el SISTEMA no se borra desde el libro (dirección única: la venta, el cobro,
@@ -314,7 +335,12 @@ export function origenContable(m: FilaParaOrigen): OrigenContable {
  * mano y se puede. PURA: la usa `deleteLibroEntry` (libro-caja-actions.ts) antes de borrar; el
  * candado de día cerrado va aparte, porque depende de la frontera del cierre.
  */
-export function motivoParaNoBorrar(m: { type: CashMovementType; orderId?: string | null; createdBy?: string | null; tallerPagoId?: string | null }): string | null {
+export function motivoParaNoBorrar(m: { type: CashMovementType; orderId?: string | null; createdBy?: string | null; tallerPagoId?: string | null } & OrigenProyecto): string | null {
+  // A-06 (MIA-049, hallazgo 1): lo que nació en Proyectos (un cobro, su anulación, el pago de un gasto, de una
+  // liquidación o de un anticipo) lo reconoce la CLAVE del asiento, no la marca: la anulación de un cobro se firma
+  // con el usuario, y sin este candado su contraasiento era borrable y el cobro anulado dejaba la plata en caja.
+  const proyecto = motivoDeProyecto(m);
+  if (proyecto) return proyecto;
   // El Taller firma sus asientos con el usuario, así que no se lo reconoce por la marca: lo dice
   // `tallerPagoId`. Borrar la VENTA dejaría el cobro sin plata; borrar la reversa, la plata de un cobro anulado.
   if (m.tallerPagoId) {
@@ -406,7 +432,7 @@ export type FilaLedger = {
   collectionId?: string | null;
   paymentId?: string | null;
   tallerPagoId?: string | null;
-};
+} & OrigenProyecto;
 
 // --- Columnas de REFERENCIA que pueden faltar en la base ---
 //

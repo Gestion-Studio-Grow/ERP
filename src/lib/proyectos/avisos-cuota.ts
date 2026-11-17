@@ -15,8 +15,12 @@ export function pesosConEquivalente(enPesos: number, cob: Pick<Cobranza, "enMone
 }
 
 /** El cartel de éxito de «Marcar cobrado» / «Marcar pagado». */
-export function listoMarcada(esCobro: boolean, importeEnPesos: number): string {
-  return `Listo: cuota marcada como ${esCobro ? "cobrada" : "pagada"} (${pesos(importeEnPesos)}).`;
+export function listoMarcada(esCobro: boolean, importeEnPesos: number, cuota?: { monto: number; cobra: number; moneda: string }): string {
+  const listo = `Listo: cuota marcada como ${esCobro ? "cobrada" : "pagada"} (${pesos(importeEnPesos)}).`;
+  // P-06: una cuota de cobro que se marca por menos que su importe lo dice, con la diferencia y por qué no se cobra.
+  const resto = cuota ? redondear(cuota.monto - cuota.cobra) : 0;
+  if (!esCobro || !cuota || !(resto > 0.005)) return listo;
+  return `${listo} La cuota era de ${plataEn(cuota.monto, cuota.moneda)}: los ${plataEn(resto, cuota.moneda)} restantes no se cobraron porque ya los cubren cobros registrados aparte o pasan lo que falta cobrar del presupuesto aprobado.`;
 }
 
 /** El cartel de éxito de «una parte» (cobro o pago a proveedor): lo que se asentó y lo que le sigue faltando a la cuota, en su moneda. */

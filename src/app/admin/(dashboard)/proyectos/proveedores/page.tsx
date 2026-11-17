@@ -3,6 +3,7 @@ import { buttonClasses, cn } from "@/components/ui";
 import SubmitButton from "@/components/SubmitButton";
 import { requireApp } from "@/lib/require-app";
 import { pagarGasto } from "@/lib/proyectos/acciones";
+import { FormAccion } from "../[id]/_cliente";
 import { cambiarEstadoProveedor } from "@/lib/proyectos/acciones-gestion";
 import { fechaCorta, MEDIOS, MEDIO_LABEL, pesos, totalDelGasto } from "@/lib/proyectos/core";
 import { veLaPlata } from "@/lib/proyectos/datos.server";
@@ -108,13 +109,13 @@ export default async function ProveedoresDeProyectos({ searchParams }: { searchP
                     </span>
                   </span>
                   {paga && (
-                    <form action={pagarGasto} className="flex items-center gap-2">
+                    <FormAccion accion={pagarGasto} className="flex flex-wrap items-center gap-2">
                       <input type="hidden" name="id" value={g.id} />
                       <select name="medio" aria-label={`Medio de pago de ${g.descripcion}`} defaultValue="TRANSFERENCIA" className={cn(campo, "w-auto")}>
                         {MEDIOS.map((m) => <option key={m} value={m}>{MEDIO_LABEL[m]}</option>)}
                       </select>
                       <SubmitButton className={buttonClasses("outline", "md")}>Pagar</SubmitButton>
-                    </form>
+                    </FormAccion>
                   )}
                 </li>
               ))}

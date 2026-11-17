@@ -349,3 +349,13 @@ test("cheque de la administración rechazado: su salida por MP dice «Cheque rec
   // El ingreso del pago sigue siendo un cobro de cuenta corriente.
   assert.equal(clasificarOrigen({ type: "INGRESO", createdBy: marcaDelPagoEnCaja("p1") }).origen, "cobro-cuenta-corriente");
 });
+
+test("A-06 · lo que nació en Proyectos (cobro, su anulación, pago de gasto, rendición) no se borra del libro; lo manual sí", () => {
+  const base = { type: "EGRESO" as const, createdBy: "user:u1", orderId: null };
+  assert.match(motivoParaNoBorrar({ ...base, type: "VENTA", proyectoPagoId: "pp1" }) ?? "", /cobro de un proyecto/);
+  assert.match(motivoParaNoBorrar({ ...base, proyectoPagoId: "pp1" }) ?? "", /proyecto/, "el contraasiento de la anulación");
+  assert.match(motivoParaNoBorrar({ ...base, proyectoGastoId: "g1" }) ?? "", /gasto/);
+  assert.match(motivoParaNoBorrar({ ...base, proyectoLiquidacionId: "l1" }) ?? "", /Rendiciones|liquidaci/);
+  assert.match(motivoParaNoBorrar({ ...base, proyectoAnticipoId: "a1" }) ?? "", /Rendiciones|anticipo/);
+  assert.equal(motivoParaNoBorrar({ ...base, proyectoPagoId: null, proyectoGastoId: null }), null, "uno cargado a mano se sigue borrando");
+});
