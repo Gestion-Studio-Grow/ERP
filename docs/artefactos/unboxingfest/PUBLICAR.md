@@ -1,11 +1,14 @@
 # Unboxing Fest · cómo se publica
 
-Los juegos (HTML de un solo archivo con la marca de Farmaonline) **no están en este repo** a propósito: no hay
-autorización registrada de Farmaonline/MIA para usar su marca, y cada push a una rama arma un preview en Vercel.
-Viven en el Drive de GSG (carpeta de entregables de Unboxing Fest).
+Publicados en `public/juegos/unboxingfest/` el 17/11/2026, con la autorización de `AUTORIZACION-MARCA.md`.
+La raíz de `unboxingfest.gsgapp.com.ar` va a la portada (`src/lib/producto-host.ts`); el comodín `*.gsgapp.com.ar`
+ya está en el proyecto `erp-ch` de Vercel, así que no hace falta agregar el dominio.
 
-Cuando estén la autorización y la orden del dueño:
-1. Copiar `index.html`, `sw.js` y los 3 `farmaonline-*.html` del Drive a `public/juegos/unboxingfest/`.
-2. Completar en cada juego `endpoint`, `endpointToken`, `waMarca`, `pin` y `codeSalt` (ver `GUIA-OPERACION.md` § 5).
-3. Agregar el dominio `unboxingfest.gsgapp.com.ar` al proyecto de Vercel (la ruta ya está en `src/lib/producto-host.ts`).
-4. Publicar en una tanda (reglas de `Factory-GSG/10-GOBIERNO/despliegues-vercel.md`).
+**Fase 1 (esta publicación):** el link muestra la cuenta regresiva y «Agendalo» hasta que abre la ventana
+(5/12 10:00, provisional). Con `?demo=1` se puede jugar para mostrarlo, pero el código sale `DEMO-…`, no tiene premio
+y no se manda nada a la planilla.
+
+**Fase 2 (antes del 5/12, una publicación más):**
+1. Instalar la planilla (guía § 4) y completar en cada juego `endpoint` y `endpointToken`.
+2. Cambiar `pin` y `codeSalt` (guía § 5) y cargar `waMarca` con el número de la marca.
+3. Volver a copiar los 3 juegos a `public/juegos/unboxingfest/` y publicar.
