@@ -141,7 +141,7 @@ export async function standParaEditar(proyectoId: string, standId: string) {
   const tenantId = await getCurrentTenantId();
   const stand = await prisma.proyectoStand.findFirst({
     where: { id: standId, proyectoId, tenantId },
-    include: { proyecto: { select: { id: true, numero: true, nombre: true, client: { select: { name: true } } } } },
+    include: { proyecto: { select: { id: true, numero: true, nombre: true, servicio: true, fechaArmado: true, fechaEvento: true, fechaDesarme: true, client: { select: { name: true } } } } },
   });
   if (!stand) return null;
   const diseno = normalizarDiseno(stand.diseno);

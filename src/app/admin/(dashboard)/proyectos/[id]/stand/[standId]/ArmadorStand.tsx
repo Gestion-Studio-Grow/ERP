@@ -12,6 +12,7 @@ import { buttonClasses, cn } from "@/components/ui";
 import { agregarArchivo, computoAlPresupuesto, guardarStand } from "@/lib/proyectos/acciones";
 import { ACABADOS_PISO, computar, dentroDelLote, GRUPOS_PIEZAS, LIMITES, lugarLibre, normalizarDiseno, PIEZAS, validarDiseno, TIPOS_STAND, TIPO_STAND_LABEL, type AcabadoPiso, type DisenoStand, type TipoPieza, type TipoStand } from "@/lib/proyectos/stand";
 import type { EscenaStand, Vista } from "@/lib/proyectos/stand-escena";
+import PanelQuienLoHace, { type FechasProyecto } from "./PanelQuienLoHace";
 
 const campo = "min-h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-strong";
 
@@ -45,12 +46,15 @@ export default function ArmadorStand({
   nombreInicial,
   disenoInicial,
   conPlata,
+  derivacion = null,
 }: {
   id: string;
   proyectoId: string;
   nombreInicial: string;
   disenoInicial: DisenoStand;
   conPlata: boolean;
+  /** Con el interruptor «derivacion-taller» prendido: el servicio y las fechas del proyecto. Si no, null. */
+  derivacion?: { servicio: string; fechas: FechasProyecto } | null;
 }) {
   const [nombre, setNombre] = useState(nombreInicial);
   const [d, setD] = useState<DisenoStand>(disenoInicial);
@@ -476,6 +480,7 @@ export default function ArmadorStand({
               Pasar el cómputo al presupuesto
             </button>
           )}
+          {derivacion && <PanelQuienLoHace diseno={d} servicio={derivacion.servicio} fechas={derivacion.fechas} />}
           <Link href={`/admin/proyectos/${proyectoId}`} className={cn(buttonClasses("ghost", "lg"), "justify-center")}>Volver al proyecto</Link>
           <BotonEliminarStand id={id} nombre={nombre} proyectoId={proyectoId} alEliminar="volver" ancho />
         </div>
