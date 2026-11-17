@@ -685,6 +685,9 @@ const MODULOS_DE_LA_APP: Readonly<Record<string, readonly ModuloGestion[]>> = {
 
 export function appDeGestionVisible(appId: string, rol: RolGestion, guardados: readonly { rol: string; modulo: string; ver: boolean; editar: boolean }[]): boolean {
   if (appId === "gestion-inicio") return true;
+  // CRM comercial (GSG-CRM-011): sólo llega con su interruptor prendido; quién entra lo decide la membresía del
+  // CRM (E16), no el rol del panel: un usuario de puesto del equipo de agentes no tiene ficha y entra igual.
+  if (appId === "crm-comercial") return true;
   if (rol === "SIN_FICHA") return false;
   const modulos = MODULOS_DE_LA_APP[appId];
   if (modulos) return modulos.some((m) => permisoDe(rol, m, guardados).ver);
@@ -704,12 +707,12 @@ const APPS_DEL_ERP: Partial<Record<RolGestion, readonly string[]>> = {
 /** Lo que cada rol tiene a la vista. Dirección puede abrir el resto; los demás, lo que permiten sus módulos. */
 const BARRA_DEL_ROL: Record<RolGestion, readonly string[]> = {
   // Caja a la vista de Dirección (QA MIA #6): el rol del ERP sigue siendo el techo (`appsVisibles` pide orders:read).
-  DIRECCION: ["gestion-inicio", "gestion-direccion", "gestion-administracion", "proyectos", "gestion-calendario", "gestion-equipo", "caja-del-dia", "reportes", "eventos-sponsors"],
+  DIRECCION: ["gestion-inicio", "gestion-direccion", "gestion-administracion", "proyectos", "gestion-calendario", "gestion-equipo", "caja-del-dia", "reportes", "eventos-sponsors", "crm-comercial"],
   ADMINISTRACION: ["gestion-inicio", "gestion-administracion", "gestion-proveedores", "caja-del-dia", "libro-de-caja", "cierre-del-dia", "facturacion", "gestion-mi-liquidacion"],
-  COMERCIAL: ["gestion-inicio", "proyectos", "clientes", "eventos-sponsors", "gestion-propuesta-ia", "gestion-agentes", "gestion-calendario", "gestion-mi-liquidacion"],
+  COMERCIAL: ["gestion-inicio", "proyectos", "clientes", "eventos-sponsors", "crm-comercial", "gestion-propuesta-ia", "gestion-agentes", "gestion-calendario", "gestion-mi-liquidacion"],
   DISENO: ["gestion-inicio", "gestion-diseno", "proyectos", "gestion-propuesta-ia", "gestion-agentes", "gestion-calendario", "gestion-mi-liquidacion"],
   PRODUCCION: ["gestion-inicio", "proyectos", "gestion-proveedores", "gestion-calendario", "gestion-agentes", "gestion-mi-liquidacion"],
-  SIN_FICHA: ["gestion-inicio"],
+  SIN_FICHA: ["gestion-inicio", "crm-comercial"],
 };
 
 export const appEnLaBarra = (appId: string, rol: RolGestion): boolean => BARRA_DEL_ROL[rol].includes(appId);

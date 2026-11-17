@@ -240,7 +240,9 @@ function edicionPermite(app: AppDescriptor, n: NegocioApps): boolean {
  */
 export function appDelPanelCerrado(n: NegocioApps, apps: readonly AppDescriptor[] = REGISTRO_APPS): AppDescriptor | null {
   const asignados = n.contexto ? n.contexto.modulos : new Set(n.modulosAsignados);
-  return apps.find((a) => a.panelCerrado?.blueprint === n.blueprintId && a.panelCerrado && a.modulo !== null && asignados.has(a.modulo)) ?? null;
+  // Con módulo, además del vertical tiene que estar asignado (la productora: `proyectos`). Sin módulo, alcanza el
+  // vertical (GSG-CRM-018: el ARM nace sin módulos y es sólo el CRM).
+  return apps.find((a) => !!a.panelCerrado && a.panelCerrado.blueprint === n.blueprintId && (a.modulo === null || asignados.has(a.modulo))) ?? null;
 }
 
 const entraEnElPanel = (panel: AppDescriptor, app: AppDescriptor): boolean =>
@@ -557,7 +559,7 @@ export function aterrizajeDelPanel(n: NegocioApps, apps: readonly AppDescriptor[
  */
 export function conProyectosEnLaBarra(menu: readonly ItemMenuDeHoy[], visibles: readonly AppDescriptor[]): ItemMenuDeHoy[] {
   // Proyectos y las apps de gestión de eventos, en este orden (todas exigen el mismo módulo, salvo «Eventos y sponsors», que va por interruptor).
-  const ORDEN = ["gestion-inicio", "proyectos", "eventos-sponsors", "gestion-diseno", "gestion-calendario", "gestion-proveedores", "gestion-administracion", "gestion-direccion", "gestion-agentes", "gestion-propuesta-ia", "gestion-mi-liquidacion", "gestion-equipo"];
+  const ORDEN = ["gestion-inicio", "proyectos", "eventos-sponsors", "crm-comercial", "gestion-diseno", "gestion-calendario", "gestion-proveedores", "gestion-administracion", "gestion-direccion", "gestion-agentes", "gestion-propuesta-ia", "gestion-mi-liquidacion", "gestion-equipo"];
   const apps = ORDEN.map((id) => visibles.find((a) => a.id === id)).filter((a): a is AppDescriptor => !!a && !menu.some((i) => i.href === a.ruta));
   if (apps.length === 0) return [...menu];
   const i = menu.findIndex((m) => m.href === "/admin/turnos");
