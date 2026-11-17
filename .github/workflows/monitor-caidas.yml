@@ -34,7 +34,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
-      PROD_URL: ${{ vars.PROD_URL || 'https://chestetica-erp.vercel.app' }}
+      PROD_URL: ${{ vars.PROD_URL || 'https://chestetica.gsgapp.com.ar' }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GH_REPO: ${{ github.repository }}
       TITULO: '🔴 Producción caída'
