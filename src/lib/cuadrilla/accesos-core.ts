@@ -3,7 +3,7 @@
 // (`tenantTransaction` o `enElNegocio`, RLS con `app_rls`), cada consulta filtra tenantId, y antes de escribir se
 // pregunta a `permisos.ts`. Igualar lo hace una persona (supervisión del negocio u operador GSG), nunca un agente.
 import type { Prisma } from "@/generated/prisma/client";
-import { diferenciasDeAccesos, fueraDelTecho, nombreDelRol, overridesQueSeCopian, ROLES_DE_PROYECTOS_FUERA_DEL_TECHO, ROLES_FUERA_DEL_TECHO, type Accesos } from "./accesos";
+import { alertaDelTecho, diferenciasDeAccesos, fueraDelTecho, nombreDelRol, overridesQueSeCopian, ROLES_DE_PROYECTOS_FUERA_DEL_TECHO, ROLES_FUERA_DEL_TECHO, type Accesos } from "./accesos";
 import { NoPermitido, hiloDeAgente } from "./consola-core";
 import { puede, type Actor } from "./permisos";
 
@@ -18,6 +18,8 @@ export type EstadoDeAccesos = {
   diferencias: string[];
   /** El rol que tiene hoy el usuario del agente. */
   rolDelAgente: string | null;
+  /** El usuario del agente YA pasa el techo (Dueño/a o Dirección): alerta, no diferencia (C1(f), GSG-MIA-078). */
+  alerta: string | null;
 };
 
 export type PersonaDelNegocio = { id: string; nombre: string; rol: string };
@@ -55,7 +57,7 @@ export async function estadoDeAccesos(tx: Tx, tenantId: string, agentes: { id: s
   const out = new Map<string, EstadoDeAccesos>();
   for (const a of agentes) {
     if (!a.userId) {
-      out.set(a.id, { sinUsuario: true, como: null, diferencias: [], rolDelAgente: null });
+      out.set(a.id, { sinUsuario: true, como: null, diferencias: [], rolDelAgente: null, alerta: null });
       continue;
     }
     const delAgente = await accesosDe(tx, tenantId, a.userId);
@@ -65,6 +67,7 @@ export async function estadoDeAccesos(tx: Tx, tenantId: string, agentes: { id: s
       como: persona && a.comoUserId ? { id: a.comoUserId, nombre: persona.nombre, rol: nombreDelRol(persona.role) } : null,
       diferencias: delAgente && persona ? [...diferenciasDeAccesos(delAgente, persona), ...(fueraDelTecho(persona) ? [`${persona.nombre} pasó el techo: no se puede volver a igualar con esa persona`] : [])] : [],
       rolDelAgente: delAgente ? nombreDelRol(delAgente.role) : null,
+      alerta: delAgente ? alertaDelTecho(delAgente) : null,
     });
   }
   return out;

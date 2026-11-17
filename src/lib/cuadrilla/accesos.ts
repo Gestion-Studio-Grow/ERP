@@ -44,6 +44,21 @@ export function fueraDelTecho(persona: { role: string; rolProyectos: string | nu
   return null;
 }
 
+/**
+ * ALERTA (C1(f) de GSG-MIA-076, GSG-MIA-078): el usuario del agente YA pasa el techo (cargado antes de MIA-076 o a
+ * mano en la base). No es una diferencia más: en Usuarios se le niega todo (`user-actions.ts`), y la consola lo
+ * muestra para que una persona lo iguale con alguien del puesto. Null si no pasa el techo.
+ */
+export function alertaDelTecho(agente: { role: string; rolProyectos: string | null }): string | null {
+  const pasa = ROLES_FUERA_DEL_TECHO.includes(agente.role)
+    ? nombreDelRol(agente.role)
+    : agente.rolProyectos && ROLES_DE_PROYECTOS_FUERA_DEL_TECHO.includes(agente.rolProyectos)
+      ? "Dirección en Proyectos"
+      : null;
+  if (!pasa) return null;
+  return `Su usuario es ${pasa}, y un agente nunca lo es: no cambia claves ni da de baja en Usuarios. Igualalo con alguien del puesto.`;
+}
+
 /** De la matriz de la persona, lo que se copia: sólo las casillas que se dan por usuario. */
 export const overridesQueSeCopian = <T extends { capability: string }>(xs: readonly T[]): T[] => xs.filter((o) => esCapacidadPorUsuario(o.capability));
 

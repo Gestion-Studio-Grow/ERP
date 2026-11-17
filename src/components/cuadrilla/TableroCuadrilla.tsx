@@ -353,9 +353,14 @@ function AccesosDelAgente({ props, negocio, agente }: { props: PropsTablero; neg
   const e = negocio.accesos?.[agente.id];
   if (!e) return null;
   if (e.sinUsuario) return <p className="w-full text-xs text-muted">Sin usuario propio: no entra al sistema.</p>;
-  const iguales = !!e.como && e.diferencias.length === 0;
+  const iguales = !e.alerta && !!e.como && e.diferencias.length === 0;
   return (
-    <div className="w-full space-y-1" data-accesos={iguales ? "iguales" : e.como ? "distintos" : "sin-persona"}>
+    <div className="w-full space-y-1" data-accesos={e.alerta ? "alerta" : iguales ? "iguales" : e.como ? "distintos" : "sin-persona"}>
+      {e.alerta ? (
+        <p role="alert" className="rounded border border-danger bg-danger-soft px-2 py-1 text-xs font-medium text-danger">
+          Alerta · {e.alerta}
+        </p>
+      ) : null}
       <p className={`text-xs ${iguales ? "text-success" : "text-warning"}`}>
         {iguales
           ? `Accesos: iguales a los de ${e.como!.nombre} (${e.como!.rol}).`
