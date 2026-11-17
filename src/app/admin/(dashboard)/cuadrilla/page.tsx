@@ -10,10 +10,12 @@ import { requireApp } from "@/lib/require-app";
 import { actorDelPanel } from "@/lib/cuadrilla/actor-del-panel.server";
 import { cargarNegocio } from "@/lib/cuadrilla/cargar";
 import { hiloDeAgente, leerHilo, mediana } from "@/lib/cuadrilla/consola-core";
-import { motivoDelError } from "@/lib/cuadrilla/formulario";
-import { TableroCuadrilla } from "@/components/cuadrilla/TableroCuadrilla";
+import { avisoDeLaUrl, motivoDelError } from "@/lib/cuadrilla/formulario";
+import { pedidosAbiertosDelAgente } from "@/lib/cuadrilla/pedidos-core";
+import { RESPUESTA_OPORTUNIDAD, VISTAS_PEDIDOS, type VistaPedidos } from "@/lib/cuadrilla/pedidos";
+import { TableroCuadrilla, horaAR } from "@/components/cuadrilla/TableroCuadrilla";
 import { atributosBoton, buttonClasses } from "@/components/ui/Button";
-import { panelAgente, panelDecidir, panelHablar, panelLevantar, panelLote } from "./actions";
+import { panelAgente, panelAvanzarPedido, panelCerrarPedido, panelDecidir, panelHablar, panelLevantar, panelLote } from "./actions";
 
 export const metadata: Metadata = { title: "Cuadrilla", generator: "Gestión Studio Grow" };
 export const dynamic = "force-dynamic";
@@ -28,7 +30,7 @@ export default async function CuadrillaPanelPage({ searchParams }: { searchParam
   await requireApp("cuadrilla");
   const { actor, tenantId } = await actorDelPanel();
   const sp = await searchParams;
-  const aviso = { ok: uno(sp.ok), error: uno(sp.error) };
+  const aviso = avisoDeLaUrl({ ok: uno(sp.ok), error: uno(sp.error), f: uno(sp.f) });
 
   if (!actor) {
     return (
@@ -40,12 +42,17 @@ export default async function CuadrillaPanelPage({ searchParams }: { searchParam
   }
 
   if (actor.tipo === "agente") {
-    let datos: { mensajes: Awaited<ReturnType<typeof leerHilo>>; mias: { id: string; tipo: string; categoria: string; titulo: string; estado: string; motivo: string | null; decididaPor: string | null }[] } | null = null;
+    let datos: {
+      mensajes: Awaited<ReturnType<typeof leerHilo>>;
+      pedidos: Awaited<ReturnType<typeof pedidosAbiertosDelAgente>>;
+      mias: { id: string; tipo: string; categoria: string; titulo: string; estado: string; motivo: string | null; decididaPor: string | null }[];
+    } | null = null;
     let falla: string | null = null;
     try {
       datos = await tenantTransaction(
         async (tx) => ({
           mensajes: await leerHilo(tx, tenantId, hiloDeAgente(actor.agenteId)),
+          pedidos: await pedidosAbiertosDelAgente(tx, tenantId, actor.agenteId),
           mias: await tx.excepcionCuadrilla.findMany({
             where: { tenantId, agenteId: actor.agenteId },
             orderBy: { createdAt: "desc" },
@@ -81,7 +88,7 @@ export default async function CuadrillaPanelPage({ searchParams }: { searchParam
             {(datos?.mensajes ?? []).map((m) => (
               <li key={m.id} className="rounded-lg border border-line px-3 py-2" data-autor={m.autorTipo}>
                 <p className="text-xs text-muted">
-                  <span className="font-medium text-strong">{m.autor}</span> · {m.createdAt.toISOString().slice(11, 16)} UTC
+                  <span className="font-medium text-strong">{m.autor}</span> · <time dateTime={m.createdAt.toISOString()}>{horaAR(m.createdAt)}</time>
                 </p>
                 <p className="whitespace-pre-wrap break-words text-sm text-body">{m.texto}</p>
               </li>
@@ -97,6 +104,73 @@ export default async function CuadrillaPanelPage({ searchParams }: { searchParam
               Mandar
             </button>
           </form>
+        </section>
+        <section id="pedidos" aria-labelledby="t-pedidos" className="scroll-mt-20 space-y-3">
+          <h2 id="t-pedidos" className="font-semibold text-strong">
+            Pedidos abiertos ({datos?.pedidos.length ?? 0})
+          </h2>
+          <p className="text-sm text-muted">
+            Hacé sólo lo que dice tu manual. Si te piden otra cosa, cerralo por una de las dos salidas: ajeno al servicio (con la regla de tu manual) o
+            posible servicio de GSG (se contesta un texto fijo; no prometas precio ni plazo).
+          </p>
+          {(datos?.pedidos ?? []).map((p) => (
+            <article key={p.id} className="space-y-3 rounded-lg border border-line bg-surface p-4" data-pedido={p.id}>
+              <div>
+                <p className="whitespace-pre-wrap break-words text-sm text-body">{p.texto}</p>
+                <p className="text-xs text-muted">
+                  Pidió {p.pedidoPor} · {horaAR(p.createdAt)} · tope {p.topeMinutos} min · turnos {p.turnosUsados}/{p.topeTurnos}
+                </p>
+              </div>
+              <form action={panelAvanzarPedido} className="grid gap-2">
+                <input type="hidden" name="pedidoId" value={p.id} />
+                <input type="hidden" name="ancla" value="pedidos" />
+                <label className="grid gap-1 text-sm">
+                  <span className="text-muted">Qué avanzaste (usa un turno)</span>
+                  <input name="texto" required maxLength={2000} className="min-h-11 rounded border border-line bg-surface px-3" />
+                </label>
+                <button type="submit" className={buttonClasses("outline", "md")} {...atributosBoton("outline", "md")}>
+                  Avancé
+                </button>
+              </form>
+              <form action={panelCerrarPedido} className="grid gap-2">
+                <input type="hidden" name="pedidoId" value={p.id} />
+                <input type="hidden" name="salida" value="HECHO" />
+                <input type="hidden" name="ancla" value="pedidos" />
+                <label className="grid gap-1 text-sm">
+                  <span className="text-muted">Qué hiciste</span>
+                  <input name="respuesta" required maxLength={2000} className="min-h-11 rounded border border-line bg-surface px-3" />
+                </label>
+                <button type="submit" className={buttonClasses("solid", "md")} {...atributosBoton("solid", "md")}>
+                  Terminado
+                </button>
+              </form>
+              <form action={panelCerrarPedido} className="grid gap-2 border-t border-line pt-3">
+                <input type="hidden" name="pedidoId" value={p.id} />
+                <input type="hidden" name="salida" value="AJENO" />
+                <input type="hidden" name="ancla" value="pedidos" />
+                <label className="grid gap-1 text-sm">
+                  <span className="text-muted">Regla de tu manual (por ejemplo «verificador §2»)</span>
+                  <input name="regla" required maxLength={120} className="min-h-11 rounded border border-line bg-surface px-3" />
+                </label>
+                <label className="grid gap-1 text-sm">
+                  <span className="text-muted">Lo que sí podés hacer</span>
+                  <input name="queSi" required minLength={10} maxLength={600} className="min-h-11 rounded border border-line bg-surface px-3" />
+                </label>
+                <button type="submit" className={buttonClasses("outline", "md")} {...atributosBoton("outline", "md")}>
+                  Fuera de mi puesto: negar con amabilidad
+                </button>
+              </form>
+              <form action={panelCerrarPedido} className="grid gap-2 border-t border-line pt-3">
+                <input type="hidden" name="pedidoId" value={p.id} />
+                <input type="hidden" name="salida" value="OPORTUNIDAD" />
+                <input type="hidden" name="ancla" value="pedidos" />
+                <p className="text-sm text-muted">Se contesta, tal cual: «{RESPUESTA_OPORTUNIDAD}»</p>
+                <button type="submit" className={buttonClasses("outline", "md")} {...atributosBoton("outline", "md")}>
+                  Puede ser un servicio de GSG: traspasar
+                </button>
+              </form>
+            </article>
+          ))}
         </section>
         <section aria-labelledby="t-levantar" className="space-y-2 rounded-lg border border-line bg-surface p-4">
           <h2 id="t-levantar" className="font-semibold text-strong">
@@ -152,13 +226,19 @@ export default async function CuadrillaPanelPage({ searchParams }: { searchParam
     );
   }
 
-  const filtros = { agente: uno(sp.agente), estado: uno(sp.estado), tipo: uno(sp.tipo), hilo: uno(sp.hilo) };
+  const filtros = {
+    agente: uno(sp.agente),
+    estado: uno(sp.estado),
+    tipo: uno(sp.tipo),
+    hilo: uno(sp.hilo),
+    pedidos: VISTAS_PEDIDOS.find((v) => v === uno(sp.pedidos) && v !== "todos") as VistaPedidos | undefined,
+  };
   const ex = uno(sp.ex);
   let carga = null;
   let falla: string | undefined;
   try {
     carga = await tenantTransaction(
-      (tx) => cargarNegocio(tx, tenantId, { agenteId: filtros.agente, estado: filtros.estado, tipo: filtros.tipo }, { ex, hilo: filtros.hilo, abrirPrimera: !ex && !filtros.hilo }),
+      (tx) => cargarNegocio(tx, tenantId, { agenteId: filtros.agente, estado: filtros.estado, tipo: filtros.tipo, pedidos: filtros.pedidos }, { ex, hilo: filtros.hilo, abrirPrimera: !ex && !filtros.hilo }),
       { tenantId },
     );
   } catch (e) {
@@ -168,7 +248,7 @@ export default async function CuadrillaPanelPage({ searchParams }: { searchParam
     <TableroCuadrilla
       modo="supervisor"
       base="/admin/cuadrilla"
-      negocios={[{ id: tenantId, nombre: "Tu negocio", tablero: carga?.tablero ?? null, falla }]}
+      negocios={[{ id: tenantId, nombre: "Tu negocio", tablero: carga?.tablero ?? null, falla, pedidos: carga?.pedidos }]}
       filtros={filtros}
       seleccion={carga?.seleccion ? { excepcion: carga.seleccion, negocio: "Tu negocio" } : null}
       hilo={carga?.hilo ? { ...carga.hilo, tenantId } : null}

@@ -7,6 +7,7 @@
 import { createHash } from "node:crypto";
 import type { Prisma } from "@/generated/prisma/client";
 import { esNivel0, puede, type Actor, type ExcepcionCtx, type Resultado } from "./permisos";
+import type { VistaPedidos } from "./pedidos";
 
 type Tx = Prisma.TransactionClient;
 
@@ -34,6 +35,8 @@ export type Filtros = {
   /** "PENDIENTE" (por defecto) o "TODAS". */
   estado?: string;
   tipo?: string;
+  /** Lista de pedidos (criterio 8): abiertos, negados, oportunidades, topes o todos. */
+  pedidos?: VistaPedidos;
 };
 
 export type AgenteVista = {
@@ -81,8 +84,6 @@ export type Tablero = {
   frenados: number;
 };
 
-const ORDEN_TIPO: Record<string, number> = { APROBACION: 0, ESCALADO: 1, RECHAZO: 2, FRENADO: 3 };
-
 /** El tablero de un negocio: agentes y excepciones (pendientes primero, la más vieja arriba). */
 export async function leerTablero(tx: Tx, tenantId: string, filtros: Filtros = {}): Promise<Tablero> {
   const soloPendientes = (filtros.estado ?? "PENDIENTE") !== "TODAS";
@@ -128,7 +129,7 @@ export async function leerTablero(tx: Tx, tenantId: string, filtros: Filtros = {
     createdAt: e.createdAt,
   }));
   if (soloPendientes) {
-    excepciones.sort((a, b) => (ORDEN_TIPO[a.tipo] ?? 9) - (ORDEN_TIPO[b.tipo] ?? 9) || +a.createdAt - +b.createdAt);
+    // Sin reordenar por tipo: la primera de la bandeja es la más vieja, la misma que abre la franja del panel.
   }
   return {
     tenantId,

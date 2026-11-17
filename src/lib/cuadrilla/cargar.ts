@@ -1,6 +1,7 @@
 // CONSOLA DE LA CUADRILLA · lo que necesita la pantalla de UN negocio, en una sola transacción parada en él.
 import type { Prisma } from "@/generated/prisma/client";
 import { huellaDe, leerHilo, leerTablero, mensajesRecientes, tiemposDeRespuesta, type ExcepcionVista, type Filtros, type MensajeVista, type Tablero } from "./consola-core";
+import { leerPedidos, vencerPedidos, type PedidoVista } from "./pedidos-core";
 
 type Tx = Prisma.TransactionClient;
 
@@ -9,9 +10,11 @@ export type CargaDelNegocio = {
   seleccion: ExcepcionVista | null;
   hilo: { clave: string; titulo: string; mensajes: MensajeVista[]; excepciones: ExcepcionVista[] } | null;
   tiempos: number[];
+  /** Pedidos de este negocio según la vista elegida (criterio 8): negados y oportunidades, filtrables. */
+  pedidos: PedidoVista[];
 };
 
-const ID = /^[a-z0-9]{8,40}$/i;
+const ID = /^[a-z0-9_-]{4,64}$/i;
 
 export async function cargarNegocio(
   tx: Tx,
@@ -19,6 +22,7 @@ export async function cargarNegocio(
   filtros: Filtros,
   pedido: { ex?: string; hilo?: string; abrirPrimera?: boolean },
 ): Promise<CargaDelNegocio> {
+  await vencerPedidos(tx, tenantId); // los que pasaron su tope de minutos quedan escalados antes de mostrar
   const tablero = await leerTablero(tx, tenantId, filtros);
   let seleccion: ExcepcionVista | null = null;
   if (pedido.ex && ID.test(pedido.ex)) {
@@ -53,5 +57,6 @@ export async function cargarNegocio(
       hilo = { clave: pedido.hilo, titulo: `Hilo del equipo ${equipo}`, mensajes: await leerHilo(tx, tenantId, pedido.hilo), excepciones: [] };
     }
   }
-  return { tablero, seleccion, hilo, tiempos: tiemposDeRespuesta(await mensajesRecientes(tx, tenantId)) };
+  const pedidos = await leerPedidos(tx, tenantId, { vista: filtros.pedidos ?? "todos", agenteId: filtros.agenteId });
+  return { tablero, seleccion, hilo, tiempos: tiemposDeRespuesta(await mensajesRecientes(tx, tenantId)), pedidos };
 }

@@ -40,6 +40,8 @@ export const OPERACIONES = [
   "reasignar",
   "hablar",
   "levantar_excepcion",
+  "pedir",
+  "cerrar_pedido",
   "enviar_a_terceros",
 ] as const;
 export type Operacion = (typeof OPERACIONES)[number];
@@ -63,6 +65,8 @@ export type Contexto = {
   hiloAgenteId?: string | null;
   /** Aprobar nivel 0: ¿la huella del contenido que vio la persona coincide con la de la fila? */
   contenidoVisto?: boolean;
+  /** Cerrar un pedido: la fila leída (criterio 8). */
+  pedido?: { tenantId: string; agenteId: string; estado: string };
 };
 
 export type Resultado = { ok: true } | { ok: false; motivo: string };
@@ -84,6 +88,7 @@ const DE_PERSONA: ReadonlySet<Operacion> = new Set([
   "pausar",
   "reanudar",
   "reasignar",
+  "pedir",
 ]);
 
 function alcance(actor: Actor, tenantId: string | undefined): Resultado {
@@ -160,6 +165,18 @@ export function puede(actor: Actor | null | undefined, operacion: Operacion, ctx
     case "levantar_excepcion":
       if (actor.tipo !== "agente") return no("Las excepciones las levanta un agente.");
       return alcance(actor, ctx.tenantId);
+    case "pedir":
+      return alcance(actor, ctx.tenantId);
+    case "cerrar_pedido": {
+      const p = ctx.pedido;
+      if (actor.tipo !== "agente") return no("Un pedido lo cierra el agente que lo recibió.");
+      if (!p) return no("Falta indicar qué pedido.");
+      const a = alcance(actor, p.tenantId);
+      if (!a.ok) return a;
+      if (p.agenteId !== actor.agenteId) return no("Ese pedido es de otro agente.");
+      if (p.estado !== "ABIERTO") return no("Ese pedido ya está cerrado.");
+      return SI;
+    }
   }
   return no("Esa acción no existe en la consola.");
 }

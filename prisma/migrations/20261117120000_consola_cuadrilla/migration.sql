@@ -1,9 +1,9 @@
 -- Consola de la Cuadrilla (GSG-MIA-062 · 17/11/2026): los agentes de un negocio (sesiones de Claude Code que
 -- operan el sistema por el navegador con su usuario propio), sus excepciones (aprobaciones, frenos, rechazos,
 -- escalados) y los hilos por agente o por equipo donde las personas les hablan. El ERP no llama a ningún modelo.
--- ADITIVA: tres tablas nuevas con RLS. No toca tablas, datos ni enums existentes.
+-- ADITIVA: cuatro tablas nuevas con RLS (la cuarta, PedidoCuadrilla: criterio 8). No toca tablas, datos ni enums existentes.
 -- SIN APLICAR (Gate 2 del dueño): el código la tolera ausente (la pantalla dice «falta un paso de base de datos»).
--- Vuelta atrás: DROP de las tres tablas (ExcepcionCuadrilla primero).
+-- Vuelta atrás: DROP de las cuatro tablas (PedidoCuadrilla y ExcepcionCuadrilla primero).
 -- CreateTable
 CREATE TABLE "AgenteCuadrilla" (
     "id" TEXT NOT NULL,
@@ -120,3 +120,55 @@ CREATE POLICY tenant_isolation ON "MensajeCuadrilla"
   USING ("tenantId" = current_setting('app.current_tenant_id', true))
   WITH CHECK ("tenantId" = current_setting('app.current_tenant_id', true));
 
+
+-- ── Pedidos a la cuadrilla (criterio 8: servicio, no Claude suelto) ─────────────────────────────
+-- CreateTable
+CREATE TABLE "PedidoCuadrilla" (
+    "id" TEXT NOT NULL,
+    "tenantId" TEXT NOT NULL,
+    "agenteId" TEXT NOT NULL,
+    "texto" TEXT NOT NULL,
+    "pedidoPor" TEXT NOT NULL,
+    "pedidoPorUserId" TEXT,
+    "topeMinutos" INTEGER NOT NULL DEFAULT 30,
+    "topeTurnos" INTEGER NOT NULL DEFAULT 10,
+    "turnosUsados" INTEGER NOT NULL DEFAULT 0,
+    "estado" TEXT NOT NULL DEFAULT 'ABIERTO',
+    "salida" TEXT,
+    "regla" TEXT,
+    "duenio" TEXT,
+    "respuesta" TEXT,
+    "cerradoEn" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "PedidoCuadrilla_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE INDEX "PedidoCuadrilla_tenantId_estado_createdAt_idx" ON "PedidoCuadrilla"("tenantId", "estado", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "PedidoCuadrilla_tenantId_agenteId_estado_idx" ON "PedidoCuadrilla"("tenantId", "agenteId", "estado");
+
+-- AddForeignKey
+ALTER TABLE "PedidoCuadrilla" ADD CONSTRAINT "PedidoCuadrilla_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "PedidoCuadrilla" ADD CONSTRAINT "PedidoCuadrilla_agenteId_tenantId_fkey" FOREIGN KEY ("agenteId", "tenantId") REFERENCES "AgenteCuadrilla"("id", "tenantId") ON DELETE CASCADE ON UPDATE CASCADE;
+
+ALTER TABLE "PedidoCuadrilla" ADD CONSTRAINT "PedidoCuadrilla_estado_check" CHECK ("estado" IN ('ABIERTO', 'HECHO', 'NEGADO', 'ESCALADO'));
+ALTER TABLE "PedidoCuadrilla" ADD CONSTRAINT "PedidoCuadrilla_salida_check" CHECK (
+  ("estado" IN ('ABIERTO', 'HECHO') AND "salida" IS NULL)
+  OR ("estado" = 'NEGADO' AND "salida" = 'AJENO' AND "regla" IS NOT NULL AND length(btrim("regla")) > 0)
+  OR ("estado" = 'ESCALADO' AND "salida" = 'OPORTUNIDAD' AND "duenio" = 'COM')
+  OR ("estado" = 'ESCALADO' AND "salida" = 'TOPE')
+);
+ALTER TABLE "PedidoCuadrilla" ADD CONSTRAINT "PedidoCuadrilla_topes_check" CHECK ("topeMinutos" BETWEEN 5 AND 240 AND "topeTurnos" BETWEEN 1 AND 50 AND "turnosUsados" >= 0);
+ALTER TABLE "PedidoCuadrilla" ADD CONSTRAINT "PedidoCuadrilla_textos_check" CHECK (length(btrim("texto")) > 0 AND length("texto") <= 2000 AND length(btrim("pedidoPor")) > 0);
+
+ALTER TABLE "PedidoCuadrilla" ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON "PedidoCuadrilla";
+CREATE POLICY tenant_isolation ON "PedidoCuadrilla"
+  USING ("tenantId" = current_setting('app.current_tenant_id', true))
+  WITH CHECK ("tenantId" = current_setting('app.current_tenant_id', true));

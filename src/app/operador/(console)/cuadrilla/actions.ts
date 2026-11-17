@@ -9,7 +9,8 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { enElNegocio } from "@/lib/operator-db";
 import { requireOperadorParaNegocio } from "@/lib/operador/guardia-negocio";
-import { NoPermitido, cambiarEstadoDeAgentes, decidir, decidirLote, hablar, reasignar } from "@/lib/cuadrilla/consola-core";
+import { NoPermitido, cambiarEstadoDeAgentes, decidir, decidirLote, reasignar } from "@/lib/cuadrilla/consola-core";
+import { hablarOPedir } from "@/lib/cuadrilla/pedidos-core";
 import { elegidasPorNegocio, motivoDelError, texto, volverA } from "@/lib/cuadrilla/formulario";
 import type { Actor } from "@/lib/cuadrilla/permisos";
 
@@ -21,6 +22,13 @@ function campo(fd: FormData, k: string): string {
 }
 function casillas(fd: FormData): Map<string, string[]> {
   return elegidasPorNegocio(fd.getAll("sel"));
+}
+/** El texto del resultado de un lote, con lo que se hizo y cuántas. */
+function hechoDelLote(op: string, n: number): string {
+  if (op === "aprobar") return `Aprobadas: ${n}.`;
+  if (op === "rechazar") return `Rechazadas: ${n}.`;
+  if (op === "reasignar") return `Reasignadas: ${n}.`;
+  return `Agentes pausados: ${n}.`;
 }
 function unSoloNegocio(fd: FormData): string {
   const negocios = [...casillas(fd).keys()];
@@ -72,7 +80,7 @@ export async function operadorLote(fd: FormData) {
       }
       throw new NoPermitido("Esa acción no existe.");
     });
-    destino = volverA(BASE, fd, { ok: `Listo: ${n}.` });
+    destino = volverA(BASE, fd, { ok: hechoDelLote(op, n) });
   } catch (e) {
     destino = volverA(BASE, fd, { error: motivoDelError(e) });
   }
@@ -102,8 +110,10 @@ export async function operadorHablar(fd: FormData) {
   const actor: Actor = { tipo: "operador", nombre: sesion.nombre };
   let destino: string;
   try {
-    await enElNegocio(tenantId, (tx) => hablar(tx, actor, tenantId, texto(fd, "hilo"), texto(fd, "texto")));
-    destino = volverA(BASE, fd, {});
+    const pedido = await enElNegocio(tenantId, (tx) =>
+      hablarOPedir(tx, actor, tenantId, texto(fd, "hilo"), texto(fd, "texto"), { minutos: texto(fd, "topeMinutos"), turnos: texto(fd, "topeTurnos") }),
+    );
+    destino = volverA(BASE, fd, pedido ? { ok: "Pedido enviado, con su tope." } : {});
   } catch (e) {
     destino = volverA(BASE, fd, { error: motivoDelError(e) });
   }

@@ -14,6 +14,8 @@ Ficticio Sur (`127.0.0.1`). La contraseña no se escribe en ningún lado: vive e
   aprueba o rechaza ahí. No existe «aprobar todo»: el lote con plata o envío se niega.
 - **operador §5 · Lote:** casillas + rechazar, aprobar (sin plata ni envíos), pausar sus agentes o reasignar.
   Un lote va de a un negocio: mezclar negocios se niega.
+- **operador §6 · Pedidos:** la lista «Pedidos a los agentes» de todos los negocios, con las vistas Negados,
+  Oportunidades (dueño COM) y Llegaron al tope; se filtra por negocio y por agente.
 
 ## Supervisión del cliente (OWNER) · `/admin/cuadrilla`
 - **supervision §1 · Entrar:** `/admin/login`; la clave provisoria obliga a cambiarla. La franja «Cuadrilla:
@@ -23,11 +25,17 @@ Ficticio Sur (`127.0.0.1`). La contraseña no se escribe en ningún lado: vive e
 - **supervision §3 · Nivel 0:** igual que operador §4.
 - **supervision §4 · Lote:** igual que operador §5, dentro de su negocio.
 - **supervision §5 · Hablar:** hilo del agente o del equipo.
+- **supervision §6 · Pedir con tope:** en el hilo de un agente, lo que se escribe es un pedido con tope de
+  minutos y de turnos (fijado ahí, en la consola). Queda en «Pedidos a los agentes».
+- **supervision §7 · Fuera de alcance:** la lista de pedidos de SU negocio muestra negados (con la regla del
+  manual) y oportunidades (texto fijo de traspaso, dueño COM). Clave: `clave-alcance.md`.
 
 ## Usuario de agente · `/admin/cuadrilla`
 - **agente §1 · Su hilo:** ve sólo su hilo y sus excepciones; responde.
 - **agente §2 · Sin supervisión:** no ve la bandeja ni puede aprobar (tampoco con `?ex=` en la URL).
 - **agente §3 · Levantar:** pide una aprobación o avisa que se frenó.
+- **agente §4 · Pedidos:** «Pedidos abiertos»: Avancé (un turno), Terminado, negar con la regla de su manual
+  (`verificador §n`) o traspasar a GSG (texto fijo). Al llegar al tope se frena y pasa a una persona.
 
 ## Registro de turno
 Tabla `| # | Pedido | Entendí | Fuente | Camino | Esperado | Hice | Vi | Captura | Par | Estado |`. Quien

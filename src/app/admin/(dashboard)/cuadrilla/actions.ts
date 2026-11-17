@@ -8,7 +8,9 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { tenantTransaction } from "@/lib/rls";
 import { actorDelPanel } from "@/lib/cuadrilla/actor-del-panel.server";
-import { NoPermitido, cambiarEstadoDeAgentes, decidir, decidirLote, hablar, levantarExcepcion, reasignar } from "@/lib/cuadrilla/consola-core";
+import { NoPermitido, cambiarEstadoDeAgentes, decidir, decidirLote, levantarExcepcion, reasignar } from "@/lib/cuadrilla/consola-core";
+import { avanzarPedido, cerrarPedido, hablarOPedir } from "@/lib/cuadrilla/pedidos-core";
+import type { CierrePedido } from "@/lib/cuadrilla/pedidos";
 import { motivoDelError, texto, volverA } from "@/lib/cuadrilla/formulario";
 import { CATEGORIAS, TIPOS } from "@/lib/cuadrilla/permisos";
 
@@ -26,13 +28,16 @@ function idsDelLote(fd: FormData, tenantId: string): string[] {
     });
 }
 
-async function correr(fd: FormData, ok: string, fn: (ctx: Awaited<ReturnType<typeof actorDelPanel>>) => Promise<unknown>, alFallar: Record<string, string> = {}) {
+/** El aviso de vuelta: un texto fijo de éxito, o uno armado con lo que devolvió la acción (`{ ok }` o `{ error }`). */
+type Resultado<R> = string | ((r: R) => { ok?: string; error?: string });
+
+async function correr<R>(fd: FormData, ok: Resultado<R>, fn: (ctx: Awaited<ReturnType<typeof actorDelPanel>>) => Promise<R>, alFallar: Record<string, string> = {}) {
   const ctx = await actorDelPanel();
   let destino: string;
   try {
     if (!ctx.actor) throw new NoPermitido("La consola de la cuadrilla es para la dueña del negocio.");
-    await fn(ctx);
-    destino = volverA(BASE, fd, ok ? { ok } : {});
+    const r = await fn(ctx);
+    destino = volverA(BASE, fd, typeof ok === "function" ? ok(r) : ok ? { ok } : {});
   } catch (e) {
     destino = volverA(BASE, fd, { error: motivoDelError(e), ...alFallar });
   }
@@ -56,7 +61,8 @@ export async function panelDecidir(fd: FormData) {
 
 export async function panelLote(fd: FormData) {
   const op = texto(fd, "op");
-  await correr(fd, "Listo.", ({ actor, tenantId }) => {
+  const hecho = op === "aprobar" ? "Aprobadas" : op === "rechazar" ? "Rechazadas" : op === "reasignar" ? "Reasignadas" : "Agentes pausados";
+  await correr(fd, (n: number) => ({ ok: `${hecho}: ${n}.` }), ({ actor, tenantId }) => {
     const ids = idsDelLote(fd, tenantId);
     if (ids.length === 0) throw new NoPermitido("Elegí al menos una.");
     return tenantTransaction(async (tx) => {
@@ -82,8 +88,52 @@ export async function panelAgente(fd: FormData) {
   );
 }
 
+/** En el hilo de un agente, lo que escribe una persona es un PEDIDO con su tope; el agente que contesta, no. */
 export async function panelHablar(fd: FormData) {
-  await correr(fd, "", ({ actor, tenantId }) => tenantTransaction((tx) => hablar(tx, actor!, tenantId, texto(fd, "hilo"), texto(fd, "texto")), { tenantId }));
+  const topes = { minutos: texto(fd, "topeMinutos"), turnos: texto(fd, "topeTurnos") };
+  await correr(
+    fd,
+    (pedido: string | null) => (pedido ? { ok: "Pedido enviado, con su tope." } : {}),
+    ({ actor, tenantId }) => tenantTransaction((tx) => hablarOPedir(tx, actor!, tenantId, texto(fd, "hilo"), texto(fd, "texto"), topes), { tenantId }),
+  );
+}
+
+/** Sólo el usuario del agente que recibió el pedido: usa un turno (cuenta contra el tope). */
+export async function panelAvanzarPedido(fd: FormData) {
+  await correr(
+    fd,
+    (r: "sigue" | "escalado" | "tope") =>
+      r === "sigue"
+        ? { ok: "Turno anotado." }
+        : r === "escalado"
+          ? { ok: "Con este turno llegaste al tope: te frenás y el pedido pasó a una persona." }
+          : { error: "Este pedido ya estaba en el tope: no se anotó el turno y pasó a una persona." },
+    ({ actor, tenantId }) => tenantTransaction((tx) => avanzarPedido(tx, actor!, tenantId, texto(fd, "pedidoId"), texto(fd, "texto")), { tenantId }),
+  );
+}
+
+/** Sólo el usuario del agente que recibió el pedido: lo cierra por UNA salida (hecho, ajeno u oportunidad). */
+export async function panelCerrarPedido(fd: FormData) {
+  const salida = texto(fd, "salida");
+  const cierre: CierrePedido | null =
+    salida === "HECHO"
+      ? { salida, respuesta: texto(fd, "respuesta") }
+      : salida === "AJENO"
+        ? { salida, regla: texto(fd, "regla"), queSi: texto(fd, "queSi") }
+        : salida === "OPORTUNIDAD"
+          ? { salida }
+          : null;
+  await correr(
+    fd,
+    (estado: string) =>
+      estado === "TOPE"
+        ? { error: "Pasaste el tope: no se puede dar por terminado. El pedido pasó a una persona." }
+        : { ok: estado === "HECHO" ? "Pedido terminado." : estado === "NEGADO" ? "Pedido negado: quedó con la regla de tu manual." : "Pedido traspasado a GSG: quedó en Oportunidades." },
+    ({ actor, tenantId }) => {
+      if (!cierre) throw new NoPermitido("Elegí cómo cerrar el pedido.");
+      return tenantTransaction((tx) => cerrarPedido(tx, actor!, tenantId, texto(fd, "pedidoId"), cierre), { tenantId });
+    },
+  );
 }
 
 /** Sólo un usuario de agente: pide aprobación, avisa que se frenó, que el sistema lo rechazó, o escala. */

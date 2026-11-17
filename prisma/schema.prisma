@@ -291,6 +291,7 @@ model Tenant {
   agentesCuadrilla          AgenteCuadrilla[] // consola de la cuadrilla (GSG-MIA-062)
   excepcionesCuadrilla      ExcepcionCuadrilla[]
   mensajesCuadrilla         MensajeCuadrilla[]
+  pedidosCuadrilla          PedidoCuadrilla[]
   proyectoConfig            ProyectoConfig?
   inmoPropiedades           InmoPropiedad[] // módulo inmobiliaria
   inmoFotos                 InmoFoto[]
@@ -4683,6 +4684,7 @@ model AgenteCuadrilla {
   createdAt   DateTime             @default(now())
   updatedAt   DateTime             @updatedAt
   excepciones ExcepcionCuadrilla[]
+  pedidos     PedidoCuadrilla[]
 
   @@unique([tenantId, nombre])
   @@unique([tenantId, userId])
@@ -4725,4 +4727,31 @@ model MensajeCuadrilla {
   createdAt   DateTime @default(now())
 
   @@index([tenantId, hilo, createdAt])
+}
+
+// Pedido de una persona a un agente (GSG-MIA-062, criterio 8): cada mensaje de una persona en el hilo de un
+// agente. Tope de esfuerzo fijado en la consola; salidas cerradas (src/lib/cuadrilla/pedidos.ts).
+model PedidoCuadrilla {
+  id              String          @id @default(cuid())
+  tenant          Tenant          @relation(fields: [tenantId], references: [id])
+  tenantId        String
+  agente          AgenteCuadrilla @relation(fields: [agenteId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  agenteId        String
+  texto           String
+  pedidoPor       String
+  pedidoPorUserId String?
+  topeMinutos     Int             @default(30)
+  topeTurnos      Int             @default(10)
+  turnosUsados    Int             @default(0)
+  estado          String          @default("ABIERTO") // ABIERTO · HECHO · NEGADO · ESCALADO
+  salida          String? // AJENO (negado) · OPORTUNIDAD · TOPE (escalado)
+  regla           String? // la del manual del puesto que justifica el «negado»: «<puesto> §n»
+  duenio          String? // de la cola «Oportunidades»: COM
+  respuesta       String?
+  cerradoEn       DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([tenantId, estado, createdAt])
+  @@index([tenantId, agenteId, estado])
 }

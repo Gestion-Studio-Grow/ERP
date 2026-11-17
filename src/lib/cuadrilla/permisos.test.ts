@@ -73,6 +73,16 @@ const CASOS: Caso[] = [
   ["agente levanta en su negocio", agenteA, "levantar_excepcion", { tenantId: A }, true],
   ["agente NO levanta en otro", agenteA, "levantar_excepcion", { tenantId: B }, false],
   ["supervisor NO levanta", supA, "levantar_excepcion", { tenantId: A }, false],
+  // Pedidos (criterio 8): pide una persona; cierra el agente que lo recibió, una vez.
+  ["supervisor pide en su negocio", supA, "pedir", { tenantId: A }, true],
+  ["supervisor NO pide en otro negocio", supA, "pedir", { tenantId: B }, false],
+  ["operador pide en cualquiera", operador, "pedir", { tenantId: B }, true],
+  ["agente NO hace pedidos", agenteA, "pedir", { tenantId: A }, false],
+  ["agente cierra su pedido abierto", agenteA, "cerrar_pedido", { pedido: { tenantId: A, agenteId: "ag-a", estado: "ABIERTO" } }, true],
+  ["agente NO cierra el pedido de otro agente", agenteA, "cerrar_pedido", { pedido: { tenantId: A, agenteId: "ag-otro", estado: "ABIERTO" } }, false],
+  ["agente NO cierra un pedido ya cerrado", agenteA, "cerrar_pedido", { pedido: { tenantId: A, agenteId: "ag-a", estado: "NEGADO" } }, false],
+  ["agente NO cierra un pedido de otro negocio", agenteA, "cerrar_pedido", { pedido: { tenantId: B, agenteId: "ag-a", estado: "ABIERTO" } }, false],
+  ["supervisor NO cierra pedidos (los cierra el agente)", supA, "cerrar_pedido", { pedido: { tenantId: A, agenteId: "ag-a", estado: "ABIERTO" } }, false],
 ];
 
 for (const [nombre, actor, op, ctx, esperado] of CASOS) {

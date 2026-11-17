@@ -5,23 +5,26 @@
 //   · la bandeja de excepciones arriba, la más urgente primero; al entrar ya está abierta la primera;
 //   · filtros por negocio, agente, estado y tipo (en la URL: se comparten y sobreviven al recargar);
 //   · hilo por agente o por equipo, estilo chat, con las excepciones de ese agente dentro del hilo;
-//   · lote: rechazar, aprobar (nunca plata ni envíos a terceros), reasignar y pausar.
+//   · lote: rechazar, aprobar (nunca plata ni envíos a terceros), reasignar y pausar;
+//   · pedidos (criterio 8): cada mensaje a un agente es un pedido con tope; negados y oportunidades, filtrables.
 // Las acciones llegan por props: cada lado pasa las suyas (las del operador corren con `enElNegocio`,
 // las del panel con el negocio de la sesión). Esta pieza no decide permisos: los decide el servidor.
 import Link from "next/link";
 import { atributosBoton, buttonClasses } from "@/components/ui/Button";
 import { esNivel0 } from "@/lib/cuadrilla/permisos";
 import type { ExcepcionVista, MensajeVista, Tablero } from "@/lib/cuadrilla/consola-core";
+import type { PedidoVista } from "@/lib/cuadrilla/pedidos-core";
+import { TOPE, VISTAS_PEDIDOS } from "@/lib/cuadrilla/pedidos";
 
 type Accion = (fd: FormData) => Promise<void>;
 
-export type NegocioDelTablero = { id: string; nombre: string; tablero: Tablero | null; falla?: string };
+export type NegocioDelTablero = { id: string; nombre: string; tablero: Tablero | null; falla?: string; pedidos?: PedidoVista[] };
 
 export type PropsTablero = {
   modo: "operador" | "supervisor";
   base: string;
   negocios: NegocioDelTablero[];
-  filtros: { negocio?: string; agente?: string; estado?: string; tipo?: string; hilo?: string; en?: string };
+  filtros: { negocio?: string; agente?: string; estado?: string; tipo?: string; hilo?: string; en?: string; pedidos?: string };
   seleccion: { excepcion: ExcepcionVista; negocio: string } | null;
   hilo: { clave: string; tenantId: string; titulo: string; mensajes: MensajeVista[]; excepciones: ExcepcionVista[] } | null;
   respuestaMedianaSeg: number | null;
@@ -46,18 +49,32 @@ function hace(d: Date): string {
   return h < 24 ? `hace ${h} h` : `hace ${Math.round(h / 24)} d`;
 }
 
+/** Día y hora en Argentina (el servidor corre en UTC). */
+export function horaAR(d: Date): string {
+  return d.toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
+}
+
+function Cuando({ d }: { d: Date }) {
+  return (
+    <time dateTime={d.toISOString()} title={horaAR(d)}>
+      {hace(d)} · {horaAR(d)}
+    </time>
+  );
+}
+
 function duracion(seg: number | null): string {
   if (seg == null) return "sin datos";
   if (seg < 90) return `${seg} s`;
   return `${Math.round(seg / 60)} min`;
 }
 
-function href(base: string, actuales: PropsTablero["filtros"], cambios: Record<string, string | undefined>): string {
+/** Un enlace de la consola: los filtros de ahora, los cambios y el ancla (en el celular baja directo ahí). */
+function href(base: string, actuales: PropsTablero["filtros"], cambios: Record<string, string | undefined>, ancla?: string): string {
   const q = new URLSearchParams();
   const todo = { ...actuales, ex: undefined, ...cambios } as Record<string, string | undefined>;
   for (const [k, v] of Object.entries(todo)) if (v) q.set(k, v);
   const s = q.toString();
-  return s ? `${base}?${s}` : base;
+  return (s ? `${base}?${s}` : base) + (ancla ? `#${ancla}` : "");
 }
 
 /** Los filtros viajan con cada formulario para volver a la misma vista. */
@@ -89,7 +106,7 @@ function EtiquetasDe({ e }: { e: Pick<ExcepcionVista, "tipo" | "categoria"> }) {
 }
 
 /** La excepción abierta, con su contenido completo y la decisión. Se usa igual en el detalle y en el hilo. */
-function Decision({ e, negocio, props, compacta }: { e: ExcepcionVista; negocio: string; props: PropsTablero; compacta?: boolean }) {
+function Decision({ e, negocio, props, ancla }: { e: ExcepcionVista; negocio: string; props: PropsTablero; ancla: "decision" | "hilo" }) {
   const pendiente = e.estado === "PENDIENTE";
   return (
     <article
@@ -105,7 +122,7 @@ function Decision({ e, negocio, props, compacta }: { e: ExcepcionVista; negocio:
           </h3>
           <p className="text-sm text-muted">
             {e.agenteNombre}
-            {props.modo === "operador" ? ` · ${negocio}` : ""} · {hace(e.createdAt)}
+            {props.modo === "operador" && negocio ? ` · ${negocio}` : ""} · <Cuando d={e.createdAt} />
           </p>
         </div>
       </div>
@@ -121,12 +138,11 @@ function Decision({ e, negocio, props, compacta }: { e: ExcepcionVista; negocio:
           <input type="hidden" name="id" value={e.id} />
           <input type="hidden" name="tenantId" value={e.tenantId} />
           <input type="hidden" name="huella" value={e.huella} />
-          {!compacta ? (
-            <label className="grid gap-1 text-sm">
-              <span className="text-muted">Motivo o indicación (opcional, le llega al agente)</span>
-              <input name="motivo" maxLength={500} className="min-h-11 rounded border border-line bg-surface px-3" />
-            </label>
-          ) : null}
+          <input type="hidden" name="ancla" value={ancla} />
+          <label className="grid gap-1 text-sm">
+            <span className="text-muted">Motivo o indicación (opcional, le llega al agente)</span>
+            <input name="motivo" maxLength={500} className="min-h-11 rounded border border-line bg-surface px-3" />
+          </label>
           {esNivel0(e.categoria) && e.tipo === "APROBACION" ? (
             <p className="text-sm text-warning">Es {CATEGORIA[e.categoria].toLowerCase()}: se aprueba sólo así, de a una, con el contenido a la vista. El envío lo hace una persona, no el sistema.</p>
           ) : null}
@@ -148,7 +164,7 @@ function Decision({ e, negocio, props, compacta }: { e: ExcepcionVista; negocio:
       ) : (
         <p className="text-sm text-muted">
           {e.estado === "APROBADA" ? "Aprobada" : e.estado === "RECHAZADA" ? "Rechazada" : "Resuelta"} por {e.decididaPor ?? "—"}
-          {e.decididaEn ? ` · ${hace(e.decididaEn)}` : ""}
+          {e.decididaEn ? ` · ${horaAR(e.decididaEn)}` : ""}
           {e.motivo ? ` · «${e.motivo}»` : ""}
         </p>
       )}
@@ -168,7 +184,7 @@ function Contador({ valor, etiqueta, tono }: { valor: string; etiqueta: string; 
 function Hilo({ props }: { props: PropsTablero }) {
   const h = props.hilo!;
   return (
-    <section aria-labelledby="titulo-hilo" className="space-y-3 rounded-lg border border-line bg-surface p-4">
+    <section id="hilo" aria-labelledby="titulo-hilo" className="scroll-mt-20 space-y-3 rounded-lg border border-line bg-surface p-4">
       <div className="flex items-center justify-between gap-2">
         <h2 id="titulo-hilo" className="font-semibold text-strong">
           {h.titulo}
@@ -181,7 +197,7 @@ function Hilo({ props }: { props: PropsTablero }) {
         <div className="space-y-2">
           <p className="text-xs font-medium uppercase tracking-wide text-muted">Esperando decisión en este hilo</p>
           {h.excepciones.map((e) => (
-            <Decision key={e.id} e={e} negocio="" props={props} compacta />
+            <Decision key={e.id} e={e} negocio="" props={props} ancla="hilo" />
           ))}
         </div>
       ) : null}
@@ -190,7 +206,7 @@ function Hilo({ props }: { props: PropsTablero }) {
         {h.mensajes.map((m) => (
           <li key={m.id} className={`rounded-lg border px-3 py-2 ${m.autorTipo === "AGENTE" ? "border-line bg-surface-raised" : m.autorTipo === "SISTEMA" ? "border-line bg-surface-sunken" : "border-accent bg-surface"}`}>
             <p className="text-xs text-muted">
-              <span className="font-medium text-strong">{m.autor}</span> · {m.autorTipo === "AGENTE" ? "agente" : m.autorTipo === "SISTEMA" ? "aviso" : "persona"} · {hace(m.createdAt)}
+              <span className="font-medium text-strong">{m.autor}</span> · {m.autorTipo === "AGENTE" ? "agente" : m.autorTipo === "SISTEMA" ? "aviso" : "persona"} · <Cuando d={m.createdAt} />
             </p>
             <p className="whitespace-pre-wrap break-words text-sm text-body">{m.texto}</p>
           </li>
@@ -200,10 +216,24 @@ function Hilo({ props }: { props: PropsTablero }) {
         <FiltrosOcultos filtros={props.filtros} />
         <input type="hidden" name="hilo" value={h.clave} />
         <input type="hidden" name="tenantId" value={h.tenantId} />
+        <input type="hidden" name="ancla" value="hilo" />
         <label className="grid gap-1 text-sm">
           <span className="text-muted">Escribile a {h.clave.startsWith("equipo:") ? "todo el equipo" : "este agente"}</span>
           <textarea name="texto" required maxLength={2000} rows={3} className="rounded border border-line bg-surface p-3" />
         </label>
+        {h.clave.startsWith("agente:") ? (
+          <fieldset className="flex flex-wrap items-end gap-3">
+            <legend className="text-xs text-muted">Es un pedido: si el agente llega al tope, se frena y te lo pasa.</legend>
+            <label className="grid gap-1 text-sm">
+              <span className="text-muted">Tope (minutos)</span>
+              <input type="number" name="topeMinutos" min={TOPE.minutos.min} max={TOPE.minutos.max} defaultValue={TOPE.minutos.porDefecto} className="min-h-11 w-24 rounded border border-line bg-surface px-2" />
+            </label>
+            <label className="grid gap-1 text-sm">
+              <span className="text-muted">Tope (turnos)</span>
+              <input type="number" name="topeTurnos" min={TOPE.turnos.min} max={TOPE.turnos.max} defaultValue={TOPE.turnos.porDefecto} className="min-h-11 w-24 rounded border border-line bg-surface px-2" />
+            </label>
+          </fieldset>
+        ) : null}
         <button type="submit" className={buttonClasses("solid", "md")} {...atributosBoton("solid", "md")}>
           Mandar
         </button>
@@ -212,15 +242,80 @@ function Hilo({ props }: { props: PropsTablero }) {
   );
 }
 
+const VISTA: Record<string, string> = {
+  todos: "Todos",
+  abiertos: "Abiertos",
+  negados: "Negados",
+  oportunidades: "Oportunidades",
+  topes: "Llegaron al tope",
+};
+
+function EstadoDelPedido({ p }: { p: PedidoVista }) {
+  if (p.estado === "NEGADO") return <Etiqueta tono="neutro">Negado · fuera del servicio</Etiqueta>;
+  if (p.estado === "ESCALADO" && p.salida === "OPORTUNIDAD") return <Etiqueta tono="alerta">Oportunidad · dueño {p.duenio}</Etiqueta>;
+  if (p.estado === "ESCALADO") return <Etiqueta tono="peligro">Llegó al tope · escalado</Etiqueta>;
+  if (p.estado === "HECHO") return <Etiqueta tono="ok">Hecho</Etiqueta>;
+  return <Etiqueta tono="neutro">Abierto</Etiqueta>;
+}
+
+/** Los pedidos a los agentes: lo que el cliente pide, incluido lo que hoy no ofrecemos (negados y oportunidades). */
+function Pedidos({ props, pedidos }: { props: PropsTablero; pedidos: { p: PedidoVista; negocio: string }[] }) {
+  const vista = props.filtros.pedidos ?? "todos";
+  return (
+    <section id="pedidos" aria-labelledby="titulo-pedidos" className="scroll-mt-20 space-y-2">
+      <h2 id="titulo-pedidos" className="font-semibold text-strong">
+        Pedidos a los agentes ({pedidos.length})
+      </h2>
+      <nav aria-label="Ver pedidos" className="flex flex-wrap gap-2">
+        {VISTAS_PEDIDOS.map((v) => (
+          <Link
+            key={v}
+            href={href(props.base, props.filtros, { pedidos: v === "todos" ? undefined : v }, "pedidos")}
+            aria-current={vista === v ? "page" : undefined}
+            className={buttonClasses(vista === v ? "solid" : "subtle", "sm")}
+            {...atributosBoton(vista === v ? "solid" : "subtle", "sm")}
+          >
+            {VISTA[v]}
+          </Link>
+        ))}
+      </nav>
+      {pedidos.length === 0 ? (
+        <p className="rounded-lg border border-line bg-surface p-4 text-sm text-muted">No hay pedidos en esta vista.</p>
+      ) : (
+        <ul className="divide-y divide-line rounded-lg border border-line bg-surface" aria-label="Pedidos">
+          {pedidos.map(({ p, negocio }) => (
+            <li key={p.id} className="space-y-1 px-3 py-2" data-pedido={p.id} data-estado={p.estado} data-salida={p.salida ?? ""}>
+              <EstadoDelPedido p={p} />
+              <p className="whitespace-pre-wrap break-words text-sm text-body">{p.texto}</p>
+              <p className="text-xs text-muted">
+                A {p.agenteNombre}
+                {props.modo === "operador" ? ` · ${negocio}` : ""} · pidió {p.pedidoPor} · <Cuando d={p.createdAt} /> · tope {p.topeMinutos} min, {p.turnosUsados}/{p.topeTurnos} turnos
+              </p>
+              {p.regla ? <p className="text-xs text-muted">Regla: {p.regla}</p> : null}
+              {p.respuesta ? <p className="text-xs text-muted">Respuesta: «{p.respuesta}»</p> : null}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 export function TableroCuadrilla(props: PropsTablero) {
   const { negocios, filtros, base } = props;
   const conTablero = negocios.filter((n) => n.tablero);
-  const excepciones = conTablero.flatMap((n) => n.tablero!.excepciones.map((e) => ({ e, negocio: n.nombre })));
+  const soloPendientes = (filtros.estado ?? "PENDIENTE") !== "TODAS";
+  // Entre negocios, la misma regla que adentro de cada uno: pendientes de la más vieja a la más nueva.
+  const excepciones = conTablero
+    .flatMap((n) => n.tablero!.excepciones.map((e) => ({ e, negocio: n.nombre })))
+    .sort((a, b) => (soloPendientes ? +a.e.createdAt - +b.e.createdAt : +b.e.createdAt - +a.e.createdAt));
+  const pedidos = conTablero
+    .flatMap((n) => (n.pedidos ?? []).map((p) => ({ p, negocio: n.nombre })))
+    .sort((a, b) => +b.p.createdAt - +a.p.createdAt);
   const agentes = conTablero.flatMap((n) => n.tablero!.agentes.map((a) => ({ a, negocio: n })));
   const pendientes = conTablero.reduce((s, n) => s + n.tablero!.pendientes, 0);
   const frenados = conTablero.reduce((s, n) => s + n.tablero!.frenados, 0);
   const equipos = [...new Map(agentes.map(({ a, negocio }) => [`${negocio.id}|${a.equipo}`, { equipo: a.equipo, negocio }])).values()];
-  const soloPendientes = (filtros.estado ?? "PENDIENTE") !== "TODAS";
 
   return (
     <div className="mx-auto max-w-7xl space-y-5 px-4 py-6">
@@ -236,7 +331,7 @@ export function TableroCuadrilla(props: PropsTablero) {
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           <Contador valor={String(pendientes)} etiqueta="Esperan una persona" tono={pendientes > 0 ? "alerta" : undefined} />
           <Contador valor={String(frenados)} etiqueta="Agentes frenados" tono={frenados > 0 ? "alerta" : undefined} />
-          <Contador valor={String(agentes.length)} etiqueta={props.modo === "operador" ? `Agentes en ${conTablero.length} negocios` : "Agentes"} />
+          <Contador valor={String(agentes.length)} etiqueta={props.modo === "operador" ? `Agentes en ${conTablero.length} ${conTablero.length === 1 ? "negocio" : "negocios"}` : "Agentes"} />
           <Contador valor={duracion(props.respuestaMedianaSeg)} etiqueta="Respuesta a un mensaje (mediana, 7 días)" />
         </div>
       </header>
@@ -310,10 +405,10 @@ export function TableroCuadrilla(props: PropsTablero) {
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
         <div className="space-y-5">
           {props.seleccion ? (
-            <section aria-label="Excepción abierta" className="space-y-2">
-              <Decision e={props.seleccion.excepcion} negocio={props.seleccion.negocio} props={props} />
+            <section id="decision" aria-label="Excepción abierta" className="scroll-mt-20 space-y-2">
+              <Decision e={props.seleccion.excepcion} negocio={props.seleccion.negocio} props={props} ancla="decision" />
               <Link
-                href={href(base, filtros, { hilo: `agente:${props.seleccion.excepcion.agenteId}`, en: props.seleccion.excepcion.tenantId })}
+                href={href(base, filtros, { hilo: `agente:${props.seleccion.excepcion.agenteId}`, en: props.seleccion.excepcion.tenantId }, "hilo")}
                 className="inline-flex min-h-11 items-center text-sm text-accent underline"
               >
                 Abrir el hilo de {props.seleccion.excepcion.agenteNombre}
@@ -321,7 +416,7 @@ export function TableroCuadrilla(props: PropsTablero) {
             </section>
           ) : null}
 
-          <section aria-labelledby="titulo-bandeja" className="space-y-2">
+          <section id="bandeja" aria-labelledby="titulo-bandeja" className="scroll-mt-20 space-y-2">
             <h2 id="titulo-bandeja" className="font-semibold text-strong">
               {soloPendientes ? `Excepciones que esperan (${excepciones.length})` : `Excepciones (${excepciones.length})`}
             </h2>
@@ -330,6 +425,7 @@ export function TableroCuadrilla(props: PropsTablero) {
             ) : (
               <form action={props.acciones.lote} className="space-y-2">
                 <FiltrosOcultos filtros={filtros} />
+                <input type="hidden" name="ancla" value="bandeja" />
                 <ul className="divide-y divide-line rounded-lg border border-line bg-surface">
                   {excepciones.map(({ e, negocio }) => {
                     const abierta = props.seleccion?.excepcion.id === e.id;
@@ -341,7 +437,7 @@ export function TableroCuadrilla(props: PropsTablero) {
                           <span className="mt-3 size-5" aria-hidden />
                         )}
                         <Link
-                          href={href(base, filtros, { en: e.tenantId, ex: e.id })}
+                          href={href(base, filtros, { en: e.tenantId, ex: e.id }, "decision")}
                           className="block min-h-11 flex-1 rounded py-1 focus-visible:outline focus-visible:outline-2"
                           aria-current={abierta ? "true" : undefined}
                         >
@@ -349,7 +445,7 @@ export function TableroCuadrilla(props: PropsTablero) {
                           <span className="mt-1 block font-medium text-strong">{e.titulo}</span>
                           <span className="block text-sm text-muted">
                             {e.agenteNombre}
-                            {props.modo === "operador" ? ` · ${negocio}` : ""} · {hace(e.createdAt)}
+                            {props.modo === "operador" ? ` · ${negocio}` : ""} · <Cuando d={e.createdAt} />
                             {e.estado !== "PENDIENTE" ? ` · ${e.estado.toLowerCase()}` : ""}
                           </span>
                         </Link>
@@ -391,6 +487,8 @@ export function TableroCuadrilla(props: PropsTablero) {
               </form>
             )}
           </section>
+
+          <Pedidos props={props} pedidos={pedidos} />
         </div>
 
         <div className="space-y-5">
@@ -403,7 +501,7 @@ export function TableroCuadrilla(props: PropsTablero) {
             <ul className="divide-y divide-line rounded-lg border border-line bg-surface">
               {agentes.map(({ a, negocio }) => (
                 <li key={a.id} className="flex flex-wrap items-center gap-2 px-3 py-2">
-                  <Link href={href(base, filtros, { hilo: `agente:${a.id}`, en: negocio.id })} className="block min-h-11 flex-1 py-1">
+                  <Link href={href(base, filtros, { hilo: `agente:${a.id}`, en: negocio.id }, "hilo")} className="block min-h-11 flex-1 py-1">
                     <span className="block font-medium text-strong">{a.nombre}</span>
                     <span className="block text-sm text-muted">
                       {a.puesto} · {a.equipo}
@@ -434,7 +532,7 @@ export function TableroCuadrilla(props: PropsTablero) {
               <ul className="flex flex-wrap gap-2">
                 {equipos.map(({ equipo, negocio }) => (
                   <li key={`${negocio.id}|${equipo}`}>
-                    <Link href={href(base, filtros, { hilo: `equipo:${equipo}`, en: negocio.id })} className={buttonClasses("subtle", "sm")} {...atributosBoton("subtle", "sm")}>
+                    <Link href={href(base, filtros, { hilo: `equipo:${equipo}`, en: negocio.id }, "hilo")} className={buttonClasses("subtle", "sm")} {...atributosBoton("subtle", "sm")}>
                       {equipo}
                       {props.modo === "operador" ? ` · ${negocio.nombre}` : ""}
                     </Link>
