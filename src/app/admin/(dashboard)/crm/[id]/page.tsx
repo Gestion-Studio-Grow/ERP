@@ -10,7 +10,7 @@ import { PUESTOS } from "@/lib/crm-comercial/permisos";
 import { datosLimpios } from "@/lib/crm-comercial/repo";
 import { detalleDeFicha, eventosParaLaFicha, ficha, personasDelCrm } from "@/lib/crm-comercial/acciones";
 import { abrirCrm, Marco, NoSePudo } from "../comun";
-import { ETIQUETA_PUESTO, ETIQUETA_ROL, TIPOS_DE_TAREA, dia, diaYHora, etiquetaTarea, opcionesDePase, paraInputFecha, plata, puedeEn } from "../crm-core";
+import { ETIQUETA_PUESTO, ETIQUETA_ROL, TIPOS_DE_TAREA, dia, diaYHora, etiquetaDeEvento, etiquetaTarea, opcionesDePase, paraInputFecha, plata, puedeEn } from "../crm-core";
 import { BorradorTarjeta } from "../BorradorTarjeta";
 import { CargarEvento, ComprobarIdentidad, ConfirmarDestino, Contactos, DecidirPropuesta, FormularioDatos, NuevaTarea, NuevoBorrador, PanelPases, PedidoDeDatos, RegistrarRespuesta, TraerCierreDelProyecto, VerificarFuente } from "./FichaFormularios";
 
@@ -100,8 +100,7 @@ export default async function FichaPage({ params }: { params: Promise<{ id: stri
   // GSG-CRM-018 · callejón 1: sin evento no se verifica; quien puede verificar se lo pone desde acá.
   const sinEvento = !!d && !d.evento && o.tipo === "PROSPECTO" && !cerrada && puedeEn(miembro, "verificar", vista);
   const evs = sinEvento ? await eventosParaLaFicha(o.id) : null;
-  const eventosParaElegir = evs?.ok ? evs.eventos.map((e) => ({ id: e.id, etiqueta: `${e.nombre} · ${e.region} · ${dia(e.fecha)}` })) : [];
-  const comoVinoElEvento = sinEvento ? (d?.consultaTexto?.match(/Evento \(como vino\): ([^\n]*?)\.(?:\s|$)/)?.[1] ?? null) : null;
+  const eventosParaElegir = evs?.ok ? evs.eventos.map((e) => ({ id: e.id, etiqueta: etiquetaDeEvento(e) })) : [];
   const puedeDecidir = !!o.pasePropuesto && puedeEn(miembro, "aplicar_pase", vista, o.pasePropuesto as Etapa);
   const persona = miembro.rol !== "PUESTO";
   const puedeDatos = { puntuar: puedeEn(miembro, "puntuar", vista), brief: puedeEn(miembro, "editar_brief", vista), persona };
@@ -209,7 +208,7 @@ export default async function FichaPage({ params }: { params: Promise<{ id: stri
           <section aria-labelledby="t-consulta">
             <h3 id="t-consulta" className="mb-2 text-lg font-semibold text-strong">La consulta</h3>
             {d?.consultaTexto ? (
-              <blockquote className="whitespace-pre-wrap break-words rounded-md border-l-2 border-line-strong bg-surface-sunken px-3 py-2 text-sm text-body">{d.consultaTexto}</blockquote>
+              <blockquote className="whitespace-pre-wrap wrap-anywhere rounded-md border-l-2 border-line-strong bg-surface-sunken px-3 py-2 text-sm text-body">{d.consultaTexto}</blockquote>
             ) : (
               <p className="text-sm text-muted">Sin texto cargado.</p>
             )}
@@ -224,10 +223,15 @@ export default async function FichaPage({ params }: { params: Promise<{ id: stri
           <section aria-labelledby="t-verificacion">
             <h3 id="t-verificacion" className="mb-1 text-lg font-semibold text-strong">Verificación de la fuente</h3>
             <p className="mb-3 text-sm text-muted">Para pasar a «Verificada» hacen falta la marca en el evento y el evento como «confirmado», cada uno con la URL donde se ve.</p>
+            {o.tipo === "PROSPECTO" && d?.consultaTexto && (
+              <div className="mb-3">
+                <p className="mb-1 text-sm font-medium text-strong">Cómo vino (tal como llegó, sin verificar)</p>
+                <blockquote className="whitespace-pre-wrap wrap-anywhere rounded-md border-l-2 border-line-strong bg-surface-sunken px-3 py-2 text-sm text-body">{d.consultaTexto}</blockquote>
+              </div>
+            )}
             {!d?.evento ? (
               <div className="grid gap-3">
-                <p className="text-sm text-muted">Esta oportunidad no tiene evento: la marca se verifica en el evento donde se la vio.{sinEvento ? " Ponéselo y después verificalo." : ""}</p>
-                {comoVinoElEvento && <p className="text-sm text-body"><span className="font-medium text-strong">Cómo vino el evento: </span>{comoVinoElEvento}</p>}
+                <p className="text-sm text-muted">Esta oportunidad no tiene evento: la marca se verifica en el evento donde se la vio.{sinEvento ? " Ponéselo con lo que diga la fuente y después verificalo. Si la fuente no da el día o dice que esa edición no se hace, no lo inventes: proponé «Descartada» o avisale a Dirección para dejarla dormida hasta que se sepa." : ""}</p>
                 {sinEvento && <CargarEvento oportunidadId={o.id} eventos={eventosParaElegir} />}
               </div>
             ) : (

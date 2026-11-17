@@ -3,7 +3,7 @@ import { requireApp } from "@/lib/require-app";
 import { AvisoError } from "@/components/ui";
 import { eventosParaElegir } from "@/lib/crm-comercial/acciones";
 import { abrirCrm, Marco } from "../comun";
-import { dia, fechaDeManana, puedeEn } from "../crm-core";
+import { etiquetaDeEvento, fechaDeManana, puedeEn } from "../crm-core";
 import { FormularioNueva } from "./FormularioNueva";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +23,7 @@ export default async function NuevaPage() {
     );
   }
   const ev = await eventosParaElegir();
-  const eventos = ev.ok ? ev.eventos.map((e) => ({ id: e.id, etiqueta: `${e.nombre} · ${e.region} · ${dia(e.fecha)}` })) : [];
+  const eventos = ev.ok ? ev.eventos.map((e) => ({ id: e.id, etiqueta: etiquetaDeEvento(e) })) : [];
   const persona = miembro.rol !== "PUESTO";
   return (
     <Marco vista="nueva" miembro={miembro} descripcion={descripcion} ancho="max-w-3xl">

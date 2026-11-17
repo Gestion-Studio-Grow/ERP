@@ -11,7 +11,7 @@ import type { Role } from "@/lib/capabilities";
 import { appsDeInterruptores } from "../armazon/navegacion";
 import { appDeGestionVisible, appEnLaBarra } from "@/lib/proyectos/gestion-core";
 import type { Miembro } from "@/lib/crm-comercial/permisos";
-import { armarBandeja, avisoAlCerrarTarea, etiquetaTarea, opcionesDePase, ponderadoDe, puedeEn, textoPonderado, type FilaParaHoy } from "./crm-core";
+import { armarBandeja, avisoAlCerrarTarea, dia, etiquetaDeEvento, etiquetaTarea, opcionesDePase, ponderadoDe, puedeEn, textoPonderado, type FilaParaHoy } from "./crm-core";
 
 const DIR: Miembro = { userId: "u-dir", rol: "DIRECCION", puesto: null, activo: true };
 const COM: Miembro = { userId: "u-com", rol: "COMERCIAL", puesto: null, activo: true };
@@ -208,4 +208,13 @@ test("GSG-CRM-018 · V1: el negocio ARM muestra sólo el CRM (y Usuarios para da
   const productora: NegocioApps = { ...de("OWNER"), blueprintId: "productora", modulosAsignados: ["proyectos"], contexto: null };
   assert.equal(appDelPanelCerrado(productora)?.id, "proyectos");
   assert.equal(appDelPanelCerrado({ ...de("OWNER"), blueprintId: null }), null);
+});
+
+test("GSG-CRM-018 · la fecha del evento es un día de calendario: «14 al 17/04» se ve «14 abr», no el día anterior", () => {
+  // Así llega de la base una columna @db.Date: medianoche UTC.
+  const e = { nombre: "Expo Obra & Terminaciones 2027", region: "Ciudad de Buenos Aires", fecha: new Date("2027-04-14T00:00:00.000Z") };
+  assert.match(etiquetaDeEvento(e), /· 14 abr\.?$/);
+  assert.match(etiquetaDeEvento({ ...e, fecha: "2027-11-19" }), /· 19 nov\.?$/);
+  // Lo que pasaba antes con el formateador de fechas con hora (hora argentina): el día anterior.
+  assert.match(dia(e.fecha), /^13 abr/);
 });

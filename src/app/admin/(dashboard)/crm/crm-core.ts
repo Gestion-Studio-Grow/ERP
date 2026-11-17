@@ -146,6 +146,13 @@ export function textoPonderado(p: Ponderado): string {
 const DIA = new Intl.DateTimeFormat("es-AR", { day: "numeric", month: "short", timeZone: "America/Argentina/Buenos_Aires" });
 const HORA = new Intl.DateTimeFormat("es-AR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "America/Argentina/Buenos_Aires" });
 export const dia = (d: Date | string | null | undefined): string => (d ? DIA.format(new Date(d)) : "—");
+/**
+ * GSG-CRM-018: la fecha de un evento es un DÍA de calendario (`@db.Date`, llega como medianoche UTC).
+ * Formateada en hora argentina caía el día anterior («14 al 17/04» se veía «13 abr»). Se lee en UTC.
+ */
+const DIA_CALENDARIO = new Intl.DateTimeFormat("es-AR", { day: "numeric", month: "short", timeZone: "UTC" });
+export const etiquetaDeEvento = (e: { nombre: string; region: string; fecha: Date | string }): string =>
+  `${e.nombre} · ${e.region} · ${DIA_CALENDARIO.format(new Date(e.fecha))}`;
 export const diaYHora = (d: Date | string | null | undefined): string => (d ? HORA.format(new Date(d)) : "—");
 /** AAAA-MM-DD para un <input type="date">, en hora argentina. */
 export function paraInputFecha(d: Date | string | null | undefined): string {
