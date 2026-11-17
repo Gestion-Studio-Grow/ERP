@@ -11,6 +11,8 @@ import { puedeDefinirPin } from "@/lib/sesion-pin";
 import { destinoDeRenovar } from "@/lib/sesion-legado";
 import HojaSimple from "../login/HojaSimple";
 import { FormularioPinNuevo } from "./_formulario";
+import { NegocioDeLaCuenta } from "@/components/cuenta/NegocioDeLaCuenta";
+import { nombreDelNegocioDeLaCuenta } from "@/lib/negocio-de-la-cuenta.server";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Tu PIN", robots: { index: false, follow: false }, generator: "Gestión Studio Grow" };
@@ -20,9 +22,11 @@ export default async function DefinirPin({ searchParams }: { searchParams: Promi
   const next = destinoDeRenovar((await searchParams).next);
   const habilitado = (await puedeDefinirPin((await cookies()).get(getSessionCookieName())?.value)) === user.id;
   const minutos = Math.round(INACTIVIDAD_BLOQUEO_MS / 60_000);
+  const negocio = await nombreDelNegocioDeLaCuenta(user.tenantId);
 
   return (
     <HojaSimple titulo="Elegí tu PIN">
+      <NegocioDeLaCuenta nombre={negocio} />
       <p className="text-sm text-muted">
         Tu ingreso no vence. Si pasan {minutos} minutos sin uso tapamos la pantalla, y con este PIN seguís sin escribir la
         contraseña. Es tuyo: no lo compartas.
