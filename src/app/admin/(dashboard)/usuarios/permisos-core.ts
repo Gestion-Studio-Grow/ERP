@@ -46,10 +46,21 @@ export type Celda = { puede: boolean; matiz?: string };
 export type FilaDePermisos = { texto: string; capacidad: Capability; celdas: Celda[] };
 export type TablaDePermisos = { roles: { valor: Role; nombre: string }[]; filas: FilaDePermisos[] };
 
+/**
+ * `stockDelEncargado`: ¿el Mostrador abre Stock, Recibir mercadería y Mermas con su permiso de stock?
+ * Sólo en un mostrador que trabaja por apps (el piloto: `capabilityEnMostrador`, src/apps/visibles.ts).
+ * Fuera de él esas apps piden `catalog:read`, que el Mostrador no tiene, y la tabla no lo promete
+ * (UAT Magra 07-08/11, callejón C4). Por defecto, lo de siempre.
+ */
+export type OpcionesDeLaTabla = { stockDelEncargado?: boolean };
+
 // Lo que da el ROL (sin excepciones por persona): esta tabla habla de roles; las excepciones se ven
 // en la matriz de abajo (matriz-core.ts).
-function celda(role: Role, cap: Capability): Celda {
+function celda(role: Role, cap: Capability, o: OpcionesDeLaTabla = {}): Celda {
   if (!permisoEfectivo({ role, overrides: [] }, cap)) return { puede: false };
+  if (cap === "stock:receive" && o.stockDelEncargado === false && !permisoEfectivo({ role, overrides: [] }, "catalog:read")) {
+    return { puede: false };
+  }
   if (cap === "orders:void") {
     const a = alcanceDeAnulacion(role);
     if (a?.conCodigo) return { puede: true, matiz: "Sólo lo de hoy, con motivo y el código de la dueña" };
@@ -60,19 +71,19 @@ function celda(role: Role, cap: Capability): Celda {
 }
 
 /** Las filas y columnas para este negocio: los roles que se pueden dar de alta acá. */
-export function tablaDePermisos(esMostrador: boolean): TablaDePermisos {
+export function tablaDePermisos(esMostrador: boolean, opciones: OpcionesDeLaTabla = {}): TablaDePermisos {
   const roles = rolesParaAlta(esMostrador).map((o) => ({ valor: o.valor, nombre: etiquetaDeRol(o.valor, esMostrador) }));
   const filas = TAREAS.filter((t) => !t.rubro || (t.rubro === "mostrador") === esMostrador).map((t) => ({
     texto: t.texto,
     capacidad: t.capacidad,
-    celdas: roles.map((r) => celda(r.valor, t.capacidad)),
+    celdas: roles.map((r) => celda(r.valor, t.capacidad, opciones)),
   }));
   return { roles, filas };
 }
 
 /** Una línea por rol para el alta («Mostrador: vende, cobra, anula lo de hoy…»), derivada de la tabla. */
-export function resumenDelRol(role: Role, esMostrador: boolean): string {
-  const t = tablaDePermisos(esMostrador);
+export function resumenDelRol(role: Role, esMostrador: boolean, opciones: OpcionesDeLaTabla = {}): string {
+  const t = tablaDePermisos(esMostrador, opciones);
   const i = t.roles.findIndex((r) => r.valor === role);
   if (i === -1) return "";
   const si = t.filas.filter((f) => f.celdas[i].puede);

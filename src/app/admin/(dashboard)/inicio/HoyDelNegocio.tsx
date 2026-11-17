@@ -14,7 +14,10 @@ import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
 import { ventaAgendaSimplePrendida } from "@/cambios/interruptores";
 import { fmtTime, dateStrInBusinessTz, todayInBusinessTz } from "@/lib/datetime";
 import { leerHoyDelNegocio } from "@/lib/hoy-del-negocio/lector";
-import { pesosDelHoy, type TarjetaHoy } from "@/lib/hoy-del-negocio/hoy-core";
+import { hoySinAgenda, pesosDelHoy, type TarjetaHoy } from "@/lib/hoy-del-negocio/hoy-core";
+import { appPorId } from "@/apps/registro";
+import { motivoNoDisponible } from "@/apps/visibles";
+import { getNegocioApps } from "@/apps/contexto.server";
 import { AvisoError } from "@/components/ui/AvisoError";
 
 const TITULO_ID = "hoy-del-negocio";
@@ -127,40 +130,48 @@ export function HoyDelNegocioCargando() {
   );
 }
 
-export default async function HoyDelNegocio({ tenantId }: { tenantId: string }) {
+export default async function HoyDelNegocio({ tenantId, conAgenda = true }: { tenantId: string; conAgenda?: boolean }) {
   const hoy = todayInBusinessTz();
-  const t = await leerHoyDelNegocio(tenantId, hoy);
+  const leido = await leerHoyDelNegocio(tenantId, hoy);
+  // Sin agenda (una carnicería): ni Turnos ni Señas ni «Ir a la Agenda», que daba «no disponible».
+  const t = conAgenda ? leido : hoySinAgenda(leido);
   return (
     <section aria-labelledby={TITULO_ID} className="mb-xl">
       <h2 id={TITULO_ID} className="mb-sm text-lg font-semibold tracking-tight text-strong">
         Hoy
       </h2>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Bloque titulo="Turnos">
-          <Turnos t={t.turnos} />
-        </Bloque>
+      <div className={`grid grid-cols-1 gap-3 sm:grid-cols-2${conAgenda ? " lg:grid-cols-4" : ""}`}>
+        {conAgenda && (
+          <Bloque titulo="Turnos">
+            <Turnos t={t.turnos} />
+          </Bloque>
+        )}
         <Bloque titulo="Cobrado hoy">
           <Cobrado c={t.cobrado} />
         </Bloque>
         <Bloque titulo="Ventas de productos">
           <Ventas v={t.ventas} />
         </Bloque>
-        <Bloque titulo="Señas pendientes">
-          <Senias s={t.senias} hoy={hoy} />
-        </Bloque>
+        {conAgenda && (
+          <Bloque titulo="Señas pendientes">
+            <Senias s={t.senias} hoy={hoy} />
+          </Bloque>
+        )}
       </div>
       {t.sinLeer.length > 0 && (
         <AvisoError
           tono="aviso"
           className="mt-3"
           titulo={`No se pudo leer ${t.sinLeer.join(", ")}`}
-          comoSeguir="Lo demás está al día. Volvé al Inicio en un rato o mirá la Agenda y el Cierre del día."
+          comoSeguir={`Lo demás está al día. Volvé al Inicio en un rato o mirá ${conAgenda ? "la Agenda y " : ""}el Cierre del día.`}
         />
       )}
       <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-        <Link href="/admin/turnos" className={ENLACE}>
-          Ir a la Agenda
-        </Link>
+        {conAgenda && (
+          <Link href="/admin/turnos" className={ENLACE}>
+            Ir a la Agenda
+          </Link>
+        )}
         <Link href="/admin/caja/cierre" className={ENLACE}>
           Ir a Caja · Cierre del día
         </Link>
@@ -177,10 +188,12 @@ export default async function HoyDelNegocio({ tenantId }: { tenantId: string }) 
 export async function HoySiCorresponde({ role }: { role: Role }) {
   if (!roleHasCapability(role, "reports:read")) return null;
   if (!ventaAgendaSimplePrendida(await interruptoresDelNegocio())) return null;
-  const tenantId = await getCurrentTenantId();
+  const [tenantId, negocio] = await Promise.all([getCurrentTenantId(), getNegocioApps(role)]);
+  // La misma regla que la guardia de la Agenda (`requireApp("agenda")`): si no abre, no se ofrece.
+  const conAgenda = motivoNoDisponible(appPorId("agenda"), negocio) === null;
   return (
     <Suspense fallback={<HoyDelNegocioCargando />}>
-      <HoyDelNegocio tenantId={tenantId} />
+      <HoyDelNegocio tenantId={tenantId} conAgenda={conAgenda} />
     </Suspense>
   );
 }

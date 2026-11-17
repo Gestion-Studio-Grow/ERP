@@ -23,6 +23,7 @@ import { tenantTransaction } from "@/lib/rls";
 import { centavosDe } from "@/lib/dinero/redondeo";
 import { createInvoiceInTx, type CreateInvoiceInput, type InvoiceTx } from "@/lib/invoice-core";
 import { claveAlmacenada, origenAdmitidoPorElLibro, type OrigenFacturable } from "@/lib/facturacion/clave-origen";
+import { tomarCandadoDelCupo } from "@/lib/facturacion/candado-cupo";
 
 // ─── Claves ─────────────────────────────────────────────────────────────────────
 
@@ -142,13 +143,49 @@ export async function facturarCobrosInTx(
   tx: InvoiceTx,
   input: CreateInvoiceInput,
   cobros: readonly CobroAFacturar[],
+  /**
+   * GSG-FACT-011 · H2: ¿hay lugar en el cupo? Se llama con el cobro todavía sin factura viva y
+   * con el candado del cupo YA tomado por el llamador (antes de las claves): si no hay lugar, lanza.
+   */
+  verificarCupo?: (tx: InvoiceTx) => Promise<void>,
+  /**
+   * GSG-FACT-011 · H4 · Ajusta el comprobante (fecha correlativa del punto de venta, fechas de
+   * servicio) con lo que se lee ACÁ, bajo el candado del cupo: se llama justo antes de crearlo.
+   */
+  ajustarComprobante?: (tx: InvoiceTx, input: CreateInvoiceInput) => Promise<CreateInvoiceInput>,
+  /**
+   * GSG-FACT-011 · R4 · Lo que el llamador tiene que escribir en la MISMA transacción que la factura
+   * (p. ej. el `invoiceId` del movimiento bancario): si falla, no queda factura. Se llama también si
+   * el cobro ya tenía una factura viva, con ésa. Si lanza, se deshace todo.
+   */
+  alFacturar?: (tx: InvoiceTx, invoiceId: string) => Promise<void>,
+  /**
+   * GSG-FACT-011 · X1 · La factura viva que OTRO camino ya emitió para este mismo cobro con OTRA
+   * clave (el extracto del banco con `banco:<hash>` y el aviso de MP con `mp:<id>`: el índice único
+   * no los arbitra), o `null`. Se mira ACÁ, con el candado del cupo tomado por el llamador (los dos
+   * caminos lo toman): con READ COMMITTED, esta lectura ve lo que el otro confirmó mientras éste
+   * esperaba. Si devuelve una factura, los cobros se ATAN a ella y no se emite otra.
+   */
+  facturaPrevia?: (tx: InvoiceTx) => Promise<string | null>,
 ): Promise<string> {
   if (cobros.length === 0) throw new Error("facturarCobros: sin cobros no hay factura.");
   await tomarClaves(tx, input.tenantId, cobros.map((c) => c.clave));
   const [vivo] = await cobrosYaFacturadosInTx(tx, input.tenantId, cobros.map((c) => c.clave));
-  if (vivo) return vivo.invoiceId;
-  const invoiceId = await createInvoiceInTx(tx, input);
+  if (vivo) {
+    if (alFacturar) await alFacturar(tx, vivo.invoiceId);
+    return vivo.invoiceId;
+  }
+  const previa = facturaPrevia ? await facturaPrevia(tx) : null;
+  if (previa) {
+    for (const c of cobros) await vincularCobroInTx(tx, input.tenantId, c, previa);
+    if (alFacturar) await alFacturar(tx, previa);
+    return previa;
+  }
+  if (verificarCupo) await verificarCupo(tx);
+  const comprobante = ajustarComprobante ? await ajustarComprobante(tx, input) : input;
+  const invoiceId = await createInvoiceInTx(tx, comprobante);
   for (const c of cobros) await vincularCobroInTx(tx, input.tenantId, c, invoiceId);
+  if (alFacturar) await alFacturar(tx, invoiceId);
   return invoiceId;
 }
 
@@ -157,8 +194,39 @@ export async function facturarCobrosInTx(
  * la carrera por el mismo cobro (o por el mismo origen), el índice único corta a éste (P2002):
  * se vuelve a intentar UNA vez y ahí se encuentra la factura del ganador.
  */
-export async function facturarCobros(input: CreateInvoiceInput, cobros: readonly CobroAFacturar[]): Promise<string> {
-  const correr = () => tenantTransaction((tx) => facturarCobrosInTx(tx, input, cobros), { tenantId: input.tenantId });
+export async function facturarCobros(
+  input: CreateInvoiceInput,
+  cobros: readonly CobroAFacturar[],
+  opciones: {
+    /**
+     * GSG-FACT-011 · H2 · La emisión AUTOMÁTICA cuenta el cupo DENTRO de esta transacción: toma el
+     * candado del cupo ANTES de las claves del cobro (orden `facturita-cupo` → `cobro-facturado`) y,
+     * si el cobro no tiene factura viva, `verificarCupo` relee el tope y cuenta; sin lugar, lanza.
+     */
+    verificarCupo?: (tx: InvoiceTx) => Promise<void>;
+    /**
+     * GSG-FACT-011 · H4 · Ajuste del comprobante dentro de la transacción y bajo el candado del cupo
+     * (lo toma también si no hay `verificarCupo`): la fecha correlativa se lee con el candado tomado.
+     */
+    ajustarComprobante?: (tx: InvoiceTx, input: CreateInvoiceInput) => Promise<CreateInvoiceInput>;
+    /** GSG-FACT-011 · R4 · Escritura del llamador en la misma transacción que la factura. */
+    alFacturar?: (tx: InvoiceTx, invoiceId: string) => Promise<void>;
+    /**
+     * GSG-FACT-011 · X1 · La factura del mismo cobro emitida por otro camino con otra clave, leída bajo
+     * el candado del cupo (lo toma también si no hay `verificarCupo`). Ver `facturarCobrosInTx`.
+     */
+    facturaPrevia?: (tx: InvoiceTx) => Promise<string | null>;
+  } = {},
+): Promise<string> {
+  const { verificarCupo, ajustarComprobante, alFacturar, facturaPrevia } = opciones;
+  const correr = () =>
+    tenantTransaction(
+      async (tx) => {
+        if (verificarCupo || ajustarComprobante || facturaPrevia) await tomarCandadoDelCupo(tx, input.tenantId);
+        return facturarCobrosInTx(tx, input, cobros, verificarCupo, ajustarComprobante, alFacturar, facturaPrevia);
+      },
+      { tenantId: input.tenantId },
+    );
   try {
     return await correr();
   } catch (e) {

@@ -2,7 +2,7 @@
 
 **Estado:** Pasada de diseño (NO implementación). Entregable = plan accionable.
 **Dirección:** ADR-089 (núcleo mínimo + módulos instalables por producto) · apoya en ADR-054 (repositorio de plugins), ADR-055 (principio de variante), ADR-076 (un motor, tres productos).
-**Alcance:** Comerciante y arriba (Comerciante, Pyme, clientes del Contador). **Facturita y verticales (CH/Magra) FUERA.**
+**Alcance:** Comerciante y arriba (Comerciante, Pyme, clientes del Contador). **Factoque y verticales (CH/Magra) FUERA.**
 
 > Regla de oro de todo el diseño: **nada de forks, cero motor nuevo.** Casi todo el andamiaje ya existe en `src/modules/**`. Esto es **enriquecer datos + generalizar dos cables + reconstruir una pantalla**. La activación por-tenant sigue siendo `Tenant.modules[]` (dato que YA existe, `prisma/schema.prisma:207`).
 
@@ -227,8 +227,8 @@ Ya está resuelto y es **inmediato**: `toggleModulo` hace `revalidatePath("/")` 
 ### Generalizar de "comerciante" a cualquier producto de facturación
 Hoy la nav focalizada y el gating por-URL están **hardcodeados a `comerciante`** (`layout.tsx:79,134`; `admin-nav-items.ts:95` `rutaPermitidaComerciante`). Generalizar:
 - Renombrar `rutaPermitidaComerciante` → `rutaPermitidaPorModulos(path, modules)` (la lógica ya es genérica: whitelist derivada de `ALL_ITEMS`).
-- Nuevo helper puro `productoUsaTienda(producto)` = `producto ∈ {comerciante, pyme, contador}` (facturación con tienda). Facturita y vertical → false.
-- `shellModules` y el guard por-URL del layout gatean cuando `productoUsaTienda(producto)`, usando `productoCtx.modules`. **Verticales y Facturita intactos** (caen a `null` → ven todo como hoy).
+- Nuevo helper puro `productoUsaTienda(producto)` = `producto ∈ {comerciante, pyme, contador}` (facturación con tienda). Factoque y vertical → false.
+- `shellModules` y el guard por-URL del layout gatean cuando `productoUsaTienda(producto)`, usando `productoCtx.modules`. **Verticales y Factoque intactos** (caen a `null` → ven todo como hoy).
 
 ---
 
@@ -253,7 +253,7 @@ Hoy la nav focalizada y el gating por-URL están **hardcodeados a `comerciante`*
 |---|---|---|---|---|
 | **F1 · Enriquecer datos** | Agregar `grupo`/`scopeItems`/`resumen`/`fit`/`nucleoPara` a los 18 descriptores (`contract.ts` + `descriptors/**` + arca/bancos/mp). Constante/derivación de núcleo. Reescribir `defaultModulesForBlueprint("generico")` al `NUCLEO_COMERCIANTE`. Tests puros. | **S** | 100% reversible, **no toca prod ni Neon** (dato puro tras el patrón existente) | Cambiar el default de `generico` afecta **solo altas nuevas**; tenants vivos conservan `modules[]` → sin regresión |
 | **F2 · Vidriera nueva** | Reconstruir `/admin/modulos`: agrupar por proceso, tarjeta con scope/resumen/fit, badge Núcleo, botón Instalar/Desinstalar. Extender `FilaModulo`/`vistaModulos`; guard núcleo en `planDesactivar`. Server action **sin cambios**. | **M** | Reversible (UI + lógica pura); no toca schema | Desinstalar por error → mitigado: núcleo no se apaga + reversible sin borrar datos + bloqueo por dependencia (ya existe) |
-| **F3 · Generalizar gating** | `rutaPermitidaComerciante`→`rutaPermitidaPorModulos`; helper `productoUsaTienda`; `shellModules` + guard por-URL + `getActiveModuleIds` por producto (comerciante/pyme/contador). Tests de nav. | **M** | Reversible (deriva de producto; verticales y Facturita intactos por construcción) | Un producto queda sin acceso a algo → mitigado: núcleo siempre instalado + `/admin` siempre pasa (sin loop) |
+| **F3 · Generalizar gating** | `rutaPermitidaComerciante`→`rutaPermitidaPorModulos`; helper `productoUsaTienda`; `shellModules` + guard por-URL + `getActiveModuleIds` por producto (comerciante/pyme/contador). Tests de nav. | **M** | Reversible (deriva de producto; verticales y Factoque intactos por construcción) | Un producto queda sin acceso a algo → mitigado: núcleo siempre instalado + `/admin` siempre pasa (sin loop) |
 | **F4 · Go-live facturación** | Encender para los tenants de facturación en prod. **Sin migración.** Script de **reconcile/backfill**: a cada tenant Comerciante/Pyme sin el núcleo en `modules[]`, agregarle el núcleo (idempotente). Verificación end-to-end (instalar/desinstalar/nav/Inicio). | **S** | **No es migración** (UPDATE de datos, no schema) → no es Gate 2 formal, pero se corre como script revisado con OK del dueño | Tenant vivo con `modules[]` viejo (agenda/pos) → el backfill garantiza el núcleo; lo demás se limpia desde la tienda |
 
 ### Orden y qué es lo primero

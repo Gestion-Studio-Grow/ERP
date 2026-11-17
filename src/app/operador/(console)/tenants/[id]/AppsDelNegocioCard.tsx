@@ -50,7 +50,7 @@ const NOMBRE_PRODUCTO: Record<Producto, string> = {
   vertical: "el sistema de su rubro",
   comerciante: "Comerciante",
   contador: "Contador (estudio contable)",
-  facturita: "Facturita",
+  facturita: "Factoque",
 };
 
 function nombres(apps: readonly AppDescriptor[]): string {

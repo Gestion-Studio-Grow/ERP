@@ -40,8 +40,9 @@ export interface EntradaAsistente {
    * Por qué no se pudo leer el pedido (null = se leyó bien o no hay). «ilegible» (falló la base) y
    * «sin-configuracion» (falta la clave maestra) NO son «no hay pedido»: puede haber un .csr ya subido a
    * ARCA y generar otro lo invalidaría (o fallaría igual), así que no se ofrece generar. «otra-clave» (no
-   * abre y se cerró con otra clave maestra) tampoco: restaurando esa clave la privada se recupera.
-   * «dañado» (no abre con la misma clave con que se cerró) no tiene arreglo: su clave privada es
+   * abre con la clave maestra actual, tenga la etiqueta que tenga) tampoco: restaurando la clave con que
+   * se cerró la privada se recupera; sólo el operador lo descarta, con confirmación y auditoría.
+   * «dañado» (abre la capa de la clave actual pero el contenido no) no tiene arreglo: su clave privada es
    * irrecuperable y se permite generar uno nuevo, con el aviso de que el .csr anterior deja de servir.
    */
   problemaDelPedido: ProblemaDelPedido | null;
@@ -56,9 +57,12 @@ export type LecturaDelPedido =
   | { estado: "ilegible" }
   /** Falta la clave maestra (FISCAL_MASTER_KEY): configuración; generar fallaría igual. */
   | { estado: "sin-configuracion"; hayPedido: boolean }
-  /** No abre y se cerró con otra clave maestra (`kekId` ≠ el actual): recuperable restaurándola. */
+  /**
+   * La clave maestra actual no abre el sobre (la DEK no se desenvuelve): se cerró con otra, aunque la
+   * etiqueta `kekId` sea la misma (rotación sin cambiar FISCAL_MASTER_KEY_ID). Recuperable restaurándola.
+   */
   | { estado: "otra-clave" }
-  /** No abre (descifrado o JSON) con la misma clave con que se cerró: irrecuperable. */
+  /** La clave actual abre la capa de la clave pero el contenido no descifra o no es un pedido: irrecuperable. */
   | { estado: "dañado" };
 
 export type ProblemaDelPedido = Extract<LecturaDelPedido["estado"], "ilegible" | "sin-configuracion" | "otra-clave" | "dañado">;
@@ -66,7 +70,7 @@ export type ProblemaDelPedido = Extract<LecturaDelPedido["estado"], "ilegible" |
 export const MOTIVO_SIN_CONFIGURACION = "Falta la configuración para guardar certificados cifrados. Avisale a GSG.";
 
 export const MOTIVO_OTRA_CLAVE =
-  "El pedido de certificado se guardó con otra clave de cifrado y no se puede abrir. No generes uno nuevo todavía: avisale a GSG para recuperarlo.";
+  "El pedido de certificado no abre con la clave de cifrado actual (se guardó con otra). No generes uno nuevo todavía: avisale a GSG para recuperarlo.";
 
 /**
  * Lee el pedido separando las causas de falla (pasos inyectados: el servidor pasa la base, la clave
@@ -74,12 +78,16 @@ export const MOTIVO_OTRA_CLAVE =
  * La clave se pide aunque no haya fila: sin ella generar fallaría igual. Se intenta abrir siempre: el
  * descifrado no mira `kekId` (cert-crypto.ts `openSecret`), así que si sólo cambió la etiqueta
  * (FISCAL_MASTER_KEY_ID) la fila abre y es «pendiente», igual que al cargar el certificado. Si no abre,
- * el `kekId` distinto la vuelve «otra-clave» (recuperable) y el igual, «dañado».
+ * decide la cripto, no la etiqueta: si la clave actual no desenvuelve la DEK (`abreLaClave` false) es
+ * «otra-clave» (recuperable), aunque `kekId` coincida (la clave se rotó sin cambiar el identificador);
+ * si la desenvuelve, lo roto es el contenido: «dañado».
  */
-export async function leerPedidoConEstado<F extends { kekId: string }, K extends { id: string }>(pasos: {
+export async function leerPedidoConEstado<F, K>(pasos: {
   leerFila: () => Promise<F | null>;
   clave: () => K;
   abrir: (fila: F, clave: K) => { csrPem: string; creadoEn: string };
+  /** ¿La clave actual desenvuelve la DEK del sobre? (cert-crypto.ts `comoAbreElSobre`). */
+  abreLaClave: (fila: F, clave: K) => boolean;
   alFallar?: (causa: ProblemaDelPedido, error: unknown) => void;
 }): Promise<LecturaDelPedido> {
   let fila: F | null;
@@ -101,9 +109,17 @@ export async function leerPedidoConEstado<F extends { kekId: string }, K extends
     const p = pasos.abrir(fila, clave);
     return { estado: "pendiente", csrPem: p.csrPem, creadoEn: p.creadoEn };
   } catch (e) {
-    // Cerrada con otra clave maestra (rotación): no es daño. Tomarla por «dañado» dejaría pisar una
-    // clave privada que vuelve a abrir al restaurar esa clave.
-    const causa = fila.kekId !== clave.id ? "otra-clave" : "dañado";
+    // Cerrada con otra clave maestra (rotación, con o sin etiqueta nueva): no es daño. Tomarla por
+    // «dañado» dejaría pisar una clave privada que vuelve a abrir al restaurar esa clave. Si la clave
+    // actual sí desenvuelve la DEK, la clave es esta y lo roto es el contenido: «dañado». Ante una
+    // falla de `abreLaClave` misma, lo conservador: «otra-clave» (no se pisa).
+    let abreLaClave = false;
+    try {
+      abreLaClave = pasos.abreLaClave(fila, clave);
+    } catch {
+      abreLaClave = false;
+    }
+    const causa = abreLaClave ? "dañado" : "otra-clave";
     pasos.alFallar?.(causa, e);
     return { estado: causa };
   }
@@ -114,17 +130,52 @@ export const MOTIVO_PEDIDO_EN_CURSO = "Ya se estaba generando un pedido de certi
 /**
  * Guarda el pedido nuevo; si otro se guardó a la vez (doble clic: choque del índice único, que detecta
  * `esChoque`) devuelve el motivo para mostrar en vez de una página de error. Otro error se relanza.
+ * `guardar` también puede devolver su propio motivo para no guardar (el pedido cambió en el medio).
  */
 export async function sinChoqueDePedido(
-  guardar: () => Promise<void>,
+  guardar: () => Promise<string | null | void>,
   esChoque: (e: unknown) => boolean,
 ): Promise<string | null> {
   try {
-    await guardar();
-    return null;
+    return (await guardar()) ?? null;
   } catch (e) {
     if (esChoque(e)) return MOTIVO_PEDIDO_EN_CURSO;
     throw e;
+  }
+}
+
+/**
+ * Compare-and-swap del pedido: al guardar se reemplaza SÓLO la fila que se vio al preparar (o se
+ * crea si no había ninguna y sigue sin haber). Si cambió, otro pedido se guardó en el medio.
+ */
+export function pedidoCambioDesdeQueSeLeyo(filaVista: string | null, filaActual: string | null): boolean {
+  return filaVista !== filaActual;
+}
+
+// ── Descarte del pedido cerrado con otra clave (sólo el operador) ────────────
+
+export const PALABRA_DEL_DESCARTE = "DESCARTAR";
+
+/** La confirmación tipeada del descarte: «DESCARTAR», sin importar mayúsculas ni espacios de los bordes. */
+export function confirmaElDescarte(texto: unknown): boolean {
+  return typeof texto === "string" && texto.trim().toUpperCase() === PALABRA_DEL_DESCARTE;
+}
+
+/** Sólo se descarta un pedido «otra-clave»; cualquier otro estado devuelve por qué no. */
+export function motivoParaNoDescartar(lectura: LecturaDelPedido): string | null {
+  switch (lectura.estado) {
+    case "otra-clave":
+      return null;
+    case "ninguno":
+      return "No hay un pedido de certificado para descartar.";
+    case "pendiente":
+      return "El pedido abre con la clave actual: no se descarta (si el asistente lo muestra dañado, se genera otro desde ahí).";
+    case "dañado":
+      return "El pedido está dañado, no cerrado con otra clave: se reemplaza generando uno nuevo desde el asistente.";
+    case "ilegible":
+      return "No pudimos leer el pedido: no se descartó nada. Reintentá en un rato.";
+    case "sin-configuracion":
+      return MOTIVO_SIN_CONFIGURACION;
   }
 }
 

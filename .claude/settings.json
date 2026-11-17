@@ -49,7 +49,9 @@
       "Bash(npx prisma migrate deploy:*)",
       "Bash(prisma migrate deploy:*)",
       "Bash(pnpm prisma migrate deploy:*)",
-      "Bash(yarn prisma migrate deploy:*)"
+      "Bash(yarn prisma migrate deploy:*)",
+      "Bash(node_modules/.bin/prisma migrate deploy:*)",
+      "Bash(./node_modules/.bin/prisma migrate deploy:*)"
     ]
   },
   "hooks": {
@@ -78,8 +80,8 @@
     ]
   },
   "env": {
-    "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "400000"
+    "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "350000"
   },
   "model": "claude-opus-5-5",
-  "effortLevel": "medium"
+  "effortLevel": "high"
 }

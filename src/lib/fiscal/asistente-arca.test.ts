@@ -5,7 +5,12 @@ import assert from "node:assert/strict";
 import forge from "node-forge";
 import {
   certificadoEnPem,
+  confirmaElDescarte,
   confirmaElPase,
+  motivoParaNoDescartar,
+  pedidoCambioDesdeQueSeLeyo,
+  PALABRA_DEL_DESCARTE,
+  type LecturaDelPedido,
   errorDeCargaEnCriollo,
   estadoDelAsistente,
   generarPedidoDeCertificado,
@@ -143,6 +148,7 @@ describe("lectura del pedido: cada causa de falla tiene su estado", () => {
       leerFila: async () => FILA,
       clave: () => CLAVE,
       abrir: abrirOk,
+      abreLaClave: () => true,
       alFallar: (causa) => fallas.push(causa),
       ...p,
     });
@@ -176,7 +182,7 @@ describe("lectura del pedido: cada causa de falla tiene su estado", () => {
     }
   });
 
-  test("(c) la fila se leyó pero no abre (descifrado o JSON) con la clave presente → dañado; se puede generar", async () => {
+  test("(c) la clave actual abre la capa de la clave pero el contenido no (descifrado o JSON) → dañado; se puede generar", async () => {
     const descifrado = await lectura({
       abrir: () => {
         throw new Error("Unsupported state or unable to authenticate data");
@@ -196,12 +202,13 @@ describe("lectura del pedido: cada causa de falla tiene su estado", () => {
     assert.equal(motivoParaNoReemplazarPedido(l), null);
   });
 
-  test("(d2) etiqueta distinta y la fila NO abre → otra-clave: bloquea generar, no se borra", async () => {
+  test("(d2) etiqueta distinta y la clave actual NO abre → otra-clave: bloquea generar, no se borra", async () => {
     const { l, fallas } = await lectura({
       clave: () => ({ id: "env:FISCAL_MASTER_KEY:v2" }),
       abrir: () => {
         throw new Error("Unsupported state or unable to authenticate data");
       },
+      abreLaClave: () => false,
     });
     assert.deepEqual(l, { estado: "otra-clave" });
     assert.deepEqual(fallas, ["otra-clave"]);
@@ -210,6 +217,47 @@ describe("lectura del pedido: cada causa de falla tiene su estado", () => {
     const e = estadoDelAsistente(entrada({}, { problemaDelPedido: problemaDelPedido(l) }));
     assert.equal(e.problemaDelPedido, "otra-clave");
     assert.equal(e.puedeGenerarPedido, false);
+  });
+
+  test("(d3) etiqueta distinta, el sobre abre con la clave actual pero el contenido está roto → dañado, no otra-clave", async () => {
+    // Certificación del seguimiento: la pantalla decía «otra-clave» y el descarte «abre con la clave
+    // actual» → nadie podía destrabarlo. Si el sobre abre, la clave es la actual: el daño es del contenido.
+    const { l, fallas } = await lectura({
+      clave: () => ({ id: "env:FISCAL_MASTER_KEY:v2" }),
+      abrir: () => JSON.parse("{roto"),
+      abreLaClave: () => true,
+    });
+    assert.deepEqual(l, { estado: "dañado" });
+    assert.deepEqual(fallas, ["dañado"]);
+    // Y si el sobre no abre, sigue siendo «otra-clave».
+    const otra = await lectura({ clave: () => ({ id: "env:FISCAL_MASTER_KEY:v2" }), abrir: () => JSON.parse("{roto"), abreLaClave: () => false });
+    assert.deepEqual(otra.l, { estado: "otra-clave" });
+  });
+
+  test("(e2) MISMA etiqueta y la clave actual no abre (rotada sin cambiar el identificador) → otra-clave, no dañado", async () => {
+    // Hallazgo medio heredado del #147: antes decidía la etiqueta y esto era «dañado» → generar lo pisaba.
+    const { l, fallas } = await lectura({
+      clave: () => ({ id: FILA.kekId }),
+      abrir: () => {
+        throw new Error("Unsupported state or unable to authenticate data");
+      },
+      abreLaClave: () => false,
+    });
+    assert.deepEqual(l, { estado: "otra-clave" });
+    assert.deepEqual(fallas, ["otra-clave"]);
+    assert.equal(motivoParaNoReemplazarPedido(l), MOTIVO_OTRA_CLAVE);
+    assert.equal(estadoDelAsistente(entrada({}, { problemaDelPedido: problemaDelPedido(l) })).puedeGenerarPedido, false);
+    assert.equal(motivoParaNoDescartar(l), null);
+  });
+
+  test("(e3) si `abreLaClave` misma falla → otra-clave (lo conservador: no se pisa)", async () => {
+    const { l } = await lectura({
+      abrir: () => JSON.parse("{roto"),
+      abreLaClave: () => {
+        throw new Error("x");
+      },
+    });
+    assert.deepEqual(l, { estado: "otra-clave" });
   });
 
   test("(e) misma clave maestra y el descifrado falla → dañado (como siempre)", async () => {
@@ -363,5 +411,38 @@ describe("doble clic al generar: el choque del índice único no termina en pág
       }, esChoque),
       /conexión/,
     );
+  });
+});
+
+describe("seguimiento del #147: doble clic y descarte del pedido de otra clave", () => {
+  test("compare-and-swap: sólo se guarda si la fila es la que se vio al preparar", () => {
+    assert.equal(pedidoCambioDesdeQueSeLeyo(null, null), false);
+    assert.equal(pedidoCambioDesdeQueSeLeyo("p1", "p1"), false);
+    assert.equal(pedidoCambioDesdeQueSeLeyo(null, "p1"), true, "otro pedido se guardó en el medio");
+    assert.equal(pedidoCambioDesdeQueSeLeyo("p1", "p2"), true, "otro lo reemplazó en el medio");
+    assert.equal(pedidoCambioDesdeQueSeLeyo("p1", null), true, "lo usaron o descartaron en el medio");
+  });
+
+  test("sinChoqueDePedido devuelve el motivo propio de guardar", async () => {
+    assert.equal(await sinChoqueDePedido(async () => "en curso", () => false), "en curso");
+    assert.equal(await sinChoqueDePedido(async () => null, () => false), null);
+  });
+
+  test("la confirmación del descarte es la palabra, sin importar mayúsculas ni bordes", () => {
+    assert.equal(PALABRA_DEL_DESCARTE, "DESCARTAR");
+    for (const ok of ["DESCARTAR", "descartar", "  Descartar\n"]) assert.equal(confirmaElDescarte(ok), true, ok);
+    for (const no of [undefined, null, 1, "", "DESCARTA", "DESCARTAR YA", "sí"]) assert.equal(confirmaElDescarte(no), false, String(no));
+  });
+
+  test("sólo se descarta «otra-clave»: el resto dice por qué no", () => {
+    const lecturas: LecturaDelPedido[] = [
+      { estado: "ninguno" },
+      { estado: "pendiente", csrPem: "x", creadoEn: "2026-11-01T00:00:00.000Z" },
+      { estado: "ilegible" },
+      { estado: "sin-configuracion", hayPedido: true },
+      { estado: "dañado" },
+    ];
+    assert.equal(motivoParaNoDescartar({ estado: "otra-clave" }), null);
+    for (const l of lecturas) assert.ok(motivoParaNoDescartar(l), l.estado);
   });
 });

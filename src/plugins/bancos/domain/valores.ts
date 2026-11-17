@@ -141,7 +141,35 @@ export function parsearFecha(v: string | Date | number | null | undefined): stri
  * que el `payment_id` de MP).
  */
 export function hashMovimiento(fecha: string, monto: number, descripcion: string): string {
-  return createHash("sha256")
-    .update(`${fecha}|${monto.toFixed(2)}|${normalizarTexto(descripcion)}`)
-    .digest("hex");
+  return sha256(baseDelHash(fecha, monto, descripcion));
+}
+
+function baseDelHash(fecha: string, monto: number, descripcion: string): string {
+  return `${fecha}|${monto.toFixed(2)}|${normalizarTexto(descripcion)}`;
+}
+
+function sha256(texto: string): string {
+  return createHash("sha256").update(texto).digest("hex");
+}
+
+/**
+ * Id del n-ésimo movimiento IGUAL (misma fecha, monto y descripción normalizada) dentro de UN
+ * archivo, contado en el orden del archivo (GSG-FACT-011 · H1). Dos cobros legítimos iguales el
+ * mismo día son dos ventas, no un duplicado. El 1º conserva el hash de siempre
+ * (`hashMovimiento`): las filas ya guardadas y la clave `banco:<hash>` del libro siguen valiendo.
+ * Del 2º en adelante: sha-256 de la misma base + `#n`. Determinista: el mismo archivo da los
+ * mismos ids, así que re-importarlo sigue sin duplicar.
+ */
+export function hashMovimientoOrdinal(fecha: string, monto: number, descripcion: string, ordinal: number): string {
+  return ordinal <= 1 ? hashMovimiento(fecha, monto, descripcion) : sha256(`${baseDelHash(fecha, monto, descripcion)}#${ordinal}`);
+}
+
+/**
+ * n-ésima clave de BORDE de un cobro que cae en el día partido entre dos extractos y choca con una
+ * fila ya guardada: distinta de la original (no la pisa ni la descarta) y determinista. Si el día
+ * se corta tres veces o más, la 1ª clave de borde ya puede estar guardada por un corte anterior:
+ * se usa la siguiente libre (`n` = 2, 3, …), nunca se descarta (GSG-FACT-011 · F1).
+ */
+export function hashBordePartido(movimientoId: string, n = 1): string {
+  return sha256(n <= 1 ? `${movimientoId}#borde` : `${movimientoId}#borde#${n}`);
 }

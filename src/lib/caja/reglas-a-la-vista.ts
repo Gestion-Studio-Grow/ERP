@@ -31,3 +31,11 @@ export const REGLAS_A_LA_VISTA: Readonly<Record<PantallaConRegla, string>> = {
 export function reglaALaVista(pantalla: PantallaConRegla, mostrador: boolean): string | null {
   return mostrador ? REGLAS_A_LA_VISTA[pantalla] : null;
 }
+
+/**
+ * La de Vender, sólo con el día de caja cerrado: con el día abierto la venta entra, y la frase
+ * («una venta cobrada no entra») se leía como si no hubiera entrado (UAT Magra 07-08/11).
+ */
+export function reglaDeVender(mostrador: boolean, diaCerrado: boolean): string | null {
+  return diaCerrado ? reglaALaVista("vender", mostrador) : null;
+}

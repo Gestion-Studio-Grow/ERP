@@ -67,3 +67,27 @@ test("las capacidades nuevas de la matriz: recepción da turnos, ve el contacto 
     assert.deepEqual(fila(texto).celdas.map((c) => c.puede), [true, true, false], texto);
   }
 });
+
+// UAT Magra 07-08/11 (callejón C4): la tabla prometía al Mostrador «Recibir mercadería, contar y cargar
+// mermas», pero Stock, Recibir y Mermas sólo le abren en un mostrador que trabaja por apps (el piloto,
+// `capabilityEnMostrador`). Fuera del piloto la tabla dice lo que rige.
+test("fuera del piloto el Mostrador no recibe ni carga mermas (la tabla dice lo que rige)", () => {
+  const t = tablaDePermisos(true, { stockDelEncargado: false });
+  const fila = t.filas.find((f) => f.texto === "Recibir mercadería, contar y cargar mermas")!;
+  assert.equal(fila.celdas[0].puede, true, "la dueña sí");
+  assert.equal(fila.celdas[1].puede, false, "el Mostrador no");
+  assert.doesNotMatch(resumenDelRol("RECEPTION", true, { stockDelEncargado: false }), /recibir mercadería/i);
+  assert.match(resumenDelRol("RECEPTION", true, { stockDelEncargado: true }), /recibir mercadería/i);
+});
+
+test("la regla de la tabla es la misma que abre la app Recibir mercadería", async () => {
+  const { appPorId } = await import("@/apps/registro");
+  const { rolPuedeEntrar } = await import("@/apps/visibles");
+  const recibir = appPorId("recibir-mercaderia");
+  for (const piloto of [true, false]) {
+    const n = { contexto: piloto ? ({ origen: "piloto" } as never) : null, esMostrador: true };
+    const t = tablaDePermisos(true, { stockDelEncargado: piloto });
+    const celda = t.filas.find((f) => f.capacidad === "stock:receive")!.celdas[1];
+    assert.equal(celda.puede, rolPuedeEntrar(recibir, "RECEPTION", n), `piloto=${piloto}`);
+  }
+});

@@ -6,6 +6,7 @@
 // Avisos y preferencias son de la propia persona: no dependen de un módulo, y sólo tocan filas con su userId.
 // ============================================================================
 
+import { etapa2ActivaPara } from "./etapa2.server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -319,6 +320,8 @@ export async function responderPresentacion(d: { token: string; presentacionId: 
   const tenantId = await getCurrentTenantId();
   const clave = String(d.token ?? "");
   if (!/^[A-Za-z0-9_-]{20,}$/.test(clave)) return { ok: false, error: "El link no es válido." };
+  // Portal apagado (Etapa 2): el link no existe para el cliente.
+  if (!(await etapa2ActivaPara(tenantId, "portal"))) return { ok: false, error: "El link no es válido." };
   const nombre = String(d.nombre ?? "").trim().slice(0, 120);
   if (!nombre) return { ok: false, error: "Escribí tu nombre para dejar constancia." };
   const comentario = String(d.comentario ?? "").trim().slice(0, 1000);

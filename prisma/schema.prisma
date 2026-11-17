@@ -3667,9 +3667,11 @@ model ProyectoPago {
   cobradoPor String?
   anuladoEl  DateTime?
   anuladoPor String?
+  claveEnvio String? // la clave del envío del formulario: el mismo envío dos veces graba un solo cobro
   asientos   CashMovement[]
   createdAt  DateTime       @default(now())
 
+  @@unique([tenantId, claveEnvio])
   @@index([tenantId, proyectoId])
 }
 

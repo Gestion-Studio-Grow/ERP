@@ -95,7 +95,7 @@ export default async function UsuariosPage({
   }
 
   // Diseño nuevo («Renglón»): las mismas acciones y los mismos campos. Apagado, igual que siempre.
-  if (nuevo) return <UsuariosRenglon users={users} roles={roles} esMostrador={esMostrador} banner={banner} fichas={fichas} matriz={matriz} />;
+  if (nuevo) return <UsuariosRenglon users={users} roles={roles} esMostrador={esMostrador} stockDelEncargado={negocio.contexto?.origen === "piloto"} banner={banner} fichas={fichas} matriz={matriz} />;
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-8">
