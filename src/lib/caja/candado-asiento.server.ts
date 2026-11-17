@@ -79,6 +79,9 @@ export async function asentarEnCajaTx<S extends Prisma.CashMovementSelect = type
   return tx.cashMovement.create({ data, select: (select ?? SOLO_ID) as S }) as Promise<Prisma.CashMovementGetPayload<{ select: S }>>;
 }
 
+/** El tipo de `asentarEnCajaTx`, para los módulos que la reciben por parámetro porque un client component los importa. */
+export type AsentarEnCaja = typeof asentarEnCajaTx;
+
 /** Borrar un asiento a mano (el libro): con el candado y sólo si su día sigue abierto. */
 export async function borrarDeCajaTx(tx: Prisma.TransactionClient, tenantId: string, mov: { id: string; occurredAt: Date }, que: QueSeAsienta = "movimiento"): Promise<void> {
   await entrarAlCandadoTx(tx, tenantId, "borrarDeCajaTx");

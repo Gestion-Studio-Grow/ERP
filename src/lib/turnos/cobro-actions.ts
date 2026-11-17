@@ -85,7 +85,7 @@ import {
   type LineaDePago,
   type PlanDeSenia,
 } from "./cobro-dividido";
-import { transaccionQueAsienta } from "@/lib/caja/candado-asiento.server";
+import { transaccionQueAsienta, asentarEnCajaTx } from "@/lib/caja/candado-asiento.server";
 
 /** La forma de siempre (`ResultadoAccion` de actions.ts): el formulario la muestra en línea. */
 export type ResultadoCobro = { ok: true; aviso?: string } | { ok: false; error: string };
@@ -749,7 +749,7 @@ async function deshacerSenia(user: Usuario, tenantId: string, appointmentId: str
           diaDe: dateStrInBusinessTz,
           withSchema,
           notaDeCredito: notaDeCreditoDelCobroInTx,
-        });
+        }, asentarEnCajaTx);
         let volvioAReservado = false;
         if (confirmo && a.status === "CONFIRMED") {
           const { count } = await tx.appointment.updateMany({ where: { id: appointmentId, tenantId, status: "CONFIRMED" }, data: { status: "PENDING" } });

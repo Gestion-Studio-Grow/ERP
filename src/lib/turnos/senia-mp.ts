@@ -40,6 +40,7 @@ import { seniaDelServicio } from "./cobros";
 import { ACCION_CONFIRMAR, ACCION_VOLVIO_A_RESERVADO, seniaQueFaltaParaConfirmar } from "./sena-obligatoria-core";
 import { ACCION_SENIA_MP_DEVUELTA_SIN_ANULAR, ACCION_SENIA_MP_NO_REGISTRADA, ACCION_SENIA_PARCIAL_MP, notaSeniaMP } from "./avisos-mp";
 import { confirmadoPorExcepcion, exigirSeniaParaConfirmar, senaObligatoriaEnTx, volverAReservadoSiFaltaLaSenia } from "./sena-obligatoria";
+import { asentarEnCajaTx } from "@/lib/caja/candado-asiento.server";
 
 /** Quién firma en la auditoría y en el cobro lo que hace el aviso de MP. */
 export const ACTOR_MP = "Mercado Pago";
@@ -289,7 +290,7 @@ export async function aplicarPagoMPDelTurnoEnTx(
           ? `Mercado Pago devolvió la seña (pago ${pago.id})`
           : `Mercado Pago devolvió parte de la seña (pago ${pago.id}): queda ${plan.monto}`;
       try {
-        await deps.anularCobro(tx, tenantId, argsAnular(plan.anular, porque));
+        await deps.anularCobro(tx, tenantId, argsAnular(plan.anular, porque), asentarEnCajaTx);
       } catch (e) {
         if (!(e instanceof AnulacionRechazada)) throw e;
         // No se pudo anular (factura emitida o día cerrado): nada se escribió. La plata ya no está

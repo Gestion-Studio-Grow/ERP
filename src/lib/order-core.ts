@@ -62,7 +62,7 @@ import { registrarPromocionesDeLaVentaEnTx } from "@/lib/supermercado/promos-de-
 import { CUADERNO_SOLO_VENTA_COBRADA } from "@/lib/cuaderno/hora-de-la-venta";
 import type { Prisma, ProductSaleUnit } from "@/generated/prisma/client";
 import { emitirPedidoCobrado, emitirPedidoCreado } from "@/eventos/del-core";
-import { transaccionQueAsienta } from "@/lib/caja/candado-asiento.server";
+import { asentarEnCajaTx, transaccionQueAsienta } from "@/lib/caja/candado-asiento.server";
 
 // DEBITO/CREDITO (N2 · M1-C1, D-C01): sólo el mostrador los escribe, y sólo con `tarjetaHabilitada()` en
 // true (los valores en la base, N2_enums.sql). La vidriera y la ingesta externa siguen con los tres de siempre.
@@ -1623,7 +1623,7 @@ export async function anularVentaConSuCuentaEnTx(
   args: AnularVentaArgs,
   opts: { conCuentas: boolean },
 ): Promise<{ venta: AnularVentaResult; cuenta: { anulada: boolean; monto: number } }> {
-  const venta = await anularVentaInTx(tx, tenantId, args);
+  const venta = await anularVentaInTx(tx, tenantId, args, asentarEnCajaTx);
   if (!venta.applied || !opts.conCuentas) return { venta, cuenta: { anulada: false, monto: 0 } };
   const cuenta = await anularCuentaDeLaVentaEnTx(tx, tenantId, args.orderId, {
     soloDelDia: args.soloDelDia ?? null,

@@ -104,7 +104,7 @@ import {
   getDemoDeepReportData,
   getDemoOwnerPanelData,
 } from "@/lib/demo-sandbox";
-import { transaccionQueAsienta } from "@/lib/caja/candado-asiento.server";
+import { transaccionQueAsienta, asentarEnCajaTx } from "@/lib/caja/candado-asiento.server";
 
 // `reservaOnline: true` (sólo los caminos PÚBLICOS: /reserva, el turnero del taller) saca a las
 // profesionales con la casilla 1 apagada (PLAN permisos §3). La agenda interna y «Dar turno» no lo pasan.
@@ -1464,7 +1464,7 @@ export async function anularCobroTurno(formData: FormData): Promise<ResultadoAcc
           diaDe: dateStrInBusinessTz,
           withSchema,
           notaDeCredito: notaDeCreditoDelCobroInTx,
-        });
+        }, asentarEnCajaTx);
         // Seña obligatoria: un Confirmado al que la anulación le dejó la seña corta vuelve a
         // Reservado, en esta misma tx y auditado (salvo la excepción de la dueña). Apagado, nada.
         if (r.applied) {
@@ -2161,7 +2161,7 @@ export async function cerrarTurnoSinPrestar(formData: FormData): Promise<Resulta
               diaDe: dateStrInBusinessTz,
               withSchema,
               notaDeCredito: notaDeCreditoDelCobroInTx,
-            });
+            }, asentarEnCajaTx);
             if (r.applied) devuelto += r.monto;
           }
         }

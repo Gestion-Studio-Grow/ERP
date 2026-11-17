@@ -67,7 +67,9 @@ import { aplicarPromociones, type ContextoDePromo, type Promocion } from "@/lib/
 import { reemplazarPromocionesDeLaVentaEnTx } from "@/lib/supermercado/promos-de-la-venta";
 import type { PromosDeLaVenta } from "@/lib/order-core";
 import { emitirPedidoCancelado } from "@/eventos/del-core";
-import { asentarEnCajaTx } from "@/lib/caja/candado-asiento.server";
+// Sólo el tipo: un client component importa las marcas de este archivo (libro-caja.ts), así que no puede traer
+// el candado (Prisma) por valor. Quien abre la transacción le pasa `asentarEnCajaTx` (T01b).
+import type { AsentarEnCaja } from "@/lib/caja/candado-asiento.server";
 
 export type AnulacionVentaTx = Prisma.TransactionClient;
 
@@ -390,6 +392,7 @@ export async function anularVentaInTx(
   tx: AnulacionVentaTx,
   tenantId: string,
   args: AnularVentaArgs,
+  asentar: AsentarEnCaja,
 ): Promise<AnularVentaResult> {
   const order = await tx.order.findFirst({
     where: { tenantId, id: args.orderId },
@@ -521,7 +524,7 @@ export async function anularVentaInTx(
     if (a.collectionId == null) {
       const monto = round2(a.amount - devuelto);
       if (!(monto > 0)) continue;
-      const mov = await asentarEnCajaTx(tx, "anulación", {
+      const mov = await asentar(tx, "anulación", {
         tenantId,
         sessionId: a.sessionId,
         type: "EGRESO",
@@ -539,7 +542,7 @@ export async function anularVentaInTx(
       // del MISMO cobro (`@@unique(tenantId, collectionId, type)` es el árbitro de la carrera, como
       // el de `orderId` en la venta de un medio). Sin `orderId`: ése admite un solo EGRESO por
       // pedido. La marca de la anulación la protege en el libro (libro-caja.ts, `motivoParaNoBorrar`).
-      const mov = await asentarEnCajaTx(tx, "anulación", {
+      const mov = await asentar(tx, "anulación", {
         tenantId,
         sessionId: a.sessionId,
         type: "EGRESO",
