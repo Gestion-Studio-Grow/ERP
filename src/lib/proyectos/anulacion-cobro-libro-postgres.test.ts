@@ -11,7 +11,10 @@
 //  (2) Carrera: N = 5 «Anular» del mismo cobro a la vez (en fila detrás del candado de la cobranza, barrera en la
 //      base) más un borrado del egreso en paralelo → exactamente 1 EGRESO, 0 borrados, saldo = VENTA − EGRESO; los
 //      otros 4 envíos dicen «ya estaba anulado».
-// El aislamiento entre negocios ya lo mide t01-plata-postgres.test.ts («Dos negocios»).
+//  (3) Aislamiento (cert. MIA-064, corrección 3): el negocio B no ve en su libro, ni borra, el egreso de la anulación de A.
+//  (4) La reversa de un gasto anulado (cert. MIA-064, corrección 3; la forma de la tabla de #187 que no se había traído):
+//      el INGRESO con `proyectoGastoId` que escribe hoy `anularGastoFicha` y una fila sembrada sólo con la columna,
+//      firmada con el usuario, no se borran ni llevan ✕.
 //
 // Sin Postgres el test FALLA (no pasa vacío): un test de plata que no corrió no prueba nada.
 // ============================================================================
@@ -29,6 +32,8 @@ const DIA = 86_400_000;
 const AHORA = Date.parse("2026-11-10T12:00:00Z");
 /** El mensaje de T01 para el cobro de un proyecto y su anulación (`motivoDeProyecto`, libro-caja.ts). */
 const DEL_COBRO = /lo asentó un cobro de un proyecto \(o su anulación\)\. No se borra desde el libro: corregilo desde la ficha del proyecto/;
+/** El de T01 para el pago de un gasto de proyecto y su anulación (`motivoDeProyecto`, libro-caja.ts). */
+const DEL_GASTO = /lo asentó el pago de un gasto de un proyecto \(o su anulación\)\. No se borra desde el libro: corregilo desde la ficha del proyecto, en Gastos/;
 
 /** Pedidos que esperan el candado consultivo `clave` (ver cobranza-carrera-postgres.test.ts, `trabados`). */
 async function trabados(c: pg.Client, clave: string): Promise<number> {
@@ -110,17 +115,17 @@ async function preparar(t: import("node:test").TestContext) {
   const delCobro = async (pagoId: string) =>
     (await duenio.cashMovement.findMany({ where: { proyectoPagoId: pagoId }, select: { id: true, type: true, amount: true, createdBy: true } })).sort((x, y) => x.type.localeCompare(y.type));
   const hoy = dateStrInBusinessTz(new Date());
-  return { base, duenio, a, b, proyecto, form, como, cobrar, anular, borrar, foto, delCobro, libro, cerrarDia, reabrirDiaAction, hoy };
+  return { base, duenio, a, b, proyecto, form, como, cobrar, anular, borrar, foto, delCobro, libro, cerrarDia, reabrirDiaAction, hoy, acciones, ficha };
 }
 
 type Preparado = Awaited<ReturnType<typeof preparar>>;
 
 /** Intenta borrar `id` como la dueña: tiene que rebotar con el mensaje de T01 y el libro (filas y saldo) no cambia. */
-async function intentar(p: Preparado, id: string, cuando: string) {
+async function intentar(p: Preparado, id: string, cuando: string, mensaje: RegExp = DEL_COBRO) {
   const antes = await p.foto(p.a.id);
   const r = await p.borrar(p.a, id);
   assert.equal(r?.ok, false, `${cuando}: el borrado tiene que rebotar (${JSON.stringify(r)})`);
-  assert.match(String((r as { error?: string }).error), DEL_COBRO, cuando);
+  assert.match(String((r as { error?: string }).error), mensaje, cuando);
   assert.deepEqual(await p.foto(p.a.id), antes, `${cuando}: el libro (filas y saldo) no cambia`);
 }
 
@@ -224,4 +229,40 @@ test(`(2) carrera: ${N} «Anular» del mismo cobro a la vez y un borrado del egr
   } finally {
     await c.end();
   }
+});
+
+test("(3) aislamiento: el negocio B no ve en su libro ni borra el egreso de la anulación de A", async (t) => {
+  const p = await preparar(t);
+  const { egreso } = await cobradoYAnulado(p);
+  const antesA = await p.foto(p.a.id);
+  const antesB = await p.foto(p.b.id);
+  const r = await p.borrar(p.b, egreso.id);
+  assert.equal(r?.ok, false, JSON.stringify(r));
+  assert.match(String((r as { error?: string }).error), /ya no existe/, "para B la fila de A no existe");
+  const deB = await p.como(p.b, () => p.libro.getLibroCajaData());
+  assert.equal(deB.rows.some((x) => x.id === egreso.id), false, "B no la ve en su libro");
+  assert.ok((await enPantalla(p)).has(egreso.id), "A sí la ve en el suyo (el filtro es por negocio, no un libro vacío)");
+  assert.deepEqual(await p.foto(p.a.id), antesA, "el libro de A no cambió");
+  assert.deepEqual(await p.foto(p.b.id), antesB, "el de B tampoco");
+});
+
+test("(4) la reversa de un gasto anulado: el INGRESO con `proyectoGastoId` no se borra ni lleva ✕, tampoco una fila vieja sólo con la columna", async (t) => {
+  const p = await preparar(t);
+  const proy = await p.proyecto();
+  assert.deepEqual(await p.como(p.a, () => p.acciones.registrarGasto(p.form({ proyectoId: proy.id, descripcion: "Alfombra", neto: "800", pagado: "on", medio: "EFECTIVO" }))), { ok: true });
+  const gasto = await p.duenio.proyectoGasto.findFirstOrThrow({ where: { proyectoId: proy.id, descripcion: "Alfombra" }, select: { id: true } });
+  const anulo = await p.como(p.a, () => p.ficha.anularGastoFicha(p.form({ id: gasto.id })));
+  assert.equal(anulo.ok, true, JSON.stringify(anulo));
+  const filas = await p.duenio.cashMovement.findMany({ where: { proyectoGastoId: gasto.id }, orderBy: { type: "asc" }, select: { id: true, type: true, amount: true } });
+  // A mano: pagar el gasto de $ 800 (sin IVA) es un EGRESO de 800; anularlo, un INGRESO de 800.
+  assert.deepEqual(filas.map((f) => [f.type, f.amount]).sort(), [["EGRESO", 800], ["INGRESO", 800]]);
+  const reversa = filas.find((f) => f.type === "INGRESO")!;
+  // La fila vieja: la reversa firmada con el usuario y sin marca, sólo con la columna. Va en otro gasto: la base no deja
+  // dos reversas del mismo (índice único tenantId + proyectoGastoId + type).
+  const otro = await p.duenio.proyectoGasto.create({ data: { tenantId: p.a.id, proyectoId: proy.id, rubro: "General", descripcion: "Alfombra vieja", neto: 800, iva: 0, cargadoPor: "test" }, select: { id: true } });
+  const vieja = await p.duenio.cashMovement.create({ data: { tenantId: p.a.id, type: "INGRESO", method: "EFECTIVO", amount: 800, reason: `Anulación de gasto · Proyecto #${proy.numero}`, proyectoGastoId: otro.id, createdBy: "Ana Pérez" }, select: { id: true } });
+  await intentar(p, reversa.id, "INGRESO de la reversa de hoy", DEL_GASTO);
+  await intentar(p, vieja.id, "INGRESO de la reversa, fila vieja sin marca", DEL_GASTO);
+  const x = await enPantalla(p);
+  assert.deepEqual([x.get(reversa.id), x.get(vieja.id)], [false, false], "sin ✕ en pantalla");
 });
