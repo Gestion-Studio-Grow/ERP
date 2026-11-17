@@ -4,15 +4,16 @@
 import type { CSSProperties, ReactNode } from "react";
 import LogoDelNegocio from "@/components/marca/LogoDelNegocio";
 import { FUENTES_PANEL } from "@/design/fuentes-panel";
-import { getTenantBrand, marcaDelNegocio, resolveAccent } from "@/lib/branding";
+import { getTenantBrand, marcaConElNombreDelNegocio, resolveAccent } from "@/lib/branding";
 import { esteticaBackoffice } from "@/lib/estetica-backoffice";
 import { claseDeFuentes } from "@/lib/estetica-backoffice-fuentes";
 import { getCurrentTenantSlug } from "@/lib/tenant-site";
 import SelloGSG from "@/components/marca/SelloGSG";
 
-export default async function HojaSimple({ titulo, children }: { titulo: string; children: ReactNode }) {
+// `nombreDelNegocio`: el `Tenant.name` de la cuenta (C5): sin ficha de marca se muestra ése, nunca «Mi negocio».
+export default async function HojaSimple({ titulo, nombreDelNegocio, children }: { titulo: string; nombreDelNegocio?: string | null; children: ReactNode }) {
   const [brand, slug] = await Promise.all([getTenantBrand(), getCurrentTenantSlug()]);
-  const { nombre } = marcaDelNegocio(brand, null);
+  const { nombre } = marcaConElNombreDelNegocio(brand, null, nombreDelNegocio);
   const estetica = esteticaBackoffice(slug) ?? undefined;
   const claro = resolveAccent(brand.preset, "light");
   const oscuro = resolveAccent(brand.preset, "dark");
@@ -30,7 +31,7 @@ export default async function HojaSimple({ titulo, children }: { titulo: string;
       <div className="w-full max-w-sm">
         <div className="mb-6 flex flex-col items-center text-center">
           {estetica && <LogoDelNegocio estetica={estetica} nombre={nombre} />}
-          <p className="mt-3 text-sm font-medium text-muted">{nombre}</p>
+          {nombre && <p className="mt-3 text-sm font-medium text-muted">{nombre}</p>}
         </div>
         <section aria-labelledby="hoja-titulo" className="grid gap-4 rounded-xl border border-line bg-surface-raised p-6 shadow-sm sm:p-8">
           <h1 id="hoja-titulo" className="text-xl font-semibold tracking-tight text-strong">{titulo}</h1>

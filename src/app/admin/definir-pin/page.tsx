@@ -25,7 +25,7 @@ export default async function DefinirPin({ searchParams }: { searchParams: Promi
   const negocio = await nombreDelNegocioDeLaCuenta(user.tenantId);
 
   return (
-    <HojaSimple titulo="Elegí tu PIN">
+    <HojaSimple titulo="Elegí tu PIN" nombreDelNegocio={negocio}>
       <NegocioDeLaCuenta nombre={negocio} />
       <p className="text-sm text-muted">
         Tu ingreso no vence. Si pasan {minutos} minutos sin uso tapamos la pantalla, y con este PIN seguís sin escribir la

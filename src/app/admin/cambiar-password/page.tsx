@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { FUENTES_PANEL } from "@/design/fuentes-panel";
 import type { CSSProperties } from "react";
 import { requireUserConCambioPendiente } from "@/lib/authz";
-import { getTenantBrand, resolveAccent, marcaDelNegocio } from "@/lib/branding";
+import { getTenantBrand, resolveAccent, marcaConElNombreDelNegocio } from "@/lib/branding";
 import { getTeamAccentPreset } from "@/lib/team-accent";
 import { getProductoContexto } from "@/lib/producto";
 import AdminThemeScript from "../AdminThemeScript";
@@ -44,7 +44,7 @@ export default async function CambiarPasswordPage({
   const preset = (await getTeamAccentPreset()) ?? identidad?.acento ?? brand.preset;
   const accentLight = resolveAccent(preset, "light");
   const accentDark = resolveAccent(preset, "dark");
-  const { nombre: marcaNombre, monograma: marcaMonograma } = marcaDelNegocio(brand, identidad);
+  const { nombre: marcaNombre, monograma: marcaMonograma } = marcaConElNombreDelNegocio(brand, identidad, negocio);
   const nuevo = await disenoP;
   // Marca de agua de GSG SÓLO en un producto de GSG; en un negocio cliente `identidad` es null.
   const marcaDeAgua = identidad != null;
