@@ -41,8 +41,11 @@ function vence(d: Date, vencida: boolean) {
   );
 }
 
-/** La columna de las acciones queda pegada a la derecha: a 390 px no se esconde detrás del scroll de la tabla (plan R6). */
-const fijaDerecha = "sticky right-0 bg-surface-raised";
+/** En la PC la columna de las acciones queda pegada a la derecha; en el celular cada cuota es una ficha apilada, con
+ *  el rótulo de cada dato arriba: el importe, el estado y los botones nunca quedan fuera de la vista (plan V2, R6). */
+const fijaDerecha = "sm:sticky sm:right-0 sm:bg-surface-raised max-sm:col-span-2";
+const celda = "max-sm:py-1 max-sm:pr-0 max-sm:before:block max-sm:before:text-xs max-sm:before:text-muted max-sm:before:content-[attr(data-label)]";
+const renglon = "max-sm:grid max-sm:grid-cols-2 max-sm:gap-x-3 max-sm:py-2";
 
 export async function TabCuentas({ tipo, estado, q, vista: vistaId, cuotas, sinCalendario = [], tc, tenantId, editaEmpresa, editaPagos, veClientes = false }: { tipo: "COBRO" | "PAGO"; estado?: string; q?: string; vista?: string; cuotas: readonly (CuotaDelNegocio & { pendiente?: number; cobrado?: number; pagado?: PagadoDeCuota | null })[]; sinCalendario?: readonly SinCalendarioDelNegocio[]; tc: Readonly<Record<string, number>>; tenantId: string; editaEmpresa: boolean; editaPagos: boolean; veClientes?: boolean }) {
   // La vista guardada (O46): sus filtros son el punto de partida; el estado elegido arriba manda sobre el de la vista.
@@ -96,9 +99,9 @@ export async function TabCuentas({ tipo, estado, q, vista: vistaId, cuotas, sinC
       {filas.length === 0 && faltantes.length === 0 ? (
         <p className={cn(tarjeta, "text-sm text-muted")}>{busqueda ? "Nada coincide con esa búsqueda." : tipo === "COBRO" ? "No hay cobros en este filtro." : "No hay pagos en este filtro."}</p>
       ) : (
-        <div className={cn(tarjeta, "overflow-x-auto")}>
-          <table className={cn("w-full text-sm", cantColumnas >= 8 ? "min-w-[1180px]" : "min-w-[720px]")}>
-            <thead className="text-left text-xs text-muted">
+        <div className={cn(tarjeta, "sm:overflow-x-auto")}>
+          <table className={cn("w-full text-sm max-sm:block", cantColumnas >= 8 ? "sm:min-w-[1180px]" : "sm:min-w-[720px]")}>
+            <thead className="text-left text-xs text-muted max-sm:sr-only">
               <tr>
                 <th className="py-1 pr-3 font-medium">Vence</th>
                 {ve.has("evento") && <th className="pr-3 font-medium">Evento</th>}
@@ -113,10 +116,10 @@ export async function TabCuentas({ tipo, estado, q, vista: vistaId, cuotas, sinC
               </tr>
             </thead>
             {grupos.map((g) => (
-            <tbody key={g.clave}>
+            <tbody key={g.clave} className="max-sm:block">
               {g.titulo && (
-                <tr className="border-t border-line">
-                  <th colSpan={cantColumnas} scope="colgroup" className="py-2 text-left text-sm font-semibold text-strong">{g.titulo} <span className="font-normal text-muted">({g.filas.length})</span></th>
+                <tr className="border-t border-line max-sm:block">
+                  <th colSpan={cantColumnas} scope="colgroup" className="py-2 text-left text-sm font-semibold text-strong max-sm:block">{g.titulo} <span className="font-normal text-muted">({g.filas.length})</span></th>
                 </tr>
               )}
               {g.filas.slice(0, MAX_FILAS).map((c) => {
@@ -135,38 +138,38 @@ export async function TabCuentas({ tipo, estado, q, vista: vistaId, cuotas, sinC
                 const pagado = c.tipo === "COBRO" && c.pagadoEl ? (c.pagado ?? null) : null;
                 const referencia = pagado ? (pagado.pesos ?? pagado.monto) : aPesos(falta, c.moneda, tc);
                 return (
-                  <tr key={c.id} className={cn("border-t border-line align-top", vencida && "bg-danger-soft")}>
-                    <td className={cn("py-2 pr-3", vencida && "text-danger")}>
+                  <tr key={c.id} className={cn("border-t border-line align-top", renglon, vencida && "bg-danger-soft")}>
+                    <td data-label="Vence" className={cn("py-2 pr-3", celda, vencida && "text-danger")}>
                       {editaEmpresa && !c.pagadoEl ? <VenceCuota id={c.id} valor={fechaParaInput(c.venceEl)} etiqueta={`Vencimiento de ${c.concepto}`} /> : null}
                       {vence(c.venceEl, vencida)}
                     </td>
                     {ve.has("evento") && (
-                      <td className="py-2 pr-3">
+                      <td data-label="Evento" className={cn("py-2 pr-3", celda)}>
                         {c.proyecto ? <Link href={`/admin/proyectos/${c.proyecto.id}`} className="underline">{codigoProyecto(c.proyecto.numero, c.proyecto.createdAt)} {c.proyecto.nombre}</Link> : <span className="text-muted">Empresa</span>}
                       </td>
                     )}
                     {ve.has("contraparte") && (
-                      <td className="py-2 pr-3">
+                      <td data-label={tipo === "COBRO" ? "Cliente" : "Proveedor"} className={cn("py-2 pr-3", celda)}>
                         {c.tipo === "COBRO" && c.proyecto && veClientes ? <Link href={`/admin/clientes/${c.proyecto.client.id}`} className="underline">{c.proyecto.client.name}</Link> : contraparte(c)}
                       </td>
                     )}
                     {ve.has("concepto") && (
-                      <td className="py-2 pr-3">
+                      <td data-label="Concepto" className={cn("py-2 pr-3", celda)}>
                         {c.concepto}
                         {c.auto && <span className="ml-1 rounded border border-line px-1 text-xs text-muted">auto</span>}
                       </td>
                     )}
                     {ve.has("monto") && (
-                      <td className="whitespace-nowrap py-2 pr-3 text-right font-medium tabular-nums text-strong">
+                      <td data-label="Monto" className={cn("whitespace-nowrap py-2 pr-3 font-medium tabular-nums text-strong sm:text-right", celda)}>
                         {pagado ? plataEn(pagado.monto, pagado.moneda) : plataEn(falta, c.moneda)}
                         {(pagado ? pagado.moneda !== c.moneda || pagado.monto !== c.monto : falta !== c.monto) && <span className="block text-xs font-normal text-muted">de {plataEn(c.monto, c.moneda)}</span>}
                       </td>
                     )}
-                    {ve.has("enPesos") && <td className="whitespace-nowrap py-2 pr-3 text-right tabular-nums text-muted">{referencia > 0 ? pesos(referencia) : "—"}</td>}
-                    {ve.has("factura") && <td className="py-2 pr-3">{editaEmpresa ? <DatoCuota id={c.id} dato="factura" valor={c.factura ?? ""} etiqueta="Factura" /> : (c.factura ?? "—")}</td>}
-                    {ve.has("estado") && <td className={cn("whitespace-nowrap py-2 pr-3", vencida && "font-medium text-danger")}>{est === "PAGADA" && c.tipo === "COBRO" ? "Cobrada" : ESTADO_LABEL[est]}</td>}
-                    {ve.has("comentario") && <td className="py-2 pr-3">{editaEmpresa ? <DatoCuota id={c.id} dato="comentario" valor={c.comentario ?? ""} etiqueta="Comentario" /> : (c.comentario ?? "—")}</td>}
-                    <td className={cn("py-2 pl-3", fijaDerecha, vencida && "bg-danger-soft")}>
+                    {ve.has("enPesos") && <td data-label="En pesos" className={cn("whitespace-nowrap py-2 pr-3 tabular-nums text-muted sm:text-right", celda)}>{referencia > 0 ? pesos(referencia) : "—"}</td>}
+                    {ve.has("factura") && <td data-label="Factura" className={cn("py-2 pr-3", celda)}>{editaEmpresa ? <DatoCuota id={c.id} dato="factura" valor={c.factura ?? ""} etiqueta="Factura" /> : (c.factura ?? "—")}</td>}
+                    {ve.has("estado") && <td data-label="Estado" className={cn("whitespace-nowrap py-2 pr-3", celda, vencida && "font-medium text-danger")}>{est === "PAGADA" && c.tipo === "COBRO" ? "Cobrada" : ESTADO_LABEL[est]}</td>}
+                    {ve.has("comentario") && <td data-label="Comentario" className={cn("py-2 pr-3", celda)}>{editaEmpresa ? <DatoCuota id={c.id} dato="comentario" valor={c.comentario ?? ""} etiqueta="Comentario" /> : (c.comentario ?? "—")}</td>}
+                    <td className={cn("py-2 sm:pl-3", fijaDerecha, vencida && "sm:bg-danger-soft")}>
                       <div className="grid justify-items-start gap-1">
                         {cubierta && <span className="max-w-56 text-xs text-muted">{textoCubierta(c.auto)}</span>}
                         {cubierta && !deEmpresa && !c.auto && editaPagos && c.proyecto && <BotonDosPasos accion={quitarMovimiento} campos={{ id: c.id, proyectoId: c.proyecto.id }} etiqueta="Quitar" pregunta="¿Quitar esta cuota? Lo cobrado sigue registrado." />}
@@ -180,28 +183,28 @@ export async function TabCuentas({ tipo, estado, q, vista: vistaId, cuotas, sinC
               })}
             </tbody>
             ))}
-            <tbody>
+            <tbody className="max-sm:block">
               {faltantes.map((f) => (
-                <tr key={`sin-calendario-${f.proyectoId}`} className="border-t border-line align-top">
-                  <td className="py-2 pr-3 text-muted">Sin fecha</td>
+                <tr key={`sin-calendario-${f.proyectoId}`} className={cn("border-t border-line align-top", renglon)}>
+                  <td data-label="Vence" className={cn("py-2 pr-3 text-muted", celda)}>Sin fecha</td>
                   {ve.has("evento") && (
-                    <td className="py-2 pr-3">
+                    <td data-label="Evento" className={cn("py-2 pr-3", celda)}>
                       <Link href={`/admin/proyectos/${f.proyecto.id}`} className="underline">{codigoProyecto(f.proyecto.numero, f.proyecto.createdAt)} {f.proyecto.nombre}</Link>
                     </td>
                   )}
-                  {ve.has("contraparte") && <td className="py-2 pr-3">{f.proyecto.client.name}</td>}
+                  {ve.has("contraparte") && <td data-label="Cliente" className={cn("py-2 pr-3", celda)}>{f.proyecto.client.name}</td>}
                   {ve.has("concepto") && (
-                    <td className="py-2 pr-3">
+                    <td data-label="Concepto" className={cn("py-2 pr-3", celda)}>
                       Sin calendario
                       <span className="block max-w-56 text-xs text-muted">Falta cobrarlo y no tiene cuota cargada.</span>
                     </td>
                   )}
-                  {ve.has("monto") && <td className="whitespace-nowrap py-2 pr-3 text-right font-medium tabular-nums text-strong">{plataEn(f.monto, f.moneda)}</td>}
-                  {ve.has("enPesos") && <td className="whitespace-nowrap py-2 pr-3 text-right tabular-nums text-muted">{pesos(f.pesos)}</td>}
-                  {ve.has("factura") && <td className="py-2 pr-3 text-muted">—</td>}
-                  {ve.has("estado") && <td className="whitespace-nowrap py-2 pr-3">Pendiente</td>}
-                  {ve.has("comentario") && <td className="py-2 pr-3 text-muted">—</td>}
-                  <td className={cn("py-2 pl-3", fijaDerecha)}>
+                  {ve.has("monto") && <td data-label="Monto" className={cn("whitespace-nowrap py-2 pr-3 font-medium tabular-nums text-strong sm:text-right", celda)}>{plataEn(f.monto, f.moneda)}</td>}
+                  {ve.has("enPesos") && <td data-label="En pesos" className={cn("whitespace-nowrap py-2 pr-3 tabular-nums text-muted sm:text-right", celda)}>{pesos(f.pesos)}</td>}
+                  {ve.has("factura") && <td data-label="Factura" className={cn("py-2 pr-3 text-muted", celda)}>—</td>}
+                  {ve.has("estado") && <td data-label="Estado" className={cn("whitespace-nowrap py-2 pr-3", celda)}>Pendiente</td>}
+                  {ve.has("comentario") && <td data-label="Comentario" className={cn("py-2 pr-3 text-muted", celda)}>—</td>}
+                  <td className={cn("py-2 sm:pl-3", fijaDerecha)}>
                     <Link href={`/admin/proyectos/${f.proyecto.id}?tab=finanzas`} className="flex min-h-11 items-center whitespace-nowrap text-sm underline">Cargar cuota</Link>
                   </td>
                 </tr>
