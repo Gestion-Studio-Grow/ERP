@@ -137,4 +137,19 @@
 # Owner-level: AUTORIZADA por el dueño (15/11 ~11:20 ART, textual: «yo te autorizo para que puedas pasar a producción
 # el CRM [...] necesito que lo publiques ahora mismo»), transmitida por GSG-ORQ-007 a GSG-PLAT-014; publicación sola
 # por excepción. El módulo nace apagado (interruptor «eventos-sponsors»).
-20261114231500_eventos_y_sponsors
+# (aplicada por el build de producción de #171, main 170e56f; sale de la lista) 20261114231500_eventos_y_sponsors
+#
+# 2026-11-17 · tanda/mia-publicacion · GSG-PLAT-020 · MIA: CRM comercial (CRM-010/017/018) + Taller (MIA-045).
+# Orden del dueño (17/11 02:41Z): «los vamos a publicar ahora». Siete migraciones ADITIVAS: tablas nuevas con RLS
+# tenant_isolation adentro, columnas nullable o con default, CHECK sólo sobre lo nuevo; sin enum, sin DROP de datos,
+# sin backfill. Ensayadas con `prisma migrate deploy` sobre una copia de Neon (informe PLAT-020 en Factory-GSG).
+# La tabla de apoyo de la prueba del CRM ("FilaDePruebaCrm") NO viaja: no tiene migración.
+# Gate 2: se aplican sólo con el clic del dueño. Si #175 sale antes, su 20261114230000_proyecto_pago_clave_envio
+# ya estará aplicada y no va en esta lista.
+20261116150000_crm_comercial
+20261116160000_crm_comercial_pronostico
+20261116200000_taller_piezas_despiece
+20261116201000_taller_horas
+20261116202000_taller_pedidos
+20261116203000_taller_consumo
+20261117010000_crm_vinculo_negocios
