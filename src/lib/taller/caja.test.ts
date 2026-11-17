@@ -47,8 +47,10 @@ test("lo que asentó el Taller no se borra desde el libro, y un egreso tipeado a
   assert.equal(movimientoDelLedger(fila).borrable, false, "el libro no ofrece borrarlo");
   // La lista y la acción de borrar leen la columna que lo dice.
   const acciones = readFileSync(new URL("../libro-caja-actions.ts", import.meta.url), "utf8");
-  assert.match(acciones, /createdBy: true,\s+tallerPagoId: true,\s+collectionId:/);
-  assert.match(acciones, /createdBy: found\.createdBy, tallerPagoId: found\.tallerPagoId \}/);
+  assert.match(acciones, /createdBy: true,\s+tallerPagoId: true,[\s\S]{0,300}?collectionId:/);
+  // La acción lee la columna y le pasa la fila ENTERA a la regla (MIA-060: la misma que decide la ✕).
+  assert.match(acciones, /createdBy: true, tallerPagoId: true,[^}]*\}/);
+  assert.match(acciones, /motivoParaNoBorrar\(\{ \.\.\.found, type: found\.type as CashMovementType \}\)/);
 });
 
 test("una transferencia del taller va a su columna si el libro la tiene; si no, sigue en MP", async () => {
