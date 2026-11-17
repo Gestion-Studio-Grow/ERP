@@ -87,7 +87,8 @@ const leerSesionDeLaCookie = cache(async (): Promise<SesionDelPanel | null> => {
 // (`canCurrentUser` y las lecturas directas) y la auditoría; así ninguna ruta depende de acordarse de chequearlo.
 // La dueña lo ve como alerta en la consola (`accesos.ts`) y lo arregla corrigiendo el rol del usuario del agente.
 //
-// - Sólo cuesta una consulta cuando el rol es OWNER (el agente con rol del puesto sigue como hasta hoy).
+// - Cuesta una transacción corta (la búsqueda del agente) sólo cuando el rol es OWNER; los demás roles, nada extra.
+//   `esSesionDeAgenteDuenio` (que relee la cookie) se usa sólo en el camino del rechazo, para elegir el aviso.
 // - La consulta corre parada en el negocio de la sesión (`tenantTransaction`, RLS con `app_rls`).
 // - Sin la tabla de la Cuadrilla en la base (Gate 2) no hay agentes: nadie es agente. Cualquier otro error se
 //   relanza: si no se puede saber, el pedido no sigue (falla cerrado).
@@ -110,7 +111,8 @@ export const esSesionDeAgenteDuenio = cache(async (): Promise<boolean> => {
 export const getSesionDelPanel = cache(async (): Promise<SesionDelPanel | null> => {
   const sesion = await leerSesionDeLaCookie();
   if (!sesion) return null;
-  if (await esSesionDeAgenteDuenio()) return null;
+  // Sobre `sesion.user`, sin volver a leer la cookie: fuera de un render `cache()` no guarda nada.
+  if (await esUsuarioDeAgenteDuenio(sesion.user)) return null;
   return sesion;
 });
 

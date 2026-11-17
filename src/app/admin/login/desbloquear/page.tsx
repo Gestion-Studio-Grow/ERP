@@ -12,6 +12,7 @@ import { cargarPin } from "@/lib/sesion-pin.server";
 import { destinoDeRenovar } from "@/lib/sesion-legado";
 import { getCurrentTenantId } from "@/lib/tenant";
 import HojaSimple from "../HojaSimple";
+import { nombreDelNegocioDeLaCuenta } from "@/lib/negocio-de-la-cuenta.server";
 import { FormularioDesbloqueo } from "./_formulario";
 
 export const dynamic = "force-dynamic";
@@ -39,7 +40,7 @@ export default async function Desbloquear({ searchParams }: { searchParams: Prom
   if (!(pin!.fallos < MAX_INTENTOS_PIN)) alLogin("pin");
 
   return (
-    <HojaSimple titulo={`Hola, ${user!.name.split(/\s+/)[0]}`}>
+    <HojaSimple titulo={`Hola, ${user!.name.split(/\s+/)[0]}`} nombreDelNegocio={await nombreDelNegocioDeLaCuenta(tenantId)}>
       <p className="text-sm text-muted">
         Pasaron {Math.round(INACTIVIDAD_BLOQUEO_MS / 60_000)} minutos sin uso y tapamos la pantalla. Escribí tu PIN para seguir donde estabas.
       </p>
