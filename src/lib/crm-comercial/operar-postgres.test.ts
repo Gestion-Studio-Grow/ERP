@@ -39,6 +39,8 @@ async function preparar(t: import("node:test").TestContext): Promise<Fixture | n
     const c = new pg.Client({ connectionString: base.urlDuenio });
     await c.connect();
     try {
+      // GSG-CRM-018: la tabla de apoyo de la carga no es una migración; se aplica como en el ambiente local.
+      await c.query(readFileSync(path.join(process.cwd(), "scripts", "crm-comercial", "local", "filas-de-prueba.sql"), "utf8"));
       for (const [k, id] of Object.entries(ids)) {
         await c.query(`INSERT INTO "User" (id, "tenantId", name, email, "passwordHash", role, "updatedAt") VALUES ($1, $2, $3, $4, 'x', 'RECEPTION'::"UserRole", now())`, [id, a.id, `Usuario ${k}`, MAILS[k as keyof typeof MAILS]]);
       }

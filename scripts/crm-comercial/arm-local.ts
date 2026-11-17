@@ -18,7 +18,9 @@
 
 import "dotenv/config";
 import { spawn } from "node:child_process";
+import { readFileSync } from "node:fs";
 import path from "node:path";
+import pg from "pg";
 import { crearBaseEfimera } from "../../src/test/base-efimera";
 import { PrismaClient } from "../../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -70,6 +72,14 @@ async function main() {
     process.exit(codigo);
   };
   log(`base ${base.nombre} lista (migraciones + RLS)`);
+  // GSG-CRM-018: la tabla de apoyo de la carga no es una migración (no va a producción); se aplica sólo acá.
+  const sql = new pg.Client({ connectionString: base.urlDuenio });
+  await sql.connect();
+  try {
+    await sql.query(readFileSync(path.join(RAIZ, "scripts", "crm-comercial", "local", "filas-de-prueba.sql"), "utf8"));
+  } finally {
+    await sql.end();
+  }
   const duenio = { DATABASE_URL: base.urlDuenio, SEED_DB_MAX: "1", DB_CONNECTION_LIMIT: "1" };
 
   if ((await correr(["tsx", "prisma/seed-mia-producciones.ts"], duenio)) !== 0) return cerrar(1);
