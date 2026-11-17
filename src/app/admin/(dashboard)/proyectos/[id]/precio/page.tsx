@@ -28,7 +28,8 @@ const CASO_Z = { co: "1000000", ad: "0", real: "900000", total: "1490000" };
 const plata = (c: Centavos) => pesos(c / 100);
 const enPesos = (texto: string | undefined, porDefecto: Centavos): Centavos => (texto === undefined || texto.trim() === "" ? porDefecto : centavosDe(leerNumero(texto)));
 const enPct = (texto: string | undefined, porDefecto: number): number => (texto === undefined || texto.trim() === "" ? porDefecto : leerNumero(texto));
-const textoPesos = (c: Centavos) => (c / 100).toLocaleString("es-AR", { maximumFractionDigits: 2, useGrouping: false });
+// Con separador de miles, como el resto de la plata de la pantalla; `leerNumero` lo vuelve a leer igual ("1.532.258,06").
+const textoPesos = (c: Centavos) => (c / 100).toLocaleString("es-AR", { maximumFractionDigits: 2 });
 const textoPct = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 2, useGrouping: false });
 
 export default async function VistaPreviaPrecio({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Q> }) {
@@ -104,7 +105,7 @@ export default async function VistaPreviaPrecio({ params, searchParams }: { para
             <legend className="mb-1 text-sm font-semibold text-strong">Importes, en pesos</legend>
             <Campo nombre="co" titulo="Costos originales" valor={textoPesos(co)} />
             <Campo nombre="ad" titulo="Adicionales" valor={textoPesos(ad)} />
-            <Campo nombre="total" titulo="Total de venta (se escribe a mano)" valor={total === null ? "" : textoPesos(total)} ayuda="Vacío: se ve el tablero sin la rendición." />
+            <Campo nombre="total" titulo="Total de venta" valor={total === null ? "" : textoPesos(total)} ayuda="Se escribe a mano. Vacío: se ve el tablero sin la rendición." />
             <Campo nombre="real" titulo="Costo real" valor={textoPesos(real)} />
           </fieldset>
           <fieldset className="grid gap-3 sm:grid-cols-3">
@@ -119,7 +120,7 @@ export default async function VistaPreviaPrecio({ params, searchParams }: { para
             <Campo nombre="me" titulo="Margen de error %" valor={textoPct(porcentajes.margenError)} />
             <Campo nombre="iib" titulo="IIB y GA %" valor={textoPct(porcentajes.iibGa)} />
             <Campo nombre="tope" titulo="Tope del redondeo %" valor={textoPct(tope.pct)} />
-            <label className={etiqueta}>
+            <label className={cn(etiqueta, "content-start")}>
               El tope se mide sobre
               <select name="medido" defaultValue={tope.medidoSobre} className={campo}>
                 <option value="bruto">Redondeo bruto (como el Excel)</option>
@@ -135,7 +136,7 @@ export default async function VistaPreviaPrecio({ params, searchParams }: { para
             <Campo nombre="m1" titulo="Margen de error · productor 1 %" valor={textoPct(matriz.margenError.productor1)} />
             <Campo nombre="m2" titulo="Margen de error · productor 2 %" valor={textoPct(matriz.margenError.productor2)} />
             <Campo nombre="mc" titulo="Margen de error · comercial %" valor={textoPct(matriz.margenError.comercial)} />
-            <label className={etiqueta}>
+            <label className={cn(etiqueta, "content-start")}>
               Si la defensa da negativa
               <select name="neg" defaultValue={defensaNegativa} className={campo}>
                 <option value="descuenta">Se descuenta según el reparto</option>
@@ -175,7 +176,7 @@ export default async function VistaPreviaPrecio({ params, searchParams }: { para
 
 function Campo({ nombre, titulo, valor, ayuda }: { nombre: string; titulo: string; valor: string; ayuda?: string }) {
   return (
-    <label className={etiqueta}>
+    <label className={cn(etiqueta, "content-start")}>
       {titulo}
       <input name={nombre} defaultValue={valor} inputMode="decimal" autoComplete="off" className={campo} />
       {ayuda && <span className="text-xs font-normal text-muted">{ayuda}</span>}

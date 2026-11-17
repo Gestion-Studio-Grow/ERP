@@ -162,7 +162,7 @@ export function calcularRendicion(e: EntradaRendicion): Rendicion {
     avisos.push(
       e.defensaNegativa === "pisoCero"
         ? "Defensa negativa: el costo real pasó al aprobado. Las personas quedan en cero y MIA absorbe la diferencia."
-        : "Defensa negativa: el costo real pasó al aprobado y la diferencia se descuenta según el reparto (decisión 4 A, provisional).",
+        : "Defensa negativa: el costo real pasó al aprobado y la diferencia se descuenta según el reparto (como la planilla; provisional a confirmar con MIA).",
     );
   }
   return { defensa, defensaNegativa: negativa, filas, totales, control: { suma: totales.total, esperado, cierra: totales.total === esperado }, avisos };

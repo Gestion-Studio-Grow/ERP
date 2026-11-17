@@ -20,6 +20,8 @@
  *   redondeo neto = bruto − IIB y GA                        (Dis. § 1.4: el bruto contiene IIB y GA)
  */
 
+import { centavosDe } from "../dinero/redondeo";
+
 export type Centavos = number;
 
 /** Porcentajes del tablero, en puntos (30 = 30 %), con hasta dos decimales. */
@@ -93,8 +95,9 @@ const PB_POR_CIENTO = BigInt(10_000);
 /** Un porcentaje con hasta dos decimales, en puntos básicos enteros: 7,5 → 750. Rechaza lo que no esté entre 0 y 100. */
 export function aPuntosBasicos(pct: number): number {
   if (!Number.isFinite(pct) || pct < 0 || pct > 100) throw new RangeError(`No es un porcentaje entre 0 y 100: ${String(pct)}.`);
-  const pb = Math.round(pct * 100);
-  // Con dos decimales, pct × 100 queda a menos de una millonésima de un entero aunque el binario no sea exacto (1,1 → 110).
+  // El porcentaje × 100 con la regla del ERP (R7 y R1 de src/lib/dinero/redondeo.ts): 1,1 → 110 aunque el binario no sea exacto.
+  const pb = centavosDe(pct);
+  // Con dos decimales, pct × 100 queda a menos de una millonésima de ese entero; con tres (1,005), a medio punto.
   if (Math.abs(pct * 100 - pb) > 1e-6) throw new RangeError(`El porcentaje lleva hasta dos decimales: ${String(pct)}.`);
   return pb;
 }
