@@ -13,9 +13,10 @@ import { hiloDeAgente, leerHilo, mediana } from "@/lib/cuadrilla/consola-core";
 import { avisoDeLaUrl, motivoDelError } from "@/lib/cuadrilla/formulario";
 import { pedidosAbiertosDelAgente } from "@/lib/cuadrilla/pedidos-core";
 import { RESPUESTA_OPORTUNIDAD, VISTAS_PEDIDOS, type VistaPedidos } from "@/lib/cuadrilla/pedidos";
-import { TableroCuadrilla, horaAR } from "@/components/cuadrilla/TableroCuadrilla";
+import { clavePuesto, MANUALES } from "@/lib/cuadrilla/manuales";
+import { PedidoDelMensaje, TableroCuadrilla, horaAR } from "@/components/cuadrilla/TableroCuadrilla";
 import { atributosBoton, buttonClasses } from "@/components/ui/Button";
-import { panelAgente, panelAvanzarPedido, panelCerrarPedido, panelDecidir, panelHablar, panelLevantar, panelLote } from "./actions";
+import { panelAgente, panelAvanzarPedido, panelCerrarPedido, panelDecidir, panelHablar, panelLevantar, panelLote, panelVencer } from "./actions";
 
 export const metadata: Metadata = { title: "Cuadrilla", generator: "Gestión Studio Grow" };
 export const dynamic = "force-dynamic";
@@ -46,11 +47,13 @@ export default async function CuadrillaPanelPage({ searchParams }: { searchParam
       mensajes: Awaited<ReturnType<typeof leerHilo>>;
       pedidos: Awaited<ReturnType<typeof pedidosAbiertosDelAgente>>;
       mias: { id: string; tipo: string; categoria: string; titulo: string; estado: string; motivo: string | null; decididaPor: string | null }[];
+      puesto: string;
     } | null = null;
     let falla: string | null = null;
     try {
       datos = await tenantTransaction(
         async (tx) => ({
+          puesto: (await tx.agenteCuadrilla.findFirst({ where: { id: actor.agenteId, tenantId }, select: { puesto: true } }))?.puesto ?? "",
           mensajes: await leerHilo(tx, tenantId, hiloDeAgente(actor.agenteId)),
           pedidos: await pedidosAbiertosDelAgente(tx, tenantId, actor.agenteId),
           mias: await tx.excepcionCuadrilla.findMany({
@@ -65,6 +68,7 @@ export default async function CuadrillaPanelPage({ searchParams }: { searchParam
     } catch (e) {
       falla = motivoDelError(e);
     }
+    const manual = datos ? MANUALES[clavePuesto(datos.puesto)] : undefined;
     return (
       <div className="mx-auto max-w-3xl space-y-5 px-4 py-6">
         <header>
@@ -90,6 +94,7 @@ export default async function CuadrillaPanelPage({ searchParams }: { searchParam
                 <p className="text-xs text-muted">
                   <span className="font-medium text-strong">{m.autor}</span> · <time dateTime={m.createdAt.toISOString()}>{horaAR(m.createdAt)}</time>
                 </p>
+                <PedidoDelMensaje m={m} />
                 <p className="whitespace-pre-wrap break-words text-sm text-body">{m.texto}</p>
               </li>
             ))}
@@ -149,7 +154,7 @@ export default async function CuadrillaPanelPage({ searchParams }: { searchParam
                 <input type="hidden" name="salida" value="AJENO" />
                 <input type="hidden" name="ancla" value="pedidos" />
                 <label className="grid gap-1 text-sm">
-                  <span className="text-muted">Regla de tu manual (por ejemplo «verificador §2»)</span>
+                  <span className="text-muted">{manual ? `Regla de tu manual: «${manual.nombre} §n», de §1 a §${manual.ultimo}` : "Tu puesto no tiene manual cargado: traspasalo a GSG"}</span>
                   <input name="regla" required maxLength={120} className="min-h-11 rounded border border-line bg-surface px-3" />
                 </label>
                 <label className="grid gap-1 text-sm">
@@ -254,7 +259,7 @@ export default async function CuadrillaPanelPage({ searchParams }: { searchParam
       hilo={carga?.hilo ? { ...carga.hilo, tenantId } : null}
       respuestaMedianaSeg={mediana(carga?.tiempos ?? [])}
       aviso={aviso}
-      acciones={{ decidir: panelDecidir, lote: panelLote, agente: panelAgente, hablar: panelHablar }}
+      acciones={{ decidir: panelDecidir, lote: panelLote, agente: panelAgente, hablar: panelHablar, vencer: panelVencer }}
     />
   );
 }

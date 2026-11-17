@@ -11,7 +11,7 @@ import { mediana } from "@/lib/cuadrilla/consola-core";
 import { avisoDeLaUrl, motivoDelError } from "@/lib/cuadrilla/formulario";
 import { VISTAS_PEDIDOS, type VistaPedidos } from "@/lib/cuadrilla/pedidos";
 import { TableroCuadrilla, type NegocioDelTablero } from "@/components/cuadrilla/TableroCuadrilla";
-import { operadorAgente, operadorDecidir, operadorHablar, operadorLote } from "./actions";
+import { operadorAgente, operadorDecidir, operadorHablar, operadorLote, operadorVencer } from "./actions";
 
 export const metadata: Metadata = { title: "Cuadrilla · Consola GSG", generator: "Gestión Studio Grow" };
 export const dynamic = "force-dynamic";
@@ -85,7 +85,7 @@ export default async function CuadrillaOperadorPage({ searchParams }: { searchPa
       hilo={hilo}
       respuestaMedianaSeg={mediana(visibles.flatMap((c) => c.carga?.tiempos ?? []))}
       aviso={avisoDeLaUrl({ ok: uno(sp.ok), error: uno(sp.error), f: uno(sp.f) })}
-      acciones={{ decidir: operadorDecidir, lote: operadorLote, agente: operadorAgente, hablar: operadorHablar }}
+      acciones={{ decidir: operadorDecidir, lote: operadorLote, agente: operadorAgente, hablar: operadorHablar, vencer: operadorVencer }}
     />
   );
 }

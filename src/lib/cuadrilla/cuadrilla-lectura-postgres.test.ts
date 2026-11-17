@@ -81,7 +81,8 @@ test("cuadrilla: abrir la consola no escribe en ningún negocio; escalar los ven
 
   await t.test("un operador que no es dueño abre la consola de varias formas y ningún negocio cambia", async () => {
     const inicial = await foto();
-    for (const sp of [{}, { negocio: a.id }, { negocio: b.id, en: b.id, ex: exB, hilo: `agente:${agB}` }, { pedidos: "topes" }, { pedidos: "abiertos", agente: agA }]) {
+    const vistas: Record<string, string>[] = [{}, { negocio: a.id }, { negocio: b.id, en: b.id, ex: exB, hilo: `agente:${agB}` }, { pedidos: "topes" }, { pedidos: "abiertos", agente: agA }];
+    for (const sp of vistas) {
       const r = await ejecutarAccion(facu, abrir(sp));
       assert.equal(r.tipo, "respuesta", `la página abre (${JSON.stringify(sp)})`);
     }

@@ -10,7 +10,7 @@ import { revalidatePath } from "next/cache";
 import { enElNegocio } from "@/lib/operator-db";
 import { requireOperadorParaNegocio } from "@/lib/operador/guardia-negocio";
 import { NoPermitido, cambiarEstadoDeAgentes, decidir, decidirLote, reasignar } from "@/lib/cuadrilla/consola-core";
-import { hablarOPedir } from "@/lib/cuadrilla/pedidos-core";
+import { hablarOPedir, vencerPedidos } from "@/lib/cuadrilla/pedidos-core";
 import { elegidasPorNegocio, motivoDelError, texto, volverA } from "@/lib/cuadrilla/formulario";
 import type { Actor } from "@/lib/cuadrilla/permisos";
 
@@ -114,6 +114,26 @@ export async function operadorHablar(fd: FormData) {
       hablarOPedir(tx, actor, tenantId, texto(fd, "hilo"), texto(fd, "texto"), { minutos: texto(fd, "topeMinutos"), turnos: texto(fd, "topeTurnos") }),
     );
     destino = volverA(BASE, fd, pedido ? { ok: "Pedido enviado, con su tope." } : {});
+  } catch (e) {
+    destino = volverA(BASE, fd, { error: motivoDelError(e) });
+  }
+  revalidatePath(BASE);
+  redirect(destino);
+}
+
+/**
+ * Escala los pedidos de UN negocio que pasaron su tope de minutos (GSG-MIA-072). Abrir la consola ya no lo hace:
+ * escribir en un negocio pasa por su guardia (en CH, sólo el dueño de GSG).
+ */
+export async function operadorVencer(fd: FormData) {
+  const tenantId = campo(fd, "tenantId");
+  const sesion = await requireOperadorParaNegocio({ id: tenantId });
+  const actor: Actor = { tipo: "operador", nombre: sesion.nombre };
+  let destino: string;
+  try {
+    if (!tenantId) throw new NoPermitido("Elegí el negocio.");
+    const n = await enElNegocio(tenantId, (tx) => vencerPedidos(tx, actor, tenantId));
+    destino = volverA(BASE, fd, { ok: n === 0 ? "No había pedidos vencidos." : `Escalados por tope: ${n}.` });
   } catch (e) {
     destino = volverA(BASE, fd, { error: motivoDelError(e) });
   }

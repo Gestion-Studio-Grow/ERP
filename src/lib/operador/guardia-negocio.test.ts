@@ -410,6 +410,7 @@ test("TRINQUETE: todo endpoint con privilegio de operador tiene PRIMERO la guard
     "src/app/operador/(console)/cuadrilla/actions.ts#operadorDecidir",
     "src/app/operador/(console)/cuadrilla/actions.ts#operadorHablar",
     "src/app/operador/(console)/cuadrilla/actions.ts#operadorLote",
+    "src/app/operador/(console)/cuadrilla/actions.ts#operadorVencer",
     "src/app/operador/(console)/pedidos-cartera/actions.ts#resolverPedidoDeCarteraAction",
     "src/app/operador/(console)/solicitudes/actions.ts#configurarSolicitudAction",
     "src/app/operador/(console)/solicitudes/actions.ts#descartarSolicitudAction",

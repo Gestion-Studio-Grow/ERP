@@ -42,6 +42,8 @@ export const OPERACIONES = [
   "levantar_excepcion",
   "pedir",
   "cerrar_pedido",
+  // Escalar los pedidos que pasaron su tope de minutos (GSG-MIA-072): una acción de una persona, nunca una lectura.
+  "vencer_pedidos",
   "enviar_a_terceros",
 ] as const;
 export type Operacion = (typeof OPERACIONES)[number];
@@ -89,6 +91,7 @@ const DE_PERSONA: ReadonlySet<Operacion> = new Set([
   "reanudar",
   "reasignar",
   "pedir",
+  "vencer_pedidos",
 ]);
 
 function alcance(actor: Actor, tenantId: string | undefined): Resultado {
@@ -166,6 +169,7 @@ export function puede(actor: Actor | null | undefined, operacion: Operacion, ctx
       if (actor.tipo !== "agente") return no("Las excepciones las levanta un agente.");
       return alcance(actor, ctx.tenantId);
     case "pedir":
+    case "vencer_pedidos":
       return alcance(actor, ctx.tenantId);
     case "cerrar_pedido": {
       const p = ctx.pedido;

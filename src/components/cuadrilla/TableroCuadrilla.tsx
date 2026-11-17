@@ -14,7 +14,7 @@ import { atributosBoton, buttonClasses } from "@/components/ui/Button";
 import { esNivel0 } from "@/lib/cuadrilla/permisos";
 import type { ExcepcionVista, MensajeVista, Tablero } from "@/lib/cuadrilla/consola-core";
 import type { PedidoVista } from "@/lib/cuadrilla/pedidos-core";
-import { TOPE, VISTAS_PEDIDOS } from "@/lib/cuadrilla/pedidos";
+import { cierreDelPedido, TOPE, VISTAS_PEDIDOS } from "@/lib/cuadrilla/pedidos";
 
 type Accion = (fd: FormData) => Promise<void>;
 
@@ -29,7 +29,7 @@ export type PropsTablero = {
   hilo: { clave: string; tenantId: string; titulo: string; mensajes: MensajeVista[]; excepciones: ExcepcionVista[] } | null;
   respuestaMedianaSeg: number | null;
   aviso: { ok?: string; error?: string };
-  acciones: { decidir: Accion; lote: Accion; agente: Accion; hablar: Accion };
+  acciones: { decidir: Accion; lote: Accion; agente: Accion; hablar: Accion; vencer: Accion; accesos?: Accion };
 };
 
 const TIPO: Record<string, string> = {
@@ -181,6 +181,17 @@ function Contador({ valor, etiqueta, tono }: { valor: string; etiqueta: string; 
   );
 }
 
+/** A qué pedido responde un mensaje del hilo (GSG-MIA-072). La persona que escribe ABRE el pedido; el resto lo contesta. */
+export function PedidoDelMensaje({ m }: { m: Pick<MensajeVista, "autorTipo" | "pedido"> }) {
+  if (!m.pedido) return null;
+  const corto = m.pedido.texto.length > 80 ? `${m.pedido.texto.slice(0, 79)}…` : m.pedido.texto;
+  return (
+    <p className="text-xs text-muted" data-pedido-del-mensaje={m.pedido.id}>
+      {m.autorTipo === "PERSONA" ? "Pedido nuevo" : `Responde al pedido «${corto}» de las ${horaAR(m.pedido.createdAt)}`}
+    </p>
+  );
+}
+
 function Hilo({ props }: { props: PropsTablero }) {
   const h = props.hilo!;
   return (
@@ -208,6 +219,7 @@ function Hilo({ props }: { props: PropsTablero }) {
             <p className="text-xs text-muted">
               <span className="font-medium text-strong">{m.autor}</span> · {m.autorTipo === "AGENTE" ? "agente" : m.autorTipo === "SISTEMA" ? "aviso" : "persona"} · <Cuando d={m.createdAt} />
             </p>
+            <PedidoDelMensaje m={m} />
             <p className="whitespace-pre-wrap break-words text-sm text-body">{m.texto}</p>
           </li>
         ))}
@@ -251,6 +263,7 @@ const VISTA: Record<string, string> = {
 };
 
 function EstadoDelPedido({ p }: { p: PedidoVista }) {
+  if (p.vencido) return <Etiqueta tono="peligro">Pasó el tope de {p.vencido} · falta escalar</Etiqueta>;
   if (p.estado === "NEGADO") return <Etiqueta tono="neutro">Negado · fuera del servicio</Etiqueta>;
   if (p.estado === "ESCALADO" && p.salida === "OPORTUNIDAD") return <Etiqueta tono="alerta">Oportunidad · dueño {p.duenio}</Etiqueta>;
   if (p.estado === "ESCALADO") return <Etiqueta tono="peligro">Llegó al tope · escalado</Etiqueta>;
@@ -259,8 +272,11 @@ function EstadoDelPedido({ p }: { p: PedidoVista }) {
 }
 
 /** Los pedidos a los agentes: lo que el cliente pide, incluido lo que hoy no ofrecemos (negados y oportunidades). */
-function Pedidos({ props, pedidos }: { props: PropsTablero; pedidos: { p: PedidoVista; negocio: string }[] }) {
+function Pedidos({ props, pedidos }: { props: PropsTablero; pedidos: { p: PedidoVista; negocio: string; negocioId: string }[] }) {
   const vista = props.filtros.pedidos ?? "todos";
+  // Los vencidos se muestran pero no se escalan solos al abrir la consola (GSG-MIA-072): una persona lo hace acá,
+  // de a un negocio, y la acción pasa por la guardia de ese negocio.
+  const conVencidos = [...new Map(pedidos.filter(({ p }) => p.vencido).map(({ negocio, negocioId }) => [negocioId, negocio])).entries()];
   return (
     <section id="pedidos" aria-labelledby="titulo-pedidos" className="scroll-mt-20 space-y-2">
       <h2 id="titulo-pedidos" className="font-semibold text-strong">
@@ -279,6 +295,19 @@ function Pedidos({ props, pedidos }: { props: PropsTablero; pedidos: { p: Pedido
           </Link>
         ))}
       </nav>
+      {conVencidos.map(([negocioId, negocio]) => (
+        <form key={negocioId} action={props.acciones.vencer} className="flex flex-wrap items-center gap-2 rounded-lg border border-danger bg-danger-soft px-3 py-2">
+          <FiltrosOcultos filtros={props.filtros} />
+          <input type="hidden" name="tenantId" value={negocioId} />
+          <input type="hidden" name="ancla" value="pedidos" />
+          <p className="text-sm text-danger">
+            {props.modo === "operador" ? `${negocio}: hay` : "Hay"} pedidos que pasaron su tope y siguen abiertos.
+          </p>
+          <button type="submit" className={buttonClasses("outline", "sm")} {...atributosBoton("outline", "sm")}>
+            Escalarlos a una persona
+          </button>
+        </form>
+      ))}
       {pedidos.length === 0 ? (
         <p className="rounded-lg border border-line bg-surface p-4 text-sm text-muted">No hay pedidos en esta vista.</p>
       ) : (
@@ -291,6 +320,11 @@ function Pedidos({ props, pedidos }: { props: PropsTablero; pedidos: { p: Pedido
                 A {p.agenteNombre}
                 {props.modo === "operador" ? ` · ${negocio}` : ""} · pidió {p.pedidoPor} · <Cuando d={p.createdAt} /> · tope {p.topeMinutos} min, {p.turnosUsados}/{p.topeTurnos} turnos
               </p>
+              {p.cerradoEn && cierreDelPedido(p) ? (
+                <p className="text-xs text-muted" data-cierre>
+                  {cierreDelPedido(p)} <Cuando d={p.cerradoEn} />
+                </p>
+              ) : null}
               {p.regla ? <p className="text-xs text-muted">Regla: {p.regla}</p> : null}
               {p.respuesta ? <p className="text-xs text-muted">Respuesta: «{p.respuesta}»</p> : null}
             </li>
@@ -310,7 +344,7 @@ export function TableroCuadrilla(props: PropsTablero) {
     .flatMap((n) => n.tablero!.excepciones.map((e) => ({ e, negocio: n.nombre })))
     .sort((a, b) => (soloPendientes ? +a.e.createdAt - +b.e.createdAt : +b.e.createdAt - +a.e.createdAt));
   const pedidos = conTablero
-    .flatMap((n) => (n.pedidos ?? []).map((p) => ({ p, negocio: n.nombre })))
+    .flatMap((n) => (n.pedidos ?? []).map((p) => ({ p, negocio: n.nombre, negocioId: n.id })))
     .sort((a, b) => +b.p.createdAt - +a.p.createdAt);
   const agentes = conTablero.flatMap((n) => n.tablero!.agentes.map((a) => ({ a, negocio: n })));
   const pendientes = conTablero.reduce((s, n) => s + n.tablero!.pendientes, 0);

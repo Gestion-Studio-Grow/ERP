@@ -9,7 +9,9 @@
 //     traspaso (el agente no escribe nada: no promete precio ni plazo ni contacta a nadie) y entra a la cola
 //     «Oportunidades» con dueño COM y fecha.
 //   · ESCALADO (salida TOPE): llegó al tope de minutos o de turnos. Se frena; no se sigue.
-// PURO: sin base. La escritura vive en `pedidos-core.ts`.
+// PURO: sin base. La escritura vive en `pedidos-core.ts`. La regla se cruza con el manual del puesto del agente
+// (`manuales.ts`, GSG-MIA-072): «<puesto> §n», el puesto es el suyo y el § existe.
+import { cruzarRegla } from "./manuales";
 
 export const ESTADOS_PEDIDO = ["ABIERTO", "HECHO", "NEGADO", "ESCALADO"] as const;
 export type EstadoPedido = (typeof ESTADOS_PEDIDO)[number];
@@ -29,11 +31,32 @@ export const TOPE = {
 export const RESPUESTA_OPORTUNIDAD =
   "Tu pedido fue traspasado al equipo correspondiente de GSG. Nos vamos a contactar con el área.";
 
-/** La regla cita el manual del puesto: «<puesto> §n» (p. ej. «verificador §2.1»), igual que el registro de turno. */
-export const REGLA = /^[\p{L}][\p{L} _-]*\s*§\s*\d+(\.\d+)*\b/u;
+
+/**
+ * «Lo que sí puedo hacer: …» sin repetir (GSG-MIA-072): si el agente escribió «Puedo verificar…» o ya puso «Lo que sí
+ * puedo hacer:», se saca lo repetido y queda «Lo que sí puedo hacer: verificar…».
+ */
+export function queSiSinRepetir(queSi: string): string {
+  const limpio = queSi
+    .trim()
+    .replace(/^lo\s+que\s+s[ií]\s+puedo\s+hacer\s*[:,.-]?\s*/iu, "")
+    .replace(/^(yo\s+)?(s[ií]\s+)?puedo\s+/iu, "")
+    .trim();
+  if (!limpio) return queSi.trim();
+  return limpio.charAt(0).toLocaleLowerCase("es") + limpio.slice(1);
+}
 
 export function respuestaNegado(regla: string, queSi: string): string {
-  return `Gracias por el pedido. Eso queda fuera de lo que hago (${regla}), así que no lo voy a hacer. Lo que sí puedo hacer: ${queSi}`;
+  return `Gracias por el pedido. Eso queda fuera de lo que hago (${regla}), así que no lo voy a hacer. Lo que sí puedo hacer: ${queSiSinRepetir(queSi)}`;
+}
+
+/** Cuándo y cómo se cerró un pedido, para la lista (GSG-MIA-072: «Oportunidades» muestra el traspaso, no el pedido). */
+export function cierreDelPedido(p: { estado: string; salida: string | null }): string | null {
+  if (p.estado === "ESCALADO" && p.salida === "OPORTUNIDAD") return "traspasado a GSG";
+  if (p.estado === "ESCALADO") return "escalado por tope";
+  if (p.estado === "NEGADO") return "negado";
+  if (p.estado === "HECHO") return "terminado";
+  return null;
 }
 
 /** Un número del formulario dentro del rango; fuera de rango o vacío, el valor por defecto. */
@@ -61,7 +84,7 @@ export type CierrePedido =
  * Valida el cierre y devuelve lo que se guarda y lo que se contesta en el hilo, o el motivo en criollo.
  * La respuesta de OPORTUNIDAD es SIEMPRE el texto fijo: lo que mande el formulario se ignora.
  */
-export function armarCierre(c: CierrePedido):
+export function armarCierre(c: CierrePedido, puestoDelAgente: string):
   | { ok: true; estado: EstadoPedido; salida: SalidaPedido | null; regla: string | null; duenio: string | null; respuesta: string }
   | { ok: false; motivo: string } {
   if (c.salida === "HECHO") {
@@ -70,9 +93,10 @@ export function armarCierre(c: CierrePedido):
     return { ok: true, estado: "HECHO", salida: null, regla: null, duenio: null, respuesta };
   }
   if (c.salida === "AJENO") {
-    const regla = c.regla.trim().slice(0, 120);
+    const cruce = cruzarRegla(c.regla.slice(0, 120), puestoDelAgente);
     const queSi = c.queSi.trim().slice(0, 600);
-    if (!REGLA.test(regla)) return { ok: false, motivo: "La regla tiene que citar tu manual: «<puesto> §n» (por ejemplo «verificador §2»)." };
+    if (!cruce.ok) return { ok: false, motivo: cruce.motivo };
+    const regla = cruce.regla;
     if (queSi.length < 10) return { ok: false, motivo: "Decí qué sí podés hacer: es parte de contestar con amabilidad." };
     return { ok: true, estado: "NEGADO", salida: "AJENO", regla, duenio: null, respuesta: respuestaNegado(regla, queSi) };
   }

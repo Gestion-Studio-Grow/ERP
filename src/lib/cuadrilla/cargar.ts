@@ -1,7 +1,12 @@
 // CONSOLA DE LA CUADRILLA · lo que necesita la pantalla de UN negocio, en una sola transacción parada en él.
+//
+// SÓLO LEE (GSG-MIA-072): abrir la consola no cambia nada en ningún negocio. Un pedido que pasó su tope de minutos
+// se muestra «pasó el tope» (`PedidoVista.vencido`); lo escala una ACCIÓN con su guardia (`operadorVencer`, que pasa
+// por `requireOperadorParaNegocio`, o `panelVencer`, con la sesión del negocio), o el propio agente al responder.
+// El trinquete está en cuadrilla-lectura-postgres.test.ts.
 import type { Prisma } from "@/generated/prisma/client";
 import { huellaDe, leerHilo, leerTablero, mensajesRecientes, tiemposDeRespuesta, type ExcepcionVista, type Filtros, type MensajeVista, type Tablero } from "./consola-core";
-import { leerPedidos, vencerPedidos, type PedidoVista } from "./pedidos-core";
+import { leerPedidos, type PedidoVista } from "./pedidos-core";
 
 type Tx = Prisma.TransactionClient;
 
@@ -22,7 +27,6 @@ export async function cargarNegocio(
   filtros: Filtros,
   pedido: { ex?: string; hilo?: string; abrirPrimera?: boolean },
 ): Promise<CargaDelNegocio> {
-  await vencerPedidos(tx, tenantId); // los que pasaron su tope de minutos quedan escalados antes de mostrar
   const tablero = await leerTablero(tx, tenantId, filtros);
   let seleccion: ExcepcionVista | null = null;
   if (pedido.ex && ID.test(pedido.ex)) {

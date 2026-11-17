@@ -30,6 +30,11 @@ const CASOS: Caso[] = [
   ["agente no envía a terceros", agenteA, "enviar_a_terceros", {}, false],
   // Sin sesión: nada.
   ["sin sesión no ve la consola", null, "ver_consola", {}, false],
+  // Escalar los vencidos (GSG-MIA-072): una persona, en su negocio; nunca un agente.
+  ["supervisor escala los vencidos de su negocio", supA, "vencer_pedidos", { tenantId: A }, true],
+  ["supervisor NO escala los de otro negocio", supA, "vencer_pedidos", { tenantId: B }, false],
+  ["operador escala los vencidos", operador, "vencer_pedidos", { tenantId: B }, true],
+  ["agente NO escala los vencidos", agenteA, "vencer_pedidos", { tenantId: A }, false],
   // Ver la consola.
   ["operador ve la consola", operador, "ver_consola", {}, true],
   ["supervisor ve la de su negocio", supA, "ver_consola", { tenantId: A }, true],

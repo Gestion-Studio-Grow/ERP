@@ -40,7 +40,7 @@ test("cuadrilla bajo RLS: pedidos fuera de alcance (negado u oportunidad) y tope
   base.alBorrar(() => duenio.$disconnect());
   const { a, b } = base;
   const ag = async (tenantId: string, nombre: string, userId: string | null) =>
-    (await duenio.agenteCuadrilla.create({ data: { tenantId, nombre, puesto: "verificador", equipo: "Comercial", userId } })).id;
+    (await duenio.agenteCuadrilla.create({ data: { tenantId, nombre, puesto: "prospección", equipo: "Comercial", userId } })).id;
   const a1 = await ag(a.id, "Verificadora A1", a.recepcion.id); // la recepcionista de A ES el usuario del agente A1
   const a2 = await ag(a.id, "Redactor A2", null);
   const b1 = await ag(b.id, "Verificadora B1", null);
@@ -80,16 +80,28 @@ test("cuadrilla bajo RLS: pedidos fuera de alcance (negado u oportunidad) y tope
   await t.test("ajeno al servicio: sin la regla del manual no se niega; con la regla queda NEGADO y se contesta amable", async () => {
     const p = await pedido("Haceme un juego completo en un solo prompt");
     assert.ok(conError(await ejecutarAccion(agenteA, () => panelCerrarPedido(fd({ pedidoId: p.id, salida: "AJENO", regla: "porque no", queSi: "verificar los turnos del día" })))));
+    // GSG-MIA-072: la regla se cruza con el manual de SU puesto (prospección, §1 a §11).
+    for (const regla of ["caja §1", "verificador §2", "prospección §12", "prospección §2.1"]) {
+      assert.ok(conError(await ejecutarAccion(agenteA, () => panelCerrarPedido(fd({ pedidoId: p.id, salida: "AJENO", regla, queSi: "verificar los turnos del día" })))), regla);
+    }
     assert.equal((await pedido(p.texto)).estado, "ABIERTO");
-    const r = await ejecutarAccion(agenteA, () => panelCerrarPedido(fd({ pedidoId: p.id, salida: "AJENO", regla: "verificador §2", queSi: "verificar los turnos del día y avisarte" })));
+    const r = await ejecutarAccion(agenteA, () => panelCerrarPedido(fd({ pedidoId: p.id, salida: "AJENO", regla: "prospección §2", queSi: "Puedo verificar los turnos del día y avisarte" })));
     assert.ok(sinError(r));
     const n = await pedido(p.texto);
     assert.equal(n.estado, "NEGADO");
     assert.equal(n.salida, "AJENO");
-    assert.equal(n.regla, "verificador §2");
-    assert.match(n.respuesta ?? "", /^Gracias por el pedido\. .*verificador §2.*Lo que sí puedo hacer: verificar/);
+    assert.equal(n.regla, "prospección §2");
+    assert.match(n.respuesta ?? "", /^Gracias por el pedido\. .*prospección §2.*Lo que sí puedo hacer: verificar/);
     const m = await duenio.mensajeCuadrilla.findFirstOrThrow({ where: { tenantId: a.id, hilo: `agente:${a1}`, autorTipo: "AGENTE" }, orderBy: { createdAt: "desc" } });
     assert.equal(m.texto, n.respuesta);
+    // GSG-MIA-072: el hilo dice a qué pedido contesta. La respuesta y el mensaje que abrió el pedido apuntan a él.
+    assert.equal(m.pedidoId, p.id);
+    const abre = await duenio.mensajeCuadrilla.findFirstOrThrow({ where: { tenantId: a.id, hilo: `agente:${a1}`, autorTipo: "PERSONA", texto: p.texto } });
+    assert.equal(abre.pedidoId, p.id);
+    const { leerHilo } = await import("@/lib/cuadrilla/consola-core");
+    const hilo = await tenantTransaction((tx) => leerHilo(tx, a.id, `agente:${a1}`), { tenantId: a.id });
+    const vista = hilo.find((x) => x.id === m.id);
+    assert.equal(vista?.pedido?.texto, p.texto);
     // Ya cerrado: no se vuelve a cerrar por otra salida.
     assert.ok(conError(await ejecutarAccion(agenteA, () => panelCerrarPedido(fd({ pedidoId: p.id, salida: "OPORTUNIDAD" })))));
   });
@@ -107,6 +119,8 @@ test("cuadrilla bajo RLS: pedidos fuera de alcance (negado u oportunidad) y tope
     assert.equal(n.regla, null);
     assert.equal(n.respuesta, RESPUESTA_OPORTUNIDAD);
     assert.ok(n.cerradoEn instanceof Date);
+    // La lista de Oportunidades muestra el traspaso (cerradoEn), no sólo la fecha del pedido.
+    assert.ok(+n.cerradoEn! >= +n.createdAt);
     assert.equal(await duenio.mensajeCuadrilla.count({ where: { tenantId: a.id, texto: { contains: "100.000" } } }), 0);
   });
 
@@ -129,7 +143,7 @@ test("cuadrilla bajo RLS: pedidos fuera de alcance (negado u oportunidad) y tope
     assert.equal((await pedido(p.texto)).turnosUsados, 2);
   });
 
-  await t.test("tope de minutos: al leer la consola se escala solo; un HECHO tardío no lo cierra", async () => {
+  await t.test("tope de minutos: un HECHO tardío no lo cierra; los vencidos los escala una acción de una persona (nunca la lectura)", async () => {
     const p = await pedir(a1, "Ordená la lista de clientes", { topeMinutos: "5" });
     await duenio.pedidoCuadrilla.update({ where: { id: p.id }, data: { createdAt: new Date(Date.now() - 6 * 60_000) } });
     const r = await ejecutarAccion(agenteA, () => panelCerrarPedido(fd({ pedidoId: p.id, salida: "HECHO", respuesta: "Ya está" })));
@@ -138,11 +152,16 @@ test("cuadrilla bajo RLS: pedidos fuera de alcance (negado u oportunidad) y tope
     assert.equal(n.estado, "ESCALADO");
     assert.equal(n.salida, "TOPE");
     assert.equal(await duenio.excepcionCuadrilla.count({ where: { tenantId: a.id, titulo: "Un pedido llegó al tope de minutos" } }), 1);
-    // Otro vencido sin que nadie lo toque: lo escala la lectura de la consola (y una sola vez).
+    // Otro vencido sin que nadie lo toque: lo escala la acción de la supervisión (y una sola vez).
     const q = await pedir(a1, "Mirá los mensajes de ayer", { topeMinutos: "5" });
     await duenio.pedidoCuadrilla.update({ where: { id: q.id }, data: { createdAt: new Date(Date.now() - 10 * 60_000) } });
-    assert.equal(await tenantTransaction((tx) => vencerPedidos(tx, a.id), { tenantId: a.id }), 1);
-    assert.equal(await tenantTransaction((tx) => vencerPedidos(tx, a.id), { tenantId: a.id }), 0);
+    const comoSupA = { tipo: "supervisor" as const, tenantId: a.id, userId: a.duenia.id, nombre: "Dueña A" };
+    assert.equal(await tenantTransaction((tx) => vencerPedidos(tx, comoSupA, a.id), { tenantId: a.id }), 1);
+    assert.equal(await tenantTransaction((tx) => vencerPedidos(tx, comoSupA, a.id), { tenantId: a.id }), 0);
+    // Un usuario de agente no escala (no supervisa), y la supervisión de A no escala en B.
+    const comoAgente = { tipo: "agente" as const, tenantId: a.id, userId: a.recepcion.id, agenteId: a1, nombre: "Verificadora A1" };
+    await assert.rejects(tenantTransaction((tx) => vencerPedidos(tx, comoAgente, a.id), { tenantId: a.id }));
+    await assert.rejects(tenantTransaction((tx) => vencerPedidos(tx, comoSupA, b.id), { tenantId: b.id }));
     assert.equal((await pedido(q.texto)).estado, "ESCALADO");
   });
 
@@ -152,7 +171,7 @@ test("cuadrilla bajo RLS: pedidos fuera de alcance (negado u oportunidad) y tope
     assert.ok(conError(await ejecutarAccion(agenteA, () => panelAvanzarPedido(fd({ pedidoId: deA2.id, texto: "me meto" })))));
     const deA1 = await pedir(a1, "Pasame el resumen del día");
     assert.ok(conError(await ejecutarAccion(supA, () => panelCerrarPedido(fd({ pedidoId: deA1.id, salida: "HECHO", respuesta: "lo cierro yo" })))));
-    assert.ok(conError(await ejecutarAccion(supB, () => panelCerrarPedido(fd({ pedidoId: deA1.id, salida: "AJENO", regla: "verificador §1", queSi: "nada de nada de nada" })))));
+    assert.ok(conError(await ejecutarAccion(supB, () => panelCerrarPedido(fd({ pedidoId: deA1.id, salida: "AJENO", regla: "prospección §1", queSi: "nada de nada de nada" })))));
     assert.equal((await pedido(deA2.texto)).estado, "ABIERTO");
     assert.equal((await pedido(deA1.texto)).estado, "ABIERTO");
   });

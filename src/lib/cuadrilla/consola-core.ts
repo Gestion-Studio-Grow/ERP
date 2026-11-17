@@ -74,6 +74,8 @@ export type MensajeVista = {
   autor: string;
   texto: string;
   createdAt: Date;
+  /** El pedido que abre o contesta este mensaje (GSG-MIA-072): el hilo dice a qué pedido responde cada cosa. */
+  pedido?: { id: string; texto: string; createdAt: Date } | null;
 };
 
 export type Tablero = {
@@ -154,9 +156,16 @@ export async function leerHilo(tx: Tx, tenantId: string, hilo: string): Promise<
     where: { tenantId, hilo },
     orderBy: { createdAt: "desc" },
     take: 100,
-    select: { id: true, hilo: true, autorTipo: true, autor: true, texto: true, createdAt: true },
+    select: { id: true, hilo: true, autorTipo: true, autor: true, texto: true, createdAt: true, pedidoId: true },
   });
-  return filas.reverse();
+  // A qué pedido responde cada mensaje: se busca DENTRO del negocio (tenantId + RLS); un id que no está, no se muestra.
+  const ids = [...new Set(filas.flatMap((f) => (f.pedidoId ? [f.pedidoId] : [])))];
+  const pedidos = ids.length
+    ? new Map(
+        (await tx.pedidoCuadrilla.findMany({ where: { tenantId, id: { in: ids } }, select: { id: true, texto: true, createdAt: true } })).map((p) => [p.id, p]),
+      )
+    : new Map<string, { id: string; texto: string; createdAt: Date }>();
+  return filas.reverse().map(({ pedidoId, ...m }) => ({ ...m, pedido: pedidoId ? (pedidos.get(pedidoId) ?? null) : null }));
 }
 
 /**
@@ -301,7 +310,7 @@ export async function reasignar(tx: Tx, actor: Actor, tenantId: string, excepcio
 }
 
 /** Escribir en un hilo (de un agente o de un equipo). */
-export async function hablar(tx: Tx, actor: Actor, tenantId: string, hilo: string, texto: string): Promise<void> {
+export async function hablar(tx: Tx, actor: Actor, tenantId: string, hilo: string, texto: string): Promise<string> {
   const limpio = texto.trim().slice(0, 2000);
   if (!limpio) throw new NoPermitido("Escribí algo antes de mandar.");
   let hiloAgenteId: string | null = null;
@@ -317,7 +326,7 @@ export async function hablar(tx: Tx, actor: Actor, tenantId: string, hilo: strin
     throw new NoPermitido("Ese hilo no existe.");
   }
   exigir(puede(actor, "hablar", { tenantId, hiloAgenteId }));
-  await tx.mensajeCuadrilla.create({
+  const m = await tx.mensajeCuadrilla.create({
     data: {
       tenantId,
       hilo,
@@ -327,10 +336,12 @@ export async function hablar(tx: Tx, actor: Actor, tenantId: string, hilo: strin
       agenteId: actor.tipo === "agente" ? actor.agenteId : null,
       texto: limpio,
     },
+    select: { id: true },
   });
   if (actor.tipo === "agente") {
     await tx.agenteCuadrilla.updateMany({ where: { id: actor.agenteId, tenantId }, data: { ultimaSenal: new Date() } });
   }
+  return m.id;
 }
 
 /** Un agente levanta una excepción (pide aprobación, avisa que se frenó, que el sistema lo rechazó o escala). */

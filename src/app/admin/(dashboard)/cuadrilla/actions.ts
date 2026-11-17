@@ -9,7 +9,7 @@ import { revalidatePath } from "next/cache";
 import { tenantTransaction } from "@/lib/rls";
 import { actorDelPanel } from "@/lib/cuadrilla/actor-del-panel.server";
 import { NoPermitido, cambiarEstadoDeAgentes, decidir, decidirLote, levantarExcepcion, reasignar } from "@/lib/cuadrilla/consola-core";
-import { avanzarPedido, cerrarPedido, hablarOPedir } from "@/lib/cuadrilla/pedidos-core";
+import { avanzarPedido, cerrarPedido, hablarOPedir, vencerPedidos } from "@/lib/cuadrilla/pedidos-core";
 import type { CierrePedido } from "@/lib/cuadrilla/pedidos";
 import { motivoDelError, texto, volverA } from "@/lib/cuadrilla/formulario";
 import { CATEGORIAS, TIPOS } from "@/lib/cuadrilla/permisos";
@@ -95,6 +95,15 @@ export async function panelHablar(fd: FormData) {
     fd,
     (pedido: string | null) => (pedido ? { ok: "Pedido enviado, con su tope." } : {}),
     ({ actor, tenantId }) => tenantTransaction((tx) => hablarOPedir(tx, actor!, tenantId, texto(fd, "hilo"), texto(fd, "texto"), topes), { tenantId }),
+  );
+}
+
+/** La supervisión escala los pedidos de SU negocio que pasaron el tope (GSG-MIA-072). El negocio sale de la sesión. */
+export async function panelVencer(fd: FormData) {
+  await correr(
+    fd,
+    (n: number) => ({ ok: n === 0 ? "No había pedidos vencidos." : `Escalados por tope: ${n}.` }),
+    ({ actor, tenantId }) => tenantTransaction((tx) => vencerPedidos(tx, actor!, tenantId), { tenantId }),
   );
 }
 

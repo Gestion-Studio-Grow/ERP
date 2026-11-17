@@ -34,6 +34,8 @@ export type PedidoVista = {
   respuesta: string | null;
   createdAt: Date;
   cerradoEn: Date | null;
+  /** Abierto y ya pasado de su tope (se calcula al leer, sin escribir): falta escalarlo con una acción. */
+  vencido: "minutos" | "turnos" | null;
 };
 
 const SELECCION = {
@@ -56,7 +58,11 @@ const SELECCION = {
 } as const;
 
 type Fila = Prisma.PedidoCuadrillaGetPayload<{ select: typeof SELECCION }>;
-const aVista = ({ agente, ...p }: Fila): PedidoVista => ({ ...p, agenteNombre: agente.nombre });
+const aVista = (ahora: Date) => ({ agente, ...p }: Fila): PedidoVista => ({
+  ...p,
+  agenteNombre: agente.nombre,
+  vencido: p.estado === "ABIERTO" ? pasoElTope(p, ahora) : null,
+});
 
 /**
  * Lo que escribe una persona en un hilo. En el hilo de un agente es además un PEDIDO con su tope; en el de un
@@ -70,7 +76,7 @@ export async function hablarOPedir(
   texto: string,
   topes: { minutos?: unknown; turnos?: unknown } = {},
 ): Promise<string | null> {
-  await hablar(tx, actor, tenantId, hilo, texto);
+  const mensajeId = await hablar(tx, actor, tenantId, hilo, texto);
   if (actor.tipo === "agente" || !hilo.startsWith("agente:")) return null;
   exigir(puede(actor, "pedir", { tenantId }));
   const agenteId = hilo.slice("agente:".length);
@@ -86,12 +92,15 @@ export async function hablarOPedir(
     },
     select: { id: true },
   });
+  // El mensaje que abrió el pedido queda atado a él: en el hilo se ve qué pedido es (GSG-MIA-072).
+  await tx.mensajeCuadrilla.updateMany({ where: { id: mensajeId, tenantId }, data: { pedidoId: p.id } });
   return p.id;
 }
 
-async function avisoEnElHilo(tx: Tx, tenantId: string, agenteId: string, texto: string, autorTipo: "SISTEMA" | "AGENTE", autor: string): Promise<void> {
+/** Lo que el agente o el sistema contestan en el hilo, SIEMPRE atado al pedido que contestan (GSG-MIA-072). */
+async function avisoEnElHilo(tx: Tx, tenantId: string, p: { id: string; agenteId: string }, texto: string, autorTipo: "SISTEMA" | "AGENTE", autor: string): Promise<void> {
   await tx.mensajeCuadrilla.create({
-    data: { tenantId, hilo: hiloDeAgente(agenteId), autorTipo, autor, agenteId: autorTipo === "AGENTE" ? agenteId : null, texto: texto.slice(0, 2000) },
+    data: { tenantId, hilo: hiloDeAgente(p.agenteId), autorTipo, autor, agenteId: autorTipo === "AGENTE" ? p.agenteId : null, pedidoId: p.id, texto: texto.slice(0, 2000) },
   });
 }
 
@@ -113,12 +122,16 @@ async function escalarPorTope(tx: Tx, tenantId: string, p: { id: string; agenteI
       contenido: `El agente se frenó en este pedido y no sigue sin una persona: «${p.texto.slice(0, 600)}»`,
     },
   });
-  await avisoEnElHilo(tx, tenantId, p.agenteId, `Este pedido llegó al tope ${cual}: me frené y lo pasé a una persona.`, "SISTEMA", "Sistema");
+  await avisoEnElHilo(tx, tenantId, p, `Este pedido llegó al tope ${cual}: me frené y lo pasé a una persona.`, "SISTEMA", "Sistema");
   return true;
 }
 
-/** Escala los pedidos abiertos de este negocio que ya pasaron su tope de minutos. Se llama al leer. */
-export async function vencerPedidos(tx: Tx, tenantId: string, ahora: Date = new Date()): Promise<number> {
+/**
+ * Escala los pedidos abiertos de este negocio que ya pasaron su tope. ESCRIBE: se llama sólo desde una acción con
+ * su guardia (`operadorVencer` con `requireOperadorParaNegocio`, `panelVencer` con la sesión), nunca al leer.
+ */
+export async function vencerPedidos(tx: Tx, actor: Actor, tenantId: string, ahora: Date = new Date()): Promise<number> {
+  exigir(puede(actor, "vencer_pedidos", { tenantId }));
   const abiertos = await tx.pedidoCuadrilla.findMany({
     where: { tenantId, estado: "ABIERTO" },
     select: { id: true, agenteId: true, texto: true, createdAt: true, topeMinutos: true, topeTurnos: true, turnosUsados: true },
@@ -165,7 +178,7 @@ export async function avanzarPedido(tx: Tx, actor: Actor, tenantId: string, pedi
     data: { turnosUsados: { increment: 1 } },
   });
   if (r.count !== 1) throw new NoPermitido("El pedido cambió mientras tanto: recargá y probá de nuevo.");
-  await avisoEnElHilo(tx, tenantId, p.agenteId, limpio, "AGENTE", actor.nombre);
+  await avisoEnElHilo(tx, tenantId, p, limpio, "AGENTE", actor.nombre);
   const despues = pasoElTope({ ...p, turnosUsados: p.turnosUsados + 1 }, ahora);
   if (despues) {
     await escalarPorTope(tx, tenantId, p, despues);
@@ -182,7 +195,9 @@ export async function avanzarPedido(tx: Tx, actor: Actor, tenantId: string, pedi
 export async function cerrarPedido(tx: Tx, actor: Actor, tenantId: string, pedidoId: string, cierre: CierrePedido, ahora: Date = new Date()): Promise<string> {
   const p = await pedidoParaCerrar(tx, actor, tenantId, pedidoId);
   if (actor.tipo !== "agente") throw new NoPermitido("Un pedido lo cierra el agente que lo recibió.");
-  const c = armarCierre(cierre);
+  // La regla de un negado se cruza con el manual del puesto de ESTE agente (GSG-MIA-072), leído acá bajo RLS.
+  const agente = await tx.agenteCuadrilla.findFirst({ where: { id: p.agenteId, tenantId }, select: { puesto: true } });
+  const c = armarCierre(cierre, agente?.puesto ?? "");
   if (!c.ok) throw new NoPermitido(c.motivo);
   const tope = pasoElTope(p, ahora);
   if (tope && cierre.salida === "HECHO") {
@@ -194,12 +209,12 @@ export async function cerrarPedido(tx: Tx, actor: Actor, tenantId: string, pedid
     data: { estado: c.estado, salida: c.salida, regla: c.regla, duenio: c.duenio, respuesta: c.respuesta, cerradoEn: ahora },
   });
   if (r.count !== 1) throw new NoPermitido("Ese pedido ya está cerrado.");
-  await avisoEnElHilo(tx, tenantId, p.agenteId, c.respuesta, "AGENTE", actor.nombre);
+  await avisoEnElHilo(tx, tenantId, p, c.respuesta, "AGENTE", actor.nombre);
   return c.estado;
 }
 
 /** La lista de pedidos de un negocio para la consola: por vista (negados, oportunidades, …) y agente. */
-export async function leerPedidos(tx: Tx, tenantId: string, filtros: { vista?: VistaPedidos; agenteId?: string } = {}): Promise<PedidoVista[]> {
+export async function leerPedidos(tx: Tx, tenantId: string, filtros: { vista?: VistaPedidos; agenteId?: string } = {}, ahora: Date = new Date()): Promise<PedidoVista[]> {
   const donde = dondeDeLaVista(filtros.vista ?? "todos");
   const filas = await tx.pedidoCuadrilla.findMany({
     where: { tenantId, ...donde, ...(filtros.agenteId ? { agenteId: filtros.agenteId } : {}) },
@@ -207,16 +222,16 @@ export async function leerPedidos(tx: Tx, tenantId: string, filtros: { vista?: V
     orderBy: { createdAt: "desc" },
     take: 100,
   });
-  return filas.map(aVista);
+  return filas.map(aVista(ahora));
 }
 
 /** Los pedidos abiertos de un agente (su pantalla), del más viejo al más nuevo. */
-export async function pedidosAbiertosDelAgente(tx: Tx, tenantId: string, agenteId: string): Promise<PedidoVista[]> {
+export async function pedidosAbiertosDelAgente(tx: Tx, tenantId: string, agenteId: string, ahora: Date = new Date()): Promise<PedidoVista[]> {
   const filas = await tx.pedidoCuadrilla.findMany({
     where: { tenantId, agenteId, estado: "ABIERTO" },
     select: SELECCION,
     orderBy: { createdAt: "asc" },
     take: 50,
   });
-  return filas.map(aVista);
+  return filas.map(aVista(ahora));
 }
