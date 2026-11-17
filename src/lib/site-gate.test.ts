@@ -46,6 +46,8 @@ test("el portón NO tapa las superficies con su propio login ni las APIs", () =>
     "/profeturnos",
     "/profeturnos/alta",
     "/profeturnos/terminos",
+    "/juegos",
+    "/juegos/unboxingfest/index.html",
     "/api/webhooks/mercadopago",
     "/api/cron/reminders",
     "/api/public/v1/orders",
@@ -55,7 +57,7 @@ test("el portón NO tapa las superficies con su propio login ni las APIs", () =>
 });
 
 test("el portón SÍ cubre la vidriera", () => {
-  for (const ruta of ["/", "/servicios", "/reserva", "/reserva/turno/abc123", "/tienda", "/obsequio"]) {
+  for (const ruta of ["/", "/servicios", "/reserva", "/reserva/turno/abc123", "/tienda", "/obsequio", "/juegosx", "/juego"]) {
     assert.equal(gateAplicaA(ruta), true, `${ruta} debería pedir la clave`);
   }
 });

@@ -21,6 +21,9 @@ export const HOSTS_DE_PRODUCTO: Readonly<Record<string, string>> = {
   "facturita-gsg.vercel.app": "/facturita",
   // ProfeTurnos (app para profes de pádel): su vidriera con el alta sola.
   "profeturnos.gsgapp.com.ar": "/profeturnos",
+  // Unboxing Fest: los 3 juegos del stand de Farmaonline en POP FEST (activación de MIA Producciones).
+  // Son archivos estáticos (public/juegos/unboxingfest): la raíz del host abre la portada con los 3 juegos.
+  "unboxingfest.gsgapp.com.ar": "/juegos/unboxingfest/index.html",
 };
 
 /** La vidriera a la que va la raíz de este host, o `null` si el host no es de un producto. */
