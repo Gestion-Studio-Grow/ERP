@@ -1,8 +1,21 @@
-# Taller de stands de Ale — tenant aparte (GSG-MIA-004)
+# MIA Taller — negocio propio (GSG-MIA-004 → GSG-MIA-045)
 
-Slug `taller-ale` y nombre: **provisionales a confirmar**. Pedido del dueño (09/11/2026): la gestión de
-proyectos de MIA no lleva los costos del armado del stand; el taller de Ale (socio) trabaja para MIA
-pero con administración separada. Va como **otro tenant del mismo motor**, sin datos cruzados.
+Slug y link `mia-taller`, nombre «MIA Taller»: **provisionales a confirmar** (antes `taller-ale`). Pedido del dueño
+(09/11/2026): la gestión de proyectos de MIA no lleva los costos del armado del stand; el taller de Ale (socio)
+trabaja para MIA pero con administración separada. Va como **otro tenant del mismo motor**, sin datos cruzados.
+
+## Negocio propio (T5 del 16/11, GSG-MIA-045 · criterio V9)
+Orden del dueño del 16/11: «mi taller tiene que estar subido también y tiene que estar construido». Modelo B
+(`Factory-GSG 00-ESTADO/DECISION-ARM-MIA-2026-11-16.md`): ARM-MIA adelante, MIA Producciones y MIA Taller detrás,
+cada uno con su link, sus usuarios, sus proyectos y su administración.
+- Rama `gsg-mia-045-taller`: la cadena #71 → #80 al día con `main` (170e56f3).
+- El alta carga `subdomain = mia-taller` (sin eso no había link: el negocio se resuelve por subdominio).
+- Marca del ingreso: sólo el nombre «MIA Taller» y el monograma «MT», acento neutro del motor (`src/lib/branding.ts`).
+- Aislamiento de los tres negocios: `src/lib/taller-stands/negocio-propio-postgres.test.ts` (rol `app_rls`).
+- **Placeholders, provisional a confirmar:** CUIT y razón social (no se cargan; la facturación avisa «Falta el
+  CUIT»), dominio público (hoy sólo `mia-taller.<dominio de la app>`), valor hora (lo carga el taller por persona en
+  «Valores hora»; no hay ningún valor en el código).
+- **No incluye:** el cruce Taller ↔ ARM/Producciones (T4, asignación entre negocios) ni la ficha de stand (T6).
 
 Plan hecho con Fable el 09/11/2026. Lo construido está marcado.
 
