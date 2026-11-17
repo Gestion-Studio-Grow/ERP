@@ -117,3 +117,19 @@ test("lote mixto (GSG-MIA-076): el aviso nombra primero la plata, aunque otra ve
   const soloEnvio = puede(operador, "aprobar_lote", { lote: [envio, ex()] });
   assert.ok(!soloEnvio.ok && /1 envío a terceros/.test(soloEnvio.motivo) && !/de plata/.test(soloEnvio.motivo));
 });
+
+test("lote mixto con un frenado (C4, GSG-MIA-078): el aviso nombra primero la plata y además lo del frenado", () => {
+  const frenado = ex({ tipo: "FRENADO" });
+  const r = puede(supA, "aprobar_lote", { lote: [frenado, ex(), plata] });
+  assert.equal(r.ok, false);
+  if (r.ok) return;
+  assert.match(r.motivo, /^Plata: en el lote hay 1 de plata\. No se aprobó nada/);
+  assert.match(r.motivo, /Además: 1 frenado: no se aprueba, se resuelve abriéndolo\.$/);
+  assert.ok(r.motivo.indexOf("Plata") < r.motivo.indexOf("frenado"));
+  // Dos frenados y un envío: plural, y el envío sigue primero.
+  const r2 = puede(supA, "aprobar_lote", { lote: [frenado, ex({ tipo: "FRENADO" }), envio] });
+  assert.ok(!r2.ok && /^Envíos a terceros: .*Además: 2 frenados: no se aprueban, se resuelven abriéndolos\.$/.test(r2.motivo), r2.ok ? "" : r2.motivo);
+  // Sin frenados ni otros problemas, el aviso no suma «Además».
+  const r3 = puede(supA, "aprobar_lote", { lote: [ex(), plata] });
+  assert.ok(!r3.ok && !/Además/.test(r3.motivo));
+});

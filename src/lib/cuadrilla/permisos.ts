@@ -162,7 +162,21 @@ export function puede(actor: Actor | null | undefined, operacion: Operacion, ctx
         // aprueba nada del lote (ni las comunes): la plata y los envíos se aprueban de a uno, viendo el contenido.
         const plata = lote.filter((e) => e.categoria === "PLATA").length;
         const envios = lote.filter((e) => e.categoria === "ENVIO_TERCEROS").length;
-        if (plata || envios) return no(avisoDeLoteConNivel0(plata, envios));
+        if (plata || envios) {
+          // C4 (GSG-MIA-078): la plata va primero, pero lo que además frena al resto del lote no se calla.
+          const resto = lote.filter((e) => !esNivel0(e.categoria));
+          const frenados = resto.filter((e) => e.tipo === "FRENADO").length;
+          const ademas = [
+            frenados ? (frenados === 1 ? "1 frenado: no se aprueba, se resuelve abriéndolo." : `${frenados} frenados: no se aprueban, se resuelven abriéndolos.`) : null,
+            ...new Set(
+              resto
+                .filter((e) => e.tipo !== "FRENADO")
+                .map((e) => decidirUna(actor, "aprobar", e, false))
+                .flatMap((r) => (r.ok ? [] : [r.motivo])),
+            ),
+          ].filter((x): x is string => !!x);
+          return no(avisoDeLoteConNivel0(plata, envios) + (ademas.length ? ` Además: ${ademas.join(" ")}` : ""));
+        }
       }
       for (const e of lote) {
         const r = decidirUna(actor, operacion === "aprobar_lote" ? "aprobar" : "rechazar", e, false);
