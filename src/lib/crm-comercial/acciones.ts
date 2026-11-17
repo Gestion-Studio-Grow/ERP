@@ -199,6 +199,10 @@ export async function ficha(id: string) {
 export async function registroPorPuesto() {
   return con(false, (ctx) => repo.registroPorPuesto(ctx));
 }
+/** GSG-CRM-018c (V8): lo que entró y no abrió oportunidad, y los avisos de consultas. Sólo Dirección. */
+export async function consultasSinOportunidad() {
+  return con(false, (ctx) => repo.consultasSinOportunidad(ctx));
+}
 
 // GSG-CRM-011 · lecturas de las pantallas (misma puerta: interruptor, negocio y membresía en el repo).
 export async function miMembresia() {

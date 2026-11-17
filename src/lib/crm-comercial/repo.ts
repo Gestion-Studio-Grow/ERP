@@ -86,6 +86,7 @@ import {
 } from "./motor";
 import { crearEnDestino, estadosEnDestino, existeClienteEnDestino, nuevoIdDeProyecto, SIN_VINCULO, type DestinoArm, type Huella, type Paquete } from "./vinculo";
 import { dentroDeTopes, PUESTOS, puede, ROLES, type ContextoOportunidad, type Contexto, type Miembro, type Operacion, type Puesto, type Rol } from "./permisos";
+import { esNegocioArm } from "./arm";
 
 type Tx = Parameters<Parameters<typeof tenantTransaction>[0]>[0];
 
@@ -691,7 +692,7 @@ export const USUARIO_FORMULARIO = "formulario-web";
  * V8 · UNA SOLA PUERTA (GSG-CRM-017). En el ARM, la consulta del formulario web entra como siempre al modelo `Consulta`
  * (`registrarConsulta`, con el clasificador #179) y de ESA consulta nace la oportunidad: no hay un segundo formulario
  * ni un segundo embudo. Lo que el clasificador marca como «no es un cliente» (proveedor, spam) no abre oportunidad:
- * queda en Consultas para descartar. Idempotente: una consulta → una oportunidad (índice único en la base).
+ * Dirección lo ve en el CRM (`consultasSinOportunidad`; en el ARM no hay Consultas). Idempotente: una consulta → una oportunidad (índice único en la base).
  * No hay usuario (la carga el formulario): no pasa por la membresía; la fila de registro dice «formulario-web».
  */
 export async function oportunidadDesdeConsulta(tenantId: string, consultaId: string, ahora = new Date()): Promise<Res<{ id: string; repetida?: true }>> {
@@ -706,7 +707,7 @@ export async function oportunidadDesdeConsulta(tenantId: string, consultaId: str
       const consulta = c as NonNullable<typeof c>;
       const ya = await tx.oportunidad.findFirst({ where: { tenantId, consultaId }, select: { id: true } });
       if (ya) return { ok: true, id: ya.id, repetida: true };
-      if (consulta.intencion === "NO_CLIENTE") no("El clasificador dice que no es un cliente (proveedor o publicidad): queda en Consultas para descartar.");
+      if (consulta.intencion === "NO_CLIENTE") no("El clasificador dice que no es un cliente (proveedor o publicidad): no abre oportunidad. Dirección la ve en «Hoy», en «Consultas que no abrieron oportunidad».");
       const texto = consulta.mensajes[0]?.texto ?? "";
       const op = await tx.oportunidad.create({
         data: {
@@ -2091,6 +2092,44 @@ export async function ficha(ctx: Ctx, id: string, ahora = new Date()) {
       puntaje: p,
       actividades,
       borradores,
+    };
+  });
+}
+
+/** Dónde se ve en el CRM lo que no abrió oportunidad (el aviso del formulario enlaza acá en un ARM). */
+export const ANCLA_CONSULTAS_SIN_OPORTUNIDAD = "/admin/crm#consultas-sin-oportunidad";
+
+/**
+ * GSG-CRM-018c (V8): lo que entró por el formulario y NO abrió oportunidad (el clasificador dijo «no es un cliente», o
+ * falló al abrirla), y los avisos de consultas de quien mira. En un ARM no hay Consultas ni Proyectos: sin esto nadie
+ * lo veía. Sólo Dirección; sólo lectura; sólo del negocio de la sesión (RLS).
+ */
+export async function consultasSinOportunidad(ctx: Ctx, ahora = new Date()) {
+  return correr(ctx, async (tx) => {
+    await guardia(tx, ctx, "ver_registro", {}, ahora);
+    // Sólo en un ARM: en una productora las consultas viven en Proyectos → Consultas y no abren oportunidad.
+    const t = await tx.tenant.findUnique({ where: { id: ctx.tenantId }, select: { blueprintId: true } });
+    if (!esNegocioArm(t?.blueprintId)) return { ok: true as const, esArm: false, consultas: [], avisos: [] };
+    const [consultas, avisos] = await Promise.all([
+      tx.consulta.findMany({
+        where: { tenantId: ctx.tenantId, oportunidades: { none: {} }, estado: { notIn: ["DESCARTADA", "CONVERTIDA"] } },
+        orderBy: { createdAt: "desc" },
+        take: 50,
+        select: { id: true, nombre: true, empresa: true, canal: true, intencion: true, createdAt: true, mensajes: { where: { direccion: "ENTRANTE" }, orderBy: { createdAt: "asc" }, take: 1, select: { texto: true } } },
+      }),
+      tx.proyectoAviso.findMany({
+        where: { tenantId: ctx.tenantId, destinatario: ctx.userId, tipo: "consulta", leidoEl: null },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+        select: { id: true, texto: true, enlace: true, createdAt: true },
+      }),
+    ]);
+    return {
+      ok: true as const,
+      esArm: true,
+      consultas: consultas.map(({ mensajes, ...c }) => ({ ...c, texto: mensajes[0]?.texto.slice(0, 300) ?? null })),
+      // Un aviso viejo que enlaza a Proyectos (que el ARM no tiene) queda sin enlace.
+      avisos: avisos.map((a) => ({ ...a, enlace: a.enlace?.startsWith("/admin/crm") ? a.enlace : null })),
     };
   });
 }

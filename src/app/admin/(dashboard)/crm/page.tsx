@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { requireApp } from "@/lib/require-app";
 import { Badge, EmptyState, buttonClasses, atributosBoton } from "@/components/ui";
-import { colaDeTrabajo, hoy, listarBorradores, listarOportunidades } from "@/lib/crm-comercial/acciones";
+import { colaDeTrabajo, consultasSinOportunidad, hoy, listarBorradores, listarOportunidades } from "@/lib/crm-comercial/acciones";
 import { abrirCrm, Marco, NoSePudo } from "./comun";
-import { armarBandeja, puedeEn } from "./crm-core";
+import { armarBandeja, dia, puedeEn } from "./crm-core";
 import { AccionesHoy } from "./AccionesHoy";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +20,9 @@ export default async function HoyPage() {
   const fallo = [h, l, b, c].find((r) => !r.ok);
   if (fallo && !fallo.ok) return <Marco vista="hoy" miembro={miembro} descripcion={descripcion}><NoSePudo motivo={fallo.motivo} faltaMigracion={fallo.faltaMigracion} /></Marco>;
   if (!h.ok || !l.ok || !b.ok || !c.ok) return null;
+
+  // GSG-CRM-018c (V8): lo que entró y no abrió oportunidad, y los avisos de consultas. Sólo Dirección.
+  const sinOp = miembro.rol === "DIRECCION" ? await consultasSinOportunidad() : null;
 
   const items = armarBandeja({ miembro, entradas: h.entradas, filas: l.filas, borradores: b.borradores, enCola: c.enCola, enCurso: c.enCurso, pedidosEnCola: c.pedidosEnCola, pedidosEnCurso: c.pedidosEnCurso, ahora: new Date() });
 
@@ -60,6 +63,57 @@ export default async function HoyPage() {
           ))}
         </ol>
       )}
+      {sinOp?.ok && sinOp.esArm && <ConsultasSinOportunidad consultas={sinOp.consultas} avisos={sinOp.avisos} />}
     </Marco>
+  );
+}
+
+const POR_QUE: Record<string, string> = { NO_CLIENTE: "El clasificador dice que no es un cliente (proveedor o publicidad)." };
+
+/** GSG-CRM-018c (V8): en un ARM no hay Consultas ni Proyectos; esto es lo único que muestra lo que no abrió oportunidad. */
+function ConsultasSinOportunidad({
+  consultas,
+  avisos,
+}: {
+  consultas: { id: string; nombre: string; empresa: string | null; canal: string; intencion: string; createdAt: Date; texto: string | null }[];
+  avisos: { id: string; texto: string; enlace: string | null; createdAt: Date }[];
+}) {
+  return (
+    <section id="consultas-sin-oportunidad" aria-labelledby="consultas-sin-oportunidad-titulo" className="mt-8 grid gap-6">
+      <div>
+        <h2 id="consultas-sin-oportunidad-titulo" className="text-lg font-semibold text-strong">Consultas que no abrieron oportunidad</h2>
+        <p className="mb-3 text-sm text-muted">Entraron por el formulario y no pasaron al embudo. Miralas por si alguna sí era un cliente.</p>
+        {consultas.length === 0 ? (
+          <p className="text-sm text-muted">No hay ninguna.</p>
+        ) : (
+          <ul className="divide-y divide-line rounded-lg border border-line bg-surface">
+            {consultas.map((c) => (
+              <li key={c.id} className="px-4 py-3">
+                <p className="break-words font-medium text-strong">
+                  {c.nombre || "Sin nombre"}
+                  {c.empresa ? ` · ${c.empresa}` : ""}
+                  <span className="ml-2 text-sm font-normal text-muted">{dia(c.createdAt)} · {c.canal === "WEB" ? "formulario web" : c.canal.toLowerCase()}</span>
+                </p>
+                <p className="text-sm text-muted">{POR_QUE[c.intencion] ?? "No se pudo abrir la oportunidad: cargala a mano si es un cliente."}</p>
+                {c.texto && <p className="mt-1 break-words text-sm text-strong">«{c.texto}»</p>}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      {avisos.length > 0 && (
+        <div>
+          <h2 className="mb-2 text-lg font-semibold text-strong">Avisos de consultas</h2>
+          <ul className="grid gap-1 text-sm">
+            {avisos.map((a) => (
+              <li key={a.id} className="break-words">
+                <span className="text-muted">{dia(a.createdAt)} · </span>
+                {a.enlace ? <Link href={a.enlace} className="text-strong underline underline-offset-2">{a.texto}</Link> : <span className="text-strong">{a.texto}</span>}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </section>
   );
 }

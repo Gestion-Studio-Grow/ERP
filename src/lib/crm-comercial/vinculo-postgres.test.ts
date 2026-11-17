@@ -525,3 +525,34 @@ test("V8 · una sola puerta: la consulta del formulario (clasificada por #179) a
   assert.equal(prov.ok, true);
   assert.equal(await d.oportunidad.count({ where: { tenantId: f.arm, consultaId: (prov as { id: string }).id } }), 0);
 });
+
+test("V8 · lo que no abre oportunidad se ve en el CRM de Dirección (no en Consultas, que el ARM no tiene), con su aviso", async (t) => {
+  const f = await preparar(t);
+  if (!f) return;
+  const { repo, base } = f;
+  const d = await prismaComoDuenio(base);
+  const { runInTenantContext } = await import("@/lib/tenant-context");
+  const { registrarConsulta } = await import("@/lib/proyectos/consultas.server");
+  const r = await runInTenantContext(f.arm, () =>
+    registrarConsulta({ tenantId: f.arm, canal: "WEB", nombre: "Ramiro Demo", email: "ramiro@insumos.example", empresa: "Insumos Demo", texto: "Somos proveedores de telas, ofrecemos servicios de impresión para stands." }),
+  );
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const consultaId = (r as { id: string }).id;
+  assert.equal(await d.oportunidad.count({ where: { tenantId: f.arm, consultaId } }), 0);
+  // Dirección la ve en el CRM, con lo que escribió.
+  const v = ok(await repo.consultasSinOportunidad(ctx(f, f.dir)));
+  assert.equal(v.esArm, true);
+  const fila = v.consultas.find((c) => c.id === consultaId);
+  assert.ok(fila, "la consulta descartada por el clasificador está en la lista");
+  assert.equal(fila.intencion, "NO_CLIENTE");
+  assert.match(fila.texto ?? "", /proveedores de telas/);
+  // El aviso no lleva a Proyectos (el ARM no lo tiene) y se ve en el CRM.
+  const aviso = await d.proyectoAviso.findFirstOrThrow({ where: { tenantId: f.arm, destinatario: f.dir, texto: { contains: "Ramiro Demo" } }, select: { enlace: true } });
+  assert.doesNotMatch(aviso.enlace ?? "", /\/admin\/proyectos/);
+  assert.ok(v.avisos.some((a) => /Ramiro Demo/.test(a.texto)), "el aviso se ve en el CRM");
+  // Las que abrieron oportunidad no están; un comercial no ve la lista; otro negocio no ve nada del ARM.
+  const conOp = await d.oportunidad.findFirst({ where: { tenantId: f.arm, consultaId: { not: null } }, select: { consultaId: true } });
+  if (conOp) assert.equal(v.consultas.some((c) => c.id === conOp.consultaId), false);
+  assert.equal((await repo.consultasSinOportunidad(ctx(f, f.com1))).ok, false);
+  assert.equal((await repo.consultasSinOportunidad({ tenantId: f.ajeno, userId: base.b.duenia.id })).ok, false);
+});

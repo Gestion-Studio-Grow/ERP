@@ -15,7 +15,7 @@ import { enviarMailInterno, mailConectado } from "@/lib/notifications";
 import { datosDelNegocio } from "./datos.server";
 import { avisar } from "./gestion.server";
 import { esNegocioArm } from "@/lib/crm-comercial/arm";
-import { oportunidadDesdeConsulta } from "@/lib/crm-comercial/repo";
+import { ANCLA_CONSULTAS_SIN_OPORTUNIDAD, oportunidadDesdeConsulta } from "@/lib/crm-comercial/repo";
 import { interruptoresDe } from "@/cambios/interruptores.server";
 import { crmComercialPrendido } from "@/cambios/interruptores";
 import { logger } from "@/lib/logger";
@@ -116,6 +116,8 @@ export async function registrarConsulta(d: EntradaConsulta): Promise<ResultadoRe
   try {
     const t = await basePrisma.tenant.findUnique({ where: { id: tenantId }, select: { blueprintId: true } });
     if (esNegocioArm(t?.blueprintId) && crmComercialPrendido(await interruptoresDe(tenantId))) {
+      // GSG-CRM-018c (V8): el ARM no tiene Consultas; lo que no abrió oportunidad (o falló) se ve en «Hoy» del CRM.
+      enlace = ANCLA_CONSULTAS_SIN_OPORTUNIDAD;
       const o = await oportunidadDesdeConsulta(tenantId, creada.id);
       if (o.ok) enlace = `/admin/crm/${o.id}`;
     }
