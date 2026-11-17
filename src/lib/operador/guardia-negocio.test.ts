@@ -373,6 +373,8 @@ const REVISADOS = archivos(join(RAIZ, "src"))
 
 test("el recorrido encuentra los endpoints con privilegio de operador en TODO src/ (si no, el trinquete no mira nada)", () => {
   assert.deepEqual(REVISADOS.map((r) => r.archivo).sort(), [
+    // GSG-MIA-062: la consola de la cuadrilla (su aislamiento: cuadrilla-aislamiento-postgres.test.ts).
+    "src/app/operador/(console)/cuadrilla/actions.ts",
     "src/app/operador/(console)/pedidos-cartera/actions.ts",
     "src/app/operador/(console)/solicitudes/actions.ts",
     "src/app/operador/(console)/soporte/actions.ts",
@@ -404,6 +406,10 @@ test("TRINQUETE: todo endpoint con privilegio de operador tiene PRIMERO la guard
   }
   assert.deepEqual(faltan, [], `endpoints sin la guardia del negocio:\n${faltan.join("\n")}`);
   assert.deepEqual(cubiertas.sort(), [
+    "src/app/operador/(console)/cuadrilla/actions.ts#operadorAgente",
+    "src/app/operador/(console)/cuadrilla/actions.ts#operadorDecidir",
+    "src/app/operador/(console)/cuadrilla/actions.ts#operadorHablar",
+    "src/app/operador/(console)/cuadrilla/actions.ts#operadorLote",
     "src/app/operador/(console)/pedidos-cartera/actions.ts#resolverPedidoDeCarteraAction",
     "src/app/operador/(console)/solicitudes/actions.ts#configurarSolicitudAction",
     "src/app/operador/(console)/solicitudes/actions.ts#descartarSolicitudAction",

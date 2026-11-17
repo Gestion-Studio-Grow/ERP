@@ -288,6 +288,9 @@ model Tenant {
   eventoMarcas              EventoMarca[]
   accionesDelEquipo         AccionDelEquipo[]
   pedidosAlEquipo           PedidoAlEquipo[]
+  agentesCuadrilla          AgenteCuadrilla[] // consola de la cuadrilla (GSG-MIA-062)
+  excepcionesCuadrilla      ExcepcionCuadrilla[]
+  mensajesCuadrilla         MensajeCuadrilla[]
   proyectoConfig            ProyectoConfig?
   inmoPropiedades           InmoPropiedad[] // módulo inmobiliaria
   inmoFotos                 InmoFoto[]
@@ -4657,4 +4660,69 @@ model PedidoAlEquipo {
   updatedAt DateTime @updatedAt
 
   @@index([tenantId, estado, createdAt])
+}
+
+// ============================================================================
+// CONSOLA DE LA CUADRILLA (GSG-MIA-062 · 17/11/2026) — supervisar a los agentes de un negocio.
+// ============================================================================
+// Los agentes son sesiones de Claude Code que operan el sistema por el navegador con su usuario
+// propio (`userId`); el ERP no llama a ningún modelo. Las personas los supervisan acá: excepciones
+// (aprobaciones, frenos, rechazos, escalados) e hilos por agente o por equipo. Valores cerrados con
+// TEXT + CHECK (un enum en Neon es irreversible). Migración 20261117120000_consola_cuadrilla, SIN APLICAR.
+model AgenteCuadrilla {
+  id          String               @id @default(cuid())
+  tenant      Tenant               @relation(fields: [tenantId], references: [id])
+  tenantId    String
+  nombre      String
+  puesto      String
+  equipo      String
+  estado      String               @default("ACTIVO") // ACTIVO · PAUSADO · FRENADO
+  userId      String? // el usuario con el que entra su sesión (no puede supervisar ni aprobar)
+  sesion      String? // referencia de la sesión de Claude Code (sólo texto: el ERP no la llama)
+  ultimaSenal DateTime?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  excepciones ExcepcionCuadrilla[]
+
+  @@unique([tenantId, nombre])
+  @@unique([tenantId, userId])
+  @@unique([id, tenantId])
+  @@index([tenantId, estado])
+}
+
+model ExcepcionCuadrilla {
+  id              String          @id @default(cuid())
+  tenant          Tenant          @relation(fields: [tenantId], references: [id])
+  tenantId        String
+  agente          AgenteCuadrilla @relation(fields: [agenteId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  agenteId        String
+  tipo            String // APROBACION · FRENADO · RECHAZO · ESCALADO
+  categoria       String          @default("OTRA") // PLATA · ENVIO_TERCEROS · OTRA (las dos primeras = nivel 0)
+  titulo          String
+  contenido       String // lo que se va a hacer, completo: se aprueba viéndolo
+  estado          String          @default("PENDIENTE") // PENDIENTE · APROBADA · RECHAZADA · RESUELTA
+  creadaPorUserId String?
+  decididaPor     String?
+  decididaEn      DateTime?
+  motivo          String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([tenantId, estado, createdAt])
+  @@index([tenantId, agenteId])
+}
+
+model MensajeCuadrilla {
+  id          String   @id @default(cuid())
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId    String
+  hilo        String // "agente:<id>" o "equipo:<nombre>"
+  autorTipo   String // PERSONA · AGENTE · SISTEMA
+  autor       String
+  autorUserId String?
+  agenteId    String? // si lo escribió un agente
+  texto       String
+  createdAt   DateTime @default(now())
+
+  @@index([tenantId, hilo, createdAt])
 }
