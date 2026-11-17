@@ -209,7 +209,7 @@ test("propiedad · 5.000 casos al azar (semilla 20261117): subtotal = suma de re
     assert.equal(p.redondeoNeto, (p.redondeoBruto as number) - p.iibGa, `caso ${i}`);
     assert.equal(p.totalMenorAlSubtotal, totalVenta < p.subtotal, `caso ${i}`);
     // El tope con aritmética entera: redondeo × 10.000 > 500 × total.
-    assert.equal(p.pasaTope, totalVenta > 0 && BigInt(p.redondeoBruto as number) * 10_000n > 500n * BigInt(totalVenta), `caso ${i}`);
+    assert.equal(p.pasaTope, totalVenta > 0 && BigInt(p.redondeoBruto as number) * BigInt(10_000) > BigInt(500) * BigInt(totalVenta), `caso ${i}`);
     // Cada renglón está a medio centavo o menos de la cuenta exacta.
     const r = (costoOriginal + adicionales) * porcentajes.rentabilidad / 100;
     assert.ok(Math.abs(p.rentabilidad - r) <= 0.5 + 1e-6 * Math.max(1, r), `caso ${i}: rentabilidad ${p.rentabilidad} contra ${r}`);

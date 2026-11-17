@@ -84,7 +84,11 @@ export const PORCENTAJES_PLANTILLA: Readonly<PorcentajesPrecio & { provisional: 
 /** 5 %, medido como en el Excel: el redondeo bruto contra el total (Dis. § 4.1 y decisión 5 A). PROVISIONAL. */
 export const TOPE_PLANTILLA: Readonly<TopeRedondeo & { provisional: true }> = Object.freeze({ pct: 5, medidoSobre: "bruto", provisional: true });
 
-const PB_POR_CIENTO = 10_000n;
+// Sin literales `10n`: el tsconfig del ERP apunta a menos de ES2020 (TS2737).
+const CERO = BigInt(0);
+const UNO = BigInt(1);
+const DOS = BigInt(2);
+const PB_POR_CIENTO = BigInt(10_000);
 
 /** Un porcentaje con hasta dos decimales, en puntos básicos enteros: 7,5 → 750. Rechaza lo que no esté entre 0 y 100. */
 export function aPuntosBasicos(pct: number): number {
@@ -101,11 +105,11 @@ function exigirCentavos(nombre: string, c: number): void {
 
 /** numerador ÷ denominador, redondeado por R1 (medio hacia arriba, lejos del cero), en enteros. Denominador > 0. */
 function dividirR1(numerador: bigint, denominador: bigint): bigint {
-  const negativo = numerador < 0n;
+  const negativo = numerador < CERO;
   const abs = negativo ? -numerador : numerador;
   const cociente = abs / denominador;
   const resto = abs % denominador;
-  const redondeado = 2n * resto >= denominador ? cociente + 1n : cociente;
+  const redondeado = DOS * resto >= denominador ? cociente + UNO : cociente;
   return negativo ? -redondeado : redondeado;
 }
 

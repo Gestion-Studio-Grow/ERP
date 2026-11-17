@@ -120,7 +120,7 @@ function puntosDe(nombre: string, porPersona: PorPersona): Record<Persona, numbe
  * de lo exacto y el centavo que sobra queda en MIA (Dis. § 2.6). Con un monto negativo, igual: nadie pierde de más.
  */
 function parteSinCentavoPartido(monto: Centavos, pb: number): Centavos {
-  const n = Number((BigInt(monto) * BigInt(pb)) / 10_000n); // BigInt divide hacia el cero
+  const n = Number((BigInt(monto) * BigInt(pb)) / BigInt(10_000)); // BigInt divide hacia el cero
   return n === 0 ? 0 : n;
 }
 
