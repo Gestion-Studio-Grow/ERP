@@ -226,7 +226,7 @@ function Tablero({ p, pct, tope }: { p: Precio; pct: PorcentajesPrecio; tope: { 
       {p.totalMenorAlSubtotal && <p role="alert" className="mt-3 rounded-lg border border-danger bg-danger-soft p-3 text-sm text-strong">El total de venta es menor que el subtotal. La planilla de origen no lo acepta: al guardar, se va a rechazar.</p>}
       {p.pasaTope && (
         <p role="alert" className="mt-3 rounded-lg border border-warning bg-warning-soft p-3 text-sm text-strong">
-          El redondeo {tope.medidoSobre === "neto" ? "neto" : "bruto"} pasa el tope de {f(tope.pct)}. Cuando se pueda guardar, este precio va a necesitar la aprobación de Dirección antes de enviarse (provisional a confirmar con MIA).
+          El redondeo {tope.medidoSobre === "neto" ? "neto" : "bruto"} pasa el tope de {f(tope.pct)}. Cuando se pueda guardar, este precio va a necesitar la aprobación de Dirección antes de enviarse (provisional a confirmar).
         </p>
       )}
     </section>
