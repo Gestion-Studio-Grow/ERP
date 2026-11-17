@@ -77,7 +77,7 @@ Vercel ni variables de entorno. Nada a `main`.
 1. **Interruptores (célula dueña de `src/cambios/`):** sumar `facturacion.automatica`,
    `facturacion.lote-mensual`, `facturita.pwa`, `arca.produccion` al catálogo de interruptores de la consola
    y leerlos como fuente de `decidirFlag`; retirar `FACTURACION_FLAGS`. Hasta entonces la fuente es la variable.
-2. **Consumidores de los flags (células de facturación/Facturita/ARCA):** cablear `flagActivo(...)` en los
+2. **Consumidores de los flags (células de facturación/Factoque/ARCA):** cablear `flagActivo(...)` en los
    caminos de emisión automática, lote mensual, manifiesto PWA y selección de modo ARCA por negocio. Sin eso
    prender un flag no cambia nada (MP-13).
 3. **Plantilla de PR (`.github/PULL_REQUEST_TEMPLATE.md`, fuera de este frente):** hoy tiene 3 bloques; el

@@ -1,4 +1,4 @@
-# Publicar la suite de facturación automática (Facturita + consola del contador + motor)
+# Publicar la suite de facturación automática (Factoque + consola del contador + motor)
 
 **Para qué:** el paso a paso de este release, de `claude/facturacion-automatica` a producción. Queda listo
 para el día en que el dueño diga «deployá»: nada de esto se ejecuta sin su OK.
@@ -9,13 +9,13 @@ Este runbook lo baja a **este** release, con sus migraciones, sus variables y su
 
 > ⚠️ **Publicar arrastra a TODOS los negocios.** El proyecto `erp-ch` de Vercel sirve a todos con un
 > solo deploy (ADR-070): CH, Magra, Break Point, WPE, la suite… Un merge a `main` es un deploy de
-> producción para todos (CLAUDE.md, Gate 1). No hay un proyecto aparte para Facturita.
+> producción para todos (CLAUDE.md, Gate 1). No hay un proyecto aparte para Factoque.
 
 ## Qué se publica
 
 | Pieza | Dónde |
 |---|---|
-| Facturita como app: PWA, vidriera, planes, alta, legales en borrador | `src/app/facturita/**`, `public/facturita/**` |
+| Factoque como app: PWA, vidriera, planes, alta, legales en borrador | `src/app/facturita/**`, `public/facturita/**` |
 | Consola del contador: abonos, lote del mes, CAE, rechazos, exportar | `src/app/contador/**`, `src/lib/cartera-*.ts` |
 | Motor: reintentos, interruptor, firma por negocio o por delegación, NC, ABONO | `src/lib/arca-*.ts`, `src/lib/invoice-core.ts`, `src/lib/facturacion/**`, `src/plugins/arca/**` |
 | Host de producto: la raíz de `facturita-gsg.vercel.app` abre la vidriera | `src/lib/producto-host.ts`, `src/proxy.ts` |
@@ -50,7 +50,7 @@ motor, 2026-10-22). No tocan datos existentes.
 
 - [ ] Sumarlas al final de `prisma/lote-deploy.txt`, con una línea de comentario fechada, como las anteriores:
   ```
-  # AAAA-MM-DD: suite de facturación automática (Facturita + consola del contador + motor), publicación
+  # AAAA-MM-DD: suite de facturación automática (Factoque + consola del contador + motor), publicación
   # pedida por el dueño. Aditivas: dos columnas nulables + índice único en "Invoice"; una tabla nueva
   # con RLS adentro ("ReglaFacturacion"); otra tabla nueva con RLS adentro ("CobroFacturado", una factura por cobro).
   20261022140000_invoice_abono_descripcion
@@ -73,11 +73,11 @@ Las pega **siempre el dueño**, nunca el agente (SEC-1, ADR-041). Acá van sólo
 | `ARCA_CERT_PEM`, `ARCA_KEY_PEM` | Production | Certificado de GSG con el que firma la delegación (ADR-077 §6). |
 | `FISCAL_MASTER_KEY`, `FISCAL_MASTER_KEY_ID` | Production | Cifrado de los certificados propios de cada negocio (ADR-066). |
 | `CRON_SECRET` | Production | Para que corra el cron del outbox de ARCA. Sin él, `/api/health` lo marca. |
-| `WHATSAPP_GSG` | Production **y** Preview | El alta de Facturita lo lee **al compilar**, así que tiene que estar antes del build. |
+| `WHATSAPP_GSG` | Production **y** Preview | El alta de Factoque lo lee **al compilar**, así que tiene que estar antes del build. |
 | `TENANT_HOST_MAP` | Production | **Sumarle** la entrada de abajo; nunca reemplazar el valor vigente (MT-6). |
 | `FACTURACION_FLAGS` | Production | Opcional. Hoy los flags todavía no apagan la emisión ([flags.md](flags.md)). |
 
-**Entrada de `TENANT_HOST_MAP` para Facturita** (el valor es `host=subdominio`, separado por `;`):
+**Entrada de `TENANT_HOST_MAP` para Factoque** (el valor es `host=subdominio`, separado por `;`):
 ```
 facturita-gsg.vercel.app=facturita
 ```

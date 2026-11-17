@@ -62,7 +62,7 @@ Se construye el **módulo `bancos`** (producto Facturación Bancaria) con estas 
 ## Consecuencias
 
 - **(+)** Cierra el circuito "todo lo que entra se factura solo": MP (ADR-025) + banco (este ADR). Es el
-  módulo diferencial que vende A·Comerciante y B·Contador (ADR-076) — y el que C·Facturita **jamás** incluye.
+  módulo diferencial que vende A·Comerciante y B·Contador (ADR-076) — y el que C·Factoque **jamás** incluye.
 - **(+)** Unit economics protegidos por diseño: determinista primero, IA solo en el residuo <0.8 → el costo
   por extracto es centavos (ADR-078).
 - **(+)** El aprendizaje por tenant convierte cada corrección en menos trabajo futuro — el clasificador es
