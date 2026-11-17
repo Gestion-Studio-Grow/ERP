@@ -5,6 +5,7 @@ import type { Blueprint } from "./types";
 import { serviciosBlueprint } from "./servicios";
 import { genericoBlueprint } from "./generico";
 import { facturitaBlueprint } from "./facturita";
+import { armBlueprint } from "./arm";
 import { RETAIL_BLUEPRINTS, RETAIL_RUBRO_HINTS } from "./retail";
 import { FAMILY_BLUEPRINTS, FAMILY_RUBRO_HINTS } from "./families";
 
@@ -34,6 +35,8 @@ const REGISTRY: Record<string, Blueprint> = {
   [genericoBlueprint.id]: genericoBlueprint,
   // Producto C de la suite de facturación (ADR-076): tenant liviano solo-facturación.
   [facturitaBlueprint.id]: facturitaBlueprint,
+  // GSG-CRM-018 · V1: el negocio que es sólo el CRM comercial (no siembra nada).
+  [armBlueprint.id]: armBlueprint,
 };
 
 export const BLUEPRINT_IDS = Object.keys(REGISTRY);

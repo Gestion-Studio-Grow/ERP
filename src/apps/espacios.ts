@@ -319,6 +319,16 @@ export function nombreDeEspacioNav(id: EspacioNavId, { esMostrador }: { esMostra
   return !esMostrador && e.nombreEnServicios ? e.nombreEnServicios : e.nombre;
 }
 
+/**
+ * Un nombre propio para el espacio de la recepción según lo que tiene adentro, o `null` (el de siempre). Hoy: el
+ * negocio ARM (vertical «arm», GSG-CRM-018 · V1), cuya recepción es SÓLO el CRM comercial, la llama «Comercial»; no
+ * atiende ni cobra. Con cualquier otra app al lado (la agenda de una estética, Proyectos de la productora, CRM-011)
+ * no aplica y queda «Recepción», «Mostrador» o «Gestión», como hasta ahora. PURA.
+ */
+export function nombrePropioDelEspacio(id: string, appIds: readonly string[]): string | null {
+  return id === "mostrador" && appIds.length > 0 && appIds.every((a) => a === "crm-comercial") ? "Comercial" : null;
+}
+
 /** Posición del espacio en la navegación. */
 export function ordenDeEspacioNav(id: EspacioNavId): number {
   return ESPACIOS_NAV.findIndex((e) => e.id === id);
