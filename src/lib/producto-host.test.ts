@@ -21,6 +21,21 @@ test("el host de ProfeTurnos lleva su raíz a su vidriera", () => {
   assert.equal(vidrieraDelHost("profeturnos.gsgapp.com.ar.evil.test"), null);
 });
 
+test("el host de Unboxing Fest lleva su raíz a la portada de los juegos", () => {
+  assert.equal(vidrieraDelHost("unboxingfest.gsgapp.com.ar"), "/juegos/unboxingfest/index.html");
+  assert.equal(vidrieraDelHost("UnboxingFest.gsgapp.com.ar:443"), "/juegos/unboxingfest/index.html");
+  assert.equal(vidrieraDelHost("unboxingfest.gsgapp.com.ar.evil.test"), null);
+});
+
+test("proxy: la raíz de Unboxing Fest se reescribe a la portada estática, sin portón ni redirect", async () => {
+  const res = await proxy(new NextRequest("https://unboxingfest.gsgapp.com.ar/"));
+  assert.equal(res.headers.get("location"), null);
+  assert.equal(new URL(res.headers.get("x-middleware-rewrite")!).pathname, "/juegos/unboxingfest/index.html");
+  // un juego, con su modo y origen, pasa directo (es un archivo estático público)
+  const juego = await proxy(new NextRequest("https://unboxingfest.gsgapp.com.ar/juegos/unboxingfest/farmaonline-abrilo-vos.html?o=redes#qr"));
+  assert.equal(juego.headers.get("location"), null);
+});
+
 test("proxy: la raíz del host de Facturita sirve la vidriera sin redirigir", async () => {
   const res = await proxy(new NextRequest("https://facturita-gsg.vercel.app/"));
   assert.equal(res.headers.get("location"), null);
