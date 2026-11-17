@@ -180,3 +180,32 @@ test("GSG-CRM-011 · «Marcar hecha» avisa al puesto que pierde la ficha, y má
   assert.equal(etiquetaTarea("VERIFICAR"), "Verificar la fuente");
   assert.equal(etiquetaTarea("ALGO_NUEVO"), "algo nuevo");
 });
+
+test("GSG-CRM-018 · V1: el negocio ARM muestra sólo el CRM (y Usuarios para dar de alta a su equipo); sin Recepción, Caja ni Proyectos", async () => {
+  const { appDelPanelCerrado, appsVisibles, aterrizajeDelPanel, destinoDeVuelta, motivoNoDisponible, rutaFueraDelPanel } = await import("@/apps/visibles");
+  const { REGISTRO_APPS } = await import("@/apps/registro");
+  const { BLUEPRINT_ARM } = await import("@/lib/crm-comercial/arm");
+  // El ARM nace con el vertical genérico, SIN módulos, y `cargar-vinculo.ts --marcar-arm` le pone el vertical ARM.
+  const ARM: TenantParaApps = { id: "t-arm", slug: "arm-demo", blueprintId: BLUEPRINT_ARM, modules: [] };
+  const de = (role: Role): NegocioApps => ({ role, contexto: resolverContextoApps(ARM, { registroGlobal: false, enInicioPorApps: false }, catalogo()), modulosAsignados: ARM.modules, blueprintId: ARM.blueprintId, perfil: null, esMostrador: false, carniceriaLista: false });
+  const PRENDIDOS = { "crm-comercial": { encendido: true }, "eventos-sponsors": { encendido: true } };
+  for (const role of ["OWNER", "RECEPTION"] as const) {
+    const n = de(role);
+    assert.equal(appDelPanelCerrado(n)?.id, "crm-comercial", role);
+    // Lo único que se abre: el CRM y Usuarios. Todo lo demás (Recepción, Caja, Proyectos, Eventos…) queda fuera del panel.
+    const abren = REGISTRO_APPS.filter((a) => motivoNoDisponible(a, n) === null).map((a) => a.id).sort();
+    assert.deepEqual(abren, role === "OWNER" ? ["crm-comercial", "usuarios"] : ["crm-comercial"], role);
+    for (const id of ["agenda", "caja-del-dia", "proyectos", "gestion-inicio", "eventos-sponsors", "inicio"] as const) assert.notEqual(motivoNoDisponible(appPorId(id), n), null, `${id} para ${role}`);
+    assert.deepEqual(appsVisibles(n).map((a) => a.id), role === "OWNER" ? ["usuarios"] : [], `lanzador de ${role}`);
+    assert.deepEqual(appsDeInterruptores(PRENDIDOS, n).map((a) => a.id), ["crm-comercial"], `menú de ${role}: Eventos no entra aunque esté prendido`);
+    assert.equal(aterrizajeDelPanel(n), "/admin/crm", role);
+    assert.deepEqual(destinoDeVuelta(n), { href: "/admin/crm", etiqueta: "Ir a CRM comercial" });
+  }
+  const panel = appDelPanelCerrado(de("OWNER"))!;
+  for (const ruta of ["/admin", "/admin/caja", "/admin/turnos", "/admin/proyectos", "/admin/eventos"]) assert.ok(rutaFueraDelPanel(ruta, panel), ruta);
+  for (const ruta of ["/admin/crm", "/admin/crm/embudo", "/admin/usuarios"]) assert.ok(!rutaFueraDelPanel(ruta, panel), ruta);
+  // Los demás negocios no cambian: la productora sigue en su panel de Proyectos y un negocio común, sin panel.
+  const productora: NegocioApps = { ...de("OWNER"), blueprintId: "productora", modulosAsignados: ["proyectos"], contexto: null };
+  assert.equal(appDelPanelCerrado(productora)?.id, "proyectos");
+  assert.equal(appDelPanelCerrado({ ...de("OWNER"), blueprintId: null }), null);
+});

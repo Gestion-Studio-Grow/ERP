@@ -253,6 +253,10 @@ export const APPS_COMERCIAL = [
     // dueña). Lo que puede adentro lo decide la membresía del CRM (E16), en la página y en cada acción.
     capability: "clients:read",
     modulo: null,
+    // GSG-CRM-018 · V1: el negocio ARM (vertical «arm», `BLUEPRINT_ARM` en src/lib/crm-comercial/arm.ts) es sólo el
+    // CRM: Usuarios para dar de alta a su equipo y nada más (ni Recepción, ni Caja, ni Proyectos). Sin módulo: lo
+    // decide el vertical.
+    panelCerrado: { blueprint: "arm", apps: ["crm-comercial", "usuarios"] },
     estado: "lista",
     enLanzador: false,
     palabras: ["crm", "oportunidades", "embudo", "consultas", "prospectos", "borradores", "seguimiento", "ventas"],

@@ -275,8 +275,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const actor = panel?.id === "proyectos" ? await actorActual() : null;
   // Las apps de un interruptor (Eventos y sponsors) no están en el lanzador: con el interruptor prendido se suman
   // acá y pasan por la misma regla del rol. Apagado, `appsDeInterruptores` no devuelve nada y todo queda igual.
-  const delPanel = actor ? [...visiblesDelNegocio, ...appsDeInterruptores(interruptores, negocioApps).filter((x) => !visiblesDelNegocio.some((v) => v.id === x.id))] : visiblesDelNegocio;
-  const abribles = actor ? delPanel.filter((a) => appDeGestionVisible(a.id, actor.rol, actor.permisos)) : visiblesDelNegocio;
+  // El ARM (panel del CRM, GSG-CRM-018 · V1): el CRM va por interruptor y no está en el lanzador; se suma igual a la barra.
+  const conInterruptores = actor || panel?.id === "crm-comercial";
+  const delPanel = conInterruptores ? [...visiblesDelNegocio, ...appsDeInterruptores(interruptores, negocioApps).filter((x) => !visiblesDelNegocio.some((v) => v.id === x.id))] : visiblesDelNegocio;
+  const abribles = actor ? delPanel.filter((a) => appDeGestionVisible(a.id, actor.rol, actor.permisos)) : delPanel;
   const visibles = actor ? abribles.filter((a) => appEnLaBarra(a.id, actor.rol)) : abribles;
   let barraFuera: React.ReactNode = null;
   if (actor) {

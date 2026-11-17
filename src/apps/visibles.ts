@@ -240,7 +240,9 @@ function edicionPermite(app: AppDescriptor, n: NegocioApps): boolean {
  */
 export function appDelPanelCerrado(n: NegocioApps, apps: readonly AppDescriptor[] = REGISTRO_APPS): AppDescriptor | null {
   const asignados = n.contexto ? n.contexto.modulos : new Set(n.modulosAsignados);
-  return apps.find((a) => a.panelCerrado?.blueprint === n.blueprintId && a.panelCerrado && a.modulo !== null && asignados.has(a.modulo)) ?? null;
+  // Con módulo, además del vertical tiene que estar asignado (la productora: `proyectos`). Sin módulo, alcanza el
+  // vertical (GSG-CRM-018: el ARM nace sin módulos y es sólo el CRM).
+  return apps.find((a) => !!a.panelCerrado && a.panelCerrado.blueprint === n.blueprintId && (a.modulo === null || asignados.has(a.modulo))) ?? null;
 }
 
 const entraEnElPanel = (panel: AppDescriptor, app: AppDescriptor): boolean =>
