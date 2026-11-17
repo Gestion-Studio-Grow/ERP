@@ -84,7 +84,8 @@ export function avisoDeLoteConNivel0(plata: number, envios: number): string {
     plata ? `${plata === 1 ? "1 de plata" : `${plata} de plata`}` : null,
     envios ? `${envios === 1 ? "1 envío a terceros" : `${envios} envíos a terceros`}` : null,
   ].filter(Boolean);
-  return `Plata: en el lote hay ${partes.join(" y ")}. No se aprobó nada: ${plata ? "la plata" : "los envíos"}${plata && envios ? " y los envíos" : ""} se aprueban de a uno, viendo el contenido.`;
+  const quienes = plata && envios ? "la plata y los envíos se aprueban de a uno" : plata ? "la plata se aprueba de a una" : "los envíos a terceros se aprueban de a uno";
+  return `${plata ? "Plata" : "Envíos a terceros"}: en el lote hay ${partes.join(" y ")}. No se aprobó nada: ${quienes}, viendo el contenido.`;
 }
 
 export function esNivel0(categoria: string): boolean {

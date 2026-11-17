@@ -138,7 +138,7 @@ function Decision({ e, negocio, props, ancla }: { e: ExcepcionVista; negocio: st
       </div>
       <div>
         <p className="text-xs font-medium uppercase tracking-wide text-muted">Lo que se va a hacer</p>
-        <pre className="mt-1 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded border border-line bg-surface-sunken p-3 font-sans text-sm text-body">
+        <pre className="mt-1 max-h-44 overflow-auto whitespace-pre-wrap sm:max-h-72 break-words rounded border border-line bg-surface-sunken p-3 font-sans text-sm text-body">
           {e.contenido}
         </pre>
       </div>
