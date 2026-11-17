@@ -151,14 +151,15 @@ test("los porcentajes llegan como argumento: otra productora con otros valores, 
   // CO 2.000.000, AD 0, rentabilidad 25 %, productor1 12,5 %, productor2 5 %, comercial 0 %, ME 3 %, IIB y GA 4,5 %.
   // R = 500.000 · c1 = 62.500 · c2 = 25.000 · cc = 0 · ME = 2.500.000 × 3 % = 75.000
   // Subtotal = 2.000.000 + 500.000 + 62.500 + 25.000 + 75.000 = 2.662.500
-  // IIB y GA = 2.662.500 × 4,5 ÷ 95,5 = 125.457,068… → 125.457,07
+  // IIB y GA = 2.662.500 × 4,5 ÷ 95,5 = 11.981.250 ÷ 95,5 = 125.458,115… → 125.458,12
+  // (la primera cuenta a mano decía 125.457,07: error de la cuenta, no del motor; se rehízo con fracciones exactas)
   const p = calcularPrecio({ costoOriginal: $(2_000_000), adicionales: 0, porcentajes: { rentabilidad: 25, productor1: 12.5, productor2: 5, comercial: 0, margenError: 3, iibGa: 4.5 }, totalVenta: null, tope: TOPE_PLANTILLA });
   assert.equal(p.rentabilidad, $(500_000));
   assert.equal(p.comisiones.productor1, $(62_500));
   assert.equal(p.comisiones.productor2, $(25_000));
   assert.equal(p.margenError, $(75_000));
   assert.equal(p.subtotal, $(2_662_500));
-  assert.equal(p.iibGa, 12_545_707);
+  assert.equal(p.iibGa, 12_545_812);
 });
 
 test("la plantilla por defecto es la del Drive (10/0/10/30/5/7 y tope 5 % bruto) y está marcada provisional", () => {
