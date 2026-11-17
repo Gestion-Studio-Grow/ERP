@@ -2,17 +2,22 @@
 // MIA-50 · tanda T01 (plata urgente), contra Postgres real: base efímera migrada, rol app_rls sin BYPASSRLS y las
 // Server Actions reales con sesión. Cada caso es el del plan (PLAN-MIA-50-OPERACIONES § 2.2 y § 2.8) y su esperado
 // se escribió a mano ANTES de correrlo (R7), desde el proyecto de prueba: un ítem de $ 1.000 + IVA 21 % = $ 1.210.
+// O37 incluido: lo que cambió después de su primer rojo es el rótulo, no el esperado (ver su línea abajo).
 //
 //  C-A06  el libro no borra lo que nació en Proyectos (cobro y su anulación); un asiento manual sí.
 //  C-P06  un borrador encima de la versión aprobada no mueve cuotas ni cabecera; cobrar todo suma lo aprobado.
 //  C-O41  `registrarCobro` con clave de envío: doble envío, 10 a la vez y reintento, en 3 rondas → 1 cobro, 1 asiento.
 //  C-O42  `pagarGasto`: Producción de otro proyecto, sólo «proveedores», sin ver la plata → 0 cambios; Administración ×1.
 //  C-O40  día de caja cerrado (y mes congelado): cada acción que asienta rechaza con 0 filas nuevas (rendiciones
-//         incluidas); abierto, entran. Carrera: un cobro que arranca antes del cierre y confirma después se rechaza.
+//         incluidas); abierto, entran. Carrera con `cerrarDia` y `congelarMesAction` reales, en los dos órdenes: si
+//         llega primero el cierre, el asiento se rechaza; si llega primero el asiento, el cierre lo cuenta y congelar
+//         no congela (cert. MIA-064, fila 1). Rojos antes del arreglo: los dos de «asiento primero».
 //  A-05   anular un pago de la empresa: la cuota vuelve a pendiente y la caja al saldo de antes; ×1.
 //  2 negocios  cada acción de T01 con ids del otro negocio: rechazo y 0 cambios en su plata; tampoco la ve.
-//  O37    corregido tras el primer rojo: no es sólo «verifica». En main 170e56f daba rojo (PR #185, «Rojos antes y
-//         verdes después») y pasa con los arreglos de esta tanda.
+//  O37    su cuerpo y su esperado son los del primer commit (a0512524) y no cambiaron: `git log -p` de este archivo
+//         sólo muestra el rótulo, que pasó de «(verifica)» a «(corregido tras el primer rojo)» en 7d099c2e. El
+//         rótulo cambió porque en main 170e56f el caso daba rojo (PR #185, «Rojos antes y verdes después»): es un
+//         arreglo de esta tanda, no sólo una verificación. Un cambio anterior a ese primer commit no queda en git.
 //
 // Reloj fijado: `Date` vale AHORA en todo el archivo (el día de caja y los vencimientos no dependen de cuándo corre).
 // ============================================================================
@@ -395,6 +400,22 @@ test("C-O40 · carrera, cierre primero: el cierre del día real confirma y el co
   assert.equal(await p.duenio.cashMovement.count({ where: { tenantId: p.a.id } }), 0, "0 filas en el libro");
   assert.equal(await p.duenio.proyectoPago.count({ where: { proyectoId: id } }), 0, "0 cobros");
   assert.equal(((await cierreDelDia(p))?.changes as { movimientos?: number } | undefined)?.movimientos, 0, "el cierre no contó nada: el cobro no estaba");
+});
+
+test("C-O40 · un asiento que no corre en Serializable no entra: `asentarEnCajaTx` lo corta y no escribe", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  await cajaVacia(p);
+  const { tenantTransaction } = await import("@/lib/rls");
+  const { asentarEnCajaTx } = await import("./periodo-cerrado.server");
+  const r = await p.enSesion(() =>
+    tenantTransaction((tx) => asentarEnCajaTx(tx, "cobro", { tenantId: p.a.id, type: "VENTA", method: "EFECTIVO", amount: 300, reason: "Read Committed T01", createdBy: "test" })).then(
+      () => "entró",
+      (e: unknown) => String(e),
+    ),
+  );
+  assert.match(r, /tiene que ser Serializable/, r);
+  assert.equal(await p.duenio.cashMovement.count({ where: { tenantId: p.a.id } }), 0, "0 filas en el libro");
 });
 
 /** Octubre de 2026: ya terminó, así que se puede congelar (el 17/11). Su último día de caja es el 31/10. */

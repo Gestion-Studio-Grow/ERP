@@ -6,18 +6,24 @@
  * o el mes se cerraron, la transacción entera se deshace y la acción devuelve el texto del rechazo (`rechazoDePeriodo`).
  *
  * Carrera con el cierre: el candado `cierre-dia:<negocio>` es el MISMO que toman cerrar el día
- * (`cierre-diario-actions.ts`), congelar el mes (`cierre-mes/acciones.ts`) y abrir un turno (`caja-actions.ts`). Con él,
- * un asiento y un cierre van uno detrás del otro: si el cierre lo tomó primero, el asiento espera y, al leer la frontera
- * (Read Committed: cada sentencia ve lo confirmado), ve el día cerrado y se rechaza; si lo tomó el asiento, el cierre
- * espera a que confirme y lo cuenta. Sin él, un cobro que leyó «abierto» podía confirmar después del cierre, en un día
- * que el arqueo ya no lo incluye.
+ * (`cierre-diario-actions.ts`), congelar el mes (`cierre-mes/acciones.ts`) y abrir un turno (`caja-actions.ts`), y pone
+ * a un asiento y a un cierre uno detrás del otro. El candado solo no alcanza: el cierre del día y congelar el mes corren
+ * en Serializable, y Postgres saca la foto de esa transacción en su primera sentencia, ANTES de esperar el candado. El
+ * cierre que llegaba segundo no veía el asiento que había confirmado mientras esperaba: cerraba sin contarlo y asentaba
+ * un sobrante (cert. MIA-064, fila 1), y congelar el mes cerraba el día como «sin movimientos».
+ * Por eso el asiento también corre en Serializable (`transaccionQueAsienta`; `asentarEnCajaTx` lo exige). El asiento lee
+ * la frontera, que el cierre escribe, y escribe en el libro, que el cierre lee. Con las dos en Serializable, Postgres
+ * aborta a la segunda por ese ciclo, y el reintento de `tenantTransaction` la corre con una foto nueva:
+ *   · si llegó primero el cierre, el asiento ve el día cerrado (o el mes congelado) y se rechaza;
+ *   · si llegó primero el asiento, el cierre del día lo cuenta y congelar el mes lo ve y no congela.
+ * Los dos órdenes, con el cierre real, los prueban los tests «C-O40 · carrera» de t01-plata-postgres.test.ts.
  *
  * Hueco previo, fuera de T01 (no se toca acá): el libro de caja a mano (`libro-caja-actions.ts`, `addLibroEntry` y
  * `deleteLibroEntry`) lee la frontera con `lastClosedDay` ANTES de su transacción y sin este candado, así que la misma
  * carrera sigue abierta para los asientos manuales.
  */
 import "server-only";
-import type { Prisma } from "@/generated/prisma/client";
+import { Prisma } from "@/generated/prisma/client";
 import { lastClosedDayTx } from "@/lib/caja/frontera-cierre";
 import { ACCION_CONGELAR, consultaUltimoEstadoCierre } from "@/lib/cierre-mes/cierre-mes";
 import { dateStrInBusinessTz } from "@/lib/datetime";
@@ -47,14 +53,21 @@ export async function exigirPeriodoAbiertoTx(tx: Prisma.TransactionClient, tenan
 
 /** El único camino de Proyectos para crear un movimiento de caja: primero el candado, después el asiento. */
 export async function asentarEnCajaTx(tx: Prisma.TransactionClient, que: QueSeAsienta, data: Prisma.CashMovementUncheckedCreateInput) {
+  // Sin Serializable, el candado no cierra la carrera con el cierre (ver arriba): se corta acá, no se asienta.
+  const [{ nivel }] = await tx.$queryRaw<{ nivel: string }[]>`SELECT current_setting('transaction_isolation') AS nivel`;
+  if (nivel !== "serializable") throw new Error(`asentarEnCajaTx: la transacción corre en «${nivel}» y tiene que ser Serializable (transaccionQueAsienta).`);
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`cierre-dia:${data.tenantId}`}))`;
   await exigirPeriodoAbiertoTx(tx, data.tenantId, que, data.occurredAt instanceof Date ? data.occurredAt : new Date());
   return tx.cashMovement.create({ data, select: { id: true } });
 }
 
-/** La transacción de toda acción de Proyectos que asienta en la caja (el único lugar que fija cómo corre). */
+/**
+ * La transacción de toda acción de Proyectos que asienta en la caja: Serializable, como el cierre del día y congelar el
+ * mes (ver arriba). Un conflicto con otra transacción aborta y `tenantTransaction` la reintenta entera, con una foto
+ * nueva; por eso lo que va adentro no tiene efectos fuera de la base.
+ */
 export function transaccionQueAsienta<T>(fn: Parameters<typeof tenantTransaction<T>>[0]): Promise<T> {
-  return tenantTransaction(fn);
+  return tenantTransaction(fn, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 }
 
 /** Corre la transacción y devuelve el rechazo del candado como valor (para `if (r instanceof PeriodoCerradoError)`). */
