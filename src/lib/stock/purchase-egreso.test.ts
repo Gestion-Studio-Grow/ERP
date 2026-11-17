@@ -156,7 +156,7 @@ test("un proveedor larguísimo se recorta: el detalle se lee en una tabla angost
 test("el egreso se escribe DENTRO de la única tenantTransaction de insertStockPurchase", () => {
   const core = leer("./purchase-core.ts");
 
-  const aperturas = core.match(/tenantTransaction\(/g) ?? [];
+  const aperturas = core.match(/(?:tenantTransaction|transaccionQueAsienta)\(/g) ?? []; // T01b: transaccionQueAsienta también abre una
   assert.equal(
     aperturas.length,
     1,
@@ -164,8 +164,9 @@ test("el egreso se escribe DENTRO de la única tenantTransaction de insertStockP
       "registrada con el stock adentro y el egreso perdido.",
   );
 
-  const inicioTx = core.indexOf("await tenantTransaction(");
-  const create = core.indexOf("tx.cashMovement.create(");
+  // T01b: la tx es `transaccionQueAsienta(` y el asiento, `asentarEnCajaTx(tx,` (el único que escribe en el libro).
+  const inicioTx = core.indexOf("await transaccionQueAsienta(");
+  const create = core.indexOf("asentarEnCajaTx(tx,");
   const ledger = core.indexOf("await recordMovement(");
   assert.ok(inicioTx > 0 && create > inicioTx, "el asiento de caja tiene que estar dentro de la tx");
   assert.ok(ledger > inicioTx, "el movimiento de stock tiene que estar dentro de la misma tx");
@@ -179,7 +180,7 @@ test("el egreso se escribe DENTRO de la única tenantTransaction de insertStockP
 test("insertStockPurchase pre-chequea la marca antes de crear el egreso (idempotencia)", () => {
   const core = leer("./purchase-core.ts");
   const chequeo = core.indexOf("tx.cashMovement.findFirst(");
-  const create = core.indexOf("tx.cashMovement.create(");
+  const create = core.indexOf("asentarEnCajaTx(tx,"); // T01b: el create pasa por el candado de la caja
   assert.ok(chequeo > 0, "falta el pre-chequeo por marca: registrar dos veces asentaría dos egresos");
   assert.ok(chequeo < create, "el pre-chequeo va ANTES del create");
   assert.match(core.slice(chequeo, create), /createdBy: e\.createdBy/);
@@ -198,7 +199,8 @@ test("el libro NO deja borrar el egreso que asentó una compra (dirección únic
       "hubiera salido — el mismo agujero que asentar el egreso vino a tapar.",
   );
   const cuerpo = libro.slice(borrar);
-  assert.ok(cuerpo.indexOf("motivoParaNoBorrar(") !== -1 && cuerpo.indexOf("motivoParaNoBorrar(") < cuerpo.indexOf("cashMovement.delete"));
+  // T01b: el borrado pasa por `borrarDeCajaTx(` (candado de la caja).
+  assert.ok(cuerpo.indexOf("motivoParaNoBorrar(") !== -1 && cuerpo.indexOf("borrarDeCajaTx(") !== -1 && cuerpo.indexOf("motivoParaNoBorrar(") < cuerpo.indexOf("borrarDeCajaTx("));
 });
 
 test("el libro AVISA si alguien tipea a mano un egreso que la compra ya asentó", () => {

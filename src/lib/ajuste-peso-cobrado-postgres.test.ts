@@ -23,7 +23,8 @@ test("ajuste de un pedido cobrado: devolución única, segundo rechazado, anular
   const duenio = await prismaComoDuenio(base);
   const { a, b } = base;
 
-  const { tenantTransaction } = await import("@/lib/rls");
+  // T01b: lo que asienta en la caja corre como en la app, en `transaccionQueAsienta` (Serializable con el candado).
+  const { transaccionQueAsienta, asentarEnCajaTx } = await import("@/lib/caja/candado-asiento.server");
   const { insertOrder, cobrarPedidoEnTx } = await import("@/lib/order-core");
   const { ajustarPesoInTx, AjusteCobradoRechazado } = await import("./ajuste-peso-cobrado");
   const { anularVentaInTx } = await import("./order-anulacion");
@@ -58,9 +59,9 @@ test("ajuste de un pedido cobrado: devolución única, segundo rechazado, anular
     return (r as { valor: Awaited<ReturnType<typeof insertOrder>> }).valor;
   };
   const cobrar = (orderId: string, method: "EFECTIVO" | "MERCADOPAGO") =>
-    tenantTransaction((tx) => cobrarPedidoEnTx(tx, a.id, { orderId, method, actor }), { tenantId: a.id });
+    transaccionQueAsienta((tx) => cobrarPedidoEnTx(tx, a.id, { orderId, method, actor }), { tenantId: a.id });
   const ajustar = (orderId: string, qty: number, clave: string, cerradoHasta: string | null = null) =>
-    tenantTransaction(
+    transaccionQueAsienta(
       (tx) =>
         ajustarPesoInTx(tx, a.id, {
           orderId,
@@ -75,7 +76,7 @@ test("ajuste de un pedido cobrado: devolución única, segundo rechazado, anular
       { tenantId: a.id },
     );
   const anular = (orderId: string) =>
-    tenantTransaction(
+    transaccionQueAsienta(
       (tx) =>
         anularVentaInTx(tx, a.id, {
           orderId,
@@ -85,7 +86,7 @@ test("ajuste de un pedido cobrado: devolución única, segundo rechazado, anular
           diaCerradoHasta: null,
           esDiaCerrado: isFrozenDay,
           diaDe: (d: Date) => dateStrInBusinessTz(d),
-        }),
+        }, asentarEnCajaTx),
       { tenantId: a.id },
     );
   const libroDeA = () => duenio.cashMovement.findMany({ where: { tenantId: a.id }, select: { type: true, amount: true, method: true, orderId: true, collectionId: true, reason: true } });

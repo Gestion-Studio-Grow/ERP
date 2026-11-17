@@ -19,6 +19,7 @@ import type { CashMethod, CashMovementType } from "@/lib/caja/cash-register";
 import { cuentasCorrientesPrendidas } from "./asiento-libro";
 import { estadoDesdeFilas, todosApagados } from "@/cambios/interruptores-core";
 import { CUENTAS_CORRIENTES, esInterruptorId, interruptorPorId } from "@/cambios/interruptores";
+import { conCandado } from "@/test/candado-de-prueba";
 
 test("el flag: apagado por defecto; sólo valores explícitos lo prenden", () => {
   assert.equal(cuentasCorrientesEnabled({}), false);
@@ -93,7 +94,7 @@ function txFalsa(opts: { cerradoHasta?: string | null; cobrosPrevios?: number[];
     order: { updateMany: async () => ({ count: 0 }) },
     cashSession: { findFirst: async () => (opts.turnoAbierto ? { id: opts.turnoAbierto } : null) },
   };
-  return { tx: tx as unknown as Parameters<typeof aplicarConAsientoInTx>[0], escrituras };
+  return { tx: conCandado(tx) as unknown as Parameters<typeof aplicarConAsientoInTx>[0], escrituras };
 }
 
 const AHORA = new Date("2026-09-23T15:00:00.000Z"); // 23/09 12:00 en Buenos Aires

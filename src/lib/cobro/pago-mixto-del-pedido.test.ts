@@ -16,6 +16,7 @@ import { decidirAlta, cobrarPedidoEnTx, CobroDePedidoAnulado, type OrderInput, t
 import { RechazoDeDominio } from "@/lib/rechazo-de-dominio";
 import { claveDelCobroMixto, MENSAJE_TOTAL_CAMBIO } from "@/lib/supermercado/pago-mixto-tx";
 import type { AsientoDePago } from "@/lib/supermercado/pago-mixto";
+import { conCandado } from "@/test/candado-de-prueba";
 
 const VACIO: OrderProduct = { id: "p-vacio", name: "Vacío", saleUnit: "WEIGHT", price: null, pricePerKg: 28600, trackStock: false };
 
@@ -123,7 +124,7 @@ function base(pedidos: Fila[]) {
         },
       },
     };
-    const r = await fn(tx as never);
+    const r = await fn(conCandado(tx) as never);
     Object.assign(estado, copia); // commit
     return r;
   }

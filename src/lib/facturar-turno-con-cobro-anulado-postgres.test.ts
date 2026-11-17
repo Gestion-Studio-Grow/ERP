@@ -120,6 +120,7 @@ async function anulacionSostenida(
   collectionId: string,
 ) {
   const { anularCobroTurnoInTx } = await import("@/lib/turnos/anulacion");
+  const { asentarEnCajaTx } = await import("@/lib/caja/candado-asiento.server"); // T01b: el asiento real, con su candado
   const { Prisma } = await import("@/generated/prisma/client");
   const soltar = puerta();
   const tomada = puerta();
@@ -136,7 +137,7 @@ async function anulacionSostenida(
         esDiaCerrado: () => false,
         diaDe: () => "2026-09-24",
         withSchema: false,
-      });
+      }, asentarEnCajaTx);
       tomada.abrir();
       await soltar.abierta;
       return r;

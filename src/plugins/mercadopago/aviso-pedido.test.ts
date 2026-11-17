@@ -22,13 +22,14 @@ import {
   decidirCobroPorAviso,
   type DepsAvisoDePedido,
 } from "@/lib/order-core";
+import { conCandado } from "@/test/candado-de-prueba";
 
 type Pedido = { id: string; tenantId: string; code: number; total: number; paid: boolean; paymentMethod: string | null; status: string };
 
 /** Una base falsa con UN pedido y el libro de caja. Respeta el `paid: false` del filtro. */
 function baseFalsa(pedido: Pedido) {
   const libro: { orderId: string; amount: number; method: string; type: string; createdBy: string }[] = [];
-  const tx = {
+  const tx = conCandado({
     order: {
       updateMany: async ({ where, data }: { where: { id: string; tenantId: string; paid?: boolean }; data: { paid: boolean; paymentMethod: string } }) => {
         const coincide = where.id === pedido.id && where.tenantId === pedido.tenantId && (where.paid === undefined || where.paid === pedido.paid);
@@ -53,7 +54,7 @@ function baseFalsa(pedido: Pedido) {
         return { id: `cm_${libro.length}` };
       },
     },
-  } as unknown as Prisma.TransactionClient;
+  }) as unknown as Prisma.TransactionClient;
   const auditoria: unknown[] = [];
   const deps: DepsAvisoDePedido = {
     leerPedido: async (tenantId, orderId) =>

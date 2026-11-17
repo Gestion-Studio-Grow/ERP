@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { detalleDelCobro, importeDeCaja, metodoDeCaja, repuestosADescontar } from "./caja";
+import { conCandado } from "@/test/candado-de-prueba";
 
 test("caja: cada medio del taller cae en su columna del libro", () => {
   assert.equal(metodoDeCaja("EFECTIVO"), "EFECTIVO");
@@ -64,7 +65,7 @@ test("una transferencia del taller va a su columna si el libro la tiene; si no, 
       cashSession: { findFirst: async () => null },
       $queryRawUnsafe: async () => (valorEnLaBase ? [{}] : []),
     };
-    await asentarCobroInTx(tx as never, "t", { pagoId: "p", medio, monto: 100, recargo: 0, detalle: "d", actor: "user:u" });
+    await asentarCobroInTx(conCandado(tx) as never, "t", { pagoId: "p", medio, monto: 100, recargo: 0, detalle: "d", actor: "user:u" });
     olvidarTransferenciaEnElLibro();
     return escritos[0].method;
   };

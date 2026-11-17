@@ -251,6 +251,7 @@ test("monto menor que el saldo: el resto queda a cobrar con los medios de siempr
 async function anular(s: Sembrado, appointmentId: string, collectionId: string) {
   const { tenantTransaction } = await import("@/lib/rls");
   const { anularCobroTurnoInTx } = await import("@/lib/turnos/anulacion");
+  const { asentarEnCajaTx } = await import("@/lib/caja/candado-asiento.server"); // T01b: el asiento real, con su candado
   const { isFrozenDay } = await import("@/lib/caja/cierre-diario");
   const { dateStrInBusinessTz } = await import("@/lib/datetime");
   const { Prisma } = await import("@/generated/prisma/client");
@@ -266,7 +267,7 @@ async function anular(s: Sembrado, appointmentId: string, collectionId: string) 
         esDiaCerrado: isFrozenDay,
         diaDe: dateStrInBusinessTz,
         withSchema: true,
-      }),
+      }, asentarEnCajaTx),
     { tenantId: s.base.a.id, isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
   );
 }

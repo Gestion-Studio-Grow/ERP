@@ -20,7 +20,8 @@ test("carrera: doble envío de la devolución por peso con factura simulada = un
   const duenio = await prismaComoDuenio(base);
   const { a } = base;
 
-  const { tenantTransaction } = await import("@/lib/rls");
+  // T01b: lo que asienta en la caja corre como en la app, en `transaccionQueAsienta` (Serializable con el candado).
+  const { transaccionQueAsienta } = await import("@/lib/caja/candado-asiento.server");
   const { insertOrder, cobrarPedidoEnTx } = await import("@/lib/order-core");
   const { createInvoice, numeroUsadoPorOtraFactura } = await import("@/lib/invoice-core");
   const dispatch = await import("@/lib/arca-dispatch");
@@ -49,7 +50,7 @@ test("carrera: doble envío de la devolución por peso con factura simulada = un
     );
     assert.equal(r.tipo, "respuesta");
     const pedido = (r as { valor: Awaited<ReturnType<typeof insertOrder>> }).valor;
-    await tenantTransaction((tx) => cobrarPedidoEnTx(tx, a.id, { orderId: pedido.id, method: "EFECTIVO", actor: `user:${a.duenia.id}` }), { tenantId: a.id });
+    await transaccionQueAsienta((tx) => cobrarPedidoEnTx(tx, a.id, { orderId: pedido.id, method: "EFECTIVO", actor: `user:${a.duenia.id}` }), { tenantId: a.id });
     const facturaId = await createInvoice({
       tenantId: a.id, concepto: 1, fecha: HOY,
       emisor: { cuit: 20111111112, condicionIva: "MONOTRIBUTO", puntoVenta: 1 },
@@ -63,7 +64,7 @@ test("carrera: doble envío de la devolución por peso con factura simulada = un
   };
   /** Un envío del formulario «Pesar y ajustar»: el ajuste en su tx y después la NC en la suya. */
   const enviar = async (orderId: string, qty: number, clave: string) => {
-    const out = await tenantTransaction(
+    const out = await transaccionQueAsienta(
       (tx) =>
         ajustarPesoInTx(tx, a.id, {
           orderId, pedidas: [{ productId: vacio.id, qty }], actor: `user:${a.duenia.id}`, permiteNegativo: () => false,

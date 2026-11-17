@@ -13,7 +13,8 @@ test("ataques", async (t) => {
   apuntarLaAppA(base);
   const duenio = await prismaComoDuenio(base);
   const { a } = base;
-  const { tenantTransaction } = await import("@/lib/rls");
+  // T01b: lo que asienta en la caja corre como en la app, en `transaccionQueAsienta` (Serializable con el candado).
+  const { transaccionQueAsienta, asentarEnCajaTx } = await import("@/lib/caja/candado-asiento.server");
   const { insertOrder, cobrarPedidoEnTx, cobrarPedidoPorAvisoDePago } = await import("@/lib/order-core");
   const { ajustarPesoInTx } = await import("@/lib/ajuste-peso-cobrado");
   const { anularVentaInTx } = await import("@/lib/order-anulacion");
@@ -33,9 +34,9 @@ test("ataques", async (t) => {
     return (r as unknown as { valor: { id: string; code: number } }).valor;
   };
   const ajustar = (orderId: string, qty: number) =>
-    tenantTransaction((tx) => ajustarPesoInTx(tx, a.id, { orderId, pedidas: [{ productId: pollo.id, qty }], actor, permiteNegativo: () => false, clave: `k-${randomUUID()}`, cerradoHasta: null, hoy, ahora: new Date() }), { tenantId: a.id });
+    transaccionQueAsienta((tx) => ajustarPesoInTx(tx, a.id, { orderId, pedidas: [{ productId: pollo.id, qty }], actor, permiteNegativo: () => false, clave: `k-${randomUUID()}`, cerradoHasta: null, hoy, ahora: new Date() }), { tenantId: a.id });
   const anular = (orderId: string) =>
-    tenantTransaction((tx) => anularVentaInTx(tx, a.id, { orderId, motivo: "x", actor, devuelveStock: true, diaCerradoHasta: null, esDiaCerrado: isFrozenDay, diaDe: (d: Date) => dateStrInBusinessTz(d) }), { tenantId: a.id });
+    transaccionQueAsienta((tx) => anularVentaInTx(tx, a.id, { orderId, motivo: "x", actor, devuelveStock: true, diaCerradoHasta: null, esDiaCerrado: isFrozenDay, diaDe: (d: Date) => dateStrInBusinessTz(d) }, asentarEnCajaTx), { tenantId: a.id });
   const neto = async (orderIds: string[]) => {
     const filas = await duenio.cashMovement.findMany({ where: { tenantId: a.id }, select: { type: true, amount: true, orderId: true, collectionId: true, collection: { select: { orderId: true } } } });
     const mine = filas.filter((f) => (f.orderId && orderIds.includes(f.orderId)) || (f.collection?.orderId && orderIds.includes(f.collection.orderId)));
@@ -59,7 +60,7 @@ test("ataques", async (t) => {
   // ── B. Pesó más y se anula ANTES de cobrar el saldo: sale lo cobrado, ni más ni menos.
   await t.test("B: anular pesó-más sin saldo cobrado", async () => {
     const p = await tomar(1);
-    await tenantTransaction((tx) => cobrarPedidoEnTx(tx, a.id, { orderId: p.id, method: "EFECTIVO", actor }), { tenantId: a.id });
+    await transaccionQueAsienta((tx) => cobrarPedidoEnTx(tx, a.id, { orderId: p.id, method: "EFECTIVO", actor }), { tenantId: a.id });
     await ajustar(p.id, 3);
     const an = await anular(p.id);
     assert.equal(an.applied, true);
@@ -69,7 +70,7 @@ test("ataques", async (t) => {
   // ── C. Pesó menos, saldo luego anular (cobro con efectivo).
   await t.test("C: pesó menos + anular = neto 0", async () => {
     const p = await tomar(3);
-    await tenantTransaction((tx) => cobrarPedidoEnTx(tx, a.id, { orderId: p.id, method: "EFECTIVO", actor }), { tenantId: a.id });
+    await transaccionQueAsienta((tx) => cobrarPedidoEnTx(tx, a.id, { orderId: p.id, method: "EFECTIVO", actor }), { tenantId: a.id });
     await ajustar(p.id, 1);
     await anular(p.id);
     const all = await duenio.cashMovement.findMany({ where: { tenantId: a.id, reason: { contains: `#${p.code}` } }, select: { type: true, amount: true } });
@@ -80,7 +81,7 @@ test("ataques", async (t) => {
   // ── D. Carrera ajuste (pesó más) vs anulación en paralelo.
   await t.test("D: Promise.all ajuste + anulación", async () => {
     const p = await tomar(1);
-    await tenantTransaction((tx) => cobrarPedidoEnTx(tx, a.id, { orderId: p.id, method: "EFECTIVO", actor }), { tenantId: a.id });
+    await transaccionQueAsienta((tx) => cobrarPedidoEnTx(tx, a.id, { orderId: p.id, method: "EFECTIVO", actor }), { tenantId: a.id });
     await Promise.allSettled([ajustar(p.id, 2), anular(p.id)]);
     const all = await duenio.cashMovement.findMany({ where: { tenantId: a.id, reason: { contains: `#${p.code}` } }, select: { type: true, amount: true } });
     const n = Math.round(all.reduce((s, f) => s + (f.type === "VENTA" ? 1 : -1) * Number(f.amount) * 100, 0)) / 100;
@@ -90,7 +91,7 @@ test("ataques", async (t) => {
   // ── E. Carrera pesó menos vs anulación en paralelo.
   await t.test("E: Promise.all pesó menos + anulación", async () => {
     const p = await tomar(3);
-    await tenantTransaction((tx) => cobrarPedidoEnTx(tx, a.id, { orderId: p.id, method: "EFECTIVO", actor }), { tenantId: a.id });
+    await transaccionQueAsienta((tx) => cobrarPedidoEnTx(tx, a.id, { orderId: p.id, method: "EFECTIVO", actor }), { tenantId: a.id });
     await Promise.allSettled([ajustar(p.id, 1), anular(p.id)]);
     const all = await duenio.cashMovement.findMany({ where: { tenantId: a.id, reason: { contains: `#${p.code}` } }, select: { type: true, amount: true } });
     const n = Math.round(all.reduce((s, f) => s + (f.type === "VENTA" ? 1 : -1) * Number(f.amount) * 100, 0)) / 100;

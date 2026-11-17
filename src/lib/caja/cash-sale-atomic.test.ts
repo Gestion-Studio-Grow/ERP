@@ -17,6 +17,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { recordCashSaleMovementInTx, type CashSaleTx, type CashSaleInput } from "./cash-sale";
+import { conCandado } from "@/test/candado-de-prueba";
 
 // --- Doble de test para la variante tx-scoped real. ---
 
@@ -60,7 +61,7 @@ function makeCashTx(opts: { openSession: boolean; preexistingOrderId?: string })
       },
     },
   };
-  return { tx: tx as unknown as CashSaleTx, movements };
+  return { tx: conCandado(tx) as unknown as CashSaleTx, movements };
 }
 
 const cashInput = (over: Partial<CashSaleInput> = {}): CashSaleInput => ({

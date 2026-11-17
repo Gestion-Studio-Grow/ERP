@@ -40,6 +40,7 @@ import { alcanceDeAnulacion, type Role } from "@/lib/capabilities";
 import { isFrozenDay } from "@/lib/caja/cierre-diario";
 import { medioDeCobroRequerido, mensajeYaCobrado, type MedioDeCobro } from "@/lib/caja/medio-cobro";
 import { insertOrderGuarded } from "@/lib/order-core";
+import { asentarDePrueba, conCandado } from "@/test/candado-de-prueba";
 
 // Un tick de la cola de eventos: con esto, dos llamadas en `Promise.all` leen las dos antes
 // de que cualquiera escriba, que es la carrera real del doble toque.
@@ -125,7 +126,7 @@ function txDe({ m, venta }: ReturnType<typeof mundoDeVenta>, opts: { ventaAparec
       },
     },
   };
-  return tx as unknown as AnulacionVentaTx;
+  return conCandado(tx) as unknown as AnulacionVentaTx;
 }
 
 /** El mismo orden que `anularVentaCore`: primero las reglas del rol, después la transacción. */
@@ -146,7 +147,7 @@ async function anularComo(
       esDiaCerrado: isFrozenDay,
       diaDe: (d: Date) => d.toISOString().slice(0, 10),
       soloDelDia: reglas.soloDelDia,
-    });
+    }, asentarDePrueba);
     return { ok: true as const, r };
   } catch (e) {
     if (e instanceof AnulacionVentaRechazada) return { ok: false as const, error: e.message, motivo: e.motivo };

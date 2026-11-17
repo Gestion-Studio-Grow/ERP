@@ -268,9 +268,10 @@ test("settleCommissions asienta el EGRESO DENTRO de la misma transacción que el
   assert.ok(settle > 0);
   const cuerpo = src.slice(settle);
 
-  const tx = cuerpo.indexOf("await tenantTransaction(");
+  // T01b: la transacción es `transaccionQueAsienta(` y el asiento, `asentarEnCajaTx(tx,` (el único que escribe en el libro).
+  const tx = cuerpo.indexOf("await transaccionQueAsienta(");
   const payout = cuerpo.indexOf("tx.commissionPayout.create(");
-  const create = cuerpo.indexOf("tx.cashMovement.create(");
+  const create = cuerpo.indexOf("asentarEnCajaTx(tx,");
   assert.ok(create > 0, "sin el asiento, el cierre del día ve la comisión pagada como un faltante inexplicable");
   assert.ok(tx > 0 && create > tx, "el asiento tiene que estar dentro de la tx: un payout sin egreso es peor que ninguno de los dos");
   assert.ok(payout > 0 && create > payout, "el asiento va después del payout: la marca lleva su id");
@@ -282,7 +283,7 @@ test("settleCommissions asienta el EGRESO DENTRO de la misma transacción que el
 
 test("el asiento queda atado a la liquidación por la marca en createdBy", () => {
   const src = leer("./commission-actions.ts");
-  const create = src.indexOf("tx.cashMovement.create(");
+  const create = src.indexOf("asentarEnCajaTx(tx,"); // T01b: el asiento pasa por el candado de la caja
   const bloque = src.slice(create, create + 900);
   assert.match(bloque, /createdBy: egreso\.createdBy/, "sin la marca, el libro y el historial no se cruzan por ningún campo");
   assert.match(src, /egresoDeLiquidacion\(/);
@@ -332,7 +333,7 @@ test("el egreso de una liquidación NO se borra desde el libro de caja", () => {
   );
   const guarda = cuerpo.indexOf("motivoParaNoBorrar(");
   assert.ok(guarda !== -1, "deleteLibroEntry tiene que pasar por motivoParaNoBorrar");
-  const borrado = cuerpo.indexOf("cashMovement.delete");
+  const borrado = cuerpo.indexOf("borrarDeCajaTx("); // T01b: el borrado pasa por el candado de la caja
   assert.ok(borrado !== -1, "deleteLibroEntry tiene que borrar el movimiento");
   assert.ok(guarda < borrado, "la guarda va ANTES del delete, no después");
 });

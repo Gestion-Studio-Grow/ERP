@@ -174,7 +174,8 @@ test("createOrder y setOrderPaidCore llaman a medioDeCobroRequerido y cortan si 
   assert.match(alta, /pagosMixtos: asientos \? \{ asientos \} : null/);
 
   const cobro = cuerpoDe(orderActions, "async function setOrderPaidCore(");
-  cortaConLaRegla(cobro, "tenantTransaction(");
+  // La escritura es la transacción del cobro: `transaccionQueAsienta(` (T01b, Serializable con el candado de la caja).
+  cortaConLaRegla(cobro, "transaccionQueAsienta(");
   // `methodRaw` aparece en la firma y en la llamada a la regla, en ningún otro lado.
   assert.equal(cobro.split("methodRaw").length - 1, 2);
 });

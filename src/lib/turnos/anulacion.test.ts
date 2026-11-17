@@ -38,6 +38,7 @@ import {
   type AnulacionTx,
 } from "./anulacion";
 import { estadoCobroTurno, validarCobroTurno } from "./cobros";
+import { asentarDePrueba, conCandado } from "@/test/candado-de-prueba";
 
 // ── Doble de transacción (ADR-026: sin DB) ──────────────────────────────────
 
@@ -193,7 +194,7 @@ function makeTx(
       },
     },
   };
-  return { tx: tx as unknown as AnulacionTx, collections, movements, payments, orden };
+  return { tx: conCandado(tx) as unknown as AnulacionTx, collections, movements, payments, orden };
 }
 
 // Día contable inyectado: el test no depende de la zona horaria del que lo corre.
@@ -283,7 +284,7 @@ test("anular el cobro de un turno con factura autorizada se rechaza y no escribe
     facturas: [{ tenantId: TENANT, appointmentId: TURNO, status: "AUTHORIZED" }],
   });
   await assert.rejects(
-    () => anularCobroTurnoInTx(tx, TENANT, argsAnular()),
+    () => anularCobroTurnoInTx(tx, TENANT, argsAnular(), asentarDePrueba),
     (e: unknown) => e instanceof AnulacionRechazada && e.motivo === "facturado" && /nota de crédito/.test(e.message),
   );
   assert.equal(collections.length, 1, "ninguna contrapartida");
@@ -297,7 +298,7 @@ test("anular el cobro toma la fila del turno antes de leer sus facturas (ENG-023
     movs: [{ collectionId: "col-1", type: "VENTA", amount: 18000, occurredAt: D("2026-09-10") }],
     payment: { amount: 18000 },
   });
-  await anularCobroTurnoInTx(tx, TENANT, argsAnular());
+  await anularCobroTurnoInTx(tx, TENANT, argsAnular(), asentarDePrueba);
   assert.deepEqual(orden, [`toma el turno ${TURNO}`, `lee las facturas de ${TURNO}`]);
 });
 
@@ -312,7 +313,7 @@ test("la factura de otro turno o de otro negocio no frena la anulación del cobr
       { tenantId: TENANT, appointmentId: TURNO, status: "REJECTED" },
     ],
   });
-  const r = await anularCobroTurnoInTx(tx, TENANT, argsAnular());
+  const r = await anularCobroTurnoInTx(tx, TENANT, argsAnular(), asentarDePrueba);
   assert.equal(r.applied, true);
 });
 
@@ -339,7 +340,7 @@ test("anular deja la contrapartida, baja el Payment y revierte el asiento con el
     payment: { amount: 18000, status: "APPROVED" },
   });
 
-  const r = await anularCobroTurnoInTx(tx, TENANT, argsAnular());
+  const r = await anularCobroTurnoInTx(tx, TENANT, argsAnular(), asentarDePrueba);
   assert.equal(r.applied, true);
   if (!r.applied) return;
 
@@ -382,8 +383,8 @@ test("anular dos veces NO duplica la reversa ni el egreso", async () => {
     movs: [{ collectionId: "col-1", type: "VENTA", amount: 18000, method: "MP" }],
     payment: { amount: 18000 },
   });
-  const primera = await anularCobroTurnoInTx(tx, TENANT, argsAnular());
-  const segunda = await anularCobroTurnoInTx(tx, TENANT, argsAnular());
+  const primera = await anularCobroTurnoInTx(tx, TENANT, argsAnular(), asentarDePrueba);
+  const segunda = await anularCobroTurnoInTx(tx, TENANT, argsAnular(), asentarDePrueba);
   assert.equal(primera.applied, true);
   assert.deepEqual(segunda, { applied: false, reason: "duplicate", reversaId: primera.applied ? primera.reversaId : "" });
   assert.equal(collections.filter((c) => cobroAnuladoPor(c.note)).length, 1);
@@ -397,7 +398,7 @@ test("un cobro de un día YA CERRADO no se anula: la corrección va con fecha de
     payment: { amount: 18000 },
   });
   await assert.rejects(
-    () => anularCobroTurnoInTx(tx, TENANT, argsAnular({ diaCerradoHasta: "2026-09-10" })),
+    () => anularCobroTurnoInTx(tx, TENANT, argsAnular({ diaCerradoHasta: "2026-09-10" }), asentarDePrueba),
     (e: unknown) => e instanceof AnulacionRechazada && e.motivo === "dia-cerrado",
   );
   // Y no quedó NADA a medias.
@@ -414,7 +415,7 @@ test("la frontera se mide contra la FECHA CONTABLE del asiento, no contra cuánd
     payment: { amount: 18000 },
   });
   await assert.rejects(
-    () => anularCobroTurnoInTx(tx, TENANT, argsAnular({ diaCerradoHasta: "2026-09-11" })),
+    () => anularCobroTurnoInTx(tx, TENANT, argsAnular({ diaCerradoHasta: "2026-09-11" }), asentarDePrueba),
     (e: unknown) => e instanceof AnulacionRechazada && e.motivo === "dia-cerrado",
   );
 });
@@ -428,7 +429,7 @@ test("anular una contrapartida está prohibido: no se anula una anulación", asy
     payment: { amount: 0, status: "PENDING" },
   });
   await assert.rejects(
-    () => anularCobroTurnoInTx(tx, TENANT, argsAnular({ collectionId: "col-2" })),
+    () => anularCobroTurnoInTx(tx, TENANT, argsAnular({ collectionId: "col-2" }), asentarDePrueba),
     (e: unknown) => e instanceof AnulacionRechazada && e.motivo === "no-es-cobro",
   );
 });
@@ -438,7 +439,7 @@ test("schema-ahead: sin las columnas migradas la contrapartida se asienta igual,
     cobros: [{ id: "col-1", amount: 18000 }],
     payment: { amount: 18000 },
   });
-  const r = await anularCobroTurnoInTx(tx, TENANT, argsAnular({ withSchema: false }));
+  const r = await anularCobroTurnoInTx(tx, TENANT, argsAnular({ withSchema: false }), asentarDePrueba);
   assert.equal(r.applied, true);
   if (!r.applied) return;
   assert.equal(r.libro.asentada, false);
@@ -464,7 +465,7 @@ test("withSchema pero sin asiento original: la reversa no se asienta y lo dice",
     movs: [], // ← sin la VENTA del cobro
     payment: { amount: 18000 },
   });
-  const r = await anularCobroTurnoInTx(tx, TENANT, argsAnular({ withSchema: true }));
+  const r = await anularCobroTurnoInTx(tx, TENANT, argsAnular({ withSchema: true }), asentarDePrueba);
   assert.equal(r.applied, true);
   if (!r.applied) return;
   assert.equal(r.libro.asentada, false);
@@ -485,7 +486,7 @@ test("un medio que no se traduce a medio de caja NO se reporta como falta de asi
     movs: [{ collectionId: "col-1", type: "VENTA", amount: 18000 }],
     payment: { amount: 18000 },
   });
-  const r = await anularCobroTurnoInTx(tx, TENANT, argsAnular({ withSchema: true }));
+  const r = await anularCobroTurnoInTx(tx, TENANT, argsAnular({ withSchema: true }), asentarDePrueba);
   assert.equal(r.applied, true);
   if (!r.applied) return;
   assert.equal(r.libro.asentada, false);
@@ -499,7 +500,7 @@ test("anulado el cobro, el turno se puede volver a cobrar por el monto completo"
     movs: [{ collectionId: "col-1", type: "VENTA", amount: 18000 }],
     payment: { amount: 18000 },
   });
-  await anularCobroTurnoInTx(tx, TENANT, argsAnular());
+  await anularCobroTurnoInTx(tx, TENANT, argsAnular(), asentarDePrueba);
   const cobros = collections.map((c) => ({ amount: c.amount.toNumber(), method: c.method }));
   // Es el caso que motivó todo: se cobró en EFECTIVO lo que fue por TRANSFERENCIA.
   const v = validarCobroTurno({ status: "COMPLETED", precio: 18000, cobros, monto: 18000 });
@@ -668,6 +669,7 @@ for (const caso of [
           argsAnular({
             notaDeCredito: async (_tx, x) => (notas.push(x.facturaId), { ok: true, invoiceId: "nc-1" }),
           }),
+          asentarDePrueba,
         ),
       (e: unknown) => e instanceof AnulacionRechazada && e.motivo === caso.motivo,
     );
@@ -698,6 +700,7 @@ test("cobro con voucher libre y factura autorizada: se anula y la nota de crédi
     tx,
     TENANT,
     argsAnular({ notaDeCredito: async () => (pasos.push("emite la nota"), { ok: true, invoiceId: "nc-1" }) }),
+    asentarDePrueba,
   );
   assert.equal(r.applied && r.notaDeCreditoId, "nc-1");
   assert.deepEqual(pasos, ["libera el voucher", "emite la nota"]);

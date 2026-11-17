@@ -146,10 +146,11 @@ test("caja con lector: balanza, 2×1 en el renglón y pago mixto; el libro y el 
 
   // Anular: una contrapartida por medio (con su cobro, sin orderId), el stock vuelve.
   const { anularVentaInTx } = await import("@/lib/order-anulacion");
-  const { tenantTransaction } = await import("@/lib/rls");
+  // T01b: lo que asienta en la caja corre como en la app, en `transaccionQueAsienta` (Serializable con el candado).
+  const { transaccionQueAsienta, asentarEnCajaTx } = await import("@/lib/caja/candado-asiento.server");
   const e = process.env as Record<string, string | undefined>;
   e.FORCE_TENANT_SLUG = base.a.slug;
-  const anulada = await tenantTransaction(
+  const anulada = await transaccionQueAsienta(
     (tx) =>
       anularVentaInTx(tx, base.a.id, {
         orderId: venta.id,
@@ -159,7 +160,7 @@ test("caja con lector: balanza, 2×1 en el renglón y pago mixto; el libro y el 
         diaCerradoHasta: null,
         esDiaCerrado: () => false,
         diaDe: (d) => d.toISOString().slice(0, 10),
-      }),
+      }, asentarEnCajaTx),
     { tenantId: base.a.id },
   );
   delete e.FORCE_TENANT_SLUG;

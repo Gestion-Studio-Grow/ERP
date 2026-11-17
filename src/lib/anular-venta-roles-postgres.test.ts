@@ -359,7 +359,8 @@ test("adentro de la transacción: sin autorización no se anula plata, aunque se
     soloSinPlata,
   });
   await assert.rejects(
-    duenio.$transaction((tx) => anularVentaConSuCuentaEnTx(tx, a.id, args(true), { conCuentas: false })),
+    // T01b: Serializable, como `transaccionQueAsienta` en la app (el asiento lo exige).
+    duenio.$transaction((tx) => anularVentaConSuCuentaEnTx(tx, a.id, args(true), { conCuentas: false }), { isolationLevel: "Serializable" }),
     (e: unknown) => e instanceof AnulacionVentaRechazada && e.message === MENSAJE_FALTA_CODIGO_VENTA,
   );
   assert.deepEqual(await estado(s, a, id), SIN_TOCAR({ EFECTIVO: TOTAL }));
@@ -369,6 +370,7 @@ test("proceso automático: sin persona no hay código que pedir, y la reversa sa
   const s = await preparar(t);
   if (!s) return;
   const { anularVentaInTx } = await import("@/lib/order-anulacion");
+  const { asentarEnCajaTx } = await import("@/lib/caja/candado-asiento.server");
   const duenio = await prismaComoDuenio(s.base);
   const { a } = s.base;
   const id = await venta(s, a);
@@ -381,7 +383,8 @@ test("proceso automático: sin persona no hay código que pedir, y la reversa sa
       diaCerradoHasta: null,
       esDiaCerrado: () => false,
       diaDe: (d: Date) => d.toISOString().slice(0, 10),
-    }),
+    }, asentarEnCajaTx),
+    { isolationLevel: "Serializable" }, // T01b: como `transaccionQueAsienta` en la app (el asiento lo exige).
   );
   assert.equal(r.applied, true);
   assert.deepEqual(await estado(s, a, id), { status: "CANCELLED", egresos: 1, saldo: { EFECTIVO: 0 }, movimientosDeStock: 0 });

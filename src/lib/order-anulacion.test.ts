@@ -37,6 +37,7 @@ import {
   type AnulacionVentaTx,
 } from "./order-anulacion";
 import { isFrozenDay } from "@/lib/caja/cierre-diario";
+import { asentarDePrueba, conCandado } from "@/test/candado-de-prueba";
 
 // ── Doble de transacción ────────────────────────────────────────────────────
 //
@@ -193,7 +194,7 @@ function txDe(mundo: ReturnType<typeof nuevoMundo>): AnulacionVentaTx {
       },
     },
   };
-  return tx as unknown as AnulacionVentaTx;
+  return conCandado(tx) as unknown as AnulacionVentaTx;
 }
 
 const ARGS_BASE = {
@@ -209,7 +210,7 @@ const ARGS_BASE = {
 
 test("anular una venta cobrada asienta el EGRESO y devuelve los kilos", async () => {
   const mundo = nuevoMundo({});
-  const r = await anularVentaInTx(txDe(mundo), "t1", { ...ARGS_BASE, diaCerradoHasta: null });
+  const r = await anularVentaInTx(txDe(mundo), "t1", { ...ARGS_BASE, diaCerradoHasta: null }, asentarDePrueba);
 
   assert.equal(r.applied, true);
   assert.equal(mundo.order.status, "CANCELLED");
@@ -237,7 +238,7 @@ test("anular una venta cobrada asienta el EGRESO y devuelve los kilos", async ()
 test("la contrapartida va con la FECHA DEL ASIENTO ORIGINAL, no con la de hoy", async () => {
   const original = new Date("2026-09-15T13:00:00Z");
   const mundo = nuevoMundo({ occurredAt: original });
-  await anularVentaInTx(txDe(mundo), "t1", { ...ARGS_BASE, diaCerradoHasta: null });
+  await anularVentaInTx(txDe(mundo), "t1", { ...ARGS_BASE, diaCerradoHasta: null }, asentarDePrueba);
   const egreso = mundo.cashMovements.find((m) => m.type === "EGRESO")!;
   // Si se asentara con la fecha de hoy, el día del cobro quedaría con un ingreso de más
   // para siempre y hoy con un egreso que nadie pidió: dos días mal en vez de cero.
@@ -246,7 +247,7 @@ test("la contrapartida va con la FECHA DEL ASIENTO ORIGINAL, no con la de hoy", 
 
 test("la contrapartida queda FIRMADA para que el libro no la deje borrar", async () => {
   const mundo = nuevoMundo({});
-  await anularVentaInTx(txDe(mundo), "t1", { ...ARGS_BASE, diaCerradoHasta: null });
+  await anularVentaInTx(txDe(mundo), "t1", { ...ARGS_BASE, diaCerradoHasta: null }, asentarDePrueba);
   const egreso = mundo.cashMovements.find((m) => m.type === "EGRESO")!;
   assert.ok(String(egreso.createdBy).startsWith(ANULACION_VENTA_ACTOR_PREFIX));
   assert.equal(esEgresoDeAnulacionDeVenta(egreso as { createdBy: string }), true);
@@ -258,7 +259,7 @@ test("la contrapartida queda FIRMADA para que el libro no la deje borrar", async
 test("si el día del asiento ya está cerrado, NO se escribe absolutamente nada", async () => {
   const mundo = nuevoMundo({ occurredAt: new Date("2026-09-15T13:00:00Z") });
   await assert.rejects(
-    () => anularVentaInTx(txDe(mundo), "t1", { ...ARGS_BASE, diaCerradoHasta: "2026-09-16" }),
+    () => anularVentaInTx(txDe(mundo), "t1", { ...ARGS_BASE, diaCerradoHasta: "2026-09-16" }, asentarDePrueba),
     (e: unknown) => e instanceof AnulacionVentaRechazada && e.motivo === "dia-cerrado",
   );
   // Lo que importa no es el error: es que no quedó media anulación.
@@ -278,7 +279,7 @@ test("el mensaje del día cerrado dice qué hacer, no sólo que no se puede", ()
 
 test("un pedido SIN cobrar se anula aunque el día esté cerrado: no hay plata que mover", async () => {
   const mundo = nuevoMundo({ conAsiento: false, status: "PENDING" });
-  const r = await anularVentaInTx(txDe(mundo), "t1", { ...ARGS_BASE, diaCerradoHasta: "2026-09-30" });
+  const r = await anularVentaInTx(txDe(mundo), "t1", { ...ARGS_BASE, diaCerradoHasta: "2026-09-30" }, asentarDePrueba);
   assert.equal(r.applied, true);
   assert.equal(mundo.cashMovements.length, 0);
   assert.equal(mundo.stock, 11.24); // el stock sí vuelve
@@ -289,8 +290,8 @@ test("un pedido SIN cobrar se anula aunque el día esté cerrado: no hay plata q
 test("dos clics en Anular devuelven el stock UNA sola vez", async () => {
   const mundo = nuevoMundo({});
   const tx = txDe(mundo);
-  const a = await anularVentaInTx(tx, "t1", { ...ARGS_BASE, diaCerradoHasta: null });
-  const b = await anularVentaInTx(tx, "t1", { ...ARGS_BASE, diaCerradoHasta: null });
+  const a = await anularVentaInTx(tx, "t1", { ...ARGS_BASE, diaCerradoHasta: null }, asentarDePrueba);
+  const b = await anularVentaInTx(tx, "t1", { ...ARGS_BASE, diaCerradoHasta: null }, asentarDePrueba);
   assert.equal(a.applied, true);
   assert.deepEqual(b, { applied: false, reason: "duplicate" });
   assert.equal(mundo.cashMovements.filter((m) => m.type === "EGRESO").length, 1);
@@ -325,7 +326,7 @@ test("la factura se responde antes que el día cerrado: sin nota de crédito, ni
 test("anular una venta con factura autorizada se rechaza y no escribe nada", async () => {
   const mundo = nuevoMundo({ facturas: [{ tenantId: "t1", orderId: "ord_1", status: "AUTHORIZED" }] });
   await assert.rejects(
-    () => anularVentaInTx(txDe(mundo), "t1", { ...ARGS_BASE, diaCerradoHasta: null }),
+    () => anularVentaInTx(txDe(mundo), "t1", { ...ARGS_BASE, diaCerradoHasta: null }, asentarDePrueba),
     (e: unknown) => e instanceof AnulacionVentaRechazada && e.motivo === "facturada" && /nota de crédito/.test(e.message),
   );
   assert.equal(mundo.order.status, "DELIVERED", "el pedido no quedó anulado");
@@ -336,20 +337,20 @@ test("anular una venta con factura autorizada se rechaza y no escribe nada", asy
 
 test("la factura rechazada por ARCA no frena la anulación: no tiene CAE", async () => {
   const mundo = nuevoMundo({ facturas: [{ tenantId: "t1", orderId: "ord_1", status: "REJECTED" }] });
-  const r = await anularVentaInTx(txDe(mundo), "t1", { ...ARGS_BASE, diaCerradoHasta: null });
+  const r = await anularVentaInTx(txDe(mundo), "t1", { ...ARGS_BASE, diaCerradoHasta: null }, asentarDePrueba);
   assert.equal(r.applied, true);
 });
 
 test("la factura de otro negocio con el mismo id de pedido no frena la anulación", async () => {
   const mundo = nuevoMundo({ facturas: [{ tenantId: "t2", orderId: "ord_1", status: "AUTHORIZED" }] });
-  const r = await anularVentaInTx(txDe(mundo), "t1", { ...ARGS_BASE, diaCerradoHasta: null });
+  const r = await anularVentaInTx(txDe(mundo), "t1", { ...ARGS_BASE, diaCerradoHasta: null }, asentarDePrueba);
   assert.equal(r.applied, true);
 });
 
 test("una factura confirmada mientras se anulaba se ve después del bloqueo y la anulación se cae entera", async () => {
   const mundo = nuevoMundo({ facturaTrasElBloqueo: { tenantId: "t1", orderId: "ord_1", status: "PENDING" } });
   await assert.rejects(
-    () => anularVentaInTx(txDe(mundo), "t1", { ...ARGS_BASE, diaCerradoHasta: null }),
+    () => anularVentaInTx(txDe(mundo), "t1", { ...ARGS_BASE, diaCerradoHasta: null }, asentarDePrueba),
     (e: unknown) => e instanceof AnulacionVentaRechazada && e.motivo === "factura-en-camino",
   );
   // En la base, el lanzamiento vuelve atrás el compare-and-set: lo prueba el test contra Postgres.
@@ -560,14 +561,14 @@ test("sólo el rubro MOSTRADOR nace DELIVERED: la estética conserva su bandeja"
 test("anular una venta con cupón devuelve el uso a ESE cupón, y anular otra vez no devuelve otro", async () => {
   const mundo = nuevoMundo({ cuponDelPedido: { codigo: "VERANO10", tipo: "PERCENT", valor: 10, monto: 2343.6, cuponId: "cup_1" } });
   const tx = txDe(mundo);
-  const r = await anularVentaInTx(tx, "t1", { ...ARGS_BASE, diaCerradoHasta: null });
+  const r = await anularVentaInTx(tx, "t1", { ...ARGS_BASE, diaCerradoHasta: null }, asentarDePrueba);
   assert.equal(r.applied, true);
   if (r.applied) assert.equal(r.cuponDevuelto, "VERANO10");
   assert.equal(mundo.cupones.find((c) => c.id === "cup_1")!.usedCount, 0, "el uso vuelve");
   assert.equal(mundo.cupones.find((c) => c.id === "cup_otro")!.usedCount, 1, "el del otro negocio no se toca");
 
   // El doble clic: el compare-and-set del estado frena la segunda y el cupón no baja otra vez.
-  const otra = await anularVentaInTx(tx, "t1", { ...ARGS_BASE, diaCerradoHasta: null });
+  const otra = await anularVentaInTx(tx, "t1", { ...ARGS_BASE, diaCerradoHasta: null }, asentarDePrueba);
   assert.deepEqual(otra, { applied: false, reason: "duplicate" });
   assert.equal(mundo.cupones.find((c) => c.id === "cup_1")!.usedCount, 0);
 });
@@ -575,7 +576,7 @@ test("anular una venta con cupón devuelve el uso a ESE cupón, y anular otra ve
 test("una fila de cupón vieja (sin id) devuelve por código, dentro del negocio y sin bajar de cero", async () => {
   const mundo = nuevoMundo({ cuponDelPedido: { codigo: "VERANO10", tipo: "PERCENT", valor: 10, monto: 2343.6 } });
   mundo.cupones[0].usedCount = 0; // la dueña lo reinició a mano
-  const r = await anularVentaInTx(txDe(mundo), "t1", { ...ARGS_BASE, diaCerradoHasta: null });
+  const r = await anularVentaInTx(txDe(mundo), "t1", { ...ARGS_BASE, diaCerradoHasta: null }, asentarDePrueba);
   assert.equal(r.applied, true);
   if (r.applied) assert.equal(r.cuponDevuelto, null, "no había uso que devolver");
   assert.deepEqual(
@@ -589,21 +590,21 @@ test("fila vieja (sin id) y el cupón se borró y se recreó DESPUÉS del pedido
   const mundo = nuevoMundo({ cuponDelPedido: { codigo: "VERANO10", tipo: "PERCENT", valor: 10, monto: 2343.6 } });
   // El pedido es del 15/09; la dueña borró VERANO10 y lo volvió a crear el 20/09, y el nuevo ya tiene un uso.
   mundo.cupones[0] = { id: "cup_nuevo", tenantId: "t1", code: "VERANO10", usedCount: 1, createdAt: new Date("2026-09-20T12:00:00Z") };
-  const r = await anularVentaInTx(txDe(mundo), "t1", { ...ARGS_BASE, diaCerradoHasta: null });
+  const r = await anularVentaInTx(txDe(mundo), "t1", { ...ARGS_BASE, diaCerradoHasta: null }, asentarDePrueba);
   assert.equal(r.applied, true, "la anulación sigue igual");
   if (r.applied) assert.equal(r.cuponDevuelto, null);
   assert.equal(mundo.cupones[0].usedCount, 1, "el uso del cupón nuevo no se toca: no se gastó en este pedido");
 
   // El mismo caso con el cupón creado ANTES del pedido (el que se usó): el uso sí vuelve.
   const antes = nuevoMundo({ cuponDelPedido: { codigo: "VERANO10", tipo: "PERCENT", valor: 10, monto: 2343.6 } });
-  const r2 = await anularVentaInTx(txDe(antes), "t1", { ...ARGS_BASE, diaCerradoHasta: null });
+  const r2 = await anularVentaInTx(txDe(antes), "t1", { ...ARGS_BASE, diaCerradoHasta: null }, asentarDePrueba);
   if (r2.applied) assert.equal(r2.cuponDevuelto, "VERANO10");
   assert.equal(antes.cupones[0].usedCount, 0);
 });
 
 test("una venta sin cupón se anula igual y no toca ningún cupón", async () => {
   const mundo = nuevoMundo({});
-  const r = await anularVentaInTx(txDe(mundo), "t1", { ...ARGS_BASE, diaCerradoHasta: null });
+  const r = await anularVentaInTx(txDe(mundo), "t1", { ...ARGS_BASE, diaCerradoHasta: null }, asentarDePrueba);
   assert.equal(r.applied, true);
   if (r.applied) assert.equal(r.cuponDevuelto, null);
   assert.deepEqual(mundo.cupones.map((c) => c.usedCount), [1, 1]);
@@ -614,7 +615,7 @@ test("si la anulación no pasa (día cerrado), el cupón tampoco vuelve", async 
     occurredAt: new Date("2026-09-15T13:00:00Z"),
     cuponDelPedido: { codigo: "VERANO10", tipo: "PERCENT", valor: 10, monto: 1, cuponId: "cup_1" },
   });
-  await assert.rejects(() => anularVentaInTx(txDe(mundo), "t1", { ...ARGS_BASE, diaCerradoHasta: "2026-09-16" }));
+  await assert.rejects(() => anularVentaInTx(txDe(mundo), "t1", { ...ARGS_BASE, diaCerradoHasta: "2026-09-16" }, asentarDePrueba));
   assert.equal(mundo.cupones[0].usedCount, 1);
 });
 
