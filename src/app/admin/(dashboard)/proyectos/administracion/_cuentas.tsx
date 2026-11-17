@@ -15,6 +15,7 @@ import { ROL_LABEL, ROLES_GESTION } from "@/lib/proyectos/gestion-core";
 import { borrarVista, guardarVista } from "@/lib/proyectos/acciones-vistas";
 import { campo, etiqueta, tarjeta } from "../_vista";
 import { BotonDosPasos, DatoCuota, FormAccion, MarcarCuota, VenceCuota } from "./_controles";
+import { GuardarVista } from "./_guardar-vista";
 
 const MAX_FILAS = 300;
 const FILTRO_LABEL: Record<FiltroCuota, string> = { pendientes: "Pendientes", vencidos: "Vencidos", pagados: "Pagados", todos: "Todos" };
@@ -47,7 +48,7 @@ const fijaDerecha = "sm:sticky sm:right-0 sm:bg-surface-raised max-sm:col-span-2
 const celda = "max-sm:py-1 max-sm:pr-0 max-sm:before:block max-sm:before:text-xs max-sm:before:text-muted max-sm:before:content-[attr(data-label)]";
 const renglon = "max-sm:grid max-sm:grid-cols-2 max-sm:gap-x-3 max-sm:py-2";
 
-export async function TabCuentas({ tipo, estado, q, vista: vistaId, cuotas, sinCalendario = [], tc, tenantId, editaEmpresa, editaPagos, veClientes = false }: { tipo: "COBRO" | "PAGO"; estado?: string; q?: string; vista?: string; cuotas: readonly (CuotaDelNegocio & { pendiente?: number; cobrado?: number; pagado?: PagadoDeCuota | null })[]; sinCalendario?: readonly SinCalendarioDelNegocio[]; tc: Readonly<Record<string, number>>; tenantId: string; editaEmpresa: boolean; editaPagos: boolean; veClientes?: boolean }) {
+export async function TabCuentas({ tipo, estado, q, vista: vistaId, guardada = false, cuotas, sinCalendario = [], tc, tenantId, editaEmpresa, editaPagos, veClientes = false }: { tipo: "COBRO" | "PAGO"; estado?: string; q?: string; vista?: string; guardada?: boolean; cuotas: readonly (CuotaDelNegocio & { pendiente?: number; cobrado?: number; pagado?: PagadoDeCuota | null })[]; sinCalendario?: readonly SinCalendarioDelNegocio[]; tc: Readonly<Record<string, number>>; tenantId: string; editaEmpresa: boolean; editaPagos: boolean; veClientes?: boolean }) {
   // La vista guardada (O46): sus filtros son el punto de partida; el estado elegido arriba manda sobre el de la vista.
   const lista: ListaId = tipo === "COBRO" ? "a-cobrar" : "a-pagar";
   const a = await actorActual();
@@ -145,12 +146,12 @@ export async function TabCuentas({ tipo, estado, q, vista: vistaId, cuotas, sinC
                     </td>
                     {ve.has("evento") && (
                       <td data-label="Evento" className={cn("py-2 pr-3", celda)}>
-                        {c.proyecto ? <Link href={`/admin/proyectos/${c.proyecto.id}`} className="underline">{codigoProyecto(c.proyecto.numero, c.proyecto.createdAt)} {c.proyecto.nombre}</Link> : <span className="text-muted">Empresa</span>}
+                        {c.proyecto ? <Link href={`/admin/proyectos/${c.proyecto.id}`} className="inline-flex min-h-11 items-center underline">{codigoProyecto(c.proyecto.numero, c.proyecto.createdAt)} {c.proyecto.nombre}</Link> : <span className="text-muted">Empresa</span>}
                       </td>
                     )}
                     {ve.has("contraparte") && (
                       <td data-label={tipo === "COBRO" ? "Cliente" : "Proveedor"} className={cn("py-2 pr-3", celda)}>
-                        {c.tipo === "COBRO" && c.proyecto && veClientes ? <Link href={`/admin/clientes/${c.proyecto.client.id}`} className="underline">{c.proyecto.client.name}</Link> : contraparte(c)}
+                        {c.tipo === "COBRO" && c.proyecto && veClientes ? <Link href={`/admin/clientes/${c.proyecto.client.id}`} className="inline-flex min-h-11 items-center underline">{c.proyecto.client.name}</Link> : contraparte(c)}
                       </td>
                     )}
                     {ve.has("concepto") && (
@@ -189,7 +190,7 @@ export async function TabCuentas({ tipo, estado, q, vista: vistaId, cuotas, sinC
                   <td data-label="Vence" className={cn("py-2 pr-3 text-muted", celda)}>Sin fecha</td>
                   {ve.has("evento") && (
                     <td data-label="Evento" className={cn("py-2 pr-3", celda)}>
-                      <Link href={`/admin/proyectos/${f.proyecto.id}`} className="underline">{codigoProyecto(f.proyecto.numero, f.proyecto.createdAt)} {f.proyecto.nombre}</Link>
+                      <Link href={`/admin/proyectos/${f.proyecto.id}`} className="inline-flex min-h-11 items-center underline">{codigoProyecto(f.proyecto.numero, f.proyecto.createdAt)} {f.proyecto.nombre}</Link>
                     </td>
                   )}
                   {ve.has("contraparte") && <td data-label="Cliente" className={cn("py-2 pr-3", celda)}>{f.proyecto.client.name}</td>}
@@ -215,10 +216,10 @@ export async function TabCuentas({ tipo, estado, q, vista: vistaId, cuotas, sinC
         </div>
       )}
 
-      <details className={tarjeta}>
+      <details className={tarjeta} open={guardada}>
         <summary className="flex min-h-11 cursor-pointer items-center font-semibold text-strong">Guardar una vista de esta lista</summary>
         <p className="mb-3 mt-1 text-sm text-muted">Elegí qué columnas ver, qué filtrar y cómo ordenar. Lo que tu rol no puede ver no aparece aunque la vista lo pida.</p>
-        <FormAccion accion={guardarVista} boton="Guardar vista" className="sm:grid-cols-2">
+        <GuardarVista accion={guardarVista} tab={tab} guardada={guardada}>
           <input type="hidden" name="lista" value={lista} />
           <label className={etiqueta}>Nombre<input name="nombre" required maxLength={60} defaultValue={actual.alcance === "SISTEMA" ? "" : actual.nombre} className={campo} /></label>
           {a.rol === "DIRECCION" ? (
@@ -258,7 +259,7 @@ export async function TabCuentas({ tipo, estado, q, vista: vistaId, cuotas, sinC
           <label className={etiqueta}>Ordenar
             <select name="orden" defaultValue={actual.orden} className={campo}>{ORDENES.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}</select>
           </label>
-        </FormAccion>
+        </GuardarVista>
         {borrable && <div className="mt-3"><BotonDosPasos accion={borrarVista} campos={{ id: actual.id }} etiqueta={`Borrar la vista «${actual.nombre}»`} pregunta="¿Borrar esta vista? La lista no cambia." /></div>}
       </details>
 

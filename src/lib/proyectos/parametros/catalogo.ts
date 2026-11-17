@@ -136,7 +136,7 @@ export const CATALOGO: readonly DefParametro[] = [
   // ── Etapas ──
   {
     clave: "etapas.lista", grupo: "etapas", nombre: "Etapas del proyecto", seNota: "Las columnas del tablero", usa: "T02, T09",
-    def: { tipo: "etapas" }, provisional: false, fuente: "Diseño MIA § 2.2 (decisión 1)",
+    def: { tipo: "etapas" }, provisional: false, fuente: "Diseño del módulo, decidido con el negocio",
     rubro: [
       { id: "BRIEF", nombre: "Brief o idea", estados: ["PEDIDO"], compuerta: "AVISA" },
       { id: "COMERCIAL", nombre: "Comercial", estados: ["DISENO", "RENDER", "PRESUPUESTO", "PROPUESTA"], compuerta: "AVISA" },
@@ -147,20 +147,20 @@ export const CATALOGO: readonly DefParametro[] = [
   // ── Precio ──
   {
     clave: "precio.modo", grupo: "precio", nombre: "Modo de precio", seNota: "La ficha muestra el tablero de precio o no", usa: "T07",
-    def: { tipo: "opcion", opciones: [{ id: "POR_TOTAL", label: "Por total" }, { id: "POR_ITEM", label: "Por ítem" }] }, rubro: "POR_TOTAL", provisional: false, fuente: "Diseño MIA § 4.1",
+    def: { tipo: "opcion", opciones: [{ id: "POR_TOTAL", label: "Por total" }, { id: "POR_ITEM", label: "Por ítem" }] }, rubro: "POR_TOTAL", provisional: false, fuente: "Diseño del módulo",
   },
-  { clave: "precio.rentabilidad", grupo: "precio", nombre: "Rentabilidad %", seNota: "Los renglones del tablero", usa: "T07", def: { tipo: "conRango" }, rubro: pct(30), provisional: true, fuente: "Planilla base (plan § 2.1, caso Z)" },
-  { clave: "precio.comision", grupo: "precio", nombre: "Comisión por función %", seNota: "Los renglones del tablero", usa: "T07", def: { tipo: "mapaConRango", clavesDe: "equipo.funciones" }, rubro: { COMERCIAL: pct(10), PRODUCTOR: pct(10), PRODUCTOR_CAMPO: pct(0) }, provisional: true, fuente: "Planilla base (plan § 2.1, caso Z)" },
-  { clave: "precio.margenError", grupo: "precio", nombre: "Margen de error %", seNota: "Los renglones del tablero", usa: "T07", def: { tipo: "conRango" }, rubro: pct(5), provisional: true, fuente: "Planilla base (plan § 2.1, caso Z)" },
-  { clave: "precio.iibbGa", grupo: "precio", nombre: "IIB y gastos administrativos %", seNota: "Los renglones del tablero", usa: "T07", def: { tipo: "conRango" }, rubro: pct(7), provisional: true, fuente: "Planilla base (plan § 2.1, caso Z)" },
-  { clave: "precio.redondeo.tope", grupo: "precio", nombre: "Tope del redondeo %", seNota: "El aviso de Z-tope", usa: "T07", def: { tipo: "porcentaje", min: 0, max: 100 }, rubro: 5, provisional: true, fuente: "Diseño MIA § 4.1 (decisión 5)" },
+  { clave: "precio.rentabilidad", grupo: "precio", nombre: "Rentabilidad %", seNota: "Los renglones del tablero", usa: "T07", def: { tipo: "conRango" }, rubro: pct(30), provisional: true, fuente: "La planilla de costos del rubro" },
+  { clave: "precio.comision", grupo: "precio", nombre: "Comisión por función %", seNota: "Los renglones del tablero", usa: "T07", def: { tipo: "mapaConRango", clavesDe: "equipo.funciones" }, rubro: { COMERCIAL: pct(10), PRODUCTOR: pct(10), PRODUCTOR_CAMPO: pct(0) }, provisional: true, fuente: "La planilla de costos del rubro" },
+  { clave: "precio.margenError", grupo: "precio", nombre: "Margen de error %", seNota: "Los renglones del tablero", usa: "T07", def: { tipo: "conRango" }, rubro: pct(5), provisional: true, fuente: "La planilla de costos del rubro" },
+  { clave: "precio.iibbGa", grupo: "precio", nombre: "IIB y gastos administrativos %", seNota: "Los renglones del tablero", usa: "T07", def: { tipo: "conRango" }, rubro: pct(7), provisional: true, fuente: "La planilla de costos del rubro" },
+  { clave: "precio.redondeo.tope", grupo: "precio", nombre: "Tope del redondeo %", seNota: "El aviso de redondeo cuando pasa el tope", usa: "T07", def: { tipo: "porcentaje", min: 0, max: 100 }, rubro: 5, provisional: true, fuente: "Diseño del módulo, decidido con el negocio" },
   {
-    clave: "precio.redondeo.medida", grupo: "precio", nombre: "Cómo se mide el redondeo", seNota: "El aviso de Z-tope", usa: "T07",
-    def: { tipo: "opcion", opciones: [{ id: "BRUTO", label: "Bruto (sobre el total)" }, { id: "NETO", label: "Neto (después de IIB y GA)" }] }, rubro: "BRUTO", provisional: true, fuente: "Diseño MIA § 4.1 («medido como en el Excel»)",
+    clave: "precio.redondeo.medida", grupo: "precio", nombre: "Cómo se mide el redondeo", seNota: "El aviso de redondeo cuando pasa el tope", usa: "T07",
+    def: { tipo: "opcion", opciones: [{ id: "BRUTO", label: "Bruto (sobre el total)" }, { id: "NETO", label: "Neto (después de IIB y GA)" }] }, rubro: "BRUTO", provisional: true, fuente: "Diseño del módulo (medido como en la planilla)",
   },
   {
-    clave: "precio.redondeo.accion", grupo: "precio", nombre: "Qué pasa al pasar el tope", seNota: "El aviso de Z-tope", usa: "T07",
-    def: { tipo: "opcion", opciones: [{ id: "AVISA_APRUEBA_DIRECCION", label: "Avisa y lo aprueba Dirección" }, { id: "FRENA", label: "Frena" }, { id: "INFORMA", label: "Sólo informa" }] }, rubro: "AVISA_APRUEBA_DIRECCION", provisional: true, fuente: "Diseño MIA § 4.1 (decisión 5)",
+    clave: "precio.redondeo.accion", grupo: "precio", nombre: "Qué pasa al pasar el tope", seNota: "El aviso de redondeo cuando pasa el tope", usa: "T07",
+    def: { tipo: "opcion", opciones: [{ id: "AVISA_APRUEBA_DIRECCION", label: "Avisa y lo aprueba Dirección" }, { id: "FRENA", label: "Frena" }, { id: "INFORMA", label: "Sólo informa" }] }, rubro: "AVISA_APRUEBA_DIRECCION", provisional: true, fuente: "Diseño del módulo, decidido con el negocio",
   },
   {
     clave: "precio.propuesta.detalle", grupo: "precio", nombre: "Propuesta al cliente", seNota: "La propuesta pública", usa: "T07",
@@ -171,27 +171,27 @@ export const CATALOGO: readonly DefParametro[] = [
     def: { tipo: "opcion", opciones: [{ id: "MAS_IVA", label: "Más IVA" }, { id: "CON_IVA", label: "Con IVA incluido" }] }, rubro: "MAS_IVA", provisional: true, fuente: "Sin fuente: a confirmar",
   },
   // ── Reparto ──
-  { clave: "reparto.activo", grupo: "reparto", nombre: "Reparto", seNota: "La rendición; el plus (O25)", usa: "T07, T10, T12", def: { tipo: "booleano", si: "Prendido", no: "Apagado" }, rubro: true, provisional: true, fuente: "Diseño MIA § 4.1 (decisión 3)" },
-  { clave: "reparto.conceptos", grupo: "reparto", nombre: "Conceptos que se reparten", seNota: "La rendición", usa: "T07, T10, T12", def: { tipo: "conId", min: 1, max: 8 }, rubro: [{ id: "DEFENSA", nombre: "Defensa" }], provisional: true, fuente: "Diseño MIA § 1.5" },
-  { clave: "reparto.matriz", grupo: "reparto", nombre: "Matriz inicial por función %", seNota: "La rendición (75 y 25 en el caso Z)", usa: "T07, T10, T12", def: { tipo: "matriz", filasDe: "reparto.conceptos", columnasDe: "equipo.funciones" }, rubro: { DEFENSA: { [EMPRESA]: 75, PRODUCTOR: 25 } }, provisional: true, fuente: "Diseño MIA § 1.5" },
+  { clave: "reparto.activo", grupo: "reparto", nombre: "Reparto", seNota: "La rendición y el plus del equipo", usa: "T07, T10, T12", def: { tipo: "booleano", si: "Prendido", no: "Apagado" }, rubro: true, provisional: true, fuente: "Diseño del módulo, decidido con el negocio" },
+  { clave: "reparto.conceptos", grupo: "reparto", nombre: "Conceptos que se reparten", seNota: "La rendición", usa: "T07, T10, T12", def: { tipo: "conId", min: 1, max: 8 }, rubro: [{ id: "DEFENSA", nombre: "Defensa" }], provisional: true, fuente: "Diseño del módulo" },
+  { clave: "reparto.matriz", grupo: "reparto", nombre: "Matriz inicial por función %", seNota: "La rendición: cuánto va a la empresa y cuánto a cada función", usa: "T07, T10, T12", def: { tipo: "matriz", filasDe: "reparto.conceptos", columnasDe: "equipo.funciones" }, rubro: { DEFENSA: { [EMPRESA]: 75, PRODUCTOR: 25 } }, provisional: true, fuente: "Diseño del módulo" },
   {
-    clave: "reparto.defensaNegativa", grupo: "reparto", nombre: "Defensa negativa", seNota: "Z-neg", usa: "T10, T12",
+    clave: "reparto.defensaNegativa", grupo: "reparto", nombre: "Defensa negativa", seNota: "La rendición cuando la defensa da negativa", usa: "T10, T12",
     def: { tipo: "opcion", opciones: [{ id: "DESCUENTA", label: "Descuenta" }, { id: "PISO_CERO", label: "Piso cero" }] }, rubro: "DESCUENTA", provisional: true, fuente: "Decisión 4, pendiente",
   },
   {
-    clave: "reparto.cuandoSePaga", grupo: "reparto", nombre: "Cuándo se paga", seNota: "C-O23", usa: "T10, T12",
+    clave: "reparto.cuandoSePaga", grupo: "reparto", nombre: "Cuándo se paga", seNota: "La liquidación del equipo", usa: "T10, T12",
     def: { tipo: "opcion", opciones: [{ id: "AL_COBRAR_TODO", label: "Cuando el cliente pagó todo" }, { id: "AL_APROBAR", label: "Al aprobar la liquidación" }] }, rubro: "AL_COBRAR_TODO", provisional: true, fuente: "Decisión 6, pendiente",
   },
   // ── Equipo ──
-  { clave: "equipo.funciones", grupo: "equipo", nombre: "Funciones del proyecto", seNota: "El equipo de la ficha", usa: "T07", def: { tipo: "conId", min: 1, max: 10 }, rubro: FUNCIONES, provisional: false, fuente: "Diseño MIA § 4.1" },
+  { clave: "equipo.funciones", grupo: "equipo", nombre: "Funciones del proyecto", seNota: "El equipo de la ficha", usa: "T07", def: { tipo: "conId", min: 1, max: 10 }, rubro: FUNCIONES, provisional: false, fuente: "Diseño del módulo" },
   // ── Costos ──
-  { clave: "costos.sectores", grupo: "costos", nombre: "Sectores", seNota: "Los desplegables de la línea y de la imputación", usa: "T05, T06", def: { tipo: "lista", min: 1, max: 40 }, rubro: ["Producción", "Diseño", "Logística"], provisional: true, fuente: "Las listas del Excel: a cargar con el negocio" },
-  { clave: "costos.categorias", grupo: "costos", nombre: "Categorías", seNota: "Los desplegables de la línea y de la imputación", usa: "T05, T06", def: { tipo: "lista", min: 1, max: 60 }, rubro: [...RUBROS], provisional: true, fuente: "Rubros del ERP (gestion-core RUBROS)" },
+  { clave: "costos.sectores", grupo: "costos", nombre: "Sectores", seNota: "Los desplegables de la línea y de la imputación", usa: "T05, T06", def: { tipo: "lista", min: 1, max: 40 }, rubro: ["Producción", "Diseño", "Logística"], provisional: true, fuente: "Las listas de la planilla: a cargar con el negocio" },
+  { clave: "costos.categorias", grupo: "costos", nombre: "Categorías", seNota: "Los desplegables de la línea y de la imputación", usa: "T05, T06", def: { tipo: "lista", min: 1, max: 60 }, rubro: [...RUBROS], provisional: true, fuente: "Los rubros que ya usa el sistema" },
   { clave: "costos.categoriasAdministracion", grupo: "costos", nombre: "Categorías de administración", seNota: "La imputación de gastos de administración", usa: "T05, T06", def: { tipo: "lista", min: 1, max: 40 }, rubro: ["Alquiler", "Servicios", "Honorarios", "Impuestos y tasas", "Sueldos y cargas"], provisional: true, fuente: "Sin fuente: a cargar con el negocio" },
-  // ── Plan de cuotas (hoy fijos en gestion-core.ts:176-178) ──
-  { clave: "plan.anticipoProveedorDiasAntes", grupo: "plan", nombre: "Anticipo al proveedor", seNota: "Los vencimientos del plan", usa: "T06", def: { tipo: "entero", min: 0, max: 365, unidad: "días antes del evento" }, rubro: 30, provisional: false, fuente: "ERP, gestion-core.ts:178" },
-  { clave: "plan.saldoProveedorDiasDespues", grupo: "plan", nombre: "Saldo al proveedor", seNota: "Los vencimientos del plan", usa: "T06", def: { tipo: "entero", min: 0, max: 365, unidad: "días después del evento" }, rubro: 12, provisional: false, fuente: "ERP, gestion-core.ts:177" },
-  { clave: "plan.saldoClienteDiasAntes", grupo: "plan", nombre: "Saldo del cliente", seNota: "Los vencimientos del plan", usa: "T06", def: { tipo: "entero", min: 0, max: 365, unidad: "días antes del evento" }, rubro: 5, provisional: false, fuente: "ERP, gestion-core.ts:176" },
+  // ── Plan de cuotas (hoy fijos en gestion-core.ts:176-178; la fuente en pantalla lo dice en criollo) ──
+  { clave: "plan.anticipoProveedorDiasAntes", grupo: "plan", nombre: "Anticipo al proveedor", seNota: "Los vencimientos del plan", usa: "T06", def: { tipo: "entero", min: 0, max: 365, unidad: "días antes del evento" }, rubro: 30, provisional: false, fuente: "Lo que el sistema usa hoy en el plan de cuotas" },
+  { clave: "plan.saldoProveedorDiasDespues", grupo: "plan", nombre: "Saldo al proveedor", seNota: "Los vencimientos del plan", usa: "T06", def: { tipo: "entero", min: 0, max: 365, unidad: "días después del evento" }, rubro: 12, provisional: false, fuente: "Lo que el sistema usa hoy en el plan de cuotas" },
+  { clave: "plan.saldoClienteDiasAntes", grupo: "plan", nombre: "Saldo del cliente", seNota: "Los vencimientos del plan", usa: "T06", def: { tipo: "entero", min: 0, max: 365, unidad: "días antes del evento" }, rubro: 5, provisional: false, fuente: "Lo que el sistema usa hoy en el plan de cuotas" },
   // ── Previsión ──
   {
     clave: "prevision.palabras", grupo: "prevision", nombre: "Estados de la previsión", seNota: "La previsión de pagos", usa: "T06",
@@ -199,7 +199,7 @@ export const CATALOGO: readonly DefParametro[] = [
   },
   // ── IVA ──
   {
-    clave: "iva.porComprobante", grupo: "iva", nombre: "Tratamiento del IVA por comprobante", seNota: "C-O30", usa: "T05",
+    clave: "iva.porComprobante", grupo: "iva", nombre: "Tratamiento del IVA por comprobante", seNota: "El costo de cada comprobante de proveedor", usa: "T05",
     def: {
       tipo: "mapaOpcion",
       claves: [{ id: "A", label: "Factura A" }, { id: "B", label: "Factura B" }, { id: "C", label: "Factura C" }, { id: "SIN_FACTURA", label: "Sin factura" }],
@@ -209,44 +209,44 @@ export const CATALOGO: readonly DefParametro[] = [
   },
   // ── Moneda ──
   {
-    clave: "moneda.habilitadas", grupo: "moneda", nombre: "Monedas habilitadas", seNota: "C-O31", usa: "T08",
-    def: { tipo: "multiple", opciones: [{ id: "ARS", label: "Pesos" }, { id: "USD", label: "Dólares" }, { id: "EUR", label: "Euros" }], min: 1 }, rubro: ["ARS", "USD"], provisional: false, fuente: "Diseño MIA § 4.1",
+    clave: "moneda.habilitadas", grupo: "moneda", nombre: "Monedas habilitadas", seNota: "Las monedas que se pueden elegir al cargar", usa: "T08",
+    def: { tipo: "multiple", opciones: [{ id: "ARS", label: "Pesos" }, { id: "USD", label: "Dólares" }, { id: "EUR", label: "Euros" }], min: 1 }, rubro: ["ARS", "USD"], provisional: false, fuente: "Diseño del módulo",
   },
   {
-    clave: "moneda.cambioDelCosto", grupo: "moneda", nombre: "Cambio que vale para el costo", seNota: "C-O39", usa: "T08",
-    def: { tipo: "opcion", opciones: [{ id: "MANUAL", label: "El que se carga a mano" }, { id: "DEL_COMPROBANTE", label: "El del día del comprobante" }, { id: "DEL_PAGO", label: "El del día del pago" }] }, rubro: "MANUAL", provisional: true, fuente: "Diseño MIA § 4.1 (pregunta 9)",
+    clave: "moneda.cambioDelCosto", grupo: "moneda", nombre: "Cambio que vale para el costo", seNota: "El costo en pesos de lo que se compra en otra moneda", usa: "T08",
+    def: { tipo: "opcion", opciones: [{ id: "MANUAL", label: "El que se carga a mano" }, { id: "DEL_COMPROBANTE", label: "El del día del comprobante" }, { id: "DEL_PAGO", label: "El del día del pago" }] }, rubro: "MANUAL", provisional: true, fuente: "Diseño del módulo: a confirmar con el negocio",
   },
-  { clave: "moneda.quienCotiza", grupo: "moneda", nombre: "Quién carga la cotización", seNota: "C-O39", usa: "T08", def: { tipo: "opcion", opciones: ROLES_QUE_CIERRAN }, rubro: "ADMINISTRACION", provisional: true, fuente: "Sin fuente: a confirmar" },
+  { clave: "moneda.quienCotiza", grupo: "moneda", nombre: "Quién carga la cotización", seNota: "El costo en pesos de lo que se compra en otra moneda", usa: "T08", def: { tipo: "opcion", opciones: ROLES_QUE_CIERRAN }, rubro: "ADMINISTRACION", provisional: true, fuente: "Sin fuente: a confirmar" },
   // ── Retenciones ──
-  { clave: "retenciones.tipos", grupo: "retenciones", nombre: "Tipos de retención", seNota: "C-O36", usa: "T08", def: { tipo: "lista", min: 0, max: 20 }, rubro: ["IIBB", "Ganancias", "IVA", "SUSS"], provisional: true, fuente: "Sin fuente del negocio: a confirmar" },
-  { clave: "retenciones.cuentanComoCobrado", grupo: "retenciones", nombre: "La retención cuenta como cobrado", seNota: "C-O36", usa: "T08", def: { tipo: "booleano", si: "Sí", no: "No" }, rubro: true, provisional: true, fuente: "Sin fuente: a confirmar" },
+  { clave: "retenciones.tipos", grupo: "retenciones", nombre: "Tipos de retención", seNota: "Los cobros con retención", usa: "T08", def: { tipo: "lista", min: 0, max: 20 }, rubro: ["IIBB", "Ganancias", "IVA", "SUSS"], provisional: true, fuente: "Sin fuente del negocio: a confirmar" },
+  { clave: "retenciones.cuentanComoCobrado", grupo: "retenciones", nombre: "La retención cuenta como cobrado", seNota: "Los cobros con retención", usa: "T08", def: { tipo: "booleano", si: "Sí", no: "No" }, rubro: true, provisional: true, fuente: "Sin fuente: a confirmar" },
   // ── Cierre ──
-  { clave: "cierre.dia", grupo: "cierre", nombre: "Día de cierre del mes", seNota: "El cierre del mes", usa: "T01, T09", def: { tipo: "entero", min: 1, max: 28, unidad: "del mes siguiente" }, rubro: 10, provisional: true, fuente: "Diseño MIA § 4.1: provisional a confirmar" },
-  { clave: "cierre.quienCierra", grupo: "cierre", nombre: "Quién cierra el mes", seNota: "El cierre del mes", usa: "T01, T09", def: { tipo: "opcion", opciones: ROLES_QUE_CIERRAN }, rubro: "ADMINISTRACION", provisional: true, fuente: "Diseño MIA § 4.1: provisional a confirmar" },
+  { clave: "cierre.dia", grupo: "cierre", nombre: "Día de cierre del mes", seNota: "El cierre del mes", usa: "T01, T09", def: { tipo: "entero", min: 1, max: 28, unidad: "del mes siguiente" }, rubro: 10, provisional: true, fuente: "Diseño del módulo: provisional a confirmar" },
+  { clave: "cierre.quienCierra", grupo: "cierre", nombre: "Quién cierra el mes", seNota: "El cierre del mes", usa: "T01, T09", def: { tipo: "opcion", opciones: ROLES_QUE_CIERRAN }, rubro: "ADMINISTRACION", provisional: true, fuente: "Diseño del módulo: provisional a confirmar" },
   { clave: "cierre.mesEjercicio", grupo: "cierre", nombre: "Mes en que cierra el ejercicio", seNota: "El cierre del mes", usa: "T01, T09", def: { tipo: "entero", min: 1, max: 12, unidad: "(1 = enero)" }, rubro: 12, provisional: true, fuente: "Se carga desde el contrato social del negocio" },
   { clave: "cierre.exigeCajaDiaria", grupo: "cierre", nombre: "Exige caja diaria cerrada", seNota: "El cierre del mes", usa: "T01, T09", def: { tipo: "booleano", si: "Sí", no: "No" }, rubro: false, provisional: true, fuente: "Sin fuente: a confirmar" },
   // ── Calendario ──
-  { clave: "calendario.tiposObligacion", grupo: "calendario", nombre: "Tipos de obligación", seNota: "El calendario", usa: "T09", def: { tipo: "lista", min: 1, max: 30 }, rubro: ["Armado", "Evento", "Desarme", "Cuota a cobrar", "Pago a proveedor", "Reunión"], provisional: true, fuente: "Diseño MIA § 2.3 (pregunta 11)" },
-  { clave: "calendario.diasAviso", grupo: "calendario", nombre: "Días de aviso", seNota: "El calendario", usa: "T09", def: { tipo: "entero", min: 0, max: 60, unidad: "días antes" }, rubro: 3, provisional: true, fuente: "Diseño MIA § 4.1 (pregunta 11)" },
-  { clave: "calendario.guardaCerteza", grupo: "calendario", nombre: "Guarda si la fecha está confirmada", seNota: "El calendario", usa: "T09", def: { tipo: "booleano", si: "Sí", no: "No" }, rubro: true, provisional: true, fuente: "Diseño MIA § 2.3 (pregunta 20)" },
+  { clave: "calendario.tiposObligacion", grupo: "calendario", nombre: "Tipos de obligación", seNota: "El calendario", usa: "T09", def: { tipo: "lista", min: 1, max: 30 }, rubro: ["Armado", "Evento", "Desarme", "Cuota a cobrar", "Pago a proveedor", "Reunión"], provisional: true, fuente: "Diseño del módulo: a confirmar con el negocio" },
+  { clave: "calendario.diasAviso", grupo: "calendario", nombre: "Días de aviso", seNota: "El calendario", usa: "T09", def: { tipo: "entero", min: 0, max: 60, unidad: "días antes" }, rubro: 3, provisional: true, fuente: "Diseño del módulo: a confirmar con el negocio" },
+  { clave: "calendario.guardaCerteza", grupo: "calendario", nombre: "Guarda si la fecha está confirmada", seNota: "El calendario", usa: "T09", def: { tipo: "booleano", si: "Sí", no: "No" }, rubro: true, provisional: true, fuente: "Diseño del módulo: a confirmar con el negocio" },
   // ── Antigüedad ──
-  { clave: "antiguedad.tramos", grupo: "antiguedad", nombre: "Tramos de antigüedad (días)", seNota: "C-O34", usa: "T09", def: { tipo: "tramos", min: 1, max: 6 }, rubro: [30, 60, 90], provisional: true, fuente: "Sin fuente: a confirmar" },
+  { clave: "antiguedad.tramos", grupo: "antiguedad", nombre: "Tramos de antigüedad (días)", seNota: "El informe de antigüedad de deudas", usa: "T09", def: { tipo: "tramos", min: 1, max: 6 }, rubro: [30, 60, 90], provisional: true, fuente: "Sin fuente: a confirmar" },
   // ── Sociedades ──
-  { clave: "sociedades.vinculadas", grupo: "sociedades", nombre: "Sociedades vinculadas", seNota: "C-O44", usa: "T05", def: { tipo: "lista", min: 0, max: 10 }, rubro: [], provisional: true, fuente: "A cargar con el negocio" },
+  { clave: "sociedades.vinculadas", grupo: "sociedades", nombre: "Sociedades vinculadas", seNota: "Las compras entre sociedades del grupo", usa: "T05", def: { tipo: "lista", min: 0, max: 10 }, rubro: [], provisional: true, fuente: "A cargar con el negocio" },
   {
-    clave: "sociedades.modeloCompra", grupo: "sociedades", nombre: "Modelo de compra", seNota: "C-O44", usa: "T05",
-    def: { tipo: "opcion", opciones: [{ id: "CADA_UNA_COMPRA", label: "Cada sociedad compra lo suyo" }, { id: "UNA_COMPRA_Y_REFACTURA", label: "Una compra y le factura a la otra" }] }, rubro: "CADA_UNA_COMPRA", provisional: true, fuente: "Plan MIA-50 § 3 (O44, sin definir)",
+    clave: "sociedades.modeloCompra", grupo: "sociedades", nombre: "Modelo de compra", seNota: "Las compras entre sociedades del grupo", usa: "T05",
+    def: { tipo: "opcion", opciones: [{ id: "CADA_UNA_COMPRA", label: "Cada sociedad compra lo suyo" }, { id: "UNA_COMPRA_Y_REFACTURA", label: "Una compra y le factura a la otra" }] }, rubro: "CADA_UNA_COMPRA", provisional: true, fuente: "Sin definir: a confirmar con el negocio",
   },
   // ── Cancelación ──
   {
-    clave: "cancelacion.despuesDeAprobado", grupo: "cancelacion", nombre: "Cancelar después de aprobado", seNota: "C-O04", usa: "T09",
-    def: { tipo: "opcion", opciones: [{ id: "SOLO_DIRECCION_SIN_LIQUIDACION", label: "Sólo Dirección, sin liquidación automática" }, { id: "SOLO_DIRECCION_CON_LIQUIDACION", label: "Sólo Dirección, con liquidación de lo hecho" }] }, rubro: "SOLO_DIRECCION_SIN_LIQUIDACION", provisional: true, fuente: "Diseño MIA § 2.2 (pregunta 13)",
+    clave: "cancelacion.despuesDeAprobado", grupo: "cancelacion", nombre: "Cancelar después de aprobado", seNota: "Cancelar un proyecto ya aprobado", usa: "T09",
+    def: { tipo: "opcion", opciones: [{ id: "SOLO_DIRECCION_SIN_LIQUIDACION", label: "Sólo Dirección, sin liquidación automática" }, { id: "SOLO_DIRECCION_CON_LIQUIDACION", label: "Sólo Dirección, con liquidación de lo hecho" }] }, rubro: "SOLO_DIRECCION_SIN_LIQUIDACION", provisional: true, fuente: "Diseño del módulo: a confirmar con el negocio",
   },
   // ── Palabras (las de etapas, funciones y conceptos se editan en su grupo) ──
   {
     clave: "palabras.textos", grupo: "palabras", nombre: "Palabras del negocio", seNota: "Los textos de las pantallas", usa: "Todas",
     def: { tipo: "mapaTexto", claves: [{ id: "defensa", label: "Lo que se ahorra contra el costo" }, { id: "redondeo", label: "La diferencia del total a mano" }, { id: "rendicion", label: "La liquidación del proyecto" }, { id: "prevision", label: "Los pagos previstos" }] },
-    rubro: { defensa: "Defensa", redondeo: "Redondeo", rendicion: "Rendición", prevision: "Previsión" }, provisional: false, fuente: "Diseño MIA § 4.1 (las del Excel)",
+    rubro: { defensa: "Defensa", redondeo: "Redondeo", rendicion: "Rendición", prevision: "Previsión" }, provisional: false, fuente: "Diseño del módulo (las de la planilla)",
   },
 ];
 

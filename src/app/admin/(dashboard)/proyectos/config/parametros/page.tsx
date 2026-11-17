@@ -149,9 +149,9 @@ function Parametro({ def, p, vigentes, edita }: { def: DefParametro; p: Parametr
         {r.provisional && <span className={cn(marca, "text-danger")}>Provisional</span>}
         <span className={cn(marca, "text-muted")}>{r.origen === "RUBRO" ? "Valor del rubro" : "Del negocio"}</span>
       </div>
-      <p className="text-sm text-strong">{textoDelValor(def, r.valor)}</p>
+      <p className="text-sm text-strong">{textoDelValor(def, r.valor, vigentes)}</p>
       <p className="mt-1 text-xs text-muted">
-        Dónde se nota: {def.seNota}. Lo usa: {def.usa}. Fuente del valor del rubro: {def.fuente}.
+        Dónde se nota: {def.seNota}. De dónde sale el valor del rubro: {def.fuente}.
         {r.origen === "NEGOCIO" && r.actualizadoEl ? ` Lo cambió ${r.actualizadoNombre} el ${fechaCorta(r.actualizadoEl)}.` : ""}
       </p>
       {edita && (
@@ -181,7 +181,7 @@ export default async function ParametrosDelModulo({ searchParams }: { searchPara
   const vigentes = valoresDe(p);
   const provisionales = CATALOGO.filter((d) => p[d.clave].provisional);
   const defs = grupo === "provisionales" ? [] : delGrupo(grupo);
-  const historial = grupo === "provisionales" ? [] : await historialDeParametros(a.tenantId, defs.map((d) => d.clave), 20);
+  const historial = grupo === "provisionales" ? [] : await historialDeParametros(a.tenantId, defs.map((d) => d.clave), 20, vigentes);
 
   return (
     <main className="mx-auto grid w-full max-w-3xl gap-4 px-4 py-5">
@@ -201,8 +201,8 @@ export default async function ParametrosDelModulo({ searchParams }: { searchPara
           <ul className="grid gap-2">
             {provisionales.map((d) => (
               <li key={d.clave} data-clave={d.clave} className="border-t border-line pt-2 text-sm">
-                <Link href={`?grupo=${d.grupo}`} className="font-medium text-strong underline">{d.nombre}</Link>
-                <span className="block text-muted">{textoDelValor(d, p[d.clave].valor)} · {GRUPOS.find((g) => g.id === d.grupo)?.label}</span>
+                <Link href={`?grupo=${d.grupo}`} className="inline-flex min-h-11 items-center font-medium text-strong underline">{d.nombre}</Link>
+                <span className="block text-muted">{textoDelValor(d, p[d.clave].valor, vigentes)} · {GRUPOS.find((g) => g.id === d.grupo)?.label}</span>
               </li>
             ))}
           </ul>
@@ -230,7 +230,7 @@ export default async function ParametrosDelModulo({ searchParams }: { searchPara
       )}
       <p className="text-sm text-muted">
         Las vistas de las listas se guardan desde cada lista (Administración, cuentas a cobrar y a pagar). Los permisos por rol, en{" "}
-        <Link href="/admin/proyectos/equipo?tab=permisos" className="underline">Equipo › Permisos</Link>.
+        <Link href="/admin/proyectos/equipo?tab=permisos" className="inline-flex min-h-11 items-center underline">Equipo › Permisos</Link>.
       </p>
     </main>
   );

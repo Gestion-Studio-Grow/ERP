@@ -305,10 +305,16 @@ export function resolverParametros(filas: readonly FilaParametro[]): Parametros 
 export const valoresDe = (p: Parametros): Valores => Object.fromEntries(Object.entries(p).map(([k, r]) => [k, r.valor])) as unknown as Valores;
 
 /** Texto corto de un valor, para el historial y la lista de provisionales. PURA. */
-export function textoDelValor(def: DefParametro, v: unknown): string {
+const CATALOGO_FUNCIONES = (): readonly ConId[] => defDe("equipo.funciones").rubro;
+const CATALOGO_CONCEPTOS = (): readonly ConId[] => defDe("reparto.conceptos").rubro;
+
+/** El valor en criollo: con los nombres de las funciones y los conceptos, nunca sus ids (lista estética E3). */
+export function textoDelValor(def: DefParametro, v: unknown, vigentes?: Pick<Valores, "equipo.funciones" | "reparto.conceptos">): string {
   if (v === null || v === undefined) return "Valor del rubro";
   const t = def.def;
   const etiqueta = (ops: readonly { id: string; label: string }[], id: unknown) => ops.find((o) => o.id === id)?.label ?? String(id);
+  const nombres = [...(vigentes?.["equipo.funciones"] ?? CATALOGO_FUNCIONES()), ...(vigentes?.["reparto.conceptos"] ?? CATALOGO_CONCEPTOS())];
+  const nombre = (id: string) => (id === EMPRESA ? "Empresa" : (nombres.find((x) => x.id === id)?.nombre ?? id.charAt(0) + id.slice(1).toLowerCase().replace(/_/g, " ")));
   switch (t.tipo) {
     case "porcentaje": return `${String(v).replace(".", ",")} %`;
     case "conRango": { const r = v as ConRango; return `${String(r.valor).replace(".", ",")} % (de ${r.min} a ${r.max})`; }
@@ -319,8 +325,8 @@ export function textoDelValor(def: DefParametro, v: unknown): string {
     case "multiple": return (v as string[]).map((id) => etiqueta(t.opciones, id)).join(", ");
     case "conId": return (v as ConId[]).map((x) => x.nombre).join(", ");
     case "etapas": return (v as EtapaParam[]).map((e) => `${e.nombre}${e.compuerta === "FRENA" ? " (frena)" : ""}`).join(" → ");
-    case "mapaConRango": return Object.entries(v as Record<string, ConRango>).map(([k, r]) => `${k}: ${String(r.valor).replace(".", ",")} %`).join(" · ");
-    case "matriz": return Object.entries(v as Record<string, Record<string, number>>).map(([k, fila]) => `${k}: ${Object.entries(fila).map(([c, x]) => `${c} ${String(x).replace(".", ",")} %`).join(", ")}`).join(" · ");
+    case "mapaConRango": return Object.entries(v as Record<string, ConRango>).map(([k, r]) => `${nombre(k)}: ${String(r.valor).replace(".", ",")} %`).join(" · ");
+    case "matriz": return Object.entries(v as Record<string, Record<string, number>>).map(([k, fila]) => `${nombre(k)}: ${Object.entries(fila).map(([c, x]) => `${nombre(c)} ${String(x).replace(".", ",")} %`).join(", ")}`).join(" · ");
     case "mapaTexto": return Object.values(v as Record<string, string>).join(", ");
     case "mapaOpcion": return Object.entries(v as Record<string, string>).map(([k, x]) => `${t.claves.find((c) => c.id === k)?.label ?? k}: ${etiqueta(t.opciones, x)}`).join(" · ");
     case "tramos": return (v as number[]).join(", ") + " días";

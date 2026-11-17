@@ -41,13 +41,13 @@ export async function valorDelNegocio<K extends Clave>(tenantId: string, clave: 
 export interface RenglonHistorial { id: string; clave: Clave; nombre: string; antes: string; despues: string; provisionalAntes: boolean | null; provisionalDespues: boolean | null; autorNombre: string; createdAt: Date }
 
 /** Los últimos cambios, de un grupo de claves o de todas. */
-export async function historialDeParametros(tenantId: string, claves: readonly Clave[] | null, max = 50): Promise<RenglonHistorial[]> {
+export async function historialDeParametros(tenantId: string, claves: readonly Clave[] | null, max = 50, vigentes?: Pick<Valores, "equipo.funciones" | "reparto.conceptos">): Promise<RenglonHistorial[]> {
   try {
     const filas = await prisma.proyectoParametroHistorial.findMany({ where: { tenantId, ...(claves ? { clave: { in: [...claves] } } : {}) }, orderBy: { createdAt: "desc" }, take: max });
     return filas.flatMap((f) => {
       const def = esClave(f.clave) ? defDe(f.clave) : null;
       if (!def) return [];
-      return [{ id: f.id, clave: def.clave, nombre: def.nombre, antes: textoDelValor(def, f.antes), despues: textoDelValor(def, f.despues), provisionalAntes: f.provisionalAntes, provisionalDespues: f.provisionalDespues, autorNombre: f.autorNombre, createdAt: f.createdAt }];
+      return [{ id: f.id, clave: def.clave, nombre: def.nombre, antes: textoDelValor(def, f.antes, vigentes), despues: textoDelValor(def, f.despues, vigentes), provisionalAntes: f.provisionalAntes, provisionalDespues: f.provisionalDespues, autorNombre: f.autorNombre, createdAt: f.createdAt }];
     });
   } catch (e) {
     if (esTablaInexistente(e)) return [];

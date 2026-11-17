@@ -123,6 +123,11 @@ test("el texto de cada valor para el historial y la lista de provisionales", () 
   for (const d of CATALOGO) assert.ok(textoDelValor(d, d.rubro).length > 0, d.clave);
   assert.equal(textoDelValor(defDe("precio.iibbGa"), { valor: 7.5, min: 5, max: 10 }), "7,5 % (de 5 a 10)");
   assert.equal(textoDelValor(defDe("cierre.dia"), null), "Valor del rubro");
+  // Con los nombres, nunca los ids: «Defensa: Empresa 75 %, Productor 25 %», sin DEFENSA, EMPRESA ni PRODUCTOR_CAMPO.
+  assert.equal(textoDelValor(defDe("reparto.matriz"), rubro["reparto.matriz"], rubro), "Defensa: Empresa 75 %, Productor 25 %");
+  for (const d of CATALOGO) assert.doesNotMatch(textoDelValor(d, d.rubro, rubro), /\b[A-Z]{2,}_[A-Z_]+\b|\bEMPRESA\b|\bDEFENSA\b/, d.clave);
+  // Lo que se lee en pantalla no trae jerga del plan ni nombra al negocio.
+  for (const d of CATALOGO) assert.doesNotMatch(`${d.seNota} ${d.fuente}`, /\bC-O\d|\bZ-|caso Z|\.ts\b|\bMIA\b|§/, d.clave);
 });
 
 test("ningún parámetro nombra a un negocio: el catálogo es del rubro (plan § 4.3, atajo a buscar)", async () => {
