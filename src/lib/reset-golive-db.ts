@@ -13,6 +13,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { lastClosedDayTx } from "@/lib/caja/frontera-cierre";
 import { dateStrInBusinessTz } from "@/lib/datetime";
 import { ACCION_CUPON_DEL_PEDIDO } from "@/lib/venta-reglas";
+import { quitarDelLibroTx } from "@/lib/caja/candado-asiento.server";
 import {
   ACCION_RESETEO,
   ACTOR_RESETEO,
@@ -172,7 +173,8 @@ function borrarPorIds(tx: Tx, tabla: string, tenantId: string, ids: string[]): P
     case "LeadCampania": return tx.leadCampania.deleteMany({ where });
     case "WaitlistEntry": return tx.waitlistEntry.deleteMany({ where });
     case "Review": return tx.review.deleteMany({ where });
-    case "CashMovement": return tx.cashMovement.deleteMany({ where });
+    // T01b: el libro se vacía con el candado del cierre tomado (`quitarDelLibroTx`); la transacción es `transaccionQueAsienta`.
+    case "CashMovement": return quitarDelLibroTx(tx, tenantId, ids).then((count) => ({ count }));
     case "CashSession": return tx.cashSession.deleteMany({ where });
     case "Collection": return tx.collection.deleteMany({ where });
     case "Payment": return tx.payment.deleteMany({ where });

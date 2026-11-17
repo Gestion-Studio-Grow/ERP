@@ -19,6 +19,7 @@ import { cuentasCorrientesDe } from "@/lib/settlement/cuentas-corrientes.server"
 import { computeSettlement } from "@/lib/settlement/collection";
 import { canTransitionCheque, type ChequeStatus } from "./cheque";
 import { PagoRechazadoError, validarChequeNuevo, validarPagoAMano } from "./resumen-cuentas";
+import { transaccionQueAsienta } from "@/lib/caja/candado-asiento.server";
 
 export interface CreatePayableInput {
   supplierId: string;
@@ -238,7 +239,7 @@ export async function transitionCheque(
   payableId?: string,
 ): Promise<void> {
   const asentarEnLibro = await cuentasCorrientesDe(tenantId);
-  await tenantTransaction(
+  await transaccionQueAsienta(
     (tx) =>
       transicionarChequeInTx(tx, tenantId, chequeId, to, actor, {
         asentarEnLibro,
@@ -248,7 +249,7 @@ export async function transitionCheque(
     // 🔒 SERIALIZABLE (fix del Gate de dinero): además del compare-and-set, la transacción
     // serializa el asiento del Collection contra cobros concurrentes de la MISMA deuda;
     // `tenantTransaction` reintenta ante conflicto de serialización.
-    { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    { tenantId },
   );
 }
 
@@ -316,8 +317,8 @@ export async function pagarDeudaInTx(
  */
 export async function payPayable(tenantId: string, payableId: string, input: PagoDeudaInput) {
   const asentarEnLibro = await cuentasCorrientesDe(tenantId);
-  return tenantTransaction(
+  return transaccionQueAsienta(
     (tx) => pagarDeudaInTx(tx, tenantId, payableId, input, new Date(), asentarEnLibro),
-    { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    { tenantId },
   );
 }

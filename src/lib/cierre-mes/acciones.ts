@@ -18,6 +18,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
+import { quitarDelLibroTx, transaccionQueAsienta } from "@/lib/caja/candado-asiento.server";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { isDemoSandbox, DEMO_WRITE_BLOCKED } from "@/lib/demo-sandbox";
 import { AppNoDisponibleError, requireAppAccion } from "@/lib/require-app";
@@ -243,7 +244,7 @@ export async function reabrirDiaAction(_prev: EstadoAccionCierre, formData: Form
   const tenantId = await getCurrentTenantId();
   let quitados: { tipo: string; medio: string; monto: number; detalle: string | null }[] = [];
   try {
-    const r = await tenantTransaction(
+    const r = await transaccionQueAsienta(
       async (tx) => {
         // Dos «Reabrir» a la vez (doble toque, dos pestañas) o un cierre en paralelo: uno espera al otro.
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`cierre-dia:${tenantId}`}))`;
@@ -275,8 +276,8 @@ export async function reabrirDiaAction(_prev: EstadoAccionCierre, formData: Form
           select: { id: true, type: true, method: true, amount: true, reason: true },
         });
         if (ajustes.length > 0) {
-          const borrados = await tx.cashMovement.deleteMany({ where: { tenantId, id: { in: ajustes.map((a) => a.id) } } });
-          if (borrados.count !== ajustes.length) throw new Error(`se esperaban ${ajustes.length} ajustes y se quitaron ${borrados.count}`);
+          const borrados = await quitarDelLibroTx(tx, tenantId, ajustes.map((a) => a.id));
+          if (borrados !== ajustes.length) throw new Error(`se esperaban ${ajustes.length} ajustes y se quitaron ${borrados}`);
         }
         await tx.auditLog.updateMany({
           where: { tenantId, entity: CIERRE_DIARIO_ENTITY, action: CIERRE_DIARIO_ACTION, entityId: day },
@@ -296,7 +297,7 @@ export async function reabrirDiaAction(_prev: EstadoAccionCierre, formData: Form
         });
         return { ok: true as const, lista };
       },
-      { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      { tenantId },
     );
     if (!r.ok) return r;
     quitados = r.lista;

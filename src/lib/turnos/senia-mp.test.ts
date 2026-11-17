@@ -384,6 +384,8 @@ function servidorCon(prendida: boolean, b = base()) {
         dentro = null;
       }
     },
+    // La de la caja es la misma, en Serializable (T01b: `transaccionQueAsienta`).
+    transaccionQueAsienta: (fn, opts) => deps.transaccion(fn, { ...opts, isolationLevel: "Serializable" }),
     cerradoHastaEnTx: async (_tx, t) => (log.push(`cierre:${t}:dentro-de-${dentro}`), null),
     reglaPrendidaEnTx: async (_tx, t) => (log.push(`regla:${t}`), prendida),
     enTx: { aplicarCobro: b.deps().aplicarCobro, anularCobro: b.deps().anularCobro },

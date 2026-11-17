@@ -23,7 +23,6 @@
 // distingue un crédito de un pago de verdad.
 
 import { parseMedioDeLiquidacion } from "@/lib/comision-liquidacion";
-import { tenantTransaction } from "@/lib/rls";
 import { prisma } from "@/lib/prisma";
 import { Prisma, type $Enums } from "@/generated/prisma/client";
 import { recordMovement } from "@/lib/stock/ledger";
@@ -34,6 +33,7 @@ import { businessWallTimeToUtc, todayInBusinessTz } from "@/lib/datetime";
 import { round2 } from "@/lib/round";
 import { leerCantidad } from "@/lib/pos-peso";
 import type { CashMethod } from "@/lib/caja/cash-register";
+import { asentarEnCajaTx, transaccionQueAsienta } from "@/lib/caja/candado-asiento.server";
 
 /** Así empieza la nota del Collection que acredita una devolución contra la deuda. */
 export const NOTA_DE_CREDITO_PREFIX = "Nota de crédito por devolución a proveedor";
@@ -217,11 +217,11 @@ export interface DevolucionRegistrada {
  * `DevolucionRechazada` con el error de cada una y no queda nada escrito.
  */
 export async function registrarDevolucion(tenantId: string, input: DevolucionInput): Promise<DevolucionRegistrada> {
-  return tenantTransaction(
+  return transaccionQueAsienta(
     (tx) => registrarDevolucionEnTx(tx, tenantId, input),
     // Serializable: la pata de plata comparte el saldo de la deuda con pagos concurrentes, y el
     // tope "comprado − ya devuelto" con otra devolución de la misma compra.
-    { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    { tenantId },
   );
 }
 
@@ -321,17 +321,15 @@ export async function registrarDevolucionEnTx(
     // compra (purchase-core.ts).
     const dia = diaContableDelEgreso(todayInBusinessTz(), await lastClosedDayTx(tx, tenantId));
     const turno = await tx.cashSession.findFirst({ where: { tenantId, status: "OPEN" }, select: { id: true } });
-    await tx.cashMovement.create({
-      data: {
-        tenantId,
-        sessionId: turno?.id ?? null,
-        type: "INGRESO",
-        method: input.destino.method,
-        amount: total,
-        reason: `Reintegro por devolución a proveedor — compra #${compra.code}${compra.supplier ? ` (${compra.supplier.slice(0, 40)})` : ""}`,
-        occurredAt: businessWallTimeToUtc(dia, "12:00"),
-        createdBy: `${REINTEGRO_ACTOR_PREFIX}${compra.id}`,
-      },
+    await asentarEnCajaTx(tx, "devolución", {
+      tenantId,
+      sessionId: turno?.id ?? null,
+      type: "INGRESO",
+      method: input.destino.method,
+      amount: total,
+      reason: `Reintegro por devolución a proveedor — compra #${compra.code}${compra.supplier ? ` (${compra.supplier.slice(0, 40)})` : ""}`,
+      occurredAt: businessWallTimeToUtc(dia, "12:00"),
+      createdBy: `${REINTEGRO_ACTOR_PREFIX}${compra.id}`,
     });
   }
 

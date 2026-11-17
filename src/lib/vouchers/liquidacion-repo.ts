@@ -99,6 +99,7 @@ import {
   type ResumenDeCuenta,
   type Semana,
 } from "./liquidacion-core";
+import { asentarEnCajaTx, transaccionQueAsienta } from "@/lib/caja/candado-asiento.server";
 
 const SERIALIZABLE = Prisma.TransactionIsolationLevel.Serializable;
 
@@ -333,18 +334,15 @@ async function ingresoDelPagoEnCaja(
   const ya = await tx.cashMovement.findFirst({ where: { tenantId, createdBy: marca }, select: { id: true } });
   if (ya) return ya.id;
   const turno = await tx.cashSession.findFirst({ where: { tenantId, status: "OPEN" }, select: { id: true } });
-  const mov = await tx.cashMovement.create({
-    data: {
-      tenantId,
-      sessionId: turno?.id ?? null,
-      type: d.asiento.type,
-      method: d.asiento.method,
-      amount: p.monto,
-      reason: d.asiento.reason,
-      occurredAt: ahora,
-      createdBy: marca,
-    },
-    select: { id: true },
+  const mov = await asentarEnCajaTx(tx, "cobro", {
+    tenantId,
+    sessionId: turno?.id ?? null,
+    type: d.asiento.type,
+    method: d.asiento.method,
+    amount: p.monto,
+    reason: d.asiento.reason,
+    occurredAt: ahora,
+    createdBy: marca,
   });
   return mov.id;
 }
@@ -387,7 +385,7 @@ export async function conciliarLiquidacionSemanal(tenantId: string, args: Concil
   if (args.fecha > todayInBusinessTz()) throw new VoucherRechazado("dato-invalido", "La fecha del pago no puede ser futura.");
   const referencia = args.referencia?.trim() || null;
   try {
-    return await tenantTransaction(
+    return await transaccionQueAsienta(
       async (tx) => {
         const liq = await tx.voucherLiquidacion.findFirst({
           where: { id: args.liquidacionId, tenantId },
@@ -512,7 +510,7 @@ export async function conciliarLiquidacionSemanal(tenantId: string, args: Concil
           impagos: plan.impagos.map((v) => v.numero),
         };
       },
-      { tenantId, isolationLevel: SERIALIZABLE, timeoutMs: 20_000 },
+      { tenantId, timeoutMs: 20_000 },
     );
   } catch (e) {
     // La clave `liq:<id>` (o `liquidacionId` único) chocó: otra conciliación ganó.
@@ -665,7 +663,7 @@ export async function registrarPagoACuenta(tenantId: string, args: PagoACuentaAr
   const monto = pesosDeCentavos(p.plan.pagadoCentavos);
   const claveDb = `cuenta:${clave}`;
   try {
-    return await tenantTransaction(
+    return await transaccionQueAsienta(
       async (tx) => {
         const ya = await tx.voucherPagoAdministracion.findFirst({ where: { tenantId, clave: claveDb }, select: { id: true } });
         if (ya) return { pagoId: ya.id, duplicado: true, imputados: [], sinImputar: 0 };
@@ -803,7 +801,7 @@ export async function registrarPagoACuenta(tenantId: string, args: PagoACuentaAr
         });
         return { pagoId: pago.id, duplicado: false, imputados, sinImputar };
       },
-      { tenantId, isolationLevel: SERIALIZABLE },
+      { tenantId },
     );
   } catch (e) {
     if (isUniqueViolation(e)) {
@@ -950,7 +948,7 @@ export type AcreditacionConfirmada = {
 export async function confirmarAcreditacionMp(tenantId: string, args: ConfirmarAcreditacionArgs): Promise<AcreditacionConfirmada> {
   const pagoId = args.pagoId.trim();
   if (!pagoId) throw new VoucherRechazado("dato-invalido", "Falta identificar el pago.");
-  return tenantTransaction(
+  return transaccionQueAsienta(
     async (tx) => {
       await tomarPago(tx, tenantId, pagoId);
       const pago = await tx.voucherPagoAdministracion.findFirst({
@@ -1031,7 +1029,7 @@ export async function confirmarAcreditacionMp(tenantId: string, args: ConfirmarA
       });
       return { pagoId: pago.id, duplicado: false, via: e.via, movimientoId };
     },
-    { tenantId, isolationLevel: SERIALIZABLE },
+    { tenantId },
   ).catch(sinConflictoCrudo);
 }
 
@@ -1201,7 +1199,7 @@ export async function rechazarChequeDeLaAdministracion(tenantId: string, args: R
   if (!pagoId) throw new VoucherRechazado("dato-invalido", "Falta identificar el pago.");
   const m = leerMotivoDeRechazo(args.motivo);
   if (!m.ok) throw new VoucherRechazado("dato-invalido", m.error);
-  return tenantTransaction(
+  return transaccionQueAsienta(
     async (tx) => {
       await tomarPago(tx, tenantId, pagoId);
       const pago = await tx.voucherPagoAdministracion.findFirst({
@@ -1240,18 +1238,15 @@ export async function rechazarChequeDeLaAdministracion(tenantId: string, args: R
           contramovimientoId = previo.id;
         } else {
           const turno = await tx.cashSession.findFirst({ where: { tenantId, status: "OPEN" }, select: { id: true } });
-          const mov = await tx.cashMovement.create({
-            data: {
-              tenantId,
-              sessionId: turno?.id ?? null,
-              type: d.asiento.type,
-              method: d.asiento.method,
-              amount: d.asiento.amount,
-              reason: d.asiento.reason,
-              occurredAt: ahora,
-              createdBy: marca,
-            },
-            select: { id: true },
+          const mov = await asentarEnCajaTx(tx, "anulación", {
+            tenantId,
+            sessionId: turno?.id ?? null,
+            type: d.asiento.type,
+            method: d.asiento.method,
+            amount: d.asiento.amount,
+            reason: d.asiento.reason,
+            occurredAt: ahora,
+            createdBy: marca,
           });
           contramovimientoId = mov.id;
         }
@@ -1284,7 +1279,7 @@ export async function rechazarChequeDeLaAdministracion(tenantId: string, args: R
       });
       return { pagoId: pago.id, duplicado: false, depositado: ingreso != null, contramovimientoId, revertidos };
     },
-    { tenantId, isolationLevel: SERIALIZABLE },
+    { tenantId },
   ).catch(sinConflictoCrudo);
 }
 

@@ -45,6 +45,7 @@ import {
   type ResultadoConciliacion,
   type ResultadoLiquidacion,
 } from "./voucher-core";
+import { transaccionQueAsienta } from "@/lib/caja/candado-asiento.server";
 
 export type VoucherTx = Prisma.TransactionClient;
 const SERIALIZABLE = Prisma.TransactionIsolationLevel.Serializable;
@@ -227,9 +228,9 @@ export async function cobrarConVoucherInTx(
 export async function cobrarConVoucher(tenantId: string, args: CobrarConVoucherArgs): Promise<CobrarConVoucherResult> {
   if (!(await voucherEnElEnum())) throw new VoucherRechazado("enum-ausente");
   const run = (withSchema: boolean) =>
-    tenantTransaction(
+    transaccionQueAsienta(
       async (tx) => cobrarConVoucherInTx(tx, tenantId, { ...args, withSchema, cerradoHasta: await lastClosedDayTx(tx, tenantId) }),
-      { tenantId, isolationLevel: SERIALIZABLE },
+      { tenantId },
     );
   const settled = await settleAppointmentPaymentGuarded({ runWithBridge: () => run(true), runWithoutBridge: () => run(false) });
   // «race»: chocó una clave única del cobro (`idempotencyKey` / `Voucher.collectionId`): otro envío

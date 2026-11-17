@@ -139,6 +139,7 @@ import {
   CUADERNO_APAGADO,
   decidirHoraDelCuaderno,
 } from "@/lib/cuaderno/hora-de-la-venta";
+import { transaccionQueAsienta } from "@/lib/caja/candado-asiento.server";
 
 const ORDERS_PATH = "/admin/pedidos";
 // Las otras dos pantallas del mostrador que muestran ventas: se revalidan junto con la bandeja
@@ -1070,7 +1071,7 @@ async function setOrderPaidCore(
   // aviso de pago de Mercado Pago cobra EXACTAMENTE igual, sin sesión.
   let cobro: CobroDePedido;
   try {
-    cobro = await tenantTransaction(
+    cobro = await transaccionQueAsienta(
       (tx) => cobrarPedidoEnTx(tx, tenantId, { orderId: id, method, actor: `user:${user.id}`, asientos: opts.asientos ?? null }),
       { tenantId },
     );
@@ -1309,7 +1310,7 @@ async function anularVentaCore(
   let resultado;
   let cuenta = { anulada: false, monto: 0 };
   try {
-    const r = await tenantTransaction(
+    const r = await transaccionQueAsienta(
       (tx) =>
         anularVentaConSuCuentaEnTx(
           tx,
@@ -1473,7 +1474,7 @@ export async function updateOrderItems(
   const arcaSimulado = await negocioEnModoPrueba(tenantId).catch(() => false);
   let out: ResultadoAjustePeso;
   try {
-    out = await tenantTransaction(
+    out = await transaccionQueAsienta(
       async (tx) =>
         ajustarPesoInTx(tx, tenantId, {
           orderId: id,

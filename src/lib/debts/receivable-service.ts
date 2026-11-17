@@ -12,12 +12,12 @@
 // pasa por el libro y el cierre del día cuadra. Apagado, se comporta como antes.
 
 import { prisma } from "@/lib/prisma";
-import { tenantTransaction } from "@/lib/rls";
 import { RechazoDeDominio } from "@/lib/rechazo-de-dominio";
 import { Prisma, type $Enums } from "@/generated/prisma/client";
 import { round2 } from "@/lib/round";
 import { aplicarConAsientoInTx, applyCollectionInTx } from "@/lib/settlement/collection-repo";
 import { cuentasCorrientesDe } from "@/lib/settlement/cuentas-corrientes.server";
+import { transaccionQueAsienta } from "@/lib/caja/candado-asiento.server";
 
 export interface CreateReceivableInput {
   clientId: string;
@@ -127,9 +127,9 @@ export async function collectReceivable(
   // Las cuentas corrientes de ESTE negocio (interruptor por negocio; si nunca se tocó, la variable
   // de siempre). La action que ya lo leyó para su mensaje lo pasa, así deciden lo mismo.
   const asentarEnLibro = opts.asentarEnLibro ?? (await cuentasCorrientesDe(tenantId));
-  return tenantTransaction(
+  return transaccionQueAsienta(
     (tx) => cobrarFiadoInTx(tx, tenantId, receivableId, input, new Date(), asentarEnLibro),
-    { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    { tenantId },
   );
 }
 

@@ -22,7 +22,7 @@
 
 import "dotenv/config";
 import { basePrisma, RLS_ENFORCEMENT } from "@/lib/prisma-base";
-import { tenantTransaction } from "@/lib/rls";
+import { transaccionQueAsienta } from "@/lib/caja/candado-asiento.server";
 import { BUSINESS_TIMEZONE } from "@/lib/business-config";
 import { esPoolerDeNeon, parsearArgs, planificarReseteo, totalABorrar, type ArgsReseteo, type PlanReseteo } from "@/lib/reset-golive";
 import { aplicarPlan, candadoDelReseteo, leerFoto, tablasExistentes, verificarVacio } from "@/lib/reset-golive-db";
@@ -138,7 +138,8 @@ async function main(): Promise<void> {
 
   const opciones = { clientesCreadosDesde: args.clientesCreadosDesde, conservarFuturo: args.conservarFuturo };
   const ahora = new Date();
-  const resultado = await tenantTransaction(
+  // T01b: Serializable con el candado del cierre del día (vaciar el libro es una escritura a la caja).
+  const resultado = await transaccionQueAsienta(
     async (tx) => {
       await candadoDelReseteo(tx, tenant.id);
       const tablas = await tablasExistentes(tx);

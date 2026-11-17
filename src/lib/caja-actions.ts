@@ -33,6 +33,7 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
 import { permisoEfectivo } from "@/lib/capabilities";
 import { tenantTransaction } from "@/lib/rls";
+import { asentarEnCajaTx, transaccionQueAsienta } from "@/lib/caja/candado-asiento.server";
 import { emitirCajaAbierta, emitirCajaTurnoCerrada } from "@/eventos/del-core";
 import { Prisma } from "@/generated/prisma/client";
 import { isDemoSandbox, getDemoCajaData, DEMO_WRITE_BLOCKED } from "@/lib/demo-sandbox";
@@ -246,7 +247,7 @@ export async function openCashSession(
 
   let session: { id: string; saldoDelLibro: number; diferenciaDeApertura: number; ciego: ConteoACiegas | null };
   try {
-    session = await tenantTransaction(async (tx) => {
+    session = await transaccionQueAsienta(async (tx) => {
       // M1-C5 (cert F4): el MISMO candado por negocio que cerrar el día (`cerrarDia`) y reabrirlo, y
       // la frontera releída ADENTRO: un cierre que corre a la vez termina antes y esta apertura lo ve
       // (o el ciclo SSI frontera↔turno la aborta y el reintento lo ve). Nunca un día cerrado con un
@@ -300,33 +301,31 @@ export async function openCashSession(
           openedBy: actor,
           openingFloat,
           openedAt: ahora,
-          movements: {
-            create: {
-              tenantId,
-              type: "APERTURA",
-              amount: openingFloat,
-              reason: ciego ? detalleDeAperturaTrasConteoCiego(ciego, openingFloat, motivo) : "Fondo inicial de caja",
-              occurredAt: ahora,
-              createdBy: actor,
-            },
-          },
         },
         select: { id: true },
+      });
+      // T01b: el fondo inicial entra al libro por el candado (ya tomado arriba, con el día abierto releído).
+      await asentarEnCajaTx(tx, "movimiento", {
+        tenantId,
+        sessionId: creada.id,
+        type: "APERTURA",
+        amount: openingFloat,
+        reason: ciego ? detalleDeAperturaTrasConteoCiego(ciego, openingFloat, motivo) : "Fondo inicial de caja",
+        occurredAt: ahora,
+        createdBy: actor,
       });
       // `sessionId` NULL a propósito: la diferencia ya está adentro del fondo contado, y el
       // esperado en vivo de la pantalla (fondo + movimientos del turno) la contaría dos veces.
       // El rastro al turno va en la marca (`apertura-turno:<id>`): quién es su `openedBy`.
       const diferencia = diferenciaDeApertura(openingFloat, saldoDelLibro, creada.id);
       if (diferencia) {
-        await tx.cashMovement.create({
-          data: { tenantId, sessionId: null, occurredAt: ahora, ...diferencia, reason: detalleConMotivo(diferencia.reason, motivo) },
-        });
+        await asentarEnCajaTx(tx, "movimiento", { tenantId, sessionId: null, occurredAt: ahora, ...diferencia, reason: detalleConMotivo(diferencia.reason, motivo) });
       }
       const conSigno = diferencia ? (diferencia.type === "INGRESO" ? diferencia.amount : -diferencia.amount) : 0;
       // N2/P2: `caja.abierta@1` en la transacción de la apertura.
       await emitirCajaAbierta(tx, { tenantId, sesionId: creada.id, abiertaEn: ahora, inicial: openingFloat });
       return { id: creada.id, saldoDelLibro, diferenciaDeApertura: conSigno, ciego };
-    }, { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    }, { tenantId });
   } catch (err) {
     if (err instanceof Error && err.message === YA_HAY_CAJA_ABIERTA) return { ok: false, error: YA_HAY_CAJA_ABIERTA, yaAbierta: true };
     if (err instanceof DiaCerradoAlAbrir) return { ok: false, error: NO_SE_ABRE_CON_EL_DIA_CERRADO };
@@ -481,7 +480,7 @@ export async function closeCashSession(
 
   let result: { id: string } & ReturnType<typeof arqueoContraElLibro>;
   try {
-    result = await tenantTransaction(async (tx) => {
+    result = await transaccionQueAsienta(async (tx) => {
       const session = await tx.cashSession.findFirst({
         where: { tenantId, status: "OPEN" },
         select: { id: true },
@@ -533,7 +532,7 @@ export async function closeCashSession(
       // quedó congelado arriba. Es trazabilidad, no aritmética.
       const ajuste = ajusteDeArqueoTurno(arqueo.diff, session.id);
       if (ajuste) {
-        await tx.cashMovement.create({ data: { tenantId, sessionId: session.id, ...ajuste } });
+        await asentarEnCajaTx(tx, "movimiento", { tenantId, sessionId: session.id, ...ajuste });
       }
       // N2/P2: `caja.turno.cerrada@1` en la transacción del arqueo.
       await emitirCajaTurnoCerrada(tx, {
@@ -541,7 +540,7 @@ export async function closeCashSession(
       });
 
       return { id: session.id, ...arqueo };
-    }, { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    }, { tenantId });
   } catch (err) {
     return toActionError(err);
   }

@@ -17,6 +17,10 @@
 // camino que no entró lo dice con «cerrada». Sin candado en el camino, el asiento confirma en el paso 3 y el cierre no
 // lo ve: el libro tiene una fila más (o una menos, si borró) que lo que el cierre contó. Con candado, el camino espera
 // detrás del cierre, ve el día cerrado y se rechaza: libro y cierre coinciden.
+// Segunda vuelta, «asiento primero» (sólo se llega con la primera en verde, que no escribió nada): se reabre el día y el
+// MISMO camino entra primero en la fila del candado, el cierre detrás. El asiento confirma y el cierre, que sacó su foto
+// antes, tiene que contarlo igual: eso lo da Serializable en los dos lados (el ciclo aborta al cierre y su reintento lo
+// ve). Con el asiento en Read Committed el cierre no lo cuenta.
 //
 // Reloj fijado: `Date` vale AHORA en todo el archivo.
 // ============================================================================
@@ -118,15 +122,53 @@ async function carreraConElCierre(p: P, t: import("node:test").TestContext, que:
   const registro = await p.duenio.auditLog.findFirst({ where: { tenantId: p.a.id, action: "caja.cierre-diario", entityId: HOY }, select: { changes: true } });
   const contados = (registro?.changes as { movimientos?: number } | null)?.movimientos;
   const enElLibro = await filasDelDia(p);
-  const texto = typeof respuesta === "string" ? respuesta : JSON.stringify(respuesta);
+  const texto = typeof respuesta === "string" ? respuesta : String(JSON.stringify(respuesta));
   assert.equal(
     enElLibro,
     contados,
     `${que}: el libro tiene ${enElLibro} movimientos hasta hoy (antes ${antes}) y el cierre contó ${contados}. Respuesta del camino: ${texto}`,
   );
   assert.equal(enElLibro, antes, `${que}: con el día cerrado por delante, el libro queda como estaba. Respuesta: ${texto}`);
-  assert.match(texto, /cerrad/i, `${que}: el rechazo dice que el día está cerrado`);
+  assert.match(texto, /cerrad/i, `${que}: el rechazo dice que el día está cerrado: ${texto}`);
   assert.doesNotMatch(texto, /"ok":true/, `${que}: no responde éxito sin haber asentado`);
+
+  // Segunda vuelta: asiento primero. El día se reabre (sin los ajustes del cierre de la primera vuelta).
+  await p.duenio.auditLog.deleteMany({ where: { tenantId: p.a.id, entity: "CierreDiario" } });
+  await p.duenio.cashMovement.deleteMany({ where: { tenantId: p.a.id, createdBy: { startsWith: MARCA_DEL_CIERRE } } });
+  const h2 = await abrir();
+  await h2.query("BEGIN");
+  await h2.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`cierre-dia:${p.a.id}`]);
+  let soltado2 = false;
+  const soltar2 = async () => {
+    if (!soltado2) await h2.query("COMMIT");
+    soltado2 = true;
+  };
+  t.after(soltar2);
+  let termino2 = false;
+  const asiento2 = asentar().then(
+    (v) => ({ respuesta: v as unknown }),
+    (e: unknown) => ({ respuesta: `error: ${e instanceof Error ? e.message : String(e)}` }),
+  ).finally(() => (termino2 = true));
+  for (let i = 0; i < 400 && !termino2 && (await esperando()) < 1; i++) await new Promise((r) => setTimeout(r, 25));
+  if (termino2) {
+    await soltar2();
+    assert.fail(`${que}: el camino no esperó el candado del cierre: ${JSON.stringify((await asiento2).respuesta)}`);
+  }
+  const cierre2 = p.enSesion(() => cerrarDia(p.form({ day: HOY, declarado_EFECTIVO: "0", declarado_MP: "0", declarado_TARJETA: "0", note: "Carrera T01b, asiento primero" })));
+  cierre2.catch(() => {});
+  for (let i = 0; i < 400 && (await esperando()) < 2; i++) await new Promise((r) => setTimeout(r, 25));
+  assert.equal(await esperando(), 2, "el cierre del día quedó en la fila detrás del asiento");
+  await soltar2();
+  const r2 = (await asiento2).respuesta;
+  const texto2 = typeof r2 === "string" ? r2 : String(JSON.stringify(r2));
+  const rc2 = await cierre2;
+  assert.equal(rc2?.ok, true, `el cierre del día confirma: ${JSON.stringify(rc2)}`);
+  const registro2 = await p.duenio.auditLog.findFirst({ where: { tenantId: p.a.id, action: "caja.cierre-diario", entityId: HOY }, select: { changes: true } });
+  const contados2 = (registro2?.changes as { movimientos?: number } | null)?.movimientos;
+  const enElLibro2 = await filasDelDia(p);
+  assert.notEqual(enElLibro2, antes, `${que}, asiento primero: el camino entró. Respuesta: ${texto2}`);
+  assert.doesNotMatch(texto2, /cerrad/i, `${que}, asiento primero: no se rechaza: ${texto2}`);
+  assert.equal(enElLibro2, contados2, `${que}, asiento primero: el libro tiene ${enElLibro2} movimientos hasta hoy y el cierre contó ${contados2}`);
   return respuesta;
 }
 
@@ -150,7 +192,8 @@ test("T01b · libro a mano, borrar: un borrado que llega con el cierre del día 
     select: { id: true },
   });
   await carreraConElCierre(p, t, "deleteLibroEntry", () => p.enSesion(() => deleteLibroEntry({ ok: false, error: "" } as never, p.form({ id: fila.id }))));
-  assert.equal(await p.duenio.cashMovement.count({ where: { id: fila.id } }), 1, "la fila contada sigue en el libro");
+  // La primera vuelta no la borró (lo verifica la carrera); la segunda, con el borrado primero en la fila, sí.
+  assert.equal(await p.duenio.cashMovement.count({ where: { id: fila.id } }), 0, "asiento primero: el borrado entró y el cierre lo contó así");
 });
 
 // ─── Los otros caminos que asientan en la caja ──────────────────────────────────

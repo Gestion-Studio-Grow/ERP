@@ -37,6 +37,7 @@ import { formatDayLabel, isFrozenDay, nextDayKey, type DayKey } from "@/lib/caja
 import { AJUSTE_PESO_ACTOR_PREFIX } from "@/lib/caja/devolucion-por-peso";
 import { ajustarPedidoInTx, type AjustarPedidoArgs, type AjustarPedidoResult, type AnulacionVentaTx } from "@/lib/order-anulacion";
 import { anotarNotaPorPesoInTx, facturaParaLaNota, importeDeLaNota, fraseDeLaNota, type NotaPorPeso } from "@/lib/facturacion/nota-credito-por-peso-core";
+import { asentarEnCajaTx } from "@/lib/caja/candado-asiento.server";
 
 // ── 1. NÚCLEO PURO ──────────────────────────────────────────────────────────
 
@@ -328,19 +329,16 @@ export async function ajustarPesoInTx(tx: AnulacionVentaTx, tenantId: string, ar
       if (queda <= 0) throw new AjusteCobradoRechazado("factura-anulada");
     }
     const turno = await tx.cashSession.findFirst({ where: { tenantId, status: "OPEN" }, select: { id: true } });
-    const egreso = await tx.cashMovement.create({
-      data: {
-        tenantId,
-        sessionId: turno?.id ?? null,
-        type: "EGRESO",
-        method: venta!.method,
-        amount: diferencia.monto,
-        reason: detalleDevolucionPorPeso(order.code, porMercadoPago),
-        occurredAt: args.ahora,
-        orderId: id,
-        createdBy: `${AJUSTE_PESO_ACTOR_PREFIX}${args.actor}`,
-      },
-      select: { id: true },
+    const egreso = await asentarEnCajaTx(tx, "devolución", {
+      tenantId,
+      sessionId: turno?.id ?? null,
+      type: "EGRESO",
+      method: venta!.method,
+      amount: diferencia.monto,
+      reason: detalleDevolucionPorPeso(order.code, porMercadoPago),
+      occurredAt: args.ahora,
+      orderId: id,
+      createdBy: `${AJUSTE_PESO_ACTOR_PREFIX}${args.actor}`,
     });
     // Con factura (simulada): la nota de crédito por lo devuelto queda ANOTADA en esta tx y se
     // emite en otra (si falla, la devolución no se revierte). Sin factura, no hay nada que acreditar.

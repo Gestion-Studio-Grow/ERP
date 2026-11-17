@@ -25,6 +25,7 @@ import { PAGO_MIXTO_ACTOR_PREFIX } from "./marcas";
 
 export type { AsientoDePago } from "./pago-mixto";
 import type { AsientoDePago } from "./pago-mixto";
+import { asentarEnCajaTx } from "@/lib/caja/candado-asiento.server";
 
 export const MENSAJE_TOTAL_CAMBIO =
   "El total de la venta cambió mientras cobrabas (un precio o una promo): revisá los pagos y cobrá de nuevo.";
@@ -69,17 +70,15 @@ export async function imputarPagosMixtosEnTx(
       },
       select: { id: true },
     });
-    await tx.cashMovement.create({
-      data: {
-        tenantId,
-        sessionId: turno?.id ?? null,
-        type: "VENTA",
-        method: metodo,
-        amount: a.monto,
-        reason: `Venta #${v.orderCode} · ${etiquetaDeMedio(a.medio)} ${fmtMoneyARS(a.monto)} (pago con varios medios)`,
-        collectionId: cobro.id,
-        createdBy: `${PAGO_MIXTO_ACTOR_PREFIX}${v.orderId}`,
-      },
+    await asentarEnCajaTx(tx, "venta", {
+      tenantId,
+      sessionId: turno?.id ?? null,
+      type: "VENTA",
+      method: metodo,
+      amount: a.monto,
+      reason: `Venta #${v.orderCode} · ${etiquetaDeMedio(a.medio)} ${fmtMoneyARS(a.monto)} (pago con varios medios)`,
+      collectionId: cobro.id,
+      createdBy: `${PAGO_MIXTO_ACTOR_PREFIX}${v.orderId}`,
     });
     collectionIds.push(cobro.id);
   }

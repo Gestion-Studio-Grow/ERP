@@ -33,12 +33,15 @@ import {
   type DepsSeniaMPTx,
   type ResultadoSeniaMP,
 } from "./senia-mp";
+import { transaccionQueAsienta } from "@/lib/caja/candado-asiento.server";
 
 type Tx = Prisma.TransactionClient;
 
 /** Lo que el servidor usa de afuera (inyectable para los tests). */
 export type DepsServidorSeniaMP = {
   transaccion: <T>(fn: (tx: Tx) => Promise<T>, opts: { tenantId: string; isolationLevel?: Prisma.TransactionIsolationLevel }) => Promise<T>;
+  /** La transacción que asienta en la caja (T01b): Serializable con el candado del cierre del día. */
+  transaccionQueAsienta: <T>(fn: (tx: Tx) => Promise<T>, opts: { tenantId: string }) => Promise<T>;
   cerradoHastaEnTx: (tx: Tx, tenantId: string) => Promise<DayKey | null>;
   reglaPrendidaEnTx: (tx: Tx, tenantId: string) => Promise<boolean>;
   enTx: Pick<DepsSeniaMPTx, "aplicarCobro" | "anularCobro">;
@@ -47,6 +50,7 @@ export type DepsServidorSeniaMP = {
 
 const DEPS_SERVIDOR: DepsServidorSeniaMP = {
   transaccion: (fn, opts) => tenantTransaction((tx) => fn(tx as Tx), opts),
+  transaccionQueAsienta: (fn, opts) => transaccionQueAsienta((tx) => fn(tx as Tx), opts),
   cerradoHastaEnTx: (tx, tenantId) => lastClosedDayTx(tx, tenantId),
   reglaPrendidaEnTx: (tx, tenantId) => senaObligatoriaEnTx(tx, tenantId),
   enTx: DEPS_SENIA_MP,
@@ -78,12 +82,12 @@ export async function aplicarPagoMPDelTurno(
   }
   if (!prendida) return { accion: "apagada" };
   const run = (withSchema: boolean) =>
-    deps.transaccion(
+    deps.transaccionQueAsienta(
       async (tx) => {
         const cerradoHasta = await deps.cerradoHastaEnTx(tx, tenantId);
         return aplicarPagoMPDelTurnoEnTx(tx, tenantId, appointmentId, pago, { ...deps.enTx, withSchema, cerradoHasta, ahora: deps.ahora() });
       },
-      { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      { tenantId },
     );
   try {
     const settled = await settleAppointmentPaymentGuarded({ runWithBridge: () => run(true), runWithoutBridge: () => run(false) });

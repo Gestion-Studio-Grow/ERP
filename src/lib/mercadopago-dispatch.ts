@@ -68,6 +68,7 @@ import {
   type DepsResolverNegocio,
   type NegocioDelWebhook,
 } from "@/lib/webhooks/resolver-negocio";
+import { transaccionQueAsienta } from "@/lib/caja/candado-asiento.server";
 
 // ── Auditoría con el negocio EXPLÍCITO ───────────────────────────────────────
 // `audit()` (audit-core) resuelve el negocio con `getCurrentTenantId()`, o sea por el host: en el
@@ -111,7 +112,7 @@ function depsCobroWebhook(tenantId: string): DepsAvisoDePedido {
     leerPedido: leerPedidoParaAviso,
     cerradoHasta: (t) => lastClosedDay(t),
     hoy: () => dateStrInBusinessTz(new Date()),
-    cobrar: (t, args) => tenantTransaction((tx) => cobrarPedidoEnTx(tx, t, args), { tenantId: t }),
+    cobrar: (t, args) => transaccionQueAsienta((tx) => cobrarPedidoEnTx(tx, t, args), { tenantId: t }),
     auditar: (entry) => auditarEnNegocio(tenantId, entry),
   };
 }

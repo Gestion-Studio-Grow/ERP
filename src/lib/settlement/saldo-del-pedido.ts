@@ -16,6 +16,7 @@ import { cashMethodFromPaymentMethod } from "@/lib/caja/cierre-diario";
 import { transferenciaEnElLibroTx } from "@/lib/caja/transferencia-en-el-libro";
 import { etiquetaDeMedio } from "@/lib/caja/medio-cobro";
 import { fmtMoneyARS } from "@/components/ui/format";
+import { asentarEnCajaTx } from "@/lib/caja/candado-asiento.server";
 
 /** Lo que falta cobrar de un pedido, al centavo y nunca negativo. PURA. */
 export function saldoDelPedido(total: number, cobros: readonly number[]): number {
@@ -73,13 +74,15 @@ export function sinCobrarDeLosPedidos(
   return { cantidad: pedidos.length, monto: centavos / 100 };
 }
 
-type TxSaldo = Pick<Prisma.TransactionClient, "collection" | "cashMovement" | "cashSession" | "$queryRawUnsafe">;
+// El cliente entero: el asiento pasa por `asentarEnCajaTx` (candado del cierre y día abierto releído, T01b).
+type TxSaldo = Prisma.TransactionClient;
 
 /**
  * Cobra el SALDO de un pedido dentro de la transacción del cobro (`cobrarPedidoEnTx`, con la fila
  * del pedido ya tomada por su compare-and-set): un cobro del pedido y, si el medio va al libro, su
  * VENTA colgada del cobro y enganchada al turno abierto. La frontera del día cerrado la mira el
- * llamador ANTES (setOrderPaidCore y el aviso de Mercado Pago ya lo hacen para todo cobro).
+ * llamador ANTES (setOrderPaidCore y el aviso de Mercado Pago ya lo hacen para todo cobro), y el asiento la
+ * relee adentro, con el candado del cierre (`asentarEnCajaTx`, T01b).
  */
 export async function cobrarSaldoDelPedidoEnTx(
   tx: TxSaldo,
@@ -105,17 +108,15 @@ export async function cobrarSaldoDelPedidoEnTx(
   const metodo = cashMethodFromPaymentMethod(v.medio, v.medio === "TRANSFERENCIA" && (await transferenciaEnElLibroTx(tx)));
   if (!metodo) return { collectionId: cobro.id, asentado: false };
   const turno = await tx.cashSession.findFirst({ where: { tenantId, status: "OPEN" }, select: { id: true } });
-  await tx.cashMovement.create({
-    data: {
-      tenantId,
-      sessionId: turno?.id ?? null,
-      type: "VENTA",
-      method: metodo,
-      amount: v.saldo,
-      reason: `Pedido #${v.orderCode} · saldo por el peso real · ${etiquetaDeMedio(v.medio)} ${fmtMoneyARS(v.saldo)}`,
-      collectionId: cobro.id,
-      createdBy: `${SALDO_PEDIDO_ACTOR_PREFIX}${v.actor}`,
-    },
+  await asentarEnCajaTx(tx, "cobro", {
+    tenantId,
+    sessionId: turno?.id ?? null,
+    type: "VENTA",
+    method: metodo,
+    amount: v.saldo,
+    reason: `Pedido #${v.orderCode} · saldo por el peso real · ${etiquetaDeMedio(v.medio)} ${fmtMoneyARS(v.saldo)}`,
+    collectionId: cobro.id,
+    createdBy: `${SALDO_PEDIDO_ACTOR_PREFIX}${v.actor}`,
   });
   return { collectionId: cobro.id, asentado: true };
 }

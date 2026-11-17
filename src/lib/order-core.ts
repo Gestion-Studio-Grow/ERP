@@ -16,7 +16,6 @@
 // ADR-015) y lo escribe en cada fila; cada read filtra por él.
 
 import { prisma } from "@/lib/prisma";
-import { tenantTransaction } from "@/lib/rls";
 import { recordMovement, RechazoDelStock } from "@/lib/stock/ledger";
 import { recordCashSaleMovementInTx, type RecordCashSaleResult } from "@/lib/caja/cash-sale";
 import { round2 } from "@/lib/round";
@@ -63,6 +62,7 @@ import { registrarPromocionesDeLaVentaEnTx } from "@/lib/supermercado/promos-de-
 import { CUADERNO_SOLO_VENTA_COBRADA } from "@/lib/cuaderno/hora-de-la-venta";
 import type { Prisma, ProductSaleUnit } from "@/generated/prisma/client";
 import { emitirPedidoCobrado, emitirPedidoCreado } from "@/eventos/del-core";
+import { transaccionQueAsienta } from "@/lib/caja/candado-asiento.server";
 
 // DEBITO/CREDITO (N2 · M1-C1, D-C01): sólo el mostrador los escribe, y sólo con `tarjetaHabilitada()` en
 // true (los valores en la base, N2_enums.sql). La vidriera y la ingesta externa siguen con los tres de siempre.
@@ -682,7 +682,7 @@ export async function insertOrder(
     lineCount: alta.lines.length + alta.aMano.length + (alta.envio ? 1 : 0),
     findByKey: (key) => findOrderByIdempotencyKey(tenantId, key),
     runInsert: (writeKey) =>
-      tenantTransaction((tx) => insertarOrdenEnTx(tx, { tenantId, alta, opts, clientId, writeKey, clave }), { tenantId }),
+      transaccionQueAsienta((tx) => insertarOrdenEnTx(tx, { tenantId, alta, opts, clientId, writeKey, clave }), { tenantId }),
   });
   // Reintento con una clave ya grabada: no se grabó nada; se devuelve la grabada JUNTO con lo
   // que pidió este envío, para que el llamador vea si es lo mismo.
@@ -1486,7 +1486,7 @@ const DEPS_AVISO: DepsAvisoDePedido = {
   leerPedido: leerPedidoParaAviso,
   cerradoHasta: (tenantId) => lastClosedDay(tenantId),
   hoy: () => dateStrInBusinessTz(new Date()),
-  cobrar: (tenantId, args) => tenantTransaction((tx) => cobrarPedidoEnTx(tx, tenantId, args), { tenantId }),
+  cobrar: (tenantId, args) => transaccionQueAsienta((tx) => cobrarPedidoEnTx(tx, tenantId, args), { tenantId }),
   auditar: (entry) => audit(entry),
 };
 

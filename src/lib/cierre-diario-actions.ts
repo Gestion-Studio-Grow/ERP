@@ -24,7 +24,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { AJUSTE_PESO_ACTOR_PREFIX } from "@/lib/caja/devolucion-por-peso";
-import { tenantTransaction } from "@/lib/rls";
+import { asentarAjustesDelCierreTx, transaccionQueAsienta } from "@/lib/caja/candado-asiento.server";
 import { emitirCajaCerrada } from "@/eventos/del-core";
 import { Prisma } from "@/generated/prisma/client";
 import { getCurrentTenantId } from "@/lib/tenant";
@@ -783,7 +783,7 @@ export async function cerrarDia(formData: FormData): Promise<CierreActionState> 
   const actor = user ? `user:${user.id}` : "admin";
 
   try {
-    const resultado = await tenantTransaction(
+    const resultado = await transaccionQueAsienta(
       async (tx) => {
         // El MISMO candado por negocio que abrir un turno (`openCashSession`) y reabrir el día
         // (`reabrirDiaAction`): cerrar, abrir y reabrir se ordenan uno detrás del otro.
@@ -847,8 +847,8 @@ export async function cerrarDia(formData: FormData): Promise<CierreActionState> 
 
         const filas = ajustesAsMovements(cierre, ajusteInstant(day));
         if (filas.length > 0) {
-          const created = await tx.cashMovement.createMany({
-            data: filas.map((f) => ({
+          // T01b: los ajustes del cierre entran por el candado (el mismo que este cierre ya tomó arriba).
+          const escritos = await asentarAjustesDelCierreTx(tx, tenantId, filas.map((f) => ({
               tenantId,
               sessionId: null,
               type: f.type,
@@ -857,10 +857,9 @@ export async function cerrarDia(formData: FormData): Promise<CierreActionState> 
               reason: f.detail,
               occurredAt: f.occurredAt,
               createdBy: cierreMarker(day),
-            })),
-          });
-          if (created.count !== filas.length) {
-            throw new Error(`se esperaban ${filas.length} ajustes y se escribieron ${created.count}`);
+            })));
+          if (escritos !== filas.length) {
+            throw new Error(`se esperaban ${filas.length} ajustes y se escribieron ${escritos}`);
           }
         }
 
@@ -916,7 +915,6 @@ export async function cerrarDia(formData: FormData): Promise<CierreActionState> 
         const cola = colaDelAvisoDeCierre({ ajustes: filas.length, columnas: cierre.columnas, porColumna: cierre.porColumna, etiquetas: columnas ? ETIQUETA_DE_COLUMNA : CASH_METHOD_LABEL });
         return { ok: true as const, estado: cierre.estado, ajustes: filas.length, cola };
       },
-      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
 
     if (!resultado.ok) return resultado;

@@ -67,6 +67,7 @@ import { aplicarPromociones, type ContextoDePromo, type Promocion } from "@/lib/
 import { reemplazarPromocionesDeLaVentaEnTx } from "@/lib/supermercado/promos-de-la-venta";
 import type { PromosDeLaVenta } from "@/lib/order-core";
 import { emitirPedidoCancelado } from "@/eventos/del-core";
+import { asentarEnCajaTx } from "@/lib/caja/candado-asiento.server";
 
 export type AnulacionVentaTx = Prisma.TransactionClient;
 
@@ -520,19 +521,16 @@ export async function anularVentaInTx(
     if (a.collectionId == null) {
       const monto = round2(a.amount - devuelto);
       if (!(monto > 0)) continue;
-      const mov = await tx.cashMovement.create({
-        data: {
-          tenantId,
-          sessionId: a.sessionId,
-          type: "EGRESO",
-          method: a.method,
-          amount: monto, // siempre > 0: el signo lo pone el tipo (`movementSign`)
-          reason: detalleReversaVenta(order!.code, args.motivo),
-          occurredAt: a.occurredAt,
-          ...(devuelto > 0 ? {} : { orderId: args.orderId }),
-          createdBy: `${ANULACION_VENTA_ACTOR_PREFIX}${args.actor}`,
-        },
-        select: { id: true },
+      const mov = await asentarEnCajaTx(tx, "anulación", {
+        tenantId,
+        sessionId: a.sessionId,
+        type: "EGRESO",
+        method: a.method,
+        amount: monto, // siempre > 0: el signo lo pone el tipo (`movementSign`)
+        reason: detalleReversaVenta(order!.code, args.motivo),
+        occurredAt: a.occurredAt,
+        ...(devuelto > 0 ? {} : { orderId: args.orderId }),
+        createdBy: `${ANULACION_VENTA_ACTOR_PREFIX}${args.actor}`,
       });
       reversaId ??= mov.id;
       montoRevertido = round2(montoRevertido + monto);
@@ -541,19 +539,16 @@ export async function anularVentaInTx(
       // del MISMO cobro (`@@unique(tenantId, collectionId, type)` es el árbitro de la carrera, como
       // el de `orderId` en la venta de un medio). Sin `orderId`: ése admite un solo EGRESO por
       // pedido. La marca de la anulación la protege en el libro (libro-caja.ts, `motivoParaNoBorrar`).
-      const mov = await tx.cashMovement.create({
-        data: {
-          tenantId,
-          sessionId: a.sessionId,
-          type: "EGRESO",
-          method: a.method,
-          amount: round2(a.amount),
-          reason: detalleReversaVenta(order!.code, args.motivo),
-          occurredAt: a.occurredAt,
-          collectionId: a.collectionId,
-          createdBy: `${ANULACION_VENTA_ACTOR_PREFIX}${args.actor}`,
-        },
-        select: { id: true },
+      const mov = await asentarEnCajaTx(tx, "anulación", {
+        tenantId,
+        sessionId: a.sessionId,
+        type: "EGRESO",
+        method: a.method,
+        amount: round2(a.amount),
+        reason: detalleReversaVenta(order!.code, args.motivo),
+        occurredAt: a.occurredAt,
+        collectionId: a.collectionId,
+        createdBy: `${ANULACION_VENTA_ACTOR_PREFIX}${args.actor}`,
       });
       reversaId ??= mov.id;
       montoRevertido = round2(montoRevertido + a.amount);

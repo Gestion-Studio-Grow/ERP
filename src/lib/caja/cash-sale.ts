@@ -26,12 +26,12 @@
 // REGLA DE DIRECCIÓN ÚNICA (docs/producto/diseno-cierre-diario-caja.md §4): la venta
 // escribe en el libro; el libro NUNCA escribe en pedidos. Este módulo sólo inserta.
 
-import { tenantTransaction } from "@/lib/rls";
 import { isUniqueViolation } from "@/lib/prisma-errors";
 import { cashMethodFromPaymentMethod } from "@/lib/caja/cierre-diario";
 import { transferenciaEnElLibroTx } from "@/lib/caja/transferencia-en-el-libro";
 import type { CashMethod } from "@/lib/caja/cash-register";
 import type { Prisma } from "@/generated/prisma/client";
+import { asentarEnCajaTx, transaccionQueAsienta } from "@/lib/caja/candado-asiento.server";
 
 // Cliente de transacción interactiva (mismo patrón que `LedgerTx`): la variante `-InTx`
 // corre DENTRO de la tx del llamador para componer con la venta (I7, ADR-064) — así el
@@ -153,19 +153,16 @@ export async function recordCashSaleMovementInTx(
   });
   if (existing) return { recorded: false, reason: "already-recorded" };
 
-  const mov = await tx.cashMovement.create({
-    data: {
-      tenantId,
-      sessionId: session?.id ?? null,
-      type: "VENTA",
-      method: elig.method,
-      amount: elig.amount,
-      reason: `Venta #${input.orderCode}`,
-      orderId: input.orderId,
-      createdBy: input.actor,
-      ...(input.occurredAt ? { occurredAt: input.occurredAt } : {}),
-    },
-    select: { id: true },
+  const mov = await asentarEnCajaTx(tx, "venta", {
+    tenantId,
+    sessionId: session?.id ?? null,
+    type: "VENTA",
+    method: elig.method,
+    amount: elig.amount,
+    reason: `Venta #${input.orderCode}`,
+    orderId: input.orderId,
+    createdBy: input.actor,
+    ...(input.occurredAt ? { occurredAt: input.occurredAt } : {}),
   });
   return { recorded: true, movementId: mov.id, sessionId: session?.id ?? null, method: elig.method };
 }
@@ -181,7 +178,7 @@ export async function recordCashSaleMovement(
   input: CashSaleInput,
 ): Promise<RecordCashSaleResult> {
   try {
-    return await tenantTransaction<RecordCashSaleResult>(
+    return await transaccionQueAsienta<RecordCashSaleResult>(
       (tx) => recordCashSaleMovementInTx(tx, tenantId, input),
       { tenantId },
     );

@@ -5,7 +5,7 @@
 import { formatDayLabel, isFrozenDay, nextDayKey, type DayKey } from "@/lib/caja/cierre-diario";
 
 /** Qué se intentó asentar, para nombrarlo en el rechazo («este cobro»). */
-export type QueSeAsienta = "cobro" | "pago" | "anulación" | "rendición" | "movimiento";
+export type QueSeAsienta = "cobro" | "pago" | "anulación" | "rendición" | "movimiento" | "venta" | "compra" | "devolución" | "comisión";
 
 const ESTE: Record<QueSeAsienta, string> = {
   cobro: "este cobro",
@@ -13,6 +13,10 @@ const ESTE: Record<QueSeAsienta, string> = {
   anulación: "esta anulación",
   rendición: "este movimiento de la rendición",
   movimiento: "este movimiento",
+  venta: "esta venta",
+  compra: "esta compra",
+  devolución: "esta devolución",
+  comisión: "esta liquidación de comisiones",
 };
 
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
@@ -28,13 +32,14 @@ export function etiquetaMes(mes: string): string {
  * Proyectos asientan con la fecha del momento); `frontera`, el último día cerrado (`lastClosedDay`); `mesCongelado`,
  * si el mes de `dia` está congelado en Cierre del mes. Primero el mes: reabrir el día no alcanza si el mes está congelado.
  */
-export function motivoPeriodoCerrado(p: { dia: DayKey; frontera: DayKey | null; mesCongelado: boolean; que?: QueSeAsienta }): string | null {
+export function motivoPeriodoCerrado(p: { dia: DayKey; frontera: DayKey | null; mesCongelado: boolean; que?: QueSeAsienta; verbo?: "registró" | "borró" }): string | null {
   const este = ESTE[p.que ?? "movimiento"];
+  const verbo = p.verbo ?? "registró";
   const mes = etiquetaMes(p.dia.slice(0, 7));
   if (p.mesCongelado) {
-    return `No se registró ${este}: ${mes} está congelado en Cierre del mes, y asentaría en la caja del ${formatDayLabel(p.dia)}. Para cargarlo, quien administra tiene que reabrir ${mes} en Caja › Cierre del mes (queda registrado quién y por qué) y volvés a intentar.`;
+    return `No se ${verbo} ${este}: ${mes} está congelado en Cierre del mes, y asentaría en la caja del ${formatDayLabel(p.dia)}. Para cargarlo, quien administra tiene que reabrir ${mes} en Caja › Cierre del mes (queda registrado quién y por qué) y volvés a intentar.`;
   }
   if (!isFrozenDay(p.dia, p.frontera)) return null;
   const abierto = nextDayKey(p.frontera!);
-  return `No se registró ${este}: la caja del ${formatDayLabel(p.dia)} ya está cerrada y asentaría en ese día. Si es de hoy, reabrí el cierre del día en Caja › Cierre del día y volvé a intentar; si no, cargalo el ${formatDayLabel(abierto)}, el primer día abierto, y aclaralo en la nota.`;
+  return `No se ${verbo} ${este}: la caja del ${formatDayLabel(p.dia)} ya está cerrada y asentaría en ese día. Si es de hoy, reabrí el cierre del día en Caja › Cierre del día y volvé a intentar; si no, cargalo el ${formatDayLabel(abierto)}, el primer día abierto, y aclaralo en la nota.`;
 }

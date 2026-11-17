@@ -22,7 +22,7 @@ import { auditAdmin } from "@/lib/audit-core";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
 import { motivoSinCaja } from "@/lib/caja/permiso-libro";
-import { tenantTransaction } from "@/lib/rls";
+import { asentarEnCajaTx, borrarDeCajaTx, transaccionQueAsienta } from "@/lib/caja/candado-asiento.server";
 import { isColumnMissing } from "@/lib/prisma-errors";
 import { businessWallTimeToUtc, todayInBusinessTz, dateStrInBusinessTz } from "@/lib/datetime";
 import { isDemoSandbox, DEMO_WRITE_BLOCKED, getDemoLibroMovements } from "@/lib/demo-sandbox";
@@ -359,7 +359,7 @@ export async function addLibroEntry(
   const diaDesde = businessWallTimeToUtc(dateStr, "00:00");
   const diaHasta = businessWallTimeToUtc(nextDayKey(dateStr), "00:00");
   try {
-    await tenantTransaction(async (tx) => {
+    await transaccionQueAsienta(async (tx) => {
       // (b) POSIBLE DUPLICADO, dos variantes en una consulta:
       //
       //   · Manual repetida: mismo día, mismo detalle, mismo medio y mismo monto. Puede ser
@@ -426,17 +426,16 @@ export async function addLibroEntry(
         where: { tenantId, status: "OPEN" },
         select: { id: true },
       });
-      await tx.cashMovement.create({
-        data: {
-          tenantId,
-          sessionId: openSession?.id ?? null,
-          type,
-          method,
-          amount,
-          reason: detail,
-          occurredAt,
-          createdBy: actor,
-        },
+      // T01b: candado y día abierto releído ADENTRO (la lectura de arriba es el aviso rápido; ésta cierra la carrera).
+      await asentarEnCajaTx(tx, "movimiento", {
+        tenantId,
+        sessionId: openSession?.id ?? null,
+        type,
+        method,
+        amount,
+        reason: detail,
+        occurredAt,
+        createdBy: actor,
       });
     }, { tenantId });
   } catch (err) {
@@ -525,7 +524,7 @@ export async function deleteLibroEntry(
 
   let borrado: { type: string; method: string; amount: number; reason: string | null };
   try {
-    borrado = await tenantTransaction(async (tx) => {
+    borrado = await transaccionQueAsienta(async (tx) => {
       const found = await tx.cashMovement.findFirst({
         where: { tenantId, id },
         select: { id: true, type: true, method: true, amount: true, reason: true, orderId: true, createdBy: true, tallerPagoId: true, occurredAt: true, proyectoPagoId: true, proyectoGastoId: true, proyectoLiquidacionId: true, proyectoAnticipoId: true },
@@ -538,12 +537,13 @@ export async function deleteLibroEntry(
       const bloqueo = motivoParaNoBorrar({ proyectoPagoId: found.proyectoPagoId, proyectoGastoId: found.proyectoGastoId, proyectoLiquidacionId: found.proyectoLiquidacionId, proyectoAnticipoId: found.proyectoAnticipoId, type: found.type as CashMovementType, orderId: found.orderId, createdBy: found.createdBy, tallerPagoId: found.tallerPagoId });
       if (bloqueo) throw new Error(bloqueo);
       // Mismo candado que el alta: un día ya cerrado no se toca. Borrar hacia atrás
-      // desbalancearía el saldo operativo contra lo que se contó.
+      // desbalancearía el saldo operativo contra lo que se contó. La lectura de antes de la
+      // transacción es el aviso rápido; `borrarDeCajaTx` relee el día con el candado tomado (T01b).
       const dia = dateStrInBusinessTz(found.occurredAt);
       if (cerradoHasta && isFrozenDay(dia, cerradoHasta)) {
         throw new Error(frozenDayMessage(dia, cerradoHasta));
       }
-      await tx.cashMovement.delete({ where: { id: found.id } });
+      await borrarDeCajaTx(tx, tenantId, found);
       return { type: found.type, method: found.method, amount: found.amount, reason: found.reason };
     }, { tenantId });
   } catch (err) {

@@ -51,6 +51,7 @@ import { facturaDeLaVenta, mensajeFacturaViva, type FacturaDeLaVenta } from "@/l
 import { claveCobroDelLibro, cobroDeLaClave } from "@/lib/facturacion/clave-cobro-del-libro";
 import { claveNotaDeCobroMP, coberturaMP, facturadoPropioPorCobro, saldosMPSinPareja } from "@/lib/facturacion/cobertura-mp";
 import { centavosDe } from "@/lib/dinero/redondeo";
+import { asentarEnCajaTx } from "@/lib/caja/candado-asiento.server";
 
 export type AnulacionTx = Prisma.TransactionClient;
 
@@ -731,19 +732,16 @@ async function asentarReversaInTx(
   if (!traducido) return { asentada: false, reason: "medio-no-traducible" };
   const method = (input.asientoOriginal.method as CashMethod | undefined) ?? traducido;
 
-  const mov = await tx.cashMovement.create({
-    data: {
-      tenantId,
-      sessionId: input.asientoOriginal.sessionId,
-      type: "EGRESO",
-      method,
-      amount: input.monto, // siempre > 0: el signo lo pone el tipo (`movementSign`)
-      reason: detalleReversa(input.asientoOriginal.reason, input.motivo),
-      occurredAt: input.asientoOriginal.occurredAt,
-      collectionId: input.collectionId,
-      createdBy: `${ANULACION_TURNO_ACTOR_PREFIX}${input.actor}`,
-    },
-    select: { id: true },
+  const mov = await asentarEnCajaTx(tx, "anulación", {
+    tenantId,
+    sessionId: input.asientoOriginal.sessionId,
+    type: "EGRESO",
+    method,
+    amount: input.monto, // siempre > 0: el signo lo pone el tipo (`movementSign`)
+    reason: detalleReversa(input.asientoOriginal.reason, input.motivo),
+    occurredAt: input.asientoOriginal.occurredAt,
+    collectionId: input.collectionId,
+    createdBy: `${ANULACION_TURNO_ACTOR_PREFIX}${input.actor}`,
   });
   return { asentada: true, movementId: mov.id };
 }
