@@ -531,3 +531,26 @@ test("modo simulado: un CAE «STUB…» dice la verdad (prueba, sin CAE real), n
   // Un CAE roto de verdad sigue pidiendo soporte.
   assert.match(faltantesDelComprobante(factura({ cae: "123" }))[0].mensaje, /soporte/);
 });
+
+// Seguimiento del #147: el CUIT que sale impreso pasa por la misma regla que @/lib/cuit y además
+// tiene que ser TEXTO de 11 números. Un número (un JSON mal tipado) pasaba la expresión y
+// `cuitImpreso` reventaba al imprimir; un CUIT con espacios o guiones no se imprime tal cual.
+test("CUIT imprimible: sólo texto de 11 números válidos según @/lib/cuit", () => {
+  const comoNumero = Number(CUIT) as unknown as string;
+  assert.equal(cuitImprimible(comoNumero), false);
+  for (const c of [` ${CUIT}`, `${CUIT}\n`, `${CUIT.slice(0, 10)}\u0660`, "２０１２３４５６７８６", undefined as unknown as string]) {
+    assert.equal(cuitImprimible(c), false, JSON.stringify(c));
+  }
+  assert.equal(cuitImprimible(CUIT), true);
+});
+
+test("CUIT del negocio o del cliente como número: falta en la lista, el PDF no se arma ni revienta", async () => {
+  const comoNumero = Number(CUIT) as unknown as string;
+  const emisor = factura({ emisor: { ...factura().emisor, cuit: comoNumero } });
+  assert.ok(faltantesDelComprobante(emisor).some((x) => x.campo === "emisor.cuit"));
+  const r = await generarComprobantePdf(emisor);
+  assert.equal(r.ok, false);
+  const receptor = { ...facturaA(), receptor: { ...facturaA().receptor, docNro: comoNumero } };
+  assert.ok(faltantesDelComprobante(receptor).some((x) => x.campo === "receptor.docNro"));
+  assert.equal((await generarComprobantePdf(receptor)).ok, false);
+});
