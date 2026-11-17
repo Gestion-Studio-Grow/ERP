@@ -135,9 +135,12 @@ export async function vencerPedidos(tx: Tx, tenantId: string, ahora: Date = new 
 async function pedidoParaCerrar(tx: Tx, actor: Actor, tenantId: string, pedidoId: string) {
   const p = await tx.pedidoCuadrilla.findFirst({
     where: { id: pedidoId, tenantId },
-    select: { id: true, tenantId: true, agenteId: true, estado: true, texto: true, createdAt: true, topeMinutos: true, topeTurnos: true, turnosUsados: true },
+    select: { id: true, tenantId: true, agenteId: true, estado: true, salida: true, texto: true, createdAt: true, topeMinutos: true, topeTurnos: true, turnosUsados: true },
   });
   if (!p) throw new NoPermitido("No existe ese pedido en este negocio.");
+  if (p.salida === "TOPE" && actor.tipo === "agente" && actor.agenteId === p.agenteId) {
+    throw new NoPermitido("Pasaste el tope: este pedido ya pasó a una persona y no se puede seguir ni dar por terminado.");
+  }
   exigir(puede(actor, "cerrar_pedido", { pedido: p }));
   return p;
 }

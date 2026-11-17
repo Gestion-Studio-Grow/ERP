@@ -337,11 +337,11 @@ export function TableroCuadrilla(props: PropsTablero) {
       </header>
 
       {props.aviso.error ? (
-        <p role="alert" className="rounded-lg border border-danger bg-danger-soft px-3 py-2 text-sm text-danger">
+        <p id="aviso" role="alert" className="scroll-mt-20 rounded-lg border border-danger bg-danger-soft px-3 py-2 text-sm text-danger">
           {props.aviso.error}
         </p>
       ) : props.aviso.ok ? (
-        <p role="status" className="rounded-lg border border-line bg-success-soft px-3 py-2 text-sm text-success">
+        <p id="aviso" role="status" className="scroll-mt-20 rounded-lg border border-line bg-success-soft px-3 py-2 text-sm text-success">
           {props.aviso.ok}
         </p>
       ) : null}
@@ -354,6 +354,7 @@ export function TableroCuadrilla(props: PropsTablero) {
         ))}
 
       <form method="get" action={base} className="flex flex-wrap items-end gap-3 rounded-lg border border-line bg-surface p-3" aria-label="Filtros">
+        {filtros.pedidos ? <input type="hidden" name="pedidos" value={filtros.pedidos} /> : null}
         {props.modo === "operador" ? (
           <label className="grid gap-1 text-sm">
             <span className="text-muted">Negocio</span>

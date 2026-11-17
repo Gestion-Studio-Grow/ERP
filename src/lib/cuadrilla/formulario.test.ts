@@ -33,7 +33,8 @@ test("volverA conserva los filtros (también la vista de pedidos), firma el resu
     assert.equal(q.get("pedidos"), "negados");
     assert.equal(q.get("ok"), "Pedido negado.");
     assert.equal(q.get("f"), firmaDelAviso("Pedido negado.", "", CLAVE));
-    assert.equal(hash, "pedidos");
+    assert.equal(hash, "aviso", "con resultado, se baja al aviso");
+    assert.ok(volverA("/admin/cuadrilla", fd({ ancla: "pedidos" }), {}).endsWith("#pedidos"), "sin resultado, a la sección");
     // Un ancla que no es de la consola no se copia a la URL.
     assert.ok(!volverA("/admin/cuadrilla", fd({ ancla: "javascript:alert(1)" }), {}).includes("#"));
     // Un resultado vacío no deja rastro.

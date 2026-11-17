@@ -123,7 +123,9 @@ test("cuadrilla bajo RLS: pedidos fuera de alcance (negado u oportunidad) y tope
     assert.equal(ex.tipo, "ESCALADO");
     assert.equal(ex.estado, "PENDIENTE");
     assert.ok(conError(await ejecutarAccion(agenteA, () => panelAvanzarPedido(fd({ pedidoId: p.id, texto: "sigo igual" })))));
-    assert.ok(conError(await ejecutarAccion(agenteA, () => panelCerrarPedido(fd({ pedidoId: p.id, salida: "HECHO", respuesta: "Listo" })))));
+    const tarde = await ejecutarAccion(agenteA, () => panelCerrarPedido(fd({ pedidoId: p.id, salida: "HECHO", respuesta: "Listo" })));
+    assert.ok(conError(tarde));
+    assert.ok(tarde.tipo === "redireccion" && /Pasaste el tope/.test(decodeURIComponent(tarde.destino.replace(/\+/g, " "))));
     assert.equal((await pedido(p.texto)).turnosUsados, 2);
   });
 

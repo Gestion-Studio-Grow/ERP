@@ -27,7 +27,7 @@ export function avisoDeLaUrl(
 }
 
 /** Las secciones que se abren al volver: el celular baja directo ahí en vez de quedar arriba de todo. */
-export const ANCLAS = ["decision", "hilo", "pedidos", "bandeja"] as const;
+export const ANCLAS = ["decision", "hilo", "pedidos", "bandeja", "aviso"] as const;
 
 /** El ancla que pidió el formulario (campo oculto `ancla`), sólo si es una de las conocidas. */
 function anclaDel(fd: FormData): string | undefined {
@@ -54,7 +54,8 @@ export function volverA(base: string, fd: FormData, extra: Record<string, string
     }
   }
   const s = q.toString();
-  const destino = ancla ?? anclaDel(fd);
+  // Con un resultado que mostrar, se baja al aviso (está arriba): si no, en el celular quedaba fuera de pantalla.
+  const destino = q.has("ok") || q.has("error") ? "aviso" : (ancla ?? anclaDel(fd));
   const hash = destino ? `#${destino}` : "";
   return (s ? `${base}?${s}` : base) + hash;
 }

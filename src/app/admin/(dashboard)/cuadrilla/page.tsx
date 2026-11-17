@@ -72,11 +72,11 @@ export default async function CuadrillaPanelPage({ searchParams }: { searchParam
           <p className="text-sm text-muted">Sos un usuario de agente: acá leés lo que te dicen y levantás pedidos. Aprobar lo hace una persona.</p>
         </header>
         {aviso.error || falla ? (
-          <p role="alert" className="rounded-lg border border-danger bg-danger-soft px-3 py-2 text-sm text-danger">
+          <p id="aviso" role="alert" className="scroll-mt-20 rounded-lg border border-danger bg-danger-soft px-3 py-2 text-sm text-danger">
             {aviso.error ?? falla}
           </p>
         ) : aviso.ok ? (
-          <p role="status" className="rounded-lg border border-line bg-success-soft px-3 py-2 text-sm text-success">
+          <p id="aviso" role="status" className="scroll-mt-20 rounded-lg border border-line bg-success-soft px-3 py-2 text-sm text-success">
             {aviso.ok}
           </p>
         ) : null}
