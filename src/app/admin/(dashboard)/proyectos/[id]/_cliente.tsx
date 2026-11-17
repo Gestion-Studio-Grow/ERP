@@ -13,24 +13,37 @@ import { useToastSiHay } from "../../ToastProvider";
 
 const campoEnLinea = "min-h-11 min-w-0 rounded-lg border border-line bg-surface px-3 text-sm text-strong";
 
+/** Clave aleatoria URL-safe (32 caracteres) para un envío. */
+function nuevaClave(): string {
+  const b = new Uint8Array(16);
+  crypto.getRandomValues(b);
+  return Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
+}
+
 /**
  * Un <form> de acción de servidor que dice qué falló sin perder lo tipeado. Con `limpiar`, vacía los campos si salió bien.
  * Se envía con `onSubmit` y no con `action`: React 19 vacía un <form action> al terminar, también cuando falló, y el medio
  * volvía a «Transferencia» con el monto borrado: un pago en efectivo podía quedar como transferencia (recorrido del PR #166 · 4).
+ * Con `claveDeEnvio`, cada envío lleva `claveEnvio`: la misma hasta que el servidor contesta (un doble clic o un reintento
+ * después de un corte repiten la clave y el servidor graba una sola vez); con respuesta, el próximo envío lleva otra.
  */
-export function FormAccion({ accion, className, children, limpiar, alGuardar }: { accion: (fd: FormData) => Promise<ResultadoFicha>; className?: string; children: ReactNode; limpiar?: boolean; alGuardar?: () => void }) {
+export function FormAccion({ accion, className, children, limpiar, alGuardar, claveDeEnvio }: { accion: (fd: FormData) => Promise<ResultadoFicha>; className?: string; children: ReactNode; limpiar?: boolean; alGuardar?: () => void; claveDeEnvio?: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [enCurso, iniciar] = useTransition();
   const form = useRef<HTMLFormElement>(null);
+  const clave = useRef<string | null>(null);
   const toast = useToastSiHay();
   const enviar = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (enCurso) return;
     const fd = new FormData(e.currentTarget, (e.nativeEvent as SubmitEvent).submitter);
+    if (claveDeEnvio) fd.set("claveEnvio", (clave.current ??= nuevaClave()));
     iniciar(async () => {
       setError(null);
       try {
         const r = await accion(fd);
+        // El servidor contestó (bien o mal): el próximo envío es otro. Si la llamada se cortó, la clave queda.
+        if (claveDeEnvio) clave.current = null;
         if (!r.ok) return setError(r.error);
         // El éxito va en un aviso flotante: el renglón que lo pidió (la cuota marcada) suele desaparecer al refrescar.
         if (r.listo) toast?.showSuccess(r.listo);

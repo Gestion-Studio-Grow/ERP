@@ -457,7 +457,7 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
         )}
         {conCobros && <p className="text-sm text-muted">Los cobros de este evento se registran marcando su cuota, en la tabla de arriba.</p>}
         {cargaDirecta && !conCobros && (
-          <FormAccion accion={registrarCobro} limpiar className="grid gap-2 sm:grid-cols-4">
+          <FormAccion accion={registrarCobro} limpiar claveDeEnvio className="grid gap-2 sm:grid-cols-4">
             <input type="hidden" name="proyectoId" value={p.id} />
             <input name="monto" required aria-label="Monto" placeholder="Monto" inputMode="decimal" className={campo} />
             <select name="medio" aria-label="Medio de cobro" defaultValue="TRANSFERENCIA" className={campo}>
