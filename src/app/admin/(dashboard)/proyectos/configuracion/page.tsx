@@ -22,7 +22,7 @@ export default async function ConfiguracionGestion({ searchParams }: { searchPar
   const porMail = new Set(prefs.filter((p) => p.porMail).map((p) => p.tipo));
 
   return (
-    <main className="mx-auto grid w-full max-w-3xl gap-4 px-4 py-5">
+    <main className="mx-auto grid w-full max-w-3xl grid-cols-[minmax(0,1fr)] gap-4 px-4 py-5">
       <h1 className="text-2xl font-bold text-strong">Configuración</h1>
 
       <section className={tarjeta} aria-label="Avisos">
