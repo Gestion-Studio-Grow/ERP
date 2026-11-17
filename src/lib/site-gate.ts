@@ -114,6 +114,9 @@ const SIEMPRE_ABIERTAS = [
   "/contador",
   "/facturita",
   "/profeturnos",
+  // Juegos de activaciones en eventos (archivos estáticos sin datos del ERP): se reparten por QR y redes,
+  // detrás de una clave no servirían (mismo criterio que `/obsequio`).
+  "/juegos",
   "/api",
 ];
 
