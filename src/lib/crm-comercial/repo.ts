@@ -16,9 +16,8 @@
 // Migración 20261116150000_crm_comercial sin aplicar (Gate 2): la tabla o columna ausente no es un 500,
 // vuelve `faltaMigracion`. Nada de acá le manda nada a terceros: los mensajes los manda una persona.
 
-import { randomBytes } from "node:crypto";
 import { Prisma } from "@/generated/prisma/client";
-import { tenantTransaction } from "@/lib/rls";
+import { tenantTransaction, trasladoTransaction, type FasesDeTraslado } from "@/lib/rls";
 import { isPrismaError } from "@/lib/prisma-errors";
 import { claveMarca, ROLES as ROLES_EN_EVENTO, VERIFICACIONES } from "@/lib/eventos-sponsors/core";
 import { VARA } from "./vara";
@@ -83,6 +82,7 @@ import {
   type TipoOportunidad,
   type VistaPase,
 } from "./motor";
+import { crearEnDestino, estadosEnDestino, existeClienteEnDestino, nuevoIdDeProyecto, SIN_VINCULO, type DestinoArm, type Huella, type Paquete } from "./vinculo";
 import { dentroDeTopes, PUESTOS, puede, ROLES, type ContextoOportunidad, type Contexto, type Miembro, type Operacion, type Puesto, type Rol } from "./permisos";
 
 type Tx = Parameters<Parameters<typeof tenantTransaction>[0]>[0];
@@ -110,8 +110,9 @@ export class RechazoCrm extends Error {
 
 // GSG-CRM-011 (20261116160000_crm_comercial_pronostico): OportunidadContacto y las tres columnas nuevas de la
 // oportunidad. Sin esa migración, el CRM entero contesta «falta un paso» (no un 500), igual que sin la primera.
-const TABLAS = "MiembroCrmComercial|ContactoComercial|SupresionComercial|Oportunidad|ActividadComercial|BriefComercial|BorradorMensaje|TareaComercial|OportunidadContacto";
-const COLUMNAS = "tomadoPor|tomadoEl|cerradoEl|notaCierre|dominio|cuit|etapaDesde|ultimaActividadEl|cierreEsperadoEl";
+// GSG-CRM-017 (20261117010000_crm_vinculo_negocios): el vínculo ARM → destino, la asignación recibida y tres columnas.
+const TABLAS = "MiembroCrmComercial|ContactoComercial|SupresionComercial|Oportunidad|ActividadComercial|BriefComercial|BorradorMensaje|TareaComercial|OportunidadContacto|VinculoNegocio|AsignacionRecibida";
+const COLUMNAS = "tomadoPor|tomadoEl|cerradoEl|notaCierre|dominio|cuit|etapaDesde|ultimaActividadEl|cierreEsperadoEl|destinoTenantId|proyectoDestinoId|consultaId";
 
 /** ¿El error es «falta la tabla o la columna» (migración sin aplicar)? */
 export function esFaltaDeTabla(e: unknown): boolean {
@@ -230,6 +231,8 @@ const SEL_OP = {
   pedidosDeDatos: true,
   seguimientosSinRespuesta: true,
   proyectoId: true,
+  destinoTenantId: true,
+  proyectoDestinoId: true,
   moneda: true,
   monto: true,
   creadaPor: true,
@@ -505,6 +508,7 @@ export interface NuevaOportunidad {
  * E17: una marca cliente o con proyecto activo no se prospecta en frío. E21: aviso de exclusividad de rubro.
  */
 export async function proponerOportunidad(ctx: Ctx, n: NuevaOportunidad, ahora = new Date()): Promise<Res<{ id: string; repetida?: true; unida?: true; aviso?: string | null }>> {
+  const vinc = await enVinculados(ctx, n);
   const intento = () =>
     correr<{ id: string; repetida?: true; unida?: true; aviso?: string | null }>(ctx, async (tx) => {
       const m = await guardia(tx, ctx, "proponer_oportunidad", {}, ahora, n.costoUsd ?? 0);
@@ -543,12 +547,13 @@ export async function proponerOportunidad(ctx: Ctx, n: NuevaOportunidad, ahora =
         }
         const previas = await tx.oportunidad.findMany({ where: { tenantId: ctx.tenantId, marcaId: marca.id, etapa: { in: ["ASIGNADA", "GANADA"] } }, select: { id: true, etapa: true, duenoUserId: true } });
         if (tipo === "PROSPECTO") {
-          const frio = prospectarEnFrio({ esCliente: previas.some((p) => p.etapa === "GANADA"), proyectoActivo: previas.some((p) => p.etapa === "ASIGNADA") });
+          // V7: también es cliente si ya lo es en un negocio vinculado (lectura acotada: sí o no).
+          const frio = prospectarEnFrio({ esCliente: previas.some((p) => p.etapa === "GANADA") || vinc.esCliente, proyectoActivo: previas.some((p) => p.etapa === "ASIGNADA") });
           if (!frio.ok) {
             // E17: no se prospecta; el aviso queda en la oportunidad que lo atiende y el rechazo, registrado.
             const quien = previas.find((p) => p.etapa === "ASIGNADA") ?? previas[0];
-            await registrar(tx, ctx, m, { oportunidadId: quien.id, tipo: "AVISO", texto: `Un puesto la quiso prospectar en frío y se frenó: ${frio.motivo}` });
-            await registrar(tx, ctx, m, { oportunidadId: quien.id, tipo: "ACCION_RECHAZADA", texto: frio.motivo });
+            if (quien) await registrar(tx, ctx, m, { oportunidadId: quien.id, tipo: "AVISO", texto: `Un puesto la quiso prospectar en frío y se frenó: ${frio.motivo}` });
+            await registrar(tx, ctx, m, { oportunidadId: quien?.id ?? null, tipo: "ACCION_RECHAZADA", texto: frio.motivo });
             return { ok: false, motivo: frio.motivo };
           }
         }
@@ -562,7 +567,9 @@ export async function proponerOportunidad(ctx: Ctx, n: NuevaOportunidad, ahora =
                 select: { id: true, nombre: true, rubro: true },
               })
             : [];
-          aviso = avisoDeExclusividad({ id: marca.id, rubro: marca.rubro }, clientes);
+          // V7: un competidor que es cliente de un negocio vinculado también cuenta (sólo su nombre, que es del ARM).
+          const deVinculados = vinc.competidoresClientes.filter((c) => !clientes.some((x) => x.id === c.id));
+          aviso = avisoDeExclusividad({ id: marca.id, rubro: marca.rubro }, [...clientes, ...deVinculados]);
         }
       }
 
@@ -619,6 +626,130 @@ export async function proponerOportunidad(ctx: Ctx, n: NuevaOportunidad, ahora =
     if (isPrismaError(e, "P2002")) return intento();
     throw e;
   }
+}
+
+/**
+ * V7: antes de proponer, ¿la marca (o un competidor del mismo rubro que va al mismo evento) ya es cliente en un negocio
+ * vinculado? Se arman las huellas con lo del ARM (lectura) y se pregunta a cada destino sólo sí o no.
+ */
+async function enVinculados(ctx: Ctx, n: NuevaOportunidad): Promise<{ esCliente: boolean; competidoresClientes: { id: string; nombre: string; rubro: string | null }[] }> {
+  const nada = { esCliente: false, competidoresClientes: [] };
+  if (!n.marca) return nada;
+  const pedido = n.marca;
+  const leido = await tenantTransaction(
+    async (tx) => {
+      const hay = await tx.vinculoNegocio.count({ where: { tenantId: ctx.tenantId, activo: true } });
+      if (hay === 0) return null;
+      const propia = pedido.marcaId ? await tx.marcaRelevada.findFirst({ where: { id: pedido.marcaId, tenantId: ctx.tenantId }, select: { id: true, nombre: true, dominio: true, rubro: true } }) : null;
+      const nombre = propia?.nombre ?? txt(pedido.nombre, 200);
+      const dominio = propia?.dominio ?? dominioDe(pedido.dominio ?? (pedido.web?.trim() ? urlWeb(pedido.web) : null) ?? null);
+      const rubro = (propia?.rubro ?? txt(pedido.rubro, 120))?.trim().toLowerCase() || null;
+      const competidores =
+        n.eventoId && rubro
+          ? (
+              await tx.eventoMarca.findMany({
+                where: { tenantId: ctx.tenantId, eventoId: n.eventoId, ...(propia ? { marcaId: { not: propia.id } } : {}) },
+                select: { marca: { select: { id: true, nombre: true, dominio: true, rubro: true } } },
+              })
+            )
+              .map((r) => r.marca)
+              .filter((m) => m.rubro?.trim().toLowerCase() === rubro && (!nombre || claveMarca(m.nombre) !== claveMarca(nombre)))
+          : [];
+      return { propia: { nombre, dominio, emails: [] } as Huella, competidores };
+    },
+    { tenantId: ctx.tenantId },
+  ).catch((e) => {
+    if (esFaltaDeTabla(e)) return null;
+    throw e;
+  });
+  if (!leido) return nada;
+  const si = await clienteEnVinculados(ctx, [leido.propia, ...leido.competidores.map((c) => ({ nombre: c.nombre, dominio: c.dominio, emails: [] }))]);
+  return { esCliente: si[0], competidoresClientes: leido.competidores.filter((_, i) => si[i + 1]).map(({ id, nombre, rubro }) => ({ id, nombre, rubro })) };
+}
+
+/** Quién figura en el registro cuando la oportunidad la abre el formulario público (no hay usuario). */
+export const USUARIO_FORMULARIO = "formulario-web";
+
+/**
+ * V8 · UNA SOLA PUERTA (GSG-CRM-017). En el ARM, la consulta del formulario web entra como siempre al modelo `Consulta`
+ * (`registrarConsulta`, con el clasificador #179) y de ESA consulta nace la oportunidad: no hay un segundo formulario
+ * ni un segundo embudo. Lo que el clasificador marca como «no es un cliente» (proveedor, spam) no abre oportunidad:
+ * queda en Consultas para descartar. Idempotente: una consulta → una oportunidad (índice único en la base).
+ * No hay usuario (la carga el formulario): no pasa por la membresía; la fila de registro dice «formulario-web».
+ */
+export async function oportunidadDesdeConsulta(tenantId: string, consultaId: string, ahora = new Date()): Promise<Res<{ id: string; repetida?: true }>> {
+  const ctx: Ctx = { tenantId, userId: USUARIO_FORMULARIO };
+  const intento = () =>
+    correr<{ id: string; repetida?: true }>(ctx, async (tx) => {
+      const c = await tx.consulta.findFirst({
+        where: { id: consultaId, tenantId },
+        select: { id: true, nombre: true, email: true, telefono: true, empresa: true, intencion: true, motivos: true, mensajes: { where: { direccion: "ENTRANTE" }, orderBy: { createdAt: "asc" }, take: 1, select: { texto: true } } },
+      });
+      if (!c) no("Esa consulta no existe.");
+      const consulta = c as NonNullable<typeof c>;
+      const ya = await tx.oportunidad.findFirst({ where: { tenantId, consultaId }, select: { id: true } });
+      if (ya) return { ok: true, id: ya.id, repetida: true };
+      if (consulta.intencion === "NO_CLIENTE") no("El clasificador dice que no es un cliente (proveedor o publicidad): queda en Consultas para descartar.");
+      const texto = consulta.mensajes[0]?.texto ?? "";
+      const op = await tx.oportunidad.create({
+        data: {
+          tenantId,
+          tipo: "CONSULTA",
+          etapa: ETAPA_INICIAL.CONSULTA,
+          etapaDesde: ahora,
+          consultaId,
+          consultaTexto: texto.slice(0, 10_000) || null,
+          proximoPaso: "Responder la consulta",
+          proximoPasoEl: new Date(ahora.getTime() + 4 * 3_600_000),
+          creadaPor: USUARIO_FORMULARIO,
+        },
+        select: { id: true },
+      });
+      const email = consulta.email ? normalizarEmail(consulta.email) : null;
+      if (email || consulta.telefono) {
+        const contacto = await tx.contactoComercial.create({
+          data: { tenantId, nombre: (consulta.nombre || consulta.empresa || "Contacto de la consulta").slice(0, 200), email, telefono: consulta.telefono, origen: "CONSULTA_ENTRANTE", cargadoPor: USUARIO_FORMULARIO },
+          select: { id: true },
+        });
+        await tx.oportunidad.updateMany({ where: { id: op.id, tenantId }, data: { contactoId: contacto.id } });
+      }
+      await registrar(tx, ctx, null, { oportunidadId: op.id, tipo: "CREADA", texto: `Entró una consulta por el formulario${consulta.empresa ? ` (${consulta.empresa.slice(0, 120)})` : ""}.` });
+      if (consulta.intencion === "ESCALAR") await registrar(tx, ctx, null, { oportunidadId: op.id, tipo: "AVISO", texto: `Atender ya: ${consulta.motivos.join(", ").slice(0, 500)}.` });
+      const ins = detectarInstruccion(texto);
+      if (ins.nota) await registrar(tx, ctx, null, { oportunidadId: op.id, tipo: "INSTRUCCION_ANOTADA", texto: ins.nota });
+      return { ok: true, id: op.id };
+    });
+  try {
+    return await intento();
+  } catch (e) {
+    // Dos llamadas a la vez con la misma consulta: la base frena la segunda; se vuelve a leer la que entró.
+    if (isPrismaError(e, "P2002")) return intento();
+    throw e;
+  }
+}
+
+/**
+ * V7 · «ya es cliente» en los negocios VINCULADOS: por cada vínculo activo, una lectura acotada en el destino que
+ * contesta sólo sí o no por cada huella (nunca la fila del cliente ajeno). Sin vínculos, todo «no».
+ */
+export async function clienteEnVinculados(ctx: Ctx, huellas: readonly Huella[]): Promise<boolean[]> {
+  const res = huellas.map(() => false);
+  if (huellas.length === 0) return res;
+  const destinos = await tenantTransaction((tx) => tx.vinculoNegocio.findMany({ where: { tenantId: ctx.tenantId, activo: true }, select: { destinoTenantId: true } }), { tenantId: ctx.tenantId }).catch((e) => {
+    if (esFaltaDeTabla(e)) return [];
+    throw e;
+  });
+  for (const { destinoTenantId } of destinos) {
+    const si = await trasladoTransaction({ origen: ctx.tenantId, destino: destinoTenantId }, (fases: FasesDeTraslado) =>
+      fases.enDestino(async (tx) => {
+        const r: boolean[] = [];
+        for (const h of huellas) r.push(await existeClienteEnDestino(tx, destinoTenantId, h));
+        return r;
+      }),
+    );
+    si.forEach((v, i) => (res[i] = res[i] || v));
+  }
+  return res;
 }
 
 export interface PedidoDeDatos {
@@ -736,7 +867,7 @@ export interface PedidoDePase extends EvidenciaPase {
 }
 
 /** Lo común de aplicar un pase (persona, Dirección aprobando, o el cierre del proyecto). */
-async function aplicar(tx: Tx, ctx: Ctx, m: Miembro | null, o: FilaOp, destino: Etapa, ev: PedidoDePase, ahora: Date, aprobada = false): Promise<void> {
+async function aplicar(tx: Tx, ctx: Ctx, m: Miembro | null, o: FilaOp, destino: Etapa, ev: PedidoDePase, ahora: Date, aprobada = false, asignacion: Asignacion | null = null): Promise<Paquete | null> {
   if (ev.version !== undefined && ev.version !== o.version) no(CAMBIO_CONCURRENTE, o.id);
   if (destino === "ASIGNADA") {
     const c = ev.comercialUserId
@@ -767,9 +898,18 @@ async function aplicar(tx: Tx, ctx: Ctx, m: Miembro | null, o: FilaOp, destino: 
   if (destino === "CALIFICADA") data.calificadaEl = ahora;
   if (destino === "FALTAN_DATOS") data.calificadaEl = null;
 
+  let paquete: Paquete | null = null;
   if (destino === "ASIGNADA") {
+    // GSG-CRM-017: el proyecto nace en el negocio vinculado, no acá (V1). Sin vínculo no hay asignación (V2). La
+    // oportunidad guarda a dónde fue en la MISMA escritura que el cambio de etapa (V3), y el monto viaja al destino:
+    // en el ARM no quedan montos (V5).
+    if (!asignacion) no(SIN_VINCULO, o.id);
+    const a = asignacion as Asignacion;
     data.duenoUserId = ev.comercialUserId;
-    data.proyectoId = await crearProyecto(tx, ctx, o, marcaNombre, brief, ahora);
+    data.destinoTenantId = a.destinoTenantId;
+    data.proyectoDestinoId = a.proyectoId;
+    data.monto = null;
+    paquete = await paqueteDe(tx, ctx, o, marcaNombre, brief, a, ahora);
   }
   await escribirOp(tx, ctx, o, data);
   if (o.etapa === "DETECTADA") {
@@ -793,43 +933,119 @@ async function aplicar(tx: Tx, ctx: Ctx, m: Miembro | null, o: FilaOp, destino: 
     oportunidadId: o.id,
     tipo: "PASE",
     // Quién aprobó el pase y cuándo = esta fila (usuarioId, createdAt); quién lo propuso, la PASE_PROPUESTO anterior.
-    texto: `Pasó de «${ETIQUETA_ETAPA[o.etapa as Etapa]}» a «${ETIQUETA_ETAPA[destino]}».${data.motivo ? ` Motivo: ${etiquetaMotivo(String(data.motivo))}.` : ""}${ev.desdeProyecto ? " Lo puso el cierre del proyecto." : ""}${aprobada ? " Pase propuesto, aprobado." : ""}`,
+    texto: `Pasó de «${ETIQUETA_ETAPA[o.etapa as Etapa]}» a «${ETIQUETA_ETAPA[destino]}».${data.motivo ? ` Motivo: ${etiquetaMotivo(String(data.motivo))}.` : ""}${ev.desdeProyecto ? " Lo puso el cierre del proyecto." : ""}${aprobada ? " Pase propuesto, aprobado." : ""}${asignacion ? ` El proyecto nace en ${asignacion.destinoNombre}.` : ""}`,
     fuenteUrl: ev.fuenteUrl,
     costoUsd: ev.costoUsd,
   });
+  return paquete;
+}
+
+/** A qué negocio va la asignación: lo resuelve el vínculo (V2), nunca un formulario. */
+interface Asignacion {
+  destinoTenantId: string;
+  destinoNombre: string;
+  proyectoId: string;
+}
+
+/** El vínculo activo del ARM para ese destino (AGENCIA · TALLER), o null. Lectura del ARM: la app no lo escribe. */
+async function vinculoActivo(tx: Tx, ctx: Ctx, destino: string | null): Promise<{ destinoTenantId: string; destinoNombre: string } | null> {
+  if (destino !== "AGENCIA" && destino !== "TALLER") return null;
+  const v = await tx.vinculoNegocio.findFirst({ where: { tenantId: ctx.tenantId, destino, activo: true }, select: { destinoTenantId: true, destinoTenant: { select: { name: true } } } });
+  return v ? { destinoTenantId: v.destinoTenantId, destinoNombre: v.destinoTenant.name } : null;
+}
+
+/** Fecha y texto cortos para la conversación que viaja (dd/mm/aaaa, hora de Argentina). */
+const fechaCorta = (d: Date): string => new Date(d.getTime() - 3 * 3_600_000).toISOString().slice(0, 10).split("-").reverse().join("/");
+
+/**
+ * Lo que viaja al destino (V5): el cliente (marca + contacto principal), el brief y la conversación (la consulta
+ * entrante, los mensajes que mandó una persona y lo que respondió el cliente), en orden. Se arma en la fase del ARM.
+ */
+async function paqueteDe(tx: Tx, ctx: Ctx, o: FilaOp, marcaNombre: string | null, brief: CamposBrief, a: Asignacion, ahora: Date): Promise<Paquete> {
+  const [op, contacto, enviados, respuestas, quien] = await Promise.all([
+    tx.oportunidad.findFirst({ where: { id: o.id, tenantId: ctx.tenantId }, select: { consultaTexto: true, createdAt: true } }),
+    o.contactoId ? tx.contactoComercial.findFirst({ where: { id: o.contactoId, tenantId: ctx.tenantId, suprimidoEl: null }, select: { nombre: true, email: true, telefono: true } }) : null,
+    tx.borradorMensaje.findMany({ where: { tenantId: ctx.tenantId, oportunidadId: o.id, estado: "ENVIADO_POR_PERSONA" }, select: { cuerpo: true, canal: true, enviadoEl: true, updatedAt: true }, orderBy: { updatedAt: "asc" }, take: 30 }),
+    tx.actividadComercial.findMany({ where: { tenantId: ctx.tenantId, oportunidadId: o.id, tipo: "RESPUESTA_CLIENTE" }, select: { texto: true, createdAt: true }, orderBy: { createdAt: "asc" }, take: 30 }),
+    tx.user.findFirst({ where: { id: ctx.userId, tenantId: ctx.tenantId }, select: { name: true } }),
+  ]);
+  const lineas: { el: Date; texto: string }[] = [
+    ...(op?.consultaTexto ? [{ el: op.createdAt, texto: `Consulta del cliente: ${op.consultaTexto}` }] : []),
+    ...enviados.map((b) => ({ el: b.enviadoEl ?? b.updatedAt, texto: `Le escribimos (${b.canal === "WHATSAPP" ? "WhatsApp" : "mail"}): ${b.cuerpo}` })),
+    ...respuestas.map((r) => ({ el: r.createdAt, texto: `Respondió el cliente: ${r.texto}` })),
+  ].sort((x, y) => x.el.getTime() - y.el.getTime());
+  const datos = datosLimpios(o.datos);
+  const nombreCliente = (marcaNombre ?? contacto?.nombre ?? "Cliente de consulta").slice(0, 120);
+  const monto = o.monto == null ? null : Number(o.monto);
+  return {
+    origenTenantId: ctx.tenantId,
+    origenOportunidadId: o.id,
+    proyectoId: a.proyectoId,
+    cliente: { nombre: nombreCliente, email: contacto?.email ?? null, telefono: contacto?.telefono ?? null, contacto: contacto?.nombre ?? null },
+    nombreProyecto: `${nombreCliente}${brief.evento ? ` · ${brief.evento}` : ""}`,
+    brief: textoDelBrief(brief, puntuar(datos, ahora, VARA)),
+    conversacion: lineas.map((l) => `· ${fechaCorta(l.el)} — ${l.texto.slice(0, 1000)}`),
+    fechaEvento: datos.fechaEvento ? new Date(`${datos.fechaEvento}T12:00:00Z`) : null,
+    moneda: o.moneda,
+    presupuestoEstimado: monto ?? datos.presupuestoMax ?? datos.presupuestoMin ?? null,
+    asignadoPor: quien?.name ?? "CRM comercial",
+  };
+}
+
+/** Rechazo o falta de migración de una operación entre negocios: lo mismo que `correr`. */
+async function rechazoEntreNegocios<T extends object>(ctx: Ctx, e: unknown): Promise<Res<T>> {
+  if (e instanceof RechazoCrm) {
+    await registrarRechazo(ctx, e).catch(() => {});
+    return { ok: false, motivo: e.motivo };
+  }
+  if (esFaltaDeTabla(e)) return { ok: false, motivo: MIGRACION_PENDIENTE, faltaMigracion: true };
+  throw e;
 }
 
 /**
- * ASIGNADA: nace el proyecto en «Lead / brief» con el brief armado (cliente nuevo con el nombre de la marca).
- * Mínimo y sin tocar Proyectos: proyecto + presupuesto v1, como el alta de Proyectos. (Desvío: no llama a
- * `crearLead`, que exige FormData y la sesión de Proyectos.) Sin lista de tareas base: en Proyectos la crea el alta
- * (`src/lib/proyectos/acciones-ficha.ts`) o el botón manual de la ficha; acá queda pendiente para T2.
+ * ASIGNAR entre negocios (GSG-CRM-017 · V2–V6). Primero se lee, en el ARM, a qué negocio está vinculado el destino
+ * de la oportunidad; después, UNA transacción Serializable con dos fases (`trasladoTransaction`, sin saltear RLS):
+ *   1. ARM: permiso, motor y cambio de etapa con control de versión (y a qué negocio y proyecto fue), registro;
+ *   2. destino: cliente, proyecto, presupuesto v1, `AsignacionRecibida` (única por oportunidad) y registro.
+ * Todo o nada: si el destino falla, la etapa no cambia. Doble clic o dos personas a la vez: una entra; la otra
+ * choca con la versión (o Postgres la reintenta y ya ve ASIGNADA). El reintento después de asignar se rechaza.
+ * `faseArm` hace las guardias y el pase; devuelve el paquete a crear en el destino.
  */
-async function crearProyecto(tx: Tx, ctx: Ctx, o: FilaOp, marcaNombre: string | null, brief: CamposBrief, ahora: Date): Promise<string> {
-  const nombreCliente = (marcaNombre ?? "Cliente de consulta").slice(0, 120);
-  const cliente = await tx.client.create({ data: { tenantId: ctx.tenantId, name: nombreCliente, phone: `sin-tel-${randomBytes(4).toString("hex")}` }, select: { id: true } });
-  const ultimo = await tx.proyecto.findFirst({ where: { tenantId: ctx.tenantId }, orderBy: { numero: "desc" }, select: { numero: true } });
-  const datos = datosLimpios(o.datos);
-  const p = await tx.proyecto.create({
-    data: {
-      tenantId: ctx.tenantId,
-      numero: (ultimo?.numero ?? 0) + 1,
-      clientId: cliente.id,
-      nombre: `${nombreCliente}${brief.evento ? ` · ${brief.evento}` : ""}`.slice(0, 120),
-      servicio: "EVENTOS",
-      etapa: "PEDIDO",
-      fechaEvento: datos.fechaEvento ? new Date(`${datos.fechaEvento}T12:00:00Z`) : null,
-      moneda: o.moneda,
-      presupuestoEstimado: datos.presupuestoMax ?? datos.presupuestoMin ?? null,
-      brief: textoDelBrief(brief, puntuar(datos, ahora, VARA)),
-    },
-    select: { id: true },
+async function asignarEntreNegocios(
+  ctx: Ctx,
+  id: string,
+  faseArm: (tx: Tx, asignacion: Asignacion | null) => Promise<Paquete | null>,
+): Promise<Res<{ etapa: Etapa }>> {
+  const destino = await correr<{ v: { destinoTenantId: string; destinoNombre: string } | null }>(ctx, async (tx) => {
+    const o = await cargarOportunidad(tx, ctx, id);
+    return { ok: true, v: await vinculoActivo(tx, ctx, o.destinoConfirmado ? o.destino : null) };
   });
-  await tx.proyectoPresupuesto.create({
-    data: { tenantId: ctx.tenantId, proyectoId: p.id, version: 1, token: randomBytes(18).toString("base64url"), creadoPor: "CRM comercial", nota: "Versión inicial" },
-    select: { id: true },
-  });
-  return p.id;
+  if (!destino.ok) return destino;
+  if (!destino.v) {
+    // Sin vínculo: se corre igual la fase del ARM (sin destino) para que el rechazo sea el más preciso (permiso,
+    // motor: «falta el destino confirmado») y, si todo eso pasa, «no tiene un negocio vinculado». No escribe nada.
+    return correr(ctx, async (tx) => {
+      await faseArm(tx, null);
+      return no(SIN_VINCULO, id);
+    });
+  }
+  const asignacion: Asignacion = { ...destino.v, proyectoId: nuevoIdDeProyecto() };
+  try {
+    return await trasladoTransaction({ origen: ctx.tenantId, destino: asignacion.destinoTenantId }, async (fases: FasesDeTraslado) => {
+      const paquete = await fases.enOrigen(async (tx) => {
+        // El vínculo se vuelve a leer adentro: si GSG lo apagó o lo cambió entre la lectura y acá, no se asigna.
+        const o = await cargarOportunidad(tx, ctx, id);
+        const v = await vinculoActivo(tx, ctx, o.destinoConfirmado ? o.destino : null);
+        if (!v || v.destinoTenantId !== asignacion.destinoTenantId) no(SIN_VINCULO, id);
+        return faseArm(tx, asignacion);
+      });
+      if (!paquete) no("No se pudo armar la asignación.", id);
+      await fases.enDestino((tx) => crearEnDestino(tx, asignacion.destinoTenantId, paquete as Paquete));
+      return { ok: true as const, etapa: "ASIGNADA" as Etapa };
+    });
+  } catch (e) {
+    return rechazoEntreNegocios(ctx, e);
+  }
 }
 
 /**
@@ -837,6 +1053,12 @@ async function crearProyecto(tx: Tx, ctx: Ctx, o: FilaOp, marcaNombre: string | 
  * sólo Dirección; GANADA no la pone nadie a mano). Control de versión: si otro la movió, aviso (E2).
  */
 export async function aplicarPase(ctx: Ctx, id: string, destino: string, ev: PedidoDePase = {}, ahora = new Date()): Promise<Res<{ etapa: Etapa }>> {
+  if (destino === "ASIGNADA") {
+    return asignarEntreNegocios(ctx, id, async (tx, asignacion) => {
+      const { o, miembro } = await sobre(tx, ctx, id, "aplicar_pase", ahora, { etapaDestino: "ASIGNADA" }, ev.costoUsd ?? 0);
+      return aplicar(tx, ctx, miembro, o, "ASIGNADA", { ...ev, desdeProyecto: false }, ahora, false, asignacion);
+    });
+  }
   return correr(ctx, async (tx) => {
     if (!esEtapa(destino)) no("Esa etapa no existe.");
     const { o, miembro } = await sobre(tx, ctx, id, "aplicar_pase", ahora, { etapaDestino: destino as Etapa }, ev.costoUsd ?? 0);
@@ -864,24 +1086,40 @@ export async function proponerPase(ctx: Ctx, id: string, destino: string, ev: Pe
 
 /** Dirección aprueba (aplica) el pase propuesto, con lo que haga falta completar (el comercial, el próximo paso). */
 export async function aprobarPasePropuesto(ctx: Ctx, id: string, extra: PedidoDePase = {}, ahora = new Date()): Promise<Res<{ etapa: Etapa }>> {
+  // ASIGNADA propuesta: el proyecto nace en el negocio vinculado (dos fases). Se mira qué se propuso antes de abrir
+  // la transacción; adentro se vuelve a exigir que siga siendo ASIGNADA.
+  const propuesto = await correr<{ pase: string | null }>(ctx, async (tx) => ({ ok: true, pase: (await cargarOportunidad(tx, ctx, id)).pasePropuesto }));
+  if (!propuesto.ok) return propuesto;
+  if (propuesto.pase === "ASIGNADA") {
+    return asignarEntreNegocios(ctx, id, async (tx, asignacion) => {
+      const o = await cargarOportunidad(tx, ctx, id);
+      if (o.pasePropuesto !== "ASIGNADA") no(CAMBIO_CONCURRENTE, o.id);
+      const miembro = await guardia(tx, ctx, "aplicar_pase", { oportunidad: await contextoDe(tx, ctx, o), etapaDestino: "ASIGNADA" }, ahora, 0, o.id);
+      return aplicar(tx, ctx, miembro, o, "ASIGNADA", { ...evDePropuesta(o, extra), desdeProyecto: false }, ahora, true, asignacion);
+    });
+  }
   return correr(ctx, async (tx) => {
     const o = await cargarOportunidad(tx, ctx, id);
     if (!o.pasePropuesto || !esEtapa(o.pasePropuesto)) no("Esa oportunidad no tiene un pase propuesto.", o.id);
     const destino = o.pasePropuesto as Etapa;
     const miembro = await guardia(tx, ctx, "aplicar_pase", { oportunidad: await contextoDe(tx, ctx, o), etapaDestino: destino }, ahora, 0, o.id);
-    const propuesto = (o.pasePropuestoDatos ?? {}) as Record<string, string | null>;
-    const ev: PedidoDePase = {
-      motivo: extra.motivo ?? propuesto.motivo,
-      nota: extra.nota ?? propuesto.nota,
-      despertarEl: extra.despertarEl ?? propuesto.despertarEl,
-      comercialUserId: extra.comercialUserId ?? propuesto.comercialUserId,
-      proximoPaso: extra.proximoPaso,
-      proximoPasoEl: extra.proximoPasoEl,
-      version: extra.version,
-    };
-    await aplicar(tx, ctx, miembro, o, destino, { ...ev, desdeProyecto: false }, ahora, true);
+    await aplicar(tx, ctx, miembro, o, destino, { ...evDePropuesta(o, extra), desdeProyecto: false }, ahora, true);
     return { ok: true, etapa: destino };
   });
+}
+
+/** Lo que se propuso, con lo que completa Dirección al aprobar. */
+function evDePropuesta(o: FilaOp, extra: PedidoDePase): PedidoDePase {
+  const propuesto = (o.pasePropuestoDatos ?? {}) as Record<string, string | null>;
+  return {
+    motivo: extra.motivo ?? propuesto.motivo,
+    nota: extra.nota ?? propuesto.nota,
+    despertarEl: extra.despertarEl ?? propuesto.despertarEl,
+    comercialUserId: extra.comercialUserId ?? propuesto.comercialUserId,
+    proximoPaso: extra.proximoPaso,
+    proximoPasoEl: extra.proximoPasoEl,
+    version: extra.version,
+  };
 }
 
 /** Dirección rechaza el pase propuesto (queda registrado el porqué). */
@@ -1465,6 +1703,52 @@ export async function cerrarPedido(ctx: Ctx, pedidoId: string, d: { estado: stri
  * proyecto llegó a «Confirmado» → GANADA; perdida en el proyecto → PERDIDA. Proyectos no se toca: se lee.
  */
 export async function ponerAlDia(ctx: Ctx, ahora = new Date()): Promise<Res<{ tareas: number; despertadas: number; cerradas: number }>> {
+  const r = await ponerAlDiaEnElArm(ctx, ahora);
+  if (!r.ok) return r;
+  const desdeDestinos = await cerrarDesdeDestinos(ctx, ahora);
+  if (!desdeDestinos.ok) return desdeDestinos;
+  return { ...r, cerradas: r.cerradas + desdeDestinos.cerradas };
+}
+
+/**
+ * GSG-CRM-017 (V6): las asignadas cuyo proyecto vive en un negocio vinculado toman su cierre de ahí. Por cada destino,
+ * dos fases: en el destino se lee SÓLO el estado de los proyectos que nacieron de este ARM (`estadosEnDestino`);
+ * en el ARM se aplica el pase (GANADA o PERDIDA con su motivo). Ningún dato personal ni monto cruza de vuelta.
+ */
+async function cerrarDesdeDestinos(ctx: Ctx, ahora: Date): Promise<Res<{ cerradas: number }>> {
+  const destinos = await correr<{ ids: string[] }>(ctx, async (tx) => {
+    await guardia(tx, ctx, "configurar", {}, ahora);
+    const filas = await tx.oportunidad.findMany({ where: { tenantId: ctx.tenantId, etapa: "ASIGNADA", destinoTenantId: { not: null } }, select: { destinoTenantId: true }, distinct: ["destinoTenantId"] });
+    return { ok: true, ids: filas.map((f) => f.destinoTenantId as string) };
+  });
+  if (!destinos.ok) return destinos;
+  let cerradas = 0;
+  for (const destinoTenantId of destinos.ids) {
+    try {
+      cerradas += await trasladoTransaction({ origen: ctx.tenantId, destino: destinoTenantId }, async (fases: FasesDeTraslado) => {
+        const asignadas = await fases.enOrigen((tx) => tx.oportunidad.findMany({ where: { tenantId: ctx.tenantId, etapa: "ASIGNADA", destinoTenantId }, select: SEL_OP }));
+        const estados = await fases.enDestino((tx) => estadosEnDestino(tx, destinoTenantId, ctx.tenantId, asignadas.map((o) => o.proyectoDestinoId as string)));
+        const cierre = new Map(estados.map((e) => [e.proyectoId, e.cierre]));
+        return fases.enOrigen(async (tx) => {
+          const m = await miembroDe(tx, ctx);
+          let n = 0;
+          for (const o of asignadas) {
+            const c = cierre.get(o.proyectoDestinoId as string);
+            if (!c) continue;
+            await aplicar(tx, ctx, m, o, c.destino, { motivo: c.motivo, nota: c.nota, desdeProyecto: true }, ahora);
+            n++;
+          }
+          return n;
+        });
+      });
+    } catch (e) {
+      return rechazoEntreNegocios(ctx, e);
+    }
+  }
+  return { ok: true, cerradas };
+}
+
+async function ponerAlDiaEnElArm(ctx: Ctx, ahora: Date): Promise<Res<{ tareas: number; despertadas: number; cerradas: number }>> {
   return correr(ctx, async (tx) => {
     const m = await guardia(tx, ctx, "configurar", {}, ahora);
     const vencidas = await tx.oportunidad.findMany({

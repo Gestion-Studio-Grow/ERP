@@ -87,6 +87,8 @@ async function preparar(t: import("node:test").TestContext): Promise<Fixture | n
       await d.miembroCrmComercial.create({ data: { tenantId: a, userId, rol, puesto, topeAccionesDia: tope } });
     }
     await d.miembroCrmComercial.create({ data: { tenantId: base.b.id, userId: u.dirB, rol: "DIRECCION" } });
+    // GSG-CRM-017: A es el ARM; lo asignado con destino Agencia nace en B (vínculo que carga GSG como dueño).
+    await d.vinculoNegocio.create({ data: { tenantId: a, destinoTenantId: base.b.id, destino: "AGENCIA", cargadoPor: "GSG test" } });
     const { filaDeInterruptor } = await import("@/cambios/interruptores-core");
     const { CRM_COMERCIAL } = await import("@/cambios/interruptores");
     await d.auditLog.create({ data: filaDeInterruptor({ tenantId: a, interruptor: CRM_COMERCIAL, accion: "encender", operador: "test" }) });
@@ -199,12 +201,12 @@ test("A3 · E4 · A2 · recorrido del prospecto DETECTADA → VERIFICADA → SIN
   rechaza(await repo.aplicarPase(dir, id, "ASIGNADA", { comercialUserId: u.verif }, AHORA), /no es un comercial activo/);
   ok(await repo.aplicarPase(dir, id, "ASIGNADA", { comercialUserId: u.com1 }, AHORA), "asignada");
 
-  const fila = await duenio.oportunidad.findUniqueOrThrow({ where: { id }, select: { etapa: true, duenoUserId: true, proyectoId: true } });
+  const fila = await duenio.oportunidad.findUniqueOrThrow({ where: { id }, select: { etapa: true, duenoUserId: true, proyectoDestinoId: true } });
   assert.equal(fila.etapa, "ASIGNADA");
   assert.equal(fila.duenoUserId, u.com1);
-  const proyecto = await duenio.proyecto.findUniqueOrThrow({ where: { id: fila.proyectoId! }, select: { etapa: true, brief: true, tenantId: true } });
+  const proyecto = await duenio.proyecto.findUniqueOrThrow({ where: { id: fila.proyectoDestinoId! }, select: { etapa: true, brief: true, tenantId: true } });
   assert.equal(proyecto.etapa, "PEDIDO");
-  assert.equal(proyecto.tenantId, base.a.id);
+  assert.equal(proyecto.tenantId, base.b.id, "GSG-CRM-017: el proyecto nace en el negocio vinculado");
   assert.match(proyecto.brief, /Puntaje: 100/);
 
   // E12: el comercial ajeno no la toca; GANADA no se pone a mano.
@@ -213,7 +215,7 @@ test("A3 · E4 · A2 · recorrido del prospecto DETECTADA → VERIFICADA → SIN
 
   // El cierre del proyecto («Confirmado») la gana; Proyectos no se toca, se lee.
   assert.equal(ok(await repo.ponerAlDia(dir, AHORA)).cerradas, 0);
-  await duenio.proyecto.update({ where: { id: fila.proyectoId! }, data: { etapa: "APROBADO" } });
+  await duenio.proyecto.update({ where: { id: fila.proyectoDestinoId! }, data: { etapa: "APROBADO" } });
   assert.equal(ok(await repo.ponerAlDia(dir, AHORA)).cerradas, 1);
   assert.equal((await duenio.oportunidad.findUniqueOrThrow({ where: { id }, select: { etapa: true } })).etapa, "GANADA");
 
@@ -256,9 +258,9 @@ test("A3 · E24 · A9 · E10 · recorrido de la consulta entrante RECIBIDA → E
   ok(await repo.aplicarPase(dir, a.id, "CALIFICADA", {}, AHORA));
   ok(await repo.confirmarDestino(dir, a.id, "AGENCIA", AHORA));
   ok(await repo.aplicarPase(dir, a.id, "ASIGNADA", { comercialUserId: u.com1, proximoPaso: "Llamar para la reunión", proximoPasoEl: new Date("2026-11-18T13:00:00Z") }, AHORA));
-  const fila = await duenio.oportunidad.findUniqueOrThrow({ where: { id: a.id }, select: { etapa: true, proyectoId: true, duenoUserId: true } });
+  const fila = await duenio.oportunidad.findUniqueOrThrow({ where: { id: a.id }, select: { etapa: true, proyectoDestinoId: true, duenoUserId: true } });
   assert.equal(fila.etapa, "ASIGNADA");
-  assert.ok(fila.proyectoId);
+  assert.ok(fila.proyectoDestinoId);
   // El comercial asignado ahora la ve; el otro no (E12).
   ok(await repo.ficha(ctxA(f, u.com1), a.id, AHORA));
   rechaza(await repo.ficha(ctxA(f, u.com2), a.id, AHORA), /no es tuya/);

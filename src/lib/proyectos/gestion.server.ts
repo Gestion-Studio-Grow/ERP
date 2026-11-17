@@ -13,6 +13,8 @@ import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
+import { basePrisma } from "@/lib/prisma-base";
+import { esNegocioArm } from "@/lib/crm-comercial/arm";
 import { roleHasCapability } from "@/lib/capabilities";
 import type { SessionUser } from "@/lib/session";
 import type { Prisma } from "@/generated/prisma/client";
@@ -35,6 +37,11 @@ export interface Actor {
 export async function actorActual(): Promise<Actor> {
   const user = await requireCapability("agenda:read");
   const tenantId = await getCurrentTenantId();
+  // GSG-CRM-017 (V1): el ARM tiene sólo el CRM. Proyectos (y sus consultas, cuotas, pagos) no corre ahí: el proyecto
+  // nace en el negocio vinculado (`PROYECTOS_NO_EN_ARM`, arm.ts). Se corta acá, que es por donde pasan todas las pantallas y acciones de Proyectos.
+  const negocio = await basePrisma.tenant.findUnique({ where: { id: tenantId }, select: { blueprintId: true } });
+  // `redirect` corta igual una pantalla y una acción (no se escribe nada) y lleva al CRM.
+  if (esNegocioArm(negocio?.blueprintId)) redirect("/admin/crm");
   const [persona, permisos] = await Promise.all([
     prisma.proyectoPersona.findFirst({ where: { tenantId, userId: user.id, activa: true }, select: { id: true, rol: true, nombre: true } }),
     prisma.proyectoPermiso.findMany({ where: { tenantId }, select: { rol: true, modulo: true, ver: true, editar: true, columnasOcultas: true } }),
