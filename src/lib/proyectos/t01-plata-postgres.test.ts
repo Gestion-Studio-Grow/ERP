@@ -47,15 +47,15 @@ async function preparar(t: import("node:test").TestContext) {
   const fichaServer = await import("./ficha.server");
 
   let numero = (await duenio.proyecto.count()) + 700;
-  /** Proyecto confirmado con fecha, v1 APROBADA: 1 ítem de $ 1.000 con IVA 21 % → venta con IVA $ 1.210. */
-  const proyecto = async () => {
+  /** Proyecto confirmado con fecha, v1 APROBADA: 1 ítem de `precio` ($ 1.000 por defecto) con IVA 21 % → venta con IVA $ 1.210. */
+  const proyecto = async (precio = 1000) => {
     const evento = new Date(AHORA + 30 * DIA);
     const p = await duenio.proyecto.create({
       data: { tenantId: a.id, numero: ++numero, clientId: a.clientes[0], nombre: `Stand T01 ${numero}`, servicio: "ARQUITECTURA", etapa: "APROBADO", fechaArmado: new Date(evento.getTime() - 2 * DIA), fechaEvento: evento, fechaDesarme: new Date(evento.getTime() + DIA) },
       select: { id: true },
     });
     const pres = await duenio.proyectoPresupuesto.create({ data: { tenantId: a.id, proyectoId: p.id, version: 1, estado: "APROBADO", token: `t01-${p.id}`, ivaPct: 21 }, select: { id: true } });
-    await duenio.proyectoItem.create({ data: { tenantId: a.id, presupuestoId: pres.id, rubro: "General", descripcion: "Stand", cantidad: 1, precio: 1000 } });
+    await duenio.proyectoItem.create({ data: { tenantId: a.id, presupuestoId: pres.id, rubro: "General", descripcion: "Stand", cantidad: 1, precio } });
     return p.id;
   };
   const form = (campos: Record<string, string>) => {
@@ -78,6 +78,8 @@ async function preparar(t: import("node:test").TestContext) {
   const cerrarDia = (dia = HOY) => duenio.auditLog.create({ data: { tenantId: a.id, actor: "test", action: "caja.cierre-diario", entity: "CierreDiario", entityId: dia } });
   const reabrirTodo = () => duenio.auditLog.deleteMany({ where: { tenantId: a.id, entity: { in: ["CierreDiario", "CierreMes"] } } });
   const congelarMes = (mes = HOY.slice(0, 7)) => duenio.auditLog.create({ data: { tenantId: a.id, actor: "test", action: "cierre-mes.congelar", entity: "CierreMes", entityId: mes, changes: { por: "test" } } });
+  // La base es del archivo entero: cada caso arranca con la caja abierta, aunque el anterior la haya dejado cerrada.
+  await reabrirTodo();
   return { base, duenio, a, acciones, ficha, empresa, libro, gestion, fichaServer, proyecto, form, como, enSesion, caja, cerrarDia, reabrirTodo, congelarMes };
 }
 
@@ -368,4 +370,112 @@ test("O37 (verifica) · todo cobro y pago de T01 asienta ×1 y la suma del libro
   assert.equal(anticipoCliente.monto, 1089);
   assert.equal(pagos.filter((x) => !x.anuladoEl).reduce((s, x) => s + x.monto, 0), 589);
   assert.equal(Math.round(((await p.caja()).saldo - antes.saldo) * 100) / 100, -191, "libro = 589 − 780");
+});
+
+// ── § 2.2 bis (plan v2): los casos de la certificación 051 con sus importes exactos (inventados, publicados en 051) ──
+
+test("§ 2.2 bis A-06 · cobro de $ 2.000.000, anular, borrar contraasiento y venta: rechazo en los dos, nombra Proyectos y no Turnos; libro neto 0", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const id = await p.proyecto(12_150_000);
+  const antes = await p.caja();
+  assert.deepEqual(await p.enSesion(() => p.acciones.registrarCobro(p.form({ proyectoId: id, medio: "TRANSFERENCIA", monto: "2000000" }))), { ok: true });
+  const pago = await p.duenio.proyectoPago.findFirstOrThrow({ where: { proyectoId: id }, select: { id: true } });
+  assert.equal((await p.enSesion(() => p.ficha.anularCobroFicha(p.form({ id: pago.id })))).ok, true);
+  const asientos = await p.duenio.cashMovement.findMany({ where: { proyectoPagoId: pago.id }, orderBy: { type: "asc" }, select: { id: true, type: true } });
+  const errores: string[] = [];
+  for (const m of asientos) {
+    const r = await p.enSesion(() => p.libro.deleteLibroEntry(null, p.form({ id: m.id })));
+    assert.equal(r?.ok, false, `${m.type}: rechazo`);
+    errores.push(String((r as { error: string }).error));
+  }
+  assert.equal(await p.duenio.cashMovement.count({ where: { proyectoPagoId: pago.id } }), 2, "las dos filas siguen");
+  for (const e of errores) {
+    assert.match(e, /proyecto/i, `nombra Proyectos: «${e}»`);
+    assert.doesNotMatch(e, /turno/i, `no manda a Turnos: «${e}»`);
+  }
+  assert.equal((await p.caja()).saldo, antes.saldo, "a mano: +2.000.000 − 2.000.000 = 0 (antes del arreglo quedaba +2.000.000)");
+  assert.equal(await p.duenio.proyectoPago.count({ where: { proyectoId: id, anuladoEl: null } }), 0, "0 cobros vivos");
+});
+
+test("§ 2.2 bis P-06 · aprobada $ 14.701.500, borrador $ 15.191.550, anticipo $ 7.350.750 cobrado: el saldo sigue en $ 7.350.750; cobrarlo deja falta 0", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  // A mano: 12.150.000 × 1,21 = 14.701.500 (anticipo 50 % = 7.350.750, saldo 7.350.750); 12.555.000 × 1,21 = 15.191.550.
+  const id = await p.proyecto(12_150_000);
+  await p.enSesion(() => p.gestion.regenerarCuotas(p.a.id, id));
+  const cobrosDe = async () => (await cuotasDe(p, id)).filter((c) => c.tipo === "COBRO");
+  const [anticipo, saldo] = await cobrosDe();
+  assert.deepEqual([anticipo.monto, saldo.monto], [7_350_750, 7_350_750]);
+  assert.equal((await p.enSesion(() => p.ficha.marcarCuota(p.form({ id: anticipo.id, medio: "TRANSFERENCIA" })))).ok, true);
+  const v2 = await p.duenio.proyectoPresupuesto.create({ data: { tenantId: p.a.id, proyectoId: id, version: 2, estado: "BORRADOR", token: `t01c-${id}`, ivaPct: 21 }, select: { id: true } });
+  await p.duenio.proyectoItem.create({ data: { tenantId: p.a.id, presupuestoId: v2.id, rubro: "General", descripcion: "Stand", cantidad: 1, precio: 12_555_000 } });
+  await p.enSesion(() => p.gestion.regenerarCuotas(p.a.id, id));
+  const saldoDespues = (await cobrosDe()).find((c) => c.id === saldo.id)!;
+  assert.equal(saldoDespues.monto, 7_350_750, "el saldo sigue en 7.350.750 y no en 7.840.800");
+  const r = await p.enSesion(() => p.ficha.marcarCuota(p.form({ id: saldo.id, medio: "TRANSFERENCIA" })));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.doesNotMatch(String((r as { listo?: string }).listo), /restantes/, "se cobra entera: sin diferencia");
+  const cobrado = (await p.duenio.proyectoPago.findMany({ where: { proyectoId: id, anuladoEl: null }, select: { monto: true } })).reduce((s, x) => s + x.monto, 0);
+  assert.equal(cobrado, 14_701_500, "cobrado 14.701.500");
+  const tc = await import("./cobranza.server");
+  const cob = (await tc.cobranzasDelNegocio(p.a.id, {}, 0, [id], p.duenio)).get(id)!;
+  assert.equal(cob.porCobrar, 0, "falta 0: no quedan 490.050 sin cuota");
+});
+
+test("§ 2.2 bis O40 · día cerrado: cobro de $ 1.000 y pago de una cuota de $ 600.000 rechazan con 0 filas; el asiento manual del libro sigue rechazado", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const id = await p.proyecto(12_150_000);
+  const cuota = await p.duenio.proyectoCuota.create({ data: { tenantId: p.a.id, proyectoId: id, tipo: "PAGO", concepto: "Carpintería", monto: 600_000, moneda: "ARS", venceEl: new Date(AHORA + 5 * DIA), auto: false }, select: { id: true } });
+  await p.cerrarDia();
+  const antes = await p.caja();
+  const cobro = await p.enSesion(() => p.acciones.registrarCobro(p.form({ proyectoId: id, medio: "EFECTIVO", monto: "1000" })));
+  const pagoCuota = await p.enSesion(() => p.ficha.marcarCuota(p.form({ id: cuota.id, medio: "TRANSFERENCIA" })));
+  const manual = await p.enSesion(() => p.libro.addLibroEntry({ ok: false } as never, p.form({ type: "INGRESO", method: "EFECTIVO", amount: "1000", detail: "Manual T01" })));
+  for (const [que, r] of [["cobro", cobro], ["pago de cuota", pagoCuota], ["asiento manual", manual]] as const) {
+    assert.equal(r?.ok, false, `${que}: ${JSON.stringify(r)}`);
+    assert.match(String((r as { error?: string }).error), /cerrad/i, `${que}: dice que el día está cerrado`);
+  }
+  assert.deepEqual(await p.caja(), antes, "0 filas en el libro");
+  assert.equal(await p.duenio.proyectoPago.count({ where: { proyectoId: id } }), 0, "0 cobros");
+  assert.equal((await p.duenio.proyectoCuota.findUniqueOrThrow({ where: { id: cuota.id }, select: { pagadoEl: true } })).pagadoEl, null, "la cuota sigue para pagar");
+});
+
+test("§ 2.2 bis O41 · el mismo envío 5 veces a la vez: 1 cobro; 5 cobros distintos de $ 3.500.000 a la vez sobre $ 14.701.500: entran 4 y se rechaza 1 (3 rondas)", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  for (let ronda = 1; ronda <= 3; ronda++) {
+    const id = await p.proyecto(12_150_000);
+    const cobro = (envio: string) => p.enSesion(() => p.acciones.registrarCobro(p.form({ proyectoId: id, medio: "TRANSFERENCIA", monto: "3500000", envio })));
+    await Promise.all(Array.from({ length: 5 }, () => cobro(`mismo-${ronda}`)));
+    assert.equal(await p.duenio.proyectoPago.count({ where: { proyectoId: id } }), 1, `ronda ${ronda}: el mismo envío ×5 → 1 cobro`);
+    // D-A11: con 3.500.000 ya cobrados, 5 distintos de 3.500.000 a la vez. A mano: tope 14.701.500 → caben 4 en total
+    // (4 × 3.500.000 = 14.000.000); con 1 ya adentro entran 3 y se rechazan 2. Para el caso tal como lo escribe el plan
+    // (sobre 14.701.500 sin cobros) va un proyecto nuevo.
+    const limpio = await p.proyecto(12_150_000);
+    const distinto = (n: number) => p.enSesion(() => p.acciones.registrarCobro(p.form({ proyectoId: limpio, medio: "TRANSFERENCIA", monto: "3500000", envio: `d-${ronda}-${n}` })));
+    const rs = await Promise.all([1, 2, 3, 4, 5].map(distinto));
+    assert.equal(rs.filter((r) => r.ok).length, 4, `ronda ${ronda}: entran 4 · ${JSON.stringify(rs)}`);
+    assert.equal(rs.filter((r) => !r.ok).length, 1, `ronda ${ronda}: se rechaza 1`);
+    const pagos = await p.duenio.proyectoPago.findMany({ where: { proyectoId: limpio }, select: { id: true, monto: true } });
+    assert.equal(pagos.reduce((s, x) => s + x.monto, 0), 14_000_000);
+    assert.equal(await p.duenio.cashMovement.count({ where: { proyectoPagoId: { in: pagos.map((x) => x.id) } } }), 4, "4 asientos");
+  }
+});
+
+test("§ 2.2 bis A-05 · pagar $ 250.000 de la empresa, anular: caja igual y la cuota para pagar; pagarla otra vez (doble clic): 1 egreso", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const cuota = await p.duenio.proyectoCuota.create({ data: { tenantId: p.a.id, proyectoId: null, tipo: "PAGO", concepto: "Alquiler del depósito", monto: 250_000, moneda: "ARS", venceEl: new Date(AHORA + 5 * DIA) }, select: { id: true } });
+  const antes = await p.caja();
+  assert.equal((await p.enSesion(() => p.empresa.marcarCuotaEmpresa(p.form({ id: cuota.id, medio: "EFECTIVO" })))).ok, true);
+  assert.equal((await p.enSesion(() => p.empresa.anularCuotaEmpresa(p.form({ id: cuota.id, visto: "PAGADA" })))).ok, true);
+  assert.equal((await p.caja()).saldo, antes.saldo, "caja igual que antes");
+  const paraPagar = await p.duenio.proyectoCuota.findMany({ where: { tenantId: p.a.id, proyectoId: null, tipo: "PAGO", pagadoEl: null, anuladoEl: null }, select: { id: true } });
+  assert.ok(paraPagar.some((c) => c.id === cuota.id), "la cuota figura para pagar");
+  const egresosAntes = await p.duenio.cashMovement.count({ where: { tenantId: p.a.id, type: "EGRESO", amount: 250_000 } });
+  await Promise.all([1, 2].map(() => p.enSesion(() => p.empresa.marcarCuotaEmpresa(p.form({ id: cuota.id, medio: "EFECTIVO" })))));
+  assert.equal(await p.duenio.cashMovement.count({ where: { tenantId: p.a.id, type: "EGRESO", amount: 250_000 } }) - egresosAntes, 1, "1 egreso");
+  assert.equal((await p.caja()).saldo, antes.saldo - 250_000);
 });
