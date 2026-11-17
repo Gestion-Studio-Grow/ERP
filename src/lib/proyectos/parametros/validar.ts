@@ -11,7 +11,7 @@ const mal = (error: string): { ok: false; error: string } => ({ ok: false, error
 const bien = <T>(valor: T): { ok: true; valor: T } => ({ ok: true, valor });
 
 const esObjeto = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
-const dosDecimales = (n: number) => Math.abs(Math.round(n * 100) - n * 100) < 1e-9;
+const dosDecimales = (n: number) => Math.abs(Math.round(n * 100) - n * 100) < 1e-9; // no-es-plata: un porcentaje con dos decimales
 const esPct = (n: unknown, min = 0, max = 100): n is number => typeof n === "number" && Number.isFinite(n) && n >= min && n <= max && dosDecimales(n);
 const ID = /^[A-Z0-9_]{1,40}$/;
 
@@ -138,7 +138,7 @@ export function validarValor(def: DefParametro, v: unknown, vigentes: Pick<Valor
           if (!esPct(x)) return mal(`${n} · ${f.nombre}: cada % va de 0 a 100, con hasta 2 decimales.`);
           if (x > 0) limpia[c] = x;
         }
-        const suma = Object.values(limpia).reduce((s, x) => s + Math.round(x * 100), 0);
+        const suma = Object.values(limpia).reduce((s, x) => s + Math.round(x * 100), 0); // no-es-plata: la suma de porcentajes en centésimos de punto
         if (suma !== 10000) return mal(`${n} · ${f.nombre}: los porcentajes suman ${suma / 100} y tienen que sumar 100.`);
         salida[f.id] = limpia;
       }
