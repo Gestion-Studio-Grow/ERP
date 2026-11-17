@@ -2291,6 +2291,9 @@ export interface TomaDePedido {
  * guardia (interruptor, rol de gestión y negocio) y la llama sólo con el CRM prendido. Sin la migración de las
  * columnas de toma (Gate 2) devuelve vacío: la pantalla queda como estaba.
  */
+/** El puesto en criollo («Verificador», no «verificador»); sin puesto, nada. */
+const etiquetaDePuesto = (p: string | null | undefined): string | null => (p ? (ETIQUETA_PUESTO_CRM[p] ?? p) : null);
+
 export async function tomasDePedidos(tenantId: string, ids: readonly string[]): Promise<Map<string, TomaDePedido>> {
   if (ids.length === 0) return new Map();
   try {
@@ -2306,7 +2309,7 @@ export async function tomasDePedidos(tenantId: string, ids: readonly string[]): 
           filas.map((f) => [
             f.id,
             {
-              tomadoPor: f.tomadoPor ? [nombre.get(f.tomadoPor) ?? "Alguien del equipo", puesto.get(f.tomadoPor)].filter(Boolean).join(" · ") : null,
+              tomadoPor: f.tomadoPor ? [nombre.get(f.tomadoPor) ?? "Alguien del equipo", etiquetaDePuesto(puesto.get(f.tomadoPor))].filter(Boolean).join(" · ") : null,
               tomadoEl: f.tomadoEl,
               cerradoEl: f.cerradoEl,
               notaCierre: f.notaCierre,

@@ -1030,3 +1030,25 @@ test("GSG-CRM-018 · callejón 1: el prospecto sin evento no se verificaba; quie
   rechaza(await repo.cargarEvento(dir, sinEv.id, { eventoId: f.ev1 }, AHORA), /otra oportunidad abierta en ese evento/, "E1");
   ok(await repo.cargarEvento(dir, sinEv.id, { eventoId: f.ev2 }, AHORA), "elige otro relevado");
 });
+
+test("GSG-CRM-018 · T2 «agregado en Equipo»: tomasDePedidos dice quién tomó cada pedido, con el puesto en criollo, y sólo del negocio", async (t) => {
+  const f = await preparar(t);
+  if (!f) return;
+  const { repo, u, base } = f;
+  const duenio = await prismaComoDuenio(base);
+  const a = base.a.id;
+  const tomado = await duenio.pedidoAlEquipo.create({ data: { tenantId: a, puesto: "verificador", pedido: "Verificá la feria de Tucumán" }, select: { id: true } });
+  const libre = await duenio.pedidoAlEquipo.create({ data: { tenantId: a, puesto: "verificador", pedido: "Verificá la feria de Neuquén" }, select: { id: true } });
+  ok(await repo.tomarPedido(ctxA(f, u.verif), { pedidoId: tomado.id }, AHORA), "lo toma el Verificador");
+  ok(await repo.cerrarPedido(ctxA(f, u.verif), tomado.id, { estado: "HECHO", nota: "Confirmada en su web" }, AHORA));
+
+  const tomas = await repo.tomasDePedidos(a, [tomado.id, libre.id]);
+  const t1 = tomas.get(tomado.id);
+  assert.equal(t1?.tomadoPor, "Usuario verif · Verificador", "nombre y puesto en criollo, nunca el valor interno");
+  assert.ok(t1?.tomadoEl && t1.cerradoEl);
+  assert.equal(t1?.notaCierre, "Confirmada en su web");
+  assert.deepEqual(tomas.get(libre.id), { tomadoPor: null, tomadoEl: null, cerradoEl: null, notaCierre: null });
+  // Pedidos de este negocio pedidos desde otro: no vuelve nada (RLS + tenantId).
+  assert.equal((await repo.tomasDePedidos(base.b.id, [tomado.id, libre.id])).size, 0);
+  assert.equal((await repo.tomasDePedidos(a, [])).size, 0);
+});
