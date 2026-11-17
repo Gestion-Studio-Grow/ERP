@@ -44,6 +44,8 @@ import {
   type DatosComerciales,
   type Etapa,
   type VistaPase,
+  diaLegible,
+  tipoDeTrabajoLegible,
 } from "./motor";
 import { VARA } from "./vara";
 
@@ -485,4 +487,14 @@ test("GSG-CRM-011 · urlWeb: la web como la escribe la gente queda con https:// 
   for (const malo of ["", "   ", "bodega", "no es una web", "javascript:alert(1)", "ftp://bodega.com.ar", "mailto:a@b.com", null, undefined]) {
     assert.equal(urlWeb(malo), null, String(malo));
   }
+});
+
+test("GSG-CRM-018 · el brief se lee: fecha en criollo (sin correrse un día) y tipo de trabajo sin guiones bajos", () => {
+  assert.equal(diaLegible("2027-08-20"), "20 de agosto de 2027");
+  assert.equal(diaLegible("2027-01-01"), "1 de enero de 2027");
+  assert.equal(diaLegible("abril 2027"), "abril 2027"); // lo que no es un día queda como vino: no se inventa
+  assert.equal(tipoDeTrabajoLegible("stand_modular"), "stand modular");
+  assert.equal(tipoDeTrabajoLegible(" stand a medida 4x4 "), "stand a medida 4x4");
+  const p = puntuar({ fechaEvento: "2027-08-20", tipoTrabajo: "stand_modular" }, new Date("2026-11-17T12:00:00Z"), VARA);
+  assert.ok(p.detalle.some((d) => d.explicacion === "Sabemos qué trabajo pide (stand modular)."), "la explicación del puntaje también en criollo");
 });

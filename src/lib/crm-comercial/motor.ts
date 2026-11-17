@@ -221,7 +221,7 @@ export function puntuar(datos: DatosComerciales, ahora: Date, vara: Vara = VARA)
 
   detalle.push(
     datos.tipoTrabajo?.trim()
-      ? { criterio: "tipoTrabajo", suma: p.tipoTrabajo, explicacion: `Sabemos qué trabajo pide (${datos.tipoTrabajo.trim()}).` }
+      ? { criterio: "tipoTrabajo", suma: p.tipoTrabajo, explicacion: `Sabemos qué trabajo pide (${tipoDeTrabajoLegible(datos.tipoTrabajo)}).` }
       : { criterio: "tipoTrabajo", suma: 0, explicacion: "No sabemos qué tipo de trabajo pide." },
   );
 
@@ -841,6 +841,14 @@ export function cierreDesdeProyecto(p: { etapa: string; perdidoEl: Date | null; 
 }
 
 /** El brief que viaja al proyecto en «Lead / brief». Texto plano, sin datos de contacto. */
+/**
+ * GSG-CRM-018: el brief se lee, no se parsea. «2027-08-20» → «20 de agosto de 2027» (día de calendario, en UTC
+ * para no correrse un día) y «stand_modular» → «stand modular». Lo que no es un día válido queda como vino.
+ */
+const DIA_LARGO = new Intl.DateTimeFormat("es-AR", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+export const diaLegible = (iso: string): string => (/^\d{4}-\d{2}-\d{2}$/.test(iso) && !Number.isNaN(Date.parse(`${iso}T00:00:00Z`)) ? DIA_LARGO.format(new Date(`${iso}T00:00:00Z`)) : iso);
+export const tipoDeTrabajoLegible = (t: string): string => t.trim().replace(/_+/g, " ");
+
 export function textoDelBrief(c: CamposBrief, puntaje: Puntaje): string {
   const lineas = CAMPOS_BRIEF.map((k) => `${ETIQUETA_CAMPO[k][0].toUpperCase()}${ETIQUETA_CAMPO[k].slice(1)}: ${c[k]?.toString().trim() || "(falta)"}`);
   return [...lineas, `Puntaje: ${puntaje.puntaje}`, ...puntaje.detalle.map((d) => `· ${d.explicacion}`)].join("\n");
