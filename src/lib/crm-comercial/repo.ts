@@ -1926,9 +1926,14 @@ export async function ficha(ctx: Ctx, id: string, ahora = new Date()) {
       contactos.unshift({ contactoId: principal.id, nombre: principal.nombre, cargo: principal.cargo, papeles: [], suprimido: !!principal.suprimidoEl });
     }
     const p = puntuar(vista.datos, ahora, VARA);
+    // GSG-CRM-017: en qué negocio nació (o nacería) el proyecto. Sólo el nombre, del vínculo del ARM.
+    const negocioDestino = o.destinoTenantId
+      ? ((await tx.vinculoNegocio.findFirst({ where: { tenantId: ctx.tenantId, destinoTenantId: o.destinoTenantId }, select: { destinoTenant: { select: { name: true } } } }))?.destinoTenant.name ?? "el negocio vinculado")
+      : ((await vinculoActivo(tx, ctx, o.destinoConfirmado ? o.destino : null))?.destinoNombre ?? null);
     return {
       ok: true as const,
       oportunidad: { ...o, monto: o.monto == null ? null : Number(o.monto), ...pronosticoDe(o, ahora) },
+      negocioDestino,
       contactos,
       brief,
       puntaje: p,

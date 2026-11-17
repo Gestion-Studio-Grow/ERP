@@ -147,14 +147,22 @@ export default async function FichaPage({ params }: { params: Promise<{ id: stri
           <section aria-labelledby="t-pases">
             <h3 id="t-pases" className="mb-2 text-lg font-semibold text-strong">Mover de etapa</h3>
             {o.etapa === "ASIGNADA" ? (
-              <p className="text-sm text-muted">Ya es un proyecto: se gana o se pierde desde su proyecto, no desde acá.</p>
+              <p className="text-sm text-muted">Ya es un proyecto en <span className="font-medium text-strong">{f.negocioDestino ?? "el negocio vinculado"}</span>: se gana o se pierde desde su proyecto, allá. Acá se ve sólo cómo terminó.</p>
             ) : opciones.length === 0 ? (
               <p className="text-sm text-muted">{o.pasePropuesto ? "Primero hay que decidir la propuesta de arriba." : "Desde tu puesto no movés esta oportunidad."}</p>
             ) : (
               <PanelPases oportunidadId={o.id} version={o.version} opciones={opciones} comerciales={comerciales} />
             )}
             {o.destinoConfirmado && o.destino ? (
-              <p className="mt-4 text-sm text-muted">Destino confirmado por Dirección: <span className="font-medium text-strong">{o.destino === "AGENCIA" ? "Agencia" : "Taller"}</span>.</p>
+              <>
+                <p className="mt-4 text-sm text-muted">Destino confirmado por Dirección: <span className="font-medium text-strong">{o.destino === "AGENCIA" ? "Agencia" : "Taller"}</span>.</p>
+                {o.etapa !== "ASIGNADA" &&
+                  (f.negocioDestino ? (
+                    <p className="mt-1 text-sm text-muted">Al asignarla, el proyecto nace en <span className="font-medium text-strong">{f.negocioDestino}</span> con el cliente, el brief y la conversación.</p>
+                  ) : (
+                    <p className="mt-1 text-sm text-strong">Este destino no tiene un negocio vinculado: no se puede asignar. El vínculo lo carga GSG.</p>
+                  ))}
+              </>
             ) : (
               puedeEn(miembro, "confirmar_destino", vista) &&
               o.etapa !== "ASIGNADA" && (
