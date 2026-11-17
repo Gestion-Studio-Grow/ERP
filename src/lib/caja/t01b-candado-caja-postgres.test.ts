@@ -152,3 +152,168 @@ test("T01b · libro a mano, borrar: un borrado que llega con el cierre del día 
   await carreraConElCierre(p, t, "deleteLibroEntry", () => p.enSesion(() => deleteLibroEntry({ ok: false, error: "" } as never, p.form({ id: fila.id }))));
   assert.equal(await p.duenio.cashMovement.count({ where: { id: fila.id } }), 1, "la fila contada sigue en el libro");
 });
+
+// ─── Los otros caminos que asientan en la caja ──────────────────────────────────
+// Cada uno por su punto de entrada real (la acción o el servicio que abre la transacción). Lo que hace falta
+// antes (pedidos, turnos, compras) se siembra como dueño de la base y confirma ANTES de la carrera.
+//
+// Sin caso acá (medido con esta misma carrera): los caminos que ya corren en Serializable y leen la frontera del
+// día (`lastClosedDayTx`) —cobro de cuenta corriente, pago a cuenta y cheque rechazado de vouchers, anular cobro de
+// turno, reintegro de devolución a proveedor—. El ciclo SSI frontera↔libro aborta el cierre, que se reintenta y
+// cuenta el asiento: libro y cierre coinciden. Tampoco el arqueo del turno: con el turno abierto en su foto, el
+// cierre no cierra.
+
+let n = 0;
+
+/** El formulario de una venta de mostrador cobrada: 1 kg de un corte a `precio` el kilo. */
+async function formDeVenta(p: P, precio: number, medio = "EFECTIVO", extra: [string, string][] = []) {
+  n += 1;
+  const corte = await p.duenio.product.create({ data: { tenantId: p.a.id, name: `Corte T01b ${n}`, saleUnit: "WEIGHT", pricePerKg: precio, unit: "kg", trackStock: false } });
+  const fd = p.form({ channel: "COUNTER", fulfillment: "PICKUP", customerName: "Mostrador", paid: "on", paymentMethod: medio, idempotencyKey: `t01b-venta-${n}` });
+  for (const [k, v] of [["productId", corte.id], ["quantity", "1"], ...extra]) fd.append(k, v);
+  return { fd, corte };
+}
+
+/** Una venta de mostrador cobrada en efectivo por la acción real, ANTES de la carrera: el pedido y su VENTA. */
+async function vender(p: P, precio: number) {
+  const { createOrder } = await import("@/lib/order-actions");
+  const { fd, corte } = await formDeVenta(p, precio);
+  const r = await p.enSesion(() => createOrder(fd));
+  assert.ok(r?.ok, JSON.stringify(r));
+  const orden = await p.duenio.order.findFirstOrThrow({ where: { tenantId: p.a.id, items: { some: { productId: corte.id } } }, select: { id: true } });
+  return { id: orden.id, corte };
+}
+
+/** Box, servicio y profesional de A (una vez por archivo: la base es la misma para todos los casos). */
+let catalogo: { boxId: string; serviceId: string } | null = null;
+async function turno(p: P, o: { status: "PENDING" | "COMPLETED"; cobrado?: boolean; comision?: boolean }) {
+  catalogo ??= await (async () => {
+    const box = await p.duenio.box.create({ data: { tenantId: p.a.id, name: "Box T01b" } });
+    const s = await p.duenio.service.create({ data: { tenantId: p.a.id, name: "Masaje T01b", durationMin: 60, price: 18_000 } });
+    return { boxId: box.id, serviceId: s.id };
+  })();
+  n += 1;
+  const prof = await p.duenio.professional.create({
+    data: { tenantId: p.a.id, name: `Prof T01b ${n}`, boxId: catalogo.boxId, commissionPercent: o.comision ? 40 : undefined, services: { connect: [{ id: catalogo.serviceId }] } },
+  });
+  const clienta = await p.duenio.client.create({ data: { tenantId: p.a.id, name: `Clienta T01b ${n}`, phone: `1170${String(n).padStart(6, "0")}` } });
+  const inicio = new Date(AHORA - 3 * 3_600_000);
+  const a = await p.duenio.appointment.create({
+    data: { tenantId: p.a.id, clientId: clienta.id, professionalId: prof.id, serviceId: catalogo.serviceId, boxId: catalogo.boxId, startsAt: inicio, endsAt: new Date(inicio.getTime() + 3_600_000), status: o.status, priceAtBooking: 18_000 },
+  });
+  if (o.cobrado) {
+    await p.duenio.payment.create({ data: { tenantId: p.a.id, appointmentId: a.id, amount: 18_000, method: "EFECTIVO", status: "APPROVED" } });
+    await p.duenio.collection.create({ data: { tenantId: p.a.id, originType: "APPOINTMENT", originId: a.id, appointmentId: a.id, amount: 18_000, method: "EFECTIVO", collectedBy: "test" } });
+  }
+  return { turnoId: a.id, profId: prof.id };
+}
+
+test("T01b · venta de mostrador: una venta en efectivo que llega con el cierre del día en marcha no queda fuera de lo contado", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const { createOrder } = await import("@/lib/order-actions");
+  const { fd } = await formDeVenta(p, 5_000);
+  await carreraConElCierre(p, t, "createOrder (mostrador, efectivo)", () => p.enSesion(() => createOrder(fd)));
+});
+
+test("T01b · cobro de turno: el cobro al terminar el turno que llega con el cierre en marcha no queda fuera de lo contado", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const { terminarYCobrarDividido } = await import("@/lib/turnos/cobro-actions");
+  const { turnoId } = await turno(p, { status: "PENDING" });
+  const pagos = JSON.stringify([{ metodo: "EFECTIVO", monto: 10_000 }, { metodo: "MERCADOPAGO", monto: 8_000 }]);
+  await carreraConElCierre(p, t, "terminarYCobrarDividido", () => p.enSesion(() => terminarYCobrarDividido(p.form({ appointmentId: turnoId, pagos, vino: "on" }))));
+});
+
+test("T01b · pago mixto: la venta con dos medios que llega con el cierre en marcha no queda fuera de lo contado", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const { createOrder } = await import("@/lib/order-actions");
+  const mixto: [string, string][] = [["pagado", "1"], ["pago.medio", "EFECTIVO"], ["pago.monto", "3000.00"], ["pago.medio", "MERCADOPAGO"], ["pago.monto", "2000.00"]];
+  const { fd } = await formDeVenta(p, 5_000, "EFECTIVO", mixto);
+  await carreraConElCierre(p, t, "createOrder (pago mixto)", () => p.enSesion(() => createOrder(fd)));
+});
+
+test("T01b · saldo del pedido: el cobro del saldo de un pedido que pesó más, con el cierre en marcha, no queda fuera de lo contado", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const { cobrarPedido } = await import("@/lib/order-actions");
+  n += 1;
+  const o = await p.duenio.order.create({ data: { tenantId: p.a.id, code: 900 + n, customerName: "Pedido T01b", customerPhone: "", subtotal: 1_000, total: 1_000 }, select: { id: true } });
+  await p.duenio.collection.create({ data: { tenantId: p.a.id, originType: "ORDER", originId: o.id, orderId: o.id, amount: 400, method: "MERCADOPAGO", collectedBy: "test" } });
+  await carreraConElCierre(p, t, "cobrarPedido (saldo)", () =>
+    p.enSesion(() => cobrarPedido(null, p.form({ id: o.id, paymentMethod: "EFECTIVO", pagado: "1", paid: "on" }))),
+  );
+});
+
+test("T01b · anular venta: la anulación de una venta cobrada que llega con el cierre en marcha no queda fuera de lo contado", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const { anularVenta } = await import("@/lib/order-actions");
+  const { id } = await vender(p, 7_200);
+  await carreraConElCierre(p, t, "anularVenta", () => p.enSesion(() => anularVenta(null, p.form({ id, motivo: "se pesó mal" }))));
+});
+
+/** Una orden de taller de A, con vehículo, lista para cobrar. */
+async function ordenDeTaller(p: P) {
+  n += 1;
+  const v = await p.duenio.tallerVehiculo.create({ data: { tenantId: p.a.id, clientId: p.a.clientes[0], patente: `TB${100 + n}CD` } });
+  return p.duenio.tallerOrden.create({ data: { tenantId: p.a.id, numero: 500 + n, vehiculoId: v.id, clientId: p.a.clientes[0], token: `t01b-${p.a.id}-${n}` }, select: { id: true } });
+}
+
+test("T01b · taller, cobrar: el cobro de una orden que llega con el cierre en marcha no queda fuera de lo contado", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const { registrarPago } = await import("@/lib/taller/acciones");
+  const orden = await ordenDeTaller(p);
+  await carreraConElCierre(p, t, "taller registrarPago", () => p.enSesion(() => registrarPago(p.form({ ordenId: orden.id, medio: "EFECTIVO", monto: "5000" }))));
+});
+
+test("T01b · taller, anular cobro: la contrapartida que llega con el cierre en marcha no queda fuera de lo contado", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const { registrarPago, anularPago } = await import("@/lib/taller/acciones");
+  const orden = await ordenDeTaller(p);
+  await p.enSesion(() => registrarPago(p.form({ ordenId: orden.id, medio: "EFECTIVO", monto: "5000" })));
+  const pago = await p.duenio.tallerPago.findFirstOrThrow({ where: { ordenId: orden.id }, select: { id: true } });
+  await carreraConElCierre(p, t, "taller anularPago", () => p.enSesion(() => anularPago(p.form({ id: pago.id, motivo: "medio equivocado" }))));
+});
+
+test("T01b · ajuste por peso: la devolución de un pedido cobrado que pesó menos, con el cierre en marcha, no queda fuera de lo contado", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const { updateOrderItems } = await import("@/lib/order-actions");
+  const { id, corte } = await vender(p, 10_000);
+  await p.duenio.order.update({ where: { id }, data: { status: "PENDING" } }); // en curso: se puede pesar
+  const fd = p.form({ id });
+  fd.append("productId", corte.id);
+  fd.append("quantity", "0.5");
+  await carreraConElCierre(p, t, "updateOrderItems (pesó menos)", () => p.enSesion(() => updateOrderItems({ ok: false, error: "" } as never, fd)));
+});
+
+test("T01b · compra pagada: el egreso de una compra en efectivo que llega con el cierre en marcha no queda fuera de lo contado", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const { insertStockPurchase } = await import("@/lib/stock/purchase-core");
+  n += 1;
+  const prod = await p.duenio.product.create({ data: { tenantId: p.a.id, name: `Bife T01b ${n}`, saleUnit: "UNIT", price: 6_000, stock: 0, trackStock: true } });
+  await carreraConElCierre(p, t, "insertStockPurchase (pagada)", () =>
+    p.enSesion(() =>
+      insertStockPurchase(p.a.id, {
+        kind: "COMPRA", supplier: "Proveedor T01b", notes: null, createdBy: `user:${p.a.duenia.id}`,
+        items: [{ productId: prod.id, qty: 2, unitCost: 500 }], pago: { estado: "PAGADA", method: "EFECTIVO" },
+      }),
+    ),
+  );
+});
+
+test("T01b · comisiones: la liquidación pagada en efectivo que llega con el cierre en marcha no queda fuera de lo contado", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const { settleCommissions } = await import("@/lib/commission-actions");
+  const { profId } = await turno(p, { status: "COMPLETED", cobrado: true, comision: true });
+  // Responde con una redirección: se corre con `ejecutarAccion` y se devuelve lo que salió.
+  await carreraConElCierre(p, t, "settleCommissions", () =>
+    ejecutarAccion({ negocio: p.a, usuario: { id: p.a.duenia.id } }, () => settleCommissions(p.form({ professionalId: profId, method: "EFECTIVO" }))),
+  );
+});
