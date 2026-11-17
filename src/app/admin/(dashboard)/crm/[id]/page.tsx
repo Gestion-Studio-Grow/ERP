@@ -8,11 +8,11 @@ import { Badge } from "@/components/ui";
 import { ETIQUETA_CAMPO, ETIQUETA_ETAPA, CAMPOS_BRIEF, MOTIVOS, faltantesDelBrief, type Etapa } from "@/lib/crm-comercial/motor";
 import { PUESTOS } from "@/lib/crm-comercial/permisos";
 import { datosLimpios } from "@/lib/crm-comercial/repo";
-import { detalleDeFicha, ficha, personasDelCrm } from "@/lib/crm-comercial/acciones";
+import { detalleDeFicha, eventosParaLaFicha, ficha, personasDelCrm } from "@/lib/crm-comercial/acciones";
 import { abrirCrm, Marco, NoSePudo } from "../comun";
 import { ETIQUETA_PUESTO, ETIQUETA_ROL, TIPOS_DE_TAREA, dia, diaYHora, etiquetaTarea, opcionesDePase, paraInputFecha, plata, puedeEn } from "../crm-core";
 import { BorradorTarjeta } from "../BorradorTarjeta";
-import { ComprobarIdentidad, ConfirmarDestino, Contactos, DecidirPropuesta, FormularioDatos, NuevaTarea, NuevoBorrador, PanelPases, PedidoDeDatos, RegistrarRespuesta, TraerCierreDelProyecto, VerificarFuente } from "./FichaFormularios";
+import { CargarEvento, ComprobarIdentidad, ConfirmarDestino, Contactos, DecidirPropuesta, FormularioDatos, NuevaTarea, NuevoBorrador, PanelPases, PedidoDeDatos, RegistrarRespuesta, TraerCierreDelProyecto, VerificarFuente } from "./FichaFormularios";
 
 export const dynamic = "force-dynamic";
 
@@ -97,6 +97,11 @@ export default async function FichaPage({ params }: { params: Promise<{ id: stri
   const faltan = faltantesDelBrief(f.brief);
   const datos = datosLimpios(o.datos);
   const propuestaDatos = (o.pasePropuestoDatos ?? {}) as Record<string, string | null>;
+  // GSG-CRM-018 · callejón 1: sin evento no se verifica; quien puede verificar se lo pone desde acá.
+  const sinEvento = !!d && !d.evento && o.tipo === "PROSPECTO" && !cerrada && puedeEn(miembro, "verificar", vista);
+  const evs = sinEvento ? await eventosParaLaFicha(o.id) : null;
+  const eventosParaElegir = evs?.ok ? evs.eventos.map((e) => ({ id: e.id, etiqueta: `${e.nombre} · ${e.region} · ${dia(e.fecha)}` })) : [];
+  const comoVinoElEvento = sinEvento ? (d?.consultaTexto?.match(/Evento \(como vino\): ([^\n]*?)\.(?:\s|$)/)?.[1] ?? null) : null;
   const puedeDecidir = !!o.pasePropuesto && puedeEn(miembro, "aplicar_pase", vista, o.pasePropuesto as Etapa);
   const persona = miembro.rol !== "PUESTO";
   const puedeDatos = { puntuar: puedeEn(miembro, "puntuar", vista), brief: puedeEn(miembro, "editar_brief", vista), persona };
@@ -220,7 +225,11 @@ export default async function FichaPage({ params }: { params: Promise<{ id: stri
             <h3 id="t-verificacion" className="mb-1 text-lg font-semibold text-strong">Verificación de la fuente</h3>
             <p className="mb-3 text-sm text-muted">Para pasar a «Verificada» hacen falta la marca en el evento y el evento como «confirmado», cada uno con la URL donde se ve.</p>
             {!d?.evento ? (
-              <p className="text-sm text-muted">Esta oportunidad no tiene evento: la marca se verifica en el evento donde se la vio.</p>
+              <div className="grid gap-3">
+                <p className="text-sm text-muted">Esta oportunidad no tiene evento: la marca se verifica en el evento donde se la vio.{sinEvento ? " Ponéselo y después verificalo." : ""}</p>
+                {comoVinoElEvento && <p className="text-sm text-body"><span className="font-medium text-strong">Cómo vino el evento: </span>{comoVinoElEvento}</p>}
+                {sinEvento && <CargarEvento oportunidadId={o.id} eventos={eventosParaElegir} />}
+              </div>
             ) : (
               <div className="grid gap-4">
                 {([

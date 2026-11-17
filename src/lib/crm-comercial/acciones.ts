@@ -122,6 +122,10 @@ export async function comprobarIdentidad(id: string, d: { emailDeQuienEscribe?: 
 export async function verificarFuente(id: string, d: repo.PedidoDeVerificacion) {
   return con(true, (ctx) => repo.verificarFuente(ctx, id, d));
 }
+/** GSG-CRM-018: ponerle el evento a una oportunidad que no lo tiene (uno relevado o uno nuevo), para poder verificarla. */
+export async function cargarEvento(id: string, d: repo.PedidoDeEvento) {
+  return con(true, (ctx) => repo.cargarEvento(ctx, id, d));
+}
 
 // ── Contactos ───────────────────────────────────────────────────────────────
 
@@ -218,4 +222,7 @@ export async function detalleDeFicha(id: string) {
 }
 export async function eventosParaElegir() {
   return con(false, (ctx) => repo.eventosParaElegir(ctx));
+}
+export async function eventosParaLaFicha(id: string) {
+  return con(false, (ctx) => repo.eventosParaLaFicha(ctx, id));
 }

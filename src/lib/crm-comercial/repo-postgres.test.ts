@@ -972,3 +972,61 @@ test("GSG-CRM-011 · la ficha verifica marca y evento con la fuente (permiso «v
   assert.deepEqual(fi.contactos.map((x) => ({ id: x.contactoId, papeles: x.papeles })), [{ id: c.id, papeles: [] }]);
   ok(await repo.escribirBorrador(dir, { oportunidadId: op.id, contactoId: c.id, canal: "MAIL", asunto: "Hola", cuerpo: "Hola, vimos que van a Feria Demo." }, AHORA), "borrador para el contacto sin papel");
 });
+
+test("GSG-CRM-018 · callejón 1: el prospecto sin evento no se verificaba; quien tiene la tarea le pone el evento desde la ficha y lo verifica", async (t) => {
+  const f = await preparar(t);
+  if (!f) return;
+  const { repo, u, base } = f;
+  const dir = ctxA(f, u.dir);
+  const verif = ctxA(f, u.verif2);
+  const duenio = await prismaComoDuenio(base);
+
+  // Un prospecto que llegó sin evento (como los del archivo cuyo evento no traía día): la tarea es del Verificador.
+  const op = ok(await repo.proponerOportunidad(dir, { tipo: "PROSPECTO", marca: { nombre: "Sin Evento Demo SA", web: "sin-evento-demo.example" }, ...PASO }, AHORA), "prospecto sin evento");
+  const tarea = await duenio.tareaComercial.findFirstOrThrow({ where: { tenantId: base.a.id, oportunidadId: op.id, para: "verificador" }, select: { id: true } });
+  ok(await repo.tomarTarea(verif, { tareaId: tarea.id }, AHORA), "toma la verificación");
+  const pedido = { que: "marca", verificacion: "confirmado", urlFuente: "https://feria-nueva.example/sponsors" };
+  rechaza(await repo.verificarFuente(verif, op.id, pedido, AHORA), /no tiene evento/, "antes: sin evento no se verifica");
+
+  // Quién no puede: un comercial ajeno, otro negocio, un puesto sin el permiso «verificar».
+  const nuevo = { nombre: "Feria Nueva Demo", fecha: "2027-05-12", fechaHasta: "2027-05-14", lugar: "Predio Demo", region: "Córdoba" };
+  rechaza(await repo.eventosParaLaFicha(ctxA(f, u.com2), op.id, AHORA), /no es tuya/, "lista: comercial ajeno");
+  rechaza(await repo.cargarEvento(ctxA(f, u.com2), op.id, nuevo, AHORA), /no es tuya/, "comercial ajeno");
+  rechaza(await repo.cargarEvento({ tenantId: base.b.id, userId: u.dirB }, op.id, nuevo, AHORA), /no existe/, "otro negocio");
+  const redactar = ok(await repo.crearTarea(dir, { oportunidadId: op.id, para: "redactor", tipo: "REDACTAR" }, AHORA));
+  ok(await repo.tomarTarea(ctxA(f, u.redac), { tareaId: redactar.id }, AHORA));
+  rechaza(await repo.cargarEvento(ctxA(f, u.redac), op.id, nuevo, AHORA), /no es tarea del puesto redactor/, "redactor");
+
+  // Lo que no es un evento se rechaza con el motivo y no escribe nada.
+  rechaza(await repo.cargarEvento(verif, op.id, { ...nuevo, fecha: "" }, AHORA), /día del evento/, "sin día");
+  rechaza(await repo.cargarEvento(verif, op.id, { ...nuevo, fecha: "2027-02-30" }, AHORA), /día del evento/, "día que no existe");
+  rechaza(await repo.cargarEvento(verif, op.id, { ...nuevo, fechaHasta: "2027-05-01" }, AHORA), /último día/, "termina antes de empezar");
+  rechaza(await repo.cargarEvento(verif, op.id, { ...nuevo, lugar: " " }, AHORA), /lugar/, "sin lugar");
+  rechaza(await repo.cargarEvento(verif, op.id, { eventoId: "no-existe" }, AHORA), /no existe/, "evento inexistente");
+  assert.equal(await duenio.eventoRelevado.count({ where: { tenantId: base.a.id, nombre: nuevo.nombre } }), 0);
+
+  // El Verificador con la tarea ve los eventos para elegir y anota uno nuevo: queda «sin verificar» y MANUAL.
+  const lista = ok(await repo.eventosParaLaFicha(verif, op.id, AHORA), "lista de eventos");
+  assert.ok(lista.eventos.some((e) => e.id === f.ev1));
+  const r = ok(await repo.cargarEvento(verif, op.id, nuevo, AHORA), "le pone el evento");
+  const ev = await duenio.eventoRelevado.findUniqueOrThrow({ where: { id: r.eventoId }, select: { tenantId: true, verificacion: true, origen: true, region: true } });
+  assert.deepEqual(ev, { tenantId: base.a.id, verificacion: "sin verificar", origen: "MANUAL", region: "Córdoba" });
+  rechaza(await repo.cargarEvento(verif, op.id, { eventoId: f.ev1 }, AHORA), /ya tiene evento/, "no se cambia el de otra");
+
+  // Después: se verifica y pasa a «Verificada»; la línea de tiempo dice quién le puso el evento.
+  ok(await repo.verificarFuente(verif, op.id, pedido, AHORA), "marca");
+  ok(await repo.verificarFuente(verif, op.id, { que: "evento", verificacion: "confirmado", urlFuente: "feria-nueva.example" }, AHORA), "evento");
+  ok(await repo.aplicarPase(verif, op.id, "VERIFICADA", {}, AHORA), "verificada");
+  const linea = await duenio.actividadComercial.findMany({ where: { tenantId: base.a.id, oportunidadId: op.id, tipo: "EVENTO" }, select: { usuarioId: true, puesto: true } });
+  assert.deepEqual(linea, [{ usuarioId: u.verif2, puesto: "verificador" }]);
+
+  // El mismo evento escrito otra vez no se duplica; E1: la misma marca no queda abierta dos veces en un evento.
+  const otra = ok(await repo.proponerOportunidad(dir, { tipo: "PROSPECTO", marca: { nombre: "Otra Sin Evento Demo", web: "otra-sin-evento.example" }, ...PASO }, AHORA));
+  const r2 = ok(await repo.cargarEvento(dir, otra.id, { ...nuevo, nombre: "  feria nueva demo " }, AHORA), "misma llave");
+  assert.equal(r2.eventoId, r.eventoId);
+  const enEv1 = ok(await repo.proponerOportunidad(dir, { tipo: "PROSPECTO", marca: { nombre: "Repetida Demo", web: "repetida-demo.example" }, eventoId: f.ev1, ...PASO }, AHORA));
+  const sinEv = ok(await repo.proponerOportunidad(dir, { tipo: "PROSPECTO", marca: { nombre: "Repetida Demo", web: "repetida-demo.example" }, ...PASO }, AHORA));
+  assert.notEqual(sinEv.id, enEv1.id);
+  rechaza(await repo.cargarEvento(dir, sinEv.id, { eventoId: f.ev1 }, AHORA), /otra oportunidad abierta en ese evento/, "E1");
+  ok(await repo.cargarEvento(dir, sinEv.id, { eventoId: f.ev2 }, AHORA), "elige otro relevado");
+});

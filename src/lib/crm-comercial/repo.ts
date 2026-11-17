@@ -19,7 +19,7 @@
 import { Prisma } from "@/generated/prisma/client";
 import { tenantTransaction, trasladoTransaction, type FasesDeTraslado } from "@/lib/rls";
 import { isPrismaError } from "@/lib/prisma-errors";
-import { claveMarca, ROLES as ROLES_EN_EVENTO, VERIFICACIONES } from "@/lib/eventos-sponsors/core";
+import { claveEvento, claveMarca, esDia, ROLES as ROLES_EN_EVENTO, VERIFICACIONES } from "@/lib/eventos-sponsors/core";
 import { VARA } from "./vara";
 import { PRONOSTICO } from "./pronostico";
 import {
@@ -1262,6 +1262,91 @@ export async function verificarFuente(ctx: Ctx, id: string, d: PedidoDeVerificac
       fuenteUrl: fuente,
     });
     return { ok: true };
+  });
+}
+
+export interface PedidoDeEvento {
+  /** Un evento ya relevado de este negocio. Si viene, lo demás no se mira. */
+  eventoId?: string | null;
+  /** O uno nuevo: nombre, primer día (AAAA-MM-DD), último día opcional, lugar y región. */
+  nombre?: string | null;
+  fecha?: string | null;
+  fechaHasta?: string | null;
+  lugar?: string | null;
+  region?: string | null;
+}
+
+/**
+ * GSG-CRM-018 · callejón 1 de T2: un prospecto que llegó sin evento (el evento vino sin día y la carga no lo pudo
+ * crear) no se podía verificar y ninguna pantalla dejaba cargárselo. Quien tiene permiso «verificar» sobre ESA
+ * oportunidad (el Verificador con la tarea, Dirección, el comercial que la tiene) le pone el evento: uno ya
+ * relevado o uno nuevo, que queda «sin verificar» y con origen MANUAL (si ya hay uno con la misma llave, se usa
+ * ése: no se duplica). Sólo si todavía no tiene evento: cambiar el de otra no es esta salida. E1: si la misma
+ * marca ya tiene otra abierta en ese evento, se rechaza y se dice cuál. Versión y registro en la misma transacción.
+ */
+export async function cargarEvento(ctx: Ctx, id: string, d: PedidoDeEvento, ahora = new Date()): Promise<Res<{ eventoId: string }>> {
+  return correr(ctx, async (tx) => {
+    const { o, miembro } = await sobre(tx, ctx, id, "verificar", ahora);
+    if (esTerminal(o.etapa as Etapa)) no("La oportunidad está cerrada.", o.id);
+    if (o.eventoId) no("Esta oportunidad ya tiene evento.", o.id);
+    let evento: { id: string; nombre: string } | null = null;
+    let nuevo = false;
+    if (d.eventoId) {
+      evento = await tx.eventoRelevado.findFirst({ where: { id: d.eventoId, tenantId: ctx.tenantId }, select: { id: true, nombre: true } });
+      if (!evento) no("Ese evento no existe.", o.id);
+    } else {
+      const nombre = txt(d.nombre, 200);
+      const lugar = txt(d.lugar, 200);
+      const region = txt(d.region, 80);
+      if (!nombre) no("Falta el nombre del evento.", o.id);
+      if (!esDia(d.fecha)) no("Falta el día del evento (o no es una fecha real).", o.id);
+      const hasta = d.fechaHasta?.trim() ? d.fechaHasta.trim() : null;
+      if (hasta && (!esDia(hasta) || hasta < (d.fecha as string))) no("El último día tiene que ser una fecha real, igual o posterior al primero.", o.id);
+      if (!lugar) no("Falta el lugar del evento.", o.id);
+      if (!region) no("Falta la región del evento.", o.id);
+      const clave = claveEvento(nombre as string, d.fecha as string, region as string);
+      evento = await tx.eventoRelevado.findFirst({ where: { tenantId: ctx.tenantId, clave }, select: { id: true, nombre: true } });
+      if (!evento) {
+        evento = await tx.eventoRelevado.create({
+          data: {
+            tenantId: ctx.tenantId,
+            clave,
+            nombre: nombre as string,
+            fecha: new Date(`${d.fecha}T00:00:00Z`),
+            fechaHasta: hasta ? new Date(`${hasta}T00:00:00Z`) : null,
+            lugar: lugar as string,
+            region: region as string,
+            origen: "MANUAL",
+          },
+          select: { id: true, nombre: true },
+        });
+        nuevo = true;
+      }
+    }
+    const ev = evento as { id: string; nombre: string };
+    if (o.marcaId) {
+      const otra = await tx.oportunidad.findFirst({
+        where: { tenantId: ctx.tenantId, marcaId: o.marcaId, eventoId: ev.id, id: { not: o.id }, etapa: { notIn: [...TERMINALES] } },
+        select: { id: true },
+      });
+      if (otra) no("La misma marca ya tiene otra oportunidad abierta en ese evento: seguí por ésa o descartá ésta como repetida.", o.id);
+    }
+    await escribirOp(tx, ctx, o, { eventoId: ev.id });
+    await registrar(tx, ctx, miembro, {
+      oportunidadId: o.id,
+      tipo: "EVENTO",
+      texto: `Se le puso el evento «${ev.nombre}»${nuevo ? " (anotado a mano, sin verificar)" : ""}. Falta verificarlo con la fuente.`,
+    });
+    return { ok: true, eventoId: ev.id };
+  });
+}
+
+/** Los eventos relevados para elegir desde la ficha: pide «verificar» sobre ESA oportunidad (no «proponer»). */
+export async function eventosParaLaFicha(ctx: Ctx, id: string, ahora = new Date()): Promise<Res<{ eventos: { id: string; nombre: string; fecha: Date; region: string }[] }>> {
+  return correr(ctx, async (tx) => {
+    await sobre(tx, ctx, id, "verificar", ahora);
+    const eventos = await tx.eventoRelevado.findMany({ where: { tenantId: ctx.tenantId }, orderBy: [{ fecha: "asc" }, { id: "asc" }], take: 300, select: { id: true, nombre: true, fecha: true, region: true } });
+    return { ok: true, eventos };
   });
 }
 

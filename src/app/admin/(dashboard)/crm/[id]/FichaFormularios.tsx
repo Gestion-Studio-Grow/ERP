@@ -8,6 +8,7 @@ import { Button, Input, Select, Textarea } from "@/components/ui";
 import {
   actualizarDatosOportunidad,
   aprobarPasePropuesto,
+  cargarEvento,
   comprobarIdentidad,
   confirmarDestino,
   crearContacto,
@@ -160,6 +161,74 @@ export function VerificarFuente({ oportunidadId, que, actual }: { oportunidadId:
       </div>
       <div><Button type="submit" size="sm" disabled={pendiente}>Guardar</Button></div>
       <div className="sm:col-span-3"><Resultado motivo={motivo} hecho={hecho} /></div>
+    </form>
+  );
+}
+
+/**
+ * GSG-CRM-018: la salida del prospecto que llegó sin evento. Se elige uno relevado o se anota uno nuevo (queda
+ * «sin verificar»); después se verifica como cualquier otro. El servidor pide «verificar» sobre esta oportunidad.
+ */
+export function CargarEvento({ oportunidadId, eventos }: { oportunidadId: string; eventos: readonly { id: string; etiqueta: string }[] }) {
+  const { correr, pendiente, motivo, hecho } = useAccion();
+  const [modo, setModo] = useState<"elegir" | "nuevo">(eventos.length ? "elegir" : "nuevo");
+  const [eventoId, setEventoId] = useState("");
+  const [f, setF] = useState({ nombre: "", fecha: "", fechaHasta: "", lugar: "", region: "" });
+  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF((x) => ({ ...x, [k]: e.target.value }));
+  return (
+    <form
+      className="grid gap-3"
+      onSubmit={(e) => {
+        e.preventDefault();
+        const pedido = modo === "elegir" ? { eventoId } : { ...f, fechaHasta: f.fechaHasta || null };
+        correr(() => cargarEvento(oportunidadId, pedido), { listo: "Listo: la oportunidad ya tiene evento. Ahora se verifica con la fuente." });
+      }}
+    >
+      {eventos.length > 0 && (
+        <fieldset className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
+          <legend className={ROTULO}>¿El evento ya está relevado?</legend>
+          <label className="flex min-h-11 items-center gap-2 sm:min-h-0">
+            <input type="radio" name="ev-modo" checked={modo === "elegir"} onChange={() => setModo("elegir")} /> Sí, lo elijo
+          </label>
+          <label className="flex min-h-11 items-center gap-2 sm:min-h-0">
+            <input type="radio" name="ev-modo" checked={modo === "nuevo"} onChange={() => setModo("nuevo")} /> No, lo anoto
+          </label>
+        </fieldset>
+      )}
+      {modo === "elegir" ? (
+        <div className="min-w-0">
+          <label htmlFor="ev-elegido" className={ROTULO}>Evento</label>
+          <Select id="ev-elegido" value={eventoId} onChange={(e) => setEventoId(e.target.value)} required>
+            <option value="">Elegí el evento</option>
+            {eventos.map((e) => <option key={e.id} value={e.id}>{e.etiqueta}</option>)}
+          </Select>
+        </div>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="min-w-0 sm:col-span-2">
+            <label htmlFor="ev-nombre" className={ROTULO}>Nombre del evento</label>
+            <Input id="ev-nombre" value={f.nombre} onChange={set("nombre")} required maxLength={200} />
+          </div>
+          <div className="min-w-0">
+            <label htmlFor="ev-fecha" className={ROTULO}>Primer día</label>
+            <Input id="ev-fecha" type="date" value={f.fecha} onChange={set("fecha")} required />
+          </div>
+          <div className="min-w-0">
+            <label htmlFor="ev-hasta" className={ROTULO}>Último día (si dura más de uno)</label>
+            <Input id="ev-hasta" type="date" value={f.fechaHasta} onChange={set("fechaHasta")} min={f.fecha || undefined} />
+          </div>
+          <div className="min-w-0">
+            <label htmlFor="ev-lugar" className={ROTULO}>Lugar</label>
+            <Input id="ev-lugar" value={f.lugar} onChange={set("lugar")} required maxLength={200} />
+          </div>
+          <div className="min-w-0">
+            <label htmlFor="ev-region" className={ROTULO}>Región</label>
+            <Input id="ev-region" value={f.region} onChange={set("region")} required maxLength={80} placeholder="Buenos Aires" />
+          </div>
+        </div>
+      )}
+      <div><Button type="submit" size="sm" disabled={pendiente}>Ponerle el evento</Button></div>
+      <Resultado motivo={motivo} hecho={hecho} />
     </form>
   );
 }
