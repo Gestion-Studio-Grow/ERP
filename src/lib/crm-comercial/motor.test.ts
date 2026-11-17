@@ -10,6 +10,9 @@ import {
   avisoDeExclusividad,
   bandejaHoy,
   cierreDesdeProyecto,
+  cierreEntreNegocios,
+  esMotivo,
+  MOTIVO_DEL_PROYECTO,
   claveIdempotencia,
   claveTareaVencida,
   cuitValido,
@@ -201,6 +204,17 @@ test("A3 · la oportunidad asignada toma el cierre del proyecto (Confirmado = ga
   const p = cierreDesdeProyecto({ etapa: "PROPUESTA", perdidoEl: AHORA, motivoPerdida: "precio" });
   assert.equal(p?.destino, "PERDIDA");
   assert.match(p?.nota ?? "", /precio/);
+});
+
+test("V6 · entre negocios cruza sólo el motivo de catálogo, nunca el detalle libre del proyecto", async () => {
+  const { MOTIVOS_PERDIDA } = await import("@/lib/proyectos/gestion-core");
+  for (const m of MOTIVOS_PERDIDA) assert.ok(esMotivo(MOTIVO_DEL_PROYECTO[m]), `«${m}» tiene su motivo del CRM`);
+  const c = cierreEntreNegocios({ etapa: "PROPUESTA", perdidoEl: AHORA, motivoPerdida: "Eligió otra productora — Juan Perez 11-5555-0000, con $ 2.000.000 no llega" });
+  assert.deepEqual(c, { destino: "PERDIDA", motivo: "ELIGIO_OTRO", nota: "Se perdió en el proyecto: Eligió otra productora." });
+  const libre = cierreEntreNegocios({ etapa: "PROPUESTA", perdidoEl: AHORA, motivoPerdida: "Juan Perez dijo que no" });
+  assert.deepEqual(libre, { destino: "PERDIDA", motivo: "OTRO", nota: "Se perdió en el proyecto." });
+  assert.deepEqual(cierreEntreNegocios({ etapa: "APROBADO", perdidoEl: null, motivoPerdida: null }), { destino: "GANADA", motivo: null, nota: null });
+  assert.equal(cierreEntreNegocios({ etapa: "PEDIDO", perdidoEl: null, motivoPerdida: null }), null);
 });
 
 // ── A9 / E24: puntaje explicado, sólo de campos estructurados ─────────────────

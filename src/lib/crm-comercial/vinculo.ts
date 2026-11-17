@@ -7,12 +7,12 @@
 // de la app son los del destino, así que cada fila que escriben es del destino y RLS rechaza cualquier otra. Ninguna
 // recibe un `tx` del ARM ni lee nada del ARM: lo que viaja llega armado en `Paquete` (V5).
 //
-// Lo que vuelve al ARM es acotado a propósito (V6, V7): el estado del proyecto (en curso, ganado, perdido y su motivo)
+// Lo que vuelve al ARM es acotado a propósito (V6, V7): el estado del proyecto (en curso, ganado, perdido y su motivo de catálogo)
 // y si un cliente existe o no. Ni datos personales ni montos del destino cruzan de vuelta.
 
 import { randomBytes } from "node:crypto";
 import type { TxTraslado } from "@/lib/rls";
-import { cierreDesdeProyecto, type Motivo } from "./motor";
+import { cierreEntreNegocios, type Motivo } from "./motor";
 import { criterioDeContacto, wherePorContacto } from "@/lib/clientes/busqueda-por-contacto";
 
 /** Un tipo de destino del ARM (el que propone el Calificador y confirma Dirección). */
@@ -135,10 +135,8 @@ export async function estadosEnDestino(tx: TxTraslado, destinoTenantId: string, 
     where: { tenantId: destinoTenantId, origenTenantId, proyectoId: { in: [...proyectoIds] } },
     select: { proyecto: { select: { id: true, etapa: true, perdidoEl: true, motivoPerdida: true } } },
   });
-  return suyas.map(({ proyecto: p }) => {
-    const c = cierreDesdeProyecto({ etapa: p.etapa, perdidoEl: p.perdidoEl, motivoPerdida: p.motivoPerdida?.slice(0, 300) ?? null });
-    return { proyectoId: p.id, cierre: c };
-  });
+  // GSG-CRM-018c: del motivo de pérdida cruza sólo el de catálogo; el detalle libre del destino no sale de esta fase.
+  return suyas.map(({ proyecto: p }) => ({ proyectoId: p.id, cierre: cierreEntreNegocios({ etapa: p.etapa, perdidoEl: p.perdidoEl, motivoPerdida: p.motivoPerdida }) }));
 }
 
 /** Qué se busca para «ya es cliente» (V7): el nombre de la marca, su dominio web y los mails conocidos. */

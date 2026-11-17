@@ -286,7 +286,9 @@ test("V5 · V6 · viajan el cliente, el brief y la conversación; en el ARM no q
   ok(await repo.ponerAlDia(ctx(f, f.dir), AHORA));
   const cerrada = await d.oportunidad.findUniqueOrThrow({ where: { id: id2 }, select: { etapa: true, motivo: true, nota: true } });
   assert.equal(cerrada.etapa, "PERDIDA");
-  assert.match(cerrada.nota ?? "", /Eligieron otra agencia/);
+  // GSG-CRM-018c: un motivo que no es del catálogo del proyecto cruza como «Otro», sin su texto.
+  assert.equal(cerrada.motivo, "OTRO");
+  assert.doesNotMatch(cerrada.nota ?? "", /Eligieron otra agencia/);
   const textos = (await d.actividadComercial.findMany({ where: { tenantId: f.arm }, select: { texto: true } })).map((a) => a.texto).join("\n");
   assert.doesNotMatch(textos, /otro@privado\.example/, "un dato personal del destino no vuelve al ARM");
   void ajeno;
@@ -326,6 +328,33 @@ test("V5 · el rango de presupuesto se conserva hasta asignar; al asignar viaja 
   const despues = await d.oportunidad.findUniqueOrThrow({ where: { id }, select: { datos: true, monto: true } });
   assert.equal("presupuestoMin" in (despues.datos as Record<string, unknown>), false);
   assert.equal(despues.monto, null);
+});
+
+test("V6 · motivo de pérdida: al ARM cruza sólo el motivo de catálogo; el detalle libre queda en el proyecto del destino", async (t) => {
+  const f = await preparar(t);
+  if (!f) return;
+  const { repo, base } = f;
+  const d = await prismaComoDuenio(base);
+  const DETALLE = "Juan Perez (11-5555-0000) dijo que con $ 2.000.000 no llega";
+  const libre = /Juan|Perez|5555|2\.000\.000|no llega/;
+  // Por la ficha (traer el cierre) y por «poner al día».
+  const porFicha = await lista(f, "Motivo Demo", "motivo.example");
+  const porDia = await lista(f, "Motivo Dos Demo", "motivo2.example");
+  for (const id of [porFicha, porDia]) ok(await repo.aplicarPase(ctx(f, f.dir), id, "ASIGNADA", { comercialUserId: f.com1, ...PASO }, AHORA), "asignar");
+  const proyectoDe = async (id: string) => (await d.oportunidad.findUniqueOrThrow({ where: { id }, select: { proyectoDestinoId: true } })).proyectoDestinoId!;
+  await d.proyecto.update({ where: { id: await proyectoDe(porFicha) }, data: { perdidoEl: AHORA, motivoPerdida: `Eligió otra productora — ${DETALLE}` } });
+  await d.proyecto.update({ where: { id: await proyectoDe(porDia) }, data: { perdidoEl: AHORA, motivoPerdida: `Sin presupuesto del cliente — ${DETALLE}` } });
+  assert.deepEqual(ok(await repo.traerCierreDelProyecto(ctx(f, f.com1), porFicha, AHORA)), { ok: true, etapa: "PERDIDA", cerrada: true });
+  ok(await repo.ponerAlDia(ctx(f, f.dir), AHORA));
+
+  const [a, b] = await Promise.all([porFicha, porDia].map((id) => d.oportunidad.findUniqueOrThrow({ where: { id }, select: { etapa: true, motivo: true, nota: true } })));
+  assert.deepEqual([a.etapa, a.motivo], ["PERDIDA", "ELIGIO_OTRO"]);
+  assert.deepEqual([b.etapa, b.motivo], ["PERDIDA", "SIN_PRESUPUESTO"]);
+  for (const o of [a, b]) assert.doesNotMatch(o.nota ?? "", libre, `el detalle libre no cruza: ${o.nota}`);
+  const textos = (await d.actividadComercial.findMany({ where: { tenantId: f.arm, oportunidadId: { in: [porFicha, porDia] } }, select: { texto: true } })).map((x) => x.texto).join("\n");
+  assert.doesNotMatch(textos, libre, "ni en la línea de tiempo del ARM");
+  // En el destino el detalle sigue entero.
+  assert.match((await d.proyecto.findUniqueOrThrow({ where: { id: await proyectoDe(porFicha) }, select: { motivoPerdida: true } })).motivoPerdida ?? "", /Juan Perez/);
 });
 
 test("V6 · el estado se lee sólo de proyectos que nacieron de este ARM", async (t) => {

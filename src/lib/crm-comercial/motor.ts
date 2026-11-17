@@ -847,6 +847,32 @@ export function cierreDesdeProyecto(p: { etapa: string; perdidoEl: Date | null; 
   return null;
 }
 
+/**
+ * GSG-CRM-018c (V6): el catálogo de pérdida del proyecto (`MOTIVOS_PERDIDA` de `lib/proyectos/gestion-core.ts`; el
+ * test comprueba que estén todos) llevado al catálogo del CRM. El proyecto guarda «Motivo — detalle libre».
+ */
+export const MOTIVO_DEL_PROYECTO: Readonly<Record<string, Motivo>> = {
+  Precio: "OTRO",
+  "Eligió otra productora": "ELIGIO_OTRO",
+  "El cliente canceló el evento": "EVENTO_CANCELADO",
+  "Sin presupuesto del cliente": "SIN_PRESUPUESTO",
+  "No llegamos con los tiempos": "OTRO",
+  "Sin respuesta del cliente": "SIN_RESPUESTA",
+  Otro: "OTRO",
+};
+
+/**
+ * El cierre que cruza de OTRO negocio al ARM: sólo el motivo de catálogo. El detalle libre que escribió el destino
+ * (puede traer nombres, teléfonos o montos) queda allá; la nota dice sólo el motivo del catálogo del proyecto.
+ */
+export function cierreEntreNegocios(p: { etapa: string; perdidoEl: Date | null; motivoPerdida: string | null }): { destino: "GANADA" | "PERDIDA"; motivo: Motivo | null; nota: string | null } | null {
+  const c = cierreDesdeProyecto({ ...p, motivoPerdida: null });
+  if (!c || c.destino !== "PERDIDA") return c;
+  const base = (p.motivoPerdida ?? "").split(" — ")[0].trim();
+  const motivo = Object.hasOwn(MOTIVO_DEL_PROYECTO, base) ? MOTIVO_DEL_PROYECTO[base] : null;
+  return { destino: "PERDIDA", motivo: motivo ?? "OTRO", nota: motivo ? `Se perdió en el proyecto: ${base}.` : "Se perdió en el proyecto." };
+}
+
 /** El brief que viaja al proyecto en «Lead / brief». Texto plano, sin datos de contacto. */
 /**
  * GSG-CRM-018: el brief se lee, no se parsea. «2027-08-20» → «20 de agosto de 2027» (día de calendario, en UTC
