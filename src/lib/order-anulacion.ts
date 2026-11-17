@@ -487,9 +487,10 @@ export async function anularVentaInTx(
   // compare-and-set vuelve atrás con toda la transacción.
   //
   // La factura se relee SIEMPRE, por lo mismo (ENG-023): una facturación que confirmó entre la
-  // primera lectura y el bloqueo ya es visible acá, y la anulación vuelve atrás entera. (Para
-  // que la facturación que llega DESPUÉS del bloqueo espere y vea el pedido anulado, del lado de
-  // la factura hace falta tomar la fila del pedido: anotado en el BACKLOG, ENG-023.)
+  // primera lectura y el bloqueo ya es visible acá, y la anulación vuelve atrás entera. Con la
+  // anulación en Serializable (T01b) eso vale porque la facturación ESCRIBE la fila del pedido
+  // (`tomarPedidoNoAnulado`): si confirmó después de esta foto, el compare-and-set de arriba
+  // aborta con 40001 y el reintento la ve.
   if (!asiento) asiento = await leerAsiento();
   // Lo mismo con `paid`, para quien no trae el código: un cobro a cuenta no deja asiento.
   const pagadoAhora = args.soloSinPlata
