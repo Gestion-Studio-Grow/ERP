@@ -9,6 +9,7 @@ import { centavosDe, sumarAlCentavo } from "@/lib/dinero/redondeo";
 import { prisma } from "@/lib/prisma";
 import { requireApp } from "@/lib/require-app";
 import { leerNumero, pesos, porcentaje } from "@/lib/proyectos/core";
+import { datosDelNegocio } from "@/lib/proyectos/datos.server";
 import { monedasSinCambio } from "@/lib/proyectos/ficha-core";
 import { costoTotalItem } from "@/lib/proyectos/gestion-core";
 import { exigirVer, filtroDeProyectos, tiposDeCambio } from "@/lib/proyectos/gestion.server";
@@ -21,7 +22,8 @@ export const metadata = { title: "Precio y rendición · vista previa" };
 
 type Q = Record<string, string | undefined>;
 
-const NOMBRE: Record<Participante, string> = { mia: "MIA", productor1: "Productor 1", productor2: "Productor 2", comercial: "Comercial" };
+/** Las funciones de la planilla. La empresa se muestra con el nombre del negocio: nada queda escrito para un negocio. */
+const NOMBRE: Record<Exclude<Participante, "empresa">, string> = { productor1: "Productor 1", productor2: "Productor 2", comercial: "Comercial" };
 /** Caso patrón Z del plan (ficticio): se carga con un enlace para probar la cuenta sin un proyecto real. */
 const CASO_Z = { co: "1000000", ad: "0", real: "900000", total: "1490000" };
 
@@ -40,10 +42,11 @@ export default async function VistaPreviaPrecio({ params, searchParams }: { para
   const proyecto = await prisma.proyecto.findFirst({ where: { ...filtroDeProyectos(a), id }, select: { id: true, nombre: true, client: { select: { name: true } } } });
   if (!proyecto) notFound();
 
-  const [aprobada, gastos, tc] = await Promise.all([
+  const [aprobada, gastos, tc, negocio] = await Promise.all([
     prisma.proyectoPresupuesto.findFirst({ where: { tenantId: a.tenantId, proyectoId: id, estado: "APROBADO" }, orderBy: { version: "desc" }, select: { version: true, items: { select: { cantidad: true, costo: true, moneda: true } } } }),
     prisma.proyectoGasto.findMany({ where: { tenantId: a.tenantId, proyectoId: id, anuladoEl: null }, select: { neto: true } }),
     tiposDeCambio(a.tenantId),
+    datosDelNegocio(a.tenantId),
   ]);
   // Lo que se lee del proyecto. Costo aprobado: los ítems de la versión APROBADA (no la última), en pesos, sin IVA.
   // Costo real: los gastos cargados y no anulados, sin IVA (`ProyectoGasto.neto`). Cada renglón al centavo y suma exacta.
@@ -91,7 +94,7 @@ export default async function VistaPreviaPrecio({ params, searchParams }: { para
       </header>
 
       <p role="note" className="mb-4 rounded-xl border border-warning bg-warning-soft p-3 text-sm text-strong">
-        <strong>Vista previa: no guarda nada.</strong> Sirve para ver la cuenta de la planilla de MIA con los datos de este proyecto. Cambiar un valor no mueve cuotas, cobros, pagos ni liquidaciones.
+        <strong>Vista previa: no guarda nada.</strong> Sirve para ver la cuenta de la planilla de precio y rendición con los datos de este proyecto. Cambiar un valor no mueve cuotas, cobros, pagos ni liquidaciones.
       </p>
 
       <section className={cn(tarjeta, "mb-4")} aria-labelledby="t-datos">
@@ -113,7 +116,7 @@ export default async function VistaPreviaPrecio({ params, searchParams }: { para
               Porcentajes del tablero
               {provisional && <span className="rounded-full border border-warning bg-warning-soft px-2 py-0.5 text-xs font-medium">Plantilla · provisional a confirmar</span>}
             </legend>
-            <Campo nombre="rent" titulo="Rentabilidad MIA %" valor={textoPct(porcentajes.rentabilidad)} />
+            <Campo nombre="rent" titulo="Rentabilidad %" valor={textoPct(porcentajes.rentabilidad)} />
             <Campo nombre="p1" titulo="Comisión productor 1 %" valor={textoPct(porcentajes.productor1)} ayuda="De la rentabilidad, no de la venta." />
             <Campo nombre="p2" titulo="Comisión productor 2 %" valor={textoPct(porcentajes.productor2)} />
             <Campo nombre="cc" titulo="Comisión comercial %" valor={textoPct(porcentajes.comercial)} />
@@ -129,7 +132,7 @@ export default async function VistaPreviaPrecio({ params, searchParams }: { para
             </label>
           </fieldset>
           <fieldset className="grid gap-3 sm:grid-cols-3">
-            <legend className="mb-1 text-sm font-semibold text-strong">Reparto (MIA recibe el resto)</legend>
+            <legend className="mb-1 text-sm font-semibold text-strong">Reparto ({negocio.nombre} recibe el resto)</legend>
             <Campo nombre="d1" titulo="Defensa · productor 1 %" valor={textoPct(matriz.defensa.productor1)} />
             <Campo nombre="d2" titulo="Defensa · productor 2 %" valor={textoPct(matriz.defensa.productor2)} />
             <Campo nombre="dc" titulo="Defensa · comercial %" valor={textoPct(matriz.defensa.comercial)} />
@@ -140,10 +143,10 @@ export default async function VistaPreviaPrecio({ params, searchParams }: { para
               Si la defensa da negativa
               <select name="neg" defaultValue={defensaNegativa} className={campo}>
                 <option value="descuenta">Se descuenta según el reparto</option>
-                <option value="pisoCero">Piso cero: lo absorbe MIA</option>
+                <option value="pisoCero">Piso cero: lo absorbe {negocio.nombre}</option>
               </select>
             </label>
-            <p className="text-sm text-muted sm:col-span-2">El redondeo queda 100 % en MIA: incluye IIB y GA y no se reparte a personas hasta que MIA lo defina.</p>
+            <p className="text-sm text-muted sm:col-span-2">El redondeo queda 100 % en {negocio.nombre}: incluye IIB y GA y no se reparte a personas hasta que se defina.</p>
           </fieldset>
           <div className="flex flex-wrap gap-2">
             <button type="submit" className={buttonClasses("solid", "md")}>Calcular</button>
@@ -157,10 +160,10 @@ export default async function VistaPreviaPrecio({ params, searchParams }: { para
 
       {precio && <Tablero p={precio} pct={porcentajes} tope={tope} />}
       {precio && precio.totalVenta === null && <p className={cn(tarjeta, "mb-4 text-sm")}>Escribí el total de venta para ver el redondeo y la rendición.</p>}
-      {rendicion && <VistaRendicion r={rendicion} />}
+      {rendicion && <VistaRendicion r={rendicion} empresa={negocio.nombre} />}
 
       <details className={cn(tarjeta, "mb-4")}>
-        <summary className="min-h-11 cursor-pointer py-2 text-sm font-semibold text-strong">Cuatro diferencias con la planilla de MIA (a confirmar con MIA)</summary>
+        <summary className="min-h-11 cursor-pointer py-2 text-sm font-semibold text-strong">Cuatro diferencias con la planilla de origen (a confirmar)</summary>
         <ol className="mt-2 grid list-decimal gap-3 pl-5 text-sm">
           {DIFERENCIAS_CON_PLANILLA.map((d) => (
             <li key={d.id}>
@@ -204,7 +207,7 @@ function Tablero({ p, pct, tope }: { p: Precio; pct: PorcentajesPrecio; tope: { 
       <dl className="mt-2 text-sm">
         <Renglon titulo="Costos originales" valor={plata(p.costoOriginal)} />
         <Renglon titulo="Adicionales" valor={plata(p.adicionales)} />
-        <Renglon titulo="Rentabilidad MIA" cuenta={`(costos originales + adicionales) × ${f(pct.rentabilidad)}`} valor={plata(p.rentabilidad)} />
+        <Renglon titulo="Rentabilidad" cuenta={`(costos originales + adicionales) × ${f(pct.rentabilidad)}`} valor={plata(p.rentabilidad)} />
         <Renglon titulo="Comisión productor 1" cuenta={`rentabilidad × ${f(pct.productor1)}`} valor={plata(p.comisiones.productor1)} />
         <Renglon titulo="Comisión productor 2" cuenta={`rentabilidad × ${f(pct.productor2)}`} valor={plata(p.comisiones.productor2)} />
         <Renglon titulo="Comisión comercial" cuenta={`rentabilidad × ${f(pct.comercial)}`} valor={plata(p.comisiones.comercial)} />
@@ -220,7 +223,7 @@ function Tablero({ p, pct, tope }: { p: Precio; pct: PorcentajesPrecio; tope: { 
           </>
         )}
       </dl>
-      {p.totalMenorAlSubtotal && <p role="alert" className="mt-3 rounded-lg border border-danger bg-danger-soft p-3 text-sm text-strong">El total de venta es menor que el subtotal. La planilla de MIA no lo acepta: al guardar, se va a rechazar.</p>}
+      {p.totalMenorAlSubtotal && <p role="alert" className="mt-3 rounded-lg border border-danger bg-danger-soft p-3 text-sm text-strong">El total de venta es menor que el subtotal. La planilla de origen no lo acepta: al guardar, se va a rechazar.</p>}
       {p.pasaTope && (
         <p role="alert" className="mt-3 rounded-lg border border-warning bg-warning-soft p-3 text-sm text-strong">
           El redondeo {tope.medidoSobre === "neto" ? "neto" : "bruto"} pasa el tope de {f(tope.pct)}. Cuando se pueda guardar, este precio va a necesitar la aprobación de Dirección antes de enviarse (provisional a confirmar con MIA).
@@ -230,13 +233,13 @@ function Tablero({ p, pct, tope }: { p: Precio; pct: PorcentajesPrecio; tope: { 
   );
 }
 
-function VistaRendicion({ r }: { r: Rendicion }) {
+function VistaRendicion({ r, empresa }: { r: Rendicion; empresa: string }) {
   const conceptos = [
     ["defensa", "Defensa"],
     ["redondeo", "Redondeo"],
     ["comisiones", "Comisiones"],
     ["margenError", "Margen de error"],
-    ["rentabilidad", "Rentabilidad MIA"],
+    ["rentabilidad", "Rentabilidad"],
   ] as const;
   return (
     <section className={cn(tarjeta, "mb-4")} aria-labelledby="t-rendicion">
@@ -248,7 +251,7 @@ function VistaRendicion({ r }: { r: Rendicion }) {
       <ul className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {PARTICIPANTES.map((p) => (
           <li key={p} className="rounded-xl border border-line bg-surface p-3">
-            <h3 className="font-semibold text-strong">{NOMBRE[p]}</h3>
+            <h3 className="font-semibold text-strong">{p === "empresa" ? empresa : NOMBRE[p]}</h3>
             <dl className="mt-1 text-sm">
               {conceptos.map(([k, t]) => <Renglon key={k} titulo={t} valor={plata(r.filas[p][k])} />)}
               <Renglon titulo="Total" valor={plata(r.filas[p].total)} fuerte />

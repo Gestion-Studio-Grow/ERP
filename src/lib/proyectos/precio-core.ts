@@ -1,5 +1,5 @@
 /**
- * Motor de precio «por total» (GSG-MIA-056 · T04). Replica el «TABLERO PPAL» de la planilla de MIA, descrito en
+ * Motor de precio «por total» (GSG-MIA-056 · T04). Replica el «TABLERO PPAL» de la planilla de origen, descrito en
  * Factory-GSG 00-ESTADO/MIA-PROYECTOS-ADMINISTRACION-DISENO-2026-11-16.md § 1.4.
  *
  * PURA: no lee la base, ni el reloj, ni el azar. Los porcentajes llegan como argumento: los fija quien llama, que
@@ -69,7 +69,7 @@ export interface Precio {
 }
 
 /**
- * Los valores de la planilla base de MIA (DRIVE-INVENTARIO-2026-11-16.md:144). PROVISIONAL A CONFIRMAR con MIA
+ * Los valores de la planilla base (DRIVE-INVENTARIO-2026-11-16.md:144). PROVISIONAL A CONFIRMAR con el negocio
  * (preguntas 1, 2 y 21 del Dis. § 1.6). El motor no los usa: son el valor por defecto de quien llama mientras no
  * exista el catálogo de parámetros (T03).
  */

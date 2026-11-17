@@ -23,14 +23,14 @@ const rendicionZ = (costoReal: number, extra: Partial<Parameters<typeof calcular
 test("caso Z · defensa 100.000: 75.000 MIA y 25.000 el productor", () => {
   const r = rendicionZ($(900_000));
   assert.equal(r.defensa, $(100_000)); // CO + AD − real
-  assert.equal(r.filas.mia.defensa, $(75_000));
+  assert.equal(r.filas.empresa.defensa, $(75_000));
   assert.equal(r.filas.productor1.defensa, $(25_000));
   assert.equal(r.defensaNegativa, false);
 });
 
 test("caso Z · totales por participante: MIA 505.000 · productor 55.000 · comercial 30.000", () => {
   const r = rendicionZ($(900_000));
-  assert.deepEqual(r.filas.mia, { defensa: $(75_000), redondeo: $(65_000), comisiones: 0, margenError: $(65_000), rentabilidad: $(300_000), total: $(505_000) });
+  assert.deepEqual(r.filas.empresa, { defensa: $(75_000), redondeo: $(65_000), comisiones: 0, margenError: $(65_000), rentabilidad: $(300_000), total: $(505_000) });
   assert.deepEqual(r.filas.productor1, { defensa: $(25_000), redondeo: 0, comisiones: $(30_000), margenError: 0, rentabilidad: 0, total: $(55_000) });
   assert.deepEqual(r.filas.productor2, { defensa: 0, redondeo: 0, comisiones: 0, margenError: 0, rentabilidad: 0, total: 0 });
   assert.deepEqual(r.filas.comercial, { defensa: 0, redondeo: 0, comisiones: $(30_000), margenError: 0, rentabilidad: 0, total: $(30_000) });
@@ -60,7 +60,7 @@ test("Z-neg · costo real 1.300.000: defensa −300.000; productor −45.000, co
   assert.equal(r.defensaNegativa, true);
   assert.equal(r.filas.productor1.total, -$(45_000)); // 30.000 − 75.000
   assert.equal(r.filas.comercial.total, $(30_000));
-  assert.equal(r.filas.mia.total, $(205_000)); // 300.000 + 65.000 + 65.000 − 225.000
+  assert.equal(r.filas.empresa.total, $(205_000)); // 300.000 + 65.000 + 65.000 − 225.000
   assert.equal(r.control.suma, $(190_000));
   assert.equal(r.control.esperado, $(190_000));
   assert.ok(r.avisos.some((a) => /defensa negativa/i.test(a)), "avisa la defensa negativa (decisión 4 A, con aviso visible)");
@@ -70,8 +70,8 @@ test("Z-neg con piso cero (decisión 4 B, parámetro): las personas no pierden; 
   const r = rendicionZ($(1_300_000), { defensaNegativa: "pisoCero" });
   assert.equal(r.filas.productor1.defensa, 0);
   assert.equal(r.filas.productor1.total, $(30_000));
-  assert.equal(r.filas.mia.defensa, -$(300_000));
-  assert.equal(r.filas.mia.total, $(130_000)); // 300.000 + 65.000 + 65.000 − 300.000
+  assert.equal(r.filas.empresa.defensa, -$(300_000));
+  assert.equal(r.filas.empresa.total, $(130_000)); // 300.000 + 65.000 + 65.000 − 300.000
   assert.equal(r.control.suma, $(190_000));
   assert.equal(r.control.cierra, true);
 });
@@ -80,7 +80,7 @@ test("Z-tarde · un comprobante de 10.000 después: defensa 90.000; ajuste −7.
   const antes = rendicionZ($(900_000));
   const despues = rendicionZ($(910_000));
   assert.equal(despues.defensa, $(90_000));
-  assert.deepEqual(ajusteEntre(antes, despues), { mia: -$(7_500), productor1: -$(2_500), productor2: 0, comercial: 0, total: -$(10_000) });
+  assert.deepEqual(ajusteEntre(antes, despues), { empresa: -$(7_500), productor1: -$(2_500), productor2: 0, comercial: 0, total: -$(10_000) });
   // Liquidación original + ajuste = total − real nuevo.
   assert.equal(antes.control.suma + ajusteEntre(antes, despues).total, despues.control.esperado);
 });
@@ -102,17 +102,17 @@ test("el centavo que sobra va a MIA: a cada persona, su parte sin el centavo par
   const r = calcularRendicion({ precio, costoReal: 0, matriz: { ...MATRIZ_Z, defensa: { productor1: 50, productor2: 0, comercial: 0 } }, defensaNegativa: "descuenta" });
   assert.equal(r.defensa, 1);
   assert.equal(r.filas.productor1.defensa, 0);
-  assert.equal(r.filas.mia.defensa, 1);
+  assert.equal(r.filas.empresa.defensa, 1);
   // Defensa de 3 centavos con 33,33 % a dos personas: 0,9999 cada una → 0 y 0; MIA 3.
   const r3 = calcularRendicion({ precio: { ...precio, costoOriginal: 3, subtotal: 3, totalVenta: 3, redondeoBruto: 0 }, costoReal: 0, matriz: { ...MATRIZ_Z, defensa: { productor1: 33.33, productor2: 0, comercial: 33.33 } }, defensaNegativa: "descuenta" });
   assert.equal(r3.filas.productor1.defensa + r3.filas.comercial.defensa, 0);
-  assert.equal(r3.filas.mia.defensa, 3);
+  assert.equal(r3.filas.empresa.defensa, 3);
   // Con defensa negativa, igual: −1 centavo al 50 % → la persona 0 y MIA −1.
   const rn = calcularRendicion({ precio, costoReal: 2, matriz: { ...MATRIZ_Z, defensa: { productor1: 50, productor2: 0, comercial: 0 } }, defensaNegativa: "descuenta" });
   assert.equal(rn.defensa, -1);
   assert.equal(rn.filas.productor1.defensa, 0);
   assert.ok(!Object.is(rn.filas.productor1.defensa, -0));
-  assert.equal(rn.filas.mia.defensa, -1);
+  assert.equal(rn.filas.empresa.defensa, -1);
 });
 
 test("el redondeo no se reparte a personas hasta la respuesta de MIA (Dis. § 1.4 y § 2.6; plan § 4.2): rechazo", () => {
@@ -125,7 +125,7 @@ test("la matriz se valida: porcentajes de 0 a 100 con dos decimales, y las perso
   assert.throws(() => rendicionZ($(900_000), { matriz: { ...MATRIZ_Z, margenError: { productor1: 0.001, productor2: 0, comercial: 0 } } }), RangeError);
   // 100 justo es válido: MIA recibe 0 de ese concepto.
   const r = rendicionZ($(900_000), { matriz: { ...MATRIZ_Z, defensa: { productor1: 50, productor2: 0, comercial: 50 } } });
-  assert.equal(r.filas.mia.defensa, 0);
+  assert.equal(r.filas.empresa.defensa, 0);
   assert.equal(r.filas.comercial.total, $(80_000)); // 30.000 de comisión + 50.000 de defensa
 });
 
@@ -141,7 +141,7 @@ test("cierraAlCentavo · un centavo de descuadre forzado se detecta (lo usa la a
   const r = rendicionZ($(900_000));
   const forzada: Rendicion = { ...r, filas: { ...r.filas, productor1: { ...r.filas.productor1, total: r.filas.productor1.total + 1 } } };
   assert.equal(cierraAlCentavo(forzada), false);
-  const filaMal: Rendicion = { ...r, filas: { ...r.filas, mia: { ...r.filas.mia, defensa: r.filas.mia.defensa + 1 } } };
+  const filaMal: Rendicion = { ...r, filas: { ...r.filas, empresa: { ...r.filas.empresa, defensa: r.filas.empresa.defensa + 1 } } };
   assert.equal(cierraAlCentavo(filaMal), false);
 });
 
@@ -166,7 +166,7 @@ test("diferencia 2 · el total del comercial suma su parte de defensa (en la pla
   const r = rendicionZ($(900_000), { matriz: { ...MATRIZ_Z, defensa: { productor1: 25, productor2: 0, comercial: 10 } } });
   assert.equal(r.filas.comercial.defensa, $(10_000));
   assert.equal(r.filas.comercial.total, $(40_000));
-  assert.equal(r.filas.mia.defensa, $(65_000));
+  assert.equal(r.filas.empresa.defensa, $(65_000));
   assert.equal(r.control.cierra, true);
 });
 
@@ -181,7 +181,7 @@ test("diferencia 4 · margen de error y rentabilidad de las personas: 0 salvo ma
     assert.equal(r.filas[p].rentabilidad, 0);
     assert.equal(r.filas[p].margenError, 0);
   }
-  assert.equal(r.filas.mia.rentabilidad, precioZ().rentabilidad);
+  assert.equal(r.filas.empresa.rentabilidad, precioZ().rentabilidad);
 });
 
 test("la matriz de la plantilla es la de la planilla base y está marcada provisional", () => {
