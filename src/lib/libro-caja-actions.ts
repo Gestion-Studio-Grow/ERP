@@ -219,6 +219,9 @@ type FilaLibroDb = {
   reason: string | null;
   orderId: string | null;
   createdBy: string;
+  tallerPagoId: string | null;
+  proyectoPagoId: string | null;
+  proyectoGastoId: string | null;
   collectionId: string | null;
   paymentId: string | null;
 };
@@ -246,6 +249,9 @@ async function filasDelMes(tenantId: string, start: Date, end: Date): Promise<Fi
           orderId: true,
           createdBy: true,
           tallerPagoId: true,
+          // Para la regla de la ✕ (`motivoParaNoBorrar`): sin esto la anulación de un cobro de proyecto sale borrable.
+          proyectoPagoId: true,
+          proyectoGastoId: true,
           collectionId: columnas.includes("collectionId"),
           paymentId: columnas.includes("paymentId"),
         },
@@ -523,14 +529,15 @@ export async function deleteLibroEntry(
     borrado = await tenantTransaction(async (tx) => {
       const found = await tx.cashMovement.findFirst({
         where: { tenantId, id },
-        select: { id: true, type: true, method: true, amount: true, reason: true, orderId: true, createdBy: true, tallerPagoId: true, occurredAt: true },
+        select: { id: true, type: true, method: true, amount: true, reason: true, orderId: true, createdBy: true, tallerPagoId: true, proyectoPagoId: true, proyectoGastoId: true, occurredAt: true },
       });
       if (!found) throw new Error("Ese movimiento ya no existe.");
       // Lo que escribió el SISTEMA no se borra desde el libro (dirección única): venta, turno
       // cobrado, caja del mostrador, corte inicial, diferencias de cierre y de arqueo, anulación
       // de un cobro, comisión, compra, reintegro de una devolución a proveedor y cobro o pago
-      // de cuenta corriente. La regla, con cada porqué, es `motivoParaNoBorrar` (libro-caja.ts).
-      const bloqueo = motivoParaNoBorrar({ type: found.type as CashMovementType, orderId: found.orderId, createdBy: found.createdBy, tallerPagoId: found.tallerPagoId });
+      // de cuenta corriente, cobros y gastos de proyecto (y sus anulaciones). La regla, con cada porqué, es `motivoParaNoBorrar` (libro-caja.ts).
+      // La MISMA fila y la MISMA función que deciden la ✕ en pantalla (`movimientoDelLedger`).
+      const bloqueo = motivoParaNoBorrar({ ...found, type: found.type as CashMovementType });
       if (bloqueo) throw new Error(bloqueo);
       // Mismo candado que el alta: un día ya cerrado no se toca. Borrar hacia atrás
       // desbalancearía el saldo operativo contra lo que se contó.

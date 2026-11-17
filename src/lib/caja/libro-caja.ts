@@ -314,13 +314,37 @@ export function origenContable(m: FilaParaOrigen): OrigenContable {
  * mano y se puede. PURA: la usa `deleteLibroEntry` (libro-caja-actions.ts) antes de borrar; el
  * candado de día cerrado va aparte, porque depende de la frontera del cierre.
  */
-export function motivoParaNoBorrar(m: { type: CashMovementType; orderId?: string | null; createdBy?: string | null; tallerPagoId?: string | null }): string | null {
+export function motivoParaNoBorrar(m: {
+  type: CashMovementType;
+  orderId?: string | null;
+  createdBy?: string | null;
+  tallerPagoId?: string | null;
+  proyectoPagoId?: string | null;
+  proyectoGastoId?: string | null;
+  /** Sólo para nombrar el proyecto en el mensaje («Proyecto #12» en el detalle). */
+  reason?: string | null;
+}): string | null {
   // El Taller firma sus asientos con el usuario, así que no se lo reconoce por la marca: lo dice
   // `tallerPagoId`. Borrar la VENTA dejaría el cobro sin plata; borrar la reversa, la plata de un cobro anulado.
   if (m.tallerPagoId) {
     return m.type === "VENTA"
       ? "Ese movimiento lo asentó un cobro del Taller. No se borra desde el libro: si está mal, anulá el cobro desde la orden."
       : "Ese egreso lo asentó la anulación de un cobro del Taller. No se borra desde el libro: si la anulación estuvo mal, cargá una corrección con la fecha de hoy.";
+  }
+  // Proyectos (MIA-060): el cobro y su anulación van firmados con el NOMBRE del usuario, sin marca; la reversa
+  // del cobro sería un EGRESO «manual» si no fuera por la columna. Por eso se mira la COLUMNA, que tienen también
+  // las filas viejas. Borrar el egreso de una anulación le devolvería al libro plata que el sistema ya decidió que
+  // NO entró. Ojo: la FK es `onDelete: SetNull`; hoy nada borra un cobro ni un gasto de proyecto, si eso cambia
+  // la fila quedaría sin la columna y volvería a ser borrable.
+  if (m.proyectoPagoId) {
+    return m.type === "VENTA"
+      ? `Ese movimiento lo asentó un cobro ${deProyecto(m.reason)}. No se borra desde el libro: si está mal, anulá el cobro desde el proyecto.`
+      : `Ese egreso lo asentó la anulación de un cobro ${deProyecto(m.reason)}. No se borra desde el libro: si la anulación estuvo mal, cargá una corrección con la fecha de hoy.`;
+  }
+  if (m.proyectoGastoId) {
+    return m.type === "INGRESO"
+      ? `Ese ingreso lo asentó la anulación de un gasto ${deProyecto(m.reason)}. No se borra desde el libro: si la anulación estuvo mal, cargá una corrección con la fecha de hoy.`
+      : `Ese egreso lo asentó el pago de un gasto ${deProyecto(m.reason)}. No se borra desde el libro: corregilo desde el proyecto (anular el gasto asienta la vuelta).`;
   }
   const origen = libroOrigin({ type: m.type, orderId: m.orderId, createdBy: m.createdBy });
   // La reversa de una venta anulada, también cuando la venta se cobró con varios medios (la
@@ -382,6 +406,12 @@ export function motivoParaNoBorrar(m: { type: CashMovementType; orderId?: string
   return null;
 }
 
+/** «del proyecto #12» si el detalle lo nombra (así lo escriben el cobro y la anulación); si no, «de un proyecto». */
+function deProyecto(reason: string | null | undefined): string {
+  const n = /Proyecto #(\d+)/.exec(reason ?? "")?.[1];
+  return n ? `del proyecto #${n}` : "de un proyecto";
+}
+
 function sinActor(ref: string): string {
   return ref.includes("user:") ? "" : ref;
 }
@@ -403,6 +433,10 @@ export type FilaLedger = {
   reason: string | null;
   orderId: string | null;
   createdBy: string;
+  /** El cobro de un proyecto (VENTA) o su anulación (EGRESO): sin esto la ✕ saldría en la anulación. */
+  proyectoPagoId?: string | null;
+  /** El pago de un gasto de proyecto (EGRESO) o su reversa (INGRESO). */
+  proyectoGastoId?: string | null;
   collectionId?: string | null;
   paymentId?: string | null;
   tallerPagoId?: string | null;
