@@ -7,7 +7,10 @@
 // (`app_rls`) y las Server Actions REALES se prueba:
 //   · igualar copia el rol y la matriz por usuario de la persona, y saca lo que el agente tenía de más;
 //   · después, el permiso efectivo del agente es el de la persona en TODAS las capacidades (ni más ni menos);
-//   · aunque copie el rol de la dueña, en la consola sigue siendo agente: no aprueba (criterio 4 de MIA-062);
+//   · TECHO (GSG-MIA-076): el usuario de un agente nunca queda OWNER ni Dirección en Proyectos; igualar con una
+//     persona así se rechaza entero (sin escrituras a medias), la lista no la ofrece, y se copian sólo las
+//     casillas de la matriz por usuario;
+//   · aunque el rol de dueña le llegue por otro lado, en la consola sigue siendo agente: no aprueba (criterio 4);
 //   · igualar lo hace una persona: el agente no puede, la supervisión de otro negocio no puede, y en CH el operador
 //     que no es dueño tampoco (guardia del negocio); no se iguala con la cuenta de otro agente;
 //   · abrir la consola no cambia ningún acceso.
@@ -97,8 +100,8 @@ test("cuadrilla: el usuario del agente queda con los mismos accesos que la perso
 
   await t.test("la supervisión iguala: mismo rol, misma matriz, y lo que tenía de más se va", async () => {
     assert.ok(sinError(await ejecutarAccion(supA, () => panelAccesos(fd({ agenteId: agente.id, personaId: persona.id })))));
-    assert.deepEqual(await accesos(delAgente.id), await accesos(persona.id));
-    assert.deepEqual(await accesos(delAgente.id), { role: "RECEPTION", overrides: ["clients:contact=false", "reports:read=true"] });
+    // Sólo lo que la matriz deja dar por usuario (GSG-MIA-076): `reports:read` no es casilla de la matriz, no se copia.
+    assert.deepEqual(await accesos(delAgente.id), { role: "RECEPTION", overrides: ["clients:contact=false"] });
     assert.equal((await duenio.agenteCuadrilla.findUniqueOrThrow({ where: { id: agente.id } })).comoUserId, persona.id);
     // Ni más ni menos: el permiso efectivo coincide en TODAS las capacidades del sistema.
     const conPermisos = async (id: string) => {
@@ -110,7 +113,7 @@ test("cuadrilla: el usuario del agente queda con los mismos accesos que la perso
     for (const cap of ALL_CAPABILITIES) assert.equal(permisoEfectivo(ag, cap), permisoEfectivo(pe, cap), cap);
     // Queda a la vista en el hilo del agente quién lo hizo.
     const aviso = await duenio.mensajeCuadrilla.findFirstOrThrow({ where: { tenantId: a.id, hilo: `agente:${agente.id}`, autorTipo: "SISTEMA" } });
-    assert.match(aviso.texto, /iguales a los de Cajera Humana \(rol Recepción, 2 permisos propios\)/);
+    assert.match(aviso.texto, /iguales a los de Cajera Humana \(rol Recepción, 1 permiso propio\)/);
   });
 
   await t.test("la consola lo muestra: iguales; si alguien cambia algo a mano, aparece la diferencia", async () => {
@@ -125,13 +128,62 @@ test("cuadrilla: el usuario del agente queda con los mismos accesos que la perso
     assert.deepEqual((await leer()).diferencias, []);
   });
 
-  await t.test("con el rol de la dueña sigue siendo agente en la consola: no aprueba", async () => {
-    assert.ok(sinError(await ejecutarAccion(supA, () => panelAccesos(fd({ agenteId: agente.id, personaId: a.duenia.id })))));
-    assert.equal((await accesos(delAgente.id)).role, "OWNER");
+  await t.test("techo (GSG-MIA-076): igualar con la dueña o con Dirección se rechaza entero, sin escrituras a medias", async () => {
+    const foto = async () => ({
+      accesos: await accesos(delAgente.id),
+      como: (await duenio.agenteCuadrilla.findUniqueOrThrow({ where: { id: agente.id } })).comoUserId,
+      avisos: await duenio.mensajeCuadrilla.count({ where: { tenantId: a.id, hilo: `agente:${agente.id}` } }),
+      rolProyectos: (await duenio.proyectoPersona.findFirst({ where: { tenantId: a.id, userId: delAgente.id } }))?.rol ?? null,
+    });
+    await duenio.proyectoPersona.create({ data: { tenantId: a.id, userId: delAgente.id, nombre: "Joaquín", rol: "PRODUCCION" } });
+    const inicial = await foto();
+    // La dueña, con un id mandado a mano (la lista no la ofrece).
+    assert.ok(conError(await ejecutarAccion(supA, () => panelAccesos(fd({ agenteId: agente.id, personaId: a.duenia.id })))), "igualar con la dueña");
+    assert.deepEqual(await foto(), inicial, "nada escrito al igualar con la dueña");
+    assert.notEqual((await accesos(delAgente.id)).role, "OWNER");
+    // Una persona RECEPTION que es Dirección en Proyectos: tampoco.
+    const directora = await usuario(a.id, "Directora Proyectos", "RECEPTION");
+    await duenio.proyectoPersona.create({ data: { tenantId: a.id, userId: directora.id, nombre: "Directora", rol: "DIRECCION" } });
+    assert.ok(conError(await ejecutarAccion(supA, () => panelAccesos(fd({ agenteId: agente.id, personaId: directora.id })))), "igualar con Dirección");
+    assert.deepEqual(await foto(), inicial, "nada escrito al igualar con Dirección");
+    // El operador GSG dueño tampoco pasa el techo.
+    assert.ok(conError(await ejecutarAccion(tomas, () => operadorAccesos(fd({ tenantId: a.id, agenteId: agente.id, personaId: a.duenia.id })))), "operador con la dueña");
+    assert.deepEqual(await foto(), inicial, "nada escrito por el operador");
+  });
+
+  await t.test("techo: la lista no ofrece a la dueña ni a Dirección", async () => {
+    const { tenantTransaction } = await import("@/lib/rls");
+    const { personasDelNegocio } = await import("@/lib/cuadrilla/accesos-core");
+    const ids = (await tenantTransaction((tx) => personasDelNegocio(tx, a.id), { tenantId: a.id })).map((p) => p.id);
+    assert.ok(!ids.includes(a.duenia.id), "la dueña no está en la lista");
+    const directora = await duenio.user.findFirstOrThrow({ where: { tenantId: a.id, name: "Directora Proyectos" } });
+    assert.ok(!ids.includes(directora.id), "Dirección no está en la lista");
+    assert.ok(ids.includes(persona.id), "la cajera sí");
+  });
+
+  await t.test("techo: se copian sólo los permisos que la matriz deja dar por usuario", async () => {
+    await duenio.userPermissionOverride.create({ data: { tenantId: a.id, userId: persona.id, capability: "users:manage", allowed: true } });
+    assert.ok(sinError(await ejecutarAccion(supA, () => panelAccesos(fd({ agenteId: agente.id, personaId: persona.id })))));
+    // `users:manage` y `reports:read` no son casillas de la matriz: no se copian (aunque la persona las tenga cargadas).
+    assert.deepEqual(await accesos(delAgente.id), { role: "RECEPTION", overrides: ["clients:contact=false"] });
+    await duenio.userPermissionOverride.deleteMany({ where: { tenantId: a.id, userId: persona.id, capability: "users:manage" } });
+  });
+
+  await t.test("techo: si la persona sube a dueña, volver a igualar se rechaza y el agente queda como estaba", async () => {
+    const antesDeSubir = await accesos(delAgente.id);
+    await duenio.user.update({ where: { id: persona.id }, data: { role: "OWNER" } });
+    assert.ok(conError(await ejecutarAccion(supA, () => panelAccesos(fd({ agenteId: agente.id, personaId: persona.id })))));
+    assert.deepEqual(await accesos(delAgente.id), antesDeSubir);
+    await duenio.user.update({ where: { id: persona.id }, data: { role: "RECEPTION" } });
+  });
+
+  await t.test("aunque el usuario del agente tenga rol de dueña (cargado a mano), en la consola no aprueba", async () => {
+    await duenio.user.update({ where: { id: delAgente.id }, data: { role: "OWNER" } });
     const ex = await duenio.excepcionCuadrilla.create({ data: { tenantId: a.id, agenteId: otroAgente.id, tipo: "APROBACION", categoria: "OTRA", titulo: "Algo para aprobar", contenido: "x" } });
     const { panelDecidir } = await import("@/app/admin/(dashboard)/cuadrilla/actions");
     assert.ok(conError(await ejecutarAccion(comoAgente, () => panelDecidir(fd({ id: ex.id, op: "aprobar", huella: "" })))));
     assert.equal((await duenio.excepcionCuadrilla.findUniqueOrThrow({ where: { id: ex.id } })).estado, "PENDIENTE");
+    await duenio.user.update({ where: { id: delAgente.id }, data: { role: "RECEPTION" } });
   });
 
   await t.test("operador GSG: en CH sólo el dueño de GSG iguala", async () => {
