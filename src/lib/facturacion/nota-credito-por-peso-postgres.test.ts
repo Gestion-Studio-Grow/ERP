@@ -25,7 +25,8 @@ test("NC simulada por la devolución por peso: por la diferencia, una sola, sin 
   const { a, b } = base;
   await duenio.tenant.update({ where: { id: b.id }, data: { slug: "beauty-spa" } });
 
-  const { tenantTransaction } = await import("@/lib/rls");
+  // T01b: lo que asienta en la caja corre como en la app, en `transaccionQueAsienta` (Serializable con el candado).
+  const { transaccionQueAsienta } = await import("@/lib/caja/candado-asiento.server");
   const { insertOrder, cobrarPedidoEnTx } = await import("@/lib/order-core");
   const { createInvoice, crearNotaDeCredito, numeroUsadoPorOtraFactura } = await import("@/lib/invoice-core");
   const dispatch = await import("@/lib/arca-dispatch");
@@ -63,7 +64,7 @@ test("NC simulada por la devolución por peso: por la diferencia, una sola, sin 
     return (r as { valor: Awaited<ReturnType<typeof insertOrder>> }).valor;
   };
   const cobrar = (n: NegocioDePrueba, orderId: string) =>
-    tenantTransaction((tx) => cobrarPedidoEnTx(tx, n.id, { orderId, method: "EFECTIVO", actor: `user:${n.duenia.id}` }), { tenantId: n.id });
+    transaccionQueAsienta((tx) => cobrarPedidoEnTx(tx, n.id, { orderId, method: "EFECTIVO", actor: `user:${n.duenia.id}` }), { tenantId: n.id });
   /** La Factura C del pedido, autorizada por el simulador. */
   const facturar = async (n: NegocioDePrueba, orderId: string, total: number) => {
     const id = await createInvoice({
@@ -80,7 +81,7 @@ test("NC simulada por la devolución por peso: por la diferencia, una sola, sin 
     return id;
   };
   const ajustar = (orderId: string, qty: number, clave: string, arcaSimulado = true) =>
-    tenantTransaction(
+    transaccionQueAsienta(
       (tx) =>
         ajustarPesoInTx(tx, a.id, {
           orderId, pedidas: [{ productId: vacioA.id, qty }], actor: `user:${a.duenia.id}`, permiteNegativo: () => false,

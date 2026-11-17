@@ -16,6 +16,7 @@ import {
 import { decidirDeudaDeCompra, diaMasDias, leerFactura, leerVencimiento, DIAS_DE_CUENTA_CORRIENTE } from "@/lib/stock/purchase-egreso";
 import { dateStrInBusinessTz } from "@/lib/datetime";
 import type { LedgerTx } from "@/lib/stock/ledger";
+import { conCandado } from "@/test/candado-de-prueba";
 
 // ── La decisión, pura ───────────────────────────────────────────────────────
 
@@ -130,7 +131,7 @@ function deposito(opts: { proveedorActivo?: boolean } = {}) {
     },
     cashSession: { findFirst: async () => null },
   };
-  return { tx: tx as unknown as LedgerTx, escritos, stock };
+  return { tx: conCandado(tx) as unknown as LedgerTx, escritos, stock };
 }
 
 const lines = buildPurchaseLines([{ id: "vacio", name: "Vacío", unit: "kg" }], [{ productId: "vacio", qty: 20, unitCost: 7500 }]);

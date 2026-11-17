@@ -48,8 +48,11 @@ test("A-1 · operador: el plano cross-tenant también falla cerrado", () => {
 // ── C-1 · la liquidación de comisiones no puede pagar dos veces ─────────────
 
 test("C-1 · comisiones: la transacción es Serializable", () => {
-  assert.match(leer("src/lib/commission-actions.ts"), /TransactionIsolationLevel\.Serializable/,
+  // T01b: corre en `transaccionQueAsienta(`, que fija Serializable (candado-asiento.server.ts).
+  assert.match(leer("src/lib/commission-actions.ts"), /await transaccionQueAsienta\(/,
     "settleCommissions perdió el nivel Serializable: dos liquidaciones concurrentes vuelven a poder leer el mismo set pendiente.");
+  assert.match(leer("src/lib/caja/candado-asiento.server.ts"), /isolationLevel: Prisma\.TransactionIsolationLevel\.Serializable/,
+    "transaccionQueAsienta perdió el nivel Serializable: settleCommissions vuelve a poder pagar dos veces.");
 });
 
 test("C-1 · comisiones: sólo se reclaman los turnos que siguen sin liquidar", () => {

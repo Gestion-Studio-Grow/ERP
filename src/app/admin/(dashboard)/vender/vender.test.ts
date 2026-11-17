@@ -45,6 +45,7 @@ import {
   sumarUnaUnidad,
   teclaDeProducto,
 } from "./reglas-venta";
+import { conCandado } from "@/test/candado-de-prueba";
 
 const VACIO = { id: "p_vacio", name: "Vacío", saleUnit: "WEIGHT" as const, price: null, pricePerKg: 12500, trackStock: true };
 const ENTRANA = { id: "p_entrana", name: "Entraña", saleUnit: "WEIGHT" as const, price: null, pricePerKg: 17500, trackStock: true };
@@ -153,7 +154,7 @@ function txFalsa(opts: { turnoAbierto?: string | null } = {}) {
       create: anota("cashMovement", "create", () => ({ id: "cm_venta" })),
     },
   };
-  return { tx: tx as unknown as Prisma.TransactionClient, escritos };
+  return { tx: conCandado(tx) as unknown as Prisma.TransactionClient, escritos };
 }
 
 const INPUT_EFECTIVO: OrderInput = {

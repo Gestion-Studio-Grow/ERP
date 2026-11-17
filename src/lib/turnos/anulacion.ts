@@ -51,6 +51,9 @@ import { facturaDeLaVenta, mensajeFacturaViva, type FacturaDeLaVenta } from "@/l
 import { claveCobroDelLibro, cobroDeLaClave } from "@/lib/facturacion/clave-cobro-del-libro";
 import { claveNotaDeCobroMP, coberturaMP, facturadoPropioPorCobro, saldosMPSinPareja } from "@/lib/facturacion/cobertura-mp";
 import { centavosDe } from "@/lib/dinero/redondeo";
+// Sólo el tipo: hay client components que importan constantes de este archivo, así que no puede traer el candado
+// (Prisma) por valor. Quien abre la transacción le pasa `asentarEnCajaTx` (T01b).
+import type { AsentarEnCaja } from "@/lib/caja/candado-asiento.server";
 
 export type AnulacionTx = Prisma.TransactionClient;
 
@@ -474,6 +477,7 @@ export async function anularCobroTurnoInTx(
   tx: AnulacionTx,
   tenantId: string,
   args: AnularCobroArgs,
+  asentar: AsentarEnCaja,
 ): Promise<AnularCobroResult> {
   // ENG-023, contra la facturación del turno: la fila del turno FOR UPDATE, ANTES de leer sus
   // facturas. La facturación (`createInvoiceInTx`, origen APPOINTMENT) escribe esa misma fila:
@@ -661,7 +665,7 @@ export async function anularCobroTurnoInTx(
     },
   });
 
-  const libro = await asentarReversaInTx(tx, tenantId, {
+  const libro = await asentarReversaInTx(tx, asentar, tenantId, {
     collectionId: args.collectionId,
     asientoOriginal,
     method: original.method,
@@ -698,6 +702,7 @@ export async function anularCobroTurnoInTx(
  */
 async function asentarReversaInTx(
   tx: AnulacionTx,
+  asentar: AsentarEnCaja,
   tenantId: string,
   input: {
     collectionId: string;
@@ -731,19 +736,16 @@ async function asentarReversaInTx(
   if (!traducido) return { asentada: false, reason: "medio-no-traducible" };
   const method = (input.asientoOriginal.method as CashMethod | undefined) ?? traducido;
 
-  const mov = await tx.cashMovement.create({
-    data: {
-      tenantId,
-      sessionId: input.asientoOriginal.sessionId,
-      type: "EGRESO",
-      method,
-      amount: input.monto, // siempre > 0: el signo lo pone el tipo (`movementSign`)
-      reason: detalleReversa(input.asientoOriginal.reason, input.motivo),
-      occurredAt: input.asientoOriginal.occurredAt,
-      collectionId: input.collectionId,
-      createdBy: `${ANULACION_TURNO_ACTOR_PREFIX}${input.actor}`,
-    },
-    select: { id: true },
+  const mov = await asentar(tx, "anulación", {
+    tenantId,
+    sessionId: input.asientoOriginal.sessionId,
+    type: "EGRESO",
+    method,
+    amount: input.monto, // siempre > 0: el signo lo pone el tipo (`movementSign`)
+    reason: detalleReversa(input.asientoOriginal.reason, input.motivo),
+    occurredAt: input.asientoOriginal.occurredAt,
+    collectionId: input.collectionId,
+    createdBy: `${ANULACION_TURNO_ACTOR_PREFIX}${input.actor}`,
   });
   return { asentada: true, movementId: mov.id };
 }

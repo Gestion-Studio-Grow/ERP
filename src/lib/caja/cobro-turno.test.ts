@@ -24,6 +24,7 @@ import {
   type CobroTurnoInput,
 } from "./cobro-turno";
 import { expectedCash } from "./cash-register";
+import { conCandado } from "@/test/candado-de-prueba";
 
 // ── Decisión pura ───────────────────────────────────────────────────────────
 
@@ -145,7 +146,7 @@ function makeTx(opts: {
       },
     },
   };
-  return { tx: tx as unknown as CobroTurnoTx, store };
+  return { tx: conCandado(tx) as unknown as CobroTurnoTx, store };
 }
 
 const input = (over: Partial<CobroTurnoInput> = {}): CobroTurnoInput => ({

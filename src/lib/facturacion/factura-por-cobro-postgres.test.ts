@@ -190,10 +190,11 @@ test("opción B · anular un cobro con factura autorizada: nota de crédito en l
 
   const { anularCobroTurnoInTx, AnulacionRechazada } = await import("@/lib/turnos/anulacion");
   const { notaDeCreditoDelCobroInTx } = await import("@/lib/facturacion/factura-por-cobro");
-  const { tenantTransaction } = await import("@/lib/rls");
+  // T01b: la anulación corre como en la app, en `transaccionQueAsienta` (Serializable con el candado de la caja).
+  const { transaccionQueAsienta, asentarEnCajaTx } = await import("@/lib/caja/candado-asiento.server");
   const anular = (collectionId: string, conNota: boolean) =>
     runInTenantContext(p.n.id, () =>
-      tenantTransaction(
+      transaccionQueAsienta(
         (tx) =>
           anularCobroTurnoInTx(tx, p.n.id, {
             collectionId,
@@ -206,7 +207,7 @@ test("opción B · anular un cobro con factura autorizada: nota de crédito en l
             diaDe: () => "2026-11-06",
             withSchema: false,
             ...(conNota ? { notaDeCredito: notaDeCreditoDelCobroInTx } : {}),
-          }),
+          }, asentarEnCajaTx),
         { tenantId: p.n.id },
       ),
     );

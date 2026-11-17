@@ -85,6 +85,7 @@ import {
   type LineaDePago,
   type PlanDeSenia,
 } from "./cobro-dividido";
+import { transaccionQueAsienta, asentarEnCajaTx } from "@/lib/caja/candado-asiento.server";
 
 /** La forma de siempre (`ResultadoAccion` de actions.ts): el formulario la muestra en línea. */
 export type ResultadoCobro = { ok: true; aviso?: string } | { ok: false; error: string };
@@ -211,7 +212,7 @@ export async function terminarYCobrarDividido(formData: FormData): Promise<Resul
 
   type Hecho = { lineas: LineaDePago[]; cobros: AplicarCobroResult[]; desdeReservado: boolean };
   const run = (withSchema: boolean) =>
-    tenantTransaction<Hecho>(
+    transaccionQueAsienta<Hecho>(
       async (tx) => {
         const a = await tx.appointment.findFirst({ where: { id: appointmentId, tenantId }, include: includeParaTerminar });
         if (!a) throw new RechazoDeDominio(YA_NO_EXISTE);
@@ -255,7 +256,7 @@ export async function terminarYCobrarDividido(formData: FormData): Promise<Resul
         if (count === 0) throw new RechazoDeDominio(CAMBIO_RECIEN);
         return { lineas: v.lineas, cobros, desdeReservado: a.status === "PENDING" };
       },
-      { tenantId, isolationLevel: SERIALIZABLE },
+      { tenantId },
     );
 
   let settled: SettleOutcome<Hecho>;
@@ -332,7 +333,7 @@ export async function cobrarSeniaYConfirmar(formData: FormData): Promise<Resulta
 
   type Hecho = { plan: PlanDeSenia; cobro: AplicarCobroResult | null; confirmo: boolean };
   const run = (withSchema: boolean) =>
-    tenantTransaction<Hecho>(
+    transaccionQueAsienta<Hecho>(
       async (tx) => {
         const a = await tx.appointment.findFirst({
           where: { id: appointmentId, tenantId },
@@ -387,7 +388,7 @@ export async function cobrarSeniaYConfirmar(formData: FormData): Promise<Resulta
         }
         return { plan, cobro, confirmo: confirmar };
       },
-      { tenantId, isolationLevel: SERIALIZABLE },
+      { tenantId },
     );
 
   let settled: SettleOutcome<Hecho>;
@@ -493,7 +494,7 @@ export async function cobrarVariosTurnos(formData: FormData): Promise<ResultadoC
 
   type Hecho = { cobros: { id: string; r: AplicarCobroResult }[]; desdeReservado: boolean };
   const run = (withSchema: boolean) =>
-    tenantTransaction<Hecho>(
+    transaccionQueAsienta<Hecho>(
       async (tx) => {
         const turnos = await tx.appointment.findMany({ where: { tenantId, id: { in: ids } }, include: includeParaTerminar });
         if (turnos.length !== ids.length) throw new RechazoDeDominio(YA_NO_EXISTE);
@@ -551,7 +552,7 @@ export async function cobrarVariosTurnos(formData: FormData): Promise<ResultadoC
         }
         return { cobros: hechos, desdeReservado: hoy?.status === "PENDING" };
       },
-      { tenantId, isolationLevel: SERIALIZABLE },
+      { tenantId },
     );
 
   let settled: SettleOutcome<Hecho>;
@@ -726,7 +727,7 @@ async function deshacerSenia(user: Usuario, tenantId: string, appointmentId: str
 
   type Hecho = { anulacion: AnularCobroResult; volvioAReservado: boolean };
   const run = (withSchema: boolean) =>
-    tenantTransaction<Hecho>(
+    transaccionQueAsienta<Hecho>(
       async (tx) => {
         const a = await tx.appointment.findFirst({
           where: { id: appointmentId, tenantId },
@@ -748,7 +749,7 @@ async function deshacerSenia(user: Usuario, tenantId: string, appointmentId: str
           diaDe: dateStrInBusinessTz,
           withSchema,
           notaDeCredito: notaDeCreditoDelCobroInTx,
-        });
+        }, asentarEnCajaTx);
         let volvioAReservado = false;
         if (confirmo && a.status === "CONFIRMED") {
           const { count } = await tx.appointment.updateMany({ where: { id: appointmentId, tenantId, status: "CONFIRMED" }, data: { status: "PENDING" } });
@@ -762,7 +763,7 @@ async function deshacerSenia(user: Usuario, tenantId: string, appointmentId: str
         }
         return { anulacion, volvioAReservado };
       },
-      { tenantId, isolationLevel: SERIALIZABLE },
+      { tenantId },
     );
 
   let settled: SettleOutcome<Hecho>;

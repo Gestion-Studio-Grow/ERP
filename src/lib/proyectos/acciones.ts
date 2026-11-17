@@ -17,7 +17,8 @@ import { transferenciaEnElLibroTx } from "@/lib/caja/transferencia-en-el-libro";
 import type { Prisma } from "@/generated/prisma/client";
 import { clientePuedeResponder, fechaCorta, leerNumero, MEDIO_LABEL, pesos, esEtapa, esServicio, etapaAlAprobar, etapaLabel, etapasDe, MEDIOS, metodoDeCaja, precioConMargen, redondear, sePuedeEditar, sumarDias, type MedioPago } from "./core";
 import { bloqueoDeEliminar, computar, costosVigentes, COSTO_LABEL, disenoInicial, normalizarDiseno, TIPOS_STAND, type ClaveCosto, type DisenoStand } from "./stand";
-import { configProyectos } from "./datos.server";
+import { configProyectos, veLaPlata } from "./datos.server";
+import { asentarEnCajaTx, rechazoDePeriodo, transaccionQueAsienta } from "./periodo-cerrado.server";
 import { cobranzasDelNegocio, tiposDeCambio, trabarCobranza } from "./cobranza.server";
 import { pasaElTope, type Cobranza } from "./cobranza-core";
 import { avisoTopeCobro } from "./avisos-cuota";
@@ -189,7 +190,7 @@ export async function responderPropuesta(d: { token: string; aprueba: boolean; n
 
 // ── Cobros ──────────────────────────────────────────────────────────────────
 
-export async function registrarCobro(formData: FormData): Promise<Resultado> {
+export async function registrarCobro(formData: FormData): Promise<Resultado<{ listo?: string }>> {
   const a = await actorCon(["pagos"]);
   const { user, tenantId } = a;
   const proyectoId = txt(formData.get("proyectoId"));
@@ -201,19 +202,26 @@ export async function registrarCobro(formData: FormData): Promise<Resultado> {
   const p = await prisma.proyecto.findFirst({ where: { id: proyectoId, tenantId }, select: { numero: true, nombre: true } });
   if (!p) return { ok: false, error: "Ese proyecto ya no existe. Recargá la página." };
   const nota = txt(formData.get("nota")) || null;
+  // O41: un id por formulario, como el de «Marcar cobrado»: el mismo envío dos veces (doble clic, reintento) asienta una
+  // sola vez. Se guarda en el historial del cobro (campo «Envío»), sin migración.
+  const envio = txt(formData.get("envio")).slice(0, 64);
   const [config, tc] = await Promise.all([configProyectos(tenantId), tiposDeCambio(tenantId)]);
   // El cobro y su asiento en el libro de caja van juntos: o entran los dos o ninguno.
-  const pago = await tenantTransaction(async (tx): Promise<{ id: string } | { porCobrar: number; cob: Cobranza }> => {
-    // Tope: con presupuesto aprobado no entra más de lo que falta cobrar. En fila con «Marcar cobrado» y las cuotas
-    // cargadas a mano del mismo proyecto, y contado adentro de la transacción (dos cobros a la vez no pasan los dos).
-    await trabarCobranza(tx, tenantId, proyectoId);
-    const cob = (await cobranzasDelNegocio(tenantId, tc, config.margenPct, [proyectoId], tx)).get(proyectoId);
-    if (cob && pasaElTope(cob, monto)) return { porCobrar: cob.porCobrar, cob };
-    const creado = await tx.proyectoPago.create({ data: { tenantId, proyectoId, medio, monto, nota, cobradoPor: user.name }, select: { id: true } });
-    await registrarCambio(tx, { tenantId, proyectoId, entidad: "ProyectoPago", entidadId: creado.id, campo: "Cobro", despues: `${MEDIO_LABEL[medio]} · ${pesos(monto)}`, autor: user.name });
-    const session = await tx.cashSession.findFirst({ where: { tenantId, status: "OPEN" }, select: { id: true } });
-    await tx.cashMovement.create({
-      data: {
+  let pago: { id: string } | { porCobrar: number; cob: Cobranza } | "repetido";
+  try {
+    pago = await transaccionQueAsienta(async (tx): Promise<{ id: string } | { porCobrar: number; cob: Cobranza } | "repetido"> => {
+      // Tope: con presupuesto aprobado no entra más de lo que falta cobrar. En fila con «Marcar cobrado» y las cuotas
+      // cargadas a mano del mismo proyecto, y contado adentro de la transacción (dos cobros a la vez no pasan los dos).
+      await trabarCobranza(tx, tenantId, proyectoId);
+      // Con el candado tomado: el segundo envío ve el «Envío» del primero, ya confirmado.
+      if (envio && (await tx.proyectoCambio.findFirst({ where: { tenantId, proyectoId, entidad: "ProyectoPago", campo: "Envío", antes: envio }, select: { id: true } }))) return "repetido";
+      const cob = (await cobranzasDelNegocio(tenantId, tc, config.margenPct, [proyectoId], tx)).get(proyectoId);
+      if (cob && pasaElTope(cob, monto)) return { porCobrar: cob.porCobrar, cob };
+      const creado = await tx.proyectoPago.create({ data: { tenantId, proyectoId, medio, monto, nota, cobradoPor: user.name }, select: { id: true } });
+      await registrarCambio(tx, { tenantId, proyectoId, entidad: "ProyectoPago", entidadId: creado.id, campo: "Cobro", despues: `${MEDIO_LABEL[medio]} · ${pesos(monto)}`, autor: user.name });
+      if (envio) await registrarCambio(tx, { tenantId, proyectoId, entidad: "ProyectoPago", entidadId: creado.id, campo: "Envío", antes: envio, despues: creado.id, autor: user.name });
+      const session = await tx.cashSession.findFirst({ where: { tenantId, status: "OPEN" }, select: { id: true } });
+      await asentarEnCajaTx(tx, "cobro", {
         tenantId,
         sessionId: session?.id ?? null,
         type: "VENTA",
@@ -222,10 +230,15 @@ export async function registrarCobro(formData: FormData): Promise<Resultado> {
         reason: `Proyecto #${p.numero} · ${p.nombre}${medio === "CHEQUE" ? " · Cheque" : ""}${nota ? ` · ${nota}` : ""}`,
         proyectoPagoId: creado.id,
         createdBy: user.name,
-      },
+      });
+      return creado;
     });
-    return creado;
-  });
+  } catch (err) {
+    const cerrado = rechazoDePeriodo(err);
+    if (cerrado) return { ok: false, error: cerrado };
+    throw err;
+  }
+  if (pago === "repetido") return { ok: true, listo: "Ese cobro ya estaba registrado: no se asentó dos veces." };
   // Pasaba lo que falta cobrar: no se graba nada.
   if (!("id" in pago)) return { ok: false, error: avisoTopeCobro(pago.porCobrar, monto, pago.cob) };
   await auditAdmin({ action: "proyecto.cobro", entity: "ProyectoPago", entityId: pago.id, changes: { monto, medio } });
@@ -240,17 +253,15 @@ type PagoDeGasto = { id: string; neto: number; iva: number; descripcion: string 
 /** El pago de un gasto y su asiento van juntos. La marca le dice al libro que lo asentó el sistema. */
 async function asentarPagoDeGastoTx(tx: Prisma.TransactionClient, tenantId: string, gasto: PagoDeGasto, numero: number, medio: MedioPago, proveedor: string | null) {
   const session = await tx.cashSession.findFirst({ where: { tenantId, status: "OPEN" }, select: { id: true } });
-  await tx.cashMovement.create({
-    data: {
-      tenantId,
-      sessionId: session?.id ?? null,
-      type: "EGRESO",
-      method: metodoDeCaja(medio, await transferenciaEnElLibroTx(tx)),
-      amount: redondear(gasto.neto + gasto.iva),
-      reason: `Proyecto #${numero} · ${gasto.descripcion}${proveedor ? ` · ${proveedor}` : ""}${medio === "CHEQUE" ? " · Cheque" : ""}`,
-      proyectoGastoId: gasto.id,
-      createdBy: marcaDeGastoProyecto(gasto.id),
-    },
+  await asentarEnCajaTx(tx, "pago", {
+    tenantId,
+    sessionId: session?.id ?? null,
+    type: "EGRESO",
+    method: metodoDeCaja(medio, await transferenciaEnElLibroTx(tx)),
+    amount: redondear(gasto.neto + gasto.iva),
+    reason: `Proyecto #${numero} · ${gasto.descripcion}${proveedor ? ` · ${proveedor}` : ""}${medio === "CHEQUE" ? " · Cheque" : ""}`,
+    proyectoGastoId: gasto.id,
+    createdBy: marcaDeGastoProyecto(gasto.id),
   });
 }
 
@@ -272,7 +283,9 @@ export async function registrarGasto(formData: FormData): Promise<Resultado> {
   const medio = txt(formData.get("medio")) as MedioPago;
   if (pagado && !MEDIOS.includes(medio)) return { ok: false, error: "Elegí cómo se pagó." };
   const proveedor = txt(formData.get("proveedor")).slice(0, 120);
-  const gasto = await tenantTransaction(async (tx) => {
+  let gasto: { id: string };
+  try {
+    gasto = await transaccionQueAsienta(async (tx) => {
     // El proveedor se escribe como se lo conoce: si ya está, es ése; si no, queda sumado.
     const existente = proveedor
       ? await tx.supplier.findFirst({ where: { tenantId, name: { equals: proveedor, mode: "insensitive" } }, select: { id: true, name: true } })
@@ -297,34 +310,57 @@ export async function registrarGasto(formData: FormData): Promise<Resultado> {
     await registrarCambio(tx, { tenantId, proyectoId, entidad: "ProyectoGasto", entidadId: creado.id, campo: "Costo real", despues: `${descripcion} · ${pesos(neto)}${pagado ? " · pagado" : ""}`, autor: user.name });
     if (pagado) await asentarPagoDeGastoTx(tx, tenantId, creado, p.numero, medio, elegido?.name ?? null);
     return creado;
-  });
+    });
+  } catch (err) {
+    const cerrado = rechazoDePeriodo(err);
+    if (cerrado) return { ok: false, error: cerrado };
+    throw err;
+  }
   await auditAdmin({ action: "proyecto.gasto", entity: "ProyectoGasto", entityId: gasto.id, changes: { neto, iva, pagado } });
   refrescar(proyectoId);
   revalidatePath(`${RAIZ}/proveedores`);
   return { ok: true };
 }
 
-export async function pagarGasto(formData: FormData) {
-  const a = await actorCon(["pagos", "proveedores"]);
+/**
+ * Paga un gasto ya cargado y asienta el egreso. O42 (MIA-CUENTAS-A-PAGAR § 6.7): los mismos tres controles que la
+ * pantalla, del lado del servidor: permiso de editar «pagos» (no alcanza «proveedores»), ver la plata y ver ESE proyecto.
+ * Cada rechazo lo dice; nada se escribe.
+ */
+export async function pagarGasto(formData: FormData): Promise<Resultado> {
+  const a = await actorActual();
   const { user, tenantId } = a;
+  if (!puede(a, "pagos", "editar")) return { ok: false, error: "Para pagar un gasto hace falta el permiso de editar Pagos: pedíselo a quien administra." };
+  if (!veLaPlata(user)) return { ok: false, error: "Tu usuario no ve la plata del negocio: el pago lo tiene que hacer Administración." };
   const id = txt(formData.get("id"));
   const medio = txt(formData.get("medio")) as MedioPago;
-  if (!MEDIOS.includes(medio)) return;
+  if (!MEDIOS.includes(medio)) return { ok: false, error: "Elegí cómo se pagó." };
   const g = await prisma.proyectoGasto.findFirst({
     where: { id, tenantId },
     select: { id: true, neto: true, iva: true, descripcion: true, proyectoId: true, proyecto: { select: { numero: true } }, supplier: { select: { name: true } } },
   });
-  if (!g) return;
-  await tenantTransaction(async (tx) => {
-    // Dos clics, o dos pestañas, no pagan dos veces.
-    const r = await tx.proyectoGasto.updateMany({ where: { id, tenantId, pagadoEl: null, anuladoEl: null }, data: { pagadoEl: new Date(), medio, pagadoPor: user.name } });
-    if (r.count === 0) return;
-    await registrarCambio(tx, { tenantId, proyectoId: g.proyectoId, entidad: "ProyectoGasto", entidadId: id, campo: "Costo real pagado", despues: `${g.descripcion} · ${MEDIO_LABEL[medio]}`, autor: user.name });
-    await asentarPagoDeGastoTx(tx, tenantId, g, g.proyecto.numero, medio, g.supplier?.name ?? null);
-  });
+  // Un gasto de un proyecto que esta persona no ve no existe para ella: el mismo texto que un id que no está.
+  if (!g || !(await proyectoDelActor(a, g.proyectoId))) return { ok: false, error: "Ese gasto no existe o es de un proyecto que no ves." };
+  let pagado: boolean;
+  try {
+    pagado = await transaccionQueAsienta(async (tx) => {
+      // Dos clics, o dos pestañas, no pagan dos veces.
+      const r = await tx.proyectoGasto.updateMany({ where: { id, tenantId, pagadoEl: null, anuladoEl: null }, data: { pagadoEl: new Date(), medio, pagadoPor: user.name } });
+      if (r.count === 0) return false;
+      await registrarCambio(tx, { tenantId, proyectoId: g.proyectoId, entidad: "ProyectoGasto", entidadId: id, campo: "Costo real pagado", despues: `${g.descripcion} · ${MEDIO_LABEL[medio]}`, autor: user.name });
+      await asentarPagoDeGastoTx(tx, tenantId, g, g.proyecto.numero, medio, g.supplier?.name ?? null);
+      return true;
+    });
+  } catch (err) {
+    const cerrado = rechazoDePeriodo(err);
+    if (cerrado) return { ok: false, error: cerrado };
+    throw err;
+  }
+  if (!pagado) return { ok: false, error: "Ese gasto ya estaba pagado o anulado." };
   await auditAdmin({ action: "proyecto.gasto.pagar", entity: "ProyectoGasto", entityId: id, changes: { medio } });
   refrescar(g.proyectoId);
   revalidatePath(`${RAIZ}/proveedores`);
+  return { ok: true };
 }
 
 // ── Entregables ─────────────────────────────────────────────────────────────

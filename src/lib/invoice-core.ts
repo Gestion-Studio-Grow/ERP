@@ -352,24 +352,26 @@ export class VentaAnuladaError extends Error {
 }
 
 /**
- * ENG-023, del lado de la factura: toma la fila del pedido (FOR SHARE) y, si está anulado,
- * lanza `VentaAnuladaError` sin escribir nada. Es el mismo candado que
- * pisa la anulación con su compare-and-set (`anularVentaInTx`, UPDATE de `status`), así que las
- * dos nunca terminan juntas:
- *  · anulación primero: esta lectura espera su confirmación, vuelve a evaluar la fila (Read
+ * ENG-023, del lado de la factura: ESCRIBE la fila del pedido (un UPDATE que no cambia ningún
+ * valor) y, si está anulado, lanza `VentaAnuladaError`. Es la fila que pisa la anulación con su
+ * compare-and-set (`anularVentaInTx`, UPDATE de `status`), así que las dos nunca terminan juntas:
+ *  · anulación primero: este UPDATE espera su confirmación, vuelve a evaluar la fila (Read
  *    Committed), la ve CANCELLED y no factura;
- *  · facturación primero: la anulación espera esta transacción y, al releer la factura después
- *    de su compare-and-set, la ve en camino y vuelve atrás.
- * SQL crudo porque Prisma no expresa FOR SHARE; el negocio va explícito en el WHERE (patrón de
- * `stock/adjustment-insert.ts`) además de RLS.
+ *  · facturación primero: la anulación corre en Serializable (T01b: asienta en la caja con
+ *    `transaccionQueAsienta`). Si esta transacción confirmó después de la foto de la anulación,
+ *    el compare-and-set choca con esta escritura y Postgres la aborta (40001); el reintento ve la
+ *    factura en camino y vuelve atrás. Un FOR SHARE no alcanzaba: un bloqueo sin escritura no
+ *    aborta a una transacción Serializable, que seguía leyendo su foto sin la factura (como el
+ *    turno, `tomarTurnoYReleerCobro`).
+ * SQL crudo; el negocio va explícito en el WHERE (patrón de `stock/adjustment-insert.ts`) además de RLS.
  */
 async function tomarPedidoNoAnulado(tx: InvoiceTx, tenantId: string, orderId: string): Promise<void> {
-  // Con FOR SHARE, Postgres devuelve la versión de la fila que dejó confirmada quien la tenía
-  // bloqueada: el `status` que se lee acá es el de después de la anulación.
+  // El UPDATE espera a quien tenga la fila y devuelve la versión que dejó confirmada: el `status`
+  // que se lee acá es el de después de la anulación.
   const filas = await tx.$queryRaw<{ status: string }[]>`
-    SELECT status::text AS status FROM "Order"
+    UPDATE "Order" SET status = status
     WHERE id = ${orderId} AND "tenantId" = ${tenantId}
-    FOR SHARE`;
+    RETURNING status::text AS status`;
   if (filas.length === 0) throw new Error("No se encontró la venta a facturar.");
   if (filas[0].status === "CANCELLED") throw new VentaAnuladaError();
 }

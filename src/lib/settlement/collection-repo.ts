@@ -30,6 +30,7 @@ import {
 } from "./collection";
 import { cuentaCorrienteMarker, decidirAsiento, type OrigenCuentaCorriente } from "./asiento-libro";
 import { emitirPedidoCobradoAlSaldar, emitirPedidoCobradoAlSaldarFiado } from "@/eventos/del-core";
+import { asentarEnCajaTx } from "@/lib/caja/candado-asiento.server";
 
 export interface RecordCollectionArgs {
   originType: $Enums.CollectionOriginType;
@@ -180,19 +181,17 @@ export async function aplicarConAsientoInTx(
     where: { tenantId, status: "OPEN" },
     select: { id: true },
   });
-  await tx.cashMovement.create({
-    data: {
-      tenantId,
-      sessionId: turno?.id ?? null,
-      type: decision.asiento.type,
-      method: decision.asiento.method,
-      // El monto ya redondeado por la guarda de saldo: el libro y el cobro dicen lo mismo.
-      amount: res.amount,
-      reason: decision.asiento.reason,
-      occurredAt: args.ahora,
-      collectionId: res.collectionId,
-      createdBy: cuentaCorrienteMarker(res.collectionId),
-    },
+  await asentarEnCajaTx(tx, decision.asiento.type === "EGRESO" ? "pago" : "cobro", {
+    tenantId,
+    sessionId: turno?.id ?? null,
+    type: decision.asiento.type,
+    method: decision.asiento.method,
+    // El monto ya redondeado por la guarda de saldo: el libro y el cobro dicen lo mismo.
+    amount: res.amount,
+    reason: decision.asiento.reason,
+    occurredAt: args.ahora,
+    collectionId: res.collectionId,
+    createdBy: cuentaCorrienteMarker(res.collectionId),
   });
   return res;
 }

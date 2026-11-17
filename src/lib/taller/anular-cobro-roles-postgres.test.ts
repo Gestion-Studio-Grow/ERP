@@ -215,7 +215,8 @@ test("proceso automático: el asiento de reversa no pide código; el permiso viv
   const duenio = await prismaComoDuenio(s.base);
   const { a } = s.base;
   const id = await cobro(s, a);
-  const r = await duenio.$transaction((tx) => revertirCobroInTx(tx, a.id, { pagoId: id, detalle: "Reintento del sistema", actor: "sistema:prueba" }));
+  // T01b: Serializable, como `transaccionQueAsienta` en la app (el asiento lo exige).
+  const r = await duenio.$transaction((tx) => revertirCobroInTx(tx, a.id, { pagoId: id, detalle: "Reintento del sistema", actor: "sistema:prueba" }), { isolationLevel: "Serializable" });
   assert.deepEqual(r, { revertido: true });
   const movs = await duenio.cashMovement.findMany({ where: { tallerPagoId: id } });
   assert.equal(movs.filter((m) => m.type === "EGRESO").length, 1);

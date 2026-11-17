@@ -104,6 +104,7 @@ import {
   getDemoDeepReportData,
   getDemoOwnerPanelData,
 } from "@/lib/demo-sandbox";
+import { transaccionQueAsienta, asentarEnCajaTx } from "@/lib/caja/candado-asiento.server";
 
 // `reservaOnline: true` (sólo los caminos PÚBLICOS: /reserva, el turnero del taller) saca a las
 // profesionales con la casilla 1 apagada (PLAN permisos §3). La agenda interna y «Dar turno» no lo pasan.
@@ -408,7 +409,7 @@ async function bookAppointment({
 
   // La frontera de la caja se lee sólo si hay plata en juego (un turno sin seña no la toca).
   const cerradoHasta = cobroInicial && cobroInicial.monto > 0 ? await lastClosedDay(tenantId) : null;
-  const run = (withSchema: boolean) => bookingTransaction(async (tx) => {
+  const run = (withSchema: boolean) => transaccionQueAsienta(async (tx) => {
     // Re-chequea la disponibilidad DENTRO de la transacción para cerrar la
     // ventana de carrera entre "mostrar franjas libres" y "escribir la reserva":
     // dos requests sobre la misma franja no pueden triunfar las dos. En
@@ -1313,7 +1314,7 @@ export async function registrarCobroTurno(formData: FormData): Promise<Resultado
   // Todo dentro de UNA tx Serializable: el estado del turno y el saldo se leen y se escriben
   // en la misma foto (dos cobros simultáneos no pueden sobre-cobrar: uno reintenta y ve el otro).
   const run = (withSchema: boolean) =>
-    tenantTransaction(
+    transaccionQueAsienta(
       async (tx) => {
         const appointment = await tx.appointment.findUniqueOrThrow({
           where: { id: appointmentId },
@@ -1339,7 +1340,7 @@ export async function registrarCobroTurno(formData: FormData): Promise<Resultado
           camino: "cobro",
         });
       },
-      { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      { tenantId },
     );
 
   let settled: SettleOutcome<AplicarCobroResult>;
@@ -1446,7 +1447,7 @@ export async function anularCobroTurno(formData: FormData): Promise<ResultadoAcc
   const diaCerradoHasta = await lastClosedDay(tenantId);
 
   const run = (withSchema: boolean) =>
-    tenantTransaction(
+    transaccionQueAsienta(
       async (tx) => {
         const appointment = await tx.appointment.findUniqueOrThrow({
           where: { id: appointmentId },
@@ -1463,7 +1464,7 @@ export async function anularCobroTurno(formData: FormData): Promise<ResultadoAcc
           diaDe: dateStrInBusinessTz,
           withSchema,
           notaDeCredito: notaDeCreditoDelCobroInTx,
-        });
+        }, asentarEnCajaTx);
         // Seña obligatoria: un Confirmado al que la anulación le dejó la seña corta vuelve a
         // Reservado, en esta misma tx y auditado (salvo la excepción de la dueña). Apagado, nada.
         if (r.applied) {
@@ -1471,7 +1472,7 @@ export async function anularCobroTurno(formData: FormData): Promise<ResultadoAcc
         }
         return r;
       },
-      { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      { tenantId },
     );
 
   // Mismo guardado schema-ahead que el cobro: si `CashMovement.collectionId` o
@@ -2131,7 +2132,7 @@ export async function cerrarTurnoSinPrestar(formData: FormData): Promise<Resulta
   const estadoNuevo = accion === "cancelar" ? "CANCELLED" : "NO_SHOW";
 
   const run = (withSchema: boolean) =>
-    tenantTransaction(
+    transaccionQueAsienta(
       async (tx) => {
         // La plata se vuelve a leer ADENTRO: si entró un cobro entre la pantalla y acá, la decisión
         // que tomó la recepción ya no es sobre la misma plata, y no se aplica a ciegas.
@@ -2160,13 +2161,13 @@ export async function cerrarTurnoSinPrestar(formData: FormData): Promise<Resulta
               diaDe: dateStrInBusinessTz,
               withSchema,
               notaDeCredito: notaDeCreditoDelCobroInTx,
-            });
+            }, asentarEnCajaTx);
             if (r.applied) devuelto += r.monto;
           }
         }
         return { devuelto, cobrado };
       },
-      { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      { tenantId },
     );
 
   let settled: SettleOutcome<{ devuelto: number; cobrado: number }>;
@@ -2241,7 +2242,7 @@ export async function completeAppointment(formData: FormData): Promise<Resultado
   const cerradoHasta = dejarSaldoACobrar ? null : await lastClosedDay(tenantId);
 
   const run = (withSchema: boolean) =>
-    tenantTransaction(
+    transaccionQueAsienta(
       async (tx) => {
         const appointment = await tx.appointment.findFirst({
           where: { id: appointmentId, tenantId },
@@ -2315,7 +2316,7 @@ export async function completeAppointment(formData: FormData): Promise<Resultado
 
         return { cobro, saldoACobrar: plan.saldoACobrar, desdeReservado: appointment.status === "PENDING" };
       },
-      { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      { tenantId },
     );
 
   let settled: SettleOutcome<{ cobro: AplicarCobroResult | null; saldoACobrar: number; desdeReservado: boolean }>;

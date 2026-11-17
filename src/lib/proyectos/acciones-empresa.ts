@@ -16,6 +16,7 @@ import { leerNumero, MEDIOS, metodoDeCaja, redondear, type MedioPago } from "./c
 import { aPesos, extrasDelPeriodo, leerExtracto, MONEDAS } from "./gestion-core";
 import { actorActual, avisar, exigirEditar, puede, regenerarCuotasDe, registrarCambio, tiposDeCambio } from "./gestion.server";
 import { marcaDeGastoProyecto } from "./marcas";
+import { asentarEnCajaTx, oPeriodoCerrado, PeriodoCerradoError, transaccionQueAsienta } from "./periodo-cerrado.server";
 import { actorDelMotor, faltaLaMigracion, rendicionDelMotor, SIN_MIGRACION } from "./rendiciones-core";
 import { puedeReintegrarRendicion } from "./gestion-core";
 import { aplicarAccion } from "@/lib/rendiciones/rendicion";
@@ -91,7 +92,7 @@ export async function marcarCuotaEmpresa(formData: FormData): Promise<Resultado<
   if (!(amount > 0)) return { ok: false, error: "Falta el tipo de cambio: cargalo en Monedas y gastos fijos." };
   const cuenta = await cuentaParaCuota(a.tenantId, formData, { tipo: c.tipo, monto: c.monto, moneda: c.moneda, importeEnPesos: amount });
   if (typeof cuenta === "string") return { ok: false, error: cuenta };
-  const hecho = await tenantTransaction(async (tx) => {
+  const hecho = await oPeriodoCerrado(() => transaccionQueAsienta(async (tx) => {
     const r = await tx.proyectoCuota.updateMany({ where: { id, tenantId: a.tenantId, proyectoId: null, pagadoEl: null, anuladoEl: null }, data: { pagadoEl: new Date(), pagadoPor: a.nombre, medio } });
     if (r.count === 0) return false;
     if (cuenta) {
@@ -99,58 +100,78 @@ export async function marcarCuotaEmpresa(formData: FormData): Promise<Resultado<
       await tx.proyectoCuentaBanco.updateMany({ where: { id: cuenta.id, tenantId: a.tenantId }, data: { saldo: { increment: cuenta.movido } } });
     }
     const session = await tx.cashSession.findFirst({ where: { tenantId: a.tenantId, status: "OPEN" }, select: { id: true } });
-    await tx.cashMovement.create({
-      data: {
-        tenantId: a.tenantId,
-        sessionId: session?.id ?? null,
-        type: c.tipo === "COBRO" ? "INGRESO" : "EGRESO",
-        method: metodoDeCaja(medio, await transferenciaEnElLibroTx(tx)),
-        amount,
-        reason: `Empresa · ${c.concepto}${c.supplier ? ` · ${c.supplier.name}` : ""}${medio === "CHEQUE" ? " · Cheque" : ""}`,
-        createdBy: marcaDeCuota(id),
-      },
+    await asentarEnCajaTx(tx, c.tipo === "COBRO" ? "cobro" : "pago", {
+      tenantId: a.tenantId,
+      sessionId: session?.id ?? null,
+      type: c.tipo === "COBRO" ? "INGRESO" : "EGRESO",
+      method: metodoDeCaja(medio, await transferenciaEnElLibroTx(tx)),
+      amount,
+      reason: `Empresa · ${c.concepto}${c.supplier ? ` · ${c.supplier.name}` : ""}${medio === "CHEQUE" ? " · Cheque" : ""}`,
+      createdBy: marcaDeCuota(id),
     });
     await registrarCambio(tx, { tenantId: a.tenantId, entidad: "cuota", entidadId: id, campo: c.tipo === "COBRO" ? "cobro de empresa" : "pago de empresa", antes: "pendiente", despues: `${c.tipo === "COBRO" ? "cobrada" : "pagada"} · ${medio} · $ ${amount}`, autor: a.nombre });
     return true;
-  });
+  }));
+  if (hecho instanceof PeriodoCerradoError) return { ok: false, error: hecho.message };
   if (!hecho) return { ok: false, error: "Esa cuota ya estaba marcada." };
   await auditAdmin({ action: "proyecto.cuota-empresa.pagar", entity: "ProyectoCuota", entityId: id, changes: { amount, medio } });
   refrescar();
   return { ok: true, listo: listoMarcada(c.tipo === "COBRO", amount) };
 }
 
-/** Anular no borra. Si ya se pagó, la plata vuelve al libro con fecha de hoy, como un gasto anulado. */
-export async function anularCuotaEmpresa(formData: FormData): Promise<Resultado> {
+/**
+ * Anular no borra. A-05 (MIA-049, hallazgo 4): una cuota PAGADA no queda «pagada» sin plata: anular le anula el pago,
+ * la cuota vuelve a pendiente (a la vista en «A pagar»/«A cobrar») y el libro y la cuenta vuelven al saldo de antes,
+ * con un contraasiento por lo que ese pago neto dejó en la caja. Una cuota sin pagar queda anulada (sale de la lista).
+ * Dos clics: el `updateMany` condicionado deja pasar a uno solo; el segundo dice que ya estaba.
+ */
+export async function anularCuotaEmpresa(formData: FormData): Promise<Resultado<{ listo?: string }>> {
   const a = await exigirEditar("empresa");
   const id = txt(formData.get("id"));
-  const hecho = await tenantTransaction(async (tx) => {
-    const r = await tx.proyectoCuota.updateMany({ where: { id, tenantId: a.tenantId, proyectoId: null, anuladoEl: null }, data: { anuladoEl: new Date() } });
+  // Lo que la pantalla mostraba («PAGADA»): con eso, un segundo clic (u otra pestaña) sobre una cuota que ya volvió a
+  // pendiente no la anula por error. La pantalla de Cuentas lo va a mandar con la parte visual de A-05, que va en la
+  // tanda T05 (no en T03); sin él, como antes.
+  const visto = txt(formData.get("visto"));
+  const hecho = await oPeriodoCerrado(() => transaccionQueAsienta(async (tx): Promise<"pago" | "cuota" | false> => {
+    const c = await tx.proyectoCuota.findFirst({ where: { id, tenantId: a.tenantId, proyectoId: null, anuladoEl: null }, select: { concepto: true, tipo: true, monto: true, moneda: true, pagadoEl: true, cuentaId: true, cuentaMovido: true } });
+    if (!c) return false;
+    if (!c.pagadoEl && visto === "PAGADA") return false;
+    if (!c.pagadoEl) {
+      const r = await tx.proyectoCuota.updateMany({ where: { id, tenantId: a.tenantId, proyectoId: null, anuladoEl: null, pagadoEl: null }, data: { anuladoEl: new Date() } });
+      if (r.count === 0) return false;
+      await registrarCambio(tx, { tenantId: a.tenantId, entidad: "cuota", entidadId: id, campo: "anulación de cuota de empresa", antes: `${c.moneda} ${c.monto}`, despues: "anulada", autor: a.nombre });
+      return "cuota";
+    }
+    // El pago: sólo uno de dos clics lo encuentra marcado.
+    const r = await tx.proyectoCuota.updateMany({ where: { id, tenantId: a.tenantId, proyectoId: null, anuladoEl: null, pagadoEl: { not: null } }, data: { pagadoEl: null, pagadoPor: null, medio: null, cuentaId: null, cuentaMovido: null } });
     if (r.count === 0) return false;
-    const c = await tx.proyectoCuota.findFirst({ where: { id, tenantId: a.tenantId }, select: { concepto: true, tipo: true, monto: true, moneda: true, cuentaId: true, cuentaMovido: true } });
-    if (c?.cuentaId && c.cuentaMovido) await tx.proyectoCuentaBanco.updateMany({ where: { id: c.cuentaId, tenantId: a.tenantId }, data: { saldo: { decrement: c.cuentaMovido } } });
-    const salida = c?.tipo === "COBRO" ? "INGRESO" : "EGRESO";
-    const pago = await tx.cashMovement.findFirst({ where: { tenantId: a.tenantId, createdBy: marcaDeCuota(id), type: salida }, select: { amount: true, method: true } });
-    if (pago) {
+    if (c.cuentaId && c.cuentaMovido) await tx.proyectoCuentaBanco.updateMany({ where: { id: c.cuentaId, tenantId: a.tenantId }, data: { saldo: { decrement: c.cuentaMovido } } });
+    // Lo que la cuota tiene hoy en la caja, neto: sus pagos menos sus vueltas (una cuota se puede pagar, anular y volver a pagar).
+    const salida = c.tipo === "COBRO" ? "INGRESO" : "EGRESO";
+    const vuelta = salida === "EGRESO" ? "INGRESO" : "EGRESO";
+    const asientos = await tx.cashMovement.findMany({ where: { tenantId: a.tenantId, createdBy: marcaDeCuota(id), type: { in: [salida, vuelta] } }, orderBy: { createdAt: "desc" }, select: { type: true, amount: true, method: true } });
+    const neto = redondear(asientos.reduce((s, m) => s + (m.type === salida ? m.amount : -m.amount), 0));
+    const ultimo = asientos.find((m) => m.type === salida);
+    if (neto > 0 && ultimo) {
       const session = await tx.cashSession.findFirst({ where: { tenantId: a.tenantId, status: "OPEN" }, select: { id: true } });
-      await tx.cashMovement.create({
-        data: {
-          tenantId: a.tenantId,
-          sessionId: session?.id ?? null,
-          type: salida === "EGRESO" ? "INGRESO" : "EGRESO",
-          method: pago.method,
-          amount: pago.amount,
-          reason: `Anulación · Empresa · ${c?.concepto ?? ""}`,
-          createdBy: marcaDeCuota(id),
-        },
+      await asentarEnCajaTx(tx, "anulación", {
+        tenantId: a.tenantId,
+        sessionId: session?.id ?? null,
+        type: vuelta,
+        method: ultimo.method,
+        amount: neto,
+        reason: `Anulación · Empresa · ${c.concepto}`,
+        createdBy: marcaDeCuota(id),
       });
     }
-    await registrarCambio(tx, { tenantId: a.tenantId, entidad: "cuota", entidadId: id, campo: "anulación de pago de empresa", antes: `${c?.moneda} ${c?.monto}`, despues: pago ? "anulada, con vuelta al libro" : "anulada", autor: a.nombre });
-    return true;
-  });
+    await registrarCambio(tx, { tenantId: a.tenantId, entidad: "cuota", entidadId: id, campo: "anulación de pago de empresa", antes: `${c.tipo === "COBRO" ? "cobrada" : "pagada"} · ${c.moneda} ${c.monto}`, despues: neto > 0 ? "pendiente, con vuelta al libro" : "pendiente", autor: a.nombre });
+    return "pago";
+  }));
+  if (hecho instanceof PeriodoCerradoError) return { ok: false, error: hecho.message };
   if (!hecho) return { ok: false, error: "Ese pago ya estaba anulado." };
-  await auditAdmin({ action: "proyecto.cuota-empresa.anular", entity: "ProyectoCuota", entityId: id, changes: {} });
+  await auditAdmin({ action: "proyecto.cuota-empresa.anular", entity: "ProyectoCuota", entityId: id, changes: { que: hecho } });
   refrescar();
-  return { ok: true };
+  return { ok: true, listo: hecho === "pago" ? "Pago anulado: la cuota vuelve a quedar pendiente y la plata volvió a la caja." : "Cuota anulada." };
 }
 
 /** Factura y comentario, de cualquier cuota del negocio. */
@@ -428,7 +449,7 @@ export async function pagarLiquidacion(formData: FormData): Promise<Resultado> {
     if (l.estado === "PAGADA") return { ok: false, error: "Esta liquidación ya está pagada." };
     if (l.estado !== "PUBLICADA") return { ok: false, error: "Primero publicala: se paga lo que la persona ya vio." };
     const ahora = new Date();
-    const hecho = await tenantTransaction(async (tx) => {
+    const hecho = await transaccionQueAsienta(async (tx) => {
       // El claim: dos clics o dos pestañas pagan una sola vez.
       const r = await tx.proyectoLiquidacion.updateMany({ where: { id, tenantId: a.tenantId, estado: "PUBLICADA" }, data: { estado: "PAGADA", pagadaEl: ahora, pagadaPor: a.nombre } });
       if (r.count === 0) return false;
@@ -438,17 +459,15 @@ export async function pagarLiquidacion(formData: FormData): Promise<Resultado> {
       if (!reintegrosCuadran(leerExtras(fila.extras), incluidas)) throw new Descuadre();
       if (l.total > 0) {
         const session = await tx.cashSession.findFirst({ where: { tenantId: a.tenantId, status: "OPEN" }, select: { id: true } });
-        await tx.cashMovement.create({
-          data: {
-            tenantId: a.tenantId,
-            sessionId: session?.id ?? null,
-            type: "EGRESO",
-            method: metodoDeCaja(medio, await transferenciaEnElLibroTx(tx)),
-            amount: redondear(l.total),
-            reason: `Liquidación ${etiquetaMes(l.periodo)} · ${l.persona.nombre}${medio === "CHEQUE" ? " · Cheque" : ""}`,
-            proyectoLiquidacionId: id,
-            createdBy: marcaDeGastoProyecto(`liquidacion-${id}`),
-          },
+        await asentarEnCajaTx(tx, "pago", {
+          tenantId: a.tenantId,
+          sessionId: session?.id ?? null,
+          type: "EGRESO",
+          method: metodoDeCaja(medio, await transferenciaEnElLibroTx(tx)),
+          amount: redondear(l.total),
+          reason: `Liquidación ${etiquetaMes(l.periodo)} · ${l.persona.nombre}${medio === "CHEQUE" ? " · Cheque" : ""}`,
+          proyectoLiquidacionId: id,
+          createdBy: marcaDeGastoProyecto(`liquidacion-${id}`),
         });
       }
       for (const f of incluidas) {
@@ -463,6 +482,7 @@ export async function pagarLiquidacion(formData: FormData): Promise<Resultado> {
     if (!hecho) return { ok: false, error: "Esta liquidación ya está pagada." };
   } catch (e) {
     if (e instanceof Descuadre) return { ok: false, error: DESCUADRE };
+    if (e instanceof PeriodoCerradoError) return { ok: false, error: e.message };
     if (faltaLaMigracion(e)) return { ok: false, error: SIN_MIGRACION };
     throw e;
   }

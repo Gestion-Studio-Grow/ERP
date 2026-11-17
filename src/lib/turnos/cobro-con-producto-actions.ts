@@ -27,12 +27,10 @@ import { sumarAlCentavo } from "@/lib/dinero/redondeo";
 import { unstable_rethrow } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { Prisma } from "@/generated/prisma/client";
 import { requireCapability } from "@/lib/authz";
 import { permisoEfectivo } from "@/lib/capabilities";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { isDemoSandbox } from "@/lib/demo-flag";
-import { tenantTransaction } from "@/lib/rls";
 import { auditAdmin } from "@/lib/audit-core";
 import { logger } from "@/lib/logger";
 import { RechazoDeDominio, rechazoDeDominio } from "@/lib/rechazo-de-dominio";
@@ -77,6 +75,7 @@ import {
   rechazoDeCantidad,
 } from "./cobro-con-producto";
 import { pesos } from "@/app/admin/(dashboard)/turnos/agenda-core";
+import { transaccionQueAsienta } from "@/lib/caja/candado-asiento.server";
 
 export type ResultadoCobroConProducto =
   | { ok: true; aviso?: string; orderCode?: number; total?: number }
@@ -93,7 +92,6 @@ const NO_VENDE = "Sumar productos al cobro lo hace quien vende en el mostrador."
 const SIN_TARJETA = "Este negocio todavía no cobra con tarjeta: elegí otro medio.";
 const NO_SE_COBRO = "No se pudo cobrar y no quedó nada a medias: no se registró ningún cobro ni venta. Probá de nuevo; si sigue, avisá.";
 const YA_REGISTRADO = "Ese cobro ya se registró. Recargá la agenda para ver cómo quedó.";
-const SERIALIZABLE =Prisma.TransactionIsolationLevel.Serializable;
 /** Reintentos ante el choque del correlativo de la orden (max(code)+1 bajo concurrencia). */
 const REINTENTOS_DE_CODIGO = 3;
 
@@ -301,7 +299,7 @@ export async function cobrarTurnoConProductos(formData: FormData): Promise<Resul
     | { dup: false; cobro: AplicarCobroResult | null; orden: { id: string; code: number; total: number }; saldo: number; desdeReservado: boolean };
 
   const run = (withSchema: boolean) =>
-    tenantTransaction<Hecho>(
+    transaccionQueAsienta<Hecho>(
       async (tx) => {
         // Capa 2 de idempotencia: el mismo envío ya quedó (cobro o pedido con la clave de la hoja).
         if (withSchema) {
@@ -375,7 +373,7 @@ export async function cobrarTurnoConProductos(formData: FormData): Promise<Resul
           desdeReservado: a.status === "PENDING",
         };
       },
-      { tenantId, isolationLevel: SERIALIZABLE },
+      { tenantId },
     );
 
   let settled: SettleOutcome<Hecho> | null = null;

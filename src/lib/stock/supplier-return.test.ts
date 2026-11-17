@@ -17,6 +17,7 @@ import {
 } from "./supplier-return";
 import type { Prisma } from "@/generated/prisma/client";
 import { medioDelPago } from "@/lib/cuentas/loader";
+import { conCandado } from "@/test/candado-de-prueba";
 
 const compra: LineaDeCompra[] = [
   { productId: "vacio", nombre: "Vacío", unidad: "kg", comprado: 20, unitCost: 6543, yaDevuelto: 0, stock: 18 },
@@ -177,7 +178,7 @@ function compraDoble(stockInicial: Record<string, number>) {
     auditLog: { findFirst: async () => null }, // ningún día cerrado
     cashSession: { findFirst: async () => ({ id: "turno-1" }) },
   };
-  return { tx: tx as unknown as Prisma.TransactionClient, stock, movimientos, caja };
+  return { tx: conCandado(tx) as unknown as Prisma.TransactionClient, stock, movimientos, caja };
 }
 
 test("devolución de 3 líneas con una inválida: se rechaza con el error EN esa línea y no se escribe nada", async () => {

@@ -33,6 +33,7 @@ import {
 } from "./core";
 import { asentarCobroInTx, descontarRepuestosInTx, detalleDelCobro, revertirCobroInTx } from "./caja";
 import { configTaller, vehiculoPorPatente } from "./datos.server";
+import { transaccionQueAsienta } from "@/lib/caja/candado-asiento.server";
 
 export type Resultado<T = object> = ({ ok: true } & T) | { ok: false; error: string };
 
@@ -381,7 +382,7 @@ export async function registrarPago(formData: FormData) {
   const { recargos } = await configTaller(tenantId);
   const { recargo } = conRecargo(monto, recargoPct(medio, cuotas, recargos));
   // El cobro y su asiento en el libro de caja van juntos: o entran los dos o ninguno.
-  const pago = await tenantTransaction(async (tx) => {
+  const pago = await transaccionQueAsienta(async (tx) => {
     const creado = await tx.tallerPago.create({
       data: { tenantId, ordenId, medio, monto, recargo, cuotas: medio === "CREDITO" ? cuotas : 1, nota, cobradoPor: user.name },
     });
@@ -427,7 +428,7 @@ export async function anularPago(formData: FormData): Promise<Resultado> {
   // Antes de abrir la transacción: sin autorización no se escribe ni se bloquea nada.
   const autorizacion = await autorizadoraDeLaAnulacion(user, politica, tenantId, objetoDeCobroDeTaller(id), formData.get("codigo"), TEXTOS_DEL_CODIGO);
   if (!autorizacion.ok) return autorizacion;
-  const hecho = await tenantTransaction(async (tx) => {
+  const hecho = await transaccionQueAsienta(async (tx) => {
     // Sólo anula quien llega primero: un doble toque no escribe dos contrapartidas.
     const r = await tx.tallerPago.updateMany({ where: { id, tenantId, anuladoEl: null }, data: { anuladoEl: new Date(), anuladoPor: user.name } });
     if (r.count !== 1) return false;

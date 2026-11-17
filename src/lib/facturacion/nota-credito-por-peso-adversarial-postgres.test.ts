@@ -17,7 +17,8 @@ test("adversarial NC por peso", async (t) => {
   const duenio = await prismaComoDuenio(base);
   const { a, b } = base;
 
-  const { tenantTransaction } = await import("@/lib/rls");
+  // T01b: lo que asienta en la caja corre como en la app, en `transaccionQueAsienta` (Serializable con el candado).
+  const { transaccionQueAsienta } = await import("@/lib/caja/candado-asiento.server");
   const { insertOrder, cobrarPedidoEnTx } = await import("@/lib/order-core");
   const { createInvoice, crearNotaDeCredito, numeroUsadoPorOtraFactura } = await import("@/lib/invoice-core");
   const dispatch = await import("@/lib/arca-dispatch");
@@ -57,7 +58,7 @@ test("adversarial NC por peso", async (t) => {
     return (r as { valor: { id: string } }).valor;
   };
   const cobrar = (n: NegocioDePrueba, orderId: string) =>
-    tenantTransaction((tx) => cobrarPedidoEnTx(tx, n.id, { orderId, method: "EFECTIVO", actor: `user:${n.duenia.id}` }), { tenantId: n.id });
+    transaccionQueAsienta((tx) => cobrarPedidoEnTx(tx, n.id, { orderId, method: "EFECTIVO", actor: `user:${n.duenia.id}` }), { tenantId: n.id });
   const facturar = async (n: NegocioDePrueba, orderId: string) => {
     const total = Number((await duenio.order.findUniqueOrThrow({ where: { id: orderId }, select: { total: true } })).total);
     const id = await createInvoice({
@@ -71,7 +72,7 @@ test("adversarial NC por peso", async (t) => {
     return { id, total };
   };
   const ajustar = (n: NegocioDePrueba, productId: string, orderId: string, qty: number) =>
-    tenantTransaction(
+    transaccionQueAsienta(
       (tx) =>
         ajustarPesoInTx(tx, n.id, {
           orderId, pedidas: [{ productId, qty }], actor: `user:${n.duenia.id}`, permiteNegativo: () => false,

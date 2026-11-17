@@ -44,6 +44,8 @@ test("P2 vuelta 4 · pedido.cobrado por cobranza y fiado; dedupe indexada con N2
 
   const duenio = await prismaComoDuenio(base);
   const { tenantTransaction } = await import("@/lib/rls");
+  // T01b: lo que asienta en la caja corre como en la app, en `transaccionQueAsienta` (Serializable con el candado).
+  const { transaccionQueAsienta } = await import("@/lib/caja/candado-asiento.server");
   const { recordCollection, applyCollectionInTx } = await import("@/lib/settlement/collection-repo");
   const { registrarFiadoDelPedidoEnTx } = await import("@/lib/clientes/fiado");
   const { cobrarFiadoInTx } = await import("@/lib/debts/receivable-service");
@@ -86,14 +88,14 @@ test("P2 vuelta 4 · pedido.cobrado por cobranza y fiado; dedupe indexada con N2
 
     // b) Ya cobrado por el botón «Cobrar»: un cobro de la cobranza después no lo vuelve a emitir.
     const p2 = await pedido(5_000);
-    assert.equal((await tenantTransaction((tx) => cobrarPedidoEnTx(tx, A, { orderId: p2, method: "EFECTIVO", actor: "user:qa" }), { tenantId: A })).tipo, "cobrado");
+    assert.equal((await transaccionQueAsienta((tx) => cobrarPedidoEnTx(tx, A, { orderId: p2, method: "EFECTIVO", actor: "user:qa" }), { tenantId: A })).tipo, "cobrado");
     await cobro(p2, 5_000, 5_000, "EFECTIVO");
     assert.equal((await cobrados(p2)).length, 1, `${fase}: botón + cobranza duplicó`);
 
     // c) Al revés: saldado por la cobranza, el botón dice «ya cobrado» y no emite.
     const p3 = await pedido(3_000);
     await cobro(p3, 3_000, 3_000, "MERCADOPAGO");
-    assert.equal((await tenantTransaction((tx) => cobrarPedidoEnTx(tx, A, { orderId: p3, method: "EFECTIVO", actor: "user:qa" }), { tenantId: A })).tipo, "ya-cobrado");
+    assert.equal((await transaccionQueAsienta((tx) => cobrarPedidoEnTx(tx, A, { orderId: p3, method: "EFECTIVO", actor: "user:qa" }), { tenantId: A })).tipo, "ya-cobrado");
     const e3 = await cobrados(p3);
     assert.equal(e3.length, 1);
     assert.equal(e3[0].payload.datos.medio, "MP");
@@ -105,7 +107,7 @@ test("P2 vuelta 4 · pedido.cobrado por cobranza y fiado; dedupe indexada con N2
     // e) El cobro que salda vuelve atrás → no hay cobro, ni pedido pago, ni evento (P2-C3).
     const p4 = await pedido(2_000);
     await assert.rejects(
-      tenantTransaction(async (tx) => {
+      transaccionQueAsienta(async (tx) => {
         await applyCollectionInTx(tx, A, { originType: "ORDER", originId: p4, orderId: p4, totalCharged: 2_000, amount: 2_000, method: "EFECTIVO", collectedBy: "user:qa" });
         throw new Error("falló después del cobro");
       }, { tenantId: A }),
@@ -123,7 +125,7 @@ test("P2 vuelta 4 · pedido.cobrado por cobranza y fiado; dedupe indexada con N2
     const deudaId = fiado.tipo === "creado" ? fiado.receivableId : "";
     assert.equal((await cobrados(p5)).length, 0, `${fase}: entregar al fiado emitió pedido.cobrado`);
     const pagarDeuda = (amount: number, method: "EFECTIVO" | "MERCADOPAGO") =>
-      tenantTransaction((tx) => cobrarFiadoInTx(tx, A, deudaId, { amount, method, by: "user:qa" }, new Date(), false), { tenantId: A });
+      transaccionQueAsienta((tx) => cobrarFiadoInTx(tx, A, deudaId, { amount, method, by: "user:qa" }, new Date(), false), { tenantId: A });
     await pagarDeuda(1_000, "EFECTIVO");
     assert.equal((await cobrados(p5)).length, 0, `${fase}: un pago parcial del fiado emitió`);
     await pagarDeuda(5_000, "MERCADOPAGO");
@@ -135,7 +137,7 @@ test("P2 vuelta 4 · pedido.cobrado por cobranza y fiado; dedupe indexada con N2
     // Una deuda cargada a mano (sin pedido) no emite pedido.cobrado.
     const aMano = await duenio.accountReceivable.create({ data: { tenantId: A, clientId: cliente, amount: 1_500, concept: "a mano", createdBy: "user:qa" }, select: { id: true } });
     const antes = await duenio.outboxEvent.count({ where: { tenantId: A, type: "pedido.cobrado@1" } });
-    await tenantTransaction((tx) => cobrarFiadoInTx(tx, A, aMano.id, { amount: 1_500, method: "EFECTIVO", by: "user:qa" }, new Date(), false), { tenantId: A });
+    await transaccionQueAsienta((tx) => cobrarFiadoInTx(tx, A, aMano.id, { amount: 1_500, method: "EFECTIVO", by: "user:qa" }, new Date(), false), { tenantId: A });
     assert.equal(await duenio.outboxEvent.count({ where: { tenantId: A, type: "pedido.cobrado@1" } }), antes);
   }
 

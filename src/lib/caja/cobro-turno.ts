@@ -38,6 +38,7 @@ import { cashMethodFromPaymentMethod } from "@/lib/caja/cierre-diario";
 import { transferenciaEnElLibroTx } from "@/lib/caja/transferencia-en-el-libro";
 import type { CashMethod } from "@/lib/caja/cash-register";
 import type { Prisma } from "@/generated/prisma/client";
+import { asentarEnCajaTx } from "@/lib/caja/candado-asiento.server";
 
 export type CobroTurnoTx = Prisma.TransactionClient;
 
@@ -143,19 +144,16 @@ export async function recordCobroTurnoInTx(
   });
   if (existing) return { recorded: false, reason: "already-recorded" };
 
-  const mov = await tx.cashMovement.create({
-    data: {
-      tenantId,
-      sessionId: session?.id ?? null,
-      type: "VENTA",
-      method: elig.method,
-      amount: elig.amount,
-      reason: input.detail,
-      paymentId: key.paymentId,
-      collectionId: key.collectionId,
-      createdBy: input.actor,
-    },
-    select: { id: true },
+  const mov = await asentarEnCajaTx(tx, "cobro", {
+    tenantId,
+    sessionId: session?.id ?? null,
+    type: "VENTA",
+    method: elig.method,
+    amount: elig.amount,
+    reason: input.detail,
+    paymentId: key.paymentId,
+    collectionId: key.collectionId,
+    createdBy: input.actor,
   });
   return { recorded: true, movementId: mov.id, sessionId: session?.id ?? null, method: elig.method };
 }

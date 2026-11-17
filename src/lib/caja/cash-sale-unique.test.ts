@@ -13,6 +13,7 @@ import assert from "node:assert/strict";
 import { Prisma } from "@/generated/prisma/client";
 import { recordCashSaleMovementInTx, type CashSaleTx, type CashSaleInput } from "./cash-sale";
 import { isUniqueViolation } from "@/lib/prisma-errors";
+import { conCandado } from "@/test/candado-de-prueba";
 
 function p2002Cash(): Prisma.PrismaClientKnownRequestError {
   return new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
@@ -39,7 +40,7 @@ function makeCashTx(store: { orderId: string; type: string }[], snapshotExisting
       },
     },
   };
-  return tx as unknown as CashSaleTx;
+  return conCandado(tx) as unknown as CashSaleTx;
 }
 
 const input = (): CashSaleInput => ({

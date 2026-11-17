@@ -11,7 +11,6 @@
 // (fail-closed ADR-015) y lo escribe en cada fila; el read de productos filtra por él.
 
 import { prisma } from "@/lib/prisma";
-import { tenantTransaction } from "@/lib/rls";
 import { recordMovement, type LedgerTx } from "@/lib/stock/ledger";
 import { round2 } from "@/lib/round";
 import { businessWallTimeToUtc, todayInBusinessTz } from "@/lib/datetime";
@@ -38,6 +37,7 @@ import {
   type MotivoSinEgreso,
   type PagoDeCompra,
 } from "@/lib/stock/purchase-egreso";
+import { asentarEnCajaTx, transaccionQueAsienta } from "@/lib/caja/candado-asiento.server";
 
 export type StockPurchaseKind = "COMPRA" | "REPOSICION";
 
@@ -324,7 +324,7 @@ export async function insertStockPurchase(
   const cerradoHasta = await lastClosedDay(tenantId);
   const hoy = todayInBusinessTz();
 
-  return await tenantTransaction(
+  return await transaccionQueAsienta(
     (tx) => registrarCompraEnTx(tx, tenantId, input, { lines, hoy, cerradoHasta, ahora: new Date() }),
     { tenantId },
   );
@@ -598,20 +598,17 @@ export async function registrarCompraEnTx(
         select: { id: true },
       });
 
-      const mov = await tx.cashMovement.create({
-        data: {
-          tenantId,
-          sessionId: session?.id ?? null,
-          type: e.type,
-          method: e.method,
-          amount: e.amount,
-          reason: e.reason,
-          // Se ancla al MEDIODÍA de la zona del negocio, igual que el alta manual del
-          // libro: así ningún corrimiento de zona horaria mueve la fila de día.
-          occurredAt: businessWallTimeToUtc(e.dia, "12:00"),
-          createdBy: e.createdBy,
-        },
-        select: { id: true },
+      const mov = await asentarEnCajaTx(tx, "compra", {
+        tenantId,
+        sessionId: session?.id ?? null,
+        type: e.type,
+        method: e.method,
+        amount: e.amount,
+        reason: e.reason,
+        // Se ancla al MEDIODÍA de la zona del negocio, igual que el alta manual del
+        // libro: así ningún corrimiento de zona horaria mueve la fila de día.
+        occurredAt: businessWallTimeToUtc(e.dia, "12:00"),
+        createdBy: e.createdBy,
       });
 
       egreso = {

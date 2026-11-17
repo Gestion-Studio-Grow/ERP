@@ -255,7 +255,8 @@ test("anular un cobro de MP cubierto por la factura del pago (mp:<pago>): nota d
   if (!p) return;
   const fpc = await import("@/lib/facturacion/factura-por-cobro");
   const { anularCobroTurnoInTx, AnulacionRechazada } = await import("@/lib/turnos/anulacion");
-  const { tenantTransaction } = await import("@/lib/rls");
+  // T01b: la anulación corre como en la app, en `transaccionQueAsienta` (Serializable con el candado de la caja).
+  const { transaccionQueAsienta, asentarEnCajaTx } = await import("@/lib/caja/candado-asiento.server");
   const turno = await p.crearTurno();
   // Un pago de MP de $10.000 que la recepción anotó en dos cobros de $5.000.
   await p.cobrarEnElLibro(turno.id, 5000, "MERCADOPAGO");
@@ -273,7 +274,7 @@ test("anular un cobro de MP cubierto por la factura del pago (mp:<pago>): nota d
 
   const anular = (collectionId: string, conNota: boolean) =>
     runInTenantContext(p.n.id, () =>
-      tenantTransaction(
+      transaccionQueAsienta(
         (tx) =>
           anularCobroTurnoInTx(tx, p.n.id, {
             collectionId,
@@ -286,7 +287,7 @@ test("anular un cobro de MP cubierto por la factura del pago (mp:<pago>): nota d
             diaDe: () => HOY,
             withSchema: false,
             ...(conNota ? { notaDeCredito: fpc.notaDeCreditoDelCobroInTx } : {}),
-          }),
+          }, asentarEnCajaTx),
         { tenantId: p.n.id },
       ),
     );
@@ -334,7 +335,8 @@ test("cobro MP cubierto en parte por mp:<pago>: el siguiente cobro MP se factura
   if (!p) return;
   const fpc = await import("@/lib/facturacion/factura-por-cobro");
   const { anularCobroTurnoInTx } = await import("@/lib/turnos/anulacion");
-  const { tenantTransaction } = await import("@/lib/rls");
+  // T01b: la anulación corre como en la app, en `transaccionQueAsienta` (Serializable con el candado de la caja).
+  const { transaccionQueAsienta, asentarEnCajaTx } = await import("@/lib/caja/candado-asiento.server");
   const turno = await p.crearTurno();
   await p.avisoDeMP(p.pagoMP(`mp-parcial-${randomUUID().slice(0, 6)}`, 1000, turno.id));
   await p.cobrarEnElLibro(turno.id, 1500, "MERCADOPAGO");
@@ -351,7 +353,7 @@ test("cobro MP cubierto en parte por mp:<pago>: el siguiente cobro MP se factura
   await runInTenantContext(p.n.id, () => procesarEnviosDelNegocio(p.n.id));
   const [a] = await p.duenio.collection.findMany({ where: { tenantId: p.n.id, originId: turno.id }, orderBy: { createdAt: "asc" }, select: { id: true } });
   const r = await runInTenantContext(p.n.id, () =>
-    tenantTransaction(
+    transaccionQueAsienta(
       (tx) =>
         anularCobroTurnoInTx(tx, p.n.id, {
           collectionId: a.id,
@@ -364,7 +366,7 @@ test("cobro MP cubierto en parte por mp:<pago>: el siguiente cobro MP se factura
           diaDe: () => HOY,
           withSchema: false,
           notaDeCredito: fpc.notaDeCreditoDelCobroInTx,
-        }),
+        }, asentarEnCajaTx),
       { tenantId: p.n.id },
     ),
   );

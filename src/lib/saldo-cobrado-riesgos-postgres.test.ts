@@ -25,7 +25,8 @@ test("contra Postgres: saldo de un pedido con parte cobrada (cierre, aviso de MP
   Object.assign(process.env as Record<string, string | undefined>, { DB_CONNECTION_LIMIT: process.env.ERP_TEST_DB_CONNECTION_LIMIT ?? "6", DB_CONNECT_TIMEOUT_MS: "3000" });
   const duenio = await prismaComoDuenio(base);
   const { a, b } = base;
-  const { tenantTransaction } = await import("@/lib/rls");
+  // T01b: lo que asienta en la caja corre como en la app, en `transaccionQueAsienta` (Serializable con el candado).
+  const { transaccionQueAsienta } = await import("@/lib/caja/candado-asiento.server");
   const { insertOrder, cobrarPedidoEnTx, cobrarPedidoPorAvisoDePago } = await import("@/lib/order-core");
   type Deps = NonNullable<Parameters<typeof cobrarPedidoPorAvisoDePago>[1]>;
   const { ajustarPesoInTx, claveCobradoAntesDePesar } = await import("@/lib/ajuste-peso-cobrado");
@@ -48,12 +49,12 @@ test("contra Postgres: saldo de un pedido con parte cobrada (cierre, aviso de MP
     return (r as unknown as { valor: { id: string; code: number } }).valor;
   };
   const ajustar = (orderId: string, qty: number) =>
-    tenantTransaction(
+    transaccionQueAsienta(
       (tx) => ajustarPesoInTx(tx, a.id, { orderId, pedidas: [{ productId: pollo.id, qty }], actor, permiteNegativo: () => false, clave: `k-${randomUUID()}`, cerradoHasta: null, hoy, ahora: new Date() }),
       { tenantId: a.id },
     );
   const cobrar = (orderId: string, method: "EFECTIVO" | "MERCADOPAGO" = "EFECTIVO", quien = actor) =>
-    tenantTransaction((tx) => cobrarPedidoEnTx(tx, a.id, { orderId, method, actor: quien }), { tenantId: a.id });
+    transaccionQueAsienta((tx) => cobrarPedidoEnTx(tx, a.id, { orderId, method, actor: quien }), { tenantId: a.id });
   const aviso = (orderId: string, paymentId: string, monto: number, deps?: Deps) =>
     runInTenantContext(a.id, () => cobrarPedidoPorAvisoDePago({ tenantId: a.id, orderId, paymentId, monto }, deps));
   const hoja = async () => {
@@ -148,7 +149,7 @@ test("contra Postgres: saldo de un pedido con parte cobrada (cierre, aviso de MP
       },
       cerradoHasta: async () => null,
       hoy: () => hoy,
-      cobrar: (tenantId, args) => tenantTransaction((tx) => cobrarPedidoEnTx(tx, tenantId, args), { tenantId }),
+      cobrar: (tenantId, args) => transaccionQueAsienta((tx) => cobrarPedidoEnTx(tx, tenantId, args), { tenantId }),
       auditar: async () => {},
     };
     const r = await aviso(p.id, "PAY-D2-3", 10000, deps);

@@ -106,8 +106,10 @@ test("P2 · outbox de eventos con y sin N2_hub, dos negocios, rollback y doble e
 
     // El Core real: cobrar emite pedido.cobrado@1 una sola vez; anular emite pedido.cancelado@1.
     const { cobrarPedidoEnTx } = await import("@/lib/order-core");
+    // T01b: lo que asienta en la caja corre como en la app, en `transaccionQueAsienta` (Serializable con el candado).
+    const { transaccionQueAsienta, asentarEnCajaTx } = await import("@/lib/caja/candado-asiento.server");
     const cobrar = () =>
-      tenantTransaction((tx) => cobrarPedidoEnTx(tx, A, { orderId: pedidoA, method: "MERCADOPAGO", actor: "mercadopago:pago-77" }), { tenantId: A });
+      transaccionQueAsienta((tx) => cobrarPedidoEnTx(tx, A, { orderId: pedidoA, method: "MERCADOPAGO", actor: "mercadopago:pago-77" }), { tenantId: A });
     assert.equal((await cobrar()).tipo, "cobrado");
     assert.equal((await cobrar()).tipo, "ya-cobrado");
     const cobros = conClave(await todas(conColumnas), A, `pedido:${pedidoA}:cobrado`, conColumnas);
@@ -117,7 +119,7 @@ test("P2 · outbox de eventos con y sin N2_hub, dos negocios, rollback y doble e
 
     const { anularVentaInTx } = await import("@/lib/order-anulacion");
     const anular = () =>
-      tenantTransaction(
+      transaccionQueAsienta(
         (tx) =>
           anularVentaInTx(tx, A, {
             orderId: pedidoA,
@@ -127,7 +129,7 @@ test("P2 · outbox de eventos con y sin N2_hub, dos negocios, rollback y doble e
             diaCerradoHasta: null,
             esDiaCerrado: () => false,
             diaDe: (d) => d.toISOString().slice(0, 10),
-          }),
+          }, asentarEnCajaTx),
         { tenantId: A },
       );
     assert.equal((await anular()).applied, true);

@@ -16,6 +16,7 @@ import { AsientoRechazadoError } from "@/lib/settlement/collection-repo";
 import { CUENTA_CORRIENTE_ACTOR_PREFIX, MEDIO_OBLIGATORIO } from "@/lib/settlement/asiento-libro";
 import { buildCierreDiario } from "@/lib/caja/cierre-diario";
 import type { CashMethod, CashMovementType } from "@/lib/caja/cash-register";
+import { conCandado } from "@/test/candado-de-prueba";
 
 type Escritura = { modelo: string; op: string; data: Record<string, unknown> };
 
@@ -83,7 +84,7 @@ function txFalsa(opts: {
     order: { updateMany: async () => ({ count: 0 }) },
     cashSession: { findFirst: async () => null },
   };
-  return { tx: tx as unknown as Parameters<typeof pagarDeudaInTx>[0], escrituras };
+  return { tx: conCandado(tx) as unknown as Parameters<typeof pagarDeudaInTx>[0], escrituras };
 }
 
 const AHORA = new Date("2026-09-23T15:00:00.000Z"); // 23/09 12:00 en Buenos Aires

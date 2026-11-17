@@ -67,6 +67,9 @@ import { aplicarPromociones, type ContextoDePromo, type Promocion } from "@/lib/
 import { reemplazarPromocionesDeLaVentaEnTx } from "@/lib/supermercado/promos-de-la-venta";
 import type { PromosDeLaVenta } from "@/lib/order-core";
 import { emitirPedidoCancelado } from "@/eventos/del-core";
+// Sólo el tipo: un client component importa las marcas de este archivo (libro-caja.ts), así que no puede traer
+// el candado (Prisma) por valor. Quien abre la transacción le pasa `asentarEnCajaTx` (T01b).
+import type { AsentarEnCaja } from "@/lib/caja/candado-asiento.server";
 
 export type AnulacionVentaTx = Prisma.TransactionClient;
 
@@ -389,6 +392,7 @@ export async function anularVentaInTx(
   tx: AnulacionVentaTx,
   tenantId: string,
   args: AnularVentaArgs,
+  asentar: AsentarEnCaja,
 ): Promise<AnularVentaResult> {
   const order = await tx.order.findFirst({
     where: { tenantId, id: args.orderId },
@@ -483,9 +487,10 @@ export async function anularVentaInTx(
   // compare-and-set vuelve atrás con toda la transacción.
   //
   // La factura se relee SIEMPRE, por lo mismo (ENG-023): una facturación que confirmó entre la
-  // primera lectura y el bloqueo ya es visible acá, y la anulación vuelve atrás entera. (Para
-  // que la facturación que llega DESPUÉS del bloqueo espere y vea el pedido anulado, del lado de
-  // la factura hace falta tomar la fila del pedido: anotado en el BACKLOG, ENG-023.)
+  // primera lectura y el bloqueo ya es visible acá, y la anulación vuelve atrás entera. Con la
+  // anulación en Serializable (T01b) eso vale porque la facturación ESCRIBE la fila del pedido
+  // (`tomarPedidoNoAnulado`): si confirmó después de esta foto, el compare-and-set de arriba
+  // aborta con 40001 y el reintento la ve.
   if (!asiento) asiento = await leerAsiento();
   // Lo mismo con `paid`, para quien no trae el código: un cobro a cuenta no deja asiento.
   const pagadoAhora = args.soloSinPlata
@@ -520,19 +525,16 @@ export async function anularVentaInTx(
     if (a.collectionId == null) {
       const monto = round2(a.amount - devuelto);
       if (!(monto > 0)) continue;
-      const mov = await tx.cashMovement.create({
-        data: {
-          tenantId,
-          sessionId: a.sessionId,
-          type: "EGRESO",
-          method: a.method,
-          amount: monto, // siempre > 0: el signo lo pone el tipo (`movementSign`)
-          reason: detalleReversaVenta(order!.code, args.motivo),
-          occurredAt: a.occurredAt,
-          ...(devuelto > 0 ? {} : { orderId: args.orderId }),
-          createdBy: `${ANULACION_VENTA_ACTOR_PREFIX}${args.actor}`,
-        },
-        select: { id: true },
+      const mov = await asentar(tx, "anulación", {
+        tenantId,
+        sessionId: a.sessionId,
+        type: "EGRESO",
+        method: a.method,
+        amount: monto, // siempre > 0: el signo lo pone el tipo (`movementSign`)
+        reason: detalleReversaVenta(order!.code, args.motivo),
+        occurredAt: a.occurredAt,
+        ...(devuelto > 0 ? {} : { orderId: args.orderId }),
+        createdBy: `${ANULACION_VENTA_ACTOR_PREFIX}${args.actor}`,
       });
       reversaId ??= mov.id;
       montoRevertido = round2(montoRevertido + monto);
@@ -541,19 +543,16 @@ export async function anularVentaInTx(
       // del MISMO cobro (`@@unique(tenantId, collectionId, type)` es el árbitro de la carrera, como
       // el de `orderId` en la venta de un medio). Sin `orderId`: ése admite un solo EGRESO por
       // pedido. La marca de la anulación la protege en el libro (libro-caja.ts, `motivoParaNoBorrar`).
-      const mov = await tx.cashMovement.create({
-        data: {
-          tenantId,
-          sessionId: a.sessionId,
-          type: "EGRESO",
-          method: a.method,
-          amount: round2(a.amount),
-          reason: detalleReversaVenta(order!.code, args.motivo),
-          occurredAt: a.occurredAt,
-          collectionId: a.collectionId,
-          createdBy: `${ANULACION_VENTA_ACTOR_PREFIX}${args.actor}`,
-        },
-        select: { id: true },
+      const mov = await asentar(tx, "anulación", {
+        tenantId,
+        sessionId: a.sessionId,
+        type: "EGRESO",
+        method: a.method,
+        amount: round2(a.amount),
+        reason: detalleReversaVenta(order!.code, args.motivo),
+        occurredAt: a.occurredAt,
+        collectionId: a.collectionId,
+        createdBy: `${ANULACION_VENTA_ACTOR_PREFIX}${args.actor}`,
       });
       reversaId ??= mov.id;
       montoRevertido = round2(montoRevertido + a.amount);

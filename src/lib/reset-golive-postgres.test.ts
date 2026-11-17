@@ -13,7 +13,7 @@ test("contra Postgres: el reseteo borra lo de prueba de A y nada más", async (t
   if (!base) return;
   apuntarLaAppA(base);
   const duenio = await prismaComoDuenio(base);
-  const { tenantTransaction } = await import("@/lib/rls");
+  const { transaccionQueAsienta } = await import("@/lib/caja/candado-asiento.server");
   const { planificarReseteo, totalABorrar, ACTOR_RESETEO } = await import("@/lib/reset-golive");
   const { aplicarPlan, candadoDelReseteo, leerFoto, tablasExistentes, verificarVacio } = await import("@/lib/reset-golive-db");
   const { businessWallTimeToUtc, dateStrInBusinessTz } = await import("@/lib/datetime");
@@ -74,8 +74,9 @@ test("contra Postgres: el reseteo borra lo de prueba de A y nada más", async (t
 
   const opciones = { clientesCreadosDesde: inicio, conservarFuturo: false };
   const ahora = new Date();
+  // La misma transacción que el script: Serializable con el candado del cierre (T01b).
   const correr = (alterar?: (p: ReturnType<typeof planificarReseteo>) => void) =>
-    tenantTransaction(
+    transaccionQueAsienta(
       async (tx) => {
         await candadoDelReseteo(tx, a.id);
         const tablas = await tablasExistentes(tx);

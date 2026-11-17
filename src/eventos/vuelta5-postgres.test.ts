@@ -52,6 +52,9 @@ test("P2 vuelta 5 · pedido.confirmado/listo/entregado, stock.*, producto.actual
   let codigo = 5000;
   let sku = 0;
   const tx = <T>(fn: (tx: never) => Promise<T>) => tenantTransaction((x) => fn(x as never), { tenantId: A });
+  // T01b: lo que asienta en la caja corre como en la app, en `transaccionQueAsienta` (Serializable con el candado).
+  const { transaccionQueAsienta, asentarEnCajaTx } = await import("@/lib/caja/candado-asiento.server");
+  const txQueAsienta = <T>(fn: (tx: never) => Promise<T>) => transaccionQueAsienta((x) => fn(x as never), { tenantId: A });
   const pedido = async (extra: { status?: "PENDING" | "CONFIRMED" | "PREPARING" | "READY" | "DELIVERED"; fulfillment?: "PICKUP" | "DELIVERY"; clientId?: string } = {}) =>
     (
       await duenio.order.create({
@@ -113,11 +116,11 @@ test("P2 vuelta 5 · pedido.confirmado/listo/entregado, stock.*, producto.actual
     const f6 = await tx((x) => registrarFiadoDelPedidoEnTx(x, A, { orderId: p6, actor: "user:qa" }));
     assert.equal(f6.tipo, "creado");
     const deuda = f6.tipo === "creado" ? f6.receivableId : "";
-    await tx((x) => anularVentaInTx(x, A, {
+    await txQueAsienta((x) => anularVentaInTx(x, A, {
       orderId: p6, motivo: "se arrepintió", actor: "user:qa", devuelveStock: false, diaCerradoHasta: null,
       esDiaCerrado: () => false, diaDe: (d: Date) => d.toISOString().slice(0, 10),
-    } as never));
-    await tx((x) => cobrarFiadoInTx(x, A, deuda, { amount: 6_000, method: "EFECTIVO", by: "user:qa" }, new Date(), false));
+    } as never, asentarEnCajaTx));
+    await txQueAsienta((x) => cobrarFiadoInTx(x, A, deuda, { amount: 6_000, method: "EFECTIVO", by: "user:qa" }, new Date(), false));
     const seq6 = await delPedido(p6);
     assert.ok(seq6.includes("pedido.cancelado@1"), `${nombre}: X1 sin cancelado: ${seq6}`);
     assert.ok(!seq6.includes("pedido.cobrado@1"), `${nombre}: X1 cobrado después de cancelado: ${seq6}`);

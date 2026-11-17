@@ -28,8 +28,6 @@ import { redirect } from "next/navigation";
 import { auditAdmin } from "@/lib/audit-core";
 import { sePuedeLiquidar } from "@/lib/comision-liquidable";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { tenantTransaction } from "@/lib/rls";
-import { Prisma } from "@/generated/prisma/client";
 import { requireCapability } from "@/lib/authz";
 import { isDemoSandbox } from "@/lib/demo-sandbox";
 // La aritmética de la comisión y el egreso que deja la liquidación viven PUROS y testeados
@@ -58,6 +56,7 @@ import {
   type ComisionPendiente,
   type VueltaDeLiquidacion,
 } from "@/lib/reports/comisiones";
+import { asentarEnCajaTx, transaccionQueAsienta } from "@/lib/caja/candado-asiento.server";
 
 const REPORTES_PATH = "/admin/reportes";
 // La app Comisiones: liquida con el mismo formulario y vuelve a su pantalla.
@@ -164,7 +163,7 @@ export async function settleCommissions(formData: FormData) {
   const hoy = todayInBusinessTz();
   const diaDelEgreso = diaContableDelEgreso(hoy, await lastClosedDay(tenantId));
 
-  const result = await tenantTransaction(async (tx) => {
+  const result = await transaccionQueAsienta(async (tx) => {
     const professional = await tx.professional.findFirst({
       where: { id: professionalId, tenantId },
     });
@@ -270,20 +269,17 @@ export async function settleCommissions(formData: FormData) {
         where: { tenantId, status: "OPEN" },
         select: { id: true },
       });
-      await tx.cashMovement.create({
-        data: {
-          tenantId,
-          sessionId: session?.id ?? null,
-          type: egreso.type,
-          method: egreso.method,
-          amount: egreso.amount,
-          reason: egreso.reason,
-          // Anclado al MEDIODÍA de la zona del negocio, igual que el alta manual del libro:
-          // así ningún corrimiento de zona horaria mueve la fila de día.
-          occurredAt: businessWallTimeToUtc(egreso.dia, "12:00"),
-          createdBy: egreso.createdBy,
-        },
-        select: { id: true },
+      await asentarEnCajaTx(tx, "comisión", {
+        tenantId,
+        sessionId: session?.id ?? null,
+        type: egreso.type,
+        method: egreso.method,
+        amount: egreso.amount,
+        reason: egreso.reason,
+        // Anclado al MEDIODÍA de la zona del negocio, igual que el alta manual del libro:
+        // así ningún corrimiento de zona horaria mueve la fila de día.
+        occurredAt: businessWallTimeToUtc(egreso.dia, "12:00"),
+        createdBy: egreso.createdBy,
       });
     }
 
@@ -294,7 +290,7 @@ export async function settleCommissions(formData: FormData) {
       professionalName: professional.name,
       egreso,
     };
-  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  }, {});
 
   if (result.count === 0) backWith("error_nada", volver);
 

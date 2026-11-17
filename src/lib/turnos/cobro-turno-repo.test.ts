@@ -20,6 +20,7 @@ import { estadoCobroTurno } from "./cobros";
 import { readdirSync, readFileSync } from "node:fs";
 import { dateStrInBusinessTz } from "@/lib/datetime";
 import { formatDayLabel, nextDayKey } from "@/lib/caja/cierre-diario";
+import { conCandado } from "@/test/candado-de-prueba";
 
 type ColRow = {
   id: string;
@@ -94,7 +95,7 @@ function makeTx(opts: { legacyPayment?: PayRow; enforceUnique?: boolean } = {}) 
       },
     },
   };
-  return { tx: tx as unknown as CobroTurnoTx, collections, payments, movements };
+  return { tx: conCandado(tx) as unknown as CobroTurnoTx, collections, payments, movements };
 }
 
 const args = (over: Partial<AplicarCobroArgs> = {}): AplicarCobroArgs => ({

@@ -18,6 +18,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { recordMovement } from "@/lib/stock/ledger";
 import { transferenciaEnElLibroTx } from "@/lib/caja/transferencia-en-el-libro";
 import { redondear, type MedioPago } from "./core";
+import { asentarEnCajaTx } from "@/lib/caja/candado-asiento.server";
 
 type Tx = Prisma.TransactionClient;
 
@@ -60,17 +61,15 @@ export async function asentarCobroInTx(
   // lo vea; si no, queda suelto y el libro lo toma igual.
   const session = await tx.cashSession.findFirst({ where: { tenantId, status: "OPEN" }, select: { id: true } });
   const transferenciaEnElLibro = input.medio === "TRANSFERENCIA" && (await transferenciaEnElLibroTx(tx));
-  await tx.cashMovement.create({
-    data: {
-      tenantId,
-      sessionId: session?.id ?? null,
-      type: "VENTA",
-      method: metodoDeCaja(input.medio, transferenciaEnElLibro),
-      amount,
-      reason: input.detalle,
-      tallerPagoId: input.pagoId,
-      createdBy: input.actor,
-    },
+  await asentarEnCajaTx(tx, "cobro", {
+    tenantId,
+    sessionId: session?.id ?? null,
+    type: "VENTA",
+    method: metodoDeCaja(input.medio, transferenciaEnElLibro),
+    amount,
+    reason: input.detalle,
+    tallerPagoId: input.pagoId,
+    createdBy: input.actor,
   });
   return { asentado: true };
 }
@@ -89,17 +88,15 @@ export async function revertirCobroInTx(
   const ya = await tx.cashMovement.findFirst({ where: { tenantId, tallerPagoId: input.pagoId, type: "EGRESO" }, select: { id: true } });
   if (ya) return { revertido: false };
   const session = await tx.cashSession.findFirst({ where: { tenantId, status: "OPEN" }, select: { id: true } });
-  await tx.cashMovement.create({
-    data: {
-      tenantId,
-      sessionId: session?.id ?? null,
-      type: "EGRESO",
-      method: venta.method,
-      amount: venta.amount,
-      reason: `Anulación · ${input.detalle}`,
-      tallerPagoId: input.pagoId,
-      createdBy: input.actor,
-    },
+  await asentarEnCajaTx(tx, "anulación", {
+    tenantId,
+    sessionId: session?.id ?? null,
+    type: "EGRESO",
+    method: venta.method,
+    amount: venta.amount,
+    reason: `Anulación · ${input.detalle}`,
+    tallerPagoId: input.pagoId,
+    createdBy: input.actor,
   });
   return { revertido: true };
 }
