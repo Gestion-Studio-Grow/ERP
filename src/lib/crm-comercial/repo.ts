@@ -319,7 +319,18 @@ export function datosLimpios(x: unknown): DatosComerciales {
   const quien = txt(d.quienDecide, 120);
   if (quien) out.quienDecide = quien;
   if (typeof d.encaje === "boolean") out.encaje = d.encaje;
+  if (typeof d.teniaPresupuesto === "boolean") out.teniaPresupuesto = d.teniaPresupuesto;
   return out;
+}
+
+/**
+ * GSG-CRM-018c (V5): lo que queda en el ARM al asignar. El rango ya viajó al proyecto del destino en la misma
+ * transacción; acá queda sólo si lo tenía (sí o no). Lo demás de los datos no cambia.
+ */
+export function datosAlAsignar(x: unknown): DatosComerciales {
+  const { presupuestoMin, presupuestoMax, ...resto } = datosLimpios(x);
+  const tenia = (presupuestoMin ?? 0) > 0 || (presupuestoMax ?? 0) > 0 || resto.teniaPresupuesto === true;
+  return { ...resto, teniaPresupuesto: tenia };
 }
 
 /** El brief: lo que ya sabe la oportunidad (marca, evento, datos) + lo que se escribió aparte (objetivo). */
@@ -329,7 +340,11 @@ function briefDe(o: { datos: unknown; moneda?: string | null }, marca: string | 
   // GSG-CRM-011: en plata, como se lee («$ 3.000.000 a $ 5.000.000»), en la moneda de la oportunidad.
   const plata = new Intl.NumberFormat("es-AR", { style: "currency", currency: o.moneda === "USD" ? "USD" : "ARS", maximumFractionDigits: 0 });
   const presupuesto =
-    d.presupuestoMin != null || d.presupuestoMax != null ? [d.presupuestoMin, d.presupuestoMax].filter((x): x is number => x != null).map((x) => plata.format(x)).join(" a ") : null;
+    d.presupuestoMin != null || d.presupuestoMax != null
+      ? [d.presupuestoMin, d.presupuestoMax].filter((x): x is number => x != null).map((x) => plata.format(x)).join(" a ")
+      : typeof d.teniaPresupuesto === "boolean"
+        ? `Tenía presupuesto: ${d.teniaPresupuesto ? "sí" : "no"}`
+        : null;
   return {
     marca,
     evento,
@@ -787,6 +802,13 @@ export async function actualizarDatos(ctx: Ctx, id: string, d: PedidoDeDatos, ah
     if (d.version !== undefined && d.version !== o.version) no(CAMBIO_CONCURRENTE, o.id);
     const etapa = o.etapa as Etapa;
     if (esTerminal(etapa)) no(`La oportunidad está cerrada («${ETIQUETA_ETAPA[etapa]}»).`, o.id);
+    if (etapa === "ASIGNADA" && o.destinoTenantId) {
+      // GSG-CRM-018c (V5): asignada a otro negocio, la plata vive en su proyecto; en el ARM no vuelven a entrar montos.
+      const pedidos = d.datos !== undefined ? datosLimpios(d.datos) : {};
+      if ((d.monto !== undefined && d.monto !== null) || pedidos.presupuestoMin != null || pedidos.presupuestoMax != null) {
+        no("Está asignada: el presupuesto y el monto se cargan en su proyecto, en el negocio destino, no en el CRM.", o.id);
+      }
+    }
 
     const data: Prisma.OportunidadUncheckedUpdateManyInput = {};
     let datos = datosLimpios(o.datos);
@@ -911,6 +933,8 @@ async function aplicar(tx: Tx, ctx: Ctx, m: Miembro | null, o: FilaOp, destino: 
     data.destinoTenantId = a.destinoTenantId;
     data.proyectoDestinoId = a.proyectoId;
     data.monto = null;
+    // GSG-CRM-018c: el rango tampoco queda (viaja en el paquete, que se arma con `o.datos` de antes de vaciarlo).
+    data.datos = datosAlAsignar(o.datos) as Prisma.InputJsonValue;
     paquete = await paqueteDe(tx, ctx, o, marcaNombre, brief, a, ahora);
   }
   await escribirOp(tx, ctx, o, data);

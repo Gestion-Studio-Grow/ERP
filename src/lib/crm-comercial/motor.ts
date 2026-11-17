@@ -166,6 +166,11 @@ export interface DatosComerciales {
   /** Presupuesto o rango, en la moneda de la oportunidad. */
   presupuestoMin?: number | null;
   presupuestoMax?: number | null;
+  /**
+   * GSG-CRM-018c (V5): al asignar, el rango viaja al proyecto del negocio destino y se vacía del ARM; en el ARM queda
+   * sólo si lo tenía. Cuenta como el presupuesto para el puntaje (el puntaje no cambia por asignar).
+   */
+  teniaPresupuesto?: boolean | null;
   /** Quién decide la compra (nombre del puesto, no datos de contacto). */
   quienDecide?: string | null;
   /** ¿Encaja con lo que se vende? Lo marca una persona o el Calificador, con fuente. */
@@ -228,7 +233,9 @@ export function puntuar(datos: DatosComerciales, ahora: Date, vara: Vara = VARA)
   const min = datos.presupuestoMin ?? null;
   const max = datos.presupuestoMax ?? null;
   const hayPresupuesto = (min !== null && Number.isFinite(min) && min > 0) || (max !== null && Number.isFinite(max) && max > 0);
-  detalle.push(
+  if (!hayPresupuesto && datos.teniaPresupuesto === true) {
+    detalle.push({ criterio: "presupuesto", suma: p.presupuesto, explicacion: "Tenía presupuesto: el rango quedó en el proyecto." });
+  } else detalle.push(
     hayPresupuesto && !(min !== null && max !== null && max < min)
       ? { criterio: "presupuesto", suma: p.presupuesto, explicacion: "Tiene presupuesto o un rango." }
       : { criterio: "presupuesto", suma: 0, explicacion: hayPresupuesto ? "El rango de presupuesto no cierra (el máximo es menor que el mínimo)." : "No sabemos el presupuesto." },

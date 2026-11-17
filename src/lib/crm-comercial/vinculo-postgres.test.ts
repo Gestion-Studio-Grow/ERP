@@ -292,6 +292,42 @@ test("V5 · V6 · viajan el cliente, el brief y la conversación; en el ARM no q
   void ajeno;
 });
 
+test("V5 · el rango de presupuesto se conserva hasta asignar; al asignar viaja al proyecto y en el ARM queda sólo «tenía presupuesto: sí»", async (t) => {
+  const f = await preparar(t);
+  if (!f) return;
+  const { repo, base } = f;
+  const d = await prismaComoDuenio(base);
+  const id = await lista(f, "Rango Demo", "rango.example");
+  const antes = await d.oportunidad.findUniqueOrThrow({ where: { id }, select: { datos: true } });
+  assert.deepEqual([(antes.datos as Record<string, unknown>).presupuestoMin, (antes.datos as Record<string, unknown>).presupuestoMax], [5_000_000, 8_000_000], "calificada: el rango sigue en el ARM");
+  ok(await repo.aplicarPase(ctx(f, f.dir), id, "ASIGNADA", { comercialUserId: f.com1, ...PASO }, AHORA), "asignar");
+
+  const op = await d.oportunidad.findUniqueOrThrow({ where: { id }, select: { datos: true, monto: true, proyectoDestinoId: true } });
+  const datos = op.datos as Record<string, unknown>;
+  assert.equal(op.monto, null);
+  assert.equal("presupuestoMin" in datos, false, `sin rango en el ARM: ${JSON.stringify(datos)}`);
+  assert.equal("presupuestoMax" in datos, false, `sin rango en el ARM: ${JSON.stringify(datos)}`);
+  assert.equal(datos.teniaPresupuesto, true, "queda sólo si tenía presupuesto");
+  assert.equal(datos.tipoTrabajo, "experiencia", "el resto de los datos queda");
+  // Viajó al proyecto en la misma asignación.
+  const p = await d.proyecto.findUniqueOrThrow({ where: { id: op.proyectoDestinoId! }, select: { presupuestoEstimado: true, brief: true } });
+  assert.equal(p.presupuestoEstimado, 6_500_000);
+  assert.match(p.brief, /5\.000\.000 a \$\s8\.000\.000/, "el rango viaja en el brief del proyecto");
+  // La ficha del ARM ya no muestra montos: «tenía presupuesto: sí».
+  const fi = ok(await repo.ficha(ctx(f, f.dir), id, AHORA));
+  assert.equal(fi.brief.presupuesto, "Tenía presupuesto: sí");
+  assert.doesNotMatch(JSON.stringify(fi), /5\.000\.000|8\.000\.000|5000000|8000000|6500000/, "ningún monto en la ficha del ARM");
+  assert.equal(fi.puntaje.puntaje, 100, "el puntaje no cambia por vaciar el rango");
+  // Un monto o un rango no vuelve a entrar por la ficha de una asignada.
+  const r = await repo.actualizarDatos(ctx(f, f.dir), id, { datos: { presupuestoMin: 1_000_000 } }, AHORA);
+  assert.equal(r.ok, false);
+  const r2 = await repo.actualizarDatos(ctx(f, f.dir), id, { monto: 1_000_000 }, AHORA);
+  assert.equal(r2.ok, false);
+  const despues = await d.oportunidad.findUniqueOrThrow({ where: { id }, select: { datos: true, monto: true } });
+  assert.equal("presupuestoMin" in (despues.datos as Record<string, unknown>), false);
+  assert.equal(despues.monto, null);
+});
+
 test("V6 · el estado se lee sólo de proyectos que nacieron de este ARM", async (t) => {
   const f = await preparar(t);
   if (!f) return;
