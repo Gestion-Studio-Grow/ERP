@@ -1,5 +1,3 @@
-> Borrador redactado por un agente (Opus). **Requiere revisión de un abogado matriculado** y los datos [a confirmar] de Farmaonline. Las reglas de juego limpio (sello, un premio por persona, verificación automática por WhatsApp) se sumaron al texto que usan los juegos.
-
 # Farmaonline · POP FEST 101.5 — textos legales
 
 ## 1. Términos y condiciones de la activación
@@ -14,7 +12,7 @@
 
 **5. Premios y stock.** [a confirmar: productos y cantidad de unidades de cada uno]. Se entregan por orden de llegada al canje. Agotado el stock físico, el premio es un cupón de descuento digital para la tienda online de Farmaonline [a confirmar: porcentaje o monto, tope, vencimiento (mínimo 30 días), compra mínima, si se acumula]. No se cambian por dinero ni por otros productos. Ningún premio es un medicamento.
 
-**6. Cómo se retira.** Al completar el formulario, la pantalla muestra un código personal, de un solo uso, canjeable sólo en forma presencial en el stand hasta su cierre. Si no se retiró, el premio físico caduca y se envía el cupón digital al email registrado [a confirmar].
+**6. Cómo se retira.** Al completar el formulario, la pantalla muestra un código personal, de un solo uso, canjeable sólo en forma presencial en el stand hasta su cierre y sujeto a stock (si el premio físico se agotó, se entrega un cupón online [a confirmar]). Para entregarlo, el personal del stand valida el código contra el registro central, pide el nombre con el que se registró y marca la mano de quien retira con un sello del stand. Quien quiera puede además enviar su código desde su propio WhatsApp al número oficial de Farmaonline [a confirmar]: el sistema lo verifica en forma automática y suma un cupón online extra [a confirmar]. Es opcional y no condiciona el premio. Si no se retiró, el premio físico caduca y se envía el cupón digital al email registrado [a confirmar].
 
 **7. Límite.** Un premio por persona, por email y por número de WhatsApp, aunque juegue varias veces o en varios dispositivos.
 
