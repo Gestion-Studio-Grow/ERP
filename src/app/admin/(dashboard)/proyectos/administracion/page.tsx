@@ -24,7 +24,7 @@ const DE_EMPRESA = [
   { id: "monedas", label: "Monedas y gastos fijos" },
 ] as const;
 
-type Busqueda = { tab?: string; estado?: string; q?: string; mes?: string };
+type Busqueda = { tab?: string; estado?: string; q?: string; mes?: string; vista?: string };
 
 export default async function Administracion({ searchParams }: { searchParams: Promise<Busqueda> }) {
   const user = await requireApp("gestion-administracion");
@@ -72,7 +72,7 @@ export default async function Administracion({ searchParams }: { searchParams: P
       )}
       <Pestanas pestanas={pestanas} etiqueta="Vistas de Administración" conRaya className="mb-4" />
       {(tab === "cobrar" || tab === "pagar") && datos && (
-        <TabCuentas tipo={tab === "cobrar" ? "COBRO" : "PAGO"} estado={sp.estado} q={sp.q} cuotas={datos.cuotas} sinCalendario={tab === "cobrar" ? datos.sinCalendario : []} tc={datos.tc} tenantId={a.tenantId} editaEmpresa={editaEmpresa} editaPagos={editaPagos} veClientes={veClientes} />
+        <TabCuentas tipo={tab === "cobrar" ? "COBRO" : "PAGO"} estado={sp.estado} q={sp.q} vista={sp.vista} cuotas={datos.cuotas} sinCalendario={tab === "cobrar" ? datos.sinCalendario : []} tc={datos.tc} tenantId={a.tenantId} editaEmpresa={editaEmpresa} editaPagos={editaPagos} veClientes={veClientes} />
       )}
       {tab === "cashflow" && <TabCashflow tenantId={a.tenantId} />}
       {tab === "bancos" && <TabBancos tenantId={a.tenantId} editaEmpresa={editaEmpresa} editaPagos={editaPagos} />}

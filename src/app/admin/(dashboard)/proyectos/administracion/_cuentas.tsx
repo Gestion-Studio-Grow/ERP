@@ -8,6 +8,11 @@ import type { PagadoDeCuota } from "@/lib/proyectos/cobranza-core";
 import { anularCuotaEmpresa, crearPagoEmpresa } from "@/lib/proyectos/acciones-empresa";
 import { quitarMovimiento } from "@/lib/proyectos/acciones-ficha";
 import { textoCubierta } from "@/lib/proyectos/avisos-cuota";
+import { filaDeCuota, vistaAplicable } from "@/lib/proyectos/vistas.server";
+import { agrupar, columnasPermitidas, ordenar, pasaFiltros, AGRUPACIONES, ORDENES, type ListaId, type VistaGuardada } from "@/lib/proyectos/vistas-core";
+import { actorActual, columnasOcultas } from "@/lib/proyectos/gestion.server";
+import { ROL_LABEL, ROLES_GESTION } from "@/lib/proyectos/gestion-core";
+import { borrarVista, guardarVista } from "@/lib/proyectos/acciones-vistas";
 import { campo, etiqueta, tarjeta } from "../_vista";
 import { BotonDosPasos, DatoCuota, FormAccion, MarcarCuota, VenceCuota } from "./_controles";
 
@@ -36,19 +41,43 @@ function vence(d: Date, vencida: boolean) {
   );
 }
 
-export async function TabCuentas({ tipo, estado, q, cuotas, sinCalendario = [], tc, tenantId, editaEmpresa, editaPagos, veClientes = false }: { tipo: "COBRO" | "PAGO"; estado?: string; q?: string; cuotas: readonly (CuotaDelNegocio & { pendiente?: number; cobrado?: number; pagado?: PagadoDeCuota | null })[]; sinCalendario?: readonly SinCalendarioDelNegocio[]; tc: Readonly<Record<string, number>>; tenantId: string; editaEmpresa: boolean; editaPagos: boolean; veClientes?: boolean }) {
-  const filtro: FiltroCuota = (FILTROS_CUOTA as readonly string[]).includes(estado ?? "") ? (estado as FiltroCuota) : "pendientes";
+/** La columna de las acciones queda pegada a la derecha: a 390 px no se esconde detrás del scroll de la tabla (plan R6). */
+const fijaDerecha = "sticky right-0 bg-surface-raised";
+
+export async function TabCuentas({ tipo, estado, q, vista: vistaId, cuotas, sinCalendario = [], tc, tenantId, editaEmpresa, editaPagos, veClientes = false }: { tipo: "COBRO" | "PAGO"; estado?: string; q?: string; vista?: string; cuotas: readonly (CuotaDelNegocio & { pendiente?: number; cobrado?: number; pagado?: PagadoDeCuota | null })[]; sinCalendario?: readonly SinCalendarioDelNegocio[]; tc: Readonly<Record<string, number>>; tenantId: string; editaEmpresa: boolean; editaPagos: boolean; veClientes?: boolean }) {
+  // La vista guardada (O46): sus filtros son el punto de partida; el estado elegido arriba manda sobre el de la vista.
+  const lista: ListaId = tipo === "COBRO" ? "a-cobrar" : "a-pagar";
+  const a = await actorActual();
+  const { vistas, actual, columnas } = await vistaAplicable(a, lista, vistaId);
+  const ve = new Set(columnas.map((c) => c.id));
+  const filtro: FiltroCuota = (FILTROS_CUOTA as readonly string[]).includes(estado ?? "") ? (estado as FiltroCuota) : actual.filtros.estado;
   const busqueda = (q ?? "").trim().toLowerCase();
   const tab = tipo === "COBRO" ? "cobrar" : "pagar";
   const hoy = new Date();
-  const filas = cuotas.filter((c) => c.tipo === tipo && pasaFiltro(c, filtro, hoy) && (!busqueda || coincide(c, busqueda)));
+  const conFila = cuotas.filter((c) => c.tipo === tipo && pasaFiltro(c, filtro, hoy) && (!busqueda || coincide(c, busqueda))).map((c) => ({ c, f: filaDeCuota(c, tc, hoy) }));
+  const filtradas = conFila.filter(({ f }) => pasaFiltros(f, { ...actual.filtros, estado: "todos" }, hoy));
+  const porId = new Map(filtradas.map((x) => [x.f.id, x.c]));
+  const grupos = agrupar(ordenar(filtradas.map((x) => x.f), actual.orden), actual.agrupacion).map((g) => ({ ...g, filas: g.filas.map((f) => porId.get(f.id)!) }));
+  const filas = grupos.flatMap((g) => g.filas);
+  const cantColumnas = ve.size;
   // Lo aprobado que ninguna cuota espera: pendiente y sin fecha, así que sólo en «Pendientes» y «Todos».
   const faltantes = tipo === "COBRO" && (filtro === "pendientes" || filtro === "todos") ? sinCalendario.filter((f) => !busqueda || coincideSinCalendario(f, busqueda)) : [];
   const proveedores = tipo === "PAGO" && editaEmpresa ? await proveedoresActivos(tenantId) : [];
-  const enlace = (f: FiltroCuota) => `/admin/proyectos/administracion?tab=${tab}&estado=${f}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
+  const conVista = actual.id === vistas[0].id ? "" : `&vista=${encodeURIComponent(actual.id)}`;
+  const enlace = (f: FiltroCuota) => `/admin/proyectos/administracion?tab=${tab}&estado=${f}${q ? `&q=${encodeURIComponent(q)}` : ""}${conVista}`;
+  const enlaceVista = (v: VistaGuardada) => `/admin/proyectos/administracion?tab=${tab}&vista=${encodeURIComponent(v.id)}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
+  const borrable = (actual.alcance === "PERSONA" && actual.propietario === a.user.id) || (actual.alcance === "ROL" && a.rol === "DIRECCION");
 
   return (
     <div className="grid gap-4">
+      <nav aria-label="Vistas de la lista" className="flex flex-wrap items-center gap-1">
+        <span className="mr-1 text-sm text-muted">Vista:</span>
+        {vistas.map((v) => (
+          <Link key={v.id} href={enlaceVista(v)} aria-current={v.id === actual.id ? "page" : undefined} className={cn("flex min-h-11 items-center rounded-lg border border-line px-3 text-sm", v.id === actual.id ? "bg-accent text-on-accent" : "text-strong")}>
+            {v.nombre}{v.alcance === "ROL" ? ` · ${ROL_LABEL[v.propietario as keyof typeof ROL_LABEL] ?? v.propietario}` : v.alcance === "PERSONA" ? " · mía" : ""}
+          </Link>
+        ))}
+      </nav>
       <div className="flex flex-wrap items-center gap-2">
         <nav aria-label="Filtrar por estado" className="flex flex-wrap gap-1">
           {FILTROS_CUOTA.map((f) => (
@@ -58,6 +87,7 @@ export async function TabCuentas({ tipo, estado, q, cuotas, sinCalendario = [], 
         <form method="get" role="search" className="flex min-w-0 flex-1 gap-1 sm:max-w-sm">
           <input type="hidden" name="tab" value={tab} />
           <input type="hidden" name="estado" value={filtro} />
+          {conVista && <input type="hidden" name="vista" value={actual.id} />}
           <input name="q" defaultValue={q} aria-label="Buscar" placeholder="Buscar evento, concepto, factura…" className={campo} />
           <button type="submit" className="min-h-11 rounded-lg border border-line px-3 text-sm text-strong">Buscar</button>
         </form>
@@ -67,23 +97,29 @@ export async function TabCuentas({ tipo, estado, q, cuotas, sinCalendario = [], 
         <p className={cn(tarjeta, "text-sm text-muted")}>{busqueda ? "Nada coincide con esa búsqueda." : tipo === "COBRO" ? "No hay cobros en este filtro." : "No hay pagos en este filtro."}</p>
       ) : (
         <div className={cn(tarjeta, "overflow-x-auto")}>
-          <table className="w-full min-w-[1180px] text-sm">
+          <table className={cn("w-full text-sm", cantColumnas >= 8 ? "min-w-[1180px]" : "min-w-[720px]")}>
             <thead className="text-left text-xs text-muted">
               <tr>
                 <th className="py-1 pr-3 font-medium">Vence</th>
-                <th className="pr-3 font-medium">Evento</th>
-                <th className="pr-3 font-medium">{tipo === "COBRO" ? "Cliente" : "Proveedor"}</th>
-                <th className="pr-3 font-medium">Concepto</th>
-                <th className="pr-3 text-right font-medium">Monto</th>
-                <th className="pr-3 text-right font-medium">En pesos</th>
-                <th className="pr-3 font-medium">Factura</th>
-                <th className="pr-3 font-medium">Estado</th>
-                <th className="pr-3 font-medium">Acción</th>
-                <th className="font-medium">Comentario</th>
+                {ve.has("evento") && <th className="pr-3 font-medium">Evento</th>}
+                {ve.has("contraparte") && <th className="pr-3 font-medium">{tipo === "COBRO" ? "Cliente" : "Proveedor"}</th>}
+                {ve.has("concepto") && <th className="pr-3 font-medium">Concepto</th>}
+                {ve.has("monto") && <th className="pr-3 text-right font-medium">Monto</th>}
+                {ve.has("enPesos") && <th className="pr-3 text-right font-medium">En pesos</th>}
+                {ve.has("factura") && <th className="pr-3 font-medium">Factura</th>}
+                {ve.has("estado") && <th className="pr-3 font-medium">Estado</th>}
+                {ve.has("comentario") && <th className="pr-3 font-medium">Comentario</th>}
+                <th className={cn("pl-3 font-medium", fijaDerecha)}>Acción</th>
               </tr>
             </thead>
-            <tbody>
-              {filas.slice(0, MAX_FILAS).map((c) => {
+            {grupos.map((g) => (
+            <tbody key={g.clave}>
+              {g.titulo && (
+                <tr className="border-t border-line">
+                  <th colSpan={cantColumnas} scope="colgroup" className="py-2 text-left text-sm font-semibold text-strong">{g.titulo} <span className="font-normal text-muted">({g.filas.length})</span></th>
+                </tr>
+              )}
+              {g.filas.slice(0, MAX_FILAS).map((c) => {
                 const est = estadoCuota(c, hoy);
                 const vencida = est === "VENCIDA";
                 const deEmpresa = !c.proyecto;
@@ -104,24 +140,33 @@ export async function TabCuentas({ tipo, estado, q, cuotas, sinCalendario = [], 
                       {editaEmpresa && !c.pagadoEl ? <VenceCuota id={c.id} valor={fechaParaInput(c.venceEl)} etiqueta={`Vencimiento de ${c.concepto}`} /> : null}
                       {vence(c.venceEl, vencida)}
                     </td>
-                    <td className="py-2 pr-3">
-                      {c.proyecto ? <Link href={`/admin/proyectos/${c.proyecto.id}`} className="underline">{codigoProyecto(c.proyecto.numero, c.proyecto.createdAt)} {c.proyecto.nombre}</Link> : <span className="text-muted">Empresa</span>}
-                    </td>
-                    <td className="py-2 pr-3">
-                      {c.tipo === "COBRO" && c.proyecto && veClientes ? <Link href={`/admin/clientes/${c.proyecto.client.id}`} className="underline">{c.proyecto.client.name}</Link> : contraparte(c)}
-                    </td>
-                    <td className="py-2 pr-3">
-                      {c.concepto}
-                      {c.auto && <span className="ml-1 rounded border border-line px-1 text-xs text-muted">auto</span>}
-                    </td>
-                    <td className="whitespace-nowrap py-2 pr-3 text-right font-medium tabular-nums text-strong">
-                      {pagado ? plataEn(pagado.monto, pagado.moneda) : plataEn(falta, c.moneda)}
-                      {(pagado ? pagado.moneda !== c.moneda || pagado.monto !== c.monto : falta !== c.monto) && <span className="block text-xs font-normal text-muted">de {plataEn(c.monto, c.moneda)}</span>}
-                    </td>
-                    <td className="whitespace-nowrap py-2 pr-3 text-right tabular-nums text-muted">{referencia > 0 ? pesos(referencia) : "—"}</td>
-                    <td className="py-2 pr-3">{editaEmpresa ? <DatoCuota id={c.id} dato="factura" valor={c.factura ?? ""} etiqueta="Factura" /> : (c.factura ?? "—")}</td>
-                    <td className={cn("whitespace-nowrap py-2 pr-3", vencida && "font-medium text-danger")}>{est === "PAGADA" && c.tipo === "COBRO" ? "Cobrada" : ESTADO_LABEL[est]}</td>
-                    <td className="py-2 pr-3">
+                    {ve.has("evento") && (
+                      <td className="py-2 pr-3">
+                        {c.proyecto ? <Link href={`/admin/proyectos/${c.proyecto.id}`} className="underline">{codigoProyecto(c.proyecto.numero, c.proyecto.createdAt)} {c.proyecto.nombre}</Link> : <span className="text-muted">Empresa</span>}
+                      </td>
+                    )}
+                    {ve.has("contraparte") && (
+                      <td className="py-2 pr-3">
+                        {c.tipo === "COBRO" && c.proyecto && veClientes ? <Link href={`/admin/clientes/${c.proyecto.client.id}`} className="underline">{c.proyecto.client.name}</Link> : contraparte(c)}
+                      </td>
+                    )}
+                    {ve.has("concepto") && (
+                      <td className="py-2 pr-3">
+                        {c.concepto}
+                        {c.auto && <span className="ml-1 rounded border border-line px-1 text-xs text-muted">auto</span>}
+                      </td>
+                    )}
+                    {ve.has("monto") && (
+                      <td className="whitespace-nowrap py-2 pr-3 text-right font-medium tabular-nums text-strong">
+                        {pagado ? plataEn(pagado.monto, pagado.moneda) : plataEn(falta, c.moneda)}
+                        {(pagado ? pagado.moneda !== c.moneda || pagado.monto !== c.monto : falta !== c.monto) && <span className="block text-xs font-normal text-muted">de {plataEn(c.monto, c.moneda)}</span>}
+                      </td>
+                    )}
+                    {ve.has("enPesos") && <td className="whitespace-nowrap py-2 pr-3 text-right tabular-nums text-muted">{referencia > 0 ? pesos(referencia) : "—"}</td>}
+                    {ve.has("factura") && <td className="py-2 pr-3">{editaEmpresa ? <DatoCuota id={c.id} dato="factura" valor={c.factura ?? ""} etiqueta="Factura" /> : (c.factura ?? "—")}</td>}
+                    {ve.has("estado") && <td className={cn("whitespace-nowrap py-2 pr-3", vencida && "font-medium text-danger")}>{est === "PAGADA" && c.tipo === "COBRO" ? "Cobrada" : ESTADO_LABEL[est]}</td>}
+                    {ve.has("comentario") && <td className="py-2 pr-3">{editaEmpresa ? <DatoCuota id={c.id} dato="comentario" valor={c.comentario ?? ""} etiqueta="Comentario" /> : (c.comentario ?? "—")}</td>}
+                    <td className={cn("py-2 pl-3", fijaDerecha, vencida && "bg-danger-soft")}>
                       <div className="grid justify-items-start gap-1">
                         {cubierta && <span className="max-w-56 text-xs text-muted">{textoCubierta(c.auto)}</span>}
                         {cubierta && !deEmpresa && !c.auto && editaPagos && c.proyecto && <BotonDosPasos accion={quitarMovimiento} campos={{ id: c.id, proyectoId: c.proyecto.id }} etiqueta="Quitar" pregunta="¿Quitar esta cuota? Lo cobrado sigue registrado." />}
@@ -130,29 +175,35 @@ export async function TabCuentas({ tipo, estado, q, cuotas, sinCalendario = [], 
                         {deEmpresa && editaEmpresa && <BotonDosPasos accion={anularCuotaEmpresa} campos={{ id: c.id }} etiqueta="Anular" pregunta={est === "PAGADA" ? "¿Anular? La plata vuelve al libro." : "¿Anular?"} />}
                       </div>
                     </td>
-                    <td className="py-2">{editaEmpresa ? <DatoCuota id={c.id} dato="comentario" valor={c.comentario ?? ""} etiqueta="Comentario" /> : (c.comentario ?? "—")}</td>
                   </tr>
                 );
               })}
+            </tbody>
+            ))}
+            <tbody>
               {faltantes.map((f) => (
                 <tr key={`sin-calendario-${f.proyectoId}`} className="border-t border-line align-top">
                   <td className="py-2 pr-3 text-muted">Sin fecha</td>
-                  <td className="py-2 pr-3">
-                    <Link href={`/admin/proyectos/${f.proyecto.id}`} className="underline">{codigoProyecto(f.proyecto.numero, f.proyecto.createdAt)} {f.proyecto.nombre}</Link>
-                  </td>
-                  <td className="py-2 pr-3">{f.proyecto.client.name}</td>
-                  <td className="py-2 pr-3">
-                    Sin calendario
-                    <span className="block max-w-56 text-xs text-muted">Falta cobrarlo y no tiene cuota cargada.</span>
-                  </td>
-                  <td className="whitespace-nowrap py-2 pr-3 text-right font-medium tabular-nums text-strong">{plataEn(f.monto, f.moneda)}</td>
-                  <td className="whitespace-nowrap py-2 pr-3 text-right tabular-nums text-muted">{pesos(f.pesos)}</td>
-                  <td className="py-2 pr-3 text-muted">—</td>
-                  <td className="whitespace-nowrap py-2 pr-3">Pendiente</td>
-                  <td className="py-2 pr-3">
+                  {ve.has("evento") && (
+                    <td className="py-2 pr-3">
+                      <Link href={`/admin/proyectos/${f.proyecto.id}`} className="underline">{codigoProyecto(f.proyecto.numero, f.proyecto.createdAt)} {f.proyecto.nombre}</Link>
+                    </td>
+                  )}
+                  {ve.has("contraparte") && <td className="py-2 pr-3">{f.proyecto.client.name}</td>}
+                  {ve.has("concepto") && (
+                    <td className="py-2 pr-3">
+                      Sin calendario
+                      <span className="block max-w-56 text-xs text-muted">Falta cobrarlo y no tiene cuota cargada.</span>
+                    </td>
+                  )}
+                  {ve.has("monto") && <td className="whitespace-nowrap py-2 pr-3 text-right font-medium tabular-nums text-strong">{plataEn(f.monto, f.moneda)}</td>}
+                  {ve.has("enPesos") && <td className="whitespace-nowrap py-2 pr-3 text-right tabular-nums text-muted">{pesos(f.pesos)}</td>}
+                  {ve.has("factura") && <td className="py-2 pr-3 text-muted">—</td>}
+                  {ve.has("estado") && <td className="whitespace-nowrap py-2 pr-3">Pendiente</td>}
+                  {ve.has("comentario") && <td className="py-2 pr-3 text-muted">—</td>}
+                  <td className={cn("py-2 pl-3", fijaDerecha)}>
                     <Link href={`/admin/proyectos/${f.proyecto.id}?tab=finanzas`} className="flex min-h-11 items-center whitespace-nowrap text-sm underline">Cargar cuota</Link>
                   </td>
-                  <td className="py-2 text-muted">—</td>
                 </tr>
               ))}
             </tbody>
@@ -160,6 +211,53 @@ export async function TabCuentas({ tipo, estado, q, cuotas, sinCalendario = [], 
           {filas.length > MAX_FILAS && <p className="mt-2 text-sm text-muted">Se muestran las primeras {MAX_FILAS} de {filas.length}: usá el buscador para acotar.</p>}
         </div>
       )}
+
+      <details className={tarjeta}>
+        <summary className="flex min-h-11 cursor-pointer items-center font-semibold text-strong">Guardar una vista de esta lista</summary>
+        <p className="mb-3 mt-1 text-sm text-muted">Elegí qué columnas ver, qué filtrar y cómo ordenar. Lo que tu rol no puede ver no aparece aunque la vista lo pida.</p>
+        <FormAccion accion={guardarVista} boton="Guardar vista" className="sm:grid-cols-2">
+          <input type="hidden" name="lista" value={lista} />
+          <label className={etiqueta}>Nombre<input name="nombre" required maxLength={60} defaultValue={actual.alcance === "SISTEMA" ? "" : actual.nombre} className={campo} /></label>
+          {a.rol === "DIRECCION" ? (
+            <label className={etiqueta}>Para
+              <select name="alcance" defaultValue="PERSONA" className={campo}><option value="PERSONA">Sólo para mí</option><option value="ROL">Para un rol</option></select>
+            </label>
+          ) : (
+            <input type="hidden" name="alcance" value="PERSONA" />
+          )}
+          {a.rol === "DIRECCION" && (
+            <label className={etiqueta}>Rol (si es para un rol)
+              <select name="rol" defaultValue="ADMINISTRACION" className={campo}>{ROLES_GESTION.map((r) => <option key={r} value={r}>{ROL_LABEL[r]}</option>)}</select>
+            </label>
+          )}
+          <fieldset className="grid gap-1 sm:col-span-2"><legend className="mb-1 text-sm font-medium text-strong">Columnas</legend>
+            <div className="grid grid-cols-2 gap-x-3 sm:grid-cols-3">
+              {columnasPermitidas(lista, columnasOcultas(a)).filter((c) => !c.fija).map((c) => (
+                <label key={c.id} className="flex min-h-11 items-center gap-2 text-sm text-strong"><input type="checkbox" name="columnas" value={c.id} defaultChecked={ve.has(c.id)} className="h-5 w-5" />{c.id === "contraparte" ? (tipo === "COBRO" ? "Cliente" : "Proveedor") : c.label}</label>
+              ))}
+            </div>
+          </fieldset>
+          <label className={etiqueta}>Estado
+            <select name="estado" defaultValue={actual.filtros.estado} className={campo}>{FILTROS_CUOTA.map((f) => <option key={f} value={f}>{FILTRO_LABEL[f]}</option>)}</select>
+          </label>
+          <label className={etiqueta}>Vence
+            <select name="venceEnDias" defaultValue={String(actual.filtros.venceEnDias)} className={campo}><option value="0">Cuando sea</option><option value="7">En los próximos 7 días (y lo vencido)</option><option value="30">En los próximos 30 días (y lo vencido)</option></select>
+          </label>
+          <label className={etiqueta}>De
+            <select name="origen" defaultValue={actual.filtros.origen} className={campo}><option value="todos">Eventos y empresa</option><option value="eventos">Sólo eventos</option><option value="empresa">Sólo la empresa</option></select>
+          </label>
+          <label className={etiqueta}>Moneda
+            <select name="moneda" defaultValue={actual.filtros.moneda} className={campo}><option value="todas">Todas</option><option value="ARS">Pesos</option><option value="USD">Dólares</option></select>
+          </label>
+          <label className={etiqueta}>Agrupar
+            <select name="agrupacion" defaultValue={actual.agrupacion} className={campo}>{AGRUPACIONES.map((g) => <option key={g.id} value={g.id}>{g.label}</option>)}</select>
+          </label>
+          <label className={etiqueta}>Ordenar
+            <select name="orden" defaultValue={actual.orden} className={campo}>{ORDENES.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}</select>
+          </label>
+        </FormAccion>
+        {borrable && <div className="mt-3"><BotonDosPasos accion={borrarVista} campos={{ id: actual.id }} etiqueta={`Borrar la vista «${actual.nombre}»`} pregunta="¿Borrar esta vista? La lista no cambia." /></div>}
+      </details>
 
       {editaEmpresa && (
         <section className={tarjeta}>

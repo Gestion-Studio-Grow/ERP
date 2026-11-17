@@ -65,6 +65,7 @@ export default async function ConfiguracionGestion({ searchParams }: { searchPar
         <div className="flex flex-wrap gap-2">
           <Link href="/admin/cambiar-password" className={buttonClasses("outline", "md")}>Cambiar mi contraseña</Link>
           {veLaPlata(a.user) && <Link href="/admin/proyectos/config" className={cn(buttonClasses("ghost", "md"))}>Márgenes y condiciones de las propuestas</Link>}
+          {(a.rol === "DIRECCION" || a.rol === "ADMINISTRACION") && <Link href="/admin/proyectos/config/parametros" className={cn(buttonClasses("ghost", "md"))}>Parámetros del módulo</Link>}
         </div>
       </section>
     </main>
