@@ -189,6 +189,7 @@ export interface Puntaje {
   detalle: CriterioPuntaje[];
   /** Los criterios que no sumaron (sirven de lista para pedir datos). */
   faltantes: (keyof Vara["puntos"])[];
+  /** Puntaje sobre el umbral Y encaje «sí» (GSG-CRM-018c): lo que pide «Calificada», además del brief y el destino. */
   califica: boolean;
 }
 
@@ -254,7 +255,7 @@ export function puntuar(datos: DatosComerciales, ahora: Date, vara: Vara = VARA)
   );
 
   const puntaje = detalle.reduce((s, c) => s + c.suma, 0);
-  return { puntaje, detalle, faltantes: detalle.filter((c) => c.suma === 0).map((c) => c.criterio), califica: puntaje >= vara.umbral };
+  return { puntaje, detalle, faltantes: detalle.filter((c) => c.suma === 0).map((c) => c.criterio), califica: puntaje >= vara.umbral && datos.encaje === true };
 }
 
 /** Lo que propone el Calificador; lo confirma Dirección (E14). */
@@ -374,7 +375,10 @@ export function validarPase(v: VistaPase, destino: Etapa, ev: EvidenciaPase, aho
       const f = faltantesObligatorios(v.brief);
       if (f.length) falta.push(`el brief completo (falta ${lista(f.map((k) => ETIQUETA_CAMPO[k]))})`);
       const p = puntuar(v.datos, ahora, vara);
-      if (!p.califica) falta.push(`un puntaje de al menos ${vara.umbral} (tiene ${p.puntaje})`);
+      if (p.puntaje < vara.umbral) falta.push(`un puntaje de al menos ${vara.umbral} (tiene ${p.puntaje})`);
+      // GSG-CRM-018c · CRM-ENCAJE A (GSG-MIA-047 § 1.2): el encaje es condición, como el brief. Un pedido que no es
+      // de lo que se vende no llega a «Calificada» aunque el puntaje alcance.
+      if (v.datos.encaje !== true) falta.push("el encaje marcado «sí» (que pida algo que vendemos)");
       if (!v.destino) falta.push("el destino (Agencia o Taller)");
       break;
     }
@@ -439,7 +443,7 @@ export function alCambiarFechaDelEvento(
 ): { datos: DatosComerciales; puntaje: Puntaje; nuevaEtapa: Etapa | null; aviso: string | null } {
   const datos = { ...o.datos, fechaEvento: nuevaFecha };
   const puntaje = puntuar(datos, ahora, vara);
-  if (o.etapa === "CALIFICADA" && !puntaje.califica) {
+  if (o.etapa === "CALIFICADA" && puntaje.puntaje < vara.umbral) {
     return { datos, puntaje, nuevaEtapa: "FALTAN_DATOS", aviso: `Cambió la fecha del evento y ya no califica (puntaje ${puntaje.puntaje} de ${vara.umbral}). Volvió a «Faltan datos».` };
   }
   return { datos, puntaje, nuevaEtapa: null, aviso: null };

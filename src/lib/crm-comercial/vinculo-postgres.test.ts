@@ -357,6 +357,25 @@ test("V6 · motivo de pérdida: al ARM cruza sólo el motivo de catálogo; el de
   assert.match((await d.proyecto.findUniqueOrThrow({ where: { id: await proyectoDe(porFicha) }, select: { motivoPerdida: true } })).motivoPerdida ?? "", /Juan Perez/);
 });
 
+test("C-03 (e) · un lead «no encaja» con 85 puntos no llega a «Calificada»; con encaje «sí», sí", async (t) => {
+  const f = await preparar(t);
+  if (!f) return;
+  const { repo, base } = f;
+  const d = await prismaComoDuenio(base);
+  const dir = ctx(f, f.dir);
+  const op = ok(await repo.proponerOportunidad(dir, { tipo: "CONSULTA", marca: { nombre: "Encaje Demo", dominio: "encaje.example" }, consultaTexto: "Queremos un cumpleaños.", ...PASO }, AHORA));
+  ok(await repo.crearContacto(dir, { oportunidadId: op.id, nombre: "Eva Demo", email: "eva@encaje.example", telefono: "11 2345 9001", deConsultaEntrante: true, papel: "DECIDE" }, AHORA));
+  ok(await repo.comprobarIdentidad(dir, op.id, { emailDeQuienEscribe: "eva@encaje.example" }, AHORA));
+  ok(await repo.aplicarPase(dir, op.id, "EN_CONVERSACION", {}, AHORA));
+  assert.equal(ok(await repo.actualizarDatos(dir, op.id, { datos: { ...DATOS_OK, encaje: false } }, AHORA)).puntaje, 85);
+  const r = await repo.aplicarPase(dir, op.id, "CALIFICADA", {}, AHORA);
+  assert.equal(r.ok, false);
+  assert.match((r as { motivo: string }).motivo, /el encaje marcado «sí»/);
+  assert.equal((await d.oportunidad.findUniqueOrThrow({ where: { id: op.id }, select: { etapa: true } })).etapa, "EN_CONVERSACION");
+  ok(await repo.actualizarDatos(dir, op.id, { datos: { encaje: true } }, AHORA));
+  ok(await repo.aplicarPase(dir, op.id, "CALIFICADA", {}, AHORA), "con encaje «sí» califica");
+});
+
 test("V6 · el estado se lee sólo de proyectos que nacieron de este ARM", async (t) => {
   const f = await preparar(t);
   if (!f) return;

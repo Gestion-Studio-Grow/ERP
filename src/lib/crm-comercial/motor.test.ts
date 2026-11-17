@@ -160,6 +160,35 @@ test("A2 · el grafo: no se saltan etapas, las cerradas no se mueven, la consult
   assert.equal(validarPase(vista({ tipo: "CONSULTA", etapa: "RECIBIDA" }), "VERIFICADA", {}, AHORA).ok, false);
 });
 
+test("C-03 · CRM-ENCAJE A: «Calificada» exige encaje «sí», como el brief completo; el puntaje solo no alcanza", () => {
+  const conv = { etapa: "EN_CONVERSACION" as const, brief: BRIEF_OK, destino: "AGENCIA" as const };
+  const completos: DatosComerciales = { ...DATOS_OK, presupuestoMax: 8_000_000 };
+  // (a) Los cinco datos: 100 y pasa.
+  assert.equal(puntuar(completos, AHORA).puntaje, 100);
+  assert.ok(validarPase(vista({ ...conv, datos: completos }), "CALIFICADA", {}, AHORA).ok);
+  // (b) El evento a 21 días: 75 y el rechazo dice el puntaje.
+  const a21 = { ...completos, fechaEvento: "2026-12-07" };
+  assert.equal(puntuar(a21, AHORA).puntaje, 75);
+  assert.match(motivo(validarPase(vista({ ...conv, datos: a21, brief: { ...BRIEF_OK, fechaEvento: "2026-12-07" } }), "CALIFICADA", {}, AHORA)), /un puntaje de al menos 80 \(tiene 75\)/);
+  // (c) Sin presupuesto: 80, y lo frena el brief.
+  const sinPlata = { ...completos, presupuestoMin: null, presupuestoMax: null };
+  assert.equal(puntuar(sinPlata, AHORA).puntaje, 80);
+  assert.match(motivo(validarPase(vista({ ...conv, datos: sinPlata, brief: { ...BRIEF_OK, presupuesto: null } }), "CALIFICADA", {}, AHORA)), /falta el presupuesto o un rango/);
+  // (e) Marcado «no encaja», el resto completo: 85, sobre el umbral, y NO califica.
+  const noEncaja = { ...completos, encaje: false };
+  const p = puntuar(noEncaja, AHORA);
+  assert.equal(p.puntaje, 85);
+  assert.equal(p.califica, false, "la ficha no dice «alcanza para calificar»");
+  const r = validarPase(vista({ ...conv, datos: noEncaja }), "CALIFICADA", {}, AHORA);
+  assert.equal(r.ok, false);
+  assert.match(motivo(r), /el encaje marcado «sí»/);
+  assert.doesNotMatch(motivo(r), /puntaje de al menos/, "el puntaje alcanza: lo que falta es el encaje");
+  // Encaje sin marcar: tampoco.
+  const sinMarcar = { ...completos, encaje: null };
+  assert.equal(puntuar(sinMarcar, AHORA).puntaje, 85);
+  assert.match(motivo(validarPase(vista({ ...conv, datos: sinMarcar }), "CALIFICADA", {}, AHORA)), /el encaje marcado «sí»/);
+});
+
 test("E6 · CALIFICADA → FALTAN_DATOS es un pase válido", () => {
   assert.ok(validarPase(vista({ etapa: "CALIFICADA", brief: { marca: "X" } }), "FALTAN_DATOS", {}, AHORA).ok);
 });
