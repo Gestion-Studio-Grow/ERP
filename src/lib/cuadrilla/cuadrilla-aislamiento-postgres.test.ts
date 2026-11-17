@@ -122,8 +122,13 @@ test("cuadrilla bajo RLS: aislamiento entre negocios, usuario de agente y nivel 
   });
 
   await t.test("nivel 0: nunca en lote; de a uno sólo con la huella del contenido que se vio", async () => {
-    assert.ok(conError(await ejecutarAccion(supA, () => panelLote(fd({ op: "aprobar", sel: [`${a.id}:${e1}`, `${a.id}:${e2}`] })))));
+    const mixto = await ejecutarAccion(supA, () => panelLote(fd({ op: "aprobar", sel: [`${a.id}:${e1}`, `${a.id}:${e2}`] })));
+    assert.ok(conError(mixto));
+    // El aviso nombra primero la plata (GSG-MIA-076).
+    const aviso = new URLSearchParams((mixto as { destino: string }).destino.split("?")[1]?.split("#")[0] ?? "").get("error") ?? "";
+    assert.match(aviso, /^Plata: en el lote hay 1 de plata\. No se aprobó nada/);
     assert.equal(await estado(e1), "PENDIENTE", "el lote con plata no aprueba ni la común");
+    assert.equal(await estado(e2), "PENDIENTE", "ni la de plata");
     assert.ok(conError(await ejecutarAccion(supA, () => panelDecidir(fd({ op: "aprobar", id: e2 })))));
     assert.ok(conError(await ejecutarAccion(supA, () => panelDecidir(fd({ op: "aprobar", id: e2, huella: huellaDe("otro contenido") })))));
     assert.equal(await estado(e2), "PENDIENTE");

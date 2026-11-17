@@ -78,6 +78,15 @@ const SI: Resultado = { ok: true };
 const no = (motivo: string): Resultado => ({ ok: false, motivo });
 
 /** Plata o envío a terceros: lo que nunca se aprueba en lote ni sin mirar. */
+/** El aviso de un lote que trae plata o envíos: la plata va primero. No se aprobó nada. */
+export function avisoDeLoteConNivel0(plata: number, envios: number): string {
+  const partes = [
+    plata ? `${plata === 1 ? "1 de plata" : `${plata} de plata`}` : null,
+    envios ? `${envios === 1 ? "1 envío a terceros" : `${envios} envíos a terceros`}` : null,
+  ].filter(Boolean);
+  return `Plata: en el lote hay ${partes.join(" y ")}. No se aprobó nada: ${plata ? "la plata" : "los envíos"}${plata && envios ? " y los envíos" : ""} se aprueban de a uno, viendo el contenido.`;
+}
+
 export function esNivel0(categoria: string): boolean {
   return categoria === "PLATA" || categoria === "ENVIO_TERCEROS";
 }
@@ -147,10 +156,14 @@ export function puede(actor: Actor | null | undefined, operacion: Operacion, ctx
       const lote = ctx.lote ?? [];
       if (lote.length === 0) return no("Elegí al menos una excepción.");
       if (lote.length > 50) return no("De a 50 como máximo.");
+      if (operacion === "aprobar_lote") {
+        // Lote mixto (GSG-MIA-076): el aviso nombra PRIMERO la plata, antes que cualquier otro motivo, y no se
+        // aprueba nada del lote (ni las comunes): la plata y los envíos se aprueban de a uno, viendo el contenido.
+        const plata = lote.filter((e) => e.categoria === "PLATA").length;
+        const envios = lote.filter((e) => e.categoria === "ENVIO_TERCEROS").length;
+        if (plata || envios) return no(avisoDeLoteConNivel0(plata, envios));
+      }
       for (const e of lote) {
-        if (operacion === "aprobar_lote" && esNivel0(e.categoria)) {
-          return no("En el lote hay plata o envíos a terceros: esos se aprueban de a uno, viendo el contenido.");
-        }
         const r = decidirUna(actor, operacion === "aprobar_lote" ? "aprobar" : "rechazar", e, false);
         if (!r.ok) return r;
       }

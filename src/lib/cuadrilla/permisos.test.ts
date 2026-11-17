@@ -108,3 +108,12 @@ test("nivel 0 = plata y envíos a terceros", () => {
   assert.equal(esNivel0("ENVIO_TERCEROS"), true);
   assert.equal(esNivel0("OTRA"), false);
 });
+
+test("lote mixto (GSG-MIA-076): el aviso nombra primero la plata, aunque otra venga antes o falle por otra cosa", () => {
+  const r = puede(supA, "aprobar_lote", { lote: [envio, ex({ tenantId: B }), ex(), plata] });
+  assert.equal(r.ok, false);
+  if (r.ok) return;
+  assert.match(r.motivo, /^Plata: en el lote hay 1 de plata y 1 envío a terceros\. No se aprobó nada/);
+  const soloEnvio = puede(operador, "aprobar_lote", { lote: [envio, ex()] });
+  assert.ok(!soloEnvio.ok && /1 envío a terceros/.test(soloEnvio.motivo) && !/de plata/.test(soloEnvio.motivo));
+});
