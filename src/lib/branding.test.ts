@@ -154,3 +154,8 @@ test("marcaDelNegocio: sin ficha propia manda la identidad del producto; sin ide
   assert.equal(brandForSlug("un-negocio-sin-ficha").propia, undefined);
   assert.deepEqual(marcaDelNegocio(brandForSlug(null), null), { nombre: "Mi negocio", monograma: "•" });
 });
+
+test("MIA Taller tiene su propio nombre en el ingreso, distinto de MIA Producciones (V9)", () => {
+  assert.equal(brandForSlug("mia-taller").name, "MIA Taller");
+  assert.notEqual(brandForSlug("mia-taller").name, brandForSlug("mia-producciones").name);
+});
