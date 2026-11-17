@@ -2,6 +2,11 @@
 
 Hasta 5 líneas por sesión: fecha · código de sesión · qué · `archivo:línea`. Lo más nuevo, arriba.
 
+- 17/11/2026 · GSG-CRM-018c (session_01BtqRUK1TCt8sozigmiWkVD) · Al asignar, `datos` del ARM pierde el rango y queda `teniaPresupuesto` (`repo.ts` → `datosAlAsignar`); `puntuar` lo cuenta como presupuesto. Quien lea `datos.presupuestoMin` de una asignada lee vacío a propósito: el rango vive en el proyecto del destino.
+- 17/11/2026 · GSG-CRM-018c · El proyecto guarda la pérdida como «Motivo del catálogo — detalle libre» (`_cliente.tsx` del proyecto, `motivoBase` en `gestion-core.ts:53`). Entre negocios cruza sólo el catálogo (`motor.ts` → `cierreEntreNegocios`, `MOTIVO_DEL_PROYECTO`); si se suma un motivo a `MOTIVOS_PERDIDA`, el test de motor obliga a mapearlo.
+- 17/11/2026 · GSG-CRM-018c · `Puntaje.califica` ahora es «puntaje sobre el umbral Y encaje sí»; para «¿alcanza el puntaje?» usá `puntaje >= vara.umbral` (así lo hacen `validarPase` y `alCambiarFechaDelEvento`).
+- 17/11/2026 · GSG-CRM-018c · Un worktree de agente puede nacer en un `main` viejo sin el CRM: mirá `git log -1` contra la punta de la rama del frente antes de leer nada. El worktree no trae `node_modules` ni `src/generated`: enlazalos a los del checkout principal (nunca al commit).
+
 - 16/11/2026 · GSG-CRM-011 p3 (session_01BtqRUKyvT9XeagEzXz6HWX) · `mapa-codigo.mjs --a <ruta>` ESCRIBE el mapa en esa ruta: nunca le pases un archivo de código (pisó `repo.ts` y `motor.ts`). Usalo sin `--a` o con `--a` al scratchpad (`.claude/scripts/mapa-codigo.mjs:15`).
 - 16/11/2026 · GSG-CRM-011 p3 · E21 compara el rubro EXACTO (`motor.ts:691`): «alimentos: lácteos (quesos y leches)» no choca con «alimentos: lácteos (quesos, yogures…)». Con rubros en texto libre la trampa de exclusividad de la prueba (L17 vs C02) no salta sola.
 - 16/11/2026 · GSG-CRM-011 p3 · E1 une sólo marca × evento exacto (`repo.ts:509`): una consulta que nombra el evento sin fecha queda sin evento y no se une al prospecto de la misma marca en ese evento (L03 vs L16 quedan dos).
