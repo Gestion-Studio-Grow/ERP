@@ -172,6 +172,7 @@ export const PUERTAS_DE_RUTAS: Readonly<Record<string, string>> = {
   "/diseno/version/[versionId]": "V:diseno",
   "/equipo": "V:equipo",
   "/imprimir-liquidacion/[id]": "SESION — la propia, o con Liquidaciones (`puede`)",
+  "/imprimir/productora/[id]": "V:cotizaciones",
   "/imprimir/venta/[id]": "V:cotizaciones",
   "/inicio": "SESION — cada tarjeta con `puede`",
   "/mi-liquidacion": "SESION — sólo lo propio (`personaId`)",
@@ -185,6 +186,8 @@ export const PUERTAS_DE_RUTAS: Readonly<Record<string, string>> = {
   "/proveedores/nuevo": "E:proveedores V:proveedores",
   "/proveedores": "V:proveedores",
   "/reportes": "PLATA:ver",
+  "/taller/piezas": "V:costos V:cotizaciones",
+  "/taller/valores-hora": "V:costos V:cotizaciones",
 };
 
 /** Los términos de una puerta, sin el motivo. */
