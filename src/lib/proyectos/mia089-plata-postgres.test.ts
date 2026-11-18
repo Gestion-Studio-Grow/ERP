@@ -673,6 +673,9 @@ test("V2 (MIA-099) · perdido en dólares con la seña cobrada: nada por cobrar 
   assert.equal(fila.cobrado, cobradoEnPesos, "al mismo cambio, lo cobrado en pesos es lo que entró a la caja");
 });
 
+// Tipos explícitos: adentro del `for`, tsc no infiere estas constantes (TS7022).
+type FilaDeAdministracion = Awaited<ReturnType<typeof import("./empresa.server").recuadrosDeCuotas>>["cuotas"][number];
+
 test("ADV-7 (MIA-107) · un cobro cargado a mano en Pedido o en Presupuesto y después perdido: Administración no lo cuenta pendiente, la caja no lo espera y el servidor no lo marca (decisión 2 = A, provisional a confirmar por el dueño)", async (t) => {
   const p = await preparar(t);
   if (!p) return;
@@ -682,15 +685,15 @@ test("ADV-7 (MIA-107) · un cobro cargado a mano en Pedido o en Presupuesto y de
   for (const etapa of ["PEDIDO", "PRESUPUESTO"]) {
     const id = await p.proyecto(etapa);
     const concepto = `Seña a mano en ${etapa}`;
-    const r = await p.enSesion(() => p.ficha.crearMovimientoManual(p.form({ proyectoId: id, tipo: "COBRO", concepto, monto: "200", moneda: "ARS", venceEl: "2026-10-26" })));
+    const r: { ok: boolean } = await p.enSesion(() => p.ficha.crearMovimientoManual(p.form({ proyectoId: id, tipo: "COBRO", concepto, monto: "200", moneda: "ARS", venceEl: "2026-10-26" })));
     assert.equal(r.ok, true, `${etapa}: el cobro a mano se carga: ${JSON.stringify(r)}`);
-    const cuota = await p.duenio.proyectoCuota.findFirstOrThrow({ where: { proyectoId: id, concepto }, select: { id: true } });
-    const antes = (await p.administracion()).cuotas.find((c) => c.id === cuota.id)!;
+    const cuota: { id: string } = await p.duenio.proyectoCuota.findFirstOrThrow({ where: { proyectoId: id, concepto }, select: { id: true } });
+    const antes: FilaDeAdministracion = (await p.administracion()).cuotas.find((c) => c.id === cuota.id)!;
     assert.equal(antes.pendiente, 200, `${etapa}: antes de perder, pendiente por su monto`);
     const cajaAntes = await cobrosDelMes();
     assert.equal((await p.mover(id, "PERDIDO", "Eligió otro proveedor")).ok, true);
     const adm = await p.administracion();
-    const fila = adm.cuotas.find((c) => c.id === cuota.id);
+    const fila: FilaDeAdministracion | undefined = adm.cuotas.find((c) => c.id === cuota.id);
     assert.ok(fila, `${etapa}: la cuota sigue en la lista (en «Todos»): no se borra nada`);
     assert.equal(fila.pagadoEl, null, `${etapa}: perder no la marca`);
     assert.equal(fila.pendiente, 0, `${etapa}: un perdido no se cobra: la cuota no queda pendiente de cobro`);
