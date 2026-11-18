@@ -1,0 +1,7 @@
+# MIA-094 · A2 (DIR-007) · contraprueba del invariante de saldos (18/11/2026)
+# Con `perdidoEl: null` en la cobranza de fichaProyecto (datos.server.ts, como estaba antes de b3f3e757):
+#   node --import tsx --test --test-name-pattern="A2 " src/lib/proyectos/mia089-plata-postgres.test.ts
+  error: 'perder · saldo (fuente, Estado financiero, Finanzas, Rentabilidad): 0,1563.4,0,0'
+# pass 0
+# fail 1
+# Restaurado el arreglo: pass 1, fail 0.

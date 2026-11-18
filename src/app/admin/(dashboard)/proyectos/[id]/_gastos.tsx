@@ -8,12 +8,17 @@ import { buttonClasses, cn } from "@/components/ui";
 import { registrarGasto } from "@/lib/proyectos/acciones";
 import { MEDIOS, MEDIO_LABEL } from "@/lib/proyectos/core";
 import { campo } from "../_vista";
+import { nuevaClave } from "./_cliente";
 
 export function FormGasto({ proyectoId, proveedores, rubros, hoy }: { proyectoId: string; proveedores: readonly string[]; rubros: readonly string[]; hoy: string }) {
   const [error, setError] = useState<string | null>(null);
   const [pagado, setPagado] = useState(false);
+  // El servidor no grabó y pide un sí explícito (la deuda ya está en el calendario de pagos): el texto de la casilla.
+  const [confirmar, setConfirmar] = useState<string | null>(null);
   const [ocupado, iniciar] = useTransition();
   const form = useRef<HTMLFormElement>(null);
+  // La misma clave hasta que el servidor contesta: un doble clic o un reintento no carga el gasto dos veces (MIA-089 · V7).
+  const clave = useRef<string | null>(null);
 
   return (
     <form
@@ -22,7 +27,10 @@ export function FormGasto({ proyectoId, proveedores, rubros, hoy }: { proyectoId
       action={(fd) =>
         iniciar(async () => {
           setError(null);
+          fd.set("claveEnvio", (clave.current ??= nuevaClave()));
           const r = await registrarGasto(fd);
+          clave.current = null;
+          setConfirmar(r.ok ? null : (r.confirmar ?? null));
           if (!r.ok) return setError(r.error);
           form.current?.reset();
           setPagado(false);
@@ -52,6 +60,12 @@ export function FormGasto({ proyectoId, proveedores, rubros, hoy }: { proyectoId
       )}
       <button type="submit" disabled={ocupado} className={cn(buttonClasses("solid", "md"), "sm:col-span-2")}>{ocupado ? "Guardando…" : "Registrar gasto"}</button>
       {error && <p role="alert" className="text-sm text-danger sm:col-span-4">{error}</p>}
+      {confirmar && (
+        <label className="flex min-h-11 items-center gap-2 text-sm text-strong sm:col-span-4">
+          <input type="checkbox" name="confirmaOtraDeuda" value="1" className="size-5" />
+          {confirmar}
+        </label>
+      )}
     </form>
   );
 }
