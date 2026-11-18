@@ -1,0 +1,10 @@
+not ok 1 - V1 · Confirmado → Lead → Confirmado sin cobros: la seña firme y vencida (26/10) conserva vencimiento, monto y estado, y «Cobros vencidos» no baja
+not ok 2 - V1 · con un cobro registrado no se vuelve antes de Confirmado: 0 filas cambiadas y lo dice
+not ok 3 - V2 · perdido con la seña cobrada: nada por cobrar en la fuente única, Administración y Rentabilidad; el servidor no cobra ni marca
+not ok 4 - V3 · perdido en Producción y reabierto soltando la tarjeta en Confirmado: vuelve a Producción con las cuotas de antes
+not ok 5 - V4 · carreras: perder contra cobrar y retroceder contra marcar, en los dos órdenes, con el candado de la cobranza
+not ok 6 - V6 · gasto directo sin pagar en un proyecto sin cuotas: «A pagar» de Administración = «Por pagar» de Rentabilidad; pagarlo lo saca de las dos con un egreso
+not ok 7 - V7 · el mismo envío dos veces y diez a la vez deja una sola cuota (empresa y movimiento manual); dos envíos distintos iguales, dos
+ok 8 - V8a · cambiar el tipo de cambio no cambia un peso de lo ya cobrado ni de las cuotas pagadas
+# pass 1
+# fail 7
