@@ -55,9 +55,31 @@ test("ADM-134 y ADM-135 · Rendiciones y pagar liquidación deciden por la matri
       await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${a.id}, true)`;
       return fn(tx);
     });
-  /** Dirección fija una celda de la matriz (la precondición; lo que se prueba es la acción, no esta escritura). */
-  const fijar = (rol: string, modulo: string, ver: boolean, editar: boolean) =>
-    mirar((tx) => tx.proyectoPermiso.upsert({ where: { tenantId_rol_modulo: { tenantId: a.id, rol, modulo } }, create: { tenantId: a.id, rol, modulo, ver, editar }, update: { ver, editar } }));
+  /**
+   * Dirección (la dueña) cambia una celda de la matriz por la pantalla: `guardarPermisos` con la matriz entera, como la manda
+   * Equipo › Permisos. Parte de la de fábrica y acumula los cambios.
+   */
+  const core = await import("./gestion-core");
+  const { guardarPermisos } = await import("./acciones-gestion");
+  const editables = core.ROLES_GESTION.filter((r) => r !== "DIRECCION");
+  const matriz = new Map<string, { ver: boolean; editar: boolean }>();
+  for (const rol of editables) for (const { id } of core.MODULOS) matriz.set(`${rol}:${id}`, core.PERMISOS_BASE[rol][id]);
+  const fijar = async (rol: string, modulo: string, ver: boolean, editar: boolean) => {
+    matriz.set(`${rol}:${modulo}`, { ver, editar });
+    const fd = new FormData();
+    for (const r of editables) {
+      for (const { id } of core.MODULOS) {
+        const p = matriz.get(`${r}:${id}`)!;
+        if (p.ver) fd.set(`ver:${r}:${id}`, "on");
+        if (p.editar) fd.set(`editar:${r}:${id}`, "on");
+      }
+      for (const c of core.COLUMNAS_OCULTAS_BASE[r]) fd.set(`oculta:${r}:${c}`, "on");
+    }
+    const r = await ejecutarAccion({ negocio: a, usuario: { id: a.duenia.id } }, () => guardarPermisos(fd));
+    assert.deepEqual(r.tipo === "redireccion" && r.destino, "/admin/proyectos/equipo?tab=permisos&ok=1", `Dirección guarda ${rol}:${modulo}: ${JSON.stringify(r)}`);
+    const guardada = await mirar((tx) => tx.proyectoPermiso.findFirst({ where: { rol, modulo }, select: { ver: true, editar: true } }));
+    assert.deepEqual(guardada, { ver, editar }, `quedó ${rol}:${modulo}`);
+  };
   const foto = () =>
     mirar(async (tx) => ({
       rendiciones: (await tx.proyectoRendicion.findMany({ select: { id: true, estado: true, liquidacionId: true } })).map((r) => `${r.id}|${r.estado}|${r.liquidacionId}`).sort(),
