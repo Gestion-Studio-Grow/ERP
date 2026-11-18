@@ -4,6 +4,12 @@ Fuente: `src/lib/proyectos/gestion-core.ts` (`PERMISOS_BASE`, `COLUMNAS_OCULTAS_
 `revisaRendiciones`, `pagaLiquidaciones`) en la rama `mia-088/permisos`. Es la matriz de fábrica: Dirección la cambia por negocio
 en Equipo › Permisos, y lo guardado manda sobre la fábrica (`permisoDe`). E = ve y edita · V = sólo ve · N = no lo abre.
 
+**A1 de DIR-007 (GSG-MIA-091): la matriz única está en el código.** Lo que tiene cada rol: `matrizDePermisos(guardados)`
+(`gestion-core.ts`), fijado celda por celda por `gestion-core-matriz.test.ts`. Lo que pide cada una de las 32 páginas y las 128
+acciones de servidor de Proyectos: `src/lib/proyectos/matriz-permisos.ts`. `matriz-permisos.test.ts` lee el código y la recorre
+entera: una página o una acción sin anotar, una puerta distinta de la anotada o una `requireCapabilityFueraDeLaAgenda` fuera de
+`exigirPlataDeDireccion` lo ponen rojo; después cruza rol × ruta × acción y fija cuántas abre cada rol.
+
 ## Qué ve y qué edita cada rol (fábrica)
 
 | Módulo | Dirección | Administración | Comercial | Diseño | Producción |
@@ -28,7 +34,7 @@ Dirección, Administración y Producción. Sin ficha (y sin ser la dueña): nada
 ## Quién cambia la regla
 
 - **La matriz y las columnas: sólo Dirección** (`cambiaLosPermisos`, puerta en `guardarPermisos`). Quien tiene «Equipo» en
-  editar carga y edita personas, no permisos. *Pregunta 1, opción A: provisional a confirmar por el dueño.*
+  editar carga y edita personas, no permisos. *Pregunta 1, opción A: confirmada por el dueño el 18/11.*
 - Pasar a alguien a Dirección o sacarlo de Dirección: sólo Dirección. Nadie cambia su propio rol. Nadie que no sea Dirección
   desvincula su cuenta de su ficha ni la pasa a otra ficha.
 - Dirección es fija: ve y edita todo; la dueña sin ficha cuenta como Dirección.
@@ -37,7 +43,7 @@ Dirección, Administración y Producción. Sin ficha (y sin ser la dueña): nada
 
 | Qué | Pide |
 |---|---|
-| Rentabilidad (`reporteProyectos`, `proveedoresConGastos`) | `direccion` en V. *Pregunta 2, opción A: provisional a confirmar por el dueño* |
+| Rentabilidad (`reporteProyectos`, `proveedoresConGastos`) | `direccion` en V. *Pregunta 2, opción A: confirmada por el dueño el 18/11* |
 | Configuración (`guardarConfig`) | `direccion` en E (misma pregunta 2) |
 | Parámetros del módulo | verlos: Dirección y Administración; cambiarlos: sólo Dirección (sin cambios en esta rama) |
 | Rendir un gasto propio | `rendiciones` en V y un rol que rinde (Diseño no rinde) |

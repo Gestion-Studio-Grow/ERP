@@ -1,6 +1,6 @@
 // A1 (DIR-007) · La matriz única de permisos de Proyectos, fijada por test (GSG-MIA-091, criterio P1 de GSG-MIA-088).
 // Si alguien cambia lo de fábrica, este test se pone rojo y la tabla del PR (docs/qa/mia-088/registro.md) se rehace.
-// Preguntas del plan, provisionales a confirmar por el dueño: 1-A (la matriz la cambia sólo Dirección) y 2-A (el módulo
+// Preguntas del plan, confirmadas por el dueño el 18/11: 1-A (la matriz la cambia sólo Dirección) y 2-A (el módulo
 // `direccion` decide Rentabilidad y Configuración). Dirección es la misma fila para una persona y para un agente: ningún
 // permiso pregunta si quien actúa es un agente.
 import { test } from "node:test";

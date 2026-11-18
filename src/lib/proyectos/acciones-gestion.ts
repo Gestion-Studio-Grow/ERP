@@ -268,7 +268,7 @@ export async function reiniciarSegundoFactor(formData: FormData): Promise<void> 
 
 /**
  * Sólo escribe lo que cambió, y Dirección es fija. PRY-100: la matriz la cambia sólo Dirección (`cambiaLosPermisos`,
- * provisional a confirmar por el dueño): quien tiene «Equipo» carga personas, no permisos, ni de otros roles ni en dos pasos.
+ * pregunta 1-A, confirmada por el dueño el 18/11): quien tiene «Equipo» carga personas, no permisos, ni de otros roles ni en dos pasos.
  */
 export async function guardarPermisos(formData: FormData): Promise<void> {
   const a = await exigirEditar("equipo");

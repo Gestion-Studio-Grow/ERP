@@ -755,7 +755,7 @@ export const pagaLiquidaciones = (rol: RolGestion, p: Permiso): boolean => ROLES
 /**
  * A1 (DIR-007, GSG-MIA-091) · LA matriz, escrita una vez: rol × módulo con lo que ve y edita cada uno (lo guardado por
  * Dirección encima de lo de fábrica), las columnas de costo que no ve y quién puede cambiar esa fila (pregunta 1-A,
- * provisional a confirmar por el dueño). Dirección es la misma fila para una persona y para un agente. La fija
+ * confirmada por el dueño el 18/11). Dirección es la misma fila para una persona y para un agente. La fija
  * `gestion-core-matriz.test.ts`; `docs/qa/mia-088/tabla-de-permisos.md` es su copia legible. PURA.
  */
 export function matrizDePermisos(guardados: readonly { rol: string; modulo: string; ver: boolean; editar: boolean; columnasOcultas?: unknown }[]) {

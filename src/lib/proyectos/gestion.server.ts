@@ -65,7 +65,7 @@ export async function exigirEditar(modulo: ModuloGestion): Promise<Actor> {
  * Rentabilidad, Proveedores con gastos y Configuración de propuestas (PRY-099 y ADM-140): decide el rol de gestión, no la
  * capability del ERP. Las ve Dirección y a quien Dirección le abra el módulo `direccion` («ver» para leer, «editar» para
  * guardar). El techo del ERP sigue: sin `agenda:manage` fuera de la agenda, no entra aunque tenga el módulo. Para pantallas
- * y acciones: sin permiso, de vuelta a Inicio. Provisional a confirmar por el dueño (plan GSG-MIA-088, pregunta 2, A).
+ * y acciones: sin permiso, de vuelta a Inicio. Pregunta 2-A del plan GSG-MIA-088, confirmada por el dueño el 18/11.
  */
 export async function exigirPlataDeDireccion(accion: "ver" | "editar"): Promise<Actor> {
   await requireCapabilityFueraDeLaAgenda("agenda:manage");
