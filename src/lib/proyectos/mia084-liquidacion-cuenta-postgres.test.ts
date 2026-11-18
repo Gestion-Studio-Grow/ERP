@@ -132,6 +132,7 @@ test("N1a · con cuentas cargadas y sin elegir ninguna opción, no se paga: esta
   const r = await p.pagar(id, {});
   assert.equal(r.ok, false, `sin cuenta elegida no se paga: ${JSON.stringify(r)}`);
   assert.match(String(r.error), /cuenta/i, "el rechazo pide la cuenta");
+  assert.match(String(r.error), /recargá la página/, "con la pantalla vieja (sin la lista de cuentas) dice cómo seguir");
   assert.deepEqual(await p.foto(id), antes, "nada cambió");
 });
 

@@ -497,7 +497,7 @@ export async function publicarBorradores(formData: FormData): Promise<Resultado<
 /** Aborta la transacción del pago: los reintegros reclamados no coinciden con los del total. */
 class Descuadre extends Error {}
 const DESCUADRE = "Los reintegros de esta liquidación no cuadran con su total: no se pagó nada. Avisá a Dirección para revisarla.";
-const SIN_CUENTA = "Elegí de qué cuenta sale el pago, o «Ninguna cuenta del banco» si no sale de ninguna.";
+const SIN_CUENTA = "Elegí de qué cuenta sale el pago, o «Ninguna cuenta del banco» si no sale de ninguna. Si no ves la lista de cuentas, recargá la página.";
 
 export async function pagarLiquidacion(formData: FormData): Promise<Resultado> {
   const a = await actorActual();
