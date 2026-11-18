@@ -1,4 +1,4 @@
-import { tipoDeArchivoSubido } from "./ficha-core";
+import { cobroFrenadoPorPerdido, tipoDeArchivoSubido } from "./ficha-core";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { cambiosEntreVersiones, cashflowDelEvento, ventaTotalItem } from "./gestion-core";
@@ -159,4 +159,14 @@ test("precioAlCambiarCambio: US$ 4.033,33 tipeados a 1.350 siguen siendo US$ 4.0
   assert.equal(precioAlCambiarCambio(aMil400, 1400, 1350), aMil350, "ida y vuelta vuelve al mismo precio");
   assert.equal(precioAlCambiarCambio(0, 1350, 1400), 0, "sin precio a mano (sale del recargo) no se toca");
   assert.equal(precioAlCambiarCambio(1000, 0, 1400), 1000, "sin cambio viejo no se inventa");
+});
+
+test("ADV-7 (MIA-107) · cobroFrenadoPorPerdido: sólo un cobro sin marcar de un perdido; falla cerrada como `perdidoAdmite`", () => {
+  const perdido = { perdidoEl: new Date("2026-11-01T12:00:00Z") };
+  assert.equal(cobroFrenadoPorPerdido({ tipo: "COBRO", pagadoEl: null, proyecto: perdido }), true);
+  assert.equal(cobroFrenadoPorPerdido({ tipo: "OTRO", pagadoEl: null, proyecto: perdido }), true, "un tipo desconocido no pasa");
+  assert.equal(cobroFrenadoPorPerdido({ tipo: "PAGO", pagadoEl: null, proyecto: perdido }), false, "la deuda con un proveedor se paga sin reabrir");
+  assert.equal(cobroFrenadoPorPerdido({ tipo: "COBRO", pagadoEl: new Date(), proyecto: perdido }), false, "lo cobrado sigue cobrado");
+  assert.equal(cobroFrenadoPorPerdido({ tipo: "COBRO", pagadoEl: null, proyecto: { perdidoEl: null } }), false, "un proyecto vivo se cobra");
+  assert.equal(cobroFrenadoPorPerdido({ tipo: "COBRO", pagadoEl: null, proyecto: null }), false, "una cuota de la empresa no tiene proyecto");
 });

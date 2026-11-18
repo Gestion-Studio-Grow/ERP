@@ -65,12 +65,14 @@ export function FormAccion({ accion, children, boton, className, limpiar = true,
   return (
     <form
       className={cn("grid gap-2", className)}
-      onSubmit={alEnviar((fd, form) => {
-        if (claveDeEnvio) fd.set("claveEnvio", (clave.current ??= nuevaClave()));
-        return correr(claveDeEnvio ? conClave : accion, fd, () => {
-          if (limpiar) form.reset();
-        });
-      })}
+      onSubmit={(e) =>
+        alEnviar((fd, form) => {
+          if (claveDeEnvio) fd.set("claveEnvio", (clave.current ??= nuevaClave()));
+          return correr(claveDeEnvio ? conClave : accion, fd, () => {
+            if (limpiar) form.reset();
+          });
+        })(e)
+      }
     >
       {children}
       <button type="submit" disabled={ocupado} className={cn(buttonClasses("solid", "md"), "min-h-11 justify-self-start")}>{ocupado ? "Guardando…" : boton}</button>

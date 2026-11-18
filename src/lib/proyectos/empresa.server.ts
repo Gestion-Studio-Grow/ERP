@@ -13,6 +13,7 @@ import { redondear, yaVencio } from "./core";
 import { conciliarConCobros, pagadoDeCuota, repartoDelNegocio, resumenConCobranza, sinCalendarioDelNegocio, SIN_PREVISTAS_SIN_MARCAR } from "./cobranza-core";
 import { cobranzasDelNegocio } from "./cobranza.server";
 import { conPagosParciales, conPartesComoPagadas } from "./pago-parcial-core";
+import { cobroFrenadoPorPerdido } from "./ficha-core";
 import { pagosParcialesDeCuotas } from "./pago-parcial.server";
 
 const MESES_PROYECCION = 6;
@@ -39,7 +40,7 @@ export async function cuotasDelNegocio(tenantId: string) {
       comentario: true,
       auto: true,
       supplier: { select: { name: true } },
-      proyecto: { select: { id: true, numero: true, nombre: true, createdAt: true, client: { select: { id: true, name: true } } } },
+      proyecto: { select: { id: true, numero: true, nombre: true, createdAt: true, perdidoEl: true, client: { select: { id: true, name: true } } } },
     },
   });
 }
@@ -61,7 +62,13 @@ export async function recuadrosDeCuotas(tenantId: string) {
   // pagó tal como entró (el original y los pesos asentados), sacado de la misma cobranza, sin otra consulta.
   // Y las de pago con lo pagado en parte a proveedor (pago-parcial-core): les queda su monto menos esas partes.
   const partes = await pagosParcialesDeCuotas(tenantId, cuotas, tc);
-  const { pendiente, cobrado } = conPagosParciales(cuotas, repartoDelNegocio(cuotas, tc, cobranzas), partes);
+  const reparto = conPagosParciales(cuotas, repartoDelNegocio(cuotas, tc, cobranzas), partes);
+  // ADV-7 (MIA-107): un cobro sin marcar de un perdido no se cobra (`perdidoAdmite`, decisión 2 = A, provisional a
+  // confirmar por el dueño): no queda pendiente en la lista ni lo espera el cashflow, igual que la ficha y el servidor.
+  // Sin esto, un cobro cargado a mano en Pedido o Presupuesto quedaba con su monto entero: la cobranza del perdido da
+  // total 0 y el reparto no lo topea.
+  const pendiente = reparto.pendiente.map((x, i) => (cobroFrenadoPorPerdido(cuotas[i]) ? 0 : x));
+  const { cobrado } = reparto;
   // Lo aprobado que ninguna cuota espera (calendario corto o sin cuotas): un renglón «Sin calendario» por evento, para
   // que la lista sume lo mismo que «A cobrar». Sin fecha: no entra a la proyección de caja.
   const faltantes = sinCalendarioDelNegocio(cuotas, pendiente, tc, cobranzas);
@@ -86,7 +93,7 @@ export async function recuadrosDeCuotas(tenantId: string) {
   const resumen = resumenConCobranza(conPartesComoPagadas(cuotas, partes), tc, cobranzas);
   const aPagarDeGastos = redondear((sinPagar._sum.neto ?? 0) + (sinPagar._sum.iva ?? 0));
   return {
-    cuotas: cuotas.map((c, i) => ({ ...c, pendiente: pendiente[i], cobrado: cobrado[i], pagado: pagadoDeCuota(c, c.proyectoId ? cobranzas.get(c.proyectoId) : null) })),
+    cuotas: cuotas.map((c, i) => ({ ...c, pendiente: pendiente[i], cobrado: cobrado[i], noSeCobra: cobroFrenadoPorPerdido(c), pagado: pagadoDeCuota(c, c.proyectoId ? cobranzas.get(c.proyectoId) : null) })),
     sinCalendario: faltantes.flatMap((f) => {
       const proyecto = porId.get(f.proyectoId);
       return proyecto ? [{ ...f, proyecto }] : [];
@@ -157,7 +164,7 @@ export async function datosDeBancos(tenantId: string) {
         lote: true,
         cuotaId: true,
         cuenta: { select: { nombre: true, moneda: true } },
-        cuota: { select: { id: true, tipo: true, concepto: true, pagadoEl: true, anuladoEl: true, proyectoId: true } },
+        cuota: { select: { id: true, tipo: true, concepto: true, pagadoEl: true, anuladoEl: true, proyectoId: true, proyecto: { select: { perdidoEl: true } } } },
       },
     }),
     prisma.proyectoMovBanco.groupBy({ by: ["cuentaId"], where: { tenantId, cuotaId: null }, _count: { _all: true } }),
@@ -167,8 +174,11 @@ export async function datosDeBancos(tenantId: string) {
   const usadas = new Set(conciliadas.map((c) => c.cuotaId));
   return {
     cuentas: cuentas.map((c) => ({ ...c, sinConciliar: sinConciliar.find((s) => s.cuentaId === c.id)?._count._all ?? 0 })),
-    movimientos,
-    candidatas: cuotas.filter((c) => !usadas.has(c.id)),
+    // MIA-111: el cobro de un perdido no se cobra (ADV-7, `cobroFrenadoPorPerdido`, la misma `perdidoAdmite` de la ficha
+    // y del servidor; decisión 2 = A, provisional a confirmar por el dueño): no se propone ni se elige para un depósito,
+    // y el que ya estaba conciliado no ofrece «Marcar cobrada». Al reabrir, vuelve.
+    movimientos: movimientos.map((m) => ({ ...m, cuota: m.cuota ? { ...m.cuota, noSeCobra: cobroFrenadoPorPerdido(m.cuota) } : null })),
+    candidatas: cuotas.filter((c) => !usadas.has(c.id) && !c.noSeCobra),
     tc,
   };
 }

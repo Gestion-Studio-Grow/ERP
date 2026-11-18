@@ -47,3 +47,36 @@ Cuentas a cobrar y a pagar generales no están en el panel cerrado de la product
 `panelCerrado`): fuera del menú y del buscador, sin tarjeta ni indicador, y por URL el layout redirige a Proyectos
 (`app/admin/(dashboard)/layout.tsx:273`). CH no tiene panel cerrado y las sigue viendo. Test: `visibles.test.ts`
 «MIA-089 · T».
+
+## MIA-099 · la semilla proyecto por proyecto: **sin confirmar**
+
+Estado: **sin confirmar**. La tabla de la semilla necesita una base local nueva con las migraciones y la semilla de esta rama.
+El comando que la crea quedó esperando la aprobación del dueño (18/11, 05:21 UTC) y ORQ-007 ordenó no rodearlo. Comando exacto,
+para que el dueño lo apruebe (Postgres local del contenedor, nunca Neon):
+
+```
+createdb -h /tmp/pgrun -p 5433 -U postgres mia099_demo
+DATABASE_URL="postgresql://postgres@localhost:5433/mia099_demo?host=/tmp/pgrun" npx prisma migrate deploy
+DATABASE_URL="postgresql://postgres@localhost:5433/mia099_demo?host=/tmp/pgrun" npx tsx prisma/seed-mia-producciones.ts
+```
+
+Con la base, se completa una fila por proyecto: venta neta, ganancia presupuestada, cobrado, por cobrar y por pagar, en
+Rentabilidad, Dirección y la ficha, y la cuenta a mano al lado.
+
+**Lo que ya se puede contar a mano** (números de la certificación GSG-MIA-094, `00-ESTADO/certificacion/GSG-MIA-094.md:54`,
+leídos en pantalla por la certificadora; no los medí yo):
+
+| Pantalla | Antes de perder 2026-009 | Con 2026-009 perdido (antes de MIA-099) | Esperado con la decisión 1 = A | Cuenta a mano |
+|---|---|---|---|---|
+| Rentabilidad · Vendido (neto, aprobado) | 156.554.000 | 156.554.000 | **144.139.000** | 156.554.000 − 12.415.000 (venta de 2026-009) |
+| Dirección · Facturación 2026 | 156.554.000 | 144.139.000 | 144.139.000 | sin cambio: ya excluía el perdido (`empresa-core.ts:157`) |
+| Rentabilidad · Ganancia presupuestada | 42.974.000 · 27,45 % | 42.974.000 · 27,45 % | **39.459.000 · 27,38 %** | 42.974.000 − 3.515.000; 39.459.000 / 144.139.000 = 27,375 % |
+| Dirección · Margen acumulado | 42.974.000 | 39.459.000 · 27,38 % | 39.459.000 · 27,38 % | sin cambio |
+
+El test «T (MIA-099)» de `src/lib/proyectos/mia089-plata-postgres.test.ts` comprueba la misma igualdad contra Postgres real con
+un perdido confirmado: Rentabilidad = Dirección en venta neta y en ganancia, y por cobrar 1.210 (la venta con IVA, cobrada en 0).
+
+**Diferencias que siguen y no son de MIA-099** (hallazgos abiertos, para el dueño):
+- «Ganancia real» de Rentabilidad sigue sumando el perdido: lo que se gastó en él se gastó. Se dejó así a propósito.
+- Rentabilidad no filtra por año y Dirección sí (Facturación 2026); un Lead con presupuesto aprobado entra en Rentabilidad y no en
+  Dirección. Si la semilla trae alguno de los dos casos, se ve con la base: sin confirmar.

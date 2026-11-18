@@ -34,13 +34,17 @@ async function trabadosEnCandado(c: pg.Client, clave: string): Promise<number> {
   return r.rows[0].n;
 }
 
-/** Conexiones de esta base (menos la del test) esperando un bloqueo de fila. `pg_locks`, no `wait_event`: éste se ve sólo con el mismo rol. */
+/**
+ * Conexiones de esta base (menos la del test) esperando un bloqueo de fila o un candado consultivo. El candado cuenta desde
+ * MIA-111: conciliar el cobro de un proyecto toma primero el de la cobranza (`trabarCobranza`), así el segundo pedido
+ * espera ahí, detrás del primero, y no en la fila. `pg_locks`, no `wait_event`: éste se ve sólo con el mismo rol.
+ */
 async function esperandoFila(c: pg.Client): Promise<number> {
   // Adentro de la transacción del test, la vista de conexiones queda congelada: sin limpiarla, una conexión nueva del pool no aparece.
   await c.query("SELECT pg_stat_clear_snapshot()");
   const r = await c.query<{ n: number }>(
     `SELECT count(DISTINCT pid)::int AS n FROM pg_locks
-      WHERE NOT granted AND locktype IN ('transactionid', 'tuple') AND pid <> pg_backend_pid()
+      WHERE NOT granted AND locktype IN ('transactionid', 'tuple', 'advisory') AND pid <> pg_backend_pid()
         AND pid IN (SELECT pid FROM pg_stat_activity WHERE datname = current_database())`,
   );
   return r.rows[0].n;
@@ -94,7 +98,7 @@ async function enFilaDeLasFilas<T>(base: BaseEfimera, movimientos: readonly stri
     let enCurso: Promise<T>[];
     try {
       await c.query(`SELECT id FROM "ProyectoMovBanco" WHERE id = ANY($1) FOR UPDATE`, [movimientos]);
-      enCurso = await lanzarEnFila(pedidos, () => esperandoFila(c), "el bloqueo de fila del movimiento");
+      enCurso = await lanzarEnFila(pedidos, () => esperandoFila(c), "el bloqueo de fila del movimiento (o el candado de la cobranza)");
     } finally {
       await c.query("COMMIT");
     }

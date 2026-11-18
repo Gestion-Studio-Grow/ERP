@@ -36,7 +36,7 @@ async function trabados(c: pg.Client, clave: string): Promise<number> {
   return r.rows[0].n;
 }
 
-/** Corre `pedidos` a la vez, en fila detrás del candado `clave`; devuelve los resultados en el orden en que se pidieron (no en el que entraron). */
+/** Corre `pedidos` a la vez, en fila detrás del candado `clave`; devuelve los resultados en el orden en que se lanzaron. */
 async function enFila<T>(base: BaseEfimera, clave: string, pedidos: readonly (() => Promise<T>)[]): Promise<T[]> {
   const c = new pg.Client({ connectionString: base.urlDuenio });
   await c.connect();
@@ -188,23 +188,41 @@ test("D2: nunca se paga de más; anular una parte reabre la cuota con lo que le 
   assert.deepEqual(await p.pagos(id), { gastos: 1, pagado: 400, caja: 400 });
 });
 
-test("D2 carrera: tres partes de 400 sobre 1.000 a la vez → entran dos, nunca de más; anular y pagar en fila no se pisan", async (t) => {
+/**
+ * `marcarCuota` asienta en Serializable con reintento (periodo-cerrado.server.ts · `transaccionQueAsienta`): en un empate,
+ * el que aborta vuelve tras una espera al azar y el orden de llegada NO decide cuál entra (cert. MIA-117). Se exige el
+ * invariante, en cualquier orden: entran `entran` partes, el resto se rechaza con el cartel de «entró otro pago» y lo que
+ * le falta ahora, y ningún pedido termina en error (reintentos agotados incluidos: `enSesion` exige una respuesta).
+ */
+/**
+ * `carteles`: lo que le falta a la cuota después de cada parte que entra, a mano (1.000 − 400 = 600, 600 − 400 = 200).
+ * El cartel de cada ganador dice la deuda real después de SU pago, no la que vio antes de entrar en fila (MIA-119).
+ * Sin orden: quién entra primero lo decide el candado.
+ */
+function entranYElRestoSeRechaza(rs: readonly Res[], entran: number, faltaAhora: string, carteles: readonly string[]): void {
+  const dice = JSON.stringify(rs);
+  const adentro = rs.filter((r) => r.ok);
+  assert.equal(adentro.length, entran, `entran exactamente ${entran}: ${dice}`);
+  for (const r of adentro) assert.match(String(r.listo), /pagó una parte/, dice);
+  const dicen = adentro.map((r) => /le faltan \$\s?([\d.,]+)\.$/.exec(String(r.listo))?.[1] ?? String(r.listo));
+  const porNumero = (x: string) => Number(x.replace(/\./g, "").replace(",", "."));
+  assert.deepEqual([...dicen].sort((a, b) => porNumero(b) - porNumero(a)), [...carteles], `el cartel de cada ganador = la deuda real después de su pago: ${dice}`);
+  for (const r of rs.filter((r) => !r.ok)) {
+    assert.match(String(r.error), new RegExp(`^No se asentó nada: a esta cuota le faltaban \\$\\s?1\\.000 y ahora le faltan \\$\\s?${faltaAhora} \\(entró otro pago`), dice);
+  }
+}
+
+test("D2 carrera: tres partes de 400 sobre 1.000 a la vez → entran dos y una se rechaza, en cualquier orden; nunca de más; anular y pagar en fila no se pisan", async (t) => {
   const p = await preparar(t);
   if (!p) return;
   const id = await p.proyecto();
   const q = await p.cuota(id, "PAGO", 1000, 5);
-  const rs = await enFila(p.base, p.clave(id), [p.marcar(q, { monto: "400" }), p.marcar(q, { monto: "400" }), p.marcar(q, { monto: "400" })]);
-  // Cuáles dos entran no es fijo: marcarCuota corre en Serializable (transaccionQueAsienta) y la foto de la transacción
-  // sale antes de esperar el candado. El que espera lee viejo, Postgres lo aborta (40001) y el reintento, con espera al
-  // azar, vuelve a la fila en otro lugar. Lo fijo es el conjunto: entran dos, el tercero no asienta nada y lo dice.
-  assert.equal(rs.filter((r) => r.ok).length, 2, JSON.stringify(rs));
-  const rechazos = rs.filter((r) => !r.ok);
-  assert.equal(rechazos.length, 1, JSON.stringify(rs));
-  assert.match(String(rechazos[0].error), /No se asentó nada.*ahora le faltan \$\s?200/, JSON.stringify(rs));
-  // Cada uno que entra dice lo que le falta DESPUÉS de su parte, leído adentro: 600 el primero, 200 el segundo (no 600 los dos).
-  const faltan = rs.filter((r) => r.ok).map((r) => Number(/le faltan \$\s?([\d.]+)/.exec(String((r as { listo?: string }).listo))?.[1]?.replace(/\./g, "")));
-  assert.deepEqual(faltan.sort((x, y) => x - y), [200, 600], JSON.stringify(rs));
-  assert.deepEqual(await p.pagos(id), { gastos: 2, pagado: 800, caja: 800 });
+  const banco = await p.cuenta(1_000);
+  const parte = p.marcar(q, { monto: "400", cuenta: banco });
+  const rs = await enFila(p.base, p.clave(id), [parte, parte, parte]);
+  entranYElRestoSeRechaza(rs, 2, "200", ["600", "200"]);
+  assert.deepEqual(await p.pagos(id), { gastos: 2, pagado: 800, caja: 800 }, "ningún doble pago");
+  assert.equal(await p.saldoCuenta(banco), 200, "el banco movió sólo las dos que entraron");
   assert.deepEqual((await p.administracion())[q], { falta: 200, marcada: false });
 
   // Anular una parte y «todo» (pantalla que vio 200) a la vez: si pasa primero la anulación, el todo no asienta 600.
@@ -215,6 +233,22 @@ test("D2 carrera: tres partes de 400 sobre 1.000 a la vez → entran dos, nunca 
   assert.match(String(todo.error), /se anuló/);
   assert.deepEqual(await p.pagos(id), { gastos: 1, pagado: 400, caja: 400 });
   assert.deepEqual((await p.administracion())[q], { falta: 600, marcada: false });
+});
+
+test("D2 carrera de 8: ocho partes de 150 sobre 1.000 a la vez, cinco veces → entran seis, nunca de más, y ningún pedido agota los reintentos", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  for (let vuelta = 1; vuelta <= 5; vuelta++) {
+    const id = await p.proyecto();
+    const q = await p.cuota(id, "PAGO", 1000, 5);
+    const banco = await p.cuenta(1_000);
+    const parte = p.marcar(q, { monto: "150", cuenta: banco });
+    const rs = await enFila(p.base, p.clave(id), Array.from({ length: 8 }, () => parte));
+    entranYElRestoSeRechaza(rs, 6, "100", ["850", "700", "550", "400", "250", "100"]);
+    assert.deepEqual(await p.pagos(id), { gastos: 6, pagado: 900, caja: 900 }, `vuelta ${vuelta}: ningún doble pago`);
+    assert.equal(await p.saldoCuenta(banco), 100, `vuelta ${vuelta}: el banco movió sólo las seis que entraron`);
+    assert.deepEqual((await p.administracion())[q], { falta: 100, marcada: false }, `vuelta ${vuelta}`);
+  }
 });
 
 test("D2 USD: una parte de una cuota a proveedor en dólares deja el saldo exacto en dólares", async (t) => {

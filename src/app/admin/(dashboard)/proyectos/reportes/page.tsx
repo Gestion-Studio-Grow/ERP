@@ -2,6 +2,7 @@ import { requireApp } from "@/lib/require-app";
 import { exigirPlataDeDireccion } from "@/lib/proyectos/gestion.server";
 import { reporteProyectos, veLaPlata } from "@/lib/proyectos/datos.server";
 import { etapaLabel, pesos, porcentaje, redondear } from "@/lib/proyectos/core";
+import { totalesDeRentabilidad } from "@/lib/proyectos/empresa-core";
 import { BarraProyectos, tarjeta } from "../_vista";
 
 export const dynamic = "force-dynamic";
@@ -12,15 +13,7 @@ export default async function RentabilidadProyectos() {
   // PRY-099: decide el rol de gestión (Dirección o el módulo `direccion` en «ver»), con el techo del ERP adentro.
   await exigirPlataDeDireccion("ver");
   const filas = await reporteProyectos();
-  const con = filas.filter((f) => f.t);
-  const suma = (g: (f: (typeof con)[number]) => number) => redondear(con.reduce((s, f) => s + g(f), 0));
-  const neto = suma((f) => f.t!.neto);
-  const ganancia = suma((f) => f.t!.ganancia);
-  const gananciaReal = suma((f) => f.real.gananciaReal ?? 0);
-  const conGastos = con.filter((f) => f.real.gananciaReal !== null).length;
-  // Lo que falta cobrar de cada proyecto, tal cual lo da la cobranza (cobranza-core): la misma cifra que la ficha y Administración.
-  const porCobrar = redondear(filas.reduce((s, f) => s + f.porCobrar, 0));
-  const porPagar = redondear(filas.reduce((s, f) => s + f.real.porPagar, 0));
+  const { neto, ganancia, gananciaReal, conGastos, porCobrar, porPagar } = totalesDeRentabilidad(filas);
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-5">
@@ -52,7 +45,7 @@ export default async function RentabilidadProyectos() {
             {filas.map((f) => (
               <tr key={f.id} className="border-t border-line">
                 <td className="py-1.5 pr-2"><a href={`/admin/proyectos/${f.id}`} className="underline">#{f.numero} {f.nombre}</a><span className="block text-xs text-muted">{f.client.name}</span></td>
-                <td className="pr-2">{etapaLabel(f.etapa, f.servicio)}</td>
+                <td className="pr-2">{f.perdidoEl ? <>Perdido<span className="block text-xs text-muted">no suma en Vendido</span></> : etapaLabel(f.etapa, f.servicio)}</td>
                 <td className="pr-2 text-right">{f.t ? pesos(f.t.neto) : "—"}</td>
                 <td className="pr-2 text-right">{f.t ? pesos(f.t.costo) : "—"}</td>
                 <td className="pr-2 text-right">{f.real.conGastos ? pesos(f.real.costoReal) : "—"}</td>

@@ -5,8 +5,23 @@ import { ETAPAS, leerNumero, redondear } from "./core";
 import { claveFoto, costoTotalItem, ventaTotalItem, type CuotaLeida, type FotoItem, type LineaCashflow } from "./gestion-core";
 
 export const PERDIDO = "PERDIDO";
-/** Lo que contesta el servidor si se intenta cobrar o marcar una cuota de un proyecto perdido (MIA-089 · V2). */
-export const PERDIDO_NO_COBRA = "Este proyecto está perdido: no se le registran cobros ni se marcan cuotas. Si se retoma, reabrilo primero.";
+/** Lo que contesta el servidor si se intenta cobrar, marcar una cuota de cobro o cargar un cobro en un perdido (MIA-089 · V2). */
+export const PERDIDO_NO_COBRA = "Este proyecto está perdido: no se le registran cobros ni se marcan cuotas de cobro. Si se retoma, reabrilo primero.";
+
+/**
+ * Qué se mueve en un proyecto perdido, igual en la pantalla y en el servidor: un cobro no (no debe nada, pregunta 2 = A);
+ * un pago a proveedor sí, marcar su cuota o cargarlo a mano, sin reabrir: es plata que se debe igual. Decisión 2 = A del
+ * veredicto MIA-094, PROVISIONAL A CONFIRMAR POR EL DUEÑO (B: esconder el botón y exigir reabrir). Falla cerrada: sólo PAGO
+ * pasa; un tipo desconocido no (la columna es un String sin CHECK; observación del par revisor de MIA-099).
+ */
+export const perdidoAdmite = (tipo: string): boolean => tipo === "PAGO";
+
+/**
+ * Una cuota sin marcar de un proyecto perdido que la regla de arriba no admite (un cobro): no se cobra y no está pendiente
+ * de cobro. Administración la muestra en «Todos» con su porqué, sin «Cobrado» (ADV-7, MIA-107). Falla cerrada como
+ * `perdidoAdmite`. PURA.
+ */
+export const cobroFrenadoPorPerdido = (c: { tipo: string; pagadoEl: Date | string | null; proyecto?: { perdidoEl: Date | string | null } | null }): boolean => !c.pagadoEl && !!c.proyecto?.perdidoEl && !perdidoAdmite(c.tipo);
 
 /** Un lead sigue abierto hasta que el cliente confirma o se pierde. */
 export const ETAPAS_DE_LEAD = ["PEDIDO", "DISENO", "RENDER", "PRESUPUESTO", "PROPUESTA"] as const;
@@ -261,4 +276,14 @@ export function cambioVisible(c: { entidad: string; campo: string }, permisos: {
   if (!permisos.pagos && (c.entidad === "ProyectoCuota" || c.entidad === "ProyectoPago" || c.entidad === "ProyectoGasto")) return false;
   if (!permisos.costos && CAMPOS_DE_COSTO.some((k) => c.campo.startsWith(k))) return false;
   return true;
+}
+
+/**
+ * «Avance de cobro» del Estado financiero de la ficha, 0 a 100: lo cobrado sobre lo cobrado más lo que falta cobrar.
+ * Un perdido no tiene avance (null, no se muestra): no le falta nada y un «100 %» diría que se cobró la venta. Decisión
+ * 3 = A del veredicto MIA-094, PROVISIONAL A CONFIRMAR POR EL DUEÑO (B: lo cobrado contra la venta original).
+ */
+export function avanceDeCobro(f: { cobrado: number; aCobrar: number } | null | undefined, perdido: boolean): number | null {
+  if (perdido) return null;
+  return f && f.cobrado + f.aCobrar > 0 ? (f.cobrado / (f.cobrado + f.aCobrar)) * 100 : 0;
 }

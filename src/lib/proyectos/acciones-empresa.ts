@@ -16,7 +16,8 @@ import { leerNumero, MEDIOS, metodoDeCaja, redondear, type MedioPago } from "./c
 import { aPesos, extrasDelPeriodo, leerExtracto, MONEDAS } from "./gestion-core";
 import { actorActual, avisar, exigirEditar, puede, regenerarCuotasDe, registrarCambio, tiposDeCambio } from "./gestion.server";
 import { claveDeEnvio } from "./pago-columnas";
-import { envioYaGrabado } from "./cobranza.server";
+import { envioYaGrabado, estaPerdido, trabarCobranza } from "./cobranza.server";
+import { perdidoAdmite } from "./ficha-core";
 import { marcaDeGastoProyecto } from "./marcas";
 import { asentarEnCajaTx, oPeriodoCerrado, PeriodoCerradoError, transaccionQueAsienta } from "./periodo-cerrado.server";
 import { actorDelMotor, faltaLaMigracion, rendicionDelMotor, SIN_MIGRACION } from "./rendiciones-core";
@@ -294,9 +295,16 @@ export async function conciliarMovimiento(formData: FormData): Promise<Resultado
   const id = txt(formData.get("id"));
   const cuotaId = txt(formData.get("cuotaId"));
   const r = await tenantTransaction(async (tx): Promise<Resultado> => {
+    // MIA-111 · opción A de MIA-BANCOS-PERDIDO (PROVISIONAL A CONFIRMAR POR EL DUEÑO): el cobro de un perdido no se
+    // concilia (`perdidoAdmite`, la misma regla de la ficha, Cuentas a cobrar y Bancos). En fila con «Marcar perdido»:
+    // el candado de la cobranza del proyecto va antes que el de la cuota, en el mismo orden que `moverProyecto` y
+    // `marcarCuota`. El tipo y el proyecto de una cuota no cambian: se leen sin candado para saber cuál tomar.
+    const [pre] = await tx.$queryRaw<{ tipo: string; proyectoId: string | null }[]>`
+      SELECT "tipo", "proyectoId" FROM "ProyectoCuota" WHERE "id" = ${cuotaId} AND "tenantId" = ${a.tenantId}`;
+    if (pre?.proyectoId && !perdidoAdmite(pre.tipo)) await trabarCobranza(tx, a.tenantId, pre.proyectoId);
     // El candado de la cuota va primero: el segundo envío espera acá y, al entrar, ve lo que grabó el primero.
-    const [c] = await tx.$queryRaw<{ tipo: string; concepto: string; proyectoId: string }[]>`
-      SELECT "tipo", "concepto", "proyectoId" FROM "ProyectoCuota"
+    const [c] = await tx.$queryRaw<{ tipo: string; concepto: string; proyectoId: string | null; pagadoEl: Date | null }[]>`
+      SELECT "tipo", "concepto", "proyectoId", "pagadoEl" FROM "ProyectoCuota"
        WHERE "id" = ${cuotaId} AND "tenantId" = ${a.tenantId} AND "anuladoEl" IS NULL
        FOR UPDATE`;
     const m = await tx.proyectoMovBanco.findFirst({ where: { id, tenantId: a.tenantId }, select: { importe: true } });
@@ -307,6 +315,8 @@ export async function conciliarMovimiento(formData: FormData): Promise<Resultado
       return { ok: false, error: propia ? "Esa cuota está anulada: no se concilia." : "Esa cuota no existe." };
     }
     if ((c.tipo === "COBRO") !== m.importe > 0) return { ok: false, error: "El movimiento y la cuota van en sentidos opuestos." };
+    // Lo ya cobrado entró de verdad: se concilia igual (`cobroFrenadoPorPerdido` sólo frena lo que falta cobrar).
+    if (!c.pagadoEl && c.proyectoId && !perdidoAdmite(c.tipo) && (await estaPerdido(tx, a.tenantId, c.proyectoId))) return { ok: false, error: "Ese cobro es de un proyecto perdido: no se concilia. Si se retoma, reabrilo primero." };
     if (await tx.proyectoMovBanco.findFirst({ where: { tenantId: a.tenantId, cuotaId }, select: { id: true } })) return { ok: false, error: "Esa cuota ya está conciliada con otro movimiento." };
     const u = await tx.proyectoMovBanco.updateMany({ where: { id, tenantId: a.tenantId, cuotaId: null }, data: { cuotaId } });
     if (u.count === 0) return { ok: false, error: "Ese movimiento ya estaba conciliado." };
