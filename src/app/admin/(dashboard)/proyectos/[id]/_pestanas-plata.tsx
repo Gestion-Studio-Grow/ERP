@@ -23,6 +23,7 @@ import { FormGasto } from "./_gastos";
 import { CopiarLink } from "./_piezas";
 import { PlanillaVenta } from "./_planilla";
 import { Numero } from "./_pestanas-datos";
+import { Adicionales, DetalleDeLineas, PrevisionDePagos } from "./_presupuesto";
 
 const campoEnLinea = "min-h-11 min-w-0 rounded-lg border border-line bg-surface px-3 text-sm text-strong";
 const areaTexto = "w-full rounded-lg border border-line bg-surface p-3 text-sm text-strong";
@@ -45,13 +46,23 @@ export async function PestanaCotizacion({ a, cab, vista, ver, cambios }: { a: Ac
   const viva = versiones[0];
   const hayBorrador = !!viva && sePuedeEditar(viva.estado);
   const planillaViva = viva ? planillaDeVenta(viva.items, tc, recargo) : null;
+  // O10: una sola base aprobada por proyecto (la garantiza la base con M2); los cambios después van como adicional.
+  const baseAprobada = versiones.find((v) => v.estado === "APROBADO") ?? null;
   const wa = waLink(p.client.phone, `Hola ${p.client.name}! Te compartimos la propuesta de ${negocio.nombre} para "${p.nombre}":`);
 
   return (
     <div className="grid gap-4">
       <section className={tarjeta} aria-label="Versiones">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-semibold text-strong">Versiones</h2>
+          <div className="min-w-0">
+            <h2 className="font-semibold text-strong">Versiones</h2>
+            {baseAprobada && (
+              <p className="text-sm text-body">
+                Versión base aprobada: <strong className="text-strong">v{baseAprobada.version}</strong>
+                {hayBorrador && viva.id !== baseAprobada.id && <span className="text-muted"> · la v{viva.version} es un borrador y no mueve plata</span>}
+              </p>
+            )}
+          </div>
           {vista.editaCotizaciones && !hayBorrador && (
             <FormAccion accion={nuevaVersion} className="flex flex-wrap items-center gap-2">
               <input type="hidden" name="proyectoId" value={p.id} />
@@ -147,6 +158,9 @@ export async function PestanaCotizacion({ a, cab, vista, ver, cambios }: { a: Ac
           })}
         </ul>
       </section>
+
+      {hayBorrador && <DetalleDeLineas a={a} vista={vista} lineas={viva.items} />}
+      <Adicionales a={a} vista={vista} proyectoId={p.id} baseAprobada={baseAprobada?.version ?? null} />
 
       {comparada && (
         <section className={tarjeta} aria-label="Qué cambió">
@@ -467,6 +481,8 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
           <p className="mt-2 text-sm text-muted">Lo pagado sale por el libro de caja. El neto es lo que se compara contra el presupuesto.</p>
         </section>
       )}
+
+      <PrevisionDePagos a={a} vista={vista} proyectoId={p.id} lineas={cab.base?.estado === "APROBADO" ? cab.base.items : []} />
 
       <section className={tarjeta} aria-label="Cobros">
         <h2 className="mb-1 font-semibold text-strong">Cobros</h2>
