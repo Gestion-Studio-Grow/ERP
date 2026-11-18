@@ -752,6 +752,25 @@ export const revisaRendiciones = (rol: RolGestion, p: Permiso): boolean => ROLES
 /** ADM-135: «Pagar liquidación» se ofrece con la misma regla que aplica `pagarLiquidacion`: el rol que mueve plata y `liquidaciones` en «editar». PURA. */
 export const pagaLiquidaciones = (rol: RolGestion, p: Permiso): boolean => ROLES_QUE_APRUEBAN_RENDICIONES.includes(rol) && p.editar;
 
+/**
+ * A1 (DIR-007, GSG-MIA-091) · LA matriz, escrita una vez: rol × módulo con lo que ve y edita cada uno (lo guardado por
+ * Dirección encima de lo de fábrica), las columnas de costo que no ve y quién puede cambiar esa fila (pregunta 1-A,
+ * provisional a confirmar por el dueño). Dirección es la misma fila para una persona y para un agente. La fija
+ * `gestion-core-matriz.test.ts`; `docs/qa/mia-088/tabla-de-permisos.md` es su copia legible. PURA.
+ */
+export function matrizDePermisos(guardados: readonly { rol: string; modulo: string; ver: boolean; editar: boolean; columnasOcultas?: unknown }[]) {
+  const nivel = (p: Permiso) => (p.editar ? "editar" : p.ver ? "ver" : "sin acceso");
+  return [...ROLES_GESTION, "SIN_FICHA" as const].map((rol) => {
+    const ficha = guardados.find((g) => g.rol === rol && g.modulo === "ficha")?.columnasOcultas;
+    return {
+      rol,
+      modulos: Object.fromEntries(MODULOS.map((m) => [m.id, nivel(permisoDe(rol, m.id, guardados))])) as Record<ModuloGestion, "editar" | "ver" | "sin acceso">,
+      columnasOcultas: rol === "DIRECCION" ? [] : Array.isArray(ficha) ? (ficha as string[]) : [...COLUMNAS_OCULTAS_BASE[rol]],
+      laCambia: cambiaLosPermisos(rol) || rol === "SIN_FICHA" ? "nadie (fija)" : "Dirección",
+    };
+  });
+}
+
 /** Dirección, Administración y Comercial ven todos los proyectos: un lead todavía no tiene equipo. El resto, sólo aquellos donde está. */
 export const veTodosLosProyectos = (rol: RolGestion): boolean => rol === "DIRECCION" || rol === "ADMINISTRACION" || rol === "COMERCIAL";
 
