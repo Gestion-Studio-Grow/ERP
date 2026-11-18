@@ -106,3 +106,13 @@ Nota del verificador visual (fila 31): los indicadores de arriba de Administraci
 vencidos $ 23.241.075 · 2 cobros», «A cobrar $ 110.445.170»); con el cobro de $ 200.000 contado antes, tendrían que bajar después.
 Sin confirmar (no se investigó por el techo de gasto); el par vio en el test que los indicadores dan 0 para el perdido. Además: en «Todos»,
 Factura y Comentario siguen editables en un cobro que no se cobra; la etapa Pedido se muestra como «Lead / brief». Para ORQ-007.
+
+## GSG-MIA-114 · cierre de lo NO VERIFICABLE de MIA-113 (P4 y capturas de Bancos) (18/11/2026)
+
+Brief: Factory-GSG `00-ESTADO/BRIEF-MIA-114.md` (be3e792). Rama `mia-094/plata-cierre` desde 032f257. No se tocó código de producción,
+Neon ni Vercel. Paso 0: `claude-opus-5-5`, esfuerzo alto, ventana 350000 (no 400000; avisado a ORQ-007).
+
+| # | Pedido | Entendí | Fuente | Camino | Esperado | Hice | Vi | Captura | Par | Estado |
+|---|--------|---------|--------|--------|----------|------|----|---------|-----|--------|
+| 35 | P4 · test de dos negocios del camino nuevo de Bancos | A y B con el mismo caso y el mismo importe: ver, conciliar, proponer, rechazar el perdido y el candado de 14c7875 | Brief MIA-114 §1 | `mia114-bancos-dos-negocios-postgres.test.ts` (94046ca), base efímera con `app_rls` | B no ve, no concilia ni bloquea lo de A | 4 tests: B no ve cuentas, movimientos, candidatas ni propuesta de A (ni pidiendo con el id de A); B no concilia en 3 combinaciones y A queda igual fila por fila; el perdido de A no frena a B y B no se entera; con el candado de A tomado, B termina sin esperar y A espera | 4/4 en 3 corridas | — | ver fila 36 | hecho |
+| 36 | P4 · primero rojo | El test tiene que fallar si se saca el filtro `tenantId` | Brief MIA-114 §1 | Mutaciones con copia y restauración (`git status` limpio después) | Rojo sin filtro | Sin filtro `tenantId` en `conciliarMovimiento` y `datosDeBancos`: 1 rojo (test 1, «sesión de B pidiendo Bancos de A»: ve lo suyo). Sin RLS (la app como dueña de las tablas): 1 rojo (mismo test: ve lo de A). Sin los dos: 3 rojos (B concilia su depósito con la cuota de A: `ok:true`). Candado sin negocio ni proyecto: 1 rojo (test 4). **Con RLS activo, sacar sólo el filtro no deja conciliar nada cruzado**: cada muralla alcanza sola para conciliar; el test cae cuando faltan las dos | rojos por nombre en el informe | — | — | hecho |
