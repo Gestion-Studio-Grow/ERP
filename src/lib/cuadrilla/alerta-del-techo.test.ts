@@ -8,7 +8,7 @@ import { alertaDelTecho } from "./accesos";
 const TEXTO_DUENIO =
   "Su usuario es Dueño/a, y un agente nunca lo es: no entra al panel (tampoco a Usuarios) y no se puede reanudar a ningún agente. Igualalo con alguien del puesto.";
 const TEXTO_DIRECCION =
-  "Su usuario es Dirección en Proyectos, y un agente nunca lo es. Para este caso no hay freno: entra al panel con lo que Dirección puede en Proyectos y los agentes se pueden reanudar. Igualalo con alguien del puesto cuanto antes.";
+  "Su usuario es Dirección en Proyectos, y un agente nunca lo es. Para este caso no hay freno: entra al panel con lo que Dirección puede en Proyectos y no impide reanudar agentes. Igualalo con alguien del puesto cuanto antes.";
 
 test("alerta del techo: el usuario OWNER promete el freno que existe (guardia y G5)", () => {
   assert.equal(alertaDelTecho({ role: "OWNER", rolProyectos: null }), TEXTO_DUENIO);

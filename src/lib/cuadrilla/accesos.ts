@@ -57,7 +57,7 @@ export function alertaDelTecho(agente: { role: string; rolProyectos: string | nu
   // Dirección en Proyectos: la guardia y G5 sólo miran OWNER (E1 de GSG-MIA-080). El aviso no promete un freno que
   // no existe; extenderlos a Dirección cambia el alcance y lo decide el dueño.
   if (agente.rolProyectos && ROLES_DE_PROYECTOS_FUERA_DEL_TECHO.includes(agente.rolProyectos)) {
-    return "Su usuario es Dirección en Proyectos, y un agente nunca lo es. Para este caso no hay freno: entra al panel con lo que Dirección puede en Proyectos y los agentes se pueden reanudar. Igualalo con alguien del puesto cuanto antes.";
+    return "Su usuario es Dirección en Proyectos, y un agente nunca lo es. Para este caso no hay freno: entra al panel con lo que Dirección puede en Proyectos y no impide reanudar agentes. Igualalo con alguien del puesto cuanto antes.";
   }
   return null;
 }
