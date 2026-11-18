@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import type { EstadoRendicion } from "@/lib/rendiciones/tipos";
 import type { Actor } from "./gestion.server";
 import { urlDelComprobante } from "./comprobante.server";
+import { permisoDe, revisaRendiciones } from "./gestion-core";
 import { actorDelMotor, cierreDeAnticipo, faltaLaMigracion, motivoNoRinde, muestraReintegro, muestraRevision, rendicionDelMotor, type MedioRendicion } from "./rendiciones-core";
 
 export interface FilaRendicion {
@@ -85,7 +86,8 @@ async function tolerante<T>(fn: () => Promise<T>): Promise<T | null> {
 
 /** Las rendiciones de un proyecto que esta persona puede ver (quien revisa: todas; el resto: las suyas) y si puede rendir. */
 export async function rendicionesDelProyecto(a: Actor, proyectoId: string) {
-  const revisa = a.rol === "DIRECCION" || a.rol === "ADMINISTRACION";
+  // ADM-134: las de otros, sólo quien revisa (el rol que aprueba y Rendiciones en «editar»); el resto, las suyas.
+  const revisa = revisaRendiciones(a.rol, permisoDe(a.rol, "rendiciones", a.permisos));
   const enEquipo = a.personaId ? !!(await prisma.proyectoEquipo.findFirst({ where: { tenantId: a.tenantId, proyectoId, personaId: a.personaId }, select: { id: true } })) : false;
   const motivo = motivoNoRinde(a.rol, a.personaId, enEquipo);
   const datos = await tolerante(async () => {
@@ -131,7 +133,7 @@ export interface AnticipoDelProyecto {
 
 /** Para Dirección/Administración: los anticipos del proyecto y a quién se le puede entregar uno (su equipo). */
 export async function anticiposDelProyecto(a: Actor, proyectoId: string): Promise<{ anticipos: AnticipoDelProyecto[]; equipo: { id: string; nombre: string }[] } | null> {
-  if (a.rol !== "DIRECCION" && a.rol !== "ADMINISTRACION") return null;
+  if (!revisaRendiciones(a.rol, permisoDe(a.rol, "rendiciones", a.permisos))) return null;
   return tolerante(async () => {
     const [filas, equipo] = await Promise.all([
       prisma.proyectoAnticipo.findMany({

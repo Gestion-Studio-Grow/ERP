@@ -732,6 +732,48 @@ export function permisoDe(rol: RolGestion, modulo: ModuloGestion, guardados: rea
   return g ? { ver: g.ver, editar: g.editar } : PERMISOS_BASE[rol][modulo];
 }
 
+/**
+ * PRY-100: la matriz de permisos la cambia sólo Dirección (la dueña sin ficha entra como Dirección). Quien tiene «Equipo»
+ * carga y edita personas, no permisos: si no, se da a sí misma (o en dos pasos, a través de otro rol) lo que quiera.
+ * Provisional a confirmar por el dueño (plan GSG-MIA-088, pregunta 1, opción A). PURA.
+ */
+export const cambiaLosPermisos = (rol: RolGestion): boolean => rol === "DIRECCION";
+
+/**
+ * ADM-134: el permiso `rendiciones` de la matriz es el piso, en el servidor. «Ver» alcanza para rendir lo propio;
+ * revisar, reintegrar y mover anticipos piden «editar» y, además, la regla del rol (`motivoNoMuevePlata` y la del motor).
+ * PURA.
+ */
+export function motivoSinRendiciones(p: Permiso, accion: "rendir" | "revisar"): string | null {
+  if (accion === "rendir") return p.ver ? null : "No tenés acceso a Rendiciones: pedíselo a Dirección.";
+  return p.editar ? null : "Revisar rendiciones y mover anticipos pide Rendiciones en «editar»: pedíselo a Dirección.";
+}
+
+/** Ve las rendiciones de otros y los anticipos del proyecto: el rol que aprueba y Rendiciones en «editar». PURA. */
+export const revisaRendiciones = (rol: RolGestion, p: Permiso): boolean => ROLES_QUE_APRUEBAN_RENDICIONES.includes(rol) && p.editar;
+
+/** ADM-135: «Pagar liquidación» se ofrece con la misma regla que aplica `pagarLiquidacion`: el rol que mueve plata y `liquidaciones` en «editar». PURA. */
+export const pagaLiquidaciones = (rol: RolGestion, p: Permiso): boolean => ROLES_QUE_APRUEBAN_RENDICIONES.includes(rol) && p.editar;
+
+/**
+ * A1 (DIR-007, GSG-MIA-091) · LA matriz, escrita una vez: rol × módulo con lo que ve y edita cada uno (lo guardado por
+ * Dirección encima de lo de fábrica), las columnas de costo que no ve y quién puede cambiar esa fila (pregunta 1-A,
+ * confirmada por el dueño el 18/11). Dirección es la misma fila para una persona y para un agente. La fija
+ * `gestion-core-matriz.test.ts`; `docs/qa/mia-088/tabla-de-permisos.md` es su copia legible. PURA.
+ */
+export function matrizDePermisos(guardados: readonly { rol: string; modulo: string; ver: boolean; editar: boolean; columnasOcultas?: unknown }[]) {
+  const nivel = (p: Permiso) => (p.editar ? "editar" : p.ver ? "ver" : "sin acceso");
+  return [...ROLES_GESTION, "SIN_FICHA" as const].map((rol) => {
+    const ficha = guardados.find((g) => g.rol === rol && g.modulo === "ficha")?.columnasOcultas;
+    return {
+      rol,
+      modulos: Object.fromEntries(MODULOS.map((m) => [m.id, nivel(permisoDe(rol, m.id, guardados))])) as Record<ModuloGestion, "editar" | "ver" | "sin acceso">,
+      columnasOcultas: rol === "DIRECCION" ? [] : Array.isArray(ficha) ? (ficha as string[]) : [...COLUMNAS_OCULTAS_BASE[rol]],
+      laCambia: cambiaLosPermisos(rol) || rol === "SIN_FICHA" ? "nadie (fija)" : "Dirección",
+    };
+  });
+}
+
 /** Dirección, Administración y Comercial ven todos los proyectos: un lead todavía no tiene equipo. El resto, sólo aquellos donde está. */
 export const veTodosLosProyectos = (rol: RolGestion): boolean => rol === "DIRECCION" || rol === "ADMINISTRACION" || rol === "COMERCIAL";
 

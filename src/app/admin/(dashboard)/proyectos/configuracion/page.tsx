@@ -5,7 +5,7 @@ import { requireApp } from "@/lib/require-app";
 import { guardarPreferenciasAvisos } from "@/lib/proyectos/acciones-gestion";
 import { veLaPlata } from "@/lib/proyectos/datos.server";
 import { TIPOS_AVISO } from "@/lib/proyectos/gestion-core";
-import { actorActual } from "@/lib/proyectos/gestion.server";
+import { actorActual, puede } from "@/lib/proyectos/gestion.server";
 import { mailConectado } from "@/lib/notifications";
 import { direccionDelCalendario, misPreferenciasDeAviso } from "@/lib/proyectos/gestion-lecturas.server";
 import { tarjeta } from "../_vista";
@@ -64,7 +64,7 @@ export default async function ConfiguracionGestion({ searchParams }: { searchPar
         <h2 className="mb-3 font-semibold text-strong">Seguridad</h2>
         <div className="flex flex-wrap gap-2">
           <Link href="/admin/cambiar-password" className={buttonClasses("outline", "md")}>Cambiar mi contraseña</Link>
-          {veLaPlata(a.user) && <Link href="/admin/proyectos/config" className={cn(buttonClasses("ghost", "md"))}>Márgenes y condiciones de las propuestas</Link>}
+          {veLaPlata(a.user) && puede(a, "direccion", "editar") && <Link href="/admin/proyectos/config" className={cn(buttonClasses("ghost", "md"))}>Márgenes y condiciones de las propuestas</Link>}
           {(a.rol === "DIRECCION" || a.rol === "ADMINISTRACION") && <Link href="/admin/proyectos/config/parametros" className={cn(buttonClasses("ghost", "md"))}>Parámetros del módulo</Link>}
         </div>
       </section>

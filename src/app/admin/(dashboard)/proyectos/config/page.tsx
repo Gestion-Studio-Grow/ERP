@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireApp } from "@/lib/require-app";
-import { requireCapabilityFueraDeLaAgenda } from "@/lib/authz";
+import { exigirPlataDeDireccion } from "@/lib/proyectos/gestion.server";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { buttonClasses } from "@/components/ui";
 import SubmitButton from "@/components/SubmitButton";
@@ -14,7 +14,8 @@ export const metadata = { title: "Configuración de proyectos" };
 
 export default async function ConfigProyectos() {
   const user = await requireApp("proyectos");
-  await requireCapabilityFueraDeLaAgenda("agenda:manage");
+  // PRY-099: la guarda Dirección o el módulo `direccion` en «editar» (`guardarConfig` lo vuelve a decidir).
+  await exigirPlataDeDireccion("editar");
   const c = await configProyectos(await getCurrentTenantId());
 
   return (

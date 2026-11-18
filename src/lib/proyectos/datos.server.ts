@@ -7,7 +7,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { requireCapability, requireCapabilityFueraDeLaAgenda } from "@/lib/authz";
+import { requireCapability } from "@/lib/authz";
 import { permisoFueraDeLaAgenda } from "@/lib/capabilities";
 import { enmascararContacto } from "@/lib/clientes/telefono";
 import { criterioDeContacto, wherePorContacto } from "@/lib/clientes/busqueda-por-contacto";
@@ -156,7 +156,8 @@ export async function clientesDelNegocio() {
 }
 
 export async function reporteProyectos() {
-  await requireCapabilityFueraDeLaAgenda("agenda:manage");
+  // PRY-099: decide el rol de gestión (módulo `direccion`), con el techo del ERP adentro. Import dinámico: gestion.server importa este archivo.
+  await (await import("./gestion.server")).exigirPlataDeDireccion("ver");
   const tenantId = await getCurrentTenantId();
   const [config, tc] = await Promise.all([configProyectos(tenantId), tiposDeCambio(tenantId)]);
   const proyectos = await prisma.proyecto.findMany({
@@ -189,7 +190,8 @@ export async function reporteProyectos() {
 
 /** Los proveedores con lo gastado en proyectos, y lo que queda por pagar. */
 export async function proveedoresConGastos() {
-  await requireCapabilityFueraDeLaAgenda("agenda:manage");
+  // PRY-099: decide el rol de gestión (módulo `direccion`), con el techo del ERP adentro. Import dinámico: gestion.server importa este archivo.
+  await (await import("./gestion.server")).exigirPlataDeDireccion("ver");
   const tenantId = await getCurrentTenantId();
   const [proveedores, gastos] = await Promise.all([
     prisma.supplier.findMany({ where: { tenantId }, orderBy: [{ active: "desc" }, { name: "asc" }], take: 500, select: { id: true, name: true, taxId: true, phone: true, email: true, active: true } }),
