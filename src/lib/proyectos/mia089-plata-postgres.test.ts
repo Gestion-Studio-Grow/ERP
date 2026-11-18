@@ -480,7 +480,7 @@ test("T (MIA-099) · igualdad Rentabilidad = Dirección con un perdido confirmad
   assert.equal(rent.neto, dir.facturacion, `«Vendido» de Rentabilidad (${rent.neto}) = «Facturación» de Dirección (${dir.facturacion})`);
   assert.equal(rent.ganancia, dir.margen, `«Ganancia presupuestada» (${rent.ganancia}) = «Margen» de Dirección (${dir.margen})`);
   // Lo cobrado del perdido sigue a la vista y no queda nada por cobrar (V2).
-  assert.equal(rent.porCobrar, 605, "por cobrar: la seña del vivo; el perdido, nada");
+  assert.equal(rent.porCobrar, 1210, "por cobrar, a mano: la venta del vivo con IVA (1.000 + 210); del perdido, nada");
 });
 
 /** Las filas de historial «Etapa» de un proyecto, en orden. */

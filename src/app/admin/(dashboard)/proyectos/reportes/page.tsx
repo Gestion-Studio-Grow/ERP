@@ -44,7 +44,7 @@ export default async function RentabilidadProyectos() {
             {filas.map((f) => (
               <tr key={f.id} className="border-t border-line">
                 <td className="py-1.5 pr-2"><a href={`/admin/proyectos/${f.id}`} className="underline">#{f.numero} {f.nombre}</a><span className="block text-xs text-muted">{f.client.name}</span></td>
-                <td className="pr-2">{etapaLabel(f.etapa, f.servicio)}</td>
+                <td className="pr-2">{f.perdidoEl ? <>Perdido<span className="block text-xs text-muted">no suma en Vendido</span></> : etapaLabel(f.etapa, f.servicio)}</td>
                 <td className="pr-2 text-right">{f.t ? pesos(f.t.neto) : "—"}</td>
                 <td className="pr-2 text-right">{f.t ? pesos(f.t.costo) : "—"}</td>
                 <td className="pr-2 text-right">{f.real.conGastos ? pesos(f.real.costoReal) : "—"}</td>
