@@ -51,7 +51,7 @@ export async function PestanaCotizacion({ a, cab, vista, ver, cambios }: { a: Ac
   const wa = waLink(p.client.phone, `Hola ${p.client.name}! Te compartimos la propuesta de ${negocio.nombre} para "${p.nombre}":`);
 
   return (
-    <div className="grid gap-4">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
       <section className={tarjeta} aria-label="Versiones">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div className="min-w-0">
@@ -132,7 +132,8 @@ export async function PestanaCotizacion({ a, cab, vista, ver, cambios }: { a: Ac
                     </FormAccion>
                     <FormAccion accion={enviarCotizacion}>
                       <input type="hidden" name="id" value={v.id} />
-                      <SubmitButton className={cn(buttonClasses("solid", "lg"), "w-full justify-center")}>Enviar: cerrar versión y generar link</SubmitButton>
+                      {/* V1: sin corte de línea el texto mide ~370 px y a 390 la tarjeta desbordaba (423); en el teléfono va en dos renglones. */}
+                      <SubmitButton className={cn(buttonClasses("solid", "lg"), "h-auto! min-h-14 w-full justify-center py-2 text-center whitespace-normal!")}>Enviar: cerrar versión y generar link</SubmitButton>
                       <p className="mt-1 text-sm text-muted">Después de esto, la versión no se edita: para cambiarla se abre otra.</p>
                     </FormAccion>
                   </div>

@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { Badge, buttonClasses, cn } from "@/components/ui";
 import SubmitButton from "@/components/SubmitButton";
 import { agregarLineaAdicional, aprobarAdicionalInterno, borrarLineaAdicional, crearAdicional, enviarAdicional, guardarAnticipoLinea, guardarLineaDetalle, marcarPrevision, responderAdicional } from "@/lib/proyectos/acciones-presupuesto";
-import { fechaCorta, porcentaje } from "@/lib/proyectos/core";
+import { fechaCorta, pesos, porcentaje } from "@/lib/proyectos/core";
 import { plataEn } from "@/lib/proyectos/gestion-core";
 import { parametrosDelNegocio } from "@/lib/proyectos/parametros/leer.server";
 import { anticipoDeLaLinea, cantidadDeLaLinea, ESTADO_ADICIONAL_LABEL, subtotalCentavos, totalesDelAdicional } from "@/lib/proyectos/presupuesto-core";
@@ -26,7 +26,12 @@ interface Linea {
   supplierId: string | null;
 }
 
-const centavos = (n: number) => plataEn(n / 100, "ARS");
+// V3: un solo helper de plata. Misma regla que `importe` de `../_tabla` (rama de T02): en pesos, `pesos` (core); en otra
+// moneda, `plataEn`. Al integrar la ola, esta copia se cambia por el import de `../_tabla` (anotado en el PR).
+function importe(monto: number, moneda = "ARS"): string {
+  return moneda === "ARS" ? pesos(monto) : plataEn(monto, moneda);
+}
+const centavos = (n: number) => importe(n / 100);
 
 /** «(provisional a confirmar)» al lado de lo que todavía es un valor del rubro sin confirmar con el negocio (R8). */
 function Provisional({ si }: { si: boolean }) {
@@ -65,7 +70,7 @@ export async function DetalleDeLineas({ a, vista, lineas }: { a: Actor; vista: V
               <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
                 <h3 className="font-medium text-strong">{l.descripcion}</h3>
                 <span className="text-sm tabular-nums text-body">
-                  {cantidad} × {plataEn(l.costo, l.moneda)} = <strong className="text-strong">{plataEn(cantidad * l.costo, l.moneda)}</strong>
+                  {cantidad} × {importe(l.costo, l.moneda)} = <strong className="text-strong">{importe(cantidad * l.costo, l.moneda)}</strong>
                 </span>
               </div>
               <p className="mb-2 text-sm text-muted">Proveedor: {l.proveedor ?? "sin proveedor"}</p>
@@ -102,7 +107,7 @@ export async function DetalleDeLineas({ a, vista, lineas }: { a: Actor; vista: V
         })}
       </ul>
       <p className="mt-3 text-right text-sm text-body">
-        Total del costo: <strong className="tabular-nums text-strong">{plataEn(total, lineas[0].moneda)}</strong>
+        Total del costo: <strong className="tabular-nums text-strong">{importe(total, lineas[0].moneda)}</strong>
         {lineas.some((l) => l.moneda !== lineas[0].moneda) && <span className="text-muted"> (hay líneas en otra moneda: el total de la planilla las pasa al cambio)</span>}
       </p>
     </section>
@@ -344,7 +349,7 @@ export async function PrevisionDePagos({ a, vista, proyectoId, lineas }: { a: Ac
   );
 }
 
-type CuotaDePago = { id: string; concepto: string; monto: Parameters<typeof plataEn>[0]; moneda: string; venceEl: Date; pagadoEl: Date | null };
+type CuotaDePago = { id: string; concepto: string; monto: number; moneda: string; venceEl: Date; pagadoEl: Date | null };
 
 /** Anticipo y saldo de una línea, con su estado de previsión y, para Administración, el botón para cambiarlo. */
 function CuotasDeLaLinea({ cuotas, estados, palabras, marca }: { cuotas: CuotaDePago[]; estados: Awaited<ReturnType<typeof estadosDePrevision>>; palabras: Record<string, string>; marca: boolean }) {
@@ -358,7 +363,7 @@ function CuotasDeLaLinea({ cuotas, estados, palabras, marca }: { cuotas: CuotaDe
             <div className="min-w-0">
               <p className="text-strong">{c.concepto}</p>
               <p className="tabular-nums text-muted">
-                {fechaCorta(c.venceEl)} · {plataEn(c.monto, c.moneda)} sin IVA{c.pagadoEl && " · pagada"}
+                {fechaCorta(c.venceEl)} · {importe(c.monto, c.moneda)} sin IVA{c.pagadoEl && " · pagada"}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
