@@ -13,6 +13,12 @@ import { createHmac, randomInt, timingSafeEqual } from "node:crypto";
 
 /** Quien no ve plata y no tiene app de códigos entra con un PIN por mail. Provisional hasta confirmarlo con MIA. */
 export const ROLES_CON_PIN: readonly string[] = ["COMERCIAL", "PRODUCCION"];
+/**
+ * Los rubros donde rige el PIN de ingreso: sólo productora. E-4 (GSG-MIA-090): MIA Taller hereda los dos pasos de quien ve
+ * plata, no el PIN; Comercial y Producción del Taller entran como hoy. Provisional a confirmar por el dueño.
+ */
+export const RUBROS_CON_PIN: readonly string[] = ["productora"];
+export const rigePin = (rubro: string | null | undefined): boolean => RUBROS_CON_PIN.includes(rubro ?? "");
 export const DIGITOS_PIN = 6;
 export const VIGENCIA_PIN_MS = 5 * 60_000;
 export const MAX_INTENTOS_PIN = 5;

@@ -5,13 +5,14 @@ import { RLS_ENFORCEMENT } from "@/lib/prisma";
 import { requireApp } from "@/lib/require-app";
 import { cambiarEstadoPersona, guardarPermisos, reiniciarSegundoFactor } from "@/lib/proyectos/acciones-gestion";
 import { prisma } from "@/lib/prisma";
-import { ROLES_CON_SEGUNDO_PASO } from "@/lib/proyectos/segundo-factor-core";
+import { estadoDeDosPasos, rigeSegundoPaso } from "@/lib/proyectos/segundo-factor-core";
+import { rubroDe } from "@/lib/proyectos/segundo-factor.server";
 import { cambiaLosPermisos, COLUMNAS_FICHA, COLUMNAS_OCULTAS_BASE, MODULOS, permisoDe, ROL_LABEL, ROLES_GESTION, type RolGestion } from "@/lib/proyectos/gestion-core";
 import { exigirVer, puede, type Actor } from "@/lib/proyectos/gestion.server";
 import { personasDelEquipo, registroDeCambios } from "@/lib/proyectos/gestion-lecturas.server";
 import { plataEn } from "@/lib/proyectos/gestion-core";
 import { tarjeta } from "../_vista";
-import { puedeGenerarPinDe } from "@/lib/rendiciones/pin-core";
+import { puedeGenerarPinDe, rigePin } from "@/lib/rendiciones/pin-core";
 import { CodigoParaPasar } from "./CodigoParaPasar";
 import { FormPersona } from "./FormPersona";
 
@@ -29,8 +30,11 @@ const fechaHora = (d: Date) => new Intl.DateTimeFormat("es-AR", { day: "numeric"
 const casilla = "flex min-h-11 min-w-11 items-center justify-center";
 const ROLES = ROLES_GESTION.filter((r): r is Exclude<RolGestion, "DIRECCION" | "SIN_FICHA"> => r !== "DIRECCION");
 
-async function Personas({ a }: { a: Actor }) {
+async function Personas({ a, rubro }: { a: Actor; rubro: string | null }) {
   const personas = await personasDelEquipo(a);
+  // Misma regla que el ingreso (E-4): lo que dice esta pantalla es lo que pasa al entrar.
+  const rige = rigeSegundoPaso(rubro);
+  const conPin = rigePin(rubro);
   const factores = await prisma.proyectoSegundoFactor.findMany({ where: { tenantId: a.tenantId, activadoEl: { not: null } }, select: { userId: true } });
   const conFactor = new Set(factores.map((f) => f.userId));
   const edita = puede(a, "equipo", "editar");
@@ -60,16 +64,16 @@ async function Personas({ a }: { a: Actor }) {
                 <p className="break-words text-sm text-muted">{p.email ?? "Sin mail"} · {p.userId ? "Con cuenta" : "Sin cuenta de ingreso"}</p>
                 {p.userId && (
                   <p className="text-sm text-muted">
-                    Dos pasos: {conFactor.has(p.userId) ? "activos" : ROLES_CON_SEGUNDO_PASO.includes(p.rol) ? "se activan en su próximo ingreso" : "no los pide su rol"}
+                    Dos pasos: {estadoDeDosPasos(rubro, conFactor.has(p.userId), p.rol)}
                   </p>
                 )}
-                {a.rol === "DIRECCION" && p.userId && p.userId !== a.user.id && conFactor.has(p.userId) && (
+                {rige && a.rol === "DIRECCION" && p.userId && p.userId !== a.user.id && conFactor.has(p.userId) && (
                   <form action={reiniciarSegundoFactor}>
                     <input type="hidden" name="id" value={p.id} />
                     <button type="submit" className={buttonClasses("ghost", "md")}>Reiniciar dos pasos (perdió el teléfono)</button>
                   </form>
                 )}
-                {p.userId && p.activa && p.userId !== a.user.id && !conFactor.has(p.userId) && puedeGenerarPinDe(a.rol, p.rol) && (
+                {p.userId && p.activa && p.userId !== a.user.id && !conFactor.has(p.userId) && conPin && puedeGenerarPinDe(a.rol, p.rol) && (
                   <CodigoParaPasar personaId={p.id} nombre={p.nombre} />
                 )}
                 {p.sueldoBase !== null && <p className="text-sm text-strong">Sueldo {plataEn(p.sueldoBase, "ARS")}</p>}
@@ -197,13 +201,15 @@ async function Registro({ a, pagina: pedida }: { a: Actor; pagina?: string }) {
   );
 }
 
-function Seguridad() {
+function Seguridad({ rubro }: { rubro: string | null }) {
+  // El ingreso con Google existe sólo en una productora (login/page.tsx, login/google): el Taller no lo hereda.
+  const google = rubro === "productora" && !!process.env.GOOGLE_CLIENT_ID?.trim();
   const protege = [
     "Contraseñas guardadas con hash (scrypt): nadie puede leerlas, tampoco desde la base.",
     "Sesión en una cookie firmada, inaccesible desde el navegador, que vence a las 8 horas.",
     "Bloqueo tras 5 ingresos fallidos en 15 minutos.",
-    "Verificación en dos pasos, obligatoria para Dirección y Administración: un código de una app además de la clave, con códigos de respaldo. El secreto se guarda cifrado.",
-    ...(process.env.GOOGLE_CLIENT_ID?.trim() ? ["Ingreso con Google, sólo para mails ya dados de alta; quien ve plata también pasa por los dos pasos."] : []),
+    ...(rigeSegundoPaso(rubro) ? ["Verificación en dos pasos, obligatoria para Dirección y Administración: un código de una app además de la clave, con códigos de respaldo. El secreto se guarda cifrado."] : []),
+    ...(google ? ["Ingreso con Google, sólo para mails ya dados de alta; quien ve plata también pasa por los dos pasos."] : []),
     "Cada pantalla y cada acción de estas apps comprueba el permiso del rol en el servidor, no sólo esconde el botón.",
     "Todas las lecturas y escrituras están acotadas a este negocio.",
     RLS_ENFORCEMENT ? "Además, la base de datos filtra por negocio (seguridad por fila) en este servidor." : "La seguridad por fila de la base de datos está apagada en este servidor: el filtro por negocio lo hace la aplicación.",
@@ -211,7 +217,8 @@ function Seguridad() {
     "Los cambios de precios, pagos, permisos y personas quedan en el registro: quién, qué, antes y después.",
   ];
   const noHay = [
-    ...(process.env.GOOGLE_CLIENT_ID?.trim() ? [] : ["Ingreso con Google: aparece cuando el servidor tenga GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET."]),
+    ...(rigeSegundoPaso(rubro) ? [] : ["Verificación en dos pasos: este negocio no la pide; se entra con la clave."]),
+    ...(rubro !== "productora" || google ? [] : ["Ingreso con Google: aparece cuando el servidor tenga GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET."]),
     "Envío por mail de estos avisos: sale sólo si el servidor tiene RESEND_API_KEY y RESEND_FROM_EMAIL.",
     "Los links de cliente y de calendario no vencen: quien tenga el link entra. La dirección de calendario de una persona deja de funcionar cuando se da de baja su cuenta en Usuarios; no se puede renovar por separado.",
   ];
@@ -234,6 +241,7 @@ export default async function EquipoGestion({ searchParams }: { searchParams: Pr
   const a = await exigirVer("equipo");
   const sp = await searchParams;
   const tab = PESTANAS.find((p) => p.id === sp.tab)?.id ?? "personas";
+  const rubro = await rubroDe(a.tenantId);
   return (
     <main className="mx-auto grid w-full max-w-6xl gap-4 px-4 py-5">
       <h1 className="text-2xl font-bold text-strong">Equipo y permisos</h1>
@@ -244,10 +252,10 @@ export default async function EquipoGestion({ searchParams }: { searchParams: Pr
           </Link>
         ))}
       </nav>
-      {tab === "personas" && <Personas a={a} />}
+      {tab === "personas" && <Personas a={a} rubro={rubro} />}
       {tab === "permisos" && <Permisos a={a} ok={sp.ok === "1"} />}
       {tab === "registro" && <Registro a={a} pagina={sp.pagina} />}
-      {tab === "seguridad" && <Seguridad />}
+      {tab === "seguridad" && <Seguridad rubro={rubro} />}
     </main>
   );
 }

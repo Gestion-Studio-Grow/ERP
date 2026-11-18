@@ -17,7 +17,7 @@ import { createRateLimiter } from "@/lib/rate-limit";
 import { tenantTransaction } from "@/lib/rls";
 import { rolDelActor } from "@/lib/proyectos/gestion-core";
 import { registrarCambio } from "@/lib/proyectos/gestion.server";
-import { esProductora, exigeSegundoPaso, type UsuarioDelIngreso } from "@/lib/proyectos/segundo-factor.server";
+import { exigeSegundoPaso, rubroDe, type UsuarioDelIngreso } from "@/lib/proyectos/segundo-factor.server";
 import {
   datosDelPedido,
   datosTrasExito,
@@ -33,6 +33,7 @@ import {
   pinCoincide,
   puedeGenerarPinDe,
   puedePedir,
+  rigePin,
   ROLES_CON_PIN,
   ROLES_QUE_GENERAN_PIN,
   type ContextoPin,
@@ -62,7 +63,7 @@ const bitacora = (que: string, ctx: ContextoPin) => console.info(`[pin-ingreso] 
 
 /** COMERCIAL/PRODUCCION de una productora que no usan la app de códigos. Quien tiene TOTP (o ve plata) sigue con TOTP. */
 export async function exigePin(u: UsuarioDelIngreso): Promise<boolean> {
-  if (!(await esProductora(u.tenantId))) return false;
+  if (!rigePin(await rubroDe(u.tenantId))) return false;
   if (await exigeSegundoPaso(u)) return false;
   const persona = await prisma.proyectoPersona.findFirst({ where: { tenantId: u.tenantId, userId: u.id, activa: true }, select: { rol: true } });
   if (!ROLES_CON_PIN.includes(rolDelActor(persona?.rol, u.role))) return false;

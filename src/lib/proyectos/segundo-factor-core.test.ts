@@ -73,3 +73,17 @@ test("el pase vence, y no se puede falsificar ni cambiar de usuario", () => {
   assert.equal(leerPase(undefined, ahora, clave), null);
   assert.equal(leerPase("u1.abc", ahora, clave), null);
 });
+
+test("E-4 · una sola regla de rubro: rige en productora y taller-stands; Equipo dice lo mismo que el ingreso", async () => {
+  const { estadoDeDosPasos, rigeSegundoPaso } = await import("./segundo-factor-core");
+  const { rigePin } = await import("@/lib/rendiciones/pin-core");
+  for (const r of ["productora", "taller-stands"]) assert.equal(rigeSegundoPaso(r), true, r);
+  for (const r of [null, undefined, "", "generico", "arm"]) assert.equal(rigeSegundoPaso(r), false, String(r));
+  assert.equal(estadoDeDosPasos("taller-stands", false, "ADMINISTRACION"), "se activan en su próximo ingreso");
+  assert.equal(estadoDeDosPasos("taller-stands", false, "COMERCIAL"), "no los pide su rol");
+  assert.equal(estadoDeDosPasos("taller-stands", true, "COMERCIAL"), "activos");
+  assert.equal(estadoDeDosPasos("generico", true, "DIRECCION"), "este negocio no los pide");
+  // El PIN por mail no se hereda en el Taller (provisional a confirmar por el dueño).
+  assert.equal(rigePin("productora"), true);
+  assert.equal(rigePin("taller-stands"), false);
+});

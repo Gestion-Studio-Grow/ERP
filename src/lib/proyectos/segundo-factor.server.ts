@@ -1,5 +1,5 @@
-// La verificación en dos pasos contra la base y las cookies. Sólo rige en una productora: el resto de los negocios entra
-// como siempre. Reglas puras: segundo-factor-core.ts.
+// La verificación en dos pasos contra la base y las cookies. Rige en los rubros de `RUBROS_CON_SEGUNDO_PASO` (productora y,
+// desde E-4, taller de stands): el resto de los negocios entra como siempre. Reglas puras: segundo-factor-core.ts.
 
 import "server-only";
 import { hkdfSync, randomBytes } from "node:crypto";
@@ -8,7 +8,7 @@ import { toDataURL } from "qrcode";
 import { authSecret } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { rolDelActor } from "./gestion-core";
-import { BLOQUEO_MS, cifrarSecreto, crearPase, descifrarSecreto, direccionParaLaApp, hashDeRespaldo, leerPase, MAX_INTENTOS, nuevosCodigosDeRespaldo, ROLES_CON_SEGUNDO_PASO, verificarCodigo, VIGENCIA_PASE_MS } from "./segundo-factor-core";
+import { BLOQUEO_MS, cifrarSecreto, crearPase, descifrarSecreto, direccionParaLaApp, hashDeRespaldo, leerPase, MAX_INTENTOS, nuevosCodigosDeRespaldo, rigeSegundoPaso, ROLES_CON_SEGUNDO_PASO, verificarCodigo, VIGENCIA_PASE_MS } from "./segundo-factor-core";
 
 const COOKIE_PASE = "admin_segundo_paso";
 const EN_PRODUCCION = process.env.NODE_ENV === "production";
@@ -23,14 +23,20 @@ export interface UsuarioDelIngreso {
   role: string;
 }
 
-export async function esProductora(tenantId: string): Promise<boolean> {
+/** El rubro del negocio (`blueprintId`), o null. */
+export async function rubroDe(tenantId: string): Promise<string | null> {
   const t = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { blueprintId: true } });
-  return t?.blueprintId === "productora";
+  return t?.blueprintId ?? null;
 }
 
-/** Quien lo activó siempre lo usa; quien ve plata, además, está obligado a activarlo. */
+/** Sólo productora: el ingreso con Google (no es de seguridad; el Taller no lo hereda, ver la tabla de E-4). */
+export async function esProductora(tenantId: string): Promise<boolean> {
+  return (await rubroDe(tenantId)) === "productora";
+}
+
+/** Quien lo activó siempre lo usa; quien ve plata, además, está obligado a activarlo. Sólo donde rige (`rigeSegundoPaso`). */
 export async function exigeSegundoPaso(u: UsuarioDelIngreso): Promise<boolean> {
-  if (!(await esProductora(u.tenantId))) return false;
+  if (!rigeSegundoPaso(await rubroDe(u.tenantId))) return false;
   const [persona, factor] = await Promise.all([
     prisma.proyectoPersona.findFirst({ where: { tenantId: u.tenantId, userId: u.id, activa: true }, select: { rol: true } }),
     prisma.proyectoSegundoFactor.findUnique({ where: { tenantId_userId: { tenantId: u.tenantId, userId: u.id } }, select: { activadoEl: true } }),
