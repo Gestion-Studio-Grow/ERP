@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { FUENTES_PANEL } from "@/design/fuentes-panel";
 import type { CSSProperties } from "react";
 import { requireUserConCambioPendiente } from "@/lib/authz";
-import { getTenantBrand, resolveAccent, marcaDelNegocio } from "@/lib/branding";
+import { getTenantBrand, resolveAccent, marcaConElNombreDelNegocio } from "@/lib/branding";
 import { getTeamAccentPreset } from "@/lib/team-accent";
 import { getProductoContexto } from "@/lib/producto";
 import AdminThemeScript from "../AdminThemeScript";
@@ -15,6 +15,8 @@ import { folioDelDia } from "../login/login-core";
 import SelloGSG from "@/components/marca/SelloGSG";
 import { IsotipoProducto } from "@/components/marca/IsotipoProducto";
 import { MarcaDeAgua } from "@/components/marca/MarcaDeAgua";
+import { NegocioDeLaCuenta } from "@/components/cuenta/NegocioDeLaCuenta";
+import { nombreDelNegocioDeLaCuenta } from "@/lib/negocio-de-la-cuenta.server";
 
 // Vive FUERA de (dashboard) a propósito (como /admin/login): el proxy exige sesión válida para
 // llegar, pero NO hereda el layout del dashboard → el portón de cambio forzado que redirige acá
@@ -35,13 +37,14 @@ export default async function CambiarPasswordPage({
   const disenoP = disenoNuevo();
   const { status } = await searchParams;
   const user = await requireUserConCambioPendiente();
+  const negocio = await nombreDelNegocioDeLaCuenta(user.tenantId);
 
   const brand = await getTenantBrand();
   const { identidad } = await getProductoContexto();
   const preset = (await getTeamAccentPreset()) ?? identidad?.acento ?? brand.preset;
   const accentLight = resolveAccent(preset, "light");
   const accentDark = resolveAccent(preset, "dark");
-  const { nombre: marcaNombre, monograma: marcaMonograma } = marcaDelNegocio(brand, identidad);
+  const { nombre: marcaNombre, monograma: marcaMonograma } = marcaConElNombreDelNegocio(brand, identidad, negocio);
   const nuevo = await disenoP;
   // Marca de agua de GSG SÓLO en un producto de GSG; en un negocio cliente `identidad` es null.
   const marcaDeAgua = identidad != null;
@@ -85,6 +88,7 @@ export default async function CambiarPasswordPage({
               <h1 id="cp-titulo" className="text-[26px] font-semibold leading-tight text-strong">
                 Definí tu contraseña
               </h1>
+              <NegocioDeLaCuenta nombre={negocio} />
               <p className="mt-1 mb-6 text-sm text-muted">
                 Hola {user.name.split(/\s+/)[0]}: entraste con una contraseña temporal. Elegí una nueva
                 para terminar de entrar. Va a quedar solo para vos.
@@ -120,6 +124,7 @@ export default async function CambiarPasswordPage({
             <h1 id="cp-titulo" className="text-xl font-semibold tracking-tight text-strong">
               Definí tu contraseña
             </h1>
+            <NegocioDeLaCuenta nombre={negocio} />
             <p className="mt-1 mb-6 text-sm text-muted">
               Hola {user.name.split(/\s+/)[0]}: entraste con una contraseña temporal. Elegí una nueva
               para terminar de entrar. Va a quedar solo para vos.

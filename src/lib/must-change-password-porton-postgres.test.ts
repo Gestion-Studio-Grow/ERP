@@ -99,3 +99,37 @@ test("la dueña le fija la clave a una empleada: esa clave es provisoria (cambio
   assert.equal(await flag(b.recepcion.id), true, "la empleada tiene que cambiarla al entrar");
   assert.equal(await flag(b.duenia.id), false, "a la dueña no se le toca");
 });
+
+// GSG-MIA-072, punto 9: tras «Guardar y entrar» la pantalla queda atrás. Una clave válida baja el flag, reemite la
+// sesión y redirige FUERA de /admin/cambiar-password (al PIN, o a la casa del producto); la misma sesión ya pasa el
+// portón. Con un dato mal vuelve a su pantalla con el error (eso lo cubre el test de arriba).
+test("cambio válido: sale de cambiar-password, baja el flag y la sesión ya pasa", async (t) => {
+  const base = await laBase(t);
+  if (!base) return;
+  apuntarLaAppA(base);
+  prepararAccionesDeServidor();
+  const duenio = await prismaComoDuenio(base);
+  const { CLAVE_DE_PRUEBA } = await import("@/test/base-efimera");
+  const a = base.a;
+  const pedido = { negocio: a, usuario: a.duenia };
+  await duenio.user.update({ where: { id: a.duenia.id }, data: { mustChangePassword: true } });
+
+  const { changeOwnPassword } = await import("@/lib/change-password-actions");
+  const { getCurrentUser } = await import("@/lib/session");
+  const { getSessionCookieName } = await import("@/lib/auth");
+  const nueva = ["nueva", "clave", "valida", "2026"].join("-");
+  const cambio = new FormData();
+  cambio.set("currentPassword", CLAVE_DE_PRUEBA);
+  cambio.set("newPassword", nueva);
+  cambio.set("confirmPassword", nueva);
+  const r = await ejecutarAccion(pedido, () => changeOwnPassword(cambio));
+  assert.equal(r.tipo, "redireccion");
+  const destino = r.tipo === "redireccion" ? r.destino : "";
+  assert.ok(!destino.startsWith(CAMBIAR), `quedó en ${destino}`);
+  assert.match(destino, /^\/admin\/definir-pin\?next=|^\/(admin|facturita|contador)/);
+  assert.ok(r.cookiesPuestas[getSessionCookieName()], "reemite la sesión");
+  const fila = await duenio.user.findUniqueOrThrow({ where: { id: a.duenia.id }, select: { mustChangePassword: true } });
+  assert.equal(fila.mustChangePassword, false);
+  const yo = await ejecutarAccion(pedido, () => getCurrentUser());
+  assert.equal(yo.tipo === "respuesta" && yo.valor && yo.valor.id, a.duenia.id);
+});

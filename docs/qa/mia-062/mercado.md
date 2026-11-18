@@ -1,0 +1,55 @@
+# GSG-MIA-062 · Criterio 1 «Mercado» — consolas de supervisión de agentes (fuentes oficiales)
+
+Relevado: 17/11/2026. Cada URL de la tabla fue abierta con WebFetch en esta sesión. Las citas son textuales de la doc
+(en inglés, tal como las devolvió la página); si la cita viene de un resumen del extractor y no del texto crudo, va
+marcada [cita vía extractor]. Destino: consola web multi-negocio, operador con 10+ sesiones de Claude Code operando un
+ERP por navegador; supervisor del cliente que sólo ve su negocio; Nivel 0 = plata y envíos a terceros con aprobación
+humana de a una, viendo el contenido, sin «aprobar todo». Público argentino, WhatsApp-first.
+
+| Producto | URL oficial abierta | Función observada (cita corta de la doc) | Adopta/Descarta | Por qué (1 línea) |
+|---|---|---|---|---|
+| Claude Code (cloud sessions) | https://code.claude.com/docs/en/claude-code-on-the-web | Lista de sesiones: "Sessions appear in the sidebar at claude.ai/code. From there you can review changes, share with teammates, archive finished work" | Adopta | Lista lateral de sesiones con estado y archivo es la base de la bandeja del operador. |
+| Claude Code (cloud sessions) | https://code.claude.com/docs/en/claude-code-on-the-web | Hilo por agente + dirigir: "From there you can steer Claude, provide feedback, or answer questions as in any other conversation." / "If Claude asks a question and the session sits idle, you can still answer when you come back" | Adopta | Hilo por agente donde la pregunta espera respuesta sin perderse = excepción que no caduca. |
+| Claude Code (cloud sessions) | https://code.claude.com/docs/en/claude-code-on-the-web | Mensaje en cola retirable: "To take a queued message back, click the ✕ on it." | Adopta | Barato y evita órdenes equivocadas a un agente ocupado. |
+| Claude Code (cloud sessions) | https://code.claude.com/docs/en/claude-code-on-the-web | Visibilidad por equipo: "Visibility options: Private and Team" ; permisos por rol: "you also need a role with the cloud sessions permission" | Adopta (adaptado) | El modelo Private/Team se traduce a «operador ve todo / supervisor ve su negocio» (scoping por tenant, no por equipo). |
+| Claude Code (Remote Control) | https://code.claude.com/docs/en/remote-control | Aprobación que no vence: "Claude Code keeps permission prompts and AskUserQuestion questions open until you answer them." | Adopta | Coincide con Nivel 0: la acción sensible queda frenada hasta que un humano decide. |
+| Claude Code (Remote Control) | https://code.claude.com/docs/en/remote-control | Notificación: "Push when actions required for permission prompts and questions" ; "Beyond the two on/off toggles below, there is no per-event configuration." | Adopta (adaptado) | Notificar sólo lo que pide acción; para Argentina el canal es WhatsApp, no push de app. |
+| Claude Code (Remote Control) | https://code.claude.com/docs/en/remote-control | Detener tarea: "Stop one of them from the device, and Claude Code stops that task on your machine." | Adopta | Botón detener por agente/tarea, desde cualquier dispositivo. |
+| GitHub Copilot coding agent | https://docs.github.com/en/copilot/how-tos/use-copilot-agents/coding-agent/track-copilot-sessions | Panel: "Use the agents panel on GitHub to monitor and manage agent sessions across your repositories." [cita vía extractor] | Adopta | Un panel transversal a todos los repos = transversal a todos los negocios para el operador. |
+| GitHub Copilot coding agent | (misma URL) | Registro: "Session logs show Copilot's internal reasoning and the tools it used." ; "Each commit message includes a link to the session logs." [cita vía extractor] | Adopta | Cada acción del agente en el ERP debe enlazar a su registro de sesión (auditoría). |
+| GitHub Copilot coding agent | (misma URL) | Detener: "Stopping a session ends the GitHub Actions run and preserves any commits already pushed." [cita vía extractor] | Adopta | Detener sin perder lo ya hecho; mismo criterio para la consola. |
+| GitHub Copilot coding agent | (misma URL) | Steering: "Copilot implements your input after it finishes its current tool call." [cita vía extractor] | Adopta | La corrección entra al terminar el paso en curso, no lo corta a medias (seguro para plata). |
+| GitHub Copilot coding agent | https://docs.github.com/en/copilot/concepts/agents/coding-agent/about-coding-agent | "Without write access to a repository, your Copilot session is read-only." ; "You can only query sessions you started." [cita vía extractor] | Adopta | Vista de sólo lectura para quien no tiene permiso de escritura = rol del supervisor del cliente. |
+| OpenAI Codex cloud | https://learn.chatgpt.com/docs/cloud (redirigida desde developers.openai.com/codex/cloud) | Lista y estado: "list recent cloud chats and check their status" ; aislamiento: "Each task has its own workspace" [cita vía extractor] | Adopta | Un espacio aislado por tarea = un contexto por negocio; refuerza aislamiento por tenant. |
+| OpenAI Codex cloud | (misma URL) | Red: "Additional allowed domains" ; acceso al entorno: "Who can use" con "Only me" / "Everyone at Acme" [cita vía extractor] | Descarta (como UI) | Lista blanca de red es config de infraestructura, no función de la consola del operador. |
+| Cursor cloud agents | https://cursor.com/docs/cloud-agent (redirigida desde docs.cursor.com) | Tomar control: "Take control of the agent's desktop to test the software yourself" / "Release control back to the agent for it to keep working." | Adopta (fase 2) | Útil cuando el agente se traba en el navegador del ERP; no es Nivel 0. |
+| Cursor cloud agents | (misma URL) | Visibilidad: "Agents are visible to members of the Cursor team they were started under." ; "Team membership alone doesn't grant access." ; "Viewing is read-only." | Adopta | Doble chequeo (pertenencia + permiso sobre el recurso) es el patrón para el supervisor del cliente. |
+| Cursor cloud agents | (misma URL) | Notificación por chat: Slack "including triggering agents and receiving notifications" ; tope: "You'll be asked to set a spend limit" | Adopta (adaptado) | Disparar y notificar desde el chat del equipo → en Argentina, WhatsApp; tope de gasto por negocio. |
+| Devin | https://docs.devin.ai/work-with-devin/devin-session-tools | Registro unificado: "All shell commands, code edits, and browser activity will be logged in one unified view." ; "Click to stop the session to take over" [cita vía extractor] | Adopta | Línea de tiempo única por sesión (navegador + acciones) como vista de detalle del agente. |
+| Devin | https://docs.devin.ai/work-with-devin/devin-session-tools | Chat lateral sin interrumpir: "Side chats are read-only: Devin can search and read the codebase to answer your questions." [cita vía extractor] | Descarta | Agrega una segunda conversación por agente; para 10+ agentes confunde más de lo que ayuda. |
+| Devin | https://docs.devin.ai/enterprise/security-access/custom-roles | Roles por organización: "View Sessions" / "Manage Sessions" ; "do not apply outside of the assigned organization" ; "View audit logs for the enterprise (read-only)" [cita vía extractor] | Adopta | Ver vs. gestionar sesiones, acotado a una organización = rol supervisor por negocio; auditoría de sólo lectura. |
+| Microsoft Copilot Studio (Monitor) | https://learn.microsoft.com/en-us/microsoft-copilot-studio/analytics-overview | Rol acotado: "share the agent with the Analytics Viewer sharing role to grant access only to its Monitor page" ; resultados: "Escalated, Resolved, and Abandoned" | Adopta | Rol «sólo ve el monitor» para el cliente; estados Escalado/Resuelto/Abandonado como filtros de la bandeja. |
+| Microsoft Copilot Studio (aprobaciones) | https://learn.microsoft.com/en-us/microsoft-copilot-studio/flows-advanced-approvals | "Stages represent different gate points in the approval process where the flow pauses and waits for a designated approver" ; "ensure that human approval stages are reached in the flow so that humans remain in ultimate control" (financial transactions) | Adopta | Valida Nivel 0: pausa + aprobador designado, y la propia doc pide humano en transacciones financieras. |
+| Microsoft Copilot Studio (aprobaciones) | (misma URL) | Etapa IA que aprueba sola por condición: "automatically end as approved" si el monto es menor al umbral | Descarta | Aprobación automática por IA/umbral contradice «plata sólo con humano, de a una». |
+| Salesforce Agentforce (Observability) | https://www.salesforce.com/agentforce/command-center/ | Alertas: "Configure near real-time alerts on key metrics that agent admins can use to execute immediate, targeted interventions" ; detalle: "Review each turn in the conversation" [cita vía extractor] | Adopta (fase 2) | Alertas por umbral (p. ej. tiempo sin respuesta) suman cuando haya volumen; no es Nivel 0. |
+| Intercom Fin | https://www.intercom.com/help/en/articles/7120684-fin-ai-agent-explained | Derivación: "Fin will always automatically hand off when that is the safest option for the customer." ; "Review Fin conversations in real time right in the inbox." [cita vía extractor] | Adopta | La excepción cae en la bandeja humana existente; el agente cede cuando hay riesgo. |
+| Intercom Fin | (misma URL) | "review and approve fixes in seconds" [cita vía extractor] | Descarta | Aprobación rápida/masiva de mejoras no aplica a plata; Nivel 0 exige ver el contenido de cada una. |
+
+## Sin fuente oficial (no decide nada)
+
+| Producto | Qué pasó |
+|---|---|
+| Salesforce «Agentforce Command Center» (help.salesforce.com) | https://help.salesforce.com/s/articleView?id=ai.command_center_overview.htm&type=5 sólo devolvió «Loading / Sorry to interrupt / CSS Error» (la página carga con JS). La página de producto abierta describe «Agentforce Observability», no usa el nombre «Command Center». [A VALIDAR] el nombre y las funciones del Command Center. |
+| Devin: lista de sesiones, dormir/terminar, notificaciones | No figuran en las páginas abiertas ni en el índice docs.devin.ai/llms.txt según el extractor. [A VALIDAR] |
+| OpenAI Codex: «Approve for me» | Aparece sólo como rótulo en una maqueta; la doc no explica qué hace. [A VALIDAR] |
+| GitHub Copilot: filtros, notificaciones, aprobación de workflows | La página de seguimiento no los describe. [A VALIDAR] |
+| Sierra, Decagon | No se abrieron (tope de tiempo/alcance). Sin fuente. |
+
+## Notas para quien decide
+- Ninguna de las fuentes abiertas describe una bandeja de aprobaciones «de a una, viendo el contenido» para plata; lo
+  más cercano es Copilot Studio (etapas manuales con aprobador designado; se responde por Teams/Outlook/portal) y Claude
+  Code Remote Control (el prompt de permiso queda abierto hasta que se responde). Nadie documenta prohibir «aprobar todo»:
+  eso sería diferencial GSG.
+- Acciones en lote: ninguna fuente abierta las documenta para aprobaciones. [A VALIDAR] si existen.
+- Varias citas vienen del extractor de WebFetch (resumen con comillas), no del HTML crudo: las de Claude Code y
+  Copilot Studio sí son texto crudo de la página.
