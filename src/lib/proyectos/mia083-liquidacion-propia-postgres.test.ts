@@ -85,7 +85,7 @@ test("G4 · editar extras de la liquidación propia en borrador: se rechaza para
     const antes = await p.fila(ids[personaId]);
     const cambios = await p.historia();
     // La UAT: 2.900.000 → 10.900.000 subiendo la base a 9.900.000 y sumando un extra de 1.000.000.
-    const r = await p.como(userId, () => p.empresa.editarExtrasLiquidacion({ id: ids[personaId], base: "9900000", manuales: [{ nombre: "Bono", monto: "1000000" }] }));
+    const r: { ok: boolean; error?: string } = await p.como(userId, () => p.empresa.editarExtrasLiquidacion({ id: ids[personaId], base: "9900000", manuales: [{ nombre: "Bono", monto: "1000000" }] }));
     assert.equal(r.ok, false, `${que}: ${JSON.stringify(r)}`);
     assert.match(String((r as { error?: string }).error), PROPIA, `${que}: el rechazo dice que es suya`);
     assert.deepEqual(await p.fila(ids[personaId]), antes, `${que}: base, extras y total iguales`);
@@ -154,7 +154,7 @@ test("G4p · el sueldo base propio no se cambia desde Equipo (Dirección por su 
     ["Dirección (Dir, por su ficha)", usuario.dir, quien.dir],
     ["la dueña (por la cuenta vinculada)", usuario.duenia, quien.duenia],
   ] as const) {
-    const r = await p.como(userId, () => p.gestion.guardarPersona(datos(x, 9_900_000)));
+    const r: { ok: boolean; error?: string } = await p.como(userId, () => p.gestion.guardarPersona(datos(x, 9_900_000)));
     assert.equal(r.ok, false, `${que}: ${JSON.stringify(r)}`);
     assert.match(String((r as { error?: string }).error), PROPIA);
     assert.equal((await duenio.proyectoPersona.findUniqueOrThrow({ where: { id: x.id }, select: { sueldoBase: true } })).sueldoBase, x.sueldoBase, `${que}: el sueldo sigue`);

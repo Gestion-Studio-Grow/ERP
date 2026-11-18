@@ -21,7 +21,7 @@ import { actorDelMotor, faltaLaMigracion, rendicionDelMotor, SIN_MIGRACION } fro
 import { puedeReintegrarRendicion } from "./gestion-core";
 import { aplicarAccion } from "@/lib/rendiciones/rendicion";
 import type { RolActor } from "@/lib/rendiciones/tipos";
-import { conReintegros, etiquetaMes, extrasRecalculados, leerExtras, lineasNuevas, periodoValido, reintegrosCuadran, totalLiquidacion, type ExtraGuardado } from "./empresa-core";
+import { conReintegros, esLoPropio, etiquetaMes, extrasRecalculados, LIQUIDACION_PROPIA, leerExtras, lineasNuevas, periodoValido, reintegrosCuadran, totalLiquidacion, type ExtraGuardado } from "./empresa-core";
 import type { Resultado } from "./acciones";
 import { listoMarcada } from "./avisos-cuota";
 
@@ -409,26 +409,33 @@ async function reclamarReintegrosTx(tx: Prisma.TransactionClient, tenantId: stri
  * Base + plus de los eventos terminados en el mes + reintegros de Rendí aprobados y sin reclamar. Lo publicado no se
  * toca; lo cargado a mano en un borrador se conserva.
  */
-export async function generarLiquidaciones(formData: FormData): Promise<Resultado<{ generadas: number; publicadas: number }>> {
+export async function generarLiquidaciones(formData: FormData): Promise<Resultado<{ generadas: number; publicadas: number; salteada: string | null }>> {
   const a = await exigirEditar("liquidaciones");
+  const yo = { personaId: a.personaId, userId: a.user.id };
   const periodo = txt(formData.get("periodo"));
   if (!periodoValido(periodo)) return { ok: false, error: "Elegí el mes." };
   const [personas, actuales, conReintegro] = await Promise.all([
     prisma.proyectoPersona.findMany({
       where: { tenantId: a.tenantId, activa: true },
-      select: { id: true, nombre: true, sueldoBase: true, facturaA: true, equipos: { where: { proyecto: { perdidoEl: null } }, select: { plus: true, proyecto: { select: { id: true, nombre: true, fechaEvento: true, fechaFin: true } } } } },
+      select: { id: true, userId: true, nombre: true, sueldoBase: true, facturaA: true, equipos: { where: { proyecto: { perdidoEl: null } }, select: { plus: true, proyecto: { select: { id: true, nombre: true, fechaEvento: true, fechaFin: true } } } } },
     }),
     prisma.proyectoLiquidacion.findMany({ where: { tenantId: a.tenantId, periodo }, select: { id: true, personaId: true, estado: true, extras: true, total: true } }),
     personasConReintegros(a.tenantId),
   ]);
   const publicadas = actuales.filter((l) => l.estado !== "BORRADOR").length;
   let generadas = 0;
+  let salteada: string | null = null;
   await tenantTransaction(async (tx) => {
     for (const p of personas) {
       const previa = actuales.find((l) => l.personaId === p.id);
       if (previa && previa.estado !== "BORRADOR") continue;
       const delPeriodo = extrasDelPeriodo(p.equipos, periodo);
       if (!previa && !(p.sueldoBase > 0) && delPeriodo.length === 0 && !conReintegro?.has(p.id)) continue;
+      // G4: la propia no se genera ni se recalcula; la arma otra persona con permiso (el resultado lo dice).
+      if (esLoPropio(yo, { personaId: p.id, userId: p.userId })) {
+        salteada = p.nombre;
+        continue;
+      }
       if (!previa) await tx.proyectoLiquidacion.createMany({ data: [{ tenantId: a.tenantId, personaId: p.id, periodo, base: p.sueldoBase, facturaA: p.facturaA }], skipDuplicates: true });
       // Toma la fila y confirma que sigue en borrador: si alguien la publicó recién, queda como está; si la publican
       // ahora, esperan a que esta transacción termine (el claim de reintegros y el total van juntos).
@@ -446,15 +453,18 @@ export async function generarLiquidaciones(formData: FormData): Promise<Resultad
     }
   });
   revalidatePath(ADMIN);
-  return { ok: true, generadas, publicadas };
+  return { ok: true, generadas, publicadas, salteada };
 }
 
-export async function publicarBorradores(formData: FormData): Promise<Resultado<{ publicadas: number }>> {
+export async function publicarBorradores(formData: FormData): Promise<Resultado<{ publicadas: number; salteada: string | null }>> {
   const a = await exigirEditar("liquidaciones");
   const periodo = txt(formData.get("periodo"));
   if (!periodoValido(periodo)) return { ok: false, error: "Elegí el mes." };
-  const borradores = await prisma.proyectoLiquidacion.findMany({ where: { tenantId: a.tenantId, periodo, estado: "BORRADOR" }, select: { id: true, total: true, persona: { select: { nombre: true, userId: true } } } });
-  if (borradores.length === 0) return { ok: false, error: "No hay borradores para publicar en este mes." };
+  const todos = await prisma.proyectoLiquidacion.findMany({ where: { tenantId: a.tenantId, periodo, estado: "BORRADOR" }, select: { id: true, total: true, personaId: true, persona: { select: { nombre: true, userId: true } } } });
+  // G4: la propia queda en borrador; la publica otra persona con permiso.
+  const propia = todos.find((b) => esLoPropio({ personaId: a.personaId, userId: a.user.id }, { personaId: b.personaId, userId: b.persona.userId }));
+  const borradores = todos.filter((b) => b !== propia);
+  if (borradores.length === 0) return { ok: false, error: propia ? "Sólo queda la tuya en borrador: la publica otra persona de Dirección o Administración. Nadie se liquida lo propio." : "No hay borradores para publicar en este mes." };
   await tenantTransaction(async (tx) => {
     await tx.proyectoLiquidacion.updateMany({ where: { tenantId: a.tenantId, periodo, estado: "BORRADOR", id: { in: borradores.map((b) => b.id) } }, data: { estado: "PUBLICADA", publicadaEl: new Date() } });
     await avisar(tx, {
@@ -471,7 +481,7 @@ export async function publicarBorradores(formData: FormData): Promise<Resultado<
   await auditAdmin({ action: "proyecto.liquidacion.publicar", entity: "ProyectoLiquidacion", entityId: periodo, changes: { cantidad: borradores.length } });
   revalidatePath(ADMIN);
   revalidatePath("/admin/proyectos/mi-liquidacion");
-  return { ok: true, publicadas: borradores.length };
+  return { ok: true, publicadas: borradores.length, salteada: propia?.persona.nombre ?? null };
 }
 
 /**
@@ -544,9 +554,10 @@ export async function pagarLiquidacion(formData: FormData): Promise<Resultado> {
 export async function borrarLiquidacion(formData: FormData): Promise<Resultado> {
   const a = await exigirEditar("liquidaciones");
   const id = txt(formData.get("id"));
-  const hecho = await tenantTransaction(async (tx) => {
-    const l = await tx.proyectoLiquidacion.findFirst({ where: { id, tenantId: a.tenantId, estado: "BORRADOR" }, select: { periodo: true, total: true } });
+  const hecho = await tenantTransaction(async (tx): Promise<boolean | "propia"> => {
+    const l = await tx.proyectoLiquidacion.findFirst({ where: { id, tenantId: a.tenantId, estado: "BORRADOR" }, select: { periodo: true, total: true, personaId: true, persona: { select: { userId: true } } } });
     if (!l) return false;
+    if (esLoPropio({ personaId: a.personaId, userId: a.user.id }, { personaId: l.personaId, userId: l.persona.userId })) return "propia";
     try {
       await tx.$executeRaw`SAVEPOINT rendi_liberar`;
       await tx.proyectoRendicion.updateMany({ where: { tenantId: a.tenantId, liquidacionId: id, reintegradoEl: null }, data: { liquidacionId: null } });
@@ -559,6 +570,7 @@ export async function borrarLiquidacion(formData: FormData): Promise<Resultado> 
     await registrarCambio(tx, { tenantId: a.tenantId, entidad: "liquidacion", entidadId: id, campo: `borrador ${l.periodo}`, antes: l.total, despues: "borrado", autor: a.nombre });
     return true;
   });
+  if (hecho === "propia") return { ok: false, error: LIQUIDACION_PROPIA };
   if (!hecho) return { ok: false, error: "Sólo se borra un borrador." };
   revalidatePath(ADMIN);
   return { ok: true };
@@ -580,6 +592,9 @@ export async function editarExtrasLiquidacion(d: { id: string; base?: string; ma
   if (manuales.some((m) => m.monto === 0)) return { ok: false, error: "Cada extra necesita un monto." };
   const pedida = d.base === undefined ? null : redondear(leerNumero(String(d.base)));
   if (pedida !== null && pedida < 0) return { ok: false, error: "La base no puede ser negativa." };
+  // G4: la persona de una liquidación no cambia; se mira antes de tomar la fila.
+  const de = await prisma.proyectoLiquidacion.findFirst({ where: { id, tenantId: a.tenantId }, select: { personaId: true, persona: { select: { userId: true } } } });
+  if (de && esLoPropio({ personaId: a.personaId, userId: a.user.id }, { personaId: de.personaId, userId: de.persona.userId })) return { ok: false, error: LIQUIDACION_PROPIA };
   const r = await tenantTransaction(async (tx): Promise<Resultado> => {
     const tomada = await tx.proyectoLiquidacion.updateMany({ where: { id, tenantId: a.tenantId, estado: "BORRADOR" }, data: { estado: "BORRADOR" } });
     if (tomada.count === 0) {

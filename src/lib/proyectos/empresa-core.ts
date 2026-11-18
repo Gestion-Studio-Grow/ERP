@@ -7,6 +7,18 @@ import { aPesos, cuotaParaMovimiento, estadoCuota, generaCuotas, type CuotaLeida
 
 // ── Meses ───────────────────────────────────────────────────────────────────
 
+/**
+ * «Lo propio» en Liquidaciones (G4, MIA-083): la persona de la liquidación es quien actúa, por su ficha o por la cuenta
+ * vinculada a esa persona. Las dos formas que ya usaba pagar («Nadie se paga lo propio»): una persona con la ficha
+ * inactiva sigue siendo dueña de su liquidación por la cuenta.
+ */
+export function esLoPropio(actor: { personaId: string | null; userId: string }, de: { personaId: string; userId: string | null }): boolean {
+  return actor.personaId === de.personaId || (!!de.userId && de.userId === actor.userId);
+}
+
+/** Por qué no se toca la propia: la hace otra persona con permiso, como el pago. */
+export const LIQUIDACION_PROPIA = "Esta liquidación es tuya: la genera, la edita, la publica o la borra otra persona de Dirección o Administración. Nadie se liquida lo propio.";
+
 export const periodoValido = (p: string): boolean => /^\d{4}-(0[1-9]|1[0-2])$/.test(p);
 
 export function etiquetaMes(periodo: string, corta = false): string {
