@@ -7,11 +7,12 @@ import { agregarTarea, alternarTarea, borrarTarea } from "@/lib/proyectos/accion
 import { agregarChecklist, alternarChecklist, asignarEquipo, borrarChecklist, cargarPlantillaChecklist, generarPortal, guardarDatos, nuevaVersion, quitarEquipo, revocarPortal } from "@/lib/proyectos/acciones-ficha";
 import { fechaCorta, fechaParaInput, MEDIO_LABEL, pesos, porcentaje, sePuedeEditar, yaVencio, type MedioPago } from "@/lib/proyectos/core";
 import { avanceDeCobro, conteoPorEstado } from "@/lib/proyectos/ficha-core";
-import { cambioDeVenta, ESTADOS_ITEM, ESTADO_ITEM_LABEL, MONEDAS, plataEn, TIPOS_EVENTO, ventaEn } from "@/lib/proyectos/gestion-core";
+import { cambioDeVenta, ESTADOS_ITEM, ESTADO_ITEM_LABEL, MONEDAS, TIPOS_EVENTO } from "@/lib/proyectos/gestion-core";
 import { datosFicha, datosHistorial, datosResumen, datosSeguimiento, type Cabecera, type Vista } from "@/lib/proyectos/ficha.server";
 import { prisma } from "@/lib/prisma";
 import { puede, type Actor } from "@/lib/proyectos/gestion.server";
 import { campo, etiqueta, tarjeta } from "../_vista";
+import { cabezaMovil, celdaMovil, cssTarjetas, cuerpoMovil, etiquetasFicha, filaMovil, importe, importeDeVenta, tablaMovil } from "../_tabla";
 import { BotonConConfirmacion, FormAccion } from "./_cliente";
 import { CopiarLink } from "./_piezas";
 import { etapa2ActivaPara } from "@/lib/proyectos/etapa2.server";
@@ -53,7 +54,7 @@ export async function PestanaResumen({ a, cab, vista }: { a: Actor; cab: Cabecer
           <div className={dato}><dt className="text-xs text-muted">Moneda de venta</dt><dd className="text-strong">{p.moneda}</dd></div>
           <div className={dato}><dt className="text-xs text-muted">Responsable</dt><dd className="text-strong">{p.responsable || "—"}</dd></div>
           <div className={dato}><dt className="text-xs text-muted">Anticipo del cliente</dt><dd className="text-strong">{porcentaje(p.anticipoClientePct)}</dd></div>
-          <div className={dato}><dt className="text-xs text-muted">Presupuesto estimado</dt><dd className="text-strong">{p.presupuestoEstimado != null ? plataEn(p.presupuestoEstimado, p.moneda) : "—"}</dd></div>
+          <div className={dato}><dt className="text-xs text-muted">Presupuesto estimado</dt><dd className="text-strong">{p.presupuestoEstimado != null ? importe(p.presupuestoEstimado, p.moneda) : "—"}</dd></div>
           <div className={dato}><dt className="text-xs text-muted">Creado</dt><dd className="text-strong">{fechaCorta(p.createdAt)}</dd></div>
           {p.evento && <div className={dato}><dt className="text-xs text-muted">Feria o marco</dt><dd className="text-strong">{p.evento}</dd></div>}
         </dl>
@@ -202,11 +203,13 @@ export async function PestanaFicha({ a, cab, vista }: { a: Actor; cab: Cabecera;
   const verCosto = !vista.ocultas.has("costoTotal");
   const verMargen = !vista.ocultas.has("margen");
   const cambioVenta = cambioDeVenta(proyecto.moneda, viva?.tcVenta, cab.tc);
+  const columnas = { costoUnit: !vista.ocultas.has("costoUnit"), costoTotal: verCosto, recargo: !vista.ocultas.has("recargo"), margen: verMargen };
+  const editable = vista.fichaEdita && !!viva && enBorrador;
   return (
     <section className={tarjeta} aria-label="Ficha del evento">
       <dl className="mb-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
         <Numero titulo="Ítems" valor={String(t.items)} />
-        <Numero titulo="Venta total" valor={ventaEn(t.venta, proyecto.moneda, cambioVenta)} />
+        <Numero titulo="Venta total" valor={importeDeVenta(t.venta, proyecto.moneda, cambioVenta)} />
         {verCosto && <Numero titulo="Costo total" valor={pesos(t.costo)} />}
         {verMargen && <Numero titulo="Margen" valor={`${pesos(t.margen)} (${porcentaje(t.margenPct)})`} alerta={t.margen < 0} />}
       </dl>
@@ -225,18 +228,22 @@ export async function PestanaFicha({ a, cab, vista }: { a: Actor; cab: Cabecera;
           <SubmitButton className={buttonClasses("solid", "md")}>{viva ? "Nueva versión" : "Empezar ficha"}</SubmitButton>
         </FormAccion>
       )}
-      <TablaFicha
-        proyectoId={proyecto.id}
-        presupuestoId={viva?.id ?? null}
-        filas={filas}
-        proveedores={proveedores}
-        columnas={{ costoUnit: !vista.ocultas.has("costoUnit"), costoTotal: verCosto, recargo: !vista.ocultas.has("recargo"), margen: verMargen }}
-        editable={vista.fichaEdita && !!viva && enBorrador}
-        editaCostos={vista.editaCostos}
-        recargoGeneral={config.margenPct}
-        moneda={proyecto.moneda}
-        cambio={cambioVenta}
-      />
+      {/* A menos de 768 px cada ítem es una tarjeta con todas sus columnas a la vista (MIA-50 § 2.2 bis, V2). */}
+      <style>{cssTarjetas("ficha", etiquetasFicha(columnas, editable, proyecto.moneda))}</style>
+      <div data-tarjetas="ficha">
+        <TablaFicha
+          proyectoId={proyecto.id}
+          presupuestoId={viva?.id ?? null}
+          filas={filas}
+          proveedores={proveedores}
+          columnas={columnas}
+          editable={editable}
+          editaCostos={vista.editaCostos}
+          recargoGeneral={config.margenPct}
+          moneda={proyecto.moneda}
+          cambio={cambioVenta}
+        />
+      </div>
       <p className="mt-3 text-sm text-muted">Al guardar se regeneran solos los pagos a proveedores, los cobros al cliente y las fechas límite. Lo ya pagado no se toca.</p>
     </section>
   );
@@ -308,7 +315,7 @@ export async function PestanaSeguimiento({ a, cab, vista }: { a: Actor; cab: Cab
               {cuotas.map((c) => (
                 <li key={c.id} className="flex flex-wrap justify-between gap-2 border-t border-line py-1">
                   <span className="min-w-0">{c.concepto}<span className="block text-xs text-muted">Vence {fechaCorta(c.venceEl)}{c.pagadoEl ? ` · cobrado ${fechaCorta(c.pagadoEl)}` : ""}</span></span>
-                  <strong className={cn("tabular-nums", !c.pagadoEl && yaVencio(c.venceEl) ? "text-danger" : "text-strong")}>{plataEn(c.monto, c.moneda)}</strong>
+                  <strong className={cn("tabular-nums", !c.pagadoEl && yaVencio(c.venceEl) ? "text-danger" : "text-strong")}>{importe(c.monto, c.moneda)}</strong>
                 </li>
               ))}
             </ul>
@@ -370,18 +377,18 @@ export async function PestanaHistorial({ a, cab, vista }: { a: Actor; cab: Cabec
         <p className="text-sm text-muted">Sin cambios registrados todavía.</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[640px] text-sm">
-            <thead className="text-left text-xs text-muted">
+          <table className={cn("w-full text-sm md:min-w-[640px]", tablaMovil)}>
+            <thead className={cn("text-left text-xs text-muted", cabezaMovil)}>
               <tr><th className="py-1 pr-2 font-medium">Cuándo</th><th className="pr-2 font-medium">Quién</th><th className="pr-2 font-medium">Qué</th><th className="pr-2 font-medium">Antes</th><th className="font-medium">Después</th></tr>
             </thead>
-            <tbody>
+            <tbody className={cuerpoMovil}>
               {cambios.map((c) => (
-                <tr key={c.id} className="border-t border-line align-top">
-                  <td className="py-1.5 pr-2 whitespace-nowrap">{CUANDO.format(c.createdAt)}</td>
-                  <td className="pr-2">{c.autor}</td>
-                  <td className="pr-2">{c.campo}</td>
-                  <td className="pr-2 text-muted">{c.antes ?? "—"}</td>
-                  <td className="font-medium text-strong">{c.despues ?? "—"}</td>
+                <tr key={c.id} className={cn("border-t border-line align-top", filaMovil)}>
+                  <td data-label="Cuándo" className={cn("py-1.5 pr-2 whitespace-nowrap", celdaMovil)}>{CUANDO.format(c.createdAt)}</td>
+                  <td data-label="Quién" className={cn("pr-2", celdaMovil)}>{c.autor}</td>
+                  <td data-label="Qué" className={cn("pr-2", celdaMovil)}>{c.campo}</td>
+                  <td data-label="Antes" className={cn("pr-2 text-muted [overflow-wrap:anywhere]", celdaMovil)}>{c.antes ?? "—"}</td>
+                  <td data-label="Después" className={cn("font-medium text-strong [overflow-wrap:anywhere]", celdaMovil)}>{c.despues ?? "—"}</td>
                 </tr>
               ))}
             </tbody>

@@ -1,10 +1,11 @@
 import { cn } from "@/components/ui";
 import { fechaCorta } from "@/lib/proyectos/core";
-import { aPesos, plataEn } from "@/lib/proyectos/gestion-core";
+import { aPesos } from "@/lib/proyectos/gestion-core";
 import { ofreceMarcarConciliada, propuestasDeConciliacion } from "@/lib/proyectos/empresa-core";
 import { datosDeBancos } from "@/lib/proyectos/empresa.server";
 import { conciliarMovimiento, crearCuenta, desconciliarMovimiento, guardarSaldo } from "@/lib/proyectos/acciones-empresa";
 import { campo, etiqueta, tarjeta } from "../_vista";
+import { cabezaMovil, celdaMovil, cuerpoMovil, filaMovil, importe, tablaMovil } from "../_tabla";
 import { BotonDosPasos, FormAccion, ImportarExtracto, MarcarCuota } from "./_controles";
 
 /** Un cobro partido o una comisión descontada no coinciden con ninguna cuota: lo decide la persona. */
@@ -18,7 +19,7 @@ function ElegirCuota({ id, opciones, etiqueta: titulo }: { id: string; opciones:
         <label className={etiqueta}>Cuota
           <select name="cuotaId" required defaultValue="" className={campo}>
             <option value="" disabled>Elegí una cuota</option>
-            {opciones.map((c) => <option key={c.id} value={c.id}>{c.concepto} · {plataEn(c.monto, c.moneda)} · vence {fechaCorta(c.venceEl)}</option>)}
+            {opciones.map((c) => <option key={c.id} value={c.id}>{c.concepto} · {importe(c.monto, c.moneda)} · vence {fechaCorta(c.venceEl)}</option>)}
           </select>
         </label>
       </FormAccion>
@@ -39,7 +40,7 @@ export async function TabBancos({ tenantId, editaEmpresa, editaPagos }: { tenant
           {cuentas.map((c) => (
             <li key={c.id} className={tarjeta}>
               <p className="text-sm text-muted">{c.nombre}</p>
-              <p className="text-xl font-bold tabular-nums text-strong">{plataEn(c.saldo, c.moneda)}</p>
+              <p className="text-xl font-bold tabular-nums text-strong">{importe(c.saldo, c.moneda)}</p>
               <p className={cn("mb-2 text-sm", c.sinConciliar > 0 ? "text-strong" : "text-muted")}>{c.sinConciliar === 1 ? "1 sin conciliar" : `${c.sinConciliar} sin conciliar`}</p>
               {editaEmpresa && (
                 <FormAccion accion={guardarSaldo} boton="Guardar saldo" limpiar={false}>
@@ -79,8 +80,8 @@ export async function TabBancos({ tenantId, editaEmpresa, editaPagos }: { tenant
         {movimientos.length === 0 ? (
           <p className="text-sm text-muted">Sin movimientos todavía.</p>
         ) : (
-          <table className="w-full min-w-[920px] text-sm">
-            <thead className="text-left text-xs text-muted">
+          <table className={cn("w-full text-sm md:min-w-[920px]", tablaMovil)}>
+            <thead className={cn("text-left text-xs text-muted", cabezaMovil)}>
               <tr>
                 <th className="py-1 pr-3 font-medium">Fecha</th>
                 <th className="pr-3 font-medium">Cuenta</th>
@@ -90,18 +91,18 @@ export async function TabBancos({ tenantId, editaEmpresa, editaPagos }: { tenant
                 <th className="font-medium">Lote</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className={cuerpoMovil}>
               {movimientos.map((m) => {
                 const propuesta = propuestas.get(m.id);
                 const cuota = m.cuota;
                 const puedeMarcar = cuota && ofreceMarcarConciliada(cuota, { editaPagos, editaEmpresa });
                 return (
-                  <tr key={m.id} className="border-t border-line align-top">
-                    <td className="whitespace-nowrap py-2 pr-3">{fechaCorta(m.fecha)}</td>
-                    <td className="py-2 pr-3">{m.cuenta.nombre}</td>
-                    <td className="py-2 pr-3">{m.descripcion || "—"}</td>
-                    <td className={cn("whitespace-nowrap py-2 pr-3 text-right font-medium tabular-nums", m.importe < 0 ? "text-danger" : "text-strong")}>{plataEn(m.importe, m.cuenta.moneda)}</td>
-                    <td className="py-2 pr-3">
+                  <tr key={m.id} className={cn("border-t border-line align-top", filaMovil)}>
+                    <td data-label="Fecha" className={cn("whitespace-nowrap py-2 pr-3", celdaMovil)}>{fechaCorta(m.fecha)}</td>
+                    <td data-label="Cuenta" className={cn("py-2 pr-3", celdaMovil)}>{m.cuenta.nombre}</td>
+                    <td data-label="Descripción" className={cn("py-2 pr-3", celdaMovil)}>{m.descripcion || "—"}</td>
+                    <td data-label="Importe" className={cn("whitespace-nowrap py-2 pr-3 text-right font-medium tabular-nums", m.importe < 0 ? "text-danger" : "text-strong", celdaMovil)}>{importe(m.importe, m.cuenta.moneda)}</td>
+                    <td data-label="Conciliado con" className={cn("py-2 pr-3", celdaMovil)}>
                       {cuota ? (
                         <div className="grid justify-items-start gap-1">
                           <span className="text-strong">{cuota.concepto}</span>
@@ -122,7 +123,7 @@ export async function TabBancos({ tenantId, editaEmpresa, editaPagos }: { tenant
                         </div>
                       )}
                     </td>
-                    <td className="py-2 text-xs text-muted">{m.lote || "—"}</td>
+                    <td data-label="Lote" className={cn("py-2 text-xs text-muted", celdaMovil)}>{m.lote || "—"}</td>
                   </tr>
                 );
               })}

@@ -6,6 +6,7 @@ import { esLoPropio, etiquetaMes, leerExtras, periodoValido, totalDeExtras } fro
 import { cuentasEnPesos, liquidacionesDelPeriodo } from "@/lib/proyectos/empresa.server";
 import { borrarLiquidacion, publicarBorradores } from "@/lib/proyectos/acciones-empresa";
 import { campo, etiqueta, tarjeta } from "../_vista";
+import { accionesMovil, cabezaMovil, celdaMovil, cuerpoMovil, filaMovil, tablaMovil } from "../_tabla";
 import { BotonDosPasos, EditarExtras, GenerarLiquidaciones, PagarLiquidacion } from "./_controles";
 
 /**
@@ -40,8 +41,8 @@ export async function TabLiquidaciones({ tenantId, mes, edita, paga = false, yo 
         {filas.length === 0 ? (
           <p className="text-sm text-muted">No hay liquidaciones de este mes.{edita ? " Generalas con el botón de arriba: salen del sueldo base y de los plus de los eventos terminados en el mes." : ""}</p>
         ) : (
-          <table className="w-full min-w-[920px] text-sm">
-            <thead className="text-left text-xs text-muted">
+          <table className={cn("w-full text-sm md:min-w-[920px]", tablaMovil)}>
+            <thead className={cn("text-left text-xs text-muted", cabezaMovil)}>
               <tr>
                 <th className="py-1 pr-3 font-medium">Persona</th>
                 <th className="pr-3 font-medium">Factura a</th>
@@ -53,15 +54,16 @@ export async function TabLiquidaciones({ tenantId, mes, edita, paga = false, yo 
                 <th className="font-medium">Acciones</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className={cuerpoMovil}>
               {filas.map((f) => {
                 const extras = leerExtras(f.extras);
                 return (
-                  <tr key={f.id} className="border-t border-line align-top">
-                    <td className="py-2 pr-3"><span className="text-strong">{f.persona.nombre}</span>{f.persona.puesto && <span className="block text-xs text-muted">{f.persona.puesto}</span>}</td>
-                    <td className="py-2 pr-3">{f.facturaA || "—"}</td>
-                    <td className="whitespace-nowrap py-2 pr-3 text-right tabular-nums">{pesos(f.base)}</td>
-                    <td className="py-2 pr-3">
+                  <tr key={f.id} className={cn("border-t border-line align-top", filaMovil)}>
+                    <td data-label="Persona" className={cn("py-2 pr-3", celdaMovil)}><div><span className="text-strong">{f.persona.nombre}</span>{f.persona.puesto && <span className="block text-xs text-muted">{f.persona.puesto}</span>}</div></td>
+                    <td data-label="Factura a" className={cn("py-2 pr-3", celdaMovil)}>{f.facturaA || "—"}</td>
+                    <td data-label="Base" className={cn("whitespace-nowrap py-2 pr-3 text-right tabular-nums", celdaMovil)}>{pesos(f.base)}</td>
+                    <td data-label="Extras" className={cn("py-2 pr-3", celdaMovil)}>
+                      <div>
                       {extras.length === 0 ? (
                         <span className="text-muted">—</span>
                       ) : (
@@ -72,11 +74,12 @@ export async function TabLiquidaciones({ tenantId, mes, edita, paga = false, yo 
                           </ul>
                         </>
                       )}
+                      </div>
                     </td>
-                    <td className="whitespace-nowrap py-2 pr-3 text-right font-semibold tabular-nums text-strong">{pesos(f.total)}</td>
-                    <td className="whitespace-nowrap py-2 pr-3">{f.estado === "PAGADA" ? "Pagada" : f.estado === "PUBLICADA" ? `Publicada ${fechaCorta(f.publicadaEl)}` : "Borrador"}</td>
-                    <td className="whitespace-nowrap py-2 pr-3">{f.vistaEl ? fechaCorta(f.vistaEl) : "—"}</td>
-                    <td className="py-2">
+                    <td data-label="Total" className={cn("whitespace-nowrap py-2 pr-3 text-right font-semibold tabular-nums text-strong", celdaMovil)}>{pesos(f.total)}</td>
+                    <td data-label="Estado" className={cn("whitespace-nowrap py-2 pr-3", celdaMovil)}>{f.estado === "PAGADA" ? "Pagada" : f.estado === "PUBLICADA" ? `Publicada ${fechaCorta(f.publicadaEl)}` : "Borrador"}</td>
+                    <td data-label="Visto" className={cn("whitespace-nowrap py-2 pr-3", celdaMovil)}>{f.vistaEl ? fechaCorta(f.vistaEl) : "—"}</td>
+                    <td className={cn("py-2", accionesMovil)}>
                       <div className="flex flex-wrap items-start gap-1">
                         {edita && f.estado === "BORRADOR" && !esMia(f) && <EditarExtras id={f.id} persona={f.persona.nombre} base={f.base} manuales={extras.filter((e) => e.manual)} />}
                         {edita && f.estado === "BORRADOR" && !esMia(f) && <BotonDosPasos accion={borrarLiquidacion} campos={{ id: f.id }} etiqueta="Borrar" pregunta="Las rendiciones que tenía quedan libres. ¿Borrar el borrador?" />}
