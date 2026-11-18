@@ -67,3 +67,16 @@ Hallazgos abiertos, para el dueño (de antes de MIA-099; no se cambiaron):
 - Perder un proyecto anula sus cuotas automáticas de proveedor pendientes: «A pagar» baja.
 - El «cobrado» de un proyecto en dólares, mostrado en pesos, se revalúa con el tipo de cambio.
 - «Ganancia real» de Rentabilidad sigue sumando el perdido (a propósito). Rentabilidad no filtra por año y Dirección sí.
+
+## GSG-MIA-107 · ADV-7 (18/11/2026)
+
+Brief: Factory-GSG `00-ESTADO/BRIEF-MIA-107.md` (7368882). Frenado por el techo de gasto (US$ 4,20 de 5, 84 %): la suite, las capturas y el par quedan para el turno siguiente.
+
+| # | Pedido | Entendí | Fuente | Camino | Esperado | Hice | Vi | Captura | Par | Estado |
+|---|--------|---------|--------|--------|----------|------|----|---------|-----|--------|
+| 25 | Tests de ADV-7, rojos por aserción | Cobro cargado a mano en Pedido y en Presupuesto, después perdido: la lista no lo da pendiente ni ofrece «Cobrado» | Brief MIA-107, paso 1; re-certificación MIA-105, V2-b | brief §1 | Rojo por aserción contra 258585b | Test Postgres en `mia089-plata-postgres.test.ts`, test de `pasaFiltro` y test de pantalla de `_cuentas.tsx` | Rojo: «PEDIDO: un perdido no se cobra», esperado 0 y vino 200; los otros dos, AssertionError | 5b200a8 | sin par en este turno | sin confirmar |
+| 26 | Arreglo con la regla compartida | Administración usa `perdidoAdmite` (falla cerrada) vía `cobroFrenadoPorPerdido`; nada nuevo decidido (decisión 2 = A) | Brief MIA-107, paso 2 | brief §2 | Los rojos en verde | Pendiente 0 y `noSeCobra` en `empresa.server.ts`; filtro en `empresa-core.ts`; renglón sin «Cobrado» en `_cuentas.tsx` | mia089-plata-postgres 20/20, tests rápidos 36/36 y 17/17, tsc 0 | 2117d5d | sin par en este turno | sin confirmar |
+| 27 | Suite por nombre contra 258585b, tsc y build | Ningún rojo nuevo por nombre | Brief MIA-107, paso 3 | brief §3 | 0 rojos nuevos; build 0 | tsc 0; la suite completa se cortó a mitad de la base por el techo de gasto; build no corrido | tsc 0 sobre 2117d5d | 2117d5d | sin par en este turno | escalado |
+| 28 | Capturas a 390 y 1.280 de la lista con un perdido | Cargar el cobro por la pantalla, perder y mirar Administración, con verificador distinto | Brief MIA-107, paso 4 | brief §4 | Fila «No se cobra» sin «Cobrado» | No se tomaron: frené por el techo de gasto | Sin capturas en este turno | ADV7-cap-1 | sin par en este turno | escalado |
+
+Nota para la tabla T (pedido del brief): la semilla usa fechas relativas al día de siembra (`en(-5)` en `seed-mia-gestion.ts:90`), así que la tabla T tiene que decir el día de siembra.
