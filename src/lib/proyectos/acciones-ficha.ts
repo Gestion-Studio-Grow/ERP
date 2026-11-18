@@ -34,6 +34,7 @@ import { GASTO_EN_RENDICION, SIN_COMPROBANTES, faltaLaMigracion } from "./rendic
 import { archivoAdmitido, claveDeArchivo, claveEsDelProyecto, MINUTOS_SUBIDA, urlFirmada } from "./r2-core";
 import { borrarDeNube, configR2, tamanoEnNube } from "./r2.server";
 import type { ModuloGestion } from "./gestion-core";
+import { siHayM1 } from "./comprobantes.server";
 
 /** `aviso`: salió bien, pero hay algo que mirar (p. ej. «recalculá el plan» si se facturó una cuota en el medio). */
 /** `listo`: el cartel de éxito (se muestra aparte, porque el renglón que lo pidió suele desaparecer al refrescar). */
@@ -852,6 +853,8 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
   if (!MEDIOS.includes(medio)) return mal("Elegí el medio de pago.");
   if (c.anuladoEl) return mal("Esa cuota ya no corre: la ficha la dejó afuera.");
   if (c.pagadoEl) return mal("Esa cuota ya estaba marcada.");
+  // MIA-50 T05: la cuota enlazada a un comprobante se paga con una orden de pago (si no, se pagaría dos veces).
+  if (c.tipo !== "COBRO" && (await siHayM1(() => prisma.proyectoCuotaComprobante.count({ where: { tenantId, cuotaId: id } })))) return mal("Esta cuota está enlazada a un comprobante del proveedor: se paga con una orden de pago, en Proveedores › Órdenes de pago.");
   const tc = await tiposDeCambio(tenantId);
   const esCobro = c.tipo === "COBRO";
   // Un cobro se lleva sólo lo que le falta a la cuota: lo cobrado a mano por fuera ya se descontó de las más viejas.

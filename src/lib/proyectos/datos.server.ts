@@ -13,15 +13,14 @@ import { enmascararContacto } from "@/lib/clientes/telefono";
 import { criterioDeContacto, wherePorContacto } from "@/lib/clientes/busqueda-por-contacto";
 import type { SessionUser } from "@/lib/session";
 import { getLocation } from "@/lib/settings";
-import { desvioPorRubro, redondear, resultadoReal, totales, ultimaEnviada } from "./core";
+import { desvioPorRubro, redondear, totales, ultimaEnviada } from "./core";
 import { costosVigentes, normalizarDiseno } from "./stand";
 import { SIN_COMPROBANTES } from "./rendiciones-core";
 import { cobranzaDe, originalesDeCobros, SELECT_COBRANZA, tiposDeCambio } from "./cobranza.server";
 import { totalesEnPesos } from "./cobranza-core";
 import { aPesos } from "./gestion-core";
 import { COLUMNAS_PAGO } from "./pago-columnas";
-import { porPagarDeCuotas } from "./pago-parcial-core";
-import { pagosParcialesDeCuotas } from "./pago-parcial.server";
+import { costoRealDeProyectos } from "./comprobantes.server";
 
 export const veLaPlata = (u: SessionUser): boolean => permisoFueraDeLaAgenda(u, "agenda:manage");
 
@@ -91,6 +90,8 @@ export async function fichaProyecto(id: string) {
       presupuestos: { orderBy: { version: "desc" }, include: { items: { orderBy: [{ posicion: "asc" }, { createdAt: "asc" }] } } },
       pagos: { orderBy: { createdAt: "desc" }, select: COLUMNAS_PAGO },
       gastos: { orderBy: [{ fecha: "desc" }, { createdAt: "desc" }], include: { supplier: { select: { name: true } } } },
+      // O13: lo previsto por cuotas de pago también es costo real (la misma cuenta que la ficha y Dirección).
+      cuotas: { where: { tipo: "PAGO", pagadoEl: null, anuladoEl: null, prevista: false }, select: { id: true, tipo: true, monto: true, moneda: true, pagadoEl: true, anuladoEl: true, prevista: true } },
       entregables: {
         where: { anuladoEl: null },
         orderBy: { createdAt: "asc" },
@@ -107,7 +108,7 @@ export async function fichaProyecto(id: string) {
   ]);
   const vigente = proyecto.presupuestos.find((p) => p.estado === "APROBADO") ?? null;
   const totalesVigente = vigente ? totalesEnPesos(vigente, tc, config.margenPct) : null;
-  const real = resultadoReal(totalesVigente, proyecto.gastos);
+  const real = (await costoRealDeProyectos(tenantId, [{ id: proyecto.id, t: totalesVigente, gastos: proyecto.gastos, cuotas: proyecto.cuotas }], tc)).get(proyecto.id)!;
   // El costo presupuestado por rubro, en pesos: así se compara contra los gastos.
   const rubros = desvioPorRubro(vigente?.items.map((i) => ({ ...i, costo: aPesos(i.costo, i.moneda, tc) })) ?? [], proyecto.gastos);
   // Cobrado y saldo: la fuente única (cobranza-core), igual que la caja «Cobros» y las listas.
@@ -172,19 +173,18 @@ export async function reporteProyectos() {
       etapa: true,
       client: { select: { name: true } },
       ...SELECT_COBRANZA,
-      gastos: { where: { anuladoEl: null }, select: { rubro: true, neto: true, iva: true, pagadoEl: true, anuladoEl: true } },
+      gastos: { where: { anuladoEl: null }, select: { id: true, rubro: true, neto: true, iva: true, pagadoEl: true, anuladoEl: true } },
       cuotas: { where: { tipo: "PAGO", pagadoEl: null, anuladoEl: null, prevista: false }, select: { id: true, tipo: true, monto: true, moneda: true, pagadoEl: true, anuladoEl: true, prevista: true } },
     },
   });
   const originales = await originalesDeCobros(tenantId, proyectos);
-  // D6: lo que falta pagar por cuotas a proveedor (menos lo pagado en parte) entra al costo real y a «Por pagar».
-  const pagados = await pagosParcialesDeCuotas(tenantId, proyectos.flatMap((p) => p.cuotas), tc);
-  return proyectos.map((p) => {
-    const a = p.presupuestos[0];
-    const t = a ? totalesEnPesos(a, tc, config.margenPct) : null;
+  const conTotales = proyectos.map((p) => ({ ...p, t: p.presupuestos[0] ? totalesEnPesos(p.presupuestos[0], tc, config.margenPct) : null }));
+  // O13 · la cuenta única del costo real (comprobantes.server): lo imputado, los gastos y lo previsto por cuotas (D6).
+  const reales = await costoRealDeProyectos(tenantId, conTotales, tc);
+  return conTotales.map((p) => {
     // `porCobrar` sale de la fuente única: la pantalla sólo lo suma, no lo recalcula del saldo.
     const { cobrado, saldo, porCobrar } = cobranzaDe(p, tc, config.margenPct, originales);
-    return { ...p, t, cobrado, saldo, porCobrar, real: resultadoReal(t, p.gastos, porPagarDeCuotas(p.cuotas, pagados, tc)) };
+    return { ...p, cobrado, saldo, porCobrar, real: reales.get(p.id)! };
   });
 }
 

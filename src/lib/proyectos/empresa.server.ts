@@ -15,6 +15,7 @@ import { cobranzasDelNegocio } from "./cobranza.server";
 import { conPagosParciales, conPartesComoPagadas } from "./pago-parcial-core";
 import { cobroFrenadoPorPerdido } from "./ficha-core";
 import { pagosParcialesDeCuotas } from "./pago-parcial.server";
+import { costoRealDeProyectos } from "./comprobantes.server";
 
 const MESES_PROYECCION = 6;
 
@@ -249,18 +250,33 @@ export async function proyectosConNumeros(tenantId: string) {
         createdAt: true,
         client: { select: { name: true } },
         presupuestos: { orderBy: { version: "desc" }, take: 1, select: { items: { orderBy: { posicion: "asc" }, include: { supplier: { select: { name: true } } } } } },
-        gastos: { where: { anuladoEl: null }, select: { rubro: true, neto: true, anuladoEl: true } },
+        gastos: { where: { anuladoEl: null }, select: { id: true, rubro: true, neto: true, iva: true, pagadoEl: true, anuladoEl: true } },
         cuotas: { where: { anuladoEl: null, ...SIN_PREVISTAS_SIN_MARCAR, tipo: "COBRO" }, select: { id: true, monto: true, moneda: true, venceEl: true, pagadoEl: true, tipo: true } },
       },
     }),
     configProyectos(tenantId),
     tiposDeCambio(tenantId),
   ]);
-  const cobranzas = await cobranzasDelNegocio(tenantId, tc, config.margenPct, proyectos.map((p) => p.id));
+  const ids = proyectos.map((p) => p.id);
+  const [cobranzas, cuotasDePago] = await Promise.all([
+    cobranzasDelNegocio(tenantId, tc, config.margenPct, ids),
+    prisma.proyectoCuota.findMany({
+      where: { tenantId, proyectoId: { in: ids }, tipo: { not: "COBRO" }, pagadoEl: null, anuladoEl: null, prevista: false },
+      select: { id: true, proyectoId: true, tipo: true, monto: true, moneda: true, pagadoEl: true, anuladoEl: true, prevista: true },
+    }),
+  ]);
+  // O13 (MIA-50 T05): el costo real del total sale de la cuenta única (la misma que la ficha y Rentabilidad). Las líneas
+  // por ítem siguen siendo el detalle de desvíos.
+  const reales = await costoRealDeProyectos(
+    tenantId,
+    proyectos.map((p) => ({ id: p.id, t: null, gastos: p.gastos, cuotas: cuotasDePago.filter((q) => q.proyectoId === p.id) })),
+    tc,
+  );
   const hoy = new Date();
   return proyectos.map((p) => {
     const items = p.presupuestos[0]?.items ?? [];
     const t = totalesFicha(items.map(aItemFicha), tc, config.margenPct);
+    const real = reales.get(p.id)!;
     const d = desviosDelEvento(items.map((i) => ({ id: i.id, descripcion: i.descripcion, rubro: i.rubro, cantidad: i.cantidad, costo: i.costo, moneda: i.moneda, costoReal: i.costoReal, proveedor: i.supplier?.name ?? i.proveedor })), p.gastos, tc);
     // Cobrado, avance y vencido en línea con los cobros registrados contra lo aprobado (cobranza-core).
     const cob = cobranzas.get(p.id);
@@ -284,11 +300,11 @@ export async function proyectosConNumeros(tenantId: string) {
       costo: t.costo,
       margen: t.margen,
       margenPct: t.margenPct,
-      conDatos: d.conDatos,
+      conDatos: real.conGastos,
       lineas: d.lineas,
-      costoReal: d.costoReal,
-      margenReal: d.conDatos ? redondear(t.venta - d.costoReal) : null,
-      margenRealPct: d.conDatos ? margenSobreVenta(t.venta, d.costoReal) : null,
+      costoReal: real.costoReal,
+      margenReal: real.conGastos ? redondear(t.venta - real.costoReal) : null,
+      margenRealPct: real.conGastos ? margenSobreVenta(t.venta, real.costoReal) : null,
       cobrado: r.cobrado,
       cobrosPct: cob ? cob.avancePct : 0,
       vencido: r.cobrosVencidos,

@@ -110,7 +110,8 @@ test("A1 · rol × ruta × acción, con la matriz de fábrica", () => {
   assert.deepEqual(
     Object.fromEntries(recorridoDeLaMatriz().map((f) => [f.rol, [f.rutas.length, f.acciones.length]])),
     // +3 rutas del Taller de c94fa459 (imprimir/productora, taller/piezas, taller/valores-hora), anotadas con su guarda (MIA-095).
-    { DIRECCION: [35, 128], ADMINISTRACION: [24, 47], COMERCIAL: [24, 78], DISENO: [23, 56], PRODUCCION: [31, 97], SIN_FICHA: [10, 11] },
+    // MIA-50 T05: +7 rutas de Compras (comprobantes, órdenes, IVA, vinculadas) y +9 acciones, para quien ve/edita Proveedores o Pagos.
+    { DIRECCION: [42, 137], ADMINISTRACION: [31, 56], COMERCIAL: [24, 78], DISENO: [23, 56], PRODUCCION: [38, 106], SIN_FICHA: [10, 11] },
   );
 });
 

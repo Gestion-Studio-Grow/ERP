@@ -14,6 +14,7 @@ import { cobranza, conciliarConCobros, montoEnCashflow, pagadoDeCuota, repartoDe
 import { cobranzasDelNegocio } from "./cobranza.server";
 import { conPagosParciales, conPartesComoPagadas, porPagarComoGastos } from "./pago-parcial-core";
 import { pagosParcialesDeCuotas } from "./pago-parcial.server";
+import { costoRealDeProyectos, cuotasEnlazadas, lineasImputadasDe } from "./comprobantes.server";
 import { costoEnDuda, desvioPorRubro, fechaCorta, fechaParaInput, redondear, resultadoReal } from "./core";
 import { cambioDeVenta, costoSinProveedor, enMonedaDeVenta, ventaEn } from "./gestion-core";
 import { cambioVisible, columnaDe, filaDeFicha, iniciales, monedasSinCambio, planillaDeVenta } from "./ficha-core";
@@ -219,7 +220,10 @@ export async function datosFinanzas(a: Actor, cab: Cabecera, vista: Vista) {
   const totalesAprobada = aprobada ? totalesEnPesos(aprobada, cab.tc, cab.config.margenPct) : null;
   // D6: lo que falta pagar por cuotas a proveedor también es costo (y deuda): si no, la ganancia real queda inflada. Cuota
   // por cuota con el rubro de su ítem, así la tabla por rubro suma lo mismo que la Diferencia.
-  const comprometidos = vista.costos ? porPagarComoGastos(todas, pagados, cab.tc, new Map((cab.viva?.items ?? []).map((i) => [i.id, i.rubro]))) : [];
+  // O13 (MIA-50 T05): una cuota enlazada a un comprobante ya no es prevista: la cuenta su comprobante (imputado).
+  const [enlazadas, imputadas] = vista.costos ? await Promise.all([cuotasEnlazadas(tenantId, [proyectoId]), lineasImputadasDe(tenantId, proyectoId)]) : [new Set<string>(), []];
+  const previstas = todas.filter((c) => !enlazadas.has(c.id));
+  const comprometidos = vista.costos ? porPagarComoGastos(previstas, pagados, cab.tc, new Map((cab.viva?.items ?? []).map((i) => [i.id, i.rubro]))) : [];
   const porPagarCuotas = redondear(comprometidos.reduce((s, c) => s + c.neto, 0));
   const proveedoresConDeuda = new Set(todas.filter((c, i) => c.tipo !== "COBRO" && !c.pagadoEl && !c.anuladoEl && !c.prevista && reparto.pendiente[i] > 0 && c.supplierId).map((c) => c.supplierId!));
   const enlazados = new Set(asientos.flatMap((x) => (x.despues ? [x.despues] : [])));
@@ -233,10 +237,11 @@ export async function datosFinanzas(a: Actor, cab: Cabecera, vista: Vista) {
     totalAprobado: cob.total,
     cobrado: cob.cobrado,
     saldo: cob.saldo,
-    real: resultadoReal(totalesAprobada, gastos, porPagarCuotas),
+    // O13: la cuenta única del costo real (comprobantes.server), la misma que Dirección y Rentabilidad.
+    real: vista.costos ? (await costoRealDeProyectos(tenantId, [{ id: proyectoId, t: totalesAprobada, gastos, cuotas: previstas.filter((c) => c.tipo !== "COBRO") }], cab.tc)).get(proyectoId)! : resultadoReal(totalesAprobada, [], 0),
     // Una rendición o un gasto aparte al mismo proveedor puede haber pagado una de esas cuotas: hasta cuánto (aviso).
     enDuda: costoEnDuda(gastos, enlazados, porPagarCuotas, proveedoresConDeuda),
-    rubros: desvioPorRubro(aprobadaEnPesos, [...gastos, ...comprometidos]),
+    rubros: desvioPorRubro(aprobadaEnPesos, [...gastos, ...imputadas, ...comprometidos]),
     proveedores,
   };
 }
