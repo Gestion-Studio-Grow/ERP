@@ -800,3 +800,22 @@ test("MIA-111 · opción A (MIA-BANCOS-PERDIDO, a confirmar por el dueño): el s
   assert.equal(perdio2.ok, true);
   assert.equal(await atado(d.mov), d.cuota);
 });
+
+test("MIA-111 · opción A, falla cerrada sin regresión: el cobro ya cobrado de un perdido (plata que entró de verdad) se sigue proponiendo y conciliando, como antes", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const { datosDeBancos } = await import("./empresa.server");
+  const id = await p.proyecto("PEDIDO");
+  const concepto = "Seña banco ya cobrada";
+  const r: { ok: boolean } = await p.enSesion(() => p.ficha.crearMovimientoManual(p.form({ proyectoId: id, tipo: "COBRO", concepto, monto: "437", moneda: "ARS", venceEl: "2026-10-26" })));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const cuota = (await p.duenio.proyectoCuota.findFirstOrThrow({ where: { proyectoId: id, concepto }, select: { id: true } })).id;
+  assert.equal((await p.marcar(cuota)).ok, true, "se marca cobrada");
+  assert.equal((await p.mover(id, "PERDIDO", "Eligió otro proveedor")).ok, true, "un proyecto con plata registrada se puede perder");
+  const cuenta = (await p.duenio.proyectoCuentaBanco.create({ data: { tenantId: p.a.id, nombre: "Banco 111 C", moneda: "ARS", saldo: 0 }, select: { id: true } })).id;
+  const mov = (await p.duenio.proyectoMovBanco.create({ data: { tenantId: p.a.id, cuentaId: cuenta, fecha: new Date("2026-10-26T12:00:00Z"), descripcion: "Transferencia 437", importe: 437 }, select: { id: true } })).id;
+  const b = await p.enSesion(() => datosDeBancos(p.a.id));
+  assert.equal(propuestasDeConciliacion(b.movimientos.filter((m) => !m.cuotaId), b.candidatas, b.tc).get(mov)?.id, cuota, "la pantalla lo propone: ya está cobrado");
+  const c: { ok: boolean } = await p.enSesion(() => p.empresa.conciliarMovimiento(p.form({ id: mov, cuotaId: cuota })));
+  assert.equal(c.ok, true, `y el servidor lo concilia, como antes de MIA-111: ${JSON.stringify(c)}`);
+});
