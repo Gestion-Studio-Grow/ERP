@@ -2,6 +2,7 @@
 // las alertas y la liquidación. Sin base ni React, para probarlas sin nada alrededor. Especificación funcional en
 // docs/benchmark/heka-especificacion.md.
 
+import { anticipoDeLaLinea, DIAS_POR_DEFECTO, type DiasDelPlan } from "./presupuesto-core";
 import { redondear, yaVencio } from "./core";
 
 const DIA = 86_400_000;
@@ -148,6 +149,10 @@ export interface DatosPlan {
   cambioVenta?: number;
   /** % de anticipo de cada proveedor; sin dato, 50. */
   anticipoProveedor: Readonly<Record<string, number>>;
+  /** MIA T06 · O12: % de anticipo de cada línea (por id de ítem); manda sobre el del proveedor. */
+  anticipoLinea?: Readonly<Record<string, number>>;
+  /** MIA T06 · R8: los días del plan leídos del catálogo (`plan.*`). Sin esto, los de siempre. */
+  dias?: DiasDelPlan;
 }
 
 /** Un proyecto genera plata cuando está confirmado: antes es una cotización. */
@@ -185,9 +190,6 @@ export function costoSinProveedor(items: readonly { costo: number; cantidad: num
   return { cuantos: sueltos.length, monto: redondear(sueltos.reduce((s, i) => s + aPesos(i.cantidad * i.costo, i.moneda, tc), 0)) };
 }
 
-const DIAS_SALDO_CLIENTE_ANTES = 5;
-const DIAS_SALDO_PROVEEDOR_DESPUES = 12;
-const DIAS_ANTICIPO_PROVEEDOR_ANTES = 30;
 
 /**
  * Anticipo y saldo de cada ítem con proveedor, y anticipo y saldo del cliente. La clave identifica el tramo: regenerar
@@ -196,16 +198,17 @@ const DIAS_ANTICIPO_PROVEEDOR_ANTES = 30;
 export function planDeCuotas(items: readonly ItemFicha[], d: DatosPlan): CuotaPlaneada[] {
   // Sin fecha salen igual, como previsión: el vencimiento que llevan no se muestra (ver `cuotaPrevista`).
   const evento = (d.fechaEvento ?? d.creado).getTime();
+  const dias = d.dias ?? DIAS_POR_DEFECTO;
   const salida: CuotaPlaneada[] = [];
   for (const i of items) {
     if (!i.supplierId || !(i.costo > 0)) continue;
     const total = redondear(i.cantidad * i.costo);
-    const pct = Math.min(100, Math.max(0, d.anticipoProveedor[i.supplierId] ?? 50));
+    const pct = anticipoDeLaLinea(d.anticipoLinea?.[i.id], d.anticipoProveedor[i.supplierId]);
     const anticipo = redondear((total * pct) / 100);
     const saldo = redondear(total - anticipo);
-    const venceAnticipo = i.fechaLimite ?? new Date(evento - DIAS_ANTICIPO_PROVEEDOR_ANTES * DIA);
+    const venceAnticipo = i.fechaLimite ?? new Date(evento - dias.anticipoProveedorAntes * DIA);
     if (anticipo > 0) salida.push({ clave: `${d.proyectoId}:${i.id}:anticipo`, tipo: "PAGO", concepto: `${i.descripcion} (anticipo)`, monto: anticipo, moneda: i.moneda, venceEl: venceAnticipo, supplierId: i.supplierId });
-    if (saldo > 0) salida.push({ clave: `${d.proyectoId}:${i.id}:saldo`, tipo: "PAGO", concepto: `${i.descripcion} (saldo)`, monto: saldo, moneda: i.moneda, venceEl: new Date(evento + DIAS_SALDO_PROVEEDOR_DESPUES * DIA), supplierId: i.supplierId });
+    if (saldo > 0) salida.push({ clave: `${d.proyectoId}:${i.id}:saldo`, tipo: "PAGO", concepto: `${i.descripcion} (saldo)`, monto: saldo, moneda: i.moneda, venceEl: new Date(evento + dias.saldoProveedorDespues * DIA), supplierId: i.supplierId });
   }
   const { venta } = totalesFicha(items, d.tiposDeCambio, d.recargoGeneral);
   if (venta > 0) {
@@ -215,7 +218,7 @@ export function planDeCuotas(items: readonly ItemFicha[], d: DatosPlan): CuotaPl
     const anticipo = redondear((conIva * pct) / 100);
     const saldo = redondear(conIva - anticipo);
     if (anticipo > 0) salida.push({ clave: `${d.proyectoId}:cliente:anticipo`, tipo: "COBRO", concepto: `${d.nombre} — anticipo del cliente`, monto: anticipo, moneda: monedaCliente, venceEl: d.creado, supplierId: null });
-    if (saldo > 0) salida.push({ clave: `${d.proyectoId}:cliente:saldo`, tipo: "COBRO", concepto: `${d.nombre} — saldo del cliente`, monto: saldo, moneda: monedaCliente, venceEl: new Date(evento - DIAS_SALDO_CLIENTE_ANTES * DIA), supplierId: null });
+    if (saldo > 0) salida.push({ clave: `${d.proyectoId}:cliente:saldo`, tipo: "COBRO", concepto: `${d.nombre} — saldo del cliente`, monto: saldo, moneda: monedaCliente, venceEl: new Date(evento - dias.saldoClienteAntes * DIA), supplierId: null });
   }
   return salida;
 }

@@ -109,7 +109,7 @@ test("M2 · una sola base aprobada (C-O10): carrera en Postgres real, rechazo, M
   const adicionalA = await duenio.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${a.id}, true)`;
     const ad = await tx.proyectoAdicional.create({ data: { tenantId: a.id, proyectoId, numero: 1, nombre: "Pantalla extra", creadoPor: "Prueba" }, select: { id: true } });
-    await tx.proyectoAdicionalLinea.create({ data: { tenantId: a.id, adicionalId: ad.id, sector: "Producción", categoria: "Escenografía", detalle: "Pantalla", costoCentavos: 10_000n, precioCentavos: 15_000n } });
+    await tx.proyectoAdicionalLinea.create({ data: { tenantId: a.id, adicionalId: ad.id, sector: "Producción", categoria: "Escenografía", detalle: "Pantalla", costoCentavos: BigInt(10_000), precioCentavos: BigInt(15_000) } });
     return ad.id;
   });
   const { tenantTransaction } = await import("@/lib/rls");
