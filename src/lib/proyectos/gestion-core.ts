@@ -254,9 +254,12 @@ export interface LineaCashflow<T> {
  * `montoDe` (en la moneda de la cuota): lo que cuenta cada cuota; sin él, su monto. Una cuota de cobro ya cobrada debe
  * contar lo que entró por ella, no su monto (ver `repartoDeCobros`).
  */
-export function cashflowDelEvento<T extends CuotaLeida>(cuotas: readonly T[], tc: Readonly<Record<string, number>>, montoDe: (c: T) => number = (c) => c.monto): { lineas: LineaCashflow<T>[]; saldoFinal: number; maximoAFinanciar: number } {
+export function cashflowDelEvento<T extends CuotaLeida>(cuotas: readonly T[], tc: Readonly<Record<string, number>>, montoDe: (c: T) => number = (c) => c.monto, inicial = 0): { lineas: LineaCashflow<T>[]; inicial: number; saldoFinal: number; maximoAFinanciar: number } {
   const orden = cuotas.filter((c) => !c.anuladoEl).slice().sort((a, b) => a.venceEl.getTime() - b.venceEl.getTime() || (a.tipo === "COBRO" ? -1 : 1));
-  let saldo = 0;
+  // `inicial`: lo cobrado que no está en ninguna cuota viva (`RepartoDeCobros.suelto`). Entró igual: el saldo arranca con
+  // eso (un perdido con un cobro hecho termina en lo cobrado, no en cero; MIA-089 · V2).
+  inicial = redondear(Math.max(0, inicial));
+  let saldo = inicial;
   let minimo = 0;
   const lineas = orden.map((cuota) => {
     const pesos = aPesos(montoDe(cuota), cuota.moneda, tc);
@@ -265,7 +268,7 @@ export function cashflowDelEvento<T extends CuotaLeida>(cuotas: readonly T[], tc
     minimo = Math.min(minimo, saldo);
     return { cuota, importe, saldo };
   });
-  return { lineas, saldoFinal: saldo, maximoAFinanciar: redondear(-minimo) };
+  return { lineas, inicial, saldoFinal: saldo, maximoAFinanciar: redondear(-minimo) };
 }
 
 export interface ResumenCuotas {

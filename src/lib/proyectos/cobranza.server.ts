@@ -5,7 +5,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
-import { cobranza, cobranzaEnMoneda, leerOriginal, pendientesDeCobro, totalAprobado, type Cobranza } from "./cobranza-core";
+import { cobranza, cobranzaDePerdido, cobranzaEnMoneda, leerOriginal, pendientesDeCobro, totalAprobado, type Cobranza } from "./cobranza-core";
 import { cambioDeVenta } from "./gestion-core";
 
 /** Pesos por unidad de cada moneda cargada en el negocio. */
@@ -61,7 +61,7 @@ export function cobranzaDe(
     moneda: string;
     presupuestos: { ivaPct: number; tcVenta: number | null; items: { cantidad: number; costo: number; precio: number; moneda: string; recargoPct: number | null }[] }[];
     pagos: { id: string; monto: number }[];
-    perdidoEl?: Date | null;
+    perdidoEl: Date | null;
   },
   tc: Readonly<Record<string, number>>,
   recargoGeneral: number,
@@ -70,7 +70,7 @@ export function cobranzaDe(
   const c = cobranzaSinPerder(p, tc, recargoGeneral, enlaces);
   // Un proyecto perdido no tiene nada por cobrar (pregunta 2 = A, provisional a confirmar por el dueño): lo cobrado sigue
   // como cobrado y devolverlo es otra operación. En la fuente única: ficha, Administración, Rentabilidad y Dirección.
-  return p.perdidoEl ? { ...c, porCobrar: 0 } : c;
+  return p.perdidoEl ? cobranzaDePerdido(c) : c;
 }
 
 function cobranzaSinPerder(

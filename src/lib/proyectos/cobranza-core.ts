@@ -178,6 +178,17 @@ export function cobranzaEnMoneda(totalEnPesos: number, cobros: readonly CobroReg
 }
 
 /**
+ * La cobranza de un proyecto PERDIDO (pregunta 2 = A, provisional a confirmar por el dueño): no se le debe nada y lo
+ * cobrado sigue cobrado. El total baja a lo cobrado, así `total − cobrado = saldo` sigue valiendo y ninguna pantalla
+ * (ficha, Finanzas, Rentabilidad, clientes) muestra un saldo que no se cobra. Un saldo a favor del cliente (se cobró de
+ * más) se conserva: devolverlo es otra operación. Idea del WIP de MIA-089, tomada por MIA-094. PURA.
+ */
+export function cobranzaDePerdido(c: Cobranza): Cobranza {
+  const conMoneda = c.enMoneda && { enMoneda: { ...c.enMoneda, total: Math.min(c.enMoneda.total, c.enMoneda.cobrado), saldo: Math.min(0, c.enMoneda.saldo) } };
+  return { ...c, total: Math.min(c.total, c.cobrado), saldo: Math.min(0, c.saldo), porCobrar: 0, ...conMoneda };
+}
+
+/**
  * Por cuota, alineado con las cuotas y en la moneda de cada una: lo que le falta y lo que ya entró por ella. `cobrado` de
  * una cuota de cobro es lo que VALE hoy lo que entró (H pasado a su moneda con el cambio de hoy): una cuota en USD de un
  * proyecto en pesos, cobrada con el dólar a 1000 y leída con el dólar a 1500, muestra los pesos que entraron en USD de hoy.
@@ -185,6 +196,12 @@ export function cobranzaEnMoneda(totalEnPesos: number, cobros: readonly CobroReg
 export interface RepartoDeCobros {
   pendiente: number[];
   cobrado: number[];
+  /**
+   * Lo cobrado (en pesos de hoy) que ninguna cuota viva tomó: un cobro sin cuota en un proyecto sin plan, o el de un
+   * perdido (sus cuotas pendientes se anularon). Entró igual: el cashflow de la ficha arranca con eso (MIA-089 · V2).
+   * Sólo está si hay.
+   */
+  suelto?: number;
 }
 
 /**
@@ -241,7 +258,7 @@ export function repartoDeCobros(cuotas: readonly CuotaDeCobranza[], tc: Readonly
     // De vuelta a su moneda con el cambio de hoy, al centavo para abajo: pasado a pesos no supera lo que entró.
     cobrado[i] = !(enPesos[i] > 0) ? enSuMoneda : q.moneda === "ARS" ? valeH : alCentavoAbajo((q.monto * valeH) / enPesos[i]);
   }
-  if (!(c.total > 0)) return { pendiente, cobrado };
+  if (!(c.total > 0)) return { pendiente, cobrado, ...(suelta > 0 && { suelto: suelta }) };
   const pendientes = deCobro.filter((i) => !cuotas[i].pagadoEl && enPesos[i] > 0);
   // 2) Lo suelto que sobra, contra las pendientes más viejas: lo que les queda, en H.
   const bruto = new Map<number, number>();
@@ -262,7 +279,7 @@ export function repartoDeCobros(cuotas: readonly CuotaDeCobranza[], tc: Readonly
     if (!esPrevista(cuotas[i]) || !(enPesos[i] > 0)) continue;
     pendiente[i] = pendienteDeCuota(cuotas[i], enPesos[i], enPesos[i], tope, tc);
   }
-  return { pendiente, cobrado };
+  return { pendiente, cobrado, ...(suelta > 0 && { suelto: suelta }) };
 }
 
 /** Lo que queda del tope del reparto: en H (`restoH`) y en la moneda del proyecto (`queda`, con su cambio de hoy `tc`). */

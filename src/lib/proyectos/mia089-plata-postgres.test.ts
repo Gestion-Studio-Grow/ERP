@@ -191,6 +191,31 @@ test("V2 · perdido con la seña cobrada: nada por cobrar en la fuente única, A
   assert.equal(await p.duenio.proyectoPago.count({ where: { proyectoId: id } }), pagos, "0 cobros nuevos");
 });
 
+test("V2b (MIA-094) · perdido con un cobro suelto: saldo 0 en la ficha, Finanzas y Rentabilidad, y el cashflow de la ficha arranca con lo cobrado", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const id = await p.proyecto();
+  // Un cobro registrado aparte (no marcando la cuota): al perderse, la seña pendiente se anula y ese cobro queda sin cuota viva.
+  assert.equal((await p.cobrar(id, 300)).ok, true);
+  assert.equal((await p.mover(id, "PERDIDO", "Eligió otro proveedor")).ok, true);
+  const datos = await import("./datos.server");
+  const fichaSrv = await import("./ficha.server");
+  const vista = await p.enSesion(async () => {
+    const f = await datos.fichaProyecto(id);
+    const a = await p.gestion.actorActual();
+    const cab = await fichaSrv.cabeceraFicha(a, id);
+    assert.ok(cab, "la cabecera de la ficha");
+    const fin = await fichaSrv.datosFinanzas(a, cab, fichaSrv.vistaDe(a));
+    return { ficha: { cobrado: f!.cobrado, saldo: f!.saldo }, finanzas: { saldo: fin.saldo, inicial: fin.flujo.inicial, saldoFinal: fin.flujo.saldoFinal } };
+  });
+  assert.deepEqual(vista.ficha, { cobrado: 300, saldo: 0 }, "ficha: lo cobrado sigue cobrado y no queda saldo");
+  assert.equal(vista.finanzas.saldo, 0, "Finanzas: sin saldo");
+  assert.equal(vista.finanzas.inicial, 300, "cashflow de la ficha: lo cobrado sin cuota viva es la primera línea");
+  assert.equal(vista.finanzas.saldoFinal, 300, "cashflow de la ficha: termina en lo cobrado, no en cero");
+  const fila = await p.rentabilidad(id);
+  assert.deepEqual({ cobrado: fila.cobrado, saldo: fila.saldo, porCobrar: fila.porCobrar }, { cobrado: 300, saldo: 0, porCobrar: 0 }, "Rentabilidad: la columna Saldo no muestra lo que no se cobra");
+});
+
 test("V3 · perdido en Producción y reabierto soltando la tarjeta en Confirmado: vuelve a Producción con las cuotas de antes", async (t) => {
   const p = await preparar(t);
   if (!p) return;

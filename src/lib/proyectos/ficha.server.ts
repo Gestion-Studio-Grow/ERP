@@ -205,13 +205,15 @@ export async function datosFinanzas(a: Actor, cab: Cabecera, vista: Vista) {
   // Cada cuota con lo que le falta y lo que entró por ella: lo cobrado a mano ya se descontó de las más viejas.
   // Y cada cuota de pago con lo pagado en parte a proveedor: le queda su monto menos esas partes (pago-parcial-core).
   const pagados = vista.costos ? await pagosParcialesDeCuotas(tenantId, todas, cab.tc) : new Map<string, number>();
-  const reparto = conPagosParciales(todas, repartoDeCobros(todas, cab.tc, cob), pagados);
+  const crudo = repartoDeCobros(todas, cab.tc, cob);
+  const reparto = conPagosParciales(todas, crudo, pagados);
   // `pagado`: lo que se pagó por una marcada tal como entró (original y pesos asentados), para mostrar; el cashflow usa `cobrado`.
   const cuotas = todas.map((c, i) => ({ ...c, pendiente: reparto.pendiente[i], cobrado: reparto.cobrado[i], pagado: pagadoDeCuota(c, cob) }));
   // Sin permiso de costos, un pago a proveedor delata el costo: sólo se ven los cobros.
   const visibles = vista.costos ? cuotas : cuotas.filter((c) => c.tipo === "COBRO");
   // Una cuota de cobro cuenta lo que entró por ella más lo que le falta (pagada o no), nunca su monto: si no, se pasa del total.
-  const flujo = cashflowDelEvento(visibles, cab.tc, montoEnCashflow);
+  // Lo cobrado que ninguna cuota viva tomó (un perdido, un proyecto sin plan) también entró: el saldo arranca con eso.
+  const flujo = cashflowDelEvento(visibles, cab.tc, montoEnCashflow, crudo.suelto);
   // Pasados a pesos: un ítem en dólares no se puede comparar como si fueran pesos.
   const aprobadaEnPesos = aprobada?.items.map((i) => ({ rubro: i.rubro, cantidad: i.cantidad, costo: aPesos(i.costo, i.moneda, cab.tc), precio: i.cantidad > 0 ? ventaTotalItem(i, cab.tc, cab.config.margenPct) / i.cantidad : 0 })) ?? [];
   const totalesAprobada = aprobada ? totalesEnPesos(aprobada, cab.tc, cab.config.margenPct) : null;

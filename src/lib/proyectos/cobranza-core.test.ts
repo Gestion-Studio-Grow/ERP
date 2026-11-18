@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { cobranza, cobranzaEnMoneda, conciliarConCobros, esPrevista, leerOriginal, lugarParaCobroManual, montoEnCashflow, pagadoDeCuota, pasaElTope, pendientesDeCobro, repartoDeCobros, repartoDelNegocio, resumenConCobranza, SIN_PREVISTAS_SIN_MARCAR, textoPagado, totalAprobado, totalesEnPesos, type Cobranza, type CobroRegistrado } from "./cobranza-core";
+import { cobranza, cobranzaDePerdido, cobranzaEnMoneda, conciliarConCobros, esPrevista, leerOriginal, lugarParaCobroManual, montoEnCashflow, pagadoDeCuota, pasaElTope, pendientesDeCobro, repartoDeCobros, repartoDelNegocio, resumenConCobranza, SIN_PREVISTAS_SIN_MARCAR, textoPagado, totalAprobado, totalesEnPesos, type Cobranza, type CobroRegistrado } from "./cobranza-core";
 import { aPesos, cashflowDelEvento, enMonedaDeVenta, resumenCuotas, type CuotaLeida } from "./gestion-core";
 import { prepararAccionesDeServidor } from "@/test/accion-de-servidor";
 
@@ -918,4 +918,13 @@ test("cobro enlazado a una cuota anulada o prevista: sigue siendo plata suelta (
   const cuotas = [cuotaQ("viva", 605, "ARS", 5), cuotaQ("anulada", 605, "ARS", 15, { anuladoEl: HOY })];
   const r = repartoDeCobros(cuotas, {}, cobranza(1210, [{ monto: 300, cuotaId: "anulada" }]));
   assert.deepEqual(r.pendiente.slice(0, 1), [305]);
+});
+
+test("MIA-094 · V2: la cobranza de un perdido no tiene saldo ni por cobrar; lo cobrado sigue y un saldo a favor del cliente se conserva", () => {
+  const parcial = cobranzaDePerdido(cobranza(1210, [{ monto: 300 }]));
+  assert.deepEqual({ total: parcial.total, cobrado: parcial.cobrado, saldo: parcial.saldo, porCobrar: parcial.porCobrar }, { total: 300, cobrado: 300, saldo: 0, porCobrar: 0 });
+  const deMas = cobranzaDePerdido(cobranza(1000, [{ monto: 1100 }]));
+  assert.deepEqual({ total: deMas.total, saldo: deMas.saldo, porCobrar: deMas.porCobrar }, { total: 1000, saldo: -100, porCobrar: 0 });
+  const usd = cobranzaDePerdido({ ...cobranza(1000, [{ monto: 250 }]), enMoneda: { moneda: "USD", tc: 1000, total: 1, cobrado: 0.25, saldo: 0.75 } });
+  assert.deepEqual(usd.enMoneda, { moneda: "USD", tc: 1000, total: 0.25, cobrado: 0.25, saldo: 0 });
 });
