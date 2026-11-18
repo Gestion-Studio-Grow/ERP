@@ -186,6 +186,12 @@ export async function cambiarEstadoProveedor(formData: FormData): Promise<void> 
 
 const esRol = (v: string): v is RolGestion => (ROLES_GESTION as readonly string[]).includes(v);
 
+/** Si alguna de esas cuentas es OWNER del negocio: sin ficha activa, entra como Dirección (`rolDelActor`). */
+async function esCuentaDuenia(tenantId: string, ids: readonly (string | null | undefined)[]): Promise<boolean> {
+  const cuentas = ids.filter((x): x is string => !!x);
+  return cuentas.length > 0 && (await prisma.user.count({ where: { tenantId, id: { in: cuentas }, role: "OWNER" } })) > 0;
+}
+
 export async function guardarPersona(formData: FormData): Promise<Resultado> {
   const a = await exigirEditar("equipo");
   const { tenantId } = a;
@@ -213,6 +219,11 @@ export async function guardarPersona(formData: FormData): Promise<Resultado> {
   // primer paso para cambiarse el rol (que la línea del rol propio frena) sin pasar por Dirección.
   const cambiaLaCuentaPropia = (previa?.userId === a.user.id) !== (userId === a.user.id);
   if (a.rol !== "DIRECCION" && cambiaLaCuentaPropia) return { ok: false, error: "No podés desvincular tu cuenta ni pasarla a otra ficha: que lo haga Dirección." };
+  // H1 y H2 (par B de GSG-MIA-091): una cuenta OWNER sin ficha activa es Dirección (`rolDelActor`). Vincularle una ficha o
+  // sacársela cambia quién es Dirección: como dar o sacar ese rol, sólo Dirección.
+  if (a.rol !== "DIRECCION" && (previa?.userId ?? null) !== userId && (await esCuentaDuenia(tenantId, [previa?.userId ?? null, userId]))) {
+    return { ok: false, error: "Sólo Dirección vincula o desvincula la cuenta de un dueño del negocio." };
+  }
   // Sin permiso de liquidaciones, el sueldo no se escribe aunque venga en el formulario.
   const sueldoBase = puede(a, "liquidaciones", "editar") ? entre(leerNumero(String(formData.get("sueldoBase") ?? "")), 0, 1e12, 0) : previa?.sueldoBase ?? 0;
   // G4: el sueldo base propio lo fija otra persona (con él, generar arma la liquidación propia). Por la ficha o por la cuenta.
@@ -249,6 +260,8 @@ export async function cambiarEstadoPersona(formData: FormData): Promise<void> {
   if (!p) return;
   if (p.userId === a.user.id) throw new Error("No podés darte de baja a vos.");
   if (p.rol === "DIRECCION" && a.rol !== "DIRECCION") throw new Error("Sólo Dirección puede cambiar a alguien de Dirección.");
+  // H2: sin ficha activa, una cuenta OWNER es Dirección. Darle de baja (o de alta) la ficha cambia quién es Dirección.
+  if (a.rol !== "DIRECCION" && (await esCuentaDuenia(a.tenantId, [p.userId]))) throw new Error("Sólo Dirección da de baja o de alta la ficha de un dueño del negocio.");
   await prisma.proyectoPersona.updateMany({ where: { id, tenantId: a.tenantId }, data: { activa } });
   await registrarCambio(prisma, { tenantId: a.tenantId, entidad: "Persona", entidadId: id, campo: `${p.nombre}: estado`, antes: activa ? "De baja" : "Activa", despues: activa ? "Activa" : "De baja", autor: a.nombre });
   revalidatePath(`${RAIZ}/equipo`);
