@@ -299,14 +299,15 @@ export async function conciliarMovimiento(formData: FormData): Promise<Resultado
       SELECT "tipo", "proyectoId" FROM "ProyectoCuota" WHERE "id" = ${cuotaId} AND "tenantId" = ${a.tenantId}`;
     if (pre?.proyectoId && !perdidoAdmite(pre.tipo)) await trabarCobranza(tx, a.tenantId, pre.proyectoId);
     // El candado de la cuota va primero: el segundo envío espera acá y, al entrar, ve lo que grabó el primero.
-    const [c] = await tx.$queryRaw<{ tipo: string; concepto: string; proyectoId: string | null }[]>`
-      SELECT "tipo", "concepto", "proyectoId" FROM "ProyectoCuota"
+    const [c] = await tx.$queryRaw<{ tipo: string; concepto: string; proyectoId: string | null; pagadoEl: Date | null }[]>`
+      SELECT "tipo", "concepto", "proyectoId", "pagadoEl" FROM "ProyectoCuota"
        WHERE "id" = ${cuotaId} AND "tenantId" = ${a.tenantId} AND "anuladoEl" IS NULL
        FOR UPDATE`;
     const m = await tx.proyectoMovBanco.findFirst({ where: { id, tenantId: a.tenantId }, select: { importe: true } });
     if (!m || !c) return { ok: false, error: "Ese movimiento o esa cuota ya no existen." };
     if ((c.tipo === "COBRO") !== m.importe > 0) return { ok: false, error: "El movimiento y la cuota van en sentidos opuestos." };
-    if (c.proyectoId && !perdidoAdmite(c.tipo) && (await estaPerdido(tx, a.tenantId, c.proyectoId))) return { ok: false, error: "Ese cobro es de un proyecto perdido: no se concilia. Si se retoma, reabrilo primero." };
+    // Lo ya cobrado entró de verdad: se concilia igual (`cobroFrenadoPorPerdido` sólo frena lo que falta cobrar).
+    if (!c.pagadoEl && c.proyectoId && !perdidoAdmite(c.tipo) && (await estaPerdido(tx, a.tenantId, c.proyectoId))) return { ok: false, error: "Ese cobro es de un proyecto perdido: no se concilia. Si se retoma, reabrilo primero." };
     if (await tx.proyectoMovBanco.findFirst({ where: { tenantId: a.tenantId, cuotaId }, select: { id: true } })) return { ok: false, error: "Esa cuota ya está conciliada con otro movimiento." };
     const u = await tx.proyectoMovBanco.updateMany({ where: { id, tenantId: a.tenantId, cuotaId: null }, data: { cuotaId } });
     if (u.count === 0) return { ok: false, error: "Ese movimiento ya estaba conciliado." };
