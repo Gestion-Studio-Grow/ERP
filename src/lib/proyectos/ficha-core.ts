@@ -16,6 +16,13 @@ export const PERDIDO_NO_COBRA = "Este proyecto está perdido: no se le registran
  */
 export const perdidoAdmite = (tipo: string): boolean => tipo === "PAGO";
 
+/**
+ * Una cuota sin marcar de un proyecto perdido que la regla de arriba no admite (un cobro): no se cobra y no está pendiente
+ * de cobro. Administración la muestra en «Todos» con su porqué, sin «Cobrado» (ADV-7, MIA-107). Falla cerrada como
+ * `perdidoAdmite`. PURA.
+ */
+export const cobroFrenadoPorPerdido = (c: { tipo: string; pagadoEl: Date | string | null; proyecto?: { perdidoEl: Date | string | null } | null }): boolean => !c.pagadoEl && !!c.proyecto?.perdidoEl && !perdidoAdmite(c.tipo);
+
 /** Un lead sigue abierto hasta que el cliente confirma o se pierde. */
 export const ETAPAS_DE_LEAD = ["PEDIDO", "DISENO", "RENDER", "PRESUPUESTO", "PROPUESTA"] as const;
 

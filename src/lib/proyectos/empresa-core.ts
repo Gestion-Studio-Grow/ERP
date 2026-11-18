@@ -33,7 +33,9 @@ export const FILTROS_CUOTA = ["pendientes", "vencidos", "pagados", "todos"] as c
 export type FiltroCuota = (typeof FILTROS_CUOTA)[number];
 
 /** «Pendientes» es todo lo que falta pagar, vencido o no: lo vencido es lo más urgente de lo pendiente. */
-export function pasaFiltro(c: Pick<CuotaLeida, "venceEl" | "pagadoEl">, filtro: FiltroCuota, hoy: Date = new Date()): boolean {
+/** `noSeCobra`: un cobro de un perdido (`cobroFrenadoPorPerdido`, ficha-core): no está pendiente ni vencido; sólo en «Todos» (ADV-7). */
+export function pasaFiltro(c: Pick<CuotaLeida, "venceEl" | "pagadoEl"> & { noSeCobra?: boolean }, filtro: FiltroCuota, hoy: Date = new Date()): boolean {
+  if (c.noSeCobra) return filtro === "todos";
   const estado = estadoCuota(c, hoy);
   if (filtro === "pendientes") return estado !== "PAGADA";
   if (filtro === "vencidos") return estado === "VENCIDA";

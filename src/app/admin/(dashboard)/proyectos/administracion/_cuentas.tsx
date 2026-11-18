@@ -48,7 +48,7 @@ const fijaDerecha = "sm:sticky sm:right-0 sm:bg-surface-raised max-sm:col-span-2
 const celda = "max-sm:py-1 max-sm:pr-0 max-sm:before:block max-sm:before:text-xs max-sm:before:text-muted max-sm:before:content-[attr(data-label)]";
 const renglon = "max-sm:grid max-sm:grid-cols-2 max-sm:gap-x-3 max-sm:py-2";
 
-export async function TabCuentas({ tipo, estado, q, vista: vistaId, guardada = false, cuotas, sinCalendario = [], gastosSinPagar = [], tc, tenantId, editaEmpresa, editaPagos, veClientes = false }: { tipo: "COBRO" | "PAGO"; estado?: string; q?: string; vista?: string; guardada?: boolean; cuotas: readonly (CuotaDelNegocio & { pendiente?: number; cobrado?: number; pagado?: PagadoDeCuota | null })[]; sinCalendario?: readonly SinCalendarioDelNegocio[]; gastosSinPagar?: readonly GastoSinPagar[]; tc: Readonly<Record<string, number>>; tenantId: string; editaEmpresa: boolean; editaPagos: boolean; veClientes?: boolean }) {
+export async function TabCuentas({ tipo, estado, q, vista: vistaId, guardada = false, cuotas, sinCalendario = [], gastosSinPagar = [], tc, tenantId, editaEmpresa, editaPagos, veClientes = false }: { tipo: "COBRO" | "PAGO"; estado?: string; q?: string; vista?: string; guardada?: boolean; cuotas: readonly (CuotaDelNegocio & { pendiente?: number; cobrado?: number; noSeCobra?: boolean; pagado?: PagadoDeCuota | null })[]; sinCalendario?: readonly SinCalendarioDelNegocio[]; gastosSinPagar?: readonly GastoSinPagar[]; tc: Readonly<Record<string, number>>; tenantId: string; editaEmpresa: boolean; editaPagos: boolean; veClientes?: boolean }) {
   // La vista guardada (O46): sus filtros son el punto de partida; el estado elegido arriba manda sobre el de la vista.
   const lista: ListaId = tipo === "COBRO" ? "a-cobrar" : "a-pagar";
   const a = await actorActual();
@@ -127,7 +127,9 @@ export async function TabCuentas({ tipo, estado, q, vista: vistaId, guardada = f
               )}
               {g.filas.slice(0, MAX_FILAS).map((c) => {
                 const est = estadoCuota(c, hoy);
-                const vencida = est === "VENCIDA";
+                // ADV-7 (MIA-107): un cobro de un perdido no se cobra (`perdidoAdmite`, la regla de la ficha y del servidor):
+                // ni «Cobrado» ni vencida; se ve en «Todos» con su porqué.
+                const vencida = est === "VENCIDA" && !c.noSeCobra;
                 const deEmpresa = !c.proyecto;
                 const puedeMarcar = deEmpresa ? editaEmpresa : editaPagos;
                 // Lo cobrado a mano por fuera ya se descontó de las cuotas más viejas: el renglón muestra lo que falta. Una
@@ -135,7 +137,7 @@ export async function TabCuentas({ tipo, estado, q, vista: vistaId, guardada = f
                 // Una de pago sin marcar, lo que le falta después de lo pagado en parte (pago-parcial-core).
                 const deCobro = c.tipo === "COBRO" ? (c.pagadoEl ? c.cobrado : c.pendiente) : c.pagadoEl ? undefined : c.pendiente;
                 const falta = deCobro ?? c.monto;
-                const cubierta = !c.pagadoEl && !(falta > 0);
+                const cubierta = !c.pagadoEl && !(falta > 0) && !c.noSeCobra;
                 // Una cobrada con su cobro: lo que se pagó tal como entró (el original y los pesos asentados), no lo que
                 // vale hoy (eso es del cashflow). «US$ 100 · $ 100.000», no «US$ 66,66».
                 const pagado = c.tipo === "COBRO" && c.pagadoEl ? (c.pagado ?? null) : null;
@@ -143,7 +145,7 @@ export async function TabCuentas({ tipo, estado, q, vista: vistaId, guardada = f
                 return (
                   <tr key={c.id} className={cn("border-t border-line align-top", renglon, vencida && "bg-danger-soft")}>
                     <td data-label="Vence" className={cn("py-2 pr-3", celda, vencida && "text-danger")}>
-                      {editaEmpresa && !c.pagadoEl ? <VenceCuota id={c.id} valor={fechaParaInput(c.venceEl)} etiqueta={`Vencimiento de ${c.concepto}`} /> : null}
+                      {editaEmpresa && !c.pagadoEl && !c.noSeCobra ? <VenceCuota id={c.id} valor={fechaParaInput(c.venceEl)} etiqueta={`Vencimiento de ${c.concepto}`} /> : null}
                       {vence(c.venceEl, vencida)}
                     </td>
                     {ve.has("evento") && (
@@ -170,13 +172,14 @@ export async function TabCuentas({ tipo, estado, q, vista: vistaId, guardada = f
                     )}
                     {ve.has("enPesos") && <td data-label="En pesos" className={cn("whitespace-nowrap py-2 pr-3 tabular-nums text-muted sm:text-right", celda)}>{referencia > 0 ? pesos(referencia) : "—"}</td>}
                     {ve.has("factura") && <td data-label="Factura" className={cn("py-2 pr-3", celda)}>{editaEmpresa ? <DatoCuota id={c.id} dato="factura" valor={c.factura ?? ""} etiqueta="Factura" /> : (c.factura ?? "—")}</td>}
-                    {ve.has("estado") && <td data-label="Estado" className={cn("whitespace-nowrap py-2 pr-3", celda, vencida && "font-medium text-danger")}>{est === "PAGADA" && c.tipo === "COBRO" ? "Cobrada" : ESTADO_LABEL[est]}</td>}
+                    {ve.has("estado") && <td data-label="Estado" className={cn("whitespace-nowrap py-2 pr-3", celda, vencida && "font-medium text-danger")}>{c.noSeCobra ? "No se cobra" : est === "PAGADA" && c.tipo === "COBRO" ? "Cobrada" : ESTADO_LABEL[est]}</td>}
                     {ve.has("comentario") && <td data-label="Comentario" className={cn("py-2 pr-3", celda)}>{editaEmpresa ? <DatoCuota id={c.id} dato="comentario" valor={c.comentario ?? ""} etiqueta="Comentario" /> : (c.comentario ?? "—")}</td>}
                     <td className={cn("py-2 sm:pl-3", fijaDerecha, vencida && "sm:bg-danger-soft")}>
                       <div className="grid justify-items-start gap-1">
+                        {c.noSeCobra && <span className="max-w-56 text-xs text-muted">Proyecto perdido: no se cobra. Si se retoma, reabrilo primero.</span>}
                         {cubierta && <span className="max-w-56 text-xs text-muted">{textoCubierta(c.auto)}</span>}
                         {cubierta && !deEmpresa && !c.auto && editaPagos && c.proyecto && <BotonDosPasos accion={quitarMovimiento} campos={{ id: c.id, proyectoId: c.proyecto.id }} etiqueta="Quitar" pregunta="¿Quitar esta cuota? Lo cobrado sigue registrado." />}
-                        {est !== "PAGADA" && !cubierta && puedeMarcar && <MarcarCuota id={c.id} deEmpresa={deEmpresa} etiqueta={tipo === "COBRO" ? "Cobrado" : "Pagar"} falta={falta} moneda={c.moneda} concepto={c.concepto} esCobro={c.tipo === "COBRO"} />}
+                        {est !== "PAGADA" && !cubierta && !c.noSeCobra && puedeMarcar && <MarcarCuota id={c.id} deEmpresa={deEmpresa} etiqueta={tipo === "COBRO" ? "Cobrado" : "Pagar"} falta={falta} moneda={c.moneda} concepto={c.concepto} esCobro={c.tipo === "COBRO"} />}
                         {est === "PAGADA" && <span className="whitespace-nowrap text-xs text-muted">{fechaCorta(c.pagadoEl)}{c.medio ? ` · ${c.medio.toLowerCase().replace("_", " ")}` : ""}</span>}
                         {deEmpresa && editaEmpresa && <BotonDosPasos accion={anularCuotaEmpresa} campos={{ id: c.id }} etiqueta="Anular" pregunta={est === "PAGADA" ? "¿Anular? La plata vuelve al libro." : "¿Anular?"} />}
                       </div>
