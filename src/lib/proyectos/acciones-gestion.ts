@@ -209,11 +209,15 @@ export async function guardarPersona(formData: FormData): Promise<Resultado> {
     if (!cuenta) return { ok: false, error: "No hay una cuenta con ese mail en este negocio. Se da de alta en Usuarios." };
     userId = cuenta.id;
   }
+  const yo = { personaId: a.personaId, userId: a.user.id };
+  const fichaPropia = !!previa && esLoPropio(yo, { personaId: previa.id, userId: previa.userId });
+  // G4p (MIA-084): la ficha propia no se desvincula ni pasa a otra cuenta, como el rol propio. Sin el vínculo, «lo propio» deja
+  // de reconocerse y la cuenta (la OWNER conserva Dirección sin ficha) se fijaría el sueldo y se liquidaría. Lo hace otra persona.
+  if (previa && fichaPropia && userId !== previa.userId && userId !== a.user.id) return { ok: false, error: "No podés desvincular tu ficha de tu cuenta ni pasarla a otra: que lo haga otra persona de Dirección." };
   // Sin permiso de liquidaciones, el sueldo no se escribe aunque venga en el formulario.
   const sueldoBase = puede(a, "liquidaciones", "editar") ? entre(leerNumero(String(formData.get("sueldoBase") ?? "")), 0, 1e12, 0) : previa?.sueldoBase ?? 0;
   // G4: el sueldo base propio lo fija otra persona (con él, generar arma la liquidación propia). Por la ficha o por la cuenta.
-  const yo = { personaId: a.personaId, userId: a.user.id };
-  const propia = previa ? esLoPropio(yo, { personaId: previa.id, userId: previa.userId }) || userId === a.user.id : userId === a.user.id;
+  const propia = fichaPropia || userId === a.user.id;
   if (propia && sueldoBase !== (previa?.sueldoBase ?? 0)) return { ok: false, error: "No podés fijar tu propio sueldo base: la liquidación que sale de él es tuya. Que lo cambie otra persona de Dirección." };
   const datos = { nombre, email: email || null, rol, puesto: txt(formData.get("puesto"), 120), facturaA: txt(formData.get("facturaA"), 160), sueldoBase, userId };
   try {
