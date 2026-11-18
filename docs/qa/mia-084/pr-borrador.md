@@ -53,20 +53,23 @@ Commits:
   - Rojo en `394ade9`, verde después.
   - A pagar 15.013.333,83 · gastos sin pagar 701.000,12 (2) · Rentabilidad 6.534.333,95.
   - Relación al centavo: Rentabilidad = A pagar − cuotas de la empresa + gastos sin pagar.
-- **Tests vecinos:** 74/74 en 19eee60 (N1 66/66 y N8 22/22 antes).
-- **Suite completa por nombre contra 77f1a6ba:** cabeza 19eee60: 9907 tests, 1 falla; 77f1a6ba: 9896, 2 fallas. La de la cabeza es la misma por nombre (pide `AISLAMIENTO_DATABASE_URL`); ningún test rojo nuevo.
-- **tsc y build:** tsc 0 y build 0 en 19eee60.
-- **Certificador adversarial (subagente aparte, sobre el diff):** sin bloqueantes.
+- **Tests vecinos:** 74/74 en 19eee60 (N1 66/66 y N8 22/22 antes). G4p 2/2 en 3 corridas; E7 1/1 con G4p y vecinos 12/12; E2 3/3.
+- **Suite completa por nombre contra 77f1a6ba** (CI=true): cabeza (código de `c5cc9dc`; lo que sigue son sólo docs): 9911 tests, 9908 pasan, 1 falla, 2 salteados; 77f1a6ba: 9896, 9893, 1 falla, 2 salteados. La falla es la misma por nombre en las dos («aislamiento entre negocios con los flags del pool…», pide `AISLAMIENTO_DATABASE_URL`) y los salteados también (piden `GATE2_PG_URL`). Ningún test rojo nuevo.
+- **tsc y build:** tsc 0 y build 0 en la cabeza, sin `MIGRATE_DATABASE_URL`.
+- **Certificador adversarial de N1 y N8b (subagente aparte, sobre el diff):** sin bloqueantes.
   - Los dos archivos de tests: 9/9.
   - Sus 4 ataques: 8 pagos a la vez desde una misma cuenta; una falla provocada después de la baja; un total con centavos; valores de cuenta mal escritos.
   - Encontró los tres menores de arriba. Uno ya está arreglado (`7a5173f`).
+- **Certificador adversarial de G4p (aparte):** CUMPLE. Ataques frenados: vincular otra ficha a la propia cuenta, desvincular y pasar a otra cuenta a la vez, mail en mayúsculas y mail de otro negocio. Su observación A1 es E7.
+- **Certificador adversarial de E7 (aparte):** certifica con observaciones, 3/3 y sus ataques; el residual es el «empleado fantasma» de la deuda.
 - **Recorrido clic por clic** (base local, cuenta del puesto Administración de la demo):
   - Liquidaciones › «Pagar liquidación» › Transferencia › «Banco de prueba · Pesos» › Pagar.
   - La liquidación queda «Pagada».
   - En Bancos, Pesos queda en $ 48.400.000 y Dólares en US$ 35.200. El saldo de antes ($ 51.800.000) es el que traía la base de UAT según el recorrido UAT de MIA-083; no hay captura de este turno.
-- **Capturas:** 8 en total, fuera de Git; las revisó un verificador visual aparte.
+- **Capturas:** 26 en total, fuera de Git; las revisaron verificadores visuales aparte.
   - N8c: Rentabilidad 1280 y 390; Administración 1280 y 390; Proveedores 1280.
   - N1: formulario abierto, liquidación pagada y Bancos después del pago.
+  - G4c, E2 y E7: antes de «Guardar», después del rechazo y recargada, a 1280 y 390 (6 cada una). G4c 6/6 y E7 6/6; E2 4/4 en antes y después, y las 2 recargas muestran lo guardado, que es lo esperado.
 
 ## Core/frente y sector
 Proyectos / ERP · Administración (MIA) / Agencia de eventos
