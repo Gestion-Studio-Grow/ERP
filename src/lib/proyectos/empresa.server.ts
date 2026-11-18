@@ -46,7 +46,14 @@ export async function cuotasDelNegocio(tenantId: string) {
 export type CuotaDelNegocio = Awaited<ReturnType<typeof cuotasDelNegocio>>[number];
 
 export async function recuadrosDeCuotas(tenantId: string) {
-  const [cuotas, tc, config] = await Promise.all([cuotasDelNegocio(tenantId), tiposDeCambio(tenantId), configProyectos(tenantId)]);
+  const [cuotas, tc, config, sinPagar] = await Promise.all([
+    cuotasDelNegocio(tenantId),
+    tiposDeCambio(tenantId),
+    configProyectos(tenantId),
+    // N8b (MIA-084): los gastos cargados sin pagar no son cuotas y no van a «A pagar», pero sí a «Por pagar a proveedores»
+    // de Rentabilidad (`resultadoReal`: neto + IVA de los no pagados ni anulados). Se muestran aparte, con su nombre.
+    prisma.proyectoGasto.aggregate({ where: { tenantId, pagadoEl: null, anuladoEl: null }, _sum: { neto: true, iva: true }, _count: { _all: true } }),
+  ]);
   // «A cobrar» de cada proyecto = lo aprobado menos lo cobrado (cobranza-core), igual que Rentabilidad y Clientes.
   const cobranzas = await cobranzasDelNegocio(tenantId, tc, config.margenPct);
   // Cada renglón con lo que le falta (los cobros manuales se descuentan de las cuotas más viejas): suman lo mismo que el total.
@@ -73,6 +80,7 @@ export async function recuadrosDeCuotas(tenantId: string) {
     }),
     tc,
     resumen: resumenConCobranza(conPartesComoPagadas(cuotas, partes), tc, cobranzas),
+    gastosSinPagar: { total: redondear((sinPagar._sum.neto ?? 0) + (sinPagar._sum.iva ?? 0)), cantidad: sinPagar._count._all },
   };
 }
 export type SinCalendarioDelNegocio = Awaited<ReturnType<typeof recuadrosDeCuotas>>["sinCalendario"][number];
