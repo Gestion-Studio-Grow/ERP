@@ -8,11 +8,11 @@ import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { leerOverridesTolerante } from "@/lib/permisos-overrides";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { permisoEfectivo, permisoFueraDeLaAgenda } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import type { Prisma } from "@/generated/prisma/client";
 import { datosDelNegocio } from "./datos.server";
 import { leerRef } from "./diseno-core";
-import { aPesos, generaCuotas } from "./gestion-core";
+import { aPesos, generaCuotas, rolDelActor } from "./gestion-core";
 import { filtroDeProyectos, puede, tiposDeCambio, type Actor } from "./gestion.server";
 import { claveDia, diasDelRango, enlaceSeguro, laminasPublicas, mediodia, paginacion, tokenDeCalendario, usuarioDelToken, versionesVivas, type EntradaCalendario, type TipoCalendario } from "./gestion-lecturas-core";
 import { redondear } from "./core";
@@ -158,7 +158,10 @@ export async function actorDeUsuario(tenantId: string, userId: string): Promise<
   ]);
   const user = fila ? { ...fila, overrides } : null;
   if (!user || !permisoEfectivo(user, "agenda:read")) return null;
-  const rol = (persona?.rol as RolGestion | undefined) ?? (permisoFueraDeLaAgenda(user, "agenda:manage") ? "DIRECCION" : "DISENO");
+  // PRY-099: el mismo rol que en la sesión (`rolDelActor`): sin ficha, sólo la dueña es Dirección; el resto no abre nada,
+  // así que tampoco tiene calendario (antes, `agenda:manage` sin ficha daba Dirección).
+  const rol = rolDelActor(persona?.rol, user.role);
+  if (rol === "SIN_FICHA") return null;
   return { user, tenantId, personaId: persona?.id ?? null, nombre: persona?.nombre ?? user.name, rol, permisos };
 }
 

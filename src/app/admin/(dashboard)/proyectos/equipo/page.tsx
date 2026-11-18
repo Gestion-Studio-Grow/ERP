@@ -6,7 +6,7 @@ import { requireApp } from "@/lib/require-app";
 import { cambiarEstadoPersona, guardarPermisos, reiniciarSegundoFactor } from "@/lib/proyectos/acciones-gestion";
 import { prisma } from "@/lib/prisma";
 import { ROLES_CON_SEGUNDO_PASO } from "@/lib/proyectos/segundo-factor-core";
-import { COLUMNAS_FICHA, COLUMNAS_OCULTAS_BASE, MODULOS, permisoDe, ROL_LABEL, ROLES_GESTION, type RolGestion } from "@/lib/proyectos/gestion-core";
+import { cambiaLosPermisos, COLUMNAS_FICHA, COLUMNAS_OCULTAS_BASE, MODULOS, permisoDe, ROL_LABEL, ROLES_GESTION, type RolGestion } from "@/lib/proyectos/gestion-core";
 import { exigirVer, puede, type Actor } from "@/lib/proyectos/gestion.server";
 import { personasDelEquipo, registroDeCambios } from "@/lib/proyectos/gestion-lecturas.server";
 import { plataEn } from "@/lib/proyectos/gestion-core";
@@ -99,9 +99,8 @@ async function Personas({ a }: { a: Actor }) {
 }
 
 function Permisos({ a, ok }: { a: Actor; ok: boolean }) {
-  const edita = puede(a, "equipo", "editar");
-  // Nadie se sube a sí mismo los permisos, salvo Dirección, que ya tiene todos.
-  const bloqueado = (rol: string) => !edita || (a.rol !== "DIRECCION" && a.rol === rol);
+  // PRY-100: la matriz la cambia sólo Dirección; el resto la ve, sin casillas activas ni botón (`guardarPermisos` lo vuelve a decidir).
+  const edita = cambiaLosPermisos(a.rol);
   const ocultas = (rol: Exclude<RolGestion, "DIRECCION">) => {
     const g = a.permisos.find((p) => p.rol === rol && p.modulo === "ficha")?.columnasOcultas;
     return Array.isArray(g) ? (g as string[]) : [...COLUMNAS_OCULTAS_BASE[rol]];
@@ -109,6 +108,7 @@ function Permisos({ a, ok }: { a: Actor; ok: boolean }) {
   return (
     <form action={guardarPermisos} className="grid gap-4">
       <p className="text-sm text-muted">Dirección es fija: ve y edita todo. Editar incluye ver. Dirección, Administración y Comercial ven todos los proyectos; el resto, sólo aquellos donde está en el equipo.</p>
+      {!edita && <p className="text-sm font-medium text-strong">Los permisos los cambia Dirección. Si a alguien le falta un acceso, pedíselo.</p>}
       {ok && <p role="status" className="text-sm font-medium text-strong">Permisos guardados.</p>}
       <section className={cn(tarjeta, "overflow-x-auto")} aria-label="Permisos por rol y módulo">
         <table className="w-full min-w-[560px] text-sm">
@@ -129,8 +129,8 @@ function Permisos({ a, ok }: { a: Actor; ok: boolean }) {
                 {ROLES.flatMap((r) => {
                   const p = permisoDe(r, m.id, a.permisos);
                   return [
-                    <td key={`${r}-v`} className="text-center"><label className={casilla}><input type="checkbox" name={`ver:${r}:${m.id}`} defaultChecked={p.ver} disabled={bloqueado(r)} aria-label={`${ROL_LABEL[r]} ve ${m.label}`} className="h-5 w-5" /></label></td>,
-                    <td key={`${r}-e`} className="text-center"><label className={casilla}><input type="checkbox" name={`editar:${r}:${m.id}`} defaultChecked={p.editar} disabled={bloqueado(r)} aria-label={`${ROL_LABEL[r]} edita ${m.label}`} className="h-5 w-5" /></label></td>,
+                    <td key={`${r}-v`} className="text-center"><label className={casilla}><input type="checkbox" name={`ver:${r}:${m.id}`} defaultChecked={p.ver} disabled={!edita} aria-label={`${ROL_LABEL[r]} ve ${m.label}`} className="h-5 w-5" /></label></td>,
+                    <td key={`${r}-e`} className="text-center"><label className={casilla}><input type="checkbox" name={`editar:${r}:${m.id}`} defaultChecked={p.editar} disabled={!edita} aria-label={`${ROL_LABEL[r]} edita ${m.label}`} className="h-5 w-5" /></label></td>,
                   ];
                 })}
               </tr>
@@ -153,7 +153,7 @@ function Permisos({ a, ok }: { a: Actor; ok: boolean }) {
               <tr key={c.id} className="border-t border-line">
                 <th scope="row" className="py-1 pr-2 text-left font-normal text-strong">{c.label}</th>
                 {ROLES.map((r) => (
-                  <td key={r} className="text-center"><label className={casilla}><input type="checkbox" name={`oculta:${r}:${c.id}`} defaultChecked={ocultas(r).includes(c.id)} disabled={bloqueado(r)} aria-label={`Ocultar ${c.label} a ${ROL_LABEL[r]}`} className="h-5 w-5" /></label></td>
+                  <td key={r} className="text-center"><label className={casilla}><input type="checkbox" name={`oculta:${r}:${c.id}`} defaultChecked={ocultas(r).includes(c.id)} disabled={!edita} aria-label={`Ocultar ${c.label} a ${ROL_LABEL[r]}`} className="h-5 w-5" /></label></td>
                 ))}
               </tr>
             ))}
