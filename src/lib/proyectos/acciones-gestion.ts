@@ -214,6 +214,9 @@ export async function guardarPersona(formData: FormData): Promise<Resultado> {
   // G4p (MIA-084): la ficha propia no se desvincula ni pasa a otra cuenta, como el rol propio. Sin el vínculo, «lo propio» deja
   // de reconocerse y la cuenta (la OWNER conserva Dirección sin ficha) se fijaría el sueldo y se liquidaría. Lo hace otra persona.
   if (previa && fichaPropia && userId !== previa.userId && userId !== a.user.id) return { ok: false, error: "No podés desvincular tu ficha de tu cuenta ni pasarla a otra: que lo haga otra persona de Dirección." };
+  // E7 (MIA-093, decisión del dueño 18/11): tampoco se vincula una ficha a la propia cuenta, ni en el alta. Si no, la ficha se
+  // carga sin cuenta con el sueldo que uno quiere (todavía no es «lo propio») y después se vincula. Lo hace otra persona.
+  if (userId === a.user.id && previa?.userId !== a.user.id) return { ok: false, error: "No podés vincular una ficha a tu propia cuenta: que lo haga otra persona de Dirección, así nadie se fija su sueldo. Si sos la única persona de Dirección, guardala sin vincular y vinculala cuando haya otra." };
   // Sin permiso de liquidaciones, el sueldo no se escribe aunque venga en el formulario.
   const sueldoBase = puede(a, "liquidaciones", "editar") ? entre(leerNumero(String(formData.get("sueldoBase") ?? "")), 0, 1e12, 0) : previa?.sueldoBase ?? 0;
   // G4: el sueldo base propio lo fija otra persona (con él, generar arma la liquidación propia). Por la ficha o por la cuenta.
