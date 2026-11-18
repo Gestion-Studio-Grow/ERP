@@ -6,7 +6,7 @@ import { useEffect, useRef, useState, useTransition, type ChangeEvent, type Form
 import { useRouter } from "next/navigation";
 import { buttonClasses, cn } from "@/components/ui";
 import { marcarCuota } from "@/lib/proyectos/acciones-ficha";
-import { cuentasParaMarcar, editarExtrasLiquidacion, generarLiquidaciones, guardarDatoCuota, importarExtracto, marcarCuotaEmpresa, marcarLiquidacionVista } from "@/lib/proyectos/acciones-empresa";
+import { cuentasParaMarcar, editarExtrasLiquidacion, generarLiquidaciones, guardarDatoCuota, importarExtracto, marcarCuotaEmpresa, marcarLiquidacionVista, pagarLiquidacion } from "@/lib/proyectos/acciones-empresa";
 import { MEDIOS, MEDIO_LABEL } from "@/lib/proyectos/core";
 import { plataEn } from "@/lib/proyectos/gestion-core";
 import { campo } from "../_vista";
@@ -94,20 +94,25 @@ export function BotonDosPasos({ accion, campos, etiqueta, pregunta, principal }:
 
 // ── Cuotas ──────────────────────────────────────────────────────────────────
 
+/** La cuenta que se mueve: obligatoria cuando hay cuentas, con «ninguna» como elección explícita. Sin cuentas, nada. */
+function SelectCuenta({ cuentas }: { cuentas: readonly { id: string; nombre: string; moneda?: string }[] }) {
+  if (cuentas.length === 0) return null;
+  return (
+    <select name="cuenta" aria-label="Cuenta que se mueve" defaultValue="" required className={campo}>
+      <option value="" disabled>Elegí la cuenta</option>
+      <option value="ninguna">Ninguna cuenta del banco: va sólo al libro de caja</option>
+      {cuentas.map((c) => <option key={c.id} value={c.id}>{c.nombre}{c.moneda ? ` (${c.moneda})` : ""}</option>)}
+    </select>
+  );
+}
+
 /** Cobrado o Pagar: pide el medio antes de asentar. La cuota de proyecto y la de la empresa van por acciones distintas. */
 function ElegirCuenta() {
   const [cuentas, setCuentas] = useState<{ id: string; nombre: string; moneda: string }[]>([]);
   useEffect(() => {
     cuentasParaMarcar().then(setCuentas).catch(() => setCuentas([]));
   }, []);
-  if (cuentas.length === 0) return null;
-  return (
-    <select name="cuenta" aria-label="Cuenta que se mueve" defaultValue="" required className={campo}>
-      <option value="" disabled>Elegí la cuenta</option>
-      <option value="ninguna">Ninguna cuenta del banco: va sólo al libro de caja</option>
-      {cuentas.map((c) => <option key={c.id} value={c.id}>{c.nombre} ({c.moneda})</option>)}
-    </select>
-  );
+  return <SelectCuenta cuentas={cuentas} />;
 }
 
 /**
@@ -157,6 +162,45 @@ export function MarcarCuota({ id, deEmpresa, etiqueta, falta, moneda = "ARS", co
       )}
       <div className="flex gap-1">
         <button type="submit" disabled={ocupado} className={cn(buttonClasses("solid", "md"), "min-h-11 flex-1")}>{ocupado ? "…" : "Confirmar"}</button>
+        <button type="button" disabled={ocupado} onClick={() => setAbierto(false)} className={cn(buttonClasses("ghost", "md"), "min-h-11")}>Volver</button>
+      </div>
+      <Fallo texto={error} />
+    </form>
+  );
+}
+
+/**
+ * Pagar una liquidación (N1, MIA-084): pide el medio y la cuenta de la que sale el sueldo, igual que una cuota, y el
+ * servidor baja ese saldo en la misma transacción que el egreso. Las cuentas (sólo las de pesos) llegan del servidor:
+ * quien paga sueldos no necesita permiso sobre las cuentas de la empresa para elegir una.
+ */
+export function PagarLiquidacion({ id, total, cuentas }: { id: string; total: string; cuentas: readonly { id: string; nombre: string }[] }) {
+  const { error, ocupado, correr } = useAccion();
+  const [abierto, setAbierto] = useState(false);
+  const router = useRouter();
+  const toast = useToastSiHay();
+  if (!abierto) {
+    return <button type="button" onClick={() => setAbierto(true)} className={cn(buttonClasses("solid", "md"), "min-h-11 whitespace-nowrap")}>Pagar liquidación</button>;
+  }
+  return (
+    <form
+      className="grid min-w-56 gap-1"
+      onSubmit={alEnviar((fd) => {
+        fd.set("id", id);
+        correr(pagarLiquidacion, fd, () => {
+          toast?.showSuccess(`Liquidación pagada: ${total}.`);
+          setAbierto(false);
+          router.refresh();
+        });
+      })}
+    >
+      <p className="text-sm text-strong">Sale {total} y las rendiciones quedan reintegradas.</p>
+      <select name="medio" aria-label="Medio de pago" defaultValue="TRANSFERENCIA" className={campo}>
+        {MEDIOS.map((m) => <option key={m} value={m}>{MEDIO_LABEL[m]}</option>)}
+      </select>
+      <SelectCuenta cuentas={cuentas} />
+      <div className="flex gap-1">
+        <button type="submit" disabled={ocupado} className={cn(buttonClasses("solid", "md"), "min-h-11 flex-1")}>{ocupado ? "…" : "Pagar"}</button>
         <button type="button" disabled={ocupado} onClick={() => setAbierto(false)} className={cn(buttonClasses("ghost", "md"), "min-h-11")}>Volver</button>
       </div>
       <Fallo texto={error} />

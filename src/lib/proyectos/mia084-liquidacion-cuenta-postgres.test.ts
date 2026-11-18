@@ -29,6 +29,9 @@ const GALICIA = 20_000_000;
 const DOLARES = 42_000;
 const RECHAZO_DIA = /la caja del .*17\/11\/2026 ya está cerrada/;
 
+type Foto = { pesos: number; galicia: number; dolares: number; deB: number; estado: string; asientos: { type: string; amount: number }[] };
+type Pago = { ok: boolean; error?: string };
+
 async function preparar(t: import("node:test").TestContext) {
   const base = await laBase(t);
   if (!base) return null;
@@ -77,9 +80,9 @@ async function preparar(t: import("node:test").TestContext) {
   const publicada = async (periodo: string, personaId = quien.paula.id) =>
     (await duenio.proyectoLiquidacion.create({ data: { tenantId: a.id, personaId, periodo, base: SUELDO, total: SUELDO, estado: "PUBLICADA", publicadaEl: new Date(AHORA - 86_400_000) }, select: { id: true } })).id;
   const pagar = (id: string, campos: Record<string, string>, userId = quien.otra.userId!) =>
-    como(userId, () => empresa.pagarLiquidacion(form({ id, medio: "TRANSFERENCIA", ...campos }))) as Promise<{ ok: boolean; error?: string }>;
+    como(userId, () => empresa.pagarLiquidacion(form({ id, medio: "TRANSFERENCIA", ...campos }))) as Promise<Pago>;
   /** Lo que se mira antes y después: los cuatro saldos, el estado y los asientos de esa liquidación. */
-  const foto = async (liquidacionId: string) => {
+  const foto = async (liquidacionId: string): Promise<Foto> => {
     const saldo = async (id: string) => (await duenio.proyectoCuentaBanco.findUniqueOrThrow({ where: { id }, select: { saldo: true } })).saldo;
     return {
       pesos: await saldo(cuentas.pesos),
@@ -159,16 +162,16 @@ test("N1b · carrera: 5 envíos a la vez del mismo pago, con dos cuentas, dejan 
   if (!p) return;
   for (let ronda = 1; ronda <= 5; ronda++) {
     const id = await p.publicada(`2025-0${ronda}`);
-    const antes = await p.foto(id);
-    const elegidas = [p.cuentas.pesos, p.cuentas.galicia, p.cuentas.pesos, p.cuentas.galicia, p.cuentas.pesos];
-    const rs = await Promise.all(elegidas.map((cuenta) => p.pagar(id, { cuenta })));
+    const antes: Foto = await p.foto(id);
+    const elegidas: string[] = [p.cuentas.pesos, p.cuentas.galicia, p.cuentas.pesos, p.cuentas.galicia, p.cuentas.pesos];
+    const rs: Pago[] = await Promise.all(elegidas.map((cuenta) => p.pagar(id, { cuenta })));
     const bien = rs.filter((r) => r.ok);
     assert.equal(bien.length, 1, `ronda ${ronda}: uno solo paga: ${JSON.stringify(rs)}`);
     for (const r of rs.filter((x) => !x.ok)) assert.match(String(r.error), /ya está pagada/, `ronda ${ronda}: los demás dicen que ya está pagada`);
-    const despues = await p.foto(id);
+    const despues: Foto = await p.foto(id);
     assert.equal(despues.estado, "PAGADA");
     assert.deepEqual(despues.asientos, [{ type: "EGRESO", amount: SUELDO }], `ronda ${ronda}: un solo egreso`);
-    const bajas = [antes.pesos - despues.pesos, antes.galicia - despues.galicia];
+    const bajas: number[] = [antes.pesos - despues.pesos, antes.galicia - despues.galicia];
     assert.deepEqual([...bajas].sort((x, y) => x - y), [0, SUELDO], `ronda ${ronda}: una sola cuenta baja, y baja el sueldo exacto (${JSON.stringify(bajas)})`);
     assert.deepEqual([despues.dolares, despues.deB], [antes.dolares, antes.deB]);
   }

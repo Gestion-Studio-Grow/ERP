@@ -3,10 +3,10 @@ import { buttonClasses, cn } from "@/components/ui";
 import { fechaCorta, pesos } from "@/lib/proyectos/core";
 import { claveMes } from "@/lib/proyectos/gestion-core";
 import { esLoPropio, etiquetaMes, leerExtras, periodoValido, totalDeExtras } from "@/lib/proyectos/empresa-core";
-import { liquidacionesDelPeriodo } from "@/lib/proyectos/empresa.server";
-import { borrarLiquidacion, pagarLiquidacion, publicarBorradores } from "@/lib/proyectos/acciones-empresa";
+import { cuentasEnPesos, liquidacionesDelPeriodo } from "@/lib/proyectos/empresa.server";
+import { borrarLiquidacion, publicarBorradores } from "@/lib/proyectos/acciones-empresa";
 import { campo, etiqueta, tarjeta } from "../_vista";
-import { BotonDosPasos, EditarExtras, GenerarLiquidaciones } from "./_controles";
+import { BotonDosPasos, EditarExtras, GenerarLiquidaciones, PagarLiquidacion } from "./_controles";
 
 /**
  * `paga`: Dirección o Administración (el servidor lo vuelve a decidir, y nadie se paga lo propio). `yo`: quien mira; la
@@ -14,7 +14,7 @@ import { BotonDosPasos, EditarExtras, GenerarLiquidaciones } from "./_controles"
  */
 export async function TabLiquidaciones({ tenantId, mes, edita, paga = false, yo }: { tenantId: string; mes?: string; edita: boolean; paga?: boolean; yo: { personaId: string | null; userId: string } }) {
   const periodo = mes && periodoValido(mes) ? mes : claveMes(new Date());
-  const filas = await liquidacionesDelPeriodo(tenantId, periodo);
+  const [filas, cuentas] = await Promise.all([liquidacionesDelPeriodo(tenantId, periodo), paga ? cuentasEnPesos(tenantId) : []]);
   const esMia = (f: (typeof filas)[number]) => esLoPropio(yo, { personaId: f.personaId, userId: f.persona.userId });
   const borradores = filas.filter((f) => f.estado === "BORRADOR" && !esMia(f)).length;
   return (
@@ -81,7 +81,7 @@ export async function TabLiquidaciones({ tenantId, mes, edita, paga = false, yo 
                         {edita && f.estado === "BORRADOR" && !esMia(f) && <EditarExtras id={f.id} persona={f.persona.nombre} base={f.base} manuales={extras.filter((e) => e.manual)} />}
                         {edita && f.estado === "BORRADOR" && !esMia(f) && <BotonDosPasos accion={borrarLiquidacion} campos={{ id: f.id }} etiqueta="Borrar" pregunta="Las rendiciones que tenía quedan libres. ¿Borrar el borrador?" />}
                         {esMia(f) && f.estado !== "PAGADA" && <p className="max-w-56 text-xs text-muted">Es tuya: la arma, la publica y la paga otra persona de Dirección o Administración.</p>}
-                        {paga && f.estado === "PUBLICADA" && !esMia(f) && <BotonDosPasos accion={pagarLiquidacion} campos={{ id: f.id, medio: "TRANSFERENCIA" }} etiqueta="Pagar liquidación" pregunta={`Sale ${pesos(f.total)} de caja por transferencia y las rendiciones quedan reintegradas. ¿Pagar?`} principal />}
+                        {paga && f.estado === "PUBLICADA" && !esMia(f) && <PagarLiquidacion id={f.id} total={pesos(f.total)} cuentas={cuentas} />}
                         <Link href={`/admin/proyectos/imprimir-liquidacion/${f.id}`} className={cn(buttonClasses("ghost", "md"), "min-h-11")}>PDF</Link>
                       </div>
                     </td>

@@ -158,6 +158,11 @@ export async function monedasYFijos(tenantId: string) {
 
 // ── Liquidaciones ───────────────────────────────────────────────────────────
 
+/** De qué cuentas puede salir un sueldo (N1, MIA-084): sólo las de pesos, porque la liquidación es en pesos. */
+export async function cuentasEnPesos(tenantId: string) {
+  return prisma.proyectoCuentaBanco.findMany({ where: { tenantId, moneda: "ARS" }, orderBy: { createdAt: "asc" }, select: { id: true, nombre: true } });
+}
+
 export async function liquidacionesDelPeriodo(tenantId: string, periodo: string) {
   return prisma.proyectoLiquidacion.findMany({
     where: { tenantId, periodo },
