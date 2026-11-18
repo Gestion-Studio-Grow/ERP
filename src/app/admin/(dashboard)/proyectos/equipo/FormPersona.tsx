@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useId, useRef, useState, useTransition } from "react";
 import { buttonClasses } from "@/components/ui";
 import { guardarPersona } from "@/lib/proyectos/acciones-gestion";
 import { ROL_LABEL, ROLES_GESTION, type RolGestion } from "@/lib/proyectos/gestion-core";
@@ -24,6 +24,9 @@ export function FormPersona({ valores, sueldo, soloDireccionDa }: { valores?: Va
   const [ocupado, iniciar] = useTransition();
   const form = useRef<HTMLFormElement>(null);
   const roles = ROLES_GESTION.filter((r: RolGestion) => r !== "DIRECCION" || !soloDireccionDa);
+  // H3 (opción A, provisional a confirmar por el dueño): quien no es Dirección no cambia el rol de una ficha ni su cuenta.
+  const rolFijo = soloDireccionDa && !!valores;
+  const aviso = useId();
 
   return (
     <form
@@ -49,9 +52,16 @@ export function FormPersona({ valores, sueldo, soloDireccionDa }: { valores?: Va
       <label className={etiqueta}>Mail<input name="email" type="email" maxLength={160} defaultValue={valores?.email ?? ""} className={campo} /></label>
       <label className={etiqueta}>
         Rol
-        <select name="rol" defaultValue={valores?.rol ?? "PRODUCCION"} className={campo}>
-          {roles.map((r) => <option key={r} value={r}>{ROL_LABEL[r]}</option>)}
-        </select>
+        {rolFijo ? (
+          <>
+            <input type="hidden" name="rol" value={valores.rol} />
+            <input readOnly value={ROL_LABEL[valores.rol as RolGestion] ?? valores.rol} aria-describedby={aviso} className={campo} />
+          </>
+        ) : (
+          <select name="rol" defaultValue={valores?.rol ?? "PRODUCCION"} className={campo}>
+            {roles.map((r) => <option key={r} value={r}>{ROL_LABEL[r]}</option>)}
+          </select>
+        )}
       </label>
       <label className={etiqueta}>Puesto<input name="puesto" maxLength={120} defaultValue={valores?.puesto} className={campo} /></label>
       {sueldo !== "oculto" && (
@@ -61,10 +71,17 @@ export function FormPersona({ valores, sueldo, soloDireccionDa }: { valores?: Va
         </label>
       )}
       <label className={etiqueta}>Factura a<input name="facturaA" maxLength={160} defaultValue={valores?.facturaA} className={campo} /></label>
-      <label className="flex min-h-11 items-center gap-2 text-sm text-strong sm:col-span-2">
-        <input type="checkbox" name="vincular" defaultChecked={!!valores?.userId} className="h-5 w-5 shrink-0" />
-        Vincular con la cuenta del ERP que tenga este mail
-      </label>
+      {soloDireccionDa ? (
+        <p id={aviso} className="text-sm text-muted sm:col-span-2">
+          {valores?.userId && <input type="hidden" name="vincular" value="1" />}
+          {valores?.userId ? "Tiene cuenta del ERP vinculada." : "Sin cuenta del ERP vinculada."} El rol y la cuenta los cambia Dirección.
+        </p>
+      ) : (
+        <label className="flex min-h-11 items-center gap-2 text-sm text-strong sm:col-span-2">
+          <input type="checkbox" name="vincular" defaultChecked={!!valores?.userId} className="h-5 w-5 shrink-0" />
+          Vincular con la cuenta del ERP que tenga este mail
+        </label>
+      )}
       <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
         <button type="submit" disabled={ocupado} className={buttonClasses("solid", "md")}>{ocupado ? "Guardando…" : "Guardar"}</button>
         {hecho && <p role="status" className="text-sm text-strong">Guardado.</p>}

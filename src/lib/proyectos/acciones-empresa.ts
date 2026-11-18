@@ -153,9 +153,10 @@ export async function anularCuotaEmpresa(formData: FormData): Promise<Resultado<
   // pendiente no la anula por error. La pantalla de Cuentas lo va a mandar con la parte visual de A-05, que va en la
   // tanda T05 (no en T03); sin él, como antes.
   const visto = txt(formData.get("visto"));
-  const hecho = await oPeriodoCerrado(() => transaccionQueAsienta(async (tx): Promise<"pago" | "cuota" | false> => {
+  const hecho = await oPeriodoCerrado(() => transaccionQueAsienta(async (tx): Promise<"pago" | "cuota" | "no-existe" | false> => {
     const c = await tx.proyectoCuota.findFirst({ where: { id, tenantId: a.tenantId, proyectoId: null, anuladoEl: null }, select: { concepto: true, tipo: true, monto: true, moneda: true, pagadoEl: true, cuentaId: true, cuentaMovido: true } });
-    if (!c) return false;
+    // ADM-143: un id de otro negocio no existe para este; a ése no se le afirma un estado. Lo propio sí lo dice.
+    if (!c) return (await tx.proyectoCuota.findFirst({ where: { id, tenantId: a.tenantId, proyectoId: null }, select: { id: true } })) ? false : "no-existe";
     if (!c.pagadoEl && visto === "PAGADA") return false;
     if (!c.pagadoEl) {
       const r = await tx.proyectoCuota.updateMany({ where: { id, tenantId: a.tenantId, proyectoId: null, anuladoEl: null, pagadoEl: null }, data: { anuladoEl: new Date() } });
@@ -189,6 +190,7 @@ export async function anularCuotaEmpresa(formData: FormData): Promise<Resultado<
     return "pago";
   }));
   if (hecho instanceof PeriodoCerradoError) return { ok: false, error: hecho.message };
+  if (hecho === "no-existe") return { ok: false, error: "Esa cuota no existe." };
   if (!hecho) return { ok: false, error: "Ese pago ya estaba anulado." };
   await auditAdmin({ action: "proyecto.cuota-empresa.anular", entity: "ProyectoCuota", entityId: id, changes: { que: hecho } });
   refrescar();
@@ -210,12 +212,14 @@ export async function guardarDatoCuota(formData: FormData): Promise<Resultado> {
         SELECT "proyectoId", "venceEl" FROM "ProyectoCuota"
          WHERE "id" = ${id} AND "tenantId" = ${a.tenantId} AND "pagadoEl" IS NULL AND "anuladoEl" IS NULL
          FOR UPDATE`;
-      if (!q) return false;
+      // ADM-143: un id de otro negocio no existe para este; a ése no se le afirma un estado. Lo propio sí lo dice.
+      if (!q) return (await tx.proyectoCuota.findFirst({ where: { id, tenantId: a.tenantId }, select: { id: true } })) ? false : "no-existe";
       const u = await tx.proyectoCuota.updateMany({ where: { id, tenantId: a.tenantId, pagadoEl: null, anuladoEl: null }, data: { venceEl, venceManual: true } });
       if (u.count === 0) return false;
       await registrarCambio(tx, { tenantId: a.tenantId, proyectoId: q.proyectoId, entidad: "cuota", entidadId: id, campo: "vencimiento", antes: new Date(q.venceEl).toISOString().slice(0, 10), despues: texto, autor: a.nombre });
       return true;
     });
+    if (hecho === "no-existe") return { ok: false, error: "Esa cuota no existe." };
     if (!hecho) return { ok: false, error: "Esa cuota ya se pagó o ya no corre." };
     revalidatePath(ADMIN);
     return { ok: true };
@@ -291,7 +295,12 @@ export async function conciliarMovimiento(formData: FormData): Promise<Resultado
        WHERE "id" = ${cuotaId} AND "tenantId" = ${a.tenantId} AND "anuladoEl" IS NULL
        FOR UPDATE`;
     const m = await tx.proyectoMovBanco.findFirst({ where: { id, tenantId: a.tenantId }, select: { importe: true } });
-    if (!m || !c) return { ok: false, error: "Ese movimiento o esa cuota ya no existen." };
+    // ADM-143: un id de otro negocio no existe para este; a ése no se le afirma un estado. Lo propio sí lo dice.
+    if (!m) return { ok: false, error: "Ese movimiento no existe." };
+    if (!c) {
+      const propia = await tx.proyectoCuota.findFirst({ where: { id: cuotaId, tenantId: a.tenantId }, select: { id: true } });
+      return { ok: false, error: propia ? "Esa cuota está anulada: no se concilia." : "Esa cuota no existe." };
+    }
     if ((c.tipo === "COBRO") !== m.importe > 0) return { ok: false, error: "El movimiento y la cuota van en sentidos opuestos." };
     if (await tx.proyectoMovBanco.findFirst({ where: { tenantId: a.tenantId, cuotaId }, select: { id: true } })) return { ok: false, error: "Esa cuota ya está conciliada con otro movimiento." };
     const u = await tx.proyectoMovBanco.updateMany({ where: { id, tenantId: a.tenantId, cuotaId: null }, data: { cuotaId } });
@@ -312,7 +321,9 @@ export async function desconciliarMovimiento(formData: FormData): Promise<Result
   const id = txt(formData.get("id"));
   const r = await tenantTransaction(async (tx): Promise<Resultado> => {
     const m = await tx.proyectoMovBanco.findFirst({ where: { id, tenantId: a.tenantId }, select: { cuotaId: true } });
-    if (!m?.cuotaId) return { ok: false, error: "Ese movimiento no está conciliado." };
+    // ADM-143: un id de otro negocio no existe para este; a ése no se le afirma un estado. Lo propio sí lo dice.
+    if (!m) return { ok: false, error: "Ese movimiento no existe." };
+    if (!m.cuotaId) return { ok: false, error: "Ese movimiento no está conciliado." };
     // Sin filtrar por anulada: una cuota anulada también se puede soltar.
     const [c] = await tx.$queryRaw<{ concepto: string; proyectoId: string | null }[]>`
       SELECT "concepto", "proyectoId" FROM "ProyectoCuota"
@@ -373,8 +384,10 @@ export async function guardarGastoFijo(formData: FormData): Promise<Resultado> {
 export async function bajaGastoFijo(formData: FormData): Promise<Resultado> {
   const a = await exigirEditar("empresa");
   const id = txt(formData.get("id"));
-  const g = await prisma.proyectoGastoFijo.findFirst({ where: { id, tenantId: a.tenantId, activo: true }, select: { nombre: true, monto: true, moneda: true } });
-  if (!g) return { ok: false, error: "Ese gasto ya no está." };
+  const g = await prisma.proyectoGastoFijo.findFirst({ where: { id, tenantId: a.tenantId }, select: { nombre: true, monto: true, moneda: true, activo: true } });
+  // ADM-143: un id de otro negocio no existe para este; a ése no se le afirma un estado. Lo propio sí lo dice.
+  if (!g) return { ok: false, error: "Ese gasto no existe." };
+  if (!g.activo) return { ok: false, error: "Ese gasto ya estaba dado de baja." };
   await prisma.proyectoGastoFijo.updateMany({ where: { id, tenantId: a.tenantId }, data: { activo: false } });
   await registrarCambio(prisma, { tenantId: a.tenantId, entidad: "gastoFijo", entidadId: id, campo: `baja de ${g.nombre}`, antes: `${g.moneda} ${g.monto}`, autor: a.nombre });
   refrescar();
@@ -558,9 +571,10 @@ export async function pagarLiquidacion(formData: FormData): Promise<Resultado> {
 export async function borrarLiquidacion(formData: FormData): Promise<Resultado> {
   const a = await exigirEditar("liquidaciones");
   const id = txt(formData.get("id"));
-  const hecho = await tenantTransaction(async (tx): Promise<boolean | "propia"> => {
+  const hecho = await tenantTransaction(async (tx): Promise<boolean | "propia" | "no-existe"> => {
     const l = await tx.proyectoLiquidacion.findFirst({ where: { id, tenantId: a.tenantId, estado: "BORRADOR" }, select: { periodo: true, total: true, personaId: true, persona: { select: { userId: true } } } });
-    if (!l) return false;
+    // ADM-143: un id de otro negocio no existe para este; a ése no se le afirma un estado. Lo propio sí lo dice.
+    if (!l) return (await tx.proyectoLiquidacion.findFirst({ where: { id, tenantId: a.tenantId }, select: { id: true } })) ? false : "no-existe";
     if (esLoPropio({ personaId: a.personaId, userId: a.user.id }, { personaId: l.personaId, userId: l.persona.userId })) return "propia";
     try {
       await tx.$executeRaw`SAVEPOINT rendi_liberar`;
@@ -575,6 +589,7 @@ export async function borrarLiquidacion(formData: FormData): Promise<Resultado> 
     return true;
   });
   if (hecho === "propia") return { ok: false, error: LIQUIDACION_PROPIA };
+  if (hecho === "no-existe") return { ok: false, error: "Esa liquidación no existe." };
   if (!hecho) return { ok: false, error: "Sólo se borra un borrador." };
   revalidatePath(ADMIN);
   return { ok: true };

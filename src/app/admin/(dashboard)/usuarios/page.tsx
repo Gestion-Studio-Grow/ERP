@@ -37,6 +37,7 @@ const STATUS_MESSAGES: Record<string, { text: string; ok: boolean }> = {
   error_self_deactivate: { text: "No podés dar de baja a tu propio usuario.", ok: false },
   error_last_owner: { text: "No se puede dar de baja al último dueño activo.", ok: false },
   error_not_found: { text: "No se encontró el usuario.", ok: false },
+  error_agente: { text: "Sos el usuario de un agente de la Cuadrilla: las claves, las bajas y las altas las hace una persona.", ok: false },
   ok_vinculado: { text: "Listo: ya ve su agenda.", ok: true },
   ok_desvinculado: { text: "Quedó sin ficha de profesional.", ok: true },
   error_vinculo_rol: { text: "Sólo un usuario Profesional se vincula a una ficha.", ok: false },

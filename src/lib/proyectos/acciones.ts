@@ -11,7 +11,6 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { requireCapabilityFueraDeLaAgenda } from "@/lib/authz";
 import { auditAdmin, auditPublic } from "@/lib/audit-core";
 import { transferenciaEnElLibroTx } from "@/lib/caja/transferencia-en-el-libro";
 import type { Prisma } from "@/generated/prisma/client";
@@ -22,7 +21,7 @@ import { asentarEnCajaTx, rechazoDePeriodo, transaccionQueAsienta } from "./peri
 import { cobranzasDelNegocio, tiposDeCambio, trabarCobranza } from "./cobranza.server";
 import { pasaElTope, type Cobranza } from "./cobranza-core";
 import { avisoTopeCobro } from "./avisos-cuota";
-import { actorActual, avisar, proyectoVisible, puede, regenerarCuotas, registrarCambio, usuariosDelEquipo, usuariosDeLaPlata, type Actor } from "./gestion.server";
+import { actorActual, avisar, exigirPlataDeDireccion, proyectoVisible, puede, regenerarCuotas, registrarCambio, usuariosDelEquipo, usuariosDeLaPlata, type Actor } from "./gestion.server";
 import type { ModuloGestion } from "./gestion-core";
 import { marcaDeGastoProyecto } from "./marcas";
 import { claveDeEnvio } from "./pago-columnas";
@@ -681,7 +680,8 @@ export async function computoAlPresupuesto(d: { standId: string }): Promise<Resu
 // ── Configuración ───────────────────────────────────────────────────────────
 
 export async function guardarConfig(formData: FormData) {
-  await requireCapabilityFueraDeLaAgenda("agenda:manage");
+  // PRY-099: Configuración la guarda Dirección o a quien Dirección le abra `direccion` en «editar» (el techo del ERP sigue adentro).
+  await exigirPlataDeDireccion("editar");
   const tenantId = await getCurrentTenantId();
   const costos: Partial<Record<ClaveCosto, number>> = {};
   for (const k of Object.keys(COSTO_LABEL) as ClaveCosto[]) {

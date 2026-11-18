@@ -5,6 +5,7 @@ import { appPorId } from "@/apps/registro";
 import { motivoNoDisponible } from "@/apps/visibles";
 import { getNegocioApps } from "@/apps/contexto.server";
 import { actorActual, columnasOcultas, puede } from "@/lib/proyectos/gestion.server";
+import { pagaLiquidaciones, permisoDe } from "@/lib/proyectos/gestion-core";
 import { faltaCambio, recuadrosDeCuotas } from "@/lib/proyectos/empresa.server";
 import { pesos } from "@/lib/proyectos/core";
 import { TabCuentas } from "./_cuentas";
@@ -82,7 +83,7 @@ export default async function Administracion({ searchParams }: { searchParams: P
       {tab === "cashflow" && <TabCashflow tenantId={a.tenantId} />}
       {tab === "bancos" && <TabBancos tenantId={a.tenantId} editaEmpresa={editaEmpresa} editaPagos={editaPagos} />}
       {tab === "monedas" && <TabMonedas tenantId={a.tenantId} editaEmpresa={editaEmpresa} />}
-      {tab === "liquidaciones" && <TabLiquidaciones tenantId={a.tenantId} mes={sp.mes} edita={puede(a, "liquidaciones", "editar")} paga={a.rol === "DIRECCION" || a.rol === "ADMINISTRACION"} yo={{ personaId: a.personaId, userId: a.user.id }} />}
+      {tab === "liquidaciones" && <TabLiquidaciones tenantId={a.tenantId} mes={sp.mes} edita={puede(a, "liquidaciones", "editar")} paga={pagaLiquidaciones(a.rol, permisoDe(a.rol, "liquidaciones", a.permisos))} yo={{ personaId: a.personaId, userId: a.user.id }} />}
     </main>
   );
 }

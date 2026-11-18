@@ -261,6 +261,21 @@ export function marcaDelNegocio(
   return { nombre: identidad.nombre, monograma: identidad.monograma };
 }
 
+/**
+ * C5 (GSG-MIA-076/080): la marca de las pantallas de la CUENTA (definir el PIN, cambiar la contraseña). Igual que
+ * `marcaDelNegocio`, pero un negocio SIN ficha propia (y sin identidad de producto GSG) muestra su `Tenant.name`, nunca
+ * el genérico «Mi negocio». Sin nombre legible, queda vacío (la pantalla ya nombra el negocio de la cuenta aparte).
+ */
+export function marcaConElNombreDelNegocio(
+  brand: TenantBrand,
+  identidad: { nombre: string; monograma: string } | null,
+  nombreDelNegocio: string | null | undefined,
+): { nombre: string; monograma: string } {
+  const marca = marcaDelNegocio(brand, identidad);
+  if (brand.propia || identidad) return marca;
+  return { nombre: nombreDelNegocio?.trim() || "", monograma: marca.monograma };
+}
+
 // Acento resuelto (hex + texto-sobre-acento) para una superficie según SU tema.
 export function resolveAccent(preset: AccentPreset, theme: Theme) {
   const p = ACCENT_PRESETS[preset] ?? ACCENT_PRESETS[DEFAULT_BRAND.preset];

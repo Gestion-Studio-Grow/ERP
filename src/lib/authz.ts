@@ -9,19 +9,28 @@
 // grueso ("¿hay sesión válida?"); esto es la puerta fina por acción.
 
 import { redirect } from "next/navigation";
-import { getCurrentUser, getSesionDelPanel, type SessionUser } from "@/lib/session";
+import { esSesionDeAgenteDuenio, getCurrentUser, getSesionDelPanel, type SessionUser } from "@/lib/session";
 import { homeRoute, motivoSoloLoSuyo, permisoEfectivo, permisoFueraDeLaAgenda, type Capability } from "@/lib/capabilities";
 import { RechazoDeDominio } from "@/lib/rechazo-de-dominio";
 
 /** La pantalla del cambio obligatorio de contraseña: la única puerta abierta con la provisoria pendiente. */
 export const RUTA_CAMBIAR_PASSWORD = "/admin/cambiar-password";
 
+/** Adonde va el usuario de un agente con rol OWNER (GSG-MIA-080): el login, con el aviso que lo explica. */
+export const RUTA_AGENTE_DUENIO = "/admin/login?error=agente_duenio";
+
+// Sin sesión del panel: al login. Si la cookie es la de un usuario de agente con rol OWNER, la guardia de
+// `getSesionDelPanel` ya lo dejó sin sesión; acá sólo se elige el aviso.
+async function alLogin(): Promise<never> {
+  redirect((await esSesionDeAgenteDuenio()) ? RUTA_AGENTE_DUENIO : "/admin/login");
+}
+
 // Exige una sesión válida. Sin usuario → al login. Con el CAMBIO OBLIGATORIO de contraseña pendiente → a cambiarla
 // (ENG-104, GSG-SEG-013): ninguna pantalla, Server Action ni ruta que pase por acá (requireCapability, requireApp…)
 // corre con una contraseña provisoria. Devuelve el usuario ya tipado (redirect() corta el flujo).
 export async function requireUser(): Promise<SessionUser> {
   const sesion = await getSesionDelPanel();
-  if (!sesion) redirect("/admin/login");
+  if (!sesion) return alLogin();
   if (sesion.mustChangePassword) redirect(RUTA_CAMBIAR_PASSWORD);
   return sesion.user;
 }
@@ -30,7 +39,7 @@ export async function requireUser(): Promise<SessionUser> {
 // pasar a quien tiene el cambio pendiente (es justamente lo que viene a hacer). Cualquier otro uso abre el portón.
 export async function requireUserConCambioPendiente(): Promise<SessionUser> {
   const sesion = await getSesionDelPanel();
-  if (!sesion) redirect("/admin/login");
+  if (!sesion) return alLogin();
   return sesion.user;
 }
 

@@ -17,6 +17,7 @@ import { formatearPesos } from "@/lib/rendiciones/dinero";
 import type { Prisma } from "@/generated/prisma/client";
 import { actorActual, avisar, proyectoVisible, registrarCambio, usuariosDeLaPlata, type Actor } from "./gestion.server";
 import { cierreDeAnticipo, leerMontoArgentino, motivoNoMuevePlata, rendicionDelMotor } from "./rendiciones-core";
+import { motivoSinRendiciones, permisoDe } from "./gestion-core";
 import { COMPROBANTE_DE_RENDICION, MEDIOS, metodoDeCaja, type MedioPago } from "./core";
 import { asentarEnCajaTx, PeriodoCerradoError, transaccionQueAsienta } from "./periodo-cerrado.server";
 import { marcaDeGastoProyecto } from "./marcas";
@@ -59,6 +60,9 @@ async function conMigracion(fn: () => Promise<ResultadoRendicion>): Promise<Resu
   }
 }
 
+/** ADM-134: el permiso `rendiciones` de la matriz es el piso, en el servidor; la regla del rol sigue después (las dos). */
+const sinRendiciones = (a: Actor, accion: "rendir" | "revisar") => motivoSinRendiciones(permisoDe(a.rol, "rendiciones", a.permisos), accion);
+
 /**
  * Rendir un gasto propio: crea el gasto del proyecto YA PAGADO por la persona (sin egreso de caja: no salió de la
  * caja), su rendición «para revisar» y la foto del comprobante. El campo `clave` del formulario hace que el mismo
@@ -66,6 +70,8 @@ async function conMigracion(fn: () => Promise<ResultadoRendicion>): Promise<Resu
  */
 export async function rendirGasto(formData: FormData): Promise<ResultadoRendicion> {
   const a = await actorActual();
+  const sinPermiso = sinRendiciones(a, "rendir");
+  if (sinPermiso) return { ok: false, error: sinPermiso };
   const { tenantId, user } = a;
   const proyectoId = txt(formData.get("proyectoId"));
   if (!(await proyectoVisible(a, proyectoId))) return { ok: false, error: "Ese proyecto no existe." };
@@ -166,6 +172,8 @@ export async function rendirGasto(formData: FormData): Promise<ResultadoRendicio
 
 async function revisar(accion: AccionDeRevision, formData: FormData): Promise<ResultadoRendicion> {
   const a: Actor = await actorActual();
+  const sinPermiso = sinRendiciones(a, "revisar");
+  if (sinPermiso) return { ok: false, error: sinPermiso };
   const { tenantId, user } = a;
   const id = txt(formData.get("id"));
   const comentario = txt(formData.get("comentario")).slice(0, 500);
@@ -243,6 +251,8 @@ async function asentarTx(tx: Prisma.TransactionClient, tenantId: string, d: { ty
 /** Reintegrar ahora una rendición aprobada de su bolsillo, sin esperar la liquidación. Un egreso con `proyectoGastoId`. */
 export async function reintegrarDirecto(formData: FormData): Promise<ResultadoRendicion> {
   const a = await actorActual();
+  const sinPermiso = sinRendiciones(a, "revisar");
+  if (sinPermiso) return { ok: false, error: sinPermiso };
   const { tenantId, user } = a;
   const id = txt(formData.get("id"));
   const medio = medioDelForm(formData.get("medio"));
@@ -284,6 +294,8 @@ export async function reintegrarDirecto(formData: FormData): Promise<ResultadoRe
  */
 export async function entregarAnticipo(formData: FormData): Promise<ResultadoRendicion> {
   const a = await actorActual();
+  const sinPermiso = sinRendiciones(a, "revisar");
+  if (sinPermiso) return { ok: false, error: sinPermiso };
   const { tenantId, user } = a;
   const personaId = txt(formData.get("personaId"));
   const proyectoId = txt(formData.get("proyectoId")) || null;
@@ -324,6 +336,8 @@ export async function entregarAnticipo(formData: FormData): Promise<ResultadoRen
  */
 export async function cerrarAnticipo(formData: FormData): Promise<ResultadoRendicion> {
   const a = await actorActual();
+  const sinPermiso = sinRendiciones(a, "revisar");
+  if (sinPermiso) return { ok: false, error: sinPermiso };
   const { tenantId, user } = a;
   const id = txt(formData.get("id"));
   const medio = medioDelForm(formData.get("medio"));

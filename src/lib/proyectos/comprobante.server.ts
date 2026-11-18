@@ -7,7 +7,8 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { actorActual } from "./gestion.server";
-import { faltaLaMigracion, veLaRendicion } from "./rendiciones-core";
+import { faltaLaMigracion } from "./rendiciones-core";
+import { permisoDe, revisaRendiciones } from "./gestion-core";
 
 export const urlDelComprobante = (rendicionId: string): string => `/admin/proyectos/comprobante/${encodeURIComponent(rendicionId)}`;
 
@@ -15,7 +16,9 @@ export async function comprobanteDeRendicion(rendicionId: string): Promise<{ tip
   const a = await actorActual();
   try {
     const r = await prisma.proyectoRendicion.findFirst({ where: { id: rendicionId, tenantId: a.tenantId }, select: { personaId: true, archivo: { select: { datos: true, tipo: true } } } });
-    if (!r || !veLaRendicion(a.rol, a.personaId, r.personaId) || r.archivo?.tipo !== "COMPROBANTE") return null;
+    // ADM-134: la propia, siempre; la de otro, sólo quien revisa (el rol que aprueba y Rendiciones en «editar»).
+    const ve = !!r && (r.personaId === a.personaId || revisaRendiciones(a.rol, permisoDe(a.rol, "rendiciones", a.permisos)));
+    if (!r || !ve || r.archivo?.tipo !== "COMPROBANTE") return null;
     const m = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(r.archivo.datos ?? "");
     return m ? { tipo: m[1], bytes: Buffer.from(m[2], "base64") } : null;
   } catch (e) {
