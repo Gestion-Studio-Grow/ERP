@@ -93,3 +93,25 @@ test("pesos sin centavos salvo que los haya", () => {
   assert.equal(pesosDelHoy(12_500).replace(/\s/g, " "), "$ 12.500");
   assert.equal(pesosDelHoy(1_234.5).replace(/\s/g, " "), "$ 1.234,50");
 });
+
+// UAT Magra 07-08/11 (callejón C1): en un negocio sin agenda la tarjeta no muestra ni avisa de Turnos y Señas.
+test("hoySinAgenda: saca Turnos y Señas y no avisa que no se pudieron leer", async () => {
+  const { armarHoy, hoySinAgenda } = await import("./hoy-core");
+  const t = hoySinAgenda(armarHoy({ turnos: null, movimientos: [], ventas: { cantidad: 2, total: 1500 }, senias: null }));
+  assert.equal(t.turnos, null);
+  assert.equal(t.senias, null);
+  assert.deepEqual(t.sinLeer, [], "los turnos y las señas no se nombran");
+  assert.deepEqual(t.ventas, { cantidad: 2, total: 1500 });
+  const conFalla = hoySinAgenda(armarHoy({ turnos: null, movimientos: null, ventas: null, senias: null }));
+  assert.deepEqual(conFalla.sinLeer, ["lo cobrado", "las ventas"]);
+});
+
+test("la Agenda no abre en una carnicería y sí en CH: es la regla que decide «Ir a la Agenda»", async () => {
+  const { appPorId } = await import("@/apps/registro");
+  const { motivoNoDisponible } = await import("@/apps/visibles");
+  const base = { role: "OWNER" as const, contexto: null, perfil: null };
+  const carniceria = { ...base, modulosAsignados: ["pos", "catalog", "clients"], esMostrador: true, carniceriaLista: true };
+  const ch = { ...base, modulosAsignados: [], esMostrador: false, carniceriaLista: false };
+  assert.notEqual(motivoNoDisponible(appPorId("agenda"), carniceria), null);
+  assert.equal(motivoNoDisponible(appPorId("agenda"), ch), null);
+});

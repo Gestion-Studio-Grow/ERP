@@ -33,7 +33,7 @@ import { appDeGestionVisible, appEnLaBarra, ROL_LABEL } from "@/lib/proyectos/ge
 import { prisma } from "@/lib/prisma";
 import { BarraGestion } from "./proyectos/_barra";
 import { appDeRuta } from "@/apps/rutas";
-import { appCasa, appDelPanelCerrado, appsDeLaCasa, appsVisibles, barraDeCH, conCierreDelMesEnLaBarra, conProyectosEnLaBarra, proyectarMenuDeHoy, rutaDeLaCasa, rutaFueraDelPanel } from "@/apps/visibles";
+import { appCasa, appDelPanelCerrado, appsDeLaCasa, appsVisibles, barraDeCH, conCierreDelMesEnLaBarra, conMostradorEnLaBarra, conProyectosEnLaBarra, proyectarMenuDeHoy, rutaDeLaCasa, rutaFueraDelPanel } from "@/apps/visibles";
 import { esteticaBackoffice } from "@/lib/estetica-backoffice";
 import { esEstetica } from "@/lib/palabras-del-negocio";
 import { claseDeFuentes } from "@/lib/estetica-backoffice-fuentes";
@@ -291,7 +291,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     }
   }
   // Con tienda (Comerciante), «Cierre del mes» entra a la barra detrás de «Cierre del día»; CH no cambia.
-  const barra = conProyectosEnLaBarra(conCierreDelMesEnLaBarra(proyectarMenuDeHoy(visibles), visibles, productoUsaTienda(productoCtx.producto)), visibles);
+  // Vender y Ventas del día al lado de Pedidos, sólo para quien ya las abre (módulo `pos`: CH no cambia).
+  const barra = conMostradorEnLaBarra(conProyectosEnLaBarra(conCierreDelMesEnLaBarra(proyectarMenuDeHoy(visibles), visibles, productoUsaTienda(productoCtx.producto)), visibles), visibles);
   const menuCompleto = esEstetica(slugDelNegocio) ? barraDeCH(barra, visibles, user.role) : barra;
   // MODO SIMPLE (por persona, src/lib/modo-simple.ts): la barra se recorta a Hoy, Agenda, Clientes y
   // Caja; «Ver todo» va en la franja de arriba del contenido. Sin la preferencia, nada cambia.

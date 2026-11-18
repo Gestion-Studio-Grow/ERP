@@ -34,7 +34,7 @@ import {
   type Naturaleza,
 } from "@/lib/fiscal/decidir-comprobante";
 import { emiteConValidezFiscal, type ModoArca } from "@/lib/monitor-core";
-import { cuitValido } from "@/lib/cuit";
+import { cuitValido, normalizarCuit } from "@/lib/cuit";
 
 export type EstadoComprobante = "PENDING" | "AUTHORIZED" | "REJECTED";
 export type CondicionIva = "RESPONSABLE_INSCRIPTO" | "MONOTRIBUTO" | "EXENTO" | "CONSUMIDOR_FINAL";
@@ -219,15 +219,18 @@ function cuitImpreso(cuit: string): string {
 }
 
 /**
- * El CUIT que se puede imprimir: los 11 números pelados (`cuitImpreso` pone los guiones) y válido
- * según @/lib/cuit (prefijo conocido y verificador módulo 11; el resto 10 no existe).
+ * El CUIT que se puede imprimir: TEXTO con los 11 números pelados (`cuitImpreso` pone los guiones),
+ * idéntico a su forma normalizada (`normalizarCuit`: nada que limpiar) y válido según @/lib/cuit
+ * (prefijo conocido y verificador módulo 11; el resto 10 no existe). Un número (dato mal tipado que
+ * llega de un JSON) no pasa: `cuitValido` lo aceptaría y `cuitImpreso` reventaría al imprimir.
  */
 export function cuitImprimible(cuit: string | null): cuit is string {
-  return cuit !== null && /^\d{11}$/.test(cuit) && cuitValido(cuit);
+  return typeof cuit === "string" && cuit === normalizarCuit(cuit) && cuit.length === 11 && cuitValido(cuit);
 }
 
+/** Null, vacío o en blanco. Tolera un dato mal tipado (no revienta: lo juzga la regla de su campo). */
 function vacio(s: string | null): boolean {
-  return s === null || s.trim() === "";
+  return s == null || String(s).trim() === "";
 }
 
 function documentoDelReceptor(r: ReceptorImpreso): string {

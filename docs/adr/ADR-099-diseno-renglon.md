@@ -23,7 +23,7 @@ depends_on: [ADR-072, ADR-098, ADR-059, ADR-079, ADR-080]
 ### 1 · Se prende por negocio, sin deploy, y apagado deja a CH idéntico
 
 - Interruptor **«Diseño nuevo»** (`diseno-nuevo`, `src/cambios/interruptores.ts`), con el mismo mecanismo que «Trabaja por apps»: una fila de AuditLog escrita sólo por la consola. En CH lo prende únicamente el operador dueño, escribiendo el slug. No cambia qué apps ve nadie.
-- **Prendido**, cada raíz del negocio (panel, ingreso, contraseña, «no disponible», contador, Facturita) lleva `data-diseno="renglon"` y `ConDiseno`. `ConDiseno` pide la hoja con `<link precedence>` (React 19), precarga la letra y monta `useDiseno()`. La consola de GSG lo lleva siempre.
+- **Prendido**, cada raíz del negocio (panel, ingreso, contraseña, «no disponible», contador, Factoque) lleva `data-diseno="renglon"` y `ConDiseno`. `ConDiseno` pide la hoja con `<link precedence>` (React 19), precarga la letra y monta `useDiseno()`. La consola de GSG lo lleva siempre.
 - **Apagado**, el atributo no se escribe, `ConDiseno` devuelve a su hijo tal cual y el layout no arma la navegación nueva (`nav` no viaja). **Test del armazón:** `armazon/armazon-ch.test.ts` rinde `AdminShell` para dueña, recepción y profesional de CH (y para un negocio del piloto por apps) y lo compara byte a byte con el HTML de HEAD (`__fixtures__/armazon-head.json`). También prueba que, si alguien pasa `nav` con el interruptor apagado, se ignora. Lo completan `raices-ch.test.ts` (las raíces) y `piel-vieja.test.ts` (las piezas).
 
 ### 2 · La piel: una hoja estática sin capa, tokens en TS y contraste medido

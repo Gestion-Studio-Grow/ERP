@@ -24,15 +24,22 @@ import { avisoTopeCobro } from "./avisos-cuota";
 import { actorActual, avisar, proyectoVisible, puede, regenerarCuotas, registrarCambio, usuariosDelEquipo, usuariosDeLaPlata, type Actor } from "./gestion.server";
 import type { ModuloGestion } from "./gestion-core";
 import { marcaDeGastoProyecto } from "./marcas";
+import { claveDeEnvio } from "./pago-columnas";
+import { esClaveRepetida, faltaLaMigracion } from "./rendiciones-core";
+import { etapa2ActivaPara } from "./etapa2.server";
+import { MENSAJE_APAGADO } from "./etapa2-core";
 import { mensajeDeProveedor, validateSupplierInput } from "@/lib/suppliers/supplier";
 
-export type Resultado<T = object> = ({ ok: true } & T) | { ok: false; error: string };
+/** `confirmar`: el servidor no grabó porque necesita un sí explícito; es el texto de la casilla que lo da (ver `FormAccion`). */
+export type Resultado<T = object> = ({ ok: true } & T) | { ok: false; error: string; confirmar?: string };
 
 const RAIZ = "/admin/proyectos";
 const MAX_ARCHIVOS = 30;
 const MAX_IMAGEN = 1_400_000; // caracteres del data URL (~1 MB de imagen)
 const MAX_ENTREGABLES = 60;
 const MAX_VERSIONES = 12; // cada imagen ocupa la base: un tope, como los archivos
+/** Un cobro igual (monto y medio) del mismo proyecto dentro de esta ventana pide confirmación: dos pestañas, mismo cobro. */
+const VENTANA_REPETIDO_MS = 10 * 60_000;
 
 const txt = (v: FormDataEntryValue | null): string => String(v ?? "").trim();
 const numero = (v: FormDataEntryValue | null | undefined): number => leerNumero(String(v ?? ""));
@@ -201,15 +208,40 @@ export async function registrarCobro(formData: FormData): Promise<Resultado> {
   const p = await prisma.proyecto.findFirst({ where: { id: proyectoId, tenantId }, select: { numero: true, nombre: true } });
   if (!p) return { ok: false, error: "Ese proyecto ya no existe. Recargá la página." };
   const nota = txt(formData.get("nota")) || null;
+  const clave = claveDeEnvio(formData.get("claveEnvio"));
+  const confirmaRepetido = txt(formData.get("confirmaRepetido")) === "1";
   const [config, tc] = await Promise.all([configProyectos(tenantId), tiposDeCambio(tenantId)]);
   // El cobro y su asiento en el libro de caja van juntos: o entran los dos o ninguno.
-  const pago = await tenantTransaction(async (tx): Promise<{ id: string } | { porCobrar: number; cob: Cobranza }> => {
+  const grabar = (conClave: boolean) => tenantTransaction(async (tx): Promise<{ id: string; repetido?: true } | { porCobrar: number; cob: Cobranza } | { ajeno: true } | { otroMonto: number } | { anulado: number } | { parecido: Date }> => {
     // Tope: con presupuesto aprobado no entra más de lo que falta cobrar. En fila con «Marcar cobrado» y las cuotas
     // cargadas a mano del mismo proyecto, y contado adentro de la transacción (dos cobros a la vez no pasan los dos).
     await trabarCobranza(tx, tenantId, proyectoId);
+    // El mismo envío otra vez (doble clic, reintento después de un corte): ya está grabado, se devuelve ése. Después
+    // del candado, así dos envíos iguales a la vez pasan de a uno y el segundo encuentra al primero.
+    if (conClave && clave) {
+      const previo = await tx.proyectoPago.findFirst({ where: { tenantId, claveEnvio: clave }, select: { id: true, proyectoId: true, monto: true, medio: true, anuladoEl: true } });
+      if (previo && previo.proyectoId !== proyectoId) return { ajeno: true };
+      // Misma clave con otros datos: no es el mismo envío (se cortó y se tipeó otro). No se graba ni se da por hecho.
+      if (previo && (Math.abs(previo.monto - monto) > 0.005 || previo.medio !== medio)) return { otroMonto: previo.monto };
+      // Se grabó, se perdió la respuesta y alguien lo anuló antes del reintento: no se da por hecho en silencio.
+      if (previo?.anuladoEl) return { anulado: previo.monto };
+      if (previo) return { id: previo.id, repetido: true };
+    }
     const cob = (await cobranzasDelNegocio(tenantId, tc, config.margenPct, [proyectoId], tx)).get(proyectoId);
     if (cob && pasaElTope(cob, monto)) return { porCobrar: cob.porCobrar, cob };
-    const creado = await tx.proyectoPago.create({ data: { tenantId, proyectoId, medio, monto, nota, cobradoPor: user.name }, select: { id: true } });
+    // El mismo cobro cargado desde dos pestañas (cada una con su clave) entraba dos veces: sin presupuesto no hay tope, y
+    // con presupuesto el tope sólo frena lo que pasa del saldo. Ya en fila y pasado el tope, si hace poco entró uno igual
+    // (mismo monto y medio, no anulado), no se graba sin un sí explícito. Sólo con clave: el navegador que la manda es el
+    // que sabe mostrar la casilla. No usa `claveEnvio`: funciona también sin esa migración.
+    if (clave && !confirmaRepetido) {
+      const igual = await tx.proyectoPago.findFirst({
+        where: { tenantId, proyectoId, anuladoEl: null, medio, monto: { gte: monto - 0.005, lte: monto + 0.005 }, createdAt: { gte: new Date(Date.now() - VENTANA_REPETIDO_MS) } },
+        orderBy: { createdAt: "desc" },
+        select: { createdAt: true },
+      });
+      if (igual) return { parecido: igual.createdAt };
+    }
+    const creado = await tx.proyectoPago.create({ data: { tenantId, proyectoId, medio, monto, nota, cobradoPor: user.name, ...(conClave && clave && { claveEnvio: clave }) }, select: { id: true } });
     await registrarCambio(tx, { tenantId, proyectoId, entidad: "ProyectoPago", entidadId: creado.id, campo: "Cobro", despues: `${MEDIO_LABEL[medio]} · ${pesos(monto)}`, autor: user.name });
     const session = await tx.cashSession.findFirst({ where: { tenantId, status: "OPEN" }, select: { id: true } });
     await tx.cashMovement.create({
@@ -226,8 +258,36 @@ export async function registrarCobro(formData: FormData): Promise<Resultado> {
     });
     return creado;
   });
+  let pago: Awaited<ReturnType<typeof grabar>>;
+  try {
+    pago = await grabar(true);
+  } catch (e) {
+    // Sin la migración de la clave (Gate 2), el cobro se graba como antes. Clave repetida en el índice único: la grabó
+    // otro envío en el medio; la vuelta siguiente la encuentra.
+    if (!clave || !(faltaLaMigracion(e) || esClaveRepetida(e))) throw e;
+    pago = await grabar(!faltaLaMigracion(e));
+  }
+  if ("ajeno" in pago) return { ok: false, error: "Este formulario ya se usó para otro cobro. Recargá la página." };
+  if ("anulado" in pago) {
+    refrescar(proyectoId);
+    return { ok: false, error: `Con este formulario ya se había registrado un cobro de ${pesos(pago.anulado)}, y después se anuló. Si querés cobrarlo de nuevo, envialo otra vez.` };
+  }
+  if ("otroMonto" in pago) {
+    refrescar(proyectoId); // el cobro que sí quedó grabado tiene que verse en la lista
+    return { ok: false, error: `Con este formulario ya quedó registrado un cobro de ${pesos(pago.otroMonto)} (se había cortado la conexión). Si éste es otro cobro, envialo de nuevo.` };
+  }
+  if ("parecido" in pago) {
+    refrescar(proyectoId); // el cobro igual tiene que verse en la lista
+    const minutos = Math.round((Date.now() - pago.parecido.getTime()) / 60_000);
+    const cuando = minutos < 1 ? "Hace menos de un minuto" : minutos === 1 ? "Hace 1 minuto" : `Hace ${minutos} minutos`;
+    return { ok: false, error: `${cuando} ya se registró un cobro igual en este proyecto: ${pesos(monto)} por ${MEDIO_LABEL[medio]}. No se grabó. Si es otro cobro, tildá la casilla y envialo de nuevo.`, confirmar: "Es otro cobro: registrarlo igual" };
+  }
   // Pasaba lo que falta cobrar: no se graba nada.
   if (!("id" in pago)) return { ok: false, error: avisoTopeCobro(pago.porCobrar, monto, pago.cob) };
+  if (pago.repetido) {
+    refrescar(proyectoId);
+    return { ok: true };
+  }
   await auditAdmin({ action: "proyecto.cobro", entity: "ProyectoPago", entityId: pago.id, changes: { monto, medio } });
   refrescar(proyectoId);
   return { ok: true };
@@ -477,6 +537,7 @@ export async function responderEntregable(d: { token: string; versionId: string;
 export async function crearStand(formData: FormData): Promise<Resultado<{ id: string; proyectoId: string }>> {
   const a = await actorCon(["ficha", "diseno"]);
   const { tenantId } = a;
+  if (!(await etapa2ActivaPara(tenantId, "armador3d"))) return { ok: false, error: MENSAJE_APAGADO.armador3d };
   const proyectoId = txt(formData.get("proyectoId"));
   if (!(await proyectoDelActor(a, proyectoId))) return { ok: false, error: "Ese proyecto no existe." };
   const cuantos = await prisma.proyectoStand.count({ where: { tenantId, proyectoId } });
@@ -492,6 +553,7 @@ export async function crearStand(formData: FormData): Promise<Resultado<{ id: st
 export async function guardarStand(d: { id: string; nombre: string; diseno: DisenoStand }): Promise<Resultado> {
   const a = await actorCon(["ficha", "diseno"]);
   const { tenantId } = a;
+  if (!(await etapa2ActivaPara(tenantId, "armador3d"))) return { ok: false, error: MENSAJE_APAGADO.armador3d };
   const diseno = normalizarDiseno(d.diseno);
   if (!diseno) return { ok: false, error: "El diseño no es válido." };
   const s = await prisma.proyectoStand.findFirst({ where: { id: d.id, tenantId }, select: { proyectoId: true } });

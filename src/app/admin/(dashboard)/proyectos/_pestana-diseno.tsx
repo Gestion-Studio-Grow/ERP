@@ -9,6 +9,7 @@ import { esDelEstudio, ETIQUETA_ESTUDIO, estadoDeVersion, esMarcaDeRevision, lee
 import { personasAsignables } from "@/lib/proyectos/diseno.server";
 import { actorActual, filtroDeProyectos, proyectoVisible, puede, type Actor } from "@/lib/proyectos/gestion.server";
 import { iaConectada, imagenesConectadas } from "@/lib/proyectos/ia.server";
+import { etapa2ActivaPara } from "@/lib/proyectos/etapa2.server";
 import { FaltaIA, FaltanImagenes } from "./_diseno-avisos";
 import { EstudioImagenes } from "./_diseno-estudio";
 import { FormIdea, GrillaImagenes, Moodboards } from "./_diseno-idea";
@@ -143,11 +144,13 @@ async function leerIdea(a: Actor, proyectoId: string) {
 export async function PanelIdea({ a, proyectoId, mostrarPedido }: { a: Actor; proyectoId: string; mostrarPedido?: boolean }) {
   const idea = await leerIdea(a, proyectoId);
   const puedeEditar = puede(a, "diseno", "editar");
-  const iaLista = iaConectada() && puede(a, "ia", "editar");
+  // Etapa 2: los asistentes con IA se prenden por negocio (apagados por defecto).
+  const iaActiva = await etapa2ActivaPara(a.tenantId, "ia");
+  const iaLista = iaActiva && iaConectada() && puede(a, "ia", "editar");
   const disponibles = await imagenesParaElegir(a, proyectoId, idea.imagenes);
   return (
     <div className="grid gap-4">
-      {puedeEditar && !iaConectada() && <FaltaIA mientras="Mientras tanto, la idea se escribe a mano." />}
+      {puedeEditar && iaActiva && !iaConectada() && <FaltaIA mientras="Mientras tanto, la idea se escribe a mano." />}
       <section className={tarjeta} aria-label="Ficha de la idea">
         <FormIdea proyectoId={proyectoId} inicial={idea.textos} puedeEditar={puedeEditar} iaLista={iaLista} mostrarPedido={mostrarPedido} />
       </section>
@@ -167,13 +170,14 @@ export async function PanelEstudio({ a, proyectoId }: { a: Actor; proyectoId: st
   const idea = await leerIdea(a, proyectoId);
   const elegibles = (await imagenesParaElegir(a, proyectoId, idea.imagenes)).filter((i) => i.ref.startsWith("archivo:"));
   const puedeEditar = puede(a, "diseno", "editar");
+  const iaActiva = await etapa2ActivaPara(a.tenantId, "ia");
   const conectado = imagenesConectadas();
   return (
     <div className="grid gap-4">
       <p role="note" className="rounded-xl border border-line bg-surface p-3 text-sm text-strong">Estas imágenes orientan la idea. No reemplazan planos, medidas ni el trabajo técnico.</p>
-      {!conectado && <FaltanImagenes mientras="Mientras tanto, subí una imagen a mano: elegirla para la ficha y usarla en la presentación funciona igual." />}
+      {iaActiva && !conectado && <FaltanImagenes mientras="Mientras tanto, subí una imagen a mano: elegirla para la ficha y usarla en la presentación funciona igual." />}
       <section className={tarjeta} aria-label="Pedido">
-        <EstudioImagenes proyectoId={proyectoId} conectado={conectado} puedeGenerar={puede(a, "ia", "editar") && puedeEditar} puedeSubir={puedeEditar} />
+        <EstudioImagenes proyectoId={proyectoId} conectado={conectado} puedeGenerar={iaActiva && puede(a, "ia", "editar") && puedeEditar} puedeSubir={puedeEditar} />
       </section>
       <section className={tarjeta} aria-label="Imágenes del Estudio">
         <h3 className="mb-3 font-semibold text-strong">Imágenes del Estudio</h3>

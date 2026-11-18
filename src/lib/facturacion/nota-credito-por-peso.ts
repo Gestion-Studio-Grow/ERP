@@ -8,7 +8,9 @@
 // con el simulador (CAE «STUB…»), sin hablar con ARCA.
 //
 //   · IDEMPOTENTE: candado advisory por la clave (pedido + egreso) y, bajo el candado, si ya hay
-//     `nc_peso_emitida` se devuelve ESA nota. Un segundo intento no emite otra.
+//     `nc_peso_emitida` con su nota viva se devuelve ESA nota. Un segundo intento no emite otra.
+//   · NOTA RECHAZADA POR EL DESPACHO: no cierra la clave. Cuenta un intento (una vez por nota) y
+//     se emite otra; al llegar a MAX_INTENTOS_NC_PESO se cierra y la ve un humano en Facturación.
 //   · NUNCA MÁS QUE LO FACTURADO PENDIENTE: lo devuelto se recorta al `saldoPorAnular` de la factura.
 //   · SI FALLA, la devolución de la caja ya está hecha (otra tx): queda `nc_peso_pendiente` y se
 //     reintenta (el próximo «Pesar y ajustar» del pedido o `reintentarNotasPorPesoPendientes`).
@@ -92,10 +94,51 @@ export async function notaDeCreditoPorPesoInTx(
     }
     return { estado: "rechazada", clave, importe: 0, motivo: "La anotación de la nota está incompleta: revisala en Facturación." };
   }
-  const emitida = filas.find((f) => f.action === ACCION_NC_PESO_EMITIDA)?.changes as { notaId?: string; importe?: number } | undefined;
-  if (emitida?.notaId) return { estado: "emitida", clave, importe: Number(emitida.importe) || p.importe, invoiceId: emitida.notaId, yaExistia: true };
+  // Una nota emitida cierra la clave MIENTRAS esté viva (PENDING o AUTHORIZED). Si el despacho la
+  // rechazó (REJECTED es final para una nota: no se reabre), la clave vuelve a la cola: el rechazo
+  // cuenta como un intento y se emite otra. Una nota que no se encuentra se toma como viva (nunca se
+  // emite de más por un dato que falta).
+  const emitidas = filas.flatMap((f) => {
+    const e = f.action === ACCION_NC_PESO_EMITIDA ? (f.changes as { notaId?: unknown; importe?: unknown } | null) : null;
+    return e && typeof e.notaId === "string" ? [{ notaId: e.notaId, importe: Number(e.importe) || p.importe }] : [];
+  });
+  const rechazadas = emitidas.length
+    ? await tx.invoice.findMany({
+        where: { tenantId, id: { in: emitidas.map((e) => e.notaId) }, status: "REJECTED" },
+        select: { id: true, rechazoMotivo: true },
+      })
+    : [];
+  const viva = [...emitidas].reverse().find((e) => !rechazadas.some((r) => r.id === e.notaId));
+  if (viva) return { estado: "emitida", clave, importe: viva.importe, invoiceId: viva.notaId, yaExistia: true };
   const cerrada = filas.find((f) => f.action === ACCION_NC_PESO_CERRADA)?.changes as { motivo?: string } | undefined;
   if (cerrada) return { estado: "rechazada", clave, importe: p.importe, motivo: String(cerrada.motivo ?? "") };
+  if (rechazadas.length > 0) {
+    // Cada nota rechazada suma UN intento, una sola vez (por su id), bajo el candado de la clave. Sin la
+    // ventana de `rechazar()` a propósito: cada rechazo es una nota distinta que ARCA no autorizó, no
+    // la misma vuelta repetida; el tope deja como mucho MAX_INTENTOS_NC_PESO notas por clave.
+    const contadas = new Set(
+      filas.flatMap((f) => {
+        const id = f.action === ACCION_NC_PESO_INTENTO ? (f.changes as { notaRechazadaId?: unknown } | null)?.notaRechazadaId : undefined;
+        return typeof id === "string" ? [id] : [];
+      }),
+    );
+    let intentos = filas.filter((f) => f.action === ACCION_NC_PESO_INTENTO).length;
+    let motivo = "";
+    for (const r of rechazadas) {
+      motivo = `ARCA rechazó la nota de crédito${r.rechazoMotivo ? `: ${r.rechazoMotivo}` : "."}`;
+      if (contadas.has(r.id)) continue;
+      intentos++;
+      const changes = { intento: intentos, motivo, notaRechazadaId: r.id, importe: p.importe, en: ahora.toISOString() };
+      await anotar(tx, tenantId, clave, ACCION_NC_PESO_INTENTO, changes);
+      // A la vista del resto de esta vuelta: si la emisión de abajo también falla, es la misma vuelta.
+      filas.push({ action: ACCION_NC_PESO_INTENTO, changes, createdAt: ahora });
+    }
+    if (intentos >= MAX_INTENTOS_NC_PESO) {
+      const cierre = `Se probó ${intentos} veces y no se pudo emitir: ${motivo}`;
+      await anotar(tx, tenantId, clave, ACCION_NC_PESO_CERRADA, { motivo: cierre, intentos });
+      return { estado: "rechazada", clave, importe: p.importe, motivo: cierre };
+    }
+  }
 
   const rechazar = async (motivo: string, definitivo: boolean, importe = p.importe): Promise<NotaPorPeso> => {
     // Un rastro de rechazo por clave (el reintento no lo repite); el cierre, sólo si es definitivo.
@@ -194,6 +237,25 @@ export async function notaDeCreditoPorPeso(
 }
 
 /**
+ * Subconsulta: una `nc_peso_emitida` CON `notaId` de la clave de la fila `alias` cuya nota NO fue
+ * rechazada por el despacho (o no se encuentra: se toma como viva). Es la misma regla que
+ * `notaDeCreditoPorPesoInTx`, que tampoco cuenta una emitida sin `notaId` (certificación, BAJA).
+ * `alias` es siempre un literal del código («p», «c»), nunca un dato.
+ */
+function emitidaViva(alias: Prisma.Sql): Prisma.Sql {
+  return Prisma.sql`
+    SELECT 1 FROM "AuditLog" e
+     WHERE e."tenantId" = ${alias}."tenantId" AND e."entity" = ${alias}."entity"
+       AND e."entityId" = ${alias}."entityId" AND e."action" = ${ACCION_NC_PESO_EMITIDA}
+       AND e."changes"->>'notaId' IS NOT NULL
+       AND NOT EXISTS (
+         SELECT 1 FROM "Invoice" i
+          WHERE i."tenantId" = e."tenantId"
+            AND i."id" = e."changes"->>'notaId'
+            AND i."status" = 'REJECTED')`;
+}
+
+/**
  * Vuelve a probar las notas por peso pendientes del negocio: primero las menos intentadas y, entre
  * ellas, las más viejas. Así las que fallan una y otra vez (rechazo no definitivo) no acaparan el
  * lote y una pendiente nueva sale en la corrida siguiente (certificación, hallazgo MEDIA).
@@ -207,9 +269,10 @@ export async function reintentarNotasPorPesoPendientes(
   if (!(await deps.enModoPrueba(tenantId))) return r;
   const claves = await tenantTransaction(
     async (tx) => {
-      // Sólo las pendientes ABIERTAS (sin emitida ni cerrada de la misma clave), en la base: las
-      // filas de notas ya resueltas nunca se borran, así que traer «las N más viejas» y filtrar
-      // después deja ciega a la pendiente nueva en cuanto el historial pasa de N (certificación).
+      // Sólo las pendientes ABIERTAS (sin cerrada y sin una emitida VIVA de la misma clave), en la
+      // base: las filas de notas ya resueltas nunca se borran, así que traer «las N más viejas» y
+      // filtrar después deja ciega a la pendiente nueva en cuanto el historial pasa de N
+      // (certificación). Una emitida cuya nota el despacho rechazó no cierra la clave.
       const filas = await tx.$queryRaw<{ entityId: string }[]>(Prisma.sql`
         SELECT p."entityId"
           FROM "AuditLog" p
@@ -222,7 +285,8 @@ export async function reintentarNotasPorPesoPendientes(
               WHERE r."tenantId" = p."tenantId"
                 AND r."entity" = p."entity"
                 AND r."entityId" = p."entityId"
-                AND r."action" IN (${ACCION_NC_PESO_EMITIDA}, ${ACCION_NC_PESO_CERRADA}))
+                AND r."action" = ${ACCION_NC_PESO_CERRADA})
+           AND NOT EXISTS (${emitidaViva(Prisma.sql`p`)})
          GROUP BY p."entityId"
          ORDER BY (SELECT count(*) FROM "AuditLog" i
                     WHERE i."tenantId" = ${tenantId}
@@ -303,10 +367,7 @@ export async function notasPorPesoCerradasSinEmitir(tenantId: string, limite = 5
                    AND x."action" = ${ACCION_NC_PESO_CERRADA}
                    AND x."entityId" IS NOT NULL
                  ORDER BY x."entityId", x."createdAt" ASC, x."id" ASC) c
-         WHERE NOT EXISTS (
-           SELECT 1 FROM "AuditLog" e
-            WHERE e."tenantId" = c."tenantId" AND e."entity" = c."entity"
-              AND e."entityId" = c."entityId" AND e."action" = ${ACCION_NC_PESO_EMITIDA})
+         WHERE NOT EXISTS (${emitidaViva(Prisma.sql`c`)})
          ORDER BY c."createdAt" DESC, c."entityId" ASC
          LIMIT ${Math.max(1, Math.trunc(limite))}`);
       return filas.map((f) => {

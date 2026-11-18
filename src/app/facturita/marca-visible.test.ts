@@ -34,7 +34,7 @@ function textos(src: string): string[] {
 }
 
 function conFacturita(archivo: string): string[] {
-  return textos(readFileSync(archivo, "utf8")).filter((t) => /\bFacturita\b/.test(t));
+  return textos(readFileSync(archivo, "utf8")).filter((t) => /\bFactur(?:ita|ITA)\b/.test(t));
 }
 
 test("la constante de marca es Factoque", () => {
@@ -50,6 +50,15 @@ test("ningún texto visible de la app dice «Facturita»", () => {
     join(RAIZ, "lib", "facturita-sesion.server.ts"),
   ].flatMap((a) => conFacturita(a).map((t) => `${relative(RAIZ, a)}: ${t.slice(0, 80)}`));
   assert.deepEqual(encontrados, [], "usá MARCA («Factoque»); `facturita` queda sólo como id técnico");
+});
+
+test("fuera de la app, los textos visibles del producto (consola, blueprint, interruptores) dicen «Factoque»", () => {
+  const encontrados = [
+    join(RAIZ, "app", "operador", "(console)", "tenants", "[id]", "AppsDelNegocioCard.tsx"),
+    join(RAIZ, "blueprints", "facturita.ts"),
+    join(RAIZ, "lib", "flags", "facturacion.ts"),
+  ].flatMap((a) => conFacturita(a).map((t) => `${relative(RAIZ, a)}: ${t.slice(0, 80)}`));
+  assert.deepEqual(encontrados, [], "«Facturita»/«FacturITA» es el nombre viejo: el visible es «Factoque»");
 });
 
 test("el detector sí ve un «Facturita» en un string o en JSX, y no en comentarios ni identificadores", () => {

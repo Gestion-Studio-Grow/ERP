@@ -67,7 +67,7 @@ export async function TabCuentas({ tipo, estado, q, cuotas, sinCalendario = [], 
         <p className={cn(tarjeta, "text-sm text-muted")}>{busqueda ? "Nada coincide con esa búsqueda." : tipo === "COBRO" ? "No hay cobros en este filtro." : "No hay pagos en este filtro."}</p>
       ) : (
         <div className={cn(tarjeta, "overflow-x-auto")}>
-          <table className="w-full min-w-[1180px] text-sm">
+          <table className="w-full min-w-[1080px] text-sm">
             <thead className="text-left text-xs text-muted">
               <tr>
                 <th className="py-1 pr-3 font-medium">Vence</th>

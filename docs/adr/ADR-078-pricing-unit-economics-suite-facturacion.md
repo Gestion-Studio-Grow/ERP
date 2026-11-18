@@ -49,7 +49,7 @@ relevamiento: SOLO no cerraba por soporte/onboarding, no por precio.
 - **Comisión de canal: 20% × 12 meses** por cada cliente que se **gradúa** a A·Comerciante (ADR-076 §5) —
   el contador cobra por hacer crecer a sus clientes dentro de la suite.
 
-### Producto C·Facturita — gratis, es el CAC de A
+### Producto C·Factoque — gratis, es el CAC de A
 
 - **$0.** Costo real relevado: **~$50/usuario/mes** — regalar C es más barato que cualquier campaña.
 - **Límites duros:** 5 facturas/mes · **sin extracto ni conciliación** (frontera ADR-076 §3) · sin cobros MP.
