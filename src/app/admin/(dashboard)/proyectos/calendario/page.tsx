@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { buttonClasses, cn } from "@/components/ui";
 import { requireApp } from "@/lib/require-app";
-import { codigoProyecto, plataEn, TIPOS_CALENDARIO } from "@/lib/proyectos/gestion-core";
+import { pesos } from "@/lib/proyectos/core";
+import { codigoProyecto, TIPOS_CALENDARIO } from "@/lib/proyectos/gestion-core";
 import { actorActual, puede } from "@/lib/proyectos/gestion.server";
 import { agruparPorDia, claveDia, ETIQUETA_CORTA, filtroDelCalendario, finDelDia, grillaDelMes, inicioDelDia, mesPedido, mesVecino, nombreDelMes, rutaDelCalendario, type EntradaCalendario, type TipoCalendario } from "@/lib/proyectos/gestion-lecturas-core";
 import { direccionDelCalendario, entradasCalendario, opcionesDeProyecto, personasDelCalendario, reunionesDelPeriodo } from "@/lib/proyectos/gestion-lecturas.server";
@@ -37,7 +38,7 @@ function Renglon({ e }: { e: EntradaCalendario }) {
   return (
     <Link href={enlace(e)} className={cn("block min-h-11 rounded-lg px-3 py-2 text-sm", COLOR[e.tipo])}>
       <span className="font-semibold">{ETIQUETA_CORTA[e.tipo]}{e.conHora && ` ${hora(e.fecha)}`}</span>: <span className="break-words">{e.titulo}</span>
-      {e.monto !== null && e.moneda && <strong className="ml-1 whitespace-nowrap">{plataEn(e.monto, e.moneda)}</strong>}
+      {e.monto !== null && e.moneda && <strong className="ml-1 whitespace-nowrap">{pesos(e.monto, e.moneda)}</strong>}
       {e.proyecto && e.proyecto !== e.titulo && <span className="block text-xs">{e.proyecto}</span>}
     </Link>
   );

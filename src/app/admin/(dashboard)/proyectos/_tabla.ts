@@ -5,16 +5,16 @@
 // la celda. Nada se esconde: importes, estado y botones quedan a la vista en el teléfono (MIA-50 § 2.2 bis, V2).
 
 import { pesos } from "@/lib/proyectos/core";
-import { enMonedaDeVenta, plataEn } from "@/lib/proyectos/gestion-core";
+import { enMonedaDeVenta } from "@/lib/proyectos/gestion-core";
 
-/** Un importe en su moneda. En pesos, siempre `pesos` (core); en otra moneda no hay helper de pesos que sirva. */
+/** Un importe en su moneda, siempre con `pesos` (core), el helper único. */
 export function importe(monto: number, moneda = "ARS"): string {
-  return moneda === "ARS" ? pesos(monto) : plataEn(monto, moneda);
+  return pesos(monto, moneda);
 }
 
 /** Un importe guardado en pesos, mostrado en la moneda de venta del evento (sin cambio cargado, en pesos). */
 export function importeDeVenta(enPesos: number, moneda = "ARS", cambio = 1): string {
-  return moneda === "ARS" || !(cambio > 0) ? pesos(enPesos) : plataEn(enMonedaDeVenta(enPesos, cambio), moneda);
+  return moneda === "ARS" || !(cambio > 0) ? pesos(enPesos) : pesos(enMonedaDeVenta(enPesos, cambio), moneda);
 }
 
 /** `<table>`: en el teléfono deja de ser tabla. Su ancho mínimo de escritorio va con `md:` (p. ej. `md:min-w-[920px]`). */

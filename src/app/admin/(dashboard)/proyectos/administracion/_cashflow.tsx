@@ -1,6 +1,5 @@
 import { KpiTile, cn } from "@/components/ui";
 import { pesos } from "@/lib/proyectos/core";
-import { plataEn } from "@/lib/proyectos/gestion-core";
 import { etiquetaMes } from "@/lib/proyectos/empresa-core";
 import { cashflowDeEmpresa } from "@/lib/proyectos/empresa.server";
 import { tarjeta } from "../_vista";
@@ -27,7 +26,7 @@ export async function TabCashflow({ tenantId }: { tenantId: string }) {
             {d.cuentas.map((c) => (
               <li key={c.id} className="rounded-lg border border-line p-3">
                 <p className="text-sm text-muted">{c.nombre}</p>
-                <p className="font-semibold tabular-nums text-strong">{plataEn(c.saldo, c.moneda)}</p>
+                <p className="font-semibold tabular-nums text-strong">{pesos(c.saldo, c.moneda)}</p>
                 {c.moneda !== "ARS" && <p className="text-xs tabular-nums text-muted">{pesos(c.enPesos)}</p>}
               </li>
             ))}
