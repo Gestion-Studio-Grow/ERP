@@ -11,7 +11,8 @@
 //  V7  el mismo envío dos veces (o diez a la vez) deja una sola cuota; dos cuotas iguales de envíos distintos, dos.
 //  V8a cambiar el tipo de cambio no cambia nada de lo ya cobrado.
 //  ADV-7 (MIA-107) un cobro cargado a mano en Pedido o Presupuesto, y después perdido, no queda pendiente en Administración.
-//  MIA-111 Bancos, con un depósito del mismo importe que el cobro de un perdido: no lo propone ni ofrece «Marcar cobrada».
+//  MIA-111 Bancos, con un depósito del mismo importe que el cobro de un perdido: no lo propone ni ofrece «Marcar cobrada»;
+//          y el servidor no lo concilia, tampoco en carrera con «Marcar perdido» (opción A de MIA-BANCOS-PERDIDO).
 // Las fechas son fijas (26/10/2026): el resultado no depende del reloj.
 // ============================================================================
 
@@ -752,4 +753,50 @@ test("MIA-111 · Bancos con el cobro de un perdido: no lo propone ni lo deja ele
   const reabierto = await bancos();
   assert.equal(propuestaPara(reabierto, movLibre), libre, "reabierto: vuelve a proponerlo");
   assert.equal(ofrece(reabierto), true, "reabierto: vuelve a ofrecer «Marcar cobrada»");
+});
+
+test("MIA-111 · opción A (MIA-BANCOS-PERDIDO, a confirmar por el dueño): el servidor no concilia un depósito con el cobro de un perdido, ni en carrera con «Marcar perdido» en los dos órdenes; un pago a proveedor del perdido sí", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const cuenta = (await p.duenio.proyectoCuentaBanco.create({ data: { tenantId: p.a.id, nombre: "Banco 111 B", moneda: "ARS", saldo: 0 }, select: { id: true } })).id;
+  const deposito = async (importe: number): Promise<string> =>
+    (await p.duenio.proyectoMovBanco.create({ data: { tenantId: p.a.id, cuentaId: cuenta, fecha: new Date("2026-10-26T12:00:00Z"), descripcion: `Transferencia ${importe}`, importe }, select: { id: true } })).id;
+  const caso = async (tipo: "COBRO" | "PAGO", monto: number) => {
+    const id = await p.proyecto("PEDIDO");
+    const concepto = `${tipo} banco ${monto}`;
+    const r: { ok: boolean } = await p.enSesion(() => p.ficha.crearMovimientoManual(p.form({ proyectoId: id, tipo, concepto, monto: String(monto), moneda: "ARS", venceEl: "2026-10-26" })));
+    assert.equal(r.ok, true, `el ${tipo} a mano se carga: ${JSON.stringify(r)}`);
+    const cuota = (await p.duenio.proyectoCuota.findFirstOrThrow({ where: { proyectoId: id, concepto }, select: { id: true } })).id;
+    return { id, cuota, mov: await deposito(tipo === "COBRO" ? monto : -monto) };
+  };
+  const conciliar = (mov: string, cuota: string): Promise<{ ok: boolean; error?: string }> => p.enSesion(() => p.empresa.conciliarMovimiento(p.form({ id: mov, cuotaId: cuota })));
+  const atado = async (mov: string) => (await p.duenio.proyectoMovBanco.findUniqueOrThrow({ where: { id: mov }, select: { cuotaId: true } })).cuotaId;
+
+  // Ya perdido: no se concilia y el depósito queda libre.
+  const a = await caso("COBRO", 433);
+  assert.equal((await p.mover(a.id, "PERDIDO", "Eligió otro proveedor")).ok, true);
+  const r = await conciliar(a.mov, a.cuota);
+  assert.equal(r.ok, false, `perdido: el servidor no concilia el cobro: ${JSON.stringify(r)}`);
+  assert.match(r.error ?? "", /perdido/i, "el cartel dice por qué");
+  assert.equal(await atado(a.mov), null, "el depósito sigue sin conciliar");
+  assert.equal((await p.mover(a.id, "PEDIDO")).ok, true, "reabrir");
+  assert.equal((await conciliar(a.mov, a.cuota)).ok, true, "reabierto: se concilia");
+
+  // Un pago a proveedor de un perdido sí se concilia (decisión 2 = A: se le debe igual).
+  const b = await caso("PAGO", 434);
+  assert.equal((await p.mover(b.id, "PERDIDO", "Eligió otro proveedor")).ok, true);
+  assert.equal((await conciliar(b.mov, b.cuota)).ok, true, "perdido: el pago a proveedor se concilia");
+
+  // Carrera, detrás del candado de la cobranza del proyecto. «Marcar perdido» primero: la conciliación no entra.
+  const c = await caso("COBRO", 435);
+  const [perdio, concilio] = await enFila(p.base, p.claveCobranza(c.id), [() => p.mover(c.id, "PERDIDO", "Eligió otro proveedor"), () => conciliar(c.mov, c.cuota)]);
+  assert.equal(perdio.ok, true);
+  assert.equal(concilio.ok, false, `perdido primero: no concilia: ${JSON.stringify(concilio)}`);
+  assert.equal(await atado(c.mov), null);
+  // Conciliar primero: entra, y perder después también (el depósito queda atado; la pantalla no ofrece marcarlo).
+  const d = await caso("COBRO", 436);
+  const [concilio2, perdio2] = await enFila(p.base, p.claveCobranza(d.id), [() => conciliar(d.mov, d.cuota), () => p.mover(d.id, "PERDIDO", "Eligió otro proveedor")]);
+  assert.equal(concilio2.ok, true, JSON.stringify(concilio2));
+  assert.equal(perdio2.ok, true);
+  assert.equal(await atado(d.mov), d.cuota);
 });
