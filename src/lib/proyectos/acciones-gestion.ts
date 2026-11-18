@@ -16,7 +16,7 @@ import { auditAdmin, auditPublic } from "@/lib/audit-core";
 import { mensajeDeProveedor, validateSupplierInput } from "@/lib/suppliers/supplier";
 import { fechaCorta, leerNumero } from "./core";
 import { actorActual, avisar, exigirEditar, proyectoVisible, puede, regenerarCuotasDe, registrarCambio, usuariosDeLaPlata, usuariosDelEquipo, type Actor } from "./gestion.server";
-import { COLUMNAS_OCULTAS_BASE, MONEDAS, permisoDe, ROLES_GESTION, RUBROS, TIPOS_AVISO, type ModuloGestion, type RolGestion } from "./gestion-core";
+import { cambiaLosPermisos, COLUMNAS_OCULTAS_BASE, MONEDAS, permisoDe, ROLES_GESTION, RUBROS, TIPOS_AVISO, type ModuloGestion, type RolGestion } from "./gestion-core";
 import { entre, matrizDelFormulario, respuestaDePresentacion } from "./gestion-lecturas-core";
 import { esLoPropio } from "./empresa-core";
 
@@ -209,6 +209,10 @@ export async function guardarPersona(formData: FormData): Promise<Resultado> {
     if (!cuenta) return { ok: false, error: "No hay una cuenta con ese mail en este negocio. Se da de alta en Usuarios." };
     userId = cuenta.id;
   }
+  // PRY-100: quien no es Dirección no cambia de ficha su propia cuenta. Desvincularse, o vincularse a otra ficha, es el
+  // primer paso para cambiarse el rol (que la línea del rol propio frena) sin pasar por Dirección.
+  const cambiaLaCuentaPropia = (previa?.userId === a.user.id) !== (userId === a.user.id);
+  if (a.rol !== "DIRECCION" && cambiaLaCuentaPropia) return { ok: false, error: "No podés desvincular tu cuenta ni pasarla a otra ficha: que lo haga Dirección." };
   // Sin permiso de liquidaciones, el sueldo no se escribe aunque venga en el formulario.
   const sueldoBase = puede(a, "liquidaciones", "editar") ? entre(leerNumero(String(formData.get("sueldoBase") ?? "")), 0, 1e12, 0) : previa?.sueldoBase ?? 0;
   // G4: el sueldo base propio lo fija otra persona (con él, generar arma la liquidación propia). Por la ficha o por la cuenta.
@@ -262,13 +266,19 @@ export async function reiniciarSegundoFactor(formData: FormData): Promise<void> 
   revalidatePath(`${RAIZ}/equipo`);
 }
 
-/** Sólo escribe lo que cambió. Dirección es fija, y nadie se sube a sí mismo los permisos salvo Dirección. */
+/**
+ * Sólo escribe lo que cambió, y Dirección es fija. PRY-100: la matriz la cambia sólo Dirección (`cambiaLosPermisos`,
+ * provisional a confirmar por el dueño): quien tiene «Equipo» carga personas, no permisos, ni de otros roles ni en dos pasos.
+ */
 export async function guardarPermisos(formData: FormData): Promise<void> {
   const a = await exigirEditar("equipo");
+  if (!cambiaLosPermisos(a.rol)) throw new Error("Los permisos los cambia Dirección.");
   const { tenantId } = a;
-  const filas = matrizDelFormulario((c) => formData.get(c) !== null).filter((f) => a.rol === "DIRECCION" || f.rol !== a.rol);
-  const guardados = await prisma.proyectoPermiso.findMany({ where: { tenantId }, select: { rol: true, modulo: true, ver: true, editar: true, columnasOcultas: true } });
+  const filas = matrizDelFormulario((c) => formData.get(c) !== null);
   await tenantTransaction(async (tx) => {
+    // Dos personas guardando la matriz a la vez: una después de la otra, y cada una compara contra lo que quedó guardado.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`proyecto-permisos:${tenantId}`}))`;
+    const guardados = await tx.proyectoPermiso.findMany({ where: { tenantId }, select: { rol: true, modulo: true, ver: true, editar: true, columnasOcultas: true } });
     for (const f of filas) {
       const antes = permisoDe(f.rol, f.modulo as ModuloGestion, guardados);
       const fila = guardados.find((g) => g.rol === f.rol && g.modulo === f.modulo);

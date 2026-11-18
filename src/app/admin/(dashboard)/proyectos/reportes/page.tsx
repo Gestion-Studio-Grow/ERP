@@ -1,5 +1,5 @@
 import { requireApp } from "@/lib/require-app";
-import { requireCapabilityFueraDeLaAgenda } from "@/lib/authz";
+import { exigirPlataDeDireccion } from "@/lib/proyectos/gestion.server";
 import { reporteProyectos, veLaPlata } from "@/lib/proyectos/datos.server";
 import { etapaLabel, pesos, porcentaje, redondear } from "@/lib/proyectos/core";
 import { BarraProyectos, tarjeta } from "../_vista";
@@ -9,7 +9,8 @@ export const metadata = { title: "Rentabilidad de proyectos" };
 
 export default async function RentabilidadProyectos() {
   const user = await requireApp("proyectos");
-  await requireCapabilityFueraDeLaAgenda("agenda:manage");
+  // PRY-099: decide el rol de gestión (Dirección o el módulo `direccion` en «ver»), con el techo del ERP adentro.
+  await exigirPlataDeDireccion("ver");
   const filas = await reporteProyectos();
   const con = filas.filter((f) => f.t);
   const suma = (g: (f: (typeof con)[number]) => number) => redondear(con.reduce((s, f) => s + g(f), 0));
