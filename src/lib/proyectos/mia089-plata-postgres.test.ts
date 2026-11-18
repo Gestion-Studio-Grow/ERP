@@ -23,6 +23,7 @@ import { apuntarLaAppA, baseEfimeraDelArchivo, prismaComoDuenio, type NegocioDeP
 
 const laBase = baseEfimeraDelArchivo();
 const DIA = 86_400_000;
+const redondearA2 = (n: number) => Math.round(n * 100) / 100;
 /** La seña del caso PRY-098 quedó firme y vencía el 26/10. */
 const VENCIA = new Date("2026-10-26T15:00:00Z");
 
@@ -226,6 +227,8 @@ test("V3 · reabrir vuelve a la etapa que tenía al perderse (soltándolo en otr
 test("V6 · un gasto directo sin pagar está en «A pagar» de Administración igual que en Rentabilidad; pagarlo lo saca de los dos con un egreso; sin doble cuenta; B no lo ve", async (t) => {
   const p = await preparar(t);
   if (!p) return;
+  // La base es una por archivo: el total de Administración se compara contra el de antes (la diferencia es exacta).
+  const antes = (await p.pantallas([])).admin.aPagar;
   // Sin cuotas: aprobado pero sin plan.
   const sinCuotas = await p.proyecto({ cuotas: false });
   assert.deepEqual(await p.enSesion(() => p.acciones.registrarGasto(p.form({ proyectoId: sinCuotas, descripcion: "Alfombra", neto: "1000", iva: "210", proveedor: "Alfombras SRL", rubro: "General" }))), { ok: true });
@@ -237,7 +240,7 @@ test("V6 · un gasto directo sin pagar está en «A pagar» de Administración i
   const v = await p.pantallas([sinCuotas, conCuotas]);
   p.unSoloNumero(v.por.get(sinCuotas)!, { porPagar: 1210 }, "sin cuotas");
   p.unSoloNumero(v.por.get(conCuotas)!, { porPagar: 800 }, "con cuotas");
-  assert.equal(v.admin.aPagar, 2010, "el «A pagar» de Administración es la suma de los proyectos");
+  assert.equal(redondearA2(v.admin.aPagar - antes), 2010, "el «A pagar» de Administración suma los proyectos");
   const deB = await p.pantallas([], p.b);
   assert.ok(!deB.ids.has(sinCuotas) && !deB.ids.has(conCuotas), "el negocio B no ve la plata de A");
   assert.equal(deB.admin.aPagar, 0);
@@ -246,7 +249,7 @@ test("V6 · un gasto directo sin pagar está en «A pagar» de Administración i
   assert.deepEqual(await p.enSesion(() => p.acciones.pagarGasto(p.form({ id: gasto.id, medio: "EFECTIVO" }))), { ok: true });
   const v2 = await p.pantallas([sinCuotas]);
   p.unSoloNumero(v2.por.get(sinCuotas)!, { porPagar: 0, pagado: 1210 }, "pagado");
-  assert.equal(v2.admin.aPagar, 800);
+  assert.equal(redondearA2(v2.admin.aPagar - antes), 800);
   assert.equal(await p.duenio.cashMovement.count({ where: { proyectoGastoId: gasto.id } }), 1, "un solo egreso de caja");
 });
 
@@ -276,6 +279,8 @@ test("V8a · cambiar el tipo de cambio no mueve un peso de lo ya cobrado o pagad
 test("T · un concepto, un total: por cobrar, cobrado, por pagar y pagado dan lo mismo en cada pantalla, y Administración suma los proyectos", async (t) => {
   const p = await preparar(t);
   if (!p) return;
+  // La base es una por archivo: los totales de Administración se comparan contra los de antes (la diferencia es exacta).
+  const antes = (await p.pantallas([])).admin;
   // Confirmado: aprobado 1.210, cobró 300, un gasto pagado de 100 + IVA y uno sin pagar de 50.
   const confirmado = await p.proyecto();
   assert.deepEqual(await p.cobrar(confirmado, 300), { ok: true });
@@ -297,6 +302,6 @@ test("T · un concepto, un total: por cobrar, cobrado, por pagar y pagado dan lo
   };
   const v = await p.pantallas(Object.keys(esperado));
   for (const [id, e] of Object.entries(esperado)) p.unSoloNumero(v.por.get(id)!, e, id);
-  assert.equal(v.admin.aCobrar, 910 + 1210, "el «A cobrar» de Administración es la suma de los proyectos");
-  assert.equal(v.admin.aPagar, 50 + 200, "el «A pagar» de Administración es la suma de los proyectos");
+  assert.equal(redondearA2(v.admin.aCobrar - antes.aCobrar), 910 + 1210, "el «A cobrar» de Administración suma los proyectos");
+  assert.equal(redondearA2(v.admin.aPagar - antes.aPagar), 50 + 200, "el «A pagar» de Administración suma los proyectos");
 });

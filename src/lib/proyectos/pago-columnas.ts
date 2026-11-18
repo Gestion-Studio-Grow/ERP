@@ -31,3 +31,10 @@ export function claveDeEnvio(v: FormDataEntryValue | null): string | null {
   const s = typeof v === "string" ? v.trim() : "";
   return /^[A-Za-z0-9_-]{16,64}$/.test(s) ? s : null;
 }
+
+/**
+ * La `clave` de una cuota cargada a mano (movimiento de la ficha o cobro/pago de la empresa) a partir de la clave del
+ * envío: la columna ya existe y es única por negocio, así que el mismo envío dos veces deja una sola cuota, sin migración
+ * (GSG-MIA-089 · V7). No se confunde con las del plan («proyecto:…»): éstas son `auto: false` y empiezan con «envio:».
+ */
+export const claveDeCuotaPorEnvio = (claveEnvio: string): string => `envio:${claveEnvio}`;

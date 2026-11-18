@@ -8,17 +8,11 @@ import { EnvioEnCurso } from "@/components/envio-en-curso";
 import { buttonClasses, cn, Dialogo } from "@/components/ui";
 import { guardarCarpeta, moverProyecto, type ResultadoFicha } from "@/lib/proyectos/acciones-ficha";
 import { MOTIVOS_PERDIDA } from "@/lib/proyectos/gestion-core";
+import { nuevaClave } from "@/lib/proyectos/clave-de-envio";
 import { campo } from "../_vista";
 import { useToastSiHay } from "../../ToastProvider";
 
 const campoEnLinea = "min-h-11 min-w-0 rounded-lg border border-line bg-surface px-3 text-sm text-strong";
-
-/** Clave aleatoria URL-safe (32 caracteres) para un envío. */
-function nuevaClave(): string {
-  const b = new Uint8Array(16);
-  crypto.getRandomValues(b);
-  return Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
-}
 
 /**
  * Un <form> de acción de servidor que dice qué falló sin perder lo tipeado. Con `limpiar`, vacía los campos si salió bien.

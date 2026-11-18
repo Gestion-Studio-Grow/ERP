@@ -252,10 +252,30 @@ export function rutaFueraDelPanel(path: string, panel: AppDescriptor, apps: read
   return !!app && !entraEnElPanel(panel, app);
 }
 
+/**
+ * Las cuentas generales que, en un negocio con Proyectos, viven en Proyectos → Administración: ahí están lo que se
+ * cobra y lo que se paga con cada proyecto, y una pantalla aparte con otro total no cierra con ésa (GSG-MIA-089 · T,
+ * decisión del dueño en PENDIENTES.md:1228). Un negocio sin el módulo Proyectos (CH y el resto) no cambia.
+ */
+const CUENTAS_EN_PROYECTOS: Readonly<Record<string, string>> = {
+  "cuentas-a-cobrar": "/admin/proyectos/administracion?tab=cobrar",
+  "cuentas-a-pagar": "/admin/proyectos/administracion?tab=pagar",
+};
+
+/** Adónde lleva la app en este negocio si es una cuenta general que vive en Proyectos; `null` si no. PURA. */
+export function cuentaQueViveEnProyectos(app: AppDescriptor, n: NegocioApps): string | null {
+  const ruta = CUENTAS_EN_PROYECTOS[app.id];
+  if (!ruta) return null;
+  const asignados = n.contexto ? n.contexto.modulos : new Set(n.modulosAsignados);
+  return asignados.has("proyectos") ? ruta : null;
+}
+
 /** Por qué la persona no puede abrir la app, o `null` si puede. */
 export function motivoNoDisponible(app: AppDescriptor, n: NegocioApps): MotivoNoDisponible | null {
   if (appApagadaPorInterruptor(app, n)) return "apagada";
   if (!rolPuedeEntrar(app, n.role, n)) return "rol";
+  // Vive en el panel de Proyectos (no se ofrece, y por URL lleva ahí: `requireApp`).
+  if (cuentaQueViveEnProyectos(app, n)) return "panel";
   const panel = appDelPanelCerrado(n);
   if (panel && !entraEnElPanel(panel, app)) return "panel";
   // Sólo un id del catálogo cerrado oculta algo: un Set armado a mano con otra app no la tapa.

@@ -77,7 +77,7 @@ export default async function Administracion({ searchParams }: { searchParams: P
       )}
       <Pestanas pestanas={pestanas} etiqueta="Vistas de Administración" conRaya className="mb-4" />
       {(tab === "cobrar" || tab === "pagar") && datos && (
-        <TabCuentas tipo={tab === "cobrar" ? "COBRO" : "PAGO"} estado={sp.estado} q={sp.q} vista={sp.vista} guardada={sp.guardada === "1"} cuotas={datos.cuotas} sinCalendario={tab === "cobrar" ? datos.sinCalendario : []} tc={datos.tc} tenantId={a.tenantId} editaEmpresa={editaEmpresa} editaPagos={editaPagos} veClientes={veClientes} />
+        <TabCuentas tipo={tab === "cobrar" ? "COBRO" : "PAGO"} estado={sp.estado} q={sp.q} vista={sp.vista} guardada={sp.guardada === "1"} cuotas={datos.cuotas} sinCalendario={tab === "cobrar" ? datos.sinCalendario : []} gastos={tab === "pagar" ? datos.gastosSinPagar : []} tc={datos.tc} tenantId={a.tenantId} editaEmpresa={editaEmpresa} editaPagos={editaPagos} veClientes={veClientes} />
       )}
       {tab === "cashflow" && <TabCashflow tenantId={a.tenantId} />}
       {tab === "bancos" && <TabBancos tenantId={a.tenantId} editaEmpresa={editaEmpresa} editaPagos={editaPagos} />}

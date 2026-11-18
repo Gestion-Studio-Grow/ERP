@@ -32,7 +32,7 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/authz";
 import type { SessionUser } from "@/lib/session";
 import { appPorId, type AppId } from "@/apps/registro";
-import { explicarNoDisponible, motivoNoDisponible, type MotivoNoDisponible } from "@/apps/visibles";
+import { cuentaQueViveEnProyectos, explicarNoDisponible, motivoNoDisponible, type MotivoNoDisponible } from "@/apps/visibles";
 import { getNegocioApps } from "@/apps/contexto.server";
 
 /** URL de "App no disponible" para una app. */
@@ -49,7 +49,11 @@ export async function requireApp(id: AppId): Promise<SessionUser> {
   const app = appPorId(id);
   const user = await requireUser();
   const negocio = await getNegocioApps(user.role, user.overrides);
-  if (motivoNoDisponible(app, negocio) !== null) redirect(rutaNoDisponible(id));
+  if (motivoNoDisponible(app, negocio) !== null) {
+    // Una cuenta general que en este negocio vive en Proyectos → Administración lleva ahí (esa pantalla pide su propio
+    // permiso), no a «App no disponible».
+    redirect(cuentaQueViveEnProyectos(app, negocio) ?? rutaNoDisponible(id));
+  }
   return user;
 }
 

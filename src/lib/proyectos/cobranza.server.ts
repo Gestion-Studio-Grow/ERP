@@ -5,7 +5,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
-import { cobranza, cobranzaEnMoneda, leerOriginal, pendientesDeCobro, totalAprobado, type Cobranza } from "./cobranza-core";
+import { cobranza, cobranzaDePerdido, cobranzaEnMoneda, leerOriginal, pendientesDeCobro, totalAprobado, type Cobranza } from "./cobranza-core";
 import { cambioDeVenta } from "./gestion-core";
 
 /** Pesos por unidad de cada moneda cargada en el negocio. */
@@ -14,9 +14,10 @@ export async function tiposDeCambio(tenantId: string, db: Db = prisma): Promise<
   return Object.fromEntries(filas.map((f) => [f.moneda, f.porUnidad]));
 }
 
-/** Lo que hay que leer de un proyecto para su cobranza: su moneda, el último presupuesto aprobado y los cobros no anulados. */
+/** Lo que hay que leer de un proyecto para su cobranza: su moneda, si se perdió, el último presupuesto aprobado y los cobros no anulados. */
 export const SELECT_COBRANZA = {
   moneda: true,
+  perdidoEl: true,
   presupuestos: {
     where: { estado: "APROBADO" },
     orderBy: { version: "desc" as const },
@@ -54,10 +55,11 @@ export async function originalesDeCobros(tenantId: string, proyectos: readonly {
   return salida;
 }
 
-/** La cobranza de un proyecto leído con `SELECT_COBRANZA` (en su moneda: ver `cobranzaEnMoneda`). */
+/** La cobranza de un proyecto leído con `SELECT_COBRANZA` (en su moneda: ver `cobranzaEnMoneda`). Perdido: `cobranzaDePerdido`. */
 export function cobranzaDe(
   p: {
     moneda: string;
+    perdidoEl?: Date | null;
     presupuestos: { ivaPct: number; tcVenta: number | null; items: { cantidad: number; costo: number; precio: number; moneda: string; recargoPct: number | null }[] }[];
     pagos: { id: string; monto: number }[];
   },
@@ -67,8 +69,8 @@ export function cobranzaDe(
 ): Cobranza {
   const aprobado = p.presupuestos[0];
   const cobros = p.pagos.map((x) => ({ monto: x.monto, original: enlaces.get(x.id)?.original ?? null, cuotaId: enlaces.get(x.id)?.cuotaId ?? null }));
-  if (!aprobado) return cobranza(0, cobros);
-  return cobranzaEnMoneda(totalAprobado(aprobado, tc, recargoGeneral), cobros, { moneda: p.moneda, cambioVenta: cambioDeVenta(p.moneda, aprobado.tcVenta, tc), tcHoy: tc[p.moneda] ?? 0 });
+  const c = aprobado ? cobranzaEnMoneda(totalAprobado(aprobado, tc, recargoGeneral), cobros, { moneda: p.moneda, cambioVenta: cambioDeVenta(p.moneda, aprobado.tcVenta, tc), tcHoy: tc[p.moneda] ?? 0 }) : cobranza(0, cobros);
+  return p.perdidoEl ? cobranzaDePerdido(c) : c;
 }
 
 /** La cobranza de cada proyecto del negocio (o de los pedidos), por id. Con `db` = la transacción, lee adentro de ella. */
@@ -103,6 +105,14 @@ export async function cobranzaConCuotas(db: Db, tenantId: string, proyectoId: st
  */
 export async function trabarCobranza(tx: Db, tenantId: string, proyectoId: string): Promise<void> {
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`cobranza-proyecto:${tenantId}:${proyectoId}`}))`;
+}
+
+/**
+ * Candado de UN envío de un formulario (su `claveEnvio`): el mismo envío repetido (doble toque, reintento de la red, un
+ * agente que reintenta) se pone en fila y el segundo ve la fila que grabó el primero (GSG-MIA-089 · V7, ADM-122/123).
+ */
+export async function trabarEnvio(tx: Db, tenantId: string, claveEnvio: string): Promise<void> {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`envio:${tenantId}:${claveEnvio}`}))`;
 }
 
 /**

@@ -9,6 +9,7 @@ import { marcarCuota } from "@/lib/proyectos/acciones-ficha";
 import { cuentasParaMarcar, editarExtrasLiquidacion, generarLiquidaciones, guardarDatoCuota, importarExtracto, marcarCuotaEmpresa, marcarLiquidacionVista } from "@/lib/proyectos/acciones-empresa";
 import { MEDIOS, MEDIO_LABEL } from "@/lib/proyectos/core";
 import { plataEn } from "@/lib/proyectos/gestion-core";
+import { nuevaClave } from "@/lib/proyectos/clave-de-envio";
 import { campo } from "../_vista";
 import { useToastSiHay } from "../../ToastProvider";
 
@@ -49,16 +50,24 @@ const Fallo = ({ texto }: { texto: string | null }) => (texto ? <p role="alert" 
 
 // ── Formularios ─────────────────────────────────────────────────────────────
 
-export function FormAccion({ accion, children, boton, className, limpiar = true }: { accion: Accion; children?: ReactNode; boton: string; className?: string; limpiar?: boolean }) {
+/**
+ * Con `claveDeEnvio`, cada envío lleva `claveEnvio`: la misma hasta que el servidor contesta. Un doble toque o un reintento
+ * de la red graban una sola fila; después de la respuesta, el próximo envío es otro (GSG-MIA-089 · V7).
+ */
+export function FormAccion({ accion, children, boton, className, limpiar = true, claveDeEnvio }: { accion: Accion; children?: ReactNode; boton: string; className?: string; limpiar?: boolean; claveDeEnvio?: boolean }) {
   const { error, ocupado, correr } = useAccion();
+  const clave = useRef<string | null>(null);
   return (
     <form
       className={cn("grid gap-2", className)}
-      onSubmit={alEnviar((fd, form) =>
+      onSubmit={alEnviar((fd, form) => {
+        if (claveDeEnvio) fd.set("claveEnvio", (clave.current ??= nuevaClave()));
+        // Sale bien: el próximo envío es otro. Si falló, la clave queda: reintentar el mismo no graba dos (y si no grabó, graba uno).
         correr(accion, fd, () => {
+          clave.current = null;
           if (limpiar) form.reset();
-        }),
-      )}
+        });
+      })}
     >
       {children}
       <button type="submit" disabled={ocupado} className={cn(buttonClasses("solid", "md"), "min-h-11 justify-self-start")}>{ocupado ? "Guardando…" : boton}</button>

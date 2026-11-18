@@ -17,7 +17,7 @@ import { roleHasCapability } from "@/lib/capabilities";
 import type { SessionUser } from "@/lib/session";
 import type { Prisma } from "@/generated/prisma/client";
 import { configProyectos } from "./datos.server";
-import { venceDeLaCuota, ajustarAPagado, cambioDeVenta, COLUMNAS_OCULTAS_BASE, cuotaPrevista, rolDelActor, mailDeAviso, permisoDe, planDeCuotas, veTodosLosProyectos, type ItemFicha, type ModuloGestion, type RolGestion } from "./gestion-core";
+import { previstaDeLaCuota, venceDeLaCuota, ajustarAPagado, cambioDeVenta, COLUMNAS_OCULTAS_BASE, cuotaPrevista, rolDelActor, mailDeAviso, permisoDe, planDeCuotas, veTodosLosProyectos, type ItemFicha, type ModuloGestion, type RolGestion } from "./gestion-core";
 import { tiposDeCambio, trabarCobranza } from "./cobranza.server";
 import { cubiertasPorSusPartes, descontarPartes, partesEnMonedaDelPlan, SALDADA_CON_PARTES } from "./pago-parcial-core";
 import { pagosParcialesDeCuotas } from "./pago-parcial.server";
@@ -258,43 +258,51 @@ export async function regenerarCuotas(tenantId: string, proyectoId: string): Pro
   const cerro = await tenantTransaction(
     async (tx) => {
       await trabarCobranza(tx, tenantId, proyectoId);
-      const [p, viva, config, tc] = await Promise.all([
-        tx.proyecto.findFirst({ where: { id: proyectoId, tenantId }, select: { id: true, nombre: true, moneda: true, etapa: true, fechaEvento: true, createdAt: true, anticipoClientePct: true, perdidoEl: true } }),
-        versionDeLaPlata(tenantId, proyectoId, tx),
-        configProyectos(tenantId, tx),
-        tiposDeCambio(tenantId, tx),
-      ]);
-      if (!p || !viva) return true;
-      const items = viva.items.map(aItemFicha);
-      const proveedores = [...new Set(items.map((i) => i.supplierId).filter((s): s is string => !!s))];
-      const fichas = await tx.proyectoProveedorFicha.findMany({ where: { tenantId, supplierId: { in: proveedores } }, select: { supplierId: true, anticipoPct: true } });
-      const planDeLaFicha =
-        !p.perdidoEl
-          ? planDeCuotas(items, {
-              proyectoId,
-              nombre: p.nombre,
-              fechaEvento: p.fechaEvento,
-              creado: p.createdAt,
-              anticipoClientePct: p.anticipoClientePct,
-              ivaPct: viva.ivaPct,
-              recargoGeneral: config.margenPct,
-              tiposDeCambio: tc,
-              monedaVenta: p.moneda,
-              cambioVenta: cambioDeVenta(p.moneda, viva.tcVenta, tc),
-              anticipoProveedor: Object.fromEntries(fichas.map((f) => [f.supplierId, f.anticipoPct])),
-            })
-          : [];
-      const prevista = cuotaPrevista(p.etapa, p.fechaEvento);
-      // Una cuota de pago se puede marcar sin este candado: si se marca mientras se ajusta el plan, no se le pisa nada y
-      // el plan se vuelve a ajustar con ella.
-      for (let vuelta = 0; vuelta < 3; vuelta++) {
-        if (!(await aplicarPlan(tx, tenantId, proyectoId, planDeLaFicha, prevista, tc))) return true;
-      }
-      return false;
+      return regenerarCuotasTx(tx, tenantId, proyectoId);
     },
     { tenantId, timeoutMs: 15_000 },
   );
   if (!cerro) logger.warn("proyectos", "el plan de cobros no cerró: se marcaron cuotas mientras se ajustaba", { tenantId, proyectoId });
+}
+
+/**
+ * El ajuste del plan de cuotas DENTRO de una transacción que ya tomó `trabarCobranza` del proyecto (GSG-MIA-089: el
+ * cambio de etapa y sus cuotas van juntos o no va ninguno). Devuelve `false` si no cerró (se marcaron cuotas en el medio).
+ */
+export async function regenerarCuotasTx(tx: Prisma.TransactionClient, tenantId: string, proyectoId: string): Promise<boolean> {
+  const [p, viva, config, tc] = await Promise.all([
+    tx.proyecto.findFirst({ where: { id: proyectoId, tenantId }, select: { id: true, nombre: true, moneda: true, etapa: true, fechaEvento: true, createdAt: true, anticipoClientePct: true, perdidoEl: true } }),
+    versionDeLaPlata(tenantId, proyectoId, tx),
+    configProyectos(tenantId, tx),
+    tiposDeCambio(tenantId, tx),
+  ]);
+  if (!p || !viva) return true;
+  const items = viva.items.map(aItemFicha);
+  const proveedores = [...new Set(items.map((i) => i.supplierId).filter((s): s is string => !!s))];
+  const fichas = await tx.proyectoProveedorFicha.findMany({ where: { tenantId, supplierId: { in: proveedores } }, select: { supplierId: true, anticipoPct: true } });
+  const planDeLaFicha =
+    !p.perdidoEl
+      ? planDeCuotas(items, {
+          proyectoId,
+          nombre: p.nombre,
+          fechaEvento: p.fechaEvento,
+          creado: p.createdAt,
+          anticipoClientePct: p.anticipoClientePct,
+          ivaPct: viva.ivaPct,
+          recargoGeneral: config.margenPct,
+          tiposDeCambio: tc,
+          monedaVenta: p.moneda,
+          cambioVenta: cambioDeVenta(p.moneda, viva.tcVenta, tc),
+          anticipoProveedor: Object.fromEntries(fichas.map((f) => [f.supplierId, f.anticipoPct])),
+        })
+      : [];
+  const prevista = cuotaPrevista(p.etapa, p.fechaEvento);
+  // Una cuota de pago se puede marcar sin este candado: si se marca mientras se ajusta el plan, no se le pisa nada y
+  // el plan se vuelve a ajustar con ella.
+  for (let vuelta = 0; vuelta < 3; vuelta++) {
+    if (!(await aplicarPlan(tx, tenantId, proyectoId, planDeLaFicha, prevista, tc))) return true;
+  }
+  return false;
 }
 
 /**
@@ -322,7 +330,8 @@ async function aplicarPlan(tx: Prisma.TransactionClient, tenantId: string, proye
     if (previa?.pagadoEl) continue;
     const saldada = cubiertas.has(c.clave) && !!previa;
     const datos = {
-      prevista,
+      // Una cuota que ya fue firme no vuelve a ser previsión al pasar por un lead (GSG-MIA-089 · V1).
+      prevista: previstaDeLaCuota({ prevista, previa }),
       tipo: c.tipo,
       concepto: c.concepto,
       monto: c.monto,

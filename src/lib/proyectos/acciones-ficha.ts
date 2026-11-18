@@ -19,14 +19,15 @@ import type { Prisma } from "@/generated/prisma/client";
 import { textoAlCentavo } from "@/lib/dinero/redondeo";
 import { esEtapa, etapaAlAprobar, etapaLabel, MEDIOS, metodoDeCaja, redondear, sePuedeEditar, sumarDias, type MedioPago } from "./core";
 import { configProyectos } from "./datos.server";
-import { cobranzaConCuotas, pendienteDeLaCuota, trabarCobranza } from "./cobranza.server";
+import { cobranzaConCuotas, pendienteDeLaCuota, trabarCobranza, trabarEnvio } from "./cobranza.server";
+import { claveDeCuotaPorEnvio, claveDeEnvio } from "./pago-columnas";
 import { lugarParaCobroManual, pasaElTope } from "./cobranza-core";
 import { avisoMasQueLaCuota, avisoSaldoCambio, avisoTopeCuota, avisoTopeMarcar, listoAnulado, listoMarcada, listoParcial } from "./avisos-cuota";
 import { pagosParcialesDeCuotas, pendienteDelPago } from "./pago-parcial.server";
 import { faltaDelPago, SALDADA_CON_PARTES } from "./pago-parcial-core";
 import { cambioDeVenta, aPesos, CHECKLIST_BASE, ESTADOS_ITEM, MONEDAS, RUBROS, TIPOS_EVENTO, veTodosLosProyectos } from "./gestion-core";
-import { avisar, columnasOcultas, exigirEditar, usuariosDelEquipo, usuariosDeDireccion, usuariosDeLaPlata, proyectoVisible, puede, regenerarCuotas, registrarCambio, tiposDeCambio, type Actor } from "./gestion.server";
-import { tipoDeArchivoSubido, clavesARenombrar, fechaAntesDe, fotoDeVersion, itemDeClave, linkSeguro, monedasSinCambio, numeroDe, PERDIDO, precioAlCambiarCambio, precioAlCopiar, precioAlEnviar, servicioDeTipo } from "./ficha-core";
+import { avisar, columnasOcultas, exigirEditar, usuariosDelEquipo, usuariosDeDireccion, usuariosDeLaPlata, proyectoVisible, puede, regenerarCuotas, regenerarCuotasTx, registrarCambio, tiposDeCambio, type Actor } from "./gestion.server";
+import { destinoAlMover, PERDIDO_NO_COBRA, retrocesoConPlata, tipoDeArchivoSubido, clavesARenombrar, fechaAntesDe, fotoDeVersion, itemDeClave, linkSeguro, monedasSinCambio, numeroDe, PERDIDO, precioAlCambiarCambio, precioAlCopiar, precioAlEnviar, servicioDeTipo } from "./ficha-core";
 import { asentarEnCajaTx, oPeriodoCerrado, PeriodoCerradoError, transaccionQueAsienta } from "./periodo-cerrado.server";
 import { marcaDeGastoProyecto } from "./marcas";
 import { GASTO_EN_RENDICION, SIN_COMPROBANTES, faltaLaMigracion } from "./rendiciones-core";
@@ -158,38 +159,67 @@ export async function crearLead(formData: FormData): Promise<ResultadoFicha<{ id
   return mal("No se pudo crear el proyecto. Probá de nuevo.");
 }
 
-/** Mover una tarjeta: a una etapa, o a Perdido con su motivo. Salir de Perdido reabre el proyecto. Las cuotas siguen a la etapa. */
+/**
+ * Mover una tarjeta: a una etapa, o a Perdido con su motivo. Salir de Perdido reabre el proyecto en la etapa que tenía
+ * al perderse, se suelte en la columna que se suelte. Las cuotas siguen a la etapa en la MISMA transacción, en fila con
+ * la cobranza (`trabarCobranza`): un cobro o una seña marcada en el medio no se cruzan con el cambio (GSG-MIA-089 · V1, V4).
+ * Con un cobro o un pago hecho no se vuelve a una etapa anterior a Confirmado (provisional a confirmar por el dueño).
+ */
 export async function moverProyecto(d: { id: string; destino: string; motivo?: string }): Promise<ResultadoFicha> {
   const id = String(d.id ?? "");
   const a = await entrar("pipeline", id);
   if (typeof a === "string") return mal(a);
   const { tenantId } = a;
-  const p = await prisma.proyecto.findFirst({ where: { id, tenantId }, select: { etapa: true, perdidoEl: true, nombre: true, servicio: true } });
-  if (!p) return mal("Ese proyecto no existe.");
   const motivo = String(d.motivo ?? "").trim().slice(0, 300);
-  const antes = p.perdidoEl ? "Perdido" : etapaLabel(p.etapa, p.servicio);
-  let despues: string;
-  let data: Prisma.ProyectoUpdateManyMutationInput;
-  if (d.destino === PERDIDO) {
-    if (!motivo) return mal("Escribí por qué se perdió.");
-    if (p.perdidoEl) return { ok: true };
-    despues = "Perdido";
-    data = { perdidoEl: new Date(), motivoPerdida: motivo };
-  } else {
-    if (!esEtapa(d.destino)) return mal("Esa etapa no existe.");
-    if (p.etapa === d.destino && !p.perdidoEl) return { ok: true };
-    despues = etapaLabel(d.destino, p.servicio);
-    data = { etapa: d.destino, perdidoEl: null, motivoPerdida: null };
-  }
+  const aPerdido = d.destino === PERDIDO;
+  if (aPerdido && !motivo) return mal("Escribí por qué se perdió.");
+  if (!aPerdido && !esEtapa(d.destino)) return mal("Esa etapa no existe.");
+  if (!(await prisma.proyecto.count({ where: { id, tenantId } }))) return mal("Ese proyecto no existe.");
   // Afuera de la transacción: una lectura por otra conexión, adentro, la traba.
   const destinatarios0 = await usuariosDelEquipo(tenantId, id, a.user.id);
-  await tenantTransaction(async (tx) => {
-    await tx.proyecto.updateMany({ where: { id, tenantId }, data });
-    await registrarCambio(tx, { tenantId, proyectoId: id, entidad: "Proyecto", entidadId: id, campo: "Etapa", antes, despues: motivo && d.destino === PERDIDO ? `Perdido: ${motivo}` : despues, autor: a.nombre });
-    await avisar(tx, { tenantId, destinatarios: destinatarios0, tipo: "etapa", texto: `${p.nombre} pasó a ${despues}`, enlace: `${RAIZ}/${id}` });
-  });
-  await regenerar(tenantId, id);
-  await auditAdmin({ action: "proyecto.etapa", entity: "Proyecto", entityId: id, changes: { de: antes, a: despues } });
+  type Hecho = { cambio: { antes: string; despues: string } | null; error?: string; cerro: boolean };
+  const hecho = await tenantTransaction<Hecho>(
+    async (tx) => {
+      await trabarCobranza(tx, tenantId, id);
+      // Se lee ADENTRO del candado: el segundo de dos cambios simultáneos ve lo que dejó el primero.
+      const p = await tx.proyecto.findFirst({ where: { id, tenantId }, select: { etapa: true, perdidoEl: true, nombre: true, servicio: true } });
+      if (!p) return { cambio: null, error: "Ese proyecto no existe.", cerro: true };
+      const antes = p.perdidoEl ? "Perdido" : etapaLabel(p.etapa, p.servicio);
+      let despues: string;
+      let data: Prisma.ProyectoUpdateManyMutationInput;
+      if (aPerdido) {
+        if (p.perdidoEl) return { cambio: null, cerro: true };
+        despues = "Perdido";
+        data = { perdidoEl: new Date(), motivoPerdida: motivo };
+      } else {
+        const destino = destinoAlMover({ etapa: p.etapa, perdido: !!p.perdidoEl }, d.destino);
+        if (!destino.reabre && p.etapa === destino.etapa) return { cambio: null, cerro: true };
+        if (!destino.reabre) {
+          const [cobros, cuotasCobradas, cuotasPagadas, gastosPagados] = await Promise.all([
+            tx.proyectoPago.count({ where: { tenantId, proyectoId: id, anuladoEl: null } }),
+            tx.proyectoCuota.count({ where: { tenantId, proyectoId: id, tipo: "COBRO", pagadoEl: { not: null }, anuladoEl: null } }),
+            tx.proyectoCuota.count({ where: { tenantId, proyectoId: id, tipo: "PAGO", pagadoEl: { not: null }, anuladoEl: null } }),
+            tx.proyectoGasto.count({ where: { tenantId, proyectoId: id, pagadoEl: { not: null }, anuladoEl: null } }),
+          ]);
+          const error = retrocesoConPlata({ desde: p.etapa, hacia: destino.etapa, cobros: Math.max(cobros, cuotasCobradas), pagos: cuotasPagadas + gastosPagados });
+          if (error) return { cambio: null, error, cerro: true };
+        }
+        despues = etapaLabel(destino.etapa, p.servicio);
+        data = { etapa: destino.etapa, perdidoEl: null, motivoPerdida: null };
+      }
+      await tx.proyecto.updateMany({ where: { id, tenantId }, data });
+      await registrarCambio(tx, { tenantId, proyectoId: id, entidad: "Proyecto", entidadId: id, campo: "Etapa", antes, despues: aPerdido ? `Perdido: ${motivo}` : despues, autor: a.nombre });
+      await avisar(tx, { tenantId, destinatarios: destinatarios0, tipo: "etapa", texto: `${p.nombre} pasó a ${despues}`, enlace: `${RAIZ}/${id}` });
+      const cerro = await regenerarCuotasTx(tx, tenantId, id);
+      return { cambio: { antes, despues }, cerro };
+    },
+    { tenantId, timeoutMs: 15_000 },
+  );
+  if (hecho.error) return mal(hecho.error);
+  if (!hecho.cambio) return { ok: true };
+  // El plan no cerró en esta pasada (se marcó una cuota de pago en el medio): se vuelve a ajustar, ya con el cambio hecho.
+  if (!hecho.cerro) await regenerar(tenantId, id);
+  await auditAdmin({ action: "proyecto.etapa", entity: "Proyecto", entityId: id, changes: { de: hecho.cambio.antes, a: hecho.cambio.despues } });
   refrescar(id);
   return { ok: true };
 }
@@ -814,11 +844,13 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
   const medio = txt(formData.get("medio")) as MedioPago;
   const c = await prisma.proyectoCuota.findFirst({
     where: { id, tenantId },
-    include: { supplier: { select: { name: true } }, proyecto: { select: { numero: true, nombre: true } } },
+    include: { supplier: { select: { name: true } }, proyecto: { select: { numero: true, nombre: true, perdidoEl: true } } },
   });
   if (!c) return mal("Esa cuota ya no existe. Recargá la página.");
   const { proyectoId, proyecto } = c;
   if (!proyectoId || !proyecto) return mal("Esa cuota es de la empresa: se marca desde Administración.");
+  // Un perdido no debe nada: no se le cobra. Lo que se le debe a un proveedor sí se sigue pagando (GSG-MIA-089 · V2).
+  if (c.tipo === "COBRO" && proyecto.perdidoEl) return mal(PERDIDO_NO_COBRA);
   if (c.prevista) return mal("Esta cuota todavía es una previsión: confirmá el evento y cargale la fecha para poder marcarla.");
   const a = await entrar(["pagos", "empresa"], proyectoId);
   if (typeof a === "string") return mal(a);
@@ -858,12 +890,14 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
   const cuenta = await cuentaParaCuota(tenantId, formData, { tipo: c.tipo, monto: cobra, moneda: c.moneda, importeEnPesos: importe });
   if (typeof cuenta === "string") return mal(cuenta);
   let faltaAhora = pendiente;
-  const ganada = await oPeriodoCerrado(() => transaccionQueAsienta(async (tx): Promise<boolean | "cambio" | "tope" | "repetido"> => {
+  const ganada = await oPeriodoCerrado(() => transaccionQueAsienta(async (tx): Promise<boolean | "cambio" | "tope" | "repetido" | "perdido"> => {
     // En fila con los otros cobros y pagos del proyecto (y sus anulaciones), y el pendiente leído de nuevo ADENTRO: si
     // entró o se anuló algo mientras tanto, se asentaría otro importe. Si cambió, no se graba nada (la cuenta y el importe
     // salieron del de afuera).
     await trabarCobranza(tx, tenantId, proyectoId);
     if (envio && (await tx.proyectoCambio.findFirst({ where: { tenantId, proyectoId, entidad: esCobro ? "ProyectoPago" : "ProyectoGasto", campo: "Envío", antes: envio }, select: { id: true } }))) return "repetido";
+    // Perdido mientras se cargaba: con el candado tomado se ve y no se cobra.
+    if (esCobro && (await tx.proyecto.count({ where: { id: proyectoId, tenantId, perdidoEl: { not: null } } })) > 0) return "perdido";
     const ahora = esCobro ? await pendienteDeLaCuota(tenantId, proyectoId, id, tc, margenPct, tx) : { pendiente: await pendienteDelPago(tenantId, c, tc, tx), cob: null };
     if (ahora === null) return false;
     faltaAhora = ahora.pendiente;
@@ -917,6 +951,7 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
   // Perder contra otro cobro o contra una anulación: el cartel dice cuál y cuánto falta ahora.
   if (ganada === "cambio") return mal(avisoSaldoCambio(pendiente, faltaAhora, c.moneda, esCobro));
   if (ganada === "tope") return mal(avisoTopeMarcar(importe, leido.cob));
+  if (ganada === "perdido") return mal(PERDIDO_NO_COBRA);
   if (ganada === "repetido") return { ok: true, listo: esCobro ? "Ese cobro ya estaba registrado: no se asentó dos veces." : "Ese pago ya estaba registrado: no se asentó dos veces." };
   if (!ganada) return mal("Esa cuota ya estaba marcada.");
   await auditAdmin({ action: parcial !== null ? (esCobro ? "proyecto.cuota.cobrar-parte" : "proyecto.cuota.pagar-parte") : esCobro ? "proyecto.cuota.cobrar" : "proyecto.cuota.pagar", entity: "ProyectoCuota", entityId: id, changes: { importe, medio } });
@@ -973,7 +1008,16 @@ export async function crearMovimientoManual(formData: FormData): Promise<Resulta
   if (!venceEl) return mal("Elegí la fecha.");
   if (supplierId && !(await prisma.supplier.findFirst({ where: { id: supplierId, tenantId }, select: { id: true } }))) return mal("Ese proveedor no existe.");
   const [config, tc] = tipo === "COBRO" ? await Promise.all([configProyectos(tenantId), tiposDeCambio(tenantId)]) : [null, {}];
+  // El mismo envío dos veces (doble toque, reintento de la red) deja UNA cuota: en fila por la clave del envío y, adentro,
+  // si ya está grabada se da por hecho. Dos cuotas iguales en envíos distintos (dos cuotas legítimas) entran las dos.
+  const envio = claveDeEnvio(formData.get("claveEnvio"));
+  const clave = envio ? claveDeCuotaPorEnvio(envio) : null;
   const tope = await tenantTransaction(async (tx) => {
+    if (envio && clave) {
+      await trabarEnvio(tx, tenantId, envio);
+      const previa = await tx.proyectoCuota.findFirst({ where: { tenantId, clave }, select: { proyectoId: true } });
+      if (previa) return previa.proyectoId === proyectoId ? null : { ajeno: true as const };
+    }
     if (config) {
       // Tope: una cuota de cobro es plata ESPERADA. Con presupuesto aprobado, lo esperado (las cuotas pendientes más
       // ésta) no pasa de lo que falta cobrar. En fila con los otros cobros del proyecto y contado adentro.
@@ -982,10 +1026,11 @@ export async function crearMovimientoManual(formData: FormData): Promise<Resulta
       const { lugar, esperado } = lugarParaCobroManual(cuotas, tc, cob);
       if (aPesos(monto, moneda, tc) > lugar + 0.01) return { porCobrar: cob.porCobrar, esperado, lugar, cob };
     }
-    const c = await tx.proyectoCuota.create({ data: { tenantId, proyectoId, tipo, concepto, monto, moneda, venceEl, supplierId: tipo === "PAGO" && supplierId ? supplierId : null, auto: false }, select: { id: true } });
+    const c = await tx.proyectoCuota.create({ data: { tenantId, proyectoId, tipo, concepto, monto, moneda, venceEl, supplierId: tipo === "PAGO" && supplierId ? supplierId : null, auto: false, clave }, select: { id: true } });
     await registrarCambio(tx, { tenantId, proyectoId, entidad: "ProyectoCuota", entidadId: c.id, campo: `Movimiento manual · ${concepto}`, despues: `${tipo === "COBRO" ? "Cobro" : "Pago"} ${monto} ${moneda}`, autor: a.nombre });
     return null;
   });
+  if (tope && "ajeno" in tope) return mal("Este formulario ya se usó para otro proyecto. Recargá la página.");
   if (tope) return mal(avisoTopeCuota(tope, tope.cob));
   refrescar(proyectoId);
   return { ok: true };

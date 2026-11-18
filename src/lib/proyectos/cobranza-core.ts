@@ -178,6 +178,22 @@ export function cobranzaEnMoneda(totalEnPesos: number, cobros: readonly CobroReg
 }
 
 /**
+ * La cobranza de un proyecto PERDIDO: no se le debe nada y lo cobrado sigue cobrado (GSG-MIA-089 · V2; provisional a
+ * confirmar por el dueño). El total pasa a ser lo cobrado: así Estado financiero, Administración, Rentabilidad, clientes y
+ * el cashflow dicen lo mismo, sin «a cobrar» de un trabajo que no se hace. PURA.
+ */
+export function cobranzaDePerdido(c: Cobranza): Cobranza {
+  return {
+    ...c,
+    total: c.cobrado,
+    saldo: 0,
+    porCobrar: 0,
+    avancePct: c.cobrado > 0 ? 100 : 0,
+    ...(c.enMoneda && { enMoneda: { ...c.enMoneda, total: c.enMoneda.cobrado, saldo: 0 } }),
+  };
+}
+
+/**
  * Por cuota, alineado con las cuotas y en la moneda de cada una: lo que le falta y lo que ya entró por ella. `cobrado` de
  * una cuota de cobro es lo que VALE hoy lo que entró (H pasado a su moneda con el cambio de hoy): una cuota en USD de un
  * proyecto en pesos, cobrada con el dólar a 1000 y leída con el dólar a 1500, muestra los pesos que entraron en USD de hoy.
@@ -185,6 +201,11 @@ export function cobranzaEnMoneda(totalEnPesos: number, cobros: readonly CobroReg
 export interface RepartoDeCobros {
   pendiente: number[];
   cobrado: number[];
+  /**
+   * Lo cobrado (en pesos de hoy) que ninguna cuota viva tomó: un cobro sin cuota en un proyecto sin plan, o el de un
+   * perdido (sus cuotas pendientes se anularon). Entró igual: el cashflow lo cuenta como «Cobrado sin cuota» (GSG-MIA-089 · V2).
+   */
+  suelto: number;
 }
 
 /**
@@ -241,7 +262,7 @@ export function repartoDeCobros(cuotas: readonly CuotaDeCobranza[], tc: Readonly
     // De vuelta a su moneda con el cambio de hoy, al centavo para abajo: pasado a pesos no supera lo que entró.
     cobrado[i] = !(enPesos[i] > 0) ? enSuMoneda : q.moneda === "ARS" ? valeH : alCentavoAbajo((q.monto * valeH) / enPesos[i]);
   }
-  if (!(c.total > 0)) return { pendiente, cobrado };
+  if (!(c.total > 0)) return { pendiente, cobrado, suelto: Math.max(0, suelta) };
   const pendientes = deCobro.filter((i) => !cuotas[i].pagadoEl && enPesos[i] > 0);
   // 2) Lo suelto que sobra, contra las pendientes más viejas: lo que les queda, en H.
   const bruto = new Map<number, number>();
@@ -262,7 +283,7 @@ export function repartoDeCobros(cuotas: readonly CuotaDeCobranza[], tc: Readonly
     if (!esPrevista(cuotas[i]) || !(enPesos[i] > 0)) continue;
     pendiente[i] = pendienteDeCuota(cuotas[i], enPesos[i], enPesos[i], tope, tc);
   }
-  return { pendiente, cobrado };
+  return { pendiente, cobrado, suelto: Math.max(0, suelta) };
 }
 
 /** Lo que queda del tope del reparto: en H (`restoH`) y en la moneda del proyecto (`queda`, con su cambio de hoy `tc`). */
@@ -478,6 +499,14 @@ const CLAVES = ["aCobrar", "aCobrar7", "cobrosVencidos", "cantCobrosVencidos", "
 export interface ResumenDelNegocio extends ResumenCuotas {
   aCobrarDeEventos: number;
   aCobrarDeEmpresa: number;
+}
+
+/**
+ * «A pagar» del negocio con los gastos directos de proyectos cargados sin pagar (GSG-MIA-089 · V6): son deuda con un
+ * proveedor igual que una cuota de pago. No tienen vencimiento: no entran a «7 días» ni a vencidos. PURA.
+ */
+export function conGastosSinPagar<R extends { aPagar: number }>(r: R, gastos: readonly { pesos: number }[]): R {
+  return { ...r, aPagar: redondear(r.aPagar + gastos.reduce((s, g) => s + g.pesos, 0)) };
 }
 
 /**

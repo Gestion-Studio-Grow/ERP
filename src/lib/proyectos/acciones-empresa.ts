@@ -16,6 +16,8 @@ import { leerNumero, MEDIOS, metodoDeCaja, redondear, type MedioPago } from "./c
 import { aPesos, extrasDelPeriodo, leerExtracto, MONEDAS } from "./gestion-core";
 import { actorActual, avisar, exigirEditar, puede, regenerarCuotasDe, registrarCambio, tiposDeCambio } from "./gestion.server";
 import { marcaDeGastoProyecto } from "./marcas";
+import { trabarEnvio } from "./cobranza.server";
+import { claveDeCuotaPorEnvio, claveDeEnvio } from "./pago-columnas";
 import { asentarEnCajaTx, oPeriodoCerrado, PeriodoCerradoError, transaccionQueAsienta } from "./periodo-cerrado.server";
 import { actorDelMotor, faltaLaMigracion, rendicionDelMotor, SIN_MIGRACION } from "./rendiciones-core";
 import { puedeReintegrarRendicion } from "./gestion-core";
@@ -60,13 +62,24 @@ export async function crearPagoEmpresa(formData: FormData): Promise<Resultado> {
   const supplierId = tipo === "PAGO" ? txt(formData.get("supplierId")) || null : null;
   if (supplierId && !(await prisma.supplier.findFirst({ where: { id: supplierId, tenantId: a.tenantId }, select: { id: true } }))) return { ok: false, error: "Ese proveedor no existe." };
   const mon = moneda(formData.get("moneda"));
-  await tenantTransaction(async (tx) => {
+  // El mismo envío dos veces (doble toque, reintento de la red, un agente que reintenta) deja UNA cuota: en fila por la
+  // clave del envío y, adentro, si ya está grabada se da por hecho. Dos cuotas iguales en envíos distintos entran las dos.
+  const envio = claveDeEnvio(formData.get("claveEnvio"));
+  const clave = envio ? claveDeCuotaPorEnvio(envio) : null;
+  const ajena = await tenantTransaction(async (tx) => {
+    if (envio && clave) {
+      await trabarEnvio(tx, a.tenantId, envio);
+      const previa = await tx.proyectoCuota.findFirst({ where: { tenantId: a.tenantId, clave }, select: { proyectoId: true } });
+      if (previa) return previa.proyectoId !== null;
+    }
     const c = await tx.proyectoCuota.create({
-      data: { tenantId: a.tenantId, proyectoId: null, supplierId, tipo, concepto, monto, moneda: mon, venceEl, factura: txt(formData.get("factura")).slice(0, 60) || null },
+      data: { tenantId: a.tenantId, proyectoId: null, supplierId, tipo, concepto, monto, moneda: mon, venceEl, factura: txt(formData.get("factura")).slice(0, 60) || null, clave },
       select: { id: true },
     });
     await registrarCambio(tx, { tenantId: a.tenantId, entidad: "cuota", entidadId: c.id, campo: tipo === "COBRO" ? "alta de cobro de empresa" : "alta de pago de empresa", despues: `${concepto} · ${mon} ${monto}`, autor: a.nombre });
+    return false;
   });
+  if (ajena) return { ok: false, error: "Este formulario ya se usó para otra cosa. Recargá la página." };
   refrescar();
   return { ok: true };
 }

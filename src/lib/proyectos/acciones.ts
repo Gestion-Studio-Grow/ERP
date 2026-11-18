@@ -26,6 +26,7 @@ import { actorActual, avisar, proyectoVisible, puede, regenerarCuotas, registrar
 import type { ModuloGestion } from "./gestion-core";
 import { marcaDeGastoProyecto } from "./marcas";
 import { claveDeEnvio } from "./pago-columnas";
+import { PERDIDO_NO_COBRA } from "./ficha-core";
 import { esClaveRepetida, faltaLaMigracion } from "./rendiciones-core";
 import { etapa2ActivaPara } from "./etapa2.server";
 import { MENSAJE_APAGADO } from "./etapa2-core";
@@ -206,8 +207,9 @@ export async function registrarCobro(formData: FormData): Promise<Resultado<{ li
   if (!MEDIOS.includes(medio)) return { ok: false, error: "Elegí el medio de cobro." };
   if (!(monto > 0)) return { ok: false, error: "Escribí el monto del cobro." };
   if (!(await proyectoDelActor(a, proyectoId))) return { ok: false, error: "Ese proyecto no existe." };
-  const p = await prisma.proyecto.findFirst({ where: { id: proyectoId, tenantId }, select: { numero: true, nombre: true } });
+  const p = await prisma.proyecto.findFirst({ where: { id: proyectoId, tenantId }, select: { numero: true, nombre: true, perdidoEl: true } });
   if (!p) return { ok: false, error: "Ese proyecto ya no existe. Recargá la página." };
+  if (p.perdidoEl) return { ok: false, error: PERDIDO_NO_COBRA };
   const nota = txt(formData.get("nota")) || null;
   const clave = claveDeEnvio(formData.get("claveEnvio"));
   const confirmaRepetido = txt(formData.get("confirmaRepetido")) === "1";
@@ -218,7 +220,7 @@ export async function registrarCobro(formData: FormData): Promise<Resultado<{ li
   const [config, tc] = await Promise.all([configProyectos(tenantId), tiposDeCambio(tenantId)]);
   // El cobro y su asiento en el libro de caja van juntos: o entran los dos o ninguno. Serializable y por `asentarEnCajaTx`
   // (O40): con el día de caja cerrado o el mes congelado no se asienta, ni en carrera con el cierre.
-  const grabar = (conClave: boolean) => transaccionQueAsienta(async (tx): Promise<{ id: string; repetido?: true } | { porCobrar: number; cob: Cobranza } | { ajeno: true } | { otroMonto: number } | { anulado: number } | { parecido: Date } | "repetido"> => {
+  const grabar = (conClave: boolean) => transaccionQueAsienta(async (tx): Promise<{ id: string; repetido?: true } | { porCobrar: number; cob: Cobranza } | { ajeno: true } | { otroMonto: number } | { anulado: number } | { parecido: Date } | "repetido" | "perdido"> => {
     // Tope: con presupuesto aprobado no entra más de lo que falta cobrar. En fila con «Marcar cobrado» y las cuotas
     // cargadas a mano del mismo proyecto, y contado adentro de la transacción (dos cobros a la vez no pasan los dos).
     await trabarCobranza(tx, tenantId, proyectoId);
@@ -235,6 +237,8 @@ export async function registrarCobro(formData: FormData): Promise<Resultado<{ li
       if (previo?.anuladoEl) return { anulado: previo.monto };
       if (previo) return { id: previo.id, repetido: true };
     }
+    // Perdido en el medio (se marcó mientras se cargaba el cobro): con el candado tomado se ve y no entra (GSG-MIA-089 · V2).
+    if ((await tx.proyecto.count({ where: { id: proyectoId, tenantId, perdidoEl: { not: null } } })) > 0) return "perdido";
     const cob = (await cobranzasDelNegocio(tenantId, tc, config.margenPct, [proyectoId], tx)).get(proyectoId);
     if (cob && pasaElTope(cob, monto)) return { porCobrar: cob.porCobrar, cob };
     // El mismo cobro cargado desde dos pestañas (cada una con su clave) entraba dos veces: sin presupuesto no hay tope, y
@@ -281,6 +285,7 @@ export async function registrarCobro(formData: FormData): Promise<Resultado<{ li
     throw err;
   }
   if (pago === "repetido") return { ok: true, listo: "Ese cobro ya estaba registrado: no se asentó dos veces." };
+  if (pago === "perdido") return { ok: false, error: PERDIDO_NO_COBRA };
   if ("ajeno" in pago) return { ok: false, error: "Este formulario ya se usó para otro cobro. Recargá la página." };
   if ("anulado" in pago) {
     refrescar(proyectoId);

@@ -13,6 +13,28 @@ export const COLUMNAS_PIPELINE: readonly string[] = [...ETAPAS, PERDIDO];
 
 export const columnaDe = (p: { etapa: string; perdidoEl: Date | string | null }): string => (p.perdidoEl ? PERDIDO : p.etapa);
 
+/**
+ * A qué etapa va una tarjeta que se mueve. Un perdido que se reabre vuelve a la etapa que tenía al perderse, se suelte en
+ * la columna que se suelte: después se lo mueve como a cualquiera (GSG-MIA-089 · V3; provisional a confirmar por el dueño). PURA.
+ */
+export function destinoAlMover(p: { etapa: string; perdido: boolean }, destino: string): { etapa: string; reabre: boolean } {
+  return p.perdido ? { etapa: p.etapa, reabre: true } : { etapa: destino, reabre: false };
+}
+
+/**
+ * Con un cobro o un pago hecho, el proyecto no vuelve a una etapa anterior a Confirmado: esa plata es de un trabajo
+ * confirmado. Devuelve el porqué, o `null` si puede (GSG-MIA-089 · V1; provisional a confirmar por el dueño). PURA.
+ */
+/** Un proyecto perdido no debe nada: el servidor no le registra cobros ni le marca cuotas (GSG-MIA-089 · V2). */
+export const PERDIDO_NO_COBRA = "El proyecto está perdido: no se le registran cobros ni se marcan cuotas. Si vuelve, reabrilo desde su ficha.";
+
+export function retrocesoConPlata(d: { desde: string; hacia: string; cobros: number; pagos: number }): string | null {
+  const lead = (e: string) => (ETAPAS_DE_LEAD as readonly string[]).includes(e);
+  if (lead(d.desde) || !lead(d.hacia) || (d.cobros === 0 && d.pagos === 0)) return null;
+  const que = d.cobros > 0 && d.pagos > 0 ? "cobros y pagos hechos" : d.cobros > 0 ? (d.cobros === 1 ? "un cobro hecho" : `${d.cobros} cobros hechos`) : d.pagos === 1 ? "un pago hecho" : `${d.pagos} pagos hechos`;
+  return `Tiene ${que}: no puede volver a una etapa anterior a Confirmado. Primero anulá ${d.cobros > 0 ? "el cobro" : "el pago"}, o marcalo perdido.`;
+}
+
 export function resumenPipeline(proyectos: readonly { etapa: string; venta: number; perdido: boolean }[]): { abiertos: number; valor: number } {
   const abiertos = proyectos.filter((p) => !p.perdido && (ETAPAS_DE_LEAD as readonly string[]).includes(p.etapa));
   return { abiertos: abiertos.length, valor: redondear(abiertos.reduce((s, p) => s + p.venta, 0)) };

@@ -10,7 +10,7 @@ import { configProyectos } from "./datos.server";
 import { aPesos, codigoProyecto, nivelDeCarga, pipelinePonderado, proyeccionDeCaja, resumenCuotas, totalesFicha, type NivelCarga } from "./gestion-core";
 import { desviosDelEvento, estaAbierto, estaActivo, estaConfirmado, finDeSemana, margenSobreVenta } from "./empresa-core";
 import { redondear, yaVencio } from "./core";
-import { conciliarConCobros, pagadoDeCuota, repartoDelNegocio, resumenConCobranza, sinCalendarioDelNegocio, SIN_PREVISTAS_SIN_MARCAR } from "./cobranza-core";
+import { conciliarConCobros, conGastosSinPagar, pagadoDeCuota, repartoDelNegocio, resumenConCobranza, sinCalendarioDelNegocio, SIN_PREVISTAS_SIN_MARCAR } from "./cobranza-core";
 import { cobranzasDelNegocio } from "./cobranza.server";
 import { conPagosParciales, conPartesComoPagadas } from "./pago-parcial-core";
 import { pagosParcialesDeCuotas } from "./pago-parcial.server";
@@ -45,8 +45,25 @@ export async function cuotasDelNegocio(tenantId: string) {
 }
 export type CuotaDelNegocio = Awaited<ReturnType<typeof cuotasDelNegocio>>[number];
 
+/**
+ * Los gastos directos de proyectos cargados sin pagar (Finanzas → «Cargar gasto» sin tildar pagado): también son deuda
+ * con un proveedor. Antes no estaban en «A pagar» de Administración y sí en Rentabilidad (GSG-MIA-089 · V6, «no se pasa
+ * 2»). Ninguna cuota los genera (pagar una cuota crea su gasto ya pagado; una rendición, también), así que no cuentan dos
+ * veces. En pesos con IVA, como `resultadoReal`.
+ */
+export async function gastosSinPagarDelNegocio(tenantId: string) {
+  const gastos = await prisma.proyectoGasto.findMany({
+    where: { tenantId, pagadoEl: null, anuladoEl: null },
+    orderBy: { fecha: "asc" },
+    take: 2000,
+    select: { id: true, proyectoId: true, descripcion: true, neto: true, iva: true, fecha: true, supplier: { select: { name: true } }, proyecto: { select: { id: true, numero: true, nombre: true, createdAt: true } } },
+  });
+  return gastos.map((g) => ({ ...g, pesos: redondear(g.neto + g.iva) }));
+}
+export type GastoSinPagar = Awaited<ReturnType<typeof gastosSinPagarDelNegocio>>[number];
+
 export async function recuadrosDeCuotas(tenantId: string) {
-  const [cuotas, tc, config] = await Promise.all([cuotasDelNegocio(tenantId), tiposDeCambio(tenantId), configProyectos(tenantId)]);
+  const [cuotas, tc, config, gastosSinPagar] = await Promise.all([cuotasDelNegocio(tenantId), tiposDeCambio(tenantId), configProyectos(tenantId), gastosSinPagarDelNegocio(tenantId)]);
   // «A cobrar» de cada proyecto = lo aprobado menos lo cobrado (cobranza-core), igual que Rentabilidad y Clientes.
   const cobranzas = await cobranzasDelNegocio(tenantId, tc, config.margenPct);
   // Cada renglón con lo que le falta (los cobros manuales se descuentan de las cuotas más viejas): suman lo mismo que el total.
@@ -71,8 +88,9 @@ export async function recuadrosDeCuotas(tenantId: string) {
       const proyecto = porId.get(f.proyectoId);
       return proyecto ? [{ ...f, proyecto }] : [];
     }),
+    gastosSinPagar,
     tc,
-    resumen: resumenConCobranza(conPartesComoPagadas(cuotas, partes), tc, cobranzas),
+    resumen: conGastosSinPagar(resumenConCobranza(conPartesComoPagadas(cuotas, partes), tc, cobranzas), gastosSinPagar),
   };
 }
 export type SinCalendarioDelNegocio = Awaited<ReturnType<typeof recuadrosDeCuotas>>["sinCalendario"][number];

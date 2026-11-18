@@ -57,7 +57,7 @@ export default async function RentabilidadProyectos() {
                 <td className="pr-2 text-right">{f.real.conGastos ? pesos(f.real.costoReal) : "—"}</td>
                 <td className="pr-2 text-right font-medium text-strong">{f.real.gananciaReal !== null ? `${pesos(f.real.gananciaReal)} (${porcentaje(f.real.margenReal ?? 0)})` : "—"}</td>
                 <td className="pr-2 text-right">{pesos(f.cobrado)}</td>
-                <td className="pr-2 text-right">{f.t ? pesos(f.saldo) : "—"}</td>
+                <td className="pr-2 text-right">{f.t ? pesos(f.porCobrar) : "—"}</td>
                 <td className="text-right">{f.real.porPagar > 0 ? pesos(f.real.porPagar) : "—"}</td>
               </tr>
             ))}
