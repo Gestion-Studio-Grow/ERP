@@ -15,7 +15,7 @@ export async function TabCashflow({ tenantId }: { tenantId: string }) {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <KpiTile label="Caja hoy" value={pesos(d.cajaHoy)} sub={d.cuentas.length === 1 ? "1 cuenta" : `${d.cuentas.length} cuentas`} />
         <KpiTile label="Necesidad de financiamiento" value={pesos(d.necesidad)} sub={d.necesidad > 0 ? "lo más abajo de cero en 6 meses" : "la caja no baja de cero en 6 meses"} />
-        <KpiTile label="Pipeline ponderado" value={pesos(d.ponderado)} sub="enviadas al 40 %; no suma al saldo" />
+        <KpiTile label="Venta ponderada por aprobar" value={pesos(d.ponderado)} sub="enviadas al 40 %; no suma al saldo" />
       </div>
 
       <section className={tarjeta}>

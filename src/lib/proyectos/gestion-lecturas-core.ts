@@ -229,3 +229,46 @@ export function matrizDelFormulario(campo: (nombre: string) => boolean): FilaPer
   }
   return filas;
 }
+
+// ── Calendario: filtros por persona, etapa y proyecto (MIA-50 T02 · O06, Dis. § 2.3) ──
+
+export interface FiltroCalendario {
+  soloMias: boolean;
+  persona: { id: string; nombre: string } | null;
+  etapaId: string | null;
+  /** Los estados internos que agrupa la etapa elegida (parámetro `etapas.lista`). */
+  estados: readonly string[] | null;
+  proyectoId: string | null;
+}
+
+/** Lo pedido en la dirección, sólo con valores que existen para esta persona; lo demás, sin filtro. */
+export function filtroDelCalendario(
+  sp: { mias?: string; persona?: string; etapa?: string; proyecto?: string },
+  etapas: readonly { id: string; estados: readonly string[] }[],
+  personas: readonly { id: string; nombre: string }[],
+  proyectos: readonly { id: string }[],
+): FiltroCalendario {
+  const persona = personas.find((p) => p.id === sp.persona) ?? null;
+  const etapa = etapas.find((e) => e.id === sp.etapa) ?? null;
+  return {
+    soloMias: sp.mias === "1",
+    persona: persona && { id: persona.id, nombre: persona.nombre },
+    etapaId: etapa?.id ?? null,
+    estados: etapa ? [...etapa.estados] : null,
+    proyectoId: proyectos.some((p) => p.id === sp.proyecto) ? sp.proyecto! : null,
+  };
+}
+
+export interface EstadoRuta { mes: string; soloMias: boolean; persona: string | null; etapa: string | null; proyecto: string | null }
+
+/** La dirección del calendario: conserva los filtros y cambia sólo lo pedido. */
+export function rutaDelCalendario(actual: EstadoRuta, cambios: Partial<EstadoRuta> & { dia?: string }): string {
+  const v = { ...actual, ...cambios };
+  const p = new URLSearchParams({ mes: v.mes });
+  if (v.soloMias) p.set("mias", "1");
+  if (v.persona) p.set("persona", v.persona);
+  if (v.etapa) p.set("etapa", v.etapa);
+  if (v.proyecto) p.set("proyecto", v.proyecto);
+  if (cambios.dia) p.set("dia", cambios.dia);
+  return `/admin/proyectos/calendario?${p}`;
+}

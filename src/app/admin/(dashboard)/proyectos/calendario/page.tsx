@@ -3,9 +3,10 @@ import { buttonClasses, cn } from "@/components/ui";
 import { requireApp } from "@/lib/require-app";
 import { codigoProyecto, plataEn, TIPOS_CALENDARIO } from "@/lib/proyectos/gestion-core";
 import { actorActual, puede } from "@/lib/proyectos/gestion.server";
-import { agruparPorDia, claveDia, ETIQUETA_CORTA, finDelDia, grillaDelMes, inicioDelDia, mesPedido, mesVecino, nombreDelMes, type EntradaCalendario, type TipoCalendario } from "@/lib/proyectos/gestion-lecturas-core";
-import { direccionDelCalendario, entradasCalendario, opcionesDeProyecto, reunionesDelPeriodo } from "@/lib/proyectos/gestion-lecturas.server";
-import { tarjeta } from "../_vista";
+import { agruparPorDia, claveDia, ETIQUETA_CORTA, filtroDelCalendario, finDelDia, grillaDelMes, inicioDelDia, mesPedido, mesVecino, nombreDelMes, rutaDelCalendario, type EntradaCalendario, type TipoCalendario } from "@/lib/proyectos/gestion-lecturas-core";
+import { direccionDelCalendario, entradasCalendario, opcionesDeProyecto, personasDelCalendario, reunionesDelPeriodo } from "@/lib/proyectos/gestion-lecturas.server";
+import { valorDelNegocio } from "@/lib/proyectos/parametros/leer.server";
+import { campo, etiqueta, tarjeta } from "../_vista";
 import { CancelarReunion, CopiarDireccion, FormReunion } from "./_cliente";
 
 export const dynamic = "force-dynamic";
@@ -42,27 +43,28 @@ function Renglon({ e }: { e: EntradaCalendario }) {
   );
 }
 
-export default async function CalendarioGestion({ searchParams }: { searchParams: Promise<{ mes?: string; mias?: string; dia?: string }> }) {
+export default async function CalendarioGestion({ searchParams }: { searchParams: Promise<{ mes?: string; mias?: string; dia?: string; persona?: string; etapa?: string; proyecto?: string }> }) {
   await requireApp("gestion-calendario");
   const a = await actorActual();
   const sp = await searchParams;
   const mes = mesPedido(sp.mes);
-  const soloMias = sp.mias === "1";
   const dias = grillaDelMes(mes);
-  const [entradas, proyectos, direccion, reuniones] = await Promise.all([
-    entradasCalendario(a, inicioDelDia(dias[0]), finDelDia(dias[dias.length - 1]), soloMias),
+  const [proyectos, personas, etapas, direccion, reuniones] = await Promise.all([
     opcionesDeProyecto(a),
+    personasDelCalendario(a),
+    valorDelNegocio(a.tenantId, "etapas.lista"),
     direccionDelCalendario(a),
     reunionesDelPeriodo(a, inicioDelDia(dias[0]), finDelDia(dias[dias.length - 1])),
   ]);
+  // O06 (MIA-50 T02): general o por proyecto, con filtro por persona y por etapa (las del parámetro del negocio).
+  const filtro = filtroDelCalendario(sp, etapas, personas, proyectos);
+  const soloMias = filtro.soloMias;
+  const entradas = await entradasCalendario(a, inicioDelDia(dias[0]), finDelDia(dias[dias.length - 1]), filtro);
   const porDia = agruparPorDia(entradas);
   const hoy = claveDia(new Date());
-  const ruta = (cambios: { mes?: string; mias?: boolean; dia?: string }) => {
-    const p = new URLSearchParams({ mes: cambios.mes ?? mes });
-    if (cambios.mias ?? soloMias) p.set("mias", "1");
-    if (cambios.dia) p.set("dia", cambios.dia);
-    return `/admin/proyectos/calendario?${p}`;
-  };
+  const actual = { mes, soloMias, persona: filtro.persona?.id ?? null, etapa: filtro.etapaId, proyecto: filtro.proyectoId };
+  const ruta = (cambios: { mes?: string; mias?: boolean; dia?: string }) => rutaDelCalendario(actual, { ...(cambios.mes ? { mes: cambios.mes } : {}), ...(cambios.mias !== undefined ? { soloMias: cambios.mias } : {}), ...(cambios.dia ? { dia: cambios.dia } : {}) });
+  const filtrado = !!(filtro.persona || filtro.etapaId || filtro.proyectoId);
   const diaPedido = sp.dia && /^\d{4}-\d{2}-\d{2}$/.test(sp.dia) && dias.includes(sp.dia) ? sp.dia : null;
   const delMes = [...porDia.entries()].filter(([clave]) => clave.startsWith(mes));
   const puedeReunir = puede(a, "pipeline", "editar") || puede(a, "diseno", "editar");
@@ -78,6 +80,36 @@ export default async function CalendarioGestion({ searchParams }: { searchParams
           <Link href={ruta({ mias: !soloMias })} aria-pressed={soloMias} className={buttonClasses(soloMias ? "solid" : "outline", "md")}>Sólo lo mío</Link>
         </nav>
       </header>
+
+      <form method="get" action="/admin/proyectos/calendario" aria-label="Filtros del calendario" className={cn(tarjeta, "grid gap-3 p-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto] lg:items-end")}>
+        <input type="hidden" name="mes" value={mes} />
+        {soloMias && <input type="hidden" name="mias" value="1" />}
+        <label className={etiqueta}>
+          Persona
+          <select name="persona" defaultValue={filtro.persona?.id ?? ""} className={campo}>
+            <option value="">Todas</option>
+            {personas.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+          </select>
+        </label>
+        <label className={etiqueta}>
+          Etapa
+          <select name="etapa" defaultValue={filtro.etapaId ?? ""} className={campo}>
+            <option value="">Todas</option>
+            {etapas.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+          </select>
+        </label>
+        <label className={etiqueta}>
+          Proyecto
+          <select name="proyecto" defaultValue={filtro.proyectoId ?? ""} className={campo}>
+            <option value="">Todos</option>
+            {proyectos.map((p) => <option key={p.id} value={p.id}>{codigoProyecto(p.numero, p.createdAt)} {p.nombre}</option>)}
+          </select>
+        </label>
+        <div className="flex flex-wrap gap-2">
+          <button type="submit" className={cn(buttonClasses("solid", "md"), "w-full sm:w-auto")}>Filtrar</button>
+          {filtrado && <Link href={rutaDelCalendario({ ...actual, persona: null, etapa: null, proyecto: null }, {})} className={cn(buttonClasses("ghost", "md"), "w-full sm:w-auto")}>Quitar filtros</Link>}
+        </div>
+      </form>
 
       <ul aria-label="Tipos del calendario" className="flex flex-wrap gap-1.5">
         {TIPOS_CALENDARIO.map((t) => <li key={t.id} className={cn("rounded-full px-2.5 py-1 text-xs font-medium", COLOR[t.id])}>{t.label}</li>)}
@@ -125,7 +157,7 @@ export default async function CalendarioGestion({ searchParams }: { searchParams
 
       {/* En el celular, una lista por día. */}
       <section aria-label="Lista por día" className="grid gap-3 md:hidden">
-        {delMes.length === 0 && <p className={cn(tarjeta, "text-sm text-muted")}>No hay nada con fecha este mes.</p>}
+        {delMes.length === 0 && <p className={cn(tarjeta, "text-sm text-muted")}>{filtrado ? "Con estos filtros no hay nada con fecha este mes." : "No hay nada con fecha este mes."}</p>}
         {delMes.map(([clave, lista]) => (
           <div key={clave}>
             <h2 className={cn("mb-1 text-sm font-semibold first-letter:uppercase", clave === hoy ? "text-strong underline" : "text-strong")}>{diaLargo(clave)}{clave === hoy && " (hoy)"}</h2>
