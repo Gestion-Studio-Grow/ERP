@@ -211,7 +211,7 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
   const conCobros = d.cuotas.some((c) => c.tipo === "COBRO" && !c.anuladoEl);
   const conPagos = d.cuotas.some((c) => c.tipo === "PAGO" && !c.anuladoEl);
   const verCosto = !vista.ocultas.has("costoTotal");
-  const cambioEvento = cambioDeVenta(p.moneda, cab.viva?.tcVenta, cab.tc);
+  const cambioEvento = cambioDeVenta(p.moneda, cab.base?.tcVenta, cab.tc);
   const enEvento = (n: number) => ventaEn(n, p.moneda, cambioEvento);
   // El cashflow se calcula al cambio de hoy, cuota por cuota: se muestra con ese mismo, no con el fijado al vender.
   const enCaja = (n: number) => ventaEn(n, p.moneda, cambioDeVenta(p.moneda, null, cab.tc));
@@ -220,6 +220,11 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
   // entera desborda (QA MIA #7). Así la tabla se desliza adentro de su contenedor con overflow-x-auto.
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
+      {cab.borradorSobreAprobada && cab.base && cab.viva && (
+        <p role="status" className="rounded-md border border-line bg-surface-raised px-3 py-2.5 text-sm text-body">
+          La versión {cab.viva.version} es un borrador: las cuotas, lo que falta cobrar y estos importes siguen saliendo de la versión aprobada ({cab.base.version}). El borrador no mueve plata hasta que se aprueba.
+        </p>
+      )}
       {vista.costos && cab.sinProveedor.cuantos > 0 && (
         <p role="status" className="rounded-md border border-danger/30 bg-danger-soft px-3 py-2.5 text-sm text-danger">
           {cab.sinProveedor.cuantos === 1 ? "1 ítem con costo no tiene" : `${cab.sinProveedor.cuantos} ítems con costo no tienen`} proveedor: {pesos(cab.sinProveedor.monto)} no están en este cashflow, y el saldo se ve mejor de lo que es.
@@ -420,13 +425,13 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
                   {!g.anuladoEl && vista.editaPagos && (
                     <span className="flex flex-wrap items-center gap-1">
                       {!g.pagadoEl && cargaDirecta && (
-                        <form action={pagarGasto} className="flex items-center gap-1">
+                        <FormAccion accion={pagarGasto} className="flex flex-wrap items-center gap-1">
                           <input type="hidden" name="id" value={g.id} />
                           <select name="medio" aria-label={`Medio de pago de ${g.descripcion}`} defaultValue="TRANSFERENCIA" className={campoEnLinea}>
                             {MEDIOS.map((m) => <option key={m} value={m}>{MEDIO_LABEL[m]}</option>)}
                           </select>
                           <button type="submit" className={buttonClasses("outline", "md")} aria-label={`Pagar ${g.descripcion}`}>Pagar</button>
-                        </form>
+                        </FormAccion>
                       )}
                       <BotonConConfirmacion accion={anularGastoFicha} ocultos={{ id: g.id }} texto="Anular" textoConfirma="Sí, anular" etiqueta={`Anular gasto ${g.descripcion}`} />
                     </span>
@@ -459,6 +464,8 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
         {cargaDirecta && !conCobros && (
           <FormAccion accion={registrarCobro} limpiar claveDeEnvio className="grid gap-2 sm:grid-cols-4">
             <input type="hidden" name="proyectoId" value={p.id} />
+            {/* O41: un id por formulario; el mismo envío dos veces (doble clic, reintento) asienta un solo cobro. */}
+            <input type="hidden" name="envio" value={randomUUID()} />
             <input name="monto" required aria-label="Monto" placeholder="Monto" inputMode="decimal" className={campo} />
             <select name="medio" aria-label="Medio de cobro" defaultValue="TRANSFERENCIA" className={campo}>
               {MEDIOS.map((m) => <option key={m} value={m}>{MEDIO_LABEL[m]}</option>)}

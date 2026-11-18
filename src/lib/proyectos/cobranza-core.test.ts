@@ -689,8 +689,9 @@ test("v2 #3/#4: las tres acciones que mueven la cobranza traban el candado como 
     const i = s.indexOf(`export async function ${funcion}(`);
     assert.ok(i >= 0, funcion);
     const cuerpo = s.slice(i, s.indexOf("\nexport ", i + 10));
-    const tx = cuerpo.indexOf("tenantTransaction(async (tx");
-    assert.ok(tx >= 0, `${funcion}: sin transacción`);
+    // Las tres asientan en la caja: corren en la transacción Serializable de Proyectos (periodo-cerrado.server.ts, O40).
+    const tx = cuerpo.indexOf("transaccionQueAsienta(async (tx");
+    assert.ok(tx >= 0, `${funcion}: sin transacción \`transaccionQueAsienta\``);
     const lineas = cuerpo.slice(tx).split("\n").slice(1).map((l) => l.trim()).filter((l) => l && !l.startsWith("//") && l !== "if (esCobro) {");
     return { cuerpo, primera: lineas[0] };
   };

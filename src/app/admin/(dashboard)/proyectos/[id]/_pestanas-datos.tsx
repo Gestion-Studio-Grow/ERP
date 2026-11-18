@@ -189,7 +189,8 @@ export async function PestanaResumen({ a, cab, vista }: { a: Actor; cab: Cabecer
 // ── Ficha del evento ────────────────────────────────────────────────────────
 
 export async function PestanaFicha({ a, cab, vista }: { a: Actor; cab: Cabecera; vista: Vista }) {
-  const { viva, totales: t, faltanCambio, config, proyecto } = cab;
+  // La ficha muestra el borrador que se edita (P-06): sus totales, no los de la versión aprobada que cuentan las cuotas.
+  const { viva, totalesViva: t, faltanCambio, config, proyecto } = cab;
   const { filas, proveedores } = await datosFicha(a, cab, vista);
   const enBorrador = !viva || sePuedeEditar(viva.estado);
   const verCosto = !vista.ocultas.has("costoTotal");
