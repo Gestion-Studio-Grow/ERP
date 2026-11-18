@@ -149,7 +149,7 @@ export async function Adicionales({ a, vista, proyectoId, baseAprobada }: { a: A
                 <h3 className="font-semibold text-strong">Adicional {ad.numero} · {ad.nombre}</h3>
                 <Badge tone={TONO[ad.estado] ?? "neutral"}>{ESTADO_ADICIONAL_LABEL[ad.estado as keyof typeof ESTADO_ADICIONAL_LABEL] ?? ad.estado}</Badge>
                 {ad.aprobadoInternoEl ? (
-                  <span className="text-xs text-muted">Aprobado por {ad.aprobadoInternoPor} el {fechaCorta(ad.aprobadoInternoEl)}</span>
+                  <span className="text-xs text-muted">Precios aprobados por {ad.aprobadoInternoPor} el {fechaCorta(ad.aprobadoInternoEl)}</span>
                 ) : (
                   borrador && <span className="text-xs font-medium text-danger">Falta la aprobación interna</span>
                 )}
