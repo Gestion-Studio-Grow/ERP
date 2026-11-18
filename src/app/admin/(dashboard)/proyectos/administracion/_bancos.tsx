@@ -105,7 +105,7 @@ export async function TabBancos({ tenantId, editaEmpresa, editaPagos }: { tenant
                       {cuota ? (
                         <div className="grid justify-items-start gap-1">
                           <span className="text-strong">{cuota.concepto}</span>
-                          <span className="text-xs text-muted">{cuota.pagadoEl ? `Marcada el ${fechaCorta(cuota.pagadoEl)}` : "Sin marcar como pagada"}</span>
+                          <span className="text-xs text-muted">{cuota.pagadoEl ? `Marcada el ${fechaCorta(cuota.pagadoEl)}` : cuota.noSeCobra ? "Proyecto perdido: no se cobra" : "Sin marcar como pagada"}</span>
                           {puedeMarcar && <MarcarCuota id={cuota.id} deEmpresa={!cuota.proyectoId} etiqueta={cuota.tipo === "COBRO" ? "Marcar cobrada" : "Marcar pagada"} />}
                           {editaEmpresa && <BotonDosPasos accion={desconciliarMovimiento} campos={{ id: m.id }} etiqueta="Deshacer" pregunta="¿Deshacer la conciliación?" />}
                         </div>

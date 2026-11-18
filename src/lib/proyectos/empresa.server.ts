@@ -164,7 +164,7 @@ export async function datosDeBancos(tenantId: string) {
         lote: true,
         cuotaId: true,
         cuenta: { select: { nombre: true, moneda: true } },
-        cuota: { select: { id: true, tipo: true, concepto: true, pagadoEl: true, anuladoEl: true, proyectoId: true } },
+        cuota: { select: { id: true, tipo: true, concepto: true, pagadoEl: true, anuladoEl: true, proyectoId: true, proyecto: { select: { perdidoEl: true } } } },
       },
     }),
     prisma.proyectoMovBanco.groupBy({ by: ["cuentaId"], where: { tenantId, cuotaId: null }, _count: { _all: true } }),
@@ -174,8 +174,11 @@ export async function datosDeBancos(tenantId: string) {
   const usadas = new Set(conciliadas.map((c) => c.cuotaId));
   return {
     cuentas: cuentas.map((c) => ({ ...c, sinConciliar: sinConciliar.find((s) => s.cuentaId === c.id)?._count._all ?? 0 })),
-    movimientos,
-    candidatas: cuotas.filter((c) => !usadas.has(c.id)),
+    // MIA-111: el cobro de un perdido no se cobra (ADV-7, `cobroFrenadoPorPerdido`, la misma `perdidoAdmite` de la ficha
+    // y del servidor; decisión 2 = A, provisional a confirmar por el dueño): no se propone ni se elige para un depósito,
+    // y el que ya estaba conciliado no ofrece «Marcar cobrada». Al reabrir, vuelve.
+    movimientos: movimientos.map((m) => (m.cuota ? { ...m, cuota: { ...m.cuota, noSeCobra: cobroFrenadoPorPerdido(m.cuota) } } : m)),
+    candidatas: cuotas.filter((c) => !usadas.has(c.id) && !c.noSeCobra),
     tc,
   };
 }

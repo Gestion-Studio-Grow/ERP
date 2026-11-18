@@ -266,13 +266,14 @@ export function lineasNuevas<T extends { fecha: Date; descripcion: string; impor
 
 /**
  * Bancos (`_bancos.tsx`): un movimiento ya conciliado ofrece «Marcar cobrada» o «Marcar pagada» sólo si su cuota sigue
- * por marcar y quien mira puede: las de un proyecto con «Pagos» y las de la empresa con «Empresa». PURA.
+ * por marcar y quien mira puede: las de un proyecto con «Pagos» y las de la empresa con «Empresa». El cobro de un
+ * perdido (`noSeCobra`, ADV-7 · MIA-111) no se ofrece: es la misma regla que Cuentas a cobrar y el servidor. PURA.
  */
 export function ofreceMarcarConciliada(
   cuota: { pagadoEl: Date | null; anuladoEl: Date | null; proyectoId: string | null; noSeCobra?: boolean },
   permisos: { editaPagos: boolean; editaEmpresa: boolean },
 ): boolean {
-  return !cuota.pagadoEl && !cuota.anuladoEl && (cuota.proyectoId ? permisos.editaPagos : permisos.editaEmpresa);
+  return !cuota.pagadoEl && !cuota.anuladoEl && !cuota.noSeCobra && (cuota.proyectoId ? permisos.editaPagos : permisos.editaEmpresa);
 }
 
 /** Una cuota por movimiento: dos movimientos iguales no se proponen contra la misma. */
