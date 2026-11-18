@@ -66,7 +66,7 @@ export async function TabCuentas({ tipo, estado, q, vista: vistaId, guardada = f
   const cantColumnas = ve.size;
   // Lo aprobado que ninguna cuota espera: pendiente y sin fecha, así que sólo en «Pendientes» y «Todos».
   const faltantes = tipo === "COBRO" && (filtro === "pendientes" || filtro === "todos") ? sinCalendario.filter((f) => !busqueda || coincideSinCalendario(f, busqueda)) : [];
-  // MIA-089 · V6: los gastos directos sin pagar (sin cuota) también están en «A pagar»: cada uno con su renglón.
+  // MIA-089 · V6: los gastos cargados sin pagar también están en «A pagar»: cada uno con su renglón.
   const gastos = tipo === "PAGO" && (filtro === "pendientes" || filtro === "todos") ? gastosSinPagar.filter((g) => !busqueda || `${g.descripcion} ${g.proyecto.nombre} ${g.supplier?.name ?? ""}`.toLowerCase().includes(busqueda.toLowerCase())) : [];
   const proveedores = tipo === "PAGO" && editaEmpresa ? await proveedoresActivos(tenantId) : [];
   const conVista = actual.id === vistas[0].id ? "" : `&vista=${encodeURIComponent(actual.id)}`;
@@ -224,7 +224,7 @@ export async function TabCuentas({ tipo, estado, q, vista: vistaId, guardada = f
                   {ve.has("concepto") && (
                     <td data-label="Concepto" className={cn("py-2 pr-3", celda)}>
                       {g.descripcion}
-                      <span className="block max-w-56 text-xs text-muted">Gasto cargado sin pagar, sin cuota.</span>
+                      <span className="block max-w-56 text-xs text-muted">Gasto cargado sin pagar.</span>
                     </td>
                   )}
                   {ve.has("monto") && <td data-label="Monto" className={cn("whitespace-nowrap py-2 pr-3 font-medium tabular-nums text-strong sm:text-right", celda)}>{pesos(g.total)}</td>}
