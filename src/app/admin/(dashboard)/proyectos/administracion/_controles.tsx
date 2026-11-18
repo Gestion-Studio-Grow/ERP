@@ -104,7 +104,7 @@ function ElegirCuenta() {
   return (
     <select name="cuenta" aria-label="Cuenta que se mueve" defaultValue="" required className={campo}>
       <option value="" disabled>Elegí la cuenta</option>
-      <option value="ninguna">No mueve ninguna cuenta</option>
+      <option value="ninguna">Ninguna cuenta del banco: va sólo al libro de caja</option>
       {cuentas.map((c) => <option key={c.id} value={c.id}>{c.nombre} ({c.moneda})</option>)}
     </select>
   );
@@ -282,8 +282,8 @@ export function GenerarLiquidaciones({ periodo }: { periodo: string }) {
     fd.set("periodo", periodo);
     setListo(null);
     correr(generarLiquidaciones as Accion, fd, (r) => {
-      const x = r as unknown as { generadas: number; publicadas: number };
-      setListo(`${x.generadas === 1 ? "1 liquidación" : `${x.generadas} liquidaciones`} al día${x.publicadas > 0 ? ` · ${x.publicadas} publicadas sin tocar` : ""}.`);
+      const x = r as unknown as { generadas: number; publicadas: number; salteada?: string | null };
+      setListo(`${x.generadas === 1 ? "1 liquidación" : `${x.generadas} liquidaciones`} al día${x.publicadas > 0 ? ` · ${x.publicadas} publicadas sin tocar` : ""}.${x.salteada ? " La tuya no se tocó: la arma otra persona de Dirección o Administración." : ""}`);
     });
   };
   return (

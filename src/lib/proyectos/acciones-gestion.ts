@@ -18,6 +18,7 @@ import { fechaCorta, leerNumero } from "./core";
 import { actorActual, avisar, exigirEditar, proyectoVisible, puede, regenerarCuotasDe, registrarCambio, usuariosDeLaPlata, usuariosDelEquipo, type Actor } from "./gestion.server";
 import { COLUMNAS_OCULTAS_BASE, MONEDAS, permisoDe, ROLES_GESTION, RUBROS, TIPOS_AVISO, type ModuloGestion, type RolGestion } from "./gestion-core";
 import { entre, matrizDelFormulario, respuestaDePresentacion } from "./gestion-lecturas-core";
+import { esLoPropio } from "./empresa-core";
 
 export type Resultado<T = object> = ({ ok: true } & T) | { ok: false; error: string };
 
@@ -210,6 +211,10 @@ export async function guardarPersona(formData: FormData): Promise<Resultado> {
   }
   // Sin permiso de liquidaciones, el sueldo no se escribe aunque venga en el formulario.
   const sueldoBase = puede(a, "liquidaciones", "editar") ? entre(leerNumero(String(formData.get("sueldoBase") ?? "")), 0, 1e12, 0) : previa?.sueldoBase ?? 0;
+  // G4: el sueldo base propio lo fija otra persona (con él, generar arma la liquidación propia). Por la ficha o por la cuenta.
+  const yo = { personaId: a.personaId, userId: a.user.id };
+  const propia = previa ? esLoPropio(yo, { personaId: previa.id, userId: previa.userId }) || userId === a.user.id : userId === a.user.id;
+  if (propia && sueldoBase !== (previa?.sueldoBase ?? 0)) return { ok: false, error: "No podés fijar tu propio sueldo base: la liquidación que sale de él es tuya. Que lo cambie otra persona de Dirección." };
   const datos = { nombre, email: email || null, rol, puesto: txt(formData.get("puesto"), 120), facturaA: txt(formData.get("facturaA"), 160), sueldoBase, userId };
   try {
     await tenantTransaction(async (tx) => {

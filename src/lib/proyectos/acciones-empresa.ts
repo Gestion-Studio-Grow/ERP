@@ -16,11 +16,12 @@ import { leerNumero, MEDIOS, metodoDeCaja, redondear, type MedioPago } from "./c
 import { aPesos, extrasDelPeriodo, leerExtracto, MONEDAS } from "./gestion-core";
 import { actorActual, avisar, exigirEditar, puede, regenerarCuotasDe, registrarCambio, tiposDeCambio } from "./gestion.server";
 import { marcaDeGastoProyecto } from "./marcas";
+import { asentarEnCajaTx, oPeriodoCerrado, PeriodoCerradoError, transaccionQueAsienta } from "./periodo-cerrado.server";
 import { actorDelMotor, faltaLaMigracion, rendicionDelMotor, SIN_MIGRACION } from "./rendiciones-core";
 import { puedeReintegrarRendicion } from "./gestion-core";
 import { aplicarAccion } from "@/lib/rendiciones/rendicion";
 import type { RolActor } from "@/lib/rendiciones/tipos";
-import { conReintegros, etiquetaMes, extrasRecalculados, leerExtras, lineasNuevas, periodoValido, reintegrosCuadran, totalLiquidacion, type ExtraGuardado } from "./empresa-core";
+import { conReintegros, esLoPropio, etiquetaMes, extrasRecalculados, LIQUIDACION_PROPIA, leerExtras, lineasNuevas, periodoValido, reintegrosCuadran, totalLiquidacion, type ExtraGuardado } from "./empresa-core";
 import type { Resultado } from "./acciones";
 import { listoMarcada } from "./avisos-cuota";
 
@@ -90,9 +91,9 @@ export async function marcarCuotaEmpresa(formData: FormData): Promise<Resultado<
     select: { id: true, tipo: true, concepto: true, monto: true, moneda: true, supplier: { select: { name: true } } },
   });
   if (!c) return { ok: false, error: "Esa cuota no existe." };
-  let hecho: "marcada" | "cambio" | { amount: number };
+  let hecho: "marcada" | "cambio" | { amount: number } | PeriodoCerradoError;
   try {
-    hecho = await tenantTransaction(async (tx): Promise<"marcada" | "cambio" | { amount: number }> => {
+    hecho = await oPeriodoCerrado(() => transaccionQueAsienta(async (tx): Promise<"marcada" | "cambio" | { amount: number }> => {
       // Condicionado a lo leído afuera: si en el medio cambiaron el monto, la moneda o el tipo, no se asienta lo viejo.
       const r = await tx.proyectoCuota.updateMany({ where: { id, tenantId: a.tenantId, proyectoId: null, pagadoEl: null, anuladoEl: null, tipo: c.tipo, monto: c.monto, moneda: c.moneda }, data: { pagadoEl: new Date(), pagadoPor: a.nombre, medio } });
       if (r.count === 0) {
@@ -100,6 +101,10 @@ export async function marcarCuotaEmpresa(formData: FormData): Promise<Resultado<
         return sigue ? "cambio" : "marcada";
       }
       // Con la cuota ya tomada: el cambio y la cuenta se leen acá, así el libro y el banco usan lo vigente al marcar.
+      // En Serializable (O40) la lectura sale de la foto del primer paso, sacada antes de esperar la cuota: el cambio se
+      // lee con candado, y si alguien lo cambió después de la foto Postgres aborta y la transacción se reintenta con una
+      // foto nueva (`tenantTransaction`). Así sigue siendo el cambio vigente al marcar (administracion-carrera 2.d).
+      if (c.moneda !== "ARS") await tx.$queryRaw`SELECT 1 FROM "ProyectoTipoCambio" WHERE "tenantId" = ${a.tenantId} AND "moneda" = ${c.moneda} FOR SHARE`;
       const amount = aPesos(c.monto, c.moneda, await tiposDeCambio(a.tenantId, tx));
       if (!(amount > 0)) throw new NoSeMarca("Falta el tipo de cambio: cargalo en Monedas y gastos fijos.");
       const cuenta = await cuentaParaCuota(a.tenantId, formData, { tipo: c.tipo, monto: c.monto, moneda: c.moneda, importeEnPesos: amount }, tx);
@@ -109,25 +114,24 @@ export async function marcarCuotaEmpresa(formData: FormData): Promise<Resultado<
         await tx.proyectoCuentaBanco.updateMany({ where: { id: cuenta.id, tenantId: a.tenantId }, data: { saldo: { increment: cuenta.movido } } });
       }
       const session = await tx.cashSession.findFirst({ where: { tenantId: a.tenantId, status: "OPEN" }, select: { id: true } });
-      await tx.cashMovement.create({
-        data: {
-          tenantId: a.tenantId,
-          sessionId: session?.id ?? null,
-          type: c.tipo === "COBRO" ? "INGRESO" : "EGRESO",
-          method: metodoDeCaja(medio, await transferenciaEnElLibroTx(tx)),
-          amount,
-          reason: `Empresa · ${c.concepto}${c.supplier ? ` · ${c.supplier.name}` : ""}${medio === "CHEQUE" ? " · Cheque" : ""}`,
-          createdBy: marcaDeCuota(id),
-        },
+      await asentarEnCajaTx(tx, c.tipo === "COBRO" ? "cobro" : "pago", {
+        tenantId: a.tenantId,
+        sessionId: session?.id ?? null,
+        type: c.tipo === "COBRO" ? "INGRESO" : "EGRESO",
+        method: metodoDeCaja(medio, await transferenciaEnElLibroTx(tx)),
+        amount,
+        reason: `Empresa · ${c.concepto}${c.supplier ? ` · ${c.supplier.name}` : ""}${medio === "CHEQUE" ? " · Cheque" : ""}`,
+        createdBy: marcaDeCuota(id),
       });
       await registrarCambio(tx, { tenantId: a.tenantId, entidad: "cuota", entidadId: id, campo: c.tipo === "COBRO" ? "cobro de empresa" : "pago de empresa", antes: "pendiente", despues: `${c.tipo === "COBRO" ? "cobrada" : "pagada"} · ${medio} · $ ${amount}`, autor: a.nombre });
       return { amount };
-    });
+    }));
   } catch (e) {
     // Deshace la marca: sin cambio o sin cuenta válida no queda nada a medias.
     if (e instanceof NoSeMarca) return { ok: false, error: e.message };
     throw e;
   }
+  if (hecho instanceof PeriodoCerradoError) return { ok: false, error: hecho.message };
   if (hecho === "marcada") return { ok: false, error: "Esa cuota ya estaba marcada." };
   if (hecho === "cambio") return { ok: false, error: "Esa cuota cambió mientras la marcabas (monto, moneda o tipo). Recargá la página y volvé a marcarla." };
   const { amount } = hecho;
@@ -136,38 +140,59 @@ export async function marcarCuotaEmpresa(formData: FormData): Promise<Resultado<
   return { ok: true, listo: listoMarcada(c.tipo === "COBRO", amount) };
 }
 
-/** Anular no borra. Si ya se pagó, la plata vuelve al libro con fecha de hoy, como un gasto anulado. */
-export async function anularCuotaEmpresa(formData: FormData): Promise<Resultado> {
+/**
+ * Anular no borra. A-05 (MIA-049, hallazgo 4): una cuota PAGADA no queda «pagada» sin plata: anular le anula el pago,
+ * la cuota vuelve a pendiente (a la vista en «A pagar»/«A cobrar») y el libro y la cuenta vuelven al saldo de antes,
+ * con un contraasiento por lo que ese pago neto dejó en la caja. Una cuota sin pagar queda anulada (sale de la lista).
+ * Dos clics: el `updateMany` condicionado deja pasar a uno solo; el segundo dice que ya estaba.
+ */
+export async function anularCuotaEmpresa(formData: FormData): Promise<Resultado<{ listo?: string }>> {
   const a = await exigirEditar("empresa");
   const id = txt(formData.get("id"));
-  const hecho = await tenantTransaction(async (tx) => {
-    const r = await tx.proyectoCuota.updateMany({ where: { id, tenantId: a.tenantId, proyectoId: null, anuladoEl: null }, data: { anuladoEl: new Date() } });
+  // Lo que la pantalla mostraba («PAGADA»): con eso, un segundo clic (u otra pestaña) sobre una cuota que ya volvió a
+  // pendiente no la anula por error. La pantalla de Cuentas lo va a mandar con la parte visual de A-05, que va en la
+  // tanda T05 (no en T03); sin él, como antes.
+  const visto = txt(formData.get("visto"));
+  const hecho = await oPeriodoCerrado(() => transaccionQueAsienta(async (tx): Promise<"pago" | "cuota" | false> => {
+    const c = await tx.proyectoCuota.findFirst({ where: { id, tenantId: a.tenantId, proyectoId: null, anuladoEl: null }, select: { concepto: true, tipo: true, monto: true, moneda: true, pagadoEl: true, cuentaId: true, cuentaMovido: true } });
+    if (!c) return false;
+    if (!c.pagadoEl && visto === "PAGADA") return false;
+    if (!c.pagadoEl) {
+      const r = await tx.proyectoCuota.updateMany({ where: { id, tenantId: a.tenantId, proyectoId: null, anuladoEl: null, pagadoEl: null }, data: { anuladoEl: new Date() } });
+      if (r.count === 0) return false;
+      await registrarCambio(tx, { tenantId: a.tenantId, entidad: "cuota", entidadId: id, campo: "anulación de cuota de empresa", antes: `${c.moneda} ${c.monto}`, despues: "anulada", autor: a.nombre });
+      return "cuota";
+    }
+    // El pago: sólo uno de dos clics lo encuentra marcado.
+    const r = await tx.proyectoCuota.updateMany({ where: { id, tenantId: a.tenantId, proyectoId: null, anuladoEl: null, pagadoEl: { not: null } }, data: { pagadoEl: null, pagadoPor: null, medio: null, cuentaId: null, cuentaMovido: null } });
     if (r.count === 0) return false;
-    const c = await tx.proyectoCuota.findFirst({ where: { id, tenantId: a.tenantId }, select: { concepto: true, tipo: true, monto: true, moneda: true, cuentaId: true, cuentaMovido: true } });
-    if (c?.cuentaId && c.cuentaMovido) await tx.proyectoCuentaBanco.updateMany({ where: { id: c.cuentaId, tenantId: a.tenantId }, data: { saldo: { decrement: c.cuentaMovido } } });
-    const salida = c?.tipo === "COBRO" ? "INGRESO" : "EGRESO";
-    const pago = await tx.cashMovement.findFirst({ where: { tenantId: a.tenantId, createdBy: marcaDeCuota(id), type: salida }, select: { amount: true, method: true } });
-    if (pago) {
+    if (c.cuentaId && c.cuentaMovido) await tx.proyectoCuentaBanco.updateMany({ where: { id: c.cuentaId, tenantId: a.tenantId }, data: { saldo: { decrement: c.cuentaMovido } } });
+    // Lo que la cuota tiene hoy en la caja, neto: sus pagos menos sus vueltas (una cuota se puede pagar, anular y volver a pagar).
+    const salida = c.tipo === "COBRO" ? "INGRESO" : "EGRESO";
+    const vuelta = salida === "EGRESO" ? "INGRESO" : "EGRESO";
+    const asientos = await tx.cashMovement.findMany({ where: { tenantId: a.tenantId, createdBy: marcaDeCuota(id), type: { in: [salida, vuelta] } }, orderBy: { createdAt: "desc" }, select: { type: true, amount: true, method: true } });
+    const neto = redondear(asientos.reduce((s, m) => s + (m.type === salida ? m.amount : -m.amount), 0));
+    const ultimo = asientos.find((m) => m.type === salida);
+    if (neto > 0 && ultimo) {
       const session = await tx.cashSession.findFirst({ where: { tenantId: a.tenantId, status: "OPEN" }, select: { id: true } });
-      await tx.cashMovement.create({
-        data: {
-          tenantId: a.tenantId,
-          sessionId: session?.id ?? null,
-          type: salida === "EGRESO" ? "INGRESO" : "EGRESO",
-          method: pago.method,
-          amount: pago.amount,
-          reason: `Anulación · Empresa · ${c?.concepto ?? ""}`,
-          createdBy: marcaDeCuota(id),
-        },
+      await asentarEnCajaTx(tx, "anulación", {
+        tenantId: a.tenantId,
+        sessionId: session?.id ?? null,
+        type: vuelta,
+        method: ultimo.method,
+        amount: neto,
+        reason: `Anulación · Empresa · ${c.concepto}`,
+        createdBy: marcaDeCuota(id),
       });
     }
-    await registrarCambio(tx, { tenantId: a.tenantId, entidad: "cuota", entidadId: id, campo: "anulación de pago de empresa", antes: `${c?.moneda} ${c?.monto}`, despues: pago ? "anulada, con vuelta al libro" : "anulada", autor: a.nombre });
-    return true;
-  });
+    await registrarCambio(tx, { tenantId: a.tenantId, entidad: "cuota", entidadId: id, campo: "anulación de pago de empresa", antes: `${c.tipo === "COBRO" ? "cobrada" : "pagada"} · ${c.moneda} ${c.monto}`, despues: neto > 0 ? "pendiente, con vuelta al libro" : "pendiente", autor: a.nombre });
+    return "pago";
+  }));
+  if (hecho instanceof PeriodoCerradoError) return { ok: false, error: hecho.message };
   if (!hecho) return { ok: false, error: "Ese pago ya estaba anulado." };
-  await auditAdmin({ action: "proyecto.cuota-empresa.anular", entity: "ProyectoCuota", entityId: id, changes: {} });
+  await auditAdmin({ action: "proyecto.cuota-empresa.anular", entity: "ProyectoCuota", entityId: id, changes: { que: hecho } });
   refrescar();
-  return { ok: true };
+  return { ok: true, listo: hecho === "pago" ? "Pago anulado: la cuota vuelve a quedar pendiente y la plata volvió a la caja." : "Cuota anulada." };
 }
 
 /** Factura y comentario, de cualquier cuota del negocio. */
@@ -388,26 +413,33 @@ async function reclamarReintegrosTx(tx: Prisma.TransactionClient, tenantId: stri
  * Base + plus de los eventos terminados en el mes + reintegros de Rendí aprobados y sin reclamar. Lo publicado no se
  * toca; lo cargado a mano en un borrador se conserva.
  */
-export async function generarLiquidaciones(formData: FormData): Promise<Resultado<{ generadas: number; publicadas: number }>> {
+export async function generarLiquidaciones(formData: FormData): Promise<Resultado<{ generadas: number; publicadas: number; salteada: string | null }>> {
   const a = await exigirEditar("liquidaciones");
+  const yo = { personaId: a.personaId, userId: a.user.id };
   const periodo = txt(formData.get("periodo"));
   if (!periodoValido(periodo)) return { ok: false, error: "Elegí el mes." };
   const [personas, actuales, conReintegro] = await Promise.all([
     prisma.proyectoPersona.findMany({
       where: { tenantId: a.tenantId, activa: true },
-      select: { id: true, nombre: true, sueldoBase: true, facturaA: true, equipos: { where: { proyecto: { perdidoEl: null } }, select: { plus: true, proyecto: { select: { id: true, nombre: true, fechaEvento: true, fechaFin: true } } } } },
+      select: { id: true, userId: true, nombre: true, sueldoBase: true, facturaA: true, equipos: { where: { proyecto: { perdidoEl: null } }, select: { plus: true, proyecto: { select: { id: true, nombre: true, fechaEvento: true, fechaFin: true } } } } },
     }),
     prisma.proyectoLiquidacion.findMany({ where: { tenantId: a.tenantId, periodo }, select: { id: true, personaId: true, estado: true, extras: true, total: true } }),
     personasConReintegros(a.tenantId),
   ]);
   const publicadas = actuales.filter((l) => l.estado !== "BORRADOR").length;
   let generadas = 0;
+  let salteada: string | null = null;
   await tenantTransaction(async (tx) => {
     for (const p of personas) {
       const previa = actuales.find((l) => l.personaId === p.id);
       if (previa && previa.estado !== "BORRADOR") continue;
       const delPeriodo = extrasDelPeriodo(p.equipos, periodo);
       if (!previa && !(p.sueldoBase > 0) && delPeriodo.length === 0 && !conReintegro?.has(p.id)) continue;
+      // G4: la propia no se genera ni se recalcula; la arma otra persona con permiso (el resultado lo dice).
+      if (esLoPropio(yo, { personaId: p.id, userId: p.userId })) {
+        salteada = p.nombre;
+        continue;
+      }
       if (!previa) await tx.proyectoLiquidacion.createMany({ data: [{ tenantId: a.tenantId, personaId: p.id, periodo, base: p.sueldoBase, facturaA: p.facturaA }], skipDuplicates: true });
       // Toma la fila y confirma que sigue en borrador: si alguien la publicó recién, queda como está; si la publican
       // ahora, esperan a que esta transacción termine (el claim de reintegros y el total van juntos).
@@ -425,15 +457,18 @@ export async function generarLiquidaciones(formData: FormData): Promise<Resultad
     }
   });
   revalidatePath(ADMIN);
-  return { ok: true, generadas, publicadas };
+  return { ok: true, generadas, publicadas, salteada };
 }
 
-export async function publicarBorradores(formData: FormData): Promise<Resultado<{ publicadas: number }>> {
+export async function publicarBorradores(formData: FormData): Promise<Resultado<{ publicadas: number; salteada: string | null }>> {
   const a = await exigirEditar("liquidaciones");
   const periodo = txt(formData.get("periodo"));
   if (!periodoValido(periodo)) return { ok: false, error: "Elegí el mes." };
-  const borradores = await prisma.proyectoLiquidacion.findMany({ where: { tenantId: a.tenantId, periodo, estado: "BORRADOR" }, select: { id: true, total: true, persona: { select: { nombre: true, userId: true } } } });
-  if (borradores.length === 0) return { ok: false, error: "No hay borradores para publicar en este mes." };
+  const todos = await prisma.proyectoLiquidacion.findMany({ where: { tenantId: a.tenantId, periodo, estado: "BORRADOR" }, select: { id: true, total: true, personaId: true, persona: { select: { nombre: true, userId: true } } } });
+  // G4: la propia queda en borrador; la publica otra persona con permiso.
+  const propia = todos.find((b) => esLoPropio({ personaId: a.personaId, userId: a.user.id }, { personaId: b.personaId, userId: b.persona.userId }));
+  const borradores = todos.filter((b) => b !== propia);
+  if (borradores.length === 0) return { ok: false, error: propia ? "Sólo queda la tuya en borrador: la publica otra persona de Dirección o Administración. Nadie se liquida lo propio." : "No hay borradores para publicar en este mes." };
   await tenantTransaction(async (tx) => {
     await tx.proyectoLiquidacion.updateMany({ where: { tenantId: a.tenantId, periodo, estado: "BORRADOR", id: { in: borradores.map((b) => b.id) } }, data: { estado: "PUBLICADA", publicadaEl: new Date() } });
     await avisar(tx, {
@@ -450,7 +485,7 @@ export async function publicarBorradores(formData: FormData): Promise<Resultado<
   await auditAdmin({ action: "proyecto.liquidacion.publicar", entity: "ProyectoLiquidacion", entityId: periodo, changes: { cantidad: borradores.length } });
   revalidatePath(ADMIN);
   revalidatePath("/admin/proyectos/mi-liquidacion");
-  return { ok: true, publicadas: borradores.length };
+  return { ok: true, publicadas: borradores.length, salteada: propia?.persona.nombre ?? null };
 }
 
 /**
@@ -476,7 +511,7 @@ export async function pagarLiquidacion(formData: FormData): Promise<Resultado> {
     if (l.estado === "PAGADA") return { ok: false, error: "Esta liquidación ya está pagada." };
     if (l.estado !== "PUBLICADA") return { ok: false, error: "Primero publicala: se paga lo que la persona ya vio." };
     const ahora = new Date();
-    const hecho = await tenantTransaction(async (tx) => {
+    const hecho = await transaccionQueAsienta(async (tx) => {
       // El claim: dos clics o dos pestañas pagan una sola vez.
       const r = await tx.proyectoLiquidacion.updateMany({ where: { id, tenantId: a.tenantId, estado: "PUBLICADA" }, data: { estado: "PAGADA", pagadaEl: ahora, pagadaPor: a.nombre } });
       if (r.count === 0) return false;
@@ -486,17 +521,15 @@ export async function pagarLiquidacion(formData: FormData): Promise<Resultado> {
       if (!reintegrosCuadran(leerExtras(fila.extras), incluidas)) throw new Descuadre();
       if (l.total > 0) {
         const session = await tx.cashSession.findFirst({ where: { tenantId: a.tenantId, status: "OPEN" }, select: { id: true } });
-        await tx.cashMovement.create({
-          data: {
-            tenantId: a.tenantId,
-            sessionId: session?.id ?? null,
-            type: "EGRESO",
-            method: metodoDeCaja(medio, await transferenciaEnElLibroTx(tx)),
-            amount: redondear(l.total),
-            reason: `Liquidación ${etiquetaMes(l.periodo)} · ${l.persona.nombre}${medio === "CHEQUE" ? " · Cheque" : ""}`,
-            proyectoLiquidacionId: id,
-            createdBy: marcaDeGastoProyecto(`liquidacion-${id}`),
-          },
+        await asentarEnCajaTx(tx, "pago", {
+          tenantId: a.tenantId,
+          sessionId: session?.id ?? null,
+          type: "EGRESO",
+          method: metodoDeCaja(medio, await transferenciaEnElLibroTx(tx)),
+          amount: redondear(l.total),
+          reason: `Liquidación ${etiquetaMes(l.periodo)} · ${l.persona.nombre}${medio === "CHEQUE" ? " · Cheque" : ""}`,
+          proyectoLiquidacionId: id,
+          createdBy: marcaDeGastoProyecto(`liquidacion-${id}`),
         });
       }
       for (const f of incluidas) {
@@ -511,6 +544,7 @@ export async function pagarLiquidacion(formData: FormData): Promise<Resultado> {
     if (!hecho) return { ok: false, error: "Esta liquidación ya está pagada." };
   } catch (e) {
     if (e instanceof Descuadre) return { ok: false, error: DESCUADRE };
+    if (e instanceof PeriodoCerradoError) return { ok: false, error: e.message };
     if (faltaLaMigracion(e)) return { ok: false, error: SIN_MIGRACION };
     throw e;
   }
@@ -524,9 +558,10 @@ export async function pagarLiquidacion(formData: FormData): Promise<Resultado> {
 export async function borrarLiquidacion(formData: FormData): Promise<Resultado> {
   const a = await exigirEditar("liquidaciones");
   const id = txt(formData.get("id"));
-  const hecho = await tenantTransaction(async (tx) => {
-    const l = await tx.proyectoLiquidacion.findFirst({ where: { id, tenantId: a.tenantId, estado: "BORRADOR" }, select: { periodo: true, total: true } });
+  const hecho = await tenantTransaction(async (tx): Promise<boolean | "propia"> => {
+    const l = await tx.proyectoLiquidacion.findFirst({ where: { id, tenantId: a.tenantId, estado: "BORRADOR" }, select: { periodo: true, total: true, personaId: true, persona: { select: { userId: true } } } });
     if (!l) return false;
+    if (esLoPropio({ personaId: a.personaId, userId: a.user.id }, { personaId: l.personaId, userId: l.persona.userId })) return "propia";
     try {
       await tx.$executeRaw`SAVEPOINT rendi_liberar`;
       await tx.proyectoRendicion.updateMany({ where: { tenantId: a.tenantId, liquidacionId: id, reintegradoEl: null }, data: { liquidacionId: null } });
@@ -539,6 +574,7 @@ export async function borrarLiquidacion(formData: FormData): Promise<Resultado> 
     await registrarCambio(tx, { tenantId: a.tenantId, entidad: "liquidacion", entidadId: id, campo: `borrador ${l.periodo}`, antes: l.total, despues: "borrado", autor: a.nombre });
     return true;
   });
+  if (hecho === "propia") return { ok: false, error: LIQUIDACION_PROPIA };
   if (!hecho) return { ok: false, error: "Sólo se borra un borrador." };
   revalidatePath(ADMIN);
   return { ok: true };
@@ -560,6 +596,9 @@ export async function editarExtrasLiquidacion(d: { id: string; base?: string; ma
   if (manuales.some((m) => m.monto === 0)) return { ok: false, error: "Cada extra necesita un monto." };
   const pedida = d.base === undefined ? null : redondear(leerNumero(String(d.base)));
   if (pedida !== null && pedida < 0) return { ok: false, error: "La base no puede ser negativa." };
+  // G4: la persona de una liquidación no cambia; se mira antes de tomar la fila.
+  const de = await prisma.proyectoLiquidacion.findFirst({ where: { id, tenantId: a.tenantId }, select: { personaId: true, persona: { select: { userId: true } } } });
+  if (de && esLoPropio({ personaId: a.personaId, userId: a.user.id }, { personaId: de.personaId, userId: de.persona.userId })) return { ok: false, error: LIQUIDACION_PROPIA };
   const r = await tenantTransaction(async (tx): Promise<Resultado> => {
     const tomada = await tx.proyectoLiquidacion.updateMany({ where: { id, tenantId: a.tenantId, estado: "BORRADOR" }, data: { estado: "BORRADOR" } });
     if (tomada.count === 0) {

@@ -317,6 +317,27 @@ export function origenContable(m: FilaParaOrigen): OrigenContable {
   return clasificarOrigen(m).origen;
 }
 
+/** Las claves con que un asiento de caja apunta a lo que lo originó en Proyectos (schema: `CashMovement`). */
+export type OrigenProyecto = {
+  proyectoPagoId?: string | null;
+  proyectoGastoId?: string | null;
+  proyectoLiquidacionId?: string | null;
+  proyectoAnticipoId?: string | null;
+};
+
+function motivoDeProyecto(m: OrigenProyecto): string | null {
+  if (m.proyectoPagoId) {
+    return "Ese movimiento lo asentó un cobro de un proyecto (o su anulación). No se borra desde el libro: corregilo desde la ficha del proyecto, en Cobros (anular el cobro asienta la vuelta).";
+  }
+  if (m.proyectoGastoId) {
+    return "Ese movimiento lo asentó el pago de un gasto de un proyecto (o su anulación). No se borra desde el libro: corregilo desde la ficha del proyecto, en Gastos.";
+  }
+  if (m.proyectoLiquidacionId || m.proyectoAnticipoId) {
+    return "Ese movimiento lo asentó una liquidación o un anticipo de Rendiciones. No se borra desde el libro: corregilo desde Proyectos › Administración.";
+  }
+  return null;
+}
+
 // --- Qué NO se borra desde el libro ---
 //
 // Lo que escribió el SISTEMA no se borra desde el libro (dirección única: la venta, el cobro,
@@ -330,7 +351,12 @@ export function origenContable(m: FilaParaOrigen): OrigenContable {
  * mano y se puede. PURA: la usa `deleteLibroEntry` (libro-caja-actions.ts) antes de borrar; el
  * candado de día cerrado va aparte, porque depende de la frontera del cierre.
  */
-export function motivoParaNoBorrar(m: { type: CashMovementType; orderId?: string | null; createdBy?: string | null; tallerPagoId?: string | null }): string | null {
+export function motivoParaNoBorrar(m: { type: CashMovementType; orderId?: string | null; createdBy?: string | null; tallerPagoId?: string | null } & OrigenProyecto): string | null {
+  // A-06 (MIA-049, hallazgo 1): lo que nació en Proyectos (un cobro, su anulación, el pago de un gasto, de una
+  // liquidación o de un anticipo) lo reconoce la CLAVE del asiento, no la marca: la anulación de un cobro se firma
+  // con el usuario, y sin este candado su contraasiento era borrable y el cobro anulado dejaba la plata en caja.
+  const proyecto = motivoDeProyecto(m);
+  if (proyecto) return proyecto;
   // El Taller firma sus asientos con el usuario, así que no se lo reconoce por la marca: lo dice
   // `tallerPagoId`. Borrar la VENTA dejaría el cobro sin plata; borrar la reversa, la plata de un cobro anulado.
   if (m.tallerPagoId) {
@@ -424,7 +450,7 @@ export type FilaLedger = {
   tallerPagoId?: string | null;
   /** El pedido del asiento entró por la tienda (lo resuelve el loader con `pedidoDelAsiento`). */
   deLaTienda?: boolean;
-};
+} & OrigenProyecto;
 
 // --- Columnas de REFERENCIA que pueden faltar en la base ---
 //
@@ -497,11 +523,14 @@ export function origenDeFila(m: LibroMovement): OrigenContable {
  * De dónde salió una fila, para leer en pantalla. `libroOrigin` llama «manual» a todo lo que no es
  * una venta: una anulación o un faltante de arqueo no los cargó nadie a mano. PURA.
  */
-export function rotuloDeOrigen(m: { type: CashMovementType; origin?: LibroOrigin; origenContable?: OrigenContable; detail?: string | null; deLaTienda?: boolean }): string {
+export function rotuloDeOrigen(m: { type: CashMovementType; origin?: LibroOrigin; origenContable?: OrigenContable; detail?: string | null; deLaTienda?: boolean; borrable?: boolean }): string {
   if (m.origin === "pos" && m.deLaTienda) return ROTULO_PEDIDO_DE_LA_TIENDA.toLowerCase();
   if (m.origin === "turno" && esDetalleDeProyecto(m.detail)) return "cobro de proyecto";
   if (m.origin === "pos" || m.origin === "turno") return LIBRO_ORIGIN_LABEL[m.origin].toLowerCase();
   const origen = m.origenContable ?? origenContable({ type: m.type, origin: m.origin });
+  // A-06: lo que asentó Proyectos (la anulación de un cobro) no lo cargó nadie a mano y no se borra; uno tipeado a mano
+  // con el mismo texto sí se borra y sigue diciendo «cargado a mano».
+  if ((origen === "ingreso-manual" || origen === "egreso-manual") && m.borrable === false && /^(Anulación · )?Proyecto #[0-9]/.test(m.detail ?? "")) return "de un proyecto";
   if (origen === "ingreso-manual" || origen === "egreso-manual") return "cargado a mano";
   return ORIGEN_CONTABLE_LABEL[origen].toLowerCase();
 }

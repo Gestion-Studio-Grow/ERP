@@ -160,7 +160,7 @@ function Comprobante({ d, medios, palabras }: { d: Datos; medios: MedioDelCompro
       <p className="mt-3 text-sm text-muted">
         {d.reabrir?.puede
           ? `Si apareció algo de este día (${palabras.reabrirAviso}), podés reabrirlo, cargarlo y cerrarlo de nuevo.`
-          : `Un cierre no se rehace: si apareció algo, cargalo con fecha ${formatDayLabel(nextDayKey(d.lastClosedDay!))} y aclaralo en el detalle.`}
+          : <>Un cierre no se rehace: si apareció algo, <Link href={`/admin/caja/libro?mes=${nextDayKey(d.lastClosedDay!).slice(0, 7)}`} className="text-strong underline underline-offset-4">cargalo con fecha {formatDayLabel(nextDayKey(d.lastClosedDay!))}</Link> y aclaralo en el detalle.</>}
       </p>
       {d.reabrir?.puede && (
         <div className="mt-3">

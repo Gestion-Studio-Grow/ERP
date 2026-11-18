@@ -210,9 +210,21 @@ async function programarMails(d: { tenantId: string; tipo: string; texto: string
   }
 }
 
-/** La última versión del presupuesto es la ficha viva: de ahí salen planilla, cuotas y deadlines. */
+const CON_ITEMS = { items: { orderBy: { posicion: "asc" }, include: { supplier: { select: { id: true, name: true } } } } } as const;
+
+/** La última versión del presupuesto es la ficha viva: de ahí salen la planilla que se edita y los deadlines. */
 export async function versionViva(tenantId: string, proyectoId: string, db: Prisma.TransactionClient = prisma) {
-  return db.proyectoPresupuesto.findFirst({ where: { tenantId, proyectoId }, orderBy: { version: "desc" }, include: { items: { orderBy: { posicion: "asc" }, include: { supplier: { select: { id: true, name: true } } } } } });
+  return db.proyectoPresupuesto.findFirst({ where: { tenantId, proyectoId }, orderBy: { version: "desc" }, include: CON_ITEMS });
+}
+
+/**
+ * La versión de la que sale la PLATA (cuotas, tope y cabecera): la última aprobada. Un borrador abierto encima no mueve
+ * ninguna cuota hasta que se aprueba (P-06, MIA-049 hallazgo 2). Sin ninguna aprobada, la viva: el plan queda previsto
+ * como siempre (`cuotaPrevista`). El índice que garantiza una sola base aprobada llega con O10 (T06).
+ */
+export async function versionDeLaPlata(tenantId: string, proyectoId: string, db: Prisma.TransactionClient = prisma) {
+  const aprobada = await db.proyectoPresupuesto.findFirst({ where: { tenantId, proyectoId, estado: "APROBADO" }, orderBy: { version: "desc" }, include: CON_ITEMS });
+  return aprobada ?? versionViva(tenantId, proyectoId, db);
 }
 
 export const aItemFicha = (i: { id: string; descripcion: string; rubro: string; cantidad: number; costo: number; moneda: string; recargoPct: number | null; precio: number; fechaLimite: Date | null; supplierId: string | null }): ItemFicha => ({
@@ -248,7 +260,7 @@ export async function regenerarCuotas(tenantId: string, proyectoId: string): Pro
       await trabarCobranza(tx, tenantId, proyectoId);
       const [p, viva, config, tc] = await Promise.all([
         tx.proyecto.findFirst({ where: { id: proyectoId, tenantId }, select: { id: true, nombre: true, moneda: true, etapa: true, fechaEvento: true, createdAt: true, anticipoClientePct: true, perdidoEl: true } }),
-        versionViva(tenantId, proyectoId, tx),
+        versionDeLaPlata(tenantId, proyectoId, tx),
         configProyectos(tenantId, tx),
         tiposDeCambio(tenantId, tx),
       ]);

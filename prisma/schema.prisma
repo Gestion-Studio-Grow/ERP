@@ -293,6 +293,9 @@ model Tenant {
   mensajesCuadrilla         MensajeCuadrilla[]
   pedidosCuadrilla          PedidoCuadrilla[]
   proyectoConfig            ProyectoConfig?
+  proyectoParametros        ProyectoParametro[]
+  proyectoParametroHist     ProyectoParametroHistorial[]
+  proyectoVistas            ProyectoVista[]
   inmoPropiedades           InmoPropiedad[] // módulo inmobiliaria
   inmoFotos                 InmoFoto[]
   serviceDetails            ServiceDetail[]
@@ -4249,6 +4252,65 @@ model ProyectoPermiso {
   columnasOcultas Json?
 
   @@unique([tenantId, rol, modulo])
+}
+
+// ── M7a (MIA T03): parámetros del módulo por negocio y vistas guardadas. Sin fila rige el valor del rubro
+// (src/lib/proyectos/parametros/catalogo.ts). Cada tabla con tenantId, política por negocio y RLS forzada. ──
+
+model ProyectoParametro {
+  id                String   @id @default(cuid())
+  tenant            Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId          String
+  /// Clave del catálogo (`parametros/catalogo.ts`); una clave que el catálogo no conoce no se lee.
+  clave             String
+  valor             Json
+  /// Valor a confirmar: la marca vive en la base, no sólo en el texto de la pantalla.
+  provisional       Boolean  @default(false)
+  actualizadoPor    String
+  actualizadoNombre String
+  actualizadoEl     DateTime @default(now())
+
+  @@unique([tenantId, clave])
+}
+
+/// Un renglón por cambio: antes y después. Volver al valor del rubro también deja renglón (`despues` nulo).
+model ProyectoParametroHistorial {
+  id                 String   @id @default(cuid())
+  tenant             Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId           String
+  clave              String
+  antes              Json?
+  despues            Json?
+  provisionalAntes   Boolean?
+  provisionalDespues Boolean?
+  autorId            String
+  autorNombre        String
+  createdAt          DateTime @default(now())
+
+  @@index([tenantId, clave, createdAt])
+  @@index([tenantId, createdAt])
+}
+
+/// Vista guardada de una lista: columnas, filtros, agrupación y orden. De una persona (`propietario` = userId) o de un
+/// rol (`propietario` = rol, la define Dirección). El permiso de columnas se aplica al leer, nunca se confía en la vista.
+model ProyectoVista {
+  id          String   @id @default(cuid())
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId    String
+  lista       String
+  nombre      String
+  alcance     String
+  propietario String
+  columnas    Json
+  filtros     Json
+  agrupacion  String?
+  orden       Json?
+  creadaPor   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([tenantId, lista, alcance, propietario, nombre])
+  @@index([tenantId, lista])
 }
 
 model ProyectoCambio {

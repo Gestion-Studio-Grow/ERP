@@ -66,3 +66,11 @@ test("UAT-008: pago parcial, saldo que cambió (sin asentar nada, con la causa) 
   assert.match(vieja, /entró otro cobro o cambió el plan de cuotas mientras tanto/, "sin saber la causa, no afirma una sola (el plan también mueve el saldo)");
   assert.match(listoAnulado(true, 300), /^Listo: cobro de \$\s?300 anulado/);
 });
+
+test("P-06 · «Marcar cobrado» por menos que la cuota lo dice con la diferencia; por el total, no agrega nada", () => {
+  // A mano: cuota de $ 605 que cobra $ 595 → faltan $ 10.
+  const menos = nbsp(listoMarcada(true, 595, { monto: 605, cobra: 595, moneda: "ARS" }));
+  assert.match(menos, /^Listo: cuota marcada como cobrada \(\$ 595\)\. La cuota era de \$ 605: los \$ 10 restantes no se cobraron/);
+  assert.equal(nbsp(listoMarcada(true, 605, { monto: 605, cobra: 605, moneda: "ARS" })), "Listo: cuota marcada como cobrada ($ 605).");
+  assert.equal(nbsp(listoMarcada(false, 100, { monto: 200, cobra: 100, moneda: "ARS" })), "Listo: cuota marcada como pagada ($ 100).", "un pago no lleva la aclaración");
+});

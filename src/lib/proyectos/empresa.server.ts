@@ -162,7 +162,7 @@ export async function liquidacionesDelPeriodo(tenantId: string, periodo: string)
   return prisma.proyectoLiquidacion.findMany({
     where: { tenantId, periodo },
     orderBy: { persona: { nombre: "asc" } },
-    select: { id: true, periodo: true, base: true, extras: true, total: true, facturaA: true, estado: true, publicadaEl: true, vistaEl: true, persona: { select: { nombre: true, puesto: true } } },
+    select: { id: true, periodo: true, base: true, extras: true, total: true, facturaA: true, estado: true, publicadaEl: true, vistaEl: true, personaId: true, persona: { select: { nombre: true, puesto: true, userId: true } } },
   });
 }
 

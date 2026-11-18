@@ -4,7 +4,7 @@ import { requireApp } from "@/lib/require-app";
 import { appPorId } from "@/apps/registro";
 import { motivoNoDisponible } from "@/apps/visibles";
 import { getNegocioApps } from "@/apps/contexto.server";
-import { actorActual, puede } from "@/lib/proyectos/gestion.server";
+import { actorActual, columnasOcultas, puede } from "@/lib/proyectos/gestion.server";
 import { faltaCambio, recuadrosDeCuotas } from "@/lib/proyectos/empresa.server";
 import { pesos } from "@/lib/proyectos/core";
 import { TabCuentas } from "./_cuentas";
@@ -24,7 +24,7 @@ const DE_EMPRESA = [
   { id: "monedas", label: "Monedas y gastos fijos" },
 ] as const;
 
-type Busqueda = { tab?: string; estado?: string; q?: string; mes?: string };
+type Busqueda = { tab?: string; estado?: string; q?: string; mes?: string; vista?: string; guardada?: string };
 
 export default async function Administracion({ searchParams }: { searchParams: Promise<Busqueda> }) {
   const user = await requireApp("gestion-administracion");
@@ -63,8 +63,13 @@ export default async function Administracion({ searchParams }: { searchParams: P
             }
           />
           <KpiTile label="Cobros vencidos" value={pesos(datos.resumen.cobrosVencidos)} sub={datos.resumen.cantCobrosVencidos === 1 ? "1 cobro" : `${datos.resumen.cantCobrosVencidos} cobros`} />
-          <KpiTile label="A pagar" value={pesos(datos.resumen.aPagar)} sub={`${pesos(datos.resumen.aPagar7)} en 7 días`} />
-          <KpiTile label="Pagos vencidos" value={pesos(datos.resumen.pagosVencidos)} sub={datos.resumen.cantPagosVencidos === 1 ? "1 pago" : `${datos.resumen.cantPagosVencidos} pagos`} />
+          {/* Lo que se paga es costo: el rol que no ve el costo tampoco ve sus totales (igual que las columnas de A pagar, O46). */}
+          {!columnasOcultas(a).includes("costoTotal") && (
+            <>
+              <KpiTile label="A pagar" value={pesos(datos.resumen.aPagar)} sub={`${pesos(datos.resumen.aPagar7)} en 7 días`} />
+              <KpiTile label="Pagos vencidos" value={pesos(datos.resumen.pagosVencidos)} sub={datos.resumen.cantPagosVencidos === 1 ? "1 pago" : `${datos.resumen.cantPagosVencidos} pagos`} />
+            </>
+          )}
         </div>
       )}
       {datos && faltaCambio(datos.tc, datos.cuotas.filter((c) => !c.pagadoEl)) && (
@@ -72,12 +77,12 @@ export default async function Administracion({ searchParams }: { searchParams: P
       )}
       <Pestanas pestanas={pestanas} etiqueta="Vistas de Administración" conRaya className="mb-4" />
       {(tab === "cobrar" || tab === "pagar") && datos && (
-        <TabCuentas tipo={tab === "cobrar" ? "COBRO" : "PAGO"} estado={sp.estado} q={sp.q} cuotas={datos.cuotas} sinCalendario={tab === "cobrar" ? datos.sinCalendario : []} tc={datos.tc} tenantId={a.tenantId} editaEmpresa={editaEmpresa} editaPagos={editaPagos} veClientes={veClientes} />
+        <TabCuentas tipo={tab === "cobrar" ? "COBRO" : "PAGO"} estado={sp.estado} q={sp.q} vista={sp.vista} guardada={sp.guardada === "1"} cuotas={datos.cuotas} sinCalendario={tab === "cobrar" ? datos.sinCalendario : []} tc={datos.tc} tenantId={a.tenantId} editaEmpresa={editaEmpresa} editaPagos={editaPagos} veClientes={veClientes} />
       )}
       {tab === "cashflow" && <TabCashflow tenantId={a.tenantId} />}
       {tab === "bancos" && <TabBancos tenantId={a.tenantId} editaEmpresa={editaEmpresa} editaPagos={editaPagos} />}
       {tab === "monedas" && <TabMonedas tenantId={a.tenantId} editaEmpresa={editaEmpresa} />}
-      {tab === "liquidaciones" && <TabLiquidaciones tenantId={a.tenantId} mes={sp.mes} edita={puede(a, "liquidaciones", "editar")} paga={a.rol === "DIRECCION" || a.rol === "ADMINISTRACION"} />}
+      {tab === "liquidaciones" && <TabLiquidaciones tenantId={a.tenantId} mes={sp.mes} edita={puede(a, "liquidaciones", "editar")} paga={a.rol === "DIRECCION" || a.rol === "ADMINISTRACION"} yo={{ personaId: a.personaId, userId: a.user.id }} />}
     </main>
   );
 }
