@@ -14,6 +14,7 @@ import { cambiosEntreVersiones, cambioDeVenta, estadoCuota, MONEDAS, plataEn, to
 import { datosCotizacion, datosFinanzas, type Cabecera, type Vista } from "@/lib/proyectos/ficha.server";
 import { veLaPlata } from "@/lib/proyectos/datos.server";
 import { textoPagado } from "@/lib/proyectos/cobranza-core";
+import { ofreceNuevaVersion } from "@/lib/proyectos/presupuesto-vista-core";
 import { textoCubierta } from "@/lib/proyectos/avisos-cuota";
 import { nombreDelComprobante } from "@/lib/factura-de-prueba";
 import type { Actor } from "@/lib/proyectos/gestion.server";
@@ -62,8 +63,9 @@ export async function PestanaCotizacion({ a, cab, vista, ver, cambios }: { a: Ac
                 {hayBorrador && viva.id !== baseAprobada.id && <span className="text-muted"> · la v{viva.version} es un borrador y no mueve plata</span>}
               </p>
             )}
+            {baseAprobada && vista.editaCotizaciones && <p className="text-sm text-muted">No se abre otra versión: un cambio va como adicional, más abajo.</p>}
           </div>
-          {vista.editaCotizaciones && !hayBorrador && (
+          {vista.editaCotizaciones && ofreceNuevaVersion({ baseAprobada: !!baseAprobada, hayBorrador }) && (
             <FormAccion accion={nuevaVersion} className="flex flex-wrap items-center gap-2">
               <input type="hidden" name="proyectoId" value={p.id} />
               <input name="nota" maxLength={300} aria-label="Nota de la versión" placeholder="Qué cambia" className={cn(campoEnLinea, "flex-1")} />

@@ -5,9 +5,9 @@ import { prisma } from "@/lib/prisma";
 import { Badge, buttonClasses, cn } from "@/components/ui";
 import SubmitButton from "@/components/SubmitButton";
 import { agregarLineaAdicional, aprobarAdicionalInterno, borrarLineaAdicional, crearAdicional, enviarAdicional, guardarAnticipoLinea, guardarLineaDetalle, marcarPrevision, responderAdicional } from "@/lib/proyectos/acciones-presupuesto";
-import { fechaCorta, pesos, porcentaje } from "@/lib/proyectos/core";
-import { plataEn } from "@/lib/proyectos/gestion-core";
+import { fechaCorta, porcentaje } from "@/lib/proyectos/core";
 import { parametrosDelNegocio } from "@/lib/proyectos/parametros/leer.server";
+import { importe } from "@/lib/proyectos/presupuesto-vista-core";
 import { anticipoDeLaLinea, cantidadDeLaLinea, ESTADO_ADICIONAL_LABEL, subtotalCentavos, totalesDelAdicional } from "@/lib/proyectos/presupuesto-core";
 import { adicionalesDelProyecto, detallesDeLineas, estadosDePrevision, hayM2 } from "@/lib/proyectos/presupuesto-m2.server";
 import type { Actor } from "@/lib/proyectos/gestion.server";
@@ -26,11 +26,6 @@ interface Linea {
   supplierId: string | null;
 }
 
-// V3: un solo helper de plata. Misma regla que `importe` de `../_tabla` (rama de T02): en pesos, `pesos` (core); en otra
-// moneda, `plataEn`. Al integrar la ola, esta copia se cambia por el import de `../_tabla` (anotado en el PR).
-function importe(monto: number, moneda = "ARS"): string {
-  return moneda === "ARS" ? pesos(monto) : plataEn(monto, moneda);
-}
 const centavos = (n: number) => importe(n / 100);
 
 /** «(provisional a confirmar)» al lado de lo que todavía es un valor del rubro sin confirmar con el negocio (R8). */

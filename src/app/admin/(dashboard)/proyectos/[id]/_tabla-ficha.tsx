@@ -9,6 +9,7 @@ import { agregarItemFicha, borrarItemFicha, guardarCampoItem } from "@/lib/proye
 import { pesos, porRubro } from "@/lib/proyectos/core";
 import { enMonedaDeVenta, ESTADOS_ITEM, ESTADO_ITEM_LABEL, MONEDAS, RUBROS, ventaEn } from "@/lib/proyectos/gestion-core";
 import type { FilaFicha } from "@/lib/proyectos/ficha-core";
+import { textoCostoUnitario } from "@/lib/proyectos/presupuesto-vista-core";
 import { campo } from "../_vista";
 import { AdjuntosItem } from "./_adjuntos-item";
 import { FormAccion } from "./_cliente";
@@ -180,7 +181,7 @@ export function TablaFicha({
                         <td className="py-2 pr-2">{i.descripcion}</td>
                         <td className="py-2 pr-2">{i.proveedorTexto ?? "—"}</td>
                         <td className="py-2 pr-2 tabular-nums">{i.cantidad.toLocaleString("es-AR")}</td>
-                        {columnas.costoUnit && <td className="py-2 pr-2 tabular-nums">{(i.costo ?? 0).toLocaleString("es-AR")}</td>}
+                        {columnas.costoUnit && <td className="py-2 pr-2 tabular-nums">{textoCostoUnitario(i.costo, i.moneda)}</td>}
                         {columnas.costoUnit && <td className="py-2 pr-2">{i.moneda}</td>}
                         {columnas.recargo && <td className="py-2 pr-2 tabular-nums">{i.recargoPct ?? "—"}</td>}
                         {columnas.costoTotal && <td className="py-2 pr-2 text-right tabular-nums">{venta(i.costoTotal ?? 0)}</td>}
