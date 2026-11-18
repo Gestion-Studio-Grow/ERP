@@ -336,6 +336,17 @@ test("el anticipo del cliente vence al confirmar y queda fijo; una fecha a mano 
   assert.equal(venceDeLaCuota({ clave: "p:i:saldo", plan, prevista: false, hoy, previa: { venceEl: antes, venceManual: true, prevista: false } }), antes);
 });
 
+test("MIA-094 · V1: una cuota firme que el plan vuelve a pedir como previsión (fecha del evento borrada, vuelta a Lead) conserva su vencimiento", () => {
+  const plan = new Date("2026-01-01T12:00:00Z");
+  const hoy = new Date("2026-03-01T12:00:00Z");
+  const firme = { venceEl: new Date("2026-10-26T12:00:00Z"), venceManual: false, prevista: false };
+  // `prevista` es lo que pide el plan; la cuota ya fue firme: no se corre a la fecha del plan.
+  for (const clave of ["p:cliente:saldo", "p:i:saldo", "p:cliente:anticipo"]) assert.equal(venceDeLaCuota({ clave, plan, prevista: true, hoy, previa: firme }), firme.venceEl, clave);
+  // Una previsión que nunca fue firme sigue al plan, y una firme con el plan firme también (el evento se movió).
+  assert.equal(venceDeLaCuota({ clave: "p:cliente:saldo", plan, prevista: true, hoy, previa: { ...firme, prevista: true } }), plan);
+  assert.equal(venceDeLaCuota({ clave: "p:cliente:saldo", plan, prevista: false, hoy, previa: firme }), plan);
+});
+
 test("el costo sin proveedor se cuenta en pesos, y lo que tiene proveedor no", () => {
   const items = [
     { costo: 100, cantidad: 2, moneda: "ARS", supplierId: null },

@@ -166,12 +166,17 @@ export const previstaDeLaCuota = (prevista: boolean, previa?: { prevista: boolea
 
 /**
  * De cuándo es la cuota. Una fecha corregida a mano no se pisa. El anticipo del cliente vence el día que se confirma, no el
- * día que entró el lead (naceria vencido), y después queda fijo. PURA.
+ * día que entró el lead (naceria vencido), y después queda fijo. `prevista` es lo que pide el PLAN: una cuota que ya fue
+ * firme y que el plan vuelve a pedir como previsión (el proyecto volvió a Lead o se quedó sin fecha) conserva su
+ * vencimiento (MIA-089 · V1, tomado del WIP de MIA-089 por MIA-094; provisional a confirmar por el dueño). PURA.
  */
 export function venceDeLaCuota(d: { clave: string; plan: Date; prevista: boolean; hoy: Date; previa?: { venceEl: Date; venceManual: boolean; prevista: boolean } }): Date {
   if (d.previa?.venceManual) return d.previa.venceEl;
-  if (!d.clave.endsWith(":cliente:anticipo") || d.prevista) return d.plan;
-  return d.previa && !d.previa.prevista ? d.previa.venceEl : d.hoy;
+  const firme = !!d.previa && !d.previa.prevista;
+  const sena = d.clave.endsWith(":cliente:anticipo");
+  if (firme && (d.prevista || sena)) return d.previa!.venceEl;
+  if (!sena || d.prevista) return d.plan;
+  return d.hoy;
 }
 
 /** Lo que el cashflow no ve: un ítem con costo y sin proveedor no genera pago, y el saldo queda mejor de lo real. En pesos. PURA. */

@@ -332,7 +332,7 @@ async function aplicarPlan(tx: Prisma.TransactionClient, tenantId: string, proye
       concepto: c.concepto,
       monto: c.monto,
       moneda: c.moneda,
-      venceEl: venceDeLaCuota({ clave: c.clave, plan: c.venceEl, prevista: laPrevista, hoy, previa }),
+      venceEl: venceDeLaCuota({ clave: c.clave, plan: c.venceEl, prevista, hoy, previa }),
       supplierId: c.supplierId,
       anuladoEl: null,
       ...(saldada && { pagadoEl: hoy, pagadoPor: SALDADA_CON_PARTES }),
