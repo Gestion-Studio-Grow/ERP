@@ -11,6 +11,7 @@
 //  V7  el mismo envío dos veces (o diez a la vez) deja una sola cuota; dos cuotas iguales de envíos distintos, dos.
 //  V8a cambiar el tipo de cambio no cambia nada de lo ya cobrado.
 //  ADV-7 (MIA-107) un cobro cargado a mano en Pedido o Presupuesto, y después perdido, no queda pendiente en Administración.
+//  MIA-111 Bancos, con un depósito del mismo importe que el cobro de un perdido: no lo propone ni ofrece «Marcar cobrada».
 // Las fechas son fijas (26/10/2026): el resultado no depende del reloj.
 // ============================================================================
 
@@ -22,7 +23,7 @@ import { apuntarLaAppA, baseEfimeraDelArchivo, prismaComoDuenio, type BaseEfimer
 import { ETAPAS } from "./core";
 import { generaCuotas } from "./gestion-core";
 import { PERDIDO_NO_COBRA } from "./ficha-core";
-import { pasaFiltro } from "./empresa-core";
+import { ofreceMarcarConciliada, pasaFiltro, propuestasDeConciliacion } from "./empresa-core";
 
 const laBase = baseEfimeraDelArchivo();
 const DIA = 86_400_000;
@@ -705,4 +706,50 @@ test("ADV-7 (MIA-107) · un cobro cargado a mano en Pedido o en Presupuesto y de
     assert.equal(await cobrosDelMes(), cajaAntes - 200, `${etapa}: el cashflow de la empresa deja de esperar esos $ 200`);
     assert.equal((await p.marcar(cuota.id)).ok, false, `${etapa}: el servidor no la marca`);
   }
+});
+
+test("MIA-111 · Bancos con el cobro de un perdido: no lo propone ni lo deja elegir para un depósito del mismo importe, y el ya conciliado no ofrece «Marcar cobrada» (ADV-7, decisión 2 = A, provisional a confirmar por el dueño)", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const { datosDeBancos } = await import("./empresa.server");
+  const id = await p.proyecto("PEDIDO");
+  // Importes que no usa otro test del archivo: la propuesta sale por importe.
+  const cuotaDe = async (concepto: string, monto: number): Promise<string> => {
+    const r: { ok: boolean } = await p.enSesion(() => p.ficha.crearMovimientoManual(p.form({ proyectoId: id, tipo: "COBRO", concepto, monto: String(monto), moneda: "ARS", venceEl: "2026-10-26" })));
+    assert.equal(r.ok, true, `el cobro a mano se carga: ${JSON.stringify(r)}`);
+    return (await p.duenio.proyectoCuota.findFirstOrThrow({ where: { proyectoId: id, concepto }, select: { id: true } })).id;
+  };
+  const libre = await cuotaDe("Seña banco libre", 431);
+  const atada = await cuotaDe("Seña banco atada", 432);
+  const cuenta = (await p.duenio.proyectoCuentaBanco.create({ data: { tenantId: p.a.id, nombre: "Banco 111", moneda: "ARS", saldo: 0 }, select: { id: true } })).id;
+  const deposito = async (importe: number): Promise<string> =>
+    (await p.duenio.proyectoMovBanco.create({ data: { tenantId: p.a.id, cuentaId: cuenta, fecha: new Date("2026-10-26T12:00:00Z"), descripcion: `Transferencia ${importe}`, importe }, select: { id: true } })).id;
+  const movLibre = await deposito(431);
+  const movAtado = await deposito(432);
+  // Antes de perder: se concilia como cualquier cobro (así queda un depósito ya atado cuando se pierde).
+  const conciliado: { ok: boolean } = await p.enSesion(() => p.empresa.conciliarMovimiento(p.form({ id: movAtado, cuotaId: atada })));
+  assert.equal(conciliado.ok, true, JSON.stringify(conciliado));
+  type Bancos = Awaited<ReturnType<typeof datosDeBancos>>;
+  const bancos = (): Promise<Bancos> => p.enSesion(() => datosDeBancos(p.a.id));
+  const propuestaPara = (b: Bancos, movId: string) => propuestasDeConciliacion(b.movimientos.filter((m) => !m.cuotaId), b.candidatas, b.tc).get(movId)?.id;
+  const ofrece = (b: Bancos) => {
+    const cuota = b.movimientos.find((m) => m.id === movAtado)?.cuota;
+    assert.ok(cuota, "el depósito atado sigue atado");
+    return ofreceMarcarConciliada(cuota, { editaPagos: true, editaEmpresa: true });
+  };
+  const antes = await bancos();
+  assert.equal(propuestaPara(antes, movLibre), libre, "antes de perder, el depósito de $ 431 propone su cobro");
+  assert.equal(ofrece(antes), true, "antes de perder, el atado ofrece «Marcar cobrada»");
+
+  assert.equal((await p.mover(id, "PERDIDO", "Eligió otro proveedor")).ok, true);
+  const despues = await bancos();
+  assert.equal(propuestaPara(despues, movLibre), undefined, "perdido: el depósito no propone el cobro del perdido");
+  assert.equal(despues.candidatas.filter((c) => c.proyectoId === id && c.tipo === "COBRO").length, 0, "perdido: sus cobros no están para elegir a mano");
+  assert.equal(ofrece(despues), false, "perdido: el depósito atado no ofrece «Marcar cobrada»");
+  assert.equal((await p.marcar(atada)).ok, false, "y el servidor no la marca (ADV-7)");
+
+  assert.equal((await p.mover(id, "PEDIDO")).ok, true, "reabrir");
+  const reabierto = await bancos();
+  assert.equal(propuestaPara(reabierto, movLibre), libre, "reabierto: vuelve a proponerlo");
+  assert.equal(ofrece(reabierto), true, "reabierto: vuelve a ofrecer «Marcar cobrada»");
 });

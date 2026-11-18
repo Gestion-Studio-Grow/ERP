@@ -264,6 +264,17 @@ export function lineasNuevas<T extends { fecha: Date; descripcion: string; impor
   });
 }
 
+/**
+ * Bancos (`_bancos.tsx`): un movimiento ya conciliado ofrece «Marcar cobrada» o «Marcar pagada» sólo si su cuota sigue
+ * por marcar y quien mira puede: las de un proyecto con «Pagos» y las de la empresa con «Empresa». PURA.
+ */
+export function ofreceMarcarConciliada(
+  cuota: { pagadoEl: Date | null; anuladoEl: Date | null; proyectoId: string | null; noSeCobra?: boolean },
+  permisos: { editaPagos: boolean; editaEmpresa: boolean },
+): boolean {
+  return !cuota.pagadoEl && !cuota.anuladoEl && (cuota.proyectoId ? permisos.editaPagos : permisos.editaEmpresa);
+}
+
 /** Una cuota por movimiento: dos movimientos iguales no se proponen contra la misma. */
 export function propuestasDeConciliacion<T extends CuotaLeida & { id: string }>(movimientos: readonly (LineaExtracto & { id: string })[], cuotas: readonly T[], tc: Readonly<Record<string, number>>): Map<string, T> {
   const libres = [...cuotas];

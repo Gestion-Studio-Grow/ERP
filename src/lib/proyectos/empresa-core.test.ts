@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { alertasDeDireccion, conReintegros, desviosDelEvento, extrasRecalculados, finDeSemana, leerExtras, lineasNuevas, margenSobreVenta, pasaFiltro, periodoValido, propuestasDeConciliacion, reintegrosCuadran, respuestaDeCarga, tasaDeConversion, totalLiquidacion } from "./empresa-core";
+import { alertasDeDireccion, conReintegros, desviosDelEvento, extrasRecalculados, finDeSemana, leerExtras, lineasNuevas, margenSobreVenta, ofreceMarcarConciliada, pasaFiltro, periodoValido, propuestasDeConciliacion, reintegrosCuadran, respuestaDeCarga, tasaDeConversion, totalLiquidacion } from "./empresa-core";
 
 const item = (id: string, rubro: string, costo: number, costoReal: number | null = null) => ({ id, descripcion: id, rubro, cantidad: 1, costo, moneda: "ARS", costoReal, proveedor: null });
 
@@ -107,6 +107,18 @@ test("dos movimientos iguales no se proponen contra la misma cuota", () => {
   assert.equal(new Set([p.get("1")?.id, p.get("2")?.id]).size, 2);
   assert.equal(p.has("3"), false);
   assert.equal(propuestasDeConciliacion([m("1", -100)], [c("a")], {}).size, 0);
+});
+
+test("MIA-111 · Bancos: un movimiento conciliado con el cobro de un perdido no ofrece «Marcar cobrada»; el resto sigue igual", () => {
+  const todo = { editaPagos: true, editaEmpresa: true };
+  const cobro = { pagadoEl: null, anuladoEl: null, proyectoId: "p1" };
+  assert.equal(ofreceMarcarConciliada(cobro, todo), true, "un cobro por marcar, con permiso, se ofrece");
+  assert.equal(ofreceMarcarConciliada({ ...cobro, noSeCobra: true }, todo), false, "el cobro de un perdido no se ofrece (ADV-7, `perdidoAdmite`)");
+  assert.equal(ofreceMarcarConciliada({ ...cobro, noSeCobra: false }, todo), true);
+  assert.equal(ofreceMarcarConciliada({ ...cobro, pagadoEl: new Date(2026, 10, 1) }, todo), false, "ya marcada");
+  assert.equal(ofreceMarcarConciliada({ ...cobro, anuladoEl: new Date(2026, 10, 1) }, todo), false, "anulada");
+  assert.equal(ofreceMarcarConciliada(cobro, { editaPagos: false, editaEmpresa: true }), false, "la de un proyecto pide «Pagos»");
+  assert.equal(ofreceMarcarConciliada({ ...cobro, proyectoId: null }, { editaPagos: false, editaEmpresa: true }), true, "la de la empresa pide «Empresa»");
 });
 
 test("Rendí: los reintegros se rehacen desde la base, uno por gasto, y sobreviven a leerExtras", () => {

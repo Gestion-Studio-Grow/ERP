@@ -1,7 +1,7 @@
 import { cn } from "@/components/ui";
 import { fechaCorta } from "@/lib/proyectos/core";
 import { aPesos, plataEn } from "@/lib/proyectos/gestion-core";
-import { propuestasDeConciliacion } from "@/lib/proyectos/empresa-core";
+import { ofreceMarcarConciliada, propuestasDeConciliacion } from "@/lib/proyectos/empresa-core";
 import { datosDeBancos } from "@/lib/proyectos/empresa.server";
 import { conciliarMovimiento, crearCuenta, desconciliarMovimiento, guardarSaldo } from "@/lib/proyectos/acciones-empresa";
 import { campo, etiqueta, tarjeta } from "../_vista";
@@ -94,7 +94,7 @@ export async function TabBancos({ tenantId, editaEmpresa, editaPagos }: { tenant
               {movimientos.map((m) => {
                 const propuesta = propuestas.get(m.id);
                 const cuota = m.cuota;
-                const puedeMarcar = cuota && !cuota.pagadoEl && !cuota.anuladoEl && (cuota.proyectoId ? editaPagos : editaEmpresa);
+                const puedeMarcar = cuota && ofreceMarcarConciliada(cuota, { editaPagos, editaEmpresa });
                 return (
                   <tr key={m.id} className="border-t border-line align-top">
                     <td className="whitespace-nowrap py-2 pr-3">{fechaCorta(m.fecha)}</td>
