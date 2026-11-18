@@ -319,7 +319,7 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
                               {cuentas.length > 0 && (
                                 <select name="cuenta" aria-label={`Cuenta de ${c.concepto}`} defaultValue="" required className={campoEnLinea}>
                                   <option value="" disabled>Elegí la cuenta</option>
-                                  <option value="ninguna">No mueve ninguna cuenta</option>
+                                  <option value="ninguna">Ninguna cuenta del banco: va sólo al libro de caja</option>
                                   {cuentas.map((x) => <option key={x.id} value={x.id}>{x.nombre} ({x.moneda})</option>)}
                                 </select>
                               )}

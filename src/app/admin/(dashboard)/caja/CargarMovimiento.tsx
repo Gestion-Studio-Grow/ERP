@@ -19,7 +19,10 @@ export function CargarMovimiento({
   mes,
   variante = "outline",
   esMostrador = false,
+  etiqueta = "Cargar un gasto o retiro",
 }: {
+  /** El texto de la tecla (M3: con el día cerrado dice con qué fecha se carga). */
+  etiqueta?: string;
   /** Un mostrador no tiene turnos de agenda: no se le habla de ellos. */
   esMostrador?: boolean;
   /** La fecha que propone el alta (un día abierto). */
@@ -32,7 +35,7 @@ export function CargarMovimiento({
   return (
     <>
       <Button variant={variante} onClick={() => setAbierto(true)}>
-        Cargar un gasto o retiro
+        {etiqueta}
       </Button>
       {abierto && (
         <Cajon

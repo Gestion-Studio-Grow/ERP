@@ -104,7 +104,7 @@ function ElegirCuenta() {
   return (
     <select name="cuenta" aria-label="Cuenta que se mueve" defaultValue="" required className={campo}>
       <option value="" disabled>Elegí la cuenta</option>
-      <option value="ninguna">No mueve ninguna cuenta</option>
+      <option value="ninguna">Ninguna cuenta del banco: va sólo al libro de caja</option>
       {cuentas.map((c) => <option key={c.id} value={c.id}>{c.nombre} ({c.moneda})</option>)}
     </select>
   );

@@ -162,8 +162,11 @@ export default async function CierreCajaPage({
             <CardTitle>Cerrado</CardTitle>
             <CardDescription>
               El {formatDayLabel(day)} se cerró el {fmtDateTime(registro.cerradoEl)} por {registro.quien}.
-              Un cierre no se rehace: si apareció algo, cargalo con fecha{" "}
-              {formatDayLabel(nextDayKey(lastClosedDay!))} y aclaralo en el detalle.
+              Un cierre no se rehace: si apareció algo,{" "}
+              <Link href={`/admin/caja/libro?mes=${nextDayKey(lastClosedDay!).slice(0, 7)}`} className="text-strong underline underline-offset-4">
+                cargalo con fecha {formatDayLabel(nextDayKey(lastClosedDay!))}
+              </Link>{" "}
+              y aclaralo en el detalle.
             </CardDescription>
           </CardHeader>
           <div className="flex flex-col gap-1 px-4 pb-4 text-sm">
