@@ -14,6 +14,11 @@ import type { Prisma } from "@/generated/prisma/client";
 import { enviarMailInterno, mailConectado } from "@/lib/notifications";
 import { datosDelNegocio } from "./datos.server";
 import { avisar } from "./gestion.server";
+import { esNegocioArm } from "@/lib/crm-comercial/arm";
+import { ANCLA_CONSULTAS_SIN_OPORTUNIDAD, oportunidadDesdeConsulta } from "@/lib/crm-comercial/repo";
+import { interruptoresDe } from "@/cambios/interruptores.server";
+import { crmComercialPrendido } from "@/cambios/interruptores";
+import { logger } from "@/lib/logger";
 import { acotarEntrante, acuseDeRecibo, acuseSinPreguntas, armarPreguntas, clasificarConsulta, emailValido, normalizarTelefonoAR, respuestaAutomatica, revisarRespuesta, tipoEventoDeTexto, type BriefConsulta, type Canal } from "./consulta-core";
 
 export type EnvioConsulta = "ENVIADO" | "SIMULADO" | "FALLIDO" | "BORRADOR";
@@ -105,21 +110,36 @@ export async function registrarConsulta(d: EntradaConsulta): Promise<ResultadoRe
     console.error("[consultas] no se pudo registrar el acuse", e instanceof Error ? e.message : e);
   }
 
+  // GSG-CRM-017 (V8): en un ARM, de esta misma consulta (ya clasificada) nace la oportunidad del CRM: una sola puerta.
+  // Si falla, la consulta queda igual y una persona la ve.
+  let enlace = `/admin/proyectos/consultas/${creada.id}`;
+  try {
+    const t = await basePrisma.tenant.findUnique({ where: { id: tenantId }, select: { blueprintId: true } });
+    if (esNegocioArm(t?.blueprintId) && crmComercialPrendido(await interruptoresDe(tenantId))) {
+      // GSG-CRM-018c (V8): el ARM no tiene Consultas; lo que no abrió oportunidad (o falló) se ve en «Hoy» del CRM.
+      enlace = ANCLA_CONSULTAS_SIN_OPORTUNIDAD;
+      const o = await oportunidadDesdeConsulta(tenantId, creada.id);
+      if (o.ok) enlace = `/admin/crm/${o.id}`;
+    }
+  } catch (e) {
+    logger.warn("consultas", "no se pudo abrir la oportunidad del CRM", { error: e instanceof Error ? e.message : String(e) });
+  }
+
   try {
     const aviso = c.intencion === "ESCALAR" ? `Consulta que hay que atender ya (${c.motivos.join(", ")}): ${nombre || "un contacto"} por ${d.canal.toLowerCase()}` : `Nueva consulta de ${nombre || "un contacto"} por ${d.canal.toLowerCase()}`;
-    await avisar(prisma, { tenantId, destinatarios: await usuariosParaConsultas(tenantId), tipo: "consulta", texto: aviso, enlace: `/admin/proyectos/consultas/${creada.id}` });
+    await avisar(prisma, { tenantId, destinatarios: await usuariosParaConsultas(tenantId), tipo: "consulta", texto: aviso, enlace });
   } catch (e) {
     console.error("[consultas] no se pudo avisar al equipo", e instanceof Error ? e.message : e);
   }
   return { ok: true, id: creada.id, intencion: c.intencion, respuesta };
 }
 
-/** El negocio de este host, sólo si es una productora: el formulario público no abre consultas en cualquier negocio. */
+/** El negocio de este host, sólo si es una productora o un ARM: el formulario público no abre consultas en cualquier negocio. */
 export async function tenantDeConsultas(host: string | null): Promise<string | null> {
   try {
     const id = await resolveTenantId(host);
     const t = await basePrisma.tenant.findUnique({ where: { id }, select: { blueprintId: true } });
-    return t?.blueprintId === "productora" ? id : null;
+    return t?.blueprintId === "productora" || esNegocioArm(t?.blueprintId) ? id : null;
   } catch {
     return null;
   }

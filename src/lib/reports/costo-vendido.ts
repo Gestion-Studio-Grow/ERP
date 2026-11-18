@@ -19,7 +19,9 @@
 // faltante de dato y no se avisan como tal.
 //
 // Los insumos que consume un servicio (movimientos CONSUMO del turno) son el costo de lo
-// vendido de un negocio de servicios, con la misma regla.
+// vendido de un negocio de servicios, con la misma regla. La devolución de materiales del
+// taller llega como CONSUMO con qty POSITIVA (resultado-lectura.ts) y RESTA: descontar 4 y
+// devolver 4 en el mismo mes = $0.
 //
 // Sin Prisma: recibe filas ya leídas.
 
@@ -40,12 +42,12 @@ export interface LineaVendida {
   importe: number;
 }
 
-/** Una salida de stock del mes (venta de un pedido o consumo de un turno). */
+/** Una salida de stock del mes (venta de un pedido o consumo de un turno; o la devolución de un consumo). */
 export interface SalidaDeStock {
   type: "VENTA" | "CONSUMO";
   orderId: string | null;
   productId: string | null;
-  /** FIRMADA, como la guarda el registro: negativa en una salida. */
+  /** FIRMADA, como la guarda el registro: negativa en una salida; positiva en un CONSUMO = devolución (resta). */
   qty: number;
   unitCost: number | null;
 }
@@ -123,7 +125,10 @@ export interface CostoInsumos {
   alCostoDeHoy: number;
 }
 
-/** El costo de los insumos consumidos por los servicios del período. PURA. */
+/**
+ * El costo de los insumos consumidos por los servicios del período, con la cantidad FIRMADA: una salida (qty −) suma y
+ * una devolución (qty +) resta. Los contadores (`sinCosto`, `alCostoDeHoy`) cuentan sólo salidas. PURA.
+ */
 export function costearInsumos(
   salidas: readonly SalidaDeStock[],
   costoVigente: Readonly<Record<string, number | null>>,
@@ -133,8 +138,9 @@ export function costearInsumos(
   let alCostoDeHoy = 0;
   for (const s of salidas) {
     if (s.type !== "CONSUMO") continue;
-    const cant = Math.abs(s.qty);
-    if (!(cant > 0)) continue;
+    if (!Number.isFinite(s.qty) || s.qty === 0) continue;
+    const cant = -s.qty; // salida (−) suma; devolución (+) resta
+    const salida = cant > 0;
     if (esCosto(s.unitCost)) {
       costo += cant * s.unitCost;
       continue;
@@ -142,8 +148,8 @@ export function costearInsumos(
     const hoy = s.productId ? costoVigente[s.productId] : null;
     if (esCosto(hoy)) {
       costo += cant * hoy;
-      alCostoDeHoy++;
-    } else sinCosto++;
+      if (salida) alCostoDeHoy++;
+    } else if (salida) sinCosto++;
   }
   return { costo: round2(costo), sinCosto, alCostoDeHoy };
 }

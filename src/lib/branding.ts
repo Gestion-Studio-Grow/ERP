@@ -214,6 +214,12 @@ const TENANTS: Record<string, TenantBrand> = {
   "mia-producciones": {
     name: "MIA Producciones", monogram: "MIA", preset: "azul", frontTheme: "light",
   },
+  // MIA Taller (GSG-MIA-045): negocio propio, con su link `mia-taller`. Nombre provisional a confirmar.
+  // Sin ficha, su ingreso decía «Mi negocio» y no se distinguía del de Producciones (V9). Acento neutro
+  // del motor (celeste): no usa colores del cliente sin su autorización registrada.
+  "mia-taller": {
+    name: "MIA Taller", monogram: "MT", preset: "celeste", frontTheme: "light",
+  },
 };
 
 // (resolveTenantLayout / FONT_VAR / DEFAULT_SECTION_ORDER / resolveSectionOrder ahora viven

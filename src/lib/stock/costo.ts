@@ -32,9 +32,14 @@
 // base recibe la transacción del llamador.
 
 import type { Prisma } from "@/generated/prisma/client";
+import { TALLER_DEVOLUCION_ACTOR_PREFIX } from "@/lib/taller-stands/actor";
 
 /** Tipos de movimiento que son un INGRESO con costo propio (el despiece entra como REPOSICION). */
 export const TIPOS_DE_INGRESO = ["COMPRA", "REPOSICION"] as const;
+// Una REPOSICION con costo que NO es un costo nuevo: la devolución de materiales del taller (taller-stands/consumo.ts,
+// actor `TALLER_DEVOLUCION_ACTOR_PREFIX`) vuelve al costo al que salió. Si contara como «último ingreso», un material
+// descontado a $1000 y devuelto después de una compra a $1500 volvería a poner el costo vigente en $1000. Se excluye en
+// `SELECT_INGRESOS` y en `costosVigentesEnTx`.
 
 /** ¿Es un costo usable? Finito y mayor que cero. */
 export function esCosto(n: number | null | undefined): n is number {
@@ -80,7 +85,7 @@ export function ultimoIngresoConCosto(ingresos: readonly IngresoConCosto[]): num
  */
 export const SELECT_INGRESOS = {
   stockMovements: {
-    where: { type: { in: [...TIPOS_DE_INGRESO] }, unitCost: { gt: 0 } },
+    where: { type: { in: [...TIPOS_DE_INGRESO] }, unitCost: { gt: 0 }, NOT: { createdBy: { startsWith: TALLER_DEVOLUCION_ACTOR_PREFIX } } },
     orderBy: { createdAt: "desc" },
     take: 1,
     select: { unitCost: true, createdAt: true },
@@ -150,6 +155,7 @@ export async function costosVigentesEnTx(
                 FROM "StockMovement" m
                WHERE m."tenantId" = ${tenantId} AND m."productId" = p."id"
                  AND m."type"::text IN ('COMPRA', 'REPOSICION') AND m."unitCost" > 0
+                 AND m."createdBy" NOT LIKE ${TALLER_DEVOLUCION_ACTOR_PREFIX + "%"}
               UNION ALL
               SELECT i."unitCost" AS c, s."createdAt" AS f
                 FROM "StockPurchaseItem" i
