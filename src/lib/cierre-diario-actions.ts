@@ -213,7 +213,7 @@ const NADA_DECLARADO: DeclaredAmounts = { EFECTIVO: null, MP: null, TARJETA: nul
 // y el `createdAt` alimentan las causas probables (M1-C6).
 const SELECT_DEL_PERIODO = {
   id: true, occurredAt: true, createdAt: true, type: true, method: true,
-  amount: true, reason: true, orderId: true, collectionId: true, createdBy: true,
+  amount: true, reason: true, orderId: true, collectionId: true, createdBy: true, proyectoPagoId: true,
   // El ORIGEN del cobro, no sólo su id: es lo que separa un cobro de fiado de un
   // cobro de turno en el resumen del cierre (ver CierreMovement).
   collection: { select: { originType: true, method: true, orderId: true } },
@@ -231,6 +231,7 @@ type FilaDelPeriodo = {
   orderId: string | null;
   collectionId: string | null;
   createdBy: string | null;
+  proyectoPagoId: string | null;
   collection: { originType: string; method: string; orderId: string | null } | null;
   order: { paymentMethod: string | null; total: number } | null;
 };
@@ -512,7 +513,9 @@ async function leerCierreDiario(
     ),
     cuadernoConFechaVieja: rows.reduce(
       (acc, r) =>
-        r.type === "VENTA" && compareDayKeys(dateStrInBusinessTz(r.occurredAt), dateStrInBusinessTz(r.createdAt)) < 0
+        // Un cobro de Proyectos (`proyectoPagoId`) nunca es una venta del cuaderno, aunque lleve la fecha del cobro: en
+        // un negocio sin cuaderno la pista lo nombraba igual (M4b, MIA-083).
+        r.type === "VENTA" && !r.proyectoPagoId && compareDayKeys(dateStrInBusinessTz(r.occurredAt), dateStrInBusinessTz(r.createdAt)) < 0
           ? { cantidad: acc.cantidad + 1, monto: round2(acc.monto + r.amount) }
           : acc,
       { cantidad: 0, monto: 0 },
