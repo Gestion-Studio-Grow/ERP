@@ -92,7 +92,7 @@ export default async function ProveedoresDeProyectos({ searchParams }: { searchP
       )}
 
       {verPlata && (
-        <section className={tarjeta} aria-label="Por pagar">
+        <section id="por-pagar" className={tarjeta} aria-label="Por pagar">
           <h2 className="mb-1 font-semibold text-strong">Por pagar</h2>
           <p className="text-xl font-bold text-strong">{pesos(porPagar + porPagarCuotas)}</p>
           <p className="mb-3 text-xs text-muted">Gastos cargados {pesos(porPagar)} · Cuotas de las fichas de estos proveedores {pesos(porPagarCuotas)}</p>

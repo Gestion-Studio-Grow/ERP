@@ -46,7 +46,14 @@ export async function cuotasDelNegocio(tenantId: string) {
 export type CuotaDelNegocio = Awaited<ReturnType<typeof cuotasDelNegocio>>[number];
 
 export async function recuadrosDeCuotas(tenantId: string) {
-  const [cuotas, tc, config] = await Promise.all([cuotasDelNegocio(tenantId), tiposDeCambio(tenantId), configProyectos(tenantId)]);
+  const [cuotas, tc, config, sinPagar] = await Promise.all([
+    cuotasDelNegocio(tenantId),
+    tiposDeCambio(tenantId),
+    configProyectos(tenantId),
+    // N8b (MIA-084): los gastos cargados sin pagar no son cuotas y no van a «A pagar», pero sí a «Por pagar a proveedores»
+    // de Rentabilidad (`resultadoReal`: neto + IVA de los no pagados ni anulados). Se muestran aparte, con su nombre.
+    prisma.proyectoGasto.aggregate({ where: { tenantId, pagadoEl: null, anuladoEl: null }, _sum: { neto: true, iva: true }, _count: { _all: true } }),
+  ]);
   // «A cobrar» de cada proyecto = lo aprobado menos lo cobrado (cobranza-core), igual que Rentabilidad y Clientes.
   const cobranzas = await cobranzasDelNegocio(tenantId, tc, config.margenPct);
   // Cada renglón con lo que le falta (los cobros manuales se descuentan de las cuotas más viejas): suman lo mismo que el total.
@@ -68,6 +75,8 @@ export async function recuadrosDeCuotas(tenantId: string) {
   // «No se pasa 2» (MIA-089 · V6): un gasto cargado directo y sin pagar no tiene cuota, pero se debe igual. Entra a «A
   // pagar» por lo mismo que en Rentabilidad (neto + IVA, `resultadoReal` en core.ts) y se lista con su renglón, así la
   // lista suma lo mismo que el total. Los gastos que nacen de marcar una cuota ya nacen pagados: no se cuenta dos veces.
+  // Y uno a mano sin pagar del proveedor que ya tiene una cuota de pago pendiente no se graba sin un sí explícito
+  // (`registrarGasto`, MIA-094). Forma sumada, freno por proveedor y rótulo: decisión del dueño, 18/11/2026.
   const gastosSinPagar = await prisma.proyectoGasto.findMany({
     where: { tenantId, pagadoEl: null, anuladoEl: null },
     orderBy: { fecha: "asc" },
@@ -75,7 +84,7 @@ export async function recuadrosDeCuotas(tenantId: string) {
     select: { id: true, descripcion: true, neto: true, iva: true, fecha: true, supplier: { select: { name: true } }, proyecto: { select: { id: true, numero: true, nombre: true, createdAt: true } } },
   });
   const resumen = resumenConCobranza(conPartesComoPagadas(cuotas, partes), tc, cobranzas);
-  const aPagarDeGastos = redondear(gastosSinPagar.reduce((x, g) => x + g.neto + g.iva, 0));
+  const aPagarDeGastos = redondear((sinPagar._sum.neto ?? 0) + (sinPagar._sum.iva ?? 0));
   return {
     cuotas: cuotas.map((c, i) => ({ ...c, pendiente: pendiente[i], cobrado: cobrado[i], pagado: pagadoDeCuota(c, c.proyectoId ? cobranzas.get(c.proyectoId) : null) })),
     sinCalendario: faltantes.flatMap((f) => {
@@ -84,6 +93,8 @@ export async function recuadrosDeCuotas(tenantId: string) {
     }),
     tc,
     gastosSinPagar: gastosSinPagar.map((g) => ({ ...g, total: redondear(g.neto + g.iva) })),
+    // El total y la cantidad salen del agregado (exactos aunque la lista corte en 500): el renglón «incluye N gastos».
+    gastosSinPagarResumen: { total: aPagarDeGastos, cantidad: sinPagar._count._all },
     resumen: { ...resumen, aPagar: redondear(resumen.aPagar + aPagarDeGastos) },
   };
 }
@@ -173,6 +184,11 @@ export async function monedasYFijos(tenantId: string) {
 }
 
 // ── Liquidaciones ───────────────────────────────────────────────────────────
+
+/** De qué cuentas puede salir un sueldo (N1, MIA-084): sólo las de pesos, porque la liquidación es en pesos. */
+export async function cuentasEnPesos(tenantId: string) {
+  return prisma.proyectoCuentaBanco.findMany({ where: { tenantId, moneda: "ARS" }, orderBy: { createdAt: "asc" }, select: { id: true, nombre: true } });
+}
 
 export async function liquidacionesDelPeriodo(tenantId: string, periodo: string) {
   return prisma.proyectoLiquidacion.findMany({

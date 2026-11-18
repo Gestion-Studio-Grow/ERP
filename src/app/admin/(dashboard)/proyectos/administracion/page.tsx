@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { KpiTile, Pestanas } from "@/components/ui";
 import { requireApp } from "@/lib/require-app";
@@ -71,6 +72,15 @@ export default async function Administracion({ searchParams }: { searchParams: P
             </>
           )}
         </div>
+      )}
+      {/* N8b (decisión del dueño, 18/11/2026): «A pagar» suma las cuotas por pagar y los gastos cargados sin pagar, igual
+          que «Por pagar a proveedores» de Rentabilidad. El renglón dice cuántos gastos incluye y lleva a Proveedores. */}
+      {datos && datos.gastosSinPagarResumen.cantidad > 0 && !columnasOcultas(a).includes("costoTotal") && (
+        <p className="mb-4 flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-lg border border-line bg-surface-raised p-3 text-sm">
+          <span className="font-medium text-strong">«A pagar» incluye {datos.gastosSinPagarResumen.cantidad === 1 ? "1 gasto cargado sin pagar" : `${datos.gastosSinPagarResumen.cantidad} gastos cargados sin pagar`}</span>
+          <span className="font-semibold tabular-nums text-strong">{pesos(datos.gastosSinPagarResumen.total)}</span>
+          {puede(a, "proveedores", "ver") && <Link href="/admin/proyectos/proveedores#por-pagar" className="font-medium text-strong underline underline-offset-2">Verlos en Proveedores</Link>}
+        </p>
       )}
       {datos && faltaCambio(datos.tc, datos.cuotas.filter((c) => !c.pagadoEl)) && (
         <p role="alert" className="mb-4 rounded-lg border border-line bg-surface-raised p-3 text-sm text-danger">Hay importes en dólares sin tipo de cambio: no suman a estos totales hasta que lo cargues en Monedas y gastos fijos.</p>

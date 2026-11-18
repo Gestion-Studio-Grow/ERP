@@ -29,7 +29,11 @@ export function FormPersona({ valores, sueldo, soloDireccionDa }: { valores?: Va
     <form
       ref={form}
       className="grid gap-3 sm:grid-cols-2"
-      action={(fd) =>
+      // `onSubmit` y no `action` (E2, MIA-093): React 19 resetea el formulario al terminar cualquier action, y un rechazo del
+      // servidor devolvía la ficha a lo guardado, borrando lo que había que corregir. El alta que sale bien se vacía a mano.
+      onSubmit={(e) => {
+        e.preventDefault();
+        const fd = new FormData(e.currentTarget);
         iniciar(async () => {
           setError(null);
           setHecho(false);
@@ -41,8 +45,8 @@ export function FormPersona({ valores, sueldo, soloDireccionDa }: { valores?: Va
           } catch {
             setError("No se pudo guardar. Probá de nuevo.");
           }
-        })
-      }
+        });
+      }}
     >
       {valores && <input type="hidden" name="id" value={valores.id} />}
       <label className={etiqueta}>Nombre<input name="nombre" required maxLength={120} defaultValue={valores?.nombre} className={campo} /></label>
