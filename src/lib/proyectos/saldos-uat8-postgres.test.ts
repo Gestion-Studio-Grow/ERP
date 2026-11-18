@@ -194,7 +194,13 @@ test("D2 carrera: tres partes de 400 sobre 1.000 a la vez → entran dos, nunca 
   const id = await p.proyecto();
   const q = await p.cuota(id, "PAGO", 1000, 5);
   const rs = await enFila(p.base, p.clave(id), [p.marcar(q, { monto: "400" }), p.marcar(q, { monto: "400" }), p.marcar(q, { monto: "400" })]);
-  assert.deepEqual(rs.map((r) => r.ok), [true, true, false], JSON.stringify(rs));
+  // Cuáles dos entran no es fijo: marcarCuota corre en Serializable (transaccionQueAsienta) y la foto de la transacción
+  // sale antes de esperar el candado. El que espera lee viejo, Postgres lo aborta (40001) y el reintento, con espera al
+  // azar, vuelve a la fila en otro lugar. Lo fijo es el conjunto: entran dos, el tercero no asienta nada y lo dice.
+  assert.equal(rs.filter((r) => r.ok).length, 2, JSON.stringify(rs));
+  const rechazos = rs.filter((r) => !r.ok);
+  assert.equal(rechazos.length, 1, JSON.stringify(rs));
+  assert.match(String(rechazos[0].error), /No se asentó nada.*ahora le faltan \$\s?200/, JSON.stringify(rs));
   assert.deepEqual(await p.pagos(id), { gastos: 2, pagado: 800, caja: 800 });
   assert.deepEqual((await p.administracion())[q], { falta: 200, marcada: false });
 
