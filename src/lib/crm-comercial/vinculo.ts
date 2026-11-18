@@ -18,7 +18,7 @@ import { criterioDeContacto, wherePorContacto } from "@/lib/clientes/busqueda-po
 /** Un tipo de destino del ARM (el que propone el Calificador y confirma Dirección). */
 export type DestinoArm = "AGENCIA" | "TALLER";
 
-export const SIN_VINCULO = "Este destino no tiene un negocio vinculado: no se puede asignar. El vínculo lo carga GSG.";
+export const SIN_VINCULO = "Este destino no tiene un negocio vinculado: no se puede asignar ni derivar, y no se creó nada. El vínculo lo carga GSG.";
 
 /** Lo que viaja del ARM al destino (V5): el cliente, el brief y la conversación. Nada de administración del ARM. */
 export interface Paquete {

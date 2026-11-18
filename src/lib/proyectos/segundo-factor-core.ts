@@ -1,4 +1,4 @@
-// VERIFICACIÓN EN DOS PASOS del panel de una productora: código de 6 dígitos de una app (TOTP, RFC 6238), códigos de
+// VERIFICACIÓN EN DOS PASOS del panel de una productora o de un taller de stands (RUBROS_CON_SEGUNDO_PASO): código de 6 dígitos de una app (TOTP, RFC 6238), códigos de
 // respaldo y el pase de 10 minutos entre la clave y el código. Puro: sin base, sin cookies y sin pedido.
 
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
@@ -8,6 +8,21 @@ const SEGUNDOS_POR_PASO = 30;
 
 /** Quien ve plata no entra sólo con la clave. Provisional hasta confirmarlo con MIA. */
 export const ROLES_CON_SEGUNDO_PASO: readonly string[] = ["DIRECCION", "ADMINISTRACION"];
+
+/**
+ * Los rubros donde rige la verificación en dos pasos. Es LA regla: la usan el ingreso (`exigeSegundoPaso`), la pantalla
+ * de Equipo («Dos pasos: …», «Reiniciar dos pasos») y la pestaña Seguridad. E-4 (GSG-MIA-090): MIA Taller
+ * (`taller-stands`) la hereda, decisión (2) A del dueño del 18/11, provisional a confirmar por el dueño.
+ */
+export const RUBROS_CON_SEGUNDO_PASO: readonly string[] = ["productora", "taller-stands"];
+export const rigeSegundoPaso = (rubro: string | null | undefined): boolean => RUBROS_CON_SEGUNDO_PASO.includes(rubro ?? "");
+
+/** Lo que dice Equipo de los dos pasos de una persona con cuenta, con la misma regla del ingreso. */
+export function estadoDeDosPasos(rubro: string | null | undefined, activos: boolean, rol: string): string {
+  if (!rigeSegundoPaso(rubro)) return "este negocio no los pide";
+  if (activos) return "activos";
+  return ROLES_CON_SEGUNDO_PASO.includes(rol) ? "se activan en su próximo ingreso" : "no los pide su rol";
+}
 export const MAX_INTENTOS = 5;
 export const BLOQUEO_MS = 15 * 60_000;
 export const VIGENCIA_PASE_MS = 10 * 60_000;

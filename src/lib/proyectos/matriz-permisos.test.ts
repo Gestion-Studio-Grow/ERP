@@ -109,6 +109,7 @@ test("A1 · rol × ruta × acción, con la matriz de fábrica", () => {
   // La foto fijada: cuántas rutas y acciones abre cada rol. Si cambia una puerta o la fábrica, esto cambia a propósito.
   assert.deepEqual(
     Object.fromEntries(recorridoDeLaMatriz().map((f) => [f.rol, [f.rutas.length, f.acciones.length]])),
+    // +3 rutas del Taller de c94fa459 (imprimir/productora, taller/piezas, taller/valores-hora), anotadas con su guarda (MIA-095).
     { DIRECCION: [35, 128], ADMINISTRACION: [24, 47], COMERCIAL: [24, 78], DISENO: [23, 56], PRODUCCION: [31, 97], SIN_FICHA: [10, 11] },
   );
 });

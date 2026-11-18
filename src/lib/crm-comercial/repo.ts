@@ -924,13 +924,14 @@ async function aplicar(tx: Tx, ctx: Ctx, m: Miembro | null, o: FilaOp, destino: 
   if (destino === "FALTAN_DATOS") data.calificadaEl = null;
 
   let paquete: Paquete | null = null;
-  if (destino === "ASIGNADA") {
+  if (naceEnOtroNegocio(destino)) {
     // GSG-CRM-017: el proyecto nace en el negocio vinculado, no acá (V1). Sin vínculo no hay asignación (V2). La
     // oportunidad guarda a dónde fue en la MISMA escritura que el cambio de etapa (V3), y el monto viaja al destino:
-    // en el ARM no quedan montos (V5).
+    // en el ARM no quedan montos (V5). E-1 (GSG-MIA-090): derivar al Taller es lo mismo, con el vínculo TALLER, y la
+    // oportunidad cierra con la referencia al proyecto que nació allá (sin comercial: lo sigue el Taller).
     if (!asignacion) no(SIN_VINCULO, o.id);
     const a = asignacion as Asignacion;
-    data.duenoUserId = ev.comercialUserId;
+    if (destino === "ASIGNADA") data.duenoUserId = ev.comercialUserId;
     data.destinoTenantId = a.destinoTenantId;
     data.proyectoDestinoId = a.proyectoId;
     data.monto = null;
@@ -966,6 +967,10 @@ async function aplicar(tx: Tx, ctx: Ctx, m: Miembro | null, o: FilaOp, destino: 
   });
   return paquete;
 }
+
+/** Los pases que hacen nacer el proyecto en el negocio vinculado: asignar (Agencia o Taller) y derivar al Taller (E-1). */
+type PaseEntreNegocios = "ASIGNADA" | "DERIVADA_AL_TALLER";
+const naceEnOtroNegocio = (destino: string): destino is PaseEntreNegocios => destino === "ASIGNADA" || destino === "DERIVADA_AL_TALLER";
 
 /** A qué negocio va la asignación: lo resuelve el vínculo (V2), nunca un formulario. */
 interface Asignacion {
@@ -1041,6 +1046,7 @@ async function rechazoEntreNegocios<T extends object>(ctx: Ctx, e: unknown): Pro
 async function asignarEntreNegocios(
   ctx: Ctx,
   id: string,
+  etapa: PaseEntreNegocios,
   faseArm: (tx: Tx, asignacion: Asignacion | null) => Promise<Paquete | null>,
 ): Promise<Res<{ etapa: Etapa }>> {
   const destino = await correr<{ v: { destinoTenantId: string; destinoNombre: string } | null }>(ctx, async (tx) => {
@@ -1068,7 +1074,7 @@ async function asignarEntreNegocios(
       });
       if (!paquete) no("No se pudo armar la asignación.", id);
       await fases.enDestino((tx) => crearEnDestino(tx, asignacion.destinoTenantId, paquete as Paquete));
-      return { ok: true as const, etapa: "ASIGNADA" as Etapa };
+      return { ok: true as const, etapa: etapa as Etapa };
     });
   } catch (e) {
     return rechazoEntreNegocios(ctx, e);
@@ -1080,10 +1086,10 @@ async function asignarEntreNegocios(
  * sólo Dirección; GANADA no la pone nadie a mano). Control de versión: si otro la movió, aviso (E2).
  */
 export async function aplicarPase(ctx: Ctx, id: string, destino: string, ev: PedidoDePase = {}, ahora = new Date()): Promise<Res<{ etapa: Etapa }>> {
-  if (destino === "ASIGNADA") {
-    return asignarEntreNegocios(ctx, id, async (tx, asignacion) => {
-      const { o, miembro } = await sobre(tx, ctx, id, "aplicar_pase", ahora, { etapaDestino: "ASIGNADA" }, ev.costoUsd ?? 0);
-      return aplicar(tx, ctx, miembro, o, "ASIGNADA", { ...ev, desdeProyecto: false }, ahora, false, asignacion);
+  if (naceEnOtroNegocio(destino)) {
+    return asignarEntreNegocios(ctx, id, destino, async (tx, asignacion) => {
+      const { o, miembro } = await sobre(tx, ctx, id, "aplicar_pase", ahora, { etapaDestino: destino }, ev.costoUsd ?? 0);
+      return aplicar(tx, ctx, miembro, o, destino, { ...ev, desdeProyecto: false }, ahora, false, asignacion);
     });
   }
   return correr(ctx, async (tx) => {
@@ -1113,16 +1119,17 @@ export async function proponerPase(ctx: Ctx, id: string, destino: string, ev: Pe
 
 /** Dirección aprueba (aplica) el pase propuesto, con lo que haga falta completar (el comercial, el próximo paso). */
 export async function aprobarPasePropuesto(ctx: Ctx, id: string, extra: PedidoDePase = {}, ahora = new Date()): Promise<Res<{ etapa: Etapa }>> {
-  // ASIGNADA propuesta: el proyecto nace en el negocio vinculado (dos fases). Se mira qué se propuso antes de abrir
-  // la transacción; adentro se vuelve a exigir que siga siendo ASIGNADA.
+  // ASIGNADA o DERIVADA_AL_TALLER propuesta: el proyecto nace en el negocio vinculado (dos fases). Se mira qué se
+  // propuso antes de abrir la transacción; adentro se vuelve a exigir que siga siendo ese pase.
   const propuesto = await correr<{ pase: string | null }>(ctx, async (tx) => ({ ok: true, pase: (await cargarOportunidad(tx, ctx, id)).pasePropuesto }));
   if (!propuesto.ok) return propuesto;
-  if (propuesto.pase === "ASIGNADA") {
-    return asignarEntreNegocios(ctx, id, async (tx, asignacion) => {
+  const pase = propuesto.pase;
+  if (pase && naceEnOtroNegocio(pase)) {
+    return asignarEntreNegocios(ctx, id, pase, async (tx, asignacion) => {
       const o = await cargarOportunidad(tx, ctx, id);
-      if (o.pasePropuesto !== "ASIGNADA") no(CAMBIO_CONCURRENTE, o.id);
-      const miembro = await guardia(tx, ctx, "aplicar_pase", { oportunidad: await contextoDe(tx, ctx, o), etapaDestino: "ASIGNADA" }, ahora, 0, o.id);
-      return aplicar(tx, ctx, miembro, o, "ASIGNADA", { ...evDePropuesta(o, extra), desdeProyecto: false }, ahora, true, asignacion);
+      if (o.pasePropuesto !== pase) no(CAMBIO_CONCURRENTE, o.id);
+      const miembro = await guardia(tx, ctx, "aplicar_pase", { oportunidad: await contextoDe(tx, ctx, o), etapaDestino: pase }, ahora, 0, o.id);
+      return aplicar(tx, ctx, miembro, o, pase, { ...evDePropuesta(o, extra), desdeProyecto: false }, ahora, true, asignacion);
     });
   }
   return correr(ctx, async (tx) => {
