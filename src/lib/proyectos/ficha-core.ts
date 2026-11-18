@@ -11,9 +11,10 @@ export const PERDIDO_NO_COBRA = "Este proyecto está perdido: no se le registran
 /**
  * Qué se mueve en un proyecto perdido, igual en la pantalla y en el servidor: un cobro no (no debe nada, pregunta 2 = A);
  * un pago a proveedor sí, marcar su cuota o cargarlo a mano, sin reabrir: es plata que se debe igual. Decisión 2 = A del
- * veredicto MIA-094, PROVISIONAL A CONFIRMAR POR EL DUEÑO (B: esconder el botón y exigir reabrir).
+ * veredicto MIA-094, PROVISIONAL A CONFIRMAR POR EL DUEÑO (B: esconder el botón y exigir reabrir). Falla cerrada: sólo PAGO
+ * pasa; un tipo desconocido no (la columna es un String sin CHECK; observación del par revisor de MIA-099).
  */
-export const perdidoAdmite = (tipo: string): boolean => tipo !== "COBRO";
+export const perdidoAdmite = (tipo: string): boolean => tipo === "PAGO";
 
 /** Un lead sigue abierto hasta que el cliente confirma o se pierde. */
 export const ETAPAS_DE_LEAD = ["PEDIDO", "DISENO", "RENDER", "PRESUPUESTO", "PROPUESTA"] as const;

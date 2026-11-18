@@ -26,4 +26,6 @@ test("decisión 3 · la ficha de un perdido no muestra «Avance de cobro»; uno 
 test("decisión 2 · en un perdido se paga a un proveedor y no se cobra: la misma regla en la pantalla y en el servidor", () => {
   assert.equal(perdidoAdmite("PAGO"), true);
   assert.equal(perdidoAdmite("COBRO"), false);
+  // Par revisor MIA-099: falla cerrada. Un tipo que no es PAGO (desconocido, minúsculas, con espacios) no se admite.
+  for (const raro of ["cobro", "COBRO ", "OTRO", ""]) assert.equal(perdidoAdmite(raro), false, `«${raro}» no es PAGO`);
 });
