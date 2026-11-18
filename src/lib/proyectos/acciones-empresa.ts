@@ -101,6 +101,10 @@ export async function marcarCuotaEmpresa(formData: FormData): Promise<Resultado<
         return sigue ? "cambio" : "marcada";
       }
       // Con la cuota ya tomada: el cambio y la cuenta se leen acá, así el libro y el banco usan lo vigente al marcar.
+      // En Serializable (O40) la lectura sale de la foto del primer paso, sacada antes de esperar la cuota: el cambio se
+      // lee con candado, y si alguien lo cambió después de la foto Postgres aborta y la transacción se reintenta con una
+      // foto nueva (`tenantTransaction`). Así sigue siendo el cambio vigente al marcar (administracion-carrera 2.d).
+      if (c.moneda !== "ARS") await tx.$queryRaw`SELECT 1 FROM "ProyectoTipoCambio" WHERE "tenantId" = ${a.tenantId} AND "moneda" = ${c.moneda} FOR SHARE`;
       const amount = aPesos(c.monto, c.moneda, await tiposDeCambio(a.tenantId, tx));
       if (!(amount > 0)) throw new NoSeMarca("Falta el tipo de cambio: cargalo en Monedas y gastos fijos.");
       const cuenta = await cuentaParaCuota(a.tenantId, formData, { tipo: c.tipo, monto: c.monto, moneda: c.moneda, importeEnPesos: amount }, tx);
