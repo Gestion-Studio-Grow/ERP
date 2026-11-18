@@ -383,7 +383,7 @@ export async function registrarGasto(formData: FormData): Promise<Resultado> {
     // N8b (MIA-094): «A pagar» suma las cuotas de pago y los gastos sin pagar. Un gasto a mano sin pagar del proveedor
     // que ya tiene una cuota de pago firme pendiente en este proyecto es, casi siempre, la misma deuda: contaría dos veces
     // (Administración, ficha y Rentabilidad). No se graba sin un sí explícito. Compara por proveedor, no por monto
-    // (provisional a confirmar por el dueño). El arreglo de fondo, `ProyectoGasto.cuotaId`, es una migración elevada.
+    // (decisión del dueño, 18/11/2026, vía ORQ-007). El arreglo de fondo, `ProyectoGasto.cuotaId`, es una migración elevada.
     const enCalendario = !pagado && existente ? await deudaEnCalendarioTx(tx, tenantId, proyectoId, existente.id) : null;
     if (enCalendario && !otraDeuda) return { enCalendario };
     const creado = await tx.proyectoGasto.create({
