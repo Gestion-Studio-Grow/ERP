@@ -1,7 +1,6 @@
-<!-- Borrador del cuerpo del PR (relevo de GSG-MIA-084 a GSG-MIA-093). Falta G4c y el par de G4p. -->
 ## Qué cambia y por qué
 
-GSG-MIA-084 (brief Factory-GSG `00-ESTADO/BRIEF-MIA-084.md`, criterios del anexo 2 de `certificacion/GSG-MIA-083.md`). Va contra `mia-083/administracion` (PR #191), no contra `main`. Borrador: sin merge ni publicación.
+GSG-MIA-084 y GSG-MIA-093 (briefs Factory-GSG `00-ESTADO/BRIEF-MIA-084.md` y `BRIEF-MIA-093.md`, criterios del anexo 2 de `certificacion/GSG-MIA-083.md`). Va contra `mia-083/administracion` (PR #191), no contra `main`. Borrador: sin merge ni publicación.
 
 **N8a · los 580.000 (sólo lectura, base local de la demo).** Es el gasto «Flete y armado» del evento #2: neto 580.000, IVA 0, con proveedor, sin pagar y sin cuota. Rentabilidad «Por pagar a proveedores» suma los gastos sin pagar y las cuotas de pago de los eventos ($ 99.020.000 en la demo). Administración «A pagar» suma sólo cuotas, de los eventos y de la empresa ($ 98.440.000). La diferencia es ese gasto.
 
@@ -9,7 +8,13 @@ GSG-MIA-084 (brief Factory-GSG `00-ESTADO/BRIEF-MIA-084.md`, criterios del anexo
 
 **N8b · los gastos sin pagar se ven aparte, con nombre.** Debajo de los recuadros de Administración aparece el renglón «Gastos cargados sin pagar», con el enlace «Verlos en Proveedores». La cifra de «A pagar» no cambia. Lee de `recuadrosDeCuotas` (`empresa.server.ts`): gastos sin pagar y sin anular del negocio. Se oculta a quien no ve costos. **Decisión provisional, a confirmar por el dueño.**
 
-**G4p · nadie desvincula su propia ficha (tampoco la cuenta OWNER).** Cierra el NO CUMPLE de la certificación de MIA-083 (veredicto en Factory-GSG `00-ESTADO/certificacion/GSG-MIA-083-veredicto.md`). `guardarPersona` (`acciones-gestion.ts:212-216`) rechaza guardar la ficha propia sin `vincular` o pasarla a otra cuenta: «lo propio» ya no se pierde y el sueldo, editar, publicar y pagar lo propio siguen frenados. Otra persona de Dirección sí puede desvincularla. Test `mia084-g4p-desvincular-postgres` (rol `app_rls`, cuenta OWNER, ficha activa e inactiva): rojo en `7ff3406`, verde en `19eee60`. **Corrige lo que dice el PR #191: «las cinco puertas están cerradas» y «no hay excepción» no eran ciertos hasta este cambio.**
+**G4p · nadie desvincula su propia ficha (tampoco la cuenta OWNER).** Cierra el NO CUMPLE de la certificación de MIA-083 (veredicto en Factory-GSG `00-ESTADO/certificacion/GSG-MIA-083-veredicto.md`). `guardarPersona` (`acciones-gestion.ts:212-216`) rechaza guardar la ficha propia sin `vincular` o pasarla a otra cuenta: «lo propio» ya no se pierde y el sueldo, editar, publicar y pagar lo propio siguen frenados. Otra persona de Dirección sí puede desvincularla. Test `mia084-g4p-desvincular-postgres` (rol `app_rls`, cuenta OWNER, ficha activa e inactiva): rojo en `7ff3406`, verde en `19eee60`. El texto del PR #191 («las cinco puertas están cerradas», «no hay excepción») ya está corregido, con autorización de ORQ-007.
+
+**E7 · nadie vincula una ficha a su propia cuenta (decisión del dueño, 18/11).** El certificador de G4p encontró el camino inverso: la cuenta OWNER sin ficha cargaba una ficha sin vincular con el sueldo que quería y después la vinculaba a su cuenta. `guardarPersona` (`acciones-gestion.ts:217-219`) ahora lo rechaza, en el alta y en la edición: lo hace otra persona de Dirección, igual que desvincular. El aviso dice quién lo hace y qué hacer si uno es la única persona de Dirección (guardarla sin vincular). **Cambia el comportamiento del dueño de la cuenta: ya no se da de alta su propia ficha vinculada; se la vincula otra persona de Dirección.** Test `mia093-e7-vincularse-postgres` (rol `app_rls`, cuenta OWNER sin ficha, con la carrera de 4 envíos a la vez): rojo en `8043b62`, verde en `5c9580e`.
+
+**E2 · el formulario de Equipo no borra lo escrito cuando el servidor rechaza.** El `<form action>` de React 19 resetea los campos al terminar la acción: tras un rechazo, la ficha volvía a lo guardado y se perdía lo que había que corregir. `FormPersona` usa `onSubmit` (el patrón de `EditarClienteForm.tsx`); el alta que sale bien se sigue vaciando. Sin cambios en la lógica del servidor. Test `form-persona-rechazo` sobre jsdom: rojo en `70f4be9`, verde en `92ef995`.
+
+**E3 · la semilla de MIA arma los mails sin tildes ni eñes** (`seed-mia-gestion.ts`): «dueño@» y «lucía@» no pasan el `type="email"` del navegador. Sólo para lo que se siembre de acá en adelante: la semilla no se re-corre. En la base local de la semilla son 4 de 7 fichas (dueño, lucía, rocío, tomás); **las que ya existen no se tocan: son datos y decide el dueño.**
 
 Commits:
 - `320e471` N1, test rojo.
@@ -20,6 +25,9 @@ Commits:
 - `7ff3406` G4p, test rojo.
 - `19eee60` G4p, arreglo.
 - `7a5173f` el aviso de cuenta faltante dice que se recargue la página (hallazgo menor del certificador).
+- `70f4be9` E2, test rojo · `92ef995` E2, arreglo.
+- `8043b62` E7, test rojo · `5c9580e` E7, arreglo.
+- `c5cc9dc` E3, la semilla.
 
 `docs/qa/mia-084/registro.md` es el registro del turno. Sin migraciones: `prisma/` sin cambios.
 
@@ -30,6 +38,7 @@ Commits:
 - **Anular:** «devolver el saldo al anular» no aplica. No hay acción para anular una liquidación pagada, y el libro impide borrar el asiento.
 
 ### Deuda anotada
+- **«Empleado fantasma» (escalada al dueño por ORQ-007; severidad media, toca plata; anterior a este PR).** Paso a paso del certificador de E7, en una base efímera: la cuenta OWNER carga una ficha SIN cuenta con su propio mail y sueldo 9.900.000 (`acciones-gestion.ts:220-224` lo permite: no es «lo propio»); después ella misma genera, publica y paga esa liquidación, que queda PAGADA. «Lo propio» (`empresa-core.ts:15`) mira la ficha y la cuenta, nunca el mail, y comparar el mail se esquiva con otra dirección. **Recomendación (a):** publicar o pagar la liquidación de una ficha sin cuenta lo hace una persona distinta de quien cargó el sueldo. Frente aparte, después de MIA-091/092.
 - `ProyectoLiquidacion` no tiene `cuentaId`. La cuenta queda en el historial (`pagada · medio · $ total · cuenta`) y en la auditoría. Agregar la columna es una migración (Gate 2), así que queda para cuando se decida.
 - El renglón suma los gastos sin pagar de todos los proyectos, pero `reporteProyectos` toma 500 (`datos.server.ts:165`). Con más de 500 proyectos, la relación entre las dos pantallas no cierra. El tope ya existía para las cuotas.
 - **Permiso (decide el dueño):** con Dirección o Administración más `liquidaciones:E` se puede bajar un saldo aunque no tenga `pagos` ni `empresa`. El control de permiso está en `acciones-empresa.ts:514` y la decisión anotada en `_controles.tsx:173-175`. El monto queda limitado al total publicado.
@@ -81,4 +90,4 @@ Proyectos / ERP · Administración (MIA) / Agencia de eventos
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
-https://claude.ai/code/session_01BtqRUJSU5Ka3ehqEZpWAdi
+https://claude.ai/code/session_01BtqRUJHM9p6fijAxnz36kz
