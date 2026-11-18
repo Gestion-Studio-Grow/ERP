@@ -8,7 +8,7 @@ import SubmitButton from "@/components/SubmitButton";
 import { pagarGasto, registrarCobro } from "@/lib/proyectos/acciones";
 import { anularCobroFicha, anularGastoFicha, aprobarInterno, pedirAprobacion, crearMovimientoManual, enviarCotizacion, guardarTextos, marcarCuota, nuevaVersion, quitarMovimiento, recalcularCuotas, registrarRespuesta } from "@/lib/proyectos/acciones-ficha";
 import { fechaCorta, fechaParaInput, MEDIOS, MEDIO_LABEL, pesos, porcentaje, redondear, sePuedeEditar, totalDelGasto, waLink, type MedioPago } from "@/lib/proyectos/core";
-import { esFoto, FILTROS_CASHFLOW, filtrarCashflow, fotoDeVersion, margenDeFoto, planillaDeVenta } from "@/lib/proyectos/ficha-core";
+import { esFoto, FILTROS_CASHFLOW, filtrarCashflow, fotoDeVersion, margenDeFoto, perdidoAdmite, planillaDeVenta } from "@/lib/proyectos/ficha-core";
 import { aItemFicha } from "@/lib/proyectos/gestion.server";
 import { cambiosEntreVersiones, cambioDeVenta, estadoCuota, MONEDAS, plataEn, totalesFicha, ventaEn } from "@/lib/proyectos/gestion-core";
 import { datosCotizacion, datosFinanzas, type Cabecera, type Vista } from "@/lib/proyectos/ficha.server";
@@ -210,9 +210,11 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
   const cargaDirecta = vista.editaPagos && veLaPlata(a.user);
   const conCobros = d.cuotas.some((c) => c.tipo === "COBRO" && !c.anuladoEl);
   const conPagos = d.cuotas.some((c) => c.tipo === "PAGO" && !c.anuladoEl);
-  // Un perdido no debe nada (pregunta 2 = A): no se ofrece cobrar ni marcar sus cuotas de cobro; el servidor también lo
-  // rechaza (`PERDIDO_NO_COBRA`). Anular un cobro hecho sigue andando (MIA-089 · V2).
+  // Un perdido no debe nada (pregunta 2 = A): no se ofrece cobrar ni marcar sus cuotas de cobro ni cargar un cobro a mano;
+  // el servidor también lo rechaza (`PERDIDO_NO_COBRA`). Lo que se le debe a un proveedor se paga sin reabrir
+  // (`perdidoAdmite`, decisión 2 = A, provisional a confirmar por el dueño). Anular un cobro hecho sigue andando (V2).
   const perdido = !!p.perdidoEl;
+  const admite = (tipo: string) => !perdido || perdidoAdmite(tipo);
   // Lo cobrado que ninguna cuota viva tomó: primera línea del cashflow (el saldo arranca con eso).
   const sinCuota = d.flujo.inicial > 0 && (activo === "todos" || activo === "cobros") ? d.flujo.inicial : 0;
   const verCosto = !vista.ocultas.has("costoTotal");
@@ -329,7 +331,7 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
                             </div>
                           )
                         )}
-                        {!c.pagadoEl && !c.prevista && vista.editaPagos && (c.tipo !== "COBRO" || (c.pendiente > 0 && !perdido)) && (
+                        {!c.pagadoEl && !c.prevista && vista.editaPagos && admite(c.tipo) && (c.tipo !== "COBRO" || c.pendiente > 0) && (
                           <div className="flex flex-wrap items-center gap-1 sm:justify-end">
                             {/* `limpiar`: tras una parte que salió bien, el monto no queda escrito para un segundo clic. */}
                             <FormAccion accion={marcarCuota} limpiar className="flex flex-wrap items-center gap-1">
@@ -364,12 +366,12 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
         )}
         {vista.editaPagos && (
           <div className="grid gap-3 border-t border-line pt-3">
-            <details>
+            {(admite("COBRO") || vista.costos) && <details>
               <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium text-strong">Movimiento manual</summary>
               <FormAccion accion={crearMovimientoManual} limpiar claveDeEnvio className="grid gap-2 pt-2 sm:grid-cols-3">
                 <input type="hidden" name="proyectoId" value={p.id} />
-                <select name="tipo" aria-label="Tipo" defaultValue="COBRO" className={campo}>
-                  <option value="COBRO">Cobro</option>
+                <select name="tipo" aria-label="Tipo" defaultValue={perdido ? "PAGO" : "COBRO"} className={campo}>
+                  {admite("COBRO") && <option value="COBRO">Cobro</option>}
                   {vista.costos && <option value="PAGO">Pago</option>}
                 </select>
                 <input name="concepto" required maxLength={200} aria-label="Concepto" placeholder="Concepto" className={cn(campo, "sm:col-span-2")} />
@@ -382,7 +384,7 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
                 </select>
                 <SubmitButton className={buttonClasses("solid", "md")}>Agregar movimiento</SubmitButton>
               </FormAccion>
-            </details>
+            </details>}
             <FormAccion accion={recalcularCuotas}>
               <input type="hidden" name="proyectoId" value={p.id} />
               <SubmitButton className={buttonClasses("ghost", "md")}>Poner las cuotas al día</SubmitButton>

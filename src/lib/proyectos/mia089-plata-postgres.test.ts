@@ -20,6 +20,7 @@ import { ejecutarAccion, prepararAccionesDeServidor } from "@/test/accion-de-ser
 import { apuntarLaAppA, baseEfimeraDelArchivo, prismaComoDuenio, type BaseEfimera } from "@/test/base-efimera";
 import { ETAPAS } from "./core";
 import { generaCuotas } from "./gestion-core";
+import { PERDIDO_NO_COBRA } from "./ficha-core";
 
 const laBase = baseEfimeraDelArchivo();
 const DIA = 86_400_000;
@@ -531,7 +532,6 @@ test("V4 (MIA-099) · dos cambios de etapa a la vez, en los dos órdenes (5 vece
 test("V2 (MIA-099) · perdido: la deuda con un proveedor se paga sin reabrir y un cobro no se carga ni a mano (decisión 2 = A, provisional a confirmar por el dueño)", async (t) => {
   const p = await preparar(t);
   if (!p) return;
-  const { PERDIDO_NO_COBRA } = await import("./ficha-core");
   const id = await p.proyecto("APROBADO");
   const manual = (tipo: string, concepto: string) => p.enSesion(() => p.ficha.crearMovimientoManual(p.form({ proyectoId: id, tipo, concepto, monto: "200", moneda: "ARS", venceEl: "2026-10-26" })));
   assert.equal((await manual("PAGO", "Flete a mano")).ok, true, "antes de perder: el pago a mano");

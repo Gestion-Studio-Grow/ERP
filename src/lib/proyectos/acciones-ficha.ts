@@ -27,7 +27,7 @@ import { pagosParcialesDeCuotas, pendienteDelPago } from "./pago-parcial.server"
 import { faltaDelPago, SALDADA_CON_PARTES } from "./pago-parcial-core";
 import { cambioDeVenta, aPesos, generaCuotas, CHECKLIST_BASE, ESTADOS_ITEM, MONEDAS, RUBROS, TIPOS_EVENTO, veTodosLosProyectos } from "./gestion-core";
 import { avisar, columnasOcultas, exigirEditar, usuariosDelEquipo, usuariosDeDireccion, usuariosDeLaPlata, proyectoVisible, puede, regenerarCuotas, regenerarCuotasTx, registrarCambio, tiposDeCambio, type Actor } from "./gestion.server";
-import { tipoDeArchivoSubido, clavesARenombrar, fechaAntesDe, fotoDeVersion, itemDeClave, linkSeguro, monedasSinCambio, numeroDe, PERDIDO, PERDIDO_NO_COBRA, precioAlCambiarCambio, precioAlCopiar, precioAlEnviar, servicioDeTipo } from "./ficha-core";
+import { tipoDeArchivoSubido, clavesARenombrar, fechaAntesDe, fotoDeVersion, itemDeClave, linkSeguro, monedasSinCambio, numeroDe, PERDIDO, PERDIDO_NO_COBRA, perdidoAdmite, precioAlCambiarCambio, precioAlCopiar, precioAlEnviar, servicioDeTipo } from "./ficha-core";
 import { asentarEnCajaTx, oPeriodoCerrado, PeriodoCerradoError, transaccionQueAsienta } from "./periodo-cerrado.server";
 import { marcaDeGastoProyecto } from "./marcas";
 import { GASTO_EN_RENDICION, SIN_COMPROBANTES, faltaLaMigracion } from "./rendiciones-core";
@@ -891,7 +891,9 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
     // salieron del de afuera).
     await trabarCobranza(tx, tenantId, proyectoId);
     if (envio && (await tx.proyectoCambio.findFirst({ where: { tenantId, proyectoId, entidad: esCobro ? "ProyectoPago" : "ProyectoGasto", campo: "Envío", antes: envio }, select: { id: true } }))) return "repetido";
-    if (await estaPerdido(tx, tenantId, proyectoId)) return "perdido"; // MIA-089 · V2: un perdido no marca cuotas; en fila con «Marcar perdido».
+    // MIA-089 · V2: un perdido no marca cuotas de cobro; una de pago a proveedor sí (decisión 2 = A, provisional a
+    // confirmar por el dueño). En fila con «Marcar perdido».
+    if (!perdidoAdmite(c.tipo) && (await estaPerdido(tx, tenantId, proyectoId))) return "perdido";
     const ahora = esCobro ? await pendienteDeLaCuota(tenantId, proyectoId, id, tc, margenPct, tx) : { pendiente: await pendienteDelPago(tenantId, c, tc, tx), cob: null };
     if (ahora === null) return false;
     faltaAhora = ahora.pendiente;
@@ -1006,9 +1008,12 @@ export async function crearMovimientoManual(formData: FormData): Promise<Resulta
   const tope = await tenantTransaction(async (tx) => {
     if (await envioYaGrabado(tx, tenantId, clave)) return null;
     if (config) {
+      // Un cobro a mano en un perdido, no (MIA-089 · V2; decisión 2 = A, provisional a confirmar por el dueño): el mismo
+      // cartel que «Registrar cobro». Un pago a proveedor sí se carga. Leído con el candado, en fila con «Marcar perdido».
+      await trabarCobranza(tx, tenantId, proyectoId);
+      if (!perdidoAdmite(tipo) && (await estaPerdido(tx, tenantId, proyectoId))) return "perdido" as const;
       // Tope: una cuota de cobro es plata ESPERADA. Con presupuesto aprobado, lo esperado (las cuotas pendientes más
       // ésta) no pasa de lo que falta cobrar. En fila con los otros cobros del proyecto y contado adentro.
-      await trabarCobranza(tx, tenantId, proyectoId);
       const { cuotas, cob } = await cobranzaConCuotas(tx, tenantId, proyectoId, tc, config.margenPct);
       const { lugar, esperado } = lugarParaCobroManual(cuotas, tc, cob);
       if (aPesos(monto, moneda, tc) > lugar + 0.01) return { porCobrar: cob.porCobrar, esperado, lugar, cob };
@@ -1018,6 +1023,7 @@ export async function crearMovimientoManual(formData: FormData): Promise<Resulta
     await registrarCambio(tx, { tenantId, proyectoId, entidad: "ProyectoCuota", entidadId: c.id, campo: `Movimiento manual · ${concepto}`, despues: `${tipo === "COBRO" ? "Cobro" : "Pago"} ${monto} ${moneda}`, autor: a.nombre });
     return null;
   });
+  if (tope === "perdido") return mal(PERDIDO_NO_COBRA);
   if (tope) return mal(avisoTopeCuota(tope, tope.cob));
   refrescar(proyectoId);
   return { ok: true };

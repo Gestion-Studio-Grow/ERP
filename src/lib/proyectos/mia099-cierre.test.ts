@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { totalesDeRentabilidad } from "./empresa-core";
-import { avanceDeCobro } from "./ficha-core";
+import { avanceDeCobro, perdidoAdmite } from "./ficha-core";
 
 const fila = (neto: number, ganancia: number, perdido: boolean, porCobrar = 0) => ({
   perdidoEl: perdido ? new Date("2026-11-01T12:00:00Z") : null,
@@ -21,4 +21,9 @@ test("decisión 3 · la ficha de un perdido no muestra «Avance de cobro»; uno 
   assert.equal(avanceDeCobro({ cobrado: 605, aCobrar: 0 }, true), null);
   assert.equal(avanceDeCobro({ cobrado: 605, aCobrar: 605 }, false), 50);
   assert.equal(avanceDeCobro(null, false), 0);
+});
+
+test("decisión 2 · en un perdido se paga a un proveedor y no se cobra: la misma regla en la pantalla y en el servidor", () => {
+  assert.equal(perdidoAdmite("PAGO"), true);
+  assert.equal(perdidoAdmite("COBRO"), false);
 });

@@ -5,8 +5,15 @@ import { ETAPAS, leerNumero, redondear } from "./core";
 import { claveFoto, costoTotalItem, ventaTotalItem, type CuotaLeida, type FotoItem, type LineaCashflow } from "./gestion-core";
 
 export const PERDIDO = "PERDIDO";
-/** Lo que contesta el servidor si se intenta cobrar o marcar una cuota de un proyecto perdido (MIA-089 · V2). */
-export const PERDIDO_NO_COBRA = "Este proyecto está perdido: no se le registran cobros ni se marcan cuotas. Si se retoma, reabrilo primero.";
+/** Lo que contesta el servidor si se intenta cobrar, marcar una cuota de cobro o cargar un cobro en un perdido (MIA-089 · V2). */
+export const PERDIDO_NO_COBRA = "Este proyecto está perdido: no se le registran cobros ni se marcan cuotas de cobro. Si se retoma, reabrilo primero.";
+
+/**
+ * Qué se mueve en un proyecto perdido, igual en la pantalla y en el servidor: un cobro no (no debe nada, pregunta 2 = A);
+ * un pago a proveedor sí, marcar su cuota o cargarlo a mano, sin reabrir: es plata que se debe igual. Decisión 2 = A del
+ * veredicto MIA-094, PROVISIONAL A CONFIRMAR POR EL DUEÑO (B: esconder el botón y exigir reabrir).
+ */
+export const perdidoAdmite = (tipo: string): boolean => tipo !== "COBRO";
 
 /** Un lead sigue abierto hasta que el cliente confirma o se pierde. */
 export const ETAPAS_DE_LEAD = ["PEDIDO", "DISENO", "RENDER", "PRESUPUESTO", "PROPUESTA"] as const;
