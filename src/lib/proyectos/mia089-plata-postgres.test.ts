@@ -789,13 +789,13 @@ test("MIA-111 · opción A (MIA-BANCOS-PERDIDO, a confirmar por el dueño): el s
 
   // Carrera, detrás del candado de la cobranza del proyecto. «Marcar perdido» primero: la conciliación no entra.
   const c = await caso("COBRO", 435);
-  const [perdio, concilio] = await enFila(p.base, p.claveCobranza(c.id), [() => p.mover(c.id, "PERDIDO", "Eligió otro proveedor"), () => conciliar(c.mov, c.cuota)]);
+  const [perdio, concilio] = await enFila<{ ok: boolean; error?: string }>(p.base, p.claveCobranza(c.id), [() => p.mover(c.id, "PERDIDO", "Eligió otro proveedor"), () => conciliar(c.mov, c.cuota)]);
   assert.equal(perdio.ok, true);
   assert.equal(concilio.ok, false, `perdido primero: no concilia: ${JSON.stringify(concilio)}`);
   assert.equal(await atado(c.mov), null);
   // Conciliar primero: entra, y perder después también (el depósito queda atado; la pantalla no ofrece marcarlo).
   const d = await caso("COBRO", 436);
-  const [concilio2, perdio2] = await enFila(p.base, p.claveCobranza(d.id), [() => conciliar(d.mov, d.cuota), () => p.mover(d.id, "PERDIDO", "Eligió otro proveedor")]);
+  const [concilio2, perdio2] = await enFila<{ ok: boolean; error?: string }>(p.base, p.claveCobranza(d.id), [() => conciliar(d.mov, d.cuota), () => p.mover(d.id, "PERDIDO", "Eligió otro proveedor")]);
   assert.equal(concilio2.ok, true, JSON.stringify(concilio2));
   assert.equal(perdio2.ok, true);
   assert.equal(await atado(d.mov), d.cuota);

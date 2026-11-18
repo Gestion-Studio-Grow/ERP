@@ -177,7 +177,7 @@ export async function datosDeBancos(tenantId: string) {
     // MIA-111: el cobro de un perdido no se cobra (ADV-7, `cobroFrenadoPorPerdido`, la misma `perdidoAdmite` de la ficha
     // y del servidor; decisión 2 = A, provisional a confirmar por el dueño): no se propone ni se elige para un depósito,
     // y el que ya estaba conciliado no ofrece «Marcar cobrada». Al reabrir, vuelve.
-    movimientos: movimientos.map((m) => (m.cuota ? { ...m, cuota: { ...m.cuota, noSeCobra: cobroFrenadoPorPerdido(m.cuota) } } : m)),
+    movimientos: movimientos.map((m) => ({ ...m, cuota: m.cuota ? { ...m.cuota, noSeCobra: cobroFrenadoPorPerdido(m.cuota) } : null })),
     candidatas: cuotas.filter((c) => !usadas.has(c.id) && !c.noSeCobra),
     tc,
   };
