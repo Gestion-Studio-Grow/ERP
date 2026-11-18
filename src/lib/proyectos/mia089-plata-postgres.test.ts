@@ -529,6 +529,28 @@ test("V4 (MIA-099) · dos cambios de etapa a la vez, en los dos órdenes (5 vece
   t.diagnostic(`corridas de carrera: ${corridas} (${pares.length} pares × ${ORDENES.length} + 2 × 5 del mismo cambio), todas verdes`);
 });
 
+// Del par revisor de MIA-099 (su ADV-1, pasado al repo para que quede como evidencia): el chequeo de perdido del cobro
+// manual va después de `trabarCobranza`, en la misma transacción que la escritura, igual que `moverProyecto`.
+test("V2 (MIA-099) · carrera: cobro manual contra «Marcar perdido», en los dos órdenes (5 veces cada uno): ningún cobro entra a un perdido", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  for (const orden of ORDENES) {
+    // En Pedido no hay cuotas del plan: el cobro de 1 tiene lugar bajo el tope y lo único que lo frena es estar perdido.
+    const id = await p.proyecto("PEDIDO");
+    const cobro = () => p.enSesion(() => p.ficha.crearMovimientoManual(p.form({ proyectoId: id, tipo: "COBRO", concepto: "Extra", monto: "1", moneda: "ARS", venceEl: "2026-10-26" })));
+    const perder = () => p.mover(id, "PERDIDO", "carrera");
+    const [r1, r2] = await enFila(p.base, p.claveCobranza(id), orden ? [perder, cobro] : [cobro, perder]);
+    const [rCobro, rPerder] = orden ? [r2, r1] : [r1, r2];
+    const e = await p.etapa(id);
+    assert.ok(rPerder.ok && e.perdidoEl, `orden ${orden}: el proyecto queda perdido`);
+    const extra = await p.duenio.proyectoCuota.count({ where: { proyectoId: id, concepto: "Extra" } });
+    // Cobro primero: entra antes de perder (1 cuota). Perder primero: el cobro se rechaza con el cartel y no graba (0).
+    assert.equal(rCobro.ok, orden === 0, `orden ${orden}: ${JSON.stringify(rCobro)}`);
+    assert.equal(extra, orden === 0 ? 1 : 0, `orden ${orden}: cuotas «Extra»`);
+    if (orden) assert.equal((rCobro as { error?: string }).error, PERDIDO_NO_COBRA);
+  }
+});
+
 test("V2 (MIA-099) · perdido: la deuda con un proveedor se paga sin reabrir y un cobro no se carga ni a mano (decisión 2 = A, provisional a confirmar por el dueño)", async (t) => {
   const p = await preparar(t);
   if (!p) return;
