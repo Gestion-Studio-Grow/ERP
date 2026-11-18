@@ -159,6 +159,29 @@ export default async function FichaPage({ params }: { params: Promise<{ id: stri
           </section>
         )}
 
+        {etapa === "DERIVADA_AL_TALLER" && (
+          <section aria-labelledby="t-derivada">
+            <h3 id="t-derivada" className="mb-2 text-lg font-semibold text-strong">Derivada al Taller</h3>
+            {o.proyectoDestinoId ? (
+              <div className="grid gap-3">
+                <p className="text-sm text-strong">
+                  El proyecto nació en <span className="font-medium">{f.negocioDestino ?? "el negocio vinculado"}</span> con el cliente, el brief y la conversación. Lo sigue el Taller, allá.
+                </p>
+                {enlaceProyecto ? (
+                  <p className="text-sm">
+                    <a href={enlaceProyecto} target="_blank" rel="noopener noreferrer" className="font-medium text-strong underline underline-offset-4">Abrir el proyecto en {f.negocioDestino ?? "el negocio vinculado"}</a>
+                    <span className="text-muted"> · entrás con tu usuario de ese negocio.</span>
+                  </p>
+                ) : (
+                  <p className="text-sm text-muted">No hay una dirección para abrir ese negocio desde acá: pedile el enlace a GSG.</p>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-muted">Se derivó antes de que el pase creara el proyecto: en el Taller no hay un proyecto que haya nacido de acá.</p>
+            )}
+          </section>
+        )}
+
         {!cerrada && (
           <section aria-labelledby="t-pases">
             <h3 id="t-pases" className="mb-2 text-lg font-semibold text-strong">Mover de etapa</h3>
@@ -187,9 +210,9 @@ export default async function FichaPage({ params }: { params: Promise<{ id: stri
                 <p className="mt-4 text-sm text-muted">Destino confirmado por Dirección: <span className="font-medium text-strong">{o.destino === "AGENCIA" ? "Agencia" : "Taller"}</span>.</p>
                 {o.etapa !== "ASIGNADA" &&
                   (f.negocioDestino ? (
-                    <p className="mt-1 text-sm text-muted">Al asignarla, el proyecto nace en <span className="font-medium text-strong">{f.negocioDestino}</span> con el cliente, el brief y la conversación.</p>
+                    <p className="mt-1 text-sm text-muted">Al {o.destino === "TALLER" ? "asignarla o derivarla al Taller" : "asignarla"}, el proyecto nace en <span className="font-medium text-strong">{f.negocioDestino}</span> con el cliente, el brief y la conversación.</p>
                   ) : (
-                    <p className="mt-1 text-sm text-strong">Este destino no tiene un negocio vinculado: no se puede asignar. El vínculo lo carga GSG.</p>
+                    <p className="mt-1 text-sm text-strong">Este destino no tiene un negocio vinculado: no se puede {o.destino === "TALLER" ? "asignar ni derivar al Taller" : "asignar"}. El vínculo lo carga GSG.</p>
                   ))}
               </>
             ) : (

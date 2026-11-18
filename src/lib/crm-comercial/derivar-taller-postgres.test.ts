@@ -166,12 +166,12 @@ test("E-1 · carrera: doble clic, dos Direcciones a la vez y el reintento dan UN
   for (let ronda = 1; ronda <= 3; ronda++) {
     const id = await paraDerivar(f, `Carrera Taller ${ronda}`, `carrerataller${ronda}.example`);
     const derivar = (userId: string): Promise<Res> => repo.aplicarPase(ctx(f, userId), id, "DERIVADA_AL_TALLER", {}, AHORA);
-    const juntos = await Promise.all([derivar(f.dir), derivar(f.dir), derivar(f.dir2)]);
+    const juntos: Res[] = await Promise.all([derivar(f.dir), derivar(f.dir), derivar(f.dir2)]);
     assert.equal(juntos.filter((r) => r.ok).length, 1, `ronda ${ronda}: entra exactamente una (${JSON.stringify(juntos)})`);
     const reintento = await derivar(f.dir);
     assert.equal(reintento.ok, false, `ronda ${ronda}: el reintento no deriva de nuevo`);
     const d = await prismaComoDuenio(base);
-    const enTaller = await d.proyecto.count({ where: { tenantId: f.taller, nombre: { startsWith: `Carrera Taller ${ronda}` } } });
+    const enTaller: number = await d.proyecto.count({ where: { tenantId: f.taller, nombre: { startsWith: `Carrera Taller ${ronda}` } } });
     assert.equal(enTaller, 1, `ronda ${ronda}: un proyecto en el Taller`);
   }
   const despues = await todos(f);
