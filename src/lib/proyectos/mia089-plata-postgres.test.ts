@@ -409,3 +409,47 @@ test("V8a · cambiar el tipo de cambio no cambia un peso de lo ya cobrado ni de 
   assert.equal((await p.enSesion(() => p.empresa.guardarTipoCambio(p.form({ porUnidad: "1250" })))).ok, true);
   assert.equal(await plata(), antes);
 });
+
+test("N8b (MIA-094) · un gasto a mano sin pagar del proveedor que ya tiene una cuota de pago pendiente frena: con «es otra deuda» se graba y deja rastro; una cuota prevista o otro proveedor no frenan", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const id = await p.proyecto();
+  const sufijo = id.slice(-6);
+  const proveedor = (nombre: string) => p.duenio.supplier.create({ data: { tenantId: p.a.id, name: `${nombre} ${sufijo}` }, select: { id: true, name: true } });
+  const [madera, sinCuota, previsto] = await Promise.all([proveedor("Maderera N8b"), proveedor("Flete N8b"), proveedor("Imprenta N8b")]);
+  const pres = await p.duenio.proyectoPresupuesto.findFirstOrThrow({ where: { proyectoId: id }, select: { id: true } });
+  for (const [s, costo] of [[madera, 400], [previsto, 250]] as const)
+    await p.duenio.proyectoItem.create({ data: { tenantId: p.a.id, presupuestoId: pres.id, rubro: "Producción", descripcion: s.name, cantidad: 1, costo, precio: 0, supplierId: s.id } });
+  await p.enSesion(() => p.gestion.regenerarCuotas(p.a.id, id));
+  const pendientes = (supplierId: string) => p.duenio.proyectoCuota.count({ where: { proyectoId: id, tipo: "PAGO", supplierId, pagadoEl: null, anuladoEl: null, prevista: false } });
+  assert.ok((await pendientes(madera.id)) > 0, "precondición: la maderera tiene una cuota de pago real pendiente");
+  // La de la imprenta queda como previsión (fixture): todavía no es deuda firme.
+  await p.duenio.proyectoCuota.updateMany({ where: { proyectoId: id, supplierId: previsto.id }, data: { prevista: true } });
+  const aPagar = async () => {
+    const adm = await p.administracion();
+    const total = adm.cuotas.filter((c) => c.proyectoId === id && c.tipo !== "COBRO").reduce((x, c) => x + c.pendiente, 0) + adm.gastosSinPagar.filter((g) => g.proyecto.id === id).reduce((x, g) => x + g.total, 0);
+    return Math.round(total * 100) / 100;
+  };
+  const gastos = (supplierId: string) => p.duenio.proyectoGasto.findMany({ where: { proyectoId: id, supplierId }, select: { id: true } });
+  const cargar = (prov: string, extra: Record<string, string> = {}) =>
+    p.enSesion(() => p.acciones.registrarGasto(p.form({ proyectoId: id, proveedor: prov, descripcion: "Madera", neto: "400", ...extra })));
+
+  const antes = await aPagar();
+  const frenado = await cargar(madera.name.toUpperCase());
+  assert.equal(frenado.ok, false, "la misma deuda no se carga dos veces");
+  assert.ok(!frenado.ok && frenado.confirmar, "pide el sí explícito");
+  assert.match(!frenado.ok ? frenado.error : "", /400/, "el cartel dice lo que falta pagar de la cuota");
+  assert.equal((await gastos(madera.id)).length, 0);
+  assert.equal(await aPagar(), antes, "«A pagar» no se infla");
+
+  assert.equal((await cargar(madera.name, { confirmaOtraDeuda: "1" })).ok, true);
+  const [otra] = await gastos(madera.id);
+  assert.ok(otra, "con «es otra deuda» se graba");
+  assert.ok(await p.duenio.proyectoCambio.findFirst({ where: { proyectoId: id, entidad: "ProyectoGasto", entidadId: otra.id, campo: "Otra deuda" } }), "y queda el rastro");
+  assert.equal(await aPagar(), Math.round((antes + 400) * 100) / 100);
+
+  assert.equal((await cargar(previsto.name)).ok, true, "una cuota prevista no frena");
+  assert.equal((await cargar(sinCuota.name)).ok, true, "un proveedor sin cuota no frena");
+  // Ya pagado tampoco frena: no es deuda.
+  assert.equal((await cargar(madera.name, { pagado: "on", medio: "TRANSFERENCIA" })).ok, true);
+});
