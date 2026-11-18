@@ -80,3 +80,28 @@ Brief: Factory-GSG `00-ESTADO/BRIEF-MIA-107.md` (7368882). Frenado por el techo 
 | 28 | Capturas a 390 y 1.280 de la lista con un perdido | Cargar el cobro por la pantalla, perder y mirar Administración, con verificador distinto | Brief MIA-107, paso 4 | brief §4 | Fila «No se cobra» sin «Cobrado» | No se tomaron: frené por el techo de gasto | Sin capturas en este turno | ADV7-cap-1 | sin par en este turno | escalado |
 
 Nota para la tabla T (pedido del brief): la semilla usa fechas relativas al día de siembra (`en(-5)` en `seed-mia-gestion.ts:90`), así que la tabla T tiene que decir el día de siembra.
+
+## GSG-MIA-108 · cierre de las filas 27 y 28 (ADV-7) (18/11/2026)
+
+Brief: Factory-GSG `00-ESTADO/BRIEF-MIA-108.md` (0b03a7e). Rama `mia-094/plata-cierre` desde c4f0c4d. El arreglo de 2117d5d no se tocó.
+Paso 0: `claude-opus-5-5`, esfuerzo `high`; la ventana de compactación del entorno da 350000, no 400000 (avisado a ORQ-007).
+Techo: US$ 5; medido al cerrar, US$ 5,42 (108 %): se frenó y se entregó. Base local descartable: PGlite de `demo-local.mjs`, sin Neon ni Vercel.
+
+| # | Pedido | Entendí | Fuente | Camino | Esperado | Hice | Vi | Captura | Par | Estado |
+|---|--------|---------|--------|--------|----------|------|----|---------|-----|--------|
+| 29 | Fila 27 · suite por nombre contra 258585b3 | Comparar la lista de rojos de la rama con la de la base, test por test | Brief MIA-108, paso 1 | brief §1 | Ningún rojo nuevo por nombre | Base en un worktree aparte (con el cliente de Prisma generado enlazado) y la rama, en serie, mismo Postgres local; `resumen-tests.mjs` sobre cada log | Base 258585b3: 10068 ok, 1 fallido (`club/almacen.test.ts:161`, medición de tiempo 1,80 contra 1,41 ms), 2 salteados. Rama 2a9e7e3: 10074 ok, 0 fallidos, los mismos 2 salteados (`GATE2_PG_URL`) | MIA108-suite-1 (base.log y rama.log del scratchpad) | coincide por lectura (par de la fila 32) | hecho |
+| 30 | Fila 27 · tsc y build | Tipos y compilación de producción sobre el árbol final | Brief MIA-108, paso 2 | brief §2 | Salida 0 | `npx tsc --noEmit` con 8 GB para Node: 4 errores TS7022 en el test de ADV-7 (`mia089-plata-postgres.test.ts:685-693`). Tipé `r`, `cuota`, `antes` y `fila`; sólo el test, no el arreglo. Después `next build` | tsc 0 en 2a9e7e3; build 0, «Compiled successfully in 42s» | MIA108-tsc-1, 2a9e7e3 | coincide por lectura (par de la fila 32) | hecho |
+| 31 | Fila 28 · capturas a 390 y 1.280 | Cargar el cobro manual en Pedido por la pantalla, perder el proyecto y mirar Administración › Cuentas a cobrar | Brief MIA-108, paso 3 | brief §3 | «No se cobra», sin «Cobrado», fuera de Pendientes y Vencidos, visible en Todos | Script de Playwright del scratchpad (`capturas-108.mjs`) contra la compilación servida en 3218. En la base descartable se activó el segundo paso con el secreto de la pantalla y se apagó la contraseña temporal del dueño de la demo | Antes: la fila en Vencidos con «Cobrado». Después: 0 filas en Pendientes y en Vencidos; en Todos, «$ 0 de $ 200.000 — No se cobra», sin botón. Sin desborde a 390 ni a 1.280; consola sin errores | MIA108-cap-1 a MIA108-cap-10, 03-despues-todos-390.png | coincide (verificador visual Sonnet, distinto: los 5 puntos cumplen; ver nota abajo) | hecho |
+| 32 | Par revisor sobre 258585b3..c4f0c4d | ¿La regla es la misma `perdidoAdmite` en la pantalla y en el servidor? | Brief MIA-108, paso 4 | brief §4 | Veredicto del par | `gsg-certificador` en Opus, distinto de la constructora; test adversarial propio en el scratchpad | «Con observaciones». La misma función, sin copias: `ficha-core.ts:17` y `:24`, `empresa.server.ts:70` y `:96`, `empresa-core.ts:39`, `_cuentas.tsx:132`, `acciones-ficha.ts:894` y `:1014`, `_pestanas-plata.tsx:217`. Cobro en USD de un perdido: sólo en «Todos»; un PAGO de proveedor sigue pendiente; indicadores en 0. Tests: 17/17, 18/18, 2/2, 3/3, 20/20 y su adversarial 2/2 | MIA108-par-1 (informe del par) | coincide (par) | hecho |
+| 33 | PR #193 y registro | ADV-7 en el cuerpo del PR y la nota de la tabla T, sin tocar la tabla T | Brief MIA-108, pasos 5 y 6 | brief §5-6 | Cuerpo actualizado; control en 0 | Sección MIA-108 en el PR; este registro; `registro-agente.mjs` | ver el PR | MIA108-pr-1 (cuerpo del PR #193) | coincide por lectura | hecho |
+
+Hallazgo abierto del par (severidad baja, de pantalla, no se cambió: el brief prohíbe tocar el arreglo): **Bancos** dentro de
+Administración sigue ofreciendo el cobro de un perdido. `datosDeBancos` (`empresa.server.ts:~174`) lo deja como candidato,
+`cuotaParaMovimiento` (`gestion-core.ts:583`) lo propone para un depósito del mismo monto y, ya conciliado, `_bancos.tsx:97,109` muestra
+«Marcar cobrada». El servidor lo rechaza (`acciones-ficha.ts:894`): no hay plata en riesgo, pero se ofrece lo que ADV-7 prohíbe.
+Arreglo sugerido: filtrar `!c.noSeCobra` en las candidatas y sumar `cobroFrenadoPorPerdido` a `puedeMarcar`. Para ORQ-007.
+
+Nota del verificador visual (fila 31): los indicadores de arriba de Administración no cambian entre antes y después («Cobros
+vencidos $ 23.241.075 · 2 cobros», «A cobrar $ 110.445.170»); con el cobro de $ 200.000 contado antes, tendrían que bajar después.
+Sin confirmar (no se investigó por el techo de gasto); el par vio en el test que los indicadores dan 0 para el perdido. Además: en «Todos»,
+Factura y Comentario siguen editables en un cobro que no se cobra; la etapa Pedido se muestra como «Lead / brief». Para ORQ-007.
