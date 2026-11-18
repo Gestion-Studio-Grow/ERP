@@ -270,7 +270,12 @@ export function cambioVisible(c: { entidad: string; campo: string }, permisos: {
   return true;
 }
 
-/** «Avance de cobro» del Estado financiero de la ficha, 0 a 100: lo cobrado sobre lo cobrado más lo que falta cobrar. */
-export function avanceDeCobro(f: { cobrado: number; aCobrar: number } | null | undefined): number {
+/**
+ * «Avance de cobro» del Estado financiero de la ficha, 0 a 100: lo cobrado sobre lo cobrado más lo que falta cobrar.
+ * Un perdido no tiene avance (null, no se muestra): no le falta nada y un «100 %» diría que se cobró la venta. Decisión
+ * 3 = A del veredicto MIA-094, PROVISIONAL A CONFIRMAR POR EL DUEÑO (B: lo cobrado contra la venta original).
+ */
+export function avanceDeCobro(f: { cobrado: number; aCobrar: number } | null | undefined, perdido: boolean): number | null {
+  if (perdido) return null;
   return f && f.cobrado + f.aCobrar > 0 ? (f.cobrado / (f.cobrado + f.aCobrar)) * 100 : 0;
 }

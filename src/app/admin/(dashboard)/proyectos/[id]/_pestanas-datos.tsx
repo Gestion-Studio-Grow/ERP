@@ -38,7 +38,7 @@ export async function PestanaResumen({ a, cab, vista }: { a: Actor; cab: Cabecer
   const { personas, finanzas, cantCuotas, cantChecklist } = await datosResumen(a, cab, vista);
   // Etapa 2: el portal del cliente se prende por negocio (apagado por defecto): si está apagado, no se ofrece el link.
   const conPortal = await etapa2ActivaPara(a.tenantId, "portal");
-  const avance = avanceDeCobro(finanzas);
+  const avance = avanceDeCobro(finanzas, !!p.perdidoEl);
   const libres = personas.filter((x) => !p.equipo.some((e) => e.personaId === x.id));
   const clientes = vista.pipelineEdita ? await prisma.client.findMany({ where: { tenantId: a.tenantId }, orderBy: { name: "asc" }, take: 500, select: { id: true, name: true } }) : [];
 
@@ -110,10 +110,16 @@ export async function PestanaResumen({ a, cab, vista }: { a: Actor; cab: Cabecer
               {vista.costos && <Numero titulo="Pagado a proveedores" valor={pesos(finanzas.pagado)} />}
               {vista.costos && <Numero titulo="A pagar" valor={pesos(finanzas.aPagar)} alerta={finanzas.cantPagosVencidos > 0} />}
             </dl>
-            <p className="mt-3 text-xs text-muted">Avance de cobro: {porcentaje(Math.round(avance))}</p>
-            <div className="mt-1 h-2 overflow-hidden rounded-full bg-surface" role="progressbar" aria-valuenow={Math.round(avance)} aria-valuemin={0} aria-valuemax={100} aria-label="Avance de cobro">
-              <div className="h-full bg-accent" style={{ width: `${Math.min(100, avance)}%` }} />
-            </div>
+            {avance === null ? (
+              <p className="mt-3 text-xs text-muted">Proyecto perdido: no se le cobra más. Lo cobrado queda como cobrado.</p>
+            ) : (
+              <>
+                <p className="mt-3 text-xs text-muted">Avance de cobro: {porcentaje(Math.round(avance))}</p>
+                <div className="mt-1 h-2 overflow-hidden rounded-full bg-surface" role="progressbar" aria-valuenow={Math.round(avance)} aria-valuemin={0} aria-valuemax={100} aria-label="Avance de cobro">
+                  <div className="h-full bg-accent" style={{ width: `${Math.min(100, avance)}%` }} />
+                </div>
+              </>
+            )}
           </section>
         )}
 
