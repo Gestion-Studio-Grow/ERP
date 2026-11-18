@@ -149,7 +149,8 @@ test("MIA-114 · P4 · B no concilia lo de A en ninguna combinación (movimiento
   ] as const) {
     const r = await p.conciliar(p.b, mov, cuota);
     assert.equal(r.ok, false, `B con ${que}: no concilia: ${JSON.stringify(r)}`);
-    assert.match(r.error ?? "", /ya no existen/, `B con ${que}: para B no existe`);
+    // ADM-143 (#195): a un id de otro negocio se le dice que no existe, sin afirmarle un estado (ni «anulada» ni «conciliado»).
+    assert.match(r.error ?? "", /^(Ese movimiento no existe\.|Esa cuota no existe\.|Ese movimiento o esa cuota ya no existen\.)$/, `B con ${que}: para B no existe`);
   }
   assert.equal(await p.foto(p.a.id), antesA, "A queda igual, fila por fila");
   assert.equal(await p.foto(p.b.id), antesB, "B también: nada quedó atado a medias");
@@ -158,7 +159,7 @@ test("MIA-114 · P4 · B no concilia lo de A en ninguna combinación (movimiento
   assert.equal(await p.atado(A.mov), A.cuota);
   const r = await p.conciliar(p.b, B.mov, A.cuota);
   assert.equal(r.ok, false, "con la cuota de A ya conciliada, B sigue sin poder usarla");
-  assert.match(r.error ?? "", /ya no existen/, "y no se entera de que está conciliada");
+  assert.match(r.error ?? "", /^(Esa cuota no existe\.|Ese movimiento o esa cuota ya no existen\.)$/, "y no se entera de que está conciliada");
   assert.equal(await p.atado(B.mov), null);
   assert.equal((await p.conciliar(p.b, B.mov, B.cuota)).ok, true, "B concilia lo suyo");
 });
