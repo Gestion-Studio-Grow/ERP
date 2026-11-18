@@ -129,3 +129,16 @@ test("Rendí: el pago cuadra sólo si lo reclamado en la base es exactamente lo 
   assert.equal(reintegrosCuadran(ex, [{ gastoId: "g1", montoCentavos: 550 }, { gastoId: "g2", montoCentavos: 701 }]), false, "la plata no coincide");
   assert.equal(reintegrosCuadran([ex[0]], []), true);
 });
+
+test("ADV-7 (MIA-107): una cuota que el perdido no admite cobrar no está en «Pendientes» ni en «Vencidos»; sí en «Todos»", () => {
+  const hoy = new Date("2026-11-18T12:00:00Z");
+  const frenada = { venceEl: new Date("2026-10-26T12:00:00Z"), pagadoEl: null, noSeCobra: true };
+  assert.equal(pasaFiltro(frenada, "pendientes", hoy), false);
+  assert.equal(pasaFiltro(frenada, "vencidos", hoy), false);
+  assert.equal(pasaFiltro(frenada, "pagados", hoy), false);
+  assert.equal(pasaFiltro(frenada, "todos", hoy), true);
+  // Sin la marca, la misma cuota vencida sigue pendiente (la regla de siempre).
+  const viva = { venceEl: frenada.venceEl, pagadoEl: null };
+  assert.equal(pasaFiltro(viva, "pendientes", hoy), true);
+  assert.equal(pasaFiltro(viva, "vencidos", hoy), true);
+});

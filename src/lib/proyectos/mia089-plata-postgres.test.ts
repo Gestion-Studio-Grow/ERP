@@ -10,6 +10,7 @@
 //  V6  un gasto directo sin pagar está en «A pagar» de Administración por lo mismo que en Rentabilidad.
 //  V7  el mismo envío dos veces (o diez a la vez) deja una sola cuota; dos cuotas iguales de envíos distintos, dos.
 //  V8a cambiar el tipo de cambio no cambia nada de lo ya cobrado.
+//  ADV-7 (MIA-107) un cobro cargado a mano en Pedido o Presupuesto, y después perdido, no queda pendiente en Administración.
 // Las fechas son fijas (26/10/2026): el resultado no depende del reloj.
 // ============================================================================
 
@@ -21,6 +22,7 @@ import { apuntarLaAppA, baseEfimeraDelArchivo, prismaComoDuenio, type BaseEfimer
 import { ETAPAS } from "./core";
 import { generaCuotas } from "./gestion-core";
 import { PERDIDO_NO_COBRA } from "./ficha-core";
+import { pasaFiltro } from "./empresa-core";
 
 const laBase = baseEfimeraDelArchivo();
 const DIA = 86_400_000;
@@ -669,4 +671,35 @@ test("V2 (MIA-099) · perdido en dólares con la seña cobrada: nada por cobrar 
   assert.equal(dir.vencido, 0, "Dirección: sin cobros vencidos");
   assert.equal(fila.cobrado, dir.cobrado, `cobrado: Rentabilidad ${fila.cobrado} = Dirección ${dir.cobrado}`);
   assert.equal(fila.cobrado, cobradoEnPesos, "al mismo cambio, lo cobrado en pesos es lo que entró a la caja");
+});
+
+test("ADV-7 (MIA-107) · un cobro cargado a mano en Pedido o en Presupuesto y después perdido: Administración no lo cuenta pendiente, la caja no lo espera y el servidor no lo marca (decisión 2 = A, provisional a confirmar por el dueño)", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const { cashflowDeEmpresa } = await import("./empresa.server");
+  const cobrosDelMes = async () => (await p.enSesion(() => cashflowDeEmpresa(p.a.id))).proyeccion[0]!.cobros;
+  const hoy = new Date("2026-11-18T12:00:00Z");
+  for (const etapa of ["PEDIDO", "PRESUPUESTO"]) {
+    const id = await p.proyecto(etapa);
+    const concepto = `Seña a mano en ${etapa}`;
+    const r = await p.enSesion(() => p.ficha.crearMovimientoManual(p.form({ proyectoId: id, tipo: "COBRO", concepto, monto: "200", moneda: "ARS", venceEl: "2026-10-26" })));
+    assert.equal(r.ok, true, `${etapa}: el cobro a mano se carga: ${JSON.stringify(r)}`);
+    const cuota = await p.duenio.proyectoCuota.findFirstOrThrow({ where: { proyectoId: id, concepto }, select: { id: true } });
+    const antes = (await p.administracion()).cuotas.find((c) => c.id === cuota.id)!;
+    assert.equal(antes.pendiente, 200, `${etapa}: antes de perder, pendiente por su monto`);
+    const cajaAntes = await cobrosDelMes();
+    assert.equal((await p.mover(id, "PERDIDO", "Eligió otro proveedor")).ok, true);
+    const adm = await p.administracion();
+    const fila = adm.cuotas.find((c) => c.id === cuota.id);
+    assert.ok(fila, `${etapa}: la cuota sigue en la lista (en «Todos»): no se borra nada`);
+    assert.equal(fila.pagadoEl, null, `${etapa}: perder no la marca`);
+    assert.equal(fila.pendiente, 0, `${etapa}: un perdido no se cobra: la cuota no queda pendiente de cobro`);
+    assert.equal(pasaFiltro(fila, "pendientes", hoy), false, `${etapa}: no aparece en «Pendientes» (ahí estaría con el botón «Cobrado»)`);
+    assert.equal(pasaFiltro(fila, "vencidos", hoy), false, `${etapa}: no aparece en «Vencidos»`);
+    assert.equal(pasaFiltro(fila, "todos", hoy), true, `${etapa}: sí aparece en «Todos»`);
+    assert.equal(adm.sinCalendario.filter((f) => f.proyectoId === id).length, 0, `${etapa}: sin renglón «Sin calendario»`);
+    assert.equal(await p.porCobrar(id), 0, `${etapa}: la fuente única da por cobrar 0`);
+    assert.equal(await cobrosDelMes(), cajaAntes - 200, `${etapa}: el cashflow de la empresa deja de esperar esos $ 200`);
+    assert.equal((await p.marcar(cuota.id)).ok, false, `${etapa}: el servidor no la marca`);
+  }
 });
