@@ -4,10 +4,18 @@
 // función que valida el server (`validatePasswordStrength`) — el cliente solo ayuda; la fuente de
 // verdad es el Server Action, que re-valida todo.
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { Field, Input, buttonClasses } from "@/components/ui";
 import { validatePasswordStrength, MIN_PASSWORD_LENGTH } from "@/lib/password-policy";
 import { changeOwnPassword } from "@/lib/change-password-actions";
+
+// Antes de que la página hidrate (red lenta, o el JS que no llegó) el botón NO va deshabilitado: el usuario ya
+// completó los campos y el server valida todo igual. Deshabilitarlo desde el HTML del server dejaba la pantalla sin
+// salida (GSG-MIA-072, punto 9). Ya hidratada, se deshabilita hasta que la clave cumple.
+const sinSuscripcion = () => () => {};
+function useHidratado(): boolean {
+  return useSyncExternalStore(sinSuscripcion, () => true, () => false);
+}
 
 const STATUS_MESSAGES: Record<string, string> = {
   error_current: "La contraseña actual no es correcta.",
@@ -26,6 +34,7 @@ export function ChangePasswordForm({ status }: { status?: string }) {
   const matches = next.length > 0 && next === confirm;
   const notSame = next.length > 0 && next !== current;
   const canSubmit = current.length > 0 && check.ok && matches && notSame;
+  const hidratado = useHidratado();
 
   const serverError = status ? STATUS_MESSAGES[status] : undefined;
 
@@ -101,7 +110,7 @@ export function ChangePasswordForm({ status }: { status?: string }) {
         </div>
       </Field>
 
-      <button type="submit" disabled={!canSubmit} className={buttonClasses("solid", "lg", "w-full mt-1")}>
+      <button type="submit" disabled={hidratado && !canSubmit} className={buttonClasses("solid", "lg", "w-full mt-1")}>
         Guardar y entrar
       </button>
     </form>

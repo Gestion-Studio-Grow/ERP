@@ -1,0 +1,48 @@
+GSG-MIA-099 · evidencia en texto (los logs completos quedan en el scratchpad de la sesión)
+
+== Suite completa, base 6ce29c4 (worktree aparte, prisma generado copiado)
+# tests 10053
+# pass 10050
+# fail 0
+# cancelled 0
+# skipped 3
+## npm test — 10050 ok · 0 fallidos · 3 salteados · 0 cancelados
+
+### Fallidos: ninguno
+
+== Suite completa, rama en 3437c8a (antes del par revisor)
+# tests 10064
+# pass 10060
+# fail 1
+# cancelled 0
+# skipped 3
+## npm test — 10060 ok · 1 fallidos · 3 salteados · 0 cancelados
+
+### Fallidos (1)
+- ✗ carrera de cobros: la traba de la cobranza existe y precede a TODA relectura del pendiente dentro de la transacción — `src/lib/proyectos/cobranza-propiedades.test.ts:202`
+  - ./acciones-ficha.ts:897 relee el pendiente sin trabar antes la cobranza · actual: |-
+
+
+== Suite completa, árbol final daedd8a (f2bc3bc sólo agrega tipos al test)
+# tests 10064
+# pass 10061
+# fail 0
+# cancelled 0
+# skipped 3
+## npm test — 10061 ok · 0 fallidos · 3 salteados · 0 cancelados
+
+### Fallidos: ninguno
+
+== tsc --noEmit sobre f2bc3bc: exit 0 · next build: exit 0, Compiled successfully in 36.7s
+
+== Rojo antes de la falla cerrada (perdidoAdmite)
+not ok 3 - decisión 2 · en un perdido se paga a un proveedor y no se cobra: la misma regla en la pantalla y en el servidor
+    «cobro» no es PAGO
+# pass 2
+# fail 1
+
+== Contraprueba de la carrera del cobro manual: sin el chequeo de perdido en crearMovimientoManual
+not ok 1 - V2 (MIA-099) · carrera: cobro manual contra «Marcar perdido», en los dos órdenes (5 veces cada uno): ningún cobro entra a un perdido
+    orden 1: {"ok":true}
+# pass 0
+# fail 1

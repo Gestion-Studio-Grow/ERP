@@ -112,7 +112,7 @@ export async function fichaProyecto(id: string) {
   const rubros = desvioPorRubro(vigente?.items.map((i) => ({ ...i, costo: aPesos(i.costo, i.moneda, tc) })) ?? [], proyecto.gastos);
   // Cobrado y saldo: la fuente única (cobranza-core), igual que la caja «Cobros» y las listas.
   const pagosVivos = proyecto.pagos.filter((x) => !x.anuladoEl);
-  const delProyecto = { moneda: proyecto.moneda, presupuestos: vigente ? [vigente] : [], pagos: pagosVivos };
+  const delProyecto = { moneda: proyecto.moneda, perdidoEl: proyecto.perdidoEl, presupuestos: vigente ? [vigente] : [], pagos: pagosVivos };
   const { total: totalAprobado, cobrado, saldo } = cobranzaDe(delProyecto, tc, config.margenPct, await originalesDeCobros(tenantId, [delProyecto]));
   return { user, conPlata, proyecto, config, negocio, totalAprobado, cobrado, saldo, totalesVigente, real, rubros, proveedores: proveedores.map((s) => s.name) };
 }

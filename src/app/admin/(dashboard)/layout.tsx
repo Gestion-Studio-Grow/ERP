@@ -11,6 +11,7 @@ import GlobalLoadingProvider from "./GlobalLoadingProvider";
 import { VocabularioDelNegocio } from "./VocabularioDelNegocio";
 import { vocabularioDelNegocio } from "@/lib/vocabulario-negocio";
 import DemoBanner from "./DemoBanner";
+import AvisoDeLaCuadrilla from "./AvisoDeLaCuadrilla";
 import VigiaDeInactividad from "./VigiaDeInactividad";
 import { requireUser } from "@/lib/authz";
 import { mustChangePasswordFor } from "@/lib/must-change-password";
@@ -377,6 +378,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <AdminThemeScript nuevo={nuevo || modoApps} />
       {/* Banda de "modo demo" — solo aparece en el deploy de demo; null en real. */}
       <DemoBanner />
+      {/* La cuadrilla de agentes (GSG-MIA-062): sólo donde hay agentes; si no, no dibuja nada. */}
+      <AvisoDeLaCuadrilla />
       {/* 15 min sin uso real → PIN, aunque los sondeos automáticos renueven la cookie (GSG-SEG-004). */}
       <VigiaDeInactividad />
       {/* Diseño nuevo: sus hojas y `useDiseno()` para el shell y las pantallas. Apagado devuelve su

@@ -158,13 +158,25 @@ export const generaCuotas = (etapa: string): boolean => (ETAPAS_CON_CUOTAS as re
 export const cuotaPrevista = (etapa: string, fechaEvento: Date | null): boolean => !generaCuotas(etapa) || !fechaEvento;
 
 /**
+ * Si la cuota es previsión. Una cuota que ya fue firme no vuelve a serlo: un retroceso de etapa o una fecha borrada no le
+ * cambia el vencimiento ni la saca de «Cobros vencidos», y al volver a confirmar no nace otra vez (MIA-089 · V1;
+ * provisional a confirmar por el dueño). PURA.
+ */
+export const previstaDeLaCuota = (prevista: boolean, previa?: { prevista: boolean }): boolean => prevista && (!previa || previa.prevista);
+
+/**
  * De cuándo es la cuota. Una fecha corregida a mano no se pisa. El anticipo del cliente vence el día que se confirma, no el
- * día que entró el lead (naceria vencido), y después queda fijo. PURA.
+ * día que entró el lead (naceria vencido), y después queda fijo. `prevista` es lo que pide el PLAN: una cuota que ya fue
+ * firme y que el plan vuelve a pedir como previsión (el proyecto volvió a Lead o se quedó sin fecha) conserva su
+ * vencimiento (MIA-089 · V1, tomado del WIP de MIA-089 por MIA-094; provisional a confirmar por el dueño). PURA.
  */
 export function venceDeLaCuota(d: { clave: string; plan: Date; prevista: boolean; hoy: Date; previa?: { venceEl: Date; venceManual: boolean; prevista: boolean } }): Date {
   if (d.previa?.venceManual) return d.previa.venceEl;
-  if (!d.clave.endsWith(":cliente:anticipo") || d.prevista) return d.plan;
-  return d.previa && !d.previa.prevista ? d.previa.venceEl : d.hoy;
+  const firme = !!d.previa && !d.previa.prevista;
+  const sena = d.clave.endsWith(":cliente:anticipo");
+  if (firme && (d.prevista || sena)) return d.previa!.venceEl;
+  if (!sena || d.prevista) return d.plan;
+  return d.hoy;
 }
 
 /** Lo que el cashflow no ve: un ítem con costo y sin proveedor no genera pago, y el saldo queda mejor de lo real. En pesos. PURA. */
@@ -242,9 +254,12 @@ export interface LineaCashflow<T> {
  * `montoDe` (en la moneda de la cuota): lo que cuenta cada cuota; sin él, su monto. Una cuota de cobro ya cobrada debe
  * contar lo que entró por ella, no su monto (ver `repartoDeCobros`).
  */
-export function cashflowDelEvento<T extends CuotaLeida>(cuotas: readonly T[], tc: Readonly<Record<string, number>>, montoDe: (c: T) => number = (c) => c.monto): { lineas: LineaCashflow<T>[]; saldoFinal: number; maximoAFinanciar: number } {
+export function cashflowDelEvento<T extends CuotaLeida>(cuotas: readonly T[], tc: Readonly<Record<string, number>>, montoDe: (c: T) => number = (c) => c.monto, inicial = 0): { lineas: LineaCashflow<T>[]; inicial: number; saldoFinal: number; maximoAFinanciar: number } {
   const orden = cuotas.filter((c) => !c.anuladoEl).slice().sort((a, b) => a.venceEl.getTime() - b.venceEl.getTime() || (a.tipo === "COBRO" ? -1 : 1));
-  let saldo = 0;
+  // `inicial`: lo cobrado que no está en ninguna cuota viva (`RepartoDeCobros.suelto`). Entró igual: el saldo arranca con
+  // eso (un perdido con un cobro hecho termina en lo cobrado, no en cero; MIA-089 · V2).
+  inicial = redondear(Math.max(0, inicial));
+  let saldo = inicial;
   let minimo = 0;
   const lineas = orden.map((cuota) => {
     const pesos = aPesos(montoDe(cuota), cuota.moneda, tc);
@@ -253,7 +268,7 @@ export function cashflowDelEvento<T extends CuotaLeida>(cuotas: readonly T[], tc
     minimo = Math.min(minimo, saldo);
     return { cuota, importe, saldo };
   });
-  return { lineas, saldoFinal: saldo, maximoAFinanciar: redondear(-minimo) };
+  return { lineas, inicial, saldoFinal: saldo, maximoAFinanciar: redondear(-minimo) };
 }
 
 export interface ResumenCuotas {
@@ -374,6 +389,10 @@ export function proyeccionDeCaja(d: {
   }
   return salida;
 }
+
+/** Lo que pesa un proyecto en el pipeline: su venta y, sin ítems todavía, lo estimado. Una sola regla para el tablero y Dirección. PURA. */
+export const ventaOEstimado = (venta: number, estimado: number | null, moneda: string, tc: Readonly<Record<string, number>>): number =>
+  venta > 0 ? venta : estimado ? aPesos(estimado, moneda, tc) : 0;
 
 export const PROBABILIDAD_PROPUESTA = 0.4;
 

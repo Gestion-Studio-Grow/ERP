@@ -28,6 +28,7 @@ import {
   cambioDeVenta,
   costoSinProveedor,
   cuotaPrevista,
+  previstaDeLaCuota, ventaOEstimado,
   venceDeLaCuota,
   enMonedaDeVenta,
   appEnLaBarra,
@@ -335,6 +336,17 @@ test("el anticipo del cliente vence al confirmar y queda fijo; una fecha a mano 
   assert.equal(venceDeLaCuota({ clave: "p:i:saldo", plan, prevista: false, hoy, previa: { venceEl: antes, venceManual: true, prevista: false } }), antes);
 });
 
+test("MIA-094 · V1: una cuota firme que el plan vuelve a pedir como previsión (fecha del evento borrada, vuelta a Lead) conserva su vencimiento", () => {
+  const plan = new Date("2026-01-01T12:00:00Z");
+  const hoy = new Date("2026-03-01T12:00:00Z");
+  const firme = { venceEl: new Date("2026-10-26T12:00:00Z"), venceManual: false, prevista: false };
+  // `prevista` es lo que pide el plan; la cuota ya fue firme: no se corre a la fecha del plan.
+  for (const clave of ["p:cliente:saldo", "p:i:saldo", "p:cliente:anticipo"]) assert.equal(venceDeLaCuota({ clave, plan, prevista: true, hoy, previa: firme }), firme.venceEl, clave);
+  // Una previsión que nunca fue firme sigue al plan, y una firme con el plan firme también (el evento se movió).
+  assert.equal(venceDeLaCuota({ clave: "p:cliente:saldo", plan, prevista: true, hoy, previa: { ...firme, prevista: true } }), plan);
+  assert.equal(venceDeLaCuota({ clave: "p:cliente:saldo", plan, prevista: false, hoy, previa: firme }), plan);
+});
+
 test("el costo sin proveedor se cuenta en pesos, y lo que tiene proveedor no", () => {
   const items = [
     { costo: 100, cantidad: 2, moneda: "ARS", supplierId: null },
@@ -394,4 +406,19 @@ test("Rendí: matriz de rendiciones (plan MIA §2)", async () => {
   assert.equal(puedeReintegrarRendicion("ADMINISTRACION", "a1", "c2"), true);
   assert.deepEqual(permisoDe("ADMINISTRACION", "rendiciones", []), { ver: true, editar: true });
   assert.deepEqual(permisoDe("COMERCIAL", "rendiciones", []), { ver: true, editar: false });
+});
+
+test("MIA-089 · V1: una cuota que ya fue firme no vuelve a ser previsión; una nueva o prevista sigue la etapa", () => {
+  assert.equal(previstaDeLaCuota(true), true, "nueva en un lead: previsión");
+  assert.equal(previstaDeLaCuota(true, { prevista: true }), true, "previsión que sigue en un lead");
+  assert.equal(previstaDeLaCuota(true, { prevista: false }), false, "firme y el proyecto vuelve a lead: sigue firme");
+  assert.equal(previstaDeLaCuota(false, { prevista: true }), false, "se confirma: firme");
+  assert.equal(previstaDeLaCuota(false), false);
+});
+
+test("MIA-089 · T: el pipeline pesa la venta y, sin ítems, lo estimado (la misma regla en el tablero y en Dirección)", () => {
+  assert.equal(ventaOEstimado(1210, 1_000_000, "ARS", {}), 1210, "con ítems manda la venta");
+  assert.equal(ventaOEstimado(0, 1_000_000, "ARS", {}), 1_000_000, "un lead sin ítems pesa lo estimado: era la diferencia de 1.000.000");
+  assert.equal(ventaOEstimado(0, 1000, "USD", { USD: 1250 }), 1_250_000, "en dólares, al cambio");
+  assert.equal(ventaOEstimado(0, null, "ARS", {}), 0);
 });

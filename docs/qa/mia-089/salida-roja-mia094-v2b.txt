@@ -1,0 +1,30 @@
+not ok 1 - V2b (MIA-094) · perdido con un cobro suelto: saldo 0 en la ficha, Finanzas y Rentabilidad, y el cashflow de la ficha arranca con lo cobrado
+  ---
+  duration_ms: 3569.722053
+  type: 'test'
+  location: '/home/user/erp/src/lib/proyectos/mia089-plata-postgres.test.ts:6:9815'
+  failureType: 'testCodeFailure'
+  error: |-
+    ficha: lo cobrado sigue cobrado y no queda saldo
+    + actual - expected
+    
+      {
+        cobrado: 300,
+    +   saldo: 910
+    -   saldo: 0
+      }
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    cobrado: 300
+    saldo: 0
+  actual:
+    cobrado: 300
+    saldo: 910
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/proyectos/mia089-plata-postgres.test.ts:211:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)

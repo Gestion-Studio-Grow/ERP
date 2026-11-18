@@ -19,15 +19,16 @@ const PLAZO_MS = 20_000;
 const AHORA = Date.parse("2026-11-10T12:00:00Z");
 
 /**
- * Conexiones de esta base (menos la del test) esperando un bloqueo de fila. `pg_locks`, no `wait_event`: éste se ve sólo
- * con el mismo rol. Se limpia la foto de estadísticas antes de mirar: adentro de la transacción del test,
+ * Conexiones de esta base (menos la del test) esperando un bloqueo de fila o un candado consultivo. El candado cuenta
+ * desde MIA-111: conciliar el cobro de un proyecto toma primero el de la cobranza (`trabarCobranza`), así el segundo
+ * pedido espera ahí, detrás del primero, y no en la fila. `pg_locks`, no `wait_event`: éste se ve sólo con el mismo rol. Se limpia la foto de estadísticas antes de mirar: adentro de la transacción del test,
  * `pg_stat_activity` queda congelada en la primera consulta y una conexión que el pool abre después no aparecería nunca.
  */
 async function esperandoFila(c: pg.Client): Promise<number> {
   await c.query("SELECT pg_stat_clear_snapshot()");
   const r = await c.query<{ n: number }>(
     `SELECT count(DISTINCT pid)::int AS n FROM pg_locks
-      WHERE NOT granted AND locktype IN ('transactionid', 'tuple') AND pid <> pg_backend_pid()
+      WHERE NOT granted AND locktype IN ('transactionid', 'tuple', 'advisory') AND pid <> pg_backend_pid()
         AND pid IN (SELECT pid FROM pg_stat_activity WHERE datname = current_database())`,
   );
   return r.rows[0].n;
@@ -67,7 +68,7 @@ async function enFilaDeLasFilas<T>(base: BaseEfimera, tabla: "ProyectoMovBanco" 
     let enCurso: Promise<T>[];
     try {
       await c.query(`SELECT id FROM "${tabla}" WHERE id = ANY($1) FOR UPDATE`, [ids]);
-      enCurso = await lanzarEnFila(pedidos, () => esperandoFila(c), `el bloqueo de fila de ${tabla}`);
+      enCurso = await lanzarEnFila(pedidos, () => esperandoFila(c), `el bloqueo de fila de ${tabla} (o el candado de la cobranza)`);
       if (enElMedio) await enElMedio(c);
     } finally {
       await c.query("COMMIT");

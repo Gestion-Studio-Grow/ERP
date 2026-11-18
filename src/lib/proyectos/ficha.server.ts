@@ -7,7 +7,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { getCurrentTenantId } from "@/lib/tenant";
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { aPesos, COLUMNAS_FICHA, cashflowDelEvento, codigoProyecto, resumenCuotas, totalesFicha, ventaTotalItem } from "./gestion-core";
+import { aPesos, COLUMNAS_FICHA, cashflowDelEvento, codigoProyecto, resumenCuotas, totalesFicha, ventaOEstimado, ventaTotalItem } from "./gestion-core";
 import { columnasOcultas, filtroDeProyectos, puede, tiposDeCambio, versionViva, versionDeLaPlata, aItemFicha, type Actor } from "./gestion.server";
 import { configProyectos, datosDelNegocio } from "./datos.server";
 import { cobranza, conciliarConCobros, montoEnCashflow, pagadoDeCuota, repartoDeCobros, SIN_PREVISTAS_SIN_MARCAR, totalesEnPesos } from "./cobranza-core";
@@ -47,6 +47,7 @@ export async function tableroPipeline(a: Actor): Promise<TarjetaProyecto[]> {
       select: {
         id: true,
         moneda: true,
+        presupuestoEstimado: true,
         numero: true,
         nombre: true,
         etapa: true,
@@ -73,7 +74,9 @@ export async function tableroPipeline(a: Actor): Promise<TarjetaProyecto[]> {
     cliente: p.client.name,
     tipo: p.tipoEvento ?? p.evento,
     iniciales: p.equipo.map((e) => iniciales(e.persona.nombre)),
-    venta: redondear((p.presupuestos[0]?.items ?? []).reduce((s, i) => s + ventaTotalItem(i, tc, config.margenPct), 0)),
+    // El pipeline del tablero es el mismo que el «Pipeline abierto» de Dirección (`empresa.server.ts`, `ventaOEstimado`):
+    // un lead todavía sin ítems pesa por lo que se estimó (MIA-089 · T: eran 1.000.000 de diferencia en la semilla).
+    venta: ventaOEstimado(redondear((p.presupuestos[0]?.items ?? []).reduce((s, i) => s + ventaTotalItem(i, tc, config.margenPct), 0)), p.presupuestoEstimado, p.moneda, tc),
     ventaTexto: ventaEn(redondear((p.presupuestos[0]?.items ?? []).reduce((s, i) => s + ventaTotalItem(i, tc, config.margenPct), 0)), p.moneda, cambioDeVenta(p.moneda, p.presupuestos[0]?.tcVenta, tc)),
     fecha: p.fechaEvento ? fechaCorta(p.fechaEvento) : "Sin fecha",
     fechaOrden: p.fechaEvento?.getTime() ?? Number.MAX_SAFE_INTEGER,
@@ -146,17 +149,20 @@ export async function cabeceraFicha(a: Actor, id: string) {
 export type Cabecera = NonNullable<Awaited<ReturnType<typeof cabeceraFicha>>>;
 
 export async function datosResumen(a: Actor, cab: Cabecera, vista: Vista) {
-  const [personas, cuotas, cantChecklist, cobranzas] = await Promise.all([
+  const [personas, cuotas, cantChecklist, cobranzas, gastosSinPagar] = await Promise.all([
     prisma.proyectoPersona.findMany({ where: { tenantId: a.tenantId, activa: true }, orderBy: { nombre: "asc" }, select: { id: true, nombre: true, puesto: true } }),
     vista.pagos ? prisma.proyectoCuota.findMany({ where: { tenantId: a.tenantId, proyectoId: cab.proyecto.id, anuladoEl: null, ...SIN_PREVISTAS_SIN_MARCAR }, select: { id: true, tipo: true, monto: true, moneda: true, venceEl: true, pagadoEl: true, anuladoEl: true } }) : [],
     prisma.proyectoChecklist.count({ where: { tenantId: a.tenantId, proyectoId: cab.proyecto.id } }),
     vista.pagos ? cobranzasDelNegocio(a.tenantId, cab.tc, cab.config.margenPct, [cab.proyecto.id]) : null,
+    // MIA-089 · V6: el gasto directo sin pagar también se debe (lo mismo que Administración y Rentabilidad).
+    vista.pagos ? prisma.proyectoGasto.findMany({ where: { tenantId: a.tenantId, proyectoId: cab.proyecto.id, pagadoEl: null, anuladoEl: null }, select: { neto: true, iva: true } }) : [],
   ]);
   // Cobrado y a cobrar, de los cobros registrados contra lo aprobado (cobranza-core); las cuotas sólo dan los vencimientos.
   const cob = cobranzas?.get(cab.proyecto.id);
   // Lo pagado en parte a proveedor sale de «A pagar» y entra en «pagado» (pago-parcial-core).
   const netas = vista.pagos ? conPartesComoPagadas(cuotas, await pagosParcialesDeCuotas(a.tenantId, cuotas, cab.tc)) : [];
-  const finanzas = vista.pagos ? (cob ? conciliarConCobros(netas, cab.tc, cob) : resumenCuotas(netas, cab.tc)) : null;
+  const deCuotas = vista.pagos ? (cob ? conciliarConCobros(netas, cab.tc, cob) : resumenCuotas(netas, cab.tc)) : null;
+  const finanzas = deCuotas && { ...deCuotas, aPagar: redondear(deCuotas.aPagar + gastosSinPagar.reduce((x, g) => x + g.neto + g.iva, 0)) };
   return { personas, finanzas, cantCuotas: cuotas.length, cantChecklist };
 }
 
@@ -199,13 +205,15 @@ export async function datosFinanzas(a: Actor, cab: Cabecera, vista: Vista) {
   // Cada cuota con lo que le falta y lo que entró por ella: lo cobrado a mano ya se descontó de las más viejas.
   // Y cada cuota de pago con lo pagado en parte a proveedor: le queda su monto menos esas partes (pago-parcial-core).
   const pagados = vista.costos ? await pagosParcialesDeCuotas(tenantId, todas, cab.tc) : new Map<string, number>();
-  const reparto = conPagosParciales(todas, repartoDeCobros(todas, cab.tc, cob), pagados);
+  const crudo = repartoDeCobros(todas, cab.tc, cob);
+  const reparto = conPagosParciales(todas, crudo, pagados);
   // `pagado`: lo que se pagó por una marcada tal como entró (original y pesos asentados), para mostrar; el cashflow usa `cobrado`.
   const cuotas = todas.map((c, i) => ({ ...c, pendiente: reparto.pendiente[i], cobrado: reparto.cobrado[i], pagado: pagadoDeCuota(c, cob) }));
   // Sin permiso de costos, un pago a proveedor delata el costo: sólo se ven los cobros.
   const visibles = vista.costos ? cuotas : cuotas.filter((c) => c.tipo === "COBRO");
   // Una cuota de cobro cuenta lo que entró por ella más lo que le falta (pagada o no), nunca su monto: si no, se pasa del total.
-  const flujo = cashflowDelEvento(visibles, cab.tc, montoEnCashflow);
+  // Lo cobrado que ninguna cuota viva tomó (un perdido, un proyecto sin plan) también entró: el saldo arranca con eso.
+  const flujo = cashflowDelEvento(visibles, cab.tc, montoEnCashflow, crudo.suelto);
   // Pasados a pesos: un ítem en dólares no se puede comparar como si fueran pesos.
   const aprobadaEnPesos = aprobada?.items.map((i) => ({ rubro: i.rubro, cantidad: i.cantidad, costo: aPesos(i.costo, i.moneda, cab.tc), precio: i.cantidad > 0 ? ventaTotalItem(i, cab.tc, cab.config.margenPct) / i.cantidad : 0 })) ?? [];
   const totalesAprobada = aprobada ? totalesEnPesos(aprobada, cab.tc, cab.config.margenPct) : null;

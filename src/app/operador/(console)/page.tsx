@@ -86,6 +86,11 @@ const VACIO: Record<Exclude<VistaNegocios, null> | "todos", string> = {
 /** Cuántos renglones muestra «Para atender» antes de mandar a la vista «Con pendientes». */
 const EN_LA_BANDEJA = 5;
 
+// Las marcas de la cabecera son frases (con el nombre del negocio adentro): a 390 px tienen que poder
+// partirse. `renglon.css` deja toda marca en una línea (`white-space: nowrap`), y con un nombre largo la
+// portada medía más que la pantalla (GSG-MIA-072, punto 2). El `!` le gana a esa regla sólo acá.
+const LINEA_LARGA = "whitespace-normal! min-w-0 max-w-full";
+
 const VISTA_TITULO: Record<Exclude<VistaNegocios, null>, string> = {
   produccion: "En producción",
   prueba: "En prueba",
@@ -208,22 +213,22 @@ export default async function Negocios({
           className="mt-3 flex flex-wrap gap-x-6 gap-y-1"
           aria-label="La plataforma"
         >
-          <li>
-            <Marca tipo={aislamiento ? "hecho" : "atencion"}>
+          <li className="min-w-0 max-w-full">
+            <Marca tipo={aislamiento ? "hecho" : "atencion"} className={LINEA_LARGA}>
               {aislamiento
                 ? "Aislamiento entre negocios: prendido"
                 : "Aislamiento entre negocios: apagado en este entorno"}
             </Marca>
           </li>
           {candados.map((n) => (
-            <li key={n.id}>
-              <Marca tipo="hecho">
+            <li key={n.id} className="min-w-0 max-w-full">
+              <Marca tipo="hecho" className={LINEA_LARGA}>
                 {n.nombre} con candado: cambia sólo con el OK del dueño
               </Marca>
             </li>
           ))}
-          <li>
-            <Marca tipo={conValidezFiscal > 0 ? "hecho" : "atencion"}>
+          <li className="min-w-0 max-w-full">
+            <Marca tipo={conValidezFiscal > 0 ? "hecho" : "atencion"} className={LINEA_LARGA}>
               {modoArca === "real"
                 ? conValidezFiscal > 0
                   ? `Facturación real: ${conValidezFiscal} ${conValidezFiscal === 1 ? "negocio" : "negocios"}`

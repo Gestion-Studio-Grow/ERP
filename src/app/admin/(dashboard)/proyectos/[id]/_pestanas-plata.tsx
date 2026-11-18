@@ -8,7 +8,7 @@ import SubmitButton from "@/components/SubmitButton";
 import { pagarGasto, registrarCobro } from "@/lib/proyectos/acciones";
 import { anularCobroFicha, anularGastoFicha, aprobarInterno, pedirAprobacion, crearMovimientoManual, enviarCotizacion, guardarTextos, marcarCuota, nuevaVersion, quitarMovimiento, recalcularCuotas, registrarRespuesta } from "@/lib/proyectos/acciones-ficha";
 import { fechaCorta, fechaParaInput, MEDIOS, MEDIO_LABEL, pesos, porcentaje, redondear, sePuedeEditar, totalDelGasto, waLink, type MedioPago } from "@/lib/proyectos/core";
-import { esFoto, FILTROS_CASHFLOW, filtrarCashflow, fotoDeVersion, margenDeFoto, planillaDeVenta } from "@/lib/proyectos/ficha-core";
+import { esFoto, FILTROS_CASHFLOW, filtrarCashflow, fotoDeVersion, margenDeFoto, perdidoAdmite, planillaDeVenta } from "@/lib/proyectos/ficha-core";
 import { aItemFicha } from "@/lib/proyectos/gestion.server";
 import { cambiosEntreVersiones, cambioDeVenta, estadoCuota, MONEDAS, plataEn, totalesFicha, ventaEn } from "@/lib/proyectos/gestion-core";
 import { datosCotizacion, datosFinanzas, type Cabecera, type Vista } from "@/lib/proyectos/ficha.server";
@@ -210,6 +210,13 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
   const cargaDirecta = vista.editaPagos && veLaPlata(a.user);
   const conCobros = d.cuotas.some((c) => c.tipo === "COBRO" && !c.anuladoEl);
   const conPagos = d.cuotas.some((c) => c.tipo === "PAGO" && !c.anuladoEl);
+  // Un perdido no debe nada (pregunta 2 = A): no se ofrece cobrar ni marcar sus cuotas de cobro ni cargar un cobro a mano;
+  // el servidor también lo rechaza (`PERDIDO_NO_COBRA`). Lo que se le debe a un proveedor se paga sin reabrir
+  // (`perdidoAdmite`, decisión 2 = A, provisional a confirmar por el dueño). Anular un cobro hecho sigue andando (V2).
+  const perdido = !!p.perdidoEl;
+  const admite = (tipo: string) => !perdido || perdidoAdmite(tipo);
+  // Lo cobrado que ninguna cuota viva tomó: primera línea del cashflow (el saldo arranca con eso).
+  const sinCuota = d.flujo.inicial > 0 && (activo === "todos" || activo === "cobros") ? d.flujo.inicial : 0;
   const verCosto = !vista.ocultas.has("costoTotal");
   const cambioEvento = cambioDeVenta(p.moneda, cab.base?.tcVenta, cab.tc);
   const enEvento = (n: number) => ventaEn(n, p.moneda, cambioEvento);
@@ -249,7 +256,7 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
             ))}
           </nav>
         </div>
-        {lineas.length === 0 ? (
+        {lineas.length === 0 && sinCuota === 0 ? (
           <p className="mb-3 text-sm text-muted">Sin movimientos. Los cobros y pagos se generan solos cuando el proyecto está confirmado y la ficha tiene fecha de evento.</p>
         ) : (
           <div className="mb-3 overflow-x-auto">
@@ -270,6 +277,21 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
                 </tr>
               </thead>
               <tbody className="block sm:table-row-group">
+                {sinCuota > 0 && (
+                  <tr className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 border-t border-line py-2 align-top sm:table-row sm:py-0">
+                    <td className="hidden py-1.5 pr-2 sm:table-cell">—</td>
+                    <td className="py-1.5 pr-2">
+                      Cobrado sin cuota
+                      <span className="block text-xs text-muted">{perdido ? "Lo que se cobró antes de perderse: queda como cobrado." : "Cobros registrados aparte que ninguna cuota pendiente toma."}</span>
+                    </td>
+                    <td className="hidden py-1.5 pr-2 sm:table-cell">{p.client.name}</td>
+                    <td className="py-1.5 pr-2 text-right tabular-nums">{enCaja(sinCuota)}</td>
+                    <td className="hidden py-1.5 pr-2 text-right tabular-nums text-strong sm:table-cell">{enCaja(sinCuota)}</td>
+                    <td className="hidden py-1.5 pr-2 text-right font-medium tabular-nums sm:table-cell">{enCaja(sinCuota)}</td>
+                    <td className="col-span-2 py-1.5 pr-2"><Badge tone="success">Cobrado</Badge></td>
+                    <td className="col-span-2 py-1" />
+                  </tr>
+                )}
                 {lineas.map(({ cuota: c, importe, saldo }) => {
                   const estado = estadoCuota(c);
                   const fecha = c.prevista && !p.fechaEvento ? "Sin fecha" : fechaCorta(c.venceEl);
@@ -298,7 +320,8 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
                       <td className="col-span-2 py-1.5 pr-2">{c.prevista && !c.pagadoEl ? <Badge tone="neutral">Prevista</Badge> : <Badge tone={estado === "PAGADA" ? "success" : estado === "VENCIDA" ? "danger" : "neutral"}>{estado === "PAGADA" ? (c.tipo === "COBRO" ? "Cobrado" : "Pagado") : estado === "VENCIDA" ? "Vencido" : "Pendiente"}</Badge>}</td>
                       <td className="col-span-2 py-1">
                         {c.pagadoEl && c.tipo === "COBRO" && !c.anuladoEl && <a href={`/admin/proyectos/imprimir/cobro/${c.id}`} className={buttonClasses("ghost", "sm")}>Constancia</a>}
-                        {!c.pagadoEl && !c.anuladoEl && c.tipo === "COBRO" && !(c.pendiente > 0) && (
+                        {!c.pagadoEl && !c.anuladoEl && c.tipo === "COBRO" && perdido && <span className="text-xs text-muted">Proyecto perdido: no se cobra</span>}
+                        {!c.pagadoEl && !c.anuladoEl && c.tipo === "COBRO" && !perdido && !(c.pendiente > 0) && (
                           c.prevista ? (
                             <span className="text-xs text-muted">Prevista (sin marcar)</span>
                           ) : (
@@ -308,7 +331,7 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
                             </div>
                           )
                         )}
-                        {!c.pagadoEl && !c.prevista && vista.editaPagos && (c.tipo !== "COBRO" || c.pendiente > 0) && (
+                        {!c.pagadoEl && !c.prevista && vista.editaPagos && admite(c.tipo) && (c.tipo !== "COBRO" || c.pendiente > 0) && (
                           <div className="flex flex-wrap items-center gap-1 sm:justify-end">
                             {/* `limpiar`: tras una parte que salió bien, el monto no queda escrito para un segundo clic. */}
                             <FormAccion accion={marcarCuota} limpiar className="flex flex-wrap items-center gap-1">
@@ -343,12 +366,12 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
         )}
         {vista.editaPagos && (
           <div className="grid gap-3 border-t border-line pt-3">
-            <details>
+            {(admite("COBRO") || vista.costos) && <details>
               <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium text-strong">Movimiento manual</summary>
-              <FormAccion accion={crearMovimientoManual} limpiar className="grid gap-2 pt-2 sm:grid-cols-3">
+              <FormAccion accion={crearMovimientoManual} limpiar claveDeEnvio className="grid gap-2 pt-2 sm:grid-cols-3">
                 <input type="hidden" name="proyectoId" value={p.id} />
-                <select name="tipo" aria-label="Tipo" defaultValue="COBRO" className={campo}>
-                  <option value="COBRO">Cobro</option>
+                <select name="tipo" aria-label="Tipo" defaultValue={perdido ? "PAGO" : "COBRO"} className={campo}>
+                  {admite("COBRO") && <option value="COBRO">Cobro</option>}
                   {vista.costos && <option value="PAGO">Pago</option>}
                 </select>
                 <input name="concepto" required maxLength={200} aria-label="Concepto" placeholder="Concepto" className={cn(campo, "sm:col-span-2")} />
@@ -361,7 +384,7 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
                 </select>
                 <SubmitButton className={buttonClasses("solid", "md")}>Agregar movimiento</SubmitButton>
               </FormAccion>
-            </details>
+            </details>}
             <FormAccion accion={recalcularCuotas}>
               <input type="hidden" name="proyectoId" value={p.id} />
               <SubmitButton className={buttonClasses("ghost", "md")}>Poner las cuotas al día</SubmitButton>
@@ -448,7 +471,11 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
       <section className={tarjeta} aria-label="Cobros">
         <h2 className="mb-1 font-semibold text-strong">Cobros</h2>
         <p className="mb-3 text-sm">
-          Aprobado {pesos(d.totalAprobado)} · Cobrado {pesos(d.cobrado)} · <strong className="text-strong">{d.totalAprobado > 0 ? `Saldo ${pesos(d.saldo)}` : "Sin presupuesto aprobado"}</strong>
+          {perdido ? (
+            <>Perdido · Cobrado {pesos(d.cobrado)} · <strong className="text-strong">No se le cobra más</strong></>
+          ) : (
+            <>Aprobado {pesos(d.totalAprobado)} · Cobrado {pesos(d.cobrado)} · <strong className="text-strong">{d.totalAprobado > 0 ? `Saldo ${pesos(d.saldo)}` : "Sin presupuesto aprobado"}</strong></>
+          )}
         </p>
         {d.pagos.length > 0 && (
           <ul className="mb-3 grid gap-1 text-sm">
@@ -460,8 +487,9 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
             ))}
           </ul>
         )}
-        {conCobros && <p className="text-sm text-muted">Los cobros de este evento se registran marcando su cuota, en la tabla de arriba.</p>}
-        {cargaDirecta && !conCobros && (
+        {perdido && <p className="text-sm text-muted">El proyecto está perdido: no se le registran cobros. Si vuelve, reabrilo y se cobra como siempre. Anular un cobro hecho sigue andando.</p>}
+        {conCobros && !perdido && <p className="text-sm text-muted">Los cobros de este evento se registran marcando su cuota, en la tabla de arriba.</p>}
+        {cargaDirecta && !conCobros && !perdido && (
           <FormAccion accion={registrarCobro} limpiar claveDeEnvio className="grid gap-2 sm:grid-cols-4">
             <input type="hidden" name="proyectoId" value={p.id} />
             {/* O41: un id por formulario; el mismo envío dos veces (doble clic, reintento) asienta un solo cobro. */}

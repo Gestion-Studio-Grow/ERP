@@ -555,3 +555,24 @@ test("SEGURIDAD: «Mover stock» apagado cierra las apps de stock del encargado;
   const raro = negocio({ role: "RECEPTION", contexto, esMostrador: true, overrides: [{ capability: "stock:read", allowed: false }] });
   assert.equal(motivoNoDisponible(appPorId("inventario"), raro), null);
 });
+
+test("MIA-089 · T: en una productora, Cuentas a cobrar y a pagar generales no existen (menú, URL e indicador); en CH siguen", () => {
+  const mods = ["proyectos", "cuentas-a-cobrar", "cuentas-a-pagar", "reports"];
+  for (const role of ["OWNER", "RECEPTION", "PROFESSIONAL"] as const) {
+    const mia = negocio({ role, blueprintId: "productora", modulosAsignados: mods });
+    const panel = appDelPanelCerrado(mia)!;
+    for (const id of ["cuentas-a-cobrar", "cuentas-a-pagar"] as const) {
+      const app = appPorId(id);
+      // Quien sí tendría el rol la pierde por el panel; los demás, ya por su rol: nadie la abre.
+      assert.equal(motivoNoDisponible(app, mia), role === "OWNER" ? "panel" : motivoNoDisponible(app, { ...mia, blueprintId: null }) ?? "panel", `${role} · ${id}`);
+      assert.notEqual(motivoNoDisponible(app, mia), null, `${role} · ${id}`);
+      // El indicador sale de las apps visibles: fuera de ellas, no hay tarjeta ni número.
+      assert.ok(!appsVisibles(mia).some((a) => a.id === id), `${role} · ${id} visible`);
+      // Por URL: el layout redirige lo que queda fuera del panel a Proyectos (layout.tsx, rutaFueraDelPanel).
+      assert.ok(rutaFueraDelPanel(app.ruta, panel), `${role} · ${app.ruta}`);
+    }
+  }
+  const ch = negocio({ role: "OWNER", modulosAsignados: mods });
+  assert.equal(appDelPanelCerrado(ch), null);
+  for (const id of ["cuentas-a-cobrar", "cuentas-a-pagar"] as const) assert.notEqual(motivoNoDisponible(appPorId(id), ch), "panel", id);
+});

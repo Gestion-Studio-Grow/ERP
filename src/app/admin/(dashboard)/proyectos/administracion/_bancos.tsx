@@ -1,7 +1,7 @@
 import { cn } from "@/components/ui";
 import { fechaCorta } from "@/lib/proyectos/core";
 import { aPesos, plataEn } from "@/lib/proyectos/gestion-core";
-import { propuestasDeConciliacion } from "@/lib/proyectos/empresa-core";
+import { ofreceMarcarConciliada, propuestasDeConciliacion } from "@/lib/proyectos/empresa-core";
 import { datosDeBancos } from "@/lib/proyectos/empresa.server";
 import { conciliarMovimiento, crearCuenta, desconciliarMovimiento, guardarSaldo } from "@/lib/proyectos/acciones-empresa";
 import { campo, etiqueta, tarjeta } from "../_vista";
@@ -94,7 +94,7 @@ export async function TabBancos({ tenantId, editaEmpresa, editaPagos }: { tenant
               {movimientos.map((m) => {
                 const propuesta = propuestas.get(m.id);
                 const cuota = m.cuota;
-                const puedeMarcar = cuota && !cuota.pagadoEl && !cuota.anuladoEl && (cuota.proyectoId ? editaPagos : editaEmpresa);
+                const puedeMarcar = cuota && ofreceMarcarConciliada(cuota, { editaPagos, editaEmpresa });
                 return (
                   <tr key={m.id} className="border-t border-line align-top">
                     <td className="whitespace-nowrap py-2 pr-3">{fechaCorta(m.fecha)}</td>
@@ -105,7 +105,7 @@ export async function TabBancos({ tenantId, editaEmpresa, editaPagos }: { tenant
                       {cuota ? (
                         <div className="grid justify-items-start gap-1">
                           <span className="text-strong">{cuota.concepto}</span>
-                          <span className="text-xs text-muted">{cuota.pagadoEl ? `Marcada el ${fechaCorta(cuota.pagadoEl)}` : "Sin marcar como pagada"}</span>
+                          <span className="text-xs text-muted">{cuota.pagadoEl ? `Marcada el ${fechaCorta(cuota.pagadoEl)}` : cuota.noSeCobra ? "Proyecto perdido: no se cobra" : "Sin marcar como pagada"}</span>
                           {puedeMarcar && <MarcarCuota id={cuota.id} deEmpresa={!cuota.proyectoId} etiqueta={cuota.tipo === "COBRO" ? "Marcar cobrada" : "Marcar pagada"} />}
                           {editaEmpresa && <BotonDosPasos accion={desconciliarMovimiento} campos={{ id: m.id }} etiqueta="Deshacer" pregunta="¿Deshacer la conciliación?" />}
                         </div>
