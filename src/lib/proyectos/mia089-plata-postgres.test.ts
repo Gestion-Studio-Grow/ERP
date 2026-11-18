@@ -18,6 +18,8 @@ import assert from "node:assert/strict";
 import pg from "pg";
 import { ejecutarAccion, prepararAccionesDeServidor } from "@/test/accion-de-servidor";
 import { apuntarLaAppA, baseEfimeraDelArchivo, prismaComoDuenio, type BaseEfimera } from "@/test/base-efimera";
+import { ETAPAS } from "./core";
+import { generaCuotas } from "./gestion-core";
 
 const laBase = baseEfimeraDelArchivo();
 const DIA = 86_400_000;
@@ -97,14 +99,17 @@ async function preparar(t: import("node:test").TestContext) {
     return (r as { valor: R }).valor;
   };
   let numero = (await duenio.proyecto.count()) + 700;
-  /** Proyecto aprobado por $ 1.210 (1.000 + IVA 21 %): anticipo del cliente 50 % = $ 605, con sus cuotas. */
-  const proyecto = async (etapa = "APROBADO") => {
+  /**
+   * Proyecto aprobado por $ 1.210 (1.000 + IVA 21 %): anticipo del cliente 50 % = $ 605, con sus cuotas. En dólares, el
+   * ítem se lista en pesos ($ 1.000.000) y la venta queda en USD al cambio del día: con 1.000, USD 1.210 y seña USD 605.
+   */
+  const proyecto = async (etapa = "APROBADO", moneda = "ARS") => {
     const p = await duenio.proyecto.create({
-      data: { tenantId: a.id, numero: ++numero, clientId: a.clientes[0], nombre: `Stand 089 ${numero}`, servicio: "ARQUITECTURA", etapa, fechaArmado: new Date(EVENTO.getTime() - 2 * DIA), fechaEvento: EVENTO, fechaDesarme: new Date(EVENTO.getTime() + DIA) },
+      data: { tenantId: a.id, numero: ++numero, clientId: a.clientes[0], nombre: `Stand 089 ${numero}`, servicio: "ARQUITECTURA", etapa, moneda, fechaArmado: new Date(EVENTO.getTime() - 2 * DIA), fechaEvento: EVENTO, fechaDesarme: new Date(EVENTO.getTime() + DIA) },
       select: { id: true },
     });
     const pres = await duenio.proyectoPresupuesto.create({ data: { tenantId: a.id, proyectoId: p.id, version: 1, estado: "APROBADO", token: `m89-${p.id}`, ivaPct: 21 }, select: { id: true } });
-    await duenio.proyectoItem.create({ data: { tenantId: a.id, presupuestoId: pres.id, rubro: "General", descripcion: "Stand", cantidad: 1, precio: 1000 } });
+    await duenio.proyectoItem.create({ data: { tenantId: a.id, presupuestoId: pres.id, rubro: "General", descripcion: "Stand", cantidad: 1, precio: moneda === "USD" ? 1_000_000 : 1000 } });
     await enSesion(() => gestion.regenerarCuotas(a.id, p.id));
     return p.id;
   };
@@ -452,4 +457,193 @@ test("N8b (MIA-094) · un gasto a mano sin pagar del proveedor que ya tiene una 
   assert.equal((await cargar(sinCuota.name)).ok, true, "un proveedor sin cuota no frena");
   // Ya pagado tampoco frena: no es deuda.
   assert.equal((await cargar(madera.name, { pagado: "on", medio: "TRANSFERENCIA" })).ok, true);
+});
+
+// ── GSG-MIA-099 · cierre del NO CUMPLE de MIA-094 (veredicto `00-ESTADO/certificacion/GSG-MIA-094.md`, «Qué falta» 1-5) ──
+
+test("T (MIA-099) · igualdad Rentabilidad = Dirección con un perdido confirmado: «Vendido» = «Facturación» y «Ganancia presupuestada» = «Margen» (decisión 1 = A, provisional a confirmar por el dueño)", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const { totalesDeRentabilidad } = await import("./empresa-core");
+  const { proyectosConNumeros, resumenDeDireccion } = await import("./empresa.server");
+  const { reporteProyectos } = await import("./datos.server");
+  const vivo = await p.proyecto("APROBADO");
+  const perdido = await p.proyecto("PRODUCCION");
+  const s = await p.anticipo(perdido);
+  assert.equal((await p.marcar(s.id)).ok, true, "el perdido tiene la seña cobrada");
+  assert.equal((await p.mover(perdido, "PERDIDO", "Eligió otro proveedor")).ok, true);
+  const ids = new Set([vivo, perdido]);
+  const rent = totalesDeRentabilidad((await p.enSesion(() => reporteProyectos())).filter((f) => ids.has(f.id)));
+  const dir = resumenDeDireccion((await p.enSesion(() => proyectosConNumeros(p.a.id))).filter((f) => ids.has(f.id)), EVENTO);
+  // A mano: cada proyecto vende 1.000 neto (el ítem de $ 1.000 sin costo); el perdido no suma.
+  assert.equal(dir.facturacion, 1000, "Dirección: sólo el confirmado vivo");
+  assert.equal(rent.neto, dir.facturacion, `«Vendido» de Rentabilidad (${rent.neto}) = «Facturación» de Dirección (${dir.facturacion})`);
+  assert.equal(rent.ganancia, dir.margen, `«Ganancia presupuestada» (${rent.ganancia}) = «Margen» de Dirección (${dir.margen})`);
+  // Lo cobrado del perdido sigue a la vista y no queda nada por cobrar (V2).
+  assert.equal(rent.porCobrar, 605, "por cobrar: la seña del vivo; el perdido, nada");
+});
+
+/** Las filas de historial «Etapa» de un proyecto, en orden. */
+const historialDeEtapa = (p: NonNullable<Awaited<ReturnType<typeof preparar>>>, id: string) =>
+  p.duenio.proyectoCambio.findMany({ where: { proyectoId: id, entidad: "Proyecto", campo: "Etapa" }, orderBy: { createdAt: "asc" }, select: { antes: true, despues: true } });
+
+test("V4 (MIA-099) · dos cambios de etapa a la vez, en los dos órdenes (5 veces cada uno), y el mismo cambio dos veces a la vez deja 1 fila de historial", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  // [primero, segundo] desde Confirmado: dos etapas con cuotas, adelante contra atrás a Lead, y perder contra mover.
+  const pares = [["PRODUCCION", "CIERRE"], ["PRODUCCION", "PEDIDO"], ["PERDIDO", "PRODUCCION"]] as const;
+  let corridas = 0;
+  for (const [x, y] of pares) {
+    for (const orden of ORDENES) {
+      const id = await p.proyecto("APROBADO");
+      const [primero, segundo] = orden ? [y, x] : [x, y];
+      const r = await enFila(p.base, p.claveCobranza(id), [primero, segundo].map((d) => () => p.mover(id, d, d === "PERDIDO" ? "carrera" : undefined)));
+      assert.ok(r.every((x) => x.ok), `${primero} y ${segundo}: los dos contestan bien ${JSON.stringify(r)}`);
+      const e = await p.etapa(id);
+      // Lo que tiene que quedar: el segundo pedido corre sobre lo que dejó el primero. Mover un perdido lo reabre en su etapa.
+      const esperado = segundo === "PERDIDO" ? { etapa: primero, perdidoEl: true } : primero === "PERDIDO" ? { etapa: "APROBADO", perdidoEl: false } : { etapa: segundo, perdidoEl: false };
+      assert.deepEqual({ etapa: e.etapa, perdidoEl: e.perdidoEl !== null }, esperado, `${primero} → ${segundo}`);
+      const h = await historialDeEtapa(p, id);
+      assert.equal(h.length, 2, `${primero} → ${segundo}: dos filas de historial`);
+      assert.equal(h[1].antes, h[0].despues?.replace(/^Perdido: .*/, "Perdido"), `${primero} → ${segundo}: el segundo vio lo que dejó el primero (en fila, no pisado)`);
+      // La etapa y las cuotas coinciden: rehacer el plan de cuotas con la etapa final no cambia nada.
+      const f = await p.foto(id);
+      await p.enSesion(() => p.gestion.regenerarCuotas(p.a.id, id));
+      assert.equal(await p.foto(id), f, `${primero} → ${segundo}: las cuotas son las de la etapa que quedó`);
+      corridas++;
+    }
+  }
+  for (const destino of ["PRODUCCION", "PERDIDO"]) {
+    for (let vuelta = 0; vuelta < 5; vuelta++) {
+      const id = await p.proyecto("APROBADO");
+      await enFila(p.base, p.claveCobranza(id), [0, 1].map(() => () => p.mover(id, destino, destino === "PERDIDO" ? "dos veces" : undefined)));
+      assert.equal((await historialDeEtapa(p, id)).length, 1, `${destino} dos veces a la vez: 1 fila de historial`);
+      const f = await p.foto(id);
+      assert.equal((await p.mover(id, destino, "otra vez")).ok, true);
+      assert.equal(await p.foto(id), f, `${destino} una tercera vez no cambia nada`);
+      assert.equal((await historialDeEtapa(p, id)).length, 1);
+      corridas++;
+    }
+  }
+  t.diagnostic(`corridas de carrera: ${corridas} (${pares.length} pares × ${ORDENES.length} + 2 × 5 del mismo cambio), todas verdes`);
+});
+
+test("V2 (MIA-099) · perdido: la deuda con un proveedor se paga sin reabrir y un cobro no se carga ni a mano (decisión 2 = A, provisional a confirmar por el dueño)", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const { PERDIDO_NO_COBRA } = await import("./ficha-core");
+  const id = await p.proyecto("APROBADO");
+  const manual = (tipo: string, concepto: string) => p.enSesion(() => p.ficha.crearMovimientoManual(p.form({ proyectoId: id, tipo, concepto, monto: "200", moneda: "ARS", venceEl: "2026-10-26" })));
+  assert.equal((await manual("PAGO", "Flete a mano")).ok, true, "antes de perder: el pago a mano");
+  assert.equal((await p.mover(id, "PERDIDO", "Se cayó la feria")).ok, true);
+  const deuda = await p.duenio.proyectoCuota.findFirstOrThrow({ where: { proyectoId: id, concepto: "Flete a mano" }, select: { id: true, anuladoEl: true } });
+  assert.equal(deuda.anuladoEl, null, "perder no anula la deuda cargada a mano");
+  // Pagar la deuda: un gasto pagado y un egreso de caja, y sale de «A pagar».
+  const r = await p.marcar(deuda.id);
+  assert.equal(r.ok, true, `se paga sin reabrir: ${JSON.stringify(r)}`);
+  assert.notEqual((await p.duenio.proyectoCuota.findUniqueOrThrow({ where: { id: deuda.id }, select: { pagadoEl: true } })).pagadoEl, null);
+  const gastos = await p.duenio.proyectoGasto.findMany({ where: { proyectoId: id, pagadoEl: { not: null } }, select: { id: true, neto: true } });
+  assert.deepEqual(gastos.map((g) => g.neto), [200], "un gasto pagado por lo que se debía");
+  assert.equal(await p.duenio.cashMovement.count({ where: { proyectoGastoId: gastos[0].id, type: "EGRESO" } }), 1, "un solo egreso en caja");
+  const adm = await p.administracion();
+  assert.equal(adm.cuotas.filter((c) => c.proyectoId === id).reduce((x, c) => x + c.pendiente, 0), 0, "Administración: no queda nada pendiente del perdido");
+  // Un cobro a mano en un perdido: el servidor lo rechaza con el mismo cartel que «Registrar cobro», y no graba nada.
+  const cuotas = await p.duenio.proyectoCuota.count({ where: { proyectoId: id } });
+  const cobro = await manual("COBRO", "Penalidad");
+  assert.equal(cobro.ok, false);
+  assert.equal((cobro as { error: string }).error, PERDIDO_NO_COBRA);
+  assert.equal(await p.duenio.proyectoCuota.count({ where: { proyectoId: id } }), cuotas, "0 cuotas nuevas");
+  // Una deuda nueva con un proveedor sí se carga (es plata que se debe igual).
+  assert.equal((await manual("PAGO", "Flete de vuelta")).ok, true);
+});
+
+test("V2 (MIA-099) · anular un cobro de un perdido: vuelve la plata, la caja tiene su contraasiento y sigue sin quedar nada por cobrar", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const id = await p.proyecto("APROBADO");
+  const s = await p.anticipo(id);
+  assert.equal((await p.marcar(s.id)).ok, true);
+  assert.equal((await p.mover(id, "PERDIDO", "Eligió otro proveedor")).ok, true);
+  const pago = await p.duenio.proyectoPago.findFirstOrThrow({ where: { proyectoId: id }, select: { id: true, monto: true } });
+  assert.equal(pago.monto, 605);
+  const r = await p.enSesion(() => p.ficha.anularCobroFicha(p.form({ id: pago.id })));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.notEqual((await p.duenio.proyectoPago.findUniqueOrThrow({ where: { id: pago.id }, select: { anuladoEl: true } })).anuladoEl, null);
+  const caja = await p.duenio.cashMovement.findMany({ where: { proyectoPagoId: pago.id }, orderBy: { createdAt: "asc" }, select: { type: true, amount: true } });
+  assert.deepEqual(caja.map((m) => [m.type, m.amount]), [["VENTA", 605], ["EGRESO", 605]], "el cobro y su contraasiento");
+  assert.equal(await p.porCobrar(id), 0, "fuente única: sigue sin nada por cobrar");
+  const fila = await p.rentabilidad(id);
+  assert.deepEqual({ cobrado: fila.cobrado, porCobrar: fila.porCobrar }, { cobrado: 0, porCobrar: 0 });
+  assert.equal((await p.direccion(id)).cobrado, 0);
+  const adm = await p.administracion();
+  assert.equal(adm.cuotas.filter((c) => c.proyectoId === id && c.tipo === "COBRO").reduce((x, c) => x + c.pendiente, 0), 0, "Administración: la seña no revive como deuda");
+  assert.equal((await p.etapa(id)).perdidoEl !== null, true, "sigue perdido");
+});
+
+test("V3 (MIA-099) · perdido en cada etapa (con y sin seña cobrada donde hay cuotas) y reabierto por la ficha y por el tablero: misma etapa y mismas cuotas", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  let casos = 0;
+  for (const etapa of ETAPAS) {
+    for (const cobrada of generaCuotas(etapa) ? [false, true] : [false]) {
+      for (const por of ["ficha", "tablero"] as const) {
+        const id = await p.proyecto(etapa);
+        if (cobrada) assert.equal((await p.marcar((await p.anticipo(id)).id)).ok, true);
+        const antes = await p.foto(id);
+        assert.equal((await p.mover(id, "PERDIDO", "Se cayó")).ok, true);
+        // La ficha manda la etapa guardada; el tablero, la columna donde se suelta (otra).
+        const destino = por === "ficha" ? etapa : etapa === "CIERRE" ? "PEDIDO" : "CIERRE";
+        assert.equal((await p.mover(id, destino)).ok, true);
+        assert.deepEqual(await p.etapa(id), { etapa, perdidoEl: null }, `${etapa}${cobrada ? " con seña cobrada" : ""}, por ${por}`);
+        assert.equal(await p.foto(id), antes, `${etapa}${cobrada ? " con seña cobrada" : ""}, por ${por}: las cuotas de antes`);
+        casos++;
+      }
+    }
+  }
+  t.diagnostic(`casos: ${casos}`);
+});
+
+test("V8a (MIA-099) · con un pago a proveedor en dólares ya hecho, cambiar el tipo de cambio no toca el gasto, la caja ni la cuota pagada", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const id = await p.proyecto();
+  const prov = await p.duenio.supplier.create({ data: { tenantId: p.a.id, name: `Proveedor V8a ${id.slice(-6)}` }, select: { id: true } });
+  const pres = await p.duenio.proyectoPresupuesto.findFirstOrThrow({ where: { proyectoId: id }, select: { id: true } });
+  await p.duenio.proyectoItem.create({ data: { tenantId: p.a.id, presupuestoId: pres.id, rubro: "Carpintería", descripcion: "Madera", cantidad: 1, costo: 400, precio: 0, moneda: "USD", supplierId: prov.id } });
+  await p.enSesion(() => p.empresa.guardarTipoCambio(p.form({ porUnidad: "1000" })));
+  await p.enSesion(() => p.gestion.regenerarCuotas(p.a.id, id));
+  const cuota = await p.duenio.proyectoCuota.findFirstOrThrow({ where: { proyectoId: id, tipo: "PAGO", anuladoEl: null, pagadoEl: null, prevista: false }, orderBy: { venceEl: "asc" }, select: { id: true, moneda: true } });
+  assert.equal(cuota.moneda, "USD", "precondición: la cuota a proveedor está en dólares");
+  assert.equal((await p.marcar(cuota.id)).ok, true);
+  const plata = async () =>
+    JSON.stringify({
+      gastos: await p.duenio.proyectoGasto.findMany({ where: { proyectoId: id }, orderBy: { id: "asc" }, select: { id: true, neto: true, iva: true, pagadoEl: true, anuladoEl: true } }),
+      caja: await p.duenio.cashMovement.findMany({ where: { proyectoGasto: { proyectoId: id } }, orderBy: { id: "asc" }, select: { id: true, amount: true, type: true } }),
+      pagadas: await p.duenio.proyectoCuota.findMany({ where: { proyectoId: id, pagadoEl: { not: null } }, orderBy: { id: "asc" }, select: { id: true, monto: true, moneda: true, venceEl: true, pagadoEl: true } }),
+    });
+  const antes = await plata();
+  assert.match(antes, /"amount":\d/, "hay un egreso asentado");
+  assert.equal((await p.enSesion(() => p.empresa.guardarTipoCambio(p.form({ porUnidad: "1250" })))).ok, true);
+  assert.equal(await plata(), antes);
+});
+
+test("V2 (MIA-099) · perdido en dólares con la seña cobrada: nada por cobrar y el mismo cobrado en la fuente, Administración, Rentabilidad y Dirección", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  await p.enSesion(() => p.empresa.guardarTipoCambio(p.form({ porUnidad: "1000" })));
+  const id = await p.proyecto("APROBADO", "USD");
+  const s = await p.anticipo(id);
+  assert.equal((await p.marcar(s.id)).ok, true);
+  const cobradoEnPesos = (await p.duenio.proyectoPago.findFirstOrThrow({ where: { proyectoId: id }, select: { monto: true } })).monto;
+  assert.equal(cobradoEnPesos, 605_000, "a mano: USD 605 × 1.000");
+  assert.equal((await p.mover(id, "PERDIDO", "Eligió otro proveedor")).ok, true);
+  assert.equal(await p.porCobrar(id), 0, "fuente única");
+  const adm = await p.administracion();
+  assert.equal(adm.cuotas.filter((c) => c.proyectoId === id && c.tipo === "COBRO").reduce((x, c) => x + c.pendiente, 0) + adm.sinCalendario.filter((f) => f.proyectoId === id).reduce((x, f) => x + f.pesos, 0), 0, "Administración");
+  const fila = await p.rentabilidad(id);
+  const dir = await p.direccion(id);
+  assert.deepEqual({ porCobrar: fila.porCobrar, saldo: fila.saldo }, { porCobrar: 0, saldo: 0 }, "Rentabilidad");
+  assert.equal(dir.vencido, 0, "Dirección: sin cobros vencidos");
+  assert.equal(fila.cobrado, dir.cobrado, `cobrado: Rentabilidad ${fila.cobrado} = Dirección ${dir.cobrado}`);
+  assert.equal(fila.cobrado, cobradoEnPesos, "al mismo cambio, lo cobrado en pesos es lo que entró a la caja");
 });

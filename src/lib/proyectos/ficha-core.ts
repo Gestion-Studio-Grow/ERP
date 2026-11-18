@@ -262,3 +262,8 @@ export function cambioVisible(c: { entidad: string; campo: string }, permisos: {
   if (!permisos.costos && CAMPOS_DE_COSTO.some((k) => c.campo.startsWith(k))) return false;
   return true;
 }
+
+/** «Avance de cobro» del Estado financiero de la ficha, 0 a 100: lo cobrado sobre lo cobrado más lo que falta cobrar. */
+export function avanceDeCobro(f: { cobrado: number; aCobrar: number } | null | undefined): number {
+  return f && f.cobrado + f.aCobrar > 0 ? (f.cobrado / (f.cobrado + f.aCobrar)) * 100 : 0;
+}

@@ -6,7 +6,7 @@ import SubmitButton from "@/components/SubmitButton";
 import { agregarTarea, alternarTarea, borrarTarea } from "@/lib/proyectos/acciones";
 import { agregarChecklist, alternarChecklist, asignarEquipo, borrarChecklist, cargarPlantillaChecklist, generarPortal, guardarDatos, nuevaVersion, quitarEquipo, revocarPortal } from "@/lib/proyectos/acciones-ficha";
 import { fechaCorta, fechaParaInput, MEDIO_LABEL, pesos, porcentaje, sePuedeEditar, yaVencio, type MedioPago } from "@/lib/proyectos/core";
-import { conteoPorEstado } from "@/lib/proyectos/ficha-core";
+import { avanceDeCobro, conteoPorEstado } from "@/lib/proyectos/ficha-core";
 import { cambioDeVenta, ESTADOS_ITEM, ESTADO_ITEM_LABEL, MONEDAS, plataEn, TIPOS_EVENTO, ventaEn } from "@/lib/proyectos/gestion-core";
 import { datosFicha, datosHistorial, datosResumen, datosSeguimiento, type Cabecera, type Vista } from "@/lib/proyectos/ficha.server";
 import { prisma } from "@/lib/prisma";
@@ -38,7 +38,7 @@ export async function PestanaResumen({ a, cab, vista }: { a: Actor; cab: Cabecer
   const { personas, finanzas, cantCuotas, cantChecklist } = await datosResumen(a, cab, vista);
   // Etapa 2: el portal del cliente se prende por negocio (apagado por defecto): si está apagado, no se ofrece el link.
   const conPortal = await etapa2ActivaPara(a.tenantId, "portal");
-  const avance = finanzas && finanzas.cobrado + finanzas.aCobrar > 0 ? (finanzas.cobrado / (finanzas.cobrado + finanzas.aCobrar)) * 100 : 0;
+  const avance = avanceDeCobro(finanzas);
   const libres = personas.filter((x) => !p.equipo.some((e) => e.personaId === x.id));
   const clientes = vista.pipelineEdita ? await prisma.client.findMany({ where: { tenantId: a.tenantId }, orderBy: { name: "asc" }, take: 500, select: { id: true, name: true } }) : [];
 

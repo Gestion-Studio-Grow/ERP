@@ -274,3 +274,24 @@ export function propuestasDeConciliacion<T extends CuotaLeida & { id: string }>(
   }
   return salida;
 }
+
+// ── Rentabilidad ────────────────────────────────────────────────────────────
+
+/**
+ * Los recuadros de Rentabilidad, sumados de sus filas (T, MIA-089): «Vendido (neto, aprobado)», «Ganancia presupuestada»
+ * y «Ganancia real» suman los proyectos con presupuesto aprobado; «Por cobrar» y «Por pagar a proveedores», todos.
+ */
+export function totalesDeRentabilidad(
+  filas: readonly { perdidoEl: Date | null; t: { neto: number; ganancia: number } | null; real: { gananciaReal: number | null; porPagar: number }; porCobrar: number }[],
+) {
+  const con = filas.filter((f) => f.t);
+  const suma = (lista: readonly (typeof filas)[number][], g: (f: (typeof filas)[number]) => number) => redondear(lista.reduce((s, f) => s + g(f), 0));
+  return {
+    neto: suma(con, (f) => f.t!.neto),
+    ganancia: suma(con, (f) => f.t!.ganancia),
+    gananciaReal: suma(con, (f) => f.real.gananciaReal ?? 0),
+    conGastos: con.filter((f) => f.real.gananciaReal !== null).length,
+    porCobrar: suma(filas, (f) => f.porCobrar),
+    porPagar: suma(filas, (f) => f.real.porPagar),
+  };
+}
