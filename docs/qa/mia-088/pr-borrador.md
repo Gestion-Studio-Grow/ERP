@@ -1,4 +1,4 @@
-> Borrador contra `mia-083/administracion` (77f1a6ba). Sin merge, sin Vercel, sin Neon, sin `prisma/`. La integración la hace GSG-PLAT-024. Cabeza 4909727 (`mia-088/permisos`): WIP de MIA-088, #188 (87e8f1e9), A1 de DIR-007 y H1/H2 (MIA-091), cierre de MIA-096.
+> Borrador contra `mia-083/administracion` (77f1a6ba). Sin merge, sin Vercel, sin Neon. Sin cambios propios en `prisma/`: el diff contra 77f1a6ba trae 2 migraciones (`20261117120000_consola_cuadrilla`, `20261117130000_cuadrilla_correcciones`) y el `schema.prisma` (+101, −0) por la unión con #188 (87e8f1e9), tal como vienen, aditivas y SIN APLICAR (Gate 2 del dueño). La integración la hace GSG-PLAT-024. Cabeza 4909727 (`mia-088/permisos`): WIP de MIA-088, #188 (87e8f1e9), A1 de DIR-007 y H1/H2 (MIA-091), cierre de MIA-096.
 
 ## Qué cambia y por qué
 
@@ -116,7 +116,7 @@ Proyectos y Administración (gestión de eventos) / ERP · MIA (productora de ev
 - [x] Reglas puras en `gestion-core.ts` con test; puertas en el servidor; `tenantTransaction` y RLS sin evadir. Deuda anotada arriba.
 
 ### 4. Confiabilidad de Producción
-- [x] tsc 0, tests 18/18 y suite sin rojos nuevos, build 0 (en 4909727). Aislamiento por negocio probado con dos negocios. Sin migraciones.
+- [x] tsc 0, tests 18/18 y suite sin rojos nuevos, build 0 (en 4909727). Aislamiento por negocio probado con dos negocios. Sin migraciones propias; las 2 de #188 (aditivas, sin aplicar: Gate 2 del dueño) entran por la unión con 87e8f1e9.
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
